@@ -8,6 +8,7 @@ import EvmAsm.Execution
 import EvmAsm.SepLogic
 import EvmAsm.CPSSpec
 import EvmAsm.ControlFlow
+import EvmAsm.InstructionSpecs
 
 namespace EvmAsm.Examples
 
@@ -34,11 +35,16 @@ example : (execProgram zeroTestState (zero .x10)).getReg .x10 = 0 := by
 -- CPS-style Hoare triple for zero
 -- ============================================================================
 
-/-- CPS-style specification: zeroing a register in one step. -/
+/-- CPS-style specification: zeroing a register in one step.
+    Requires instrAt for the SUB instruction at the base address. -/
 theorem zero_cpsTriple (rd : Reg) (v : Word) (hrd : rd ≠ .x0) (base : Addr) :
     cpsTriple base (base + 4)
-      (rd ↦ᵣ v)
-      (rd ↦ᵣ 0) := by
-  sorry
+      ((base ↦ᵢ .SUB rd rd rd) ** (rd ↦ᵣ v))
+      ((base ↦ᵢ .SUB rd rd rd) ** (rd ↦ᵣ 0)) := by
+  have h := sub_spec_all_same rd v base hrd
+  exact cpsTriple_consequence _ _ _ _ _ _
+    (fun _ hp => hp)
+    (fun h hq => by simp only [BitVec.sub_self] at hq; exact hq)
+    h
 
 end EvmAsm.Examples

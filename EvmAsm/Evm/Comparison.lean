@@ -8,6 +8,10 @@
 
 import EvmAsm.Evm.Stack
 import EvmAsm.CPSSpec
+import EvmAsm.SyscallSpecs
+import EvmAsm.Tactics.XSimp
+
+open EvmAsm.Tactics
 
 namespace EvmAsm
 
@@ -171,11 +175,43 @@ theorem lt_limb0_spec (off_a off_b : BitVec 12)
     let mem_b := sp + signExtend12 off_b
     let borrow := if BitVec.ult a_limb b_limb then (1 : Word) else 0
     cpsTriple base (base + 12)
-      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) ** (.x5 ↦ᵣ v5) **
+      ((base ↦ᵢ .LW .x7 .x12 off_a) ** ((base + 4) ↦ᵢ .LW .x6 .x12 off_b) **
+       ((base + 8) ↦ᵢ .SLTU .x5 .x7 .x6) **
+       (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) ** (.x5 ↦ᵣ v5) **
        (mem_a ↦ₘ a_limb) ** (mem_b ↦ₘ b_limb))
-      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ a_limb) ** (.x6 ↦ᵣ b_limb) ** (.x5 ↦ᵣ borrow) **
+      ((base ↦ᵢ .LW .x7 .x12 off_a) ** ((base + 4) ↦ᵢ .LW .x6 .x12 off_b) **
+       ((base + 8) ↦ᵢ .SLTU .x5 .x7 .x6) **
+       (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ a_limb) ** (.x6 ↦ᵣ b_limb) ** (.x5 ↦ᵣ borrow) **
        (mem_a ↦ₘ a_limb) ** (mem_b ↦ₘ b_limb)) := by
-  sorry
+  have ha1 : (base + 4 : Addr) + 4 = base + 8 := by bv_omega
+  have ha2 : (base + 8 : Addr) + 4 = base + 12 := by bv_omega
+  -- Step 1: LW x7 x12 off_a at base
+  have s1 := cpsTriple_frame_left _ _ _ _
+    (((base + 4) ↦ᵢ .LW .x6 .x12 off_b) ** ((base + 8) ↦ᵢ .SLTU .x5 .x7 .x6) **
+     (.x6 ↦ᵣ v6) ** (.x5 ↦ᵣ v5) ** ((sp + signExtend12 off_b) ↦ₘ b_limb))
+    (by pcFree) (lw_spec_gen .x7 .x12 sp v7 a_limb off_a base (by nofun) hvalid_a)
+  -- Step 2: LW x6 x12 off_b at base+4
+  have s2_raw := lw_spec_gen .x6 .x12 sp v6 b_limb off_b (base + 4) (by nofun) hvalid_b
+  rw [ha1] at s2_raw
+  have s2 := cpsTriple_frame_left _ _ _ _
+    ((base ↦ᵢ .LW .x7 .x12 off_a) ** ((base + 8) ↦ᵢ .SLTU .x5 .x7 .x6) **
+     (.x7 ↦ᵣ a_limb) ** (.x5 ↦ᵣ v5) ** ((sp + signExtend12 off_a) ↦ₘ a_limb))
+    (by pcFree) s2_raw
+  have s12 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
+    (fun h hp => by xperm_hyp hp) s1 s2
+  clear s1 s2 s2_raw
+  -- Step 3: SLTU x5 x7 x6 at base+8 (3 distinct registers)
+  have s3_raw := sltu_spec_gen .x5 .x7 .x6 v5 a_limb b_limb (base + 8) (by nofun)
+  rw [ha2] at s3_raw
+  have s3 := cpsTriple_frame_left _ _ _ _
+    ((base ↦ᵢ .LW .x7 .x12 off_a) ** ((base + 4) ↦ᵢ .LW .x6 .x12 off_b) **
+     (.x12 ↦ᵣ sp) **
+     ((sp + signExtend12 off_a) ↦ₘ a_limb) ** ((sp + signExtend12 off_b) ↦ₘ b_limb))
+    (by pcFree) s3_raw
+  exact cpsTriple_consequence _ _ _ _ _ _
+    (fun h hp => by xperm_hyp hp) (fun h hq => by xperm_hyp hq)
+    (cpsTriple_seq_with_perm _ _ _ _ _ _ _
+      (fun h hp => by xperm_hyp hp) s12 s3)
 
 /-- LT carry limb spec (6 instructions): LW, LW, SLTU, SUB, SLTU, OR.
     Propagates borrow without storing result. Memory is NOT modified.
@@ -192,11 +228,101 @@ theorem lt_limb_carry_spec (off_a off_b : BitVec 12)
     let borrow2 := if BitVec.ult temp borrow_in then (1 : Word) else 0
     let borrow_out := borrow1 ||| borrow2
     cpsTriple base (base + 24)
-      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) ** (.x5 ↦ᵣ borrow_in) ** (.x11 ↦ᵣ v11) **
+      ((base ↦ᵢ .LW .x7 .x12 off_a) ** ((base + 4) ↦ᵢ .LW .x6 .x12 off_b) **
+       ((base + 8) ↦ᵢ .SLTU .x11 .x7 .x6) ** ((base + 12) ↦ᵢ .SUB .x7 .x7 .x6) **
+       ((base + 16) ↦ᵢ .SLTU .x6 .x7 .x5) ** ((base + 20) ↦ᵢ .OR .x5 .x11 .x6) **
+       (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) ** (.x5 ↦ᵣ borrow_in) ** (.x11 ↦ᵣ v11) **
        (mem_a ↦ₘ a_limb) ** (mem_b ↦ₘ b_limb))
-      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ temp) ** (.x6 ↦ᵣ borrow2) ** (.x5 ↦ᵣ borrow_out) ** (.x11 ↦ᵣ borrow1) **
+      ((base ↦ᵢ .LW .x7 .x12 off_a) ** ((base + 4) ↦ᵢ .LW .x6 .x12 off_b) **
+       ((base + 8) ↦ᵢ .SLTU .x11 .x7 .x6) ** ((base + 12) ↦ᵢ .SUB .x7 .x7 .x6) **
+       ((base + 16) ↦ᵢ .SLTU .x6 .x7 .x5) ** ((base + 20) ↦ᵢ .OR .x5 .x11 .x6) **
+       (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ temp) ** (.x6 ↦ᵣ borrow2) ** (.x5 ↦ᵣ borrow_out) ** (.x11 ↦ᵣ borrow1) **
        (mem_a ↦ₘ a_limb) ** (mem_b ↦ₘ b_limb)) := by
-  sorry
+  have ha1 : (base + 4 : Addr) + 4 = base + 8 := by bv_omega
+  have ha2 : (base + 8 : Addr) + 4 = base + 12 := by bv_omega
+  have ha3 : (base + 12 : Addr) + 4 = base + 16 := by bv_omega
+  have ha4 : (base + 16 : Addr) + 4 = base + 20 := by bv_omega
+  have ha5 : (base + 20 : Addr) + 4 = base + 24 := by bv_omega
+  -- Step 1: LW x7 x12 off_a at base
+  have s1 := cpsTriple_frame_left _ _ _ _
+    (((base + 4) ↦ᵢ .LW .x6 .x12 off_b) ** ((base + 8) ↦ᵢ .SLTU .x11 .x7 .x6) **
+     ((base + 12) ↦ᵢ .SUB .x7 .x7 .x6) ** ((base + 16) ↦ᵢ .SLTU .x6 .x7 .x5) **
+     ((base + 20) ↦ᵢ .OR .x5 .x11 .x6) **
+     (.x6 ↦ᵣ v6) ** (.x5 ↦ᵣ borrow_in) ** (.x11 ↦ᵣ v11) **
+     ((sp + signExtend12 off_b) ↦ₘ b_limb))
+    (by pcFree) (lw_spec_gen .x7 .x12 sp v7 a_limb off_a base (by nofun) hvalid_a)
+  -- Step 2: LW x6 x12 off_b at base+4
+  have s2_raw := lw_spec_gen .x6 .x12 sp v6 b_limb off_b (base + 4) (by nofun) hvalid_b
+  rw [ha1] at s2_raw
+  have s2 := cpsTriple_frame_left _ _ _ _
+    ((base ↦ᵢ .LW .x7 .x12 off_a) ** ((base + 8) ↦ᵢ .SLTU .x11 .x7 .x6) **
+     ((base + 12) ↦ᵢ .SUB .x7 .x7 .x6) ** ((base + 16) ↦ᵢ .SLTU .x6 .x7 .x5) **
+     ((base + 20) ↦ᵢ .OR .x5 .x11 .x6) **
+     (.x7 ↦ᵣ a_limb) ** (.x5 ↦ᵣ borrow_in) ** (.x11 ↦ᵣ v11) **
+     ((sp + signExtend12 off_a) ↦ₘ a_limb))
+    (by pcFree) s2_raw
+  have s12 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
+    (fun h hp => by xperm_hyp hp) s1 s2
+  clear s1 s2 s2_raw
+  -- Step 3: SLTU x11 x7 x6 at base+8 (rd=x11, rs1=x7, rs2=x6, 3 distinct)
+  have s3_raw := sltu_spec_gen .x11 .x7 .x6 v11 a_limb b_limb (base + 8) (by nofun)
+  rw [ha2] at s3_raw
+  have s3 := cpsTriple_frame_left _ _ _ _
+    ((base ↦ᵢ .LW .x7 .x12 off_a) ** ((base + 4) ↦ᵢ .LW .x6 .x12 off_b) **
+     ((base + 12) ↦ᵢ .SUB .x7 .x7 .x6) ** ((base + 16) ↦ᵢ .SLTU .x6 .x7 .x5) **
+     ((base + 20) ↦ᵢ .OR .x5 .x11 .x6) **
+     (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ borrow_in) **
+     ((sp + signExtend12 off_a) ↦ₘ a_limb) ** ((sp + signExtend12 off_b) ↦ₘ b_limb))
+    (by pcFree) s3_raw
+  have s123 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
+    (fun h hp => by xperm_hyp hp) s12 s3
+  clear s12 s3 s3_raw
+  -- Step 4: SUB x7 x7 x6 at base+12 (rd=x7=rs1, rs2=x6)
+  have s4_raw := sub_spec_gen_rd_eq_rs1 .x7 .x6 a_limb b_limb (base + 12) (by nofun) (by nofun)
+  rw [ha3] at s4_raw
+  have s4 := cpsTriple_frame_left _ _ _ _
+    ((base ↦ᵢ .LW .x7 .x12 off_a) ** ((base + 4) ↦ᵢ .LW .x6 .x12 off_b) **
+     ((base + 8) ↦ᵢ .SLTU .x11 .x7 .x6) ** ((base + 16) ↦ᵢ .SLTU .x6 .x7 .x5) **
+     ((base + 20) ↦ᵢ .OR .x5 .x11 .x6) **
+     (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ borrow_in) **
+     (.x11 ↦ᵣ (if BitVec.ult a_limb b_limb then (1 : Word) else 0)) **
+     ((sp + signExtend12 off_a) ↦ₘ a_limb) ** ((sp + signExtend12 off_b) ↦ₘ b_limb))
+    (by pcFree) s4_raw
+  have s1234 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
+    (fun h hp => by xperm_hyp hp) s123 s4
+  clear s123 s4 s4_raw
+  -- Step 5: SLTU x6 x7 x5 at base+16 (rd=x6, rs1=x7, rs2=x5, 3 distinct)
+  have s5_raw := sltu_spec_gen .x6 .x7 .x5 b_limb (a_limb - b_limb) borrow_in (base + 16) (by nofun)
+  rw [ha4] at s5_raw
+  have s5 := cpsTriple_frame_left _ _ _ _
+    ((base ↦ᵢ .LW .x7 .x12 off_a) ** ((base + 4) ↦ᵢ .LW .x6 .x12 off_b) **
+     ((base + 8) ↦ᵢ .SLTU .x11 .x7 .x6) ** ((base + 12) ↦ᵢ .SUB .x7 .x7 .x6) **
+     ((base + 20) ↦ᵢ .OR .x5 .x11 .x6) **
+     (.x12 ↦ᵣ sp) **
+     (.x11 ↦ᵣ (if BitVec.ult a_limb b_limb then (1 : Word) else 0)) **
+     ((sp + signExtend12 off_a) ↦ₘ a_limb) ** ((sp + signExtend12 off_b) ↦ₘ b_limb))
+    (by pcFree) s5_raw
+  have s12345 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
+    (fun h hp => by xperm_hyp hp) s1234 s5
+  clear s1234 s5 s5_raw
+  -- Step 6: OR x5 x11 x6 at base+20 (rd=x5, rs1=x11, rs2=x6, 3 distinct)
+  have s6_raw := or_spec_gen .x5 .x11 .x6
+    borrow_in
+    (if BitVec.ult a_limb b_limb then (1 : Word) else 0)
+    (if BitVec.ult (a_limb - b_limb) borrow_in then (1 : Word) else 0)
+    (base + 20) (by nofun)
+  rw [ha5] at s6_raw
+  have s6 := cpsTriple_frame_left _ _ _ _
+    ((base ↦ᵢ .LW .x7 .x12 off_a) ** ((base + 4) ↦ᵢ .LW .x6 .x12 off_b) **
+     ((base + 8) ↦ᵢ .SLTU .x11 .x7 .x6) ** ((base + 12) ↦ᵢ .SUB .x7 .x7 .x6) **
+     ((base + 16) ↦ᵢ .SLTU .x6 .x7 .x5) **
+     (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ (a_limb - b_limb)) **
+     ((sp + signExtend12 off_a) ↦ₘ a_limb) ** ((sp + signExtend12 off_b) ↦ₘ b_limb))
+    (by pcFree) s6_raw
+  exact cpsTriple_consequence _ _ _ _ _ _
+    (fun h hp => by xperm_hyp hp) (fun h hq => by xperm_hyp hq)
+    (cpsTriple_seq_with_perm _ _ _ _ _ _ _
+      (fun h hp => by xperm_hyp hp) s12345 s6)
 
 -- ============================================================================
 -- Per-limb Specs: EQ (XOR + OR accumulation)
@@ -211,11 +337,43 @@ theorem eq_limb0_spec (off_a off_b : BitVec 12)
     let mem_a := sp + signExtend12 off_a
     let mem_b := sp + signExtend12 off_b
     cpsTriple base (base + 12)
-      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) **
+      ((base ↦ᵢ .LW .x7 .x12 off_a) ** ((base + 4) ↦ᵢ .LW .x6 .x12 off_b) **
+       ((base + 8) ↦ᵢ .XOR .x7 .x7 .x6) **
+       (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) **
        (mem_a ↦ₘ a_limb) ** (mem_b ↦ₘ b_limb))
-      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ (a_limb ^^^ b_limb)) ** (.x6 ↦ᵣ b_limb) **
+      ((base ↦ᵢ .LW .x7 .x12 off_a) ** ((base + 4) ↦ᵢ .LW .x6 .x12 off_b) **
+       ((base + 8) ↦ᵢ .XOR .x7 .x7 .x6) **
+       (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ (a_limb ^^^ b_limb)) ** (.x6 ↦ᵣ b_limb) **
        (mem_a ↦ₘ a_limb) ** (mem_b ↦ₘ b_limb)) := by
-  sorry
+  have ha1 : (base + 4 : Addr) + 4 = base + 8 := by bv_omega
+  have ha2 : (base + 8 : Addr) + 4 = base + 12 := by bv_omega
+  -- Step 1: LW x7 x12 off_a at base
+  have s1 := cpsTriple_frame_left _ _ _ _
+    (((base + 4) ↦ᵢ .LW .x6 .x12 off_b) ** ((base + 8) ↦ᵢ .XOR .x7 .x7 .x6) **
+     (.x6 ↦ᵣ v6) ** ((sp + signExtend12 off_b) ↦ₘ b_limb))
+    (by pcFree) (lw_spec_gen .x7 .x12 sp v7 a_limb off_a base (by nofun) hvalid_a)
+  -- Step 2: LW x6 x12 off_b at base+4
+  have s2_raw := lw_spec_gen .x6 .x12 sp v6 b_limb off_b (base + 4) (by nofun) hvalid_b
+  rw [ha1] at s2_raw
+  have s2 := cpsTriple_frame_left _ _ _ _
+    ((base ↦ᵢ .LW .x7 .x12 off_a) ** ((base + 8) ↦ᵢ .XOR .x7 .x7 .x6) **
+     (.x7 ↦ᵣ a_limb) ** ((sp + signExtend12 off_a) ↦ₘ a_limb))
+    (by pcFree) s2_raw
+  have s12 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
+    (fun h hp => by xperm_hyp hp) s1 s2
+  clear s1 s2 s2_raw
+  -- Step 3: XOR x7 x7 x6 at base+8
+  have s3_raw := xor_spec_gen_rd_eq_rs1 .x7 .x6 a_limb b_limb (base + 8) (by nofun) (by nofun)
+  rw [ha2] at s3_raw
+  have s3 := cpsTriple_frame_left _ _ _ _
+    ((base ↦ᵢ .LW .x7 .x12 off_a) ** ((base + 4) ↦ᵢ .LW .x6 .x12 off_b) **
+     (.x12 ↦ᵣ sp) **
+     ((sp + signExtend12 off_a) ↦ₘ a_limb) ** ((sp + signExtend12 off_b) ↦ₘ b_limb))
+    (by pcFree) s3_raw
+  exact cpsTriple_consequence _ _ _ _ _ _
+    (fun h hp => by xperm_hyp hp) (fun h hq => by xperm_hyp hq)
+    (cpsTriple_seq_with_perm _ _ _ _ _ _ _
+      (fun h hp => by xperm_hyp hp) s12 s3)
 
 /-- EQ OR-limb spec (4 instructions): LW x6, LW x5, XOR x6 x6 x5, OR x7 x7 x6.
     Loads a_k into x6, b_k into x5, XORs them (x6 := a_k XOR b_k),
@@ -228,10 +386,58 @@ theorem eq_or_limb_spec (off_a off_b : BitVec 12)
     let mem_b := sp + signExtend12 off_b
     let xor_k := a_limb ^^^ b_limb
     cpsTriple base (base + 16)
-      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ acc) ** (.x6 ↦ᵣ v6) ** (.x5 ↦ᵣ v5) **
+      ((base ↦ᵢ .LW .x6 .x12 off_a) ** ((base + 4) ↦ᵢ .LW .x5 .x12 off_b) **
+       ((base + 8) ↦ᵢ .XOR .x6 .x6 .x5) ** ((base + 12) ↦ᵢ .OR .x7 .x7 .x6) **
+       (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ acc) ** (.x6 ↦ᵣ v6) ** (.x5 ↦ᵣ v5) **
        (mem_a ↦ₘ a_limb) ** (mem_b ↦ₘ b_limb))
-      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ (acc ||| xor_k)) ** (.x6 ↦ᵣ xor_k) ** (.x5 ↦ᵣ b_limb) **
+      ((base ↦ᵢ .LW .x6 .x12 off_a) ** ((base + 4) ↦ᵢ .LW .x5 .x12 off_b) **
+       ((base + 8) ↦ᵢ .XOR .x6 .x6 .x5) ** ((base + 12) ↦ᵢ .OR .x7 .x7 .x6) **
+       (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ (acc ||| xor_k)) ** (.x6 ↦ᵣ xor_k) ** (.x5 ↦ᵣ b_limb) **
        (mem_a ↦ₘ a_limb) ** (mem_b ↦ₘ b_limb)) := by
-  sorry
+  have ha1 : (base + 4 : Addr) + 4 = base + 8 := by bv_omega
+  have ha2 : (base + 8 : Addr) + 4 = base + 12 := by bv_omega
+  have ha3 : (base + 12 : Addr) + 4 = base + 16 := by bv_omega
+  -- Step 1: LW x6 x12 off_a at base
+  have s1 := cpsTriple_frame_left _ _ _ _
+    (((base + 4) ↦ᵢ .LW .x5 .x12 off_b) ** ((base + 8) ↦ᵢ .XOR .x6 .x6 .x5) **
+     ((base + 12) ↦ᵢ .OR .x7 .x7 .x6) **
+     (.x7 ↦ᵣ acc) ** (.x5 ↦ᵣ v5) ** ((sp + signExtend12 off_b) ↦ₘ b_limb))
+    (by pcFree) (lw_spec_gen .x6 .x12 sp v6 a_limb off_a base (by nofun) hvalid_a)
+  -- Step 2: LW x5 x12 off_b at base+4
+  have s2_raw := lw_spec_gen .x5 .x12 sp v5 b_limb off_b (base + 4) (by nofun) hvalid_b
+  rw [ha1] at s2_raw
+  have s2 := cpsTriple_frame_left _ _ _ _
+    ((base ↦ᵢ .LW .x6 .x12 off_a) ** ((base + 8) ↦ᵢ .XOR .x6 .x6 .x5) **
+     ((base + 12) ↦ᵢ .OR .x7 .x7 .x6) **
+     (.x7 ↦ᵣ acc) ** (.x6 ↦ᵣ a_limb) ** ((sp + signExtend12 off_a) ↦ₘ a_limb))
+    (by pcFree) s2_raw
+  have s12 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
+    (fun h hp => by xperm_hyp hp) s1 s2
+  clear s1 s2 s2_raw
+  -- Step 3: XOR x6 x6 x5 at base+8 (rd=x6=rs1, rs2=x5)
+  have s3_raw := xor_spec_gen_rd_eq_rs1 .x6 .x5 a_limb b_limb (base + 8) (by nofun) (by nofun)
+  rw [ha2] at s3_raw
+  have s3 := cpsTriple_frame_left _ _ _ _
+    ((base ↦ᵢ .LW .x6 .x12 off_a) ** ((base + 4) ↦ᵢ .LW .x5 .x12 off_b) **
+     ((base + 12) ↦ᵢ .OR .x7 .x7 .x6) **
+     (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ acc) **
+     ((sp + signExtend12 off_a) ↦ₘ a_limb) ** ((sp + signExtend12 off_b) ↦ₘ b_limb))
+    (by pcFree) s3_raw
+  have s123 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
+    (fun h hp => by xperm_hyp hp) s12 s3
+  clear s12 s3 s3_raw
+  -- Step 4: OR x7 x7 x6 at base+12 (rd=x7=rs1, rs2=x6)
+  have s4_raw := or_spec_gen_rd_eq_rs1 .x7 .x6 acc (a_limb ^^^ b_limb) (base + 12) (by nofun) (by nofun)
+  rw [ha3] at s4_raw
+  have s4 := cpsTriple_frame_left _ _ _ _
+    ((base ↦ᵢ .LW .x6 .x12 off_a) ** ((base + 4) ↦ᵢ .LW .x5 .x12 off_b) **
+     ((base + 8) ↦ᵢ .XOR .x6 .x6 .x5) **
+     (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ b_limb) **
+     ((sp + signExtend12 off_a) ↦ₘ a_limb) ** ((sp + signExtend12 off_b) ↦ₘ b_limb))
+    (by pcFree) s4_raw
+  exact cpsTriple_consequence _ _ _ _ _ _
+    (fun h hp => by xperm_hyp hp) (fun h hq => by xperm_hyp hq)
+    (cpsTriple_seq_with_perm _ _ _ _ _ _ _
+      (fun h hp => by xperm_hyp hp) s123 s4)
 
 end EvmAsm

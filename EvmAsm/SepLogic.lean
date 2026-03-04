@@ -1795,6 +1795,49 @@ def programAt : List (Addr × Instr) → Assertion
   | [] => empAssertion
   | (a, i) :: rest => (instrAt a i) ** (programAt rest)
 
+/-- Convert a program (List Instr) at a base address to address-instruction pairs.
+    Each instruction occupies 4 bytes. -/
+def progIndexed (base : Addr) : List Instr → List (Addr × Instr)
+  | [] => []
+  | i :: rest => (base, i) :: progIndexed (base + 4) rest
+
+/-- Program assertion at a base address: owns instrAt for every instruction. -/
+def progAt (base : Addr) (prog : List Instr) : Assertion :=
+  programAt (progIndexed base prog)
+
+/-- Indexed list for append splits into indexed lists for each part. -/
+theorem progIndexed_append (base : Addr) (p1 p2 : List Instr) :
+    progIndexed base (p1 ++ p2) = progIndexed base p1 ++ progIndexed (base + BitVec.ofNat 32 (4 * p1.length)) p2 := by
+  induction p1 generalizing base with
+  | nil => simp [progIndexed, List.nil_append, BitVec.ofNat]
+  | cons i rest ih =>
+    simp only [List.cons_append, progIndexed, List.cons_append]
+    congr 1
+    rw [ih (base + 4)]
+    congr 1
+    simp only [List.length_cons]
+    congr 1
+    apply BitVec.eq_of_toNat_eq
+    simp [BitVec.toNat_add, BitVec.toNat_ofNat]
+    omega
+
+/-- programAt splits on append. -/
+theorem programAt_append (l1 l2 : List (Addr × Instr)) :
+    programAt (l1 ++ l2) = (programAt l1 ** programAt l2) := by
+  induction l1 with
+  | nil =>
+    simp [programAt]
+    funext h; exact propext (sepConj_emp_left (programAt l2) h).symm
+  | cons p rest ih =>
+    simp only [List.cons_append, programAt]
+    rw [ih]
+    funext h; exact propext ⟨(sepConj_assoc _ _ _ h).mpr, (sepConj_assoc _ _ _ h).mp⟩
+
+/-- progAt splits on program append. -/
+theorem progAt_append (base : Addr) (p1 p2 : List Instr) :
+    progAt base (p1 ++ p2) = (progAt base p1 ** progAt (base + BitVec.ofNat 32 (4 * p1.length)) p2) := by
+  simp only [progAt, progIndexed_append, programAt_append]
+
 -- ============================================================================
 -- CompatibleWith for singletonCode
 -- ============================================================================
@@ -1891,6 +1934,11 @@ instance : Assertion.PCFree (instrAt a i) := ⟨pcFree_instrAt a i⟩
 
 instance : Assertion.PCFree (programAt prog) := ⟨pcFree_programAt prog⟩
 
+theorem pcFree_progAt (base : Addr) (prog : List Instr) : (progAt base prog).pcFree :=
+  pcFree_programAt (progIndexed base prog)
+
+instance : Assertion.PCFree (progAt base prog) := ⟨pcFree_progAt base prog⟩
+
 -- ============================================================================
 -- Assertion-level equalities for AC normalization of sepConj
 -- ============================================================================
@@ -1932,11 +1980,23 @@ macro_rules
   | `(tactic| sep_eq) => `(tactic| exact congrFun (by ac_rfl) _)
 
 /-- Proves `P.pcFree` by synthesizing an `Assertion.PCFree P` instance.
-    Instance search runs in the elaborator (not the kernel), so the resulting
-    proof term is a compact opaque reference with no inline nesting. -/
+    Falls back to a manual recursive proof for very deep assertion chains
+    where instance synthesis exceeds heartbeat limits. -/
 syntax "pcFree" : tactic
 macro_rules
-  | `(tactic| pcFree) => `(tactic| exact (inferInstance : Assertion.PCFree _).proof)
+  | `(tactic| pcFree) => `(tactic|
+    first
+    | exact (inferInstance : Assertion.PCFree _).proof
+    | repeat (first
+      | apply pcFree_sepConj
+      | exact pcFree_instrAt _ _
+      | exact pcFree_regIs _ _
+      | exact pcFree_memIs _ _
+      | exact pcFree_regOwn _
+      | exact pcFree_memOwn _
+      | exact pcFree_emp
+      | exact pcFree_pure _
+      | exact pcFree_programAt _))
 
 -- ============================================================================
 -- himpl: Assertion implication (for xsimp framework)
