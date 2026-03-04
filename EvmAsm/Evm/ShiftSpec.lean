@@ -5022,7 +5022,7 @@ private theorem memIs_to_memOwn (a : Addr) (v : Word) : ∀ h, (a ↦ₘ v) h �
   fun _ hp => ⟨v, hp⟩
 
 /-- Weaken zero path postcondition: convert concrete regs to regOwn, concrete mems to memOwn. -/
-private theorem weaken_zp_post (sp : Addr) (r6 r7 r11 : Word)
+theorem weaken_zp_post (sp : Addr) (r6 r7 r11 : Word)
     (s0 s1 s2 s3 s4 s5 s6 s7 : Word) : ∀ h,
     ((.x12 ↦ᵣ (sp + 32)) **
      ((sp + 32) ↦ₘ (0 : Word)) ** ((sp + 36) ↦ₘ (0 : Word)) ** ((sp + 40) ↦ₘ (0 : Word)) ** ((sp + 44) ↦ₘ (0 : Word)) **
@@ -5121,7 +5121,7 @@ private theorem bv_ofNat_b0 : BitVec.ofNat 32 (4 * 53) = (212 : BitVec 32) := by
 set_option maxRecDepth 4096 in
 set_option maxHeartbeats 25600000 in
 /-- Split progAt base evm_shr into per-phase progAt blocks. -/
-private theorem progAt_evm_shr_split (base : Addr) :
+theorem progAt_evm_shr_split (base : Addr) :
     progAt base evm_shr =
     (progAt base shr_phase_a **
      progAt (base + 68) shr_phase_b **
