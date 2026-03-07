@@ -1,13 +1,60 @@
 /-
   EvmAsm.Tactics.RunBlock
 
-  Multi-instruction block composition with automatic address normalization.
+  Multi-instruction block verification tactic. Composes N single-instruction
+  specs into a single cpsTriple proof with automatic framing, address
+  normalization, and postcondition permutation.
 
-  `runBlock s1 s2 ... sN` composes N cpsTriple hypotheses by:
-  1. Framing the first spec against the goal's full precondition
-  2. Normalizing addresses between consecutive specs via bv_omega
-  3. Applying seqFrame for each consecutive pair
-  4. Closing the goal with postcondition permutation
+  ## Quick Reference
+
+  **Auto mode** (preferred — resolves specs from `@[spec_gen]` database):
+  ```
+  theorem my_block_spec ... :
+      cpsTriple base (base + 12)
+        ((base ↦ᵢ .LW .x7 .x12 off) ** ((base + 4) ↦ᵢ .ADD .x7 .x7 .x6) **
+         ((base + 8) ↦ᵢ .SW .x12 .x7 off) ** (.x12 ↦ᵣ sp) ** ...)
+        (... updated state ...) := by
+    runBlock
+  ```
+
+  **Manual mode** (pass spec hypotheses explicitly):
+  ```
+  theorem my_composite_spec ... := by
+    have s1 := sub_spec_phase1 ...
+    have s2 := sub_spec_phase2 ...
+    runBlock s1 s2
+  ```
+
+  ## How It Works
+
+  1. Extracts `instrAt` atoms from the goal's precondition (in order)
+  2. For each instruction, looks up matching `@[spec_gen]` specs and
+     instantiates via unification against the current assertion state
+  3. Frames the first spec against the goal's full precondition
+  4. Chains specs via `seqFrame` with automatic address normalization
+  5. Permutes the final postcondition to match the goal
+
+  ## Debugging
+
+  Enable tracing for detailed resolution output:
+  ```
+  set_option trace.runBlock true in
+  theorem my_spec ... := by runBlock
+  ```
+
+  Use `#spec_db` (from SpecDb.lean) to inspect registered specs:
+  ```
+  #spec_db  -- prints all @[spec_gen] entries grouped by instruction
+  ```
+
+  ## When Auto Mode Fails
+
+  Common reasons and fixes:
+  - **Missing spec**: Check `#spec_db` for coverage. Add `@[spec_gen]` to your spec.
+  - **Proof obligation unsolved**: Auto-mode handles `rd ≠ .x0`, `rd ≠ rs`, and
+    `isValidMemAccess` hypotheses. Other obligations need manual specs or extra hyps.
+  - **Composite specs**: Multi-instruction sub-specs (e.g., `add_limb_carry_spec`)
+    can't be auto-resolved. Use manual mode: `runBlock s1 s2`.
 -/
 
 import Lean
@@ -15,6 +62,8 @@ import EvmAsm.Tactics.SeqFrame
 import EvmAsm.Tactics.SpecDb
 
 open Lean Meta Elab Tactic
+
+initialize registerTraceClass `runBlock
 
 namespace EvmAsm.Tactics
 
@@ -102,7 +151,8 @@ private def frameFirstSpec (s1Expr : Expr) (goalPre : Expr) : MetaM Expr := do
     address normalization, and seqFrame chaining. -/
 private def runBlockCore (specs : Array Expr) (goalPre : Expr) : MetaM Expr := do
   if specs.size == 0 then
-    throwError "runBlock: no specs provided"
+    throwError "runBlock: no specs provided.\n\
+        Usage: `runBlock s1 s2 ...` (manual) or `runBlock` (auto from @[spec_gen] database)."
   -- Frame the first spec against the goal precondition
   let mut acc ← frameFirstSpec specs[0]! goalPre
   -- Chain remaining specs via seqFrame with address normalization
@@ -235,7 +285,8 @@ private def tryInstantiateSpec (specName : Name) (instrExpr instrAddr : Expr)
     let solved ← solveObligation mvarId
     unless solved do
       let paramType ← instantiateMVars (← mvarId.getType)
-      throwError "cannot solve proof obligation: {paramType}"
+      throwError "cannot solve proof obligation: {paramType}\n\
+          Hint: Add the obligation as a hypothesis to the theorem, or use manual mode."
   -- Build fully instantiated application
   return ← instantiateMVars (mkAppN specConst params)
 
@@ -245,22 +296,35 @@ private def resolveSpecForInstr (instrExpr instrAddr : Expr)
     (stateAtoms : List Expr) : MetaM Expr := do
   let instrHead := instrExpr.getAppFn
   let .const instrName _ := instrHead
-    | throwError "resolveSpec: instruction is not a constructor: {instrExpr}"
+    | throwError "runBlock: instruction is not a constructor application: {instrExpr}\n\
+        Hint: All instructions in the precondition must be concrete (e.g., `.ADD .x7 .x7 .x6`)."
   let env ← getEnv
   let specs := findSpecsForInstr env instrName
   if specs.isEmpty then
-    throwError "resolveSpec: no registered specs for {instrName}"
-  let mut lastError := ""
+    throwError "runBlock: no @[spec_gen] specs registered for `{instrName}`.\n\
+        Hint: Add `@[spec_gen]` to a theorem with `{instrName}` in its precondition,\n\
+        or use manual mode: `runBlock s1 s2 ...`.\n\
+        Use `#spec_db` to see all registered specs."
+  trace[runBlock] "resolving {instrName} at {instrAddr} — {specs.size} candidate(s)"
+  let mut errors : Array (Name × String) := #[]
   for entry in specs do
     let saved ← saveState
     try
       let result ← tryInstantiateSpec entry.specName instrExpr instrAddr stateAtoms
+      trace[runBlock] "  resolved with {entry.specName}"
       return result
     catch e =>
       restoreState saved
-      lastError := toString (← e.toMessageData.format)
+      let msg := toString (← e.toMessageData.format)
+      errors := errors.push (entry.specName, msg)
       continue
-  throwError "resolveSpec: no spec could be instantiated for {instrName}.\n  Last error: {lastError}"
+  -- Build detailed error with all attempted specs
+  let mut errMsg := m!"runBlock: no spec could be instantiated for `{instrName}` at {instrAddr}."
+  errMsg := errMsg ++ m!"\n  Tried {errors.size} candidate(s):"
+  for (name, msg) in errors do
+    errMsg := errMsg ++ m!"\n    {name}: {msg}"
+  errMsg := errMsg ++ m!"\n  Hint: Use `set_option trace.runBlock true` for detailed resolution output."
+  throwError errMsg
 
 /-- Compute the state atoms after applying a resolved spec.
     Returns postcondition atoms ∪ (currentAtoms \ precondition atoms). -/
@@ -296,26 +360,51 @@ private def autoResolveAndCompose (goalPre : Expr) : MetaM Expr := do
   let atoms ← flattenSepConj goalPre
   let instrAtoms := extractInstrAtoms atoms
   if instrAtoms.isEmpty then
-    throwError "autoRunBlock: no instruction atoms found in precondition"
+    throwError "runBlock: no `instrAt` (↦ᵢ) atoms found in the goal's precondition.\n\
+        The goal must be a `cpsTriple` whose precondition contains instruction atoms."
   -- Non-instruction atoms form the initial state
   let stateAtoms := atoms.filter fun a => !a.isAppOfArity `EvmAsm.instrAt 2
+  trace[runBlock] "auto mode: {instrAtoms.length} instruction(s), {stateAtoms.length} state atom(s)"
   let mut currentState := stateAtoms
   let mut specs : Array Expr := #[]
+  let mut resolvedCount : Nat := 0
+  let totalCount := instrAtoms.length
   for (addr, instr) in instrAtoms do
-    let spec ← resolveSpecForInstr instr addr currentState
-    specs := specs.push spec
-    currentState ← advanceState currentState spec
+    try
+      let spec ← resolveSpecForInstr instr addr currentState
+      specs := specs.push spec
+      currentState ← advanceState currentState spec
+      resolvedCount := resolvedCount + 1
+    catch e =>
+      -- Re-throw with progress context
+      let eMsg ← e.toMessageData.format
+      throwError "{eMsg}\n  Progress: resolved {resolvedCount} of {totalCount} instruction(s) before failure."
+  trace[runBlock] "all {specs.size} spec(s) resolved, composing..."
   runBlockCore specs goalPre
 
-/-- `runBlock s1 s2 ... sN` composes N cpsTriple specs with automatic
-    address normalization and frame extraction.
-    When called with no arguments, auto-resolves specs from the precondition. -/
+/-- Verify a basic block by composing instruction specs with automatic framing.
+
+    **Auto mode** (no arguments): resolves specs from the `@[spec_gen]` database.
+    ```
+    runBlock
+    ```
+
+    **Manual mode** (with hypotheses): composes the given `cpsTriple` proofs.
+    ```
+    runBlock s1 s2 s3
+    ```
+
+    The goal must be a `cpsTriple entry exit pre post`. In auto mode, the
+    precondition must contain `instrAt` (`↦ᵢ`) atoms for each instruction.
+
+    **Debugging**: use `set_option trace.runBlock true` to see resolution details. -/
 elab "runBlock" specs:ident* : tactic => withMainContext do
   let goal ← getMainGoal
   -- Strip leading let bindings and metadata from goal type
   let goalType := inlineLets (← instantiateMVars (← goal.getType))
   let some (_, _, goalPre, _) ← parseCpsTriple? goalType
-    | throwError "runBlock: goal is not a cpsTriple"
+    | throwError "runBlock: goal is not a `cpsTriple`.\n\
+        Expected goal of the form: `cpsTriple entry exit pre post`."
   let composed ←
     if specs.isEmpty then
       -- Auto mode: resolve specs from precondition
@@ -327,10 +416,10 @@ elab "runBlock" specs:ident* : tactic => withMainContext do
   let finalResult ← normalizeToGoal composed goalType
   -- Always permute postcondition to match goal (goal.assign doesn't type-check)
   let some (gEntry, gExit, gPre, goalPost) ← parseCpsTriple? goalType
-    | throwError "runBlock: goal is not a cpsTriple (postcondition permutation)"
+    | throwError "runBlock: internal error — goal lost cpsTriple structure during permutation"
   let resultType ← inferType finalResult
   let some (_, _, _, resultPost) ← parseCpsTriple? resultType
-    | throwError "runBlock: result is not a cpsTriple (internal error)"
+    | throwError "runBlock: internal error — composed result is not a cpsTriple"
   -- cpsTriple_consequence (P P' Q Q') (hpre : P' → P) (hpost : Q → Q') (h : cpsTriple P Q) : cpsTriple P' Q'
   -- P = gPre (what finalResult has), P' = gPre (same, identity), Q = resultPost, Q' = goalPost
   let postPerm ← mkPermLambda resultPost goalPost

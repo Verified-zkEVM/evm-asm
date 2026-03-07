@@ -1,11 +1,35 @@
 /-
   EvmAsm.Tactics.SpecDb
 
-  Spec database for instruction specs: a persistent environment extension
-  that maps instruction constructors to their spec theorem names.
+  Persistent database mapping instruction constructors to spec theorems.
+  Used by `runBlock` (auto mode) to resolve specs automatically.
 
-  The `@[spec_gen]` attribute auto-detects the instruction constructor from
-  the theorem's precondition and registers it in the database.
+  ## Usage
+
+  Tag single-instruction specs with `@[spec_gen]`:
+  ```
+  @[spec_gen]
+  theorem lw_spec_gen (rd rs1 : Reg) ... :
+      cpsTriple addr (addr + 4)
+        ((addr ↦ᵢ .LW rd rs1 offset) ** ...) (...) := ...
+  ```
+
+  The instruction constructor (e.g., `EvmAsm.Instr.LW`) is auto-detected
+  from the `instrAt` atom in the precondition. Supports `cpsTriple`,
+  `cpsBranch`, and `cpsHaltTriple`.
+
+  ## Diagnostics
+
+  ```
+  #spec_db  -- prints all registered specs grouped by instruction
+  ```
+
+  ## Requirements for `@[spec_gen]` specs
+
+  - Must be a `cpsTriple`, `cpsBranch`, or `cpsHaltTriple`
+  - Precondition must contain exactly one `instrAt` (`↦ᵢ`) atom
+  - The instruction must be a concrete constructor application (e.g., `.ADD .x7 .x7 .x6`)
+  - Multiple specs per instruction are allowed (tried in registration order)
 -/
 
 import Lean

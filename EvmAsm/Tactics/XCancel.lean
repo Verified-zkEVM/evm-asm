@@ -3,10 +3,22 @@
 
   Separation logic cancellation tactic, built on the XPerm infrastructure.
 
-  Given a hypothesis `h : (P₁ ** P₂ ** ... ** Pₙ) s` and a goal
-  `(Q₁ ** Q₂ ** ... ** Qₘ ** ?Frame) s`, `xcancel h` matches each Qⱼ
-  against some Pᵢ (using `isDefEq`), computes the frame as the residual
-  (unmatched P atoms), unifies it with the metavariable, and closes the goal.
+  ## Usage
+
+  ```
+  -- Given hypothesis h : (A ** B ** C ** D) s and goal (A ** C ** ?Frame) s:
+  xcancel h
+  -- Closes the goal, unifying ?Frame with (B ** D)
+  ```
+
+  ## Algorithm
+
+  Given `h : (P₁ ** P₂ ** ... ** Pₙ) s` and goal `(Q₁ ** ... ** Qₘ ** ?F) s`:
+  1. Flatten both sides to atom lists
+  2. Match each concrete Qⱼ against some Pᵢ (using `isDefEq`), consuming it
+  3. Compute the frame as unmatched P atoms
+  4. Unify ?F with the frame
+  5. Close the goal via a permutation proof
 -/
 
 import Lean

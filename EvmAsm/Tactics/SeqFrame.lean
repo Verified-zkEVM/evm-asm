@@ -1,10 +1,28 @@
 /-
   EvmAsm.Tactics.SeqFrame
 
-  Automatic frame-aware sequential composition of cpsTriple specs.
+  Frame-aware sequential composition of two `cpsTriple` specs.
 
-  `seqFrame h1 h2` composes two cpsTriple hypotheses by automatically
-  computing the frame and applying `cpsTriple_frame_left` + `cpsTriple_seq_with_perm`.
+  ## Usage
+
+  ```
+  have s1 : cpsTriple base mid P Q1 := ...
+  have s2 : cpsTriple mid exit_ P2 Q2 := ...
+  seqFrame s1 s2
+  -- Result: cpsTriple base exit_ P (Q2 ** Frame)
+  -- where Frame = Q1 \ P2 (postcondition atoms not consumed by s2's precondition)
+  ```
+
+  ## Algorithm
+
+  1. Extracts postcondition Q1 of h1 and precondition P2 of h2
+  2. Computes frame F = Q1 \ P2 (atoms in Q1 not matched by P2)
+  3. Frames h2: `cpsTriple_frame_left` produces `cpsTriple mid exit (P2 ** F) (Q2 ** F)`
+  4. Builds permutation proof Q1 → (P2 ** F)
+  5. Composes via `cpsTriple_seq_with_perm`
+
+  If the goal is a `cpsTriple`, `seqFrame` tries to close it (with postcondition
+  permutation). Otherwise, the result is introduced as a hypothesis named `h1h2`.
 -/
 
 import Lean
@@ -43,7 +61,8 @@ def computeFrame (q1 p2 : Expr) : MetaM (List Expr) := do
           found := true
           break
     unless found do
-      throwError "seqFrame: precondition atom not found in postcondition:\n  {p2Atom}"
+      throwError "seqFrame: h2's precondition atom not found in h1's postcondition:\n  {p2Atom}\n\
+          Hint: h1's postcondition must contain all atoms needed by h2's precondition."
   let mut result : List Expr := []
   for i in [:q1Atoms.size] do
     if available[i]! then

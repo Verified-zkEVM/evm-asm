@@ -1,29 +1,32 @@
 /-
   EvmAsm.Tactics.XPerm
 
-  xsimp-style separation logic permutation tactic, inspired by the `xsimpl`
-  tactic from:
+  Separation logic permutation prover for `sepConj` (`**`) chains.
+
+  ## Usage
+
+  ```
+  -- Proves P = Q where P and Q are AC-permutations of sepConj chains
+  example : (A ** B ** C) = (C ** A ** B) := by xperm
+  ```
+
+  Also used internally by `xcancel`, `seqFrame`, and `runBlock` for
+  building permutation proof terms in MetaM.
+
+  ## Key Design
+
+  Inspired by SPlean/CFML's `xsimpl`: uses `isDefEq` for atom matching
+  instead of syntactic equality (`ac_rfl`). This transparently handles
+  let-bindings, type alias unfolding, and other definitional equalities.
+
+  ## References
 
   - **SPlean** (Separation Logic Proofs in Lean):
     https://github.com/verse-lab/splean
-    A Lean 4 separation logic framework by the Verse Lab.
 
-  - **CFML** (Characteristic Formulae for ML) and the associated course:
+  - **CFML** / Software Foundations Vol. 6:
     Arthur Charguéraud. "Separation Logic for Sequential Programs."
-    Volume 6 of Software Foundations.
     https://softwarefoundations.cis.upenn.edu/slf-current/index.html
-
-    Arthur Charguéraud. "Separation Logic for Sequential Programs
-    (Functional Pearl)." Proc. ACM Program. Lang. 4, ICFP, Article 116
-    (August 2020). https://doi.org/10.1145/3408998
-
-  The key idea (from SPlean/CFML's `xsimpl`): instead of relying on `ac_rfl`
-  (which requires syntactic equality), use Lean's `isDefEq` for atom matching.
-  This handles let-bindings, type alias unfolding, and other definitional
-  equalities transparently.
-
-  Proves goals of the form `P = Q : Assertion` where P and Q are AC-permutations
-  of sepConj chains.
 -/
 
 import Lean
