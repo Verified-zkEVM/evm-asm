@@ -1,3 +1,6 @@
 [submodule "execution-specs"]
 	path = execution-specs
 	url = https://github.com/ethereum/execution-specs
+[submodule "EvmAsm/Evm64/zkvm-standards"]
+	path = EvmAsm/Evm64/zkvm-standards
+	url = https://github.com/eth-act/zkvm-standards
