@@ -10,3 +10,5 @@ import EvmAsm.SyscallSpecs
 import EvmAsm.Examples
 import EvmAsm.Tactics.XPerm
 import EvmAsm.Tactics.XSimp
+import EvmAsm.Tactics.XCancel
+import EvmAsm.Tactics.SeqFrame

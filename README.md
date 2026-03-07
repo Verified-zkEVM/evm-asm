@@ -98,6 +98,8 @@ EvmAsm/
   Tactics/
     XPerm.lean          -- xperm tactic: AC-permutation of sepConj chains
     XSimp.lean          -- xperm_hyp/xsimp tactics: assertion implication
+    XCancel.lean        -- xcancel tactic: cancellation with frame extraction
+    SeqFrame.lean       -- seqFrame tactic: auto frame+compose cpsTriple specs
   InstructionSpecs.lean -- Per-instruction CPS specs (ADD, SUB, ADDI, LW, SW, BEQ, ...)
   SyscallSpecs.lean     -- Syscall specs: HALT, WRITE, HINT_READ, memory buffers
   MulMacro.lean         -- The add_mulc macro with correctness proofs
@@ -183,6 +185,19 @@ This is a **prototype** demonstrating the approach. Current state:
 - Charguéraud, A. (2020). "Separation Logic for Sequential Programs
   (Functional Pearl)." *Proc. ACM Program. Lang.* 4, ICFP, Article 116.
   https://doi.org/10.1145/3408998
+- **bedrock2**: https://github.com/mit-plv/bedrock2
+  The frame automation tactics (`xcancel`, `seqFrame`) in `Tactics/XCancel.lean`
+  and `Tactics/SeqFrame.lean` are inspired by bedrock2's separation logic
+  automation. Specifically:
+  - The `wcancel` tactic in `bedrock2/src/bedrock2/SepLogAddrArith.v` (lines 127-134)
+    inspired the cancellation approach: matching atoms by tag+address, computing
+    the frame as the residual of unmatched hypothesis atoms.
+  - The frame rule infrastructure in `bedrock2/src/bedrock2/FrameRule.v` (lines 75-175)
+    inspired the automatic frame extraction pattern where specs include a universal
+    frame parameter and tactics instantiate it during composition.
+  - The instruction specs with explicit frame in `compiler/src/compiler/GoFlatToRiscv.v`
+    (lines 439-546) informed the design of composing instruction specs with
+    `cpsTriple_frame_left` + `cpsTriple_seq_with_perm`.
 - SP1 zkVM: https://github.com/succinctlabs/sp1
   The `ECALL`-based syscall mechanism follows SP1's conventions.
 - sail-riscv-lean: https://github.com/opencompl/sail-riscv-lean
