@@ -194,165 +194,38 @@ theorem shr_zero_path_spec (sp : Word)
        (.x12 ↦ᵣ nsp) **
        (nsp ↦ₘ 0) ** ((nsp + 4) ↦ₘ 0) ** ((nsp + 8) ↦ₘ 0) ** ((nsp + 12) ↦ₘ 0) **
        ((nsp + 16) ↦ₘ 0) ** ((nsp + 20) ↦ₘ 0) ** ((nsp + 24) ↦ₘ 0) ** ((nsp + 28) ↦ₘ 0)) := by
-  -- Define nsp locally to match the let in the goal
-  have nsp_def : sp + signExtend12 (32 : BitVec 12) = sp + 32 := by simp only [signExtend12_32]
-  let nsp : Word := sp + 32
-  -- Address arithmetic
-  have ha1 : (base + 4 : Addr) + 4 = base + 8 := by bv_omega
-  have ha2 : (base + 8 : Addr) + 4 = base + 12 := by bv_omega
-  have ha3 : (base + 12 : Addr) + 4 = base + 16 := by bv_omega
-  have ha4 : (base + 16 : Addr) + 4 = base + 20 := by bv_omega
-  have ha5 : (base + 20 : Addr) + 4 = base + 24 := by bv_omega
-  have ha6 : (base + 24 : Addr) + 4 = base + 28 := by bv_omega
-  have ha7 : (base + 28 : Addr) + 4 = base + 32 := by bv_omega
-  have ha8 : (base + 32 : Addr) + 4 = base + 36 := by bv_omega
-  -- Memory address normalization
-  have hm0 : (sp + 32) + signExtend12 (0 : BitVec 12) = (sp + 32) := by
-    simp only [signExtend12_0]; bv_omega
-  have hm4 : (sp + 32) + signExtend12 (4 : BitVec 12) = (sp + 32) + 4 := by simp only [signExtend12_4]
-  have hm8 : (sp + 32) + signExtend12 (8 : BitVec 12) = (sp + 32) + 8 := by simp only [signExtend12_8]
-  have hm12 : (sp + 32) + signExtend12 (12 : BitVec 12) = (sp + 32) + 12 := by simp only [signExtend12_12]
-  have hm16 : (sp + 32) + signExtend12 (16 : BitVec 12) = (sp + 32) + 16 := by simp only [signExtend12_16]
-  have hm20 : (sp + 32) + signExtend12 (20 : BitVec 12) = (sp + 32) + 20 := by simp only [signExtend12_20]
-  have hm24 : (sp + 32) + signExtend12 (24 : BitVec 12) = (sp + 32) + 24 := by simp only [signExtend12_24]
-  have hm28 : (sp + 32) + signExtend12 (28 : BitVec 12) = (sp + 32) + 28 := by simp only [signExtend12_28]
   -- Memory validity from ValidMemRange (sp + 32) 8
-  have hv0 : isValidMemAccess (sp + 32) = true := by
+  have hvm0 : isValidMemAccess ((sp + 32) + signExtend12 (0 : BitVec 12)) = true := by
+    simp only [signExtend12_0]; rw [show (sp + 32 : Word) + 0 = sp + 32 from by bv_addr]
     have := hvalid.get (i := 0) (by omega); simpa using this
-  have hv4 : isValidMemAccess ((sp + 32) + 4) = true := by
-    have := hvalid.get (i := 1) (by omega); simpa using this
-  have hv8 : isValidMemAccess ((sp + 32) + 8) = true := by
-    have := hvalid.get (i := 2) (by omega); simpa using this
-  have hv12 : isValidMemAccess ((sp + 32) + 12) = true := by
-    have := hvalid.get (i := 3) (by omega); simpa using this
-  have hv16 : isValidMemAccess ((sp + 32) + 16) = true := by
-    have := hvalid.get (i := 4) (by omega); simpa using this
-  have hv20 : isValidMemAccess ((sp + 32) + 20) = true := by
-    have := hvalid.get (i := 5) (by omega); simpa using this
-  have hv24 : isValidMemAccess ((sp + 32) + 24) = true := by
-    have := hvalid.get (i := 6) (by omega); simpa using this
-  have hv28 : isValidMemAccess ((sp + 32) + 28) = true := by
-    have := hvalid.get (i := 7) (by omega); simpa using this
-  -- ADDI result: sp + signExtend12 32 = sp + 32
-  have h_addi : sp + signExtend12 (32 : BitVec 12) = sp + 32 := by
-    simp only [signExtend12_32]
-  -- Step 1: ADDI x12 x12 32 at base
-  have s1_raw := addi_spec_gen_same .x12 sp 32 base (by nofun)
-  rw [h_addi] at s1_raw
-  have s1 := cpsTriple_frame_left _ _ _ _
-    (((base + 4) ↦ᵢ .SW .x12 .x0 0) ** ((base + 8) ↦ᵢ .SW .x12 .x0 4) **
-     ((base + 12) ↦ᵢ .SW .x12 .x0 8) ** ((base + 16) ↦ᵢ .SW .x12 .x0 12) **
-     ((base + 20) ↦ᵢ .SW .x12 .x0 16) ** ((base + 24) ↦ᵢ .SW .x12 .x0 20) **
-     ((base + 28) ↦ᵢ .SW .x12 .x0 24) ** ((base + 32) ↦ᵢ .SW .x12 .x0 28) **
-     (nsp ↦ₘ d0) ** ((nsp + 4) ↦ₘ d1) ** ((nsp + 8) ↦ₘ d2) ** ((nsp + 12) ↦ₘ d3) **
-     ((nsp + 16) ↦ₘ d4) ** ((nsp + 20) ↦ₘ d5) ** ((nsp + 24) ↦ₘ d6) ** ((nsp + 28) ↦ₘ d7))
-    (by pcFree) s1_raw
-  -- Step 2: SW x12 x0 0 at base+4 (store 0 at nsp)
-  have s2_raw := sw_x0_spec_gen .x12 nsp d0 0 (base + 4) (by rw [hm0]; exact hv0)
-  rw [ha1, hm0] at s2_raw
-  have s2 := cpsTriple_frame_left _ _ _ _
-    ((base ↦ᵢ .ADDI .x12 .x12 32) ** ((base + 8) ↦ᵢ .SW .x12 .x0 4) **
-     ((base + 12) ↦ᵢ .SW .x12 .x0 8) ** ((base + 16) ↦ᵢ .SW .x12 .x0 12) **
-     ((base + 20) ↦ᵢ .SW .x12 .x0 16) ** ((base + 24) ↦ᵢ .SW .x12 .x0 20) **
-     ((base + 28) ↦ᵢ .SW .x12 .x0 24) ** ((base + 32) ↦ᵢ .SW .x12 .x0 28) **
-     ((nsp + 4) ↦ₘ d1) ** ((nsp + 8) ↦ₘ d2) ** ((nsp + 12) ↦ₘ d3) **
-     ((nsp + 16) ↦ₘ d4) ** ((nsp + 20) ↦ₘ d5) ** ((nsp + 24) ↦ₘ d6) ** ((nsp + 28) ↦ₘ d7))
-    (by pcFree) s2_raw
-  have s12 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun h hp => by xperm_hyp hp) s1 s2; clear s1 s2 s1_raw s2_raw
-  -- Step 3: SW x12 x0 4 at base+8
-  have s3_raw := sw_x0_spec_gen .x12 nsp d1 4 (base + 8) (by rw [hm4]; exact hv4)
-  rw [ha2, hm4] at s3_raw
-  have s3 := cpsTriple_frame_left _ _ _ _
-    ((base ↦ᵢ .ADDI .x12 .x12 32) ** ((base + 4) ↦ᵢ .SW .x12 .x0 0) **
-     ((base + 12) ↦ᵢ .SW .x12 .x0 8) ** ((base + 16) ↦ᵢ .SW .x12 .x0 12) **
-     ((base + 20) ↦ᵢ .SW .x12 .x0 16) ** ((base + 24) ↦ᵢ .SW .x12 .x0 20) **
-     ((base + 28) ↦ᵢ .SW .x12 .x0 24) ** ((base + 32) ↦ᵢ .SW .x12 .x0 28) **
-     (nsp ↦ₘ 0) ** ((nsp + 8) ↦ₘ d2) ** ((nsp + 12) ↦ₘ d3) **
-     ((nsp + 16) ↦ₘ d4) ** ((nsp + 20) ↦ₘ d5) ** ((nsp + 24) ↦ₘ d6) ** ((nsp + 28) ↦ₘ d7))
-    (by pcFree) s3_raw
-  have s123 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun h hp => by xperm_hyp hp) s12 s3; clear s12 s3 s3_raw
-  -- Step 4: SW x12 x0 8 at base+12
-  have s4_raw := sw_x0_spec_gen .x12 nsp d2 8 (base + 12) (by rw [hm8]; exact hv8)
-  rw [ha3, hm8] at s4_raw
-  have s4 := cpsTriple_frame_left _ _ _ _
-    ((base ↦ᵢ .ADDI .x12 .x12 32) ** ((base + 4) ↦ᵢ .SW .x12 .x0 0) **
-     ((base + 8) ↦ᵢ .SW .x12 .x0 4) ** ((base + 16) ↦ᵢ .SW .x12 .x0 12) **
-     ((base + 20) ↦ᵢ .SW .x12 .x0 16) ** ((base + 24) ↦ᵢ .SW .x12 .x0 20) **
-     ((base + 28) ↦ᵢ .SW .x12 .x0 24) ** ((base + 32) ↦ᵢ .SW .x12 .x0 28) **
-     (nsp ↦ₘ 0) ** ((nsp + 4) ↦ₘ 0) ** ((nsp + 12) ↦ₘ d3) **
-     ((nsp + 16) ↦ₘ d4) ** ((nsp + 20) ↦ₘ d5) ** ((nsp + 24) ↦ₘ d6) ** ((nsp + 28) ↦ₘ d7))
-    (by pcFree) s4_raw
-  have s1234 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun h hp => by xperm_hyp hp) s123 s4; clear s123 s4 s4_raw
-  -- Step 5: SW x12 x0 12 at base+16
-  have s5_raw := sw_x0_spec_gen .x12 nsp d3 12 (base + 16) (by rw [hm12]; exact hv12)
-  rw [ha4, hm12] at s5_raw
-  have s5 := cpsTriple_frame_left _ _ _ _
-    ((base ↦ᵢ .ADDI .x12 .x12 32) ** ((base + 4) ↦ᵢ .SW .x12 .x0 0) **
-     ((base + 8) ↦ᵢ .SW .x12 .x0 4) ** ((base + 12) ↦ᵢ .SW .x12 .x0 8) **
-     ((base + 20) ↦ᵢ .SW .x12 .x0 16) ** ((base + 24) ↦ᵢ .SW .x12 .x0 20) **
-     ((base + 28) ↦ᵢ .SW .x12 .x0 24) ** ((base + 32) ↦ᵢ .SW .x12 .x0 28) **
-     (nsp ↦ₘ 0) ** ((nsp + 4) ↦ₘ 0) ** ((nsp + 8) ↦ₘ 0) **
-     ((nsp + 16) ↦ₘ d4) ** ((nsp + 20) ↦ₘ d5) ** ((nsp + 24) ↦ₘ d6) ** ((nsp + 28) ↦ₘ d7))
-    (by pcFree) s5_raw
-  have s12345 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun h hp => by xperm_hyp hp) s1234 s5; clear s1234 s5 s5_raw
-  -- Step 6: SW x12 x0 16 at base+20
-  have s6_raw := sw_x0_spec_gen .x12 nsp d4 16 (base + 20) (by rw [hm16]; exact hv16)
-  rw [ha5, hm16] at s6_raw
-  have s6 := cpsTriple_frame_left _ _ _ _
-    ((base ↦ᵢ .ADDI .x12 .x12 32) ** ((base + 4) ↦ᵢ .SW .x12 .x0 0) **
-     ((base + 8) ↦ᵢ .SW .x12 .x0 4) ** ((base + 12) ↦ᵢ .SW .x12 .x0 8) **
-     ((base + 16) ↦ᵢ .SW .x12 .x0 12) ** ((base + 24) ↦ᵢ .SW .x12 .x0 20) **
-     ((base + 28) ↦ᵢ .SW .x12 .x0 24) ** ((base + 32) ↦ᵢ .SW .x12 .x0 28) **
-     (nsp ↦ₘ 0) ** ((nsp + 4) ↦ₘ 0) ** ((nsp + 8) ↦ₘ 0) ** ((nsp + 12) ↦ₘ 0) **
-     ((nsp + 20) ↦ₘ d5) ** ((nsp + 24) ↦ₘ d6) ** ((nsp + 28) ↦ₘ d7))
-    (by pcFree) s6_raw
-  have s123456 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun h hp => by xperm_hyp hp) s12345 s6; clear s12345 s6 s6_raw
-  -- Step 7: SW x12 x0 20 at base+24
-  have s7_raw := sw_x0_spec_gen .x12 nsp d5 20 (base + 24) (by rw [hm20]; exact hv20)
-  rw [ha6, hm20] at s7_raw
-  have s7 := cpsTriple_frame_left _ _ _ _
-    ((base ↦ᵢ .ADDI .x12 .x12 32) ** ((base + 4) ↦ᵢ .SW .x12 .x0 0) **
-     ((base + 8) ↦ᵢ .SW .x12 .x0 4) ** ((base + 12) ↦ᵢ .SW .x12 .x0 8) **
-     ((base + 16) ↦ᵢ .SW .x12 .x0 12) ** ((base + 20) ↦ᵢ .SW .x12 .x0 16) **
-     ((base + 28) ↦ᵢ .SW .x12 .x0 24) ** ((base + 32) ↦ᵢ .SW .x12 .x0 28) **
-     (nsp ↦ₘ 0) ** ((nsp + 4) ↦ₘ 0) ** ((nsp + 8) ↦ₘ 0) ** ((nsp + 12) ↦ₘ 0) **
-     ((nsp + 16) ↦ₘ 0) ** ((nsp + 24) ↦ₘ d6) ** ((nsp + 28) ↦ₘ d7))
-    (by pcFree) s7_raw
-  have s1234567 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun h hp => by xperm_hyp hp) s123456 s7; clear s123456 s7 s7_raw
-  -- Step 8: SW x12 x0 24 at base+28
-  have s8_raw := sw_x0_spec_gen .x12 nsp d6 24 (base + 28) (by rw [hm24]; exact hv24)
-  rw [ha7, hm24] at s8_raw
-  have s8 := cpsTriple_frame_left _ _ _ _
-    ((base ↦ᵢ .ADDI .x12 .x12 32) ** ((base + 4) ↦ᵢ .SW .x12 .x0 0) **
-     ((base + 8) ↦ᵢ .SW .x12 .x0 4) ** ((base + 12) ↦ᵢ .SW .x12 .x0 8) **
-     ((base + 16) ↦ᵢ .SW .x12 .x0 12) ** ((base + 20) ↦ᵢ .SW .x12 .x0 16) **
-     ((base + 24) ↦ᵢ .SW .x12 .x0 20) ** ((base + 32) ↦ᵢ .SW .x12 .x0 28) **
-     (nsp ↦ₘ 0) ** ((nsp + 4) ↦ₘ 0) ** ((nsp + 8) ↦ₘ 0) ** ((nsp + 12) ↦ₘ 0) **
-     ((nsp + 16) ↦ₘ 0) ** ((nsp + 20) ↦ₘ 0) ** ((nsp + 28) ↦ₘ d7))
-    (by pcFree) s8_raw
-  have s12345678 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun h hp => by xperm_hyp hp) s1234567 s8; clear s1234567 s8 s8_raw
-  -- Step 9: SW x12 x0 28 at base+32
-  have s9_raw := sw_x0_spec_gen .x12 nsp d7 28 (base + 32) (by rw [hm28]; exact hv28)
-  rw [ha8, hm28] at s9_raw
-  have s9 := cpsTriple_frame_left _ _ _ _
-    ((base ↦ᵢ .ADDI .x12 .x12 32) ** ((base + 4) ↦ᵢ .SW .x12 .x0 0) **
-     ((base + 8) ↦ᵢ .SW .x12 .x0 4) ** ((base + 12) ↦ᵢ .SW .x12 .x0 8) **
-     ((base + 16) ↦ᵢ .SW .x12 .x0 12) ** ((base + 20) ↦ᵢ .SW .x12 .x0 16) **
-     ((base + 24) ↦ᵢ .SW .x12 .x0 20) ** ((base + 28) ↦ᵢ .SW .x12 .x0 24) **
-     (nsp ↦ₘ 0) ** ((nsp + 4) ↦ₘ 0) ** ((nsp + 8) ↦ₘ 0) ** ((nsp + 12) ↦ₘ 0) **
-     ((nsp + 16) ↦ₘ 0) ** ((nsp + 20) ↦ₘ 0) ** ((nsp + 24) ↦ₘ 0))
-    (by pcFree) s9_raw
-  exact cpsTriple_consequence _ _ _ _ _ _
-    (fun h hp => by xperm_hyp hp) (fun h hq => by xperm_hyp hq)
-    (cpsTriple_seq_with_perm _ _ _ _ _ _ _
-      (fun h hp => by xperm_hyp hp) s12345678 s9)
+  have hvm4 : isValidMemAccess ((sp + 32) + signExtend12 (4 : BitVec 12)) = true := by
+    simp only [signExtend12_4]; have := hvalid.get (i := 1) (by omega); simpa using this
+  have hvm8 : isValidMemAccess ((sp + 32) + signExtend12 (8 : BitVec 12)) = true := by
+    simp only [signExtend12_8]; have := hvalid.get (i := 2) (by omega); simpa using this
+  have hvm12 : isValidMemAccess ((sp + 32) + signExtend12 (12 : BitVec 12)) = true := by
+    simp only [signExtend12_12]; have := hvalid.get (i := 3) (by omega); simpa using this
+  have hvm16 : isValidMemAccess ((sp + 32) + signExtend12 (16 : BitVec 12)) = true := by
+    simp only [signExtend12_16]; have := hvalid.get (i := 4) (by omega); simpa using this
+  have hvm20 : isValidMemAccess ((sp + 32) + signExtend12 (20 : BitVec 12)) = true := by
+    simp only [signExtend12_20]; have := hvalid.get (i := 5) (by omega); simpa using this
+  have hvm24 : isValidMemAccess ((sp + 32) + signExtend12 (24 : BitVec 12)) = true := by
+    simp only [signExtend12_24]; have := hvalid.get (i := 6) (by omega); simpa using this
+  have hvm28 : isValidMemAccess ((sp + 32) + signExtend12 (28 : BitVec 12)) = true := by
+    simp only [signExtend12_28]; have := hvalid.get (i := 7) (by omega); simpa using this
+  -- Introduce nsp as opaque fvar to prevent address flattening
+  intro nsp
+  -- Compose: ADDI + 8× SW x0 via runBlock
+  have A := addi_spec_gen_same .x12 sp 32 base (by nofun)
+  rw [show sp + signExtend12 (32 : BitVec 12) = nsp from by simp only [signExtend12_32]; rfl] at A
+  have S0 := sw_x0_spec_gen .x12 nsp d0 0 (base + 4) hvm0
+  have S1 := sw_x0_spec_gen .x12 nsp d1 4 (base + 8) hvm4
+  have S2 := sw_x0_spec_gen .x12 nsp d2 8 (base + 12) hvm8
+  have S3 := sw_x0_spec_gen .x12 nsp d3 12 (base + 16) hvm12
+  have S4 := sw_x0_spec_gen .x12 nsp d4 16 (base + 20) hvm16
+  have S5 := sw_x0_spec_gen .x12 nsp d5 20 (base + 24) hvm20
+  have S6 := sw_x0_spec_gen .x12 nsp d6 24 (base + 28) hvm24
+  have S7 := sw_x0_spec_gen .x12 nsp d7 28 (base + 32) hvm28
+  runBlock A S0 S1 S2 S3 S4 S5 S6 S7
 
 -- ============================================================================
 -- Phase B spec: Extract parameters (7 instructions)
@@ -756,186 +629,35 @@ theorem shr_body_7_spec (sp : Word)
        (sp ↦ₘ result0) ** ((sp + 4) ↦ₘ 0) ** ((sp + 8) ↦ₘ 0) ** ((sp + 12) ↦ₘ 0) **
        ((sp + 16) ↦ₘ 0) ** ((sp + 20) ↦ₘ 0) ** ((sp + 24) ↦ₘ 0) ** ((sp + 28) ↦ₘ 0)) := by
   -- Memory validity from ValidMemRange sp 8
-  have hv0 : isValidMemAccess sp = true := by
+  have hvm0 : isValidMemAccess (sp + signExtend12 (0 : BitVec 12)) = true := by
+    simp only [signExtend12_0]; rw [show sp + (0 : Word) = sp from by bv_addr]
     have := hvalid.get (i := 0) (by omega); simpa using this
-  have hv4 : isValidMemAccess (sp + 4) = true := by
-    have := hvalid.get (i := 1) (by omega); simpa using this
-  have hv8 : isValidMemAccess (sp + 8) = true := by
-    have := hvalid.get (i := 2) (by omega); simpa using this
-  have hv12 : isValidMemAccess (sp + 12) = true := by
-    have := hvalid.get (i := 3) (by omega); simpa using this
-  have hv16 : isValidMemAccess (sp + 16) = true := by
-    have := hvalid.get (i := 4) (by omega); simpa using this
-  have hv20 : isValidMemAccess (sp + 20) = true := by
-    have := hvalid.get (i := 5) (by omega); simpa using this
-  have hv24 : isValidMemAccess (sp + 24) = true := by
-    have := hvalid.get (i := 6) (by omega); simpa using this
-  have hv28 : isValidMemAccess (sp + 28) = true := by
-    have := hvalid.get (i := 7) (by omega); simpa using this
-  -- Step 1: shr_last_limb with dst_off = 0
-  have LL := shr_last_limb_spec 0 sp v7 v0 v5 bit_shift base
-    (by simp only [signExtend12_28]; exact hv28)
-    (by simp only [signExtend12_0]; rw [show sp + (0 : Word) = sp from by bv_addr]; exact hv0)
-  simp only [signExtend12_0] at LL
-  rw [show sp + (0 : Word) = sp from by bv_addr] at LL
-  have LLf := cpsTriple_frame_left _ _ _ _
-    (((base + 12) ↦ᵢ .SW .x12 .x0 4) ** ((base + 16) ↦ᵢ .SW .x12 .x0 8) **
-     ((base + 20) ↦ᵢ .SW .x12 .x0 12) ** ((base + 24) ↦ᵢ .SW .x12 .x0 16) **
-     ((base + 28) ↦ᵢ .SW .x12 .x0 20) ** ((base + 32) ↦ᵢ .SW .x12 .x0 24) **
-     ((base + 36) ↦ᵢ .SW .x12 .x0 28) ** ((base + 40) ↦ᵢ .JAL .x0 jal_off) **
-     (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ mask) **
-     ((sp + 4) ↦ₘ v1) ** ((sp + 8) ↦ₘ v2) ** ((sp + 12) ↦ₘ v3) **
-     ((sp + 16) ↦ₘ v4) ** ((sp + 20) ↦ₘ v5v) ** ((sp + 24) ↦ₘ v6))
-    (by pcFree) LL
-  -- Steps 2-8: 7 SW x12 x0 N for offsets 4,8,...,28
-  have S0 := sw_x0_spec_gen .x12 sp v1 4 (base + 12)
-    (by simp only [signExtend12_4]; exact hv4)
-  simp only [signExtend12_4] at S0
-  rw [show (base + 12 : Addr) + 4 = base + 16 from by bv_omega] at S0
-  have S0f := cpsTriple_frame_left _ _ _ _
-    ((base ↦ᵢ .LW .x5 .x12 28) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 8) ↦ᵢ .SW .x12 .x5 0) **
-     ((base + 16) ↦ᵢ .SW .x12 .x0 8) **
-     ((base + 20) ↦ᵢ .SW .x12 .x0 12) ** ((base + 24) ↦ᵢ .SW .x12 .x0 16) **
-     ((base + 28) ↦ᵢ .SW .x12 .x0 20) ** ((base + 32) ↦ᵢ .SW .x12 .x0 24) **
-     ((base + 36) ↦ᵢ .SW .x12 .x0 28) ** ((base + 40) ↦ᵢ .JAL .x0 jal_off) **
-     (.x5 ↦ᵣ (v7 >>> (bit_shift.toNat % 32))) ** (.x6 ↦ᵣ bit_shift) **
-     (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ mask) **
-     (sp ↦ₘ (v7 >>> (bit_shift.toNat % 32))) ** ((sp + 8) ↦ₘ v2) ** ((sp + 12) ↦ₘ v3) **
-     ((sp + 16) ↦ₘ v4) ** ((sp + 20) ↦ₘ v5v) ** ((sp + 24) ↦ₘ v6) ** ((sp + 28) ↦ₘ v7))
-    (by pcFree) S0
-  have S1 := sw_x0_spec_gen .x12 sp v2 8 (base + 16)
-    (by simp only [signExtend12_8]; exact hv8)
-  simp only [signExtend12_8] at S1
-  rw [show (base + 16 : Addr) + 4 = base + 20 from by bv_omega] at S1
-  have S1f := cpsTriple_frame_left _ _ _ _
-    ((base ↦ᵢ .LW .x5 .x12 28) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 8) ↦ᵢ .SW .x12 .x5 0) **
-     ((base + 12) ↦ᵢ .SW .x12 .x0 4) **
-     ((base + 20) ↦ᵢ .SW .x12 .x0 12) ** ((base + 24) ↦ᵢ .SW .x12 .x0 16) **
-     ((base + 28) ↦ᵢ .SW .x12 .x0 20) ** ((base + 32) ↦ᵢ .SW .x12 .x0 24) **
-     ((base + 36) ↦ᵢ .SW .x12 .x0 28) ** ((base + 40) ↦ᵢ .JAL .x0 jal_off) **
-     (.x5 ↦ᵣ (v7 >>> (bit_shift.toNat % 32))) ** (.x6 ↦ᵣ bit_shift) **
-     (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ mask) **
-     (sp ↦ₘ (v7 >>> (bit_shift.toNat % 32))) ** ((sp + 4) ↦ₘ (0 : Word)) ** ((sp + 12) ↦ₘ v3) **
-     ((sp + 16) ↦ₘ v4) ** ((sp + 20) ↦ₘ v5v) ** ((sp + 24) ↦ₘ v6) ** ((sp + 28) ↦ₘ v7))
-    (by pcFree) S1
-  have S2 := sw_x0_spec_gen .x12 sp v3 12 (base + 20)
-    (by simp only [signExtend12_12]; exact hv12)
-  simp only [signExtend12_12] at S2
-  rw [show (base + 20 : Addr) + 4 = base + 24 from by bv_omega] at S2
-  have S2f := cpsTriple_frame_left _ _ _ _
-    ((base ↦ᵢ .LW .x5 .x12 28) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 8) ↦ᵢ .SW .x12 .x5 0) **
-     ((base + 12) ↦ᵢ .SW .x12 .x0 4) ** ((base + 16) ↦ᵢ .SW .x12 .x0 8) **
-     ((base + 24) ↦ᵢ .SW .x12 .x0 16) **
-     ((base + 28) ↦ᵢ .SW .x12 .x0 20) ** ((base + 32) ↦ᵢ .SW .x12 .x0 24) **
-     ((base + 36) ↦ᵢ .SW .x12 .x0 28) ** ((base + 40) ↦ᵢ .JAL .x0 jal_off) **
-     (.x5 ↦ᵣ (v7 >>> (bit_shift.toNat % 32))) ** (.x6 ↦ᵣ bit_shift) **
-     (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ mask) **
-     (sp ↦ₘ (v7 >>> (bit_shift.toNat % 32))) ** ((sp + 4) ↦ₘ (0 : Word)) ** ((sp + 8) ↦ₘ (0 : Word)) **
-     ((sp + 16) ↦ₘ v4) ** ((sp + 20) ↦ₘ v5v) ** ((sp + 24) ↦ₘ v6) ** ((sp + 28) ↦ₘ v7))
-    (by pcFree) S2
-  have S3 := sw_x0_spec_gen .x12 sp v4 16 (base + 24)
-    (by simp only [signExtend12_16]; exact hv16)
-  simp only [signExtend12_16] at S3
-  rw [show (base + 24 : Addr) + 4 = base + 28 from by bv_omega] at S3
-  have S3f := cpsTriple_frame_left _ _ _ _
-    ((base ↦ᵢ .LW .x5 .x12 28) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 8) ↦ᵢ .SW .x12 .x5 0) **
-     ((base + 12) ↦ᵢ .SW .x12 .x0 4) ** ((base + 16) ↦ᵢ .SW .x12 .x0 8) **
-     ((base + 20) ↦ᵢ .SW .x12 .x0 12) **
-     ((base + 28) ↦ᵢ .SW .x12 .x0 20) ** ((base + 32) ↦ᵢ .SW .x12 .x0 24) **
-     ((base + 36) ↦ᵢ .SW .x12 .x0 28) ** ((base + 40) ↦ᵢ .JAL .x0 jal_off) **
-     (.x5 ↦ᵣ (v7 >>> (bit_shift.toNat % 32))) ** (.x6 ↦ᵣ bit_shift) **
-     (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ mask) **
-     (sp ↦ₘ (v7 >>> (bit_shift.toNat % 32))) ** ((sp + 4) ↦ₘ (0 : Word)) ** ((sp + 8) ↦ₘ (0 : Word)) **
-     ((sp + 12) ↦ₘ (0 : Word)) ** ((sp + 20) ↦ₘ v5v) ** ((sp + 24) ↦ₘ v6) ** ((sp + 28) ↦ₘ v7))
-    (by pcFree) S3
-  have S4 := sw_x0_spec_gen .x12 sp v5v 20 (base + 28)
-    (by simp only [signExtend12_20]; exact hv20)
-  simp only [signExtend12_20] at S4
-  rw [show (base + 28 : Addr) + 4 = base + 32 from by bv_omega] at S4
-  have S4f := cpsTriple_frame_left _ _ _ _
-    ((base ↦ᵢ .LW .x5 .x12 28) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 8) ↦ᵢ .SW .x12 .x5 0) **
-     ((base + 12) ↦ᵢ .SW .x12 .x0 4) ** ((base + 16) ↦ᵢ .SW .x12 .x0 8) **
-     ((base + 20) ↦ᵢ .SW .x12 .x0 12) ** ((base + 24) ↦ᵢ .SW .x12 .x0 16) **
-     ((base + 32) ↦ᵢ .SW .x12 .x0 24) **
-     ((base + 36) ↦ᵢ .SW .x12 .x0 28) ** ((base + 40) ↦ᵢ .JAL .x0 jal_off) **
-     (.x5 ↦ᵣ (v7 >>> (bit_shift.toNat % 32))) ** (.x6 ↦ᵣ bit_shift) **
-     (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ mask) **
-     (sp ↦ₘ (v7 >>> (bit_shift.toNat % 32))) ** ((sp + 4) ↦ₘ (0 : Word)) ** ((sp + 8) ↦ₘ (0 : Word)) **
-     ((sp + 12) ↦ₘ (0 : Word)) ** ((sp + 16) ↦ₘ (0 : Word)) ** ((sp + 24) ↦ₘ v6) ** ((sp + 28) ↦ₘ v7))
-    (by pcFree) S4
-  have S5 := sw_x0_spec_gen .x12 sp v6 24 (base + 32)
-    (by simp only [signExtend12_24]; exact hv24)
-  simp only [signExtend12_24] at S5
-  rw [show (base + 32 : Addr) + 4 = base + 36 from by bv_omega] at S5
-  have S5f := cpsTriple_frame_left _ _ _ _
-    ((base ↦ᵢ .LW .x5 .x12 28) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 8) ↦ᵢ .SW .x12 .x5 0) **
-     ((base + 12) ↦ᵢ .SW .x12 .x0 4) ** ((base + 16) ↦ᵢ .SW .x12 .x0 8) **
-     ((base + 20) ↦ᵢ .SW .x12 .x0 12) ** ((base + 24) ↦ᵢ .SW .x12 .x0 16) **
-     ((base + 28) ↦ᵢ .SW .x12 .x0 20) **
-     ((base + 36) ↦ᵢ .SW .x12 .x0 28) ** ((base + 40) ↦ᵢ .JAL .x0 jal_off) **
-     (.x5 ↦ᵣ (v7 >>> (bit_shift.toNat % 32))) ** (.x6 ↦ᵣ bit_shift) **
-     (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ mask) **
-     (sp ↦ₘ (v7 >>> (bit_shift.toNat % 32))) ** ((sp + 4) ↦ₘ (0 : Word)) ** ((sp + 8) ↦ₘ (0 : Word)) **
-     ((sp + 12) ↦ₘ (0 : Word)) ** ((sp + 16) ↦ₘ (0 : Word)) ** ((sp + 20) ↦ₘ (0 : Word)) ** ((sp + 28) ↦ₘ v7))
-    (by pcFree) S5
-  have S6 := sw_x0_spec_gen .x12 sp v7 28 (base + 36)
-    (by simp only [signExtend12_28]; exact hv28)
-  simp only [signExtend12_28] at S6
-  rw [show (base + 36 : Addr) + 4 = base + 40 from by bv_omega] at S6
-  have S6f := cpsTriple_frame_left _ _ _ _
-    ((base ↦ᵢ .LW .x5 .x12 28) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 8) ↦ᵢ .SW .x12 .x5 0) **
-     ((base + 12) ↦ᵢ .SW .x12 .x0 4) ** ((base + 16) ↦ᵢ .SW .x12 .x0 8) **
-     ((base + 20) ↦ᵢ .SW .x12 .x0 12) ** ((base + 24) ↦ᵢ .SW .x12 .x0 16) **
-     ((base + 28) ↦ᵢ .SW .x12 .x0 20) ** ((base + 32) ↦ᵢ .SW .x12 .x0 24) **
-     ((base + 40) ↦ᵢ .JAL .x0 jal_off) **
-     (.x5 ↦ᵣ (v7 >>> (bit_shift.toNat % 32))) ** (.x6 ↦ᵣ bit_shift) **
-     (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ mask) **
-     (sp ↦ₘ (v7 >>> (bit_shift.toNat % 32))) ** ((sp + 4) ↦ₘ (0 : Word)) ** ((sp + 8) ↦ₘ (0 : Word)) **
-     ((sp + 12) ↦ₘ (0 : Word)) ** ((sp + 16) ↦ₘ (0 : Word)) ** ((sp + 20) ↦ₘ (0 : Word)) ** ((sp + 24) ↦ₘ (0 : Word)))
-    (by pcFree) S6
-  -- Step 9: JAL x0 to exit
-  have JL := cpsTriple_frame_left _ _ _ _
-    ((base ↦ᵢ .LW .x5 .x12 28) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 8) ↦ᵢ .SW .x12 .x5 0) **
-     ((base + 12) ↦ᵢ .SW .x12 .x0 4) ** ((base + 16) ↦ᵢ .SW .x12 .x0 8) **
-     ((base + 20) ↦ᵢ .SW .x12 .x0 12) ** ((base + 24) ↦ᵢ .SW .x12 .x0 16) **
-     ((base + 28) ↦ᵢ .SW .x12 .x0 20) ** ((base + 32) ↦ᵢ .SW .x12 .x0 24) **
-     ((base + 36) ↦ᵢ .SW .x12 .x0 28) **
-     (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ (v7 >>> (bit_shift.toNat % 32))) ** (.x6 ↦ᵣ bit_shift) **
-     (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ mask) **
-     (sp ↦ₘ (v7 >>> (bit_shift.toNat % 32))) ** ((sp + 4) ↦ₘ (0 : Word)) ** ((sp + 8) ↦ₘ (0 : Word)) **
-     ((sp + 12) ↦ₘ (0 : Word)) ** ((sp + 16) ↦ₘ (0 : Word)) ** ((sp + 20) ↦ₘ (0 : Word)) **
-     ((sp + 24) ↦ₘ (0 : Word)) ** ((sp + 28) ↦ₘ (0 : Word)))
-    (by pcFree) (jal_x0_spec_gen jal_off (base + 40))
+  have hvm4 : isValidMemAccess (sp + signExtend12 (4 : BitVec 12)) = true := by
+    simp only [signExtend12_4]; have := hvalid.get (i := 1) (by omega); simpa using this
+  have hvm8 : isValidMemAccess (sp + signExtend12 (8 : BitVec 12)) = true := by
+    simp only [signExtend12_8]; have := hvalid.get (i := 2) (by omega); simpa using this
+  have hvm12 : isValidMemAccess (sp + signExtend12 (12 : BitVec 12)) = true := by
+    simp only [signExtend12_12]; have := hvalid.get (i := 3) (by omega); simpa using this
+  have hvm16 : isValidMemAccess (sp + signExtend12 (16 : BitVec 12)) = true := by
+    simp only [signExtend12_16]; have := hvalid.get (i := 4) (by omega); simpa using this
+  have hvm20 : isValidMemAccess (sp + signExtend12 (20 : BitVec 12)) = true := by
+    simp only [signExtend12_20]; have := hvalid.get (i := 5) (by omega); simpa using this
+  have hvm24 : isValidMemAccess (sp + signExtend12 (24 : BitVec 12)) = true := by
+    simp only [signExtend12_24]; have := hvalid.get (i := 6) (by omega); simpa using this
+  have hvm28 : isValidMemAccess (sp + signExtend12 (28 : BitVec 12)) = true := by
+    simp only [signExtend12_28]; have := hvalid.get (i := 7) (by omega); simpa using this
+  -- Compose: shr_last_limb(0) + 7× SW x0 + JAL via runBlock
+  have LL := shr_last_limb_spec 0 sp v7 v0 v5 bit_shift base hvm28 hvm0
+  have S0 := sw_x0_spec_gen .x12 sp v1 4 (base + 12) hvm4
+  have S1 := sw_x0_spec_gen .x12 sp v2 8 (base + 16) hvm8
+  have S2 := sw_x0_spec_gen .x12 sp v3 12 (base + 20) hvm12
+  have S3 := sw_x0_spec_gen .x12 sp v4 16 (base + 24) hvm16
+  have S4 := sw_x0_spec_gen .x12 sp v5v 20 (base + 28) hvm20
+  have S5 := sw_x0_spec_gen .x12 sp v6 24 (base + 32) hvm24
+  have S6 := sw_x0_spec_gen .x12 sp v7 28 (base + 36) hvm28
+  have JL := jal_x0_spec_gen jal_off (base + 40)
   rw [hexit] at JL
-  -- Compose all steps
-  clear LL S0 S1 S2 S3 S4 S5 S6
-  clear hv0 hv4 hv8 hv12 hv16 hv20 hv24 hv28
-  have c01 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) LLf S0f; clear LLf S0f
-  have c02 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) c01 S1f; clear c01 S1f
-  have c03 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) c02 S2f; clear c02 S2f
-  have c04 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) c03 S3f; clear c03 S3f
-  have c05 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) c04 S4f; clear c04 S4f
-  have c06 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) c05 S5f; clear c05 S5f
-  have c07 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) c06 S6f; clear c06 S6f
-  have cfull := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) c07 JL; clear c07 JL
-  exact cpsTriple_consequence _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp) cfull
+  runBlock LL S0 S1 S2 S3 S4 S5 S6 JL
 
 -- ============================================================================
 -- Shift body spec: body_6 (limb_shift=6, 17 instructions)
@@ -988,228 +710,37 @@ theorem shr_body_6_spec (sp : Word)
        (sp ↦ₘ result0) ** ((sp + 4) ↦ₘ result1) ** ((sp + 8) ↦ₘ 0) ** ((sp + 12) ↦ₘ 0) **
        ((sp + 16) ↦ₘ 0) ** ((sp + 20) ↦ₘ 0) ** ((sp + 24) ↦ₘ 0) ** ((sp + 28) ↦ₘ 0)) := by
   -- Memory validity from ValidMemRange sp 8
-  have hv0 : isValidMemAccess sp = true := by
+  have hvm0 : isValidMemAccess (sp + signExtend12 (0 : BitVec 12)) = true := by
+    simp only [signExtend12_0]; rw [show sp + (0 : Word) = sp from by bv_addr]
     have := hvalid.get (i := 0) (by omega); simpa using this
-  have hv4 : isValidMemAccess (sp + 4) = true := by
-    have := hvalid.get (i := 1) (by omega); simpa using this
-  have hv8 : isValidMemAccess (sp + 8) = true := by
-    have := hvalid.get (i := 2) (by omega); simpa using this
-  have hv12 : isValidMemAccess (sp + 12) = true := by
-    have := hvalid.get (i := 3) (by omega); simpa using this
-  have hv16 : isValidMemAccess (sp + 16) = true := by
-    have := hvalid.get (i := 4) (by omega); simpa using this
-  have hv20 : isValidMemAccess (sp + 20) = true := by
-    have := hvalid.get (i := 5) (by omega); simpa using this
-  have hv24 : isValidMemAccess (sp + 24) = true := by
-    have := hvalid.get (i := 6) (by omega); simpa using this
-  have hv28 : isValidMemAccess (sp + 28) = true := by
-    have := hvalid.get (i := 7) (by omega); simpa using this
-  -- Step 1: shr_merge_limb(24, 28, 0): base → base+28
-  have MM := shr_merge_limb_spec 24 28 0 sp v6 v7 v0 v5 v10 bit_shift anti_shift mask base
-    (by simp only [signExtend12_24]; exact hv24)
-    (by simp only [signExtend12_28]; exact hv28)
-    (by simp only [signExtend12_0]; rw [show sp + (0 : Word) = sp from by bv_addr]; exact hv0)
-  simp only [signExtend12_24, signExtend12_28, signExtend12_0] at MM
-  rw [show sp + (0 : Word) = sp from by bv_addr] at MM
-  have MMf := cpsTriple_frame_left _ _ _ _
-    (((base + 28) ↦ᵢ .LW .x5 .x12 28) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 36) ↦ᵢ .SW .x12 .x5 4) **
-     ((base + 40) ↦ᵢ .SW .x12 .x0 8) ** ((base + 44) ↦ᵢ .SW .x12 .x0 12) **
-     ((base + 48) ↦ᵢ .SW .x12 .x0 16) ** ((base + 52) ↦ᵢ .SW .x12 .x0 20) **
-     ((base + 56) ↦ᵢ .SW .x12 .x0 24) ** ((base + 60) ↦ᵢ .SW .x12 .x0 28) **
-     ((base + 64) ↦ᵢ .JAL .x0 jal_off) **
-     ((sp + 4) ↦ₘ v1) ** ((sp + 8) ↦ₘ v2) ** ((sp + 12) ↦ₘ v3) **
-     ((sp + 16) ↦ₘ v4) ** ((sp + 20) ↦ₘ v5v))
-    (by pcFree) MM
-  -- Step 2: shr_last_limb(4): base+28 → base+40
+  have hvm4 : isValidMemAccess (sp + signExtend12 (4 : BitVec 12)) = true := by
+    simp only [signExtend12_4]; have := hvalid.get (i := 1) (by omega); simpa using this
+  have hvm8 : isValidMemAccess (sp + signExtend12 (8 : BitVec 12)) = true := by
+    simp only [signExtend12_8]; have := hvalid.get (i := 2) (by omega); simpa using this
+  have hvm12 : isValidMemAccess (sp + signExtend12 (12 : BitVec 12)) = true := by
+    simp only [signExtend12_12]; have := hvalid.get (i := 3) (by omega); simpa using this
+  have hvm16 : isValidMemAccess (sp + signExtend12 (16 : BitVec 12)) = true := by
+    simp only [signExtend12_16]; have := hvalid.get (i := 4) (by omega); simpa using this
+  have hvm20 : isValidMemAccess (sp + signExtend12 (20 : BitVec 12)) = true := by
+    simp only [signExtend12_20]; have := hvalid.get (i := 5) (by omega); simpa using this
+  have hvm24 : isValidMemAccess (sp + signExtend12 (24 : BitVec 12)) = true := by
+    simp only [signExtend12_24]; have := hvalid.get (i := 6) (by omega); simpa using this
+  have hvm28 : isValidMemAccess (sp + signExtend12 (28 : BitVec 12)) = true := by
+    simp only [signExtend12_28]; have := hvalid.get (i := 7) (by omega); simpa using this
+  -- Compose: 1x merge_limb + last_limb + 6x SW x0 + JAL via runBlock
+  have MM := shr_merge_limb_spec 24 28 0 sp v6 v7 v0 v5 v10 bit_shift anti_shift mask base hvm24 hvm28 hvm0
   have LL := shr_last_limb_spec 4 sp v7 v1
     ((v6 >>> (bit_shift.toNat % 32)) ||| ((v7 <<< (anti_shift.toNat % 32)) &&& mask))
-    bit_shift (base + 28)
-    (by simp only [signExtend12_28]; exact hv28)
-    (by simp only [signExtend12_4]; exact hv4)
-  simp only [signExtend12_4, signExtend12_28] at LL
-  rw [show (base + 28 : Addr) + 4 = base + 32 from by bv_omega] at LL
-  rw [show (base + 28 : Addr) + 8 = base + 36 from by bv_omega] at LL
-  have LLf := cpsTriple_frame_left _ _ _ _
-    ((base ↦ᵢ .LW .x5 .x12 24) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 8) ↦ᵢ .LW .x10 .x12 28) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-     ((base + 40) ↦ᵢ .SW .x12 .x0 8) ** ((base + 44) ↦ᵢ .SW .x12 .x0 12) **
-     ((base + 48) ↦ᵢ .SW .x12 .x0 16) ** ((base + 52) ↦ᵢ .SW .x12 .x0 20) **
-     ((base + 56) ↦ᵢ .SW .x12 .x0 24) ** ((base + 60) ↦ᵢ .SW .x12 .x0 28) **
-     ((base + 64) ↦ᵢ .JAL .x0 jal_off) **
-     (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ ((v7 <<< (anti_shift.toNat % 32)) &&& mask)) ** (.x11 ↦ᵣ mask) **
-     (sp ↦ₘ ((v6 >>> (bit_shift.toNat % 32)) ||| ((v7 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 8) ↦ₘ v2) ** ((sp + 12) ↦ₘ v3) ** ((sp + 16) ↦ₘ v4) ** ((sp + 20) ↦ₘ v5v) ** ((sp + 24) ↦ₘ v6))
-    (by pcFree) LL
-  rw [show (base + 28) + 12 = base + 40 from by bv_omega] at LLf
-  -- Steps 3-8: 6 SW x12, x0, N for offsets 8,12,16,20,24,28
-  have T0 := sw_x0_spec_gen .x12 sp v2 8 (base + 40)
-    (by simp only [signExtend12_8]; exact hv8)
-  simp only [signExtend12_8] at T0
-  rw [show (base + 40 : Addr) + 4 = base + 44 from by bv_omega] at T0
-  have T0f := cpsTriple_frame_left _ _ _ _
-    ((base ↦ᵢ .LW .x5 .x12 24) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 8) ↦ᵢ .LW .x10 .x12 28) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-     ((base + 28) ↦ᵢ .LW .x5 .x12 28) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 36) ↦ᵢ .SW .x12 .x5 4) **
-     ((base + 44) ↦ᵢ .SW .x12 .x0 12) **
-     ((base + 48) ↦ᵢ .SW .x12 .x0 16) ** ((base + 52) ↦ᵢ .SW .x12 .x0 20) **
-     ((base + 56) ↦ᵢ .SW .x12 .x0 24) ** ((base + 60) ↦ᵢ .SW .x12 .x0 28) **
-     ((base + 64) ↦ᵢ .JAL .x0 jal_off) **
-     (.x5 ↦ᵣ (v7 >>> (bit_shift.toNat % 32))) ** (.x6 ↦ᵣ bit_shift) **
-     (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ ((v7 <<< (anti_shift.toNat % 32)) &&& mask)) ** (.x11 ↦ᵣ mask) **
-     (sp ↦ₘ ((v6 >>> (bit_shift.toNat % 32)) ||| ((v7 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 4) ↦ₘ (v7 >>> (bit_shift.toNat % 32))) **
-     ((sp + 12) ↦ₘ v3) ** ((sp + 16) ↦ₘ v4) ** ((sp + 20) ↦ₘ v5v) ** ((sp + 24) ↦ₘ v6) ** ((sp + 28) ↦ₘ v7))
-    (by pcFree) T0
-  have T1 := sw_x0_spec_gen .x12 sp v3 12 (base + 44)
-    (by simp only [signExtend12_12]; exact hv12)
-  simp only [signExtend12_12] at T1
-  rw [show (base + 44 : Addr) + 4 = base + 48 from by bv_omega] at T1
-  have T1f := cpsTriple_frame_left _ _ _ _
-    ((base ↦ᵢ .LW .x5 .x12 24) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 8) ↦ᵢ .LW .x10 .x12 28) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-     ((base + 28) ↦ᵢ .LW .x5 .x12 28) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 36) ↦ᵢ .SW .x12 .x5 4) **
-     ((base + 40) ↦ᵢ .SW .x12 .x0 8) **
-     ((base + 48) ↦ᵢ .SW .x12 .x0 16) ** ((base + 52) ↦ᵢ .SW .x12 .x0 20) **
-     ((base + 56) ↦ᵢ .SW .x12 .x0 24) ** ((base + 60) ↦ᵢ .SW .x12 .x0 28) **
-     ((base + 64) ↦ᵢ .JAL .x0 jal_off) **
-     (.x5 ↦ᵣ (v7 >>> (bit_shift.toNat % 32))) ** (.x6 ↦ᵣ bit_shift) **
-     (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ ((v7 <<< (anti_shift.toNat % 32)) &&& mask)) ** (.x11 ↦ᵣ mask) **
-     (sp ↦ₘ ((v6 >>> (bit_shift.toNat % 32)) ||| ((v7 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 4) ↦ₘ (v7 >>> (bit_shift.toNat % 32))) ** ((sp + 8) ↦ₘ (0 : Word)) **
-     ((sp + 16) ↦ₘ v4) ** ((sp + 20) ↦ₘ v5v) ** ((sp + 24) ↦ₘ v6) ** ((sp + 28) ↦ₘ v7))
-    (by pcFree) T1
-  have T2 := sw_x0_spec_gen .x12 sp v4 16 (base + 48)
-    (by simp only [signExtend12_16]; exact hv16)
-  simp only [signExtend12_16] at T2
-  rw [show (base + 48 : Addr) + 4 = base + 52 from by bv_omega] at T2
-  have T2f := cpsTriple_frame_left _ _ _ _
-    ((base ↦ᵢ .LW .x5 .x12 24) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 8) ↦ᵢ .LW .x10 .x12 28) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-     ((base + 28) ↦ᵢ .LW .x5 .x12 28) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 36) ↦ᵢ .SW .x12 .x5 4) **
-     ((base + 40) ↦ᵢ .SW .x12 .x0 8) ** ((base + 44) ↦ᵢ .SW .x12 .x0 12) **
-     ((base + 52) ↦ᵢ .SW .x12 .x0 20) **
-     ((base + 56) ↦ᵢ .SW .x12 .x0 24) ** ((base + 60) ↦ᵢ .SW .x12 .x0 28) **
-     ((base + 64) ↦ᵢ .JAL .x0 jal_off) **
-     (.x5 ↦ᵣ (v7 >>> (bit_shift.toNat % 32))) ** (.x6 ↦ᵣ bit_shift) **
-     (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ ((v7 <<< (anti_shift.toNat % 32)) &&& mask)) ** (.x11 ↦ᵣ mask) **
-     (sp ↦ₘ ((v6 >>> (bit_shift.toNat % 32)) ||| ((v7 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 4) ↦ₘ (v7 >>> (bit_shift.toNat % 32))) ** ((sp + 8) ↦ₘ (0 : Word)) ** ((sp + 12) ↦ₘ (0 : Word)) **
-     ((sp + 20) ↦ₘ v5v) ** ((sp + 24) ↦ₘ v6) ** ((sp + 28) ↦ₘ v7))
-    (by pcFree) T2
-  have T3 := sw_x0_spec_gen .x12 sp v5v 20 (base + 52)
-    (by simp only [signExtend12_20]; exact hv20)
-  simp only [signExtend12_20] at T3
-  rw [show (base + 52 : Addr) + 4 = base + 56 from by bv_omega] at T3
-  have T3f := cpsTriple_frame_left _ _ _ _
-    ((base ↦ᵢ .LW .x5 .x12 24) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 8) ↦ᵢ .LW .x10 .x12 28) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-     ((base + 28) ↦ᵢ .LW .x5 .x12 28) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 36) ↦ᵢ .SW .x12 .x5 4) **
-     ((base + 40) ↦ᵢ .SW .x12 .x0 8) ** ((base + 44) ↦ᵢ .SW .x12 .x0 12) **
-     ((base + 48) ↦ᵢ .SW .x12 .x0 16) **
-     ((base + 56) ↦ᵢ .SW .x12 .x0 24) ** ((base + 60) ↦ᵢ .SW .x12 .x0 28) **
-     ((base + 64) ↦ᵢ .JAL .x0 jal_off) **
-     (.x5 ↦ᵣ (v7 >>> (bit_shift.toNat % 32))) ** (.x6 ↦ᵣ bit_shift) **
-     (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ ((v7 <<< (anti_shift.toNat % 32)) &&& mask)) ** (.x11 ↦ᵣ mask) **
-     (sp ↦ₘ ((v6 >>> (bit_shift.toNat % 32)) ||| ((v7 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 4) ↦ₘ (v7 >>> (bit_shift.toNat % 32))) ** ((sp + 8) ↦ₘ (0 : Word)) ** ((sp + 12) ↦ₘ (0 : Word)) **
-     ((sp + 16) ↦ₘ (0 : Word)) ** ((sp + 24) ↦ₘ v6) ** ((sp + 28) ↦ₘ v7))
-    (by pcFree) T3
-  have T4 := sw_x0_spec_gen .x12 sp v6 24 (base + 56)
-    (by simp only [signExtend12_24]; exact hv24)
-  simp only [signExtend12_24] at T4
-  rw [show (base + 56 : Addr) + 4 = base + 60 from by bv_omega] at T4
-  have T4f := cpsTriple_frame_left _ _ _ _
-    ((base ↦ᵢ .LW .x5 .x12 24) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 8) ↦ᵢ .LW .x10 .x12 28) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-     ((base + 28) ↦ᵢ .LW .x5 .x12 28) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 36) ↦ᵢ .SW .x12 .x5 4) **
-     ((base + 40) ↦ᵢ .SW .x12 .x0 8) ** ((base + 44) ↦ᵢ .SW .x12 .x0 12) **
-     ((base + 48) ↦ᵢ .SW .x12 .x0 16) ** ((base + 52) ↦ᵢ .SW .x12 .x0 20) **
-     ((base + 60) ↦ᵢ .SW .x12 .x0 28) **
-     ((base + 64) ↦ᵢ .JAL .x0 jal_off) **
-     (.x5 ↦ᵣ (v7 >>> (bit_shift.toNat % 32))) ** (.x6 ↦ᵣ bit_shift) **
-     (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ ((v7 <<< (anti_shift.toNat % 32)) &&& mask)) ** (.x11 ↦ᵣ mask) **
-     (sp ↦ₘ ((v6 >>> (bit_shift.toNat % 32)) ||| ((v7 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 4) ↦ₘ (v7 >>> (bit_shift.toNat % 32))) ** ((sp + 8) ↦ₘ (0 : Word)) ** ((sp + 12) ↦ₘ (0 : Word)) **
-     ((sp + 16) ↦ₘ (0 : Word)) ** ((sp + 20) ↦ₘ (0 : Word)) ** ((sp + 28) ↦ₘ v7))
-    (by pcFree) T4
-  have T5 := sw_x0_spec_gen .x12 sp v7 28 (base + 60)
-    (by simp only [signExtend12_28]; exact hv28)
-  simp only [signExtend12_28] at T5
-  rw [show (base + 60 : Addr) + 4 = base + 64 from by bv_omega] at T5
-  have T5f := cpsTriple_frame_left _ _ _ _
-    ((base ↦ᵢ .LW .x5 .x12 24) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 8) ↦ᵢ .LW .x10 .x12 28) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-     ((base + 28) ↦ᵢ .LW .x5 .x12 28) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 36) ↦ᵢ .SW .x12 .x5 4) **
-     ((base + 40) ↦ᵢ .SW .x12 .x0 8) ** ((base + 44) ↦ᵢ .SW .x12 .x0 12) **
-     ((base + 48) ↦ᵢ .SW .x12 .x0 16) ** ((base + 52) ↦ᵢ .SW .x12 .x0 20) **
-     ((base + 56) ↦ᵢ .SW .x12 .x0 24) **
-     ((base + 64) ↦ᵢ .JAL .x0 jal_off) **
-     (.x5 ↦ᵣ (v7 >>> (bit_shift.toNat % 32))) ** (.x6 ↦ᵣ bit_shift) **
-     (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ ((v7 <<< (anti_shift.toNat % 32)) &&& mask)) ** (.x11 ↦ᵣ mask) **
-     (sp ↦ₘ ((v6 >>> (bit_shift.toNat % 32)) ||| ((v7 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 4) ↦ₘ (v7 >>> (bit_shift.toNat % 32))) ** ((sp + 8) ↦ₘ (0 : Word)) ** ((sp + 12) ↦ₘ (0 : Word)) **
-     ((sp + 16) ↦ₘ (0 : Word)) ** ((sp + 20) ↦ₘ (0 : Word)) ** ((sp + 24) ↦ₘ (0 : Word)))
-    (by pcFree) T5
-  -- Step 9: JAL x0 to exit
-  have JL := cpsTriple_frame_left _ _ _ _
-    ((base ↦ᵢ .LW .x5 .x12 24) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 8) ↦ᵢ .LW .x10 .x12 28) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-     ((base + 28) ↦ᵢ .LW .x5 .x12 28) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 36) ↦ᵢ .SW .x12 .x5 4) **
-     ((base + 40) ↦ᵢ .SW .x12 .x0 8) ** ((base + 44) ↦ᵢ .SW .x12 .x0 12) **
-     ((base + 48) ↦ᵢ .SW .x12 .x0 16) ** ((base + 52) ↦ᵢ .SW .x12 .x0 20) **
-     ((base + 56) ↦ᵢ .SW .x12 .x0 24) ** ((base + 60) ↦ᵢ .SW .x12 .x0 28) **
-     (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ (v7 >>> (bit_shift.toNat % 32))) ** (.x6 ↦ᵣ bit_shift) **
-     (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ ((v7 <<< (anti_shift.toNat % 32)) &&& mask)) ** (.x11 ↦ᵣ mask) **
-     (sp ↦ₘ ((v6 >>> (bit_shift.toNat % 32)) ||| ((v7 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 4) ↦ₘ (v7 >>> (bit_shift.toNat % 32))) ** ((sp + 8) ↦ₘ (0 : Word)) ** ((sp + 12) ↦ₘ (0 : Word)) **
-     ((sp + 16) ↦ₘ (0 : Word)) ** ((sp + 20) ↦ₘ (0 : Word)) ** ((sp + 24) ↦ₘ (0 : Word)) ** ((sp + 28) ↦ₘ (0 : Word)))
-    (by pcFree) (jal_x0_spec_gen jal_off (base + 64))
+    bit_shift (base + 28) hvm28 hvm4
+  have T0 := sw_x0_spec_gen .x12 sp v2 8 (base + 40) hvm8
+  have T1 := sw_x0_spec_gen .x12 sp v3 12 (base + 44) hvm12
+  have T2 := sw_x0_spec_gen .x12 sp v4 16 (base + 48) hvm16
+  have T3 := sw_x0_spec_gen .x12 sp v5v 20 (base + 52) hvm20
+  have T4 := sw_x0_spec_gen .x12 sp v6 24 (base + 56) hvm24
+  have T5 := sw_x0_spec_gen .x12 sp v7 28 (base + 60) hvm28
+  have JL := jal_x0_spec_gen jal_off (base + 64)
   rw [hexit] at JL
-  -- Compose all steps
-  clear MM LL T0 T1 T2 T3 T4 T5
-  clear hv0 hv4 hv8 hv12 hv16 hv20 hv24 hv28
-  have c01 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) MMf LLf; clear MMf LLf
-  have c02 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) c01 T0f; clear c01 T0f
-  have c03 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) c02 T1f; clear c02 T1f
-  have c04 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) c03 T2f; clear c03 T2f
-  have c05 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) c04 T3f; clear c04 T3f
-  have c06 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) c05 T4f; clear c05 T4f
-  have c07 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) c06 T5f; clear c06 T5f
-  have cfull := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) c07 JL; clear c07 JL
-  exact cpsTriple_consequence _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp) cfull
+  runBlock MM LL T0 T1 T2 T3 T4 T5 JL
 
 -- ============================================================================
 -- Shift body spec: body_5 (limb_shift=5, 23 instructions)
@@ -1277,277 +808,40 @@ theorem shr_body_5_spec (sp : Word)
        (sp ↦ₘ result0) ** ((sp + 4) ↦ₘ result1) ** ((sp + 8) ↦ₘ result2) ** ((sp + 12) ↦ₘ 0) **
        ((sp + 16) ↦ₘ 0) ** ((sp + 20) ↦ₘ 0) ** ((sp + 24) ↦ₘ 0) ** ((sp + 28) ↦ₘ 0)) := by
   -- Memory validity from ValidMemRange sp 8
-  have hv0 : isValidMemAccess sp = true := by
+  have hvm0 : isValidMemAccess (sp + signExtend12 (0 : BitVec 12)) = true := by
+    simp only [signExtend12_0]; rw [show sp + (0 : Word) = sp from by bv_addr]
     have := hvalid.get (i := 0) (by omega); simpa using this
-  have hv4 : isValidMemAccess (sp + 4) = true := by
-    have := hvalid.get (i := 1) (by omega); simpa using this
-  have hv8 : isValidMemAccess (sp + 8) = true := by
-    have := hvalid.get (i := 2) (by omega); simpa using this
-  have hv12 : isValidMemAccess (sp + 12) = true := by
-    have := hvalid.get (i := 3) (by omega); simpa using this
-  have hv16 : isValidMemAccess (sp + 16) = true := by
-    have := hvalid.get (i := 4) (by omega); simpa using this
-  have hv20 : isValidMemAccess (sp + 20) = true := by
-    have := hvalid.get (i := 5) (by omega); simpa using this
-  have hv24 : isValidMemAccess (sp + 24) = true := by
-    have := hvalid.get (i := 6) (by omega); simpa using this
-  have hv28 : isValidMemAccess (sp + 28) = true := by
-    have := hvalid.get (i := 7) (by omega); simpa using this
-  -- Step 1: merge_limb(20,24,0): base → base+28
-  have MM1 := shr_merge_limb_spec 20 24 0 sp v5v v6 v0 v5 v10 bit_shift anti_shift mask base
-    (by simp only [signExtend12_20]; exact hv20)
-    (by simp only [signExtend12_24]; exact hv24)
-    (by simp only [signExtend12_0]; rw [show sp + (0 : Word) = sp from by bv_addr]; exact hv0)
-  simp only [signExtend12_20, signExtend12_24, signExtend12_0] at MM1
-  rw [show sp + (0 : Word) = sp from by bv_addr] at MM1
-  have MM1f := cpsTriple_frame_left _ _ _ _
-    (((base + 28) ↦ᵢ .LW .x5 .x12 24) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 36) ↦ᵢ .LW .x10 .x12 28) ** ((base + 40) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 44) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 48) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 52) ↦ᵢ .SW .x12 .x5 4) **
-     ((base + 56) ↦ᵢ .LW .x5 .x12 28) ** ((base + 60) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 64) ↦ᵢ .SW .x12 .x5 8) **
-     ((base + 68) ↦ᵢ .SW .x12 .x0 12) ** ((base + 72) ↦ᵢ .SW .x12 .x0 16) **
-     ((base + 76) ↦ᵢ .SW .x12 .x0 20) ** ((base + 80) ↦ᵢ .SW .x12 .x0 24) **
-     ((base + 84) ↦ᵢ .SW .x12 .x0 28) **
-     ((base + 88) ↦ᵢ .JAL .x0 jal_off) **
-     ((sp + 4) ↦ₘ v1) ** ((sp + 8) ↦ₘ v2) ** ((sp + 12) ↦ₘ v3) **
-     ((sp + 16) ↦ₘ v4) ** ((sp + 28) ↦ₘ v7))
-    (by pcFree) MM1
-  -- Step 2: merge_limb(24,28,4): base+28 → base+56
+  have hvm4 : isValidMemAccess (sp + signExtend12 (4 : BitVec 12)) = true := by
+    simp only [signExtend12_4]; have := hvalid.get (i := 1) (by omega); simpa using this
+  have hvm8 : isValidMemAccess (sp + signExtend12 (8 : BitVec 12)) = true := by
+    simp only [signExtend12_8]; have := hvalid.get (i := 2) (by omega); simpa using this
+  have hvm12 : isValidMemAccess (sp + signExtend12 (12 : BitVec 12)) = true := by
+    simp only [signExtend12_12]; have := hvalid.get (i := 3) (by omega); simpa using this
+  have hvm16 : isValidMemAccess (sp + signExtend12 (16 : BitVec 12)) = true := by
+    simp only [signExtend12_16]; have := hvalid.get (i := 4) (by omega); simpa using this
+  have hvm20 : isValidMemAccess (sp + signExtend12 (20 : BitVec 12)) = true := by
+    simp only [signExtend12_20]; have := hvalid.get (i := 5) (by omega); simpa using this
+  have hvm24 : isValidMemAccess (sp + signExtend12 (24 : BitVec 12)) = true := by
+    simp only [signExtend12_24]; have := hvalid.get (i := 6) (by omega); simpa using this
+  have hvm28 : isValidMemAccess (sp + signExtend12 (28 : BitVec 12)) = true := by
+    simp only [signExtend12_28]; have := hvalid.get (i := 7) (by omega); simpa using this
+  -- Compose: 2x merge_limb + last_limb + 5x SW x0 + JAL via runBlock
+  have MM1 := shr_merge_limb_spec 20 24 0 sp v5v v6 v0 v5 v10 bit_shift anti_shift mask base hvm20 hvm24 hvm0
   have MM2 := shr_merge_limb_spec 24 28 4 sp v6 v7 v1
     ((v5v >>> (bit_shift.toNat % 32)) ||| ((v6 <<< (anti_shift.toNat % 32)) &&& mask))
     ((v6 <<< (anti_shift.toNat % 32)) &&& mask)
-    bit_shift anti_shift mask (base + 28)
-    (by simp only [signExtend12_24]; exact hv24)
-    (by simp only [signExtend12_28]; exact hv28)
-    (by simp only [signExtend12_4]; exact hv4)
-  simp only [signExtend12_24, signExtend12_28, signExtend12_4] at MM2
-  rw [show (base + 28 : Addr) + 4 = base + 32 from by bv_omega,
-      show (base + 28 : Addr) + 8 = base + 36 from by bv_omega,
-      show (base + 28 : Addr) + 12 = base + 40 from by bv_omega,
-      show (base + 28 : Addr) + 16 = base + 44 from by bv_omega,
-      show (base + 28 : Addr) + 20 = base + 48 from by bv_omega,
-      show (base + 28 : Addr) + 24 = base + 52 from by bv_omega,
-      show (base + 28 : Addr) + 28 = base + 56 from by bv_omega] at MM2
-  have MM2f := cpsTriple_frame_left _ _ _ _
-    ((base ↦ᵢ .LW .x5 .x12 20) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 8) ↦ᵢ .LW .x10 .x12 24) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-     ((base + 56) ↦ᵢ .LW .x5 .x12 28) ** ((base + 60) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 64) ↦ᵢ .SW .x12 .x5 8) **
-     ((base + 68) ↦ᵢ .SW .x12 .x0 12) ** ((base + 72) ↦ᵢ .SW .x12 .x0 16) **
-     ((base + 76) ↦ᵢ .SW .x12 .x0 20) ** ((base + 80) ↦ᵢ .SW .x12 .x0 24) **
-     ((base + 84) ↦ᵢ .SW .x12 .x0 28) **
-     ((base + 88) ↦ᵢ .JAL .x0 jal_off) **
-     (sp ↦ₘ ((v5v >>> (bit_shift.toNat % 32)) ||| ((v6 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 8) ↦ₘ v2) ** ((sp + 12) ↦ₘ v3) **
-     ((sp + 16) ↦ₘ v4) ** ((sp + 20) ↦ₘ v5v))
-    (by pcFree) MM2
-  -- Step 3: last_limb(8): base+56 → base+68
+    bit_shift anti_shift mask (base + 28) hvm24 hvm28 hvm4
   have LL := shr_last_limb_spec 8 sp v7 v2
     ((v6 >>> (bit_shift.toNat % 32)) ||| ((v7 <<< (anti_shift.toNat % 32)) &&& mask))
-    bit_shift (base + 56)
-    (by simp only [signExtend12_28]; exact hv28)
-    (by simp only [signExtend12_8]; exact hv8)
-  simp only [signExtend12_8, signExtend12_28] at LL
-  rw [show (base + 56 : Addr) + 4 = base + 60 from by bv_omega,
-      show (base + 56 : Addr) + 8 = base + 64 from by bv_omega] at LL
-  have LLf := cpsTriple_frame_left _ _ _ _
-    ((base ↦ᵢ .LW .x5 .x12 20) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 8) ↦ᵢ .LW .x10 .x12 24) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-     ((base + 28) ↦ᵢ .LW .x5 .x12 24) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 36) ↦ᵢ .LW .x10 .x12 28) ** ((base + 40) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 44) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 48) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 52) ↦ᵢ .SW .x12 .x5 4) **
-     ((base + 68) ↦ᵢ .SW .x12 .x0 12) ** ((base + 72) ↦ᵢ .SW .x12 .x0 16) **
-     ((base + 76) ↦ᵢ .SW .x12 .x0 20) ** ((base + 80) ↦ᵢ .SW .x12 .x0 24) **
-     ((base + 84) ↦ᵢ .SW .x12 .x0 28) **
-     ((base + 88) ↦ᵢ .JAL .x0 jal_off) **
-     (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ ((v7 <<< (anti_shift.toNat % 32)) &&& mask)) ** (.x11 ↦ᵣ mask) **
-     (sp ↦ₘ ((v5v >>> (bit_shift.toNat % 32)) ||| ((v6 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 4) ↦ₘ ((v6 >>> (bit_shift.toNat % 32)) ||| ((v7 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 12) ↦ₘ v3) ** ((sp + 16) ↦ₘ v4) ** ((sp + 20) ↦ₘ v5v) ** ((sp + 24) ↦ₘ v6))
-    (by pcFree) LL
-  rw [show (base + 56 : Addr) + 12 = base + 68 from by bv_omega] at LLf
-  -- Steps 4-8: 5 SW x12 x0 N for offsets 12,16,20,24,28
-  have T0 := sw_x0_spec_gen .x12 sp v3 12 (base + 68)
-    (by simp only [signExtend12_12]; exact hv12)
-  simp only [signExtend12_12] at T0
-  rw [show (base + 68 : Addr) + 4 = base + 72 from by bv_omega] at T0
-  have T0f := cpsTriple_frame_left _ _ _ _
-    ((base ↦ᵢ .LW .x5 .x12 20) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 8) ↦ᵢ .LW .x10 .x12 24) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-     ((base + 28) ↦ᵢ .LW .x5 .x12 24) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 36) ↦ᵢ .LW .x10 .x12 28) ** ((base + 40) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 44) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 48) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 52) ↦ᵢ .SW .x12 .x5 4) **
-     ((base + 56) ↦ᵢ .LW .x5 .x12 28) ** ((base + 60) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 64) ↦ᵢ .SW .x12 .x5 8) **
-     ((base + 72) ↦ᵢ .SW .x12 .x0 16) **
-     ((base + 76) ↦ᵢ .SW .x12 .x0 20) ** ((base + 80) ↦ᵢ .SW .x12 .x0 24) **
-     ((base + 84) ↦ᵢ .SW .x12 .x0 28) **
-     ((base + 88) ↦ᵢ .JAL .x0 jal_off) **
-     (.x5 ↦ᵣ (v7 >>> (bit_shift.toNat % 32))) ** (.x6 ↦ᵣ bit_shift) **
-     (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ ((v7 <<< (anti_shift.toNat % 32)) &&& mask)) ** (.x11 ↦ᵣ mask) **
-     (sp ↦ₘ ((v5v >>> (bit_shift.toNat % 32)) ||| ((v6 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 4) ↦ₘ ((v6 >>> (bit_shift.toNat % 32)) ||| ((v7 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 8) ↦ₘ (v7 >>> (bit_shift.toNat % 32))) **
-     ((sp + 16) ↦ₘ v4) ** ((sp + 20) ↦ₘ v5v) ** ((sp + 24) ↦ₘ v6) ** ((sp + 28) ↦ₘ v7))
-    (by pcFree) T0
-  have T1 := sw_x0_spec_gen .x12 sp v4 16 (base + 72)
-    (by simp only [signExtend12_16]; exact hv16)
-  simp only [signExtend12_16] at T1
-  rw [show (base + 72 : Addr) + 4 = base + 76 from by bv_omega] at T1
-  have T1f := cpsTriple_frame_left _ _ _ _
-    ((base ↦ᵢ .LW .x5 .x12 20) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 8) ↦ᵢ .LW .x10 .x12 24) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-     ((base + 28) ↦ᵢ .LW .x5 .x12 24) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 36) ↦ᵢ .LW .x10 .x12 28) ** ((base + 40) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 44) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 48) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 52) ↦ᵢ .SW .x12 .x5 4) **
-     ((base + 56) ↦ᵢ .LW .x5 .x12 28) ** ((base + 60) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 64) ↦ᵢ .SW .x12 .x5 8) **
-     ((base + 68) ↦ᵢ .SW .x12 .x0 12) **
-     ((base + 76) ↦ᵢ .SW .x12 .x0 20) ** ((base + 80) ↦ᵢ .SW .x12 .x0 24) **
-     ((base + 84) ↦ᵢ .SW .x12 .x0 28) **
-     ((base + 88) ↦ᵢ .JAL .x0 jal_off) **
-     (.x5 ↦ᵣ (v7 >>> (bit_shift.toNat % 32))) ** (.x6 ↦ᵣ bit_shift) **
-     (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ ((v7 <<< (anti_shift.toNat % 32)) &&& mask)) ** (.x11 ↦ᵣ mask) **
-     (sp ↦ₘ ((v5v >>> (bit_shift.toNat % 32)) ||| ((v6 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 4) ↦ₘ ((v6 >>> (bit_shift.toNat % 32)) ||| ((v7 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 8) ↦ₘ (v7 >>> (bit_shift.toNat % 32))) ** ((sp + 12) ↦ₘ (0 : Word)) **
-     ((sp + 20) ↦ₘ v5v) ** ((sp + 24) ↦ₘ v6) ** ((sp + 28) ↦ₘ v7))
-    (by pcFree) T1
-  have T2 := sw_x0_spec_gen .x12 sp v5v 20 (base + 76)
-    (by simp only [signExtend12_20]; exact hv20)
-  simp only [signExtend12_20] at T2
-  rw [show (base + 76 : Addr) + 4 = base + 80 from by bv_omega] at T2
-  have T2f := cpsTriple_frame_left _ _ _ _
-    ((base ↦ᵢ .LW .x5 .x12 20) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 8) ↦ᵢ .LW .x10 .x12 24) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-     ((base + 28) ↦ᵢ .LW .x5 .x12 24) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 36) ↦ᵢ .LW .x10 .x12 28) ** ((base + 40) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 44) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 48) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 52) ↦ᵢ .SW .x12 .x5 4) **
-     ((base + 56) ↦ᵢ .LW .x5 .x12 28) ** ((base + 60) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 64) ↦ᵢ .SW .x12 .x5 8) **
-     ((base + 68) ↦ᵢ .SW .x12 .x0 12) ** ((base + 72) ↦ᵢ .SW .x12 .x0 16) **
-     ((base + 80) ↦ᵢ .SW .x12 .x0 24) **
-     ((base + 84) ↦ᵢ .SW .x12 .x0 28) **
-     ((base + 88) ↦ᵢ .JAL .x0 jal_off) **
-     (.x5 ↦ᵣ (v7 >>> (bit_shift.toNat % 32))) ** (.x6 ↦ᵣ bit_shift) **
-     (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ ((v7 <<< (anti_shift.toNat % 32)) &&& mask)) ** (.x11 ↦ᵣ mask) **
-     (sp ↦ₘ ((v5v >>> (bit_shift.toNat % 32)) ||| ((v6 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 4) ↦ₘ ((v6 >>> (bit_shift.toNat % 32)) ||| ((v7 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 8) ↦ₘ (v7 >>> (bit_shift.toNat % 32))) ** ((sp + 12) ↦ₘ (0 : Word)) **
-     ((sp + 16) ↦ₘ (0 : Word)) ** ((sp + 24) ↦ₘ v6) ** ((sp + 28) ↦ₘ v7))
-    (by pcFree) T2
-  have T3 := sw_x0_spec_gen .x12 sp v6 24 (base + 80)
-    (by simp only [signExtend12_24]; exact hv24)
-  simp only [signExtend12_24] at T3
-  rw [show (base + 80 : Addr) + 4 = base + 84 from by bv_omega] at T3
-  have T3f := cpsTriple_frame_left _ _ _ _
-    ((base ↦ᵢ .LW .x5 .x12 20) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 8) ↦ᵢ .LW .x10 .x12 24) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-     ((base + 28) ↦ᵢ .LW .x5 .x12 24) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 36) ↦ᵢ .LW .x10 .x12 28) ** ((base + 40) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 44) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 48) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 52) ↦ᵢ .SW .x12 .x5 4) **
-     ((base + 56) ↦ᵢ .LW .x5 .x12 28) ** ((base + 60) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 64) ↦ᵢ .SW .x12 .x5 8) **
-     ((base + 68) ↦ᵢ .SW .x12 .x0 12) ** ((base + 72) ↦ᵢ .SW .x12 .x0 16) **
-     ((base + 76) ↦ᵢ .SW .x12 .x0 20) **
-     ((base + 84) ↦ᵢ .SW .x12 .x0 28) **
-     ((base + 88) ↦ᵢ .JAL .x0 jal_off) **
-     (.x5 ↦ᵣ (v7 >>> (bit_shift.toNat % 32))) ** (.x6 ↦ᵣ bit_shift) **
-     (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ ((v7 <<< (anti_shift.toNat % 32)) &&& mask)) ** (.x11 ↦ᵣ mask) **
-     (sp ↦ₘ ((v5v >>> (bit_shift.toNat % 32)) ||| ((v6 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 4) ↦ₘ ((v6 >>> (bit_shift.toNat % 32)) ||| ((v7 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 8) ↦ₘ (v7 >>> (bit_shift.toNat % 32))) ** ((sp + 12) ↦ₘ (0 : Word)) **
-     ((sp + 16) ↦ₘ (0 : Word)) ** ((sp + 20) ↦ₘ (0 : Word)) ** ((sp + 28) ↦ₘ v7))
-    (by pcFree) T3
-  have T4 := sw_x0_spec_gen .x12 sp v7 28 (base + 84)
-    (by simp only [signExtend12_28]; exact hv28)
-  simp only [signExtend12_28] at T4
-  rw [show (base + 84 : Addr) + 4 = base + 88 from by bv_omega] at T4
-  have T4f := cpsTriple_frame_left _ _ _ _
-    ((base ↦ᵢ .LW .x5 .x12 20) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 8) ↦ᵢ .LW .x10 .x12 24) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-     ((base + 28) ↦ᵢ .LW .x5 .x12 24) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 36) ↦ᵢ .LW .x10 .x12 28) ** ((base + 40) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 44) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 48) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 52) ↦ᵢ .SW .x12 .x5 4) **
-     ((base + 56) ↦ᵢ .LW .x5 .x12 28) ** ((base + 60) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 64) ↦ᵢ .SW .x12 .x5 8) **
-     ((base + 68) ↦ᵢ .SW .x12 .x0 12) ** ((base + 72) ↦ᵢ .SW .x12 .x0 16) **
-     ((base + 76) ↦ᵢ .SW .x12 .x0 20) ** ((base + 80) ↦ᵢ .SW .x12 .x0 24) **
-     ((base + 88) ↦ᵢ .JAL .x0 jal_off) **
-     (.x5 ↦ᵣ (v7 >>> (bit_shift.toNat % 32))) ** (.x6 ↦ᵣ bit_shift) **
-     (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ ((v7 <<< (anti_shift.toNat % 32)) &&& mask)) ** (.x11 ↦ᵣ mask) **
-     (sp ↦ₘ ((v5v >>> (bit_shift.toNat % 32)) ||| ((v6 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 4) ↦ₘ ((v6 >>> (bit_shift.toNat % 32)) ||| ((v7 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 8) ↦ₘ (v7 >>> (bit_shift.toNat % 32))) ** ((sp + 12) ↦ₘ (0 : Word)) **
-     ((sp + 16) ↦ₘ (0 : Word)) ** ((sp + 20) ↦ₘ (0 : Word)) ** ((sp + 24) ↦ₘ (0 : Word)))
-    (by pcFree) T4
-  -- Step 9: JAL x0 to exit
-  have JL := cpsTriple_frame_left _ _ _ _
-    ((base ↦ᵢ .LW .x5 .x12 20) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 8) ↦ᵢ .LW .x10 .x12 24) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-     ((base + 28) ↦ᵢ .LW .x5 .x12 24) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 36) ↦ᵢ .LW .x10 .x12 28) ** ((base + 40) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 44) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 48) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 52) ↦ᵢ .SW .x12 .x5 4) **
-     ((base + 56) ↦ᵢ .LW .x5 .x12 28) ** ((base + 60) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 64) ↦ᵢ .SW .x12 .x5 8) **
-     ((base + 68) ↦ᵢ .SW .x12 .x0 12) ** ((base + 72) ↦ᵢ .SW .x12 .x0 16) **
-     ((base + 76) ↦ᵢ .SW .x12 .x0 20) ** ((base + 80) ↦ᵢ .SW .x12 .x0 24) **
-     ((base + 84) ↦ᵢ .SW .x12 .x0 28) **
-     (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ (v7 >>> (bit_shift.toNat % 32))) ** (.x6 ↦ᵣ bit_shift) **
-     (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ ((v7 <<< (anti_shift.toNat % 32)) &&& mask)) ** (.x11 ↦ᵣ mask) **
-     (sp ↦ₘ ((v5v >>> (bit_shift.toNat % 32)) ||| ((v6 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 4) ↦ₘ ((v6 >>> (bit_shift.toNat % 32)) ||| ((v7 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 8) ↦ₘ (v7 >>> (bit_shift.toNat % 32))) ** ((sp + 12) ↦ₘ (0 : Word)) **
-     ((sp + 16) ↦ₘ (0 : Word)) ** ((sp + 20) ↦ₘ (0 : Word)) **
-     ((sp + 24) ↦ₘ (0 : Word)) ** ((sp + 28) ↦ₘ (0 : Word)))
-    (by pcFree) (jal_x0_spec_gen jal_off (base + 88))
+    bit_shift (base + 56) hvm28 hvm8
+  have T0 := sw_x0_spec_gen .x12 sp v3 12 (base + 68) hvm12
+  have T1 := sw_x0_spec_gen .x12 sp v4 16 (base + 72) hvm16
+  have T2 := sw_x0_spec_gen .x12 sp v5v 20 (base + 76) hvm20
+  have T3 := sw_x0_spec_gen .x12 sp v6 24 (base + 80) hvm24
+  have T4 := sw_x0_spec_gen .x12 sp v7 28 (base + 84) hvm28
+  have JL := jal_x0_spec_gen jal_off (base + 88)
   rw [hexit] at JL
-  -- Compose all steps
-  clear MM1 MM2 LL T0 T1 T2 T3 T4
-  clear hv0 hv4 hv8 hv12 hv16 hv20 hv24 hv28
-  have c01 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) MM1f MM2f; clear MM1f MM2f
-  have c02 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) c01 LLf; clear c01 LLf
-  have c03 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) c02 T0f; clear c02 T0f
-  have c04 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) c03 T1f; clear c03 T1f
-  have c05 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) c04 T2f; clear c04 T2f
-  have c06 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) c05 T3f; clear c05 T3f
-  have c07 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) c06 T4f; clear c06 T4f
-  have cfull := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) c07 JL; clear c07 JL
-  exact cpsTriple_consequence _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp) cfull
+  runBlock MM1 MM2 LL T0 T1 T2 T3 T4 JL
 
 -- ============================================================================
 -- Shift body spec: body_4 (limb_shift=4, 29 instructions)
@@ -1624,340 +918,43 @@ theorem shr_body_4_spec (sp : Word)
        (sp ↦ₘ result0) ** ((sp + 4) ↦ₘ result1) ** ((sp + 8) ↦ₘ result2) ** ((sp + 12) ↦ₘ result3) **
        ((sp + 16) ↦ₘ 0) ** ((sp + 20) ↦ₘ 0) ** ((sp + 24) ↦ₘ 0) ** ((sp + 28) ↦ₘ 0)) := by
   -- Memory validity from ValidMemRange sp 8
-  have hv0 : isValidMemAccess sp = true := by
+  have hvm0 : isValidMemAccess (sp + signExtend12 (0 : BitVec 12)) = true := by
+    simp only [signExtend12_0]; rw [show sp + (0 : Word) = sp from by bv_addr]
     have := hvalid.get (i := 0) (by omega); simpa using this
-  have hv4 : isValidMemAccess (sp + 4) = true := by
-    have := hvalid.get (i := 1) (by omega); simpa using this
-  have hv8 : isValidMemAccess (sp + 8) = true := by
-    have := hvalid.get (i := 2) (by omega); simpa using this
-  have hv12 : isValidMemAccess (sp + 12) = true := by
-    have := hvalid.get (i := 3) (by omega); simpa using this
-  have hv16 : isValidMemAccess (sp + 16) = true := by
-    have := hvalid.get (i := 4) (by omega); simpa using this
-  have hv20 : isValidMemAccess (sp + 20) = true := by
-    have := hvalid.get (i := 5) (by omega); simpa using this
-  have hv24 : isValidMemAccess (sp + 24) = true := by
-    have := hvalid.get (i := 6) (by omega); simpa using this
-  have hv28 : isValidMemAccess (sp + 28) = true := by
-    have := hvalid.get (i := 7) (by omega); simpa using this
-  -- Step 1: merge_limb(16,20,0): base -> base+28
-  have MM1 := shr_merge_limb_spec 16 20 0 sp v4 v5v v0 v5 v10 bit_shift anti_shift mask base
-    (by simp only [signExtend12_16]; exact hv16)
-    (by simp only [signExtend12_20]; exact hv20)
-    (by simp only [signExtend12_0]; rw [show sp + (0 : Word) = sp from by bv_addr]; exact hv0)
-  simp only [signExtend12_16, signExtend12_20, signExtend12_0] at MM1
-  rw [show sp + (0 : Word) = sp from by bv_addr] at MM1
-  have MM1f := cpsTriple_frame_left _ _ _ _
-    (-- merge_limb 2 instrAt
-     ((base + 28) ↦ᵢ .LW .x5 .x12 20) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 36) ↦ᵢ .LW .x10 .x12 24) ** ((base + 40) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 44) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 48) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 52) ↦ᵢ .SW .x12 .x5 4) **
-     -- merge_limb 3 instrAt
-     ((base + 56) ↦ᵢ .LW .x5 .x12 24) ** ((base + 60) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 64) ↦ᵢ .LW .x10 .x12 28) ** ((base + 68) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 72) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 76) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 80) ↦ᵢ .SW .x12 .x5 8) **
-     -- last_limb instrAt
-     ((base + 84) ↦ᵢ .LW .x5 .x12 28) ** ((base + 88) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 92) ↦ᵢ .SW .x12 .x5 12) **
-     -- SW x0 instrAt
-     ((base + 96) ↦ᵢ .SW .x12 .x0 16) ** ((base + 100) ↦ᵢ .SW .x12 .x0 20) **
-     ((base + 104) ↦ᵢ .SW .x12 .x0 24) ** ((base + 108) ↦ᵢ .SW .x12 .x0 28) **
-     -- JAL instrAt
-     ((base + 112) ↦ᵢ .JAL .x0 jal_off) **
-     -- remaining mem
-     ((sp + 4) ↦ₘ v1) ** ((sp + 8) ↦ₘ v2) ** ((sp + 12) ↦ₘ v3) **
-     ((sp + 24) ↦ₘ v6) ** ((sp + 28) ↦ₘ v7))
-    (by pcFree) MM1
-  -- Step 2: merge_limb(20,24,4): base+28 -> base+56
+  have hvm4 : isValidMemAccess (sp + signExtend12 (4 : BitVec 12)) = true := by
+    simp only [signExtend12_4]; have := hvalid.get (i := 1) (by omega); simpa using this
+  have hvm8 : isValidMemAccess (sp + signExtend12 (8 : BitVec 12)) = true := by
+    simp only [signExtend12_8]; have := hvalid.get (i := 2) (by omega); simpa using this
+  have hvm12 : isValidMemAccess (sp + signExtend12 (12 : BitVec 12)) = true := by
+    simp only [signExtend12_12]; have := hvalid.get (i := 3) (by omega); simpa using this
+  have hvm16 : isValidMemAccess (sp + signExtend12 (16 : BitVec 12)) = true := by
+    simp only [signExtend12_16]; have := hvalid.get (i := 4) (by omega); simpa using this
+  have hvm20 : isValidMemAccess (sp + signExtend12 (20 : BitVec 12)) = true := by
+    simp only [signExtend12_20]; have := hvalid.get (i := 5) (by omega); simpa using this
+  have hvm24 : isValidMemAccess (sp + signExtend12 (24 : BitVec 12)) = true := by
+    simp only [signExtend12_24]; have := hvalid.get (i := 6) (by omega); simpa using this
+  have hvm28 : isValidMemAccess (sp + signExtend12 (28 : BitVec 12)) = true := by
+    simp only [signExtend12_28]; have := hvalid.get (i := 7) (by omega); simpa using this
+  -- Compose: 3x merge_limb + last_limb + 4x SW x0 + JAL via runBlock
+  have MM1 := shr_merge_limb_spec 16 20 0 sp v4 v5v v0 v5 v10 bit_shift anti_shift mask base hvm16 hvm20 hvm0
   have MM2 := shr_merge_limb_spec 20 24 4 sp v5v v6 v1
     ((v4 >>> (bit_shift.toNat % 32)) ||| ((v5v <<< (anti_shift.toNat % 32)) &&& mask))
     ((v5v <<< (anti_shift.toNat % 32)) &&& mask)
-    bit_shift anti_shift mask (base + 28)
-    (by simp only [signExtend12_20]; exact hv20)
-    (by simp only [signExtend12_24]; exact hv24)
-    (by simp only [signExtend12_4]; exact hv4)
-  simp only [signExtend12_20, signExtend12_24, signExtend12_4] at MM2
-  rw [show (base + 28) + 4 = base + 32 from by bv_omega,
-      show (base + 28) + 8 = base + 36 from by bv_omega,
-      show (base + 28) + 12 = base + 40 from by bv_omega,
-      show (base + 28) + 16 = base + 44 from by bv_omega,
-      show (base + 28) + 20 = base + 48 from by bv_omega,
-      show (base + 28) + 24 = base + 52 from by bv_omega] at MM2
-  have MM2f := cpsTriple_frame_left _ _ _ _
-    (-- merge_limb 1 instrAt (preserved)
-     (base ↦ᵢ .LW .x5 .x12 16) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 8) ↦ᵢ .LW .x10 .x12 20) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-     -- merge_limb 3 instrAt
-     ((base + 56) ↦ᵢ .LW .x5 .x12 24) ** ((base + 60) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 64) ↦ᵢ .LW .x10 .x12 28) ** ((base + 68) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 72) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 76) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 80) ↦ᵢ .SW .x12 .x5 8) **
-     -- last_limb instrAt
-     ((base + 84) ↦ᵢ .LW .x5 .x12 28) ** ((base + 88) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 92) ↦ᵢ .SW .x12 .x5 12) **
-     -- SW x0 instrAt
-     ((base + 96) ↦ᵢ .SW .x12 .x0 16) ** ((base + 100) ↦ᵢ .SW .x12 .x0 20) **
-     ((base + 104) ↦ᵢ .SW .x12 .x0 24) ** ((base + 108) ↦ᵢ .SW .x12 .x0 28) **
-     -- JAL instrAt
-     ((base + 112) ↦ᵢ .JAL .x0 jal_off) **
-     -- remaining mem
-     (sp ↦ₘ ((v4 >>> (bit_shift.toNat % 32)) ||| ((v5v <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 8) ↦ₘ v2) ** ((sp + 12) ↦ₘ v3) **
-     ((sp + 16) ↦ₘ v4) ** ((sp + 28) ↦ₘ v7))
-    (by pcFree) MM2
-  rw [show (base + 28) + 28 = base + 56 from by bv_omega] at MM2f
-  -- Step 3: merge_limb(24,28,8): base+56 -> base+84
+    bit_shift anti_shift mask (base + 28) hvm20 hvm24 hvm4
   have MM3 := shr_merge_limb_spec 24 28 8 sp v6 v7 v2
     ((v5v >>> (bit_shift.toNat % 32)) ||| ((v6 <<< (anti_shift.toNat % 32)) &&& mask))
     ((v6 <<< (anti_shift.toNat % 32)) &&& mask)
-    bit_shift anti_shift mask (base + 56)
-    (by simp only [signExtend12_24]; exact hv24)
-    (by simp only [signExtend12_28]; exact hv28)
-    (by simp only [signExtend12_8]; exact hv8)
-  simp only [signExtend12_24, signExtend12_28, signExtend12_8] at MM3
-  rw [show (base + 56) + 4 = base + 60 from by bv_omega,
-      show (base + 56) + 8 = base + 64 from by bv_omega,
-      show (base + 56) + 12 = base + 68 from by bv_omega,
-      show (base + 56) + 16 = base + 72 from by bv_omega,
-      show (base + 56) + 20 = base + 76 from by bv_omega,
-      show (base + 56) + 24 = base + 80 from by bv_omega] at MM3
-  have MM3f := cpsTriple_frame_left _ _ _ _
-    (-- merge_limb 1 instrAt
-     (base ↦ᵢ .LW .x5 .x12 16) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 8) ↦ᵢ .LW .x10 .x12 20) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-     -- merge_limb 2 instrAt
-     ((base + 28) ↦ᵢ .LW .x5 .x12 20) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 36) ↦ᵢ .LW .x10 .x12 24) ** ((base + 40) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 44) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 48) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 52) ↦ᵢ .SW .x12 .x5 4) **
-     -- last_limb instrAt
-     ((base + 84) ↦ᵢ .LW .x5 .x12 28) ** ((base + 88) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 92) ↦ᵢ .SW .x12 .x5 12) **
-     -- SW x0 instrAt
-     ((base + 96) ↦ᵢ .SW .x12 .x0 16) ** ((base + 100) ↦ᵢ .SW .x12 .x0 20) **
-     ((base + 104) ↦ᵢ .SW .x12 .x0 24) ** ((base + 108) ↦ᵢ .SW .x12 .x0 28) **
-     -- JAL instrAt
-     ((base + 112) ↦ᵢ .JAL .x0 jal_off) **
-     -- remaining mem
-     (sp ↦ₘ ((v4 >>> (bit_shift.toNat % 32)) ||| ((v5v <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 4) ↦ₘ ((v5v >>> (bit_shift.toNat % 32)) ||| ((v6 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 12) ↦ₘ v3) ** ((sp + 16) ↦ₘ v4) ** ((sp + 20) ↦ₘ v5v))
-    (by pcFree) MM3
-  rw [show (base + 56) + 28 = base + 84 from by bv_omega] at MM3f
-  -- Step 4: last_limb(12): base+84 -> base+96
+    bit_shift anti_shift mask (base + 56) hvm24 hvm28 hvm8
   have LL := shr_last_limb_spec 12 sp v7 v3
     ((v6 >>> (bit_shift.toNat % 32)) ||| ((v7 <<< (anti_shift.toNat % 32)) &&& mask))
-    bit_shift (base + 84)
-    (by simp only [signExtend12_28]; exact hv28)
-    (by simp only [signExtend12_12]; exact hv12)
-  simp only [signExtend12_12, signExtend12_28] at LL
-  rw [show (base + 84) + 4 = base + 88 from by bv_omega,
-      show (base + 84) + 8 = base + 92 from by bv_omega] at LL
-  have LLf := cpsTriple_frame_left _ _ _ _
-    (-- merge_limb 1 instrAt
-     (base ↦ᵢ .LW .x5 .x12 16) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 8) ↦ᵢ .LW .x10 .x12 20) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-     -- merge_limb 2 instrAt
-     ((base + 28) ↦ᵢ .LW .x5 .x12 20) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 36) ↦ᵢ .LW .x10 .x12 24) ** ((base + 40) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 44) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 48) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 52) ↦ᵢ .SW .x12 .x5 4) **
-     -- merge_limb 3 instrAt
-     ((base + 56) ↦ᵢ .LW .x5 .x12 24) ** ((base + 60) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 64) ↦ᵢ .LW .x10 .x12 28) ** ((base + 68) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 72) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 76) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 80) ↦ᵢ .SW .x12 .x5 8) **
-     -- SW x0 instrAt
-     ((base + 96) ↦ᵢ .SW .x12 .x0 16) ** ((base + 100) ↦ᵢ .SW .x12 .x0 20) **
-     ((base + 104) ↦ᵢ .SW .x12 .x0 24) ** ((base + 108) ↦ᵢ .SW .x12 .x0 28) **
-     -- JAL instrAt
-     ((base + 112) ↦ᵢ .JAL .x0 jal_off) **
-     (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ ((v7 <<< (anti_shift.toNat % 32)) &&& mask)) ** (.x11 ↦ᵣ mask) **
-     (sp ↦ₘ ((v4 >>> (bit_shift.toNat % 32)) ||| ((v5v <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 4) ↦ₘ ((v5v >>> (bit_shift.toNat % 32)) ||| ((v6 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 8) ↦ₘ ((v6 >>> (bit_shift.toNat % 32)) ||| ((v7 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 16) ↦ₘ v4) ** ((sp + 20) ↦ₘ v5v) ** ((sp + 24) ↦ₘ v6))
-    (by pcFree) LL
-  rw [show (base + 84) + 12 = base + 96 from by bv_omega] at LLf
-  -- Steps 5-8: 4 SW zeros
-  have T0 := sw_x0_spec_gen .x12 sp v4 16 (base + 96)
-    (by simp only [signExtend12_16]; exact hv16)
-  simp only [signExtend12_16] at T0
-  rw [show (base + 96 : Addr) + 4 = base + 100 from by bv_omega] at T0
-  have T0f := cpsTriple_frame_left _ _ _ _
-    (-- all instrAt except (base+96)
-     (base ↦ᵢ .LW .x5 .x12 16) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 8) ↦ᵢ .LW .x10 .x12 20) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-     ((base + 28) ↦ᵢ .LW .x5 .x12 20) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 36) ↦ᵢ .LW .x10 .x12 24) ** ((base + 40) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 44) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 48) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 52) ↦ᵢ .SW .x12 .x5 4) **
-     ((base + 56) ↦ᵢ .LW .x5 .x12 24) ** ((base + 60) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 64) ↦ᵢ .LW .x10 .x12 28) ** ((base + 68) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 72) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 76) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 80) ↦ᵢ .SW .x12 .x5 8) **
-     ((base + 84) ↦ᵢ .LW .x5 .x12 28) ** ((base + 88) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 92) ↦ᵢ .SW .x12 .x5 12) **
-     ((base + 100) ↦ᵢ .SW .x12 .x0 20) **
-     ((base + 104) ↦ᵢ .SW .x12 .x0 24) ** ((base + 108) ↦ᵢ .SW .x12 .x0 28) **
-     ((base + 112) ↦ᵢ .JAL .x0 jal_off) **
-     (.x5 ↦ᵣ (v7 >>> (bit_shift.toNat % 32))) ** (.x6 ↦ᵣ bit_shift) **
-     (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ ((v7 <<< (anti_shift.toNat % 32)) &&& mask)) ** (.x11 ↦ᵣ mask) **
-     (sp ↦ₘ ((v4 >>> (bit_shift.toNat % 32)) ||| ((v5v <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 4) ↦ₘ ((v5v >>> (bit_shift.toNat % 32)) ||| ((v6 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 8) ↦ₘ ((v6 >>> (bit_shift.toNat % 32)) ||| ((v7 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 12) ↦ₘ (v7 >>> (bit_shift.toNat % 32))) **
-     ((sp + 20) ↦ₘ v5v) ** ((sp + 24) ↦ₘ v6) ** ((sp + 28) ↦ₘ v7))
-    (by pcFree) T0
-  have T1 := sw_x0_spec_gen .x12 sp v5v 20 (base + 100)
-    (by simp only [signExtend12_20]; exact hv20)
-  simp only [signExtend12_20] at T1
-  rw [show (base + 100 : Addr) + 4 = base + 104 from by bv_omega] at T1
-  have T1f := cpsTriple_frame_left _ _ _ _
-    ((base ↦ᵢ .LW .x5 .x12 16) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 8) ↦ᵢ .LW .x10 .x12 20) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-     ((base + 28) ↦ᵢ .LW .x5 .x12 20) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 36) ↦ᵢ .LW .x10 .x12 24) ** ((base + 40) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 44) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 48) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 52) ↦ᵢ .SW .x12 .x5 4) **
-     ((base + 56) ↦ᵢ .LW .x5 .x12 24) ** ((base + 60) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 64) ↦ᵢ .LW .x10 .x12 28) ** ((base + 68) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 72) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 76) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 80) ↦ᵢ .SW .x12 .x5 8) **
-     ((base + 84) ↦ᵢ .LW .x5 .x12 28) ** ((base + 88) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 92) ↦ᵢ .SW .x12 .x5 12) **
-     ((base + 96) ↦ᵢ .SW .x12 .x0 16) **
-     ((base + 104) ↦ᵢ .SW .x12 .x0 24) ** ((base + 108) ↦ᵢ .SW .x12 .x0 28) **
-     ((base + 112) ↦ᵢ .JAL .x0 jal_off) **
-     (.x5 ↦ᵣ (v7 >>> (bit_shift.toNat % 32))) ** (.x6 ↦ᵣ bit_shift) **
-     (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ ((v7 <<< (anti_shift.toNat % 32)) &&& mask)) ** (.x11 ↦ᵣ mask) **
-     (sp ↦ₘ ((v4 >>> (bit_shift.toNat % 32)) ||| ((v5v <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 4) ↦ₘ ((v5v >>> (bit_shift.toNat % 32)) ||| ((v6 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 8) ↦ₘ ((v6 >>> (bit_shift.toNat % 32)) ||| ((v7 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 12) ↦ₘ (v7 >>> (bit_shift.toNat % 32))) ** ((sp + 16) ↦ₘ (0 : Word)) **
-     ((sp + 24) ↦ₘ v6) ** ((sp + 28) ↦ₘ v7))
-    (by pcFree) T1
-  have T2 := sw_x0_spec_gen .x12 sp v6 24 (base + 104)
-    (by simp only [signExtend12_24]; exact hv24)
-  simp only [signExtend12_24] at T2
-  rw [show (base + 104 : Addr) + 4 = base + 108 from by bv_omega] at T2
-  have T2f := cpsTriple_frame_left _ _ _ _
-    ((base ↦ᵢ .LW .x5 .x12 16) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 8) ↦ᵢ .LW .x10 .x12 20) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-     ((base + 28) ↦ᵢ .LW .x5 .x12 20) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 36) ↦ᵢ .LW .x10 .x12 24) ** ((base + 40) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 44) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 48) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 52) ↦ᵢ .SW .x12 .x5 4) **
-     ((base + 56) ↦ᵢ .LW .x5 .x12 24) ** ((base + 60) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 64) ↦ᵢ .LW .x10 .x12 28) ** ((base + 68) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 72) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 76) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 80) ↦ᵢ .SW .x12 .x5 8) **
-     ((base + 84) ↦ᵢ .LW .x5 .x12 28) ** ((base + 88) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 92) ↦ᵢ .SW .x12 .x5 12) **
-     ((base + 96) ↦ᵢ .SW .x12 .x0 16) ** ((base + 100) ↦ᵢ .SW .x12 .x0 20) **
-     ((base + 108) ↦ᵢ .SW .x12 .x0 28) **
-     ((base + 112) ↦ᵢ .JAL .x0 jal_off) **
-     (.x5 ↦ᵣ (v7 >>> (bit_shift.toNat % 32))) ** (.x6 ↦ᵣ bit_shift) **
-     (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ ((v7 <<< (anti_shift.toNat % 32)) &&& mask)) ** (.x11 ↦ᵣ mask) **
-     (sp ↦ₘ ((v4 >>> (bit_shift.toNat % 32)) ||| ((v5v <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 4) ↦ₘ ((v5v >>> (bit_shift.toNat % 32)) ||| ((v6 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 8) ↦ₘ ((v6 >>> (bit_shift.toNat % 32)) ||| ((v7 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 12) ↦ₘ (v7 >>> (bit_shift.toNat % 32))) ** ((sp + 16) ↦ₘ (0 : Word)) **
-     ((sp + 20) ↦ₘ (0 : Word)) ** ((sp + 28) ↦ₘ v7))
-    (by pcFree) T2
-  have T3 := sw_x0_spec_gen .x12 sp v7 28 (base + 108)
-    (by simp only [signExtend12_28]; exact hv28)
-  simp only [signExtend12_28] at T3
-  rw [show (base + 108 : Addr) + 4 = base + 112 from by bv_omega] at T3
-  have T3f := cpsTriple_frame_left _ _ _ _
-    ((base ↦ᵢ .LW .x5 .x12 16) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 8) ↦ᵢ .LW .x10 .x12 20) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-     ((base + 28) ↦ᵢ .LW .x5 .x12 20) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 36) ↦ᵢ .LW .x10 .x12 24) ** ((base + 40) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 44) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 48) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 52) ↦ᵢ .SW .x12 .x5 4) **
-     ((base + 56) ↦ᵢ .LW .x5 .x12 24) ** ((base + 60) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 64) ↦ᵢ .LW .x10 .x12 28) ** ((base + 68) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 72) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 76) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 80) ↦ᵢ .SW .x12 .x5 8) **
-     ((base + 84) ↦ᵢ .LW .x5 .x12 28) ** ((base + 88) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 92) ↦ᵢ .SW .x12 .x5 12) **
-     ((base + 96) ↦ᵢ .SW .x12 .x0 16) ** ((base + 100) ↦ᵢ .SW .x12 .x0 20) **
-     ((base + 104) ↦ᵢ .SW .x12 .x0 24) **
-     ((base + 112) ↦ᵢ .JAL .x0 jal_off) **
-     (.x5 ↦ᵣ (v7 >>> (bit_shift.toNat % 32))) ** (.x6 ↦ᵣ bit_shift) **
-     (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ ((v7 <<< (anti_shift.toNat % 32)) &&& mask)) ** (.x11 ↦ᵣ mask) **
-     (sp ↦ₘ ((v4 >>> (bit_shift.toNat % 32)) ||| ((v5v <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 4) ↦ₘ ((v5v >>> (bit_shift.toNat % 32)) ||| ((v6 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 8) ↦ₘ ((v6 >>> (bit_shift.toNat % 32)) ||| ((v7 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 12) ↦ₘ (v7 >>> (bit_shift.toNat % 32))) ** ((sp + 16) ↦ₘ (0 : Word)) **
-     ((sp + 20) ↦ₘ (0 : Word)) ** ((sp + 24) ↦ₘ (0 : Word)))
-    (by pcFree) T3
-  -- JAL x0 to exit
-  have JL := cpsTriple_frame_left _ _ _ _
-    (-- all instrAt except (base+112)
-     (base ↦ᵢ .LW .x5 .x12 16) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 8) ↦ᵢ .LW .x10 .x12 20) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-     ((base + 28) ↦ᵢ .LW .x5 .x12 20) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 36) ↦ᵢ .LW .x10 .x12 24) ** ((base + 40) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 44) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 48) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 52) ↦ᵢ .SW .x12 .x5 4) **
-     ((base + 56) ↦ᵢ .LW .x5 .x12 24) ** ((base + 60) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 64) ↦ᵢ .LW .x10 .x12 28) ** ((base + 68) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 72) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 76) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 80) ↦ᵢ .SW .x12 .x5 8) **
-     ((base + 84) ↦ᵢ .LW .x5 .x12 28) ** ((base + 88) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 92) ↦ᵢ .SW .x12 .x5 12) **
-     ((base + 96) ↦ᵢ .SW .x12 .x0 16) ** ((base + 100) ↦ᵢ .SW .x12 .x0 20) **
-     ((base + 104) ↦ᵢ .SW .x12 .x0 24) ** ((base + 108) ↦ᵢ .SW .x12 .x0 28) **
-     (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ (v7 >>> (bit_shift.toNat % 32))) ** (.x6 ↦ᵣ bit_shift) **
-     (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ ((v7 <<< (anti_shift.toNat % 32)) &&& mask)) ** (.x11 ↦ᵣ mask) **
-     (sp ↦ₘ ((v4 >>> (bit_shift.toNat % 32)) ||| ((v5v <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 4) ↦ₘ ((v5v >>> (bit_shift.toNat % 32)) ||| ((v6 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 8) ↦ₘ ((v6 >>> (bit_shift.toNat % 32)) ||| ((v7 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 12) ↦ₘ (v7 >>> (bit_shift.toNat % 32))) ** ((sp + 16) ↦ₘ (0 : Word)) **
-     ((sp + 20) ↦ₘ (0 : Word)) ** ((sp + 24) ↦ₘ (0 : Word)) ** ((sp + 28) ↦ₘ (0 : Word)))
-    (by pcFree) (jal_x0_spec_gen jal_off (base + 112))
+    bit_shift (base + 84) hvm28 hvm12
+  have T0 := sw_x0_spec_gen .x12 sp v4 16 (base + 96) hvm16
+  have T1 := sw_x0_spec_gen .x12 sp v5v 20 (base + 100) hvm20
+  have T2 := sw_x0_spec_gen .x12 sp v6 24 (base + 104) hvm24
+  have T3 := sw_x0_spec_gen .x12 sp v7 28 (base + 108) hvm28
+  have JL := jal_x0_spec_gen jal_off (base + 112)
   rw [hexit] at JL
-  -- Compose all steps
-  clear MM1 MM2 MM3 LL T0 T1 T2 T3
-  clear hv0 hv4 hv8 hv12 hv16 hv20 hv24 hv28
-  have c01 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) MM1f MM2f; clear MM1f MM2f
-  have c02 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) c01 MM3f; clear c01 MM3f
-  have c03 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) c02 LLf; clear c02 LLf
-  have c04 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) c03 T0f; clear c03 T0f
-  have c05 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) c04 T1f; clear c04 T1f
-  have c06 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) c05 T2f; clear c05 T2f
-  have c07 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) c06 T3f; clear c06 T3f
-  have cfull := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) c07 JL; clear c07 JL
-  exact cpsTriple_consequence _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp) cfull
+  runBlock MM1 MM2 MM3 LL T0 T1 T2 T3 JL
 
 -- ============================================================================
 -- Shift body spec: body_3 (limb_shift=3, 35 instructions)
@@ -2041,396 +1038,46 @@ theorem shr_body_3_spec (sp : Word)
        (sp ↦ₘ result0) ** ((sp + 4) ↦ₘ result1) ** ((sp + 8) ↦ₘ result2) ** ((sp + 12) ↦ₘ result3) **
        ((sp + 16) ↦ₘ result4) ** ((sp + 20) ↦ₘ 0) ** ((sp + 24) ↦ₘ 0) ** ((sp + 28) ↦ₘ 0)) := by
   -- Memory validity from ValidMemRange sp 8
-  have hv0 : isValidMemAccess sp = true := by
+  have hvm0 : isValidMemAccess (sp + signExtend12 (0 : BitVec 12)) = true := by
+    simp only [signExtend12_0]; rw [show sp + (0 : Word) = sp from by bv_addr]
     have := hvalid.get (i := 0) (by omega); simpa using this
-  have hv4 : isValidMemAccess (sp + 4) = true := by
-    have := hvalid.get (i := 1) (by omega); simpa using this
-  have hv8 : isValidMemAccess (sp + 8) = true := by
-    have := hvalid.get (i := 2) (by omega); simpa using this
-  have hv12 : isValidMemAccess (sp + 12) = true := by
-    have := hvalid.get (i := 3) (by omega); simpa using this
-  have hv16 : isValidMemAccess (sp + 16) = true := by
-    have := hvalid.get (i := 4) (by omega); simpa using this
-  have hv20 : isValidMemAccess (sp + 20) = true := by
-    have := hvalid.get (i := 5) (by omega); simpa using this
-  have hv24 : isValidMemAccess (sp + 24) = true := by
-    have := hvalid.get (i := 6) (by omega); simpa using this
-  have hv28 : isValidMemAccess (sp + 28) = true := by
-    have := hvalid.get (i := 7) (by omega); simpa using this
-  -- Step 1: merge_limb(12,16,0): base -> base+28
-  have MM1 := shr_merge_limb_spec 12 16 0 sp v3 v4 v0 v5 v10 bit_shift anti_shift mask base
-    (by simp only [signExtend12_12]; exact hv12)
-    (by simp only [signExtend12_16]; exact hv16)
-    (by simp only [signExtend12_0]; rw [show sp + (0 : Word) = sp from by bv_addr]; exact hv0)
-  simp only [signExtend12_12, signExtend12_16, signExtend12_0] at MM1
-  rw [show sp + (0 : Word) = sp from by bv_addr] at MM1
-  have MM1f := cpsTriple_frame_left _ _ _ _
-    (-- merge_limb 2 instrAt
-     ((base + 28) ↦ᵢ .LW .x5 .x12 16) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 36) ↦ᵢ .LW .x10 .x12 20) ** ((base + 40) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 44) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 48) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 52) ↦ᵢ .SW .x12 .x5 4) **
-     -- merge_limb 3 instrAt
-     ((base + 56) ↦ᵢ .LW .x5 .x12 20) ** ((base + 60) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 64) ↦ᵢ .LW .x10 .x12 24) ** ((base + 68) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 72) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 76) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 80) ↦ᵢ .SW .x12 .x5 8) **
-     -- merge_limb 4 instrAt
-     ((base + 84) ↦ᵢ .LW .x5 .x12 24) ** ((base + 88) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 92) ↦ᵢ .LW .x10 .x12 28) ** ((base + 96) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 100) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 104) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 108) ↦ᵢ .SW .x12 .x5 12) **
-     -- last_limb instrAt
-     ((base + 112) ↦ᵢ .LW .x5 .x12 28) ** ((base + 116) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 120) ↦ᵢ .SW .x12 .x5 16) **
-     -- SW x0 instrAt
-     ((base + 124) ↦ᵢ .SW .x12 .x0 20) ** ((base + 128) ↦ᵢ .SW .x12 .x0 24) **
-     ((base + 132) ↦ᵢ .SW .x12 .x0 28) **
-     -- JAL instrAt
-     ((base + 136) ↦ᵢ .JAL .x0 jal_off) **
-     -- remaining mem
-     ((sp + 4) ↦ₘ v1) ** ((sp + 8) ↦ₘ v2) **
-     ((sp + 20) ↦ₘ v5v) ** ((sp + 24) ↦ₘ v6) ** ((sp + 28) ↦ₘ v7))
-    (by pcFree) MM1
-  -- Step 2: merge_limb(16,20,4): base+28 -> base+56
+  have hvm4 : isValidMemAccess (sp + signExtend12 (4 : BitVec 12)) = true := by
+    simp only [signExtend12_4]; have := hvalid.get (i := 1) (by omega); simpa using this
+  have hvm8 : isValidMemAccess (sp + signExtend12 (8 : BitVec 12)) = true := by
+    simp only [signExtend12_8]; have := hvalid.get (i := 2) (by omega); simpa using this
+  have hvm12 : isValidMemAccess (sp + signExtend12 (12 : BitVec 12)) = true := by
+    simp only [signExtend12_12]; have := hvalid.get (i := 3) (by omega); simpa using this
+  have hvm16 : isValidMemAccess (sp + signExtend12 (16 : BitVec 12)) = true := by
+    simp only [signExtend12_16]; have := hvalid.get (i := 4) (by omega); simpa using this
+  have hvm20 : isValidMemAccess (sp + signExtend12 (20 : BitVec 12)) = true := by
+    simp only [signExtend12_20]; have := hvalid.get (i := 5) (by omega); simpa using this
+  have hvm24 : isValidMemAccess (sp + signExtend12 (24 : BitVec 12)) = true := by
+    simp only [signExtend12_24]; have := hvalid.get (i := 6) (by omega); simpa using this
+  have hvm28 : isValidMemAccess (sp + signExtend12 (28 : BitVec 12)) = true := by
+    simp only [signExtend12_28]; have := hvalid.get (i := 7) (by omega); simpa using this
+  -- Compose: 4x merge_limb + last_limb + 3x SW x0 + JAL via runBlock
+  have MM1 := shr_merge_limb_spec 12 16 0 sp v3 v4 v0 v5 v10 bit_shift anti_shift mask base hvm12 hvm16 hvm0
   have MM2 := shr_merge_limb_spec 16 20 4 sp v4 v5v v1
     ((v3 >>> (bit_shift.toNat % 32)) ||| ((v4 <<< (anti_shift.toNat % 32)) &&& mask))
     ((v4 <<< (anti_shift.toNat % 32)) &&& mask)
-    bit_shift anti_shift mask (base + 28)
-    (by simp only [signExtend12_16]; exact hv16)
-    (by simp only [signExtend12_20]; exact hv20)
-    (by simp only [signExtend12_4]; exact hv4)
-  simp only [signExtend12_16, signExtend12_20, signExtend12_4] at MM2
-  rw [show (base + 28) + 4 = base + 32 from by bv_omega,
-      show (base + 28) + 8 = base + 36 from by bv_omega,
-      show (base + 28) + 12 = base + 40 from by bv_omega,
-      show (base + 28) + 16 = base + 44 from by bv_omega,
-      show (base + 28) + 20 = base + 48 from by bv_omega,
-      show (base + 28) + 24 = base + 52 from by bv_omega] at MM2
-  have MM2f := cpsTriple_frame_left _ _ _ _
-    (-- merge_limb 1 instrAt (preserved)
-     (base ↦ᵢ .LW .x5 .x12 12) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 8) ↦ᵢ .LW .x10 .x12 16) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-     -- merge_limb 3 instrAt
-     ((base + 56) ↦ᵢ .LW .x5 .x12 20) ** ((base + 60) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 64) ↦ᵢ .LW .x10 .x12 24) ** ((base + 68) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 72) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 76) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 80) ↦ᵢ .SW .x12 .x5 8) **
-     -- merge_limb 4 instrAt
-     ((base + 84) ↦ᵢ .LW .x5 .x12 24) ** ((base + 88) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 92) ↦ᵢ .LW .x10 .x12 28) ** ((base + 96) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 100) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 104) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 108) ↦ᵢ .SW .x12 .x5 12) **
-     -- last_limb instrAt
-     ((base + 112) ↦ᵢ .LW .x5 .x12 28) ** ((base + 116) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 120) ↦ᵢ .SW .x12 .x5 16) **
-     -- SW x0 instrAt
-     ((base + 124) ↦ᵢ .SW .x12 .x0 20) ** ((base + 128) ↦ᵢ .SW .x12 .x0 24) **
-     ((base + 132) ↦ᵢ .SW .x12 .x0 28) **
-     -- JAL instrAt
-     ((base + 136) ↦ᵢ .JAL .x0 jal_off) **
-     -- remaining mem
-     (sp ↦ₘ ((v3 >>> (bit_shift.toNat % 32)) ||| ((v4 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 8) ↦ₘ v2) ** ((sp + 12) ↦ₘ v3) **
-     ((sp + 24) ↦ₘ v6) ** ((sp + 28) ↦ₘ v7))
-    (by pcFree) MM2
-  rw [show (base + 28) + 28 = base + 56 from by bv_omega] at MM2f
-  -- Step 3: merge_limb(20,24,8): base+56 -> base+84
+    bit_shift anti_shift mask (base + 28) hvm16 hvm20 hvm4
   have MM3 := shr_merge_limb_spec 20 24 8 sp v5v v6 v2
     ((v4 >>> (bit_shift.toNat % 32)) ||| ((v5v <<< (anti_shift.toNat % 32)) &&& mask))
     ((v5v <<< (anti_shift.toNat % 32)) &&& mask)
-    bit_shift anti_shift mask (base + 56)
-    (by simp only [signExtend12_20]; exact hv20)
-    (by simp only [signExtend12_24]; exact hv24)
-    (by simp only [signExtend12_8]; exact hv8)
-  simp only [signExtend12_20, signExtend12_24, signExtend12_8] at MM3
-  rw [show (base + 56) + 4 = base + 60 from by bv_omega,
-      show (base + 56) + 8 = base + 64 from by bv_omega,
-      show (base + 56) + 12 = base + 68 from by bv_omega,
-      show (base + 56) + 16 = base + 72 from by bv_omega,
-      show (base + 56) + 20 = base + 76 from by bv_omega,
-      show (base + 56) + 24 = base + 80 from by bv_omega] at MM3
-  have MM3f := cpsTriple_frame_left _ _ _ _
-    (-- merge_limb 1 instrAt
-     (base ↦ᵢ .LW .x5 .x12 12) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 8) ↦ᵢ .LW .x10 .x12 16) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-     -- merge_limb 2 instrAt
-     ((base + 28) ↦ᵢ .LW .x5 .x12 16) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 36) ↦ᵢ .LW .x10 .x12 20) ** ((base + 40) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 44) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 48) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 52) ↦ᵢ .SW .x12 .x5 4) **
-     -- merge_limb 4 instrAt
-     ((base + 84) ↦ᵢ .LW .x5 .x12 24) ** ((base + 88) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 92) ↦ᵢ .LW .x10 .x12 28) ** ((base + 96) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 100) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 104) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 108) ↦ᵢ .SW .x12 .x5 12) **
-     -- last_limb instrAt
-     ((base + 112) ↦ᵢ .LW .x5 .x12 28) ** ((base + 116) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 120) ↦ᵢ .SW .x12 .x5 16) **
-     -- SW x0 instrAt
-     ((base + 124) ↦ᵢ .SW .x12 .x0 20) ** ((base + 128) ↦ᵢ .SW .x12 .x0 24) **
-     ((base + 132) ↦ᵢ .SW .x12 .x0 28) **
-     -- JAL instrAt
-     ((base + 136) ↦ᵢ .JAL .x0 jal_off) **
-     -- remaining mem
-     (sp ↦ₘ ((v3 >>> (bit_shift.toNat % 32)) ||| ((v4 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 4) ↦ₘ ((v4 >>> (bit_shift.toNat % 32)) ||| ((v5v <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 12) ↦ₘ v3) ** ((sp + 16) ↦ₘ v4) ** ((sp + 28) ↦ₘ v7))
-    (by pcFree) MM3
-  rw [show (base + 56) + 28 = base + 84 from by bv_omega] at MM3f
-  -- Step 4: merge_limb(24,28,12): base+84 -> base+112
+    bit_shift anti_shift mask (base + 56) hvm20 hvm24 hvm8
   have MM4 := shr_merge_limb_spec 24 28 12 sp v6 v7 v3
     ((v5v >>> (bit_shift.toNat % 32)) ||| ((v6 <<< (anti_shift.toNat % 32)) &&& mask))
     ((v6 <<< (anti_shift.toNat % 32)) &&& mask)
-    bit_shift anti_shift mask (base + 84)
-    (by simp only [signExtend12_24]; exact hv24)
-    (by simp only [signExtend12_28]; exact hv28)
-    (by simp only [signExtend12_12]; exact hv12)
-  simp only [signExtend12_24, signExtend12_28, signExtend12_12] at MM4
-  rw [show (base + 84) + 4 = base + 88 from by bv_omega,
-      show (base + 84) + 8 = base + 92 from by bv_omega,
-      show (base + 84) + 12 = base + 96 from by bv_omega,
-      show (base + 84) + 16 = base + 100 from by bv_omega,
-      show (base + 84) + 20 = base + 104 from by bv_omega,
-      show (base + 84) + 24 = base + 108 from by bv_omega] at MM4
-  have MM4f := cpsTriple_frame_left _ _ _ _
-    (-- merge_limb 1 instrAt
-     (base ↦ᵢ .LW .x5 .x12 12) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 8) ↦ᵢ .LW .x10 .x12 16) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-     -- merge_limb 2 instrAt
-     ((base + 28) ↦ᵢ .LW .x5 .x12 16) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 36) ↦ᵢ .LW .x10 .x12 20) ** ((base + 40) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 44) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 48) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 52) ↦ᵢ .SW .x12 .x5 4) **
-     -- merge_limb 3 instrAt
-     ((base + 56) ↦ᵢ .LW .x5 .x12 20) ** ((base + 60) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 64) ↦ᵢ .LW .x10 .x12 24) ** ((base + 68) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 72) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 76) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 80) ↦ᵢ .SW .x12 .x5 8) **
-     -- last_limb instrAt
-     ((base + 112) ↦ᵢ .LW .x5 .x12 28) ** ((base + 116) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 120) ↦ᵢ .SW .x12 .x5 16) **
-     -- SW x0 instrAt
-     ((base + 124) ↦ᵢ .SW .x12 .x0 20) ** ((base + 128) ↦ᵢ .SW .x12 .x0 24) **
-     ((base + 132) ↦ᵢ .SW .x12 .x0 28) **
-     -- JAL instrAt
-     ((base + 136) ↦ᵢ .JAL .x0 jal_off) **
-     -- remaining mem
-     (sp ↦ₘ ((v3 >>> (bit_shift.toNat % 32)) ||| ((v4 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 4) ↦ₘ ((v4 >>> (bit_shift.toNat % 32)) ||| ((v5v <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 8) ↦ₘ ((v5v >>> (bit_shift.toNat % 32)) ||| ((v6 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 16) ↦ₘ v4) ** ((sp + 20) ↦ₘ v5v))
-    (by pcFree) MM4
-  rw [show (base + 84) + 28 = base + 112 from by bv_omega] at MM4f
-  -- Step 5: last_limb(16): base+112 -> base+124
+    bit_shift anti_shift mask (base + 84) hvm24 hvm28 hvm12
   have LL := shr_last_limb_spec 16 sp v7 v4
     ((v6 >>> (bit_shift.toNat % 32)) ||| ((v7 <<< (anti_shift.toNat % 32)) &&& mask))
-    bit_shift (base + 112)
-    (by simp only [signExtend12_28]; exact hv28)
-    (by simp only [signExtend12_16]; exact hv16)
-  simp only [signExtend12_16, signExtend12_28] at LL
-  rw [show (base + 112 : Addr) + 4 = base + 116 from by bv_omega,
-      show (base + 112 : Addr) + 8 = base + 120 from by bv_omega] at LL
-  have LLf := cpsTriple_frame_left _ _ _ _
-    (-- merge_limb 1 instrAt
-     (base ↦ᵢ .LW .x5 .x12 12) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 8) ↦ᵢ .LW .x10 .x12 16) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-     -- merge_limb 2 instrAt
-     ((base + 28) ↦ᵢ .LW .x5 .x12 16) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 36) ↦ᵢ .LW .x10 .x12 20) ** ((base + 40) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 44) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 48) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 52) ↦ᵢ .SW .x12 .x5 4) **
-     -- merge_limb 3 instrAt
-     ((base + 56) ↦ᵢ .LW .x5 .x12 20) ** ((base + 60) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 64) ↦ᵢ .LW .x10 .x12 24) ** ((base + 68) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 72) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 76) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 80) ↦ᵢ .SW .x12 .x5 8) **
-     -- merge_limb 4 instrAt
-     ((base + 84) ↦ᵢ .LW .x5 .x12 24) ** ((base + 88) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 92) ↦ᵢ .LW .x10 .x12 28) ** ((base + 96) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 100) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 104) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 108) ↦ᵢ .SW .x12 .x5 12) **
-     -- SW x0 instrAt
-     ((base + 124) ↦ᵢ .SW .x12 .x0 20) ** ((base + 128) ↦ᵢ .SW .x12 .x0 24) **
-     ((base + 132) ↦ᵢ .SW .x12 .x0 28) **
-     -- JAL instrAt
-     ((base + 136) ↦ᵢ .JAL .x0 jal_off) **
-     (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ ((v7 <<< (anti_shift.toNat % 32)) &&& mask)) ** (.x11 ↦ᵣ mask) **
-     (sp ↦ₘ ((v3 >>> (bit_shift.toNat % 32)) ||| ((v4 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 4) ↦ₘ ((v4 >>> (bit_shift.toNat % 32)) ||| ((v5v <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 8) ↦ₘ ((v5v >>> (bit_shift.toNat % 32)) ||| ((v6 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 12) ↦ₘ ((v6 >>> (bit_shift.toNat % 32)) ||| ((v7 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 20) ↦ₘ v5v) ** ((sp + 24) ↦ₘ v6))
-    (by pcFree) LL
-  rw [show (base + 112 : Addr) + 12 = base + 124 from by bv_omega] at LLf
-  -- Steps 6-8: 3 SW zeros
-  have T0 := sw_x0_spec_gen .x12 sp v5v 20 (base + 124)
-    (by simp only [signExtend12_20]; exact hv20)
-  simp only [signExtend12_20] at T0
-  rw [show (base + 124 : Addr) + 4 = base + 128 from by bv_omega] at T0
-  have T0f := cpsTriple_frame_left _ _ _ _
-    (-- all instrAt except (base+124)
-     (base ↦ᵢ .LW .x5 .x12 12) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 8) ↦ᵢ .LW .x10 .x12 16) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-     ((base + 28) ↦ᵢ .LW .x5 .x12 16) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 36) ↦ᵢ .LW .x10 .x12 20) ** ((base + 40) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 44) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 48) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 52) ↦ᵢ .SW .x12 .x5 4) **
-     ((base + 56) ↦ᵢ .LW .x5 .x12 20) ** ((base + 60) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 64) ↦ᵢ .LW .x10 .x12 24) ** ((base + 68) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 72) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 76) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 80) ↦ᵢ .SW .x12 .x5 8) **
-     ((base + 84) ↦ᵢ .LW .x5 .x12 24) ** ((base + 88) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 92) ↦ᵢ .LW .x10 .x12 28) ** ((base + 96) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 100) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 104) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 108) ↦ᵢ .SW .x12 .x5 12) **
-     ((base + 112) ↦ᵢ .LW .x5 .x12 28) ** ((base + 116) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 120) ↦ᵢ .SW .x12 .x5 16) **
-     ((base + 128) ↦ᵢ .SW .x12 .x0 24) **
-     ((base + 132) ↦ᵢ .SW .x12 .x0 28) **
-     ((base + 136) ↦ᵢ .JAL .x0 jal_off) **
-     (.x5 ↦ᵣ (v7 >>> (bit_shift.toNat % 32))) ** (.x6 ↦ᵣ bit_shift) **
-     (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ ((v7 <<< (anti_shift.toNat % 32)) &&& mask)) ** (.x11 ↦ᵣ mask) **
-     (sp ↦ₘ ((v3 >>> (bit_shift.toNat % 32)) ||| ((v4 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 4) ↦ₘ ((v4 >>> (bit_shift.toNat % 32)) ||| ((v5v <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 8) ↦ₘ ((v5v >>> (bit_shift.toNat % 32)) ||| ((v6 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 12) ↦ₘ ((v6 >>> (bit_shift.toNat % 32)) ||| ((v7 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 16) ↦ₘ (v7 >>> (bit_shift.toNat % 32))) **
-     ((sp + 24) ↦ₘ v6) ** ((sp + 28) ↦ₘ v7))
-    (by pcFree) T0
-  have T1 := sw_x0_spec_gen .x12 sp v6 24 (base + 128)
-    (by simp only [signExtend12_24]; exact hv24)
-  simp only [signExtend12_24] at T1
-  rw [show (base + 128 : Addr) + 4 = base + 132 from by bv_omega] at T1
-  have T1f := cpsTriple_frame_left _ _ _ _
-    ((base ↦ᵢ .LW .x5 .x12 12) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 8) ↦ᵢ .LW .x10 .x12 16) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-     ((base + 28) ↦ᵢ .LW .x5 .x12 16) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 36) ↦ᵢ .LW .x10 .x12 20) ** ((base + 40) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 44) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 48) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 52) ↦ᵢ .SW .x12 .x5 4) **
-     ((base + 56) ↦ᵢ .LW .x5 .x12 20) ** ((base + 60) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 64) ↦ᵢ .LW .x10 .x12 24) ** ((base + 68) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 72) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 76) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 80) ↦ᵢ .SW .x12 .x5 8) **
-     ((base + 84) ↦ᵢ .LW .x5 .x12 24) ** ((base + 88) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 92) ↦ᵢ .LW .x10 .x12 28) ** ((base + 96) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 100) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 104) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 108) ↦ᵢ .SW .x12 .x5 12) **
-     ((base + 112) ↦ᵢ .LW .x5 .x12 28) ** ((base + 116) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 120) ↦ᵢ .SW .x12 .x5 16) **
-     ((base + 124) ↦ᵢ .SW .x12 .x0 20) **
-     ((base + 132) ↦ᵢ .SW .x12 .x0 28) **
-     ((base + 136) ↦ᵢ .JAL .x0 jal_off) **
-     (.x5 ↦ᵣ (v7 >>> (bit_shift.toNat % 32))) ** (.x6 ↦ᵣ bit_shift) **
-     (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ ((v7 <<< (anti_shift.toNat % 32)) &&& mask)) ** (.x11 ↦ᵣ mask) **
-     (sp ↦ₘ ((v3 >>> (bit_shift.toNat % 32)) ||| ((v4 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 4) ↦ₘ ((v4 >>> (bit_shift.toNat % 32)) ||| ((v5v <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 8) ↦ₘ ((v5v >>> (bit_shift.toNat % 32)) ||| ((v6 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 12) ↦ₘ ((v6 >>> (bit_shift.toNat % 32)) ||| ((v7 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 16) ↦ₘ (v7 >>> (bit_shift.toNat % 32))) ** ((sp + 20) ↦ₘ (0 : Word)) **
-     ((sp + 28) ↦ₘ v7))
-    (by pcFree) T1
-  have T2 := sw_x0_spec_gen .x12 sp v7 28 (base + 132)
-    (by simp only [signExtend12_28]; exact hv28)
-  simp only [signExtend12_28] at T2
-  rw [show (base + 132 : Addr) + 4 = base + 136 from by bv_omega] at T2
-  have T2f := cpsTriple_frame_left _ _ _ _
-    ((base ↦ᵢ .LW .x5 .x12 12) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 8) ↦ᵢ .LW .x10 .x12 16) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-     ((base + 28) ↦ᵢ .LW .x5 .x12 16) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 36) ↦ᵢ .LW .x10 .x12 20) ** ((base + 40) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 44) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 48) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 52) ↦ᵢ .SW .x12 .x5 4) **
-     ((base + 56) ↦ᵢ .LW .x5 .x12 20) ** ((base + 60) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 64) ↦ᵢ .LW .x10 .x12 24) ** ((base + 68) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 72) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 76) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 80) ↦ᵢ .SW .x12 .x5 8) **
-     ((base + 84) ↦ᵢ .LW .x5 .x12 24) ** ((base + 88) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 92) ↦ᵢ .LW .x10 .x12 28) ** ((base + 96) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 100) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 104) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 108) ↦ᵢ .SW .x12 .x5 12) **
-     ((base + 112) ↦ᵢ .LW .x5 .x12 28) ** ((base + 116) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 120) ↦ᵢ .SW .x12 .x5 16) **
-     ((base + 124) ↦ᵢ .SW .x12 .x0 20) ** ((base + 128) ↦ᵢ .SW .x12 .x0 24) **
-     ((base + 136) ↦ᵢ .JAL .x0 jal_off) **
-     (.x5 ↦ᵣ (v7 >>> (bit_shift.toNat % 32))) ** (.x6 ↦ᵣ bit_shift) **
-     (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ ((v7 <<< (anti_shift.toNat % 32)) &&& mask)) ** (.x11 ↦ᵣ mask) **
-     (sp ↦ₘ ((v3 >>> (bit_shift.toNat % 32)) ||| ((v4 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 4) ↦ₘ ((v4 >>> (bit_shift.toNat % 32)) ||| ((v5v <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 8) ↦ₘ ((v5v >>> (bit_shift.toNat % 32)) ||| ((v6 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 12) ↦ₘ ((v6 >>> (bit_shift.toNat % 32)) ||| ((v7 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 16) ↦ₘ (v7 >>> (bit_shift.toNat % 32))) ** ((sp + 20) ↦ₘ (0 : Word)) **
-     ((sp + 24) ↦ₘ (0 : Word)))
-    (by pcFree) T2
-  -- JAL x0 to exit
-  have JL := cpsTriple_frame_left _ _ _ _
-    (-- all instrAt except (base+136)
-     (base ↦ᵢ .LW .x5 .x12 12) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 8) ↦ᵢ .LW .x10 .x12 16) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-     ((base + 28) ↦ᵢ .LW .x5 .x12 16) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 36) ↦ᵢ .LW .x10 .x12 20) ** ((base + 40) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 44) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 48) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 52) ↦ᵢ .SW .x12 .x5 4) **
-     ((base + 56) ↦ᵢ .LW .x5 .x12 20) ** ((base + 60) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 64) ↦ᵢ .LW .x10 .x12 24) ** ((base + 68) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 72) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 76) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 80) ↦ᵢ .SW .x12 .x5 8) **
-     ((base + 84) ↦ᵢ .LW .x5 .x12 24) ** ((base + 88) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 92) ↦ᵢ .LW .x10 .x12 28) ** ((base + 96) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 100) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 104) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 108) ↦ᵢ .SW .x12 .x5 12) **
-     ((base + 112) ↦ᵢ .LW .x5 .x12 28) ** ((base + 116) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 120) ↦ᵢ .SW .x12 .x5 16) **
-     ((base + 124) ↦ᵢ .SW .x12 .x0 20) ** ((base + 128) ↦ᵢ .SW .x12 .x0 24) **
-     ((base + 132) ↦ᵢ .SW .x12 .x0 28) **
-     (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ (v7 >>> (bit_shift.toNat % 32))) ** (.x6 ↦ᵣ bit_shift) **
-     (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ ((v7 <<< (anti_shift.toNat % 32)) &&& mask)) ** (.x11 ↦ᵣ mask) **
-     (sp ↦ₘ ((v3 >>> (bit_shift.toNat % 32)) ||| ((v4 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 4) ↦ₘ ((v4 >>> (bit_shift.toNat % 32)) ||| ((v5v <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 8) ↦ₘ ((v5v >>> (bit_shift.toNat % 32)) ||| ((v6 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 12) ↦ₘ ((v6 >>> (bit_shift.toNat % 32)) ||| ((v7 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 16) ↦ₘ (v7 >>> (bit_shift.toNat % 32))) ** ((sp + 20) ↦ₘ (0 : Word)) **
-     ((sp + 24) ↦ₘ (0 : Word)) ** ((sp + 28) ↦ₘ (0 : Word)))
-    (by pcFree) (jal_x0_spec_gen jal_off (base + 136))
+    bit_shift (base + 112) hvm28 hvm16
+  have T0 := sw_x0_spec_gen .x12 sp v5v 20 (base + 124) hvm20
+  have T1 := sw_x0_spec_gen .x12 sp v6 24 (base + 128) hvm24
+  have T2 := sw_x0_spec_gen .x12 sp v7 28 (base + 132) hvm28
+  have JL := jal_x0_spec_gen jal_off (base + 136)
   rw [hexit] at JL
-  -- Compose all steps
-  clear MM1 MM2 MM3 MM4 LL T0 T1 T2
-  clear hv0 hv4 hv8 hv12 hv16 hv20 hv24 hv28
-  have c01 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) MM1f MM2f; clear MM1f MM2f
-  have c02 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) c01 MM3f; clear c01 MM3f
-  have c03 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) c02 MM4f; clear c02 MM4f
-  have c04 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) c03 LLf; clear c03 LLf
-  have c05 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) c04 T0f; clear c04 T0f
-  have c06 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) c05 T1f; clear c05 T1f
-  have c07 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) c06 T2f; clear c06 T2f
-  have cfull := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) c07 JL; clear c07 JL
-  exact cpsTriple_consequence _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp) cfull
+  runBlock MM1 MM2 MM3 MM4 LL T0 T1 T2 JL
 -- ============================================================================
 -- Shift body spec: body_2 (limb_shift=2, 41 instructions)
 -- ============================================================================
@@ -2520,447 +1167,49 @@ theorem shr_body_2_spec (sp : Word)
        (sp ↦ₘ result0) ** ((sp + 4) ↦ₘ result1) ** ((sp + 8) ↦ₘ result2) ** ((sp + 12) ↦ₘ result3) **
        ((sp + 16) ↦ₘ result4) ** ((sp + 20) ↦ₘ result5) ** ((sp + 24) ↦ₘ 0) ** ((sp + 28) ↦ₘ 0)) := by
   -- Memory validity from ValidMemRange sp 8
-  have hv0 : isValidMemAccess sp = true := by
+  have hvm0 : isValidMemAccess (sp + signExtend12 (0 : BitVec 12)) = true := by
+    simp only [signExtend12_0]; rw [show sp + (0 : Word) = sp from by bv_addr]
     have := hvalid.get (i := 0) (by omega); simpa using this
-  have hv4 : isValidMemAccess (sp + 4) = true := by
-    have := hvalid.get (i := 1) (by omega); simpa using this
-  have hv8 : isValidMemAccess (sp + 8) = true := by
-    have := hvalid.get (i := 2) (by omega); simpa using this
-  have hv12 : isValidMemAccess (sp + 12) = true := by
-    have := hvalid.get (i := 3) (by omega); simpa using this
-  have hv16 : isValidMemAccess (sp + 16) = true := by
-    have := hvalid.get (i := 4) (by omega); simpa using this
-  have hv20 : isValidMemAccess (sp + 20) = true := by
-    have := hvalid.get (i := 5) (by omega); simpa using this
-  have hv24 : isValidMemAccess (sp + 24) = true := by
-    have := hvalid.get (i := 6) (by omega); simpa using this
-  have hv28 : isValidMemAccess (sp + 28) = true := by
-    have := hvalid.get (i := 7) (by omega); simpa using this
-  -- Step 1: merge_limb(8,12,0): base -> base+28
-  have MM1 := shr_merge_limb_spec 8 12 0 sp v2 v3 v0 v5 v10 bit_shift anti_shift mask base
-    (by simp only [signExtend12_8]; exact hv8)
-    (by simp only [signExtend12_12]; exact hv12)
-    (by simp only [signExtend12_0]; rw [show sp + (0 : Word) = sp from by bv_addr]; exact hv0)
-  simp only [signExtend12_8, signExtend12_12, signExtend12_0] at MM1
-  rw [show sp + (0 : Word) = sp from by bv_addr] at MM1
-  have MM1f := cpsTriple_frame_left _ _ _ _
-    (-- merge_limb 2 instrAt
-     ((base + 28) ↦ᵢ .LW .x5 .x12 12) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 36) ↦ᵢ .LW .x10 .x12 16) ** ((base + 40) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 44) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 48) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 52) ↦ᵢ .SW .x12 .x5 4) **
-     -- merge_limb 3 instrAt
-     ((base + 56) ↦ᵢ .LW .x5 .x12 16) ** ((base + 60) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 64) ↦ᵢ .LW .x10 .x12 20) ** ((base + 68) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 72) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 76) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 80) ↦ᵢ .SW .x12 .x5 8) **
-     -- merge_limb 4 instrAt
-     ((base + 84) ↦ᵢ .LW .x5 .x12 20) ** ((base + 88) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 92) ↦ᵢ .LW .x10 .x12 24) ** ((base + 96) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 100) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 104) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 108) ↦ᵢ .SW .x12 .x5 12) **
-     -- merge_limb 5 instrAt
-     ((base + 112) ↦ᵢ .LW .x5 .x12 24) ** ((base + 116) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 120) ↦ᵢ .LW .x10 .x12 28) ** ((base + 124) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 128) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 132) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 136) ↦ᵢ .SW .x12 .x5 16) **
-     -- last_limb instrAt
-     ((base + 140) ↦ᵢ .LW .x5 .x12 28) ** ((base + 144) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 148) ↦ᵢ .SW .x12 .x5 20) **
-     -- SW x0 instrAt
-     ((base + 152) ↦ᵢ .SW .x12 .x0 24) ** ((base + 156) ↦ᵢ .SW .x12 .x0 28) **
-     -- JAL instrAt
-     ((base + 160) ↦ᵢ .JAL .x0 jal_off) **
-     -- remaining mem
-     ((sp + 4) ↦ₘ v1) **
-     ((sp + 16) ↦ₘ v4) ** ((sp + 20) ↦ₘ v5v) ** ((sp + 24) ↦ₘ v6) ** ((sp + 28) ↦ₘ v7))
-    (by pcFree) MM1
-  -- Step 2: merge_limb(12,16,4): base+28 -> base+56
+  have hvm4 : isValidMemAccess (sp + signExtend12 (4 : BitVec 12)) = true := by
+    simp only [signExtend12_4]; have := hvalid.get (i := 1) (by omega); simpa using this
+  have hvm8 : isValidMemAccess (sp + signExtend12 (8 : BitVec 12)) = true := by
+    simp only [signExtend12_8]; have := hvalid.get (i := 2) (by omega); simpa using this
+  have hvm12 : isValidMemAccess (sp + signExtend12 (12 : BitVec 12)) = true := by
+    simp only [signExtend12_12]; have := hvalid.get (i := 3) (by omega); simpa using this
+  have hvm16 : isValidMemAccess (sp + signExtend12 (16 : BitVec 12)) = true := by
+    simp only [signExtend12_16]; have := hvalid.get (i := 4) (by omega); simpa using this
+  have hvm20 : isValidMemAccess (sp + signExtend12 (20 : BitVec 12)) = true := by
+    simp only [signExtend12_20]; have := hvalid.get (i := 5) (by omega); simpa using this
+  have hvm24 : isValidMemAccess (sp + signExtend12 (24 : BitVec 12)) = true := by
+    simp only [signExtend12_24]; have := hvalid.get (i := 6) (by omega); simpa using this
+  have hvm28 : isValidMemAccess (sp + signExtend12 (28 : BitVec 12)) = true := by
+    simp only [signExtend12_28]; have := hvalid.get (i := 7) (by omega); simpa using this
+  -- Compose: 5x merge_limb + last_limb + 2x SW x0 + JAL via runBlock
+  have MM1 := shr_merge_limb_spec 8 12 0 sp v2 v3 v0 v5 v10 bit_shift anti_shift mask base hvm8 hvm12 hvm0
   have MM2 := shr_merge_limb_spec 12 16 4 sp v3 v4 v1
     ((v2 >>> (bit_shift.toNat % 32)) ||| ((v3 <<< (anti_shift.toNat % 32)) &&& mask))
     ((v3 <<< (anti_shift.toNat % 32)) &&& mask)
-    bit_shift anti_shift mask (base + 28)
-    (by simp only [signExtend12_12]; exact hv12)
-    (by simp only [signExtend12_16]; exact hv16)
-    (by simp only [signExtend12_4]; exact hv4)
-  simp only [signExtend12_12, signExtend12_16, signExtend12_4] at MM2
-  rw [show (base + 28) + 4 = base + 32 from by bv_omega,
-      show (base + 28) + 8 = base + 36 from by bv_omega,
-      show (base + 28) + 12 = base + 40 from by bv_omega,
-      show (base + 28) + 16 = base + 44 from by bv_omega,
-      show (base + 28) + 20 = base + 48 from by bv_omega,
-      show (base + 28) + 24 = base + 52 from by bv_omega] at MM2
-  have MM2f := cpsTriple_frame_left _ _ _ _
-    (-- merge_limb 1 instrAt (preserved)
-     (base ↦ᵢ .LW .x5 .x12 8) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 8) ↦ᵢ .LW .x10 .x12 12) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-     -- merge_limb 3 instrAt
-     ((base + 56) ↦ᵢ .LW .x5 .x12 16) ** ((base + 60) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 64) ↦ᵢ .LW .x10 .x12 20) ** ((base + 68) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 72) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 76) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 80) ↦ᵢ .SW .x12 .x5 8) **
-     -- merge_limb 4 instrAt
-     ((base + 84) ↦ᵢ .LW .x5 .x12 20) ** ((base + 88) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 92) ↦ᵢ .LW .x10 .x12 24) ** ((base + 96) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 100) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 104) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 108) ↦ᵢ .SW .x12 .x5 12) **
-     -- merge_limb 5 instrAt
-     ((base + 112) ↦ᵢ .LW .x5 .x12 24) ** ((base + 116) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 120) ↦ᵢ .LW .x10 .x12 28) ** ((base + 124) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 128) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 132) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 136) ↦ᵢ .SW .x12 .x5 16) **
-     -- last_limb instrAt
-     ((base + 140) ↦ᵢ .LW .x5 .x12 28) ** ((base + 144) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 148) ↦ᵢ .SW .x12 .x5 20) **
-     -- SW x0 instrAt
-     ((base + 152) ↦ᵢ .SW .x12 .x0 24) ** ((base + 156) ↦ᵢ .SW .x12 .x0 28) **
-     -- JAL instrAt
-     ((base + 160) ↦ᵢ .JAL .x0 jal_off) **
-     -- remaining mem
-     (sp ↦ₘ ((v2 >>> (bit_shift.toNat % 32)) ||| ((v3 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 8) ↦ₘ v2) **
-     ((sp + 20) ↦ₘ v5v) ** ((sp + 24) ↦ₘ v6) ** ((sp + 28) ↦ₘ v7))
-    (by pcFree) MM2
-  rw [show (base + 28) + 28 = base + 56 from by bv_omega] at MM2f
-  -- Step 3: merge_limb(16,20,8): base+56 -> base+84
+    bit_shift anti_shift mask (base + 28) hvm12 hvm16 hvm4
   have MM3 := shr_merge_limb_spec 16 20 8 sp v4 v5v v2
     ((v3 >>> (bit_shift.toNat % 32)) ||| ((v4 <<< (anti_shift.toNat % 32)) &&& mask))
     ((v4 <<< (anti_shift.toNat % 32)) &&& mask)
-    bit_shift anti_shift mask (base + 56)
-    (by simp only [signExtend12_16]; exact hv16)
-    (by simp only [signExtend12_20]; exact hv20)
-    (by simp only [signExtend12_8]; exact hv8)
-  simp only [signExtend12_16, signExtend12_20, signExtend12_8] at MM3
-  rw [show (base + 56) + 4 = base + 60 from by bv_omega,
-      show (base + 56) + 8 = base + 64 from by bv_omega,
-      show (base + 56) + 12 = base + 68 from by bv_omega,
-      show (base + 56) + 16 = base + 72 from by bv_omega,
-      show (base + 56) + 20 = base + 76 from by bv_omega,
-      show (base + 56) + 24 = base + 80 from by bv_omega] at MM3
-  have MM3f := cpsTriple_frame_left _ _ _ _
-    (-- merge_limb 1 instrAt
-     (base ↦ᵢ .LW .x5 .x12 8) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 8) ↦ᵢ .LW .x10 .x12 12) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-     -- merge_limb 2 instrAt
-     ((base + 28) ↦ᵢ .LW .x5 .x12 12) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 36) ↦ᵢ .LW .x10 .x12 16) ** ((base + 40) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 44) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 48) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 52) ↦ᵢ .SW .x12 .x5 4) **
-     -- merge_limb 4 instrAt
-     ((base + 84) ↦ᵢ .LW .x5 .x12 20) ** ((base + 88) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 92) ↦ᵢ .LW .x10 .x12 24) ** ((base + 96) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 100) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 104) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 108) ↦ᵢ .SW .x12 .x5 12) **
-     -- merge_limb 5 instrAt
-     ((base + 112) ↦ᵢ .LW .x5 .x12 24) ** ((base + 116) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 120) ↦ᵢ .LW .x10 .x12 28) ** ((base + 124) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 128) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 132) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 136) ↦ᵢ .SW .x12 .x5 16) **
-     -- last_limb instrAt
-     ((base + 140) ↦ᵢ .LW .x5 .x12 28) ** ((base + 144) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 148) ↦ᵢ .SW .x12 .x5 20) **
-     -- SW x0 instrAt
-     ((base + 152) ↦ᵢ .SW .x12 .x0 24) ** ((base + 156) ↦ᵢ .SW .x12 .x0 28) **
-     -- JAL instrAt
-     ((base + 160) ↦ᵢ .JAL .x0 jal_off) **
-     -- remaining mem
-     (sp ↦ₘ ((v2 >>> (bit_shift.toNat % 32)) ||| ((v3 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 4) ↦ₘ ((v3 >>> (bit_shift.toNat % 32)) ||| ((v4 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 12) ↦ₘ v3) **
-     ((sp + 24) ↦ₘ v6) ** ((sp + 28) ↦ₘ v7))
-    (by pcFree) MM3
-  rw [show (base + 56) + 28 = base + 84 from by bv_omega] at MM3f
-  -- Step 4: merge_limb(20,24,12): base+84 -> base+112
+    bit_shift anti_shift mask (base + 56) hvm16 hvm20 hvm8
   have MM4 := shr_merge_limb_spec 20 24 12 sp v5v v6 v3
     ((v4 >>> (bit_shift.toNat % 32)) ||| ((v5v <<< (anti_shift.toNat % 32)) &&& mask))
     ((v5v <<< (anti_shift.toNat % 32)) &&& mask)
-    bit_shift anti_shift mask (base + 84)
-    (by simp only [signExtend12_20]; exact hv20)
-    (by simp only [signExtend12_24]; exact hv24)
-    (by simp only [signExtend12_12]; exact hv12)
-  simp only [signExtend12_20, signExtend12_24, signExtend12_12] at MM4
-  rw [show (base + 84) + 4 = base + 88 from by bv_omega,
-      show (base + 84) + 8 = base + 92 from by bv_omega,
-      show (base + 84) + 12 = base + 96 from by bv_omega,
-      show (base + 84) + 16 = base + 100 from by bv_omega,
-      show (base + 84) + 20 = base + 104 from by bv_omega,
-      show (base + 84) + 24 = base + 108 from by bv_omega] at MM4
-  have MM4f := cpsTriple_frame_left _ _ _ _
-    (-- merge_limb 1 instrAt
-     (base ↦ᵢ .LW .x5 .x12 8) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 8) ↦ᵢ .LW .x10 .x12 12) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-     -- merge_limb 2 instrAt
-     ((base + 28) ↦ᵢ .LW .x5 .x12 12) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 36) ↦ᵢ .LW .x10 .x12 16) ** ((base + 40) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 44) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 48) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 52) ↦ᵢ .SW .x12 .x5 4) **
-     -- merge_limb 3 instrAt
-     ((base + 56) ↦ᵢ .LW .x5 .x12 16) ** ((base + 60) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 64) ↦ᵢ .LW .x10 .x12 20) ** ((base + 68) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 72) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 76) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 80) ↦ᵢ .SW .x12 .x5 8) **
-     -- merge_limb 5 instrAt
-     ((base + 112) ↦ᵢ .LW .x5 .x12 24) ** ((base + 116) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 120) ↦ᵢ .LW .x10 .x12 28) ** ((base + 124) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 128) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 132) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 136) ↦ᵢ .SW .x12 .x5 16) **
-     -- last_limb instrAt
-     ((base + 140) ↦ᵢ .LW .x5 .x12 28) ** ((base + 144) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 148) ↦ᵢ .SW .x12 .x5 20) **
-     -- SW x0 instrAt
-     ((base + 152) ↦ᵢ .SW .x12 .x0 24) ** ((base + 156) ↦ᵢ .SW .x12 .x0 28) **
-     -- JAL instrAt
-     ((base + 160) ↦ᵢ .JAL .x0 jal_off) **
-     -- remaining mem
-     (sp ↦ₘ ((v2 >>> (bit_shift.toNat % 32)) ||| ((v3 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 4) ↦ₘ ((v3 >>> (bit_shift.toNat % 32)) ||| ((v4 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 8) ↦ₘ ((v4 >>> (bit_shift.toNat % 32)) ||| ((v5v <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 16) ↦ₘ v4) ** ((sp + 28) ↦ₘ v7))
-    (by pcFree) MM4
-  rw [show (base + 84) + 28 = base + 112 from by bv_omega] at MM4f
-  -- Step 5: merge_limb(24,28,16): base+112 -> base+140
+    bit_shift anti_shift mask (base + 84) hvm20 hvm24 hvm12
   have MM5 := shr_merge_limb_spec 24 28 16 sp v6 v7 v4
     ((v5v >>> (bit_shift.toNat % 32)) ||| ((v6 <<< (anti_shift.toNat % 32)) &&& mask))
     ((v6 <<< (anti_shift.toNat % 32)) &&& mask)
-    bit_shift anti_shift mask (base + 112)
-    (by simp only [signExtend12_24]; exact hv24)
-    (by simp only [signExtend12_28]; exact hv28)
-    (by simp only [signExtend12_16]; exact hv16)
-  simp only [signExtend12_24, signExtend12_28, signExtend12_16] at MM5
-  rw [show (base + 112) + 4 = base + 116 from by bv_omega,
-      show (base + 112) + 8 = base + 120 from by bv_omega,
-      show (base + 112) + 12 = base + 124 from by bv_omega,
-      show (base + 112) + 16 = base + 128 from by bv_omega,
-      show (base + 112) + 20 = base + 132 from by bv_omega,
-      show (base + 112) + 24 = base + 136 from by bv_omega] at MM5
-  have MM5f := cpsTriple_frame_left _ _ _ _
-    (-- merge_limb 1 instrAt
-     (base ↦ᵢ .LW .x5 .x12 8) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 8) ↦ᵢ .LW .x10 .x12 12) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-     -- merge_limb 2 instrAt
-     ((base + 28) ↦ᵢ .LW .x5 .x12 12) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 36) ↦ᵢ .LW .x10 .x12 16) ** ((base + 40) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 44) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 48) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 52) ↦ᵢ .SW .x12 .x5 4) **
-     -- merge_limb 3 instrAt
-     ((base + 56) ↦ᵢ .LW .x5 .x12 16) ** ((base + 60) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 64) ↦ᵢ .LW .x10 .x12 20) ** ((base + 68) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 72) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 76) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 80) ↦ᵢ .SW .x12 .x5 8) **
-     -- merge_limb 4 instrAt
-     ((base + 84) ↦ᵢ .LW .x5 .x12 20) ** ((base + 88) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 92) ↦ᵢ .LW .x10 .x12 24) ** ((base + 96) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 100) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 104) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 108) ↦ᵢ .SW .x12 .x5 12) **
-     -- last_limb instrAt
-     ((base + 140) ↦ᵢ .LW .x5 .x12 28) ** ((base + 144) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 148) ↦ᵢ .SW .x12 .x5 20) **
-     -- SW x0 instrAt
-     ((base + 152) ↦ᵢ .SW .x12 .x0 24) ** ((base + 156) ↦ᵢ .SW .x12 .x0 28) **
-     -- JAL instrAt
-     ((base + 160) ↦ᵢ .JAL .x0 jal_off) **
-     -- remaining mem
-     (sp ↦ₘ ((v2 >>> (bit_shift.toNat % 32)) ||| ((v3 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 4) ↦ₘ ((v3 >>> (bit_shift.toNat % 32)) ||| ((v4 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 8) ↦ₘ ((v4 >>> (bit_shift.toNat % 32)) ||| ((v5v <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 12) ↦ₘ ((v5v >>> (bit_shift.toNat % 32)) ||| ((v6 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 20) ↦ₘ v5v))
-    (by pcFree) MM5
-  rw [show (base + 112) + 28 = base + 140 from by bv_omega] at MM5f
-  -- Step 6: last_limb(20): base+140 -> base+152
+    bit_shift anti_shift mask (base + 112) hvm24 hvm28 hvm16
   have LL := shr_last_limb_spec 20 sp v7 v5v
     ((v6 >>> (bit_shift.toNat % 32)) ||| ((v7 <<< (anti_shift.toNat % 32)) &&& mask))
-    bit_shift (base + 140)
-    (by simp only [signExtend12_28]; exact hv28)
-    (by simp only [signExtend12_20]; exact hv20)
-  simp only [signExtend12_20, signExtend12_28] at LL
-  rw [show (base + 140 : Addr) + 4 = base + 144 from by bv_omega,
-      show (base + 140 : Addr) + 8 = base + 148 from by bv_omega] at LL
-  have LLf := cpsTriple_frame_left _ _ _ _
-    (-- merge_limb 1 instrAt
-     (base ↦ᵢ .LW .x5 .x12 8) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 8) ↦ᵢ .LW .x10 .x12 12) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-     -- merge_limb 2 instrAt
-     ((base + 28) ↦ᵢ .LW .x5 .x12 12) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 36) ↦ᵢ .LW .x10 .x12 16) ** ((base + 40) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 44) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 48) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 52) ↦ᵢ .SW .x12 .x5 4) **
-     -- merge_limb 3 instrAt
-     ((base + 56) ↦ᵢ .LW .x5 .x12 16) ** ((base + 60) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 64) ↦ᵢ .LW .x10 .x12 20) ** ((base + 68) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 72) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 76) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 80) ↦ᵢ .SW .x12 .x5 8) **
-     -- merge_limb 4 instrAt
-     ((base + 84) ↦ᵢ .LW .x5 .x12 20) ** ((base + 88) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 92) ↦ᵢ .LW .x10 .x12 24) ** ((base + 96) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 100) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 104) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 108) ↦ᵢ .SW .x12 .x5 12) **
-     -- merge_limb 5 instrAt
-     ((base + 112) ↦ᵢ .LW .x5 .x12 24) ** ((base + 116) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 120) ↦ᵢ .LW .x10 .x12 28) ** ((base + 124) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 128) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 132) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 136) ↦ᵢ .SW .x12 .x5 16) **
-     -- SW x0 instrAt
-     ((base + 152) ↦ᵢ .SW .x12 .x0 24) ** ((base + 156) ↦ᵢ .SW .x12 .x0 28) **
-     -- JAL instrAt
-     ((base + 160) ↦ᵢ .JAL .x0 jal_off) **
-     (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ ((v7 <<< (anti_shift.toNat % 32)) &&& mask)) ** (.x11 ↦ᵣ mask) **
-     (sp ↦ₘ ((v2 >>> (bit_shift.toNat % 32)) ||| ((v3 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 4) ↦ₘ ((v3 >>> (bit_shift.toNat % 32)) ||| ((v4 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 8) ↦ₘ ((v4 >>> (bit_shift.toNat % 32)) ||| ((v5v <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 12) ↦ₘ ((v5v >>> (bit_shift.toNat % 32)) ||| ((v6 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 16) ↦ₘ ((v6 >>> (bit_shift.toNat % 32)) ||| ((v7 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 24) ↦ₘ v6))
-    (by pcFree) LL
-  rw [show (base + 140 : Addr) + 12 = base + 152 from by bv_omega] at LLf
-  -- Steps 7-8: 2 SW zeros
-  have T0 := sw_x0_spec_gen .x12 sp v6 24 (base + 152)
-    (by simp only [signExtend12_24]; exact hv24)
-  simp only [signExtend12_24] at T0
-  rw [show (base + 152 : Addr) + 4 = base + 156 from by bv_omega] at T0
-  have T0f := cpsTriple_frame_left _ _ _ _
-    (-- all instrAt except (base+152)
-     (base ↦ᵢ .LW .x5 .x12 8) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 8) ↦ᵢ .LW .x10 .x12 12) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-     ((base + 28) ↦ᵢ .LW .x5 .x12 12) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 36) ↦ᵢ .LW .x10 .x12 16) ** ((base + 40) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 44) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 48) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 52) ↦ᵢ .SW .x12 .x5 4) **
-     ((base + 56) ↦ᵢ .LW .x5 .x12 16) ** ((base + 60) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 64) ↦ᵢ .LW .x10 .x12 20) ** ((base + 68) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 72) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 76) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 80) ↦ᵢ .SW .x12 .x5 8) **
-     ((base + 84) ↦ᵢ .LW .x5 .x12 20) ** ((base + 88) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 92) ↦ᵢ .LW .x10 .x12 24) ** ((base + 96) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 100) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 104) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 108) ↦ᵢ .SW .x12 .x5 12) **
-     ((base + 112) ↦ᵢ .LW .x5 .x12 24) ** ((base + 116) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 120) ↦ᵢ .LW .x10 .x12 28) ** ((base + 124) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 128) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 132) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 136) ↦ᵢ .SW .x12 .x5 16) **
-     ((base + 140) ↦ᵢ .LW .x5 .x12 28) ** ((base + 144) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 148) ↦ᵢ .SW .x12 .x5 20) **
-     ((base + 156) ↦ᵢ .SW .x12 .x0 28) **
-     ((base + 160) ↦ᵢ .JAL .x0 jal_off) **
-     (.x5 ↦ᵣ (v7 >>> (bit_shift.toNat % 32))) ** (.x6 ↦ᵣ bit_shift) **
-     (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ ((v7 <<< (anti_shift.toNat % 32)) &&& mask)) ** (.x11 ↦ᵣ mask) **
-     (sp ↦ₘ ((v2 >>> (bit_shift.toNat % 32)) ||| ((v3 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 4) ↦ₘ ((v3 >>> (bit_shift.toNat % 32)) ||| ((v4 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 8) ↦ₘ ((v4 >>> (bit_shift.toNat % 32)) ||| ((v5v <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 12) ↦ₘ ((v5v >>> (bit_shift.toNat % 32)) ||| ((v6 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 16) ↦ₘ ((v6 >>> (bit_shift.toNat % 32)) ||| ((v7 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 20) ↦ₘ (v7 >>> (bit_shift.toNat % 32))) **
-     ((sp + 28) ↦ₘ v7))
-    (by pcFree) T0
-  have T1 := sw_x0_spec_gen .x12 sp v7 28 (base + 156)
-    (by simp only [signExtend12_28]; exact hv28)
-  simp only [signExtend12_28] at T1
-  rw [show (base + 156 : Addr) + 4 = base + 160 from by bv_omega] at T1
-  have T1f := cpsTriple_frame_left _ _ _ _
-    ((base ↦ᵢ .LW .x5 .x12 8) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 8) ↦ᵢ .LW .x10 .x12 12) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-     ((base + 28) ↦ᵢ .LW .x5 .x12 12) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 36) ↦ᵢ .LW .x10 .x12 16) ** ((base + 40) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 44) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 48) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 52) ↦ᵢ .SW .x12 .x5 4) **
-     ((base + 56) ↦ᵢ .LW .x5 .x12 16) ** ((base + 60) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 64) ↦ᵢ .LW .x10 .x12 20) ** ((base + 68) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 72) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 76) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 80) ↦ᵢ .SW .x12 .x5 8) **
-     ((base + 84) ↦ᵢ .LW .x5 .x12 20) ** ((base + 88) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 92) ↦ᵢ .LW .x10 .x12 24) ** ((base + 96) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 100) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 104) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 108) ↦ᵢ .SW .x12 .x5 12) **
-     ((base + 112) ↦ᵢ .LW .x5 .x12 24) ** ((base + 116) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 120) ↦ᵢ .LW .x10 .x12 28) ** ((base + 124) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 128) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 132) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 136) ↦ᵢ .SW .x12 .x5 16) **
-     ((base + 140) ↦ᵢ .LW .x5 .x12 28) ** ((base + 144) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 148) ↦ᵢ .SW .x12 .x5 20) **
-     ((base + 152) ↦ᵢ .SW .x12 .x0 24) **
-     ((base + 160) ↦ᵢ .JAL .x0 jal_off) **
-     (.x5 ↦ᵣ (v7 >>> (bit_shift.toNat % 32))) ** (.x6 ↦ᵣ bit_shift) **
-     (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ ((v7 <<< (anti_shift.toNat % 32)) &&& mask)) ** (.x11 ↦ᵣ mask) **
-     (sp ↦ₘ ((v2 >>> (bit_shift.toNat % 32)) ||| ((v3 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 4) ↦ₘ ((v3 >>> (bit_shift.toNat % 32)) ||| ((v4 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 8) ↦ₘ ((v4 >>> (bit_shift.toNat % 32)) ||| ((v5v <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 12) ↦ₘ ((v5v >>> (bit_shift.toNat % 32)) ||| ((v6 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 16) ↦ₘ ((v6 >>> (bit_shift.toNat % 32)) ||| ((v7 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 20) ↦ₘ (v7 >>> (bit_shift.toNat % 32))) **
-     ((sp + 24) ↦ₘ (0 : Word)))
-    (by pcFree) T1
-  -- JAL x0 to exit
-  have JL := cpsTriple_frame_left _ _ _ _
-    (-- all instrAt except (base+160)
-     (base ↦ᵢ .LW .x5 .x12 8) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 8) ↦ᵢ .LW .x10 .x12 12) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-     ((base + 28) ↦ᵢ .LW .x5 .x12 12) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 36) ↦ᵢ .LW .x10 .x12 16) ** ((base + 40) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 44) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 48) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 52) ↦ᵢ .SW .x12 .x5 4) **
-     ((base + 56) ↦ᵢ .LW .x5 .x12 16) ** ((base + 60) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 64) ↦ᵢ .LW .x10 .x12 20) ** ((base + 68) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 72) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 76) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 80) ↦ᵢ .SW .x12 .x5 8) **
-     ((base + 84) ↦ᵢ .LW .x5 .x12 20) ** ((base + 88) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 92) ↦ᵢ .LW .x10 .x12 24) ** ((base + 96) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 100) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 104) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 108) ↦ᵢ .SW .x12 .x5 12) **
-     ((base + 112) ↦ᵢ .LW .x5 .x12 24) ** ((base + 116) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 120) ↦ᵢ .LW .x10 .x12 28) ** ((base + 124) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 128) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 132) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 136) ↦ᵢ .SW .x12 .x5 16) **
-     ((base + 140) ↦ᵢ .LW .x5 .x12 28) ** ((base + 144) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 148) ↦ᵢ .SW .x12 .x5 20) **
-     ((base + 152) ↦ᵢ .SW .x12 .x0 24) ** ((base + 156) ↦ᵢ .SW .x12 .x0 28) **
-     (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ (v7 >>> (bit_shift.toNat % 32))) ** (.x6 ↦ᵣ bit_shift) **
-     (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ ((v7 <<< (anti_shift.toNat % 32)) &&& mask)) ** (.x11 ↦ᵣ mask) **
-     (sp ↦ₘ ((v2 >>> (bit_shift.toNat % 32)) ||| ((v3 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 4) ↦ₘ ((v3 >>> (bit_shift.toNat % 32)) ||| ((v4 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 8) ↦ₘ ((v4 >>> (bit_shift.toNat % 32)) ||| ((v5v <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 12) ↦ₘ ((v5v >>> (bit_shift.toNat % 32)) ||| ((v6 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 16) ↦ₘ ((v6 >>> (bit_shift.toNat % 32)) ||| ((v7 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 20) ↦ₘ (v7 >>> (bit_shift.toNat % 32))) **
-     ((sp + 24) ↦ₘ (0 : Word)) ** ((sp + 28) ↦ₘ (0 : Word)))
-    (by pcFree) (jal_x0_spec_gen jal_off (base + 160))
+    bit_shift (base + 140) hvm28 hvm20
+  have T0 := sw_x0_spec_gen .x12 sp v6 24 (base + 152) hvm24
+  have T1 := sw_x0_spec_gen .x12 sp v7 28 (base + 156) hvm28
+  have JL := jal_x0_spec_gen jal_off (base + 160)
   rw [hexit] at JL
-  -- Compose all steps
-  clear MM1 MM2 MM3 MM4 MM5 LL T0 T1
-  clear hv0 hv4 hv8 hv12 hv16 hv20 hv24 hv28
-  have c01 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) MM1f MM2f; clear MM1f MM2f
-  have c02 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) c01 MM3f; clear c01 MM3f
-  have c03 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) c02 MM4f; clear c02 MM4f
-  have c04 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) c03 MM5f; clear c03 MM5f
-  have c05 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) c04 LLf; clear c04 LLf
-  have c06 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) c05 T0f; clear c05 T0f
-  have c07 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) c06 T1f; clear c06 T1f
-  have cfull := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) c07 JL; clear c07 JL
-  exact cpsTriple_consequence _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp) cfull
+  runBlock MM1 MM2 MM3 MM4 MM5 LL T0 T1 JL
 set_option maxHeartbeats 3200000 in
 /-- Shift body 1: limb_shift=1.
     Result[0..5] = merge results, Result[6] = v7 >>> bs, Result[7] = 0.
@@ -3056,500 +1305,52 @@ theorem shr_body_1_spec (sp : Word)
        (sp ↦ₘ result0) ** ((sp + 4) ↦ₘ result1) ** ((sp + 8) ↦ₘ result2) ** ((sp + 12) ↦ₘ result3) **
        ((sp + 16) ↦ₘ result4) ** ((sp + 20) ↦ₘ result5) ** ((sp + 24) ↦ₘ result6) ** ((sp + 28) ↦ₘ 0)) := by
   -- Memory validity from ValidMemRange sp 8
-  have hv0 : isValidMemAccess sp = true := by
+  have hvm0 : isValidMemAccess (sp + signExtend12 (0 : BitVec 12)) = true := by
+    simp only [signExtend12_0]; rw [show sp + (0 : Word) = sp from by bv_addr]
     have := hvalid.get (i := 0) (by omega); simpa using this
-  have hv4 : isValidMemAccess (sp + 4) = true := by
-    have := hvalid.get (i := 1) (by omega); simpa using this
-  have hv8 : isValidMemAccess (sp + 8) = true := by
-    have := hvalid.get (i := 2) (by omega); simpa using this
-  have hv12 : isValidMemAccess (sp + 12) = true := by
-    have := hvalid.get (i := 3) (by omega); simpa using this
-  have hv16 : isValidMemAccess (sp + 16) = true := by
-    have := hvalid.get (i := 4) (by omega); simpa using this
-  have hv20 : isValidMemAccess (sp + 20) = true := by
-    have := hvalid.get (i := 5) (by omega); simpa using this
-  have hv24 : isValidMemAccess (sp + 24) = true := by
-    have := hvalid.get (i := 6) (by omega); simpa using this
-  have hv28 : isValidMemAccess (sp + 28) = true := by
-    have := hvalid.get (i := 7) (by omega); simpa using this
-  -- Step 1: merge_limb(4,8,0): base -> base+28
-  have MM1 := shr_merge_limb_spec 4 8 0 sp v1 v2 v0 v5 v10 bit_shift anti_shift mask base
-    (by simp only [signExtend12_4]; exact hv4)
-    (by simp only [signExtend12_8]; exact hv8)
-    (by simp only [signExtend12_0]; rw [show sp + (0 : Word) = sp from by bv_addr]; exact hv0)
-  simp only [signExtend12_4, signExtend12_8, signExtend12_0] at MM1
-  rw [show sp + (0 : Word) = sp from by bv_addr] at MM1
-  have MM1f := cpsTriple_frame_left _ _ _ _
-    (-- merge_limb 2 instrAt
-     ((base + 28) ↦ᵢ .LW .x5 .x12 8) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 36) ↦ᵢ .LW .x10 .x12 12) ** ((base + 40) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 44) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 48) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 52) ↦ᵢ .SW .x12 .x5 4) **
-     -- merge_limb 3 instrAt
-     ((base + 56) ↦ᵢ .LW .x5 .x12 12) ** ((base + 60) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 64) ↦ᵢ .LW .x10 .x12 16) ** ((base + 68) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 72) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 76) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 80) ↦ᵢ .SW .x12 .x5 8) **
-     -- merge_limb 4 instrAt
-     ((base + 84) ↦ᵢ .LW .x5 .x12 16) ** ((base + 88) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 92) ↦ᵢ .LW .x10 .x12 20) ** ((base + 96) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 100) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 104) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 108) ↦ᵢ .SW .x12 .x5 12) **
-     -- merge_limb 5 instrAt
-     ((base + 112) ↦ᵢ .LW .x5 .x12 20) ** ((base + 116) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 120) ↦ᵢ .LW .x10 .x12 24) ** ((base + 124) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 128) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 132) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 136) ↦ᵢ .SW .x12 .x5 16) **
-     -- merge_limb 6 instrAt
-     ((base + 140) ↦ᵢ .LW .x5 .x12 24) ** ((base + 144) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 148) ↦ᵢ .LW .x10 .x12 28) ** ((base + 152) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 156) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 160) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 164) ↦ᵢ .SW .x12 .x5 20) **
-     -- last_limb instrAt
-     ((base + 168) ↦ᵢ .LW .x5 .x12 28) ** ((base + 172) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 176) ↦ᵢ .SW .x12 .x5 24) **
-     -- SW x0 instrAt
-     ((base + 180) ↦ᵢ .SW .x12 .x0 28) **
-     -- JAL instrAt
-     ((base + 184) ↦ᵢ .JAL .x0 jal_off) **
-     -- remaining mem
-     ((sp + 12) ↦ₘ v3) ** ((sp + 16) ↦ₘ v4) **
-     ((sp + 20) ↦ₘ v5v) ** ((sp + 24) ↦ₘ v6) ** ((sp + 28) ↦ₘ v7))
-    (by pcFree) MM1
-  -- Step 2: merge_limb(8,12,4): base+28 -> base+56
+  have hvm4 : isValidMemAccess (sp + signExtend12 (4 : BitVec 12)) = true := by
+    simp only [signExtend12_4]; have := hvalid.get (i := 1) (by omega); simpa using this
+  have hvm8 : isValidMemAccess (sp + signExtend12 (8 : BitVec 12)) = true := by
+    simp only [signExtend12_8]; have := hvalid.get (i := 2) (by omega); simpa using this
+  have hvm12 : isValidMemAccess (sp + signExtend12 (12 : BitVec 12)) = true := by
+    simp only [signExtend12_12]; have := hvalid.get (i := 3) (by omega); simpa using this
+  have hvm16 : isValidMemAccess (sp + signExtend12 (16 : BitVec 12)) = true := by
+    simp only [signExtend12_16]; have := hvalid.get (i := 4) (by omega); simpa using this
+  have hvm20 : isValidMemAccess (sp + signExtend12 (20 : BitVec 12)) = true := by
+    simp only [signExtend12_20]; have := hvalid.get (i := 5) (by omega); simpa using this
+  have hvm24 : isValidMemAccess (sp + signExtend12 (24 : BitVec 12)) = true := by
+    simp only [signExtend12_24]; have := hvalid.get (i := 6) (by omega); simpa using this
+  have hvm28 : isValidMemAccess (sp + signExtend12 (28 : BitVec 12)) = true := by
+    simp only [signExtend12_28]; have := hvalid.get (i := 7) (by omega); simpa using this
+  -- Compose: 6x merge_limb + last_limb + 1x SW x0 + JAL via runBlock
+  have MM1 := shr_merge_limb_spec 4 8 0 sp v1 v2 v0 v5 v10 bit_shift anti_shift mask base hvm4 hvm8 hvm0
   have MM2 := shr_merge_limb_spec 8 12 4 sp v2 v3 v1
     ((v1 >>> (bit_shift.toNat % 32)) ||| ((v2 <<< (anti_shift.toNat % 32)) &&& mask))
     ((v2 <<< (anti_shift.toNat % 32)) &&& mask)
-    bit_shift anti_shift mask (base + 28)
-    (by simp only [signExtend12_8]; exact hv8)
-    (by simp only [signExtend12_12]; exact hv12)
-    (by simp only [signExtend12_4]; exact hv4)
-  simp only [signExtend12_8, signExtend12_12, signExtend12_4] at MM2
-  rw [show (base + 28) + 4 = base + 32 from by bv_omega,
-      show (base + 28) + 8 = base + 36 from by bv_omega,
-      show (base + 28) + 12 = base + 40 from by bv_omega,
-      show (base + 28) + 16 = base + 44 from by bv_omega,
-      show (base + 28) + 20 = base + 48 from by bv_omega,
-      show (base + 28) + 24 = base + 52 from by bv_omega] at MM2
-  have MM2f := cpsTriple_frame_left _ _ _ _
-    (-- merge_limb 1 instrAt (preserved)
-     (base ↦ᵢ .LW .x5 .x12 4) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 8) ↦ᵢ .LW .x10 .x12 8) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-     -- merge_limb 3 instrAt
-     ((base + 56) ↦ᵢ .LW .x5 .x12 12) ** ((base + 60) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 64) ↦ᵢ .LW .x10 .x12 16) ** ((base + 68) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 72) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 76) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 80) ↦ᵢ .SW .x12 .x5 8) **
-     -- merge_limb 4 instrAt
-     ((base + 84) ↦ᵢ .LW .x5 .x12 16) ** ((base + 88) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 92) ↦ᵢ .LW .x10 .x12 20) ** ((base + 96) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 100) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 104) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 108) ↦ᵢ .SW .x12 .x5 12) **
-     -- merge_limb 5 instrAt
-     ((base + 112) ↦ᵢ .LW .x5 .x12 20) ** ((base + 116) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 120) ↦ᵢ .LW .x10 .x12 24) ** ((base + 124) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 128) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 132) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 136) ↦ᵢ .SW .x12 .x5 16) **
-     -- merge_limb 6 instrAt
-     ((base + 140) ↦ᵢ .LW .x5 .x12 24) ** ((base + 144) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 148) ↦ᵢ .LW .x10 .x12 28) ** ((base + 152) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 156) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 160) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 164) ↦ᵢ .SW .x12 .x5 20) **
-     -- last_limb instrAt
-     ((base + 168) ↦ᵢ .LW .x5 .x12 28) ** ((base + 172) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 176) ↦ᵢ .SW .x12 .x5 24) **
-     -- SW x0 instrAt
-     ((base + 180) ↦ᵢ .SW .x12 .x0 28) **
-     -- JAL instrAt
-     ((base + 184) ↦ᵢ .JAL .x0 jal_off) **
-     -- remaining mem
-     (sp ↦ₘ ((v1 >>> (bit_shift.toNat % 32)) ||| ((v2 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 16) ↦ₘ v4) **
-     ((sp + 20) ↦ₘ v5v) ** ((sp + 24) ↦ₘ v6) ** ((sp + 28) ↦ₘ v7))
-    (by pcFree) MM2
-  rw [show (base + 28) + 28 = base + 56 from by bv_omega] at MM2f
-  -- Step 3: merge_limb(12,16,8): base+56 -> base+84
+    bit_shift anti_shift mask (base + 28) hvm8 hvm12 hvm4
   have MM3 := shr_merge_limb_spec 12 16 8 sp v3 v4 v2
     ((v2 >>> (bit_shift.toNat % 32)) ||| ((v3 <<< (anti_shift.toNat % 32)) &&& mask))
     ((v3 <<< (anti_shift.toNat % 32)) &&& mask)
-    bit_shift anti_shift mask (base + 56)
-    (by simp only [signExtend12_12]; exact hv12)
-    (by simp only [signExtend12_16]; exact hv16)
-    (by simp only [signExtend12_8]; exact hv8)
-  simp only [signExtend12_12, signExtend12_16, signExtend12_8] at MM3
-  rw [show (base + 56) + 4 = base + 60 from by bv_omega,
-      show (base + 56) + 8 = base + 64 from by bv_omega,
-      show (base + 56) + 12 = base + 68 from by bv_omega,
-      show (base + 56) + 16 = base + 72 from by bv_omega,
-      show (base + 56) + 20 = base + 76 from by bv_omega,
-      show (base + 56) + 24 = base + 80 from by bv_omega] at MM3
-  have MM3f := cpsTriple_frame_left _ _ _ _
-    (-- merge_limb 1 instrAt
-     (base ↦ᵢ .LW .x5 .x12 4) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 8) ↦ᵢ .LW .x10 .x12 8) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-     -- merge_limb 2 instrAt
-     ((base + 28) ↦ᵢ .LW .x5 .x12 8) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 36) ↦ᵢ .LW .x10 .x12 12) ** ((base + 40) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 44) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 48) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 52) ↦ᵢ .SW .x12 .x5 4) **
-     -- merge_limb 4 instrAt
-     ((base + 84) ↦ᵢ .LW .x5 .x12 16) ** ((base + 88) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 92) ↦ᵢ .LW .x10 .x12 20) ** ((base + 96) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 100) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 104) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 108) ↦ᵢ .SW .x12 .x5 12) **
-     -- merge_limb 5 instrAt
-     ((base + 112) ↦ᵢ .LW .x5 .x12 20) ** ((base + 116) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 120) ↦ᵢ .LW .x10 .x12 24) ** ((base + 124) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 128) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 132) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 136) ↦ᵢ .SW .x12 .x5 16) **
-     -- merge_limb 6 instrAt
-     ((base + 140) ↦ᵢ .LW .x5 .x12 24) ** ((base + 144) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 148) ↦ᵢ .LW .x10 .x12 28) ** ((base + 152) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 156) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 160) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 164) ↦ᵢ .SW .x12 .x5 20) **
-     -- last_limb instrAt
-     ((base + 168) ↦ᵢ .LW .x5 .x12 28) ** ((base + 172) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 176) ↦ᵢ .SW .x12 .x5 24) **
-     -- SW x0 instrAt
-     ((base + 180) ↦ᵢ .SW .x12 .x0 28) **
-     -- JAL instrAt
-     ((base + 184) ↦ᵢ .JAL .x0 jal_off) **
-     -- remaining mem
-     (sp ↦ₘ ((v1 >>> (bit_shift.toNat % 32)) ||| ((v2 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 4) ↦ₘ ((v2 >>> (bit_shift.toNat % 32)) ||| ((v3 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 20) ↦ₘ v5v) ** ((sp + 24) ↦ₘ v6) ** ((sp + 28) ↦ₘ v7))
-    (by pcFree) MM3
-  rw [show (base + 56) + 28 = base + 84 from by bv_omega] at MM3f
-  -- Step 4: merge_limb(16,20,12): base+84 -> base+112
+    bit_shift anti_shift mask (base + 56) hvm12 hvm16 hvm8
   have MM4 := shr_merge_limb_spec 16 20 12 sp v4 v5v v3
     ((v3 >>> (bit_shift.toNat % 32)) ||| ((v4 <<< (anti_shift.toNat % 32)) &&& mask))
     ((v4 <<< (anti_shift.toNat % 32)) &&& mask)
-    bit_shift anti_shift mask (base + 84)
-    (by simp only [signExtend12_16]; exact hv16)
-    (by simp only [signExtend12_20]; exact hv20)
-    (by simp only [signExtend12_12]; exact hv12)
-  simp only [signExtend12_16, signExtend12_20, signExtend12_12] at MM4
-  rw [show (base + 84) + 4 = base + 88 from by bv_omega,
-      show (base + 84) + 8 = base + 92 from by bv_omega,
-      show (base + 84) + 12 = base + 96 from by bv_omega,
-      show (base + 84) + 16 = base + 100 from by bv_omega,
-      show (base + 84) + 20 = base + 104 from by bv_omega,
-      show (base + 84) + 24 = base + 108 from by bv_omega] at MM4
-  have MM4f := cpsTriple_frame_left _ _ _ _
-    (-- merge_limb 1 instrAt
-     (base ↦ᵢ .LW .x5 .x12 4) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 8) ↦ᵢ .LW .x10 .x12 8) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-     -- merge_limb 2 instrAt
-     ((base + 28) ↦ᵢ .LW .x5 .x12 8) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 36) ↦ᵢ .LW .x10 .x12 12) ** ((base + 40) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 44) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 48) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 52) ↦ᵢ .SW .x12 .x5 4) **
-     -- merge_limb 3 instrAt
-     ((base + 56) ↦ᵢ .LW .x5 .x12 12) ** ((base + 60) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 64) ↦ᵢ .LW .x10 .x12 16) ** ((base + 68) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 72) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 76) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 80) ↦ᵢ .SW .x12 .x5 8) **
-     -- merge_limb 5 instrAt
-     ((base + 112) ↦ᵢ .LW .x5 .x12 20) ** ((base + 116) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 120) ↦ᵢ .LW .x10 .x12 24) ** ((base + 124) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 128) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 132) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 136) ↦ᵢ .SW .x12 .x5 16) **
-     -- merge_limb 6 instrAt
-     ((base + 140) ↦ᵢ .LW .x5 .x12 24) ** ((base + 144) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 148) ↦ᵢ .LW .x10 .x12 28) ** ((base + 152) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 156) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 160) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 164) ↦ᵢ .SW .x12 .x5 20) **
-     -- last_limb instrAt
-     ((base + 168) ↦ᵢ .LW .x5 .x12 28) ** ((base + 172) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 176) ↦ᵢ .SW .x12 .x5 24) **
-     -- SW x0 instrAt
-     ((base + 180) ↦ᵢ .SW .x12 .x0 28) **
-     -- JAL instrAt
-     ((base + 184) ↦ᵢ .JAL .x0 jal_off) **
-     -- remaining mem
-     (sp ↦ₘ ((v1 >>> (bit_shift.toNat % 32)) ||| ((v2 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 4) ↦ₘ ((v2 >>> (bit_shift.toNat % 32)) ||| ((v3 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 8) ↦ₘ ((v3 >>> (bit_shift.toNat % 32)) ||| ((v4 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 24) ↦ₘ v6) ** ((sp + 28) ↦ₘ v7))
-    (by pcFree) MM4
-  rw [show (base + 84) + 28 = base + 112 from by bv_omega] at MM4f
-  -- Step 5: merge_limb(20,24,16): base+112 -> base+140
+    bit_shift anti_shift mask (base + 84) hvm16 hvm20 hvm12
   have MM5 := shr_merge_limb_spec 20 24 16 sp v5v v6 v4
     ((v4 >>> (bit_shift.toNat % 32)) ||| ((v5v <<< (anti_shift.toNat % 32)) &&& mask))
     ((v5v <<< (anti_shift.toNat % 32)) &&& mask)
-    bit_shift anti_shift mask (base + 112)
-    (by simp only [signExtend12_20]; exact hv20)
-    (by simp only [signExtend12_24]; exact hv24)
-    (by simp only [signExtend12_16]; exact hv16)
-  simp only [signExtend12_20, signExtend12_24, signExtend12_16] at MM5
-  rw [show (base + 112) + 4 = base + 116 from by bv_omega,
-      show (base + 112) + 8 = base + 120 from by bv_omega,
-      show (base + 112) + 12 = base + 124 from by bv_omega,
-      show (base + 112) + 16 = base + 128 from by bv_omega,
-      show (base + 112) + 20 = base + 132 from by bv_omega,
-      show (base + 112) + 24 = base + 136 from by bv_omega] at MM5
-  have MM5f := cpsTriple_frame_left _ _ _ _
-    (-- merge_limb 1 instrAt
-     (base ↦ᵢ .LW .x5 .x12 4) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 8) ↦ᵢ .LW .x10 .x12 8) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-     -- merge_limb 2 instrAt
-     ((base + 28) ↦ᵢ .LW .x5 .x12 8) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 36) ↦ᵢ .LW .x10 .x12 12) ** ((base + 40) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 44) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 48) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 52) ↦ᵢ .SW .x12 .x5 4) **
-     -- merge_limb 3 instrAt
-     ((base + 56) ↦ᵢ .LW .x5 .x12 12) ** ((base + 60) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 64) ↦ᵢ .LW .x10 .x12 16) ** ((base + 68) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 72) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 76) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 80) ↦ᵢ .SW .x12 .x5 8) **
-     -- merge_limb 4 instrAt
-     ((base + 84) ↦ᵢ .LW .x5 .x12 16) ** ((base + 88) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 92) ↦ᵢ .LW .x10 .x12 20) ** ((base + 96) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 100) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 104) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 108) ↦ᵢ .SW .x12 .x5 12) **
-     -- merge_limb 6 instrAt
-     ((base + 140) ↦ᵢ .LW .x5 .x12 24) ** ((base + 144) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 148) ↦ᵢ .LW .x10 .x12 28) ** ((base + 152) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 156) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 160) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 164) ↦ᵢ .SW .x12 .x5 20) **
-     -- last_limb instrAt
-     ((base + 168) ↦ᵢ .LW .x5 .x12 28) ** ((base + 172) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 176) ↦ᵢ .SW .x12 .x5 24) **
-     -- SW x0 instrAt
-     ((base + 180) ↦ᵢ .SW .x12 .x0 28) **
-     -- JAL instrAt
-     ((base + 184) ↦ᵢ .JAL .x0 jal_off) **
-     -- remaining mem
-     (sp ↦ₘ ((v1 >>> (bit_shift.toNat % 32)) ||| ((v2 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 4) ↦ₘ ((v2 >>> (bit_shift.toNat % 32)) ||| ((v3 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 8) ↦ₘ ((v3 >>> (bit_shift.toNat % 32)) ||| ((v4 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 12) ↦ₘ ((v4 >>> (bit_shift.toNat % 32)) ||| ((v5v <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 28) ↦ₘ v7))
-    (by pcFree) MM5
-  rw [show (base + 112) + 28 = base + 140 from by bv_omega] at MM5f
-  -- Step 6: merge_limb(24,28,20): base+140 -> base+168
+    bit_shift anti_shift mask (base + 112) hvm20 hvm24 hvm16
   have MM6 := shr_merge_limb_spec 24 28 20 sp v6 v7 v5v
     ((v5v >>> (bit_shift.toNat % 32)) ||| ((v6 <<< (anti_shift.toNat % 32)) &&& mask))
     ((v6 <<< (anti_shift.toNat % 32)) &&& mask)
-    bit_shift anti_shift mask (base + 140)
-    (by simp only [signExtend12_24]; exact hv24)
-    (by simp only [signExtend12_28]; exact hv28)
-    (by simp only [signExtend12_20]; exact hv20)
-  simp only [signExtend12_24, signExtend12_28, signExtend12_20] at MM6
-  rw [show (base + 140) + 4 = base + 144 from by bv_omega,
-      show (base + 140) + 8 = base + 148 from by bv_omega,
-      show (base + 140) + 12 = base + 152 from by bv_omega,
-      show (base + 140) + 16 = base + 156 from by bv_omega,
-      show (base + 140) + 20 = base + 160 from by bv_omega,
-      show (base + 140) + 24 = base + 164 from by bv_omega] at MM6
-  have MM6f := cpsTriple_frame_left _ _ _ _
-    (-- merge_limb 1 instrAt
-     (base ↦ᵢ .LW .x5 .x12 4) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 8) ↦ᵢ .LW .x10 .x12 8) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-     -- merge_limb 2 instrAt
-     ((base + 28) ↦ᵢ .LW .x5 .x12 8) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 36) ↦ᵢ .LW .x10 .x12 12) ** ((base + 40) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 44) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 48) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 52) ↦ᵢ .SW .x12 .x5 4) **
-     -- merge_limb 3 instrAt
-     ((base + 56) ↦ᵢ .LW .x5 .x12 12) ** ((base + 60) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 64) ↦ᵢ .LW .x10 .x12 16) ** ((base + 68) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 72) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 76) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 80) ↦ᵢ .SW .x12 .x5 8) **
-     -- merge_limb 4 instrAt
-     ((base + 84) ↦ᵢ .LW .x5 .x12 16) ** ((base + 88) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 92) ↦ᵢ .LW .x10 .x12 20) ** ((base + 96) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 100) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 104) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 108) ↦ᵢ .SW .x12 .x5 12) **
-     -- merge_limb 5 instrAt
-     ((base + 112) ↦ᵢ .LW .x5 .x12 20) ** ((base + 116) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 120) ↦ᵢ .LW .x10 .x12 24) ** ((base + 124) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 128) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 132) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 136) ↦ᵢ .SW .x12 .x5 16) **
-     -- last_limb instrAt
-     ((base + 168) ↦ᵢ .LW .x5 .x12 28) ** ((base + 172) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 176) ↦ᵢ .SW .x12 .x5 24) **
-     -- SW x0 instrAt
-     ((base + 180) ↦ᵢ .SW .x12 .x0 28) **
-     -- JAL instrAt
-     ((base + 184) ↦ᵢ .JAL .x0 jal_off) **
-     -- remaining mem
-     (sp ↦ₘ ((v1 >>> (bit_shift.toNat % 32)) ||| ((v2 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 4) ↦ₘ ((v2 >>> (bit_shift.toNat % 32)) ||| ((v3 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 8) ↦ₘ ((v3 >>> (bit_shift.toNat % 32)) ||| ((v4 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 12) ↦ₘ ((v4 >>> (bit_shift.toNat % 32)) ||| ((v5v <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 16) ↦ₘ ((v5v >>> (bit_shift.toNat % 32)) ||| ((v6 <<< (anti_shift.toNat % 32)) &&& mask))))
-    (by pcFree) MM6
-  rw [show (base + 140) + 28 = base + 168 from by bv_omega] at MM6f
-  -- Step 7: last_limb(24): base+168 -> base+180
+    bit_shift anti_shift mask (base + 140) hvm24 hvm28 hvm20
   have LL := shr_last_limb_spec 24 sp v7 v6
     ((v6 >>> (bit_shift.toNat % 32)) ||| ((v7 <<< (anti_shift.toNat % 32)) &&& mask))
-    bit_shift (base + 168)
-    (by simp only [signExtend12_28]; exact hv28)
-    (by simp only [signExtend12_24]; exact hv24)
-  simp only [signExtend12_24, signExtend12_28] at LL
-  rw [show (base + 168 : Addr) + 4 = base + 172 from by bv_omega,
-      show (base + 168 : Addr) + 8 = base + 176 from by bv_omega] at LL
-  have LLf := cpsTriple_frame_left _ _ _ _
-    (-- merge_limb 1 instrAt
-     (base ↦ᵢ .LW .x5 .x12 4) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 8) ↦ᵢ .LW .x10 .x12 8) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-     -- merge_limb 2 instrAt
-     ((base + 28) ↦ᵢ .LW .x5 .x12 8) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 36) ↦ᵢ .LW .x10 .x12 12) ** ((base + 40) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 44) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 48) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 52) ↦ᵢ .SW .x12 .x5 4) **
-     -- merge_limb 3 instrAt
-     ((base + 56) ↦ᵢ .LW .x5 .x12 12) ** ((base + 60) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 64) ↦ᵢ .LW .x10 .x12 16) ** ((base + 68) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 72) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 76) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 80) ↦ᵢ .SW .x12 .x5 8) **
-     -- merge_limb 4 instrAt
-     ((base + 84) ↦ᵢ .LW .x5 .x12 16) ** ((base + 88) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 92) ↦ᵢ .LW .x10 .x12 20) ** ((base + 96) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 100) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 104) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 108) ↦ᵢ .SW .x12 .x5 12) **
-     -- merge_limb 5 instrAt
-     ((base + 112) ↦ᵢ .LW .x5 .x12 20) ** ((base + 116) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 120) ↦ᵢ .LW .x10 .x12 24) ** ((base + 124) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 128) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 132) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 136) ↦ᵢ .SW .x12 .x5 16) **
-     -- merge_limb 6 instrAt
-     ((base + 140) ↦ᵢ .LW .x5 .x12 24) ** ((base + 144) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 148) ↦ᵢ .LW .x10 .x12 28) ** ((base + 152) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 156) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 160) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 164) ↦ᵢ .SW .x12 .x5 20) **
-     -- SW x0 instrAt
-     ((base + 180) ↦ᵢ .SW .x12 .x0 28) **
-     -- JAL instrAt
-     ((base + 184) ↦ᵢ .JAL .x0 jal_off) **
-     (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ ((v7 <<< (anti_shift.toNat % 32)) &&& mask)) ** (.x11 ↦ᵣ mask) **
-     (sp ↦ₘ ((v1 >>> (bit_shift.toNat % 32)) ||| ((v2 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 4) ↦ₘ ((v2 >>> (bit_shift.toNat % 32)) ||| ((v3 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 8) ↦ₘ ((v3 >>> (bit_shift.toNat % 32)) ||| ((v4 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 12) ↦ₘ ((v4 >>> (bit_shift.toNat % 32)) ||| ((v5v <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 16) ↦ₘ ((v5v >>> (bit_shift.toNat % 32)) ||| ((v6 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 20) ↦ₘ ((v6 >>> (bit_shift.toNat % 32)) ||| ((v7 <<< (anti_shift.toNat % 32)) &&& mask))))
-    (by pcFree) LL
-  rw [show (base + 168 : Addr) + 12 = base + 180 from by bv_omega] at LLf
-  -- Step 8: 1 SW zero
-  have T0 := sw_x0_spec_gen .x12 sp v7 28 (base + 180)
-    (by simp only [signExtend12_28]; exact hv28)
-  simp only [signExtend12_28] at T0
-  rw [show (base + 180 : Addr) + 4 = base + 184 from by bv_omega] at T0
-  have T0f := cpsTriple_frame_left _ _ _ _
-    (-- all instrAt except (base+180)
-     (base ↦ᵢ .LW .x5 .x12 4) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 8) ↦ᵢ .LW .x10 .x12 8) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-     ((base + 28) ↦ᵢ .LW .x5 .x12 8) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 36) ↦ᵢ .LW .x10 .x12 12) ** ((base + 40) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 44) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 48) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 52) ↦ᵢ .SW .x12 .x5 4) **
-     ((base + 56) ↦ᵢ .LW .x5 .x12 12) ** ((base + 60) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 64) ↦ᵢ .LW .x10 .x12 16) ** ((base + 68) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 72) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 76) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 80) ↦ᵢ .SW .x12 .x5 8) **
-     ((base + 84) ↦ᵢ .LW .x5 .x12 16) ** ((base + 88) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 92) ↦ᵢ .LW .x10 .x12 20) ** ((base + 96) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 100) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 104) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 108) ↦ᵢ .SW .x12 .x5 12) **
-     ((base + 112) ↦ᵢ .LW .x5 .x12 20) ** ((base + 116) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 120) ↦ᵢ .LW .x10 .x12 24) ** ((base + 124) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 128) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 132) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 136) ↦ᵢ .SW .x12 .x5 16) **
-     ((base + 140) ↦ᵢ .LW .x5 .x12 24) ** ((base + 144) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 148) ↦ᵢ .LW .x10 .x12 28) ** ((base + 152) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 156) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 160) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 164) ↦ᵢ .SW .x12 .x5 20) **
-     ((base + 168) ↦ᵢ .LW .x5 .x12 28) ** ((base + 172) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 176) ↦ᵢ .SW .x12 .x5 24) **
-     ((base + 184) ↦ᵢ .JAL .x0 jal_off) **
-     (.x5 ↦ᵣ (v7 >>> (bit_shift.toNat % 32))) ** (.x6 ↦ᵣ bit_shift) **
-     (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ ((v7 <<< (anti_shift.toNat % 32)) &&& mask)) ** (.x11 ↦ᵣ mask) **
-     (sp ↦ₘ ((v1 >>> (bit_shift.toNat % 32)) ||| ((v2 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 4) ↦ₘ ((v2 >>> (bit_shift.toNat % 32)) ||| ((v3 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 8) ↦ₘ ((v3 >>> (bit_shift.toNat % 32)) ||| ((v4 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 12) ↦ₘ ((v4 >>> (bit_shift.toNat % 32)) ||| ((v5v <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 16) ↦ₘ ((v5v >>> (bit_shift.toNat % 32)) ||| ((v6 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 20) ↦ₘ ((v6 >>> (bit_shift.toNat % 32)) ||| ((v7 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 24) ↦ₘ (v7 >>> (bit_shift.toNat % 32))))
-    (by pcFree) T0
-  -- JAL x0 to exit
-  have JL := cpsTriple_frame_left _ _ _ _
-    (-- all instrAt except (base+184)
-     (base ↦ᵢ .LW .x5 .x12 4) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 8) ↦ᵢ .LW .x10 .x12 8) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-     ((base + 28) ↦ᵢ .LW .x5 .x12 8) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 36) ↦ᵢ .LW .x10 .x12 12) ** ((base + 40) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 44) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 48) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 52) ↦ᵢ .SW .x12 .x5 4) **
-     ((base + 56) ↦ᵢ .LW .x5 .x12 12) ** ((base + 60) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 64) ↦ᵢ .LW .x10 .x12 16) ** ((base + 68) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 72) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 76) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 80) ↦ᵢ .SW .x12 .x5 8) **
-     ((base + 84) ↦ᵢ .LW .x5 .x12 16) ** ((base + 88) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 92) ↦ᵢ .LW .x10 .x12 20) ** ((base + 96) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 100) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 104) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 108) ↦ᵢ .SW .x12 .x5 12) **
-     ((base + 112) ↦ᵢ .LW .x5 .x12 20) ** ((base + 116) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 120) ↦ᵢ .LW .x10 .x12 24) ** ((base + 124) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 128) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 132) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 136) ↦ᵢ .SW .x12 .x5 16) **
-     ((base + 140) ↦ᵢ .LW .x5 .x12 24) ** ((base + 144) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 148) ↦ᵢ .LW .x10 .x12 28) ** ((base + 152) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 156) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 160) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 164) ↦ᵢ .SW .x12 .x5 20) **
-     ((base + 168) ↦ᵢ .LW .x5 .x12 28) ** ((base + 172) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 176) ↦ᵢ .SW .x12 .x5 24) **
-     ((base + 180) ↦ᵢ .SW .x12 .x0 28) **
-     (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ (v7 >>> (bit_shift.toNat % 32))) ** (.x6 ↦ᵣ bit_shift) **
-     (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ ((v7 <<< (anti_shift.toNat % 32)) &&& mask)) ** (.x11 ↦ᵣ mask) **
-     (sp ↦ₘ ((v1 >>> (bit_shift.toNat % 32)) ||| ((v2 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 4) ↦ₘ ((v2 >>> (bit_shift.toNat % 32)) ||| ((v3 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 8) ↦ₘ ((v3 >>> (bit_shift.toNat % 32)) ||| ((v4 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 12) ↦ₘ ((v4 >>> (bit_shift.toNat % 32)) ||| ((v5v <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 16) ↦ₘ ((v5v >>> (bit_shift.toNat % 32)) ||| ((v6 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 20) ↦ₘ ((v6 >>> (bit_shift.toNat % 32)) ||| ((v7 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 24) ↦ₘ (v7 >>> (bit_shift.toNat % 32))) ** ((sp + 28) ↦ₘ (0 : Word)))
-    (by pcFree) (jal_x0_spec_gen jal_off (base + 184))
+    bit_shift (base + 168) hvm28 hvm24
+  have T0 := sw_x0_spec_gen .x12 sp v7 28 (base + 180) hvm28
+  have JL := jal_x0_spec_gen jal_off (base + 184)
   rw [hexit] at JL
-  -- Compose all steps
-  clear MM1 MM2 MM3 MM4 MM5 MM6 LL T0
-  clear hv0 hv4 hv8 hv12 hv16 hv20 hv24 hv28
-  have c01 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) MM1f MM2f; clear MM1f MM2f
-  have c02 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) c01 MM3f; clear c01 MM3f
-  have c03 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) c02 MM4f; clear c02 MM4f
-  have c04 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) c03 MM5f; clear c03 MM5f
-  have c05 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) c04 MM6f; clear c04 MM6f
-  have c06 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) c05 LLf; clear c05 LLf
-  have c07 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) c06 T0f; clear c06 T0f
-  have cfull := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) c07 JL; clear c07 JL
-  exact cpsTriple_consequence _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp) cfull
+  runBlock MM1 MM2 MM3 MM4 MM5 MM6 LL T0 JL
 set_option maxHeartbeats 6400000 in
 /-- Shift body 0: limb_shift=0. All merge limbs are in-place (src_off = dst_off).
     Result[i] = (v[i] >>> bs) ||| ((v[i+1] <<< as) &&& mask), Result[7] = v7 >>> bs.
@@ -3652,537 +1453,55 @@ theorem shr_body_0_spec (sp : Word)
        (sp ↦ₘ result0) ** ((sp + 4) ↦ₘ result1) ** ((sp + 8) ↦ₘ result2) ** ((sp + 12) ↦ₘ result3) **
        ((sp + 16) ↦ₘ result4) ** ((sp + 20) ↦ₘ result5) ** ((sp + 24) ↦ₘ result6) ** ((sp + 28) ↦ₘ result7)) := by
   -- Memory validity from ValidMemRange sp 8
-  have hv0 : isValidMemAccess sp = true := by
+  have hvm0 : isValidMemAccess (sp + signExtend12 (0 : BitVec 12)) = true := by
+    simp only [signExtend12_0]; rw [show sp + (0 : Word) = sp from by bv_addr]
     have := hvalid.get (i := 0) (by omega); simpa using this
-  have hv4 : isValidMemAccess (sp + 4) = true := by
-    have := hvalid.get (i := 1) (by omega); simpa using this
-  have hv8 : isValidMemAccess (sp + 8) = true := by
-    have := hvalid.get (i := 2) (by omega); simpa using this
-  have hv12 : isValidMemAccess (sp + 12) = true := by
-    have := hvalid.get (i := 3) (by omega); simpa using this
-  have hv16 : isValidMemAccess (sp + 16) = true := by
-    have := hvalid.get (i := 4) (by omega); simpa using this
-  have hv20 : isValidMemAccess (sp + 20) = true := by
-    have := hvalid.get (i := 5) (by omega); simpa using this
-  have hv24 : isValidMemAccess (sp + 24) = true := by
-    have := hvalid.get (i := 6) (by omega); simpa using this
-  have hv28 : isValidMemAccess (sp + 28) = true := by
-    have := hvalid.get (i := 7) (by omega); simpa using this
-  -- Step 1: merge_limb_inplace(0,4): base -> base+28
-  have MM1 := shr_merge_limb_inplace_spec 0 4 sp v0 v1 v5 v10 bit_shift anti_shift mask base
-    (by simp only [signExtend12_0]; rw [show sp + (0 : Word) = sp from by bv_addr]; exact hv0)
-    (by simp only [signExtend12_4]; exact hv4)
-  simp only [signExtend12_0, signExtend12_4] at MM1
-  rw [show sp + (0 : Word) = sp from by bv_addr] at MM1
-  have MM1f := cpsTriple_frame_left _ _ _ _
-    (-- merge_limb_inplace 2 instrAt
-     ((base + 28) ↦ᵢ .LW .x5 .x12 4) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 36) ↦ᵢ .LW .x10 .x12 8) ** ((base + 40) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 44) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 48) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 52) ↦ᵢ .SW .x12 .x5 4) **
-     -- merge_limb_inplace 3 instrAt
-     ((base + 56) ↦ᵢ .LW .x5 .x12 8) ** ((base + 60) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 64) ↦ᵢ .LW .x10 .x12 12) ** ((base + 68) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 72) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 76) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 80) ↦ᵢ .SW .x12 .x5 8) **
-     -- merge_limb_inplace 4 instrAt
-     ((base + 84) ↦ᵢ .LW .x5 .x12 12) ** ((base + 88) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 92) ↦ᵢ .LW .x10 .x12 16) ** ((base + 96) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 100) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 104) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 108) ↦ᵢ .SW .x12 .x5 12) **
-     -- merge_limb_inplace 5 instrAt
-     ((base + 112) ↦ᵢ .LW .x5 .x12 16) ** ((base + 116) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 120) ↦ᵢ .LW .x10 .x12 20) ** ((base + 124) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 128) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 132) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 136) ↦ᵢ .SW .x12 .x5 16) **
-     -- merge_limb_inplace 6 instrAt
-     ((base + 140) ↦ᵢ .LW .x5 .x12 20) ** ((base + 144) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 148) ↦ᵢ .LW .x10 .x12 24) ** ((base + 152) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 156) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 160) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 164) ↦ᵢ .SW .x12 .x5 20) **
-     -- merge_limb_inplace 7 instrAt
-     ((base + 168) ↦ᵢ .LW .x5 .x12 24) ** ((base + 172) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 176) ↦ᵢ .LW .x10 .x12 28) ** ((base + 180) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 184) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 188) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 192) ↦ᵢ .SW .x12 .x5 24) **
-     -- last_limb_inplace instrAt
-     ((base + 196) ↦ᵢ .LW .x5 .x12 28) ** ((base + 200) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 204) ↦ᵢ .SW .x12 .x5 28) **
-     -- JAL instrAt
-     ((base + 208) ↦ᵢ .JAL .x0 jal_off) **
-     -- remaining mem
-     ((sp + 8) ↦ₘ v2) ** ((sp + 12) ↦ₘ v3) **
-     ((sp + 16) ↦ₘ v4) ** ((sp + 20) ↦ₘ v5v) ** ((sp + 24) ↦ₘ v6) ** ((sp + 28) ↦ₘ v7))
-    (by pcFree) MM1
-  -- Step 2: merge_limb_inplace(4,8): base+28 -> base+56
+  have hvm4 : isValidMemAccess (sp + signExtend12 (4 : BitVec 12)) = true := by
+    simp only [signExtend12_4]; have := hvalid.get (i := 1) (by omega); simpa using this
+  have hvm8 : isValidMemAccess (sp + signExtend12 (8 : BitVec 12)) = true := by
+    simp only [signExtend12_8]; have := hvalid.get (i := 2) (by omega); simpa using this
+  have hvm12 : isValidMemAccess (sp + signExtend12 (12 : BitVec 12)) = true := by
+    simp only [signExtend12_12]; have := hvalid.get (i := 3) (by omega); simpa using this
+  have hvm16 : isValidMemAccess (sp + signExtend12 (16 : BitVec 12)) = true := by
+    simp only [signExtend12_16]; have := hvalid.get (i := 4) (by omega); simpa using this
+  have hvm20 : isValidMemAccess (sp + signExtend12 (20 : BitVec 12)) = true := by
+    simp only [signExtend12_20]; have := hvalid.get (i := 5) (by omega); simpa using this
+  have hvm24 : isValidMemAccess (sp + signExtend12 (24 : BitVec 12)) = true := by
+    simp only [signExtend12_24]; have := hvalid.get (i := 6) (by omega); simpa using this
+  have hvm28 : isValidMemAccess (sp + signExtend12 (28 : BitVec 12)) = true := by
+    simp only [signExtend12_28]; have := hvalid.get (i := 7) (by omega); simpa using this
+  -- Compose: 7x merge_limb_inplace + last_limb_inplace + JAL via runBlock
+  have MM1 := shr_merge_limb_inplace_spec 0 4 sp v0 v1 v5 v10 bit_shift anti_shift mask base hvm0 hvm4
   have MM2 := shr_merge_limb_inplace_spec 4 8 sp v1 v2
     ((v0 >>> (bit_shift.toNat % 32)) ||| ((v1 <<< (anti_shift.toNat % 32)) &&& mask))
     ((v1 <<< (anti_shift.toNat % 32)) &&& mask)
-    bit_shift anti_shift mask (base + 28)
-    (by simp only [signExtend12_4]; exact hv4)
-    (by simp only [signExtend12_8]; exact hv8)
-  simp only [signExtend12_4, signExtend12_8] at MM2
-  rw [show (base + 28) + 4 = base + 32 from by bv_omega,
-      show (base + 28) + 8 = base + 36 from by bv_omega,
-      show (base + 28) + 12 = base + 40 from by bv_omega,
-      show (base + 28) + 16 = base + 44 from by bv_omega,
-      show (base + 28) + 20 = base + 48 from by bv_omega,
-      show (base + 28) + 24 = base + 52 from by bv_omega] at MM2
-  have MM2f := cpsTriple_frame_left _ _ _ _
-    (-- merge_limb_inplace 1 instrAt (preserved)
-     (base ↦ᵢ .LW .x5 .x12 0) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 8) ↦ᵢ .LW .x10 .x12 4) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-     -- merge_limb_inplace 3 instrAt
-     ((base + 56) ↦ᵢ .LW .x5 .x12 8) ** ((base + 60) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 64) ↦ᵢ .LW .x10 .x12 12) ** ((base + 68) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 72) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 76) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 80) ↦ᵢ .SW .x12 .x5 8) **
-     -- merge_limb_inplace 4 instrAt
-     ((base + 84) ↦ᵢ .LW .x5 .x12 12) ** ((base + 88) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 92) ↦ᵢ .LW .x10 .x12 16) ** ((base + 96) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 100) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 104) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 108) ↦ᵢ .SW .x12 .x5 12) **
-     -- merge_limb_inplace 5 instrAt
-     ((base + 112) ↦ᵢ .LW .x5 .x12 16) ** ((base + 116) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 120) ↦ᵢ .LW .x10 .x12 20) ** ((base + 124) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 128) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 132) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 136) ↦ᵢ .SW .x12 .x5 16) **
-     -- merge_limb_inplace 6 instrAt
-     ((base + 140) ↦ᵢ .LW .x5 .x12 20) ** ((base + 144) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 148) ↦ᵢ .LW .x10 .x12 24) ** ((base + 152) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 156) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 160) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 164) ↦ᵢ .SW .x12 .x5 20) **
-     -- merge_limb_inplace 7 instrAt
-     ((base + 168) ↦ᵢ .LW .x5 .x12 24) ** ((base + 172) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 176) ↦ᵢ .LW .x10 .x12 28) ** ((base + 180) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 184) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 188) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 192) ↦ᵢ .SW .x12 .x5 24) **
-     -- last_limb_inplace instrAt
-     ((base + 196) ↦ᵢ .LW .x5 .x12 28) ** ((base + 200) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 204) ↦ᵢ .SW .x12 .x5 28) **
-     -- JAL instrAt
-     ((base + 208) ↦ᵢ .JAL .x0 jal_off) **
-     -- remaining mem
-     (sp ↦ₘ ((v0 >>> (bit_shift.toNat % 32)) ||| ((v1 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 12) ↦ₘ v3) **
-     ((sp + 16) ↦ₘ v4) ** ((sp + 20) ↦ₘ v5v) ** ((sp + 24) ↦ₘ v6) ** ((sp + 28) ↦ₘ v7))
-    (by pcFree) MM2
-  rw [show (base + 28) + 28 = base + 56 from by bv_omega] at MM2f
-  -- Step 3: merge_limb_inplace(8,12): base+56 -> base+84
+    bit_shift anti_shift mask (base + 28) hvm4 hvm8
   have MM3 := shr_merge_limb_inplace_spec 8 12 sp v2 v3
     ((v1 >>> (bit_shift.toNat % 32)) ||| ((v2 <<< (anti_shift.toNat % 32)) &&& mask))
     ((v2 <<< (anti_shift.toNat % 32)) &&& mask)
-    bit_shift anti_shift mask (base + 56)
-    (by simp only [signExtend12_8]; exact hv8)
-    (by simp only [signExtend12_12]; exact hv12)
-  simp only [signExtend12_8, signExtend12_12] at MM3
-  rw [show (base + 56) + 4 = base + 60 from by bv_omega,
-      show (base + 56) + 8 = base + 64 from by bv_omega,
-      show (base + 56) + 12 = base + 68 from by bv_omega,
-      show (base + 56) + 16 = base + 72 from by bv_omega,
-      show (base + 56) + 20 = base + 76 from by bv_omega,
-      show (base + 56) + 24 = base + 80 from by bv_omega] at MM3
-  have MM3f := cpsTriple_frame_left _ _ _ _
-    (-- merge_limb_inplace 1 instrAt
-     (base ↦ᵢ .LW .x5 .x12 0) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 8) ↦ᵢ .LW .x10 .x12 4) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-     -- merge_limb_inplace 2 instrAt
-     ((base + 28) ↦ᵢ .LW .x5 .x12 4) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 36) ↦ᵢ .LW .x10 .x12 8) ** ((base + 40) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 44) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 48) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 52) ↦ᵢ .SW .x12 .x5 4) **
-     -- merge_limb_inplace 4 instrAt
-     ((base + 84) ↦ᵢ .LW .x5 .x12 12) ** ((base + 88) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 92) ↦ᵢ .LW .x10 .x12 16) ** ((base + 96) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 100) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 104) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 108) ↦ᵢ .SW .x12 .x5 12) **
-     -- merge_limb_inplace 5 instrAt
-     ((base + 112) ↦ᵢ .LW .x5 .x12 16) ** ((base + 116) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 120) ↦ᵢ .LW .x10 .x12 20) ** ((base + 124) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 128) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 132) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 136) ↦ᵢ .SW .x12 .x5 16) **
-     -- merge_limb_inplace 6 instrAt
-     ((base + 140) ↦ᵢ .LW .x5 .x12 20) ** ((base + 144) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 148) ↦ᵢ .LW .x10 .x12 24) ** ((base + 152) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 156) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 160) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 164) ↦ᵢ .SW .x12 .x5 20) **
-     -- merge_limb_inplace 7 instrAt
-     ((base + 168) ↦ᵢ .LW .x5 .x12 24) ** ((base + 172) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 176) ↦ᵢ .LW .x10 .x12 28) ** ((base + 180) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 184) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 188) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 192) ↦ᵢ .SW .x12 .x5 24) **
-     -- last_limb_inplace instrAt
-     ((base + 196) ↦ᵢ .LW .x5 .x12 28) ** ((base + 200) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 204) ↦ᵢ .SW .x12 .x5 28) **
-     -- JAL instrAt
-     ((base + 208) ↦ᵢ .JAL .x0 jal_off) **
-     -- remaining mem
-     (sp ↦ₘ ((v0 >>> (bit_shift.toNat % 32)) ||| ((v1 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 4) ↦ₘ ((v1 >>> (bit_shift.toNat % 32)) ||| ((v2 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 16) ↦ₘ v4) ** ((sp + 20) ↦ₘ v5v) ** ((sp + 24) ↦ₘ v6) ** ((sp + 28) ↦ₘ v7))
-    (by pcFree) MM3
-  rw [show (base + 56) + 28 = base + 84 from by bv_omega] at MM3f
-  -- Step 4: merge_limb_inplace(12,16): base+84 -> base+112
+    bit_shift anti_shift mask (base + 56) hvm8 hvm12
   have MM4 := shr_merge_limb_inplace_spec 12 16 sp v3 v4
     ((v2 >>> (bit_shift.toNat % 32)) ||| ((v3 <<< (anti_shift.toNat % 32)) &&& mask))
     ((v3 <<< (anti_shift.toNat % 32)) &&& mask)
-    bit_shift anti_shift mask (base + 84)
-    (by simp only [signExtend12_12]; exact hv12)
-    (by simp only [signExtend12_16]; exact hv16)
-  simp only [signExtend12_12, signExtend12_16] at MM4
-  rw [show (base + 84) + 4 = base + 88 from by bv_omega,
-      show (base + 84) + 8 = base + 92 from by bv_omega,
-      show (base + 84) + 12 = base + 96 from by bv_omega,
-      show (base + 84) + 16 = base + 100 from by bv_omega,
-      show (base + 84) + 20 = base + 104 from by bv_omega,
-      show (base + 84) + 24 = base + 108 from by bv_omega] at MM4
-  have MM4f := cpsTriple_frame_left _ _ _ _
-    (-- merge_limb_inplace 1 instrAt
-     (base ↦ᵢ .LW .x5 .x12 0) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 8) ↦ᵢ .LW .x10 .x12 4) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-     -- merge_limb_inplace 2 instrAt
-     ((base + 28) ↦ᵢ .LW .x5 .x12 4) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 36) ↦ᵢ .LW .x10 .x12 8) ** ((base + 40) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 44) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 48) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 52) ↦ᵢ .SW .x12 .x5 4) **
-     -- merge_limb_inplace 3 instrAt
-     ((base + 56) ↦ᵢ .LW .x5 .x12 8) ** ((base + 60) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 64) ↦ᵢ .LW .x10 .x12 12) ** ((base + 68) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 72) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 76) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 80) ↦ᵢ .SW .x12 .x5 8) **
-     -- merge_limb_inplace 5 instrAt
-     ((base + 112) ↦ᵢ .LW .x5 .x12 16) ** ((base + 116) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 120) ↦ᵢ .LW .x10 .x12 20) ** ((base + 124) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 128) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 132) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 136) ↦ᵢ .SW .x12 .x5 16) **
-     -- merge_limb_inplace 6 instrAt
-     ((base + 140) ↦ᵢ .LW .x5 .x12 20) ** ((base + 144) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 148) ↦ᵢ .LW .x10 .x12 24) ** ((base + 152) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 156) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 160) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 164) ↦ᵢ .SW .x12 .x5 20) **
-     -- merge_limb_inplace 7 instrAt
-     ((base + 168) ↦ᵢ .LW .x5 .x12 24) ** ((base + 172) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 176) ↦ᵢ .LW .x10 .x12 28) ** ((base + 180) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 184) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 188) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 192) ↦ᵢ .SW .x12 .x5 24) **
-     -- last_limb_inplace instrAt
-     ((base + 196) ↦ᵢ .LW .x5 .x12 28) ** ((base + 200) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 204) ↦ᵢ .SW .x12 .x5 28) **
-     -- JAL instrAt
-     ((base + 208) ↦ᵢ .JAL .x0 jal_off) **
-     -- remaining mem
-     (sp ↦ₘ ((v0 >>> (bit_shift.toNat % 32)) ||| ((v1 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 4) ↦ₘ ((v1 >>> (bit_shift.toNat % 32)) ||| ((v2 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 8) ↦ₘ ((v2 >>> (bit_shift.toNat % 32)) ||| ((v3 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 20) ↦ₘ v5v) ** ((sp + 24) ↦ₘ v6) ** ((sp + 28) ↦ₘ v7))
-    (by pcFree) MM4
-  rw [show (base + 84) + 28 = base + 112 from by bv_omega] at MM4f
-  -- Step 5: merge_limb_inplace(16,20): base+112 -> base+140
+    bit_shift anti_shift mask (base + 84) hvm12 hvm16
   have MM5 := shr_merge_limb_inplace_spec 16 20 sp v4 v5v
     ((v3 >>> (bit_shift.toNat % 32)) ||| ((v4 <<< (anti_shift.toNat % 32)) &&& mask))
     ((v4 <<< (anti_shift.toNat % 32)) &&& mask)
-    bit_shift anti_shift mask (base + 112)
-    (by simp only [signExtend12_16]; exact hv16)
-    (by simp only [signExtend12_20]; exact hv20)
-  simp only [signExtend12_16, signExtend12_20] at MM5
-  rw [show (base + 112) + 4 = base + 116 from by bv_omega,
-      show (base + 112) + 8 = base + 120 from by bv_omega,
-      show (base + 112) + 12 = base + 124 from by bv_omega,
-      show (base + 112) + 16 = base + 128 from by bv_omega,
-      show (base + 112) + 20 = base + 132 from by bv_omega,
-      show (base + 112) + 24 = base + 136 from by bv_omega] at MM5
-  have MM5f := cpsTriple_frame_left _ _ _ _
-    (-- merge_limb_inplace 1 instrAt
-     (base ↦ᵢ .LW .x5 .x12 0) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 8) ↦ᵢ .LW .x10 .x12 4) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-     -- merge_limb_inplace 2 instrAt
-     ((base + 28) ↦ᵢ .LW .x5 .x12 4) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 36) ↦ᵢ .LW .x10 .x12 8) ** ((base + 40) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 44) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 48) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 52) ↦ᵢ .SW .x12 .x5 4) **
-     -- merge_limb_inplace 3 instrAt
-     ((base + 56) ↦ᵢ .LW .x5 .x12 8) ** ((base + 60) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 64) ↦ᵢ .LW .x10 .x12 12) ** ((base + 68) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 72) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 76) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 80) ↦ᵢ .SW .x12 .x5 8) **
-     -- merge_limb_inplace 4 instrAt
-     ((base + 84) ↦ᵢ .LW .x5 .x12 12) ** ((base + 88) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 92) ↦ᵢ .LW .x10 .x12 16) ** ((base + 96) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 100) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 104) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 108) ↦ᵢ .SW .x12 .x5 12) **
-     -- merge_limb_inplace 6 instrAt
-     ((base + 140) ↦ᵢ .LW .x5 .x12 20) ** ((base + 144) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 148) ↦ᵢ .LW .x10 .x12 24) ** ((base + 152) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 156) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 160) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 164) ↦ᵢ .SW .x12 .x5 20) **
-     -- merge_limb_inplace 7 instrAt
-     ((base + 168) ↦ᵢ .LW .x5 .x12 24) ** ((base + 172) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 176) ↦ᵢ .LW .x10 .x12 28) ** ((base + 180) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 184) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 188) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 192) ↦ᵢ .SW .x12 .x5 24) **
-     -- last_limb_inplace instrAt
-     ((base + 196) ↦ᵢ .LW .x5 .x12 28) ** ((base + 200) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 204) ↦ᵢ .SW .x12 .x5 28) **
-     -- JAL instrAt
-     ((base + 208) ↦ᵢ .JAL .x0 jal_off) **
-     -- remaining mem
-     (sp ↦ₘ ((v0 >>> (bit_shift.toNat % 32)) ||| ((v1 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 4) ↦ₘ ((v1 >>> (bit_shift.toNat % 32)) ||| ((v2 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 8) ↦ₘ ((v2 >>> (bit_shift.toNat % 32)) ||| ((v3 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 12) ↦ₘ ((v3 >>> (bit_shift.toNat % 32)) ||| ((v4 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 24) ↦ₘ v6) ** ((sp + 28) ↦ₘ v7))
-    (by pcFree) MM5
-  rw [show (base + 112) + 28 = base + 140 from by bv_omega] at MM5f
-  -- Step 6: merge_limb_inplace(20,24): base+140 -> base+168
+    bit_shift anti_shift mask (base + 112) hvm16 hvm20
   have MM6 := shr_merge_limb_inplace_spec 20 24 sp v5v v6
     ((v4 >>> (bit_shift.toNat % 32)) ||| ((v5v <<< (anti_shift.toNat % 32)) &&& mask))
     ((v5v <<< (anti_shift.toNat % 32)) &&& mask)
-    bit_shift anti_shift mask (base + 140)
-    (by simp only [signExtend12_20]; exact hv20)
-    (by simp only [signExtend12_24]; exact hv24)
-  simp only [signExtend12_20, signExtend12_24] at MM6
-  rw [show (base + 140) + 4 = base + 144 from by bv_omega,
-      show (base + 140) + 8 = base + 148 from by bv_omega,
-      show (base + 140) + 12 = base + 152 from by bv_omega,
-      show (base + 140) + 16 = base + 156 from by bv_omega,
-      show (base + 140) + 20 = base + 160 from by bv_omega,
-      show (base + 140) + 24 = base + 164 from by bv_omega] at MM6
-  have MM6f := cpsTriple_frame_left _ _ _ _
-    (-- merge_limb_inplace 1 instrAt
-     (base ↦ᵢ .LW .x5 .x12 0) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 8) ↦ᵢ .LW .x10 .x12 4) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-     -- merge_limb_inplace 2 instrAt
-     ((base + 28) ↦ᵢ .LW .x5 .x12 4) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 36) ↦ᵢ .LW .x10 .x12 8) ** ((base + 40) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 44) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 48) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 52) ↦ᵢ .SW .x12 .x5 4) **
-     -- merge_limb_inplace 3 instrAt
-     ((base + 56) ↦ᵢ .LW .x5 .x12 8) ** ((base + 60) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 64) ↦ᵢ .LW .x10 .x12 12) ** ((base + 68) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 72) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 76) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 80) ↦ᵢ .SW .x12 .x5 8) **
-     -- merge_limb_inplace 4 instrAt
-     ((base + 84) ↦ᵢ .LW .x5 .x12 12) ** ((base + 88) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 92) ↦ᵢ .LW .x10 .x12 16) ** ((base + 96) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 100) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 104) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 108) ↦ᵢ .SW .x12 .x5 12) **
-     -- merge_limb_inplace 5 instrAt
-     ((base + 112) ↦ᵢ .LW .x5 .x12 16) ** ((base + 116) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 120) ↦ᵢ .LW .x10 .x12 20) ** ((base + 124) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 128) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 132) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 136) ↦ᵢ .SW .x12 .x5 16) **
-     -- merge_limb_inplace 7 instrAt
-     ((base + 168) ↦ᵢ .LW .x5 .x12 24) ** ((base + 172) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 176) ↦ᵢ .LW .x10 .x12 28) ** ((base + 180) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 184) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 188) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 192) ↦ᵢ .SW .x12 .x5 24) **
-     -- last_limb_inplace instrAt
-     ((base + 196) ↦ᵢ .LW .x5 .x12 28) ** ((base + 200) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 204) ↦ᵢ .SW .x12 .x5 28) **
-     -- JAL instrAt
-     ((base + 208) ↦ᵢ .JAL .x0 jal_off) **
-     -- remaining mem
-     (sp ↦ₘ ((v0 >>> (bit_shift.toNat % 32)) ||| ((v1 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 4) ↦ₘ ((v1 >>> (bit_shift.toNat % 32)) ||| ((v2 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 8) ↦ₘ ((v2 >>> (bit_shift.toNat % 32)) ||| ((v3 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 12) ↦ₘ ((v3 >>> (bit_shift.toNat % 32)) ||| ((v4 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 16) ↦ₘ ((v4 >>> (bit_shift.toNat % 32)) ||| ((v5v <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 28) ↦ₘ v7))
-    (by pcFree) MM6
-  rw [show (base + 140) + 28 = base + 168 from by bv_omega] at MM6f
-  -- Step 7: merge_limb_inplace(24,28): base+168 -> base+196
+    bit_shift anti_shift mask (base + 140) hvm20 hvm24
   have MM7 := shr_merge_limb_inplace_spec 24 28 sp v6 v7
     ((v5v >>> (bit_shift.toNat % 32)) ||| ((v6 <<< (anti_shift.toNat % 32)) &&& mask))
     ((v6 <<< (anti_shift.toNat % 32)) &&& mask)
-    bit_shift anti_shift mask (base + 168)
-    (by simp only [signExtend12_24]; exact hv24)
-    (by simp only [signExtend12_28]; exact hv28)
-  simp only [signExtend12_24, signExtend12_28] at MM7
-  rw [show (base + 168) + 4 = base + 172 from by bv_omega,
-      show (base + 168) + 8 = base + 176 from by bv_omega,
-      show (base + 168) + 12 = base + 180 from by bv_omega,
-      show (base + 168) + 16 = base + 184 from by bv_omega,
-      show (base + 168) + 20 = base + 188 from by bv_omega,
-      show (base + 168) + 24 = base + 192 from by bv_omega] at MM7
-  have MM7f := cpsTriple_frame_left _ _ _ _
-    (-- merge_limb_inplace 1 instrAt
-     (base ↦ᵢ .LW .x5 .x12 0) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 8) ↦ᵢ .LW .x10 .x12 4) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-     -- merge_limb_inplace 2 instrAt
-     ((base + 28) ↦ᵢ .LW .x5 .x12 4) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 36) ↦ᵢ .LW .x10 .x12 8) ** ((base + 40) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 44) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 48) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 52) ↦ᵢ .SW .x12 .x5 4) **
-     -- merge_limb_inplace 3 instrAt
-     ((base + 56) ↦ᵢ .LW .x5 .x12 8) ** ((base + 60) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 64) ↦ᵢ .LW .x10 .x12 12) ** ((base + 68) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 72) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 76) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 80) ↦ᵢ .SW .x12 .x5 8) **
-     -- merge_limb_inplace 4 instrAt
-     ((base + 84) ↦ᵢ .LW .x5 .x12 12) ** ((base + 88) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 92) ↦ᵢ .LW .x10 .x12 16) ** ((base + 96) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 100) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 104) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 108) ↦ᵢ .SW .x12 .x5 12) **
-     -- merge_limb_inplace 5 instrAt
-     ((base + 112) ↦ᵢ .LW .x5 .x12 16) ** ((base + 116) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 120) ↦ᵢ .LW .x10 .x12 20) ** ((base + 124) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 128) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 132) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 136) ↦ᵢ .SW .x12 .x5 16) **
-     -- merge_limb_inplace 6 instrAt
-     ((base + 140) ↦ᵢ .LW .x5 .x12 20) ** ((base + 144) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 148) ↦ᵢ .LW .x10 .x12 24) ** ((base + 152) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 156) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 160) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 164) ↦ᵢ .SW .x12 .x5 20) **
-     -- last_limb_inplace instrAt
-     ((base + 196) ↦ᵢ .LW .x5 .x12 28) ** ((base + 200) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 204) ↦ᵢ .SW .x12 .x5 28) **
-     -- JAL instrAt
-     ((base + 208) ↦ᵢ .JAL .x0 jal_off) **
-     -- remaining mem
-     (sp ↦ₘ ((v0 >>> (bit_shift.toNat % 32)) ||| ((v1 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 4) ↦ₘ ((v1 >>> (bit_shift.toNat % 32)) ||| ((v2 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 8) ↦ₘ ((v2 >>> (bit_shift.toNat % 32)) ||| ((v3 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 12) ↦ₘ ((v3 >>> (bit_shift.toNat % 32)) ||| ((v4 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 16) ↦ₘ ((v4 >>> (bit_shift.toNat % 32)) ||| ((v5v <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 20) ↦ₘ ((v5v >>> (bit_shift.toNat % 32)) ||| ((v6 <<< (anti_shift.toNat % 32)) &&& mask))))
-    (by pcFree) MM7
-  rw [show (base + 168) + 28 = base + 196 from by bv_omega] at MM7f
-  -- Step 8: last_limb_inplace: base+196 -> base+208
+    bit_shift anti_shift mask (base + 168) hvm24 hvm28
   have LL := shr_last_limb_inplace_spec sp v7
     ((v6 >>> (bit_shift.toNat % 32)) ||| ((v7 <<< (anti_shift.toNat % 32)) &&& mask))
-    bit_shift (base + 196)
-    (by simp only [signExtend12_28]; exact hv28)
-  simp only [signExtend12_28] at LL
-  rw [show (base + 196 : Addr) + 4 = base + 200 from by bv_omega,
-      show (base + 196 : Addr) + 8 = base + 204 from by bv_omega] at LL
-  have LLf := cpsTriple_frame_left _ _ _ _
-    (-- merge_limb_inplace 1 instrAt
-     (base ↦ᵢ .LW .x5 .x12 0) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 8) ↦ᵢ .LW .x10 .x12 4) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-     -- merge_limb_inplace 2 instrAt
-     ((base + 28) ↦ᵢ .LW .x5 .x12 4) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 36) ↦ᵢ .LW .x10 .x12 8) ** ((base + 40) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 44) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 48) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 52) ↦ᵢ .SW .x12 .x5 4) **
-     -- merge_limb_inplace 3 instrAt
-     ((base + 56) ↦ᵢ .LW .x5 .x12 8) ** ((base + 60) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 64) ↦ᵢ .LW .x10 .x12 12) ** ((base + 68) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 72) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 76) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 80) ↦ᵢ .SW .x12 .x5 8) **
-     -- merge_limb_inplace 4 instrAt
-     ((base + 84) ↦ᵢ .LW .x5 .x12 12) ** ((base + 88) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 92) ↦ᵢ .LW .x10 .x12 16) ** ((base + 96) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 100) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 104) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 108) ↦ᵢ .SW .x12 .x5 12) **
-     -- merge_limb_inplace 5 instrAt
-     ((base + 112) ↦ᵢ .LW .x5 .x12 16) ** ((base + 116) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 120) ↦ᵢ .LW .x10 .x12 20) ** ((base + 124) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 128) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 132) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 136) ↦ᵢ .SW .x12 .x5 16) **
-     -- merge_limb_inplace 6 instrAt
-     ((base + 140) ↦ᵢ .LW .x5 .x12 20) ** ((base + 144) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 148) ↦ᵢ .LW .x10 .x12 24) ** ((base + 152) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 156) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 160) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 164) ↦ᵢ .SW .x12 .x5 20) **
-     -- merge_limb_inplace 7 instrAt
-     ((base + 168) ↦ᵢ .LW .x5 .x12 24) ** ((base + 172) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 176) ↦ᵢ .LW .x10 .x12 28) ** ((base + 180) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 184) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 188) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 192) ↦ᵢ .SW .x12 .x5 24) **
-     -- JAL instrAt
-     ((base + 208) ↦ᵢ .JAL .x0 jal_off) **
-     (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ ((v7 <<< (anti_shift.toNat % 32)) &&& mask)) ** (.x11 ↦ᵣ mask) **
-     (sp ↦ₘ ((v0 >>> (bit_shift.toNat % 32)) ||| ((v1 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 4) ↦ₘ ((v1 >>> (bit_shift.toNat % 32)) ||| ((v2 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 8) ↦ₘ ((v2 >>> (bit_shift.toNat % 32)) ||| ((v3 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 12) ↦ₘ ((v3 >>> (bit_shift.toNat % 32)) ||| ((v4 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 16) ↦ₘ ((v4 >>> (bit_shift.toNat % 32)) ||| ((v5v <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 20) ↦ₘ ((v5v >>> (bit_shift.toNat % 32)) ||| ((v6 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 24) ↦ₘ ((v6 >>> (bit_shift.toNat % 32)) ||| ((v7 <<< (anti_shift.toNat % 32)) &&& mask))))
-    (by pcFree) LL
-  rw [show (base + 196 : Addr) + 12 = base + 208 from by bv_omega] at LLf
-  -- JAL x0 to exit
-  have JL := cpsTriple_frame_left _ _ _ _
-    (-- all instrAt except (base+208)
-     (base ↦ᵢ .LW .x5 .x12 0) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 8) ↦ᵢ .LW .x10 .x12 4) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-     ((base + 28) ↦ᵢ .LW .x5 .x12 4) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 36) ↦ᵢ .LW .x10 .x12 8) ** ((base + 40) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 44) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 48) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 52) ↦ᵢ .SW .x12 .x5 4) **
-     ((base + 56) ↦ᵢ .LW .x5 .x12 8) ** ((base + 60) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 64) ↦ᵢ .LW .x10 .x12 12) ** ((base + 68) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 72) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 76) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 80) ↦ᵢ .SW .x12 .x5 8) **
-     ((base + 84) ↦ᵢ .LW .x5 .x12 12) ** ((base + 88) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 92) ↦ᵢ .LW .x10 .x12 16) ** ((base + 96) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 100) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 104) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 108) ↦ᵢ .SW .x12 .x5 12) **
-     ((base + 112) ↦ᵢ .LW .x5 .x12 16) ** ((base + 116) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 120) ↦ᵢ .LW .x10 .x12 20) ** ((base + 124) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 128) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 132) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 136) ↦ᵢ .SW .x12 .x5 16) **
-     ((base + 140) ↦ᵢ .LW .x5 .x12 20) ** ((base + 144) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 148) ↦ᵢ .LW .x10 .x12 24) ** ((base + 152) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 156) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 160) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 164) ↦ᵢ .SW .x12 .x5 20) **
-     ((base + 168) ↦ᵢ .LW .x5 .x12 24) ** ((base + 172) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 176) ↦ᵢ .LW .x10 .x12 28) ** ((base + 180) ↦ᵢ .SLL .x10 .x10 .x7) **
-     ((base + 184) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 188) ↦ᵢ .OR .x5 .x5 .x10) **
-     ((base + 192) ↦ᵢ .SW .x12 .x5 24) **
-     ((base + 196) ↦ᵢ .LW .x5 .x12 28) ** ((base + 200) ↦ᵢ .SRL .x5 .x5 .x6) **
-     ((base + 204) ↦ᵢ .SW .x12 .x5 28) **
-     (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ (v7 >>> (bit_shift.toNat % 32))) ** (.x6 ↦ᵣ bit_shift) **
-     (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ ((v7 <<< (anti_shift.toNat % 32)) &&& mask)) ** (.x11 ↦ᵣ mask) **
-     (sp ↦ₘ ((v0 >>> (bit_shift.toNat % 32)) ||| ((v1 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 4) ↦ₘ ((v1 >>> (bit_shift.toNat % 32)) ||| ((v2 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 8) ↦ₘ ((v2 >>> (bit_shift.toNat % 32)) ||| ((v3 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 12) ↦ₘ ((v3 >>> (bit_shift.toNat % 32)) ||| ((v4 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 16) ↦ₘ ((v4 >>> (bit_shift.toNat % 32)) ||| ((v5v <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 20) ↦ₘ ((v5v >>> (bit_shift.toNat % 32)) ||| ((v6 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 24) ↦ₘ ((v6 >>> (bit_shift.toNat % 32)) ||| ((v7 <<< (anti_shift.toNat % 32)) &&& mask))) **
-     ((sp + 28) ↦ₘ (v7 >>> (bit_shift.toNat % 32))))
-    (by pcFree) (jal_x0_spec_gen jal_off (base + 208))
+    bit_shift (base + 196) hvm28
+  have JL := jal_x0_spec_gen jal_off (base + 208)
   rw [hexit] at JL
-  -- Compose all steps
-  clear MM1 MM2 MM3 MM4 MM5 MM6 MM7 LL
-  clear hv0 hv4 hv8 hv12 hv16 hv20 hv24 hv28
-  have c01 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) MM1f MM2f; clear MM1f MM2f
-  have c02 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) c01 MM3f; clear c01 MM3f
-  have c03 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) c02 MM4f; clear c02 MM4f
-  have c04 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) c03 MM5f; clear c03 MM5f
-  have c05 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) c04 MM6f; clear c04 MM6f
-  have c06 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) c05 MM7f; clear c05 MM7f
-  have c07 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) c06 LLf; clear c06 LLf
-  have cfull := cpsTriple_seq_with_perm _ _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) c07 JL; clear c07 JL
-  exact cpsTriple_consequence _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp) cfull
-/-- LW x10, off(x12); OR x5, x5, x10:
-    Load a word from memory and OR it into x5. 2 instructions. -/
+  runBlock MM1 MM2 MM3 MM4 MM5 MM6 MM7 LL JL
 theorem shr_lw_or_acc_spec (sp acc prev_x10 val : Word) (off : BitVec 12)
     (base : Addr)
     (hvalid : isValidMemAccess (sp + signExtend12 off) = true) :
