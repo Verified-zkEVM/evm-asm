@@ -270,6 +270,15 @@ namespace EvmAsm.Rv64
 -- 3-register ALU specs (all distinct)
 -- ============================================================================
 
+@[spec_gen_rv64] theorem slt_spec_gen (rd rs1 rs2 : Reg) (v_old v1 v2 : Word)
+    (addr : Addr) (hrd_ne_x0 : rd ≠ .x0) :
+    cpsTriple addr (addr + 4)
+      ((addr ↦ᵢ .SLT rd rs1 rs2) ** (rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** (rd ↦ᵣ v_old))
+      ((addr ↦ᵢ .SLT rd rs1 rs2) ** (rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** (rd ↦ᵣ (if BitVec.slt v1 v2 then (1 : Word) else 0))) :=
+  generic_3reg_spec (.SLT rd rs1 rs2) rs1 rs2 rd v1 v2 v_old _ addr hrd_ne_x0
+    (by intro s _ hrs1 hrs2; simp [execInstrBr, hrs1, hrs2])
+    (by intro s hfetch; exact step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl))
+
 @[spec_gen_rv64] theorem sltu_spec_gen (rd rs1 rs2 : Reg) (v_old v1 v2 : Word)
     (addr : Addr) (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4)

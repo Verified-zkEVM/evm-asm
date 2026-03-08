@@ -6,440 +6,487 @@
 > new sub-tasks you discovered. Check this file at the start of each session
 > to pick up where the last agent left off.
 
-Goal: implement and verify the EVM state transition function as RISC-V macro
-assembly programs, for use as a zkEVM. Each EVM opcode becomes a verified
-RISC-V subroutine operating on 256-bit stack words in memory.
+Goal: implement and verify the EVM state transition function (STF) as RISC-V
+macro assembly programs, for use as a zkEVM. Each EVM opcode becomes a verified
+RISC-V subroutine operating on 256-bit stack words in memory. The STF is the
+single most important piece in the execution layer — it processes blocks of
+transactions against the world state.
+
+**Primary target: RV64IM (64-bit)**. The 64-bit version is the priority, per
+the zkvm-standards spec (`EvmAsm/Evm64/zkvm-standards/`). RV32IM is maintained
+as a secondary target.
 
 Reference spec: `execution-specs/src/ethereum/forks/shanghai/vm/` (Python).
+zkVM standards: `EvmAsm/Evm64/zkvm-standards/` (submodule).
+
+---
+
+## Architecture Overview
+
+### Two RISC-V Backends
+
+| | RV64IM (Evm64) — **PRIMARY** | RV32IM (Evm32) — secondary |
+|---|---|---|
+| **Target** | `riscv64im_zicclsm-unknown-none-elf` | `riscv32im-unknown-none-elf` |
+| **Word size** | 64-bit (`BitVec 64`) | 32-bit (`BitVec 32`) |
+| **Limbs per EvmWord** | 4 × 64-bit (LE) | 8 × 32-bit (LE) |
+| **Memory ops** | LD/SD (8-byte aligned) | LW/SW (4-byte aligned) |
+| **ADD instructions** | 30 | 62 |
+| **LT instructions** | 26 | 54 |
+| **SHR instructions** | 90 | 288+ |
+| **Efficiency** | ~2× fewer instructions | More limb processing |
+| **Files** | `EvmAsm/Evm64/` (18 files) | `EvmAsm/Evm32/` (15 files) |
+| **Infrastructure** | `EvmAsm/Rv64/` | `EvmAsm/Rv32/` |
+
+### zkVM Standards (submodule: `EvmAsm/Evm64/zkvm-standards/`)
+
+The standards define the target environment for Ethereum zkVMs:
+- **RISC-V target**: RV64IM + Zicclsm (misaligned load/store support)
+- **IO interface**: `read_input` / `write_output` for private input and public output
+- **Cryptographic accelerators**: C interface for keccak256, ecrecover, SHA-256,
+  RIPEMD-160, modexp, BN254, BLS12-381, BLAKE2f, KZG, secp256r1 (via
+  `zkvm_accelerators.h`)
+- These accelerators map directly to Ethereum precompiles and KECCAK256
+
+### Machine State (Rv64)
+
+```
+MachineState:
+  regs : Reg → BitVec 64       -- Registers: x0(zero), x1(ra), x2(sp),
+                                --   x5-x7(t0-t2), x10-x12(a0-a2)
+  mem  : Addr → BitVec 64      -- 64-bit addressable memory
+  code : Addr → Option Instr   -- Instruction memory (immutable)
+  pc   : BitVec 64             -- Program counter
+  committed : List (Word × Word)  -- COMMIT syscall outputs
+  publicValues : List (BitVec 8)  -- WRITE syscall outputs
+  privateInput : List (BitVec 8)  -- HINT_READ input stream
+```
+
+EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
+
+### Proof Framework
+
+- **Separation logic**: `r ↦ᵣ v` (register), `a ↦ₘ v` (memory), `**` (sep conj)
+- **CPS Hoare triples**: `cpsTriple base end P Q` — from `base` to `end`, if P
+  holds then Q holds, with automatic frame rule for untouched resources
+- **Per-limb composition**: Each 256-bit op decomposes into 4 per-limb specs
+  (Evm64) or 8 (Evm32), then composed via `runBlock` tactic
+- **Key tactics**: `xperm`, `xsimp`, `xcancel`, `seqFrame`, `runBlock`,
+  `validMem`, `liftSpec`, `pcFree`
+
+---
 
 ## Current Status
 
-**Done (15 opcodes, Phase 2.1-2.5 complete + SHR program):**
-- Arithmetic: ADD, SUB
-- Bitwise: AND, OR, XOR, NOT, SHR (program + tests, proofs pending)
-- Comparison: ISZERO, LT, GT, EQ
-- Stack: POP, PUSH0, DUP1, SWAP1, DUP1-16 (generic), SWAP1-16 (generic)
+### Evm64 (PRIMARY) — 17 opcodes, all proofs complete (0 sorry)
 
-**Infrastructure:**
-- EvmWord = BitVec 256, stored as 8 little-endian 32-bit limbs
-- Stack pointer in x12, stack grows upward, 32 bytes per element
-- evmWordIs/evmStackIs separation logic assertions
-- xperm/xsimp tactics for automated proof composition
-- cpsTriple_seq_with_perm for composing multi-limb specs
+| Category | Opcodes | Instructions (per op) | Status |
+|----------|---------|----------------------|--------|
+| Arithmetic | ADD, SUB | 30 each | ✅ Fully proved |
+| Bitwise | AND, OR, XOR, NOT | 17 / 17 / 17 / 12 | ✅ Fully proved |
+| Shift | SHR | 90 | ✅ Fully proved |
+| Comparison | ISZERO, LT, GT, EQ, SLT, SGT | 12 / 26 / 26 / 21 / 25 / 25 | ✅ Fully proved |
+| Stack | POP, PUSH0, DUP1, SWAP1 | 1 / 5 / 9 / 16 | ✅ Fully proved |
 
----
+### Evm32 (secondary) — 15 opcodes, 1 sorry
 
-## Phase 1: Complete Comparison & Simple Arithmetic
+| Category | Opcodes | Status |
+|----------|---------|--------|
+| Arithmetic | ADD, SUB | ✅ Fully proved |
+| Bitwise | AND, OR, XOR, NOT | ✅ Fully proved |
+| Shift | SHR | ⚠️ 1 sorry in ShiftComposition.lean (8-way case merge) |
+| Comparison | ISZERO, LT, GT, EQ | ✅ Fully proved |
+| Stack | POP, PUSH0, DUP1-16, SWAP1-16 | ✅ Fully proved |
 
-Each task below is one file change. Follow the existing patterns in
-`Evm/Comparison.lean` and `Evm/Arithmetic.lean`.
+### Infrastructure — complete, no sorry
 
-### 1.1 GT (Greater Than)
-- **File**: `Evm/Comparison.lean`
-- **Approach**: GT(a,b) = LT(b,a). Swap operand load order, reuse LT's
-  borrow-chain logic. Same instruction count as LT (54 instr).
-- **Reference**: `execution-specs/.../instructions/comparison.py:greater_than`
-- **Pattern**: Copy `evm_lt` program, swap the LW offsets for a and b limbs.
-  Write `gt_limb0_spec`, `gt_limb_carry_spec`, then compose.
-
-### 1.2 EQ (Equality)
-- **File**: `Evm/Comparison.lean`
-- **Approach**: XOR all 8 limb pairs, OR-reduce to single word, SLTIU to
-  boolean. ~33 instr (8×LW+LW+XOR + 7×OR + SLTIU + 8×SW + ADDI).
-- **Reference**: `execution-specs/.../instructions/comparison.py:equal`
-- **Pattern**: Similar to ISZERO but XOR pairs first.
-
-### 1.3 SLT (Signed Less Than)
-- **File**: `Evm/Comparison.lean`
-- **Approach**: Compare MSB limbs (limb 7) with signed comparison (SLT
-  instruction), then if equal fall through to unsigned comparison of
-  remaining limbs. Uses BEQ/BNE branching + cpsBranch.
-- **Reference**: `execution-specs/.../instructions/comparison.py:signed_less_than`
-
-### 1.4 SGT (Signed Greater Than)
-- **File**: `Evm/Comparison.lean`
-- **Approach**: SGT(a,b) = SLT(b,a). Swap operand order like GT.
+- RV32 and RV64: Basic, Instructions, Program, Execution, CPSSpec,
+  ControlFlow, SepLogic, GenericSpecs, InstructionSpecs, SyscallSpecs
+- Tactics: XPerm, XSimp, XCancel, SeqFrame, RunBlock, LiftSpec, ValidMem,
+  PcFree, SpecDb
+- Examples: Swap, HelloWorld, Echo, Multiply, LoadModifyStore, Combining,
+  Halting, Commit, Write, FullPipeline
 
 ---
 
-## Phase 2: Stack Manipulation
+## Roadmap: Phases 1-6 (Opcode Implementation)
 
-These are critical — almost every EVM program uses PUSH/DUP/SWAP/POP.
+All phases below target **Evm64** primarily. Files are under `EvmAsm/Evm64/`.
 
-### 2.1 POP
-- **File**: `Evm/StackOps.lean` (new)
-- **Approach**: Just advance sp by 32 bytes (`ADDI x12, x12, 32`).
-  1 instruction. Trivial spec.
-- **Reference**: `execution-specs/.../instructions/stack.py:pop`
+### ~~Phase 1: Complete Comparisons~~ — DONE
 
-### 2.2 PUSH0
-- **File**: `Evm/StackOps.lean`
-- **Approach**: Decrement sp by 32, store 0 to all 8 limbs.
-  `ADDI x12, x12, -32` + 8×(`SW x0, x12, offset`). 9 instructions.
-- **Note**: Only PUSH0 for now. PUSH1-32 need EVM bytecode parsing
-  infrastructure (the immediate comes from EVM code, not RISC-V code).
+#### ~~1.1 SLT (Signed Less Than)~~ ✅
+- **Files**: `Evm64/Comparison.lean` (helpers: `beq_eq_spec`, `beq_ne_spec`, `slt_msb_load_spec`) + `Evm64/Slt.lean`
+- **Approach**: Compare MSB limbs (limb 3) with signed SLT instruction.
+  If equal, fall through to unsigned borrow chain on lower 3 limbs.
+  Uses `by_cases` on MSB equality for deterministic paths + `runBlock`.
+- 25 instructions = 100 bytes. Also added `slt_spec_gen` to `SyscallSpecs.lean`.
 
-### 2.3 DUP1
-- **File**: `Evm/StackOps.lean`
-- **Approach**: Decrement sp by 32, copy 8 limbs from old top to new top.
-  `ADDI x12, x12, -32` + 8×(`LW x7, x12, old_offset` + `SW x12, x7, new_offset`).
-  17 instructions.
-- **Pattern**: DUP2-16 are similar but with different source offsets.
-  Implement DUP1 first, then generalize to `dup_n_spec`.
+#### ~~1.2 SGT (Signed Greater Than)~~ ✅
+- **Files**: `Evm64/Comparison.lean` + `Evm64/Sgt.lean`
+- **Approach**: SGT(a,b) = SLT(b,a). Swap operand load order (b-limbs into x7, a-limbs into x6).
+- 25 instructions = 100 bytes. Mirrors SLT proof structure exactly.
 
-### 2.4 SWAP1
-- **File**: `Evm/StackOps.lean`
-- **Approach**: Swap 8 limb pairs between top two stack elements.
-  8×(`LW x7, x12, top_off` + `LW x6, x12, second_off` +
-  `SW x12, x6, top_off` + `SW x12, x7, second_off`). 32 instructions.
-- **Pattern**: SWAP2-16 differ only in the second element's offset.
+### Phase 2: Remaining Shifts & Bitwise ← NEXT
 
-### 2.5 Generalize DUP/SWAP
-- **File**: `Evm/StackOps.lean`
+#### 2.1 SHL (Shift Left)
+- **File**: `Evm64/Shift.lean` + `Evm64/ShlSpec.lean` (new)
+- **Approach**: Mirror of SHR. Decompose into limb_shift (÷64) and bit_shift
+  (%64). Cascade dispatch on limb_shift (0-3 for 64-bit). 4 unrolled shift
+  bodies with SLL+SRL+OR per output limb.
+- **Note**: ~90 instructions (similar to SHR). Simpler than Evm32 (4 vs 8 cases).
+
+#### 2.2 SAR (Shift Right Arithmetic)
+- **File**: `Evm64/Shift.lean` + `Evm64/SarSpec.lean` (new)
+- **Approach**: Like SHR but fills vacated bits with sign bit (MSB of input).
+  Extract sign, then SHR body with sign-fill instead of zero-fill.
+
+#### 2.3 BYTE (Extract byte from word)
+- **File**: `Evm64/Bitwise.lean` + `Evm64/Byte.lean` (new)
+- **Approach**: If index >= 32, result = 0. Else compute which limb and byte
+  offset within that limb, use SRL + ANDI 0xFF.
+
+### Phase 3: Stack Extensions
+
+#### 3.1 DUP1-16 and SWAP1-16 (Generic)
+- **File**: `Evm64/StackOps.lean`
 - **Approach**: Write `evm_dup (n : Nat)` and `evm_swap (n : Nat)` as
   Lean functions producing `Program`. Prove generic specs parameterized by n.
-  This covers DUP1-16 and SWAP1-16 (32 opcodes) with one proof each.
+  Covers 32 opcodes with one proof each.
+- **Note**: Already done for Evm32. Port pattern to Evm64.
 
----
+#### 3.2 PUSH1-32
+- **File**: `Evm64/StackOps.lean`
+- **Approach**: Requires EVM bytecode parsing. Push immediate from EVM code
+  region. Read 1-32 bytes from code[pc+1..pc+n], zero-extend to 256 bits,
+  push onto stack.
+- **Depends on**: EVM code region model (Phase 5.1)
 
-## Phase 3: Remaining Bitwise Operations
+### Phase 4: Remaining Arithmetic
 
-### 3.1 BYTE (Extract byte from word)
-- **File**: `Evm/Bitwise.lean`
-- **Approach**: Input is byte index i (0-31, big-endian) and value x.
-  If i >= 32, result is 0. Otherwise, extract byte at position (31-i).
-  Need shift-and-mask logic. Use SRL + ANDI per limb.
-- **Reference**: `execution-specs/.../instructions/bitwise.py:get_byte`
-
-### 3.2 SHL (Shift Left)
-- **File**: `Evm/Shift.lean` (new)
-- **Approach**: If shift >= 256, result is 0. Otherwise, shift amount =
-  shift_limbs × 32 + shift_bits. Move limbs, then shift within limbs
-  (SLL + SRL for cross-limb bits). Uses loops or unrolled code.
-- **Reference**: `execution-specs/.../instructions/bitwise.py:bitwise_shl`
-- **Note**: This is significantly more complex than AND/OR/XOR. Consider
-  special-casing small shifts (< 32 bits) first.
-
-### 3.3 SHR (Shift Right Logical) ✅
-- **File**: `Evm/Shift.lean`
-- **Status**: Program defined (302 instructions), tested via native_decide (11 tests).
-  Proofs not yet started.
-- **Approach**: Decompose shift into limb_shift (÷32) and bit_shift (%32).
-  Phase A: overflow check (>= 256 → zero). Phase B: extract parameters.
-  Phase C: cascade dispatch on limb_shift (0-7). Phase D: 8 unrolled shift
-  bodies with merge (SRL+SLL+AND+OR) per output limb. Phase E: zero path.
-  In-place safe: SHR reads from higher indices, writes to lower.
-- **Reference**: `execution-specs/.../instructions/bitwise.py:bitwise_shr`
-
-### 3.4 SAR (Shift Right Arithmetic)
-- **File**: `Evm/Shift.lean`
-- **Approach**: Like SHR but fills with sign bit instead of 0.
-- **Reference**: `execution-specs/.../instructions/bitwise.py:bitwise_sar`
-
----
-
-## Phase 4: Remaining Arithmetic
-
-### 4.1 MUL (256-bit Multiply)
-- **File**: `Evm/Multiply.lean` (new)
-- **Approach**: Schoolbook multiplication of 8×8 limbs using RISC-V MUL/MULHU.
-  Only need low 256 bits (8 output limbs). Each partial product is
-  `a_i × b_j` contributing to limb `(i+j)` with carry to `(i+j+1)`.
-  ~200+ instructions. Consider a loop-based approach.
-- **Reference**: `execution-specs/.../instructions/arithmetic.py:mul`
-- **Note**: This is the hardest single opcode. Break into sub-tasks:
+#### 4.1 MUL (256-bit Multiply)
+- **File**: `Evm64/Multiply.lean` (new)
+- **Approach**: Schoolbook 4×4 limb multiplication using RV64 MUL/MULHU.
+  Only need low 256 bits (4 output limbs). Each partial product `a_i × b_j`
+  contributes to limb `(i+j)` with carry to `(i+j+1)`.
+  With 4 limbs: 10 partial products (i+j < 4) + carry chain.
+  ~80-100 instructions (vs ~200+ for Evm32's 8×8).
+- **Note**: Hardest single opcode. Break into sub-tasks:
   1. Single-limb multiply helper (MUL + MULHU for lo/hi)
   2. Accumulate partial products with carry chain
-  3. Full 8×8 composition
+  3. Full 4×4 composition
 
-### 4.2 DIV and MOD
-- **File**: `Evm/DivMod.lean` (new)
-- **Approach**: 256-bit unsigned division. Use shift-and-subtract algorithm
-  (binary long division). ~500+ instructions unrolled, or loop-based.
-  DIV returns quotient, MOD returns remainder. Implement together since
-  division produces both.
-- **Reference**: `execution-specs/.../instructions/arithmetic.py:div`, `:mod`
-- **Note**: Division by zero returns 0 (EVM convention, not trap).
+#### 4.2 DIV and MOD
+- **File**: `Evm64/DivMod.lean` (new)
+- **Approach**: 256-bit unsigned division. Shift-and-subtract or Knuth
+  Algorithm D. Division by zero returns 0 (EVM convention, no trap).
+  Implement DIV+MOD together since division produces both.
 
-### 4.3 SDIV and SMOD (Signed)
-- **File**: `Evm/DivMod.lean`
-- **Approach**: Check signs of operands, compute unsigned div/mod,
-  apply sign correction. Reuse DIV/MOD.
-- **Reference**: `execution-specs/.../instructions/arithmetic.py:sdiv`, `:smod`
+#### 4.3 SDIV and SMOD (Signed)
+- **Approach**: Check signs, compute unsigned div/mod, apply sign correction.
 
-### 4.4 ADDMOD and MULMOD
-- **File**: `Evm/ModArith.lean` (new)
-- **Approach**: ADDMOD(a,b,N) = (a+b) mod N. Need 257-bit intermediate
-  (carry bit from 256-bit add). MULMOD needs 512-bit intermediate.
-  Both use DIV/MOD as subroutine.
-- **Reference**: `execution-specs/.../instructions/arithmetic.py:addmod`, `:mulmod`
+#### 4.4 ADDMOD and MULMOD
+- **Approach**: ADDMOD needs 257-bit intermediate (carry). MULMOD needs
+  512-bit intermediate. Both reuse DIV/MOD.
 
-### 4.5 EXP (Exponentiation)
-- **File**: `Evm/Exp.lean` (new)
+#### 4.5 EXP (Exponentiation)
 - **Approach**: Square-and-multiply using MUL. Loop over exponent bits.
-  Needs loop infrastructure.
-- **Reference**: `execution-specs/.../instructions/arithmetic.py:exp`
 
-### 4.6 SIGNEXTEND
-- **File**: `Evm/Arithmetic.lean`
-- **Approach**: Sign-extend byte b of value x. If b >= 31, no-op.
-  Otherwise, extract bit at position `b*8+7`, extend it to fill
-  higher bytes. Shift/mask logic per limb.
-- **Reference**: `execution-specs/.../instructions/arithmetic.py:signextend`
+#### 4.6 SIGNEXTEND
+- **Approach**: Sign-extend byte b of value x. Per-limb mask logic.
 
----
+### Phase 5: Memory & Code Region
 
-## Phase 5: EVM Memory Operations
+#### 5.1 EVM Code Region Model
+- **File**: `Evm64/CodeRegion.lean` (new)
+- **Approach**: Define EVM bytecode as a byte array in RISC-V memory.
+  Use LBU for byte access. Define `evmCodeIs(base, bytes)` assertion.
+  Needed for PUSH1-32, and for the interpreter loop (Phase 7).
 
-The EVM has its own memory (byte-addressable, expandable). This is separate
-from the RISC-V memory used for the stack. We need to model it.
+#### 5.2 EVM Memory Model
+- **File**: `Evm64/Memory.lean` (new)
+- **Approach**: EVM memory as a byte-addressable region in RISC-V memory.
+  Use LB/SB/LBU for byte access. Define `evmMemIs` assertion.
+  Zero-initialized, auto-expanding (model fixed max size initially).
 
-### 5.1 EVM Memory Model
-- **File**: `Evm/Memory.lean` (new)
-- **Approach**: Define `EvmMemory` as a region of RISC-V memory.
-  EVM memory is byte-addressable; our RISC-V memory is word-addressable.
-  Use LB/SB/LBU instructions for byte access.
-  Define `evmMemIs(base, offset, value)` assertion.
-- **Note**: EVM memory auto-extends and is zero-initialized. Model a
-  fixed maximum size region.
+#### 5.3 MLOAD, MSTORE, MSTORE8, MSIZE
+- **File**: `Evm64/Memory.lean`
+- **Approach**: MLOAD pops offset, loads 32 bytes, pushes word.
+  MSTORE pops offset+value, stores 32 bytes. MSTORE8 stores 1 byte.
+  MSIZE pushes current memory size (track in register or memory).
 
-### 5.2 MLOAD
-- **File**: `Evm/Memory.lean`
-- **Approach**: Pop offset from stack, load 32 bytes from EVM memory,
-  push as 256-bit word. Uses LBU × 32 + shift/OR to assemble.
-- **Reference**: `execution-specs/.../instructions/memory.py:mload`
+### Phase 6: Environment & Block Context
 
-### 5.3 MSTORE
-- **File**: `Evm/Memory.lean`
-- **Approach**: Pop offset and value, store 32 bytes to EVM memory.
-  Uses SB × 32 to disassemble word into bytes.
-- **Reference**: `execution-specs/.../instructions/memory.py:mstore`
+#### 6.1 Environment Context Layout
+- **File**: `Evm64/Environment.lean` (new)
+- **Approach**: Memory layout for EVM execution context:
+  - msg.caller, msg.value, msg.data (calldata)
+  - block.number, block.timestamp, block.basefee, etc.
+  - tx.origin, tx.gasprice, chainid
+  Store at known base address. Define `envIs` separation logic assertion.
 
-### 5.4 MSTORE8
-- **File**: `Evm/Memory.lean`
-- **Approach**: Pop offset and value, store low byte. Single SB.
-- **Reference**: `execution-specs/.../instructions/memory.py:mstore8`
+#### 6.2 Simple Environment Opcodes
+- ADDRESS, CALLER, CALLVALUE, ORIGIN, GASPRICE, COINBASE, TIMESTAMP,
+  NUMBER, CHAINID, BASEFEE, SELFBALANCE, CODESIZE, RETURNDATASIZE
+- Each is LD × 4 from environment region + push to stack.
 
----
-
-## Phase 6: Control Flow
-
-EVM bytecode has its own control flow (JUMP/JUMPI). To implement this,
-we need an EVM interpreter loop in RISC-V that dispatches opcodes.
-
-### 6.1 Opcode Dispatch Table
-- **File**: `Evm/Dispatch.lean` (new)
-- **Approach**: Define a RISC-V subroutine that reads the current EVM
-  opcode from the EVM code array, then branches to the appropriate
-  handler. Use a jump table or cascading BEQ comparisons.
-- **Note**: This is the core of the EVM interpreter loop.
-
-### 6.2 STOP
-- **File**: `Evm/ControlFlow.lean` (new)
-- **Approach**: Set a "halted" flag, break out of the dispatch loop.
-  Maps to ECALL/HALT in our RISC-V model.
-- **Reference**: `execution-specs/.../instructions/control_flow.py:stop`
-
-### 6.3 JUMP and JUMPI
-- **File**: `Evm/ControlFlow.lean`
-- **Approach**: JUMP pops destination, validates it's a JUMPDEST, sets
-  EVM PC. JUMPI additionally pops a condition. These modify the EVM PC
-  (stored in a register or memory location), not the RISC-V PC directly.
-- **Reference**: `execution-specs/.../instructions/control_flow.py:jump`, `:jumpi`
-
-### 6.4 EVM Interpreter Main Loop
-- **File**: `Evm/Interpreter.lean` (new)
-- **Approach**: A RISC-V loop that:
-  1. Reads current EVM opcode from code[evm_pc]
-  2. Dispatches to the appropriate handler subroutine (JAL)
-  3. Increments evm_pc (unless JUMP/JUMPI modified it)
-  4. Checks for STOP/RETURN/REVERT
-  5. Repeats
-- **Spec**: Relates N steps of this loop to N steps of the reference
-  EVM interpreter.
-- **Note**: This is the most architecturally significant piece. All
-  previous opcode implementations become subroutines called from here.
+#### 6.3 CALLDATALOAD, CALLDATASIZE, CALLDATACOPY
+- Load from calldata region in environment.
 
 ---
 
-## Phase 7: Environment & Block Operations
+## Roadmap: Phases 7-11 (STF — State Transition Function)
 
-These opcodes read context data (caller, value, block number, etc.)
-that must be provided as input to the RISC-V program.
+The STF is the end goal. It takes a block (header + transactions) and the
+pre-state, executes all transactions, and produces the post-state. The STF
+is what gets proved inside the zkVM.
 
-### 7.1 Environment Context Layout
-- **File**: `Evm/Environment.lean` (new)
-- **Approach**: Define a memory layout for environment data:
-  - msg.caller (20 bytes, padded to 256 bits)
-  - msg.value (256 bits)
-  - msg.data (calldata, variable length)
-  - block.number, block.timestamp, etc.
-  Store at a known base address. Define `envIs` assertion.
+### STF Architecture
 
-### 7.2 Simple Environment Opcodes
-- **File**: `Evm/Environment.lean`
-- **Opcodes**: ADDRESS, CALLER, CALLVALUE, ORIGIN, GASPRICE,
-  COINBASE, TIMESTAMP, NUMBER, CHAINID, BASEFEE, SELFBALANCE
-- **Approach**: Each is a load from the environment memory region,
-  push onto stack. Straightforward LW × 8 + SP decrement.
-- **Reference**: `execution-specs/.../instructions/environment.py`,
-  `execution-specs/.../instructions/block.py`
+The STF decomposes into layers (from the execution-specs):
 
-### 7.3 CALLDATALOAD, CALLDATASIZE, CALLDATACOPY
-- **File**: `Evm/Environment.lean`
-- **Approach**: CALLDATALOAD reads 32 bytes from calldata at offset.
-  CALLDATASIZE pushes the length. CALLDATACOPY copies to EVM memory.
-  These need the calldata region in the environment layout.
+```
+state_transition(block, pre_state) → post_state
+  └── apply_body(block_header, transactions, ommers)
+        └── for each tx: process_transaction(env, tx)
+              └── process_message_call(message)
+                    └── execute(env) — the interpreter loop
+                          └── for each step: dispatch opcode → handler
+```
 
----
+In our RV64 implementation, this maps to:
 
-## Phase 8: Storage and System Operations
+```
+main():  read_input → Block + pre_state
+         call state_transition
+         write_output → post_state_root
+```
 
-These require modeling persistent state and cross-contract calls.
+### Phase 7: Interpreter Loop (EVM execution core)
 
-### 8.1 Storage Model
-- **File**: `Evm/Storage.lean` (new)
-- **Approach**: Storage is a key→value mapping (256-bit → 256-bit).
-  Model via syscalls: SLOAD/SSTORE use ECALL to read/write storage
-  through the host (similar to how SP1 handles precompiles).
-- **Reference**: `execution-specs/.../instructions/storage.py`
+This is the heart of the STF — the inner loop that executes EVM bytecode.
 
-### 8.2 SLOAD and SSTORE
-- **File**: `Evm/Storage.lean`
-- **Approach**: Pop key (and value for SSTORE), issue ECALL to host.
-  Host provides/accepts the storage value. Spec relates to abstract
-  storage model.
+#### 7.1 EVM Machine State
+- **File**: `Evm64/EvmState.lean` (new)
+- **Approach**: Define the EVM-level execution state in RISC-V memory:
+  ```
+  struct EvmState {
+    pc      : u64       // EVM program counter (byte offset into code)
+    gas     : u64       // Remaining gas
+    sp      : u64       // Stack pointer (already x12)
+    memory  : *u8       // EVM memory base pointer
+    memsize : u64       // Current memory size
+    code    : *u8       // EVM bytecode pointer
+    codelen : u64       // Code length
+    env     : *u8       // Environment context pointer
+    status  : u64       // Running / Stopped / Reverted / Error
+  }
+  ```
+  Define `evmStateIs` assertion combining all sub-assertions.
 
-### 8.3 LOG0-LOG4
-- **File**: `Evm/Log.lean` (new)
-- **Approach**: Pop offset+size (+ topics), read EVM memory region,
-  emit via ECALL. LOGn has n topic words.
-- **Reference**: `execution-specs/.../instructions/log.py`
+#### 7.2 Opcode Dispatch
+- **File**: `Evm64/Dispatch.lean` (new)
+- **Approach**: Read `code[evm_pc]` byte, dispatch to handler.
+  **Option A**: Jump table — load handler address from table[opcode], JAL.
+  **Option B**: Binary search tree of BEQ comparisons.
+  Jump table is faster (O(1)) but needs 256-entry table in memory.
+  Binary search is smaller but O(log n).
+  **Recommendation**: Jump table. 256 × 8 = 2048 bytes, small for zkVM.
+- **Spec**: `dispatch_spec` relates opcode byte to correct handler entry point.
 
-### 8.4 CALL, STATICCALL, DELEGATECALL
-- **File**: `Evm/System.lean` (new)
-- **Approach**: These create child EVM frames. Model as syscalls that
-  invoke the interpreter recursively or delegate to host.
-  This is the most complex part of the EVM.
-- **Reference**: `execution-specs/.../instructions/system.py`
-- **Note**: Consider deferring full CALL semantics and using host
-  syscalls as a bridge initially.
+#### 7.3 Opcode Handlers (subroutine wrappers)
+- **File**: `Evm64/Handlers.lean` (new)
+- **Approach**: Each handler is a thin wrapper:
+  1. Deduct gas cost
+  2. Call the opcode subroutine (e.g., `evm_add`)
+  3. Advance EVM PC by appropriate amount (1 for most, 1+n for PUSHn)
+  4. Return to dispatch loop
+- **Spec**: Each handler spec composes gas deduction + opcode spec + PC advance.
 
-### 8.5 CREATE, CREATE2
-- **File**: `Evm/System.lean`
-- **Approach**: Similar to CALL but deploys new code.
-  Defer to host syscall initially.
+#### 7.4 Interpreter Main Loop
+- **File**: `Evm64/Interpreter.lean` (new)
+- **Approach**: RISC-V loop:
+  ```
+  loop:
+    LBU opcode, code_base[evm_pc]    // read current opcode
+    // dispatch to handler via jump table
+    LD  handler, table[opcode * 8]
+    JALR ra, handler
+    // handler returns here
+    // check status: if still running, loop
+    BEQ status, RUNNING, loop
+    // else: halt (STOP/RETURN/REVERT/ERROR)
+  ```
+- **Spec**: Inductive spec relating N EVM steps to N iterations:
+  `interpreter_step_spec`: one iteration preserves EVM state invariant.
+  `interpreter_N_spec`: N iterations = N EVM instruction executions.
+- **Key invariant**: At each loop entry, the RISC-V state correctly
+  represents the EVM state (stack, memory, PC, gas, status).
+- **Proof strategy**: Define simulation relation between EVM abstract state
+  and RISC-V concrete state. Prove each opcode handler preserves the
+  simulation. Then the loop preserves it inductively.
 
-### 8.6 RETURN and REVERT
-- **File**: `Evm/ControlFlow.lean`
-- **Approach**: Pop offset+size, copy EVM memory to return buffer,
-  halt execution. REVERT also reverts state changes.
-- **Reference**: `execution-specs/.../instructions/system.py:return_`, `:revert`
+### Phase 8: Storage & System Calls
 
----
+#### 8.1 Storage Model (via host syscalls)
+- SLOAD/SSTORE use ECALL to communicate with the zkVM host.
+- The host provides storage read/write as part of the witness.
+- **Spec**: Abstract storage as `Map U256 U256`. SLOAD returns `storage[key]`,
+  SSTORE updates `storage[key] := value`.
 
-## Phase 9: KECCAK256 (Hashing)
+#### 8.2 Precompiles (via zkvm_accelerators)
+- Map EVM precompile addresses (0x01-0x11) to `zkvm_accelerators.h` calls.
+- ECRECOVER (0x01) → `zkvm_secp256k1_ecrecover`
+- SHA256 (0x02) → `zkvm_sha256`
+- RIPEMD160 (0x03) → `zkvm_ripemd160`
+- MODEXP (0x05) → `zkvm_modexp`
+- BN254 (0x06-0x08) → `zkvm_bn254_*`
+- BLAKE2f (0x09) → `zkvm_blake2f`
+- KZG (0x0a) → `zkvm_kzg_point_eval`
+- BLS12-381 (0x0b-0x11) → `zkvm_bls12_*`
+- secp256r1 (0x100) → `zkvm_secp256r1_verify`
 
-### 9.1 KECCAK256
-- **File**: `Evm/Keccak.lean` (new)
-- **Approach**: Pop offset+size, hash EVM memory region.
-  KECCAK is too complex to implement in RISC-V inline. Use ECALL
-  to delegate to host (like SP1's precompile approach).
-  The spec says: given input bytes, the result equals keccak256(input).
-- **Reference**: `execution-specs/.../instructions/keccak.py`
-- **Note**: For zkEVM, KECCAK is typically a precompile/syscall because
-  the hash circuit is handled separately.
+#### 8.3 KECCAK256 (via accelerator)
+- Pop offset+size, hash EVM memory region.
+- Delegates to `zkvm_keccak256` accelerator.
+- Spec: result = keccak256(memory[offset..offset+size]).
 
----
+#### 8.4 LOG0-LOG4
+- Pop offset+size (+topics), emit log event via ECALL.
 
-## Phase 10: Gas Metering
+#### 8.5 CALL, STATICCALL, DELEGATECALL, CREATE, CREATE2
+- Create child EVM frames. Model as recursive interpreter calls or
+  host-delegated syscalls.
+- RETURN and REVERT halt the current frame with output data.
 
-### 10.1 Gas Counter
-- **File**: `Evm/Gas.lean` (new)
-- **Approach**: Maintain gas counter in a register or memory location.
-  Each opcode handler decrements gas by the appropriate cost before
-  executing. If gas goes below zero, halt with out-of-gas error.
-- **Reference**: `execution-specs/.../vm/gas.py`
-- **Note**: Gas costs vary by opcode and sometimes by operand (e.g.,
-  EXP gas depends on exponent size). Start with static costs.
+### Phase 9: Gas Metering
 
-### 10.2 Dynamic Gas (Memory Expansion, Storage)
-- **File**: `Evm/Gas.lean`
-- **Approach**: Memory expansion cost = quadratic in memory size.
-  Storage gas depends on cold/warm access (EIP-2929).
-  Implement after static gas works.
+#### 9.1 Static Gas
+- Each opcode deducts a fixed gas cost before execution.
+- Out-of-gas → halt with error, revert state.
 
----
+#### 9.2 Dynamic Gas
+- Memory expansion: quadratic cost based on memory high-water mark.
+- Storage: cold/warm access costs (EIP-2929).
+- CALL gas: 63/64 rule, stipend for value transfers.
 
-## Phase 11: Integration & Testing
+### Phase 10: Transaction Processing
 
-### 11.1 Full Opcode Table
-- **File**: `Evm/Opcodes.lean` (new)
-- **Approach**: Map opcode byte → RISC-V subroutine address.
-  Match the `op_implementation` table in
-  `execution-specs/.../instructions/__init__.py`.
-
-### 11.2 Single-Transaction Execution
-- **File**: `Evm/Transaction.lean` (new)
-- **Approach**: Given a transaction (to, value, data, gas), set up
-  the environment, load the contract code, run the interpreter loop,
-  collect results.
+#### 10.1 Message Call
+- **File**: `Evm64/MessageCall.lean` (new)
+- **Approach**: Set up EVM execution frame:
+  1. Initialize EVM state (code, calldata, gas, value, caller)
+  2. Run interpreter loop to completion
+  3. Handle output (RETURN data, REVERT, error)
+  4. Apply state changes (storage writes, balance transfers)
 - **Reference**: `execution-specs/.../vm/interpreter.py:process_message_call`
 
-### 11.3 Block-Level State Transition
-- **File**: `Evm/Block.lean` (new)
-- **Approach**: Process a sequence of transactions against a state.
-  This is the full state transition function.
-- **Reference**: `execution-specs/.../fork.py:state_transition`
+#### 10.2 Transaction Validation & Execution
+- **File**: `Evm64/Transaction.lean` (new)
+- **Approach**:
+  1. Validate transaction (nonce, gas limit, balance)
+  2. Deduct upfront cost
+  3. Execute message call
+  4. Refund remaining gas
+  5. Pay priority fee to coinbase
+- **Reference**: `execution-specs/.../fork.py:process_transaction`
 
-### 11.4 Conformance Testing
-- **Approach**: Run against Ethereum test vectors (ethereum/tests).
-  Compare RISC-V execution results to reference Python execution.
-  Use `native_decide` or extraction for executable tests.
+### Phase 11: Block-Level STF
+
+#### 11.1 Block State Transition
+- **File**: `Evm64/StateTransition.lean` (new)
+- **Approach**: The top-level STF function:
+  1. Read block (header + transactions) from `read_input`
+  2. Validate block header
+  3. Process each transaction sequentially, updating world state
+  4. Apply block rewards
+  5. Compute post-state root
+  6. Write post-state root via `write_output`
+- **Reference**: `execution-specs/.../fork.py:state_transition`
+- **Spec**: `state_transition_spec` proves that the RISC-V program computes
+  the same post-state as the Python reference spec.
+
+#### 11.2 World State Model
+- Account state: nonce, balance, storage root, code hash
+- State trie: delegated to host via ECALL (trie operations are zkVM-accelerated
+  or proven separately)
+- MPT proof verification: either inline or via host
+
+#### 11.3 IO Integration
+- `read_input`: Reads block data + pre-state witness (per zkvm IO standard)
+- `write_output`: Writes post-state root (32 bytes) as public output
+- The zkVM proves: "given this block and pre-state, the post-state root is X"
+
+#### 11.4 Conformance Testing
+- Run against Ethereum test vectors (ethereum/tests).
+- Compare RISC-V execution results to reference Python execution.
+- Use `native_decide` or extraction for executable tests.
 
 ---
 
-## Priority Order (What to do first)
+## Priority Order
 
-**Immediate (unblocks most EVM programs):**
-1. Phase 1: EQ (complete basic comparisons) — **done**
-2. Phase 2.1-2.4: POP, PUSH0, DUP1, SWAP1 — **done**
-3. Phase 2.5: Generalize DUP/SWAP to DUPn/SWAPn
+**Immediate (complete basic opcode set):**
+1. ~~Phase 1: GT, EQ (basic comparisons)~~ — **done**
+2. ~~Phase 2: POP, PUSH0, DUP1, SWAP1~~ — **done**
+3. ~~SHR~~ — **done** (Evm64 fully proved)
+4. ~~Phase 1: SLT, SGT (signed comparisons)~~ — **done**
+5. Phase 2: SHL, SAR (remaining shifts) ← **next**
+6. Phase 3: DUPn/SWAPn generic (port from Evm32 to Evm64)
 
 **Short-term (enables simple contracts):**
-4. Phase 3.2-3.3: SHL, SHR (used heavily in Solidity)
-5. Phase 4.1: MUL (most common arithmetic after ADD/SUB)
-6. Phase 5: MLOAD, MSTORE (EVM memory)
-7. Phase 6: Interpreter loop + STOP + JUMP/JUMPI
+7. Phase 4.1: MUL (4×4 limb, ~80-100 instructions on RV64)
+8. Phase 4.2: DIV, MOD
+9. Phase 5: MLOAD, MSTORE, EVM memory model
+10. Phase 5.1: EVM code region (needed for PUSHn and interpreter)
 
-**Medium-term (enables real contracts):**
-8. Phase 4.2-4.3: DIV, MOD, SDIV, SMOD
-9. Phase 7: Environment opcodes (CALLER, CALLVALUE, etc.)
-10. Phase 9: KECCAK256 (via syscall)
-11. Phase 8.1-8.2: SLOAD, SSTORE
+**Medium-term (interpreter loop — STF core):**
+11. Phase 7.1-7.2: EVM machine state + opcode dispatch
+12. Phase 7.3: Opcode handler wrappers (gas + dispatch)
+13. Phase 7.4: Interpreter main loop with simulation relation proof
+14. Phase 6: Environment opcodes (CALLER, CALLVALUE, etc.)
 
-**Long-term (full EVM):**
-12. Phase 4.4-4.5: ADDMOD, MULMOD, EXP
-13. Phase 8.3-8.6: LOG, CALL, CREATE, RETURN, REVERT
-14. Phase 10: Gas metering
-15. Phase 11: Integration and conformance testing
+**Towards STF (full EVM execution):**
+15. Phase 8.1-8.3: SLOAD/SSTORE, KECCAK256 (via syscalls/accelerators)
+16. Phase 8.4-8.5: LOG, CALL/CREATE, RETURN/REVERT
+17. Phase 9: Gas metering (static then dynamic)
+18. Phase 10: Transaction processing (message call + validation)
+19. Phase 11: Block-level STF + IO integration + conformance testing
 
 ---
 
 ## Design Decisions
 
-1. **Stack-in-memory**: EVM stack elements are 256-bit words stored in
-   RISC-V memory (8 consecutive 32-bit words). SP register (x12) points
-   to top of stack.
+1. **RV64IM is primary target**: Per zkvm-standards, `riscv64im_zicclsm` is
+   the standardized target for Ethereum zkVMs. 64-bit words halve the limb
+   count (4 vs 8), roughly halving instruction counts for 256-bit arithmetic.
 
-2. **Syscall bridge**: Complex operations (KECCAK, SLOAD/SSTORE, CALL)
-   use ECALL to delegate to the host, following SP1 conventions.
+2. **Stack-in-memory**: EVM stack elements are 256-bit words stored in
+   RISC-V memory (4 consecutive 64-bit words in RV64). SP register (x12)
+   points to top of stack. Stack grows upward, 32 bytes per element.
 
-3. **Per-limb modularity**: Each 256-bit operation is decomposed into
-   8 per-limb operations with individual specs, then composed.
+3. **Syscall bridge (ECALL)**: Complex operations (KECCAK, SLOAD/SSTORE, CALL,
+   precompiles) use ECALL to delegate to the zkVM host. This aligns with the
+   `zkvm_accelerators.h` C interface standard. The host provides:
+   - Cryptographic accelerators (keccak, EC ops, pairings)
+   - Storage read/write
+   - State trie operations
 
-4. **Reference spec**: All opcodes must match the semantics in
+4. **Per-limb modularity**: Each 256-bit operation decomposes into 4 per-limb
+   operations (RV64) with individual specs, then composed via `runBlock`.
+
+5. **Simulation relation for STF**: The interpreter loop proof uses a
+   simulation relation between abstract EVM state and concrete RISC-V state.
+   Each opcode handler preserves the simulation; the loop proof is inductive.
+
+6. **Reference spec**: All opcodes must match the semantics in
    `execution-specs/src/ethereum/forks/shanghai/vm/`.
 
-5. **Proof automation**: Use xperm/xsimp for all assertion permutation.
-   Use cpsTriple_seq_with_perm for composing multi-limb specs.
+7. **Proof automation**: `xperm`/`xsimp` for assertion permutation,
+   `runBlock` for multi-limb composition, `validMem`/`liftSpec`/`pcFree`
+   for boilerplate elimination. Recent refactorings (let-code, runBlock)
+   have eliminated thousands of lines of manual proof.
+
+8. **IO standard**: The STF program uses `read_input`/`write_output` per
+   the zkvm IO standard. Input = block + pre-state witness. Output =
+   post-state root hash.
