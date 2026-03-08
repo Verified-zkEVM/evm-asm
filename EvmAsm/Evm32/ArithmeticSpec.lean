@@ -7,7 +7,7 @@
 -/
 
 import EvmAsm.Evm32.Arithmetic
-import EvmAsm.Tactics.XSimp
+import EvmAsm.Rv32.Tactics.XSimp
 
 open EvmAsm.Tactics
 

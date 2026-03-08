@@ -1,5 +1,5 @@
 /-
-  EvmAsm.Tactics.XPerm
+  EvmAsm.Rv32.Tactics.XPerm
 
   Separation logic permutation prover for `sepConj` (`**`) chains.
 
@@ -30,7 +30,7 @@
 -/
 
 import Lean
-import EvmAsm.SepLogic
+import EvmAsm.Rv32.SepLogic
 
 open Lean Meta Elab Tactic
 

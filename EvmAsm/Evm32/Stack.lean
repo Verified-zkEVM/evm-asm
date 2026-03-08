@@ -6,7 +6,7 @@
 -/
 
 import EvmAsm.Evm32.Basic
-import EvmAsm.SyscallSpecs
+import EvmAsm.Rv32.SyscallSpecs
 
 namespace EvmAsm
 

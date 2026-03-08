@@ -1,5 +1,5 @@
 /-
-  EvmAsm.InstructionSpecs
+  EvmAsm.Rv32.InstructionSpecs
 
   Separation logic specifications for each RISC-V instruction using cpsTriple
   (or cpsBranch for conditional branches).
@@ -10,12 +10,12 @@
   Proofs delegate to the generic lemmas in GenericSpecs.lean.
 -/
 
-import EvmAsm.Basic
-import EvmAsm.Instructions
-import EvmAsm.SepLogic
-import EvmAsm.Execution
-import EvmAsm.CPSSpec
-import EvmAsm.GenericSpecs
+import EvmAsm.Rv32.Basic
+import EvmAsm.Rv32.Instructions
+import EvmAsm.Rv32.SepLogic
+import EvmAsm.Rv32.Execution
+import EvmAsm.Rv32.CPSSpec
+import EvmAsm.Rv32.GenericSpecs
 
 namespace EvmAsm
 

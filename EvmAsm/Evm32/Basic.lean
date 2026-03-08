@@ -5,7 +5,7 @@
   Each EvmWord is stored as 8 little-endian 32-bit limbs.
 -/
 
-import EvmAsm.Basic
+import EvmAsm.Rv32.Basic
 import Std.Tactic.BVDecide
 
 namespace EvmAsm

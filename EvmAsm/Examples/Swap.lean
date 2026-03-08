@@ -4,13 +4,13 @@
   A simple swap macro and its CPS-style Hoare triple specification.
 -/
 
-import EvmAsm.Execution
-import EvmAsm.SepLogic
-import EvmAsm.CPSSpec
-import EvmAsm.ControlFlow
-import EvmAsm.InstructionSpecs
-import EvmAsm.SyscallSpecs
-import EvmAsm.Tactics.XSimp
+import EvmAsm.Rv32.Execution
+import EvmAsm.Rv32.SepLogic
+import EvmAsm.Rv32.CPSSpec
+import EvmAsm.Rv32.ControlFlow
+import EvmAsm.Rv32.InstructionSpecs
+import EvmAsm.Rv32.SyscallSpecs
+import EvmAsm.Rv32.Tactics.XSimp
 
 namespace EvmAsm.Examples
 

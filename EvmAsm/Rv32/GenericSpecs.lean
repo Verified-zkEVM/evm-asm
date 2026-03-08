@@ -1,5 +1,5 @@
 /-
-  EvmAsm.GenericSpecs
+  EvmAsm.Rv32.GenericSpecs
 
   Parametric (generic) separation-logic specifications for single-instruction
   execution patterns.  Each lemma factors out the common proof shape:
@@ -14,11 +14,11 @@
   are one-line applications of these generic lemmas.
 -/
 
-import EvmAsm.Basic
-import EvmAsm.Instructions
-import EvmAsm.SepLogic
-import EvmAsm.Execution
-import EvmAsm.CPSSpec
+import EvmAsm.Rv32.Basic
+import EvmAsm.Rv32.Instructions
+import EvmAsm.Rv32.SepLogic
+import EvmAsm.Rv32.Execution
+import EvmAsm.Rv32.CPSSpec
 
 namespace EvmAsm
 

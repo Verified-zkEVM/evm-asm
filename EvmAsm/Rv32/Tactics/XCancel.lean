@@ -1,5 +1,5 @@
 /-
-  EvmAsm.Tactics.XCancel
+  EvmAsm.Rv32.Tactics.XCancel
 
   Separation logic cancellation tactic, built on the XPerm infrastructure.
 
@@ -22,7 +22,7 @@
 -/
 
 import Lean
-import EvmAsm.Tactics.XPerm
+import EvmAsm.Rv32.Tactics.XPerm
 
 open Lean Meta Elab Tactic
 

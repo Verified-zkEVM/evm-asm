@@ -4,7 +4,7 @@
   Multiply by constant using the add_mulc recursive macro.
 -/
 
-import EvmAsm.MulMacro
+import EvmAsm.Rv32.MulMacro
 import EvmAsm.Examples.Zero
 
 namespace EvmAsm.Examples

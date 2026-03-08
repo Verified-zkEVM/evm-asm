@@ -5,7 +5,7 @@
 -/
 
 import EvmAsm.Evm32.Bitwise
-import EvmAsm.Tactics.LiftSpec
+import EvmAsm.Rv32.Tactics.LiftSpec
 
 open EvmAsm.Tactics
 

@@ -4,7 +4,7 @@
   A load-modify-store pattern.
 -/
 
-import EvmAsm.Program
+import EvmAsm.Rv32.Program
 
 namespace EvmAsm.Examples
 

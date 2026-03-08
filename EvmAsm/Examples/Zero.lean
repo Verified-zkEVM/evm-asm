@@ -4,11 +4,11 @@
   A zero-register macro and a CPS-style Hoare triple.
 -/
 
-import EvmAsm.Execution
-import EvmAsm.SepLogic
-import EvmAsm.CPSSpec
-import EvmAsm.ControlFlow
-import EvmAsm.InstructionSpecs
+import EvmAsm.Rv32.Execution
+import EvmAsm.Rv32.SepLogic
+import EvmAsm.Rv32.CPSSpec
+import EvmAsm.Rv32.ControlFlow
+import EvmAsm.Rv32.InstructionSpecs
 
 namespace EvmAsm.Examples
 

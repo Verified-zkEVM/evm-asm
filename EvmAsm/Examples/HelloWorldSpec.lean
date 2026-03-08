@@ -9,8 +9,8 @@
 -/
 
 import EvmAsm.Examples.HelloWorld
-import EvmAsm.SyscallSpecs
-import EvmAsm.ControlFlow
+import EvmAsm.Rv32.SyscallSpecs
+import EvmAsm.Rv32.ControlFlow
 
 namespace EvmAsm.Examples
 

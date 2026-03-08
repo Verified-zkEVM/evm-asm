@@ -4,8 +4,8 @@
   ECALL-based halting (SP1 convention).
 -/
 
-import EvmAsm.Execution
-import EvmAsm.MulMacro
+import EvmAsm.Rv32.Execution
+import EvmAsm.Rv32.MulMacro
 
 namespace EvmAsm.Examples
 

@@ -1,12 +1,12 @@
 /-
-  EvmAsm.Program
+  EvmAsm.Rv32.Program
 
   Programs as sequences of instructions, with sequential composition.
   This is the "macro assembler" part: programs are Lean definitions that
   produce instruction sequences, allowing us to use Lean as a macro language.
 -/
 
-import EvmAsm.Instructions
+import EvmAsm.Rv32.Instructions
 
 namespace EvmAsm
 

@@ -1,16 +1,2 @@
-import EvmAsm.Basic
-import EvmAsm.Instructions
-import EvmAsm.Program
-import EvmAsm.SepLogic
-import EvmAsm.MulMacro
-import EvmAsm.Execution
-import EvmAsm.CPSSpec
-import EvmAsm.ControlFlow
-import EvmAsm.SyscallSpecs
+import EvmAsm.Rv32
 import EvmAsm.Examples
-import EvmAsm.Tactics.XPerm
-import EvmAsm.Tactics.XSimp
-import EvmAsm.Tactics.XCancel
-import EvmAsm.Tactics.SeqFrame
-import EvmAsm.Tactics.SpecDb
-import EvmAsm.Tactics.RunBlock

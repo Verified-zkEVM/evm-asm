@@ -1,5 +1,5 @@
 /-
-  EvmAsm.SepLogic
+  EvmAsm.Rv32.SepLogic
 
   Real separation logic with PartialState (partial register + memory + PC maps).
 
@@ -12,7 +12,7 @@
   machine state when there exists a compatible partial state satisfying it.
 -/
 
-import EvmAsm.Basic
+import EvmAsm.Rv32.Basic
 
 namespace EvmAsm
 

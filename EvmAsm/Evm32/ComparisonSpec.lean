@@ -8,8 +8,8 @@
 -/
 
 import EvmAsm.Evm32.Comparison
-import EvmAsm.Tactics.XSimp
-import EvmAsm.Tactics.RunBlock
+import EvmAsm.Rv32.Tactics.XSimp
+import EvmAsm.Rv32.Tactics.RunBlock
 
 open EvmAsm.Tactics
 

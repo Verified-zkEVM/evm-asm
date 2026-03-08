@@ -9,10 +9,10 @@
   privateInput, the program reads 16 bytes, writes them to publicValues, and halts.
 -/
 
-import EvmAsm.Execution
-import EvmAsm.SepLogic
-import EvmAsm.CPSSpec
-import EvmAsm.SyscallSpecs
+import EvmAsm.Rv32.Execution
+import EvmAsm.Rv32.SepLogic
+import EvmAsm.Rv32.CPSSpec
+import EvmAsm.Rv32.SyscallSpecs
 
 namespace EvmAsm.Examples
 

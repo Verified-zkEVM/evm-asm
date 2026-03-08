@@ -1,5 +1,5 @@
 /-
-  EvmAsm.MulMacro
+  EvmAsm.Rv32.MulMacro
 
   A verified "multiply by constant" macro for RISC-V, inspired by
   the add_mulc macro from "Coq: The world's best macro assembler?"
@@ -29,10 +29,10 @@
   Postcondition: rd ↦ᵣ v + w * m, rs ↦ᵣ (something)
 -/
 
-import EvmAsm.Basic
-import EvmAsm.Instructions
-import EvmAsm.Program
-import EvmAsm.SepLogic
+import EvmAsm.Rv32.Basic
+import EvmAsm.Rv32.Instructions
+import EvmAsm.Rv32.Program
+import EvmAsm.Rv32.SepLogic
 
 namespace EvmAsm
 

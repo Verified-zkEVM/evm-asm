@@ -8,9 +8,9 @@
   Characters are packed 4 per word in little-endian order.
 -/
 
-import EvmAsm.Execution
-import EvmAsm.SepLogic
-import EvmAsm.CPSSpec
+import EvmAsm.Rv32.Execution
+import EvmAsm.Rv32.SepLogic
+import EvmAsm.Rv32.CPSSpec
 
 namespace EvmAsm.Examples
 

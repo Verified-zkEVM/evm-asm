@@ -1,5 +1,5 @@
 /-
-  EvmAsm.Tactics.SeqFrame
+  EvmAsm.Rv32.Tactics.SeqFrame
 
   Frame-aware sequential composition of two `cpsTriple` specs.
 
@@ -26,8 +26,8 @@
 -/
 
 import Lean
-import EvmAsm.Tactics.XCancel
-import EvmAsm.SyscallSpecs
+import EvmAsm.Rv32.Tactics.XCancel
+import EvmAsm.Rv32.SyscallSpecs
 
 open Lean Meta Elab Tactic
 

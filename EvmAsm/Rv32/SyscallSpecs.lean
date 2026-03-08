@@ -1,19 +1,19 @@
 /-
-  EvmAsm.SyscallSpecs
+  EvmAsm.Rv32.SyscallSpecs
 
   CPS specifications for the HALT and WRITE macro instructions,
   proved by composing generalized per-instruction specs via structural rules
   (cpsTriple_seq, cpsTriple_seq_halt, frame embedding).
 -/
 
-import EvmAsm.Basic
-import EvmAsm.Instructions
-import EvmAsm.SepLogic
-import EvmAsm.Execution
-import EvmAsm.CPSSpec
-import EvmAsm.GenericSpecs
-import EvmAsm.Tactics.XSimp
-import EvmAsm.Tactics.SpecDb
+import EvmAsm.Rv32.Basic
+import EvmAsm.Rv32.Instructions
+import EvmAsm.Rv32.SepLogic
+import EvmAsm.Rv32.Execution
+import EvmAsm.Rv32.CPSSpec
+import EvmAsm.Rv32.GenericSpecs
+import EvmAsm.Rv32.Tactics.XSimp
+import EvmAsm.Rv32.Tactics.SpecDb
 import Std.Tactic.BVDecide
 
 open EvmAsm.Tactics

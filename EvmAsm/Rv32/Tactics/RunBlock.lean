@@ -1,5 +1,5 @@
 /-
-  EvmAsm.Tactics.RunBlock
+  EvmAsm.Rv32.Tactics.RunBlock
 
   Multi-instruction block verification tactic. Composes N single-instruction
   specs into a single cpsTriple proof with automatic framing, address
@@ -58,8 +58,8 @@
 -/
 
 import Lean
-import EvmAsm.Tactics.SeqFrame
-import EvmAsm.Tactics.SpecDb
+import EvmAsm.Rv32.Tactics.SeqFrame
+import EvmAsm.Rv32.Tactics.SpecDb
 
 open Lean Meta Elab Tactic
 

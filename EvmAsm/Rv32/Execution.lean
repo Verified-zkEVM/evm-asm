@@ -1,5 +1,5 @@
 /-
-  EvmAsm.Execution
+  EvmAsm.Rv32.Execution
 
   Branch-aware instruction execution, code memory, and step-based execution.
 
@@ -14,9 +14,9 @@
   - step / stepN: single-step and multi-step execution over code memory
 -/
 
-import EvmAsm.Basic
-import EvmAsm.Instructions
-import EvmAsm.Program
+import EvmAsm.Rv32.Basic
+import EvmAsm.Rv32.Instructions
+import EvmAsm.Rv32.Program
 
 namespace EvmAsm
 

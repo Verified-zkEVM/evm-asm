@@ -1,5 +1,5 @@
 /-
-  EvmAsm.Tactics.SpecDb
+  EvmAsm.Rv32.Tactics.SpecDb
 
   Persistent database mapping instruction constructors to spec theorems.
   Used by `runBlock` (auto mode) to resolve specs automatically.

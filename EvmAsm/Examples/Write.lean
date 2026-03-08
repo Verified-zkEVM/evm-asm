@@ -4,7 +4,7 @@
   WRITE syscall examples: writing words from memory to public values.
 -/
 
-import EvmAsm.Execution
+import EvmAsm.Rv32.Execution
 
 namespace EvmAsm.Examples
 

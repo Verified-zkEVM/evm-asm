@@ -4,7 +4,7 @@
   COMMIT syscall (SP1 convention) examples.
 -/
 
-import EvmAsm.Execution
+import EvmAsm.Rv32.Execution
 
 namespace EvmAsm.Examples
 

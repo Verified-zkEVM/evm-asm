@@ -1,11 +1,11 @@
 /-
-  EvmAsm.Instructions
+  EvmAsm.Rv32.Instructions
 
   RISC-V instruction definitions and their semantics.
   We model the full RV32IM instruction set (base + M extension).
 -/
 
-import EvmAsm.Basic
+import EvmAsm.Rv32.Basic
 
 namespace EvmAsm
 

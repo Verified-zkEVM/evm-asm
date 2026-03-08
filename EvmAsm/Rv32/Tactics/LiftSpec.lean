@@ -1,5 +1,5 @@
 /-
-  EvmAsm.Tactics.LiftSpec
+  EvmAsm.Rv32.Tactics.LiftSpec
 
   Tactic for lifting limb-level cpsTriple specs to stack-level goals.
 
@@ -19,7 +19,7 @@
      addresses via `BitVec.add_assoc`, then permutes via `xperm_hyp`
 -/
 
-import EvmAsm.Tactics.RunBlock
+import EvmAsm.Rv32.Tactics.RunBlock
 import EvmAsm.Evm32.Stack
 
 namespace EvmAsm.Tactics

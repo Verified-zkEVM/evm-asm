@@ -1,5 +1,5 @@
 /-
-  EvmAsm.ControlFlow
+  EvmAsm.Rv32.ControlFlow
 
   Control flow macros using branch and jump instructions, with CPS-style
   specifications.
@@ -10,13 +10,13 @@
   - Concrete examples verified by native_decide
 -/
 
-import EvmAsm.Basic
-import EvmAsm.Instructions
-import EvmAsm.Program
-import EvmAsm.SepLogic
-import EvmAsm.Execution
-import EvmAsm.CPSSpec
-import EvmAsm.SyscallSpecs
+import EvmAsm.Rv32.Basic
+import EvmAsm.Rv32.Instructions
+import EvmAsm.Rv32.Program
+import EvmAsm.Rv32.SepLogic
+import EvmAsm.Rv32.Execution
+import EvmAsm.Rv32.CPSSpec
+import EvmAsm.Rv32.SyscallSpecs
 
 namespace EvmAsm
 

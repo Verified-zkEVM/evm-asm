@@ -4,7 +4,7 @@
   Combining macros: double and triple.
 -/
 
-import EvmAsm.Program
+import EvmAsm.Rv32.Program
 
 namespace EvmAsm.Examples
 

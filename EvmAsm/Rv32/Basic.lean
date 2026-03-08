@@ -1,5 +1,5 @@
 /-
-  EvmAsm.Basic
+  EvmAsm.Rv32.Basic
 
   A simplified RISC-V machine model for macro assembly verification,
   inspired by "Coq: The world's best macro assembler?" (Kennedy et al., 2013).

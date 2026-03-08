@@ -9,10 +9,10 @@
 -/
 
 import EvmAsm.Evm32.Stack
-import EvmAsm.SyscallSpecs
-import EvmAsm.Tactics.XSimp
-import EvmAsm.Tactics.RunBlock
-import EvmAsm.Tactics.LiftSpec
+import EvmAsm.Rv32.SyscallSpecs
+import EvmAsm.Rv32.Tactics.XSimp
+import EvmAsm.Rv32.Tactics.RunBlock
+import EvmAsm.Rv32.Tactics.LiftSpec
 
 open EvmAsm.Tactics
 

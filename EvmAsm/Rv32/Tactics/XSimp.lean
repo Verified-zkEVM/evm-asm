@@ -1,5 +1,5 @@
 /-
-  EvmAsm.Tactics.XSimp
+  EvmAsm.Rv32.Tactics.XSimp
 
   Higher-level separation logic tactics built on xperm, inspired by the
   `xsimpl` tactic from SPlean / CFML (see XPerm.lean for full references).
@@ -12,7 +12,7 @@
 -/
 
 import Lean
-import EvmAsm.Tactics.XPerm
+import EvmAsm.Rv32.Tactics.XPerm
 
 open Lean Meta Elab Tactic
 

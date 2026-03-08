@@ -4,7 +4,7 @@
   Full pipeline: WRITE + COMMIT + HALT.
 -/
 
-import EvmAsm.Execution
+import EvmAsm.Rv32.Execution
 
 namespace EvmAsm.Examples
 

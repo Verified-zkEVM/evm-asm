@@ -1,5 +1,5 @@
 /-
-  EvmAsm.CPSSpec
+  EvmAsm.Rv32.CPSSpec
 
   CPS-style (continuation-passing style) Hoare triples for branching code,
   with a built-in frame rule.
@@ -25,9 +25,9 @@
   MachineState via `holdsFor`.
 -/
 
-import EvmAsm.Basic
-import EvmAsm.SepLogic
-import EvmAsm.Execution
+import EvmAsm.Rv32.Basic
+import EvmAsm.Rv32.SepLogic
+import EvmAsm.Rv32.Execution
 
 namespace EvmAsm
 
