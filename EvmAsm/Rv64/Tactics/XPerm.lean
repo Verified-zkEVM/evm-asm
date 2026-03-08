@@ -53,11 +53,11 @@ def parseSepConj? (e : Expr) : MetaM (Option (Expr × Expr)) := do
     return some (Expr.appArg! (Expr.appFn! e), Expr.appArg! e)
   return none
 
-/-- Flatten a right-associated sepConj chain into a list of atoms.
-    `A ** (B ** (C ** D))` becomes `[A, B, C, D]`. -/
+/-- Flatten any-associated sepConj chain into a list of atoms.
+    `(A ** B) ** (C ** D)` becomes `[A, B, C, D]`. -/
 partial def flattenSepConj (e : Expr) : MetaM (List Expr) := do
   match ← parseSepConj? e with
-  | some (l, r) => return l :: (← flattenSepConj r)
+  | some (l, r) => return (← flattenSepConj l) ++ (← flattenSepConj r)
   | none => return [e]
 
 /-- Find the index of an atom in an array that is `isDefEq` to the target.
