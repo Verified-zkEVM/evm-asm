@@ -175,13 +175,14 @@ theorem lt_limb0_spec (off_a off_b : BitVec 12)
     let mem_a := sp + signExtend12 off_a
     let mem_b := sp + signExtend12 off_b
     let borrow := if BitVec.ult a_limb b_limb then (1 : Word) else 0
+    let code :=
+      (base ↦ᵢ .LW .x7 .x12 off_a) ** ((base + 4) ↦ᵢ .LW .x6 .x12 off_b) **
+      ((base + 8) ↦ᵢ .SLTU .x5 .x7 .x6)
     cpsTriple base (base + 12)
-      ((base ↦ᵢ .LW .x7 .x12 off_a) ** ((base + 4) ↦ᵢ .LW .x6 .x12 off_b) **
-       ((base + 8) ↦ᵢ .SLTU .x5 .x7 .x6) **
+      (code **
        (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) ** (.x5 ↦ᵣ v5) **
        (mem_a ↦ₘ a_limb) ** (mem_b ↦ₘ b_limb))
-      ((base ↦ᵢ .LW .x7 .x12 off_a) ** ((base + 4) ↦ᵢ .LW .x6 .x12 off_b) **
-       ((base + 8) ↦ᵢ .SLTU .x5 .x7 .x6) **
+      (code **
        (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ a_limb) ** (.x6 ↦ᵣ b_limb) ** (.x5 ↦ᵣ borrow) **
        (mem_a ↦ₘ a_limb) ** (mem_b ↦ₘ b_limb)) := by
   runBlock
@@ -200,15 +201,15 @@ theorem lt_limb_carry_spec (off_a off_b : BitVec 12)
     let temp := a_limb - b_limb
     let borrow2 := if BitVec.ult temp borrow_in then (1 : Word) else 0
     let borrow_out := borrow1 ||| borrow2
+    let code :=
+      (base ↦ᵢ .LW .x7 .x12 off_a) ** ((base + 4) ↦ᵢ .LW .x6 .x12 off_b) **
+      ((base + 8) ↦ᵢ .SLTU .x11 .x7 .x6) ** ((base + 12) ↦ᵢ .SUB .x7 .x7 .x6) **
+      ((base + 16) ↦ᵢ .SLTU .x6 .x7 .x5) ** ((base + 20) ↦ᵢ .OR .x5 .x11 .x6)
     cpsTriple base (base + 24)
-      ((base ↦ᵢ .LW .x7 .x12 off_a) ** ((base + 4) ↦ᵢ .LW .x6 .x12 off_b) **
-       ((base + 8) ↦ᵢ .SLTU .x11 .x7 .x6) ** ((base + 12) ↦ᵢ .SUB .x7 .x7 .x6) **
-       ((base + 16) ↦ᵢ .SLTU .x6 .x7 .x5) ** ((base + 20) ↦ᵢ .OR .x5 .x11 .x6) **
+      (code **
        (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) ** (.x5 ↦ᵣ borrow_in) ** (.x11 ↦ᵣ v11) **
        (mem_a ↦ₘ a_limb) ** (mem_b ↦ₘ b_limb))
-      ((base ↦ᵢ .LW .x7 .x12 off_a) ** ((base + 4) ↦ᵢ .LW .x6 .x12 off_b) **
-       ((base + 8) ↦ᵢ .SLTU .x11 .x7 .x6) ** ((base + 12) ↦ᵢ .SUB .x7 .x7 .x6) **
-       ((base + 16) ↦ᵢ .SLTU .x6 .x7 .x5) ** ((base + 20) ↦ᵢ .OR .x5 .x11 .x6) **
+      (code **
        (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ temp) ** (.x6 ↦ᵣ borrow2) ** (.x5 ↦ᵣ borrow_out) ** (.x11 ↦ᵣ borrow1) **
        (mem_a ↦ₘ a_limb) ** (mem_b ↦ₘ b_limb)) := by
   runBlock
@@ -225,13 +226,14 @@ theorem eq_limb0_spec (off_a off_b : BitVec 12)
     (hvalid_b : isValidMemAccess (sp + signExtend12 off_b) = true) :
     let mem_a := sp + signExtend12 off_a
     let mem_b := sp + signExtend12 off_b
+    let code :=
+      (base ↦ᵢ .LW .x7 .x12 off_a) ** ((base + 4) ↦ᵢ .LW .x6 .x12 off_b) **
+      ((base + 8) ↦ᵢ .XOR .x7 .x7 .x6)
     cpsTriple base (base + 12)
-      ((base ↦ᵢ .LW .x7 .x12 off_a) ** ((base + 4) ↦ᵢ .LW .x6 .x12 off_b) **
-       ((base + 8) ↦ᵢ .XOR .x7 .x7 .x6) **
+      (code **
        (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) **
        (mem_a ↦ₘ a_limb) ** (mem_b ↦ₘ b_limb))
-      ((base ↦ᵢ .LW .x7 .x12 off_a) ** ((base + 4) ↦ᵢ .LW .x6 .x12 off_b) **
-       ((base + 8) ↦ᵢ .XOR .x7 .x7 .x6) **
+      (code **
        (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ (a_limb ^^^ b_limb)) ** (.x6 ↦ᵣ b_limb) **
        (mem_a ↦ₘ a_limb) ** (mem_b ↦ₘ b_limb)) := by
   runBlock
@@ -246,13 +248,14 @@ theorem eq_or_limb_spec (off_a off_b : BitVec 12)
     let mem_a := sp + signExtend12 off_a
     let mem_b := sp + signExtend12 off_b
     let xor_k := a_limb ^^^ b_limb
+    let code :=
+      (base ↦ᵢ .LW .x6 .x12 off_a) ** ((base + 4) ↦ᵢ .LW .x5 .x12 off_b) **
+      ((base + 8) ↦ᵢ .XOR .x6 .x6 .x5) ** ((base + 12) ↦ᵢ .OR .x7 .x7 .x6)
     cpsTriple base (base + 16)
-      ((base ↦ᵢ .LW .x6 .x12 off_a) ** ((base + 4) ↦ᵢ .LW .x5 .x12 off_b) **
-       ((base + 8) ↦ᵢ .XOR .x6 .x6 .x5) ** ((base + 12) ↦ᵢ .OR .x7 .x7 .x6) **
+      (code **
        (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ acc) ** (.x6 ↦ᵣ v6) ** (.x5 ↦ᵣ v5) **
        (mem_a ↦ₘ a_limb) ** (mem_b ↦ₘ b_limb))
-      ((base ↦ᵢ .LW .x6 .x12 off_a) ** ((base + 4) ↦ᵢ .LW .x5 .x12 off_b) **
-       ((base + 8) ↦ᵢ .XOR .x6 .x6 .x5) ** ((base + 12) ↦ᵢ .OR .x7 .x7 .x6) **
+      (code **
        (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ (acc ||| xor_k)) ** (.x6 ↦ᵣ xor_k) ** (.x5 ↦ᵣ b_limb) **
        (mem_a ↦ₘ a_limb) ** (mem_b ↦ₘ b_limb)) := by
   runBlock

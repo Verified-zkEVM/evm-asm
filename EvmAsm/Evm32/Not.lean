@@ -24,36 +24,30 @@ theorem evm_not_spec (sp base : Addr)
     (v7 : Word)
     (hvalid : ValidMemRange sp 8) :
     let c := signExtend12 (-1 : BitVec 12)
+    let code :=
+      -- Limb 0 code
+      (base ↦ᵢ .LW .x7 .x12 0) ** ((base + 4) ↦ᵢ .XORI .x7 .x7 (-1)) ** ((base + 8) ↦ᵢ .SW .x12 .x7 0) **
+      -- Limb 1 code
+      ((base + 12) ↦ᵢ .LW .x7 .x12 4) ** ((base + 16) ↦ᵢ .XORI .x7 .x7 (-1)) ** ((base + 20) ↦ᵢ .SW .x12 .x7 4) **
+      -- Limb 2 code
+      ((base + 24) ↦ᵢ .LW .x7 .x12 8) ** ((base + 28) ↦ᵢ .XORI .x7 .x7 (-1)) ** ((base + 32) ↦ᵢ .SW .x12 .x7 8) **
+      -- Limb 3 code
+      ((base + 36) ↦ᵢ .LW .x7 .x12 12) ** ((base + 40) ↦ᵢ .XORI .x7 .x7 (-1)) ** ((base + 44) ↦ᵢ .SW .x12 .x7 12) **
+      -- Limb 4 code
+      ((base + 48) ↦ᵢ .LW .x7 .x12 16) ** ((base + 52) ↦ᵢ .XORI .x7 .x7 (-1)) ** ((base + 56) ↦ᵢ .SW .x12 .x7 16) **
+      -- Limb 5 code
+      ((base + 60) ↦ᵢ .LW .x7 .x12 20) ** ((base + 64) ↦ᵢ .XORI .x7 .x7 (-1)) ** ((base + 68) ↦ᵢ .SW .x12 .x7 20) **
+      -- Limb 6 code
+      ((base + 72) ↦ᵢ .LW .x7 .x12 24) ** ((base + 76) ↦ᵢ .XORI .x7 .x7 (-1)) ** ((base + 80) ↦ᵢ .SW .x12 .x7 24) **
+      -- Limb 7 code
+      ((base + 84) ↦ᵢ .LW .x7 .x12 28) ** ((base + 88) ↦ᵢ .XORI .x7 .x7 (-1)) ** ((base + 92) ↦ᵢ .SW .x12 .x7 28)
     cpsTriple base (base + 96)
-      (-- Limb 0 code
-       (base ↦ᵢ .LW .x7 .x12 0) ** ((base + 4) ↦ᵢ .XORI .x7 .x7 (-1)) ** ((base + 8) ↦ᵢ .SW .x12 .x7 0) **
-       -- Limb 1 code
-       ((base + 12) ↦ᵢ .LW .x7 .x12 4) ** ((base + 16) ↦ᵢ .XORI .x7 .x7 (-1)) ** ((base + 20) ↦ᵢ .SW .x12 .x7 4) **
-       -- Limb 2 code
-       ((base + 24) ↦ᵢ .LW .x7 .x12 8) ** ((base + 28) ↦ᵢ .XORI .x7 .x7 (-1)) ** ((base + 32) ↦ᵢ .SW .x12 .x7 8) **
-       -- Limb 3 code
-       ((base + 36) ↦ᵢ .LW .x7 .x12 12) ** ((base + 40) ↦ᵢ .XORI .x7 .x7 (-1)) ** ((base + 44) ↦ᵢ .SW .x12 .x7 12) **
-       -- Limb 4 code
-       ((base + 48) ↦ᵢ .LW .x7 .x12 16) ** ((base + 52) ↦ᵢ .XORI .x7 .x7 (-1)) ** ((base + 56) ↦ᵢ .SW .x12 .x7 16) **
-       -- Limb 5 code
-       ((base + 60) ↦ᵢ .LW .x7 .x12 20) ** ((base + 64) ↦ᵢ .XORI .x7 .x7 (-1)) ** ((base + 68) ↦ᵢ .SW .x12 .x7 20) **
-       -- Limb 6 code
-       ((base + 72) ↦ᵢ .LW .x7 .x12 24) ** ((base + 76) ↦ᵢ .XORI .x7 .x7 (-1)) ** ((base + 80) ↦ᵢ .SW .x12 .x7 24) **
-       -- Limb 7 code
-       ((base + 84) ↦ᵢ .LW .x7 .x12 28) ** ((base + 88) ↦ᵢ .XORI .x7 .x7 (-1)) ** ((base + 92) ↦ᵢ .SW .x12 .x7 28) **
+      (code **
        -- Registers + memory
        (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) **
        (sp ↦ₘ a0) ** ((sp + 4) ↦ₘ a1) ** ((sp + 8) ↦ₘ a2) ** ((sp + 12) ↦ₘ a3) **
        ((sp + 16) ↦ₘ a4) ** ((sp + 20) ↦ₘ a5) ** ((sp + 24) ↦ₘ a6) ** ((sp + 28) ↦ₘ a7))
-      (-- Same code (preserved)
-       (base ↦ᵢ .LW .x7 .x12 0) ** ((base + 4) ↦ᵢ .XORI .x7 .x7 (-1)) ** ((base + 8) ↦ᵢ .SW .x12 .x7 0) **
-       ((base + 12) ↦ᵢ .LW .x7 .x12 4) ** ((base + 16) ↦ᵢ .XORI .x7 .x7 (-1)) ** ((base + 20) ↦ᵢ .SW .x12 .x7 4) **
-       ((base + 24) ↦ᵢ .LW .x7 .x12 8) ** ((base + 28) ↦ᵢ .XORI .x7 .x7 (-1)) ** ((base + 32) ↦ᵢ .SW .x12 .x7 8) **
-       ((base + 36) ↦ᵢ .LW .x7 .x12 12) ** ((base + 40) ↦ᵢ .XORI .x7 .x7 (-1)) ** ((base + 44) ↦ᵢ .SW .x12 .x7 12) **
-       ((base + 48) ↦ᵢ .LW .x7 .x12 16) ** ((base + 52) ↦ᵢ .XORI .x7 .x7 (-1)) ** ((base + 56) ↦ᵢ .SW .x12 .x7 16) **
-       ((base + 60) ↦ᵢ .LW .x7 .x12 20) ** ((base + 64) ↦ᵢ .XORI .x7 .x7 (-1)) ** ((base + 68) ↦ᵢ .SW .x12 .x7 20) **
-       ((base + 72) ↦ᵢ .LW .x7 .x12 24) ** ((base + 76) ↦ᵢ .XORI .x7 .x7 (-1)) ** ((base + 80) ↦ᵢ .SW .x12 .x7 24) **
-       ((base + 84) ↦ᵢ .LW .x7 .x12 28) ** ((base + 88) ↦ᵢ .XORI .x7 .x7 (-1)) ** ((base + 92) ↦ᵢ .SW .x12 .x7 28) **
+      (code **
        -- Registers + memory (updated)
        (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ (a7 ^^^ c)) **
        (sp ↦ₘ (a0 ^^^ c)) ** ((sp + 4) ↦ₘ (a1 ^^^ c)) ** ((sp + 8) ↦ₘ (a2 ^^^ c)) ** ((sp + 12) ↦ₘ (a3 ^^^ c)) **
@@ -81,27 +75,21 @@ theorem evm_not_stack_spec (sp base : Addr)
     (a : EvmWord) (v7 : Word)
     (hvalid : ValidMemRange sp 8) :
     let c := signExtend12 (-1 : BitVec 12)
+    let code :=
+      -- Code
+      (base ↦ᵢ .LW .x7 .x12 0) ** ((base + 4) ↦ᵢ .XORI .x7 .x7 (-1)) ** ((base + 8) ↦ᵢ .SW .x12 .x7 0) **
+      ((base + 12) ↦ᵢ .LW .x7 .x12 4) ** ((base + 16) ↦ᵢ .XORI .x7 .x7 (-1)) ** ((base + 20) ↦ᵢ .SW .x12 .x7 4) **
+      ((base + 24) ↦ᵢ .LW .x7 .x12 8) ** ((base + 28) ↦ᵢ .XORI .x7 .x7 (-1)) ** ((base + 32) ↦ᵢ .SW .x12 .x7 8) **
+      ((base + 36) ↦ᵢ .LW .x7 .x12 12) ** ((base + 40) ↦ᵢ .XORI .x7 .x7 (-1)) ** ((base + 44) ↦ᵢ .SW .x12 .x7 12) **
+      ((base + 48) ↦ᵢ .LW .x7 .x12 16) ** ((base + 52) ↦ᵢ .XORI .x7 .x7 (-1)) ** ((base + 56) ↦ᵢ .SW .x12 .x7 16) **
+      ((base + 60) ↦ᵢ .LW .x7 .x12 20) ** ((base + 64) ↦ᵢ .XORI .x7 .x7 (-1)) ** ((base + 68) ↦ᵢ .SW .x12 .x7 20) **
+      ((base + 72) ↦ᵢ .LW .x7 .x12 24) ** ((base + 76) ↦ᵢ .XORI .x7 .x7 (-1)) ** ((base + 80) ↦ᵢ .SW .x12 .x7 24) **
+      ((base + 84) ↦ᵢ .LW .x7 .x12 28) ** ((base + 88) ↦ᵢ .XORI .x7 .x7 (-1)) ** ((base + 92) ↦ᵢ .SW .x12 .x7 28)
     cpsTriple base (base + 96)
-      (-- Code
-       (base ↦ᵢ .LW .x7 .x12 0) ** ((base + 4) ↦ᵢ .XORI .x7 .x7 (-1)) ** ((base + 8) ↦ᵢ .SW .x12 .x7 0) **
-       ((base + 12) ↦ᵢ .LW .x7 .x12 4) ** ((base + 16) ↦ᵢ .XORI .x7 .x7 (-1)) ** ((base + 20) ↦ᵢ .SW .x12 .x7 4) **
-       ((base + 24) ↦ᵢ .LW .x7 .x12 8) ** ((base + 28) ↦ᵢ .XORI .x7 .x7 (-1)) ** ((base + 32) ↦ᵢ .SW .x12 .x7 8) **
-       ((base + 36) ↦ᵢ .LW .x7 .x12 12) ** ((base + 40) ↦ᵢ .XORI .x7 .x7 (-1)) ** ((base + 44) ↦ᵢ .SW .x12 .x7 12) **
-       ((base + 48) ↦ᵢ .LW .x7 .x12 16) ** ((base + 52) ↦ᵢ .XORI .x7 .x7 (-1)) ** ((base + 56) ↦ᵢ .SW .x12 .x7 16) **
-       ((base + 60) ↦ᵢ .LW .x7 .x12 20) ** ((base + 64) ↦ᵢ .XORI .x7 .x7 (-1)) ** ((base + 68) ↦ᵢ .SW .x12 .x7 20) **
-       ((base + 72) ↦ᵢ .LW .x7 .x12 24) ** ((base + 76) ↦ᵢ .XORI .x7 .x7 (-1)) ** ((base + 80) ↦ᵢ .SW .x12 .x7 24) **
-       ((base + 84) ↦ᵢ .LW .x7 .x12 28) ** ((base + 88) ↦ᵢ .XORI .x7 .x7 (-1)) ** ((base + 92) ↦ᵢ .SW .x12 .x7 28) **
+      (code **
        -- Registers + memory
        (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** evmWordIs sp a)
-      (-- Same code (preserved)
-       (base ↦ᵢ .LW .x7 .x12 0) ** ((base + 4) ↦ᵢ .XORI .x7 .x7 (-1)) ** ((base + 8) ↦ᵢ .SW .x12 .x7 0) **
-       ((base + 12) ↦ᵢ .LW .x7 .x12 4) ** ((base + 16) ↦ᵢ .XORI .x7 .x7 (-1)) ** ((base + 20) ↦ᵢ .SW .x12 .x7 4) **
-       ((base + 24) ↦ᵢ .LW .x7 .x12 8) ** ((base + 28) ↦ᵢ .XORI .x7 .x7 (-1)) ** ((base + 32) ↦ᵢ .SW .x12 .x7 8) **
-       ((base + 36) ↦ᵢ .LW .x7 .x12 12) ** ((base + 40) ↦ᵢ .XORI .x7 .x7 (-1)) ** ((base + 44) ↦ᵢ .SW .x12 .x7 12) **
-       ((base + 48) ↦ᵢ .LW .x7 .x12 16) ** ((base + 52) ↦ᵢ .XORI .x7 .x7 (-1)) ** ((base + 56) ↦ᵢ .SW .x12 .x7 16) **
-       ((base + 60) ↦ᵢ .LW .x7 .x12 20) ** ((base + 64) ↦ᵢ .XORI .x7 .x7 (-1)) ** ((base + 68) ↦ᵢ .SW .x12 .x7 20) **
-       ((base + 72) ↦ᵢ .LW .x7 .x12 24) ** ((base + 76) ↦ᵢ .XORI .x7 .x7 (-1)) ** ((base + 80) ↦ᵢ .SW .x12 .x7 24) **
-       ((base + 84) ↦ᵢ .LW .x7 .x12 28) ** ((base + 88) ↦ᵢ .XORI .x7 .x7 (-1)) ** ((base + 92) ↦ᵢ .SW .x12 .x7 28) **
+      (code **
        -- Registers + memory (updated)
        (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ (a.getLimb 7 ^^^ c)) ** evmWordIs sp (~~~a)) := by
   -- Helper: (~~~a).getLimb i = a.getLimb i ^^^ signExtend12 (-1)

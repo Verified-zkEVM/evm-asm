@@ -78,87 +78,57 @@ theorem evm_add_spec (sp : Addr) (base : Addr)
     let result7 := psum7 + carry6
     let carry7b := if BitVec.ult result7 carry6 then (1 : Word) else 0
     let carry7 := carry7a ||| carry7b
+    let code :=
+      -- Limb 0 code (5 instructions: base+0..base+16)
+      (base ↦ᵢ .LW .x7 .x12 0) ** ((base + 4) ↦ᵢ .LW .x6 .x12 32) **
+      ((base + 8) ↦ᵢ .ADD .x7 .x7 .x6) ** ((base + 12) ↦ᵢ .SLTU .x5 .x7 .x6) **
+      ((base + 16) ↦ᵢ .SW .x12 .x7 32) **
+      -- Limb 1 code (8 instructions: base+20..base+48)
+      ((base + 20) ↦ᵢ .LW .x7 .x12 4) ** ((base + 24) ↦ᵢ .LW .x6 .x12 36) **
+      ((base + 28) ↦ᵢ .ADD .x7 .x7 .x6) ** ((base + 32) ↦ᵢ .SLTU .x11 .x7 .x6) **
+      ((base + 36) ↦ᵢ .ADD .x7 .x7 .x5) ** ((base + 40) ↦ᵢ .SLTU .x6 .x7 .x5) **
+      ((base + 44) ↦ᵢ .OR .x5 .x11 .x6) ** ((base + 48) ↦ᵢ .SW .x12 .x7 36) **
+      -- Limb 2 code (8 instructions: base+52..base+80)
+      ((base + 52) ↦ᵢ .LW .x7 .x12 8) ** ((base + 56) ↦ᵢ .LW .x6 .x12 40) **
+      ((base + 60) ↦ᵢ .ADD .x7 .x7 .x6) ** ((base + 64) ↦ᵢ .SLTU .x11 .x7 .x6) **
+      ((base + 68) ↦ᵢ .ADD .x7 .x7 .x5) ** ((base + 72) ↦ᵢ .SLTU .x6 .x7 .x5) **
+      ((base + 76) ↦ᵢ .OR .x5 .x11 .x6) ** ((base + 80) ↦ᵢ .SW .x12 .x7 40) **
+      -- Limb 3 code (8 instructions: base+84..base+112)
+      ((base + 84) ↦ᵢ .LW .x7 .x12 12) ** ((base + 88) ↦ᵢ .LW .x6 .x12 44) **
+      ((base + 92) ↦ᵢ .ADD .x7 .x7 .x6) ** ((base + 96) ↦ᵢ .SLTU .x11 .x7 .x6) **
+      ((base + 100) ↦ᵢ .ADD .x7 .x7 .x5) ** ((base + 104) ↦ᵢ .SLTU .x6 .x7 .x5) **
+      ((base + 108) ↦ᵢ .OR .x5 .x11 .x6) ** ((base + 112) ↦ᵢ .SW .x12 .x7 44) **
+      -- Limb 4 code (8 instructions: base+116..base+144)
+      ((base + 116) ↦ᵢ .LW .x7 .x12 16) ** ((base + 120) ↦ᵢ .LW .x6 .x12 48) **
+      ((base + 124) ↦ᵢ .ADD .x7 .x7 .x6) ** ((base + 128) ↦ᵢ .SLTU .x11 .x7 .x6) **
+      ((base + 132) ↦ᵢ .ADD .x7 .x7 .x5) ** ((base + 136) ↦ᵢ .SLTU .x6 .x7 .x5) **
+      ((base + 140) ↦ᵢ .OR .x5 .x11 .x6) ** ((base + 144) ↦ᵢ .SW .x12 .x7 48) **
+      -- Limb 5 code (8 instructions: base+148..base+176)
+      ((base + 148) ↦ᵢ .LW .x7 .x12 20) ** ((base + 152) ↦ᵢ .LW .x6 .x12 52) **
+      ((base + 156) ↦ᵢ .ADD .x7 .x7 .x6) ** ((base + 160) ↦ᵢ .SLTU .x11 .x7 .x6) **
+      ((base + 164) ↦ᵢ .ADD .x7 .x7 .x5) ** ((base + 168) ↦ᵢ .SLTU .x6 .x7 .x5) **
+      ((base + 172) ↦ᵢ .OR .x5 .x11 .x6) ** ((base + 176) ↦ᵢ .SW .x12 .x7 52) **
+      -- Limb 6 code (8 instructions: base+180..base+208)
+      ((base + 180) ↦ᵢ .LW .x7 .x12 24) ** ((base + 184) ↦ᵢ .LW .x6 .x12 56) **
+      ((base + 188) ↦ᵢ .ADD .x7 .x7 .x6) ** ((base + 192) ↦ᵢ .SLTU .x11 .x7 .x6) **
+      ((base + 196) ↦ᵢ .ADD .x7 .x7 .x5) ** ((base + 200) ↦ᵢ .SLTU .x6 .x7 .x5) **
+      ((base + 204) ↦ᵢ .OR .x5 .x11 .x6) ** ((base + 208) ↦ᵢ .SW .x12 .x7 56) **
+      -- Limb 7 code (8 instructions: base+212..base+240)
+      ((base + 212) ↦ᵢ .LW .x7 .x12 28) ** ((base + 216) ↦ᵢ .LW .x6 .x12 60) **
+      ((base + 220) ↦ᵢ .ADD .x7 .x7 .x6) ** ((base + 224) ↦ᵢ .SLTU .x11 .x7 .x6) **
+      ((base + 228) ↦ᵢ .ADD .x7 .x7 .x5) ** ((base + 232) ↦ᵢ .SLTU .x6 .x7 .x5) **
+      ((base + 236) ↦ᵢ .OR .x5 .x11 .x6) ** ((base + 240) ↦ᵢ .SW .x12 .x7 60) **
+      -- ADDI instruction
+      ((base + 244) ↦ᵢ .ADDI .x12 .x12 32)
     cpsTriple base (base + 248)
-      (-- Limb 0 code (5 instructions: base+0..base+16)
-       (base ↦ᵢ .LW .x7 .x12 0) ** ((base + 4) ↦ᵢ .LW .x6 .x12 32) **
-       ((base + 8) ↦ᵢ .ADD .x7 .x7 .x6) ** ((base + 12) ↦ᵢ .SLTU .x5 .x7 .x6) **
-       ((base + 16) ↦ᵢ .SW .x12 .x7 32) **
-       -- Limb 1 code (8 instructions: base+20..base+48)
-       ((base + 20) ↦ᵢ .LW .x7 .x12 4) ** ((base + 24) ↦ᵢ .LW .x6 .x12 36) **
-       ((base + 28) ↦ᵢ .ADD .x7 .x7 .x6) ** ((base + 32) ↦ᵢ .SLTU .x11 .x7 .x6) **
-       ((base + 36) ↦ᵢ .ADD .x7 .x7 .x5) ** ((base + 40) ↦ᵢ .SLTU .x6 .x7 .x5) **
-       ((base + 44) ↦ᵢ .OR .x5 .x11 .x6) ** ((base + 48) ↦ᵢ .SW .x12 .x7 36) **
-       -- Limb 2 code (8 instructions: base+52..base+80)
-       ((base + 52) ↦ᵢ .LW .x7 .x12 8) ** ((base + 56) ↦ᵢ .LW .x6 .x12 40) **
-       ((base + 60) ↦ᵢ .ADD .x7 .x7 .x6) ** ((base + 64) ↦ᵢ .SLTU .x11 .x7 .x6) **
-       ((base + 68) ↦ᵢ .ADD .x7 .x7 .x5) ** ((base + 72) ↦ᵢ .SLTU .x6 .x7 .x5) **
-       ((base + 76) ↦ᵢ .OR .x5 .x11 .x6) ** ((base + 80) ↦ᵢ .SW .x12 .x7 40) **
-       -- Limb 3 code (8 instructions: base+84..base+112)
-       ((base + 84) ↦ᵢ .LW .x7 .x12 12) ** ((base + 88) ↦ᵢ .LW .x6 .x12 44) **
-       ((base + 92) ↦ᵢ .ADD .x7 .x7 .x6) ** ((base + 96) ↦ᵢ .SLTU .x11 .x7 .x6) **
-       ((base + 100) ↦ᵢ .ADD .x7 .x7 .x5) ** ((base + 104) ↦ᵢ .SLTU .x6 .x7 .x5) **
-       ((base + 108) ↦ᵢ .OR .x5 .x11 .x6) ** ((base + 112) ↦ᵢ .SW .x12 .x7 44) **
-       -- Limb 4 code (8 instructions: base+116..base+144)
-       ((base + 116) ↦ᵢ .LW .x7 .x12 16) ** ((base + 120) ↦ᵢ .LW .x6 .x12 48) **
-       ((base + 124) ↦ᵢ .ADD .x7 .x7 .x6) ** ((base + 128) ↦ᵢ .SLTU .x11 .x7 .x6) **
-       ((base + 132) ↦ᵢ .ADD .x7 .x7 .x5) ** ((base + 136) ↦ᵢ .SLTU .x6 .x7 .x5) **
-       ((base + 140) ↦ᵢ .OR .x5 .x11 .x6) ** ((base + 144) ↦ᵢ .SW .x12 .x7 48) **
-       -- Limb 5 code (8 instructions: base+148..base+176)
-       ((base + 148) ↦ᵢ .LW .x7 .x12 20) ** ((base + 152) ↦ᵢ .LW .x6 .x12 52) **
-       ((base + 156) ↦ᵢ .ADD .x7 .x7 .x6) ** ((base + 160) ↦ᵢ .SLTU .x11 .x7 .x6) **
-       ((base + 164) ↦ᵢ .ADD .x7 .x7 .x5) ** ((base + 168) ↦ᵢ .SLTU .x6 .x7 .x5) **
-       ((base + 172) ↦ᵢ .OR .x5 .x11 .x6) ** ((base + 176) ↦ᵢ .SW .x12 .x7 52) **
-       -- Limb 6 code (8 instructions: base+180..base+208)
-       ((base + 180) ↦ᵢ .LW .x7 .x12 24) ** ((base + 184) ↦ᵢ .LW .x6 .x12 56) **
-       ((base + 188) ↦ᵢ .ADD .x7 .x7 .x6) ** ((base + 192) ↦ᵢ .SLTU .x11 .x7 .x6) **
-       ((base + 196) ↦ᵢ .ADD .x7 .x7 .x5) ** ((base + 200) ↦ᵢ .SLTU .x6 .x7 .x5) **
-       ((base + 204) ↦ᵢ .OR .x5 .x11 .x6) ** ((base + 208) ↦ᵢ .SW .x12 .x7 56) **
-       -- Limb 7 code (8 instructions: base+212..base+240)
-       ((base + 212) ↦ᵢ .LW .x7 .x12 28) ** ((base + 216) ↦ᵢ .LW .x6 .x12 60) **
-       ((base + 220) ↦ᵢ .ADD .x7 .x7 .x6) ** ((base + 224) ↦ᵢ .SLTU .x11 .x7 .x6) **
-       ((base + 228) ↦ᵢ .ADD .x7 .x7 .x5) ** ((base + 232) ↦ᵢ .SLTU .x6 .x7 .x5) **
-       ((base + 236) ↦ᵢ .OR .x5 .x11 .x6) ** ((base + 240) ↦ᵢ .SW .x12 .x7 60) **
-       -- ADDI instruction
-       ((base + 244) ↦ᵢ .ADDI .x12 .x12 32) **
+      (code **
        -- Registers + memory
        (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) ** (.x5 ↦ᵣ v5) ** (.x11 ↦ᵣ v11) **
        (sp ↦ₘ a0) ** ((sp + 4) ↦ₘ a1) ** ((sp + 8) ↦ₘ a2) ** ((sp + 12) ↦ₘ a3) **
        ((sp + 16) ↦ₘ a4) ** ((sp + 20) ↦ₘ a5) ** ((sp + 24) ↦ₘ a6) ** ((sp + 28) ↦ₘ a7) **
        ((sp + 32) ↦ₘ b0) ** ((sp + 36) ↦ₘ b1) ** ((sp + 40) ↦ₘ b2) ** ((sp + 44) ↦ₘ b3) **
        ((sp + 48) ↦ₘ b4) ** ((sp + 52) ↦ₘ b5) ** ((sp + 56) ↦ₘ b6) ** ((sp + 60) ↦ₘ b7))
-      (-- Same code (preserved)
-       (base ↦ᵢ .LW .x7 .x12 0) ** ((base + 4) ↦ᵢ .LW .x6 .x12 32) **
-       ((base + 8) ↦ᵢ .ADD .x7 .x7 .x6) ** ((base + 12) ↦ᵢ .SLTU .x5 .x7 .x6) **
-       ((base + 16) ↦ᵢ .SW .x12 .x7 32) **
-       ((base + 20) ↦ᵢ .LW .x7 .x12 4) ** ((base + 24) ↦ᵢ .LW .x6 .x12 36) **
-       ((base + 28) ↦ᵢ .ADD .x7 .x7 .x6) ** ((base + 32) ↦ᵢ .SLTU .x11 .x7 .x6) **
-       ((base + 36) ↦ᵢ .ADD .x7 .x7 .x5) ** ((base + 40) ↦ᵢ .SLTU .x6 .x7 .x5) **
-       ((base + 44) ↦ᵢ .OR .x5 .x11 .x6) ** ((base + 48) ↦ᵢ .SW .x12 .x7 36) **
-       ((base + 52) ↦ᵢ .LW .x7 .x12 8) ** ((base + 56) ↦ᵢ .LW .x6 .x12 40) **
-       ((base + 60) ↦ᵢ .ADD .x7 .x7 .x6) ** ((base + 64) ↦ᵢ .SLTU .x11 .x7 .x6) **
-       ((base + 68) ↦ᵢ .ADD .x7 .x7 .x5) ** ((base + 72) ↦ᵢ .SLTU .x6 .x7 .x5) **
-       ((base + 76) ↦ᵢ .OR .x5 .x11 .x6) ** ((base + 80) ↦ᵢ .SW .x12 .x7 40) **
-       ((base + 84) ↦ᵢ .LW .x7 .x12 12) ** ((base + 88) ↦ᵢ .LW .x6 .x12 44) **
-       ((base + 92) ↦ᵢ .ADD .x7 .x7 .x6) ** ((base + 96) ↦ᵢ .SLTU .x11 .x7 .x6) **
-       ((base + 100) ↦ᵢ .ADD .x7 .x7 .x5) ** ((base + 104) ↦ᵢ .SLTU .x6 .x7 .x5) **
-       ((base + 108) ↦ᵢ .OR .x5 .x11 .x6) ** ((base + 112) ↦ᵢ .SW .x12 .x7 44) **
-       ((base + 116) ↦ᵢ .LW .x7 .x12 16) ** ((base + 120) ↦ᵢ .LW .x6 .x12 48) **
-       ((base + 124) ↦ᵢ .ADD .x7 .x7 .x6) ** ((base + 128) ↦ᵢ .SLTU .x11 .x7 .x6) **
-       ((base + 132) ↦ᵢ .ADD .x7 .x7 .x5) ** ((base + 136) ↦ᵢ .SLTU .x6 .x7 .x5) **
-       ((base + 140) ↦ᵢ .OR .x5 .x11 .x6) ** ((base + 144) ↦ᵢ .SW .x12 .x7 48) **
-       ((base + 148) ↦ᵢ .LW .x7 .x12 20) ** ((base + 152) ↦ᵢ .LW .x6 .x12 52) **
-       ((base + 156) ↦ᵢ .ADD .x7 .x7 .x6) ** ((base + 160) ↦ᵢ .SLTU .x11 .x7 .x6) **
-       ((base + 164) ↦ᵢ .ADD .x7 .x7 .x5) ** ((base + 168) ↦ᵢ .SLTU .x6 .x7 .x5) **
-       ((base + 172) ↦ᵢ .OR .x5 .x11 .x6) ** ((base + 176) ↦ᵢ .SW .x12 .x7 52) **
-       ((base + 180) ↦ᵢ .LW .x7 .x12 24) ** ((base + 184) ↦ᵢ .LW .x6 .x12 56) **
-       ((base + 188) ↦ᵢ .ADD .x7 .x7 .x6) ** ((base + 192) ↦ᵢ .SLTU .x11 .x7 .x6) **
-       ((base + 196) ↦ᵢ .ADD .x7 .x7 .x5) ** ((base + 200) ↦ᵢ .SLTU .x6 .x7 .x5) **
-       ((base + 204) ↦ᵢ .OR .x5 .x11 .x6) ** ((base + 208) ↦ᵢ .SW .x12 .x7 56) **
-       ((base + 212) ↦ᵢ .LW .x7 .x12 28) ** ((base + 216) ↦ᵢ .LW .x6 .x12 60) **
-       ((base + 220) ↦ᵢ .ADD .x7 .x7 .x6) ** ((base + 224) ↦ᵢ .SLTU .x11 .x7 .x6) **
-       ((base + 228) ↦ᵢ .ADD .x7 .x7 .x5) ** ((base + 232) ↦ᵢ .SLTU .x6 .x7 .x5) **
-       ((base + 236) ↦ᵢ .OR .x5 .x11 .x6) ** ((base + 240) ↦ᵢ .SW .x12 .x7 60) **
-       ((base + 244) ↦ᵢ .ADDI .x12 .x12 32) **
+      (code **
        -- Registers + memory (updated)
        (.x12 ↦ᵣ (sp + 32)) ** (.x7 ↦ᵣ result7) ** (.x6 ↦ᵣ carry7b) ** (.x5 ↦ᵣ carry7) ** (.x11 ↦ᵣ carry7a) **
        (sp ↦ₘ a0) ** ((sp + 4) ↦ₘ a1) ** ((sp + 8) ↦ₘ a2) ** ((sp + 12) ↦ₘ a3) **

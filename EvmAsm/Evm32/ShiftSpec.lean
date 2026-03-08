@@ -48,18 +48,17 @@ theorem shr_merge_limb_spec (src_off next_off dst_off : BitVec 12)
     let shifted_src := src >>> (bit_shift.toNat % 32)
     let shifted_next := (next <<< (anti_shift.toNat % 32)) &&& mask
     let result := shifted_src ||| shifted_next
+    let code :=
+      (base ↦ᵢ .LW .x5 .x12 src_off) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
+      ((base + 8) ↦ᵢ .LW .x10 .x12 next_off) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
+      ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
+      ((base + 24) ↦ᵢ .SW .x12 .x5 dst_off)
     cpsTriple base (base + 28)
-      ((base ↦ᵢ .LW .x5 .x12 src_off) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 8) ↦ᵢ .LW .x10 .x12 next_off) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-       ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-       ((base + 24) ↦ᵢ .SW .x12 .x5 dst_off) **
+      (code **
        (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ bit_shift) **
        (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ mask) **
        (mem_src ↦ₘ src) ** (mem_next ↦ₘ next) ** (mem_dst ↦ₘ dst_old))
-      ((base ↦ᵢ .LW .x5 .x12 src_off) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 8) ↦ᵢ .LW .x10 .x12 next_off) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-       ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-       ((base + 24) ↦ᵢ .SW .x12 .x5 dst_off) **
+      (code **
        (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result) ** (.x6 ↦ᵣ bit_shift) **
        (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ shifted_next) ** (.x11 ↦ᵣ mask) **
        (mem_src ↦ₘ src) ** (mem_next ↦ₘ next) ** (mem_dst ↦ₘ result)) := by
@@ -84,13 +83,14 @@ theorem shr_last_limb_spec (dst_off : BitVec 12)
     let mem_src := sp + signExtend12 (28 : BitVec 12)
     let mem_dst := sp + signExtend12 dst_off
     let result := src >>> (bit_shift.toNat % 32)
+    let code :=
+      (base ↦ᵢ .LW .x5 .x12 28) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
+      ((base + 8) ↦ᵢ .SW .x12 .x5 dst_off)
     cpsTriple base (base + 12)
-      ((base ↦ᵢ .LW .x5 .x12 28) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 8) ↦ᵢ .SW .x12 .x5 dst_off) **
+      (code **
        (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ bit_shift) **
        (mem_src ↦ₘ src) ** (mem_dst ↦ₘ dst_old))
-      ((base ↦ᵢ .LW .x5 .x12 28) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 8) ↦ᵢ .SW .x12 .x5 dst_off) **
+      (code **
        (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result) ** (.x6 ↦ᵣ bit_shift) **
        (mem_src ↦ₘ src) ** (mem_dst ↦ₘ result)) := by
   runBlock
@@ -111,18 +111,17 @@ theorem shr_merge_limb_inplace_spec (off next_off : BitVec 12)
     let shifted_src := src >>> (bit_shift.toNat % 32)
     let shifted_next := (next <<< (anti_shift.toNat % 32)) &&& mask
     let result := shifted_src ||| shifted_next
+    let code :=
+      (base ↦ᵢ .LW .x5 .x12 off) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
+      ((base + 8) ↦ᵢ .LW .x10 .x12 next_off) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
+      ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
+      ((base + 24) ↦ᵢ .SW .x12 .x5 off)
     cpsTriple base (base + 28)
-      ((base ↦ᵢ .LW .x5 .x12 off) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 8) ↦ᵢ .LW .x10 .x12 next_off) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-       ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-       ((base + 24) ↦ᵢ .SW .x12 .x5 off) **
+      (code **
        (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ bit_shift) **
        (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ mask) **
        (mem_loc ↦ₘ src) ** (mem_next ↦ₘ next))
-      ((base ↦ᵢ .LW .x5 .x12 off) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 8) ↦ᵢ .LW .x10 .x12 next_off) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-       ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-       ((base + 24) ↦ᵢ .SW .x12 .x5 off) **
+      (code **
        (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result) ** (.x6 ↦ᵣ bit_shift) **
        (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ shifted_next) ** (.x11 ↦ᵣ mask) **
        (mem_loc ↦ₘ result) ** (mem_next ↦ₘ next)) := by
@@ -140,12 +139,13 @@ theorem shr_last_limb_inplace_spec
     (hvalid : isValidMemAccess (sp + signExtend12 (28 : BitVec 12)) = true) :
     let mem := sp + signExtend12 (28 : BitVec 12)
     let result := src >>> (bit_shift.toNat % 32)
+    let code :=
+      (base ↦ᵢ .LW .x5 .x12 28) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
+      ((base + 8) ↦ᵢ .SW .x12 .x5 28)
     cpsTriple base (base + 12)
-      ((base ↦ᵢ .LW .x5 .x12 28) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 8) ↦ᵢ .SW .x12 .x5 28) **
+      (code **
        (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ bit_shift) ** (mem ↦ₘ src))
-      ((base ↦ᵢ .LW .x5 .x12 28) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 8) ↦ᵢ .SW .x12 .x5 28) **
+      (code **
        (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result) ** (.x6 ↦ᵣ bit_shift) ** (mem ↦ₘ result)) := by
   runBlock
 
@@ -177,20 +177,18 @@ theorem shr_zero_path_spec (sp : Word)
     (base : Addr)
     (hvalid : ValidMemRange (sp + 32) 8) :
     let nsp := sp + 32
+    let code :=
+      (base ↦ᵢ .ADDI .x12 .x12 32) ** ((base + 4) ↦ᵢ .SW .x12 .x0 0) **
+      ((base + 8) ↦ᵢ .SW .x12 .x0 4) ** ((base + 12) ↦ᵢ .SW .x12 .x0 8) **
+      ((base + 16) ↦ᵢ .SW .x12 .x0 12) ** ((base + 20) ↦ᵢ .SW .x12 .x0 16) **
+      ((base + 24) ↦ᵢ .SW .x12 .x0 20) ** ((base + 28) ↦ᵢ .SW .x12 .x0 24) **
+      ((base + 32) ↦ᵢ .SW .x12 .x0 28)
     cpsTriple base (base + 36)
-      ((base ↦ᵢ .ADDI .x12 .x12 32) ** ((base + 4) ↦ᵢ .SW .x12 .x0 0) **
-       ((base + 8) ↦ᵢ .SW .x12 .x0 4) ** ((base + 12) ↦ᵢ .SW .x12 .x0 8) **
-       ((base + 16) ↦ᵢ .SW .x12 .x0 12) ** ((base + 20) ↦ᵢ .SW .x12 .x0 16) **
-       ((base + 24) ↦ᵢ .SW .x12 .x0 20) ** ((base + 28) ↦ᵢ .SW .x12 .x0 24) **
-       ((base + 32) ↦ᵢ .SW .x12 .x0 28) **
+      (code **
        (.x12 ↦ᵣ sp) **
        (nsp ↦ₘ d0) ** ((nsp + 4) ↦ₘ d1) ** ((nsp + 8) ↦ₘ d2) ** ((nsp + 12) ↦ₘ d3) **
        ((nsp + 16) ↦ₘ d4) ** ((nsp + 20) ↦ₘ d5) ** ((nsp + 24) ↦ₘ d6) ** ((nsp + 28) ↦ₘ d7))
-      ((base ↦ᵢ .ADDI .x12 .x12 32) ** ((base + 4) ↦ᵢ .SW .x12 .x0 0) **
-       ((base + 8) ↦ᵢ .SW .x12 .x0 4) ** ((base + 12) ↦ᵢ .SW .x12 .x0 8) **
-       ((base + 16) ↦ᵢ .SW .x12 .x0 12) ** ((base + 20) ↦ᵢ .SW .x12 .x0 16) **
-       ((base + 24) ↦ᵢ .SW .x12 .x0 20) ** ((base + 28) ↦ᵢ .SW .x12 .x0 24) **
-       ((base + 32) ↦ᵢ .SW .x12 .x0 28) **
+      (code **
        (.x12 ↦ᵣ nsp) **
        (nsp ↦ₘ 0) ** ((nsp + 4) ↦ₘ 0) ** ((nsp + 8) ↦ₘ 0) ** ((nsp + 12) ↦ₘ 0) **
        ((nsp + 16) ↦ₘ 0) ** ((nsp + 20) ↦ₘ 0) ** ((nsp + 24) ↦ₘ 0) ** ((nsp + 28) ↦ₘ 0)) := by
@@ -224,17 +222,16 @@ theorem shr_phase_b_spec (shift0 sp r6 r7 r11 : Word) (base : Addr) :
     let cond := if BitVec.ult (0 : Word) bit_shift then (1 : Word) else 0
     let mask := (0 : Word) - cond
     let anti_shift := (32 : Word) - bit_shift
+    let code :=
+      (base ↦ᵢ .ANDI .x6 .x5 31) ** ((base + 4) ↦ᵢ .SRLI .x5 .x5 5) **
+      ((base + 8) ↦ᵢ .SLTU .x11 .x0 .x6) ** ((base + 12) ↦ᵢ .SUB .x11 .x0 .x11) **
+      ((base + 16) ↦ᵢ .LI .x7 32) ** ((base + 20) ↦ᵢ .SUB .x7 .x7 .x6) **
+      ((base + 24) ↦ᵢ .ADDI .x12 .x12 32)
     cpsTriple base (base + 28)
-      ((base ↦ᵢ .ANDI .x6 .x5 31) ** ((base + 4) ↦ᵢ .SRLI .x5 .x5 5) **
-       ((base + 8) ↦ᵢ .SLTU .x11 .x0 .x6) ** ((base + 12) ↦ᵢ .SUB .x11 .x0 .x11) **
-       ((base + 16) ↦ᵢ .LI .x7 32) ** ((base + 20) ↦ᵢ .SUB .x7 .x7 .x6) **
-       ((base + 24) ↦ᵢ .ADDI .x12 .x12 32) **
+      (code **
        (.x5 ↦ᵣ shift0) ** (.x6 ↦ᵣ r6) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x11 ↦ᵣ r11) ** (.x7 ↦ᵣ r7) ** (.x12 ↦ᵣ sp))
-      ((base ↦ᵢ .ANDI .x6 .x5 31) ** ((base + 4) ↦ᵢ .SRLI .x5 .x5 5) **
-       ((base + 8) ↦ᵢ .SLTU .x11 .x0 .x6) ** ((base + 12) ↦ᵢ .SUB .x11 .x0 .x11) **
-       ((base + 16) ↦ᵢ .LI .x7 32) ** ((base + 20) ↦ᵢ .SUB .x7 .x7 .x6) **
-       ((base + 24) ↦ᵢ .ADDI .x12 .x12 32) **
+      (code **
        (.x5 ↦ᵣ limb_shift) ** (.x6 ↦ᵣ bit_shift) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x11 ↦ᵣ mask) ** (.x7 ↦ᵣ anti_shift) ** (.x12 ↦ᵣ (sp + signExtend12 32))) := by
   runBlock
@@ -586,26 +583,21 @@ theorem shr_body_7_spec (sp : Word)
     (hexit : (base + 40) + signExtend21 jal_off = exit)
     (hvalid : ValidMemRange sp 8) :
     let result0 := v7 >>> (bit_shift.toNat % 32)
+    let code :=
+      (base ↦ᵢ .LW .x5 .x12 28) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
+      ((base + 8) ↦ᵢ .SW .x12 .x5 0) **
+      ((base + 12) ↦ᵢ .SW .x12 .x0 4) ** ((base + 16) ↦ᵢ .SW .x12 .x0 8) **
+      ((base + 20) ↦ᵢ .SW .x12 .x0 12) ** ((base + 24) ↦ᵢ .SW .x12 .x0 16) **
+      ((base + 28) ↦ᵢ .SW .x12 .x0 20) ** ((base + 32) ↦ᵢ .SW .x12 .x0 24) **
+      ((base + 36) ↦ᵢ .SW .x12 .x0 28) ** ((base + 40) ↦ᵢ .JAL .x0 jal_off)
     cpsTriple base exit
-      (-- Code: 11 instructions
-       (base ↦ᵢ .LW .x5 .x12 28) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 8) ↦ᵢ .SW .x12 .x5 0) **
-       ((base + 12) ↦ᵢ .SW .x12 .x0 4) ** ((base + 16) ↦ᵢ .SW .x12 .x0 8) **
-       ((base + 20) ↦ᵢ .SW .x12 .x0 12) ** ((base + 24) ↦ᵢ .SW .x12 .x0 16) **
-       ((base + 28) ↦ᵢ .SW .x12 .x0 20) ** ((base + 32) ↦ᵢ .SW .x12 .x0 24) **
-       ((base + 36) ↦ᵢ .SW .x12 .x0 28) ** ((base + 40) ↦ᵢ .JAL .x0 jal_off) **
+      (code **
        -- Registers + memory
        (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ bit_shift) **
        (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ mask) **
        (sp ↦ₘ v0) ** ((sp + 4) ↦ₘ v1) ** ((sp + 8) ↦ₘ v2) ** ((sp + 12) ↦ₘ v3) **
        ((sp + 16) ↦ₘ v4) ** ((sp + 20) ↦ₘ v5v) ** ((sp + 24) ↦ₘ v6) ** ((sp + 28) ↦ₘ v7))
-      (-- Same code + updated regs + mem
-       (base ↦ᵢ .LW .x5 .x12 28) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 8) ↦ᵢ .SW .x12 .x5 0) **
-       ((base + 12) ↦ᵢ .SW .x12 .x0 4) ** ((base + 16) ↦ᵢ .SW .x12 .x0 8) **
-       ((base + 20) ↦ᵢ .SW .x12 .x0 12) ** ((base + 24) ↦ᵢ .SW .x12 .x0 16) **
-       ((base + 28) ↦ᵢ .SW .x12 .x0 20) ** ((base + 32) ↦ᵢ .SW .x12 .x0 24) **
-       ((base + 36) ↦ᵢ .SW .x12 .x0 28) ** ((base + 40) ↦ᵢ .JAL .x0 jal_off) **
+      (code **
        (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result0) ** (.x6 ↦ᵣ bit_shift) **
        (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ mask) **
        (sp ↦ₘ result0) ** ((sp + 4) ↦ₘ 0) ** ((sp + 8) ↦ₘ 0) ** ((sp + 12) ↦ₘ 0) **
@@ -641,34 +633,25 @@ theorem shr_body_6_spec (sp : Word)
     (hvalid : ValidMemRange sp 8) :
     let result0 := (v6 >>> (bit_shift.toNat % 32)) ||| ((v7 <<< (anti_shift.toNat % 32)) &&& mask)
     let result1 := v7 >>> (bit_shift.toNat % 32)
+    let code :=
+      (base ↦ᵢ .LW .x5 .x12 24) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
+      ((base + 8) ↦ᵢ .LW .x10 .x12 28) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
+      ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
+      ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
+      ((base + 28) ↦ᵢ .LW .x5 .x12 28) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
+      ((base + 36) ↦ᵢ .SW .x12 .x5 4) **
+      ((base + 40) ↦ᵢ .SW .x12 .x0 8) ** ((base + 44) ↦ᵢ .SW .x12 .x0 12) **
+      ((base + 48) ↦ᵢ .SW .x12 .x0 16) ** ((base + 52) ↦ᵢ .SW .x12 .x0 20) **
+      ((base + 56) ↦ᵢ .SW .x12 .x0 24) ** ((base + 60) ↦ᵢ .SW .x12 .x0 28) **
+      ((base + 64) ↦ᵢ .JAL .x0 jal_off)
     cpsTriple base exit
-      (-- Code: 17 instructions (merge_limb 7 + last_limb 3 + 6 SW + JAL)
-       (base ↦ᵢ .LW .x5 .x12 24) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 8) ↦ᵢ .LW .x10 .x12 28) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-       ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-       ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-       ((base + 28) ↦ᵢ .LW .x5 .x12 28) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 36) ↦ᵢ .SW .x12 .x5 4) **
-       ((base + 40) ↦ᵢ .SW .x12 .x0 8) ** ((base + 44) ↦ᵢ .SW .x12 .x0 12) **
-       ((base + 48) ↦ᵢ .SW .x12 .x0 16) ** ((base + 52) ↦ᵢ .SW .x12 .x0 20) **
-       ((base + 56) ↦ᵢ .SW .x12 .x0 24) ** ((base + 60) ↦ᵢ .SW .x12 .x0 28) **
-       ((base + 64) ↦ᵢ .JAL .x0 jal_off) **
+      (code **
        -- Registers + memory
        (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ bit_shift) **
        (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ mask) **
        (sp ↦ₘ v0) ** ((sp + 4) ↦ₘ v1) ** ((sp + 8) ↦ₘ v2) ** ((sp + 12) ↦ₘ v3) **
        ((sp + 16) ↦ₘ v4) ** ((sp + 20) ↦ₘ v5v) ** ((sp + 24) ↦ₘ v6) ** ((sp + 28) ↦ₘ v7))
-      (-- Same code + updated regs + mem
-       (base ↦ᵢ .LW .x5 .x12 24) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 8) ↦ᵢ .LW .x10 .x12 28) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-       ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-       ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-       ((base + 28) ↦ᵢ .LW .x5 .x12 28) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 36) ↦ᵢ .SW .x12 .x5 4) **
-       ((base + 40) ↦ᵢ .SW .x12 .x0 8) ** ((base + 44) ↦ᵢ .SW .x12 .x0 12) **
-       ((base + 48) ↦ᵢ .SW .x12 .x0 16) ** ((base + 52) ↦ᵢ .SW .x12 .x0 20) **
-       ((base + 56) ↦ᵢ .SW .x12 .x0 24) ** ((base + 60) ↦ᵢ .SW .x12 .x0 28) **
-       ((base + 64) ↦ᵢ .JAL .x0 jal_off) **
+      (code **
        (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result1) ** (.x6 ↦ᵣ bit_shift) **
        (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ ((v7 <<< (anti_shift.toNat % 32)) &&& mask)) ** (.x11 ↦ᵣ mask) **
        (sp ↦ₘ result0) ** ((sp + 4) ↦ₘ result1) ** ((sp + 8) ↦ₘ 0) ** ((sp + 12) ↦ₘ 0) **
@@ -708,47 +691,29 @@ theorem shr_body_5_spec (sp : Word)
     let result0 := (v5v >>> (bit_shift.toNat % 32)) ||| ((v6 <<< (anti_shift.toNat % 32)) &&& mask)
     let result1 := (v6 >>> (bit_shift.toNat % 32)) ||| ((v7 <<< (anti_shift.toNat % 32)) &&& mask)
     let result2 := v7 >>> (bit_shift.toNat % 32)
+    let code :=
+      (base ↦ᵢ .LW .x5 .x12 20) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
+      ((base + 8) ↦ᵢ .LW .x10 .x12 24) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
+      ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
+      ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
+      ((base + 28) ↦ᵢ .LW .x5 .x12 24) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
+      ((base + 36) ↦ᵢ .LW .x10 .x12 28) ** ((base + 40) ↦ᵢ .SLL .x10 .x10 .x7) **
+      ((base + 44) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 48) ↦ᵢ .OR .x5 .x5 .x10) **
+      ((base + 52) ↦ᵢ .SW .x12 .x5 4) **
+      ((base + 56) ↦ᵢ .LW .x5 .x12 28) ** ((base + 60) ↦ᵢ .SRL .x5 .x5 .x6) **
+      ((base + 64) ↦ᵢ .SW .x12 .x5 8) **
+      ((base + 68) ↦ᵢ .SW .x12 .x0 12) ** ((base + 72) ↦ᵢ .SW .x12 .x0 16) **
+      ((base + 76) ↦ᵢ .SW .x12 .x0 20) ** ((base + 80) ↦ᵢ .SW .x12 .x0 24) **
+      ((base + 84) ↦ᵢ .SW .x12 .x0 28) **
+      ((base + 88) ↦ᵢ .JAL .x0 jal_off)
     cpsTriple base exit
-      (-- Code: 23 instructions
-       -- merge_limb(20,24,0): 7 instructions at base..base+24
-       (base ↦ᵢ .LW .x5 .x12 20) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 8) ↦ᵢ .LW .x10 .x12 24) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-       ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-       ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-       -- merge_limb(24,28,4): 7 instructions at base+28..base+52
-       ((base + 28) ↦ᵢ .LW .x5 .x12 24) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 36) ↦ᵢ .LW .x10 .x12 28) ** ((base + 40) ↦ᵢ .SLL .x10 .x10 .x7) **
-       ((base + 44) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 48) ↦ᵢ .OR .x5 .x5 .x10) **
-       ((base + 52) ↦ᵢ .SW .x12 .x5 4) **
-       -- last_limb(8): 3 instructions at base+56..base+64
-       ((base + 56) ↦ᵢ .LW .x5 .x12 28) ** ((base + 60) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 64) ↦ᵢ .SW .x12 .x5 8) **
-       -- 5x SW x0 at base+68..base+84
-       ((base + 68) ↦ᵢ .SW .x12 .x0 12) ** ((base + 72) ↦ᵢ .SW .x12 .x0 16) **
-       ((base + 76) ↦ᵢ .SW .x12 .x0 20) ** ((base + 80) ↦ᵢ .SW .x12 .x0 24) **
-       ((base + 84) ↦ᵢ .SW .x12 .x0 28) **
-       -- JAL at base+88
-       ((base + 88) ↦ᵢ .JAL .x0 jal_off) **
+      (code **
        -- Registers + memory
        (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ bit_shift) **
        (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ mask) **
        (sp ↦ₘ v0) ** ((sp + 4) ↦ₘ v1) ** ((sp + 8) ↦ₘ v2) ** ((sp + 12) ↦ₘ v3) **
        ((sp + 16) ↦ₘ v4) ** ((sp + 20) ↦ₘ v5v) ** ((sp + 24) ↦ₘ v6) ** ((sp + 28) ↦ₘ v7))
-      (-- Same code + updated regs + mem
-       (base ↦ᵢ .LW .x5 .x12 20) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 8) ↦ᵢ .LW .x10 .x12 24) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-       ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-       ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-       ((base + 28) ↦ᵢ .LW .x5 .x12 24) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 36) ↦ᵢ .LW .x10 .x12 28) ** ((base + 40) ↦ᵢ .SLL .x10 .x10 .x7) **
-       ((base + 44) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 48) ↦ᵢ .OR .x5 .x5 .x10) **
-       ((base + 52) ↦ᵢ .SW .x12 .x5 4) **
-       ((base + 56) ↦ᵢ .LW .x5 .x12 28) ** ((base + 60) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 64) ↦ᵢ .SW .x12 .x5 8) **
-       ((base + 68) ↦ᵢ .SW .x12 .x0 12) ** ((base + 72) ↦ᵢ .SW .x12 .x0 16) **
-       ((base + 76) ↦ᵢ .SW .x12 .x0 20) ** ((base + 80) ↦ᵢ .SW .x12 .x0 24) **
-       ((base + 84) ↦ᵢ .SW .x12 .x0 28) **
-       ((base + 88) ↦ᵢ .JAL .x0 jal_off) **
+      (code **
        (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result2) ** (.x6 ↦ᵣ bit_shift) **
        (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ ((v7 <<< (anti_shift.toNat % 32)) &&& mask)) ** (.x11 ↦ᵣ mask) **
        (sp ↦ₘ result0) ** ((sp + 4) ↦ₘ result1) ** ((sp + 8) ↦ₘ result2) ** ((sp + 12) ↦ₘ 0) **
@@ -793,54 +758,32 @@ theorem shr_body_4_spec (sp : Word)
     let result1 := (v5v >>> (bit_shift.toNat % 32)) ||| ((v6 <<< (anti_shift.toNat % 32)) &&& mask)
     let result2 := (v6 >>> (bit_shift.toNat % 32)) ||| ((v7 <<< (anti_shift.toNat % 32)) &&& mask)
     let result3 := v7 >>> (bit_shift.toNat % 32)
+    let code :=
+      (base ↦ᵢ .LW .x5 .x12 16) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
+      ((base + 8) ↦ᵢ .LW .x10 .x12 20) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
+      ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
+      ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
+      ((base + 28) ↦ᵢ .LW .x5 .x12 20) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
+      ((base + 36) ↦ᵢ .LW .x10 .x12 24) ** ((base + 40) ↦ᵢ .SLL .x10 .x10 .x7) **
+      ((base + 44) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 48) ↦ᵢ .OR .x5 .x5 .x10) **
+      ((base + 52) ↦ᵢ .SW .x12 .x5 4) **
+      ((base + 56) ↦ᵢ .LW .x5 .x12 24) ** ((base + 60) ↦ᵢ .SRL .x5 .x5 .x6) **
+      ((base + 64) ↦ᵢ .LW .x10 .x12 28) ** ((base + 68) ↦ᵢ .SLL .x10 .x10 .x7) **
+      ((base + 72) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 76) ↦ᵢ .OR .x5 .x5 .x10) **
+      ((base + 80) ↦ᵢ .SW .x12 .x5 8) **
+      ((base + 84) ↦ᵢ .LW .x5 .x12 28) ** ((base + 88) ↦ᵢ .SRL .x5 .x5 .x6) **
+      ((base + 92) ↦ᵢ .SW .x12 .x5 12) **
+      ((base + 96) ↦ᵢ .SW .x12 .x0 16) ** ((base + 100) ↦ᵢ .SW .x12 .x0 20) **
+      ((base + 104) ↦ᵢ .SW .x12 .x0 24) ** ((base + 108) ↦ᵢ .SW .x12 .x0 28) **
+      ((base + 112) ↦ᵢ .JAL .x0 jal_off)
     cpsTriple base exit
-      (-- Code: 29 instructions
-       -- merge_limb(16,20,0): 7 instructions at base+0..base+24
-       (base ↦ᵢ .LW .x5 .x12 16) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 8) ↦ᵢ .LW .x10 .x12 20) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-       ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-       ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-       -- merge_limb(20,24,4): 7 instructions at base+28..base+52
-       ((base + 28) ↦ᵢ .LW .x5 .x12 20) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 36) ↦ᵢ .LW .x10 .x12 24) ** ((base + 40) ↦ᵢ .SLL .x10 .x10 .x7) **
-       ((base + 44) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 48) ↦ᵢ .OR .x5 .x5 .x10) **
-       ((base + 52) ↦ᵢ .SW .x12 .x5 4) **
-       -- merge_limb(24,28,8): 7 instructions at base+56..base+80
-       ((base + 56) ↦ᵢ .LW .x5 .x12 24) ** ((base + 60) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 64) ↦ᵢ .LW .x10 .x12 28) ** ((base + 68) ↦ᵢ .SLL .x10 .x10 .x7) **
-       ((base + 72) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 76) ↦ᵢ .OR .x5 .x5 .x10) **
-       ((base + 80) ↦ᵢ .SW .x12 .x5 8) **
-       -- last_limb(12): 3 instructions at base+84..base+92
-       ((base + 84) ↦ᵢ .LW .x5 .x12 28) ** ((base + 88) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 92) ↦ᵢ .SW .x12 .x5 12) **
-       -- 4x SW x0: at base+96..base+108
-       ((base + 96) ↦ᵢ .SW .x12 .x0 16) ** ((base + 100) ↦ᵢ .SW .x12 .x0 20) **
-       ((base + 104) ↦ᵢ .SW .x12 .x0 24) ** ((base + 108) ↦ᵢ .SW .x12 .x0 28) **
-       -- JAL x0 at base+112
-       ((base + 112) ↦ᵢ .JAL .x0 jal_off) **
+      (code **
        -- Registers + memory
        (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ bit_shift) **
        (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ mask) **
        (sp ↦ₘ v0) ** ((sp + 4) ↦ₘ v1) ** ((sp + 8) ↦ₘ v2) ** ((sp + 12) ↦ₘ v3) **
        ((sp + 16) ↦ₘ v4) ** ((sp + 20) ↦ₘ v5v) ** ((sp + 24) ↦ₘ v6) ** ((sp + 28) ↦ₘ v7))
-      (-- Same code + updated regs + mem
-       (base ↦ᵢ .LW .x5 .x12 16) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 8) ↦ᵢ .LW .x10 .x12 20) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-       ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-       ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-       ((base + 28) ↦ᵢ .LW .x5 .x12 20) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 36) ↦ᵢ .LW .x10 .x12 24) ** ((base + 40) ↦ᵢ .SLL .x10 .x10 .x7) **
-       ((base + 44) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 48) ↦ᵢ .OR .x5 .x5 .x10) **
-       ((base + 52) ↦ᵢ .SW .x12 .x5 4) **
-       ((base + 56) ↦ᵢ .LW .x5 .x12 24) ** ((base + 60) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 64) ↦ᵢ .LW .x10 .x12 28) ** ((base + 68) ↦ᵢ .SLL .x10 .x10 .x7) **
-       ((base + 72) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 76) ↦ᵢ .OR .x5 .x5 .x10) **
-       ((base + 80) ↦ᵢ .SW .x12 .x5 8) **
-       ((base + 84) ↦ᵢ .LW .x5 .x12 28) ** ((base + 88) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 92) ↦ᵢ .SW .x12 .x5 12) **
-       ((base + 96) ↦ᵢ .SW .x12 .x0 16) ** ((base + 100) ↦ᵢ .SW .x12 .x0 20) **
-       ((base + 104) ↦ᵢ .SW .x12 .x0 24) ** ((base + 108) ↦ᵢ .SW .x12 .x0 28) **
-       ((base + 112) ↦ᵢ .JAL .x0 jal_off) **
+      (code **
        (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result3) ** (.x6 ↦ᵣ bit_shift) **
        (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ ((v7 <<< (anti_shift.toNat % 32)) &&& mask)) ** (.x11 ↦ᵣ mask) **
        (sp ↦ₘ result0) ** ((sp + 4) ↦ₘ result1) ** ((sp + 8) ↦ₘ result2) ** ((sp + 12) ↦ₘ result3) **
@@ -886,63 +829,36 @@ theorem shr_body_3_spec (sp : Word)
     let result2 := (v5v >>> (bit_shift.toNat % 32)) ||| ((v6 <<< (anti_shift.toNat % 32)) &&& mask)
     let result3 := (v6 >>> (bit_shift.toNat % 32)) ||| ((v7 <<< (anti_shift.toNat % 32)) &&& mask)
     let result4 := v7 >>> (bit_shift.toNat % 32)
+    let code :=
+      (base ↦ᵢ .LW .x5 .x12 12) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
+      ((base + 8) ↦ᵢ .LW .x10 .x12 16) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
+      ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
+      ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
+      ((base + 28) ↦ᵢ .LW .x5 .x12 16) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
+      ((base + 36) ↦ᵢ .LW .x10 .x12 20) ** ((base + 40) ↦ᵢ .SLL .x10 .x10 .x7) **
+      ((base + 44) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 48) ↦ᵢ .OR .x5 .x5 .x10) **
+      ((base + 52) ↦ᵢ .SW .x12 .x5 4) **
+      ((base + 56) ↦ᵢ .LW .x5 .x12 20) ** ((base + 60) ↦ᵢ .SRL .x5 .x5 .x6) **
+      ((base + 64) ↦ᵢ .LW .x10 .x12 24) ** ((base + 68) ↦ᵢ .SLL .x10 .x10 .x7) **
+      ((base + 72) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 76) ↦ᵢ .OR .x5 .x5 .x10) **
+      ((base + 80) ↦ᵢ .SW .x12 .x5 8) **
+      ((base + 84) ↦ᵢ .LW .x5 .x12 24) ** ((base + 88) ↦ᵢ .SRL .x5 .x5 .x6) **
+      ((base + 92) ↦ᵢ .LW .x10 .x12 28) ** ((base + 96) ↦ᵢ .SLL .x10 .x10 .x7) **
+      ((base + 100) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 104) ↦ᵢ .OR .x5 .x5 .x10) **
+      ((base + 108) ↦ᵢ .SW .x12 .x5 12) **
+      ((base + 112) ↦ᵢ .LW .x5 .x12 28) ** ((base + 116) ↦ᵢ .SRL .x5 .x5 .x6) **
+      ((base + 120) ↦ᵢ .SW .x12 .x5 16) **
+      ((base + 124) ↦ᵢ .SW .x12 .x0 20) ** ((base + 128) ↦ᵢ .SW .x12 .x0 24) **
+      ((base + 132) ↦ᵢ .SW .x12 .x0 28) **
+      ((base + 136) ↦ᵢ .JAL .x0 jal_off)
     cpsTriple base exit
-      (-- Code: 35 instructions
-       -- merge_limb(12,16,0): 7 instructions at base..base+24
-       (base ↦ᵢ .LW .x5 .x12 12) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 8) ↦ᵢ .LW .x10 .x12 16) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-       ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-       ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-       -- merge_limb(16,20,4): 7 instructions at base+28..base+52
-       ((base + 28) ↦ᵢ .LW .x5 .x12 16) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 36) ↦ᵢ .LW .x10 .x12 20) ** ((base + 40) ↦ᵢ .SLL .x10 .x10 .x7) **
-       ((base + 44) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 48) ↦ᵢ .OR .x5 .x5 .x10) **
-       ((base + 52) ↦ᵢ .SW .x12 .x5 4) **
-       -- merge_limb(20,24,8): 7 instructions at base+56..base+80
-       ((base + 56) ↦ᵢ .LW .x5 .x12 20) ** ((base + 60) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 64) ↦ᵢ .LW .x10 .x12 24) ** ((base + 68) ↦ᵢ .SLL .x10 .x10 .x7) **
-       ((base + 72) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 76) ↦ᵢ .OR .x5 .x5 .x10) **
-       ((base + 80) ↦ᵢ .SW .x12 .x5 8) **
-       -- merge_limb(24,28,12): 7 instructions at base+84..base+108
-       ((base + 84) ↦ᵢ .LW .x5 .x12 24) ** ((base + 88) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 92) ↦ᵢ .LW .x10 .x12 28) ** ((base + 96) ↦ᵢ .SLL .x10 .x10 .x7) **
-       ((base + 100) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 104) ↦ᵢ .OR .x5 .x5 .x10) **
-       ((base + 108) ↦ᵢ .SW .x12 .x5 12) **
-       -- last_limb(16): 3 instructions at base+112..base+120
-       ((base + 112) ↦ᵢ .LW .x5 .x12 28) ** ((base + 116) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 120) ↦ᵢ .SW .x12 .x5 16) **
-       -- 3x SW x0 at base+124..base+132
-       ((base + 124) ↦ᵢ .SW .x12 .x0 20) ** ((base + 128) ↦ᵢ .SW .x12 .x0 24) **
-       ((base + 132) ↦ᵢ .SW .x12 .x0 28) **
-       -- JAL at base+136
-       ((base + 136) ↦ᵢ .JAL .x0 jal_off) **
+      (code **
        -- Registers + memory
        (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ bit_shift) **
        (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ mask) **
        (sp ↦ₘ v0) ** ((sp + 4) ↦ₘ v1) ** ((sp + 8) ↦ₘ v2) ** ((sp + 12) ↦ₘ v3) **
        ((sp + 16) ↦ₘ v4) ** ((sp + 20) ↦ₘ v5v) ** ((sp + 24) ↦ₘ v6) ** ((sp + 28) ↦ₘ v7))
-      (-- Same code + updated regs + mem
-       (base ↦ᵢ .LW .x5 .x12 12) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 8) ↦ᵢ .LW .x10 .x12 16) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-       ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-       ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-       ((base + 28) ↦ᵢ .LW .x5 .x12 16) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 36) ↦ᵢ .LW .x10 .x12 20) ** ((base + 40) ↦ᵢ .SLL .x10 .x10 .x7) **
-       ((base + 44) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 48) ↦ᵢ .OR .x5 .x5 .x10) **
-       ((base + 52) ↦ᵢ .SW .x12 .x5 4) **
-       ((base + 56) ↦ᵢ .LW .x5 .x12 20) ** ((base + 60) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 64) ↦ᵢ .LW .x10 .x12 24) ** ((base + 68) ↦ᵢ .SLL .x10 .x10 .x7) **
-       ((base + 72) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 76) ↦ᵢ .OR .x5 .x5 .x10) **
-       ((base + 80) ↦ᵢ .SW .x12 .x5 8) **
-       ((base + 84) ↦ᵢ .LW .x5 .x12 24) ** ((base + 88) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 92) ↦ᵢ .LW .x10 .x12 28) ** ((base + 96) ↦ᵢ .SLL .x10 .x10 .x7) **
-       ((base + 100) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 104) ↦ᵢ .OR .x5 .x5 .x10) **
-       ((base + 108) ↦ᵢ .SW .x12 .x5 12) **
-       ((base + 112) ↦ᵢ .LW .x5 .x12 28) ** ((base + 116) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 120) ↦ᵢ .SW .x12 .x5 16) **
-       ((base + 124) ↦ᵢ .SW .x12 .x0 20) ** ((base + 128) ↦ᵢ .SW .x12 .x0 24) **
-       ((base + 132) ↦ᵢ .SW .x12 .x0 28) **
-       ((base + 136) ↦ᵢ .JAL .x0 jal_off) **
+      (code **
        (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result4) ** (.x6 ↦ᵣ bit_shift) **
        (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ ((v7 <<< (anti_shift.toNat % 32)) &&& mask)) ** (.x11 ↦ᵣ mask) **
        (sp ↦ₘ result0) ** ((sp + 4) ↦ₘ result1) ** ((sp + 8) ↦ₘ result2) ** ((sp + 12) ↦ₘ result3) **
@@ -990,70 +906,39 @@ theorem shr_body_2_spec (sp : Word)
     let result3 := (v5v >>> (bit_shift.toNat % 32)) ||| ((v6 <<< (anti_shift.toNat % 32)) &&& mask)
     let result4 := (v6 >>> (bit_shift.toNat % 32)) ||| ((v7 <<< (anti_shift.toNat % 32)) &&& mask)
     let result5 := v7 >>> (bit_shift.toNat % 32)
+    let code :=
+      (base ↦ᵢ .LW .x5 .x12 8) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
+      ((base + 8) ↦ᵢ .LW .x10 .x12 12) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
+      ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
+      ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
+      ((base + 28) ↦ᵢ .LW .x5 .x12 12) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
+      ((base + 36) ↦ᵢ .LW .x10 .x12 16) ** ((base + 40) ↦ᵢ .SLL .x10 .x10 .x7) **
+      ((base + 44) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 48) ↦ᵢ .OR .x5 .x5 .x10) **
+      ((base + 52) ↦ᵢ .SW .x12 .x5 4) **
+      ((base + 56) ↦ᵢ .LW .x5 .x12 16) ** ((base + 60) ↦ᵢ .SRL .x5 .x5 .x6) **
+      ((base + 64) ↦ᵢ .LW .x10 .x12 20) ** ((base + 68) ↦ᵢ .SLL .x10 .x10 .x7) **
+      ((base + 72) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 76) ↦ᵢ .OR .x5 .x5 .x10) **
+      ((base + 80) ↦ᵢ .SW .x12 .x5 8) **
+      ((base + 84) ↦ᵢ .LW .x5 .x12 20) ** ((base + 88) ↦ᵢ .SRL .x5 .x5 .x6) **
+      ((base + 92) ↦ᵢ .LW .x10 .x12 24) ** ((base + 96) ↦ᵢ .SLL .x10 .x10 .x7) **
+      ((base + 100) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 104) ↦ᵢ .OR .x5 .x5 .x10) **
+      ((base + 108) ↦ᵢ .SW .x12 .x5 12) **
+      ((base + 112) ↦ᵢ .LW .x5 .x12 24) ** ((base + 116) ↦ᵢ .SRL .x5 .x5 .x6) **
+      ((base + 120) ↦ᵢ .LW .x10 .x12 28) ** ((base + 124) ↦ᵢ .SLL .x10 .x10 .x7) **
+      ((base + 128) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 132) ↦ᵢ .OR .x5 .x5 .x10) **
+      ((base + 136) ↦ᵢ .SW .x12 .x5 16) **
+      ((base + 140) ↦ᵢ .LW .x5 .x12 28) ** ((base + 144) ↦ᵢ .SRL .x5 .x5 .x6) **
+      ((base + 148) ↦ᵢ .SW .x12 .x5 20) **
+      ((base + 152) ↦ᵢ .SW .x12 .x0 24) ** ((base + 156) ↦ᵢ .SW .x12 .x0 28) **
+      ((base + 160) ↦ᵢ .JAL .x0 jal_off)
     cpsTriple base exit
-      (-- Code: 41 instructions
-       -- merge_limb(8,12,0): 7 instructions at base..base+24
-       (base ↦ᵢ .LW .x5 .x12 8) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 8) ↦ᵢ .LW .x10 .x12 12) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-       ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-       ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-       -- merge_limb(12,16,4): 7 instructions at base+28..base+52
-       ((base + 28) ↦ᵢ .LW .x5 .x12 12) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 36) ↦ᵢ .LW .x10 .x12 16) ** ((base + 40) ↦ᵢ .SLL .x10 .x10 .x7) **
-       ((base + 44) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 48) ↦ᵢ .OR .x5 .x5 .x10) **
-       ((base + 52) ↦ᵢ .SW .x12 .x5 4) **
-       -- merge_limb(16,20,8): 7 instructions at base+56..base+80
-       ((base + 56) ↦ᵢ .LW .x5 .x12 16) ** ((base + 60) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 64) ↦ᵢ .LW .x10 .x12 20) ** ((base + 68) ↦ᵢ .SLL .x10 .x10 .x7) **
-       ((base + 72) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 76) ↦ᵢ .OR .x5 .x5 .x10) **
-       ((base + 80) ↦ᵢ .SW .x12 .x5 8) **
-       -- merge_limb(20,24,12): 7 instructions at base+84..base+108
-       ((base + 84) ↦ᵢ .LW .x5 .x12 20) ** ((base + 88) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 92) ↦ᵢ .LW .x10 .x12 24) ** ((base + 96) ↦ᵢ .SLL .x10 .x10 .x7) **
-       ((base + 100) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 104) ↦ᵢ .OR .x5 .x5 .x10) **
-       ((base + 108) ↦ᵢ .SW .x12 .x5 12) **
-       -- merge_limb(24,28,16): 7 instructions at base+112..base+136
-       ((base + 112) ↦ᵢ .LW .x5 .x12 24) ** ((base + 116) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 120) ↦ᵢ .LW .x10 .x12 28) ** ((base + 124) ↦ᵢ .SLL .x10 .x10 .x7) **
-       ((base + 128) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 132) ↦ᵢ .OR .x5 .x5 .x10) **
-       ((base + 136) ↦ᵢ .SW .x12 .x5 16) **
-       -- last_limb(20): 3 instructions at base+140..base+148
-       ((base + 140) ↦ᵢ .LW .x5 .x12 28) ** ((base + 144) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 148) ↦ᵢ .SW .x12 .x5 20) **
-       -- 2x SW x0 at base+152..base+156
-       ((base + 152) ↦ᵢ .SW .x12 .x0 24) ** ((base + 156) ↦ᵢ .SW .x12 .x0 28) **
-       -- JAL at base+160
-       ((base + 160) ↦ᵢ .JAL .x0 jal_off) **
+      (code **
        -- Registers + memory
        (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ bit_shift) **
        (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ mask) **
        (sp ↦ₘ v0) ** ((sp + 4) ↦ₘ v1) ** ((sp + 8) ↦ₘ v2) ** ((sp + 12) ↦ₘ v3) **
        ((sp + 16) ↦ₘ v4) ** ((sp + 20) ↦ₘ v5v) ** ((sp + 24) ↦ₘ v6) ** ((sp + 28) ↦ₘ v7))
-      (-- Same code + updated regs + mem
-       (base ↦ᵢ .LW .x5 .x12 8) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 8) ↦ᵢ .LW .x10 .x12 12) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-       ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-       ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-       ((base + 28) ↦ᵢ .LW .x5 .x12 12) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 36) ↦ᵢ .LW .x10 .x12 16) ** ((base + 40) ↦ᵢ .SLL .x10 .x10 .x7) **
-       ((base + 44) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 48) ↦ᵢ .OR .x5 .x5 .x10) **
-       ((base + 52) ↦ᵢ .SW .x12 .x5 4) **
-       ((base + 56) ↦ᵢ .LW .x5 .x12 16) ** ((base + 60) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 64) ↦ᵢ .LW .x10 .x12 20) ** ((base + 68) ↦ᵢ .SLL .x10 .x10 .x7) **
-       ((base + 72) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 76) ↦ᵢ .OR .x5 .x5 .x10) **
-       ((base + 80) ↦ᵢ .SW .x12 .x5 8) **
-       ((base + 84) ↦ᵢ .LW .x5 .x12 20) ** ((base + 88) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 92) ↦ᵢ .LW .x10 .x12 24) ** ((base + 96) ↦ᵢ .SLL .x10 .x10 .x7) **
-       ((base + 100) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 104) ↦ᵢ .OR .x5 .x5 .x10) **
-       ((base + 108) ↦ᵢ .SW .x12 .x5 12) **
-       ((base + 112) ↦ᵢ .LW .x5 .x12 24) ** ((base + 116) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 120) ↦ᵢ .LW .x10 .x12 28) ** ((base + 124) ↦ᵢ .SLL .x10 .x10 .x7) **
-       ((base + 128) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 132) ↦ᵢ .OR .x5 .x5 .x10) **
-       ((base + 136) ↦ᵢ .SW .x12 .x5 16) **
-       ((base + 140) ↦ᵢ .LW .x5 .x12 28) ** ((base + 144) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 148) ↦ᵢ .SW .x12 .x5 20) **
-       ((base + 152) ↦ᵢ .SW .x12 .x0 24) ** ((base + 156) ↦ᵢ .SW .x12 .x0 28) **
-       ((base + 160) ↦ᵢ .JAL .x0 jal_off) **
+      (code **
        (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result5) ** (.x6 ↦ᵣ bit_shift) **
        (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ ((v7 <<< (anti_shift.toNat % 32)) &&& mask)) ** (.x11 ↦ᵣ mask) **
        (sp ↦ₘ result0) ** ((sp + 4) ↦ₘ result1) ** ((sp + 8) ↦ₘ result2) ** ((sp + 12) ↦ₘ result3) **
@@ -1101,79 +986,42 @@ theorem shr_body_1_spec (sp : Word)
     let result4 := (v5v >>> (bit_shift.toNat % 32)) ||| ((v6 <<< (anti_shift.toNat % 32)) &&& mask)
     let result5 := (v6 >>> (bit_shift.toNat % 32)) ||| ((v7 <<< (anti_shift.toNat % 32)) &&& mask)
     let result6 := v7 >>> (bit_shift.toNat % 32)
+    let code :=
+      (base ↦ᵢ .LW .x5 .x12 4) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
+      ((base + 8) ↦ᵢ .LW .x10 .x12 8) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
+      ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
+      ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
+      ((base + 28) ↦ᵢ .LW .x5 .x12 8) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
+      ((base + 36) ↦ᵢ .LW .x10 .x12 12) ** ((base + 40) ↦ᵢ .SLL .x10 .x10 .x7) **
+      ((base + 44) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 48) ↦ᵢ .OR .x5 .x5 .x10) **
+      ((base + 52) ↦ᵢ .SW .x12 .x5 4) **
+      ((base + 56) ↦ᵢ .LW .x5 .x12 12) ** ((base + 60) ↦ᵢ .SRL .x5 .x5 .x6) **
+      ((base + 64) ↦ᵢ .LW .x10 .x12 16) ** ((base + 68) ↦ᵢ .SLL .x10 .x10 .x7) **
+      ((base + 72) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 76) ↦ᵢ .OR .x5 .x5 .x10) **
+      ((base + 80) ↦ᵢ .SW .x12 .x5 8) **
+      ((base + 84) ↦ᵢ .LW .x5 .x12 16) ** ((base + 88) ↦ᵢ .SRL .x5 .x5 .x6) **
+      ((base + 92) ↦ᵢ .LW .x10 .x12 20) ** ((base + 96) ↦ᵢ .SLL .x10 .x10 .x7) **
+      ((base + 100) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 104) ↦ᵢ .OR .x5 .x5 .x10) **
+      ((base + 108) ↦ᵢ .SW .x12 .x5 12) **
+      ((base + 112) ↦ᵢ .LW .x5 .x12 20) ** ((base + 116) ↦ᵢ .SRL .x5 .x5 .x6) **
+      ((base + 120) ↦ᵢ .LW .x10 .x12 24) ** ((base + 124) ↦ᵢ .SLL .x10 .x10 .x7) **
+      ((base + 128) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 132) ↦ᵢ .OR .x5 .x5 .x10) **
+      ((base + 136) ↦ᵢ .SW .x12 .x5 16) **
+      ((base + 140) ↦ᵢ .LW .x5 .x12 24) ** ((base + 144) ↦ᵢ .SRL .x5 .x5 .x6) **
+      ((base + 148) ↦ᵢ .LW .x10 .x12 28) ** ((base + 152) ↦ᵢ .SLL .x10 .x10 .x7) **
+      ((base + 156) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 160) ↦ᵢ .OR .x5 .x5 .x10) **
+      ((base + 164) ↦ᵢ .SW .x12 .x5 20) **
+      ((base + 168) ↦ᵢ .LW .x5 .x12 28) ** ((base + 172) ↦ᵢ .SRL .x5 .x5 .x6) **
+      ((base + 176) ↦ᵢ .SW .x12 .x5 24) **
+      ((base + 180) ↦ᵢ .SW .x12 .x0 28) **
+      ((base + 184) ↦ᵢ .JAL .x0 jal_off)
     cpsTriple base exit
-      (-- Code: 47 instructions
-       -- merge_limb(4,8,0): 7 instructions at base..base+24
-       (base ↦ᵢ .LW .x5 .x12 4) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 8) ↦ᵢ .LW .x10 .x12 8) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-       ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-       ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-       -- merge_limb(8,12,4): 7 instructions at base+28..base+52
-       ((base + 28) ↦ᵢ .LW .x5 .x12 8) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 36) ↦ᵢ .LW .x10 .x12 12) ** ((base + 40) ↦ᵢ .SLL .x10 .x10 .x7) **
-       ((base + 44) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 48) ↦ᵢ .OR .x5 .x5 .x10) **
-       ((base + 52) ↦ᵢ .SW .x12 .x5 4) **
-       -- merge_limb(12,16,8): 7 instructions at base+56..base+80
-       ((base + 56) ↦ᵢ .LW .x5 .x12 12) ** ((base + 60) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 64) ↦ᵢ .LW .x10 .x12 16) ** ((base + 68) ↦ᵢ .SLL .x10 .x10 .x7) **
-       ((base + 72) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 76) ↦ᵢ .OR .x5 .x5 .x10) **
-       ((base + 80) ↦ᵢ .SW .x12 .x5 8) **
-       -- merge_limb(16,20,12): 7 instructions at base+84..base+108
-       ((base + 84) ↦ᵢ .LW .x5 .x12 16) ** ((base + 88) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 92) ↦ᵢ .LW .x10 .x12 20) ** ((base + 96) ↦ᵢ .SLL .x10 .x10 .x7) **
-       ((base + 100) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 104) ↦ᵢ .OR .x5 .x5 .x10) **
-       ((base + 108) ↦ᵢ .SW .x12 .x5 12) **
-       -- merge_limb(20,24,16): 7 instructions at base+112..base+136
-       ((base + 112) ↦ᵢ .LW .x5 .x12 20) ** ((base + 116) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 120) ↦ᵢ .LW .x10 .x12 24) ** ((base + 124) ↦ᵢ .SLL .x10 .x10 .x7) **
-       ((base + 128) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 132) ↦ᵢ .OR .x5 .x5 .x10) **
-       ((base + 136) ↦ᵢ .SW .x12 .x5 16) **
-       -- merge_limb(24,28,20): 7 instructions at base+140..base+164
-       ((base + 140) ↦ᵢ .LW .x5 .x12 24) ** ((base + 144) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 148) ↦ᵢ .LW .x10 .x12 28) ** ((base + 152) ↦ᵢ .SLL .x10 .x10 .x7) **
-       ((base + 156) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 160) ↦ᵢ .OR .x5 .x5 .x10) **
-       ((base + 164) ↦ᵢ .SW .x12 .x5 20) **
-       -- last_limb(24): 3 instructions at base+168..base+176
-       ((base + 168) ↦ᵢ .LW .x5 .x12 28) ** ((base + 172) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 176) ↦ᵢ .SW .x12 .x5 24) **
-       -- 1x SW x0 at base+180
-       ((base + 180) ↦ᵢ .SW .x12 .x0 28) **
-       -- JAL at base+184
-       ((base + 184) ↦ᵢ .JAL .x0 jal_off) **
-       -- Registers + memory
+      (code **
        (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ bit_shift) **
        (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ mask) **
        (sp ↦ₘ v0) ** ((sp + 4) ↦ₘ v1) ** ((sp + 8) ↦ₘ v2) ** ((sp + 12) ↦ₘ v3) **
        ((sp + 16) ↦ₘ v4) ** ((sp + 20) ↦ₘ v5v) ** ((sp + 24) ↦ₘ v6) ** ((sp + 28) ↦ₘ v7))
-      (-- Same code + updated regs + mem
-       (base ↦ᵢ .LW .x5 .x12 4) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 8) ↦ᵢ .LW .x10 .x12 8) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-       ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-       ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-       ((base + 28) ↦ᵢ .LW .x5 .x12 8) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 36) ↦ᵢ .LW .x10 .x12 12) ** ((base + 40) ↦ᵢ .SLL .x10 .x10 .x7) **
-       ((base + 44) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 48) ↦ᵢ .OR .x5 .x5 .x10) **
-       ((base + 52) ↦ᵢ .SW .x12 .x5 4) **
-       ((base + 56) ↦ᵢ .LW .x5 .x12 12) ** ((base + 60) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 64) ↦ᵢ .LW .x10 .x12 16) ** ((base + 68) ↦ᵢ .SLL .x10 .x10 .x7) **
-       ((base + 72) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 76) ↦ᵢ .OR .x5 .x5 .x10) **
-       ((base + 80) ↦ᵢ .SW .x12 .x5 8) **
-       ((base + 84) ↦ᵢ .LW .x5 .x12 16) ** ((base + 88) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 92) ↦ᵢ .LW .x10 .x12 20) ** ((base + 96) ↦ᵢ .SLL .x10 .x10 .x7) **
-       ((base + 100) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 104) ↦ᵢ .OR .x5 .x5 .x10) **
-       ((base + 108) ↦ᵢ .SW .x12 .x5 12) **
-       ((base + 112) ↦ᵢ .LW .x5 .x12 20) ** ((base + 116) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 120) ↦ᵢ .LW .x10 .x12 24) ** ((base + 124) ↦ᵢ .SLL .x10 .x10 .x7) **
-       ((base + 128) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 132) ↦ᵢ .OR .x5 .x5 .x10) **
-       ((base + 136) ↦ᵢ .SW .x12 .x5 16) **
-       ((base + 140) ↦ᵢ .LW .x5 .x12 24) ** ((base + 144) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 148) ↦ᵢ .LW .x10 .x12 28) ** ((base + 152) ↦ᵢ .SLL .x10 .x10 .x7) **
-       ((base + 156) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 160) ↦ᵢ .OR .x5 .x5 .x10) **
-       ((base + 164) ↦ᵢ .SW .x12 .x5 20) **
-       ((base + 168) ↦ᵢ .LW .x5 .x12 28) ** ((base + 172) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 176) ↦ᵢ .SW .x12 .x5 24) **
-       ((base + 180) ↦ᵢ .SW .x12 .x0 28) **
-       ((base + 184) ↦ᵢ .JAL .x0 jal_off) **
+      (code **
        (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result6) ** (.x6 ↦ᵣ bit_shift) **
        (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ ((v7 <<< (anti_shift.toNat % 32)) &&& mask)) ** (.x11 ↦ᵣ mask) **
        (sp ↦ₘ result0) ** ((sp + 4) ↦ₘ result1) ** ((sp + 8) ↦ₘ result2) ** ((sp + 12) ↦ₘ result3) **
@@ -1225,85 +1073,45 @@ theorem shr_body_0_spec (sp : Word)
     let result5 := (v5v >>> (bit_shift.toNat % 32)) ||| ((v6 <<< (anti_shift.toNat % 32)) &&& mask)
     let result6 := (v6 >>> (bit_shift.toNat % 32)) ||| ((v7 <<< (anti_shift.toNat % 32)) &&& mask)
     let result7 := v7 >>> (bit_shift.toNat % 32)
+    let code :=
+      (base ↦ᵢ .LW .x5 .x12 0) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
+      ((base + 8) ↦ᵢ .LW .x10 .x12 4) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
+      ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
+      ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
+      ((base + 28) ↦ᵢ .LW .x5 .x12 4) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
+      ((base + 36) ↦ᵢ .LW .x10 .x12 8) ** ((base + 40) ↦ᵢ .SLL .x10 .x10 .x7) **
+      ((base + 44) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 48) ↦ᵢ .OR .x5 .x5 .x10) **
+      ((base + 52) ↦ᵢ .SW .x12 .x5 4) **
+      ((base + 56) ↦ᵢ .LW .x5 .x12 8) ** ((base + 60) ↦ᵢ .SRL .x5 .x5 .x6) **
+      ((base + 64) ↦ᵢ .LW .x10 .x12 12) ** ((base + 68) ↦ᵢ .SLL .x10 .x10 .x7) **
+      ((base + 72) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 76) ↦ᵢ .OR .x5 .x5 .x10) **
+      ((base + 80) ↦ᵢ .SW .x12 .x5 8) **
+      ((base + 84) ↦ᵢ .LW .x5 .x12 12) ** ((base + 88) ↦ᵢ .SRL .x5 .x5 .x6) **
+      ((base + 92) ↦ᵢ .LW .x10 .x12 16) ** ((base + 96) ↦ᵢ .SLL .x10 .x10 .x7) **
+      ((base + 100) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 104) ↦ᵢ .OR .x5 .x5 .x10) **
+      ((base + 108) ↦ᵢ .SW .x12 .x5 12) **
+      ((base + 112) ↦ᵢ .LW .x5 .x12 16) ** ((base + 116) ↦ᵢ .SRL .x5 .x5 .x6) **
+      ((base + 120) ↦ᵢ .LW .x10 .x12 20) ** ((base + 124) ↦ᵢ .SLL .x10 .x10 .x7) **
+      ((base + 128) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 132) ↦ᵢ .OR .x5 .x5 .x10) **
+      ((base + 136) ↦ᵢ .SW .x12 .x5 16) **
+      ((base + 140) ↦ᵢ .LW .x5 .x12 20) ** ((base + 144) ↦ᵢ .SRL .x5 .x5 .x6) **
+      ((base + 148) ↦ᵢ .LW .x10 .x12 24) ** ((base + 152) ↦ᵢ .SLL .x10 .x10 .x7) **
+      ((base + 156) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 160) ↦ᵢ .OR .x5 .x5 .x10) **
+      ((base + 164) ↦ᵢ .SW .x12 .x5 20) **
+      ((base + 168) ↦ᵢ .LW .x5 .x12 24) ** ((base + 172) ↦ᵢ .SRL .x5 .x5 .x6) **
+      ((base + 176) ↦ᵢ .LW .x10 .x12 28) ** ((base + 180) ↦ᵢ .SLL .x10 .x10 .x7) **
+      ((base + 184) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 188) ↦ᵢ .OR .x5 .x5 .x10) **
+      ((base + 192) ↦ᵢ .SW .x12 .x5 24) **
+      ((base + 196) ↦ᵢ .LW .x5 .x12 28) ** ((base + 200) ↦ᵢ .SRL .x5 .x5 .x6) **
+      ((base + 204) ↦ᵢ .SW .x12 .x5 28) **
+      ((base + 208) ↦ᵢ .JAL .x0 jal_off)
     cpsTriple base exit
-      (-- Code: 53 instructions
-       -- merge_limb_inplace(0,4): 7 instructions at base..base+24
-       (base ↦ᵢ .LW .x5 .x12 0) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 8) ↦ᵢ .LW .x10 .x12 4) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-       ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-       ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-       -- merge_limb_inplace(4,8): 7 instructions at base+28..base+52
-       ((base + 28) ↦ᵢ .LW .x5 .x12 4) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 36) ↦ᵢ .LW .x10 .x12 8) ** ((base + 40) ↦ᵢ .SLL .x10 .x10 .x7) **
-       ((base + 44) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 48) ↦ᵢ .OR .x5 .x5 .x10) **
-       ((base + 52) ↦ᵢ .SW .x12 .x5 4) **
-       -- merge_limb_inplace(8,12): 7 instructions at base+56..base+80
-       ((base + 56) ↦ᵢ .LW .x5 .x12 8) ** ((base + 60) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 64) ↦ᵢ .LW .x10 .x12 12) ** ((base + 68) ↦ᵢ .SLL .x10 .x10 .x7) **
-       ((base + 72) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 76) ↦ᵢ .OR .x5 .x5 .x10) **
-       ((base + 80) ↦ᵢ .SW .x12 .x5 8) **
-       -- merge_limb_inplace(12,16): 7 instructions at base+84..base+108
-       ((base + 84) ↦ᵢ .LW .x5 .x12 12) ** ((base + 88) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 92) ↦ᵢ .LW .x10 .x12 16) ** ((base + 96) ↦ᵢ .SLL .x10 .x10 .x7) **
-       ((base + 100) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 104) ↦ᵢ .OR .x5 .x5 .x10) **
-       ((base + 108) ↦ᵢ .SW .x12 .x5 12) **
-       -- merge_limb_inplace(16,20): 7 instructions at base+112..base+136
-       ((base + 112) ↦ᵢ .LW .x5 .x12 16) ** ((base + 116) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 120) ↦ᵢ .LW .x10 .x12 20) ** ((base + 124) ↦ᵢ .SLL .x10 .x10 .x7) **
-       ((base + 128) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 132) ↦ᵢ .OR .x5 .x5 .x10) **
-       ((base + 136) ↦ᵢ .SW .x12 .x5 16) **
-       -- merge_limb_inplace(20,24): 7 instructions at base+140..base+164
-       ((base + 140) ↦ᵢ .LW .x5 .x12 20) ** ((base + 144) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 148) ↦ᵢ .LW .x10 .x12 24) ** ((base + 152) ↦ᵢ .SLL .x10 .x10 .x7) **
-       ((base + 156) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 160) ↦ᵢ .OR .x5 .x5 .x10) **
-       ((base + 164) ↦ᵢ .SW .x12 .x5 20) **
-       -- merge_limb_inplace(24,28): 7 instructions at base+168..base+192
-       ((base + 168) ↦ᵢ .LW .x5 .x12 24) ** ((base + 172) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 176) ↦ᵢ .LW .x10 .x12 28) ** ((base + 180) ↦ᵢ .SLL .x10 .x10 .x7) **
-       ((base + 184) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 188) ↦ᵢ .OR .x5 .x5 .x10) **
-       ((base + 192) ↦ᵢ .SW .x12 .x5 24) **
-       -- last_limb_inplace: 3 instructions at base+196..base+204
-       ((base + 196) ↦ᵢ .LW .x5 .x12 28) ** ((base + 200) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 204) ↦ᵢ .SW .x12 .x5 28) **
-       -- JAL at base+208
-       ((base + 208) ↦ᵢ .JAL .x0 jal_off) **
-       -- Registers + memory
+      (code **
        (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ bit_shift) **
        (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ mask) **
        (sp ↦ₘ v0) ** ((sp + 4) ↦ₘ v1) ** ((sp + 8) ↦ₘ v2) ** ((sp + 12) ↦ₘ v3) **
        ((sp + 16) ↦ₘ v4) ** ((sp + 20) ↦ₘ v5v) ** ((sp + 24) ↦ₘ v6) ** ((sp + 28) ↦ₘ v7))
-      (-- Same code + updated regs + mem
-       (base ↦ᵢ .LW .x5 .x12 0) ** ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 8) ↦ᵢ .LW .x10 .x12 4) ** ((base + 12) ↦ᵢ .SLL .x10 .x10 .x7) **
-       ((base + 16) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 20) ↦ᵢ .OR .x5 .x5 .x10) **
-       ((base + 24) ↦ᵢ .SW .x12 .x5 0) **
-       ((base + 28) ↦ᵢ .LW .x5 .x12 4) ** ((base + 32) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 36) ↦ᵢ .LW .x10 .x12 8) ** ((base + 40) ↦ᵢ .SLL .x10 .x10 .x7) **
-       ((base + 44) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 48) ↦ᵢ .OR .x5 .x5 .x10) **
-       ((base + 52) ↦ᵢ .SW .x12 .x5 4) **
-       ((base + 56) ↦ᵢ .LW .x5 .x12 8) ** ((base + 60) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 64) ↦ᵢ .LW .x10 .x12 12) ** ((base + 68) ↦ᵢ .SLL .x10 .x10 .x7) **
-       ((base + 72) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 76) ↦ᵢ .OR .x5 .x5 .x10) **
-       ((base + 80) ↦ᵢ .SW .x12 .x5 8) **
-       ((base + 84) ↦ᵢ .LW .x5 .x12 12) ** ((base + 88) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 92) ↦ᵢ .LW .x10 .x12 16) ** ((base + 96) ↦ᵢ .SLL .x10 .x10 .x7) **
-       ((base + 100) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 104) ↦ᵢ .OR .x5 .x5 .x10) **
-       ((base + 108) ↦ᵢ .SW .x12 .x5 12) **
-       ((base + 112) ↦ᵢ .LW .x5 .x12 16) ** ((base + 116) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 120) ↦ᵢ .LW .x10 .x12 20) ** ((base + 124) ↦ᵢ .SLL .x10 .x10 .x7) **
-       ((base + 128) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 132) ↦ᵢ .OR .x5 .x5 .x10) **
-       ((base + 136) ↦ᵢ .SW .x12 .x5 16) **
-       ((base + 140) ↦ᵢ .LW .x5 .x12 20) ** ((base + 144) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 148) ↦ᵢ .LW .x10 .x12 24) ** ((base + 152) ↦ᵢ .SLL .x10 .x10 .x7) **
-       ((base + 156) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 160) ↦ᵢ .OR .x5 .x5 .x10) **
-       ((base + 164) ↦ᵢ .SW .x12 .x5 20) **
-       ((base + 168) ↦ᵢ .LW .x5 .x12 24) ** ((base + 172) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 176) ↦ᵢ .LW .x10 .x12 28) ** ((base + 180) ↦ᵢ .SLL .x10 .x10 .x7) **
-       ((base + 184) ↦ᵢ .AND .x10 .x10 .x11) ** ((base + 188) ↦ᵢ .OR .x5 .x5 .x10) **
-       ((base + 192) ↦ᵢ .SW .x12 .x5 24) **
-       ((base + 196) ↦ᵢ .LW .x5 .x12 28) ** ((base + 200) ↦ᵢ .SRL .x5 .x5 .x6) **
-       ((base + 204) ↦ᵢ .SW .x12 .x5 28) **
-       ((base + 208) ↦ᵢ .JAL .x0 jal_off) **
+      (code **
        (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result7) ** (.x6 ↦ᵣ bit_shift) **
        (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ ((v7 <<< (anti_shift.toNat % 32)) &&& mask)) ** (.x11 ↦ᵣ mask) **
        (sp ↦ₘ result0) ** ((sp + 4) ↦ₘ result1) ** ((sp + 8) ↦ₘ result2) ** ((sp + 12) ↦ₘ result3) **
@@ -1343,10 +1151,12 @@ theorem shr_body_0_spec (sp : Word)
 theorem shr_lw_or_acc_spec (sp acc prev_x10 val : Word) (off : BitVec 12)
     (base : Addr)
     (hvalid : isValidMemAccess (sp + signExtend12 off) = true) :
+    let code :=
+      (base ↦ᵢ .LW .x10 .x12 off) ** ((base + 4) ↦ᵢ .OR .x5 .x5 .x10)
     cpsTriple base (base + 8)
-      ((base ↦ᵢ .LW .x10 .x12 off) ** ((base + 4) ↦ᵢ .OR .x5 .x5 .x10) **
+      (code **
        (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ acc) ** (.x10 ↦ᵣ prev_x10) ** ((sp + signExtend12 off) ↦ₘ val))
-      ((base ↦ᵢ .LW .x10 .x12 off) ** ((base + 4) ↦ᵢ .OR .x5 .x5 .x10) **
+      (code **
        (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ (acc ||| val)) ** (.x10 ↦ᵣ val) ** ((sp + signExtend12 off) ↦ₘ val)) := by
   runBlock
 private theorem regIs_to_regOwn (r : Reg) (v : Word) : ∀ h, (r ↦ᵣ v) h → (regOwn r) h :=

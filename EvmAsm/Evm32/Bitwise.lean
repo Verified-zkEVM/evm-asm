@@ -81,13 +81,14 @@ theorem and_limb_spec (off_a off_b : BitVec 12)
     (hvalid_b : isValidMemAccess (sp + signExtend12 off_b) = true) :
     let mem_a := sp + signExtend12 off_a
     let mem_b := sp + signExtend12 off_b
+    let code :=
+      (base ↦ᵢ .LW .x7 .x12 off_a) ** ((base + 4) ↦ᵢ .LW .x6 .x12 off_b) **
+      ((base + 8) ↦ᵢ .AND .x7 .x7 .x6) ** ((base + 12) ↦ᵢ .SW .x12 .x7 off_b)
     cpsTriple base (base + 16)
-      ((base ↦ᵢ .LW .x7 .x12 off_a) ** ((base + 4) ↦ᵢ .LW .x6 .x12 off_b) **
-       ((base + 8) ↦ᵢ .AND .x7 .x7 .x6) ** ((base + 12) ↦ᵢ .SW .x12 .x7 off_b) **
+      (code **
        (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) **
        (mem_a ↦ₘ a_limb) ** (mem_b ↦ₘ b_limb))
-      ((base ↦ᵢ .LW .x7 .x12 off_a) ** ((base + 4) ↦ᵢ .LW .x6 .x12 off_b) **
-       ((base + 8) ↦ᵢ .AND .x7 .x7 .x6) ** ((base + 12) ↦ᵢ .SW .x12 .x7 off_b) **
+      (code **
        (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ (a_limb &&& b_limb)) ** (.x6 ↦ᵣ b_limb) **
        (mem_a ↦ₘ a_limb) ** (mem_b ↦ₘ (a_limb &&& b_limb))) := by
   runBlock
@@ -99,13 +100,14 @@ theorem or_limb_spec (off_a off_b : BitVec 12)
     (hvalid_b : isValidMemAccess (sp + signExtend12 off_b) = true) :
     let mem_a := sp + signExtend12 off_a
     let mem_b := sp + signExtend12 off_b
+    let code :=
+      (base ↦ᵢ .LW .x7 .x12 off_a) ** ((base + 4) ↦ᵢ .LW .x6 .x12 off_b) **
+      ((base + 8) ↦ᵢ .OR .x7 .x7 .x6) ** ((base + 12) ↦ᵢ .SW .x12 .x7 off_b)
     cpsTriple base (base + 16)
-      ((base ↦ᵢ .LW .x7 .x12 off_a) ** ((base + 4) ↦ᵢ .LW .x6 .x12 off_b) **
-       ((base + 8) ↦ᵢ .OR .x7 .x7 .x6) ** ((base + 12) ↦ᵢ .SW .x12 .x7 off_b) **
+      (code **
        (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) **
        (mem_a ↦ₘ a_limb) ** (mem_b ↦ₘ b_limb))
-      ((base ↦ᵢ .LW .x7 .x12 off_a) ** ((base + 4) ↦ᵢ .LW .x6 .x12 off_b) **
-       ((base + 8) ↦ᵢ .OR .x7 .x7 .x6) ** ((base + 12) ↦ᵢ .SW .x12 .x7 off_b) **
+      (code **
        (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ (a_limb ||| b_limb)) ** (.x6 ↦ᵣ b_limb) **
        (mem_a ↦ₘ a_limb) ** (mem_b ↦ₘ (a_limb ||| b_limb))) := by
   runBlock
@@ -117,13 +119,14 @@ theorem xor_limb_spec (off_a off_b : BitVec 12)
     (hvalid_b : isValidMemAccess (sp + signExtend12 off_b) = true) :
     let mem_a := sp + signExtend12 off_a
     let mem_b := sp + signExtend12 off_b
+    let code :=
+      (base ↦ᵢ .LW .x7 .x12 off_a) ** ((base + 4) ↦ᵢ .LW .x6 .x12 off_b) **
+      ((base + 8) ↦ᵢ .XOR .x7 .x7 .x6) ** ((base + 12) ↦ᵢ .SW .x12 .x7 off_b)
     cpsTriple base (base + 16)
-      ((base ↦ᵢ .LW .x7 .x12 off_a) ** ((base + 4) ↦ᵢ .LW .x6 .x12 off_b) **
-       ((base + 8) ↦ᵢ .XOR .x7 .x7 .x6) ** ((base + 12) ↦ᵢ .SW .x12 .x7 off_b) **
+      (code **
        (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) **
        (mem_a ↦ₘ a_limb) ** (mem_b ↦ₘ b_limb))
-      ((base ↦ᵢ .LW .x7 .x12 off_a) ** ((base + 4) ↦ᵢ .LW .x6 .x12 off_b) **
-       ((base + 8) ↦ᵢ .XOR .x7 .x7 .x6) ** ((base + 12) ↦ᵢ .SW .x12 .x7 off_b) **
+      (code **
        (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ (a_limb ^^^ b_limb)) ** (.x6 ↦ᵣ b_limb) **
        (mem_a ↦ₘ a_limb) ** (mem_b ↦ₘ (a_limb ^^^ b_limb))) := by
   runBlock
@@ -134,12 +137,13 @@ theorem not_limb_spec (off : BitVec 12)
     (sp limb v7 : Word) (base : Addr)
     (hvalid : isValidMemAccess (sp + signExtend12 off) = true) :
     let mem := sp + signExtend12 off
+    let code :=
+      (base ↦ᵢ .LW .x7 .x12 off) ** ((base + 4) ↦ᵢ .XORI .x7 .x7 (-1)) **
+      ((base + 8) ↦ᵢ .SW .x12 .x7 off)
     cpsTriple base (base + 12)
-      ((base ↦ᵢ .LW .x7 .x12 off) ** ((base + 4) ↦ᵢ .XORI .x7 .x7 (-1)) **
-       ((base + 8) ↦ᵢ .SW .x12 .x7 off) **
+      (code **
        (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (mem ↦ₘ limb))
-      ((base ↦ᵢ .LW .x7 .x12 off) ** ((base + 4) ↦ᵢ .XORI .x7 .x7 (-1)) **
-       ((base + 8) ↦ᵢ .SW .x12 .x7 off) **
+      (code **
        (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ (limb ^^^ signExtend12 (-1))) ** (mem ↦ₘ (limb ^^^ signExtend12 (-1)))) := by
   runBlock
 
