@@ -5,6 +5,7 @@
 -/
 
 import EvmAsm.Evm32.Bitwise
+import EvmAsm.Tactics.LiftSpec
 
 namespace EvmAsm
 
@@ -21,15 +22,7 @@ set_option maxHeartbeats 6400000 in
 theorem evm_not_spec (sp base : Addr)
     (a0 a1 a2 a3 a4 a5 a6 a7 : Word)
     (v7 : Word)
-    -- Memory validity
-    (hv0 : isValidMemAccess sp = true)
-    (hv4 : isValidMemAccess (sp + 4) = true)
-    (hv8 : isValidMemAccess (sp + 8) = true)
-    (hv12 : isValidMemAccess (sp + 12) = true)
-    (hv16 : isValidMemAccess (sp + 16) = true)
-    (hv20 : isValidMemAccess (sp + 20) = true)
-    (hv24 : isValidMemAccess (sp + 24) = true)
-    (hv28 : isValidMemAccess (sp + 28) = true) :
+    (hvalid : ValidMemRange sp 8) :
     let c := signExtend12 (-1 : BitVec 12)
     cpsTriple base (base + 96)
       (-- Limb 0 code
@@ -65,32 +58,14 @@ theorem evm_not_spec (sp base : Addr)
        (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ (a7 ^^^ c)) **
        (sp ↦ₘ (a0 ^^^ c)) ** ((sp + 4) ↦ₘ (a1 ^^^ c)) ** ((sp + 8) ↦ₘ (a2 ^^^ c)) ** ((sp + 12) ↦ₘ (a3 ^^^ c)) **
        ((sp + 16) ↦ₘ (a4 ^^^ c)) ** ((sp + 20) ↦ₘ (a5 ^^^ c)) ** ((sp + 24) ↦ₘ (a6 ^^^ c)) ** ((sp + 28) ↦ₘ (a7 ^^^ c))) := by
-  -- Memory validity with signExtend normalization
-  have hvm0 : isValidMemAccess (sp + signExtend12 (0 : BitVec 12)) = true := by
-    simp only [signExtend12_0]; rw [show sp + (0 : Word) = sp from by bv_addr]; exact hv0
-  have hvm4 : isValidMemAccess (sp + signExtend12 (4 : BitVec 12)) = true := by
-    simp only [signExtend12_4]; exact hv4
-  have hvm8 : isValidMemAccess (sp + signExtend12 (8 : BitVec 12)) = true := by
-    simp only [signExtend12_8]; exact hv8
-  have hvm12 : isValidMemAccess (sp + signExtend12 (12 : BitVec 12)) = true := by
-    simp only [signExtend12_12]; exact hv12
-  have hvm16 : isValidMemAccess (sp + signExtend12 (16 : BitVec 12)) = true := by
-    simp only [signExtend12_16]; exact hv16
-  have hvm20 : isValidMemAccess (sp + signExtend12 (20 : BitVec 12)) = true := by
-    simp only [signExtend12_20]; exact hv20
-  have hvm24 : isValidMemAccess (sp + signExtend12 (24 : BitVec 12)) = true := by
-    simp only [signExtend12_24]; exact hv24
-  have hvm28 : isValidMemAccess (sp + signExtend12 (28 : BitVec 12)) = true := by
-    simp only [signExtend12_28]; exact hv28
-  -- Compose 8 per-limb NOT specs via runBlock (manual mode with address normalization)
-  have L0 := not_limb_spec 0 sp a0 v7 base hvm0
-  have L1 := not_limb_spec 4 sp a1 (a0 ^^^ signExtend12 (-1 : BitVec 12)) (base + 12) hvm4
-  have L2 := not_limb_spec 8 sp a2 (a1 ^^^ signExtend12 (-1 : BitVec 12)) (base + 24) hvm8
-  have L3 := not_limb_spec 12 sp a3 (a2 ^^^ signExtend12 (-1 : BitVec 12)) (base + 36) hvm12
-  have L4 := not_limb_spec 16 sp a4 (a3 ^^^ signExtend12 (-1 : BitVec 12)) (base + 48) hvm16
-  have L5 := not_limb_spec 20 sp a5 (a4 ^^^ signExtend12 (-1 : BitVec 12)) (base + 60) hvm20
-  have L6 := not_limb_spec 24 sp a6 (a5 ^^^ signExtend12 (-1 : BitVec 12)) (base + 72) hvm24
-  have L7 := not_limb_spec 28 sp a7 (a6 ^^^ signExtend12 (-1 : BitVec 12)) (base + 84) hvm28
+  have L0 := not_limb_spec 0 sp a0 v7 base (by validMem)
+  have L1 := not_limb_spec 4 sp a1 (a0 ^^^ signExtend12 (-1 : BitVec 12)) (base + 12) (by validMem)
+  have L2 := not_limb_spec 8 sp a2 (a1 ^^^ signExtend12 (-1 : BitVec 12)) (base + 24) (by validMem)
+  have L3 := not_limb_spec 12 sp a3 (a2 ^^^ signExtend12 (-1 : BitVec 12)) (base + 36) (by validMem)
+  have L4 := not_limb_spec 16 sp a4 (a3 ^^^ signExtend12 (-1 : BitVec 12)) (base + 48) (by validMem)
+  have L5 := not_limb_spec 20 sp a5 (a4 ^^^ signExtend12 (-1 : BitVec 12)) (base + 60) (by validMem)
+  have L6 := not_limb_spec 24 sp a6 (a5 ^^^ signExtend12 (-1 : BitVec 12)) (base + 72) (by validMem)
+  have L7 := not_limb_spec 28 sp a7 (a6 ^^^ signExtend12 (-1 : BitVec 12)) (base + 84) (by validMem)
   runBlock L0 L1 L2 L3 L4 L5 L6 L7
 
 -- ============================================================================
@@ -104,14 +79,7 @@ set_option maxHeartbeats 6400000 in
 /-- Stack-level 256-bit EVM NOT: complements an EvmWord in-place. -/
 theorem evm_not_stack_spec (sp base : Addr)
     (a : EvmWord) (v7 : Word)
-    (hv0 : isValidMemAccess sp = true)
-    (hv4 : isValidMemAccess (sp + 4) = true)
-    (hv8 : isValidMemAccess (sp + 8) = true)
-    (hv12 : isValidMemAccess (sp + 12) = true)
-    (hv16 : isValidMemAccess (sp + 16) = true)
-    (hv20 : isValidMemAccess (sp + 20) = true)
-    (hv24 : isValidMemAccess (sp + 24) = true)
-    (hv28 : isValidMemAccess (sp + 28) = true) :
+    (hvalid : ValidMemRange sp 8) :
     let c := signExtend12 (-1 : BitVec 12)
     cpsTriple base (base + 96)
       (-- Code
@@ -145,14 +113,7 @@ theorem evm_not_stack_spec (sp base : Addr)
   have h_main := evm_not_spec sp base
     (a.getLimb 0) (a.getLimb 1) (a.getLimb 2) (a.getLimb 3)
     (a.getLimb 4) (a.getLimb 5) (a.getLimb 6) (a.getLimb 7)
-    v7 hv0 hv4 hv8 hv12 hv16 hv20 hv24 hv28
-  exact cpsTriple_consequence _ _ _ _ _ _
-    (fun h hp => by
-      simp only [evmWordIs] at hp
-      xperm_hyp hp)
-    (fun h hq => by
-      simp only [evmWordIs, not_limb_eq]
-      xperm_hyp hq)
-    h_main
+    v7 hvalid
+  liftSpec h_main post_simp [not_limb_eq]
 
 end EvmAsm

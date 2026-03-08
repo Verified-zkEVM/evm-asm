@@ -173,49 +173,15 @@ theorem evm_add_spec (sp : Addr) (base : Addr)
   intro psum5; intro carry5a; intro result5; intro carry5b; intro carry5
   intro psum6; intro carry6a; intro result6; intro carry6b; intro carry6
   intro psum7; intro carry7a; intro result7; intro carry7b; intro carry7
-  -- Memory validity from ValidMemRange
-  have hvm0 : isValidMemAccess (sp + signExtend12 (0 : BitVec 12)) = true := by
-    simp only [signExtend12_0]; rw [show sp + (0 : Word) = sp from by bv_addr]
-    have := hvalid.get (i := 0) (by omega); simpa using this
-  have hvm4 : isValidMemAccess (sp + signExtend12 (4 : BitVec 12)) = true := by
-    simp only [signExtend12_4]; have := hvalid.get (i := 1) (by omega); simpa using this
-  have hvm8 : isValidMemAccess (sp + signExtend12 (8 : BitVec 12)) = true := by
-    simp only [signExtend12_8]; have := hvalid.get (i := 2) (by omega); simpa using this
-  have hvm12 : isValidMemAccess (sp + signExtend12 (12 : BitVec 12)) = true := by
-    simp only [signExtend12_12]; have := hvalid.get (i := 3) (by omega); simpa using this
-  have hvm16 : isValidMemAccess (sp + signExtend12 (16 : BitVec 12)) = true := by
-    simp only [signExtend12_16]; have := hvalid.get (i := 4) (by omega); simpa using this
-  have hvm20 : isValidMemAccess (sp + signExtend12 (20 : BitVec 12)) = true := by
-    simp only [signExtend12_20]; have := hvalid.get (i := 5) (by omega); simpa using this
-  have hvm24 : isValidMemAccess (sp + signExtend12 (24 : BitVec 12)) = true := by
-    simp only [signExtend12_24]; have := hvalid.get (i := 6) (by omega); simpa using this
-  have hvm28 : isValidMemAccess (sp + signExtend12 (28 : BitVec 12)) = true := by
-    simp only [signExtend12_28]; have := hvalid.get (i := 7) (by omega); simpa using this
-  have hvm32 : isValidMemAccess (sp + signExtend12 (32 : BitVec 12)) = true := by
-    simp only [signExtend12_32]; have := hvalid.get (i := 8) (by omega); simpa using this
-  have hvm36 : isValidMemAccess (sp + signExtend12 (36 : BitVec 12)) = true := by
-    simp only [signExtend12_36]; have := hvalid.get (i := 9) (by omega); simpa using this
-  have hvm40 : isValidMemAccess (sp + signExtend12 (40 : BitVec 12)) = true := by
-    simp only [signExtend12_40]; have := hvalid.get (i := 10) (by omega); simpa using this
-  have hvm44 : isValidMemAccess (sp + signExtend12 (44 : BitVec 12)) = true := by
-    simp only [signExtend12_44]; have := hvalid.get (i := 11) (by omega); simpa using this
-  have hvm48 : isValidMemAccess (sp + signExtend12 (48 : BitVec 12)) = true := by
-    simp only [signExtend12_48]; have := hvalid.get (i := 12) (by omega); simpa using this
-  have hvm52 : isValidMemAccess (sp + signExtend12 (52 : BitVec 12)) = true := by
-    simp only [signExtend12_52]; have := hvalid.get (i := 13) (by omega); simpa using this
-  have hvm56 : isValidMemAccess (sp + signExtend12 (56 : BitVec 12)) = true := by
-    simp only [signExtend12_56]; have := hvalid.get (i := 14) (by omega); simpa using this
-  have hvm60 : isValidMemAccess (sp + signExtend12 (60 : BitVec 12)) = true := by
-    simp only [signExtend12_60]; have := hvalid.get (i := 15) (by omega); simpa using this
   -- Compose 8 per-limb ADD specs + ADDI via runBlock (manual mode with address normalization)
-  have L0 := add_limb0_spec 0 32 sp a0 b0 v7 v6 v5 base hvm0 hvm32
-  have L1 := add_limb_carry_spec 4 36 sp a1 b1 sum0 b0 carry0 v11 (base + 20) hvm4 hvm36
-  have L2 := add_limb_carry_spec 8 40 sp a2 b2 result1 carry1b carry1 carry1a (base + 52) hvm8 hvm40
-  have L3 := add_limb_carry_spec 12 44 sp a3 b3 result2 carry2b carry2 carry2a (base + 84) hvm12 hvm44
-  have L4 := add_limb_carry_spec 16 48 sp a4 b4 result3 carry3b carry3 carry3a (base + 116) hvm16 hvm48
-  have L5 := add_limb_carry_spec 20 52 sp a5 b5 result4 carry4b carry4 carry4a (base + 148) hvm20 hvm52
-  have L6 := add_limb_carry_spec 24 56 sp a6 b6 result5 carry5b carry5 carry5a (base + 180) hvm24 hvm56
-  have L7 := add_limb_carry_spec 28 60 sp a7 b7 result6 carry6b carry6 carry6a (base + 212) hvm28 hvm60
+  have L0 := add_limb0_spec 0 32 sp a0 b0 v7 v6 v5 base (by validMem) (by validMem)
+  have L1 := add_limb_carry_spec 4 36 sp a1 b1 sum0 b0 carry0 v11 (base + 20) (by validMem) (by validMem)
+  have L2 := add_limb_carry_spec 8 40 sp a2 b2 result1 carry1b carry1 carry1a (base + 52) (by validMem) (by validMem)
+  have L3 := add_limb_carry_spec 12 44 sp a3 b3 result2 carry2b carry2 carry2a (base + 84) (by validMem) (by validMem)
+  have L4 := add_limb_carry_spec 16 48 sp a4 b4 result3 carry3b carry3 carry3a (base + 116) (by validMem) (by validMem)
+  have L5 := add_limb_carry_spec 20 52 sp a5 b5 result4 carry4b carry4 carry4a (base + 148) (by validMem) (by validMem)
+  have L6 := add_limb_carry_spec 24 56 sp a6 b6 result5 carry5b carry5 carry5a (base + 180) (by validMem) (by validMem)
+  have L7 := add_limb_carry_spec 28 60 sp a7 b7 result6 carry6b carry6 carry6a (base + 212) (by validMem) (by validMem)
   have Laddi := addi_spec_gen_same .x12 sp 32 (base + 244) (by nofun)
   runBlock L0 L1 L2 L3 L4 L5 L6 L7 Laddi
 

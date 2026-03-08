@@ -170,7 +170,7 @@ private def trySimplifyTop (e : Expr) : MetaM (Expr × Option Expr) := do
     This ensures `signExtend12 0` is reduced to `0` before `sp + 0 → sp` is checked.
 
     Returns (normalized_expr, proof : original = normalized) or (original, none). -/
-private partial def normalizeTypeAddrs (e : Expr) : MetaM (Expr × Option Expr) := do
+partial def normalizeTypeAddrs (e : Expr) : MetaM (Expr × Option Expr) := do
   -- Fast exit: atoms that never contain address arithmetic
   if e.isConst || e.isFVar || e.isLit || e.isBVar || e.isSort then return (e, none)
   -- Fast exit: constructor applications (register/instruction constructors, etc.)
@@ -339,9 +339,95 @@ private def isConcreteDecidable (ty : Expr) : MetaM Bool := do
     return isCtorApp env args[1]! && isCtorApp env args[2]!
   return false
 
+/-- Extract the target address from `isValidMemAccess target = true`. -/
+private def parseIsValidMemAccess? (ty : Expr) : MetaM (Option Expr) := do
+  -- ty should be `@BEq.beq Bool _ (isValidMemAccess target) true = true`
+  -- or `isValidMemAccess target = true` (Eq Bool (isValidMemAccess target) true)
+  if !ty.isAppOfArity ``Eq 3 then return none
+  let args := ty.getAppArgs
+  -- args[1] = lhs, args[2] = rhs (= true)
+  let lhs := args[1]!
+  let rhs := args[2]!
+  -- rhs should be `true`
+  unless rhs == mkConst ``Bool.true do return none
+  -- lhs should be `isValidMemAccess target`
+  if lhs.isAppOfArity ``EvmAsm.isValidMemAccess 1 then
+    return some lhs.getAppArgs[0]!
+  return none
+
+/-- Get a Nat literal value from an expression (handles raw `.lit` and `OfNat.ofNat`). -/
+private def getNatLitVal? (e : Expr) : Option Nat :=
+  match e with
+  | .lit (.natVal n) => some n
+  | _ =>
+    if e.isAppOfArity ``OfNat.ofNat 3 then
+      match e.getAppArgs[1]! with
+      | .lit (.natVal n) => some n
+      | _ => none
+    else none
+
+/-- Try to extract a concrete byte offset from `target` relative to `validAddr`.
+    Handles: `validAddr` (offset 0), `validAddr + lit`, `validAddr + signExtend12 lit`. -/
+private def extractConcreteOffset? (validAddr target : Expr) : MetaM (Option Nat) := do
+  -- Case 1: target = validAddr (offset 0)
+  if ← withoutModifyingState (isDefEq validAddr target) then return some 0
+  -- Case 2: target = something + rhs
+  if target.isAppOfArity ``HAdd.hAdd 6 then
+    let lhs := target.getAppArgs[4]!
+    let rhs := target.getAppArgs[5]!
+    if ← withoutModifyingState (isDefEq validAddr lhs) then
+      -- rhs is a numeric literal
+      if let some v := getBvLitVal? rhs then return some v
+      -- rhs is signExtend12 N
+      if rhs.isAppOfArity ``EvmAsm.signExtend12 1 then
+        let arg := rhs.getAppArgs[0]!
+        if let some argVal := getBvLitVal? arg then
+          let n12 := argVal % 4096
+          return some (if n12 < 2048 then n12 else n12 + (2^32 - 4096))
+  return none
+
+/-- Build a proof of `ValidMemRange.fetch` for a given index. -/
+private def buildFetchProof (validAddr validN : Expr) (validHyp : Expr)
+    (i : Nat) (nVal : Nat) (target : Expr) : MetaM (Option Expr) := do
+  if i >= nVal then return none
+  let fourI := mkApp2 (mkConst ``BitVec.ofNat) (mkNatLit 32) (mkNatLit (4 * i))
+  let indexedAddr ← mkAppM ``HAdd.hAdd #[validAddr, fourI]
+  let some eqProof ← proveBvEq indexedAddr target | return none
+  let iLtN ← mkDecideProof (← mkAppM ``LT.lt #[mkNatLit i, validN])
+  return some (mkAppN (mkConst ``EvmAsm.ValidMemRange.fetch)
+    #[validAddr, validN, validHyp, mkNatLit i, target, iLtN, eqProof])
+
+/-- Try to prove `isValidMemAccess target = true` from ValidMemRange hypotheses in context.
+    Fast path: extracts concrete offset from target and computes index directly.
+    Slow path: tries all indices 0..n-1 with `proveBvEq`. -/
+private def solveFromValidMemRange (ty : Expr) : MetaM (Option Expr) := do
+  let some target ← parseIsValidMemAccess? ty | return none
+  let lctx ← getLCtx
+  for decl in lctx do
+    if decl.isImplementationDetail then continue
+    let declType ← instantiateMVars decl.type
+    if !declType.isAppOfArity ``EvmAsm.ValidMemRange 2 then continue
+    let validAddr := declType.getAppArgs[0]!
+    let validN := declType.getAppArgs[1]!
+    let some nVal := getNatLitVal? validN | continue
+    -- Fast path: extract concrete offset and compute index directly
+    if let some offset ← extractConcreteOffset? validAddr target then
+      if offset % 4 == 0 then
+        let i := offset / 4
+        if let some proof ← buildFetchProof validAddr validN decl.toExpr i nVal target then
+          return some proof
+    -- Slow path: try all indices (handles complex address forms)
+    for i in [:nVal] do
+      let saved ← saveState
+      if let some proof ← buildFetchProof validAddr validN decl.toExpr i nVal target then
+        return some proof
+      else
+        restoreState saved
+  return none
+
 /-- Try to solve a proof obligation MVar.
     Uses mkDecideProof for concrete decidable props (register inequalities),
-    local context search for hypotheses, and bv_omega as fallback. -/
+    local context search for hypotheses, ValidMemRange derivation, and bv_omega as fallback. -/
 private def solveObligation (mvarId : MVarId) : MetaM Bool := do
   let ty ← instantiateMVars (← mvarId.getType)
   -- Try Decidable proof for concrete propositions (rd ≠ .x0, rd ≠ rs, etc.)
@@ -359,6 +445,10 @@ private def solveObligation (mvarId : MVarId) : MetaM Bool := do
       if ← isDefEq decl.type ty then
         mvarId.assign decl.toExpr
         return true
+  -- Try deriving from ValidMemRange hypotheses
+  if let some proof ← solveFromValidMemRange ty then
+    mvarId.assign proof
+    return true
   -- Try bv_omega as last resort
   try
     let stx ← `(tactic| bv_omega)
@@ -366,6 +456,27 @@ private def solveObligation (mvarId : MVarId) : MetaM Bool := do
     return true
   catch _ =>
     return false
+
+/-- Tactic to derive `isValidMemAccess target = true` from `ValidMemRange` in context.
+    Searches for `ValidMemRange addr n` hypotheses and uses `ValidMemRange.fetch`. -/
+elab "validMem" : tactic => withMainContext do
+  let goal ← getMainGoal
+  let ty ← instantiateMVars (← goal.getType)
+  -- Try deriving from ValidMemRange hypotheses
+  if let some proof ← solveFromValidMemRange ty then
+    goal.assign proof
+    replaceMainGoal []
+    return
+  -- Fallback: search local context for matching hypothesis (handles symbolic offsets)
+  let lctx ← getLCtx
+  for decl in lctx do
+    if !decl.isImplementationDetail then
+      if ← isDefEq decl.type ty then
+        goal.assign decl.toExpr
+        replaceMainGoal []
+        return
+  throwError "validMem: could not derive from ValidMemRange or local context.\n\
+      Expected goal of the form: `isValidMemAccess target = true`"
 
 /-- Try to instantiate a single spec theorem for a given instruction and state.
     Uses unification: creates MVars for all spec parameters, unifies the spec's

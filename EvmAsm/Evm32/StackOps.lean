@@ -12,6 +12,7 @@ import EvmAsm.Evm32.Stack
 import EvmAsm.SyscallSpecs
 import EvmAsm.Tactics.XSimp
 import EvmAsm.Tactics.RunBlock
+import EvmAsm.Tactics.LiftSpec
 
 open EvmAsm.Tactics
 
@@ -104,36 +105,18 @@ theorem evm_push0_spec (nsp base : Addr)
        (.x12 ↦ᵣ nsp) **
        (nsp ↦ₘ 0) ** ((nsp + 4) ↦ₘ 0) ** ((nsp + 8) ↦ₘ 0) ** ((nsp + 12) ↦ₘ 0) **
        ((nsp + 16) ↦ₘ 0) ** ((nsp + 20) ↦ₘ 0) ** ((nsp + 24) ↦ₘ 0) ** ((nsp + 28) ↦ₘ 0)) := by
-  -- Memory validity from ValidMemRange nsp 8
-  have hvm0 : isValidMemAccess (nsp + signExtend12 (0 : BitVec 12)) = true := by
-    simp only [signExtend12_0]; rw [show nsp + (0 : Word) = nsp from by bv_addr]
-    have := hvalid.get (i := 0) (by omega); simpa using this
-  have hvm4 : isValidMemAccess (nsp + signExtend12 (4 : BitVec 12)) = true := by
-    simp only [signExtend12_4]; have := hvalid.get (i := 1) (by omega); simpa using this
-  have hvm8 : isValidMemAccess (nsp + signExtend12 (8 : BitVec 12)) = true := by
-    simp only [signExtend12_8]; have := hvalid.get (i := 2) (by omega); simpa using this
-  have hvm12 : isValidMemAccess (nsp + signExtend12 (12 : BitVec 12)) = true := by
-    simp only [signExtend12_12]; have := hvalid.get (i := 3) (by omega); simpa using this
-  have hvm16 : isValidMemAccess (nsp + signExtend12 (16 : BitVec 12)) = true := by
-    simp only [signExtend12_16]; have := hvalid.get (i := 4) (by omega); simpa using this
-  have hvm20 : isValidMemAccess (nsp + signExtend12 (20 : BitVec 12)) = true := by
-    simp only [signExtend12_20]; have := hvalid.get (i := 5) (by omega); simpa using this
-  have hvm24 : isValidMemAccess (nsp + signExtend12 (24 : BitVec 12)) = true := by
-    simp only [signExtend12_24]; have := hvalid.get (i := 6) (by omega); simpa using this
-  have hvm28 : isValidMemAccess (nsp + signExtend12 (28 : BitVec 12)) = true := by
-    simp only [signExtend12_28]; have := hvalid.get (i := 7) (by omega); simpa using this
   -- Compose ADDI + 8 SW x0 specs via runBlock
   have S0 := addi_spec_gen_same .x12 (nsp + 32) (-32) base (by nofun)
   simp only [signExtend12_neg32] at S0
   rw [show (nsp + 32 : Word) + (-32 : Word) = nsp from by bv_omega] at S0
-  have S1 := sw_x0_spec_gen .x12 nsp d0 0 (base + 4) hvm0
-  have S2 := sw_x0_spec_gen .x12 nsp d1 4 (base + 8) hvm4
-  have S3 := sw_x0_spec_gen .x12 nsp d2 8 (base + 12) hvm8
-  have S4 := sw_x0_spec_gen .x12 nsp d3 12 (base + 16) hvm12
-  have S5 := sw_x0_spec_gen .x12 nsp d4 16 (base + 20) hvm16
-  have S6 := sw_x0_spec_gen .x12 nsp d5 20 (base + 24) hvm20
-  have S7 := sw_x0_spec_gen .x12 nsp d6 24 (base + 28) hvm24
-  have S8 := sw_x0_spec_gen .x12 nsp d7 28 (base + 32) hvm28
+  have S1 := sw_x0_spec_gen .x12 nsp d0 0 (base + 4) (by validMem)
+  have S2 := sw_x0_spec_gen .x12 nsp d1 4 (base + 8) (by validMem)
+  have S3 := sw_x0_spec_gen .x12 nsp d2 8 (base + 12) (by validMem)
+  have S4 := sw_x0_spec_gen .x12 nsp d3 12 (base + 16) (by validMem)
+  have S5 := sw_x0_spec_gen .x12 nsp d4 16 (base + 20) (by validMem)
+  have S6 := sw_x0_spec_gen .x12 nsp d5 20 (base + 24) (by validMem)
+  have S7 := sw_x0_spec_gen .x12 nsp d6 24 (base + 28) (by validMem)
+  have S8 := sw_x0_spec_gen .x12 nsp d7 28 (base + 32) (by validMem)
   runBlock S0 S1 S2 S3 S4 S5 S6 S7 S8
 
 theorem evm_push0_stack_spec (nsp base : Addr)
@@ -224,52 +207,18 @@ theorem evm_dup1_spec (nsp base : Addr)
        ((nsp + 16) ↦ₘ a4) ** ((nsp + 20) ↦ₘ a5) ** ((nsp + 24) ↦ₘ a6) ** ((nsp + 28) ↦ₘ a7) **
        ((nsp + 32) ↦ₘ a0) ** ((nsp + 36) ↦ₘ a1) ** ((nsp + 40) ↦ₘ a2) ** ((nsp + 44) ↦ₘ a3) **
        ((nsp + 48) ↦ₘ a4) ** ((nsp + 52) ↦ₘ a5) ** ((nsp + 56) ↦ₘ a6) ** ((nsp + 60) ↦ₘ a7)) := by
-  -- Memory validity from ValidMemRange nsp 16
-  have hvm0 : isValidMemAccess (nsp + signExtend12 (0 : BitVec 12)) = true := by
-    simp only [signExtend12_0]; rw [show nsp + (0 : Word) = nsp from by bv_addr]
-    have := hvalid.get (i := 0) (by omega); simpa using this
-  have hvm4 : isValidMemAccess (nsp + signExtend12 (4 : BitVec 12)) = true := by
-    simp only [signExtend12_4]; have := hvalid.get (i := 1) (by omega); simpa using this
-  have hvm8 : isValidMemAccess (nsp + signExtend12 (8 : BitVec 12)) = true := by
-    simp only [signExtend12_8]; have := hvalid.get (i := 2) (by omega); simpa using this
-  have hvm12 : isValidMemAccess (nsp + signExtend12 (12 : BitVec 12)) = true := by
-    simp only [signExtend12_12]; have := hvalid.get (i := 3) (by omega); simpa using this
-  have hvm16 : isValidMemAccess (nsp + signExtend12 (16 : BitVec 12)) = true := by
-    simp only [signExtend12_16]; have := hvalid.get (i := 4) (by omega); simpa using this
-  have hvm20 : isValidMemAccess (nsp + signExtend12 (20 : BitVec 12)) = true := by
-    simp only [signExtend12_20]; have := hvalid.get (i := 5) (by omega); simpa using this
-  have hvm24 : isValidMemAccess (nsp + signExtend12 (24 : BitVec 12)) = true := by
-    simp only [signExtend12_24]; have := hvalid.get (i := 6) (by omega); simpa using this
-  have hvm28 : isValidMemAccess (nsp + signExtend12 (28 : BitVec 12)) = true := by
-    simp only [signExtend12_28]; have := hvalid.get (i := 7) (by omega); simpa using this
-  have hvm32 : isValidMemAccess (nsp + signExtend12 (32 : BitVec 12)) = true := by
-    simp only [signExtend12_32]; have := hvalid.get (i := 8) (by omega); simpa using this
-  have hvm36 : isValidMemAccess (nsp + signExtend12 (36 : BitVec 12)) = true := by
-    simp only [signExtend12_36]; have := hvalid.get (i := 9) (by omega); simpa using this
-  have hvm40 : isValidMemAccess (nsp + signExtend12 (40 : BitVec 12)) = true := by
-    simp only [signExtend12_40]; have := hvalid.get (i := 10) (by omega); simpa using this
-  have hvm44 : isValidMemAccess (nsp + signExtend12 (44 : BitVec 12)) = true := by
-    simp only [signExtend12_44]; have := hvalid.get (i := 11) (by omega); simpa using this
-  have hvm48 : isValidMemAccess (nsp + signExtend12 (48 : BitVec 12)) = true := by
-    simp only [signExtend12_48]; have := hvalid.get (i := 12) (by omega); simpa using this
-  have hvm52 : isValidMemAccess (nsp + signExtend12 (52 : BitVec 12)) = true := by
-    simp only [signExtend12_52]; have := hvalid.get (i := 13) (by omega); simpa using this
-  have hvm56 : isValidMemAccess (nsp + signExtend12 (56 : BitVec 12)) = true := by
-    simp only [signExtend12_56]; have := hvalid.get (i := 14) (by omega); simpa using this
-  have hvm60 : isValidMemAccess (nsp + signExtend12 (60 : BitVec 12)) = true := by
-    simp only [signExtend12_60]; have := hvalid.get (i := 15) (by omega); simpa using this
   -- Compose ADDI + 8 dup1_pair_specs via runBlock
   have S0 := addi_spec_gen_same .x12 (nsp + 32) (-32) base (by nofun)
   simp only [signExtend12_neg32] at S0
   rw [show (nsp + 32 : Word) + (-32 : Word) = nsp from by bv_omega] at S0
-  have P0 := dup1_pair_spec nsp 32 0 a0 d0 v7 (base + 4) hvm32 hvm0
-  have P1 := dup1_pair_spec nsp 36 4 a1 d1 a0 (base + 12) hvm36 hvm4
-  have P2 := dup1_pair_spec nsp 40 8 a2 d2 a1 (base + 20) hvm40 hvm8
-  have P3 := dup1_pair_spec nsp 44 12 a3 d3 a2 (base + 28) hvm44 hvm12
-  have P4 := dup1_pair_spec nsp 48 16 a4 d4 a3 (base + 36) hvm48 hvm16
-  have P5 := dup1_pair_spec nsp 52 20 a5 d5 a4 (base + 44) hvm52 hvm20
-  have P6 := dup1_pair_spec nsp 56 24 a6 d6 a5 (base + 52) hvm56 hvm24
-  have P7 := dup1_pair_spec nsp 60 28 a7 d7 a6 (base + 60) hvm60 hvm28
+  have P0 := dup1_pair_spec nsp 32 0 a0 d0 v7 (base + 4) (by validMem) (by validMem)
+  have P1 := dup1_pair_spec nsp 36 4 a1 d1 a0 (base + 12) (by validMem) (by validMem)
+  have P2 := dup1_pair_spec nsp 40 8 a2 d2 a1 (base + 20) (by validMem) (by validMem)
+  have P3 := dup1_pair_spec nsp 44 12 a3 d3 a2 (base + 28) (by validMem) (by validMem)
+  have P4 := dup1_pair_spec nsp 48 16 a4 d4 a3 (base + 36) (by validMem) (by validMem)
+  have P5 := dup1_pair_spec nsp 52 20 a5 d5 a4 (base + 44) (by validMem) (by validMem)
+  have P6 := dup1_pair_spec nsp 56 24 a6 d6 a5 (base + 52) (by validMem) (by validMem)
+  have P7 := dup1_pair_spec nsp 60 28 a7 d7 a6 (base + 60) (by validMem) (by validMem)
   runBlock S0 P0 P1 P2 P3 P4 P5 P6 P7
 
 theorem evm_dup1_stack_spec (nsp base : Addr)
@@ -304,29 +253,14 @@ theorem evm_dup1_stack_spec (nsp base : Addr)
        -- Results
        (.x12 ↦ᵣ nsp) ** (.x7 ↦ᵣ a.getLimb 7) **
        evmWordIs nsp a ** evmWordIs (nsp + 32) a ** evmStackIs (nsp + 64) rest) := by
-  -- Address normalizations for evmWordIs (nsp + 32)
-  have ha36 : (nsp + 32 : Addr) + 4 = nsp + 36 := by bv_omega
-  have ha40 : (nsp + 32 : Addr) + 8 = nsp + 40 := by bv_omega
-  have ha44 : (nsp + 32 : Addr) + 12 = nsp + 44 := by bv_omega
-  have ha48 : (nsp + 32 : Addr) + 16 = nsp + 48 := by bv_omega
-  have ha52 : (nsp + 32 : Addr) + 20 = nsp + 52 := by bv_omega
-  have ha56 : (nsp + 32 : Addr) + 24 = nsp + 56 := by bv_omega
-  have ha60 : (nsp + 32 : Addr) + 28 = nsp + 60 := by bv_omega
   -- Derive from evm_dup1_spec with evmStackIs as frame
-  have h := cpsTriple_frame_left _ _ _ _
+  have h_main := cpsTriple_frame_left _ _ _ _
     (evmStackIs (nsp + 64) rest) (by pcFree)
     (evm_dup1_spec nsp base
       (a.getLimb 0) (a.getLimb 1) (a.getLimb 2) (a.getLimb 3)
       (a.getLimb 4) (a.getLimb 5) (a.getLimb 6) (a.getLimb 7)
       d0 d1 d2 d3 d4 d5 d6 d7 v7 hvalid)
-  exact cpsTriple_consequence _ _ _ _ _ _
-    (fun _ hp => by
-      simp only [evmWordIs, ha36, ha40, ha44, ha48, ha52, ha56, ha60] at hp
-      xperm_hyp hp)
-    (fun _ hq => by
-      simp only [evmWordIs, ha36, ha40, ha44, ha48, ha52, ha56, ha60]
-      xperm_hyp hq)
-    h
+  liftSpec h_main
 
 -- ============================================================================
 -- SWAP1 per-limb helper (Phase 2.4)
@@ -415,49 +349,15 @@ theorem evm_swap1_spec (sp base : Addr)
        ((sp + 16) ↦ₘ b4) ** ((sp + 20) ↦ₘ b5) ** ((sp + 24) ↦ₘ b6) ** ((sp + 28) ↦ₘ b7) **
        ((sp + 32) ↦ₘ a0) ** ((sp + 36) ↦ₘ a1) ** ((sp + 40) ↦ₘ a2) ** ((sp + 44) ↦ₘ a3) **
        ((sp + 48) ↦ₘ a4) ** ((sp + 52) ↦ₘ a5) ** ((sp + 56) ↦ₘ a6) ** ((sp + 60) ↦ₘ a7)) := by
-  -- Memory validity from ValidMemRange
-  have hvm0 : isValidMemAccess (sp + signExtend12 (0 : BitVec 12)) = true := by
-    simp only [signExtend12_0]; rw [show sp + (0 : Word) = sp from by bv_addr]
-    have := hvalid.get (i := 0) (by omega); simpa using this
-  have hvm4 : isValidMemAccess (sp + signExtend12 (4 : BitVec 12)) = true := by
-    simp only [signExtend12_4]; have := hvalid.get (i := 1) (by omega); simpa using this
-  have hvm8 : isValidMemAccess (sp + signExtend12 (8 : BitVec 12)) = true := by
-    simp only [signExtend12_8]; have := hvalid.get (i := 2) (by omega); simpa using this
-  have hvm12 : isValidMemAccess (sp + signExtend12 (12 : BitVec 12)) = true := by
-    simp only [signExtend12_12]; have := hvalid.get (i := 3) (by omega); simpa using this
-  have hvm16 : isValidMemAccess (sp + signExtend12 (16 : BitVec 12)) = true := by
-    simp only [signExtend12_16]; have := hvalid.get (i := 4) (by omega); simpa using this
-  have hvm20 : isValidMemAccess (sp + signExtend12 (20 : BitVec 12)) = true := by
-    simp only [signExtend12_20]; have := hvalid.get (i := 5) (by omega); simpa using this
-  have hvm24 : isValidMemAccess (sp + signExtend12 (24 : BitVec 12)) = true := by
-    simp only [signExtend12_24]; have := hvalid.get (i := 6) (by omega); simpa using this
-  have hvm28 : isValidMemAccess (sp + signExtend12 (28 : BitVec 12)) = true := by
-    simp only [signExtend12_28]; have := hvalid.get (i := 7) (by omega); simpa using this
-  have hvm32 : isValidMemAccess (sp + signExtend12 (32 : BitVec 12)) = true := by
-    simp only [signExtend12_32]; have := hvalid.get (i := 8) (by omega); simpa using this
-  have hvm36 : isValidMemAccess (sp + signExtend12 (36 : BitVec 12)) = true := by
-    simp only [signExtend12_36]; have := hvalid.get (i := 9) (by omega); simpa using this
-  have hvm40 : isValidMemAccess (sp + signExtend12 (40 : BitVec 12)) = true := by
-    simp only [signExtend12_40]; have := hvalid.get (i := 10) (by omega); simpa using this
-  have hvm44 : isValidMemAccess (sp + signExtend12 (44 : BitVec 12)) = true := by
-    simp only [signExtend12_44]; have := hvalid.get (i := 11) (by omega); simpa using this
-  have hvm48 : isValidMemAccess (sp + signExtend12 (48 : BitVec 12)) = true := by
-    simp only [signExtend12_48]; have := hvalid.get (i := 12) (by omega); simpa using this
-  have hvm52 : isValidMemAccess (sp + signExtend12 (52 : BitVec 12)) = true := by
-    simp only [signExtend12_52]; have := hvalid.get (i := 13) (by omega); simpa using this
-  have hvm56 : isValidMemAccess (sp + signExtend12 (56 : BitVec 12)) = true := by
-    simp only [signExtend12_56]; have := hvalid.get (i := 14) (by omega); simpa using this
-  have hvm60 : isValidMemAccess (sp + signExtend12 (60 : BitVec 12)) = true := by
-    simp only [signExtend12_60]; have := hvalid.get (i := 15) (by omega); simpa using this
   -- Compose 8 swap1_limb_specs via runBlock
-  have L0 := swap1_limb_spec sp 0 32 a0 b0 v7 v6 base hvm0 hvm32
-  have L1 := swap1_limb_spec sp 4 36 a1 b1 a0 b0 (base + 16) hvm4 hvm36
-  have L2 := swap1_limb_spec sp 8 40 a2 b2 a1 b1 (base + 32) hvm8 hvm40
-  have L3 := swap1_limb_spec sp 12 44 a3 b3 a2 b2 (base + 48) hvm12 hvm44
-  have L4 := swap1_limb_spec sp 16 48 a4 b4 a3 b3 (base + 64) hvm16 hvm48
-  have L5 := swap1_limb_spec sp 20 52 a5 b5 a4 b4 (base + 80) hvm20 hvm52
-  have L6 := swap1_limb_spec sp 24 56 a6 b6 a5 b5 (base + 96) hvm24 hvm56
-  have L7 := swap1_limb_spec sp 28 60 a7 b7 a6 b6 (base + 112) hvm28 hvm60
+  have L0 := swap1_limb_spec sp 0 32 a0 b0 v7 v6 base (by validMem) (by validMem)
+  have L1 := swap1_limb_spec sp 4 36 a1 b1 a0 b0 (base + 16) (by validMem) (by validMem)
+  have L2 := swap1_limb_spec sp 8 40 a2 b2 a1 b1 (base + 32) (by validMem) (by validMem)
+  have L3 := swap1_limb_spec sp 12 44 a3 b3 a2 b2 (base + 48) (by validMem) (by validMem)
+  have L4 := swap1_limb_spec sp 16 48 a4 b4 a3 b3 (base + 64) (by validMem) (by validMem)
+  have L5 := swap1_limb_spec sp 20 52 a5 b5 a4 b4 (base + 80) (by validMem) (by validMem)
+  have L6 := swap1_limb_spec sp 24 56 a6 b6 a5 b5 (base + 96) (by validMem) (by validMem)
+  have L7 := swap1_limb_spec sp 28 60 a7 b7 a6 b6 (base + 112) (by validMem) (by validMem)
   runBlock L0 L1 L2 L3 L4 L5 L6 L7
 
 set_option maxHeartbeats 3200000 in
@@ -503,14 +403,6 @@ theorem evm_swap1_stack_spec (sp base : Addr)
        ((base + 120) ↦ᵢ .SW .x12 .x6 28) ** ((base + 124) ↦ᵢ .SW .x12 .x7 60) **
        (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ a.getLimb 7) ** (.x6 ↦ᵣ b.getLimb 7) **
        evmWordIs sp b ** evmWordIs (sp + 32) a ** evmStackIs (sp + 64) rest) := by
-  -- Unfold evmWordIs to individual limbs, apply evm_swap1_spec, frame with evmStackIs rest
-  have haddr32 : sp + (32 : Addr) + 4 = sp + 36 := by bv_omega
-  have haddr36 : sp + (32 : Addr) + 8 = sp + 40 := by bv_omega
-  have haddr40 : sp + (32 : Addr) + 12 = sp + 44 := by bv_omega
-  have haddr44 : sp + (32 : Addr) + 16 = sp + 48 := by bv_omega
-  have haddr48 : sp + (32 : Addr) + 20 = sp + 52 := by bv_omega
-  have haddr52 : sp + (32 : Addr) + 24 = sp + 56 := by bv_omega
-  have haddr56 : sp + (32 : Addr) + 28 = sp + 60 := by bv_omega
   have h_main := cpsTriple_frame_left _ _ _ _
     (evmStackIs (sp + 64) rest)
     (by exact pcFree_evmStackIs (sp + 64) rest)
@@ -520,14 +412,7 @@ theorem evm_swap1_stack_spec (sp base : Addr)
       (b.getLimb 0) (b.getLimb 1) (b.getLimb 2) (b.getLimb 3)
       (b.getLimb 4) (b.getLimb 5) (b.getLimb 6) (b.getLimb 7)
       v7 v6 hvalid)
-  exact cpsTriple_consequence _ _ _ _ _ _
-    (fun h hp => by
-      simp only [evmWordIs, haddr32, haddr36, haddr40, haddr44, haddr48, haddr52, haddr56] at hp
-      xperm_hyp hp)
-    (fun h hq => by
-      simp only [evmWordIs, haddr32, haddr36, haddr40, haddr44, haddr48, haddr52, haddr56]
-      xperm_hyp hq)
-    h_main
+  liftSpec h_main
 
 -- ============================================================================
 -- Phase 2.5: Generic DUP (n : Nat) and SWAP (n : Nat)

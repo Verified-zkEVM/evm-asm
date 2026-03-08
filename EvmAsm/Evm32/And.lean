@@ -5,6 +5,7 @@
 -/
 
 import EvmAsm.Evm32.Bitwise
+import EvmAsm.Tactics.LiftSpec
 
 namespace EvmAsm
 
@@ -82,49 +83,15 @@ theorem evm_and_spec (sp base : Addr)
        ((sp + 16) ↦ₘ a4) ** ((sp + 20) ↦ₘ a5) ** ((sp + 24) ↦ₘ a6) ** ((sp + 28) ↦ₘ a7) **
        ((sp + 32) ↦ₘ (a0 &&& b0)) ** ((sp + 36) ↦ₘ (a1 &&& b1)) ** ((sp + 40) ↦ₘ (a2 &&& b2)) ** ((sp + 44) ↦ₘ (a3 &&& b3)) **
        ((sp + 48) ↦ₘ (a4 &&& b4)) ** ((sp + 52) ↦ₘ (a5 &&& b5)) ** ((sp + 56) ↦ₘ (a6 &&& b6)) ** ((sp + 60) ↦ₘ (a7 &&& b7))) := by
-  -- Memory validity from ValidMemRange
-  have hvm0 : isValidMemAccess (sp + signExtend12 (0 : BitVec 12)) = true := by
-    simp only [signExtend12_0]; rw [show sp + (0 : Word) = sp from by bv_addr]
-    have := hvalid.get (i := 0) (by omega); simpa using this
-  have hvm4 : isValidMemAccess (sp + signExtend12 (4 : BitVec 12)) = true := by
-    simp only [signExtend12_4]; have := hvalid.get (i := 1) (by omega); simpa using this
-  have hvm8 : isValidMemAccess (sp + signExtend12 (8 : BitVec 12)) = true := by
-    simp only [signExtend12_8]; have := hvalid.get (i := 2) (by omega); simpa using this
-  have hvm12 : isValidMemAccess (sp + signExtend12 (12 : BitVec 12)) = true := by
-    simp only [signExtend12_12]; have := hvalid.get (i := 3) (by omega); simpa using this
-  have hvm16 : isValidMemAccess (sp + signExtend12 (16 : BitVec 12)) = true := by
-    simp only [signExtend12_16]; have := hvalid.get (i := 4) (by omega); simpa using this
-  have hvm20 : isValidMemAccess (sp + signExtend12 (20 : BitVec 12)) = true := by
-    simp only [signExtend12_20]; have := hvalid.get (i := 5) (by omega); simpa using this
-  have hvm24 : isValidMemAccess (sp + signExtend12 (24 : BitVec 12)) = true := by
-    simp only [signExtend12_24]; have := hvalid.get (i := 6) (by omega); simpa using this
-  have hvm28 : isValidMemAccess (sp + signExtend12 (28 : BitVec 12)) = true := by
-    simp only [signExtend12_28]; have := hvalid.get (i := 7) (by omega); simpa using this
-  have hvm32 : isValidMemAccess (sp + signExtend12 (32 : BitVec 12)) = true := by
-    simp only [signExtend12_32]; have := hvalid.get (i := 8) (by omega); simpa using this
-  have hvm36 : isValidMemAccess (sp + signExtend12 (36 : BitVec 12)) = true := by
-    simp only [signExtend12_36]; have := hvalid.get (i := 9) (by omega); simpa using this
-  have hvm40 : isValidMemAccess (sp + signExtend12 (40 : BitVec 12)) = true := by
-    simp only [signExtend12_40]; have := hvalid.get (i := 10) (by omega); simpa using this
-  have hvm44 : isValidMemAccess (sp + signExtend12 (44 : BitVec 12)) = true := by
-    simp only [signExtend12_44]; have := hvalid.get (i := 11) (by omega); simpa using this
-  have hvm48 : isValidMemAccess (sp + signExtend12 (48 : BitVec 12)) = true := by
-    simp only [signExtend12_48]; have := hvalid.get (i := 12) (by omega); simpa using this
-  have hvm52 : isValidMemAccess (sp + signExtend12 (52 : BitVec 12)) = true := by
-    simp only [signExtend12_52]; have := hvalid.get (i := 13) (by omega); simpa using this
-  have hvm56 : isValidMemAccess (sp + signExtend12 (56 : BitVec 12)) = true := by
-    simp only [signExtend12_56]; have := hvalid.get (i := 14) (by omega); simpa using this
-  have hvm60 : isValidMemAccess (sp + signExtend12 (60 : BitVec 12)) = true := by
-    simp only [signExtend12_60]; have := hvalid.get (i := 15) (by omega); simpa using this
   -- Compose 8 per-limb AND specs + ADDI via runBlock
-  have L0 := and_limb_spec 0 32 sp a0 b0 v7 v6 base hvm0 hvm32
-  have L1 := and_limb_spec 4 36 sp a1 b1 (a0 &&& b0) b0 (base + 16) hvm4 hvm36
-  have L2 := and_limb_spec 8 40 sp a2 b2 (a1 &&& b1) b1 (base + 32) hvm8 hvm40
-  have L3 := and_limb_spec 12 44 sp a3 b3 (a2 &&& b2) b2 (base + 48) hvm12 hvm44
-  have L4 := and_limb_spec 16 48 sp a4 b4 (a3 &&& b3) b3 (base + 64) hvm16 hvm48
-  have L5 := and_limb_spec 20 52 sp a5 b5 (a4 &&& b4) b4 (base + 80) hvm20 hvm52
-  have L6 := and_limb_spec 24 56 sp a6 b6 (a5 &&& b5) b5 (base + 96) hvm24 hvm56
-  have L7 := and_limb_spec 28 60 sp a7 b7 (a6 &&& b6) b6 (base + 112) hvm28 hvm60
+  have L0 := and_limb_spec 0 32 sp a0 b0 v7 v6 base (by validMem) (by validMem)
+  have L1 := and_limb_spec 4 36 sp a1 b1 (a0 &&& b0) b0 (base + 16) (by validMem) (by validMem)
+  have L2 := and_limb_spec 8 40 sp a2 b2 (a1 &&& b1) b1 (base + 32) (by validMem) (by validMem)
+  have L3 := and_limb_spec 12 44 sp a3 b3 (a2 &&& b2) b2 (base + 48) (by validMem) (by validMem)
+  have L4 := and_limb_spec 16 48 sp a4 b4 (a3 &&& b3) b3 (base + 64) (by validMem) (by validMem)
+  have L5 := and_limb_spec 20 52 sp a5 b5 (a4 &&& b4) b4 (base + 80) (by validMem) (by validMem)
+  have L6 := and_limb_spec 24 56 sp a6 b6 (a5 &&& b5) b5 (base + 96) (by validMem) (by validMem)
+  have L7 := and_limb_spec 28 60 sp a7 b7 (a6 &&& b6) b6 (base + 112) (by validMem) (by validMem)
   have Laddi := addi_spec_gen_same .x12 sp 32 (base + 128) (by nofun)
   runBlock L0 L1 L2 L3 L4 L5 L6 L7 Laddi
 
@@ -189,28 +156,12 @@ theorem evm_and_stack_spec (sp base : Addr)
        -- Registers + memory (updated)
        (.x12 ↦ᵣ (sp + 32)) ** (.x7 ↦ᵣ (a.getLimb 7 &&& b.getLimb 7)) ** (.x6 ↦ᵣ b.getLimb 7) **
        evmWordIs sp a ** evmWordIs (sp + 32) (a &&& b)) := by
-  -- Address helpers for evmWordIs (sp + 32) unfolding
-  have haddr32 : sp + (32 : Addr) + 4 = sp + 36 := by bv_omega
-  have haddr36 : sp + (32 : Addr) + 8 = sp + 40 := by bv_omega
-  have haddr40 : sp + (32 : Addr) + 12 = sp + 44 := by bv_omega
-  have haddr44 : sp + (32 : Addr) + 16 = sp + 48 := by bv_omega
-  have haddr48 : sp + (32 : Addr) + 20 = sp + 52 := by bv_omega
-  have haddr52 : sp + (32 : Addr) + 24 = sp + 56 := by bv_omega
-  have haddr56 : sp + (32 : Addr) + 28 = sp + 60 := by bv_omega
-  -- Apply evm_and_spec with individual limbs
   have h_main := evm_and_spec sp base
     (a.getLimb 0) (a.getLimb 1) (a.getLimb 2) (a.getLimb 3)
     (a.getLimb 4) (a.getLimb 5) (a.getLimb 6) (a.getLimb 7)
     (b.getLimb 0) (b.getLimb 1) (b.getLimb 2) (b.getLimb 3)
     (b.getLimb 4) (b.getLimb 5) (b.getLimb 6) (b.getLimb 7)
     v7 v6 hvalid
-  exact cpsTriple_consequence _ _ _ _ _ _
-    (fun h hp => by
-      simp only [evmWordIs, haddr32, haddr36, haddr40, haddr44, haddr48, haddr52, haddr56] at hp
-      xperm_hyp hp)
-    (fun h hq => by
-      simp only [evmWordIs, EvmWord.getLimb_and, haddr32, haddr36, haddr40, haddr44, haddr48, haddr52, haddr56]
-      xperm_hyp hq)
-    h_main
+  liftSpec h_main post_simp [EvmWord.getLimb_and]
 
 end EvmAsm

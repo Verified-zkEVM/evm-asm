@@ -194,37 +194,19 @@ theorem shr_zero_path_spec (sp : Word)
        (.x12 ↦ᵣ nsp) **
        (nsp ↦ₘ 0) ** ((nsp + 4) ↦ₘ 0) ** ((nsp + 8) ↦ₘ 0) ** ((nsp + 12) ↦ₘ 0) **
        ((nsp + 16) ↦ₘ 0) ** ((nsp + 20) ↦ₘ 0) ** ((nsp + 24) ↦ₘ 0) ** ((nsp + 28) ↦ₘ 0)) := by
-  -- Memory validity from ValidMemRange (sp + 32) 8
-  have hvm0 : isValidMemAccess ((sp + 32) + signExtend12 (0 : BitVec 12)) = true := by
-    simp only [signExtend12_0]; rw [show (sp + 32 : Word) + 0 = sp + 32 from by bv_addr]
-    have := hvalid.get (i := 0) (by omega); simpa using this
-  have hvm4 : isValidMemAccess ((sp + 32) + signExtend12 (4 : BitVec 12)) = true := by
-    simp only [signExtend12_4]; have := hvalid.get (i := 1) (by omega); simpa using this
-  have hvm8 : isValidMemAccess ((sp + 32) + signExtend12 (8 : BitVec 12)) = true := by
-    simp only [signExtend12_8]; have := hvalid.get (i := 2) (by omega); simpa using this
-  have hvm12 : isValidMemAccess ((sp + 32) + signExtend12 (12 : BitVec 12)) = true := by
-    simp only [signExtend12_12]; have := hvalid.get (i := 3) (by omega); simpa using this
-  have hvm16 : isValidMemAccess ((sp + 32) + signExtend12 (16 : BitVec 12)) = true := by
-    simp only [signExtend12_16]; have := hvalid.get (i := 4) (by omega); simpa using this
-  have hvm20 : isValidMemAccess ((sp + 32) + signExtend12 (20 : BitVec 12)) = true := by
-    simp only [signExtend12_20]; have := hvalid.get (i := 5) (by omega); simpa using this
-  have hvm24 : isValidMemAccess ((sp + 32) + signExtend12 (24 : BitVec 12)) = true := by
-    simp only [signExtend12_24]; have := hvalid.get (i := 6) (by omega); simpa using this
-  have hvm28 : isValidMemAccess ((sp + 32) + signExtend12 (28 : BitVec 12)) = true := by
-    simp only [signExtend12_28]; have := hvalid.get (i := 7) (by omega); simpa using this
   -- Introduce nsp as opaque fvar to prevent address flattening
   intro nsp
-  -- Compose: ADDI + 8× SW x0 via runBlock
+  -- Compose: ADDI + 8x SW x0 via runBlock
   have A := addi_spec_gen_same .x12 sp 32 base (by nofun)
   rw [show sp + signExtend12 (32 : BitVec 12) = nsp from by simp only [signExtend12_32]; rfl] at A
-  have S0 := sw_x0_spec_gen .x12 nsp d0 0 (base + 4) hvm0
-  have S1 := sw_x0_spec_gen .x12 nsp d1 4 (base + 8) hvm4
-  have S2 := sw_x0_spec_gen .x12 nsp d2 8 (base + 12) hvm8
-  have S3 := sw_x0_spec_gen .x12 nsp d3 12 (base + 16) hvm12
-  have S4 := sw_x0_spec_gen .x12 nsp d4 16 (base + 20) hvm16
-  have S5 := sw_x0_spec_gen .x12 nsp d5 20 (base + 24) hvm20
-  have S6 := sw_x0_spec_gen .x12 nsp d6 24 (base + 28) hvm24
-  have S7 := sw_x0_spec_gen .x12 nsp d7 28 (base + 32) hvm28
+  have S0 := sw_x0_spec_gen .x12 nsp d0 0 (base + 4) (by validMem)
+  have S1 := sw_x0_spec_gen .x12 nsp d1 4 (base + 8) (by validMem)
+  have S2 := sw_x0_spec_gen .x12 nsp d2 8 (base + 12) (by validMem)
+  have S3 := sw_x0_spec_gen .x12 nsp d3 12 (base + 16) (by validMem)
+  have S4 := sw_x0_spec_gen .x12 nsp d4 16 (base + 20) (by validMem)
+  have S5 := sw_x0_spec_gen .x12 nsp d5 20 (base + 24) (by validMem)
+  have S6 := sw_x0_spec_gen .x12 nsp d6 24 (base + 28) (by validMem)
+  have S7 := sw_x0_spec_gen .x12 nsp d7 28 (base + 32) (by validMem)
   runBlock A S0 S1 S2 S3 S4 S5 S6 S7
 
 -- ============================================================================
@@ -628,33 +610,15 @@ theorem shr_body_7_spec (sp : Word)
        (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ mask) **
        (sp ↦ₘ result0) ** ((sp + 4) ↦ₘ 0) ** ((sp + 8) ↦ₘ 0) ** ((sp + 12) ↦ₘ 0) **
        ((sp + 16) ↦ₘ 0) ** ((sp + 20) ↦ₘ 0) ** ((sp + 24) ↦ₘ 0) ** ((sp + 28) ↦ₘ 0)) := by
-  -- Memory validity from ValidMemRange sp 8
-  have hvm0 : isValidMemAccess (sp + signExtend12 (0 : BitVec 12)) = true := by
-    simp only [signExtend12_0]; rw [show sp + (0 : Word) = sp from by bv_addr]
-    have := hvalid.get (i := 0) (by omega); simpa using this
-  have hvm4 : isValidMemAccess (sp + signExtend12 (4 : BitVec 12)) = true := by
-    simp only [signExtend12_4]; have := hvalid.get (i := 1) (by omega); simpa using this
-  have hvm8 : isValidMemAccess (sp + signExtend12 (8 : BitVec 12)) = true := by
-    simp only [signExtend12_8]; have := hvalid.get (i := 2) (by omega); simpa using this
-  have hvm12 : isValidMemAccess (sp + signExtend12 (12 : BitVec 12)) = true := by
-    simp only [signExtend12_12]; have := hvalid.get (i := 3) (by omega); simpa using this
-  have hvm16 : isValidMemAccess (sp + signExtend12 (16 : BitVec 12)) = true := by
-    simp only [signExtend12_16]; have := hvalid.get (i := 4) (by omega); simpa using this
-  have hvm20 : isValidMemAccess (sp + signExtend12 (20 : BitVec 12)) = true := by
-    simp only [signExtend12_20]; have := hvalid.get (i := 5) (by omega); simpa using this
-  have hvm24 : isValidMemAccess (sp + signExtend12 (24 : BitVec 12)) = true := by
-    simp only [signExtend12_24]; have := hvalid.get (i := 6) (by omega); simpa using this
-  have hvm28 : isValidMemAccess (sp + signExtend12 (28 : BitVec 12)) = true := by
-    simp only [signExtend12_28]; have := hvalid.get (i := 7) (by omega); simpa using this
-  -- Compose: shr_last_limb(0) + 7× SW x0 + JAL via runBlock
-  have LL := shr_last_limb_spec 0 sp v7 v0 v5 bit_shift base hvm28 hvm0
-  have S0 := sw_x0_spec_gen .x12 sp v1 4 (base + 12) hvm4
-  have S1 := sw_x0_spec_gen .x12 sp v2 8 (base + 16) hvm8
-  have S2 := sw_x0_spec_gen .x12 sp v3 12 (base + 20) hvm12
-  have S3 := sw_x0_spec_gen .x12 sp v4 16 (base + 24) hvm16
-  have S4 := sw_x0_spec_gen .x12 sp v5v 20 (base + 28) hvm20
-  have S5 := sw_x0_spec_gen .x12 sp v6 24 (base + 32) hvm24
-  have S6 := sw_x0_spec_gen .x12 sp v7 28 (base + 36) hvm28
+  -- Compose: shr_last_limb(0) + 7x SW x0 + JAL via runBlock
+  have LL := shr_last_limb_spec 0 sp v7 v0 v5 bit_shift base (by validMem) (by validMem)
+  have S0 := sw_x0_spec_gen .x12 sp v1 4 (base + 12) (by validMem)
+  have S1 := sw_x0_spec_gen .x12 sp v2 8 (base + 16) (by validMem)
+  have S2 := sw_x0_spec_gen .x12 sp v3 12 (base + 20) (by validMem)
+  have S3 := sw_x0_spec_gen .x12 sp v4 16 (base + 24) (by validMem)
+  have S4 := sw_x0_spec_gen .x12 sp v5v 20 (base + 28) (by validMem)
+  have S5 := sw_x0_spec_gen .x12 sp v6 24 (base + 32) (by validMem)
+  have S6 := sw_x0_spec_gen .x12 sp v7 28 (base + 36) (by validMem)
   have JL := jal_x0_spec_gen jal_off (base + 40)
   rw [hexit] at JL
   runBlock LL S0 S1 S2 S3 S4 S5 S6 JL
@@ -709,35 +673,17 @@ theorem shr_body_6_spec (sp : Word)
        (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ ((v7 <<< (anti_shift.toNat % 32)) &&& mask)) ** (.x11 ↦ᵣ mask) **
        (sp ↦ₘ result0) ** ((sp + 4) ↦ₘ result1) ** ((sp + 8) ↦ₘ 0) ** ((sp + 12) ↦ₘ 0) **
        ((sp + 16) ↦ₘ 0) ** ((sp + 20) ↦ₘ 0) ** ((sp + 24) ↦ₘ 0) ** ((sp + 28) ↦ₘ 0)) := by
-  -- Memory validity from ValidMemRange sp 8
-  have hvm0 : isValidMemAccess (sp + signExtend12 (0 : BitVec 12)) = true := by
-    simp only [signExtend12_0]; rw [show sp + (0 : Word) = sp from by bv_addr]
-    have := hvalid.get (i := 0) (by omega); simpa using this
-  have hvm4 : isValidMemAccess (sp + signExtend12 (4 : BitVec 12)) = true := by
-    simp only [signExtend12_4]; have := hvalid.get (i := 1) (by omega); simpa using this
-  have hvm8 : isValidMemAccess (sp + signExtend12 (8 : BitVec 12)) = true := by
-    simp only [signExtend12_8]; have := hvalid.get (i := 2) (by omega); simpa using this
-  have hvm12 : isValidMemAccess (sp + signExtend12 (12 : BitVec 12)) = true := by
-    simp only [signExtend12_12]; have := hvalid.get (i := 3) (by omega); simpa using this
-  have hvm16 : isValidMemAccess (sp + signExtend12 (16 : BitVec 12)) = true := by
-    simp only [signExtend12_16]; have := hvalid.get (i := 4) (by omega); simpa using this
-  have hvm20 : isValidMemAccess (sp + signExtend12 (20 : BitVec 12)) = true := by
-    simp only [signExtend12_20]; have := hvalid.get (i := 5) (by omega); simpa using this
-  have hvm24 : isValidMemAccess (sp + signExtend12 (24 : BitVec 12)) = true := by
-    simp only [signExtend12_24]; have := hvalid.get (i := 6) (by omega); simpa using this
-  have hvm28 : isValidMemAccess (sp + signExtend12 (28 : BitVec 12)) = true := by
-    simp only [signExtend12_28]; have := hvalid.get (i := 7) (by omega); simpa using this
   -- Compose: 1x merge_limb + last_limb + 6x SW x0 + JAL via runBlock
-  have MM := shr_merge_limb_spec 24 28 0 sp v6 v7 v0 v5 v10 bit_shift anti_shift mask base hvm24 hvm28 hvm0
+  have MM := shr_merge_limb_spec 24 28 0 sp v6 v7 v0 v5 v10 bit_shift anti_shift mask base (by validMem) (by validMem) (by validMem)
   have LL := shr_last_limb_spec 4 sp v7 v1
     ((v6 >>> (bit_shift.toNat % 32)) ||| ((v7 <<< (anti_shift.toNat % 32)) &&& mask))
-    bit_shift (base + 28) hvm28 hvm4
-  have T0 := sw_x0_spec_gen .x12 sp v2 8 (base + 40) hvm8
-  have T1 := sw_x0_spec_gen .x12 sp v3 12 (base + 44) hvm12
-  have T2 := sw_x0_spec_gen .x12 sp v4 16 (base + 48) hvm16
-  have T3 := sw_x0_spec_gen .x12 sp v5v 20 (base + 52) hvm20
-  have T4 := sw_x0_spec_gen .x12 sp v6 24 (base + 56) hvm24
-  have T5 := sw_x0_spec_gen .x12 sp v7 28 (base + 60) hvm28
+    bit_shift (base + 28) (by validMem) (by validMem)
+  have T0 := sw_x0_spec_gen .x12 sp v2 8 (base + 40) (by validMem)
+  have T1 := sw_x0_spec_gen .x12 sp v3 12 (base + 44) (by validMem)
+  have T2 := sw_x0_spec_gen .x12 sp v4 16 (base + 48) (by validMem)
+  have T3 := sw_x0_spec_gen .x12 sp v5v 20 (base + 52) (by validMem)
+  have T4 := sw_x0_spec_gen .x12 sp v6 24 (base + 56) (by validMem)
+  have T5 := sw_x0_spec_gen .x12 sp v7 28 (base + 60) (by validMem)
   have JL := jal_x0_spec_gen jal_off (base + 64)
   rw [hexit] at JL
   runBlock MM LL T0 T1 T2 T3 T4 T5 JL
@@ -807,38 +753,20 @@ theorem shr_body_5_spec (sp : Word)
        (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ ((v7 <<< (anti_shift.toNat % 32)) &&& mask)) ** (.x11 ↦ᵣ mask) **
        (sp ↦ₘ result0) ** ((sp + 4) ↦ₘ result1) ** ((sp + 8) ↦ₘ result2) ** ((sp + 12) ↦ₘ 0) **
        ((sp + 16) ↦ₘ 0) ** ((sp + 20) ↦ₘ 0) ** ((sp + 24) ↦ₘ 0) ** ((sp + 28) ↦ₘ 0)) := by
-  -- Memory validity from ValidMemRange sp 8
-  have hvm0 : isValidMemAccess (sp + signExtend12 (0 : BitVec 12)) = true := by
-    simp only [signExtend12_0]; rw [show sp + (0 : Word) = sp from by bv_addr]
-    have := hvalid.get (i := 0) (by omega); simpa using this
-  have hvm4 : isValidMemAccess (sp + signExtend12 (4 : BitVec 12)) = true := by
-    simp only [signExtend12_4]; have := hvalid.get (i := 1) (by omega); simpa using this
-  have hvm8 : isValidMemAccess (sp + signExtend12 (8 : BitVec 12)) = true := by
-    simp only [signExtend12_8]; have := hvalid.get (i := 2) (by omega); simpa using this
-  have hvm12 : isValidMemAccess (sp + signExtend12 (12 : BitVec 12)) = true := by
-    simp only [signExtend12_12]; have := hvalid.get (i := 3) (by omega); simpa using this
-  have hvm16 : isValidMemAccess (sp + signExtend12 (16 : BitVec 12)) = true := by
-    simp only [signExtend12_16]; have := hvalid.get (i := 4) (by omega); simpa using this
-  have hvm20 : isValidMemAccess (sp + signExtend12 (20 : BitVec 12)) = true := by
-    simp only [signExtend12_20]; have := hvalid.get (i := 5) (by omega); simpa using this
-  have hvm24 : isValidMemAccess (sp + signExtend12 (24 : BitVec 12)) = true := by
-    simp only [signExtend12_24]; have := hvalid.get (i := 6) (by omega); simpa using this
-  have hvm28 : isValidMemAccess (sp + signExtend12 (28 : BitVec 12)) = true := by
-    simp only [signExtend12_28]; have := hvalid.get (i := 7) (by omega); simpa using this
   -- Compose: 2x merge_limb + last_limb + 5x SW x0 + JAL via runBlock
-  have MM1 := shr_merge_limb_spec 20 24 0 sp v5v v6 v0 v5 v10 bit_shift anti_shift mask base hvm20 hvm24 hvm0
+  have MM1 := shr_merge_limb_spec 20 24 0 sp v5v v6 v0 v5 v10 bit_shift anti_shift mask base (by validMem) (by validMem) (by validMem)
   have MM2 := shr_merge_limb_spec 24 28 4 sp v6 v7 v1
     ((v5v >>> (bit_shift.toNat % 32)) ||| ((v6 <<< (anti_shift.toNat % 32)) &&& mask))
     ((v6 <<< (anti_shift.toNat % 32)) &&& mask)
-    bit_shift anti_shift mask (base + 28) hvm24 hvm28 hvm4
+    bit_shift anti_shift mask (base + 28) (by validMem) (by validMem) (by validMem)
   have LL := shr_last_limb_spec 8 sp v7 v2
     ((v6 >>> (bit_shift.toNat % 32)) ||| ((v7 <<< (anti_shift.toNat % 32)) &&& mask))
-    bit_shift (base + 56) hvm28 hvm8
-  have T0 := sw_x0_spec_gen .x12 sp v3 12 (base + 68) hvm12
-  have T1 := sw_x0_spec_gen .x12 sp v4 16 (base + 72) hvm16
-  have T2 := sw_x0_spec_gen .x12 sp v5v 20 (base + 76) hvm20
-  have T3 := sw_x0_spec_gen .x12 sp v6 24 (base + 80) hvm24
-  have T4 := sw_x0_spec_gen .x12 sp v7 28 (base + 84) hvm28
+    bit_shift (base + 56) (by validMem) (by validMem)
+  have T0 := sw_x0_spec_gen .x12 sp v3 12 (base + 68) (by validMem)
+  have T1 := sw_x0_spec_gen .x12 sp v4 16 (base + 72) (by validMem)
+  have T2 := sw_x0_spec_gen .x12 sp v5v 20 (base + 76) (by validMem)
+  have T3 := sw_x0_spec_gen .x12 sp v6 24 (base + 80) (by validMem)
+  have T4 := sw_x0_spec_gen .x12 sp v7 28 (base + 84) (by validMem)
   have JL := jal_x0_spec_gen jal_off (base + 88)
   rw [hexit] at JL
   runBlock MM1 MM2 LL T0 T1 T2 T3 T4 JL
@@ -917,41 +845,23 @@ theorem shr_body_4_spec (sp : Word)
        (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ ((v7 <<< (anti_shift.toNat % 32)) &&& mask)) ** (.x11 ↦ᵣ mask) **
        (sp ↦ₘ result0) ** ((sp + 4) ↦ₘ result1) ** ((sp + 8) ↦ₘ result2) ** ((sp + 12) ↦ₘ result3) **
        ((sp + 16) ↦ₘ 0) ** ((sp + 20) ↦ₘ 0) ** ((sp + 24) ↦ₘ 0) ** ((sp + 28) ↦ₘ 0)) := by
-  -- Memory validity from ValidMemRange sp 8
-  have hvm0 : isValidMemAccess (sp + signExtend12 (0 : BitVec 12)) = true := by
-    simp only [signExtend12_0]; rw [show sp + (0 : Word) = sp from by bv_addr]
-    have := hvalid.get (i := 0) (by omega); simpa using this
-  have hvm4 : isValidMemAccess (sp + signExtend12 (4 : BitVec 12)) = true := by
-    simp only [signExtend12_4]; have := hvalid.get (i := 1) (by omega); simpa using this
-  have hvm8 : isValidMemAccess (sp + signExtend12 (8 : BitVec 12)) = true := by
-    simp only [signExtend12_8]; have := hvalid.get (i := 2) (by omega); simpa using this
-  have hvm12 : isValidMemAccess (sp + signExtend12 (12 : BitVec 12)) = true := by
-    simp only [signExtend12_12]; have := hvalid.get (i := 3) (by omega); simpa using this
-  have hvm16 : isValidMemAccess (sp + signExtend12 (16 : BitVec 12)) = true := by
-    simp only [signExtend12_16]; have := hvalid.get (i := 4) (by omega); simpa using this
-  have hvm20 : isValidMemAccess (sp + signExtend12 (20 : BitVec 12)) = true := by
-    simp only [signExtend12_20]; have := hvalid.get (i := 5) (by omega); simpa using this
-  have hvm24 : isValidMemAccess (sp + signExtend12 (24 : BitVec 12)) = true := by
-    simp only [signExtend12_24]; have := hvalid.get (i := 6) (by omega); simpa using this
-  have hvm28 : isValidMemAccess (sp + signExtend12 (28 : BitVec 12)) = true := by
-    simp only [signExtend12_28]; have := hvalid.get (i := 7) (by omega); simpa using this
   -- Compose: 3x merge_limb + last_limb + 4x SW x0 + JAL via runBlock
-  have MM1 := shr_merge_limb_spec 16 20 0 sp v4 v5v v0 v5 v10 bit_shift anti_shift mask base hvm16 hvm20 hvm0
+  have MM1 := shr_merge_limb_spec 16 20 0 sp v4 v5v v0 v5 v10 bit_shift anti_shift mask base (by validMem) (by validMem) (by validMem)
   have MM2 := shr_merge_limb_spec 20 24 4 sp v5v v6 v1
     ((v4 >>> (bit_shift.toNat % 32)) ||| ((v5v <<< (anti_shift.toNat % 32)) &&& mask))
     ((v5v <<< (anti_shift.toNat % 32)) &&& mask)
-    bit_shift anti_shift mask (base + 28) hvm20 hvm24 hvm4
+    bit_shift anti_shift mask (base + 28) (by validMem) (by validMem) (by validMem)
   have MM3 := shr_merge_limb_spec 24 28 8 sp v6 v7 v2
     ((v5v >>> (bit_shift.toNat % 32)) ||| ((v6 <<< (anti_shift.toNat % 32)) &&& mask))
     ((v6 <<< (anti_shift.toNat % 32)) &&& mask)
-    bit_shift anti_shift mask (base + 56) hvm24 hvm28 hvm8
+    bit_shift anti_shift mask (base + 56) (by validMem) (by validMem) (by validMem)
   have LL := shr_last_limb_spec 12 sp v7 v3
     ((v6 >>> (bit_shift.toNat % 32)) ||| ((v7 <<< (anti_shift.toNat % 32)) &&& mask))
-    bit_shift (base + 84) hvm28 hvm12
-  have T0 := sw_x0_spec_gen .x12 sp v4 16 (base + 96) hvm16
-  have T1 := sw_x0_spec_gen .x12 sp v5v 20 (base + 100) hvm20
-  have T2 := sw_x0_spec_gen .x12 sp v6 24 (base + 104) hvm24
-  have T3 := sw_x0_spec_gen .x12 sp v7 28 (base + 108) hvm28
+    bit_shift (base + 84) (by validMem) (by validMem)
+  have T0 := sw_x0_spec_gen .x12 sp v4 16 (base + 96) (by validMem)
+  have T1 := sw_x0_spec_gen .x12 sp v5v 20 (base + 100) (by validMem)
+  have T2 := sw_x0_spec_gen .x12 sp v6 24 (base + 104) (by validMem)
+  have T3 := sw_x0_spec_gen .x12 sp v7 28 (base + 108) (by validMem)
   have JL := jal_x0_spec_gen jal_off (base + 112)
   rw [hexit] at JL
   runBlock MM1 MM2 MM3 LL T0 T1 T2 T3 JL
@@ -1037,44 +947,26 @@ theorem shr_body_3_spec (sp : Word)
        (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ ((v7 <<< (anti_shift.toNat % 32)) &&& mask)) ** (.x11 ↦ᵣ mask) **
        (sp ↦ₘ result0) ** ((sp + 4) ↦ₘ result1) ** ((sp + 8) ↦ₘ result2) ** ((sp + 12) ↦ₘ result3) **
        ((sp + 16) ↦ₘ result4) ** ((sp + 20) ↦ₘ 0) ** ((sp + 24) ↦ₘ 0) ** ((sp + 28) ↦ₘ 0)) := by
-  -- Memory validity from ValidMemRange sp 8
-  have hvm0 : isValidMemAccess (sp + signExtend12 (0 : BitVec 12)) = true := by
-    simp only [signExtend12_0]; rw [show sp + (0 : Word) = sp from by bv_addr]
-    have := hvalid.get (i := 0) (by omega); simpa using this
-  have hvm4 : isValidMemAccess (sp + signExtend12 (4 : BitVec 12)) = true := by
-    simp only [signExtend12_4]; have := hvalid.get (i := 1) (by omega); simpa using this
-  have hvm8 : isValidMemAccess (sp + signExtend12 (8 : BitVec 12)) = true := by
-    simp only [signExtend12_8]; have := hvalid.get (i := 2) (by omega); simpa using this
-  have hvm12 : isValidMemAccess (sp + signExtend12 (12 : BitVec 12)) = true := by
-    simp only [signExtend12_12]; have := hvalid.get (i := 3) (by omega); simpa using this
-  have hvm16 : isValidMemAccess (sp + signExtend12 (16 : BitVec 12)) = true := by
-    simp only [signExtend12_16]; have := hvalid.get (i := 4) (by omega); simpa using this
-  have hvm20 : isValidMemAccess (sp + signExtend12 (20 : BitVec 12)) = true := by
-    simp only [signExtend12_20]; have := hvalid.get (i := 5) (by omega); simpa using this
-  have hvm24 : isValidMemAccess (sp + signExtend12 (24 : BitVec 12)) = true := by
-    simp only [signExtend12_24]; have := hvalid.get (i := 6) (by omega); simpa using this
-  have hvm28 : isValidMemAccess (sp + signExtend12 (28 : BitVec 12)) = true := by
-    simp only [signExtend12_28]; have := hvalid.get (i := 7) (by omega); simpa using this
   -- Compose: 4x merge_limb + last_limb + 3x SW x0 + JAL via runBlock
-  have MM1 := shr_merge_limb_spec 12 16 0 sp v3 v4 v0 v5 v10 bit_shift anti_shift mask base hvm12 hvm16 hvm0
+  have MM1 := shr_merge_limb_spec 12 16 0 sp v3 v4 v0 v5 v10 bit_shift anti_shift mask base (by validMem) (by validMem) (by validMem)
   have MM2 := shr_merge_limb_spec 16 20 4 sp v4 v5v v1
     ((v3 >>> (bit_shift.toNat % 32)) ||| ((v4 <<< (anti_shift.toNat % 32)) &&& mask))
     ((v4 <<< (anti_shift.toNat % 32)) &&& mask)
-    bit_shift anti_shift mask (base + 28) hvm16 hvm20 hvm4
+    bit_shift anti_shift mask (base + 28) (by validMem) (by validMem) (by validMem)
   have MM3 := shr_merge_limb_spec 20 24 8 sp v5v v6 v2
     ((v4 >>> (bit_shift.toNat % 32)) ||| ((v5v <<< (anti_shift.toNat % 32)) &&& mask))
     ((v5v <<< (anti_shift.toNat % 32)) &&& mask)
-    bit_shift anti_shift mask (base + 56) hvm20 hvm24 hvm8
+    bit_shift anti_shift mask (base + 56) (by validMem) (by validMem) (by validMem)
   have MM4 := shr_merge_limb_spec 24 28 12 sp v6 v7 v3
     ((v5v >>> (bit_shift.toNat % 32)) ||| ((v6 <<< (anti_shift.toNat % 32)) &&& mask))
     ((v6 <<< (anti_shift.toNat % 32)) &&& mask)
-    bit_shift anti_shift mask (base + 84) hvm24 hvm28 hvm12
+    bit_shift anti_shift mask (base + 84) (by validMem) (by validMem) (by validMem)
   have LL := shr_last_limb_spec 16 sp v7 v4
     ((v6 >>> (bit_shift.toNat % 32)) ||| ((v7 <<< (anti_shift.toNat % 32)) &&& mask))
-    bit_shift (base + 112) hvm28 hvm16
-  have T0 := sw_x0_spec_gen .x12 sp v5v 20 (base + 124) hvm20
-  have T1 := sw_x0_spec_gen .x12 sp v6 24 (base + 128) hvm24
-  have T2 := sw_x0_spec_gen .x12 sp v7 28 (base + 132) hvm28
+    bit_shift (base + 112) (by validMem) (by validMem)
+  have T0 := sw_x0_spec_gen .x12 sp v5v 20 (base + 124) (by validMem)
+  have T1 := sw_x0_spec_gen .x12 sp v6 24 (base + 128) (by validMem)
+  have T2 := sw_x0_spec_gen .x12 sp v7 28 (base + 132) (by validMem)
   have JL := jal_x0_spec_gen jal_off (base + 136)
   rw [hexit] at JL
   runBlock MM1 MM2 MM3 MM4 LL T0 T1 T2 JL
@@ -1166,47 +1058,29 @@ theorem shr_body_2_spec (sp : Word)
        (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ ((v7 <<< (anti_shift.toNat % 32)) &&& mask)) ** (.x11 ↦ᵣ mask) **
        (sp ↦ₘ result0) ** ((sp + 4) ↦ₘ result1) ** ((sp + 8) ↦ₘ result2) ** ((sp + 12) ↦ₘ result3) **
        ((sp + 16) ↦ₘ result4) ** ((sp + 20) ↦ₘ result5) ** ((sp + 24) ↦ₘ 0) ** ((sp + 28) ↦ₘ 0)) := by
-  -- Memory validity from ValidMemRange sp 8
-  have hvm0 : isValidMemAccess (sp + signExtend12 (0 : BitVec 12)) = true := by
-    simp only [signExtend12_0]; rw [show sp + (0 : Word) = sp from by bv_addr]
-    have := hvalid.get (i := 0) (by omega); simpa using this
-  have hvm4 : isValidMemAccess (sp + signExtend12 (4 : BitVec 12)) = true := by
-    simp only [signExtend12_4]; have := hvalid.get (i := 1) (by omega); simpa using this
-  have hvm8 : isValidMemAccess (sp + signExtend12 (8 : BitVec 12)) = true := by
-    simp only [signExtend12_8]; have := hvalid.get (i := 2) (by omega); simpa using this
-  have hvm12 : isValidMemAccess (sp + signExtend12 (12 : BitVec 12)) = true := by
-    simp only [signExtend12_12]; have := hvalid.get (i := 3) (by omega); simpa using this
-  have hvm16 : isValidMemAccess (sp + signExtend12 (16 : BitVec 12)) = true := by
-    simp only [signExtend12_16]; have := hvalid.get (i := 4) (by omega); simpa using this
-  have hvm20 : isValidMemAccess (sp + signExtend12 (20 : BitVec 12)) = true := by
-    simp only [signExtend12_20]; have := hvalid.get (i := 5) (by omega); simpa using this
-  have hvm24 : isValidMemAccess (sp + signExtend12 (24 : BitVec 12)) = true := by
-    simp only [signExtend12_24]; have := hvalid.get (i := 6) (by omega); simpa using this
-  have hvm28 : isValidMemAccess (sp + signExtend12 (28 : BitVec 12)) = true := by
-    simp only [signExtend12_28]; have := hvalid.get (i := 7) (by omega); simpa using this
   -- Compose: 5x merge_limb + last_limb + 2x SW x0 + JAL via runBlock
-  have MM1 := shr_merge_limb_spec 8 12 0 sp v2 v3 v0 v5 v10 bit_shift anti_shift mask base hvm8 hvm12 hvm0
+  have MM1 := shr_merge_limb_spec 8 12 0 sp v2 v3 v0 v5 v10 bit_shift anti_shift mask base (by validMem) (by validMem) (by validMem)
   have MM2 := shr_merge_limb_spec 12 16 4 sp v3 v4 v1
     ((v2 >>> (bit_shift.toNat % 32)) ||| ((v3 <<< (anti_shift.toNat % 32)) &&& mask))
     ((v3 <<< (anti_shift.toNat % 32)) &&& mask)
-    bit_shift anti_shift mask (base + 28) hvm12 hvm16 hvm4
+    bit_shift anti_shift mask (base + 28) (by validMem) (by validMem) (by validMem)
   have MM3 := shr_merge_limb_spec 16 20 8 sp v4 v5v v2
     ((v3 >>> (bit_shift.toNat % 32)) ||| ((v4 <<< (anti_shift.toNat % 32)) &&& mask))
     ((v4 <<< (anti_shift.toNat % 32)) &&& mask)
-    bit_shift anti_shift mask (base + 56) hvm16 hvm20 hvm8
+    bit_shift anti_shift mask (base + 56) (by validMem) (by validMem) (by validMem)
   have MM4 := shr_merge_limb_spec 20 24 12 sp v5v v6 v3
     ((v4 >>> (bit_shift.toNat % 32)) ||| ((v5v <<< (anti_shift.toNat % 32)) &&& mask))
     ((v5v <<< (anti_shift.toNat % 32)) &&& mask)
-    bit_shift anti_shift mask (base + 84) hvm20 hvm24 hvm12
+    bit_shift anti_shift mask (base + 84) (by validMem) (by validMem) (by validMem)
   have MM5 := shr_merge_limb_spec 24 28 16 sp v6 v7 v4
     ((v5v >>> (bit_shift.toNat % 32)) ||| ((v6 <<< (anti_shift.toNat % 32)) &&& mask))
     ((v6 <<< (anti_shift.toNat % 32)) &&& mask)
-    bit_shift anti_shift mask (base + 112) hvm24 hvm28 hvm16
+    bit_shift anti_shift mask (base + 112) (by validMem) (by validMem) (by validMem)
   have LL := shr_last_limb_spec 20 sp v7 v5v
     ((v6 >>> (bit_shift.toNat % 32)) ||| ((v7 <<< (anti_shift.toNat % 32)) &&& mask))
-    bit_shift (base + 140) hvm28 hvm20
-  have T0 := sw_x0_spec_gen .x12 sp v6 24 (base + 152) hvm24
-  have T1 := sw_x0_spec_gen .x12 sp v7 28 (base + 156) hvm28
+    bit_shift (base + 140) (by validMem) (by validMem)
+  have T0 := sw_x0_spec_gen .x12 sp v6 24 (base + 152) (by validMem)
+  have T1 := sw_x0_spec_gen .x12 sp v7 28 (base + 156) (by validMem)
   have JL := jal_x0_spec_gen jal_off (base + 160)
   rw [hexit] at JL
   runBlock MM1 MM2 MM3 MM4 MM5 LL T0 T1 JL
@@ -1304,50 +1178,32 @@ theorem shr_body_1_spec (sp : Word)
        (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ ((v7 <<< (anti_shift.toNat % 32)) &&& mask)) ** (.x11 ↦ᵣ mask) **
        (sp ↦ₘ result0) ** ((sp + 4) ↦ₘ result1) ** ((sp + 8) ↦ₘ result2) ** ((sp + 12) ↦ₘ result3) **
        ((sp + 16) ↦ₘ result4) ** ((sp + 20) ↦ₘ result5) ** ((sp + 24) ↦ₘ result6) ** ((sp + 28) ↦ₘ 0)) := by
-  -- Memory validity from ValidMemRange sp 8
-  have hvm0 : isValidMemAccess (sp + signExtend12 (0 : BitVec 12)) = true := by
-    simp only [signExtend12_0]; rw [show sp + (0 : Word) = sp from by bv_addr]
-    have := hvalid.get (i := 0) (by omega); simpa using this
-  have hvm4 : isValidMemAccess (sp + signExtend12 (4 : BitVec 12)) = true := by
-    simp only [signExtend12_4]; have := hvalid.get (i := 1) (by omega); simpa using this
-  have hvm8 : isValidMemAccess (sp + signExtend12 (8 : BitVec 12)) = true := by
-    simp only [signExtend12_8]; have := hvalid.get (i := 2) (by omega); simpa using this
-  have hvm12 : isValidMemAccess (sp + signExtend12 (12 : BitVec 12)) = true := by
-    simp only [signExtend12_12]; have := hvalid.get (i := 3) (by omega); simpa using this
-  have hvm16 : isValidMemAccess (sp + signExtend12 (16 : BitVec 12)) = true := by
-    simp only [signExtend12_16]; have := hvalid.get (i := 4) (by omega); simpa using this
-  have hvm20 : isValidMemAccess (sp + signExtend12 (20 : BitVec 12)) = true := by
-    simp only [signExtend12_20]; have := hvalid.get (i := 5) (by omega); simpa using this
-  have hvm24 : isValidMemAccess (sp + signExtend12 (24 : BitVec 12)) = true := by
-    simp only [signExtend12_24]; have := hvalid.get (i := 6) (by omega); simpa using this
-  have hvm28 : isValidMemAccess (sp + signExtend12 (28 : BitVec 12)) = true := by
-    simp only [signExtend12_28]; have := hvalid.get (i := 7) (by omega); simpa using this
   -- Compose: 6x merge_limb + last_limb + 1x SW x0 + JAL via runBlock
-  have MM1 := shr_merge_limb_spec 4 8 0 sp v1 v2 v0 v5 v10 bit_shift anti_shift mask base hvm4 hvm8 hvm0
+  have MM1 := shr_merge_limb_spec 4 8 0 sp v1 v2 v0 v5 v10 bit_shift anti_shift mask base (by validMem) (by validMem) (by validMem)
   have MM2 := shr_merge_limb_spec 8 12 4 sp v2 v3 v1
     ((v1 >>> (bit_shift.toNat % 32)) ||| ((v2 <<< (anti_shift.toNat % 32)) &&& mask))
     ((v2 <<< (anti_shift.toNat % 32)) &&& mask)
-    bit_shift anti_shift mask (base + 28) hvm8 hvm12 hvm4
+    bit_shift anti_shift mask (base + 28) (by validMem) (by validMem) (by validMem)
   have MM3 := shr_merge_limb_spec 12 16 8 sp v3 v4 v2
     ((v2 >>> (bit_shift.toNat % 32)) ||| ((v3 <<< (anti_shift.toNat % 32)) &&& mask))
     ((v3 <<< (anti_shift.toNat % 32)) &&& mask)
-    bit_shift anti_shift mask (base + 56) hvm12 hvm16 hvm8
+    bit_shift anti_shift mask (base + 56) (by validMem) (by validMem) (by validMem)
   have MM4 := shr_merge_limb_spec 16 20 12 sp v4 v5v v3
     ((v3 >>> (bit_shift.toNat % 32)) ||| ((v4 <<< (anti_shift.toNat % 32)) &&& mask))
     ((v4 <<< (anti_shift.toNat % 32)) &&& mask)
-    bit_shift anti_shift mask (base + 84) hvm16 hvm20 hvm12
+    bit_shift anti_shift mask (base + 84) (by validMem) (by validMem) (by validMem)
   have MM5 := shr_merge_limb_spec 20 24 16 sp v5v v6 v4
     ((v4 >>> (bit_shift.toNat % 32)) ||| ((v5v <<< (anti_shift.toNat % 32)) &&& mask))
     ((v5v <<< (anti_shift.toNat % 32)) &&& mask)
-    bit_shift anti_shift mask (base + 112) hvm20 hvm24 hvm16
+    bit_shift anti_shift mask (base + 112) (by validMem) (by validMem) (by validMem)
   have MM6 := shr_merge_limb_spec 24 28 20 sp v6 v7 v5v
     ((v5v >>> (bit_shift.toNat % 32)) ||| ((v6 <<< (anti_shift.toNat % 32)) &&& mask))
     ((v6 <<< (anti_shift.toNat % 32)) &&& mask)
-    bit_shift anti_shift mask (base + 140) hvm24 hvm28 hvm20
+    bit_shift anti_shift mask (base + 140) (by validMem) (by validMem) (by validMem)
   have LL := shr_last_limb_spec 24 sp v7 v6
     ((v6 >>> (bit_shift.toNat % 32)) ||| ((v7 <<< (anti_shift.toNat % 32)) &&& mask))
-    bit_shift (base + 168) hvm28 hvm24
-  have T0 := sw_x0_spec_gen .x12 sp v7 28 (base + 180) hvm28
+    bit_shift (base + 168) (by validMem) (by validMem)
+  have T0 := sw_x0_spec_gen .x12 sp v7 28 (base + 180) (by validMem)
   have JL := jal_x0_spec_gen jal_off (base + 184)
   rw [hexit] at JL
   runBlock MM1 MM2 MM3 MM4 MM5 MM6 LL T0 JL
@@ -1452,53 +1308,35 @@ theorem shr_body_0_spec (sp : Word)
        (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ ((v7 <<< (anti_shift.toNat % 32)) &&& mask)) ** (.x11 ↦ᵣ mask) **
        (sp ↦ₘ result0) ** ((sp + 4) ↦ₘ result1) ** ((sp + 8) ↦ₘ result2) ** ((sp + 12) ↦ₘ result3) **
        ((sp + 16) ↦ₘ result4) ** ((sp + 20) ↦ₘ result5) ** ((sp + 24) ↦ₘ result6) ** ((sp + 28) ↦ₘ result7)) := by
-  -- Memory validity from ValidMemRange sp 8
-  have hvm0 : isValidMemAccess (sp + signExtend12 (0 : BitVec 12)) = true := by
-    simp only [signExtend12_0]; rw [show sp + (0 : Word) = sp from by bv_addr]
-    have := hvalid.get (i := 0) (by omega); simpa using this
-  have hvm4 : isValidMemAccess (sp + signExtend12 (4 : BitVec 12)) = true := by
-    simp only [signExtend12_4]; have := hvalid.get (i := 1) (by omega); simpa using this
-  have hvm8 : isValidMemAccess (sp + signExtend12 (8 : BitVec 12)) = true := by
-    simp only [signExtend12_8]; have := hvalid.get (i := 2) (by omega); simpa using this
-  have hvm12 : isValidMemAccess (sp + signExtend12 (12 : BitVec 12)) = true := by
-    simp only [signExtend12_12]; have := hvalid.get (i := 3) (by omega); simpa using this
-  have hvm16 : isValidMemAccess (sp + signExtend12 (16 : BitVec 12)) = true := by
-    simp only [signExtend12_16]; have := hvalid.get (i := 4) (by omega); simpa using this
-  have hvm20 : isValidMemAccess (sp + signExtend12 (20 : BitVec 12)) = true := by
-    simp only [signExtend12_20]; have := hvalid.get (i := 5) (by omega); simpa using this
-  have hvm24 : isValidMemAccess (sp + signExtend12 (24 : BitVec 12)) = true := by
-    simp only [signExtend12_24]; have := hvalid.get (i := 6) (by omega); simpa using this
-  have hvm28 : isValidMemAccess (sp + signExtend12 (28 : BitVec 12)) = true := by
-    simp only [signExtend12_28]; have := hvalid.get (i := 7) (by omega); simpa using this
   -- Compose: 7x merge_limb_inplace + last_limb_inplace + JAL via runBlock
-  have MM1 := shr_merge_limb_inplace_spec 0 4 sp v0 v1 v5 v10 bit_shift anti_shift mask base hvm0 hvm4
+  have MM1 := shr_merge_limb_inplace_spec 0 4 sp v0 v1 v5 v10 bit_shift anti_shift mask base (by validMem) (by validMem)
   have MM2 := shr_merge_limb_inplace_spec 4 8 sp v1 v2
     ((v0 >>> (bit_shift.toNat % 32)) ||| ((v1 <<< (anti_shift.toNat % 32)) &&& mask))
     ((v1 <<< (anti_shift.toNat % 32)) &&& mask)
-    bit_shift anti_shift mask (base + 28) hvm4 hvm8
+    bit_shift anti_shift mask (base + 28) (by validMem) (by validMem)
   have MM3 := shr_merge_limb_inplace_spec 8 12 sp v2 v3
     ((v1 >>> (bit_shift.toNat % 32)) ||| ((v2 <<< (anti_shift.toNat % 32)) &&& mask))
     ((v2 <<< (anti_shift.toNat % 32)) &&& mask)
-    bit_shift anti_shift mask (base + 56) hvm8 hvm12
+    bit_shift anti_shift mask (base + 56) (by validMem) (by validMem)
   have MM4 := shr_merge_limb_inplace_spec 12 16 sp v3 v4
     ((v2 >>> (bit_shift.toNat % 32)) ||| ((v3 <<< (anti_shift.toNat % 32)) &&& mask))
     ((v3 <<< (anti_shift.toNat % 32)) &&& mask)
-    bit_shift anti_shift mask (base + 84) hvm12 hvm16
+    bit_shift anti_shift mask (base + 84) (by validMem) (by validMem)
   have MM5 := shr_merge_limb_inplace_spec 16 20 sp v4 v5v
     ((v3 >>> (bit_shift.toNat % 32)) ||| ((v4 <<< (anti_shift.toNat % 32)) &&& mask))
     ((v4 <<< (anti_shift.toNat % 32)) &&& mask)
-    bit_shift anti_shift mask (base + 112) hvm16 hvm20
+    bit_shift anti_shift mask (base + 112) (by validMem) (by validMem)
   have MM6 := shr_merge_limb_inplace_spec 20 24 sp v5v v6
     ((v4 >>> (bit_shift.toNat % 32)) ||| ((v5v <<< (anti_shift.toNat % 32)) &&& mask))
     ((v5v <<< (anti_shift.toNat % 32)) &&& mask)
-    bit_shift anti_shift mask (base + 140) hvm20 hvm24
+    bit_shift anti_shift mask (base + 140) (by validMem) (by validMem)
   have MM7 := shr_merge_limb_inplace_spec 24 28 sp v6 v7
     ((v5v >>> (bit_shift.toNat % 32)) ||| ((v6 <<< (anti_shift.toNat % 32)) &&& mask))
     ((v6 <<< (anti_shift.toNat % 32)) &&& mask)
-    bit_shift anti_shift mask (base + 168) hvm24 hvm28
+    bit_shift anti_shift mask (base + 168) (by validMem) (by validMem)
   have LL := shr_last_limb_inplace_spec sp v7
     ((v6 >>> (bit_shift.toNat % 32)) ||| ((v7 <<< (anti_shift.toNat % 32)) &&& mask))
-    bit_shift (base + 196) hvm28
+    bit_shift (base + 196) (by validMem)
   have JL := jal_x0_spec_gen jal_off (base + 208)
   rw [hexit] at JL
   runBlock MM1 MM2 MM3 MM4 MM5 MM6 MM7 LL JL

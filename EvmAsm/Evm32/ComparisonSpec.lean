@@ -34,14 +34,7 @@ theorem lt_result_store_spec (sp : Addr)
     (borrow v7 v6 v11 : Word)
     (b0 b1 b2 b3 b4 b5 b6 b7 : Word) (base : Addr)
     -- Memory validity for sp+32..sp+60
-    (hv32 : isValidMemAccess (sp + 32) = true)
-    (hv36 : isValidMemAccess (sp + 36) = true)
-    (hv40 : isValidMemAccess (sp + 40) = true)
-    (hv44 : isValidMemAccess (sp + 44) = true)
-    (hv48 : isValidMemAccess (sp + 48) = true)
-    (hv52 : isValidMemAccess (sp + 52) = true)
-    (hv56 : isValidMemAccess (sp + 56) = true)
-    (hv60 : isValidMemAccess (sp + 60) = true) :
+    (hvalid : ValidMemRange (sp + 32) 8) :
     cpsTriple base (base + 36)
       ((base ↦ᵢ .ADDI .x12 .x12 32) ** ((base + 4) ↦ᵢ .SW .x12 .x5 0) **
        ((base + 8) ↦ᵢ .SW .x12 .x0 4) ** ((base + 12) ↦ᵢ .SW .x12 .x0 8) **
@@ -62,22 +55,14 @@ theorem lt_result_store_spec (sp : Addr)
   -- Compose: ADDI + SW borrow + 7× SW x0 via runBlock
   have A := addi_spec_gen_same .x12 sp 32 base (by nofun)
   simp only [signExtend12_32] at A
-  have S1 := sw_spec_gen .x12 .x5 (sp + 32) borrow b0 0 (base + 4)
-    (by simp only [signExtend12_0]; rwa [show (sp + 32 : Word) + 0 = sp + 32 from by bv_addr])
-  have S2 := sw_x0_spec_gen .x12 (sp + 32) b1 4 (base + 8)
-    (by simp only [signExtend12_4]; rwa [show (sp + 32 : Word) + 4 = sp + 36 from by bv_omega])
-  have S3 := sw_x0_spec_gen .x12 (sp + 32) b2 8 (base + 12)
-    (by simp only [signExtend12_8]; rwa [show (sp + 32 : Word) + 8 = sp + 40 from by bv_omega])
-  have S4 := sw_x0_spec_gen .x12 (sp + 32) b3 12 (base + 16)
-    (by simp only [signExtend12_12]; rwa [show (sp + 32 : Word) + 12 = sp + 44 from by bv_omega])
-  have S5 := sw_x0_spec_gen .x12 (sp + 32) b4 16 (base + 20)
-    (by simp only [signExtend12_16]; rwa [show (sp + 32 : Word) + 16 = sp + 48 from by bv_omega])
-  have S6 := sw_x0_spec_gen .x12 (sp + 32) b5 20 (base + 24)
-    (by simp only [signExtend12_20]; rwa [show (sp + 32 : Word) + 20 = sp + 52 from by bv_omega])
-  have S7 := sw_x0_spec_gen .x12 (sp + 32) b6 24 (base + 28)
-    (by simp only [signExtend12_24]; rwa [show (sp + 32 : Word) + 24 = sp + 56 from by bv_omega])
-  have S8 := sw_x0_spec_gen .x12 (sp + 32) b7 28 (base + 32)
-    (by simp only [signExtend12_28]; rwa [show (sp + 32 : Word) + 28 = sp + 60 from by bv_omega])
+  have S1 := sw_spec_gen .x12 .x5 (sp + 32) borrow b0 0 (base + 4) (by validMem)
+  have S2 := sw_x0_spec_gen .x12 (sp + 32) b1 4 (base + 8) (by validMem)
+  have S3 := sw_x0_spec_gen .x12 (sp + 32) b2 8 (base + 12) (by validMem)
+  have S4 := sw_x0_spec_gen .x12 (sp + 32) b3 12 (base + 16) (by validMem)
+  have S5 := sw_x0_spec_gen .x12 (sp + 32) b4 16 (base + 20) (by validMem)
+  have S6 := sw_x0_spec_gen .x12 (sp + 32) b5 20 (base + 24) (by validMem)
+  have S7 := sw_x0_spec_gen .x12 (sp + 32) b6 24 (base + 28) (by validMem)
+  have S8 := sw_x0_spec_gen .x12 (sp + 32) b7 28 (base + 32) (by validMem)
   runBlock A S1 S2 S3 S4 S5 S6 S7 S8
 
 -- ============================================================================
@@ -96,22 +81,7 @@ theorem evm_gt_spec (sp : Addr) (base : Addr)
     (b0 b1 b2 b3 b4 b5 b6 b7 : Word)
     (v7 v6 v5 v11 : Word)
     -- Memory validity for all 16 stack cells
-    (hv0  : isValidMemAccess sp = true)
-    (hv4  : isValidMemAccess (sp + 4) = true)
-    (hv8  : isValidMemAccess (sp + 8) = true)
-    (hv12 : isValidMemAccess (sp + 12) = true)
-    (hv16 : isValidMemAccess (sp + 16) = true)
-    (hv20 : isValidMemAccess (sp + 20) = true)
-    (hv24 : isValidMemAccess (sp + 24) = true)
-    (hv28 : isValidMemAccess (sp + 28) = true)
-    (hv32 : isValidMemAccess (sp + 32) = true)
-    (hv36 : isValidMemAccess (sp + 36) = true)
-    (hv40 : isValidMemAccess (sp + 40) = true)
-    (hv44 : isValidMemAccess (sp + 44) = true)
-    (hv48 : isValidMemAccess (sp + 48) = true)
-    (hv52 : isValidMemAccess (sp + 52) = true)
-    (hv56 : isValidMemAccess (sp + 56) = true)
-    (hv60 : isValidMemAccess (sp + 60) = true) :
+    (hvalid : ValidMemRange sp 16) :
     -- Borrow chain: b - a (GT direction)
     let borrow0 := if BitVec.ult b0 a0 then (1 : Word) else 0
     let borrow1a := if BitVec.ult b1 a1 then (1 : Word) else 0
@@ -253,51 +223,21 @@ theorem evm_gt_spec (sp : Addr) (base : Addr)
   let temp7 := b7 - a7
   let borrow7b := if BitVec.ult temp7 borrow6 then (1 : Word) else 0
   let borrow7 := borrow7a ||| borrow7b
-  -- Memory validity with signExtend normalization
-  have hvm0 : isValidMemAccess (sp + signExtend12 (0 : BitVec 12)) = true := by
-    simp only [signExtend12_0]; rw [show sp + (0 : Word) = sp from by bv_addr]; exact hv0
-  have hvm4 : isValidMemAccess (sp + signExtend12 (4 : BitVec 12)) = true := by
-    simp only [signExtend12_4]; exact hv4
-  have hvm8 : isValidMemAccess (sp + signExtend12 (8 : BitVec 12)) = true := by
-    simp only [signExtend12_8]; exact hv8
-  have hvm12 : isValidMemAccess (sp + signExtend12 (12 : BitVec 12)) = true := by
-    simp only [signExtend12_12]; exact hv12
-  have hvm16 : isValidMemAccess (sp + signExtend12 (16 : BitVec 12)) = true := by
-    simp only [signExtend12_16]; exact hv16
-  have hvm20 : isValidMemAccess (sp + signExtend12 (20 : BitVec 12)) = true := by
-    simp only [signExtend12_20]; exact hv20
-  have hvm24 : isValidMemAccess (sp + signExtend12 (24 : BitVec 12)) = true := by
-    simp only [signExtend12_24]; exact hv24
-  have hvm28 : isValidMemAccess (sp + signExtend12 (28 : BitVec 12)) = true := by
-    simp only [signExtend12_28]; exact hv28
-  have hvm32 : isValidMemAccess (sp + signExtend12 (32 : BitVec 12)) = true := by
-    simp only [signExtend12_32]; exact hv32
-  have hvm36 : isValidMemAccess (sp + signExtend12 (36 : BitVec 12)) = true := by
-    simp only [signExtend12_36]; exact hv36
-  have hvm40 : isValidMemAccess (sp + signExtend12 (40 : BitVec 12)) = true := by
-    simp only [signExtend12_40]; exact hv40
-  have hvm44 : isValidMemAccess (sp + signExtend12 (44 : BitVec 12)) = true := by
-    simp only [signExtend12_44]; exact hv44
-  have hvm48 : isValidMemAccess (sp + signExtend12 (48 : BitVec 12)) = true := by
-    simp only [signExtend12_48]; exact hv48
-  have hvm52 : isValidMemAccess (sp + signExtend12 (52 : BitVec 12)) = true := by
-    simp only [signExtend12_52]; exact hv52
-  have hvm56 : isValidMemAccess (sp + signExtend12 (56 : BitVec 12)) = true := by
-    simp only [signExtend12_56]; exact hv56
-  have hvm60 : isValidMemAccess (sp + signExtend12 (60 : BitVec 12)) = true := by
-    simp only [signExtend12_60]; exact hv60
+  -- Derive ValidMemRange for store phase
+  have hvalid32 : ValidMemRange (sp + 32) 8 :=
+    (hvalid.split (n1 := 8) (n2 := 8)).2
   -- Compose 8 per-limb LT specs + store phase via runBlock
-  have L0 := lt_limb0_spec 32 0 sp b0 a0 v7 v6 v5 base hvm32 hvm0
-  have L1 := lt_limb_carry_spec 36 4 sp b1 a1 b0 a0 borrow0 v11 (base + 12) hvm36 hvm4
-  have L2 := lt_limb_carry_spec 40 8 sp b2 a2 temp1 borrow1b borrow1 borrow1a (base + 36) hvm40 hvm8
-  have L3 := lt_limb_carry_spec 44 12 sp b3 a3 temp2 borrow2b borrow2 borrow2a (base + 60) hvm44 hvm12
-  have L4 := lt_limb_carry_spec 48 16 sp b4 a4 temp3 borrow3b borrow3 borrow3a (base + 84) hvm48 hvm16
-  have L5 := lt_limb_carry_spec 52 20 sp b5 a5 temp4 borrow4b borrow4 borrow4a (base + 108) hvm52 hvm20
-  have L6 := lt_limb_carry_spec 56 24 sp b6 a6 temp5 borrow5b borrow5 borrow5a (base + 132) hvm56 hvm24
-  have L7 := lt_limb_carry_spec 60 28 sp b7 a7 temp6 borrow6b borrow6 borrow6a (base + 156) hvm60 hvm28
+  have L0 := lt_limb0_spec 32 0 sp b0 a0 v7 v6 v5 base (by validMem) (by validMem)
+  have L1 := lt_limb_carry_spec 36 4 sp b1 a1 b0 a0 borrow0 v11 (base + 12) (by validMem) (by validMem)
+  have L2 := lt_limb_carry_spec 40 8 sp b2 a2 temp1 borrow1b borrow1 borrow1a (base + 36) (by validMem) (by validMem)
+  have L3 := lt_limb_carry_spec 44 12 sp b3 a3 temp2 borrow2b borrow2 borrow2a (base + 60) (by validMem) (by validMem)
+  have L4 := lt_limb_carry_spec 48 16 sp b4 a4 temp3 borrow3b borrow3 borrow3a (base + 84) (by validMem) (by validMem)
+  have L5 := lt_limb_carry_spec 52 20 sp b5 a5 temp4 borrow4b borrow4 borrow4a (base + 108) (by validMem) (by validMem)
+  have L6 := lt_limb_carry_spec 56 24 sp b6 a6 temp5 borrow5b borrow5 borrow5a (base + 132) (by validMem) (by validMem)
+  have L7 := lt_limb_carry_spec 60 28 sp b7 a7 temp6 borrow6b borrow6 borrow6a (base + 156) (by validMem) (by validMem)
   have S := lt_result_store_spec sp borrow7 temp7 borrow7b borrow7a
     b0 b1 b2 b3 b4 b5 b6 b7
-    (base + 180) hv32 hv36 hv40 hv44 hv48 hv52 hv56 hv60
+    (base + 180) hvalid32
   runBlock L0 L1 L2 L3 L4 L5 L6 L7 S
 
 -- ============================================================================
@@ -313,14 +253,7 @@ theorem eq_result_store_spec (sp : Addr)
     (acc v6 v5 v11 : Word)
     (b0 b1 b2 b3 b4 b5 b6 b7 : Word) (base : Addr)
     -- Memory validity for sp+32..sp+60
-    (hv32 : isValidMemAccess (sp + 32) = true)
-    (hv36 : isValidMemAccess (sp + 36) = true)
-    (hv40 : isValidMemAccess (sp + 40) = true)
-    (hv44 : isValidMemAccess (sp + 44) = true)
-    (hv48 : isValidMemAccess (sp + 48) = true)
-    (hv52 : isValidMemAccess (sp + 52) = true)
-    (hv56 : isValidMemAccess (sp + 56) = true)
-    (hv60 : isValidMemAccess (sp + 60) = true) :
+    (hvalid : ValidMemRange (sp + 32) 8) :
     let _eq_result := if BitVec.ult acc (1 : Word) then (1 : Word) else 0
     cpsTriple base (base + 40)
       ((base ↦ᵢ .SLTIU .x7 .x7 1) ** ((base + 4) ↦ᵢ .ADDI .x12 .x12 32) **
@@ -348,22 +281,14 @@ theorem eq_result_store_spec (sp : Addr)
   have A := addi_spec_gen_same .x12 sp 32 (base + 4) (by nofun)
   simp only [signExtend12_32] at A
   have S1 := sw_spec_gen .x12 .x7 (sp + 32)
-    (if BitVec.ult acc (1 : Word) then (1 : Word) else (0 : Word)) b0 0 (base + 8)
-    (by simp only [signExtend12_0]; rwa [show (sp + 32 : Word) + 0 = sp + 32 from by bv_addr])
-  have S2 := sw_x0_spec_gen .x12 (sp + 32) b1 4 (base + 12)
-    (by simp only [signExtend12_4]; rwa [show (sp + 32 : Word) + 4 = sp + 36 from by bv_omega])
-  have S3 := sw_x0_spec_gen .x12 (sp + 32) b2 8 (base + 16)
-    (by simp only [signExtend12_8]; rwa [show (sp + 32 : Word) + 8 = sp + 40 from by bv_omega])
-  have S4 := sw_x0_spec_gen .x12 (sp + 32) b3 12 (base + 20)
-    (by simp only [signExtend12_12]; rwa [show (sp + 32 : Word) + 12 = sp + 44 from by bv_omega])
-  have S5 := sw_x0_spec_gen .x12 (sp + 32) b4 16 (base + 24)
-    (by simp only [signExtend12_16]; rwa [show (sp + 32 : Word) + 16 = sp + 48 from by bv_omega])
-  have S6 := sw_x0_spec_gen .x12 (sp + 32) b5 20 (base + 28)
-    (by simp only [signExtend12_20]; rwa [show (sp + 32 : Word) + 20 = sp + 52 from by bv_omega])
-  have S7 := sw_x0_spec_gen .x12 (sp + 32) b6 24 (base + 32)
-    (by simp only [signExtend12_24]; rwa [show (sp + 32 : Word) + 24 = sp + 56 from by bv_omega])
-  have S8 := sw_x0_spec_gen .x12 (sp + 32) b7 28 (base + 36)
-    (by simp only [signExtend12_28]; rwa [show (sp + 32 : Word) + 28 = sp + 60 from by bv_omega])
+    (if BitVec.ult acc (1 : Word) then (1 : Word) else (0 : Word)) b0 0 (base + 8) (by validMem)
+  have S2 := sw_x0_spec_gen .x12 (sp + 32) b1 4 (base + 12) (by validMem)
+  have S3 := sw_x0_spec_gen .x12 (sp + 32) b2 8 (base + 16) (by validMem)
+  have S4 := sw_x0_spec_gen .x12 (sp + 32) b3 12 (base + 20) (by validMem)
+  have S5 := sw_x0_spec_gen .x12 (sp + 32) b4 16 (base + 24) (by validMem)
+  have S6 := sw_x0_spec_gen .x12 (sp + 32) b5 20 (base + 28) (by validMem)
+  have S7 := sw_x0_spec_gen .x12 (sp + 32) b6 24 (base + 32) (by validMem)
+  have S8 := sw_x0_spec_gen .x12 (sp + 32) b7 28 (base + 36) (by validMem)
   runBlock T A S1 S2 S3 S4 S5 S6 S7 S8
 
 -- ============================================================================
@@ -381,22 +306,7 @@ theorem evm_eq_spec (sp : Addr) (base : Addr)
     (b0 b1 b2 b3 b4 b5 b6 b7 : Word)
     (v7 v6 v5 v11 : Word)
     -- Memory validity for all 16 stack cells
-    (hv0  : isValidMemAccess sp = true)
-    (hv4  : isValidMemAccess (sp + 4) = true)
-    (hv8  : isValidMemAccess (sp + 8) = true)
-    (hv12 : isValidMemAccess (sp + 12) = true)
-    (hv16 : isValidMemAccess (sp + 16) = true)
-    (hv20 : isValidMemAccess (sp + 20) = true)
-    (hv24 : isValidMemAccess (sp + 24) = true)
-    (hv28 : isValidMemAccess (sp + 28) = true)
-    (hv32 : isValidMemAccess (sp + 32) = true)
-    (hv36 : isValidMemAccess (sp + 36) = true)
-    (hv40 : isValidMemAccess (sp + 40) = true)
-    (hv44 : isValidMemAccess (sp + 44) = true)
-    (hv48 : isValidMemAccess (sp + 48) = true)
-    (hv52 : isValidMemAccess (sp + 52) = true)
-    (hv56 : isValidMemAccess (sp + 56) = true)
-    (hv60 : isValidMemAccess (sp + 60) = true) :
+    (hvalid : ValidMemRange sp 16) :
     -- XOR-OR accumulation chain
     let acc0 := a0 ^^^ b0
     let acc1 := acc0 ||| (a1 ^^^ b1)
@@ -473,58 +383,28 @@ theorem evm_eq_spec (sp : Addr) (base : Addr)
        ((sp + 16) ↦ₘ a4) ** ((sp + 20) ↦ₘ a5) ** ((sp + 24) ↦ₘ a6) ** ((sp + 28) ↦ₘ a7) **
        ((sp + 32) ↦ₘ eq_result) ** ((sp + 36) ↦ₘ 0) ** ((sp + 40) ↦ₘ 0) ** ((sp + 44) ↦ₘ 0) **
        ((sp + 48) ↦ₘ 0) ** ((sp + 52) ↦ₘ 0) ** ((sp + 56) ↦ₘ 0) ** ((sp + 60) ↦ₘ 0)) := by
-  -- Memory validity with signExtend normalization
-  have hvm0 : isValidMemAccess (sp + signExtend12 (0 : BitVec 12)) = true := by
-    simp only [signExtend12_0]; rw [show sp + (0 : Word) = sp from by bv_addr]; exact hv0
-  have hvm4 : isValidMemAccess (sp + signExtend12 (4 : BitVec 12)) = true := by
-    simp only [signExtend12_4]; exact hv4
-  have hvm8 : isValidMemAccess (sp + signExtend12 (8 : BitVec 12)) = true := by
-    simp only [signExtend12_8]; exact hv8
-  have hvm12 : isValidMemAccess (sp + signExtend12 (12 : BitVec 12)) = true := by
-    simp only [signExtend12_12]; exact hv12
-  have hvm16 : isValidMemAccess (sp + signExtend12 (16 : BitVec 12)) = true := by
-    simp only [signExtend12_16]; exact hv16
-  have hvm20 : isValidMemAccess (sp + signExtend12 (20 : BitVec 12)) = true := by
-    simp only [signExtend12_20]; exact hv20
-  have hvm24 : isValidMemAccess (sp + signExtend12 (24 : BitVec 12)) = true := by
-    simp only [signExtend12_24]; exact hv24
-  have hvm28 : isValidMemAccess (sp + signExtend12 (28 : BitVec 12)) = true := by
-    simp only [signExtend12_28]; exact hv28
-  have hvm32 : isValidMemAccess (sp + signExtend12 (32 : BitVec 12)) = true := by
-    simp only [signExtend12_32]; exact hv32
-  have hvm36 : isValidMemAccess (sp + signExtend12 (36 : BitVec 12)) = true := by
-    simp only [signExtend12_36]; exact hv36
-  have hvm40 : isValidMemAccess (sp + signExtend12 (40 : BitVec 12)) = true := by
-    simp only [signExtend12_40]; exact hv40
-  have hvm44 : isValidMemAccess (sp + signExtend12 (44 : BitVec 12)) = true := by
-    simp only [signExtend12_44]; exact hv44
-  have hvm48 : isValidMemAccess (sp + signExtend12 (48 : BitVec 12)) = true := by
-    simp only [signExtend12_48]; exact hv48
-  have hvm52 : isValidMemAccess (sp + signExtend12 (52 : BitVec 12)) = true := by
-    simp only [signExtend12_52]; exact hv52
-  have hvm56 : isValidMemAccess (sp + signExtend12 (56 : BitVec 12)) = true := by
-    simp only [signExtend12_56]; exact hv56
-  have hvm60 : isValidMemAccess (sp + signExtend12 (60 : BitVec 12)) = true := by
-    simp only [signExtend12_60]; exact hv60
+  -- Derive ValidMemRange for store phase
+  have hvalid32 : ValidMemRange (sp + 32) 8 :=
+    (hvalid.split (n1 := 8) (n2 := 8)).2
   -- Compose 8 per-limb EQ specs + store phase via runBlock
-  have L0 := eq_limb0_spec 0 32 sp a0 b0 v7 v6 base hvm0 hvm32
-  have L1 := eq_or_limb_spec 4 36 sp a1 b1 b0 v5 (a0 ^^^ b0) (base + 12) hvm4 hvm36
+  have L0 := eq_limb0_spec 0 32 sp a0 b0 v7 v6 base (by validMem) (by validMem)
+  have L1 := eq_or_limb_spec 4 36 sp a1 b1 b0 v5 (a0 ^^^ b0) (base + 12) (by validMem) (by validMem)
   have L2 := eq_or_limb_spec 8 40 sp a2 b2 (a1 ^^^ b1) b1
-    ((a0 ^^^ b0) ||| (a1 ^^^ b1)) (base + 28) hvm8 hvm40
+    ((a0 ^^^ b0) ||| (a1 ^^^ b1)) (base + 28) (by validMem) (by validMem)
   have L3 := eq_or_limb_spec 12 44 sp a3 b3 (a2 ^^^ b2) b2
-    ((a0 ^^^ b0) ||| (a1 ^^^ b1) ||| (a2 ^^^ b2)) (base + 44) hvm12 hvm44
+    ((a0 ^^^ b0) ||| (a1 ^^^ b1) ||| (a2 ^^^ b2)) (base + 44) (by validMem) (by validMem)
   have L4 := eq_or_limb_spec 16 48 sp a4 b4 (a3 ^^^ b3) b3
-    ((a0 ^^^ b0) ||| (a1 ^^^ b1) ||| (a2 ^^^ b2) ||| (a3 ^^^ b3)) (base + 60) hvm16 hvm48
+    ((a0 ^^^ b0) ||| (a1 ^^^ b1) ||| (a2 ^^^ b2) ||| (a3 ^^^ b3)) (base + 60) (by validMem) (by validMem)
   have L5 := eq_or_limb_spec 20 52 sp a5 b5 (a4 ^^^ b4) b4
-    ((a0 ^^^ b0) ||| (a1 ^^^ b1) ||| (a2 ^^^ b2) ||| (a3 ^^^ b3) ||| (a4 ^^^ b4)) (base + 76) hvm20 hvm52
+    ((a0 ^^^ b0) ||| (a1 ^^^ b1) ||| (a2 ^^^ b2) ||| (a3 ^^^ b3) ||| (a4 ^^^ b4)) (base + 76) (by validMem) (by validMem)
   have L6 := eq_or_limb_spec 24 56 sp a6 b6 (a5 ^^^ b5) b5
-    ((a0 ^^^ b0) ||| (a1 ^^^ b1) ||| (a2 ^^^ b2) ||| (a3 ^^^ b3) ||| (a4 ^^^ b4) ||| (a5 ^^^ b5)) (base + 92) hvm24 hvm56
+    ((a0 ^^^ b0) ||| (a1 ^^^ b1) ||| (a2 ^^^ b2) ||| (a3 ^^^ b3) ||| (a4 ^^^ b4) ||| (a5 ^^^ b5)) (base + 92) (by validMem) (by validMem)
   have L7 := eq_or_limb_spec 28 60 sp a7 b7 (a6 ^^^ b6) b6
-    ((a0 ^^^ b0) ||| (a1 ^^^ b1) ||| (a2 ^^^ b2) ||| (a3 ^^^ b3) ||| (a4 ^^^ b4) ||| (a5 ^^^ b5) ||| (a6 ^^^ b6)) (base + 108) hvm28 hvm60
+    ((a0 ^^^ b0) ||| (a1 ^^^ b1) ||| (a2 ^^^ b2) ||| (a3 ^^^ b3) ||| (a4 ^^^ b4) ||| (a5 ^^^ b5) ||| (a6 ^^^ b6)) (base + 108) (by validMem) (by validMem)
   have S := eq_result_store_spec sp
     ((a0 ^^^ b0) ||| (a1 ^^^ b1) ||| (a2 ^^^ b2) ||| (a3 ^^^ b3) ||| (a4 ^^^ b4) ||| (a5 ^^^ b5) ||| (a6 ^^^ b6) ||| (a7 ^^^ b7))
     (a7 ^^^ b7) b7 v11 b0 b1 b2 b3 b4 b5 b6 b7
-    (base + 124) hv32 hv36 hv40 hv44 hv48 hv52 hv56 hv60
+    (base + 124) hvalid32
   runBlock L0 L1 L2 L3 L4 L5 L6 L7 S
 
 end EvmAsm
