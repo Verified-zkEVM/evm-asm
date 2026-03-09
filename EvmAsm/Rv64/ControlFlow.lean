@@ -568,4 +568,50 @@ theorem if_eq_spec_n (rs1 rs2 : Reg) (v1 v2 : Word)
   The `pcIndep` predicate is the MachineState-level equivalent for `holdsFor`.
 -/
 
+-- ============================================================================
+-- Countdown loop: backward branch test
+-- ============================================================================
+
+/-- Countdown loop: while x10 ≠ 0, decrement x10.
+    base:     BEQ x10 x0 12     -- exit if x10 = 0
+    base+4:   ADDI x10 x10 -1   -- decrement
+    base+8:   JAL x0 -8          -- back to base
+    base+12:  (exit) -/
+def countdown_loop : Program := [
+  Instr.BEQ .x10 .x0 (12 : BitVec 13),
+  Instr.ADDI .x10 .x10 (BitVec.ofNat 12 (2^12 - 1)),  -- -1
+  Instr.JAL .x0 (BitVec.ofNat 21 (2^21 - 8))           -- -8
+]
+
+/-- Execute countdown loop from a given initial x10 value. -/
+def runCountdown (x10val : Word) (steps : Nat) : Option MachineState :=
+  let s := { mkTestState x10val 0 with code := loadProgram 0 countdown_loop }
+  stepN steps s
+
+-- x10=0: BEQ taken immediately → PC=12 in 1 step
+/-- When x10 = 0, exits immediately (1 step, PC=12). -/
+example : (runCountdown 0 1).bind (fun s => some s.pc) = some 12 := by
+  native_decide
+
+/-- When x10 = 0, x10 stays 0. -/
+example : (runCountdown 0 1).bind (fun s => some (s.getReg .x10)) = some 0 := by
+  native_decide
+
+-- x10=1: BEQ not taken → ADDI (x10=0) → JAL (back to 0) → BEQ taken → PC=12
+-- That's 4 steps per iteration + 1 for final exit = 4 steps total
+/-- When x10 = 1, exits after 4 steps (PC=12, x10=0). -/
+example : (runCountdown 1 4).bind (fun s => some s.pc) = some 12 := by
+  native_decide
+
+example : (runCountdown 1 4).bind (fun s => some (s.getReg .x10)) = some 0 := by
+  native_decide
+
+-- x10=3: 3 iterations × 3 steps + 1 final BEQ = 10 steps
+/-- When x10 = 3, exits after 10 steps (PC=12, x10=0). -/
+example : (runCountdown 3 10).bind (fun s => some s.pc) = some 12 := by
+  native_decide
+
+example : (runCountdown 3 10).bind (fun s => some (s.getReg .x10)) = some 0 := by
+  native_decide
+
 end EvmAsm.Rv64

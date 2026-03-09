@@ -550,4 +550,49 @@ theorem cpsNBranch_weaken_posts (entry : Addr)
     obtain ⟨hp, hcompat, hpq⟩ := hER
     exact ⟨hp, hcompat, sepConj_mono_left hpost hp hpq⟩⟩
 
+-- ============================================================================
+-- Loop rules
+-- ============================================================================
+
+/-- Loop rule: prove a loop correct by induction on a decreasing variant.
+    h_base: when variant = 0, the code must exit (no more iterations).
+    h_step: when variant = n+1, one iteration either exits with Q
+            or returns to entry with inv n (variant decreased by 1). -/
+theorem cpsTriple_loop
+    (entry exit_ : Addr)
+    (inv : Nat → Assertion)
+    (Q : Assertion)
+    (h_base : cpsTriple entry exit_ (inv 0) Q)
+    (h_step : ∀ n, cpsBranch entry (inv (n + 1))
+                              exit_ Q
+                              entry (inv n))
+    : ∀ n, cpsTriple entry exit_ (inv n) Q := by
+  intro n
+  induction n with
+  | zero => exact h_base
+  | succ k ih =>
+    exact cpsBranch_merge entry exit_ entry exit_
+      (inv (k + 1)) Q (inv k) Q
+      (h_step k) (cpsTriple_refl exit_ Q Q (fun _ h => h)) ih
+
+/-- Loop rule with permutation on back-edge and exit postconditions. -/
+theorem cpsTriple_loop_with_perm
+    (entry exit_ : Addr)
+    (inv : Nat → Assertion)
+    (Q : Assertion)
+    (inv' : Nat → Assertion)
+    (Q' : Assertion)
+    (h_base : cpsTriple entry exit_ (inv 0) Q)
+    (h_step : ∀ n, cpsBranch entry (inv (n + 1))
+                              exit_ Q'
+                              entry (inv' n))
+    (hperm_inv : ∀ n h, inv' n h → inv n h)
+    (hperm_Q : ∀ h, Q' h → Q h)
+    : ∀ n, cpsTriple entry exit_ (inv n) Q := by
+  have h_step' : ∀ n, cpsBranch entry (inv (n + 1)) exit_ Q entry (inv n) :=
+    fun n => cpsBranch_consequence entry
+      (inv (n + 1)) (inv (n + 1)) exit_ Q' Q entry (inv' n) (inv n)
+      (fun _ h => h) hperm_Q (hperm_inv n) (h_step n)
+  exact cpsTriple_loop entry exit_ inv Q h_base h_step'
+
 end EvmAsm
