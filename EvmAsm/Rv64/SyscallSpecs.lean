@@ -181,12 +181,30 @@ namespace EvmAsm.Rv64
     (by intro s _ hrs1 _; simp [execInstrBr, hrs1])
     (by intro s hfetch; exact step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl))
 
+@[spec_gen_rv64] theorem andi_spec_gen_same (rd : Reg) (v : Word) (imm : BitVec 12)
+    (addr : Addr) (hrd_ne_x0 : rd ≠ .x0) :
+    cpsTriple addr (addr + 4)
+      ((addr ↦ᵢ .ANDI rd rd imm) ** (rd ↦ᵣ v))
+      ((addr ↦ᵢ .ANDI rd rd imm) ** (rd ↦ᵣ (v &&& signExtend12 imm))) :=
+  generic_1reg_spec (.ANDI rd rd imm) rd v _ addr hrd_ne_x0
+    (by intro s _ hrd; simp [execInstrBr, hrd])
+    (by intro s hfetch; exact step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl))
+
 @[spec_gen_rv64] theorem sltiu_spec_gen_same (rd : Reg) (v : Word) (imm : BitVec 12)
     (addr : Addr) (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4)
       ((addr ↦ᵢ .SLTIU rd rd imm) ** (rd ↦ᵣ v))
       ((addr ↦ᵢ .SLTIU rd rd imm) ** (rd ↦ᵣ (if BitVec.ult v (signExtend12 imm) then (1 : Word) else (0 : Word)))) :=
   generic_1reg_spec (.SLTIU rd rd imm) rd v _ addr hrd_ne_x0
+    (by intro s _ hrd; simp [execInstrBr, hrd])
+    (by intro s hfetch; exact step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl))
+
+@[spec_gen_rv64] theorem slli_spec_gen_same (rd : Reg) (v : Word) (shamt : BitVec 6)
+    (addr : Addr) (hrd_ne_x0 : rd ≠ .x0) :
+    cpsTriple addr (addr + 4)
+      ((addr ↦ᵢ .SLLI rd rd shamt) ** (rd ↦ᵣ v))
+      ((addr ↦ᵢ .SLLI rd rd shamt) ** (rd ↦ᵣ (v <<< shamt.toNat))) :=
+  generic_1reg_spec (.SLLI rd rd shamt) rd v _ addr hrd_ne_x0
     (by intro s _ hrd; simp [execInstrBr, hrd])
     (by intro s hfetch; exact step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl))
 

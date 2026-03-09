@@ -35,7 +35,7 @@ zkVM standards: `EvmAsm/Evm64/zkvm-standards/` (submodule).
 | **LT instructions** | 26 | 54 |
 | **SHR instructions** | 90 | 288+ |
 | **Efficiency** | ~2× fewer instructions | More limb processing |
-| **Files** | `EvmAsm/Evm64/` (18 files) | `EvmAsm/Evm32/` (15 files) |
+| **Files** | `EvmAsm/Evm64/` (24 files) | `EvmAsm/Evm32/` (15 files) |
 | **Infrastructure** | `EvmAsm/Rv64/` | `EvmAsm/Rv32/` |
 
 ### zkVM Standards (submodule: `EvmAsm/Evm64/zkvm-standards/`)
@@ -78,12 +78,12 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
 
 ## Current Status
 
-### Evm64 (PRIMARY) — 19 opcodes, all proofs complete (0 sorry)
+### Evm64 (PRIMARY) — 20 opcodes, all proofs complete (0 sorry)
 
 | Category | Opcodes | Instructions (per op) | Status |
 |----------|---------|----------------------|--------|
 | Arithmetic | ADD, SUB | 30 each | ✅ Fully proved |
-| Bitwise | AND, OR, XOR, NOT | 17 / 17 / 17 / 12 | ✅ Fully proved |
+| Bitwise | AND, OR, XOR, NOT, BYTE | 17 / 17 / 17 / 12 / 45 | ✅ Fully proved |
 | Shift | SHR, SHL, SAR | 90 / 90 / 95 | ✅ Fully proved |
 | Comparison | ISZERO, LT, GT, EQ, SLT, SGT | 12 / 26 / 26 / 21 / 25 / 25 | ✅ Fully proved |
 | Stack | POP, PUSH0, DUP1, SWAP1 | 1 / 5 / 9 / 16 | ✅ Fully proved |
@@ -127,7 +127,7 @@ All phases below target **Evm64** primarily. Files are under `EvmAsm/Evm64/`.
 - **Approach**: SGT(a,b) = SLT(b,a). Swap operand load order (b-limbs into x7, a-limbs into x6).
 - 25 instructions = 100 bytes. Mirrors SLT proof structure exactly.
 
-### Phase 2: Remaining Shifts & Bitwise ← NEXT
+### ~~Phase 2: Remaining Shifts & Bitwise~~ — DONE
 
 #### ~~2.1 SHL (Shift Left)~~ ✅
 - **Files**: `Evm64/Shift.lean` (program + 11 tests) + `Evm64/ShlSpec.lean` (per-limb + body specs)
@@ -143,10 +143,13 @@ All phases below target **Evm64** primarily. Files are under `EvmAsm/Evm64/`.
   Custom phase A/C (different offsets), sign-fill path (7 instrs) instead of zero_path.
 - 95 instructions = 380 bytes. All specs proved, 0 sorry.
 
-#### 2.3 BYTE (Extract byte from word)
-- **File**: `Evm64/Bitwise.lean` + `Evm64/Byte.lean` (new)
-- **Approach**: If index >= 32, result = 0. Else compute which limb and byte
-  offset within that limb, use SRL + ANDI 0xFF.
+#### ~~2.3 BYTE (Extract byte from word)~~ ✅
+- **Files**: `Evm64/Byte.lean` (program + 12 tests) + `Evm64/ByteSpec.lean` (per-body + store + phase B specs)
+- **Approach**: If index >= 32, result = 0. Else compute which limb (index/8)
+  and byte offset (56 - (index%8)*8), cascade dispatch to load correct limb,
+  SRL + ANDI 0xFF. Shared store path writes result + 3 zero limbs.
+- 45 instructions = 180 bytes. All specs proved, 0 sorry.
+- Added `andi_spec_gen_same` and `slli_spec_gen_same` to SyscallSpecs.lean.
 
 ### Phase 3: Stack Extensions
 
@@ -433,8 +436,8 @@ This is the heart of the STF — the inner loop that executes EVM bytecode.
 2. ~~Phase 2: POP, PUSH0, DUP1, SWAP1~~ — **done**
 3. ~~SHR~~ — **done** (Evm64 fully proved)
 4. ~~Phase 1: SLT, SGT (signed comparisons)~~ — **done**
-5. Phase 2: SHL, SAR (remaining shifts) ← **next**
-6. Phase 3: DUPn/SWAPn generic (port from Evm32 to Evm64)
+5. ~~Phase 2: SHL, SAR, BYTE (remaining shifts & bitwise)~~ — **done**
+6. Phase 3: DUPn/SWAPn generic (port from Evm32 to Evm64) ← **next**
 
 **Short-term (enables simple contracts):**
 7. Phase 4.1: MUL (4×4 limb, ~80-100 instructions on RV64)
