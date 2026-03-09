@@ -218,6 +218,9 @@ This is a **prototype** demonstrating the approach. Current state:
   - The instruction specs with explicit frame in `compiler/src/compiler/GoFlatToRiscv.v`
     (lines 439-546) informed the design of composing instruction specs with
     `cpsTriple_frame_left` + `cpsTriple_seq_with_perm`.
+- Knuth, D.E. (1997). *The Art of Computer Programming, Volume 2:
+  Seminumerical Algorithms* (3rd ed.), §4.3.1 "The Classical Algorithms."
+  Addison-Wesley. Algorithm D is used for the DIV/MOD opcodes in `Evm64/DivMod.lean`.
 - SP1 zkVM: https://github.com/succinctlabs/sp1
   The `ECALL`-based syscall mechanism follows SP1's conventions.
 - zkvm-standards: https://github.com/eth-act/zkvm-standards
