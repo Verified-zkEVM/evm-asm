@@ -741,12 +741,50 @@ private theorem regIs_to_regOwn' (r : Reg) (v : Word) : ∀ h, (r ↦ᵣ v) h �
 private theorem memIs_to_memOwn' (a : Addr) (v : Word) : ∀ h, (a ↦ₘ v) h → (memOwn a) h :=
   memIs_implies_memOwn a v
 
+-- Helper: weaken concrete reg/mem postcondition (with all progAt) to notTakenPost.
+-- Factored out because the same weakening applies to all 8 shift bodies.
+private theorem weaken_to_notTakenPost (sp base : Addr)
+    (s0 s1 s2 s3 s4 s5 s6 s7 : Word)
+    {r5 r6 r7 r10 r11 : Word} {m0 m1 m2 m3 m4 m5 m6 m7 : Word} : ∀ h,
+    (progAt base shr_phase_a ** progAt (base + 68) shr_phase_b **
+     progAt (base + 96) shr_phase_c ** progAt (base + 148) shr_body_7 **
+     progAt (base + 192) shr_body_6 ** progAt (base + 260) shr_body_5 **
+     progAt (base + 352) shr_body_4 ** progAt (base + 468) shr_body_3 **
+     progAt (base + 608) shr_body_2 ** progAt (base + 772) shr_body_1 **
+     progAt (base + 960) shr_body_0 ** progAt (base + 1172) shr_zero_path **
+     (.x12 ↦ᵣ (sp + 32)) ** (.x5 ↦ᵣ r5) ** (.x6 ↦ᵣ r6) ** (.x7 ↦ᵣ r7) **
+     (.x10 ↦ᵣ r10) ** (.x11 ↦ᵣ r11) ** (.x0 ↦ᵣ (0 : Word)) **
+     (sp ↦ₘ s0) ** ((sp + 4) ↦ₘ s1) ** ((sp + 8) ↦ₘ s2) ** ((sp + 12) ↦ₘ s3) **
+     ((sp + 16) ↦ₘ s4) ** ((sp + 20) ↦ₘ s5) ** ((sp + 24) ↦ₘ s6) ** ((sp + 28) ↦ₘ s7) **
+     ((sp + 32) ↦ₘ m0) ** ((sp + 36) ↦ₘ m1) ** ((sp + 40) ↦ₘ m2) ** ((sp + 44) ↦ₘ m3) **
+     ((sp + 48) ↦ₘ m4) ** ((sp + 52) ↦ₘ m5) ** ((sp + 56) ↦ₘ m6) ** ((sp + 60) ↦ₘ m7)) h →
+    (notTakenPost sp base s0 s1 s2 s3 s4 s5 s6 s7) h := by
+  intro h hp
+  unfold notTakenPost
+  have hp1 : (
+    (progAt base shr_phase_a ** progAt (base + 68) shr_phase_b **
+     progAt (base + 96) shr_phase_c ** progAt (base + 148) shr_body_7 **
+     progAt (base + 192) shr_body_6 ** progAt (base + 260) shr_body_5 **
+     progAt (base + 352) shr_body_4 ** progAt (base + 468) shr_body_3 **
+     progAt (base + 608) shr_body_2 ** progAt (base + 772) shr_body_1 **
+     progAt (base + 960) shr_body_0 ** progAt (base + 1172) shr_zero_path) **
+    ((.x12 ↦ᵣ (sp + 32)) ** (.x5 ↦ᵣ r5) ** (.x6 ↦ᵣ r6) ** (.x7 ↦ᵣ r7) **
+     (.x10 ↦ᵣ r10) ** (.x11 ↦ᵣ r11) ** (.x0 ↦ᵣ (0 : Word)) **
+     (sp ↦ₘ s0) ** ((sp + 4) ↦ₘ s1) ** ((sp + 8) ↦ₘ s2) ** ((sp + 12) ↦ₘ s3) **
+     ((sp + 16) ↦ₘ s4) ** ((sp + 20) ↦ₘ s5) ** ((sp + 24) ↦ₘ s6) ** ((sp + 28) ↦ₘ s7) **
+     ((sp + 32) ↦ₘ m0) ** ((sp + 36) ↦ₘ m1) ** ((sp + 40) ↦ₘ m2) ** ((sp + 44) ↦ₘ m3) **
+     ((sp + 48) ↦ₘ m4) ** ((sp + 52) ↦ₘ m5) ** ((sp + 56) ↦ₘ m6) ** ((sp + 60) ↦ₘ m7))) h :=
+    (congrFun (show _ = _ from by xperm) h).mp hp
+  have hp2 := sepConj_mono_right
+    (weaken_body_post sp s0 s1 s2 s3 s4 s5 s6 s7 r5 r6 r7 r10 r11 m0 m1 m2 m3 m4 m5 m6 m7) h hp1
+  exact (congrFun (show _ = _ from by xperm) h).mp hp2
+
 set_option maxHeartbeats 25600000 in
 set_option maxRecDepth 4096 in
 private theorem evm_shr_not_taken_aux
     (sp base : Addr) (s0 s1 s2 s3 s4 s5 s6 s7 : Word)
     (v0 v1 v2 v3 v4 v5 v6 v7 : Word) (r6 r7 r10 r11 : Word)
-    (hvS : ValidMemRange sp 8) (hvV : ValidMemRange (sp + 32) 8) :
+    (_hvS : ValidMemRange sp 8) (hvV : ValidMemRange (sp + 32) 8) :
     cpsTriple (base + 68) (base + 1208)
       (progAt base shr_phase_a **
        progAt (base + 68) shr_phase_b **
@@ -832,17 +870,327 @@ private theorem evm_shr_not_taken_aux
   -- Need permutation to match: pb output → pc input
   have bc := cpsTriple_seq_cpsNBranch_with_perm (base + 68) (base + 96) _ _ _ _
     (fun h hp => by
-      rw [← progAt_shr_phase_b (base + 68)] at hp
       rw [progAt_shr_phase_c (base + 96)] at hp
+      rw [progAt_shr_phase_b (base + 68)]
       xperm_hyp hp) pb_framed pc_framed
   clear pb_framed pc_framed
-  -- Step 4: Merge all 8 exits using cpsNBranch_merge
-  exact cpsNBranch_merge _ _ _ _ _ bc (fun exit hmem => by
-    simp only [List.map_cons, List.map_nil, List.mem_cons, Prod.mk.injEq,
-      List.mem_nil_iff, or_false] at hmem
-    rcases hmem with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ |
-                      ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
-    all_goals sorry)
+  -- Step 4: Bridge precondition (progAt → instrAt) and merge all 8 exits
+  exact cpsTriple_consequence _ _ _ _ _ _
+    (fun h hp => by
+      rw [progAt_shr_phase_b (base + 68)] at hp
+      xperm_hyp hp)
+    (fun h hq => hq)
+    (cpsNBranch_merge _ _ _ _ _ bc (fun exit hmem => by
+      simp only [List.map_cons, List.map_nil, List.mem_cons,
+        List.mem_nil_iff, or_false] at hmem
+      rcases hmem with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ |
+                        ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
+      -- Address normalizations shared across all bodies
+      all_goals (
+        try have hn4  : (sp + 32 : Word) + 4  = sp + 36 := by bv_omega
+        try have hn8  : (sp + 32 : Word) + 8  = sp + 40 := by bv_omega
+        try have hn12 : (sp + 32 : Word) + 12 = sp + 44 := by bv_omega
+        try have hn16 : (sp + 32 : Word) + 16 = sp + 48 := by bv_omega
+        try have hn20 : (sp + 32 : Word) + 20 = sp + 52 := by bv_omega
+        try have hn24 : (sp + 32 : Word) + 24 = sp + 56 := by bv_omega
+        try have hn28 : (sp + 32 : Word) + 28 = sp + 60 := by bv_omega
+        skip)
+      · -- body_0 at base+960
+        have bspec := shr_body_0_spec (sp + 32)
+          (s0 >>> (5 : BitVec 5).toNat) r10
+          (s0 &&& signExtend12 31) ((32 : Word) - (s0 &&& signExtend12 31))
+          ((0 : Word) - (if BitVec.ult (0 : Word) (s0 &&& signExtend12 31) then (1 : Word) else 0))
+          v0 v1 v2 v3 v4 v5 v6 v7
+          (base + 960) (base + 1208) 40
+          (by simp only [show signExtend21 (40 : BitVec 21) = (40 : Word) from by native_decide]
+              bv_omega)
+          hvV
+        rw [hn4, hn8, hn12, hn16, hn20, hn24, hn28] at bspec
+        have bframed := cpsTriple_frame_left _ _ _ _
+          (progAt (base + 96) shr_phase_c **
+           (.x0 ↦ᵣ (0 : Word)) **
+           progAt base shr_phase_a **
+           progAt (base + 68) shr_phase_b **
+           progAt (base + 148) shr_body_7 **
+           progAt (base + 192) shr_body_6 **
+           progAt (base + 260) shr_body_5 **
+           progAt (base + 352) shr_body_4 **
+           progAt (base + 468) shr_body_3 **
+           progAt (base + 608) shr_body_2 **
+           progAt (base + 772) shr_body_1 **
+           progAt (base + 1172) shr_zero_path **
+           (sp ↦ₘ s0) ** ((sp + 4) ↦ₘ s1) ** ((sp + 8) ↦ₘ s2) ** ((sp + 12) ↦ₘ s3) **
+           ((sp + 16) ↦ₘ s4) ** ((sp + 20) ↦ₘ s5) ** ((sp + 24) ↦ₘ s6) ** ((sp + 28) ↦ₘ s7))
+          (by pcFree) bspec
+        exact cpsTriple_consequence _ _ _ _ _ _
+          (fun h hp => by
+            rw [progAt_shr_body_0 (base + 960)] at hp
+            rw [progAt_shr_phase_c (base + 96)]
+            xperm_hyp hp)
+          (fun h hq => by
+            apply weaken_to_notTakenPost sp base s0 s1 s2 s3 s4 s5 s6 s7
+            rw [progAt_shr_body_0 (base + 960)]
+            xperm_hyp hq)
+          bframed
+      · -- body_1 at base+772
+        have bspec := shr_body_1_spec (sp + 32)
+          (s0 >>> (5 : BitVec 5).toNat) ((0 : Word) + signExtend12 1)
+          (s0 &&& signExtend12 31) ((32 : Word) - (s0 &&& signExtend12 31))
+          ((0 : Word) - (if BitVec.ult (0 : Word) (s0 &&& signExtend12 31) then (1 : Word) else 0))
+          v0 v1 v2 v3 v4 v5 v6 v7
+          (base + 772) (base + 1208) 252
+          (by simp only [show signExtend21 (252 : BitVec 21) = (252 : Word) from by native_decide]
+              bv_omega)
+          hvV
+        rw [hn4, hn8, hn12, hn16, hn20, hn24, hn28] at bspec
+        have bframed := cpsTriple_frame_left _ _ _ _
+          (progAt (base + 96) shr_phase_c **
+           (.x0 ↦ᵣ (0 : Word)) **
+           progAt base shr_phase_a **
+           progAt (base + 68) shr_phase_b **
+           progAt (base + 148) shr_body_7 **
+           progAt (base + 192) shr_body_6 **
+           progAt (base + 260) shr_body_5 **
+           progAt (base + 352) shr_body_4 **
+           progAt (base + 468) shr_body_3 **
+           progAt (base + 608) shr_body_2 **
+           progAt (base + 960) shr_body_0 **
+           progAt (base + 1172) shr_zero_path **
+           (sp ↦ₘ s0) ** ((sp + 4) ↦ₘ s1) ** ((sp + 8) ↦ₘ s2) ** ((sp + 12) ↦ₘ s3) **
+           ((sp + 16) ↦ₘ s4) ** ((sp + 20) ↦ₘ s5) ** ((sp + 24) ↦ₘ s6) ** ((sp + 28) ↦ₘ s7))
+          (by pcFree) bspec
+        exact cpsTriple_consequence _ _ _ _ _ _
+          (fun h hp => by
+            rw [progAt_shr_body_1 (base + 772)] at hp
+            rw [progAt_shr_phase_c (base + 96)]
+            xperm_hyp hp)
+          (fun h hq => by
+            apply weaken_to_notTakenPost sp base s0 s1 s2 s3 s4 s5 s6 s7
+            rw [progAt_shr_body_1 (base + 772)]
+            xperm_hyp hq)
+          bframed
+      · -- body_2 at base+608
+        have bspec := shr_body_2_spec (sp + 32)
+          (s0 >>> (5 : BitVec 5).toNat) ((0 : Word) + signExtend12 2)
+          (s0 &&& signExtend12 31) ((32 : Word) - (s0 &&& signExtend12 31))
+          ((0 : Word) - (if BitVec.ult (0 : Word) (s0 &&& signExtend12 31) then (1 : Word) else 0))
+          v0 v1 v2 v3 v4 v5 v6 v7
+          (base + 608) (base + 1208) 440
+          (by simp only [show signExtend21 (440 : BitVec 21) = (440 : Word) from by native_decide]
+              bv_omega)
+          hvV
+        rw [hn4, hn8, hn12, hn16, hn20, hn24, hn28] at bspec
+        have bframed := cpsTriple_frame_left _ _ _ _
+          (progAt (base + 96) shr_phase_c **
+           (.x0 ↦ᵣ (0 : Word)) **
+           progAt base shr_phase_a **
+           progAt (base + 68) shr_phase_b **
+           progAt (base + 148) shr_body_7 **
+           progAt (base + 192) shr_body_6 **
+           progAt (base + 260) shr_body_5 **
+           progAt (base + 352) shr_body_4 **
+           progAt (base + 468) shr_body_3 **
+           progAt (base + 772) shr_body_1 **
+           progAt (base + 960) shr_body_0 **
+           progAt (base + 1172) shr_zero_path **
+           (sp ↦ₘ s0) ** ((sp + 4) ↦ₘ s1) ** ((sp + 8) ↦ₘ s2) ** ((sp + 12) ↦ₘ s3) **
+           ((sp + 16) ↦ₘ s4) ** ((sp + 20) ↦ₘ s5) ** ((sp + 24) ↦ₘ s6) ** ((sp + 28) ↦ₘ s7))
+          (by pcFree) bspec
+        exact cpsTriple_consequence _ _ _ _ _ _
+          (fun h hp => by
+            rw [progAt_shr_body_2 (base + 608)] at hp
+            rw [progAt_shr_phase_c (base + 96)]
+            xperm_hyp hp)
+          (fun h hq => by
+            apply weaken_to_notTakenPost sp base s0 s1 s2 s3 s4 s5 s6 s7
+            rw [progAt_shr_body_2 (base + 608)]
+            xperm_hyp hq)
+          bframed
+      · -- body_3 at base+468
+        have bspec := shr_body_3_spec (sp + 32)
+          (s0 >>> (5 : BitVec 5).toNat) ((0 : Word) + signExtend12 3)
+          (s0 &&& signExtend12 31) ((32 : Word) - (s0 &&& signExtend12 31))
+          ((0 : Word) - (if BitVec.ult (0 : Word) (s0 &&& signExtend12 31) then (1 : Word) else 0))
+          v0 v1 v2 v3 v4 v5 v6 v7
+          (base + 468) (base + 1208) 604
+          (by simp only [show signExtend21 (604 : BitVec 21) = (604 : Word) from by native_decide]
+              bv_omega)
+          hvV
+        rw [hn4, hn8, hn12, hn16, hn20, hn24, hn28] at bspec
+        have bframed := cpsTriple_frame_left _ _ _ _
+          (progAt (base + 96) shr_phase_c **
+           (.x0 ↦ᵣ (0 : Word)) **
+           progAt base shr_phase_a **
+           progAt (base + 68) shr_phase_b **
+           progAt (base + 148) shr_body_7 **
+           progAt (base + 192) shr_body_6 **
+           progAt (base + 260) shr_body_5 **
+           progAt (base + 352) shr_body_4 **
+           progAt (base + 608) shr_body_2 **
+           progAt (base + 772) shr_body_1 **
+           progAt (base + 960) shr_body_0 **
+           progAt (base + 1172) shr_zero_path **
+           (sp ↦ₘ s0) ** ((sp + 4) ↦ₘ s1) ** ((sp + 8) ↦ₘ s2) ** ((sp + 12) ↦ₘ s3) **
+           ((sp + 16) ↦ₘ s4) ** ((sp + 20) ↦ₘ s5) ** ((sp + 24) ↦ₘ s6) ** ((sp + 28) ↦ₘ s7))
+          (by pcFree) bspec
+        exact cpsTriple_consequence _ _ _ _ _ _
+          (fun h hp => by
+            rw [progAt_shr_body_3 (base + 468)] at hp
+            rw [progAt_shr_phase_c (base + 96)]
+            xperm_hyp hp)
+          (fun h hq => by
+            apply weaken_to_notTakenPost sp base s0 s1 s2 s3 s4 s5 s6 s7
+            rw [progAt_shr_body_3 (base + 468)]
+            xperm_hyp hq)
+          bframed
+      · -- body_4 at base+352
+        have bspec := shr_body_4_spec (sp + 32)
+          (s0 >>> (5 : BitVec 5).toNat) ((0 : Word) + signExtend12 4)
+          (s0 &&& signExtend12 31) ((32 : Word) - (s0 &&& signExtend12 31))
+          ((0 : Word) - (if BitVec.ult (0 : Word) (s0 &&& signExtend12 31) then (1 : Word) else 0))
+          v0 v1 v2 v3 v4 v5 v6 v7
+          (base + 352) (base + 1208) 744
+          (by simp only [show signExtend21 (744 : BitVec 21) = (744 : Word) from by native_decide]
+              bv_omega)
+          hvV
+        rw [hn4, hn8, hn12, hn16, hn20, hn24, hn28] at bspec
+        have bframed := cpsTriple_frame_left _ _ _ _
+          (progAt (base + 96) shr_phase_c **
+           (.x0 ↦ᵣ (0 : Word)) **
+           progAt base shr_phase_a **
+           progAt (base + 68) shr_phase_b **
+           progAt (base + 148) shr_body_7 **
+           progAt (base + 192) shr_body_6 **
+           progAt (base + 260) shr_body_5 **
+           progAt (base + 468) shr_body_3 **
+           progAt (base + 608) shr_body_2 **
+           progAt (base + 772) shr_body_1 **
+           progAt (base + 960) shr_body_0 **
+           progAt (base + 1172) shr_zero_path **
+           (sp ↦ₘ s0) ** ((sp + 4) ↦ₘ s1) ** ((sp + 8) ↦ₘ s2) ** ((sp + 12) ↦ₘ s3) **
+           ((sp + 16) ↦ₘ s4) ** ((sp + 20) ↦ₘ s5) ** ((sp + 24) ↦ₘ s6) ** ((sp + 28) ↦ₘ s7))
+          (by pcFree) bspec
+        exact cpsTriple_consequence _ _ _ _ _ _
+          (fun h hp => by
+            rw [progAt_shr_body_4 (base + 352)] at hp
+            rw [progAt_shr_phase_c (base + 96)]
+            xperm_hyp hp)
+          (fun h hq => by
+            apply weaken_to_notTakenPost sp base s0 s1 s2 s3 s4 s5 s6 s7
+            rw [progAt_shr_body_4 (base + 352)]
+            xperm_hyp hq)
+          bframed
+      · -- body_5 at base+260
+        have bspec := shr_body_5_spec (sp + 32)
+          (s0 >>> (5 : BitVec 5).toNat) ((0 : Word) + signExtend12 5)
+          (s0 &&& signExtend12 31) ((32 : Word) - (s0 &&& signExtend12 31))
+          ((0 : Word) - (if BitVec.ult (0 : Word) (s0 &&& signExtend12 31) then (1 : Word) else 0))
+          v0 v1 v2 v3 v4 v5 v6 v7
+          (base + 260) (base + 1208) 860
+          (by simp only [show signExtend21 (860 : BitVec 21) = (860 : Word) from by native_decide]
+              bv_omega)
+          hvV
+        rw [hn4, hn8, hn12, hn16, hn20, hn24, hn28] at bspec
+        have bframed := cpsTriple_frame_left _ _ _ _
+          (progAt (base + 96) shr_phase_c **
+           (.x0 ↦ᵣ (0 : Word)) **
+           progAt base shr_phase_a **
+           progAt (base + 68) shr_phase_b **
+           progAt (base + 148) shr_body_7 **
+           progAt (base + 192) shr_body_6 **
+           progAt (base + 352) shr_body_4 **
+           progAt (base + 468) shr_body_3 **
+           progAt (base + 608) shr_body_2 **
+           progAt (base + 772) shr_body_1 **
+           progAt (base + 960) shr_body_0 **
+           progAt (base + 1172) shr_zero_path **
+           (sp ↦ₘ s0) ** ((sp + 4) ↦ₘ s1) ** ((sp + 8) ↦ₘ s2) ** ((sp + 12) ↦ₘ s3) **
+           ((sp + 16) ↦ₘ s4) ** ((sp + 20) ↦ₘ s5) ** ((sp + 24) ↦ₘ s6) ** ((sp + 28) ↦ₘ s7))
+          (by pcFree) bspec
+        exact cpsTriple_consequence _ _ _ _ _ _
+          (fun h hp => by
+            rw [progAt_shr_body_5 (base + 260)] at hp
+            rw [progAt_shr_phase_c (base + 96)]
+            xperm_hyp hp)
+          (fun h hq => by
+            apply weaken_to_notTakenPost sp base s0 s1 s2 s3 s4 s5 s6 s7
+            rw [progAt_shr_body_5 (base + 260)]
+            xperm_hyp hq)
+          bframed
+      · -- body_6 at base+192
+        have bspec := shr_body_6_spec (sp + 32)
+          (s0 >>> (5 : BitVec 5).toNat) ((0 : Word) + signExtend12 6)
+          (s0 &&& signExtend12 31) ((32 : Word) - (s0 &&& signExtend12 31))
+          ((0 : Word) - (if BitVec.ult (0 : Word) (s0 &&& signExtend12 31) then (1 : Word) else 0))
+          v0 v1 v2 v3 v4 v5 v6 v7
+          (base + 192) (base + 1208) 952
+          (by simp only [show signExtend21 (952 : BitVec 21) = (952 : Word) from by native_decide]
+              bv_omega)
+          hvV
+        rw [hn4, hn8, hn12, hn16, hn20, hn24, hn28] at bspec
+        have bframed := cpsTriple_frame_left _ _ _ _
+          (progAt (base + 96) shr_phase_c **
+           (.x0 ↦ᵣ (0 : Word)) **
+           progAt base shr_phase_a **
+           progAt (base + 68) shr_phase_b **
+           progAt (base + 148) shr_body_7 **
+           progAt (base + 260) shr_body_5 **
+           progAt (base + 352) shr_body_4 **
+           progAt (base + 468) shr_body_3 **
+           progAt (base + 608) shr_body_2 **
+           progAt (base + 772) shr_body_1 **
+           progAt (base + 960) shr_body_0 **
+           progAt (base + 1172) shr_zero_path **
+           (sp ↦ₘ s0) ** ((sp + 4) ↦ₘ s1) ** ((sp + 8) ↦ₘ s2) ** ((sp + 12) ↦ₘ s3) **
+           ((sp + 16) ↦ₘ s4) ** ((sp + 20) ↦ₘ s5) ** ((sp + 24) ↦ₘ s6) ** ((sp + 28) ↦ₘ s7))
+          (by pcFree) bspec
+        exact cpsTriple_consequence _ _ _ _ _ _
+          (fun h hp => by
+            rw [progAt_shr_body_6 (base + 192)] at hp
+            rw [progAt_shr_phase_c (base + 96)]
+            xperm_hyp hp)
+          (fun h hq => by
+            apply weaken_to_notTakenPost sp base s0 s1 s2 s3 s4 s5 s6 s7
+            rw [progAt_shr_body_6 (base + 192)]
+            xperm_hyp hq)
+          bframed
+      · -- body_7 at base+148
+        have bspec := shr_body_7_spec (sp + 32)
+          (s0 >>> (5 : BitVec 5).toNat) ((0 : Word) + signExtend12 6)
+          (s0 &&& signExtend12 31) ((32 : Word) - (s0 &&& signExtend12 31))
+          ((0 : Word) - (if BitVec.ult (0 : Word) (s0 &&& signExtend12 31) then (1 : Word) else 0))
+          v0 v1 v2 v3 v4 v5 v6 v7
+          (base + 148) (base + 1208) 1020
+          (by simp only [show signExtend21 (1020 : BitVec 21) = (1020 : Word) from by native_decide]
+              bv_omega)
+          hvV
+        rw [hn4, hn8, hn12, hn16, hn20, hn24, hn28] at bspec
+        have bframed := cpsTriple_frame_left _ _ _ _
+          (progAt (base + 96) shr_phase_c **
+           (.x0 ↦ᵣ (0 : Word)) **
+           progAt base shr_phase_a **
+           progAt (base + 68) shr_phase_b **
+           progAt (base + 192) shr_body_6 **
+           progAt (base + 260) shr_body_5 **
+           progAt (base + 352) shr_body_4 **
+           progAt (base + 468) shr_body_3 **
+           progAt (base + 608) shr_body_2 **
+           progAt (base + 772) shr_body_1 **
+           progAt (base + 960) shr_body_0 **
+           progAt (base + 1172) shr_zero_path **
+           (sp ↦ₘ s0) ** ((sp + 4) ↦ₘ s1) ** ((sp + 8) ↦ₘ s2) ** ((sp + 12) ↦ₘ s3) **
+           ((sp + 16) ↦ₘ s4) ** ((sp + 20) ↦ₘ s5) ** ((sp + 24) ↦ₘ s6) ** ((sp + 28) ↦ₘ s7))
+          (by pcFree) bspec
+        exact cpsTriple_consequence _ _ _ _ _ _
+          (fun h hp => by
+            rw [progAt_shr_body_7 (base + 148)] at hp
+            rw [progAt_shr_phase_c (base + 96)]
+            xperm_hyp hp)
+          (fun h hq => by
+            apply weaken_to_notTakenPost sp base s0 s1 s2 s3 s4 s5 s6 s7
+            rw [progAt_shr_body_7 (base + 148)]
+            xperm_hyp hq)
+          bframed))
 
 -- ============================================================================
 -- Section 4: Full composition theorem
@@ -1019,32 +1367,19 @@ theorem evm_shr_spec (sp base : Addr)
     intro R hR s hPR hpc
     obtain ⟨hp, hcompat, hP, hRs, hdPR, huPR, hPP, hRR⟩ := hPR
     -- Move regOwn .x10 to tail via permutation
-    have hPP' := (congrFun (show _ = _ from by xperm) hP).mp hPP
+    have hPP' : ((progAt base shr_phase_a **
+       (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ s0) ** (.x0 ↦ᵣ (0 : Word)) **
+       (sp ↦ₘ s0) ** ((sp + 4) ↦ₘ s1) ** ((sp + 8) ↦ₘ s2) ** ((sp + 12) ↦ₘ s3) **
+       ((sp + 16) ↦ₘ s4) ** ((sp + 20) ↦ₘ s5) ** ((sp + 24) ↦ₘ s6) ** ((sp + 28) ↦ₘ s7) **
+       otherCode base **
+       (.x6 ↦ᵣ r6) ** (.x7 ↦ᵣ r7) ** (.x11 ↦ᵣ r11) **
+       ((sp + 32) ↦ₘ v0) ** ((sp + 36) ↦ₘ v1) ** ((sp + 40) ↦ₘ v2) ** ((sp + 44) ↦ₘ v3) **
+       ((sp + 48) ↦ₘ v4) ** ((sp + 52) ↦ₘ v5) ** ((sp + 56) ↦ₘ v6) ** ((sp + 60) ↦ₘ v7)) **
+       regOwn .x10) hP := by
+      xperm_hyp hPP
     obtain ⟨h1, h2, hd12, hu12, hh1, ⟨r10, hr10⟩⟩ := hPP'
-    -- Reconstruct with .x10 ↦ᵣ r10
-    have hPP_new := (congrFun (show _ = _ from by xperm) hP).mpr
-      (⟨h1, h2, hd12, hu12, hh1, hr10⟩ :
-        (progAt base shr_phase_a **
-         progAt (base + 68) shr_phase_b **
-         progAt (base + 96) shr_phase_c **
-         progAt (base + 148) shr_body_7 **
-         progAt (base + 192) shr_body_6 **
-         progAt (base + 260) shr_body_5 **
-         progAt (base + 352) shr_body_4 **
-         progAt (base + 468) shr_body_3 **
-         progAt (base + 608) shr_body_2 **
-         progAt (base + 772) shr_body_1 **
-         progAt (base + 960) shr_body_0 **
-         progAt (base + 1172) shr_zero_path **
-         (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ s0) ** (.x0 ↦ᵣ (0 : Word)) **
-         (.x6 ↦ᵣ r6) ** (.x7 ↦ᵣ r7) ** (.x11 ↦ᵣ r11) **
-         (sp ↦ₘ s0) ** ((sp + 4) ↦ₘ s1) ** ((sp + 8) ↦ₘ s2) ** ((sp + 12) ↦ₘ s3) **
-         ((sp + 16) ↦ₘ s4) ** ((sp + 20) ↦ₘ s5) ** ((sp + 24) ↦ₘ s6) ** ((sp + 28) ↦ₘ s7) **
-         ((sp + 32) ↦ₘ v0) ** ((sp + 36) ↦ₘ v1) ** ((sp + 40) ↦ₘ v2) ** ((sp + 44) ↦ₘ v3) **
-         ((sp + 48) ↦ₘ v4) ** ((sp + 52) ↦ₘ v5) ** ((sp + 56) ↦ₘ v6) ** ((sp + 60) ↦ₘ v7) **
-         (.x10 ↦ᵣ r10)) hP)
-    -- Now apply the core theorem
-    have hPR_core : (progAt base shr_phase_a **
+    -- Reconstruct with .x10 ↦ᵣ r10 and permute to target order
+    have hPP_new : (progAt base shr_phase_a **
        progAt (base + 68) shr_phase_b **
        progAt (base + 96) shr_phase_c **
        progAt (base + 148) shr_body_7 **
@@ -1061,11 +1396,43 @@ theorem evm_shr_spec (sp base : Addr)
        (sp ↦ₘ s0) ** ((sp + 4) ↦ₘ s1) ** ((sp + 8) ↦ₘ s2) ** ((sp + 12) ↦ₘ s3) **
        ((sp + 16) ↦ₘ s4) ** ((sp + 20) ↦ₘ s5) ** ((sp + 24) ↦ₘ s6) ** ((sp + 28) ↦ₘ s7) **
        ((sp + 32) ↦ₘ v0) ** ((sp + 36) ↦ₘ v1) ** ((sp + 40) ↦ₘ v2) ** ((sp + 44) ↦ₘ v3) **
-       ((sp + 48) ↦ₘ v4) ** ((sp + 52) ↦ₘ v5) ** ((sp + 56) ↦ₘ v6) ** ((sp + 60) ↦ₘ v7) **
+       ((sp + 48) ↦ₘ v4) ** ((sp + 52) ↦ₘ v5) ** ((sp + 56) ↦ₘ v6) ** ((sp + 60) ↦ₘ v7)) hP := by
+      have h_inter : ((progAt base shr_phase_a **
+         (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ s0) ** (.x0 ↦ᵣ (0 : Word)) **
+         (sp ↦ₘ s0) ** ((sp + 4) ↦ₘ s1) ** ((sp + 8) ↦ₘ s2) ** ((sp + 12) ↦ₘ s3) **
+         ((sp + 16) ↦ₘ s4) ** ((sp + 20) ↦ₘ s5) ** ((sp + 24) ↦ₘ s6) ** ((sp + 28) ↦ₘ s7) **
+         otherCode base **
+         (.x6 ↦ᵣ r6) ** (.x7 ↦ᵣ r7) ** (.x11 ↦ᵣ r11) **
+         ((sp + 32) ↦ₘ v0) ** ((sp + 36) ↦ₘ v1) ** ((sp + 40) ↦ₘ v2) ** ((sp + 44) ↦ₘ v3) **
+         ((sp + 48) ↦ₘ v4) ** ((sp + 52) ↦ₘ v5) ** ((sp + 56) ↦ₘ v6) ** ((sp + 60) ↦ₘ v7)) **
+         (.x10 ↦ᵣ r10)) hP := ⟨h1, h2, hd12, hu12, hh1, hr10⟩
+      unfold otherCode at h_inter
+      exact (congrFun (by ac_rfl) hP).mp h_inter
+    -- Now apply the core theorem
+    have hPR_core : ((progAt base shr_phase_a **
+       progAt (base + 68) shr_phase_b **
+       progAt (base + 96) shr_phase_c **
+       progAt (base + 148) shr_body_7 **
+       progAt (base + 192) shr_body_6 **
+       progAt (base + 260) shr_body_5 **
+       progAt (base + 352) shr_body_4 **
+       progAt (base + 468) shr_body_3 **
+       progAt (base + 608) shr_body_2 **
+       progAt (base + 772) shr_body_1 **
+       progAt (base + 960) shr_body_0 **
+       progAt (base + 1172) shr_zero_path **
+       (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ s0) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ r10) **
+       (.x6 ↦ᵣ r6) ** (.x7 ↦ᵣ r7) ** (.x11 ↦ᵣ r11) **
+       (sp ↦ₘ s0) ** ((sp + 4) ↦ₘ s1) ** ((sp + 8) ↦ₘ s2) ** ((sp + 12) ↦ₘ s3) **
+       ((sp + 16) ↦ₘ s4) ** ((sp + 20) ↦ₘ s5) ** ((sp + 24) ↦ₘ s6) ** ((sp + 28) ↦ₘ s7) **
+       ((sp + 32) ↦ₘ v0) ** ((sp + 36) ↦ₘ v1) ** ((sp + 40) ↦ₘ v2) ** ((sp + 44) ↦ₘ v3) **
+       ((sp + 48) ↦ₘ v4) ** ((sp + 52) ↦ₘ v5) ** ((sp + 56) ↦ₘ v6) ** ((sp + 60) ↦ₘ v7)) **
        R).holdsFor s :=
-      ⟨hp, hcompat, hP, hRs, hdPR, huPR,
-       (congrFun (show _ = _ from by xperm) hP).mp hPP_new, hRR⟩
-    exact (evm_shr_not_taken_aux sp base s0 s1 s2 s3 s4 s5 s6 s7
-      v0 v1 v2 v3 v4 v5 v6 v7 r6 r7 r10 r11 hvS hvV) R hR s hPR_core hpc
+      ⟨hp, hcompat, hP, hRs, hdPR, huPR, hPP_new, hRR⟩
+    have nt := evm_shr_not_taken_aux sp base s0 s1 s2 s3 s4 s5 s6 s7
+      v0 v1 v2 v3 v4 v5 v6 v7 r6 r7 r10 r11 hvS hvV
+    exact (cpsTriple_consequence _ _ _ _ _ _
+      (fun h hp => hp) (fun h hq => by unfold notTakenPost at hq; xperm_hyp hq)
+      nt) R hR s hPR_core hpc
 
 end EvmAsm

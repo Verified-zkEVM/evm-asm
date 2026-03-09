@@ -1675,6 +1675,60 @@ theorem weaken_zp_post (sp : Addr) (r6 r7 r11 : Word)
   -- Step 3: Permute to target order
   exact (congrFun (show _ = _ by xperm) h).mp w10
 
+/-- Weaken body postcondition: convert concrete regs (.x5,.x6,.x7,.x10,.x11) to regOwn
+    and concrete mems ((sp+32)..(sp+60)) to memOwn. Used for all 8 shift body exits. -/
+theorem weaken_body_post (sp : Addr) (s0 s1 s2 s3 s4 s5 s6 s7 : Word)
+    (r5 r6 r7 r10 r11 : Word) (m0 m1 m2 m3 m4 m5 m6 m7 : Word) : ∀ h,
+    ((.x12 ↦ᵣ (sp + 32)) ** (.x5 ↦ᵣ r5) ** (.x6 ↦ᵣ r6) ** (.x7 ↦ᵣ r7) **
+     (.x10 ↦ᵣ r10) ** (.x11 ↦ᵣ r11) ** (.x0 ↦ᵣ (0 : Word)) **
+     (sp ↦ₘ s0) ** ((sp + 4) ↦ₘ s1) ** ((sp + 8) ↦ₘ s2) ** ((sp + 12) ↦ₘ s3) **
+     ((sp + 16) ↦ₘ s4) ** ((sp + 20) ↦ₘ s5) ** ((sp + 24) ↦ₘ s6) ** ((sp + 28) ↦ₘ s7) **
+     ((sp + 32) ↦ₘ m0) ** ((sp + 36) ↦ₘ m1) ** ((sp + 40) ↦ₘ m2) ** ((sp + 44) ↦ₘ m3) **
+     ((sp + 48) ↦ₘ m4) ** ((sp + 52) ↦ₘ m5) ** ((sp + 56) ↦ₘ m6) ** ((sp + 60) ↦ₘ m7)) h →
+    ((.x12 ↦ᵣ (sp + 32)) ** (regOwn .x5) ** (regOwn .x6) ** (regOwn .x7) **
+     (regOwn .x10) ** (regOwn .x11) ** (.x0 ↦ᵣ (0 : Word)) **
+     (sp ↦ₘ s0) ** ((sp + 4) ↦ₘ s1) ** ((sp + 8) ↦ₘ s2) ** ((sp + 12) ↦ₘ s3) **
+     ((sp + 16) ↦ₘ s4) ** ((sp + 20) ↦ₘ s5) ** ((sp + 24) ↦ₘ s6) ** ((sp + 28) ↦ₘ s7) **
+     (memOwn (sp + 32)) ** (memOwn (sp + 36)) ** (memOwn (sp + 40)) ** (memOwn (sp + 44)) **
+     (memOwn (sp + 48)) ** (memOwn (sp + 52)) ** (memOwn (sp + 56)) ** (memOwn (sp + 60))) h := by
+  intro h hp
+  -- Step 1: Permute to move items-to-weaken to the front
+  have hp' := (congrFun (show _ =
+    ((.x5 ↦ᵣ r5) ** (.x6 ↦ᵣ r6) ** (.x7 ↦ᵣ r7) ** (.x10 ↦ᵣ r10) ** (.x11 ↦ᵣ r11) **
+    ((sp + 32) ↦ₘ m0) ** ((sp + 36) ↦ₘ m1) ** ((sp + 40) ↦ₘ m2) ** ((sp + 44) ↦ₘ m3) **
+    ((sp + 48) ↦ₘ m4) ** ((sp + 52) ↦ₘ m5) ** ((sp + 56) ↦ₘ m6) ** ((sp + 60) ↦ₘ m7) **
+    (.x12 ↦ᵣ (sp + 32)) ** (.x0 ↦ᵣ (0 : Word)) **
+    (sp ↦ₘ s0) ** ((sp + 4) ↦ₘ s1) ** ((sp + 8) ↦ₘ s2) ** ((sp + 12) ↦ₘ s3) **
+    ((sp + 16) ↦ₘ s4) ** ((sp + 20) ↦ₘ s5) ** ((sp + 24) ↦ₘ s6) ** ((sp + 28) ↦ₘ s7))
+    from by xperm) h).mp hp
+  -- Step 2: Weaken positions 0-12 (5 regs + 8 mems)
+  have w0 := sepConj_mono_left (regIs_to_regOwn .x5 r5) h hp'
+  have w1 := sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn .x6 r6)) h w0
+  have w2 := sepConj_mono_right (sepConj_mono_right
+    (sepConj_mono_left (regIs_to_regOwn .x7 r7))) h w1
+  have w3 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+    (sepConj_mono_left (regIs_to_regOwn .x10 r10)))) h w2
+  have w4 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+    (sepConj_mono_left (regIs_to_regOwn .x11 r11))))) h w3
+  have w5 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+    (sepConj_mono_left (memIs_to_memOwn (sp + 32) m0)))))) h w4
+  have w6 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+    (sepConj_mono_left (memIs_to_memOwn (sp + 36) m1))))))) h w5
+  have w7 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+    (sepConj_mono_left (memIs_to_memOwn (sp + 40) m2)))))))) h w6
+  have w8 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+    (sepConj_mono_left (memIs_to_memOwn (sp + 44) m3))))))))) h w7
+  have w9 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+    (sepConj_mono_left (memIs_to_memOwn (sp + 48) m4)))))))))) h w8
+  have w10 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+    (sepConj_mono_left (memIs_to_memOwn (sp + 52) m5))))))))))) h w9
+  have w11 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+    (sepConj_mono_left (memIs_to_memOwn (sp + 56) m6)))))))))))) h w10
+  have w12 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+    (sepConj_mono_left (memIs_to_memOwn (sp + 60) m7))))))))))))) h w11
+  -- Step 3: Permute to target order
+  exact (congrFun (show _ = _ from by xperm) h).mp w12
+
 -- ============================================================================
 -- Infrastructure for full composition
 -- ============================================================================
