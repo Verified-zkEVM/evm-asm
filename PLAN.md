@@ -82,7 +82,7 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
 
 | Category | Opcodes | Instructions (per op) | Status |
 |----------|---------|----------------------|--------|
-| Arithmetic | ADD, SUB, MUL, SIGNEXTEND | 30 / 30 / 63 / 48 | ✅ Fully proved (MUL: program + 16 tests) |
+| Arithmetic | ADD, SUB, MUL, SIGNEXTEND | 30 / 30 / 63 / 48 | ✅ Fully proved |
 | Bitwise | AND, OR, XOR, NOT, BYTE | 17 / 17 / 17 / 12 / 45 | ✅ Fully proved |
 | Shift | SHR, SHL, SAR | 90 / 90 / 95 | ✅ Fully proved |
 | Comparison | ISZERO, LT, GT, EQ, SLT, SGT | 12 / 26 / 26 / 21 / 25 / 25 | ✅ Fully proved |
@@ -178,7 +178,9 @@ All phases below target **Evm64** primarily. Files are under `EvmAsm/Evm64/`.
   Carry detection via SLTU after ADD. Intermediate r[3] accumulator spilled to memory
   (reusing freed a-limb slots). Added `sltu_spec_gen_rd_eq_rs2` to SyscallSpecs.lean.
   Fixed operator precedence bug in rv64_mulhu/rv64_mulh/rv64_mulhsu (`>>>` binds tighter than `*`).
-- 63 instructions = 252 bytes. Program + 16 tests verified, specs pending.
+- 63 instructions = 252 bytes. All specs proved, 0 sorry.
+  Manual-mode `runBlock` with column decomposition (col0: 21, col1: 23, col2: 13, col3: 5, epilogue: 1).
+  Added `mul_spec_gen_rd_eq_rs1`, `mulhu_spec_gen_rd_eq_rs1`, `sltu_spec_gen_rd_eq_rs2` to SyscallSpecs.
 
 #### 4.2 DIV and MOD
 - **File**: `Evm64/DivMod.lean` (new)
@@ -440,11 +442,11 @@ This is the heart of the STF — the inner loop that executes EVM bytecode.
 3. ~~SHR~~ — **done** (Evm64 fully proved)
 4. ~~Phase 1: SLT, SGT (signed comparisons)~~ — **done**
 5. ~~Phase 2: SHL, SAR, BYTE (remaining shifts & bitwise)~~ — **done**
-6. Phase 3: DUPn/SWAPn generic (port from Evm32 to Evm64) ← **next**
+6. ~~Phase 3: DUPn/SWAPn generic~~ — **done**
+7. ~~Phase 4.1: MUL~~ — **done**
 
 **Short-term (enables simple contracts):**
-7. Phase 4.1: MUL (4×4 limb, ~80-100 instructions on RV64)
-8. Phase 4.2: DIV, MOD
+8. Phase 4.2: DIV, MOD ← **next**
 9. Phase 5: MLOAD, MSTORE, EVM memory model
 10. Phase 5.1: EVM code region (needed for PUSHn and interpreter)
 
