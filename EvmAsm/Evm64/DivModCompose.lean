@@ -155,6 +155,62 @@ private theorem progAt_divK_zeroPath (base : Addr) :
   rw [show (base + 4 : Addr) + 4 + 4 = base + 12 from by bv_omega]
   rw [show (base + 4 : Addr) + 4 = base + 8 from by bv_omega]
 
+set_option maxRecDepth 4096 in
+set_option maxHeartbeats 25600000 in
+/-- Unfold progAt for phaseB (21 instructions). -/
+private theorem progAt_divK_phaseB (base : Addr) :
+    progAt base divK_phaseB =
+    ((base ↦ᵢ .SD .x12 .x0 4088) **
+     ((base + 4) ↦ᵢ .SD .x12 .x0 4080) **
+     ((base + 8) ↦ᵢ .SD .x12 .x0 4072) **
+     ((base + 12) ↦ᵢ .SD .x12 .x0 4064) **
+     ((base + 16) ↦ᵢ .SD .x12 .x0 4016) **
+     ((base + 20) ↦ᵢ .SD .x12 .x0 4008) **
+     ((base + 24) ↦ᵢ .SD .x12 .x0 4000) **
+     ((base + 28) ↦ᵢ .LD .x6 .x12 40) **
+     ((base + 32) ↦ᵢ .LD .x7 .x12 48) **
+     ((base + 36) ↦ᵢ .ADDI .x5 .x0 4) **
+     ((base + 40) ↦ᵢ .BNE .x10 .x0 24) **
+     ((base + 44) ↦ᵢ .ADDI .x5 .x0 3) **
+     ((base + 48) ↦ᵢ .BNE .x7 .x0 16) **
+     ((base + 52) ↦ᵢ .ADDI .x5 .x0 2) **
+     ((base + 56) ↦ᵢ .BNE .x6 .x0 8) **
+     ((base + 60) ↦ᵢ .ADDI .x5 .x0 1) **
+     ((base + 64) ↦ᵢ .SD .x12 .x5 3984) **
+     ((base + 68) ↦ᵢ .ADDI .x5 .x5 4095) **
+     ((base + 72) ↦ᵢ .SLLI .x5 .x5 3) **
+     ((base + 76) ↦ᵢ .ADD .x5 .x12 .x5) **
+     ((base + 80) ↦ᵢ .LD .x5 .x5 32)) := by
+  show progAt base ([.SD .x12 .x0 4088, .SD .x12 .x0 4080, .SD .x12 .x0 4072, .SD .x12 .x0 4064,
+    .SD .x12 .x0 4016, .SD .x12 .x0 4008, .SD .x12 .x0 4000,
+    .LD .x6 .x12 40, .LD .x7 .x12 48,
+    .ADDI .x5 .x0 4, .BNE .x10 .x0 24,
+    .ADDI .x5 .x0 3, .BNE .x7 .x0 16,
+    .ADDI .x5 .x0 2, .BNE .x6 .x0 8,
+    .ADDI .x5 .x0 1,
+    .SD .x12 .x5 3984, .ADDI .x5 .x5 4095, .SLLI .x5 .x5 3, .ADD .x5 .x12 .x5,
+    .LD .x5 .x5 32] : List Instr) = _
+  simp only [progAt, progIndexed, programAt, sepConj_emp_right']
+  rw [show (base + 4 : Addr) + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 = base + 80 from by bv_omega]
+  rw [show (base + 4 : Addr) + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 = base + 76 from by bv_omega]
+  rw [show (base + 4 : Addr) + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 = base + 72 from by bv_omega]
+  rw [show (base + 4 : Addr) + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 = base + 68 from by bv_omega]
+  rw [show (base + 4 : Addr) + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 = base + 64 from by bv_omega]
+  rw [show (base + 4 : Addr) + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 = base + 60 from by bv_omega]
+  rw [show (base + 4 : Addr) + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 = base + 56 from by bv_omega]
+  rw [show (base + 4 : Addr) + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 = base + 52 from by bv_omega]
+  rw [show (base + 4 : Addr) + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 = base + 48 from by bv_omega]
+  rw [show (base + 4 : Addr) + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 = base + 44 from by bv_omega]
+  rw [show (base + 4 : Addr) + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 = base + 40 from by bv_omega]
+  rw [show (base + 4 : Addr) + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 = base + 36 from by bv_omega]
+  rw [show (base + 4 : Addr) + 4 + 4 + 4 + 4 + 4 + 4 + 4 = base + 32 from by bv_omega]
+  rw [show (base + 4 : Addr) + 4 + 4 + 4 + 4 + 4 + 4 = base + 28 from by bv_omega]
+  rw [show (base + 4 : Addr) + 4 + 4 + 4 + 4 + 4 = base + 24 from by bv_omega]
+  rw [show (base + 4 : Addr) + 4 + 4 + 4 + 4 = base + 20 from by bv_omega]
+  rw [show (base + 4 : Addr) + 4 + 4 + 4 = base + 16 from by bv_omega]
+  rw [show (base + 4 : Addr) + 4 + 4 = base + 12 from by bv_omega]
+  rw [show (base + 4 : Addr) + 4 = base + 8 from by bv_omega]
+
 -- ============================================================================
 -- Section 6: pcFree lemmas for code blocks
 -- ============================================================================
@@ -180,12 +236,45 @@ private abbrev divCode_mid (base : Addr) : Assertion :=
 private theorem pcFree_divCode_mid (base : Addr) : (divCode_mid base).pcFree := by
   unfold divCode_mid; pcFree
 
+-- Abbreviation for "all code except phaseA and phaseB" (for Phase B composition)
+private abbrev divCode_noAB (base : Addr) : Assertion :=
+  progAt (base + 116) divK_clz **
+  progAt (base + 212) (divK_phaseC2 172) **
+  progAt (base + 228) divK_normB **
+  progAt (base + 312) (divK_normA 40) **
+  progAt (base + 396) divK_copyAU **
+  progAt (base + 432) (divK_loopSetup 460) **
+  progAt (base + 448) (divK_loopBody 556 7740) **
+  progAt (base + 904) divK_denorm **
+  progAt (base + 1004) (divK_div_epilogue 24) **
+  progAt (base + 1044) divK_zeroPath **
+  progAt (base + 1064) (ADDI .x0 .x0 0) **
+  progAt (base + 1068) divK_div128
+
+private theorem pcFree_divCode_noAB (base : Addr) : (divCode_noAB base).pcFree := by
+  unfold divCode_noAB; pcFree
+
 -- ============================================================================
 -- Section 7: signExtend13 normalization
 -- ============================================================================
 
 private theorem signExtend13_1016 : signExtend13 (1016 : BitVec 13) = (1016 : Word) := by
   native_decide
+
+private theorem signExtend13_24 : signExtend13 (24 : BitVec 13) = (24 : Word) := by
+  native_decide
+
+-- Phase B n=4: signExtend12 4 = 4 (result of ADDI x5 x0 4 via addi_x0_spec_gen)
+private theorem divK_se12_4 : signExtend12 (4 : BitVec 12) = (4 : Word) := by native_decide
+
+-- Phase B tail address: nm1_x8 = (4 + signExtend12 4095) <<< 3 = 24
+private theorem divK_phaseB_n4_nm1_x8 :
+    ((4 : Word) + signExtend12 (4095 : BitVec 12)) <<< (3 : BitVec 6).toNat = (24 : Word) := by
+  native_decide
+
+-- signExtend12 32 = 32 (for tail load address: sp + 24 + signExtend12 32 = sp + 56)
+private theorem divK_se12_32 : signExtend12 (32 : BitVec 12) = (32 : Word) := by native_decide
+
 
 -- ============================================================================
 -- Section 8: Zero path composition (b = 0)
