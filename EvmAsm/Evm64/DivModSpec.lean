@@ -2979,4 +2979,130 @@ theorem divK_addback_limb_spec
     (fun h hp => by xperm_hyp hp)
     h12
 
+-- ============================================================================
+-- Trial quotient load phase: load u[j+n], u[j+n-1], v_top = b[n-1].
+-- trial_load_u [1]-[7] + trial_load_vtop [8]-[12] = 12 instructions.
+-- ============================================================================
+
+set_option maxRecDepth 2048 in
+/-- Trial quotient load: fetch u_hi, u_lo, v_top from memory.
+    Instrs [1]-[12] of loop body.
+    Output: x7 = u_hi, x5 = u_lo, x10 = v_top, x6 = vtop_base. -/
+theorem divK_trial_load_spec
+    (sp j n v5_old v6_old v7_old v10_old u_hi u_lo v_top : Word)
+    (base : Addr)
+    (hv_n1 : isValidDwordAccess (sp + signExtend12 3984) = true)
+    (hv_uhi : isValidDwordAccess (sp + signExtend12 4056 - (j + n) <<< (3 : BitVec 6).toNat) = true)
+    (hv_ulo : isValidDwordAccess ((sp + signExtend12 4056 - (j + n) <<< (3 : BitVec 6).toNat) + 8) = true)
+    (hv_vtop : isValidDwordAccess (sp + (n + signExtend12 4095) <<< (3 : BitVec 6).toNat + signExtend12 32) = true) :
+    let u_addr := sp + signExtend12 4056 - (j + n) <<< (3 : BitVec 6).toNat
+    let vtop_base := sp + (n + signExtend12 4095) <<< (3 : BitVec 6).toNat
+    let load_u_code :=
+      (base ↦ᵢ .LD .x5 .x12 3984) **
+      ((base + 4) ↦ᵢ .ADD .x7 .x1 .x5) **
+      ((base + 8) ↦ᵢ .SLLI .x7 .x7 3) **
+      ((base + 12) ↦ᵢ .ADDI .x5 .x12 4056) **
+      ((base + 16) ↦ᵢ .SUB .x5 .x5 .x7) **
+      ((base + 20) ↦ᵢ .LD .x7 .x5 0) **
+      ((base + 24) ↦ᵢ .LD .x5 .x5 8)
+    let load_vtop_code :=
+      ((base + 28) ↦ᵢ .LD .x6 .x12 3984) **
+      ((base + 32) ↦ᵢ .ADDI .x6 .x6 4095) **
+      ((base + 36) ↦ᵢ .SLLI .x6 .x6 3) **
+      ((base + 40) ↦ᵢ .ADD .x6 .x12 .x6) **
+      ((base + 44) ↦ᵢ .LD .x10 .x6 32)
+    cpsTriple base (base + 48)
+      (load_u_code ** load_vtop_code **
+       (.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
+       (.x5 ↦ᵣ v5_old) ** (.x6 ↦ᵣ v6_old) **
+       (.x7 ↦ᵣ v7_old) ** (.x10 ↦ᵣ v10_old) **
+       (sp + signExtend12 3984 ↦ₘ n) **
+       (u_addr ↦ₘ u_hi) ** ((u_addr + 8) ↦ₘ u_lo) **
+       (vtop_base + signExtend12 32 ↦ₘ v_top))
+      (load_u_code ** load_vtop_code **
+       (.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
+       (.x5 ↦ᵣ u_lo) ** (.x6 ↦ᵣ vtop_base) **
+       (.x7 ↦ᵣ u_hi) ** (.x10 ↦ᵣ v_top) **
+       (sp + signExtend12 3984 ↦ₘ n) **
+       (u_addr ↦ₘ u_hi) ** ((u_addr + 8) ↦ₘ u_lo) **
+       (vtop_base + signExtend12 32 ↦ₘ v_top)) := by
+  intro u_addr; intro vtop_base; intro load_u_code; intro load_vtop_code
+  -- Block 1: trial_load_u [1]-[7]
+  have h1_raw := divK_trial_load_u_spec sp j n v5_old v7_old u_hi u_lo base hv_n1 hv_uhi hv_ulo
+  have h1 := cpsTriple_frame_left _ _ _ _
+    (load_vtop_code **
+     (.x6 ↦ᵣ v6_old) ** (.x10 ↦ᵣ v10_old) **
+     (vtop_base + signExtend12 32 ↦ₘ v_top))
+    (by pcFree) h1_raw
+  -- Block 2: trial_load_vtop [8]-[12] — normalize addresses
+  have h2_raw := divK_trial_load_vtop_spec sp n v6_old v10_old v_top (base + 28) hv_n1 hv_vtop
+  have : (base + 28 : Addr) + 4 = base + 32 := by bv_omega
+  have : (base + 28 : Addr) + 8 = base + 36 := by bv_omega
+  have : (base + 28 : Addr) + 12 = base + 40 := by bv_omega
+  have : (base + 28 : Addr) + 16 = base + 44 := by bv_omega
+  have : (base + 28 : Addr) + 20 = base + 48 := by bv_omega
+  simp only [*] at h2_raw
+  have h2 := cpsTriple_frame_left _ _ _ _
+    (load_u_code **
+     (.x1 ↦ᵣ j) ** (.x5 ↦ᵣ u_lo) ** (.x7 ↦ᵣ u_hi) **
+     (u_addr ↦ₘ u_hi) ** ((u_addr + 8) ↦ₘ u_lo))
+    (by pcFree) h2_raw
+  -- Compose 1 → 2
+  have h12 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
+    (fun h hp => by xperm_hyp hp) h1 h2
+  -- Final rearrange
+  exact cpsTriple_consequence _ _ _ _ _ _
+    (fun h hp => by xperm_hyp hp)
+    (fun h hp => by xperm_hyp hp)
+    h12
+
+-- ============================================================================
+-- Composed store q[j]: addr computation + SD = 4 instructions.
+-- ============================================================================
+
+set_option maxRecDepth 2048 in
+/-- Store q[j]: compute address and store q_hat. 4 instructions.
+    q_addr = sp + 4088 - j*8. -/
+theorem divK_store_qj_spec (sp j q_hat v5_old v7_old q_old : Word)
+    (base : Addr)
+    (hv : isValidDwordAccess (sp + signExtend12 4088 - j <<< (3 : BitVec 6).toNat) = true) :
+    let j_x8 := j <<< (3 : BitVec 6).toNat
+    let q_addr := sp + signExtend12 4088 - j_x8
+    let code :=
+      (base ↦ᵢ .SLLI .x5 .x1 3) **
+      ((base + 4) ↦ᵢ .ADDI .x7 .x12 4088) **
+      ((base + 8) ↦ᵢ .SUB .x7 .x7 .x5) **
+      ((base + 12) ↦ᵢ .SD .x7 .x11 0)
+    cpsTriple base (base + 16)
+      (code ** (.x1 ↦ᵣ j) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ q_hat) **
+       (.x5 ↦ᵣ v5_old) ** (.x7 ↦ᵣ v7_old) **
+       (q_addr ↦ₘ q_old))
+      (code ** (.x1 ↦ᵣ j) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ q_hat) **
+       (.x5 ↦ᵣ j_x8) ** (.x7 ↦ᵣ q_addr) **
+       (q_addr ↦ₘ q_hat)) := by
+  intro j_x8; intro q_addr; intro code
+  -- Block 1: addr computation [0]-[2]
+  have h1_raw := divK_store_qj_addr_spec sp j v5_old v7_old base
+  have h1 := cpsTriple_frame_left _ _ _ _
+    (((base + 12) ↦ᵢ .SD .x7 .x11 0) **
+     (.x11 ↦ᵣ q_hat) ** (q_addr ↦ₘ q_old))
+    (by pcFree) h1_raw
+  -- Block 2: SD store [3]
+  have h2_raw := divK_store_qj_write_spec q_addr q_hat q_old (base + 12) hv
+  have : (base + 12 : Addr) + 4 = base + 16 := by bv_omega
+  simp only [*] at h2_raw
+  have h2 := cpsTriple_frame_left _ _ _ _
+    ((base ↦ᵢ .SLLI .x5 .x1 3) **
+     ((base + 4) ↦ᵢ .ADDI .x7 .x12 4088) **
+     ((base + 8) ↦ᵢ .SUB .x7 .x7 .x5) **
+     (.x1 ↦ᵣ j) ** (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ j_x8))
+    (by pcFree) h2_raw
+  -- Compose
+  have h12 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
+    (fun h hp => by xperm_hyp hp) h1 h2
+  exact cpsTriple_consequence _ _ _ _ _ _
+    (fun h hp => by xperm_hyp hp)
+    (fun h hp => by xperm_hyp hp)
+    h12
+
 end EvmAsm.Rv64
