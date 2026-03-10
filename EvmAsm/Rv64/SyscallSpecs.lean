@@ -521,4 +521,32 @@ namespace EvmAsm.Rv64
     (by intro s _ hrs1 hrd; simp [execInstrBr, hrs1, hrd])
     (by intro s hfetch; exact step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl))
 
+-- ============================================================================
+-- ADDI rd x0 imm: load immediate (clean postcondition using signExtend12 imm)
+-- ============================================================================
+
+/-- ADDI rd x0 imm: rd := signExtend12 imm. Clean version without (0 + signExtend12 imm).
+    Requires (.x0 ↦ᵣ 0) in frame. -/
+@[spec_gen_rv64] theorem addi_x0_spec_gen (rd : Reg) (v_old : Word) (imm : BitVec 12)
+    (addr : Addr) (hrd_ne_x0 : rd ≠ .x0) :
+    cpsTriple addr (addr + 4)
+      ((addr ↦ᵢ .ADDI rd .x0 imm) ** (.x0 ↦ᵣ (0 : Word)) ** (rd ↦ᵣ v_old))
+      ((addr ↦ᵢ .ADDI rd .x0 imm) ** (.x0 ↦ᵣ (0 : Word)) ** (rd ↦ᵣ (signExtend12 imm))) := by
+  have h := addi_spec_gen rd .x0 v_old (0 : Word) imm addr hrd_ne_x0
+  have heq : (0 : Word) + signExtend12 imm = signExtend12 imm := by bv_omega
+  rw [heq] at h; exact h
+
+-- ============================================================================
+-- LD same register: LD rd, offset(rd) (rd = rs1)
+-- ============================================================================
+
+@[spec_gen_rv64] theorem ld_spec_gen_same (rd : Reg) (v_addr mem_val : Word)
+    (offset : BitVec 12) (addr : Addr)
+    (hrd_ne_x0 : rd ≠ .x0)
+    (hvalid : isValidDwordAccess (v_addr + signExtend12 offset) = true) :
+    cpsTriple addr (addr + 4)
+      ((addr ↦ᵢ .LD rd rd offset) ** (rd ↦ᵣ v_addr) ** ((v_addr + signExtend12 offset) ↦ₘ mem_val))
+      ((addr ↦ᵢ .LD rd rd offset) ** (rd ↦ᵣ mem_val) ** ((v_addr + signExtend12 offset) ↦ₘ mem_val)) :=
+  ld_spec_same rd v_addr mem_val offset addr hrd_ne_x0 hvalid
+
 end EvmAsm.Rv64

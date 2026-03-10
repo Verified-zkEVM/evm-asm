@@ -586,4 +586,201 @@ theorem divK_epilogue_store_spec (sp : Addr) (base : Addr)
   have I5 := jal_x0_spec_gen jal_off (base + 20)
   runBlock I0 I1 I2 I3 I4 I5
 
+-- ============================================================================
+-- Phase B tail: store n, compute address of b[n-1], load leading limb.
+-- 5 instructions: SD, ADDI, SLLI, ADD, LD.
+-- ============================================================================
+
+/-- Phase B tail: store n to scratch, compute sp + (n-1)*8, load b[n-1].
+    x5 = n on entry. On exit, x5 = leading limb b[n-1]. -/
+theorem divK_phaseB_tail_spec (sp n leading_limb n_mem : Word) (base : Addr)
+    (hv_n : isValidDwordAccess (sp + signExtend12 3984) = true)
+    (hv_limb : isValidDwordAccess
+      ((sp + ((n + signExtend12 4095) <<< (3 : BitVec 6).toNat)) + signExtend12 32) = true) :
+    let nm1 := n + signExtend12 4095
+    let nm1_x8 := nm1 <<< (3 : BitVec 6).toNat
+    let addr_lead := sp + nm1_x8
+    let code :=
+      (base ↦ᵢ .SD .x12 .x5 3984) **
+      ((base + 4) ↦ᵢ .ADDI .x5 .x5 4095) **
+      ((base + 8) ↦ᵢ .SLLI .x5 .x5 3) **
+      ((base + 12) ↦ᵢ .ADD .x5 .x12 .x5) **
+      ((base + 16) ↦ᵢ .LD .x5 .x5 32)
+    cpsTriple base (base + 20)
+      (code **
+       (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ n) **
+       ((sp + signExtend12 3984) ↦ₘ n_mem) **
+       ((addr_lead + signExtend12 32) ↦ₘ leading_limb))
+      (code **
+       (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ leading_limb) **
+       ((sp + signExtend12 3984) ↦ₘ n) **
+       ((addr_lead + signExtend12 32) ↦ₘ leading_limb)) := by
+  intro nm1; intro nm1_x8; intro addr_lead; intro code
+  have I0 := sd_spec_gen .x12 .x5 sp n n_mem 3984 base hv_n
+  have I1 := addi_spec_gen_same .x5 n 4095 (base + 4) (by nofun)
+  have I2 := slli_spec_gen_same .x5 nm1 3 (base + 8) (by nofun)
+  have I3 := add_spec_gen_rd_eq_rs2 .x5 .x12 sp nm1_x8 (base + 12) (by nofun) (by nofun)
+  have I4 := ld_spec_gen_same .x5 addr_lead leading_limb 32 (base + 16) (by nofun) hv_limb
+  runBlock I0 I1 I2 I3 I4
+
+-- ============================================================================
+-- Phase C2 body: store shift, compute anti_shift. 3 instructions.
+-- ============================================================================
+
+/-- Phase C2 body: SD shift to scratch, ADDI x2 = 0, SUB x2 = -shift.
+    Preserves x6 and x0 for the subsequent BEQ.
+    The postcondition uses `signExtend12 (0 : BitVec 12) - shift` (= 0 - shift)
+    to match the syntactic form produced by addi_x0_spec_gen + sub_spec_gen. -/
+theorem divK_phaseC2_body_spec (sp shift v2 shift_mem : Word)
+    (shift0_off : BitVec 13) (base : Addr)
+    (hv_shift : isValidDwordAccess (sp + signExtend12 3992) = true) :
+    let code :=
+      (base ↦ᵢ .SD .x12 .x6 3992) **
+      ((base + 4) ↦ᵢ .ADDI .x2 .x0 0) **
+      ((base + 8) ↦ᵢ .SUB .x2 .x2 .x6) **
+      ((base + 12) ↦ᵢ .BEQ .x6 .x0 shift0_off)
+    cpsTriple base (base + 12)
+      (code **
+       (.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ v2) ** (.x0 ↦ᵣ (0 : Word)) **
+       ((sp + signExtend12 3992) ↦ₘ shift_mem))
+      (code **
+       (.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ (signExtend12 (0 : BitVec 12) - shift)) ** (.x0 ↦ᵣ (0 : Word)) **
+       ((sp + signExtend12 3992) ↦ₘ shift)) := by
+  intro code
+  have I0 := sd_spec_gen .x12 .x6 sp shift shift_mem 3992 base hv_shift
+  have I1 := addi_x0_spec_gen .x2 v2 0 (base + 4) (by nofun)
+  have I2 := sub_spec_gen_rd_eq_rs1 .x2 .x6
+    (signExtend12 (0 : BitVec 12)) shift (base + 8) (by nofun) (by nofun)
+  runBlock I0 I1 I2
+
+-- ============================================================================
+-- Phase C2 full: body + BEQ (shift = 0 branch). cpsBranch.
+-- ============================================================================
+
+set_option maxHeartbeats 1600000 in
+/-- Phase C2: store shift, compute anti_shift, BEQ if shift=0.
+    Taken: shift = 0, skip normalization.
+    Not taken: shift ≠ 0, proceed to normalize.
+    anti_shift = signExtend12 0 - shift (= 0 - shift = negation of shift amount). -/
+theorem divK_phaseC2_spec (sp shift v2 shift_mem : Word)
+    (shift0_off : BitVec 13) (base : Addr)
+    (hv_shift : isValidDwordAccess (sp + signExtend12 3992) = true) :
+    let code :=
+      (base ↦ᵢ .SD .x12 .x6 3992) **
+      ((base + 4) ↦ᵢ .ADDI .x2 .x0 0) **
+      ((base + 8) ↦ᵢ .SUB .x2 .x2 .x6) **
+      ((base + 12) ↦ᵢ .BEQ .x6 .x0 shift0_off)
+    let post :=
+      code **
+      (.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ shift) **
+      (.x2 ↦ᵣ (signExtend12 (0 : BitVec 12) - shift)) ** (.x0 ↦ᵣ (0 : Word)) **
+      ((sp + signExtend12 3992) ↦ₘ shift)
+    cpsBranch base
+      (code **
+       (.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ v2) ** (.x0 ↦ᵣ (0 : Word)) **
+       ((sp + signExtend12 3992) ↦ₘ shift_mem))
+      -- Taken: shift = 0
+      ((base + 12) + signExtend13 shift0_off) post
+      -- Not taken: shift ≠ 0
+      (base + 16) post := by
+  intro code; intro post
+  -- 1. Body: SD + ADDI + SUB
+  have hbody := divK_phaseC2_body_spec sp shift v2 shift_mem shift0_off base hv_shift
+  -- 2. BEQ at base + 12
+  have hbeq_raw := beq_spec_gen .x6 .x0 shift0_off shift (0 : Word) (base + 12)
+  have ha1 : (base + 12 : Addr) + 4 = base + 16 := by bv_omega
+  have hbeq : cpsBranch (base + 12)
+      (((base + 12) ↦ᵢ .BEQ .x6 .x0 shift0_off) ** (.x6 ↦ᵣ shift) ** (.x0 ↦ᵣ (0 : Word)))
+      ((base + 12) + signExtend13 shift0_off)
+        (((base + 12) ↦ᵢ .BEQ .x6 .x0 shift0_off) ** (.x6 ↦ᵣ shift) ** (.x0 ↦ᵣ (0 : Word)))
+      (base + 16)
+        (((base + 12) ↦ᵢ .BEQ .x6 .x0 shift0_off) ** (.x6 ↦ᵣ shift) ** (.x0 ↦ᵣ (0 : Word))) := by
+    rw [ha1] at hbeq_raw
+    exact cpsBranch_consequence (base + 12) _ _ _ _ _ _ _ _
+      (fun _ hp => hp)
+      (fun h hp => sepConj_mono_right (sepConj_mono_right
+        (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1)) h hp)
+      (fun h hp => sepConj_mono_right (sepConj_mono_right
+        (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1)) h hp)
+      hbeq_raw
+  -- 3. Frame BEQ with body code and extra atoms
+  have hbeq_framed := cpsBranch_frame_left _ _ _ _ _ _
+    ((base ↦ᵢ .SD .x12 .x6 3992) **
+     ((base + 4) ↦ᵢ .ADDI .x2 .x0 0) **
+     ((base + 8) ↦ᵢ .SUB .x2 .x2 .x6) **
+     (.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ (signExtend12 (0 : BitVec 12) - shift)) **
+     ((sp + signExtend12 3992) ↦ₘ shift))
+    (by pcFree) hbeq
+  -- 4. Compose body → BEQ
+  have composed := cpsTriple_seq_cpsBranch_with_perm _ _ _ _ _ _ _ _ _
+    (fun h hp => by xperm_hyp hp) hbody hbeq_framed
+  -- 5. Final permutation
+  exact cpsBranch_consequence _
+    _ _ _ _ _ _ _ _
+    (fun h hp => by xperm_hyp hp)
+    (fun h hp => by xperm_hyp hp)
+    (fun h hp => by xperm_hyp hp)
+    composed
+
+-- ============================================================================
+-- Phase B cascade step: ADDI x5 n_val + BNE rx x0 offset. cpsBranch.
+-- Used for each "if b[k]≠0 → n=k" step in the n-computation cascade.
+-- ============================================================================
+
+/-- Single cascade step: load n_val into x5, then BNE on rx vs x0.
+    Taken: rx ≠ 0 (limb is nonzero), branch to target with x5 = n_val.
+    Not taken: rx = 0, fall through with x5 = n_val. -/
+theorem divK_phaseB_cascade_step_spec (n_val : BitVec 12) (rx : Reg) (check v5 : Word)
+    (bne_off : BitVec 13) (base : Addr) :
+    let n := (0 : Word) + signExtend12 n_val
+    let code :=
+      (base ↦ᵢ .ADDI .x5 .x0 n_val) **
+      ((base + 4) ↦ᵢ .BNE rx .x0 bne_off)
+    let post :=
+      code ** (.x5 ↦ᵣ n) ** (.x0 ↦ᵣ (0 : Word)) ** (rx ↦ᵣ check)
+    cpsBranch base
+      (code ** (.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (rx ↦ᵣ check))
+      -- Taken: check ≠ 0
+      ((base + 4) + signExtend13 bne_off) post
+      -- Not taken: check = 0
+      (base + 8) post := by
+  intro n; intro code; intro post
+  -- 1. ADDI body (includes all atoms: BNE instr and rx are frame)
+  have hbody : cpsTriple base (base + 4)
+      (code ** (.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (rx ↦ᵣ check))
+      (code ** (.x5 ↦ᵣ n) ** (.x0 ↦ᵣ (0 : Word)) ** (rx ↦ᵣ check)) := by
+    have I0 := addi_spec_gen .x5 .x0 v5 (0 : Word) n_val base (by nofun)
+    runBlock I0
+  -- 2. BNE at base + 4, drop pure facts
+  have hbne_raw := bne_spec_gen rx .x0 bne_off check (0 : Word) (base + 4)
+  have ha1 : (base + 4 : Addr) + 4 = base + 8 := by bv_omega
+  have hbne : cpsBranch (base + 4)
+      (((base + 4) ↦ᵢ .BNE rx .x0 bne_off) ** (rx ↦ᵣ check) ** (.x0 ↦ᵣ (0 : Word)))
+      ((base + 4) + signExtend13 bne_off)
+        (((base + 4) ↦ᵢ .BNE rx .x0 bne_off) ** (rx ↦ᵣ check) ** (.x0 ↦ᵣ (0 : Word)))
+      (base + 8)
+        (((base + 4) ↦ᵢ .BNE rx .x0 bne_off) ** (rx ↦ᵣ check) ** (.x0 ↦ᵣ (0 : Word))) := by
+    rw [ha1] at hbne_raw
+    exact cpsBranch_consequence (base + 4) _ _ _ _ _ _ _ _
+      (fun _ hp => hp)
+      (fun h hp => sepConj_mono_right (sepConj_mono_right
+        (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1)) h hp)
+      (fun h hp => sepConj_mono_right (sepConj_mono_right
+        (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1)) h hp)
+      hbne_raw
+  -- 3. Frame BNE with ADDI code and x5
+  have hbne_framed := cpsBranch_frame_left _ _ _ _ _ _
+    ((base ↦ᵢ .ADDI .x5 .x0 n_val) ** (.x5 ↦ᵣ n))
+    (by pcFree) hbne
+  -- 4. Compose body → BNE with permutation
+  have composed := cpsTriple_seq_cpsBranch_with_perm _ _ _ _ _ _ _ _ _
+    (fun h hp => by xperm_hyp hp) hbody hbne_framed
+  -- 5. Final permutation
+  exact cpsBranch_consequence _
+    _ _ _ _ _ _ _ _
+    (fun h hp => by xperm_hyp hp)
+    (fun h hp => by xperm_hyp hp)
+    (fun h hp => by xperm_hyp hp)
+    composed
+
 end EvmAsm.Rv64
