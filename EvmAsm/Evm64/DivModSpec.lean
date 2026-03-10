@@ -783,4 +783,353 @@ theorem divK_phaseB_cascade_step_spec (n_val : BitVec 12) (rx : Reg) (check v5 :
     (fun h hp => by xperm_hyp hp)
     composed
 
+-- ============================================================================
+-- Loop setup: LD n, compute m = 4 - n, BLT to skip loop.
+-- 4 instructions: LD, ADDI, SUB, BLT. cpsBranch.
+-- ============================================================================
+
+/-- Loop setup body: load n, compute m = 4 - n. 3 straight-line instructions.
+    Uses signExtend12 4 directly to match addi_x0_spec_gen + sub_spec_gen output. -/
+theorem divK_loopSetup_body_spec (sp n v1 v5 : Word)
+    (blt_off : BitVec 13) (base : Addr)
+    (hv_n : isValidDwordAccess (sp + signExtend12 3984) = true) :
+    let code :=
+      (base ↦ᵢ .LD .x5 .x12 3984) **
+      ((base + 4) ↦ᵢ .ADDI .x1 .x0 4) **
+      ((base + 8) ↦ᵢ .SUB .x1 .x1 .x5) **
+      ((base + 12) ↦ᵢ .BLT .x1 .x0 blt_off)
+    cpsTriple base (base + 12)
+      (code **
+       (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x1 ↦ᵣ v1) ** (.x0 ↦ᵣ (0 : Word)) **
+       ((sp + signExtend12 3984) ↦ₘ n))
+      (code **
+       (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ n) **
+       (.x1 ↦ᵣ (signExtend12 (4 : BitVec 12) - n)) ** (.x0 ↦ᵣ (0 : Word)) **
+       ((sp + signExtend12 3984) ↦ₘ n)) := by
+  intro code
+  have I0 := ld_spec_gen .x5 .x12 sp v5 n 3984 base (by nofun) hv_n
+  have I1 := addi_x0_spec_gen .x1 v1 4 (base + 4) (by nofun)
+  have I2 := sub_spec_gen_rd_eq_rs1 .x1 .x5
+    (signExtend12 (4 : BitVec 12)) n (base + 8) (by nofun) (by nofun)
+  runBlock I0 I1 I2
+
+set_option maxHeartbeats 1600000 in
+/-- Loop setup: load n, compute m = 4-n, BLT if m < 0 (skip loop).
+    Taken: m < 0 (n > 4, impossible in practice but handled).
+    Not taken: m >= 0, proceed to loop. -/
+theorem divK_loopSetup_spec (sp n v1 v5 : Word)
+    (blt_off : BitVec 13) (base : Addr)
+    (hv_n : isValidDwordAccess (sp + signExtend12 3984) = true) :
+    let m := signExtend12 (4 : BitVec 12) - n
+    let code :=
+      (base ↦ᵢ .LD .x5 .x12 3984) **
+      ((base + 4) ↦ᵢ .ADDI .x1 .x0 4) **
+      ((base + 8) ↦ᵢ .SUB .x1 .x1 .x5) **
+      ((base + 12) ↦ᵢ .BLT .x1 .x0 blt_off)
+    let post :=
+      code **
+      (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ n) ** (.x1 ↦ᵣ m) ** (.x0 ↦ᵣ (0 : Word)) **
+      ((sp + signExtend12 3984) ↦ₘ n)
+    cpsBranch base
+      (code **
+       (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x1 ↦ᵣ v1) ** (.x0 ↦ᵣ (0 : Word)) **
+       ((sp + signExtend12 3984) ↦ₘ n))
+      -- Taken: m < 0 (signed)
+      ((base + 12) + signExtend13 blt_off) post
+      -- Not taken: m >= 0
+      (base + 16) post := by
+  intro m; intro code; intro post
+  -- 1. Body: LD + ADDI + SUB
+  have hbody := divK_loopSetup_body_spec sp n v1 v5 blt_off base hv_n
+  -- 2. BLT at base + 12
+  have hblt_raw := blt_spec_gen .x1 .x0 blt_off m (0 : Word) (base + 12)
+  have ha1 : (base + 12 : Addr) + 4 = base + 16 := by bv_omega
+  have hblt : cpsBranch (base + 12)
+      (((base + 12) ↦ᵢ .BLT .x1 .x0 blt_off) ** (.x1 ↦ᵣ m) ** (.x0 ↦ᵣ (0 : Word)))
+      ((base + 12) + signExtend13 blt_off)
+        (((base + 12) ↦ᵢ .BLT .x1 .x0 blt_off) ** (.x1 ↦ᵣ m) ** (.x0 ↦ᵣ (0 : Word)))
+      (base + 16)
+        (((base + 12) ↦ᵢ .BLT .x1 .x0 blt_off) ** (.x1 ↦ᵣ m) ** (.x0 ↦ᵣ (0 : Word))) := by
+    rw [ha1] at hblt_raw
+    exact cpsBranch_consequence (base + 12) _ _ _ _ _ _ _ _
+      (fun _ hp => hp)
+      (fun h hp => sepConj_mono_right (sepConj_mono_right
+        (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1)) h hp)
+      (fun h hp => sepConj_mono_right (sepConj_mono_right
+        (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1)) h hp)
+      hblt_raw
+  -- 3. Frame BLT with body code and extra atoms
+  have hblt_framed := cpsBranch_frame_left _ _ _ _ _ _
+    ((base ↦ᵢ .LD .x5 .x12 3984) **
+     ((base + 4) ↦ᵢ .ADDI .x1 .x0 4) **
+     ((base + 8) ↦ᵢ .SUB .x1 .x1 .x5) **
+     (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ n) **
+     ((sp + signExtend12 3984) ↦ₘ n))
+    (by pcFree) hblt
+  -- 4. Compose body → BLT (body postcondition has signExtend12 4 - n, frame has m via let)
+  have composed := cpsTriple_seq_cpsBranch_with_perm _ _ _ _ _ _ _ _ _
+    (fun h hp => by xperm_hyp hp) hbody hblt_framed
+  -- 5. Final permutation
+  exact cpsBranch_consequence _
+    _ _ _ _ _ _ _ _
+    (fun h hp => by xperm_hyp hp)
+    (fun h hp => by xperm_hyp hp)
+    (fun h hp => by xperm_hyp hp)
+    composed
+
+-- ============================================================================
+-- CLZ init: ADDI x6 x0 0. 1 instruction.
+-- ============================================================================
+
+/-- CLZ init: set x6 = 0 (count register). -/
+theorem divK_clz_init_spec (v6 : Word) (base : Addr) :
+    cpsTriple base (base + 4)
+      ((base ↦ᵢ .ADDI .x6 .x0 0) ** (.x6 ↦ᵣ v6) ** (.x0 ↦ᵣ (0 : Word)))
+      ((base ↦ᵢ .ADDI .x6 .x0 0) ** (.x6 ↦ᵣ signExtend12 (0 : BitVec 12)) **
+       (.x0 ↦ᵣ (0 : Word))) := by
+  have I0 := addi_x0_spec_gen .x6 v6 0 base (by nofun)
+  runBlock I0
+
+-- ============================================================================
+-- CLZ per-stage specs: SRLI x7 x5 K + BNE x7 x0 12 + SLLI x5 x5 M + ADDI x6 x6 M.
+-- Two specs per stage: taken (shifted ≠ 0) and not-taken (shifted = 0).
+-- Uses cpsBranch_elim_taken/ntaken to extract deterministic paths.
+-- K : BitVec 6 (SRLI shamt), M_s : BitVec 6 (SLLI shamt), M_a : BitVec 12 (ADDI imm).
+-- ============================================================================
+
+/-- CLZ stage, taken branch: val >>> K ≠ 0, skip SLLI+ADDI.
+    x5 = val (unchanged), x6 = count (unchanged), x7 = val >>> K. -/
+theorem divK_clz_stage_taken_spec (K M_s : BitVec 6) (M_a : BitVec 12) (val count v7 : Word)
+    (base : Addr)
+    (hne : val >>> K.toNat ≠ 0) :
+    let code :=
+      (base ↦ᵢ .SRLI .x7 .x5 K) **
+      ((base + 4) ↦ᵢ .BNE .x7 .x0 12) **
+      ((base + 8) ↦ᵢ .SLLI .x5 .x5 M_s) **
+      ((base + 12) ↦ᵢ .ADDI .x6 .x6 M_a)
+    cpsTriple base (base + 16)
+      (code ** (.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count) ** (.x7 ↦ᵣ v7) ** (.x0 ↦ᵣ (0 : Word)))
+      (code ** (.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count) **
+              (.x7 ↦ᵣ (val >>> K.toNat)) ** (.x0 ↦ᵣ (0 : Word))) := by
+  intro code
+  -- 1. SRLI body
+  have I0 := srli_spec_gen .x7 .x5 v7 val K base (by nofun)
+  -- 2. BNE at base+4: taken → base+16 (skip SLLI+ADDI)
+  have hbne_raw := bne_spec_gen .x7 .x0 (12 : BitVec 13) (val >>> K.toNat) (0 : Word) (base + 4)
+  have hsig : signExtend13 (12 : BitVec 13) = (12 : Word) := by native_decide
+  have ha_t : (base + 4) + signExtend13 (12 : BitVec 13) = base + 16 := by rw [hsig]; bv_omega
+  have ha_f : (base + 4 : Addr) + 4 = base + 8 := by bv_omega
+  rw [ha_t, ha_f] at hbne_raw
+  -- 3. Frame BNE with SRLI code, SLLI code, ADDI code, x5, x6
+  have hbne_framed := cpsBranch_frame_left _ _ _ _ _ _
+    ((base ↦ᵢ .SRLI .x7 .x5 K) **
+     ((base + 8) ↦ᵢ .SLLI .x5 .x5 M_s) **
+     ((base + 12) ↦ᵢ .ADDI .x6 .x6 M_a) **
+     (.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count))
+    (by pcFree) hbne_raw
+  -- 4. SRLI body (1 instruction, rest is frame)
+  have hbody : cpsTriple base (base + 4)
+      (code ** (.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count) ** (.x7 ↦ᵣ v7) ** (.x0 ↦ᵣ (0 : Word)))
+      (code ** (.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count) ** (.x7 ↦ᵣ (val >>> K.toNat)) ** (.x0 ↦ᵣ (0 : Word))) := by
+    runBlock I0
+  -- 5. Compose SRLI body → BNE
+  have composed := cpsTriple_seq_cpsBranch_with_perm _ _ _ _ _ _ _ _ _
+    (fun h hp => by xperm_hyp hp) hbody hbne_framed
+  -- 6. Eliminate not-taken path (has ⌜val >>> K.toNat = 0⌝ which contradicts hne)
+  have taken := cpsBranch_elim_taken _ _ _ _ _ _ composed (fun hp hQf => by
+    obtain ⟨_, _, _, _, h_inner, _⟩ := hQf
+    obtain ⟨_, _, _, _, _, h_rest⟩ := h_inner
+    obtain ⟨_, _, _, _, _, h_x0p⟩ := h_rest
+    exact hne ((sepConj_pure_right _ _ _).1 h_x0p).2)
+  -- 7. Drop pure fact ⌜val >>> K.toNat ≠ 0⌝ from taken postcondition, then permute
+  exact cpsTriple_consequence _ _ _ _ _ _
+    (fun h hp => hp)
+    (fun h hp => by
+      have hp' := sepConj_mono_left
+        (sepConj_mono_right (sepConj_mono_right
+          (fun h hp => ((sepConj_pure_right _ _ h).1 hp).1))) h hp
+      xperm_hyp hp')
+    taken
+
+/-- CLZ stage, not-taken branch: val >>> K = 0, execute SLLI+ADDI.
+    x5 = val <<< M, x6 = count + signExtend12 M, x7 = 0. -/
+theorem divK_clz_stage_ntaken_spec (K M_s : BitVec 6) (M_a : BitVec 12) (val count v7 : Word)
+    (base : Addr)
+    (heq : val >>> K.toNat = 0) :
+    let code :=
+      (base ↦ᵢ .SRLI .x7 .x5 K) **
+      ((base + 4) ↦ᵢ .BNE .x7 .x0 12) **
+      ((base + 8) ↦ᵢ .SLLI .x5 .x5 M_s) **
+      ((base + 12) ↦ᵢ .ADDI .x6 .x6 M_a)
+    cpsTriple base (base + 16)
+      (code ** (.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count) ** (.x7 ↦ᵣ v7) ** (.x0 ↦ᵣ (0 : Word)))
+      (code ** (.x5 ↦ᵣ (val <<< M_s.toNat)) ** (.x6 ↦ᵣ (count + signExtend12 M_a)) **
+              (.x7 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word))) := by
+  intro code
+  -- 1. SRLI body
+  have I0 := srli_spec_gen .x7 .x5 v7 val K base (by nofun)
+  -- 2. BNE at base+4
+  have hbne_raw := bne_spec_gen .x7 .x0 (12 : BitVec 13) (val >>> K.toNat) (0 : Word) (base + 4)
+  have hsig : signExtend13 (12 : BitVec 13) = (12 : Word) := by native_decide
+  have ha_t : (base + 4) + signExtend13 (12 : BitVec 13) = base + 16 := by rw [hsig]; bv_omega
+  have ha_f : (base + 4 : Addr) + 4 = base + 8 := by bv_omega
+  rw [ha_t, ha_f] at hbne_raw
+  -- 3. Frame BNE
+  have hbne_framed := cpsBranch_frame_left _ _ _ _ _ _
+    ((base ↦ᵢ .SRLI .x7 .x5 K) **
+     ((base + 8) ↦ᵢ .SLLI .x5 .x5 M_s) **
+     ((base + 12) ↦ᵢ .ADDI .x6 .x6 M_a) **
+     (.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count))
+    (by pcFree) hbne_raw
+  -- 4. SRLI body (1 instruction, rest is frame)
+  have hbody : cpsTriple base (base + 4)
+      (code ** (.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count) ** (.x7 ↦ᵣ v7) ** (.x0 ↦ᵣ (0 : Word)))
+      (code ** (.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count) ** (.x7 ↦ᵣ (val >>> K.toNat)) ** (.x0 ↦ᵣ (0 : Word))) := by
+    runBlock I0
+  -- 5. Compose SRLI body → BNE
+  have composed := cpsTriple_seq_cpsBranch_with_perm _ _ _ _ _ _ _ _ _
+    (fun h hp => by xperm_hyp hp) hbody hbne_framed
+  -- 6. Eliminate taken path (has ⌜val >>> K.toNat ≠ 0⌝ which contradicts heq)
+  have ntaken := cpsBranch_elim_ntaken _ _ _ _ _ _ composed (fun hp hQt => by
+    obtain ⟨_, _, _, _, h_inner, _⟩ := hQt
+    obtain ⟨_, _, _, _, _, h_rest⟩ := h_inner
+    obtain ⟨_, _, _, _, _, h_x0p⟩ := h_rest
+    exact ((sepConj_pure_right _ _ _).1 h_x0p).2 (by rw [heq]))
+  -- 6. SLLI + ADDI from base+8 to base+16
+  have I1 := slli_spec_gen_same .x5 val M_s (base + 8) (by nofun)
+  have I2 := addi_spec_gen_same .x6 count M_a (base + 12) (by nofun)
+  have hslli_addi : cpsTriple (base + 8) (base + 16)
+      (((base + 8) ↦ᵢ .SLLI .x5 .x5 M_s) ** ((base + 12) ↦ᵢ .ADDI .x6 .x6 M_a) **
+       (.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count))
+      (((base + 8) ↦ᵢ .SLLI .x5 .x5 M_s) ** ((base + 12) ↦ᵢ .ADDI .x6 .x6 M_a) **
+       (.x5 ↦ᵣ (val <<< M_s.toNat)) ** (.x6 ↦ᵣ (count + signExtend12 M_a))) := by
+    runBlock I1 I2
+  have hframed := cpsTriple_frame_left _ _ _ _
+    ((base ↦ᵢ .SRLI .x7 .x5 K) **
+     ((base + 4) ↦ᵢ .BNE .x7 .x0 12) **
+     (.x7 ↦ᵣ (val >>> K.toNat)) ** (.x0 ↦ᵣ (0 : Word)))
+    (by pcFree) hslli_addi
+  -- 7. Strip pure fact from ntaken, permute to match hframed's precondition, compose
+  have full := cpsTriple_seq_with_perm _ _ _ _ _ _ _
+    (fun h hp => by
+      have hp' := sepConj_mono_left
+        (sepConj_mono_right (sepConj_mono_right
+          (fun h hp => ((sepConj_pure_right _ _ h).1 hp).1))) h hp
+      xperm_hyp hp')
+    ntaken hframed
+  -- 8. Final permutation + rewrite x7 = 0
+  exact cpsTriple_consequence _ _ _ _ _ _
+    (fun h hp => hp)
+    (fun h hp => by rw [heq] at hp; xperm_hyp hp)
+    full
+
+-- ============================================================================
+-- CLZ last stage (stage 5): SRLI x7 x5 63 + BNE(8) + ADDI x6 x6 1
+-- 3 instructions. BNE offset = 8 (not 12), no SLLI.
+-- ============================================================================
+
+/-- CLZ last stage, taken: val >>> 63 ≠ 0 (MSB is 1), skip ADDI.
+    x5 unchanged, x6 unchanged, x7 = val >>> 63. -/
+theorem divK_clz_last_taken_spec (val count v7 : Word) (base : Addr)
+    (hne : val >>> 63 ≠ 0) :
+    let code :=
+      (base ↦ᵢ .SRLI .x7 .x5 63) **
+      ((base + 4) ↦ᵢ .BNE .x7 .x0 8) **
+      ((base + 8) ↦ᵢ .ADDI .x6 .x6 1)
+    cpsTriple base (base + 12)
+      (code ** (.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count) ** (.x7 ↦ᵣ v7) ** (.x0 ↦ᵣ (0 : Word)))
+      (code ** (.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count) **
+              (.x7 ↦ᵣ (val >>> 63)) ** (.x0 ↦ᵣ (0 : Word))) := by
+  intro code
+  have I0 := srli_spec_gen .x7 .x5 v7 val 63 base (by nofun)
+  have h63 : (63 : BitVec 6).toNat = 63 := by native_decide
+  simp only [h63] at I0
+  have hbne_raw := bne_spec_gen .x7 .x0 (8 : BitVec 13) (val >>> 63) (0 : Word) (base + 4)
+  have hsig : signExtend13 (8 : BitVec 13) = (8 : Word) := by native_decide
+  have ha_t : (base + 4) + signExtend13 (8 : BitVec 13) = base + 12 := by rw [hsig]; bv_omega
+  have ha_f : (base + 4 : Addr) + 4 = base + 8 := by bv_omega
+  rw [ha_t, ha_f] at hbne_raw
+  have hbne_framed := cpsBranch_frame_left _ _ _ _ _ _
+    ((base ↦ᵢ .SRLI .x7 .x5 63) **
+     ((base + 8) ↦ᵢ .ADDI .x6 .x6 1) **
+     (.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count))
+    (by pcFree) hbne_raw
+  have hbody : cpsTriple base (base + 4)
+      (code ** (.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count) ** (.x7 ↦ᵣ v7) ** (.x0 ↦ᵣ (0 : Word)))
+      (code ** (.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count) ** (.x7 ↦ᵣ (val >>> 63)) ** (.x0 ↦ᵣ (0 : Word))) := by
+    runBlock I0
+  have composed := cpsTriple_seq_cpsBranch_with_perm _ _ _ _ _ _ _ _ _
+    (fun h hp => by xperm_hyp hp) hbody hbne_framed
+  have taken := cpsBranch_elim_taken _ _ _ _ _ _ composed (fun hp hQf => by
+    obtain ⟨_, _, _, _, h_inner, _⟩ := hQf
+    obtain ⟨_, _, _, _, _, h_rest⟩ := h_inner
+    obtain ⟨_, _, _, _, _, h_x0p⟩ := h_rest
+    exact hne ((sepConj_pure_right _ _ _).1 h_x0p).2)
+  exact cpsTriple_consequence _ _ _ _ _ _
+    (fun h hp => hp)
+    (fun h hp => by
+      have hp' := sepConj_mono_left
+        (sepConj_mono_right (sepConj_mono_right
+          (fun h hp => ((sepConj_pure_right _ _ h).1 hp).1))) h hp
+      xperm_hyp hp')
+    taken
+
+/-- CLZ last stage, ntaken: val >>> 63 = 0, execute ADDI.
+    x5 unchanged, x6 = count + 1, x7 = 0. -/
+theorem divK_clz_last_ntaken_spec (val count v7 : Word) (base : Addr)
+    (heq : val >>> 63 = 0) :
+    let code :=
+      (base ↦ᵢ .SRLI .x7 .x5 63) **
+      ((base + 4) ↦ᵢ .BNE .x7 .x0 8) **
+      ((base + 8) ↦ᵢ .ADDI .x6 .x6 1)
+    cpsTriple base (base + 12)
+      (code ** (.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count) ** (.x7 ↦ᵣ v7) ** (.x0 ↦ᵣ (0 : Word)))
+      (code ** (.x5 ↦ᵣ val) ** (.x6 ↦ᵣ (count + signExtend12 (1 : BitVec 12))) **
+              (.x7 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word))) := by
+  intro code
+  have I0 := srli_spec_gen .x7 .x5 v7 val 63 base (by nofun)
+  have h63 : (63 : BitVec 6).toNat = 63 := by native_decide
+  simp only [h63] at I0
+  have hbne_raw := bne_spec_gen .x7 .x0 (8 : BitVec 13) (val >>> 63) (0 : Word) (base + 4)
+  have hsig : signExtend13 (8 : BitVec 13) = (8 : Word) := by native_decide
+  have ha_t : (base + 4) + signExtend13 (8 : BitVec 13) = base + 12 := by rw [hsig]; bv_omega
+  have ha_f : (base + 4 : Addr) + 4 = base + 8 := by bv_omega
+  rw [ha_t, ha_f] at hbne_raw
+  have hbne_framed := cpsBranch_frame_left _ _ _ _ _ _
+    ((base ↦ᵢ .SRLI .x7 .x5 63) **
+     ((base + 8) ↦ᵢ .ADDI .x6 .x6 1) **
+     (.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count))
+    (by pcFree) hbne_raw
+  have hbody : cpsTriple base (base + 4)
+      (code ** (.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count) ** (.x7 ↦ᵣ v7) ** (.x0 ↦ᵣ (0 : Word)))
+      (code ** (.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count) ** (.x7 ↦ᵣ (val >>> 63)) ** (.x0 ↦ᵣ (0 : Word))) := by
+    runBlock I0
+  have composed := cpsTriple_seq_cpsBranch_with_perm _ _ _ _ _ _ _ _ _
+    (fun h hp => by xperm_hyp hp) hbody hbne_framed
+  have ntaken := cpsBranch_elim_ntaken _ _ _ _ _ _ composed (fun hp hQt => by
+    obtain ⟨_, _, _, _, h_inner, _⟩ := hQt
+    obtain ⟨_, _, _, _, _, h_rest⟩ := h_inner
+    obtain ⟨_, _, _, _, _, h_x0p⟩ := h_rest
+    exact ((sepConj_pure_right _ _ _).1 h_x0p).2 (by rw [heq]))
+  -- ADDI from base+8 to base+12
+  have I1 := addi_spec_gen_same .x6 count (1 : BitVec 12) (base + 8) (by nofun)
+  have ha12 : (base + 8 : Addr) + 4 = base + 12 := by bv_omega
+  rw [ha12] at I1
+  have hframed := cpsTriple_frame_left _ _ _ _
+    ((base ↦ᵢ .SRLI .x7 .x5 63) **
+     ((base + 4) ↦ᵢ .BNE .x7 .x0 8) **
+     (.x5 ↦ᵣ val) ** (.x7 ↦ᵣ (val >>> 63)) ** (.x0 ↦ᵣ (0 : Word)))
+    (by pcFree) I1
+  have full := cpsTriple_seq_with_perm _ _ _ _ _ _ _
+    (fun h hp => by
+      have hp' := sepConj_mono_left
+        (sepConj_mono_right (sepConj_mono_right
+          (fun h hp => ((sepConj_pure_right _ _ h).1 hp).1))) h hp
+      xperm_hyp hp')
+    ntaken hframed
+  exact cpsTriple_consequence _ _ _ _ _ _
+    (fun h hp => hp)
+    (fun h hp => by rw [heq] at hp; xperm_hyp hp)
+    full
+
 end EvmAsm.Rv64

@@ -217,6 +217,15 @@ namespace EvmAsm.Rv64
     (by intro s _ hrd; simp [execInstrBr, hrd])
     (by intro s hfetch; exact step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl))
 
+@[spec_gen_rv64] theorem srli_spec_gen (rd rs1 : Reg) (v_old v1 : Word) (shamt : BitVec 6)
+    (addr : Addr) (hrd_ne_x0 : rd ≠ .x0) :
+    cpsTriple addr (addr + 4)
+      ((addr ↦ᵢ .SRLI rd rs1 shamt) ** (rs1 ↦ᵣ v1) ** (rd ↦ᵣ v_old))
+      ((addr ↦ᵢ .SRLI rd rs1 shamt) ** (rs1 ↦ᵣ v1) ** (rd ↦ᵣ (v1 >>> shamt.toNat))) :=
+  generic_2reg_spec (.SRLI rd rs1 shamt) rs1 rd v1 v_old _ addr hrd_ne_x0
+    (by intro s _ hrs1 _; simp [execInstrBr, hrs1])
+    (by intro s hfetch; exact step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl))
+
 @[spec_gen_rv64] theorem srai_spec_gen_same (rd : Reg) (v : Word) (shamt : BitVec 6)
     (addr : Addr) (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4)

@@ -165,6 +165,34 @@ theorem cpsBranch_merge (entry l_t l_f exit_ : Addr)
   · obtain ⟨k2, s2, hstep2, hpc2, hR⟩ := h_f F hF s1 hQ_f hpc_f
     exact ⟨k1 + k2, s2, stepN_add_eq k1 k2 s s1 s2 hstep1 hstep2, hpc2, hR⟩
 
+/-- Extract the taken path from a cpsBranch when the not-taken postcondition
+    is unsatisfiable (e.g., contains a contradictory pure fact). -/
+theorem cpsBranch_elim_taken (entry l_t l_f : Addr)
+    (P Q_t Q_f : Assertion)
+    (hbr : cpsBranch entry P l_t Q_t l_f Q_f)
+    (h_absurd : ∀ hp, Q_f hp → False) :
+    cpsTriple entry l_t P Q_t := by
+  intro R hR s hPR hpc
+  obtain ⟨k, s', hstep, hbranch⟩ := hbr R hR s hPR hpc
+  rcases hbranch with ⟨hpc_t, hQ_tR⟩ | ⟨hpc_f, hQ_fR⟩
+  · exact ⟨k, s', hstep, hpc_t, hQ_tR⟩
+  · obtain ⟨hp, hcompat, h1, h2, hd, hu, hQf, hR'⟩ := hQ_fR
+    exact absurd hQf (h_absurd h1)
+
+/-- Extract the not-taken path from a cpsBranch when the taken postcondition
+    is unsatisfiable (e.g., contains a contradictory pure fact). -/
+theorem cpsBranch_elim_ntaken (entry l_t l_f : Addr)
+    (P Q_t Q_f : Assertion)
+    (hbr : cpsBranch entry P l_t Q_t l_f Q_f)
+    (h_absurd : ∀ hp, Q_t hp → False) :
+    cpsTriple entry l_f P Q_f := by
+  intro R hR s hPR hpc
+  obtain ⟨k, s', hstep, hbranch⟩ := hbr R hR s hPR hpc
+  rcases hbranch with ⟨hpc_t, hQ_tR⟩ | ⟨hpc_f, hQ_fR⟩
+  · obtain ⟨hp, hcompat, h1, h2, hd, hu, hQt, hR'⟩ := hQ_tR
+    exact absurd hQt (h_absurd h1)
+  · exact ⟨k, s', hstep, hpc_f, hQ_fR⟩
+
 /-- A cpsTriple with zero steps: if entry = exit and P implies Q, trivially holds. -/
 theorem cpsTriple_refl (addr : Addr) (P Q : Assertion)
     (h : ∀ hp, P hp → Q hp) :
