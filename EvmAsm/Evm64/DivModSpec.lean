@@ -2689,4 +2689,143 @@ theorem divK_div128_step2_spec
     (fun h hp => by xperm_hyp hp)
     h123
 
+-- ============================================================================
+-- div128 subroutine: Phase 1 [0]-[9] — save ret/d, split d and u_lo.
+-- 10 instructions: SD+SD+SRLI+SLLI+SRLI+SD + SRLI+SLLI+SRLI+SD.
+-- ============================================================================
+
+set_option maxRecDepth 2048 in
+/-- div128 Phase 1: save return addr/d, split d and u_lo. Instrs [0]-[9].
+    Input: x12=sp, x2=ret_addr, x10=d, x5=u_lo, x7=u_hi.
+    Output: x6=d_hi, x11=un1, x5=un0 (saved), x7=u_hi (unchanged). -/
+theorem divK_div128_phase1_spec
+    (sp ret_addr d u_lo u_hi v1_old v6_old v11_old
+     ret_mem d_mem dlo_mem un0_mem : Word) (base : Addr)
+    (hv_ret : isValidDwordAccess (sp + signExtend12 3968) = true)
+    (hv_d   : isValidDwordAccess (sp + signExtend12 3960) = true)
+    (hv_dlo : isValidDwordAccess (sp + signExtend12 3952) = true)
+    (hv_un0 : isValidDwordAccess (sp + signExtend12 3944) = true) :
+    let d_hi := d >>> (32 : BitVec 6).toNat
+    let d_lo := (d <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+    let un1 := u_lo >>> (32 : BitVec 6).toNat
+    let un0 := (u_lo <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+    let code :=
+      -- save_split_d [0]-[5]
+      (base ↦ᵢ .SD .x12 .x2 3968) **
+      ((base + 4) ↦ᵢ .SD .x12 .x10 3960) **
+      ((base + 8) ↦ᵢ .SRLI .x6 .x10 32) **
+      ((base + 12) ↦ᵢ .SLLI .x1 .x10 32) **
+      ((base + 16) ↦ᵢ .SRLI .x1 .x1 32) **
+      ((base + 20) ↦ᵢ .SD .x12 .x1 3952) **
+      -- split_ulo [6]-[9]
+      ((base + 24) ↦ᵢ .SRLI .x11 .x5 32) **
+      ((base + 28) ↦ᵢ .SLLI .x5 .x5 32) **
+      ((base + 32) ↦ᵢ .SRLI .x5 .x5 32) **
+      ((base + 36) ↦ᵢ .SD .x12 .x5 3944)
+    cpsTriple base (base + 40)
+      (code ** (.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ ret_addr) ** (.x10 ↦ᵣ d) **
+       (.x6 ↦ᵣ v6_old) ** (.x1 ↦ᵣ v1_old) ** (.x5 ↦ᵣ u_lo) **
+       (.x11 ↦ᵣ v11_old) ** (.x7 ↦ᵣ u_hi) **
+       (sp + signExtend12 3968 ↦ₘ ret_mem) **
+       (sp + signExtend12 3960 ↦ₘ d_mem) **
+       (sp + signExtend12 3952 ↦ₘ dlo_mem) **
+       (sp + signExtend12 3944 ↦ₘ un0_mem))
+      (code ** (.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ ret_addr) ** (.x10 ↦ᵣ d) **
+       (.x6 ↦ᵣ d_hi) ** (.x1 ↦ᵣ d_lo) ** (.x5 ↦ᵣ un0) **
+       (.x11 ↦ᵣ un1) ** (.x7 ↦ᵣ u_hi) **
+       (sp + signExtend12 3968 ↦ₘ ret_addr) **
+       (sp + signExtend12 3960 ↦ₘ d) **
+       (sp + signExtend12 3952 ↦ₘ d_lo) **
+       (sp + signExtend12 3944 ↦ₘ un0)) := by
+  intro d_hi; intro d_lo; intro un1; intro un0; intro code
+  -- Block 1: save_split_d [0]-[5]
+  have h1_raw := divK_div128_save_split_d_spec sp ret_addr d v1_old v6_old
+    ret_mem d_mem dlo_mem base hv_ret hv_d hv_dlo
+  have h1 := cpsTriple_frame_left _ _ _ _
+    (((base + 24) ↦ᵢ .SRLI .x11 .x5 32) **
+     ((base + 28) ↦ᵢ .SLLI .x5 .x5 32) **
+     ((base + 32) ↦ᵢ .SRLI .x5 .x5 32) **
+     ((base + 36) ↦ᵢ .SD .x12 .x5 3944) **
+     (.x5 ↦ᵣ u_lo) ** (.x11 ↦ᵣ v11_old) ** (.x7 ↦ᵣ u_hi) **
+     (sp + signExtend12 3944 ↦ₘ un0_mem))
+    (by pcFree) h1_raw
+  -- Block 2: split_ulo [6]-[9] — normalize addresses
+  have h2_raw := divK_div128_split_ulo_spec sp u_lo v11_old un0_mem (base + 24) hv_un0
+  have : (base + 24 : Addr) + 4 = base + 28 := by bv_omega
+  have : (base + 24 : Addr) + 8 = base + 32 := by bv_omega
+  have : (base + 24 : Addr) + 12 = base + 36 := by bv_omega
+  have : (base + 24 : Addr) + 16 = base + 40 := by bv_omega
+  simp only [*] at h2_raw
+  have h2 := cpsTriple_frame_left _ _ _ _
+    ((base ↦ᵢ .SD .x12 .x2 3968) **
+     ((base + 4) ↦ᵢ .SD .x12 .x10 3960) **
+     ((base + 8) ↦ᵢ .SRLI .x6 .x10 32) **
+     ((base + 12) ↦ᵢ .SLLI .x1 .x10 32) **
+     ((base + 16) ↦ᵢ .SRLI .x1 .x1 32) **
+     ((base + 20) ↦ᵢ .SD .x12 .x1 3952) **
+     (.x2 ↦ᵣ ret_addr) ** (.x10 ↦ᵣ d) ** (.x6 ↦ᵣ d_hi) **
+     (.x1 ↦ᵣ d_lo) ** (.x7 ↦ᵣ u_hi) **
+     (sp + signExtend12 3968 ↦ₘ ret_addr) **
+     (sp + signExtend12 3960 ↦ₘ d) **
+     (sp + signExtend12 3952 ↦ₘ d_lo))
+    (by pcFree) h2_raw
+  -- Compose 1 → 2
+  have h12 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
+    (fun h hp => by xperm_hyp hp) h1 h2
+  -- Final rearrange
+  exact cpsTriple_consequence _ _ _ _ _ _
+    (fun h hp => by xperm_hyp hp)
+    (fun h hp => by xperm_hyp hp)
+    h12
+
+-- ============================================================================
+-- div128 subroutine: End phase [45]-[48] — combine q + restore/return.
+-- 4 instructions: SLLI + OR + LD + JALR.
+-- ============================================================================
+
+set_option maxRecDepth 2048 in
+/-- div128 end phase: combine q1,q0 into q, restore return addr, return.
+    Instrs [45]-[48]. Exit to ret_addr. -/
+theorem divK_div128_end_spec
+    (sp q1 q0 v2_old v11_old ret_addr : Word) (base : Addr)
+    (hv : isValidDwordAccess (sp + signExtend12 3968) = true)
+    (halign : (ret_addr + signExtend12 0) &&& ~~~1 = ret_addr) :
+    let q1_hi := q1 <<< (32 : BitVec 6).toNat
+    let q := q1_hi ||| q0
+    let code :=
+      (base ↦ᵢ .SLLI .x11 .x10 32) **
+      ((base + 4) ↦ᵢ .OR .x11 .x11 .x5) **
+      ((base + 8) ↦ᵢ .LD .x2 .x12 3968) **
+      ((base + 12) ↦ᵢ .JALR .x0 .x2 0)
+    cpsTriple base ret_addr
+      (code ** (.x10 ↦ᵣ q1) ** (.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ v11_old) **
+       (.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ v2_old) ** (sp + signExtend12 3968 ↦ₘ ret_addr))
+      (code ** (.x10 ↦ᵣ q1) ** (.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ q) **
+       (.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ ret_addr) ** (sp + signExtend12 3968 ↦ₘ ret_addr)) := by
+  intro q1_hi; intro q; intro code
+  -- Block 1: combine_q [45]-[46]
+  have h1_raw := divK_div128_combine_q_spec q1 q0 v11_old base
+  have h1 := cpsTriple_frame_left _ _ _ _
+    (((base + 8) ↦ᵢ .LD .x2 .x12 3968) **
+     ((base + 12) ↦ᵢ .JALR .x0 .x2 0) **
+     (.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ v2_old) ** (sp + signExtend12 3968 ↦ₘ ret_addr))
+    (by pcFree) h1_raw
+  -- Block 2: restore_return [47]-[48]
+  have h2_raw := divK_div128_restore_return_spec sp v2_old ret_addr (base + 8) hv halign
+  have : (base + 8 : Addr) + 4 = base + 12 := by bv_omega
+  simp only [*] at h2_raw
+  have h2 := cpsTriple_frame_left _ _ _ _
+    ((base ↦ᵢ .SLLI .x11 .x10 32) **
+     ((base + 4) ↦ᵢ .OR .x11 .x11 .x5) **
+     (.x10 ↦ᵣ q1) ** (.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ q))
+    (by pcFree) h2_raw
+  -- Compose 1 → 2
+  have h12 := cpsTriple_seq_with_perm _ _ _ _ _ _ _
+    (fun h hp => by xperm_hyp hp) h1 h2
+  -- Final rearrange
+  exact cpsTriple_consequence _ _ _ _ _ _
+    (fun h hp => by xperm_hyp hp)
+    (fun h hp => by xperm_hyp hp)
+    h12
+
 end EvmAsm.Rv64
