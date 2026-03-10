@@ -224,6 +224,31 @@ theorem execInstrBr_jal_x0 (s : MachineState) (off : BitVec 21) :
     (by intro s hpc; simp [execInstrBr, MachineState.setReg, hpc])
     (by intro s hfetch; exact step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl))
 
+/-- JALR x0 executes as a pure PC update (x0 write is dropped). -/
+theorem execInstrBr_jalr_x0 (s : MachineState) (rs1 : Reg) (off : BitVec 12) :
+    execInstrBr s (Instr.JALR .x0 rs1 off) = s.setPC ((s.getReg rs1 + signExtend12 off) &&& ~~~1) := by
+  simp [execInstrBr, MachineState.setReg, MachineState.setPC]
+
+/-- JALR x0 spec: pure PC jump to (rs1 + sext(offset)) & ~1, no register changes. -/
+@[spec_gen_rv64] theorem jalr_x0_spec_gen (rs1 : Reg) (v : Word)
+    (offset : BitVec 12) (addr : Addr) :
+    cpsTriple addr ((v + signExtend12 offset) &&& ~~~1)
+      ((addr ↦ᵢ .JALR .x0 rs1 offset) ** (rs1 ↦ᵣ v))
+      ((addr ↦ᵢ .JALR .x0 rs1 offset) ** (rs1 ↦ᵣ v)) := by
+  intro R hR s hPR hpc; subst hpc
+  have hfetch : s.code s.pc = some (.JALR .x0 rs1 offset) :=
+    (holdsFor_instrAt _ _ s).mp (holdsFor_sepConj_elim_left (holdsFor_sepConj_elim_left hPR))
+  have hrs1 : s.getReg rs1 = v :=
+    (holdsFor_regIs _ _ s).mp (holdsFor_sepConj_elim_right (holdsFor_sepConj_elim_left hPR))
+  have hexec : execInstrBr s (.JALR .x0 rs1 offset) = s.setPC ((v + signExtend12 offset) &&& ~~~1) := by
+    rw [execInstrBr_jalr_x0, hrs1]
+  have hstep : step s = some (execInstrBr s (.JALR .x0 rs1 offset)) :=
+    step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl)
+  refine ⟨1, s.setPC ((v + signExtend12 offset) &&& ~~~1), ?_, rfl, ?_⟩
+  · show (step s).bind (stepN 0) = some _
+    rw [hstep, hexec]; rfl
+  · exact holdsFor_pcFree_setPC (pcFree_sepConj (by pcFree) hR) _ _ hPR
+
 -- ============================================================================
 -- CPS specification for if_eq
 -- ============================================================================

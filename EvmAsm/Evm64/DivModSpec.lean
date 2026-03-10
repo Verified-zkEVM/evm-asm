@@ -1733,4 +1733,209 @@ theorem divK_div128_compute_un21_spec (sp q1 rhat un1 v1_old v5_old dlo_mem : Wo
   runBlock I0 I1 I2 I3 I4
 
 
+-- ============================================================================
+-- div128 subroutine: Product check body (before BLTU).
+-- 4 instructions: LD + MUL + SLLI + OR.
+-- ============================================================================
+
+/-- div128 product check body: compute q*d_lo and rhat*2^32+un1 for comparison. -/
+theorem divK_div128_prodcheck_body_spec (sp q rhat un1 v1_old v5_old dlo : Word) (base : Addr)
+    (hv : isValidDwordAccess (sp + signExtend12 3952) = true) :
+    let q_dlo := q * dlo
+    let rhat_hi := rhat <<< (32 : BitVec 6).toNat
+    let rhat_un1 := rhat_hi ||| un1
+    let code :=
+      (base ↦ᵢ .LD .x1 .x12 3952) **
+      ((base + 4) ↦ᵢ .MUL .x5 .x10 .x1) **
+      ((base + 8) ↦ᵢ .SLLI .x1 .x7 32) **
+      ((base + 12) ↦ᵢ .OR .x1 .x1 .x11)
+    cpsTriple base (base + 16)
+      (code ** (.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ q) ** (.x7 ↦ᵣ rhat) ** (.x11 ↦ᵣ un1) **
+       (.x5 ↦ᵣ v5_old) ** (.x1 ↦ᵣ v1_old) ** (sp + signExtend12 3952 ↦ₘ dlo))
+      (code ** (.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ q) ** (.x7 ↦ᵣ rhat) ** (.x11 ↦ᵣ un1) **
+       (.x5 ↦ᵣ q_dlo) ** (.x1 ↦ᵣ rhat_un1) ** (sp + signExtend12 3952 ↦ₘ dlo)) := by
+  intro q_dlo; intro rhat_hi; intro rhat_un1; intro code
+  have I0 := ld_spec_gen .x1 .x12 sp v1_old dlo 3952 base (by nofun) hv
+  have I1 := mul_spec_gen .x5 .x10 .x1 v5_old q dlo (base + 4) (by nofun)
+  have I2 := slli_spec_gen .x1 .x7 dlo rhat 32 (base + 8) (by nofun)
+  have I3 := or_spec_gen_rd_eq_rs1 .x1 .x11 (rhat <<< (32 : BitVec 6).toNat) un1 (base + 12) (by nofun) (by nofun)
+  runBlock I0 I1 I2 I3
+
+-- ============================================================================
+-- div128 subroutine: Correction path (2 instrs: ADDI q-- + ADD rhat+=d_hi).
+-- Used after product check BLTU taken, and also after q1/q0 clamp BEQ ntaken.
+-- ============================================================================
+
+/-- div128 correction: q-- and rhat += d_hi. Generic for q1 (x10) or q0 (x5). -/
+theorem divK_div128_correct_q1_spec (q rhat d_hi : Word) (base : Addr) :
+    let q' := q + signExtend12 4095
+    let rhat' := rhat + d_hi
+    let code :=
+      (base ↦ᵢ .ADDI .x10 .x10 4095) **
+      ((base + 4) ↦ᵢ .ADD .x7 .x7 .x6)
+    cpsTriple base (base + 8)
+      (code ** (.x10 ↦ᵣ q) ** (.x7 ↦ᵣ rhat) ** (.x6 ↦ᵣ d_hi))
+      (code ** (.x10 ↦ᵣ q') ** (.x7 ↦ᵣ rhat') ** (.x6 ↦ᵣ d_hi)) := by
+  intro q'; intro rhat'; intro code
+  have I0 := addi_spec_gen_same .x10 q 4095 base (by nofun)
+  have I1 := add_spec_gen_rd_eq_rs1 .x7 .x6 rhat d_hi (base + 4) (by nofun) (by nofun)
+  runBlock I0 I1
+
+/-- div128 correction for q0: q0-- and rhat2 += d_hi. -/
+theorem divK_div128_correct_q0_spec (q0 rhat2 d_hi : Word) (base : Addr) :
+    let q0' := q0 + signExtend12 4095
+    let rhat2' := rhat2 + d_hi
+    let code :=
+      (base ↦ᵢ .ADDI .x5 .x5 4095) **
+      ((base + 4) ↦ᵢ .ADD .x11 .x11 .x6)
+    cpsTriple base (base + 8)
+      (code ** (.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ rhat2) ** (.x6 ↦ᵣ d_hi))
+      (code ** (.x5 ↦ᵣ q0') ** (.x11 ↦ᵣ rhat2') ** (.x6 ↦ᵣ d_hi)) := by
+  intro q0'; intro rhat2'; intro code
+  have I0 := addi_spec_gen_same .x5 q0 4095 base (by nofun)
+  have I1 := add_spec_gen_rd_eq_rs1 .x11 .x6 rhat2 d_hi (base + 4) (by nofun) (by nofun)
+  runBlock I0 I1
+
+-- ============================================================================
+-- div128 subroutine: q1 clamp body (SRLI test, before BEQ).
+-- 1 instruction: SRLI x5 x10 32.
+-- ============================================================================
+
+/-- div128 q1 clamp test: x5 = q1 >>> 32 (nonzero iff q1 >= 2^32). -/
+theorem divK_div128_clamp_test_q1_spec (q1 v5_old : Word) (base : Addr) :
+    let hi := q1 >>> (32 : BitVec 6).toNat
+    let code := (base ↦ᵢ .SRLI .x5 .x10 32)
+    cpsTriple base (base + 4)
+      (code ** (.x10 ↦ᵣ q1) ** (.x5 ↦ᵣ v5_old))
+      (code ** (.x10 ↦ᵣ q1) ** (.x5 ↦ᵣ hi)) := by
+  intro hi; intro code
+  have I0 := srli_spec_gen .x5 .x10 v5_old q1 32 base (by nofun)
+  runBlock I0
+
+/-- div128 q0 clamp test: x1 = q0 >>> 32. -/
+theorem divK_div128_clamp_test_q0_spec (q0 v1_old : Word) (base : Addr) :
+    let hi := q0 >>> (32 : BitVec 6).toNat
+    let code := (base ↦ᵢ .SRLI .x1 .x5 32)
+    cpsTriple base (base + 4)
+      (code ** (.x5 ↦ᵣ q0) ** (.x1 ↦ᵣ v1_old))
+      (code ** (.x5 ↦ᵣ q0) ** (.x1 ↦ᵣ hi)) := by
+  intro hi; intro code
+  have I0 := srli_spec_gen .x1 .x5 v1_old q0 32 base (by nofun)
+  runBlock I0
+
+-- ============================================================================
+-- div128 subroutine: Step 2 initial — DIVU q0, compute rhat2.
+-- 3 instructions: DIVU + MUL + SUB.
+-- ============================================================================
+
+/-- div128 Step 2: q0 = DIVU(un21, d_hi), rhat2 = un21 - q0 * d_hi. -/
+theorem divK_div128_step2_init_spec (un21 d_hi v1_old v5_old v11_old : Word) (base : Addr) :
+    let q0 := rv64_divu un21 d_hi
+    let rhat2 := un21 - q0 * d_hi
+    let code :=
+      (base ↦ᵢ .DIVU .x5 .x7 .x6) **
+      ((base + 4) ↦ᵢ .MUL .x1 .x5 .x6) **
+      ((base + 8) ↦ᵢ .SUB .x11 .x7 .x1)
+    cpsTriple base (base + 12)
+      (code ** (.x7 ↦ᵣ un21) ** (.x6 ↦ᵣ d_hi) **
+       (.x5 ↦ᵣ v5_old) ** (.x1 ↦ᵣ v1_old) ** (.x11 ↦ᵣ v11_old))
+      (code ** (.x7 ↦ᵣ un21) ** (.x6 ↦ᵣ d_hi) **
+       (.x5 ↦ᵣ q0) ** (.x1 ↦ᵣ q0 * d_hi) ** (.x11 ↦ᵣ rhat2)) := by
+  intro q0; intro rhat2; intro code
+  have I0 := divu_spec_gen .x5 .x7 .x6 v5_old un21 d_hi base (by nofun)
+  have I1 := mul_spec_gen .x1 .x5 .x6 v1_old q0 d_hi (base + 4) (by nofun)
+  have I2 := sub_spec_gen .x11 .x7 .x1 un21 (q0 * d_hi) v11_old (base + 8) (by nofun)
+  runBlock I0 I1 I2
+
+-- ============================================================================
+-- div128 subroutine: Product check 2 body (instrs 37-41).
+-- 5 instructions: LD + MUL + SLLI + LD + OR.
+-- ============================================================================
+
+/-- div128 product check 2: compute q0*d_lo and rhat2*2^32+un0 for comparison. -/
+theorem divK_div128_prodcheck2_body_spec (sp q0 rhat2 v1_old v7_old dlo un0 : Word)
+    (base : Addr)
+    (hv_dlo : isValidDwordAccess (sp + signExtend12 3952) = true)
+    (hv_un0 : isValidDwordAccess (sp + signExtend12 3944) = true) :
+    let q0_dlo := q0 * dlo
+    let rhat2_hi := rhat2 <<< (32 : BitVec 6).toNat
+    let rhat2_un0 := rhat2_hi ||| un0
+    let code :=
+      (base ↦ᵢ .LD .x1 .x12 3952) **
+      ((base + 4) ↦ᵢ .MUL .x7 .x5 .x1) **
+      ((base + 8) ↦ᵢ .SLLI .x1 .x11 32) **
+      ((base + 12) ↦ᵢ .LD .x11 .x12 3944) **
+      ((base + 16) ↦ᵢ .OR .x1 .x1 .x11)
+    cpsTriple base (base + 20)
+      (code ** (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ rhat2) **
+       (.x7 ↦ᵣ v7_old) ** (.x1 ↦ᵣ v1_old) **
+       (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0))
+      (code ** (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ un0) **
+       (.x7 ↦ᵣ q0_dlo) ** (.x1 ↦ᵣ rhat2_un0) **
+       (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0)) := by
+  intro q0_dlo; intro rhat2_hi; intro rhat2_un0; intro code
+  have I0 := ld_spec_gen .x1 .x12 sp v1_old dlo 3952 base (by nofun) hv_dlo
+  have I1 := mul_spec_gen .x7 .x5 .x1 v7_old q0 dlo (base + 4) (by nofun)
+  have I2 := slli_spec_gen .x1 .x11 dlo rhat2 32 (base + 8) (by nofun)
+  have I3 := ld_spec_gen .x11 .x12 sp rhat2 un0 3944 (base + 12) (by nofun) hv_un0
+  have I4 := or_spec_gen_rd_eq_rs1 .x1 .x11 rhat2_hi un0 (base + 16) (by nofun) (by nofun)
+  runBlock I0 I1 I2 I3 I4
+
+-- ============================================================================
+-- div128 subroutine: Single-instr ADDI correction (product check 2, q0--).
+-- 1 instruction: ADDI x5 x5 4095.
+-- ============================================================================
+
+/-- div128 product check 2 correction: q0--. -/
+theorem divK_div128_correct_q0_single_spec (q0 : Word) (base : Addr) :
+    let q0' := q0 + signExtend12 4095
+    let code := (base ↦ᵢ .ADDI .x5 .x5 4095)
+    cpsTriple base (base + 4)
+      (code ** (.x5 ↦ᵣ q0))
+      (code ** (.x5 ↦ᵣ q0')) := by
+  intro q0'; intro code
+  have I0 := addi_spec_gen_same .x5 q0 4095 base (by nofun)
+  runBlock I0
+
+-- ============================================================================
+-- div128 subroutine: Combine q = q1<<32 | q0 (instrs 45-46).
+-- 2 instructions: SLLI + OR.
+-- ============================================================================
+
+/-- div128 combine: x11 = q1<<32 | q0. -/
+theorem divK_div128_combine_q_spec (q1 q0 v11_old : Word) (base : Addr) :
+    let q1_hi := q1 <<< (32 : BitVec 6).toNat
+    let q := q1_hi ||| q0
+    let code :=
+      (base ↦ᵢ .SLLI .x11 .x10 32) **
+      ((base + 4) ↦ᵢ .OR .x11 .x11 .x5)
+    cpsTriple base (base + 8)
+      (code ** (.x10 ↦ᵣ q1) ** (.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ v11_old))
+      (code ** (.x10 ↦ᵣ q1) ** (.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ q)) := by
+  intro q1_hi; intro q; intro code
+  have I0 := slli_spec_gen .x11 .x10 v11_old q1 32 base (by nofun)
+  have I1 := or_spec_gen_rd_eq_rs1 .x11 .x5 q1_hi q0 (base + 4) (by nofun) (by nofun)
+  runBlock I0 I1
+
+-- ============================================================================
+-- div128 subroutine: Restore return addr + JALR return (instrs 47-48).
+-- 2 instructions: LD + JALR.
+-- ============================================================================
+
+/-- div128 restore and return: load return addr, JALR x0 x2 0. -/
+theorem divK_div128_restore_return_spec (sp v2_old ret_addr : Word) (base : Addr)
+    (hv : isValidDwordAccess (sp + signExtend12 3968) = true)
+    (halign : (ret_addr + signExtend12 0) &&& ~~~1 = ret_addr) :
+    let code :=
+      (base ↦ᵢ .LD .x2 .x12 3968) **
+      ((base + 4) ↦ᵢ .JALR .x0 .x2 0)
+    cpsTriple base ret_addr
+      (code ** (.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ v2_old) ** (sp + signExtend12 3968 ↦ₘ ret_addr))
+      (code ** (.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ ret_addr) ** (sp + signExtend12 3968 ↦ₘ ret_addr)) := by
+  intro code
+  have I0 := ld_spec_gen .x2 .x12 sp v2_old ret_addr 3968 base (by nofun) hv
+  have I1 := jalr_x0_spec_gen .x2 ret_addr 0 (base + 4)
+  rw [halign] at I1
+  runBlock I0 I1
+
 end EvmAsm.Rv64
