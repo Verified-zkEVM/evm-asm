@@ -1607,4 +1607,130 @@ theorem divK_trial_max_spec (v11_old : Word) (base : Addr) :
   rw [ha] at I1
   runBlock I0 I1
 
+-- ============================================================================
+-- div128 subroutine: Phase 1a — save return addr and d, split d.
+-- 6 instructions: SD + SD + SRLI + SLLI + SRLI + SD.
+-- ============================================================================
+
+/-- div128 Phase 1a: save x2 (return addr) and x10 (d), compute d_hi and d_lo. -/
+theorem divK_div128_save_split_d_spec (sp ret_addr d v1_old v6_old
+    ret_mem d_mem dlo_mem : Word) (base : Addr)
+    (hv_ret : isValidDwordAccess (sp + signExtend12 3968) = true)
+    (hv_d   : isValidDwordAccess (sp + signExtend12 3960) = true)
+    (hv_dlo : isValidDwordAccess (sp + signExtend12 3952) = true) :
+    let d_hi := d >>> (32 : BitVec 6).toNat
+    let d_lo := (d <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+    let code :=
+      (base ↦ᵢ .SD .x12 .x2 3968) **
+      ((base + 4) ↦ᵢ .SD .x12 .x10 3960) **
+      ((base + 8) ↦ᵢ .SRLI .x6 .x10 32) **
+      ((base + 12) ↦ᵢ .SLLI .x1 .x10 32) **
+      ((base + 16) ↦ᵢ .SRLI .x1 .x1 32) **
+      ((base + 20) ↦ᵢ .SD .x12 .x1 3952)
+    cpsTriple base (base + 24)
+      (code ** (.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ ret_addr) ** (.x10 ↦ᵣ d) **
+       (.x6 ↦ᵣ v6_old) ** (.x1 ↦ᵣ v1_old) **
+       (sp + signExtend12 3968 ↦ₘ ret_mem) **
+       (sp + signExtend12 3960 ↦ₘ d_mem) **
+       (sp + signExtend12 3952 ↦ₘ dlo_mem))
+      (code ** (.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ ret_addr) ** (.x10 ↦ᵣ d) **
+       (.x6 ↦ᵣ d_hi) ** (.x1 ↦ᵣ d_lo) **
+       (sp + signExtend12 3968 ↦ₘ ret_addr) **
+       (sp + signExtend12 3960 ↦ₘ d) **
+       (sp + signExtend12 3952 ↦ₘ d_lo)) := by
+  intro d_hi; intro d_lo; intro code
+  have I0 := sd_spec_gen .x12 .x2 sp ret_addr ret_mem 3968 base hv_ret
+  have I1 := sd_spec_gen .x12 .x10 sp d d_mem 3960 (base + 4) hv_d
+  have I2 := srli_spec_gen .x6 .x10 v6_old d 32 (base + 8) (by nofun)
+  have I3 := slli_spec_gen .x1 .x10 v1_old d 32 (base + 12) (by nofun)
+  have I4 := srli_spec_gen_same .x1 (d <<< (32 : BitVec 6).toNat) 32 (base + 16) (by nofun)
+  have I5 := sd_spec_gen .x12 .x1 sp d_lo dlo_mem 3952 (base + 20) hv_dlo
+  runBlock I0 I1 I2 I3 I4 I5
+
+-- ============================================================================
+-- div128 subroutine: Phase 1b — split u_lo into un1, un0, save un0.
+-- 4 instructions: SRLI + SLLI + SRLI + SD.
+-- ============================================================================
+
+/-- div128 Phase 1b: split u_lo into un1 (x11) and un0 (x5), save un0. -/
+theorem divK_div128_split_ulo_spec (sp u_lo v11_old un0_mem : Word) (base : Addr)
+    (hv_un0 : isValidDwordAccess (sp + signExtend12 3944) = true) :
+    let un1 := u_lo >>> (32 : BitVec 6).toNat
+    let un0 := (u_lo <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+    let code :=
+      (base ↦ᵢ .SRLI .x11 .x5 32) **
+      ((base + 4) ↦ᵢ .SLLI .x5 .x5 32) **
+      ((base + 8) ↦ᵢ .SRLI .x5 .x5 32) **
+      ((base + 12) ↦ᵢ .SD .x12 .x5 3944)
+    cpsTriple base (base + 16)
+      (code ** (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ u_lo) ** (.x11 ↦ᵣ v11_old) **
+       (sp + signExtend12 3944 ↦ₘ un0_mem))
+      (code ** (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ un0) ** (.x11 ↦ᵣ un1) **
+       (sp + signExtend12 3944 ↦ₘ un0)) := by
+  intro un1; intro un0; intro code
+  have I0 := srli_spec_gen .x11 .x5 v11_old u_lo 32 base (by nofun)
+  have I1 := slli_spec_gen_same .x5 u_lo 32 (base + 4) (by nofun)
+  have I2 := srli_spec_gen_same .x5 (u_lo <<< (32 : BitVec 6).toNat) 32 (base + 8) (by nofun)
+  have I3 := sd_spec_gen .x12 .x5 sp un0 un0_mem 3944 (base + 12) hv_un0
+  runBlock I0 I1 I2 I3
+
+-- ============================================================================
+-- div128 subroutine: Step 1 initial — DIVU q1, compute rhat.
+-- 3 instructions: DIVU + MUL + SUB.
+-- ============================================================================
+
+/-- div128 Step 1: q1 = DIVU(u_hi, d_hi), rhat = u_hi - q1 * d_hi. -/
+theorem divK_div128_step1_init_spec (u_hi d_hi v5_old v10_old : Word) (base : Addr) :
+    let q1 := rv64_divu u_hi d_hi
+    let rhat := u_hi - q1 * d_hi
+    let code :=
+      (base ↦ᵢ .DIVU .x10 .x7 .x6) **
+      ((base + 4) ↦ᵢ .MUL .x5 .x10 .x6) **
+      ((base + 8) ↦ᵢ .SUB .x7 .x7 .x5)
+    cpsTriple base (base + 12)
+      (code ** (.x7 ↦ᵣ u_hi) ** (.x6 ↦ᵣ d_hi) **
+       (.x10 ↦ᵣ v10_old) ** (.x5 ↦ᵣ v5_old))
+      (code ** (.x7 ↦ᵣ rhat) ** (.x6 ↦ᵣ d_hi) **
+       (.x10 ↦ᵣ q1) ** (.x5 ↦ᵣ q1 * d_hi)) := by
+  intro q1; intro rhat; intro code
+  have I0 := divu_spec_gen .x10 .x7 .x6 v10_old u_hi d_hi base (by nofun)
+  have I1 := mul_spec_gen .x5 .x10 .x6 v5_old q1 d_hi (base + 4) (by nofun)
+  have I2 := sub_spec_gen_rd_eq_rs1 .x7 .x5 u_hi (q1 * d_hi) (base + 8) (by nofun) (by nofun)
+  runBlock I0 I1 I2
+
+-- ============================================================================
+-- div128 subroutine: Compute un21 from rhat, un1, q1, d_lo.
+-- 5 instructions: LD + SLLI + OR + MUL + SUB.
+-- ============================================================================
+
+/-- div128 un21 = rhat*2^32 + un1 - q1*d_lo.
+    Loads d_lo from scratch memory. -/
+theorem divK_div128_compute_un21_spec (sp q1 rhat un1 v1_old v5_old dlo_mem : Word) (base : Addr)
+    (hv : isValidDwordAccess (sp + signExtend12 3952) = true) :
+    let rhat_hi := rhat <<< (32 : BitVec 6).toNat
+    let rhat_un1 := rhat_hi ||| un1
+    let q1_dlo := q1 * dlo_mem
+    let un21 := rhat_un1 - q1_dlo
+    let code :=
+      (base ↦ᵢ .LD .x1 .x12 3952) **
+      ((base + 4) ↦ᵢ .SLLI .x5 .x7 32) **
+      ((base + 8) ↦ᵢ .OR .x5 .x5 .x11) **
+      ((base + 12) ↦ᵢ .MUL .x1 .x10 .x1) **
+      ((base + 16) ↦ᵢ .SUB .x7 .x5 .x1)
+    cpsTriple base (base + 20)
+      (code ** (.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ q1) ** (.x7 ↦ᵣ rhat) **
+       (.x11 ↦ᵣ un1) ** (.x5 ↦ᵣ v5_old) ** (.x1 ↦ᵣ v1_old) **
+       (sp + signExtend12 3952 ↦ₘ dlo_mem))
+      (code ** (.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ q1) ** (.x7 ↦ᵣ un21) **
+       (.x11 ↦ᵣ un1) ** (.x5 ↦ᵣ rhat_un1) ** (.x1 ↦ᵣ q1_dlo) **
+       (sp + signExtend12 3952 ↦ₘ dlo_mem)) := by
+  intro rhat_hi; intro rhat_un1; intro q1_dlo; intro un21; intro code
+  have I0 := ld_spec_gen .x1 .x12 sp v1_old dlo_mem 3952 base (by nofun) hv
+  have I1 := slli_spec_gen .x5 .x7 v5_old rhat 32 (base + 4) (by nofun)
+  have I2 := or_spec_gen_rd_eq_rs1 .x5 .x11 rhat_hi un1 (base + 8) (by nofun) (by nofun)
+  have I3 := mul_spec_gen_rd_eq_rs2 .x1 .x10 q1 dlo_mem (base + 12) (by nofun) (by nofun)
+  have I4 := sub_spec_gen .x7 .x5 .x1 rhat_un1 q1_dlo rhat (base + 16) (by nofun)
+  runBlock I0 I1 I2 I3 I4
+
+
 end EvmAsm.Rv64
