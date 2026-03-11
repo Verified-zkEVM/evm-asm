@@ -543,7 +543,7 @@ theorem evm_div_phaseB_n4_spec (sp base : Addr)
   -- ---- Step 1: init1 (base+32 → base+60) — zero q[0..3] and u[5..7]
   have hinit1 := divK_phaseB_init1_spec sp (base + 32) q0 q1 q2 q3 u5 u6 u7
     hv_q0 hv_q1 hv_q2 hv_q3 hv_u5 hv_u6 hv_u7
-  simp only [phB_off_4, phB_off_8, phB_off_12, phB_off_16, phB_off_20, phB_off_24, phB_off_28] at hinit1
+  simp only [divK_phaseB_init1_code, phB_off_4, phB_off_8, phB_off_12, phB_off_16, phB_off_20, phB_off_24, phB_off_28] at hinit1
   have hinit1f := cpsTriple_frame_left _ _ _ _
     (((base + 60) ↦ᵢ .LD .x6 .x12 40) ** ((base + 64) ↦ᵢ .LD .x7 .x12 48) **
      ((base + 68) ↦ᵢ .ADDI .x5 .x0 4) ** ((base + 72) ↦ᵢ .BNE .x10 .x0 24) **
@@ -559,7 +559,7 @@ theorem evm_div_phaseB_n4_spec (sp base : Addr)
     (by pcFree) hinit1
   -- ---- Step 2: init2 (base+60 → base+68) — load b[1], b[2]
   have hinit2 := divK_phaseB_init2_spec sp (base + 60) b1 b2 v6 v7 hvalid
-  simp only [phB_i2_4, phB_i2_8] at hinit2
+  simp only [divK_phaseB_init2_code, phB_i2_4, phB_i2_8] at hinit2
   have hinit2f := cpsTriple_frame_left _ _ _ _
     (((base + 32) ↦ᵢ .SD .x12 .x0 4088) ** ((base + 36) ↦ᵢ .SD .x12 .x0 4080) **
      ((base + 40) ↦ᵢ .SD .x12 .x0 4072) ** ((base + 44) ↦ᵢ .SD .x12 .x0 4064) **
@@ -647,7 +647,7 @@ theorem evm_div_phaseB_n4_spec (sp base : Addr)
     rw [divK_phaseB_n4_nm1_x8, divK_se12_32, phB_sp24_32]
     exact hvalid.get (show 7 < 8 from by omega)
   have htail := divK_phaseB_tail_spec sp (4 : Word) b3 n_mem (base + 96) hv_n hv_limb
-  simp only [phB_t_4, phB_t_8, phB_t_12, phB_t_16, phB_t_20,
+  simp only [divK_phaseB_tail_code, phB_t_4, phB_t_8, phB_t_12, phB_t_16, phB_t_20,
     divK_phaseB_n4_nm1_x8, divK_se12_32, phB_sp24_32] at htail
   have htailf := cpsTriple_frame_left _ _ _ _
     (((base + 32) ↦ᵢ .SD .x12 .x0 4088) ** ((base + 36) ↦ᵢ .SD .x12 .x0 4080) **
