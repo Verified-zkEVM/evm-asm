@@ -898,7 +898,22 @@ theorem weaken_zp_post (sp : Addr) (r6 r7 r11 : Word)
      ((sp + 16) ↦ₘ s4) ** ((sp + 20) ↦ₘ s5) ** ((sp + 24) ↦ₘ s6) ** ((sp + 28) ↦ₘ s7) **
      (memOwn (sp + 32)) ** (memOwn (sp + 36)) ** (memOwn (sp + 40)) ** (memOwn (sp + 44)) **
      (memOwn (sp + 48)) ** (memOwn (sp + 52)) ** (memOwn (sp + 56)) ** (memOwn (sp + 60))) h := by
-  sorry
+  intro h hyp
+  have mid := sepConj_mono_right
+    (sepConj_mono (memIs_implies_memOwn _ (0 : Word))
+      (sepConj_mono (memIs_implies_memOwn _ (0 : Word))
+        (sepConj_mono (memIs_implies_memOwn _ (0 : Word))
+          (sepConj_mono (memIs_implies_memOwn _ (0 : Word))
+            (sepConj_mono (memIs_implies_memOwn _ (0 : Word))
+              (sepConj_mono (memIs_implies_memOwn _ (0 : Word))
+                (sepConj_mono (memIs_implies_memOwn _ (0 : Word))
+                  (sepConj_mono (memIs_implies_memOwn _ (0 : Word))
+                    (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+                      (sepConj_mono (regIs_implies_regOwn .x6 r6)
+                        (sepConj_mono (regIs_implies_regOwn .x7 r7)
+                          (sepConj_mono_left (regIs_implies_regOwn .x11 r11)))))))))))))))
+    h hyp
+  xperm_hyp mid
 /-- Weaken body postcondition: convert concrete regs (.x5,.x6,.x7,.x10,.x11) to regOwn
     and concrete mems ((sp+32)..(sp+60)) to memOwn. Used for all 8 shift body exits. -/
 theorem weaken_body_post (sp : Addr) (s0 s1 s2 s3 s4 s5 s6 s7 : Word)
@@ -914,8 +929,25 @@ theorem weaken_body_post (sp : Addr) (s0 s1 s2 s3 s4 s5 s6 s7 : Word)
      (sp ↦ₘ s0) ** ((sp + 4) ↦ₘ s1) ** ((sp + 8) ↦ₘ s2) ** ((sp + 12) ↦ₘ s3) **
      ((sp + 16) ↦ₘ s4) ** ((sp + 20) ↦ₘ s5) ** ((sp + 24) ↦ₘ s6) ** ((sp + 28) ↦ₘ s7) **
      (memOwn (sp + 32)) ** (memOwn (sp + 36)) ** (memOwn (sp + 40)) ** (memOwn (sp + 44)) **
-     (memOwn (sp + 48)) ** (memOwn (sp + 52)) ** (memOwn (sp + 56)) ** (memOwn (sp + 60))) h := by
-  sorry
+     (memOwn (sp + 48)) ** (memOwn (sp + 52)) ** (memOwn (sp + 56)) ** (memOwn (sp + 60))) h :=
+  sepConj_mono_right
+    (sepConj_mono (regIs_implies_regOwn .x5 r5)
+      (sepConj_mono (regIs_implies_regOwn .x6 r6)
+        (sepConj_mono (regIs_implies_regOwn .x7 r7)
+          (sepConj_mono (regIs_implies_regOwn .x10 r10)
+            (sepConj_mono (regIs_implies_regOwn .x11 r11)
+              (sepConj_mono_right -- skip .x0
+                (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+                  (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+                    (sepConj_mono (memIs_implies_memOwn _ m0)
+                      (sepConj_mono (memIs_implies_memOwn _ m1)
+                        (sepConj_mono (memIs_implies_memOwn _ m2)
+                          (sepConj_mono (memIs_implies_memOwn _ m3)
+                            (sepConj_mono (memIs_implies_memOwn _ m4)
+                              (sepConj_mono (memIs_implies_memOwn _ m5)
+                                (sepConj_mono (memIs_implies_memOwn _ m6)
+                                  (memIs_implies_memOwn _ m7))))))))))))))))))))))
+
 -- ============================================================================
 -- Infrastructure for full composition
 -- ============================================================================

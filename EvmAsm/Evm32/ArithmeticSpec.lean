@@ -166,6 +166,65 @@ theorem evm_add_spec (sp : Addr) (base : Addr)
        ((sp + 16) ↦ₘ a4) ** ((sp + 20) ↦ₘ a5) ** ((sp + 24) ↦ₘ a6) ** ((sp + 28) ↦ₘ a7) **
        ((sp + 32) ↦ₘ sum0) ** ((sp + 36) ↦ₘ result1) ** ((sp + 40) ↦ₘ result2) ** ((sp + 44) ↦ₘ result3) **
        ((sp + 48) ↦ₘ result4) ** ((sp + 52) ↦ₘ result5) ** ((sp + 56) ↦ₘ result6) ** ((sp + 60) ↦ₘ result7)) := by
-  sorry
+  -- Carry chain intermediate values
+  let sum0 := a0 + b0
+  let carry0 := if BitVec.ult sum0 b0 then (1 : Word) else 0
+  let psum1 := a1 + b1
+  let carry1a := if BitVec.ult psum1 b1 then (1 : Word) else 0
+  let result1 := psum1 + carry0
+  let carry1b := if BitVec.ult result1 carry0 then (1 : Word) else 0
+  let carry1 := carry1a ||| carry1b
+  let psum2 := a2 + b2
+  let carry2a := if BitVec.ult psum2 b2 then (1 : Word) else 0
+  let result2 := psum2 + carry1
+  let carry2b := if BitVec.ult result2 carry1 then (1 : Word) else 0
+  let carry2 := carry2a ||| carry2b
+  let psum3 := a3 + b3
+  let carry3a := if BitVec.ult psum3 b3 then (1 : Word) else 0
+  let result3 := psum3 + carry2
+  let carry3b := if BitVec.ult result3 carry2 then (1 : Word) else 0
+  let carry3 := carry3a ||| carry3b
+  let psum4 := a4 + b4
+  let carry4a := if BitVec.ult psum4 b4 then (1 : Word) else 0
+  let result4 := psum4 + carry3
+  let carry4b := if BitVec.ult result4 carry3 then (1 : Word) else 0
+  let carry4 := carry4a ||| carry4b
+  let psum5 := a5 + b5
+  let carry5a := if BitVec.ult psum5 b5 then (1 : Word) else 0
+  let result5 := psum5 + carry4
+  let carry5b := if BitVec.ult result5 carry4 then (1 : Word) else 0
+  let carry5 := carry5a ||| carry5b
+  let psum6 := a6 + b6
+  let carry6a := if BitVec.ult psum6 b6 then (1 : Word) else 0
+  let result6 := psum6 + carry5
+  let carry6b := if BitVec.ult result6 carry5 then (1 : Word) else 0
+  let carry6 := carry6a ||| carry6b
+  -- Limb 0: 5 instructions (base+0 .. base+16)
+  have L0 := add_limb0_spec 0 32 sp a0 b0 v7 v6 v5 base
+    (by validMem) (by validMem)
+  -- Limb 1: 8 instructions (base+20 .. base+48)
+  have L1 := add_limb_carry_spec 4 36 sp a1 b1 sum0 b0 carry0 v11
+    (base + 20) (by validMem) (by validMem)
+  -- Limb 2: 8 instructions (base+52 .. base+80)
+  have L2 := add_limb_carry_spec 8 40 sp a2 b2 result1 carry1b carry1 carry1a
+    (base + 52) (by validMem) (by validMem)
+  -- Limb 3: 8 instructions (base+84 .. base+112)
+  have L3 := add_limb_carry_spec 12 44 sp a3 b3 result2 carry2b carry2 carry2a
+    (base + 84) (by validMem) (by validMem)
+  -- Limb 4: 8 instructions (base+116 .. base+144)
+  have L4 := add_limb_carry_spec 16 48 sp a4 b4 result3 carry3b carry3 carry3a
+    (base + 116) (by validMem) (by validMem)
+  -- Limb 5: 8 instructions (base+148 .. base+176)
+  have L5 := add_limb_carry_spec 20 52 sp a5 b5 result4 carry4b carry4 carry4a
+    (base + 148) (by validMem) (by validMem)
+  -- Limb 6: 8 instructions (base+180 .. base+208)
+  have L6 := add_limb_carry_spec 24 56 sp a6 b6 result5 carry5b carry5 carry5a
+    (base + 180) (by validMem) (by validMem)
+  -- Limb 7: 8 instructions (base+212 .. base+240)
+  have L7 := add_limb_carry_spec 28 60 sp a7 b7 result6 carry6b carry6 carry6a
+    (base + 212) (by validMem) (by validMem)
+  -- ADDI sp adjustment (base+244)
+  have L8 := addi_spec_gen_same .x12 sp 32 (base + 244) (by nofun)
+  runBlock L0 L1 L2 L3 L4 L5 L6 L7 L8
 
 end EvmAsm

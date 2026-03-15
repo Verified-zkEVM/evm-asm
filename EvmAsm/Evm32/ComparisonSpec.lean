@@ -54,7 +54,7 @@ theorem lt_result_store_spec (sp : Addr)
       ((.x12 ↦ᵣ (sp + 32)) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) ** (.x5 ↦ᵣ borrow) ** (.x11 ↦ᵣ v11) **
        ((sp + 32) ↦ₘ borrow) ** ((sp + 36) ↦ₘ 0) ** ((sp + 40) ↦ₘ 0) ** ((sp + 44) ↦ₘ 0) **
        ((sp + 48) ↦ₘ 0) ** ((sp + 52) ↦ₘ 0) ** ((sp + 56) ↦ₘ 0) ** ((sp + 60) ↦ₘ 0)) := by
-  sorry
+  runBlock
 
 -- ============================================================================
 -- Full 256-bit GT spec
@@ -175,7 +175,67 @@ theorem evm_gt_spec (sp : Addr) (base : Addr)
        ((sp + 16) ↦ₘ a4) ** ((sp + 20) ↦ₘ a5) ** ((sp + 24) ↦ₘ a6) ** ((sp + 28) ↦ₘ a7) **
        ((sp + 32) ↦ₘ borrow7) ** ((sp + 36) ↦ₘ 0) ** ((sp + 40) ↦ₘ 0) ** ((sp + 44) ↦ₘ 0) **
        ((sp + 48) ↦ₘ 0) ** ((sp + 52) ↦ₘ 0) ** ((sp + 56) ↦ₘ 0) ** ((sp + 60) ↦ₘ 0)) := by
-  sorry
+  -- Borrow chain intermediate values
+  let borrow0 := if BitVec.ult b0 a0 then (1 : Word) else 0
+  let borrow1a := if BitVec.ult b1 a1 then (1 : Word) else 0
+  let temp1 := b1 - a1
+  let borrow1b := if BitVec.ult temp1 borrow0 then (1 : Word) else 0
+  let borrow1 := borrow1a ||| borrow1b
+  let borrow2a := if BitVec.ult b2 a2 then (1 : Word) else 0
+  let temp2 := b2 - a2
+  let borrow2b := if BitVec.ult temp2 borrow1 then (1 : Word) else 0
+  let borrow2 := borrow2a ||| borrow2b
+  let borrow3a := if BitVec.ult b3 a3 then (1 : Word) else 0
+  let temp3 := b3 - a3
+  let borrow3b := if BitVec.ult temp3 borrow2 then (1 : Word) else 0
+  let borrow3 := borrow3a ||| borrow3b
+  let borrow4a := if BitVec.ult b4 a4 then (1 : Word) else 0
+  let temp4 := b4 - a4
+  let borrow4b := if BitVec.ult temp4 borrow3 then (1 : Word) else 0
+  let borrow4 := borrow4a ||| borrow4b
+  let borrow5a := if BitVec.ult b5 a5 then (1 : Word) else 0
+  let temp5 := b5 - a5
+  let borrow5b := if BitVec.ult temp5 borrow4 then (1 : Word) else 0
+  let borrow5 := borrow5a ||| borrow5b
+  let borrow6a := if BitVec.ult b6 a6 then (1 : Word) else 0
+  let temp6 := b6 - a6
+  let borrow6b := if BitVec.ult temp6 borrow5 then (1 : Word) else 0
+  let borrow6 := borrow6a ||| borrow6b
+  let borrow7a := if BitVec.ult b7 a7 then (1 : Word) else 0
+  let temp7 := b7 - a7
+  let borrow7b := if BitVec.ult temp7 borrow6 then (1 : Word) else 0
+  let borrow7 := borrow7a ||| borrow7b
+  -- Limb 0: 3 instructions (borrow only, GT direction: b loaded first)
+  have L0 := lt_limb0_spec 32 0 sp b0 a0 v7 v6 v5 base
+    (by validMem) (by validMem)
+  -- Limb 1: 6 instructions
+  have L1 := lt_limb_carry_spec 36 4 sp b1 a1 b0 a0 borrow0 v11
+    (base + 12) (by validMem) (by validMem)
+  -- Limb 2: 6 instructions
+  have L2 := lt_limb_carry_spec 40 8 sp b2 a2 temp1 borrow1b borrow1 borrow1a
+    (base + 36) (by validMem) (by validMem)
+  -- Limb 3: 6 instructions
+  have L3 := lt_limb_carry_spec 44 12 sp b3 a3 temp2 borrow2b borrow2 borrow2a
+    (base + 60) (by validMem) (by validMem)
+  -- Limb 4: 6 instructions
+  have L4 := lt_limb_carry_spec 48 16 sp b4 a4 temp3 borrow3b borrow3 borrow3a
+    (base + 84) (by validMem) (by validMem)
+  -- Limb 5: 6 instructions
+  have L5 := lt_limb_carry_spec 52 20 sp b5 a5 temp4 borrow4b borrow4 borrow4a
+    (base + 108) (by validMem) (by validMem)
+  -- Limb 6: 6 instructions
+  have L6 := lt_limb_carry_spec 56 24 sp b6 a6 temp5 borrow5b borrow5 borrow5a
+    (base + 132) (by validMem) (by validMem)
+  -- Limb 7: 6 instructions
+  have L7 := lt_limb_carry_spec 60 28 sp b7 a7 temp6 borrow6b borrow6 borrow6a
+    (base + 156) (by validMem) (by validMem)
+  -- Store phase: 9 instructions (ADDI + 8 SW)
+  have hvalid2 : ValidMemRange (sp + 32) 8 := by
+    have := hvalid.split (n1 := 8) (n2 := 8)
+    exact this.2
+  have L8 := lt_result_store_spec sp borrow7 temp7 borrow7b borrow7a
+    b0 b1 b2 b3 b4 b5 b6 b7 (base + 180) hvalid2
+  runBlock L0 L1 L2 L3 L4 L5 L6 L7 L8
 
 -- ============================================================================
 -- EQ: store+SLTIU phase
@@ -215,7 +275,7 @@ theorem eq_result_store_spec (sp : Addr)
        ((sp + 32) ↦ₘ (if BitVec.ult acc (1 : Word) then (1 : Word) else 0)) **
        ((sp + 36) ↦ₘ 0) ** ((sp + 40) ↦ₘ 0) ** ((sp + 44) ↦ₘ 0) **
        ((sp + 48) ↦ₘ 0) ** ((sp + 52) ↦ₘ 0) ** ((sp + 56) ↦ₘ 0) ** ((sp + 60) ↦ₘ 0)) := by
-  sorry
+  runBlock
 
 -- ============================================================================
 -- Full 256-bit EQ spec
@@ -301,6 +361,45 @@ theorem evm_eq_spec (sp : Addr) (base : Addr)
        ((sp + 16) ↦ₘ a4) ** ((sp + 20) ↦ₘ a5) ** ((sp + 24) ↦ₘ a6) ** ((sp + 28) ↦ₘ a7) **
        ((sp + 32) ↦ₘ eq_result) ** ((sp + 36) ↦ₘ 0) ** ((sp + 40) ↦ₘ 0) ** ((sp + 44) ↦ₘ 0) **
        ((sp + 48) ↦ₘ 0) ** ((sp + 52) ↦ₘ 0) ** ((sp + 56) ↦ₘ 0) ** ((sp + 60) ↦ₘ 0)) := by
-  sorry
+  -- XOR-OR accumulation intermediate values
+  let acc0 := a0 ^^^ b0
+  let acc1 := acc0 ||| (a1 ^^^ b1)
+  let acc2 := acc1 ||| (a2 ^^^ b2)
+  let acc3 := acc2 ||| (a3 ^^^ b3)
+  let acc4 := acc3 ||| (a4 ^^^ b4)
+  let acc5 := acc4 ||| (a5 ^^^ b5)
+  let acc6 := acc5 ||| (a6 ^^^ b6)
+  let acc7 := acc6 ||| (a7 ^^^ b7)
+  -- Limb 0: 3 instructions (LW, LW, XOR)
+  have L0 := eq_limb0_spec 0 32 sp a0 b0 v7 v6 base
+    (by validMem) (by validMem)
+  -- Limb 1: 4 instructions (LW, LW, XOR, OR)
+  have L1 := eq_or_limb_spec 4 36 sp a1 b1 b0 v5 acc0
+    (base + 12) (by validMem) (by validMem)
+  -- Limb 2: 4 instructions
+  have L2 := eq_or_limb_spec 8 40 sp a2 b2 (a1 ^^^ b1) b1 acc1
+    (base + 28) (by validMem) (by validMem)
+  -- Limb 3: 4 instructions
+  have L3 := eq_or_limb_spec 12 44 sp a3 b3 (a2 ^^^ b2) b2 acc2
+    (base + 44) (by validMem) (by validMem)
+  -- Limb 4: 4 instructions
+  have L4 := eq_or_limb_spec 16 48 sp a4 b4 (a3 ^^^ b3) b3 acc3
+    (base + 60) (by validMem) (by validMem)
+  -- Limb 5: 4 instructions
+  have L5 := eq_or_limb_spec 20 52 sp a5 b5 (a4 ^^^ b4) b4 acc4
+    (base + 76) (by validMem) (by validMem)
+  -- Limb 6: 4 instructions
+  have L6 := eq_or_limb_spec 24 56 sp a6 b6 (a5 ^^^ b5) b5 acc5
+    (base + 92) (by validMem) (by validMem)
+  -- Limb 7: 4 instructions
+  have L7 := eq_or_limb_spec 28 60 sp a7 b7 (a6 ^^^ b6) b6 acc6
+    (base + 108) (by validMem) (by validMem)
+  -- Store phase: 10 instructions (SLTIU + ADDI + 8 SW)
+  have hvalid2 : ValidMemRange (sp + 32) 8 := by
+    have := hvalid.split (n1 := 8) (n2 := 8)
+    exact this.2
+  have L8 := eq_result_store_spec sp acc7 (a7 ^^^ b7) b7 v11
+    b0 b1 b2 b3 b4 b5 b6 b7 (base + 124) hvalid2
+  runBlock L0 L1 L2 L3 L4 L5 L6 L7 L8
 
 end EvmAsm

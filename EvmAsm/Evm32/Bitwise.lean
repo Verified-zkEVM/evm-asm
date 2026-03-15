@@ -144,6 +144,10 @@ theorem not_limb_spec (off : BitVec 12)
     cpsTriple base (base + 12) cr
       ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (mem ↦ₘ limb))
       ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ (limb ^^^ signExtend12 (-1))) ** (mem ↦ₘ (limb ^^^ signExtend12 (-1)))) := by
-  sorry
+  have S0 := lw_spec_gen .x7 .x12 sp v7 limb off base (by nofun) hvalid
+  have S1 := xori_spec_gen_same .x7 limb (-1) (base + 4) (by nofun)
+  have S2 := sw_spec_gen .x12 .x7 sp (limb ^^^ signExtend12 (-1)) limb off (base + 8) hvalid
+  generalize limb ^^^ signExtend12 (-1 : BitVec 12) = c at S1 S2 ⊢
+  runBlock S0 S1 S2
 
 end EvmAsm

@@ -11,6 +11,7 @@ import EvmAsm.Rv32.ControlFlow
 import EvmAsm.Rv32.InstructionSpecs
 import EvmAsm.Rv32.SyscallSpecs
 import EvmAsm.Rv32.Tactics.XSimp
+import EvmAsm.Rv32.Tactics.RunBlock
 
 namespace EvmAsm.Examples
 
@@ -65,6 +66,9 @@ theorem swap_cpsTriple (v w tmp : Word) (base : Addr) :
           (CodeReq.singleton (base + 8) (.MV .x11 .x5))))
       ((.x10 ↦ᵣ v) ** (.x11 ↦ᵣ w) ** (.x5 ↦ᵣ tmp))
       ((.x10 ↦ᵣ w) ** (.x11 ↦ᵣ v) ** (.x5 ↦ᵣ v)) := by
-  sorry
+  have S0 := mv_spec .x5 .x10 v tmp base (by nofun)
+  have S1 := mv_spec .x10 .x11 w v (base + 4) (by nofun)
+  have S2 := mv_spec .x11 .x5 v w (base + 8) (by nofun)
+  runBlock S0 S1 S2
 
 end EvmAsm.Examples
