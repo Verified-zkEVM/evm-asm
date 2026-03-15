@@ -793,7 +793,31 @@ theorem halt_spec_gen (exitCode : Word) (base : Addr) :
           (CodeReq.singleton (base + 8) .ECALL)))
       (regOwn .x5 ** regOwn .x10)
       ((.x5 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ exitCode)) := by
-  sorry
+  have s1 := li_spec_gen_own .x5 (0 : Word) base (by nofun)
+  have s2 := li_spec_gen_own .x10 exitCode (base + 4) (by nofun)
+  rw [show (base + 4 : Addr) + 4 = base + 8 from by bv_omega] at s2
+  have s1f := cpsTriple_frame_left _ _ _ _ _ (regOwn .x10) (pcFree_regOwn .x10) s1
+  have s2f := cpsTriple_frame_right _ _ _ _ _ (.x5 ↦ᵣ (0 : Word)) (pcFree_regIs .x5 0) s2
+  have s1e : cpsTriple _ _ (CodeReq.union (CodeReq.singleton base (.LI .x5 0))
+    (CodeReq.union (CodeReq.singleton (base + 4) (.LI .x10 exitCode))
+      (CodeReq.singleton (base + 8) .ECALL))) _ _ :=
+    cpsTriple_extend_code (CodeReq.union_mono_left _ _) s1f
+  have s2e : cpsTriple _ _ (CodeReq.union (CodeReq.singleton base (.LI .x5 0))
+    (CodeReq.union (CodeReq.singleton (base + 4) (.LI .x10 exitCode))
+      (CodeReq.singleton (base + 8) .ECALL))) _ _ :=
+    cpsTriple_extend_code
+      (CodeReq.mono_union_right (CodeReq.Disjoint.singleton (by bv_omega) _ _)
+        (CodeReq.union_mono_left _ _)) s2f
+  have s12 := cpsTriple_seq _ _ _ _ _ _ _ s1e s2e
+  have s3 := ecall_halt_spec_gen exitCode (base + 8)
+  have s3e : cpsHaltTriple _ (CodeReq.union (CodeReq.singleton base (.LI .x5 0))
+    (CodeReq.union (CodeReq.singleton (base + 4) (.LI .x10 exitCode))
+      (CodeReq.singleton (base + 8) .ECALL))) _ _ :=
+    cpsHaltTriple_extend_code
+      (CodeReq.mono_union_right (CodeReq.Disjoint.singleton (by bv_omega) _ _)
+        (CodeReq.mono_union_right (CodeReq.Disjoint.singleton (by bv_omega) _ _)
+          (fun _ _ h => h))) s3
+  exact cpsTriple_seq_halt _ _ _ _ _ _ s12 s3e
 
 -- ============================================================================
 -- Section 5a: Combined store word spec (LI x6 val ;; SW x7 x6 offset)
@@ -810,7 +834,21 @@ theorem storeWord_spec_gen (val : Word) (offset : BitVec 12)
         (CodeReq.singleton (addr + 4) (.SW .x7 .x6 offset)))
       ((.x6 ↦ᵣ x6_old) ** (.x7 ↦ᵣ x7_val) ** ((x7_val + signExtend12 offset) ↦ₘ mem_old))
       ((.x6 ↦ᵣ val) ** (.x7 ↦ᵣ x7_val) ** ((x7_val + signExtend12 offset) ↦ₘ val)) := by
-  sorry
+  have s1 := li_spec_gen .x6 x6_old val addr (by nofun)
+  have s2 := sw_spec_gen .x7 .x6 x7_val val mem_old offset (addr + 4) hvalid
+  rw [show (addr + 4 : Addr) + 4 = addr + 8 from by bv_omega] at s2
+  have s1f := cpsTriple_frame_left _ _ _ _ _
+    ((.x7 ↦ᵣ x7_val) ** ((x7_val + signExtend12 offset) ↦ₘ mem_old))
+    (pcFree_sepConj (pcFree_regIs .x7 x7_val) (pcFree_memIs _ mem_old)) s1
+  exact cpsTriple_consequence _ _ _ _ _ _ _
+    (fun _ hp => hp)
+    (fun h hp => by xperm_hyp hp)
+    (cpsTriple_seq_ext_with_perm _ _ _ _ _ _
+      (CodeReq.union_mono_left _ _)
+      (CodeReq.mono_union_right
+        (CodeReq.Disjoint.singleton (by bv_omega) _ _) (fun _ _ h => h))
+      _ _ _ _
+      (fun h hp => by xperm_hyp hp) s1f s2)
 
 /-- Combined LI+SW spec with regOwn and memOwn (no x6_old or mem_old needed). -/
 theorem storeWord_spec_gen_own (val : Word) (offset : BitVec 12)
@@ -821,7 +859,15 @@ theorem storeWord_spec_gen_own (val : Word) (offset : BitVec 12)
         (CodeReq.singleton (addr + 4) (.SW .x7 .x6 offset)))
       (regOwn .x6 ** (.x7 ↦ᵣ x7_val) ** memOwn (x7_val + signExtend12 offset))
       ((.x6 ↦ᵣ val) ** (.x7 ↦ᵣ x7_val) ** ((x7_val + signExtend12 offset) ↦ₘ val)) := by
-  sorry
+  intro R hR s hcr hPR hpc
+  obtain ⟨hp, hcompat, h_P, h_R, hdisj, hunion, hpP, hpR⟩ := hPR
+  obtain ⟨hOwn, hRest, hd2, hu2, hpOwn, hpRest⟩ := hpP
+  obtain ⟨v_old, hv_old⟩ := hpOwn
+  obtain ⟨hR7, hMem, hd3, hu3, hpR7, hpMem⟩ := hpRest
+  obtain ⟨m_old, hm_old⟩ := hpMem
+  exact storeWord_spec_gen val offset v_old x7_val m_old addr hvalid R hR s hcr
+    ⟨hp, hcompat, h_P, h_R, hdisj, hunion,
+     ⟨hOwn, hRest, hd2, hu2, hv_old, ⟨hR7, hMem, hd3, hu3, hpR7, hm_old⟩⟩, hpR⟩ hpc
 
 -- ============================================================================
 -- Section 5b: ECALL HINT_READ specification
@@ -1000,7 +1046,67 @@ theorem hint_read_spec_gen (bufAddr nbytes_val : Word)
       ((.x5 ↦ᵣ 0xF1#32) ** (.x10 ↦ᵣ bufAddr) ** (.x11 ↦ᵣ nbytes_val) **
        privateInputIs (inputBytes.drop nbytes_val.toNat) **
        memBufferIs bufAddr (bytesToWords (inputBytes.take nbytes_val.toNat))) := by
-  sorry
+  have s1 := li_spec_gen_own .x5 (0xF1#32) base (by nofun)
+  have s1f := cpsTriple_frame_left _ _ _ _ _
+    (regOwn .x10 ** regOwn .x11 ** privateInputIs inputBytes ** memBufferIs bufAddr oldWords)
+    (pcFree_sepConj (pcFree_regOwn .x10) (pcFree_sepConj (pcFree_regOwn .x11)
+      (pcFree_sepConj (pcFree_privateInputIs _) (pcFree_memBufferIs _ _)))) s1
+  have s2 := li_spec_gen_own .x10 bufAddr (base + 4) (by nofun)
+  rw [show (base + 4 : Addr) + 4 = base + 8 from by bv_omega] at s2
+  have s2f := cpsTriple_frame_right _ _ _ _ _
+    ((.x5 ↦ᵣ 0xF1#32) ** regOwn .x11 ** privateInputIs inputBytes ** memBufferIs bufAddr oldWords)
+    (pcFree_sepConj (pcFree_regIs _ _) (pcFree_sepConj (pcFree_regOwn .x11)
+      (pcFree_sepConj (pcFree_privateInputIs _) (pcFree_memBufferIs _ _)))) s2
+  have s1e : cpsTriple _ _
+    (CodeReq.union (CodeReq.singleton base (.LI .x5 0xF1#32))
+      (CodeReq.union (CodeReq.singleton (base + 4) (.LI .x10 bufAddr))
+        (CodeReq.union (CodeReq.singleton (base + 8) (.LI .x11 nbytes_val))
+          (CodeReq.singleton (base + 12) .ECALL)))) _ _ :=
+    cpsTriple_extend_code (CodeReq.union_mono_left _ _) s1f
+  have s2e : cpsTriple _ _
+    (CodeReq.union (CodeReq.singleton base (.LI .x5 0xF1#32))
+      (CodeReq.union (CodeReq.singleton (base + 4) (.LI .x10 bufAddr))
+        (CodeReq.union (CodeReq.singleton (base + 8) (.LI .x11 nbytes_val))
+          (CodeReq.singleton (base + 12) .ECALL)))) _ _ :=
+    cpsTriple_extend_code
+      (CodeReq.mono_union_right (CodeReq.Disjoint.singleton (by bv_omega) _ _)
+        (CodeReq.union_mono_left _ _)) s2f
+  have s12 := cpsTriple_seq_with_perm _ _ _ _ _ _ _ _
+    (fun h hp => by xperm_hyp hp) s1e s2e
+  have s3 := li_spec_gen_own .x11 nbytes_val (base + 8) (by nofun)
+  rw [show (base + 8 : Addr) + 4 = base + 12 from by bv_omega] at s3
+  have s3f := cpsTriple_frame_right _ _ _ _ _
+    ((.x5 ↦ᵣ 0xF1#32) ** (.x10 ↦ᵣ bufAddr) ** privateInputIs inputBytes ** memBufferIs bufAddr oldWords)
+    (pcFree_sepConj (pcFree_regIs _ _) (pcFree_sepConj (pcFree_regIs _ _)
+      (pcFree_sepConj (pcFree_privateInputIs _) (pcFree_memBufferIs _ _)))) s3
+  have s3e : cpsTriple _ _
+    (CodeReq.union (CodeReq.singleton base (.LI .x5 0xF1#32))
+      (CodeReq.union (CodeReq.singleton (base + 4) (.LI .x10 bufAddr))
+        (CodeReq.union (CodeReq.singleton (base + 8) (.LI .x11 nbytes_val))
+          (CodeReq.singleton (base + 12) .ECALL)))) _ _ :=
+    cpsTriple_extend_code
+      (CodeReq.mono_union_right (CodeReq.Disjoint.singleton (by bv_omega) _ _)
+        (CodeReq.mono_union_right (CodeReq.Disjoint.singleton (by bv_omega) _ _)
+          (CodeReq.union_mono_left _ _))) s3f
+  have s123 := cpsTriple_seq_with_perm _ _ _ _ _ _ _ _
+    (fun h hp => by xperm_hyp hp) s12 s3e
+  have s4 := ecall_hint_read_spec_gen bufAddr nbytes_val inputBytes oldWords (base + 12) hLen hNbytes
+  rw [show (base + 12 : Addr) + 4 = base + 16 from by bv_omega] at s4
+  have s4e : cpsTriple _ _
+    (CodeReq.union (CodeReq.singleton base (.LI .x5 0xF1#32))
+      (CodeReq.union (CodeReq.singleton (base + 4) (.LI .x10 bufAddr))
+        (CodeReq.union (CodeReq.singleton (base + 8) (.LI .x11 nbytes_val))
+          (CodeReq.singleton (base + 12) .ECALL)))) _ _ :=
+    cpsTriple_extend_code
+      (CodeReq.mono_union_right (CodeReq.Disjoint.singleton (by bv_omega) _ _)
+        (CodeReq.mono_union_right (CodeReq.Disjoint.singleton (by bv_omega) _ _)
+          (CodeReq.mono_union_right (CodeReq.Disjoint.singleton (by bv_omega) _ _)
+            (fun _ _ h => h)))) s4
+  exact cpsTriple_consequence _ _ _ _ _ _ _
+    (fun _ hp => hp)
+    (fun h hp => by xperm_hyp hp)
+    (cpsTriple_seq_with_perm _ _ _ _ _ _ _ _
+      (fun h hp => by xperm_hyp hp) s123 s4e)
 
 -- ============================================================================
 -- Section 6: ECALL WRITE (public values) specification
@@ -1025,7 +1131,62 @@ theorem ecall_write_public_spec_gen (bufPtr nbytes : Word)
       ((.x5 ↦ᵣ (BitVec.ofNat 32 0x02)) ** (.x10 ↦ᵣ (13 : Word)) **
        (.x11 ↦ᵣ bufPtr) ** (.x12 ↦ᵣ nbytes) **
        publicValuesIs (oldPV ++ (words.flatMap (fun w => [extractByte w 0, extractByte w 1, extractByte w 2, extractByte w 3])).take nbytes.toNat) ** memBufferIs bufPtr words) := by
-  sorry
+  intro R hR s hcr hPR hpc; subst hpc
+  have hfetch : s.code s.pc = some .ECALL :=
+    (CodeReq.singleton_satisfiedBy s.pc .ECALL s).mp hcr
+  have hx5 : s.getReg .x5 = BitVec.ofNat 32 0x02 :=
+    (holdsFor_regIs _ _ s).mp (holdsFor_sepConj_elim_left (holdsFor_sepConj_elim_left hPR))
+  have hx10 : s.getReg .x10 = (13 : Word) :=
+    (holdsFor_regIs _ _ s).mp (holdsFor_sepConj_elim_left
+      (holdsFor_sepConj_elim_right (holdsFor_sepConj_elim_left hPR)))
+  have hx11 : s.getReg .x11 = bufPtr :=
+    (holdsFor_regIs _ _ s).mp (holdsFor_sepConj_elim_left
+      (holdsFor_sepConj_elim_right (holdsFor_sepConj_elim_right (holdsFor_sepConj_elim_left hPR))))
+  have hx12 : s.getReg .x12 = nbytes :=
+    (holdsFor_regIs _ _ s).mp (holdsFor_sepConj_elim_left
+      (holdsFor_sepConj_elim_right (holdsFor_sepConj_elim_right
+        (holdsFor_sepConj_elim_right (holdsFor_sepConj_elim_left hPR)))))
+  have hmemBuf : (memBufferIs bufPtr words).holdsFor s :=
+    holdsFor_sepConj_elim_right (holdsFor_sepConj_elim_right (holdsFor_sepConj_elim_right
+      (holdsFor_sepConj_elim_right (holdsFor_sepConj_elim_right (holdsFor_sepConj_elim_left hPR)))))
+  have hgetmem : ∀ (k : Nat) (hk : k < words.length),
+      s.getMem (bufPtr + BitVec.ofNat 32 (4 * k)) = words[k]'hk :=
+    fun k hk => getMem_of_holdsFor_memBufferIs hmemBuf k hk
+  have hreadFull : s.readBytes bufPtr (4 * words.length) =
+      words.flatMap (fun w => [extractByte w 0, extractByte w 1, extractByte w 2, extractByte w 3]) :=
+    readBytes_of_words hgetmem hAligned
+  have hread : s.readBytes (s.getReg .x11) (s.getReg .x12).toNat =
+      (words.flatMap (fun w => [extractByte w 0, extractByte w 1, extractByte w 2, extractByte w 3])).take nbytes.toNat := by
+    rw [hx11, hx12, ← readBytes_take s bufPtr nbytes.toNat (4 * words.length) hLen, hreadFull]
+  let expBytes := (words.flatMap (fun w => [extractByte w 0, extractByte w 1, extractByte w 2, extractByte w 3])).take nbytes.toNat
+  refine ⟨1, (s.appendPublicValues expBytes).setPC (s.pc + 4), ?_, rfl, ?_⟩
+  · show (step s).bind (stepN 0) = some _
+    rw [step_ecall_write_public s hfetch hx5 hx10]
+    simp only [Option.bind, stepN]
+    congr 1; congr 1
+    exact congrArg (fun b => s.appendPublicValues b) hread
+  · have h1 := holdsFor_pullFifth (A := (.x5 ↦ᵣ (BitVec.ofNat 32 0x02)))
+      (B := (.x10 ↦ᵣ (13 : Word))) (C := (.x11 ↦ᵣ bufPtr))
+      (D := (.x12 ↦ᵣ nbytes))
+      (E := publicValuesIs oldPV) (F := memBufferIs bufPtr words) hPR
+    have h1' := holdsFor_sepConj_assoc.mp h1
+    have h2' := @holdsFor_sepConj_publicValuesIs_appendPublicValues oldPV
+      expBytes _ s h1'
+    have h3 := holdsFor_sepConj_assoc.mpr h2'
+    have h4 := holdsFor_pushFifth
+      (A := (.x5 ↦ᵣ (BitVec.ofNat 32 0x02)))
+      (B := (.x10 ↦ᵣ (13 : Word)))
+      (C := (.x11 ↦ᵣ bufPtr))
+      (D := (.x12 ↦ᵣ nbytes))
+      (E := publicValuesIs (oldPV ++ expBytes))
+      (F := memBufferIs bufPtr words) h3
+    have hpcfree : ((.x5 ↦ᵣ (BitVec.ofNat 32 0x02)) ** (.x10 ↦ᵣ (13 : Word)) **
+       (.x11 ↦ᵣ bufPtr) ** (.x12 ↦ᵣ nbytes) **
+       publicValuesIs (oldPV ++ expBytes) ** memBufferIs bufPtr words).pcFree :=
+      pcFree_sepConj (pcFree_regIs _ _) (pcFree_sepConj (pcFree_regIs _ _)
+        (pcFree_sepConj (pcFree_regIs _ _) (pcFree_sepConj (pcFree_regIs _ _)
+          (pcFree_sepConj (pcFree_publicValuesIs _) (pcFree_memBufferIs _ _)))))
+    exact holdsFor_pcFree_setPC (pcFree_sepConj hpcfree hR) _ _ h4
 
 -- ============================================================================
 -- Section 7: Generalized WRITE spec (for arbitrary CodeMem)
@@ -1049,7 +1210,104 @@ theorem write_public_spec_gen (bufPtr nbytes : Word)
       ((.x5 ↦ᵣ (BitVec.ofNat 32 0x02)) ** (.x10 ↦ᵣ (13 : Word)) **
        (.x11 ↦ᵣ bufPtr) ** (.x12 ↦ᵣ nbytes) **
        publicValuesIs (oldPV ++ (words.flatMap (fun w => [extractByte w 0, extractByte w 1, extractByte w 2, extractByte w 3])).take nbytes.toNat) ** memBufferIs bufPtr words) := by
-  sorry
+  -- Step 1: LI x5 0x02
+  have s1 := li_spec_gen_own .x5 (BitVec.ofNat 32 0x02) base (by nofun)
+  have s1f := cpsTriple_frame_left _ _ _ _ _
+    (regOwn .x10 ** regOwn .x11 ** regOwn .x12 ** publicValuesIs oldPV ** memBufferIs bufPtr words)
+    (pcFree_sepConj (pcFree_regOwn .x10) (pcFree_sepConj (pcFree_regOwn .x11)
+      (pcFree_sepConj (pcFree_regOwn .x12)
+        (pcFree_sepConj (pcFree_publicValuesIs _) (pcFree_memBufferIs _ _))))) s1
+  -- Step 2: LI x10 13
+  have s2 := li_spec_gen_own .x10 (13 : Word) (base + 4) (by nofun)
+  rw [show (base + 4 : Addr) + 4 = base + 8 from by bv_omega] at s2
+  have s2f := cpsTriple_frame_right _ _ _ _ _
+    ((.x5 ↦ᵣ (BitVec.ofNat 32 0x02)) ** regOwn .x11 ** regOwn .x12 **
+     publicValuesIs oldPV ** memBufferIs bufPtr words)
+    (pcFree_sepConj (pcFree_regIs _ _) (pcFree_sepConj (pcFree_regOwn .x11)
+      (pcFree_sepConj (pcFree_regOwn .x12)
+        (pcFree_sepConj (pcFree_publicValuesIs _) (pcFree_memBufferIs _ _))))) s2
+  -- Extend to full CR
+  have s1e : cpsTriple _ _
+    (CodeReq.singleton base (.LI .x5 (BitVec.ofNat 32 0x02)) |>.union
+    (CodeReq.singleton (base + 4) (.LI .x10 13) |>.union
+    (CodeReq.singleton (base + 8) (.LI .x11 bufPtr) |>.union
+    (CodeReq.singleton (base + 12) (.LI .x12 nbytes) |>.union
+     (CodeReq.singleton (base + 16) .ECALL))))) _ _ :=
+    cpsTriple_extend_code (CodeReq.union_mono_left _ _) s1f
+  have s2e : cpsTriple _ _
+    (CodeReq.singleton base (.LI .x5 (BitVec.ofNat 32 0x02)) |>.union
+    (CodeReq.singleton (base + 4) (.LI .x10 13) |>.union
+    (CodeReq.singleton (base + 8) (.LI .x11 bufPtr) |>.union
+    (CodeReq.singleton (base + 12) (.LI .x12 nbytes) |>.union
+     (CodeReq.singleton (base + 16) .ECALL))))) _ _ :=
+    cpsTriple_extend_code
+      (CodeReq.mono_union_right (CodeReq.Disjoint.singleton (by bv_omega) _ _)
+        (CodeReq.union_mono_left _ _)) s2f
+  have s12 := cpsTriple_seq_with_perm _ _ _ _ _ _ _ _
+    (fun h hp => by xperm_hyp hp) s1e s2e
+  -- Step 3: LI x11 bufPtr
+  have s3 := li_spec_gen_own .x11 bufPtr (base + 8) (by nofun)
+  rw [show (base + 8 : Addr) + 4 = base + 12 from by bv_omega] at s3
+  have s3f := cpsTriple_frame_right _ _ _ _ _
+    ((.x5 ↦ᵣ (BitVec.ofNat 32 0x02)) ** (.x10 ↦ᵣ (13 : Word)) **
+     regOwn .x12 ** publicValuesIs oldPV ** memBufferIs bufPtr words)
+    (pcFree_sepConj (pcFree_regIs _ _) (pcFree_sepConj (pcFree_regIs _ _)
+      (pcFree_sepConj (pcFree_regOwn .x12)
+        (pcFree_sepConj (pcFree_publicValuesIs _) (pcFree_memBufferIs _ _))))) s3
+  have s3e : cpsTriple _ _
+    (CodeReq.singleton base (.LI .x5 (BitVec.ofNat 32 0x02)) |>.union
+    (CodeReq.singleton (base + 4) (.LI .x10 13) |>.union
+    (CodeReq.singleton (base + 8) (.LI .x11 bufPtr) |>.union
+    (CodeReq.singleton (base + 12) (.LI .x12 nbytes) |>.union
+     (CodeReq.singleton (base + 16) .ECALL))))) _ _ :=
+    cpsTriple_extend_code
+      (CodeReq.mono_union_right (CodeReq.Disjoint.singleton (by bv_omega) _ _)
+        (CodeReq.mono_union_right (CodeReq.Disjoint.singleton (by bv_omega) _ _)
+          (CodeReq.union_mono_left _ _))) s3f
+  have s123 := cpsTriple_seq_with_perm _ _ _ _ _ _ _ _
+    (fun h hp => by xperm_hyp hp) s12 s3e
+  -- Step 4: LI x12 nbytes
+  have s4 := li_spec_gen_own .x12 nbytes (base + 12) (by nofun)
+  rw [show (base + 12 : Addr) + 4 = base + 16 from by bv_omega] at s4
+  have s4f := cpsTriple_frame_right _ _ _ _ _
+    ((.x5 ↦ᵣ (BitVec.ofNat 32 0x02)) ** (.x10 ↦ᵣ (13 : Word)) ** (.x11 ↦ᵣ bufPtr) **
+     publicValuesIs oldPV ** memBufferIs bufPtr words)
+    (pcFree_sepConj (pcFree_regIs _ _) (pcFree_sepConj (pcFree_regIs _ _)
+      (pcFree_sepConj (pcFree_regIs _ _)
+        (pcFree_sepConj (pcFree_publicValuesIs _) (pcFree_memBufferIs _ _))))) s4
+  have s4e : cpsTriple _ _
+    (CodeReq.singleton base (.LI .x5 (BitVec.ofNat 32 0x02)) |>.union
+    (CodeReq.singleton (base + 4) (.LI .x10 13) |>.union
+    (CodeReq.singleton (base + 8) (.LI .x11 bufPtr) |>.union
+    (CodeReq.singleton (base + 12) (.LI .x12 nbytes) |>.union
+     (CodeReq.singleton (base + 16) .ECALL))))) _ _ :=
+    cpsTriple_extend_code
+      (CodeReq.mono_union_right (CodeReq.Disjoint.singleton (by bv_omega) _ _)
+        (CodeReq.mono_union_right (CodeReq.Disjoint.singleton (by bv_omega) _ _)
+          (CodeReq.mono_union_right (CodeReq.Disjoint.singleton (by bv_omega) _ _)
+            (CodeReq.union_mono_left _ _)))) s4f
+  have s1234 := cpsTriple_seq_with_perm _ _ _ _ _ _ _ _
+    (fun h hp => by xperm_hyp hp) s123 s4e
+  -- Step 5: ECALL WRITE
+  have s5 := ecall_write_public_spec_gen bufPtr nbytes oldPV words (base + 16) hLen hAligned
+  rw [show (base + 16 : Addr) + 4 = base + 20 from by bv_omega] at s5
+  have s5e : cpsTriple _ _
+    (CodeReq.singleton base (.LI .x5 (BitVec.ofNat 32 0x02)) |>.union
+    (CodeReq.singleton (base + 4) (.LI .x10 13) |>.union
+    (CodeReq.singleton (base + 8) (.LI .x11 bufPtr) |>.union
+    (CodeReq.singleton (base + 12) (.LI .x12 nbytes) |>.union
+     (CodeReq.singleton (base + 16) .ECALL))))) _ _ :=
+    cpsTriple_extend_code
+      (CodeReq.mono_union_right (CodeReq.Disjoint.singleton (by bv_omega) _ _)
+        (CodeReq.mono_union_right (CodeReq.Disjoint.singleton (by bv_omega) _ _)
+          (CodeReq.mono_union_right (CodeReq.Disjoint.singleton (by bv_omega) _ _)
+            (CodeReq.mono_union_right (CodeReq.Disjoint.singleton (by bv_omega) _ _)
+              (fun _ _ h => h))))) s5
+  exact cpsTriple_consequence _ _ _ _ _ _ _
+    (fun _ hp => hp)
+    (fun h hp => by xperm_hyp hp)
+    (cpsTriple_seq_with_perm _ _ _ _ _ _ _ _
+      (fun h hp => by xperm_hyp hp) s1234 s5e)
 
 /-- SLTU spec for 3 distinct registers:
     rd := (rs1 < rs2) ? 1 : 0, preserving rs1 and rs2 -/
