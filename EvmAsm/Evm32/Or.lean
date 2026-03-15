@@ -84,7 +84,16 @@ theorem evm_or_spec (sp base : Addr)
        ((sp + 16) ↦ₘ a4) ** ((sp + 20) ↦ₘ a5) ** ((sp + 24) ↦ₘ a6) ** ((sp + 28) ↦ₘ a7) **
        ((sp + 32) ↦ₘ (a0 ||| b0)) ** ((sp + 36) ↦ₘ (a1 ||| b1)) ** ((sp + 40) ↦ₘ (a2 ||| b2)) ** ((sp + 44) ↦ₘ (a3 ||| b3)) **
        ((sp + 48) ↦ₘ (a4 ||| b4)) ** ((sp + 52) ↦ₘ (a5 ||| b5)) ** ((sp + 56) ↦ₘ (a6 ||| b6)) ** ((sp + 60) ↦ₘ (a7 ||| b7))) := by
-  sorry
+  have L0 := or_limb_spec 0 32 sp a0 b0 v7 v6 base (by validMem) (by validMem)
+  have L1 := or_limb_spec 4 36 sp a1 b1 (a0 ||| b0) b0 (base + 16) (by validMem) (by validMem)
+  have L2 := or_limb_spec 8 40 sp a2 b2 (a1 ||| b1) b1 (base + 32) (by validMem) (by validMem)
+  have L3 := or_limb_spec 12 44 sp a3 b3 (a2 ||| b2) b2 (base + 48) (by validMem) (by validMem)
+  have L4 := or_limb_spec 16 48 sp a4 b4 (a3 ||| b3) b3 (base + 64) (by validMem) (by validMem)
+  have L5 := or_limb_spec 20 52 sp a5 b5 (a4 ||| b4) b4 (base + 80) (by validMem) (by validMem)
+  have L6 := or_limb_spec 24 56 sp a6 b6 (a5 ||| b5) b5 (base + 96) (by validMem) (by validMem)
+  have L7 := or_limb_spec 28 60 sp a7 b7 (a6 ||| b6) b6 (base + 112) (by validMem) (by validMem)
+  have L8 := addi_spec_gen_same .x12 sp 32 (base + 128) (by nofun)
+  runBlock L0 L1 L2 L3 L4 L5 L6 L7 L8
 
 -- ============================================================================
 -- Stack-level OR spec

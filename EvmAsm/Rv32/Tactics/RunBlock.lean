@@ -260,6 +260,10 @@ partial def normalizeTypeAddrs (e : Expr) : MetaM (Expr × Option Expr) := do
     if env.isConstructor name then return (e, none)
     -- OfNat.ofNat wraps numeric literals — no address arithmetic inside
     if name == ``OfNat.ofNat then return (e, none)
+    -- ite/dite have dependent types — congruence proofs fail, skip them
+    if name == ``ite || name == ``dite then return (e, none)
+    -- BitVec.ult and similar comparison functions — no address arithmetic
+    if name == ``BitVec.ult then return (e, none)
   -- 1. Recurse into .app sub-expressions first (bottom-up)
   let (e', childPf?) ← match e with
     | .app f a => do
@@ -268,12 +272,17 @@ partial def normalizeTypeAddrs (e : Expr) : MetaM (Expr × Option Expr) := do
       if fPf?.isNone && aPf?.isNone then Pure.pure (e, none)
       else
         let new_ := Expr.app f' a'
-        let pf ← match fPf?, aPf? with
-          | some fPf, some aPf => mkCongr fPf aPf
-          | some fPf, none => mkCongrFun fPf a
-          | none, some aPf => mkCongrArg f aPf
-          | none, none => unreachable!
-        Pure.pure (new_, some pf)
+        -- Build congruence proof; catch failures for dependent types (e.g., ite/Decidable)
+        try
+          let pf ← match fPf?, aPf? with
+            | some fPf, some aPf => mkCongr fPf aPf
+            | some fPf, none => mkCongrFun fPf a
+            | none, some aPf => mkCongrArg f aPf
+            | none, none => unreachable!
+          Pure.pure (new_, some pf)
+        catch _ =>
+          -- Can't build congruence (dependent type) — return unchanged
+          Pure.pure (e, none)
     | _ => Pure.pure (e, none)
   -- 2. Try top-level simplifications on the (possibly modified) expression
   let (e'', topPf?) ← trySimplifyTop e'
@@ -290,6 +299,13 @@ partial def normalizeTypeAddrs (e : Expr) : MetaM (Expr × Option Expr) := do
   | some cp, none => Pure.pure (e', some cp)
   | none, some tp => Pure.pure (final, some tp)
   | some cp, some tp => Pure.pure (final, some (← mkEqTrans cp tp))
+
+/-- Normalize addresses in a single assertion atom (e.g., `regIs .x12 (sp + signExtend12 32)`
+    → `regIs .x12 (sp + 32)`). Returns the normalized expression.
+    Used by `advanceState` to keep state atoms in normalized form. -/
+private def normalizeAtomAddrs (e : Expr) : MetaM Expr := do
+  let (e', _) ← normalizeTypeAddrs e
+  return e'
 
 /-- Normalize addresses in a cpsTriple proof.
     First inlines `let` bindings (which are definitionally equal),
@@ -614,17 +630,26 @@ private def tryInstantiateSpec (specName : Name) (instrExpr instrAddr : Expr)
     if atom.isAppOfArity `EvmAsm.memIs 2 then
       let specAddr ← instantiateMVars atom.getAppArgs[0]!
       let specVal := atom.getAppArgs[1]!
+      -- Normalize spec address (e.g., sp + signExtend12 0 → sp,
+      -- (sp + signExtend12 32) + signExtend12 4 → sp + 36)
+      let specAddrNorm ← normalizeAtomAddrs specAddr
       let mut found := false
       for stateAtom in stateMemAtoms do
         let stateAddr := stateAtom.getAppArgs[0]!
         let stateVal := stateAtom.getAppArgs[1]!
+        -- Try direct defEq first (fast path)
         if ← withoutModifyingState (isDefEq specAddr stateAddr) then
           let _ ← isDefEq specAddr stateAddr
           let _ ← isDefEq specVal stateVal
           found := true
           break
+        -- Try normalized address (handles signExtend12 + address flattening)
+        if ← withoutModifyingState (isDefEq specAddrNorm stateAddr) then
+          let _ ← isDefEq specVal stateVal
+          found := true
+          break
       unless found do
-        throwError "memory at {specAddr} not found in state"
+        throwError "memory at {specAddrNorm} not found in state"
   -- Step 3: Solve remaining proof obligations
   for param in params do
     if !param.isMVar then continue
@@ -682,16 +707,19 @@ private def advanceState (currentAtoms : List Expr) (specExpr : Expr) : MetaM (L
     | throwError "advanceState: not a cpsTriple"
   let preAtoms ← flattenSepConj specPre
   let postAtoms ← flattenSepConj specPost
+  -- Normalize postcondition atoms (e.g., signExtend12 reduction, address flattening)
+  let postAtomsNorm ← postAtoms.mapM normalizeAtomAddrs
   -- Remove consumed atoms (those in spec's precondition)
   let mut available := currentAtoms.toArray.map fun a => (a, true)
   for preAtom in preAtoms do
+    let preAtomNorm ← normalizeAtomAddrs preAtom
     for i in [:available.size] do
       if available[i]!.2 then
-        if ← withReducible (isDefEq preAtom available[i]!.1) then
+        if ← withReducible (isDefEq preAtomNorm available[i]!.1) then
           available := available.set! i (available[i]!.1, false)
           break
   let frame := available.filter (·.2) |>.map (·.1) |>.toList
-  return postAtoms ++ frame
+  return postAtomsNorm ++ frame
 
 /-- Extract instruction atoms `(addr, instrExpr)` from assertion atoms (legacy). -/
 private def extractInstrAtoms (atoms : List Expr) : List (Expr × Expr) :=
@@ -713,15 +741,24 @@ private partial def extractCrEntriesPure (cr : Expr) : List (Expr × Expr) :=
   else []
 
 /-- Extract instruction entries `(addr, instrExpr)` from a CodeReq expression.
-    Uses whnfR once at the top level to unfold abbrevs (e.g. `evm_push0_code base`),
-    then extracts `CodeReq.singleton`/`CodeReq.union` entries purely. -/
-private def extractCrEntries (cr : Expr) : MetaM (List (Expr × Expr)) := do
-  -- Try pure extraction first (fast path)
-  let entries := extractCrEntriesPure cr
-  if !entries.isEmpty then return entries
-  -- If nothing found, try whnfR to unfold abbrevs then extract purely
-  let cr ← Lean.Meta.whnfR cr
-  return extractCrEntriesPure cr
+    Recursively unfolds abbreviations using whnfR to handle nested CodeReq abbrevs
+    (e.g., `evm_gt_code` containing `lt_result_store_code`). -/
+private partial def extractCrEntries (cr : Expr) : MetaM (List (Expr × Expr)) := do
+  -- Try pure extraction of singleton
+  if cr.isAppOfArity ``EvmAsm.CodeReq.singleton 2 then
+    let args := cr.getAppArgs
+    return [(args[0]!, args[1]!)]
+  -- Try union: recursively extract both branches
+  if cr.isAppOfArity ``EvmAsm.CodeReq.union 2 then
+    let args := cr.getAppArgs
+    let left ← extractCrEntries args[0]!
+    let right ← extractCrEntries args[1]!
+    return left ++ right
+  -- Not a recognized structural form — try whnfR to unfold one level
+  let cr' ← Lean.Meta.whnfR cr
+  if cr' == cr then return []  -- No progress, give up
+  -- Recurse on the unfolded expression
+  extractCrEntries cr'
 
 /-- Auto-resolve all specs from the CodeReq and compose them.
     Extracts instruction entries from cr, resolves each spec using the current state,
@@ -755,8 +792,14 @@ private def autoResolveAndCompose (goalPre : Expr) (goalCr : Expr) : MetaM Expr 
       -- Re-throw with progress context
       let eMsg ← e.toMessageData.format
       throwError "{eMsg}\n  Progress: resolved {resolvedCount} of {totalCount} instruction(s) before failure."
-  trace[runBlock] "all {specs.size} spec(s) resolved, composing..."
-  runBlockCore specs goalPre goalCr
+  trace[runBlock] "all {specs.size} spec(s) resolved, normalizing addresses..."
+  -- Normalize addresses in resolved specs (signExtend12, address flattening)
+  -- before composition, so postcondition of spec N matches precondition of spec N+1.
+  let normalizedSpecs ← specs.mapM fun spec => do
+    try normalizeSpecAddresses spec
+    catch _ => Pure.pure spec
+  trace[runBlock] "composing {normalizedSpecs.size} spec(s)..."
+  runBlockCore normalizedSpecs goalPre goalCr
 
 /-- Verify a basic block by composing instruction specs with automatic framing.
 

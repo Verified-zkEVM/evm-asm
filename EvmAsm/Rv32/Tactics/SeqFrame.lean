@@ -288,6 +288,14 @@ def seqFrameCore (h1Expr h2Expr : Expr) : MetaM Expr := do
 
   -- Find frame: Q1 atoms not matched by P2
   let frameAtoms ← computeFrame postQ1 preP2
+
+  if frameAtoms.isEmpty then
+    -- No frame: compose directly with permutation (avoids spurious empAssertion atom)
+    let hperm ← mkPermLambda postQ1 preP2
+    return mkAppN (mkConst ``EvmAsm.cpsTriple_seq_with_perm)
+      #[entry, mid1, exit_, effectiveCr, preP, postQ1, preP2, postQ2,
+        hperm, h1Eff, h2Eff]
+
   let frameExpr ← buildSepConjChain frameAtoms
 
   -- Solve pcFree for the frame (direct proof construction, no tactic overhead)

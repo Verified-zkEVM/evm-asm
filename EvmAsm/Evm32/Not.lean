@@ -69,7 +69,15 @@ theorem evm_not_spec (sp base : Addr)
       ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ (a7 ^^^ c)) **
        (sp ↦ₘ (a0 ^^^ c)) ** ((sp + 4) ↦ₘ (a1 ^^^ c)) ** ((sp + 8) ↦ₘ (a2 ^^^ c)) ** ((sp + 12) ↦ₘ (a3 ^^^ c)) **
        ((sp + 16) ↦ₘ (a4 ^^^ c)) ** ((sp + 20) ↦ₘ (a5 ^^^ c)) ** ((sp + 24) ↦ₘ (a6 ^^^ c)) ** ((sp + 28) ↦ₘ (a7 ^^^ c))) := by
-  sorry
+  have L0 := not_limb_spec 0 sp a0 v7 base (by validMem)
+  have L1 := not_limb_spec 4 sp a1 (a0 ^^^ signExtend12 (-1)) (base + 12) (by validMem)
+  have L2 := not_limb_spec 8 sp a2 (a1 ^^^ signExtend12 (-1)) (base + 24) (by validMem)
+  have L3 := not_limb_spec 12 sp a3 (a2 ^^^ signExtend12 (-1)) (base + 36) (by validMem)
+  have L4 := not_limb_spec 16 sp a4 (a3 ^^^ signExtend12 (-1)) (base + 48) (by validMem)
+  have L5 := not_limb_spec 20 sp a5 (a4 ^^^ signExtend12 (-1)) (base + 60) (by validMem)
+  have L6 := not_limb_spec 24 sp a6 (a5 ^^^ signExtend12 (-1)) (base + 72) (by validMem)
+  have L7 := not_limb_spec 28 sp a7 (a6 ^^^ signExtend12 (-1)) (base + 84) (by validMem)
+  runBlock L0 L1 L2 L3 L4 L5 L6 L7
 
 -- ============================================================================
 -- Stack-level NOT spec

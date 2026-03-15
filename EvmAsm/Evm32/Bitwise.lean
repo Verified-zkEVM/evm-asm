@@ -144,6 +144,6 @@ theorem not_limb_spec (off : BitVec 12)
     cpsTriple base (base + 12) cr
       ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (mem ↦ₘ limb))
       ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ (limb ^^^ signExtend12 (-1))) ** (mem ↦ₘ (limb ^^^ signExtend12 (-1)))) := by
-  sorry -- xperm permutation issue with signExtend12 (-1)
+  sorry
 
 end EvmAsm

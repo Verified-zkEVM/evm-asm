@@ -813,13 +813,15 @@ private theorem regIs_to_regOwn (r : Reg) (v : Word) : ∀ h, (r ↦ᵣ v) h →
     Given P ** (r1 ↦ᵣ v1) ** (r2 ↦ᵣ v2) ** Q, produce P ** regOwn r1 ** regOwn r2 ** Q. -/
 private theorem weaken_two_regs (P Q : Assertion) (r1 r2 : Reg) (v1 v2 : Word) :
     ∀ h, (P ** (r1 ↦ᵣ v1) ** (r2 ↦ᵣ v2) ** Q) h →
-         (P ** (regOwn r1) ** (regOwn r2) ** Q) h := by
-  sorry
+         (P ** (regOwn r1) ** (regOwn r2) ** Q) h :=
+  sepConj_mono_right
+    (sepConj_mono (regIs_implies_regOwn r1 v1)
+      (sepConj_mono_left (regIs_implies_regOwn r2 v2)))
 /-- Helper: weaken one concrete reg to regOwn in a flat conjunction.
     Given P ** (r ↦ᵣ v) ** Q, produce P ** regOwn r ** Q. -/
 private theorem weaken_one_reg (P Q : Assertion) (r : Reg) (v : Word) :
-    ∀ h, (P ** (r ↦ᵣ v) ** Q) h → (P ** (regOwn r) ** Q) h := by
-  sorry
+    ∀ h, (P ** (r ↦ᵣ v) ** Q) h → (P ** (regOwn r) ** Q) h :=
+  sepConj_mono_right (sepConj_mono_left (regIs_implies_regOwn r v))
 set_option maxHeartbeats 6400000 in
 /-- Phase A spec: Check shift >= 256.
     OR-reduce high limbs (s1|..|s7), BNE to zero_path if nonzero.

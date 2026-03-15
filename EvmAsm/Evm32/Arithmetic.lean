@@ -223,7 +223,7 @@ theorem add_limb_carry_spec (off_a off_b : BitVec 12)
   have p2 := add_limb_carry_spec_phase2 off_b sp (a_limb + b_limb) b_limb carry_in
     (if BitVec.ult (a_limb + b_limb) b_limb then (1 : Word) else 0)
     a_limb (sp + signExtend12 off_a) (base + 16) hvalid_b
-  sorry -- runBlock p1 p2 p1 p2
+  runBlock p1 p2
 
 -- ============================================================================
 -- Per-limb Specs: SUB
@@ -331,6 +331,6 @@ theorem sub_limb_carry_spec (off_a off_b : BitVec 12)
   have p2 := sub_limb_carry_spec_phase2 off_b sp (a_limb - b_limb) b_limb borrow_in
     (if BitVec.ult a_limb b_limb then (1 : Word) else 0)
     a_limb (sp + signExtend12 off_a) (base + 16) hvalid_b
-  sorry -- runBlock p1 p2
+  runBlock p1 p2
 
 end EvmAsm
