@@ -19,26 +19,24 @@ namespace EvmAsm.Rv64
 -- Zero path: b = 0, push 0. 5 instructions.
 -- ============================================================================
 
-abbrev divK_zeroPath_code (base : Addr) : Assertion :=
-  (base ↦ᵢ .ADDI .x12 .x12 32) **
-  ((base + 4) ↦ᵢ .SD .x12 .x0 0) **
-  ((base + 8) ↦ᵢ .SD .x12 .x0 8) **
-  ((base + 12) ↦ᵢ .SD .x12 .x0 16) **
-  ((base + 16) ↦ᵢ .SD .x12 .x0 24)
+abbrev divK_zeroPath_code (base : Addr) : CodeReq :=
+  CodeReq.union (CodeReq.singleton base (.ADDI .x12 .x12 32))
+  (CodeReq.union (CodeReq.singleton (base + 4) (.SD .x12 .x0 0))
+  (CodeReq.union (CodeReq.singleton (base + 8) (.SD .x12 .x0 8))
+  (CodeReq.union (CodeReq.singleton (base + 12) (.SD .x12 .x0 16))
+   (CodeReq.singleton (base + 16) (.SD .x12 .x0 24)))))
 
 /-- Zero path: advance sp by 32, store four zeros at the output location.
     Used when b = 0 (both DIV and MOD return 0). -/
 theorem divK_zeroPath_spec (sp : Addr) (base : Addr)
     (m32 m40 m48 m56 : Word)
     (hvalid : ValidMemRange sp 8) :
-    let code := divK_zeroPath_code base
-    cpsTriple base (base + 20)
-      (code **
-       (.x12 ↦ᵣ sp) **
+    let cr := divK_zeroPath_code base
+    cpsTriple base (base + 20) cr
+      ((.x12 ↦ᵣ sp) **
        ((sp + 32) ↦ₘ m32) ** ((sp + 40) ↦ₘ m40) **
        ((sp + 48) ↦ₘ m48) ** ((sp + 56) ↦ₘ m56))
-      (code **
-       (.x12 ↦ᵣ (sp + 32)) **
+      ((.x12 ↦ᵣ (sp + 32)) **
        ((sp + 32) ↦ₘ (0 : Word)) ** ((sp + 40) ↦ₘ (0 : Word)) **
        ((sp + 48) ↦ₘ (0 : Word)) ** ((sp + 56) ↦ₘ (0 : Word))) := by
   have I0 := addi_spec_gen_same .x12 sp 32 base (by nofun)
@@ -53,15 +51,15 @@ theorem divK_zeroPath_spec (sp : Addr) (base : Addr)
 -- Pre/post include BEQ instruction and x0 for branch composition.
 -- ============================================================================
 
-abbrev divK_phaseA_code (base : Addr) : Assertion :=
-  (base ↦ᵢ .LD .x5 .x12 32) **
-  ((base + 4) ↦ᵢ .LD .x10 .x12 40) **
-  ((base + 8) ↦ᵢ .OR .x5 .x5 .x10) **
-  ((base + 12) ↦ᵢ .LD .x10 .x12 48) **
-  ((base + 16) ↦ᵢ .OR .x5 .x5 .x10) **
-  ((base + 20) ↦ᵢ .LD .x10 .x12 56) **
-  ((base + 24) ↦ᵢ .OR .x5 .x5 .x10) **
-  ((base + 28) ↦ᵢ .BEQ .x5 .x0 1016)
+abbrev divK_phaseA_code (base : Addr) : CodeReq :=
+  CodeReq.union (CodeReq.singleton base (.LD .x5 .x12 32))
+  (CodeReq.union (CodeReq.singleton (base + 4) (.LD .x10 .x12 40))
+  (CodeReq.union (CodeReq.singleton (base + 8) (.OR .x5 .x5 .x10))
+  (CodeReq.union (CodeReq.singleton (base + 12) (.LD .x10 .x12 48))
+  (CodeReq.union (CodeReq.singleton (base + 16) (.OR .x5 .x5 .x10))
+  (CodeReq.union (CodeReq.singleton (base + 20) (.LD .x10 .x12 56))
+  (CodeReq.union (CodeReq.singleton (base + 24) (.OR .x5 .x5 .x10))
+   (CodeReq.singleton (base + 28) (.BEQ .x5 .x0 1016))))))))
 
 /-- Phase A body: load and OR-reduce the 4 limbs of b.
     Produces x5 = b0 ||| b1 ||| b2 ||| b3.
@@ -69,13 +67,13 @@ abbrev divK_phaseA_code (base : Addr) : Assertion :=
 theorem divK_phaseA_body_spec (sp : Addr) (base : Addr)
     (b0 b1 b2 b3 v5 v10 : Word)
     (hvalid : ValidMemRange sp 8) :
-    let code := divK_phaseA_code base
+    let cr := divK_phaseA_code base
     cpsTriple base (base + 28)
-      (code **
+      (
        (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
        ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3))
-      (code **
+      (
        (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ (b0 ||| b1 ||| b2 ||| b3)) ** (.x10 ↦ᵣ b3) ** (.x0 ↦ᵣ (0 : Word)) **
        ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
        ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3)) := by
@@ -98,14 +96,13 @@ theorem divK_phaseA_spec (sp : Addr) (base : Addr)
     (b0 b1 b2 b3 v5 v10 : Word)
     (hvalid : ValidMemRange sp 8) :
     let bor := b0 ||| b1 ||| b2 ||| b3
-    let code := divK_phaseA_code base
+    let cr := divK_phaseA_code base
     let post :=
-      code **
       (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ bor) ** (.x10 ↦ᵣ b3) ** (.x0 ↦ᵣ (0 : Word)) **
       ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
       ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3)
     cpsBranch base
-      (code **
+      (
        (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
        ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3))
@@ -113,7 +110,7 @@ theorem divK_phaseA_spec (sp : Addr) (base : Addr)
       ((base + 28) + signExtend13 1016) post
       -- Not taken: bor ≠ 0
       (base + 32) post := by
-  intro bor; intro code; intro post
+  intro bor; intro cr; intro post
   -- 1. Body: 7 straight-line instructions
   have hbody := divK_phaseA_body_spec sp base b0 b1 b2 b3 v5 v10 hvalid
   -- 2. BEQ: branch at base + 28, drop pure facts from postconditions
@@ -162,14 +159,14 @@ theorem divK_phaseA_spec (sp : Addr) (base : Addr)
 -- 9 straight-line instructions.
 -- ============================================================================
 
-abbrev divK_phaseB_init1_code (base : Addr) : Assertion :=
-  (base ↦ᵢ .SD .x12 .x0 4088) **
-  ((base + 4) ↦ᵢ .SD .x12 .x0 4080) **
-  ((base + 8) ↦ᵢ .SD .x12 .x0 4072) **
-  ((base + 12) ↦ᵢ .SD .x12 .x0 4064) **
-  ((base + 16) ↦ᵢ .SD .x12 .x0 4016) **
-  ((base + 20) ↦ᵢ .SD .x12 .x0 4008) **
-  ((base + 24) ↦ᵢ .SD .x12 .x0 4000)
+abbrev divK_phaseB_init1_code (base : Addr) : CodeReq :=
+  CodeReq.union (CodeReq.singleton base (.SD .x12 .x0 4088))
+  (CodeReq.union (CodeReq.singleton (base + 4) (.SD .x12 .x0 4080))
+  (CodeReq.union (CodeReq.singleton (base + 8) (.SD .x12 .x0 4072))
+  (CodeReq.union (CodeReq.singleton (base + 12) (.SD .x12 .x0 4064))
+  (CodeReq.union (CodeReq.singleton (base + 16) (.SD .x12 .x0 4016))
+  (CodeReq.union (CodeReq.singleton (base + 20) (.SD .x12 .x0 4008))
+   (CodeReq.singleton (base + 24) (.SD .x12 .x0 4000)))))))
 
 /-- Phase B init part 1: zero scratch q[0..3] and u[5..7]. 7 instructions. -/
 theorem divK_phaseB_init1_spec (sp : Addr) (base : Addr)
@@ -181,15 +178,15 @@ theorem divK_phaseB_init1_spec (sp : Addr) (base : Addr)
     (hv_u5 : isValidDwordAccess (sp + signExtend12 4016) = true)
     (hv_u6 : isValidDwordAccess (sp + signExtend12 4008) = true)
     (hv_u7 : isValidDwordAccess (sp + signExtend12 4000) = true) :
-    let code := divK_phaseB_init1_code base
+    let cr := divK_phaseB_init1_code base
     cpsTriple base (base + 28)
-      (code **
+      (
        (.x12 ↦ᵣ sp) **
        ((sp + signExtend12 4088) ↦ₘ q0) ** ((sp + signExtend12 4080) ↦ₘ q1) **
        ((sp + signExtend12 4072) ↦ₘ q2) ** ((sp + signExtend12 4064) ↦ₘ q3) **
        ((sp + signExtend12 4016) ↦ₘ u5) ** ((sp + signExtend12 4008) ↦ₘ u6) **
        ((sp + signExtend12 4000) ↦ₘ u7))
-      (code **
+      (
        (.x12 ↦ᵣ sp) **
        ((sp + signExtend12 4088) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4080) ↦ₘ (0 : Word)) **
        ((sp + signExtend12 4072) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4064) ↦ₘ (0 : Word)) **
@@ -204,20 +201,20 @@ theorem divK_phaseB_init1_spec (sp : Addr) (base : Addr)
   have I6 := sd_x0_spec_gen .x12 sp u7 4000 (base + 24) hv_u7
   runBlock I0 I1 I2 I3 I4 I5 I6
 
-abbrev divK_phaseB_init2_code (base : Addr) : Assertion :=
-  (base ↦ᵢ .LD .x6 .x12 40) **
-  ((base + 4) ↦ᵢ .LD .x7 .x12 48)
+abbrev divK_phaseB_init2_code (base : Addr) : CodeReq :=
+  CodeReq.union (CodeReq.singleton base (.LD .x6 .x12 40))
+   (CodeReq.singleton (base + 4) (.LD .x7 .x12 48))
 
 /-- Phase B init part 2: load b[1] and b[2]. 2 instructions. -/
 theorem divK_phaseB_init2_spec (sp : Addr) (base : Addr)
     (b1 b2 : Word) (v6 v7 : Word)
     (hvalid : ValidMemRange sp 8) :
-    let code := divK_phaseB_init2_code base
+    let cr := divK_phaseB_init2_code base
     cpsTriple base (base + 8)
-      (code **
+      (
        (.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
        ((sp + 40) ↦ₘ b1) ** ((sp + 48) ↦ₘ b2))
-      (code **
+      (
        (.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ b1) ** (.x7 ↦ᵣ b2) **
        ((sp + 40) ↦ₘ b1) ** ((sp + 48) ↦ₘ b2)) := by
   have I0 := ld_spec_gen .x6 .x12 sp v6 b1 40 base (by nofun) (by validMem)
@@ -228,16 +225,16 @@ theorem divK_phaseB_init2_spec (sp : Addr) (base : Addr)
 -- Phase C4: Copy a → u[0..4] unshifted (shift = 0). 9 instructions.
 -- ============================================================================
 
-abbrev divK_copyAU_code (base : Addr) : Assertion :=
-  (base ↦ᵢ .LD .x5 .x12 0) **
-  ((base + 4) ↦ᵢ .SD .x12 .x5 4056) **
-  ((base + 8) ↦ᵢ .LD .x5 .x12 8) **
-  ((base + 12) ↦ᵢ .SD .x12 .x5 4048) **
-  ((base + 16) ↦ᵢ .LD .x5 .x12 16) **
-  ((base + 20) ↦ᵢ .SD .x12 .x5 4040) **
-  ((base + 24) ↦ᵢ .LD .x5 .x12 24) **
-  ((base + 28) ↦ᵢ .SD .x12 .x5 4032) **
-  ((base + 32) ↦ᵢ .SD .x12 .x0 4024)
+abbrev divK_copyAU_code (base : Addr) : CodeReq :=
+  CodeReq.union (CodeReq.singleton base (.LD .x5 .x12 0))
+  (CodeReq.union (CodeReq.singleton (base + 4) (.SD .x12 .x5 4056))
+  (CodeReq.union (CodeReq.singleton (base + 8) (.LD .x5 .x12 8))
+  (CodeReq.union (CodeReq.singleton (base + 12) (.SD .x12 .x5 4048))
+  (CodeReq.union (CodeReq.singleton (base + 16) (.LD .x5 .x12 16))
+  (CodeReq.union (CodeReq.singleton (base + 20) (.SD .x12 .x5 4040))
+  (CodeReq.union (CodeReq.singleton (base + 24) (.LD .x5 .x12 24))
+  (CodeReq.union (CodeReq.singleton (base + 28) (.SD .x12 .x5 4032))
+   (CodeReq.singleton (base + 32) (.SD .x12 .x0 4024)))))))))
 
 /-- Copy a[0..3] to u[0..3] and set u[4] = 0 (no shift needed). -/
 theorem divK_copyAU_spec (sp : Addr) (base : Addr)
@@ -248,16 +245,16 @@ theorem divK_copyAU_spec (sp : Addr) (base : Addr)
     (hv_u2 : isValidDwordAccess (sp + signExtend12 4040) = true)
     (hv_u3 : isValidDwordAccess (sp + signExtend12 4032) = true)
     (hv_u4 : isValidDwordAccess (sp + signExtend12 4024) = true) :
-    let code := divK_copyAU_code base
+    let cr := divK_copyAU_code base
     cpsTriple base (base + 36)
-      (code **
+      (
        (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) **
        ((sp + signExtend12 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
        ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
        ((sp + signExtend12 4056) ↦ₘ u0) ** ((sp + signExtend12 4048) ↦ₘ u1) **
        ((sp + signExtend12 4040) ↦ₘ u2) ** ((sp + signExtend12 4032) ↦ₘ u3) **
        ((sp + signExtend12 4024) ↦ₘ u4))
-      (code **
+      (
        (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ a3) **
        ((sp + signExtend12 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
        ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
@@ -280,13 +277,13 @@ theorem divK_copyAU_spec (sp : Addr) (base : Addr)
 -- Per-limb decomposition: 3 merge limbs (6 instr each) + 1 last limb (3 instr).
 -- ============================================================================
 
-abbrev divK_normB_merge_code (high_off low_off : BitVec 12) (base : Addr) : Assertion :=
-  (base ↦ᵢ .LD .x5 .x12 high_off) **
-  ((base + 4) ↦ᵢ .LD .x7 .x12 low_off) **
-  ((base + 8) ↦ᵢ .SLL .x5 .x5 .x6) **
-  ((base + 12) ↦ᵢ .SRL .x7 .x7 .x2) **
-  ((base + 16) ↦ᵢ .OR .x5 .x5 .x7) **
-  ((base + 20) ↦ᵢ .SD .x12 .x5 high_off)
+abbrev divK_normB_merge_code (high_off low_off : BitVec 12) (base : Addr) : CodeReq :=
+  CodeReq.union (CodeReq.singleton base (.LD .x5 .x12 high_off))
+  (CodeReq.union (CodeReq.singleton (base + 4) (.LD .x7 .x12 low_off))
+  (CodeReq.union (CodeReq.singleton (base + 8) (.SLL .x5 .x5 .x6))
+  (CodeReq.union (CodeReq.singleton (base + 12) (.SRL .x7 .x7 .x2))
+  (CodeReq.union (CodeReq.singleton (base + 16) (.OR .x5 .x5 .x7))
+   (CodeReq.singleton (base + 20) (.SD .x12 .x5 high_off))))))
 
 /-- NormB merge limb (6 instructions): LD high, LD low, SLL, SRL, OR, SD.
     Computes result = (high <<< shift) ||| (low >>> anti_shift) and stores to high_off.
@@ -298,19 +295,19 @@ theorem divK_normB_merge_spec (high_off low_off : BitVec 12)
     let shifted_high := high <<< (shift.toNat % 64)
     let shifted_low := low >>> (anti_shift.toNat % 64)
     let result := shifted_high ||| shifted_low
-    let code := divK_normB_merge_code high_off low_off base
+    let cr := divK_normB_merge_code high_off low_off base
     cpsTriple base (base + 24)
-      (code **
+      (
        (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x7 ↦ᵣ v7) **
        (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ anti_shift) **
        ((sp + signExtend12 high_off) ↦ₘ high) **
        ((sp + signExtend12 low_off) ↦ₘ low))
-      (code **
+      (
        (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result) ** (.x7 ↦ᵣ shifted_low) **
        (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ anti_shift) **
        ((sp + signExtend12 high_off) ↦ₘ result) **
        ((sp + signExtend12 low_off) ↦ₘ low)) := by
-  intro shifted_high; intro shifted_low; intro result; intro code
+  intro shifted_high; intro shifted_low; intro result; intro cr
   have I0 := ld_spec_gen .x5 .x12 sp v5 high high_off base (by nofun) hvalid_high
   have I1 := ld_spec_gen .x7 .x12 sp v7 low low_off (base + 4) (by nofun) hvalid_low
   have I2 := sll_spec_gen_rd_eq_rs1 .x5 .x6 high shift (base + 8) (by nofun) (by nofun)
@@ -319,10 +316,10 @@ theorem divK_normB_merge_spec (high_off low_off : BitVec 12)
   have I5 := sd_spec_gen .x12 .x5 sp result high high_off (base + 20) hvalid_high
   runBlock I0 I1 I2 I3 I4 I5
 
-abbrev divK_normB_last_code (off : BitVec 12) (base : Addr) : Assertion :=
-  (base ↦ᵢ .LD .x5 .x12 off) **
-  ((base + 4) ↦ᵢ .SLL .x5 .x5 .x6) **
-  ((base + 8) ↦ᵢ .SD .x12 .x5 off)
+abbrev divK_normB_last_code (off : BitVec 12) (base : Addr) : CodeReq :=
+  CodeReq.union (CodeReq.singleton base (.LD .x5 .x12 off))
+  (CodeReq.union (CodeReq.singleton (base + 4) (.SLL .x5 .x5 .x6))
+   (CodeReq.singleton (base + 8) (.SD .x12 .x5 off)))
 
 /-- NormB last limb (3 instructions): LD, SLL, SD.
     Computes result = val <<< shift and stores to off. -/
@@ -330,15 +327,15 @@ theorem divK_normB_last_spec (off : BitVec 12)
     (sp val v5 shift : Word) (base : Addr)
     (hvalid : isValidDwordAccess (sp + signExtend12 off) = true) :
     let result := val <<< (shift.toNat % 64)
-    let code := divK_normB_last_code off base
+    let cr := divK_normB_last_code off base
     cpsTriple base (base + 12)
-      (code **
+      (
        (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ shift) **
        ((sp + signExtend12 off) ↦ₘ val))
-      (code **
+      (
        (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result) ** (.x6 ↦ᵣ shift) **
        ((sp + signExtend12 off) ↦ₘ result)) := by
-  intro result; intro code
+  intro result; intro cr
   have I0 := ld_spec_gen .x5 .x12 sp v5 val off base (by nofun) hvalid
   have I1 := sll_spec_gen_rd_eq_rs1 .x5 .x6 val shift (base + 4) (by nofun) (by nofun)
   have I2 := sd_spec_gen .x12 .x5 sp result val off (base + 8) hvalid
@@ -349,10 +346,10 @@ theorem divK_normB_last_spec (off : BitVec 12)
 -- Per-limb decomposition: top (3 instr) + 3 merge (5 instr each) + last (2 instr).
 -- ============================================================================
 
-abbrev divK_normA_top_code (src_off dst_off : BitVec 12) (base : Addr) : Assertion :=
-  (base ↦ᵢ .LD .x5 .x12 src_off) **
-  ((base + 4) ↦ᵢ .SRL .x7 .x5 .x2) **
-  ((base + 8) ↦ᵢ .SD .x12 .x7 dst_off)
+abbrev divK_normA_top_code (src_off dst_off : BitVec 12) (base : Addr) : CodeReq :=
+  CodeReq.union (CodeReq.singleton base (.LD .x5 .x12 src_off))
+  (CodeReq.union (CodeReq.singleton (base + 4) (.SRL .x7 .x5 .x2))
+   (CodeReq.singleton (base + 8) (.SD .x12 .x7 dst_off)))
 
 /-- NormA top: LD a[3], SRL to x7, SD u[4]. 3 instructions.
     Computes u[4] = a[3] >>> anti_shift (overflow bits from top limb). -/
@@ -361,28 +358,28 @@ theorem divK_normA_top_spec (src_off dst_off : BitVec 12)
     (hvalid_src : isValidDwordAccess (sp + signExtend12 src_off) = true)
     (hvalid_dst : isValidDwordAccess (sp + signExtend12 dst_off) = true) :
     let result := val >>> (anti_shift.toNat % 64)
-    let code := divK_normA_top_code src_off dst_off base
+    let cr := divK_normA_top_code src_off dst_off base
     cpsTriple base (base + 12)
-      (code **
+      (
        (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ anti_shift) **
        ((sp + signExtend12 src_off) ↦ₘ val) **
        ((sp + signExtend12 dst_off) ↦ₘ dst_old))
-      (code **
+      (
        (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ val) ** (.x7 ↦ᵣ result) ** (.x2 ↦ᵣ anti_shift) **
        ((sp + signExtend12 src_off) ↦ₘ val) **
        ((sp + signExtend12 dst_off) ↦ₘ result)) := by
-  intro result; intro code
+  intro result; intro cr
   have I0 := ld_spec_gen .x5 .x12 sp v5 val src_off base (by nofun) hvalid_src
   have I1 := srl_spec_gen .x7 .x5 .x2 v7 val anti_shift (base + 4) (by nofun)
   have I2 := sd_spec_gen .x12 .x7 sp result dst_old dst_off (base + 8) hvalid_dst
   runBlock I0 I1 I2
 
-abbrev divK_normA_mergeA_code (next_off dst_off : BitVec 12) (base : Addr) : Assertion :=
-  (base ↦ᵢ .LD .x7 .x12 next_off) **
-  ((base + 4) ↦ᵢ .SLL .x5 .x5 .x6) **
-  ((base + 8) ↦ᵢ .SRL .x10 .x7 .x2) **
-  ((base + 12) ↦ᵢ .OR .x5 .x5 .x10) **
-  ((base + 16) ↦ᵢ .SD .x12 .x5 dst_off)
+abbrev divK_normA_mergeA_code (next_off dst_off : BitVec 12) (base : Addr) : CodeReq :=
+  CodeReq.union (CodeReq.singleton base (.LD .x7 .x12 next_off))
+  (CodeReq.union (CodeReq.singleton (base + 4) (.SLL .x5 .x5 .x6))
+  (CodeReq.union (CodeReq.singleton (base + 8) (.SRL .x10 .x7 .x2))
+  (CodeReq.union (CodeReq.singleton (base + 12) (.OR .x5 .x5 .x10))
+   (CodeReq.singleton (base + 16) (.SD .x12 .x5 dst_off)))))
 
 /-- NormA merge type A (5 instructions): x5 holds current limb.
     LD next into x7, SLL x5 by shift, SRL x10 from x7 by anti_shift, OR into x5, SD.
@@ -394,19 +391,19 @@ theorem divK_normA_mergeA_spec (next_off dst_off : BitVec 12)
     let shifted_curr := current <<< (shift.toNat % 64)
     let shifted_next := next >>> (anti_shift.toNat % 64)
     let result := shifted_curr ||| shifted_next
-    let code := divK_normA_mergeA_code next_off dst_off base
+    let cr := divK_normA_mergeA_code next_off dst_off base
     cpsTriple base (base + 20)
-      (code **
+      (
        (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ current) ** (.x7 ↦ᵣ v7) ** (.x10 ↦ᵣ v10) **
        (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ anti_shift) **
        ((sp + signExtend12 next_off) ↦ₘ next) **
        ((sp + signExtend12 dst_off) ↦ₘ dst_old))
-      (code **
+      (
        (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result) ** (.x7 ↦ᵣ next) ** (.x10 ↦ᵣ shifted_next) **
        (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ anti_shift) **
        ((sp + signExtend12 next_off) ↦ₘ next) **
        ((sp + signExtend12 dst_off) ↦ₘ result)) := by
-  intro shifted_curr; intro shifted_next; intro result; intro code
+  intro shifted_curr; intro shifted_next; intro result; intro cr
   have I0 := ld_spec_gen .x7 .x12 sp v7 next next_off base (by nofun) hvalid_next
   have I1 := sll_spec_gen_rd_eq_rs1 .x5 .x6 current shift (base + 4) (by nofun) (by nofun)
   have I2 := srl_spec_gen .x10 .x7 .x2 v10 next anti_shift (base + 8) (by nofun)
@@ -414,12 +411,12 @@ theorem divK_normA_mergeA_spec (next_off dst_off : BitVec 12)
   have I4 := sd_spec_gen .x12 .x5 sp result dst_old dst_off (base + 16) hvalid_dst
   runBlock I0 I1 I2 I3 I4
 
-abbrev divK_normA_mergeB_code (next_off dst_off : BitVec 12) (base : Addr) : Assertion :=
-  (base ↦ᵢ .LD .x5 .x12 next_off) **
-  ((base + 4) ↦ᵢ .SLL .x7 .x7 .x6) **
-  ((base + 8) ↦ᵢ .SRL .x10 .x5 .x2) **
-  ((base + 12) ↦ᵢ .OR .x7 .x7 .x10) **
-  ((base + 16) ↦ᵢ .SD .x12 .x7 dst_off)
+abbrev divK_normA_mergeB_code (next_off dst_off : BitVec 12) (base : Addr) : CodeReq :=
+  CodeReq.union (CodeReq.singleton base (.LD .x5 .x12 next_off))
+  (CodeReq.union (CodeReq.singleton (base + 4) (.SLL .x7 .x7 .x6))
+  (CodeReq.union (CodeReq.singleton (base + 8) (.SRL .x10 .x5 .x2))
+  (CodeReq.union (CodeReq.singleton (base + 12) (.OR .x7 .x7 .x10))
+   (CodeReq.singleton (base + 16) (.SD .x12 .x7 dst_off)))))
 
 /-- NormA merge type B (5 instructions): x7 holds current limb.
     LD next into x5, SLL x7 by shift, SRL x10 from x5 by anti_shift, OR into x7, SD.
@@ -431,19 +428,19 @@ theorem divK_normA_mergeB_spec (next_off dst_off : BitVec 12)
     let shifted_curr := current <<< (shift.toNat % 64)
     let shifted_next := next >>> (anti_shift.toNat % 64)
     let result := shifted_curr ||| shifted_next
-    let code := divK_normA_mergeB_code next_off dst_off base
+    let cr := divK_normA_mergeB_code next_off dst_off base
     cpsTriple base (base + 20)
-      (code **
+      (
        (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x7 ↦ᵣ current) ** (.x10 ↦ᵣ v10) **
        (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ anti_shift) **
        ((sp + signExtend12 next_off) ↦ₘ next) **
        ((sp + signExtend12 dst_off) ↦ₘ dst_old))
-      (code **
+      (
        (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ next) ** (.x7 ↦ᵣ result) ** (.x10 ↦ᵣ shifted_next) **
        (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ anti_shift) **
        ((sp + signExtend12 next_off) ↦ₘ next) **
        ((sp + signExtend12 dst_off) ↦ₘ result)) := by
-  intro shifted_curr; intro shifted_next; intro result; intro code
+  intro shifted_curr; intro shifted_next; intro result; intro cr
   have I0 := ld_spec_gen .x5 .x12 sp v5 next next_off base (by nofun) hvalid_next
   have I1 := sll_spec_gen_rd_eq_rs1 .x7 .x6 current shift (base + 4) (by nofun) (by nofun)
   have I2 := srl_spec_gen .x10 .x5 .x2 v10 next anti_shift (base + 8) (by nofun)
@@ -451,9 +448,9 @@ theorem divK_normA_mergeB_spec (next_off dst_off : BitVec 12)
   have I4 := sd_spec_gen .x12 .x7 sp result dst_old dst_off (base + 16) hvalid_dst
   runBlock I0 I1 I2 I3 I4
 
-abbrev divK_normA_last_code (dst_off : BitVec 12) (base : Addr) : Assertion :=
-  (base ↦ᵢ .SLL .x7 .x7 .x6) **
-  ((base + 4) ↦ᵢ .SD .x12 .x7 dst_off)
+abbrev divK_normA_last_code (dst_off : BitVec 12) (base : Addr) : CodeReq :=
+  CodeReq.union (CodeReq.singleton base (.SLL .x7 .x7 .x6))
+   (CodeReq.singleton (base + 4) (.SD .x12 .x7 dst_off))
 
 /-- NormA last limb (2 instructions): SLL x7 by shift, SD to dst_off.
     Computes u[0] = a[0] <<< shift. -/
@@ -461,15 +458,15 @@ theorem divK_normA_last_spec (dst_off : BitVec 12)
     (sp val shift dst_old : Word) (base : Addr)
     (hvalid_dst : isValidDwordAccess (sp + signExtend12 dst_off) = true) :
     let result := val <<< (shift.toNat % 64)
-    let code := divK_normA_last_code dst_off base
+    let cr := divK_normA_last_code dst_off base
     cpsTriple base (base + 8)
-      (code **
+      (
        (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ val) ** (.x6 ↦ᵣ shift) **
        ((sp + signExtend12 dst_off) ↦ₘ dst_old))
-      (code **
+      (
        (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ result) ** (.x6 ↦ᵣ shift) **
        ((sp + signExtend12 dst_off) ↦ₘ result)) := by
-  intro result; intro code
+  intro result; intro cr
   have I0 := sll_spec_gen_rd_eq_rs1 .x7 .x6 val shift base (by nofun) (by nofun)
   have I1 := sd_spec_gen .x12 .x7 sp result dst_old dst_off (base + 4) hvalid_dst
   runBlock I0 I1
@@ -479,13 +476,13 @@ theorem divK_normA_last_spec (dst_off : BitVec 12)
 -- Same structure as NormB but SRL/SLL swapped (right-shift with merge from above).
 -- ============================================================================
 
-abbrev divK_denorm_merge_code (curr_off next_off : BitVec 12) (base : Addr) : Assertion :=
-  (base ↦ᵢ .LD .x5 .x12 curr_off) **
-  ((base + 4) ↦ᵢ .LD .x7 .x12 next_off) **
-  ((base + 8) ↦ᵢ .SRL .x5 .x5 .x6) **
-  ((base + 12) ↦ᵢ .SLL .x7 .x7 .x2) **
-  ((base + 16) ↦ᵢ .OR .x5 .x5 .x7) **
-  ((base + 20) ↦ᵢ .SD .x12 .x5 curr_off)
+abbrev divK_denorm_merge_code (curr_off next_off : BitVec 12) (base : Addr) : CodeReq :=
+  CodeReq.union (CodeReq.singleton base (.LD .x5 .x12 curr_off))
+  (CodeReq.union (CodeReq.singleton (base + 4) (.LD .x7 .x12 next_off))
+  (CodeReq.union (CodeReq.singleton (base + 8) (.SRL .x5 .x5 .x6))
+  (CodeReq.union (CodeReq.singleton (base + 12) (.SLL .x7 .x7 .x2))
+  (CodeReq.union (CodeReq.singleton (base + 16) (.OR .x5 .x5 .x7))
+   (CodeReq.singleton (base + 20) (.SD .x12 .x5 curr_off))))))
 
 /-- Denorm merge limb (6 instructions): LD curr, LD next, SRL, SLL, OR, SD.
     Computes result = (curr >>> shift) ||| (next <<< anti_shift) and stores to curr_off.
@@ -497,19 +494,19 @@ theorem divK_denorm_merge_spec (curr_off next_off : BitVec 12)
     let shifted_curr := curr >>> (shift.toNat % 64)
     let shifted_next := next <<< (anti_shift.toNat % 64)
     let result := shifted_curr ||| shifted_next
-    let code := divK_denorm_merge_code curr_off next_off base
+    let cr := divK_denorm_merge_code curr_off next_off base
     cpsTriple base (base + 24)
-      (code **
+      (
        (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x7 ↦ᵣ v7) **
        (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ anti_shift) **
        ((sp + signExtend12 curr_off) ↦ₘ curr) **
        ((sp + signExtend12 next_off) ↦ₘ next))
-      (code **
+      (
        (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result) ** (.x7 ↦ᵣ shifted_next) **
        (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ anti_shift) **
        ((sp + signExtend12 curr_off) ↦ₘ result) **
        ((sp + signExtend12 next_off) ↦ₘ next)) := by
-  intro shifted_curr; intro shifted_next; intro result; intro code
+  intro shifted_curr; intro shifted_next; intro result; intro cr
   have I0 := ld_spec_gen .x5 .x12 sp v5 curr curr_off base (by nofun) hvalid_curr
   have I1 := ld_spec_gen .x7 .x12 sp v7 next next_off (base + 4) (by nofun) hvalid_next
   have I2 := srl_spec_gen_rd_eq_rs1 .x5 .x6 curr shift (base + 8) (by nofun) (by nofun)
@@ -518,10 +515,10 @@ theorem divK_denorm_merge_spec (curr_off next_off : BitVec 12)
   have I5 := sd_spec_gen .x12 .x5 sp result curr curr_off (base + 20) hvalid_curr
   runBlock I0 I1 I2 I3 I4 I5
 
-abbrev divK_denorm_last_code (off : BitVec 12) (base : Addr) : Assertion :=
-  (base ↦ᵢ .LD .x5 .x12 off) **
-  ((base + 4) ↦ᵢ .SRL .x5 .x5 .x6) **
-  ((base + 8) ↦ᵢ .SD .x12 .x5 off)
+abbrev divK_denorm_last_code (off : BitVec 12) (base : Addr) : CodeReq :=
+  CodeReq.union (CodeReq.singleton base (.LD .x5 .x12 off))
+  (CodeReq.union (CodeReq.singleton (base + 4) (.SRL .x5 .x5 .x6))
+   (CodeReq.singleton (base + 8) (.SD .x12 .x5 off)))
 
 /-- Denorm last limb (3 instructions): LD, SRL, SD.
     Computes result = val >>> shift and stores to off. -/
@@ -529,15 +526,15 @@ theorem divK_denorm_last_spec (off : BitVec 12)
     (sp val v5 shift : Word) (base : Addr)
     (hvalid : isValidDwordAccess (sp + signExtend12 off) = true) :
     let result := val >>> (shift.toNat % 64)
-    let code := divK_denorm_last_code off base
+    let cr := divK_denorm_last_code off base
     cpsTriple base (base + 12)
-      (code **
+      (
        (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ shift) **
        ((sp + signExtend12 off) ↦ₘ val))
-      (code **
+      (
        (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result) ** (.x6 ↦ᵣ shift) **
        ((sp + signExtend12 off) ↦ₘ result)) := by
-  intro result; intro code
+  intro result; intro cr
   have I0 := ld_spec_gen .x5 .x12 sp v5 val off base (by nofun) hvalid
   have I1 := srl_spec_gen_rd_eq_rs1 .x5 .x6 val shift (base + 4) (by nofun) (by nofun)
   have I2 := sd_spec_gen .x12 .x5 sp result val off (base + 8) hvalid
@@ -548,11 +545,11 @@ theorem divK_denorm_last_spec (off : BitVec 12)
 -- Split into load phase (4 LD) + store phase (ADDI + 4 SD) + JAL.
 -- ============================================================================
 
-abbrev divK_epilogue_load_code (off0 off1 off2 off3 : BitVec 12) (base : Addr) : Assertion :=
-  (base ↦ᵢ .LD .x5 .x12 off0) **
-  ((base + 4) ↦ᵢ .LD .x6 .x12 off1) **
-  ((base + 8) ↦ᵢ .LD .x7 .x12 off2) **
-  ((base + 12) ↦ᵢ .LD .x10 .x12 off3)
+abbrev divK_epilogue_load_code (off0 off1 off2 off3 : BitVec 12) (base : Addr) : CodeReq :=
+  CodeReq.union (CodeReq.singleton base (.LD .x5 .x12 off0))
+  (CodeReq.union (CodeReq.singleton (base + 4) (.LD .x6 .x12 off1))
+  (CodeReq.union (CodeReq.singleton (base + 8) (.LD .x7 .x12 off2))
+   (CodeReq.singleton (base + 12) (.LD .x10 .x12 off3))))
 
 /-- Epilogue load phase: load 4 values from scratch space. 4 instructions.
     Loads q[0..3] (for DIV) or u[0..3] (for MOD) into x5, x6, x7, x10. -/
@@ -562,13 +559,13 @@ theorem divK_epilogue_load_spec (off0 off1 off2 off3 : BitVec 12)
     (hv1 : isValidDwordAccess (sp + signExtend12 off1) = true)
     (hv2 : isValidDwordAccess (sp + signExtend12 off2) = true)
     (hv3 : isValidDwordAccess (sp + signExtend12 off3) = true) :
-    let code := divK_epilogue_load_code off0 off1 off2 off3 base
+    let cr := divK_epilogue_load_code off0 off1 off2 off3 base
     cpsTriple base (base + 16)
-      (code **
+      (
        (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x10 ↦ᵣ v10) **
        ((sp + signExtend12 off0) ↦ₘ r0) ** ((sp + signExtend12 off1) ↦ₘ r1) **
        ((sp + signExtend12 off2) ↦ₘ r2) ** ((sp + signExtend12 off3) ↦ₘ r3))
-      (code **
+      (
        (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ r0) ** (.x6 ↦ᵣ r1) ** (.x7 ↦ᵣ r2) ** (.x10 ↦ᵣ r3) **
        ((sp + signExtend12 off0) ↦ₘ r0) ** ((sp + signExtend12 off1) ↦ₘ r1) **
        ((sp + signExtend12 off2) ↦ₘ r2) ** ((sp + signExtend12 off3) ↦ₘ r3)) := by
@@ -578,7 +575,7 @@ theorem divK_epilogue_load_spec (off0 off1 off2 off3 : BitVec 12)
   have I3 := ld_spec_gen .x10 .x12 sp v10 r3 off3 (base + 12) (by nofun) hv3
   runBlock I0 I1 I2 I3
 
-abbrev divK_epilogue_store_code (jal_off : BitVec 21) (base : Addr) : Assertion :=
+abbrev divK_epilogue_store_code (jal_off : BitVec 21) (base : Addr) : CodeReq :=
   (base ↦ᵢ .ADDI .x12 .x12 32) **
   ((base + 4) ↦ᵢ .SD .x12 .x5 0) **
   ((base + 8) ↦ᵢ .SD .x12 .x6 8) **
@@ -590,13 +587,13 @@ abbrev divK_epilogue_store_code (jal_off : BitVec 21) (base : Addr) : Assertion 
 theorem divK_epilogue_store_spec (sp : Addr) (base : Addr)
     (r0 r1 r2 r3 m0 m8 m16 m24 : Word) (jal_off : BitVec 21)
     (hvalid : ValidMemRange sp 8) :
-    let code := divK_epilogue_store_code jal_off base
+    let cr := divK_epilogue_store_code jal_off base
     cpsTriple base (base + 20 + signExtend21 jal_off)
-      (code **
+      (
        (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ r0) ** (.x6 ↦ᵣ r1) ** (.x7 ↦ᵣ r2) ** (.x10 ↦ᵣ r3) **
        ((sp + 32) ↦ₘ m0) ** ((sp + 40) ↦ₘ m8) **
        ((sp + 48) ↦ₘ m16) ** ((sp + 56) ↦ₘ m24))
-      (code **
+      (
        (.x12 ↦ᵣ (sp + 32)) ** (.x5 ↦ᵣ r0) ** (.x6 ↦ᵣ r1) ** (.x7 ↦ᵣ r2) ** (.x10 ↦ᵣ r3) **
        ((sp + 32) ↦ₘ r0) ** ((sp + 40) ↦ₘ r1) **
        ((sp + 48) ↦ₘ r2) ** ((sp + 56) ↦ₘ r3)) := by
@@ -613,7 +610,7 @@ theorem divK_epilogue_store_spec (sp : Addr) (base : Addr)
 -- 5 instructions: SD, ADDI, SLLI, ADD, LD.
 -- ============================================================================
 
-abbrev divK_phaseB_tail_code (base : Addr) : Assertion :=
+abbrev divK_phaseB_tail_code (base : Addr) : CodeReq :=
   (base ↦ᵢ .SD .x12 .x5 3984) **
   ((base + 4) ↦ᵢ .ADDI .x5 .x5 4095) **
   ((base + 8) ↦ᵢ .SLLI .x5 .x5 3) **
@@ -629,17 +626,17 @@ theorem divK_phaseB_tail_spec (sp n leading_limb n_mem : Word) (base : Addr)
     let nm1 := n + signExtend12 4095
     let nm1_x8 := nm1 <<< (3 : BitVec 6).toNat
     let addr_lead := sp + nm1_x8
-    let code := divK_phaseB_tail_code base
+    let cr := divK_phaseB_tail_code base
     cpsTriple base (base + 20)
-      (code **
+      (
        (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ n) **
        ((sp + signExtend12 3984) ↦ₘ n_mem) **
        ((addr_lead + signExtend12 32) ↦ₘ leading_limb))
-      (code **
+      (
        (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ leading_limb) **
        ((sp + signExtend12 3984) ↦ₘ n) **
        ((addr_lead + signExtend12 32) ↦ₘ leading_limb)) := by
-  intro nm1; intro nm1_x8; intro addr_lead; intro code
+  intro nm1; intro nm1_x8; intro addr_lead; intro cr
   have I0 := sd_spec_gen .x12 .x5 sp n n_mem 3984 base hv_n
   have I1 := addi_spec_gen_same .x5 n 4095 (base + 4) (by nofun)
   have I2 := slli_spec_gen_same .x5 nm1 3 (base + 8) (by nofun)
@@ -651,7 +648,7 @@ theorem divK_phaseB_tail_spec (sp n leading_limb n_mem : Word) (base : Addr)
 -- Phase C2 body: store shift, compute anti_shift. 3 instructions.
 -- ============================================================================
 
-abbrev divK_phaseC2_code (shift0_off : BitVec 13) (base : Addr) : Assertion :=
+abbrev divK_phaseC2_code (shift0_off : BitVec 13) (base : Addr) : CodeReq :=
   (base ↦ᵢ .SD .x12 .x6 3992) **
   ((base + 4) ↦ᵢ .ADDI .x2 .x0 0) **
   ((base + 8) ↦ᵢ .SUB .x2 .x2 .x6) **
@@ -664,15 +661,15 @@ abbrev divK_phaseC2_code (shift0_off : BitVec 13) (base : Addr) : Assertion :=
 theorem divK_phaseC2_body_spec (sp shift v2 shift_mem : Word)
     (shift0_off : BitVec 13) (base : Addr)
     (hv_shift : isValidDwordAccess (sp + signExtend12 3992) = true) :
-    let code := divK_phaseC2_code shift0_off base
+    let cr := divK_phaseC2_code shift0_off base
     cpsTriple base (base + 12)
-      (code **
+      (
        (.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ v2) ** (.x0 ↦ᵣ (0 : Word)) **
        ((sp + signExtend12 3992) ↦ₘ shift_mem))
-      (code **
+      (
        (.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ (signExtend12 (0 : BitVec 12) - shift)) ** (.x0 ↦ᵣ (0 : Word)) **
        ((sp + signExtend12 3992) ↦ₘ shift)) := by
-  intro code
+  intro cr
   have I0 := sd_spec_gen .x12 .x6 sp shift shift_mem 3992 base hv_shift
   have I1 := addi_x0_spec_gen .x2 v2 0 (base + 4) (by nofun)
   have I2 := sub_spec_gen_rd_eq_rs1 .x2 .x6
@@ -691,21 +688,20 @@ set_option maxHeartbeats 1600000 in
 theorem divK_phaseC2_spec (sp shift v2 shift_mem : Word)
     (shift0_off : BitVec 13) (base : Addr)
     (hv_shift : isValidDwordAccess (sp + signExtend12 3992) = true) :
-    let code := divK_phaseC2_code shift0_off base
+    let cr := divK_phaseC2_code shift0_off base
     let post :=
-      code **
       (.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ shift) **
       (.x2 ↦ᵣ (signExtend12 (0 : BitVec 12) - shift)) ** (.x0 ↦ᵣ (0 : Word)) **
       ((sp + signExtend12 3992) ↦ₘ shift)
     cpsBranch base
-      (code **
+      (
        (.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ v2) ** (.x0 ↦ᵣ (0 : Word)) **
        ((sp + signExtend12 3992) ↦ₘ shift_mem))
       -- Taken: shift = 0
       ((base + 12) + signExtend13 shift0_off) post
       -- Not taken: shift ≠ 0
       (base + 16) post := by
-  intro code; intro post
+  intro cr; intro post
   -- 1. Body: SD + ADDI + SUB
   have hbody := divK_phaseC2_body_spec sp shift v2 shift_mem shift0_off base hv_shift
   -- 2. BEQ at base + 12
@@ -750,7 +746,7 @@ theorem divK_phaseC2_spec (sp shift v2 shift_mem : Word)
 -- ============================================================================
 
 abbrev divK_phaseB_cascade_step_code (n_val : BitVec 12) (rx : Reg) (bne_off : BitVec 13)
-    (base : Addr) : Assertion :=
+    (base : Addr) : CodeReq :=
   (base ↦ᵢ .ADDI .x5 .x0 n_val) **
   ((base + 4) ↦ᵢ .BNE rx .x0 bne_off)
 
@@ -760,20 +756,20 @@ abbrev divK_phaseB_cascade_step_code (n_val : BitVec 12) (rx : Reg) (bne_off : B
 theorem divK_phaseB_cascade_step_spec (n_val : BitVec 12) (rx : Reg) (check v5 : Word)
     (bne_off : BitVec 13) (base : Addr) :
     let n := (0 : Word) + signExtend12 n_val
-    let code := divK_phaseB_cascade_step_code n_val rx bne_off base
+    let cr := divK_phaseB_cascade_step_code n_val rx bne_off base
     let post :=
-      code ** (.x5 ↦ᵣ n) ** (.x0 ↦ᵣ (0 : Word)) ** (rx ↦ᵣ check)
+      (.x5 ↦ᵣ n) ** (.x0 ↦ᵣ (0 : Word)) ** (rx ↦ᵣ check)
     cpsBranch base
-      (code ** (.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (rx ↦ᵣ check))
+      ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (rx ↦ᵣ check))
       -- Taken: check ≠ 0
       ((base + 4) + signExtend13 bne_off) post
       -- Not taken: check = 0
       (base + 8) post := by
-  intro n; intro code; intro post
+  intro n; intro cr; intro post
   -- 1. ADDI body (includes all atoms: BNE instr and rx are frame)
   have hbody : cpsTriple base (base + 4)
-      (code ** (.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (rx ↦ᵣ check))
-      (code ** (.x5 ↦ᵣ n) ** (.x0 ↦ᵣ (0 : Word)) ** (rx ↦ᵣ check)) := by
+      ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (rx ↦ᵣ check))
+      ((.x5 ↦ᵣ n) ** (.x0 ↦ᵣ (0 : Word)) ** (rx ↦ᵣ check)) := by
     have I0 := addi_spec_gen .x5 .x0 v5 (0 : Word) n_val base (by nofun)
     runBlock I0
   -- 2. BNE at base + 4, drop pure facts
@@ -813,7 +809,7 @@ theorem divK_phaseB_cascade_step_spec (n_val : BitVec 12) (rx : Reg) (check v5 :
 -- 4 instructions: LD, ADDI, SUB, BLT. cpsBranch.
 -- ============================================================================
 
-abbrev divK_loopSetup_code (blt_off : BitVec 13) (base : Addr) : Assertion :=
+abbrev divK_loopSetup_code (blt_off : BitVec 13) (base : Addr) : CodeReq :=
   (base ↦ᵢ .LD .x5 .x12 3984) **
   ((base + 4) ↦ᵢ .ADDI .x1 .x0 4) **
   ((base + 8) ↦ᵢ .SUB .x1 .x1 .x5) **
@@ -824,16 +820,16 @@ abbrev divK_loopSetup_code (blt_off : BitVec 13) (base : Addr) : Assertion :=
 theorem divK_loopSetup_body_spec (sp n v1 v5 : Word)
     (blt_off : BitVec 13) (base : Addr)
     (hv_n : isValidDwordAccess (sp + signExtend12 3984) = true) :
-    let code := divK_loopSetup_code blt_off base
+    let cr := divK_loopSetup_code blt_off base
     cpsTriple base (base + 12)
-      (code **
+      (
        (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x1 ↦ᵣ v1) ** (.x0 ↦ᵣ (0 : Word)) **
        ((sp + signExtend12 3984) ↦ₘ n))
-      (code **
+      (
        (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ n) **
        (.x1 ↦ᵣ (signExtend12 (4 : BitVec 12) - n)) ** (.x0 ↦ᵣ (0 : Word)) **
        ((sp + signExtend12 3984) ↦ₘ n)) := by
-  intro code
+  intro cr
   have I0 := ld_spec_gen .x5 .x12 sp v5 n 3984 base (by nofun) hv_n
   have I1 := addi_x0_spec_gen .x1 v1 4 (base + 4) (by nofun)
   have I2 := sub_spec_gen_rd_eq_rs1 .x1 .x5
@@ -848,20 +844,19 @@ theorem divK_loopSetup_spec (sp n v1 v5 : Word)
     (blt_off : BitVec 13) (base : Addr)
     (hv_n : isValidDwordAccess (sp + signExtend12 3984) = true) :
     let m := signExtend12 (4 : BitVec 12) - n
-    let code := divK_loopSetup_code blt_off base
+    let cr := divK_loopSetup_code blt_off base
     let post :=
-      code **
       (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ n) ** (.x1 ↦ᵣ m) ** (.x0 ↦ᵣ (0 : Word)) **
       ((sp + signExtend12 3984) ↦ₘ n)
     cpsBranch base
-      (code **
+      (
        (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x1 ↦ᵣ v1) ** (.x0 ↦ᵣ (0 : Word)) **
        ((sp + signExtend12 3984) ↦ₘ n))
       -- Taken: m < 0 (signed)
       ((base + 12) + signExtend13 blt_off) post
       -- Not taken: m >= 0
       (base + 16) post := by
-  intro m; intro code; intro post
+  intro m; intro cr; intro post
   -- 1. Body: LD + ADDI + SUB
   have hbody := divK_loopSetup_body_spec sp n v1 v5 blt_off base hv_n
   -- 2. BLT at base + 12
@@ -920,7 +915,7 @@ theorem divK_clz_init_spec (v6 : Word) (base : Addr) :
 -- K : BitVec 6 (SRLI shamt), M_s : BitVec 6 (SLLI shamt), M_a : BitVec 12 (ADDI imm).
 -- ============================================================================
 
-abbrev divK_clz_stage_code (K M_s : BitVec 6) (M_a : BitVec 12) (base : Addr) : Assertion :=
+abbrev divK_clz_stage_code (K M_s : BitVec 6) (M_a : BitVec 12) (base : Addr) : CodeReq :=
   (base ↦ᵢ .SRLI .x7 .x5 K) **
   ((base + 4) ↦ᵢ .BNE .x7 .x0 12) **
   ((base + 8) ↦ᵢ .SLLI .x5 .x5 M_s) **
@@ -931,12 +926,12 @@ abbrev divK_clz_stage_code (K M_s : BitVec 6) (M_a : BitVec 12) (base : Addr) : 
 theorem divK_clz_stage_taken_spec (K M_s : BitVec 6) (M_a : BitVec 12) (val count v7 : Word)
     (base : Addr)
     (hne : val >>> K.toNat ≠ 0) :
-    let code := divK_clz_stage_code K M_s M_a base
+    let cr := divK_clz_stage_code K M_s M_a base
     cpsTriple base (base + 16)
-      (code ** (.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count) ** (.x7 ↦ᵣ v7) ** (.x0 ↦ᵣ (0 : Word)))
-      (code ** (.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count) **
+      ((.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count) ** (.x7 ↦ᵣ v7) ** (.x0 ↦ᵣ (0 : Word)))
+      ((.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count) **
               (.x7 ↦ᵣ (val >>> K.toNat)) ** (.x0 ↦ᵣ (0 : Word))) := by
-  intro code
+  intro cr
   -- 1. SRLI body
   have I0 := srli_spec_gen .x7 .x5 v7 val K base (by nofun)
   -- 2. BNE at base+4: taken → base+16 (skip SLLI+ADDI)
@@ -954,8 +949,8 @@ theorem divK_clz_stage_taken_spec (K M_s : BitVec 6) (M_a : BitVec 12) (val coun
     (by pcFree) hbne_raw
   -- 4. SRLI body (1 instruction, rest is frame)
   have hbody : cpsTriple base (base + 4)
-      (code ** (.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count) ** (.x7 ↦ᵣ v7) ** (.x0 ↦ᵣ (0 : Word)))
-      (code ** (.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count) ** (.x7 ↦ᵣ (val >>> K.toNat)) ** (.x0 ↦ᵣ (0 : Word))) := by
+      ((.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count) ** (.x7 ↦ᵣ v7) ** (.x0 ↦ᵣ (0 : Word)))
+      ((.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count) ** (.x7 ↦ᵣ (val >>> K.toNat)) ** (.x0 ↦ᵣ (0 : Word))) := by
     runBlock I0
   -- 5. Compose SRLI body → BNE
   have composed := cpsTriple_seq_cpsBranch_with_perm _ _ _ _ _ _ _ _ _
@@ -981,12 +976,12 @@ theorem divK_clz_stage_taken_spec (K M_s : BitVec 6) (M_a : BitVec 12) (val coun
 theorem divK_clz_stage_ntaken_spec (K M_s : BitVec 6) (M_a : BitVec 12) (val count v7 : Word)
     (base : Addr)
     (heq : val >>> K.toNat = 0) :
-    let code := divK_clz_stage_code K M_s M_a base
+    let cr := divK_clz_stage_code K M_s M_a base
     cpsTriple base (base + 16)
-      (code ** (.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count) ** (.x7 ↦ᵣ v7) ** (.x0 ↦ᵣ (0 : Word)))
-      (code ** (.x5 ↦ᵣ (val <<< M_s.toNat)) ** (.x6 ↦ᵣ (count + signExtend12 M_a)) **
+      ((.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count) ** (.x7 ↦ᵣ v7) ** (.x0 ↦ᵣ (0 : Word)))
+      ((.x5 ↦ᵣ (val <<< M_s.toNat)) ** (.x6 ↦ᵣ (count + signExtend12 M_a)) **
               (.x7 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word))) := by
-  intro code
+  intro cr
   -- 1. SRLI body
   have I0 := srli_spec_gen .x7 .x5 v7 val K base (by nofun)
   -- 2. BNE at base+4
@@ -1004,8 +999,8 @@ theorem divK_clz_stage_ntaken_spec (K M_s : BitVec 6) (M_a : BitVec 12) (val cou
     (by pcFree) hbne_raw
   -- 4. SRLI body (1 instruction, rest is frame)
   have hbody : cpsTriple base (base + 4)
-      (code ** (.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count) ** (.x7 ↦ᵣ v7) ** (.x0 ↦ᵣ (0 : Word)))
-      (code ** (.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count) ** (.x7 ↦ᵣ (val >>> K.toNat)) ** (.x0 ↦ᵣ (0 : Word))) := by
+      ((.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count) ** (.x7 ↦ᵣ v7) ** (.x0 ↦ᵣ (0 : Word)))
+      ((.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count) ** (.x7 ↦ᵣ (val >>> K.toNat)) ** (.x0 ↦ᵣ (0 : Word))) := by
     runBlock I0
   -- 5. Compose SRLI body → BNE
   have composed := cpsTriple_seq_cpsBranch_with_perm _ _ _ _ _ _ _ _ _
@@ -1049,7 +1044,7 @@ theorem divK_clz_stage_ntaken_spec (K M_s : BitVec 6) (M_a : BitVec 12) (val cou
 -- 3 instructions. BNE offset = 8 (not 12), no SLLI.
 -- ============================================================================
 
-abbrev divK_clz_last_code (base : Addr) : Assertion :=
+abbrev divK_clz_last_code (base : Addr) : CodeReq :=
   (base ↦ᵢ .SRLI .x7 .x5 63) **
   ((base + 4) ↦ᵢ .BNE .x7 .x0 8) **
   ((base + 8) ↦ᵢ .ADDI .x6 .x6 1)
@@ -1058,12 +1053,12 @@ abbrev divK_clz_last_code (base : Addr) : Assertion :=
     x5 unchanged, x6 unchanged, x7 = val >>> 63. -/
 theorem divK_clz_last_taken_spec (val count v7 : Word) (base : Addr)
     (hne : val >>> 63 ≠ 0) :
-    let code := divK_clz_last_code base
+    let cr := divK_clz_last_code base
     cpsTriple base (base + 12)
-      (code ** (.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count) ** (.x7 ↦ᵣ v7) ** (.x0 ↦ᵣ (0 : Word)))
-      (code ** (.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count) **
+      ((.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count) ** (.x7 ↦ᵣ v7) ** (.x0 ↦ᵣ (0 : Word)))
+      ((.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count) **
               (.x7 ↦ᵣ (val >>> 63)) ** (.x0 ↦ᵣ (0 : Word))) := by
-  intro code
+  intro cr
   have I0 := srli_spec_gen .x7 .x5 v7 val 63 base (by nofun)
   have h63 : (63 : BitVec 6).toNat = 63 := by native_decide
   simp only [h63] at I0
@@ -1078,8 +1073,8 @@ theorem divK_clz_last_taken_spec (val count v7 : Word) (base : Addr)
      (.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count))
     (by pcFree) hbne_raw
   have hbody : cpsTriple base (base + 4)
-      (code ** (.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count) ** (.x7 ↦ᵣ v7) ** (.x0 ↦ᵣ (0 : Word)))
-      (code ** (.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count) ** (.x7 ↦ᵣ (val >>> 63)) ** (.x0 ↦ᵣ (0 : Word))) := by
+      ((.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count) ** (.x7 ↦ᵣ v7) ** (.x0 ↦ᵣ (0 : Word)))
+      ((.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count) ** (.x7 ↦ᵣ (val >>> 63)) ** (.x0 ↦ᵣ (0 : Word))) := by
     runBlock I0
   have composed := cpsTriple_seq_cpsBranch_with_perm _ _ _ _ _ _ _ _ _
     (fun h hp => by xperm_hyp hp) hbody hbne_framed
@@ -1101,12 +1096,12 @@ theorem divK_clz_last_taken_spec (val count v7 : Word) (base : Addr)
     x5 unchanged, x6 = count + 1, x7 = 0. -/
 theorem divK_clz_last_ntaken_spec (val count v7 : Word) (base : Addr)
     (heq : val >>> 63 = 0) :
-    let code := divK_clz_last_code base
+    let cr := divK_clz_last_code base
     cpsTriple base (base + 12)
-      (code ** (.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count) ** (.x7 ↦ᵣ v7) ** (.x0 ↦ᵣ (0 : Word)))
-      (code ** (.x5 ↦ᵣ val) ** (.x6 ↦ᵣ (count + signExtend12 (1 : BitVec 12))) **
+      ((.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count) ** (.x7 ↦ᵣ v7) ** (.x0 ↦ᵣ (0 : Word)))
+      ((.x5 ↦ᵣ val) ** (.x6 ↦ᵣ (count + signExtend12 (1 : BitVec 12))) **
               (.x7 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word))) := by
-  intro code
+  intro cr
   have I0 := srli_spec_gen .x7 .x5 v7 val 63 base (by nofun)
   have h63 : (63 : BitVec 6).toNat = 63 := by native_decide
   simp only [h63] at I0
@@ -1121,8 +1116,8 @@ theorem divK_clz_last_ntaken_spec (val count v7 : Word) (base : Addr)
      (.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count))
     (by pcFree) hbne_raw
   have hbody : cpsTriple base (base + 4)
-      (code ** (.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count) ** (.x7 ↦ᵣ v7) ** (.x0 ↦ᵣ (0 : Word)))
-      (code ** (.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count) ** (.x7 ↦ᵣ (val >>> 63)) ** (.x0 ↦ᵣ (0 : Word))) := by
+      ((.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count) ** (.x7 ↦ᵣ v7) ** (.x0 ↦ᵣ (0 : Word)))
+      ((.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count) ** (.x7 ↦ᵣ (val >>> 63)) ** (.x0 ↦ᵣ (0 : Word))) := by
     runBlock I0
   have composed := cpsTriple_seq_cpsBranch_with_perm _ _ _ _ _ _ _ _ _
     (fun h hp => by xperm_hyp hp) hbody hbne_framed
@@ -1167,7 +1162,7 @@ theorem divK_mulsub_partA_spec (sp q_hat carry_in v5_old v7_old v_i : Word)
     let full_sub := prod_lo + carry_in
     let borrow_add := if BitVec.ult full_sub carry_in then (1 : Word) else 0
     let partial_carry := borrow_add + prod_hi
-    let code :=
+    let cr :=
       (base ↦ᵢ .LD .x5 .x12 v_off) **
       ((base + 4) ↦ᵢ .MUL .x7 .x11 .x5) **
       ((base + 8) ↦ᵢ .MULHU .x5 .x11 .x5) **
@@ -1175,13 +1170,13 @@ theorem divK_mulsub_partA_spec (sp q_hat carry_in v5_old v7_old v_i : Word)
       ((base + 16) ↦ᵢ .SLTU .x10 .x7 .x10) **
       ((base + 20) ↦ᵢ .ADD .x10 .x10 .x5)
     cpsTriple base (base + 24)
-      (code ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ q_hat) ** (.x10 ↦ᵣ carry_in) **
+      ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ q_hat) ** (.x10 ↦ᵣ carry_in) **
        (.x5 ↦ᵣ v5_old) ** (.x7 ↦ᵣ v7_old) **
        ((sp + signExtend12 v_off) ↦ₘ v_i))
-      (code ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ q_hat) ** (.x10 ↦ᵣ partial_carry) **
+      ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ q_hat) ** (.x10 ↦ᵣ partial_carry) **
        (.x5 ↦ᵣ prod_hi) ** (.x7 ↦ᵣ full_sub) **
        ((sp + signExtend12 v_off) ↦ₘ v_i)) := by
-  intro prod_lo; intro prod_hi; intro full_sub; intro borrow_add; intro partial_carry; intro code
+  intro prod_lo; intro prod_hi; intro full_sub; intro borrow_add; intro partial_carry; intro cr
   have I0 := ld_spec_gen .x5 .x12 sp v5_old v_i v_off base (by nofun) hv
   have I1 := mul_spec_gen .x7 .x11 .x5 v7_old q_hat v_i (base + 4) (by nofun)
   have I2 := mulhu_spec_gen_rd_eq_rs2 .x5 .x11 q_hat v_i (base + 8) (by nofun) (by nofun)
@@ -1198,20 +1193,20 @@ theorem divK_mulsub_partB_spec (u_base partial_carry prod_hi full_sub v2_old u_i
     let borrow_sub := if BitVec.ult u_i full_sub then (1 : Word) else 0
     let u_new := u_i - full_sub
     let carry_out := partial_carry + borrow_sub
-    let code :=
+    let cr :=
       (base ↦ᵢ .LD .x2 .x6 u_off) **
       ((base + 4) ↦ᵢ .SLTU .x5 .x2 .x7) **
       ((base + 8) ↦ᵢ .SUB .x2 .x2 .x7) **
       ((base + 12) ↦ᵢ .ADD .x10 .x10 .x5) **
       ((base + 16) ↦ᵢ .SD .x6 .x2 u_off)
     cpsTriple base (base + 20)
-      (code ** (.x6 ↦ᵣ u_base) ** (.x10 ↦ᵣ partial_carry) **
+      ((.x6 ↦ᵣ u_base) ** (.x10 ↦ᵣ partial_carry) **
        (.x5 ↦ᵣ prod_hi) ** (.x7 ↦ᵣ full_sub) ** (.x2 ↦ᵣ v2_old) **
        ((u_base + signExtend12 u_off) ↦ₘ u_i))
-      (code ** (.x6 ↦ᵣ u_base) ** (.x10 ↦ᵣ carry_out) **
+      ((.x6 ↦ᵣ u_base) ** (.x10 ↦ᵣ carry_out) **
        (.x5 ↦ᵣ borrow_sub) ** (.x7 ↦ᵣ full_sub) ** (.x2 ↦ᵣ u_new) **
        ((u_base + signExtend12 u_off) ↦ₘ u_new)) := by
-  intro borrow_sub; intro u_new; intro carry_out; intro code
+  intro borrow_sub; intro u_new; intro carry_out; intro cr
   have I0 := ld_spec_gen .x2 .x6 u_base v2_old u_i u_off base (by nofun) hv
   have I1 := sltu_spec_gen .x5 .x2 .x7 prod_hi u_i full_sub (base + 4) (by nofun)
   have I2 := sub_spec_gen_rd_eq_rs1 .x2 .x7 u_i full_sub (base + 8) (by nofun) (by nofun)
@@ -1233,22 +1228,22 @@ theorem divK_addback_partA_spec (sp u_base carry_in v5_old v2_old v_i u_i : Word
     let u_plus_carry := u_i + carry_in
     let carry1 := if BitVec.ult u_plus_carry carry_in then (1 : Word) else 0
     let u_new := u_plus_carry + v_i
-    let code :=
+    let cr :=
       (base ↦ᵢ .LD .x5 .x12 v_off) **
       ((base + 4) ↦ᵢ .LD .x2 .x6 u_off) **
       ((base + 8) ↦ᵢ .ADD .x2 .x2 .x7) **
       ((base + 12) ↦ᵢ .SLTU .x7 .x2 .x7) **
       ((base + 16) ↦ᵢ .ADD .x2 .x2 .x5)
     cpsTriple base (base + 20)
-      (code ** (.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ u_base) ** (.x7 ↦ᵣ carry_in) **
+      ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ u_base) ** (.x7 ↦ᵣ carry_in) **
        (.x5 ↦ᵣ v5_old) ** (.x2 ↦ᵣ v2_old) **
        ((sp + signExtend12 v_off) ↦ₘ v_i) **
        ((u_base + signExtend12 u_off) ↦ₘ u_i))
-      (code ** (.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ u_base) ** (.x7 ↦ᵣ carry1) **
+      ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ u_base) ** (.x7 ↦ᵣ carry1) **
        (.x5 ↦ᵣ v_i) ** (.x2 ↦ᵣ u_new) **
        ((sp + signExtend12 v_off) ↦ₘ v_i) **
        ((u_base + signExtend12 u_off) ↦ₘ u_i)) := by
-  intro u_plus_carry; intro carry1; intro u_new; intro code
+  intro u_plus_carry; intro carry1; intro u_new; intro cr
   have I0 := ld_spec_gen .x5 .x12 sp v5_old v_i v_off base (by nofun) hv_v
   have I1 := ld_spec_gen .x2 .x6 u_base v2_old u_i u_off (base + 4) (by nofun) hv_u
   have I2 := add_spec_gen_rd_eq_rs1 .x2 .x7 u_i carry_in (base + 8) (by nofun) (by nofun)
@@ -1263,18 +1258,18 @@ theorem divK_addback_partB_spec (u_base carry1 v_i u_new u_i : Word)
     (hv_u : isValidDwordAccess (u_base + signExtend12 u_off) = true) :
     let carry2 := if BitVec.ult u_new v_i then (1 : Word) else 0
     let carry_out := carry1 ||| carry2
-    let code :=
+    let cr :=
       (base ↦ᵢ .SLTU .x5 .x2 .x5) **
       ((base + 4) ↦ᵢ .OR .x7 .x7 .x5) **
       ((base + 8) ↦ᵢ .SD .x6 .x2 u_off)
     cpsTriple base (base + 12)
-      (code ** (.x6 ↦ᵣ u_base) ** (.x7 ↦ᵣ carry1) **
+      ((.x6 ↦ᵣ u_base) ** (.x7 ↦ᵣ carry1) **
        (.x5 ↦ᵣ v_i) ** (.x2 ↦ᵣ u_new) **
        ((u_base + signExtend12 u_off) ↦ₘ u_i))
-      (code ** (.x6 ↦ᵣ u_base) ** (.x7 ↦ᵣ carry_out) **
+      ((.x6 ↦ᵣ u_base) ** (.x7 ↦ᵣ carry_out) **
        (.x5 ↦ᵣ carry2) ** (.x2 ↦ᵣ u_new) **
        ((u_base + signExtend12 u_off) ↦ₘ u_new)) := by
-  intro carry2; intro carry_out; intro code
+  intro carry2; intro carry_out; intro cr
   have I0 := sltu_spec_gen_rd_eq_rs2 .x5 .x2 u_new v_i base (by nofun) (by nofun)
   have I1 := or_spec_gen_rd_eq_rs1 .x7 .x5 carry1 carry2 (base + 4) (by nofun) (by nofun)
   have I2 := sd_spec_gen .x6 .x2 u_base u_new u_i u_off (base + 8) hv_u
@@ -1291,19 +1286,19 @@ theorem divK_sub_carry_spec (u_base carry_in v5_old v7_old u_top : Word)
     (hv : isValidDwordAccess (u_base + signExtend12 u_off) = true) :
     let borrow := if BitVec.ult u_top carry_in then (1 : Word) else 0
     let u_new := u_top - carry_in
-    let code :=
+    let cr :=
       (base ↦ᵢ .LD .x5 .x6 u_off) **
       ((base + 4) ↦ᵢ .SLTU .x7 .x5 .x10) **
       ((base + 8) ↦ᵢ .SUB .x5 .x5 .x10) **
       ((base + 12) ↦ᵢ .SD .x6 .x5 u_off)
     cpsTriple base (base + 16)
-      (code ** (.x6 ↦ᵣ u_base) ** (.x10 ↦ᵣ carry_in) **
+      ((.x6 ↦ᵣ u_base) ** (.x10 ↦ᵣ carry_in) **
        (.x5 ↦ᵣ v5_old) ** (.x7 ↦ᵣ v7_old) **
        ((u_base + signExtend12 u_off) ↦ₘ u_top))
-      (code ** (.x6 ↦ᵣ u_base) ** (.x10 ↦ᵣ carry_in) **
+      ((.x6 ↦ᵣ u_base) ** (.x10 ↦ᵣ carry_in) **
        (.x5 ↦ᵣ u_new) ** (.x7 ↦ᵣ borrow) **
        ((u_base + signExtend12 u_off) ↦ₘ u_new)) := by
-  intro borrow; intro u_new; intro code
+  intro borrow; intro u_new; intro cr
   have I0 := ld_spec_gen .x5 .x6 u_base v5_old u_top u_off base (by nofun) hv
   have I1 := sltu_spec_gen .x7 .x5 .x10 v7_old u_top carry_in (base + 4) (by nofun)
   have I2 := sub_spec_gen_rd_eq_rs1 .x5 .x10 u_top carry_in (base + 8) (by nofun) (by nofun)
@@ -1321,16 +1316,16 @@ theorem divK_store_qj_addr_spec (sp j v5_old v7_old : Word)
     let j_x8 := j <<< (3 : BitVec 6).toNat
     let sp_m8 := sp + signExtend12 4088
     let q_addr := sp_m8 - j_x8
-    let code :=
+    let cr :=
       (base ↦ᵢ .SLLI .x5 .x1 3) **
       ((base + 4) ↦ᵢ .ADDI .x7 .x12 4088) **
       ((base + 8) ↦ᵢ .SUB .x7 .x7 .x5)
     cpsTriple base (base + 12)
-      (code ** (.x1 ↦ᵣ j) ** (.x12 ↦ᵣ sp) **
+      ((.x1 ↦ᵣ j) ** (.x12 ↦ᵣ sp) **
        (.x5 ↦ᵣ v5_old) ** (.x7 ↦ᵣ v7_old))
-      (code ** (.x1 ↦ᵣ j) ** (.x12 ↦ᵣ sp) **
+      ((.x1 ↦ᵣ j) ** (.x12 ↦ᵣ sp) **
        (.x5 ↦ᵣ j_x8) ** (.x7 ↦ᵣ q_addr)) := by
-  intro j_x8; intro sp_m8; intro q_addr; intro code
+  intro j_x8; intro sp_m8; intro q_addr; intro cr
   have I0 := slli_spec_gen .x5 .x1 v5_old j 3 base (by nofun)
   have I1 := addi_spec_gen .x7 .x12 v7_old sp 4088 (base + 4) (by nofun)
   have I2 := sub_spec_gen_rd_eq_rs1 .x7 .x5 sp_m8 j_x8 (base + 8) (by nofun) (by nofun)
@@ -1339,11 +1334,11 @@ theorem divK_store_qj_addr_spec (sp j v5_old v7_old : Word)
 /-- Store q[j]: SD q_hat at q_addr. 1 instruction. -/
 theorem divK_store_qj_write_spec (q_addr q_hat q_old : Word) (base : Addr)
     (hv : isValidDwordAccess q_addr = true) :
-    let code := (base ↦ᵢ .SD .x7 .x11 0)
+    let cr := (base ↦ᵢ .SD .x7 .x11 0)
     cpsTriple base (base + 4)
-      (code ** (.x7 ↦ᵣ q_addr) ** (.x11 ↦ᵣ q_hat) ** (q_addr ↦ₘ q_old))
-      (code ** (.x7 ↦ᵣ q_addr) ** (.x11 ↦ᵣ q_hat) ** (q_addr ↦ₘ q_hat)) := by
-  intro code
+      ((.x7 ↦ᵣ q_addr) ** (.x11 ↦ᵣ q_hat) ** (q_addr ↦ₘ q_old))
+      ((.x7 ↦ᵣ q_addr) ** (.x11 ↦ᵣ q_hat) ** (q_addr ↦ₘ q_hat)) := by
+  intro cr
   have hse : signExtend12 (0 : BitVec 12) = (0 : Word) := by native_decide
   have haddr : q_addr + signExtend12 (0 : BitVec 12) = q_addr := by rw [hse]; bv_omega
   have hv' : isValidDwordAccess (q_addr + signExtend12 0) = true := by rw [haddr]; exact hv
@@ -1362,17 +1357,17 @@ theorem divK_addback_final_spec (u_base carry q_hat v5_old u_top : Word)
     (hv : isValidDwordAccess (u_base + signExtend12 u_off) = true) :
     let u_new := u_top + carry
     let q_hat' := q_hat + signExtend12 4095
-    let code :=
+    let cr :=
       (base ↦ᵢ .LD .x5 .x6 u_off) **
       ((base + 4) ↦ᵢ .ADD .x5 .x5 .x7) **
       ((base + 8) ↦ᵢ .SD .x6 .x5 u_off) **
       ((base + 12) ↦ᵢ .ADDI .x11 .x11 4095)
     cpsTriple base (base + 16)
-      (code ** (.x6 ↦ᵣ u_base) ** (.x7 ↦ᵣ carry) ** (.x11 ↦ᵣ q_hat) **
+      ((.x6 ↦ᵣ u_base) ** (.x7 ↦ᵣ carry) ** (.x11 ↦ᵣ q_hat) **
        (.x5 ↦ᵣ v5_old) ** (u_base + signExtend12 u_off ↦ₘ u_top))
-      (code ** (.x6 ↦ᵣ u_base) ** (.x7 ↦ᵣ carry) ** (.x11 ↦ᵣ q_hat') **
+      ((.x6 ↦ᵣ u_base) ** (.x7 ↦ᵣ carry) ** (.x11 ↦ᵣ q_hat') **
        (.x5 ↦ᵣ u_new) ** (u_base + signExtend12 u_off ↦ₘ u_new)) := by
-  intro u_new; intro q_hat'; intro code
+  intro u_new; intro q_hat'; intro cr
   have I0 := ld_spec_gen .x5 .x6 u_base v5_old u_top u_off base (by nofun) hv
   have I1 := add_spec_gen_rd_eq_rs1 .x5 .x7 u_top carry (base + 4) (by nofun) (by nofun)
   have I2 := sd_spec_gen .x6 .x5 u_base u_new u_top u_off (base + 8) hv
@@ -1389,20 +1384,20 @@ set_option maxRecDepth 1024 in
 theorem divK_loop_control_spec (j : Word) (loop_back_off : BitVec 13)
     (base : Addr) :
     let j' := j + signExtend12 4095
-    let code :=
+    let cr :=
       (base ↦ᵢ .ADDI .x1 .x1 4095) **
       ((base + 4) ↦ᵢ .BGE .x1 .x0 loop_back_off)
     cpsBranch base
-      (code ** (.x1 ↦ᵣ j) ** (.x0 ↦ᵣ 0))
+      ((.x1 ↦ᵣ j) ** (.x0 ↦ᵣ 0))
       (base + 4 + signExtend13 loop_back_off)
-      (code ** (.x1 ↦ᵣ j') ** (.x0 ↦ᵣ 0))
+      ((.x1 ↦ᵣ j') ** (.x0 ↦ᵣ 0))
       (base + 8)
-      (code ** (.x1 ↦ᵣ j') ** (.x0 ↦ᵣ 0)) := by
-  intro j'; intro code
+      ((.x1 ↦ᵣ j') ** (.x0 ↦ᵣ 0)) := by
+  intro j'; intro cr
   -- 1. ADDI body
   have hbody : cpsTriple base (base + 4)
-      (code ** (.x1 ↦ᵣ j) ** (.x0 ↦ᵣ 0))
-      (code ** (.x1 ↦ᵣ j') ** (.x0 ↦ᵣ 0)) := by
+      ((.x1 ↦ᵣ j) ** (.x0 ↦ᵣ 0))
+      ((.x1 ↦ᵣ j') ** (.x0 ↦ᵣ 0)) := by
     have I0 := addi_spec_gen_same .x1 j 4095 base (by nofun)
     runBlock I0
   -- 2. BGE, drop pure facts
@@ -1449,22 +1444,22 @@ theorem divK_mulsub_setup_spec (sp q_hat j v1_old v5_old v6_old v10_old : Word)
     let j_x8 := j <<< (3 : BitVec 6).toNat
     let sp_m40 := sp + signExtend12 4056
     let u_base := sp_m40 - j_x8
-    let code :=
+    let cr :=
       (base ↦ᵢ .LD .x1 .x12 3976) **
       ((base + 4) ↦ᵢ .SLLI .x5 .x1 3) **
       ((base + 8) ↦ᵢ .ADDI .x6 .x12 4056) **
       ((base + 12) ↦ᵢ .SUB .x6 .x6 .x5) **
       ((base + 16) ↦ᵢ .ADDI .x10 .x0 0)
     cpsTriple base (base + 20)
-      (code ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ q_hat) **
+      ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ q_hat) **
        (.x1 ↦ᵣ v1_old) ** (.x5 ↦ᵣ v5_old) ** (.x6 ↦ᵣ v6_old) **
        (.x10 ↦ᵣ v10_old) ** (.x0 ↦ᵣ 0) **
        (sp + signExtend12 3976 ↦ₘ j))
-      (code ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ q_hat) **
+      ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ q_hat) **
        (.x1 ↦ᵣ j) ** (.x5 ↦ᵣ j_x8) ** (.x6 ↦ᵣ u_base) **
        (.x10 ↦ᵣ signExtend12 0) ** (.x0 ↦ᵣ 0) **
        (sp + signExtend12 3976 ↦ₘ j)) := by
-  intro j_x8; intro sp_m40; intro u_base; intro code
+  intro j_x8; intro sp_m40; intro u_base; intro cr
   have I0 := ld_spec_gen .x1 .x12 sp v1_old j 3976 base (by nofun) hv
   have I1 := slli_spec_gen .x5 .x1 v5_old j 3 (base + 4) (by nofun)
   have I2 := addi_spec_gen .x6 .x12 v6_old sp 4056 (base + 8) (by nofun)
@@ -1479,11 +1474,11 @@ theorem divK_mulsub_setup_spec (sp q_hat j v1_old v5_old v6_old v10_old : Word)
 /-- Save j to scratch memory. -/
 theorem divK_save_j_spec (sp j j_old : Word) (base : Addr)
     (hv : isValidDwordAccess (sp + signExtend12 3976) = true) :
-    let code := (base ↦ᵢ .SD .x12 .x1 3976)
+    let cr := (base ↦ᵢ .SD .x12 .x1 3976)
     cpsTriple base (base + 4)
-      (code ** (.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) ** (sp + signExtend12 3976 ↦ₘ j_old))
-      (code ** (.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) ** (sp + signExtend12 3976 ↦ₘ j)) := by
-  intro code
+      ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) ** (sp + signExtend12 3976 ↦ₘ j_old))
+      ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) ** (sp + signExtend12 3976 ↦ₘ j)) := by
+  intro cr
   have I0 := sd_spec_gen .x12 .x1 sp j j_old 3976 base hv
   runBlock I0
 
@@ -1493,11 +1488,11 @@ theorem divK_save_j_spec (sp j j_old : Word) (base : Addr)
 
 /-- Initialize add-back carry to 0. -/
 theorem divK_addback_init_spec (v7_old : Word) (base : Addr) :
-    let code := (base ↦ᵢ .ADDI .x7 .x0 0)
+    let cr := (base ↦ᵢ .ADDI .x7 .x0 0)
     cpsTriple base (base + 4)
-      (code ** (.x7 ↦ᵣ v7_old) ** (.x0 ↦ᵣ 0))
-      (code ** (.x7 ↦ᵣ signExtend12 0) ** (.x0 ↦ᵣ 0)) := by
-  intro code
+      ((.x7 ↦ᵣ v7_old) ** (.x0 ↦ᵣ 0))
+      ((.x7 ↦ᵣ signExtend12 0) ** (.x0 ↦ᵣ 0)) := by
+  intro cr
   have I0 := addi_x0_spec_gen .x7 v7_old 0 base (by nofun)
   runBlock I0
 
@@ -1507,14 +1502,14 @@ theorem divK_addback_init_spec (v7_old : Word) (base : Addr) :
 
 /-- Correction condition: branch if borrow (x7) is zero. -/
 theorem divK_correction_branch_spec (borrow : Word) (skip_off : BitVec 13) (base : Addr) :
-    let code := (base ↦ᵢ .BEQ .x7 .x0 skip_off)
+    let cr := (base ↦ᵢ .BEQ .x7 .x0 skip_off)
     cpsBranch base
-      (code ** (.x7 ↦ᵣ borrow) ** (.x0 ↦ᵣ 0))
+      ((.x7 ↦ᵣ borrow) ** (.x0 ↦ᵣ 0))
       (base + signExtend13 skip_off)
-      (code ** (.x7 ↦ᵣ borrow) ** (.x0 ↦ᵣ 0))
+      ((.x7 ↦ᵣ borrow) ** (.x0 ↦ᵣ 0))
       (base + 4)
-      (code ** (.x7 ↦ᵣ borrow) ** (.x0 ↦ᵣ 0)) := by
-  intro code
+      ((.x7 ↦ᵣ borrow) ** (.x0 ↦ᵣ 0)) := by
+  intro cr
   exact cpsBranch_consequence _ _ _ _ _ _ _ _ _
     (fun _ hp => hp)
     (fun h hp => sepConj_mono_right (sepConj_mono_right
@@ -1540,7 +1535,7 @@ theorem divK_trial_load_u_spec (sp j n v5_old v7_old u_hi u_lo : Word)
     let jpn_x8 := jpn <<< (3 : BitVec 6).toNat
     let u0_base := sp + signExtend12 4056
     let u_addr := u0_base - jpn_x8
-    let code :=
+    let cr :=
       (base ↦ᵢ .LD .x5 .x12 3984) **
       ((base + 4) ↦ᵢ .ADD .x7 .x1 .x5) **
       ((base + 8) ↦ᵢ .SLLI .x7 .x7 3) **
@@ -1549,15 +1544,15 @@ theorem divK_trial_load_u_spec (sp j n v5_old v7_old u_hi u_lo : Word)
       ((base + 20) ↦ᵢ .LD .x7 .x5 0) **
       ((base + 24) ↦ᵢ .LD .x5 .x5 8)
     cpsTriple base (base + 28)
-      (code ** (.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
+      ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
        (.x5 ↦ᵣ v5_old) ** (.x7 ↦ᵣ v7_old) **
        (sp + signExtend12 3984 ↦ₘ n) **
        (u_addr ↦ₘ u_hi) ** ((u_addr + 8) ↦ₘ u_lo))
-      (code ** (.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
+      ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
        (.x5 ↦ᵣ u_lo) ** (.x7 ↦ᵣ u_hi) **
        (sp + signExtend12 3984 ↦ₘ n) **
        (u_addr ↦ₘ u_hi) ** ((u_addr + 8) ↦ₘ u_lo)) := by
-  intro jpn; intro jpn_x8; intro u0_base; intro u_addr; intro code
+  intro jpn; intro jpn_x8; intro u0_base; intro u_addr; intro cr
   have hse0 : signExtend12 (0 : BitVec 12) = (0 : Word) := by native_decide
   have haddr0 : u_addr + signExtend12 (0 : BitVec 12) = u_addr := by rw [hse0]; bv_omega
   have hv_uhi' : isValidDwordAccess (u_addr + signExtend12 0) = true := by rw [haddr0]; exact hv_uhi
@@ -1586,18 +1581,18 @@ theorem divK_trial_load_vtop_spec (sp n v6_old v10_old v_top : Word)
     let nm1 := n + signExtend12 4095
     let nm1_x8 := nm1 <<< (3 : BitVec 6).toNat
     let vtop_base := sp + nm1_x8
-    let code :=
+    let cr :=
       (base ↦ᵢ .LD .x6 .x12 3984) **
       ((base + 4) ↦ᵢ .ADDI .x6 .x6 4095) **
       ((base + 8) ↦ᵢ .SLLI .x6 .x6 3) **
       ((base + 12) ↦ᵢ .ADD .x6 .x12 .x6) **
       ((base + 16) ↦ᵢ .LD .x10 .x6 32)
     cpsTriple base (base + 20)
-      (code ** (.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ v6_old) ** (.x10 ↦ᵣ v10_old) **
+      ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ v6_old) ** (.x10 ↦ᵣ v10_old) **
        (sp + signExtend12 3984 ↦ₘ n) ** (vtop_base + signExtend12 32 ↦ₘ v_top))
-      (code ** (.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ vtop_base) ** (.x10 ↦ᵣ v_top) **
+      ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ vtop_base) ** (.x10 ↦ᵣ v_top) **
        (sp + signExtend12 3984 ↦ₘ n) ** (vtop_base + signExtend12 32 ↦ₘ v_top)) := by
-  intro nm1; intro nm1_x8; intro vtop_base; intro code
+  intro nm1; intro nm1_x8; intro vtop_base; intro cr
   have I0 := ld_spec_gen .x6 .x12 sp v6_old n 3984 base (by nofun) hv_n
   have I1 := addi_spec_gen_same .x6 n 4095 (base + 4) (by nofun)
   have I2 := slli_spec_gen_same .x6 nm1 3 (base + 8) (by nofun)
@@ -1612,13 +1607,13 @@ theorem divK_trial_load_vtop_spec (sp n v6_old v10_old v_top : Word)
 
 /-- Trial quotient MAX path: set q_hat = MAX64, jump over div128 call. -/
 theorem divK_trial_max_spec (v11_old : Word) (base : Addr) :
-    let code :=
+    let cr :=
       (base ↦ᵢ .ADDI .x11 .x0 4095) **
       ((base + 4) ↦ᵢ .JAL .x0 8)
     cpsTriple base (base + 12)
-      (code ** (.x11 ↦ᵣ v11_old) ** (.x0 ↦ᵣ 0))
-      (code ** (.x11 ↦ᵣ signExtend12 4095) ** (.x0 ↦ᵣ 0)) := by
-  intro code
+      ((.x11 ↦ᵣ v11_old) ** (.x0 ↦ᵣ 0))
+      ((.x11 ↦ᵣ signExtend12 4095) ** (.x0 ↦ᵣ 0)) := by
+  intro cr
   have hj : signExtend21 (8 : BitVec 21) = (8 : Addr) := by native_decide
   have I0 := addi_x0_spec_gen .x11 v11_old 4095 base (by nofun)
   have I1 := jal_x0_spec_gen 8 (base + 4)
@@ -1640,7 +1635,7 @@ theorem divK_div128_save_split_d_spec (sp ret_addr d v1_old v6_old
     (hv_dlo : isValidDwordAccess (sp + signExtend12 3952) = true) :
     let d_hi := d >>> (32 : BitVec 6).toNat
     let d_lo := (d <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
-    let code :=
+    let cr :=
       (base ↦ᵢ .SD .x12 .x2 3968) **
       ((base + 4) ↦ᵢ .SD .x12 .x10 3960) **
       ((base + 8) ↦ᵢ .SRLI .x6 .x10 32) **
@@ -1648,17 +1643,17 @@ theorem divK_div128_save_split_d_spec (sp ret_addr d v1_old v6_old
       ((base + 16) ↦ᵢ .SRLI .x1 .x1 32) **
       ((base + 20) ↦ᵢ .SD .x12 .x1 3952)
     cpsTriple base (base + 24)
-      (code ** (.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ ret_addr) ** (.x10 ↦ᵣ d) **
+      ((.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ ret_addr) ** (.x10 ↦ᵣ d) **
        (.x6 ↦ᵣ v6_old) ** (.x1 ↦ᵣ v1_old) **
        (sp + signExtend12 3968 ↦ₘ ret_mem) **
        (sp + signExtend12 3960 ↦ₘ d_mem) **
        (sp + signExtend12 3952 ↦ₘ dlo_mem))
-      (code ** (.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ ret_addr) ** (.x10 ↦ᵣ d) **
+      ((.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ ret_addr) ** (.x10 ↦ᵣ d) **
        (.x6 ↦ᵣ d_hi) ** (.x1 ↦ᵣ d_lo) **
        (sp + signExtend12 3968 ↦ₘ ret_addr) **
        (sp + signExtend12 3960 ↦ₘ d) **
        (sp + signExtend12 3952 ↦ₘ d_lo)) := by
-  intro d_hi; intro d_lo; intro code
+  intro d_hi; intro d_lo; intro cr
   have I0 := sd_spec_gen .x12 .x2 sp ret_addr ret_mem 3968 base hv_ret
   have I1 := sd_spec_gen .x12 .x10 sp d d_mem 3960 (base + 4) hv_d
   have I2 := srli_spec_gen .x6 .x10 v6_old d 32 (base + 8) (by nofun)
@@ -1677,17 +1672,17 @@ theorem divK_div128_split_ulo_spec (sp u_lo v11_old un0_mem : Word) (base : Addr
     (hv_un0 : isValidDwordAccess (sp + signExtend12 3944) = true) :
     let un1 := u_lo >>> (32 : BitVec 6).toNat
     let un0 := (u_lo <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
-    let code :=
+    let cr :=
       (base ↦ᵢ .SRLI .x11 .x5 32) **
       ((base + 4) ↦ᵢ .SLLI .x5 .x5 32) **
       ((base + 8) ↦ᵢ .SRLI .x5 .x5 32) **
       ((base + 12) ↦ᵢ .SD .x12 .x5 3944)
     cpsTriple base (base + 16)
-      (code ** (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ u_lo) ** (.x11 ↦ᵣ v11_old) **
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ u_lo) ** (.x11 ↦ᵣ v11_old) **
        (sp + signExtend12 3944 ↦ₘ un0_mem))
-      (code ** (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ un0) ** (.x11 ↦ᵣ un1) **
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ un0) ** (.x11 ↦ᵣ un1) **
        (sp + signExtend12 3944 ↦ₘ un0)) := by
-  intro un1; intro un0; intro code
+  intro un1; intro un0; intro cr
   have I0 := srli_spec_gen .x11 .x5 v11_old u_lo 32 base (by nofun)
   have I1 := slli_spec_gen_same .x5 u_lo 32 (base + 4) (by nofun)
   have I2 := srli_spec_gen_same .x5 (u_lo <<< (32 : BitVec 6).toNat) 32 (base + 8) (by nofun)
@@ -1703,16 +1698,16 @@ theorem divK_div128_split_ulo_spec (sp u_lo v11_old un0_mem : Word) (base : Addr
 theorem divK_div128_step1_init_spec (u_hi d_hi v5_old v10_old : Word) (base : Addr) :
     let q1 := rv64_divu u_hi d_hi
     let rhat := u_hi - q1 * d_hi
-    let code :=
+    let cr :=
       (base ↦ᵢ .DIVU .x10 .x7 .x6) **
       ((base + 4) ↦ᵢ .MUL .x5 .x10 .x6) **
       ((base + 8) ↦ᵢ .SUB .x7 .x7 .x5)
     cpsTriple base (base + 12)
-      (code ** (.x7 ↦ᵣ u_hi) ** (.x6 ↦ᵣ d_hi) **
+      ((.x7 ↦ᵣ u_hi) ** (.x6 ↦ᵣ d_hi) **
        (.x10 ↦ᵣ v10_old) ** (.x5 ↦ᵣ v5_old))
-      (code ** (.x7 ↦ᵣ rhat) ** (.x6 ↦ᵣ d_hi) **
+      ((.x7 ↦ᵣ rhat) ** (.x6 ↦ᵣ d_hi) **
        (.x10 ↦ᵣ q1) ** (.x5 ↦ᵣ q1 * d_hi)) := by
-  intro q1; intro rhat; intro code
+  intro q1; intro rhat; intro cr
   have I0 := divu_spec_gen .x10 .x7 .x6 v10_old u_hi d_hi base (by nofun)
   have I1 := mul_spec_gen .x5 .x10 .x6 v5_old q1 d_hi (base + 4) (by nofun)
   have I2 := sub_spec_gen_rd_eq_rs1 .x7 .x5 u_hi (q1 * d_hi) (base + 8) (by nofun) (by nofun)
@@ -1731,20 +1726,20 @@ theorem divK_div128_compute_un21_spec (sp q1 rhat un1 v1_old v5_old dlo_mem : Wo
     let rhat_un1 := rhat_hi ||| un1
     let q1_dlo := q1 * dlo_mem
     let un21 := rhat_un1 - q1_dlo
-    let code :=
+    let cr :=
       (base ↦ᵢ .LD .x1 .x12 3952) **
       ((base + 4) ↦ᵢ .SLLI .x5 .x7 32) **
       ((base + 8) ↦ᵢ .OR .x5 .x5 .x11) **
       ((base + 12) ↦ᵢ .MUL .x1 .x10 .x1) **
       ((base + 16) ↦ᵢ .SUB .x7 .x5 .x1)
     cpsTriple base (base + 20)
-      (code ** (.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ q1) ** (.x7 ↦ᵣ rhat) **
+      ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ q1) ** (.x7 ↦ᵣ rhat) **
        (.x11 ↦ᵣ un1) ** (.x5 ↦ᵣ v5_old) ** (.x1 ↦ᵣ v1_old) **
        (sp + signExtend12 3952 ↦ₘ dlo_mem))
-      (code ** (.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ q1) ** (.x7 ↦ᵣ un21) **
+      ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ q1) ** (.x7 ↦ᵣ un21) **
        (.x11 ↦ᵣ un1) ** (.x5 ↦ᵣ rhat_un1) ** (.x1 ↦ᵣ q1_dlo) **
        (sp + signExtend12 3952 ↦ₘ dlo_mem)) := by
-  intro rhat_hi; intro rhat_un1; intro q1_dlo; intro un21; intro code
+  intro rhat_hi; intro rhat_un1; intro q1_dlo; intro un21; intro cr
   have I0 := ld_spec_gen .x1 .x12 sp v1_old dlo_mem 3952 base (by nofun) hv
   have I1 := slli_spec_gen .x5 .x7 v5_old rhat 32 (base + 4) (by nofun)
   have I2 := or_spec_gen_rd_eq_rs1 .x5 .x11 rhat_hi un1 (base + 8) (by nofun) (by nofun)
@@ -1764,17 +1759,17 @@ theorem divK_div128_prodcheck_body_spec (sp q rhat un1 v1_old v5_old dlo : Word)
     let q_dlo := q * dlo
     let rhat_hi := rhat <<< (32 : BitVec 6).toNat
     let rhat_un1 := rhat_hi ||| un1
-    let code :=
+    let cr :=
       (base ↦ᵢ .LD .x1 .x12 3952) **
       ((base + 4) ↦ᵢ .MUL .x5 .x10 .x1) **
       ((base + 8) ↦ᵢ .SLLI .x1 .x7 32) **
       ((base + 12) ↦ᵢ .OR .x1 .x1 .x11)
     cpsTriple base (base + 16)
-      (code ** (.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ q) ** (.x7 ↦ᵣ rhat) ** (.x11 ↦ᵣ un1) **
+      ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ q) ** (.x7 ↦ᵣ rhat) ** (.x11 ↦ᵣ un1) **
        (.x5 ↦ᵣ v5_old) ** (.x1 ↦ᵣ v1_old) ** (sp + signExtend12 3952 ↦ₘ dlo))
-      (code ** (.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ q) ** (.x7 ↦ᵣ rhat) ** (.x11 ↦ᵣ un1) **
+      ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ q) ** (.x7 ↦ᵣ rhat) ** (.x11 ↦ᵣ un1) **
        (.x5 ↦ᵣ q_dlo) ** (.x1 ↦ᵣ rhat_un1) ** (sp + signExtend12 3952 ↦ₘ dlo)) := by
-  intro q_dlo; intro rhat_hi; intro rhat_un1; intro code
+  intro q_dlo; intro rhat_hi; intro rhat_un1; intro cr
   have I0 := ld_spec_gen .x1 .x12 sp v1_old dlo 3952 base (by nofun) hv
   have I1 := mul_spec_gen .x5 .x10 .x1 v5_old q dlo (base + 4) (by nofun)
   have I2 := slli_spec_gen .x1 .x7 dlo rhat 32 (base + 8) (by nofun)
@@ -1790,13 +1785,13 @@ theorem divK_div128_prodcheck_body_spec (sp q rhat un1 v1_old v5_old dlo : Word)
 theorem divK_div128_correct_q1_spec (q rhat d_hi : Word) (base : Addr) :
     let q' := q + signExtend12 4095
     let rhat' := rhat + d_hi
-    let code :=
+    let cr :=
       (base ↦ᵢ .ADDI .x10 .x10 4095) **
       ((base + 4) ↦ᵢ .ADD .x7 .x7 .x6)
     cpsTriple base (base + 8)
-      (code ** (.x10 ↦ᵣ q) ** (.x7 ↦ᵣ rhat) ** (.x6 ↦ᵣ d_hi))
-      (code ** (.x10 ↦ᵣ q') ** (.x7 ↦ᵣ rhat') ** (.x6 ↦ᵣ d_hi)) := by
-  intro q'; intro rhat'; intro code
+      ((.x10 ↦ᵣ q) ** (.x7 ↦ᵣ rhat) ** (.x6 ↦ᵣ d_hi))
+      ((.x10 ↦ᵣ q') ** (.x7 ↦ᵣ rhat') ** (.x6 ↦ᵣ d_hi)) := by
+  intro q'; intro rhat'; intro cr
   have I0 := addi_spec_gen_same .x10 q 4095 base (by nofun)
   have I1 := add_spec_gen_rd_eq_rs1 .x7 .x6 rhat d_hi (base + 4) (by nofun) (by nofun)
   runBlock I0 I1
@@ -1805,13 +1800,13 @@ theorem divK_div128_correct_q1_spec (q rhat d_hi : Word) (base : Addr) :
 theorem divK_div128_correct_q0_spec (q0 rhat2 d_hi : Word) (base : Addr) :
     let q0' := q0 + signExtend12 4095
     let rhat2' := rhat2 + d_hi
-    let code :=
+    let cr :=
       (base ↦ᵢ .ADDI .x5 .x5 4095) **
       ((base + 4) ↦ᵢ .ADD .x11 .x11 .x6)
     cpsTriple base (base + 8)
-      (code ** (.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ rhat2) ** (.x6 ↦ᵣ d_hi))
-      (code ** (.x5 ↦ᵣ q0') ** (.x11 ↦ᵣ rhat2') ** (.x6 ↦ᵣ d_hi)) := by
-  intro q0'; intro rhat2'; intro code
+      ((.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ rhat2) ** (.x6 ↦ᵣ d_hi))
+      ((.x5 ↦ᵣ q0') ** (.x11 ↦ᵣ rhat2') ** (.x6 ↦ᵣ d_hi)) := by
+  intro q0'; intro rhat2'; intro cr
   have I0 := addi_spec_gen_same .x5 q0 4095 base (by nofun)
   have I1 := add_spec_gen_rd_eq_rs1 .x11 .x6 rhat2 d_hi (base + 4) (by nofun) (by nofun)
   runBlock I0 I1
@@ -1824,22 +1819,22 @@ theorem divK_div128_correct_q0_spec (q0 rhat2 d_hi : Word) (base : Addr) :
 /-- div128 q1 clamp test: x5 = q1 >>> 32 (nonzero iff q1 >= 2^32). -/
 theorem divK_div128_clamp_test_q1_spec (q1 v5_old : Word) (base : Addr) :
     let hi := q1 >>> (32 : BitVec 6).toNat
-    let code := (base ↦ᵢ .SRLI .x5 .x10 32)
+    let cr := (base ↦ᵢ .SRLI .x5 .x10 32)
     cpsTriple base (base + 4)
-      (code ** (.x10 ↦ᵣ q1) ** (.x5 ↦ᵣ v5_old))
-      (code ** (.x10 ↦ᵣ q1) ** (.x5 ↦ᵣ hi)) := by
-  intro hi; intro code
+      ((.x10 ↦ᵣ q1) ** (.x5 ↦ᵣ v5_old))
+      ((.x10 ↦ᵣ q1) ** (.x5 ↦ᵣ hi)) := by
+  intro hi; intro cr
   have I0 := srli_spec_gen .x5 .x10 v5_old q1 32 base (by nofun)
   runBlock I0
 
 /-- div128 q0 clamp test: x1 = q0 >>> 32. -/
 theorem divK_div128_clamp_test_q0_spec (q0 v1_old : Word) (base : Addr) :
     let hi := q0 >>> (32 : BitVec 6).toNat
-    let code := (base ↦ᵢ .SRLI .x1 .x5 32)
+    let cr := (base ↦ᵢ .SRLI .x1 .x5 32)
     cpsTriple base (base + 4)
-      (code ** (.x5 ↦ᵣ q0) ** (.x1 ↦ᵣ v1_old))
-      (code ** (.x5 ↦ᵣ q0) ** (.x1 ↦ᵣ hi)) := by
-  intro hi; intro code
+      ((.x5 ↦ᵣ q0) ** (.x1 ↦ᵣ v1_old))
+      ((.x5 ↦ᵣ q0) ** (.x1 ↦ᵣ hi)) := by
+  intro hi; intro cr
   have I0 := srli_spec_gen .x1 .x5 v1_old q0 32 base (by nofun)
   runBlock I0
 
@@ -1852,16 +1847,16 @@ theorem divK_div128_clamp_test_q0_spec (q0 v1_old : Word) (base : Addr) :
 theorem divK_div128_step2_init_spec (un21 d_hi v1_old v5_old v11_old : Word) (base : Addr) :
     let q0 := rv64_divu un21 d_hi
     let rhat2 := un21 - q0 * d_hi
-    let code :=
+    let cr :=
       (base ↦ᵢ .DIVU .x5 .x7 .x6) **
       ((base + 4) ↦ᵢ .MUL .x1 .x5 .x6) **
       ((base + 8) ↦ᵢ .SUB .x11 .x7 .x1)
     cpsTriple base (base + 12)
-      (code ** (.x7 ↦ᵣ un21) ** (.x6 ↦ᵣ d_hi) **
+      ((.x7 ↦ᵣ un21) ** (.x6 ↦ᵣ d_hi) **
        (.x5 ↦ᵣ v5_old) ** (.x1 ↦ᵣ v1_old) ** (.x11 ↦ᵣ v11_old))
-      (code ** (.x7 ↦ᵣ un21) ** (.x6 ↦ᵣ d_hi) **
+      ((.x7 ↦ᵣ un21) ** (.x6 ↦ᵣ d_hi) **
        (.x5 ↦ᵣ q0) ** (.x1 ↦ᵣ q0 * d_hi) ** (.x11 ↦ᵣ rhat2)) := by
-  intro q0; intro rhat2; intro code
+  intro q0; intro rhat2; intro cr
   have I0 := divu_spec_gen .x5 .x7 .x6 v5_old un21 d_hi base (by nofun)
   have I1 := mul_spec_gen .x1 .x5 .x6 v1_old q0 d_hi (base + 4) (by nofun)
   have I2 := sub_spec_gen .x11 .x7 .x1 un21 (q0 * d_hi) v11_old (base + 8) (by nofun)
@@ -1880,20 +1875,20 @@ theorem divK_div128_prodcheck2_body_spec (sp q0 rhat2 v1_old v7_old dlo un0 : Wo
     let q0_dlo := q0 * dlo
     let rhat2_hi := rhat2 <<< (32 : BitVec 6).toNat
     let rhat2_un0 := rhat2_hi ||| un0
-    let code :=
+    let cr :=
       (base ↦ᵢ .LD .x1 .x12 3952) **
       ((base + 4) ↦ᵢ .MUL .x7 .x5 .x1) **
       ((base + 8) ↦ᵢ .SLLI .x1 .x11 32) **
       ((base + 12) ↦ᵢ .LD .x11 .x12 3944) **
       ((base + 16) ↦ᵢ .OR .x1 .x1 .x11)
     cpsTriple base (base + 20)
-      (code ** (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ rhat2) **
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ rhat2) **
        (.x7 ↦ᵣ v7_old) ** (.x1 ↦ᵣ v1_old) **
        (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0))
-      (code ** (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ un0) **
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ un0) **
        (.x7 ↦ᵣ q0_dlo) ** (.x1 ↦ᵣ rhat2_un0) **
        (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0)) := by
-  intro q0_dlo; intro rhat2_hi; intro rhat2_un0; intro code
+  intro q0_dlo; intro rhat2_hi; intro rhat2_un0; intro cr
   have I0 := ld_spec_gen .x1 .x12 sp v1_old dlo 3952 base (by nofun) hv_dlo
   have I1 := mul_spec_gen .x7 .x5 .x1 v7_old q0 dlo (base + 4) (by nofun)
   have I2 := slli_spec_gen .x1 .x11 dlo rhat2 32 (base + 8) (by nofun)
@@ -1909,11 +1904,11 @@ theorem divK_div128_prodcheck2_body_spec (sp q0 rhat2 v1_old v7_old dlo un0 : Wo
 /-- div128 product check 2 correction: q0--. -/
 theorem divK_div128_correct_q0_single_spec (q0 : Word) (base : Addr) :
     let q0' := q0 + signExtend12 4095
-    let code := (base ↦ᵢ .ADDI .x5 .x5 4095)
+    let cr := (base ↦ᵢ .ADDI .x5 .x5 4095)
     cpsTriple base (base + 4)
-      (code ** (.x5 ↦ᵣ q0))
-      (code ** (.x5 ↦ᵣ q0')) := by
-  intro q0'; intro code
+      ((.x5 ↦ᵣ q0))
+      ((.x5 ↦ᵣ q0')) := by
+  intro q0'; intro cr
   have I0 := addi_spec_gen_same .x5 q0 4095 base (by nofun)
   runBlock I0
 
@@ -1926,13 +1921,13 @@ theorem divK_div128_correct_q0_single_spec (q0 : Word) (base : Addr) :
 theorem divK_div128_combine_q_spec (q1 q0 v11_old : Word) (base : Addr) :
     let q1_hi := q1 <<< (32 : BitVec 6).toNat
     let q := q1_hi ||| q0
-    let code :=
+    let cr :=
       (base ↦ᵢ .SLLI .x11 .x10 32) **
       ((base + 4) ↦ᵢ .OR .x11 .x11 .x5)
     cpsTriple base (base + 8)
-      (code ** (.x10 ↦ᵣ q1) ** (.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ v11_old))
-      (code ** (.x10 ↦ᵣ q1) ** (.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ q)) := by
-  intro q1_hi; intro q; intro code
+      ((.x10 ↦ᵣ q1) ** (.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ v11_old))
+      ((.x10 ↦ᵣ q1) ** (.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ q)) := by
+  intro q1_hi; intro q; intro cr
   have I0 := slli_spec_gen .x11 .x10 v11_old q1 32 base (by nofun)
   have I1 := or_spec_gen_rd_eq_rs1 .x11 .x5 q1_hi q0 (base + 4) (by nofun) (by nofun)
   runBlock I0 I1
@@ -1946,13 +1941,13 @@ theorem divK_div128_combine_q_spec (q1 q0 v11_old : Word) (base : Addr) :
 theorem divK_div128_restore_return_spec (sp v2_old ret_addr : Word) (base : Addr)
     (hv : isValidDwordAccess (sp + signExtend12 3968) = true)
     (halign : (ret_addr + signExtend12 0) &&& ~~~1 = ret_addr) :
-    let code :=
+    let cr :=
       (base ↦ᵢ .LD .x2 .x12 3968) **
       ((base + 4) ↦ᵢ .JALR .x0 .x2 0)
     cpsTriple base ret_addr
-      (code ** (.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ v2_old) ** (sp + signExtend12 3968 ↦ₘ ret_addr))
-      (code ** (.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ ret_addr) ** (sp + signExtend12 3968 ↦ₘ ret_addr)) := by
-  intro code
+      ((.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ v2_old) ** (sp + signExtend12 3968 ↦ₘ ret_addr))
+      ((.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ ret_addr) ** (sp + signExtend12 3968 ↦ₘ ret_addr)) := by
+  intro cr
   have I0 := ld_spec_gen .x2 .x12 sp v2_old ret_addr 3968 base (by nofun) hv
   have I1 := jalr_x0_spec_gen .x2 ret_addr 0 (base + 4)
   rw [halign] at I1
@@ -1971,22 +1966,22 @@ theorem divK_div128_clamp_q1_merged_spec (q1 rhat d_hi v5_old : Word) (base : Ad
     let hi := q1 >>> (32 : BitVec 6).toNat
     let q1' := if hi = 0 then q1 else q1 + signExtend12 4095
     let rhat' := if hi = 0 then rhat else rhat + d_hi
-    let code :=
+    let cr :=
       (base ↦ᵢ .SRLI .x5 .x10 32) **
       ((base + 4) ↦ᵢ .BEQ .x5 .x0 12) **
       ((base + 8) ↦ᵢ .ADDI .x10 .x10 4095) **
       ((base + 12) ↦ᵢ .ADD .x7 .x7 .x6)
     cpsTriple base (base + 16)
-      (code ** (.x10 ↦ᵣ q1) ** (.x7 ↦ᵣ rhat) ** (.x6 ↦ᵣ d_hi) **
+      ((.x10 ↦ᵣ q1) ** (.x7 ↦ᵣ rhat) ** (.x6 ↦ᵣ d_hi) **
        (.x5 ↦ᵣ v5_old) ** (.x0 ↦ᵣ 0))
-      (code ** (.x10 ↦ᵣ q1') ** (.x7 ↦ᵣ rhat') ** (.x6 ↦ᵣ d_hi) **
+      ((.x10 ↦ᵣ q1') ** (.x7 ↦ᵣ rhat') ** (.x6 ↦ᵣ d_hi) **
        (.x5 ↦ᵣ hi) ** (.x0 ↦ᵣ 0)) := by
-  intro hi; intro q1'; intro rhat'; intro code
+  intro hi; intro q1'; intro rhat'; intro cr
   -- 1. SRLI body with full code
   have hbody : cpsTriple base (base + 4)
-      (code ** (.x10 ↦ᵣ q1) ** (.x7 ↦ᵣ rhat) ** (.x6 ↦ᵣ d_hi) **
+      ((.x10 ↦ᵣ q1) ** (.x7 ↦ᵣ rhat) ** (.x6 ↦ᵣ d_hi) **
        (.x5 ↦ᵣ v5_old) ** (.x0 ↦ᵣ 0))
-      (code ** (.x10 ↦ᵣ q1) ** (.x7 ↦ᵣ rhat) ** (.x6 ↦ᵣ d_hi) **
+      ((.x10 ↦ᵣ q1) ** (.x7 ↦ᵣ rhat) ** (.x6 ↦ᵣ d_hi) **
        (.x5 ↦ᵣ hi) ** (.x0 ↦ᵣ 0)) := by
     have I0 := srli_spec_gen .x5 .x10 v5_old q1 32 base (by nofun)
     runBlock I0
@@ -2076,7 +2071,7 @@ theorem divK_div128_prodcheck1_merged_spec
     let rhat_un1 := (rhat <<< (32 : BitVec 6).toNat) ||| un1
     let q1' := if BitVec.ult rhat_un1 q_dlo then q1 + signExtend12 4095 else q1
     let rhat' := if BitVec.ult rhat_un1 q_dlo then rhat + d_hi else rhat
-    let code :=
+    let cr :=
       (base ↦ᵢ .LD .x1 .x12 3952) **
       ((base + 4) ↦ᵢ .MUL .x5 .x10 .x1) **
       ((base + 8) ↦ᵢ .SLLI .x1 .x7 32) **
@@ -2086,13 +2081,13 @@ theorem divK_div128_prodcheck1_merged_spec
       ((base + 24) ↦ᵢ .ADDI .x10 .x10 4095) **
       ((base + 28) ↦ᵢ .ADD .x7 .x7 .x6)
     cpsTriple base (base + 32)
-      (code ** (.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ q1) ** (.x7 ↦ᵣ rhat) ** (.x11 ↦ᵣ un1) **
+      ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ q1) ** (.x7 ↦ᵣ rhat) ** (.x11 ↦ᵣ un1) **
        (.x5 ↦ᵣ v5_old) ** (.x1 ↦ᵣ v1_old) ** (.x6 ↦ᵣ d_hi) **
        (sp + signExtend12 3952 ↦ₘ dlo))
-      (code ** (.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ q1') ** (.x7 ↦ᵣ rhat') ** (.x11 ↦ᵣ un1) **
+      ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ q1') ** (.x7 ↦ᵣ rhat') ** (.x11 ↦ᵣ un1) **
        (.x5 ↦ᵣ q_dlo) ** (.x1 ↦ᵣ rhat_un1) ** (.x6 ↦ᵣ d_hi) **
        (sp + signExtend12 3952 ↦ₘ dlo)) := by
-  intro q_dlo; intro rhat_un1; intro q1'; intro rhat'; intro code
+  intro q_dlo; intro rhat_un1; intro q1'; intro rhat'; intro cr
   -- 1. Prodcheck body [17]-[20], framed with branch/correction code + x6
   have hbody_raw := divK_div128_prodcheck_body_spec sp q1 rhat un1 v1_old v5_old dlo base hv
   have hbody := cpsTriple_frame_left _ _ _ _
@@ -2219,22 +2214,22 @@ theorem divK_div128_clamp_q0_merged_spec (q0 rhat2 d_hi v1_old : Word) (base : A
     let hi := q0 >>> (32 : BitVec 6).toNat
     let q0' := if hi = 0 then q0 else q0 + signExtend12 4095
     let rhat2' := if hi = 0 then rhat2 else rhat2 + d_hi
-    let code :=
+    let cr :=
       (base ↦ᵢ .SRLI .x1 .x5 32) **
       ((base + 4) ↦ᵢ .BEQ .x1 .x0 12) **
       ((base + 8) ↦ᵢ .ADDI .x5 .x5 4095) **
       ((base + 12) ↦ᵢ .ADD .x11 .x11 .x6)
     cpsTriple base (base + 16)
-      (code ** (.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ rhat2) ** (.x6 ↦ᵣ d_hi) **
+      ((.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ rhat2) ** (.x6 ↦ᵣ d_hi) **
        (.x1 ↦ᵣ v1_old) ** (.x0 ↦ᵣ 0))
-      (code ** (.x5 ↦ᵣ q0') ** (.x11 ↦ᵣ rhat2') ** (.x6 ↦ᵣ d_hi) **
+      ((.x5 ↦ᵣ q0') ** (.x11 ↦ᵣ rhat2') ** (.x6 ↦ᵣ d_hi) **
        (.x1 ↦ᵣ hi) ** (.x0 ↦ᵣ 0)) := by
-  intro hi; intro q0'; intro rhat2'; intro code
+  intro hi; intro q0'; intro rhat2'; intro cr
   -- 1. SRLI body
   have hbody : cpsTriple base (base + 4)
-      (code ** (.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ rhat2) ** (.x6 ↦ᵣ d_hi) **
+      ((.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ rhat2) ** (.x6 ↦ᵣ d_hi) **
        (.x1 ↦ᵣ v1_old) ** (.x0 ↦ᵣ 0))
-      (code ** (.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ rhat2) ** (.x6 ↦ᵣ d_hi) **
+      ((.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ rhat2) ** (.x6 ↦ᵣ d_hi) **
        (.x1 ↦ᵣ hi) ** (.x0 ↦ᵣ 0)) := by
     have I0 := srli_spec_gen .x1 .x5 v1_old q0 32 base (by nofun)
     runBlock I0
@@ -2315,7 +2310,7 @@ theorem divK_div128_prodcheck2_merged_spec
     let q0_dlo := q0 * dlo
     let rhat2_un0 := (rhat2 <<< (32 : BitVec 6).toNat) ||| un0
     let q0' := if BitVec.ult rhat2_un0 q0_dlo then q0 + signExtend12 4095 else q0
-    let code :=
+    let cr :=
       (base ↦ᵢ .LD .x1 .x12 3952) **
       ((base + 4) ↦ᵢ .MUL .x7 .x5 .x1) **
       ((base + 8) ↦ᵢ .SLLI .x1 .x11 32) **
@@ -2325,13 +2320,13 @@ theorem divK_div128_prodcheck2_merged_spec
       ((base + 24) ↦ᵢ .JAL .x0 8) **
       ((base + 28) ↦ᵢ .ADDI .x5 .x5 4095)
     cpsTriple base (base + 32)
-      (code ** (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ rhat2) **
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ rhat2) **
        (.x7 ↦ᵣ v7_old) ** (.x1 ↦ᵣ v1_old) **
        (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0))
-      (code ** (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ q0') ** (.x11 ↦ᵣ un0) **
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ q0') ** (.x11 ↦ᵣ un0) **
        (.x7 ↦ᵣ q0_dlo) ** (.x1 ↦ᵣ rhat2_un0) **
        (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0)) := by
-  intro q0_dlo; intro rhat2_un0; intro q0'; intro code
+  intro q0_dlo; intro rhat2_un0; intro q0'; intro cr
   -- 1. Prodcheck2 body [37]-[41], framed with branch/correction code
   have hbody_raw := divK_div128_prodcheck2_body_spec sp q0 rhat2 v1_old v7_old dlo un0
     base hv_dlo hv_un0
@@ -2466,7 +2461,7 @@ theorem divK_div128_step1_spec
     let rhat_un1 := (rhatc <<< (32 : BitVec 6).toNat) ||| un1
     let q1' := if BitVec.ult rhat_un1 q_dlo then q1c + signExtend12 4095 else q1c
     let rhat' := if BitVec.ult rhat_un1 q_dlo then rhatc + d_hi else rhatc
-    let code :=
+    let cr :=
       -- step1_init [10]-[12]
       (base ↦ᵢ .DIVU .x10 .x7 .x6) **
       ((base + 4) ↦ᵢ .MUL .x5 .x10 .x6) **
@@ -2486,14 +2481,14 @@ theorem divK_div128_step1_spec
       ((base + 52) ↦ᵢ .ADDI .x10 .x10 4095) **
       ((base + 56) ↦ᵢ .ADD .x7 .x7 .x6)
     cpsTriple base (base + 60)
-      (code ** (.x7 ↦ᵣ u_hi) ** (.x6 ↦ᵣ d_hi) ** (.x10 ↦ᵣ v10_old) **
+      ((.x7 ↦ᵣ u_hi) ** (.x6 ↦ᵣ d_hi) ** (.x10 ↦ᵣ v10_old) **
        (.x5 ↦ᵣ v5_old) ** (.x11 ↦ᵣ un1) ** (.x1 ↦ᵣ v1_old) **
        (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) ** (sp + signExtend12 3952 ↦ₘ dlo))
-      (code ** (.x7 ↦ᵣ rhat') ** (.x6 ↦ᵣ d_hi) ** (.x10 ↦ᵣ q1') **
+      ((.x7 ↦ᵣ rhat') ** (.x6 ↦ᵣ d_hi) ** (.x10 ↦ᵣ q1') **
        (.x5 ↦ᵣ q_dlo) ** (.x11 ↦ᵣ un1) ** (.x1 ↦ᵣ rhat_un1) **
        (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) ** (sp + signExtend12 3952 ↦ₘ dlo)) := by
   intro q1; intro rhat; intro hi; intro q1c; intro rhatc
-  intro q_dlo; intro rhat_un1; intro q1'; intro rhat'; intro code
+  intro q_dlo; intro rhat_un1; intro q1'; intro rhat'; intro cr
   -- Block 1: step1_init [10]-[12]
   have h1_raw := divK_div128_step1_init_spec u_hi d_hi v5_old v10_old base
   have h1 := cpsTriple_frame_left _ _ _ _
@@ -2590,7 +2585,7 @@ theorem divK_div128_step2_spec
     let q0_dlo := q0c * dlo
     let rhat2_un0 := (rhat2c <<< (32 : BitVec 6).toNat) ||| un0
     let q0' := if BitVec.ult rhat2_un0 q0_dlo then q0c + signExtend12 4095 else q0c
-    let code :=
+    let cr :=
       -- step2_init [30]-[32]
       (base ↦ᵢ .DIVU .x5 .x7 .x6) **
       ((base + 4) ↦ᵢ .MUL .x1 .x5 .x6) **
@@ -2610,16 +2605,16 @@ theorem divK_div128_step2_spec
       ((base + 52) ↦ᵢ .JAL .x0 8) **
       ((base + 56) ↦ᵢ .ADDI .x5 .x5 4095)
     cpsTriple base (base + 60)
-      (code ** (.x7 ↦ᵣ un21) ** (.x6 ↦ᵣ d_hi) ** (.x5 ↦ᵣ v5_old) **
+      ((.x7 ↦ᵣ un21) ** (.x6 ↦ᵣ d_hi) ** (.x5 ↦ᵣ v5_old) **
        (.x1 ↦ᵣ v1_old) ** (.x11 ↦ᵣ v11_old) **
        (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) **
        (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0))
-      (code ** (.x7 ↦ᵣ q0_dlo) ** (.x6 ↦ᵣ d_hi) ** (.x5 ↦ᵣ q0') **
+      ((.x7 ↦ᵣ q0_dlo) ** (.x6 ↦ᵣ d_hi) ** (.x5 ↦ᵣ q0') **
        (.x1 ↦ᵣ rhat2_un0) ** (.x11 ↦ᵣ un0) **
        (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) **
        (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0)) := by
   intro q0; intro rhat2; intro hi; intro q0c; intro rhat2c
-  intro q0_dlo; intro rhat2_un0; intro q0'; intro code
+  intro q0_dlo; intro rhat2_un0; intro q0'; intro cr
   -- Block 1: step2_init [30]-[32]
   have h1_raw := divK_div128_step2_init_spec un21 d_hi v1_old v5_old v11_old base
   have h1 := cpsTriple_frame_left _ _ _ _
@@ -2714,7 +2709,7 @@ theorem divK_div128_phase1_spec
     let d_lo := (d <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
     let un1 := u_lo >>> (32 : BitVec 6).toNat
     let un0 := (u_lo <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
-    let code :=
+    let cr :=
       -- save_split_d [0]-[5]
       (base ↦ᵢ .SD .x12 .x2 3968) **
       ((base + 4) ↦ᵢ .SD .x12 .x10 3960) **
@@ -2728,21 +2723,21 @@ theorem divK_div128_phase1_spec
       ((base + 32) ↦ᵢ .SRLI .x5 .x5 32) **
       ((base + 36) ↦ᵢ .SD .x12 .x5 3944)
     cpsTriple base (base + 40)
-      (code ** (.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ ret_addr) ** (.x10 ↦ᵣ d) **
+      ((.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ ret_addr) ** (.x10 ↦ᵣ d) **
        (.x6 ↦ᵣ v6_old) ** (.x1 ↦ᵣ v1_old) ** (.x5 ↦ᵣ u_lo) **
        (.x11 ↦ᵣ v11_old) ** (.x7 ↦ᵣ u_hi) **
        (sp + signExtend12 3968 ↦ₘ ret_mem) **
        (sp + signExtend12 3960 ↦ₘ d_mem) **
        (sp + signExtend12 3952 ↦ₘ dlo_mem) **
        (sp + signExtend12 3944 ↦ₘ un0_mem))
-      (code ** (.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ ret_addr) ** (.x10 ↦ᵣ d) **
+      ((.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ ret_addr) ** (.x10 ↦ᵣ d) **
        (.x6 ↦ᵣ d_hi) ** (.x1 ↦ᵣ d_lo) ** (.x5 ↦ᵣ un0) **
        (.x11 ↦ᵣ un1) ** (.x7 ↦ᵣ u_hi) **
        (sp + signExtend12 3968 ↦ₘ ret_addr) **
        (sp + signExtend12 3960 ↦ₘ d) **
        (sp + signExtend12 3952 ↦ₘ d_lo) **
        (sp + signExtend12 3944 ↦ₘ un0)) := by
-  intro d_hi; intro d_lo; intro un1; intro un0; intro code
+  intro d_hi; intro d_lo; intro un1; intro un0; intro cr
   -- Block 1: save_split_d [0]-[5]
   have h1_raw := divK_div128_save_split_d_spec sp ret_addr d v1_old v6_old
     ret_mem d_mem dlo_mem base hv_ret hv_d hv_dlo
@@ -2797,17 +2792,17 @@ theorem divK_div128_end_spec
     (halign : (ret_addr + signExtend12 0) &&& ~~~1 = ret_addr) :
     let q1_hi := q1 <<< (32 : BitVec 6).toNat
     let q := q1_hi ||| q0
-    let code :=
+    let cr :=
       (base ↦ᵢ .SLLI .x11 .x10 32) **
       ((base + 4) ↦ᵢ .OR .x11 .x11 .x5) **
       ((base + 8) ↦ᵢ .LD .x2 .x12 3968) **
       ((base + 12) ↦ᵢ .JALR .x0 .x2 0)
     cpsTriple base ret_addr
-      (code ** (.x10 ↦ᵣ q1) ** (.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ v11_old) **
+      ((.x10 ↦ᵣ q1) ** (.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ v11_old) **
        (.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ v2_old) ** (sp + signExtend12 3968 ↦ₘ ret_addr))
-      (code ** (.x10 ↦ᵣ q1) ** (.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ q) **
+      ((.x10 ↦ᵣ q1) ** (.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ q) **
        (.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ ret_addr) ** (sp + signExtend12 3968 ↦ₘ ret_addr)) := by
-  intro q1_hi; intro q; intro code
+  intro q1_hi; intro q; intro cr
   -- Block 1: combine_q [45]-[46]
   have h1_raw := divK_div128_combine_q_spec q1 q0 v11_old base
   have h1 := cpsTriple_frame_left _ _ _ _
@@ -2855,7 +2850,7 @@ theorem divK_mulsub_limb_spec
     let borrow_sub := if BitVec.ult u_i full_sub then (1 : Word) else 0
     let u_new := u_i - full_sub
     let carry_out := partial_carry + borrow_sub
-    let code :=
+    let cr :=
       (base ↦ᵢ .LD .x5 .x12 v_off) **
       ((base + 4) ↦ᵢ .MUL .x7 .x11 .x5) **
       ((base + 8) ↦ᵢ .MULHU .x5 .x11 .x5) **
@@ -2868,18 +2863,18 @@ theorem divK_mulsub_limb_spec
       ((base + 36) ↦ᵢ .ADD .x10 .x10 .x5) **
       ((base + 40) ↦ᵢ .SD .x6 .x2 u_off)
     cpsTriple base (base + 44)
-      (code ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ q_hat) ** (.x10 ↦ᵣ carry_in) **
+      ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ q_hat) ** (.x10 ↦ᵣ carry_in) **
        (.x6 ↦ᵣ u_base) ** (.x5 ↦ᵣ v5_old) ** (.x7 ↦ᵣ v7_old) **
        (.x2 ↦ᵣ v2_old) **
        ((sp + signExtend12 v_off) ↦ₘ v_i) **
        ((u_base + signExtend12 u_off) ↦ₘ u_i))
-      (code ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ q_hat) ** (.x10 ↦ᵣ carry_out) **
+      ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ q_hat) ** (.x10 ↦ᵣ carry_out) **
        (.x6 ↦ᵣ u_base) ** (.x5 ↦ᵣ borrow_sub) ** (.x7 ↦ᵣ full_sub) **
        (.x2 ↦ᵣ u_new) **
        ((sp + signExtend12 v_off) ↦ₘ v_i) **
        ((u_base + signExtend12 u_off) ↦ₘ u_new)) := by
   intro prod_lo; intro prod_hi; intro full_sub; intro borrow_add; intro partial_carry
-  intro borrow_sub; intro u_new; intro carry_out; intro code
+  intro borrow_sub; intro u_new; intro carry_out; intro cr
   -- Block 1: partA [0]-[5]
   have h1_raw := divK_mulsub_partA_spec sp q_hat carry_in v5_old v7_old v_i v_off base hv_v
   have h1 := cpsTriple_frame_left _ _ _ _
@@ -2933,7 +2928,7 @@ theorem divK_addback_limb_spec
     let u_new := u_plus_carry + v_i
     let carry2 := if BitVec.ult u_new v_i then (1 : Word) else 0
     let carry_out := carry1 ||| carry2
-    let code :=
+    let cr :=
       (base ↦ᵢ .LD .x5 .x12 v_off) **
       ((base + 4) ↦ᵢ .LD .x2 .x6 u_off) **
       ((base + 8) ↦ᵢ .ADD .x2 .x2 .x7) **
@@ -2943,15 +2938,15 @@ theorem divK_addback_limb_spec
       ((base + 24) ↦ᵢ .OR .x7 .x7 .x5) **
       ((base + 28) ↦ᵢ .SD .x6 .x2 u_off)
     cpsTriple base (base + 32)
-      (code ** (.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ u_base) ** (.x7 ↦ᵣ carry_in) **
+      ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ u_base) ** (.x7 ↦ᵣ carry_in) **
        (.x5 ↦ᵣ v5_old) ** (.x2 ↦ᵣ v2_old) **
        ((sp + signExtend12 v_off) ↦ₘ v_i) **
        ((u_base + signExtend12 u_off) ↦ₘ u_i))
-      (code ** (.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ u_base) ** (.x7 ↦ᵣ carry_out) **
+      ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ u_base) ** (.x7 ↦ᵣ carry_out) **
        (.x5 ↦ᵣ carry2) ** (.x2 ↦ᵣ u_new) **
        ((sp + signExtend12 v_off) ↦ₘ v_i) **
        ((u_base + signExtend12 u_off) ↦ₘ u_new)) := by
-  intro u_plus_carry; intro carry1; intro u_new; intro carry2; intro carry_out; intro code
+  intro u_plus_carry; intro carry1; intro u_new; intro carry2; intro carry_out; intro cr
   -- Block 1: partA [0]-[4]
   have h1_raw := divK_addback_partA_spec sp u_base carry_in v5_old v2_old v_i u_i
     v_off u_off base hv_v hv_u
@@ -3073,19 +3068,19 @@ theorem divK_store_qj_spec (sp j q_hat v5_old v7_old q_old : Word)
     (hv : isValidDwordAccess (sp + signExtend12 4088 - j <<< (3 : BitVec 6).toNat) = true) :
     let j_x8 := j <<< (3 : BitVec 6).toNat
     let q_addr := sp + signExtend12 4088 - j_x8
-    let code :=
+    let cr :=
       (base ↦ᵢ .SLLI .x5 .x1 3) **
       ((base + 4) ↦ᵢ .ADDI .x7 .x12 4088) **
       ((base + 8) ↦ᵢ .SUB .x7 .x7 .x5) **
       ((base + 12) ↦ᵢ .SD .x7 .x11 0)
     cpsTriple base (base + 16)
-      (code ** (.x1 ↦ᵣ j) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ q_hat) **
+      ((.x1 ↦ᵣ j) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ q_hat) **
        (.x5 ↦ᵣ v5_old) ** (.x7 ↦ᵣ v7_old) **
        (q_addr ↦ₘ q_old))
-      (code ** (.x1 ↦ᵣ j) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ q_hat) **
+      ((.x1 ↦ᵣ j) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ q_hat) **
        (.x5 ↦ᵣ j_x8) ** (.x7 ↦ᵣ q_addr) **
        (q_addr ↦ₘ q_hat)) := by
-  intro j_x8; intro q_addr; intro code
+  intro j_x8; intro q_addr; intro cr
   -- Block 1: addr computation [0]-[2]
   have h1_raw := divK_store_qj_addr_spec sp j v5_old v7_old base
   have h1 := cpsTriple_frame_left _ _ _ _

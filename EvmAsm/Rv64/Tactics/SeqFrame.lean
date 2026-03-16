@@ -52,6 +52,8 @@ def computeFrame (q1 p2 : Expr) : MetaM (List Expr) := do
   let (p2RA, _) ← reassocProof p2
   let q1Atoms := (← flattenSepConj q1RA).toArray
   let p2Atoms := (← flattenSepConj p2RA).toArray
+  -- Filter out empAssertion atoms (identity for **; no matching needed)
+  let p2Atoms := p2Atoms.filter fun a => !(a == mkConst ``EvmAsm.Rv64.empAssertion)
   let mut available := (Array.mk (List.replicate q1Atoms.size true) : Array Bool)
   for p2Atom in p2Atoms do
     let h := p2Atom.hash
@@ -240,6 +242,33 @@ partial def buildMonoProof (oldCr newCr : Expr) : MetaM Expr := do
     return ← mkIdentityMono oldCr
   let oldCrW ← whnfR oldCr
   let newCrW ← whnfR newCr
+  -- newCr = union(head, tail): walk the chain
+  -- Check this BEFORE splitting oldCr so that an opaque abbrev (e.g., mul_col0_code base)
+  -- can match a head in newCr's chain without being expanded first.
+  if newCrW.isAppOfArity ``EvmAsm.Rv64.CodeReq.union 2 then
+    let head := newCrW.getAppArgs[0]!
+    let tail := newCrW.getAppArgs[1]!
+    -- Left match: oldCr ≡ head (pre-whnfR, preserving abbrev identity)
+    if oldCr == head then
+      return ← mkAppM ``EvmAsm.Rv64.CodeReq.union_mono_left #[head, tail]
+    if ← withoutModifyingState (withReducible (isDefEq oldCr head)) then
+      return ← mkAppM ``EvmAsm.Rv64.CodeReq.union_mono_left #[head, tail]
+    -- Also check whnfR'd form (handles case where oldCr was already expanded)
+    if oldCrW == head then
+      return ← mkAppM ``EvmAsm.Rv64.CodeReq.union_mono_left #[head, tail]
+    if ← withoutModifyingState (withReducible (isDefEq oldCrW head)) then
+      return ← mkAppM ``EvmAsm.Rv64.CodeReq.union_mono_left #[head, tail]
+    -- No head match. Try skip (prove head.Disjoint oldCr, recurse on tail) first,
+    -- then fall back to splitting oldCr. The skip-first order is essential when oldCr
+    -- is an opaque abbrev that will match a LATER head in newCr's chain — splitting
+    -- would expand it into singletons that can't match the unexpanded abbrev heads.
+    try
+      let disjProof ← buildDisjointProof head oldCr
+      let tailMono ← buildMonoProof oldCr tail
+      return ← mkAppM ``EvmAsm.Rv64.CodeReq.mono_union_right #[disjProof, tailMono]
+    catch _ =>
+      -- Skip failed (disjointness unprovable); fall through to split oldCr below
+      (Pure.pure PUnit.unit : MetaM PUnit)
   -- oldCr = union(sub1, sub2): split and recurse
   if oldCrW.isAppOfArity ``EvmAsm.Rv64.CodeReq.union 2 then
     let sub1 := oldCrW.getAppArgs[0]!
@@ -247,19 +276,6 @@ partial def buildMonoProof (oldCr newCr : Expr) : MetaM Expr := do
     let headMono ← buildMonoProof sub1 newCr
     let tailMono ← buildMonoProof sub2 newCr
     return ← mkAppM ``EvmAsm.Rv64.CodeReq.union_split_mono #[headMono, tailMono]
-  -- newCr = union(head, tail): walk the chain
-  if newCrW.isAppOfArity ``EvmAsm.Rv64.CodeReq.union 2 then
-    let head := newCrW.getAppArgs[0]!
-    let tail := newCrW.getAppArgs[1]!
-    -- Left match: oldCr ≡ head
-    if oldCr == head then
-      return ← mkAppM ``EvmAsm.Rv64.CodeReq.union_mono_left #[head, tail]
-    if ← withoutModifyingState (withReducible (isDefEq oldCr head)) then
-      return ← mkAppM ``EvmAsm.Rv64.CodeReq.union_mono_left #[head, tail]
-    -- Skip: prove head.Disjoint oldCr, recurse on tail
-    let disjProof ← buildDisjointProof head oldCr
-    let tailMono ← buildMonoProof oldCr tail
-    return ← mkAppM ``EvmAsm.Rv64.CodeReq.mono_union_right #[disjProof, tailMono]
   -- Fallback: tactic-based proof
   buildMonoProofTactic oldCr newCr
 
@@ -283,6 +299,12 @@ def seqFrameCore (h1Expr h2Expr : Expr) : MetaM Expr := do
 
   unless ← isDefEq mid1 mid2 do
     throwError "seqFrame: midpoints don't match:\n  h1 exit: {mid1}\n  h2 entry: {mid2}"
+
+  -- Check if P2 is empAssertion (e.g., jal_x0_spec_gen).
+  -- When P2 = empAssertion, the spec needs no state atoms. We frame h2 with Q1,
+  -- then use cpsTriple_consequence with sepConj_emp_left' to eliminate empAssertion.
+  let preP2N ← normForSepConj preP2
+  let p2IsEmp := preP2N == mkConst ``EvmAsm.Rv64.empAssertion
 
   -- Find frame: Q1 atoms not matched by P2
   let frameAtoms ← computeFrame postQ1 preP2
@@ -310,6 +332,55 @@ def seqFrameCore (h1Expr h2Expr : Expr) : MetaM Expr := do
   -- h2Framed : cpsTriple mid exit_ cr2 (P2 ** F) (Q2 ** F)
   let h2Framed := mkAppN (mkConst ``EvmAsm.Rv64.cpsTriple_frame_left)
     #[mid2, exit_, cr2, preP2, postQ2, frameExpr, pcFreeProof, h2Expr]
+
+  -- When P2 = empAssertion, simplify (empAssertion ** F) to F and (Q2 ** F) similarly.
+  -- Uses cpsTriple_consequence with sepConj_emp_left' to eliminate empAssertion.
+  if p2IsEmp then
+    -- Build pre-simplification: empAssertion ** F → F
+    -- hpre : F → empAssertion ** F (reverse direction for consequence pre)
+    let empStarFrame := mkApp2 (mkConst ``EvmAsm.Rv64.sepConj) preP2 frameExpr
+    let preRw := mkApp (mkConst ``EvmAsm.Rv64.sepConj_emp_left') frameExpr
+    -- preRw : empAssertion ** F = F
+    -- We need hpre : F → empAssertion ** F, i.e., λ h hp => (preRw.symm ▸ hp)
+    let psType := mkConst ``EvmAsm.Rv64.PartialState
+    let hpre ← withLocalDeclD `h psType fun h => do
+      withLocalDeclD `hp (mkApp frameExpr h) fun hp => do
+        -- Eq.mp (congrFun preRw.symm h) hp : (empAssertion ** F) h
+        let congrPf ← mkCongrFun (← mkEqSymm preRw) h
+        let result ← mkEqMP congrPf hp
+        mkLambdaFVars #[h, hp] result
+    -- Build post-simplification: Q2 ** F → F (when Q2 = empAssertion too)
+    let postQ2N ← normForSepConj postQ2
+    let q2IsEmp := postQ2N == mkConst ``EvmAsm.Rv64.empAssertion
+    let q2StarFrame := mkApp2 (mkConst ``EvmAsm.Rv64.sepConj) postQ2 frameExpr
+    let (actualPost, hpost) ← if q2IsEmp then do
+      -- hpost : empAssertion ** F → F
+      let postRw := mkApp (mkConst ``EvmAsm.Rv64.sepConj_emp_left') frameExpr
+      let hpost ← withLocalDeclD `h psType fun h => do
+        withLocalDeclD `hq (mkApp q2StarFrame h) fun hq => do
+          let congrPf ← mkCongrFun postRw h
+          let result ← mkEqMP congrPf hq
+          mkLambdaFVars #[h, hq] result
+      Pure.pure (frameExpr, hpost)
+    else do
+      let hpost ← mkIdLambda q2StarFrame
+      Pure.pure (q2StarFrame, hpost)
+    -- h2Simplified : cpsTriple mid exit_ cr2 F actualPost
+    let h2Simplified := mkAppN (mkConst ``EvmAsm.Rv64.cpsTriple_consequence)
+      #[mid2, exit_, cr2, empStarFrame, frameExpr, q2StarFrame, actualPost,
+        hpre, hpost, h2Framed]
+    -- Permutation: Q1 = F (since frame = all Q1 atoms)
+    let hperm ← mkPermLambda postQ1 frameExpr
+    -- Same-CR fast path
+    if ← withoutModifyingState (isDefEq cr1 cr2) then
+      return mkAppN (mkConst ``EvmAsm.Rv64.cpsTriple_seq_with_perm_same_cr)
+        #[entry, mid1, exit_, cr1, preP, postQ1, frameExpr, actualPost,
+          hperm, h1Expr, h2Simplified]
+    -- Different CRs
+    let hdProof ← buildDisjointProof cr1 cr2
+    return mkAppN (mkConst ``EvmAsm.Rv64.cpsTriple_seq_with_perm)
+      #[entry, mid1, exit_, cr1, cr2, hdProof, preP, postQ1, frameExpr, actualPost,
+        hperm, h1Expr, h2Simplified]
 
   -- Permutation proof: Q1 → (P2 ** F)
   let p2StarFrame := mkApp2 (mkConst ``EvmAsm.Rv64.sepConj) preP2 frameExpr

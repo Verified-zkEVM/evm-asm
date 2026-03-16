@@ -16,27 +16,38 @@ open EvmAsm.Rv64.Tactics
 
 namespace EvmAsm.Rv64
 
-/-- Instruction memory assertion for the 256-bit EVM SGT operation.
+/-- CodeReq for the 256-bit EVM SGT operation.
     25 instructions = 100 bytes. SGT(a, b) = SLT(b, a): swapped load order. -/
-abbrev evm_sgt_code (base : Addr) : Assertion :=
+abbrev evm_sgt_code (base : Addr) : CodeReq :=
   -- Phase 1: MSB check (3 instructions, swapped: b3 into x7, a3 into x6)
-  (base ↦ᵢ .LD .x7 .x12 56) ** ((base + 4) ↦ᵢ .LD .x6 .x12 24) **
-  ((base + 8) ↦ᵢ .BEQ .x7 .x6 12) **
+  CodeReq.union (CodeReq.singleton base (.LD .x7 .x12 56))
+  (CodeReq.union (CodeReq.singleton (base + 4) (.LD .x6 .x12 24))
+  (CodeReq.union (CodeReq.singleton (base + 8) (.BEQ .x7 .x6 12))
   -- MSB differ path (2 instructions)
-  ((base + 12) ↦ᵢ .SLT .x5 .x7 .x6) ** ((base + 16) ↦ᵢ .JAL .x0 64) **
+  (CodeReq.union (CodeReq.singleton (base + 12) (.SLT .x5 .x7 .x6))
+  (CodeReq.union (CodeReq.singleton (base + 16) (.JAL .x0 64))
   -- Lower compare path: 3-limb borrow chain (15 instructions, swapped)
-  ((base + 20) ↦ᵢ .LD .x7 .x12 32) ** ((base + 24) ↦ᵢ .LD .x6 .x12 0) **
-  ((base + 28) ↦ᵢ .SLTU .x5 .x7 .x6) **
-  ((base + 32) ↦ᵢ .LD .x7 .x12 40) ** ((base + 36) ↦ᵢ .LD .x6 .x12 8) **
-  ((base + 40) ↦ᵢ .SLTU .x11 .x7 .x6) ** ((base + 44) ↦ᵢ .SUB .x7 .x7 .x6) **
-  ((base + 48) ↦ᵢ .SLTU .x6 .x7 .x5) ** ((base + 52) ↦ᵢ .OR .x5 .x11 .x6) **
-  ((base + 56) ↦ᵢ .LD .x7 .x12 48) ** ((base + 60) ↦ᵢ .LD .x6 .x12 16) **
-  ((base + 64) ↦ᵢ .SLTU .x11 .x7 .x6) ** ((base + 68) ↦ᵢ .SUB .x7 .x7 .x6) **
-  ((base + 72) ↦ᵢ .SLTU .x6 .x7 .x5) ** ((base + 76) ↦ᵢ .OR .x5 .x11 .x6) **
+  (CodeReq.union (CodeReq.singleton (base + 20) (.LD .x7 .x12 32))
+  (CodeReq.union (CodeReq.singleton (base + 24) (.LD .x6 .x12 0))
+  (CodeReq.union (CodeReq.singleton (base + 28) (.SLTU .x5 .x7 .x6))
+  (CodeReq.union (CodeReq.singleton (base + 32) (.LD .x7 .x12 40))
+  (CodeReq.union (CodeReq.singleton (base + 36) (.LD .x6 .x12 8))
+  (CodeReq.union (CodeReq.singleton (base + 40) (.SLTU .x11 .x7 .x6))
+  (CodeReq.union (CodeReq.singleton (base + 44) (.SUB .x7 .x7 .x6))
+  (CodeReq.union (CodeReq.singleton (base + 48) (.SLTU .x6 .x7 .x5))
+  (CodeReq.union (CodeReq.singleton (base + 52) (.OR .x5 .x11 .x6))
+  (CodeReq.union (CodeReq.singleton (base + 56) (.LD .x7 .x12 48))
+  (CodeReq.union (CodeReq.singleton (base + 60) (.LD .x6 .x12 16))
+  (CodeReq.union (CodeReq.singleton (base + 64) (.SLTU .x11 .x7 .x6))
+  (CodeReq.union (CodeReq.singleton (base + 68) (.SUB .x7 .x7 .x6))
+  (CodeReq.union (CodeReq.singleton (base + 72) (.SLTU .x6 .x7 .x5))
+  (CodeReq.union (CodeReq.singleton (base + 76) (.OR .x5 .x11 .x6))
   -- Store phase (5 instructions)
-  ((base + 80) ↦ᵢ .ADDI .x12 .x12 32) ** ((base + 84) ↦ᵢ .SD .x12 .x5 0) **
-  ((base + 88) ↦ᵢ .SD .x12 .x0 8) ** ((base + 92) ↦ᵢ .SD .x12 .x0 16) **
-  ((base + 96) ↦ᵢ .SD .x12 .x0 24)
+  (CodeReq.union (CodeReq.singleton (base + 80) (.ADDI .x12 .x12 32))
+  (CodeReq.union (CodeReq.singleton (base + 84) (.SD .x12 .x5 0))
+  (CodeReq.union (CodeReq.singleton (base + 88) (.SD .x12 .x0 8))
+  (CodeReq.union (CodeReq.singleton (base + 92) (.SD .x12 .x0 16))
+   (CodeReq.singleton (base + 96) (.SD .x12 .x0 24)))))))))))))))))))))))))
 
 set_option maxHeartbeats 6400000 in
 /-- Full 256-bit EVM SGT: SGT(a, b) = 1 iff a >s b (signed).
@@ -64,14 +75,12 @@ theorem evm_sgt_spec (sp : Addr) (base : Addr)
     -- Result: signed GT
     let result := if b3 = a3 then borrow2 else sgt_msb
     let code := evm_sgt_code base
-    cpsTriple base (base + 100)
-      (code **
-       -- Registers + memory
+    cpsTriple base (base + 100) code
+      (-- Registers + memory
        (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) ** (.x5 ↦ᵣ v5) ** (.x11 ↦ᵣ v11) **
        (sp ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
        ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) ** ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3))
-      (code **
-       -- Registers + memory (updated)
+      (-- Registers + memory (updated)
        (.x12 ↦ᵣ (sp + 32)) **
        (.x7 ↦ᵣ (if b3 = a3 then temp2 else b3)) **
        (.x6 ↦ᵣ (if b3 = a3 then borrow2b else a3)) **

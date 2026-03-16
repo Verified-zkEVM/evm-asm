@@ -23,10 +23,12 @@ namespace EvmAsm.Rv64
 -- Column 3: b[3] × {a[0]} (5 instructions)
 -- ============================================================================
 
-abbrev mul_col3_code (base : Addr) : Assertion :=
-  (base ↦ᵢ .LD .x5 .x12 56) ** ((base + 4) ↦ᵢ .LD .x6 .x12 0) **
-  ((base + 8) ↦ᵢ .MUL .x6 .x6 .x5) ** ((base + 12) ↦ᵢ .ADD .x10 .x10 .x6) **
-  ((base + 16) ↦ᵢ .SD .x12 .x10 56)
+abbrev mul_col3_code (base : Addr) : CodeReq :=
+  CodeReq.union (CodeReq.singleton base (.LD .x5 .x12 56))
+  (CodeReq.union (CodeReq.singleton (base + 4) (.LD .x6 .x12 0))
+  (CodeReq.union (CodeReq.singleton (base + 8) (.MUL .x6 .x6 .x5))
+  (CodeReq.union (CodeReq.singleton (base + 12) (.ADD .x10 .x10 .x6))
+  (CodeReq.singleton (base + 16) (.SD .x12 .x10 56)))))
 
 /-- Column 3: multiply b[3] × a[0], add to r3 accumulator, store result.
     5 instructions: LD b3; LD a0; MUL a0*b3; ADD acc; SD result. -/
@@ -34,12 +36,10 @@ theorem mul_col3_spec (sp : Addr) (base : Addr)
     (a0 b3 r3_in v5 v6 : Word)
     (hvalid : ValidMemRange sp 8) :
     let code := mul_col3_code base
-    cpsTriple base (base + 20)
-      (code **
-       (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x10 ↦ᵣ r3_in) **
+    cpsTriple base (base + 20) code
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x10 ↦ᵣ r3_in) **
        (sp ↦ₘ a0) ** ((sp + 56) ↦ₘ b3))
-      (code **
-       (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ b3) ** (.x6 ↦ᵣ a0 * b3) ** (.x10 ↦ᵣ r3_in + a0 * b3) **
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ b3) ** (.x6 ↦ᵣ a0 * b3) ** (.x10 ↦ᵣ r3_in + a0 * b3) **
        (sp ↦ₘ a0) ** ((sp + 56) ↦ₘ r3_in + a0 * b3)) := by
   have L1 := ld_spec_gen .x5 .x12 sp v5 b3 56 base (by nofun) (by validMem)
   have L2 := ld_spec_gen .x6 .x12 sp v6 a0 0 (base + 4) (by nofun) (by validMem)
@@ -52,14 +52,20 @@ theorem mul_col3_spec (sp : Addr) (base : Addr)
 -- Column 2: b[2] × {a[0], a[1]} (13 instructions)
 -- ============================================================================
 
-abbrev mul_col2_code (base : Addr) : Assertion :=
-  (base ↦ᵢ .LD .x5 .x12 48) ** ((base + 4) ↦ᵢ .LD .x6 .x12 0) **
-  ((base + 8) ↦ᵢ .MUL .x7 .x6 .x5) ** ((base + 12) ↦ᵢ .MULHU .x6 .x6 .x5) **
-  ((base + 16) ↦ᵢ .ADD .x11 .x11 .x7) ** ((base + 20) ↦ᵢ .SLTU .x7 .x11 .x7) **
-  ((base + 24) ↦ᵢ .ADD .x6 .x6 .x7) ** ((base + 28) ↦ᵢ .SD .x12 .x11 48) **
-  ((base + 32) ↦ᵢ .LD .x7 .x12 8) ** ((base + 36) ↦ᵢ .MUL .x7 .x7 .x5) **
-  ((base + 40) ↦ᵢ .ADD .x6 .x6 .x7) ** ((base + 44) ↦ᵢ .LD .x10 .x12 16) **
-  ((base + 48) ↦ᵢ .ADD .x10 .x10 .x6)
+abbrev mul_col2_code (base : Addr) : CodeReq :=
+  CodeReq.union (CodeReq.singleton base (.LD .x5 .x12 48))
+  (CodeReq.union (CodeReq.singleton (base + 4) (.LD .x6 .x12 0))
+  (CodeReq.union (CodeReq.singleton (base + 8) (.MUL .x7 .x6 .x5))
+  (CodeReq.union (CodeReq.singleton (base + 12) (.MULHU .x6 .x6 .x5))
+  (CodeReq.union (CodeReq.singleton (base + 16) (.ADD .x11 .x11 .x7))
+  (CodeReq.union (CodeReq.singleton (base + 20) (.SLTU .x7 .x11 .x7))
+  (CodeReq.union (CodeReq.singleton (base + 24) (.ADD .x6 .x6 .x7))
+  (CodeReq.union (CodeReq.singleton (base + 28) (.SD .x12 .x11 48))
+  (CodeReq.union (CodeReq.singleton (base + 32) (.LD .x7 .x12 8))
+  (CodeReq.union (CodeReq.singleton (base + 36) (.MUL .x7 .x7 .x5))
+  (CodeReq.union (CodeReq.singleton (base + 40) (.ADD .x6 .x6 .x7))
+  (CodeReq.union (CodeReq.singleton (base + 44) (.LD .x10 .x12 16))
+  (CodeReq.singleton (base + 48) (.ADD .x10 .x10 .x6)))))))))))))
 
 set_option maxHeartbeats 1600000 in
 /-- Column 2: multiply b[2] × {a[0],a[1]}, finalize r[2], update r[3] accumulator.
@@ -75,13 +81,11 @@ theorem mul_col2_spec (sp : Addr) (base : Addr)
     let r3_contrib := hi_a0b2 + carry02 + a1 * b2
     let r3_out := r3p + r3_contrib
     let code := mul_col2_code base
-    cpsTriple base (base + 52)
-      (code **
-       (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+    cpsTriple base (base + 52) code
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
        (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ r2_in) **
        (sp ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ r3p) ** ((sp + 48) ↦ₘ b2))
-      (code **
-       (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ b2) ** (.x6 ↦ᵣ r3_contrib) ** (.x7 ↦ᵣ a1 * b2) **
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ b2) ** (.x6 ↦ᵣ r3_contrib) ** (.x7 ↦ᵣ a1 * b2) **
        (.x10 ↦ᵣ r3_out) ** (.x11 ↦ᵣ r2_out) **
        (sp ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ r3p) ** ((sp + 48) ↦ₘ r2_out)) := by
   intro lo_a0b2; intro hi_a0b2; intro r2_out; intro carry02
@@ -105,19 +109,30 @@ theorem mul_col2_spec (sp : Addr) (base : Addr)
 -- Column 1: b[1] × {a[0], a[1], a[2]} (23 instructions)
 -- ============================================================================
 
-abbrev mul_col1_code (base : Addr) : Assertion :=
-  (base ↦ᵢ .LD .x5 .x12 40) ** ((base + 4) ↦ᵢ .LD .x6 .x12 0) **
-  ((base + 8) ↦ᵢ .MUL .x7 .x6 .x5) ** ((base + 12) ↦ᵢ .MULHU .x6 .x6 .x5) **
-  ((base + 16) ↦ᵢ .ADD .x10 .x10 .x7) ** ((base + 20) ↦ᵢ .SLTU .x7 .x10 .x7) **
-  ((base + 24) ↦ᵢ .ADD .x6 .x6 .x7) ** ((base + 28) ↦ᵢ .SD .x12 .x10 40) **
-  ((base + 32) ↦ᵢ .ADD .x11 .x11 .x6) ** ((base + 36) ↦ᵢ .SLTU .x10 .x11 .x6) **
-  ((base + 40) ↦ᵢ .LD .x6 .x12 8) ** ((base + 44) ↦ᵢ .MUL .x7 .x6 .x5) **
-  ((base + 48) ↦ᵢ .MULHU .x6 .x6 .x5) ** ((base + 52) ↦ᵢ .ADD .x11 .x11 .x7) **
-  ((base + 56) ↦ᵢ .SLTU .x7 .x11 .x7) ** ((base + 60) ↦ᵢ .ADD .x6 .x6 .x7) **
-  ((base + 64) ↦ᵢ .ADD .x10 .x10 .x6) ** ((base + 68) ↦ᵢ .LD .x6 .x12 16) **
-  ((base + 72) ↦ᵢ .MUL .x6 .x6 .x5) ** ((base + 76) ↦ᵢ .ADD .x10 .x10 .x6) **
-  ((base + 80) ↦ᵢ .LD .x6 .x12 24) ** ((base + 84) ↦ᵢ .ADD .x10 .x10 .x6) **
-  ((base + 88) ↦ᵢ .SD .x12 .x10 16)
+abbrev mul_col1_code (base : Addr) : CodeReq :=
+  CodeReq.union (CodeReq.singleton base (.LD .x5 .x12 40))
+  (CodeReq.union (CodeReq.singleton (base + 4) (.LD .x6 .x12 0))
+  (CodeReq.union (CodeReq.singleton (base + 8) (.MUL .x7 .x6 .x5))
+  (CodeReq.union (CodeReq.singleton (base + 12) (.MULHU .x6 .x6 .x5))
+  (CodeReq.union (CodeReq.singleton (base + 16) (.ADD .x10 .x10 .x7))
+  (CodeReq.union (CodeReq.singleton (base + 20) (.SLTU .x7 .x10 .x7))
+  (CodeReq.union (CodeReq.singleton (base + 24) (.ADD .x6 .x6 .x7))
+  (CodeReq.union (CodeReq.singleton (base + 28) (.SD .x12 .x10 40))
+  (CodeReq.union (CodeReq.singleton (base + 32) (.ADD .x11 .x11 .x6))
+  (CodeReq.union (CodeReq.singleton (base + 36) (.SLTU .x10 .x11 .x6))
+  (CodeReq.union (CodeReq.singleton (base + 40) (.LD .x6 .x12 8))
+  (CodeReq.union (CodeReq.singleton (base + 44) (.MUL .x7 .x6 .x5))
+  (CodeReq.union (CodeReq.singleton (base + 48) (.MULHU .x6 .x6 .x5))
+  (CodeReq.union (CodeReq.singleton (base + 52) (.ADD .x11 .x11 .x7))
+  (CodeReq.union (CodeReq.singleton (base + 56) (.SLTU .x7 .x11 .x7))
+  (CodeReq.union (CodeReq.singleton (base + 60) (.ADD .x6 .x6 .x7))
+  (CodeReq.union (CodeReq.singleton (base + 64) (.ADD .x10 .x10 .x6))
+  (CodeReq.union (CodeReq.singleton (base + 68) (.LD .x6 .x12 16))
+  (CodeReq.union (CodeReq.singleton (base + 72) (.MUL .x6 .x6 .x5))
+  (CodeReq.union (CodeReq.singleton (base + 76) (.ADD .x10 .x10 .x6))
+  (CodeReq.union (CodeReq.singleton (base + 80) (.LD .x6 .x12 24))
+  (CodeReq.union (CodeReq.singleton (base + 84) (.ADD .x10 .x10 .x6))
+  (CodeReq.singleton (base + 88) (.SD .x12 .x10 16)))))))))))))))))))))))
 
 set_option maxHeartbeats 3200000 in
 /-- Column 1: multiply b[1] × {a[0],a[1],a[2]}, finalize r[1], update r[2]/r[3].
@@ -140,14 +155,12 @@ theorem mul_col1_spec (sp : Addr) (base : Addr)
     let r3_contrib1 := hi_a1b1 + carry_r2_2
     let r3_spill := carry_r2_1 + r3_contrib1 + a2 * b1 + r3p0
     let code := mul_col1_code base
-    cpsTriple base (base + 92)
-      (code **
-       (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+    cpsTriple base (base + 92) code
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
        (.x10 ↦ᵣ r1_in) ** (.x11 ↦ᵣ r2_in) **
        (sp ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ a2) **
        ((sp + 24) ↦ₘ r3p0) ** ((sp + 40) ↦ₘ b1))
-      (code **
-       (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ b1) ** (.x6 ↦ᵣ r3p0) ** (.x7 ↦ᵣ carry_r2_2) **
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ b1) ** (.x6 ↦ᵣ r3p0) ** (.x7 ↦ᵣ carry_r2_2) **
        (.x10 ↦ᵣ r3_spill) ** (.x11 ↦ᵣ r2_out) **
        (sp ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ r3_spill) **
        ((sp + 24) ↦ₘ r3p0) ** ((sp + 40) ↦ₘ r1_out)) := by
@@ -184,18 +197,28 @@ theorem mul_col1_spec (sp : Addr) (base : Addr)
 -- Column 0: b[0] × {a[0], a[1], a[2], a[3]} (21 instructions)
 -- ============================================================================
 
-abbrev mul_col0_code (base : Addr) : Assertion :=
-  (base ↦ᵢ .LD .x5 .x12 32) ** ((base + 4) ↦ᵢ .LD .x6 .x12 0) **
-  ((base + 8) ↦ᵢ .MUL .x7 .x6 .x5) ** ((base + 12) ↦ᵢ .MULHU .x10 .x6 .x5) **
-  ((base + 16) ↦ᵢ .SD .x12 .x7 32) ** ((base + 20) ↦ᵢ .LD .x6 .x12 8) **
-  ((base + 24) ↦ᵢ .MUL .x7 .x6 .x5) ** ((base + 28) ↦ᵢ .MULHU .x11 .x6 .x5) **
-  ((base + 32) ↦ᵢ .ADD .x10 .x10 .x7) ** ((base + 36) ↦ᵢ .SLTU .x6 .x10 .x7) **
-  ((base + 40) ↦ᵢ .ADD .x11 .x11 .x6) ** ((base + 44) ↦ᵢ .LD .x6 .x12 16) **
-  ((base + 48) ↦ᵢ .MUL .x7 .x6 .x5) ** ((base + 52) ↦ᵢ .MULHU .x6 .x6 .x5) **
-  ((base + 56) ↦ᵢ .ADD .x11 .x11 .x7) ** ((base + 60) ↦ᵢ .SLTU .x7 .x11 .x7) **
-  ((base + 64) ↦ᵢ .ADD .x6 .x6 .x7) ** ((base + 68) ↦ᵢ .LD .x7 .x12 24) **
-  ((base + 72) ↦ᵢ .MUL .x7 .x7 .x5) ** ((base + 76) ↦ᵢ .ADD .x6 .x6 .x7) **
-  ((base + 80) ↦ᵢ .SD .x12 .x6 24)
+abbrev mul_col0_code (base : Addr) : CodeReq :=
+  CodeReq.union (CodeReq.singleton base (.LD .x5 .x12 32))
+  (CodeReq.union (CodeReq.singleton (base + 4) (.LD .x6 .x12 0))
+  (CodeReq.union (CodeReq.singleton (base + 8) (.MUL .x7 .x6 .x5))
+  (CodeReq.union (CodeReq.singleton (base + 12) (.MULHU .x10 .x6 .x5))
+  (CodeReq.union (CodeReq.singleton (base + 16) (.SD .x12 .x7 32))
+  (CodeReq.union (CodeReq.singleton (base + 20) (.LD .x6 .x12 8))
+  (CodeReq.union (CodeReq.singleton (base + 24) (.MUL .x7 .x6 .x5))
+  (CodeReq.union (CodeReq.singleton (base + 28) (.MULHU .x11 .x6 .x5))
+  (CodeReq.union (CodeReq.singleton (base + 32) (.ADD .x10 .x10 .x7))
+  (CodeReq.union (CodeReq.singleton (base + 36) (.SLTU .x6 .x10 .x7))
+  (CodeReq.union (CodeReq.singleton (base + 40) (.ADD .x11 .x11 .x6))
+  (CodeReq.union (CodeReq.singleton (base + 44) (.LD .x6 .x12 16))
+  (CodeReq.union (CodeReq.singleton (base + 48) (.MUL .x7 .x6 .x5))
+  (CodeReq.union (CodeReq.singleton (base + 52) (.MULHU .x6 .x6 .x5))
+  (CodeReq.union (CodeReq.singleton (base + 56) (.ADD .x11 .x11 .x7))
+  (CodeReq.union (CodeReq.singleton (base + 60) (.SLTU .x7 .x11 .x7))
+  (CodeReq.union (CodeReq.singleton (base + 64) (.ADD .x6 .x6 .x7))
+  (CodeReq.union (CodeReq.singleton (base + 68) (.LD .x7 .x12 24))
+  (CodeReq.union (CodeReq.singleton (base + 72) (.MUL .x7 .x7 .x5))
+  (CodeReq.union (CodeReq.singleton (base + 76) (.ADD .x6 .x6 .x7))
+  (CodeReq.singleton (base + 80) (.SD .x12 .x6 24)))))))))))))))))))))
 
 set_option maxHeartbeats 3200000 in
 /-- Column 0: multiply b[0] × {a[0],a[1],a[2],a[3]}, store r[0], spill r[3] partial.
@@ -215,14 +238,12 @@ theorem mul_col0_spec (sp : Addr) (base : Addr)
     let carry_r2 := if BitVec.ult r2_acc lo_a2b0 then (1 : Word) else 0
     let r3p := hi_a2b0 + carry_r2 + a3 * b0
     let code := mul_col0_code base
-    cpsTriple base (base + 84)
-      (code **
-       (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+    cpsTriple base (base + 84) code
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
        (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) **
        (sp ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ a2) **
        ((sp + 24) ↦ₘ a3) ** ((sp + 32) ↦ₘ b0))
-      (code **
-       (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ b0) ** (.x6 ↦ᵣ r3p) ** (.x7 ↦ᵣ a3 * b0) **
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ b0) ** (.x6 ↦ᵣ r3p) ** (.x7 ↦ᵣ a3 * b0) **
        (.x10 ↦ᵣ r1_acc) ** (.x11 ↦ᵣ r2_acc) **
        (sp ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ a2) **
        ((sp + 24) ↦ₘ r3p) ** ((sp + 32) ↦ₘ r0)) := by
@@ -256,17 +277,12 @@ theorem mul_col0_spec (sp : Addr) (base : Addr)
 -- Full 256-bit EVM MUL (63 instructions + 1 epilogue = 252 bytes)
 -- ============================================================================
 
-abbrev evm_mul_code (base : Addr) : Assertion :=
-  -- Col0 (21 instrs: base+0..base+80)
-  mul_col0_code base **
-  -- Col1 (23 instrs: base+84..base+172)
-  mul_col1_code (base + 84) **
-  -- Col2 (13 instrs: base+176..base+224)
-  mul_col2_code (base + 176) **
-  -- Col3 (5 instrs: base+228..base+244)
-  mul_col3_code (base + 228) **
-  -- Epilogue (1 instr: base+248)
-  ((base + 248) ↦ᵢ .ADDI .x12 .x12 32)
+abbrev evm_mul_code (base : Addr) : CodeReq :=
+  CodeReq.union (mul_col0_code base)
+  (CodeReq.union (mul_col1_code (base + 84))
+  (CodeReq.union (mul_col2_code (base + 176))
+  (CodeReq.union (mul_col3_code (base + 228))
+  (CodeReq.singleton (base + 248) (.ADDI .x12 .x12 32)))))
 
 set_option maxHeartbeats 6400000 in
 /-- Full 256-bit EVM MUL: composes 4 per-column specs + ADDI sp adjustment.
@@ -312,14 +328,12 @@ theorem evm_mul_spec (sp : Addr) (base : Addr)
     -- Col3
     let r3_final := c2_r3 + a0 * b3
     let code := evm_mul_code base
-    cpsTriple base (base + 252)
-      (code **
-       (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+    cpsTriple base (base + 252) code
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
        (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) **
        (sp ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
        ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) ** ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3))
-      (code **
-       (.x12 ↦ᵣ (sp + 32)) ** (.x5 ↦ᵣ b3) ** (.x6 ↦ᵣ a0 * b3) ** (.x7 ↦ᵣ a1 * b2) **
+      ((.x12 ↦ᵣ (sp + 32)) ** (.x5 ↦ᵣ b3) ** (.x6 ↦ᵣ a0 * b3) ** (.x7 ↦ᵣ a1 * b2) **
        (.x10 ↦ᵣ r3_final) ** (.x11 ↦ᵣ c2_r2) **
        (sp ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ c1_r3p) ** ((sp + 24) ↦ₘ c0_r3p) **
        ((sp + 32) ↦ₘ c0_r0) ** ((sp + 40) ↦ₘ c1_r1) ** ((sp + 48) ↦ₘ c2_r2) ** ((sp + 56) ↦ₘ r3_final)) := by
