@@ -37,8 +37,14 @@ namespace EvmAsm.Rv64.Tactics
     Does NOT whnf (which would unfold the def). -/
 def parseCpsTriple? (e : Expr) : MetaM (Option (Expr × Expr × Expr × Expr × Expr)) := do
   let e ← instantiateMVars e
+  -- First try without whnf (fast path)
   if e.isAppOfArity ``EvmAsm.Rv64.cpsTriple 5 then
     let args := e.getAppArgs
+    return some (args[0]!, args[1]!, args[2]!, args[3]!, args[4]!)
+  -- Try zetaReduce to resolve let-bindings without unfolding defs or normalizing addresses
+  let e' ← Lean.Meta.zetaReduce e
+  if e'.isAppOfArity ``EvmAsm.Rv64.cpsTriple 5 then
+    let args := e'.getAppArgs
     return some (args[0]!, args[1]!, args[2]!, args[3]!, args[4]!)
   return none
 
@@ -410,20 +416,32 @@ def assignOrPermute (goal : MVarId) (result : Expr) : MetaM Unit := do
   if ← withoutModifyingState (isDefEq goalType resultType) then
     goal.assign result
     return
-  -- Attempt 2: permute postcondition via cpsTriple_consequence
+  -- Attempt 2: permute postcondition (and extend CR if needed) via cpsTriple_consequence
   let some (gEntry, gExit, gCr, gPre, goalPost) ← parseCpsTriple? goalType
     | throwError "seqFrame: goal is not a cpsTriple"
-  let some (rEntry, rExit, _rCr, _, resultPost) ← parseCpsTriple? resultType
+  let some (rEntry, rExit, rCr, _, resultPost) ← parseCpsTriple? resultType
     | throwError "seqFrame: result is not a cpsTriple (internal error)"
   unless ← isDefEq gEntry rEntry do
     throwError "seqFrame: entry addresses don't match goal"
   unless ← isDefEq gExit rExit do
     throwError "seqFrame: exit addresses don't match goal"
+  -- If CRs differ, extend the result's CR to the goal's CR first
+  let result' ←
+    if ← withoutModifyingState (isDefEq gCr rCr) then
+      Pure.pure result
+    else do
+      -- Build monotonicity proof: rCr ⊆ gCr
+      let monoProof ← try buildMonoProof rCr gCr
+        catch e =>
+          Lean.logInfo m!"seqFrame/assignOrPermute: CR extension failed:\n  rCr = {rCr}\n  gCr = {gCr}\n  error = {← e.toMessageData.toString}"
+          throw e
+      -- Extend result's CR: cpsTriple_extend_code monoProof result
+      let extended ← mkAppM ``EvmAsm.Rv64.cpsTriple_extend_code #[monoProof, result]
+      Pure.pure extended
   let postPerm ← mkPermLambda resultPost goalPost
   let idPre ← mkIdLambda gPre
-  let finalResult := mkAppN (mkConst ``EvmAsm.Rv64.cpsTriple_consequence)
-    #[gEntry, gExit, gCr, gPre, gPre, resultPost, goalPost, idPre, postPerm, result]
-  goal.assign finalResult
+  goal.assign (mkAppN (mkConst ``EvmAsm.Rv64.cpsTriple_consequence)
+    #[gEntry, gExit, gCr, gPre, gPre, resultPost, goalPost, idPre, postPerm, result'])
 
 /-- `seqFrame h1 h2` composes two `cpsTriple` hypotheses with automatic framing.
 
@@ -446,7 +464,8 @@ elab "seqFrame" h1:ident h2:ident : tactic => withMainContext do
   try
     assignOrPermute goal result
     replaceMainGoal []
-  catch _ =>
+  catch e =>
+    Lean.logWarning m!"seqFrame: could not close goal: {← e.toMessageData.toString}"
     -- Introduce as a named hypothesis
     let name := Name.mkSimple s!"{h1.getId}{h2.getId}"
     let fvarId ← liftMetaTacticAux (α := FVarId) fun mvarId => do
@@ -455,6 +474,20 @@ elab "seqFrame" h1:ident h2:ident : tactic => withMainContext do
     -- Register name in elaboration context so subsequent tactics can find it
     withMainContext do
       Term.addLocalVarInfo (mkIdent name) (.fvar fvarId)
+
+/-- `crMono` proves a goal of the form `∀ a i, cr1 a = some i → cr2 a = some i`
+    by structural recursion on union/singleton trees. -/
+elab "crMono" : tactic => do
+  let goal ← getMainGoal
+  let goalType ← instantiateMVars (← goal.getType)
+  let goalType ← whnfR goalType
+  -- Extract cr1 and cr2 from ∀ a i, cr1 a = some i → cr2 a = some i
+  -- The type should be a pi: ∀ (a : Addr) (i : Instr), cr1 a = some i → cr2 a = some i
+  -- buildMonoProof handles this structurally
+  -- Fall back to tactic: intro a i h; simp ... at h ⊢; split at h <;> simp_all <;> bv_omega
+  let stx ← `(tactic| intro a i h; simp only [EvmAsm.Rv64.CodeReq.singleton, EvmAsm.Rv64.CodeReq.union] at *; (first | simp_all | (split at h <;> simp_all <;> bv_omega)))
+  let _ ← Lean.Elab.runTactic goal stx
+  replaceMainGoal []
 
 /-- `crDisjoint` proves a goal of the form `CodeReq.Disjoint cr1 cr2`
     by structural recursion on union/singleton, using bv_omega for address inequality. -/

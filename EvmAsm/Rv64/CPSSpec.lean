@@ -251,6 +251,38 @@ theorem cpsTriple_extend_code {entry exit_ : Addr} {cr cr' : CodeReq} {P Q : Ass
   intro R hR s hcr' hPR hpc
   exact h R hR s (CodeReq.SatisfiedBy_mono s hmono hcr') hPR hpc
 
+/-- Monotonicity for cpsBranch: extend to a larger CodeReq. -/
+theorem cpsBranch_extend_code {entry : Addr} {cr cr' : CodeReq}
+    {P : Assertion} {exit_t : Addr} {Q_t : Assertion} {exit_f : Addr} {Q_f : Assertion}
+    (hmono : ∀ a i, cr a = some i → cr' a = some i)
+    (h : cpsBranch entry cr P exit_t Q_t exit_f Q_f) :
+    cpsBranch entry cr' P exit_t Q_t exit_f Q_f := by
+  intro R hR s hcr' hPR hpc
+  exact h R hR s (CodeReq.SatisfiedBy_mono s hmono hcr') hPR hpc
+
+/-- Sequential composition: cpsTriple followed by cpsBranch, same CodeReq.
+    Unlike `cpsTriple_seq_cpsBranch`, does not require disjointness. -/
+theorem cpsTriple_seq_cpsBranch_same_cr (entry mid : Addr) (cr : CodeReq)
+    (P Q : Assertion) (exit_t : Addr) (Q_t : Assertion) (exit_f : Addr) (Q_f : Assertion)
+    (h1 : cpsTriple entry mid cr P Q)
+    (h2 : cpsBranch mid cr Q exit_t Q_t exit_f Q_f) :
+    cpsBranch entry cr P exit_t Q_t exit_f Q_f := by
+  intro R hR s hcr hPR hpc
+  obtain ⟨k1, s1, hstep1, hpc1, hQR⟩ := h1 R hR s hcr hPR hpc
+  have hcr' := CodeReq.SatisfiedBy_preserved cr k1 s s1 hstep1 hcr
+  obtain ⟨k2, s2, hstep2, hbranch⟩ := h2 R hR s1 hcr' hQR hpc1
+  exact ⟨k1 + k2, s2, stepN_add_eq k1 k2 s s1 s2 hstep1 hstep2, hbranch⟩
+
+/-- Sequential composition with permutation: cpsTriple followed by cpsBranch, same CodeReq. -/
+theorem cpsTriple_seq_cpsBranch_with_perm_same_cr (entry mid : Addr) (cr : CodeReq)
+    (P Q1 Q2 : Assertion) (exit_t : Addr) (Q_t : Assertion) (exit_f : Addr) (Q_f : Assertion)
+    (hperm : ∀ h, Q1 h → Q2 h)
+    (h1 : cpsTriple entry mid cr P Q1)
+    (h2 : cpsBranch mid cr Q2 exit_t Q_t exit_f Q_f) :
+    cpsBranch entry cr P exit_t Q_t exit_f Q_f :=
+  cpsTriple_seq_cpsBranch_same_cr entry mid cr P Q2 exit_t Q_t exit_f Q_f
+    (cpsTriple_consequence entry mid cr P P Q1 Q2 (fun _ hp => hp) hperm h1) h2
+
 -- ============================================================================
 -- N-exit CPS specifications
 -- ============================================================================
