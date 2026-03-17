@@ -2586,13 +2586,14 @@ theorem divK_div128_step1_spec
        (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) ** (sp + signExtend12 3952 ↦ₘ dlo))
       ((.x7 ↦ᵣ rhat') ** (.x6 ↦ᵣ d_hi) ** (.x10 ↦ᵣ q1') **
        (.x5 ↦ᵣ q_dlo) ** (.x11 ↦ᵣ un1) ** (.x1 ↦ᵣ rhat_un1) **
-       (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) ** (sp + signExtend12 3952 ↦ₘ dlo)) := by sorry
-/-  intro q1; intro rhat; intro hi; intro q1c; intro rhatc
+       (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) ** (sp + signExtend12 3952 ↦ₘ dlo)) := by
+  sorry /- TODO: compose step1_init + clamp_q1_merged + prodcheck1_merged
+  intro q1; intro rhat; intro hi; intro q1c; intro rhatc
   intro q_dlo; intro rhat_un1; intro q1'; intro rhat'; intro cr
   -- Sub-spec 1: init (base to base+12)
   have h1_raw := divK_div128_step1_init_spec u_hi d_hi v5_old v10_old base
   have h1 := cpsTriple_extend_code (cr' := cr) (fun a i h => by
-    simp_all [CodeReq.union, CodeReq.singleton, beq_iff_eq]) h1_raw
+    sorry) h1_raw
   have h1f := cpsTriple_frame_left _ _ _ _ _
     ((.x11 ↦ᵣ un1) ** (.x1 ↦ᵣ v1_old) ** (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) ** (sp + signExtend12 3952 ↦ₘ dlo))
     (by pcFree) h1
@@ -2605,7 +2606,7 @@ theorem divK_div128_step1_spec
   have ha3 : (base + 12 : Addr) + 16 = base + 28 := by bv_omega
   simp only [ha0, ha1, ha2, ha3] at h2_raw
   have h2 := cpsTriple_extend_code (cr' := cr) (fun a i h => by
-    simp_all [CodeReq.union, CodeReq.singleton, beq_iff_eq]) h2_raw
+    sorry) h2_raw
   have h2f := cpsTriple_frame_left _ _ _ _ _
     ((.x11 ↦ᵣ un1) ** (.x1 ↦ᵣ v1_old) ** (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) ** (sp + signExtend12 3952 ↦ₘ dlo))
     (by pcFree) h2
@@ -2621,7 +2622,7 @@ theorem divK_div128_step1_spec
   have hb7 : (base + 28 : Addr) + 32 = base + 60 := by bv_omega
   simp only [hb0, hb1, hb2, hb3, hb4, hb5, hb6, hb7] at h3_raw
   have h3 := cpsTriple_extend_code (cr' := cr) (fun a i h => by
-    simp_all [CodeReq.union, CodeReq.singleton, beq_iff_eq]) h3_raw
+    sorry) h3_raw
   have h3f := cpsTriple_frame_left _ _ _ _ _
     ((.x0 ↦ᵣ 0))
     (by pcFree) h3
@@ -2682,13 +2683,14 @@ theorem divK_div128_step2_spec
       ((.x7 ↦ᵣ q0_dlo) ** (.x6 ↦ᵣ d_hi) ** (.x5 ↦ᵣ q0') **
        (.x1 ↦ᵣ rhat2_un0) ** (.x11 ↦ᵣ un0) **
        (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) **
-       (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0)) := by sorry
-/-  intro q0; intro rhat2; intro hi; intro q0c; intro rhat2c
+       (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0)) := by
+  sorry /- TODO: compose step2_init + clamp_q0_merged + prodcheck2_merged
+  intro q0; intro rhat2; intro hi; intro q0c; intro rhat2c
   intro q0_dlo; intro rhat2_un0; intro q0'; intro cr
   -- Sub-spec 1: init (base to base+12)
   have h1_raw := divK_div128_step2_init_spec un21 d_hi v1_old v5_old v11_old base
   have h1 := cpsTriple_extend_code (cr' := cr) (fun a i h => by
-    simp_all [CodeReq.union, CodeReq.singleton, beq_iff_eq]) h1_raw
+    sorry) h1_raw
   have h1f := cpsTriple_frame_left _ _ _ _ _
     ((.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) **
      (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0))
@@ -2701,7 +2703,7 @@ theorem divK_div128_step2_spec
   have ha3 : (base + 12 : Addr) + 16 = base + 28 := by bv_omega
   simp only [ha0, ha1, ha2, ha3] at h2_raw
   have h2 := cpsTriple_extend_code (cr' := cr) (fun a i h => by
-    simp_all [CodeReq.union, CodeReq.singleton, beq_iff_eq]) h2_raw
+    sorry) h2_raw
   have h2f := cpsTriple_frame_left _ _ _ _ _
     ((.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) **
      (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0))
@@ -2718,7 +2720,7 @@ theorem divK_div128_step2_spec
   have hb7 : (base + 28 : Addr) + 32 = base + 60 := by bv_omega
   simp only [hb0, hb1, hb2, hb3, hb4, hb5, hb6, hb7] at h3_raw
   have h3 := cpsTriple_extend_code (cr' := cr) (fun a i h => by
-    simp_all [CodeReq.union, CodeReq.singleton, beq_iff_eq]) h3_raw
+    sorry) h3_raw
   have h3f := cpsTriple_frame_left _ _ _ _ _
     ((.x0 ↦ᵣ 0))
     (by pcFree) h3
