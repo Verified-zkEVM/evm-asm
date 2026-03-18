@@ -210,6 +210,16 @@ theorem cpsBranch_elim_ntaken (entry l_t l_f : Addr) (cr : CodeReq)
     from the taken postcondition (depth 3: A ** B ** C ** ⌜P⌝ → A ** B ** C).
     The return type is explicitly `cpsTriple entry l_t P (A ** B ** C)`, avoiding
     lambda-wrapped postconditions. -/
+theorem cpsBranch_elim_taken_strip_pure2
+    (entry l_t l_f : Addr) (cr : CodeReq) (P A B : Assertion) (Prop_t : Prop) (Q_f : Assertion)
+    (hbr : cpsBranch entry cr P l_t (A ** B ** ⌜Prop_t⌝) l_f Q_f)
+    (h_absurd : ∀ hp, Q_f hp → False) :
+    cpsTriple entry l_t cr P (A ** B) :=
+  cpsTriple_consequence _ _ _ _ _ _ _
+    (fun _ hp => hp)
+    (sepConj_strip_pure_end2 A B Prop_t)
+    (cpsBranch_elim_taken _ _ _ _ _ _ _ hbr h_absurd)
+
 theorem cpsBranch_elim_taken_strip_pure3
     (entry l_t l_f : Addr) (cr : CodeReq) (P A B C : Assertion) (Prop_t : Prop) (Q_f : Assertion)
     (hbr : cpsBranch entry cr P l_t (A ** B ** C ** ⌜Prop_t⌝) l_f Q_f)
@@ -219,6 +229,18 @@ theorem cpsBranch_elim_taken_strip_pure3
     (fun _ hp => hp)
     (sepConj_strip_pure_end3 A B C Prop_t)
     (cpsBranch_elim_taken _ _ _ _ _ _ _ hbr h_absurd)
+
+/-- Eliminate the taken path from a cpsBranch AND strip the trailing pure fact
+    from the not-taken postcondition (depth 2: A ** B ** ⌜P⌝ → A ** B). -/
+theorem cpsBranch_elim_ntaken_strip_pure2
+    (entry l_t l_f : Addr) (cr : CodeReq) (P A B : Assertion) (Prop_f : Prop) (Q_t : Assertion)
+    (hbr : cpsBranch entry cr P l_t Q_t l_f (A ** B ** ⌜Prop_f⌝))
+    (h_absurd : ∀ hp, Q_t hp → False) :
+    cpsTriple entry l_f cr P (A ** B) :=
+  cpsTriple_consequence _ _ _ _ _ _ _
+    (fun _ hp => hp)
+    (sepConj_strip_pure_end2 A B Prop_f)
+    (cpsBranch_elim_ntaken _ _ _ _ _ _ _ hbr h_absurd)
 
 /-- Eliminate the taken path from a cpsBranch AND strip the trailing pure fact
     from the not-taken postcondition (depth 3: A ** B ** C ** ⌜P⌝ → A ** B ** C).

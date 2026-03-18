@@ -65,6 +65,55 @@ private theorem bv_off_divK_49  : BitVec.ofNat 64 (4 * 49)  = (196 : Addr) := by
 @[simp] private theorem divK_addr_1068 (b : Addr) : b + 1064 + 4  = b + 1068 := by simp only [OfNat.ofNat, bv_add_ofNat_assoc]
 
 -- ============================================================================
+-- Section 3b: Address BEq cancellation (for cross-block CodeReq matching)
+-- ============================================================================
+
+private theorem bv_beq_add_cancel (base k j : Addr) :
+    (base + k == base + j) = (k == j) := by
+  cases hkj : (k == j) with
+  | true => simp only [beq_iff_eq] at hkj; subst hkj; exact beq_self_eq_true _
+  | false => simp only [beq_eq_false_iff_ne] at hkj ⊢; intro h; exact hkj (by bv_omega)
+
+private theorem bv_beq_add_cancel_right (base k : Addr) :
+    (base + k == base) = (k == 0) := by
+  cases hk : (k == (0 : Addr)) with
+  | true => simp only [beq_iff_eq] at hk; subst hk; simp
+  | false => simp only [beq_eq_false_iff_ne] at hk ⊢; intro h; exact hk (by bv_omega)
+
+private theorem bv_beq_add_cancel_left (base k : Addr) :
+    (base == base + k) = ((0 : Addr) == k) := by
+  cases hk : ((0 : Addr) == k) with
+  | true => simp only [beq_iff_eq] at hk; subst hk; simp
+  | false => simp only [beq_eq_false_iff_ne] at hk ⊢; intro h; exact hk (by bv_omega)
+
+-- ============================================================================
+-- Section 3c: Concrete instruction lists (proved by rfl, used by ofProg_cons)
+-- ============================================================================
+
+private theorem divK_phaseA_instrs :
+    (divK_phaseA 1016 : List Instr) = [.LD .x5 .x12 32, .LD .x10 .x12 40,
+    .OR .x5 .x5 .x10, .LD .x10 .x12 48, .OR .x5 .x5 .x10, .LD .x10 .x12 56,
+    .OR .x5 .x5 .x10, .BEQ .x5 .x0 1016] := by rfl
+
+private theorem divK_phaseB_instrs :
+    (divK_phaseB : List Instr) = [
+    .SD .x12 .x0 4088, .SD .x12 .x0 4080, .SD .x12 .x0 4072, .SD .x12 .x0 4064,
+    .SD .x12 .x0 4016, .SD .x12 .x0 4008, .SD .x12 .x0 4000,
+    .LD .x6 .x12 40, .LD .x7 .x12 48,
+    .ADDI .x5 .x0 4, .BNE .x10 .x0 24,
+    .ADDI .x5 .x0 3, .BNE .x7 .x0 16,
+    .ADDI .x5 .x0 2, .BNE .x6 .x0 8,
+    .ADDI .x5 .x0 1,
+    .SD .x12 .x5 3984, .ADDI .x5 .x5 4095, .SLLI .x5 .x5 3,
+    .ADD .x5 .x12 .x5, .LD .x5 .x5 32] := by rfl
+
+private theorem divK_zeroPath_instrs :
+    (divK_zeroPath : List Instr) = [
+    .ADDI .x12 .x12 32,
+    .SD .x12 .x0 0, .SD .x12 .x0 8,
+    .SD .x12 .x0 16, .SD .x12 .x0 24] := by rfl
+
+-- ============================================================================
 -- Section 4: Full program CodeReq split into per-phase CodeReq.ofProg blocks
 -- ============================================================================
 
@@ -118,43 +167,206 @@ private theorem divK_phaseA_code_sub_divCode (base : Addr) :
   split at h <;> (try simp_all) <;> split at h <;> (try simp_all) <;>
   split at h <;> (try simp_all) <;> split at h <;> simp_all
 
+set_option maxRecDepth 2048 in
+set_option maxHeartbeats 6400000 in
 /-- Zero path code (5 instructions) is subsumed by divCode. -/
 private theorem divK_zeroPath_code_sub_divCode (base : Addr) :
     ∀ a i, (divK_zeroPath_code (base + 1044)) a = some i → (divCode base) a = some i := by
-  sorry
+  intro a i h
+  -- Derive address range from h (non-destructively)
+  have ha : a = base + 1044 ∨ a = base + 1048 ∨ a = base + 1052 ∨
+            a = base + 1056 ∨ a = base + 1060 := by
+    suffices ∀ b, divK_zeroPath_code (b + 1044) a = some i →
+      a = b + 1044 ∨ a = b + 1048 ∨ a = b + 1052 ∨ a = b + 1056 ∨ a = b + 1060 from this base h
+    intro b h'
+    simp only [divK_zeroPath_code, CodeReq.union, CodeReq.singleton,
+      OfNat.ofNat, bv_add_ofNat_assoc] at h'
+    by_cases h1 : (a == b + 1044 : Bool)
+    · exact Or.inl (beq_iff_eq.mp h1)
+    · by_cases h2 : (a == b + 1048 : Bool)
+      · exact Or.inr (Or.inl (beq_iff_eq.mp h2))
+      · by_cases h3 : (a == b + 1052 : Bool)
+        · exact Or.inr (Or.inr (Or.inl (beq_iff_eq.mp h3)))
+        · by_cases h4 : (a == b + 1056 : Bool)
+          · exact Or.inr (Or.inr (Or.inr (Or.inl (beq_iff_eq.mp h4))))
+          · by_cases h5 : (a == b + 1060 : Bool)
+            · exact Or.inr (Or.inr (Or.inr (Or.inr (beq_iff_eq.mp h5))))
+            · exfalso; simp_all
+  unfold divCode
+  -- Skip blocks 0-10: each returns none at zeroPath addresses
+  have s0 := CodeReq.ofProg_none_range base (divK_phaseA 1016) a
+    (fun k hk => by rw [divK_phaseA_len] at hk; rcases ha with h|h|h|h|h <;> (subst h; bv_omega))
+  have s1 := CodeReq.ofProg_none_range (base + 32) divK_phaseB a
+    (fun k hk => by rw [divK_phaseB_len] at hk; rcases ha with h|h|h|h|h <;> (subst h; bv_omega))
+  have s2 := CodeReq.ofProg_none_range (base + 116) divK_clz a
+    (fun k hk => by rw [divK_clz_len] at hk; rcases ha with h|h|h|h|h <;> (subst h; bv_omega))
+  have s3 := CodeReq.ofProg_none_range (base + 212) (divK_phaseC2 172) a
+    (fun k hk => by rw [divK_phaseC2_len] at hk; rcases ha with h|h|h|h|h <;> (subst h; bv_omega))
+  have s4 := CodeReq.ofProg_none_range (base + 228) divK_normB a
+    (fun k hk => by rw [divK_normB_len] at hk; rcases ha with h|h|h|h|h <;> (subst h; bv_omega))
+  have s5 := CodeReq.ofProg_none_range (base + 312) (divK_normA 40) a
+    (fun k hk => by rw [divK_normA_len] at hk; rcases ha with h|h|h|h|h <;> (subst h; bv_omega))
+  have s6 := CodeReq.ofProg_none_range (base + 396) divK_copyAU a
+    (fun k hk => by rw [divK_copyAU_len] at hk; rcases ha with h|h|h|h|h <;> (subst h; bv_omega))
+  have s7 := CodeReq.ofProg_none_range (base + 432) (divK_loopSetup 460) a
+    (fun k hk => by rw [divK_loopSetup_len] at hk; rcases ha with h|h|h|h|h <;> (subst h; bv_omega))
+  have s8 := CodeReq.ofProg_none_range (base + 448) (divK_loopBody 556 7740) a
+    (fun k hk => by rw [divK_loopBody_len] at hk; rcases ha with h|h|h|h|h <;> (subst h; bv_omega))
+  have s9 := CodeReq.ofProg_none_range (base + 904) divK_denorm a
+    (fun k hk => by rw [divK_denorm_len] at hk; rcases ha with h|h|h|h|h <;> (subst h; bv_omega))
+  have s10 := CodeReq.ofProg_none_range (base + 1004) (divK_div_epilogue 24) a
+    (fun k hk => by rw [divK_divEpilogue_len] at hk; rcases ha with h|h|h|h|h <;> (subst h; bv_omega))
+  -- Peel off blocks 0-10 via union_none_left, then match block 11
+  rw [CodeReq.union_none_left s0, CodeReq.union_none_left s1, CodeReq.union_none_left s2,
+      CodeReq.union_none_left s3, CodeReq.union_none_left s4, CodeReq.union_none_left s5,
+      CodeReq.union_none_left s6, CodeReq.union_none_left s7, CodeReq.union_none_left s8,
+      CodeReq.union_none_left s9, CodeReq.union_none_left s10]
+  apply CodeReq.union_mono_left
+  -- Both h and goal describe the same 5-address code region; case-split on concrete address
+  rcases ha with rfl | rfl | rfl | rfl | rfl <;> (
+    simp only [divK_zeroPath_code, CodeReq.union, CodeReq.singleton,
+      OfNat.ofNat, bv_add_ofNat_assoc] at h
+    simp only [CodeReq.ofProg, CodeReq.ofIndexed, divK_zeroPath_instrs, progIndexed,
+      List.foldl, CodeReq.empty, CodeReq.union, CodeReq.singleton,
+      OfNat.ofNat, bv_add_ofNat_assoc]
+    simp_all)
 
 /-- BEQ singleton at base+28 is subsumed by divCode (it's part of phaseA). -/
 private theorem beq_singleton_sub_divCode (base : Addr) :
     ∀ a i, (CodeReq.singleton (base + 28) (.BEQ .x5 .x0 1016)) a = some i →
       (divCode base) a = some i := by
-  sorry
+  intro a i h
+  unfold divCode
+  apply CodeReq.union_mono_left
+  simp only [CodeReq.singleton] at h
+  simp only [CodeReq.ofProg, CodeReq.ofIndexed, divK_phaseA_instrs] at ⊢
+  simp only [progIndexed] at ⊢
+  simp only [List.foldl, CodeReq.empty, CodeReq.union, CodeReq.singleton] at ⊢
+  simp only [OfNat.ofNat, bv_add_ofNat_assoc] at ⊢
+  split at h <;> simp_all
 
+set_option maxHeartbeats 1600000 in
 /-- Phase B init1 code (7 instructions) is subsumed by divCode. -/
 private theorem divK_phaseB_init1_code_sub_divCode (base : Addr) :
     ∀ a i, (divK_phaseB_init1_code (base + 32)) a = some i → (divCode base) a = some i := by
-  sorry
+  intro a i h
+  simp only [divK_phaseB_init1_code, CodeReq.union, CodeReq.singleton,
+    OfNat.ofNat, bv_add_ofNat_assoc] at h
+  -- Derive address range from h
+  have ha : a = base + 32 ∨ a = base + 36 ∨ a = base + 40 ∨ a = base + 44 ∨
+            a = base + 48 ∨ a = base + 52 ∨ a = base + 56 := by
+    by_cases h1 : (a == base + 32 : Bool)
+    · exact Or.inl (beq_iff_eq.mp h1)
+    · by_cases h2 : (a == base + 36 : Bool)
+      · exact Or.inr (Or.inl (beq_iff_eq.mp h2))
+      · by_cases h3 : (a == base + 40 : Bool)
+        · exact Or.inr (Or.inr (Or.inl (beq_iff_eq.mp h3)))
+        · by_cases h4 : (a == base + 44 : Bool)
+          · exact Or.inr (Or.inr (Or.inr (Or.inl (beq_iff_eq.mp h4))))
+          · by_cases h5 : (a == base + 48 : Bool)
+            · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inl (beq_iff_eq.mp h5)))))
+            · by_cases h6 : (a == base + 52 : Bool)
+              · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl (beq_iff_eq.mp h6))))))
+              · by_cases h7 : (a == base + 56 : Bool)
+                · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (beq_iff_eq.mp h7))))))
+                · exfalso; simp_all
+  unfold divCode
+  -- Skip block 0 (phaseA: base to base+28)
+  have s0 := CodeReq.ofProg_none_range base (divK_phaseA 1016) a
+    (fun k hk => by rw [divK_phaseA_len] at hk; rcases ha with h|h|h|h|h|h|h <;> (subst h; bv_omega))
+  rw [CodeReq.union_none_left s0]
+  -- Focus on block 1 (phaseB)
+  apply CodeReq.union_mono_left
+  simp only [CodeReq.ofProg, CodeReq.ofIndexed, divK_phaseB_instrs, progIndexed,
+    List.foldl, CodeReq.empty, CodeReq.union, CodeReq.singleton,
+    OfNat.ofNat, bv_add_ofNat_assoc] at ⊢
+  rcases ha with rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp_all
 
+set_option maxHeartbeats 1600000 in
 /-- Phase B init2 code (2 instructions) is subsumed by divCode. -/
 private theorem divK_phaseB_init2_code_sub_divCode (base : Addr) :
     ∀ a i, (divK_phaseB_init2_code (base + 60)) a = some i → (divCode base) a = some i := by
-  sorry
+  intro a i h
+  simp only [divK_phaseB_init2_code, CodeReq.union, CodeReq.singleton,
+    OfNat.ofNat, bv_add_ofNat_assoc] at h
+  have ha : a = base + 60 ∨ a = base + 64 := by
+    by_cases h1 : (a == base + 60 : Bool)
+    · exact Or.inl (beq_iff_eq.mp h1)
+    · by_cases h2 : (a == base + 64 : Bool)
+      · exact Or.inr (beq_iff_eq.mp h2)
+      · exfalso; simp_all
+  unfold divCode
+  have s0 := CodeReq.ofProg_none_range base (divK_phaseA 1016) a
+    (fun k hk => by rw [divK_phaseA_len] at hk; rcases ha with h|h <;> (subst h; bv_omega))
+  rw [CodeReq.union_none_left s0]
+  apply CodeReq.union_mono_left
+  simp only [CodeReq.ofProg, CodeReq.ofIndexed, divK_phaseB_instrs, progIndexed,
+    List.foldl, CodeReq.empty, CodeReq.union, CodeReq.singleton,
+    OfNat.ofNat, bv_add_ofNat_assoc] at ⊢
+  rcases ha with rfl | rfl <;> simp_all
 
+set_option maxHeartbeats 1600000 in
 /-- ADDI x5 x0 4 singleton at base+68 is subsumed by divCode. -/
 private theorem addi_x5_singleton_sub_divCode (base : Addr) :
     ∀ a i, (CodeReq.singleton (base + 68) (.ADDI .x5 .x0 4)) a = some i →
       (divCode base) a = some i := by
-  sorry
+  intro a i h
+  simp only [CodeReq.singleton] at h
+  unfold divCode
+  have s0 := CodeReq.ofProg_none_range base (divK_phaseA 1016) a
+    (fun k hk => by rw [divK_phaseA_len] at hk; split at h <;> simp_all; bv_omega)
+  rw [CodeReq.union_none_left s0]
+  apply CodeReq.union_mono_left
+  simp only [CodeReq.ofProg, CodeReq.ofIndexed, divK_phaseB_instrs, progIndexed,
+    List.foldl, CodeReq.empty, CodeReq.union, CodeReq.singleton,
+    OfNat.ofNat, bv_add_ofNat_assoc] at ⊢
+  split at h <;> simp_all
 
+set_option maxHeartbeats 1600000 in
 /-- BNE x10 x0 24 singleton at base+72 is subsumed by divCode. -/
 private theorem bne_x10_singleton_sub_divCode (base : Addr) :
     ∀ a i, (CodeReq.singleton (base + 72) (.BNE .x10 .x0 24)) a = some i →
       (divCode base) a = some i := by
-  sorry
+  intro a i h
+  simp only [CodeReq.singleton] at h
+  unfold divCode
+  have s0 := CodeReq.ofProg_none_range base (divK_phaseA 1016) a
+    (fun k hk => by rw [divK_phaseA_len] at hk; split at h <;> simp_all; bv_omega)
+  rw [CodeReq.union_none_left s0]
+  apply CodeReq.union_mono_left
+  simp only [CodeReq.ofProg, CodeReq.ofIndexed, divK_phaseB_instrs, progIndexed,
+    List.foldl, CodeReq.empty, CodeReq.union, CodeReq.singleton,
+    OfNat.ofNat, bv_add_ofNat_assoc] at ⊢
+  split at h <;> simp_all
 
+set_option maxHeartbeats 1600000 in
 /-- Phase B tail code (5 instructions) is subsumed by divCode. -/
 private theorem divK_phaseB_tail_code_sub_divCode (base : Addr) :
     ∀ a i, (divK_phaseB_tail_code (base + 96)) a = some i → (divCode base) a = some i := by
-  sorry
+  intro a i h
+  simp only [divK_phaseB_tail_code, CodeReq.union, CodeReq.singleton,
+    OfNat.ofNat, bv_add_ofNat_assoc] at h
+  have ha : a = base + 96 ∨ a = base + 100 ∨ a = base + 104 ∨ a = base + 108 ∨ a = base + 112 := by
+    by_cases h1 : (a == base + 96 : Bool)
+    · exact Or.inl (beq_iff_eq.mp h1)
+    · by_cases h2 : (a == base + 100 : Bool)
+      · exact Or.inr (Or.inl (beq_iff_eq.mp h2))
+      · by_cases h3 : (a == base + 104 : Bool)
+        · exact Or.inr (Or.inr (Or.inl (beq_iff_eq.mp h3)))
+        · by_cases h4 : (a == base + 108 : Bool)
+          · exact Or.inr (Or.inr (Or.inr (Or.inl (beq_iff_eq.mp h4))))
+          · by_cases h5 : (a == base + 112 : Bool)
+            · exact Or.inr (Or.inr (Or.inr (Or.inr (beq_iff_eq.mp h5))))
+            · exfalso; simp_all
+  unfold divCode
+  have s0 := CodeReq.ofProg_none_range base (divK_phaseA 1016) a
+    (fun k hk => by rw [divK_phaseA_len] at hk; rcases ha with h|h|h|h|h <;> (subst h; bv_omega))
+  rw [CodeReq.union_none_left s0]
+  apply CodeReq.union_mono_left
+  simp only [CodeReq.ofProg, CodeReq.ofIndexed, divK_phaseB_instrs, progIndexed,
+    List.foldl, CodeReq.empty, CodeReq.union, CodeReq.singleton,
+    OfNat.ofNat, bv_add_ofNat_assoc] at ⊢
+  rcases ha with rfl | rfl | rfl | rfl | rfl <;> simp_all
 
 -- ============================================================================
 -- Section 6: signExtend13 normalization
@@ -225,11 +437,10 @@ theorem evm_div_bzero_spec (sp base : Addr)
   rw [show (base + 28 : Addr) + signExtend13 1016 = base + 1044 from by
         rw [signExtend13_1016]; bv_omega,
       show (base + 28 : Addr) + 4 = base + 32 from by bv_omega] at hbeq_raw
-  have hbeq_clean := cpsBranch_elim_taken_strip_pure3 _ _ _ _ _ _ _ _ _ hbeq_raw
+  have hbeq_clean := cpsBranch_elim_taken_strip_pure2 _ _ _ _ _ _ _ _ _ hbeq_raw
     (fun hp hQf => by
-      obtain ⟨_, _, _, _, _, h1⟩ := hQf
-      obtain ⟨_, _, _, _, _, h2⟩ := h1
-      exact absurd hbz ((sepConj_pure_right _ _ _).mp h2).2)
+      obtain ⟨_, _, _, _, _, h_rest⟩ := hQf
+      exact absurd hbz ((sepConj_pure_right _ _ _).mp h_rest).2)
   -- Extend BEQ to divCode CodeReq
   have hbeq := cpsTriple_extend_code (beq_singleton_sub_divCode base) hbeq_clean
   -- Step 3: Frame BEQ with regs + mem (no code atoms needed in frame)
@@ -287,11 +498,10 @@ theorem evm_div_phaseA_ntaken_spec (sp base : Addr)
   rw [show (base + 28 : Addr) + signExtend13 1016 = base + 1044 from by
         rw [signExtend13_1016]; bv_omega,
       show (base + 28 : Addr) + 4 = base + 32 from by bv_omega] at hbeq_raw
-  have hbeq_clean := cpsBranch_elim_ntaken_strip_pure3 _ _ _ _ _ _ _ _ _ hbeq_raw
+  have hbeq_clean := cpsBranch_elim_ntaken_strip_pure2 _ _ _ _ _ _ _ _ _ hbeq_raw
     (fun hp hQt => by
-      obtain ⟨_, _, _, _, _, h1⟩ := hQt
-      obtain ⟨_, _, _, _, _, h2⟩ := h1
-      exact absurd ((sepConj_pure_right _ _ _).mp h2).2 hbnz)
+      obtain ⟨_, _, _, _, _, h_rest⟩ := hQt
+      exact absurd ((sepConj_pure_right _ _ _).mp h_rest).2 hbnz)
   -- Extend BEQ to divCode CodeReq
   have hbeq := cpsTriple_extend_code (beq_singleton_sub_divCode base) hbeq_clean
   -- Step 3: Frame BEQ with regs + mem
@@ -352,7 +562,7 @@ theorem evm_div_phaseB_n4_spec (sp base : Addr)
   -- ---- Step 1: init1 (base+32 → base+60) — zero q[0..3] and u[5..7]
   have hinit1_raw := divK_phaseB_init1_spec sp (base + 32) q0 q1 q2 q3 u5 u6 u7
     hv_q0 hv_q1 hv_q2 hv_q3 hv_u5 hv_u6 hv_u7
-  simp only [divK_phaseB_init1_code, phB_off_4, phB_off_8, phB_off_12, phB_off_16, phB_off_20, phB_off_24, phB_off_28] at hinit1_raw
+  simp only [phB_off_28] at hinit1_raw
   have hinit1 := cpsTriple_extend_code (divK_phaseB_init1_code_sub_divCode base) hinit1_raw
   have hinit1f := cpsTriple_frame_left _ _ _ _ _
     ((.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ b3) ** (.x0 ↦ᵣ (0 : Word)) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
@@ -361,7 +571,7 @@ theorem evm_div_phaseB_n4_spec (sp base : Addr)
     (by pcFree) hinit1
   -- ---- Step 2: init2 (base+60 → base+68) — load b[1], b[2]
   have hinit2_raw := divK_phaseB_init2_spec sp (base + 60) b1 b2 v6 v7 hvalid
-  simp only [divK_phaseB_init2_code, phB_i2_4, phB_i2_8] at hinit2_raw
+  simp only [phB_i2_8] at hinit2_raw
   have hinit2 := cpsTriple_extend_code (divK_phaseB_init2_code_sub_divCode base) hinit2_raw
   have hinit2f := cpsTriple_frame_left _ _ _ _ _
     ((.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ b3) ** (.x0 ↦ᵣ (0 : Word)) **
@@ -393,11 +603,10 @@ theorem evm_div_phaseB_n4_spec (sp base : Addr)
   have hbne_raw := bne_spec_gen .x10 .x0 24 b3 (0 : Word) (base + 72)
   rw [show (base + 72 : Addr) + signExtend13 24 = base + 96 from by
         rw [signExtend13_24]; bv_omega, phB_bne_4] at hbne_raw
-  have hbne_clean := cpsBranch_elim_taken_strip_pure3 _ _ _ _ _ _ _ _ _ hbne_raw
+  have hbne_clean := cpsBranch_elim_taken_strip_pure2 _ _ _ _ _ _ _ _ _ hbne_raw
     (fun hp hQf => by
-      obtain ⟨_, _, _, _, _, h1⟩ := hQf
-      obtain ⟨_, _, _, _, _, h2⟩ := h1
-      exact absurd ((sepConj_pure_right _ _ _).mp h2).2 hb3nz)
+      obtain ⟨_, _, _, _, _, h_rest⟩ := hQf
+      exact absurd ((sepConj_pure_right _ _ _).mp h_rest).2 hb3nz)
   have hbne := cpsTriple_extend_code (bne_x10_singleton_sub_divCode base) hbne_clean
   have hbnef := cpsTriple_frame_left _ _ _ _ _
     ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ (4 : Word)) ** (.x6 ↦ᵣ b1) ** (.x7 ↦ᵣ b2) **
@@ -417,8 +626,7 @@ theorem evm_div_phaseB_n4_spec (sp base : Addr)
     rw [divK_phaseB_n4_nm1_x8, divK_se12_32, phB_sp24_32]
     exact hvalid.get (show 7 < 8 from by omega)
   have htail_raw := divK_phaseB_tail_spec sp (4 : Word) b3 n_mem (base + 96) hv_n hv_limb
-  simp only [divK_phaseB_tail_code, phB_t_4, phB_t_8, phB_t_12, phB_t_16, phB_t_20,
-    divK_phaseB_n4_nm1_x8, divK_se12_32, phB_sp24_32] at htail_raw
+  simp only [phB_t_20, divK_phaseB_n4_nm1_x8, divK_se12_32, phB_sp24_32] at htail_raw
   have htail := cpsTriple_extend_code (divK_phaseB_tail_code_sub_divCode base) htail_raw
   have htailf := cpsTriple_frame_left _ _ _ _ _
     ((.x10 ↦ᵣ b3) ** (.x0 ↦ᵣ (0 : Word)) ** (.x6 ↦ᵣ b1) ** (.x7 ↦ᵣ b2) **
@@ -491,8 +699,12 @@ theorem evm_div_phaseAB_n4_spec (sp base : Addr)
   have hBf := cpsTriple_frame_left _ _ _ _ _
     (((sp + 32) ↦ₘ b0))
     (by pcFree) hB
-  exact cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have hAB := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
     (fun h hp => by xperm_hyp hp) hAf hBf
+  exact cpsTriple_consequence _ _ _ _ _ _ _
+    (fun h hp => by xperm_hyp hp)
+    (fun h hq => by xperm_hyp hq)
+    hAB
 
 -- ============================================================================
 -- Section 11: MOD program code infrastructure
@@ -525,18 +737,97 @@ abbrev modCode (base : Addr) : CodeReq :=
 /-- Phase A code is subsumed by modCode. -/
 private theorem divK_phaseA_code_sub_modCode (base : Addr) :
     ∀ a i, (divK_phaseA_code base) a = some i → (modCode base) a = some i := by
-  sorry
+  intro a i h
+  unfold modCode
+  apply CodeReq.union_mono_left
+  simp only [divK_phaseA_code, CodeReq.union, CodeReq.singleton] at h
+  have hprog : (divK_phaseA 1016 : List Instr) = [.LD .x5 .x12 32, .LD .x10 .x12 40,
+    .OR .x5 .x5 .x10, .LD .x10 .x12 48, .OR .x5 .x5 .x10, .LD .x10 .x12 56,
+    .OR .x5 .x5 .x10, .BEQ .x5 .x0 1016] := by rfl
+  simp only [CodeReq.ofProg, CodeReq.ofIndexed, hprog] at ⊢
+  simp only [progIndexed] at ⊢
+  simp only [List.foldl, CodeReq.empty, CodeReq.union, CodeReq.singleton] at ⊢
+  simp only [OfNat.ofNat, bv_add_ofNat_assoc] at ⊢
+  split at h <;> (try simp_all) <;> split at h <;> (try simp_all) <;>
+  split at h <;> (try simp_all) <;> split at h <;> (try simp_all) <;>
+  split at h <;> (try simp_all) <;> split at h <;> (try simp_all) <;>
+  split at h <;> (try simp_all) <;> split at h <;> simp_all
 
+set_option maxRecDepth 2048 in
+set_option maxHeartbeats 6400000 in
 /-- Zero path code is subsumed by modCode. -/
 private theorem divK_zeroPath_code_sub_modCode (base : Addr) :
     ∀ a i, (divK_zeroPath_code (base + 1044)) a = some i → (modCode base) a = some i := by
-  sorry
+  intro a i h
+  have ha : a = base + 1044 ∨ a = base + 1048 ∨ a = base + 1052 ∨
+            a = base + 1056 ∨ a = base + 1060 := by
+    suffices ∀ b, divK_zeroPath_code (b + 1044) a = some i →
+      a = b + 1044 ∨ a = b + 1048 ∨ a = b + 1052 ∨ a = b + 1056 ∨ a = b + 1060 from this base h
+    intro b h'
+    simp only [divK_zeroPath_code, CodeReq.union, CodeReq.singleton,
+      OfNat.ofNat, bv_add_ofNat_assoc] at h'
+    by_cases h1 : (a == b + 1044 : Bool)
+    · exact Or.inl (beq_iff_eq.mp h1)
+    · by_cases h2 : (a == b + 1048 : Bool)
+      · exact Or.inr (Or.inl (beq_iff_eq.mp h2))
+      · by_cases h3 : (a == b + 1052 : Bool)
+        · exact Or.inr (Or.inr (Or.inl (beq_iff_eq.mp h3)))
+        · by_cases h4 : (a == b + 1056 : Bool)
+          · exact Or.inr (Or.inr (Or.inr (Or.inl (beq_iff_eq.mp h4))))
+          · by_cases h5 : (a == b + 1060 : Bool)
+            · exact Or.inr (Or.inr (Or.inr (Or.inr (beq_iff_eq.mp h5))))
+            · exfalso; simp_all
+  unfold modCode
+  have s0 := CodeReq.ofProg_none_range base (divK_phaseA 1016) a
+    (fun k hk => by rw [divK_phaseA_len] at hk; rcases ha with h|h|h|h|h <;> (subst h; bv_omega))
+  have s1 := CodeReq.ofProg_none_range (base + 32) divK_phaseB a
+    (fun k hk => by rw [divK_phaseB_len] at hk; rcases ha with h|h|h|h|h <;> (subst h; bv_omega))
+  have s2 := CodeReq.ofProg_none_range (base + 116) divK_clz a
+    (fun k hk => by rw [divK_clz_len] at hk; rcases ha with h|h|h|h|h <;> (subst h; bv_omega))
+  have s3 := CodeReq.ofProg_none_range (base + 212) (divK_phaseC2 172) a
+    (fun k hk => by rw [divK_phaseC2_len] at hk; rcases ha with h|h|h|h|h <;> (subst h; bv_omega))
+  have s4 := CodeReq.ofProg_none_range (base + 228) divK_normB a
+    (fun k hk => by rw [divK_normB_len] at hk; rcases ha with h|h|h|h|h <;> (subst h; bv_omega))
+  have s5 := CodeReq.ofProg_none_range (base + 312) (divK_normA 40) a
+    (fun k hk => by rw [divK_normA_len] at hk; rcases ha with h|h|h|h|h <;> (subst h; bv_omega))
+  have s6 := CodeReq.ofProg_none_range (base + 396) divK_copyAU a
+    (fun k hk => by rw [divK_copyAU_len] at hk; rcases ha with h|h|h|h|h <;> (subst h; bv_omega))
+  have s7 := CodeReq.ofProg_none_range (base + 432) (divK_loopSetup 460) a
+    (fun k hk => by rw [divK_loopSetup_len] at hk; rcases ha with h|h|h|h|h <;> (subst h; bv_omega))
+  have s8 := CodeReq.ofProg_none_range (base + 448) (divK_loopBody 556 7740) a
+    (fun k hk => by rw [divK_loopBody_len] at hk; rcases ha with h|h|h|h|h <;> (subst h; bv_omega))
+  have s9 := CodeReq.ofProg_none_range (base + 904) divK_denorm a
+    (fun k hk => by rw [divK_denorm_len] at hk; rcases ha with h|h|h|h|h <;> (subst h; bv_omega))
+  have s10 := CodeReq.ofProg_none_range (base + 1004) (divK_mod_epilogue 24) a
+    (fun k hk => by rw [divK_modEpilogue_len] at hk; rcases ha with h|h|h|h|h <;> (subst h; bv_omega))
+  -- Peel off blocks 0-10 via union_none_left, then match block 11
+  rw [CodeReq.union_none_left s0, CodeReq.union_none_left s1, CodeReq.union_none_left s2,
+      CodeReq.union_none_left s3, CodeReq.union_none_left s4, CodeReq.union_none_left s5,
+      CodeReq.union_none_left s6, CodeReq.union_none_left s7, CodeReq.union_none_left s8,
+      CodeReq.union_none_left s9, CodeReq.union_none_left s10]
+  apply CodeReq.union_mono_left
+  -- Both h and goal describe the same 5-address code region; case-split on concrete address
+  rcases ha with rfl | rfl | rfl | rfl | rfl <;> (
+    simp only [divK_zeroPath_code, CodeReq.union, CodeReq.singleton,
+      OfNat.ofNat, bv_add_ofNat_assoc] at h
+    simp only [CodeReq.ofProg, CodeReq.ofIndexed, divK_zeroPath_instrs, progIndexed,
+      List.foldl, CodeReq.empty, CodeReq.union, CodeReq.singleton,
+      OfNat.ofNat, bv_add_ofNat_assoc]
+    simp_all)
 
 /-- BEQ singleton at base+28 is subsumed by modCode. -/
 private theorem beq_singleton_sub_modCode (base : Addr) :
     ∀ a i, (CodeReq.singleton (base + 28) (.BEQ .x5 .x0 1016)) a = some i →
       (modCode base) a = some i := by
-  sorry
+  intro a i h
+  unfold modCode
+  apply CodeReq.union_mono_left
+  simp only [CodeReq.singleton] at h
+  simp only [CodeReq.ofProg, CodeReq.ofIndexed, divK_phaseA_instrs] at ⊢
+  simp only [progIndexed] at ⊢
+  simp only [List.foldl, CodeReq.empty, CodeReq.union, CodeReq.singleton] at ⊢
+  simp only [OfNat.ofNat, bv_add_ofNat_assoc] at ⊢
+  split at h <;> simp_all
 
 -- ============================================================================
 -- Section 13: MOD zero path composition (b = 0)
@@ -566,11 +857,10 @@ theorem evm_mod_bzero_spec (sp base : Addr)
   rw [show (base + 28 : Addr) + signExtend13 1016 = base + 1044 from by
         rw [signExtend13_1016]; bv_omega,
       show (base + 28 : Addr) + 4 = base + 32 from by bv_omega] at hbeq_raw
-  have hbeq_clean := cpsBranch_elim_taken_strip_pure3 _ _ _ _ _ _ _ _ _ hbeq_raw
+  have hbeq_clean := cpsBranch_elim_taken_strip_pure2 _ _ _ _ _ _ _ _ _ hbeq_raw
     (fun hp hQf => by
-      obtain ⟨_, _, _, _, _, h1⟩ := hQf
-      obtain ⟨_, _, _, _, _, h2⟩ := h1
-      exact absurd hbz ((sepConj_pure_right _ _ _).mp h2).2)
+      obtain ⟨_, _, _, _, _, h_rest⟩ := hQf
+      exact absurd hbz ((sepConj_pure_right _ _ _).mp h_rest).2)
   have hbeq := cpsTriple_extend_code (beq_singleton_sub_modCode base) hbeq_clean
   -- Step 3: Frame BEQ with regs + mem
   have hbeq_framed := cpsTriple_frame_left _ _ _ _ _
@@ -625,11 +915,10 @@ theorem evm_mod_phaseA_ntaken_spec (sp base : Addr)
   rw [show (base + 28 : Addr) + signExtend13 1016 = base + 1044 from by
         rw [signExtend13_1016]; bv_omega,
       show (base + 28 : Addr) + 4 = base + 32 from by bv_omega] at hbeq_raw
-  have hbeq_clean := cpsBranch_elim_ntaken_strip_pure3 _ _ _ _ _ _ _ _ _ hbeq_raw
+  have hbeq_clean := cpsBranch_elim_ntaken_strip_pure2 _ _ _ _ _ _ _ _ _ hbeq_raw
     (fun hp hQt => by
-      obtain ⟨_, _, _, _, _, h1⟩ := hQt
-      obtain ⟨_, _, _, _, _, h2⟩ := h1
-      exact absurd ((sepConj_pure_right _ _ _).mp h2).2 hbnz)
+      obtain ⟨_, _, _, _, _, h_rest⟩ := hQt
+      exact absurd ((sepConj_pure_right _ _ _).mp h_rest).2 hbnz)
   have hbeq := cpsTriple_extend_code (beq_singleton_sub_modCode base) hbeq_clean
   -- Step 3: Frame BEQ with regs + mem
   have hbeq_framed := cpsTriple_frame_left _ _ _ _ _

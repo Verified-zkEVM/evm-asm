@@ -1262,6 +1262,12 @@ theorem sepConj_mono {P P' Q Q' : Assertion} (hp : ∀ h, P h → P' h) (hq : �
 -- Pure-fact stripping helpers for sepConj chains
 -- ============================================================================
 
+/-- Strip a pure fact at depth 2: A ** B ** ⌜P⌝ → A ** B -/
+theorem sepConj_strip_pure_end2 (A B : Assertion) (P : Prop) :
+    ∀ h, (A ** B ** ⌜P⌝) h → (A ** B) h :=
+  fun h hp => sepConj_mono_right
+    (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1) h hp
+
 /-- Strip a pure fact at depth 3: A ** B ** C ** ⌜P⌝ → A ** B ** C -/
 theorem sepConj_strip_pure_end3 (A B C : Assertion) (P : Prop) :
     ∀ h, (A ** B ** C ** ⌜P⌝) h → (A ** B ** C) h :=
@@ -2006,6 +2012,60 @@ def ofIndexed (pairs : List (Addr × Instr)) : CodeReq :=
 def ofProg (base : Addr) (prog : List Instr) : CodeReq :=
   ofIndexed (progIndexed base prog)
 
+-- ---------------------------------------------------------------------------
+-- Structural lemmas for ofProg / ofIndexed
+-- ---------------------------------------------------------------------------
+
+theorem union_assoc (cr1 cr2 cr3 : CodeReq) :
+    (cr1.union cr2).union cr3 = cr1.union (cr2.union cr3) := by
+  funext a; simp only [union]; cases cr1 a <;> rfl
+
+theorem union_empty_left (cr : CodeReq) : empty.union cr = cr := by
+  funext a; simp [union, empty]
+
+theorem union_empty_right (cr : CodeReq) : cr.union empty = cr := by
+  funext a; simp only [union, empty]; cases cr a <;> rfl
+
+private theorem ofIndexed_foldl_acc (acc : CodeReq) (ps : List (Addr × Instr)) :
+    ps.foldl (fun cr (ai : Addr × Instr) => cr.union (singleton ai.1 ai.2)) acc =
+    acc.union (ps.foldl (fun cr (ai : Addr × Instr) => cr.union (singleton ai.1 ai.2)) empty) := by
+  induction ps generalizing acc with
+  | nil => exact (union_empty_right acc).symm
+  | cons p ps ih =>
+    simp only [List.foldl]
+    rw [ih, union_assoc]; congr 1
+    rw [show empty.union (singleton p.1 p.2) = singleton p.1 p.2 from union_empty_left _]
+    exact (ih (singleton p.1 p.2)).symm
+
+theorem ofIndexed_cons (p : Addr × Instr) (ps : List (Addr × Instr)) :
+    ofIndexed (p :: ps) = (singleton p.1 p.2).union (ofIndexed ps) := by
+  simp only [ofIndexed, List.foldl, union_empty_left]
+  exact ofIndexed_foldl_acc (singleton p.1 p.2) ps
+
+theorem ofProg_cons (base : Addr) (i : Instr) (rest : List Instr) :
+    ofProg base (i :: rest) = (singleton base i).union (ofProg (base + 4) rest) := by
+  simp only [ofProg, progIndexed]; exact ofIndexed_cons (base, i) (progIndexed (base + 4) rest)
+
+theorem ofProg_nil (base : Addr) : ofProg base [] = empty := rfl
+
+/-- If an address doesn't match any instruction position in a program block,
+    the ofProg CodeReq returns none at that address. -/
+theorem ofProg_none_range (base : Addr) (prog : List Instr) (a : Addr)
+    (h : ∀ k : Nat, k < prog.length → a ≠ base + BitVec.ofNat 64 (4 * k)) :
+    ofProg base prog a = none := by
+  induction prog generalizing base with
+  | nil => simp [ofProg_nil, empty]
+  | cons i rest ih =>
+    rw [ofProg_cons]; simp only [union, singleton]
+    have hne : ¬(a == base) = true := by
+      rw [beq_iff_eq]
+      have := h 0 (by simp [List.length])
+      simp [BitVec.ofNat] at this; exact this
+    simp [hne]
+    apply ih (base + 4) (fun k hk => by
+      have h' := h (k + 1) (by simp [List.length]; omega)
+      intro heq; apply h'; rw [heq]; bv_omega)
+
 end CodeReq
 
 -- ============================================================================
@@ -2093,6 +2153,11 @@ theorem CodeReq.beq_offset_self_right (a : Addr) (k : Addr) :
   rw [show (k == (0 : Addr)) = decide (k = 0) from rfl,
       show (a == (a + k)) = decide (a = a + k) from rfl]
   congr 1; exact propext ⟨fun h => by bv_omega, fun h => by bv_omega⟩
+
+/-- If head returns none, union falls through to tail. -/
+theorem CodeReq.union_none_left {head tail : CodeReq} {a : Addr}
+    (h : head a = none) : (head.union tail) a = tail a := by
+  simp [CodeReq.union, h]
 
 /-- Left child of a union is subsumed (unconditionally true, union is left-biased). -/
 theorem CodeReq.union_mono_left (cr1 cr2 : CodeReq) :
