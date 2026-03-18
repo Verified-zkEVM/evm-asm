@@ -54,40 +54,43 @@ def evm_swap1 : Program :=
 -- ============================================================================
 
 theorem evm_pop_spec (sp base : Addr) :
-    cpsTriple base (base + 4)
-      ((base ↦ᵢ .ADDI .x12 .x12 32) ** (.x12 ↦ᵣ sp))
-      ((base ↦ᵢ .ADDI .x12 .x12 32) ** (.x12 ↦ᵣ (sp + 32))) := by
+    cpsTriple base (base + 4) (CodeReq.singleton base (.ADDI .x12 .x12 32))
+      (.x12 ↦ᵣ sp)
+      (.x12 ↦ᵣ (sp + 32)) := by
   have h := addi_spec_gen_same .x12 sp 32 base (by nofun)
   simp only [signExtend12_32] at h; exact h
 
 theorem evm_pop_stack_spec (sp base : Addr)
     (a : EvmWord) (rest : List EvmWord) :
-    cpsTriple base (base + 4)
-      ((base ↦ᵢ .ADDI .x12 .x12 32) ** (.x12 ↦ᵣ sp) ** evmWordIs sp a ** evmStackIs (sp + 32) rest)
-      ((base ↦ᵢ .ADDI .x12 .x12 32) ** (.x12 ↦ᵣ (sp + 32)) ** evmWordIs sp a ** evmStackIs (sp + 32) rest) :=
-  cpsTriple_consequence base (base + 4) _ _ _ _
+    cpsTriple base (base + 4) (CodeReq.singleton base (.ADDI .x12 .x12 32))
+      ((.x12 ↦ᵣ sp) ** evmWordIs sp a ** evmStackIs (sp + 32) rest)
+      ((.x12 ↦ᵣ (sp + 32)) ** evmWordIs sp a ** evmStackIs (sp + 32) rest) :=
+  cpsTriple_consequence _ _ _ _ _ _ _
     (fun h hp => (sepConj_assoc _ _ _ h).mpr hp)
     (fun h hq => (sepConj_assoc _ _ _ h).mp hq)
-    (cpsTriple_frame_left base (base + 4) _ _ _ (by pcFree) (evm_pop_spec sp base))
+    (cpsTriple_frame_left _ _ _ _ _ (evmWordIs sp a ** evmStackIs (sp + 32) rest) (by pcFree) (evm_pop_spec sp base))
 
 -- ============================================================================
 -- PUSH0 spec
 -- ============================================================================
 
+/-- CodeReq for the 256-bit EVM PUSH0 operation. 5 instructions. -/
+abbrev evm_push0_code (base : Addr) : CodeReq :=
+  CodeReq.union (CodeReq.singleton base (.ADDI .x12 .x12 (-32)))
+  (CodeReq.union (CodeReq.singleton (base + 4) (.SD .x12 .x0 0))
+  (CodeReq.union (CodeReq.singleton (base + 8) (.SD .x12 .x0 8))
+  (CodeReq.union (CodeReq.singleton (base + 12) (.SD .x12 .x0 16))
+   (CodeReq.singleton (base + 16) (.SD .x12 .x0 24)))))
+
 set_option maxHeartbeats 6400000 in
 theorem evm_push0_spec (nsp base : Addr)
     (d0 d1 d2 d3 : Word)
     (hvalid : ValidMemRange nsp 4) :
-    let code :=
-      (base ↦ᵢ .ADDI .x12 .x12 (-32)) **
-      ((base + 4) ↦ᵢ .SD .x12 .x0 0) ** ((base + 8) ↦ᵢ .SD .x12 .x0 8) **
-      ((base + 12) ↦ᵢ .SD .x12 .x0 16) ** ((base + 16) ↦ᵢ .SD .x12 .x0 24)
-    cpsTriple base (base + 20)
-      (code **
-       (.x12 ↦ᵣ (nsp + 32)) **
+    let code := evm_push0_code base
+    cpsTriple base (base + 20) code
+      ((.x12 ↦ᵣ (nsp + 32)) **
        (nsp ↦ₘ d0) ** ((nsp + 8) ↦ₘ d1) ** ((nsp + 16) ↦ₘ d2) ** ((nsp + 24) ↦ₘ d3))
-      (code **
-       (.x12 ↦ᵣ nsp) **
+      ((.x12 ↦ᵣ nsp) **
        (nsp ↦ₘ 0) ** ((nsp + 8) ↦ₘ 0) ** ((nsp + 16) ↦ₘ 0) ** ((nsp + 24) ↦ₘ 0)) := by
   have LADDI := addi_spec_gen_same .x12 (nsp + 32) (-32) base (by nofun)
   simp only [signExtend12_neg32] at LADDI
@@ -101,21 +104,16 @@ theorem evm_push0_spec (nsp base : Addr)
 theorem evm_push0_stack_spec (nsp base : Addr)
     (d0 d1 d2 d3 : Word) (rest : List EvmWord)
     (hvalid : ValidMemRange nsp 4) :
-    let code :=
-      (base ↦ᵢ .ADDI .x12 .x12 (-32)) **
-      ((base + 4) ↦ᵢ .SD .x12 .x0 0) ** ((base + 8) ↦ᵢ .SD .x12 .x0 8) **
-      ((base + 12) ↦ᵢ .SD .x12 .x0 16) ** ((base + 16) ↦ᵢ .SD .x12 .x0 24)
-    cpsTriple base (base + 20)
-      (code **
-       (.x12 ↦ᵣ (nsp + 32)) **
+    let code := evm_push0_code base
+    cpsTriple base (base + 20) code
+      ((.x12 ↦ᵣ (nsp + 32)) **
        (nsp ↦ₘ d0) ** ((nsp + 8) ↦ₘ d1) ** ((nsp + 16) ↦ₘ d2) ** ((nsp + 24) ↦ₘ d3) **
        evmStackIs (nsp + 32) rest)
-      (code **
-       (.x12 ↦ᵣ nsp) ** evmWordIs nsp 0 ** evmStackIs (nsp + 32) rest) :=
-  cpsTriple_consequence _ _ _ _ _ _
+      ((.x12 ↦ᵣ nsp) ** evmWordIs nsp 0 ** evmStackIs (nsp + 32) rest) :=
+  cpsTriple_consequence _ _ _ _ _ _ _
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by simp only [evmWordIs, EvmWord.getLimb_zero]; xperm_hyp hq)
-    (cpsTriple_frame_left _ _ _ _ (evmStackIs (nsp + 32) rest)
+    (cpsTriple_frame_left _ _ _ _ _ (evmStackIs (nsp + 32) rest)
       (by exact pcFree_evmStackIs (nsp + 32) rest)
       (evm_push0_spec nsp base d0 d1 d2 d3 hvalid))
 
@@ -129,14 +127,13 @@ theorem dup1_pair_spec (sp : Addr)
     (off_src off_dst : BitVec 12) (src_val dst_old v7 : Word) (base : Addr)
     (hvalid_src : isValidDwordAccess (sp + signExtend12 off_src) = true)
     (hvalid_dst : isValidDwordAccess (sp + signExtend12 off_dst) = true) :
-    let code :=
-      (base ↦ᵢ .LD .x7 .x12 off_src) ** ((base + 4) ↦ᵢ .SD .x12 .x7 off_dst)
-    cpsTriple base (base + 8)
-      (code **
-       (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) **
+    let cr :=
+      CodeReq.union (CodeReq.singleton base (.LD .x7 .x12 off_src))
+       (CodeReq.singleton (base + 4) (.SD .x12 .x7 off_dst))
+    cpsTriple base (base + 8) cr
+      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) **
        ((sp + signExtend12 off_src) ↦ₘ src_val) ** ((sp + signExtend12 off_dst) ↦ₘ dst_old))
-      (code **
-       (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ src_val) **
+      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ src_val) **
        ((sp + signExtend12 off_src) ↦ₘ src_val) ** ((sp + signExtend12 off_dst) ↦ₘ src_val)) := by
   runBlock
 
@@ -144,23 +141,28 @@ theorem dup1_pair_spec (sp : Addr)
 -- DUP1 spec
 -- ============================================================================
 
+/-- CodeReq for the 256-bit EVM DUP1 operation. 9 instructions. -/
+abbrev evm_dup1_code (base : Addr) : CodeReq :=
+  CodeReq.union (CodeReq.singleton base (.ADDI .x12 .x12 (-32)))
+  (CodeReq.union (CodeReq.singleton (base + 4) (.LD .x7 .x12 32))
+  (CodeReq.union (CodeReq.singleton (base + 8) (.SD .x12 .x7 0))
+  (CodeReq.union (CodeReq.singleton (base + 12) (.LD .x7 .x12 40))
+  (CodeReq.union (CodeReq.singleton (base + 16) (.SD .x12 .x7 8))
+  (CodeReq.union (CodeReq.singleton (base + 20) (.LD .x7 .x12 48))
+  (CodeReq.union (CodeReq.singleton (base + 24) (.SD .x12 .x7 16))
+  (CodeReq.union (CodeReq.singleton (base + 28) (.LD .x7 .x12 56))
+   (CodeReq.singleton (base + 32) (.SD .x12 .x7 24)))))))))
+
 set_option maxHeartbeats 6400000 in
 theorem evm_dup1_spec (nsp base : Addr)
     (a0 a1 a2 a3 d0 d1 d2 d3 : Word) (v7 : Word)
     (hvalid : ValidMemRange nsp 8) :
-    let code :=
-      (base ↦ᵢ .ADDI .x12 .x12 (-32)) **
-      ((base + 4) ↦ᵢ .LD .x7 .x12 32) ** ((base + 8) ↦ᵢ .SD .x12 .x7 0) **
-      ((base + 12) ↦ᵢ .LD .x7 .x12 40) ** ((base + 16) ↦ᵢ .SD .x12 .x7 8) **
-      ((base + 20) ↦ᵢ .LD .x7 .x12 48) ** ((base + 24) ↦ᵢ .SD .x12 .x7 16) **
-      ((base + 28) ↦ᵢ .LD .x7 .x12 56) ** ((base + 32) ↦ᵢ .SD .x12 .x7 24)
-    cpsTriple base (base + 36)
-      (code **
-       (.x12 ↦ᵣ (nsp + 32)) ** (.x7 ↦ᵣ v7) **
+    let code := evm_dup1_code base
+    cpsTriple base (base + 36) code
+      ((.x12 ↦ᵣ (nsp + 32)) ** (.x7 ↦ᵣ v7) **
        (nsp ↦ₘ d0) ** ((nsp + 8) ↦ₘ d1) ** ((nsp + 16) ↦ₘ d2) ** ((nsp + 24) ↦ₘ d3) **
        ((nsp + 32) ↦ₘ a0) ** ((nsp + 40) ↦ₘ a1) ** ((nsp + 48) ↦ₘ a2) ** ((nsp + 56) ↦ₘ a3))
-      (code **
-       (.x12 ↦ᵣ nsp) ** (.x7 ↦ᵣ a3) **
+      ((.x12 ↦ᵣ nsp) ** (.x7 ↦ᵣ a3) **
        (nsp ↦ₘ a0) ** ((nsp + 8) ↦ₘ a1) ** ((nsp + 16) ↦ₘ a2) ** ((nsp + 24) ↦ₘ a3) **
        ((nsp + 32) ↦ₘ a0) ** ((nsp + 40) ↦ₘ a1) ** ((nsp + 48) ↦ₘ a2) ** ((nsp + 56) ↦ₘ a3)) := by
   have LADDI := addi_spec_gen_same .x12 (nsp + 32) (-32) base (by nofun)
@@ -176,23 +178,16 @@ set_option maxHeartbeats 6400000 in
 theorem evm_dup1_stack_spec (nsp base : Addr)
     (a : EvmWord) (d0 d1 d2 d3 : Word) (v7 : Word)
     (hvalid : ValidMemRange nsp 8) :
-    let code :=
-      (base ↦ᵢ .ADDI .x12 .x12 (-32)) **
-      ((base + 4) ↦ᵢ .LD .x7 .x12 32) ** ((base + 8) ↦ᵢ .SD .x12 .x7 0) **
-      ((base + 12) ↦ᵢ .LD .x7 .x12 40) ** ((base + 16) ↦ᵢ .SD .x12 .x7 8) **
-      ((base + 20) ↦ᵢ .LD .x7 .x12 48) ** ((base + 24) ↦ᵢ .SD .x12 .x7 16) **
-      ((base + 28) ↦ᵢ .LD .x7 .x12 56) ** ((base + 32) ↦ᵢ .SD .x12 .x7 24)
-    cpsTriple base (base + 36)
-      (code **
-       (.x12 ↦ᵣ (nsp + 32)) ** (.x7 ↦ᵣ v7) **
+    let code := evm_dup1_code base
+    cpsTriple base (base + 36) code
+      ((.x12 ↦ᵣ (nsp + 32)) ** (.x7 ↦ᵣ v7) **
        (nsp ↦ₘ d0) ** ((nsp + 8) ↦ₘ d1) ** ((nsp + 16) ↦ₘ d2) ** ((nsp + 24) ↦ₘ d3) **
        evmWordIs (nsp + 32) a)
-      (code **
-       (.x12 ↦ᵣ nsp) ** (.x7 ↦ᵣ a.getLimb 3) **
+      ((.x12 ↦ᵣ nsp) ** (.x7 ↦ᵣ a.getLimb 3) **
        evmWordIs nsp a ** evmWordIs (nsp + 32) a) := by
   have h_main := evm_dup1_spec nsp base
     (a.getLimb 0) (a.getLimb 1) (a.getLimb 2) (a.getLimb 3) d0 d1 d2 d3 v7 hvalid
-  exact cpsTriple_consequence _ _ _ _ _ _
+  exact cpsTriple_consequence _ _ _ _ _ _ _
     (fun h hp => by
       simp only [evmWordIs] at hp
       have : (nsp : Addr) + 32 + 8 = nsp + 40 := by bv_omega
@@ -219,15 +214,15 @@ theorem swap1_limb_spec (sp : Addr)
     (off_a off_b : BitVec 12) (a_val b_val v7 v6 : Word) (base : Addr)
     (hvalid_a : isValidDwordAccess (sp + signExtend12 off_a) = true)
     (hvalid_b : isValidDwordAccess (sp + signExtend12 off_b) = true) :
-    let code :=
-      (base ↦ᵢ .LD .x7 .x12 off_a) ** ((base + 4) ↦ᵢ .LD .x6 .x12 off_b) **
-      ((base + 8) ↦ᵢ .SD .x12 .x6 off_a) ** ((base + 12) ↦ᵢ .SD .x12 .x7 off_b)
-    cpsTriple base (base + 16)
-      (code **
-       (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) **
+    let cr :=
+      CodeReq.union (CodeReq.singleton base (.LD .x7 .x12 off_a))
+      (CodeReq.union (CodeReq.singleton (base + 4) (.LD .x6 .x12 off_b))
+      (CodeReq.union (CodeReq.singleton (base + 8) (.SD .x12 .x6 off_a))
+       (CodeReq.singleton (base + 12) (.SD .x12 .x7 off_b))))
+    cpsTriple base (base + 16) cr
+      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) **
        ((sp + signExtend12 off_a) ↦ₘ a_val) ** ((sp + signExtend12 off_b) ↦ₘ b_val))
-      (code **
-       (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ a_val) ** (.x6 ↦ᵣ b_val) **
+      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ a_val) ** (.x6 ↦ᵣ b_val) **
        ((sp + signExtend12 off_a) ↦ₘ b_val) ** ((sp + signExtend12 off_b) ↦ₘ a_val)) := by
   runBlock
 
@@ -235,26 +230,35 @@ theorem swap1_limb_spec (sp : Addr)
 -- SWAP1 spec
 -- ============================================================================
 
+/-- CodeReq for the 256-bit EVM SWAP1 operation. 16 instructions. -/
+abbrev evm_swap1_code (base : Addr) : CodeReq :=
+  CodeReq.union (CodeReq.singleton base (.LD .x7 .x12 0))
+  (CodeReq.union (CodeReq.singleton (base + 4) (.LD .x6 .x12 32))
+  (CodeReq.union (CodeReq.singleton (base + 8) (.SD .x12 .x6 0))
+  (CodeReq.union (CodeReq.singleton (base + 12) (.SD .x12 .x7 32))
+  (CodeReq.union (CodeReq.singleton (base + 16) (.LD .x7 .x12 8))
+  (CodeReq.union (CodeReq.singleton (base + 20) (.LD .x6 .x12 40))
+  (CodeReq.union (CodeReq.singleton (base + 24) (.SD .x12 .x6 8))
+  (CodeReq.union (CodeReq.singleton (base + 28) (.SD .x12 .x7 40))
+  (CodeReq.union (CodeReq.singleton (base + 32) (.LD .x7 .x12 16))
+  (CodeReq.union (CodeReq.singleton (base + 36) (.LD .x6 .x12 48))
+  (CodeReq.union (CodeReq.singleton (base + 40) (.SD .x12 .x6 16))
+  (CodeReq.union (CodeReq.singleton (base + 44) (.SD .x12 .x7 48))
+  (CodeReq.union (CodeReq.singleton (base + 48) (.LD .x7 .x12 24))
+  (CodeReq.union (CodeReq.singleton (base + 52) (.LD .x6 .x12 56))
+  (CodeReq.union (CodeReq.singleton (base + 56) (.SD .x12 .x6 24))
+   (CodeReq.singleton (base + 60) (.SD .x12 .x7 56))))))))))))))))
+
 set_option maxHeartbeats 6400000 in
 theorem evm_swap1_spec (sp base : Addr)
     (a0 a1 a2 a3 b0 b1 b2 b3 v7 v6 : Word)
     (hvalid : ValidMemRange sp 8) :
-    let code :=
-      (base ↦ᵢ .LD .x7 .x12 0) ** ((base + 4) ↦ᵢ .LD .x6 .x12 32) **
-      ((base + 8) ↦ᵢ .SD .x12 .x6 0) ** ((base + 12) ↦ᵢ .SD .x12 .x7 32) **
-      ((base + 16) ↦ᵢ .LD .x7 .x12 8) ** ((base + 20) ↦ᵢ .LD .x6 .x12 40) **
-      ((base + 24) ↦ᵢ .SD .x12 .x6 8) ** ((base + 28) ↦ᵢ .SD .x12 .x7 40) **
-      ((base + 32) ↦ᵢ .LD .x7 .x12 16) ** ((base + 36) ↦ᵢ .LD .x6 .x12 48) **
-      ((base + 40) ↦ᵢ .SD .x12 .x6 16) ** ((base + 44) ↦ᵢ .SD .x12 .x7 48) **
-      ((base + 48) ↦ᵢ .LD .x7 .x12 24) ** ((base + 52) ↦ᵢ .LD .x6 .x12 56) **
-      ((base + 56) ↦ᵢ .SD .x12 .x6 24) ** ((base + 60) ↦ᵢ .SD .x12 .x7 56)
-    cpsTriple base (base + 64)
-      (code **
-       (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) **
+    let code := evm_swap1_code base
+    cpsTriple base (base + 64) code
+      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) **
        (sp ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
        ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) ** ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3))
-      (code **
-       (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ a3) ** (.x6 ↦ᵣ b3) **
+      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ a3) ** (.x6 ↦ᵣ b3) **
        (sp ↦ₘ b0) ** ((sp + 8) ↦ₘ b1) ** ((sp + 16) ↦ₘ b2) ** ((sp + 24) ↦ₘ b3) **
        ((sp + 32) ↦ₘ a0) ** ((sp + 40) ↦ₘ a1) ** ((sp + 48) ↦ₘ a2) ** ((sp + 56) ↦ₘ a3)) := by
   have L0 := swap1_limb_spec sp 0 32 a0 b0 v7 v6 base (by validMem) (by validMem)
@@ -267,27 +271,17 @@ set_option maxHeartbeats 6400000 in
 theorem evm_swap1_stack_spec (sp base : Addr)
     (a b : EvmWord) (v7 v6 : Word)
     (hvalid : ValidMemRange sp 8) :
-    let code :=
-      (base ↦ᵢ .LD .x7 .x12 0) ** ((base + 4) ↦ᵢ .LD .x6 .x12 32) **
-      ((base + 8) ↦ᵢ .SD .x12 .x6 0) ** ((base + 12) ↦ᵢ .SD .x12 .x7 32) **
-      ((base + 16) ↦ᵢ .LD .x7 .x12 8) ** ((base + 20) ↦ᵢ .LD .x6 .x12 40) **
-      ((base + 24) ↦ᵢ .SD .x12 .x6 8) ** ((base + 28) ↦ᵢ .SD .x12 .x7 40) **
-      ((base + 32) ↦ᵢ .LD .x7 .x12 16) ** ((base + 36) ↦ᵢ .LD .x6 .x12 48) **
-      ((base + 40) ↦ᵢ .SD .x12 .x6 16) ** ((base + 44) ↦ᵢ .SD .x12 .x7 48) **
-      ((base + 48) ↦ᵢ .LD .x7 .x12 24) ** ((base + 52) ↦ᵢ .LD .x6 .x12 56) **
-      ((base + 56) ↦ᵢ .SD .x12 .x6 24) ** ((base + 60) ↦ᵢ .SD .x12 .x7 56)
-    cpsTriple base (base + 64)
-      (code **
-       (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) **
+    let code := evm_swap1_code base
+    cpsTriple base (base + 64) code
+      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) **
        evmWordIs sp a ** evmWordIs (sp + 32) b)
-      (code **
-       (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ a.getLimb 3) ** (.x6 ↦ᵣ b.getLimb 3) **
+      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ a.getLimb 3) ** (.x6 ↦ᵣ b.getLimb 3) **
        evmWordIs sp b ** evmWordIs (sp + 32) a) := by
   have h_main := evm_swap1_spec sp base
     (a.getLimb 0) (a.getLimb 1) (a.getLimb 2) (a.getLimb 3)
     (b.getLimb 0) (b.getLimb 1) (b.getLimb 2) (b.getLimb 3)
     v7 v6 hvalid
-  exact cpsTriple_consequence _ _ _ _ _ _
+  exact cpsTriple_consequence _ _ _ _ _ _ _
     (fun h hp => by
       simp only [evmWordIs] at hp
       have : (sp : Addr) + 32 + 8 = sp + 40 := by bv_omega
@@ -389,6 +383,18 @@ def evm_swap (n : Nat) : Program :=
 -- Low-level generic DUP spec
 -- ============================================================================
 
+/-- CodeReq for generic DUPn: 9 instructions (1 ADDI + 4 LD/SD pairs). -/
+abbrev evm_dup_code (base : Addr) (n : Nat) : CodeReq :=
+  CodeReq.union (CodeReq.singleton base (.ADDI .x12 .x12 (-32)))
+  (CodeReq.union (CodeReq.singleton (base + 4)  (.LD .x7 .x12 (BitVec.ofNat 12 (n*32))))
+  (CodeReq.union (CodeReq.singleton (base + 8)  (.SD .x12 .x7 (BitVec.ofNat 12 0)))
+  (CodeReq.union (CodeReq.singleton (base + 12) (.LD .x7 .x12 (BitVec.ofNat 12 (n*32+8))))
+  (CodeReq.union (CodeReq.singleton (base + 16) (.SD .x12 .x7 (BitVec.ofNat 12 8)))
+  (CodeReq.union (CodeReq.singleton (base + 20) (.LD .x7 .x12 (BitVec.ofNat 12 (n*32+16))))
+  (CodeReq.union (CodeReq.singleton (base + 24) (.SD .x12 .x7 (BitVec.ofNat 12 16)))
+  (CodeReq.union (CodeReq.singleton (base + 28) (.LD .x7 .x12 (BitVec.ofNat 12 (n*32+24))))
+   (CodeReq.singleton (base + 32) (.SD .x12 .x7 (BitVec.ofNat 12 24))))))))))
+
 set_option maxHeartbeats 6400000 in
 /-- Generic DUPn spec (low level): copies 4 dword limbs from src (at nsp+n*32) to dst (at nsp).
     Requires 1 ≤ n ≤ 16 (valid EVM DUP range). -/
@@ -398,35 +404,16 @@ theorem evm_dup_spec (nsp base : Addr)
     (d0 d1 d2 d3 : Word)
     (v7 : Word)
     (hvalid : ValidMemRange nsp ((n + 1) * 4)) :
-    cpsTriple base (base + 36)
-      (-- Code: ADDI then 4 LD/SD pairs
-       (base ↦ᵢ .ADDI .x12 .x12 (-32)) **
-       ((base + 4)  ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 (n*32)))     **
-       ((base + 8)  ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 0))          **
-       ((base + 12) ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 (n*32+8)))   **
-       ((base + 16) ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 8))          **
-       ((base + 20) ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 (n*32+16)))  **
-       ((base + 24) ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 16))         **
-       ((base + 28) ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 (n*32+24)))  **
-       ((base + 32) ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 24))         **
-       -- Registers + memory
+    let cr := evm_dup_code base n
+    cpsTriple base (base + 36) cr
+      (-- Registers + memory
        (.x12 ↦ᵣ (nsp + 32)) ** (.x7 ↦ᵣ v7) **
        (nsp ↦ₘ d0) ** ((nsp+8) ↦ₘ d1) ** ((nsp+16) ↦ₘ d2) ** ((nsp+24) ↦ₘ d3) **
        ((nsp + BitVec.ofNat 64 (n*32))    ↦ₘ s0) **
        ((nsp + BitVec.ofNat 64 (n*32+8))  ↦ₘ s1) **
        ((nsp + BitVec.ofNat 64 (n*32+16)) ↦ₘ s2) **
        ((nsp + BitVec.ofNat 64 (n*32+24)) ↦ₘ s3))
-      (-- Same code (preserved)
-       (base ↦ᵢ .ADDI .x12 .x12 (-32)) **
-       ((base + 4)  ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 (n*32)))     **
-       ((base + 8)  ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 0))          **
-       ((base + 12) ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 (n*32+8)))   **
-       ((base + 16) ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 8))          **
-       ((base + 20) ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 (n*32+16)))  **
-       ((base + 24) ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 16))         **
-       ((base + 28) ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 (n*32+24)))  **
-       ((base + 32) ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 24))         **
-       -- Registers + memory (copied)
+      (-- Registers + memory (copied)
        (.x12 ↦ᵣ nsp) ** (.x7 ↦ᵣ s3) **
        (nsp ↦ₘ s0) ** ((nsp+8) ↦ₘ s1) ** ((nsp+16) ↦ₘ s2) ** ((nsp+24) ↦ₘ s3) **
        ((nsp + BitVec.ofNat 64 (n*32))    ↦ₘ s0) **
@@ -471,16 +458,8 @@ theorem evm_dup_spec (nsp base : Addr)
   -- Step 1: ADDI x12 x12 (-32) at base
   have sA_raw := addi_spec_gen_same .x12 (nsp + 32) (-32) base (by nofun)
   rw [h_addi] at sA_raw
-  have sA := cpsTriple_frame_left _ _ _ _
-    (((base + 4)  ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 (n*32)))     **
-     ((base + 8)  ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 0))          **
-     ((base + 12) ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 (n*32+8)))   **
-     ((base + 16) ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 8))          **
-     ((base + 20) ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 (n*32+16)))  **
-     ((base + 24) ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 16))         **
-     ((base + 28) ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 (n*32+24)))  **
-     ((base + 32) ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 24))         **
-     (.x7 ↦ᵣ v7) **
+  have sA := cpsTriple_frame_left _ _ _ _ _
+    ((.x7 ↦ᵣ v7) **
      (nsp ↦ₘ d0) ** ((nsp+8) ↦ₘ d1) ** ((nsp+16) ↦ₘ d2) ** ((nsp+24) ↦ₘ d3) **
      ((nsp + BitVec.ofNat 64 (n*32))    ↦ₘ s0) **
      ((nsp + BitVec.ofNat 64 (n*32+8))  ↦ₘ s1) **
@@ -496,15 +475,8 @@ theorem evm_dup_spec (nsp base : Addr)
   rw [show nsp + BitVec.ofNat 64 0 = nsp from by bv_omega] at P0_raw
   rw [show (base + 4 : Addr) + 4 = base + 8 from by bv_omega,
       show (base + 4 : Addr) + 8 = base + 12 from by bv_omega] at P0_raw
-  have P0 := cpsTriple_frame_left _ _ _ _
-    ((base ↦ᵢ .ADDI .x12 .x12 (-32)) **
-     ((base + 12) ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 (n*32+8)))   **
-     ((base + 16) ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 8))          **
-     ((base + 20) ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 (n*32+16)))  **
-     ((base + 24) ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 16))         **
-     ((base + 28) ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 (n*32+24)))  **
-     ((base + 32) ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 24))         **
-     ((nsp+8) ↦ₘ d1) ** ((nsp+16) ↦ₘ d2) ** ((nsp+24) ↦ₘ d3) **
+  have P0 := cpsTriple_frame_left _ _ _ _ _
+    (((nsp+8) ↦ₘ d1) ** ((nsp+16) ↦ₘ d2) ** ((nsp+24) ↦ₘ d3) **
      ((nsp + BitVec.ofNat 64 (n*32+8))  ↦ₘ s1) **
      ((nsp + BitVec.ofNat 64 (n*32+16)) ↦ₘ s2) **
      ((nsp + BitVec.ofNat 64 (n*32+24)) ↦ₘ s3))
@@ -518,17 +490,11 @@ theorem evm_dup_spec (nsp base : Addr)
     (BitVec.ofNat 12 (n*32+8)) (BitVec.ofNat 12 8) s1 d1 s0 (base + 12)
     (by rw [hse_s1]; exact hvs8) (by rw [hm8]; exact hv8)
   rw [hse_s1, signExtend12_ofNat_small 8 (by omega)] at P1_raw
+  rw [show nsp + BitVec.ofNat 64 8 = nsp + 8 from by bv_omega] at P1_raw
   rw [show (base + 12 : Addr) + 4 = base + 16 from by bv_omega,
       show (base + 12 : Addr) + 8 = base + 20 from by bv_omega] at P1_raw
-  have P1 := cpsTriple_frame_left _ _ _ _
-    ((base ↦ᵢ .ADDI .x12 .x12 (-32)) **
-     ((base + 4)  ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 (n*32)))     **
-     ((base + 8)  ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 0))          **
-     ((base + 20) ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 (n*32+16)))  **
-     ((base + 24) ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 16))         **
-     ((base + 28) ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 (n*32+24)))  **
-     ((base + 32) ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 24))         **
-     (nsp ↦ₘ s0) **
+  have P1 := cpsTriple_frame_left _ _ _ _ _
+    ((nsp ↦ₘ s0) **
      ((nsp+16) ↦ₘ d2) ** ((nsp+24) ↦ₘ d3) **
      ((nsp + BitVec.ofNat 64 (n*32))    ↦ₘ s0) **
      ((nsp + BitVec.ofNat 64 (n*32+16)) ↦ₘ s2) **
@@ -543,17 +509,11 @@ theorem evm_dup_spec (nsp base : Addr)
     (BitVec.ofNat 12 (n*32+16)) (BitVec.ofNat 12 16) s2 d2 s1 (base + 20)
     (by rw [hse_s2]; exact hvs16) (by rw [hm16]; exact hv16)
   rw [hse_s2, signExtend12_ofNat_small 16 (by omega)] at P2_raw
+  rw [show nsp + BitVec.ofNat 64 16 = nsp + 16 from by bv_omega] at P2_raw
   rw [show (base + 20 : Addr) + 4 = base + 24 from by bv_omega,
       show (base + 20 : Addr) + 8 = base + 28 from by bv_omega] at P2_raw
-  have P2 := cpsTriple_frame_left _ _ _ _
-    ((base ↦ᵢ .ADDI .x12 .x12 (-32)) **
-     ((base + 4)  ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 (n*32)))     **
-     ((base + 8)  ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 0))          **
-     ((base + 12) ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 (n*32+8)))   **
-     ((base + 16) ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 8))          **
-     ((base + 28) ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 (n*32+24)))  **
-     ((base + 32) ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 24))         **
-     (nsp ↦ₘ s0) ** ((nsp+8) ↦ₘ s1) **
+  have P2 := cpsTriple_frame_left _ _ _ _ _
+    ((nsp ↦ₘ s0) ** ((nsp+8) ↦ₘ s1) **
      ((nsp+24) ↦ₘ d3) **
      ((nsp + BitVec.ofNat 64 (n*32))    ↦ₘ s0) **
      ((nsp + BitVec.ofNat 64 (n*32+8))  ↦ₘ s1) **
@@ -568,24 +528,18 @@ theorem evm_dup_spec (nsp base : Addr)
     (BitVec.ofNat 12 (n*32+24)) (BitVec.ofNat 12 24) s3 d3 s2 (base + 28)
     (by rw [hse_s3]; exact hvs24) (by rw [hm24]; exact hv24)
   rw [hse_s3, signExtend12_ofNat_small 24 (by omega)] at P3_raw
+  rw [show nsp + BitVec.ofNat 64 24 = nsp + 24 from by bv_omega] at P3_raw
   rw [show (base + 28 : Addr) + 4 = base + 32 from by bv_omega,
       show (base + 28 : Addr) + 8 = base + 36 from by bv_omega] at P3_raw
-  have P3 := cpsTriple_frame_left _ _ _ _
-    ((base ↦ᵢ .ADDI .x12 .x12 (-32)) **
-     ((base + 4)  ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 (n*32)))     **
-     ((base + 8)  ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 0))          **
-     ((base + 12) ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 (n*32+8)))   **
-     ((base + 16) ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 8))          **
-     ((base + 20) ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 (n*32+16)))  **
-     ((base + 24) ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 16))         **
-     (nsp ↦ₘ s0) ** ((nsp+8) ↦ₘ s1) ** ((nsp+16) ↦ₘ s2) **
+  have P3 := cpsTriple_frame_left _ _ _ _ _
+    ((nsp ↦ₘ s0) ** ((nsp+8) ↦ₘ s1) ** ((nsp+16) ↦ₘ s2) **
      ((nsp + BitVec.ofNat 64 (n*32))    ↦ₘ s0) **
      ((nsp + BitVec.ofNat 64 (n*32+8))  ↦ₘ s1) **
      ((nsp + BitVec.ofNat 64 (n*32+16)) ↦ₘ s2))
     (by pcFree) P3_raw
   clear P3_raw
   -- Final composition and permutation to match goal
-  exact cpsTriple_consequence _ _ _ _ _ _
+  exact cpsTriple_consequence _ _ _ _ _ _ _
     (fun h hp => by xperm_hyp hp) (fun h hq => by xperm_hyp hq)
     (cpsTriple_seq_with_perm _ _ _ _ _ _ _
       (fun h hp => by xperm_hyp hp) sAP012 P3)
@@ -600,48 +554,29 @@ theorem evm_dup_evmword_spec (nsp base : Addr)
     (n : Nat) (hn1 : 1 ≤ n) (hn16 : n ≤ 16)
     (src dst : EvmWord) (v7 : Word)
     (hvalid : ValidMemRange nsp ((n + 1) * 4)) :
-    cpsTriple base (base + 36)
-      (-- Code
-       (base ↦ᵢ .ADDI .x12 .x12 (-32)) **
-       ((base + 4)  ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 (n*32)))     **
-       ((base + 8)  ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 0))          **
-       ((base + 12) ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 (n*32+8)))   **
-       ((base + 16) ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 8))          **
-       ((base + 20) ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 (n*32+16)))  **
-       ((base + 24) ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 16))         **
-       ((base + 28) ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 (n*32+24)))  **
-       ((base + 32) ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 24))         **
-       -- Registers + memory
+    let cr := evm_dup_code base n
+    cpsTriple base (base + 36) cr
+      (-- Registers + memory
        (.x12 ↦ᵣ (nsp + 32)) ** (.x7 ↦ᵣ v7) **
        evmWordIs nsp dst **
        evmWordIs (nsp + BitVec.ofNat 64 (n * 32)) src)
-      (-- Same code (preserved)
-       (base ↦ᵢ .ADDI .x12 .x12 (-32)) **
-       ((base + 4)  ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 (n*32)))     **
-       ((base + 8)  ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 0))          **
-       ((base + 12) ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 (n*32+8)))   **
-       ((base + 16) ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 8))          **
-       ((base + 20) ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 (n*32+16)))  **
-       ((base + 24) ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 16))         **
-       ((base + 28) ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 (n*32+24)))  **
-       ((base + 32) ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 24))         **
-       -- Results
+      (-- Results
        (.x12 ↦ᵣ nsp) ** (.x7 ↦ᵣ src.getLimb 3) **
        evmWordIs nsp src **
        evmWordIs (nsp + BitVec.ofNat 64 (n * 32)) src) := by
   -- Address normalizations for evmWordIs (nsp + BitVec.ofNat 64 (n*32))
-  have haddr8  : (nsp + BitVec.ofNat 64 (n*32) : Addr) + 8  = nsp + BitVec.ofNat 64 (n*32+8)  := by
+  have haddr8  : (nsp + BitVec.ofNat 64 (n * 32) : Addr) + 8  = nsp + BitVec.ofNat 64 (n*32+8)  := by
     apply BitVec.eq_of_toNat_eq; simp [BitVec.toNat_add, BitVec.toNat_ofNat]; omega
-  have haddr16 : (nsp + BitVec.ofNat 64 (n*32) : Addr) + 16 = nsp + BitVec.ofNat 64 (n*32+16) := by
+  have haddr16 : (nsp + BitVec.ofNat 64 (n * 32) : Addr) + 16 = nsp + BitVec.ofNat 64 (n*32+16) := by
     apply BitVec.eq_of_toNat_eq; simp [BitVec.toNat_add, BitVec.toNat_ofNat]; omega
-  have haddr24 : (nsp + BitVec.ofNat 64 (n*32) : Addr) + 24 = nsp + BitVec.ofNat 64 (n*32+24) := by
+  have haddr24 : (nsp + BitVec.ofNat 64 (n * 32) : Addr) + 24 = nsp + BitVec.ofNat 64 (n*32+24) := by
     apply BitVec.eq_of_toNat_eq; simp [BitVec.toNat_add, BitVec.toNat_ofNat]; omega
   -- Derive from evm_dup_spec
   have h_main := evm_dup_spec nsp base n hn1 hn16
     (src.getLimb 0) (src.getLimb 1) (src.getLimb 2) (src.getLimb 3)
     (dst.getLimb 0) (dst.getLimb 1) (dst.getLimb 2) (dst.getLimb 3)
     v7 hvalid
-  exact cpsTriple_consequence _ _ _ _ _ _
+  exact cpsTriple_consequence _ _ _ _ _ _ _
     (fun _ hp => by
       simp only [evmWordIs, haddr8, haddr16, haddr24] at hp
       xperm_hyp hp)
@@ -663,32 +598,13 @@ theorem evm_dup_stack_spec (nsp base : Addr)
     (d : EvmWord) (v7 : Word)
     (hvalid : ValidMemRange nsp ((n + 1) * 4)) :
     let vn := stack[n - 1]'(by omega)
-    cpsTriple base (base + 36)
-      (-- Code
-       (base ↦ᵢ .ADDI .x12 .x12 (-32)) **
-       ((base + 4)  ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 (n*32)))     **
-       ((base + 8)  ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 0))          **
-       ((base + 12) ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 (n*32+8)))   **
-       ((base + 16) ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 8))          **
-       ((base + 20) ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 (n*32+16)))  **
-       ((base + 24) ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 16))         **
-       ((base + 28) ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 (n*32+24)))  **
-       ((base + 32) ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 24))         **
-       -- Registers + memory
+    let cr := evm_dup_code base n
+    cpsTriple base (base + 36) cr
+      (-- Registers + memory
        (.x12 ↦ᵣ (nsp + 32)) ** (.x7 ↦ᵣ v7) **
        evmWordIs nsp d **
        evmStackIs (nsp + 32) stack)
-      (-- Same code (preserved)
-       (base ↦ᵢ .ADDI .x12 .x12 (-32)) **
-       ((base + 4)  ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 (n*32)))     **
-       ((base + 8)  ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 0))          **
-       ((base + 12) ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 (n*32+8)))   **
-       ((base + 16) ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 8))          **
-       ((base + 20) ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 (n*32+16)))  **
-       ((base + 24) ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 16))         **
-       ((base + 28) ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 (n*32+24)))  **
-       ((base + 32) ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 24))         **
-       -- Results
+      (-- Results
        (.x12 ↦ᵣ nsp) ** (.x7 ↦ᵣ vn.getLimb 3) **
        evmWordIs nsp vn **
        evmStackIs (nsp + 32) stack) := by
@@ -705,12 +621,12 @@ theorem evm_dup_stack_spec (nsp base : Addr)
     apply BitVec.eq_of_toNat_eq; simp [BitVec.toNat_add, BitVec.toNat_ofNat]; omega
   rw [haddr_src, haddr_rest, show n - 1 + 1 = n from by omega] at hsplit
   -- Frame the evm_dup_evmword_spec with the stack prefix and suffix
-  have h_main := cpsTriple_frame_left _ _ _ _
+  have h_main := cpsTriple_frame_left _ _ _ _ _
     (evmStackIs (nsp + 32) (stack.take (n - 1)) **
      evmStackIs (nsp + BitVec.ofNat 64 (n * 32 + 32)) (stack.drop n))
     (by pcFree)
     (evm_dup_evmword_spec nsp base n hn1 hn16 vn d v7 hvalid)
-  exact cpsTriple_consequence _ _ _ _ _ _
+  exact cpsTriple_consequence _ _ _ _ _ _ _
     (fun _ hp => by rw [hsplit] at hp; xperm_hyp hp)
     (fun _ hq => by rw [hsplit]; xperm_hyp hq)
     h_main
@@ -718,6 +634,25 @@ theorem evm_dup_stack_spec (nsp base : Addr)
 -- ============================================================================
 -- Low-level generic SWAP spec
 -- ============================================================================
+
+/-- CodeReq for generic SWAPn: 16 instructions (4 limb quads). -/
+abbrev evm_swap_code (base : Addr) (n : Nat) : CodeReq :=
+  CodeReq.union (CodeReq.singleton base (.LD .x7 .x12 (BitVec.ofNat 12 0)))
+  (CodeReq.union (CodeReq.singleton (base + 4) (.LD .x6 .x12 (BitVec.ofNat 12 (n*32))))
+  (CodeReq.union (CodeReq.singleton (base + 8) (.SD .x12 .x6 (BitVec.ofNat 12 0)))
+  (CodeReq.union (CodeReq.singleton (base + 12) (.SD .x12 .x7 (BitVec.ofNat 12 (n*32))))
+  (CodeReq.union (CodeReq.singleton (base + 16) (.LD .x7 .x12 (BitVec.ofNat 12 8)))
+  (CodeReq.union (CodeReq.singleton (base + 20) (.LD .x6 .x12 (BitVec.ofNat 12 (n*32+8))))
+  (CodeReq.union (CodeReq.singleton (base + 24) (.SD .x12 .x6 (BitVec.ofNat 12 8)))
+  (CodeReq.union (CodeReq.singleton (base + 28) (.SD .x12 .x7 (BitVec.ofNat 12 (n*32+8))))
+  (CodeReq.union (CodeReq.singleton (base + 32) (.LD .x7 .x12 (BitVec.ofNat 12 16)))
+  (CodeReq.union (CodeReq.singleton (base + 36) (.LD .x6 .x12 (BitVec.ofNat 12 (n*32+16))))
+  (CodeReq.union (CodeReq.singleton (base + 40) (.SD .x12 .x6 (BitVec.ofNat 12 16)))
+  (CodeReq.union (CodeReq.singleton (base + 44) (.SD .x12 .x7 (BitVec.ofNat 12 (n*32+16))))
+  (CodeReq.union (CodeReq.singleton (base + 48) (.LD .x7 .x12 (BitVec.ofNat 12 24)))
+  (CodeReq.union (CodeReq.singleton (base + 52) (.LD .x6 .x12 (BitVec.ofNat 12 (n*32+24))))
+  (CodeReq.union (CodeReq.singleton (base + 56) (.SD .x12 .x6 (BitVec.ofNat 12 24)))
+   (CodeReq.singleton (base + 60) (.SD .x12 .x7 (BitVec.ofNat 12 (n*32+24))))))))))))))))))))
 
 set_option maxHeartbeats 3200000 in
 /-- Generic SWAPn spec (low level): swaps 4 dword limbs at sp (top) with 4 at sp+n*32 (nth).
@@ -728,52 +663,16 @@ theorem evm_swap_spec (sp base : Addr)
     (b0 b1 b2 b3 : Word)
     (v7 v6 : Word)
     (hvalid : ValidMemRange sp ((n + 1) * 4)) :
-    cpsTriple base (base + 64)
-      (-- Limb 0 code
-       (base ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 0)) **
-       ((base + 4) ↦ᵢ .LD .x6 .x12 (BitVec.ofNat 12 (n*32))) **
-       ((base + 8) ↦ᵢ .SD .x12 .x6 (BitVec.ofNat 12 0)) **
-       ((base + 12) ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 (n*32))) **
-       -- Limb 1 code
-       ((base + 16) ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 8)) **
-       ((base + 20) ↦ᵢ .LD .x6 .x12 (BitVec.ofNat 12 (n*32+8))) **
-       ((base + 24) ↦ᵢ .SD .x12 .x6 (BitVec.ofNat 12 8)) **
-       ((base + 28) ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 (n*32+8))) **
-       -- Limb 2 code
-       ((base + 32) ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 16)) **
-       ((base + 36) ↦ᵢ .LD .x6 .x12 (BitVec.ofNat 12 (n*32+16))) **
-       ((base + 40) ↦ᵢ .SD .x12 .x6 (BitVec.ofNat 12 16)) **
-       ((base + 44) ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 (n*32+16))) **
-       -- Limb 3 code
-       ((base + 48) ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 24)) **
-       ((base + 52) ↦ᵢ .LD .x6 .x12 (BitVec.ofNat 12 (n*32+24))) **
-       ((base + 56) ↦ᵢ .SD .x12 .x6 (BitVec.ofNat 12 24)) **
-       ((base + 60) ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 (n*32+24))) **
-       -- Registers + memory
+    let cr := evm_swap_code base n
+    cpsTriple base (base + 64) cr
+      (-- Registers + memory
        (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) **
        (sp ↦ₘ a0) ** ((sp+8) ↦ₘ a1) ** ((sp+16) ↦ₘ a2) ** ((sp+24) ↦ₘ a3) **
        ((sp + BitVec.ofNat 64 (n*32))    ↦ₘ b0) **
        ((sp + BitVec.ofNat 64 (n*32+8))  ↦ₘ b1) **
        ((sp + BitVec.ofNat 64 (n*32+16)) ↦ₘ b2) **
        ((sp + BitVec.ofNat 64 (n*32+24)) ↦ₘ b3))
-      (-- Same code (preserved)
-       (base ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 0)) **
-       ((base + 4) ↦ᵢ .LD .x6 .x12 (BitVec.ofNat 12 (n*32))) **
-       ((base + 8) ↦ᵢ .SD .x12 .x6 (BitVec.ofNat 12 0)) **
-       ((base + 12) ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 (n*32))) **
-       ((base + 16) ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 8)) **
-       ((base + 20) ↦ᵢ .LD .x6 .x12 (BitVec.ofNat 12 (n*32+8))) **
-       ((base + 24) ↦ᵢ .SD .x12 .x6 (BitVec.ofNat 12 8)) **
-       ((base + 28) ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 (n*32+8))) **
-       ((base + 32) ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 16)) **
-       ((base + 36) ↦ᵢ .LD .x6 .x12 (BitVec.ofNat 12 (n*32+16))) **
-       ((base + 40) ↦ᵢ .SD .x12 .x6 (BitVec.ofNat 12 16)) **
-       ((base + 44) ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 (n*32+16))) **
-       ((base + 48) ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 24)) **
-       ((base + 52) ↦ᵢ .LD .x6 .x12 (BitVec.ofNat 12 (n*32+24))) **
-       ((base + 56) ↦ᵢ .SD .x12 .x6 (BitVec.ofNat 12 24)) **
-       ((base + 60) ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 (n*32+24))) **
-       -- Registers + memory (swapped)
+      (-- Registers + memory (swapped)
        (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ a3) ** (.x6 ↦ᵣ b3) **
        (sp ↦ₘ b0) ** ((sp+8) ↦ₘ b1) ** ((sp+16) ↦ₘ b2) ** ((sp+24) ↦ₘ b3) **
        ((sp + BitVec.ofNat 64 (n*32))    ↦ₘ a0) **
@@ -827,20 +726,8 @@ theorem evm_swap_spec (sp base : Addr)
     (BitVec.ofNat 12 0) (BitVec.ofNat 12 (n*32))
     a0 b0 v7 v6 base hvm_d0 hvm_s0
   rw [hm0, hse_s0] at L0_raw
-  have L0 := cpsTriple_frame_left _ _ _ _
-    (((base + 16) ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 8)) **
-     ((base + 20) ↦ᵢ .LD .x6 .x12 (BitVec.ofNat 12 (n*32+8))) **
-     ((base + 24) ↦ᵢ .SD .x12 .x6 (BitVec.ofNat 12 8)) **
-     ((base + 28) ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 (n*32+8))) **
-     ((base + 32) ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 16)) **
-     ((base + 36) ↦ᵢ .LD .x6 .x12 (BitVec.ofNat 12 (n*32+16))) **
-     ((base + 40) ↦ᵢ .SD .x12 .x6 (BitVec.ofNat 12 16)) **
-     ((base + 44) ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 (n*32+16))) **
-     ((base + 48) ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 24)) **
-     ((base + 52) ↦ᵢ .LD .x6 .x12 (BitVec.ofNat 12 (n*32+24))) **
-     ((base + 56) ↦ᵢ .SD .x12 .x6 (BitVec.ofNat 12 24)) **
-     ((base + 60) ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 (n*32+24))) **
-     ((sp+8) ↦ₘ a1) ** ((sp+16) ↦ₘ a2) ** ((sp+24) ↦ₘ a3) **
+  have L0 := cpsTriple_frame_left _ _ _ _ _
+    (((sp+8) ↦ₘ a1) ** ((sp+16) ↦ₘ a2) ** ((sp+24) ↦ₘ a3) **
      ((sp + BitVec.ofNat 64 (n*32+8))  ↦ₘ b1) **
      ((sp + BitVec.ofNat 64 (n*32+16)) ↦ₘ b2) **
      ((sp + BitVec.ofNat 64 (n*32+24)) ↦ₘ b3))
@@ -855,20 +742,8 @@ theorem evm_swap_spec (sp base : Addr)
       show (base + 16 : Addr) + 8 = base + 24 from by bv_omega,
       show (base + 16 : Addr) + 12 = base + 28 from by bv_omega,
       show (base + 16 : Addr) + 16 = base + 32 from by bv_omega] at L1_raw
-  have L1 := cpsTriple_frame_left _ _ _ _
-    ((base ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 0)) **
-     ((base + 4) ↦ᵢ .LD .x6 .x12 (BitVec.ofNat 12 (n*32))) **
-     ((base + 8) ↦ᵢ .SD .x12 .x6 (BitVec.ofNat 12 0)) **
-     ((base + 12) ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 (n*32))) **
-     ((base + 32) ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 16)) **
-     ((base + 36) ↦ᵢ .LD .x6 .x12 (BitVec.ofNat 12 (n*32+16))) **
-     ((base + 40) ↦ᵢ .SD .x12 .x6 (BitVec.ofNat 12 16)) **
-     ((base + 44) ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 (n*32+16))) **
-     ((base + 48) ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 24)) **
-     ((base + 52) ↦ᵢ .LD .x6 .x12 (BitVec.ofNat 12 (n*32+24))) **
-     ((base + 56) ↦ᵢ .SD .x12 .x6 (BitVec.ofNat 12 24)) **
-     ((base + 60) ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 (n*32+24))) **
-     (sp ↦ₘ b0) ** ((sp + BitVec.ofNat 64 (n*32)) ↦ₘ a0) **
+  have L1 := cpsTriple_frame_left _ _ _ _ _
+    ((sp ↦ₘ b0) ** ((sp + BitVec.ofNat 64 (n*32)) ↦ₘ a0) **
      ((sp+16) ↦ₘ a2) ** ((sp+24) ↦ₘ a3) **
      ((sp + BitVec.ofNat 64 (n*32+16)) ↦ₘ b2) **
      ((sp + BitVec.ofNat 64 (n*32+24)) ↦ₘ b3))
@@ -886,20 +761,8 @@ theorem evm_swap_spec (sp base : Addr)
       show (base + 32 : Addr) + 8 = base + 40 from by bv_omega,
       show (base + 32 : Addr) + 12 = base + 44 from by bv_omega,
       show (base + 32 : Addr) + 16 = base + 48 from by bv_omega] at L2_raw
-  have L2 := cpsTriple_frame_left _ _ _ _
-    ((base ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 0)) **
-     ((base + 4) ↦ᵢ .LD .x6 .x12 (BitVec.ofNat 12 (n*32))) **
-     ((base + 8) ↦ᵢ .SD .x12 .x6 (BitVec.ofNat 12 0)) **
-     ((base + 12) ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 (n*32))) **
-     ((base + 16) ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 8)) **
-     ((base + 20) ↦ᵢ .LD .x6 .x12 (BitVec.ofNat 12 (n*32+8))) **
-     ((base + 24) ↦ᵢ .SD .x12 .x6 (BitVec.ofNat 12 8)) **
-     ((base + 28) ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 (n*32+8))) **
-     ((base + 48) ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 24)) **
-     ((base + 52) ↦ᵢ .LD .x6 .x12 (BitVec.ofNat 12 (n*32+24))) **
-     ((base + 56) ↦ᵢ .SD .x12 .x6 (BitVec.ofNat 12 24)) **
-     ((base + 60) ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 (n*32+24))) **
-     (sp ↦ₘ b0) ** ((sp+8) ↦ₘ b1) **
+  have L2 := cpsTriple_frame_left _ _ _ _ _
+    ((sp ↦ₘ b0) ** ((sp+8) ↦ₘ b1) **
      ((sp + BitVec.ofNat 64 (n*32)) ↦ₘ a0) ** ((sp + BitVec.ofNat 64 (n*32+8)) ↦ₘ a1) **
      ((sp+24) ↦ₘ a3) **
      ((sp + BitVec.ofNat 64 (n*32+24)) ↦ₘ b3))
@@ -917,26 +780,14 @@ theorem evm_swap_spec (sp base : Addr)
       show (base + 48 : Addr) + 8 = base + 56 from by bv_omega,
       show (base + 48 : Addr) + 12 = base + 60 from by bv_omega,
       show (base + 48 : Addr) + 16 = base + 64 from by bv_omega] at L3_raw
-  have L3 := cpsTriple_frame_left _ _ _ _
-    ((base ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 0)) **
-     ((base + 4) ↦ᵢ .LD .x6 .x12 (BitVec.ofNat 12 (n*32))) **
-     ((base + 8) ↦ᵢ .SD .x12 .x6 (BitVec.ofNat 12 0)) **
-     ((base + 12) ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 (n*32))) **
-     ((base + 16) ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 8)) **
-     ((base + 20) ↦ᵢ .LD .x6 .x12 (BitVec.ofNat 12 (n*32+8))) **
-     ((base + 24) ↦ᵢ .SD .x12 .x6 (BitVec.ofNat 12 8)) **
-     ((base + 28) ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 (n*32+8))) **
-     ((base + 32) ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 16)) **
-     ((base + 36) ↦ᵢ .LD .x6 .x12 (BitVec.ofNat 12 (n*32+16))) **
-     ((base + 40) ↦ᵢ .SD .x12 .x6 (BitVec.ofNat 12 16)) **
-     ((base + 44) ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 (n*32+16))) **
-     (sp ↦ₘ b0) ** ((sp+8) ↦ₘ b1) ** ((sp+16) ↦ₘ b2) **
+  have L3 := cpsTriple_frame_left _ _ _ _ _
+    ((sp ↦ₘ b0) ** ((sp+8) ↦ₘ b1) ** ((sp+16) ↦ₘ b2) **
      ((sp + BitVec.ofNat 64 (n*32)) ↦ₘ a0) ** ((sp + BitVec.ofNat 64 (n*32+8)) ↦ₘ a1) **
      ((sp + BitVec.ofNat 64 (n*32+16)) ↦ₘ a2))
     (by pcFree) L3_raw
   clear L3_raw
   -- Final composition and permutation to match goal
-  exact cpsTriple_consequence _ _ _ _ _ _
+  exact cpsTriple_consequence _ _ _ _ _ _ _
     (fun h hp => by xperm_hyp hp) (fun h hq => by xperm_hyp hq)
     (cpsTriple_seq_with_perm _ _ _ _ _ _ _
       (fun h hp => by xperm_hyp hp) L012 L3)
@@ -950,46 +801,13 @@ theorem evm_swap_evmword_spec (sp base : Addr)
     (n : Nat) (hn1 : 1 ≤ n) (hn16 : n ≤ 16)
     (top nth : EvmWord) (v7 v6 : Word)
     (hvalid : ValidMemRange sp ((n + 1) * 4)) :
-    cpsTriple base (base + 64)
-      (-- Code
-       (base ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 0)) **
-       ((base + 4) ↦ᵢ .LD .x6 .x12 (BitVec.ofNat 12 (n*32))) **
-       ((base + 8) ↦ᵢ .SD .x12 .x6 (BitVec.ofNat 12 0)) **
-       ((base + 12) ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 (n*32))) **
-       ((base + 16) ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 8)) **
-       ((base + 20) ↦ᵢ .LD .x6 .x12 (BitVec.ofNat 12 (n*32+8))) **
-       ((base + 24) ↦ᵢ .SD .x12 .x6 (BitVec.ofNat 12 8)) **
-       ((base + 28) ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 (n*32+8))) **
-       ((base + 32) ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 16)) **
-       ((base + 36) ↦ᵢ .LD .x6 .x12 (BitVec.ofNat 12 (n*32+16))) **
-       ((base + 40) ↦ᵢ .SD .x12 .x6 (BitVec.ofNat 12 16)) **
-       ((base + 44) ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 (n*32+16))) **
-       ((base + 48) ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 24)) **
-       ((base + 52) ↦ᵢ .LD .x6 .x12 (BitVec.ofNat 12 (n*32+24))) **
-       ((base + 56) ↦ᵢ .SD .x12 .x6 (BitVec.ofNat 12 24)) **
-       ((base + 60) ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 (n*32+24))) **
-       -- Registers + data
+    let cr := evm_swap_code base n
+    cpsTriple base (base + 64) cr
+      (-- Registers + data
        (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) **
        evmWordIs sp top **
        evmWordIs (sp + BitVec.ofNat 64 (n * 32)) nth)
-      (-- Code (preserved)
-       (base ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 0)) **
-       ((base + 4) ↦ᵢ .LD .x6 .x12 (BitVec.ofNat 12 (n*32))) **
-       ((base + 8) ↦ᵢ .SD .x12 .x6 (BitVec.ofNat 12 0)) **
-       ((base + 12) ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 (n*32))) **
-       ((base + 16) ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 8)) **
-       ((base + 20) ↦ᵢ .LD .x6 .x12 (BitVec.ofNat 12 (n*32+8))) **
-       ((base + 24) ↦ᵢ .SD .x12 .x6 (BitVec.ofNat 12 8)) **
-       ((base + 28) ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 (n*32+8))) **
-       ((base + 32) ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 16)) **
-       ((base + 36) ↦ᵢ .LD .x6 .x12 (BitVec.ofNat 12 (n*32+16))) **
-       ((base + 40) ↦ᵢ .SD .x12 .x6 (BitVec.ofNat 12 16)) **
-       ((base + 44) ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 (n*32+16))) **
-       ((base + 48) ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 24)) **
-       ((base + 52) ↦ᵢ .LD .x6 .x12 (BitVec.ofNat 12 (n*32+24))) **
-       ((base + 56) ↦ᵢ .SD .x12 .x6 (BitVec.ofNat 12 24)) **
-       ((base + 60) ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 (n*32+24))) **
-       -- Registers + data (swapped)
+      (-- Registers + data (swapped)
        (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ top.getLimb 3) ** (.x6 ↦ᵣ nth.getLimb 3) **
        evmWordIs sp nth **
        evmWordIs (sp + BitVec.ofNat 64 (n * 32)) top) := by
@@ -1000,7 +818,7 @@ theorem evm_swap_evmword_spec (sp base : Addr)
     apply BitVec.eq_of_toNat_eq; simp [BitVec.toNat_add, BitVec.toNat_ofNat]; omega
   have ha24 : (sp + BitVec.ofNat 64 (n * 32) : Addr) + 24 = sp + BitVec.ofNat 64 (n*32+24) := by
     apply BitVec.eq_of_toNat_eq; simp [BitVec.toNat_add, BitVec.toNat_ofNat]; omega
-  exact cpsTriple_consequence _ _ _ _ _ _
+  exact cpsTriple_consequence _ _ _ _ _ _ _
     (fun h hp => by
       simp only [evmWordIs, ha8, ha16, ha24] at hp
       xperm_hyp hp)
@@ -1024,45 +842,12 @@ theorem evm_swap_stack_spec (sp base : Addr)
     (hvalid : ValidMemRange sp ((n + 1) * 4)) :
     let top := stack[0]'(by omega)
     let nth := stack[n]'(by omega)
-    cpsTriple base (base + 64)
-      (-- Code
-       (base ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 0)) **
-       ((base + 4) ↦ᵢ .LD .x6 .x12 (BitVec.ofNat 12 (n*32))) **
-       ((base + 8) ↦ᵢ .SD .x12 .x6 (BitVec.ofNat 12 0)) **
-       ((base + 12) ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 (n*32))) **
-       ((base + 16) ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 8)) **
-       ((base + 20) ↦ᵢ .LD .x6 .x12 (BitVec.ofNat 12 (n*32+8))) **
-       ((base + 24) ↦ᵢ .SD .x12 .x6 (BitVec.ofNat 12 8)) **
-       ((base + 28) ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 (n*32+8))) **
-       ((base + 32) ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 16)) **
-       ((base + 36) ↦ᵢ .LD .x6 .x12 (BitVec.ofNat 12 (n*32+16))) **
-       ((base + 40) ↦ᵢ .SD .x12 .x6 (BitVec.ofNat 12 16)) **
-       ((base + 44) ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 (n*32+16))) **
-       ((base + 48) ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 24)) **
-       ((base + 52) ↦ᵢ .LD .x6 .x12 (BitVec.ofNat 12 (n*32+24))) **
-       ((base + 56) ↦ᵢ .SD .x12 .x6 (BitVec.ofNat 12 24)) **
-       ((base + 60) ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 (n*32+24))) **
-       -- Registers + data
+    let cr := evm_swap_code base n
+    cpsTriple base (base + 64) cr
+      (-- Registers + data
        (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) **
        evmStackIs sp stack)
-      (-- Code (preserved)
-       (base ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 0)) **
-       ((base + 4) ↦ᵢ .LD .x6 .x12 (BitVec.ofNat 12 (n*32))) **
-       ((base + 8) ↦ᵢ .SD .x12 .x6 (BitVec.ofNat 12 0)) **
-       ((base + 12) ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 (n*32))) **
-       ((base + 16) ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 8)) **
-       ((base + 20) ↦ᵢ .LD .x6 .x12 (BitVec.ofNat 12 (n*32+8))) **
-       ((base + 24) ↦ᵢ .SD .x12 .x6 (BitVec.ofNat 12 8)) **
-       ((base + 28) ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 (n*32+8))) **
-       ((base + 32) ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 16)) **
-       ((base + 36) ↦ᵢ .LD .x6 .x12 (BitVec.ofNat 12 (n*32+16))) **
-       ((base + 40) ↦ᵢ .SD .x12 .x6 (BitVec.ofNat 12 16)) **
-       ((base + 44) ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 (n*32+16))) **
-       ((base + 48) ↦ᵢ .LD .x7 .x12 (BitVec.ofNat 12 24)) **
-       ((base + 52) ↦ᵢ .LD .x6 .x12 (BitVec.ofNat 12 (n*32+24))) **
-       ((base + 56) ↦ᵢ .SD .x12 .x6 (BitVec.ofNat 12 24)) **
-       ((base + 60) ↦ᵢ .SD .x12 .x7 (BitVec.ofNat 12 (n*32+24))) **
-       -- Registers + data (swapped)
+      (-- Registers + data (swapped)
        (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ top.getLimb 3) ** (.x6 ↦ᵣ nth.getLimb 3) **
        evmWordIs sp nth **
        evmStackIs (sp + 32) ((stack.drop 1).take (n - 1)) **
@@ -1087,13 +872,13 @@ theorem evm_swap_stack_spec (sp base : Addr)
     simp; congr 1; omega
   rw [haddr_src, haddr_rest, show (n - 1) + 1 = n from by omega, helem] at hsplit1
   -- Frame the evm_swap_evmword_spec with the middle and rest stacks
-  have h_main := cpsTriple_frame_left _ _ _ _
+  have h_main := cpsTriple_frame_left _ _ _ _ _
     (evmStackIs (sp + 32) ((stack.drop 1).take (n - 1)) **
      evmStackIs (sp + BitVec.ofNat 64 ((n + 1) * 32)) ((stack.drop 1).drop n))
     (by pcFree)
     (evm_swap_evmword_spec sp base n hn1 hn16 top nth v7 v6 hvalid)
   have haddr32 : (sp + BitVec.ofNat 64 (1 * 32) : Addr) = sp + 32 := by bv_omega
-  exact cpsTriple_consequence _ _ _ _ _ _
+  exact cpsTriple_consequence _ _ _ _ _ _ _
     (fun h hp => by
       rw [hsplit0] at hp
       simp only [Nat.zero_mul, List.take_zero, evmStackIs_nil, sepConj_emp_left',

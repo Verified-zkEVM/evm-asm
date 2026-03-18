@@ -110,10 +110,10 @@ EvmAsm/
   Rv32/                       -- RV32IM backend (secondary, parallel structure)
     Basic.lean ... Tactics/   --   Same modules as Rv64, 32-bit word size
     MulMacro.lean             --   The add_mulc macro with correctness proofs
-  Evm64/                      -- EVM opcodes on RV64IM (primary, 4×64-bit limbs, 18 files)
+  Evm64/                      -- EVM opcodes on RV64IM (primary, 4×64-bit limbs, 24 files)
     Basic.lean                --   EvmWord (BitVec 256), getLimb64, fromLimbs64
     Stack.lean                --   evmWordIs, evmStackIs, pcFree lemmas
-    StackOps.lean             --   POP, PUSH0, DUP1, SWAP1, generic DUPn/SWAPn
+    StackOps.lean             --   POP, PUSH0, DUP1-16, SWAP1-16 (generic)
     Bitwise.lean              --   AND/OR/XOR/NOT programs + per-limb specs
     And.lean                  --   Full 256-bit AND spec
     Or.lean                   --   Full 256-bit OR spec
@@ -122,19 +122,33 @@ EvmAsm/
     Arithmetic.lean           --   ADD/SUB programs + per-limb specs
     Add.lean                  --   Full 256-bit ADD spec
     Sub.lean                  --   Full 256-bit SUB spec
-    Comparison.lean           --   LT/GT/EQ/ISZERO programs + per-limb specs
+    Multiply.lean             --   MUL program (schoolbook 4×4 limb)
+    Comparison.lean           --   LT/GT/EQ/ISZERO/SLT/SGT programs + per-limb specs
     Lt.lean                   --   Full 256-bit LT spec
     Gt.lean                   --   Full 256-bit GT spec
     Eq.lean                   --   Full 256-bit EQ spec
     IsZero.lean               --   Full 256-bit ISZERO spec
-    Shift.lean                --   SHR program + per-limb specs
+    Slt.lean                  --   Full 256-bit SLT (signed) spec
+    Sgt.lean                  --   Full 256-bit SGT (signed) spec
+    Shift.lean                --   SHR/SHL/SAR programs + per-limb specs
     ShiftSpec.lean            --   Full 256-bit SHR spec
+    ShlSpec.lean              --   Full 256-bit SHL spec
+    SarSpec.lean              --   Full 256-bit SAR spec
+    Byte.lean                 --   BYTE program + per-limb specs
+    ByteSpec.lean             --   Full 256-bit BYTE spec
+    SignExtend.lean           --   SIGNEXTEND program + per-limb specs
+    SignExtendSpec.lean       --   Full 256-bit SIGNEXTEND spec
     zkvm-standards/           --   Submodule: zkVM RISC-V target standards
-  Evm32/                      -- EVM opcodes on RV32IM (secondary, 8×32-bit limbs, 15 files)
-    Basic.lean ... StackOps.lean  -- Same opcodes as Evm64, 32-bit limbs
-    Shift.lean                --   SHR program + per-limb specs
-    ShiftSpec.lean            --   Full 256-bit SHR spec
-    ShiftComposition.lean     --   SHR shift composition (1 sorry)
+  Evm32/                      -- EVM opcodes on RV32IM (secondary, 8×32-bit limbs, 12 files)
+    Basic.lean                --   EvmWord (BitVec 256), getLimb32, fromLimbs32
+    Stack.lean                --   evmWordIs, evmStackIs, pcFree lemmas
+    Bitwise.lean              --   AND/OR/XOR/NOT programs + per-limb specs
+    And/Or/Xor/Not.lean       --   Full 256-bit bitwise specs
+    Arithmetic.lean           --   ADD/SUB programs + per-limb specs
+    ArithmeticSpec.lean       --   Full 256-bit ADD/SUB specs
+    Comparison.lean           --   LT/GT/EQ/ISZERO programs + per-limb specs
+    ComparisonSpec.lean       --   Full 256-bit comparison specs
+    Shift.lean                --   SHR program + native_decide tests
   Examples/                   -- 12 example files
     Swap.lean                 --   Register swap macro
     Zero.lean                 --   Zero-register macro
@@ -182,14 +196,17 @@ This is a **prototype** demonstrating the approach. Current state:
   separation logic, CPS-style Hoare triples, and automated tactics
   (`xperm`, `xcancel`, `seqFrame`, `liftSpec`, `runBlock`).
 - **Evm64 (primary, 0 sorry)** — targets `riscv64im_zicclsm-unknown-none-elf`,
-  4×64-bit limbs, 15 fully-proved opcodes:
-  AND, OR, XOR, NOT, ADD, SUB, LT, GT, EQ, ISZERO, SHR,
-  POP, PUSH0, DUP1, SWAP1 (+ generic DUPn/SWAPn for 1 ≤ n ≤ 16)
-- **Evm32 (secondary, 1 sorry)** — 8×32-bit limbs, same 15 opcodes;
-  one sorry remains in `ShiftComposition.lean`.
+  4×64-bit limbs, 22 fully-proved opcodes:
+  AND, OR, XOR, NOT, ADD, SUB, MUL, SIGNEXTEND,
+  SHR, SHL, SAR, BYTE,
+  LT, GT, EQ, ISZERO, SLT, SGT,
+  POP, PUSH0, DUP1-16, SWAP1-16
+- **Evm32 (secondary, 0 sorry)** — 8×32-bit limbs, 11 opcodes:
+  AND, OR, XOR, NOT, ADD, SUB, LT, GT, EQ, ISZERO, SHR (program + tests only).
+- **0 sorry across the entire codebase** (`lake build` clean).
 - **Proved (examples)**: `add_mulc`, register swap, hello world, echo,
   HALT/COMMIT termination, load-modify-store, full pipeline.
-- **TODO**: More opcodes (MUL, DIV, MOD, SHL, SAR, MLOAD, MSTORE),
+- **TODO**: DIV, MOD, SDIV, SMOD, EXP, ADDMOD, MULMOD, MLOAD, MSTORE,
   interpreter loop, state transition function, connect to sail-riscv-lean
   for RISC-V spec compliance, connect to EVM specs in Lean, testing.
 

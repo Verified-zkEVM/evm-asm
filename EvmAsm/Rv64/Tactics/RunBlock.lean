@@ -112,7 +112,7 @@ private def proveBvEq (old new_ : Expr) : MetaM (Option Expr) := do
   -- Fallback: normalize signExtend12 then bv_omega (handles (sp + K) + signExtend12 N)
   let eqMVar2 ← mkFreshExprMVar eqType
   try
-    let stx ← `(tactic| simp only [signExtend12_0, signExtend12_8, signExtend12_16, signExtend12_24, signExtend12_32, signExtend12_40, signExtend12_48, signExtend12_56] <;> bv_omega)
+    let stx ← `(tactic| simp only [signExtend12_0, signExtend12_8, signExtend12_16, signExtend12_24, signExtend12_32, signExtend12_40, signExtend12_48, signExtend12_56, signExtend12_4095, signExtend12_4088, signExtend12_4080, signExtend12_4072, signExtend12_4064, signExtend12_4056, signExtend12_4048, signExtend12_4040, signExtend12_4032, signExtend12_4024, signExtend12_4016, signExtend12_4008, signExtend12_4000, signExtend12_3992, signExtend12_3984, signExtend12_3976, signExtend12_3968, signExtend12_3960, signExtend12_3952, signExtend12_3944] <;> bv_omega)
     let _ ← Lean.Elab.runTactic eqMVar2.mvarId! stx
     return some (← instantiateMVars eqMVar2)
   catch _ => return none
@@ -137,18 +137,20 @@ private def proveByNativeDecide (old new_ : Expr) : MetaM (Option Expr) := do
     - `e + 0` → `e`
     - `(a + lit₁) + lit₂` → `a + (lit₁ + lit₂)` -/
 private def trySimplifyTop (e : Expr) : MetaM (Expr × Option Expr) := do
-  -- signExtend12 on concrete literal
+  -- signExtend12 on concrete literal: normalize small positive offsets (< 2048).
+  -- Large negative offsets (>= 2048) produce huge 64-bit literals that cause
+  -- recursion depth issues in mkDecideProof. Leave them as signExtend12.
   if e.isAppOfArity ``EvmAsm.Rv64.signExtend12 1 then
     let arg := e.getAppArgs[0]!
     if let some argVal := getBvLitVal? arg then
       let n12 := argVal % 4096
-      let signExtVal := if n12 < 2048 then n12 else n12 + (2^64 - 4096)
-      let bv64 := mkApp (mkConst ``BitVec) (mkNatLit 64)
-      let resultExpr ← mkNumeral bv64 signExtVal
-      if let some pf ← proveByNativeDecide e resultExpr then
-        return (resultExpr, some pf)
-      if let some pf ← proveBvEq e resultExpr then
-        return (resultExpr, some pf)
+      if n12 < 2048 then
+        let bv64 := mkApp (mkConst ``BitVec) (mkNatLit 64)
+        let resultExpr ← mkNumeral bv64 n12
+        if let some pf ← proveByNativeDecide e resultExpr then
+          return (resultExpr, some pf)
+        if let some pf ← proveBvEq e resultExpr then
+          return (resultExpr, some pf)
   -- Address arithmetic at BitVec type
   if e.isAppOfArity ``HAdd.hAdd 6 then
     let args := e.getAppArgs
@@ -156,8 +158,8 @@ private def trySimplifyTop (e : Expr) : MetaM (Expr × Option Expr) := do
     let rhs := args[5]!
     let eTy ← inferType e
     if (← whnf eTy).isAppOfArity ``BitVec 1 then
-      -- e + 0 → e
-      if getBvLitVal? rhs == some 0 then
+      -- e + 0 → e (common after signExtend12 0 normalization)
+      if let some 0 := getBvLitVal? rhs then
         if let some pf ← proveBvEq e lhs then
           return (lhs, some pf)
       -- (a + lit₁) + lit₂ → a + (lit₁ + lit₂)
@@ -196,12 +198,21 @@ partial def normalizeTypeAddrs (e : Expr) : MetaM (Expr × Option Expr) := do
       if fPf?.isNone && aPf?.isNone then Pure.pure (e, none)
       else
         let new_ := Expr.app f' a'
-        let pf ← match fPf?, aPf? with
-          | some fPf, some aPf => mkCongr fPf aPf
-          | some fPf, none => mkCongrFun fPf a
-          | none, some aPf => mkCongrArg f aPf
-          | none, none => unreachable!
-        Pure.pure (new_, some pf)
+        -- Build congruence proof; fall back gracefully when AppBuilder fails
+        -- (e.g., `congrArg` fails for dependent functions like `ite` with Decidable instances).
+        let pf? : Option Expr ← do
+          try
+            let pf ← match fPf?, aPf? with
+              | some fPf, some aPf => mkCongr fPf aPf
+              | some fPf, none => mkCongrFun fPf a
+              | none, some aPf => mkCongrArg f aPf
+              | none, none => unreachable!
+            Pure.pure (some pf : Option Expr)
+          catch _ =>
+            Pure.pure (none : Option Expr)
+        match pf? with
+        | some pf => Pure.pure (new_, some pf)
+        | none => Pure.pure (e, none)  -- skip normalization for this subtree
     | _ => Pure.pure (e, none)
   -- 2. Try top-level simplifications on the (possibly modified) expression
   let (e'', topPf?) ← trySimplifyTop e'
@@ -219,29 +230,79 @@ partial def normalizeTypeAddrs (e : Expr) : MetaM (Expr × Option Expr) := do
   | none, some tp => Pure.pure (final, some tp)
   | some cp, some tp => Pure.pure (final, some (← mkEqTrans cp tp))
 
+/-- Expand reducible definitions (abbrevs) in a sepConj assertion tree.
+    For each leaf that is NOT a sepConj, applies `withReducible whnf` to unfold abbrevs.
+    This preserves the structural associativity of the sepConj tree (only expanding leaves),
+    so the result is definitionally equal to the input (kernel can verify by unfolding the abbrev).
+    Returns the expanded expression (syntactically equal at sepConj structure level). -/
+partial def expandAbbrevsInAssertion (e : Expr) : MetaM Expr := do
+  match ← parseSepConj? e with
+  | some (l, r) =>
+    let l' ← expandAbbrevsInAssertion l
+    let r' ← expandAbbrevsInAssertion r
+    return mkApp2 (mkConst ``EvmAsm.Rv64.sepConj) l' r'
+  | none =>
+    -- Leaf: apply whnf to unfold abbrevs (e.g., foo_code k base → instrAt base ... ** ...)
+    withReducible (whnf e)
+
+/-- Expand reducible definitions (abbrevs) in the Pre and Post assertions of a cpsTriple proof.
+    When a spec's type contains `foo_code N (base+K)`, this expands it to its instrAt chain
+    so that `normalizeTypeAddrs` can later simplify addresses like `(base+K)+4 → base+(K+4)`.
+    Preserves sepConj tree structure (only expands leaf abbrevs, not the chains themselves),
+    so the result is definitionally equal to the original — uses Eq.mp with rfl for transport. -/
+private def expandAbbrevsInCpsTriple (proof : Expr) : MetaM Expr := do
+  let ty ← instantiateMVars (← inferType proof)
+  let cleanTy := inlineLets ty
+  let some (entry, exit_, cr, pre, post) ← parseCpsTriple? cleanTy | return proof
+  -- Expand abbrevs in pre/post while preserving sepConj tree structure
+  let preNew ← expandAbbrevsInAssertion pre
+  let postNew ← expandAbbrevsInAssertion post
+  -- If nothing changed (no abbrevs expanded), return original proof unchanged
+  if preNew == pre && postNew == post then
+    return proof
+  -- Build new type with expanded assertions
+  let newTy := mkAppN (mkConst ``EvmAsm.Rv64.cpsTriple) #[entry, exit_, cr, preNew, postNew]
+  -- Build proof that ty = newTy via definitional equality (abbrev expansion is definitional).
+  -- Use @id (ty = newTy) (Eq.refl ty) to get a term with SYNTACTIC type ty = newTy.
+  -- The kernel accepts Eq.refl ty : ty = newTy iff ty =def= newTy.
+  -- We pre-check via isDefEq to avoid silent kernel failures.
+  if ¬(← withoutModifyingState (isDefEq ty newTy)) then
+    return proof  -- fallback: not definitionally equal (shouldn't happen for well-formed abbrevs)
+  let eqTy ← mkEq ty newTy
+  let eqProof := mkApp2 (mkConst ``id [levelZero]) eqTy (← mkEqRefl ty)
+  mkEqMP eqProof proof
+
 /-- Normalize addresses in a cpsTriple proof.
     First inlines `let` bindings (which are definitionally equal),
-    then eliminates `signExtend12 N` for concrete N and flattens address arithmetic
-    `(base + N) + M` → `base + (N+M)` and `e + 0` → `e`.
+    expands reducible abbreviations (abbrevs) in the assertion parts so that
+    compound addresses like `(base+N)+M` become `base+(N+M)`,
+    then eliminates `signExtend12 N` for concrete N and flattens address arithmetic.
     Transports the original proof via `Eq.mp` (works because cpsTriple is Prop-valued). -/
 private def normalizeSpecAddresses (proof : Expr) : MetaM Expr := do
   let origType ← instantiateMVars (← inferType proof)
   -- Inline let-bindings first (e.g., `let mem := sp + signExtend12 off; ...`)
   let cleanType := inlineLets origType
-  let (_, normPf?) ← normalizeTypeAddrs cleanType
+  -- Expand abbrevs in assertions: unfolds `foo_code N (base+K)` so normalizeTypeAddrs
+  -- can normalize the resulting `(base+K)+4` addresses.
+  let expandedProof ← do
+    try expandAbbrevsInCpsTriple proof
+    catch _ => Pure.pure proof
+  let expandedType ← instantiateMVars (← inferType expandedProof)
+  let workType := inlineLets expandedType
+  let (_, normPf?) ← normalizeTypeAddrs workType
   match normPf? with
-  | some pf => mkEqMP pf proof
+  | some pf => mkEqMP pf expandedProof
   | none =>
     -- If let-inlining changed the type shape, wrap with @id to force the clean type
     -- (let-inlined type is definitionally equal, so the kernel accepts it)
-    if cleanType == origType then Pure.pure proof
-    else Pure.pure (mkApp2 (mkConst ``id [levelZero]) cleanType proof)
+    if workType == expandedType then Pure.pure expandedProof
+    else Pure.pure (mkApp2 (mkConst ``id [levelZero]) workType expandedProof)
 
 /-- Normalize the exit address of a cpsTriple proof to match a target address.
     Proves equality via `bv_omega` when needed. -/
 private def normalizeAddr (accExpr : Expr) (targetExit : Expr) : MetaM Expr := do
   let accType ← inferType accExpr
-  let some (entry, exit₁, P, Q) ← parseCpsTriple? accType
+  let some (entry, exit₁, cr, P, Q) ← parseCpsTriple? accType
     | throwError "runBlock: not a cpsTriple"
   if ← withoutModifyingState (isDefEq exit₁ targetExit) then
     return accExpr
@@ -255,7 +316,7 @@ private def normalizeAddr (accExpr : Expr) (targetExit : Expr) : MetaM Expr := d
   let eqProof ← instantiateMVars eqMVar
   let addrType ← inferType exit₁
   withLocalDeclD `x addrType fun x => do
-    let body := mkAppN (mkConst ``EvmAsm.Rv64.cpsTriple) #[entry, x, P, Q]
+    let body := mkAppN (mkConst ``EvmAsm.Rv64.cpsTriple) #[entry, x, cr, P, Q]
     let motive ← mkLambdaFVars #[x] body
     let congrProof ← mkCongrArg motive eqProof
     mkEqMP congrProof accExpr
@@ -265,7 +326,7 @@ private def normalizeAddr (accExpr : Expr) (targetExit : Expr) : MetaM Expr := d
     returns : cpsTriple entry exit goalPre (Q1 ** Frame) where Frame = goalPre \ P1. -/
 private def frameFirstSpec (s1Expr : Expr) (goalPre : Expr) : MetaM Expr := do
   let s1Type ← inferType s1Expr
-  let some (entry, exit_, preP1, postQ1) ← parseCpsTriple? s1Type
+  let some (entry, exit_, cr1, preP1, postQ1) ← parseCpsTriple? s1Type
     | throwError "runBlock: first spec is not a cpsTriple"
   -- Compute frame: goalPre atoms not in P1
   let frameAtoms ← computeFrame goalPre preP1
@@ -276,15 +337,15 @@ private def frameFirstSpec (s1Expr : Expr) (goalPre : Expr) : MetaM Expr := do
     let prePermProof ← mkPermLambda goalPre preP1
     let postIdProof ← mkIdLambda postQ1
     return mkAppN (mkConst ``EvmAsm.Rv64.cpsTriple_consequence)
-      #[entry, exit_, preP1, goalPre, postQ1, postQ1, prePermProof, postIdProof, s1Expr]
+      #[entry, exit_, cr1, preP1, goalPre, postQ1, postQ1, prePermProof, postIdProof, s1Expr]
   -- Build frame expression
   let frameExpr ← buildSepConjChain frameAtoms
   -- Prove pcFree for the frame (direct proof construction, no tactic overhead)
   let pcFreeProof ← try buildPcFreeProof frameExpr
     catch _ => throwError "runBlock: could not prove pcFree for initial frame:\n  {frameExpr}"
-  -- Frame s1: cpsTriple entry exit (P1 ** F) (Q1 ** F)
+  -- Frame s1: cpsTriple entry exit cr1 (P1 ** F) (Q1 ** F)
   let s1Framed := mkAppN (mkConst ``EvmAsm.Rv64.cpsTriple_frame_left)
-    #[entry, exit_, preP1, postQ1, frameExpr, pcFreeProof, s1Expr]
+    #[entry, exit_, cr1, preP1, postQ1, frameExpr, pcFreeProof, s1Expr]
   -- Permute precondition: goalPre → (P1 ** F)
   let p1StarFrame := mkApp2 (mkConst ``EvmAsm.Rv64.sepConj) preP1 frameExpr
   -- cpsTriple_consequence (P P' Q Q') (hpre : P' → P) (hpost : Q → Q') (h : cpsTriple P Q) : cpsTriple P' Q'
@@ -293,31 +354,39 @@ private def frameFirstSpec (s1Expr : Expr) (goalPre : Expr) : MetaM Expr := do
   let q1StarFrame := mkApp2 (mkConst ``EvmAsm.Rv64.sepConj) postQ1 frameExpr
   let postIdProof ← mkIdLambda q1StarFrame
   return mkAppN (mkConst ``EvmAsm.Rv64.cpsTriple_consequence)
-    #[entry, exit_, p1StarFrame, goalPre, q1StarFrame, q1StarFrame,
+    #[entry, exit_, cr1, p1StarFrame, goalPre, q1StarFrame, q1StarFrame,
       prePermProof, postIdProof, s1Framed]
 
 /-- Core: compose an array of cpsTriple proofs with initial framing,
     address normalization, and seqFrame chaining.
-    When `normalizeAddrs` is true (manual mode), applies signExtend12 reduction
-    and address arithmetic flattening to each spec before composing. -/
+    When `goalCr` is provided, extends each spec's CodeReq to goalCr before composition
+    so that all specs share the same CR (enabling the same-CR fast path in seqFrame).
+    Always normalizes spec addresses (signExtend12 reduction and address arithmetic flattening)
+    so that atoms match the normalized goal. -/
 private def runBlockCore (specs : Array Expr) (goalPre : Expr)
-    (normalizeAddrs : Bool := false) : MetaM Expr := do
+    (goalCr : Option Expr := none) (normalizeAddrs : Bool := false) : MetaM Expr := do
   if specs.size == 0 then
     throwError "runBlock: no specs provided.\n\
         Usage: `runBlock s1 s2 ...` (manual) or `runBlock` (auto from @[spec_gen_rv64] database)."
-  -- Normalize addresses in manual-mode specs (signExtend12, address flattening)
-  let processedSpecs ← if normalizeAddrs then
-    specs.mapM fun spec => do
-      try normalizeSpecAddresses spec
-      catch _ => Pure.pure spec
-  else Pure.pure specs
+  -- Always normalize addresses in specs (signExtend12, address flattening)
+  let processedSpecs ← specs.mapM fun spec => do
+    try normalizeSpecAddresses spec
+    catch _ => Pure.pure spec
+  -- Extend specs to goalCr if provided
+  let extendedSpecs ← match goalCr with
+    | some gcr => processedSpecs.mapM fun spec => do
+        let specType ← inferType spec
+        let some (_, _, specCr, _, _) ← parseCpsTriple? specType | Pure.pure spec
+        try extendSpecCr spec specCr gcr
+        catch _ => Pure.pure spec
+    | none => Pure.pure processedSpecs
   -- Frame the first spec against the goal precondition
-  let mut acc ← frameFirstSpec processedSpecs[0]! goalPre
+  let mut acc ← frameFirstSpec extendedSpecs[0]! goalPre
   -- Chain remaining specs via seqFrame with address normalization
-  for i in [1:processedSpecs.size] do
-    let nextSpec := processedSpecs[i]!
+  for i in [1:extendedSpecs.size] do
+    let nextSpec := extendedSpecs[i]!
     let nextType ← inferType nextSpec
-    let some (nextEntry, _, _, _) ← parseCpsTriple? nextType
+    let some (nextEntry, _, _, _, _) ← parseCpsTriple? nextType
       | throwError "runBlock: argument {i + 1} is not a cpsTriple"
     acc ← normalizeAddr acc nextEntry
     acc ← seqFrameCore acc nextSpec
@@ -325,7 +394,7 @@ private def runBlockCore (specs : Array Expr) (goalPre : Expr)
 
 /-- Try to normalize a cpsTriple's exit to match the goal's exit address. -/
 private def normalizeToGoal (composed : Expr) (goalType : Expr) : MetaM Expr := do
-  if let some (_, goalExit, _, _) ← parseCpsTriple? goalType then
+  if let some (_, goalExit, _, _, _) ← parseCpsTriple? goalType then
     try return ← normalizeAddr composed goalExit catch _ => return composed
   return composed
 
@@ -404,6 +473,24 @@ private def extractConcreteOffset? (validAddr target : Expr) : MetaM (Option Nat
               let n12 := argVal % 4096
               let v2 := if n12 < 2048 then n12 else n12 + (2^64 - 4096)
               return some (v1 + v2)
+    -- Case 4: target = X + B, validAddr = X + A  (offset = B - A mod 2^64)
+    -- Handles different concrete offsets from the same base register.
+    -- B can be a numeric literal or signExtend12 N.
+    if validAddr.isAppOfArity ``HAdd.hAdd 6 then
+      let addrBase := validAddr.getAppArgs[4]!
+      let addrOff := validAddr.getAppArgs[5]!
+      if ← withoutModifyingState (isDefEq addrBase lhs) then
+        if let some a := getBvLitVal? addrOff then
+          -- B is a numeric literal
+          if let some b := getBvLitVal? rhs then
+            return some ((b + 2^64 - a) % (2^64))
+          -- B is signExtend12 N
+          if rhs.isAppOfArity ``EvmAsm.Rv64.signExtend12 1 then
+            let arg := rhs.getAppArgs[0]!
+            if let some argVal := getBvLitVal? arg then
+              let n12 := argVal % 4096
+              let b := if n12 < 2048 then n12 else n12 + (2^64 - 4096)
+              return some ((b + 2^64 - a) % (2^64))
   return none
 
 /-- Build a proof of `ValidMemRange.fetch` for a given index (64-bit, stride 8). -/
@@ -484,7 +571,14 @@ elab "validMem" : tactic => do
   try
     evalTactic (← `(tactic| simp only [signExtend12_0, signExtend12_1, signExtend12_8,
       signExtend12_16, signExtend12_24, signExtend12_32, signExtend12_40,
-      signExtend12_48, signExtend12_56]))
+      signExtend12_48, signExtend12_56,
+      signExtend12_4095, signExtend12_4088, signExtend12_4080,
+      signExtend12_4072, signExtend12_4064, signExtend12_4056,
+      signExtend12_4048, signExtend12_4040, signExtend12_4032,
+      signExtend12_4024, signExtend12_4016, signExtend12_4008,
+      signExtend12_4000, signExtend12_3992, signExtend12_3984,
+      signExtend12_3976, signExtend12_3968, signExtend12_3960,
+      signExtend12_3952, signExtend12_3944]))
   catch _ =>
     (Pure.pure PUnit.unit : TacticM PUnit)
   withMainContext do
@@ -517,15 +611,21 @@ private def tryInstantiateSpec (specName : Name) (instrExpr instrAddr : Expr)
   -- Create metavariable telescope for spec parameters (non-reducing to avoid
   -- unfolding cpsTriple, which is itself a ∀ internally)
   let (params, _, body) ← forallMetaTelescope specType
-  -- body should be cpsTriple entry exit pre post
-  let some (specEntry, _, specPre, _) ← parseCpsTriple? body
+  -- body should be cpsTriple entry exit cr pre post
+  let some (specEntry, _, specCr, specPre, _) ← parseCpsTriple? body
     | throwError "tryInstantiateSpec: {specName} is not a cpsTriple"
   -- Step 1: Unify spec address with our instruction address
   unless ← isDefEq specEntry instrAddr do
     throwError "address mismatch"
+  -- Step 1b: Match instruction in specCr (CodeReq.singleton)
+  let specCrWhnf ← whnfR specCr
+  if specCrWhnf.isAppOfArity ``EvmAsm.Rv64.CodeReq.singleton 2 then
+    let specInstr := specCrWhnf.getAppArgs[1]!
+    unless ← isDefEq specInstr instrExpr do
+      throwError "instruction mismatch in cr"
   -- Step 2: Flatten spec precondition and match atoms
   let specAtoms ← flattenSepConj specPre
-  -- Step 2a: Unify the instrAt atom
+  -- Step 2a (legacy fallback): Unify instrAt atoms if still present in pre
   for atom in specAtoms do
     if atom.isAppOfArity `EvmAsm.Rv64.instrAt 2 then
       let specInstr := atom.getAppArgs[1]!
@@ -618,7 +718,7 @@ private def resolveSpecForInstr (instrExpr instrAddr : Expr)
     Returns postcondition atoms ∪ (currentAtoms \ precondition atoms). -/
 private def advanceState (currentAtoms : List Expr) (specExpr : Expr) : MetaM (List Expr) := do
   let specType ← inferType specExpr
-  let some (_, _, specPre, specPost) ← parseCpsTriple? specType
+  let some (_, _, _, specPre, specPost) ← parseCpsTriple? specType
     | throwError "advanceState: not a cpsTriple"
   let preAtoms ← flattenSepConj specPre
   let postAtoms ← flattenSepConj specPost
@@ -641,16 +741,50 @@ private def extractInstrAtoms (atoms : List Expr) : List (Expr × Expr) :=
       some (atom.getAppArgs[0]!, atom.getAppArgs[1]!)
     else none
 
-/-- Auto-resolve all specs from the precondition and compose them.
-    Extracts instruction atoms, resolves each spec using the current state,
-    and advances the state between instructions. -/
-private def autoResolveAndCompose (goalPre : Expr) : MetaM Expr := do
-  let atoms ← flattenSepConj goalPre
-  let instrAtoms := extractInstrAtoms atoms
+/-- Extract instruction entries `(addr, instrExpr)` from a CodeReq expression (pure, no whnf).
+    Handles: CodeReq.singleton addr instr, CodeReq.union cr1 cr2 (recursive),
+    CodeReq.empty (returns []). -/
+private partial def extractCrEntriesPure (cr : Expr) : List (Expr × Expr) :=
+  if cr.isAppOfArity ``EvmAsm.Rv64.CodeReq.singleton 2 then
+    let args := cr.getAppArgs
+    [(args[0]!, args[1]!)]
+  else if cr.isAppOfArity ``EvmAsm.Rv64.CodeReq.union 2 then
+    let args := cr.getAppArgs
+    extractCrEntriesPure args[0]! ++ extractCrEntriesPure args[1]!
+  else []
+
+/-- Extract instruction entries `(addr, instrExpr)` from a CodeReq expression.
+    Recursively unfolds abbreviations using whnfR to handle nested CodeReq abbrevs. -/
+private partial def extractCrEntries (cr : Expr) : MetaM (List (Expr × Expr)) := do
+  if cr.isAppOfArity ``EvmAsm.Rv64.CodeReq.singleton 2 then
+    let args := cr.getAppArgs
+    return [(args[0]!, args[1]!)]
+  if cr.isAppOfArity ``EvmAsm.Rv64.CodeReq.union 2 then
+    let args := cr.getAppArgs
+    let left ← extractCrEntries args[0]!
+    let right ← extractCrEntries args[1]!
+    return left ++ right
+  -- Not a recognized structural form — try whnfR to unfold one level
+  let cr' ← Lean.Meta.whnfR cr
+  if cr' == cr then return []  -- No progress, give up
+  extractCrEntries cr'
+
+/-- Auto-resolve all specs from the CodeReq/precondition and compose them.
+    Tries CodeReq first (new-style: instructions in `cr`), falls back to
+    instrAt atoms in precondition (legacy). -/
+private def autoResolveAndCompose (goalPre : Expr) (goalCr : Expr) : MetaM Expr := do
+  -- Try new-style: extract instructions from CodeReq
+  let mut instrAtoms ← extractCrEntries goalCr
+  -- Fallback: if CodeReq is empty/unknown, try legacy instrAt in precondition
   if instrAtoms.isEmpty then
-    throwError "runBlock: no `instrAt` (↦ᵢ) atoms found in the goal's precondition.\n\
-        The goal must be a `cpsTriple` whose precondition contains instruction atoms."
-  -- Non-instruction atoms form the initial state
+    let atoms ← flattenSepConj goalPre
+    instrAtoms := extractInstrAtoms atoms
+  if instrAtoms.isEmpty then
+    throwError "runBlock: no instructions found in the goal's CodeReq or precondition.\n\
+        The goal must be a `cpsTriple` whose CodeReq contains `CodeReq.singleton` entries,\n\
+        or whose precondition contains `instrAt` (↦ᵢ) atoms."
+  -- All precondition atoms are state atoms (instrAt atoms in legacy mode are also kept)
+  let atoms ← flattenSepConj goalPre
   let stateAtoms := atoms.filter fun a => !a.isAppOfArity `EvmAsm.Rv64.instrAt 2
   trace[runBlock] "auto mode: {instrAtoms.length} instruction(s), {stateAtoms.length} state atom(s)"
   let mut currentState := stateAtoms
@@ -668,7 +802,7 @@ private def autoResolveAndCompose (goalPre : Expr) : MetaM Expr := do
       let eMsg ← e.toMessageData.format
       throwError "{eMsg}\n  Progress: resolved {resolvedCount} of {totalCount} instruction(s) before failure."
   trace[runBlock] "all {specs.size} spec(s) resolved, composing..."
-  runBlockCore specs goalPre
+  runBlockCore specs goalPre (goalCr := some goalCr)
 
 /-- Verify a basic block by composing instruction specs with automatic framing.
 
@@ -687,34 +821,60 @@ private def autoResolveAndCompose (goalPre : Expr) : MetaM Expr := do
 
     **Debugging**: use `set_option trace.runBlock true` to see resolution details. -/
 elab "runBlock" specs:ident* : tactic => withMainContext do
-  let goal ← getMainGoal
+  let mvarGoal ← getMainGoal
   -- Strip leading let bindings and metadata from goal type
-  let goalType := inlineLets (← instantiateMVars (← goal.getType))
-  let some (_, _, goalPre, _) ← parseCpsTriple? goalType
+  let goalType := inlineLets (← instantiateMVars (← mvarGoal.getType))
+  let some (_, _, goalCr, _, _) ← parseCpsTriple? goalType
     | throwError "runBlock: goal is not a `cpsTriple`.\n\
-        Expected goal of the form: `cpsTriple entry exit pre post`."
+        Expected goal of the form: `cpsTriple entry exit cr pre post`."
+  -- If the CodeReq is an abbrev application (not CodeReq.singleton/union/empty), delta-unfold it
+  -- in the actual goal so all proof terms share the same expression.
+  let mvarGoal ← do
+    let crEntries := extractCrEntriesPure goalCr
+    if crEntries.isEmpty then
+      match goalCr.getAppFn with
+      | .const name _ =>
+        if name == ``EvmAsm.Rv64.CodeReq.singleton || name == ``EvmAsm.Rv64.CodeReq.union ||
+           name == ``EvmAsm.Rv64.CodeReq.empty then
+          Pure.pure mvarGoal
+        else
+          trace[runBlock] "deltaTarget: unfolding CodeReq abbrev {name}"
+          try mvarGoal.deltaTarget (· == name)
+          catch _ => Pure.pure mvarGoal
+      | _ => Pure.pure mvarGoal
+    else Pure.pure mvarGoal
+  -- Re-parse goal after potential delta-unfolding
+  let goalType := inlineLets (← instantiateMVars (← mvarGoal.getType))
+  -- Normalize addresses in goal type (signExtend12, e+0, address flattening)
+  let (normGoalType, goalNormPf?) ← normalizeTypeAddrs goalType
+  let (workingGoal, workingGoalType) ← if let some pf := goalNormPf? then do
+      let newGoalMVar ← mkFreshExprMVar normGoalType
+      let proof ← mkEqMP (← mkEqSymm pf) newGoalMVar
+      mvarGoal.assign proof
+      Pure.pure (newGoalMVar.mvarId!, normGoalType)
+    else Pure.pure (mvarGoal, goalType)
+  let some (_, _, goalCr, goalPre, _) ← parseCpsTriple? workingGoalType
+    | throwError "runBlock: goal is not a `cpsTriple` after normalization."
   let composed ←
     if specs.isEmpty then
-      -- Auto mode: resolve specs from precondition
-      autoResolveAndCompose goalPre
+      -- Auto mode: resolve specs from CodeReq/precondition
+      autoResolveAndCompose goalPre goalCr
     else
       -- Manual mode: use provided specs
       let specExprs ← specs.mapM fun s => elabTerm s none
-      runBlockCore specExprs goalPre (normalizeAddrs := true)
-  let finalResult ← normalizeToGoal composed goalType
-  -- Always permute postcondition to match goal (goal.assign doesn't type-check)
-  let some (gEntry, gExit, gPre, goalPost) ← parseCpsTriple? goalType
+      runBlockCore specExprs goalPre (goalCr := some goalCr) (normalizeAddrs := true)
+  let finalResult ← normalizeToGoal composed workingGoalType
+  -- Always permute postcondition to match goal
+  let some (gEntry, gExit, gCr, gPre, goalPost) ← parseCpsTriple? workingGoalType
     | throwError "runBlock: internal error — goal lost cpsTriple structure during permutation"
   let resultType ← inferType finalResult
-  let some (_, _, _, resultPost) ← parseCpsTriple? resultType
+  let some (_, _, _, _, resultPost) ← parseCpsTriple? resultType
     | throwError "runBlock: internal error — composed result is not a cpsTriple"
-  -- cpsTriple_consequence (P P' Q Q') (hpre : P' → P) (hpost : Q → Q') (h : cpsTriple P Q) : cpsTriple P' Q'
-  -- P = gPre (what finalResult has), P' = gPre (same, identity), Q = resultPost, Q' = goalPost
   let postPerm ← mkPermLambda resultPost goalPost
   let idPre ← mkIdLambda gPre
   let permuted := mkAppN (mkConst ``EvmAsm.Rv64.cpsTriple_consequence)
-    #[gEntry, gExit, gPre, gPre, resultPost, goalPost, idPre, postPerm, finalResult]
-  goal.assign permuted
+    #[gEntry, gExit, gCr, gPre, gPre, resultPost, goalPost, idPre, postPerm, finalResult]
+  workingGoal.assign permuted
   replaceMainGoal []
 
 end EvmAsm.Rv64.Tactics

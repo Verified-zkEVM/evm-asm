@@ -29,6 +29,4 @@ import EvmAsm.Evm32.Arithmetic
 import EvmAsm.Evm32.ArithmeticSpec
 import EvmAsm.Evm32.Comparison
 import EvmAsm.Evm32.ComparisonSpec
-import EvmAsm.Evm32.StackOps
 import EvmAsm.Evm32.Shift
-import EvmAsm.Evm32.ShiftSpec

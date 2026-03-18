@@ -127,16 +127,16 @@ theorem add_limb0_spec (off_a off_b : BitVec 12)
     let mem_b := sp + signExtend12 off_b
     let sum := a_limb + b_limb
     let carry := if BitVec.ult sum b_limb then (1 : Word) else 0
-    let code :=
-      (base ↦ᵢ .LW .x7 .x12 off_a) ** ((base + 4) ↦ᵢ .LW .x6 .x12 off_b) **
-      ((base + 8) ↦ᵢ .ADD .x7 .x7 .x6) ** ((base + 12) ↦ᵢ .SLTU .x5 .x7 .x6) **
-      ((base + 16) ↦ᵢ .SW .x12 .x7 off_b)
-    cpsTriple base (base + 20)
-      (code **
-       (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) ** (.x5 ↦ᵣ v5) **
+    let cr :=
+      CodeReq.union (CodeReq.singleton base (.LW .x7 .x12 off_a))
+      (CodeReq.union (CodeReq.singleton (base + 4) (.LW .x6 .x12 off_b))
+      (CodeReq.union (CodeReq.singleton (base + 8) (.ADD .x7 .x7 .x6))
+      (CodeReq.union (CodeReq.singleton (base + 12) (.SLTU .x5 .x7 .x6))
+       (CodeReq.singleton (base + 16) (.SW .x12 .x7 off_b)))))
+    cpsTriple base (base + 20) cr
+      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) ** (.x5 ↦ᵣ v5) **
        (mem_a ↦ₘ a_limb) ** (mem_b ↦ₘ b_limb))
-      (code **
-       (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ sum) ** (.x6 ↦ᵣ b_limb) ** (.x5 ↦ᵣ carry) **
+      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ sum) ** (.x6 ↦ᵣ b_limb) ** (.x5 ↦ᵣ carry) **
        (mem_a ↦ₘ a_limb) ** (mem_b ↦ₘ sum)) := by
   runBlock
 
@@ -154,15 +154,15 @@ theorem add_limb_carry_spec_phase1 (off_a off_b : BitVec 12)
     let mem_b := sp + signExtend12 off_b
     let psum := a_limb + b_limb
     let carry1 := if BitVec.ult psum b_limb then (1 : Word) else 0
-    let code :=
-      (base ↦ᵢ .LW .x7 .x12 off_a) ** ((base + 4) ↦ᵢ .LW .x6 .x12 off_b) **
-      ((base + 8) ↦ᵢ .ADD .x7 .x7 .x6) ** ((base + 12) ↦ᵢ .SLTU .x11 .x7 .x6)
-    cpsTriple base (base + 16)
-      (code **
-       (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) ** (.x5 ↦ᵣ carry_in) ** (.x11 ↦ᵣ v11) **
+    let cr :=
+      CodeReq.union (CodeReq.singleton base (.LW .x7 .x12 off_a))
+      (CodeReq.union (CodeReq.singleton (base + 4) (.LW .x6 .x12 off_b))
+      (CodeReq.union (CodeReq.singleton (base + 8) (.ADD .x7 .x7 .x6))
+       (CodeReq.singleton (base + 12) (.SLTU .x11 .x7 .x6))))
+    cpsTriple base (base + 16) cr
+      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) ** (.x5 ↦ᵣ carry_in) ** (.x11 ↦ᵣ v11) **
        (mem_a ↦ₘ a_limb) ** (mem_b ↦ₘ b_limb))
-      (code **
-       (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ psum) ** (.x6 ↦ᵣ b_limb) ** (.x5 ↦ᵣ carry_in) ** (.x11 ↦ᵣ carry1) **
+      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ psum) ** (.x6 ↦ᵣ b_limb) ** (.x5 ↦ᵣ carry_in) ** (.x11 ↦ᵣ carry1) **
        (mem_a ↦ₘ a_limb) ** (mem_b ↦ₘ b_limb)) := by
   runBlock
 
@@ -176,15 +176,15 @@ theorem add_limb_carry_spec_phase2 (off_b : BitVec 12)
     let result := psum + carry_in
     let carry2 := if BitVec.ult result carry_in then (1 : Word) else 0
     let carry_out := carry1 ||| carry2
-    let code :=
-      (base ↦ᵢ .ADD .x7 .x7 .x5) ** ((base + 4) ↦ᵢ .SLTU .x6 .x7 .x5) **
-      ((base + 8) ↦ᵢ .OR .x5 .x11 .x6) ** ((base + 12) ↦ᵢ .SW .x12 .x7 off_b)
-    cpsTriple base (base + 16)
-      (code **
-       (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ psum) ** (.x6 ↦ᵣ b_limb) ** (.x5 ↦ᵣ carry_in) ** (.x11 ↦ᵣ carry1) **
+    let cr :=
+      CodeReq.union (CodeReq.singleton base (.ADD .x7 .x7 .x5))
+      (CodeReq.union (CodeReq.singleton (base + 4) (.SLTU .x6 .x7 .x5))
+      (CodeReq.union (CodeReq.singleton (base + 8) (.OR .x5 .x11 .x6))
+       (CodeReq.singleton (base + 12) (.SW .x12 .x7 off_b))))
+    cpsTriple base (base + 16) cr
+      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ psum) ** (.x6 ↦ᵣ b_limb) ** (.x5 ↦ᵣ carry_in) ** (.x11 ↦ᵣ carry1) **
        (mem_a ↦ₘ a_limb) ** (mem_b ↦ₘ b_limb))
-      (code **
-       (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ result) ** (.x6 ↦ᵣ carry2) ** (.x5 ↦ᵣ carry_out) ** (.x11 ↦ᵣ carry1) **
+      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ result) ** (.x6 ↦ᵣ carry2) ** (.x5 ↦ᵣ carry_out) ** (.x11 ↦ᵣ carry1) **
        (mem_a ↦ₘ a_limb) ** (mem_b ↦ₘ result)) := by
   runBlock
 
@@ -204,17 +204,19 @@ theorem add_limb_carry_spec (off_a off_b : BitVec 12)
     let result := psum + carry_in
     let carry2 := if BitVec.ult result carry_in then (1 : Word) else 0
     let carry_out := carry1 ||| carry2
-    let code :=
-      (base ↦ᵢ .LW .x7 .x12 off_a) ** ((base + 4) ↦ᵢ .LW .x6 .x12 off_b) **
-      ((base + 8) ↦ᵢ .ADD .x7 .x7 .x6) ** ((base + 12) ↦ᵢ .SLTU .x11 .x7 .x6) **
-      ((base + 16) ↦ᵢ .ADD .x7 .x7 .x5) ** ((base + 20) ↦ᵢ .SLTU .x6 .x7 .x5) **
-      ((base + 24) ↦ᵢ .OR .x5 .x11 .x6) ** ((base + 28) ↦ᵢ .SW .x12 .x7 off_b)
-    cpsTriple base (base + 32)
-      (code **
-       (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) ** (.x5 ↦ᵣ carry_in) ** (.x11 ↦ᵣ v11) **
+    let cr :=
+      CodeReq.union (CodeReq.singleton base (.LW .x7 .x12 off_a))
+      (CodeReq.union (CodeReq.singleton (base + 4) (.LW .x6 .x12 off_b))
+      (CodeReq.union (CodeReq.singleton (base + 8) (.ADD .x7 .x7 .x6))
+      (CodeReq.union (CodeReq.singleton (base + 12) (.SLTU .x11 .x7 .x6))
+      (CodeReq.union (CodeReq.singleton (base + 16) (.ADD .x7 .x7 .x5))
+      (CodeReq.union (CodeReq.singleton (base + 20) (.SLTU .x6 .x7 .x5))
+      (CodeReq.union (CodeReq.singleton (base + 24) (.OR .x5 .x11 .x6))
+       (CodeReq.singleton (base + 28) (.SW .x12 .x7 off_b))))))))
+    cpsTriple base (base + 32) cr
+      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) ** (.x5 ↦ᵣ carry_in) ** (.x11 ↦ᵣ v11) **
        (mem_a ↦ₘ a_limb) ** (mem_b ↦ₘ b_limb))
-      (code **
-       (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ result) ** (.x6 ↦ᵣ carry2) ** (.x5 ↦ᵣ carry_out) ** (.x11 ↦ᵣ carry1) **
+      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ result) ** (.x6 ↦ᵣ carry2) ** (.x5 ↦ᵣ carry_out) ** (.x11 ↦ᵣ carry1) **
        (mem_a ↦ₘ a_limb) ** (mem_b ↦ₘ result)) := by
   have p1 := add_limb_carry_spec_phase1 off_a off_b sp a_limb b_limb v7 v6 carry_in v11 base
     hvalid_a hvalid_b
@@ -237,16 +239,16 @@ theorem sub_limb0_spec (off_a off_b : BitVec 12)
     let mem_b := sp + signExtend12 off_b
     let borrow := if BitVec.ult a_limb b_limb then (1 : Word) else 0
     let diff := a_limb - b_limb
-    let code :=
-      (base ↦ᵢ .LW .x7 .x12 off_a) ** ((base + 4) ↦ᵢ .LW .x6 .x12 off_b) **
-      ((base + 8) ↦ᵢ .SLTU .x5 .x7 .x6) ** ((base + 12) ↦ᵢ .SUB .x7 .x7 .x6) **
-      ((base + 16) ↦ᵢ .SW .x12 .x7 off_b)
-    cpsTriple base (base + 20)
-      (code **
-       (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) ** (.x5 ↦ᵣ v5) **
+    let cr :=
+      CodeReq.union (CodeReq.singleton base (.LW .x7 .x12 off_a))
+      (CodeReq.union (CodeReq.singleton (base + 4) (.LW .x6 .x12 off_b))
+      (CodeReq.union (CodeReq.singleton (base + 8) (.SLTU .x5 .x7 .x6))
+      (CodeReq.union (CodeReq.singleton (base + 12) (.SUB .x7 .x7 .x6))
+       (CodeReq.singleton (base + 16) (.SW .x12 .x7 off_b)))))
+    cpsTriple base (base + 20) cr
+      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) ** (.x5 ↦ᵣ v5) **
        (mem_a ↦ₘ a_limb) ** (mem_b ↦ₘ b_limb))
-      (code **
-       (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ diff) ** (.x6 ↦ᵣ b_limb) ** (.x5 ↦ᵣ borrow) **
+      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ diff) ** (.x6 ↦ᵣ b_limb) ** (.x5 ↦ᵣ borrow) **
        (mem_a ↦ₘ a_limb) ** (mem_b ↦ₘ diff)) := by
   runBlock
 
@@ -260,15 +262,15 @@ theorem sub_limb_carry_spec_phase1 (off_a off_b : BitVec 12)
     let mem_b := sp + signExtend12 off_b
     let borrow1 := if BitVec.ult a_limb b_limb then (1 : Word) else 0
     let temp := a_limb - b_limb
-    let code :=
-      (base ↦ᵢ .LW .x7 .x12 off_a) ** ((base + 4) ↦ᵢ .LW .x6 .x12 off_b) **
-      ((base + 8) ↦ᵢ .SLTU .x11 .x7 .x6) ** ((base + 12) ↦ᵢ .SUB .x7 .x7 .x6)
-    cpsTriple base (base + 16)
-      (code **
-       (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) ** (.x5 ↦ᵣ borrow_in) ** (.x11 ↦ᵣ v11) **
+    let cr :=
+      CodeReq.union (CodeReq.singleton base (.LW .x7 .x12 off_a))
+      (CodeReq.union (CodeReq.singleton (base + 4) (.LW .x6 .x12 off_b))
+      (CodeReq.union (CodeReq.singleton (base + 8) (.SLTU .x11 .x7 .x6))
+       (CodeReq.singleton (base + 12) (.SUB .x7 .x7 .x6))))
+    cpsTriple base (base + 16) cr
+      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) ** (.x5 ↦ᵣ borrow_in) ** (.x11 ↦ᵣ v11) **
        (mem_a ↦ₘ a_limb) ** (mem_b ↦ₘ b_limb))
-      (code **
-       (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ temp) ** (.x6 ↦ᵣ b_limb) ** (.x5 ↦ᵣ borrow_in) ** (.x11 ↦ᵣ borrow1) **
+      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ temp) ** (.x6 ↦ᵣ b_limb) ** (.x5 ↦ᵣ borrow_in) ** (.x11 ↦ᵣ borrow1) **
        (mem_a ↦ₘ a_limb) ** (mem_b ↦ₘ b_limb)) := by
   runBlock
 
@@ -282,15 +284,15 @@ theorem sub_limb_carry_spec_phase2 (off_b : BitVec 12)
     let borrow2 := if BitVec.ult temp borrow_in then (1 : Word) else 0
     let result := temp - borrow_in
     let borrow_out := borrow1 ||| borrow2
-    let code :=
-      (base ↦ᵢ .SLTU .x6 .x7 .x5) ** ((base + 4) ↦ᵢ .SUB .x7 .x7 .x5) **
-      ((base + 8) ↦ᵢ .OR .x5 .x11 .x6) ** ((base + 12) ↦ᵢ .SW .x12 .x7 off_b)
-    cpsTriple base (base + 16)
-      (code **
-       (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ temp) ** (.x6 ↦ᵣ b_limb) ** (.x5 ↦ᵣ borrow_in) ** (.x11 ↦ᵣ borrow1) **
+    let cr :=
+      CodeReq.union (CodeReq.singleton base (.SLTU .x6 .x7 .x5))
+      (CodeReq.union (CodeReq.singleton (base + 4) (.SUB .x7 .x7 .x5))
+      (CodeReq.union (CodeReq.singleton (base + 8) (.OR .x5 .x11 .x6))
+       (CodeReq.singleton (base + 12) (.SW .x12 .x7 off_b))))
+    cpsTriple base (base + 16) cr
+      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ temp) ** (.x6 ↦ᵣ b_limb) ** (.x5 ↦ᵣ borrow_in) ** (.x11 ↦ᵣ borrow1) **
        (mem_a ↦ₘ a_limb) ** (mem_b ↦ₘ b_limb))
-      (code **
-       (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ result) ** (.x6 ↦ᵣ borrow2) ** (.x5 ↦ᵣ borrow_out) ** (.x11 ↦ᵣ borrow1) **
+      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ result) ** (.x6 ↦ᵣ borrow2) ** (.x5 ↦ᵣ borrow_out) ** (.x11 ↦ᵣ borrow1) **
        (mem_a ↦ₘ a_limb) ** (mem_b ↦ₘ result)) := by
   runBlock
 
@@ -310,17 +312,19 @@ theorem sub_limb_carry_spec (off_a off_b : BitVec 12)
     let borrow2 := if BitVec.ult temp borrow_in then (1 : Word) else 0
     let result := temp - borrow_in
     let borrow_out := borrow1 ||| borrow2
-    let code :=
-      (base ↦ᵢ .LW .x7 .x12 off_a) ** ((base + 4) ↦ᵢ .LW .x6 .x12 off_b) **
-      ((base + 8) ↦ᵢ .SLTU .x11 .x7 .x6) ** ((base + 12) ↦ᵢ .SUB .x7 .x7 .x6) **
-      ((base + 16) ↦ᵢ .SLTU .x6 .x7 .x5) ** ((base + 20) ↦ᵢ .SUB .x7 .x7 .x5) **
-      ((base + 24) ↦ᵢ .OR .x5 .x11 .x6) ** ((base + 28) ↦ᵢ .SW .x12 .x7 off_b)
-    cpsTriple base (base + 32)
-      (code **
-       (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) ** (.x5 ↦ᵣ borrow_in) ** (.x11 ↦ᵣ v11) **
+    let cr :=
+      CodeReq.union (CodeReq.singleton base (.LW .x7 .x12 off_a))
+      (CodeReq.union (CodeReq.singleton (base + 4) (.LW .x6 .x12 off_b))
+      (CodeReq.union (CodeReq.singleton (base + 8) (.SLTU .x11 .x7 .x6))
+      (CodeReq.union (CodeReq.singleton (base + 12) (.SUB .x7 .x7 .x6))
+      (CodeReq.union (CodeReq.singleton (base + 16) (.SLTU .x6 .x7 .x5))
+      (CodeReq.union (CodeReq.singleton (base + 20) (.SUB .x7 .x7 .x5))
+      (CodeReq.union (CodeReq.singleton (base + 24) (.OR .x5 .x11 .x6))
+       (CodeReq.singleton (base + 28) (.SW .x12 .x7 off_b))))))))
+    cpsTriple base (base + 32) cr
+      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) ** (.x5 ↦ᵣ borrow_in) ** (.x11 ↦ᵣ v11) **
        (mem_a ↦ₘ a_limb) ** (mem_b ↦ₘ b_limb))
-      (code **
-       (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ result) ** (.x6 ↦ᵣ borrow2) ** (.x5 ↦ᵣ borrow_out) ** (.x11 ↦ᵣ borrow1) **
+      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ result) ** (.x6 ↦ᵣ borrow2) ** (.x5 ↦ᵣ borrow_out) ** (.x11 ↦ᵣ borrow1) **
        (mem_a ↦ₘ a_limb) ** (mem_b ↦ₘ result)) := by
   have p1 := sub_limb_carry_spec_phase1 off_a off_b sp a_limb b_limb v7 v6 borrow_in v11 base
     hvalid_a hvalid_b

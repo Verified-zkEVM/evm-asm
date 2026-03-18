@@ -89,15 +89,17 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
 | Stack | POP, PUSH0, DUP1, SWAP1 | 1 / 5 / 9 / 16 | ✅ Fully proved |
 | Stack (generic) | DUP1-16, SWAP1-16 | 9 / 16 each | ✅ Fully proved |
 
-### Evm32 (secondary) — 15 opcodes, 1 sorry
+### Evm32 (secondary) — 11 opcodes, 0 sorry
 
 | Category | Opcodes | Status |
 |----------|---------|--------|
 | Arithmetic | ADD, SUB | ✅ Fully proved |
 | Bitwise | AND, OR, XOR, NOT | ✅ Fully proved |
-| Shift | SHR | ⚠️ 1 sorry in ShiftComposition.lean (8-way case merge) |
+| Shift | SHR | ✅ Program + native_decide tests (no CPS specs) |
 | Comparison | ISZERO, LT, GT, EQ | ✅ Fully proved |
-| Stack | POP, PUSH0, DUP1-16, SWAP1-16 | ✅ Fully proved |
+
+Note: Evm32 ShiftSpec, StackOps, and ShiftComposition were removed (contained
+sorry). Evm64 is the primary target; Evm32 retains the sorry-free subset.
 
 ### Infrastructure — complete, no sorry
 
@@ -107,6 +109,128 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
   PcFree, SpecDb
 - Examples: Swap, HelloWorld, Echo, Multiply, LoadModifyStore, Combining,
   Halting, Commit, Write, FullPipeline
+- **CodeReq infrastructure** (Issue #35): `CodeReq` type + `cpsTriple` 5-arg
+  form + composition rules + tactic support all in place for both Rv32 and Rv64.
+  Evm32 fully migrated; **Evm64 fully migrated** (all 19 files use CodeReq,
+  0 `↦ᵢ` in Evm64). CodeReq monotonicity helpers added to SepLogic.lean
+  (`union_singleton_apply`, `beq_base_offset`, `union_mono_tail`).
+
+---
+
+## ~~Pending~~ DONE: Evm64 CodeReq Migration (Issue #35)
+
+**Completed.** All 19 Evm64 files migrated to CodeReq pattern. Zero `↦ᵢ`
+(instrAt) atoms remain in Evm64. Full 46-job build passes with 0 sorry.
+
+Key techniques developed during migration:
+- `hcr_eq : cr = <expanded> := rfl` pattern for let-bound CodeReq expansion
+- `rw [hcr_eq]; crMono` for CR monotonicity through let bindings
+- `cpsTriple_extend_code (h := h_raw) (hmono := ...)` with named args for
+  elaboration order control
+- `cpsBranch_extend_code` + `cpsBranch_frame_left` for branch CR extension
+- Structural CR monotonicity helpers (`union_mono_tail`, `union_singleton_apply`)
+  for 15-element CodeReq targets
+
+The Rv64 infrastructure (CPSSpec, SyscallSpecs, tactics) already supports
+`CodeReq` as a persistent side-condition. The `@[spec_gen_rv64]` single-
+instruction specs in `SyscallSpecs.lean` use `CodeReq.singleton`.
+
+### Current Evm64 pattern (And.lean as example)
+
+```lean
+-- Code as an Assertion (instrAt atoms in P/Q):
+abbrev evm_and_code (base : Addr) : Assertion :=
+  (base ↦ᵢ .LD .x7 .x12 0) ** ((base + 4) ↦ᵢ .LD .x6 .x12 32) ** ...
+
+-- cpsTriple with implicit CodeReq.empty, code in both P and Q:
+theorem evm_and_spec ... :
+    cpsTriple base (base + 68)
+      (code ** (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** ...)     -- code in pre
+      (code ** (.x12 ↦ᵣ (sp + 32)) ** (.x7 ↦ᵣ ...) ** ...)  -- code in post
+```
+
+### Target Evm64 pattern (matching Evm32 migrated form)
+
+```lean
+-- Code as a CodeReq (union of singletons):
+abbrev evm_and_code (base : Addr) : CodeReq :=
+  CodeReq.union (CodeReq.singleton base (.LD .x7 .x12 0))
+  (CodeReq.union (CodeReq.singleton (base + 4) (.LD .x6 .x12 32))
+  (...))
+
+-- cpsTriple with explicit CodeReq, NO instrAt in P/Q:
+theorem evm_and_spec ... :
+    cpsTriple base (base + 68) (evm_and_code base)
+      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** ...)        -- only regs + mem
+      ((.x12 ↦ᵣ (sp + 32)) ** (.x7 ↦ᵣ ...) ** ...)  -- only regs + mem
+```
+
+### Migration steps for each Evm64 opcode file
+
+For each file (And.lean, Or.lean, ..., ShiftSpec.lean, Multiply.lean, etc.):
+
+1. **Change the `_code` abbrev** from `Assertion` to `CodeReq`:
+   - Replace `(base ↦ᵢ .LD .x7 .x12 0)` → `CodeReq.singleton base (.LD .x7 .x12 0)`
+   - Replace `**` between instrAt atoms → `CodeReq.union`
+   - The type changes from `Assertion` to `CodeReq`
+
+2. **Update the theorem statement**:
+   - Add the CodeReq as the 3rd argument to `cpsTriple`: `cpsTriple base exit (code) P Q`
+   - Remove `code **` from both precondition P and postcondition Q
+   - The `let code := ...` binding stays but now refers to a `CodeReq` not `Assertion`
+
+3. **Update the proof**:
+   - `runBlock` in manual mode should work as-is (it already handles CodeReq
+     composition via `cpsTriple_seq_ext` + `CodeReq.mono_union_right`)
+   - Sub-specs from `@[spec_gen_rv64]` already use `CodeReq.singleton`
+   - The `runBlock` tactic unions sub-spec CodeReqs automatically
+
+4. **Update stack-level specs** (e.g., `evm_and_stack_spec`):
+   - These call `cpsTriple_frame_left` + `cpsTriple_consequence` on the
+     block-level spec. The frame no longer includes `code` (it's in CodeReq).
+   - The `evmWordIs`/`evmStackIs` assertions are purely memory, so
+     `simp [evmWordIs]` + `xperm_hyp` should still close the goals.
+
+5. **Per-limb helper specs** (in Bitwise.lean, Arithmetic.lean, etc.):
+   - Same migration: move instrAt to CodeReq, remove from P/Q.
+   - These are the building blocks that `runBlock` composes.
+
+### File migration order (by complexity)
+
+**Tier 1 — Simple bitwise (17 instructions each, 4 limbs)**:
+- `Evm64/Bitwise.lean` (per-limb helpers: `and_limb_spec`, etc.)
+- `Evm64/And.lean`, `Or.lean`, `Xor.lean`, `Not.lean`
+
+**Tier 2 — Arithmetic (30 instructions, carry chains)**:
+- `Evm64/Arithmetic.lean` (per-limb helpers: `add_limb_spec`, etc.)
+- `Evm64/Add.lean`, `Sub.lean`
+
+**Tier 3 — Comparisons (12-26 instructions, branch specs)**:
+- `Evm64/Comparison.lean` (per-limb + branch helpers)
+- `Evm64/Lt.lean`, `Gt.lean`, `Eq.lean`, `IsZero.lean`, `Slt.lean`, `Sgt.lean`
+
+**Tier 4 — Stack operations**:
+- `Evm64/StackOps.lean` (POP, PUSH0, DUP1-16, SWAP1-16)
+
+**Tier 5 — Complex operations (90+ instructions)**:
+- `Evm64/Shift.lean` + `ShiftSpec.lean`, `ShlSpec.lean`, `SarSpec.lean`
+- `Evm64/Byte.lean` + `ByteSpec.lean`
+- `Evm64/SignExtend.lean` + `SignExtendSpec.lean`
+- `Evm64/Multiply.lean` + `MultiplySpec.lean`
+
+### Key considerations
+
+- **Backwards compatibility**: The migration changes theorem signatures (removing
+  `code **` from P/Q, adding CodeReq parameter). Any file that calls these
+  theorems must be updated simultaneously.
+- **Performance benefit**: Removing N instrAt atoms from P/Q eliminates O(N)
+  atoms from the `xperm_hyp` permutation search, which is O(N²) overall.
+  For the 90-instruction SHR, this removes ~90 atoms from each permutation.
+- **`runBlock` tactic**: Already handles CodeReq in manual mode (tested on
+  Evm32). Auto mode also works since `@[spec_gen_rv64]` specs have proper
+  `CodeReq.singleton`.
+- **No new infrastructure needed**: All CodeReq lemmas, tactic support, and
+  composition rules already exist in Rv64/.
 
 ---
 
@@ -182,11 +306,58 @@ All phases below target **Evm64** primarily. Files are under `EvmAsm/Evm64/`.
   Manual-mode `runBlock` with column decomposition (col0: 21, col1: 23, col2: 13, col3: 5, epilogue: 1).
   Added `mul_spec_gen_rd_eq_rs1`, `mulhu_spec_gen_rd_eq_rs1`, `sltu_spec_gen_rd_eq_rs2` to SyscallSpecs.
 
-#### 4.2 DIV and MOD
-- **File**: `Evm64/DivMod.lean` (new)
-- **Approach**: 256-bit unsigned division. Shift-and-subtract or Knuth
-  Algorithm D. Division by zero returns 0 (EVM convention, no trap).
-  Implement DIV+MOD together since division produces both.
+#### 4.2 DIV and MOD — in progress (program + specs + composition in progress)
+- **Files**: `Evm64/DivMod.lean` (program + tests), `Evm64/DivModSpec.lean` (CPS specs),
+  `Evm64/DivModCompose.lean` (hierarchical composition)
+- **Approach**: Knuth Algorithm D in base 2^64. 316 instructions total (21 phases
+  + 49-instr div128 subroutine + NOP separator). DIV and MOD share 95% of code,
+  differ only in epilogue (load quotient vs remainder).
+- **Status**: ~60 CPS specs proved (0 sorry in DivModSpec.lean). All building
+  blocks for every phase. div128 subroutine fully specified in composable blocks
+  including phase1, step1 (init+clamp_q1+prodcheck1), compute_un21, step2
+  (init+clamp_q0+prodcheck2), end. Branch merge specs for BEQ/BLTU patterns.
+  Composed per-limb specs: mulsub_limb (11 instrs), addback_limb (8 instrs),
+  trial_load (12 instrs), store_qj (4 instrs).
+  Hierarchical composition using progAt to avoid WHNF scaling limit:
+  - `divCode`/`modCode` split `progAt base evm_div/evm_mod` into 14 per-phase progAt blocks
+  - `divCode_mid` (12 blocks excl phaseA+zeroPath), `divCode_noAB` (12 blocks excl phaseA+phaseB)
+  - `progAt_divK_phaseB_at32`: pre-normalized phaseB expansion (21 instrAt atoms at base+K offsets)
+
+  **Completed compositions (0 sorry):**
+  - `evm_div_bzero_spec` (b=0 path): phaseA → BEQ taken → zeroPath ✅
+  - `evm_div_phaseA_ntaken_spec` (b≠0): phaseA body → BEQ ntaken → base+32 ✅
+  - `evm_div_phaseB_n4_spec` (b[3]≠0): init1→init2→ADDI→BNE(taken)→tail, 16 instrs ✅
+  - `evm_div_phaseAB_n4_spec` (b≠0, b[3]≠0): phaseA+phaseB composed, 24 instrs, base→base+116 ✅
+  - `evm_mod_bzero_spec` (b=0 path): same as div but with modCode ✅
+  - `evm_mod_phaseA_ntaken_spec` (b≠0): same as div but with modCode ✅
+
+  **Remaining compositions (b≠0 non-zero path):**
+  - Phase B cascade variants: n=3 (b[3]=0, b[2]≠0), n=2 (b[3]=b[2]=0, b[1]≠0), n=1 (only b[0]≠0)
+    - Same pattern as n=4 but with more BNE fall-throughs before taken
+    - `divK_phaseB_cascade_step_spec` provides parameterized ADDI+BNE cpsBranch for each step
+  - CLZ (Count Leading Zeros): 24 instructions, 6-stage binary search
+    - `divK_clz_init_spec` + 6 × `divK_clz_stage_{taken,ntaken}_spec` already in DivModSpec
+    - Compose into `evm_div_clz_spec` at base+116→base+212
+  - Phase C2 (check n≥2): 4 instructions, cpsBranch at base+212→base+228
+  - NormB (normalize divisor): 21 instructions at base+228
+  - NormA (normalize dividend): 21 instructions at base+312
+  - CopyAU (copy a[] to u[]): 9 instructions at base+396
+  - LoopSetup: 4 instructions, cpsBranch at base+432
+  - LoopBody (main Knuth D loop): 114 instructions at base+448 — the most complex phase
+    - Contains: trial_load, trial_max, mulsub (setup+partA+partB), correction_branch,
+      addback (init+partA+partB+final), sub_carry, store_qj, loop_control
+    - All sub-specs exist in DivModSpec but composing the full loop requires
+      loop invariant proof (inductive over j iterations)
+  - Denorm (denormalize remainder): 25 instructions at base+904
+  - Epilogue (load quotient/remainder): 10 instructions at base+1004
+  - div128 subroutine: 49 instructions at base+1068
+    - Already fully specified in 5 composable blocks, needs hierarchical composition
+
+  **Key technical challenges remaining:**
+  - Loop body composition: 114 instructions with loop invariant (j = 4-n down to 0)
+  - div128 subroutine call/return: JALR-based call requires return address framing
+  - Full path merging: by_cases on n (1/2/3/4) to combine all Phase B variants
+  - MOD mirrors: most DIV compositions transfer directly (same code, different epilogue)
 
 #### 4.3 SDIV and SMOD (Signed)
 - **Approach**: Check signs, compute unsigned div/mod, apply sign correction.

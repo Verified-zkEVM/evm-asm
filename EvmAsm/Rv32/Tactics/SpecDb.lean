@@ -81,7 +81,8 @@ private partial def flattenSepConjPure (e : Expr) : List Expr :=
     flattenSepConjPure args[0]! ++ flattenSepConjPure args[1]!
   else [e]
 
-/-- Find the first `instrAt addr instr` atom and return the constructor name of `instr`. -/
+/-- Find the first `instrAt addr instr` atom and return the constructor name of `instr`.
+    Also checks `CodeReq.singleton addr instr` for the new CodeReq-based specs. -/
 private def findInstrCtorInPre (pre : Expr) : Option Name :=
   let atoms := flattenSepConjPure pre
   atoms.findSome? fun atom =>
@@ -93,19 +94,40 @@ private def findInstrCtorInPre (pre : Expr) : Option Name :=
       | _ => none
     else none
 
+/-- Extract the instruction constructor from a CodeReq expression.
+    Handles `CodeReq.singleton addr instr` — returns the constructor name of `instr`. -/
+private def findInstrCtorInCr (cr : Expr) : Option Name :=
+  if cr.isAppOfArity `EvmAsm.CodeReq.singleton 2 then
+    let instr := cr.getAppArgs[1]!
+    let head := instr.getAppFn
+    match head with
+    | .const name _ => some name
+    | _ => none
+  else none
+
 /-- Extract the instruction constructor from a spec theorem's type.
-    Strips ∀ binders and looks for `cpsTriple _ _ pre _` or `cpsBranch ...`. -/
+    Strips ∀ binders and looks for `cpsTriple _ _ cr _ _` (5 args, CodeReq in position 2)
+    or the legacy `instrAt`-in-precondition patterns. -/
 private partial def extractInstrCtorFromType (type : Expr) : Option Name :=
   match type with
   | .forallE _ _ body _ => extractInstrCtorFromType body
   | _ =>
-    -- Try cpsTriple entry exit pre post (4 args)
-    if type.isAppOfArity `EvmAsm.cpsTriple 4 then
+    -- New style: cpsTriple entry exit cr P Q (5 args), cr is index 2
+    if type.isAppOfArity `EvmAsm.cpsTriple 5 then
+      findInstrCtorInCr type.getAppArgs[2]!
+    -- New style: cpsBranch entry cr P exit_t Q_t exit_f Q_f (7 args), cr is index 1
+    else if type.isAppOfArity `EvmAsm.cpsBranch 7 then
+      findInstrCtorInCr type.getAppArgs[1]!
+    -- New style: cpsHaltTriple entry cr P Q (4 args), cr is index 1
+    else if type.isAppOfArity `EvmAsm.cpsHaltTriple 4 then
+      findInstrCtorInCr type.getAppArgs[1]!
+    -- Legacy: cpsTriple entry exit pre post (4 args), instrAt in pre
+    else if type.isAppOfArity `EvmAsm.cpsTriple 4 then
       findInstrCtorInPre type.getAppArgs[2]!
-    -- Try cpsBranch addr pre takenTarget takenPost notTakenTarget notTakenPost (6 args)
+    -- Legacy: cpsBranch addr pre takenTarget takenPost notTakenTarget notTakenPost (6 args)
     else if type.isAppOfArity `EvmAsm.cpsBranch 6 then
       findInstrCtorInPre type.getAppArgs[1]!
-    -- Try cpsHaltTriple addr pre post (3 args)
+    -- Legacy: cpsHaltTriple addr pre post (3 args)
     else if type.isAppOfArity `EvmAsm.cpsHaltTriple 3 then
       findInstrCtorInPre type.getAppArgs[1]!
     else none

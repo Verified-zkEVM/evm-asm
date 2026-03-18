@@ -14,6 +14,22 @@ namespace EvmAsm.Rv64
 -- Full NOT spec
 -- ============================================================================
 
+/-- CodeReq for the 256-bit EVM NOT operation.
+    12 instructions = 48 bytes. 4 per-limb XORI(-1) blocks. -/
+abbrev evm_not_code (base : Addr) : CodeReq :=
+  CodeReq.union (CodeReq.singleton base (.LD .x7 .x12 0))
+  (CodeReq.union (CodeReq.singleton (base + 4) (.XORI .x7 .x7 (-1)))
+  (CodeReq.union (CodeReq.singleton (base + 8) (.SD .x12 .x7 0))
+  (CodeReq.union (CodeReq.singleton (base + 12) (.LD .x7 .x12 8))
+  (CodeReq.union (CodeReq.singleton (base + 16) (.XORI .x7 .x7 (-1)))
+  (CodeReq.union (CodeReq.singleton (base + 20) (.SD .x12 .x7 8))
+  (CodeReq.union (CodeReq.singleton (base + 24) (.LD .x7 .x12 16))
+  (CodeReq.union (CodeReq.singleton (base + 28) (.XORI .x7 .x7 (-1)))
+  (CodeReq.union (CodeReq.singleton (base + 32) (.SD .x12 .x7 16))
+  (CodeReq.union (CodeReq.singleton (base + 36) (.LD .x7 .x12 24))
+  (CodeReq.union (CodeReq.singleton (base + 40) (.XORI .x7 .x7 (-1)))
+   (CodeReq.singleton (base + 44) (.SD .x12 .x7 24))))))))))))
+
 set_option maxHeartbeats 6400000 in
 /-- Full 256-bit EVM NOT: composes 4 per-limb NOT specs.
     12 instructions total. Unary: complements each limb in-place, sp unchanged. -/
@@ -22,18 +38,12 @@ theorem evm_not_spec (sp base : Addr)
     (v7 : Word)
     (hvalid : ValidMemRange sp 4) :
     let c := signExtend12 (-1 : BitVec 12)
-    let code :=
-      (base ↦ᵢ .LD .x7 .x12 0) ** ((base + 4) ↦ᵢ .XORI .x7 .x7 (-1)) ** ((base + 8) ↦ᵢ .SD .x12 .x7 0) **
-      ((base + 12) ↦ᵢ .LD .x7 .x12 8) ** ((base + 16) ↦ᵢ .XORI .x7 .x7 (-1)) ** ((base + 20) ↦ᵢ .SD .x12 .x7 8) **
-      ((base + 24) ↦ᵢ .LD .x7 .x12 16) ** ((base + 28) ↦ᵢ .XORI .x7 .x7 (-1)) ** ((base + 32) ↦ᵢ .SD .x12 .x7 16) **
-      ((base + 36) ↦ᵢ .LD .x7 .x12 24) ** ((base + 40) ↦ᵢ .XORI .x7 .x7 (-1)) ** ((base + 44) ↦ᵢ .SD .x12 .x7 24)
-    cpsTriple base (base + 48)
-      (code **
-       -- Registers + memory
+    let code := evm_not_code base
+    cpsTriple base (base + 48) code
+      (-- Registers + memory
        (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) **
        (sp ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3))
-      (code **
-       -- Registers + memory (updated)
+      (-- Registers + memory (updated)
        (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ (a3 ^^^ c)) **
        (sp ↦ₘ (a0 ^^^ c)) ** ((sp + 8) ↦ₘ (a1 ^^^ c)) ** ((sp + 16) ↦ₘ (a2 ^^^ c)) ** ((sp + 24) ↦ₘ (a3 ^^^ c))) := by
   -- Compose 4 per-limb NOT specs via runBlock (manual mode with address normalization)
@@ -56,17 +66,11 @@ theorem evm_not_stack_spec (sp base : Addr)
     (a : EvmWord) (v7 : Word)
     (hvalid : ValidMemRange sp 4) :
     let c := signExtend12 (-1 : BitVec 12)
-    let code :=
-      (base ↦ᵢ .LD .x7 .x12 0) ** ((base + 4) ↦ᵢ .XORI .x7 .x7 (-1)) ** ((base + 8) ↦ᵢ .SD .x12 .x7 0) **
-      ((base + 12) ↦ᵢ .LD .x7 .x12 8) ** ((base + 16) ↦ᵢ .XORI .x7 .x7 (-1)) ** ((base + 20) ↦ᵢ .SD .x12 .x7 8) **
-      ((base + 24) ↦ᵢ .LD .x7 .x12 16) ** ((base + 28) ↦ᵢ .XORI .x7 .x7 (-1)) ** ((base + 32) ↦ᵢ .SD .x12 .x7 16) **
-      ((base + 36) ↦ᵢ .LD .x7 .x12 24) ** ((base + 40) ↦ᵢ .XORI .x7 .x7 (-1)) ** ((base + 44) ↦ᵢ .SD .x12 .x7 24)
-    cpsTriple base (base + 48)
-      (code **
-       -- Registers + memory
+    let code := evm_not_code base
+    cpsTriple base (base + 48) code
+      (-- Registers + memory
        (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** evmWordIs sp a)
-      (code **
-       -- Registers + memory (updated)
+      (-- Registers + memory (updated)
        (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ (a.getLimb 3 ^^^ c)) ** evmWordIs sp (~~~a)) := by
   -- Helper: (~~~a).getLimb i = a.getLimb i ^^^ signExtend12 (-1)
   have not_limb_eq : ∀ i : Fin 4,
@@ -77,7 +81,7 @@ theorem evm_not_stack_spec (sp base : Addr)
   have h_main := evm_not_spec sp base
     (a.getLimb 0) (a.getLimb 1) (a.getLimb 2) (a.getLimb 3)
     v7 hvalid
-  exact cpsTriple_consequence _ _ _ _ _ _
+  exact cpsTriple_consequence _ _ _ _ _ _ _
     (fun h hp => by
       simp only [evmWordIs] at hp
       xperm_hyp hp)

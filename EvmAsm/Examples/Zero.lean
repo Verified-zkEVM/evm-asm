@@ -39,12 +39,13 @@ example : (execProgram zeroTestState (zero .x10)).getReg .x10 = 0 := by
     Requires instrAt for the SUB instruction at the base address. -/
 theorem zero_cpsTriple (rd : Reg) (v : Word) (hrd : rd ≠ .x0) (base : Addr) :
     cpsTriple base (base + 4)
-      ((base ↦ᵢ .SUB rd rd rd) ** (rd ↦ᵣ v))
-      ((base ↦ᵢ .SUB rd rd rd) ** (rd ↦ᵣ 0)) := by
+      (CodeReq.singleton base (.SUB rd rd rd))
+      (rd ↦ᵣ v)
+      (rd ↦ᵣ 0) := by
   have h := sub_spec_all_same rd v base hrd
-  exact cpsTriple_consequence _ _ _ _ _ _
+  exact cpsTriple_consequence _ _ _ _ _ _ _
     (fun _ hp => hp)
-    (fun h hq => by simp only [BitVec.sub_self] at hq; exact hq)
+    (fun _ hq => by simp only [BitVec.sub_self] at hq; exact hq)
     h
 
 end EvmAsm.Examples

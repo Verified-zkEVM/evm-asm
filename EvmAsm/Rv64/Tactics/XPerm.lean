@@ -51,6 +51,15 @@ def parseSepConj? (e : Expr) : MetaM (Option (Expr × Expr)) := do
   let e ← normForSepConj e
   if Expr.isAppOfArity e ``EvmAsm.Rv64.sepConj 2 then
     return some (Expr.appArg! (Expr.appFn! e), Expr.appArg! e)
+  -- Defense-in-depth: eta-reduce `fun h => f h` to `f`, then retry
+  if e.isLambda then
+    let body := e.bindingBody!
+    if body.isApp && body.appArg! == .bvar 0 then
+      let f := body.appFn!
+      if !f.hasLooseBVars then
+        let f ← normForSepConj f
+        if Expr.isAppOfArity f ``EvmAsm.Rv64.sepConj 2 then
+          return some (Expr.appArg! (Expr.appFn! f), Expr.appArg! f)
   return none
 
 /-- Flatten any-associated sepConj chain into a list of atoms.
@@ -69,9 +78,11 @@ def findAtomIdx (target : Expr) (atoms : Array Expr) : MetaM (Option Nat) := do
     if atoms[i]!.hash == h then
       if ← isDefEq target atoms[i]! then return some i
   -- Slow path: remaining atoms (handles hash mismatch + definitional equality)
+  -- Uses reducible transparency to avoid deep recursion from unfolding
+  -- assertion defs (memIs → singletonMem → BEq → BitVec operations).
   for i in [:atoms.size] do
     if atoms[i]!.hash != h then
-      if ← isDefEq target atoms[i]! then return some i
+      if ← withReducible (isDefEq target atoms[i]!) then return some i
   return none
 
 /-- Remove element at `idx` from array, preserving order of remaining elements. -/

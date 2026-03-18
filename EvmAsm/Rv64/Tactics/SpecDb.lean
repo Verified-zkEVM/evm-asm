@@ -10,13 +10,13 @@
   ```
   @[spec_gen_rv64]
   theorem lw_spec_gen_rv64 (rd rs1 : Reg) ... :
-      cpsTriple addr (addr + 4)
-        ((addr ↦ᵢ .LW rd rs1 offset) ** ...) (...) := ...
+      cpsTriple addr (addr + 4) (CodeReq.singleton addr (.LW rd rs1 offset)) (...) (...) := ...
   ```
 
   The instruction constructor (e.g., `EvmAsm.Rv64.Instr.LW`) is auto-detected
-  from the `instrAt` atom in the precondition. Supports `cpsTriple`,
-  `cpsBranch`, and `cpsHaltTriple`.
+  from the `CodeReq.singleton` argument, or (for backward compatibility) from
+  an `instrAt` atom in the precondition. Supports `cpsTriple`, `cpsBranch`,
+  and `cpsHaltTriple`.
 
   ## Diagnostics
 
@@ -27,7 +27,8 @@
   ## Requirements for `@[spec_gen_rv64]` specs
 
   - Must be a `cpsTriple`, `cpsBranch`, or `cpsHaltTriple`
-  - Precondition must contain exactly one `instrAt` (`↦ᵢ`) atom
+  - The CodeReq argument must be `CodeReq.singleton addr instr`, OR
+    the precondition must contain an `instrAt` (`↦ᵢ`) atom (backward compat)
   - The instruction must be a concrete constructor application (e.g., `.ADD .x7 .x7 .x6`)
   - Multiple specs per instruction are allowed (tried in registration order)
 -/
@@ -93,21 +94,39 @@ private def findInstrCtorInPre (pre : Expr) : Option Name :=
       | _ => none
     else none
 
+/-- Extract the instruction constructor from `CodeReq.singleton addr instr`. -/
+private def findInstrCtorInCodeReq (cr : Expr) : Option Name :=
+  if cr.isAppOfArity `EvmAsm.Rv64.CodeReq.singleton 2 then
+    let instr := cr.getAppArgs[1]!
+    let head := instr.getAppFn
+    match head with
+    | .const name _ => some name
+    | _ => none
+  else none
+
 /-- Extract the instruction constructor from a spec theorem's type.
-    Strips ∀ binders and looks for `cpsTriple _ _ pre _` or `cpsBranch ...`. -/
+    Strips ∀ binders and looks for `cpsTriple _ _ cr pre _` or `cpsBranch ...`.
+    Checks both the `cr` (CodeReq.singleton) argument and the `instrAt` atoms
+    in the precondition for backward compatibility. -/
 private partial def extractInstrCtorFromType (type : Expr) : Option Name :=
   match type with
   | .forallE _ _ body _ => extractInstrCtorFromType body
   | _ =>
-    -- Try cpsTriple entry exit pre post (4 args)
-    if type.isAppOfArity `EvmAsm.Rv64.cpsTriple 4 then
-      findInstrCtorInPre type.getAppArgs[2]!
-    -- Try cpsBranch addr pre takenTarget takenPost notTakenTarget notTakenPost (6 args)
-    else if type.isAppOfArity `EvmAsm.Rv64.cpsBranch 6 then
-      findInstrCtorInPre type.getAppArgs[1]!
-    -- Try cpsHaltTriple addr pre post (3 args)
-    else if type.isAppOfArity `EvmAsm.Rv64.cpsHaltTriple 3 then
-      findInstrCtorInPre type.getAppArgs[1]!
+    -- Try cpsTriple entry exit cr pre post (5 args)
+    if type.isAppOfArity `EvmAsm.Rv64.cpsTriple 5 then
+      let cr := type.getAppArgs[2]!
+      let pre := type.getAppArgs[3]!
+      findInstrCtorInCodeReq cr |>.orElse fun () => findInstrCtorInPre pre
+    -- Try cpsBranch addr cr pre takenTarget takenPost notTakenTarget notTakenPost (7 args)
+    else if type.isAppOfArity `EvmAsm.Rv64.cpsBranch 7 then
+      let cr := type.getAppArgs[1]!
+      let pre := type.getAppArgs[2]!
+      findInstrCtorInCodeReq cr |>.orElse fun () => findInstrCtorInPre pre
+    -- Try cpsHaltTriple addr cr pre post (4 args)
+    else if type.isAppOfArity `EvmAsm.Rv64.cpsHaltTriple 4 then
+      let cr := type.getAppArgs[1]!
+      let pre := type.getAppArgs[2]!
+      findInstrCtorInCodeReq cr |>.orElse fun () => findInstrCtorInPre pre
     else none
 
 -- ============================================================================
@@ -115,12 +134,13 @@ private partial def extractInstrCtorFromType (type : Expr) : Option Name :=
 -- ============================================================================
 
 /-- `@[spec_gen_rv64]` attribute: registers an instruction spec in the database.
-    The instruction constructor is auto-detected from the theorem's precondition.
+    The instruction constructor is auto-detected from either the `CodeReq.singleton`
+    argument or (for backward compatibility) from an `instrAt` atom in the precondition.
 
     Usage:
     ```
     @[spec_gen_rv64]
-    theorem lw_spec_gen_rv64 ... : cpsTriple ... ((addr ↦ᵢ .LW ...) ** ...) ... := ...
+    theorem lw_spec_gen_rv64 ... : cpsTriple ... (CodeReq.singleton addr (.LW ...)) ... ... := ...
     ```
 -/
 initialize registerBuiltinAttribute {

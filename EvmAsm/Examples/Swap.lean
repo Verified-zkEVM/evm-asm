@@ -11,6 +11,7 @@ import EvmAsm.Rv32.ControlFlow
 import EvmAsm.Rv32.InstructionSpecs
 import EvmAsm.Rv32.SyscallSpecs
 import EvmAsm.Rv32.Tactics.XSimp
+import EvmAsm.Rv32.Tactics.RunBlock
 
 namespace EvmAsm.Examples
 
@@ -60,35 +61,14 @@ example : (execProgram swapTestState (swap .x10 .x11 .x5)).getReg .x11 = 42 := b
     The frame R is preserved because it's disjoint from all owned registers. -/
 theorem swap_cpsTriple (v w tmp : Word) (base : Addr) :
     cpsTriple base (base + 12)
-      ((base ↦ᵢ .MV .x5 .x10) ** ((base + 4) ↦ᵢ .MV .x10 .x11) **
-       ((base + 8) ↦ᵢ .MV .x11 .x5) **
-       (.x10 ↦ᵣ v) ** (.x11 ↦ᵣ w) ** (.x5 ↦ᵣ tmp))
-      ((base ↦ᵢ .MV .x5 .x10) ** ((base + 4) ↦ᵢ .MV .x10 .x11) **
-       ((base + 8) ↦ᵢ .MV .x11 .x5) **
-       (.x10 ↦ᵣ w) ** (.x11 ↦ᵣ v) ** (.x5 ↦ᵣ v)) := by
-  -- Step 1: MV x5 x10 at base (x5 := v)
-  have s1 := cpsTriple_frame_left _ _ _ _
-    (((base + 4) ↦ᵢ .MV .x10 .x11) ** ((base + 8) ↦ᵢ .MV .x11 .x5) ** (.x11 ↦ᵣ w))
-    (by pcFree) (mv_spec .x5 .x10 v tmp base (by nofun))
-  -- Step 2: MV x10 x11 at base+4 (x10 := w)
-  have s2_raw := mv_spec .x10 .x11 w v (base + 4) (by nofun)
-  rw [show (base + 4 : Addr) + 4 = base + 8 from by bv_omega] at s2_raw
-  have s2 := cpsTriple_frame_left _ _ _ _
-    ((base ↦ᵢ .MV .x5 .x10) ** ((base + 8) ↦ᵢ .MV .x11 .x5) ** (.x5 ↦ᵣ v))
-    (by pcFree) s2_raw
-  -- Step 3: MV x11 x5 at base+8 (x11 := v)
-  have s3_raw := mv_spec .x11 .x5 v w (base + 8) (by nofun)
-  rw [show (base + 8 : Addr) + 4 = base + 12 from by bv_omega] at s3_raw
-  have s3 := cpsTriple_frame_left _ _ _ _
-    ((base ↦ᵢ .MV .x5 .x10) ** ((base + 4) ↦ᵢ .MV .x10 .x11) ** (.x10 ↦ᵣ w))
-    (by pcFree) s3_raw
-  -- Compose all 3 steps
-  exact cpsTriple_consequence _ _ _ _ _ _
-    (fun _ hp => by xperm_hyp hp) (fun _ hq => by xperm_hyp hq)
-    (cpsTriple_seq_with_perm _ _ _ _ _ _ _
-      (fun _ hp => by xperm_hyp hp)
-      (cpsTriple_seq_with_perm _ _ _ _ _ _ _
-        (fun _ hp => by xperm_hyp hp) s1 s2)
-      s3)
+      (CodeReq.singleton base (.MV .x5 .x10) |>.union
+        (CodeReq.singleton (base + 4) (.MV .x10 .x11) |>.union
+          (CodeReq.singleton (base + 8) (.MV .x11 .x5))))
+      ((.x10 ↦ᵣ v) ** (.x11 ↦ᵣ w) ** (.x5 ↦ᵣ tmp))
+      ((.x10 ↦ᵣ w) ** (.x11 ↦ᵣ v) ** (.x5 ↦ᵣ v)) := by
+  have S0 := mv_spec .x5 .x10 v tmp base (by nofun)
+  have S1 := mv_spec .x10 .x11 w v (base + 4) (by nofun)
+  have S2 := mv_spec .x11 .x5 v w (base + 8) (by nofun)
+  runBlock S0 S1 S2
 
 end EvmAsm.Examples

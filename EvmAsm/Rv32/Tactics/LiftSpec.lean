@@ -44,7 +44,7 @@ syntax "liftSpec" ident ("post_simp" "[" Lean.Parser.Tactic.simpLemma,* "]")? : 
 macro_rules
   | `(tactic| liftSpec $h) =>
     `(tactic|
-      exact cpsTriple_consequence _ _ _ _ _ _
+      exact cpsTriple_consequence _ _ _ _ _ _ _
         (fun _h _hp => by
           simp only [evmWordIs, evmStackIs, evmStackIs_cons, evmStackIs_nil] at _hp
           norm_addr at _hp
@@ -56,7 +56,7 @@ macro_rules
         $h)
   | `(tactic| liftSpec $h post_simp [$lemmas,*]) =>
     `(tactic|
-      exact cpsTriple_consequence _ _ _ _ _ _
+      exact cpsTriple_consequence _ _ _ _ _ _ _
         (fun _h _hp => by
           simp only [evmWordIs, evmStackIs, evmStackIs_cons, evmStackIs_nil] at _hp
           norm_addr at _hp

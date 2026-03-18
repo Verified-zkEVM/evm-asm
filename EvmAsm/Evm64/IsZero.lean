@@ -11,6 +11,22 @@ open EvmAsm.Rv64.Tactics
 
 namespace EvmAsm.Rv64
 
+/-- CodeReq for the 256-bit EVM ISZERO operation.
+    12 instructions = 48 bytes. OR-reduce 4 limbs + SLTIU boolean + store. -/
+abbrev evm_iszero_code (base : Addr) : CodeReq :=
+  CodeReq.union (CodeReq.singleton base (.LD .x7 .x12 0))
+  (CodeReq.union (CodeReq.singleton (base + 4) (.LD .x6 .x12 8))
+  (CodeReq.union (CodeReq.singleton (base + 8) (.OR .x7 .x7 .x6))
+  (CodeReq.union (CodeReq.singleton (base + 12) (.LD .x6 .x12 16))
+  (CodeReq.union (CodeReq.singleton (base + 16) (.OR .x7 .x7 .x6))
+  (CodeReq.union (CodeReq.singleton (base + 20) (.LD .x6 .x12 24))
+  (CodeReq.union (CodeReq.singleton (base + 24) (.OR .x7 .x7 .x6))
+  (CodeReq.union (CodeReq.singleton (base + 28) (.SLTIU .x7 .x7 1))
+  (CodeReq.union (CodeReq.singleton (base + 32) (.SD .x12 .x7 0))
+  (CodeReq.union (CodeReq.singleton (base + 36) (.SD .x12 .x0 8))
+  (CodeReq.union (CodeReq.singleton (base + 40) (.SD .x12 .x0 16))
+   (CodeReq.singleton (base + 44) (.SD .x12 .x0 24))))))))))))
+
 /-- Full 256-bit EVM ISZERO: result = 1 iff all 4 limbs are 0.
     Unary: reads 256-bit word at sp, overwrites with boolean result.
     12 instructions = 48 bytes. -/
@@ -20,23 +36,12 @@ theorem evm_iszero_spec (sp : Addr) (base : Addr)
     (hvalid : ValidMemRange sp 4) :
     let or_all := a0 ||| a1 ||| a2 ||| a3
     let result := if BitVec.ult or_all (1 : Word) then (1 : Word) else 0
-    let code :=
-      (base ↦ᵢ .LD .x7 .x12 0) **
-      ((base + 4) ↦ᵢ .LD .x6 .x12 8) ** ((base + 8) ↦ᵢ .OR .x7 .x7 .x6) **
-      ((base + 12) ↦ᵢ .LD .x6 .x12 16) ** ((base + 16) ↦ᵢ .OR .x7 .x7 .x6) **
-      ((base + 20) ↦ᵢ .LD .x6 .x12 24) ** ((base + 24) ↦ᵢ .OR .x7 .x7 .x6) **
-      ((base + 28) ↦ᵢ .SLTIU .x7 .x7 1) **
-      ((base + 32) ↦ᵢ .SD .x12 .x7 0) **
-      ((base + 36) ↦ᵢ .SD .x12 .x0 8) **
-      ((base + 40) ↦ᵢ .SD .x12 .x0 16) **
-      ((base + 44) ↦ᵢ .SD .x12 .x0 24)
-    cpsTriple base (base + 48)
-      (code **
-       -- Registers + memory
+    let code := evm_iszero_code base
+    cpsTriple base (base + 48) code
+      (-- Registers + memory
        (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) **
        (sp ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3))
-      (code **
-       -- Registers + memory (updated)
+      (-- Registers + memory (updated)
        (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ result) ** (.x6 ↦ᵣ a3) **
        (sp ↦ₘ result) ** ((sp + 8) ↦ₘ 0) ** ((sp + 16) ↦ₘ 0) ** ((sp + 24) ↦ₘ 0)) := by
   intro or_all; intro result

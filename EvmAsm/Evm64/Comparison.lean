@@ -171,15 +171,14 @@ theorem lt_limb0_spec (off_a off_b : BitVec 12)
     let mem_a := sp + signExtend12 off_a
     let mem_b := sp + signExtend12 off_b
     let borrow := if BitVec.ult a_limb b_limb then (1 : Word) else 0
-    let code :=
-      (base ↦ᵢ .LD .x7 .x12 off_a) ** ((base + 4) ↦ᵢ .LD .x6 .x12 off_b) **
-      ((base + 8) ↦ᵢ .SLTU .x5 .x7 .x6)
-    cpsTriple base (base + 12)
-      (code **
-       (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) ** (.x5 ↦ᵣ v5) **
+    let cr :=
+      CodeReq.union (CodeReq.singleton base (.LD .x7 .x12 off_a))
+      (CodeReq.union (CodeReq.singleton (base + 4) (.LD .x6 .x12 off_b))
+       (CodeReq.singleton (base + 8) (.SLTU .x5 .x7 .x6)))
+    cpsTriple base (base + 12) cr
+      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) ** (.x5 ↦ᵣ v5) **
        (mem_a ↦ₘ a_limb) ** (mem_b ↦ₘ b_limb))
-      (code **
-       (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ a_limb) ** (.x6 ↦ᵣ b_limb) ** (.x5 ↦ᵣ borrow) **
+      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ a_limb) ** (.x6 ↦ᵣ b_limb) ** (.x5 ↦ᵣ borrow) **
        (mem_a ↦ₘ a_limb) ** (mem_b ↦ₘ b_limb)) := by
   runBlock
 
@@ -195,16 +194,17 @@ theorem lt_limb_carry_spec (off_a off_b : BitVec 12)
     let temp := a_limb - b_limb
     let borrow2 := if BitVec.ult temp borrow_in then (1 : Word) else 0
     let borrow_out := borrow1 ||| borrow2
-    let code :=
-      (base ↦ᵢ .LD .x7 .x12 off_a) ** ((base + 4) ↦ᵢ .LD .x6 .x12 off_b) **
-      ((base + 8) ↦ᵢ .SLTU .x11 .x7 .x6) ** ((base + 12) ↦ᵢ .SUB .x7 .x7 .x6) **
-      ((base + 16) ↦ᵢ .SLTU .x6 .x7 .x5) ** ((base + 20) ↦ᵢ .OR .x5 .x11 .x6)
-    cpsTriple base (base + 24)
-      (code **
-       (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) ** (.x5 ↦ᵣ borrow_in) ** (.x11 ↦ᵣ v11) **
+    let cr :=
+      CodeReq.union (CodeReq.singleton base (.LD .x7 .x12 off_a))
+      (CodeReq.union (CodeReq.singleton (base + 4) (.LD .x6 .x12 off_b))
+      (CodeReq.union (CodeReq.singleton (base + 8) (.SLTU .x11 .x7 .x6))
+      (CodeReq.union (CodeReq.singleton (base + 12) (.SUB .x7 .x7 .x6))
+      (CodeReq.union (CodeReq.singleton (base + 16) (.SLTU .x6 .x7 .x5))
+       (CodeReq.singleton (base + 20) (.OR .x5 .x11 .x6))))))
+    cpsTriple base (base + 24) cr
+      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) ** (.x5 ↦ᵣ borrow_in) ** (.x11 ↦ᵣ v11) **
        (mem_a ↦ₘ a_limb) ** (mem_b ↦ₘ b_limb))
-      (code **
-       (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ temp) ** (.x6 ↦ᵣ borrow2) ** (.x5 ↦ᵣ borrow_out) ** (.x11 ↦ᵣ borrow1) **
+      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ temp) ** (.x6 ↦ᵣ borrow2) ** (.x5 ↦ᵣ borrow_out) ** (.x11 ↦ᵣ borrow1) **
        (mem_a ↦ₘ a_limb) ** (mem_b ↦ₘ b_limb)) := by
   runBlock
 
@@ -219,15 +219,14 @@ theorem eq_limb0_spec (off_a off_b : BitVec 12)
     (hvalid_b : isValidDwordAccess (sp + signExtend12 off_b) = true) :
     let mem_a := sp + signExtend12 off_a
     let mem_b := sp + signExtend12 off_b
-    let code :=
-      (base ↦ᵢ .LD .x7 .x12 off_a) ** ((base + 4) ↦ᵢ .LD .x6 .x12 off_b) **
-      ((base + 8) ↦ᵢ .XOR .x7 .x7 .x6)
-    cpsTriple base (base + 12)
-      (code **
-       (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) **
+    let cr :=
+      CodeReq.union (CodeReq.singleton base (.LD .x7 .x12 off_a))
+      (CodeReq.union (CodeReq.singleton (base + 4) (.LD .x6 .x12 off_b))
+       (CodeReq.singleton (base + 8) (.XOR .x7 .x7 .x6)))
+    cpsTriple base (base + 12) cr
+      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) **
        (mem_a ↦ₘ a_limb) ** (mem_b ↦ₘ b_limb))
-      (code **
-       (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ (a_limb ^^^ b_limb)) ** (.x6 ↦ᵣ b_limb) **
+      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ (a_limb ^^^ b_limb)) ** (.x6 ↦ᵣ b_limb) **
        (mem_a ↦ₘ a_limb) ** (mem_b ↦ₘ b_limb)) := by
   runBlock
 
@@ -239,15 +238,15 @@ theorem eq_or_limb_spec (off_a off_b : BitVec 12)
     let mem_a := sp + signExtend12 off_a
     let mem_b := sp + signExtend12 off_b
     let xor_k := a_limb ^^^ b_limb
-    let code :=
-      (base ↦ᵢ .LD .x6 .x12 off_a) ** ((base + 4) ↦ᵢ .LD .x5 .x12 off_b) **
-      ((base + 8) ↦ᵢ .XOR .x6 .x6 .x5) ** ((base + 12) ↦ᵢ .OR .x7 .x7 .x6)
-    cpsTriple base (base + 16)
-      (code **
-       (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ acc) ** (.x6 ↦ᵣ v6) ** (.x5 ↦ᵣ v5) **
+    let cr :=
+      CodeReq.union (CodeReq.singleton base (.LD .x6 .x12 off_a))
+      (CodeReq.union (CodeReq.singleton (base + 4) (.LD .x5 .x12 off_b))
+      (CodeReq.union (CodeReq.singleton (base + 8) (.XOR .x6 .x6 .x5))
+       (CodeReq.singleton (base + 12) (.OR .x7 .x7 .x6))))
+    cpsTriple base (base + 16) cr
+      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ acc) ** (.x6 ↦ᵣ v6) ** (.x5 ↦ᵣ v5) **
        (mem_a ↦ₘ a_limb) ** (mem_b ↦ₘ b_limb))
-      (code **
-       (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ (acc ||| xor_k)) ** (.x6 ↦ᵣ xor_k) ** (.x5 ↦ᵣ b_limb) **
+      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ (acc ||| xor_k)) ** (.x6 ↦ᵣ xor_k) ** (.x5 ↦ᵣ b_limb) **
        (mem_a ↦ₘ a_limb) ** (mem_b ↦ₘ b_limb)) := by
   runBlock
 
@@ -261,14 +260,13 @@ theorem iszero_or_limb_spec (off : BitVec 12)
     (sp a_limb v6 acc : Word) (base : Addr)
     (hvalid : isValidDwordAccess (sp + signExtend12 off) = true) :
     let mem := sp + signExtend12 off
-    let code :=
-      (base ↦ᵢ .LD .x6 .x12 off) ** ((base + 4) ↦ᵢ .OR .x7 .x7 .x6)
-    cpsTriple base (base + 8)
-      (code **
-       (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ acc) ** (.x6 ↦ᵣ v6) **
+    let cr :=
+      CodeReq.union (CodeReq.singleton base (.LD .x6 .x12 off))
+       (CodeReq.singleton (base + 4) (.OR .x7 .x7 .x6))
+    cpsTriple base (base + 8) cr
+      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ acc) ** (.x6 ↦ᵣ v6) **
        (mem ↦ₘ a_limb))
-      (code **
-       (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ (acc ||| a_limb)) ** (.x6 ↦ᵣ a_limb) **
+      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ (acc ||| a_limb)) ** (.x6 ↦ᵣ a_limb) **
        (mem ↦ₘ a_limb)) := by
   runBlock
 
@@ -281,17 +279,16 @@ theorem iszero_or_limb_spec (off : BitVec 12)
 theorem beq_eq_spec (rs1 rs2 : Reg) (offset : BitVec 13)
     (v : Word) (base : Addr) :
     cpsTriple base (base + signExtend13 offset)
-      ((base ↦ᵢ .BEQ rs1 rs2 offset) ** (rs1 ↦ᵣ v) ** (rs2 ↦ᵣ v))
-      ((base ↦ᵢ .BEQ rs1 rs2 offset) ** (rs1 ↦ᵣ v) ** (rs2 ↦ᵣ v)) := by
-  intro R hR s hPR hpc; subst hpc
+      (CodeReq.singleton base (.BEQ rs1 rs2 offset))
+      ((rs1 ↦ᵣ v) ** (rs2 ↦ᵣ v))
+      ((rs1 ↦ᵣ v) ** (rs2 ↦ᵣ v)) := by
+  intro R hR s hcr hPR hpc; subst hpc
   have hfetch : s.code s.pc = some (.BEQ rs1 rs2 offset) :=
-    (holdsFor_instrAt _ _ s).mp (holdsFor_sepConj_elim_left (holdsFor_sepConj_elim_left hPR))
+    hcr s.pc (.BEQ rs1 rs2 offset) (CodeReq.singleton_get s.pc (.BEQ rs1 rs2 offset))
   have hrs1 : s.getReg rs1 = v :=
-    (holdsFor_regIs _ _ s).mp (holdsFor_sepConj_elim_left
-      (holdsFor_sepConj_elim_right (holdsFor_sepConj_elim_left hPR)))
+    (holdsFor_regIs _ _ s).mp (holdsFor_sepConj_elim_left (holdsFor_sepConj_elim_left hPR))
   have hrs2 : s.getReg rs2 = v :=
-    (holdsFor_regIs _ _ s).mp (holdsFor_sepConj_elim_right
-      (holdsFor_sepConj_elim_right (holdsFor_sepConj_elim_left hPR)))
+    (holdsFor_regIs _ _ s).mp (holdsFor_sepConj_elim_right (holdsFor_sepConj_elim_left hPR))
   have hstep' : step s = some (execInstrBr s (.BEQ rs1 rs2 offset)) :=
     step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl)
   have hexec' : execInstrBr s (.BEQ rs1 rs2 offset) = s.setPC (s.pc + signExtend13 offset) := by
@@ -300,35 +297,32 @@ theorem beq_eq_spec (rs1 rs2 : Reg) (offset : BitVec 13)
   · show (step s).bind (stepN 0) = some _
     rw [hstep', hexec']; rfl
   · exact holdsFor_pcFree_setPC
-      (pcFree_sepConj (pcFree_sepConj (pcFree_instrAt _ _)
-        (pcFree_sepConj (pcFree_regIs _ _) (pcFree_regIs _ _))) hR) _ _ hPR
+      (pcFree_sepConj (pcFree_sepConj (pcFree_regIs _ _) (pcFree_regIs _ _)) hR) _ _ hPR
 
 /-- BEQ when values are not equal: never taken (fall through to PC + 4).
     BEQ only modifies PC; all pcFree assertions are preserved. -/
 theorem beq_ne_spec (rs1 rs2 : Reg) (offset : BitVec 13)
     (v1 v2 : Word) (hne : v1 ≠ v2) (base : Addr) :
     cpsTriple base (base + 4)
-      ((base ↦ᵢ .BEQ rs1 rs2 offset) ** (rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2))
-      ((base ↦ᵢ .BEQ rs1 rs2 offset) ** (rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2)) := by
-  intro R hR s hPR hpc; subst hpc
+      (CodeReq.singleton base (.BEQ rs1 rs2 offset))
+      ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2))
+      ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2)) := by
+  intro R hR s hcr hPR hpc; subst hpc
   have hfetch : s.code s.pc = some (.BEQ rs1 rs2 offset) :=
-    (holdsFor_instrAt _ _ s).mp (holdsFor_sepConj_elim_left (holdsFor_sepConj_elim_left hPR))
+    hcr s.pc (.BEQ rs1 rs2 offset) (CodeReq.singleton_get s.pc (.BEQ rs1 rs2 offset))
   have hrs1 : s.getReg rs1 = v1 :=
-    (holdsFor_regIs _ _ s).mp (holdsFor_sepConj_elim_left
-      (holdsFor_sepConj_elim_right (holdsFor_sepConj_elim_left hPR)))
+    (holdsFor_regIs _ _ s).mp (holdsFor_sepConj_elim_left (holdsFor_sepConj_elim_left hPR))
   have hrs2 : s.getReg rs2 = v2 :=
-    (holdsFor_regIs _ _ s).mp (holdsFor_sepConj_elim_right
-      (holdsFor_sepConj_elim_right (holdsFor_sepConj_elim_left hPR)))
+    (holdsFor_regIs _ _ s).mp (holdsFor_sepConj_elim_right (holdsFor_sepConj_elim_left hPR))
   have hstep' : step s = some (execInstrBr s (.BEQ rs1 rs2 offset)) :=
     step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl)
   have hexec' : execInstrBr s (.BEQ rs1 rs2 offset) = s.setPC (s.pc + 4) := by
-    simp [execInstrBr, hrs1, hrs2, bne_iff_ne, hne]
+    simp [execInstrBr, hrs1, hrs2, hne]
   refine ⟨1, s.setPC (s.pc + 4), ?_, by simp [MachineState.setPC], ?_⟩
   · show (step s).bind (stepN 0) = some _
     rw [hstep', hexec']; rfl
   · exact holdsFor_pcFree_setPC
-      (pcFree_sepConj (pcFree_sepConj (pcFree_instrAt _ _)
-        (pcFree_sepConj (pcFree_regIs _ _) (pcFree_regIs _ _))) hR) _ _ hPR
+      (pcFree_sepConj (pcFree_sepConj (pcFree_regIs _ _) (pcFree_regIs _ _)) hR) _ _ hPR
 
 -- ============================================================================
 -- Per-limb Specs: SLT (MSB load + signed comparison)
@@ -342,14 +336,13 @@ theorem slt_msb_load_spec (off_a off_b : BitVec 12)
     (hvalid_b : isValidDwordAccess (sp + signExtend12 off_b) = true) :
     let mem_a := sp + signExtend12 off_a
     let mem_b := sp + signExtend12 off_b
-    let code :=
-      (base ↦ᵢ .LD .x7 .x12 off_a) ** ((base + 4) ↦ᵢ .LD .x6 .x12 off_b)
-    cpsTriple base (base + 8)
-      (code **
-       (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) **
+    let cr :=
+      CodeReq.union (CodeReq.singleton base (.LD .x7 .x12 off_a))
+       (CodeReq.singleton (base + 4) (.LD .x6 .x12 off_b))
+    cpsTriple base (base + 8) cr
+      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) **
        (mem_a ↦ₘ a3) ** (mem_b ↦ₘ b3))
-      (code **
-       (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ a3) ** (.x6 ↦ᵣ b3) **
+      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ a3) ** (.x6 ↦ᵣ b3) **
        (mem_a ↦ₘ a3) ** (mem_b ↦ₘ b3)) := by
   runBlock
 

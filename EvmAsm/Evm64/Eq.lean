@@ -11,6 +11,31 @@ open EvmAsm.Rv64.Tactics
 
 namespace EvmAsm.Rv64
 
+/-- CodeReq for the 256-bit EVM EQ operation.
+    21 instructions = 84 bytes. XOR-OR accumulation + SLTIU boolean + store. -/
+abbrev evm_eq_code (base : Addr) : CodeReq :=
+  CodeReq.union (CodeReq.singleton base (.LD .x7 .x12 0))
+  (CodeReq.union (CodeReq.singleton (base + 4) (.LD .x6 .x12 32))
+  (CodeReq.union (CodeReq.singleton (base + 8) (.XOR .x7 .x7 .x6))
+  (CodeReq.union (CodeReq.singleton (base + 12) (.LD .x6 .x12 8))
+  (CodeReq.union (CodeReq.singleton (base + 16) (.LD .x5 .x12 40))
+  (CodeReq.union (CodeReq.singleton (base + 20) (.XOR .x6 .x6 .x5))
+  (CodeReq.union (CodeReq.singleton (base + 24) (.OR .x7 .x7 .x6))
+  (CodeReq.union (CodeReq.singleton (base + 28) (.LD .x6 .x12 16))
+  (CodeReq.union (CodeReq.singleton (base + 32) (.LD .x5 .x12 48))
+  (CodeReq.union (CodeReq.singleton (base + 36) (.XOR .x6 .x6 .x5))
+  (CodeReq.union (CodeReq.singleton (base + 40) (.OR .x7 .x7 .x6))
+  (CodeReq.union (CodeReq.singleton (base + 44) (.LD .x6 .x12 24))
+  (CodeReq.union (CodeReq.singleton (base + 48) (.LD .x5 .x12 56))
+  (CodeReq.union (CodeReq.singleton (base + 52) (.XOR .x6 .x6 .x5))
+  (CodeReq.union (CodeReq.singleton (base + 56) (.OR .x7 .x7 .x6))
+  (CodeReq.union (CodeReq.singleton (base + 60) (.SLTIU .x7 .x7 1))
+  (CodeReq.union (CodeReq.singleton (base + 64) (.ADDI .x12 .x12 32))
+  (CodeReq.union (CodeReq.singleton (base + 68) (.SD .x12 .x7 0))
+  (CodeReq.union (CodeReq.singleton (base + 72) (.SD .x12 .x0 8))
+  (CodeReq.union (CodeReq.singleton (base + 76) (.SD .x12 .x0 16))
+   (CodeReq.singleton (base + 80) (.SD .x12 .x0 24)))))))))))))))))))))
+
 set_option maxHeartbeats 6400000 in
 /-- Full 256-bit EVM EQ: EQ(a, b) = 1 iff a == b (unsigned).
     XOR each limb pair, OR-reduce, SLTIU to boolean.
@@ -27,26 +52,13 @@ theorem evm_eq_spec (sp : Addr) (base : Addr)
     let acc2 := acc1 ||| (a2 ^^^ b2)
     let acc3 := acc2 ||| (a3 ^^^ b3)
     let eq_result := if BitVec.ult acc3 (1 : Word) then (1 : Word) else 0
-    let code :=
-      (base ↦ᵢ .LD .x7 .x12 0) ** ((base + 4) ↦ᵢ .LD .x6 .x12 32) **
-      ((base + 8) ↦ᵢ .XOR .x7 .x7 .x6) **
-      ((base + 12) ↦ᵢ .LD .x6 .x12 8) ** ((base + 16) ↦ᵢ .LD .x5 .x12 40) **
-      ((base + 20) ↦ᵢ .XOR .x6 .x6 .x5) ** ((base + 24) ↦ᵢ .OR .x7 .x7 .x6) **
-      ((base + 28) ↦ᵢ .LD .x6 .x12 16) ** ((base + 32) ↦ᵢ .LD .x5 .x12 48) **
-      ((base + 36) ↦ᵢ .XOR .x6 .x6 .x5) ** ((base + 40) ↦ᵢ .OR .x7 .x7 .x6) **
-      ((base + 44) ↦ᵢ .LD .x6 .x12 24) ** ((base + 48) ↦ᵢ .LD .x5 .x12 56) **
-      ((base + 52) ↦ᵢ .XOR .x6 .x6 .x5) ** ((base + 56) ↦ᵢ .OR .x7 .x7 .x6) **
-      ((base + 60) ↦ᵢ .SLTIU .x7 .x7 1) ** ((base + 64) ↦ᵢ .ADDI .x12 .x12 32) **
-      ((base + 68) ↦ᵢ .SD .x12 .x7 0) ** ((base + 72) ↦ᵢ .SD .x12 .x0 8) **
-      ((base + 76) ↦ᵢ .SD .x12 .x0 16) ** ((base + 80) ↦ᵢ .SD .x12 .x0 24)
-    cpsTriple base (base + 84)
-      (code **
-       -- Registers + memory
+    let code := evm_eq_code base
+    cpsTriple base (base + 84) code
+      (-- Registers + memory
        (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) ** (.x5 ↦ᵣ v5) ** (.x11 ↦ᵣ v11) **
        (sp ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
        ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) ** ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3))
-      (code **
-       -- Registers + memory (updated)
+      (-- Registers + memory (updated)
        (.x12 ↦ᵣ (sp + 32)) **
        (.x7 ↦ᵣ eq_result) ** (.x6 ↦ᵣ (a3 ^^^ b3)) ** (.x5 ↦ᵣ b3) ** (.x11 ↦ᵣ v11) **
        (sp ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **

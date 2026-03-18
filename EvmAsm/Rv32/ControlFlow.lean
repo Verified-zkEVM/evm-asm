@@ -246,66 +246,71 @@ theorem if_eq_branch_step (rs1 rs2 : Reg) (v1 v2 : Word)
     (ht_small : 4 * (then_body.length + 1) + 4 < 2^12) :
     let else_off : BitVec 13 := BitVec.ofNat 13 (4 * (then_body.length + 1) + 4)
     let bne_instr := Instr.BNE rs1 rs2 else_off
+    let cr := CodeReq.singleton base bne_instr
     let then_entry := base + 4
     let else_entry := base + 4 + BitVec.ofNat 32 (4 * then_body.length) + 4
-    let pre := (base ↦ᵢ bne_instr) ** (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2))
-    cpsBranch base pre
-      then_entry ((base ↦ᵢ bne_instr) ** (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2) ⋒ ⌜v1 = v2⌝))
-      else_entry ((base ↦ᵢ bne_instr) ** (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2) ⋒ ⌜v1 ≠ v2⌝)) := by
-  simp only
-  intro R hR s hPR hpc; subst hpc
-  -- Extract instrAt from the precondition
-  have hfetch : s.code s.pc = some (Instr.BNE rs1 rs2 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4))) :=
-    (holdsFor_instrAt _ _ s).mp (holdsFor_sepConj_elim_left (holdsFor_sepConj_elim_left hPR))
-  -- Extract register values from the aAnd part
-  have haAnd := holdsFor_sepConj_elim_right (holdsFor_sepConj_elim_left hPR)
-  have hrs1 : s.getReg rs1 = v1 :=
-    (holdsFor_regIs _ _ s).mp (aAnd_holdsFor_elim (aAnd_holdsFor_elim haAnd).2).1
-  have hrs2 : s.getReg rs2 = v2 :=
-    (holdsFor_regIs _ _ s).mp (aAnd_holdsFor_elim (aAnd_holdsFor_elim haAnd).2).2
-  -- Execute the BNE instruction
-  have hstep' : step s = some (execInstrBr s (Instr.BNE rs1 rs2 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4)))) :=
+    cpsBranch base cr
+      (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2))
+      then_entry (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2) ⋒ ⌜v1 = v2⌝)
+      else_entry (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2) ⋒ ⌜v1 ≠ v2⌝) := by
+  intro _else_off _bne_instr _cr _then_entry _else_entry
+  -- Unfold cpsBranch: introduce frame R and machine state s
+  intro R hR s hcr hPR hpc; subst hpc
+  -- Extract instruction fetch from CodeReq
+  have hfetch : s.code s.pc = some (Instr.BNE rs1 rs2 _else_off) :=
+    (CodeReq.singleton_satisfiedBy s.pc _ s).mp hcr
+  -- Extract register values from the aAnd precondition
+  -- P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2) is right-assoc: P ⋒ ((rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2))
+  have hPcomb := holdsFor_sepConj_elim_left hPR
+  have hPaAnd := aAnd_holdsFor_elim hPcomb   -- P.holdsFor s ∧ ((rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2)).holdsFor s
+  have hRegsAnd := aAnd_holdsFor_elim hPaAnd.2  -- (rs1 ↦ᵣ v1).holdsFor s ∧ (rs2 ↦ᵣ v2).holdsFor s
+  have hrs1 : s.getReg rs1 = v1 := (holdsFor_regIs _ _ s).mp hRegsAnd.1
+  have hrs2 : s.getReg rs2 = v2 := (holdsFor_regIs _ _ s).mp hRegsAnd.2
+  -- BNE execution step
+  have hstep' : step s = some (execInstrBr s (.BNE rs1 rs2 _else_off)) :=
     step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl)
-  -- The entire precondition (P ** R form from cpsBranch) is pcFree
-  have hpcfree : (((s.pc ↦ᵢ Instr.BNE rs1 rs2 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4))) **
-      (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2))) ** R).pcFree :=
-    pcFree_sepConj (pcFree_sepConj (pcFree_instrAt _ _) (pcFree_aAnd hP (pcFree_aAnd (pcFree_regIs _ _) (pcFree_regIs _ _)))) hR
+  -- pcFree facts for preservation through setPC
+  have hPcFree : (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2)).pcFree :=
+    pcFree_aAnd hP (pcFree_aAnd (pcFree_regIs rs1 v1) (pcFree_regIs rs2 v2))
+  have hAllPcFree : ((P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2)) ** R).pcFree :=
+    pcFree_sepConj hPcFree hR
   -- Case split on v1 = v2
   by_cases heq : v1 = v2
-  · -- Not taken: v1 = v2 → PC = s.pc + 4 = then_entry (exit_t)
-    have hexec' : execInstrBr s (Instr.BNE rs1 rs2 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4))) = s.setPC (s.pc + 4) := by
+  · -- Not taken: v1 = v2, PC goes to base + 4 (then_entry)
+    have hexec' : execInstrBr s (.BNE rs1 rs2 _else_off) = s.setPC (s.pc + 4) := by
       simp only [execInstrBr, hrs1, hrs2, heq, bne_iff_ne, ne_eq, not_true_eq_false, ite_false]
-    refine ⟨1, s.setPC (s.pc + 4), ?_, Or.inl ⟨by simp [MachineState.setPC], ?_⟩⟩
+    refine ⟨1, s.setPC (s.pc + 4), ?_, Or.inl ⟨rfl, ?_⟩⟩
     · show (step s).bind (stepN 0) = some _
       rw [hstep', hexec']; rfl
-    · -- Preserve assertions through setPC and add ⌜v1 = v2⌝
-      have hPR' := holdsFor_pcFree_setPC hpcfree s (s.pc + 4) hPR
-      -- Strengthen the aAnd part: add ⌜v1 = v2⌝ to inner sepConj
-      obtain ⟨hp, hcompat, h1, h2, hd, hu, ⟨ha, hb, hda, hua, hinstr, haand⟩, hR2⟩ := hPR'
-      exact ⟨hp, hcompat, h1, h2, hd, hu,
-        ⟨ha, hb, hda, hua, hinstr, aAnd_mono_right (aAnd_mono_right (aAnd_pure_right_of_true heq)) hb haand⟩, hR2⟩
-  · -- Taken: v1 ≠ v2 → PC = s.pc + signExtend13(else_off) = else_entry (exit_f)
-    have hexec' : execInstrBr s (Instr.BNE rs1 rs2 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4))) =
-        s.setPC (s.pc + signExtend13 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4))) := by
+    · -- Postcondition: add ⌜v1 = v2⌝ via aAnd, preserve through setPC
+      -- Goal: ((P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2) ⋒ ⌜v1 = v2⌝) ** R).holdsFor (s.setPC (s.pc + 4))
+      -- which is ((P ⋒ ((rs1 ↦ᵣ v1) ⋒ ((rs2 ↦ᵣ v2) ⋒ ⌜v1 = v2⌝))) ** R).holdsFor ...
+      have hpreserved := holdsFor_pcFree_setPC hAllPcFree s (s.pc + 4) hPR
+      obtain ⟨hp, hcompat, h1, h2, hd, hunion, hP1, hR2⟩ := hpreserved
+      refine ⟨hp, hcompat, h1, h2, hd, hunion, ?_, hR2⟩
+      exact aAnd_mono_right
+        (fun h' hp' => aAnd_mono_right
+          (fun h'' hp'' => aAnd_pure_right_of_true heq h'' hp'') h' hp') h1 hP1
+  · -- Taken: v1 ≠ v2, PC goes to base + signExtend13 _else_off (else_entry)
+    have hexec' : execInstrBr s (.BNE rs1 rs2 _else_off) = s.setPC (s.pc + signExtend13 _else_off) := by
       simp only [execInstrBr, hrs1, hrs2, bne_iff_ne, ne_eq, heq, not_false_eq_true, ite_true]
-    -- Show that signExtend13(else_off) = 4*(t+1)+4
-    have hse : signExtend13 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4)) =
-        BitVec.ofNat 32 (4 * (then_body.length + 1) + 4) :=
-      signExtend13_ofNat_small _ ht_small
-    -- Show that s.pc + 4*(t+1)+4 = s.pc + 4 + 4*t + 4
-    have haddr : s.pc + signExtend13 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4)) =
-        s.pc + 4 + BitVec.ofNat 32 (4 * then_body.length) + 4 := by
-      rw [hse]; bv_omega
-    refine ⟨1, s.setPC (s.pc + signExtend13 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4))), ?_,
-      Or.inr ⟨by simp [MachineState.setPC]; exact haddr, ?_⟩⟩
+    -- Show that base + signExtend13 _else_off = else_entry
+    have hoff : s.pc + signExtend13 _else_off = _else_entry := by
+      simp only [_else_off, _else_entry]
+      rw [signExtend13_ofNat_small _ ht_small]
+      rw [show BitVec.ofNat 32 (4 * (then_body.length + 1) + 4) =
+            (4 : Word) + BitVec.ofNat 32 (4 * then_body.length) + 4 from by bv_omega]
+      bv_omega
+    refine ⟨1, s.setPC (s.pc + signExtend13 _else_off), ?_, Or.inr ⟨hoff, ?_⟩⟩
     · show (step s).bind (stepN 0) = some _
       rw [hstep', hexec']; rfl
-    · -- Preserve assertions through setPC and add ⌜v1 ≠ v2⌝
-      have hPR' := holdsFor_pcFree_setPC hpcfree s
-        (s.pc + signExtend13 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4))) hPR
-      obtain ⟨hp, hcompat, h1, h2, hd, hu, ⟨ha, hb, hda, hua, hinstr, haand⟩, hR2⟩ := hPR'
-      exact ⟨hp, hcompat, h1, h2, hd, hu,
-        ⟨ha, hb, hda, hua, hinstr, aAnd_mono_right (aAnd_mono_right (aAnd_pure_right_of_true heq)) hb haand⟩, hR2⟩
+    · have hpreserved := holdsFor_pcFree_setPC hAllPcFree s (s.pc + signExtend13 _else_off) hPR
+      obtain ⟨hp, hcompat, h1, h2, hd, hunion, hP1, hR2⟩ := hpreserved
+      refine ⟨hp, hcompat, h1, h2, hd, hunion, ?_, hR2⟩
+      exact aAnd_mono_right
+        (fun h' hp' => aAnd_mono_right
+          (fun h'' hp'' => aAnd_pure_right_of_true heq h'' hp'') h' hp') h1 hP1
+
 
 /-- Full CPS specification for if_eq: given that the then-body is correct
     under equality and the else-body is correct under inequality,
@@ -330,147 +335,53 @@ theorem if_eq_spec (rs1 rs2 : Reg) (v1 v2 : Word)
     let end_off  : BitVec 21 := BitVec.ofNat 21 (4 * else_body.length + 4)
     let bne_instr := Instr.BNE rs1 rs2 else_off
     let jal_instr := Instr.JAL .x0 end_off
-    let pre := (base ↦ᵢ bne_instr) ** (then_exit ↦ᵢ jal_instr) ** (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2))
-    (cpsTriple then_entry then_exit
+    let cr := CodeReq.singleton base bne_instr |>.union (CodeReq.singleton then_exit jal_instr)
+    (cpsTriple then_entry then_exit cr
       (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2) ⋒ ⌜v1 = v2⌝) Q) →
-    (cpsTriple else_entry else_exit
+    (cpsTriple else_entry else_exit cr
       (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2) ⋒ ⌜v1 ≠ v2⌝) Q) →
-    cpsTriple base exit_ pre Q := by
-  simp only
-  intro hthen helse R hR s hPR hpc; subst hpc
-  -- hPR : ((bne ** (jal ** aAnd)) ** R).holdsFor s
-  -- Extract instrAt facts
-  have hfetch_bne : s.code s.pc = some (Instr.BNE rs1 rs2 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4))) :=
-    (holdsFor_instrAt _ _ s).mp (holdsFor_sepConj_elim_left (holdsFor_sepConj_elim_left hPR))
-  -- Extract register values from the aAnd part
-  have haAnd := holdsFor_sepConj_elim_right (holdsFor_sepConj_elim_right (holdsFor_sepConj_elim_left hPR))
-  have hrs1 : s.getReg rs1 = v1 :=
-    (holdsFor_regIs _ _ s).mp (aAnd_holdsFor_elim (aAnd_holdsFor_elim haAnd).2).1
-  have hrs2 : s.getReg rs2 = v2 :=
-    (holdsFor_regIs _ _ s).mp (aAnd_holdsFor_elim (aAnd_holdsFor_elim haAnd).2).2
-  -- Execute BNE
-  have hstep' : step s = some (execInstrBr s (Instr.BNE rs1 rs2 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4)))) :=
-    step_non_ecall_non_mem s _ hfetch_bne (by nofun) (by nofun) (by rfl)
-  -- pcFree for the full precondition with frame
-  have hpcfree_all : (((s.pc ↦ᵢ Instr.BNE rs1 rs2 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4))) **
-      ((s.pc + 4 + BitVec.ofNat 32 (4 * then_body.length)) ↦ᵢ Instr.JAL Reg.x0 (BitVec.ofNat 21 (4 * else_body.length + 4))) **
-      (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2))) ** R).pcFree :=
-    pcFree_sepConj (pcFree_sepConj (pcFree_instrAt _ _)
-      (pcFree_sepConj (pcFree_instrAt _ _)
-        (pcFree_aAnd hP (pcFree_aAnd (pcFree_regIs _ _) (pcFree_regIs _ _))))) hR
-  -- Body-triple frame: bne ** jal ** R (pcFree)
-  have hframe_pcfree : ((s.pc ↦ᵢ Instr.BNE rs1 rs2 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4))) **
-      ((s.pc + 4 + BitVec.ofNat 32 (4 * then_body.length)) ↦ᵢ Instr.JAL Reg.x0 (BitVec.ofNat 21 (4 * else_body.length + 4))) ** R).pcFree :=
-    pcFree_sepConj (pcFree_instrAt _ _) (pcFree_sepConj (pcFree_instrAt _ _) hR)
-  -- Helper: rearranging ** chains
-  -- (bne ** (jal ** aand)) ** R = (aand ** (bne ** (jal ** R))) as assertions
-  have hassert_perm : (((s.pc ↦ᵢ Instr.BNE rs1 rs2 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4))) **
-      ((s.pc + 4 + BitVec.ofNat 32 (4 * then_body.length)) ↦ᵢ Instr.JAL Reg.x0 (BitVec.ofNat 21 (4 * else_body.length + 4))) **
-      (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2))) ** R) =
-    ((P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2)) **
-      ((s.pc ↦ᵢ Instr.BNE rs1 rs2 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4))) **
-       ((s.pc + 4 + BitVec.ofNat 32 (4 * then_body.length)) ↦ᵢ Instr.JAL Reg.x0 (BitVec.ofNat 21 (4 * else_body.length + 4))) ** R)) := by
-    funext h; exact propext ⟨fun hp => by sep_perm hp, fun hp => by sep_perm hp⟩
-  -- Case split on v1 = v2
-  by_cases heq : v1 = v2
-  · -- BNE not taken: v1 = v2, PC -> s.pc + 4 = then_entry
-    have hexec' : execInstrBr s (Instr.BNE rs1 rs2 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4))) = s.setPC (s.pc + 4) := by
-      simp only [execInstrBr, hrs1, hrs2, heq, bne_iff_ne, ne_eq, not_true_eq_false, ite_false]
-    -- After BNE: all pcFree assertions preserved
-    have hPR1 := holdsFor_pcFree_setPC hpcfree_all s (s.pc + 4) hPR
-    -- Rearrange to (aand ** (bne ** jal ** R)), then strengthen aand with ⌜v1 = v2⌝
-    have hPR1' : ((P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2) ⋒ ⌜v1 = v2⌝) **
-        ((s.pc ↦ᵢ Instr.BNE rs1 rs2 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4))) **
-         ((s.pc + 4 + BitVec.ofNat 32 (4 * then_body.length)) ↦ᵢ Instr.JAL Reg.x0 (BitVec.ofNat 21 (4 * else_body.length + 4))) ** R)).holdsFor
-          (s.setPC (s.pc + 4)) := by
-      obtain ⟨hp, hcompat, hpq⟩ := hPR1
-      rw [hassert_perm] at hpq
-      obtain ⟨h1', h2', hd', hu', haand_h, hframe_h⟩ := hpq
-      exact ⟨hp, hcompat, h1', h2', hd', hu',
-        aAnd_mono_right (aAnd_mono_right (aAnd_pure_right_of_true heq)) h1' haand_h, hframe_h⟩
-    -- Apply then-body triple
-    obtain ⟨k2, s2, hstep2, hpc2, hQR2⟩ := hthen _ hframe_pcfree
-      (s.setPC (s.pc + 4)) hPR1' rfl
-    -- hQR2 : (Q ** (bne ** jal ** R)).holdsFor s2 at s2.pc = then_exit
-    -- Rearrange for JAL: (Q ** (bne ** (jal ** R))) -> (jal ** (bne ** Q ** R))
-    have hassert_perm2 :
-      (Q ** ((s.pc ↦ᵢ Instr.BNE rs1 rs2 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4))) **
-           ((s.pc + 4 + BitVec.ofNat 32 (4 * then_body.length)) ↦ᵢ Instr.JAL Reg.x0 (BitVec.ofNat 21 (4 * else_body.length + 4))) ** R)) =
-      (((s.pc + 4 + BitVec.ofNat 32 (4 * then_body.length)) ↦ᵢ Instr.JAL Reg.x0 (BitVec.ofNat 21 (4 * else_body.length + 4))) **
-        ((s.pc ↦ᵢ Instr.BNE rs1 rs2 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4))) ** Q ** R)) := by
-      funext h; exact propext ⟨fun hp => by sep_perm hp, fun hp => by sep_perm hp⟩
-    have hQR2' : (((s.pc + 4 + BitVec.ofNat 32 (4 * then_body.length)) ↦ᵢ Instr.JAL Reg.x0 (BitVec.ofNat 21 (4 * else_body.length + 4))) **
-        ((s.pc ↦ᵢ Instr.BNE rs1 rs2 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4))) ** Q ** R)).holdsFor s2 := by
-      obtain ⟨hp, hcompat, hpq⟩ := hQR2
-      exact ⟨hp, hcompat, hassert_perm2 ▸ hpq⟩
-    -- Apply JAL spec
-    have hjal_pcfree : ((s.pc ↦ᵢ Instr.BNE rs1 rs2 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4))) ** Q ** R).pcFree :=
-      pcFree_sepConj (pcFree_instrAt _ _) (pcFree_sepConj hQ hR)
-    obtain ⟨k3, s3, hstep3, hpc3, hQR3⟩ := jal_x0_spec_gen
-      (BitVec.ofNat 21 (4 * else_body.length + 4))
-      (s.pc + 4 + BitVec.ofNat 32 (4 * then_body.length))
-      _ hjal_pcfree s2 hQR2' hpc2
-    -- hQR3 : (jal ** (bne ** Q ** R)).holdsFor s3
-    -- Extract (Q ** R) by dropping the two instrAt's
-    have hQR3' : (Q ** R).holdsFor s3 :=
-      holdsFor_sepConj_elim_right (holdsFor_sepConj_elim_right hQR3)
-    -- The exit address: then_exit + signExtend21(end_off) = exit_
-    have hexit : (s.pc + 4 + BitVec.ofNat 32 (4 * then_body.length)) + signExtend21 (BitVec.ofNat 21 (4 * else_body.length + 4)) =
-        s.pc + BitVec.ofNat 32 (4 * (if_eq rs1 rs2 then_body else_body).length) := by
-      rw [signExtend21_ofNat_small _ he_small]
-      simp only [if_eq_length]; bv_omega
-    rw [hexit] at hpc3
-    have hstep1 : stepN 1 s = some (s.setPC (s.pc + 4)) := by
-      show (step s).bind (stepN 0) = some _
-      rw [hstep', hexec']; rfl
-    exact ⟨1 + (k2 + k3), s3,
-      stepN_add_eq 1 (k2 + k3) s _ s3 hstep1
-        (stepN_add_eq k2 k3 _ s2 s3 hstep2 hstep3),
-      hpc3, hQR3'⟩
-  · -- BNE taken: v1 /= v2, PC -> else_entry
-    have hexec' : execInstrBr s (Instr.BNE rs1 rs2 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4))) =
-        s.setPC (s.pc + signExtend13 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4))) := by
-      simp only [execInstrBr, hrs1, hrs2, bne_iff_ne, ne_eq, heq, not_false_eq_true, ite_true]
-    have hse : signExtend13 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4)) =
-        BitVec.ofNat 32 (4 * (then_body.length + 1) + 4) :=
-      signExtend13_ofNat_small _ ht_small
-    have haddr : s.pc + signExtend13 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4)) =
-        s.pc + 4 + BitVec.ofNat 32 (4 * then_body.length) + 4 := by
-      rw [hse]; bv_omega
-    -- After BNE
-    have hPR1 := holdsFor_pcFree_setPC hpcfree_all s
-      (s.pc + signExtend13 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4))) hPR
-    -- Rearrange to (aand_ne ** (bne ** jal ** R))
-    have hPR1' : ((P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2) ⋒ ⌜v1 ≠ v2⌝) **
-        ((s.pc ↦ᵢ Instr.BNE rs1 rs2 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4))) **
-         ((s.pc + 4 + BitVec.ofNat 32 (4 * then_body.length)) ↦ᵢ Instr.JAL Reg.x0 (BitVec.ofNat 21 (4 * else_body.length + 4))) ** R)).holdsFor
-          (s.setPC (s.pc + signExtend13 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4)))) := by
-      obtain ⟨hp, hcompat, hpq⟩ := hPR1
-      rw [hassert_perm] at hpq
-      obtain ⟨h1', h2', hd', hu', haand_h, hframe_h⟩ := hpq
-      exact ⟨hp, hcompat, h1', h2', hd', hu',
-        aAnd_mono_right (aAnd_mono_right (aAnd_pure_right_of_true heq)) h1' haand_h, hframe_h⟩
-    -- Apply else-body triple with frame = (bne ** jal ** R)
-    obtain ⟨k2, s2, hstep2, hpc2, hQR2⟩ := helse _ hframe_pcfree
-      (s.setPC (s.pc + signExtend13 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4))))
-      hPR1' (by simp [MachineState.setPC]; exact haddr)
-    -- hQR2 : (Q ** (bne ** jal ** R)).holdsFor s2
-    -- Extract (Q ** R) from (Q ** (bne ** (jal ** R)))
-    have hassert_else :
-      (Q ** ((s.pc ↦ᵢ Instr.BNE rs1 rs2 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4))) **
-           ((s.pc + 4 + BitVec.ofNat 32 (4 * then_body.length)) ↦ᵢ Instr.JAL Reg.x0 (BitVec.ofNat 21 (4 * else_body.length + 4))) ** R)) =
-      (((s.pc ↦ᵢ Instr.BNE rs1 rs2 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4))) **
-           ((s.pc + 4 + BitVec.ofNat 32 (4 * then_body.length)) ↦ᵢ Instr.JAL Reg.x0 (BitVec.ofNat 21 (4 * else_body.length + 4)))) ** (Q ** R)) := by
-      funext h; exact propext ⟨fun hp => by sep_perm hp, fun hp => by sep_perm hp⟩
-    have hQR2' : (Q ** R).holdsFor s2 := by
-      obtain ⟨hp, hcompat, hpq⟩ := hQR2
-      exact holdsFor_sepConj_elim_right ⟨hp, hcompat, hassert_else ▸ hpq⟩
-    have hstep1 : stepN 1 s = some (s.setPC (s.pc + signExtend13 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4)))) := by
-      show (step s).bind (stepN 0) = some _
-      rw [hstep', hexec']; rfl
-    exact ⟨1 + k2, s2,
-      stepN_add_eq 1 k2 s _ s2 hstep1 hstep2,
-      hpc2, hQR2'⟩
+    cpsTriple base exit_ cr (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2)) Q := by
+  intro prog exit_ then_entry then_exit else_entry else_exit else_off end_off bne_instr jal_instr cr
+  intro hthen helse
+  -- Step 1: Get the branch step (BNE dispatch) and extend to combined cr
+  have hbr := if_eq_branch_step rs1 rs2 v1 v2 then_body else_body base P hP ht_small
+  -- Extend branch from BNE singleton to combined cr
+  have hbr_ext : cpsBranch base cr
+      (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2))
+      then_entry (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2) ⋒ ⌜v1 = v2⌝)
+      else_entry (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2) ⋒ ⌜v1 ≠ v2⌝) := by
+    intro R hR s hcr hPR hpc
+    exact hbr R hR s (CodeReq.SatisfiedBy_mono s (CodeReq.union_mono_left _ _) hcr) hPR hpc
+  -- Step 2: Build JAL x0 spec: then_exit → exit_
+  have hjal := jal_x0_spec_gen end_off then_exit
+  -- Show then_exit + signExtend21 end_off = exit_
+  have hjal_target : then_exit + signExtend21 end_off = exit_ := by
+    simp only [then_exit, exit_, prog, end_off, if_eq_length]
+    rw [signExtend21_ofNat_small _ he_small]
+    bv_omega
+  rw [hjal_target] at hjal
+  -- Extend JAL to combined cr
+  have hjal_ext : cpsTriple then_exit exit_ cr empAssertion empAssertion :=
+    cpsTriple_extend_code
+      (fun a i h => CodeReq.mono_union_right
+        (CodeReq.Disjoint.singleton (by
+          simp only [then_exit]; bv_omega) _ _)
+        (fun a' i' h' => h') a i h) hjal
+  -- Frame JAL with Q: cpsTriple then_exit exit_ cr Q Q
+  have hjal_framed : cpsTriple then_exit exit_ cr Q Q := by
+    have h1 := cpsTriple_frame_left _ _ _ _ _ Q hQ hjal_ext
+    simp only [sepConj_emp_left', sepConj_emp_right'] at h1
+    exact h1
+  -- Step 3: Compose then-body with JAL
+  have hthen_full : cpsTriple then_entry exit_ cr
+      (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2) ⋒ ⌜v1 = v2⌝) Q :=
+    cpsTriple_seq _ _ _ _ _ _ _ hthen hjal_framed
+  -- Step 4: Use cpsBranch_merge to combine
+  exact cpsBranch_merge base then_entry else_entry exit_ cr
+    (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2))
+    (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2) ⋒ ⌜v1 = v2⌝)
+    (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2) ⋒ ⌜v1 ≠ v2⌝)
+    Q hbr_ext hthen_full helse
 
 -- ============================================================================
 -- N-exit CPS specifications for if_eq
@@ -487,14 +398,16 @@ theorem if_eq_branch_step_n (rs1 rs2 : Reg) (v1 v2 : Word)
     (ht_small : 4 * (then_body.length + 1) + 4 < 2^12) :
     let else_off : BitVec 13 := BitVec.ofNat 13 (4 * (then_body.length + 1) + 4)
     let bne_instr := Instr.BNE rs1 rs2 else_off
+    let cr := CodeReq.singleton base bne_instr
     let then_entry := base + 4
     let else_entry := base + 4 + BitVec.ofNat 32 (4 * then_body.length) + 4
-    let pre := (base ↦ᵢ bne_instr) ** (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2))
-    cpsNBranch base pre
-      [ (then_entry, (base ↦ᵢ bne_instr) ** (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2) ⋒ ⌜v1 = v2⌝)),
-        (else_entry, (base ↦ᵢ bne_instr) ** (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2) ⋒ ⌜v1 ≠ v2⌝)) ] := by
-  simp only
-  exact cpsBranch_to_cpsNBranch _ _ _ _ _ _
+    cpsNBranch base cr (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2))
+      [ (then_entry, P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2) ⋒ ⌜v1 = v2⌝),
+        (else_entry, P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2) ⋒ ⌜v1 ≠ v2⌝) ] := by
+  intro _else_off _bne_instr _cr _then_entry _else_entry
+  exact cpsBranch_to_cpsNBranch base _cr (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2))
+    _then_entry (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2) ⋒ ⌜v1 = v2⌝)
+    _else_entry (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2) ⋒ ⌜v1 ≠ v2⌝)
     (if_eq_branch_step rs1 rs2 v1 v2 then_body else_body base P hP ht_small)
 
 /-- Full N-exit CPS specification for if_eq, using cpsNBranch_merge.
@@ -519,12 +432,12 @@ theorem if_eq_spec_n (rs1 rs2 : Reg) (v1 v2 : Word)
     let end_off  : BitVec 21 := BitVec.ofNat 21 (4 * else_body.length + 4)
     let bne_instr := Instr.BNE rs1 rs2 else_off
     let jal_instr := Instr.JAL .x0 end_off
-    let pre := (base ↦ᵢ bne_instr) ** (then_exit ↦ᵢ jal_instr) ** (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2))
-    (cpsTriple then_entry then_exit
+    let cr := CodeReq.singleton base bne_instr |>.union (CodeReq.singleton then_exit jal_instr)
+    (cpsTriple then_entry then_exit cr
       (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2) ⋒ ⌜v1 = v2⌝) Q) →
-    (cpsTriple else_entry else_exit
+    (cpsTriple else_entry else_exit cr
       (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2) ⋒ ⌜v1 ≠ v2⌝) Q) →
-    cpsTriple base exit_ pre Q := by
+    cpsTriple base exit_ cr (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2)) Q := by
   exact if_eq_spec rs1 rs2 v1 v2 then_body else_body base P Q hP hQ ht_small he_small
 
 -- ============================================================================

@@ -16,6 +16,51 @@ local macro "bv_addr" : tactic =>
 -- Full 256-bit OR spec
 -- ============================================================================
 
+/-- Code requirement for the 256-bit EVM OR operation (RV32). -/
+abbrev evm_or_code (base : Addr) : CodeReq :=
+  -- Limb 0 code
+  CodeReq.union (CodeReq.singleton base (.LW .x7 .x12 0))
+  (CodeReq.union (CodeReq.singleton (base + 4) (.LW .x6 .x12 32))
+  (CodeReq.union (CodeReq.singleton (base + 8) (.OR .x7 .x7 .x6))
+  (CodeReq.union (CodeReq.singleton (base + 12) (.SW .x12 .x7 32))
+  -- Limb 1 code
+  (CodeReq.union (CodeReq.singleton (base + 16) (.LW .x7 .x12 4))
+  (CodeReq.union (CodeReq.singleton (base + 20) (.LW .x6 .x12 36))
+  (CodeReq.union (CodeReq.singleton (base + 24) (.OR .x7 .x7 .x6))
+  (CodeReq.union (CodeReq.singleton (base + 28) (.SW .x12 .x7 36))
+  -- Limb 2 code
+  (CodeReq.union (CodeReq.singleton (base + 32) (.LW .x7 .x12 8))
+  (CodeReq.union (CodeReq.singleton (base + 36) (.LW .x6 .x12 40))
+  (CodeReq.union (CodeReq.singleton (base + 40) (.OR .x7 .x7 .x6))
+  (CodeReq.union (CodeReq.singleton (base + 44) (.SW .x12 .x7 40))
+  -- Limb 3 code
+  (CodeReq.union (CodeReq.singleton (base + 48) (.LW .x7 .x12 12))
+  (CodeReq.union (CodeReq.singleton (base + 52) (.LW .x6 .x12 44))
+  (CodeReq.union (CodeReq.singleton (base + 56) (.OR .x7 .x7 .x6))
+  (CodeReq.union (CodeReq.singleton (base + 60) (.SW .x12 .x7 44))
+  -- Limb 4 code
+  (CodeReq.union (CodeReq.singleton (base + 64) (.LW .x7 .x12 16))
+  (CodeReq.union (CodeReq.singleton (base + 68) (.LW .x6 .x12 48))
+  (CodeReq.union (CodeReq.singleton (base + 72) (.OR .x7 .x7 .x6))
+  (CodeReq.union (CodeReq.singleton (base + 76) (.SW .x12 .x7 48))
+  -- Limb 5 code
+  (CodeReq.union (CodeReq.singleton (base + 80) (.LW .x7 .x12 20))
+  (CodeReq.union (CodeReq.singleton (base + 84) (.LW .x6 .x12 52))
+  (CodeReq.union (CodeReq.singleton (base + 88) (.OR .x7 .x7 .x6))
+  (CodeReq.union (CodeReq.singleton (base + 92) (.SW .x12 .x7 52))
+  -- Limb 6 code
+  (CodeReq.union (CodeReq.singleton (base + 96) (.LW .x7 .x12 24))
+  (CodeReq.union (CodeReq.singleton (base + 100) (.LW .x6 .x12 56))
+  (CodeReq.union (CodeReq.singleton (base + 104) (.OR .x7 .x7 .x6))
+  (CodeReq.union (CodeReq.singleton (base + 108) (.SW .x12 .x7 56))
+  -- Limb 7 code
+  (CodeReq.union (CodeReq.singleton (base + 112) (.LW .x7 .x12 28))
+  (CodeReq.union (CodeReq.singleton (base + 116) (.LW .x6 .x12 60))
+  (CodeReq.union (CodeReq.singleton (base + 120) (.OR .x7 .x7 .x6))
+  (CodeReq.union (CodeReq.singleton (base + 124) (.SW .x12 .x7 60))
+  -- ADDI
+   (CodeReq.singleton (base + 128) (.ADDI .x12 .x12 32)))))))))))))))))))))))))))))))))
+
 set_option maxHeartbeats 6400000 in
 /-- Full 256-bit EVM OR: composes 8 per-limb OR specs + sp adjustment.
     33 instructions total. Pops 2 stack words (A at sp, B at sp+32),
@@ -25,49 +70,20 @@ theorem evm_or_spec (sp base : Addr)
     (b0 b1 b2 b3 b4 b5 b6 b7 : Word)
     (v7 v6 : Word)
     (hvalid : ValidMemRange sp 16) :
-    let code :=
-      -- Limb 0 code
-      (base ↦ᵢ .LW .x7 .x12 0) ** ((base + 4) ↦ᵢ .LW .x6 .x12 32) **
-      ((base + 8) ↦ᵢ .OR .x7 .x7 .x6) ** ((base + 12) ↦ᵢ .SW .x12 .x7 32) **
-      -- Limb 1 code
-      ((base + 16) ↦ᵢ .LW .x7 .x12 4) ** ((base + 20) ↦ᵢ .LW .x6 .x12 36) **
-      ((base + 24) ↦ᵢ .OR .x7 .x7 .x6) ** ((base + 28) ↦ᵢ .SW .x12 .x7 36) **
-      -- Limb 2 code
-      ((base + 32) ↦ᵢ .LW .x7 .x12 8) ** ((base + 36) ↦ᵢ .LW .x6 .x12 40) **
-      ((base + 40) ↦ᵢ .OR .x7 .x7 .x6) ** ((base + 44) ↦ᵢ .SW .x12 .x7 40) **
-      -- Limb 3 code
-      ((base + 48) ↦ᵢ .LW .x7 .x12 12) ** ((base + 52) ↦ᵢ .LW .x6 .x12 44) **
-      ((base + 56) ↦ᵢ .OR .x7 .x7 .x6) ** ((base + 60) ↦ᵢ .SW .x12 .x7 44) **
-      -- Limb 4 code
-      ((base + 64) ↦ᵢ .LW .x7 .x12 16) ** ((base + 68) ↦ᵢ .LW .x6 .x12 48) **
-      ((base + 72) ↦ᵢ .OR .x7 .x7 .x6) ** ((base + 76) ↦ᵢ .SW .x12 .x7 48) **
-      -- Limb 5 code
-      ((base + 80) ↦ᵢ .LW .x7 .x12 20) ** ((base + 84) ↦ᵢ .LW .x6 .x12 52) **
-      ((base + 88) ↦ᵢ .OR .x7 .x7 .x6) ** ((base + 92) ↦ᵢ .SW .x12 .x7 52) **
-      -- Limb 6 code
-      ((base + 96) ↦ᵢ .LW .x7 .x12 24) ** ((base + 100) ↦ᵢ .LW .x6 .x12 56) **
-      ((base + 104) ↦ᵢ .OR .x7 .x7 .x6) ** ((base + 108) ↦ᵢ .SW .x12 .x7 56) **
-      -- Limb 7 code
-      ((base + 112) ↦ᵢ .LW .x7 .x12 28) ** ((base + 116) ↦ᵢ .LW .x6 .x12 60) **
-      ((base + 120) ↦ᵢ .OR .x7 .x7 .x6) ** ((base + 124) ↦ᵢ .SW .x12 .x7 60) **
-      -- ADDI
-      ((base + 128) ↦ᵢ .ADDI .x12 .x12 32)
-    cpsTriple base (base + 132)
-      (code **
-       -- Registers + memory
-       (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) **
+    let code := evm_or_code base
+    cpsTriple base (base + 132) code
+      -- Registers + memory
+      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) **
        (sp ↦ₘ a0) ** ((sp + 4) ↦ₘ a1) ** ((sp + 8) ↦ₘ a2) ** ((sp + 12) ↦ₘ a3) **
        ((sp + 16) ↦ₘ a4) ** ((sp + 20) ↦ₘ a5) ** ((sp + 24) ↦ₘ a6) ** ((sp + 28) ↦ₘ a7) **
        ((sp + 32) ↦ₘ b0) ** ((sp + 36) ↦ₘ b1) ** ((sp + 40) ↦ₘ b2) ** ((sp + 44) ↦ₘ b3) **
        ((sp + 48) ↦ₘ b4) ** ((sp + 52) ↦ₘ b5) ** ((sp + 56) ↦ₘ b6) ** ((sp + 60) ↦ₘ b7))
-      (code **
-       -- Registers + memory (updated)
-       (.x12 ↦ᵣ (sp + 32)) ** (.x7 ↦ᵣ (a7 ||| b7)) ** (.x6 ↦ᵣ b7) **
+      -- Registers + memory (updated)
+      ((.x12 ↦ᵣ (sp + 32)) ** (.x7 ↦ᵣ (a7 ||| b7)) ** (.x6 ↦ᵣ b7) **
        (sp ↦ₘ a0) ** ((sp + 4) ↦ₘ a1) ** ((sp + 8) ↦ₘ a2) ** ((sp + 12) ↦ₘ a3) **
        ((sp + 16) ↦ₘ a4) ** ((sp + 20) ↦ₘ a5) ** ((sp + 24) ↦ₘ a6) ** ((sp + 28) ↦ₘ a7) **
        ((sp + 32) ↦ₘ (a0 ||| b0)) ** ((sp + 36) ↦ₘ (a1 ||| b1)) ** ((sp + 40) ↦ₘ (a2 ||| b2)) ** ((sp + 44) ↦ₘ (a3 ||| b3)) **
        ((sp + 48) ↦ₘ (a4 ||| b4)) ** ((sp + 52) ↦ₘ (a5 ||| b5)) ** ((sp + 56) ↦ₘ (a6 ||| b6)) ** ((sp + 60) ↦ₘ (a7 ||| b7))) := by
-  -- Compose 8 per-limb OR specs + ADDI via runBlock
   have L0 := or_limb_spec 0 32 sp a0 b0 v7 v6 base (by validMem) (by validMem)
   have L1 := or_limb_spec 4 36 sp a1 b1 (a0 ||| b0) b0 (base + 16) (by validMem) (by validMem)
   have L2 := or_limb_spec 8 40 sp a2 b2 (a1 ||| b1) b1 (base + 32) (by validMem) (by validMem)
@@ -76,8 +92,8 @@ theorem evm_or_spec (sp base : Addr)
   have L5 := or_limb_spec 20 52 sp a5 b5 (a4 ||| b4) b4 (base + 80) (by validMem) (by validMem)
   have L6 := or_limb_spec 24 56 sp a6 b6 (a5 ||| b5) b5 (base + 96) (by validMem) (by validMem)
   have L7 := or_limb_spec 28 60 sp a7 b7 (a6 ||| b6) b6 (base + 112) (by validMem) (by validMem)
-  have Laddi := addi_spec_gen_same .x12 sp 32 (base + 128) (by nofun)
-  runBlock L0 L1 L2 L3 L4 L5 L6 L7 Laddi
+  have L8 := addi_spec_gen_same .x12 sp 32 (base + 128) (by nofun)
+  runBlock L0 L1 L2 L3 L4 L5 L6 L7 L8
 
 -- ============================================================================
 -- Stack-level OR spec
@@ -88,41 +104,13 @@ set_option maxHeartbeats 6400000 in
 theorem evm_or_stack_spec (sp base : Addr)
     (a b : EvmWord) (v7 v6 : Word)
     (hvalid : ValidMemRange sp 16) :
-    let code :=
-      -- Limb 0 code
-      (base ↦ᵢ .LW .x7 .x12 0) ** ((base + 4) ↦ᵢ .LW .x6 .x12 32) **
-      ((base + 8) ↦ᵢ .OR .x7 .x7 .x6) ** ((base + 12) ↦ᵢ .SW .x12 .x7 32) **
-      -- Limb 1 code
-      ((base + 16) ↦ᵢ .LW .x7 .x12 4) ** ((base + 20) ↦ᵢ .LW .x6 .x12 36) **
-      ((base + 24) ↦ᵢ .OR .x7 .x7 .x6) ** ((base + 28) ↦ᵢ .SW .x12 .x7 36) **
-      -- Limb 2 code
-      ((base + 32) ↦ᵢ .LW .x7 .x12 8) ** ((base + 36) ↦ᵢ .LW .x6 .x12 40) **
-      ((base + 40) ↦ᵢ .OR .x7 .x7 .x6) ** ((base + 44) ↦ᵢ .SW .x12 .x7 40) **
-      -- Limb 3 code
-      ((base + 48) ↦ᵢ .LW .x7 .x12 12) ** ((base + 52) ↦ᵢ .LW .x6 .x12 44) **
-      ((base + 56) ↦ᵢ .OR .x7 .x7 .x6) ** ((base + 60) ↦ᵢ .SW .x12 .x7 44) **
-      -- Limb 4 code
-      ((base + 64) ↦ᵢ .LW .x7 .x12 16) ** ((base + 68) ↦ᵢ .LW .x6 .x12 48) **
-      ((base + 72) ↦ᵢ .OR .x7 .x7 .x6) ** ((base + 76) ↦ᵢ .SW .x12 .x7 48) **
-      -- Limb 5 code
-      ((base + 80) ↦ᵢ .LW .x7 .x12 20) ** ((base + 84) ↦ᵢ .LW .x6 .x12 52) **
-      ((base + 88) ↦ᵢ .OR .x7 .x7 .x6) ** ((base + 92) ↦ᵢ .SW .x12 .x7 52) **
-      -- Limb 6 code
-      ((base + 96) ↦ᵢ .LW .x7 .x12 24) ** ((base + 100) ↦ᵢ .LW .x6 .x12 56) **
-      ((base + 104) ↦ᵢ .OR .x7 .x7 .x6) ** ((base + 108) ↦ᵢ .SW .x12 .x7 56) **
-      -- Limb 7 code
-      ((base + 112) ↦ᵢ .LW .x7 .x12 28) ** ((base + 116) ↦ᵢ .LW .x6 .x12 60) **
-      ((base + 120) ↦ᵢ .OR .x7 .x7 .x6) ** ((base + 124) ↦ᵢ .SW .x12 .x7 60) **
-      -- ADDI
-      ((base + 128) ↦ᵢ .ADDI .x12 .x12 32)
-    cpsTriple base (base + 132)
-      (code **
-       -- Registers + memory
-       (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) **
+    let code := evm_or_code base
+    cpsTriple base (base + 132) code
+      -- Registers + memory
+      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) **
        evmWordIs sp a ** evmWordIs (sp + 32) b)
-      (code **
-       -- Registers + memory (updated)
-       (.x12 ↦ᵣ (sp + 32)) ** (.x7 ↦ᵣ (a.getLimb 7 ||| b.getLimb 7)) ** (.x6 ↦ᵣ b.getLimb 7) **
+      -- Registers + memory (updated)
+      ((.x12 ↦ᵣ (sp + 32)) ** (.x7 ↦ᵣ (a.getLimb 7 ||| b.getLimb 7)) ** (.x6 ↦ᵣ b.getLimb 7) **
        evmWordIs sp a ** evmWordIs (sp + 32) (a ||| b)) := by
   have h_main := evm_or_spec sp base
     (a.getLimb 0) (a.getLimb 1) (a.getLimb 2) (a.getLimb 3)

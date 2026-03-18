@@ -218,11 +218,38 @@ theorem execInstrBr_jal_x0 (s : MachineState) (off : BitVec 21) :
     Since x0 writes are dropped, JAL x0 just updates PC. -/
 @[spec_gen_rv64] theorem jal_x0_spec_gen (offset : BitVec 21) (addr : Addr) :
     cpsTriple addr (addr + signExtend21 offset)
-      (addr ↦ᵢ .JAL .x0 offset)
-      (addr ↦ᵢ .JAL .x0 offset) :=
+      (CodeReq.singleton addr (.JAL .x0 offset))
+      empAssertion
+      empAssertion :=
   generic_nop_spec (.JAL .x0 offset) addr (addr + signExtend21 offset)
     (by intro s hpc; simp [execInstrBr, MachineState.setReg, hpc])
     (by intro s hfetch; exact step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl))
+
+/-- JALR x0 executes as a pure PC update (x0 write is dropped). -/
+theorem execInstrBr_jalr_x0 (s : MachineState) (rs1 : Reg) (off : BitVec 12) :
+    execInstrBr s (Instr.JALR .x0 rs1 off) = s.setPC ((s.getReg rs1 + signExtend12 off) &&& ~~~1) := by
+  simp [execInstrBr, MachineState.setReg, MachineState.setPC]
+
+/-- JALR x0 spec: pure PC jump to (rs1 + sext(offset)) & ~1, no register changes. -/
+@[spec_gen_rv64] theorem jalr_x0_spec_gen (rs1 : Reg) (v : Word)
+    (offset : BitVec 12) (addr : Addr) :
+    cpsTriple addr ((v + signExtend12 offset) &&& ~~~1)
+      (CodeReq.singleton addr (.JALR .x0 rs1 offset))
+      (rs1 ↦ᵣ v)
+      (rs1 ↦ᵣ v) := by
+  intro R hR s hcr hPR hpc; subst hpc
+  have hfetch : s.code s.pc = some (.JALR .x0 rs1 offset) :=
+    (CodeReq.singleton_satisfiedBy s.pc (.JALR .x0 rs1 offset) s).mp hcr
+  have hrs1 : s.getReg rs1 = v :=
+    (holdsFor_regIs _ _ s).mp (holdsFor_sepConj_elim_left hPR)
+  have hexec : execInstrBr s (.JALR .x0 rs1 offset) = s.setPC ((v + signExtend12 offset) &&& ~~~1) := by
+    rw [execInstrBr_jalr_x0, hrs1]
+  have hstep : step s = some (execInstrBr s (.JALR .x0 rs1 offset)) :=
+    step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl)
+  refine ⟨1, s.setPC ((v + signExtend12 offset) &&& ~~~1), ?_, rfl, ?_⟩
+  · show (step s).bind (stepN 0) = some _
+    rw [hstep, hexec]; rfl
+  · exact holdsFor_pcFree_setPC (pcFree_sepConj (by pcFree) hR) _ _ hPR
 
 -- ============================================================================
 -- CPS specification for if_eq
@@ -260,11 +287,11 @@ theorem if_eq_branch_step (rs1 rs2 : Reg) (v1 v2 : Word)
     let then_entry := base + 4
     let else_entry := base + 4 + BitVec.ofNat 64 (4 * then_body.length) + 4
     let pre := (base ↦ᵢ bne_instr) ** (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2))
-    cpsBranch base pre
+    cpsBranch base CodeReq.empty pre
       then_entry ((base ↦ᵢ bne_instr) ** (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2) ⋒ ⌜v1 = v2⌝))
       else_entry ((base ↦ᵢ bne_instr) ** (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2) ⋒ ⌜v1 ≠ v2⌝)) := by
   simp only
-  intro R hR s hPR hpc; subst hpc
+  intro R hR s _hcr hPR hpc; subst hpc
   -- Extract instrAt from the precondition
   have hfetch : s.code s.pc = some (Instr.BNE rs1 rs2 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4))) :=
     (holdsFor_instrAt _ _ s).mp (holdsFor_sepConj_elim_left (holdsFor_sepConj_elim_left hPR))
@@ -342,13 +369,13 @@ theorem if_eq_spec (rs1 rs2 : Reg) (v1 v2 : Word)
     let bne_instr := Instr.BNE rs1 rs2 else_off
     let jal_instr := Instr.JAL .x0 end_off
     let pre := (base ↦ᵢ bne_instr) ** (then_exit ↦ᵢ jal_instr) ** (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2))
-    (cpsTriple then_entry then_exit
+    (cpsTriple then_entry then_exit CodeReq.empty
       (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2) ⋒ ⌜v1 = v2⌝) Q) →
-    (cpsTriple else_entry else_exit
+    (cpsTriple else_entry else_exit CodeReq.empty
       (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2) ⋒ ⌜v1 ≠ v2⌝) Q) →
-    cpsTriple base exit_ pre Q := by
+    cpsTriple base exit_ CodeReq.empty pre Q := by
   simp only
-  intro hthen helse R hR s hPR hpc; subst hpc
+  intro hthen helse R hR s _hcr hPR hpc; subst hpc
   -- hPR : ((bne ** (jal ** aAnd)) ** R).holdsFor s
   -- Extract instrAt facts
   have hfetch_bne : s.code s.pc = some (Instr.BNE rs1 rs2 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4))) :=
@@ -401,7 +428,7 @@ theorem if_eq_spec (rs1 rs2 : Reg) (v1 v2 : Word)
         aAnd_mono_right (aAnd_mono_right (aAnd_pure_right_of_true heq)) h1' haand_h, hframe_h⟩
     -- Apply then-body triple
     obtain ⟨k2, s2, hstep2, hpc2, hQR2⟩ := hthen _ hframe_pcfree
-      (s.setPC (s.pc + 4)) hPR1' rfl
+      (s.setPC (s.pc + 4)) (CodeReq.empty_satisfiedBy _) hPR1' rfl
     -- hQR2 : (Q ** (bne ** jal ** R)).holdsFor s2 at s2.pc = then_exit
     -- Rearrange for JAL: (Q ** (bne ** (jal ** R))) -> (jal ** (bne ** Q ** R))
     have hassert_perm2 :
@@ -415,16 +442,29 @@ theorem if_eq_spec (rs1 rs2 : Reg) (v1 v2 : Word)
       obtain ⟨hp, hcompat, hpq⟩ := hQR2
       exact ⟨hp, hcompat, hassert_perm2 ▸ hpq⟩
     -- Apply JAL spec
-    have hjal_pcfree : ((s.pc ↦ᵢ Instr.BNE rs1 rs2 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4))) ** Q ** R).pcFree :=
-      pcFree_sepConj (pcFree_instrAt _ _) (pcFree_sepConj hQ hR)
+    -- Frame for jal_x0_spec_gen: the full (jal ** bne ** Q ** R) conjunction
+    have hjal_pcfree : (((s.pc + 4 + BitVec.ofNat 64 (4 * then_body.length)) ↦ᵢ Instr.JAL Reg.x0 (BitVec.ofNat 21 (4 * else_body.length + 4))) **
+        ((s.pc ↦ᵢ Instr.BNE rs1 rs2 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4))) ** Q ** R)).pcFree :=
+      pcFree_sepConj (pcFree_instrAt _ _) (pcFree_sepConj (pcFree_instrAt _ _) (pcFree_sepConj hQ hR))
+    have hjal_cr : (CodeReq.singleton (s.pc + 4 + BitVec.ofNat 64 (4 * then_body.length))
+        (Instr.JAL Reg.x0 (BitVec.ofNat 21 (4 * else_body.length + 4)))).SatisfiedBy s2 :=
+      instrAt_singleton_satisfiedBy _ _ _ (holdsFor_sepConj_elim_left hQR2')
+    -- Convert hQR2' for jal_x0_spec_gen (empAssertion pre/post; frame is jal ** bne ** Q ** R)
+    have hQR2_emp : (empAssertion **
+        (((s.pc + 4 + BitVec.ofNat 64 (4 * then_body.length)) ↦ᵢ Instr.JAL Reg.x0 (BitVec.ofNat 21 (4 * else_body.length + 4))) **
+          ((s.pc ↦ᵢ Instr.BNE rs1 rs2 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4))) ** Q ** R))).holdsFor s2 := by
+      simp only [sepConj_emp_left']; exact hQR2'
     obtain ⟨k3, s3, hstep3, hpc3, hQR3⟩ := jal_x0_spec_gen
       (BitVec.ofNat 21 (4 * else_body.length + 4))
       (s.pc + 4 + BitVec.ofNat 64 (4 * then_body.length))
-      _ hjal_pcfree s2 hQR2' hpc2
-    -- hQR3 : (jal ** (bne ** Q ** R)).holdsFor s3
-    -- Extract (Q ** R) by dropping the two instrAt's
+      _ hjal_pcfree s2 hjal_cr hQR2_emp hpc2
+    -- hQR3 : (empAssertion ** (jal ** (bne ** Q ** R))).holdsFor s3
+    -- Extract (Q ** R) by stripping empAssertion then two instrAt's
+    have hQR3_flat : (((s.pc + 4 + BitVec.ofNat 64 (4 * then_body.length)) ↦ᵢ Instr.JAL Reg.x0 (BitVec.ofNat 21 (4 * else_body.length + 4))) **
+        ((s.pc ↦ᵢ Instr.BNE rs1 rs2 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4))) ** Q ** R)).holdsFor s3 := by
+      simp only [sepConj_emp_left'] at hQR3; exact hQR3
     have hQR3' : (Q ** R).holdsFor s3 :=
-      holdsFor_sepConj_elim_right (holdsFor_sepConj_elim_right hQR3)
+      holdsFor_sepConj_elim_right (holdsFor_sepConj_elim_right hQR3_flat)
     -- The exit address: then_exit + signExtend21(end_off) = exit_
     have hexit : (s.pc + 4 + BitVec.ofNat 64 (4 * then_body.length)) + signExtend21 (BitVec.ofNat 21 (4 * else_body.length + 4)) =
         s.pc + BitVec.ofNat 64 (4 * (if_eq rs1 rs2 then_body else_body).length) := by
@@ -464,7 +504,7 @@ theorem if_eq_spec (rs1 rs2 : Reg) (v1 v2 : Word)
     -- Apply else-body triple with frame = (bne ** jal ** R)
     obtain ⟨k2, s2, hstep2, hpc2, hQR2⟩ := helse _ hframe_pcfree
       (s.setPC (s.pc + signExtend13 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4))))
-      hPR1' (by simp [MachineState.setPC]; exact haddr)
+      (CodeReq.empty_satisfiedBy _) hPR1' (by simp [MachineState.setPC]; exact haddr)
     -- hQR2 : (Q ** (bne ** jal ** R)).holdsFor s2
     -- Extract (Q ** R) from (Q ** (bne ** (jal ** R)))
     have hassert_else :
@@ -501,11 +541,11 @@ theorem if_eq_branch_step_n (rs1 rs2 : Reg) (v1 v2 : Word)
     let then_entry := base + 4
     let else_entry := base + 4 + BitVec.ofNat 64 (4 * then_body.length) + 4
     let pre := (base ↦ᵢ bne_instr) ** (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2))
-    cpsNBranch base pre
+    cpsNBranch base CodeReq.empty pre
       [ (then_entry, (base ↦ᵢ bne_instr) ** (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2) ⋒ ⌜v1 = v2⌝)),
         (else_entry, (base ↦ᵢ bne_instr) ** (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2) ⋒ ⌜v1 ≠ v2⌝)) ] := by
   simp only
-  exact cpsBranch_to_cpsNBranch _ _ _ _ _ _
+  exact cpsBranch_to_cpsNBranch _ _ _ _ _ _ _
     (if_eq_branch_step rs1 rs2 v1 v2 then_body else_body base P hP ht_small)
 
 /-- Full N-exit CPS specification for if_eq, using cpsNBranch_merge.
@@ -531,11 +571,11 @@ theorem if_eq_spec_n (rs1 rs2 : Reg) (v1 v2 : Word)
     let bne_instr := Instr.BNE rs1 rs2 else_off
     let jal_instr := Instr.JAL .x0 end_off
     let pre := (base ↦ᵢ bne_instr) ** (then_exit ↦ᵢ jal_instr) ** (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2))
-    (cpsTriple then_entry then_exit
+    (cpsTriple then_entry then_exit CodeReq.empty
       (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2) ⋒ ⌜v1 = v2⌝) Q) →
-    (cpsTriple else_entry else_exit
+    (cpsTriple else_entry else_exit CodeReq.empty
       (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2) ⋒ ⌜v1 ≠ v2⌝) Q) →
-    cpsTriple base exit_ pre Q := by
+    cpsTriple base exit_ CodeReq.empty pre Q := by
   exact if_eq_spec rs1 rs2 v1 v2 then_body else_body base P Q hP hQ ht_small he_small
 
 -- ============================================================================

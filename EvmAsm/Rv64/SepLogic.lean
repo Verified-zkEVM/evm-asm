@@ -13,6 +13,7 @@
 -/
 
 import EvmAsm.Rv64.Basic
+import EvmAsm.Rv64.Execution
 
 namespace EvmAsm.Rv64
 
@@ -1258,6 +1259,36 @@ theorem sepConj_mono {P P' Q Q' : Assertion} (hp : ∀ h, P h → P' h) (hq : �
   exact sepConj_mono_right hq h (sepConj_mono_left hp h hpq)
 
 -- ============================================================================
+-- Pure-fact stripping helpers for sepConj chains
+-- ============================================================================
+
+/-- Strip a pure fact at depth 2: A ** B ** ⌜P⌝ → A ** B -/
+theorem sepConj_strip_pure_end2 (A B : Assertion) (P : Prop) :
+    ∀ h, (A ** B ** ⌜P⌝) h → (A ** B) h :=
+  fun h hp => sepConj_mono_right
+    (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1) h hp
+
+/-- Strip a pure fact at depth 3: A ** B ** C ** ⌜P⌝ → A ** B ** C -/
+theorem sepConj_strip_pure_end3 (A B C : Assertion) (P : Prop) :
+    ∀ h, (A ** B ** C ** ⌜P⌝) h → (A ** B ** C) h :=
+  fun h hp => sepConj_mono_right (sepConj_mono_right
+    (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1)) h hp
+
+/-- Strip a pure fact at depth 3 (middle position): A ** B ** C ** ⌜P⌝ ** D → A ** B ** C ** D -/
+theorem sepConj_strip_pure_depth3 (A B C D : Assertion) (P : Prop) :
+    ∀ h, (A ** B ** C ** ⌜P⌝ ** D) h → (A ** B ** C ** D) h :=
+  fun h hp => sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+    (fun hd hpd => ((sepConj_pure_left P D hd).1 hpd).2))) h hp
+
+/-- Extract the pure fact at depth 3: A ** B ** C ** ⌜P⌝ → P -/
+theorem sepConj_extract_pure_end3 (A B C : Assertion) (P : Prop) :
+    ∀ h, (A ** B ** C ** ⌜P⌝) h → P :=
+  fun h hp => by
+    obtain ⟨_, _, _, _, _, h2⟩ := hp
+    obtain ⟨_, _, _, _, _, h3⟩ := h2
+    exact ((sepConj_pure_right _ _ _).1 h3).2
+
+-- ============================================================================
 -- CompatibleWith decomposition through unions
 -- ============================================================================
 
@@ -1795,6 +1826,14 @@ def programAt : List (Addr × Instr) → Assertion
   | [] => empAssertion
   | (a, i) :: rest => (instrAt a i) ** (programAt rest)
 
+/-- Reassociate and fold address literal additions:
+    `(a + BitVec.ofNat w n) + BitVec.ofNat w m = a + BitVec.ofNat w (n + m)`.
+    Used with `OfNat.ofNat` unfolding to normalize addresses in progAt proofs. -/
+theorem bv_add_ofNat_assoc {w : Nat} (a : BitVec w) (n m : Nat) :
+    (a + BitVec.ofNat w n) + BitVec.ofNat w m = a + BitVec.ofNat w (n + m) := by
+  rw [BitVec.add_assoc]; congr 1
+  apply BitVec.eq_of_toNat_eq; simp [BitVec.toNat_add, BitVec.toNat_ofNat]
+
 /-- Convert a program (List Instr) at a base address to address-instruction pairs.
     Each instruction occupies 4 bytes. -/
 def progIndexed (base : Addr) : List Instr → List (Addr × Instr)
@@ -1938,6 +1977,323 @@ theorem pcFree_progAt (base : Addr) (prog : List Instr) : (progAt base prog).pcF
   pcFree_programAt (progIndexed base prog)
 
 instance : Assertion.PCFree (progAt base prog) := ⟨pcFree_progAt base prog⟩
+
+-- ============================================================================
+-- CodeReq: persistent code side-condition (for issue #35)
+-- ============================================================================
+
+/-- A code requirement maps addresses to optional instructions.
+    Used as a side-condition in cpsTriple instead of linear instrAt assertions.
+    Unlike instrAt (which is linear), CodeReq is persistent/checked non-consumptively. -/
+def CodeReq := Addr → Option Instr
+
+namespace CodeReq
+
+/-- Empty code requirement (satisfies everything). -/
+def empty : CodeReq := fun _ => none
+
+/-- Singleton code requirement: exactly one instruction at one address. -/
+def singleton (a : Addr) (i : Instr) : CodeReq :=
+  fun a' => if a' == a then some i else none
+
+/-- Union of two code requirements (left-biased). -/
+def union (cr1 cr2 : CodeReq) : CodeReq :=
+  fun a => match cr1 a with | some i => some i | none => cr2 a
+
+/-- A CodeReq is satisfied by a machine state if all required instructions are present. -/
+def SatisfiedBy (cr : CodeReq) (s : MachineState) : Prop :=
+  ∀ a i, cr a = some i → s.code a = some i
+
+/-- Build a CodeReq from a list of address-instruction pairs. -/
+def ofIndexed (pairs : List (Addr × Instr)) : CodeReq :=
+  pairs.foldl (fun cr (ai : Addr × Instr) => cr.union (singleton ai.1 ai.2)) empty
+
+/-- Build a CodeReq from a program at a base address. -/
+def ofProg (base : Addr) (prog : List Instr) : CodeReq :=
+  ofIndexed (progIndexed base prog)
+
+-- ---------------------------------------------------------------------------
+-- Structural lemmas for ofProg / ofIndexed
+-- ---------------------------------------------------------------------------
+
+theorem union_assoc (cr1 cr2 cr3 : CodeReq) :
+    (cr1.union cr2).union cr3 = cr1.union (cr2.union cr3) := by
+  funext a; simp only [union]; cases cr1 a <;> rfl
+
+theorem union_empty_left (cr : CodeReq) : empty.union cr = cr := by
+  funext a; simp [union, empty]
+
+theorem union_empty_right (cr : CodeReq) : cr.union empty = cr := by
+  funext a; simp only [union, empty]; cases cr a <;> rfl
+
+private theorem ofIndexed_foldl_acc (acc : CodeReq) (ps : List (Addr × Instr)) :
+    ps.foldl (fun cr (ai : Addr × Instr) => cr.union (singleton ai.1 ai.2)) acc =
+    acc.union (ps.foldl (fun cr (ai : Addr × Instr) => cr.union (singleton ai.1 ai.2)) empty) := by
+  induction ps generalizing acc with
+  | nil => exact (union_empty_right acc).symm
+  | cons p ps ih =>
+    simp only [List.foldl]
+    rw [ih, union_assoc]; congr 1
+    rw [show empty.union (singleton p.1 p.2) = singleton p.1 p.2 from union_empty_left _]
+    exact (ih (singleton p.1 p.2)).symm
+
+theorem ofIndexed_cons (p : Addr × Instr) (ps : List (Addr × Instr)) :
+    ofIndexed (p :: ps) = (singleton p.1 p.2).union (ofIndexed ps) := by
+  simp only [ofIndexed, List.foldl, union_empty_left]
+  exact ofIndexed_foldl_acc (singleton p.1 p.2) ps
+
+theorem ofProg_cons (base : Addr) (i : Instr) (rest : List Instr) :
+    ofProg base (i :: rest) = (singleton base i).union (ofProg (base + 4) rest) := by
+  simp only [ofProg, progIndexed]; exact ofIndexed_cons (base, i) (progIndexed (base + 4) rest)
+
+theorem ofProg_nil (base : Addr) : ofProg base [] = empty := rfl
+
+/-- If an address doesn't match any instruction position in a program block,
+    the ofProg CodeReq returns none at that address. -/
+theorem ofProg_none_range (base : Addr) (prog : List Instr) (a : Addr)
+    (h : ∀ k : Nat, k < prog.length → a ≠ base + BitVec.ofNat 64 (4 * k)) :
+    ofProg base prog a = none := by
+  induction prog generalizing base with
+  | nil => simp [ofProg_nil, empty]
+  | cons i rest ih =>
+    rw [ofProg_cons]; simp only [union, singleton]
+    have hne : ¬(a == base) = true := by
+      rw [beq_iff_eq]
+      have := h 0 (by simp [List.length])
+      simp [BitVec.ofNat] at this; exact this
+    simp [hne]
+    apply ih (base + 4) (fun k hk => by
+      have h' := h (k + 1) (by simp [List.length]; omega)
+      intro heq; apply h'; rw [heq]; bv_omega)
+
+end CodeReq
+
+-- ============================================================================
+-- CodeReq lemmas
+-- ============================================================================
+
+/-- Two code requirements are disjoint if they never map the same address to an instruction. -/
+def CodeReq.Disjoint (cr1 cr2 : CodeReq) : Prop :=
+  ∀ a, cr1 a = none ∨ cr2 a = none
+
+/-- Singleton CodeReqs at different addresses are disjoint. -/
+theorem CodeReq.Disjoint.singleton {a1 a2 : Addr} (h : a1 ≠ a2)
+    (i1 i2 : Instr) : CodeReq.Disjoint (CodeReq.singleton a1 i1) (CodeReq.singleton a2 i2) := by
+  intro a
+  simp only [CodeReq.singleton]
+  cases hb1 : a == a1 with
+  | false => left; simp [hb1]
+  | true =>
+    right
+    rw [beq_iff_eq] at hb1
+    cases hb2 : a == a2 with
+    | false => simp [hb2]
+    | true =>
+      rw [beq_iff_eq] at hb2
+      exact absurd (hb1 ▸ hb2) h
+
+/-- The empty CodeReq is disjoint from any CodeReq. -/
+theorem CodeReq.Disjoint.empty_left (cr : CodeReq) : CodeReq.Disjoint CodeReq.empty cr :=
+  fun _ => Or.inl rfl
+
+/-- Any CodeReq is disjoint from the empty CodeReq. -/
+theorem CodeReq.Disjoint.empty_right (cr : CodeReq) : CodeReq.Disjoint cr CodeReq.empty :=
+  fun _ => Or.inr rfl
+
+/-- If cr1 is disjoint from both cr2 and cr3, then cr1 is disjoint from cr2.union cr3. -/
+theorem CodeReq.Disjoint.union_right {cr1 cr2 cr3 : CodeReq}
+    (hd1 : cr1.Disjoint cr2) (hd2 : cr1.Disjoint cr3) : cr1.Disjoint (cr2.union cr3) := by
+  intro a
+  rcases hd1 a with h1 | h2
+  · left; exact h1
+  · rcases hd2 a with h3 | h4
+    · left; exact h3
+    · right; simp [CodeReq.union, h2, h4]
+
+/-- If cr1 and cr2 are disjoint from cr3, then cr1.union cr2 is disjoint from cr3. -/
+theorem CodeReq.Disjoint.union_left {cr1 cr2 cr3 : CodeReq}
+    (hd1 : cr1.Disjoint cr3) (hd2 : cr2.Disjoint cr3) : (cr1.union cr2).Disjoint cr3 := by
+  intro a
+  rcases hd1 a with h1 | h3
+  · rcases hd2 a with h2 | h3'
+    · left; simp [CodeReq.union, h1, h2]
+    · right; exact h3'
+  · right; exact h3
+
+/-- Symmetry of CodeReq.Disjoint. -/
+theorem CodeReq.Disjoint.symm {cr1 cr2 : CodeReq} (hd : cr1.Disjoint cr2) :
+    cr2.Disjoint cr1 := fun a => (hd a).symm
+
+/-- Simplify CodeReq.union applied to a concrete address, when the head is a singleton.
+    This collapses `(singleton a i |> union · rest) a'` into an if-then-else
+    at the ite level rather than the match-over-ite level. -/
+theorem CodeReq.union_singleton_apply (a a' : Addr) (i : Instr) (rest : CodeReq) :
+    (CodeReq.union (CodeReq.singleton a i) rest) a' =
+      if a' == a then some i else rest a' := by
+  simp only [CodeReq.union, CodeReq.singleton]
+  split <;> simp_all
+
+/-- BEq of offset addresses: `(a + k1) == (a + k2) = (k1 == k2)`. -/
+theorem CodeReq.beq_base_offset (a : Addr) (k1 k2 : Addr) :
+    ((a + k1) == (a + k2)) = (k1 == k2) := by
+  rw [show (k1 == k2) = decide (k1 = k2) from rfl,
+      show ((a + k1) == (a + k2)) = decide (a + k1 = a + k2) from rfl]
+  congr 1; exact propext ⟨fun h => by bv_omega, fun h => by bv_omega⟩
+
+/-- BEq of (a + k) vs a: reduces to k == 0. -/
+theorem CodeReq.beq_offset_self_left (a : Addr) (k : Addr) :
+    ((a + k) == a) = (k == 0) := by
+  rw [show (k == (0 : Addr)) = decide (k = 0) from rfl,
+      show ((a + k) == a) = decide (a + k = a) from rfl]
+  congr 1; exact propext ⟨fun h => by bv_omega, fun h => by bv_omega⟩
+
+/-- BEq of a vs (a + k): reduces to k == 0. -/
+theorem CodeReq.beq_offset_self_right (a : Addr) (k : Addr) :
+    (a == (a + k)) = (k == 0) := by
+  rw [show (k == (0 : Addr)) = decide (k = 0) from rfl,
+      show (a == (a + k)) = decide (a = a + k) from rfl]
+  congr 1; exact propext ⟨fun h => by bv_omega, fun h => by bv_omega⟩
+
+/-- If head returns none, union falls through to tail. -/
+theorem CodeReq.union_none_left {head tail : CodeReq} {a : Addr}
+    (h : head a = none) : (head.union tail) a = tail a := by
+  simp [CodeReq.union, h]
+
+/-- Left child of a union is subsumed (unconditionally true, union is left-biased). -/
+theorem CodeReq.union_mono_left (cr1 cr2 : CodeReq) :
+    ∀ a i, cr1 a = some i → (cr1.union cr2) a = some i := by
+  intro a i h; simp [CodeReq.union, h]
+
+/-- Monotonicity in the tail of a union: if tail1 ⊆ tail2 then (head ∪ tail1) ⊆ (head ∪ tail2). -/
+theorem CodeReq.union_mono_tail {cr tail1 tail2 : CodeReq}
+    (h : ∀ a i, tail1 a = some i → tail2 a = some i) :
+    ∀ a i, (cr.union tail1) a = some i → (cr.union tail2) a = some i := by
+  intro a i hq
+  simp only [CodeReq.union] at hq ⊢
+  cases hc : cr a with
+  | none => simp [hc] at hq ⊢; exact h a i hq
+  | some j => simp [hc] at hq ⊢; exact hq
+
+/-- A singleton's only address can be found in a target CodeReq, if target maps that address
+    to the same instruction. Useful for proving singleton ⊆ target. -/
+theorem CodeReq.singleton_mono {a : Addr} {i : Instr} {cr : CodeReq}
+    (h : cr a = some i) :
+    ∀ a' i', CodeReq.singleton a i a' = some i' → cr a' = some i' := by
+  intro a' i' hq
+  simp only [CodeReq.singleton] at hq
+  split at hq
+  · next heq => rw [beq_iff_eq] at heq; subst heq; simp at hq; subst hq; exact h
+  · simp at hq
+
+/-- A singleton misses any address not equal to its own. -/
+theorem CodeReq.singleton_miss {a a' : Addr} {i : Instr}
+    (hne : a' ≠ a) :
+    (CodeReq.singleton a i) a' = none := by
+  simp [CodeReq.singleton, beq_eq_false_iff_ne.mpr hne]
+
+/-- Skip a non-matching head of a union: if head misses at a, we look at the tail. -/
+theorem CodeReq.union_skip {head tail : CodeReq} {a : Addr} {i : Instr}
+    (hne : head a = none) (htail : tail a = some i) :
+    (head.union tail) a = some i := by
+  simp [CodeReq.union, hne, htail]
+
+/-- Hit at the head of a union. -/
+theorem CodeReq.union_hit {head tail : CodeReq} {a : Addr} {i : Instr}
+    (hh : head a = some i) :
+    (head.union tail) a = some i := by
+  simp [CodeReq.union, hh]
+
+/-- Skip head of union: if head is disjoint from oldCr and oldCr ⊆ tail, then oldCr ⊆ union. -/
+theorem CodeReq.mono_union_right {oldCr head tail : CodeReq}
+    (hd : head.Disjoint oldCr)
+    (htail : ∀ a i, oldCr a = some i → tail a = some i) :
+    ∀ a i, oldCr a = some i → (head.union tail) a = some i := by
+  intro a i h
+  rcases hd a with h_head_none | h_old_none
+  · simp [CodeReq.union, h_head_none, htail a i h]
+  · simp [h_old_none] at h
+
+/-- Split a union oldCr: if both halves are subsumed by cr, the union is too. -/
+theorem CodeReq.union_split_mono {cr1 cr2 cr : CodeReq}
+    (h1 : ∀ a i, cr1 a = some i → cr a = some i)
+    (h2 : ∀ a i, cr2 a = some i → cr a = some i) :
+    ∀ a i, (cr1.union cr2) a = some i → cr a = some i := by
+  intro a i h
+  simp only [CodeReq.union] at h
+  cases ha : cr1 a with
+  | none => simp [ha] at h; exact h2 a i h
+  | some j => simp [ha] at h; subst h; exact h1 a j ha
+
+theorem CodeReq.singleton_get (a : Addr) (i : Instr) :
+    CodeReq.singleton a i a = some i := by
+  simp [CodeReq.singleton]
+
+theorem CodeReq.union_satisfiedBy (cr1 cr2 : CodeReq) (s : MachineState)
+    (hd : cr1.Disjoint cr2) :
+    (cr1.union cr2).SatisfiedBy s ↔ cr1.SatisfiedBy s ∧ cr2.SatisfiedBy s := by
+  simp only [CodeReq.SatisfiedBy, CodeReq.union]
+  constructor
+  · intro h
+    refine ⟨fun a i h1 => ?_, fun a i h2 => ?_⟩
+    · exact h a i (by simp only [h1])
+    · rcases hd a with h1_none | h2_none
+      · exact h a i (by simp only [h1_none]; exact h2)
+      · simp only [h2_none] at h2
+        exact absurd h2 (by simp)
+  · intro ⟨h1, h2⟩ a i hcr
+    cases ha : cr1 a with
+    | some j =>
+      simp only [ha] at hcr
+      exact hcr ▸ h1 a j ha
+    | none =>
+      simp only [ha] at hcr
+      exact h2 a i hcr
+
+/-- The empty CodeReq is satisfied by every state. -/
+theorem CodeReq.empty_satisfiedBy (s : MachineState) : CodeReq.empty.SatisfiedBy s :=
+  fun _ _ h => by simp [CodeReq.empty] at h
+
+/-- A singleton CodeReq is satisfied iff the state has the instruction at that address. -/
+theorem CodeReq.singleton_satisfiedBy (a : Addr) (i : Instr) (s : MachineState) :
+    (CodeReq.singleton a i).SatisfiedBy s ↔ s.code a = some i := by
+  constructor
+  · intro h; exact h a i (by simp [CodeReq.singleton])
+  · intro h a' i' hcr
+    simp only [CodeReq.singleton] at hcr
+    -- hcr : (if a' == a then some i else none) = some i'
+    cases heq : (a' == a) with
+    | false => simp [heq] at hcr
+    | true =>
+      simp [heq] at hcr
+      rw [beq_iff_eq] at heq
+      exact heq ▸ hcr ▸ h
+
+/-- An instrAt fact gives CodeReq.singleton satisfaction. -/
+theorem instrAt_singleton_satisfiedBy (a : Addr) (i : Instr) (s : MachineState)
+    (h : (instrAt a i).holdsFor s) : (CodeReq.singleton a i).SatisfiedBy s :=
+  (CodeReq.singleton_satisfiedBy a i s).mpr ((holdsFor_instrAt a i s).mp h)
+
+/-- Step preserves code (single step). -/
+theorem step_code_preserved (s s' : MachineState) (h : step s = some s') :
+    s'.code = s.code := code_step h
+
+/-- stepN preserves code (multiple steps). -/
+theorem stepN_code_preserved (k : Nat) (s s' : MachineState) (h : stepN k s = some s') :
+    s'.code = s.code := code_stepN h
+
+/-- CodeReq.SatisfiedBy is preserved by stepN. -/
+theorem CodeReq.SatisfiedBy_preserved (cr : CodeReq) (k : Nat) (s s' : MachineState)
+    (h : stepN k s = some s') (hcr : cr.SatisfiedBy s) : cr.SatisfiedBy s' := by
+  intro a i hcri
+  have hcode : s'.code = s.code := stepN_code_preserved k s s' h
+  rw [hcode]
+  exact hcr a i hcri
+
+/-- Monotonicity: if cr2 subsumes cr1, any state satisfying cr2 also satisfies cr1. -/
+theorem CodeReq.SatisfiedBy_mono {cr1 cr2 : CodeReq} (s : MachineState)
+    (hmono : ∀ a i, cr1 a = some i → cr2 a = some i)
+    (h : cr2.SatisfiedBy s) : cr1.SatisfiedBy s :=
+  fun a i hcr1 => h a i (hmono a i hcr1)
 
 -- ============================================================================
 -- Assertion-level equalities for AC normalization of sepConj
