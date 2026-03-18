@@ -14,6 +14,7 @@ import EvmAsm.Rv64.GenericSpecs
 import EvmAsm.Rv64.InstructionSpecs
 import EvmAsm.Rv64.SyscallSpecs
 import EvmAsm.Rv64.ControlFlow
+import EvmAsm.Rv64.Tactics.PerfTrace
 import EvmAsm.Rv64.Tactics.XPerm
 import EvmAsm.Rv64.Tactics.XSimp
 import EvmAsm.Rv64.Tactics.XCancel

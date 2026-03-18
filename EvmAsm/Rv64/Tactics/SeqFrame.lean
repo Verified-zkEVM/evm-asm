@@ -28,6 +28,7 @@
 import Lean
 import EvmAsm.Rv64.Tactics.XCancel
 import EvmAsm.Rv64.InstructionSpecs
+import EvmAsm.Rv64.Tactics.PerfTrace
 
 open Lean Meta Elab Tactic
 
@@ -67,7 +68,8 @@ def parseCpsTriple? (e : Expr) : MetaM (Option (Expr × Expr × Expr × Expr × 
     find atoms of P2 within Q1 and return the frame (residual Q1 atoms).
     Both sides are first reassociated to right-associated form for proper flattening.
     Uses hash pre-filtering to reduce expensive `isDefEq` calls. -/
-def computeFrame (q1 p2 : Expr) : MetaM (List Expr) := do
+def computeFrame (q1 p2 : Expr) : MetaM (List Expr) :=
+  withTraceNode `runBlock.perf.frame (fun _ => return m!"computeFrame") do
   -- Reassociate to right-associated form before flattening
   let (q1RA, _) ← reassocProof q1
   let (p2RA, _) ← reassocProof p2
@@ -104,6 +106,68 @@ def computeFrame (q1 p2 : Expr) : MetaM (List Expr) := do
     if available[i]! then
       result := result ++ [q1Atoms[i]!]
   return result
+
+/-- Check if an expression is a numeric literal (OfNat.ofNat _ n _) and return n. -/
+private def getBvLitVal? (e : Expr) : Option Nat :=
+  if e.isAppOfArity ``OfNat.ofNat 3 then
+    match e.getAppArgs[1]! with
+    | .lit (.natVal n) => some n
+    | _ => none
+  else none
+
+/-- Extract base and numeric offset from an address expression.
+    - `base + lit` → `some (base, some lit_expr, lit_val)`
+    - bare `e` → `some (e, none, 0)`
+    - unrecognized → `none` -/
+private def extractBaseAndOffset (e : Expr) : Option (Expr × Option Expr × Nat) :=
+  if e.isAppOfArity ``HAdd.hAdd 6 then
+    let rhs := e.getAppArgs[5]!
+    if let some k := getBvLitVal? rhs then
+      some (e.getAppArgs[4]!, some rhs, k)
+    else
+      none
+  else
+    some (e, none, 0)
+
+/-- Prove `a1 ≠ a2` using offset-based reflection when both addresses share the same base.
+    Falls back to `bv_omega` when the pattern doesn't match.
+    ~100x faster than bv_omega for the common case (base + k1 ≠ base + k2). -/
+private def proveAddrNe (a1 a2 : Expr) : MetaM Expr := do
+  let addrType := mkConst ``EvmAsm.Rv64.Addr
+  -- Try offset-based fast path
+  if let some (base1, off1, k1) := extractBaseAndOffset a1 then
+    if let some (base2, off2, k2) := extractBaseAndOffset a2 then
+      if base1 == base2 then
+        try
+          match off1, off2 with
+          | some k1Bv, some k2Bv =>
+            -- base + k1 ≠ base + k2
+            if k1 != k2 then
+              let neType := mkApp3 (mkConst ``Ne [levelOne]) addrType k1Bv k2Bv
+              let hne ← mkDecideProof neType
+              return mkApp4 (mkConst ``EvmAsm.Rv64.addr_ne_of_bv_ne) base1 k1Bv k2Bv hne
+          | none, some kBv =>
+            -- base ≠ base + k
+            let bv64Type := mkApp (mkConst ``BitVec) (mkNatLit 64)
+            let zeroAddr ← mkNumeral bv64Type 0
+            let neType := mkApp3 (mkConst ``Ne [levelOne]) addrType kBv zeroAddr
+            let hne ← mkDecideProof neType
+            return mkApp3 (mkConst ``EvmAsm.Rv64.addr_ne_add_right) base1 kBv hne
+          | some kBv, none =>
+            -- base + k ≠ base
+            let bv64Type := mkApp (mkConst ``BitVec) (mkNatLit 64)
+            let zeroAddr ← mkNumeral bv64Type 0
+            let neType := mkApp3 (mkConst ``Ne [levelOne]) addrType kBv zeroAddr
+            let hne ← mkDecideProof neType
+            return mkApp3 (mkConst ``EvmAsm.Rv64.addr_add_ne_left) base1 kBv hne
+          | none, none => (Pure.pure PUnit.unit : MetaM PUnit)
+        catch _ => (Pure.pure PUnit.unit : MetaM PUnit)
+  -- Fallback: bv_omega
+  let neqType := mkApp3 (mkConst ``Ne [levelOne]) addrType a1 a2
+  let neqMVar ← mkFreshExprMVar neqType
+  let stx ← `(tactic| bv_omega)
+  runTacticSilent neqMVar.mvarId! stx
+  instantiateMVars neqMVar
 
 /-- Build a `pcFree` proof directly in MetaM, avoiding tactic overhead.
     Handles all standard assertion types; falls back to the `pcFree` tactic for unknowns. -/
@@ -172,7 +236,8 @@ def mkIdLambda (p : Expr) : MetaM Expr := do
     - singleton vs singleton (uses bv_omega to prove addresses differ)
     - union vs anything (recursive)
     Falls back to the `decide` tactic for unknown structures. -/
-partial def buildDisjointProof (cr1 cr2 : Expr) : MetaM Expr := do
+partial def buildDisjointProof (cr1 cr2 : Expr) : MetaM Expr :=
+  withTraceNode `runBlock.perf.extend (fun _ => return m!"buildDisjointProof") do
   let cr1 ← whnfR cr1
   let cr2 ← whnfR cr2
   -- Case: cr1 = empty
@@ -191,12 +256,8 @@ partial def buildDisjointProof (cr1 cr2 : Expr) : MetaM Expr := do
     -- Quick check: if addresses are definitionally equal, cannot prove disjoint
     if ← withoutModifyingState (isDefEq a1 a2) then
       throwError "buildDisjointProof: addresses are equal: {a1}"
-    -- Prove a1 ≠ a2 via bv_omega (suppress diagnostics on failure to avoid leaked errors)
-    let neqType := mkApp3 (mkConst ``Ne [levelOne]) (mkConst ``EvmAsm.Rv64.Addr) a1 a2
-    let neqMVar ← mkFreshExprMVar neqType
-    let stx ← `(tactic| bv_omega)
-    runTacticSilent neqMVar.mvarId! stx
-    let neqProof ← instantiateMVars neqMVar
+    -- Prove a1 ≠ a2 (fast offset-based when possible, bv_omega fallback)
+    let neqProof ← proveAddrNe a1 a2
     return ← mkAppM ``EvmAsm.Rv64.CodeReq.Disjoint.singleton #[neqProof, i1, i2]
   -- Case: cr1 = union sub1 sub2 → need sub1.Disjoint cr2 and sub2.Disjoint cr2
   if cr1.isAppOfArity ``EvmAsm.Rv64.CodeReq.union 2 then
@@ -259,7 +320,8 @@ private def buildMonoProofTactic (oldCr newCr : Expr) : MetaM Expr := do
     Walks the union chain to find matching pieces, composing with
     CodeReq.union_mono_left, mono_union_right, and union_split_mono.
     Falls back to tactic-based proof for edge cases. -/
-partial def buildMonoProof (oldCr newCr : Expr) : MetaM Expr := do
+partial def buildMonoProof (oldCr newCr : Expr) : MetaM Expr :=
+  withTraceNode `runBlock.perf.extend (fun _ => return m!"buildMonoProof") do
   -- Identity: oldCr ≡ newCr
   if oldCr == newCr then return ← mkIdentityMono oldCr
   if ← withoutModifyingState (withReducible (isDefEq oldCr newCr)) then
@@ -312,7 +374,8 @@ def extendSpecCr (spec : Expr) (oldCr newCr : Expr) : MetaM Expr := do
 
 /-- Core MetaM implementation of seqFrame.
     Returns the composed proof term. -/
-def seqFrameCore (h1Expr h2Expr : Expr) : MetaM Expr := do
+def seqFrameCore (h1Expr h2Expr : Expr) : MetaM Expr :=
+  withTraceNode `runBlock.perf.seq (fun _ => return m!"seqFrameCore") do
   let h1Type ← inferType h1Expr
   let h2Type ← inferType h2Expr
 

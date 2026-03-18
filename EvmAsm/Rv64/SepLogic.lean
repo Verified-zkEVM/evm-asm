@@ -2296,6 +2296,30 @@ theorem CodeReq.SatisfiedBy_mono {cr1 cr2 : CodeReq} (s : MachineState)
   fun a i hcr1 => h a i (hmono a i hcr1)
 
 -- ============================================================================
+-- Address arithmetic reflection lemmas (for fast tactic proofs)
+-- ============================================================================
+
+/-- Addresses with same base but different offsets are not equal.
+    Used by `proveAddrNe` for ~100x faster proofs vs `bv_omega`. -/
+theorem addr_ne_of_bv_ne (base a b : Addr) (h : a ≠ b) :
+    base + a ≠ base + b := by bv_omega
+
+/-- Base address is not equal to base + a when a ≠ 0. -/
+theorem addr_ne_add_right (base a : Addr) (h : a ≠ 0) :
+    base ≠ base + a := by bv_omega
+
+/-- Base + a is not equal to bare base when a ≠ 0. -/
+theorem addr_add_ne_left (base a : Addr) (h : a ≠ 0) :
+    base + a ≠ base := by bv_omega
+
+/-- Address reassociation: (base + k1) + k2 = base + sum when k1 + k2 = sum. -/
+theorem addr_reassoc (base k1 k2 sum : Addr) (h : k1 + k2 = sum) :
+    (base + k1) + k2 = base + sum := by subst h; bv_omega
+
+/-- Address addition with zero: a + 0 = a. -/
+theorem addr_add_zero_bv (a : Addr) : a + (0 : Addr) = a := by bv_omega
+
+-- ============================================================================
 -- Assertion-level equalities for AC normalization of sepConj
 -- ============================================================================
 

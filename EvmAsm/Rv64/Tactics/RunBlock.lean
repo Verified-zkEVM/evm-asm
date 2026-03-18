@@ -160,8 +160,13 @@ private def trySimplifyTop (e : Expr) : MetaM (Expr × Option Expr) := do
     if (← whnf eTy).isAppOfArity ``BitVec 1 then
       -- e + 0 → e (common after signExtend12 0 normalization)
       if let some 0 := getBvLitVal? rhs then
-        if let some pf ← proveBvEq e lhs then
+        -- Fast path: use addr_add_zero_bv (avoids bv_omega overhead)
+        try
+          let pf := mkApp (mkConst ``EvmAsm.Rv64.addr_add_zero_bv) lhs
           return (lhs, some pf)
+        catch _ =>
+          if let some pf ← proveBvEq e lhs then
+            return (lhs, some pf)
       -- (a + lit₁) + lit₂ → a + (lit₁ + lit₂)
       if let some rhsVal := getBvLitVal? rhs then
         if lhs.isAppOfArity ``HAdd.hAdd 6 then
@@ -172,8 +177,15 @@ private def trySimplifyTop (e : Expr) : MetaM (Expr × Option Expr) := do
             let bv64 := mkApp (mkConst ``BitVec) (mkNatLit 64)
             let sumLit ← mkNumeral bv64 (bVal + rhsVal)
             let result ← mkAppM ``HAdd.hAdd #[a, sumLit]
-            if let some pf ← proveBvEq e result then
+            -- Fast path: use addr_reassoc (avoids bv_omega overhead)
+            try
+              let sumEqType ← mkEq (← mkAppM ``HAdd.hAdd #[b, rhs]) sumLit
+              let hSum ← mkDecideProof sumEqType
+              let pf := mkApp5 (mkConst ``EvmAsm.Rv64.addr_reassoc) a b rhs sumLit hSum
               return (result, some pf)
+            catch _ =>
+              if let some pf ← proveBvEq e result then
+                return (result, some pf)
   return (e, none)
 
 /-- Bottom-up normalization walk on a cpsTriple type expression.
@@ -278,7 +290,8 @@ private def expandAbbrevsInCpsTriple (proof : Expr) : MetaM Expr := do
     compound addresses like `(base+N)+M` become `base+(N+M)`,
     then eliminates `signExtend12 N` for concrete N and flattens address arithmetic.
     Transports the original proof via `Eq.mp` (works because cpsTriple is Prop-valued). -/
-private def normalizeSpecAddresses (proof : Expr) : MetaM Expr := do
+private def normalizeSpecAddresses (proof : Expr) : MetaM Expr :=
+  withTraceNode `runBlock.perf.normalize (fun _ => return m!"normalizeSpecAddresses") do
   let origType ← instantiateMVars (← inferType proof)
   -- Inline let-bindings first (e.g., `let mem := sp + signExtend12 off; ...`)
   let cleanType := inlineLets origType
@@ -324,7 +337,8 @@ private def normalizeAddr (accExpr : Expr) (targetExit : Expr) : MetaM Expr := d
 /-- Frame the first spec against the goal precondition and permute.
     Given s1 : cpsTriple entry exit P1 Q1 and goalPre (the goal's precondition),
     returns : cpsTriple entry exit goalPre (Q1 ** Frame) where Frame = goalPre \ P1. -/
-private def frameFirstSpec (s1Expr : Expr) (goalPre : Expr) : MetaM Expr := do
+private def frameFirstSpec (s1Expr : Expr) (goalPre : Expr) : MetaM Expr :=
+  withTraceNode `runBlock.perf.frame (fun _ => return m!"frameFirstSpec") do
   let s1Type ← inferType s1Expr
   let some (entry, exit_, cr1, preP1, postQ1) ← parseCpsTriple? s1Type
     | throwError "runBlock: first spec is not a cpsTriple"
@@ -364,16 +378,21 @@ private def frameFirstSpec (s1Expr : Expr) (goalPre : Expr) : MetaM Expr := do
     Always normalizes spec addresses (signExtend12 reduction and address arithmetic flattening)
     so that atoms match the normalized goal. -/
 private def runBlockCore (specs : Array Expr) (goalPre : Expr)
-    (goalCr : Option Expr := none) (normalizeAddrs : Bool := false) : MetaM Expr := do
+    (goalCr : Option Expr := none) (normalizeAddrs : Bool := false) : MetaM Expr :=
+  withTraceNode `runBlock.perf (fun _ => return m!"runBlockCore ({specs.size} specs)") do
   if specs.size == 0 then
     throwError "runBlock: no specs provided.\n\
         Usage: `runBlock s1 s2 ...` (manual) or `runBlock` (auto from @[spec_gen_rv64] database)."
   -- Always normalize addresses in specs (signExtend12, address flattening)
-  let processedSpecs ← specs.mapM fun spec => do
-    try normalizeSpecAddresses spec
-    catch _ => Pure.pure spec
+  let processedSpecs ← withTraceNode `runBlock.perf.normalize
+    (fun _ => return m!"normalize {specs.size} specs") do
+    specs.mapM fun spec => do
+      try normalizeSpecAddresses spec
+      catch _ => Pure.pure spec
   -- Extend specs to goalCr if provided
-  let extendedSpecs ← match goalCr with
+  let extendedSpecs ← withTraceNode `runBlock.perf.extend
+    (fun _ => return m!"extend {processedSpecs.size} specs to goalCr") do
+    match goalCr with
     | some gcr => processedSpecs.mapM fun spec => do
         let specType ← inferType spec
         let some (_, _, specCr, _, _) ← parseCpsTriple? specType | Pure.pure spec
@@ -384,12 +403,14 @@ private def runBlockCore (specs : Array Expr) (goalPre : Expr)
   let mut acc ← frameFirstSpec extendedSpecs[0]! goalPre
   -- Chain remaining specs via seqFrame with address normalization
   for i in [1:extendedSpecs.size] do
-    let nextSpec := extendedSpecs[i]!
-    let nextType ← inferType nextSpec
-    let some (nextEntry, _, _, _, _) ← parseCpsTriple? nextType
-      | throwError "runBlock: argument {i + 1} is not a cpsTriple"
-    acc ← normalizeAddr acc nextEntry
-    acc ← seqFrameCore acc nextSpec
+    acc ← withTraceNode `runBlock.perf.seq
+      (fun _ => return m!"seqFrame step {i}/{extendedSpecs.size - 1}") do
+        let nextSpec := extendedSpecs[i]!
+        let nextType ← inferType nextSpec
+        let some (nextEntry, _, _, _, _) ← parseCpsTriple? nextType
+          | throwError "runBlock: argument {i + 1} is not a cpsTriple"
+        let acc' ← normalizeAddr acc nextEntry
+        seqFrameCore acc' nextSpec
   return acc
 
 /-- Try to normalize a cpsTriple's exit to match the goal's exit address. -/
@@ -534,7 +555,8 @@ private def solveFromValidMemRange (ty : Expr) : MetaM (Option Expr) := do
 /-- Try to solve a proof obligation MVar.
     Uses mkDecideProof for concrete decidable props (register inequalities),
     local context search for hypotheses, ValidMemRange derivation, and bv_omega as fallback. -/
-private def solveObligation (mvarId : MVarId) : MetaM Bool := do
+private def solveObligation (mvarId : MVarId) : MetaM Bool :=
+  withTraceNode `runBlock.perf.obligation (fun _ => return m!"solveObligation") do
   let ty ← instantiateMVars (← mvarId.getType)
   -- Try Decidable proof for concrete propositions (rd ≠ .x0, rd ≠ rs, etc.)
   if ← isConcreteDecidable ty then
@@ -772,7 +794,8 @@ private partial def extractCrEntries (cr : Expr) : MetaM (List (Expr × Expr)) :
 /-- Auto-resolve all specs from the CodeReq/precondition and compose them.
     Tries CodeReq first (new-style: instructions in `cr`), falls back to
     instrAt atoms in precondition (legacy). -/
-private def autoResolveAndCompose (goalPre : Expr) (goalCr : Expr) : MetaM Expr := do
+private def autoResolveAndCompose (goalPre : Expr) (goalCr : Expr) : MetaM Expr :=
+  withTraceNode `runBlock.perf (fun _ => return m!"autoResolveAndCompose") do
   -- Try new-style: extract instructions from CodeReq
   let mut instrAtoms ← extractCrEntries goalCr
   -- Fallback: if CodeReq is empty/unknown, try legacy instrAt in precondition
@@ -821,60 +844,61 @@ private def autoResolveAndCompose (goalPre : Expr) (goalCr : Expr) : MetaM Expr 
 
     **Debugging**: use `set_option trace.runBlock true` to see resolution details. -/
 elab "runBlock" specs:ident* : tactic => withMainContext do
-  let mvarGoal ← getMainGoal
-  -- Strip leading let bindings and metadata from goal type
-  let goalType := inlineLets (← instantiateMVars (← mvarGoal.getType))
-  let some (_, _, goalCr, _, _) ← parseCpsTriple? goalType
-    | throwError "runBlock: goal is not a `cpsTriple`.\n\
-        Expected goal of the form: `cpsTriple entry exit cr pre post`."
-  -- If the CodeReq is an abbrev application (not CodeReq.singleton/union/empty), delta-unfold it
-  -- in the actual goal so all proof terms share the same expression.
-  let mvarGoal ← do
-    let crEntries := extractCrEntriesPure goalCr
-    if crEntries.isEmpty then
-      match goalCr.getAppFn with
-      | .const name _ =>
-        if name == ``EvmAsm.Rv64.CodeReq.singleton || name == ``EvmAsm.Rv64.CodeReq.union ||
-           name == ``EvmAsm.Rv64.CodeReq.empty then
-          Pure.pure mvarGoal
-        else
-          trace[runBlock] "deltaTarget: unfolding CodeReq abbrev {name}"
-          try mvarGoal.deltaTarget (· == name)
-          catch _ => Pure.pure mvarGoal
-      | _ => Pure.pure mvarGoal
-    else Pure.pure mvarGoal
-  -- Re-parse goal after potential delta-unfolding
-  let goalType := inlineLets (← instantiateMVars (← mvarGoal.getType))
-  -- Normalize addresses in goal type (signExtend12, e+0, address flattening)
-  let (normGoalType, goalNormPf?) ← normalizeTypeAddrs goalType
-  let (workingGoal, workingGoalType) ← if let some pf := goalNormPf? then do
-      let newGoalMVar ← mkFreshExprMVar normGoalType
-      let proof ← mkEqMP (← mkEqSymm pf) newGoalMVar
-      mvarGoal.assign proof
-      Pure.pure (newGoalMVar.mvarId!, normGoalType)
-    else Pure.pure (mvarGoal, goalType)
-  let some (_, _, goalCr, goalPre, _) ← parseCpsTriple? workingGoalType
-    | throwError "runBlock: goal is not a `cpsTriple` after normalization."
-  let composed ←
-    if specs.isEmpty then
-      -- Auto mode: resolve specs from CodeReq/precondition
-      autoResolveAndCompose goalPre goalCr
-    else
-      -- Manual mode: use provided specs
-      let specExprs ← specs.mapM fun s => elabTerm s none
-      runBlockCore specExprs goalPre (goalCr := some goalCr) (normalizeAddrs := true)
-  let finalResult ← normalizeToGoal composed workingGoalType
-  -- Always permute postcondition to match goal
-  let some (gEntry, gExit, gCr, gPre, goalPost) ← parseCpsTriple? workingGoalType
-    | throwError "runBlock: internal error — goal lost cpsTriple structure during permutation"
-  let resultType ← inferType finalResult
-  let some (_, _, _, _, resultPost) ← parseCpsTriple? resultType
-    | throwError "runBlock: internal error — composed result is not a cpsTriple"
-  let postPerm ← mkPermLambda resultPost goalPost
-  let idPre ← mkIdLambda gPre
-  let permuted := mkAppN (mkConst ``EvmAsm.Rv64.cpsTriple_consequence)
-    #[gEntry, gExit, gCr, gPre, gPre, resultPost, goalPost, idPre, postPerm, finalResult]
-  workingGoal.assign permuted
-  replaceMainGoal []
+  withTraceNode `runBlock.perf (fun _ => return m!"runBlock") do
+    let mvarGoal ← getMainGoal
+    -- Strip leading let bindings and metadata from goal type
+    let goalType := inlineLets (← instantiateMVars (← mvarGoal.getType))
+    let some (_, _, goalCr, _, _) ← parseCpsTriple? goalType
+      | throwError "runBlock: goal is not a `cpsTriple`.\n\
+          Expected goal of the form: `cpsTriple entry exit cr pre post`."
+    -- If the CodeReq is an abbrev application (not CodeReq.singleton/union/empty), delta-unfold it
+    -- in the actual goal so all proof terms share the same expression.
+    let mvarGoal ← do
+      let crEntries := extractCrEntriesPure goalCr
+      if crEntries.isEmpty then
+        match goalCr.getAppFn with
+        | .const name _ =>
+          if name == ``EvmAsm.Rv64.CodeReq.singleton || name == ``EvmAsm.Rv64.CodeReq.union ||
+             name == ``EvmAsm.Rv64.CodeReq.empty then
+            Pure.pure mvarGoal
+          else
+            trace[runBlock] "deltaTarget: unfolding CodeReq abbrev {name}"
+            try mvarGoal.deltaTarget (· == name)
+            catch _ => Pure.pure mvarGoal
+        | _ => Pure.pure mvarGoal
+      else Pure.pure mvarGoal
+    -- Re-parse goal after potential delta-unfolding
+    let goalType := inlineLets (← instantiateMVars (← mvarGoal.getType))
+    -- Normalize addresses in goal type (signExtend12, e+0, address flattening)
+    let (normGoalType, goalNormPf?) ← normalizeTypeAddrs goalType
+    let (workingGoal, workingGoalType) ← if let some pf := goalNormPf? then do
+        let newGoalMVar ← mkFreshExprMVar normGoalType
+        let proof ← mkEqMP (← mkEqSymm pf) newGoalMVar
+        mvarGoal.assign proof
+        Pure.pure (newGoalMVar.mvarId!, normGoalType)
+      else Pure.pure (mvarGoal, goalType)
+    let some (_, _, goalCr, goalPre, _) ← parseCpsTriple? workingGoalType
+      | throwError "runBlock: goal is not a `cpsTriple` after normalization."
+    let composed ←
+      if specs.isEmpty then
+        -- Auto mode: resolve specs from CodeReq/precondition
+        autoResolveAndCompose goalPre goalCr
+      else
+        -- Manual mode: use provided specs
+        let specExprs ← specs.mapM fun s => elabTerm s none
+        runBlockCore specExprs goalPre (goalCr := some goalCr) (normalizeAddrs := true)
+    let finalResult ← normalizeToGoal composed workingGoalType
+    -- Always permute postcondition to match goal
+    let some (gEntry, gExit, gCr, gPre, goalPost) ← parseCpsTriple? workingGoalType
+      | throwError "runBlock: internal error — goal lost cpsTriple structure during permutation"
+    let resultType ← inferType finalResult
+    let some (_, _, _, _, resultPost) ← parseCpsTriple? resultType
+      | throwError "runBlock: internal error — composed result is not a cpsTriple"
+    let postPerm ← mkPermLambda resultPost goalPost
+    let idPre ← mkIdLambda gPre
+    let permuted := mkAppN (mkConst ``EvmAsm.Rv64.cpsTriple_consequence)
+      #[gEntry, gExit, gCr, gPre, gPre, resultPost, goalPost, idPre, postPerm, finalResult]
+    workingGoal.assign permuted
+    replaceMainGoal []
 
 end EvmAsm.Rv64.Tactics

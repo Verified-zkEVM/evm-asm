@@ -31,6 +31,7 @@
 
 import Lean
 import EvmAsm.Rv64.SepLogic
+import EvmAsm.Rv64.Tactics.PerfTrace
 
 open Lean Meta Elab Tactic
 
@@ -165,7 +166,8 @@ partial def reassocProof (e : Expr) : MetaM (Expr × Expr) := do
 
     **Optimization**: flattens LHS once and passes the atom array through
     recursion (avoiding O(n²) re-flattening). -/
-partial def buildPermProof (lhs rhs : Expr) : MetaM Expr := do
+partial def buildPermProof (lhs rhs : Expr) : MetaM Expr :=
+  withTraceNode `runBlock.perf.perm (fun _ => return m!"perm") do
   -- First reassociate both sides to right-associated form
   let (lhsRA, lhsPf) ← reassocProof lhs
   let (rhsRA, rhsPf) ← reassocProof rhs
