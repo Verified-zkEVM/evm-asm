@@ -297,23 +297,43 @@ partial def expandAbbrevsInAssertion (e : Expr) : MetaM Expr := do
     -- Leaf: apply whnf to unfold abbrevs (e.g., foo_code k base → instrAt base ... ** ...)
     withReducible (whnf e)
 
-/-- Expand reducible definitions (abbrevs) in the Pre and Post assertions of a cpsTriple proof.
-    When a spec's type contains `foo_code N (base+K)`, this expands it to its instrAt chain
+/-- Expand reducible definitions (abbrevs) in a CodeReq tree.
+    Recursively walks CodeReq.union/singleton/ofProg/empty structure.
+    For unrecognized forms (opaque abbreviations), applies `withReducible whnf` to unfold,
+    then recurses. This ensures addresses like `(base+K)+4` become visible
+    to `normalizeTypeAddrs` for flattening to `base+(K+4)`. -/
+private partial def expandAbbrevsInCodeReq (e : Expr) : MetaM Expr := do
+  if e.isAppOfArity ``EvmAsm.Rv64.CodeReq.singleton 2 then return e
+  if e.isAppOfArity ``EvmAsm.Rv64.CodeReq.empty 0 then return e
+  if e.isAppOfArity ``EvmAsm.Rv64.CodeReq.ofProg 2 then return e
+  if e.isAppOfArity ``EvmAsm.Rv64.CodeReq.union 2 then
+    let args := e.getAppArgs
+    let l' ← expandAbbrevsInCodeReq args[0]!
+    let r' ← expandAbbrevsInCodeReq args[1]!
+    return mkApp2 (mkConst ``EvmAsm.Rv64.CodeReq.union) l' r'
+  -- Unrecognized form: try whnf to unfold one level, then recurse
+  let e' ← withReducible (whnf e)
+  if e' == e then return e  -- No progress
+  expandAbbrevsInCodeReq e'
+
+/-- Expand reducible definitions (abbrevs) in the CodeReq, Pre, and Post parts of a cpsTriple proof.
+    When a spec's type contains `foo_code N (base+K)`, this expands it to its CodeReq chain
     so that `normalizeTypeAddrs` can later simplify addresses like `(base+K)+4 → base+(K+4)`.
-    Preserves sepConj tree structure (only expands leaf abbrevs, not the chains themselves),
+    Preserves tree structure (only expands leaf abbrevs, not the chains themselves),
     so the result is definitionally equal to the original — uses Eq.mp with rfl for transport. -/
 private def expandAbbrevsInCpsTriple (proof : Expr) : MetaM Expr := do
   let ty ← instantiateMVars (← inferType proof)
   let cleanTy := inlineLets ty
   let some (entry, exit_, cr, pre, post) ← parseCpsTriple? cleanTy | return proof
-  -- Expand abbrevs in pre/post while preserving sepConj tree structure
+  -- Expand abbrevs in CodeReq, pre, and post
+  let crNew ← expandAbbrevsInCodeReq cr
   let preNew ← expandAbbrevsInAssertion pre
   let postNew ← expandAbbrevsInAssertion post
   -- If nothing changed (no abbrevs expanded), return original proof unchanged
-  if preNew == pre && postNew == post then
+  if crNew == cr && preNew == pre && postNew == post then
     return proof
-  -- Build new type with expanded assertions
-  let newTy := mkAppN (mkConst ``EvmAsm.Rv64.cpsTriple) #[entry, exit_, cr, preNew, postNew]
+  -- Build new type with expanded parts
+  let newTy := mkAppN (mkConst ``EvmAsm.Rv64.cpsTriple) #[entry, exit_, crNew, preNew, postNew]
   -- Build proof that ty = newTy via definitional equality (abbrev expansion is definitional).
   -- Use @id (ty = newTy) (Eq.refl ty) to get a term with SYNTACTIC type ty = newTy.
   -- The kernel accepts Eq.refl ty : ty = newTy iff ty =def= newTy.

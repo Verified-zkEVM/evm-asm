@@ -35,8 +35,9 @@ import EvmAsm.Evm64.IsZero
 import EvmAsm.Evm64.Slt
 import EvmAsm.Evm64.Sgt
 
--- Shifts (program definitions + tests only; specs need CodeReq migration repair)
+-- Shifts
 import EvmAsm.Evm64.Shift
+import EvmAsm.Evm64.ShiftSpec
 
 -- Byte and SignExtend
 import EvmAsm.Evm64.Byte

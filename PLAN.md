@@ -79,7 +79,7 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
 |----------|---------|----------------------|--------|
 | Arithmetic | ADD, SUB, MUL, SIGNEXTEND | 30 / 30 / 63 / 48 | ✅ Fully proved |
 | Bitwise | AND, OR, XOR, NOT | 17 / 17 / 17 / 12 | ✅ Fully proved |
-| Shift | SHR, SHL, SAR | 90 / 90 / 95 | ⚠️ Programs + tests only (specs deleted) |
+| Shift | SHR, SHL, SAR | 90 / 90 / 95 | ⚠️ SHR specs done; SHL/SAR specs deleted |
 | Comparison | ISZERO, LT, GT, EQ, SLT, SGT | 12 / 26 / 26 / 21 / 25 / 25 | ✅ Fully proved |
 | Byte/SignExt | BYTE, SIGNEXTEND | 45 / 48 | ⚠️ BYTE spec deleted; SIGNEXTEND proved |
 | Stack | POP, PUSH0, DUP1-16, SWAP1-16 | 1 / 5 / 9 / 16 | ✅ Fully proved |
@@ -597,7 +597,7 @@ This is the heart of the STF — the inner loop that executes EVM bytecode.
 
 **Immediate (recreate deleted specs):**
 1. ~~Recreate `StackOps.lean`~~ — ✅ Done (Pop.lean, Push0.lean, Dup.lean, Swap.lean)
-2. Recreate `ShiftSpec.lean` — SHR per-limb + phase + body specs
+2. ~~Recreate `ShiftSpec.lean`~~ — ✅ Done (SHR per-limb + phase + body specs, 961 lines, 0 sorry)
 3. Recreate `ShlSpec.lean`, `SarSpec.lean` — SHL/SAR specs (depend on ShiftSpec)
 4. Recreate `ByteSpec.lean` — BYTE specs (depends on ShiftSpec)
 
