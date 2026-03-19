@@ -142,30 +142,11 @@ abbrev divCode (base : Addr) : CodeReq :=
 -- ofProg block, which is a component of the divCode union.
 -- ============================================================================
 
-/-- Phase A code (8 instructions) is subsumed by divCode. -/
+/-- Phase A code (8 instructions) is subsumed by divCode.
+    Both sides are `CodeReq.ofProg base (divK_phaseA 1016)`, so this is `union_mono_left`. -/
 private theorem divK_phaseA_code_sub_divCode (base : Addr) :
     ∀ a i, (divK_phaseA_code base) a = some i → (divCode base) a = some i := by
-  intro a i h
-  unfold divCode
-  apply CodeReq.union_mono_left
-  simp only [divK_phaseA_code, CodeReq.union, CodeReq.singleton] at h
-  -- Pre-compute the program to a concrete instruction list
-  have hprog : (divK_phaseA 1016 : List Instr) = [.LD .x5 .x12 32, .LD .x10 .x12 40,
-    .OR .x5 .x5 .x10, .LD .x10 .x12 48, .OR .x5 .x5 .x10, .LD .x10 .x12 56,
-    .OR .x5 .x5 .x10, .BEQ .x5 .x0 1016] := by rfl
-  -- Stage 1: Unfold ofProg/ofIndexed and substitute concrete program
-  simp only [CodeReq.ofProg, CodeReq.ofIndexed, hprog] at ⊢
-  -- Stage 2: Reduce progIndexed to concrete (addr, instr) pairs
-  simp only [progIndexed] at ⊢
-  -- Stage 3: Reduce foldl to nested unions, then to if-chains
-  simp only [List.foldl, CodeReq.empty, CodeReq.union, CodeReq.singleton] at ⊢
-  -- Stage 4: Normalize chained addresses (base+4+4 → base+8, etc.)
-  simp only [OfNat.ofNat, bv_add_ofNat_assoc] at ⊢
-  -- Case split h on each if-branch, then simp_all closes each
-  split at h <;> (try simp_all) <;> split at h <;> (try simp_all) <;>
-  split at h <;> (try simp_all) <;> split at h <;> (try simp_all) <;>
-  split at h <;> (try simp_all) <;> split at h <;> (try simp_all) <;>
-  split at h <;> (try simp_all) <;> split at h <;> simp_all
+  unfold divCode divK_phaseA_code; exact CodeReq.union_mono_left _ _
 
 set_option maxRecDepth 2048 in
 set_option maxHeartbeats 6400000 in
@@ -179,7 +160,11 @@ private theorem divK_zeroPath_code_sub_divCode (base : Addr) :
     suffices ∀ b, divK_zeroPath_code (b + 1044) a = some i →
       a = b + 1044 ∨ a = b + 1048 ∨ a = b + 1052 ∨ a = b + 1056 ∨ a = b + 1060 from this base h
     intro b h'
-    simp only [divK_zeroPath_code, CodeReq.union, CodeReq.singleton,
+    -- Expand ofProg to singleton chain for address case analysis
+    simp only [divK_zeroPath_code, show (divK_zeroPath : List Instr) =
+      [.ADDI .x12 .x12 32, .SD .x12 .x0 0, .SD .x12 .x0 8, .SD .x12 .x0 16, .SD .x12 .x0 24]
+      from rfl, CodeReq.ofProg_cons, CodeReq.ofProg_nil,
+      CodeReq.union, CodeReq.singleton, CodeReq.empty,
       OfNat.ofNat, bv_add_ofNat_assoc] at h'
     by_cases h1 : (a == b + 1044 : Bool)
     · exact Or.inl (beq_iff_eq.mp h1)
@@ -224,7 +209,10 @@ private theorem divK_zeroPath_code_sub_divCode (base : Addr) :
   apply CodeReq.union_mono_left
   -- Both h and goal describe the same 5-address code region; case-split on concrete address
   rcases ha with rfl | rfl | rfl | rfl | rfl <;> (
-    simp only [divK_zeroPath_code, CodeReq.union, CodeReq.singleton,
+    simp only [divK_zeroPath_code, show (divK_zeroPath : List Instr) =
+      [.ADDI .x12 .x12 32, .SD .x12 .x0 0, .SD .x12 .x0 8, .SD .x12 .x0 16, .SD .x12 .x0 24]
+      from rfl, CodeReq.ofProg_cons, CodeReq.ofProg_nil,
+      CodeReq.union, CodeReq.singleton, CodeReq.empty,
       OfNat.ofNat, bv_add_ofNat_assoc] at h
     simp only [CodeReq.ofProg, CodeReq.ofIndexed, divK_zeroPath_instrs, progIndexed,
       List.foldl, CodeReq.empty, CodeReq.union, CodeReq.singleton,
@@ -734,24 +722,11 @@ abbrev modCode (base : Addr) : CodeReq :=
 -- Section 12: MOD CodeReq subsumption lemmas
 -- ============================================================================
 
-/-- Phase A code is subsumed by modCode. -/
+/-- Phase A code is subsumed by modCode.
+    Both sides are `CodeReq.ofProg base (divK_phaseA 1016)`, so this is `union_mono_left`. -/
 private theorem divK_phaseA_code_sub_modCode (base : Addr) :
     ∀ a i, (divK_phaseA_code base) a = some i → (modCode base) a = some i := by
-  intro a i h
-  unfold modCode
-  apply CodeReq.union_mono_left
-  simp only [divK_phaseA_code, CodeReq.union, CodeReq.singleton] at h
-  have hprog : (divK_phaseA 1016 : List Instr) = [.LD .x5 .x12 32, .LD .x10 .x12 40,
-    .OR .x5 .x5 .x10, .LD .x10 .x12 48, .OR .x5 .x5 .x10, .LD .x10 .x12 56,
-    .OR .x5 .x5 .x10, .BEQ .x5 .x0 1016] := by rfl
-  simp only [CodeReq.ofProg, CodeReq.ofIndexed, hprog] at ⊢
-  simp only [progIndexed] at ⊢
-  simp only [List.foldl, CodeReq.empty, CodeReq.union, CodeReq.singleton] at ⊢
-  simp only [OfNat.ofNat, bv_add_ofNat_assoc] at ⊢
-  split at h <;> (try simp_all) <;> split at h <;> (try simp_all) <;>
-  split at h <;> (try simp_all) <;> split at h <;> (try simp_all) <;>
-  split at h <;> (try simp_all) <;> split at h <;> (try simp_all) <;>
-  split at h <;> (try simp_all) <;> split at h <;> simp_all
+  unfold modCode divK_phaseA_code; exact CodeReq.union_mono_left _ _
 
 set_option maxRecDepth 2048 in
 set_option maxHeartbeats 6400000 in
@@ -764,7 +739,11 @@ private theorem divK_zeroPath_code_sub_modCode (base : Addr) :
     suffices ∀ b, divK_zeroPath_code (b + 1044) a = some i →
       a = b + 1044 ∨ a = b + 1048 ∨ a = b + 1052 ∨ a = b + 1056 ∨ a = b + 1060 from this base h
     intro b h'
-    simp only [divK_zeroPath_code, CodeReq.union, CodeReq.singleton,
+    -- Expand ofProg to singleton chain for address case analysis
+    simp only [divK_zeroPath_code, show (divK_zeroPath : List Instr) =
+      [.ADDI .x12 .x12 32, .SD .x12 .x0 0, .SD .x12 .x0 8, .SD .x12 .x0 16, .SD .x12 .x0 24]
+      from rfl, CodeReq.ofProg_cons, CodeReq.ofProg_nil,
+      CodeReq.union, CodeReq.singleton, CodeReq.empty,
       OfNat.ofNat, bv_add_ofNat_assoc] at h'
     by_cases h1 : (a == b + 1044 : Bool)
     · exact Or.inl (beq_iff_eq.mp h1)
@@ -808,7 +787,10 @@ private theorem divK_zeroPath_code_sub_modCode (base : Addr) :
   apply CodeReq.union_mono_left
   -- Both h and goal describe the same 5-address code region; case-split on concrete address
   rcases ha with rfl | rfl | rfl | rfl | rfl <;> (
-    simp only [divK_zeroPath_code, CodeReq.union, CodeReq.singleton,
+    simp only [divK_zeroPath_code, show (divK_zeroPath : List Instr) =
+      [.ADDI .x12 .x12 32, .SD .x12 .x0 0, .SD .x12 .x0 8, .SD .x12 .x0 16, .SD .x12 .x0 24]
+      from rfl, CodeReq.ofProg_cons, CodeReq.ofProg_nil,
+      CodeReq.union, CodeReq.singleton, CodeReq.empty,
       OfNat.ofNat, bv_add_ofNat_assoc] at h
     simp only [CodeReq.ofProg, CodeReq.ofIndexed, divK_zeroPath_instrs, progIndexed,
       List.foldl, CodeReq.empty, CodeReq.union, CodeReq.singleton,

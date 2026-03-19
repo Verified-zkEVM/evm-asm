@@ -273,6 +273,44 @@ partial def buildDisjointProof (cr1 cr2 : Expr) : MetaM Expr :=
     let hd1 ← buildDisjointProof cr1 sub1
     let hd2 ← buildDisjointProof cr1 sub2
     return ← mkAppM ``EvmAsm.Rv64.CodeReq.Disjoint.union_right #[hd1, hd2]
+  -- Case: cr1 = ofProg base (i :: rest) → peel head singleton, recurse
+  if cr1.isAppOfArity ``EvmAsm.Rv64.CodeReq.ofProg 2 then
+    let base := cr1.getAppArgs[0]!
+    let prog := cr1.getAppArgs[1]!
+    let progW ← whnf prog
+    if progW.isAppOfArity ``List.cons 3 then
+      let headInstr := progW.getAppArgs[1]!
+      let rest := progW.getAppArgs[2]!
+      let singletonHead := mkApp2 (mkConst ``EvmAsm.Rv64.CodeReq.singleton) base headInstr
+      let addrType := mkApp (mkConst ``BitVec) (mkNatLit 64)
+      let four ← mkNumeral addrType 4
+      let nextBase ← mkAppM ``HAdd.hAdd #[base, four]
+      let ofProgTail := mkApp2 (mkConst ``EvmAsm.Rv64.CodeReq.ofProg) nextBase rest
+      let hd1 ← buildDisjointProof singletonHead cr2
+      let hd2 ← buildDisjointProof ofProgTail cr2
+      return mkAppN (mkConst ``EvmAsm.Rv64.CodeReq.Disjoint.ofProg_cons_left)
+        #[base, headInstr, rest, cr2, hd1, hd2]
+    else if progW.isAppOfArity ``List.nil 1 then
+      return mkApp2 (mkConst ``EvmAsm.Rv64.CodeReq.Disjoint.ofProg_nil_left) base cr2
+  -- Case: cr2 = ofProg base (i :: rest) → peel head singleton, recurse
+  if cr2.isAppOfArity ``EvmAsm.Rv64.CodeReq.ofProg 2 then
+    let base := cr2.getAppArgs[0]!
+    let prog := cr2.getAppArgs[1]!
+    let progW ← whnf prog
+    if progW.isAppOfArity ``List.cons 3 then
+      let headInstr := progW.getAppArgs[1]!
+      let rest := progW.getAppArgs[2]!
+      let singletonHead := mkApp2 (mkConst ``EvmAsm.Rv64.CodeReq.singleton) base headInstr
+      let addrType := mkApp (mkConst ``BitVec) (mkNatLit 64)
+      let four ← mkNumeral addrType 4
+      let nextBase ← mkAppM ``HAdd.hAdd #[base, four]
+      let ofProgTail := mkApp2 (mkConst ``EvmAsm.Rv64.CodeReq.ofProg) nextBase rest
+      let hd1 ← buildDisjointProof cr1 singletonHead
+      let hd2 ← buildDisjointProof cr1 ofProgTail
+      return mkAppN (mkConst ``EvmAsm.Rv64.CodeReq.Disjoint.ofProg_cons_right)
+        #[cr1, base, headInstr, rest, hd1, hd2]
+    else if progW.isAppOfArity ``List.nil 1 then
+      return mkApp2 (mkConst ``EvmAsm.Rv64.CodeReq.Disjoint.ofProg_nil_right) cr1 base
   -- Fallback: try native_decide
   let disjType := mkApp2 (mkConst ``EvmAsm.Rv64.CodeReq.Disjoint) cr1 cr2
   let disjMVar ← mkFreshExprMVar disjType
@@ -404,6 +442,86 @@ def buildMonoProofDirect (oldCr : Expr) (chain : Array (Expr × Expr × Expr))
   return some (mkAppN (mkConst ``EvmAsm.Rv64.CodeReq.singleton_mono)
     #[matchAddr, matchInstr, chainCr, crProof])
 
+/-- Extract the byte offset from an address expression.
+    - `base + lit` → `some (base, lit_val)`
+    - `base` → `some (base, 0)`
+    Does NOT use extractBaseAndOffset to avoid coupling. -/
+private def getAddrOffset? (e : Expr) : Option (Expr × Nat) :=
+  if e.isAppOfArity ``HAdd.hAdd 6 then
+    let base := e.getAppArgs[4]!
+    let rhs := e.getAppArgs[5]!
+    if let some k := getBvLitVal? rhs then some (base, k) else none
+  else some (e, 0)
+
+/-- Walk a concrete `List Instr` expression and find the index of a matching instruction.
+    Returns `(index, listLength)` for the first match. Also verifies the address offset. -/
+private partial def findInstrInProgList (targetInstr : Expr) (targetOff : Nat)
+    (progList : Expr) (idx : Nat := 0) : MetaM (Option (Nat × Nat)) := do
+  let listW ← whnf progList
+  if listW.isAppOfArity ``List.cons 3 then
+    let headInstr := listW.getAppArgs[1]!
+    let rest := listW.getAppArgs[2]!
+    if 4 * idx == targetOff then
+      -- Address matches, check instruction
+      if targetInstr == headInstr ||
+         (← withoutModifyingState (withReducible (isDefEq targetInstr headInstr))) then
+        -- Count remaining length
+        let mut len := idx + 1
+        let mut r := rest
+        while true do
+          let rW ← whnf r
+          if rW.isAppOfArity ``List.cons 3 then
+            len := len + 1; r := rW.getAppArgs[2]!
+          else break
+        return some (idx, len)
+    findInstrInProgList targetInstr targetOff rest (idx + 1)
+  else
+    return none
+
+/-- Build a mono proof for `singleton addr instr ⊆ ofProg base prog` using
+    `ofProg_lookup` + `singleton_mono`. Finds the instruction index by matching. -/
+private def buildMonoProofOfProg (oldCrW : Expr) (newCrBase newCrProg : Expr) : MetaM (Option Expr) := do
+  -- oldCr must be a singleton
+  unless oldCrW.isAppOfArity ``EvmAsm.Rv64.CodeReq.singleton 2 do return none
+  let specAddr := oldCrW.getAppArgs[0]!
+  let specInstr := oldCrW.getAppArgs[1]!
+  -- Extract base + offset from specAddr
+  let some (specBase, specOff) := getAddrOffset? specAddr | return none
+  -- Check that specBase matches newCrBase (same symbolic base)
+  unless specBase == newCrBase ||
+    (← withoutModifyingState (withReducible (isDefEq specBase newCrBase))) do return none
+  -- Find the instruction in the program list
+  let some (idx, progLen) ← findInstrInProgList specInstr specOff newCrProg | return none
+  let ofProgExpr := mkApp2 (mkConst ``EvmAsm.Rv64.CodeReq.ofProg) newCrBase newCrProg
+  if idx == 0 then
+    -- k=0: use ofProg_lookup_zero (avoids base + ofNat(0) ≠ base issue)
+    -- Need to decompose prog into head :: rest
+    let progW ← whnf newCrProg
+    unless progW.isAppOfArity ``List.cons 3 do return none
+    let headInstr := progW.getAppArgs[1]!
+    let restList := progW.getAppArgs[2]!
+    -- ofProg_lookup_zero base headInstr restList : (ofProg base (head::rest)) base = some head
+    let lookupProof := mkApp3 (mkConst ``EvmAsm.Rv64.CodeReq.ofProg_lookup_zero)
+      newCrBase headInstr restList
+    let monoProof := mkAppN (mkConst ``EvmAsm.Rv64.CodeReq.singleton_mono)
+      #[specAddr, specInstr, ofProgExpr, lookupProof]
+    return some monoProof
+  else
+    -- k>0: use ofProg_lookup base prog k hk hbound
+    let kLit := mkNatLit idx
+    let lenLit := mkNatLit progLen
+    let hkType := mkApp4 (mkConst ``LT.lt [.zero]) (mkConst ``Nat) (mkConst ``instLTNat) kLit lenLit
+    let hkProof ← mkDecideProof hkType
+    let fourLen := mkNatLit (4 * progLen)
+    let pow64 := mkNatLit (2 ^ 64)
+    let hboundType := mkApp4 (mkConst ``LT.lt [.zero]) (mkConst ``Nat) (mkConst ``instLTNat) fourLen pow64
+    let hboundProof ← mkDecideProof hboundType
+    let lookupProof := mkAppN (mkConst ``EvmAsm.Rv64.CodeReq.ofProg_lookup)
+      #[newCrBase, newCrProg, kLit, hkProof, hboundProof]
+    let monoProof := mkAppN (mkConst ``EvmAsm.Rv64.CodeReq.singleton_mono)
+      #[specAddr, specInstr, ofProgExpr, lookupProof]
+    return some monoProof
+
 /-- Build a proof of `∀ a i, oldCr a = some i → newCr a = some i` structurally.
     Uses direct chain lookup for singleton-vs-chain (O(N) with low constant),
     falls back to recursive walk for complex cases. -/
@@ -415,6 +533,20 @@ partial def buildMonoProof (oldCr newCr : Expr) : MetaM Expr :=
     return ← mkIdentityMono oldCr
   let oldCrW ← whnfR oldCr
   let newCrW ← whnfR newCr
+  -- newCr = ofProg(base, prog): use ofProg_lookup for singletons
+  if newCrW.isAppOfArity ``EvmAsm.Rv64.CodeReq.ofProg 2 then
+    let newBase := newCrW.getAppArgs[0]!
+    let newProg := newCrW.getAppArgs[1]!
+    -- Try direct singleton-to-ofProg
+    if let some proof ← buildMonoProofOfProg oldCrW newBase newProg then
+      return proof
+    -- oldCr is a union: split and recurse
+    if oldCrW.isAppOfArity ``EvmAsm.Rv64.CodeReq.union 2 then
+      let sub1 := oldCrW.getAppArgs[0]!
+      let sub2 := oldCrW.getAppArgs[1]!
+      let headMono ← buildMonoProof sub1 newCr
+      let tailMono ← buildMonoProof sub2 newCr
+      return ← mkAppM ``EvmAsm.Rv64.CodeReq.union_split_mono #[headMono, tailMono]
   -- newCr = union(head, tail): walk the chain
   -- Check this BEFORE splitting oldCr so that an opaque abbrev (e.g., mul_col0_code base)
   -- can match a head in newCr's chain without being expanded first.

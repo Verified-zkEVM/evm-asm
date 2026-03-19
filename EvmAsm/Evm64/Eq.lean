@@ -14,27 +14,7 @@ namespace EvmAsm.Rv64
 /-- CodeReq for the 256-bit EVM EQ operation.
     21 instructions = 84 bytes. XOR-OR accumulation + SLTIU boolean + store. -/
 abbrev evm_eq_code (base : Addr) : CodeReq :=
-  CodeReq.union (CodeReq.singleton base (.LD .x7 .x12 0))
-  (CodeReq.union (CodeReq.singleton (base + 4) (.LD .x6 .x12 32))
-  (CodeReq.union (CodeReq.singleton (base + 8) (.XOR .x7 .x7 .x6))
-  (CodeReq.union (CodeReq.singleton (base + 12) (.LD .x6 .x12 8))
-  (CodeReq.union (CodeReq.singleton (base + 16) (.LD .x5 .x12 40))
-  (CodeReq.union (CodeReq.singleton (base + 20) (.XOR .x6 .x6 .x5))
-  (CodeReq.union (CodeReq.singleton (base + 24) (.OR .x7 .x7 .x6))
-  (CodeReq.union (CodeReq.singleton (base + 28) (.LD .x6 .x12 16))
-  (CodeReq.union (CodeReq.singleton (base + 32) (.LD .x5 .x12 48))
-  (CodeReq.union (CodeReq.singleton (base + 36) (.XOR .x6 .x6 .x5))
-  (CodeReq.union (CodeReq.singleton (base + 40) (.OR .x7 .x7 .x6))
-  (CodeReq.union (CodeReq.singleton (base + 44) (.LD .x6 .x12 24))
-  (CodeReq.union (CodeReq.singleton (base + 48) (.LD .x5 .x12 56))
-  (CodeReq.union (CodeReq.singleton (base + 52) (.XOR .x6 .x6 .x5))
-  (CodeReq.union (CodeReq.singleton (base + 56) (.OR .x7 .x7 .x6))
-  (CodeReq.union (CodeReq.singleton (base + 60) (.SLTIU .x7 .x7 1))
-  (CodeReq.union (CodeReq.singleton (base + 64) (.ADDI .x12 .x12 32))
-  (CodeReq.union (CodeReq.singleton (base + 68) (.SD .x12 .x7 0))
-  (CodeReq.union (CodeReq.singleton (base + 72) (.SD .x12 .x0 8))
-  (CodeReq.union (CodeReq.singleton (base + 76) (.SD .x12 .x0 16))
-   (CodeReq.singleton (base + 80) (.SD .x12 .x0 24)))))))))))))))))))))
+  CodeReq.ofProg base evm_eq
 
 set_option maxHeartbeats 6400000 in
 /-- Full 256-bit EVM EQ: EQ(a, b) = 1 iff a == b (unsigned).

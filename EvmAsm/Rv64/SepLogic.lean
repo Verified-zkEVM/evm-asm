@@ -2124,6 +2124,30 @@ theorem CodeReq.Disjoint.union_left {cr1 cr2 cr3 : CodeReq}
 theorem CodeReq.Disjoint.symm {cr1 cr2 : CodeReq} (hd : cr1.Disjoint cr2) :
     cr2.Disjoint cr1 := fun a => (hd a).symm
 
+/-- ofProg of empty list is disjoint from anything (left). -/
+theorem CodeReq.Disjoint.ofProg_nil_left (base : Addr) (cr : CodeReq) :
+    CodeReq.Disjoint (CodeReq.ofProg base []) cr :=
+  CodeReq.Disjoint.empty_left cr
+
+/-- Any CodeReq is disjoint from ofProg of empty list (right). -/
+theorem CodeReq.Disjoint.ofProg_nil_right (cr : CodeReq) (base : Addr) :
+    CodeReq.Disjoint cr (CodeReq.ofProg base []) :=
+  CodeReq.Disjoint.empty_right cr
+
+/-- Disjointness of ofProg cons on the left: peel off the head singleton. -/
+theorem CodeReq.Disjoint.ofProg_cons_left (base : Addr) (i : Instr) (rest : List Instr) (cr : CodeReq)
+    (h1 : CodeReq.Disjoint (CodeReq.singleton base i) cr)
+    (h2 : CodeReq.Disjoint (CodeReq.ofProg (base + 4) rest) cr) :
+    CodeReq.Disjoint (CodeReq.ofProg base (i :: rest)) cr := by
+  rw [CodeReq.ofProg_cons]; exact CodeReq.Disjoint.union_left h1 h2
+
+/-- Disjointness of ofProg cons on the right: peel off the head singleton. -/
+theorem CodeReq.Disjoint.ofProg_cons_right (cr : CodeReq) (base : Addr) (i : Instr) (rest : List Instr)
+    (h1 : CodeReq.Disjoint cr (CodeReq.singleton base i))
+    (h2 : CodeReq.Disjoint cr (CodeReq.ofProg (base + 4) rest)) :
+    CodeReq.Disjoint cr (CodeReq.ofProg base (i :: rest)) := by
+  rw [CodeReq.ofProg_cons]; exact CodeReq.Disjoint.union_right h1 h2
+
 /-- Simplify CodeReq.union applied to a concrete address, when the head is a singleton.
     This collapses `(singleton a i |> union · rest) a'` into an if-then-else
     at the ite level rather than the match-over-ite level. -/
@@ -2227,6 +2251,57 @@ theorem CodeReq.union_split_mono {cr1 cr2 cr : CodeReq}
 theorem CodeReq.singleton_get (a : Addr) (i : Instr) :
     CodeReq.singleton a i a = some i := by
   simp [CodeReq.singleton]
+
+-- ---------------------------------------------------------------------------
+-- ofProg lookup by flat index (for tactic-built mono proofs)
+-- ---------------------------------------------------------------------------
+
+/-- Auxiliary: `base + BitVec.ofNat 64 0 = base`. -/
+private theorem ofProg_addr_zero (base : Addr) : base + BitVec.ofNat 64 0 = base := by
+  bv_omega
+
+/-- Auxiliary: address step for ofProg induction.
+    `base + ofNat(4*(k+1)) = (base + 4) + ofNat(4*k)`. -/
+private theorem ofProg_addr_succ (base : Addr) (k : Nat) :
+    base + BitVec.ofNat 64 (4 * (k + 1)) = (base + 4) + BitVec.ofNat 64 (4 * k) := by
+  apply BitVec.eq_of_toNat_eq
+  simp [BitVec.toNat_add, BitVec.toNat_ofNat]
+  omega
+
+/-- Auxiliary: `base + ofNat(4*(k+1)) ≠ base` when `4*(k+1) < 2^64`. -/
+private theorem ofProg_addr_ne (base : Addr) (k : Nat) (hk : 4 * (k + 1) < 2 ^ 64) :
+    base + BitVec.ofNat 64 (4 * (k + 1)) ≠ base := by
+  intro h
+  have := congrArg BitVec.toNat h
+  simp [BitVec.toNat_add, BitVec.toNat_ofNat, Nat.mod_eq_of_lt hk] at this
+  omega
+
+/-- ofProg lookup at offset 0: the first instruction is at `base`. -/
+theorem CodeReq.ofProg_lookup_zero (base : Addr) (i : Instr) (rest : List Instr) :
+    (CodeReq.ofProg base (i :: rest)) base = some i := by
+  rw [CodeReq.ofProg_cons]
+  exact CodeReq.union_hit (CodeReq.singleton_get base i)
+
+theorem CodeReq.ofProg_lookup (base : Addr) (prog : List Instr) (k : Nat)
+    (hk : k < prog.length) (hbound : 4 * prog.length < 2 ^ 64) :
+    (CodeReq.ofProg base prog) (base + BitVec.ofNat 64 (4 * k)) = some (prog.get ⟨k, hk⟩) := by
+  induction prog generalizing base k with
+  | nil => exact absurd hk (by simp)
+  | cons i rest ih =>
+    rw [CodeReq.ofProg_cons]
+    cases k with
+    | zero =>
+      simp only [Nat.mul_zero, List.get]
+      rw [ofProg_addr_zero]
+      exact CodeReq.union_hit (CodeReq.singleton_get base i)
+    | succ k' =>
+      simp only [List.get]
+      have hk'_bound : 4 * (k' + 1) < 2 ^ 64 := by omega
+      have hmiss : (CodeReq.singleton base i) (base + BitVec.ofNat 64 (4 * (k' + 1))) = none :=
+        CodeReq.singleton_miss (ofProg_addr_ne base k' hk'_bound)
+      simp only [CodeReq.union, hmiss]
+      rw [ofProg_addr_succ]
+      exact ih (base + 4) k' (by simp [List.length] at hk; omega) (by simp [List.length] at hbound; omega)
 
 theorem CodeReq.union_satisfiedBy (cr1 cr2 : CodeReq) (s : MachineState)
     (hd : cr1.Disjoint cr2) :

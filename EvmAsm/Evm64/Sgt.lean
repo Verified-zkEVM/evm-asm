@@ -19,35 +19,7 @@ namespace EvmAsm.Rv64
 /-- CodeReq for the 256-bit EVM SGT operation.
     25 instructions = 100 bytes. SGT(a, b) = SLT(b, a): swapped load order. -/
 abbrev evm_sgt_code (base : Addr) : CodeReq :=
-  -- Phase 1: MSB check (3 instructions, swapped: b3 into x7, a3 into x6)
-  CodeReq.union (CodeReq.singleton base (.LD .x7 .x12 56))
-  (CodeReq.union (CodeReq.singleton (base + 4) (.LD .x6 .x12 24))
-  (CodeReq.union (CodeReq.singleton (base + 8) (.BEQ .x7 .x6 12))
-  -- MSB differ path (2 instructions)
-  (CodeReq.union (CodeReq.singleton (base + 12) (.SLT .x5 .x7 .x6))
-  (CodeReq.union (CodeReq.singleton (base + 16) (.JAL .x0 64))
-  -- Lower compare path: 3-limb borrow chain (15 instructions, swapped)
-  (CodeReq.union (CodeReq.singleton (base + 20) (.LD .x7 .x12 32))
-  (CodeReq.union (CodeReq.singleton (base + 24) (.LD .x6 .x12 0))
-  (CodeReq.union (CodeReq.singleton (base + 28) (.SLTU .x5 .x7 .x6))
-  (CodeReq.union (CodeReq.singleton (base + 32) (.LD .x7 .x12 40))
-  (CodeReq.union (CodeReq.singleton (base + 36) (.LD .x6 .x12 8))
-  (CodeReq.union (CodeReq.singleton (base + 40) (.SLTU .x11 .x7 .x6))
-  (CodeReq.union (CodeReq.singleton (base + 44) (.SUB .x7 .x7 .x6))
-  (CodeReq.union (CodeReq.singleton (base + 48) (.SLTU .x6 .x7 .x5))
-  (CodeReq.union (CodeReq.singleton (base + 52) (.OR .x5 .x11 .x6))
-  (CodeReq.union (CodeReq.singleton (base + 56) (.LD .x7 .x12 48))
-  (CodeReq.union (CodeReq.singleton (base + 60) (.LD .x6 .x12 16))
-  (CodeReq.union (CodeReq.singleton (base + 64) (.SLTU .x11 .x7 .x6))
-  (CodeReq.union (CodeReq.singleton (base + 68) (.SUB .x7 .x7 .x6))
-  (CodeReq.union (CodeReq.singleton (base + 72) (.SLTU .x6 .x7 .x5))
-  (CodeReq.union (CodeReq.singleton (base + 76) (.OR .x5 .x11 .x6))
-  -- Store phase (5 instructions)
-  (CodeReq.union (CodeReq.singleton (base + 80) (.ADDI .x12 .x12 32))
-  (CodeReq.union (CodeReq.singleton (base + 84) (.SD .x12 .x5 0))
-  (CodeReq.union (CodeReq.singleton (base + 88) (.SD .x12 .x0 8))
-  (CodeReq.union (CodeReq.singleton (base + 92) (.SD .x12 .x0 16))
-   (CodeReq.singleton (base + 96) (.SD .x12 .x0 24)))))))))))))))))))))))))
+  CodeReq.ofProg base evm_sgt
 
 set_option maxHeartbeats 6400000 in
 /-- Full 256-bit EVM SGT: SGT(a, b) = 1 iff a >s b (signed).

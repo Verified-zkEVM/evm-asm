@@ -234,11 +234,7 @@ theorem signext_done_spec (sp : Word) (base : Addr) :
 /-- CodeReq for sign-extend phase B (5 instructions):
     ANDI x10,x5,7; SLLI x10,x10,3; ADDI x6,x0,56; SUB x6,x6,x10; SRLI x5,x5,3. -/
 abbrev signext_phase_b_code (base : Addr) : CodeReq :=
-  CodeReq.union (CodeReq.singleton base (.ANDI .x10 .x5 7))
-  (CodeReq.union (CodeReq.singleton (base + 4) (.SLLI .x10 .x10 3))
-  (CodeReq.union (CodeReq.singleton (base + 8) (.ADDI .x6 .x0 56))
-  (CodeReq.union (CodeReq.singleton (base + 12) (.SUB .x6 .x6 .x10))
-   (CodeReq.singleton (base + 16) (.SRLI .x5 .x5 3)))))
+  CodeReq.ofProg base signext_phase_b
 
 set_option maxHeartbeats 1600000 in
 /-- Phase B spec: compute sign-extension parameters.

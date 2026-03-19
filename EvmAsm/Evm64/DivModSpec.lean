@@ -20,11 +20,7 @@ namespace EvmAsm.Rv64
 -- ============================================================================
 
 abbrev divK_zeroPath_code (base : Addr) : CodeReq :=
-  CodeReq.union (CodeReq.singleton base (.ADDI .x12 .x12 32))
-  (CodeReq.union (CodeReq.singleton (base + 4) (.SD .x12 .x0 0))
-  (CodeReq.union (CodeReq.singleton (base + 8) (.SD .x12 .x0 8))
-  (CodeReq.union (CodeReq.singleton (base + 12) (.SD .x12 .x0 16))
-   (CodeReq.singleton (base + 16) (.SD .x12 .x0 24)))))
+  CodeReq.ofProg base divK_zeroPath
 
 /-- Zero path: advance sp by 32, store four zeros at the output location.
     Used when b = 0 (both DIV and MOD return 0). -/
@@ -52,14 +48,7 @@ theorem divK_zeroPath_spec (sp : Addr) (base : Addr)
 -- ============================================================================
 
 abbrev divK_phaseA_code (base : Addr) : CodeReq :=
-  CodeReq.union (CodeReq.singleton base (.LD .x5 .x12 32))
-  (CodeReq.union (CodeReq.singleton (base + 4) (.LD .x10 .x12 40))
-  (CodeReq.union (CodeReq.singleton (base + 8) (.OR .x5 .x5 .x10))
-  (CodeReq.union (CodeReq.singleton (base + 12) (.LD .x10 .x12 48))
-  (CodeReq.union (CodeReq.singleton (base + 16) (.OR .x5 .x5 .x10))
-  (CodeReq.union (CodeReq.singleton (base + 20) (.LD .x10 .x12 56))
-  (CodeReq.union (CodeReq.singleton (base + 24) (.OR .x5 .x5 .x10))
-   (CodeReq.singleton (base + 28) (.BEQ .x5 .x0 1016))))))))
+  CodeReq.ofProg base (divK_phaseA 1016)
 
 /-- Phase A body: load and OR-reduce the 4 limbs of b.
     Produces x5 = b0 ||| b1 ||| b2 ||| b3.
@@ -137,15 +126,8 @@ theorem divK_phaseA_spec (sp : Addr) (base : Addr)
     -- a = base + 28, i = .BEQ .x5 .x0 1016
     subst_vars
     show divK_phaseA_code base (base + 28) = _
-    simp only [divK_phaseA_code, CodeReq.union, CodeReq.singleton]
-    have h0 : ¬(base + 28 = base) := by bv_omega
-    have h1 : ¬(base + 28 = base + 4) := by bv_omega
-    have h2 : ¬(base + 28 = base + 8) := by bv_omega
-    have h3 : ¬(base + 28 = base + 12) := by bv_omega
-    have h4 : ¬(base + 28 = base + 16) := by bv_omega
-    have h5 : ¬(base + 28 = base + 20) := by bv_omega
-    have h6 : ¬(base + 28 = base + 24) := by bv_omega
-    simp only [beq_iff_eq, h0, h1, h2, h3, h4, h5, h6, ↓reduceIte]
+    exact CodeReq.ofProg_lookup base (divK_phaseA 1016) 7
+      (by native_decide) (by native_decide)
     ) hbeq_framed
   -- 5. Compose body → BEQ with permutation (same CR)
   have composed := cpsTriple_seq_cpsBranch_with_perm_same_cr _ _ _ _ _ _ _ _ _ _
@@ -229,15 +211,7 @@ theorem divK_phaseB_init2_spec (sp : Addr) (base : Addr)
 -- ============================================================================
 
 abbrev divK_copyAU_code (base : Addr) : CodeReq :=
-  CodeReq.union (CodeReq.singleton base (.LD .x5 .x12 0))
-  (CodeReq.union (CodeReq.singleton (base + 4) (.SD .x12 .x5 4056))
-  (CodeReq.union (CodeReq.singleton (base + 8) (.LD .x5 .x12 8))
-  (CodeReq.union (CodeReq.singleton (base + 12) (.SD .x12 .x5 4048))
-  (CodeReq.union (CodeReq.singleton (base + 16) (.LD .x5 .x12 16))
-  (CodeReq.union (CodeReq.singleton (base + 20) (.SD .x12 .x5 4040))
-  (CodeReq.union (CodeReq.singleton (base + 24) (.LD .x5 .x12 24))
-  (CodeReq.union (CodeReq.singleton (base + 28) (.SD .x12 .x5 4032))
-   (CodeReq.singleton (base + 32) (.SD .x12 .x0 4024)))))))))
+  CodeReq.ofProg base divK_copyAU
 
 /-- Copy a[0..3] to u[0..3] and set u[4] = 0 (no shift needed). -/
 theorem divK_copyAU_spec (sp : Addr) (base : Addr)
@@ -652,10 +626,7 @@ theorem divK_phaseB_tail_spec (sp n leading_limb n_mem : Word) (base : Addr)
 -- ============================================================================
 
 abbrev divK_phaseC2_code (shift0_off : BitVec 13) (base : Addr) : CodeReq :=
-  CodeReq.union (CodeReq.singleton base (.SD .x12 .x6 3992))
-  (CodeReq.union (CodeReq.singleton (base + 4) (.ADDI .x2 .x0 0))
-  (CodeReq.union (CodeReq.singleton (base + 8) (.SUB .x2 .x2 .x6))
-   (CodeReq.singleton (base + 12) (.BEQ .x6 .x0 shift0_off))))
+  CodeReq.ofProg base (divK_phaseC2 shift0_off)
 
 /-- Phase C2 body: SD shift to scratch, ADDI x2 = 0, SUB x2 = -shift.
     Preserves x6 and x0 for the subsequent BEQ.
@@ -734,11 +705,10 @@ theorem divK_phaseC2_spec (sp shift v2 shift_mem : Word)
       rw [beq_iff_eq] at heq; subst heq
       simp only [Option.some.injEq] at h; subst h
       show divK_phaseC2_code shift0_off base (base + 12) = _
-      simp only [divK_phaseC2_code, CodeReq.union, CodeReq.singleton]
-      have h0 : ¬(base + 12 = base) := by bv_omega
-      have h1 : ¬(base + 12 = base + 4) := by bv_omega
-      have h2 : ¬(base + 12 = base + 8) := by bv_omega
-      simp only [beq_iff_eq, h0, h1, h2, ↓reduceIte]
+      have hlen : (divK_phaseC2 shift0_off).length = 4 := by
+        unfold divK_phaseC2 SD ADDI single seq; rfl
+      exact CodeReq.ofProg_lookup base (divK_phaseC2 shift0_off) 3
+        (by omega) (by omega)
     · simp at h) hbeq_framed
   have composed := cpsTriple_seq_cpsBranch_with_perm_same_cr _ _ _ _ _ _ _ _ _ _
     (fun h hp => by xperm_hyp hp) hbody hbeq_ext
@@ -828,10 +798,7 @@ theorem divK_phaseB_cascade_step_spec (n_val : BitVec 12) (rx : Reg) (check v5 :
 -- ============================================================================
 
 abbrev divK_loopSetup_code (blt_off : BitVec 13) (base : Addr) : CodeReq :=
-  CodeReq.union (CodeReq.singleton base (.LD .x5 .x12 3984))
-  (CodeReq.union (CodeReq.singleton (base + 4) (.ADDI .x1 .x0 4))
-  (CodeReq.union (CodeReq.singleton (base + 8) (.SUB .x1 .x1 .x5))
-   (CodeReq.singleton (base + 12) (.BLT .x1 .x0 blt_off))))
+  CodeReq.ofProg base (divK_loopSetup blt_off)
 
 /-- Loop setup body: load n, compute m = 4 - n. 3 straight-line instructions.
     Uses signExtend12 4 directly to match addi_x0_spec_gen + sub_spec_gen output. -/
@@ -903,11 +870,10 @@ theorem divK_loopSetup_spec (sp n v1 v5 : Word)
       rw [beq_iff_eq] at heq; subst heq
       simp only [Option.some.injEq] at h; subst h
       show divK_loopSetup_code blt_off base (base + 12) = _
-      simp only [divK_loopSetup_code, CodeReq.union, CodeReq.singleton]
-      have h0 : ¬(base + 12 = base) := by bv_omega
-      have h1 : ¬(base + 12 = base + 4) := by bv_omega
-      have h2 : ¬(base + 12 = base + 8) := by bv_omega
-      simp only [beq_iff_eq, h0, h1, h2, ↓reduceIte]
+      have hlen : (divK_loopSetup blt_off).length = 4 := by
+        unfold divK_loopSetup LD ADDI single seq; rfl
+      exact CodeReq.ofProg_lookup base (divK_loopSetup blt_off) 3
+        (by omega) (by omega)
     · simp at h) hblt_framed
   have composed := cpsTriple_seq_cpsBranch_with_perm_same_cr _ _ _ _ _ _ _ _ _ _
     (fun h hp => by xperm_hyp hp) hbody hblt_ext

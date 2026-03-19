@@ -15,32 +15,7 @@ namespace EvmAsm.Rv64
 /-- CodeReq for the 256-bit EVM GT operation.
     26 instructions = 104 bytes. GT(a, b) = LT(b, a): load b-limbs first. -/
 abbrev evm_gt_code (base : Addr) : CodeReq :=
-  CodeReq.union (CodeReq.singleton base (.LD .x7 .x12 32))
-  (CodeReq.union (CodeReq.singleton (base + 4) (.LD .x6 .x12 0))
-  (CodeReq.union (CodeReq.singleton (base + 8) (.SLTU .x5 .x7 .x6))
-  (CodeReq.union (CodeReq.singleton (base + 12) (.LD .x7 .x12 40))
-  (CodeReq.union (CodeReq.singleton (base + 16) (.LD .x6 .x12 8))
-  (CodeReq.union (CodeReq.singleton (base + 20) (.SLTU .x11 .x7 .x6))
-  (CodeReq.union (CodeReq.singleton (base + 24) (.SUB .x7 .x7 .x6))
-  (CodeReq.union (CodeReq.singleton (base + 28) (.SLTU .x6 .x7 .x5))
-  (CodeReq.union (CodeReq.singleton (base + 32) (.OR .x5 .x11 .x6))
-  (CodeReq.union (CodeReq.singleton (base + 36) (.LD .x7 .x12 48))
-  (CodeReq.union (CodeReq.singleton (base + 40) (.LD .x6 .x12 16))
-  (CodeReq.union (CodeReq.singleton (base + 44) (.SLTU .x11 .x7 .x6))
-  (CodeReq.union (CodeReq.singleton (base + 48) (.SUB .x7 .x7 .x6))
-  (CodeReq.union (CodeReq.singleton (base + 52) (.SLTU .x6 .x7 .x5))
-  (CodeReq.union (CodeReq.singleton (base + 56) (.OR .x5 .x11 .x6))
-  (CodeReq.union (CodeReq.singleton (base + 60) (.LD .x7 .x12 56))
-  (CodeReq.union (CodeReq.singleton (base + 64) (.LD .x6 .x12 24))
-  (CodeReq.union (CodeReq.singleton (base + 68) (.SLTU .x11 .x7 .x6))
-  (CodeReq.union (CodeReq.singleton (base + 72) (.SUB .x7 .x7 .x6))
-  (CodeReq.union (CodeReq.singleton (base + 76) (.SLTU .x6 .x7 .x5))
-  (CodeReq.union (CodeReq.singleton (base + 80) (.OR .x5 .x11 .x6))
-  (CodeReq.union (CodeReq.singleton (base + 84) (.ADDI .x12 .x12 32))
-  (CodeReq.union (CodeReq.singleton (base + 88) (.SD .x12 .x5 0))
-  (CodeReq.union (CodeReq.singleton (base + 92) (.SD .x12 .x0 8))
-  (CodeReq.union (CodeReq.singleton (base + 96) (.SD .x12 .x0 16))
-   (CodeReq.singleton (base + 100) (.SD .x12 .x0 24))))))))))))))))))))))))))
+  CodeReq.ofProg base evm_gt
 
 set_option maxHeartbeats 6400000 in
 /-- Full 256-bit EVM GT: GT(a, b) = 1 iff a > b (unsigned).

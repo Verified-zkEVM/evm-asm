@@ -17,18 +17,7 @@ namespace EvmAsm.Rv64
 /-- CodeReq for the 256-bit EVM NOT operation.
     12 instructions = 48 bytes. 4 per-limb XORI(-1) blocks. -/
 abbrev evm_not_code (base : Addr) : CodeReq :=
-  CodeReq.union (CodeReq.singleton base (.LD .x7 .x12 0))
-  (CodeReq.union (CodeReq.singleton (base + 4) (.XORI .x7 .x7 (-1)))
-  (CodeReq.union (CodeReq.singleton (base + 8) (.SD .x12 .x7 0))
-  (CodeReq.union (CodeReq.singleton (base + 12) (.LD .x7 .x12 8))
-  (CodeReq.union (CodeReq.singleton (base + 16) (.XORI .x7 .x7 (-1)))
-  (CodeReq.union (CodeReq.singleton (base + 20) (.SD .x12 .x7 8))
-  (CodeReq.union (CodeReq.singleton (base + 24) (.LD .x7 .x12 16))
-  (CodeReq.union (CodeReq.singleton (base + 28) (.XORI .x7 .x7 (-1)))
-  (CodeReq.union (CodeReq.singleton (base + 32) (.SD .x12 .x7 16))
-  (CodeReq.union (CodeReq.singleton (base + 36) (.LD .x7 .x12 24))
-  (CodeReq.union (CodeReq.singleton (base + 40) (.XORI .x7 .x7 (-1)))
-   (CodeReq.singleton (base + 44) (.SD .x12 .x7 24))))))))))))
+  CodeReq.ofProg base evm_not
 
 set_option maxHeartbeats 6400000 in
 /-- Full 256-bit EVM NOT: composes 4 per-limb NOT specs.

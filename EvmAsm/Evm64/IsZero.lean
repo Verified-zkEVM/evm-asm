@@ -14,18 +14,7 @@ namespace EvmAsm.Rv64
 /-- CodeReq for the 256-bit EVM ISZERO operation.
     12 instructions = 48 bytes. OR-reduce 4 limbs + SLTIU boolean + store. -/
 abbrev evm_iszero_code (base : Addr) : CodeReq :=
-  CodeReq.union (CodeReq.singleton base (.LD .x7 .x12 0))
-  (CodeReq.union (CodeReq.singleton (base + 4) (.LD .x6 .x12 8))
-  (CodeReq.union (CodeReq.singleton (base + 8) (.OR .x7 .x7 .x6))
-  (CodeReq.union (CodeReq.singleton (base + 12) (.LD .x6 .x12 16))
-  (CodeReq.union (CodeReq.singleton (base + 16) (.OR .x7 .x7 .x6))
-  (CodeReq.union (CodeReq.singleton (base + 20) (.LD .x6 .x12 24))
-  (CodeReq.union (CodeReq.singleton (base + 24) (.OR .x7 .x7 .x6))
-  (CodeReq.union (CodeReq.singleton (base + 28) (.SLTIU .x7 .x7 1))
-  (CodeReq.union (CodeReq.singleton (base + 32) (.SD .x12 .x7 0))
-  (CodeReq.union (CodeReq.singleton (base + 36) (.SD .x12 .x0 8))
-  (CodeReq.union (CodeReq.singleton (base + 40) (.SD .x12 .x0 16))
-   (CodeReq.singleton (base + 44) (.SD .x12 .x0 24))))))))))))
+  CodeReq.ofProg base evm_iszero
 
 /-- Full 256-bit EVM ISZERO: result = 1 iff all 4 limbs are 0.
     Unary: reads 256-bit word at sp, overwrites with boolean result.

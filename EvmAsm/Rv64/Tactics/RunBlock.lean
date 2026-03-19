@@ -832,8 +832,24 @@ private partial def extractCrEntriesPure (cr : Expr) : List (Expr × Expr) :=
     extractCrEntriesPure args[0]! ++ extractCrEntriesPure args[1]!
   else []
 
+/-- Walk a concrete `List Instr` (whnf'd) and emit `(base + 4*k, instr)` entries. -/
+private partial def extractProgEntries (base : Expr) (progList : Expr) (off : Nat := 0) :
+    MetaM (List (Expr × Expr)) := do
+  let listW ← whnf progList
+  if listW.isAppOfArity ``List.cons 3 then
+    let headInstr := listW.getAppArgs[1]!
+    let rest := listW.getAppArgs[2]!
+    let addrType := mkApp (mkConst ``BitVec) (mkNatLit 64)
+    let addr ← if off == 0 then Pure.pure base
+      else do let offBv ← Lean.Meta.mkNumeral addrType off; mkAppM ``HAdd.hAdd #[base, offBv]
+    let tail ← extractProgEntries base rest (off + 4)
+    return (addr, headInstr) :: tail
+  else
+    return []
+
 /-- Extract instruction entries `(addr, instrExpr)` from a CodeReq expression.
-    Recursively unfolds abbreviations using whnfR to handle nested CodeReq abbrevs. -/
+    Recursively unfolds abbreviations using whnfR to handle nested CodeReq abbrevs.
+    Also handles CodeReq.ofProg by enumerating (base + 4*k, prog[k]) entries. -/
 private partial def extractCrEntries (cr : Expr) : MetaM (List (Expr × Expr)) := do
   if cr.isAppOfArity ``EvmAsm.Rv64.CodeReq.singleton 2 then
     let args := cr.getAppArgs
@@ -843,6 +859,11 @@ private partial def extractCrEntries (cr : Expr) : MetaM (List (Expr × Expr)) :
     let left ← extractCrEntries args[0]!
     let right ← extractCrEntries args[1]!
     return left ++ right
+  -- Case: ofProg base prog — enumerate entries from the program list
+  if cr.isAppOfArity ``EvmAsm.Rv64.CodeReq.ofProg 2 then
+    let base := cr.getAppArgs[0]!
+    let prog := cr.getAppArgs[1]!
+    return ← extractProgEntries base prog
   -- Not a recognized structural form — try whnfR to unfold one level
   let cr' ← Lean.Meta.whnfR cr
   if cr' == cr then return []  -- No progress, give up

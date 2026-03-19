@@ -14,41 +14,7 @@ namespace EvmAsm.Rv64
 /-- CodeReq for the 256-bit EVM SUB operation.
     30 instructions = 120 bytes. 4 per-limb SUB blocks + ADDI sp adjustment. -/
 abbrev evm_sub_code (base : Addr) : CodeReq :=
-  -- Limb 0 code (5 instructions: base+0..base+16)
-  CodeReq.union (CodeReq.singleton base (.LD .x7 .x12 0))
-  (CodeReq.union (CodeReq.singleton (base + 4) (.LD .x6 .x12 32))
-  (CodeReq.union (CodeReq.singleton (base + 8) (.SLTU .x5 .x7 .x6))
-  (CodeReq.union (CodeReq.singleton (base + 12) (.SUB .x7 .x7 .x6))
-  (CodeReq.union (CodeReq.singleton (base + 16) (.SD .x12 .x7 32))
-  -- Limb 1 code (8 instructions: base+20..base+48)
-  (CodeReq.union (CodeReq.singleton (base + 20) (.LD .x7 .x12 8))
-  (CodeReq.union (CodeReq.singleton (base + 24) (.LD .x6 .x12 40))
-  (CodeReq.union (CodeReq.singleton (base + 28) (.SLTU .x11 .x7 .x6))
-  (CodeReq.union (CodeReq.singleton (base + 32) (.SUB .x7 .x7 .x6))
-  (CodeReq.union (CodeReq.singleton (base + 36) (.SLTU .x6 .x7 .x5))
-  (CodeReq.union (CodeReq.singleton (base + 40) (.SUB .x7 .x7 .x5))
-  (CodeReq.union (CodeReq.singleton (base + 44) (.OR .x5 .x11 .x6))
-  (CodeReq.union (CodeReq.singleton (base + 48) (.SD .x12 .x7 40))
-  -- Limb 2 code (8 instructions: base+52..base+80)
-  (CodeReq.union (CodeReq.singleton (base + 52) (.LD .x7 .x12 16))
-  (CodeReq.union (CodeReq.singleton (base + 56) (.LD .x6 .x12 48))
-  (CodeReq.union (CodeReq.singleton (base + 60) (.SLTU .x11 .x7 .x6))
-  (CodeReq.union (CodeReq.singleton (base + 64) (.SUB .x7 .x7 .x6))
-  (CodeReq.union (CodeReq.singleton (base + 68) (.SLTU .x6 .x7 .x5))
-  (CodeReq.union (CodeReq.singleton (base + 72) (.SUB .x7 .x7 .x5))
-  (CodeReq.union (CodeReq.singleton (base + 76) (.OR .x5 .x11 .x6))
-  (CodeReq.union (CodeReq.singleton (base + 80) (.SD .x12 .x7 48))
-  -- Limb 3 code (8 instructions: base+84..base+112)
-  (CodeReq.union (CodeReq.singleton (base + 84) (.LD .x7 .x12 24))
-  (CodeReq.union (CodeReq.singleton (base + 88) (.LD .x6 .x12 56))
-  (CodeReq.union (CodeReq.singleton (base + 92) (.SLTU .x11 .x7 .x6))
-  (CodeReq.union (CodeReq.singleton (base + 96) (.SUB .x7 .x7 .x6))
-  (CodeReq.union (CodeReq.singleton (base + 100) (.SLTU .x6 .x7 .x5))
-  (CodeReq.union (CodeReq.singleton (base + 104) (.SUB .x7 .x7 .x5))
-  (CodeReq.union (CodeReq.singleton (base + 108) (.OR .x5 .x11 .x6))
-  (CodeReq.union (CodeReq.singleton (base + 112) (.SD .x12 .x7 56))
-  -- ADDI instruction
-  (CodeReq.singleton (base + 116) (.ADDI .x12 .x12 32))))))))))))))))))))))))))))))
+  CodeReq.ofProg base evm_sub
 
 set_option maxHeartbeats 6400000 in
 /-- Full 256-bit EVM SUB: composes 4 per-limb SUB specs + ADDI sp adjustment.

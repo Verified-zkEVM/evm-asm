@@ -15,23 +15,7 @@ namespace EvmAsm.Rv64
 /-- CodeReq for the 256-bit EVM AND operation.
     17 instructions = 68 bytes. 4 per-limb AND blocks + ADDI sp adjustment. -/
 abbrev evm_and_code (base : Addr) : CodeReq :=
-  CodeReq.union (CodeReq.singleton base (.LD .x7 .x12 0))
-  (CodeReq.union (CodeReq.singleton (base + 4) (.LD .x6 .x12 32))
-  (CodeReq.union (CodeReq.singleton (base + 8) (.AND .x7 .x7 .x6))
-  (CodeReq.union (CodeReq.singleton (base + 12) (.SD .x12 .x7 32))
-  (CodeReq.union (CodeReq.singleton (base + 16) (.LD .x7 .x12 8))
-  (CodeReq.union (CodeReq.singleton (base + 20) (.LD .x6 .x12 40))
-  (CodeReq.union (CodeReq.singleton (base + 24) (.AND .x7 .x7 .x6))
-  (CodeReq.union (CodeReq.singleton (base + 28) (.SD .x12 .x7 40))
-  (CodeReq.union (CodeReq.singleton (base + 32) (.LD .x7 .x12 16))
-  (CodeReq.union (CodeReq.singleton (base + 36) (.LD .x6 .x12 48))
-  (CodeReq.union (CodeReq.singleton (base + 40) (.AND .x7 .x7 .x6))
-  (CodeReq.union (CodeReq.singleton (base + 44) (.SD .x12 .x7 48))
-  (CodeReq.union (CodeReq.singleton (base + 48) (.LD .x7 .x12 24))
-  (CodeReq.union (CodeReq.singleton (base + 52) (.LD .x6 .x12 56))
-  (CodeReq.union (CodeReq.singleton (base + 56) (.AND .x7 .x7 .x6))
-  (CodeReq.union (CodeReq.singleton (base + 60) (.SD .x12 .x7 56))
-   (CodeReq.singleton (base + 64) (.ADDI .x12 .x12 32)))))))))))))))))
+  CodeReq.ofProg base evm_and
 
 set_option maxHeartbeats 6400000 in
 /-- Full 256-bit EVM AND: composes 4 per-limb AND specs + sp adjustment.
