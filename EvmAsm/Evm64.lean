@@ -38,6 +38,7 @@ import EvmAsm.Evm64.Sgt
 -- Shifts
 import EvmAsm.Evm64.Shift
 import EvmAsm.Evm64.ShrSpec
+import EvmAsm.Evm64.ShrCompose
 
 -- Byte and SignExtend
 import EvmAsm.Evm64.Byte
