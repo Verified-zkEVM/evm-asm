@@ -2066,6 +2066,26 @@ theorem ofProg_none_range (base : Addr) (prog : List Instr) (a : Addr)
       have h' := h (k + 1) (by simp [List.length]; omega)
       intro heq; apply h'; rw [heq]; bv_omega)
 
+theorem ofIndexed_append (xs ys : List (Addr × Instr)) :
+    ofIndexed (xs ++ ys) = (ofIndexed xs).union (ofIndexed ys) := by
+  simp only [ofIndexed, List.foldl_append]
+  exact ofIndexed_foldl_acc _ ys
+
+theorem ofProg_append (base : Addr) (p1 p2 : List Instr) :
+    ofProg base (p1 ++ p2) =
+      (ofProg base p1).union (ofProg (base + BitVec.ofNat 64 (4 * p1.length)) p2) := by
+  simp only [ofProg, progIndexed_append]
+  exact ofIndexed_append _ _
+
+/-- Right-fold union of a list of CodeReqs. -/
+def unionAll : List CodeReq → CodeReq
+  | [] => empty
+  | cr :: rest => cr.union (unionAll rest)
+
+@[simp] theorem unionAll_nil : unionAll [] = empty := rfl
+@[simp] theorem unionAll_cons (cr : CodeReq) (rest : List CodeReq) :
+    unionAll (cr :: rest) = cr.union (unionAll rest) := rfl
+
 end CodeReq
 
 -- ============================================================================
@@ -2373,6 +2393,136 @@ theorem CodeReq.ofProg_disjoint_range_len (base1 : Addr) (prog1 : List Instr) (n
     CodeReq.Disjoint (CodeReq.ofProg base1 prog1) (CodeReq.ofProg base2 prog2) :=
   CodeReq.ofProg_disjoint_range base1 prog1 base2 prog2
     (fun k1 k2 hk1 hk2 => h k1 k2 (hlen1 ▸ hk1) (hlen2 ▸ hk2))
+
+-- ---------------------------------------------------------------------------
+-- ofProg append-based monotonicity (sub-program ⊆ full program)
+-- ---------------------------------------------------------------------------
+
+/-- Left (prefix) of a program append is subsumed by the full program. -/
+theorem CodeReq.ofProg_mono_append_left (base : Addr) (p1 p2 : List Instr) :
+    ∀ a i, (CodeReq.ofProg base p1) a = some i →
+           (CodeReq.ofProg base (p1 ++ p2)) a = some i := by
+  rw [CodeReq.ofProg_append]; exact CodeReq.union_mono_left _ _
+
+/-- Right (suffix) of a program append is subsumed by the full program.
+    Requires bound to ensure non-overlapping address ranges. -/
+theorem CodeReq.ofProg_mono_append_right (base : Addr) (p1 p2 : List Instr)
+    (hbound : 4 * (p1 ++ p2).length < 2^64) :
+    ∀ a i, (CodeReq.ofProg (base + BitVec.ofNat 64 (4 * p1.length)) p2) a = some i →
+           (CodeReq.ofProg base (p1 ++ p2)) a = some i := by
+  intro a i h
+  rw [CodeReq.ofProg_append]
+  -- Need (ofProg base p1) a = none so union falls through to p2
+  have h_none : (CodeReq.ofProg base p1) a = none := by
+    obtain ⟨k, hk, rfl⟩ := CodeReq.ofProg_some_range _ _ _ _ h
+    apply CodeReq.ofProg_none_range
+    intro k1 hk1; intro heq
+    have : 4 * (p1.length + k) < 2 ^ 64 := by
+      simp [List.length_append] at hbound; omega
+    have : 4 * k1 < 2 ^ 64 := by
+      simp [List.length_append] at hbound; omega
+    -- heq : (base + ofNat(4*p1.length)) + ofNat(4*k) = base + ofNat(4*k1)
+    -- This implies 4*(p1.length + k) = 4*k1 mod 2^64, contradiction since
+    -- p1.length + k ≥ p1.length > k1
+    have := congrArg BitVec.toNat heq
+    simp only [BitVec.toNat_add, BitVec.toNat_ofNat] at this
+    omega
+  simp only [CodeReq.union, h_none, h]
+
+/-- Sub-range of a program is subsumed: if full = pre ++ mid ++ suf,
+    then `ofProg (base + 4*pre.length) mid ⊆ ofProg base full`. -/
+theorem CodeReq.ofProg_mono_subrange (base : Addr) (pre mid suf : List Instr)
+    (hbound : 4 * (pre ++ mid ++ suf).length < 2^64) :
+    ∀ a i, (CodeReq.ofProg (base + BitVec.ofNat 64 (4 * pre.length)) mid) a = some i →
+           (CodeReq.ofProg base (pre ++ mid ++ suf)) a = some i := by
+  intro a i h
+  rw [List.append_assoc]
+  exact CodeReq.ofProg_mono_append_right base pre (mid ++ suf)
+    (by rwa [← List.append_assoc]) a i
+    (CodeReq.ofProg_mono_append_left _ mid suf a i h)
+
+/-- Sub-range monotonicity with explicit offset: `ofProg sub_base sub ⊆ ofProg base full`
+    when `sub` is a contiguous slice of `full` starting at instruction index `idx`
+    (byte offset `sub_base = base + 4*idx`). -/
+theorem CodeReq.ofProg_mono_sub (base sub_base : Addr) (full sub : List Instr)
+    (idx : Nat)
+    (h_addr : sub_base = base + BitVec.ofNat 64 (4 * idx))
+    (h_slice : (full.drop idx).take sub.length = sub)
+    (h_range : idx + sub.length ≤ full.length)
+    (hbound : 4 * full.length < 2^64) :
+    ∀ a i, (CodeReq.ofProg sub_base sub) a = some i →
+           (CodeReq.ofProg base full) a = some i := by
+  intro a i h; rw [h_addr] at h
+  -- Decompose: full.drop idx = sub ++ full.drop (idx + sub.length)
+  have h_drop : full.drop idx = sub ++ full.drop (idx + sub.length) := by
+    have h1 := (List.take_append_drop sub.length (full.drop idx)).symm
+    rw [h_slice] at h1; rwa [List.drop_drop] at h1
+  -- Decompose: full = full.take idx ++ sub ++ full.drop (idx + sub.length)
+  have h_eq : full = full.take idx ++ sub ++ full.drop (idx + sub.length) :=
+    calc full = full.take idx ++ full.drop idx := (List.take_append_drop idx full).symm
+    _ = full.take idx ++ (sub ++ full.drop (idx + sub.length)) := by rw [h_drop]
+    _ = (full.take idx ++ sub) ++ full.drop (idx + sub.length) := (List.append_assoc ..).symm
+  have h_len : (full.take idx).length = idx :=
+    List.length_take_of_le (by omega)
+  rw [show BitVec.ofNat 64 (4 * idx) =
+      BitVec.ofNat 64 (4 * (full.take idx).length) from by rw [h_len]] at h
+  -- Build the proof using ofProg_mono_subrange on the decomposed form
+  have hbound' : 4 * (full.take idx ++ sub ++ full.drop (idx + sub.length)).length < 2^64 := by
+    simp only [List.length_append, List.length_take, List.length_drop]; omega
+  have h_result := CodeReq.ofProg_mono_subrange base (full.take idx) sub
+    (full.drop (idx + sub.length)) hbound' a i h
+  -- Convert from ofProg base (take ++ sub ++ drop) to ofProg base full
+  rw [congrArg (CodeReq.ofProg base) h_eq.symm] at h_result; exact h_result
+
+-- ---------------------------------------------------------------------------
+-- unionAll: structural subsumption for right-nested unions
+-- ---------------------------------------------------------------------------
+
+/-- The k-th component of a `unionAll` is subsumed, provided it is pairwise disjoint
+    from all preceding components. This is the key structural lemma for proving
+    sub-spec ⊆ union-of-blocks without element-by-element enumeration. -/
+theorem CodeReq.mono_unionAll (crs : List CodeReq) (k : Nat) (hk : k < crs.length)
+    (h_disj : ∀ j (hj : j < k), (crs.get ⟨j, Nat.lt_trans hj hk⟩).Disjoint
+                                  (crs.get ⟨k, hk⟩)) :
+    ∀ a i, (crs.get ⟨k, hk⟩) a = some i → (CodeReq.unionAll crs) a = some i := by
+  induction crs generalizing k with
+  | nil => exact absurd hk (by simp)
+  | cons cr rest ih =>
+    cases k with
+    | zero =>
+      simp only [List.get, CodeReq.unionAll_cons]
+      exact CodeReq.union_mono_left _ _
+    | succ k' =>
+      simp only [List.get, CodeReq.unionAll_cons]
+      exact CodeReq.mono_union_right
+        (by have := h_disj 0 (by omega); simp only [List.get] at this; exact this)
+        (ih k' (by simp at hk; omega) (fun j hj => by
+          have := h_disj (j + 1) (by omega)
+          simp only [List.get] at this; exact this))
+
+/-- Variant: if `sub_cr ⊆ crs[k]` and `sub_cr` is disjoint from all preceding blocks,
+    then `sub_cr ⊆ unionAll crs`. Useful when the sub-spec is a sub-range of block k. -/
+theorem CodeReq.mono_sub_unionAll (sub_cr : CodeReq) (crs : List CodeReq)
+    (k : Nat) (hk : k < crs.length)
+    (h_sub : ∀ a i, sub_cr a = some i → (crs.get ⟨k, hk⟩) a = some i)
+    (h_disj : ∀ j (hj : j < k), (crs.get ⟨j, Nat.lt_trans hj hk⟩).Disjoint sub_cr) :
+    ∀ a i, sub_cr a = some i → (CodeReq.unionAll crs) a = some i := by
+  induction crs generalizing k with
+  | nil => exact absurd hk (by simp)
+  | cons cr rest ih =>
+    cases k with
+    | zero =>
+      simp only [CodeReq.unionAll_cons]
+      intro a i h; exact CodeReq.union_mono_left _ _ a i (h_sub a i h)
+    | succ k' =>
+      simp only [CodeReq.unionAll_cons]
+      exact CodeReq.mono_union_right
+        (by have := h_disj 0 (by omega); simp only [List.get] at this; exact this)
+        (ih k' (by simp at hk; omega)
+          (by simp only [List.get] at h_sub; exact h_sub)
+          (fun j hj => by
+            have := h_disj (j + 1) (by omega)
+            simp only [List.get] at this; exact this))
 
 theorem CodeReq.union_satisfiedBy (cr1 cr2 : CodeReq) (s : MachineState)
     (hd : cr1.Disjoint cr2) :
