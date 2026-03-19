@@ -605,8 +605,7 @@ theorem evm_shr_body_spec (sp base : Addr)
        (regOwn .x6) ** (regOwn .x7) ** (regOwn .x11) **
        (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3) **
        (memOwn (sp + 32)) ** (memOwn (sp + 40)) ** (memOwn (sp + 48)) ** (memOwn (sp + 56))) := by
-  sorry
-/-  -- Memory validity
+  -- Memory validity
   have hv0 : isValidDwordAccess sp = true := by
     have := hvalid.get (i := 0) (by omega); simpa using this
   have hv8 : isValidDwordAccess (sp + 8) = true := by
@@ -731,14 +730,15 @@ theorem evm_shr_body_spec (sp base : Addr)
   -- Frame Phase C and merge with body specs
   -- Phase C frame = regs + mem not used by Phase C (x6, x7, x11, x12, shift_mem, val_mem)
   -- Body specs extended to shrCode
+  -- Each body's v10 matches the Phase C exit x10 value
   have hbody3 := cpsTriple_extend_code (body_3_sub_shrCode base)
-    (shr_body_3_spec (sp + 32) limb_shift sltiu_val bit_shift anti_shift mask
+    (shr_body_3_spec (sp + 32) limb_shift ((0 : Word) + signExtend12 2) bit_shift anti_shift mask
       v0 v1 v2 v3 (base + 84) (base + 360) 252 (shr_body3_exit base) hv32)
   have hbody2 := cpsTriple_extend_code (body_2_sub_shrCode base)
-    (shr_body_2_spec (sp + 32) limb_shift sltiu_val bit_shift anti_shift mask
+    (shr_body_2_spec (sp + 32) limb_shift ((0 : Word) + signExtend12 2) bit_shift anti_shift mask
       v0 v1 v2 v3 (base + 112) (base + 360) 200 (shr_body2_exit base) hv32)
   have hbody1 := cpsTriple_extend_code (body_1_sub_shrCode base)
-    (shr_body_1_spec (sp + 32) limb_shift sltiu_val bit_shift anti_shift mask
+    (shr_body_1_spec (sp + 32) limb_shift ((0 : Word) + signExtend12 1) bit_shift anti_shift mask
       v0 v1 v2 v3 (base + 164) (base + 360) 124 (shr_body1_exit base) hv32)
   have hbody0 := cpsTriple_extend_code (body_0_sub_shrCode base)
     (shr_body_0_spec (sp + 32) limb_shift sltiu_val bit_shift anti_shift mask
@@ -763,144 +763,75 @@ theorem evm_shr_body_spec (sp base : Addr)
   -- Inline helper for weakening memIs to memOwn
   have memIs_to_memOwn' : ∀ (a : Addr) (v : Word), ∀ h, (a ↦ₘ v) h → (memOwn a) h :=
     fun _ _ _ hp => ⟨_, hp⟩
+  -- Weaken each body's framed postcondition: concrete regs/mem → regOwn/memOwn
+  -- Generic post-weakening helper: given any concrete reg/mem values, produce regOwn/memOwn
+  have body_post_weaken : ∀ (r5v r6v r7v r10v r11v m32 m40 m48 m56 : Word),
+      ∀ h, ((.x12 ↦ᵣ (sp + 32)) ** (.x5 ↦ᵣ r5v) ** (.x6 ↦ᵣ r6v) ** (.x7 ↦ᵣ r7v) **
+            (.x10 ↦ᵣ r10v) ** (.x11 ↦ᵣ r11v) **
+            ((sp + 32) ↦ₘ m32) ** ((sp + 40) ↦ₘ m40) ** ((sp + 48) ↦ₘ m48) ** ((sp + 56) ↦ₘ m56) **
+            (.x0 ↦ᵣ (0 : Word)) ** (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3)) h →
+           ((.x12 ↦ᵣ (sp + 32)) ** (regOwn .x5) ** (.x0 ↦ᵣ (0 : Word)) ** (regOwn .x10) **
+            (regOwn .x6) ** (regOwn .x7) ** (regOwn .x11) **
+            (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3) **
+            (memOwn (sp + 32)) ** (memOwn (sp + 40)) ** (memOwn (sp + 48)) ** (memOwn (sp + 56))) h := by
+    intro r5v r6v r7v r10v r11v m32 m40 m48 m56 h hp
+    have w1 := sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn .x5 _)) h hp
+    have w2 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn .x6 _))) h w1
+    have w3 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn .x7 _)))) h w2
+    have w4 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn .x10 _))))) h w3
+    have w5 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn .x11 _)))))) h w4
+    have w6 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_left (memIs_to_memOwn' _ _))))))) h w5
+    have w7 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_left (memIs_to_memOwn' _ _)))))))) h w6
+    have w8 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_left (memIs_to_memOwn' _ _))))))))) h w7
+    have w9 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_left (memIs_to_memOwn' _ _)))))))))) h w8
+    exact (congrFun (show _ = _ from by xperm) h).mp w9
+  -- Apply weakening to each body
+  have hbody0_w := cpsTriple_consequence _ _ _ _ _ _ _
+    (fun h hp => hp) (fun h hq => body_post_weaken _ _ _ _ _ _ _ _ _ h (by xperm_hyp hq)) hbody0_f
+  have hbody1_w := cpsTriple_consequence _ _ _ _ _ _ _
+    (fun h hp => hp) (fun h hq => body_post_weaken _ _ _ _ _ _ _ _ _ h (by xperm_hyp hq)) hbody1_f
+  have hbody2_w := cpsTriple_consequence _ _ _ _ _ _ _
+    (fun h hp => hp) (fun h hq => body_post_weaken _ _ _ _ _ _ _ _ _ h (by xperm_hyp hq)) hbody2_f
+  have hbody3_w := cpsTriple_consequence _ _ _ _ _ _ _
+    (fun h hp => hp) (fun h hq => body_post_weaken _ _ _ _ _ _ _ _ _ h (by xperm_hyp hq)) hbody3_f
   -- Frame Phase C to add context for body specs
-  -- Phase C frame = x6, x7, x11, x12, shift_mem, val_mem (12 atoms)
   have hphaseC_framed := cpsNBranch_frame_left
     (F := (.x6 ↦ᵣ bit_shift) ** (.x7 ↦ᵣ anti_shift) ** (.x11 ↦ᵣ mask) ** (.x12 ↦ᵣ (sp + 32)) **
           (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3) **
           ((sp + 32) ↦ₘ v0) ** ((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3))
     (by pcFree) hphaseC
-  -- Reduce the List.map in the framed exit list
   simp only [List.map] at hphaseC_framed
-  -- Fix the precondition: ((x5**x0**x10) ** F) → x5**x0**x10**F (right-assoc)
-  have hphaseC_fixed := cpsNBranch_weaken_pre _ _ _ _ _ (fun h hp => by
-    exact holdsFor_sepConj_assoc.mp (holdsFor_sepConj_assoc.mp hp)) hphaseC_framed
   -- Use cpsNBranch_merge to compose Phase C + all bodies
-  have hphaseCD := cpsNBranch_merge (base + 64) (base + 360) (shrCode base) _ _ _ hphaseC_fixed
+  have hphaseCD := cpsNBranch_merge (base + 64) (base + 360) (shrCode base) _ _ _ hphaseC_framed
     (fun exit hmem => by
       simp only [List.mem_cons, Prod.mk.injEq, List.mem_nil_iff, or_false, false_or] at hmem
-      rcases hmem with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ <;> {
-        -- Each exit has post = (phase_C_exit_Q ** phase_C_frame)
-        -- Body spec framed has pre = (body_pre ** body_frame), same 15 atoms, different tree shape
-        -- Use cpsTriple_consequence to perm pre and weaken post
-        -- For pre: the exit's post is (Q ** F) with tree shape, body wants flat 15 atoms
-        -- We use holdsFor_sepConj_assoc to flatten
-        first
-        | exact cpsTriple_consequence _ _ _ _ _ _ _
-            (fun h hp => by
-              -- Flatten the tree-shaped assertion
-              have hp' := holdsFor_sepConj_assoc.mpr (holdsFor_sepConj_assoc.mpr hp)
-              obtain ⟨hh, hc, hpq⟩ := hp'
-              exact ⟨hh, hc, (congrFun (show _ = _ from by xperm) hh).mp hpq⟩)
-            (fun h hq => by
-              obtain ⟨hh, hc, hpq⟩ := hq
-              have hpq' := (congrFun (show _ = _ from by xperm) hh).mp hpq
-              -- Now weaken regs to regOwn and mem to memOwn
-              have w0 := sepConj_mono_left (regIs_to_regOwn .x5 _) hh hpq'
-              have w1 := sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn .x10 _)) hh w0
-              have w2 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn .x6 _))) hh w1
-              have w3 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn .x7 _)))) hh w2
-              have w4 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn .x11 _))))) hh w3
-              have w5 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
-                (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
-                (sepConj_mono_left (memIs_to_memOwn' _ _)))))))))))) hh w4
-              have w6 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
-                (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
-                (sepConj_mono_right (sepConj_mono_left (memIs_to_memOwn' _ _))))))))))))) hh w5
-              have w7 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
-                (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
-                (sepConj_mono_right (sepConj_mono_right (sepConj_mono_left (memIs_to_memOwn' _ _)))))))))))))) hh w6
-              have w8 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
-                (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
-                (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (memIs_to_memOwn' _ _)))))))))))))) hh w7
-              exact ⟨hh, hc, (congrFun (show _ = _ from by xperm) hh).mp w8⟩)
-            hbody0_f
-        | exact cpsTriple_consequence _ _ _ _ _ _ _
-            (fun h hp => by
-              have hp' := holdsFor_sepConj_assoc.mpr (holdsFor_sepConj_assoc.mpr hp)
-              obtain ⟨hh, hc, hpq⟩ := hp'
-              exact ⟨hh, hc, (congrFun (show _ = _ from by xperm) hh).mp hpq⟩)
-            (fun h hq => by
-              obtain ⟨hh, hc, hpq⟩ := hq
-              have hpq' := (congrFun (show _ = _ from by xperm) hh).mp hpq
-              have w0 := sepConj_mono_left (regIs_to_regOwn .x5 _) hh hpq'
-              have w1 := sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn .x10 _)) hh w0
-              have w2 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn .x6 _))) hh w1
-              have w3 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn .x7 _)))) hh w2
-              have w4 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn .x11 _))))) hh w3
-              have w5 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
-                (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
-                (sepConj_mono_left (memIs_to_memOwn' _ _)))))))))))) hh w4
-              have w6 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
-                (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
-                (sepConj_mono_right (sepConj_mono_left (memIs_to_memOwn' _ _))))))))))))) hh w5
-              have w7 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
-                (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
-                (sepConj_mono_right (sepConj_mono_right (sepConj_mono_left (memIs_to_memOwn' _ _)))))))))))))) hh w6
-              have w8 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
-                (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
-                (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (memIs_to_memOwn' _ _)))))))))))))) hh w7
-              exact ⟨hh, hc, (congrFun (show _ = _ from by xperm) hh).mp w8⟩)
-            hbody1_f
-        | exact cpsTriple_consequence _ _ _ _ _ _ _
-            (fun h hp => by
-              have hp' := holdsFor_sepConj_assoc.mpr (holdsFor_sepConj_assoc.mpr hp)
-              obtain ⟨hh, hc, hpq⟩ := hp'
-              exact ⟨hh, hc, (congrFun (show _ = _ from by xperm) hh).mp hpq⟩)
-            (fun h hq => by
-              obtain ⟨hh, hc, hpq⟩ := hq
-              have hpq' := (congrFun (show _ = _ from by xperm) hh).mp hpq
-              have w0 := sepConj_mono_left (regIs_to_regOwn .x5 _) hh hpq'
-              have w1 := sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn .x10 _)) hh w0
-              have w2 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn .x6 _))) hh w1
-              have w3 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn .x7 _)))) hh w2
-              have w4 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn .x11 _))))) hh w3
-              have w5 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
-                (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
-                (sepConj_mono_left (memIs_to_memOwn' _ _)))))))))))) hh w4
-              have w6 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
-                (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
-                (sepConj_mono_right (sepConj_mono_left (memIs_to_memOwn' _ _))))))))))))) hh w5
-              have w7 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
-                (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
-                (sepConj_mono_right (sepConj_mono_right (sepConj_mono_left (memIs_to_memOwn' _ _)))))))))))))) hh w6
-              have w8 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
-                (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
-                (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (memIs_to_memOwn' _ _)))))))))))))) hh w7
-              exact ⟨hh, hc, (congrFun (show _ = _ from by xperm) hh).mp w8⟩)
-            hbody2_f
-        | exact cpsTriple_consequence _ _ _ _ _ _ _
-            (fun h hp => by
-              have hp' := holdsFor_sepConj_assoc.mpr (holdsFor_sepConj_assoc.mpr hp)
-              obtain ⟨hh, hc, hpq⟩ := hp'
-              exact ⟨hh, hc, (congrFun (show _ = _ from by xperm) hh).mp hpq⟩)
-            (fun h hq => by
-              obtain ⟨hh, hc, hpq⟩ := hq
-              have hpq' := (congrFun (show _ = _ from by xperm) hh).mp hpq
-              have w0 := sepConj_mono_left (regIs_to_regOwn .x5 _) hh hpq'
-              have w1 := sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn .x10 _)) hh w0
-              have w2 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn .x6 _))) hh w1
-              have w3 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn .x7 _)))) hh w2
-              have w4 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn .x11 _))))) hh w3
-              have w5 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
-                (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
-                (sepConj_mono_left (memIs_to_memOwn' _ _)))))))))))) hh w4
-              have w6 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
-                (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
-                (sepConj_mono_right (sepConj_mono_left (memIs_to_memOwn' _ _))))))))))))) hh w5
-              have w7 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
-                (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
-                (sepConj_mono_right (sepConj_mono_right (sepConj_mono_left (memIs_to_memOwn' _ _)))))))))))))) hh w6
-              have w8 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
-                (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
-                (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (memIs_to_memOwn' _ _)))))))))))))) hh w7
-              exact ⟨hh, hc, (congrFun (show _ = _ from by xperm) hh).mp w8⟩)
-            hbody3_f
-      })
+      rcases hmem with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
+      · exact cpsTriple_consequence _ _ _ _ _ _ _
+          (fun h hp => by xperm_hyp hp) (fun _ hq => hq) hbody0_w
+      · exact cpsTriple_consequence _ _ _ _ _ _ _
+          (fun h hp => by xperm_hyp hp) (fun _ hq => hq) hbody1_w
+      · exact cpsTriple_consequence _ _ _ _ _ _ _
+          (fun h hp => by xperm_hyp hp) (fun _ hq => hq) hbody2_w
+      · exact cpsTriple_consequence _ _ _ _ _ _ _
+          (fun h hp => by xperm_hyp hp) (fun _ hq => hq) hbody3_w)
+  -- Flatten hphaseAB postcondition for composition via explicit type annotation
+  have hphaseAB' : cpsTriple base (base + 64) (shrCode base)
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ r5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ r10) **
+       (.x6 ↦ᵣ r6) ** (.x7 ↦ᵣ r7) ** (.x11 ↦ᵣ r11) **
+       (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3) **
+       ((sp + 32) ↦ₘ v0) ** ((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3))
+      ((.x5 ↦ᵣ limb_shift) ** (.x6 ↦ᵣ bit_shift) ** (.x0 ↦ᵣ (0 : Word)) **
+       (.x11 ↦ᵣ mask) ** (.x7 ↦ᵣ anti_shift) ** (.x12 ↦ᵣ (sp + 32)) **
+       (.x10 ↦ᵣ sltiu_val) **
+       (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3) **
+       ((sp + 32) ↦ₘ v0) ** ((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3)) :=
+    cpsTriple_consequence _ _ _ _ _ _ _
+      (fun h hp => by xperm_hyp hp)
+      (fun h hq => by xperm_hyp hq)
+      hphaseAB
   -- Final: Phase AB -> Phase CD
   exact cpsTriple_seq_with_perm_same_cr base (base + 64) (base + 360) _ _ _ _ _
-    (fun h hp => by xperm_hyp hp) hphaseAB hphaseCD
--/
+    (fun h hp => by xperm_hyp hp) hphaseAB' hphaseCD
 
 -- ============================================================================
 -- Section 6: Combined SHR spec
