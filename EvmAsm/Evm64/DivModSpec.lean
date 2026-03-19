@@ -246,13 +246,12 @@ theorem divK_copyAU_spec (sp : Addr) (base : Addr)
 -- Per-limb decomposition: 3 merge limbs (6 instr each) + 1 last limb (3 instr).
 -- ============================================================================
 
+def divK_normB_merge_prog (high_off low_off : BitVec 12) : List Instr :=
+  [.LD .x5 .x12 high_off, .LD .x7 .x12 low_off, .SLL .x5 .x5 .x6,
+   .SRL .x7 .x7 .x2, .OR .x5 .x5 .x7, .SD .x12 .x5 high_off]
+
 abbrev divK_normB_merge_code (high_off low_off : BitVec 12) (base : Addr) : CodeReq :=
-  CodeReq.union (CodeReq.singleton base (.LD .x5 .x12 high_off))
-  (CodeReq.union (CodeReq.singleton (base + 4) (.LD .x7 .x12 low_off))
-  (CodeReq.union (CodeReq.singleton (base + 8) (.SLL .x5 .x5 .x6))
-  (CodeReq.union (CodeReq.singleton (base + 12) (.SRL .x7 .x7 .x2))
-  (CodeReq.union (CodeReq.singleton (base + 16) (.OR .x5 .x5 .x7))
-   (CodeReq.singleton (base + 20) (.SD .x12 .x5 high_off))))))
+  CodeReq.ofProg base (divK_normB_merge_prog high_off low_off)
 
 /-- NormB merge limb (6 instructions): LD high, LD low, SLL, SRL, OR, SD.
     Computes result = (high <<< shift) ||| (low >>> anti_shift) and stores to high_off.
@@ -285,10 +284,11 @@ theorem divK_normB_merge_spec (high_off low_off : BitVec 12)
   have I5 := sd_spec_gen .x12 .x5 sp result high high_off (base + 20) hvalid_high
   runBlock I0 I1 I2 I3 I4 I5
 
+def divK_normB_last_prog (off : BitVec 12) : List Instr :=
+  [.LD .x5 .x12 off, .SLL .x5 .x5 .x6, .SD .x12 .x5 off]
+
 abbrev divK_normB_last_code (off : BitVec 12) (base : Addr) : CodeReq :=
-  CodeReq.union (CodeReq.singleton base (.LD .x5 .x12 off))
-  (CodeReq.union (CodeReq.singleton (base + 4) (.SLL .x5 .x5 .x6))
-   (CodeReq.singleton (base + 8) (.SD .x12 .x5 off)))
+  CodeReq.ofProg base (divK_normB_last_prog off)
 
 /-- NormB last limb (3 instructions): LD, SLL, SD.
     Computes result = val <<< shift and stores to off. -/
@@ -315,10 +315,11 @@ theorem divK_normB_last_spec (off : BitVec 12)
 -- Per-limb decomposition: top (3 instr) + 3 merge (5 instr each) + last (2 instr).
 -- ============================================================================
 
+def divK_normA_top_prog (src_off dst_off : BitVec 12) : List Instr :=
+  [.LD .x5 .x12 src_off, .SRL .x7 .x5 .x2, .SD .x12 .x7 dst_off]
+
 abbrev divK_normA_top_code (src_off dst_off : BitVec 12) (base : Addr) : CodeReq :=
-  CodeReq.union (CodeReq.singleton base (.LD .x5 .x12 src_off))
-  (CodeReq.union (CodeReq.singleton (base + 4) (.SRL .x7 .x5 .x2))
-   (CodeReq.singleton (base + 8) (.SD .x12 .x7 dst_off)))
+  CodeReq.ofProg base (divK_normA_top_prog src_off dst_off)
 
 /-- NormA top: LD a[3], SRL to x7, SD u[4]. 3 instructions.
     Computes u[4] = a[3] >>> anti_shift (overflow bits from top limb). -/
@@ -343,12 +344,12 @@ theorem divK_normA_top_spec (src_off dst_off : BitVec 12)
   have I2 := sd_spec_gen .x12 .x7 sp result dst_old dst_off (base + 8) hvalid_dst
   runBlock I0 I1 I2
 
+def divK_normA_mergeA_prog (next_off dst_off : BitVec 12) : List Instr :=
+  [.LD .x7 .x12 next_off, .SLL .x5 .x5 .x6, .SRL .x10 .x7 .x2,
+   .OR .x5 .x5 .x10, .SD .x12 .x5 dst_off]
+
 abbrev divK_normA_mergeA_code (next_off dst_off : BitVec 12) (base : Addr) : CodeReq :=
-  CodeReq.union (CodeReq.singleton base (.LD .x7 .x12 next_off))
-  (CodeReq.union (CodeReq.singleton (base + 4) (.SLL .x5 .x5 .x6))
-  (CodeReq.union (CodeReq.singleton (base + 8) (.SRL .x10 .x7 .x2))
-  (CodeReq.union (CodeReq.singleton (base + 12) (.OR .x5 .x5 .x10))
-   (CodeReq.singleton (base + 16) (.SD .x12 .x5 dst_off)))))
+  CodeReq.ofProg base (divK_normA_mergeA_prog next_off dst_off)
 
 /-- NormA merge type A (5 instructions): x5 holds current limb.
     LD next into x7, SLL x5 by shift, SRL x10 from x7 by anti_shift, OR into x5, SD.
@@ -380,12 +381,12 @@ theorem divK_normA_mergeA_spec (next_off dst_off : BitVec 12)
   have I4 := sd_spec_gen .x12 .x5 sp result dst_old dst_off (base + 16) hvalid_dst
   runBlock I0 I1 I2 I3 I4
 
+def divK_normA_mergeB_prog (next_off dst_off : BitVec 12) : List Instr :=
+  [.LD .x5 .x12 next_off, .SLL .x7 .x7 .x6, .SRL .x10 .x5 .x2,
+   .OR .x7 .x7 .x10, .SD .x12 .x7 dst_off]
+
 abbrev divK_normA_mergeB_code (next_off dst_off : BitVec 12) (base : Addr) : CodeReq :=
-  CodeReq.union (CodeReq.singleton base (.LD .x5 .x12 next_off))
-  (CodeReq.union (CodeReq.singleton (base + 4) (.SLL .x7 .x7 .x6))
-  (CodeReq.union (CodeReq.singleton (base + 8) (.SRL .x10 .x5 .x2))
-  (CodeReq.union (CodeReq.singleton (base + 12) (.OR .x7 .x7 .x10))
-   (CodeReq.singleton (base + 16) (.SD .x12 .x7 dst_off)))))
+  CodeReq.ofProg base (divK_normA_mergeB_prog next_off dst_off)
 
 /-- NormA merge type B (5 instructions): x7 holds current limb.
     LD next into x5, SLL x7 by shift, SRL x10 from x5 by anti_shift, OR into x7, SD.
@@ -417,9 +418,11 @@ theorem divK_normA_mergeB_spec (next_off dst_off : BitVec 12)
   have I4 := sd_spec_gen .x12 .x7 sp result dst_old dst_off (base + 16) hvalid_dst
   runBlock I0 I1 I2 I3 I4
 
+def divK_normA_last_prog (dst_off : BitVec 12) : List Instr :=
+  [.SLL .x7 .x7 .x6, .SD .x12 .x7 dst_off]
+
 abbrev divK_normA_last_code (dst_off : BitVec 12) (base : Addr) : CodeReq :=
-  CodeReq.union (CodeReq.singleton base (.SLL .x7 .x7 .x6))
-   (CodeReq.singleton (base + 4) (.SD .x12 .x7 dst_off))
+  CodeReq.ofProg base (divK_normA_last_prog dst_off)
 
 /-- NormA last limb (2 instructions): SLL x7 by shift, SD to dst_off.
     Computes u[0] = a[0] <<< shift. -/
@@ -445,13 +448,12 @@ theorem divK_normA_last_spec (dst_off : BitVec 12)
 -- Same structure as NormB but SRL/SLL swapped (right-shift with merge from above).
 -- ============================================================================
 
+def divK_denorm_merge_prog (curr_off next_off : BitVec 12) : List Instr :=
+  [.LD .x5 .x12 curr_off, .LD .x7 .x12 next_off, .SRL .x5 .x5 .x6,
+   .SLL .x7 .x7 .x2, .OR .x5 .x5 .x7, .SD .x12 .x5 curr_off]
+
 abbrev divK_denorm_merge_code (curr_off next_off : BitVec 12) (base : Addr) : CodeReq :=
-  CodeReq.union (CodeReq.singleton base (.LD .x5 .x12 curr_off))
-  (CodeReq.union (CodeReq.singleton (base + 4) (.LD .x7 .x12 next_off))
-  (CodeReq.union (CodeReq.singleton (base + 8) (.SRL .x5 .x5 .x6))
-  (CodeReq.union (CodeReq.singleton (base + 12) (.SLL .x7 .x7 .x2))
-  (CodeReq.union (CodeReq.singleton (base + 16) (.OR .x5 .x5 .x7))
-   (CodeReq.singleton (base + 20) (.SD .x12 .x5 curr_off))))))
+  CodeReq.ofProg base (divK_denorm_merge_prog curr_off next_off)
 
 /-- Denorm merge limb (6 instructions): LD curr, LD next, SRL, SLL, OR, SD.
     Computes result = (curr >>> shift) ||| (next <<< anti_shift) and stores to curr_off.
@@ -484,10 +486,11 @@ theorem divK_denorm_merge_spec (curr_off next_off : BitVec 12)
   have I5 := sd_spec_gen .x12 .x5 sp result curr curr_off (base + 20) hvalid_curr
   runBlock I0 I1 I2 I3 I4 I5
 
+def divK_denorm_last_prog (off : BitVec 12) : List Instr :=
+  [.LD .x5 .x12 off, .SRL .x5 .x5 .x6, .SD .x12 .x5 off]
+
 abbrev divK_denorm_last_code (off : BitVec 12) (base : Addr) : CodeReq :=
-  CodeReq.union (CodeReq.singleton base (.LD .x5 .x12 off))
-  (CodeReq.union (CodeReq.singleton (base + 4) (.SRL .x5 .x5 .x6))
-   (CodeReq.singleton (base + 8) (.SD .x12 .x5 off)))
+  CodeReq.ofProg base (divK_denorm_last_prog off)
 
 /-- Denorm last limb (3 instructions): LD, SRL, SD.
     Computes result = val >>> shift and stores to off. -/
@@ -514,11 +517,11 @@ theorem divK_denorm_last_spec (off : BitVec 12)
 -- Split into load phase (4 LD) + store phase (ADDI + 4 SD) + JAL.
 -- ============================================================================
 
+def divK_epilogue_load_prog (off0 off1 off2 off3 : BitVec 12) : List Instr :=
+  [.LD .x5 .x12 off0, .LD .x6 .x12 off1, .LD .x7 .x12 off2, .LD .x10 .x12 off3]
+
 abbrev divK_epilogue_load_code (off0 off1 off2 off3 : BitVec 12) (base : Addr) : CodeReq :=
-  CodeReq.union (CodeReq.singleton base (.LD .x5 .x12 off0))
-  (CodeReq.union (CodeReq.singleton (base + 4) (.LD .x6 .x12 off1))
-  (CodeReq.union (CodeReq.singleton (base + 8) (.LD .x7 .x12 off2))
-   (CodeReq.singleton (base + 12) (.LD .x10 .x12 off3))))
+  CodeReq.ofProg base (divK_epilogue_load_prog off0 off1 off2 off3)
 
 /-- Epilogue load phase: load 4 values from scratch space. 4 instructions.
     Loads q[0..3] (for DIV) or u[0..3] (for MOD) into x5, x6, x7, x10. -/
@@ -544,13 +547,12 @@ theorem divK_epilogue_load_spec (off0 off1 off2 off3 : BitVec 12)
   have I3 := ld_spec_gen .x10 .x12 sp v10 r3 off3 (base + 12) (by nofun) hv3
   runBlock I0 I1 I2 I3
 
+def divK_epilogue_store_prog (jal_off : BitVec 21) : List Instr :=
+  [.ADDI .x12 .x12 32, .SD .x12 .x5 0, .SD .x12 .x6 8,
+   .SD .x12 .x7 16, .SD .x12 .x10 24, .JAL .x0 jal_off]
+
 abbrev divK_epilogue_store_code (jal_off : BitVec 21) (base : Addr) : CodeReq :=
-  CodeReq.union (CodeReq.singleton base (.ADDI .x12 .x12 32))
-  (CodeReq.union (CodeReq.singleton (base + 4) (.SD .x12 .x5 0))
-  (CodeReq.union (CodeReq.singleton (base + 8) (.SD .x12 .x6 8))
-  (CodeReq.union (CodeReq.singleton (base + 12) (.SD .x12 .x7 16))
-  (CodeReq.union (CodeReq.singleton (base + 16) (.SD .x12 .x10 24))
-   (CodeReq.singleton (base + 20) (.JAL .x0 jal_off))))))
+  CodeReq.ofProg base (divK_epilogue_store_prog jal_off)
 
 /-- Epilogue store phase: ADDI sp+32, store 4 values, JAL to exit. 6 instructions. -/
 theorem divK_epilogue_store_spec (sp : Addr) (base : Addr)
@@ -890,11 +892,11 @@ theorem divK_clz_init_spec (v6 : Word) (base : Addr) :
 -- K : BitVec 6 (SRLI shamt), M_s : BitVec 6 (SLLI shamt), M_a : BitVec 12 (ADDI imm).
 -- ============================================================================
 
+def divK_clz_stage_prog (K M_s : BitVec 6) (M_a : BitVec 12) : List Instr :=
+  [.SRLI .x7 .x5 K, .BNE .x7 .x0 12, .SLLI .x5 .x5 M_s, .ADDI .x6 .x6 M_a]
+
 abbrev divK_clz_stage_code (K M_s : BitVec 6) (M_a : BitVec 12) (base : Addr) : CodeReq :=
-  CodeReq.union (CodeReq.singleton base (.SRLI .x7 .x5 K))
-  (CodeReq.union (CodeReq.singleton (base + 4) (.BNE .x7 .x0 12))
-  (CodeReq.union (CodeReq.singleton (base + 8) (.SLLI .x5 .x5 M_s))
-   (CodeReq.singleton (base + 12) (.ADDI .x6 .x6 M_a))))
+  CodeReq.ofProg base (divK_clz_stage_prog K M_s M_a)
 
 /-- CLZ stage, taken branch: val >>> K ≠ 0, skip SLLI+ADDI.
     x5 = val (unchanged), x6 = count (unchanged), x7 = val >>> K. -/
@@ -932,7 +934,9 @@ theorem divK_clz_stage_taken_spec (K M_s : BitVec 6) (M_a : BitVec 12) (val coun
     fun R hR s hcr hPR hpc =>
       hbne_framed R hR s ((CodeReq.singleton_satisfiedBy _ _ s).mpr (hcr _ _ (by
         show divK_clz_stage_code K M_s M_a base (base + 4) = _
-        simp only [divK_clz_stage_code, CodeReq.union, CodeReq.singleton]
+        simp only [divK_clz_stage_code, divK_clz_stage_prog,
+          CodeReq.ofProg_cons, CodeReq.ofProg_nil, CodeReq.union_empty_right,
+          CodeReq.union, CodeReq.singleton]
         have h0 : ¬(base + 4 = base) := by bv_omega
         simp only [beq_iff_eq, h0, ↓reduceIte]))) hPR hpc
   -- 5. SRLI body
@@ -995,7 +999,9 @@ theorem divK_clz_stage_ntaken_spec (K M_s : BitVec 6) (M_a : BitVec 12) (val cou
     fun R hR s hcr hPR hpc =>
       hbne_framed R hR s ((CodeReq.singleton_satisfiedBy _ _ s).mpr (hcr _ _ (by
         show divK_clz_stage_code K M_s M_a base (base + 4) = _
-        simp only [divK_clz_stage_code, CodeReq.union, CodeReq.singleton]
+        simp only [divK_clz_stage_code, divK_clz_stage_prog,
+          CodeReq.ofProg_cons, CodeReq.ofProg_nil, CodeReq.union_empty_right,
+          CodeReq.union, CodeReq.singleton]
         have h0 : ¬(base + 4 = base) := by bv_omega
         simp only [beq_iff_eq, h0, ↓reduceIte]))) hPR hpc
   -- 5. SRLI body
@@ -1037,10 +1043,11 @@ theorem divK_clz_stage_ntaken_spec (K M_s : BitVec 6) (M_a : BitVec 12) (val cou
 -- 3 instructions. BNE offset = 8 (not 12), no SLLI.
 -- ============================================================================
 
+def divK_clz_last_prog : List Instr :=
+  [.SRLI .x7 .x5 63, .BNE .x7 .x0 8, .ADDI .x6 .x6 1]
+
 abbrev divK_clz_last_code (base : Addr) : CodeReq :=
-  CodeReq.union (CodeReq.singleton base (.SRLI .x7 .x5 63))
-  (CodeReq.union (CodeReq.singleton (base + 4) (.BNE .x7 .x0 8))
-   (CodeReq.singleton (base + 8) (.ADDI .x6 .x6 1)))
+  CodeReq.ofProg base divK_clz_last_prog
 
 /-- CLZ last stage, taken: val >>> 63 ≠ 0 (MSB is 1), skip ADDI.
     x5 unchanged, x6 unchanged, x7 = val >>> 63. -/
@@ -1074,7 +1081,9 @@ theorem divK_clz_last_taken_spec (val count v7 : Word) (base : Addr)
     fun R hR s hcr hPR hpc =>
       hbne_framed R hR s ((CodeReq.singleton_satisfiedBy _ _ s).mpr (hcr _ _ (by
         show divK_clz_last_code base (base + 4) = _
-        simp only [divK_clz_last_code, CodeReq.union, CodeReq.singleton]
+        simp only [divK_clz_last_code, divK_clz_last_prog,
+          CodeReq.ofProg_cons, CodeReq.ofProg_nil, CodeReq.union_empty_right,
+          CodeReq.union, CodeReq.singleton]
         have h0 : ¬(base + 4 = base) := by bv_omega
         simp only [beq_iff_eq, h0, ↓reduceIte]))) hPR hpc
   have hbody : cpsTriple base (base + 4) cr
@@ -1126,7 +1135,9 @@ theorem divK_clz_last_ntaken_spec (val count v7 : Word) (base : Addr)
     fun R hR s hcr hPR hpc =>
       hbne_framed R hR s ((CodeReq.singleton_satisfiedBy _ _ s).mpr (hcr _ _ (by
         show divK_clz_last_code base (base + 4) = _
-        simp only [divK_clz_last_code, CodeReq.union, CodeReq.singleton]
+        simp only [divK_clz_last_code, divK_clz_last_prog,
+          CodeReq.ofProg_cons, CodeReq.ofProg_nil, CodeReq.union_empty_right,
+          CodeReq.union, CodeReq.singleton]
         have h0 : ¬(base + 4 = base) := by bv_omega
         simp only [beq_iff_eq, h0, ↓reduceIte]))) hPR hpc
   have hbody : cpsTriple base (base + 4) cr
