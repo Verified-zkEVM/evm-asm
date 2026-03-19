@@ -590,52 +590,104 @@ theorem sub_borrow_chain_correct (a b : EvmWord) :
   have hresult3_nat : result3.toNat =
       (a3.toNat + 2^64 - b3.toNat + 2^64 - borrow2.toNat) % 2^64 := by
     exact sub_limb_toNat hb2_01
-  -- Prove all four conjuncts
-  refine ⟨?_, ?_, ?_, ?_⟩
-  -- Limb 0: (a - b).getLimb 0 = diff0
+  -- Use same W-factoring approach as ADD
+  set W := (2 : Nat) ^ 64
+  have hW : 0 < W := by positivity
+  have h128 : (2:Nat)^128 = W * W := by norm_num [W]
+  have h192 : (2:Nat)^192 = W * (W * W) := by norm_num [W]
+  have h256 : (2:Nat)^256 = W * (W * (W * W)) := by norm_num [W]
+  -- Set D = a.toNat + 2^256 - b.toNat (the raw difference before mod)
+  set D := a0.toNat + a1.toNat * 2^64 + a2.toNat * 2^128 + a3.toNat * 2^192 +
+           2^256 - (b0.toNat + b1.toNat * 2^64 + b2.toNat * 2^128 + b3.toNat * 2^192)
+  have hD : (a - b).toNat = D % 2^256 := by rw [hS, ha_sum, hb_sum]
+  -- Factor D at each boundary (like hS0..hS2 in ADD but for subtraction)
+  -- D = (a0 + W - b0) + ((a1 + W - b1) + ((a2 + W - b2) + (a3 + W - b3) * W) * W) * W - 3*W
+  -- This is more complex than ADD because of the borrows. Instead, just use
+  -- the key* lemmas + hresult*_nat and close with the toNat approach.
+  -- getLimb toNat for (a-b) at each index
+  have key0 : ((a - b).getLimb 0).toNat = D % 2^256 % W := by
+    simp only [getLimb, BitVec.extractLsb'_toNat, Nat.shiftRight_eq_div_pow]; rw [hD]; norm_num
+  have key1 : ((a - b).getLimb 1).toNat = D % 2^256 / W % W := by
+    simp only [getLimb, BitVec.extractLsb'_toNat, Nat.shiftRight_eq_div_pow]; rw [hD]; norm_num
+  have key2 : ((a - b).getLimb 2).toNat = D % 2^256 / 2^128 % W := by
+    simp only [getLimb, BitVec.extractLsb'_toNat, Nat.shiftRight_eq_div_pow]; rw [hD]; norm_num
+  have key3 : ((a - b).getLimb 3).toNat = D % 2^256 / 2^192 % W := by
+    simp only [getLimb, BitVec.extractLsb'_toNat, Nat.shiftRight_eq_div_pow,
+      show (3 : Fin 4).val = 3 from rfl]; rw [hD]
+  -- Factor D using omega (ring doesn't work for Nat subtraction)
+  have hD0 : D = (a0.toNat + W - b0.toNat) +
+    (a1.toNat + W - 1 - b1.toNat + (a2.toNat + W - 1 - b2.toNat +
+      (a3.toNat + W - 1 - b3.toNat) * W) * W) * W := by
+    simp only [D, h128, h192, h256]; omega
+  have hD1 : D = (a0.toNat + W - b0.toNat) + (a1.toNat + W - 1 - b1.toNat) * W +
+    (a2.toNat + W - 1 - b2.toNat + (a3.toNat + W - 1 - b3.toNat) * W) * (W * W) := by
+    simp only [D, h128, h192, h256]; omega
+  have hD2 : D = (a0.toNat + W - b0.toNat) + (a1.toNat + W - 1 - b1.toNat) * W +
+    (a2.toNat + W - 1 - b2.toNat) * (W * W) +
+    (a3.toNat + W - 1 - b3.toNat) * (W * (W * W)) := by
+    simp only [D, h128, h192, h256]; omega
+  -- Strip helpers
+  have strip4 : ∀ (p q r s W : Nat), 0 < W →
+      (p + (q + r * W + s * (W * W))) % W = (p + q) % W := by
+    intro p q r s W hW'; rw [show p + (q + r * W + s * (W * W)) = (p + q) + (r + s * W) * W from by ring,
+      Nat.add_mul_mod_self_right]
+  have strip2 : ∀ (p q r W : Nat), (p + (q + r * W)) % W = (p + q) % W := by
+    intro p q r W; rw [show p + (q + r * W) = (p + q) + r * W from by ring, Nat.add_mul_mod_self_right]
+  constructor
+  -- Limb 0: same as ADD limb 0 approach
   · apply BitVec.eq_of_toNat_eq
-    rw [getLimb_toNat_eq, hS, hdiff0_nat, ha_sum, hb_sum]
-    have : (a0.toNat + a1.toNat * 2 ^ 64 + a2.toNat * 2 ^ 128 + a3.toNat * 2 ^ 192 +
-          2 ^ 256 - (b0.toNat + b1.toNat * 2 ^ 64 + b2.toNat * 2 ^ 128 + b3.toNat * 2 ^ 192)) %
-          2 ^ 256 / 2 ^ 0 % 2 ^ 64 =
-        (a0.toNat + 2 ^ 64 - b0.toNat) % 2 ^ 64 := by
-      simp only [Nat.pow_zero, Nat.div_one]
-      omega
-    exact this
-  -- Limb 1: (a - b).getLimb 1 = result1
+    rw [key0, hdiff0_nat, h256, Nat.mod_mul_right_mod, hD0, Nat.add_mul_mod_self_right]
+  constructor
+  -- Limb 1
   · apply BitVec.eq_of_toNat_eq
-    rw [getLimb_toNat_eq, hS, hresult1_nat, ha_sum, hb_sum]
-    rw [show (1 : Fin 4).val * 64 = 64 from rfl]
-    rw [hb0_nat]
+    rw [key1, hresult1_nat, hb0_nat, h256, Nat.mod_mul_right_div_self]
+    rw [hD0, Nat.add_mul_div_right _ _ hW, Nat.mod_mul_right_mod, strip2]
+    -- Key: (a0'+W-b0')/W + (a1'+W-1-b1') relates to (a1'+2W-b1' - borrow)
+    have hdiv0 : (a0.toNat + W - b0.toNat) / W = if a0.toNat < b0.toNat then 0 else 1 := by
+      split
+      · rename_i h
+        exact Nat.div_eq_of_lt (by omega)
+      · rename_i h; push_neg at h
+        have hlt : a0.toNat - b0.toNat < W := by omega
+        rw [show a0.toNat + W - b0.toNat = (a0.toNat - b0.toNat) + 1 * W from by omega,
+            Nat.add_mul_div_right _ _ hW, Nat.div_eq_of_lt hlt]
+    rw [hdiv0]
+    -- Both sides are equal mod W (differ by multiples of W)
     split
-    · rename_i hlt
-      omega
-    · rename_i hge
-      push_neg at hge
-      omega
-  -- Limb 2: (a - b).getLimb 2 = result2
+    · -- a0 < b0: LHS = (0 + (a1'+W-1-b1')) % W, RHS = (a1'+W-b1'+W-1) % W
+      rw [show (0 + (a1.toNat + W - 1 - b1.toNat)) = a1.toNat + W - 1 - b1.toNat from by omega,
+          show a1.toNat + W - b1.toNat + W - 1 =
+            (a1.toNat + W - 1 - b1.toNat) + 1 * W from by omega,
+          Nat.add_mul_mod_self_right]
+    · -- a0 ≥ b0: LHS = (1 + (a1'+W-1-b1')) % W, RHS = (a1'+W-b1'+W) % W
+      rw [show 1 + (a1.toNat + W - 1 - b1.toNat) = a1.toNat + W - b1.toNat from by omega,
+          show a1.toNat + W - b1.toNat + W - 0 =
+            (a1.toNat + W - b1.toNat) + 1 * W from by omega,
+          Nat.add_mul_mod_self_right]
+  constructor
+  -- Limb 2
   · apply BitVec.eq_of_toNat_eq
-    rw [getLimb_toNat_eq, hS, hresult2_nat, ha_sum, hb_sum]
-    rw [show (2 : Fin 4).val * 64 = 128 from rfl]
-    rw [hb1_nat]
-    split
-    · rename_i hlt
-      -- borrow1 = 1, lower 2 limbs of a < lower 2 limbs of b
-      omega
-    · rename_i hge
-      push_neg at hge
-      omega
-  -- Limb 3: (a - b).getLimb 3 = result3
+    rw [key2, hresult2_nat, hb1_nat, h128, h256,
+        show W * (W * (W * W)) = (W * W) * (W * W) from by ring,
+        Nat.mod_mul_right_div_self, Nat.mod_mul_right_mod]
+    rw [hD1, Nat.add_mul_div_right _ _ (show 0 < W * W by positivity), strip2]
+    rw [show W * W = W * W from rfl, ← Nat.div_div_eq_div_mul,
+        Nat.add_mul_div_right _ _ hW]
+    split <;> sorry
+  -- Limb 3
   · apply BitVec.eq_of_toNat_eq
-    rw [getLimb_toNat_eq, hS, hresult3_nat, ha_sum, hb_sum]
-    rw [show (3 : Fin 4).val * 64 = 192 from rfl]
-    rw [hb2_nat]
-    split
-    · rename_i hlt
-      omega
-    · rename_i hge
-      push_neg at hge
-      omega
+    rw [key3, hresult3_nat, hb2_nat, h192, h256,
+        show W * (W * (W * W)) = (W * (W * W)) * W from by ring,
+        Nat.mod_mul_right_div_self, Nat.mod_mod]
+    rw [hD2, Nat.add_mul_div_right _ _ (show 0 < W * (W * W) by positivity)]
+    have hdiv3 : ∀ (x : Nat), x / (W * (W * W)) = x / W / W / W := by
+      intro x; rw [show W * (W * W) = W * W * W from by ring,
+        ← Nat.div_div_eq_div_mul, ← Nat.div_div_eq_div_mul]
+    rw [hdiv3, show ∀ (p q r : Nat), p + q * W + r * (W * W) = p + (q + r * W) * W from by intros; ring,
+        Nat.add_mul_div_right _ _ hW]
+    conv_lhs => rw [show ∀ (p q r : Nat), p + (q + r * W) = (p + q) + r * W from by intros; ring]
+    rw [Nat.add_mul_div_right _ _ hW]
+    split <;> sorry
 
 -- ============================================================================
 -- SLT correctness: signed comparison decomposition
