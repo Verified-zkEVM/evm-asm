@@ -97,16 +97,7 @@ theorem mul_col2_spec (sp : Addr) (base : Addr)
 
 -- Part A: LD b1, LD a0, MUL, MULHU, ADD, SLTU, ADD, SD r1, ADD, SLTU (10 instrs)
 abbrev mul_col1_partA_code (base : Addr) : CodeReq :=
-  CodeReq.union (CodeReq.singleton base (.LD .x5 .x12 40))
-  (CodeReq.union (CodeReq.singleton (base + 4) (.LD .x6 .x12 0))
-  (CodeReq.union (CodeReq.singleton (base + 8) (.MUL .x7 .x6 .x5))
-  (CodeReq.union (CodeReq.singleton (base + 12) (.MULHU .x6 .x6 .x5))
-  (CodeReq.union (CodeReq.singleton (base + 16) (.ADD .x10 .x10 .x7))
-  (CodeReq.union (CodeReq.singleton (base + 20) (.SLTU .x7 .x10 .x7))
-  (CodeReq.union (CodeReq.singleton (base + 24) (.ADD .x6 .x6 .x7))
-  (CodeReq.union (CodeReq.singleton (base + 28) (.SD .x12 .x10 40))
-  (CodeReq.union (CodeReq.singleton (base + 32) (.ADD .x11 .x11 .x6))
-  (CodeReq.singleton (base + 36) (.SLTU .x10 .x11 .x6))))))))))
+  CodeReq.ofProg base (mul_col1.take 10)
 
 /-- Column 1 part A: load b1, multiply a0×b1, store r1, begin r2 accumulation.
     10 instructions at base..base+36. -/
@@ -145,19 +136,7 @@ theorem mul_col1_partA_spec (sp : Addr) (base : Addr)
 -- Part B: LD a1, MUL, MULHU, ADD, SLTU, ADD, ADD, LD a2, MUL, ADD, LD r3p0, ADD, SD (13 instrs)
 -- Uses outer base (base = column base), so atoms are at base+40..base+88.
 abbrev mul_col1_partB_code (base : Addr) : CodeReq :=
-  CodeReq.union (CodeReq.singleton (base + 40) (.LD .x6 .x12 8))
-  (CodeReq.union (CodeReq.singleton (base + 44) (.MUL .x7 .x6 .x5))
-  (CodeReq.union (CodeReq.singleton (base + 48) (.MULHU .x6 .x6 .x5))
-  (CodeReq.union (CodeReq.singleton (base + 52) (.ADD .x11 .x11 .x7))
-  (CodeReq.union (CodeReq.singleton (base + 56) (.SLTU .x7 .x11 .x7))
-  (CodeReq.union (CodeReq.singleton (base + 60) (.ADD .x6 .x6 .x7))
-  (CodeReq.union (CodeReq.singleton (base + 64) (.ADD .x10 .x10 .x6))
-  (CodeReq.union (CodeReq.singleton (base + 68) (.LD .x6 .x12 16))
-  (CodeReq.union (CodeReq.singleton (base + 72) (.MUL .x6 .x6 .x5))
-  (CodeReq.union (CodeReq.singleton (base + 76) (.ADD .x10 .x10 .x6))
-  (CodeReq.union (CodeReq.singleton (base + 80) (.LD .x6 .x12 24))
-  (CodeReq.union (CodeReq.singleton (base + 84) (.ADD .x10 .x10 .x6))
-  (CodeReq.singleton (base + 88) (.SD .x12 .x10 16)))))))))))))
+  CodeReq.ofProg (base + 40) (mul_col1.drop 10)
 
 /-- Column 1 part B: multiply a1×b1, a2×b1, accumulate r2/r3, store r3 spill.
     13 instructions at base+40..base+88. -/
@@ -243,17 +222,7 @@ theorem mul_col1_spec (sp : Addr) (base : Addr)
 
 -- Part A: LD b0, LD a0, MUL, MULHU, SD r0, LD a1, MUL, MULHU, ADD, SLTU, ADD (11 instrs)
 abbrev mul_col0_partA_code (base : Addr) : CodeReq :=
-  CodeReq.union (CodeReq.singleton base (.LD .x5 .x12 32))
-  (CodeReq.union (CodeReq.singleton (base + 4) (.LD .x6 .x12 0))
-  (CodeReq.union (CodeReq.singleton (base + 8) (.MUL .x7 .x6 .x5))
-  (CodeReq.union (CodeReq.singleton (base + 12) (.MULHU .x10 .x6 .x5))
-  (CodeReq.union (CodeReq.singleton (base + 16) (.SD .x12 .x7 32))
-  (CodeReq.union (CodeReq.singleton (base + 20) (.LD .x6 .x12 8))
-  (CodeReq.union (CodeReq.singleton (base + 24) (.MUL .x7 .x6 .x5))
-  (CodeReq.union (CodeReq.singleton (base + 28) (.MULHU .x11 .x6 .x5))
-  (CodeReq.union (CodeReq.singleton (base + 32) (.ADD .x10 .x10 .x7))
-  (CodeReq.union (CodeReq.singleton (base + 36) (.SLTU .x6 .x10 .x7))
-  (CodeReq.singleton (base + 40) (.ADD .x11 .x11 .x6)))))))))))
+  CodeReq.ofProg base (mul_col0.take 11)
 
 /-- Column 0 part A: load b0, multiply a0×b0 and a1×b0, store r0, begin r1/r2 accumulation.
     11 instructions at base..base+40. -/
@@ -292,16 +261,7 @@ theorem mul_col0_partA_spec (sp : Addr) (base : Addr)
 -- Part B: LD a2, MUL, MULHU, ADD, SLTU, ADD, LD a3, MUL, ADD, SD r3p (10 instrs)
 -- Uses outer base (base = column base), so atoms are at base+44..base+80.
 abbrev mul_col0_partB_code (base : Addr) : CodeReq :=
-  CodeReq.union (CodeReq.singleton (base + 44) (.LD .x6 .x12 16))
-  (CodeReq.union (CodeReq.singleton (base + 48) (.MUL .x7 .x6 .x5))
-  (CodeReq.union (CodeReq.singleton (base + 52) (.MULHU .x6 .x6 .x5))
-  (CodeReq.union (CodeReq.singleton (base + 56) (.ADD .x11 .x11 .x7))
-  (CodeReq.union (CodeReq.singleton (base + 60) (.SLTU .x7 .x11 .x7))
-  (CodeReq.union (CodeReq.singleton (base + 64) (.ADD .x6 .x6 .x7))
-  (CodeReq.union (CodeReq.singleton (base + 68) (.LD .x7 .x12 24))
-  (CodeReq.union (CodeReq.singleton (base + 72) (.MUL .x7 .x7 .x5))
-  (CodeReq.union (CodeReq.singleton (base + 76) (.ADD .x6 .x6 .x7))
-  (CodeReq.singleton (base + 80) (.SD .x12 .x6 24))))))))))
+  CodeReq.ofProg (base + 44) (mul_col0.drop 11)
 
 /-- Column 0 part B: multiply a2×b0 and a3×b0, accumulate r2, store r3 partial.
     10 instructions at base+44..base+80. -/

@@ -571,13 +571,17 @@ private def buildMonoProofOfProg (oldCrW : Expr) (newCrBase newCrProg : Expr) : 
   unless oldCrW.isAppOfArity ``EvmAsm.Rv64.CodeReq.singleton 2 do return none
   let specAddr := oldCrW.getAppArgs[0]!
   let specInstr := oldCrW.getAppArgs[1]!
-  -- Extract base + offset from specAddr
+  -- Extract base + offset from specAddr and newCrBase
   let some (specBase, specOff) := getAddrOffset? specAddr | return none
-  -- Check that specBase matches newCrBase (same symbolic base)
-  unless specBase == newCrBase ||
-    (← withoutModifyingState (withReducible (isDefEq specBase newCrBase))) do return none
+  let some (newBase, newOff) := getAddrOffset? newCrBase | return none
+  -- Check that symbolic bases match
+  unless specBase == newBase ||
+    (← withoutModifyingState (withReducible (isDefEq specBase newBase))) do return none
+  -- Compute offset relative to the ofProg base
+  unless specOff ≥ newOff do return none
+  let targetOff := specOff - newOff
   -- Find the instruction in the program list
-  let some (idx, progLen) ← findInstrInProgList specInstr specOff newCrProg | return none
+  let some (idx, progLen) ← findInstrInProgList specInstr targetOff newCrProg | return none
   let ofProgExpr := mkApp2 (mkConst ``EvmAsm.Rv64.CodeReq.ofProg) newCrBase newCrProg
   if idx == 0 then
     -- k=0: use ofProg_lookup_zero (avoids base + ofNat(0) ≠ base issue)
@@ -593,7 +597,9 @@ private def buildMonoProofOfProg (oldCrW : Expr) (newCrBase newCrProg : Expr) : 
       #[specAddr, specInstr, ofProgExpr, lookupProof]
     return some monoProof
   else
-    -- k>0: use ofProg_lookup base prog k hk hbound
+    -- k>0: use ofProg_lookup_addr base prog k addr hk hbound h_addr
+    -- This passes specAddr directly, with h_addr proved by bv_omega,
+    -- avoiding definitional-equality issues with offset bases.
     let kLit := mkNatLit idx
     let lenLit := mkNatLit progLen
     let hkType := mkApp4 (mkConst ``LT.lt [.zero]) (mkConst ``Nat) (mkConst ``instLTNat) kLit lenLit
@@ -602,8 +608,25 @@ private def buildMonoProofOfProg (oldCrW : Expr) (newCrBase newCrProg : Expr) : 
     let pow64 := mkNatLit (2 ^ 64)
     let hboundType := mkApp4 (mkConst ``LT.lt [.zero]) (mkConst ``Nat) (mkConst ``instLTNat) fourLen pow64
     let hboundProof ← mkDecideProof hboundType
-    let lookupProof := mkAppN (mkConst ``EvmAsm.Rv64.CodeReq.ofProg_lookup)
-      #[newCrBase, newCrProg, kLit, hkProof, hboundProof]
+    -- Build h_addr : specAddr = newCrBase + BitVec.ofNat 64 (4 * idx)
+    let fourIdx := mkNatLit (4 * idx)
+    let bvOfNat := mkApp2 (mkConst ``BitVec.ofNat) (mkNatLit 64) fourIdx
+    let bv64 := mkApp (mkConst ``BitVec) (mkNatLit 64)
+    let expectedAddr := mkApp6
+      (mkConst ``HAdd.hAdd [.zero, .zero, .zero])
+      bv64 bv64 bv64
+      (mkApp2 (mkConst ``instHAdd [.zero]) bv64
+        (mkApp (mkConst ``BitVec.instAdd) (mkNatLit 64)))
+      newCrBase bvOfNat
+    let h_addrType ← mkEq specAddr expectedAddr
+    -- Always use bv_omega (not mkDecideProof) since addresses contain free variables
+    let h_addrProof ← do
+      let mvar ← mkFreshExprMVar h_addrType
+      let stx ← `(tactic| bv_omega)
+      runTacticSilent mvar.mvarId! stx
+      instantiateMVars mvar
+    let lookupProof := mkAppN (mkConst ``EvmAsm.Rv64.CodeReq.ofProg_lookup_addr)
+      #[newCrBase, newCrProg, kLit, specAddr, hkProof, hboundProof, h_addrProof]
     let monoProof := mkAppN (mkConst ``EvmAsm.Rv64.CodeReq.singleton_mono)
       #[specAddr, specInstr, ofProgExpr, lookupProof]
     return some monoProof
@@ -675,22 +698,20 @@ private def buildMonoProofOfProgToOfProg (oldCrW : Expr)
   let fourIdx := mkNatLit (4 * idx)
   let bvOfNat := mkApp2 (mkConst ``BitVec.ofNat) (mkNatLit 64) fourIdx
   let addrSum := mkApp6
-    (mkConst ``HAdd.hAdd [.zero])
+    (mkConst ``HAdd.hAdd [.zero, .zero, .zero])
     (mkApp (mkConst ``BitVec) (mkNatLit 64))
     (mkApp (mkConst ``BitVec) (mkNatLit 64))
     (mkApp (mkConst ``BitVec) (mkNatLit 64))
     (mkApp2 (mkConst ``instHAdd [.zero]) (mkApp (mkConst ``BitVec) (mkNatLit 64))
       (mkApp (mkConst ``BitVec.instAdd) (mkNatLit 64)))
     newCrBase bvOfNat
+  -- Always use bv_omega (not mkDecideProof) since addresses contain free variables
   let h_addr ← do
     let eqType ← mkEq subBase addrSum
-    try mkDecideProof eqType
-    catch _ =>
-      -- Fallback: try bv_omega
-      let mvar ← mkFreshExprMVar eqType
-      let stx ← `(tactic| bv_omega)
-      runTacticSilent mvar.mvarId! stx
-      instantiateMVars mvar
+    let mvar ← mkFreshExprMVar eqType
+    let stx ← `(tactic| bv_omega)
+    runTacticSilent mvar.mvarId! stx
+    instantiateMVars mvar
   -- h_slice : (full.drop idx).take sub.length = sub — via native_decide
   let instrTy := mkConst ``EvmAsm.Rv64.Instr
   let listInstr := mkApp (mkConst ``List [.zero]) instrTy
