@@ -2323,6 +2323,15 @@ theorem CodeReq.ofProg_lookup (base : Addr) (prog : List Instr) (k : Nat)
       rw [ofProg_addr_succ]
       exact ih (base + 4) k' (by simp [List.length] at hk; omega) (by simp [List.length] at hbound; omega)
 
+/-- Variant of `ofProg_lookup` that takes an explicit address with a proof it equals
+    `base + 4*k`. Avoids definitional-equality issues when the ofProg base has an offset
+    (e.g., `(base + 44) + BitVec.ofNat 64 4` vs `base + 48`). -/
+theorem CodeReq.ofProg_lookup_addr (base : Addr) (prog : List Instr) (k : Nat) (addr : Addr)
+    (hk : k < prog.length) (hbound : 4 * prog.length < 2 ^ 64)
+    (h_addr : addr = base + BitVec.ofNat 64 (4 * k)) :
+    (CodeReq.ofProg base prog) addr = some (prog.get ⟨k, hk⟩) := by
+  subst h_addr; exact CodeReq.ofProg_lookup base prog k hk hbound
+
 /-- Variant of ofProg_none_range with explicit length (avoids needing to reduce prog.length). -/
 theorem CodeReq.ofProg_none_range_len (base : Addr) (prog : List Instr) (n : Nat) (a : Addr)
     (hlen : prog.length = n)
