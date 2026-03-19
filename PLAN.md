@@ -108,6 +108,14 @@ See **Pending: Recreate Deleted Spec Files** below for recreation plan.
   form + composition rules + tactic support in Rv64.
   CodeReq monotonicity helpers in SepLogic.lean
   (`union_singleton_apply`, `beq_base_offset`, `union_mono_tail`).
+- **`CodeReq.ofProg`** (recent): Replaces chains of `singleton.union` with
+  program-based CodeReq construction. Key infrastructure in SepLogic.lean:
+  - `ofProg base prog` — builds CodeReq from a `List Instr`
+  - `ofProg_append` — splits `ofProg base (p1 ++ p2)` into two `ofProg` unions
+  - `ofProg_none_range` — proves out-of-range addresses return `none`
+  - `unionAll` — structural subsumption for lists of CodeReqs
+  - Range-based `ofProg` disjointness (O(1) vs O(n) singleton expansion)
+  - MultiplySpec col0–col3 migrated to `ofProg` pattern
 - **runTacticSilent**: Suppresses bv_omega diagnostic leaks from speculative
   tactic calls (Lean 4.29 regression fix in SeqFrame.lean/RunBlock.lean).
 
@@ -206,7 +214,8 @@ corresponding non-Spec files.
 - For manual compositions with different CRs, use `cpsTriple_seq_with_perm`
   with `(by crDisjoint)` for the `hd` argument, or extend to a common CR
   first and use `_same_cr` variants.
-- All `_code` abbrevs should be `CodeReq` (union of singletons), not `Assertion`.
+- All `_code` abbrevs should be `CodeReq` — prefer `CodeReq.ofProg base prog`
+  over chains of `singleton.union`. See MultiplySpec.lean for the current pattern.
 - Theorem statements use 5-arg `cpsTriple base exit cr P Q` with no
   `instrAt` atoms in P or Q.
 - Reference the existing working specs (And.lean, Add.lean, MultiplySpec.lean,
@@ -232,39 +241,45 @@ All phases below target **Evm64** primarily. Files are under `EvmAsm/Evm64/`.
 - **Approach**: SGT(a,b) = SLT(b,a). Swap operand load order (b-limbs into x7, a-limbs into x6).
 - 25 instructions = 100 bytes. Mirrors SLT proof structure exactly.
 
-### ~~Phase 2: Remaining Shifts & Bitwise~~ — DONE
+### Phase 2: Remaining Shifts & Bitwise — specs deleted, programs done
 
-#### ~~2.1 SHL (Shift Left)~~ ✅
-- **Files**: `Evm64/Shift.lean` (program + 11 tests) + `Evm64/ShlSpec.lean` (per-limb + body specs)
+> **Note**: Phases 2.1–2.3 were fully proved at one point but the spec files
+> were deleted in commit `1197924` due to incomplete CodeReq migration. The
+> program definitions and tests remain in `Shift.lean` / `Byte.lean`. See
+> **Pending: Recreate Deleted Spec Files** below.
+
+#### 2.1 SHL (Shift Left) — ⚠️ specs deleted
+- **Files**: `Evm64/Shift.lean` (program + 11 tests). `ShlSpec.lean` deleted.
 - **Approach**: Mirror of SHR. Reuses SHR phases A/B/C/zero_path. 4 SHL bodies
   process top-down (SLL+SRL swapped vs SHR). Per-limb helpers: `shl_merge_limb_spec`,
   `shl_first_limb_spec`, in-place variants. Body specs: `shl_body_{0,1,2,3}_spec`.
-- 90 instructions = 360 bytes. All specs proved, 0 sorry.
+- 90 instructions = 360 bytes.
 
-#### ~~2.2 SAR (Shift Right Arithmetic)~~ ✅
-- **Files**: `Evm64/Shift.lean` (program + 12 tests) + `Evm64/SarSpec.lean` (per-limb + body + sign-fill specs)
+#### 2.2 SAR (Shift Right Arithmetic) — ⚠️ specs deleted
+- **Files**: `Evm64/Shift.lean` (program + 12 tests). `SarSpec.lean` deleted.
 - **Approach**: Like SHR but uses SRA for MSB limb and fills vacated limbs with
   sign extension (SRAI result, 63). Reuses SHR phase B and merge limb specs.
   Custom phase A/C (different offsets), sign-fill path (7 instrs) instead of zero_path.
-- 95 instructions = 380 bytes. All specs proved, 0 sorry.
+- 95 instructions = 380 bytes.
 
-#### ~~2.3 BYTE (Extract byte from word)~~ ✅
-- **Files**: `Evm64/Byte.lean` (program + 12 tests) + `Evm64/ByteSpec.lean` (per-body + store + phase B specs)
+#### 2.3 BYTE (Extract byte from word) — ⚠️ specs deleted
+- **Files**: `Evm64/Byte.lean` (program + 12 tests). `ByteSpec.lean` deleted.
 - **Approach**: If index >= 32, result = 0. Else compute which limb (index/8)
   and byte offset (56 - (index%8)*8), cascade dispatch to load correct limb,
   SRL + ANDI 0xFF. Shared store path writes result + 3 zero limbs.
-- 45 instructions = 180 bytes. All specs proved, 0 sorry.
+- 45 instructions = 180 bytes.
 - Added `andi_spec_gen_same` and `slli_spec_gen_same` to SyscallSpecs.lean.
 
 ### Phase 3: Stack Extensions
 
-#### ~~3.1 DUP1-16 and SWAP1-16 (Generic)~~ ✅
-- **File**: `Evm64/StackOps.lean`
+#### 3.1 DUP1-16 and SWAP1-16 (Generic) — ⚠️ specs deleted
+- **File**: `Evm64/StackOps.lean` — deleted in commit `1197924`.
+  Programs remain in `Stack.lean`.
 - **Approach**: `evm_dup (n : Nat)` and `evm_swap (n : Nat)` as generic
   Lean functions producing `Program`. 9 instructions for DUP, 16 for SWAP.
   Full spec hierarchy: low-level (explicit limbs) → evmWordIs → evmStackIs.
   Added `signExtend12_ofNat_small` and `evmStackIs_split_at` for Evm64.
-- Covers 32 opcodes with one proof each. All proved, 0 sorry.
+- Covers 32 opcodes with one proof each. Was fully proved; needs recreation.
 
 #### 3.2 PUSH1-32
 - **File**: `Evm64/StackOps.lean`
@@ -587,30 +602,29 @@ This is the heart of the STF — the inner loop that executes EVM bytecode.
 
 ## Priority Order
 
-**Immediate (fix build + recreate deleted specs):**
-1. Fix `lake build` — resolve remaining build issues (WIP)
-2. Recreate `StackOps.lean` — POP, PUSH0, DUP1-16, SWAP1-16 specs
-3. Recreate `ShiftSpec.lean` — SHR per-limb + phase + body specs
-4. Recreate `ShlSpec.lean`, `SarSpec.lean` — SHL/SAR specs (depend on ShiftSpec)
-5. Recreate `ByteSpec.lean` — BYTE specs (depends on ShiftSpec)
+**Immediate (recreate deleted specs):**
+1. Recreate `StackOps.lean` — POP, PUSH0, DUP1-16, SWAP1-16 specs
+2. Recreate `ShiftSpec.lean` — SHR per-limb + phase + body specs
+3. Recreate `ShlSpec.lean`, `SarSpec.lean` — SHL/SAR specs (depend on ShiftSpec)
+4. Recreate `ByteSpec.lean` — BYTE specs (depends on ShiftSpec)
 
 **Short-term (enables simple contracts):**
-6. Phase 4.2: DIV, MOD ← **next new opcode work**
-7. Phase 5: MLOAD, MSTORE, EVM memory model
-8. Phase 5.1: EVM code region (needed for PUSHn and interpreter)
+5. Phase 4.2: DIV, MOD ← **next new opcode work**
+6. Phase 5: MLOAD, MSTORE, EVM memory model
+7. Phase 5.1: EVM code region (needed for PUSHn and interpreter)
 
 **Medium-term (interpreter loop — STF core):**
-11. Phase 7.1-7.2: EVM machine state + opcode dispatch
-12. Phase 7.3: Opcode handler wrappers (gas + dispatch)
-13. Phase 7.4: Interpreter main loop with simulation relation proof
-14. Phase 6: Environment opcodes (CALLER, CALLVALUE, etc.)
+8. Phase 7.1-7.2: EVM machine state + opcode dispatch
+9. Phase 7.3: Opcode handler wrappers (gas + dispatch)
+10. Phase 7.4: Interpreter main loop with simulation relation proof
+11. Phase 6: Environment opcodes (CALLER, CALLVALUE, etc.)
 
 **Towards STF (full EVM execution):**
-15. Phase 8.1-8.3: SLOAD/SSTORE, KECCAK256 (via syscalls/accelerators)
-16. Phase 8.4-8.5: LOG, CALL/CREATE, RETURN/REVERT
-17. Phase 9: Gas metering (static then dynamic)
-18. Phase 10: Transaction processing (message call + validation)
-19. Phase 11: Block-level STF + IO integration + conformance testing
+12. Phase 8.1-8.3: SLOAD/SSTORE, KECCAK256 (via syscalls/accelerators)
+13. Phase 8.4-8.5: LOG, CALL/CREATE, RETURN/REVERT
+14. Phase 9: Gas metering (static then dynamic)
+15. Phase 10: Transaction processing (message call + validation)
+16. Phase 11: Block-level STF + IO integration + conformance testing
 
 ---
 
