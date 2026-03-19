@@ -8,6 +8,12 @@
 import EvmAsm.Evm64.Basic
 import EvmAsm.Evm64.Stack
 
+-- Stack operations
+import EvmAsm.Evm64.Pop
+import EvmAsm.Evm64.Push0
+import EvmAsm.Evm64.Dup
+import EvmAsm.Evm64.Swap
+
 -- Bitwise operations
 import EvmAsm.Evm64.Bitwise
 import EvmAsm.Evm64.And

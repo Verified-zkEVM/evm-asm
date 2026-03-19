@@ -82,14 +82,14 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
 | Shift | SHR, SHL, SAR | 90 / 90 / 95 | ⚠️ Programs + tests only (specs deleted) |
 | Comparison | ISZERO, LT, GT, EQ, SLT, SGT | 12 / 26 / 26 / 21 / 25 / 25 | ✅ Fully proved |
 | Byte/SignExt | BYTE, SIGNEXTEND | 45 / 48 | ⚠️ BYTE spec deleted; SIGNEXTEND proved |
-| Stack | POP, PUSH0, DUP1-16, SWAP1-16 | 1 / 5 / 9 / 16 | ⚠️ Specs deleted |
+| Stack | POP, PUSH0, DUP1-16, SWAP1-16 | 1 / 5 / 9 / 16 | ✅ Fully proved |
 
 **Deleted spec files** (incomplete CodeReq migration, easier to recreate):
 - `ShiftSpec.lean` — SHR per-limb + phase + body specs
 - `ShlSpec.lean` — SHL per-limb + body specs
 - `SarSpec.lean` — SAR per-limb + body + sign-fill specs
 - `ByteSpec.lean` — BYTE per-body + store + phase B specs
-- `StackOps.lean` — POP, PUSH0, DUP1-16, SWAP1-16 specs
+- ~~`StackOps.lean`~~ — ✅ Recreated as modular `Pop.lean`, `Push0.lean`, `Dup.lean`, `Swap.lean`
 
 See **Pending: Recreate Deleted Spec Files** below for recreation plan.
 
@@ -131,26 +131,20 @@ corresponding non-Spec files.
 
 ### Files to recreate (by priority)
 
-#### 1. StackOps.lean — POP, PUSH0, DUP1-16, SWAP1-16
+#### ~~1. StackOps.lean — POP, PUSH0, DUP1-16, SWAP1-16~~ ✅ DONE
 
-- **File**: `Evm64/StackOps.lean`
-- **Programs**: `evm_pop`, `evm_push0`, `evm_dup(n)`, `evm_swap(n)` are
-  generic Lean functions in the existing `Stack.lean` / program files.
-- **What was in the old file**:
-  - `evm_pop_spec` (1 instr): trivial ADDI — use `runBlock` or direct proof
-  - `evm_pop_stack_spec`: frame with evmWordIs/evmStackIs
-  - `evm_push0_spec` (5 instrs): 4× SD + ADDI — `runBlock` auto mode
-  - `evm_push0_stack_spec`: frame with evmStackIs
-  - `evm_dup_spec(n)` (9 instrs): ADDI + 4× LD/SD pairs — `runBlock` auto mode
-  - `evm_dup_stack_spec`: evmWordIs + evmStackIs abstraction
-  - `evm_swap_spec(n)` (16 instrs): 4× LD/SD + 4× LD/SD — `runBlock` auto mode
-  - `evm_swap_stack_spec`: evmStackIs abstraction
-- **Approach**: Per-limb specs via `runBlock` auto mode. Stack-level specs
-  via `cpsTriple_frame_left` + `cpsTriple_consequence` with `xperm_hyp`.
-  The old file's manual `cpsTriple_seq_with_perm` chains should be replaced
-  with `runBlock` (which handles CR extension automatically).
-- **Key pitfall**: `evm_dup(n)` and `evm_swap(n)` use generic `n : Nat`
-  offsets. `signExtend12_ofNat_small` is needed for `signExtend12 (BitVec.ofNat 12 (n*32+k))`.
+- **Files**: `Evm64/Pop.lean`, `Evm64/Push0.lean`, `Evm64/Dup.lean`, `Evm64/Swap.lean`
+  (modular split; shared infra in `Stack.lean`)
+- **Programs**: `evm_pop` (1 instr), `evm_push0` (5), `evm_dup(n)` (9), `evm_swap(n)` (16)
+- **Specs**: All fully proved (0 sorry). Three-level hierarchy per opcode:
+  low-level (explicit limbs) → EvmWord → stack (evmStackIs).
+- **Pattern**: POP/PUSH0 use `CodeReq.ofProg` + `runBlock`. DUP/SWAP use
+  explicit `CodeReq` union chains (symbolic `n` prevents `ofProg` whnf) with
+  `runBlock` manual mode handling monotonicity via `buildMonoProof`'s
+  union-split support. Per-limb helpers (`dup_pair_spec`, `swap_limb_spec`)
+  use `runBlock` auto mode.
+- **Shared infra** added to `Stack.lean`: `signExtend12_ofNat_small`,
+  `evmStackIs_split_at`, `EvmWord.getLimb_zero`, `signExtend12_neg32`.
 
 #### 2. ShiftSpec.lean — SHR per-limb, phase, body specs
 
@@ -272,14 +266,13 @@ All phases below target **Evm64** primarily. Files are under `EvmAsm/Evm64/`.
 
 ### Phase 3: Stack Extensions
 
-#### 3.1 DUP1-16 and SWAP1-16 (Generic) — ⚠️ specs deleted
-- **File**: `Evm64/StackOps.lean` — deleted in commit `1197924`.
-  Programs remain in `Stack.lean`.
+#### ~~3.1 DUP1-16 and SWAP1-16 (Generic)~~ ✅
+- **Files**: `Evm64/Pop.lean`, `Evm64/Push0.lean`, `Evm64/Dup.lean`, `Evm64/Swap.lean`
 - **Approach**: `evm_dup (n : Nat)` and `evm_swap (n : Nat)` as generic
   Lean functions producing `Program`. 9 instructions for DUP, 16 for SWAP.
   Full spec hierarchy: low-level (explicit limbs) → evmWordIs → evmStackIs.
-  Added `signExtend12_ofNat_small` and `evmStackIs_split_at` for Evm64.
-- Covers 32 opcodes with one proof each. Was fully proved; needs recreation.
+  Added `signExtend12_ofNat_small` and `evmStackIs_split_at` to `Stack.lean`.
+- Covers 34 opcodes (POP, PUSH0, DUP1-16, SWAP1-16) with one proof each. Fully proved.
 
 #### 3.2 PUSH1-32
 - **File**: `Evm64/StackOps.lean`
@@ -603,7 +596,7 @@ This is the heart of the STF — the inner loop that executes EVM bytecode.
 ## Priority Order
 
 **Immediate (recreate deleted specs):**
-1. Recreate `StackOps.lean` — POP, PUSH0, DUP1-16, SWAP1-16 specs
+1. ~~Recreate `StackOps.lean`~~ — ✅ Done (Pop.lean, Push0.lean, Dup.lean, Swap.lean)
 2. Recreate `ShiftSpec.lean` — SHR per-limb + phase + body specs
 3. Recreate `ShlSpec.lean`, `SarSpec.lean` — SHL/SAR specs (depend on ShiftSpec)
 4. Recreate `ByteSpec.lean` — BYTE specs (depends on ShiftSpec)

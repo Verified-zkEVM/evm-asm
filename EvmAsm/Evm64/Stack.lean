@@ -48,4 +48,55 @@ theorem evmStackIs_cons (sp : Addr) (v : EvmWord) (vs : List EvmWord) :
 theorem evmStackIs_nil (sp : Addr) :
     evmStackIs sp [] = empAssertion := rfl
 
+-- ============================================================================
+-- Shared infrastructure for stack operation specs
+-- ============================================================================
+
+@[simp] theorem EvmWord.getLimb_zero (i : Fin 4) : (0 : EvmWord).getLimb i = 0 := by
+  have h : ∀ j : Fin 4, (0 : EvmWord).getLimb j = 0 := by native_decide
+  exact h i
+
+@[simp] theorem signExtend12_neg32 : signExtend12 (-32 : BitVec 12) = (-32 : Word) := by
+  native_decide
+
+/-- Sign-extend a small non-negative 12-bit value to 64 bits.
+    The MSB is clear when m < 2^11 = 2048, so signExtend = zeroExtend = identity. -/
+theorem signExtend12_ofNat_small (m : Nat) (hm : m < 2048) :
+    signExtend12 (BitVec.ofNat 12 m) = BitVec.ofNat 64 m := by
+  unfold signExtend12
+  rw [BitVec.signExtend_eq_setWidth_of_msb_false]
+  · exact BitVec.setWidth_ofNat_of_le_of_lt (by omega) (by omega)
+  · rw [BitVec.msb_eq_false_iff_two_mul_lt]; simp [BitVec.toNat_ofNat]; omega
+
+/-- Split evmStackIs at position k: extract the kth element (0-indexed). -/
+theorem evmStackIs_split_at (sp : Addr) (stack : List EvmWord) (k : Nat)
+    (hk : k < stack.length) :
+    evmStackIs sp stack =
+      (evmStackIs sp (stack.take k) **
+       evmWordIs (sp + BitVec.ofNat 64 (k * 32)) (stack[k]'hk) **
+       evmStackIs (sp + BitVec.ofNat 64 ((k + 1) * 32)) (stack.drop (k + 1))) := by
+  induction k generalizing sp stack with
+  | zero =>
+    cases stack with
+    | nil => simp at hk
+    | cons v vs =>
+      simp only [Nat.zero_mul, List.take_zero,
+                 List.drop_succ_cons, List.drop_zero, List.getElem_cons_zero,
+                 evmStackIs_cons, evmStackIs_nil, sepConj_emp_left', BitVec.add_zero]
+      congr 1
+  | succ k ih =>
+    cases stack with
+    | nil => simp at hk
+    | cons v vs =>
+      have hk' : k < vs.length := by simp at hk; omega
+      have a1 : sp + (32 : Addr) + BitVec.ofNat 64 (k * 32) =
+                sp + BitVec.ofNat 64 ((k + 1) * 32) := by
+        apply BitVec.eq_of_toNat_eq; simp [BitVec.toNat_add, BitVec.toNat_ofNat]; omega
+      have a2 : sp + (32 : Addr) + BitVec.ofNat 64 ((k + 1) * 32) =
+                sp + BitVec.ofNat 64 ((k + 2) * 32) := by
+        apply BitVec.eq_of_toNat_eq; simp [BitVec.toNat_add, BitVec.toNat_ofNat]; omega
+      rw [evmStackIs_cons, ih (sp + 32) vs hk', a1, a2]
+      simp only [List.take_succ_cons, List.drop_succ_cons, List.getElem_cons_succ]
+      simp only [evmStackIs_cons, sepConj_assoc']
+
 end EvmAsm.Rv64
