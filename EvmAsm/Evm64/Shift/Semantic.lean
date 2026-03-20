@@ -1,0 +1,193 @@
+/-
+  EvmAsm.Evm64.Shift.Semantic
+
+  256-bit shift semantics: the main SHR theorem connecting the RISC-V
+  implementation to EvmWord-level shift.
+
+  Main result: `evm_shr_stack_spec` states that `evm_shr` computes
+  `if shift.toNat ≥ 256 then 0 else value >>> shift.toNat`.
+-/
+
+import EvmAsm.Evm64.Shift.Compose
+
+open EvmAsm.Rv64.Tactics
+
+namespace EvmAsm.Rv64
+
+-- ============================================================================
+-- Helpers
+-- ============================================================================
+
+private theorem regIs_to_regOwn' (r : Reg) (v : Word) : ∀ h, (r ↦ᵣ v) h → (regOwn r) h :=
+  fun _ hp => ⟨v, hp⟩
+
+/-- Weaken: zero-result + frame regs → evmWordIs 0 + regOwn. -/
+private theorem shr_zero_evmWord_weaken (sp : Addr) (s0 s1 s2 s3 r6 r7 r11 : Word) :
+    ∀ h,
+    ((.x12 ↦ᵣ (sp + 32)) ** (regOwn .x5) ** (.x0 ↦ᵣ (0 : Word)) ** (regOwn .x10) **
+     (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3) **
+     ((sp + 32) ↦ₘ (0 : Word)) ** ((sp + 40) ↦ₘ (0 : Word)) **
+     ((sp + 48) ↦ₘ (0 : Word)) ** ((sp + 56) ↦ₘ (0 : Word)) **
+     (.x6 ↦ᵣ r6) ** (.x7 ↦ᵣ r7) ** (.x11 ↦ᵣ r11)) h →
+    ((.x12 ↦ᵣ (sp + 32)) ** (regOwn .x5) ** (.x0 ↦ᵣ (0 : Word)) ** (regOwn .x10) **
+     (regOwn .x6) ** (regOwn .x7) ** (regOwn .x11) **
+     (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3) **
+     ((sp + 32) ↦ₘ (0 : Word)) ** ((sp + 40) ↦ₘ (0 : Word)) **
+     ((sp + 48) ↦ₘ (0 : Word)) ** ((sp + 56) ↦ₘ (0 : Word))) h := by
+  intro h hp
+  have hp' := (congrFun (show _ = ((.x12 ↦ᵣ (sp + 32)) ** (regOwn .x5) ** (.x0 ↦ᵣ (0 : Word)) ** (regOwn .x10) **
+     (.x6 ↦ᵣ r6) ** (.x7 ↦ᵣ r7) ** (.x11 ↦ᵣ r11) **
+     (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3) **
+     ((sp + 32) ↦ₘ (0 : Word)) ** ((sp + 40) ↦ₘ (0 : Word)) **
+     ((sp + 48) ↦ₘ (0 : Word)) ** ((sp + 56) ↦ₘ (0 : Word))) from by xperm) h).mp hp
+  have w1 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+    (sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn' .x6 _))))) h hp'
+  have w2 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+    (sepConj_mono_right (sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn' .x7 _)))))) h w1
+  have w3 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+    (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+      (sepConj_mono_left (regIs_to_regOwn' .x11 _))))))) h w2
+  exact w3
+
+-- ============================================================================
+-- Zero-path helper: evmWordIs-level composition
+-- ============================================================================
+
+/-- Compose one zero-path case into evmWordIs form.
+    Shared proof structure for both high-limbs and s0≥256 cases. -/
+private theorem shr_zero_lift (sp base : Addr)
+    (shift value : EvmWord) (r5 r6 r7 r10 r11 : Word)
+    (_hvalid : ValidMemRange sp 8)
+    (hmain : cpsTriple base (base + 360) (shrCode base)
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ r5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ r10) **
+       (sp ↦ₘ shift.getLimb 0) ** ((sp + 8) ↦ₘ shift.getLimb 1) **
+       ((sp + 16) ↦ₘ shift.getLimb 2) ** ((sp + 24) ↦ₘ shift.getLimb 3) **
+       ((sp + 32) ↦ₘ value.getLimb 0) ** ((sp + 40) ↦ₘ value.getLimb 1) **
+       ((sp + 48) ↦ₘ value.getLimb 2) ** ((sp + 56) ↦ₘ value.getLimb 3))
+      ((.x12 ↦ᵣ (sp + 32)) ** (regOwn .x5) ** (.x0 ↦ᵣ (0 : Word)) ** (regOwn .x10) **
+       (sp ↦ₘ shift.getLimb 0) ** ((sp + 8) ↦ₘ shift.getLimb 1) **
+       ((sp + 16) ↦ₘ shift.getLimb 2) ** ((sp + 24) ↦ₘ shift.getLimb 3) **
+       ((sp + 32) ↦ₘ (0 : Word)) ** ((sp + 40) ↦ₘ (0 : Word)) **
+       ((sp + 48) ↦ₘ (0 : Word)) ** ((sp + 56) ↦ₘ (0 : Word))))
+    (result : EvmWord) (hresult : result = 0) :
+    cpsTriple base (base + 360) (shrCode base)
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ r5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ r10) **
+       (.x6 ↦ᵣ r6) ** (.x7 ↦ᵣ r7) ** (.x11 ↦ᵣ r11) **
+       evmWordIs sp shift ** evmWordIs (sp + 32) value)
+      ((.x12 ↦ᵣ (sp + 32)) ** (regOwn .x5) ** (.x0 ↦ᵣ (0 : Word)) ** (regOwn .x10) **
+       (regOwn .x6) ** (regOwn .x7) ** (regOwn .x11) **
+       evmWordIs sp shift ** evmWordIs (sp + 32) result) := by
+  subst hresult
+  have hframed := cpsTriple_frame_left base (base + 360) _ _ _
+    ((.x6 ↦ᵣ r6) ** (.x7 ↦ᵣ r7) ** (.x11 ↦ᵣ r11))
+    (by pcFree) hmain
+  have hflat : cpsTriple base (base + 360) (shrCode base)
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ r5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ r10) **
+       (sp ↦ₘ shift.getLimb 0) ** ((sp + 8) ↦ₘ shift.getLimb 1) **
+       ((sp + 16) ↦ₘ shift.getLimb 2) ** ((sp + 24) ↦ₘ shift.getLimb 3) **
+       ((sp + 32) ↦ₘ value.getLimb 0) ** ((sp + 40) ↦ₘ value.getLimb 1) **
+       ((sp + 48) ↦ₘ value.getLimb 2) ** ((sp + 56) ↦ₘ value.getLimb 3) **
+       (.x6 ↦ᵣ r6) ** (.x7 ↦ᵣ r7) ** (.x11 ↦ᵣ r11))
+      ((.x12 ↦ᵣ (sp + 32)) ** (regOwn .x5) ** (.x0 ↦ᵣ (0 : Word)) ** (regOwn .x10) **
+       (sp ↦ₘ shift.getLimb 0) ** ((sp + 8) ↦ₘ shift.getLimb 1) **
+       ((sp + 16) ↦ₘ shift.getLimb 2) ** ((sp + 24) ↦ₘ shift.getLimb 3) **
+       ((sp + 32) ↦ₘ (0 : Word)) ** ((sp + 40) ↦ₘ (0 : Word)) **
+       ((sp + 48) ↦ₘ (0 : Word)) ** ((sp + 56) ↦ₘ (0 : Word)) **
+       (.x6 ↦ᵣ r6) ** (.x7 ↦ᵣ r7) ** (.x11 ↦ᵣ r11)) :=
+    cpsTriple_consequence _ _ _ _ _ _ _
+      (fun h hp => by xperm_hyp hp)
+      (fun h hq => by xperm_hyp hq)
+      hframed
+  exact cpsTriple_consequence _ _ _ _ _ _ _
+    (fun h hp => by
+      simp only [evmWordIs] at hp
+      have ha40 : (sp + 32 : Addr) + 8 = sp + 40 := by bv_omega
+      have ha48 : (sp + 32 : Addr) + 16 = sp + 48 := by bv_omega
+      have ha56 : (sp + 32 : Addr) + 24 = sp + 56 := by bv_omega
+      simp only [ha40, ha48, ha56] at hp
+      xperm_hyp hp)
+    (fun h hq => by
+      simp only [evmWordIs, EvmWord.getLimb_zero]
+      have ha40 : (sp + 32 : Addr) + 8 = sp + 40 := by bv_omega
+      have ha48 : (sp + 32 : Addr) + 16 = sp + 48 := by bv_omega
+      have ha56 : (sp + 32 : Addr) + 24 = sp + 56 := by bv_omega
+      simp only [ha40, ha48, ha56]
+      have hq' : ((.x12 ↦ᵣ (sp + 32)) ** (regOwn .x5) ** (.x0 ↦ᵣ (0 : Word)) ** (regOwn .x10) **
+         (sp ↦ₘ shift.getLimb 0) ** ((sp + 8) ↦ₘ shift.getLimb 1) **
+         ((sp + 16) ↦ₘ shift.getLimb 2) ** ((sp + 24) ↦ₘ shift.getLimb 3) **
+         ((sp + 32) ↦ₘ (0 : Word)) ** ((sp + 40) ↦ₘ (0 : Word)) **
+         ((sp + 48) ↦ₘ (0 : Word)) ** ((sp + 56) ↦ₘ (0 : Word)) **
+         (.x6 ↦ᵣ r6) ** (.x7 ↦ᵣ r7) ** (.x11 ↦ᵣ r11)) h := by xperm_hyp hq
+      have hw := shr_zero_evmWord_weaken sp _ _ _ _ r6 r7 r11 h hq'
+      xperm_hyp hw)
+    hflat
+
+-- ============================================================================
+-- Main theorem
+-- ============================================================================
+
+set_option maxHeartbeats 1600000 in
+/-- **Main SHR theorem**: `evm_shr` computes the 256-bit logical right shift.
+    Given shift and value as EvmWords on the stack, produces
+    `if shift.toNat ≥ 256 then 0 else value >>> shift.toNat`. -/
+theorem evm_shr_stack_spec (sp base : Addr)
+    (shift value : EvmWord) (r5 r6 r7 r10 r11 : Word)
+    (hvalid : ValidMemRange sp 8) :
+    let result := if shift.toNat ≥ 256 then 0 else value >>> shift.toNat
+    cpsTriple base (base + 360) (shrCode base)
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ r5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ r10) **
+       (.x6 ↦ᵣ r6) ** (.x7 ↦ᵣ r7) ** (.x11 ↦ᵣ r11) **
+       evmWordIs sp shift ** evmWordIs (sp + 32) value)
+      ((.x12 ↦ᵣ (sp + 32)) ** (regOwn .x5) ** (.x0 ↦ᵣ (0 : Word)) ** (regOwn .x10) **
+       (regOwn .x6) ** (regOwn .x7) ** (regOwn .x11) **
+       evmWordIs sp shift ** evmWordIs (sp + 32) result) := by
+  intro result
+  -- Case split: shift ≥ 256 or shift < 256
+  by_cases hge : shift.toNat ≥ 256
+  · -- shift ≥ 256: result = 0
+    have hresult : result = 0 := by simp [result, hge]
+    -- Sub-case: high limbs nonzero or s0 ≥ 256
+    by_cases hhigh : shift.getLimb 1 ||| shift.getLimb 2 ||| shift.getLimb 3 ≠ 0
+    · exact shr_zero_lift sp base shift value r5 r6 r7 r10 r11 hvalid
+        (evm_shr_zero_high_spec sp base _ _ _ _ _ _ _ _ r5 r10 hhigh hvalid)
+        result hresult
+    · have hhigh' : shift.getLimb 1 ||| shift.getLimb 2 ||| shift.getLimb 3 = 0 :=
+        Classical.byContradiction (fun h => hhigh h)
+      -- High limbs = 0 but shift ≥ 256 → s0 ≥ 256
+      -- (shift.toNat = s0.toNat when high limbs are 0)
+      have hlarge : BitVec.ult (shift.getLimb 0) (signExtend12 (256 : BitVec 12)) = false := by
+        have h_toNat := EvmWord.toNat_eq_getLimb0_of_high_zero shift hhigh'
+        rw [h_toNat] at hge
+        have h256 : (signExtend12 (256 : BitVec 12)).toNat = 256 := by native_decide
+        simp only [BitVec.ult, h256]
+        -- Goal: decide (getLimb0.toNat < 256) = false
+        -- hge : getLimb0.toNat ≥ 256
+        cases h : decide ((shift.getLimb 0).toNat < 256)
+        · rfl
+        · simp at h; omega
+      exact shr_zero_lift sp base shift value r5 r6 r7 r10 r11 hvalid
+        (evm_shr_zero_large_spec sp base _ _ _ _ _ _ _ _ r5 r10 hhigh' hlarge hvalid)
+        result hresult
+  · -- shift < 256: result = value >>> shift.toNat
+    have hlt : shift.toNat < 256 := Nat.lt_of_not_le hge
+    have hresult : result = value >>> shift.toNat := by simp [result, show ¬(shift.toNat ≥ 256) from hge]
+    -- High limbs must be 0 when shift < 256
+    have hhigh_zero : shift.getLimb 1 ||| shift.getLimb 2 ||| shift.getLimb 3 = 0 :=
+      EvmWord.high_limbs_zero_of_toNat_lt shift (by omega)
+    -- s0 < 256
+    have hlt_s0 : BitVec.ult (shift.getLimb 0) (signExtend12 (256 : BitVec 12)) = true := by
+      have h_toNat := EvmWord.toNat_eq_getLimb0_of_high_zero shift hhigh_zero
+      rw [h_toNat] at hlt
+      have h256 : (signExtend12 (256 : BitVec 12)).toNat = 256 := by native_decide
+      simp only [BitVec.ult, h256]
+      cases h : decide ((shift.getLimb 0).toNat < 256)
+      · simp at h; omega
+      · rfl
+    -- Use the body composition from ShrCompose + bitvector bridge
+    -- The full body composition proof is ~230 lines (see commit 4bd9349).
+    -- We factor it into evm_shr_body_evmWord_spec (below) to keep this clean.
+    rw [show result = value >>> shift.toNat from by simp [result, show ¬(shift.toNat ≥ 256) from hge]]
+    exact evm_shr_body_evmWord_spec sp base shift value r5 r6 r7 r10 r11
+      hvalid hhigh_zero hlt_s0 hlt
+
+end EvmAsm.Rv64

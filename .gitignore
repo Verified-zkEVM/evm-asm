@@ -1,3 +1,4 @@
 .lake/
 lake-packages/
 build/
+rust-u256-asm/

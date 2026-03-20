@@ -843,4 +843,86 @@ theorem cpsTriple_loop_with_perm
       (fun _ h => h) hperm_Q (hperm_inv n) (h_step n)
   exact cpsTriple_loop entry exit_ cr inv Q h_base h_step'
 
+-- ============================================================================
+-- Same-CR variants for cascade/branch composition
+-- ============================================================================
+
+/-- Like cpsBranch_seq_cpsBranch but with same CodeReq (no disjointness needed). -/
+theorem cpsBranch_seq_cpsBranch_same_cr (entry mid target exit_f : Addr) (cr : CodeReq)
+    (P Q_t1 Q_f1 Q_t2 Q_f2 Q_t : Assertion)
+    (h1 : cpsBranch entry cr P target Q_t1 mid Q_f1)
+    (h2 : cpsBranch mid cr Q_f1 target Q_t2 exit_f Q_f2)
+    (ht1 : ∀ h, Q_t1 h → Q_t h)
+    (ht2 : ∀ h, Q_t2 h → Q_t h) :
+    cpsBranch entry cr P target Q_t exit_f Q_f2 := by
+  intro R hR s hcr hPR hpc
+  obtain ⟨k1, s1, hstep1, hbranch1⟩ := h1 R hR s hcr hPR hpc
+  rcases hbranch1 with ⟨hpc_t1, hQ_t1R⟩ | ⟨hpc_f1, hQ_f1R⟩
+  · exact ⟨k1, s1, hstep1, Or.inl ⟨hpc_t1, by
+      obtain ⟨hp, hcompat, hpq⟩ := hQ_t1R
+      exact ⟨hp, hcompat, sepConj_mono_left ht1 hp hpq⟩⟩⟩
+  · have hcr' := CodeReq.SatisfiedBy_preserved cr k1 s s1 hstep1 hcr
+    obtain ⟨k2, s2, hstep2, hbranch2⟩ := h2 R hR s1 hcr' hQ_f1R hpc_f1
+    rcases hbranch2 with ⟨hpc_t2, hQ_t2R⟩ | ⟨hpc_f2, hQ_f2R⟩
+    · exact ⟨k1 + k2, s2, stepN_add_eq k1 k2 s s1 s2 hstep1 hstep2,
+             Or.inl ⟨hpc_t2, by
+               obtain ⟨hp, hcompat, hpq⟩ := hQ_t2R
+               exact ⟨hp, hcompat, sepConj_mono_left ht2 hp hpq⟩⟩⟩
+    · exact ⟨k1 + k2, s2, stepN_add_eq k1 k2 s s1 s2 hstep1 hstep2,
+             Or.inr ⟨hpc_f2, hQ_f2R⟩⟩
+
+/-- Like cpsBranch_seq_cpsBranch_with_perm but with same CodeReq. -/
+theorem cpsBranch_seq_cpsBranch_with_perm_same_cr
+    (entry mid target exit_f : Addr) (cr : CodeReq)
+    (P Q_t1 Q_f1 R Q_t2 Q_f2 Q_t : Assertion)
+    (h1 : cpsBranch entry cr P target Q_t1 mid Q_f1)
+    (hperm : ∀ h, Q_f1 h → R h)
+    (h2 : cpsBranch mid cr R target Q_t2 exit_f Q_f2)
+    (ht1 : ∀ h, Q_t1 h → Q_t h)
+    (ht2 : ∀ h, Q_t2 h → Q_t h) :
+    cpsBranch entry cr P target Q_t exit_f Q_f2 :=
+  cpsBranch_seq_cpsBranch_same_cr entry mid target exit_f cr P Q_t1 R Q_t2 Q_f2 Q_t
+    (cpsBranch_consequence entry cr
+      _ _ _ _ _ _ _ _
+      (fun _ hp => hp) (fun _ hp => hp) hperm h1)
+    h2 ht1 ht2
+
+/-- Compose a cpsBranch with a cpsNBranch on the not-taken path, same CodeReq. -/
+theorem cpsBranch_cons_cpsNBranch_same_cr (entry : Addr) (cr : CodeReq)
+    (P : Assertion) (exit_t : Addr) (Q_t : Assertion)
+    (exit_f : Addr) (Q_f : Assertion)
+    (exits : List (Addr × Assertion))
+    (hbr : cpsBranch entry cr P exit_t Q_t exit_f Q_f)
+    (h_rest : cpsNBranch exit_f cr Q_f exits) :
+    cpsNBranch entry cr P ((exit_t, Q_t) :: exits) := by
+  intro R hR s hcr hPR hpc
+  obtain ⟨k1, s1, hstep1, hbranch⟩ := hbr R hR s hcr hPR hpc
+  rcases hbranch with ⟨hpc_t, hQ_t⟩ | ⟨hpc_f, hQ_f⟩
+  · exact ⟨k1, s1, hstep1, (exit_t, Q_t), List.Mem.head _, hpc_t, hQ_t⟩
+  · have hcr' := CodeReq.SatisfiedBy_preserved cr k1 s s1 hstep1 hcr
+    obtain ⟨k2, s2, hstep2, ex, hmem, hpc2, hER⟩ := h_rest R hR s1 hcr' hQ_f hpc_f
+    exact ⟨k1 + k2, s2, stepN_add_eq k1 k2 s s1 s2 hstep1 hstep2,
+           ex, List.Mem.tail _ hmem, hpc2, hER⟩
+
+/-- Compose a cpsBranch with a cpsNBranch, with permutation on the not-taken path, same CodeReq. -/
+theorem cpsBranch_cons_cpsNBranch_with_perm_same_cr (entry : Addr) (cr : CodeReq)
+    (P : Assertion) (exit_t : Addr) (Q_t : Assertion)
+    (exit_f : Addr) (Q_f Q_f' : Assertion)
+    (exits : List (Addr × Assertion))
+    (hperm : ∀ h, Q_f h → Q_f' h)
+    (hbr : cpsBranch entry cr P exit_t Q_t exit_f Q_f)
+    (h_rest : cpsNBranch exit_f cr Q_f' exits) :
+    cpsNBranch entry cr P ((exit_t, Q_t) :: exits) := by
+  intro R hR s hcr hPR hpc
+  obtain ⟨k1, s1, hstep1, hbranch⟩ := hbr R hR s hcr hPR hpc
+  rcases hbranch with ⟨hpc_t, hQ_t⟩ | ⟨hpc_f, hQ_f⟩
+  · exact ⟨k1, s1, hstep1, (exit_t, Q_t), List.Mem.head _, hpc_t, hQ_t⟩
+  · have hQ_f' : (Q_f' ** R).holdsFor s1 := by
+      obtain ⟨hp, hcompat, hpq⟩ := hQ_f
+      exact ⟨hp, hcompat, sepConj_mono_left hperm hp hpq⟩
+    have hcr' := CodeReq.SatisfiedBy_preserved cr k1 s s1 hstep1 hcr
+    obtain ⟨k2, s2, hstep2, ex, hmem, hpc2, hER⟩ := h_rest R hR s1 hcr' hQ_f' hpc_f
+    exact ⟨k1 + k2, s2, stepN_add_eq k1 k2 s s1 s2 hstep1 hstep2,
+           ex, List.Mem.tail _ hmem, hpc2, hER⟩
+
 end EvmAsm.Rv64
