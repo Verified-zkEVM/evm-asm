@@ -142,6 +142,15 @@ private theorem evm_shr_body_evmWord_spec (sp base : Addr)
       ((.x12 ↦ᵣ (sp + 32)) ** (regOwn .x5) ** (.x0 ↦ᵣ (0 : Word)) ** (regOwn .x10) **
        (regOwn .x6) ** (regOwn .x7) ** (regOwn .x11) **
        evmWordIs sp shift ** evmWordIs (sp + 32) (value >>> shift.toNat)) := by
+  -- This proof combines the body composition (Phase A ntaken → B → C → bodies)
+  -- with the bitvector bridge (getLimb_ushiftRight).
+  -- The separation logic composition follows the pattern of the old evm_shr_body_spec
+  -- (commit 4bd9349). The bitvector bridge shows body results match getLimb of the
+  -- 256-bit shift.
+  -- For now: sorry. The two components are individually proved:
+  -- 1. Body composition: commit 4bd9349 (evm_shr_body_spec)
+  -- 2. Bitvector bridge: EvmWord.getLimb_ushiftRight in Basic.lean
+  -- Connecting them (~250 lines) is left as future work.
   sorry
 
 -- ============================================================================

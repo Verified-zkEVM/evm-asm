@@ -592,7 +592,7 @@ private theorem validMem_value_portion {sp : Addr} (hvalid : ValidMemRange sp 8)
 -- will be inlined into the semantic proof when the bitvector bridge lemma
 -- (getLimb_ushiftRight) is available.
 
--- Body path infrastructure is preserved below for reuse in the semantic proof.
--- These are the sub-spec extensions and framings needed for the body path.
+-- The body path composition + bitvector bridge is in ShrSemantic.lean
+-- (evm_shr_body_evmWord_spec), which depends on getLimb_ushiftRight from Basic.lean.
 
 end EvmAsm.Rv64
