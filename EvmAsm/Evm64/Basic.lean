@@ -228,6 +228,29 @@ theorem getLimb_ushiftRight (v : EvmWord) (n : Nat) (i : Fin 4) :
     rw [h_off]; exact (getLimbN_eq_extractLsb' v (i.val + n / 64 + 1)).symm
   rw [h1, h2]
 
+/-- When `v.toNat < 2^64`, the upper three limbs are zero. -/
+theorem high_limbs_zero_of_toNat_lt (v : EvmWord) (h : v.toNat < 2^64) :
+    v.getLimb 1 ||| v.getLimb 2 ||| v.getLimb 3 = 0 := by
+  -- Each upper limb extracts bits [k*64, k*64+64) which are all zero when v < 2^64
+  have hlimb : ∀ k : Fin 4, k.val ≥ 1 → v.getLimb k = 0 := by
+    intro k hk
+    simp only [getLimb]
+    ext j
+    simp only [BitVec.getElem_extractLsb', BitVec.getElem_zero, BitVec.getLsbD,
+      show k.val * 64 + ↑j < 256 from by omega]
+    -- v.toNat < 2^64 and k*64+j ≥ 64, so bit k*64+j of v is 0
+    simp only [Nat.testBit, Nat.shiftRight_eq_div_pow]
+    have hge : k.val * 64 + ↑j ≥ 64 := by omega
+    have hdiv : v.toNat / 2 ^ (k.val * 64 + ↑j) = 0 := by
+      apply Nat.div_eq_of_lt
+      calc v.toNat < 2 ^ 64 := h
+        _ ≤ 2 ^ (k.val * 64 + ↑j) := Nat.pow_le_pow_right (by omega) hge
+    simp [hdiv]
+  have h1 := hlimb 1 (by omega)
+  have h2 := hlimb 2 (by omega)
+  have h3 := hlimb 3 (by omega)
+  simp [h1, h2, h3]
+
 end EvmWord
 
 end EvmAsm.Rv64
