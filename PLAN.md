@@ -358,11 +358,12 @@ All phases below target **Evm64** primarily. Files are under `EvmAsm/Evm64/`.
 - **Approach**: Square-and-multiply using MUL. Loop over exponent bits.
 
 #### ~~4.6 SIGNEXTEND~~ ✅
-- **Files**: `Evm64/SignExtend.lean` (program + 16 tests) + `Evm64/SignExtendSpec.lean` (per-body + phase B specs)
+- **Files**: `Evm64/SignExtend/` — `Program.lean` (program + 16 tests), `LimbSpec.lean` (per-body + phase A/B/C specs),
+  `Compose.lean` (subsumption + no-change + body path composition), `Spec.lean` (stack-level `evm_signextend_stack_spec`)
 - **Approach**: If b >= 31, result = x. Else compute limb_idx = b/8, shift_amount = 56 - (b%8)*8.
   Cascade dispatch to body_N: SLL+SRA sign-extends target limb in-place, SRAI fills higher limbs.
-  Shares Phase B computation with BYTE opcode.
-- 48 instructions = 192 bytes. All specs proved, 0 sorry.
+  Shares Phase B computation with BYTE opcode. `EvmWord.signextend` definition + per-limb bridge lemmas in `EvmWordArith.lean`.
+- 48 instructions = 192 bytes. All specs proved, 0 sorry. Axiom-clean.
 
 ### Phase 5: Memory & Code Region
 
