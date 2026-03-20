@@ -134,6 +134,14 @@ def signext_body_1_prog (jal_off : BitVec 21) : Program :=
 def signext_done : Program :=
   ADDI .x12 .x12 32
 
+/-- LD/OR accumulator (2 instructions): LD x10 x12 off; OR x5 x5 x10. -/
+def signext_ld_or_acc_prog (off : BitVec 12) : Program :=
+  [.LD .x10 .x12 off, .OR .x5 .x5 .x10]
+
+/-- Cascade step: ADDI x10,x0,k; BEQ x5,x10,off (2 instructions). -/
+def signext_cascade_step_prog (k : BitVec 12) (offset : BitVec 13) : Program :=
+  [.ADDI .x10 .x0 k, .BEQ .x5 .x10 offset]
+
 -- ============================================================================
 -- Full SIGNEXTEND program
 -- ============================================================================
