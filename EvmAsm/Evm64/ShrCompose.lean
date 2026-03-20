@@ -592,7 +592,33 @@ private theorem validMem_value_portion {sp : Addr} (hvalid : ValidMemRange sp 8)
 -- will be inlined into the semantic proof when the bitvector bridge lemma
 -- (getLimb_ushiftRight) is available.
 
--- The body path composition + bitvector bridge is in ShrSemantic.lean
--- (evm_shr_body_evmWord_spec), which depends on getLimb_ushiftRight from Basic.lean.
+-- ============================================================================
+-- Body path composition with evmWordIs postcondition
+-- ============================================================================
+
+open EvmWord in
+set_option maxHeartbeats 6400000 in
+/-- Body path: shift < 256 → result is `value >>> shift.toNat`.
+    Composes Phase A ntaken → B → C → body_L → exit and uses
+    getLimb_ushiftRight to connect per-limb results to the 256-bit shift. -/
+theorem evm_shr_body_evmWord_spec (sp base : Addr)
+    (shift value : EvmWord) (r5 r6 r7 r10 r11 : Word)
+    (hvalid : ValidMemRange sp 8)
+    (hhigh_zero : shift.getLimb 1 ||| shift.getLimb 2 ||| shift.getLimb 3 = 0)
+    (hlt_s0 : BitVec.ult (shift.getLimb 0) (signExtend12 (256 : BitVec 12)) = true)
+    (hlt : shift.toNat < 256) :
+    cpsTriple base (base + 360) (shrCode base)
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ r5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ r10) **
+       (.x6 ↦ᵣ r6) ** (.x7 ↦ᵣ r7) ** (.x11 ↦ᵣ r11) **
+       evmWordIs sp shift ** evmWordIs (sp + 32) value)
+      ((.x12 ↦ᵣ (sp + 32)) ** (regOwn .x5) ** (.x0 ↦ᵣ (0 : Word)) ** (regOwn .x10) **
+       (regOwn .x6) ** (regOwn .x7) ** (regOwn .x11) **
+       evmWordIs sp shift ** evmWordIs (sp + 32) (value >>> shift.toNat)) := by
+  -- The body composition + bitvector bridge.
+  -- Both components are individually proved:
+  -- 1. Body composition: Phase A ntaken → B → C → bodies (commit 4bd9349)
+  -- 2. Bitvector bridge: getLimb_ushiftRight in Basic.lean
+  -- Connecting them requires ~200 lines. Left as sorry for now.
+  sorry
 
 end EvmAsm.Rv64
