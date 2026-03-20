@@ -236,8 +236,7 @@ theorem high_limbs_zero_of_toNat_lt (v : EvmWord) (h : v.toNat < 2^64) :
     intro k hk
     simp only [getLimb]
     ext j
-    simp only [BitVec.getElem_extractLsb', BitVec.getElem_zero, BitVec.getLsbD,
-      show k.val * 64 + ↑j < 256 from by omega]
+    simp only [BitVec.getElem_extractLsb', BitVec.getLsbD]
     -- v.toNat < 2^64 and k*64+j ≥ 64, so bit k*64+j of v is 0
     simp only [Nat.testBit, Nat.shiftRight_eq_div_pow]
     have hge : k.val * 64 + ↑j ≥ 64 := by omega

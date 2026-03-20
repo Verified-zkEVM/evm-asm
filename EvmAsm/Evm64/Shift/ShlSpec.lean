@@ -56,11 +56,11 @@ theorem shl_merge_limb_spec (src_off prev_off dst_off : BitVec 12)
        (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ shifted_prev) ** (.x11 ↦ᵣ mask) **
        (mem_src ↦ₘ src) ** (mem_prev ↦ₘ prev) ** (mem_dst ↦ₘ result)) := by
   have L1 := ld_spec_gen .x5 .x12 sp v5 src src_off base (by nofun) hvalid_src
-  have SL := sll_spec_gen_rd_eq_rs1 .x5 .x6 src bit_shift (base + 4) (by nofun) (by nofun)
+  have SL := sll_spec_gen_rd_eq_rs1 .x5 .x6 src bit_shift (base + 4) (by nofun)
   have L2 := ld_spec_gen .x10 .x12 sp v10 prev prev_off (base + 8) (by nofun) hvalid_prev
-  have SR := srl_spec_gen_rd_eq_rs1 .x10 .x7 prev anti_shift (base + 12) (by nofun) (by nofun)
-  have AN := and_spec_gen_rd_eq_rs1 .x10 .x11 (prev >>> (anti_shift.toNat % 64)) mask (base + 16) (by nofun) (by nofun)
-  have OR_ := or_spec_gen_rd_eq_rs1 .x5 .x10 (src <<< (bit_shift.toNat % 64)) ((prev >>> (anti_shift.toNat % 64)) &&& mask) (base + 20) (by nofun) (by nofun)
+  have SR := srl_spec_gen_rd_eq_rs1 .x10 .x7 prev anti_shift (base + 12) (by nofun)
+  have AN := and_spec_gen_rd_eq_rs1 .x10 .x11 (prev >>> (anti_shift.toNat % 64)) mask (base + 16) (by nofun)
+  have OR_ := or_spec_gen_rd_eq_rs1 .x5 .x10 (src <<< (bit_shift.toNat % 64)) ((prev >>> (anti_shift.toNat % 64)) &&& mask) (base + 20) (by nofun)
   have SD_ := sd_spec_gen .x12 .x5 sp ((src <<< (bit_shift.toNat % 64)) ||| ((prev >>> (anti_shift.toNat % 64)) &&& mask)) dst_old dst_off (base + 24) hvalid_dst
   runBlock L1 SL L2 SR AN OR_ SD_
 
@@ -92,7 +92,7 @@ theorem shl_first_limb_spec (dst_off : BitVec 12)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result) ** (.x6 ↦ᵣ bit_shift) **
        (mem_src ↦ₘ src) ** (mem_dst ↦ₘ result)) := by
   have L := ld_spec_gen .x5 .x12 sp v5 src 0 base (by nofun) hvalid_src
-  have SL := sll_spec_gen_rd_eq_rs1 .x5 .x6 src bit_shift (base + 4) (by nofun) (by nofun)
+  have SL := sll_spec_gen_rd_eq_rs1 .x5 .x6 src bit_shift (base + 4) (by nofun)
   have SD_ := sd_spec_gen .x12 .x5 sp (src <<< (bit_shift.toNat % 64)) dst_old dst_off (base + 8) hvalid_dst
   runBlock L SL SD_
 
@@ -129,11 +129,11 @@ theorem shl_merge_limb_inplace_spec (off prev_off : BitVec 12)
        (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ shifted_prev) ** (.x11 ↦ᵣ mask) **
        (mem_loc ↦ₘ result) ** (mem_prev ↦ₘ prev)) := by
   have L1 := ld_spec_gen .x5 .x12 sp v5 src off base (by nofun) hvalid_loc
-  have SL := sll_spec_gen_rd_eq_rs1 .x5 .x6 src bit_shift (base + 4) (by nofun) (by nofun)
+  have SL := sll_spec_gen_rd_eq_rs1 .x5 .x6 src bit_shift (base + 4) (by nofun)
   have L2 := ld_spec_gen .x10 .x12 sp v10 prev prev_off (base + 8) (by nofun) hvalid_prev
-  have SR := srl_spec_gen_rd_eq_rs1 .x10 .x7 prev anti_shift (base + 12) (by nofun) (by nofun)
-  have AN := and_spec_gen_rd_eq_rs1 .x10 .x11 (prev >>> (anti_shift.toNat % 64)) mask (base + 16) (by nofun) (by nofun)
-  have OR_ := or_spec_gen_rd_eq_rs1 .x5 .x10 (src <<< (bit_shift.toNat % 64)) ((prev >>> (anti_shift.toNat % 64)) &&& mask) (base + 20) (by nofun) (by nofun)
+  have SR := srl_spec_gen_rd_eq_rs1 .x10 .x7 prev anti_shift (base + 12) (by nofun)
+  have AN := and_spec_gen_rd_eq_rs1 .x10 .x11 (prev >>> (anti_shift.toNat % 64)) mask (base + 16) (by nofun)
+  have OR_ := or_spec_gen_rd_eq_rs1 .x5 .x10 (src <<< (bit_shift.toNat % 64)) ((prev >>> (anti_shift.toNat % 64)) &&& mask) (base + 20) (by nofun)
   have SD_ := sd_spec_gen .x12 .x5 sp ((src <<< (bit_shift.toNat % 64)) ||| ((prev >>> (anti_shift.toNat % 64)) &&& mask)) src off (base + 24) hvalid_loc
   runBlock L1 SL L2 SR AN OR_ SD_
 
@@ -159,7 +159,7 @@ theorem shl_first_limb_inplace_spec
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ bit_shift) ** (mem ↦ₘ src))
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result) ** (.x6 ↦ᵣ bit_shift) ** (mem ↦ₘ result)) := by
   have L := ld_spec_gen .x5 .x12 sp v5 src 0 base (by nofun) hvalid
-  have SL := sll_spec_gen_rd_eq_rs1 .x5 .x6 src bit_shift (base + 4) (by nofun) (by nofun)
+  have SL := sll_spec_gen_rd_eq_rs1 .x5 .x6 src bit_shift (base + 4) (by nofun)
   have SD_ := sd_spec_gen .x12 .x5 sp (src <<< (bit_shift.toNat % 64)) src 0 (base + 8) hvalid
   runBlock L SL SD_
 
@@ -216,7 +216,7 @@ abbrev shl_body_2_code (base : Addr) (jal_off : BitVec 21) : CodeReq :=
   (CodeReq.union (CodeReq.singleton (base + 36) (.SD .x12 .x5 16))
   (CodeReq.union (CodeReq.singleton (base + 40) (.SD .x12 .x0 8))
   (CodeReq.union (CodeReq.singleton (base + 44) (.SD .x12 .x0 0))
-   (CodeReq.singleton (base + 48) (.JAL .x0 jal_off))))))))))))))
+   (CodeReq.singleton (base + 48) (.JAL .x0 jal_off)))))))))))))
 
 set_option maxHeartbeats 3200000 in
 /-- Shift body 2: limb_shift=2.
@@ -343,7 +343,7 @@ abbrev shl_body_0_code (base : Addr) (jal_off : BitVec 21) : CodeReq :=
   (CodeReq.union (CodeReq.singleton (base + 88) (.SLL .x5 .x5 .x6))
   (CodeReq.union (CodeReq.singleton (base + 92) (.SD .x12 .x5 0))
   -- JAL at base+96
-   (CodeReq.singleton (base + 96) (.JAL .x0 jal_off))))))))))))))))))))))))))
+   (CodeReq.singleton (base + 96) (.JAL .x0 jal_off)))))))))))))))))))))))))
 
 set_option maxHeartbeats 3200000 in
 /-- Shift body 0: limb_shift=0.

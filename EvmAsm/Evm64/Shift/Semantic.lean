@@ -57,7 +57,7 @@ private theorem shr_zero_evmWord_weaken (sp : Addr) (s0 s1 s2 s3 r6 r7 r11 : Wor
     Shared proof structure for both high-limbs and s0≥256 cases. -/
 private theorem shr_zero_lift (sp base : Addr)
     (shift value : EvmWord) (r5 r6 r7 r10 r11 : Word)
-    (hvalid : ValidMemRange sp 8)
+    (_hvalid : ValidMemRange sp 8)
     (hmain : cpsTriple base (base + 360) (shrCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ r5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ r10) **
        (sp ↦ₘ shift.getLimb 0) ** ((sp + 8) ↦ₘ shift.getLimb 1) **

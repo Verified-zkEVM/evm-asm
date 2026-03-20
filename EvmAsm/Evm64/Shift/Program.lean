@@ -719,4 +719,66 @@ example : runSarCheck 1024 0 0 0 0  0xFF 0 0 0  42 =
 example : runSarCheck 1024 256 0 0 0  0 0 0 0x8000000000000000  16 =
     some (380, 1056) := by native_decide
 
+-- ============================================================================
+-- Parametric program definitions (for specs with symbolic offsets)
+-- ============================================================================
+
+/-- Parametric SHR merge limb (7 instructions). -/
+def shr_merge_limb_prog (src_off next_off dst_off : BitVec 12) : Program :=
+  [.LD .x5 .x12 src_off, .SRL .x5 .x5 .x6, .LD .x10 .x12 next_off,
+   .SLL .x10 .x10 .x7, .AND .x10 .x10 .x11, .OR .x5 .x5 .x10, .SD .x12 .x5 dst_off]
+
+/-- Parametric SHR last limb (3 instructions). -/
+def shr_last_limb_prog (dst_off : BitVec 12) : Program :=
+  [.LD .x5 .x12 24, .SRL .x5 .x5 .x6, .SD .x12 .x5 dst_off]
+
+/-- Parametric SHR merge limb in-place (7 instructions). -/
+def shr_merge_limb_inplace_prog (off next_off : BitVec 12) : Program :=
+  [.LD .x5 .x12 off, .SRL .x5 .x5 .x6, .LD .x10 .x12 next_off,
+   .SLL .x10 .x10 .x7, .AND .x10 .x10 .x11, .OR .x5 .x5 .x10, .SD .x12 .x5 off]
+
+/-- SHR last limb in-place (3 instructions). -/
+def shr_last_limb_inplace_prog : Program :=
+  [.LD .x5 .x12 24, .SRL .x5 .x5 .x6, .SD .x12 .x5 24]
+
+/-- LD+OR accumulator (2 instructions). -/
+def shr_ld_or_acc_prog (off : BitVec 12) : Program :=
+  [.LD .x10 .x12 off, .OR .x5 .x5 .x10]
+
+/-- Cascade step: ADDI + BEQ (2 instructions). -/
+def shr_cascade_step_prog (k : BitVec 12) (offset : BitVec 13) : Program :=
+  [.ADDI .x10 .x0 k, .BEQ .x5 .x10 offset]
+
+/-- Parametric SHR body 3 (7 instructions). -/
+def shr_body_3_prog (jal_off : BitVec 21) : Program :=
+  [.LD .x5 .x12 24, .SRL .x5 .x5 .x6, .SD .x12 .x5 0,
+   .SD .x12 .x0 8, .SD .x12 .x0 16, .SD .x12 .x0 24, .JAL .x0 jal_off]
+
+/-- Parametric SHR body 2 (13 instructions). -/
+def shr_body_2_prog (jal_off : BitVec 21) : Program :=
+  [.LD .x5 .x12 16, .SRL .x5 .x5 .x6, .LD .x10 .x12 24,
+   .SLL .x10 .x10 .x7, .AND .x10 .x10 .x11, .OR .x5 .x5 .x10, .SD .x12 .x5 0,
+   .LD .x5 .x12 24, .SRL .x5 .x5 .x6, .SD .x12 .x5 8,
+   .SD .x12 .x0 16, .SD .x12 .x0 24, .JAL .x0 jal_off]
+
+/-- Parametric SHR body 1 (19 instructions). -/
+def shr_body_1_prog (jal_off : BitVec 21) : Program :=
+  [.LD .x5 .x12 8, .SRL .x5 .x5 .x6, .LD .x10 .x12 16,
+   .SLL .x10 .x10 .x7, .AND .x10 .x10 .x11, .OR .x5 .x5 .x10, .SD .x12 .x5 0,
+   .LD .x5 .x12 16, .SRL .x5 .x5 .x6, .LD .x10 .x12 24,
+   .SLL .x10 .x10 .x7, .AND .x10 .x10 .x11, .OR .x5 .x5 .x10, .SD .x12 .x5 8,
+   .LD .x5 .x12 24, .SRL .x5 .x5 .x6, .SD .x12 .x5 16,
+   .SD .x12 .x0 24, .JAL .x0 jal_off]
+
+/-- Parametric SHR body 0 (25 instructions). -/
+def shr_body_0_prog (jal_off : BitVec 21) : Program :=
+  [.LD .x5 .x12 0, .SRL .x5 .x5 .x6, .LD .x10 .x12 8,
+   .SLL .x10 .x10 .x7, .AND .x10 .x10 .x11, .OR .x5 .x5 .x10, .SD .x12 .x5 0,
+   .LD .x5 .x12 8, .SRL .x5 .x5 .x6, .LD .x10 .x12 16,
+   .SLL .x10 .x10 .x7, .AND .x10 .x10 .x11, .OR .x5 .x5 .x10, .SD .x12 .x5 8,
+   .LD .x5 .x12 16, .SRL .x5 .x5 .x6, .LD .x10 .x12 24,
+   .SLL .x10 .x10 .x7, .AND .x10 .x10 .x11, .OR .x5 .x5 .x10, .SD .x12 .x5 16,
+   .LD .x5 .x12 24, .SRL .x5 .x5 .x6, .SD .x12 .x5 24,
+   .JAL .x0 jal_off]
+
 end EvmAsm.Rv64
