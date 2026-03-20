@@ -922,6 +922,74 @@ theorem byte_extract_correct (x : EvmWord) (i : Nat) (hi : i < 32) :
   rw [mod_pow64_div_mod256_eq _ _ (by omega)]
   rw [Nat.div_div_eq_div_mul, ← Nat.pow_add, hshift]
 
+-- ============================================================================
+-- EvmWord.byte: word-level BYTE definition and getLimb theorems
+-- ============================================================================
+
+/-- EVM BYTE semantics: extract the i-th byte (big-endian) from x, returning 0 if i ≥ 32. -/
+def byte (i x : EvmWord) : EvmWord :=
+  if i.toNat < 32 then
+    BitVec.ofNat 256 ((x.toNat / 2 ^ ((31 - i.toNat) * 8)) % 256)
+  else 0
+
+private theorem getLimb_0_ofNat_small (n : Nat) (_hn : n < 2 ^ 64) :
+    getLimb (BitVec.ofNat 256 n) 0 = BitVec.ofNat 64 n := by
+  simp only [getLimb]
+  simp only [Fin.val_zero, Nat.zero_mul]
+  apply BitVec.eq_of_toNat_eq
+  simp only [BitVec.extractLsb'_toNat, BitVec.toNat_ofNat, Nat.shiftRight_zero]
+  omega
+
+private theorem getLimb_high_ofNat_small (n : Nat) (hn : n < 2 ^ 64)
+    (i : Fin 4) (hi : i.val ≠ 0) :
+    getLimb (BitVec.ofNat 256 n) i = 0 := by
+  simp only [getLimb]
+  apply BitVec.eq_of_toNat_eq
+  simp only [BitVec.extractLsb'_toNat, BitVec.toNat_ofNat, Nat.shiftRight_eq_div_pow]
+  have hi_pos : 0 < i.val := Nat.pos_of_ne_zero hi
+  have h_shift : 2 ^ 64 ≤ 2 ^ (i.val * 64) := Nat.pow_le_pow_right (by norm_num) (by omega)
+  have : n % 2 ^ 256 = n := Nat.mod_eq_of_lt (by linarith [show 2 ^ 64 ≤ 2 ^ 256 from by norm_num])
+  rw [this]
+  have : n / 2 ^ (i.val * 64) = 0 := Nat.div_eq_of_lt (by linarith)
+  simp [this]
+
+theorem byte_getLimb_0 (idx x : EvmWord) (hi : idx.toNat < 32) :
+    (byte idx x).getLimb 0 =
+    BitVec.ofNat 64 ((x.toNat / 2 ^ ((31 - idx.toNat) * 8)) % 256) := by
+  unfold byte
+  rw [if_pos hi]
+  have : (x.toNat / 2 ^ ((31 - idx.toNat) * 8)) % 256 < 2 ^ 64 := by
+    have := Nat.mod_lt (x.toNat / 2 ^ ((31 - idx.toNat) * 8)) (by norm_num : 0 < 256)
+    linarith [show (256 : Nat) ≤ 2 ^ 64 from by norm_num]
+  exact getLimb_0_ofNat_small _ this
+
+theorem byte_getLimb_high (idx x : EvmWord) (j : Fin 4) (hj : j.val ≠ 0) :
+    (byte idx x).getLimb j = 0 := by
+  unfold byte
+  split
+  · next hi =>
+    have : (x.toNat / 2 ^ ((31 - idx.toNat) * 8)) % 256 < 2 ^ 64 := by
+      have := Nat.mod_lt (x.toNat / 2 ^ ((31 - idx.toNat) * 8)) (by norm_num : 0 < 256)
+      linarith [show (256 : Nat) ≤ 2 ^ 64 from by norm_num]
+    exact getLimb_high_ofNat_small _ this j hj
+  · show (0 : EvmWord).getLimb j = 0
+    simp [getLimb]
+
+/-- Bridge theorem connecting `EvmWord.byte` to limb-level extraction.
+    The program computes the result per-limb; this theorem shows that
+    `(byte idx x).getLimb 0` equals the limb-level extraction formula. -/
+theorem byte_correct (idx x : EvmWord) (hi : idx.toNat < 32) :
+    (byte idx x).getLimb 0 =
+    BitVec.ofNat 64 (((x.getLimb ⟨3 - idx.toNat / 8, by omega⟩).toNat /
+      2 ^ (56 - (idx.toNat % 8) * 8)) % 256) := by
+  rw [byte_getLimb_0 _ _ hi]
+  congr 1
+  exact (byte_extract_correct x idx.toNat hi).symm
+
+theorem byte_zero (idx x : EvmWord) (hi : ¬ (idx.toNat < 32)) :
+    byte idx x = 0 := by
+  simp [byte, hi]
+
 end EvmWord
 
 end EvmAsm.Rv64
