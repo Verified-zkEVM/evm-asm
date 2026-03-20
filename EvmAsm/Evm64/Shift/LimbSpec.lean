@@ -1,5 +1,5 @@
 /-
-  EvmAsm.Evm64.ShrSpec
+  EvmAsm.Evm64.Shift.LimbSpec
 
   CPS specifications for the 256-bit EVM SHR (logical shift right) program (64-bit).
   Modern CodeReq-based approach.
@@ -15,7 +15,7 @@
   - Shift bodies: shr_body_L_spec for L = 0..3
 -/
 
-import EvmAsm.Evm64.Shift
+import EvmAsm.Evm64.Shift.Program
 import EvmAsm.Rv64.SyscallSpecs
 import EvmAsm.Rv64.ControlFlow
 import EvmAsm.Rv64.Tactics.XSimp

@@ -6,7 +6,7 @@
   Each composed spec uses `divCode base` as a persistent CodeReq side-condition.
 -/
 
-import EvmAsm.Evm64.DivModSpec
+import EvmAsm.Evm64.DivMod.LimbSpec
 
 open EvmAsm.Rv64.Tactics
 

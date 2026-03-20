@@ -5,7 +5,7 @@
   Bottom-up decomposition starting from the simplest phases.
 -/
 
-import EvmAsm.Evm64.DivMod
+import EvmAsm.Evm64.DivMod.Program
 import EvmAsm.Rv64.SyscallSpecs
 import EvmAsm.Rv64.ControlFlow
 import EvmAsm.Rv64.Tactics.XSimp

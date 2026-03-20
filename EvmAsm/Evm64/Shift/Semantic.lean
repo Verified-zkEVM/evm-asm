@@ -1,5 +1,5 @@
 /-
-  EvmAsm.Evm64.ShrSemantic
+  EvmAsm.Evm64.Shift.Semantic
 
   256-bit shift semantics: the main SHR theorem connecting the RISC-V
   implementation to EvmWord-level shift.
@@ -8,7 +8,7 @@
   `if shift.toNat ≥ 256 then 0 else value >>> shift.toNat`.
 -/
 
-import EvmAsm.Evm64.ShrCompose
+import EvmAsm.Evm64.Shift.Compose
 
 open EvmAsm.Rv64.Tactics
 

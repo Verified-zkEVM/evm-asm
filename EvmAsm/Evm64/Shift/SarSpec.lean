@@ -1,5 +1,5 @@
 /-
-  EvmAsm.Evm64.SarSpec
+  EvmAsm.Evm64.Shift.SarSpec
 
   CPS specifications for the 256-bit EVM SAR (arithmetic shift right) program (64-bit).
   Like SHR but fills vacated bits with sign extension (MSB of value).
@@ -10,7 +10,7 @@
   - Reuses SHR phase A/B/C specs from ShiftSpec.lean (with different offsets)
 -/
 
-import EvmAsm.Evm64.ShrSpec
+import EvmAsm.Evm64.Shift.LimbSpec
 
 open EvmAsm.Rv64.Tactics
 

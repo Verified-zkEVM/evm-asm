@@ -251,6 +251,39 @@ theorem high_limbs_zero_of_toNat_lt (v : EvmWord) (h : v.toNat < 2^64) :
   have h3 := hlimb 3 (by omega)
   simp [h1, h2, h3]
 
+@[simp] theorem getLimb_one (i : Fin 4) :
+    (1 : EvmWord).getLimb i = if i = 0 then 1 else 0 := by
+  have h : ∀ j : Fin 4, (1 : EvmWord).getLimb j = if j = 0 then 1 else 0 := by native_decide
+  exact h i
+
+@[simp] theorem getLimb_ite (c : Prop) [Decidable c] (x y : EvmWord) (i : Fin 4) :
+    (if c then x else y).getLimb i = if c then x.getLimb i else y.getLimb i := by
+  split <;> rfl
+
+theorem eq_iff_limbs (a b : EvmWord) :
+    a = b ↔ (∀ i, a.getLimb i = b.getLimb i) := by
+  constructor
+  · intro h; subst h; intro; rfl
+  · intro h
+    calc a = fromLimbs a.getLimb := (fromLimbs_getLimb a).symm
+      _ = fromLimbs b.getLimb := by congr 1; funext i; exact h i
+      _ = b := fromLimbs_getLimb b
+
+private theorem fromLimbs_zero : fromLimbs (fun _ => (0 : Word)) = (0 : EvmWord) := by
+  simp only [fromLimbs]; bv_decide
+
+theorem eq_zero_iff_limbs (a : EvmWord) :
+    a = 0 ↔ a.getLimb 0 = 0 ∧ a.getLimb 1 = 0 ∧ a.getLimb 2 = 0 ∧ a.getLimb 3 = 0 := by
+  constructor
+  · intro h; subst h
+    have hz : ∀ j : Fin 4, (0 : EvmWord).getLimb j = 0 := by native_decide
+    exact ⟨hz 0, hz 1, hz 2, hz 3⟩
+  · intro ⟨h0, h1, h2, h3⟩
+    rw [← fromLimbs_getLimb a]
+    unfold fromLimbs
+    simp only [h0, h1, h2, h3]
+    bv_decide
+
 end EvmWord
 
 end EvmAsm.Rv64

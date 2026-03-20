@@ -1,5 +1,5 @@
 /-
-  EvmAsm.Evm64.ShlSpec
+  EvmAsm.Evm64.Shift.ShlSpec
 
   CPS specifications for the 256-bit EVM SHL (logical shift left) program (64-bit).
   Mirrors ShiftSpec.lean with SLL/SRL swapped and limbs processed top-down.
@@ -9,7 +9,7 @@
   - Reuses SHR phase A/B/C/zero_path specs from ShiftSpec.lean
 -/
 
-import EvmAsm.Evm64.ShrSpec
+import EvmAsm.Evm64.Shift.LimbSpec
 
 open EvmAsm.Rv64.Tactics
 

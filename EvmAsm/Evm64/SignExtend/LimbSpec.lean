@@ -9,7 +9,7 @@
   - Phase B: signext_phase_b_spec (5 instrs, same computation as BYTE Phase B)
 -/
 
-import EvmAsm.Evm64.SignExtend
+import EvmAsm.Evm64.SignExtend.Program
 import EvmAsm.Rv64.SyscallSpecs
 import EvmAsm.Rv64.ControlFlow
 import EvmAsm.Rv64.Tactics.XSimp

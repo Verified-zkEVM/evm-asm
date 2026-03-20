@@ -80,31 +80,34 @@ EvmAsm/
       SpecDb.lean             --   @[spec_gen] attribute and spec database
   Evm64/                      -- EVM opcodes on RV64IM (4x64-bit limbs)
     Basic.lean                --   EvmWord (BitVec 256), getLimb64, fromLimbs64
-    Stack.lean                --   evmWordIs, evmStackIs, pcFree lemmas, POP/PUSH0/DUP/SWAP
-    Bitwise.lean              --   AND/OR/XOR/NOT programs + per-limb specs
-    And.lean                  --   Full 256-bit AND spec
-    Or.lean                   --   Full 256-bit OR spec
-    Xor.lean                  --   Full 256-bit XOR spec
-    Not.lean                  --   Full 256-bit NOT spec
-    Arithmetic.lean           --   ADD/SUB programs + per-limb specs
-    Add.lean                  --   Full 256-bit ADD spec
-    Sub.lean                  --   Full 256-bit SUB spec
-    Multiply.lean             --   MUL program (schoolbook 4x4 limb)
-    MultiplySpec.lean         --   Full 256-bit MUL spec
-    Comparison.lean           --   LT/GT/EQ/ISZERO/SLT/SGT programs + per-limb specs
-    Lt.lean                   --   Full 256-bit LT spec
-    Gt.lean                   --   Full 256-bit GT spec
-    Eq.lean                   --   Full 256-bit EQ spec
-    IsZero.lean               --   Full 256-bit ISZERO spec
-    Slt.lean                  --   Full 256-bit SLT (signed) spec
-    Sgt.lean                  --   Full 256-bit SGT (signed) spec
-    SignExtend.lean           --   SIGNEXTEND program + per-limb specs
-    SignExtendSpec.lean       --   Full 256-bit SIGNEXTEND spec
-    Shift.lean                --   SHR/SHL/SAR programs (specs pending CodeReq migration)
-    Byte.lean                 --   BYTE program (spec pending CodeReq migration)
-    DivMod.lean               --   DIV/MOD program (Knuth Algorithm D)
-    DivModSpec.lean           --   DIV/MOD per-phase specs
-    DivModCompose.lean        --   DIV/MOD full composition proof
+    Stack.lean                --   evmWordIs, evmStackIs, pcFree lemmas
+    EvmWordArith.lean         --   Math correctness lemmas (carry chains, etc.)
+    Compare/
+      LimbSpec.lean           --   Shared comparison per-limb specs (lt, beq, slt_msb)
+    Add/                      --   256-bit ADD
+      Program.lean            --     RV64 program definition
+      LimbSpec.lean           --     Per-limb specs (add_limb0, add_limb_carry)
+      Spec.lean               --     Full composition + stack-level spec
+    Sub/                      --   256-bit SUB (same layout as Add/)
+    And/                      --   256-bit AND (Program + LimbSpec + Spec)
+    Or/                       --   256-bit OR
+    Xor/                      --   256-bit XOR
+    Not/                      --   256-bit NOT
+    Lt/                       --   256-bit LT (Program + Spec, uses Compare/LimbSpec)
+    Gt/                       --   256-bit GT
+    Eq/                       --   256-bit EQ (Program + LimbSpec + Spec)
+    IsZero/                   --   256-bit ISZERO (Program + LimbSpec + Spec)
+    Slt/                      --   256-bit SLT signed (Program + Spec, uses Compare/LimbSpec)
+    Sgt/                      --   256-bit SGT signed
+    Pop/                      --   POP (Program + Spec)
+    Push0/                    --   PUSH0 (Program + Spec)
+    Dup/                      --   DUP1-16 (Program + Spec)
+    Swap/                     --   SWAP1-16 (Program + Spec)
+    Multiply/                 --   MUL (Program + LimbSpec, schoolbook 4x4 limb)
+    DivMod/                   --   DIV/MOD (Program + LimbSpec + Compose, Knuth Algorithm D)
+    SignExtend/               --   SIGNEXTEND (Program + LimbSpec)
+    Shift/                    --   SHR/SHL/SAR (Program only, specs pending)
+    Byte/                     --   BYTE (Program only, specs pending)
     zkvm-standards/           --   Submodule: zkVM RISC-V target standards
 EvmAsm.lean                  -- Top-level module hub
 EvmAsm/Rv64.lean             -- Rv64 module hub

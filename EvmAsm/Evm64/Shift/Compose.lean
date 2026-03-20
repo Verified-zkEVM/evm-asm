@@ -1,5 +1,5 @@
 /-
-  EvmAsm.Evm64.ShrCompose
+  EvmAsm.Evm64.Shift.Compose
 
   Hierarchical composition of SHR CPS specs into a single full-program theorem.
   Composes the 5 execution paths through `evm_shr` (90 instructions, 360 bytes):
@@ -7,7 +7,7 @@
   - Body L (L=0..3, shift < 256): Phase A ntaken → B → C(exit L) → body_L → exit
 -/
 
-import EvmAsm.Evm64.ShrSpec
+import EvmAsm.Evm64.Shift.LimbSpec
 import Mathlib.Tactic.Set
 
 open EvmAsm.Rv64.Tactics
