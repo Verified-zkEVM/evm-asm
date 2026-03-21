@@ -168,13 +168,7 @@ theorem shl_first_limb_inplace_spec
 -- ============================================================================
 
 abbrev shl_body_3_code (base : Addr) (jal_off : BitVec 21) : CodeReq :=
-  CodeReq.union (CodeReq.singleton base (.LD .x5 .x12 0))
-  (CodeReq.union (CodeReq.singleton (base + 4) (.SLL .x5 .x5 .x6))
-  (CodeReq.union (CodeReq.singleton (base + 8) (.SD .x12 .x5 24))
-  (CodeReq.union (CodeReq.singleton (base + 12) (.SD .x12 .x0 16))
-  (CodeReq.union (CodeReq.singleton (base + 16) (.SD .x12 .x0 8))
-  (CodeReq.union (CodeReq.singleton (base + 20) (.SD .x12 .x0 0))
-   (CodeReq.singleton (base + 24) (.JAL .x0 jal_off)))))))
+  CodeReq.ofProg base (shl_body_3_prog jal_off)
 
 /-- Shift body 3: limb_shift=3.
     Result[3] = value[0] <<< bs, rest = 0.
@@ -204,19 +198,7 @@ theorem shl_body_3_spec (sp : Word)
   runBlock FL S0 S1 S2 JL
 
 abbrev shl_body_2_code (base : Addr) (jal_off : BitVec 21) : CodeReq :=
-  CodeReq.union (CodeReq.singleton base (.LD .x5 .x12 8))
-  (CodeReq.union (CodeReq.singleton (base + 4) (.SLL .x5 .x5 .x6))
-  (CodeReq.union (CodeReq.singleton (base + 8) (.LD .x10 .x12 0))
-  (CodeReq.union (CodeReq.singleton (base + 12) (.SRL .x10 .x10 .x7))
-  (CodeReq.union (CodeReq.singleton (base + 16) (.AND .x10 .x10 .x11))
-  (CodeReq.union (CodeReq.singleton (base + 20) (.OR .x5 .x5 .x10))
-  (CodeReq.union (CodeReq.singleton (base + 24) (.SD .x12 .x5 24))
-  (CodeReq.union (CodeReq.singleton (base + 28) (.LD .x5 .x12 0))
-  (CodeReq.union (CodeReq.singleton (base + 32) (.SLL .x5 .x5 .x6))
-  (CodeReq.union (CodeReq.singleton (base + 36) (.SD .x12 .x5 16))
-  (CodeReq.union (CodeReq.singleton (base + 40) (.SD .x12 .x0 8))
-  (CodeReq.union (CodeReq.singleton (base + 44) (.SD .x12 .x0 0))
-   (CodeReq.singleton (base + 48) (.JAL .x0 jal_off)))))))))))))
+  CodeReq.ofProg base (shl_body_2_prog jal_off)
 
 set_option maxHeartbeats 3200000 in
 /-- Shift body 2: limb_shift=2.
@@ -251,29 +233,7 @@ theorem shl_body_2_spec (sp : Word)
   runBlock MM FL S0 S1 JL
 
 abbrev shl_body_1_code (base : Addr) (jal_off : BitVec 21) : CodeReq :=
-  -- merge_limb(16,8,24): 7 instructions at base..base+24
-  CodeReq.union (CodeReq.singleton base (.LD .x5 .x12 16))
-  (CodeReq.union (CodeReq.singleton (base + 4) (.SLL .x5 .x5 .x6))
-  (CodeReq.union (CodeReq.singleton (base + 8) (.LD .x10 .x12 8))
-  (CodeReq.union (CodeReq.singleton (base + 12) (.SRL .x10 .x10 .x7))
-  (CodeReq.union (CodeReq.singleton (base + 16) (.AND .x10 .x10 .x11))
-  (CodeReq.union (CodeReq.singleton (base + 20) (.OR .x5 .x5 .x10))
-  (CodeReq.union (CodeReq.singleton (base + 24) (.SD .x12 .x5 24))
-  -- merge_limb(8,0,16): 7 instructions at base+28..base+52
-  (CodeReq.union (CodeReq.singleton (base + 28) (.LD .x5 .x12 8))
-  (CodeReq.union (CodeReq.singleton (base + 32) (.SLL .x5 .x5 .x6))
-  (CodeReq.union (CodeReq.singleton (base + 36) (.LD .x10 .x12 0))
-  (CodeReq.union (CodeReq.singleton (base + 40) (.SRL .x10 .x10 .x7))
-  (CodeReq.union (CodeReq.singleton (base + 44) (.AND .x10 .x10 .x11))
-  (CodeReq.union (CodeReq.singleton (base + 48) (.OR .x5 .x5 .x10))
-  (CodeReq.union (CodeReq.singleton (base + 52) (.SD .x12 .x5 16))
-  -- first_limb(8): 3 instructions at base+56..base+64
-  (CodeReq.union (CodeReq.singleton (base + 56) (.LD .x5 .x12 0))
-  (CodeReq.union (CodeReq.singleton (base + 60) (.SLL .x5 .x5 .x6))
-  (CodeReq.union (CodeReq.singleton (base + 64) (.SD .x12 .x5 8))
-  -- SD + JAL: 2 instructions at base+68..base+72
-  (CodeReq.union (CodeReq.singleton (base + 68) (.SD .x12 .x0 0))
-   (CodeReq.singleton (base + 72) (.JAL .x0 jal_off)))))))))))))))))))
+  CodeReq.ofProg base (shl_body_1_prog jal_off)
 
 set_option maxHeartbeats 3200000 in
 /-- Shift body 1: limb_shift=1.
@@ -314,36 +274,7 @@ theorem shl_body_1_spec (sp : Word)
   runBlock MM1 MM2 FL S0 JL
 
 abbrev shl_body_0_code (base : Addr) (jal_off : BitVec 21) : CodeReq :=
-  -- merge_limb_inplace(24,16): 7 instructions at base..base+24
-  CodeReq.union (CodeReq.singleton base (.LD .x5 .x12 24))
-  (CodeReq.union (CodeReq.singleton (base + 4) (.SLL .x5 .x5 .x6))
-  (CodeReq.union (CodeReq.singleton (base + 8) (.LD .x10 .x12 16))
-  (CodeReq.union (CodeReq.singleton (base + 12) (.SRL .x10 .x10 .x7))
-  (CodeReq.union (CodeReq.singleton (base + 16) (.AND .x10 .x10 .x11))
-  (CodeReq.union (CodeReq.singleton (base + 20) (.OR .x5 .x5 .x10))
-  (CodeReq.union (CodeReq.singleton (base + 24) (.SD .x12 .x5 24))
-  -- merge_limb_inplace(16,8): 7 instructions at base+28..base+52
-  (CodeReq.union (CodeReq.singleton (base + 28) (.LD .x5 .x12 16))
-  (CodeReq.union (CodeReq.singleton (base + 32) (.SLL .x5 .x5 .x6))
-  (CodeReq.union (CodeReq.singleton (base + 36) (.LD .x10 .x12 8))
-  (CodeReq.union (CodeReq.singleton (base + 40) (.SRL .x10 .x10 .x7))
-  (CodeReq.union (CodeReq.singleton (base + 44) (.AND .x10 .x10 .x11))
-  (CodeReq.union (CodeReq.singleton (base + 48) (.OR .x5 .x5 .x10))
-  (CodeReq.union (CodeReq.singleton (base + 52) (.SD .x12 .x5 16))
-  -- merge_limb_inplace(8,0): 7 instructions at base+56..base+80
-  (CodeReq.union (CodeReq.singleton (base + 56) (.LD .x5 .x12 8))
-  (CodeReq.union (CodeReq.singleton (base + 60) (.SLL .x5 .x5 .x6))
-  (CodeReq.union (CodeReq.singleton (base + 64) (.LD .x10 .x12 0))
-  (CodeReq.union (CodeReq.singleton (base + 68) (.SRL .x10 .x10 .x7))
-  (CodeReq.union (CodeReq.singleton (base + 72) (.AND .x10 .x10 .x11))
-  (CodeReq.union (CodeReq.singleton (base + 76) (.OR .x5 .x5 .x10))
-  (CodeReq.union (CodeReq.singleton (base + 80) (.SD .x12 .x5 8))
-  -- first_limb_inplace: 3 instructions at base+84..base+92
-  (CodeReq.union (CodeReq.singleton (base + 84) (.LD .x5 .x12 0))
-  (CodeReq.union (CodeReq.singleton (base + 88) (.SLL .x5 .x5 .x6))
-  (CodeReq.union (CodeReq.singleton (base + 92) (.SD .x12 .x5 0))
-  -- JAL at base+96
-   (CodeReq.singleton (base + 96) (.JAL .x0 jal_off)))))))))))))))))))))))))
+  CodeReq.ofProg base (shl_body_0_prog jal_off)
 
 set_option maxHeartbeats 3200000 in
 /-- Shift body 0: limb_shift=0.

@@ -781,6 +781,38 @@ def shr_body_0_prog (jal_off : BitVec 21) : Program :=
    .LD .x5 .x12 24, .SRL .x5 .x5 .x6, .SD .x12 .x5 24,
    .JAL .x0 jal_off]
 
+/-- Parametric SHL body 3 (7 instructions). -/
+def shl_body_3_prog (jal_off : BitVec 21) : Program :=
+  [.LD .x5 .x12 0, .SLL .x5 .x5 .x6, .SD .x12 .x5 24,
+   .SD .x12 .x0 16, .SD .x12 .x0 8, .SD .x12 .x0 0, .JAL .x0 jal_off]
+
+/-- Parametric SHL body 2 (13 instructions). -/
+def shl_body_2_prog (jal_off : BitVec 21) : Program :=
+  [.LD .x5 .x12 8, .SLL .x5 .x5 .x6, .LD .x10 .x12 0,
+   .SRL .x10 .x10 .x7, .AND .x10 .x10 .x11, .OR .x5 .x5 .x10, .SD .x12 .x5 24,
+   .LD .x5 .x12 0, .SLL .x5 .x5 .x6, .SD .x12 .x5 16,
+   .SD .x12 .x0 8, .SD .x12 .x0 0, .JAL .x0 jal_off]
+
+/-- Parametric SHL body 1 (19 instructions). -/
+def shl_body_1_prog (jal_off : BitVec 21) : Program :=
+  [.LD .x5 .x12 16, .SLL .x5 .x5 .x6, .LD .x10 .x12 8,
+   .SRL .x10 .x10 .x7, .AND .x10 .x10 .x11, .OR .x5 .x5 .x10, .SD .x12 .x5 24,
+   .LD .x5 .x12 8, .SLL .x5 .x5 .x6, .LD .x10 .x12 0,
+   .SRL .x10 .x10 .x7, .AND .x10 .x10 .x11, .OR .x5 .x5 .x10, .SD .x12 .x5 16,
+   .LD .x5 .x12 0, .SLL .x5 .x5 .x6, .SD .x12 .x5 8,
+   .SD .x12 .x0 0, .JAL .x0 jal_off]
+
+/-- Parametric SHL body 0 (25 instructions). -/
+def shl_body_0_prog (jal_off : BitVec 21) : Program :=
+  [.LD .x5 .x12 24, .SLL .x5 .x5 .x6, .LD .x10 .x12 16,
+   .SRL .x10 .x10 .x7, .AND .x10 .x10 .x11, .OR .x5 .x5 .x10, .SD .x12 .x5 24,
+   .LD .x5 .x12 16, .SLL .x5 .x5 .x6, .LD .x10 .x12 8,
+   .SRL .x10 .x10 .x7, .AND .x10 .x10 .x11, .OR .x5 .x5 .x10, .SD .x12 .x5 16,
+   .LD .x5 .x12 8, .SLL .x5 .x5 .x6, .LD .x10 .x12 0,
+   .SRL .x10 .x10 .x7, .AND .x10 .x10 .x11, .OR .x5 .x5 .x10, .SD .x12 .x5 8,
+   .LD .x5 .x12 0, .SLL .x5 .x5 .x6, .SD .x12 .x5 0,
+   .JAL .x0 jal_off]
+
 /-- Parametric SAR body 3 (8 instructions). -/
 def sar_body_3_prog (jal_off : BitVec 21) : Program :=
   [.LD .x5 .x12 24, .SRA .x5 .x5 .x6, .SD .x12 .x5 0,

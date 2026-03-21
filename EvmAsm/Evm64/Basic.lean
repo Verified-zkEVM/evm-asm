@@ -186,6 +186,104 @@ theorem ushiftRight_geq_256 (v : EvmWord) (n : Nat) (h : n ≥ 256) :
   calc v.toNat < 2 ^ 256 := v.isLt
     _ ≤ 2 ^ (n + ↑j) := Nat.pow_le_pow_right (by omega) (by omega)
 
+theorem shiftLeft_geq_256 (v : EvmWord) (n : Nat) (h : n ≥ 256) :
+    v <<< n = (0 : EvmWord) := by
+  ext j
+  simp only [BitVec.getElem_shiftLeft]
+  have : (j : Nat) < n := by omega
+  simp [this]
+
+/-- **SHL bridge lemma (merge case).** When `i * 64 ≥ n`, the i-th limb of `v <<< n` equals
+    a shift-and-merge of two adjacent source limbs (indexed downward by the limb shift).
+
+    With `ls := n / 64` and `bs := n % 64`:
+    `getLimb (v <<< n) i = (getLimbN v (i - ls) <<< bs) ||| ((getLimbN v (i - ls - 1) >>> (64 - bs)) &&& mask)`
+
+    The condition `i * 64 ≥ n` ensures all 64 extracted bits come from `v`. -/
+theorem getLimb_shiftLeft (v : EvmWord) (n : Nat) (i : Fin 4) (hge : i.val * 64 ≥ n) :
+    getLimb (v <<< n) i =
+    (getLimbN v (i.val - n / 64) <<< (n % 64)) |||
+    ((getLimbN v (i.val - n / 64 - 1) >>> (64 - n % 64)) &&&
+     (if n % 64 = 0 then (0 : BitVec 64) else BitVec.allOnes 64)) := by
+  simp only [getLimb]
+  -- Step 1: extractLsb' commutes with shiftLeft (when i*64 >= n)
+  have h_shift : BitVec.extractLsb' (i.val * 64) 64 (v <<< n) =
+                 BitVec.extractLsb' (i.val * 64 - n) 64 v := by
+    ext j
+    simp only [BitVec.getElem_extractLsb']
+    simp only [BitVec.getLsbD_shiftLeft]
+    have hlt256 : i.val * 64 + (j : Nat) < 256 := by omega
+    have hge_n : ¬(i.val * 64 + (j : Nat) < n) := by omega
+    simp [hlt256, hge_n]
+    congr 1; omega
+  rw [h_shift]
+  -- Step 2: decompose the position
+  by_cases hmod0 : n % 64 = 0
+  · -- When bs = 0: position is (i - ls) * 64, no splitting needed
+    have h0 : i.val * 64 - n = (i.val - n / 64) * 64 := by omega
+    rw [h0, hmod0]
+    simp [BitVec.and_zero, BitVec.or_zero, BitVec.shiftLeft_zero,
+          getLimbN_eq_extractLsb']
+  · -- When bs > 0: split across two adjacent limbs
+    have h_decomp : i.val * 64 - n = (i.val - n / 64 - 1) * 64 + (64 - n % 64) := by omega
+    rw [h_decomp]
+    have hbs_lt : 64 - n % 64 < 64 := by omega
+    rw [extractLsb'_split_64 v ((i.val - n / 64 - 1) * 64) (64 - n % 64) hbs_lt]
+    -- Convert extractLsb' back to getLimbN
+    have h1 : BitVec.extractLsb' ((i.val - n / 64 - 1) * 64) 64 v =
+               v.getLimbN (i.val - n / 64 - 1) :=
+      (getLimbN_eq_extractLsb' v (i.val - n / 64 - 1)).symm
+    have h_off : (i.val - n / 64 - 1) * 64 + 64 = (i.val - n / 64) * 64 := by omega
+    have h2 : BitVec.extractLsb' ((i.val - n / 64 - 1) * 64 + 64) 64 v =
+               v.getLimbN (i.val - n / 64) := by
+      rw [h_off]; exact (getLimbN_eq_extractLsb' v (i.val - n / 64)).symm
+    rw [h1, h2]
+    -- extractLsb'_split_64 gives mask `if (64 - n%64) = 0 then 0 else allOnes`.
+    -- Target has mask `if n%64 = 0 then 0 else allOnes`.
+    -- Since n%64 ≠ 0: both masks are `allOnes 64`.
+    have hmask1 : (if (64 - n % 64 = 0) then (0 : BitVec 64) else BitVec.allOnes 64) =
+                   BitVec.allOnes 64 := if_neg (by omega)
+    have hmask2 : (if (n % 64 = 0) then (0 : BitVec 64) else BitVec.allOnes 64) =
+                   BitVec.allOnes 64 := if_neg hmod0
+    rw [hmask1, hmask2]
+    -- Now both AND masks are allOnes, so x &&& allOnes = x
+    simp only [BitVec.and_allOnes]
+    -- Goal: (getLimbN v (i-L-1) >>> (64-bs) ||| getLimbN v (i-L) <<< (64-(64-bs)))
+    --     = (getLimbN v (i-L) <<< bs ||| getLimbN v (i-L-1) >>> (64-bs))
+    have h64 : 64 - (64 - n % 64) = n % 64 := by omega
+    rw [h64]
+    exact BitVec.or_comm _ _
+
+/-- **SHL bridge lemma (first limb).** When `i = n / 64`, the i-th limb of `v <<< n` equals
+    the lowest limb of `v` shifted left by `n % 64`. -/
+theorem getLimb_shiftLeft_eq_div (v : EvmWord) (n : Nat) (i : Fin 4) (heq : i.val = n / 64) :
+    getLimb (v <<< n) i = getLimbN v 0 <<< (n % 64) := by
+  simp only [getLimb]
+  rw [getLimbN_eq_extractLsb']
+  ext j
+  simp only [Nat.zero_mul, BitVec.getElem_extractLsb', BitVec.getElem_shiftLeft]
+  simp only [BitVec.getLsbD_shiftLeft]
+  by_cases hjbs : (j : Nat) < n % 64
+  · -- j < bs: both sides false
+    have hlt_n : i.val * 64 + (j : Nat) < n := by omega
+    simp [hjbs, hlt_n]
+  · -- j >= bs: both sides give v.getLsbD (j - n%64)
+    have hge_n : ¬(i.val * 64 + (j : Nat) < n) := by omega
+    have hlt256 : i.val * 64 + (j : Nat) < 256 := by omega
+    simp [hjbs, hge_n, hlt256]
+    congr 1; omega
+
+/-- **SHL bridge lemma (zero limb).** When `(i + 1) * 64 ≤ n`, the i-th limb of `v <<< n`
+    is zero (all extracted bits are below the shift amount). -/
+theorem getLimb_shiftLeft_low (v : EvmWord) (n : Nat) (i : Fin 4) (hlo : (i.val + 1) * 64 ≤ n) :
+    getLimb (v <<< n) i = 0 := by
+  simp only [getLimb]
+  ext j
+  simp only [BitVec.getElem_extractLsb']
+  simp only [BitVec.getLsbD_shiftLeft]
+  have hlt : i.val * 64 + (j : Nat) < n := by omega
+  simp [hlt]
+
 /-- Shifting a 256-bit word right by 0 is the identity on each limb. -/
 theorem getLimb_ushiftRight_zero (v : EvmWord) (i : Fin 4) :
     getLimb (v >>> 0) i = v.getLimb i := by

@@ -3,4 +3,6 @@ import EvmAsm.Evm64.Shift.LimbSpec
 import EvmAsm.Evm64.Shift.Compose
 import EvmAsm.Evm64.Shift.Semantic
 import EvmAsm.Evm64.Shift.ShlSpec
+import EvmAsm.Evm64.Shift.ShlCompose
+import EvmAsm.Evm64.Shift.ShlSemantic
 import EvmAsm.Evm64.Shift.SarSpec
