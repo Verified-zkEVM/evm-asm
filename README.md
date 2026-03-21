@@ -106,7 +106,7 @@ EvmAsm/
     Multiply/                 --   MUL (Program + LimbSpec, schoolbook 4x4 limb)
     DivMod/                   --   DIV/MOD (Program + LimbSpec + Compose, Knuth Algorithm D)
     SignExtend/               --   SIGNEXTEND (Program + LimbSpec + Compose + Spec)
-    Shift/                    --   SHR/SHL/SAR (Program + LimbSpec + ShlSpec + SarSpec + Compose)
+    Shift/                    --   SHR/SHL/SAR (Program + LimbSpec + ShlSpec + SarSpec + Compose + ShlCompose + Semantic + ShlSemantic)
     Byte/                     --   BYTE (Program + LimbSpec + Spec)
     zkvm-standards/           --   Submodule: zkVM RISC-V target standards
 EvmAsm.lean                  -- Top-level module hub
@@ -136,14 +136,14 @@ This is a **prototype** demonstrating the approach. Current state:
   triples, and automated tactics (`xperm`, `xcancel`, `seqFrame`, `liftSpec`,
   `runBlock` with `@[spec_gen]` auto-resolution).
 - **Evm64 (0 sorry)** — targets `riscv64im_zicclsm-unknown-none-elf`,
-  4x64-bit limbs, 22 fully-proved opcodes:
+  4x64-bit limbs, 23 fully-proved opcodes:
   AND, OR, XOR, NOT, ADD, SUB, MUL, DIV, MOD, SIGNEXTEND,
-  SHR, BYTE,
+  SHR, SHL, BYTE,
   LT, GT, EQ, ISZERO, SLT, SGT,
   POP, PUSH0, DUP1-16, SWAP1-16
-- **Limb-level specs only** (no stack-level `evmWordIs` spec yet): SHL, SAR
+- **Limb-level specs only** (no stack-level `evmWordIs` spec yet): SAR
 - **0 sorry across the entire codebase** (`lake build` clean).
-- **TODO**: SHL/SAR stack-level specs, EXP, ADDMOD, MULMOD, SDIV, SMOD,
+- **TODO**: SAR stack-level spec, EXP, ADDMOD, MULMOD, SDIV, SMOD,
   MLOAD, MSTORE, interpreter loop, state transition function, connect to
   sail-riscv-lean for RISC-V spec compliance, connect to EVM specs in Lean,
   testing.

@@ -79,15 +79,15 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
 |----------|---------|----------------------|--------|
 | Arithmetic | ADD, SUB, MUL, SIGNEXTEND | 30 / 30 / 63 / 48 | ✅ Fully proved |
 | Bitwise | AND, OR, XOR, NOT | 17 / 17 / 17 / 12 | ✅ Fully proved |
-| Shift | SHR, SHL, SAR | 90 / 90 / 95 | ⚠️ SHR specs done; SHL/SAR specs deleted |
+| Shift | SHR, SHL, SAR | 90 / 90 / 95 | ⚠️ SHR/SHL fully proved; SAR limb-level only |
 | Comparison | ISZERO, LT, GT, EQ, SLT, SGT | 12 / 26 / 26 / 21 / 25 / 25 | ✅ Fully proved |
 | Byte/SignExt | BYTE, SIGNEXTEND | 45 / 48 | ⚠️ BYTE spec deleted; SIGNEXTEND proved |
 | Stack | POP, PUSH0, DUP1-16, SWAP1-16 | 1 / 5 / 9 / 16 | ✅ Fully proved |
 
 **Deleted spec files** (incomplete CodeReq migration, easier to recreate):
-- `ShiftSpec.lean` — SHR per-limb + phase + body specs
-- `ShlSpec.lean` — SHL per-limb + body specs
-- `SarSpec.lean` — SAR per-limb + body + sign-fill specs
+- ~~`ShiftSpec.lean`~~ — ✅ Recreated as `LimbSpec.lean` (SHR) + `ShlSpec.lean` (SHL) + `Compose.lean` + `ShlCompose.lean` + `Semantic.lean` + `ShlSemantic.lean`
+- ~~`ShlSpec.lean`~~ — ✅ Recreated (per-limb + body + composition + stack-level spec)
+- `SarSpec.lean` — SAR per-limb + body + sign-fill specs (limb-level done, needs composition + stack-level)
 - `ByteSpec.lean` — BYTE per-body + store + phase B specs
 - ~~`StackOps.lean`~~ — ✅ Recreated as modular `Pop.lean`, `Push0.lean`, `Dup.lean`, `Swap.lean`
 
@@ -170,15 +170,18 @@ corresponding non-Spec files.
   involving `signExtend21` may leak diagnostics; `runTacticSilent` suppresses
   these.
 
-#### 3. ShlSpec.lean — SHL per-limb + body specs
+#### ~~3. ShlSpec.lean — SHL per-limb + body specs~~ ✅ DONE
 
-- **File**: `Evm64/ShlSpec.lean`
-- **Depends on**: ShiftSpec.lean (reuses `shr_merge_limb_spec` pattern)
-- **What was in the old file**:
-  - Per-limb: `shl_merge_limb_spec`, `shl_first_limb_spec`, in-place variants
-  - Body specs: `shl_body_{0,1,2,3}_spec`
-- **Approach**: Mirror of SHR per-limb specs with SLL/SRL swapped and limbs
-  processed top-down. All use `runBlock` auto mode.
+- **Files**: `Evm64/Shift/ShlSpec.lean` (per-limb + body),
+  `Evm64/Shift/ShlCompose.lean` (composition + bridge lemmas),
+  `Evm64/Shift/ShlSemantic.lean` (stack-level `evm_shl_stack_spec`)
+- **Bridge lemmas** in `Evm64/Basic.lean`: `getLimb_shiftLeft`,
+  `getLimb_shiftLeft_eq_div`, `getLimb_shiftLeft_low` — connect per-limb body
+  outputs to `getLimb (value <<< n)`, using `extractLsb'_split_64`
+- **Composition**: mirrors SHR `Compose.lean` with `shlCode`, subsumption lemmas,
+  zero-path specs (`evm_shl_zero_high_spec`, `evm_shl_zero_large_spec`),
+  and body-path composition (`evm_shl_body_evmWord_spec`)
+- **Stack-level spec**: `evm_shl_stack_spec` — zero axioms, zero sorry
 
 #### 4. SarSpec.lean — SAR per-limb + body + sign-fill specs
 
