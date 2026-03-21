@@ -61,7 +61,19 @@ private theorem toNat_mod_W (v : EvmWord) :
 /-- Limb 0 of the product: just the low 64 bits of a0 * b0. -/
 private theorem mul_getLimb_0 (a b : EvmWord) :
     (a * b).getLimb 0 = a.getLimb 0 * b.getLimb 0 := by
-  sorry
+  apply BitVec.eq_of_toNat_eq
+  -- LHS: ((a*b).getLimb 0).toNat = (a*b).toNat / 2^0 % 2^64 = (a*b).toNat % 2^64
+  rw [getLimb_toNat_eq, show (0 : Fin 4).val = 0 from rfl,
+      show 0 * 64 = 0 from rfl, Nat.pow_zero, Nat.div_one]
+  -- LHS: (a * b).toNat % 2^64 = (a.toNat * b.toNat % 2^256) % 2^64
+  conv_lhs => rw [BitVec.toNat_mul,
+    show (2:Nat)^256 = 2^64 * (2^64 * (2^64 * 2^64)) from by norm_num,
+    Nat.mod_mul_right_mod]
+  -- LHS: (a.toNat * b.toNat) % 2^64
+  -- RHS: (a.getLimb 0 * b.getLimb 0).toNat = ((a.getLimb 0).toNat * (b.getLimb 0).toNat) % 2^64
+  conv_rhs => rw [BitVec.toNat_mul]
+  -- Both sides: _ % 2^64. Show inner expressions equal mod 2^64.
+  conv_lhs => rw [Nat.mul_mod, toNat_mod_W a, toNat_mod_W b]
 
 set_option maxHeartbeats 800000 in
 /-- Limb 1 of the product: cross-terms at position 1. -/
@@ -69,7 +81,125 @@ private theorem mul_getLimb_1 (a b : EvmWord) :
     (a * b).getLimb 1 =
     (rv64_mulhu (a.getLimb 0) (b.getLimb 0) + a.getLimb 1 * b.getLimb 0) +
     a.getLimb 0 * b.getLimb 1 := by
-  sorry
+  set W := (2:Nat)^64
+  have hW : 0 < W := by positivity
+  -- Expand both sides via eq_of_toNat_eq
+  apply BitVec.eq_of_toNat_eq
+  -- ================================================================
+  -- LHS: ((a*b).getLimb 1).toNat
+  -- ================================================================
+  conv_lhs =>
+    rw [getLimb_toNat_eq, show (1 : Fin 4).val = 1 from rfl,
+        show 1 * 64 = 64 from rfl]
+  -- LHS = (a*b).toNat / 2^64 % 2^64
+  conv_lhs =>
+    rw [BitVec.toNat_mul,
+        show (2:Nat)^256 = W * (W * (W * W)) from by norm_num,
+        show (2:Nat)^64 = W from rfl,
+        Nat.mod_mul_right_div_self]
+  -- LHS = (a.toNat * b.toNat) / W % (W * (W * W)) % W
+  conv_lhs => rw [Nat.mod_mul_right_mod]
+  -- LHS = (a.toNat * b.toNat) / W % W
+  -- Expand a.toNat and b.toNat via limb sums and factor
+  have ha_sum := toNat_eq_limb_sum a
+  have hb_sum := toNat_eq_limb_sum b
+  -- Factor the product using limb .toNat values
+  -- We write the product in Horner form: a0*b0 + (cross1 + (cross2 + ...)*W)*W
+  have hprod : a.toNat * b.toNat =
+      (a.getLimb 0).toNat * (b.getLimb 0).toNat +
+      ((a.getLimb 1).toNat * (b.getLimb 0).toNat +
+       (a.getLimb 0).toNat * (b.getLimb 1).toNat +
+       ((a.getLimb 2).toNat * (b.getLimb 0).toNat +
+        (a.getLimb 1).toNat * (b.getLimb 1).toNat +
+        (a.getLimb 0).toNat * (b.getLimb 2).toNat +
+        ((a.getLimb 3).toNat * (b.getLimb 0).toNat +
+         (a.getLimb 2).toNat * (b.getLimb 1).toNat +
+         (a.getLimb 1).toNat * (b.getLimb 2).toNat +
+         (a.getLimb 0).toNat * (b.getLimb 3).toNat +
+         ((a.getLimb 3).toNat * (b.getLimb 1).toNat +
+          (a.getLimb 2).toNat * (b.getLimb 2).toNat +
+          (a.getLimb 1).toNat * (b.getLimb 3).toNat +
+          ((a.getLimb 3).toNat * (b.getLimb 2).toNat +
+           (a.getLimb 2).toNat * (b.getLimb 3).toNat +
+           (a.getLimb 3).toNat * (b.getLimb 3).toNat * W) * W) * W) * W) * W) * W := by
+    rw [ha_sum, hb_sum]; show _ = _; ring
+  conv_lhs => rw [hprod, Nat.add_mul_div_right _ _ hW]
+  -- LHS = (a0*b0/W + cross1 + higher*W) % W
+  -- Strip higher-order W-multiples using ring + Nat.add_mul_mod_self_right
+  have hstrip :
+    ((a.getLimb 0).toNat * (b.getLimb 0).toNat / W +
+     ((a.getLimb 1).toNat * (b.getLimb 0).toNat +
+      (a.getLimb 0).toNat * (b.getLimb 1).toNat +
+      ((a.getLimb 2).toNat * (b.getLimb 0).toNat +
+       (a.getLimb 1).toNat * (b.getLimb 1).toNat +
+       (a.getLimb 0).toNat * (b.getLimb 2).toNat +
+       ((a.getLimb 3).toNat * (b.getLimb 0).toNat +
+        (a.getLimb 2).toNat * (b.getLimb 1).toNat +
+        (a.getLimb 1).toNat * (b.getLimb 2).toNat +
+        (a.getLimb 0).toNat * (b.getLimb 3).toNat +
+        ((a.getLimb 3).toNat * (b.getLimb 1).toNat +
+         (a.getLimb 2).toNat * (b.getLimb 2).toNat +
+         (a.getLimb 1).toNat * (b.getLimb 3).toNat +
+         ((a.getLimb 3).toNat * (b.getLimb 2).toNat +
+          (a.getLimb 2).toNat * (b.getLimb 3).toNat +
+          (a.getLimb 3).toNat * (b.getLimb 3).toNat * W) * W) * W) * W) * W)) % W =
+    ((a.getLimb 0).toNat * (b.getLimb 0).toNat / W +
+     (a.getLimb 1).toNat * (b.getLimb 0).toNat +
+     (a.getLimb 0).toNat * (b.getLimb 1).toNat) % W := by
+    rw [show (a.getLimb 0).toNat * (b.getLimb 0).toNat / W +
+        ((a.getLimb 1).toNat * (b.getLimb 0).toNat +
+         (a.getLimb 0).toNat * (b.getLimb 1).toNat +
+         ((a.getLimb 2).toNat * (b.getLimb 0).toNat +
+          (a.getLimb 1).toNat * (b.getLimb 1).toNat +
+          (a.getLimb 0).toNat * (b.getLimb 2).toNat +
+          ((a.getLimb 3).toNat * (b.getLimb 0).toNat +
+           (a.getLimb 2).toNat * (b.getLimb 1).toNat +
+           (a.getLimb 1).toNat * (b.getLimb 2).toNat +
+           (a.getLimb 0).toNat * (b.getLimb 3).toNat +
+           ((a.getLimb 3).toNat * (b.getLimb 1).toNat +
+            (a.getLimb 2).toNat * (b.getLimb 2).toNat +
+            (a.getLimb 1).toNat * (b.getLimb 3).toNat +
+            ((a.getLimb 3).toNat * (b.getLimb 2).toNat +
+             (a.getLimb 2).toNat * (b.getLimb 3).toNat +
+             (a.getLimb 3).toNat * (b.getLimb 3).toNat * W) * W) * W) * W) * W) =
+        ((a.getLimb 0).toNat * (b.getLimb 0).toNat / W +
+         (a.getLimb 1).toNat * (b.getLimb 0).toNat +
+         (a.getLimb 0).toNat * (b.getLimb 1).toNat) +
+        ((a.getLimb 2).toNat * (b.getLimb 0).toNat +
+         (a.getLimb 1).toNat * (b.getLimb 1).toNat +
+         (a.getLimb 0).toNat * (b.getLimb 2).toNat +
+         ((a.getLimb 3).toNat * (b.getLimb 0).toNat +
+          (a.getLimb 2).toNat * (b.getLimb 1).toNat +
+          (a.getLimb 1).toNat * (b.getLimb 2).toNat +
+          (a.getLimb 0).toNat * (b.getLimb 3).toNat +
+          ((a.getLimb 3).toNat * (b.getLimb 1).toNat +
+           (a.getLimb 2).toNat * (b.getLimb 2).toNat +
+           (a.getLimb 1).toNat * (b.getLimb 3).toNat +
+           ((a.getLimb 3).toNat * (b.getLimb 2).toNat +
+            (a.getLimb 2).toNat * (b.getLimb 3).toNat +
+            (a.getLimb 3).toNat * (b.getLimb 3).toNat * W) * W) * W) * W) * W from by ring,
+        Nat.add_mul_mod_self_right]
+  conv_lhs => rw [hstrip]
+  -- LHS = (a0*b0/W + a1*b0 + a0*b1) % W
+  -- ================================================================
+  -- RHS
+  -- ================================================================
+  conv_rhs =>
+    rw [BitVec.toNat_add, BitVec.toNat_add, mulhu_toNat,
+        BitVec.toNat_mul, BitVec.toNat_mul,
+        show (2:Nat)^64 = W from rfl]
+  -- RHS = ((a0*b0/W + (a1*b0) % W) % W + (a0*b1) % W) % W
+  -- Flatten all nested mods: ((x + y%m) % m + z%m) % m = (x + y + z) % m
+  have flatten_rhs : ∀ (x y z m : Nat),
+      ((x + y % m) % m + z % m) % m = (x + y + z) % m := by
+    intro x y z m
+    conv_lhs =>
+      rw [show (x + y % m) % m = (x + y) % m from by
+            rw [Nat.add_mod, Nat.mod_mod, ← Nat.add_mod]]
+    -- Goal: ((x + y) % m + z % m) % m = (x + y + z) % m
+    rw [Nat.add_mod ((x + y) % m), Nat.mod_mod, ← Nat.add_mod,
+        Nat.add_mod (x + y), Nat.mod_mod, ← Nat.add_mod]
+  conv_rhs => rw [flatten_rhs]
 
 set_option maxHeartbeats 1600000 in
 /-- Limb 2 of the product equals the carry-chain c2_r2. -/

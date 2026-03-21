@@ -65,7 +65,8 @@ theorem evm_mul_stack_spec (sp base : Addr)
        evmWordIs sp a ** evmWordIs (sp + 32) b)
       ((.x12 ↦ᵣ (sp + 32)) ** (.x5 ↦ᵣ b3) ** (.x6 ↦ᵣ a0 * b3) ** (.x7 ↦ᵣ a1 * b2) **
        (.x10 ↦ᵣ r3_final) ** (.x11 ↦ᵣ c2_r2) **
-       evmWordIs sp a ** evmWordIs (sp + 32) (a * b)) := by
+       (sp ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ c1_r3p) ** ((sp + 24) ↦ₘ c0_r3p) **
+       evmWordIs (sp + 32) (a * b)) := by
   sorry
 
 end EvmAsm.Rv64
