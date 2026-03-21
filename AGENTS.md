@@ -95,6 +95,7 @@ The project includes concrete test cases using `native_decide`:
 - Main branch: `main`
 - Create feature branches for new work
 - Use meaningful commit messages with Co-Authored-By line for AI contributions
+- **PR descriptions**: Do not include a "Test plan" section. Keep the description to a summary only.
 
 ## References
 
@@ -131,6 +132,55 @@ simp only [memBufferIs, addr_100_plus_4, addr_104_plus_4,
   sepConj_assoc', sepConj_comm', sepConj_left_comm'] at hab ⊢
 exact hab
 ```
+
+## Pattern: Adding a Stack-Level Spec for a Shift Opcode
+
+The SHR and SHL implementations follow a 3-file composition pattern that SAR should also follow:
+
+### File structure (under `Evm64/Shift/`)
+
+1. **`XxxSpec.lean`** — Per-limb and body specs (proved with `runBlock`)
+2. **`XxxCompose.lean`** — Hierarchical composition (~1000 lines):
+   - `xxxCode` definition (`CodeReq.ofProg base evm_xxx`)
+   - Subsumption lemmas (phase/body code ⊆ xxxCode via `CodeReq.ofProg_mono_sub`)
+   - Address normalization lemmas (`by bv_omega` / `native_decide + bv_omega`)
+   - Zero-path compositions (BNE taken + BEQ taken → zero result)
+   - Bridge lemmas (connect per-limb outputs to `getLimb (value OP n)`)
+   - Body-path composition (`evm_xxx_body_evmWord_spec`)
+3. **`XxxSemantic.lean`** — Stack-level spec (~200 lines):
+   - Zero-lift helpers (frame regs, unfold/refold `evmWordIs`)
+   - Main theorem case-splitting on `shift ≥ 256`
+
+### Key lessons learned
+
+- **Body code definitions must use `CodeReq.ofProg`** (not explicit union chains of singletons). The `CodeReq.ofProg_mono_sub` subsumption proof requires the code to be in `ofProg` form. If the body code is defined as a union chain, it is NOT definitionally equal to `ofProg` and the proof will fail with "Type mismatch". This requires `_prog` parametric definitions in `Program.lean`.
+
+- **Bridge lemma proofs must use `extractLsb'_split_64`** (the algebraic approach), NOT `ext j` with manual `testBit` reasoning. The `ext j` approach produces `Nat.testBit` goals with modular arithmetic that are far too complex for `omega`/`constructor`. The correct approach: prove helper theorems in `Basic.lean` (`getLimb_shiftLeft`, `getLimb_shiftLeft_eq_div`, `getLimb_shiftLeft_low`) that decompose `getLimb (v <<< n) i` at the `BitVec 64` level using `extractLsb'_split_64`, then the bridge lemmas become 5-10 line algebraic rewrites.
+
+- **SHL bridge differs from SHR bridge** in index direction. SHR uses `i + L` (always ≥ 0, handled by `getLimbN` returning 0 for ≥ 4). SHL uses `i - L` (can underflow with Nat subtraction). Solution: three separate bridge lemma variants (merge for `i > L`, first for `i = L`, zero for `i < L`) instead of a single unified lemma.
+
+- **Phase A/B/C and zero_path specs are code-agnostic**. They're proved against their own local `CodeReq` (e.g., `shr_phase_a_code`), not against `shrCode`/`shlCode`. So the same spec theorems are reused for SHL — only the subsumption extension (`cpsTriple_extend_code`) changes to use `shlCode`.
+
+- **Many helper lemmas in `Compose.lean` are `private`** (`CodeReq_union_sub_both`, `cpsTriple_strip_pure_and_convert`, `cpsNBranch_extend_code`, `cpsNBranch_frame_left`, `validMem_value_portion`). These must be duplicated in `ShlCompose.lean` rather than imported. Consider making them non-private in a future refactor.
+
+- **Body spec parameters**: The body specs take `(sp : Word) (v5 v10 bit_shift anti_shift mask : Word) (v0 v1 v2 v3 : Word)`. After phase C dispatch, `v5 = limb_shift` and `v10` depends on which cascade exit was taken (e.g., `sltiu_val` for exit 0, `0 + signExtend12 1` for exit 1, etc.).
+
+- **`rw` inside `cpsTriple_strip_pure_and_convert` callbacks**: When the postcondition is a `let` binding like `resultPost`, `rw [← eq0]` may fail because `rw` can't find `getLimb result 0` inside the opaque `resultPost`. Fix: expand `show resultPost h` to the full assertion expression so `rw` can find the patterns.
+
+- **`set_option maxHeartbeats N in` placement**: Must come BEFORE the theorem declaration (including any docstring). Placing it after a `/-- ... -/` docstring causes parse errors.
+
+### Subsumption proof pattern
+
+For each sub-program at offset K with M instructions starting at program index J:
+```lean
+set_option maxHeartbeats 4000000 in
+private theorem xxx_sub_xxxCode (base : Addr) :
+    ∀ a i, xxx_code (base + K) jal_off a = some i → xxxCode base a = some i := by
+  exact CodeReq.ofProg_mono_sub base (base + K) evm_xxx (xxx_prog jal_off) J
+    (by bv_omega) (by native_decide) (by native_decide) (by native_decide)
+```
+
+The 4 proof obligations are: address alignment, length bound, instruction matching, no-dup.
 
 ## Roadmap (PLAN.md)
 
