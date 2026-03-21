@@ -44,7 +44,7 @@ private theorem borrow_or_iff (c1 c2 : Prop) [Decidable c1] [Decidable c2] :
   by_cases h1 : c1 <;> by_cases h2 : c2 <;> simp_all
 
 -- The toNat decomposition of a 256-bit value into 4 limbs.
-private theorem toNat_eq_limb_sum (v : EvmWord) :
+theorem toNat_eq_limb_sum (v : EvmWord) :
     v.toNat = (v.getLimb 0).toNat + (v.getLimb 1).toNat * 2^64 +
               (v.getLimb 2).toNat * 2^128 + (v.getLimb 3).toNat * 2^192 := by
   simp only [getLimb, BitVec.extractLsb'_toNat,
@@ -55,7 +55,7 @@ private theorem toNat_eq_limb_sum (v : EvmWord) :
   omega
 
 -- getLimb as toNat division
-private theorem getLimb_toNat_eq (v : EvmWord) (i : Fin 4) :
+theorem getLimb_toNat_eq (v : EvmWord) (i : Fin 4) :
     (v.getLimb i).toNat = (v.toNat / 2 ^ (i.val * 64)) % 2 ^ 64 := by
   simp only [getLimb, BitVec.extractLsb'_toNat, Nat.shiftRight_eq_div_pow]
 
@@ -246,7 +246,7 @@ theorem lt_borrow_chain_correct (a b : EvmWord) :
 -- ============================================================================
 
 -- Carry from 64-bit addition: (if ult (a+b) b then 1 else 0).toNat = (a.toNat + b.toNat) / 2^64
-private theorem carry_toNat (x y : Word) :
+theorem carry_toNat (x y : Word) :
     (if BitVec.ult (x + y) y then (1 : Word) else 0).toNat =
     (x.toNat + y.toNat) / 2^64 := by
   have hx := x.isLt; have hy := y.isLt
