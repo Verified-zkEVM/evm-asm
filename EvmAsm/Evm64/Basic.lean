@@ -381,6 +381,97 @@ theorem eq_zero_iff_limbs (a : EvmWord) :
     simp only [h0, h1, h2, h3]
     bv_decide
 
+-- ============================================================================
+-- SAR bridge lemmas: getLimb of sshiftRight (arithmetic right shift)
+-- ============================================================================
+
+/-- For merge limbs (all 64 extracted bits within v), sshiftRight agrees with ushiftRight.
+    When `(i+1)*64 + n ≤ 256`, all bit positions `i*64 + j` (j < 64) satisfy
+    `n + (i*64 + j) < 256`, so no sign extension occurs. -/
+theorem getLimb_sshiftRight_eq_ushiftRight (v : EvmWord) (n : Nat) (i : Fin 4)
+    (h : (i.val + 1) * 64 + n ≤ 256) :
+    getLimb (BitVec.sshiftRight v n) i = getLimb (v >>> n) i := by
+  simp only [getLimb]
+  ext j
+  rename_i hj
+  simp only [BitVec.getElem_extractLsb']
+  rw [BitVec.getLsbD_sshiftRight, BitVec.getLsbD_ushiftRight]
+  have h1 : ¬(256 ≤ i.val * 64 + j) := by omega
+  have h2 : n + (i.val * 64 + j) < 256 := by omega
+  simp [h1, h2]
+
+/-- **SAR bridge lemma (last limb).** When `i + n/64 = 3`, the i-th limb of
+    `sshiftRight v n` equals `sshiftRight (v.getLimb 3) (n % 64)`.
+    This is the limb that gets arithmetic (sign-preserving) shift. -/
+theorem getLimb_sshiftRight_last (v : EvmWord) (n : Nat) (i : Fin 4)
+    (hiL : i.val + n / 64 = 3) :
+    getLimb (BitVec.sshiftRight v n) i =
+    BitVec.sshiftRight (v.getLimb ⟨3, by omega⟩) (n % 64) := by
+  simp only [getLimb]
+  ext j
+  rename_i hj
+  simp only [BitVec.getElem_extractLsb']
+  rw [BitVec.getLsbD_sshiftRight]
+  have h1 : ¬(256 ≤ i.val * 64 + j) := by omega
+  simp only [h1, decide_false, Bool.not_false, Bool.true_and]
+  simp only [BitVec.getElem_sshiftRight, BitVec.getElem_extractLsb']
+  by_cases hlt : n + (i.val * 64 + j) < 256
+  · have hmod_lt : n % 64 + j < 64 := by omega
+    simp only [hlt, ↓reduceIte]
+    rw [dif_pos hmod_lt]
+    congr 1; omega
+  · have hmod_ge : ¬(n % 64 + j < 64) := by omega
+    simp only [hlt, ↓reduceIte]
+    rw [dif_neg hmod_ge]
+    simp only [BitVec.msb, BitVec.getMsbD, BitVec.getLsbD_extractLsb']
+    simp only [show (0 : Nat) < 256 from by omega, show (0 : Nat) < 64 from by omega,
+               show (64 : Nat) - 1 - 0 < 64 from by omega, decide_true, Bool.true_and]
+
+/-- **SAR bridge lemma (sign limb via getLimb 3).** When `i + n/64 ≥ 4`, the i-th limb of
+    `sshiftRight v n` equals `sshiftRight (v.getLimb 3) 63`. -/
+theorem getLimb_sshiftRight_sign' (v : EvmWord) (n : Nat) (i : Fin 4)
+    (hiL : i.val + n / 64 ≥ 4) :
+    getLimb (BitVec.sshiftRight v n) i =
+    BitVec.sshiftRight (v.getLimb ⟨3, by omega⟩) 63 := by
+  simp only [getLimb]
+  ext j
+  rename_i hj
+  simp only [BitVec.getElem_extractLsb']
+  rw [BitVec.getLsbD_sshiftRight]
+  have h1 : ¬(256 ≤ i.val * 64 + j) := by omega
+  simp only [h1, decide_false, Bool.not_false, Bool.true_and]
+  have hnd : n / 64 * 64 ≤ n := Nat.div_mul_le_self n 64
+  have hge : ¬(n + (i.val * 64 + j) < 256) := by omega
+  simp only [hge, ↓reduceIte]
+  simp only [BitVec.getElem_sshiftRight, BitVec.getElem_extractLsb']
+  by_cases h3 : 63 + j < 64
+  · -- j = 0: v.msb = v.getLsbD (3*64 + 63)
+    rw [dif_pos h3]
+    simp only [BitVec.msb, BitVec.getMsbD, show (256 : Nat) - 1 - 0 = 255 from by omega,
+               show (0 : Nat) < 256 from by omega, decide_true, Bool.true_and]
+    congr 1; omega
+  · -- j ≥ 1: v.msb = (extractLsb' (3*64) 64 v).msb
+    rw [dif_neg h3]
+    simp only [BitVec.msb, BitVec.getMsbD, BitVec.getLsbD_extractLsb',
+               show (0 : Nat) < 256 from by omega, show (0 : Nat) < 64 from by omega,
+               show (64 : Nat) - 1 - 0 < 64 from by omega, decide_true, Bool.true_and]
+
+/-- Shifting a 256-bit word arithmetically right by `≥ 256` yields sign extension on each limb. -/
+theorem getLimb_sshiftRight_geq_256 (v : EvmWord) (n : Nat) (h : n ≥ 256) (i : Fin 4) :
+    getLimb (BitVec.sshiftRight v n) i =
+    BitVec.sshiftRight (v.getLimb ⟨3, by omega⟩) 63 :=
+  getLimb_sshiftRight_sign' v n i (by omega)
+
+/-- `getLimb` of `fromLimbs` with a constant function. -/
+theorem getLimb_fromLimbs_const (w : Word) (i : Fin 4) :
+    (fromLimbs (fun _ => w)).getLimb i = w := by
+  match i with
+  | ⟨0, _⟩ => simp [fromLimbs, getLimb]; bv_decide
+  | ⟨1, _⟩ => simp [fromLimbs, getLimb]; bv_decide
+  | ⟨2, _⟩ => simp [fromLimbs, getLimb]; bv_decide
+  | ⟨3, _⟩ => simp [fromLimbs, getLimb]; bv_decide
+  | ⟨n+4, h⟩ => exact absurd h (by omega)
+
 end EvmWord
 
 end EvmAsm.Rv64

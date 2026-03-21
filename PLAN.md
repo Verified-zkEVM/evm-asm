@@ -79,7 +79,7 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
 |----------|---------|----------------------|--------|
 | Arithmetic | ADD, SUB, MUL, SIGNEXTEND | 30 / 30 / 63 / 48 | ✅ Fully proved |
 | Bitwise | AND, OR, XOR, NOT | 17 / 17 / 17 / 12 | ✅ Fully proved |
-| Shift | SHR, SHL, SAR | 90 / 90 / 95 | ⚠️ SHR/SHL fully proved; SAR limb-level only |
+| Shift | SHR, SHL, SAR | 90 / 90 / 95 | ✅ Fully proved |
 | Comparison | ISZERO, LT, GT, EQ, SLT, SGT | 12 / 26 / 26 / 21 / 25 / 25 | ✅ Fully proved |
 | Byte/SignExt | BYTE, SIGNEXTEND | 45 / 48 | ⚠️ BYTE spec deleted; SIGNEXTEND proved |
 | Stack | POP, PUSH0, DUP1-16, SWAP1-16 | 1 / 5 / 9 / 16 | ✅ Fully proved |
@@ -87,7 +87,7 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
 **Deleted spec files** (incomplete CodeReq migration, easier to recreate):
 - ~~`ShiftSpec.lean`~~ — ✅ Recreated as `LimbSpec.lean` (SHR) + `ShlSpec.lean` (SHL) + `Compose.lean` + `ShlCompose.lean` + `Semantic.lean` + `ShlSemantic.lean`
 - ~~`ShlSpec.lean`~~ — ✅ Recreated (per-limb + body + composition + stack-level spec)
-- `SarSpec.lean` — SAR per-limb + body + sign-fill specs (limb-level done, needs composition + stack-level)
+- ~~`SarSpec.lean`~~ — ✅ Recreated (per-limb + body + sign-fill + composition + stack-level spec)
 - `ByteSpec.lean` — BYTE per-body + store + phase B specs
 - ~~`StackOps.lean`~~ — ✅ Recreated as modular `Pop.lean`, `Push0.lean`, `Dup.lean`, `Swap.lean`
 
@@ -183,16 +183,22 @@ corresponding non-Spec files.
   and body-path composition (`evm_shl_body_evmWord_spec`)
 - **Stack-level spec**: `evm_shl_stack_spec` — zero axioms, zero sorry
 
-#### 4. SarSpec.lean — SAR per-limb + body + sign-fill specs
+#### ~~4. SarSpec.lean — SAR per-limb + body + sign-fill + composition + stack-level specs~~ ✅ DONE
 
-- **File**: `Evm64/SarSpec.lean`
-- **Depends on**: ShiftSpec.lean (reuses `shr_merge_limb_spec`)
-- **What was in the old file**:
-  - Per-limb: reuses `shr_merge_limb_spec`, adds `sar_last_limb_spec` (SRA)
-  - Sign-fill: `sar_sign_fill_spec` (SRAI + 3× SD, 7 instrs)
-  - Body specs: `sar_body_{0,1,2,3}_spec`
-- **Approach**: Like SHR but MSB limb uses SRA; vacated limbs filled with
-  sign extension. `runBlock` auto mode for body specs.
+- **Files**: `Evm64/Shift/SarSpec.lean` (per-limb + body + sign-fill),
+  `Evm64/Shift/SarCompose.lean` (composition + bridge lemmas),
+  `Evm64/Shift/SarSemantic.lean` (stack-level `evm_sar_stack_spec`)
+- **Bridge lemmas** in `Evm64/Basic.lean`: `getLimb_sshiftRight_eq_ushiftRight`,
+  `getLimb_sshiftRight_last`, `getLimb_sshiftRight_sign'`,
+  `getLimb_sshiftRight_geq_256`, `getLimb_fromLimbs_const` — connect per-limb
+  body outputs to `getLimb (sshiftRight value n)`
+- **Composition**: mirrors SHR `Compose.lean` with `sarCode`, subsumption lemmas,
+  sign-fill specs (`evm_sar_sign_fill_high_spec`, `evm_sar_sign_fill_large_spec`),
+  SAR Phase C dispatch (`sar_phase_c_spec_pure`), and body-path composition
+  (`evm_sar_body_evmWord_spec`)
+- **Stack-level spec**: `evm_sar_stack_spec` — zero axioms, zero sorry
+- **Key difference from SHR/SHL**: Sign-fill path (all limbs = `sshiftRight(v[3], 63)`)
+  replaces zero-path; SRA instruction for MSB limb; sign extension for vacated limbs
 
 #### 5. ByteSpec.lean — BYTE per-body + store + phase B specs
 
