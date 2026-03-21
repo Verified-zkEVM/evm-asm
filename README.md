@@ -54,6 +54,70 @@ Lean 4 serves simultaneously as:
 4. **A proof assistant**: Lean's kernel verifies that macros meet their
    specifications, with no external oracle required.
 
+## Example: What a Verified EVM Opcode Looks Like
+
+Each EVM opcode is implemented as a sequence of RISC-V instructions operating on
+4×64-bit limbs. A **stack-level spec** ties the low-level implementation back to
+the 256-bit EVM semantics using `evmWordIs` — an assertion that four consecutive
+memory words encode a single `EvmWord` (a `BitVec 256`):
+
+```lean
+-- An EvmWord is stored as 4 limbs of 64 bits at consecutive addresses
+def evmWordIs (addr : Addr) (v : EvmWord) : Assertion :=
+  (addr ↦ₘ v.getLimb 0) ** ((addr + 8) ↦ₘ v.getLimb 1) **
+  ((addr + 16) ↦ₘ v.getLimb 2) ** ((addr + 24) ↦ₘ v.getLimb 3)
+```
+
+Here is the stack-level spec for the 256-bit AND opcode
+(`EvmAsm/Evm64/And/Spec.lean`). It says: starting from two `EvmWord`s `a` and
+`b` on the stack, the 17-instruction RISC-V program `evm_and_code` produces
+`a &&& b` — with a machine-checked proof:
+
+```lean
+/-- Stack-level 256-bit EVM AND: operates on two EvmWords via evmWordIs. -/
+theorem evm_and_stack_spec (sp base : Addr)
+    (a b : EvmWord) (v7 v6 : Word)
+    (hvalid : ValidMemRange sp 8) :
+    let code := evm_and_code base
+    cpsTriple base (base + 68) code
+      (-- precondition: stack pointer, scratch registers, two 256-bit words
+       (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) **
+       evmWordIs sp a ** evmWordIs (sp + 32) b)
+      (-- postcondition: sp advanced, result is a &&& b
+       (.x12 ↦ᵣ (sp + 32)) ** (.x7 ↦ᵣ (a.getLimb 3 &&& b.getLimb 3)) **
+       (.x6 ↦ᵣ b.getLimb 3) **
+       evmWordIs sp a ** evmWordIs (sp + 32) (a &&& b))
+```
+
+The statement is a Hoare triple (`cpsTriple`) with separation logic assertions.
+The precondition describes the machine state before: register `x12` holds the
+stack pointer, and two 256-bit words `a`, `b` sit at `sp` and `sp+32`. The
+postcondition says that after running 68 bytes of RISC-V code, the word at
+`sp+32` now holds `a &&& b` — the bitwise AND defined by Lean's `BitVec 256`.
+
+The proof composes four per-limb specs (one AND per 64-bit limb) using the
+`runBlock` tactic, then lifts to the `evmWordIs` abstraction via
+`cpsTriple_consequence`:
+
+```lean
+  -- 1. Compose 4 per-limb ANDs + stack pointer adjustment (limb-level proof)
+  have L0 := and_limb_spec 0 32 sp a0 b0 v7 v6 base ...
+  have L1 := and_limb_spec 8 40 sp a1 b1 ...
+  have L2 := and_limb_spec 16 48 sp a2 b2 ...
+  have L3 := and_limb_spec 24 56 sp a3 b3 ...
+  have LADDI := addi_spec_gen_same .x12 sp 32 ...
+  runBlock L0 L1 L2 L3 LADDI
+
+  -- 2. Lift to evmWordIs using EvmWord.getLimb_and semantic lemma
+  exact cpsTriple_consequence ...
+    (fun h hp => by simp only [evmWordIs] at hp; ... ; xperm_hyp hp)
+    (fun h hq => by simp only [evmWordIs, EvmWord.getLimb_and]; ... ; xperm_hyp hq)
+    h_main
+```
+
+Lean's kernel checks every step — from individual instruction semantics to the
+final `a &&& b` result. No external solver or SMT oracle required.
+
 ## Project Structure
 
 ```
