@@ -145,6 +145,52 @@ simp only [memBufferIs, addr_100_plus_4, addr_104_plus_4,
 exact hab
 ```
 
+## Calling Convention (LP64)
+
+New functions **must** follow the LP64 calling convention defined in
+`Evm64/CallingConvention.lean`. This applies to opcode handlers, the
+interpreter dispatch loop, RLP routines, and any new subroutines.
+
+**Register roles** (per zkvm-standards):
+
+| Register | ABI | Role | Saved by |
+|----------|-----|------|----------|
+| x1 | ra | Return address | Caller |
+| x2 | sp | Call stack (grows down) | **Callee** |
+| x5-x7 | t0-t2 | Temporaries | Caller |
+| x10-x11 | a0-a1 | Args / return values | Caller |
+| x12 | a2 | EVM stack pointer | Caller |
+
+**Reusable snippets** (use these, don't hand-roll):
+
+| Snippet | Purpose |
+|---------|---------|
+| `cc_ret` | Return: `JALR x0, x1, 0` |
+| `cc_prologue` | Non-leaf prologue: `ADDI sp, sp, -16 ;; SD sp, ra, 8` |
+| `cc_epilogue` | Non-leaf epilogue: `LD ra, sp, 8 ;; ADDI sp, sp, 16 ;; JALR x0, ra, 0` |
+
+**Proved specs** — use these instead of reproving from scratch:
+
+- `callNear_spec` / `callFar_spec` — JAL/JALR call saves return address
+- `ret_spec` / `ret_spec'` — JALR x0 x1 0 returns to caller
+- `cc_prologue_spec` — prologue block spec (2 instructions)
+- `cc_epilogue_spec` — epilogue block spec (3 instructions)
+- `callNear_function_spec` — compose JAL + function callable spec → round-trip
+- `nonleaf_function_spec` — compose prologue + body + epilogue → full function
+
+**Pattern for a new leaf function:**
+```lean
+def my_func : Program := body ;; cc_ret
+```
+
+**Pattern for a new non-leaf function:**
+```lean
+def my_func : Program := cc_prologue ;; body ;; cc_epilogue
+```
+
+The existing DivMod subroutine uses an older ad-hoc convention (x2 as return
+address). New code should **not** copy that pattern — use the LP64 convention.
+
 ## Three-Level Opcode Proof Architecture
 
 Each EVM opcode follows a three-level proof hierarchy:

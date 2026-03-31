@@ -81,6 +81,7 @@ def signExtend21 (imm : BitVec 21) : Word :=
 @[simp] theorem signExtend12_4095 : signExtend12 (4095 : BitVec 12) = (18446744073709551615 : Word) := by native_decide  -- -1
 @[simp] theorem signExtend12_4088 : signExtend12 (4088 : BitVec 12) = (18446744073709551608 : Word) := by native_decide  -- -8
 @[simp] theorem signExtend12_4080 : signExtend12 (4080 : BitVec 12) = (18446744073709551600 : Word) := by native_decide  -- -16
+@[simp] theorem signExtend12_neg16 : signExtend12 (-16 : BitVec 12) = (-16 : Word) := by native_decide  -- signed syntax for 4080
 @[simp] theorem signExtend12_4072 : signExtend12 (4072 : BitVec 12) = (18446744073709551592 : Word) := by native_decide  -- -24
 @[simp] theorem signExtend12_4064 : signExtend12 (4064 : BitVec 12) = (18446744073709551584 : Word) := by native_decide  -- -32
 @[simp] theorem signExtend12_4056 : signExtend12 (4056 : BitVec 12) = (18446744073709551576 : Word) := by native_decide  -- -40

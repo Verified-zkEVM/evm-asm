@@ -124,6 +124,16 @@ See **Pending: Recreate Deleted Spec Files** below for recreation plan.
 - **Byte-level infrastructure** (`ByteOps.lean`): `extractByte`/`replaceByte`
   algebra, `generic_lbu_spec` and `generic_sb_spec` CPS specs bridging
   byte-addressable operations to word-level separation logic assertions.
+- **LP64 Calling Convention** (`Evm64/CallingConvention.lean`): LP64-aligned
+  calling convention for the x0–x12 register subset, per zkvm-standards.
+  - x1 (ra) = return address, x2 (sp) = call stack (grows down, callee-saved)
+  - x10-x11 (a0-a1) = args/return values, x12 (a2) = EVM stack pointer
+  - Program snippets: `cc_ret`, `cc_prologue` (16-byte frame), `cc_epilogue`
+  - Proved specs: `callNear_spec`, `ret_spec`, `cc_prologue_spec`,
+    `cc_epilogue_spec`, `callNear_function_spec` (call+return round-trip),
+    `nonleaf_function_spec` (prologue+body+epilogue composition)
+  - All new subroutines (handlers, RLP, interpreter) should use this convention.
+    The older DivMod ad-hoc convention (x2 as return address) is legacy.
 
 ---
 
@@ -510,11 +520,14 @@ This is the heart of the STF — the inner loop that executes EVM bytecode.
 
 #### 7.3 Opcode Handlers (subroutine wrappers)
 - **File**: `Evm64/Handlers.lean` (new)
+- **Calling convention**: Use LP64 convention from `CallingConvention.lean`.
+  Each handler is a non-leaf function using `cc_prologue` / `cc_epilogue`.
+  Compose with `callNear_function_spec` / `nonleaf_function_spec`.
 - **Approach**: Each handler is a thin wrapper:
   1. Deduct gas cost
-  2. Call the opcode subroutine (e.g., `evm_add`)
+  2. Call the opcode subroutine (e.g., `evm_add`) via `JAL x1, offset`
   3. Advance EVM PC by appropriate amount (1 for most, 1+n for PUSHn)
-  4. Return to dispatch loop
+  4. Return to dispatch loop via `cc_ret`
 - **Spec**: Each handler spec composes gas deduction + opcode spec + PC advance.
 
 #### 7.4 Interpreter Main Loop
