@@ -118,6 +118,12 @@ See **Pending: Recreate Deleted Spec Files** below for recreation plan.
   - MultiplySpec col0–col3 migrated to `ofProg` pattern
 - **runTacticSilent**: Suppresses bv_omega diagnostic leaks from speculative
   tactic calls (Lean 4.29 regression fix in SeqFrame.lean/RunBlock.lean).
+- **Execution Layer specs** (`EvmAsm/EL/`): Pure Lean specs for Ethereum
+  data structures, independent of RISC-V. Currently:
+  - `EL/RLP/` — RLP encoding/decoding with round-trip proofs (`native_decide`)
+- **Byte-level infrastructure** (`ByteOps.lean`): `extractByte`/`replaceByte`
+  algebra, `generic_lbu_spec` and `generic_sb_spec` CPS specs bridging
+  byte-addressable operations to word-level separation logic assertions.
 
 ---
 
@@ -414,6 +420,35 @@ All phases below target **Evm64** primarily. Files are under `EvmAsm/Evm64/`.
 
 ---
 
+## Execution Layer Prerequisites
+
+The STF (Phase 11) reads RLP-encoded blocks via `read_input`. These
+prerequisites provide the pure spec and RISC-V infrastructure for that.
+
+### EL.1 RLP Specification ✅
+- **Files**: `EvmAsm/EL/RLP/Basic.lean`, `Decode.lean`, `Properties.lean`
+- `RLPItem` type (bytes | list), `encode`, `decode` with canonical enforcement
+- 17 kernel-verified properties via `native_decide` (round-trip, spec conformance)
+- 0 sorry, 0 axioms
+
+### EL.2 Byte-Level Infrastructure ✅
+- **File**: `EvmAsm/Rv64/ByteOps.lean`
+- `extractByte`/`replaceByte` algebra (round-trip, independence, overwrite)
+- `generic_lbu_spec`: CPS spec for LBU in terms of `extractByte` on containing dword
+- `generic_sb_spec`: CPS spec for SB in terms of `replaceByte` on containing dword
+
+### EL.3 RLP RISC-V Decoder (planned)
+- Phase 1: Prefix classifier (cascade BLTUs, 5 exits)
+- Phase 2: Length extraction (short inline + long big-endian loop)
+- Phase 3: Single-item flat decode (byte strings only)
+- Phase 4: HINT_READ integration (load RLP input into memory buffer)
+- Phase 5: Recursive list decode (iterative with explicit stack)
+- Phase 6: Top-level pipeline (HINT_READ → decode → output)
+- **Output format**: Pointer + length (zero-copy into input buffer)
+- **Depends on**: EL.1 (spec to verify against), EL.2 (byte-level specs)
+
+---
+
 ## Roadmap: Phases 7-11 (STF — State Transition Function)
 
 The STF is the end goal. It takes a block (header + transactions) and the
@@ -615,6 +650,11 @@ This is the heart of the STF — the inner loop that executes EVM bytecode.
 5. Phase 4.2: DIV, MOD ← **next new opcode work**
 6. Phase 5: MLOAD, MSTORE, EVM memory model
 7. Phase 5.1: EVM code region (needed for PUSHn and interpreter)
+
+**Execution layer (RLP decoder — STF prerequisite):**
+- ~~EL.1: RLP specification~~ — ✅ Done
+- ~~EL.2: Byte-level infrastructure~~ — ✅ Done
+- EL.3: RLP RISC-V decoder phases 1-6
 
 **Medium-term (interpreter loop — STF core):**
 8. Phase 7.1-7.2: EVM machine state + opcode dispatch
