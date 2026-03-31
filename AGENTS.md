@@ -23,17 +23,29 @@ EvmAsm is a verified macro assembler for RISC-V in Lean 4, inspired by "Coq: The
 
 ```
 EvmAsm/
-  Basic.lean         -- Machine state: registers, memory, PC
-  Instructions.lean  -- RV32I instruction subset and semantics (incl. ECALL)
-  Program.lean       -- Programs as instruction lists, sequential composition, HALT/COMMIT macros
-  Execution.lean     -- Branch-aware execution, code memory, step/stepN, ECALL dispatch
-  SepLogic.lean      -- Separation logic assertions and combinators
-  Spec.lean          -- Hoare triples, frame rule, structural rules
-  CPSSpec.lean       -- CPS-style Hoare triples, branch specs, structural rules
-  ControlFlow.lean   -- if_eq macro, symbolic proofs, pcIndep
-  MulMacro.lean      -- The add_mulc macro with correctness proofs
-  Examples.lean      -- Swap, zero, triple, halt, commit, and other macro examples
-EvmAsm.lean   -- Root module importing all submodules
+  Rv64/                -- RV64IM machine model + infrastructure
+    Basic.lean         -- Machine state: registers, memory, PC
+    Instructions.lean  -- RV64IM instruction semantics (incl. ECALL)
+    Program.lean       -- Programs as instruction lists, sequential composition
+    Execution.lean     -- Step execution, code memory, ECALL dispatch
+    SepLogic.lean      -- Separation logic assertions and combinators
+    CPSSpec.lean       -- CPS-style Hoare triples, branch specs, structural rules
+    GenericSpecs.lean  -- Generic instruction spec templates
+    InstructionSpecs.lean -- Concrete instruction specs
+    SyscallSpecs.lean  -- Spec database (@[spec_gen_rv64])
+    ControlFlow.lean   -- if_eq macro, symbolic proofs
+    ByteOps.lean       -- Byte-level: extractByte algebra, LBU/SB specs
+    Tactics/           -- Automation: xperm, runBlock, liftSpec, etc.
+  Evm64/               -- 256-bit EVM opcodes on RV64IM (4×64-bit limbs)
+    Basic.lean         -- EvmWord (BitVec 256), getLimb/fromLimbs
+    Stack.lean         -- evmWordIs, evmStackIs assertions
+    Add/, Sub/, ...    -- Individual opcode implementations (30+ files)
+  EL/                  -- Pure Ethereum Execution Layer specs
+    RLP/               -- RLP encoding/decoding (no RISC-V dependency)
+      Basic.lean       -- RLPItem type, encode
+      Decode.lean      -- decode with canonical enforcement
+      Properties.lean  -- Round-trip proofs (native_decide)
+EvmAsm.lean            -- Root module: imports Rv64, Evm64, EL
 ```
 
 ## Key Lean 4 API Compatibility Notes
