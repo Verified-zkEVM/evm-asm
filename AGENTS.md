@@ -236,11 +236,5 @@ Bridge lemmas in `Evm64/Basic.lean` connect per-limb arithmetic to 256-bit opera
 
 ## Roadmap (PLAN.md)
 
-The project roadmap is maintained in `PLAN.md` at the repository root. It contains a phased plan for implementing the full EVM state transition function as verified RISC-V programs (for use as a zkEVM).
-
-**When you complete a task from the plan**, update `PLAN.md` to reflect the new status:
-- Move completed opcodes from their phase section to the "Done" list under "Current Status"
-- Update instruction counts or other details if they changed during implementation
-- If you discover new sub-tasks or issues, add them to the appropriate phase
-
-Always check `PLAN.md` at the start of a session to see what's next in the priority order.
+The project roadmap is maintained in `PLAN.md`. See `CLAUDE.md` for the
+maintenance protocol (when and how to update it).
