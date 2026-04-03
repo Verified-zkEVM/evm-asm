@@ -64,6 +64,42 @@ def parseCpsTriple? (e : Expr) : MetaM (Option (Expr × Expr × Expr × Expr × 
     return some (args[0]!, args[1]!, args[2]!, args[3]!, args[4]!)
   return none
 
+/-- Peel outermost let-bindings from hypothesis `h`'s type, introducing them as
+    local let-definitions in the proof context. This exposes the underlying type
+    (e.g., `cpsTriple`) without expanding lets inside the pre/postconditions.
+
+    Example: `h : let x := v; P x` becomes `x : T := v` in context + `h : P x`.
+
+    Use `intro_lets at h` instead of `dsimp only [] at h` when composing large
+    specs to preserve abbreviated atom names for xperm matching. -/
+elab "intro_lets" "at" h:ident : tactic => withMainContext do
+  let hName := h.getId
+  let mut mvarId ← getMainGoal
+  -- Look up the hypothesis
+  let hDecl ← mvarId.withContext (getLocalDeclFromUserName hName)
+  let mut hFvarId := hDecl.fvarId
+  let mut ty ← mvarId.withContext (instantiateMVars hDecl.type)
+  -- Peel outermost let-bindings
+  while ty.isLet do
+    let .letE name binderType value _body _ := ty | break
+    -- Instantiate let-binding value (resolve mvars, but don't expand defs)
+    let value ← mvarId.withContext (instantiateMVars value)
+    let binderType ← mvarId.withContext (instantiateMVars binderType)
+    -- Add local let-definition: `name : binderType := value`
+    mvarId ← mvarId.define name binderType value
+    -- Introduce the new definition into the context
+    let (newFvar, mvarId') ← mvarId.intro1
+    mvarId := mvarId'
+    -- Update ty: substitute bvar 0 (the let-bound variable) with the new fvar
+    ty := _body.instantiate1 (.fvar newFvar)
+    ty ← mvarId.withContext (instantiateMVars ty)
+  -- Re-lookup h in the (potentially updated) context
+  let hDecl' ← mvarId.withContext (getLocalDeclFromUserName hName)
+  hFvarId := hDecl'.fvarId
+  -- Replace h's type with the peeled version (definitionally equal)
+  mvarId ← mvarId.replaceLocalDeclDefEq hFvarId ty
+  replaceMainGoal [mvarId]
+
 /-- Given Q1 (postcondition of h1) and P2 (precondition of h2),
     find atoms of P2 within Q1 and return the frame (residual Q1 atoms).
     Both sides are first reassociated to right-associated form for proper flattening.

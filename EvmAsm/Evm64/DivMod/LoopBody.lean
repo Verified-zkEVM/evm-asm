@@ -518,7 +518,7 @@ theorem divK_mulsub_full_spec
   -- 2. Mulsub 4 limbs: instrs [22]-[65] at base+536
   have M := divK_mulsub_4limbs_spec sp u_base q_hat v0 v1 v2 v3 u0 u1 u2 u3
     (j <<< (3 : BitVec 6).toNat) v7_old v2_old base hv_v0 hv_u0 hv_v1 hv_u1 hv_v2 hv_u2 hv_v3 hv_u3
-  dsimp only [] at M
+  intro_lets at M
   -- Compose setup + mulsub
   seqFrame Sf M
   -- 3. Sub-carry: instrs [66]-[69] at base+712
