@@ -339,13 +339,16 @@ All phases below target **Evm64** primarily. Files are under `EvmAsm/Evm64/`.
   - `evm_mod_bzero_spec` (b=0 path): same as div but with modCode ✅
   - `evm_mod_phaseA_ntaken_spec` (b≠0): same as div but with modCode ✅
 
+  - Phase B cascade variants ✅: n=3, n=2, n=1 all composed (0 sorry)
+    - `evm_div_phaseB_n3_spec` (b[3]=0, b[2]≠0): 18 instrs, x5=b[2], n=3
+    - `evm_div_phaseB_n2_spec` (b[3]=b[2]=0, b[1]≠0): 20 instrs, x5=b[1], n=2
+    - `evm_div_phaseB_n1_spec` (b[3]=b[2]=b[1]=0): 21 instrs (full phaseB), x5=b[0], n=1
+    - 5 singleton subsumption lemmas for cascade step instructions (indices 11-15 of phaseB)
+  - CLZ (Count Leading Zeros) ✅: 24 instructions, 6-stage binary search
+    - `divK_clz_spec` at base+116→base+212, `clzResult` function for postcondition
+    - Combined stage specs avoid exponential branching via conditional postconditions
+
   **Remaining compositions (b≠0 non-zero path):**
-  - Phase B cascade variants: n=3 (b[3]=0, b[2]≠0), n=2 (b[3]=b[2]=0, b[1]≠0), n=1 (only b[0]≠0)
-    - Same pattern as n=4 but with more BNE fall-throughs before taken
-    - `divK_phaseB_cascade_step_spec` provides parameterized ADDI+BNE cpsBranch for each step
-  - CLZ (Count Leading Zeros): 24 instructions, 6-stage binary search
-    - `divK_clz_init_spec` + 6 × `divK_clz_stage_{taken,ntaken}_spec` already in DivModSpec
-    - Compose into `evm_div_clz_spec` at base+116→base+212
   - Phase C2 (check n≥2): 4 instructions, cpsBranch at base+212→base+228
   - NormB (normalize divisor): 21 instructions at base+228
   - NormA (normalize dividend): 21 instructions at base+312
