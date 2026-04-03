@@ -1101,4 +1101,126 @@ theorem divK_mulsub_correction_skip_spec
     (fun h hq => by xperm_hyp hq)
     MSCS
 
+-- ============================================================================
+-- Section 10b: Mulsub + correction_addback composition (borrow ≠ 0 path)
+-- ============================================================================
+
+set_option maxRecDepth 4096 in
+set_option maxHeartbeats 3200000 in
+/-- Mulsub + correction addback: when mulsub produces borrow≠0, run addback.
+    Entry: base+516, Exit: base+880, CodeReq: divCode base. -/
+theorem divK_mulsub_correction_addback_spec
+    (sp q_hat j v0 v1 v2 v3 u0 u1 u2 u3 u_top : Word)
+    (v1_old v5_old v6_old v7_old v10_old v2_old : Word)
+    (base : Addr)
+    (hv_j : isValidDwordAccess (sp + signExtend12 3976) = true)
+    (hv_v0 : isValidDwordAccess (sp + signExtend12 32) = true)
+    (hv_u0 : isValidDwordAccess ((sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 0) = true)
+    (hv_v1 : isValidDwordAccess (sp + signExtend12 40) = true)
+    (hv_u1 : isValidDwordAccess ((sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 4088) = true)
+    (hv_v2 : isValidDwordAccess (sp + signExtend12 48) = true)
+    (hv_u2 : isValidDwordAccess ((sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 4080) = true)
+    (hv_v3 : isValidDwordAccess (sp + signExtend12 56) = true)
+    (hv_u3 : isValidDwordAccess ((sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 4072) = true)
+    (hv_u4 : isValidDwordAccess ((sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 4064) = true) :
+    let u_base := sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat
+    -- Mulsub intermediates
+    let p0_lo := q_hat * v0; let p0_hi := rv64_mulhu q_hat v0
+    let fs0 := p0_lo + (signExtend12 0 : Word)
+    let ba0 := if BitVec.ult fs0 (signExtend12 0 : Word) then (1 : Word) else 0
+    let pc0 := ba0 + p0_hi
+    let bs0 := if BitVec.ult u0 fs0 then (1 : Word) else 0
+    let un0 := u0 - fs0; let c0 := pc0 + bs0
+    let p1_lo := q_hat * v1; let p1_hi := rv64_mulhu q_hat v1
+    let fs1 := p1_lo + c0
+    let ba1 := if BitVec.ult fs1 c0 then (1 : Word) else 0
+    let pc1 := ba1 + p1_hi
+    let bs1 := if BitVec.ult u1 fs1 then (1 : Word) else 0
+    let un1 := u1 - fs1; let c1 := pc1 + bs1
+    let p2_lo := q_hat * v2; let p2_hi := rv64_mulhu q_hat v2
+    let fs2 := p2_lo + c1
+    let ba2 := if BitVec.ult fs2 c1 then (1 : Word) else 0
+    let pc2 := ba2 + p2_hi
+    let bs2 := if BitVec.ult u2 fs2 then (1 : Word) else 0
+    let un2 := u2 - fs2; let c2 := pc2 + bs2
+    let p3_lo := q_hat * v3; let p3_hi := rv64_mulhu q_hat v3
+    let fs3 := p3_lo + c2
+    let ba3 := if BitVec.ult fs3 c2 then (1 : Word) else 0
+    let pc3 := ba3 + p3_hi
+    let bs3 := if BitVec.ult u3 fs3 then (1 : Word) else 0
+    let un3 := u3 - fs3; let c3 := pc3 + bs3
+    let u4_new := u_top - c3
+    -- Addback intermediates
+    let upc0 := un0 + (signExtend12 0 : Word)
+    let ac1_0 := if BitVec.ult upc0 (signExtend12 0 : Word) then (1 : Word) else 0
+    let aun0 := upc0 + v0
+    let ac2_0 := if BitVec.ult aun0 v0 then (1 : Word) else 0
+    let aco0 := ac1_0 ||| ac2_0
+    let upc1 := un1 + aco0
+    let ac1_1 := if BitVec.ult upc1 aco0 then (1 : Word) else 0
+    let aun1 := upc1 + v1
+    let ac2_1 := if BitVec.ult aun1 v1 then (1 : Word) else 0
+    let aco1 := ac1_1 ||| ac2_1
+    let upc2 := un2 + aco1
+    let ac1_2 := if BitVec.ult upc2 aco1 then (1 : Word) else 0
+    let aun2 := upc2 + v2
+    let ac2_2 := if BitVec.ult aun2 v2 then (1 : Word) else 0
+    let aco2 := ac1_2 ||| ac2_2
+    let upc3 := un3 + aco2
+    let ac1_3 := if BitVec.ult upc3 aco2 then (1 : Word) else 0
+    let aun3 := upc3 + v3
+    let ac2_3 := if BitVec.ult aun3 v3 then (1 : Word) else 0
+    let aco3 := ac1_3 ||| ac2_3
+    let aun4 := u4_new + aco3
+    let q_hat' := q_hat + signExtend12 4095
+    -- Hypothesis: borrow ≠ 0
+    (if BitVec.ult u_top c3 then (1 : Word) else 0) ≠ (0 : Word) →
+    cpsTriple (base + 516) (base + 880) (divCode base)
+      ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ q_hat) **
+       (.x1 ↦ᵣ v1_old) ** (.x5 ↦ᵣ v5_old) ** (.x6 ↦ᵣ v6_old) **
+       (.x7 ↦ᵣ v7_old) ** (.x10 ↦ᵣ v10_old) ** (.x2 ↦ᵣ v2_old) **
+       (.x0 ↦ᵣ 0) **
+       (sp + signExtend12 3976 ↦ₘ j) **
+       ((sp + signExtend12 32) ↦ₘ v0) ** ((u_base + signExtend12 0) ↦ₘ u0) **
+       ((sp + signExtend12 40) ↦ₘ v1) ** ((u_base + signExtend12 4088) ↦ₘ u1) **
+       ((sp + signExtend12 48) ↦ₘ v2) ** ((u_base + signExtend12 4080) ↦ₘ u2) **
+       ((sp + signExtend12 56) ↦ₘ v3) ** ((u_base + signExtend12 4072) ↦ₘ u3) **
+       ((u_base + signExtend12 4064) ↦ₘ u_top))
+      ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ q_hat') **
+       (.x1 ↦ᵣ j) ** (.x5 ↦ᵣ aun4) ** (.x6 ↦ᵣ u_base) **
+       (.x7 ↦ᵣ aco3) ** (.x10 ↦ᵣ c3) ** (.x2 ↦ᵣ aun3) **
+       (.x0 ↦ᵣ 0) **
+       (sp + signExtend12 3976 ↦ₘ j) **
+       ((sp + signExtend12 32) ↦ₘ v0) ** ((u_base + signExtend12 0) ↦ₘ aun0) **
+       ((sp + signExtend12 40) ↦ₘ v1) ** ((u_base + signExtend12 4088) ↦ₘ aun1) **
+       ((sp + signExtend12 48) ↦ₘ v2) ** ((u_base + signExtend12 4080) ↦ₘ aun2) **
+       ((sp + signExtend12 56) ↦ₘ v3) ** ((u_base + signExtend12 4072) ↦ₘ aun3) **
+       ((u_base + signExtend12 4064) ↦ₘ aun4)) := by
+  intro u_base
+        p0_lo p0_hi fs0 ba0 pc0 bs0 un0 c0
+        p1_lo p1_hi fs1 ba1 pc1 bs1 un1 c1
+        p2_lo p2_hi fs2 ba2 pc2 bs2 un2 c2
+        p3_lo p3_hi fs3 ba3 pc3 bs3 un3 c3 u4_new
+        upc0 ac1_0 aun0 ac2_0 aco0 upc1 ac1_1 aun1 ac2_1 aco1
+        upc2 ac1_2 aun2 ac2_2 aco2 upc3 ac1_3 aun3 ac2_3 aco3 aun4 q_hat'
+        hborrow
+  -- 1. Mulsub full (base+516 → base+728)
+  have MS := divK_mulsub_full_spec sp q_hat j v0 v1 v2 v3 u0 u1 u2 u3 u_top
+    v1_old v5_old v6_old v7_old v10_old v2_old base
+    hv_j hv_v0 hv_u0 hv_v1 hv_u1 hv_v2 hv_u2 hv_v3 hv_u3 hv_u4
+  dsimp only [] at MS hborrow
+  -- 2. Correction addback (base+728 → base+880) with borrow ≠ 0
+  have CA := divK_correction_addback_spec sp u_base
+    (if BitVec.ult u_top c3 then (1 : Word) else 0)
+    q_hat v0 v1 v2 v3 un0 un1 un2 un3 u4_new
+    u4_new un3 base hborrow
+    hv_v0 hv_u0 hv_v1 hv_u1 hv_v2 hv_u2 hv_v3 hv_u3 hv_u4
+  dsimp only [] at CA
+  -- 3. Compose mulsub + correction_addback
+  seqFrame MS CA
+  exact cpsTriple_consequence _ _ _ _ _ _ _
+    (fun h hp => by xperm_hyp hp)
+    (fun h hq => by xperm_hyp hq)
+    MSCA
+
 end EvmAsm.Rv64
