@@ -30,6 +30,7 @@
 -/
 
 import Lean
+import Lean.Meta.Tactic.AC.Main
 import EvmAsm.Rv64.SepLogic
 import EvmAsm.Rv64.Tactics.PerfTrace
 
@@ -271,32 +272,31 @@ where
     Given LHS and RHS as sepConj chains with the same atoms
     (up to `isDefEq`), builds a proof of `LHS = RHS`.
 
-    **Strategy**: Uses `seps_pick` (bedrock2-style) for O(n) proof terms.
-    Each pick is a single lemma application; the kernel reduces `List.get`
-    and `List.eraseIdx` on concrete lists. Falls back to the O(n²) pick-chain
-    algorithm if the seps approach fails. -/
+    **Strategy**: Tries AC reflection first (O(n log n) kernel work via `buildNormProof`),
+    then falls back to seps_pick (O(n) tactic, O(n²) kernel), then to pick-chain (O(n²) both). -/
 partial def buildPermProof (lhs rhs : Expr) : MetaM Expr :=
   withTraceNode `runBlock.perf.perm (fun _ => return m!"perm") do
-  -- First reassociate both sides to right-associated form
+  -- Fast path: O(1) proof term via AC normalization (no simp, no side effects).
+  -- Uses Lean.Meta.AC.buildNormProof directly to build a reflection-based proof.
+  try
+    let op := mkConst ``EvmAsm.Rv64.sepConj
+    let some pc ← Lean.Meta.AC.preContext op
+      | throwError "buildPermProof: sepConj has no AC instance"
+    let (proof, _) ← Lean.Meta.AC.buildNormProof pc lhs rhs
+    -- Eagerly type-check the proof to catch kernel mismatches before returning.
+    -- Without this, kernel errors surface after the tactic completes and can't be caught.
+    let proofType ← inferType proof
+    let expectedType ← mkEq lhs rhs
+    unless ← isDefEq proofType expectedType do
+      throwError "buildACPermProof: proof type mismatch"
+    return proof
+  catch _ =>
+  -- Fall back: reassociate + pick-based permutation
   let (lhsRA, lhsPf) ← reassocProof lhs
   let (rhsRA, rhsPf) ← reassocProof rhs
-  -- Flatten both sides to atom arrays
   let lhsAtoms := (← flattenSepConj lhsRA).toArray
   let rhsAtoms := (← flattenSepConj rhsRA).toArray
-  -- Try seps-based O(n) proof, fall back to O(n²) pick chain
-  let permPf ← try
-    -- Bridge: lhsRA = lhsRA ** empAssertion (= seps lhsAtoms by definition)
-    let (addEmpPf, _) ← buildAddEmpProof lhsRA
-    -- Permutation: seps lhsAtoms = rhs_with_emp (concrete chain ending in emp)
-    let (sepsPf, rhsWithEmp) ← buildSepsPermProof lhsAtoms rhsAtoms
-    -- Bridge: rhs_with_emp = rhsRA (remove empAssertion from concrete chain)
-    let (remEmpPf, _) ← buildRemoveEmpProof rhsWithEmp
-    -- Chain: lhsRA = lhsRA**emp = rhs**emp = rhsRA
-    let step ← mkEqTrans addEmpPf sepsPf
-    mkEqTrans step remEmpPf
-  catch e =>
-    trace[runBlock.perf.perm] "seps fast path failed ({lhsAtoms.size} atoms): {← e.toMessageData.toString}"
-    buildPermProofAux lhsRA lhsAtoms rhsAtoms
+  let permPf ← buildPermProofAux lhsRA lhsAtoms rhsAtoms
   -- Chain: lhs = lhsRA = rhsRA = rhs
   let step1 ← mkEqTrans lhsPf permPf
   let rhsPfSymm ← mkEqSymm rhsPf
