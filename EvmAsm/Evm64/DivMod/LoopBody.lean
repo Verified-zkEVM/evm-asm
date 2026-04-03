@@ -1223,4 +1223,74 @@ theorem divK_mulsub_correction_addback_spec
     (fun h hq => by xperm_hyp hq)
     MSCA
 
+-- ============================================================================
+-- Section 11: Trial quotient max path (BLTU not-taken)
+-- Composes: save_trial_load → BLTU ntaken → trial_max.
+-- Entry: base+448, Exit: base+516 with x11 = MAX64.
+-- ============================================================================
+
+set_option maxRecDepth 4096 in
+set_option maxHeartbeats 1600000 in
+/-- Trial quotient max path: save j + load + BLTU not-taken + trial_max.
+    When u_hi >= v_top, sets q_hat = MAX64 without calling div128.
+    Entry: base+448, Exit: base+516, CodeReq: divCode base. -/
+theorem divK_trial_max_full_spec
+    (sp j n j_old v5_old v6_old v7_old v10_old v11_old u_hi u_lo v_top : Word)
+    (base : Addr)
+    (hv_j : isValidDwordAccess (sp + signExtend12 3976) = true)
+    (hv_n1 : isValidDwordAccess (sp + signExtend12 3984) = true)
+    (hv_uhi : isValidDwordAccess (sp + signExtend12 4056 - (j + n) <<< (3 : BitVec 6).toNat) = true)
+    (hv_ulo : isValidDwordAccess ((sp + signExtend12 4056 - (j + n) <<< (3 : BitVec 6).toNat) + 8) = true)
+    (hv_vtop : isValidDwordAccess (sp + (n + signExtend12 4095) <<< (3 : BitVec 6).toNat + signExtend12 32) = true)
+    (hbltu : ¬BitVec.ult u_hi v_top) :
+    let u_addr := sp + signExtend12 4056 - (j + n) <<< (3 : BitVec 6).toNat
+    let vtop_base := sp + (n + signExtend12 4095) <<< (3 : BitVec 6).toNat
+    cpsTriple (base + 448) (base + 516) (divCode base)
+      ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
+       (.x5 ↦ᵣ v5_old) ** (.x6 ↦ᵣ v6_old) **
+       (.x7 ↦ᵣ v7_old) ** (.x10 ↦ᵣ v10_old) ** (.x11 ↦ᵣ v11_old) **
+       (.x0 ↦ᵣ (0 : Word)) **
+       (sp + signExtend12 3976 ↦ₘ j_old) ** (sp + signExtend12 3984 ↦ₘ n) **
+       (u_addr ↦ₘ u_hi) ** ((u_addr + 8) ↦ₘ u_lo) **
+       (vtop_base + signExtend12 32 ↦ₘ v_top))
+      ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
+       (.x5 ↦ᵣ u_lo) ** (.x6 ↦ᵣ vtop_base) **
+       (.x7 ↦ᵣ u_hi) ** (.x10 ↦ᵣ v_top) ** (.x11 ↦ᵣ signExtend12 4095) **
+       (.x0 ↦ᵣ (0 : Word)) **
+       (sp + signExtend12 3976 ↦ₘ j) ** (sp + signExtend12 3984 ↦ₘ n) **
+       (u_addr ↦ₘ u_hi) ** ((u_addr + 8) ↦ₘ u_lo) **
+       (vtop_base + signExtend12 32 ↦ₘ v_top)) := by
+  intro u_addr vtop_base
+  -- 1. Save j + trial load (base+448 → base+500)
+  have STL := divK_save_trial_load_spec sp j n j_old v5_old v6_old v7_old v10_old u_hi u_lo v_top
+    base hv_j hv_n1 hv_uhi hv_ulo hv_vtop
+  dsimp only [] at STL
+  -- 2. BLTU x7 x10 12 at base+500
+  have hbltu_raw := bltu_spec_gen .x7 .x10 (12 : BitVec 13) u_hi v_top (base + 500)
+  rw [lb_bltu_taken, lb_bltu_ntaken] at hbltu_raw
+  have hbltu_ext := cpsBranch_extend_code (hmono :=
+    lb_sub base 13 _ _ (by native_decide) (by bv_omega) (by native_decide)) hbltu_raw
+  -- Eliminate taken path (⌜BitVec.ult u_hi v_top⌝ contradicts hbltu)
+  have ntaken := cpsBranch_elim_ntaken _ _ _ _ _ _ _ hbltu_ext (fun hp hQt => by
+    obtain ⟨_, _, _, _, _, ⟨_, _, _, _, _, ⟨_, hpure⟩⟩⟩ := hQt
+    exact hbltu hpure)
+  -- Strip pure fact
+  have ntaken_clean := cpsTriple_consequence _ _ _ _ _ _ _
+    (fun h hp => hp)
+    (fun h hp => sepConj_mono_right
+      (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1) h hp) ntaken
+  -- 3. Trial max (base+504 → base+516)
+  have TM := divK_trial_max_extended v11_old base
+  -- 4. Frame save_trial_load with x11 + x0, compose with BLTU ntaken
+  have STLf := cpsTriple_frame_left _ _ _ _ _
+    ((.x11 ↦ᵣ v11_old) ** (.x0 ↦ᵣ (0 : Word))) (by pcFree) STL
+  seqFrame STLf ntaken_clean
+  -- 5. Frame BLTU ntaken result with x0 + memory, compose with trial_max
+  seqFrame STLfntaken_clean TM
+  -- 6. Final permutation
+  exact cpsTriple_consequence _ _ _ _ _ _ _
+    (fun h hp => by xperm_hyp hp)
+    (fun h hq => by xperm_hyp hq)
+    STLfntaken_cleanTM
+
 end EvmAsm.Rv64
