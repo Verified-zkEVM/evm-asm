@@ -239,11 +239,11 @@ theorem execInstrBr_eq_execInstr (s : MachineState) (i : Instr)
 -- ============================================================================
 
 /-- Code memory: maps addresses to instructions. -/
-def CodeMem := Addr → Option Instr
+def CodeMem := Word → Option Instr
 
 /-- Load a program into code memory at a base address.
     Instruction k is at address base + 4*k. -/
-def loadProgram (base : Addr) (prog : List Instr) : CodeMem :=
+def loadProgram (base : Word) (prog : List Instr) : CodeMem :=
   fun addr =>
     let offset := addr - base
     let idx := offset.toNat / 4
@@ -258,17 +258,17 @@ def loadProgram (base : Addr) (prog : List Instr) : CodeMem :=
 
 /-- ProgramAt code base prog asserts that program `prog` is loaded in `code`
     at base address `base`. Instruction i is at address base + 4*i. -/
-def ProgramAt (code : CodeMem) (base : Addr) (prog : List Instr) : Prop :=
+def ProgramAt (code : CodeMem) (base : Word) (prog : List Instr) : Prop :=
   ∀ (i : Nat), i < prog.length →
     code (base + BitVec.ofNat 64 (4 * i)) = prog[i]?
 
 /-- Extract a single instruction fetch from ProgramAt. -/
-theorem ProgramAt.get {code : CodeMem} {base : Addr} {prog : List Instr}
+theorem ProgramAt.get {code : CodeMem} {base : Word} {prog : List Instr}
     (h : ProgramAt code base prog) {i : Nat} (hi : i < prog.length) :
     code (base + BitVec.ofNat 64 (4 * i)) = prog[i]? := h i hi
 
 /-- ProgramAt for the first part of a concatenated program. -/
-theorem ProgramAt.prefix {code : CodeMem} {base : Addr} {prog1 prog2 : List Instr}
+theorem ProgramAt.prefix {code : CodeMem} {base : Word} {prog1 prog2 : List Instr}
     (h : ProgramAt code base (prog1 ++ prog2)) :
     ProgramAt code base prog1 := by
   intro i hi
@@ -277,7 +277,7 @@ theorem ProgramAt.prefix {code : CodeMem} {base : Addr} {prog1 prog2 : List Inst
   rwa [List.getElem?_append_left hi] at h_main
 
 /-- ProgramAt for the second part of a concatenated program. -/
-theorem ProgramAt.suffix {code : CodeMem} {base : Addr} {prog1 prog2 : List Instr}
+theorem ProgramAt.suffix {code : CodeMem} {base : Word} {prog1 prog2 : List Instr}
     (h : ProgramAt code base (prog1 ++ prog2)) :
     ProgramAt code (base + BitVec.ofNat 64 (4 * prog1.length)) prog2 := by
   intro i hi
@@ -295,8 +295,8 @@ theorem ProgramAt.suffix {code : CodeMem} {base : Addr} {prog1 prog2 : List Inst
 
 /-- Extract a single instruction from ProgramAt with address normalization.
     Useful for converting ProgramAt to individual code hypotheses. -/
-theorem ProgramAt.fetch {code : CodeMem} {base : Addr} {prog : List Instr}
-    (h : ProgramAt code base prog) (i : Nat) (addr : Addr) (instr : Instr)
+theorem ProgramAt.fetch {code : CodeMem} {base : Word} {prog : List Instr}
+    (h : ProgramAt code base prog) (i : Nat) (addr : Word) (instr : Instr)
     (hi : i < prog.length)
     (hinstr : prog[i]? = some instr)
     (haddr : base + BitVec.ofNat 64 (4 * i) = addr) :
@@ -304,7 +304,7 @@ theorem ProgramAt.fetch {code : CodeMem} {base : Addr} {prog : List Instr}
   rw [← haddr, ← hinstr]; exact h i hi
 
 /-- loadProgram produces a ProgramAt. -/
-theorem loadProgram_programAt (base : Addr) (prog : List Instr)
+theorem loadProgram_programAt (base : Word) (prog : List Instr)
     (hlen : 4 * prog.length < 2^64) :
     ProgramAt (loadProgram base prog) base prog := by
   intro i hi

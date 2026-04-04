@@ -28,7 +28,7 @@ namespace EvmAsm.Rv64
 -- ============================================================================
 
 /-- ADD rd, rs1, rs2: rd := rs1 + rs2 (all registers distinct) -/
-theorem add_spec (rd rs1 rs2 : Reg) (v1 v2 v_old : Word) (base : Addr)
+theorem add_spec (rd rs1 rs2 : Reg) (v1 v2 v_old : Word) (base : Word)
     (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple base (base + 4) (CodeReq.singleton base (.ADD rd rs1 rs2))
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** (rd ↦ᵣ v_old))
@@ -38,7 +38,7 @@ theorem add_spec (rd rs1 rs2 : Reg) (v1 v2 v_old : Word) (base : Addr)
     (by intro s hfetch; exact step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl))
 
 /-- ADD rd, rd, rs2: rd := rd + rs2 (rd = rs1, rs2 distinct) -/
-theorem add_spec_rd_eq_rs1 (rd rs2 : Reg) (v1 v2 : Word) (base : Addr)
+theorem add_spec_rd_eq_rs1 (rd rs2 : Reg) (v1 v2 : Word) (base : Word)
     (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple base (base + 4) (CodeReq.singleton base (.ADD rd rd rs2))
       ((rd ↦ᵣ v1) ** (rs2 ↦ᵣ v2))
@@ -48,7 +48,7 @@ theorem add_spec_rd_eq_rs1 (rd rs2 : Reg) (v1 v2 : Word) (base : Addr)
     (by intro s hfetch; exact step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl))
 
 /-- ADD rd, rs1, rd: rd := rs1 + rd (rd = rs2, rs1 distinct) -/
-theorem add_spec_rd_eq_rs2 (rd rs1 : Reg) (v1 v2 : Word) (base : Addr)
+theorem add_spec_rd_eq_rs2 (rd rs1 : Reg) (v1 v2 : Word) (base : Word)
     (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple base (base + 4) (CodeReq.singleton base (.ADD rd rs1 rd))
       ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ v2))
@@ -58,7 +58,7 @@ theorem add_spec_rd_eq_rs2 (rd rs1 : Reg) (v1 v2 : Word) (base : Addr)
     (by intro s hfetch; exact step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl))
 
 /-- ADD rd, rd, rd: rd := rd + rd = 2 * rd (all same) -/
-theorem add_spec_all_same (rd : Reg) (v : Word) (base : Addr)
+theorem add_spec_all_same (rd : Reg) (v : Word) (base : Word)
     (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple base (base + 4) (CodeReq.singleton base (.ADD rd rd rd))
       (rd ↦ᵣ v)
@@ -68,7 +68,7 @@ theorem add_spec_all_same (rd : Reg) (v : Word) (base : Addr)
     (by intro s hfetch; exact step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl))
 
 /-- SUB rd, rs1, rs2: rd := rs1 - rs2 (all registers distinct) -/
-theorem sub_spec (rd rs1 rs2 : Reg) (v1 v2 v_old : Word) (base : Addr)
+theorem sub_spec (rd rs1 rs2 : Reg) (v1 v2 v_old : Word) (base : Word)
     (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple base (base + 4) (CodeReq.singleton base (.SUB rd rs1 rs2))
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** (rd ↦ᵣ v_old))
@@ -78,7 +78,7 @@ theorem sub_spec (rd rs1 rs2 : Reg) (v1 v2 v_old : Word) (base : Addr)
     (by intro s hfetch; exact step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl))
 
 /-- SUB rd, rd, rs2: rd := rd - rs2 -/
-theorem sub_spec_rd_eq_rs1 (rd rs2 : Reg) (v1 v2 : Word) (base : Addr)
+theorem sub_spec_rd_eq_rs1 (rd rs2 : Reg) (v1 v2 : Word) (base : Word)
     (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple base (base + 4) (CodeReq.singleton base (.SUB rd rd rs2))
       ((rd ↦ᵣ v1) ** (rs2 ↦ᵣ v2))
@@ -88,7 +88,7 @@ theorem sub_spec_rd_eq_rs1 (rd rs2 : Reg) (v1 v2 : Word) (base : Addr)
     (by intro s hfetch; exact step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl))
 
 /-- SUB rd, rd, rd: rd := rd - rd = 0 -/
-theorem sub_spec_all_same (rd : Reg) (v : Word) (base : Addr)
+theorem sub_spec_all_same (rd : Reg) (v : Word) (base : Word)
     (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple base (base + 4) (CodeReq.singleton base (.SUB rd rd rd))
       (rd ↦ᵣ v)
@@ -102,7 +102,7 @@ theorem sub_spec_all_same (rd : Reg) (v : Word) (base : Addr)
 -- ============================================================================
 
 /-- ADDI rd, rs1, imm: rd := rs1 + sext(imm) (registers distinct) -/
-theorem addi_spec (rd rs1 : Reg) (v1 v_old : Word) (imm : BitVec 12) (base : Addr)
+theorem addi_spec (rd rs1 : Reg) (v1 v_old : Word) (imm : BitVec 12) (base : Word)
     (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple base (base + 4) (CodeReq.singleton base (.ADDI rd rs1 imm))
       ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ v_old))
@@ -112,7 +112,7 @@ theorem addi_spec (rd rs1 : Reg) (v1 v_old : Word) (imm : BitVec 12) (base : Add
     (by intro s hfetch; exact step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl))
 
 /-- ADDI rd, rd, imm: rd := rd + sext(imm) (same register) -/
-theorem addi_spec_same (rd : Reg) (v : Word) (imm : BitVec 12) (base : Addr)
+theorem addi_spec_same (rd : Reg) (v : Word) (imm : BitVec 12) (base : Word)
     (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple base (base + 4) (CodeReq.singleton base (.ADDI rd rd imm))
       (rd ↦ᵣ v)
@@ -126,7 +126,7 @@ theorem addi_spec_same (rd : Reg) (v : Word) (imm : BitVec 12) (base : Addr)
 -- ============================================================================
 
 /-- ORI rd, rs1, imm: rd := rs1 | sext(imm) (registers distinct) -/
-theorem ori_spec (rd rs1 : Reg) (v1 v_old : Word) (imm : BitVec 12) (base : Addr)
+theorem ori_spec (rd rs1 : Reg) (v1 v_old : Word) (imm : BitVec 12) (base : Word)
     (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple base (base + 4) (CodeReq.singleton base (.ORI rd rs1 imm))
       ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ v_old))
@@ -136,7 +136,7 @@ theorem ori_spec (rd rs1 : Reg) (v1 v_old : Word) (imm : BitVec 12) (base : Addr
     (by intro s hfetch; exact step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl))
 
 /-- ORI rd, rd, imm: rd := rd | sext(imm) (same register) -/
-theorem ori_spec_same (rd : Reg) (v : Word) (imm : BitVec 12) (base : Addr)
+theorem ori_spec_same (rd : Reg) (v : Word) (imm : BitVec 12) (base : Word)
     (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple base (base + 4) (CodeReq.singleton base (.ORI rd rd imm))
       (rd ↦ᵣ v)
@@ -150,7 +150,7 @@ theorem ori_spec_same (rd : Reg) (v : Word) (imm : BitVec 12) (base : Addr)
 -- ============================================================================
 
 /-- SLTI rd, rs1, imm: rd := (rs1 <s sext(imm)) ? 1 : 0 (registers distinct) -/
-theorem slti_spec (rd rs1 : Reg) (v1 v_old : Word) (imm : BitVec 12) (base : Addr)
+theorem slti_spec (rd rs1 : Reg) (v1 v_old : Word) (imm : BitVec 12) (base : Word)
     (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple base (base + 4) (CodeReq.singleton base (.SLTI rd rs1 imm))
       ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ v_old))
@@ -160,7 +160,7 @@ theorem slti_spec (rd rs1 : Reg) (v1 v_old : Word) (imm : BitVec 12) (base : Add
     (by intro s hfetch; exact step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl))
 
 /-- SLTI rd, rd, imm: rd := (rd <s sext(imm)) ? 1 : 0 (same register) -/
-theorem slti_spec_same (rd : Reg) (v : Word) (imm : BitVec 12) (base : Addr)
+theorem slti_spec_same (rd : Reg) (v : Word) (imm : BitVec 12) (base : Word)
     (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple base (base + 4) (CodeReq.singleton base (.SLTI rd rd imm))
       (rd ↦ᵣ v)
@@ -174,7 +174,7 @@ theorem slti_spec_same (rd : Reg) (v : Word) (imm : BitVec 12) (base : Addr)
 -- ============================================================================
 
 /-- ADDIW rd, rs1, imm: rd := signExtend64(truncate32(rs1) + truncate32(sext(imm))) (registers distinct) -/
-theorem addiw_spec (rd rs1 : Reg) (v1 v_old : Word) (imm : BitVec 12) (base : Addr)
+theorem addiw_spec (rd rs1 : Reg) (v1 v_old : Word) (imm : BitVec 12) (base : Word)
     (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple base (base + 4) (CodeReq.singleton base (.ADDIW rd rs1 imm))
       ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ v_old))
@@ -184,7 +184,7 @@ theorem addiw_spec (rd rs1 : Reg) (v1 v_old : Word) (imm : BitVec 12) (base : Ad
     (by intro s hfetch; exact step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl))
 
 /-- ADDIW rd, rd, imm: rd := signExtend64(truncate32(rd) + truncate32(sext(imm))) (same register) -/
-theorem addiw_spec_same (rd : Reg) (v : Word) (imm : BitVec 12) (base : Addr)
+theorem addiw_spec_same (rd : Reg) (v : Word) (imm : BitVec 12) (base : Word)
     (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple base (base + 4) (CodeReq.singleton base (.ADDIW rd rd imm))
       (rd ↦ᵣ v)
@@ -199,7 +199,7 @@ theorem addiw_spec_same (rd : Reg) (v : Word) (imm : BitVec 12) (base : Addr)
 
 /-- LUI rd, imm: rd := signExtend64(imm << 12)
     In RV64, LUI sign-extends the 32-bit result to 64 bits. -/
-theorem lui_spec (rd : Reg) (v_old : Word) (imm : BitVec 20) (base : Addr)
+theorem lui_spec (rd : Reg) (v_old : Word) (imm : BitVec 20) (base : Word)
     (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple base (base + 4) (CodeReq.singleton base (.LUI rd imm))
       (rd ↦ᵣ v_old)
@@ -210,7 +210,7 @@ theorem lui_spec (rd : Reg) (v_old : Word) (imm : BitVec 20) (base : Addr)
 
 /-- AUIPC rd, imm: rd := PC + signExtend64(imm << 12)
     In RV64, AUIPC sign-extends the 32-bit shifted value before adding to PC. -/
-theorem auipc_spec (rd : Reg) (v_old : Word) (imm : BitVec 20) (base : Addr)
+theorem auipc_spec (rd : Reg) (v_old : Word) (imm : BitVec 20) (base : Word)
     (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple base (base + 4) (CodeReq.singleton base (.AUIPC rd imm))
       (rd ↦ᵣ v_old)
@@ -224,7 +224,7 @@ theorem auipc_spec (rd : Reg) (v_old : Word) (imm : BitVec 20) (base : Addr)
 -- ============================================================================
 
 /-- LD rd, offset(rs1): rd := mem[rs1 + sext(offset)] (registers distinct) -/
-theorem ld_spec (rd rs1 : Reg) (v_addr v_old mem_val : Word) (offset : BitVec 12) (base : Addr)
+theorem ld_spec (rd rs1 : Reg) (v_addr v_old mem_val : Word) (offset : BitVec 12) (base : Word)
     (hrd_ne_x0 : rd ≠ .x0)
     (hvalid : isValidDwordAccess (v_addr + signExtend12 offset) = true) :
     cpsTriple base (base + 4) (CodeReq.singleton base (.LD rd rs1 offset))
@@ -233,7 +233,7 @@ theorem ld_spec (rd rs1 : Reg) (v_addr v_old mem_val : Word) (offset : BitVec 12
   generic_ld_spec rd rs1 v_addr v_old mem_val offset base hrd_ne_x0 hvalid
 
 /-- LD rd, offset(rd): rd := mem[rd + sext(offset)] (same register) -/
-theorem ld_spec_same (rd : Reg) (v_addr mem_val : Word) (offset : BitVec 12) (base : Addr)
+theorem ld_spec_same (rd : Reg) (v_addr mem_val : Word) (offset : BitVec 12) (base : Word)
     (hrd_ne_x0 : rd ≠ .x0)
     (hvalid : isValidDwordAccess (v_addr + signExtend12 offset) = true) :
     cpsTriple base (base + 4) (CodeReq.singleton base (.LD rd rd offset))
@@ -262,7 +262,7 @@ theorem ld_spec_same (rd : Reg) (v_addr mem_val : Word) (offset : BitVec 12) (ba
     exact holdsFor_pcFree_setPC (pcFree_sepConj (by pcFree) hR) _ _ h3
 
 /-- SD rs2, offset(rs1): mem[rs1 + sext(offset)] := rs2 (registers distinct) -/
-theorem sd_spec (rs1 rs2 : Reg) (v_addr v_data mem_old : Word) (offset : BitVec 12) (base : Addr)
+theorem sd_spec (rs1 rs2 : Reg) (v_addr v_data mem_old : Word) (offset : BitVec 12) (base : Word)
     (hvalid : isValidDwordAccess (v_addr + signExtend12 offset) = true) :
     cpsTriple base (base + 4) (CodeReq.singleton base (.SD rs1 rs2 offset))
       ((rs1 ↦ᵣ v_addr) ** (rs2 ↦ᵣ v_data) ** ((v_addr + signExtend12 offset) ↦ₘ mem_old))
@@ -270,7 +270,7 @@ theorem sd_spec (rs1 rs2 : Reg) (v_addr v_data mem_old : Word) (offset : BitVec 
   generic_sd_spec rs1 rs2 v_addr v_data mem_old offset base hvalid
 
 /-- SD rs, offset(rs): mem[rs + sext(offset)] := rs (same register) -/
-theorem sd_spec_same (rs : Reg) (v : Word) (mem_old : Word) (offset : BitVec 12) (base : Addr)
+theorem sd_spec_same (rs : Reg) (v : Word) (mem_old : Word) (offset : BitVec 12) (base : Word)
     (hvalid : isValidDwordAccess (v + signExtend12 offset) = true) :
     cpsTriple base (base + 4) (CodeReq.singleton base (.SD rs rs offset))
       ((rs ↦ᵣ v) ** ((v + signExtend12 offset) ↦ₘ mem_old))
@@ -298,7 +298,7 @@ theorem sd_spec_same (rs : Reg) (v : Word) (mem_old : Word) (offset : BitVec 12)
 -- ============================================================================
 
 /-- BEQ rs1, rs2, offset: branch if rs1 = rs2 (registers distinct) -/
-theorem beq_spec (rs1 rs2 : Reg) (offset : BitVec 13) (v1 v2 : Word) (base : Addr) :
+theorem beq_spec (rs1 rs2 : Reg) (offset : BitVec 13) (v1 v2 : Word) (base : Word) :
     cpsBranch base (CodeReq.singleton base (.BEQ rs1 rs2 offset))
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2))
       (base + signExtend13 offset) ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** ⌜v1 = v2⌝)
@@ -306,7 +306,7 @@ theorem beq_spec (rs1 rs2 : Reg) (offset : BitVec 13) (v1 v2 : Word) (base : Add
   generic_beq_spec rs1 rs2 offset v1 v2 base
 
 /-- BEQ rs, rs, offset: branch if rs = rs (always taken, same register) -/
-theorem beq_spec_same (rs : Reg) (offset : BitVec 13) (v : Word) (base : Addr) :
+theorem beq_spec_same (rs : Reg) (offset : BitVec 13) (v : Word) (base : Word) :
     cpsBranch base (CodeReq.singleton base (.BEQ rs rs offset))
       (rs ↦ᵣ v)
       (base + signExtend13 offset) (rs ↦ᵣ v)
@@ -326,7 +326,7 @@ theorem beq_spec_same (rs : Reg) (offset : BitVec 13) (v : Word) (base : Addr) :
   · exact holdsFor_pcFree_setPC (pcFree_sepConj (by pcFree) hR) _ _ hPR
 
 /-- BNE rs1, rs2, offset: branch if rs1 ≠ rs2 (registers distinct) -/
-theorem bne_spec (rs1 rs2 : Reg) (offset : BitVec 13) (v1 v2 : Word) (base : Addr) :
+theorem bne_spec (rs1 rs2 : Reg) (offset : BitVec 13) (v1 v2 : Word) (base : Word) :
     cpsBranch base (CodeReq.singleton base (.BNE rs1 rs2 offset))
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2))
       (base + signExtend13 offset) ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** ⌜v1 ≠ v2⌝)
@@ -334,7 +334,7 @@ theorem bne_spec (rs1 rs2 : Reg) (offset : BitVec 13) (v1 v2 : Word) (base : Add
   generic_bne_spec rs1 rs2 offset v1 v2 base
 
 /-- BNE rs, rs, offset: branch if rs ≠ rs (never taken, same register) -/
-theorem bne_spec_same (rs : Reg) (offset : BitVec 13) (v : Word) (base : Addr) :
+theorem bne_spec_same (rs : Reg) (offset : BitVec 13) (v : Word) (base : Word) :
     cpsBranch base (CodeReq.singleton base (.BNE rs rs offset))
       (rs ↦ᵣ v)
       (base + signExtend13 offset) (rs ↦ᵣ v)
@@ -358,7 +358,7 @@ theorem bne_spec_same (rs : Reg) (offset : BitVec 13) (v : Word) (base : Addr) :
 -- ============================================================================
 
 /-- BGEU rs1, rs2, offset: branch if rs1 >=u rs2 (registers distinct) -/
-theorem bgeu_spec (rs1 rs2 : Reg) (offset : BitVec 13) (v1 v2 : Word) (base : Addr) :
+theorem bgeu_spec (rs1 rs2 : Reg) (offset : BitVec 13) (v1 v2 : Word) (base : Word) :
     cpsBranch base (CodeReq.singleton base (.BGEU rs1 rs2 offset))
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2))
       (base + signExtend13 offset) ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** ⌜¬BitVec.ult v1 v2⌝)
@@ -370,7 +370,7 @@ theorem bgeu_spec (rs1 rs2 : Reg) (offset : BitVec 13) (v1 v2 : Word) (base : Ad
 -- ============================================================================
 
 /-- JAL rd, offset: rd := PC + 4; PC := PC + sext(offset) -/
-theorem jal_spec (rd : Reg) (v_old : Word) (offset : BitVec 21) (base : Addr)
+theorem jal_spec (rd : Reg) (v_old : Word) (offset : BitVec 21) (base : Word)
     (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple base (base + signExtend21 offset) (CodeReq.singleton base (.JAL rd offset))
       (rd ↦ᵣ v_old)
@@ -378,7 +378,7 @@ theorem jal_spec (rd : Reg) (v_old : Word) (offset : BitVec 21) (base : Addr)
   generic_jal_spec rd v_old offset base hrd_ne_x0
 
 /-- JALR rd, rs1, offset: rd := PC + 4; PC := (rs1 + sext(offset)) & ~1 (distinct) -/
-theorem jalr_spec (rd rs1 : Reg) (v1 v_old : Word) (offset : BitVec 12) (base : Addr)
+theorem jalr_spec (rd rs1 : Reg) (v1 v_old : Word) (offset : BitVec 12) (base : Word)
     (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple base ((v1 + signExtend12 offset) &&& (~~~1)) (CodeReq.singleton base (.JALR rd rs1 offset))
       ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ v_old))
@@ -386,7 +386,7 @@ theorem jalr_spec (rd rs1 : Reg) (v1 v_old : Word) (offset : BitVec 12) (base : 
   generic_jalr_spec rd rs1 v1 v_old offset base hrd_ne_x0
 
 /-- JALR rd, rd, offset: rd := PC + 4; PC := (rd + sext(offset)) & ~1 (same) -/
-theorem jalr_spec_same (rd : Reg) (v : Word) (offset : BitVec 12) (base : Addr)
+theorem jalr_spec_same (rd : Reg) (v : Word) (offset : BitVec 12) (base : Word)
     (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple base ((v + signExtend12 offset) &&& (~~~1)) (CodeReq.singleton base (.JALR rd rd offset))
       (rd ↦ᵣ v)
@@ -412,7 +412,7 @@ theorem jalr_spec_same (rd : Reg) (v : Word) (offset : BitVec 12) (base : Addr)
 -- ============================================================================
 
 /-- MV rd, rs: rd := rs (pseudo for ADDI rd, rs, 0) -/
-theorem mv_spec (rd rs : Reg) (v v_old : Word) (base : Addr)
+theorem mv_spec (rd rs : Reg) (v v_old : Word) (base : Word)
     (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple base (base + 4) (CodeReq.singleton base (.MV rd rs))
       ((rs ↦ᵣ v) ** (rd ↦ᵣ v_old))
@@ -422,7 +422,7 @@ theorem mv_spec (rd rs : Reg) (v v_old : Word) (base : Addr)
     (by intro s hfetch; exact step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl))
 
 /-- LI rd, imm: rd := imm (pseudo for loading immediate) -/
-theorem li_spec (rd : Reg) (v_old imm : Word) (base : Addr)
+theorem li_spec (rd : Reg) (v_old imm : Word) (base : Word)
     (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple base (base + 4) (CodeReq.singleton base (.LI rd imm))
       (rd ↦ᵣ v_old)
@@ -432,7 +432,7 @@ theorem li_spec (rd : Reg) (v_old imm : Word) (base : Addr)
     (by intro s hfetch; exact step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl))
 
 /-- NOP: no operation (pseudo for ADDI x0, x0, 0) -/
-theorem nop_spec (base : Addr) :
+theorem nop_spec (base : Word) :
     cpsTriple base (base + 4) (CodeReq.singleton base .NOP)
       empAssertion
       empAssertion :=
@@ -445,7 +445,7 @@ theorem nop_spec (base : Addr) :
 -- ============================================================================
 
 /-- FENCE: memory fence (NOP in single-hart zkVM) -/
-theorem fence_spec (base : Addr) :
+theorem fence_spec (base : Word) :
     cpsTriple base (base + 4) (CodeReq.singleton base .FENCE)
       empAssertion
       empAssertion :=

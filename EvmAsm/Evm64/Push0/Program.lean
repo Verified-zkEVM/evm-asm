@@ -14,7 +14,7 @@ def evm_push0 : Program :=
   ADDI .x12 .x12 (-32) ;;
   SD .x12 .x0 0 ;; SD .x12 .x0 8 ;; SD .x12 .x0 16 ;; SD .x12 .x0 24
 
-abbrev evm_push0_code (base : Addr) : CodeReq :=
+abbrev evm_push0_code (base : Word) : CodeReq :=
   CodeReq.ofProg base evm_push0
 
 end EvmAsm.Rv64

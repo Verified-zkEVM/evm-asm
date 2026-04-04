@@ -16,12 +16,12 @@ namespace EvmAsm.Rv64
 
 /-- CodeReq for the 256-bit EVM NOT operation.
     12 instructions = 48 bytes. 4 per-limb XORI(-1) blocks. -/
-abbrev evm_not_code (base : Addr) : CodeReq :=
+abbrev evm_not_code (base : Word) : CodeReq :=
   CodeReq.ofProg base evm_not
 
 /-- Full 256-bit EVM NOT: composes 4 per-limb NOT specs.
     12 instructions total. Unary: complements each limb in-place, sp unchanged. -/
-theorem evm_not_spec (sp base : Addr)
+theorem evm_not_spec (sp base : Word)
     (a0 a1 a2 a3 : Word)
     (v7 : Word)
     (hvalid : ValidMemRange sp 4) :
@@ -49,7 +49,7 @@ theorem signExtend12_neg1_eq_allOnes : signExtend12 (-1 : BitVec 12) = BitVec.al
   native_decide
 
 /-- Stack-level 256-bit EVM NOT: complements an EvmWord in-place. -/
-theorem evm_not_stack_spec (sp base : Addr)
+theorem evm_not_stack_spec (sp base : Word)
     (a : EvmWord) (v7 : Word)
     (hvalid : ValidMemRange sp 4) :
     let c := signExtend12 (-1 : BitVec 12)

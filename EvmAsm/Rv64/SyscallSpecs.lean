@@ -29,7 +29,7 @@ namespace EvmAsm.Rv64
 -- ============================================================================
 
 @[spec_gen_rv64] theorem ld_spec_gen (rd rs1 : Reg) (v_addr v_old mem_val : Word)
-    (offset : BitVec 12) (addr : Addr)
+    (offset : BitVec 12) (addr : Word)
     (hrd_ne_x0 : rd ≠ .x0)
     (hvalid : isValidDwordAccess (v_addr + signExtend12 offset) = true) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.LD rd rs1 offset))
@@ -38,7 +38,7 @@ namespace EvmAsm.Rv64
   generic_ld_spec rd rs1 v_addr v_old mem_val offset addr hrd_ne_x0 hvalid
 
 @[spec_gen_rv64] theorem sd_spec_gen (rs1 rs2 : Reg) (v_addr v_data mem_old : Word)
-    (offset : BitVec 12) (addr : Addr)
+    (offset : BitVec 12) (addr : Word)
     (hvalid : isValidDwordAccess (v_addr + signExtend12 offset) = true) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.SD rs1 rs2 offset))
       ((rs1 ↦ᵣ v_addr) ** (rs2 ↦ᵣ v_data) ** ((v_addr + signExtend12 offset) ↦ₘ mem_old))
@@ -46,7 +46,7 @@ namespace EvmAsm.Rv64
   generic_sd_spec rs1 rs2 v_addr v_data mem_old offset addr hvalid
 
 @[spec_gen_rv64] theorem sd_spec_gen_own (rs1 rs2 : Reg) (v_addr v_data : Word)
-    (offset : BitVec 12) (addr : Addr)
+    (offset : BitVec 12) (addr : Word)
     (hvalid : isValidDwordAccess (v_addr + signExtend12 offset) = true) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.SD rs1 rs2 offset))
       ((rs1 ↦ᵣ v_addr) ** (rs2 ↦ᵣ v_data) ** memOwn (v_addr + signExtend12 offset))
@@ -65,7 +65,7 @@ namespace EvmAsm.Rv64
 -- ============================================================================
 
 @[spec_gen_rv64] theorem add_spec_gen_rd_eq_rs1 (rd rs2 : Reg) (v1 v2 : Word)
-    (addr : Addr) (hrd_ne_x0 : rd ≠ .x0) :
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.ADD rd rd rs2))
       ((rd ↦ᵣ v1) ** (rs2 ↦ᵣ v2))
       ((rd ↦ᵣ (v1 + v2)) ** (rs2 ↦ᵣ v2)) :=
@@ -74,7 +74,7 @@ namespace EvmAsm.Rv64
     (by intro s hfetch; exact step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem sub_spec_gen_rd_eq_rs1 (rd rs2 : Reg) (v1 v2 : Word)
-    (addr : Addr) (hrd_ne_x0 : rd ≠ .x0) :
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.SUB rd rd rs2))
       ((rd ↦ᵣ v1) ** (rs2 ↦ᵣ v2))
       ((rd ↦ᵣ (v1 - v2)) ** (rs2 ↦ᵣ v2)) :=
@@ -83,7 +83,7 @@ namespace EvmAsm.Rv64
     (by intro s hfetch; exact step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem and_spec_gen_rd_eq_rs1 (rd rs2 : Reg) (v1 v2 : Word)
-    (addr : Addr) (hrd_ne_x0 : rd ≠ .x0) :
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.AND rd rd rs2))
       ((rd ↦ᵣ v1) ** (rs2 ↦ᵣ v2))
       ((rd ↦ᵣ (v1 &&& v2)) ** (rs2 ↦ᵣ v2)) :=
@@ -92,7 +92,7 @@ namespace EvmAsm.Rv64
     (by intro s hfetch; exact step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem or_spec_gen_rd_eq_rs1 (rd rs2 : Reg) (v1 v2 : Word)
-    (addr : Addr) (hrd_ne_x0 : rd ≠ .x0) :
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.OR rd rd rs2))
       ((rd ↦ᵣ v1) ** (rs2 ↦ᵣ v2))
       ((rd ↦ᵣ (v1 ||| v2)) ** (rs2 ↦ᵣ v2)) :=
@@ -101,7 +101,7 @@ namespace EvmAsm.Rv64
     (by intro s hfetch; exact step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem xor_spec_gen_rd_eq_rs1 (rd rs2 : Reg) (v1 v2 : Word)
-    (addr : Addr) (hrd_ne_x0 : rd ≠ .x0) :
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.XOR rd rd rs2))
       ((rd ↦ᵣ v1) ** (rs2 ↦ᵣ v2))
       ((rd ↦ᵣ (v1 ^^^ v2)) ** (rs2 ↦ᵣ v2)) :=
@@ -110,7 +110,7 @@ namespace EvmAsm.Rv64
     (by intro s hfetch; exact step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem sltu_spec_gen_rd_eq_rs1 (rd rs2 : Reg) (v1 v2 : Word)
-    (addr : Addr) (hrd_ne_x0 : rd ≠ .x0) :
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.SLTU rd rd rs2))
       ((rd ↦ᵣ v1) ** (rs2 ↦ᵣ v2))
       ((rd ↦ᵣ (if BitVec.ult v1 v2 then (1 : Word) else 0)) ** (rs2 ↦ᵣ v2)) :=
@@ -119,7 +119,7 @@ namespace EvmAsm.Rv64
     (by intro s hfetch; exact step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem srl_spec_gen_rd_eq_rs1 (rd rs2 : Reg) (v1 v2 : Word)
-    (addr : Addr) (hrd_ne_x0 : rd ≠ .x0) :
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.SRL rd rd rs2))
       ((rd ↦ᵣ v1) ** (rs2 ↦ᵣ v2))
       ((rd ↦ᵣ (v1 >>> (v2.toNat % 64))) ** (rs2 ↦ᵣ v2)) :=
@@ -128,7 +128,7 @@ namespace EvmAsm.Rv64
     (by intro s hfetch; exact step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem sll_spec_gen_rd_eq_rs1 (rd rs2 : Reg) (v1 v2 : Word)
-    (addr : Addr) (hrd_ne_x0 : rd ≠ .x0) :
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.SLL rd rd rs2))
       ((rd ↦ᵣ v1) ** (rs2 ↦ᵣ v2))
       ((rd ↦ᵣ (v1 <<< (v2.toNat % 64))) ** (rs2 ↦ᵣ v2)) :=
@@ -137,7 +137,7 @@ namespace EvmAsm.Rv64
     (by intro s hfetch; exact step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem sra_spec_gen_rd_eq_rs1 (rd rs2 : Reg) (v1 v2 : Word)
-    (addr : Addr) (hrd_ne_x0 : rd ≠ .x0) :
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.SRA rd rd rs2))
       ((rd ↦ᵣ v1) ** (rs2 ↦ᵣ v2))
       ((rd ↦ᵣ (BitVec.sshiftRight v1 (v2.toNat % 64))) ** (rs2 ↦ᵣ v2)) :=
@@ -150,7 +150,7 @@ namespace EvmAsm.Rv64
 -- ============================================================================
 
 @[spec_gen_rv64] theorem addi_spec_gen_same (rd : Reg) (v : Word) (imm : BitVec 12)
-    (addr : Addr) (hrd_ne_x0 : rd ≠ .x0) :
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.ADDI rd rd imm))
       (rd ↦ᵣ v)
       (rd ↦ᵣ (v + signExtend12 imm)) :=
@@ -159,7 +159,7 @@ namespace EvmAsm.Rv64
     (by intro s hfetch; exact step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem addi_spec_gen (rd rs1 : Reg) (v_old v1 : Word) (imm : BitVec 12)
-    (addr : Addr) (hrd_ne_x0 : rd ≠ .x0) :
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.ADDI rd rs1 imm))
       ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ v_old))
       ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ (v1 + signExtend12 imm))) :=
@@ -168,7 +168,7 @@ namespace EvmAsm.Rv64
     (by intro s hfetch; exact step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem xori_spec_gen_same (rd : Reg) (v : Word) (imm : BitVec 12)
-    (addr : Addr) (hrd_ne_x0 : rd ≠ .x0) :
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.XORI rd rd imm))
       (rd ↦ᵣ v)
       (rd ↦ᵣ (v ^^^ signExtend12 imm)) :=
@@ -177,7 +177,7 @@ namespace EvmAsm.Rv64
     (by intro s hfetch; exact step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem andi_spec_gen (rd rs1 : Reg) (v_old v1 : Word) (imm : BitVec 12)
-    (addr : Addr) (hrd_ne_x0 : rd ≠ .x0) :
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.ANDI rd rs1 imm))
       ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ v_old))
       ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ (v1 &&& signExtend12 imm))) :=
@@ -186,7 +186,7 @@ namespace EvmAsm.Rv64
     (by intro s hfetch; exact step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem andi_spec_gen_same (rd : Reg) (v : Word) (imm : BitVec 12)
-    (addr : Addr) (hrd_ne_x0 : rd ≠ .x0) :
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.ANDI rd rd imm))
       (rd ↦ᵣ v)
       (rd ↦ᵣ (v &&& signExtend12 imm)) :=
@@ -195,7 +195,7 @@ namespace EvmAsm.Rv64
     (by intro s hfetch; exact step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem sltiu_spec_gen_same (rd : Reg) (v : Word) (imm : BitVec 12)
-    (addr : Addr) (hrd_ne_x0 : rd ≠ .x0) :
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.SLTIU rd rd imm))
       (rd ↦ᵣ v)
       (rd ↦ᵣ (if BitVec.ult v (signExtend12 imm) then (1 : Word) else (0 : Word))) :=
@@ -204,7 +204,7 @@ namespace EvmAsm.Rv64
     (by intro s hfetch; exact step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem slli_spec_gen_same (rd : Reg) (v : Word) (shamt : BitVec 6)
-    (addr : Addr) (hrd_ne_x0 : rd ≠ .x0) :
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.SLLI rd rd shamt))
       (rd ↦ᵣ v)
       (rd ↦ᵣ (v <<< shamt.toNat)) :=
@@ -213,7 +213,7 @@ namespace EvmAsm.Rv64
     (by intro s hfetch; exact step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem slli_spec_gen (rd rs1 : Reg) (v_old v1 : Word) (shamt : BitVec 6)
-    (addr : Addr) (hrd_ne_x0 : rd ≠ .x0) :
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.SLLI rd rs1 shamt))
       ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ v_old))
       ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ (v1 <<< shamt.toNat))) :=
@@ -222,7 +222,7 @@ namespace EvmAsm.Rv64
     (by intro s hfetch; exact step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem srli_spec_gen_same (rd : Reg) (v : Word) (shamt : BitVec 6)
-    (addr : Addr) (hrd_ne_x0 : rd ≠ .x0) :
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.SRLI rd rd shamt))
       (rd ↦ᵣ v)
       (rd ↦ᵣ (v >>> shamt.toNat)) :=
@@ -231,7 +231,7 @@ namespace EvmAsm.Rv64
     (by intro s hfetch; exact step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem srli_spec_gen (rd rs1 : Reg) (v_old v1 : Word) (shamt : BitVec 6)
-    (addr : Addr) (hrd_ne_x0 : rd ≠ .x0) :
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.SRLI rd rs1 shamt))
       ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ v_old))
       ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ (v1 >>> shamt.toNat))) :=
@@ -240,7 +240,7 @@ namespace EvmAsm.Rv64
     (by intro s hfetch; exact step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem srai_spec_gen_same (rd : Reg) (v : Word) (shamt : BitVec 6)
-    (addr : Addr) (hrd_ne_x0 : rd ≠ .x0) :
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.SRAI rd rd shamt))
       (rd ↦ᵣ v)
       (rd ↦ᵣ (BitVec.sshiftRight v shamt.toNat)) :=
@@ -249,7 +249,7 @@ namespace EvmAsm.Rv64
     (by intro s hfetch; exact step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem srai_spec_gen (rd rs1 : Reg) (v_old v1 : Word) (shamt : BitVec 6)
-    (addr : Addr) (hrd_ne_x0 : rd ≠ .x0) :
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.SRAI rd rs1 shamt))
       ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ v_old))
       ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ (BitVec.sshiftRight v1 shamt.toNat))) :=
@@ -261,7 +261,7 @@ namespace EvmAsm.Rv64
 -- Pseudo instructions
 -- ============================================================================
 
-@[spec_gen_rv64] theorem li_spec_gen (rd : Reg) (v_old imm : Word) (addr : Addr)
+@[spec_gen_rv64] theorem li_spec_gen (rd : Reg) (v_old imm : Word) (addr : Word)
     (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.LI rd imm))
       (rd ↦ᵣ v_old)
@@ -270,7 +270,7 @@ namespace EvmAsm.Rv64
     (by intro s _ _; simp [execInstrBr])
     (by intro s hfetch; exact step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl))
 
-@[spec_gen_rv64] theorem li_spec_gen_own (rd : Reg) (imm : Word) (addr : Addr)
+@[spec_gen_rv64] theorem li_spec_gen_own (rd : Reg) (imm : Word) (addr : Word)
     (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.LI rd imm))
       (regOwn rd)
@@ -282,7 +282,7 @@ namespace EvmAsm.Rv64
     ⟨h, hcompat, hPQ, hR_ps, hdisj, hunion, hv, hrR⟩
   exact li_spec_gen rd v imm addr hrd_ne_x0 R hR s hcr hPR' hpc
 
-@[spec_gen_rv64] theorem mv_spec_gen (rd rs : Reg) (v v_old : Word) (addr : Addr)
+@[spec_gen_rv64] theorem mv_spec_gen (rd rs : Reg) (v v_old : Word) (addr : Word)
     (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.MV rd rs))
       ((rs ↦ᵣ v) ** (rd ↦ᵣ v_old))
@@ -296,7 +296,7 @@ namespace EvmAsm.Rv64
 -- ============================================================================
 
 @[spec_gen_rv64] theorem bne_spec_gen (rs1 rs2 : Reg) (offset : BitVec 13) (v1 v2 : Word)
-    (addr : Addr) :
+    (addr : Word) :
     cpsBranch addr (CodeReq.singleton addr (.BNE rs1 rs2 offset))
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2))
       (addr + signExtend13 offset)
@@ -306,7 +306,7 @@ namespace EvmAsm.Rv64
   generic_bne_spec rs1 rs2 offset v1 v2 addr
 
 @[spec_gen_rv64] theorem beq_spec_gen (rs1 rs2 : Reg) (offset : BitVec 13) (v1 v2 : Word)
-    (addr : Addr) :
+    (addr : Word) :
     cpsBranch addr (CodeReq.singleton addr (.BEQ rs1 rs2 offset))
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2))
       (addr + signExtend13 offset)
@@ -316,7 +316,7 @@ namespace EvmAsm.Rv64
   generic_beq_spec rs1 rs2 offset v1 v2 addr
 
 @[spec_gen_rv64] theorem bltu_spec_gen (rs1 rs2 : Reg) (offset : BitVec 13) (v1 v2 : Word)
-    (addr : Addr) :
+    (addr : Word) :
     cpsBranch addr (CodeReq.singleton addr (.BLTU rs1 rs2 offset))
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2))
       (addr + signExtend13 offset)
@@ -326,7 +326,7 @@ namespace EvmAsm.Rv64
   generic_bltu_spec rs1 rs2 offset v1 v2 addr
 
 @[spec_gen_rv64] theorem bge_spec_gen (rs1 rs2 : Reg) (offset : BitVec 13) (v1 v2 : Word)
-    (addr : Addr) :
+    (addr : Word) :
     cpsBranch addr (CodeReq.singleton addr (.BGE rs1 rs2 offset))
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2))
       (addr + signExtend13 offset)
@@ -336,7 +336,7 @@ namespace EvmAsm.Rv64
   generic_bge_spec rs1 rs2 offset v1 v2 addr
 
 @[spec_gen_rv64] theorem blt_spec_gen (rs1 rs2 : Reg) (offset : BitVec 13) (v1 v2 : Word)
-    (addr : Addr) :
+    (addr : Word) :
     cpsBranch addr (CodeReq.singleton addr (.BLT rs1 rs2 offset))
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2))
       (addr + signExtend13 offset)
@@ -349,7 +349,7 @@ namespace EvmAsm.Rv64
 -- ECALL halt spec
 -- ============================================================================
 
-@[spec_gen_rv64] theorem ecall_halt_spec_gen (exitCode : Word) (addr : Addr) :
+@[spec_gen_rv64] theorem ecall_halt_spec_gen (exitCode : Word) (addr : Word) :
     cpsHaltTriple addr (CodeReq.singleton addr .ECALL)
       ((addr ↦ᵢ .ECALL) ** (.x5 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ exitCode))
       ((addr ↦ᵢ .ECALL) ** (.x5 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ exitCode)) := by
@@ -367,7 +367,7 @@ namespace EvmAsm.Rv64
 -- ============================================================================
 
 @[spec_gen_rv64] theorem slt_spec_gen (rd rs1 rs2 : Reg) (v_old v1 v2 : Word)
-    (addr : Addr) (hrd_ne_x0 : rd ≠ .x0) :
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.SLT rd rs1 rs2))
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** (rd ↦ᵣ v_old))
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** (rd ↦ᵣ (if BitVec.slt v1 v2 then (1 : Word) else 0))) :=
@@ -376,7 +376,7 @@ namespace EvmAsm.Rv64
     (by intro s hfetch; exact step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem sltu_spec_gen (rd rs1 rs2 : Reg) (v_old v1 v2 : Word)
-    (addr : Addr) (hrd_ne_x0 : rd ≠ .x0) :
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.SLTU rd rs1 rs2))
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** (rd ↦ᵣ v_old))
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** (rd ↦ᵣ (if BitVec.ult v1 v2 then (1 : Word) else 0))) :=
@@ -385,7 +385,7 @@ namespace EvmAsm.Rv64
     (by intro s hfetch; exact step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem sltu_spec_gen_rd_eq_rs2 (rd rs1 : Reg) (v1 v2 : Word)
-    (addr : Addr) (hrd_ne_x0 : rd ≠ .x0) :
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.SLTU rd rs1 rd))
       ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ v2))
       ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ (if BitVec.ult v1 v2 then (1 : Word) else 0))) :=
@@ -394,7 +394,7 @@ namespace EvmAsm.Rv64
     (by intro s hfetch; exact step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem or_spec_gen (rd rs1 rs2 : Reg) (v_old v1 v2 : Word)
-    (addr : Addr) (hrd_ne_x0 : rd ≠ .x0) :
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.OR rd rs1 rs2))
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** (rd ↦ᵣ v_old))
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** (rd ↦ᵣ (v1 ||| v2))) :=
@@ -407,7 +407,7 @@ namespace EvmAsm.Rv64
 -- ============================================================================
 
 @[spec_gen_rv64] theorem mul_spec_gen (rd rs1 rs2 : Reg) (v_old v1 v2 : Word)
-    (addr : Addr) (hrd_ne_x0 : rd ≠ .x0) :
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.MUL rd rs1 rs2))
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** (rd ↦ᵣ v_old))
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** (rd ↦ᵣ (v1 * v2))) :=
@@ -416,7 +416,7 @@ namespace EvmAsm.Rv64
     (by intro s hfetch; exact step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem mul_spec_gen_rd_eq_rs1 (rd rs2 : Reg) (v1 v2 : Word)
-    (addr : Addr) (hrd_ne_x0 : rd ≠ .x0) :
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.MUL rd rd rs2))
       ((rd ↦ᵣ v1) ** (rs2 ↦ᵣ v2))
       ((rd ↦ᵣ (v1 * v2)) ** (rs2 ↦ᵣ v2)) :=
@@ -425,7 +425,7 @@ namespace EvmAsm.Rv64
     (by intro s hfetch; exact step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem mulhu_spec_gen (rd rs1 rs2 : Reg) (v_old v1 v2 : Word)
-    (addr : Addr) (hrd_ne_x0 : rd ≠ .x0) :
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.MULHU rd rs1 rs2))
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** (rd ↦ᵣ v_old))
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** (rd ↦ᵣ rv64_mulhu v1 v2)) :=
@@ -434,7 +434,7 @@ namespace EvmAsm.Rv64
     (by intro s hfetch; exact step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem mulhu_spec_gen_rd_eq_rs1 (rd rs2 : Reg) (v1 v2 : Word)
-    (addr : Addr) (hrd_ne_x0 : rd ≠ .x0) :
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.MULHU rd rd rs2))
       ((rd ↦ᵣ v1) ** (rs2 ↦ᵣ v2))
       ((rd ↦ᵣ rv64_mulhu v1 v2) ** (rs2 ↦ᵣ v2)) :=
@@ -443,7 +443,7 @@ namespace EvmAsm.Rv64
     (by intro s hfetch; exact step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem mulhu_spec_gen_rd_eq_rs2 (rd rs1 : Reg) (v1 v2 : Word)
-    (addr : Addr) (hrd_ne_x0 : rd ≠ .x0) :
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.MULHU rd rs1 rd))
       ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ v2))
       ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ rv64_mulhu v1 v2)) :=
@@ -452,7 +452,7 @@ namespace EvmAsm.Rv64
     (by intro s hfetch; exact step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem mul_spec_gen_rd_eq_rs2 (rd rs1 : Reg) (v1 v2 : Word)
-    (addr : Addr) (hrd_ne_x0 : rd ≠ .x0) :
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.MUL rd rs1 rd))
       ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ v2))
       ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ (v1 * v2))) :=
@@ -465,7 +465,7 @@ namespace EvmAsm.Rv64
 -- ============================================================================
 
 @[spec_gen_rv64] theorem divu_spec_gen (rd rs1 rs2 : Reg) (v_old v1 v2 : Word)
-    (addr : Addr) (hrd_ne_x0 : rd ≠ .x0) :
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.DIVU rd rs1 rs2))
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** (rd ↦ᵣ v_old))
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** (rd ↦ᵣ rv64_divu v1 v2)) :=
@@ -474,7 +474,7 @@ namespace EvmAsm.Rv64
     (by intro s hfetch; exact step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem divu_spec_gen_rd_eq_rs1 (rd rs2 : Reg) (v1 v2 : Word)
-    (addr : Addr) (hrd_ne_x0 : rd ≠ .x0) :
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.DIVU rd rd rs2))
       ((rd ↦ᵣ v1) ** (rs2 ↦ᵣ v2))
       ((rd ↦ᵣ rv64_divu v1 v2) ** (rs2 ↦ᵣ v2)) :=
@@ -483,7 +483,7 @@ namespace EvmAsm.Rv64
     (by intro s hfetch; exact step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem remu_spec_gen (rd rs1 rs2 : Reg) (v_old v1 v2 : Word)
-    (addr : Addr) (hrd_ne_x0 : rd ≠ .x0) :
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.REMU rd rs1 rs2))
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** (rd ↦ᵣ v_old))
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** (rd ↦ᵣ rv64_remu v1 v2)) :=
@@ -492,7 +492,7 @@ namespace EvmAsm.Rv64
     (by intro s hfetch; exact step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem remu_spec_gen_rd_eq_rs1 (rd rs2 : Reg) (v1 v2 : Word)
-    (addr : Addr) (hrd_ne_x0 : rd ≠ .x0) :
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.REMU rd rd rs2))
       ((rd ↦ᵣ v1) ** (rs2 ↦ᵣ v2))
       ((rd ↦ᵣ rv64_remu v1 v2) ** (rs2 ↦ᵣ v2)) :=
@@ -501,7 +501,7 @@ namespace EvmAsm.Rv64
     (by intro s hfetch; exact step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem sub_spec_gen_rd_eq_rs2 (rd rs1 : Reg) (v1 v2 : Word)
-    (addr : Addr) (hrd_ne_x0 : rd ≠ .x0) :
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.SUB rd rs1 rd))
       ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ v2))
       ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ (v1 - v2))) :=
@@ -510,7 +510,7 @@ namespace EvmAsm.Rv64
     (by intro s hfetch; exact step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem sub_spec_gen (rd rs1 rs2 : Reg) (v1 v2 v_old : Word)
-    (addr : Addr) (hrd_ne_x0 : rd ≠ .x0) :
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.SUB rd rs1 rs2))
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** (rd ↦ᵣ v_old))
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** (rd ↦ᵣ (v1 - v2))) :=
@@ -519,7 +519,7 @@ namespace EvmAsm.Rv64
     (by intro s hfetch; exact step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem sltiu_spec_gen (rd rs1 : Reg) (v_old v1 : Word) (imm : BitVec 12)
-    (addr : Addr) (hrd_ne_x0 : rd ≠ .x0) :
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.SLTIU rd rs1 imm))
       ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ v_old))
       ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ (if BitVec.ult v1 (signExtend12 imm) then (1 : Word) else (0 : Word)))) :=
@@ -531,7 +531,7 @@ namespace EvmAsm.Rv64
     Specialized version of sd_spec_gen for x0 (always reads as 0).
     Does not require (x0 ↦ᵣ 0) in pre/post. -/
 @[spec_gen_rv64] theorem sd_x0_spec_gen (rs1 : Reg) (v_addr mem_old : Word)
-    (offset : BitVec 12) (addr : Addr)
+    (offset : BitVec 12) (addr : Word)
     (hvalid : isValidDwordAccess (v_addr + signExtend12 offset) = true) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.SD rs1 .x0 offset))
       ((rs1 ↦ᵣ v_addr) ** ((v_addr + signExtend12 offset) ↦ₘ mem_old))
@@ -543,7 +543,7 @@ namespace EvmAsm.Rv64
 -- ============================================================================
 
 @[spec_gen_rv64] theorem srl_spec_gen (rd rs1 rs2 : Reg) (v_old v1 v2 : Word)
-    (addr : Addr) (hrd_ne_x0 : rd ≠ .x0) :
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.SRL rd rs1 rs2))
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** (rd ↦ᵣ v_old))
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** (rd ↦ᵣ (v1 >>> (v2.toNat % 64)))) :=
@@ -552,7 +552,7 @@ namespace EvmAsm.Rv64
     (by intro s hfetch; exact step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem sll_spec_gen (rd rs1 rs2 : Reg) (v_old v1 v2 : Word)
-    (addr : Addr) (hrd_ne_x0 : rd ≠ .x0) :
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.SLL rd rs1 rs2))
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** (rd ↦ᵣ v_old))
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** (rd ↦ᵣ (v1 <<< (v2.toNat % 64)))) :=
@@ -561,7 +561,7 @@ namespace EvmAsm.Rv64
     (by intro s hfetch; exact step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem add_spec_gen_rd_eq_rs2 (rd rs1 : Reg) (v1 v2 : Word)
-    (addr : Addr) (hrd_ne_x0 : rd ≠ .x0) :
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.ADD rd rs1 rd))
       ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ v2))
       ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ (v1 + v2))) :=
@@ -570,7 +570,7 @@ namespace EvmAsm.Rv64
     (by intro s hfetch; exact step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem add_spec_gen (rd rs1 rs2 : Reg) (v1 v2 v_old : Word)
-    (addr : Addr) (hrd_ne_x0 : rd ≠ .x0) :
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.ADD rd rs1 rs2))
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** (rd ↦ᵣ v_old))
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** (rd ↦ᵣ (v1 + v2))) :=
@@ -585,7 +585,7 @@ namespace EvmAsm.Rv64
 /-- ADDI rd x0 imm: rd := signExtend12 imm. Clean version without (0 + signExtend12 imm).
     Requires (.x0 ↦ᵣ 0) in frame. -/
 @[spec_gen_rv64] theorem addi_x0_spec_gen (rd : Reg) (v_old : Word) (imm : BitVec 12)
-    (addr : Addr) (hrd_ne_x0 : rd ≠ .x0) :
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.ADDI rd .x0 imm))
       ((.x0 ↦ᵣ (0 : Word)) ** (rd ↦ᵣ v_old))
       ((.x0 ↦ᵣ (0 : Word)) ** (rd ↦ᵣ (signExtend12 imm))) := by
@@ -598,7 +598,7 @@ namespace EvmAsm.Rv64
 -- ============================================================================
 
 @[spec_gen_rv64] theorem ld_spec_gen_same (rd : Reg) (v_addr mem_val : Word)
-    (offset : BitVec 12) (addr : Addr)
+    (offset : BitVec 12) (addr : Word)
     (hrd_ne_x0 : rd ≠ .x0)
     (hvalid : isValidDwordAccess (v_addr + signExtend12 offset) = true) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.LD rd rd offset))
@@ -611,14 +611,14 @@ namespace EvmAsm.Rv64
 -- ============================================================================
 
 @[spec_gen_rv64] theorem ori_spec_gen_same (rd : Reg) (v : Word) (imm : BitVec 12)
-    (addr : Addr) (hrd_ne_x0 : rd ≠ .x0) :
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.ORI rd rd imm))
       (rd ↦ᵣ v)
       (rd ↦ᵣ (v ||| signExtend12 imm)) :=
   ori_spec_same rd v imm addr hrd_ne_x0
 
 @[spec_gen_rv64] theorem ori_spec_gen (rd rs1 : Reg) (v_old v1 : Word) (imm : BitVec 12)
-    (addr : Addr) (hrd_ne_x0 : rd ≠ .x0) :
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.ORI rd rs1 imm))
       ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ v_old))
       ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ (v1 ||| signExtend12 imm))) :=
@@ -629,14 +629,14 @@ namespace EvmAsm.Rv64
 -- ============================================================================
 
 @[spec_gen_rv64] theorem slti_spec_gen_same (rd : Reg) (v : Word) (imm : BitVec 12)
-    (addr : Addr) (hrd_ne_x0 : rd ≠ .x0) :
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.SLTI rd rd imm))
       (rd ↦ᵣ v)
       (rd ↦ᵣ (if BitVec.slt v (signExtend12 imm) then 1 else 0)) :=
   slti_spec_same rd v imm addr hrd_ne_x0
 
 @[spec_gen_rv64] theorem slti_spec_gen (rd rs1 : Reg) (v_old v1 : Word) (imm : BitVec 12)
-    (addr : Addr) (hrd_ne_x0 : rd ≠ .x0) :
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.SLTI rd rs1 imm))
       ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ v_old))
       ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ (if BitVec.slt v1 (signExtend12 imm) then 1 else 0))) :=
@@ -647,14 +647,14 @@ namespace EvmAsm.Rv64
 -- ============================================================================
 
 @[spec_gen_rv64] theorem addiw_spec_gen_same (rd : Reg) (v : Word) (imm : BitVec 12)
-    (addr : Addr) (hrd_ne_x0 : rd ≠ .x0) :
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.ADDIW rd rd imm))
       (rd ↦ᵣ v)
       (rd ↦ᵣ ((v.truncate 32 + (signExtend12 imm).truncate 32 : BitVec 32).signExtend 64)) :=
   addiw_spec_same rd v imm addr hrd_ne_x0
 
 @[spec_gen_rv64] theorem addiw_spec_gen (rd rs1 : Reg) (v_old v1 : Word) (imm : BitVec 12)
-    (addr : Addr) (hrd_ne_x0 : rd ≠ .x0) :
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.ADDIW rd rs1 imm))
       ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ v_old))
       ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ ((v1.truncate 32 + (signExtend12 imm).truncate 32 : BitVec 32).signExtend 64))) :=
@@ -665,7 +665,7 @@ namespace EvmAsm.Rv64
 -- ============================================================================
 
 @[spec_gen_rv64] theorem bgeu_spec_gen (rs1 rs2 : Reg) (offset : BitVec 13) (v1 v2 : Word)
-    (addr : Addr) :
+    (addr : Word) :
     cpsBranch addr (CodeReq.singleton addr (.BGEU rs1 rs2 offset))
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2))
       (addr + signExtend13 offset)
@@ -679,22 +679,22 @@ namespace EvmAsm.Rv64
 -- ============================================================================
 
 @[spec_gen_rv64] theorem lui_spec_gen (rd : Reg) (v_old : Word) (imm : BitVec 20)
-    (addr : Addr) (hrd_ne_x0 : rd ≠ .x0) :
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.LUI rd imm))
       (rd ↦ᵣ v_old)
       (rd ↦ᵣ ((imm.zeroExtend 32 : BitVec 32) <<< 12).signExtend 64) :=
   lui_spec rd v_old imm addr hrd_ne_x0
 
 @[spec_gen_rv64] theorem auipc_spec_gen (rd : Reg) (v_old : Word) (imm : BitVec 20)
-    (addr : Addr) (hrd_ne_x0 : rd ≠ .x0) :
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.AUIPC rd imm))
       (rd ↦ᵣ v_old)
       (rd ↦ᵣ (addr + ((imm.zeroExtend 32 : BitVec 32) <<< 12).signExtend 64)) :=
   auipc_spec rd v_old imm addr hrd_ne_x0
 
 @[spec_gen_rv64] theorem lbu_spec_gen (rd rs1 : Reg) (v_addr v_old : Word)
-    (offset : BitVec 12) (addr : Addr)
-    (dwordAddr : Addr) (word_val : Word)
+    (offset : BitVec 12) (addr : Word)
+    (dwordAddr : Word) (word_val : Word)
     (hrd_ne_x0 : rd ≠ .x0)
     (hrd_ne_rs1 : rd ≠ rs1)
     (halign : alignToDword (v_addr + signExtend12 offset) = dwordAddr)
@@ -709,8 +709,8 @@ namespace EvmAsm.Rv64
     hrd_ne_x0 hrd_ne_rs1 halign hvalid
 
 @[spec_gen_rv64] theorem lb_spec_gen (rd rs1 : Reg) (v_addr v_old : Word)
-    (offset : BitVec 12) (addr : Addr)
-    (dwordAddr : Addr) (word_val : Word)
+    (offset : BitVec 12) (addr : Word)
+    (dwordAddr : Word) (word_val : Word)
     (hrd_ne_x0 : rd ≠ .x0)
     (hrd_ne_rs1 : rd ≠ rs1)
     (halign : alignToDword (v_addr + signExtend12 offset) = dwordAddr)
@@ -725,8 +725,8 @@ namespace EvmAsm.Rv64
     hrd_ne_x0 hrd_ne_rs1 halign hvalid
 
 @[spec_gen_rv64] theorem sb_spec_gen (rs1 rs2 : Reg) (v_addr v_data : Word)
-    (offset : BitVec 12) (addr : Addr)
-    (dwordAddr : Addr) (word_old : Word)
+    (offset : BitVec 12) (addr : Word)
+    (dwordAddr : Word) (word_old : Word)
     (hne : rs1 ≠ rs2)
     (halign : alignToDword (v_addr + signExtend12 offset) = dwordAddr)
     (hvalid : isValidByteAccess (v_addr + signExtend12 offset) = true) :
@@ -743,7 +743,7 @@ namespace EvmAsm.Rv64
 -- ============================================================================
 
 @[spec_gen_rv64] theorem mulh_spec_gen (rd rs1 rs2 : Reg) (v_old v1 v2 : Word)
-    (addr : Addr) (hrd_ne_x0 : rd ≠ .x0) :
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.MULH rd rs1 rs2))
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** (rd ↦ᵣ v_old))
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** (rd ↦ᵣ rv64_mulh v1 v2)) :=
@@ -752,7 +752,7 @@ namespace EvmAsm.Rv64
     (by intro s hfetch; exact step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem mulh_spec_gen_rd_eq_rs1 (rd rs2 : Reg) (v1 v2 : Word)
-    (addr : Addr) (hrd_ne_x0 : rd ≠ .x0) :
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.MULH rd rd rs2))
       ((rd ↦ᵣ v1) ** (rs2 ↦ᵣ v2))
       ((rd ↦ᵣ rv64_mulh v1 v2) ** (rs2 ↦ᵣ v2)) :=
@@ -761,7 +761,7 @@ namespace EvmAsm.Rv64
     (by intro s hfetch; exact step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem mulhsu_spec_gen (rd rs1 rs2 : Reg) (v_old v1 v2 : Word)
-    (addr : Addr) (hrd_ne_x0 : rd ≠ .x0) :
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.MULHSU rd rs1 rs2))
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** (rd ↦ᵣ v_old))
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** (rd ↦ᵣ rv64_mulhsu v1 v2)) :=
@@ -770,7 +770,7 @@ namespace EvmAsm.Rv64
     (by intro s hfetch; exact step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem mulhsu_spec_gen_rd_eq_rs1 (rd rs2 : Reg) (v1 v2 : Word)
-    (addr : Addr) (hrd_ne_x0 : rd ≠ .x0) :
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.MULHSU rd rd rs2))
       ((rd ↦ᵣ v1) ** (rs2 ↦ᵣ v2))
       ((rd ↦ᵣ rv64_mulhsu v1 v2) ** (rs2 ↦ᵣ v2)) :=
@@ -779,7 +779,7 @@ namespace EvmAsm.Rv64
     (by intro s hfetch; exact step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem div_spec_gen (rd rs1 rs2 : Reg) (v_old v1 v2 : Word)
-    (addr : Addr) (hrd_ne_x0 : rd ≠ .x0) :
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.DIV rd rs1 rs2))
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** (rd ↦ᵣ v_old))
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** (rd ↦ᵣ rv64_div v1 v2)) :=
@@ -788,7 +788,7 @@ namespace EvmAsm.Rv64
     (by intro s hfetch; exact step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem div_spec_gen_rd_eq_rs1 (rd rs2 : Reg) (v1 v2 : Word)
-    (addr : Addr) (hrd_ne_x0 : rd ≠ .x0) :
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.DIV rd rd rs2))
       ((rd ↦ᵣ v1) ** (rs2 ↦ᵣ v2))
       ((rd ↦ᵣ rv64_div v1 v2) ** (rs2 ↦ᵣ v2)) :=
@@ -797,7 +797,7 @@ namespace EvmAsm.Rv64
     (by intro s hfetch; exact step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem rem_spec_gen (rd rs1 rs2 : Reg) (v_old v1 v2 : Word)
-    (addr : Addr) (hrd_ne_x0 : rd ≠ .x0) :
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.REM rd rs1 rs2))
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** (rd ↦ᵣ v_old))
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** (rd ↦ᵣ rv64_rem v1 v2)) :=
@@ -806,7 +806,7 @@ namespace EvmAsm.Rv64
     (by intro s hfetch; exact step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem rem_spec_gen_rd_eq_rs1 (rd rs2 : Reg) (v1 v2 : Word)
-    (addr : Addr) (hrd_ne_x0 : rd ≠ .x0) :
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.REM rd rd rs2))
       ((rd ↦ᵣ v1) ** (rs2 ↦ᵣ v2))
       ((rd ↦ᵣ rv64_rem v1 v2) ** (rs2 ↦ᵣ v2)) :=
@@ -819,8 +819,8 @@ namespace EvmAsm.Rv64
 -- ============================================================================
 
 @[spec_gen_rv64] theorem lhu_spec_gen (rd rs1 : Reg) (v_addr v_old : Word)
-    (offset : BitVec 12) (addr : Addr)
-    (dwordAddr : Addr) (word_val : Word)
+    (offset : BitVec 12) (addr : Word)
+    (dwordAddr : Word) (word_val : Word)
     (hrd_ne_x0 : rd ≠ .x0)
     (hrd_ne_rs1 : rd ≠ rs1)
     (halign : alignToDword (v_addr + signExtend12 offset) = dwordAddr)
@@ -835,8 +835,8 @@ namespace EvmAsm.Rv64
     hrd_ne_x0 hrd_ne_rs1 halign hvalid
 
 @[spec_gen_rv64] theorem lh_spec_gen (rd rs1 : Reg) (v_addr v_old : Word)
-    (offset : BitVec 12) (addr : Addr)
-    (dwordAddr : Addr) (word_val : Word)
+    (offset : BitVec 12) (addr : Word)
+    (dwordAddr : Word) (word_val : Word)
     (hrd_ne_x0 : rd ≠ .x0)
     (hrd_ne_rs1 : rd ≠ rs1)
     (halign : alignToDword (v_addr + signExtend12 offset) = dwordAddr)
@@ -851,8 +851,8 @@ namespace EvmAsm.Rv64
     hrd_ne_x0 hrd_ne_rs1 halign hvalid
 
 @[spec_gen_rv64] theorem sh_spec_gen (rs1 rs2 : Reg) (v_addr v_data : Word)
-    (offset : BitVec 12) (addr : Addr)
-    (dwordAddr : Addr) (word_old : Word)
+    (offset : BitVec 12) (addr : Word)
+    (dwordAddr : Word) (word_old : Word)
     (hne : rs1 ≠ rs2)
     (halign : alignToDword (v_addr + signExtend12 offset) = dwordAddr)
     (hvalid : isValidHalfwordAccess (v_addr + signExtend12 offset) = true) :
@@ -869,8 +869,8 @@ namespace EvmAsm.Rv64
 -- ============================================================================
 
 @[spec_gen_rv64] theorem lwu_spec_gen (rd rs1 : Reg) (v_addr v_old : Word)
-    (offset : BitVec 12) (addr : Addr)
-    (dwordAddr : Addr) (word_val : Word)
+    (offset : BitVec 12) (addr : Word)
+    (dwordAddr : Word) (word_val : Word)
     (hrd_ne_x0 : rd ≠ .x0)
     (hrd_ne_rs1 : rd ≠ rs1)
     (halign : alignToDword (v_addr + signExtend12 offset) = dwordAddr)
@@ -885,8 +885,8 @@ namespace EvmAsm.Rv64
     hrd_ne_x0 hrd_ne_rs1 halign hvalid
 
 @[spec_gen_rv64] theorem lw_spec_gen (rd rs1 : Reg) (v_addr v_old : Word)
-    (offset : BitVec 12) (addr : Addr)
-    (dwordAddr : Addr) (word_val : Word)
+    (offset : BitVec 12) (addr : Word)
+    (dwordAddr : Word) (word_val : Word)
     (hrd_ne_x0 : rd ≠ .x0)
     (hrd_ne_rs1 : rd ≠ rs1)
     (halign : alignToDword (v_addr + signExtend12 offset) = dwordAddr)
@@ -901,8 +901,8 @@ namespace EvmAsm.Rv64
     hrd_ne_x0 hrd_ne_rs1 halign hvalid
 
 @[spec_gen_rv64] theorem sw_spec_gen (rs1 rs2 : Reg) (v_addr v_data : Word)
-    (offset : BitVec 12) (addr : Addr)
-    (dwordAddr : Addr) (word_old : Word)
+    (offset : BitVec 12) (addr : Word)
+    (dwordAddr : Word) (word_old : Word)
     (hne : rs1 ≠ rs2)
     (halign : alignToDword (v_addr + signExtend12 offset) = dwordAddr)
     (hvalid : isValidMemAccess (v_addr + signExtend12 offset) = true) :

@@ -25,7 +25,7 @@ def evm_swap (n : Nat) : Program :=
 
 /-- CodeReq for generic SWAPn: 16 instructions = 64 bytes.
     Built as an explicit union chain because symbolic n prevents ofProg reduction. -/
-abbrev evm_swap_code (base : Addr) (n : Nat) : CodeReq :=
+abbrev evm_swap_code (base : Word) (n : Nat) : CodeReq :=
   -- Limb 0
   CodeReq.singleton base (.LD .x7 .x12 (BitVec.ofNat 12 0))
   |>.union (CodeReq.singleton (base + 4)  (.LD .x6 .x12 (BitVec.ofNat 12 (n*32))))

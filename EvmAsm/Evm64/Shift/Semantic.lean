@@ -22,7 +22,7 @@ private theorem regIs_to_regOwn' (r : Reg) (v : Word) : ∀ h, (r ↦ᵣ v) h �
   fun _ hp => ⟨v, hp⟩
 
 /-- Weaken: zero-result + frame regs → evmWordIs 0 + regOwn. -/
-private theorem shr_zero_evmWord_weaken (sp : Addr) (s0 s1 s2 s3 r6 r7 r11 : Word) :
+private theorem shr_zero_evmWord_weaken (sp : Word) (s0 s1 s2 s3 r6 r7 r11 : Word) :
     ∀ h,
     ((.x12 ↦ᵣ (sp + 32)) ** (regOwn .x5) ** (.x0 ↦ᵣ (0 : Word)) ** (regOwn .x10) **
      (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3) **
@@ -55,7 +55,7 @@ private theorem shr_zero_evmWord_weaken (sp : Addr) (s0 s1 s2 s3 r6 r7 r11 : Wor
 
 /-- Compose one zero-path case into evmWordIs form.
     Shared proof structure for both high-limbs and s0≥256 cases. -/
-private theorem shr_zero_lift (sp base : Addr)
+private theorem shr_zero_lift (sp base : Word)
     (shift value : EvmWord) (r5 r6 r7 r10 r11 : Word)
     (_hvalid : ValidMemRange sp 8)
     (hmain : cpsTriple base (base + 360) (shrCode base)
@@ -101,16 +101,16 @@ private theorem shr_zero_lift (sp base : Addr)
   exact cpsTriple_consequence _ _ _ _ _ _ _
     (fun h hp => by
       simp only [evmWordIs] at hp
-      have ha40 : (sp + 32 : Addr) + 8 = sp + 40 := by bv_omega
-      have ha48 : (sp + 32 : Addr) + 16 = sp + 48 := by bv_omega
-      have ha56 : (sp + 32 : Addr) + 24 = sp + 56 := by bv_omega
+      have ha40 : (sp + 32 : Word) + 8 = sp + 40 := by bv_omega
+      have ha48 : (sp + 32 : Word) + 16 = sp + 48 := by bv_omega
+      have ha56 : (sp + 32 : Word) + 24 = sp + 56 := by bv_omega
       simp only [ha40, ha48, ha56] at hp
       xperm_hyp hp)
     (fun h hq => by
       simp only [evmWordIs, EvmWord.getLimb_zero]
-      have ha40 : (sp + 32 : Addr) + 8 = sp + 40 := by bv_omega
-      have ha48 : (sp + 32 : Addr) + 16 = sp + 48 := by bv_omega
-      have ha56 : (sp + 32 : Addr) + 24 = sp + 56 := by bv_omega
+      have ha40 : (sp + 32 : Word) + 8 = sp + 40 := by bv_omega
+      have ha48 : (sp + 32 : Word) + 16 = sp + 48 := by bv_omega
+      have ha56 : (sp + 32 : Word) + 24 = sp + 56 := by bv_omega
       simp only [ha40, ha48, ha56]
       have hq' : ((.x12 ↦ᵣ (sp + 32)) ** (regOwn .x5) ** (.x0 ↦ᵣ (0 : Word)) ** (regOwn .x10) **
          (sp ↦ₘ shift.getLimb 0) ** ((sp + 8) ↦ₘ shift.getLimb 1) **
@@ -130,7 +130,7 @@ set_option maxHeartbeats 1600000 in
 /-- **Main SHR theorem**: `evm_shr` computes the 256-bit logical right shift.
     Given shift and value as EvmWords on the stack, produces
     `if shift.toNat ≥ 256 then 0 else value >>> shift.toNat`. -/
-theorem evm_shr_stack_spec (sp base : Addr)
+theorem evm_shr_stack_spec (sp base : Word)
     (shift value : EvmWord) (r5 r6 r7 r10 r11 : Word)
     (hvalid : ValidMemRange sp 8) :
     let result := if shift.toNat ≥ 256 then 0 else value >>> shift.toNat

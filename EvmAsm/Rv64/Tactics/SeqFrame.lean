@@ -182,7 +182,7 @@ private def extractBaseAndOffset (e : Expr) : Option (Expr × Option Expr × Nat
     Falls back to `bv_omega` when the pattern doesn't match.
     ~100x faster than bv_omega for the common case (base + k1 ≠ base + k2). -/
 private def proveAddrNe (a1 a2 : Expr) : MetaM Expr := do
-  let addrType := mkConst ``EvmAsm.Rv64.Addr
+  let addrType := mkConst ``EvmAsm.Rv64.Word
   -- Try offset-based fast path
   if let some (base1, off1, k1) := extractBaseAndOffset a1 then
     if let some (base2, off2, k2) := extractBaseAndOffset a2 then
@@ -1060,7 +1060,7 @@ elab "crMono" : tactic => do
   let goal ← getMainGoal
   let _goalType ← instantiateMVars (← goal.getType)
   -- Extract cr1 and cr2 from ∀ a i, cr1 a = some i → cr2 a = some i
-  -- The type should be a pi: ∀ (a : Addr) (i : Instr), cr1 a = some i → cr2 a = some i
+  -- The type should be a pi: ∀ (a : Word) (i : Instr), cr1 a = some i → cr2 a = some i
   -- buildMonoProof handles this structurally
   -- Fall back to tactic: intro a i h; simp ... at h ⊢; split at h <;> simp_all <;> bv_omega
   let stx ← `(tactic| intro a i h; simp only [EvmAsm.Rv64.CodeReq.singleton, EvmAsm.Rv64.CodeReq.union] at *; (first | simp_all | (split at h <;> simp_all <;> bv_omega)))

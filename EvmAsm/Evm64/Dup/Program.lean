@@ -24,7 +24,7 @@ def evm_dup (n : Nat) : Program :=
 
 /-- CodeReq for generic DUPn: 9 instructions = 36 bytes.
     Built as an explicit union chain because symbolic n prevents ofProg reduction. -/
-abbrev evm_dup_code (base : Addr) (n : Nat) : CodeReq :=
+abbrev evm_dup_code (base : Word) (n : Nat) : CodeReq :=
   CodeReq.singleton base (.ADDI .x12 .x12 (-32))
   |>.union (CodeReq.singleton (base + 4)  (.LD .x7 .x12 (BitVec.ofNat 12 (n*32))))
   |>.union (CodeReq.singleton (base + 8)  (.SD .x12 .x7 (BitVec.ofNat 12 0)))

@@ -53,8 +53,8 @@ end Reg
 /-- We use 64-bit words as our machine word size. -/
 abbrev Word := BitVec 64
 
-/-- Memory addresses are words. -/
-abbrev Addr := Word
+-- Note: Addr was previously a separate abbrev but has been unified with Word
+-- to avoid Expr.hash mismatches in the xperm tactic (Addr vs Word vs BitVec 64).
 
 -- ============================================================================
 -- Instructions (RV64IM)
@@ -198,71 +198,71 @@ def MEM_START : Nat := 0x20
 def MEM_END : Nat := 0x78000000
 
 /-- Address is 8-byte aligned (doubleword). -/
-def isAligned8 (addr : Addr) : Bool := addr.toNat % 8 == 0
+def isAligned8 (addr : Word) : Bool := addr.toNat % 8 == 0
 
 /-- Address is 4-byte aligned. -/
-def isAligned4 (addr : Addr) : Bool := addr.toNat % 4 == 0
+def isAligned4 (addr : Word) : Bool := addr.toNat % 4 == 0
 
 /-- Address is in valid memory range. -/
-def isValidMemAddr (addr : Addr) : Bool :=
+def isValidMemAddr (addr : Word) : Bool :=
   decide (MEM_START ≤ addr.toNat) && decide (addr.toNat ≤ MEM_END)
 
 /-- Valid doubleword memory access: in range AND 8-byte aligned. -/
-def isValidDwordAccess (addr : Addr) : Bool :=
+def isValidDwordAccess (addr : Word) : Bool :=
   isValidMemAddr addr && isAligned8 addr
 
 /-- Valid word-size memory access: in range AND 4-byte aligned. -/
-def isValidMemAccess (addr : Addr) : Bool :=
+def isValidMemAccess (addr : Word) : Bool :=
   isValidMemAddr addr && isAligned4 addr
 
-@[simp] theorem isValidDwordAccess_eq (addr : Addr) :
+@[simp] theorem isValidDwordAccess_eq (addr : Word) :
     isValidDwordAccess addr = (isValidMemAddr addr && isAligned8 addr) := rfl
 
-@[simp] theorem isValidMemAccess_eq (addr : Addr) :
+@[simp] theorem isValidMemAccess_eq (addr : Word) :
     isValidMemAccess addr = (isValidMemAddr addr && isAligned4 addr) := rfl
 
-@[simp] theorem isValidMemAddr_eq (addr : Addr) :
+@[simp] theorem isValidMemAddr_eq (addr : Word) :
     isValidMemAddr addr = (decide (MEM_START ≤ addr.toNat) && decide (addr.toNat ≤ MEM_END)) := rfl
 
-@[simp] theorem isAligned8_eq (addr : Addr) :
+@[simp] theorem isAligned8_eq (addr : Word) :
     isAligned8 addr = (addr.toNat % 8 == 0) := rfl
 
-@[simp] theorem isAligned4_eq (addr : Addr) :
+@[simp] theorem isAligned4_eq (addr : Word) :
     isAligned4 addr = (addr.toNat % 4 == 0) := rfl
 
 /-- Address is 2-byte aligned. -/
-def isAligned2 (addr : Addr) : Bool := addr.toNat % 2 == 0
+def isAligned2 (addr : Word) : Bool := addr.toNat % 2 == 0
 
 /-- Valid halfword memory access: in range AND 2-byte aligned. -/
-def isValidHalfwordAccess (addr : Addr) : Bool :=
+def isValidHalfwordAccess (addr : Word) : Bool :=
   isValidMemAddr addr && isAligned2 addr
 
 /-- Valid byte memory access: in range (bytes need no alignment). -/
-def isValidByteAccess (addr : Addr) : Bool :=
+def isValidByteAccess (addr : Word) : Bool :=
   isValidMemAddr addr
 
-@[simp] theorem isAligned2_eq (addr : Addr) :
+@[simp] theorem isAligned2_eq (addr : Word) :
     isAligned2 addr = (addr.toNat % 2 == 0) := rfl
 
-@[simp] theorem isValidHalfwordAccess_eq (addr : Addr) :
+@[simp] theorem isValidHalfwordAccess_eq (addr : Word) :
     isValidHalfwordAccess addr = (isValidMemAddr addr && isAligned2 addr) := rfl
 
-@[simp] theorem isValidByteAccess_eq (addr : Addr) :
+@[simp] theorem isValidByteAccess_eq (addr : Word) :
     isValidByteAccess addr = isValidMemAddr addr := rfl
 
 /-- ValidMemRange addr n holds when n consecutive doubleword-aligned memory accesses
     starting at addr are all valid. -/
-def ValidMemRange (addr : Addr) (n : Nat) : Prop :=
+def ValidMemRange (addr : Word) (n : Nat) : Prop :=
   ∀ (i : Nat), i < n → isValidDwordAccess (addr + BitVec.ofNat 64 (8 * i)) = true
 
 /-- Extract a single validity fact from ValidMemRange. -/
-theorem ValidMemRange.get {addr : Addr} {n : Nat}
+theorem ValidMemRange.get {addr : Word} {n : Nat}
     (h : ValidMemRange addr n) {i : Nat} (hi : i < n) :
     isValidDwordAccess (addr + BitVec.ofNat 64 (8 * i)) = true := h i hi
 
 /-- Extract a single validity fact from ValidMemRange with address normalization. -/
-theorem ValidMemRange.fetch {addr : Addr} {n : Nat}
-    (h : ValidMemRange addr n) (i : Nat) (target : Addr)
+theorem ValidMemRange.fetch {addr : Word} {n : Nat}
+    (h : ValidMemRange addr n) (i : Nat) (target : Word)
     (hi : i < n)
     (haddr : addr + BitVec.ofNat 64 (8 * i) = target) :
     isValidDwordAccess target = true := by
@@ -296,10 +296,10 @@ def replaceWord32 (w : Word) (pos : Nat) (v : BitVec 32) : Word :=
   (w &&& mask) ||| ((v.zeroExtend 64) <<< (pos * 32))
 
 /-- Align an address down to the nearest 8-byte boundary. -/
-def alignToDword (addr : Addr) : Addr := addr &&& ~~~7#64
+def alignToDword (addr : Word) : Word := addr &&& ~~~7#64
 
 /-- Get the byte offset within a doubleword (0-7). -/
-def byteOffset (addr : Addr) : Nat := (addr &&& 7#64).toNat
+def byteOffset (addr : Word) : Nat := (addr &&& 7#64).toNat
 
 -- ============================================================================
 -- Machine State
@@ -311,9 +311,9 @@ structure MachineState where
   /-- Register file: maps register to its value -/
   regs : Reg → Word
   /-- Doubleword-addressable memory -/
-  mem  : Addr → Word
+  mem  : Word → Word
   /-- Code memory: maps addresses to instructions -/
-  code : Addr → Option Instr := fun _ => none
+  code : Word → Option Instr := fun _ => none
   /-- Program counter -/
   pc   : Word
   /-- Committed public outputs (a0, a1) from COMMIT syscalls -/
@@ -338,11 +338,11 @@ def setReg (s : MachineState) (r : Reg) (v : Word) : MachineState :=
   | _   => { s with regs := fun r' => if r' == r then v else s.regs r' }
 
 /-- Read memory at an address. -/
-def getMem (s : MachineState) (a : Addr) : Word :=
+def getMem (s : MachineState) (a : Word) : Word :=
   s.mem a
 
 /-- Write memory at an address. -/
-def setMem (s : MachineState) (a : Addr) (v : Word) : MachineState :=
+def setMem (s : MachineState) (a : Word) (v : Word) : MachineState :=
   { s with mem := fun a' => if a' == a then v else s.mem a' }
 
 /-- Set the program counter. -/
@@ -354,12 +354,12 @@ def appendCommit (s : MachineState) (a0 a1 : Word) : MachineState :=
   { s with committed := s.committed ++ [(a0, a1)] }
 
 /-- Read n consecutive doublewords from memory starting at base address. -/
-def readWords (s : MachineState) (base : Addr) : Nat → List Word
+def readWords (s : MachineState) (base : Word) : Nat → List Word
   | 0 => []
   | n + 1 => s.getMem base :: readWords s (base + 8) n
 
 /-- Write n consecutive doublewords to memory starting at base address. -/
-def writeWords (s : MachineState) (base : Addr) : List Word → MachineState
+def writeWords (s : MachineState) (base : Word) : List Word → MachineState
   | [] => s
   | w :: ws => (s.setMem base w).writeWords (base + 8) ws
 
@@ -369,37 +369,37 @@ def appendPublicValues (s : MachineState) (bytes : List (BitVec 8)) : MachineSta
 
 /-- Read a byte from memory at an arbitrary byte address.
     Reads the containing doubleword and extracts the appropriate byte. -/
-def getByte (s : MachineState) (addr : Addr) : BitVec 8 :=
+def getByte (s : MachineState) (addr : Word) : BitVec 8 :=
   extractByte (s.getMem (alignToDword addr)) (byteOffset addr)
 
 /-- Read a halfword from memory at a 2-byte aligned address. -/
-def getHalfword (s : MachineState) (addr : Addr) : BitVec 16 :=
+def getHalfword (s : MachineState) (addr : Word) : BitVec 16 :=
   extractHalfword (s.getMem (alignToDword addr)) ((byteOffset addr) / 2)
 
 /-- Read a 32-bit word from memory at a 4-byte aligned address. -/
-def getWord32 (s : MachineState) (addr : Addr) : BitVec 32 :=
+def getWord32 (s : MachineState) (addr : Word) : BitVec 32 :=
   extractWord32 (s.getMem (alignToDword addr)) ((byteOffset addr) / 4)
 
 /-- Write a byte to memory at an arbitrary byte address. -/
-def setByte (s : MachineState) (addr : Addr) (b : BitVec 8) : MachineState :=
+def setByte (s : MachineState) (addr : Word) (b : BitVec 8) : MachineState :=
   let wa := alignToDword addr
   let pos := byteOffset addr
   s.setMem wa (replaceByte (s.getMem wa) pos b)
 
 /-- Write a halfword to memory at a 2-byte aligned address. -/
-def setHalfword (s : MachineState) (addr : Addr) (h : BitVec 16) : MachineState :=
+def setHalfword (s : MachineState) (addr : Word) (h : BitVec 16) : MachineState :=
   let wa := alignToDword addr
   let pos := (byteOffset addr) / 2
   s.setMem wa (replaceHalfword (s.getMem wa) pos h)
 
 /-- Write a 32-bit word to memory at a 4-byte aligned address. -/
-def setWord32 (s : MachineState) (addr : Addr) (v : BitVec 32) : MachineState :=
+def setWord32 (s : MachineState) (addr : Word) (v : BitVec 32) : MachineState :=
   let wa := alignToDword addr
   let pos := (byteOffset addr) / 4
   s.setMem wa (replaceWord32 (s.getMem wa) pos v)
 
 /-- Read n consecutive bytes from memory starting at base byte address. -/
-def readBytes (s : MachineState) (base : Addr) : Nat → List (BitVec 8)
+def readBytes (s : MachineState) (base : Word) : Nat → List (BitVec 8)
   | 0 => []
   | n + 1 => s.getByte base :: readBytes s (base + 1) n
 
@@ -421,7 +421,7 @@ def bytesToWordLE (bs : List (BitVec 8)) : Word :=
 namespace MachineState
 
 /-- Write a byte stream as consecutive LE doublewords to memory. -/
-def writeBytesAsWords (s : MachineState) (base : Addr) : List (BitVec 8) → MachineState
+def writeBytesAsWords (s : MachineState) (base : Word) : List (BitVec 8) → MachineState
   | [] => s
   | b :: bs =>
     let chunk := (b :: bs).take 8
@@ -436,34 +436,34 @@ termination_by l => l.length
 @[simp] theorem pc_setReg (s : MachineState) (r : Reg) (v : Word) :
     (s.setReg r v).pc = s.pc := by cases r <;> rfl
 
-@[simp] theorem pc_setMem (s : MachineState) (a : Addr) (v : Word) :
+@[simp] theorem pc_setMem (s : MachineState) (a : Word) (v : Word) :
     (s.setMem a v).pc = s.pc := by simp [setMem]
 
-@[simp] theorem pc_setByte (s : MachineState) (addr : Addr) (b : BitVec 8) :
+@[simp] theorem pc_setByte (s : MachineState) (addr : Word) (b : BitVec 8) :
     (s.setByte addr b).pc = s.pc := by simp [setByte]
 
-@[simp] theorem pc_setHalfword (s : MachineState) (addr : Addr) (h : BitVec 16) :
+@[simp] theorem pc_setHalfword (s : MachineState) (addr : Word) (h : BitVec 16) :
     (s.setHalfword addr h).pc = s.pc := by simp [setHalfword]
 
-@[simp] theorem pc_setWord32 (s : MachineState) (addr : Addr) (v : BitVec 32) :
+@[simp] theorem pc_setWord32 (s : MachineState) (addr : Word) (v : BitVec 32) :
     (s.setWord32 addr v).pc = s.pc := by simp [setWord32]
 
 @[simp] theorem code_setReg (s : MachineState) (r : Reg) (v : Word) :
     (s.setReg r v).code = s.code := by cases r <;> rfl
 
-@[simp] theorem code_setMem (s : MachineState) (a : Addr) (v : Word) :
+@[simp] theorem code_setMem (s : MachineState) (a : Word) (v : Word) :
     (s.setMem a v).code = s.code := by simp [setMem]
 
 @[simp] theorem code_setPC (s : MachineState) (v : Word) :
     (s.setPC v).code = s.code := by simp [setPC]
 
-@[simp] theorem code_setByte (s : MachineState) (addr : Addr) (b : BitVec 8) :
+@[simp] theorem code_setByte (s : MachineState) (addr : Word) (b : BitVec 8) :
     (s.setByte addr b).code = s.code := by simp [setByte]
 
-@[simp] theorem code_setHalfword (s : MachineState) (addr : Addr) (h : BitVec 16) :
+@[simp] theorem code_setHalfword (s : MachineState) (addr : Word) (h : BitVec 16) :
     (s.setHalfword addr h).code = s.code := by simp [setHalfword]
 
-@[simp] theorem code_setWord32 (s : MachineState) (addr : Addr) (v : BitVec 32) :
+@[simp] theorem code_setWord32 (s : MachineState) (addr : Word) (v : BitVec 32) :
     (s.setWord32 addr v).code = s.code := by simp [setWord32]
 
 @[simp] theorem code_appendCommit (s : MachineState) (a0 a1 : Word) :
@@ -472,7 +472,7 @@ termination_by l => l.length
 @[simp] theorem code_appendPublicValues (s : MachineState) (bytes : List (BitVec 8)) :
     (s.appendPublicValues bytes).code = s.code := by simp [appendPublicValues]
 
-@[simp] theorem code_writeWords (s : MachineState) (base : Addr) (words : List Word) :
+@[simp] theorem code_writeWords (s : MachineState) (base : Word) (words : List Word) :
     (s.writeWords base words).code = s.code := by
   induction words generalizing s base with
   | nil => rfl
@@ -489,30 +489,30 @@ theorem getReg_setReg_eq (s : MachineState) (r : Reg) (v : Word)
     (h : r ≠ .x0) : (s.setReg r v).getReg r = v := by
   cases r <;> first | exact absurd rfl h | rfl
 
-@[simp] theorem getMem_setMem_eq (s : MachineState) (a : Addr) (v : Word) :
+@[simp] theorem getMem_setMem_eq (s : MachineState) (a : Word) (v : Word) :
     (s.setMem a v).getMem a = v := by simp [getMem, setMem]
 
-@[simp] theorem getMem_setMem_ne (s : MachineState) (a a' : Addr) (v : Word)
+@[simp] theorem getMem_setMem_ne (s : MachineState) (a a' : Word) (v : Word)
     (h : a' ≠ a) : (s.setMem a v).getMem a' = s.getMem a' := by
   simp [getMem, setMem, h]
 
-@[simp] theorem getMem_setReg (s : MachineState) (r : Reg) (v : Word) (a : Addr) :
+@[simp] theorem getMem_setReg (s : MachineState) (r : Reg) (v : Word) (a : Word) :
     (s.setReg r v).getMem a = s.getMem a := by
   cases r <;> simp [getMem, setReg]
 
-@[simp] theorem getMem_setPC (s : MachineState) (v : Word) (a : Addr) :
+@[simp] theorem getMem_setPC (s : MachineState) (v : Word) (a : Word) :
     (s.setPC v).getMem a = s.getMem a := by simp [getMem, setPC]
 
 @[simp] theorem committed_setReg (s : MachineState) (r : Reg) (v : Word) :
     (s.setReg r v).committed = s.committed := by cases r <;> rfl
 
-@[simp] theorem committed_setMem (s : MachineState) (a : Addr) (v : Word) :
+@[simp] theorem committed_setMem (s : MachineState) (a : Word) (v : Word) :
     (s.setMem a v).committed = s.committed := by simp [setMem]
 
-@[simp] theorem committed_setByte (s : MachineState) (addr : Addr) (b : BitVec 8) :
+@[simp] theorem committed_setByte (s : MachineState) (addr : Word) (b : BitVec 8) :
     (s.setByte addr b).committed = s.committed := by simp [setByte]
 
-@[simp] theorem committed_setHalfword (s : MachineState) (addr : Addr) (h : BitVec 16) :
+@[simp] theorem committed_setHalfword (s : MachineState) (addr : Word) (h : BitVec 16) :
     (s.setHalfword addr h).committed = s.committed := by simp [setHalfword]
 
 @[simp] theorem committed_setPC (s : MachineState) (v : Word) :
@@ -521,13 +521,13 @@ theorem getReg_setReg_eq (s : MachineState) (r : Reg) (v : Word)
 @[simp] theorem publicValues_setReg (s : MachineState) (r : Reg) (v : Word) :
     (s.setReg r v).publicValues = s.publicValues := by cases r <;> rfl
 
-@[simp] theorem publicValues_setMem (s : MachineState) (a : Addr) (v : Word) :
+@[simp] theorem publicValues_setMem (s : MachineState) (a : Word) (v : Word) :
     (s.setMem a v).publicValues = s.publicValues := by simp [setMem]
 
-@[simp] theorem publicValues_setByte (s : MachineState) (addr : Addr) (b : BitVec 8) :
+@[simp] theorem publicValues_setByte (s : MachineState) (addr : Word) (b : BitVec 8) :
     (s.setByte addr b).publicValues = s.publicValues := by simp [setByte]
 
-@[simp] theorem publicValues_setHalfword (s : MachineState) (addr : Addr) (h : BitVec 16) :
+@[simp] theorem publicValues_setHalfword (s : MachineState) (addr : Word) (h : BitVec 16) :
     (s.setHalfword addr h).publicValues = s.publicValues := by simp [setHalfword]
 
 @[simp] theorem publicValues_setPC (s : MachineState) (v : Word) :
@@ -539,13 +539,13 @@ theorem getReg_setReg_eq (s : MachineState) (r : Reg) (v : Word)
 @[simp] theorem privateInput_setReg (s : MachineState) (r : Reg) (v : Word) :
     (s.setReg r v).privateInput = s.privateInput := by cases r <;> rfl
 
-@[simp] theorem privateInput_setMem (s : MachineState) (a : Addr) (v : Word) :
+@[simp] theorem privateInput_setMem (s : MachineState) (a : Word) (v : Word) :
     (s.setMem a v).privateInput = s.privateInput := by simp [setMem]
 
-@[simp] theorem privateInput_setByte (s : MachineState) (addr : Addr) (b : BitVec 8) :
+@[simp] theorem privateInput_setByte (s : MachineState) (addr : Word) (b : BitVec 8) :
     (s.setByte addr b).privateInput = s.privateInput := by simp [setByte]
 
-@[simp] theorem privateInput_setHalfword (s : MachineState) (addr : Addr) (h : BitVec 16) :
+@[simp] theorem privateInput_setHalfword (s : MachineState) (addr : Word) (h : BitVec 16) :
     (s.setHalfword addr h).privateInput = s.privateInput := by simp [setHalfword]
 
 @[simp] theorem privateInput_setPC (s : MachineState) (v : Word) :
@@ -562,7 +562,7 @@ theorem getReg_setReg_eq (s : MachineState) (r : Reg) (v : Word)
 @[simp] theorem getReg_appendCommit (s : MachineState) (a0 a1 : Word) (r : Reg) :
     (s.appendCommit a0 a1).getReg r = s.getReg r := by cases r <;> rfl
 
-@[simp] theorem getMem_appendCommit (s : MachineState) (a0 a1 : Word) (a : Addr) :
+@[simp] theorem getMem_appendCommit (s : MachineState) (a0 a1 : Word) (a : Word) :
     (s.appendCommit a0 a1).getMem a = s.getMem a := by simp [appendCommit, getMem]
 
 @[simp] theorem pc_appendCommit (s : MachineState) (a0 a1 : Word) :
@@ -576,7 +576,7 @@ theorem getReg_setReg_eq (s : MachineState) (r : Reg) (v : Word)
 @[simp] theorem getReg_appendPublicValues (s : MachineState) (bytes : List (BitVec 8)) (r : Reg) :
     (s.appendPublicValues bytes).getReg r = s.getReg r := by cases r <;> rfl
 
-@[simp] theorem getMem_appendPublicValues (s : MachineState) (bytes : List (BitVec 8)) (a : Addr) :
+@[simp] theorem getMem_appendPublicValues (s : MachineState) (bytes : List (BitVec 8)) (a : Word) :
     (s.appendPublicValues bytes).getMem a = s.getMem a := by simp [appendPublicValues, getMem]
 
 @[simp] theorem pc_appendPublicValues (s : MachineState) (bytes : List (BitVec 8)) :
@@ -591,43 +591,43 @@ theorem getReg_setReg_eq (s : MachineState) (r : Reg) (v : Word)
 
 -- readWords / writeWords simp lemmas
 
-@[simp] theorem readWords_zero (s : MachineState) (base : Addr) :
+@[simp] theorem readWords_zero (s : MachineState) (base : Word) :
     s.readWords base 0 = [] := rfl
 
-@[simp] theorem readWords_succ (s : MachineState) (base : Addr) (n : Nat) :
+@[simp] theorem readWords_succ (s : MachineState) (base : Word) (n : Nat) :
     s.readWords base (n + 1) = s.getMem base :: s.readWords (base + 8) n := rfl
 
-@[simp] theorem writeWords_nil (s : MachineState) (base : Addr) :
+@[simp] theorem writeWords_nil (s : MachineState) (base : Word) :
     s.writeWords base [] = s := rfl
 
-@[simp] theorem writeWords_cons (s : MachineState) (base : Addr) (w : Word) (ws : List Word) :
+@[simp] theorem writeWords_cons (s : MachineState) (base : Word) (w : Word) (ws : List Word) :
     s.writeWords base (w :: ws) = (s.setMem base w).writeWords (base + 8) ws := rfl
 
-@[simp] theorem pc_writeWords (s : MachineState) (base : Addr) (words : List Word) :
+@[simp] theorem pc_writeWords (s : MachineState) (base : Word) (words : List Word) :
     (s.writeWords base words).pc = s.pc := by
   induction words generalizing s base with
   | nil => rfl
   | cons w ws ih => simp [writeWords, ih]
 
-@[simp] theorem committed_writeWords (s : MachineState) (base : Addr) (words : List Word) :
+@[simp] theorem committed_writeWords (s : MachineState) (base : Word) (words : List Word) :
     (s.writeWords base words).committed = s.committed := by
   induction words generalizing s base with
   | nil => rfl
   | cons w ws ih => simp [writeWords, ih]
 
-@[simp] theorem publicValues_writeWords (s : MachineState) (base : Addr) (words : List Word) :
+@[simp] theorem publicValues_writeWords (s : MachineState) (base : Word) (words : List Word) :
     (s.writeWords base words).publicValues = s.publicValues := by
   induction words generalizing s base with
   | nil => rfl
   | cons w ws ih => simp [writeWords, ih]
 
-@[simp] theorem privateInput_writeWords (s : MachineState) (base : Addr) (words : List Word) :
+@[simp] theorem privateInput_writeWords (s : MachineState) (base : Word) (words : List Word) :
     (s.writeWords base words).privateInput = s.privateInput := by
   induction words generalizing s base with
   | nil => rfl
   | cons w ws ih => simp [writeWords, ih]
 
-@[simp] theorem getReg_writeWords (s : MachineState) (base : Addr) (words : List Word) (r : Reg) :
+@[simp] theorem getReg_writeWords (s : MachineState) (base : Word) (words : List Word) (r : Reg) :
     (s.writeWords base words).getReg r = s.getReg r := by
   induction words generalizing s base with
   | nil => rfl
@@ -637,18 +637,18 @@ theorem getReg_setReg_eq (s : MachineState) (r : Reg) (v : Word)
 
 -- readBytes simp lemmas
 
-@[simp] theorem readBytes_zero (s : MachineState) (base : Addr) :
+@[simp] theorem readBytes_zero (s : MachineState) (base : Word) :
     s.readBytes base 0 = [] := rfl
 
-@[simp] theorem readBytes_succ (s : MachineState) (base : Addr) (n : Nat) :
+@[simp] theorem readBytes_succ (s : MachineState) (base : Word) (n : Nat) :
     s.readBytes base (n + 1) = s.getByte base :: s.readBytes (base + 1) n := rfl
 
 -- writeBytesAsWords simp lemmas
 
-@[simp] theorem writeBytesAsWords_nil (s : MachineState) (base : Addr) :
+@[simp] theorem writeBytesAsWords_nil (s : MachineState) (base : Word) :
     s.writeBytesAsWords base [] = s := by unfold writeBytesAsWords; rfl
 
-@[simp] theorem pc_writeBytesAsWords (s : MachineState) (base : Addr) (bytes : List (BitVec 8)) :
+@[simp] theorem pc_writeBytesAsWords (s : MachineState) (base : Word) (bytes : List (BitVec 8)) :
     (s.writeBytesAsWords base bytes).pc = s.pc := by
   match bytes with
   | [] => unfold writeBytesAsWords; rfl
@@ -659,7 +659,7 @@ theorem getReg_setReg_eq (s : MachineState) (r : Reg) (v : Word)
 termination_by bytes.length
 decreasing_by simp [List.length_drop]; omega
 
-@[simp] theorem code_writeBytesAsWords (s : MachineState) (base : Addr) (bytes : List (BitVec 8)) :
+@[simp] theorem code_writeBytesAsWords (s : MachineState) (base : Word) (bytes : List (BitVec 8)) :
     (s.writeBytesAsWords base bytes).code = s.code := by
   match bytes with
   | [] => unfold writeBytesAsWords; rfl
@@ -670,7 +670,7 @@ decreasing_by simp [List.length_drop]; omega
 termination_by bytes.length
 decreasing_by simp [List.length_drop]; omega
 
-@[simp] theorem committed_writeBytesAsWords (s : MachineState) (base : Addr) (bytes : List (BitVec 8)) :
+@[simp] theorem committed_writeBytesAsWords (s : MachineState) (base : Word) (bytes : List (BitVec 8)) :
     (s.writeBytesAsWords base bytes).committed = s.committed := by
   match bytes with
   | [] => unfold writeBytesAsWords; rfl
@@ -681,7 +681,7 @@ decreasing_by simp [List.length_drop]; omega
 termination_by bytes.length
 decreasing_by simp [List.length_drop]; omega
 
-@[simp] theorem publicValues_writeBytesAsWords (s : MachineState) (base : Addr) (bytes : List (BitVec 8)) :
+@[simp] theorem publicValues_writeBytesAsWords (s : MachineState) (base : Word) (bytes : List (BitVec 8)) :
     (s.writeBytesAsWords base bytes).publicValues = s.publicValues := by
   match bytes with
   | [] => unfold writeBytesAsWords; rfl
@@ -692,7 +692,7 @@ decreasing_by simp [List.length_drop]; omega
 termination_by bytes.length
 decreasing_by simp [List.length_drop]; omega
 
-@[simp] theorem privateInput_writeBytesAsWords (s : MachineState) (base : Addr) (bytes : List (BitVec 8)) :
+@[simp] theorem privateInput_writeBytesAsWords (s : MachineState) (base : Word) (bytes : List (BitVec 8)) :
     (s.writeBytesAsWords base bytes).privateInput = s.privateInput := by
   match bytes with
   | [] => unfold writeBytesAsWords; rfl
@@ -703,7 +703,7 @@ decreasing_by simp [List.length_drop]; omega
 termination_by bytes.length
 decreasing_by simp [List.length_drop]; omega
 
-@[simp] theorem getReg_writeBytesAsWords (s : MachineState) (base : Addr) (bytes : List (BitVec 8)) (r : Reg) :
+@[simp] theorem getReg_writeBytesAsWords (s : MachineState) (base : Word) (bytes : List (BitVec 8)) (r : Reg) :
     (s.writeBytesAsWords base bytes).getReg r = s.getReg r := by
   match bytes with
   | [] => unfold writeBytesAsWords; rfl

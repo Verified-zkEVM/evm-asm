@@ -14,7 +14,7 @@ namespace EvmAsm.Rv64
 
 /-- CodeReq for the 256-bit EVM EQ operation.
     21 instructions = 84 bytes. XOR-OR accumulation + SLTIU boolean + store. -/
-abbrev evm_eq_code (base : Addr) : CodeReq :=
+abbrev evm_eq_code (base : Word) : CodeReq :=
   CodeReq.ofProg base evm_eq
 
 /-- Full 256-bit EVM EQ: EQ(a, b) = 1 iff a == b (unsigned).
@@ -22,7 +22,7 @@ abbrev evm_eq_code (base : Addr) : CodeReq :=
     Pops 2 stack words (A at sp, B at sp+32),
     writes result to sp+32..sp+56, advances sp by 32.
     21 instructions = 84 bytes total. -/
-theorem evm_eq_spec (sp : Addr) (base : Addr)
+theorem evm_eq_spec (sp : Word) (base : Word)
     (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
     (v7 v6 v5 v11 : Word)
     (hvalid : ValidMemRange sp 8) :
@@ -70,7 +70,7 @@ theorem evm_eq_spec (sp : Addr) (base : Addr)
 -- ============================================================================
 
 /-- Stack-level 256-bit EVM EQ: operates on two EvmWords via evmWordIs. -/
-theorem evm_eq_stack_spec (sp base : Addr)
+theorem evm_eq_stack_spec (sp base : Word)
     (a b : EvmWord) (v7 v6 v5 v11 : Word)
     (hvalid : ValidMemRange sp 8) :
     -- XOR-OR accumulation chain
@@ -97,9 +97,9 @@ theorem evm_eq_stack_spec (sp base : Addr)
   exact cpsTriple_consequence _ _ _ _ _ _ _
     (fun h hp => by
       simp only [evmWordIs] at hp
-      have : (sp : Addr) + 32 + 8 = sp + 40 := by bv_omega
-      have : (sp : Addr) + 32 + 16 = sp + 48 := by bv_omega
-      have : (sp : Addr) + 32 + 24 = sp + 56 := by bv_omega
+      have : (sp : Word) + 32 + 8 = sp + 40 := by bv_omega
+      have : (sp : Word) + 32 + 16 = sp + 48 := by bv_omega
+      have : (sp : Word) + 32 + 24 = sp + 56 := by bv_omega
       rw [‹sp + 32 + 8 = sp + 40›, ‹sp + 32 + 16 = sp + 48›, ‹sp + 32 + 24 = sp + 56›] at hp
       xperm_hyp hp)
     (fun h hq => by
@@ -110,9 +110,9 @@ theorem evm_eq_stack_spec (sp base : Addr)
                  show ¬((3 : Fin 4) = 0) from by decide,
                  ite_true, ite_false, ite_self,
                  ← EvmWord.eq_xor_or_reduce_correct]
-      have : (sp : Addr) + 32 + 8 = sp + 40 := by bv_omega
-      have : (sp : Addr) + 32 + 16 = sp + 48 := by bv_omega
-      have : (sp : Addr) + 32 + 24 = sp + 56 := by bv_omega
+      have : (sp : Word) + 32 + 8 = sp + 40 := by bv_omega
+      have : (sp : Word) + 32 + 16 = sp + 48 := by bv_omega
+      have : (sp : Word) + 32 + 24 = sp + 56 := by bv_omega
       rw [‹sp + 32 + 8 = sp + 40›, ‹sp + 32 + 16 = sp + 48›, ‹sp + 32 + 24 = sp + 56›]
       xperm_hyp hq)
     h_main

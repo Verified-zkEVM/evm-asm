@@ -14,13 +14,13 @@ namespace EvmAsm.Rv64
 
 /-- CodeReq for the 256-bit EVM AND operation.
     17 instructions = 68 bytes. 4 per-limb AND blocks + ADDI sp adjustment. -/
-abbrev evm_and_code (base : Addr) : CodeReq :=
+abbrev evm_and_code (base : Word) : CodeReq :=
   CodeReq.ofProg base evm_and
 
 /-- Full 256-bit EVM AND: composes 4 per-limb AND specs + sp adjustment.
     17 instructions total. Pops 2 stack words (A at sp, B at sp+32),
     writes A &&& B to sp+32..sp+56, advances sp by 32. -/
-theorem evm_and_spec (sp base : Addr)
+theorem evm_and_spec (sp base : Word)
     (a0 a1 a2 a3 b0 b1 b2 b3 v7 v6 : Word)
     (hvalid : ValidMemRange sp 8) :
     let code := evm_and_code base
@@ -45,7 +45,7 @@ theorem evm_and_spec (sp base : Addr)
 -- ============================================================================
 
 /-- Stack-level 256-bit EVM AND: operates on two EvmWords via evmWordIs. -/
-theorem evm_and_stack_spec (sp base : Addr)
+theorem evm_and_stack_spec (sp base : Word)
     (a b : EvmWord) (v7 v6 : Word)
     (hvalid : ValidMemRange sp 8) :
     let code := evm_and_code base
@@ -63,16 +63,16 @@ theorem evm_and_stack_spec (sp base : Addr)
   exact cpsTriple_consequence _ _ _ _ _ _ _
     (fun h hp => by
       simp only [evmWordIs] at hp
-      have : (sp : Addr) + 32 + 8 = sp + 40 := by bv_omega
-      have : (sp : Addr) + 32 + 16 = sp + 48 := by bv_omega
-      have : (sp : Addr) + 32 + 24 = sp + 56 := by bv_omega
+      have : (sp : Word) + 32 + 8 = sp + 40 := by bv_omega
+      have : (sp : Word) + 32 + 16 = sp + 48 := by bv_omega
+      have : (sp : Word) + 32 + 24 = sp + 56 := by bv_omega
       rw [‹sp + 32 + 8 = sp + 40›, ‹sp + 32 + 16 = sp + 48›, ‹sp + 32 + 24 = sp + 56›] at hp
       xperm_hyp hp)
     (fun h hq => by
       simp only [evmWordIs, EvmWord.getLimb_and]
-      have : (sp : Addr) + 32 + 8 = sp + 40 := by bv_omega
-      have : (sp : Addr) + 32 + 16 = sp + 48 := by bv_omega
-      have : (sp : Addr) + 32 + 24 = sp + 56 := by bv_omega
+      have : (sp : Word) + 32 + 8 = sp + 40 := by bv_omega
+      have : (sp : Word) + 32 + 16 = sp + 48 := by bv_omega
+      have : (sp : Word) + 32 + 24 = sp + 56 := by bv_omega
       rw [‹sp + 32 + 8 = sp + 40›, ‹sp + 32 + 16 = sp + 48›, ‹sp + 32 + 24 = sp + 56›]
       xperm_hyp hq)
     h_main

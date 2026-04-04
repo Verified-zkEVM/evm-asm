@@ -25,12 +25,12 @@ namespace EvmAsm.Rv64
 -- Column 3: b[3] × {a[0]} (5 instructions)
 -- ============================================================================
 
-abbrev mul_col3_code (base : Addr) : CodeReq :=
+abbrev mul_col3_code (base : Word) : CodeReq :=
   CodeReq.ofProg base mul_col3
 
 /-- Column 3: multiply b[3] × a[0], add to r3 accumulator, store result.
     5 instructions: LD b3; LD a0; MUL a0*b3; ADD acc; SD result. -/
-theorem mul_col3_spec (sp : Addr) (base : Addr)
+theorem mul_col3_spec (sp : Word) (base : Word)
     (a0 b3 r3_in v5 v6 : Word)
     (hvalid : ValidMemRange sp 8) :
     let code := mul_col3_code base
@@ -50,13 +50,13 @@ theorem mul_col3_spec (sp : Addr) (base : Addr)
 -- Column 2: b[2] × {a[0], a[1]} (13 instructions)
 -- ============================================================================
 
-abbrev mul_col2_code (base : Addr) : CodeReq :=
+abbrev mul_col2_code (base : Word) : CodeReq :=
   CodeReq.ofProg base mul_col2
 
 /-- Column 2: multiply b[2] × {a[0],a[1]}, finalize r[2], update r[3] accumulator.
     13 instructions. Input: x11 = r2 acc, sp+16 = r3 partial.
     Output: x10 = r3 total, sp+48 = r2 stored. -/
-theorem mul_col2_spec (sp : Addr) (base : Addr)
+theorem mul_col2_spec (sp : Word) (base : Word)
     (a0 a1 b2 r2_in r3p v5 v6 v7 v10 : Word)
     (hvalid : ValidMemRange sp 8) :
     let lo_a0b2 := a0 * b2
@@ -95,12 +95,12 @@ theorem mul_col2_spec (sp : Addr) (base : Addr)
 -- ============================================================================
 
 -- Part A: LD b1, LD a0, MUL, MULHU, ADD, SLTU, ADD, SD r1, ADD, SLTU (10 instrs)
-abbrev mul_col1_partA_code (base : Addr) : CodeReq :=
+abbrev mul_col1_partA_code (base : Word) : CodeReq :=
   CodeReq.ofProg base (mul_col1.take 10)
 
 /-- Column 1 part A: load b1, multiply a0×b1, store r1, begin r2 accumulation.
     10 instructions at base..base+36. -/
-theorem mul_col1_partA_spec (sp : Addr) (base : Addr)
+theorem mul_col1_partA_spec (sp : Word) (base : Word)
     (a0 b1 r1_in r2_in v5 v6 v7 : Word)
     (hvalid : ValidMemRange sp 8) :
     let lo_a0b1 := a0 * b1
@@ -133,12 +133,12 @@ theorem mul_col1_partA_spec (sp : Addr) (base : Addr)
 
 -- Part B: LD a1, MUL, MULHU, ADD, SLTU, ADD, ADD, LD a2, MUL, ADD, LD r3p0, ADD, SD (13 instrs)
 -- Uses outer base (base = column base), so atoms are at base+40..base+88.
-abbrev mul_col1_partB_code (base : Addr) : CodeReq :=
+abbrev mul_col1_partB_code (base : Word) : CodeReq :=
   CodeReq.ofProg (base + 40) (mul_col1.drop 10)
 
 /-- Column 1 part B: multiply a1×b1, a2×b1, accumulate r2/r3, store r3 spill.
     13 instructions at base+40..base+88. -/
-theorem mul_col1_partB_spec (sp : Addr) (base : Addr)
+theorem mul_col1_partB_spec (sp : Word) (base : Word)
     (a1 a2 b1 r3p0 v6 v7 carry_r2_1 r2_acc1 : Word)
     (hvalid : ValidMemRange sp 8) :
     let lo_a1b1 := a1 * b1
@@ -172,13 +172,13 @@ theorem mul_col1_partB_spec (sp : Addr) (base : Addr)
   runBlock I0 I1 I2 I3 I4 I5 I6 I7 I8 I9 I10 I11 I12
 
 -- Full column 1 code (used by evm_mul_code)
-abbrev mul_col1_code (base : Addr) : CodeReq :=
+abbrev mul_col1_code (base : Word) : CodeReq :=
   CodeReq.ofProg base mul_col1
 
 /-- Column 1: multiply b[1] × {a[0],a[1],a[2]}, finalize r[1], update r[2]/r[3].
     23 instructions. Input: x10 = r1 acc, x11 = r2 acc, sp+24 = r3 partial from col0.
     Output: x11 = r2 acc, sp+16 = r3 partial, sp+40 = r1 stored. -/
-theorem mul_col1_spec (sp : Addr) (base : Addr)
+theorem mul_col1_spec (sp : Word) (base : Word)
     (a0 a1 a2 b1 r1_in r2_in r3p0 v5 v6 v7 : Word)
     (hvalid : ValidMemRange sp 8) :
     let lo_a0b1 := a0 * b1
@@ -215,12 +215,12 @@ theorem mul_col1_spec (sp : Addr) (base : Addr)
 -- ============================================================================
 
 -- Part A: LD b0, LD a0, MUL, MULHU, SD r0, LD a1, MUL, MULHU, ADD, SLTU, ADD (11 instrs)
-abbrev mul_col0_partA_code (base : Addr) : CodeReq :=
+abbrev mul_col0_partA_code (base : Word) : CodeReq :=
   CodeReq.ofProg base (mul_col0.take 11)
 
 /-- Column 0 part A: load b0, multiply a0×b0 and a1×b0, store r0, begin r1/r2 accumulation.
     11 instructions at base..base+40. -/
-theorem mul_col0_partA_spec (sp : Addr) (base : Addr)
+theorem mul_col0_partA_spec (sp : Word) (base : Word)
     (a0 a1 b0 v5 v6 v7 v10 v11 : Word)
     (hvalid : ValidMemRange sp 8) :
     let r0 := a0 * b0
@@ -253,12 +253,12 @@ theorem mul_col0_partA_spec (sp : Addr) (base : Addr)
 
 -- Part B: LD a2, MUL, MULHU, ADD, SLTU, ADD, LD a3, MUL, ADD, SD r3p (10 instrs)
 -- Uses outer base (base = column base), so atoms are at base+44..base+80.
-abbrev mul_col0_partB_code (base : Addr) : CodeReq :=
+abbrev mul_col0_partB_code (base : Word) : CodeReq :=
   CodeReq.ofProg (base + 44) (mul_col0.drop 11)
 
 /-- Column 0 part B: multiply a2×b0 and a3×b0, accumulate r2, store r3 partial.
     10 instructions at base+44..base+80. -/
-theorem mul_col0_partB_spec (sp : Addr) (base : Addr)
+theorem mul_col0_partB_spec (sp : Word) (base : Word)
     (a2 a3 b0 v6 v7 r2_partial : Word)
     (hvalid : ValidMemRange sp 8) :
     let lo_a2b0 := a2 * b0
@@ -288,12 +288,12 @@ theorem mul_col0_partB_spec (sp : Addr) (base : Addr)
   runBlock I0 I1 I2 I3 I4 I5 I6 I7 I8 I9
 
 -- Full column 0 code (used by evm_mul_code)
-abbrev mul_col0_code (base : Addr) : CodeReq :=
+abbrev mul_col0_code (base : Word) : CodeReq :=
   CodeReq.ofProg base mul_col0
 
 /-- Column 0: multiply b[0] × {a[0],a[1],a[2],a[3]}, store r[0], spill r[3] partial.
     21 instructions. Output: x10 = r1 acc, x11 = r2 acc, sp+24 = r3p, sp+32 = r0. -/
-theorem mul_col0_spec (sp : Addr) (base : Addr)
+theorem mul_col0_spec (sp : Word) (base : Word)
     (a0 a1 a2 a3 b0 v5 v6 v7 v10 v11 : Word)
     (hvalid : ValidMemRange sp 8) :
     let r0 := a0 * b0
@@ -328,11 +328,11 @@ theorem mul_col0_spec (sp : Addr) (base : Addr)
 -- ============================================================================
 
 -- Intermediate code: columns 0 + 1
-abbrev evm_mul_code01 (base : Addr) : CodeReq :=
+abbrev evm_mul_code01 (base : Word) : CodeReq :=
   CodeReq.union (mul_col0_code base) (mul_col1_code (base + 84))
 
 /-- Intermediate: compose col0 + col1. 44 instructions at base..base+176. -/
-theorem evm_mul_cols01_spec (sp : Addr) (base : Addr)
+theorem evm_mul_cols01_spec (sp : Word) (base : Word)
     (a0 a1 a2 a3 b0 b1 : Word)
     (v5 v6 v7 v10 v11 : Word)
     (hvalid : ValidMemRange sp 8) :
@@ -378,13 +378,13 @@ theorem evm_mul_cols01_spec (sp : Addr) (base : Addr)
   runBlock C0 C1
 
 -- Intermediate code: columns 2 + 3 + epilogue
-abbrev evm_mul_cols23ep_code (base : Addr) : CodeReq :=
+abbrev evm_mul_cols23ep_code (base : Word) : CodeReq :=
   CodeReq.union (mul_col2_code (base + 176))
   (CodeReq.union (mul_col3_code (base + 228))
   (CodeReq.singleton (base + 248) (.ADDI .x12 .x12 32)))
 
 /-- Intermediate: compose col2 + col3 + epilogue. 19 instructions at base+176..base+252. -/
-theorem evm_mul_cols23ep_spec (sp : Addr) (base : Addr)
+theorem evm_mul_cols23ep_spec (sp : Word) (base : Word)
     (a0 a1 b2 b3 r2_in r3p_in v5 v6 v7 v10 : Word)
     (hvalid : ValidMemRange sp 8) :
     -- Col2 intermediates
@@ -413,7 +413,7 @@ theorem evm_mul_cols23ep_spec (sp : Addr) (base : Addr)
   runBlock C2 C3 EP
 
 -- Full code: union of sub-codes (used by evm_mul_spec for composition)
-abbrev evm_mul_code (base : Addr) : CodeReq :=
+abbrev evm_mul_code (base : Word) : CodeReq :=
   CodeReq.union (mul_col0_code base) (CodeReq.union (mul_col1_code (base + 84))
     (CodeReq.union (mul_col2_code (base + 176))
       (CodeReq.union (mul_col3_code (base + 228))
@@ -422,7 +422,7 @@ abbrev evm_mul_code (base : Addr) : CodeReq :=
 /-- Full 256-bit EVM MUL: composes cols01 + cols23ep intermediate triples.
     63 instructions total. Pops 2 stack words (A at sp, B at sp+32),
     writes (A * B) mod 2^256 to sp+32..sp+56, advances sp by 32. -/
-theorem evm_mul_spec (sp : Addr) (base : Addr)
+theorem evm_mul_spec (sp : Word) (base : Word)
     (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
     (v5 v6 v7 v10 v11 : Word)
     (hvalid : ValidMemRange sp 8) :

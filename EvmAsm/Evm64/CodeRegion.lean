@@ -85,7 +85,7 @@ theorem extractByte_packBytes (bytes : List (BitVec 8)) (k : Nat)
 -- ============================================================================
 
 /-- Auxiliary: assert `nChunks` consecutive doubleword chunks of bytecode. -/
-def evmCodeIsAux (base : Addr) : Nat → List (BitVec 8) → Assertion
+def evmCodeIsAux (base : Word) : Nat → List (BitVec 8) → Assertion
   | 0, _ => empAssertion
   | n + 1, bytes =>
     (base ↦ₘ packBytes (bytes.take 8)) ** evmCodeIsAux (base + 8) n (bytes.drop 8)
@@ -99,14 +99,14 @@ private def numChunks (n : Nat) : Nat := (n + 7) / 8
 
     Each doubleword is packed little-endian: byte at `base+k` is stored
     at bit position `(k%8)*8` within the doubleword at `alignToDword(base+k)`. -/
-def evmCodeIs (base : Addr) (bytes : List (BitVec 8)) : Assertion :=
+def evmCodeIs (base : Word) (bytes : List (BitVec 8)) : Assertion :=
   evmCodeIsAux base (numChunks bytes.length) bytes
 
 -- ============================================================================
 -- Basic properties
 -- ============================================================================
 
-@[simp] theorem evmCodeIs_nil (base : Addr) :
+@[simp] theorem evmCodeIs_nil (base : Word) :
     evmCodeIs base [] = empAssertion := rfl
 
 private theorem numChunks_pos {n : Nat} (hn : 0 < n) : 0 < numChunks n := by
@@ -117,7 +117,7 @@ private theorem numChunks_step {n : Nat} (hn : 0 < n) :
   unfold numChunks; omega
 
 /-- evmCodeIs of a non-empty list decomposes into a chunk and the rest. -/
-theorem evmCodeIs_nonempty (base : Addr) (bytes : List (BitVec 8)) (h : bytes ≠ []) :
+theorem evmCodeIs_nonempty (base : Word) (bytes : List (BitVec 8)) (h : bytes ≠ []) :
     evmCodeIs base bytes =
     ((base ↦ₘ packBytes (bytes.take 8)) **
      evmCodeIs (base + 8) (bytes.drop 8)) := by
@@ -130,17 +130,17 @@ theorem evmCodeIs_nonempty (base : Addr) (bytes : List (BitVec 8)) (h : bytes �
     simp [numChunks]; omega
   rw [hstep]; rfl
 
-theorem pcFree_evmCodeIsAux (base : Addr) (n : Nat) (bytes : List (BitVec 8)) :
+theorem pcFree_evmCodeIsAux (base : Word) (n : Nat) (bytes : List (BitVec 8)) :
     (evmCodeIsAux base n bytes).pcFree := by
   induction n generalizing base bytes with
   | zero => exact pcFree_emp
   | succ n ih => exact pcFree_sepConj (pcFree_memIs _ _) (ih _ _)
 
-theorem pcFree_evmCodeIs (base : Addr) (bytes : List (BitVec 8)) :
+theorem pcFree_evmCodeIs (base : Word) (bytes : List (BitVec 8)) :
     (evmCodeIs base bytes).pcFree :=
   pcFree_evmCodeIsAux base _ bytes
 
-instance (base : Addr) (bytes : List (BitVec 8)) :
+instance (base : Word) (bytes : List (BitVec 8)) :
     Assertion.PCFree (evmCodeIs base bytes) :=
   ⟨pcFree_evmCodeIs base bytes⟩
 
@@ -148,7 +148,7 @@ instance (base : Addr) (bytes : List (BitVec 8)) :
 -- evmCodeIs_split_at: extract the doubleword containing byte k
 -- ============================================================================
 
-theorem evmCodeIs_split_at (base : Addr) (bytes : List (BitVec 8)) (dw : Nat)
+theorem evmCodeIs_split_at (base : Word) (bytes : List (BitVec 8)) (dw : Nat)
     (hdw : dw * 8 + 8 ≤ bytes.length) :
     evmCodeIs base bytes =
     (evmCodeIs base (bytes.take (dw * 8)) **
@@ -171,11 +171,11 @@ theorem evmCodeIs_split_at (base : Addr) (bytes : List (BitVec 8)) (dw : Nat)
       omega
     rw [ih (base + 8) (bytes.drop 8) hdw']; clear hdw'
     -- Normalize addresses
-    have ha1 : (base + 8 : Addr) + BitVec.ofNat 64 (n * 8) =
+    have ha1 : (base + 8 : Word) + BitVec.ofNat 64 (n * 8) =
                base + BitVec.ofNat 64 ((n + 1) * 8) := by
       apply BitVec.eq_of_toNat_eq
       simp [BitVec.toNat_add, BitVec.toNat_ofNat]; omega
-    have ha2 : (base + 8 : Addr) + BitVec.ofNat 64 ((n + 1) * 8) =
+    have ha2 : (base + 8 : Word) + BitVec.ofNat 64 ((n + 1) * 8) =
                base + BitVec.ofNat 64 ((n + 2) * 8) := by
       apply BitVec.eq_of_toNat_eq
       simp [BitVec.toNat_add, BitVec.toNat_ofNat]; omega
@@ -211,10 +211,10 @@ theorem evmCodeIs_split_at (base : Addr) (bytes : List (BitVec 8)) (dw : Nat)
 -- ============================================================================
 
 /-- Aligned base: low 3 bits are zero. -/
-abbrev IsAligned8 (addr : Addr) : Prop := addr &&& 7#64 = 0#64
+abbrev IsAligned8 (addr : Word) : Prop := addr &&& 7#64 = 0#64
 
 /-- An aligned address is unchanged by alignToDword. -/
-theorem alignToDword_of_aligned (base : Addr) (h : IsAligned8 base) :
+theorem alignToDword_of_aligned (base : Word) (h : IsAligned8 base) :
     alignToDword base = base := by
   unfold alignToDword
   have : base &&& ~~~7#64 = base ^^^ (base &&& 7#64) := by bv_decide

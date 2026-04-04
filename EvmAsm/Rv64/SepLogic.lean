@@ -26,8 +26,8 @@ namespace EvmAsm.Rv64
     `none` means "we don't own this resource". -/
 structure PartialState where
   regs : Reg → Option Word
-  mem  : Addr → Option Word
-  code : Addr → Option Instr := fun _ => none
+  mem  : Word → Option Word
+  code : Word → Option Instr := fun _ => none
   pc   : Option Word
   publicValues : Option (List (BitVec 8)) := none
   privateInput : Option (List (BitVec 8)) := none
@@ -47,7 +47,7 @@ def singletonReg (r : Reg) (v : Word) : PartialState where
   privateInput := none
 
 /-- A partial state owning just one memory cell. -/
-def singletonMem (a : Addr) (v : Word) : PartialState where
+def singletonMem (a : Word) (v : Word) : PartialState where
   regs := fun _ => none
   mem  := fun a' => if a' == a then some v else none
   code := fun _ => none
@@ -56,7 +56,7 @@ def singletonMem (a : Addr) (v : Word) : PartialState where
   privateInput := none
 
 /-- A partial state owning just one code location. -/
-def singletonCode (a : Addr) (i : Instr) : PartialState where
+def singletonCode (a : Word) (i : Instr) : PartialState where
   regs := fun _ => none
   mem  := fun _ => none
   code := fun a' => if a' == a then some i else none
@@ -212,7 +212,7 @@ theorem CompatibleWith_singletonReg (r : Reg) (v : Word) (s : MachineState) :
       simp at h; rw [← h]; exact heq
     · simp at h
 
-theorem CompatibleWith_singletonMem (a : Addr) (v : Word) (s : MachineState) :
+theorem CompatibleWith_singletonMem (a : Word) (v : Word) (s : MachineState) :
     (singletonMem a v).CompatibleWith s ↔ s.getMem a = v := by
   constructor
   · intro ⟨_, hm, _, _, _, _⟩
@@ -330,7 +330,7 @@ def regIs (r : Reg) (v : Word) : Assertion :=
 notation:50 r " ↦ᵣ " v => regIs r v
 
 /-- Memory at address a holds value v. -/
-def memIs (a : Addr) (v : Word) : Assertion :=
+def memIs (a : Word) (v : Word) : Assertion :=
   fun h => h = PartialState.singletonMem a v
 
 /-- Notation: a ↦ₘ v means memory at address a holds value v. -/
@@ -344,7 +344,7 @@ def pcIs (v : Word) : Assertion :=
 def regOwn (r : Reg) : Assertion := fun h => ∃ v, regIs r v h
 
 /-- Ownership of memory at address a with unspecified value. -/
-def memOwn (a : Addr) : Assertion := fun h => ∃ v, memIs a v h
+def memOwn (a : Word) : Assertion := fun h => ∃ v, memIs a v h
 
 /-- The empty assertion: owns no resources. -/
 def empAssertion : Assertion := fun h => h = PartialState.empty
@@ -398,7 +398,7 @@ theorem holdsFor_regIs (r : Reg) (v : Word) (s : MachineState) :
     exact ⟨_, (PartialState.CompatibleWith_singletonReg r v s).mpr heq, rfl⟩
 
 @[simp]
-theorem holdsFor_memIs (a : Addr) (v : Word) (s : MachineState) :
+theorem holdsFor_memIs (a : Word) (v : Word) (s : MachineState) :
     (memIs a v).holdsFor s ↔ s.getMem a = v := by
   simp only [Assertion.holdsFor, memIs]
   constructor
@@ -431,7 +431,7 @@ theorem holdsFor_regOwn (r : Reg) (s : MachineState) :
          s.getReg r, rfl⟩
 
 @[simp]
-theorem holdsFor_memOwn (a : Addr) (s : MachineState) :
+theorem holdsFor_memOwn (a : Word) (s : MachineState) :
     (memOwn a).holdsFor s ↔ True := by
   simp only [iff_true, memOwn, Assertion.holdsFor]
   exact ⟨_, (PartialState.CompatibleWith_singletonMem a (s.getMem a) s).mpr rfl,
@@ -440,7 +440,7 @@ theorem holdsFor_memOwn (a : Addr) (s : MachineState) :
 theorem regIs_implies_regOwn (r : Reg) (v : Word) :
     ∀ h, regIs r v h → regOwn r h := fun _ hp => ⟨v, hp⟩
 
-theorem memIs_implies_memOwn (a : Addr) (v : Word) :
+theorem memIs_implies_memOwn (a : Word) (v : Word) :
     ∀ h, memIs a v h → memOwn a h := fun _ hp => ⟨v, hp⟩
 
 -- ============================================================================
@@ -475,7 +475,7 @@ theorem singletonReg_disjoint_imp_ne {r1 r2 : Reg} {v1 v2 : Word}
   -- this says: some v1 = none ∨ some v2 = none, which is false
   cases this <;> simp_all
 
-private theorem singletonReg_disjoint_singletonMem (r : Reg) (v : Word) (a : Addr) (w : Word) :
+private theorem singletonReg_disjoint_singletonMem (r : Reg) (v : Word) (a : Word) (w : Word) :
     (PartialState.singletonReg r v).Disjoint (PartialState.singletonMem a w) := by
   exact ⟨fun _ => Or.inr rfl, fun _ => Or.inl rfl, fun _ => Or.inl rfl, Or.inl rfl, Or.inl rfl, Or.inl rfl⟩
 
@@ -496,7 +496,7 @@ theorem holdsFor_sepConj_regIs_regIs {r1 r2 : Reg} {v1 v2 : Word} {s : MachineSt
        (PartialState.CompatibleWith_singletonReg r2 v2 s).mpr h2⟩,
       _, _, hd, rfl, rfl, rfl⟩
 
-theorem holdsFor_sepConj_regIs_memIs {r : Reg} {v : Word} {a : Addr} {w : Word}
+theorem holdsFor_sepConj_regIs_memIs {r : Reg} {v : Word} {a : Word} {w : Word}
     {s : MachineState} :
     ((regIs r v) ** (memIs a w)).holdsFor s ↔ s.getReg r = v ∧ s.getMem a = w := by
   constructor
@@ -538,13 +538,13 @@ theorem holdsFor_sepConj_elim_right {P Q : Assertion} {s : MachineState}
 theorem pcFree_regIs (r : Reg) (v : Word) : (regIs r v).pcFree := by
   intro h hp; rw [regIs] at hp; subst hp; rfl
 
-theorem pcFree_memIs (a : Addr) (v : Word) : (memIs a v).pcFree := by
+theorem pcFree_memIs (a : Word) (v : Word) : (memIs a v).pcFree := by
   intro h hp; rw [memIs] at hp; subst hp; rfl
 
 theorem pcFree_regOwn (r : Reg) : (regOwn r).pcFree := by
   intro h ⟨v, hv⟩; exact pcFree_regIs r v h hv
 
-theorem pcFree_memOwn (a : Addr) : (memOwn a).pcFree := by
+theorem pcFree_memOwn (a : Word) : (memOwn a).pcFree := by
   intro h ⟨v, hv⟩; exact pcFree_memIs a v h hv
 
 theorem pcFree_emp : empAssertion.pcFree := by
@@ -1012,7 +1012,7 @@ private theorem singletonReg_disjoint_singletonPublicValues (r : Reg) (v : Word)
     (PartialState.singletonReg r v).Disjoint (PartialState.singletonPublicValues vals) := by
   exact ⟨fun _ => Or.inr rfl, fun _ => Or.inl rfl, fun _ => Or.inl rfl, Or.inl rfl, Or.inl rfl, Or.inl rfl⟩
 
-private theorem singletonMem_disjoint_singletonPublicValues (a : Addr) (v : Word) (vals : List (BitVec 8)) :
+private theorem singletonMem_disjoint_singletonPublicValues (a : Word) (v : Word) (vals : List (BitVec 8)) :
     (PartialState.singletonMem a v).Disjoint (PartialState.singletonPublicValues vals) := by
   exact ⟨fun _ => Or.inl rfl, fun _ => Or.inr rfl, fun _ => Or.inl rfl, Or.inl rfl, Or.inl rfl, Or.inl rfl⟩
 
@@ -1095,7 +1095,7 @@ private theorem singletonReg_disjoint_singletonPrivateInput (r : Reg) (v : Word)
     (PartialState.singletonReg r v).Disjoint (PartialState.singletonPrivateInput vals) := by
   exact ⟨fun _ => Or.inr rfl, fun _ => Or.inl rfl, fun _ => Or.inl rfl, Or.inl rfl, Or.inl rfl, Or.inl rfl⟩
 
-private theorem singletonMem_disjoint_singletonPrivateInput (a : Addr) (v : Word) (vals : List (BitVec 8)) :
+private theorem singletonMem_disjoint_singletonPrivateInput (a : Word) (v : Word) (vals : List (BitVec 8)) :
     (PartialState.singletonMem a v).Disjoint (PartialState.singletonPrivateInput vals) := by
   exact ⟨fun _ => Or.inl rfl, fun _ => Or.inr rfl, fun _ => Or.inl rfl, Or.inl rfl, Or.inl rfl, Or.inl rfl⟩
 
@@ -1207,7 +1207,7 @@ theorem CompatibleWith_setReg {h : PartialState} {s : MachineState} {r : Reg} {v
     rw [this]; exact hr r' v' hv
 
 /-- If a partial state doesn't own address a, then modifying mem[a] preserves compatibility. -/
-theorem CompatibleWith_setMem {h : PartialState} {s : MachineState} {a : Addr} {v : Word}
+theorem CompatibleWith_setMem {h : PartialState} {s : MachineState} {a : Word} {v : Word}
     (hcompat : h.CompatibleWith s) (hnone : h.mem a = none) :
     h.CompatibleWith (s.setMem a v) := by
   obtain ⟨hr, hm, hc, hpc, hpv, hpi⟩ := hcompat
@@ -1483,7 +1483,7 @@ theorem holdsFor_sepConj_regIs_regIs_regIs_setReg
 
 /-- If `(a ↦ₘ v) ** R` holds for `s`, then `(a ↦ₘ v') ** R` holds for `s.setMem a v'`.
     The frame R is preserved because it's disjoint from the memory being modified. -/
-theorem holdsFor_sepConj_memIs_setMem {a : Addr} {v v' : Word} {R : Assertion}
+theorem holdsFor_sepConj_memIs_setMem {a : Word} {v v' : Word} {R : Assertion}
     {s : MachineState}
     (hPR : ((a ↦ₘ v) ** R).holdsFor s) :
     ((a ↦ₘ v') ** R).holdsFor (s.setMem a v') := by
@@ -1519,7 +1519,7 @@ theorem holdsFor_sepConj_memIs_setMem {a : Addr} {v v' : Word} {R : Assertion}
   exact (PartialState.CompatibleWith_union hdisj').mpr ⟨hc1', hc2'⟩
 
 /-- setMem preserves holdsFor for any assertion whose partial state doesn't own the address. -/
-theorem holdsFor_setMem {P : Assertion} {a : Addr} {v : Word} {s : MachineState}
+theorem holdsFor_setMem {P : Assertion} {a : Word} {v : Word} {s : MachineState}
     (hP_no_a : ∀ h, P h → h.mem a = none)
     (hP : P.holdsFor s) :
     P.holdsFor (s.setMem a v) := by
@@ -1816,13 +1816,13 @@ theorem holdsFor_liftPred_of {P : MachineState → Prop} {s : MachineState}
 -- ============================================================================
 
 /-- Code ownership at address a with instruction i. -/
-def instrAt (a : Addr) (i : Instr) : Assertion := fun h => h = PartialState.singletonCode a i
+def instrAt (a : Word) (i : Instr) : Assertion := fun h => h = PartialState.singletonCode a i
 
 /-- Notation: a ↦ᵢ i means code at address a holds instruction i. -/
 notation:50 a " ↦ᵢ " i => instrAt a i
 
 /-- Program ownership: a recursive assertion for a program. -/
-def programAt : List (Addr × Instr) → Assertion
+def programAt : List (Word × Instr) → Assertion
   | [] => empAssertion
   | (a, i) :: rest => (instrAt a i) ** (programAt rest)
 
@@ -1836,16 +1836,16 @@ theorem bv_add_ofNat_assoc {w : Nat} (a : BitVec w) (n m : Nat) :
 
 /-- Convert a program (List Instr) at a base address to address-instruction pairs.
     Each instruction occupies 4 bytes. -/
-def progIndexed (base : Addr) : List Instr → List (Addr × Instr)
+def progIndexed (base : Word) : List Instr → List (Word × Instr)
   | [] => []
   | i :: rest => (base, i) :: progIndexed (base + 4) rest
 
 /-- Program assertion at a base address: owns instrAt for every instruction. -/
-def progAt (base : Addr) (prog : List Instr) : Assertion :=
+def progAt (base : Word) (prog : List Instr) : Assertion :=
   programAt (progIndexed base prog)
 
 /-- Indexed list for append splits into indexed lists for each part. -/
-theorem progIndexed_append (base : Addr) (p1 p2 : List Instr) :
+theorem progIndexed_append (base : Word) (p1 p2 : List Instr) :
     progIndexed base (p1 ++ p2) = progIndexed base p1 ++ progIndexed (base + BitVec.ofNat 64 (4 * p1.length)) p2 := by
   induction p1 generalizing base with
   | nil => simp [progIndexed, List.nil_append, BitVec.ofNat]
@@ -1861,7 +1861,7 @@ theorem progIndexed_append (base : Addr) (p1 p2 : List Instr) :
     omega
 
 /-- programAt splits on append. -/
-theorem programAt_append (l1 l2 : List (Addr × Instr)) :
+theorem programAt_append (l1 l2 : List (Word × Instr)) :
     programAt (l1 ++ l2) = (programAt l1 ** programAt l2) := by
   induction l1 with
   | nil =>
@@ -1873,7 +1873,7 @@ theorem programAt_append (l1 l2 : List (Addr × Instr)) :
     funext h; exact propext ⟨(sepConj_assoc _ _ _ h).mpr, (sepConj_assoc _ _ _ h).mp⟩
 
 /-- progAt splits on program append. -/
-theorem progAt_append (base : Addr) (p1 p2 : List Instr) :
+theorem progAt_append (base : Word) (p1 p2 : List Instr) :
     progAt base (p1 ++ p2) = (progAt base p1 ** progAt (base + BitVec.ofNat 64 (4 * p1.length)) p2) := by
   simp only [progAt, progIndexed_append, programAt_append]
 
@@ -1883,7 +1883,7 @@ theorem progAt_append (base : Addr) (p1 p2 : List Instr) :
 
 namespace PartialState
 
-theorem CompatibleWith_singletonCode (a : Addr) (i : Instr) (s : MachineState) :
+theorem CompatibleWith_singletonCode (a : Word) (i : Instr) (s : MachineState) :
     (singletonCode a i).CompatibleWith s ↔ s.code a = some i := by
   constructor
   · intro ⟨_, _, hc, _, _, _⟩
@@ -1909,7 +1909,7 @@ end PartialState
 -- ============================================================================
 
 @[simp]
-theorem holdsFor_instrAt (a : Addr) (i : Instr) (s : MachineState) :
+theorem holdsFor_instrAt (a : Word) (i : Instr) (s : MachineState) :
     (instrAt a i).holdsFor s ↔ s.code a = some i := by
   simp only [Assertion.holdsFor, instrAt]
   constructor
@@ -1922,7 +1922,7 @@ theorem holdsFor_instrAt (a : Addr) (i : Instr) (s : MachineState) :
 -- Disjointness lemmas for singletonCode
 -- ============================================================================
 
-private theorem singletonCode_disjoint_singletonCode (a1 a2 : Addr) (i1 i2 : Instr)
+private theorem singletonCode_disjoint_singletonCode (a1 a2 : Word) (i1 i2 : Instr)
     (hne : a1 ≠ a2) :
     (PartialState.singletonCode a1 i1).Disjoint (PartialState.singletonCode a2 i2) := by
   refine ⟨fun r => Or.inl rfl, fun _ => Or.inl rfl, fun a => ?_, Or.inl rfl, Or.inl rfl, Or.inl rfl⟩
@@ -1937,23 +1937,23 @@ private theorem singletonCode_disjoint_singletonCode (a1 a2 : Addr) (i1 i2 : Ins
     · exact fun hi2 => h2 (beq_iff_eq.mpr hi2)
   · simp [h1]
 
-private theorem singletonReg_disjoint_singletonCode (r : Reg) (v : Word) (a : Addr) (i : Instr) :
+private theorem singletonReg_disjoint_singletonCode (r : Reg) (v : Word) (a : Word) (i : Instr) :
     (PartialState.singletonReg r v).Disjoint (PartialState.singletonCode a i) := by
   exact ⟨fun _ => Or.inr rfl, fun _ => Or.inl rfl, fun _ => Or.inl rfl, Or.inl rfl, Or.inl rfl, Or.inl rfl⟩
 
-private theorem singletonMem_disjoint_singletonCode (a : Addr) (v : Word) (a' : Addr) (i : Instr) :
+private theorem singletonMem_disjoint_singletonCode (a : Word) (v : Word) (a' : Word) (i : Instr) :
     (PartialState.singletonMem a v).Disjoint (PartialState.singletonCode a' i) := by
   exact ⟨fun _ => Or.inl rfl, fun _ => Or.inr rfl, fun _ => Or.inl rfl, Or.inl rfl, Or.inl rfl, Or.inl rfl⟩
 
-private theorem singletonPC_disjoint_singletonCode (v : Word) (a : Addr) (i : Instr) :
+private theorem singletonPC_disjoint_singletonCode (v : Word) (a : Word) (i : Instr) :
     (PartialState.singletonPC v).Disjoint (PartialState.singletonCode a i) := by
   exact ⟨fun _ => Or.inl rfl, fun _ => Or.inl rfl, fun _ => Or.inl rfl, Or.inr rfl, Or.inl rfl, Or.inl rfl⟩
 
-private theorem singletonPublicValues_disjoint_singletonCode (vals : List (BitVec 8)) (a : Addr) (i : Instr) :
+private theorem singletonPublicValues_disjoint_singletonCode (vals : List (BitVec 8)) (a : Word) (i : Instr) :
     (PartialState.singletonPublicValues vals).Disjoint (PartialState.singletonCode a i) := by
   exact ⟨fun _ => Or.inl rfl, fun _ => Or.inl rfl, fun _ => Or.inl rfl, Or.inl rfl, Or.inr rfl, Or.inl rfl⟩
 
-private theorem singletonPrivateInput_disjoint_singletonCode (vals : List (BitVec 8)) (a : Addr) (i : Instr) :
+private theorem singletonPrivateInput_disjoint_singletonCode (vals : List (BitVec 8)) (a : Word) (i : Instr) :
     (PartialState.singletonPrivateInput vals).Disjoint (PartialState.singletonCode a i) := by
   exact ⟨fun _ => Or.inl rfl, fun _ => Or.inl rfl, fun _ => Or.inl rfl, Or.inl rfl, Or.inl rfl, Or.inr rfl⟩
 
@@ -1961,7 +1961,7 @@ private theorem singletonPrivateInput_disjoint_singletonCode (vals : List (BitVe
 -- pcFree for code assertions
 -- ============================================================================
 
-theorem pcFree_instrAt (a : Addr) (i : Instr) : (instrAt a i).pcFree := by
+theorem pcFree_instrAt (a : Word) (i : Instr) : (instrAt a i).pcFree := by
   intro h hp; rw [instrAt] at hp; subst hp; rfl
 
 theorem pcFree_programAt : ∀ prog, (programAt prog).pcFree
@@ -1973,7 +1973,7 @@ instance : Assertion.PCFree (instrAt a i) := ⟨pcFree_instrAt a i⟩
 
 instance : Assertion.PCFree (programAt prog) := ⟨pcFree_programAt prog⟩
 
-theorem pcFree_progAt (base : Addr) (prog : List Instr) : (progAt base prog).pcFree :=
+theorem pcFree_progAt (base : Word) (prog : List Instr) : (progAt base prog).pcFree :=
   pcFree_programAt (progIndexed base prog)
 
 instance : Assertion.PCFree (progAt base prog) := ⟨pcFree_progAt base prog⟩
@@ -1985,7 +1985,7 @@ instance : Assertion.PCFree (progAt base prog) := ⟨pcFree_progAt base prog⟩
 /-- A code requirement maps addresses to optional instructions.
     Used as a side-condition in cpsTriple instead of linear instrAt assertions.
     Unlike instrAt (which is linear), CodeReq is persistent/checked non-consumptively. -/
-def CodeReq := Addr → Option Instr
+def CodeReq := Word → Option Instr
 
 namespace CodeReq
 
@@ -1993,7 +1993,7 @@ namespace CodeReq
 def empty : CodeReq := fun _ => none
 
 /-- Singleton code requirement: exactly one instruction at one address. -/
-def singleton (a : Addr) (i : Instr) : CodeReq :=
+def singleton (a : Word) (i : Instr) : CodeReq :=
   fun a' => if a' == a then some i else none
 
 /-- Union of two code requirements (left-biased). -/
@@ -2005,11 +2005,11 @@ def SatisfiedBy (cr : CodeReq) (s : MachineState) : Prop :=
   ∀ a i, cr a = some i → s.code a = some i
 
 /-- Build a CodeReq from a list of address-instruction pairs. -/
-def ofIndexed (pairs : List (Addr × Instr)) : CodeReq :=
-  pairs.foldl (fun cr (ai : Addr × Instr) => cr.union (singleton ai.1 ai.2)) empty
+def ofIndexed (pairs : List (Word × Instr)) : CodeReq :=
+  pairs.foldl (fun cr (ai : Word × Instr) => cr.union (singleton ai.1 ai.2)) empty
 
 /-- Build a CodeReq from a program at a base address. -/
-def ofProg (base : Addr) (prog : List Instr) : CodeReq :=
+def ofProg (base : Word) (prog : List Instr) : CodeReq :=
   ofIndexed (progIndexed base prog)
 
 -- ---------------------------------------------------------------------------
@@ -2026,9 +2026,9 @@ theorem union_empty_left (cr : CodeReq) : empty.union cr = cr := by
 theorem union_empty_right (cr : CodeReq) : cr.union empty = cr := by
   funext a; simp only [union, empty]; cases cr a <;> rfl
 
-private theorem ofIndexed_foldl_acc (acc : CodeReq) (ps : List (Addr × Instr)) :
-    ps.foldl (fun cr (ai : Addr × Instr) => cr.union (singleton ai.1 ai.2)) acc =
-    acc.union (ps.foldl (fun cr (ai : Addr × Instr) => cr.union (singleton ai.1 ai.2)) empty) := by
+private theorem ofIndexed_foldl_acc (acc : CodeReq) (ps : List (Word × Instr)) :
+    ps.foldl (fun cr (ai : Word × Instr) => cr.union (singleton ai.1 ai.2)) acc =
+    acc.union (ps.foldl (fun cr (ai : Word × Instr) => cr.union (singleton ai.1 ai.2)) empty) := by
   induction ps generalizing acc with
   | nil => exact (union_empty_right acc).symm
   | cons p ps ih =>
@@ -2037,20 +2037,20 @@ private theorem ofIndexed_foldl_acc (acc : CodeReq) (ps : List (Addr × Instr)) 
     rw [show empty.union (singleton p.1 p.2) = singleton p.1 p.2 from union_empty_left _]
     exact (ih (singleton p.1 p.2)).symm
 
-theorem ofIndexed_cons (p : Addr × Instr) (ps : List (Addr × Instr)) :
+theorem ofIndexed_cons (p : Word × Instr) (ps : List (Word × Instr)) :
     ofIndexed (p :: ps) = (singleton p.1 p.2).union (ofIndexed ps) := by
   simp only [ofIndexed, List.foldl, union_empty_left]
   exact ofIndexed_foldl_acc (singleton p.1 p.2) ps
 
-theorem ofProg_cons (base : Addr) (i : Instr) (rest : List Instr) :
+theorem ofProg_cons (base : Word) (i : Instr) (rest : List Instr) :
     ofProg base (i :: rest) = (singleton base i).union (ofProg (base + 4) rest) := by
   simp only [ofProg, progIndexed]; exact ofIndexed_cons (base, i) (progIndexed (base + 4) rest)
 
-theorem ofProg_nil (base : Addr) : ofProg base [] = empty := rfl
+theorem ofProg_nil (base : Word) : ofProg base [] = empty := rfl
 
 /-- If an address doesn't match any instruction position in a program block,
     the ofProg CodeReq returns none at that address. -/
-theorem ofProg_none_range (base : Addr) (prog : List Instr) (a : Addr)
+theorem ofProg_none_range (base : Word) (prog : List Instr) (a : Word)
     (h : ∀ k : Nat, k < prog.length → a ≠ base + BitVec.ofNat 64 (4 * k)) :
     ofProg base prog a = none := by
   induction prog generalizing base with
@@ -2066,12 +2066,12 @@ theorem ofProg_none_range (base : Addr) (prog : List Instr) (a : Addr)
       have h' := h (k + 1) (by simp [List.length]; omega)
       intro heq; apply h'; rw [heq]; bv_omega)
 
-theorem ofIndexed_append (xs ys : List (Addr × Instr)) :
+theorem ofIndexed_append (xs ys : List (Word × Instr)) :
     ofIndexed (xs ++ ys) = (ofIndexed xs).union (ofIndexed ys) := by
   simp only [ofIndexed, List.foldl_append]
   exact ofIndexed_foldl_acc _ ys
 
-theorem ofProg_append (base : Addr) (p1 p2 : List Instr) :
+theorem ofProg_append (base : Word) (p1 p2 : List Instr) :
     ofProg base (p1 ++ p2) =
       (ofProg base p1).union (ofProg (base + BitVec.ofNat 64 (4 * p1.length)) p2) := by
   simp only [ofProg, progIndexed_append]
@@ -2097,7 +2097,7 @@ def CodeReq.Disjoint (cr1 cr2 : CodeReq) : Prop :=
   ∀ a, cr1 a = none ∨ cr2 a = none
 
 /-- Singleton CodeReqs at different addresses are disjoint. -/
-theorem CodeReq.Disjoint.singleton {a1 a2 : Addr} (h : a1 ≠ a2)
+theorem CodeReq.Disjoint.singleton {a1 a2 : Word} (h : a1 ≠ a2)
     (i1 i2 : Instr) : CodeReq.Disjoint (CodeReq.singleton a1 i1) (CodeReq.singleton a2 i2) := by
   intro a
   simp only [CodeReq.singleton]
@@ -2145,24 +2145,24 @@ theorem CodeReq.Disjoint.symm {cr1 cr2 : CodeReq} (hd : cr1.Disjoint cr2) :
     cr2.Disjoint cr1 := fun a => (hd a).symm
 
 /-- ofProg of empty list is disjoint from anything (left). -/
-theorem CodeReq.Disjoint.ofProg_nil_left (base : Addr) (cr : CodeReq) :
+theorem CodeReq.Disjoint.ofProg_nil_left (base : Word) (cr : CodeReq) :
     CodeReq.Disjoint (CodeReq.ofProg base []) cr :=
   CodeReq.Disjoint.empty_left cr
 
 /-- Any CodeReq is disjoint from ofProg of empty list (right). -/
-theorem CodeReq.Disjoint.ofProg_nil_right (cr : CodeReq) (base : Addr) :
+theorem CodeReq.Disjoint.ofProg_nil_right (cr : CodeReq) (base : Word) :
     CodeReq.Disjoint cr (CodeReq.ofProg base []) :=
   CodeReq.Disjoint.empty_right cr
 
 /-- Disjointness of ofProg cons on the left: peel off the head singleton. -/
-theorem CodeReq.Disjoint.ofProg_cons_left (base : Addr) (i : Instr) (rest : List Instr) (cr : CodeReq)
+theorem CodeReq.Disjoint.ofProg_cons_left (base : Word) (i : Instr) (rest : List Instr) (cr : CodeReq)
     (h1 : CodeReq.Disjoint (CodeReq.singleton base i) cr)
     (h2 : CodeReq.Disjoint (CodeReq.ofProg (base + 4) rest) cr) :
     CodeReq.Disjoint (CodeReq.ofProg base (i :: rest)) cr := by
   rw [CodeReq.ofProg_cons]; exact CodeReq.Disjoint.union_left h1 h2
 
 /-- Disjointness of ofProg cons on the right: peel off the head singleton. -/
-theorem CodeReq.Disjoint.ofProg_cons_right (cr : CodeReq) (base : Addr) (i : Instr) (rest : List Instr)
+theorem CodeReq.Disjoint.ofProg_cons_right (cr : CodeReq) (base : Word) (i : Instr) (rest : List Instr)
     (h1 : CodeReq.Disjoint cr (CodeReq.singleton base i))
     (h2 : CodeReq.Disjoint cr (CodeReq.ofProg (base + 4) rest)) :
     CodeReq.Disjoint cr (CodeReq.ofProg base (i :: rest)) := by
@@ -2171,35 +2171,35 @@ theorem CodeReq.Disjoint.ofProg_cons_right (cr : CodeReq) (base : Addr) (i : Ins
 /-- Simplify CodeReq.union applied to a concrete address, when the head is a singleton.
     This collapses `(singleton a i |> union · rest) a'` into an if-then-else
     at the ite level rather than the match-over-ite level. -/
-theorem CodeReq.union_singleton_apply (a a' : Addr) (i : Instr) (rest : CodeReq) :
+theorem CodeReq.union_singleton_apply (a a' : Word) (i : Instr) (rest : CodeReq) :
     (CodeReq.union (CodeReq.singleton a i) rest) a' =
       if a' == a then some i else rest a' := by
   simp only [CodeReq.union, CodeReq.singleton]
   split <;> simp_all
 
 /-- BEq of offset addresses: `(a + k1) == (a + k2) = (k1 == k2)`. -/
-theorem CodeReq.beq_base_offset (a : Addr) (k1 k2 : Addr) :
+theorem CodeReq.beq_base_offset (a : Word) (k1 k2 : Word) :
     ((a + k1) == (a + k2)) = (k1 == k2) := by
   rw [show (k1 == k2) = decide (k1 = k2) from rfl,
       show ((a + k1) == (a + k2)) = decide (a + k1 = a + k2) from rfl]
   congr 1; exact propext ⟨fun h => by bv_omega, fun h => by bv_omega⟩
 
 /-- BEq of (a + k) vs a: reduces to k == 0. -/
-theorem CodeReq.beq_offset_self_left (a : Addr) (k : Addr) :
+theorem CodeReq.beq_offset_self_left (a : Word) (k : Word) :
     ((a + k) == a) = (k == 0) := by
-  rw [show (k == (0 : Addr)) = decide (k = 0) from rfl,
+  rw [show (k == (0 : Word)) = decide (k = 0) from rfl,
       show ((a + k) == a) = decide (a + k = a) from rfl]
   congr 1; exact propext ⟨fun h => by bv_omega, fun h => by bv_omega⟩
 
 /-- BEq of a vs (a + k): reduces to k == 0. -/
-theorem CodeReq.beq_offset_self_right (a : Addr) (k : Addr) :
+theorem CodeReq.beq_offset_self_right (a : Word) (k : Word) :
     (a == (a + k)) = (k == 0) := by
-  rw [show (k == (0 : Addr)) = decide (k = 0) from rfl,
+  rw [show (k == (0 : Word)) = decide (k = 0) from rfl,
       show (a == (a + k)) = decide (a = a + k) from rfl]
   congr 1; exact propext ⟨fun h => by bv_omega, fun h => by bv_omega⟩
 
 /-- If head returns none, union falls through to tail. -/
-theorem CodeReq.union_none_left {head tail : CodeReq} {a : Addr}
+theorem CodeReq.union_none_left {head tail : CodeReq} {a : Word}
     (h : head a = none) : (head.union tail) a = tail a := by
   simp [CodeReq.union, h]
 
@@ -2220,7 +2220,7 @@ theorem CodeReq.union_mono_tail {cr tail1 tail2 : CodeReq}
 
 /-- A singleton's only address can be found in a target CodeReq, if target maps that address
     to the same instruction. Useful for proving singleton ⊆ target. -/
-theorem CodeReq.singleton_mono {a : Addr} {i : Instr} {cr : CodeReq}
+theorem CodeReq.singleton_mono {a : Word} {i : Instr} {cr : CodeReq}
     (h : cr a = some i) :
     ∀ a' i', CodeReq.singleton a i a' = some i' → cr a' = some i' := by
   intro a' i' hq
@@ -2230,19 +2230,19 @@ theorem CodeReq.singleton_mono {a : Addr} {i : Instr} {cr : CodeReq}
   · simp at hq
 
 /-- A singleton misses any address not equal to its own. -/
-theorem CodeReq.singleton_miss {a a' : Addr} {i : Instr}
+theorem CodeReq.singleton_miss {a a' : Word} {i : Instr}
     (hne : a' ≠ a) :
     (CodeReq.singleton a i) a' = none := by
   simp [CodeReq.singleton, beq_eq_false_iff_ne.mpr hne]
 
 /-- Skip a non-matching head of a union: if head misses at a, we look at the tail. -/
-theorem CodeReq.union_skip {head tail : CodeReq} {a : Addr} {i : Instr}
+theorem CodeReq.union_skip {head tail : CodeReq} {a : Word} {i : Instr}
     (hne : head a = none) (htail : tail a = some i) :
     (head.union tail) a = some i := by
   simp [CodeReq.union, hne, htail]
 
 /-- Hit at the head of a union. -/
-theorem CodeReq.union_hit {head tail : CodeReq} {a : Addr} {i : Instr}
+theorem CodeReq.union_hit {head tail : CodeReq} {a : Word} {i : Instr}
     (hh : head a = some i) :
     (head.union tail) a = some i := by
   simp [CodeReq.union, hh]
@@ -2268,7 +2268,7 @@ theorem CodeReq.union_split_mono {cr1 cr2 cr : CodeReq}
   | none => simp [ha] at h; exact h2 a i h
   | some j => simp [ha] at h; subst h; exact h1 a j ha
 
-theorem CodeReq.singleton_get (a : Addr) (i : Instr) :
+theorem CodeReq.singleton_get (a : Word) (i : Instr) :
     CodeReq.singleton a i a = some i := by
   simp [CodeReq.singleton]
 
@@ -2277,19 +2277,19 @@ theorem CodeReq.singleton_get (a : Addr) (i : Instr) :
 -- ---------------------------------------------------------------------------
 
 /-- Auxiliary: `base + BitVec.ofNat 64 0 = base`. -/
-private theorem ofProg_addr_zero (base : Addr) : base + BitVec.ofNat 64 0 = base := by
+private theorem ofProg_addr_zero (base : Word) : base + BitVec.ofNat 64 0 = base := by
   bv_omega
 
 /-- Auxiliary: address step for ofProg induction.
     `base + ofNat(4*(k+1)) = (base + 4) + ofNat(4*k)`. -/
-private theorem ofProg_addr_succ (base : Addr) (k : Nat) :
+private theorem ofProg_addr_succ (base : Word) (k : Nat) :
     base + BitVec.ofNat 64 (4 * (k + 1)) = (base + 4) + BitVec.ofNat 64 (4 * k) := by
   apply BitVec.eq_of_toNat_eq
   simp [BitVec.toNat_add, BitVec.toNat_ofNat]
   omega
 
 /-- Auxiliary: `base + ofNat(4*(k+1)) ≠ base` when `4*(k+1) < 2^64`. -/
-private theorem ofProg_addr_ne (base : Addr) (k : Nat) (hk : 4 * (k + 1) < 2 ^ 64) :
+private theorem ofProg_addr_ne (base : Word) (k : Nat) (hk : 4 * (k + 1) < 2 ^ 64) :
     base + BitVec.ofNat 64 (4 * (k + 1)) ≠ base := by
   intro h
   have := congrArg BitVec.toNat h
@@ -2297,12 +2297,12 @@ private theorem ofProg_addr_ne (base : Addr) (k : Nat) (hk : 4 * (k + 1) < 2 ^ 6
   omega
 
 /-- ofProg lookup at offset 0: the first instruction is at `base`. -/
-theorem CodeReq.ofProg_lookup_zero (base : Addr) (i : Instr) (rest : List Instr) :
+theorem CodeReq.ofProg_lookup_zero (base : Word) (i : Instr) (rest : List Instr) :
     (CodeReq.ofProg base (i :: rest)) base = some i := by
   rw [CodeReq.ofProg_cons]
   exact CodeReq.union_hit (CodeReq.singleton_get base i)
 
-theorem CodeReq.ofProg_lookup (base : Addr) (prog : List Instr) (k : Nat)
+theorem CodeReq.ofProg_lookup (base : Word) (prog : List Instr) (k : Nat)
     (hk : k < prog.length) (hbound : 4 * prog.length < 2 ^ 64) :
     (CodeReq.ofProg base prog) (base + BitVec.ofNat 64 (4 * k)) = some (prog.get ⟨k, hk⟩) := by
   induction prog generalizing base k with
@@ -2326,21 +2326,21 @@ theorem CodeReq.ofProg_lookup (base : Addr) (prog : List Instr) (k : Nat)
 /-- Variant of `ofProg_lookup` that takes an explicit address with a proof it equals
     `base + 4*k`. Avoids definitional-equality issues when the ofProg base has an offset
     (e.g., `(base + 44) + BitVec.ofNat 64 4` vs `base + 48`). -/
-theorem CodeReq.ofProg_lookup_addr (base : Addr) (prog : List Instr) (k : Nat) (addr : Addr)
+theorem CodeReq.ofProg_lookup_addr (base : Word) (prog : List Instr) (k : Nat) (addr : Word)
     (hk : k < prog.length) (hbound : 4 * prog.length < 2 ^ 64)
     (h_addr : addr = base + BitVec.ofNat 64 (4 * k)) :
     (CodeReq.ofProg base prog) addr = some (prog.get ⟨k, hk⟩) := by
   subst h_addr; exact CodeReq.ofProg_lookup base prog k hk hbound
 
 /-- Variant of ofProg_none_range with explicit length (avoids needing to reduce prog.length). -/
-theorem CodeReq.ofProg_none_range_len (base : Addr) (prog : List Instr) (n : Nat) (a : Addr)
+theorem CodeReq.ofProg_none_range_len (base : Word) (prog : List Instr) (n : Nat) (a : Word)
     (hlen : prog.length = n)
     (h : ∀ k : Nat, k < n → a ≠ base + BitVec.ofNat 64 (4 * k)) :
     CodeReq.ofProg base prog a = none :=
   CodeReq.ofProg_none_range base prog a (fun k hk => h k (hlen ▸ hk))
 
 /-- Singleton is disjoint from ofProg if the singleton's address is not in the program range. -/
-theorem CodeReq.Disjoint.singleton_ofProg {a : Addr} {i : Instr} {base : Addr} {prog : List Instr}
+theorem CodeReq.Disjoint.singleton_ofProg {a : Word} {i : Instr} {base : Word} {prog : List Instr}
     (h : CodeReq.ofProg base prog a = none) :
     CodeReq.Disjoint (CodeReq.singleton a i) (CodeReq.ofProg base prog) := by
   intro a'
@@ -2350,14 +2350,14 @@ theorem CodeReq.Disjoint.singleton_ofProg {a : Addr} {i : Instr} {base : Addr} {
   · left; simp [hb]
 
 /-- ofProg is disjoint from singleton if the singleton's address is not in the program range. -/
-theorem CodeReq.Disjoint.ofProg_singleton {a : Addr} {i : Instr} {base : Addr} {prog : List Instr}
+theorem CodeReq.Disjoint.ofProg_singleton {a : Word} {i : Instr} {base : Word} {prog : List Instr}
     (h : CodeReq.ofProg base prog a = none) :
     CodeReq.Disjoint (CodeReq.ofProg base prog) (CodeReq.singleton a i) :=
   (CodeReq.Disjoint.singleton_ofProg h).symm
 
 /-- Reverse of ofProg_none_range: if `ofProg` returns `some` at address `a`,
     then `a` must be `base + 4*k` for some `k < prog.length`. -/
-theorem CodeReq.ofProg_some_range (base : Addr) (prog : List Instr) (a : Addr) (i : Instr)
+theorem CodeReq.ofProg_some_range (base : Word) (prog : List Instr) (a : Word) (i : Instr)
     (h : (CodeReq.ofProg base prog) a = some i) :
     ∃ k, k < prog.length ∧ a = base + BitVec.ofNat 64 (4 * k) := by
   induction prog generalizing base with
@@ -2374,8 +2374,8 @@ theorem CodeReq.ofProg_some_range (base : Addr) (prog : List Instr) (a : Addr) (
 
 /-- Two ofProg blocks at non-overlapping address ranges are disjoint.
     Only requires the address-inequality predicate, not list expansion. -/
-theorem CodeReq.ofProg_disjoint_range (base1 : Addr) (prog1 : List Instr)
-    (base2 : Addr) (prog2 : List Instr)
+theorem CodeReq.ofProg_disjoint_range (base1 : Word) (prog1 : List Instr)
+    (base2 : Word) (prog2 : List Instr)
     (h : ∀ k1 k2, k1 < prog1.length → k2 < prog2.length →
       base1 + BitVec.ofNat 64 (4 * k1) ≠ base2 + BitVec.ofNat 64 (4 * k2)) :
     CodeReq.Disjoint (CodeReq.ofProg base1 prog1) (CodeReq.ofProg base2 prog2) := by
@@ -2394,8 +2394,8 @@ theorem CodeReq.ofProg_disjoint_range (base1 : Addr) (prog1 : List Instr)
       exact h k1 k2 hk1 hk2
 
 /-- Variant of ofProg_disjoint_range with explicit lengths (avoids needing to reduce prog.length). -/
-theorem CodeReq.ofProg_disjoint_range_len (base1 : Addr) (prog1 : List Instr) (n1 : Nat)
-    (base2 : Addr) (prog2 : List Instr) (n2 : Nat)
+theorem CodeReq.ofProg_disjoint_range_len (base1 : Word) (prog1 : List Instr) (n1 : Nat)
+    (base2 : Word) (prog2 : List Instr) (n2 : Nat)
     (hlen1 : prog1.length = n1) (hlen2 : prog2.length = n2)
     (h : ∀ k1 k2, k1 < n1 → k2 < n2 →
       base1 + BitVec.ofNat 64 (4 * k1) ≠ base2 + BitVec.ofNat 64 (4 * k2)) :
@@ -2408,14 +2408,14 @@ theorem CodeReq.ofProg_disjoint_range_len (base1 : Addr) (prog1 : List Instr) (n
 -- ---------------------------------------------------------------------------
 
 /-- Left (prefix) of a program append is subsumed by the full program. -/
-theorem CodeReq.ofProg_mono_append_left (base : Addr) (p1 p2 : List Instr) :
+theorem CodeReq.ofProg_mono_append_left (base : Word) (p1 p2 : List Instr) :
     ∀ a i, (CodeReq.ofProg base p1) a = some i →
            (CodeReq.ofProg base (p1 ++ p2)) a = some i := by
   rw [CodeReq.ofProg_append]; exact CodeReq.union_mono_left _ _
 
 /-- Right (suffix) of a program append is subsumed by the full program.
     Requires bound to ensure non-overlapping address ranges. -/
-theorem CodeReq.ofProg_mono_append_right (base : Addr) (p1 p2 : List Instr)
+theorem CodeReq.ofProg_mono_append_right (base : Word) (p1 p2 : List Instr)
     (hbound : 4 * (p1 ++ p2).length < 2^64) :
     ∀ a i, (CodeReq.ofProg (base + BitVec.ofNat 64 (4 * p1.length)) p2) a = some i →
            (CodeReq.ofProg base (p1 ++ p2)) a = some i := by
@@ -2440,7 +2440,7 @@ theorem CodeReq.ofProg_mono_append_right (base : Addr) (p1 p2 : List Instr)
 
 /-- Sub-range of a program is subsumed: if full = pre ++ mid ++ suf,
     then `ofProg (base + 4*pre.length) mid ⊆ ofProg base full`. -/
-theorem CodeReq.ofProg_mono_subrange (base : Addr) (pre mid suf : List Instr)
+theorem CodeReq.ofProg_mono_subrange (base : Word) (pre mid suf : List Instr)
     (hbound : 4 * (pre ++ mid ++ suf).length < 2^64) :
     ∀ a i, (CodeReq.ofProg (base + BitVec.ofNat 64 (4 * pre.length)) mid) a = some i →
            (CodeReq.ofProg base (pre ++ mid ++ suf)) a = some i := by
@@ -2453,7 +2453,7 @@ theorem CodeReq.ofProg_mono_subrange (base : Addr) (pre mid suf : List Instr)
 /-- Sub-range monotonicity with explicit offset: `ofProg sub_base sub ⊆ ofProg base full`
     when `sub` is a contiguous slice of `full` starting at instruction index `idx`
     (byte offset `sub_base = base + 4*idx`). -/
-theorem CodeReq.ofProg_mono_sub (base sub_base : Addr) (full sub : List Instr)
+theorem CodeReq.ofProg_mono_sub (base sub_base : Word) (full sub : List Instr)
     (idx : Nat)
     (h_addr : sub_base = base + BitVec.ofNat 64 (4 * idx))
     (h_slice : (full.drop idx).take sub.length = sub)
@@ -2559,7 +2559,7 @@ theorem CodeReq.empty_satisfiedBy (s : MachineState) : CodeReq.empty.SatisfiedBy
   fun _ _ h => by simp [CodeReq.empty] at h
 
 /-- A singleton CodeReq is satisfied iff the state has the instruction at that address. -/
-theorem CodeReq.singleton_satisfiedBy (a : Addr) (i : Instr) (s : MachineState) :
+theorem CodeReq.singleton_satisfiedBy (a : Word) (i : Instr) (s : MachineState) :
     (CodeReq.singleton a i).SatisfiedBy s ↔ s.code a = some i := by
   constructor
   · intro h; exact h a i (by simp [CodeReq.singleton])
@@ -2574,7 +2574,7 @@ theorem CodeReq.singleton_satisfiedBy (a : Addr) (i : Instr) (s : MachineState) 
       exact heq ▸ hcr ▸ h
 
 /-- An instrAt fact gives CodeReq.singleton satisfaction. -/
-theorem instrAt_singleton_satisfiedBy (a : Addr) (i : Instr) (s : MachineState)
+theorem instrAt_singleton_satisfiedBy (a : Word) (i : Instr) (s : MachineState)
     (h : (instrAt a i).holdsFor s) : (CodeReq.singleton a i).SatisfiedBy s :=
   (CodeReq.singleton_satisfiedBy a i s).mpr ((holdsFor_instrAt a i s).mp h)
 
@@ -2606,23 +2606,23 @@ theorem CodeReq.SatisfiedBy_mono {cr1 cr2 : CodeReq} (s : MachineState)
 
 /-- Addresses with same base but different offsets are not equal.
     Used by `proveAddrNe` for ~100x faster proofs vs `bv_omega`. -/
-theorem addr_ne_of_bv_ne (base a b : Addr) (h : a ≠ b) :
+theorem addr_ne_of_bv_ne (base a b : Word) (h : a ≠ b) :
     base + a ≠ base + b := by bv_omega
 
 /-- Base address is not equal to base + a when a ≠ 0. -/
-theorem addr_ne_add_right (base a : Addr) (h : a ≠ 0) :
+theorem addr_ne_add_right (base a : Word) (h : a ≠ 0) :
     base ≠ base + a := by bv_omega
 
 /-- Base + a is not equal to bare base when a ≠ 0. -/
-theorem addr_add_ne_left (base a : Addr) (h : a ≠ 0) :
+theorem addr_add_ne_left (base a : Word) (h : a ≠ 0) :
     base + a ≠ base := by bv_omega
 
 /-- Address reassociation: (base + k1) + k2 = base + sum when k1 + k2 = sum. -/
-theorem addr_reassoc (base k1 k2 sum : Addr) (h : k1 + k2 = sum) :
+theorem addr_reassoc (base k1 k2 sum : Word) (h : k1 + k2 = sum) :
     (base + k1) + k2 = base + sum := by subst h; bv_omega
 
 /-- Address addition with zero: a + 0 = a. -/
-theorem addr_add_zero_bv (a : Addr) : a + (0 : Addr) = a := by bv_omega
+theorem addr_add_zero_bv (a : Word) : a + (0 : Word) = a := by bv_omega
 
 -- ============================================================================
 -- Assertion-level equalities for AC normalization of sepConj
@@ -2685,7 +2685,7 @@ theorem seps_pick (xs : List Assertion) (n : Nat) (hn : n < xs.length) :
 syntax "sep_perm" ident : tactic
 macro_rules
   | `(tactic| sep_perm $hyp) =>
-    `(tactic| exact (congrFun (show _ = _ by delta Word Addr; dsimp (config := { failIfUnchanged := false }) only []; all_goals ac_rfl) _).mp $hyp)
+    `(tactic| exact (congrFun (show _ = _ by delta Word Word; dsimp (config := { failIfUnchanged := false }) only []; all_goals ac_rfl) _).mp $hyp)
 
 /-- `sep_eq` closes a goal of the form `⊢ f x = g x` where `f` and `g` are AC-equivalent
     `sepConj` chains. Decomposes the function application with `congrFun` and proves

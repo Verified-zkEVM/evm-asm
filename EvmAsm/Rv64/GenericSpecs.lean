@@ -33,7 +33,7 @@ namespace EvmAsm.Rv64
     Code requirement: CodeReq.singleton base instr
     The `hexec` hypothesis relates `execInstrBr` to `setReg rd result` given
     that `s.pc = base` and `s.getReg rd = v`. -/
-theorem generic_1reg_spec (instr : Instr) (rd : Reg) (v result : Word) (base : Addr)
+theorem generic_1reg_spec (instr : Instr) (rd : Reg) (v result : Word) (base : Word)
     (hrd_ne_x0 : rd ≠ .x0)
     (hexec : ∀ s, s.pc = base → s.getReg rd = v →
       execInstrBr s instr = (s.setReg rd result).setPC (s.pc + 4))
@@ -68,7 +68,7 @@ theorem generic_1reg_spec (instr : Instr) (rd : Reg) (v result : Word) (base : A
     Pre:  (rs ↦ᵣ v_src) ** (rd ↦ᵣ v_old)
     Post: (rs ↦ᵣ v_src) ** (rd ↦ᵣ result) -/
 theorem generic_2reg_spec (instr : Instr) (rs rd : Reg)
-    (v_src v_old result : Word) (base : Addr)
+    (v_src v_old result : Word) (base : Word)
     (hrd_ne_x0 : rd ≠ .x0)
     (hexec : ∀ s, s.pc = base → s.getReg rs = v_src → s.getReg rd = v_old →
       execInstrBr s instr = (s.setReg rd result).setPC (s.pc + 4))
@@ -106,7 +106,7 @@ theorem generic_2reg_spec (instr : Instr) (rs rd : Reg)
     Pre:  (rd ↦ᵣ v1) ** (rs2 ↦ᵣ v2)
     Post: (rd ↦ᵣ result) ** (rs2 ↦ᵣ v2) -/
 theorem generic_2reg_rd_eq_rs1_spec (instr : Instr) (rd rs2 : Reg)
-    (v1 v2 result : Word) (base : Addr)
+    (v1 v2 result : Word) (base : Word)
     (hrd_ne_x0 : rd ≠ .x0)
     (hexec : ∀ s, s.pc = base → s.getReg rd = v1 → s.getReg rs2 = v2 →
       execInstrBr s instr = (s.setReg rd result).setPC (s.pc + 4))
@@ -145,7 +145,7 @@ theorem generic_2reg_rd_eq_rs1_spec (instr : Instr) (rd rs2 : Reg)
     Pre:  (rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** (rd ↦ᵣ v_old)
     Post: (rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** (rd ↦ᵣ result) -/
 theorem generic_3reg_spec (instr : Instr) (rs1 rs2 rd : Reg)
-    (v1 v2 v_old result : Word) (base : Addr)
+    (v1 v2 v_old result : Word) (base : Word)
     (hrd_ne_x0 : rd ≠ .x0)
     (hexec : ∀ s, s.pc = base → s.getReg rs1 = v1 → s.getReg rs2 = v2 →
       execInstrBr s instr = (s.setReg rd result).setPC (s.pc + 4))
@@ -183,7 +183,7 @@ theorem generic_3reg_spec (instr : Instr) (rs1 rs2 rd : Reg)
 
 /-- Generic spec for instructions that only advance PC without changing state.
     Pre/Post: empAssertion  [frame handles the rest] -/
-theorem generic_nop_spec (instr : Instr) (base exit_ : Addr)
+theorem generic_nop_spec (instr : Instr) (base exit_ : Word)
     (hexec : ∀ s, s.pc = base → execInstrBr s instr = s.setPC exit_)
     (hstep : ∀ s, s.code s.pc = some instr → step s = some (execInstrBr s instr)) :
     cpsTriple base exit_ (CodeReq.singleton base instr)
@@ -212,7 +212,7 @@ theorem generic_nop_spec (instr : Instr) (base exit_ : Addr)
     Pre:  (rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2)
     Taken (v1 ≠ v2): PC = base + signExtend13 offset, post includes ⌜v1 ≠ v2⌝
     Not taken (v1 = v2): PC = base + 4, post includes ⌜v1 = v2⌝ -/
-theorem generic_bne_spec (rs1 rs2 : Reg) (offset : BitVec 13) (v1 v2 : Word) (base : Addr) :
+theorem generic_bne_spec (rs1 rs2 : Reg) (offset : BitVec 13) (v1 v2 : Word) (base : Word) :
     cpsBranch base (CodeReq.singleton base (.BNE rs1 rs2 offset))
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2))
       (base + signExtend13 offset)
@@ -263,7 +263,7 @@ theorem generic_bne_spec (rs1 rs2 : Reg) (offset : BitVec 13) (v1 v2 : Word) (ba
          (sepConj_pure_right _ _ h1b).mpr ⟨hRs2, heq⟩⟩, hR2⟩
 
 /-- Generic spec for BEQ: branch if equal. -/
-theorem generic_beq_spec (rs1 rs2 : Reg) (offset : BitVec 13) (v1 v2 : Word) (base : Addr) :
+theorem generic_beq_spec (rs1 rs2 : Reg) (offset : BitVec 13) (v1 v2 : Word) (base : Word) :
     cpsBranch base (CodeReq.singleton base (.BEQ rs1 rs2 offset))
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2))
       (base + signExtend13 offset)
@@ -318,7 +318,7 @@ theorem generic_beq_spec (rs1 rs2 : Reg) (offset : BitVec 13) (v1 v2 : Word) (ba
 /-- Generic spec for BLTU: branch if unsigned less than.
     Taken (ult v1 v2): PC = base + signExtend13 offset
     Not taken (¬ult v1 v2): PC = base + 4 -/
-theorem generic_bltu_spec (rs1 rs2 : Reg) (offset : BitVec 13) (v1 v2 : Word) (base : Addr) :
+theorem generic_bltu_spec (rs1 rs2 : Reg) (offset : BitVec 13) (v1 v2 : Word) (base : Word) :
     cpsBranch base (CodeReq.singleton base (.BLTU rs1 rs2 offset))
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2))
       (base + signExtend13 offset)
@@ -373,7 +373,7 @@ theorem generic_bltu_spec (rs1 rs2 : Reg) (offset : BitVec 13) (v1 v2 : Word) (b
 /-- Generic spec for BGE: branch if signed greater or equal.
     Taken (¬slt v1 v2): PC = base + signExtend13 offset
     Not taken (slt v1 v2): PC = base + 4 -/
-theorem generic_bge_spec (rs1 rs2 : Reg) (offset : BitVec 13) (v1 v2 : Word) (base : Addr) :
+theorem generic_bge_spec (rs1 rs2 : Reg) (offset : BitVec 13) (v1 v2 : Word) (base : Word) :
     cpsBranch base (CodeReq.singleton base (.BGE rs1 rs2 offset))
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2))
       (base + signExtend13 offset)
@@ -428,7 +428,7 @@ theorem generic_bge_spec (rs1 rs2 : Reg) (offset : BitVec 13) (v1 v2 : Word) (ba
 /-- Generic spec for BLT: branch if signed less than.
     Taken (slt v1 v2): PC = base + signExtend13 offset
     Not taken (¬slt v1 v2): PC = base + 4 -/
-theorem generic_blt_spec (rs1 rs2 : Reg) (offset : BitVec 13) (v1 v2 : Word) (base : Addr) :
+theorem generic_blt_spec (rs1 rs2 : Reg) (offset : BitVec 13) (v1 v2 : Word) (base : Word) :
     cpsBranch base (CodeReq.singleton base (.BLT rs1 rs2 offset))
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2))
       (base + signExtend13 offset)
@@ -483,7 +483,7 @@ theorem generic_blt_spec (rs1 rs2 : Reg) (offset : BitVec 13) (v1 v2 : Word) (ba
 /-- Generic spec for BGEU: branch if unsigned greater or equal.
     Taken (¬ult v1 v2): PC = base + signExtend13 offset
     Not taken (ult v1 v2): PC = base + 4 -/
-theorem generic_bgeu_spec (rs1 rs2 : Reg) (offset : BitVec 13) (v1 v2 : Word) (base : Addr) :
+theorem generic_bgeu_spec (rs1 rs2 : Reg) (offset : BitVec 13) (v1 v2 : Word) (base : Word) :
     cpsBranch base (CodeReq.singleton base (.BGEU rs1 rs2 offset))
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2))
       (base + signExtend13 offset)
@@ -538,7 +538,7 @@ theorem generic_bgeu_spec (rs1 rs2 : Reg) (offset : BitVec 13) (v1 v2 : Word) (b
 /-- Generic spec for JAL: rd := PC + 4, PC := PC + sext(offset).
     Pre:  (rd ↦ᵣ v_old)
     Post: (rd ↦ᵣ (base + 4)) -/
-theorem generic_jal_spec (rd : Reg) (v_old : Word) (offset : BitVec 21) (base : Addr)
+theorem generic_jal_spec (rd : Reg) (v_old : Word) (offset : BitVec 21) (base : Word)
     (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple base (base + signExtend21 offset) (CodeReq.singleton base (.JAL rd offset))
       (rd ↦ᵣ v_old)
@@ -558,7 +558,7 @@ theorem generic_jal_spec (rd : Reg) (v_old : Word) (offset : BitVec 21) (base : 
 /-- Generic spec for JALR: rd := PC + 4, PC := (rs1 + sext(offset)) & ~1.
     Pre:  (rs1 ↦ᵣ v1) ** (rd ↦ᵣ v_old)
     Post: (rs1 ↦ᵣ v1) ** (rd ↦ᵣ (base + 4)) -/
-theorem generic_jalr_spec (rd rs1 : Reg) (v1 v_old : Word) (offset : BitVec 12) (base : Addr)
+theorem generic_jalr_spec (rd rs1 : Reg) (v1 v_old : Word) (offset : BitVec 12) (base : Word)
     (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple base ((v1 + signExtend12 offset) &&& ~~~1) (CodeReq.singleton base (.JALR rd rs1 offset))
       ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ v_old))
@@ -593,7 +593,7 @@ theorem generic_jalr_spec (rd rs1 : Reg) (v1 v_old : Word) (offset : BitVec 12) 
     Post: (rs1 ↦ᵣ v_addr) ** (rd ↦ᵣ mem_val) ** (addr ↦ₘ mem_val)
     where addr = v_addr + signExtend12 offset -/
 theorem generic_ld_spec (rd rs1 : Reg) (v_addr v_old mem_val : Word)
-    (offset : BitVec 12) (base : Addr)
+    (offset : BitVec 12) (base : Word)
     (hrd_ne_x0 : rd ≠ .x0)
     (hvalid : isValidDwordAccess (v_addr + signExtend12 offset) = true) :
     cpsTriple base (base + 4) (CodeReq.singleton base (.LD rd rs1 offset))
@@ -637,7 +637,7 @@ theorem generic_ld_spec (rd rs1 : Reg) (v_addr v_old mem_val : Word)
     Post: (rs1 ↦ᵣ v_addr) ** (rs2 ↦ᵣ v_data) ** (addr ↦ₘ v_data)
     where addr = v_addr + signExtend12 offset -/
 theorem generic_sd_spec (rs1 rs2 : Reg) (v_addr v_data mem_old : Word)
-    (offset : BitVec 12) (base : Addr)
+    (offset : BitVec 12) (base : Word)
     (hvalid : isValidDwordAccess (v_addr + signExtend12 offset) = true) :
     cpsTriple base (base + 4) (CodeReq.singleton base (.SD rs1 rs2 offset))
       ((rs1 ↦ᵣ v_addr) ** (rs2 ↦ᵣ v_data) ** ((v_addr + signExtend12 offset) ↦ₘ mem_old))
@@ -678,7 +678,7 @@ theorem generic_sd_spec (rs1 rs2 : Reg) (v_addr v_data mem_old : Word)
     Pre:  (rs1 ↦ᵣ v_addr) ** (addr ↦ₘ mem_old)
     Post: (rs1 ↦ᵣ v_addr) ** (addr ↦ₘ 0) -/
 theorem generic_sd_x0_spec (rs1 : Reg) (v_addr mem_old : Word)
-    (offset : BitVec 12) (base : Addr)
+    (offset : BitVec 12) (base : Word)
     (hvalid : isValidDwordAccess (v_addr + signExtend12 offset) = true) :
     cpsTriple base (base + 4) (CodeReq.singleton base (.SD rs1 .x0 offset))
       ((rs1 ↦ᵣ v_addr) ** ((v_addr + signExtend12 offset) ↦ₘ mem_old))

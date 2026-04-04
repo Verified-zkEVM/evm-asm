@@ -21,7 +21,7 @@ private theorem regIs_to_regOwn'' (r : Reg) (v : Word) : ∀ h, (r ↦ᵣ v) h �
   fun _ hp => ⟨v, hp⟩
 
 /-- Helper: lift a no-change raw-limb spec to evmWordIs form (with x6 framing). -/
-private theorem signext_nochange_lift (sp base : Addr)
+private theorem signext_nochange_lift (sp base : Word)
     (b x : EvmWord) (r5 r6 r10 : Word)
     (_hvalid : ValidMemRange sp 8)
     (hmain : cpsTriple base (base + 192) (signextCode base)
@@ -47,16 +47,16 @@ private theorem signext_nochange_lift (sp base : Addr)
   exact cpsTriple_consequence _ _ _ _ _ _ _
     (fun h hp => by
       simp only [evmWordIs] at hp
-      have ha40 : (sp + 32 : Addr) + 8 = sp + 40 := by bv_omega
-      have ha48 : (sp + 32 : Addr) + 16 = sp + 48 := by bv_omega
-      have ha56 : (sp + 32 : Addr) + 24 = sp + 56 := by bv_omega
+      have ha40 : (sp + 32 : Word) + 8 = sp + 40 := by bv_omega
+      have ha48 : (sp + 32 : Word) + 16 = sp + 48 := by bv_omega
+      have ha56 : (sp + 32 : Word) + 24 = sp + 56 := by bv_omega
       simp only [ha40, ha48, ha56] at hp
       xperm_hyp hp)
     (fun h hq => by
       simp only [evmWordIs]
-      have ha40 : (sp + 32 : Addr) + 8 = sp + 40 := by bv_omega
-      have ha48 : (sp + 32 : Addr) + 16 = sp + 48 := by bv_omega
-      have ha56 : (sp + 32 : Addr) + 24 = sp + 56 := by bv_omega
+      have ha40 : (sp + 32 : Word) + 8 = sp + 40 := by bv_omega
+      have ha48 : (sp + 32 : Word) + 16 = sp + 48 := by bv_omega
+      have ha56 : (sp + 32 : Word) + 24 = sp + 56 := by bv_omega
       simp only [ha40, ha48, ha56]
       have w := sepConj_mono_right (regIs_to_regOwn'' .x6 _) h hq
       xperm_hyp w)
@@ -69,7 +69,7 @@ private theorem signext_nochange_lift (sp base : Addr)
 set_option maxHeartbeats 1600000 in
 /-- **Main SIGNEXTEND theorem**: `evm_signextend` computes
     `EvmWord.signextend b x`. -/
-theorem evm_signextend_stack_spec (sp base : Addr)
+theorem evm_signextend_stack_spec (sp base : Word)
     (b x : EvmWord) (r5 r6 r10 : Word)
     (hvalid : ValidMemRange sp 8) :
     let result := EvmWord.signextend b x
@@ -115,16 +115,16 @@ theorem evm_signextend_stack_spec (sp base : Addr)
     exact cpsTriple_consequence _ _ _ _ _ _ _
       (fun h hp => by
         simp only [evmWordIs] at hp
-        have ha40 : (sp + 32 : Addr) + 8 = sp + 40 := by bv_omega
-        have ha48 : (sp + 32 : Addr) + 16 = sp + 48 := by bv_omega
-        have ha56 : (sp + 32 : Addr) + 24 = sp + 56 := by bv_omega
+        have ha40 : (sp + 32 : Word) + 8 = sp + 40 := by bv_omega
+        have ha48 : (sp + 32 : Word) + 16 = sp + 48 := by bv_omega
+        have ha56 : (sp + 32 : Word) + 24 = sp + 56 := by bv_omega
         simp only [ha40, ha48, ha56] at hp
         xperm_hyp hp)
       (fun h hq => by
         simp only [evmWordIs]
-        have ha40 : (sp + 32 : Addr) + 8 = sp + 40 := by bv_omega
-        have ha48 : (sp + 32 : Addr) + 16 = sp + 48 := by bv_omega
-        have ha56 : (sp + 32 : Addr) + 24 = sp + 56 := by bv_omega
+        have ha40 : (sp + 32 : Word) + 8 = sp + 40 := by bv_omega
+        have ha48 : (sp + 32 : Word) + 16 = sp + 48 := by bv_omega
+        have ha56 : (sp + 32 : Word) + 24 = sp + 56 := by bv_omega
         simp only [ha40, ha48, ha56]
         xperm_hyp hq)
       h_raw

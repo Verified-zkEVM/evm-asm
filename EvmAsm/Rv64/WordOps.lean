@@ -33,10 +33,10 @@ theorem extractWord32_replaceWord32_same (w : Word) (pos : Fin 2) (v : BitVec 32
 
 /-! ## getWord32 / setWord32 in terms of extractWord32 / replaceWord32 -/
 
-theorem getWord32_eq (s : MachineState) (addr : Addr) :
+theorem getWord32_eq (s : MachineState) (addr : Word) :
     s.getWord32 addr = extractWord32 (s.getMem (alignToDword addr)) ((byteOffset addr) / 4) := rfl
 
-theorem setWord32_eq (s : MachineState) (addr : Addr) (v : BitVec 32) :
+theorem setWord32_eq (s : MachineState) (addr : Word) (v : BitVec 32) :
     s.setWord32 addr v = s.setMem (alignToDword addr)
       (replaceWord32 (s.getMem (alignToDword addr)) ((byteOffset addr) / 4) v) := rfl
 
@@ -45,8 +45,8 @@ theorem setWord32_eq (s : MachineState) (addr : Addr) (v : BitVec 32) :
 LWU reads a 32-bit word from memory at a 4-byte aligned address and zero-extends it. -/
 
 theorem generic_lwu_spec (rd rs1 : Reg) (v_addr v_old : Word)
-    (offset : BitVec 12) (base : Addr)
-    (dwordAddr : Addr) (word_val : Word)
+    (offset : BitVec 12) (base : Word)
+    (dwordAddr : Word) (word_val : Word)
     (hrd_ne_x0 : rd ≠ .x0)
     (_hrd_ne_rs1 : rd ≠ rs1)
     (halign : alignToDword (v_addr + signExtend12 offset) = dwordAddr)
@@ -90,8 +90,8 @@ theorem generic_lwu_spec (rd rs1 : Reg) (v_addr v_old : Word)
 LW reads a 32-bit word from memory at a 4-byte aligned address and sign-extends it. -/
 
 theorem generic_lw_spec (rd rs1 : Reg) (v_addr v_old : Word)
-    (offset : BitVec 12) (base : Addr)
-    (dwordAddr : Addr) (word_val : Word)
+    (offset : BitVec 12) (base : Word)
+    (dwordAddr : Word) (word_val : Word)
     (hrd_ne_x0 : rd ≠ .x0)
     (_hrd_ne_rs1 : rd ≠ rs1)
     (halign : alignToDword (v_addr + signExtend12 offset) = dwordAddr)
@@ -135,8 +135,8 @@ theorem generic_lw_spec (rd rs1 : Reg) (v_addr v_old : Word)
 SW writes the lower 32 bits of a register to memory at a 4-byte aligned address. -/
 
 theorem generic_sw_spec (rs1 rs2 : Reg) (v_addr v_data : Word)
-    (offset : BitVec 12) (base : Addr)
-    (dwordAddr : Addr) (word_old : Word)
+    (offset : BitVec 12) (base : Word)
+    (dwordAddr : Word) (word_old : Word)
     (_hne : rs1 ≠ rs2)
     (halign : alignToDword (v_addr + signExtend12 offset) = dwordAddr)
     (hvalid : isValidMemAccess (v_addr + signExtend12 offset) = true) :

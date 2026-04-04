@@ -40,7 +40,7 @@ local macro "skipBlock" : tactic =>
         bv_omega)))
 
 /-- The full evm_shl code split into 8 per-phase CodeReq.ofProg blocks. -/
-abbrev shlCode (base : Addr) : CodeReq :=
+abbrev shlCode (base : Word) : CodeReq :=
   CodeReq.unionAll [
     CodeReq.ofProg base shr_phase_a,                      -- block 0 (shared with SHR)
     CodeReq.ofProg (base + 36) shr_phase_b,               -- block 1 (shared)
@@ -67,7 +67,7 @@ private theorem CodeReq_union_sub_both {cr1 cr2 target : CodeReq}
   | none => simp [h1a] at h; exact h2 a i h
   | some v => simp [h1a] at h; subst h; exact h1 a v h1a
 
-private theorem singleton_sub_ofProg (base addr : Addr) (prog : List Instr) (instr : Instr) (k : Nat)
+private theorem singleton_sub_ofProg (base addr : Word) (prog : List Instr) (instr : Instr) (k : Nat)
     (hk : k < prog.length) (hbound : 4 * prog.length < 2 ^ 64)
     (h_addr : addr = base + BitVec.ofNat 64 (4 * k))
     (h_instr : prog.get ⟨k, hk⟩ = instr) :
@@ -79,7 +79,7 @@ private theorem singleton_sub_ofProg (base addr : Addr) (prog : List Instr) (ins
 -- ============================================================================
 
 -- Bridge: shr_phase_a_code (union chain) ⊆ ofProg shr_phase_a (9-element list)
-private theorem phase_a_code_sub_ofProg (base : Addr) :
+private theorem phase_a_code_sub_ofProg (base : Word) :
     ∀ a i, shr_phase_a_code base a = some i →
       (CodeReq.ofProg base shr_phase_a) a = some i := by
   unfold shr_phase_a_code shr_ld_or_acc_code
@@ -105,21 +105,21 @@ private theorem phase_a_code_sub_ofProg (base : Addr) :
                 (by native_decide) (by native_decide) (by bv_omega) (by native_decide)
 
 /-- Phase A code (union chain, 9 instrs at +0) is subsumed by shlCode (block 0). -/
-private theorem phase_a_sub_shlCode (base : Addr) :
+private theorem phase_a_sub_shlCode (base : Word) :
     ∀ a i, shr_phase_a_code base a = some i → shlCode base a = some i := by
   intro a i h
   unfold shlCode; simp only [CodeReq.unionAll_cons]
   exact CodeReq.union_mono_left _ _ a i (phase_a_code_sub_ofProg base a i h)
 
 /-- Phase B code (ofProg, 7 instrs at +36) is subsumed by shlCode (block 1). -/
-private theorem phase_b_sub_shlCode (base : Addr) :
+private theorem phase_b_sub_shlCode (base : Word) :
     ∀ a i, shr_phase_b_code (base + 36) a = some i → shlCode base a = some i := by
   unfold shr_phase_b_code shlCode; simp only [CodeReq.unionAll_cons]
   skipBlock
   exact CodeReq.union_mono_left _ _
 
 -- Bridge: shr_phase_c_code (union chain) ⊆ ofProg shr_phase_c (5-element list)
-private theorem phase_c_code_sub_ofProg (base : Addr) :
+private theorem phase_c_code_sub_ofProg (base : Word) :
     ∀ a i, shr_phase_c_code base a = some i →
       (CodeReq.ofProg base shr_phase_c) a = some i := by
   unfold shr_phase_c_code shr_cascade_step_code
@@ -132,48 +132,48 @@ private theorem phase_c_code_sub_ofProg (base : Addr) :
     · exact CodeReq.ofProg_mono_sub base (base + 12) shr_phase_c (shr_cascade_step_prog 2 32) 3
         (by bv_omega) (by native_decide) (by native_decide) (by native_decide)
 
-private theorem ofProg_phase_c_sub_shlCode (base : Addr) :
+private theorem ofProg_phase_c_sub_shlCode (base : Word) :
     ∀ a i, (CodeReq.ofProg (base + 64) shr_phase_c) a = some i → shlCode base a = some i := by
   unfold shlCode; simp only [CodeReq.unionAll_cons]
   skipBlock; skipBlock
   exact CodeReq.union_mono_left _ _
 
 /-- Phase C code (union chain, 5 instrs at +64) is subsumed by shlCode (block 2). -/
-private theorem phase_c_sub_shlCode (base : Addr) :
+private theorem phase_c_sub_shlCode (base : Word) :
     ∀ a i, shr_phase_c_code (base + 64) a = some i → shlCode base a = some i := by
   intro a i h
   exact ofProg_phase_c_sub_shlCode base a i (phase_c_code_sub_ofProg (base + 64) a i h)
 
 /-- SHL Body 3 code (7 instrs at +84) is subsumed by shlCode (block 3). -/
-private theorem shl_body_3_sub_shlCode (base : Addr) :
+private theorem shl_body_3_sub_shlCode (base : Word) :
     ∀ a i, shl_body_3_code (base + 84) 252 a = some i → shlCode base a = some i := by
   unfold shl_body_3_code shlCode; simp only [CodeReq.unionAll_cons]
   skipBlock; skipBlock; skipBlock
   exact CodeReq.union_mono_left _ _
 
 /-- SHL Body 2 code (13 instrs at +112) is subsumed by shlCode (block 4). -/
-private theorem shl_body_2_sub_shlCode (base : Addr) :
+private theorem shl_body_2_sub_shlCode (base : Word) :
     ∀ a i, shl_body_2_code (base + 112) 200 a = some i → shlCode base a = some i := by
   unfold shl_body_2_code shlCode; simp only [CodeReq.unionAll_cons]
   skipBlock; skipBlock; skipBlock; skipBlock
   exact CodeReq.union_mono_left _ _
 
 /-- SHL Body 1 code (19 instrs at +164) is subsumed by shlCode (block 5). -/
-private theorem shl_body_1_sub_shlCode (base : Addr) :
+private theorem shl_body_1_sub_shlCode (base : Word) :
     ∀ a i, shl_body_1_code (base + 164) 124 a = some i → shlCode base a = some i := by
   unfold shl_body_1_code shlCode; simp only [CodeReq.unionAll_cons]
   skipBlock; skipBlock; skipBlock; skipBlock; skipBlock
   exact CodeReq.union_mono_left _ _
 
 /-- SHL Body 0 code (25 instrs at +240) is subsumed by shlCode (block 6). -/
-private theorem shl_body_0_sub_shlCode (base : Addr) :
+private theorem shl_body_0_sub_shlCode (base : Word) :
     ∀ a i, shl_body_0_code (base + 240) 24 a = some i → shlCode base a = some i := by
   unfold shl_body_0_code shlCode; simp only [CodeReq.unionAll_cons]
   skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock
   exact CodeReq.union_mono_left _ _
 
 /-- Zero path code (ofProg, 5 instrs at +340) is subsumed by shlCode (block 7). -/
-private theorem zero_path_sub_shlCode (base : Addr) :
+private theorem zero_path_sub_shlCode (base : Word) :
     ∀ a i, shr_zero_path_code (base + 340) a = some i → shlCode base a = some i := by
   unfold shr_zero_path_code shlCode; simp only [CodeReq.unionAll_cons]
   skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock
@@ -181,7 +181,7 @@ private theorem zero_path_sub_shlCode (base : Addr) :
 
 -- Individual instruction subsumption helpers (for phase A raw composition)
 
-private theorem ld_s1_sub_shlCode (base : Addr) :
+private theorem ld_s1_sub_shlCode (base : Word) :
     ∀ a i, CodeReq.singleton base (.LD .x5 .x12 8) a = some i → shlCode base a = some i := by
   intro a i h
   have h1 := singleton_sub_ofProg base base shr_phase_a (.LD .x5 .x12 8) 0
@@ -189,7 +189,7 @@ private theorem ld_s1_sub_shlCode (base : Addr) :
   unfold shlCode; simp only [CodeReq.unionAll_cons]
   exact CodeReq.union_mono_left _ _ a i h1
 
-private theorem ld_or_16_sub_shlCode (base : Addr) :
+private theorem ld_or_16_sub_shlCode (base : Word) :
     ∀ a i, shr_ld_or_acc_code 16 (base + 4) a = some i → shlCode base a = some i := by
   intro a i h; unfold shr_ld_or_acc_code at h
   have h1 := CodeReq.ofProg_mono_sub base (base + 4) shr_phase_a (shr_ld_or_acc_prog 16) 1
@@ -197,7 +197,7 @@ private theorem ld_or_16_sub_shlCode (base : Addr) :
   unfold shlCode; simp only [CodeReq.unionAll_cons]
   exact CodeReq.union_mono_left _ _ a i h1
 
-private theorem ld_or_24_sub_shlCode (base : Addr) :
+private theorem ld_or_24_sub_shlCode (base : Word) :
     ∀ a i, shr_ld_or_acc_code 24 (base + 12) a = some i → shlCode base a = some i := by
   intro a i h; unfold shr_ld_or_acc_code at h
   have h1 := CodeReq.ofProg_mono_sub base (base + 12) shr_phase_a (shr_ld_or_acc_prog 24) 3
@@ -205,7 +205,7 @@ private theorem ld_or_24_sub_shlCode (base : Addr) :
   unfold shlCode; simp only [CodeReq.unionAll_cons]
   exact CodeReq.union_mono_left _ _ a i h1
 
-private theorem bne_sub_shlCode (base : Addr) :
+private theorem bne_sub_shlCode (base : Word) :
     ∀ a i, CodeReq.singleton (base + 20) (.BNE .x5 .x0 320) a = some i → shlCode base a = some i := by
   intro a i h
   have h1 := singleton_sub_ofProg base (base + 20) shr_phase_a (.BNE .x5 .x0 320) 5
@@ -213,7 +213,7 @@ private theorem bne_sub_shlCode (base : Addr) :
   unfold shlCode; simp only [CodeReq.unionAll_cons]
   exact CodeReq.union_mono_left _ _ a i h1
 
-private theorem ld_s0_sub_shlCode (base : Addr) :
+private theorem ld_s0_sub_shlCode (base : Word) :
     ∀ a i, CodeReq.singleton (base + 24) (.LD .x5 .x12 0) a = some i → shlCode base a = some i := by
   intro a i h
   have h1 := singleton_sub_ofProg base (base + 24) shr_phase_a (.LD .x5 .x12 0) 6
@@ -221,7 +221,7 @@ private theorem ld_s0_sub_shlCode (base : Addr) :
   unfold shlCode; simp only [CodeReq.unionAll_cons]
   exact CodeReq.union_mono_left _ _ a i h1
 
-private theorem sltiu_sub_shlCode (base : Addr) :
+private theorem sltiu_sub_shlCode (base : Word) :
     ∀ a i, CodeReq.singleton (base + 28) (.SLTIU .x10 .x5 256) a = some i → shlCode base a = some i := by
   intro a i h
   have h1 := singleton_sub_ofProg base (base + 28) shr_phase_a (.SLTIU .x10 .x5 256) 7
@@ -229,7 +229,7 @@ private theorem sltiu_sub_shlCode (base : Addr) :
   unfold shlCode; simp only [CodeReq.unionAll_cons]
   exact CodeReq.union_mono_left _ _ a i h1
 
-private theorem beq_sub_shlCode (base : Addr) :
+private theorem beq_sub_shlCode (base : Word) :
     ∀ a i, CodeReq.singleton (base + 32) (.BEQ .x10 .x0 308) a = some i → shlCode base a = some i := by
   intro a i h
   have h1 := singleton_sub_ofProg base (base + 32) shr_phase_a (.BEQ .x10 .x0 308) 8
@@ -241,34 +241,34 @@ private theorem beq_sub_shlCode (base : Addr) :
 -- Section 3: Address normalization lemmas
 -- ============================================================================
 
-private theorem shl_off_4 (base : Addr) : (base + 4 : Addr) + 8 = base + 12 := by bv_omega
-private theorem shl_off_12 (base : Addr) : (base + 12 : Addr) + 8 = base + 20 := by bv_omega
-private theorem shl_off_20 (base : Addr) : (base + 20 : Addr) + 4 = base + 24 := by bv_omega
-private theorem shl_off_24 (base : Addr) : (base + 24 : Addr) + 4 = base + 28 := by bv_omega
-private theorem shl_off_28 (base : Addr) : (base + 28 : Addr) + 4 = base + 32 := by bv_omega
-private theorem shl_off_32 (base : Addr) : (base + 32 : Addr) + 4 = base + 36 := by bv_omega
-private theorem shl_off_36_28 (base : Addr) : (base + 36 : Addr) + 28 = base + 64 := by bv_omega
-private theorem shl_off_340_20 (base : Addr) : (base + 340 : Addr) + 20 = base + 360 := by bv_omega
-private theorem shl_bne_target (base : Addr) : (base + 20 : Addr) + signExtend13 320 = base + 340 := by
+private theorem shl_off_4 (base : Word) : (base + 4 : Word) + 8 = base + 12 := by bv_omega
+private theorem shl_off_12 (base : Word) : (base + 12 : Word) + 8 = base + 20 := by bv_omega
+private theorem shl_off_20 (base : Word) : (base + 20 : Word) + 4 = base + 24 := by bv_omega
+private theorem shl_off_24 (base : Word) : (base + 24 : Word) + 4 = base + 28 := by bv_omega
+private theorem shl_off_28 (base : Word) : (base + 28 : Word) + 4 = base + 32 := by bv_omega
+private theorem shl_off_32 (base : Word) : (base + 32 : Word) + 4 = base + 36 := by bv_omega
+private theorem shl_off_36_28 (base : Word) : (base + 36 : Word) + 28 = base + 64 := by bv_omega
+private theorem shl_off_340_20 (base : Word) : (base + 340 : Word) + 20 = base + 360 := by bv_omega
+private theorem shl_bne_target (base : Word) : (base + 20 : Word) + signExtend13 320 = base + 340 := by
   rw [show signExtend13 (320 : BitVec 13) = (320 : Word) from by native_decide]; bv_omega
-private theorem shl_beq_target (base : Addr) : (base + 32 : Addr) + signExtend13 308 = base + 340 := by
+private theorem shl_beq_target (base : Word) : (base + 32 : Word) + signExtend13 308 = base + 340 := by
   rw [show signExtend13 (308 : BitVec 13) = (308 : Word) from by native_decide]; bv_omega
 -- Phase C exit addresses
-private theorem shl_c_e0 (base : Addr) : (base + 64 : Addr) + signExtend13 176 = base + 240 := by
+private theorem shl_c_e0 (base : Word) : (base + 64 : Word) + signExtend13 176 = base + 240 := by
   rw [show signExtend13 (176 : BitVec 13) = (176 : Word) from by native_decide]; bv_omega
-private theorem shl_c_e1 (base : Addr) : ((base + 64 : Addr) + 8) + signExtend13 92 = base + 164 := by
+private theorem shl_c_e1 (base : Word) : ((base + 64 : Word) + 8) + signExtend13 92 = base + 164 := by
   rw [show signExtend13 (92 : BitVec 13) = (92 : Word) from by native_decide]; bv_omega
-private theorem shl_c_e2 (base : Addr) : ((base + 64 : Addr) + 16) + signExtend13 32 = base + 112 := by
+private theorem shl_c_e2 (base : Word) : ((base + 64 : Word) + 16) + signExtend13 32 = base + 112 := by
   rw [show signExtend13 (32 : BitVec 13) = (32 : Word) from by native_decide]; bv_omega
-private theorem shl_c_e3 (base : Addr) : (base + 64 : Addr) + 20 = base + 84 := by bv_omega
+private theorem shl_c_e3 (base : Word) : (base + 64 : Word) + 20 = base + 84 := by bv_omega
 -- Body exit addresses (JAL targets)
-private theorem shl_body3_exit (base : Addr) : ((base + 84 : Addr) + 24) + signExtend21 252 = base + 360 := by
+private theorem shl_body3_exit (base : Word) : ((base + 84 : Word) + 24) + signExtend21 252 = base + 360 := by
   rw [show signExtend21 (252 : BitVec 21) = (252 : Word) from by native_decide]; bv_omega
-private theorem shl_body2_exit (base : Addr) : ((base + 112 : Addr) + 48) + signExtend21 200 = base + 360 := by
+private theorem shl_body2_exit (base : Word) : ((base + 112 : Word) + 48) + signExtend21 200 = base + 360 := by
   rw [show signExtend21 (200 : BitVec 21) = (200 : Word) from by native_decide]; bv_omega
-private theorem shl_body1_exit (base : Addr) : ((base + 164 : Addr) + 72) + signExtend21 124 = base + 360 := by
+private theorem shl_body1_exit (base : Word) : ((base + 164 : Word) + 72) + signExtend21 124 = base + 360 := by
   rw [show signExtend21 (124 : BitVec 21) = (124 : Word) from by native_decide]; bv_omega
-private theorem shl_body0_exit (base : Addr) : ((base + 240 : Addr) + 96) + signExtend21 24 = base + 360 := by
+private theorem shl_body0_exit (base : Word) : ((base + 240 : Word) + 96) + signExtend21 24 = base + 360 := by
   rw [show signExtend21 (24 : BitVec 21) = (24 : Word) from by native_decide]; bv_omega
 
 -- ============================================================================
@@ -277,7 +277,7 @@ private theorem shl_body0_exit (base : Addr) : ((base + 240 : Addr) + 96) + sign
 
 set_option maxHeartbeats 1600000 in
 /-- Zero path via BNE taken: high shift limbs are nonzero → shift ≥ 256 → result is zero. -/
-theorem evm_shl_zero_high_spec (sp base : Addr)
+theorem evm_shl_zero_high_spec (sp base : Word)
     (s0 s1 s2 s3 v0 v1 v2 v3 r5 r10 : Word)
     (hhigh : s1 ||| s2 ||| s3 ≠ 0)
     (hvalid : ValidMemRange sp 8) :
@@ -368,12 +368,12 @@ theorem evm_shl_zero_high_spec (sp base : Addr)
      (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3))
     (by pcFree) hzp
   -- Address normalization lemmas
-  have ha40 : sp + 40 = (sp + 32 : Addr) + 8 := by bv_omega
-  have ha48 : sp + 48 = (sp + 32 : Addr) + 16 := by bv_omega
-  have ha56 : sp + 56 = (sp + 32 : Addr) + 24 := by bv_omega
-  have ha40' : (sp + 32 : Addr) + 8 = sp + 40 := by bv_omega
-  have ha48' : (sp + 32 : Addr) + 16 = sp + 48 := by bv_omega
-  have ha56' : (sp + 32 : Addr) + 24 = sp + 56 := by bv_omega
+  have ha40 : sp + 40 = (sp + 32 : Word) + 8 := by bv_omega
+  have ha48 : sp + 48 = (sp + 32 : Word) + 16 := by bv_omega
+  have ha56 : sp + 56 = (sp + 32 : Word) + 24 := by bv_omega
+  have ha40' : (sp + 32 : Word) + 8 = sp + 40 := by bv_omega
+  have ha48' : (sp + 32 : Word) + 16 = sp + 48 := by bv_omega
+  have ha56' : (sp + 32 : Word) + 24 = sp + 56 := by bv_omega
   -- Compose AB → ZP: normalize addresses in perm callback
   have hABZ := cpsTriple_seq_with_perm_same_cr base (base + 340) (base + 360) _
     _ _ _ _
@@ -402,7 +402,7 @@ theorem evm_shl_zero_high_spec (sp base : Addr)
 
 set_option maxHeartbeats 3200000 in
 /-- Zero path via BEQ taken: s1=s2=s3=0 but s0 ≥ 256 → result is zero. -/
-theorem evm_shl_zero_large_spec (sp base : Addr)
+theorem evm_shl_zero_large_spec (sp base : Word)
     (s0 s1 s2 s3 v0 v1 v2 v3 r5 r10 : Word)
     (hlow : s1 ||| s2 ||| s3 = 0)
     (hlarge : BitVec.ult s0 (signExtend12 (256 : BitVec 12)) = false)
@@ -532,12 +532,12 @@ theorem evm_shl_zero_large_spec (sp base : Addr)
      (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3))
     (by pcFree) hzp
   -- Address normalization lemmas
-  have ha40 : sp + 40 = (sp + 32 : Addr) + 8 := by bv_omega
-  have ha48 : sp + 48 = (sp + 32 : Addr) + 16 := by bv_omega
-  have ha56 : sp + 56 = (sp + 32 : Addr) + 24 := by bv_omega
-  have ha40' : (sp + 32 : Addr) + 8 = sp + 40 := by bv_omega
-  have ha48' : (sp + 32 : Addr) + 16 = sp + 48 := by bv_omega
-  have ha56' : (sp + 32 : Addr) + 24 = sp + 56 := by bv_omega
+  have ha40 : sp + 40 = (sp + 32 : Word) + 8 := by bv_omega
+  have ha48 : sp + 48 = (sp + 32 : Word) + 16 := by bv_omega
+  have ha56 : sp + 56 = (sp + 32 : Word) + 24 := by bv_omega
+  have ha40' : (sp + 32 : Word) + 8 = sp + 40 := by bv_omega
+  have ha48' : (sp + 32 : Word) + 16 = sp + 48 := by bv_omega
+  have ha56' : (sp + 32 : Word) + 24 = sp + 56 := by bv_omega
   -- Compose → ZP: normalize addresses in perm callback
   have hfull := cpsTriple_seq_with_perm_same_cr base (base + 340) (base + 360) _ _ _ _ _
     (fun h hp => by
@@ -570,8 +570,8 @@ theorem evm_shl_zero_large_spec (sp base : Addr)
 -- Helpers for extending code requirements to cpsNBranch
 
 /-- Monotonicity for cpsNBranch: extend to a larger CodeReq. -/
-private theorem cpsNBranch_extend_code {entry : Addr} {cr cr' : CodeReq}
-    {P : Assertion} {exits : List (Addr × Assertion)}
+private theorem cpsNBranch_extend_code {entry : Word} {cr cr' : CodeReq}
+    {P : Assertion} {exits : List (Word × Assertion)}
     (hmono : ∀ a i, cr a = some i → cr' a = some i)
     (h : cpsNBranch entry cr P exits) :
     cpsNBranch entry cr' P exits := by
@@ -579,8 +579,8 @@ private theorem cpsNBranch_extend_code {entry : Addr} {cr cr' : CodeReq}
   exact h R hR s (CodeReq.SatisfiedBy_mono s hmono hcr') hPR hpc
 
 /-- Frame rule for cpsNBranch: frames each exit postcondition with F. -/
-private theorem cpsNBranch_frame_left {entry : Addr} {cr : CodeReq}
-    {P : Assertion} {exits : List (Addr × Assertion)} {F : Assertion}
+private theorem cpsNBranch_frame_left {entry : Word} {cr : CodeReq}
+    {P : Assertion} {exits : List (Word × Assertion)} {F : Assertion}
     (hF : F.pcFree) (h : cpsNBranch entry cr P exits) :
     cpsNBranch entry cr (P ** F) (exits.map (fun ex => (ex.1, ex.2 ** F))) := by
   intro R hR s hcr hPFR hpc
@@ -593,12 +593,12 @@ private theorem cpsNBranch_frame_left {entry : Addr} {cr : CodeReq}
   exact List.mem_map.mpr ⟨ex, hmem, rfl⟩
 
 -- Address normalization lemmas for body path
-private theorem shl_off_64_20 (base : Addr) : (base + 64 : Addr) + 20 = base + 84 := by bv_omega
+private theorem shl_off_64_20 (base : Word) : (base + 64 : Word) + 20 = base + 84 := by bv_omega
 private theorem shl_off_sp32 (sp : Word) : sp + signExtend12 (32 : BitVec 12) = sp + 32 := by
   simp only [signExtend12_32]
 
 -- Helper to derive ValidMemRange for the value portion (sp+32..sp+56)
-private theorem validMem_value_portion {sp : Addr} (hvalid : ValidMemRange sp 8) :
+private theorem validMem_value_portion {sp : Word} (hvalid : ValidMemRange sp 8) :
     ValidMemRange (sp + 32) 4 := by
   intro i hi; have := hvalid.get (i := i + 4) (by omega)
   have : isValidDwordAccess (sp + BitVec.ofNat 64 (8 * (i + 4))) = true := this
@@ -608,7 +608,7 @@ private theorem validMem_value_portion {sp : Addr} (hvalid : ValidMemRange sp 8)
 /-- Strip a pure fact ⌜fact⌝ from a cpsTriple's precondition and use it
     to convert the postcondition. -/
 private theorem cpsTriple_strip_pure_and_convert
-    {entry exit_ : Addr} {cr : CodeReq}
+    {entry exit_ : Word} {cr : CodeReq}
     {P Q Q' : Assertion} {fact : Prop}
     (hbody : cpsTriple entry exit_ cr P Q)
     (hpost : fact → ∀ h, Q h → Q' h) :
@@ -727,7 +727,7 @@ set_option maxHeartbeats 6400000 in
 /-- Body path: shift < 256 → result is `value <<< shift.toNat`.
     Composes Phase A ntaken → B → C → body_L → exit and uses
     bridge lemmas to connect per-limb results to the 256-bit shift. -/
-theorem evm_shl_body_evmWord_spec (sp base : Addr)
+theorem evm_shl_body_evmWord_spec (sp base : Word)
     (shift value : EvmWord) (r5 r6 r7 r10 r11 : Word)
     (hvalid : ValidMemRange sp 8)
     (hhigh_zero : shift.getLimb 1 ||| shift.getLimb 2 ||| shift.getLimb 3 = 0)
@@ -764,15 +764,15 @@ theorem evm_shl_body_evmWord_spec (sp base : Addr)
     exact cpsTriple_consequence _ _ _ _ _ _ _
       (fun h hp => by
         unfold evmWordIs at hp
-        simp only [show (sp + 32 : Addr) + 8 = sp + 40 from by bv_omega,
-                   show (sp + 32 : Addr) + 16 = sp + 48 from by bv_omega,
-                   show (sp + 32 : Addr) + 24 = sp + 56 from by bv_omega] at hp
+        simp only [show (sp + 32 : Word) + 8 = sp + 40 from by bv_omega,
+                   show (sp + 32 : Word) + 16 = sp + 48 from by bv_omega,
+                   show (sp + 32 : Word) + 24 = sp + 56 from by bv_omega] at hp
         xperm_hyp hp)
       (fun h hq => by
         unfold evmWordIs
-        simp only [show (sp + 32 : Addr) + 8 = sp + 40 from by bv_omega,
-                   show (sp + 32 : Addr) + 16 = sp + 48 from by bv_omega,
-                   show (sp + 32 : Addr) + 24 = sp + 56 from by bv_omega]
+        simp only [show (sp + 32 : Word) + 8 = sp + 40 from by bv_omega,
+                   show (sp + 32 : Word) + 16 = sp + 48 from by bv_omega,
+                   show (sp + 32 : Word) + 24 = sp + 56 from by bv_omega]
         xperm_hyp hq)
       h_raw
   -- Now prove h_raw in flat raw memIs form
@@ -787,9 +787,9 @@ theorem evm_shl_body_evmWord_spec (sp base : Addr)
     have := hvalid.get (i := 3) (by omega); simpa using this
   have hv32 : ValidMemRange (sp + 32) 4 := validMem_value_portion hvalid
   -- Address normalization for sp+32 region
-  have ha40 : sp + 40 = (sp + 32 : Addr) + 8 := by bv_omega
-  have ha48 : sp + 48 = (sp + 32 : Addr) + 16 := by bv_omega
-  have ha56 : sp + 56 = (sp + 32 : Addr) + 24 := by bv_omega
+  have ha40 : sp + 40 = (sp + 32 : Word) + 8 := by bv_omega
+  have ha48 : sp + 48 = (sp + 32 : Word) + 16 := by bv_omega
+  have ha56 : sp + 56 = (sp + 32 : Word) + 24 := by bv_omega
   -- Phase A: linear chain base -> base+36
   have h1 := cpsTriple_extend_code (ld_s1_sub_shlCode base)
     (ld_spec_gen .x5 .x12 sp r5 s1 8 base (by nofun) (by simp only [signExtend12_8]; exact hv8))
@@ -924,9 +924,9 @@ theorem evm_shl_body_evmWord_spec (sp base : Addr)
   have hbody0_f := cpsTriple_frame_left (base + 240) (base + 360) _ _ _
     ((.x0 ↦ᵣ (0 : Word)) ** (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3))
     (by pcFree) hbody0
-  have ha40' : (sp + 32 : Addr) + 8 = sp + 40 := by bv_omega
-  have ha48' : (sp + 32 : Addr) + 16 = sp + 48 := by bv_omega
-  have ha56' : (sp + 32 : Addr) + 24 = sp + 56 := by bv_omega
+  have ha40' : (sp + 32 : Word) + 8 = sp + 40 := by bv_omega
+  have ha48' : (sp + 32 : Word) + 16 = sp + 48 := by bv_omega
+  have ha56' : (sp + 32 : Word) + 24 = sp + 56 := by bv_omega
   simp only [ha40', ha48', ha56'] at hbody3_f hbody2_f hbody1_f hbody0_f
   -- Helper: weaken regs to regOwn while keeping concrete mem values
   have body_post_weaken : ∀ (r5v r6v r7v r10v r11v m32 m40 m48 m56 : Word),

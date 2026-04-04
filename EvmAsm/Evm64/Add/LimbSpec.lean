@@ -16,7 +16,7 @@ namespace EvmAsm.Rv64
 /-- ADD limb 0 spec (5 instructions): LD, LD, ADD, SLTU, SD.
     Computes sum = a + b (mod 2^64) and carry = (sum < b ? 1 : 0). -/
 theorem add_limb0_spec (off_a off_b : BitVec 12)
-    (sp a_limb b_limb v7 v6 v5 : Word) (base : Addr)
+    (sp a_limb b_limb v7 v6 v5 : Word) (base : Word)
     (hvalid_a : isValidDwordAccess (sp + signExtend12 off_a) = true)
     (hvalid_b : isValidDwordAccess (sp + signExtend12 off_b) = true) :
     let mem_a := sp + signExtend12 off_a
@@ -39,7 +39,7 @@ theorem add_limb0_spec (off_a off_b : BitVec 12)
 /-- ADD carry limb phase 1 (4 instructions): LD, LD, ADD, SLTU.
     Loads a_limb and b_limb, computes psum = a + b, carry1 = (psum < b ? 1 : 0). -/
 theorem add_limb_carry_spec_phase1 (off_a off_b : BitVec 12)
-    (sp a_limb b_limb v7 v6 carry_in v11 : Word) (base : Addr)
+    (sp a_limb b_limb v7 v6 carry_in v11 : Word) (base : Word)
     (hvalid_a : isValidDwordAccess (sp + signExtend12 off_a) = true)
     (hvalid_b : isValidDwordAccess (sp + signExtend12 off_b) = true) :
     let mem_a := sp + signExtend12 off_a
@@ -62,7 +62,7 @@ theorem add_limb_carry_spec_phase1 (off_a off_b : BitVec 12)
     Takes psum, carry1, carry_in, computes result = psum + carry_in,
     carry2 = (result < carry_in ? 1 : 0), carry_out = carry1 ||| carry2. -/
 theorem add_limb_carry_spec_phase2 (off_b : BitVec 12)
-    (sp psum b_limb carry_in carry1 a_limb : Word) (mem_a : Addr) (base : Addr)
+    (sp psum b_limb carry_in carry1 a_limb : Word) (mem_a : Word) (base : Word)
     (hvalid_b : isValidDwordAccess (sp + signExtend12 off_b) = true) :
     let mem_b := sp + signExtend12 off_b
     let result := psum + carry_in
@@ -83,7 +83,7 @@ theorem add_limb_carry_spec_phase2 (off_b : BitVec 12)
 /-- ADD carry limb spec (8 instructions): LD, LD, ADD, SLTU, ADD, SLTU, OR, SD.
     Composed from phase1 and phase2. -/
 theorem add_limb_carry_spec (off_a off_b : BitVec 12)
-    (sp a_limb b_limb v7 v6 carry_in v11 : Word) (base : Addr)
+    (sp a_limb b_limb v7 v6 carry_in v11 : Word) (base : Word)
     (hvalid_a : isValidDwordAccess (sp + signExtend12 off_a) = true)
     (hvalid_b : isValidDwordAccess (sp + signExtend12 off_b) = true) :
     let mem_a := sp + signExtend12 off_a

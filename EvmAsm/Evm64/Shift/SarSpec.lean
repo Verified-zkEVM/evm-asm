@@ -20,7 +20,7 @@ namespace EvmAsm.Rv64
 -- Per-limb Specs: SAR Last Limb (3 instructions)
 -- ============================================================================
 
-abbrev sar_last_limb_code (base : Addr) (dst_off : BitVec 12) : CodeReq :=
+abbrev sar_last_limb_code (base : Word) (dst_off : BitVec 12) : CodeReq :=
   CodeReq.union (CodeReq.singleton base (.LD .x5 .x12 24))
   (CodeReq.union (CodeReq.singleton (base + 4) (.SRA .x5 .x5 .x6))
    (CodeReq.singleton (base + 8) (.SD .x12 .x5 dst_off)))
@@ -31,7 +31,7 @@ abbrev sar_last_limb_code (base : Addr) (dst_off : BitVec 12) : CodeReq :=
     Computes: result = BitVec.sshiftRight value[3] bit_shift
     Mirror of shr_last_limb_spec with SRA (arithmetic shift right). -/
 theorem sar_last_limb_spec (dst_off : BitVec 12)
-    (sp src dst_old v5 bit_shift : Word) (base : Addr)
+    (sp src dst_old v5 bit_shift : Word) (base : Word)
     (hvalid_src : isValidDwordAccess (sp + signExtend12 (24 : BitVec 12)) = true)
     (hvalid_dst : isValidDwordAccess (sp + signExtend12 dst_off) = true) :
     let mem_src := sp + signExtend12 (24 : BitVec 12)
@@ -52,7 +52,7 @@ theorem sar_last_limb_spec (dst_off : BitVec 12)
 -- Per-limb Specs: SAR Last Limb In-place (3 instructions, dst_off = 24)
 -- ============================================================================
 
-abbrev sar_last_limb_inplace_code (base : Addr) : CodeReq :=
+abbrev sar_last_limb_inplace_code (base : Word) : CodeReq :=
   CodeReq.union (CodeReq.singleton base (.LD .x5 .x12 24))
   (CodeReq.union (CodeReq.singleton (base + 4) (.SRA .x5 .x5 .x6))
    (CodeReq.singleton (base + 8) (.SD .x12 .x5 24)))
@@ -61,7 +61,7 @@ abbrev sar_last_limb_inplace_code (base : Addr) : CodeReq :=
     LD x5, 24(x12); SRA x5,x5,x6; SD x12,x5,24
     Reads and writes the same memory cell at sp+24. -/
 theorem sar_last_limb_inplace_spec
-    (sp src v5 bit_shift : Word) (base : Addr)
+    (sp src v5 bit_shift : Word) (base : Word)
     (hvalid : isValidDwordAccess (sp + signExtend12 (24 : BitVec 12)) = true) :
     let mem := sp + signExtend12 (24 : BitVec 12)
     let result := BitVec.sshiftRight src (bit_shift.toNat % 64)
@@ -78,7 +78,7 @@ theorem sar_last_limb_inplace_spec
 -- Shift Body Specs
 -- ============================================================================
 
-abbrev sar_body_3_code (base : Addr) (jal_off : BitVec 21) : CodeReq :=
+abbrev sar_body_3_code (base : Word) (jal_off : BitVec 21) : CodeReq :=
   CodeReq.ofProg base (sar_body_3_prog jal_off)
 
 /-- SAR body 3: limb_shift=3 (8 instructions).
@@ -87,7 +87,7 @@ abbrev sar_body_3_code (base : Addr) (jal_off : BitVec 21) : CodeReq :=
 theorem sar_body_3_spec (sp : Word)
     (v5 v10 bit_shift anti_shift mask : Word)
     (v0 v1 v2 v3 : Word)
-    (base exit : Addr) (jal_off : BitVec 21)
+    (base exit : Word) (jal_off : BitVec 21)
     (hexit : (base + 28) + signExtend21 jal_off = exit)
     (hvalid : ValidMemRange sp 4) :
     let result0 := BitVec.sshiftRight v3 (bit_shift.toNat % 64)
@@ -111,7 +111,7 @@ theorem sar_body_3_spec (sp : Word)
   rw [hexit] at JL
   runBlock LL SR S0 S1 S2 JL
 
-abbrev sar_body_2_code (base : Addr) (jal_off : BitVec 21) : CodeReq :=
+abbrev sar_body_2_code (base : Word) (jal_off : BitVec 21) : CodeReq :=
   CodeReq.ofProg base (sar_body_2_prog jal_off)
 
 set_option maxHeartbeats 3200000 in
@@ -122,7 +122,7 @@ set_option maxHeartbeats 3200000 in
 theorem sar_body_2_spec (sp : Word)
     (v5 v10 bit_shift anti_shift mask : Word)
     (v0 v1 v2 v3 : Word)
-    (base exit : Addr) (jal_off : BitVec 21)
+    (base exit : Word) (jal_off : BitVec 21)
     (hexit : (base + 52) + signExtend21 jal_off = exit)
     (hvalid : ValidMemRange sp 4) :
     let result0 := (v2 >>> (bit_shift.toNat % 64)) ||| ((v3 <<< (anti_shift.toNat % 64)) &&& mask)
@@ -153,7 +153,7 @@ theorem sar_body_2_spec (sp : Word)
   rw [hexit] at JL
   runBlock MM LL SR S0 S1 JL
 
-abbrev sar_body_1_code (base : Addr) (jal_off : BitVec 21) : CodeReq :=
+abbrev sar_body_1_code (base : Word) (jal_off : BitVec 21) : CodeReq :=
   CodeReq.ofProg base (sar_body_1_prog jal_off)
 
 set_option maxHeartbeats 3200000 in
@@ -164,7 +164,7 @@ set_option maxHeartbeats 3200000 in
 theorem sar_body_1_spec (sp : Word)
     (v5 v10 bit_shift anti_shift mask : Word)
     (v0 v1 v2 v3 : Word)
-    (base exit : Addr) (jal_off : BitVec 21)
+    (base exit : Word) (jal_off : BitVec 21)
     (hexit : (base + 76) + signExtend21 jal_off = exit)
     (hvalid : ValidMemRange sp 4) :
     let result0 := (v1 >>> (bit_shift.toNat % 64)) ||| ((v2 <<< (anti_shift.toNat % 64)) &&& mask)
@@ -198,7 +198,7 @@ theorem sar_body_1_spec (sp : Word)
   rw [hexit] at JL
   runBlock MM1 MM2 LL SR S0 JL
 
-abbrev sar_body_0_code (base : Addr) (jal_off : BitVec 21) : CodeReq :=
+abbrev sar_body_0_code (base : Word) (jal_off : BitVec 21) : CodeReq :=
   CodeReq.ofProg base (sar_body_0_prog jal_off)
 
 set_option maxHeartbeats 3200000 in
@@ -210,7 +210,7 @@ set_option maxHeartbeats 3200000 in
 theorem sar_body_0_spec (sp : Word)
     (v5 v10 bit_shift anti_shift mask : Word)
     (v0 v1 v2 v3 : Word)
-    (base exit : Addr) (jal_off : BitVec 21)
+    (base exit : Word) (jal_off : BitVec 21)
     (hexit : (base + 96) + signExtend21 jal_off = exit)
     (hvalid : ValidMemRange sp 4) :
     let result0 := (v0 >>> (bit_shift.toNat % 64)) ||| ((v1 <<< (anti_shift.toNat % 64)) &&& mask)
@@ -245,7 +245,7 @@ theorem sar_body_0_spec (sp : Word)
 -- Sign-fill path spec (7 instructions)
 -- ============================================================================
 
-abbrev sar_sign_fill_path_code (base : Addr) : CodeReq :=
+abbrev sar_sign_fill_path_code (base : Word) : CodeReq :=
   CodeReq.union (CodeReq.singleton base (.LD .x5 .x12 56))
   (CodeReq.union (CodeReq.singleton (base + 4) (.SRAI .x5 .x5 63))
   (CodeReq.union (CodeReq.singleton (base + 8) (.ADDI .x12 .x12 32))
@@ -263,7 +263,7 @@ abbrev sar_sign_fill_path_code (base : Addr) : CodeReq :=
 theorem sar_sign_fill_path_spec (sp : Word)
     (v5 v10 : Word)
     (v0 v1 v2 v3 : Word)
-    (base : Addr) (hvalid_v3 : isValidDwordAccess (sp + signExtend12 (56 : BitVec 12)) = true)
+    (base : Word) (hvalid_v3 : isValidDwordAccess (sp + signExtend12 (56 : BitVec 12)) = true)
     (hvalid : ValidMemRange (sp + 32) 4) :
     let sign_ext := BitVec.sshiftRight v3 63
     let cr := sar_sign_fill_path_code base

@@ -19,8 +19,8 @@ namespace EvmAsm.Rv64
 
 /-- Four-instruction spec for SWAP per-limb: LD x7 from A, LD x6 from B,
     SD x6 to A, SD x7 to B. Swaps values at offsets off_a and off_b. -/
-theorem swap_limb_spec (sp : Addr)
-    (off_a off_b : BitVec 12) (a_val b_val v7 v6 : Word) (base : Addr)
+theorem swap_limb_spec (sp : Word)
+    (off_a off_b : BitVec 12) (a_val b_val v7 v6 : Word) (base : Word)
     (hvalid_a : isValidDwordAccess (sp + signExtend12 off_a) = true)
     (hvalid_b : isValidDwordAccess (sp + signExtend12 off_b) = true) :
     cpsTriple base (base + 16)
@@ -41,7 +41,7 @@ theorem swap_limb_spec (sp : Addr)
 set_option maxHeartbeats 6400000 in
 /-- Generic SWAPn spec (low level): swaps 4 dword limbs at sp (top) with 4 at sp+n*32 (nth).
     Requires 1 ≤ n ≤ 16 (valid EVM SWAP range). -/
-theorem evm_swap_spec (sp base : Addr)
+theorem evm_swap_spec (sp base : Word)
     (n : Nat) (hn1 : 1 ≤ n) (hn16 : n ≤ 16)
     (a0 a1 a2 a3 : Word)
     (b0 b1 b2 b3 : Word)
@@ -119,7 +119,7 @@ theorem evm_swap_spec (sp base : Addr)
 -- ============================================================================
 
 /-- SWAPn spec at evmWordIs level: swaps the top and nth stack elements. -/
-theorem evm_swap_evmword_spec (sp base : Addr)
+theorem evm_swap_evmword_spec (sp base : Word)
     (n : Nat) (hn1 : 1 ≤ n) (hn16 : n ≤ 16)
     (top nth : EvmWord) (v7 v6 : Word)
     (hvalid : ValidMemRange sp ((n + 1) * 4)) :
@@ -131,11 +131,11 @@ theorem evm_swap_evmword_spec (sp base : Addr)
        evmWordIs sp nth **
        evmWordIs (sp + BitVec.ofNat 64 (n * 32)) top) := by
   -- Address normalizations
-  have ha8  : (sp + BitVec.ofNat 64 (n * 32) : Addr) + 8  = sp + BitVec.ofNat 64 (n*32+8)  := by
+  have ha8  : (sp + BitVec.ofNat 64 (n * 32) : Word) + 8  = sp + BitVec.ofNat 64 (n*32+8)  := by
     apply BitVec.eq_of_toNat_eq; simp [BitVec.toNat_add, BitVec.toNat_ofNat]; omega
-  have ha16 : (sp + BitVec.ofNat 64 (n * 32) : Addr) + 16 = sp + BitVec.ofNat 64 (n*32+16) := by
+  have ha16 : (sp + BitVec.ofNat 64 (n * 32) : Word) + 16 = sp + BitVec.ofNat 64 (n*32+16) := by
     apply BitVec.eq_of_toNat_eq; simp [BitVec.toNat_add, BitVec.toNat_ofNat]; omega
-  have ha24 : (sp + BitVec.ofNat 64 (n * 32) : Addr) + 24 = sp + BitVec.ofNat 64 (n*32+24) := by
+  have ha24 : (sp + BitVec.ofNat 64 (n * 32) : Word) + 24 = sp + BitVec.ofNat 64 (n*32+24) := by
     apply BitVec.eq_of_toNat_eq; simp [BitVec.toNat_add, BitVec.toNat_ofNat]; omega
   exact cpsTriple_consequence _ _ _ _ _ _ _
     (fun h hp => by
@@ -154,7 +154,7 @@ theorem evm_swap_evmword_spec (sp base : Addr)
 -- ============================================================================
 
 /-- SWAPn stack spec: swaps top with the nth element (1-indexed) of the stack. -/
-theorem evm_swap_stack_spec (sp base : Addr)
+theorem evm_swap_stack_spec (sp base : Word)
     (n : Nat) (hn1 : 1 ≤ n) (hn16 : n ≤ 16)
     (stack : List EvmWord) (hlen : n + 1 ≤ stack.length)
     (v7 v6 : Word)
@@ -177,10 +177,10 @@ theorem evm_swap_stack_spec (sp base : Addr)
   have htail_len : n - 1 < (stack.drop 1).length := by simp; omega
   have hsplit1 := evmStackIs_split_at (sp + 32) (stack.drop 1) (n - 1) htail_len
   -- Address normalizations
-  have haddr_src : (sp + 32 : Addr) + BitVec.ofNat 64 ((n - 1) * 32) =
+  have haddr_src : (sp + 32 : Word) + BitVec.ofNat 64 ((n - 1) * 32) =
       sp + BitVec.ofNat 64 (n * 32) := by
     apply BitVec.eq_of_toNat_eq; simp [BitVec.toNat_add, BitVec.toNat_ofNat]; omega
-  have haddr_rest : (sp + 32 : Addr) + BitVec.ofNat 64 (((n - 1) + 1) * 32) =
+  have haddr_rest : (sp + 32 : Word) + BitVec.ofNat 64 (((n - 1) + 1) * 32) =
       sp + BitVec.ofNat 64 ((n + 1) * 32) := by
     apply BitVec.eq_of_toNat_eq; simp [BitVec.toNat_add, BitVec.toNat_ofNat]; omega
   -- Simplify element access
@@ -193,7 +193,7 @@ theorem evm_swap_stack_spec (sp base : Addr)
      evmStackIs (sp + BitVec.ofNat 64 ((n + 1) * 32)) ((stack.drop 1).drop n))
     (by pcFree)
     (evm_swap_evmword_spec sp base n hn1 hn16 top nth v7 v6 hvalid)
-  have haddr32 : (sp + BitVec.ofNat 64 (1 * 32) : Addr) = sp + 32 := by bv_omega
+  have haddr32 : (sp + BitVec.ofNat 64 (1 * 32) : Word) = sp + 32 := by bv_omega
   exact cpsTriple_consequence _ _ _ _ _ _ _
     (fun h hp => by
       rw [hsplit0] at hp

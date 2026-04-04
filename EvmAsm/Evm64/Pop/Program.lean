@@ -12,7 +12,7 @@ namespace EvmAsm.Rv64
 
 def evm_pop : Program := ADDI .x12 .x12 32
 
-abbrev evm_pop_code (base : Addr) : CodeReq :=
+abbrev evm_pop_code (base : Word) : CodeReq :=
   CodeReq.ofProg base evm_pop
 
 end EvmAsm.Rv64

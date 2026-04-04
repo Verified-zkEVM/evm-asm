@@ -19,7 +19,7 @@ namespace EvmAsm.Rv64
 -- ============================================================================
 
 /-- The loopBody ofProg (block 8) is subsumed by divCode. -/
-private theorem divK_loopBody_ofProg_sub_divCode (base : Addr) :
+private theorem divK_loopBody_ofProg_sub_divCode (base : Word) :
     ∀ a i, (CodeReq.ofProg (base + 448) (divK_loopBody 556 7740)) a = some i →
       (divCode base) a = some i := by
   unfold divCode; simp only [CodeReq.unionAll_cons]
@@ -28,7 +28,7 @@ private theorem divK_loopBody_ofProg_sub_divCode (base : Addr) :
   exact CodeReq.union_mono_left _ _
 
 /-- Helper: singleton at index k of divK_loopBody ⊆ divCode base. -/
-private theorem lb_sub (base : Addr) (k : Nat) (addr : Addr) (instr : Instr)
+private theorem lb_sub (base : Word) (k : Nat) (addr : Word) (instr : Instr)
     (hk : k < (divK_loopBody 556 7740).length)
     (h_addr : addr = (base + 448) + BitVec.ofNat 64 (4 * k))
     (h_instr : (divK_loopBody 556 7740).get ⟨k, hk⟩ = instr) :
@@ -57,11 +57,11 @@ private theorem CodeReq_union_sub {cr1 cr2 target : CodeReq}
 -- ============================================================================
 
 -- Mulsub limb base addresses (instrs [22]-[65])
-private theorem lb_ms0 (base : Addr) : (base + 448 : Addr) + 88 = base + 536 := by bv_omega
-private theorem lb_ms1 (base : Addr) : (base + 536 : Addr) + 44 = base + 580 := by bv_omega
-private theorem lb_ms2 (base : Addr) : (base + 580 : Addr) + 44 = base + 624 := by bv_omega
-private theorem lb_ms3 (base : Addr) : (base + 624 : Addr) + 44 = base + 668 := by bv_omega
-private theorem lb_ms_end (base : Addr) : (base + 668 : Addr) + 44 = base + 712 := by bv_omega
+private theorem lb_ms0 (base : Word) : (base + 448 : Word) + 88 = base + 536 := by bv_omega
+private theorem lb_ms1 (base : Word) : (base + 536 : Word) + 44 = base + 580 := by bv_omega
+private theorem lb_ms2 (base : Word) : (base + 580 : Word) + 44 = base + 624 := by bv_omega
+private theorem lb_ms3 (base : Word) : (base + 624 : Word) + 44 = base + 668 := by bv_omega
+private theorem lb_ms_end (base : Word) : (base + 668 : Word) + 44 = base + 712 := by bv_omega
 
 -- ============================================================================
 -- Section 3: Mulsub 4-limbs composition
@@ -76,7 +76,7 @@ set_option maxHeartbeats 800000 in
 theorem divK_mulsub_4limbs_spec
     (sp u_base q_hat v0 v1 v2 v3 u0 u1 u2 u3 : Word)
     (v5_init v7_init v2_init : Word)
-    (base : Addr)
+    (base : Word)
     (hv_v0 : isValidDwordAccess (sp + signExtend12 32) = true)
     (hv_u0 : isValidDwordAccess (u_base + signExtend12 0) = true)
     (hv_v1 : isValidDwordAccess (sp + signExtend12 40) = true)
@@ -238,13 +238,13 @@ theorem divK_mulsub_4limbs_spec
 -- ============================================================================
 
 -- Addback base addresses (instrs [71]-[107])
-private theorem lb_ab_init (base : Addr) : (base + 448 : Addr) + 284 = base + 732 := by bv_omega
-private theorem lb_ab0 (base : Addr) : (base + 732 : Addr) + 4 = base + 736 := by bv_omega
-private theorem lb_ab0_end (base : Addr) : (base + 736 : Addr) + 32 = base + 768 := by bv_omega
-private theorem lb_ab1_end (base : Addr) : (base + 768 : Addr) + 32 = base + 800 := by bv_omega
-private theorem lb_ab2_end (base : Addr) : (base + 800 : Addr) + 32 = base + 832 := by bv_omega
-private theorem lb_ab3_end (base : Addr) : (base + 832 : Addr) + 32 = base + 864 := by bv_omega
-private theorem lb_abf_end (base : Addr) : (base + 864 : Addr) + 16 = base + 880 := by bv_omega
+private theorem lb_ab_init (base : Word) : (base + 448 : Word) + 284 = base + 732 := by bv_omega
+private theorem lb_ab0 (base : Word) : (base + 732 : Word) + 4 = base + 736 := by bv_omega
+private theorem lb_ab0_end (base : Word) : (base + 736 : Word) + 32 = base + 768 := by bv_omega
+private theorem lb_ab1_end (base : Word) : (base + 768 : Word) + 32 = base + 800 := by bv_omega
+private theorem lb_ab2_end (base : Word) : (base + 800 : Word) + 32 = base + 832 := by bv_omega
+private theorem lb_ab3_end (base : Word) : (base + 832 : Word) + 32 = base + 864 := by bv_omega
+private theorem lb_abf_end (base : Word) : (base + 864 : Word) + 16 = base + 880 := by bv_omega
 
 set_option maxRecDepth 4096 in
 set_option maxHeartbeats 800000 in
@@ -254,7 +254,7 @@ set_option maxHeartbeats 800000 in
 theorem divK_addback_full_spec
     (sp u_base q_hat v0 v1 v2 v3 u0 u1 u2 u3 u4 : Word)
     (v7_init v5_init v2_init : Word)
-    (base : Addr)
+    (base : Word)
     (hv_v0 : isValidDwordAccess (sp + signExtend12 32) = true)
     (hv_u0 : isValidDwordAccess (u_base + signExtend12 0) = true)
     (hv_v1 : isValidDwordAccess (sp + signExtend12 40) = true)
@@ -409,10 +409,10 @@ theorem divK_addback_full_spec
 -- ============================================================================
 
 -- Address normalization for mulsub_setup
-private theorem lb_ms_setup (base : Addr) : (base + 516 : Addr) + 20 = base + 536 := by bv_omega
+private theorem lb_ms_setup (base : Word) : (base + 516 : Word) + 20 = base + 536 := by bv_omega
 
 -- Address normalization for sub_carry
-private theorem lb_sc (base : Addr) : (base + 712 : Addr) + 16 = base + 728 := by bv_omega
+private theorem lb_sc (base : Word) : (base + 712 : Word) + 16 = base + 728 := by bv_omega
 
 set_option maxRecDepth 4096 in
 set_option maxHeartbeats 1600000 in
@@ -422,7 +422,7 @@ set_option maxHeartbeats 1600000 in
 theorem divK_mulsub_full_spec
     (sp q_hat j v0 v1 v2 v3 u0 u1 u2 u3 u_top : Word)
     (v1_old v5_old v6_old v7_old v10_old v2_old : Word)
-    (base : Addr)
+    (base : Word)
     (hv_j : isValidDwordAccess (sp + signExtend12 3976) = true)
     (hv_v0 : isValidDwordAccess (sp + signExtend12 32) = true)
     (hv_u0 : isValidDwordAccess ((sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 0) = true)
@@ -542,11 +542,11 @@ theorem divK_mulsub_full_spec
 -- BEQ at instr [70] (base+728): taken → base+880, not-taken → base+732.
 -- ============================================================================
 
-private theorem lb_beq_taken (base : Addr) : (base + 728 : Addr) + signExtend13 (152 : BitVec 13) = base + 880 := by
+private theorem lb_beq_taken (base : Word) : (base + 728 : Word) + signExtend13 (152 : BitVec 13) = base + 880 := by
   have : signExtend13 (152 : BitVec 13) = (152 : Word) := by native_decide
   rw [this]; bv_omega
 
-private theorem lb_beq_ntaken (base : Addr) : (base + 728 : Addr) + 4 = base + 732 := by bv_omega
+private theorem lb_beq_ntaken (base : Word) : (base + 728 : Word) + 4 = base + 732 := by bv_omega
 
 -- ============================================================================
 -- Section 6a: Correction skip spec (borrow = 0)
@@ -557,7 +557,7 @@ private theorem lb_beq_ntaken (base : Addr) : (base + 728 : Addr) + 4 = base + 7
     1 instruction. All registers and memory unchanged. -/
 theorem divK_correction_skip_spec
     (sp u_base q_hat v0 v1 v2 v3 u0 u1 u2 u3 u4 : Word)
-    (v5_old v2_old : Word) (base : Addr) :
+    (v5_old v2_old : Word) (base : Word) :
     cpsTriple (base + 728) (base + 880) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ u_base) ** (.x7 ↦ᵣ (0 : Word)) **
        (.x11 ↦ᵣ q_hat) ** (.x5 ↦ᵣ v5_old) ** (.x2 ↦ᵣ v2_old) ** (.x0 ↦ᵣ (0 : Word)) **
@@ -617,7 +617,7 @@ set_option maxHeartbeats 1600000 in
     38 instructions. Modifies u values and decrements q_hat. -/
 theorem divK_correction_addback_spec
     (sp u_base borrow q_hat v0 v1 v2 v3 u0 u1 u2 u3 u4 : Word)
-    (v5_old v2_old : Word) (base : Addr)
+    (v5_old v2_old : Word) (base : Word)
     (hb : borrow ≠ (0 : Word))
     (hv_v0 : isValidDwordAccess (sp + signExtend12 32) = true)
     (hv_u0 : isValidDwordAccess (u_base + signExtend12 0) = true)
@@ -711,8 +711,8 @@ theorem divK_correction_addback_spec
 -- Instrs [0]-[12] at base+448 → base+500.
 -- ============================================================================
 
-private theorem lb_save_j (base : Addr) : (base + 448 : Addr) + 4 = base + 452 := by bv_omega
-private theorem lb_trial_load (base : Addr) : (base + 452 : Addr) + 48 = base + 500 := by bv_omega
+private theorem lb_save_j (base : Word) : (base + 448 : Word) + 4 = base + 452 := by bv_omega
+private theorem lb_trial_load (base : Word) : (base + 452 : Word) + 48 = base + 500 := by bv_omega
 
 set_option maxRecDepth 4096 in
 set_option maxHeartbeats 800000 in
@@ -721,7 +721,7 @@ set_option maxHeartbeats 800000 in
     Entry: base+448, Exit: base+500, CodeReq: divCode base. -/
 theorem divK_save_trial_load_spec
     (sp j n j_old v5_old v6_old v7_old v10_old u_hi u_lo v_top : Word)
-    (base : Addr)
+    (base : Word)
     (hv_j : isValidDwordAccess (sp + signExtend12 3976) = true)
     (hv_n1 : isValidDwordAccess (sp + signExtend12 3984) = true)
     (hv_uhi : isValidDwordAccess (sp + signExtend12 4056 - (j + n) <<< (3 : BitVec 6).toNat) = true)
@@ -793,15 +793,15 @@ theorem divK_save_trial_load_spec
 -- ============================================================================
 
 -- Address normalization for trial quotient
-private theorem lb_bltu_taken (base : Addr) : (base + 500 : Addr) + signExtend13 (12 : BitVec 13) = base + 512 := by
+private theorem lb_bltu_taken (base : Word) : (base + 500 : Word) + signExtend13 (12 : BitVec 13) = base + 512 := by
   have : signExtend13 (12 : BitVec 13) = (12 : Word) := by native_decide
   rw [this]; bv_omega
-private theorem lb_bltu_ntaken (base : Addr) : (base + 500 : Addr) + 4 = base + 504 := by bv_omega
-private theorem lb_trial_max_end (base : Addr) : (base + 504 : Addr) + 12 = base + 516 := by bv_omega
-private theorem lb_jal_target (base : Addr) : (base + 512 : Addr) + signExtend21 (556 : BitVec 21) = base + 1068 := by
+private theorem lb_bltu_ntaken (base : Word) : (base + 500 : Word) + 4 = base + 504 := by bv_omega
+private theorem lb_trial_max_end (base : Word) : (base + 504 : Word) + 12 = base + 516 := by bv_omega
+private theorem lb_jal_target (base : Word) : (base + 512 : Word) + signExtend21 (556 : BitVec 21) = base + 1068 := by
   have : signExtend21 (556 : BitVec 21) = (556 : Word) := by native_decide
   rw [this]; bv_omega
-private theorem lb_jal_ret (base : Addr) : (base + 512 : Addr) + 4 = base + 516 := by bv_omega
+private theorem lb_jal_ret (base : Word) : (base + 512 : Word) + 4 = base + 516 := by bv_omega
 
 -- ============================================================================
 -- Section 8a: Trial quotient NOT-TAKEN path (u_hi >= v_top)
@@ -810,7 +810,7 @@ private theorem lb_jal_ret (base : Addr) : (base + 512 : Addr) + 4 = base + 516 
 
 /-- Trial quotient MAX path: q_hat = MAX64, skip div128 call.
     2 instructions at base+504. Entry: base+504, Exit: base+516. -/
-private theorem divK_trial_max_extended (v11_old : Word) (base : Addr) :
+private theorem divK_trial_max_extended (v11_old : Word) (base : Word) :
     cpsTriple (base + 504) (base + 516) (divCode base)
       ((.x11 ↦ᵣ v11_old) ** (.x0 ↦ᵣ 0))
       ((.x11 ↦ᵣ signExtend12 4095) ** (.x0 ↦ᵣ 0)) := by
@@ -832,7 +832,7 @@ set_option maxHeartbeats 1600000 in
     Entry: base+512, Exit: base+516, CodeReq: divCode base.
     Computes q_hat = div128(u_hi, u_lo, v_top). -/
 theorem divK_trial_call_path_spec
-    (sp j u_lo u_hi v_top vtop_base : Word) (base : Addr)
+    (sp j u_lo u_hi v_top vtop_base : Word) (base : Word)
     (v2_old v11_old : Word)
     (ret_mem d_mem dlo_mem un0_mem : Word)
     (hv_ret : isValidDwordAccess (sp + signExtend12 3968) = true)
@@ -922,12 +922,12 @@ theorem divK_trial_call_path_spec
 -- ============================================================================
 
 -- Address normalization for store_qj and loop control
-private theorem lb_sqj (base : Addr) : (base + 880 : Addr) + 16 = base + 896 := by bv_omega
-private theorem lb_lc_taken (base : Addr) :
-    (base + 896 : Addr) + 4 + signExtend13 (7740 : BitVec 13) = base + 448 := by
+private theorem lb_sqj (base : Word) : (base + 880 : Word) + 16 = base + 896 := by bv_omega
+private theorem lb_lc_taken (base : Word) :
+    (base + 896 : Word) + 4 + signExtend13 (7740 : BitVec 13) = base + 448 := by
   have : signExtend13 (7740 : BitVec 13) = (18446744073709551164 : Word) := by native_decide
   rw [this]; bv_omega
-private theorem lb_lc_exit (base : Addr) : (base + 896 : Addr) + 8 = base + 904 := by bv_omega
+private theorem lb_lc_exit (base : Word) : (base + 896 : Word) + 8 = base + 904 := by bv_omega
 
 set_option maxRecDepth 4096 in
 set_option maxHeartbeats 800000 in
@@ -937,7 +937,7 @@ set_option maxHeartbeats 800000 in
     CodeReq: divCode base. -/
 theorem divK_store_loop_spec
     (sp j q_hat v5_old v7_old q_old : Word)
-    (base : Addr)
+    (base : Word)
     (hv_q : isValidDwordAccess (sp + signExtend12 4088 - j <<< (3 : BitVec 6).toNat) = true) :
     let j_x8 := j <<< (3 : BitVec 6).toNat
     let q_addr := sp + signExtend12 4088 - j_x8
@@ -1017,7 +1017,7 @@ set_option maxHeartbeats 3200000 in
 theorem divK_mulsub_correction_skip_spec
     (sp q_hat j v0 v1 v2 v3 u0 u1 u2 u3 u_top : Word)
     (v1_old v5_old v6_old v7_old v10_old v2_old : Word)
-    (base : Addr)
+    (base : Word)
     (hv_j : isValidDwordAccess (sp + signExtend12 3976) = true)
     (hv_v0 : isValidDwordAccess (sp + signExtend12 32) = true)
     (hv_u0 : isValidDwordAccess ((sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 0) = true)
@@ -1112,7 +1112,7 @@ set_option maxHeartbeats 3200000 in
 theorem divK_mulsub_correction_addback_spec
     (sp q_hat j v0 v1 v2 v3 u0 u1 u2 u3 u_top : Word)
     (v1_old v5_old v6_old v7_old v10_old v2_old : Word)
-    (base : Addr)
+    (base : Word)
     (hv_j : isValidDwordAccess (sp + signExtend12 3976) = true)
     (hv_v0 : isValidDwordAccess (sp + signExtend12 32) = true)
     (hv_u0 : isValidDwordAccess ((sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 0) = true)
@@ -1236,7 +1236,7 @@ set_option maxHeartbeats 1600000 in
     Entry: base+448, Exit: base+516, CodeReq: divCode base. -/
 theorem divK_trial_max_full_spec
     (sp j n j_old v5_old v6_old v7_old v10_old v11_old u_hi u_lo v_top : Word)
-    (base : Addr)
+    (base : Word)
     (hv_j : isValidDwordAccess (sp + signExtend12 3976) = true)
     (hv_n1 : isValidDwordAccess (sp + signExtend12 3984) = true)
     (hv_uhi : isValidDwordAccess (sp + signExtend12 4056 - (j + n) <<< (3 : BitVec 6).toNat) = true)
@@ -1307,7 +1307,7 @@ set_option maxHeartbeats 3200000 in
 theorem divK_trial_call_full_spec
     (sp j n j_old v5_old v6_old v7_old v10_old v11_old v2_old u_hi u_lo v_top : Word)
     (ret_mem d_mem dlo_mem un0_mem : Word)
-    (base : Addr)
+    (base : Word)
     (hv_j : isValidDwordAccess (sp + signExtend12 3976) = true)
     (hv_n1 : isValidDwordAccess (sp + signExtend12 3984) = true)
     (hv_uhi : isValidDwordAccess (sp + signExtend12 4056 - (j + n) <<< (3 : BitVec 6).toNat) = true)
@@ -1426,7 +1426,7 @@ set_option maxHeartbeats 6400000 in
 theorem divK_loop_body_max_skip_spec
     (sp j n j_old v5_old v6_old v7_old v10_old v11_old v2_old
      u_hi u_lo v_top v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old : Word)
-    (base : Addr)
+    (base : Word)
     (hv_j : isValidDwordAccess (sp + signExtend12 3976) = true)
     (hv_n1 : isValidDwordAccess (sp + signExtend12 3984) = true)
     (hv_uhi : isValidDwordAccess (sp + signExtend12 4056 - (j + n) <<< (3 : BitVec 6).toNat) = true)
@@ -1590,7 +1590,7 @@ set_option maxHeartbeats 6400000 in
 theorem divK_loop_body_max_addback_spec
     (sp j n j_old v5_old v6_old v7_old v10_old v11_old v2_old
      u_hi u_lo v_top v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old : Word)
-    (base : Addr)
+    (base : Word)
     (hv_j : isValidDwordAccess (sp + signExtend12 3976) = true)
     (hv_n1 : isValidDwordAccess (sp + signExtend12 3984) = true)
     (hv_uhi : isValidDwordAccess (sp + signExtend12 4056 - (j + n) <<< (3 : BitVec 6).toNat) = true)
@@ -1777,7 +1777,7 @@ theorem divK_loop_body_call_skip_spec
     (sp j n j_old v5_old v6_old v7_old v10_old v11_old v2_old
      u_hi u_lo v_top v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old : Word)
     (ret_mem d_mem dlo_mem scratch_un0 : Word)
-    (base : Addr)
+    (base : Word)
     (hv_j : isValidDwordAccess (sp + signExtend12 3976) = true)
     (hv_n1 : isValidDwordAccess (sp + signExtend12 3984) = true)
     (hv_uhi : isValidDwordAccess (sp + signExtend12 4056 - (j + n) <<< (3 : BitVec 6).toNat) = true)
@@ -1989,7 +1989,7 @@ theorem divK_loop_body_call_addback_spec
     (sp j n j_old v5_old v6_old v7_old v10_old v11_old v2_old
      u_hi u_lo v_top v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old : Word)
     (ret_mem d_mem dlo_mem scratch_un0 : Word)
-    (base : Addr)
+    (base : Word)
     (hv_j : isValidDwordAccess (sp + signExtend12 3976) = true)
     (hv_n1 : isValidDwordAccess (sp + signExtend12 3984) = true)
     (hv_uhi : isValidDwordAccess (sp + signExtend12 4056 - (j + n) <<< (3 : BitVec 6).toNat) = true)
@@ -2258,7 +2258,7 @@ theorem divK_loop_body_combined_spec
     (sp j n j_old v5_old v6_old v7_old v10_old v11_old v2_old
      u_hi u_lo v_top v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old : Word)
     (ret_mem d_mem dlo_mem scratch_un0 : Word)
-    (base : Addr)
+    (base : Word)
     (hv_j : isValidDwordAccess (sp + signExtend12 3976) = true)
     (hv_n1 : isValidDwordAccess (sp + signExtend12 3984) = true)
     (hv_uhi : isValidDwordAccess (sp + signExtend12 4056 - (j + n) <<< (3 : BitVec 6).toNat) = true)

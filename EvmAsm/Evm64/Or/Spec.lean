@@ -10,11 +10,11 @@ namespace EvmAsm.Rv64
 
 /-- CodeReq for the 256-bit EVM OR operation.
     17 instructions = 68 bytes. 4 per-limb OR blocks + ADDI sp adjustment. -/
-abbrev evm_or_code (base : Addr) : CodeReq :=
+abbrev evm_or_code (base : Word) : CodeReq :=
   CodeReq.ofProg base evm_or
 
 /-- Full 256-bit EVM OR: composes 4 per-limb OR specs + sp adjustment. -/
-theorem evm_or_spec (sp base : Addr)
+theorem evm_or_spec (sp base : Word)
     (a0 a1 a2 a3 b0 b1 b2 b3 v7 v6 : Word)
     (hvalid : ValidMemRange sp 8) :
     let code := evm_or_code base
@@ -33,7 +33,7 @@ theorem evm_or_spec (sp base : Addr)
   runBlock L0 L1 L2 L3 LADDI
 
 /-- Stack-level 256-bit EVM OR. -/
-theorem evm_or_stack_spec (sp base : Addr)
+theorem evm_or_stack_spec (sp base : Word)
     (a b : EvmWord) (v7 v6 : Word)
     (hvalid : ValidMemRange sp 8) :
     let code := evm_or_code base
@@ -49,16 +49,16 @@ theorem evm_or_stack_spec (sp base : Addr)
   exact cpsTriple_consequence _ _ _ _ _ _ _
     (fun h hp => by
       simp only [evmWordIs] at hp
-      have : (sp : Addr) + 32 + 8 = sp + 40 := by bv_omega
-      have : (sp : Addr) + 32 + 16 = sp + 48 := by bv_omega
-      have : (sp : Addr) + 32 + 24 = sp + 56 := by bv_omega
+      have : (sp : Word) + 32 + 8 = sp + 40 := by bv_omega
+      have : (sp : Word) + 32 + 16 = sp + 48 := by bv_omega
+      have : (sp : Word) + 32 + 24 = sp + 56 := by bv_omega
       rw [‹sp + 32 + 8 = sp + 40›, ‹sp + 32 + 16 = sp + 48›, ‹sp + 32 + 24 = sp + 56›] at hp
       xperm_hyp hp)
     (fun h hq => by
       simp only [evmWordIs, EvmWord.getLimb_or]
-      have : (sp : Addr) + 32 + 8 = sp + 40 := by bv_omega
-      have : (sp : Addr) + 32 + 16 = sp + 48 := by bv_omega
-      have : (sp : Addr) + 32 + 24 = sp + 56 := by bv_omega
+      have : (sp : Word) + 32 + 8 = sp + 40 := by bv_omega
+      have : (sp : Word) + 32 + 16 = sp + 48 := by bv_omega
+      have : (sp : Word) + 32 + 24 = sp + 56 := by bv_omega
       rw [‹sp + 32 + 8 = sp + 40›, ‹sp + 32 + 16 = sp + 48›, ‹sp + 32 + 24 = sp + 56›]
       xperm_hyp hq)
     h_main

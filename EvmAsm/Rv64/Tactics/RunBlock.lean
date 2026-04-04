@@ -101,7 +101,7 @@ private def proveAddrEqFast (old new_ : Expr) : MetaM (Option Expr) := do
   -- Case: old = lhs + rhs
   if old.isAppOfArity ``HAdd.hAdd 6 then
     let oldArgs := old.getAppArgs
-    -- Check it's BitVec/Addr addition
+    -- Check it's BitVec/Word addition
     unless oldArgs[0]!.isAppOfArity ``BitVec 1 do return none
     let lhs := oldArgs[4]!
     let rhs := oldArgs[5]!
@@ -193,10 +193,10 @@ private def trySimplifyTop (e : Expr) : MetaM (Expr × Option Expr) := do
     let lhs := args[4]!
     let rhs := args[5]!
     -- Fast type check: HAdd.hAdd's γ (result type) arg is args[2].
-    -- Check for BitVec n / Addr / Word directly, avoiding inferType + whnf.
+    -- Check for BitVec n / Word / Word directly, avoiding inferType + whnf.
     let γType := args[2]!
     if γType.isAppOfArity ``BitVec 1 ||
-       γType == mkConst ``EvmAsm.Rv64.Addr ||
+       γType == mkConst ``EvmAsm.Rv64.Word ||
        γType == mkConst ``EvmAsm.Rv64.Word then
       -- e + 0 → e (common after signExtend12 0 normalization)
       if let some 0 := getBvLitVal? rhs then

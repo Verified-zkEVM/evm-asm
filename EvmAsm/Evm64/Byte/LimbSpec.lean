@@ -27,12 +27,12 @@ namespace EvmAsm.Rv64
 -- Uses full byte_phase_a code as CodeReq for composition.
 -- ============================================================================
 
-abbrev byte_phase_a_code (base : Addr) : CodeReq :=
+abbrev byte_phase_a_code (base : Word) : CodeReq :=
   CodeReq.ofProg base byte_phase_a
 
 /-- Phase A OR-reduce body: LD idx[1], LD idx[2], OR, LD idx[3], OR.
     Produces x5 = idx1 ||| idx2 ||| idx3. Uses full phase_a code. -/
-theorem byte_phase_a_or_reduce_spec (sp v5 v10 idx1 idx2 idx3 : Word) (base : Addr)
+theorem byte_phase_a_or_reduce_spec (sp v5 v10 idx1 idx2 idx3 : Word) (base : Word)
     (hv1 : isValidDwordAccess (sp + signExtend12 (8 : BitVec 12)) = true)
     (hv2 : isValidDwordAccess (sp + signExtend12 (16 : BitVec 12)) = true)
     (hv3 : isValidDwordAccess (sp + signExtend12 (24 : BitVec 12)) = true) :
@@ -60,7 +60,7 @@ theorem byte_phase_a_or_reduce_spec (sp v5 v10 idx1 idx2 idx3 : Word) (base : Ad
 
 /-- Phase A low-check: LD idx[0] into x5, SLTIU x10 = (idx0 < 32).
     Located at offset 24 within byte_phase_a (after OR-reduce + BNE). -/
-theorem byte_phase_a_low_check_spec (sp v5 idx0 v10 : Word) (base : Addr)
+theorem byte_phase_a_low_check_spec (sp v5 idx0 v10 : Word) (base : Word)
     (hvalid : isValidDwordAccess (sp + signExtend12 (0 : BitVec 12)) = true) :
     let cr := byte_phase_a_code base
     cpsTriple (base + 24) (base + 32) cr
@@ -78,14 +78,14 @@ theorem byte_phase_a_low_check_spec (sp v5 idx0 v10 : Word) (base : Addr)
 -- Same computation as SignExtend Phase B
 -- ============================================================================
 
-abbrev byte_phase_b_code (base : Addr) : CodeReq :=
+abbrev byte_phase_b_code (base : Word) : CodeReq :=
   CodeReq.ofProg base byte_phase_b
 
 /-- Phase B spec: compute byte extraction parameters.
     ANDI x10,x5,7; SLLI x10,x10,3; ADDI x6,x0,56;
     SUB x6,x6,x10; SRLI x5,x5,3.
     Outputs: x6 = 56 - (idx%8)*8 (bit_shift), x5 = idx/8 (limb_from_msb). -/
-theorem byte_phase_b_spec (idx r6 r10 : Word) (base : Addr) :
+theorem byte_phase_b_spec (idx r6 r10 : Word) (base : Word) :
     let byte_in_limb := idx &&& signExtend12 (7 : BitVec 12)
     let byte_shift := byte_in_limb <<< (3 : BitVec 6).toNat
     let shift_amount := (56 : Word) - byte_shift
@@ -109,11 +109,11 @@ theorem byte_phase_b_spec (idx r6 r10 : Word) (base : Addr) :
 -- body_3: LD sp+32, SRL, ANDI 0xFF, JAL 48 (4 instrs)
 -- limb_from_msb = 3 → extract from limb 0 (LSB) at sp+32
 
-abbrev byte_body_3_code (base : Addr) : CodeReq :=
+abbrev byte_body_3_code (base : Word) : CodeReq :=
   CodeReq.ofProg base byte_body_3
 
 /-- body_3 spec: load limb 0 from sp+32, extract byte, jump to store. -/
-theorem byte_body_3_spec (sp v5 shift_amount limb : Word) (base : Addr)
+theorem byte_body_3_spec (sp v5 shift_amount limb : Word) (base : Word)
     (hvalid : isValidDwordAccess (sp + signExtend12 (32 : BitVec 12)) = true) :
     let result := (limb >>> (shift_amount.toNat % 64)) &&& signExtend12 (255 : BitVec 12)
     let code := byte_body_3_code base
@@ -131,11 +131,11 @@ theorem byte_body_3_spec (sp v5 shift_amount limb : Word) (base : Addr)
 -- body_2: LD sp+40, SRL, ANDI 0xFF, JAL 32 (4 instrs)
 -- limb_from_msb = 2 → extract from limb 1 at sp+40
 
-abbrev byte_body_2_code (base : Addr) : CodeReq :=
+abbrev byte_body_2_code (base : Word) : CodeReq :=
   CodeReq.ofProg base byte_body_2
 
 /-- body_2 spec: load limb 1 from sp+40, extract byte, jump to store. -/
-theorem byte_body_2_spec (sp v5 shift_amount limb : Word) (base : Addr)
+theorem byte_body_2_spec (sp v5 shift_amount limb : Word) (base : Word)
     (hvalid : isValidDwordAccess (sp + signExtend12 (40 : BitVec 12)) = true) :
     let result := (limb >>> (shift_amount.toNat % 64)) &&& signExtend12 (255 : BitVec 12)
     let code := byte_body_2_code base
@@ -153,11 +153,11 @@ theorem byte_body_2_spec (sp v5 shift_amount limb : Word) (base : Addr)
 -- body_1: LD sp+48, SRL, ANDI 0xFF, JAL 16 (4 instrs)
 -- limb_from_msb = 1 → extract from limb 2 at sp+48
 
-abbrev byte_body_1_code (base : Addr) : CodeReq :=
+abbrev byte_body_1_code (base : Word) : CodeReq :=
   CodeReq.ofProg base byte_body_1
 
 /-- body_1 spec: load limb 2 from sp+48, extract byte, jump to store. -/
-theorem byte_body_1_spec (sp v5 shift_amount limb : Word) (base : Addr)
+theorem byte_body_1_spec (sp v5 shift_amount limb : Word) (base : Word)
     (hvalid : isValidDwordAccess (sp + signExtend12 (48 : BitVec 12)) = true) :
     let result := (limb >>> (shift_amount.toNat % 64)) &&& signExtend12 (255 : BitVec 12)
     let code := byte_body_1_code base
@@ -175,11 +175,11 @@ theorem byte_body_1_spec (sp v5 shift_amount limb : Word) (base : Addr)
 -- body_0: LD sp+56, SRL, ANDI 0xFF (3 instrs, falls through to store)
 -- limb_from_msb = 0 → extract from limb 3 (MSB) at sp+56
 
-abbrev byte_body_0_code (base : Addr) : CodeReq :=
+abbrev byte_body_0_code (base : Word) : CodeReq :=
   CodeReq.ofProg base byte_body_0
 
 /-- body_0 spec: load limb 3 from sp+56, extract byte. Falls through to store. -/
-theorem byte_body_0_spec (sp v5 shift_amount limb : Word) (base : Addr)
+theorem byte_body_0_spec (sp v5 shift_amount limb : Word) (base : Word)
     (hvalid : isValidDwordAccess (sp + signExtend12 (56 : BitVec 12)) = true) :
     let result := (limb >>> (shift_amount.toNat % 64)) &&& signExtend12 (255 : BitVec 12)
     let code := byte_body_0_code base
@@ -197,12 +197,12 @@ theorem byte_body_0_spec (sp v5 shift_amount limb : Word) (base : Addr)
 -- Store: pop index word, write byte result + 3 zero limbs (6 instrs)
 -- ============================================================================
 
-abbrev byte_store_code (base : Addr) : CodeReq :=
+abbrev byte_store_code (base : Word) : CodeReq :=
   CodeReq.ofProg base byte_store
 
 /-- Store spec: ADDI x12 32, SD result, SD 0×3, JAL 24.
     Pops the index word (sp → sp+32), writes result at sp+32 and zeros at sp+40..56. -/
-theorem byte_store_spec (sp result m0 m8 m16 m24 : Word) (base : Addr)
+theorem byte_store_spec (sp result m0 m8 m16 m24 : Word) (base : Word)
     (hvalid : ValidMemRange sp 8) :
     let nsp := sp + signExtend12 (32 : BitVec 12)
     let code := byte_store_code base
@@ -225,12 +225,12 @@ theorem byte_store_spec (sp result m0 m8 m16 m24 : Word) (base : Addr)
 -- Zero path: pop index word, write all zeros (5 instrs)
 -- ============================================================================
 
-abbrev byte_zero_path_code (base : Addr) : CodeReq :=
+abbrev byte_zero_path_code (base : Word) : CodeReq :=
   CodeReq.ofProg base byte_zero_path
 
 /-- Zero path spec: ADDI x12 32, SD 0×4.
     Pops the index word (sp → sp+32), writes zeros at sp+32..56. -/
-theorem byte_zero_path_spec (sp m0 m8 m16 m24 : Word) (base : Addr)
+theorem byte_zero_path_spec (sp m0 m8 m16 m24 : Word) (base : Word)
     (hvalid : ValidMemRange sp 8) :
     let nsp := sp + signExtend12 (32 : BitVec 12)
     let code := byte_zero_path_code base
@@ -252,11 +252,11 @@ theorem byte_zero_path_spec (sp m0 m8 m16 m24 : Word) (base : Addr)
 -- Phase C: Cascade dispatch on limb_from_msb (5 instructions)
 -- ============================================================================
 
-abbrev byte_phase_c_code (base : Addr) : CodeReq :=
+abbrev byte_phase_c_code (base : Word) : CodeReq :=
   CodeReq.ofProg base byte_phase_c
 
 /-- Each singleton instruction in byte_phase_c is subsumed by the full program CodeReq. -/
-private theorem byte_pc_instr_sub (base addr : Addr) (instr : Instr) (k : Nat)
+private theorem byte_pc_instr_sub (base addr : Word) (instr : Instr) (k : Nat)
     (hk : k < byte_phase_c.length)
     (h_addr : addr = base + BitVec.ofNat 64 (4 * k))
     (h_instr : byte_phase_c.get ⟨k, hk⟩ = instr) :
@@ -265,27 +265,27 @@ private theorem byte_pc_instr_sub (base addr : Addr) (instr : Instr) (k : Nat)
     (by native_decide) h_addr)
 
 -- Per-instruction subsumption lemmas (k = 0..4)
-private theorem byte_pc_sub_0 (base : Addr) :
+private theorem byte_pc_sub_0 (base : Word) :
     ∀ a i, CodeReq.singleton base (.BEQ .x5 .x0 68) a = some i →
       (byte_phase_c_code base) a = some i :=
   byte_pc_instr_sub base base _ 0 (by native_decide) (by bv_omega) (by native_decide)
 
-private theorem byte_pc_sub_1 (base : Addr) :
+private theorem byte_pc_sub_1 (base : Word) :
     ∀ a i, CodeReq.singleton (base + 4) (.ADDI .x10 .x0 1) a = some i →
       (byte_phase_c_code base) a = some i :=
   byte_pc_instr_sub base (base + 4) _ 1 (by native_decide) (by bv_omega) (by native_decide)
 
-private theorem byte_pc_sub_2 (base : Addr) :
+private theorem byte_pc_sub_2 (base : Word) :
     ∀ a i, CodeReq.singleton (base + 8) (.BEQ .x5 .x10 44) a = some i →
       (byte_phase_c_code base) a = some i :=
   byte_pc_instr_sub base (base + 8) _ 2 (by native_decide) (by bv_omega) (by native_decide)
 
-private theorem byte_pc_sub_3 (base : Addr) :
+private theorem byte_pc_sub_3 (base : Word) :
     ∀ a i, CodeReq.singleton (base + 12) (.ADDI .x10 .x0 2) a = some i →
       (byte_phase_c_code base) a = some i :=
   byte_pc_instr_sub base (base + 12) _ 3 (by native_decide) (by bv_omega) (by native_decide)
 
-private theorem byte_pc_sub_4 (base : Addr) :
+private theorem byte_pc_sub_4 (base : Word) :
     ∀ a i, CodeReq.singleton (base + 16) (.BEQ .x5 .x10 20) a = some i →
       (byte_phase_c_code base) a = some i :=
   byte_pc_instr_sub base (base + 16) _ 4 (by native_decide) (by bv_omega) (by native_decide)
@@ -293,8 +293,8 @@ private theorem byte_pc_sub_4 (base : Addr) :
 set_option maxHeartbeats 6400000 in
 /-- Phase C cascade dispatch spec: branches on x5 (limb_from_msb) to 4 body entry points.
     Each exit postcondition includes pure constraints identifying which branch was taken. -/
-theorem byte_phase_c_spec (v5 v10 : Word) (base : Addr)
-    (e0 e1 e2 e3 : Addr)
+theorem byte_phase_c_spec (v5 v10 : Word) (base : Word)
+    (e0 e1 e2 e3 : Word)
     (he0 : base + signExtend13 68 = e0)
     (he1 : (base + 8) + signExtend13 44 = e1)
     (he2 : (base + 16) + signExtend13 20 = e2)
@@ -327,14 +327,14 @@ theorem byte_phase_c_spec (v5 v10 : Word) (base : Addr)
   have addi1f := cpsTriple_frame_left _ _ _ _ _
     (.x5 ↦ᵣ v5) (by pcFree) addi1_cr
   -- Normalize ADDI1 exit PC
-  have haddi1_exit : (base + 4 : Addr) + 4 = base + 8 := by bv_omega
+  have haddi1_exit : (base + 4 : Word) + 4 = base + 8 := by bv_omega
   rw [haddi1_exit] at addi1f
   -- Step 2: BEQ x5 x10 44 at base+8 (extend to cr, frame with x0)
   have beq1_raw := beq_spec_gen .x5 .x10 44 v5 ((0 : Word) + signExtend12 1) (base + 8)
   rw [he1] at beq1_raw
   have beq1_cr := cpsBranch_extend_code (byte_pc_sub_2 base) beq1_raw
   -- Normalize BEQ1 ntaken exit
-  have hbeq1_nf : (base + 8 : Addr) + 4 = base + 12 := by bv_omega
+  have hbeq1_nf : (base + 8 : Word) + 4 = base + 12 := by bv_omega
   rw [hbeq1_nf] at beq1_raw beq1_cr
   have beq1f := cpsBranch_frame_left _ _ _ _ _ _ _ (.x0 ↦ᵣ (0 : Word)) (by pcFree) beq1_cr
   -- Compose addi1 + beq1 (let Lean infer intermediate shapes)
@@ -376,14 +376,14 @@ theorem byte_phase_c_spec (v5 v10 : Word) (base : Addr)
   have addi2f := cpsTriple_frame_left _ _ _ _ _
     (.x5 ↦ᵣ v5) (by pcFree) addi2_cr
   -- Normalize ADDI2 exit PC
-  have haddi2_exit : (base + 12 : Addr) + 4 = base + 16 := by bv_omega
+  have haddi2_exit : (base + 12 : Word) + 4 = base + 16 := by bv_omega
   rw [haddi2_exit] at addi2f
   -- Step 4: BEQ x5 x10 20 at base+16 (extend to cr, frame with x0)
   have beq2_raw := beq_spec_gen .x5 .x10 20 v5 ((0 : Word) + signExtend12 2) (base + 16)
   rw [he2] at beq2_raw
   have beq2_cr := cpsBranch_extend_code (byte_pc_sub_4 base) beq2_raw
   -- Normalize BEQ2 ntaken exit
-  have hbeq2_nf : (base + 16 : Addr) + 4 = base + 20 := by bv_omega
+  have hbeq2_nf : (base + 16 : Word) + 4 = base + 20 := by bv_omega
   rw [hbeq2_nf] at beq2_raw beq2_cr
   have beq2f := cpsBranch_frame_left _ _ _ _ _ _ _ (.x0 ↦ᵣ (0 : Word)) (by pcFree) beq2_cr
   -- Compose addi2 + beq2 (let Lean infer intermediate shapes)

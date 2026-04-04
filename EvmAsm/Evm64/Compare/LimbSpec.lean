@@ -24,7 +24,7 @@ namespace EvmAsm.Rv64
 /-- LT limb 0 spec (3 instructions): LD, LD, SLTU.
     Computes initial borrow = (a < b ? 1 : 0). Does NOT modify memory. -/
 theorem lt_limb0_spec (off_a off_b : BitVec 12)
-    (sp a_limb b_limb v7 v6 v5 : Word) (base : Addr)
+    (sp a_limb b_limb v7 v6 v5 : Word) (base : Word)
     (hvalid_a : isValidDwordAccess (sp + signExtend12 off_a) = true)
     (hvalid_b : isValidDwordAccess (sp + signExtend12 off_b) = true) :
     let mem_a := sp + signExtend12 off_a
@@ -44,7 +44,7 @@ theorem lt_limb0_spec (off_a off_b : BitVec 12)
 /-- LT carry limb spec (6 instructions): LD, LD, SLTU, SUB, SLTU, OR.
     Propagates borrow without storing result. Memory is NOT modified. -/
 theorem lt_limb_carry_spec (off_a off_b : BitVec 12)
-    (sp a_limb b_limb v7 v6 borrow_in v11 : Word) (base : Addr)
+    (sp a_limb b_limb v7 v6 borrow_in v11 : Word) (base : Word)
     (hvalid_a : isValidDwordAccess (sp + signExtend12 off_a) = true)
     (hvalid_b : isValidDwordAccess (sp + signExtend12 off_b) = true) :
     let mem_a := sp + signExtend12 off_a
@@ -74,7 +74,7 @@ theorem lt_limb_carry_spec (off_a off_b : BitVec 12)
 /-- BEQ when values are equal: always taken (jump to PC + signExtend13 offset).
     BEQ only modifies PC; all pcFree assertions are preserved. -/
 theorem beq_eq_spec (rs1 rs2 : Reg) (offset : BitVec 13)
-    (v : Word) (base : Addr) :
+    (v : Word) (base : Word) :
     cpsTriple base (base + signExtend13 offset)
       (CodeReq.singleton base (.BEQ rs1 rs2 offset))
       ((rs1 ↦ᵣ v) ** (rs2 ↦ᵣ v))
@@ -99,7 +99,7 @@ theorem beq_eq_spec (rs1 rs2 : Reg) (offset : BitVec 13)
 /-- BEQ when values are not equal: never taken (fall through to PC + 4).
     BEQ only modifies PC; all pcFree assertions are preserved. -/
 theorem beq_ne_spec (rs1 rs2 : Reg) (offset : BitVec 13)
-    (v1 v2 : Word) (hne : v1 ≠ v2) (base : Addr) :
+    (v1 v2 : Word) (hne : v1 ≠ v2) (base : Word) :
     cpsTriple base (base + 4)
       (CodeReq.singleton base (.BEQ rs1 rs2 offset))
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2))
@@ -128,7 +128,7 @@ theorem beq_ne_spec (rs1 rs2 : Reg) (offset : BitVec 13)
 /-- SLT MSB load spec (2 instructions): LD x7, LD x6.
     Loads the MSB limbs (limb 3) of both operands into x7 and x6. -/
 theorem slt_msb_load_spec (off_a off_b : BitVec 12)
-    (sp a3 b3 v7 v6 : Word) (base : Addr)
+    (sp a3 b3 v7 v6 : Word) (base : Word)
     (hvalid_a : isValidDwordAccess (sp + signExtend12 off_a) = true)
     (hvalid_b : isValidDwordAccess (sp + signExtend12 off_b) = true) :
     let mem_a := sp + signExtend12 off_a

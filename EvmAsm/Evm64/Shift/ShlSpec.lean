@@ -19,7 +19,7 @@ namespace EvmAsm.Rv64
 -- Per-limb Specs: SHL Merge Limb (7 instructions)
 -- ============================================================================
 
-abbrev shl_merge_limb_code (base : Addr) (src_off prev_off dst_off : BitVec 12) : CodeReq :=
+abbrev shl_merge_limb_code (base : Word) (src_off prev_off dst_off : BitVec 12) : CodeReq :=
   CodeReq.union (CodeReq.singleton base (.LD .x5 .x12 src_off))
   (CodeReq.union (CodeReq.singleton (base + 4) (.SLL .x5 .x5 .x6))
   (CodeReq.union (CodeReq.singleton (base + 8) (.LD .x10 .x12 prev_off))
@@ -35,7 +35,7 @@ abbrev shl_merge_limb_code (base : Addr) (src_off prev_off dst_off : BitVec 12) 
     Computes: result = (src <<< bit_shift) ||| ((prev >>> anti_shift) &&& mask)
     Mirror of shr_merge_limb_spec with SLL/SRL swapped. -/
 theorem shl_merge_limb_spec (src_off prev_off dst_off : BitVec 12)
-    (sp src prev dst_old v5 v10 bit_shift anti_shift mask : Word) (base : Addr)
+    (sp src prev dst_old v5 v10 bit_shift anti_shift mask : Word) (base : Word)
     (hvalid_src : isValidDwordAccess (sp + signExtend12 src_off) = true)
     (hvalid_prev : isValidDwordAccess (sp + signExtend12 prev_off) = true)
     (hvalid_dst : isValidDwordAccess (sp + signExtend12 dst_off) = true) :
@@ -66,7 +66,7 @@ theorem shl_merge_limb_spec (src_off prev_off dst_off : BitVec 12)
 -- Per-limb Specs: SHL First Limb (3 instructions)
 -- ============================================================================
 
-abbrev shl_first_limb_code (base : Addr) (dst_off : BitVec 12) : CodeReq :=
+abbrev shl_first_limb_code (base : Word) (dst_off : BitVec 12) : CodeReq :=
   CodeReq.union (CodeReq.singleton base (.LD .x5 .x12 0))
   (CodeReq.union (CodeReq.singleton (base + 4) (.SLL .x5 .x5 .x6))
    (CodeReq.singleton (base + 8) (.SD .x12 .x5 dst_off)))
@@ -77,7 +77,7 @@ abbrev shl_first_limb_code (base : Addr) (dst_off : BitVec 12) : CodeReq :=
     Computes: result = value[0] <<< bit_shift
     Mirror of shr_last_limb_spec: reads from offset 0 (lowest limb), uses SLL. -/
 theorem shl_first_limb_spec (dst_off : BitVec 12)
-    (sp src dst_old v5 bit_shift : Word) (base : Addr)
+    (sp src dst_old v5 bit_shift : Word) (base : Word)
     (hvalid_src : isValidDwordAccess (sp + signExtend12 (0 : BitVec 12)) = true)
     (hvalid_dst : isValidDwordAccess (sp + signExtend12 dst_off) = true) :
     let mem_src := sp + signExtend12 (0 : BitVec 12)
@@ -98,7 +98,7 @@ theorem shl_first_limb_spec (dst_off : BitVec 12)
 -- Per-limb Specs: SHL Merge Limb In-place (7 instructions, src_off = dst_off)
 -- ============================================================================
 
-abbrev shl_merge_limb_inplace_code (base : Addr) (off prev_off : BitVec 12) : CodeReq :=
+abbrev shl_merge_limb_inplace_code (base : Word) (off prev_off : BitVec 12) : CodeReq :=
   CodeReq.union (CodeReq.singleton base (.LD .x5 .x12 off))
   (CodeReq.union (CodeReq.singleton (base + 4) (.SLL .x5 .x5 .x6))
   (CodeReq.union (CodeReq.singleton (base + 8) (.LD .x10 .x12 prev_off))
@@ -110,7 +110,7 @@ abbrev shl_merge_limb_inplace_code (base : Addr) (off prev_off : BitVec 12) : Co
 /-- SHL merge limb in-place spec (7 instructions):
     Same as shl_merge_limb_spec but src_off = dst_off. -/
 theorem shl_merge_limb_inplace_spec (off prev_off : BitVec 12)
-    (sp src prev v5 v10 bit_shift anti_shift mask : Word) (base : Addr)
+    (sp src prev v5 v10 bit_shift anti_shift mask : Word) (base : Word)
     (hvalid_loc : isValidDwordAccess (sp + signExtend12 off) = true)
     (hvalid_prev : isValidDwordAccess (sp + signExtend12 prev_off) = true) :
     let mem_loc := sp + signExtend12 off
@@ -139,7 +139,7 @@ theorem shl_merge_limb_inplace_spec (off prev_off : BitVec 12)
 -- Per-limb Specs: SHL First Limb In-place (3 instructions, dst_off = 0)
 -- ============================================================================
 
-abbrev shl_first_limb_inplace_code (base : Addr) : CodeReq :=
+abbrev shl_first_limb_inplace_code (base : Word) : CodeReq :=
   CodeReq.union (CodeReq.singleton base (.LD .x5 .x12 0))
   (CodeReq.union (CodeReq.singleton (base + 4) (.SLL .x5 .x5 .x6))
    (CodeReq.singleton (base + 8) (.SD .x12 .x5 0)))
@@ -148,7 +148,7 @@ abbrev shl_first_limb_inplace_code (base : Addr) : CodeReq :=
     LD x5, 0(x12); SLL x5,x5,x6; SD x12,x5,0
     Reads and writes the same memory cell at sp+0. -/
 theorem shl_first_limb_inplace_spec
-    (sp src v5 bit_shift : Word) (base : Addr)
+    (sp src v5 bit_shift : Word) (base : Word)
     (hvalid : isValidDwordAccess (sp + signExtend12 (0 : BitVec 12)) = true) :
     let mem := sp + signExtend12 (0 : BitVec 12)
     let result := src <<< (bit_shift.toNat % 64)
@@ -165,7 +165,7 @@ theorem shl_first_limb_inplace_spec
 -- Shift Body Specs
 -- ============================================================================
 
-abbrev shl_body_3_code (base : Addr) (jal_off : BitVec 21) : CodeReq :=
+abbrev shl_body_3_code (base : Word) (jal_off : BitVec 21) : CodeReq :=
   CodeReq.ofProg base (shl_body_3_prog jal_off)
 
 /-- Shift body 3: limb_shift=3.
@@ -175,7 +175,7 @@ abbrev shl_body_3_code (base : Addr) (jal_off : BitVec 21) : CodeReq :=
 theorem shl_body_3_spec (sp : Word)
     (v5 v10 bit_shift anti_shift mask : Word)
     (v0 v1 v2 v3 : Word)
-    (base exit : Addr) (jal_off : BitVec 21)
+    (base exit : Word) (jal_off : BitVec 21)
     (hexit : (base + 24) + signExtend21 jal_off = exit)
     (hvalid : ValidMemRange sp 4) :
     let result3 := v0 <<< (bit_shift.toNat % 64)
@@ -195,7 +195,7 @@ theorem shl_body_3_spec (sp : Word)
   rw [hexit] at JL
   runBlock FL S0 S1 S2 JL
 
-abbrev shl_body_2_code (base : Addr) (jal_off : BitVec 21) : CodeReq :=
+abbrev shl_body_2_code (base : Word) (jal_off : BitVec 21) : CodeReq :=
   CodeReq.ofProg base (shl_body_2_prog jal_off)
 
 set_option maxHeartbeats 3200000 in
@@ -207,7 +207,7 @@ set_option maxHeartbeats 3200000 in
 theorem shl_body_2_spec (sp : Word)
     (v5 v10 bit_shift anti_shift mask : Word)
     (v0 v1 v2 v3 : Word)
-    (base exit : Addr) (jal_off : BitVec 21)
+    (base exit : Word) (jal_off : BitVec 21)
     (hexit : (base + 48) + signExtend21 jal_off = exit)
     (hvalid : ValidMemRange sp 4) :
     let result3 := (v1 <<< (bit_shift.toNat % 64)) ||| ((v0 >>> (anti_shift.toNat % 64)) &&& mask)
@@ -230,7 +230,7 @@ theorem shl_body_2_spec (sp : Word)
   rw [hexit] at JL
   runBlock MM FL S0 S1 JL
 
-abbrev shl_body_1_code (base : Addr) (jal_off : BitVec 21) : CodeReq :=
+abbrev shl_body_1_code (base : Word) (jal_off : BitVec 21) : CodeReq :=
   CodeReq.ofProg base (shl_body_1_prog jal_off)
 
 set_option maxHeartbeats 3200000 in
@@ -244,7 +244,7 @@ set_option maxHeartbeats 3200000 in
 theorem shl_body_1_spec (sp : Word)
     (v5 v10 bit_shift anti_shift mask : Word)
     (v0 v1 v2 v3 : Word)
-    (base exit : Addr) (jal_off : BitVec 21)
+    (base exit : Word) (jal_off : BitVec 21)
     (hexit : (base + 72) + signExtend21 jal_off = exit)
     (hvalid : ValidMemRange sp 4) :
     let result3 := (v2 <<< (bit_shift.toNat % 64)) ||| ((v1 >>> (anti_shift.toNat % 64)) &&& mask)
@@ -271,7 +271,7 @@ theorem shl_body_1_spec (sp : Word)
   rw [hexit] at JL
   runBlock MM1 MM2 FL S0 JL
 
-abbrev shl_body_0_code (base : Addr) (jal_off : BitVec 21) : CodeReq :=
+abbrev shl_body_0_code (base : Word) (jal_off : BitVec 21) : CodeReq :=
   CodeReq.ofProg base (shl_body_0_prog jal_off)
 
 set_option maxHeartbeats 3200000 in
@@ -283,7 +283,7 @@ set_option maxHeartbeats 3200000 in
 theorem shl_body_0_spec (sp : Word)
     (v5 v10 bit_shift anti_shift mask : Word)
     (v0 v1 v2 v3 : Word)
-    (base exit : Addr) (jal_off : BitVec 21)
+    (base exit : Word) (jal_off : BitVec 21)
     (hexit : (base + 96) + signExtend21 jal_off = exit)
     (hvalid : ValidMemRange sp 4) :
     let result3 := (v3 <<< (bit_shift.toNat % 64)) ||| ((v2 >>> (anti_shift.toNat % 64)) &&& mask)

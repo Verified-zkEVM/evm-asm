@@ -52,9 +52,9 @@ def cc_epilogue : Program :=
   LD .x1 .x2 8 ;; ADDI .x2 .x2 16 ;; cc_ret
 
 -- CodeReq abbreviations
-abbrev cc_ret_code (base : Addr) : CodeReq := CodeReq.ofProg base cc_ret
-abbrev cc_prologue_code (base : Addr) : CodeReq := CodeReq.ofProg base cc_prologue
-abbrev cc_epilogue_code (base : Addr) : CodeReq := CodeReq.ofProg base cc_epilogue
+abbrev cc_ret_code (base : Word) : CodeReq := CodeReq.ofProg base cc_ret
+abbrev cc_prologue_code (base : Word) : CodeReq := CodeReq.ofProg base cc_prologue
+abbrev cc_epilogue_code (base : Word) : CodeReq := CodeReq.ofProg base cc_epilogue
 
 -- ============================================================================
 -- Call / return specs
@@ -62,7 +62,7 @@ abbrev cc_epilogue_code (base : Addr) : CodeReq := CodeReq.ofProg base cc_epilog
 
 /-- Near call: JAL x1, offset.
     Saves PC+4 in ra (x1), jumps to PC + sext(offset). -/
-theorem callNear_spec (offset : BitVec 21) (base : Addr) (old_ra : Word) :
+theorem callNear_spec (offset : BitVec 21) (base : Word) (old_ra : Word) :
     cpsTriple base (base + signExtend21 offset)
       (CodeReq.singleton base (.JAL .x1 offset))
       (.x1 ↦ᵣ old_ra)
@@ -72,7 +72,7 @@ theorem callNear_spec (offset : BitVec 21) (base : Addr) (old_ra : Word) :
 /-- Far call: JALR x1, target, 0.
     Saves PC+4 in ra (x1), jumps to target.
     target must differ from x1 (enforced by sep conj). -/
-theorem callFar_spec (target : Reg) (v_target old_ra : Word) (base : Addr) :
+theorem callFar_spec (target : Reg) (v_target old_ra : Word) (base : Word) :
     cpsTriple base ((v_target + signExtend12 0) &&& ~~~1)
       (CodeReq.singleton base (.JALR .x1 target 0))
       ((target ↦ᵣ v_target) ** (.x1 ↦ᵣ old_ra))
@@ -81,7 +81,7 @@ theorem callFar_spec (target : Reg) (v_target old_ra : Word) (base : Addr) :
 
 /-- Return: JALR x0, x1, 0.
     Jumps to (ra + 0) &&& ~1. Preserves ra in x1. -/
-theorem ret_spec (base : Addr) (ra_val : Word) :
+theorem ret_spec (base : Word) (ra_val : Word) :
     cpsTriple base ((ra_val + signExtend12 0) &&& ~~~1)
       (CodeReq.singleton base (.JALR .x0 .x1 0))
       (.x1 ↦ᵣ ra_val)
@@ -89,7 +89,7 @@ theorem ret_spec (base : Addr) (ra_val : Word) :
   jalr_x0_spec_gen .x1 ra_val 0 base
 
 /-- Return with simplified exit: ra &&& ~1 (signExtend12 0 = 0 eliminated). -/
-theorem ret_spec' (base : Addr) (ra_val : Word) :
+theorem ret_spec' (base : Word) (ra_val : Word) :
     cpsTriple base (ra_val &&& ~~~1)
       (CodeReq.singleton base (.JALR .x0 .x1 0))
       (.x1 ↦ᵣ ra_val)
@@ -168,7 +168,7 @@ theorem cc_epilogue_spec (base sp_val old_x1 saved_ra : Word)
     This theorem composes the JAL with the function's spec, yielding a
     round-trip: call_site → function → call_site + 4. -/
 theorem callNear_function_spec
-    (call_site func_entry : Addr) (offset : BitVec 21)
+    (call_site func_entry : Word) (offset : BitVec 21)
     (cr_func : CodeReq) (P Q : Assertion) (old_ra : Word)
     (hP : P.pcFree)
     (hoff : call_site + signExtend21 offset = func_entry)
@@ -203,7 +203,7 @@ theorem callNear_function_spec
     sp_val: ORIGINAL sp on entry.
     The overall function runs from prol_base to ra &&& ~1, preserving sp. -/
 theorem nonleaf_function_spec
-    (prol_base body_entry body_exit epi_base : Addr)
+    (prol_base body_entry body_exit epi_base : Word)
     (sp_val ra_val old_slot : Word)
     (cr_prol cr_body cr_epi : CodeReq) (P Q : Assertion)
     (hprol_exit : prol_base + 8 = body_entry)

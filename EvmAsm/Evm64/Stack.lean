@@ -14,38 +14,38 @@ open EvmWord
 
 /-- Assert that 4 consecutive memory doublewords hold the limbs of an EvmWord.
     The limbs are stored little-endian: addr+0 is the LSB limb, addr+24 is the MSB limb. -/
-def evmWordIs (addr : Addr) (v : EvmWord) : Assertion :=
+def evmWordIs (addr : Word) (v : EvmWord) : Assertion :=
   (addr ↦ₘ v.getLimb 0) **
   ((addr + 8) ↦ₘ v.getLimb 1) **
   ((addr + 16) ↦ₘ v.getLimb 2) **
   ((addr + 24) ↦ₘ v.getLimb 3)
 
 /-- Assert an EVM stack starting at sp. Each element is 32 bytes (4 × 8-byte limbs). -/
-def evmStackIs (sp : Addr) (values : List EvmWord) : Assertion :=
+def evmStackIs (sp : Word) (values : List EvmWord) : Assertion :=
   match values with
   | [] => empAssertion
   | v :: vs => evmWordIs sp v ** evmStackIs (sp + 32) vs
 
-theorem pcFree_evmWordIs (addr : Addr) (v : EvmWord) :
+theorem pcFree_evmWordIs (addr : Word) (v : EvmWord) :
     (evmWordIs addr v).pcFree := by
   unfold evmWordIs; pcFree
 
-theorem pcFree_evmStackIs (sp : Addr) (values : List EvmWord) :
+theorem pcFree_evmStackIs (sp : Word) (values : List EvmWord) :
     (evmStackIs sp values).pcFree := by
   induction values generalizing sp with
   | nil => exact pcFree_emp
   | cons v vs ih => exact pcFree_sepConj (pcFree_evmWordIs sp v) (ih (sp + 32))
 
-instance (addr : Addr) (v : EvmWord) : Assertion.PCFree (evmWordIs addr v) :=
+instance (addr : Word) (v : EvmWord) : Assertion.PCFree (evmWordIs addr v) :=
   ⟨pcFree_evmWordIs addr v⟩
 
-instance (sp : Addr) (values : List EvmWord) : Assertion.PCFree (evmStackIs sp values) :=
+instance (sp : Word) (values : List EvmWord) : Assertion.PCFree (evmStackIs sp values) :=
   ⟨pcFree_evmStackIs sp values⟩
 
-theorem evmStackIs_cons (sp : Addr) (v : EvmWord) (vs : List EvmWord) :
+theorem evmStackIs_cons (sp : Word) (v : EvmWord) (vs : List EvmWord) :
     evmStackIs sp (v :: vs) = (evmWordIs sp v ** evmStackIs (sp + 32) vs) := rfl
 
-theorem evmStackIs_nil (sp : Addr) :
+theorem evmStackIs_nil (sp : Word) :
     evmStackIs sp [] = empAssertion := rfl
 
 -- ============================================================================
@@ -69,7 +69,7 @@ theorem signExtend12_ofNat_small (m : Nat) (hm : m < 2048) :
   · rw [BitVec.msb_eq_false_iff_two_mul_lt]; simp [BitVec.toNat_ofNat]; omega
 
 /-- Split evmStackIs at position k: extract the kth element (0-indexed). -/
-theorem evmStackIs_split_at (sp : Addr) (stack : List EvmWord) (k : Nat)
+theorem evmStackIs_split_at (sp : Word) (stack : List EvmWord) (k : Nat)
     (hk : k < stack.length) :
     evmStackIs sp stack =
       (evmStackIs sp (stack.take k) **
@@ -89,10 +89,10 @@ theorem evmStackIs_split_at (sp : Addr) (stack : List EvmWord) (k : Nat)
     | nil => simp at hk
     | cons v vs =>
       have hk' : k < vs.length := by simp at hk; omega
-      have a1 : sp + (32 : Addr) + BitVec.ofNat 64 (k * 32) =
+      have a1 : sp + (32 : Word) + BitVec.ofNat 64 (k * 32) =
                 sp + BitVec.ofNat 64 ((k + 1) * 32) := by
         apply BitVec.eq_of_toNat_eq; simp [BitVec.toNat_add, BitVec.toNat_ofNat]; omega
-      have a2 : sp + (32 : Addr) + BitVec.ofNat 64 ((k + 1) * 32) =
+      have a2 : sp + (32 : Word) + BitVec.ofNat 64 ((k + 1) * 32) =
                 sp + BitVec.ofNat 64 ((k + 2) * 32) := by
         apply BitVec.eq_of_toNat_eq; simp [BitVec.toNat_add, BitVec.toNat_ofNat]; omega
       rw [evmStackIs_cons, ih (sp + 32) vs hk', a1, a2]

@@ -16,7 +16,7 @@ namespace EvmAsm.Rv64
 /-- SUB limb 0 spec (5 instructions): LD, LD, SLTU, SUB, SD.
     Computes diff = a - b (mod 2^64) and borrow = (a < b ? 1 : 0). -/
 theorem sub_limb0_spec (off_a off_b : BitVec 12)
-    (sp a_limb b_limb v7 v6 v5 : Word) (base : Addr)
+    (sp a_limb b_limb v7 v6 v5 : Word) (base : Word)
     (hvalid_a : isValidDwordAccess (sp + signExtend12 off_a) = true)
     (hvalid_b : isValidDwordAccess (sp + signExtend12 off_b) = true) :
     let mem_a := sp + signExtend12 off_a
@@ -39,7 +39,7 @@ theorem sub_limb0_spec (off_a off_b : BitVec 12)
 /-- SUB carry limb phase 1 (4 instructions): LD, LD, SLTU, SUB.
     Loads a_limb and b_limb, computes borrow1 = (a < b ? 1 : 0), temp = a - b. -/
 theorem sub_limb_carry_spec_phase1 (off_a off_b : BitVec 12)
-    (sp a_limb b_limb v7 v6 borrow_in v11 : Word) (base : Addr)
+    (sp a_limb b_limb v7 v6 borrow_in v11 : Word) (base : Word)
     (hvalid_a : isValidDwordAccess (sp + signExtend12 off_a) = true)
     (hvalid_b : isValidDwordAccess (sp + signExtend12 off_b) = true) :
     let mem_a := sp + signExtend12 off_a
@@ -62,7 +62,7 @@ theorem sub_limb_carry_spec_phase1 (off_a off_b : BitVec 12)
     Takes temp, borrow1, borrow_in, computes borrow2 = (temp < borrow_in ? 1 : 0),
     result = temp - borrow_in, borrow_out = borrow1 ||| borrow2. -/
 theorem sub_limb_carry_spec_phase2 (off_b : BitVec 12)
-    (sp temp b_limb borrow_in borrow1 a_limb : Word) (mem_a : Addr) (base : Addr)
+    (sp temp b_limb borrow_in borrow1 a_limb : Word) (mem_a : Word) (base : Word)
     (hvalid_b : isValidDwordAccess (sp + signExtend12 off_b) = true) :
     let mem_b := sp + signExtend12 off_b
     let borrow2 := if BitVec.ult temp borrow_in then (1 : Word) else 0
@@ -83,7 +83,7 @@ theorem sub_limb_carry_spec_phase2 (off_b : BitVec 12)
 /-- SUB carry limb spec (8 instructions): LD, LD, SLTU, SUB, SLTU, SUB, OR, SD.
     Composed from phase1 and phase2. -/
 theorem sub_limb_carry_spec (off_a off_b : BitVec 12)
-    (sp a_limb b_limb v7 v6 borrow_in v11 : Word) (base : Addr)
+    (sp a_limb b_limb v7 v6 borrow_in v11 : Word) (base : Word)
     (hvalid_a : isValidDwordAccess (sp + signExtend12 off_a) = true)
     (hvalid_b : isValidDwordAccess (sp + signExtend12 off_b) = true) :
     let mem_a := sp + signExtend12 off_a

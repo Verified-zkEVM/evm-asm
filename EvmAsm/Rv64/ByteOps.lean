@@ -14,7 +14,7 @@ namespace EvmAsm.Rv64
 
 /-! ## byteOffset bound -/
 
-theorem byteOffset_lt_8 (addr : Addr) : byteOffset addr < 8 := by
+theorem byteOffset_lt_8 (addr : Word) : byteOffset addr < 8 := by
   unfold byteOffset; rw [BitVec.toNat_and]
   exact Nat.lt_of_le_of_lt Nat.and_le_right (by native_decide)
 
@@ -60,10 +60,10 @@ theorem extractByte_replaceByte_same (w : Word) (pos : Fin 8) (b : BitVec 8) :
 
 /-! ## getByte / setByte in terms of extractByte / replaceByte -/
 
-theorem getByte_eq (s : MachineState) (addr : Addr) :
+theorem getByte_eq (s : MachineState) (addr : Word) :
     s.getByte addr = extractByte (s.getMem (alignToDword addr)) (byteOffset addr) := rfl
 
-theorem setByte_eq (s : MachineState) (addr : Addr) (b : BitVec 8) :
+theorem setByte_eq (s : MachineState) (addr : Word) (b : BitVec 8) :
     s.setByte addr b = s.setMem (alignToDword addr)
       (replaceByte (s.getMem (alignToDword addr)) (byteOffset addr) b) := rfl
 
@@ -73,8 +73,8 @@ LBU reads a byte from memory at an arbitrary byte address. The precondition
 owns the containing doubleword; the postcondition preserves it unchanged. -/
 
 theorem generic_lbu_spec (rd rs1 : Reg) (v_addr v_old : Word)
-    (offset : BitVec 12) (base : Addr)
-    (dwordAddr : Addr) (word_val : Word)
+    (offset : BitVec 12) (base : Word)
+    (dwordAddr : Word) (word_val : Word)
     (hrd_ne_x0 : rd ≠ .x0)
     (_hrd_ne_rs1 : rd ≠ rs1)
     (halign : alignToDword (v_addr + signExtend12 offset) = dwordAddr)
@@ -119,8 +119,8 @@ LB reads a byte from memory at an arbitrary byte address and sign-extends it.
 The precondition owns the containing doubleword; the postcondition preserves it unchanged. -/
 
 theorem generic_lb_spec (rd rs1 : Reg) (v_addr v_old : Word)
-    (offset : BitVec 12) (base : Addr)
-    (dwordAddr : Addr) (word_val : Word)
+    (offset : BitVec 12) (base : Word)
+    (dwordAddr : Word) (word_val : Word)
     (hrd_ne_x0 : rd ≠ .x0)
     (_hrd_ne_rs1 : rd ≠ rs1)
     (halign : alignToDword (v_addr + signExtend12 offset) = dwordAddr)
@@ -164,8 +164,8 @@ theorem generic_lb_spec (rd rs1 : Reg) (v_addr v_old : Word)
 SB writes a byte to memory at an arbitrary byte address. -/
 
 theorem generic_sb_spec (rs1 rs2 : Reg) (v_addr v_data : Word)
-    (offset : BitVec 12) (base : Addr)
-    (dwordAddr : Addr) (word_old : Word)
+    (offset : BitVec 12) (base : Word)
+    (dwordAddr : Word) (word_old : Word)
     (_hne : rs1 ≠ rs2)
     (halign : alignToDword (v_addr + signExtend12 offset) = dwordAddr)
     (hvalid : isValidByteAccess (v_addr + signExtend12 offset) = true) :

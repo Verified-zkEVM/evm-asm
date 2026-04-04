@@ -25,7 +25,7 @@ private theorem regIs_to_regOwn (r : Reg) (v : Word) : ∀ h, (r ↦ᵣ v) h →
 
 /-- Stack-level DIV spec for the zero divisor path: when b = 0, result is 0.
     Uses evmWordIs for the b-operand at sp+32. The a-operand at sp is untouched. -/
-theorem evm_div_bzero_stack_spec (sp base : Addr)
+theorem evm_div_bzero_stack_spec (sp base : Word)
     (a b : EvmWord) (v5 v10 : Word)
     (hbz : b = 0)
     (hvalid : ValidMemRange sp 8) :
@@ -56,16 +56,16 @@ theorem evm_div_bzero_stack_spec (sp base : Addr)
   exact cpsTriple_consequence _ _ _ _ _ _ _
     (fun h hp => by
       unfold evmWordIs at hp
-      simp only [show (sp + 32 : Addr) + 8 = sp + 40 from by bv_omega,
-                 show (sp + 32 : Addr) + 16 = sp + 48 from by bv_omega,
-                 show (sp + 32 : Addr) + 24 = sp + 56 from by bv_omega,
+      simp only [show (sp + 32 : Word) + 8 = sp + 40 from by bv_omega,
+                 show (sp + 32 : Word) + 16 = sp + 48 from by bv_omega,
+                 show (sp + 32 : Word) + 24 = sp + 56 from by bv_omega,
                  hg0, hg1, hg2, hg3] at hp
       xperm_hyp hp)
     (fun h hq => by
       unfold evmWordIs
-      simp only [show (sp + 32 : Addr) + 8 = sp + 40 from by bv_omega,
-                 show (sp + 32 : Addr) + 16 = sp + 48 from by bv_omega,
-                 show (sp + 32 : Addr) + 24 = sp + 56 from by bv_omega,
+      simp only [show (sp + 32 : Word) + 8 = sp + 40 from by bv_omega,
+                 show (sp + 32 : Word) + 16 = sp + 48 from by bv_omega,
+                 show (sp + 32 : Word) + 24 = sp + 56 from by bv_omega,
                  hr0, hr1, hr2, hr3]
       have w0 := sepConj_mono_left (regIs_to_regOwn .x5 _) h
         ((congrFun (show _ =
@@ -88,7 +88,7 @@ theorem evm_div_bzero_stack_spec (sp base : Addr)
 
 /-- Stack-level MOD spec for the zero divisor path: when b = 0, result is 0.
     Uses evmWordIs for the b-operand at sp+32. The a-operand at sp is untouched. -/
-theorem evm_mod_bzero_stack_spec (sp base : Addr)
+theorem evm_mod_bzero_stack_spec (sp base : Word)
     (a b : EvmWord) (v5 v10 : Word)
     (hbz : b = 0)
     (hvalid : ValidMemRange sp 8) :
@@ -116,16 +116,16 @@ theorem evm_mod_bzero_stack_spec (sp base : Addr)
   exact cpsTriple_consequence _ _ _ _ _ _ _
     (fun h hp => by
       unfold evmWordIs at hp
-      simp only [show (sp + 32 : Addr) + 8 = sp + 40 from by bv_omega,
-                 show (sp + 32 : Addr) + 16 = sp + 48 from by bv_omega,
-                 show (sp + 32 : Addr) + 24 = sp + 56 from by bv_omega,
+      simp only [show (sp + 32 : Word) + 8 = sp + 40 from by bv_omega,
+                 show (sp + 32 : Word) + 16 = sp + 48 from by bv_omega,
+                 show (sp + 32 : Word) + 24 = sp + 56 from by bv_omega,
                  hg0, hg1, hg2, hg3] at hp
       xperm_hyp hp)
     (fun h hq => by
       unfold evmWordIs
-      simp only [show (sp + 32 : Addr) + 8 = sp + 40 from by bv_omega,
-                 show (sp + 32 : Addr) + 16 = sp + 48 from by bv_omega,
-                 show (sp + 32 : Addr) + 24 = sp + 56 from by bv_omega,
+      simp only [show (sp + 32 : Word) + 8 = sp + 40 from by bv_omega,
+                 show (sp + 32 : Word) + 16 = sp + 48 from by bv_omega,
+                 show (sp + 32 : Word) + 24 = sp + 56 from by bv_omega,
                  hr0, hr1, hr2, hr3]
       have w0 := sepConj_mono_left (regIs_to_regOwn .x5 _) h
         ((congrFun (show _ =

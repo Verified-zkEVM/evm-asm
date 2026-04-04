@@ -19,8 +19,8 @@ namespace EvmAsm.Rv64
 
 /-- Two-instruction spec for DUP: LD x7 from source, SD x7 to destination.
     Copies src_val from src address to dst address. -/
-theorem dup_pair_spec (sp : Addr)
-    (off_src off_dst : BitVec 12) (src_val dst_old v7 : Word) (base : Addr)
+theorem dup_pair_spec (sp : Word)
+    (off_src off_dst : BitVec 12) (src_val dst_old v7 : Word) (base : Word)
     (hvalid_src : isValidDwordAccess (sp + signExtend12 off_src) = true)
     (hvalid_dst : isValidDwordAccess (sp + signExtend12 off_dst) = true) :
     cpsTriple base (base + 8)
@@ -39,7 +39,7 @@ theorem dup_pair_spec (sp : Addr)
 set_option maxHeartbeats 6400000 in
 /-- Generic DUPn spec (low level): copies 4 dword limbs from src (at nsp+n*32) to dst (at nsp).
     Requires 1 ≤ n ≤ 16 (valid EVM DUP range). -/
-theorem evm_dup_spec (nsp base : Addr)
+theorem evm_dup_spec (nsp base : Word)
     (n : Nat) (hn1 : 1 ≤ n) (hn16 : n ≤ 16)
     (s0 s1 s2 s3 : Word)
     (d0 d1 d2 d3 : Word)
@@ -119,7 +119,7 @@ theorem evm_dup_spec (nsp base : Addr)
 
 set_option maxHeartbeats 3200000 in
 /-- DUPn spec at evmWordIs level: copies the nth stack element to new top position. -/
-theorem evm_dup_evmword_spec (nsp base : Addr)
+theorem evm_dup_evmword_spec (nsp base : Word)
     (n : Nat) (hn1 : 1 ≤ n) (hn16 : n ≤ 16)
     (src dst : EvmWord) (v7 : Word)
     (hvalid : ValidMemRange nsp ((n + 1) * 4)) :
@@ -131,11 +131,11 @@ theorem evm_dup_evmword_spec (nsp base : Addr)
        evmWordIs nsp src **
        evmWordIs (nsp + BitVec.ofNat 64 (n * 32)) src) := by
   -- Address normalizations for evmWordIs (nsp + BitVec.ofNat 64 (n*32))
-  have haddr8  : (nsp + BitVec.ofNat 64 (n*32) : Addr) + 8  = nsp + BitVec.ofNat 64 (n*32+8)  := by
+  have haddr8  : (nsp + BitVec.ofNat 64 (n*32) : Word) + 8  = nsp + BitVec.ofNat 64 (n*32+8)  := by
     apply BitVec.eq_of_toNat_eq; simp [BitVec.toNat_add, BitVec.toNat_ofNat]; omega
-  have haddr16 : (nsp + BitVec.ofNat 64 (n*32) : Addr) + 16 = nsp + BitVec.ofNat 64 (n*32+16) := by
+  have haddr16 : (nsp + BitVec.ofNat 64 (n*32) : Word) + 16 = nsp + BitVec.ofNat 64 (n*32+16) := by
     apply BitVec.eq_of_toNat_eq; simp [BitVec.toNat_add, BitVec.toNat_ofNat]; omega
-  have haddr24 : (nsp + BitVec.ofNat 64 (n*32) : Addr) + 24 = nsp + BitVec.ofNat 64 (n*32+24) := by
+  have haddr24 : (nsp + BitVec.ofNat 64 (n*32) : Word) + 24 = nsp + BitVec.ofNat 64 (n*32+24) := by
     apply BitVec.eq_of_toNat_eq; simp [BitVec.toNat_add, BitVec.toNat_ofNat]; omega
   have h_main := evm_dup_spec nsp base n hn1 hn16
     (src.getLimb 0) (src.getLimb 1) (src.getLimb 2) (src.getLimb 3)
@@ -157,7 +157,7 @@ theorem evm_dup_evmword_spec (nsp base : Addr)
 set_option maxHeartbeats 3200000 in
 /-- DUPn stack spec: copies the (n-1)-th element (0-indexed) from the stack
     to a new top position, leaving the rest unchanged. -/
-theorem evm_dup_stack_spec (nsp base : Addr)
+theorem evm_dup_stack_spec (nsp base : Word)
     (n : Nat) (hn1 : 1 ≤ n) (hn16 : n ≤ 16)
     (stack : List EvmWord) (hlen : n ≤ stack.length)
     (d : EvmWord) (v7 : Word)
@@ -175,10 +175,10 @@ theorem evm_dup_stack_spec (nsp base : Addr)
   have hk : n - 1 < stack.length := by omega
   have hsplit := evmStackIs_split_at (nsp + 32) stack (n - 1) hk
   -- Address normalizations
-  have haddr_src : (nsp + 32 : Addr) + BitVec.ofNat 64 ((n - 1) * 32) =
+  have haddr_src : (nsp + 32 : Word) + BitVec.ofNat 64 ((n - 1) * 32) =
       nsp + BitVec.ofNat 64 (n * 32) := by
     apply BitVec.eq_of_toNat_eq; simp [BitVec.toNat_add, BitVec.toNat_ofNat]; omega
-  have haddr_rest : (nsp + 32 : Addr) + BitVec.ofNat 64 (((n - 1) + 1) * 32) =
+  have haddr_rest : (nsp + 32 : Word) + BitVec.ofNat 64 (((n - 1) + 1) * 32) =
       nsp + BitVec.ofNat 64 (n * 32 + 32) := by
     apply BitVec.eq_of_toNat_eq; simp [BitVec.toNat_add, BitVec.toNat_ofNat]; omega
   rw [haddr_src, haddr_rest, show n - 1 + 1 = n from by omega] at hsplit

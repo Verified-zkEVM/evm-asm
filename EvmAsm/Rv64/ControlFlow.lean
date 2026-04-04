@@ -139,7 +139,7 @@ theorem pcIndep_holdsFor_regIs (r : Reg) (val : Word) :
   intro s v h
   simp only [holdsFor_regIs, MachineState.getReg_setPC] at *; exact h
 
-theorem pcIndep_holdsFor_memIs (a : Addr) (val : Word) :
+theorem pcIndep_holdsFor_memIs (a : Word) (val : Word) :
     pcIndep (memIs a val).holdsFor := by
   intro s v h
   simp only [holdsFor_memIs, MachineState.getMem, MachineState.setPC] at *; exact h
@@ -190,12 +190,12 @@ theorem signExtend21_ofNat_small (n : Nat) (h : n < 2^20) :
   · rw [BitVec.msb_eq_false_iff_two_mul_lt]; simp [BitVec.toNat_ofNat]; omega
 
 /-- Load the first instruction from a program at its base address. -/
-theorem loadProgram_at_base (base : Addr) (instr : Instr) (rest : List Instr) :
+theorem loadProgram_at_base (base : Word) (instr : Instr) (rest : List Instr) :
     loadProgram base (instr :: rest) base = some instr := by
   simp [loadProgram, BitVec.sub_self]
 
 /-- Load instruction k from a program at address base + 4*k. -/
-theorem loadProgram_at_index (base : Addr) (prog : List Instr) (k : Nat)
+theorem loadProgram_at_index (base : Word) (prog : List Instr) (k : Nat)
     (hk : k < prog.length) (h4k : 4 * k < 2^64) :
     loadProgram base prog (base + BitVec.ofNat 64 (4 * k)) = prog[k]? := by
   simp [loadProgram]
@@ -216,7 +216,7 @@ theorem execInstrBr_jal_x0 (s : MachineState) (off : BitVec 21) :
 
 /-- JAL x0 spec for any code memory: pure PC jump, no register/memory changes.
     Since x0 writes are dropped, JAL x0 just updates PC. -/
-@[spec_gen_rv64] theorem jal_x0_spec_gen (offset : BitVec 21) (addr : Addr) :
+@[spec_gen_rv64] theorem jal_x0_spec_gen (offset : BitVec 21) (addr : Word) :
     cpsTriple addr (addr + signExtend21 offset)
       (CodeReq.singleton addr (.JAL .x0 offset))
       empAssertion
@@ -232,7 +232,7 @@ theorem execInstrBr_jalr_x0 (s : MachineState) (rs1 : Reg) (off : BitVec 12) :
 
 /-- JALR x0 spec: pure PC jump to (rs1 + sext(offset)) & ~1, no register changes. -/
 @[spec_gen_rv64] theorem jalr_x0_spec_gen (rs1 : Reg) (v : Word)
-    (offset : BitVec 12) (addr : Addr) :
+    (offset : BitVec 12) (addr : Word) :
     cpsTriple addr ((v + signExtend12 offset) &&& ~~~1)
       (CodeReq.singleton addr (.JALR .x0 rs1 offset))
       (rs1 ↦ᵣ v)
@@ -279,7 +279,7 @@ private theorem aAnd_pure_right_of_true {P : Assertion} {prop : Prop}
     Requires instrAt for the BNE instruction at base. -/
 theorem if_eq_branch_step (rs1 rs2 : Reg) (v1 v2 : Word)
     (then_body : Program)
-    (base : Addr) (P : Assertion)
+    (base : Word) (P : Assertion)
     (hP : P.pcFree)
     (ht_small : 4 * (then_body.length + 1) + 4 < 2^12) :
     let else_off : BitVec 13 := BitVec.ofNat 13 (4 * (then_body.length + 1) + 4)
@@ -354,7 +354,7 @@ theorem if_eq_branch_step (rs1 rs2 : Reg) (v1 v2 : Word)
     Requires instrAt for both the BNE at base and the JAL at then_exit. -/
 theorem if_eq_spec (rs1 rs2 : Reg) (v1 v2 : Word)
     (then_body else_body : Program)
-    (base : Addr) (P Q : Assertion)
+    (base : Word) (P Q : Assertion)
     (hP : P.pcFree) (hQ : Q.pcFree)
     (ht_small : 4 * (then_body.length + 1) + 4 < 2^12)
     (he_small : 4 * (else_body.length) + 4 < 2^20) :
@@ -533,7 +533,7 @@ theorem if_eq_spec (rs1 rs2 : Reg) (v1 v2 : Word)
     Uses additive conjunction (⋒) so rs1 and rs2 may be the same register. -/
 theorem if_eq_branch_step_n (rs1 rs2 : Reg) (v1 v2 : Word)
     (then_body : Program)
-    (base : Addr) (P : Assertion)
+    (base : Word) (P : Assertion)
     (hP : P.pcFree)
     (ht_small : 4 * (then_body.length + 1) + 4 < 2^12) :
     let else_off : BitVec 13 := BitVec.ofNat 13 (4 * (then_body.length + 1) + 4)
@@ -556,7 +556,7 @@ theorem if_eq_branch_step_n (rs1 rs2 : Reg) (v1 v2 : Word)
     Same statement as if_eq_spec; provided for API symmetry with if_eq_branch_step_n. -/
 theorem if_eq_spec_n (rs1 rs2 : Reg) (v1 v2 : Word)
     (then_body else_body : Program)
-    (base : Addr) (P Q : Assertion)
+    (base : Word) (P Q : Assertion)
     (hP : P.pcFree) (hQ : Q.pcFree)
     (ht_small : 4 * (then_body.length + 1) + 4 < 2^12)
     (he_small : 4 * (else_body.length) + 4 < 2^20) :

@@ -20,7 +20,7 @@ namespace EvmAsm.Rv64
 -- ============================================================================
 
 /-- The full evm_signextend code as a single CodeReq.ofProg block (48 instructions). -/
-abbrev signextCode (base : Addr) : CodeReq := CodeReq.ofProg base evm_signextend
+abbrev signextCode (base : Word) : CodeReq := CodeReq.ofProg base evm_signextend
 
 /-- Weaken concrete register to existential ownership. -/
 private theorem regIs_to_regOwn' (r : Reg) (v : Word) : ∀ h, (r ↦ᵣ v) h → (regOwn r) h :=
@@ -38,7 +38,7 @@ private theorem CodeReq_union_sub_both {cr1 cr2 target : CodeReq}
   | some v => simp [h1a] at h; subst h; exact h1 a v h1a
 
 /-- A singleton at instruction k of evm_signextend is subsumed by signextCode. -/
-private theorem singleton_sub_signextCode (base addr : Addr) (instr : Instr) (k : Nat)
+private theorem singleton_sub_signextCode (base addr : Word) (instr : Instr) (k : Nat)
     (hk : k < evm_signextend.length)
     (h_addr : addr = base + BitVec.ofNat 64 (4 * k))
     (h_instr : evm_signextend.get ⟨k, hk⟩ = instr) :
@@ -51,7 +51,7 @@ private theorem singleton_sub_signextCode (base addr : Addr) (instr : Instr) (k 
 -- ============================================================================
 
 /-- Phase A code (union chain, 9 instrs at +0) is subsumed by signextCode. -/
-private theorem phase_a_sub_signextCode (base : Addr) :
+private theorem phase_a_sub_signextCode (base : Word) :
     ∀ a i, signext_phase_a_code base a = some i → signextCode base a = some i := by
   unfold signext_phase_a_code
   apply CodeReq_union_sub_both
@@ -78,26 +78,26 @@ private theorem phase_a_sub_signextCode (base : Addr) :
                 (by native_decide) (by bv_omega) (by native_decide)
 
 /-- Phase B code (ofProg, 5 instrs at +36) is subsumed by signextCode. -/
-private theorem phase_b_sub_signextCode (base : Addr) :
+private theorem phase_b_sub_signextCode (base : Word) :
     ∀ a i, signext_phase_b_code (base + 36) a = some i → signextCode base a = some i := by
   unfold signext_phase_b_code
   exact CodeReq.ofProg_mono_sub base (base + 36) evm_signextend signext_phase_b 9
     (by bv_omega) (by native_decide) (by native_decide) (by native_decide)
 
 set_option maxHeartbeats 4000000 in
-private theorem cascade_15_sub_signextCode (base : Addr) :
+private theorem cascade_15_sub_signextCode (base : Word) :
     ∀ a i, CodeReq.ofProg (base + 60) (signext_cascade_step_prog 1 60) a = some i → signextCode base a = some i :=
   CodeReq.ofProg_mono_sub base (base + 60) evm_signextend (signext_cascade_step_prog 1 60) 15
     (by bv_omega) (by native_decide) (by native_decide) (by native_decide)
 
 set_option maxHeartbeats 4000000 in
-private theorem cascade_17_sub_signextCode (base : Addr) :
+private theorem cascade_17_sub_signextCode (base : Word) :
     ∀ a i, CodeReq.ofProg (base + 68) (signext_cascade_step_prog 2 24) a = some i → signextCode base a = some i :=
   CodeReq.ofProg_mono_sub base (base + 68) evm_signextend (signext_cascade_step_prog 2 24) 17
     (by bv_omega) (by native_decide) (by native_decide) (by native_decide)
 
 /-- Phase C code (union chain, 5 instrs at +56) is subsumed by signextCode. -/
-private theorem phase_c_sub_signextCode (base : Addr) :
+private theorem phase_c_sub_signextCode (base : Word) :
     ∀ a i, signext_phase_c_code (base + 56) a = some i → signextCode base a = some i := by
   unfold signext_phase_c_code
   apply CodeReq_union_sub_both
@@ -105,83 +105,83 @@ private theorem phase_c_sub_signextCode (base : Addr) :
       (by native_decide) (by bv_omega) (by native_decide)
   · apply CodeReq_union_sub_both
     · unfold signext_cascade_step_code
-      have : (base + 56 : Addr) + 4 = base + 60 := by bv_omega
+      have : (base + 56 : Word) + 4 = base + 60 := by bv_omega
       rw [this]
       exact cascade_15_sub_signextCode base
     · unfold signext_cascade_step_code
-      have : (base + 56 : Addr) + 12 = base + 68 := by bv_omega
+      have : (base + 56 : Word) + 12 = base + 68 := by bv_omega
       rw [this]
       exact cascade_17_sub_signextCode base
 
 /-- Body 3 code (ofProg, 5 instrs at +76) is subsumed by signextCode. -/
-private theorem body_3_sub_signextCode (base : Addr) :
+private theorem body_3_sub_signextCode (base : Word) :
     ∀ a i, signext_body_3_code (base + 76) 96 a = some i → signextCode base a = some i := by
   unfold signext_body_3_code
   exact CodeReq.ofProg_mono_sub base (base + 76) evm_signextend (signext_body_3_prog 96) 19
     (by bv_omega) (by native_decide) (by native_decide) (by native_decide)
 
 /-- Body 2 code (ofProg, 7 instrs at +96) is subsumed by signextCode. -/
-private theorem body_2_sub_signextCode (base : Addr) :
+private theorem body_2_sub_signextCode (base : Word) :
     ∀ a i, signext_body_2_code (base + 96) 68 a = some i → signextCode base a = some i := by
   unfold signext_body_2_code
   exact CodeReq.ofProg_mono_sub base (base + 96) evm_signextend (signext_body_2_prog 68) 24
     (by bv_omega) (by native_decide) (by native_decide) (by native_decide)
 
 /-- Body 1 code (ofProg, 8 instrs at +124) is subsumed by signextCode. -/
-private theorem body_1_sub_signextCode (base : Addr) :
+private theorem body_1_sub_signextCode (base : Word) :
     ∀ a i, signext_body_1_code (base + 124) 36 a = some i → signextCode base a = some i := by
   unfold signext_body_1_code
   exact CodeReq.ofProg_mono_sub base (base + 124) evm_signextend (signext_body_1_prog 36) 31
     (by bv_omega) (by native_decide) (by native_decide) (by native_decide)
 
 /-- Body 0 code (ofProg, 8 instrs at +156) is subsumed by signextCode. -/
-private theorem body_0_sub_signextCode (base : Addr) :
+private theorem body_0_sub_signextCode (base : Word) :
     ∀ a i, signext_body_0_code (base + 156) a = some i → signextCode base a = some i := by
   unfold signext_body_0_code
   exact CodeReq.ofProg_mono_sub base (base + 156) evm_signextend signext_body_0 39
     (by bv_omega) (by native_decide) (by native_decide) (by native_decide)
 
 /-- Done code (singleton, 1 instr at +188) is subsumed by signextCode. -/
-private theorem done_sub_signextCode (base : Addr) :
+private theorem done_sub_signextCode (base : Word) :
     ∀ a i, CodeReq.singleton (base + 188) (.ADDI .x12 .x12 32) a = some i → signextCode base a = some i :=
   singleton_sub_signextCode base (base + 188) (.ADDI .x12 .x12 32) 47
     (by native_decide) (by bv_omega) (by native_decide)
 
 -- Individual instruction subsumption helpers (for Phase A raw composition)
 
-private theorem ld_b1_sub_signextCode (base : Addr) :
+private theorem ld_b1_sub_signextCode (base : Word) :
     ∀ a i, CodeReq.singleton base (.LD .x5 .x12 8) a = some i → signextCode base a = some i :=
   singleton_sub_signextCode base base (.LD .x5 .x12 8) 0
     (by native_decide) (by bv_omega) (by native_decide)
 
-private theorem ld_or_16_sub_signextCode (base : Addr) :
+private theorem ld_or_16_sub_signextCode (base : Word) :
     ∀ a i, signext_ld_or_acc_code 16 (base + 4) a = some i → signextCode base a = some i := by
   unfold signext_ld_or_acc_code
   exact CodeReq.ofProg_mono_sub base (base + 4) evm_signextend (signext_ld_or_acc_prog 16) 1
     (by bv_omega) (by native_decide) (by native_decide) (by native_decide)
 
-private theorem ld_or_24_sub_signextCode (base : Addr) :
+private theorem ld_or_24_sub_signextCode (base : Word) :
     ∀ a i, signext_ld_or_acc_code 24 (base + 12) a = some i → signextCode base a = some i := by
   unfold signext_ld_or_acc_code
   exact CodeReq.ofProg_mono_sub base (base + 12) evm_signextend (signext_ld_or_acc_prog 24) 3
     (by bv_omega) (by native_decide) (by native_decide) (by native_decide)
 
-private theorem bne_sub_signextCode (base : Addr) :
+private theorem bne_sub_signextCode (base : Word) :
     ∀ a i, CodeReq.singleton (base + 20) (.BNE .x5 .x0 168) a = some i → signextCode base a = some i :=
   singleton_sub_signextCode base (base + 20) (.BNE .x5 .x0 168) 5
     (by native_decide) (by bv_omega) (by native_decide)
 
-private theorem ld_b0_sub_signextCode (base : Addr) :
+private theorem ld_b0_sub_signextCode (base : Word) :
     ∀ a i, CodeReq.singleton (base + 24) (.LD .x5 .x12 0) a = some i → signextCode base a = some i :=
   singleton_sub_signextCode base (base + 24) (.LD .x5 .x12 0) 6
     (by native_decide) (by bv_omega) (by native_decide)
 
-private theorem sltiu_sub_signextCode (base : Addr) :
+private theorem sltiu_sub_signextCode (base : Word) :
     ∀ a i, CodeReq.singleton (base + 28) (.SLTIU .x10 .x5 31) a = some i → signextCode base a = some i :=
   singleton_sub_signextCode base (base + 28) (.SLTIU .x10 .x5 31) 7
     (by native_decide) (by bv_omega) (by native_decide)
 
-private theorem beq_sub_signextCode (base : Addr) :
+private theorem beq_sub_signextCode (base : Word) :
     ∀ a i, CodeReq.singleton (base + 32) (.BEQ .x10 .x0 156) a = some i → signextCode base a = some i :=
   singleton_sub_signextCode base (base + 32) (.BEQ .x10 .x0 156) 8
     (by native_decide) (by bv_omega) (by native_decide)
@@ -190,32 +190,32 @@ private theorem beq_sub_signextCode (base : Addr) :
 -- Section 3: Address normalization lemmas
 -- ============================================================================
 
-private theorem se_off_4 (base : Addr) : (base + 4 : Addr) + 8 = base + 12 := by bv_omega
-private theorem se_off_12 (base : Addr) : (base + 12 : Addr) + 8 = base + 20 := by bv_omega
-private theorem se_off_20 (base : Addr) : (base + 20 : Addr) + 4 = base + 24 := by bv_omega
-private theorem se_off_24 (base : Addr) : (base + 24 : Addr) + 4 = base + 28 := by bv_omega
-private theorem se_off_28 (base : Addr) : (base + 28 : Addr) + 4 = base + 32 := by bv_omega
-private theorem se_off_32 (base : Addr) : (base + 32 : Addr) + 4 = base + 36 := by bv_omega
-private theorem se_bne_target (base : Addr) : (base + 20 : Addr) + signExtend13 168 = base + 188 := by
+private theorem se_off_4 (base : Word) : (base + 4 : Word) + 8 = base + 12 := by bv_omega
+private theorem se_off_12 (base : Word) : (base + 12 : Word) + 8 = base + 20 := by bv_omega
+private theorem se_off_20 (base : Word) : (base + 20 : Word) + 4 = base + 24 := by bv_omega
+private theorem se_off_24 (base : Word) : (base + 24 : Word) + 4 = base + 28 := by bv_omega
+private theorem se_off_28 (base : Word) : (base + 28 : Word) + 4 = base + 32 := by bv_omega
+private theorem se_off_32 (base : Word) : (base + 32 : Word) + 4 = base + 36 := by bv_omega
+private theorem se_bne_target (base : Word) : (base + 20 : Word) + signExtend13 168 = base + 188 := by
   rw [show signExtend13 (168 : BitVec 13) = (168 : Word) from by native_decide]; bv_omega
-private theorem se_beq_target (base : Addr) : (base + 32 : Addr) + signExtend13 156 = base + 188 := by
+private theorem se_beq_target (base : Word) : (base + 32 : Word) + signExtend13 156 = base + 188 := by
   rw [show signExtend13 (156 : BitVec 13) = (156 : Word) from by native_decide]; bv_omega
 -- Phase C exit addresses
-private theorem se_c_e0 (base : Addr) : (base + 56 : Addr) + signExtend13 100 = base + 156 := by
+private theorem se_c_e0 (base : Word) : (base + 56 : Word) + signExtend13 100 = base + 156 := by
   rw [show signExtend13 (100 : BitVec 13) = (100 : Word) from by native_decide]; bv_omega
-private theorem se_c_e1 (base : Addr) : ((base + 56 : Addr) + 8) + signExtend13 60 = base + 124 := by
+private theorem se_c_e1 (base : Word) : ((base + 56 : Word) + 8) + signExtend13 60 = base + 124 := by
   rw [show signExtend13 (60 : BitVec 13) = (60 : Word) from by native_decide]; bv_omega
-private theorem se_c_e2 (base : Addr) : ((base + 56 : Addr) + 16) + signExtend13 24 = base + 96 := by
+private theorem se_c_e2 (base : Word) : ((base + 56 : Word) + 16) + signExtend13 24 = base + 96 := by
   rw [show signExtend13 (24 : BitVec 13) = (24 : Word) from by native_decide]; bv_omega
-private theorem se_c_e3 (base : Addr) : (base + 56 : Addr) + 20 = base + 76 := by bv_omega
+private theorem se_c_e3 (base : Word) : (base + 56 : Word) + 20 = base + 76 := by bv_omega
 -- Body exit addresses (JAL targets)
-private theorem se_body3_exit (base : Addr) : ((base + 76 : Addr) + 16) + signExtend21 96 = base + 188 := by
+private theorem se_body3_exit (base : Word) : ((base + 76 : Word) + 16) + signExtend21 96 = base + 188 := by
   rw [show signExtend21 (96 : BitVec 21) = (96 : Word) from by native_decide]; bv_omega
-private theorem se_body2_exit (base : Addr) : ((base + 96 : Addr) + 24) + signExtend21 68 = base + 188 := by
+private theorem se_body2_exit (base : Word) : ((base + 96 : Word) + 24) + signExtend21 68 = base + 188 := by
   rw [show signExtend21 (68 : BitVec 21) = (68 : Word) from by native_decide]; bv_omega
-private theorem se_body1_exit (base : Addr) : ((base + 124 : Addr) + 28) + signExtend21 36 = base + 188 := by
+private theorem se_body1_exit (base : Word) : ((base + 124 : Word) + 28) + signExtend21 36 = base + 188 := by
   rw [show signExtend21 (36 : BitVec 21) = (36 : Word) from by native_decide]; bv_omega
-private theorem se_done_exit (base : Addr) : (base + 188 : Addr) + 4 = base + 192 := by bv_omega
+private theorem se_done_exit (base : Word) : (base + 188 : Word) + 4 = base + 192 := by bv_omega
 
 -- ============================================================================
 -- Section 4: No-change path 1 — high limbs nonzero
@@ -224,7 +224,7 @@ private theorem se_done_exit (base : Addr) : (base + 188 : Addr) + 4 = base + 19
 set_option maxHeartbeats 1600000 in
 /-- No-change path via BNE taken: high b limbs are nonzero → b >= 31 → x unchanged.
     Execution: LD b1 → LD/OR b2 → LD/OR b3 → BNE(taken) → done. -/
-theorem signext_nochange_high_spec (sp base : Addr)
+theorem signext_nochange_high_spec (sp base : Word)
     (b0 b1 b2 b3 v0 v1 v2 v3 r5 r10 : Word)
     (hhigh : b1 ||| b2 ||| b3 ≠ 0)
     (hvalid : ValidMemRange sp 8) :
@@ -334,7 +334,7 @@ theorem signext_nochange_high_spec (sp base : Addr)
 set_option maxHeartbeats 3200000 in
 /-- No-change path via BEQ taken: b1=b2=b3=0 but b[0] >= 31 → x unchanged.
     Execution: LD b1 → LD/OR b2 → LD/OR b3 → BNE(ntaken) → LD b0 → SLTIU → BEQ(taken) → done. -/
-theorem signext_nochange_geq31_spec (sp base : Addr)
+theorem signext_nochange_geq31_spec (sp base : Word)
     (b0 b1 b2 b3 v0 v1 v2 v3 r5 r10 : Word)
     (hlow : b1 ||| b2 ||| b3 = 0)
     (hlarge : BitVec.ult b0 (signExtend12 (31 : BitVec 12)) = false)
@@ -478,7 +478,7 @@ theorem signext_nochange_geq31_spec (sp base : Addr)
 /-- Strip a pure fact from a cpsTriple's precondition and use it
     to convert the postcondition. -/
 private theorem cpsTriple_strip_pure_and_convert
-    {entry exit_ : Addr} {cr : CodeReq}
+    {entry exit_ : Word} {cr : CodeReq}
     {P Q Q' : Assertion} {fact : Prop}
     (hbody : cpsTriple entry exit_ cr P Q)
     (hpost : fact → ∀ h, Q h → Q' h) :
@@ -498,16 +498,16 @@ private theorem cpsTriple_strip_pure_and_convert
     obtain ⟨hp', hcompat', hpq'⟩ := hQR
     exact ⟨hp', hcompat', sepConj_mono_left (hpost hfact) hp' hpq'⟩⟩
 
-private theorem cpsNBranch_extend_code {entry : Addr} {cr cr' : CodeReq}
-    {P : Assertion} {exits : List (Addr × Assertion)}
+private theorem cpsNBranch_extend_code {entry : Word} {cr cr' : CodeReq}
+    {P : Assertion} {exits : List (Word × Assertion)}
     (hmono : ∀ a i, cr a = some i → cr' a = some i)
     (h : cpsNBranch entry cr P exits) :
     cpsNBranch entry cr' P exits := by
   intro R hR s hcr' hPR hpc
   exact h R hR s (CodeReq.SatisfiedBy_mono s hmono hcr') hPR hpc
 
-private theorem cpsNBranch_frame_left {entry : Addr} {cr : CodeReq}
-    {P : Assertion} {exits : List (Addr × Assertion)} {F : Assertion}
+private theorem cpsNBranch_frame_left {entry : Word} {cr : CodeReq}
+    {P : Assertion} {exits : List (Word × Assertion)} {F : Assertion}
     (hF : F.pcFree) (h : cpsNBranch entry cr P exits) :
     cpsNBranch entry cr (P ** F) (exits.map (fun ex => (ex.1, ex.2 ** F))) := by
   intro R hR s hcr hPFR hpc
@@ -519,7 +519,7 @@ private theorem cpsNBranch_frame_left {entry : Addr} {cr : CodeReq}
   refine ⟨k, s', hstep, (ex.1, ex.2 ** F), ?_, hpc', holdsFor_sepConj_assoc.mpr hQFR⟩
   exact List.mem_map.mpr ⟨ex, hmem, rfl⟩
 
-private theorem validMem_value_portion {sp : Addr} (hvalid : ValidMemRange sp 8) :
+private theorem validMem_value_portion {sp : Word} (hvalid : ValidMemRange sp 8) :
     ValidMemRange (sp + 32) 4 := by
   intro i hi; have := hvalid.get (i := i + 4) (by omega)
   have : isValidDwordAccess (sp + BitVec.ofNat 64 (8 * (i + 4))) = true := this
@@ -533,7 +533,7 @@ private theorem validMem_value_portion {sp : Addr} (hvalid : ValidMemRange sp 8)
 set_option maxHeartbeats 12800000 in
 /-- Body path: b < 31 → raw-limb cpsTriple producing `signextend b x` limbs.
     Composes Phase A ntaken → B → C → body_L → done. -/
-theorem signext_body_spec (sp base : Addr)
+theorem signext_body_spec (sp base : Word)
     (b x : EvmWord) (r5 r6 r10 : Word)
     (hvalid : ValidMemRange sp 8)
     (hhigh : b.getLimb 1 ||| b.getLimb 2 ||| b.getLimb 3 = 0)
@@ -637,7 +637,7 @@ theorem signext_body_spec (sp base : Addr)
   let limb_idx := b0 >>> (3 : BitVec 6).toNat
   have hphaseB := cpsTriple_extend_code (phase_b_sub_signextCode base)
     (signext_phase_b_spec b0 r6 sltiu_val (base + 36))
-  rw [show (base + 36 : Addr) + 20 = base + 56 from by bv_omega] at hphaseB
+  rw [show (base + 36 : Word) + 20 = base + 56 from by bv_omega] at hphaseB
   have hphaseB_f := cpsTriple_frame_left (base + 36) (base + 56) _ _ _
     ((.x12 ↦ᵣ sp) ** (sp ↦ₘ b0) ** ((sp + 8) ↦ₘ b1) ** ((sp + 16) ↦ₘ b2) ** ((sp + 24) ↦ₘ b3) **
      ((sp + 32) ↦ₘ v0) ** ((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3)) (by pcFree) hphaseB
@@ -657,7 +657,7 @@ theorem signext_body_spec (sp base : Addr)
     (signext_body_1_spec sp limb_idx ((0 : Word) + signExtend12 1) shift_amount v1 v2 v3 (base + 124) (base + 188) 36 (se_body1_exit base) hvalid)
   have hbody0 := cpsTriple_extend_code (body_0_sub_signextCode base)
     (signext_body_0_spec sp limb_idx byte_shift shift_amount v0 v1 v2 v3 (base + 156) hvalid)
-  rw [show (base + 156 : Addr) + 32 = base + 188 from by bv_omega] at hbody0
+  rw [show (base + 156 : Word) + 32 = base + 188 from by bv_omega] at hbody0
   have hdone := cpsTriple_extend_code (done_sub_signextCode base) (signext_done_spec sp (base + 188))
   rw [se_done_exit] at hdone
   -- Frame bodies with b-mem + x0

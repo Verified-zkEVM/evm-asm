@@ -31,11 +31,11 @@ namespace EvmAsm.Rv64
 
 -- SHR Merge Limb (7 instructions)
 
-abbrev shr_merge_limb_code (src_off next_off dst_off : BitVec 12) (base : Addr) : CodeReq :=
+abbrev shr_merge_limb_code (src_off next_off dst_off : BitVec 12) (base : Word) : CodeReq :=
   CodeReq.ofProg base (shr_merge_limb_prog src_off next_off dst_off)
 
 theorem shr_merge_limb_spec (src_off next_off dst_off : BitVec 12)
-    (sp src next dst_old v5 v10 bit_shift anti_shift mask : Word) (base : Addr)
+    (sp src next dst_old v5 v10 bit_shift anti_shift mask : Word) (base : Word)
     (hvalid_src : isValidDwordAccess (sp + signExtend12 src_off) = true)
     (hvalid_next : isValidDwordAccess (sp + signExtend12 next_off) = true)
     (hvalid_dst : isValidDwordAccess (sp + signExtend12 dst_off) = true) :
@@ -64,11 +64,11 @@ theorem shr_merge_limb_spec (src_off next_off dst_off : BitVec 12)
 
 -- SHR Last Limb (3 instructions)
 
-abbrev shr_last_limb_code (dst_off : BitVec 12) (base : Addr) : CodeReq :=
+abbrev shr_last_limb_code (dst_off : BitVec 12) (base : Word) : CodeReq :=
   CodeReq.ofProg base (shr_last_limb_prog dst_off)
 
 theorem shr_last_limb_spec (dst_off : BitVec 12)
-    (sp src dst_old v5 bit_shift : Word) (base : Addr)
+    (sp src dst_old v5 bit_shift : Word) (base : Word)
     (hvalid_src : isValidDwordAccess (sp + signExtend12 (24 : BitVec 12)) = true)
     (hvalid_dst : isValidDwordAccess (sp + signExtend12 dst_off) = true) :
     let mem_src := sp + signExtend12 (24 : BitVec 12)
@@ -87,11 +87,11 @@ theorem shr_last_limb_spec (dst_off : BitVec 12)
 
 -- SHR Merge Limb In-place (7 instructions, src_off = dst_off)
 
-abbrev shr_merge_limb_inplace_code (off next_off : BitVec 12) (base : Addr) : CodeReq :=
+abbrev shr_merge_limb_inplace_code (off next_off : BitVec 12) (base : Word) : CodeReq :=
   CodeReq.ofProg base (shr_merge_limb_inplace_prog off next_off)
 
 theorem shr_merge_limb_inplace_spec (off next_off : BitVec 12)
-    (sp src next v5 v10 bit_shift anti_shift mask : Word) (base : Addr)
+    (sp src next v5 v10 bit_shift anti_shift mask : Word) (base : Word)
     (hvalid_loc : isValidDwordAccess (sp + signExtend12 off) = true)
     (hvalid_next : isValidDwordAccess (sp + signExtend12 next_off) = true) :
     let mem_loc := sp + signExtend12 off
@@ -118,11 +118,11 @@ theorem shr_merge_limb_inplace_spec (off next_off : BitVec 12)
 
 -- SHR Last Limb In-place (3 instructions, dst_off = 24)
 
-abbrev shr_last_limb_inplace_code (base : Addr) : CodeReq :=
+abbrev shr_last_limb_inplace_code (base : Word) : CodeReq :=
   CodeReq.ofProg base shr_last_limb_inplace_prog
 
 theorem shr_last_limb_inplace_spec
-    (sp src v5 bit_shift : Word) (base : Addr)
+    (sp src v5 bit_shift : Word) (base : Word)
     (hvalid : isValidDwordAccess (sp + signExtend12 (24 : BitVec 12)) = true) :
     let mem := sp + signExtend12 (24 : BitVec 12)
     let result := src >>> (bit_shift.toNat % 64)
@@ -139,13 +139,13 @@ theorem shr_last_limb_inplace_spec
 -- Section 2: Zero Path (5 instructions)
 -- ============================================================================
 
-abbrev shr_zero_path_code (base : Addr) : CodeReq :=
+abbrev shr_zero_path_code (base : Word) : CodeReq :=
   CodeReq.ofProg base shr_zero_path
 
 set_option maxHeartbeats 3200000 in
 theorem shr_zero_path_spec (sp : Word)
     (d0 d1 d2 d3 : Word)
-    (base : Addr)
+    (base : Word)
     (hvalid : ValidMemRange (sp + 32) 4) :
     let nsp := sp + 32
     let code := shr_zero_path_code base
@@ -167,11 +167,11 @@ theorem shr_zero_path_spec (sp : Word)
 -- Section 3: Phase B (7 instructions)
 -- ============================================================================
 
-abbrev shr_phase_b_code (base : Addr) : CodeReq :=
+abbrev shr_phase_b_code (base : Word) : CodeReq :=
   CodeReq.ofProg base shr_phase_b
 
 set_option maxHeartbeats 1600000 in
-theorem shr_phase_b_spec (shift0 sp r6 r7 r11 : Word) (base : Addr) :
+theorem shr_phase_b_spec (shift0 sp r6 r7 r11 : Word) (base : Word) :
     let bit_shift := shift0 &&& signExtend12 63
     let limb_shift := shift0 >>> (6 : BitVec 6).toNat
     let cond := if BitVec.ult (0 : Word) bit_shift then (1 : Word) else 0
@@ -196,11 +196,11 @@ theorem shr_phase_b_spec (shift0 sp r6 r7 r11 : Word) (base : Addr) :
 -- Section 4: LD/OR Accumulator Helper (2 instructions)
 -- ============================================================================
 
-abbrev shr_ld_or_acc_code (off : BitVec 12) (base : Addr) : CodeReq :=
+abbrev shr_ld_or_acc_code (off : BitVec 12) (base : Word) : CodeReq :=
   CodeReq.ofProg base (shr_ld_or_acc_prog off)
 
 theorem shr_ld_or_acc_spec (sp acc prev_x10 val : Word) (off : BitVec 12)
-    (base : Addr)
+    (base : Word)
     (hvalid : isValidDwordAccess (sp + signExtend12 off) = true) :
     let code := shr_ld_or_acc_code off base
     cpsTriple base (base + 8) code
@@ -216,13 +216,13 @@ theorem shr_ld_or_acc_spec (sp acc prev_x10 val : Word) (off : BitVec 12)
 
 -- Body 3: limb_shift=3, 7 instructions
 
-abbrev shr_body_3_code (jal_off : BitVec 21) (base : Addr) : CodeReq :=
+abbrev shr_body_3_code (jal_off : BitVec 21) (base : Word) : CodeReq :=
   CodeReq.ofProg base (shr_body_3_prog jal_off)
 
 theorem shr_body_3_spec (sp : Word)
     (v5 v10 bit_shift anti_shift mask : Word)
     (v0 v1 v2 v3 : Word)
-    (base exit : Addr) (jal_off : BitVec 21)
+    (base exit : Word) (jal_off : BitVec 21)
     (hexit : (base + 24) + signExtend21 jal_off = exit)
     (hvalid : ValidMemRange sp 4) :
     let result0 := v3 >>> (bit_shift.toNat % 64)
@@ -244,14 +244,14 @@ theorem shr_body_3_spec (sp : Word)
 
 -- Body 2: limb_shift=2, 13 instructions
 
-abbrev shr_body_2_code (jal_off : BitVec 21) (base : Addr) : CodeReq :=
+abbrev shr_body_2_code (jal_off : BitVec 21) (base : Word) : CodeReq :=
   CodeReq.ofProg base (shr_body_2_prog jal_off)
 
 set_option maxHeartbeats 3200000 in
 theorem shr_body_2_spec (sp : Word)
     (v5 v10 bit_shift anti_shift mask : Word)
     (v0 v1 v2 v3 : Word)
-    (base exit : Addr) (jal_off : BitVec 21)
+    (base exit : Word) (jal_off : BitVec 21)
     (hexit : (base + 48) + signExtend21 jal_off = exit)
     (hvalid : ValidMemRange sp 4) :
     let result0 := (v2 >>> (bit_shift.toNat % 64)) ||| ((v3 <<< (anti_shift.toNat % 64)) &&& mask)
@@ -276,14 +276,14 @@ theorem shr_body_2_spec (sp : Word)
 
 -- Body 1: limb_shift=1, 19 instructions
 
-abbrev shr_body_1_code (jal_off : BitVec 21) (base : Addr) : CodeReq :=
+abbrev shr_body_1_code (jal_off : BitVec 21) (base : Word) : CodeReq :=
   CodeReq.ofProg base (shr_body_1_prog jal_off)
 
 set_option maxHeartbeats 3200000 in
 theorem shr_body_1_spec (sp : Word)
     (v5 v10 bit_shift anti_shift mask : Word)
     (v0 v1 v2 v3 : Word)
-    (base exit : Addr) (jal_off : BitVec 21)
+    (base exit : Word) (jal_off : BitVec 21)
     (hexit : (base + 72) + signExtend21 jal_off = exit)
     (hvalid : ValidMemRange sp 4) :
     let result0 := (v1 >>> (bit_shift.toNat % 64)) ||| ((v2 <<< (anti_shift.toNat % 64)) &&& mask)
@@ -312,14 +312,14 @@ theorem shr_body_1_spec (sp : Word)
 
 -- Body 0: limb_shift=0, 25 instructions
 
-abbrev shr_body_0_code (jal_off : BitVec 21) (base : Addr) : CodeReq :=
+abbrev shr_body_0_code (jal_off : BitVec 21) (base : Word) : CodeReq :=
   CodeReq.ofProg base (shr_body_0_prog jal_off)
 
 set_option maxHeartbeats 3200000 in
 theorem shr_body_0_spec (sp : Word)
     (v5 v10 bit_shift anti_shift mask : Word)
     (v0 v1 v2 v3 : Word)
-    (base exit : Addr) (jal_off : BitVec 21)
+    (base exit : Word) (jal_off : BitVec 21)
     (hexit : (base + 96) + signExtend21 jal_off = exit)
     (hvalid : ValidMemRange sp 4) :
     let result0 := (v0 >>> (bit_shift.toNat % 64)) ||| ((v1 <<< (anti_shift.toNat % 64)) &&& mask)
@@ -354,14 +354,14 @@ theorem shr_body_0_spec (sp : Word)
 -- Section 6: Cascade Step Helper (2 instructions)
 -- ============================================================================
 
-abbrev shr_cascade_step_code (k : BitVec 12) (offset : BitVec 13) (base : Addr) : CodeReq :=
+abbrev shr_cascade_step_code (k : BitVec 12) (offset : BitVec 13) (base : Word) : CodeReq :=
   CodeReq.ofProg base (shr_cascade_step_prog k offset)
 
 /-- Cascade step: ADDI x10,x0,k followed by BEQ x5,x10,off.
     Produces a cpsBranch with clean postconditions (no pure facts).
     Uses disjoint composition of the two singleton CRs. -/
 theorem shr_cascade_step_spec (v5 v10 : Word)
-    (k : BitVec 12) (offset : BitVec 13) (base target : Addr)
+    (k : BitVec 12) (offset : BitVec 13) (base target : Word)
     (htarget : (base + 4) + signExtend13 offset = target) :
     let k_val := (0 : Word) + signExtend12 k
     let code := shr_cascade_step_code k offset base
@@ -369,7 +369,7 @@ theorem shr_cascade_step_spec (v5 v10 : Word)
       ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10))
       target ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ k_val))
       (base + 8) ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ k_val)) := by
-  have ha1 : (base + 4 : Addr) + 4 = base + 8 := by bv_omega
+  have ha1 : (base + 4 : Word) + 4 = base + 8 := by bv_omega
   -- Disjointness of the two singletons
   have hd : CodeReq.Disjoint
       (CodeReq.singleton base (.ADDI .x10 .x0 k))
@@ -414,7 +414,7 @@ theorem shr_cascade_step_spec (v5 v10 : Word)
 /-- Cascade step variant that preserves pure dispatch facts.
     Taken postcondition includes `⌜v5 = k_val⌝`, not-taken includes `⌜v5 ≠ k_val⌝`. -/
 theorem shr_cascade_step_spec_pure (v5 v10 : Word)
-    (k : BitVec 12) (offset : BitVec 13) (base target : Addr)
+    (k : BitVec 12) (offset : BitVec 13) (base target : Word)
     (htarget : (base + 4) + signExtend13 offset = target) :
     let k_val := (0 : Word) + signExtend12 k
     let code := shr_cascade_step_code k offset base
@@ -422,7 +422,7 @@ theorem shr_cascade_step_spec_pure (v5 v10 : Word)
       ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10))
       target ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ k_val) ** ⌜v5 = k_val⌝)
       (base + 8) ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ k_val) ** ⌜v5 ≠ k_val⌝) := by
-  have ha1 : (base + 4 : Addr) + 4 = base + 8 := by bv_omega
+  have ha1 : (base + 4 : Word) + 4 = base + 8 := by bv_omega
   have hd : CodeReq.Disjoint
       (CodeReq.singleton base (.ADDI .x10 .x0 k))
       (CodeReq.singleton (base + 4) (.BEQ .x5 .x10 offset)) :=
@@ -456,7 +456,7 @@ theorem shr_cascade_step_spec_pure (v5 v10 : Word)
 -- ============================================================================
 
 /-- Phase C code as explicit union of sub-CRs (matching disjoint composition structure). -/
-abbrev shr_phase_c_code (base : Addr) : CodeReq :=
+abbrev shr_phase_c_code (base : Word) : CodeReq :=
   CodeReq.union (CodeReq.singleton base (.BEQ .x5 .x0 176))
   (CodeReq.union (shr_cascade_step_code 1 92 (base + 4))
   (shr_cascade_step_code 2 32 (base + 12)))
@@ -464,8 +464,8 @@ abbrev shr_phase_c_code (base : Addr) : CodeReq :=
 set_option maxHeartbeats 3200000 in
 /-- Phase C spec: cascade dispatch on limb_shift (0-3).
     Uses disjoint composition to chain BEQ + two cascade steps. -/
-theorem shr_phase_c_spec (v5 v10 : Word) (base : Addr)
-    (e0 e1 e2 e3 : Addr)
+theorem shr_phase_c_spec (v5 v10 : Word) (base : Word)
+    (e0 e1 e2 e3 : Word)
     (he0 : base + signExtend13 176 = e0)
     (he1 : (base + 8) + signExtend13 92 = e1)
     (he2 : (base + 16) + signExtend13 32 = e2)
@@ -478,10 +478,10 @@ theorem shr_phase_c_spec (v5 v10 : Word) (base : Addr)
        (e2, (.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ ((0 : Word) + signExtend12 2))),
        (e3, (.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ ((0 : Word) + signExtend12 2)))] := by
   -- Address arithmetic
-  have hc1 : ((base + 4 : Addr) + 4) + signExtend13 92 = e1 := by
-    rw [show (base + 4 : Addr) + 4 = base + 8 from by bv_omega]; exact he1
-  have hc2 : ((base + 12 : Addr) + 4) + signExtend13 32 = e2 := by
-    rw [show (base + 12 : Addr) + 4 = base + 16 from by bv_omega]; exact he2
+  have hc1 : ((base + 4 : Word) + 4) + signExtend13 92 = e1 := by
+    rw [show (base + 4 : Word) + 4 = base + 8 from by bv_omega]; exact he1
+  have hc2 : ((base + 12 : Word) + 4) + signExtend13 32 = e2 := by
+    rw [show (base + 12 : Word) + 4 = base + 16 from by bv_omega]; exact he2
   -- Sub-CRs
   let cr_beq0 := CodeReq.singleton base (.BEQ .x5 .x0 176)
   let cr_cs1 := shr_cascade_step_code 1 92 (base + 4)
@@ -525,10 +525,10 @@ theorem shr_phase_c_spec (v5 v10 : Word) (base : Addr)
     (.x10 ↦ᵣ v10) (by pcFree) beq0
   -- Step 1: cascade step at base+4 (CR = cr_cs1)
   have cs1 := shr_cascade_step_spec v5 v10 1 92 (base + 4) e1 hc1
-  rw [show (base + 4 : Addr) + 8 = base + 12 from by bv_omega] at cs1
+  rw [show (base + 4 : Word) + 8 = base + 12 from by bv_omega] at cs1
   -- Step 2: cascade step at base+12 (CR = cr_cs2)
   have cs2 := shr_cascade_step_spec v5 ((0 : Word) + signExtend12 1) 2 32 (base + 12) e2 hc2
-  rw [show (base + 12 : Addr) + 8 = base + 20 from by bv_omega] at cs2
+  rw [show (base + 12 : Word) + 8 = base + 20 from by bv_omega] at cs2
   -- Fallthrough at base+20 (CR = empty)
   have ft := cpsNBranch_refl (base + 20)
     ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ ((0 : Word) + signExtend12 2)))
@@ -575,8 +575,8 @@ set_option maxHeartbeats 6400000 in
 /-- Phase C spec with pure dispatch facts: each exit postcondition includes
     the constraint that identifies which branch was taken.
     Built by composing sub-specs with pure-fact framing. -/
-theorem shr_phase_c_spec_pure (v5 v10 : Word) (base : Addr)
-    (e0 e1 e2 e3 : Addr)
+theorem shr_phase_c_spec_pure (v5 v10 : Word) (base : Word)
+    (e0 e1 e2 e3 : Word)
     (he0 : base + signExtend13 176 = e0)
     (he1 : (base + 8) + signExtend13 92 = e1)
     (he2 : (base + 16) + signExtend13 32 = e2)
@@ -588,10 +588,10 @@ theorem shr_phase_c_spec_pure (v5 v10 : Word) (base : Addr)
        (e1, (.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ ((0 : Word) + signExtend12 1)) ** ⌜v5 = (0 : Word) + signExtend12 1⌝),
        (e2, (.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ ((0 : Word) + signExtend12 2)) ** ⌜v5 = (0 : Word) + signExtend12 2⌝),
        (e3, (.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ ((0 : Word) + signExtend12 2)) ** ⌜v5 ≠ 0 ∧ v5 ≠ (0 : Word) + signExtend12 1 ∧ v5 ≠ (0 : Word) + signExtend12 2⌝)] := by
-  have hc1 : ((base + 4 : Addr) + 4) + signExtend13 92 = e1 := by
-    rw [show (base + 4 : Addr) + 4 = base + 8 from by bv_omega]; exact he1
-  have hc2 : ((base + 12 : Addr) + 4) + signExtend13 32 = e2 := by
-    rw [show (base + 12 : Addr) + 4 = base + 16 from by bv_omega]; exact he2
+  have hc1 : ((base + 4 : Word) + 4) + signExtend13 92 = e1 := by
+    rw [show (base + 4 : Word) + 4 = base + 8 from by bv_omega]; exact he1
+  have hc2 : ((base + 12 : Word) + 4) + signExtend13 32 = e2 := by
+    rw [show (base + 12 : Word) + 4 = base + 16 from by bv_omega]; exact he2
   let cr_beq0 := CodeReq.singleton base (.BEQ .x5 .x0 176)
   let cr_cs1 := shr_cascade_step_code 1 92 (base + 4)
   let cr_cs2 := shr_cascade_step_code 2 32 (base + 12)
@@ -625,7 +625,7 @@ theorem shr_phase_c_spec_pure (v5 v10 : Word) (base : Addr)
       (cpsBranch_frame_left _ _ _ _ _ _ _ (.x10 ↦ᵣ v10) (by pcFree) beq0_raw)
   -- Step 1: cascade step at base+4 with pure facts, framed with ⌜v5 ≠ 0⌝
   have cs1_raw := shr_cascade_step_spec_pure v5 v10 1 92 (base + 4) e1 hc1
-  rw [show (base + 4 : Addr) + 8 = base + 12 from by bv_omega] at cs1_raw
+  rw [show (base + 4 : Word) + 8 = base + 12 from by bv_omega] at cs1_raw
   have cs1f := cpsBranch_frame_left _ _ _ _ _ _ _ (⌜v5 ≠ (0 : Word)⌝) (pcFree_pure _) cs1_raw
   -- cs1f taken: (regs ** ⌜v5 = 1⌝) ** ⌜v5 ≠ 0⌝
   -- cs1f ntaken: (regs ** ⌜v5 ≠ 1⌝) ** ⌜v5 ≠ 0⌝
@@ -650,7 +650,7 @@ theorem shr_phase_c_spec_pure (v5 v10 : Word) (base : Addr)
       cs1f
   -- Step 2: cascade step at base+12, framed with ⌜v5 ≠ 0 ∧ v5 ≠ 1⌝
   have cs2_raw := shr_cascade_step_spec_pure v5 ((0 : Word) + signExtend12 1) 2 32 (base + 12) e2 hc2
-  rw [show (base + 12 : Addr) + 8 = base + 20 from by bv_omega] at cs2_raw
+  rw [show (base + 12 : Word) + 8 = base + 20 from by bv_omega] at cs2_raw
   have cs2f := cpsBranch_frame_left _ _ _ _ _ _ _
     (⌜v5 ≠ 0 ∧ v5 ≠ (0 : Word) + signExtend12 1⌝) (pcFree_pure _) cs2_raw
   -- cs2f taken: (regs ** ⌜v5 = 2⌝) ** ⌜v5 ≠ 0 ∧ v5 ≠ 1⌝
@@ -724,7 +724,7 @@ private theorem regIs_to_regOwn (r : Reg) (v : Word) : ∀ h, (r ↦ᵣ v) h →
 
 /-- Phase A code as explicit union of sub-CRs (matching disjoint composition structure).
     9 instructions: LD + LD/OR + LD/OR + BNE + LD + SLTIU + BEQ -/
-abbrev shr_phase_a_code (base : Addr) : CodeReq :=
+abbrev shr_phase_a_code (base : Word) : CodeReq :=
   -- LD x5 x12 8 at base
   CodeReq.union (CodeReq.singleton base (.LD .x5 .x12 8))
   -- LD x10 x12 16 + OR x5 x5 x10 at base+4, base+8
@@ -748,7 +748,7 @@ set_option maxHeartbeats 6400000 in
     Uses disjoint composition throughout (no extend_code). -/
 theorem shr_phase_a_spec (sp r5 r10 : Word)
     (s0 s1 s2 s3 : Word)
-    (base zero_path : Addr)
+    (base zero_path : Word)
     (hzero : (base + 20) + signExtend13 320 = zero_path)
     (hzero2 : (base + 32) + signExtend13 308 = zero_path)
     (hvalid : ValidMemRange sp 8) :
@@ -772,12 +772,12 @@ theorem shr_phase_a_spec (sp r5 r10 : Word)
   have hv24 : isValidDwordAccess (sp + 24) = true := by
     have := hvalid.get (i := 3) (by omega); simpa using this
   -- Address arithmetic
-  have ha48 : (base + 4 : Addr) + 8 = base + 12 := by bv_omega
-  have ha128 : (base + 12 : Addr) + 8 = base + 20 := by bv_omega
-  have ha20 : (base + 20 : Addr) + 4 = base + 24 := by bv_omega
-  have ha24 : (base + 24 : Addr) + 4 = base + 28 := by bv_omega
-  have ha28 : (base + 28 : Addr) + 4 = base + 32 := by bv_omega
-  have ha32 : (base + 32 : Addr) + 4 = base + 36 := by bv_omega
+  have ha48 : (base + 4 : Word) + 8 = base + 12 := by bv_omega
+  have ha128 : (base + 12 : Word) + 8 = base + 20 := by bv_omega
+  have ha20 : (base + 20 : Word) + 4 = base + 24 := by bv_omega
+  have ha24 : (base + 24 : Word) + 4 = base + 28 := by bv_omega
+  have ha28 : (base + 28 : Word) + 4 = base + 32 := by bv_omega
+  have ha32 : (base + 32 : Word) + 4 = base + 36 := by bv_omega
   -- Sub-CRs for each instruction group
   let cr_ld1 := CodeReq.singleton base (.LD .x5 .x12 8)
   let cr_lor2 := shr_ld_or_acc_code 16 (base + 4)
@@ -950,7 +950,7 @@ theorem shr_phase_a_spec (sp r5 r10 : Word)
   -- Disjoint: (cr_linear ∪ cr_bne) vs cr_tail
   -- All addresses in left (base..base+20) distinct from right (base+24..base+32)
   -- Helper: "singleton at addr is disjoint from cr_tail"
-  have sd_tail (a : Addr) (i : Instr)
+  have sd_tail (a : Word) (i : Instr)
       (h24 : a ≠ base + 24) (h28 : a ≠ base + 28) (h32 : a ≠ base + 32) :
       (CodeReq.singleton a i).Disjoint cr_tail :=
     CodeReq.Disjoint.union_right

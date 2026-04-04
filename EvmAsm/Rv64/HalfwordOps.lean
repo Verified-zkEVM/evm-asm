@@ -39,20 +39,20 @@ theorem extractHalfword_replaceHalfword_same (w : Word) (pos : Fin 4) (h : BitVe
 
 /-! ## getHalfword / setHalfword in terms of extractHalfword / replaceHalfword -/
 
-theorem getHalfword_eq (s : MachineState) (addr : Addr) :
+theorem getHalfword_eq (s : MachineState) (addr : Word) :
     s.getHalfword addr = extractHalfword (s.getMem (alignToDword addr)) ((byteOffset addr) / 2) := rfl
 
-theorem setHalfword_eq (s : MachineState) (addr : Addr) (h : BitVec 16) :
+theorem setHalfword_eq (s : MachineState) (addr : Word) (h : BitVec 16) :
     s.setHalfword addr h = s.setMem (alignToDword addr)
       (replaceHalfword (s.getMem (alignToDword addr)) ((byteOffset addr) / 2) h) := rfl
 
 /-! ## halfwordOffset bound -/
 
-private theorem byteOffset_lt_8' (addr : Addr) : byteOffset addr < 8 := by
+private theorem byteOffset_lt_8' (addr : Word) : byteOffset addr < 8 := by
   unfold byteOffset; rw [BitVec.toNat_and]
   exact Nat.lt_of_le_of_lt Nat.and_le_right (by native_decide)
 
-theorem halfwordOffset_lt_4 (addr : Addr) : (byteOffset addr) / 2 < 4 := by
+theorem halfwordOffset_lt_4 (addr : Word) : (byteOffset addr) / 2 < 4 := by
   have := byteOffset_lt_8' addr; omega
 
 /-! ## LHU generic spec
@@ -60,8 +60,8 @@ theorem halfwordOffset_lt_4 (addr : Addr) : (byteOffset addr) / 2 < 4 := by
 LHU reads a halfword from memory at a 2-byte aligned address and zero-extends it. -/
 
 theorem generic_lhu_spec (rd rs1 : Reg) (v_addr v_old : Word)
-    (offset : BitVec 12) (base : Addr)
-    (dwordAddr : Addr) (word_val : Word)
+    (offset : BitVec 12) (base : Word)
+    (dwordAddr : Word) (word_val : Word)
     (hrd_ne_x0 : rd ≠ .x0)
     (_hrd_ne_rs1 : rd ≠ rs1)
     (halign : alignToDword (v_addr + signExtend12 offset) = dwordAddr)
@@ -105,8 +105,8 @@ theorem generic_lhu_spec (rd rs1 : Reg) (v_addr v_old : Word)
 LH reads a halfword from memory at a 2-byte aligned address and sign-extends it. -/
 
 theorem generic_lh_spec (rd rs1 : Reg) (v_addr v_old : Word)
-    (offset : BitVec 12) (base : Addr)
-    (dwordAddr : Addr) (word_val : Word)
+    (offset : BitVec 12) (base : Word)
+    (dwordAddr : Word) (word_val : Word)
     (hrd_ne_x0 : rd ≠ .x0)
     (_hrd_ne_rs1 : rd ≠ rs1)
     (halign : alignToDword (v_addr + signExtend12 offset) = dwordAddr)
@@ -150,8 +150,8 @@ theorem generic_lh_spec (rd rs1 : Reg) (v_addr v_old : Word)
 SH writes a halfword to memory at a 2-byte aligned address. -/
 
 theorem generic_sh_spec (rs1 rs2 : Reg) (v_addr v_data : Word)
-    (offset : BitVec 12) (base : Addr)
-    (dwordAddr : Addr) (word_old : Word)
+    (offset : BitVec 12) (base : Word)
+    (dwordAddr : Word) (word_old : Word)
     (_hne : rs1 ≠ rs2)
     (halign : alignToDword (v_addr + signExtend12 offset) = dwordAddr)
     (hvalid : isValidHalfwordAccess (v_addr + signExtend12 offset) = true) :
