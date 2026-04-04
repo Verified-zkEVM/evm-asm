@@ -234,6 +234,20 @@ Bridge lemmas in `Evm64/Basic.lean` connect per-limb arithmetic to 256-bit opera
 - **`ext j` for BitVec**: After `ext j`, the variable `j` is a `Nat` and `rename_i hj` gives the bound `hj : j < w`. Use `BitVec.getElem_extractLsb'`, `BitVec.getLsbD_sshiftRight`, `BitVec.getElem_sshiftRight` for simplification.
 - **`dif_pos`/`dif_neg` for dependent if**: When `simp` leaves a `dite` (dependent if-then-else), use `rw [dif_pos h]` or `rw [dif_neg h]` to eliminate it, not `simp only [dite_true]`.
 
+## XPerm AC Reflection and Atom Identity
+
+The `xperm` tactic uses AC reflection (`Lean.Meta.AC.buildNormProof`) for O(n log n) separation logic permutation proofs. This requires atoms on both sides to be **syntactically identical** (same `Expr.hash`). Common causes of hash mismatch:
+
+1. **Type alias differences**: `Word` vs `BitVec 64`. Fixed by defining `Word` as `notation` (not `abbrev`), so the elaborator always produces `BitVec 64`.
+
+2. **Let-binding indirection**: `regIs .x7 result` (fvar) vs `regIs .x7 (if ...)` (definition). Fixed by `zetaReduce` in `buildPermProof`.
+
+3. **OfNat instance differences**: `@OfNat.ofNat Word 8 inst₁` vs `@OfNat.ofNat (BitVec 64) 8 inst₂`. Fixed by recursive `withReducible whnf` normalization in `checkACEligible`.
+
+4. **Fin proof term differences**: `getLimb ⟨0, proof₁⟩` vs `getLimb ⟨0, proof₂⟩` where `proof₁` and `proof₂` are different terms for `0 < 4`. **Not yet fixed.** Workaround: use `getLimbN` (Nat index) instead of `getLimb` (Fin 4 index) in new code.
+
+**Rule for new code**: When writing theorem statements that go through `xperm_hyp`, ensure both sides of the permutation use identical expressions (not just isDefEq). Avoid `Fin` literals and use `Nat` indices where possible.
+
 ## Roadmap (PLAN.md)
 
 The project roadmap is maintained in `PLAN.md`. See `CLAUDE.md` for the
