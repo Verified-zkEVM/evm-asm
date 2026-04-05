@@ -199,7 +199,7 @@ Each EVM opcode follows a three-level proof hierarchy:
 2. **Composition** (`Compose.lean`, `ShlCompose.lean`, `SarCompose.lean`): Hierarchical composition of limb specs into full-program theorems. Includes:
    - `xyzCode` definition (`CodeReq.unionAll` of per-phase `CodeReq.ofProg` blocks)
    - Subsumption lemmas (structural `skipBlock` + `union_mono_left`, no `native_decide` on full programs)
-   - Address normalization lemmas (`bv_omega` proofs)
+   - Address normalization lemmas (`bv_addr` proofs — see Build Performance section)
    - Path composition (zero-path/sign-fill for shift >= 256, body-path for shift < 256)
    - Bridge lemmas connecting per-limb results to `getLimb (result) i`
 3. **Semantic** (`Semantic.lean`, `ShlSemantic.lean`, `SarSemantic.lean`): Stack-level `evmWordIs` spec. Lifts composition to `EvmWord` assertions using `cpsTriple_consequence` + `xperm_hyp`.
@@ -209,7 +209,7 @@ Each EVM opcode follows a three-level proof hierarchy:
 Each shift Compose file (~1000-1200 lines) follows this structure:
 1. **Section 1**: `xyzCode` definition as `CodeReq.unionAll` of per-phase `ofProg` blocks + length lemmas + `skipBlock` macro + helpers (`singleton_sub_ofProg`, `CodeReq_union_sub_both`, `regIs_to_regOwn`)
 2. **Section 2**: Subsumption lemmas — structural reasoning via `skipBlock` + `union_mono_left` (following the DivMod pattern). For union-chain `_code` definitions (Phase A, Phase C, sign-fill), split into bridge sub-lemma (`chain_code ⊆ ofProg small_block`) + structural sub-lemma (`ofProg small_block ⊆ xyzCode`)
-3. **Section 3**: Address normalization — `bv_omega` proofs for all offset arithmetic
+3. **Section 3**: Address normalization — `bv_addr` proofs for all offset arithmetic (see Build Performance section)
 4. **Section 4**: Zero-path or sign-fill composition — instruction-by-instruction Phase A chain + branch elimination + path composition
 5. **Section 5**: Phase C dispatch — `cpsNBranch` with cascade steps
 6. **Section 6**: Bridge lemmas — connect limb formulas to `getLimb (operation value n)`
@@ -247,6 +247,39 @@ The `xperm` tactic uses AC reflection (`Lean.Meta.AC.buildNormProof`) for O(n lo
 4. **Fin proof term differences**: `getLimb ⟨0, proof₁⟩` vs `getLimb ⟨0, proof₂⟩` where `proof₁` and `proof₂` are different terms for `0 < 4`. **Not yet fixed.** Workaround: use `getLimbN` (Nat index) instead of `getLimb` (Fin 4 index) in new code.
 
 **Rule for new code**: When writing theorem statements that go through `xperm_hyp`, ensure both sides of the permutation use identical expressions (not just isDefEq). Avoid `Fin` literals and use `Nat` indices where possible.
+
+## Build Performance
+
+### `bv_addr` vs `bv_omega` for address arithmetic
+
+For address offset equalities like `(base + 228) + 24 = base + 252`, use `bv_addr` instead of `bv_omega`:
+
+```lean
+-- GOOD: tiny proof term (add_assoc + rfl), fast kernel checking
+have : (base + 228 : Word) + 24 = base + 252 := by bv_addr
+
+-- BAD: large proof term (bitvec_to_nat conversion + Presburger arithmetic)
+have : (base + 228 : Word) + 24 = base + 252 := by bv_omega
+```
+
+`bv_addr` is defined as `(simp only [BitVec.add_assoc]; rfl)` in `Rv64/Tactics/SeqFrame.lean`. It works for any `(a + k₁) + k₂ = a + k₃` where k₁, k₂, k₃ are concrete and a is a variable.
+
+**When to use `bv_addr`**: Address offset equalities, `ofProg_mono_sub` address arguments, pre-computed address theorems.
+
+**When to keep `bv_omega`**: Address inequalities (`≠`), range bounds (`< 2^64`), `skipBlock` disjointness proofs.
+
+**For signExtend patterns**: `rw [signExtend13_1016]; bv_addr` (normalize signExtend first, then use bv_addr).
+
+Impact: olean sizes drop 50-80% (e.g., LoopBody 16MB → 2.8MB), kernel checking time drops proportionally.
+
+### Parallel file splitting for Compose files
+
+Large composition files (>1000 lines) should be split into independent sub-files under a `Compose/` directory:
+- `Compose/Base.lean`: shared definitions (`divCode`, `modCode`, `skipBlock`, length lemmas)
+- Independent sub-files (PhaseAB, CLZ, Norm, NormA, Div128, Epilogue) that all import only Base
+- `Compose.lean`: lightweight re-export of all sub-files
+
+This enables parallel kernel checking. The split reduced DivMod/Compose from 87s (monolithic) to 55s (critical path through Norm.lean).
 
 ## Roadmap (PLAN.md)
 

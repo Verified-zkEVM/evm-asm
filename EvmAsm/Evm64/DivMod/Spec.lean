@@ -56,16 +56,16 @@ theorem evm_div_bzero_stack_spec (sp base : Word)
   exact cpsTriple_consequence _ _ _ _ _ _ _
     (fun h hp => by
       unfold evmWordIs at hp
-      simp only [show (sp + 32 : Word) + 8 = sp + 40 from by bv_omega,
-                 show (sp + 32 : Word) + 16 = sp + 48 from by bv_omega,
-                 show (sp + 32 : Word) + 24 = sp + 56 from by bv_omega,
+      simp only [show (sp + 32 : Word) + 8 = sp + 40 from by bv_addr,
+                 show (sp + 32 : Word) + 16 = sp + 48 from by bv_addr,
+                 show (sp + 32 : Word) + 24 = sp + 56 from by bv_addr,
                  hg0, hg1, hg2, hg3] at hp
       xperm_hyp hp)
     (fun h hq => by
       unfold evmWordIs
-      simp only [show (sp + 32 : Word) + 8 = sp + 40 from by bv_omega,
-                 show (sp + 32 : Word) + 16 = sp + 48 from by bv_omega,
-                 show (sp + 32 : Word) + 24 = sp + 56 from by bv_omega,
+      simp only [show (sp + 32 : Word) + 8 = sp + 40 from by bv_addr,
+                 show (sp + 32 : Word) + 16 = sp + 48 from by bv_addr,
+                 show (sp + 32 : Word) + 24 = sp + 56 from by bv_addr,
                  hr0, hr1, hr2, hr3]
       have w0 := sepConj_mono_left (regIs_to_regOwn .x5 _) h
         ((congrFun (show _ =
@@ -116,16 +116,16 @@ theorem evm_mod_bzero_stack_spec (sp base : Word)
   exact cpsTriple_consequence _ _ _ _ _ _ _
     (fun h hp => by
       unfold evmWordIs at hp
-      simp only [show (sp + 32 : Word) + 8 = sp + 40 from by bv_omega,
-                 show (sp + 32 : Word) + 16 = sp + 48 from by bv_omega,
-                 show (sp + 32 : Word) + 24 = sp + 56 from by bv_omega,
+      simp only [show (sp + 32 : Word) + 8 = sp + 40 from by bv_addr,
+                 show (sp + 32 : Word) + 16 = sp + 48 from by bv_addr,
+                 show (sp + 32 : Word) + 24 = sp + 56 from by bv_addr,
                  hg0, hg1, hg2, hg3] at hp
       xperm_hyp hp)
     (fun h hq => by
       unfold evmWordIs
-      simp only [show (sp + 32 : Word) + 8 = sp + 40 from by bv_omega,
-                 show (sp + 32 : Word) + 16 = sp + 48 from by bv_omega,
-                 show (sp + 32 : Word) + 24 = sp + 56 from by bv_omega,
+      simp only [show (sp + 32 : Word) + 8 = sp + 40 from by bv_addr,
+                 show (sp + 32 : Word) + 16 = sp + 48 from by bv_addr,
+                 show (sp + 32 : Word) + 24 = sp + 56 from by bv_addr,
                  hr0, hr1, hr2, hr3]
       have w0 := sepConj_mono_left (regIs_to_regOwn .x5 _) h
         ((congrFun (show _ =

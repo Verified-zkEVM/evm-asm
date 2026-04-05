@@ -26,7 +26,7 @@ private theorem beq_shift_sub_divCode (base : Word) :
   have hlookup := CodeReq.ofProg_lookup (base + 212) (divK_phaseC2 172) 3
     (by native_decide) (by native_decide)
   rw [show BitVec.ofNat 64 (4 * 3) = (12 : Word) from by native_decide,
-      show (base + 212 : Word) + 12 = base + 224 from by bv_omega] at hlookup
+      show (base + 212 : Word) + 12 = base + 224 from by bv_addr] at hlookup
   exact divK_phaseC2_code_sub_divCode base a i
     (CodeReq.singleton_mono hlookup a i h)
 
@@ -42,7 +42,7 @@ private theorem divK_phaseC2_body_divCode (sp shift v2 shift_mem : Word) (base :
       ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ (signExtend12 (0 : BitVec 12) - shift)) **
        (.x0 ↦ᵣ (0 : Word)) ** ((sp + signExtend12 3992) ↦ₘ shift)) := by
   have hbody := divK_phaseC2_body_spec sp shift v2 shift_mem 172 (base + 212) hv_shift
-  rw [show (base + 212 : Word) + 12 = base + 224 from by bv_omega] at hbody
+  rw [show (base + 212 : Word) + 12 = base + 224 from by bv_addr] at hbody
   exact cpsTriple_extend_code (divK_phaseC2_code_sub_divCode base) hbody
 
 set_option maxRecDepth 2048 in
@@ -59,8 +59,8 @@ theorem divK_phaseC2_ntaken_spec (sp shift v2 shift_mem : Word) (base : Word)
   have hbody := divK_phaseC2_body_divCode sp shift v2 shift_mem base hv_shift
   have hbeq_raw := beq_spec_gen .x6 .x0 172 shift (0 : Word) (base + 224)
   rw [show (base + 224 : Word) + signExtend13 172 = base + 396 from by
-        rw [signExtend13_172]; bv_omega,
-      show (base + 224 : Word) + 4 = base + 228 from by bv_omega] at hbeq_raw
+        rw [signExtend13_172]; bv_addr,
+      show (base + 224 : Word) + 4 = base + 228 from by bv_addr] at hbeq_raw
   have hbeq_clean := cpsBranch_elim_ntaken_strip_pure2 _ _ _ _ _ _ _ _ _ hbeq_raw
     (fun hp hQt => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQt
@@ -91,8 +91,8 @@ theorem divK_phaseC2_taken_spec (sp shift v2 shift_mem : Word) (base : Word)
   have hbody := divK_phaseC2_body_divCode sp shift v2 shift_mem base hv_shift
   have hbeq_raw := beq_spec_gen .x6 .x0 172 shift (0 : Word) (base + 224)
   rw [show (base + 224 : Word) + signExtend13 172 = base + 396 from by
-        rw [signExtend13_172]; bv_omega,
-      show (base + 224 : Word) + 4 = base + 228 from by bv_omega] at hbeq_raw
+        rw [signExtend13_172]; bv_addr,
+      show (base + 224 : Word) + 4 = base + 228 from by bv_addr] at hbeq_raw
   have hbeq_clean := cpsBranch_elim_taken_strip_pure2 _ _ _ _ _ _ _ _ _ hbeq_raw
     (fun hp hQf => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQf
@@ -165,12 +165,12 @@ theorem divK_normB_full_spec (sp b0 b1 b2 b3 v5 v7 shift anti_shift : Word) (bas
     (by rw [se12_56]; exact hvalid.get (show 7 < 8 from by omega))
     (by rw [se12_48]; exact hvalid.get (show 6 < 8 from by omega))
   simp only [se12_56, se12_48] at hm1
-  rw [show (base + 228 : Word) + 24 = base + 252 from by bv_omega] at hm1
+  rw [show (base + 228 : Word) + 24 = base + 252 from by bv_addr] at hm1
   have hm1e := cpsTriple_extend_code (hmono := fun a i h =>
     divK_normB_code_sub_divCode base a i
       (CodeReq.ofProg_mono_sub (base + 228) (base + 228) divK_normB
         (divK_normB_merge_prog 56 48) 0
-        (by bv_omega) (by native_decide) (by native_decide) (by native_decide) a i h)) hm1
+        (by bv_addr) (by native_decide) (by native_decide) (by native_decide) a i h)) hm1
   -- Frame merge1 with b[0], b[1] (not touched by merge1)
   have hm1ef := cpsTriple_frame_left _ _ _ _ _
     (((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1))
@@ -181,12 +181,12 @@ theorem divK_normB_full_spec (sp b0 b1 b2 b3 v5 v7 shift anti_shift : Word) (bas
     (by rw [se12_48]; exact hvalid.get (show 6 < 8 from by omega))
     (by rw [se12_40]; exact hvalid.get (show 5 < 8 from by omega))
   simp only [se12_48, se12_40] at hm2
-  rw [show (base + 252 : Word) + 24 = base + 276 from by bv_omega] at hm2
+  rw [show (base + 252 : Word) + 24 = base + 276 from by bv_addr] at hm2
   have hm2e := cpsTriple_extend_code (hmono := fun a i h =>
     divK_normB_code_sub_divCode base a i
       (CodeReq.ofProg_mono_sub (base + 228) (base + 252) divK_normB
         (divK_normB_merge_prog 48 40) 6
-        (by bv_omega) (by native_decide) (by native_decide) (by native_decide) a i h)) hm2
+        (by bv_addr) (by native_decide) (by native_decide) (by native_decide) a i h)) hm2
   have hm2ef := cpsTriple_frame_left _ _ _ _ _
     (((sp + 32) ↦ₘ b0) ** ((sp + 56) ↦ₘ b3'))
     (by pcFree) hm2e
@@ -198,12 +198,12 @@ theorem divK_normB_full_spec (sp b0 b1 b2 b3 v5 v7 shift anti_shift : Word) (bas
     (by rw [se12_40]; exact hvalid.get (show 5 < 8 from by omega))
     (by rw [se12_32]; exact hvalid.get (show 4 < 8 from by omega))
   simp only [se12_40, se12_32] at hm3
-  rw [show (base + 276 : Word) + 24 = base + 300 from by bv_omega] at hm3
+  rw [show (base + 276 : Word) + 24 = base + 300 from by bv_addr] at hm3
   have hm3e := cpsTriple_extend_code (hmono := fun a i h =>
     divK_normB_code_sub_divCode base a i
       (CodeReq.ofProg_mono_sub (base + 228) (base + 276) divK_normB
         (divK_normB_merge_prog 40 32) 12
-        (by bv_omega) (by native_decide) (by native_decide) (by native_decide) a i h)) hm3
+        (by bv_addr) (by native_decide) (by native_decide) (by native_decide) a i h)) hm3
   have hm3ef := cpsTriple_frame_left _ _ _ _ _
     (((sp + 48) ↦ₘ b2') ** ((sp + 56) ↦ₘ b3'))
     (by pcFree) hm3e
@@ -213,12 +213,12 @@ theorem divK_normB_full_spec (sp b0 b1 b2 b3 v5 v7 shift anti_shift : Word) (bas
   have hl := divK_normB_last_spec 32 sp b0 b1' shift (base + 300)
     (by rw [se12_32]; exact hvalid.get (show 4 < 8 from by omega))
   simp only [se12_32] at hl
-  rw [show (base + 300 : Word) + 12 = base + 312 from by bv_omega] at hl
+  rw [show (base + 300 : Word) + 12 = base + 312 from by bv_addr] at hl
   have hle := cpsTriple_extend_code (hmono := fun a i h =>
     divK_normB_code_sub_divCode base a i
       (CodeReq.ofProg_mono_sub (base + 228) (base + 300) divK_normB
         (divK_normB_last_prog 32) 18
-        (by bv_omega) (by native_decide) (by native_decide) (by native_decide) a i h)) hl
+        (by bv_addr) (by native_decide) (by native_decide) (by native_decide) a i h)) hl
   have hlef := cpsTriple_frame_left _ _ _ _ _
     ((.x7 ↦ᵣ (b0 >>> (anti_shift.toNat % 64))) ** (.x2 ↦ᵣ anti_shift) **
      ((sp + 40) ↦ₘ b1') ** ((sp + 48) ↦ₘ b2') ** ((sp + 56) ↦ₘ b3'))

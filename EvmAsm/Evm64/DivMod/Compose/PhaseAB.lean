@@ -51,7 +51,7 @@ private theorem divK_phaseB_init1_code_sub_divCode (base : Word) :
   -- Lift from init1 sub-range to full phaseB block
   have h1 := CodeReq.ofProg_mono_sub (base + 32) (base + 32) divK_phaseB
     (divK_phaseB.take 7) 0
-    (by bv_omega) (by native_decide) (by native_decide) (by native_decide) a i h
+    (by bv_addr) (by native_decide) (by native_decide) (by native_decide) a i h
   -- Skip block 0 (phaseA disjoint from phaseB), match block 1
   exact CodeReq.mono_union_right
     (CodeReq.ofProg_disjoint_range _ _ _ _
@@ -65,7 +65,7 @@ private theorem divK_phaseB_init2_code_sub_divCode (base : Word) :
   intro a i h
   have h1 := CodeReq.ofProg_mono_sub (base + 32) (base + 60) divK_phaseB
     (divK_phaseB.drop 7 |>.take 2) 7
-    (by bv_omega) (by native_decide) (by native_decide) (by native_decide) a i h
+    (by bv_addr) (by native_decide) (by native_decide) (by native_decide) a i h
   exact CodeReq.mono_union_right
     (CodeReq.ofProg_disjoint_range _ _ _ _
       (fun k1 k2 hk1 hk2 => by simp only [divK_phaseA_len, divK_phaseB_len] at hk1 hk2; bv_omega))
@@ -80,7 +80,7 @@ private theorem addi_x5_singleton_sub_divCode (base : Word) :
   have hlookup := CodeReq.ofProg_lookup (base + 32) divK_phaseB 9
     (by native_decide) (by native_decide)
   rw [show BitVec.ofNat 64 (4 * 9) = (36 : Word) from by native_decide,
-      show (base + 32 : Word) + 36 = base + 68 from by bv_omega] at hlookup
+      show (base + 32 : Word) + 36 = base + 68 from by bv_addr] at hlookup
   have h1 := CodeReq.singleton_mono hlookup a i h
   exact CodeReq.mono_union_right
     (CodeReq.ofProg_disjoint_range _ _ _ _
@@ -96,7 +96,7 @@ private theorem bne_x10_singleton_sub_divCode (base : Word) :
   have hlookup := CodeReq.ofProg_lookup (base + 32) divK_phaseB 10
     (by native_decide) (by native_decide)
   rw [show BitVec.ofNat 64 (4 * 10) = (40 : Word) from by native_decide,
-      show (base + 32 : Word) + 40 = base + 72 from by bv_omega] at hlookup
+      show (base + 32 : Word) + 40 = base + 72 from by bv_addr] at hlookup
   have h1 := CodeReq.singleton_mono hlookup a i h
   exact CodeReq.mono_union_right
     (CodeReq.ofProg_disjoint_range _ _ _ _
@@ -110,7 +110,7 @@ private theorem divK_phaseB_tail_code_sub_divCode (base : Word) :
   intro a i h
   have h1 := CodeReq.ofProg_mono_sub (base + 32) (base + 96) divK_phaseB
     (divK_phaseB.drop 16) 16
-    (by bv_omega) (by native_decide) (by native_decide) (by native_decide) a i h
+    (by bv_addr) (by native_decide) (by native_decide) (by native_decide) a i h
   exact CodeReq.mono_union_right
     (CodeReq.ofProg_disjoint_range _ _ _ _
       (fun k1 k2 hk1 hk2 => by simp only [divK_phaseA_len, divK_phaseB_len] at hk1 hk2; bv_omega))
@@ -138,23 +138,23 @@ private theorem divK_phaseB_n4_nm1_x8 :
 private theorem divK_se12_32 : signExtend12 (32 : BitVec 12) = (32 : Word) := by native_decide
 
 -- Address normalization lemmas for phaseB composition (separate theorems for heartbeat budget)
-private theorem phB_off_4 (base : Word) : (base + 32 : Word) + 4 = base + 36 := by bv_omega
-private theorem phB_off_8 (base : Word) : (base + 32 : Word) + 8 = base + 40 := by bv_omega
-private theorem phB_off_12 (base : Word) : (base + 32 : Word) + 12 = base + 44 := by bv_omega
-private theorem phB_off_16 (base : Word) : (base + 32 : Word) + 16 = base + 48 := by bv_omega
-private theorem phB_off_20 (base : Word) : (base + 32 : Word) + 20 = base + 52 := by bv_omega
-private theorem phB_off_24 (base : Word) : (base + 32 : Word) + 24 = base + 56 := by bv_omega
-private theorem phB_off_28 (base : Word) : (base + 32 : Word) + 28 = base + 60 := by bv_omega
-private theorem phB_i2_4 (base : Word) : (base + 60 : Word) + 4 = base + 64 := by bv_omega
-private theorem phB_i2_8 (base : Word) : (base + 60 : Word) + 8 = base + 68 := by bv_omega
-private theorem phB_addi_4 (base : Word) : (base + 68 : Word) + 4 = base + 72 := by bv_omega
-private theorem phB_bne_4 (base : Word) : (base + 72 : Word) + 4 = base + 76 := by bv_omega
-private theorem phB_t_4 (base : Word) : (base + 96 : Word) + 4 = base + 100 := by bv_omega
-private theorem phB_t_8 (base : Word) : (base + 96 : Word) + 8 = base + 104 := by bv_omega
-private theorem phB_t_12 (base : Word) : (base + 96 : Word) + 12 = base + 108 := by bv_omega
-private theorem phB_t_16 (base : Word) : (base + 96 : Word) + 16 = base + 112 := by bv_omega
-private theorem phB_t_20 (base : Word) : (base + 96 : Word) + 20 = base + 116 := by bv_omega
-private theorem phB_sp24_32 (sp : Word) : (sp + (24 : Word) + (32 : Word)) = sp + 56 := by bv_omega
+private theorem phB_off_4 (base : Word) : (base + 32 : Word) + 4 = base + 36 := by bv_addr
+private theorem phB_off_8 (base : Word) : (base + 32 : Word) + 8 = base + 40 := by bv_addr
+private theorem phB_off_12 (base : Word) : (base + 32 : Word) + 12 = base + 44 := by bv_addr
+private theorem phB_off_16 (base : Word) : (base + 32 : Word) + 16 = base + 48 := by bv_addr
+private theorem phB_off_20 (base : Word) : (base + 32 : Word) + 20 = base + 52 := by bv_addr
+private theorem phB_off_24 (base : Word) : (base + 32 : Word) + 24 = base + 56 := by bv_addr
+private theorem phB_off_28 (base : Word) : (base + 32 : Word) + 28 = base + 60 := by bv_addr
+private theorem phB_i2_4 (base : Word) : (base + 60 : Word) + 4 = base + 64 := by bv_addr
+private theorem phB_i2_8 (base : Word) : (base + 60 : Word) + 8 = base + 68 := by bv_addr
+private theorem phB_addi_4 (base : Word) : (base + 68 : Word) + 4 = base + 72 := by bv_addr
+private theorem phB_bne_4 (base : Word) : (base + 72 : Word) + 4 = base + 76 := by bv_addr
+private theorem phB_t_4 (base : Word) : (base + 96 : Word) + 4 = base + 100 := by bv_addr
+private theorem phB_t_8 (base : Word) : (base + 96 : Word) + 8 = base + 104 := by bv_addr
+private theorem phB_t_12 (base : Word) : (base + 96 : Word) + 12 = base + 108 := by bv_addr
+private theorem phB_t_16 (base : Word) : (base + 96 : Word) + 16 = base + 112 := by bv_addr
+private theorem phB_t_20 (base : Word) : (base + 96 : Word) + 20 = base + 116 := by bv_addr
+private theorem phB_sp24_32 (sp : Word) : (sp + (24 : Word) + (32 : Word)) = sp + 56 := by bv_addr
 
 -- ============================================================================
 -- Section 6b: Opaque memory bundle for phaseB invariant cells
@@ -214,8 +214,8 @@ theorem evm_div_bzero_spec (sp base : Word)
   -- Step 2: BEQ at base+28, eliminate ntaken via hbz
   have hbeq_raw := beq_spec_gen .x5 .x0 1016 (b0 ||| b1 ||| b2 ||| b3) (0 : Word) (base + 28)
   rw [show (base + 28 : Word) + signExtend13 1016 = base + 1044 from by
-        rw [signExtend13_1016]; bv_omega,
-      show (base + 28 : Word) + 4 = base + 32 from by bv_omega] at hbeq_raw
+        rw [signExtend13_1016]; bv_addr,
+      show (base + 28 : Word) + 4 = base + 32 from by bv_addr] at hbeq_raw
   have hbeq_clean := cpsBranch_elim_taken_strip_pure2 _ _ _ _ _ _ _ _ _ hbeq_raw
     (fun hp hQf => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQf
@@ -235,7 +235,7 @@ theorem evm_div_bzero_spec (sp base : Word)
   -- Extend to divCode CodeReq
   have hzp := cpsTriple_extend_code (divK_zeroPath_code_sub_divCode base)
     (divK_zeroPath_spec sp (base + 1044) b0 b1 b2 b3 hvalid)
-  rw [show (base + 1044 : Word) + 20 = base + 1064 from by bv_omega] at hzp
+  rw [show (base + 1044 : Word) + 20 = base + 1064 from by bv_addr] at hzp
   -- Frame ZP with x5 + x10 + x0
   have hzp_framed := cpsTriple_frame_left _ _ _ _ _
     ((.x5 ↦ᵣ (b0 ||| b1 ||| b2 ||| b3)) ** (.x10 ↦ᵣ b3) ** (.x0 ↦ᵣ (0 : Word)))
@@ -274,8 +274,8 @@ theorem evm_div_phaseA_ntaken_spec (sp base : Word)
   -- Step 2: BEQ at base+28, eliminate taken path (b=0 absurd since hbnz)
   have hbeq_raw := beq_spec_gen .x5 .x0 1016 (b0 ||| b1 ||| b2 ||| b3) (0 : Word) (base + 28)
   rw [show (base + 28 : Word) + signExtend13 1016 = base + 1044 from by
-        rw [signExtend13_1016]; bv_omega,
-      show (base + 28 : Word) + 4 = base + 32 from by bv_omega] at hbeq_raw
+        rw [signExtend13_1016]; bv_addr,
+      show (base + 28 : Word) + 4 = base + 32 from by bv_addr] at hbeq_raw
   have hbeq_clean := cpsBranch_elim_ntaken_strip_pure2 _ _ _ _ _ _ _ _ _ hbeq_raw
     (fun hp hQt => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQt
@@ -360,7 +360,7 @@ theorem evm_div_phaseB_n4_spec (sp base : Word)
   -- ---- Step 4: BNE x10 x0 24 at base+72, elim ntaken (b3=0 absurd)
   have hbne_raw := bne_spec_gen .x10 .x0 24 b3 (0 : Word) (base + 72)
   rw [show (base + 72 : Word) + signExtend13 24 = base + 96 from by
-        rw [signExtend13_24]; bv_omega, phB_bne_4] at hbne_raw
+        rw [signExtend13_24]; bv_addr, phB_bne_4] at hbne_raw
   have hbne_clean := cpsBranch_elim_taken_strip_pure2 _ _ _ _ _ _ _ _ _ hbne_raw
     (fun hp hQf => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQf
@@ -458,7 +458,7 @@ private theorem addi_x5_3_sub_divCode (base : Word) :
   have hlookup := CodeReq.ofProg_lookup (base + 32) divK_phaseB 11
     (by native_decide) (by native_decide)
   rw [show BitVec.ofNat 64 (4 * 11) = (44 : Word) from by native_decide,
-      show (base + 32 : Word) + 44 = base + 76 from by bv_omega] at hlookup
+      show (base + 32 : Word) + 44 = base + 76 from by bv_addr] at hlookup
   have h1 := CodeReq.singleton_mono hlookup a i h
   exact CodeReq.mono_union_right
     (CodeReq.ofProg_disjoint_range _ _ _ _
@@ -474,7 +474,7 @@ private theorem bne_x7_16_sub_divCode (base : Word) :
   have hlookup := CodeReq.ofProg_lookup (base + 32) divK_phaseB 12
     (by native_decide) (by native_decide)
   rw [show BitVec.ofNat 64 (4 * 12) = (48 : Word) from by native_decide,
-      show (base + 32 : Word) + 48 = base + 80 from by bv_omega] at hlookup
+      show (base + 32 : Word) + 48 = base + 80 from by bv_addr] at hlookup
   have h1 := CodeReq.singleton_mono hlookup a i h
   exact CodeReq.mono_union_right
     (CodeReq.ofProg_disjoint_range _ _ _ _
@@ -490,7 +490,7 @@ private theorem addi_x5_2_sub_divCode (base : Word) :
   have hlookup := CodeReq.ofProg_lookup (base + 32) divK_phaseB 13
     (by native_decide) (by native_decide)
   rw [show BitVec.ofNat 64 (4 * 13) = (52 : Word) from by native_decide,
-      show (base + 32 : Word) + 52 = base + 84 from by bv_omega] at hlookup
+      show (base + 32 : Word) + 52 = base + 84 from by bv_addr] at hlookup
   have h1 := CodeReq.singleton_mono hlookup a i h
   exact CodeReq.mono_union_right
     (CodeReq.ofProg_disjoint_range _ _ _ _
@@ -506,7 +506,7 @@ private theorem bne_x6_8_sub_divCode (base : Word) :
   have hlookup := CodeReq.ofProg_lookup (base + 32) divK_phaseB 14
     (by native_decide) (by native_decide)
   rw [show BitVec.ofNat 64 (4 * 14) = (56 : Word) from by native_decide,
-      show (base + 32 : Word) + 56 = base + 88 from by bv_omega] at hlookup
+      show (base + 32 : Word) + 56 = base + 88 from by bv_addr] at hlookup
   have h1 := CodeReq.singleton_mono hlookup a i h
   exact CodeReq.mono_union_right
     (CodeReq.ofProg_disjoint_range _ _ _ _
@@ -522,7 +522,7 @@ private theorem addi_x5_1_sub_divCode (base : Word) :
   have hlookup := CodeReq.ofProg_lookup (base + 32) divK_phaseB 15
     (by native_decide) (by native_decide)
   rw [show BitVec.ofNat 64 (4 * 15) = (60 : Word) from by native_decide,
-      show (base + 32 : Word) + 60 = base + 92 from by bv_omega] at hlookup
+      show (base + 32 : Word) + 60 = base + 92 from by bv_addr] at hlookup
   have h1 := CodeReq.singleton_mono hlookup a i h
   exact CodeReq.mono_union_right
     (CodeReq.ofProg_disjoint_range _ _ _ _
@@ -552,16 +552,16 @@ private theorem divK_phaseB_n1_nm1_x8 :
   native_decide
 
 -- Cascade address normalization
-private theorem phB_step1_4 (base : Word) : (base + 76 : Word) + 4 = base + 80 := by bv_omega
-private theorem phB_step1_8 (base : Word) : (base + 80 : Word) + 4 = base + 84 := by bv_omega
-private theorem phB_step2_4 (base : Word) : (base + 84 : Word) + 4 = base + 88 := by bv_omega
-private theorem phB_step2_8 (base : Word) : (base + 88 : Word) + 4 = base + 92 := by bv_omega
-private theorem phB_fall_4 (base : Word) : (base + 92 : Word) + 4 = base + 96 := by bv_omega
+private theorem phB_step1_4 (base : Word) : (base + 76 : Word) + 4 = base + 80 := by bv_addr
+private theorem phB_step1_8 (base : Word) : (base + 80 : Word) + 4 = base + 84 := by bv_addr
+private theorem phB_step2_4 (base : Word) : (base + 84 : Word) + 4 = base + 88 := by bv_addr
+private theorem phB_step2_8 (base : Word) : (base + 88 : Word) + 4 = base + 92 := by bv_addr
+private theorem phB_fall_4 (base : Word) : (base + 92 : Word) + 4 = base + 96 := by bv_addr
 
 -- Tail memory address normalization
-private theorem phB_sp16_32 (sp : Word) : (sp + (16 : Word) + (32 : Word)) = sp + 48 := by bv_omega
-private theorem phB_sp8_32 (sp : Word) : (sp + (8 : Word) + (32 : Word)) = sp + 40 := by bv_omega
-private theorem phB_sp0_32 (sp : Word) : (sp + (0 : Word) + (32 : Word)) = sp + 32 := by bv_omega
+private theorem phB_sp16_32 (sp : Word) : (sp + (16 : Word) + (32 : Word)) = sp + 48 := by bv_addr
+private theorem phB_sp8_32 (sp : Word) : (sp + (8 : Word) + (32 : Word)) = sp + 40 := by bv_addr
+private theorem phB_sp0_32 (sp : Word) : (sp + (0 : Word) + (32 : Word)) = sp + 32 := by bv_addr
 
 -- ============================================================================
 -- Section 10d: Phase B n=3 (b[3]=0, b[2]≠0)
@@ -646,7 +646,7 @@ theorem evm_div_phaseB_n3_spec (sp base : Word)
   -- ---- Cascade step 0: BNE x10 ntaken (base+72 → base+76, b3=0)
   have hbne0_raw := bne_spec_gen .x10 .x0 24 b3 (0 : Word) (base + 72)
   rw [show (base + 72 : Word) + signExtend13 24 = base + 96 from by
-        rw [signExtend13_24]; bv_omega, phB_bne_4] at hbne0_raw
+        rw [signExtend13_24]; bv_addr, phB_bne_4] at hbne0_raw
   have hbne0_clean := cpsBranch_elim_ntaken_strip_pure2 _ _ _ _ _ _ _ _ _ hbne0_raw
     (fun hp hQt => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQt
@@ -681,7 +681,7 @@ theorem evm_div_phaseB_n3_spec (sp base : Word)
   -- ---- Cascade step 1: BNE x7 taken (base+80 → base+96, b2≠0)
   have hbne1_raw := bne_spec_gen .x7 .x0 16 b2 (0 : Word) (base + 80)
   rw [show (base + 80 : Word) + signExtend13 16 = base + 96 from by
-        rw [signExtend13_16]; bv_omega, phB_step1_8] at hbne1_raw
+        rw [signExtend13_16]; bv_addr, phB_step1_8] at hbne1_raw
   have hbne1_clean := cpsBranch_elim_taken_strip_pure2 _ _ _ _ _ _ _ _ _ hbne1_raw
     (fun hp hQf => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQf
@@ -806,7 +806,7 @@ theorem evm_div_phaseB_n2_spec (sp base : Word)
   -- ---- Cascade step 0: BNE x10 ntaken (base+72 → base+76, b3=0)
   have hbne0_raw := bne_spec_gen .x10 .x0 24 b3 (0 : Word) (base + 72)
   rw [show (base + 72 : Word) + signExtend13 24 = base + 96 from by
-        rw [signExtend13_24]; bv_omega, phB_bne_4] at hbne0_raw
+        rw [signExtend13_24]; bv_addr, phB_bne_4] at hbne0_raw
   have hbne0_clean := cpsBranch_elim_ntaken_strip_pure2 _ _ _ _ _ _ _ _ _ hbne0_raw
     (fun hp hQt => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQt
@@ -841,7 +841,7 @@ theorem evm_div_phaseB_n2_spec (sp base : Word)
   -- ---- Cascade step 1: BNE x7 ntaken (base+80 → base+84, b2=0)
   have hbne1_raw := bne_spec_gen .x7 .x0 16 b2 (0 : Word) (base + 80)
   rw [show (base + 80 : Word) + signExtend13 16 = base + 96 from by
-        rw [signExtend13_16]; bv_omega, phB_step1_8] at hbne1_raw
+        rw [signExtend13_16]; bv_addr, phB_step1_8] at hbne1_raw
   have hbne1_clean := cpsBranch_elim_ntaken_strip_pure2 _ _ _ _ _ _ _ _ _ hbne1_raw
     (fun hp hQt => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQt
@@ -876,7 +876,7 @@ theorem evm_div_phaseB_n2_spec (sp base : Word)
   -- ---- Cascade step 2: BNE x6 taken (base+88 → base+96, b1≠0)
   have hbne2_raw := bne_spec_gen .x6 .x0 8 b1 (0 : Word) (base + 88)
   rw [show (base + 88 : Word) + signExtend13 8 = base + 96 from by
-        rw [signExtend13_8]; bv_omega, phB_step2_8] at hbne2_raw
+        rw [signExtend13_8]; bv_addr, phB_step2_8] at hbne2_raw
   have hbne2_clean := cpsBranch_elim_taken_strip_pure2 _ _ _ _ _ _ _ _ _ hbne2_raw
     (fun hp hQf => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQf
@@ -1002,7 +1002,7 @@ theorem evm_div_phaseB_n1_spec (sp base : Word)
   -- ---- Cascade step 0: BNE x10 ntaken (base+72 → base+76, b3=0)
   have hbne0_raw := bne_spec_gen .x10 .x0 24 b3 (0 : Word) (base + 72)
   rw [show (base + 72 : Word) + signExtend13 24 = base + 96 from by
-        rw [signExtend13_24]; bv_omega, phB_bne_4] at hbne0_raw
+        rw [signExtend13_24]; bv_addr, phB_bne_4] at hbne0_raw
   have hbne0_clean := cpsBranch_elim_ntaken_strip_pure2 _ _ _ _ _ _ _ _ _ hbne0_raw
     (fun hp hQt => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQt
@@ -1037,7 +1037,7 @@ theorem evm_div_phaseB_n1_spec (sp base : Word)
   -- ---- Cascade step 1: BNE x7 ntaken (base+80 → base+84, b2=0)
   have hbne1_raw := bne_spec_gen .x7 .x0 16 b2 (0 : Word) (base + 80)
   rw [show (base + 80 : Word) + signExtend13 16 = base + 96 from by
-        rw [signExtend13_16]; bv_omega, phB_step1_8] at hbne1_raw
+        rw [signExtend13_16]; bv_addr, phB_step1_8] at hbne1_raw
   have hbne1_clean := cpsBranch_elim_ntaken_strip_pure2 _ _ _ _ _ _ _ _ _ hbne1_raw
     (fun hp hQt => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQt
@@ -1072,7 +1072,7 @@ theorem evm_div_phaseB_n1_spec (sp base : Word)
   -- ---- Cascade step 2: BNE x6 ntaken (base+88 → base+92, b1=0)
   have hbne2_raw := bne_spec_gen .x6 .x0 8 b1 (0 : Word) (base + 88)
   rw [show (base + 88 : Word) + signExtend13 8 = base + 96 from by
-        rw [signExtend13_8]; bv_omega, phB_step2_8] at hbne2_raw
+        rw [signExtend13_8]; bv_addr, phB_step2_8] at hbne2_raw
   have hbne2_clean := cpsBranch_elim_ntaken_strip_pure2 _ _ _ _ _ _ _ _ _ hbne2_raw
     (fun hp hQt => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQt

@@ -57,11 +57,11 @@ private theorem CodeReq_union_sub {cr1 cr2 target : CodeReq}
 -- ============================================================================
 
 -- Mulsub limb base addresses (instrs [22]-[65])
-private theorem lb_ms0 (base : Word) : (base + 448 : Word) + 88 = base + 536 := by bv_omega
-private theorem lb_ms1 (base : Word) : (base + 536 : Word) + 44 = base + 580 := by bv_omega
-private theorem lb_ms2 (base : Word) : (base + 580 : Word) + 44 = base + 624 := by bv_omega
-private theorem lb_ms3 (base : Word) : (base + 624 : Word) + 44 = base + 668 := by bv_omega
-private theorem lb_ms_end (base : Word) : (base + 668 : Word) + 44 = base + 712 := by bv_omega
+private theorem lb_ms0 (base : Word) : (base + 448 : Word) + 88 = base + 536 := by bv_addr
+private theorem lb_ms1 (base : Word) : (base + 536 : Word) + 44 = base + 580 := by bv_addr
+private theorem lb_ms2 (base : Word) : (base + 580 : Word) + 44 = base + 624 := by bv_addr
+private theorem lb_ms3 (base : Word) : (base + 624 : Word) + 44 = base + 668 := by bv_addr
+private theorem lb_ms_end (base : Word) : (base + 668 : Word) + 44 = base + 712 := by bv_addr
 
 -- ============================================================================
 -- Section 3: Mulsub 4-limbs composition
@@ -146,17 +146,17 @@ theorem divK_mulsub_4limbs_spec
     hv_v0 hv_u0
   rw [lb_ms1] at L0
   have L0e := cpsTriple_extend_code (hmono := by
-    exact CodeReq_union_sub (lb_sub base 22 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 23 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 24 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 25 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 26 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 27 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 28 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 29 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 30 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 31 _ _ (by native_decide) (by bv_omega) (by native_decide))
-      (lb_sub base 32 _ _ (by native_decide) (by bv_omega) (by native_decide))))))))))))
+    exact CodeReq_union_sub (lb_sub base 22 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 23 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 24 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 25 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 26 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 27 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 28 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 29 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 30 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 31 _ _ (by native_decide) (by bv_addr) (by native_decide))
+      (lb_sub base 32 _ _ (by native_decide) (by bv_addr) (by native_decide))))))))))))
     L0
   -- Limb 1: instrs [33]-[43] at base+580
   have L1 := divK_mulsub_limb_spec sp u_base q_hat c0
@@ -164,17 +164,17 @@ theorem divK_mulsub_4limbs_spec
     hv_v1 hv_u1
   rw [lb_ms2] at L1
   have L1e := cpsTriple_extend_code (hmono := by
-    exact CodeReq_union_sub (lb_sub base 33 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 34 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 35 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 36 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 37 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 38 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 39 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 40 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 41 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 42 _ _ (by native_decide) (by bv_omega) (by native_decide))
-      (lb_sub base 43 _ _ (by native_decide) (by bv_omega) (by native_decide))))))))))))
+    exact CodeReq_union_sub (lb_sub base 33 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 34 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 35 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 36 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 37 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 38 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 39 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 40 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 41 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 42 _ _ (by native_decide) (by bv_addr) (by native_decide))
+      (lb_sub base 43 _ _ (by native_decide) (by bv_addr) (by native_decide))))))))))))
     L1
   -- Frame L0 with memory for limbs 1-3 (so seqFrame can find L1's precondition atoms)
   have L0f := cpsTriple_frame_left _ _ _ _ _
@@ -190,17 +190,17 @@ theorem divK_mulsub_4limbs_spec
     hv_v2 hv_u2
   rw [lb_ms3] at L2
   have L2e := cpsTriple_extend_code (hmono := by
-    exact CodeReq_union_sub (lb_sub base 44 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 45 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 46 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 47 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 48 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 49 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 50 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 51 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 52 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 53 _ _ (by native_decide) (by bv_omega) (by native_decide))
-      (lb_sub base 54 _ _ (by native_decide) (by bv_omega) (by native_decide))))))))))))
+    exact CodeReq_union_sub (lb_sub base 44 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 45 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 46 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 47 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 48 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 49 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 50 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 51 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 52 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 53 _ _ (by native_decide) (by bv_addr) (by native_decide))
+      (lb_sub base 54 _ _ (by native_decide) (by bv_addr) (by native_decide))))))))))))
     L2
   -- Compose (L0+L1) + L2
   seqFrame L0fL1e L2e
@@ -210,17 +210,17 @@ theorem divK_mulsub_4limbs_spec
     hv_v3 hv_u3
   rw [lb_ms_end] at L3
   have L3e := cpsTriple_extend_code (hmono := by
-    exact CodeReq_union_sub (lb_sub base 55 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 56 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 57 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 58 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 59 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 60 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 61 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 62 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 63 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 64 _ _ (by native_decide) (by bv_omega) (by native_decide))
-      (lb_sub base 65 _ _ (by native_decide) (by bv_omega) (by native_decide))))))))))))
+    exact CodeReq_union_sub (lb_sub base 55 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 56 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 57 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 58 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 59 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 60 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 61 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 62 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 63 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 64 _ _ (by native_decide) (by bv_addr) (by native_decide))
+      (lb_sub base 65 _ _ (by native_decide) (by bv_addr) (by native_decide))))))))))))
     L3
   -- Compose (L0+L1+L2) + L3
   seqFrame L0fL1eL2e L3e
@@ -238,13 +238,13 @@ theorem divK_mulsub_4limbs_spec
 -- ============================================================================
 
 -- Addback base addresses (instrs [71]-[107])
-private theorem lb_ab_init (base : Word) : (base + 448 : Word) + 284 = base + 732 := by bv_omega
-private theorem lb_ab0 (base : Word) : (base + 732 : Word) + 4 = base + 736 := by bv_omega
-private theorem lb_ab0_end (base : Word) : (base + 736 : Word) + 32 = base + 768 := by bv_omega
-private theorem lb_ab1_end (base : Word) : (base + 768 : Word) + 32 = base + 800 := by bv_omega
-private theorem lb_ab2_end (base : Word) : (base + 800 : Word) + 32 = base + 832 := by bv_omega
-private theorem lb_ab3_end (base : Word) : (base + 832 : Word) + 32 = base + 864 := by bv_omega
-private theorem lb_abf_end (base : Word) : (base + 864 : Word) + 16 = base + 880 := by bv_omega
+private theorem lb_ab_init (base : Word) : (base + 448 : Word) + 284 = base + 732 := by bv_addr
+private theorem lb_ab0 (base : Word) : (base + 732 : Word) + 4 = base + 736 := by bv_addr
+private theorem lb_ab0_end (base : Word) : (base + 736 : Word) + 32 = base + 768 := by bv_addr
+private theorem lb_ab1_end (base : Word) : (base + 768 : Word) + 32 = base + 800 := by bv_addr
+private theorem lb_ab2_end (base : Word) : (base + 800 : Word) + 32 = base + 832 := by bv_addr
+private theorem lb_ab3_end (base : Word) : (base + 832 : Word) + 32 = base + 864 := by bv_addr
+private theorem lb_abf_end (base : Word) : (base + 864 : Word) + 16 = base + 880 := by bv_addr
 
 set_option maxRecDepth 4096 in
 set_option maxHeartbeats 800000 in
@@ -315,7 +315,7 @@ theorem divK_addback_full_spec
   have I := divK_addback_init_spec v7_init (base + 732)
   rw [lb_ab0] at I
   have Ie := cpsTriple_extend_code (hmono := by
-    exact lb_sub base 71 _ _ (by native_decide) (by bv_omega) (by native_decide)) I
+    exact lb_sub base 71 _ _ (by native_decide) (by bv_addr) (by native_decide)) I
   -- Frame init with all addback state
   have If := cpsTriple_frame_left _ _ _ _ _
     ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ u_base) ** (.x11 ↦ᵣ q_hat) **
@@ -331,14 +331,14 @@ theorem divK_addback_full_spec
     v5_init v2_init v0 u0 32 0 (base + 736) hv_v0 hv_u0
   rw [lb_ab0_end] at A0
   have A0e := cpsTriple_extend_code (hmono := by
-    exact CodeReq_union_sub (lb_sub base 72 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 73 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 74 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 75 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 76 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 77 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 78 _ _ (by native_decide) (by bv_omega) (by native_decide))
-      (lb_sub base 79 _ _ (by native_decide) (by bv_omega) (by native_decide)))))))))
+    exact CodeReq_union_sub (lb_sub base 72 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 73 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 74 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 75 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 76 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 77 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 78 _ _ (by native_decide) (by bv_addr) (by native_decide))
+      (lb_sub base 79 _ _ (by native_decide) (by bv_addr) (by native_decide)))))))))
     A0
   -- Compose init + limb 0
   seqFrame If A0e
@@ -347,14 +347,14 @@ theorem divK_addback_full_spec
     ac2_0 aun0 v1 u1 40 4088 (base + 768) hv_v1 hv_u1
   rw [lb_ab1_end] at A1
   have A1e := cpsTriple_extend_code (hmono := by
-    exact CodeReq_union_sub (lb_sub base 80 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 81 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 82 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 83 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 84 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 85 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 86 _ _ (by native_decide) (by bv_omega) (by native_decide))
-      (lb_sub base 87 _ _ (by native_decide) (by bv_omega) (by native_decide)))))))))
+    exact CodeReq_union_sub (lb_sub base 80 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 81 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 82 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 83 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 84 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 85 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 86 _ _ (by native_decide) (by bv_addr) (by native_decide))
+      (lb_sub base 87 _ _ (by native_decide) (by bv_addr) (by native_decide)))))))))
     A1
   seqFrame IfA0e A1e
   -- Limb 2: instrs [88]-[95] at base+800
@@ -362,14 +362,14 @@ theorem divK_addback_full_spec
     ac2_1 aun1 v2 u2 48 4080 (base + 800) hv_v2 hv_u2
   rw [lb_ab2_end] at A2
   have A2e := cpsTriple_extend_code (hmono := by
-    exact CodeReq_union_sub (lb_sub base 88 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 89 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 90 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 91 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 92 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 93 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 94 _ _ (by native_decide) (by bv_omega) (by native_decide))
-      (lb_sub base 95 _ _ (by native_decide) (by bv_omega) (by native_decide)))))))))
+    exact CodeReq_union_sub (lb_sub base 88 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 89 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 90 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 91 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 92 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 93 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 94 _ _ (by native_decide) (by bv_addr) (by native_decide))
+      (lb_sub base 95 _ _ (by native_decide) (by bv_addr) (by native_decide)))))))))
     A2
   seqFrame IfA0eA1e A2e
   -- Limb 3: instrs [96]-[103] at base+832
@@ -377,24 +377,24 @@ theorem divK_addback_full_spec
     ac2_2 aun2 v3 u3 56 4072 (base + 832) hv_v3 hv_u3
   rw [lb_ab3_end] at A3
   have A3e := cpsTriple_extend_code (hmono := by
-    exact CodeReq_union_sub (lb_sub base 96 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 97 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 98 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 99 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 100 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 101 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 102 _ _ (by native_decide) (by bv_omega) (by native_decide))
-      (lb_sub base 103 _ _ (by native_decide) (by bv_omega) (by native_decide)))))))))
+    exact CodeReq_union_sub (lb_sub base 96 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 97 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 98 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 99 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 100 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 101 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 102 _ _ (by native_decide) (by bv_addr) (by native_decide))
+      (lb_sub base 103 _ _ (by native_decide) (by bv_addr) (by native_decide)))))))))
     A3
   seqFrame IfA0eA1eA2e A3e
   -- Final: instrs [104]-[107] at base+864
   have AF := divK_addback_final_spec u_base aco3 q_hat ac2_3 u4 4064 (base + 864) hv_u4
   rw [lb_abf_end] at AF
   have AFe := cpsTriple_extend_code (hmono := by
-    exact CodeReq_union_sub (lb_sub base 104 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 105 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 106 _ _ (by native_decide) (by bv_omega) (by native_decide))
-      (lb_sub base 107 _ _ (by native_decide) (by bv_omega) (by native_decide)))))
+    exact CodeReq_union_sub (lb_sub base 104 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 105 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 106 _ _ (by native_decide) (by bv_addr) (by native_decide))
+      (lb_sub base 107 _ _ (by native_decide) (by bv_addr) (by native_decide)))))
     AF
   seqFrame IfA0eA1eA2eA3e AFe
   -- Final permutation
@@ -409,10 +409,10 @@ theorem divK_addback_full_spec
 -- ============================================================================
 
 -- Address normalization for mulsub_setup
-private theorem lb_ms_setup (base : Word) : (base + 516 : Word) + 20 = base + 536 := by bv_omega
+private theorem lb_ms_setup (base : Word) : (base + 516 : Word) + 20 = base + 536 := by bv_addr
 
 -- Address normalization for sub_carry
-private theorem lb_sc (base : Word) : (base + 712 : Word) + 16 = base + 728 := by bv_omega
+private theorem lb_sc (base : Word) : (base + 712 : Word) + 16 = base + 728 := by bv_addr
 
 set_option maxRecDepth 4096 in
 set_option maxHeartbeats 1600000 in
@@ -501,11 +501,11 @@ theorem divK_mulsub_full_spec
   have S := divK_mulsub_setup_spec sp q_hat j v1_old v5_old v6_old v10_old (base + 516) hv_j
   rw [lb_ms_setup] at S
   have Se := cpsTriple_extend_code (hmono := by
-    exact CodeReq_union_sub (lb_sub base 17 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 18 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 19 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 20 _ _ (by native_decide) (by bv_omega) (by native_decide))
-      (lb_sub base 21 _ _ (by native_decide) (by bv_omega) (by native_decide)))))) S
+    exact CodeReq_union_sub (lb_sub base 17 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 18 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 19 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 20 _ _ (by native_decide) (by bv_addr) (by native_decide))
+      (lb_sub base 21 _ _ (by native_decide) (by bv_addr) (by native_decide)))))) S
   -- Frame setup with all memory + x7/x2 for mulsub
   have Sf := cpsTriple_frame_left _ _ _ _ _
     ((.x7 ↦ᵣ v7_old) ** (.x2 ↦ᵣ v2_old) **
@@ -525,10 +525,10 @@ theorem divK_mulsub_full_spec
   have SC := divK_sub_carry_spec u_base c3 bs3 fs3 u_top 4064 (base + 712) hv_u4
   rw [lb_sc] at SC
   have SCe := cpsTriple_extend_code (hmono := by
-    exact CodeReq_union_sub (lb_sub base 66 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 67 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 68 _ _ (by native_decide) (by bv_omega) (by native_decide))
-      (lb_sub base 69 _ _ (by native_decide) (by bv_omega) (by native_decide))))) SC
+    exact CodeReq_union_sub (lb_sub base 66 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 67 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 68 _ _ (by native_decide) (by bv_addr) (by native_decide))
+      (lb_sub base 69 _ _ (by native_decide) (by bv_addr) (by native_decide))))) SC
   -- Compose (setup+mulsub) + sub_carry
   seqFrame SfM SCe
   -- Final permutation
@@ -544,9 +544,9 @@ theorem divK_mulsub_full_spec
 
 private theorem lb_beq_taken (base : Word) : (base + 728 : Word) + signExtend13 (152 : BitVec 13) = base + 880 := by
   have : signExtend13 (152 : BitVec 13) = (152 : Word) := by native_decide
-  rw [this]; bv_omega
+  rw [this]; bv_addr
 
-private theorem lb_beq_ntaken (base : Word) : (base + 728 : Word) + 4 = base + 732 := by bv_omega
+private theorem lb_beq_ntaken (base : Word) : (base + 728 : Word) + 4 = base + 732 := by bv_addr
 
 -- ============================================================================
 -- Section 6a: Correction skip spec (borrow = 0)
@@ -577,7 +577,7 @@ theorem divK_correction_skip_spec
   have hbeq := beq_spec_gen .x7 .x0 (152 : BitVec 13) (0 : Word) 0 (base + 728)
   rw [lb_beq_taken, lb_beq_ntaken] at hbeq
   have hbeq_ext := cpsBranch_extend_code (hmono :=
-    lb_sub base 70 _ _ (by native_decide) (by bv_omega) (by native_decide)) hbeq
+    lb_sub base 70 _ _ (by native_decide) (by bv_addr) (by native_decide)) hbeq
   -- Eliminate not-taken path (⌜0 ≠ 0⌝ is False)
   have skip := cpsBranch_elim_taken _ _ _ _ _ _ _ hbeq_ext (fun hp hQf => by
     obtain ⟨_, _, _, _, _, ⟨_, _, _, _, _, ⟨_, hpure⟩⟩⟩ := hQf
@@ -672,7 +672,7 @@ theorem divK_correction_addback_spec
   have hbeq := beq_spec_gen .x7 .x0 (152 : BitVec 13) borrow 0 (base + 728)
   rw [lb_beq_taken, lb_beq_ntaken] at hbeq
   have hbeq_ext := cpsBranch_extend_code (hmono :=
-    lb_sub base 70 _ _ (by native_decide) (by bv_omega) (by native_decide)) hbeq
+    lb_sub base 70 _ _ (by native_decide) (by bv_addr) (by native_decide)) hbeq
   -- Eliminate taken path (⌜borrow = 0⌝ contradicts hb)
   have ntaken := cpsBranch_elim_ntaken _ _ _ _ _ _ _ hbeq_ext (fun hp hQt => by
     obtain ⟨_, _, _, _, _, ⟨_, _, _, _, _, ⟨_, hpure⟩⟩⟩ := hQt
@@ -711,8 +711,8 @@ theorem divK_correction_addback_spec
 -- Instrs [0]-[12] at base+448 → base+500.
 -- ============================================================================
 
-private theorem lb_save_j (base : Word) : (base + 448 : Word) + 4 = base + 452 := by bv_omega
-private theorem lb_trial_load (base : Word) : (base + 452 : Word) + 48 = base + 500 := by bv_omega
+private theorem lb_save_j (base : Word) : (base + 448 : Word) + 4 = base + 452 := by bv_addr
+private theorem lb_trial_load (base : Word) : (base + 452 : Word) + 48 = base + 500 := by bv_addr
 
 set_option maxRecDepth 4096 in
 set_option maxHeartbeats 800000 in
@@ -749,7 +749,7 @@ theorem divK_save_trial_load_spec
   have SJ := divK_save_j_spec sp j j_old (base + 448) hv_j
   rw [lb_save_j] at SJ
   have SJe := cpsTriple_extend_code (hmono :=
-    lb_sub base 0 _ _ (by native_decide) (by bv_omega) (by native_decide)) SJ
+    lb_sub base 0 _ _ (by native_decide) (by bv_addr) (by native_decide)) SJ
   -- Frame save_j with trial_load state
   have SJf := cpsTriple_frame_left _ _ _ _ _
     ((.x5 ↦ᵣ v5_old) ** (.x6 ↦ᵣ v6_old) **
@@ -764,18 +764,18 @@ theorem divK_save_trial_load_spec
   dsimp only [] at TL
   rw [lb_trial_load] at TL
   have TLe := cpsTriple_extend_code (hmono := by
-    exact CodeReq_union_sub (lb_sub base 1 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 2 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 3 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 4 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 5 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 6 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 7 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 8 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 9 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 10 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 11 _ _ (by native_decide) (by bv_omega) (by native_decide))
-      (lb_sub base 12 _ _ (by native_decide) (by bv_omega) (by native_decide))))))))))))) TL
+    exact CodeReq_union_sub (lb_sub base 1 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 2 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 3 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 4 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 5 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 6 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 7 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 8 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 9 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 10 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 11 _ _ (by native_decide) (by bv_addr) (by native_decide))
+      (lb_sub base 12 _ _ (by native_decide) (by bv_addr) (by native_decide))))))))))))) TL
   -- 3. Compose save_j + trial_load
   seqFrame SJf TLe
   -- Final permutation
@@ -795,13 +795,13 @@ theorem divK_save_trial_load_spec
 -- Address normalization for trial quotient
 private theorem lb_bltu_taken (base : Word) : (base + 500 : Word) + signExtend13 (12 : BitVec 13) = base + 512 := by
   have : signExtend13 (12 : BitVec 13) = (12 : Word) := by native_decide
-  rw [this]; bv_omega
-private theorem lb_bltu_ntaken (base : Word) : (base + 500 : Word) + 4 = base + 504 := by bv_omega
-private theorem lb_trial_max_end (base : Word) : (base + 504 : Word) + 12 = base + 516 := by bv_omega
+  rw [this]; bv_addr
+private theorem lb_bltu_ntaken (base : Word) : (base + 500 : Word) + 4 = base + 504 := by bv_addr
+private theorem lb_trial_max_end (base : Word) : (base + 504 : Word) + 12 = base + 516 := by bv_addr
 private theorem lb_jal_target (base : Word) : (base + 512 : Word) + signExtend21 (556 : BitVec 21) = base + 1068 := by
   have : signExtend21 (556 : BitVec 21) = (556 : Word) := by native_decide
-  rw [this]; bv_omega
-private theorem lb_jal_ret (base : Word) : (base + 512 : Word) + 4 = base + 516 := by bv_omega
+  rw [this]; bv_addr
+private theorem lb_jal_ret (base : Word) : (base + 512 : Word) + 4 = base + 516 := by bv_addr
 
 -- ============================================================================
 -- Section 8a: Trial quotient NOT-TAKEN path (u_hi >= v_top)
@@ -818,8 +818,8 @@ private theorem divK_trial_max_extended (v11_old : Word) (base : Word) :
   dsimp only [] at TM
   rw [lb_trial_max_end] at TM
   exact cpsTriple_extend_code (hmono := by
-    exact CodeReq_union_sub (lb_sub base 14 _ _ (by native_decide) (by bv_omega) (by native_decide))
-      (lb_sub base 15 _ _ (by native_decide) (by bv_omega) (by native_decide))) TM
+    exact CodeReq_union_sub (lb_sub base 14 _ _ (by native_decide) (by bv_addr) (by native_decide))
+      (lb_sub base 15 _ _ (by native_decide) (by bv_addr) (by native_decide))) TM
 
 -- ============================================================================
 -- Section 8b: Trial quotient TAKEN path (u_hi < v_top)
@@ -889,7 +889,7 @@ theorem divK_trial_call_path_spec
   have J := jal_spec .x2 v2_old (556 : BitVec 21) (base + 512) (by nofun)
   rw [lb_jal_target, lb_jal_ret] at J
   have Je := cpsTriple_extend_code (hmono :=
-    lb_sub base 16 _ _ (by native_decide) (by bv_omega) (by native_decide)) J
+    lb_sub base 16 _ _ (by native_decide) (by bv_addr) (by native_decide)) J
   -- 2. div128 subroutine: base+1068 → base+516
   have D := div128_spec sp (base + 516) v_top u_lo u_hi base
     j vtop_base v11_old ret_mem d_mem dlo_mem un0_mem
@@ -922,12 +922,12 @@ theorem divK_trial_call_path_spec
 -- ============================================================================
 
 -- Address normalization for store_qj and loop control
-private theorem lb_sqj (base : Word) : (base + 880 : Word) + 16 = base + 896 := by bv_omega
+private theorem lb_sqj (base : Word) : (base + 880 : Word) + 16 = base + 896 := by bv_addr
 private theorem lb_lc_taken (base : Word) :
     (base + 896 : Word) + 4 + signExtend13 (7740 : BitVec 13) = base + 448 := by
   have : signExtend13 (7740 : BitVec 13) = (18446744073709551164 : Word) := by native_decide
-  rw [this]; bv_omega
-private theorem lb_lc_exit (base : Word) : (base + 896 : Word) + 8 = base + 904 := by bv_omega
+  rw [this]; bv_addr
+private theorem lb_lc_exit (base : Word) : (base + 896 : Word) + 8 = base + 904 := by bv_addr
 
 set_option maxRecDepth 4096 in
 set_option maxHeartbeats 800000 in
@@ -960,17 +960,17 @@ theorem divK_store_loop_spec
   dsimp only [] at SQ
   rw [lb_sqj] at SQ
   have SQe := cpsTriple_extend_code (hmono := by
-    exact CodeReq_union_sub (lb_sub base 108 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 109 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (lb_sub base 110 _ _ (by native_decide) (by bv_omega) (by native_decide))
-      (lb_sub base 111 _ _ (by native_decide) (by bv_omega) (by native_decide))))) SQ
+    exact CodeReq_union_sub (lb_sub base 108 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 109 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 110 _ _ (by native_decide) (by bv_addr) (by native_decide))
+      (lb_sub base 111 _ _ (by native_decide) (by bv_addr) (by native_decide))))) SQ
   -- 2. Loop control: instrs [112]-[113] at base+896
   have LC := divK_loop_control_spec j (7740 : BitVec 13) (base + 896)
   dsimp only [] at LC
   rw [lb_lc_taken, lb_lc_exit] at LC
   have LCe := cpsBranch_extend_code (hmono := by
-    exact CodeReq_union_sub (lb_sub base 112 _ _ (by native_decide) (by bv_omega) (by native_decide))
-      (lb_sub base 113 _ _ (by native_decide) (by bv_omega) (by native_decide))) LC
+    exact CodeReq_union_sub (lb_sub base 112 _ _ (by native_decide) (by bv_addr) (by native_decide))
+      (lb_sub base 113 _ _ (by native_decide) (by bv_addr) (by native_decide))) LC
   -- 3. Add x0 to store_qj via frame, then reshape via consequence
   have SQx0 : cpsTriple (base + 880) (base + 896) (divCode base)
       ((.x1 ↦ᵣ j) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ q_hat) **
@@ -1269,7 +1269,7 @@ theorem divK_trial_max_full_spec
   have hbltu_raw := bltu_spec_gen .x7 .x10 (12 : BitVec 13) u_hi v_top (base + 500)
   rw [lb_bltu_taken, lb_bltu_ntaken] at hbltu_raw
   have hbltu_ext := cpsBranch_extend_code (hmono :=
-    lb_sub base 13 _ _ (by native_decide) (by bv_omega) (by native_decide)) hbltu_raw
+    lb_sub base 13 _ _ (by native_decide) (by bv_addr) (by native_decide)) hbltu_raw
   -- Eliminate taken path (⌜BitVec.ult u_hi v_top⌝ contradicts hbltu)
   have ntaken := cpsBranch_elim_ntaken _ _ _ _ _ _ _ hbltu_ext (fun hp hQt => by
     obtain ⟨_, _, _, _, _, ⟨_, _, _, _, _, ⟨_, hpure⟩⟩⟩ := hQt
@@ -1381,7 +1381,7 @@ theorem divK_trial_call_full_spec
   have hbltu_raw := bltu_spec_gen .x7 .x10 (12 : BitVec 13) u_hi v_top (base + 500)
   rw [lb_bltu_taken, lb_bltu_ntaken] at hbltu_raw
   have hbltu_ext := cpsBranch_extend_code (hmono :=
-    lb_sub base 13 _ _ (by native_decide) (by bv_omega) (by native_decide)) hbltu_raw
+    lb_sub base 13 _ _ (by native_decide) (by bv_addr) (by native_decide)) hbltu_raw
   -- Eliminate ntaken path (⌜¬BitVec.ult u_hi v_top⌝ contradicts hbltu)
   have taken := cpsBranch_elim_taken _ _ _ _ _ _ _ hbltu_ext (fun hp hQf => by
     obtain ⟨_, _, _, _, _, ⟨_, _, _, _, _, ⟨_, hpure⟩⟩⟩ := hQf

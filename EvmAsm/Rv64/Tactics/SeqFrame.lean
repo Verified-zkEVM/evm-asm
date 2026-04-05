@@ -1067,6 +1067,13 @@ elab "crMono" : tactic => do
   let _ ← Lean.Elab.runTactic goal stx
   replaceMainGoal []
 
+/-- Lightweight address arithmetic: proves `(a + k₁) + k₂ = a + k₃` via
+    BitVec associativity + constant folding. Generates much smaller kernel
+    proof terms than `bv_omega` (one `add_assoc` rewrite + `rfl` vs full
+    Presburger arithmetic proof). -/
+macro "bv_addr" : tactic =>
+  `(tactic| (simp only [BitVec.add_assoc]; rfl))
+
 /-- `crDisjoint` proves a goal of the form `CodeReq.Disjoint cr1 cr2`
     by structural recursion on union/singleton, using bv_omega for address inequality. -/
 elab "crDisjoint" : tactic => do

@@ -84,12 +84,12 @@ theorem divK_normA_full_spec (sp a0 a1 a2 a3 v5 v7 v10 shift anti_shift : Word)
   have htop := divK_normA_top_spec 24 4024 sp a3 v5 v7 anti_shift u4_old (base + 312)
     (by rw [se12_24]; exact hvalid.get (show 3 < 8 from by omega)) hv_u4
   simp only [se12_24] at htop
-  rw [show (base + 312 : Word) + 12 = base + 324 from by bv_omega] at htop
+  rw [show (base + 312 : Word) + 12 = base + 324 from by bv_addr] at htop
   have htope := cpsTriple_extend_code (hmono := fun a i h =>
     divK_normA_code_sub_divCode base a i
       (CodeReq.ofProg_mono_sub (base + 312) (base + 312) (divK_normA 40)
         (divK_normA_top_prog 24 4024) 0
-        (by bv_omega) (by native_decide) (by native_decide) (by native_decide) a i h)) htop
+        (by bv_addr) (by native_decide) (by native_decide) (by native_decide) a i h)) htop
   -- Frame top with x6, x10, a[0..2], u[0..3]
   have htopef := cpsTriple_frame_left _ _ _ _ _
     ((.x10 ↦ᵣ v10) ** (.x6 ↦ᵣ shift) **
@@ -102,12 +102,12 @@ theorem divK_normA_full_spec (sp a0 a1 a2 a3 v5 v7 v10 shift anti_shift : Word)
   have hma1 := divK_normA_mergeA_spec 16 4032 sp a3 a2 u4 v10 shift anti_shift u3_old (base + 324)
     (by rw [se12_16]; exact hvalid.get (show 2 < 8 from by omega)) hv_u3
   simp only [se12_16] at hma1
-  rw [show (base + 324 : Word) + 20 = base + 344 from by bv_omega] at hma1
+  rw [show (base + 324 : Word) + 20 = base + 344 from by bv_addr] at hma1
   have hma1e := cpsTriple_extend_code (hmono := fun a i h =>
     divK_normA_code_sub_divCode base a i
       (CodeReq.ofProg_mono_sub (base + 312) (base + 324) (divK_normA 40)
         (divK_normA_mergeA_prog 16 4032) 3
-        (by bv_omega) (by native_decide) (by native_decide) (by native_decide) a i h)) hma1
+        (by bv_addr) (by native_decide) (by native_decide) (by native_decide) a i h)) hma1
   have hma1ef := cpsTriple_frame_left _ _ _ _ _
     (((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 24) ↦ₘ a3) **
      ((sp + signExtend12 4024) ↦ₘ u4) **
@@ -121,12 +121,12 @@ theorem divK_normA_full_spec (sp a0 a1 a2 a3 v5 v7 v10 shift anti_shift : Word)
     shift anti_shift u2_old (base + 344)
     (by rw [se12_8]; exact hvalid.get (show 1 < 8 from by omega)) hv_u2
   simp only [se12_8] at hmb
-  rw [show (base + 344 : Word) + 20 = base + 364 from by bv_omega] at hmb
+  rw [show (base + 344 : Word) + 20 = base + 364 from by bv_addr] at hmb
   have hmbe := cpsTriple_extend_code (hmono := fun a i h =>
     divK_normA_code_sub_divCode base a i
       (CodeReq.ofProg_mono_sub (base + 312) (base + 344) (divK_normA 40)
         (divK_normA_mergeB_prog 8 4040) 8
-        (by bv_omega) (by native_decide) (by native_decide) (by native_decide) a i h)) hmb
+        (by bv_addr) (by native_decide) (by native_decide) (by native_decide) a i h)) hmb
   have hmbef := cpsTriple_frame_left _ _ _ _ _
     (((sp + 0) ↦ₘ a0) ** ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
      ((sp + signExtend12 4024) ↦ₘ u4) ** ((sp + signExtend12 4032) ↦ₘ u3) **
@@ -139,12 +139,12 @@ theorem divK_normA_full_spec (sp a0 a1 a2 a3 v5 v7 v10 shift anti_shift : Word)
     shift anti_shift u1_old (base + 364)
     (by rw [se12_0]; exact hvalid.get (show 0 < 8 from by omega)) hv_u1
   simp only [se12_0] at hma2
-  rw [show (base + 364 : Word) + 20 = base + 384 from by bv_omega] at hma2
+  rw [show (base + 364 : Word) + 20 = base + 384 from by bv_addr] at hma2
   have hma2e := cpsTriple_extend_code (hmono := fun a i h =>
     divK_normA_code_sub_divCode base a i
       (CodeReq.ofProg_mono_sub (base + 312) (base + 364) (divK_normA 40)
         (divK_normA_mergeA_prog 0 4048) 13
-        (by bv_omega) (by native_decide) (by native_decide) (by native_decide) a i h)) hma2
+        (by bv_addr) (by native_decide) (by native_decide) (by native_decide) a i h)) hma2
   have hma2ef := cpsTriple_frame_left _ _ _ _ _
     (((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
      ((sp + signExtend12 4024) ↦ₘ u4) ** ((sp + signExtend12 4032) ↦ₘ u3) **
@@ -154,12 +154,12 @@ theorem divK_normA_full_spec (sp a0 a1 a2 a3 v5 v7 v10 shift anti_shift : Word)
     (fun h hp => by xperm_hyp hp) h123 hma2ef
   -- Last: u[0] = a[0]<<<shift (base+384 → base+392)
   have hlast := divK_normA_last_spec 4056 sp a0 shift u0_old (base + 384) hv_u0
-  rw [show (base + 384 : Word) + 8 = base + 392 from by bv_omega] at hlast
+  rw [show (base + 384 : Word) + 8 = base + 392 from by bv_addr] at hlast
   have hlaste := cpsTriple_extend_code (hmono := fun a i h =>
     divK_normA_code_sub_divCode base a i
       (CodeReq.ofProg_mono_sub (base + 312) (base + 384) (divK_normA 40)
         (divK_normA_last_prog 4056) 18
-        (by bv_omega) (by native_decide) (by native_decide) (by native_decide) a i h)) hlast
+        (by bv_addr) (by native_decide) (by native_decide) (by native_decide) a i h)) hlast
   have hlastef := cpsTriple_frame_left _ _ _ _ _
     ((.x5 ↦ᵣ u1) ** (.x10 ↦ᵣ (a0 >>> (anti_shift.toNat % 64))) ** (.x2 ↦ᵣ anti_shift) **
      ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
@@ -172,14 +172,14 @@ theorem divK_normA_full_spec (sp a0 a1 a2 a3 v5 v7 v10 shift anti_shift : Word)
   -- JAL x0 40 at base+392 → base+432 (1 instruction, empAssertion pre/post)
   have hjal := jal_x0_spec_gen 40 (base + 392)
   rw [show (base + 392 : Word) + signExtend21 40 = base + 432 from by
-        rw [signExtend21_40]; bv_omega] at hjal
+        rw [signExtend21_40]; bv_addr] at hjal
   have hjale := cpsTriple_extend_code (hmono := by
     intro a i h
     exact divK_normA_code_sub_divCode base a i
       (CodeReq.singleton_mono (by
         have hlookup := CodeReq.ofProg_lookup (base + 312) (divK_normA 40) 20
           (by native_decide) (by native_decide)
-        rw [show (base + 312 : Word) + BitVec.ofNat 64 (4 * 20) = base + 392 from by bv_omega]
+        rw [show (base + 312 : Word) + BitVec.ofNat 64 (4 * 20) = base + 392 from by bv_addr]
           at hlookup
         exact hlookup) a i h)) hjal
   -- Frame JAL with everything, then strip empAssertion via consequence
@@ -243,7 +243,7 @@ theorem divK_copyAU_full_spec (sp : Word)
        ((sp + signExtend12 4024) ↦ₘ (0 : Word))) := by
   have hcopy := divK_copyAU_spec sp (base + 396) a0 a1 a2 a3 u0 u1 u2 u3 u4 v5
     hvalid hv_u0 hv_u1 hv_u2 hv_u3 hv_u4
-  rw [show (base + 396 : Word) + 36 = base + 432 from by bv_omega] at hcopy
+  rw [show (base + 396 : Word) + 36 = base + 432 from by bv_addr] at hcopy
   exact cpsTriple_extend_code (divK_copyAU_code_sub_divCode base) hcopy
 
 -- ============================================================================
@@ -266,7 +266,7 @@ private theorem blt_loopSetup_sub_divCode (base : Word) :
   have hlookup := CodeReq.ofProg_lookup (base + 432) (divK_loopSetup 460) 3
     (by native_decide) (by native_decide)
   rw [show BitVec.ofNat 64 (4 * 3) = (12 : Word) from by native_decide,
-      show (base + 432 : Word) + 12 = base + 444 from by bv_omega] at hlookup
+      show (base + 432 : Word) + 12 = base + 444 from by bv_addr] at hlookup
   exact divK_loopSetup_code_sub_divCode base a i
     (CodeReq.singleton_mono hlookup a i h)
 
@@ -286,12 +286,12 @@ theorem divK_loopSetup_ntaken_spec (sp n v1 v5 : Word) (base : Word)
        ((sp + signExtend12 3984) ↦ₘ n)) := by
   intro m
   have hbody := divK_loopSetup_body_spec sp n v1 v5 460 (base + 432) hv_n
-  rw [show (base + 432 : Word) + 12 = base + 444 from by bv_omega] at hbody
+  rw [show (base + 432 : Word) + 12 = base + 444 from by bv_addr] at hbody
   have hbodye := cpsTriple_extend_code (divK_loopSetup_code_sub_divCode base) hbody
   have hblt_raw := blt_spec_gen .x1 .x0 460 m (0 : Word) (base + 444)
   rw [show (base + 444 : Word) + signExtend13 460 = base + 904 from by
-        rw [signExtend13_460]; bv_omega,
-      show (base + 444 : Word) + 4 = base + 448 from by bv_omega] at hblt_raw
+        rw [signExtend13_460]; bv_addr,
+      show (base + 444 : Word) + 4 = base + 448 from by bv_addr] at hblt_raw
   have hblt_clean := cpsBranch_elim_ntaken_strip_pure2 _ _ _ _ _ _ _ _ _ hblt_raw
     (fun hp hQt => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQt
@@ -320,12 +320,12 @@ theorem divK_loopSetup_taken_spec (sp n v1 v5 : Word) (base : Word)
        ((sp + signExtend12 3984) ↦ₘ n)) := by
   intro m
   have hbody := divK_loopSetup_body_spec sp n v1 v5 460 (base + 432) hv_n
-  rw [show (base + 432 : Word) + 12 = base + 444 from by bv_omega] at hbody
+  rw [show (base + 432 : Word) + 12 = base + 444 from by bv_addr] at hbody
   have hbodye := cpsTriple_extend_code (divK_loopSetup_code_sub_divCode base) hbody
   have hblt_raw := blt_spec_gen .x1 .x0 460 m (0 : Word) (base + 444)
   rw [show (base + 444 : Word) + signExtend13 460 = base + 904 from by
-        rw [signExtend13_460]; bv_omega,
-      show (base + 444 : Word) + 4 = base + 448 from by bv_omega] at hblt_raw
+        rw [signExtend13_460]; bv_addr,
+      show (base + 444 : Word) + 4 = base + 448 from by bv_addr] at hblt_raw
   have hblt_clean := cpsBranch_elim_taken_strip_pure2 _ _ _ _ _ _ _ _ _ hblt_raw
     (fun hp hQf => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQf

@@ -103,7 +103,7 @@ theorem divK_phaseA_spec (sp : Word) (base : Word)
   have hbody := divK_phaseA_body_spec sp base b0 b1 b2 b3 v5 v10 hvalid
   -- 2. BEQ: branch at base + 28, drop pure facts
   have hbeq_raw := beq_spec_gen .x5 .x0 1016 bor (0 : Word) (base + 28)
-  have ha1 : (base + 28 : Word) + 4 = base + 32 := by bv_omega
+  have ha1 : (base + 28 : Word) + 4 = base + 32 := by bv_addr
   rw [ha1] at hbeq_raw
   have hbeq := cpsBranch_consequence _ _ _ _ _ _ _ _ _ _
     (fun _ hp => hp)
@@ -668,7 +668,7 @@ theorem divK_phaseC2_spec (sp shift v2 shift_mem : Word)
   intro cr post
   have hbody := divK_phaseC2_body_spec sp shift v2 shift_mem shift0_off base hv_shift
   have hbeq_raw := beq_spec_gen .x6 .x0 shift0_off shift (0 : Word) (base + 12)
-  have ha1 : (base + 12 : Word) + 4 = base + 16 := by bv_omega
+  have ha1 : (base + 12 : Word) + 4 = base + 16 := by bv_addr
   rw [ha1] at hbeq_raw
   have hbeq : cpsBranch (base + 12) _
       ((.x6 ↦ᵣ shift) ** (.x0 ↦ᵣ (0 : Word)))
@@ -741,7 +741,7 @@ theorem divK_phaseB_cascade_step_spec (n_val : BitVec 12) (rx : Reg) (check v5 :
     runBlock I0
   -- 2. BNE at base + 4, drop pure facts
   have hbne_raw := bne_spec_gen rx .x0 bne_off check (0 : Word) (base + 4)
-  have ha1 : (base + 4 : Word) + 4 = base + 8 := by bv_omega
+  have ha1 : (base + 4 : Word) + 4 = base + 8 := by bv_addr
   rw [ha1] at hbne_raw
   have hbne : cpsBranch (base + 4) _
       ((rx ↦ᵣ check) ** (.x0 ↦ᵣ (0 : Word)))
@@ -832,7 +832,7 @@ theorem divK_loopSetup_spec (sp n v1 v5 : Word)
   intro m cr post
   have hbody := divK_loopSetup_body_spec sp n v1 v5 blt_off base hv_n
   have hblt_raw := blt_spec_gen .x1 .x0 blt_off m (0 : Word) (base + 12)
-  have ha1 : (base + 12 : Word) + 4 = base + 16 := by bv_omega
+  have ha1 : (base + 12 : Word) + 4 = base + 16 := by bv_addr
   rw [ha1] at hblt_raw
   have hblt : cpsBranch (base + 12) _
       ((.x1 ↦ᵣ m) ** (.x0 ↦ᵣ (0 : Word)))
@@ -914,8 +914,8 @@ theorem divK_clz_stage_taken_spec (K M_s : BitVec 6) (M_a : BitVec 12) (val coun
   -- 2. BNE at base+4: taken → base+16
   have hbne_raw := bne_spec_gen .x7 .x0 (12 : BitVec 13) (val >>> K.toNat) (0 : Word) (base + 4)
   have hsig : signExtend13 (12 : BitVec 13) = (12 : Word) := by native_decide
-  have ha_t : (base + 4) + signExtend13 (12 : BitVec 13) = base + 16 := by rw [hsig]; bv_omega
-  have ha_f : (base + 4 : Word) + 4 = base + 8 := by bv_omega
+  have ha_t : (base + 4) + signExtend13 (12 : BitVec 13) = base + 16 := by rw [hsig]; bv_addr
+  have ha_f : (base + 4 : Word) + 4 = base + 8 := by bv_addr
   rw [ha_t, ha_f] at hbne_raw
   -- 3. Frame BNE with x5, x6
   have hbne_framed := cpsBranch_frame_left _ _ _ _ _ _ _
@@ -980,8 +980,8 @@ theorem divK_clz_stage_ntaken_spec (K M_s : BitVec 6) (M_a : BitVec 12) (val cou
   -- 2. BNE at base+4
   have hbne_raw := bne_spec_gen .x7 .x0 (12 : BitVec 13) (val >>> K.toNat) (0 : Word) (base + 4)
   have hsig : signExtend13 (12 : BitVec 13) = (12 : Word) := by native_decide
-  have ha_t : (base + 4) + signExtend13 (12 : BitVec 13) = base + 16 := by rw [hsig]; bv_omega
-  have ha_f : (base + 4 : Word) + 4 = base + 8 := by bv_omega
+  have ha_t : (base + 4) + signExtend13 (12 : BitVec 13) = base + 16 := by rw [hsig]; bv_addr
+  have ha_f : (base + 4 : Word) + 4 = base + 8 := by bv_addr
   rw [ha_t, ha_f] at hbne_raw
   -- 3. Frame BNE with x5, x6
   have hbne_framed := cpsBranch_frame_left _ _ _ _ _ _ _
@@ -1064,8 +1064,8 @@ theorem divK_clz_last_taken_spec (val count v7 : Word) (base : Word)
   simp only [h63] at I0
   have hbne_raw := bne_spec_gen .x7 .x0 (8 : BitVec 13) (val >>> 63) (0 : Word) (base + 4)
   have hsig : signExtend13 (8 : BitVec 13) = (8 : Word) := by native_decide
-  have ha_t : (base + 4) + signExtend13 (8 : BitVec 13) = base + 12 := by rw [hsig]; bv_omega
-  have ha_f : (base + 4 : Word) + 4 = base + 8 := by bv_omega
+  have ha_t : (base + 4) + signExtend13 (8 : BitVec 13) = base + 12 := by rw [hsig]; bv_addr
+  have ha_f : (base + 4 : Word) + 4 = base + 8 := by bv_addr
   rw [ha_t, ha_f] at hbne_raw
   have hbne_framed := cpsBranch_frame_left _ _ _ _ _ _ _
     ((.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count))
@@ -1118,8 +1118,8 @@ theorem divK_clz_last_ntaken_spec (val count v7 : Word) (base : Word)
   simp only [h63] at I0
   have hbne_raw := bne_spec_gen .x7 .x0 (8 : BitVec 13) (val >>> 63) (0 : Word) (base + 4)
   have hsig : signExtend13 (8 : BitVec 13) = (8 : Word) := by native_decide
-  have ha_t : (base + 4) + signExtend13 (8 : BitVec 13) = base + 12 := by rw [hsig]; bv_omega
-  have ha_f : (base + 4 : Word) + 4 = base + 8 := by bv_omega
+  have ha_t : (base + 4) + signExtend13 (8 : BitVec 13) = base + 12 := by rw [hsig]; bv_addr
+  have ha_f : (base + 4 : Word) + 4 = base + 8 := by bv_addr
   rw [ha_t, ha_f] at hbne_raw
   have hbne_framed := cpsBranch_frame_left _ _ _ _ _ _ _
     ((.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count))
@@ -1424,7 +1424,7 @@ theorem divK_loop_control_spec (j : Word) (loop_back_off : BitVec 13)
     runBlock I0
   -- 2. BGE, drop pure facts
   have hbge_raw := bge_spec_gen .x1 .x0 loop_back_off j' 0 (base + 4)
-  have ha1 : (base + 4 : Word) + 4 = base + 8 := by bv_omega
+  have ha1 : (base + 4 : Word) + 4 = base + 8 := by bv_addr
   rw [ha1] at hbge_raw
   have hbge : cpsBranch (base + 4) _
       ((.x1 ↦ᵣ j') ** (.x0 ↦ᵣ 0))
@@ -1639,7 +1639,7 @@ theorem divK_trial_max_spec (v11_old : Word) (base : Word) :
   have I0 := addi_x0_spec_gen .x11 v11_old 4095 base (by nofun)
   have I1 := jal_x0_spec_gen 8 (base + 4)
   rw [hj] at I1
-  have ha : (base + 4 : Word) + 8 = base + 12 := by bv_omega
+  have ha : (base + 4 : Word) + 8 = base + 12 := by bv_addr
   rw [ha] at I1
   runBlock I0 I1
 
@@ -2009,8 +2009,8 @@ theorem divK_div128_clamp_q1_merged_spec (q1 rhat d_hi v5_old : Word) (base : Wo
   -- 2. BEQ at base+4 (keep pure facts)
   have hbeq_raw := beq_spec_gen .x5 .x0 (12 : BitVec 13) hi (0 : Word) (base + 4)
   have hsig : signExtend13 (12 : BitVec 13) = (12 : Word) := by native_decide
-  have ha_t : (base + 4) + signExtend13 (12 : BitVec 13) = base + 16 := by rw [hsig]; bv_omega
-  have ha_f : (base + 4 : Word) + 4 = base + 8 := by bv_omega
+  have ha_t : (base + 4) + signExtend13 (12 : BitVec 13) = base + 16 := by rw [hsig]; bv_addr
+  have ha_f : (base + 4 : Word) + 4 = base + 8 := by bv_addr
   rw [ha_t, ha_f] at hbeq_raw
   -- 3. Frame BEQ with x10, x7, x6
   have hbeq_framed := cpsBranch_frame_left _ _ _ _ _ _ _
@@ -2127,8 +2127,8 @@ theorem divK_div128_prodcheck1_merged_spec
   -- 2. BLTU at base+16, strip pure
   have hbltu_raw := bltu_spec_gen .x1 .x5 (8 : BitVec 13) rhat_un1 q_dlo (base + 16)
   have hsig : signExtend13 (8 : BitVec 13) = (8 : Word) := by native_decide
-  have ha_t : (base + 16) + signExtend13 (8 : BitVec 13) = base + 24 := by rw [hsig]; bv_omega
-  have ha_f : (base + 16 : Word) + 4 = base + 20 := by bv_omega
+  have ha_t : (base + 16) + signExtend13 (8 : BitVec 13) = base + 24 := by rw [hsig]; bv_addr
+  have ha_f : (base + 16 : Word) + 4 = base + 20 := by bv_addr
   rw [ha_t, ha_f] at hbltu_raw
   -- 3. Frame BLTU with remaining atoms
   have hbltu_framed := cpsBranch_frame_left _ _ _ _ _ _ _
@@ -2202,7 +2202,7 @@ theorem divK_div128_prodcheck1_merged_spec
     have hj : signExtend21 (12 : BitVec 21) = (12 : Word) := by native_decide
     have I_jal := jal_x0_spec_gen 12 (base + 20)
     rw [hj] at I_jal
-    have ha_jal : (base + 20 : Word) + 12 = base + 32 := by bv_omega
+    have ha_jal : (base + 20 : Word) + 12 = base + 32 := by bv_addr
     rw [ha_jal] at I_jal
     -- Extend JAL CR from singleton to cr
     have hcr_jal : ∀ a i, CodeReq.singleton (base + 20) (.JAL .x0 12) a = some i →
@@ -2278,8 +2278,8 @@ theorem divK_div128_clamp_q0_merged_spec (q0 rhat2 d_hi v1_old : Word) (base : W
   -- 2. BEQ at base+4 (keep pure facts)
   have hbeq_raw := beq_spec_gen .x1 .x0 (12 : BitVec 13) hi (0 : Word) (base + 4)
   have hsig : signExtend13 (12 : BitVec 13) = (12 : Word) := by native_decide
-  have ha_t : (base + 4) + signExtend13 (12 : BitVec 13) = base + 16 := by rw [hsig]; bv_omega
-  have ha_f : (base + 4 : Word) + 4 = base + 8 := by bv_omega
+  have ha_t : (base + 4) + signExtend13 (12 : BitVec 13) = base + 16 := by rw [hsig]; bv_addr
+  have ha_f : (base + 4 : Word) + 4 = base + 8 := by bv_addr
   rw [ha_t, ha_f] at hbeq_raw
   -- 3. Frame BEQ with x5, x11, x6
   have hbeq_framed := cpsBranch_frame_left _ _ _ _ _ _ _
@@ -2394,8 +2394,8 @@ theorem divK_div128_prodcheck2_merged_spec
   -- 2. BLTU at base+20
   have hbltu_raw := bltu_spec_gen .x1 .x7 (8 : BitVec 13) rhat2_un0 q0_dlo (base + 20)
   have hsig : signExtend13 (8 : BitVec 13) = (8 : Word) := by native_decide
-  have ha_t : (base + 20) + signExtend13 (8 : BitVec 13) = base + 28 := by rw [hsig]; bv_omega
-  have ha_f : (base + 20 : Word) + 4 = base + 24 := by bv_omega
+  have ha_t : (base + 20) + signExtend13 (8 : BitVec 13) = base + 28 := by rw [hsig]; bv_addr
+  have ha_f : (base + 20 : Word) + 4 = base + 24 := by bv_addr
   rw [ha_t, ha_f] at hbltu_raw
   -- 3. Frame BLTU
   have hbltu_framed := cpsBranch_frame_left _ _ _ _ _ _ _
@@ -2465,7 +2465,7 @@ theorem divK_div128_prodcheck2_merged_spec
     have hj : signExtend21 (8 : BitVec 21) = (8 : Word) := by native_decide
     have I_jal := jal_x0_spec_gen 8 (base + 24)
     rw [hj] at I_jal
-    have ha_jal : (base + 24 : Word) + 8 = base + 32 := by bv_omega
+    have ha_jal : (base + 24 : Word) + 8 = base + 32 := by bv_addr
     rw [ha_jal] at I_jal
     have hcr_jal : ∀ a i, CodeReq.singleton (base + 24) (.JAL .x0 8) a = some i →
         cr a = some i := by
@@ -2578,10 +2578,10 @@ theorem divK_div128_step1_spec
     (by pcFree) h1
   -- Sub-spec 2: clamp q1 [13]-[16]
   have h2_raw := divK_div128_clamp_q1_merged_spec q1 rhat d_hi (q1 * d_hi) (base + 12)
-  have : (base + 12 : Word) + 4 = base + 16 := by bv_omega
-  have : (base + 12 : Word) + 8 = base + 20 := by bv_omega
-  have : (base + 12 : Word) + 12 = base + 24 := by bv_omega
-  have : (base + 12 : Word) + 16 = base + 28 := by bv_omega
+  have : (base + 12 : Word) + 4 = base + 16 := by bv_addr
+  have : (base + 12 : Word) + 8 = base + 20 := by bv_addr
+  have : (base + 12 : Word) + 12 = base + 24 := by bv_addr
+  have : (base + 12 : Word) + 16 = base + 28 := by bv_addr
   simp only [*] at h2_raw
   have h2 : cpsTriple (base + 12) (base + 28) cr _ _ :=
     cpsTriple_extend_code (h := h2_raw) (hmono := by
@@ -2606,14 +2606,14 @@ theorem divK_div128_step1_spec
   -- Sub-spec 3: prodcheck1 [17]-[24]
   have h3_raw := divK_div128_prodcheck1_merged_spec sp q1c rhatc d_hi un1
     v1_old hi dlo (base + 28) hv
-  have : (base + 28 : Word) + 4 = base + 32 := by bv_omega
-  have : (base + 28 : Word) + 8 = base + 36 := by bv_omega
-  have : (base + 28 : Word) + 12 = base + 40 := by bv_omega
-  have : (base + 28 : Word) + 16 = base + 44 := by bv_omega
-  have : (base + 28 : Word) + 20 = base + 48 := by bv_omega
-  have : (base + 28 : Word) + 24 = base + 52 := by bv_omega
-  have : (base + 28 : Word) + 28 = base + 56 := by bv_omega
-  have : (base + 28 : Word) + 32 = base + 60 := by bv_omega
+  have : (base + 28 : Word) + 4 = base + 32 := by bv_addr
+  have : (base + 28 : Word) + 8 = base + 36 := by bv_addr
+  have : (base + 28 : Word) + 12 = base + 40 := by bv_addr
+  have : (base + 28 : Word) + 16 = base + 44 := by bv_addr
+  have : (base + 28 : Word) + 20 = base + 48 := by bv_addr
+  have : (base + 28 : Word) + 24 = base + 52 := by bv_addr
+  have : (base + 28 : Word) + 28 = base + 56 := by bv_addr
+  have : (base + 28 : Word) + 32 = base + 60 := by bv_addr
   simp only [*] at h3_raw
   have h3 : cpsTriple (base + 28) (base + 60) cr _ _ :=
     cpsTriple_extend_code (h := h3_raw) (hmono := by
@@ -2722,10 +2722,10 @@ theorem divK_div128_step2_spec
     (by pcFree) h1
   -- Sub-spec 2: clamp q0 [33]-[36]
   have h2_raw := divK_div128_clamp_q0_merged_spec q0 rhat2 d_hi (q0 * d_hi) (base + 12)
-  have : (base + 12 : Word) + 4 = base + 16 := by bv_omega
-  have : (base + 12 : Word) + 8 = base + 20 := by bv_omega
-  have : (base + 12 : Word) + 12 = base + 24 := by bv_omega
-  have : (base + 12 : Word) + 16 = base + 28 := by bv_omega
+  have : (base + 12 : Word) + 4 = base + 16 := by bv_addr
+  have : (base + 12 : Word) + 8 = base + 20 := by bv_addr
+  have : (base + 12 : Word) + 12 = base + 24 := by bv_addr
+  have : (base + 12 : Word) + 16 = base + 28 := by bv_addr
   simp only [*] at h2_raw
   have h2 : cpsTriple (base + 12) (base + 28) cr _ _ :=
     cpsTriple_extend_code (h := h2_raw) (hmono := by
@@ -2750,14 +2750,14 @@ theorem divK_div128_step2_spec
   -- Sub-spec 3: prodcheck2 [37]-[44]
   have h3_raw := divK_div128_prodcheck2_merged_spec sp q0c rhat2c hi
     un21 dlo un0 (base + 28) hv_dlo hv_un0
-  have : (base + 28 : Word) + 4 = base + 32 := by bv_omega
-  have : (base + 28 : Word) + 8 = base + 36 := by bv_omega
-  have : (base + 28 : Word) + 12 = base + 40 := by bv_omega
-  have : (base + 28 : Word) + 16 = base + 44 := by bv_omega
-  have : (base + 28 : Word) + 20 = base + 48 := by bv_omega
-  have : (base + 28 : Word) + 24 = base + 52 := by bv_omega
-  have : (base + 28 : Word) + 28 = base + 56 := by bv_omega
-  have : (base + 28 : Word) + 32 = base + 60 := by bv_omega
+  have : (base + 28 : Word) + 4 = base + 32 := by bv_addr
+  have : (base + 28 : Word) + 8 = base + 36 := by bv_addr
+  have : (base + 28 : Word) + 12 = base + 40 := by bv_addr
+  have : (base + 28 : Word) + 16 = base + 44 := by bv_addr
+  have : (base + 28 : Word) + 20 = base + 48 := by bv_addr
+  have : (base + 28 : Word) + 24 = base + 52 := by bv_addr
+  have : (base + 28 : Word) + 28 = base + 56 := by bv_addr
+  have : (base + 28 : Word) + 32 = base + 60 := by bv_addr
   simp only [*] at h3_raw
   have h3 : cpsTriple (base + 28) (base + 60) cr _ _ :=
     cpsTriple_extend_code (h := h3_raw) (hmono := by

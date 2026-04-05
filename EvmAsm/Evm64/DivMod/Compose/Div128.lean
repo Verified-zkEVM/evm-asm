@@ -52,14 +52,14 @@ private theorem d128_sub (base : Word) (k : Nat) (addr : Word) (instr : Instr)
     (CodeReq.singleton_mono
       (CodeReq.ofProg_lookup (base + 1068) divK_div128 k hk (by native_decide)) a i h)
 
--- Abbreviation for repeated `by native_decide` / `by bv_omega` calls
+-- Abbreviation for repeated `by native_decide` / `by bv_addr` calls
 -- Each block's subsumption uses: CodeReq_union_sub (d128_sub ...) (CodeReq_union_sub ...)
 
 -- Address normalization: block entry offsets relative to (base + 1068)
-private theorem d128_off_40 (base : Word) : (base + 1068 : Word) + 40 = base + 1108 := by bv_omega
-private theorem d128_off_100 (base : Word) : (base + 1068 : Word) + 100 = base + 1168 := by bv_omega
-private theorem d128_off_120 (base : Word) : (base + 1068 : Word) + 120 = base + 1188 := by bv_omega
-private theorem d128_off_180 (base : Word) : (base + 1068 : Word) + 180 = base + 1248 := by bv_omega
+private theorem d128_off_40 (base : Word) : (base + 1068 : Word) + 40 = base + 1108 := by bv_addr
+private theorem d128_off_100 (base : Word) : (base + 1068 : Word) + 100 = base + 1168 := by bv_addr
+private theorem d128_off_120 (base : Word) : (base + 1068 : Word) + 120 = base + 1188 := by bv_addr
+private theorem d128_off_180 (base : Word) : (base + 1068 : Word) + 180 = base + 1248 := by bv_addr
 
 -- ============================================================================
 -- div128_spec: compose 5 block specs into single subroutine theorem.
@@ -133,20 +133,20 @@ theorem div128_spec (sp ret_addr d u_lo u_hi : Word) (base : Word)
   -- ================================================================
   have hph1 := divK_div128_phase1_spec sp ret_addr d u_lo u_hi v1_old v6_old v11_old
     ret_mem d_mem dlo_mem un0_mem (base + 1068) hv_ret hv_d hv_dlo hv_un0
-  rw [show (base + 1068 : Word) + 40 = base + 1108 from by bv_omega] at hph1
+  rw [show (base + 1068 : Word) + 40 = base + 1108 from by bv_addr] at hph1
   -- Extend phase1 cr to divCode
   have hph1e := cpsTriple_extend_code (hmono := by
     -- phase1 cr: 10 singletons at (base+1068)+{0,4,...,36}, indices 0-9
-    exact CodeReq_union_sub (d128_sub base 0 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (d128_sub base 1 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (d128_sub base 2 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (d128_sub base 3 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (d128_sub base 4 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (d128_sub base 5 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (d128_sub base 6 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (d128_sub base 7 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (d128_sub base 8 _ _ (by native_decide) (by bv_omega) (by native_decide))
-      (d128_sub base 9 _ _ (by native_decide) (by bv_omega) (by native_decide)))))))))))
+    exact CodeReq_union_sub (d128_sub base 0 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (d128_sub base 1 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (d128_sub base 2 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (d128_sub base 3 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (d128_sub base 4 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (d128_sub base 5 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (d128_sub base 6 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (d128_sub base 7 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (d128_sub base 8 _ _ (by native_decide) (by bv_addr) (by native_decide))
+      (d128_sub base 9 _ _ (by native_decide) (by bv_addr) (by native_decide)))))))))))
     hph1
   -- Frame phase1 with x0=0 (not used by phase1)
   have hph1f := cpsTriple_frame_left _ _ _ _ _
@@ -158,23 +158,23 @@ theorem div128_spec (sp ret_addr d u_lo u_hi : Word) (base : Word)
   -- ================================================================
   have hst1 := divK_div128_step1_spec sp u_hi d_hi un1 d_lo un0 d d_lo
     (base + 1108) hv_dlo
-  rw [show (base + 1108 : Word) + 60 = base + 1168 from by bv_omega] at hst1
+  rw [show (base + 1108 : Word) + 60 = base + 1168 from by bv_addr] at hst1
   have hst1e := cpsTriple_extend_code (hmono := by
-    exact CodeReq_union_sub (d128_sub base 10 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (d128_sub base 11 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (d128_sub base 12 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (d128_sub base 13 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (d128_sub base 14 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (d128_sub base 15 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (d128_sub base 16 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (d128_sub base 17 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (d128_sub base 18 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (d128_sub base 19 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (d128_sub base 20 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (d128_sub base 21 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (d128_sub base 22 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (d128_sub base 23 _ _ (by native_decide) (by bv_omega) (by native_decide))
-      (d128_sub base 24 _ _ (by native_decide) (by bv_omega) (by native_decide))))))))))))))))
+    exact CodeReq_union_sub (d128_sub base 10 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (d128_sub base 11 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (d128_sub base 12 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (d128_sub base 13 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (d128_sub base 14 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (d128_sub base 15 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (d128_sub base 16 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (d128_sub base 17 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (d128_sub base 18 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (d128_sub base 19 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (d128_sub base 20 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (d128_sub base 21 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (d128_sub base 22 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (d128_sub base 23 _ _ (by native_decide) (by bv_addr) (by native_decide))
+      (d128_sub base 24 _ _ (by native_decide) (by bv_addr) (by native_decide))))))))))))))))
     hst1
   -- Frame step1 with x2, mem[3968], mem[3960], mem[3944]
   have hst1f := cpsTriple_frame_left _ _ _ _ _
@@ -190,13 +190,13 @@ theorem div128_spec (sp ret_addr d u_lo u_hi : Word) (base : Word)
   -- ================================================================
   have hcu := divK_div128_compute_un21_spec sp q1' rhat' un1 rhat_un1 q_dlo d_lo
     (base + 1168) hv_dlo
-  rw [show (base + 1168 : Word) + 20 = base + 1188 from by bv_omega] at hcu
+  rw [show (base + 1168 : Word) + 20 = base + 1188 from by bv_addr] at hcu
   have hcue := cpsTriple_extend_code (hmono := by
-    exact CodeReq_union_sub (d128_sub base 25 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (d128_sub base 26 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (d128_sub base 27 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (d128_sub base 28 _ _ (by native_decide) (by bv_omega) (by native_decide))
-      (d128_sub base 29 _ _ (by native_decide) (by bv_omega) (by native_decide))))))
+    exact CodeReq_union_sub (d128_sub base 25 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (d128_sub base 26 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (d128_sub base 27 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (d128_sub base 28 _ _ (by native_decide) (by bv_addr) (by native_decide))
+      (d128_sub base 29 _ _ (by native_decide) (by bv_addr) (by native_decide))))))
     hcu
   -- Frame compute_un21 with x6, x0, x2, mem[3968], mem[3960], mem[3944]
   have hcuf := cpsTriple_frame_left _ _ _ _ _
@@ -216,23 +216,23 @@ theorem div128_spec (sp ret_addr d u_lo u_hi : Word) (base : Word)
   -- ================================================================
   have hst2 := divK_div128_step2_spec sp un21 d_hi cu_q1_dlo cu_rhat_un1 un1 d_lo un0
     (base + 1188) hv_dlo hv_un0
-  rw [show (base + 1188 : Word) + 60 = base + 1248 from by bv_omega] at hst2
+  rw [show (base + 1188 : Word) + 60 = base + 1248 from by bv_addr] at hst2
   have hst2e := cpsTriple_extend_code (hmono := by
-    exact CodeReq_union_sub (d128_sub base 30 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (d128_sub base 31 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (d128_sub base 32 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (d128_sub base 33 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (d128_sub base 34 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (d128_sub base 35 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (d128_sub base 36 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (d128_sub base 37 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (d128_sub base 38 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (d128_sub base 39 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (d128_sub base 40 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (d128_sub base 41 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (d128_sub base 42 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (d128_sub base 43 _ _ (by native_decide) (by bv_omega) (by native_decide))
-      (d128_sub base 44 _ _ (by native_decide) (by bv_omega) (by native_decide))))))))))))))))
+    exact CodeReq_union_sub (d128_sub base 30 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (d128_sub base 31 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (d128_sub base 32 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (d128_sub base 33 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (d128_sub base 34 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (d128_sub base 35 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (d128_sub base 36 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (d128_sub base 37 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (d128_sub base 38 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (d128_sub base 39 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (d128_sub base 40 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (d128_sub base 41 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (d128_sub base 42 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (d128_sub base 43 _ _ (by native_decide) (by bv_addr) (by native_decide))
+      (d128_sub base 44 _ _ (by native_decide) (by bv_addr) (by native_decide))))))))))))))))
     hst2
   -- Frame step2 with x10, x2, mem[3968], mem[3960]
   have hst2f := cpsTriple_frame_left _ _ _ _ _
@@ -251,10 +251,10 @@ theorem div128_spec (sp ret_addr d u_lo u_hi : Word) (base : Word)
   have hend := divK_div128_end_spec sp q1' q0' ret_addr un0 ret_addr
     (base + 1248) hv_ret halign
   have hende := cpsTriple_extend_code (hmono := by
-    exact CodeReq_union_sub (d128_sub base 45 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (d128_sub base 46 _ _ (by native_decide) (by bv_omega) (by native_decide))
-     (CodeReq_union_sub (d128_sub base 47 _ _ (by native_decide) (by bv_omega) (by native_decide))
-      (d128_sub base 48 _ _ (by native_decide) (by bv_omega) (by native_decide)))))
+    exact CodeReq_union_sub (d128_sub base 45 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (d128_sub base 46 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (d128_sub base 47 _ _ (by native_decide) (by bv_addr) (by native_decide))
+      (d128_sub base 48 _ _ (by native_decide) (by bv_addr) (by native_decide)))))
     hend
   -- Frame end with x7, x6, x1, x0, mem[3960], mem[3952], mem[3944]
   have hendf := cpsTriple_frame_left _ _ _ _ _
