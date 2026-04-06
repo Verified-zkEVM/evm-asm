@@ -1005,6 +1005,97 @@ theorem divK_store_loop_spec
     (fun h hp => hp) SQx0 LCp
 
 -- ============================================================================
+-- Section 9b: Store + loop exit for j=0 (cpsTriple, BGE eliminated)
+-- For j=0, j' = -1 < 0, so BGE is not taken → always exits to base+904.
+-- ============================================================================
+
+/-- For j=0, j' = signExtend12 4095, and slt j' 0 is true (j' < 0 signed). -/
+private theorem j0_slt_zero :
+    BitVec.slt ((0 : Word) + signExtend12 4095) 0 = true := by native_decide
+
+set_option maxRecDepth 4096 in
+set_option maxHeartbeats 3200000 in
+/-- Store q[0] + loop exit at j=0. Since j' = -1 < 0, BGE is not taken,
+    so this is a cpsTriple (not cpsBranch) to base+904. -/
+theorem divK_store_loop_j0_spec
+    (sp q_hat v5_old v7_old q_old : Word)
+    (base : Word)
+    (hv_q : isValidDwordAccess (sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat) = true) :
+    let q_addr := sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat
+    let j' := (0 : Word) + signExtend12 4095
+    cpsTriple (base + 880) (base + 904) (divCode base)
+      ((.x1 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ q_hat) **
+       (.x5 ↦ᵣ v5_old) ** (.x7 ↦ᵣ v7_old) ** (.x0 ↦ᵣ (0 : Word)) **
+       (q_addr ↦ₘ q_old))
+      ((.x1 ↦ᵣ j') ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ q_hat) **
+       (.x5 ↦ᵣ (0 : Word) <<< (3 : BitVec 6).toNat) ** (.x7 ↦ᵣ q_addr) ** (.x0 ↦ᵣ (0 : Word)) **
+       (q_addr ↦ₘ q_hat)) := by
+  intro q_addr j'
+  -- 1. Store q[j]: instrs [108]-[111] at base+880
+  have SQ := divK_store_qj_spec sp (0 : Word) q_hat v5_old v7_old q_old (base + 880) hv_q
+  dsimp only [] at SQ
+  rw [lb_sqj] at SQ
+  have SQe := cpsTriple_extend_code (hmono := by
+    exact CodeReq_union_sub (lb_sub base 108 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 109 _ _ (by native_decide) (by bv_addr) (by native_decide))
+     (CodeReq_union_sub (lb_sub base 110 _ _ (by native_decide) (by bv_addr) (by native_decide))
+      (lb_sub base 111 _ _ (by native_decide) (by bv_addr) (by native_decide))))) SQ
+  -- 2. ADDI x1 x1 4095 at base+896 (instr [112])
+  have haddi := addi_spec_gen_same .x1 (0 : Word) 4095 (base + 896) (by nofun)
+  rw [show (base + 896 : Word) + 4 = base + 900 from by bv_addr] at haddi
+  have haddi_e := cpsTriple_extend_code (hmono := by
+    exact lb_sub base 112 _ _ (by native_decide) (by bv_addr) (by native_decide)) haddi
+  -- 3. BGE x1 x0 7740 at base+900 (instr [113]) — RAW with pure condition
+  have hbge_raw := bge_spec_gen .x1 .x0 (7740 : BitVec 13) j' (0 : Word) (base + 900)
+  rw [show (base + 900 : Word) + signExtend13 (7740 : BitVec 13) = base + 448 from by
+        rw [show signExtend13 (7740 : BitVec 13) = (18446744073709551164 : Word) from by native_decide]
+        bv_addr,
+      show (base + 900 : Word) + 4 = base + 904 from by bv_addr] at hbge_raw
+  have hbge_ext := cpsBranch_extend_code (hmono := by
+    exact lb_sub base 113 _ _ (by native_decide) (by bv_addr) (by native_decide)) hbge_raw
+  -- 4. Eliminate taken branch: ⌜¬slt j' 0⌝ is absurd since j' = -1 < 0
+  have hbge_exit_raw := cpsBranch_elim_ntaken _ _ _ _ _ _ _ hbge_ext
+    (fun hp hQt => by
+      obtain ⟨_, _, _, _, _, ⟨_, _, _, _, _, ⟨_, hpure⟩⟩⟩ := hQt
+      exact hpure j0_slt_zero)
+  -- Strip pure fact from not-taken postcondition
+  have hbge_exit := cpsTriple_consequence _ _ _ _ _ _ _
+    (fun h hp => hp)
+    (fun h hp => sepConj_mono_right
+      (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1) h hp)
+    hbge_exit_raw
+  -- 5. Build store_qj + x0 frame → base+896
+  have SQx0 : cpsTriple (base + 880) (base + 896) (divCode base)
+      ((.x1 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ q_hat) **
+       (.x5 ↦ᵣ v5_old) ** (.x7 ↦ᵣ v7_old) ** (.x0 ↦ᵣ (0 : Word)) ** (q_addr ↦ₘ q_old))
+      ((.x1 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ q_hat) **
+       (.x5 ↦ᵣ (0 : Word) <<< (3 : BitVec 6).toNat) ** (.x7 ↦ᵣ q_addr) **
+       (.x0 ↦ᵣ (0 : Word)) ** (q_addr ↦ₘ q_hat)) :=
+    cpsTriple_consequence _ _ _ _ _ _ _
+      (fun h hp => by xperm_hyp hp)
+      (fun h hp => by xperm_hyp hp)
+      (cpsTriple_frame_left _ _ _ _ _ (.x0 ↦ᵣ (0 : Word)) (by pcFree) SQe)
+  -- 6. Frame ADDI with x0 (BGE needs x0), then frame both with remaining atoms
+  have haddi_x0 := cpsTriple_frame_left _ _ _ _ _
+      (.x0 ↦ᵣ (0 : Word)) (by pcFree) haddi_e
+  -- Compose ADDI+x0 → BGE exit (both have x1 ** x0)
+  have addi_bge := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+    (fun h hp => by xperm_hyp hp) haddi_x0 hbge_exit
+  -- Frame with remaining atoms
+  have addi_bge_framed := cpsTriple_frame_left _ _ _ _ _
+      ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ q_hat) **
+       (.x5 ↦ᵣ (0 : Word) <<< (3 : BitVec 6).toNat) ** (.x7 ↦ᵣ q_addr) **
+       (q_addr ↦ₘ q_hat))
+      (by pcFree) addi_bge
+  -- 7. Compose: store_qj → (ADDI → BGE exit)
+  have full := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+    (fun h hp => by xperm_hyp hp) SQx0 addi_bge_framed
+  exact cpsTriple_consequence _ _ _ _ _ _ _
+    (fun h hp => by xperm_hyp hp)
+    (fun h hp => by xperm_hyp hp)
+    full
+
+-- ============================================================================
 -- Section 10: Mulsub + correction_skip composition (borrow = 0 path)
 -- Takes borrow as an explicit parameter (not let-bound) to enable rw.
 -- ============================================================================
