@@ -247,6 +247,8 @@ theorem evm_div_n4_preloop_loopbody_spec (sp base : Word)
   simp only [j0_u0_addr_eq, j0_q_addr_eq, j0_u1_addr_eq,
     j0_u2_addr_eq, j0_u3_addr_eq, j0_u4_addr_eq,
     signExtend12_32, signExtend12_40, signExtend12_48, signExtend12_56] at hLB
+  -- Lift loop body from sharedDivModCode to divCode
+  have hLB := cpsTriple_extend_code (sharedDivModCode_sub_divCode base) hLB
   -- Frame loop body with cells not used by it
   have hLBf := cpsTriple_frame_left _ _ _ _ _
     (((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **

@@ -117,7 +117,7 @@ theorem divK_loop_body_n4_max_skip_spec
     let q_addr := sp + signExtend12 4088 - j <<< (3 : BitVec 6).toNat
     -- Hypothesis: borrow = 0
     (if BitVec.ult u_top c3 then (1 : Word) else 0) = (0 : Word) →
-    cpsBranch (base + 448) (divCode base)
+    cpsBranch (base + 448) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
        (.x5 ↦ᵣ v5_old) ** (.x6 ↦ᵣ v6_old) **
        (.x7 ↦ᵣ v7_old) ** (.x10 ↦ᵣ v10_old) ** (.x11 ↦ᵣ v11_old) **
@@ -298,7 +298,7 @@ theorem divK_loop_body_n4_max_addback_spec
     let q_addr := sp + signExtend12 4088 - j <<< (3 : BitVec 6).toNat
     -- Hypothesis: borrow ≠ 0
     (if BitVec.ult u_top c3 then (1 : Word) else 0) ≠ (0 : Word) →
-    cpsBranch (base + 448) (divCode base)
+    cpsBranch (base + 448) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
        (.x5 ↦ᵣ v5_old) ** (.x6 ↦ᵣ v6_old) **
        (.x7 ↦ᵣ v7_old) ** (.x10 ↦ᵣ v10_old) ** (.x11 ↦ᵣ v11_old) **
@@ -481,7 +481,7 @@ theorem divK_loop_body_n4_call_skip_spec
     let q_addr := sp + signExtend12 4088 - j <<< (3 : BitVec 6).toNat
     -- Hypothesis: borrow = 0
     (if BitVec.ult u_top c3 then (1 : Word) else 0) = (0 : Word) →
-    cpsBranch (base + 448) (divCode base)
+    cpsBranch (base + 448) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
        (.x5 ↦ᵣ v5_old) ** (.x6 ↦ᵣ v6_old) **
        (.x7 ↦ᵣ v7_old) ** (.x10 ↦ᵣ v10_old) ** (.x11 ↦ᵣ v11_old) **
@@ -703,7 +703,7 @@ theorem divK_loop_body_n4_call_addback_spec
     let q_addr := sp + signExtend12 4088 - j <<< (3 : BitVec 6).toNat
     -- Hypothesis: borrow ≠ 0
     (if BitVec.ult u_top c3 then (1 : Word) else 0) ≠ (0 : Word) →
-    cpsBranch (base + 448) (divCode base)
+    cpsBranch (base + 448) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
        (.x5 ↦ᵣ v5_old) ** (.x6 ↦ᵣ v6_old) **
        (.x7 ↦ᵣ v7_old) ** (.x10 ↦ᵣ v10_old) ** (.x11 ↦ᵣ v11_old) **
@@ -877,7 +877,7 @@ theorem divK_loop_body_n4_combined_spec
     (hv_q : isValidDwordAccess (sp + signExtend12 4088 - j <<< (3 : BitVec 6).toNat) = true) :
     let u_base := sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat
     let q_addr := sp + signExtend12 4088 - j <<< (3 : BitVec 6).toNat
-    cpsBranch (base + 448) (divCode base)
+    cpsBranch (base + 448) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
        (.x5 ↦ᵣ v5_old) ** (.x6 ↦ᵣ v6_old) **
        (.x7 ↦ᵣ v7_old) ** (.x10 ↦ᵣ v10_old) ** (.x11 ↦ᵣ v11_old) **
@@ -1139,7 +1139,7 @@ theorem divK_loop_body_n4_j0_spec
     (hv_q : isValidDwordAccess (sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat) = true) :
     let u_base := sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat
     let q_addr := sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat
-    cpsTriple (base + 448) (base + 904) (divCode base)
+    cpsTriple (base + 448) (base + 904) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (0 : Word)) **
        (.x5 ↦ᵣ v5_old) ** (.x6 ↦ᵣ v6_old) **
        (.x7 ↦ᵣ v7_old) ** (.x10 ↦ᵣ v10_old) ** (.x11 ↦ᵣ v11_old) **

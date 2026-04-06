@@ -17,15 +17,14 @@ namespace EvmAsm.Rv64
 -- Compose 5 block specs into a single div128_spec theorem.
 -- ============================================================================
 
--- Master subsumption: ofProg (base+1068) divK_div128 ⊆ divCode base
--- Block 13 in divCode's unionAll; skip blocks 0-12.
-private theorem divK_div128_ofProg_sub_divCode (base : Word) :
+-- Master subsumption: ofProg (base+1068) divK_div128 ⊆ sharedDivModCode base
+-- Block 12 in sharedDivModCode's unionAll; skip blocks 0-11.
+private theorem divK_div128_ofProg_sub_sharedCode (base : Word) :
     ∀ a i, (CodeReq.ofProg (base + 1068) divK_div128) a = some i →
-      (divCode base) a = some i := by
-  unfold divCode; simp only [CodeReq.unionAll_cons]
+      (sharedDivModCode base) a = some i := by
+  unfold sharedDivModCode; simp only [CodeReq.unionAll_cons]
   skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock
   skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock
-  skipBlock
   exact CodeReq.union_mono_left _ _
 
 -- Helper: combine two subsumption proofs over a union.
@@ -39,16 +38,16 @@ private theorem CodeReq_union_sub {cr1 cr2 target : CodeReq}
   | some j => rw [h1a] at h; simp at h; exact h ▸ h1 a j h1a
   | none => rw [h1a] at h; simp at h; exact h2 a i h
 
--- Helper: singleton at index k of divK_div128 with explicit instr ⊆ divCode base.
--- Used to prove each singleton in a block's cr is subsumed by divCode.
+-- Helper: singleton at index k of divK_div128 with explicit instr ⊆ sharedDivModCode base.
+-- Used to prove each singleton in a block's cr is subsumed by sharedDivModCode.
 private theorem d128_sub (base : Word) (k : Nat) (addr : Word) (instr : Instr)
     (hk : k < divK_div128.length)
     (h_addr : addr = (base + 1068) + BitVec.ofNat 64 (4 * k))
     (h_instr : divK_div128.get ⟨k, hk⟩ = instr) :
     ∀ a i, CodeReq.singleton addr instr a = some i →
-      (divCode base) a = some i := by
+      (sharedDivModCode base) a = some i := by
   subst h_addr; subst h_instr
-  exact fun a i h => divK_div128_ofProg_sub_divCode base a i
+  exact fun a i h => divK_div128_ofProg_sub_sharedCode base a i
     (CodeReq.singleton_mono
       (CodeReq.ofProg_lookup (base + 1068) divK_div128 k hk (by native_decide)) a i h)
 
@@ -63,7 +62,7 @@ private theorem d128_off_180 (base : Word) : (base + 1068 : Word) + 180 = base +
 
 -- ============================================================================
 -- div128_spec: compose 5 block specs into single subroutine theorem.
--- Entry: base+1068, Exit: ret_addr (via JALR), CodeReq: divCode base.
+-- Entry: base+1068, Exit: ret_addr (via JALR), CodeReq: sharedDivModCode base.
 -- ============================================================================
 
 set_option maxHeartbeats 25600000 in
@@ -106,7 +105,7 @@ theorem div128_spec (sp ret_addr d u_lo u_hi : Word) (base : Word)
     let q0' := if BitVec.ult rhat2_un0 q0_dlo then q0c + signExtend12 4095 else q0c
     -- End: combine q1' and q0'
     let q := (q1' <<< (32 : BitVec 6).toNat) ||| q0'
-    cpsTriple (base + 1068) ret_addr (divCode base)
+    cpsTriple (base + 1068) ret_addr (sharedDivModCode base)
       (-- Precondition: caller registers + scratch memory
        (.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ ret_addr) ** (.x10 ↦ᵣ d) **
        (.x5 ↦ᵣ u_lo) ** (.x7 ↦ᵣ u_hi) **
@@ -134,7 +133,7 @@ theorem div128_spec (sp ret_addr d u_lo u_hi : Word) (base : Word)
   have hph1 := divK_div128_phase1_spec sp ret_addr d u_lo u_hi v1_old v6_old v11_old
     ret_mem d_mem dlo_mem un0_mem (base + 1068) hv_ret hv_d hv_dlo hv_un0
   rw [show (base + 1068 : Word) + 40 = base + 1108 from by bv_addr] at hph1
-  -- Extend phase1 cr to divCode
+  -- Extend phase1 cr to sharedDivModCode
   have hph1e := cpsTriple_extend_code (hmono := by
     -- phase1 cr: 10 singletons at (base+1068)+{0,4,...,36}, indices 0-9
     exact CodeReq_union_sub (d128_sub base 0 _ _ (by native_decide) (by bv_addr) (by native_decide))
