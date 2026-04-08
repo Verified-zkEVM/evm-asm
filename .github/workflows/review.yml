@@ -1,0 +1,216 @@
+name: PR Review
+on:
+  pull_request:
+    types: [opened, synchronize]
+  issue_comment:
+    types: [created]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    if: >-
+      (
+        github.event_name == 'pull_request' &&
+        (
+          github.event.pull_request.author_association == 'OWNER' ||
+          github.event.pull_request.author_association == 'MEMBER' ||
+          github.event.pull_request.author_association == 'COLLABORATOR'
+        )
+      ) ||
+      (
+        github.event_name == 'issue_comment' &&
+        github.event.issue.pull_request &&
+        startsWith(github.event.comment.body, '/review') &&
+        (
+          github.event.comment.author_association == 'OWNER' ||
+          github.event.comment.author_association == 'MEMBER' ||
+          github.event.comment.author_association == 'COLLABORATOR'
+        )
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Extract arguments from comment
+        id: get_args
+        if: github.event_name == 'issue_comment'
+        env:
+          COMMENT_BODY: ${{ github.event.comment.body }}
+        run: |
+          # Generate a random EOF marker for the GITHUB_OUTPUT heredoc.
+          # This variable is passed to awk which handles all output writing.
+          EOF=$(openssl rand -hex 8)
+
+          awk -v eof="$EOF" -v gh_out="$GITHUB_OUTPUT" '
+            BEGIN {
+              ext = ""
+              repo = ""
+              com = ""
+              section = ""
+            }
+            /^External:/ { section="ext"; next }
+            /^Internal:/ { section="repo"; next }
+            /^Comments:/ { section="com"; next }
+            { 
+              gsub(/\r/, "", $0);
+              gsub(/^[ \t]+|[ \t]+$/, "", $0);
+              if ($0 == "" || $0 == "/review") { next }
+
+              if (section == "ext") {
+                sub(/^- +/, "");
+                if (ext != "") { ext = ext "," $0 } else { ext = $0 }
+              }
+              else if (section == "repo") {
+                sub(/^- +/, "");
+                if (repo != "") { repo = repo "," $0 } else { repo = $0 }
+              }
+              else if (section == "com") {
+                if (com != "") { com = com "\n" $0 } else { com = $0 }
+              }
+            }
+            END {
+              printf "external_refs=%s\n", ext >> gh_out
+              printf "repo_context_refs=%s\n", repo >> gh_out
+              printf "additional_comments<<%s\n", eof >> gh_out
+              printf "%s\n", com >> gh_out
+              printf "%s\n", eof >> gh_out
+            }
+          ' <<< "$COMMENT_BODY"
+        shell: bash
+      - name: Install large-PR diff fallback
+        run: |
+          REAL_GH="$(command -v gh)"
+          mkdir -p "$RUNNER_TEMP/bin"
+          cat > "$RUNNER_TEMP/bin/gh" <<EOF
+          #!/usr/bin/env bash
+          set -euo pipefail
+
+          REAL_GH="$REAL_GH"
+
+          if [[ "\${1-}" == "pr" && "\${2-}" == "diff" && "\${#}" -ge 3 ]]; then
+            PR_NUMBER="\$3"
+            shift 3
+
+            if [[ "\${#}" -eq 1 && "\$1" == "--name-only" ]]; then
+              python3 - "\$PR_NUMBER" <<'PY'
+          import json
+          import os
+          import sys
+          import urllib.request
+
+          pr_number = sys.argv[1]
+          repo = os.environ["GITHUB_REPOSITORY"]
+          token = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
+          headers = {
+              "Accept": "application/vnd.github+json",
+              "Authorization": f"Bearer {token}",
+              "X-GitHub-Api-Version": "2022-11-28",
+          }
+
+          page = 1
+          while True:
+              url = f"https://api.github.com/repos/{repo}/pulls/{pr_number}/files?per_page=100&page={page}"
+              request = urllib.request.Request(url, headers=headers)
+              with urllib.request.urlopen(request) as response:
+                  batch = json.load(response)
+              if not batch:
+                  break
+              for item in batch:
+                  print(item["filename"])
+              if len(batch) < 100:
+                  break
+              page += 1
+          PY
+              exit 0
+            fi
+
+            if [[ "\${#}" -eq 0 ]]; then
+              python3 - "\$PR_NUMBER" <<'PY'
+          import json
+          import os
+          import sys
+          import urllib.request
+
+          pr_number = sys.argv[1]
+          repo = os.environ["GITHUB_REPOSITORY"]
+          token = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
+          headers = {
+              "Accept": "application/vnd.github+json",
+              "Authorization": f"Bearer {token}",
+              "X-GitHub-Api-Version": "2022-11-28",
+          }
+
+          files = []
+          page = 1
+          while True:
+              url = f"https://api.github.com/repos/{repo}/pulls/{pr_number}/files?per_page=100&page={page}"
+              request = urllib.request.Request(url, headers=headers)
+              with urllib.request.urlopen(request) as response:
+                  batch = json.load(response)
+              if not batch:
+                  break
+              files.extend(batch)
+              if len(batch) < 100:
+                  break
+              page += 1
+
+          for item in files:
+              new_path = item["filename"]
+              old_path = item.get("previous_filename") or new_path
+              status = item["status"]
+              additions = item["additions"]
+              deletions = item["deletions"]
+              changes = item["changes"]
+              patch = item.get("patch")
+
+              print(f"diff --git a/{old_path} b/{new_path}")
+              if status == "added":
+                  print("new file mode 100644")
+                  print("--- /dev/null")
+                  print(f"+++ b/{new_path}")
+              elif status == "removed":
+                  print("deleted file mode 100644")
+                  print(f"--- a/{old_path}")
+                  print("+++ /dev/null")
+              else:
+                  if status == "renamed" and old_path != new_path:
+                      print(f"rename from {old_path}")
+                      print(f"rename to {new_path}")
+                  print(f"--- a/{old_path}")
+                  print(f"+++ b/{new_path}")
+
+              if patch:
+                  print(patch.rstrip("\\n"))
+              else:
+                  print("@@ review-workflow fallback @@")
+                  print(
+                      f"+Patch unavailable from the GitHub files API "
+                      f"(status={status}, additions={additions}, deletions={deletions}, changes={changes})."
+                  )
+              print()
+          PY
+              exit 0
+            fi
+          fi
+
+          exec "\$REAL_GH" "\$@"
+          EOF
+          chmod +x "$RUNNER_TEMP/bin/gh"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+        shell: bash
+      - uses: alexanderlhicks/lean-review-workflow@main
+        env:
+          # Give the action a wider context budget on large PRs after file discovery.
+          CONTEXT_LIMIT: "25"
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
+          pr_number: ${{ github.event.issue.number || github.event.pull_request.number }}
+          external_refs: "${{ steps.get_args.outputs.external_refs }}"
+          repo_context_refs: "${{ steps.get_args.outputs.repo_context_refs }}"
+          additional_comments: "${{ steps.get_args.outputs.additional_comments }}"
