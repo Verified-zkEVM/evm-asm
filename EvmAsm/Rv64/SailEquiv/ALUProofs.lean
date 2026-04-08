@@ -85,7 +85,7 @@ private theorem reg_ne_x12_x11 : (Register.x12 == Register.x11) = false := by na
 -- Bridge: reg_agree after a register insert (9x9 case split)
 -- ============================================================================
 
-private theorem reg_agree_after_insert (s_sail : SailState) (s_rv : MachineState)
+theorem reg_agree_after_insert (s_sail : SailState) (s_rv : MachineState)
     (hrel : StateRel s_rv s_sail) (rd : Reg) (v : BitVec 64) :
     ∀ r : Reg, sailRegVal
       (match rd with
