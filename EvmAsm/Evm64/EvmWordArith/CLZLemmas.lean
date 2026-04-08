@@ -254,4 +254,69 @@ theorem clzResult_fst_toNat_le (val : Word) :
   · rw [BitVec.toNat_add, Nat.mod_eq_of_lt (by have := se_1; omega)]
     have := se_1; omega
 
+-- ============================================================================
+-- Converse: MSB set implies CLZ shift=0
+-- ============================================================================
+
+/-- If val >>> K ≠ 0 for a larger K, then val >>> K' ≠ 0 for K' ≤ K.
+    (Higher-order bits set implies lower-order bits nonzero.) -/
+theorem ushiftRight_ne_zero_of_msb {val : Word} {K : Nat} (hK : K ≤ 63)
+    (hmsb : val >>> (63 : Nat) ≠ 0) : val >>> K ≠ 0 := by
+  intro h; apply hmsb; apply BitVec.eq_of_toNat_eq
+  show (val >>> (63 : Nat)).toNat = (0 : Word).toNat
+  have h0 : (val >>> K).toNat = 0 := by rw [h]; rfl
+  rw [BitVec.toNat_ushiftRight, Nat.shiftRight_eq_div_pow] at h0 ⊢; simp
+  have hlt : val.toNat < 2^K := by
+    rcases (Nat.div_eq_zero_iff).mp h0 with h | h
+    · exact absurd h (by positivity)
+    · exact h
+  have : 2^K ≤ (2 : Nat)^63 := Nat.pow_le_pow_right (by omega) hK; omega
+
+/-- When a clzStep's shift condition holds, the step is the identity. -/
+private theorem clzStep_of_pass {K M_s : Nat} {m : Word} {p : Word × Word}
+    (hpass : p.2 >>> K ≠ 0) :
+    clzStep K M_s m p = p := by
+  unfold clzStep; exact Prod.ext (if_pos hpass) (if_pos hpass)
+
+/-- When MSB is set, the entire pipeline is the identity (all stages pass). -/
+private theorem clzPipeline_of_msb (val : Word) (hmsb : val >>> (63 : Nat) ≠ 0) :
+    clzPipeline val = ((0 : Word), val) := by
+  have h32 := ushiftRight_ne_zero_of_msb (K := 32) (by omega) hmsb
+  have h48 := ushiftRight_ne_zero_of_msb (K := 48) (by omega) hmsb
+  have h56 := ushiftRight_ne_zero_of_msb (K := 56) (by omega) hmsb
+  have h60 := ushiftRight_ne_zero_of_msb (K := 60) (by omega) hmsb
+  have h62 := ushiftRight_ne_zero_of_msb (K := 62) (by omega) hmsb
+  -- Each stage is identity: unfold and rewrite step by step
+  unfold clzPipeline; dsimp only []
+  rw [show clzStep 32 32 (signExtend12 32) ((0 : Word), val) = ((0 : Word), val)
+    from clzStep_of_pass h32]
+  rw [show clzStep 48 16 (signExtend12 16) ((0 : Word), val) = ((0 : Word), val)
+    from clzStep_of_pass h48]
+  rw [show clzStep 56 8 (signExtend12 8) ((0 : Word), val) = ((0 : Word), val)
+    from clzStep_of_pass h56]
+  rw [show clzStep 60 4 (signExtend12 4) ((0 : Word), val) = ((0 : Word), val)
+    from clzStep_of_pass h60]
+  exact clzStep_of_pass h62
+
+/-- When the MSB is set (val ≥ 2^63), CLZ reports shift=0. -/
+theorem msb_imp_clz_zero (val : Word) (hmsb : val >>> (63 : Nat) ≠ 0) :
+    (clzResult val).1 = 0 := by
+  rw [clzResult_fst_eq, clzPipeline_of_msb val hmsb]; exact if_pos hmsb
+
+-- ============================================================================
+-- Biconditional characterization
+-- ============================================================================
+
+/-- CLZ shift=0 iff the MSB is set: `(clzResult val).1 = 0 ↔ val >>> 63 ≠ 0`. -/
+theorem clzResult_fst_eq_zero_iff (val : Word) :
+    (clzResult val).1 = 0 ↔ val >>> (63 : Nat) ≠ 0 := by
+  constructor
+  · intro h
+    have hge := clz_zero_imp_msb val h
+    intro heq
+    have : (val >>> (63 : Nat)).toNat = 0 := by rw [heq]; rfl
+    rw [BitVec.toNat_ushiftRight, Nat.shiftRight_eq_div_pow] at this
+    have := val.isLt; omega
+  · exact msb_imp_clz_zero val
+
 end EvmAsm.Evm64
