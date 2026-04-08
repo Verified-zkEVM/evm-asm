@@ -371,6 +371,8 @@ All phases below target **Evm64** primarily. Files are under `EvmAsm/Evm64/`.
     — uses evmWordIs for a, b, and existential result EvmWord
 
   **Remaining work (semantic correctness):**
+  - Multi-limb arithmetic foundations: `MultiLimb.lean` — half-word decomposition, rv64_divu/mulhu
+    Nat-level correctness, val128/val256 representation, partial product decomposition (done)
   - `EvmWord.div_correct` / `EvmWord.mod_correct` bridge lemmas: prove algorithm output = BitVec.udiv/umod
     (requires formalizing Knuth Algorithm D correctness: normalization, trial quotient, correction)
   - Stack-level specs with `evmWordIs (sp+32) (EvmWord.div a b)` / `(EvmWord.mod a b)` in postcondition
