@@ -96,6 +96,31 @@ theorem getLimb_fromLimbs (limbs : Fin 4 → Word) (i : Fin 4) :
   · exact getLimb_fromLimbs_2 limbs
   · exact getLimb_fromLimbs_3 limbs
 
+/-- Decompose an EvmWord's toNat into a sum of limb values times base powers.
+    `v.toNat = limb0 + limb1 * 2^64 + limb2 * 2^128 + limb3 * 2^192` -/
+theorem toNat_getLimb_decompose (v : EvmWord) :
+    v.toNat = (v.getLimb 0).toNat + (v.getLimb 1).toNat * 2^64 +
+              (v.getLimb 2).toNat * 2^128 + (v.getLimb 3).toNat * 2^192 := by
+  have h0 : (v.getLimb 0).toNat = v.toNat % 2^64 := by
+    simp [getLimb, BitVec.extractLsb', Nat.shiftRight_eq_div_pow]
+  have h1 : (v.getLimb 1).toNat = v.toNat / 2^64 % 2^64 := by
+    simp [getLimb, BitVec.extractLsb', Nat.shiftRight_eq_div_pow]
+  have h2 : (v.getLimb 2).toNat = v.toNat / 2^128 % 2^64 := by
+    simp [getLimb, BitVec.extractLsb', Nat.shiftRight_eq_div_pow]
+  have h3 : (v.getLimb 3).toNat = v.toNat / 2^192 % 2^64 := by
+    simp only [getLimb, show (3 : Fin 4).val = 3 from rfl,
+               BitVec.extractLsb', Nat.shiftRight_eq_div_pow,
+               show 3 * 64 = 192 from by decide, BitVec.toNat_ofNat]
+  rw [h0, h1, h2, h3]; omega
+
+/-- The toNat of fromLimbs expressed as a weighted sum of individual limb values. -/
+theorem fromLimbs_toNat (f : Fin 4 → Word) :
+    (fromLimbs f).toNat = (f 0).toNat + (f 1).toNat * 2^64 +
+                           (f 2).toNat * 2^128 + (f 3).toNat * 2^192 := by
+  have h := toNat_getLimb_decompose (fromLimbs f)
+  simp only [getLimb_fromLimbs] at h
+  exact h
+
 /-- The list of 4 limbs for an EvmWord. -/
 def toLimbs (v : EvmWord) : List Word :=
   List.ofFn fun i : Fin 4 => v.getLimb i
