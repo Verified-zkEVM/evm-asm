@@ -379,8 +379,10 @@ All phases below target **Evm64** primarily. Files are under `EvmAsm/Evm64/`.
     chain (`mulsub_chain_nat`), correction step (`mulsub_correction_eq`) (done)
   - Normalization: `Normalization.lean` — `norm_div_eq` (shifting preserves quotient),
     `norm_euclidean_bridge` (recover original q,r from normalized), `div_mod_no_overflow` (done)
-  - `EvmWord.div_correct` / `EvmWord.mod_correct` bridge lemmas: prove algorithm output = BitVec.udiv/umod
-    (requires connecting div128 output to trial quotient bounds, then full algorithm correctness)
+  - Division bridge: `DivBridge.lean` — `bv_eq_of_nat_eq` (Nat eq → BitVec eq, auto no-overflow),
+    `div_of_nat_euclidean` / `mod_of_nat_euclidean` (Nat Euclidean → EvmWord.div/mod), `div_from_mulsub` (done)
+  - Remaining: prove algorithm output satisfies Nat-level Euclidean property
+    (carry chain analysis connecting specific register expressions to val256 equations)
   - Stack-level specs with `evmWordIs (sp+32) (EvmWord.div a b)` / `(EvmWord.mod a b)` in postcondition
   - Combined spec merging b=0 + b≠0 into single `evm_div_stack_spec`/`evm_mod_stack_spec`
 
