@@ -384,7 +384,10 @@ All phases below target **Evm64** primarily. Files are under `EvmAsm/Evm64/`.
   - N=4 case lemmas: `DivN4Lemmas.lean` — quotient bound (≤1 when MSB set), q=0/q=1 subcases,
     MSB → hi32 normalization condition, val256 positivity (done)
   - CLZ correctness: `CLZLemmas.lean` — `clz_zero_imp_msb` (shift=0 → val ≥ 2^63),
+    `msb_imp_clz_zero` (converse), `clzResult_fst_eq_zero_iff` (biconditional),
     algebraic proof via `clzStep` abstraction with stage bound chain (done)
+  - Limb bridge: `DivLimbBridge.lean` — OR-reduce nonzero → val256 > 0 / fromLimbs ≠ 0,
+    per-limb val256 lower bounds (n=1: ≥1, n=2: ≥2^64, n=3: ≥2^128, n=4: ≥2^192) (done)
   - Remaining: prove algorithm output satisfies Nat-level Euclidean property
     (carry chain analysis connecting specific register expressions to val256 equations)
   - Stack-level specs with `evmWordIs (sp+32) (EvmWord.div a b)` / `(EvmWord.mod a b)` in postcondition
