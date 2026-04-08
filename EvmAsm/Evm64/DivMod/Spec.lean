@@ -5,10 +5,13 @@
 
   Currently covers:
   - Zero divisor path (b = 0): evm_div_bzero_stack_spec, evm_mod_bzero_stack_spec
-  - Normal path (b ≠ 0): TODO (requires loop body composition, issues #87/#89)
+  - Normal path (b ≠ 0): TODO (needs semantic correctness bridge: EvmWord.div_correct / mod_correct)
+    Limb-level combined specs done: evm_div_bnz_full_spec, evm_mod_bnz_full_spec
 -/
 
 import EvmAsm.Evm64.DivMod.Compose
+import EvmAsm.Evm64.DivMod.Compose.DivCombined
+import EvmAsm.Evm64.DivMod.Compose.ModCombined
 import EvmAsm.Evm64.EvmWordArith
 
 open EvmAsm.Rv64.Tactics
