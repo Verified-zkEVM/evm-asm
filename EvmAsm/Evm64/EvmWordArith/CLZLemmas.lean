@@ -173,6 +173,35 @@ theorem toNat_ge_of_ushiftRight_63 {val : Word}
   have := val.isLt; omega
 
 -- ============================================================================
+-- Backward pass: if pipeline count = 0, all stages passed and value = val
+-- ============================================================================
+
+/-- Helper: rewrite pipeline.2 = val when all stages passed. -/
+private theorem pipeline_snd_chain {val : Word}
+    (hval : ((0 : Word), val).2 >>> 32 ≠ 0)
+    (hv0 : (clzS0 val).2 >>> 48 ≠ 0)
+    (hv1 : (clzS1 val).2 >>> 56 ≠ 0)
+    (hv2 : (clzS2 val).2 >>> 60 ≠ 0)
+    (hv3 : (clzS3 val).2 >>> 62 ≠ 0) :
+    (clzPipeline val).2 = val := by
+  rw [clzPipeline_unfold, clzStep_snd_of_pass hv3]
+  unfold clzS3; rw [clzStep_snd_of_pass hv2]
+  unfold clzS2; rw [clzStep_snd_of_pass hv1]
+  unfold clzS1; rw [clzStep_snd_of_pass hv0]
+  unfold clzS0; rw [clzStep_snd_of_pass hval]
+
+/-- If the pipeline count is 0, all 5 stages passed and the pipeline value = val. -/
+private theorem clzPipeline_zero (val : Word) (h : (clzPipeline val).1 = 0) :
+    (clzPipeline val).2 = val := by
+  rw [clzPipeline_unfold] at h
+  have ⟨hc3, hv3⟩ := clzStep_fst_zero (by have := se_2; omega) (clzS3_no_overflow val) h
+  have ⟨hc2, hv2⟩ := clzStep_fst_zero (by have := se_4; omega) (clzS2_no_overflow val) hc3
+  have ⟨hc1, hv1⟩ := clzStep_fst_zero (by have := se_8; omega) (clzS1_no_overflow val) hc2
+  have ⟨hc0, hv0⟩ := clzStep_fst_zero (by have := se_16; omega) (clzS0_no_overflow val) hc1
+  have ⟨_, hval⟩ := clzStep_fst_zero (by have := se_32; omega) (clzInit_no_overflow val) hc0
+  exact pipeline_snd_chain hval hv0 hv1 hv2 hv3
+
+-- ============================================================================
 -- Main theorem: CLZ shift=0 implies MSB is set
 -- ============================================================================
 
@@ -181,42 +210,48 @@ theorem toNat_ge_of_ushiftRight_63 {val : Word}
     to the mathematical normalization condition needed for quotient bounds. -/
 theorem clz_zero_imp_msb (val : Word) (h : (clzResult val).1 = 0) :
     val.toNat ≥ 2^63 := by
-  -- Express h in terms of pipeline + stage 5
   rw [clzResult_fst_eq] at h
   have hbnd := clzPipeline_fst_le val
-  -- Stage 5: split on v4 >>> 63
   split at h
   · -- Stage 5 passed: pipeline count = 0
     rename_i h5_pass
-    -- Backward pass through stages 4..0: each passed and count was 0
-    rw [clzPipeline_unfold] at h h5_pass
-    have ⟨hc3, hv3⟩ := clzStep_fst_zero (by have := se_2; omega)
-      (clzS3_no_overflow val) h
-    have ⟨hc2, hv2⟩ := clzStep_fst_zero (by have := se_4; omega)
-      (clzS2_no_overflow val) hc3
-    have ⟨hc1, hv1⟩ := clzStep_fst_zero (by have := se_8; omega)
-      (clzS1_no_overflow val) hc2
-    have ⟨hc0, hv0⟩ := clzStep_fst_zero (by have := se_16; omega)
-      (clzS0_no_overflow val) hc1
-    have ⟨_, hval⟩ := clzStep_fst_zero (by have := se_32; omega)
-      (clzInit_no_overflow val) hc0
-    -- All stages passed → pipeline value = val
-    -- Peel back value from stage 4 to stage 0 in h5_pass
-    rw [clzStep_snd_of_pass hv3] at h5_pass      -- stage 4: remove clzStep 62
-    unfold clzS3 at h5_pass
-    rw [clzStep_snd_of_pass hv2] at h5_pass      -- stage 3: remove clzStep 60
-    unfold clzS2 at h5_pass
-    rw [clzStep_snd_of_pass hv1] at h5_pass      -- stage 2: remove clzStep 56
-    unfold clzS1 at h5_pass
-    rw [clzStep_snd_of_pass hv0] at h5_pass      -- stage 1: remove clzStep 48
-    unfold clzS0 at h5_pass
-    rw [clzStep_snd_of_pass hval] at h5_pass     -- stage 0: remove clzStep 32
-    -- h5_pass : val >>> 63 ≠ 0 (after (0, val).2 reduces to val)
-    simpa using toNat_ge_of_ushiftRight_63 h5_pass
+    have hsnd := clzPipeline_zero val h
+    rw [hsnd] at h5_pass
+    exact toNat_ge_of_ushiftRight_63 h5_pass
   · -- Stage 5 failed: pipeline.1 + 1 = 0, contradicts bound ≤ 62
     exfalso
     have h0 : ((clzPipeline val).1 + signExtend12 1).toNat = 0 := by rw [h]; rfl
     rw [BitVec.toNat_add, Nat.mod_eq_of_lt (by have := se_1; omega)] at h0
+    have := se_1; omega
+
+-- ============================================================================
+-- CLZ shift=0 implies value unchanged
+-- ============================================================================
+
+/-- When CLZ reports shift=0, the shifted value equals the original. -/
+theorem clz_zero_imp_snd (val : Word) (h : (clzResult val).1 = 0) :
+    (clzResult val).2 = val := by
+  rw [clzResult_fst_eq] at h
+  have hbnd := clzPipeline_fst_le val
+  split at h
+  · rw [clzResult_snd_eq]; exact clzPipeline_zero val h
+  · exfalso
+    have h0 : ((clzPipeline val).1 + signExtend12 1).toNat = 0 := by rw [h]; rfl
+    rw [BitVec.toNat_add, Nat.mod_eq_of_lt (by have := se_1; omega)] at h0
+    have := se_1; omega
+
+-- ============================================================================
+-- CLZ count bound
+-- ============================================================================
+
+/-- The CLZ count is always at most 63. -/
+theorem clzResult_fst_toNat_le (val : Word) :
+    (clzResult val).1.toNat ≤ 63 := by
+  rw [clzResult_fst_eq]
+  have hbnd := clzPipeline_fst_le val
+  split
+  · omega
+  · rw [BitVec.toNat_add, Nat.mod_eq_of_lt (by have := se_1; omega)]
     have := se_1; omega
 
 end EvmAsm.Evm64
