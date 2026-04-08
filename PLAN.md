@@ -375,6 +375,8 @@ All phases below target **Evm64** primarily. Files are under `EvmAsm/Evm64/`.
     Nat-level correctness, val128/val256 representation, partial product decomposition (done)
   - Div128 mathematical foundations: `Div128Lemmas.lean` — half-word OR-combine, 128-bit Euclidean
     uniqueness, trial quotient bounds (q_true ≤ q̂ ≤ q_true + 2 when normalized) (done)
+  - Multiply-subtract chain: `MulSubChain.lean` — carry/borrow propagation, 4-limb telescoping
+    chain (`mulsub_chain_nat`), correction step (`mulsub_correction_eq`) (done)
   - `EvmWord.div_correct` / `EvmWord.mod_correct` bridge lemmas: prove algorithm output = BitVec.udiv/umod
     (requires connecting div128 output to trial quotient bounds, then full algorithm correctness)
   - Stack-level specs with `evmWordIs (sp+32) (EvmWord.div a b)` / `(EvmWord.mod a b)` in postcondition
