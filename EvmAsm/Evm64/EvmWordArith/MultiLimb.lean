@@ -71,8 +71,8 @@ theorem rv64_divu_mul_le (a b : Word) (hb : b ≠ 0) :
     (rv64_divu a b).toNat * b.toNat ≤ a.toNat := by
   rw [rv64_divu_toNat a b hb]; exact Nat.div_mul_le_self a.toNat b.toNat
 
-/-- The remainder after rv64_divu is less than the divisor. -/
-theorem rv64_divu_rem_lt (a b : Word) (hb : b ≠ 0) :
+/-- Nat modulo is less than a nonzero Word divisor. -/
+theorem word_mod_lt (a b : Word) (hb : b ≠ 0) :
     a.toNat % b.toNat < b.toNat := by
   apply Nat.mod_lt
   exact Nat.pos_of_ne_zero (by intro h; apply hb; exact BitVec.eq_of_toNat_eq h)
@@ -204,12 +204,6 @@ theorem single_mul_val256 (q v0 v1 v2 v3 : Word) :
     q.toNat * v0.toNat + q.toNat * v1.toNat * 2 ^ 64 +
     q.toNat * v2.toNat * 2 ^ 128 + q.toNat * v3.toNat * 2 ^ 192 := by
   unfold val256; ring
-
-/-- Each partial product q*v_i decomposes via MUL (low) and MULHU (high). -/
-theorem partial_product_split (q vi : Word) :
-    q.toNat * vi.toNat =
-    (rv64_mulhu q vi).toNat * 2 ^ 64 + (q * vi).toNat :=
-  (mul_full_product q vi).symm
 
 end EvmWord
 
