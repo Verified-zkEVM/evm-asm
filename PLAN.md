@@ -373,8 +373,10 @@ All phases below target **Evm64** primarily. Files are under `EvmAsm/Evm64/`.
   **Remaining work (semantic correctness):**
   - Multi-limb arithmetic foundations: `MultiLimb.lean` — half-word decomposition, rv64_divu/mulhu
     Nat-level correctness, val128/val256 representation, partial product decomposition (done)
+  - Div128 mathematical foundations: `Div128Lemmas.lean` — half-word OR-combine, 128-bit Euclidean
+    uniqueness, trial quotient bounds (q_true ≤ q̂ ≤ q_true + 2 when normalized) (done)
   - `EvmWord.div_correct` / `EvmWord.mod_correct` bridge lemmas: prove algorithm output = BitVec.udiv/umod
-    (requires formalizing Knuth Algorithm D correctness: normalization, trial quotient, correction)
+    (requires connecting div128 output to trial quotient bounds, then full algorithm correctness)
   - Stack-level specs with `evmWordIs (sp+32) (EvmWord.div a b)` / `(EvmWord.mod a b)` in postcondition
   - Combined spec merging b=0 + b≠0 into single `evm_div_stack_spec`/`evm_mod_stack_spec`
 

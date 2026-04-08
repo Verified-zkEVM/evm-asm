@@ -16,3 +16,4 @@ import EvmAsm.Evm64.EvmWordArith.ByteOps
 import EvmAsm.Evm64.EvmWordArith.SignExtend
 import EvmAsm.Evm64.EvmWordArith.Div
 import EvmAsm.Evm64.EvmWordArith.MultiLimb
+import EvmAsm.Evm64.EvmWordArith.Div128Lemmas
