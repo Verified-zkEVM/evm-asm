@@ -383,6 +383,8 @@ All phases below target **Evm64** primarily. Files are under `EvmAsm/Evm64/`.
     `div_of_nat_euclidean` / `mod_of_nat_euclidean` (Nat Euclidean → EvmWord.div/mod), `div_from_mulsub` (done)
   - N=4 case lemmas: `DivN4Lemmas.lean` — quotient bound (≤1 when MSB set), q=0/q=1 subcases,
     MSB → hi32 normalization condition, val256 positivity (done)
+  - CLZ correctness: `CLZLemmas.lean` — `clz_zero_imp_msb` (shift=0 → val ≥ 2^63),
+    algebraic proof via `clzStep` abstraction with stage bound chain (done)
   - Remaining: prove algorithm output satisfies Nat-level Euclidean property
     (carry chain analysis connecting specific register expressions to val256 equations)
   - Stack-level specs with `evmWordIs (sp+32) (EvmWord.div a b)` / `(EvmWord.mod a b)` in postcondition

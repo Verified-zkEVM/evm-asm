@@ -21,3 +21,4 @@ import EvmAsm.Evm64.EvmWordArith.MulSubChain
 import EvmAsm.Evm64.EvmWordArith.Normalization
 import EvmAsm.Evm64.EvmWordArith.DivBridge
 import EvmAsm.Evm64.EvmWordArith.DivN4Lemmas
+import EvmAsm.Evm64.EvmWordArith.CLZLemmas
