@@ -9,7 +9,9 @@ import EvmAsm.Evm64.DivMod.LimbSpec
 
 open EvmAsm.Rv64.Tactics
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 -- ============================================================================
 -- Program length lemmas (via native_decide)
@@ -207,4 +209,4 @@ theorem sharedDivModCode_sub_modCode (base : Word) :
     (CodeReq.union_split_mono (shared_b12_mod base)
     (fun _ _ h => by simp [CodeReq.unionAll_nil, CodeReq.empty] at h)))))))))))))
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64

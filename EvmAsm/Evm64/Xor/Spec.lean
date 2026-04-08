@@ -6,7 +6,9 @@
 
 import EvmAsm.Evm64.Xor.LimbSpec
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 /-- CodeReq for the 256-bit EVM XOR operation.
     17 instructions = 68 bytes. 4 per-limb XOR blocks + ADDI sp adjustment. -/
@@ -63,4 +65,4 @@ theorem evm_xor_stack_spec (sp base : Word)
       xperm_hyp hq)
     h_main
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64

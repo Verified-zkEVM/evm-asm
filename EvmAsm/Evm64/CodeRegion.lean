@@ -14,7 +14,9 @@ import EvmAsm.Evm64.Basic
 import EvmAsm.Rv64.SepLogic
 import EvmAsm.Rv64.ByteOps
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 -- ============================================================================
 -- packDword / packBytes: reconstruct 64-bit words from byte lists
@@ -237,4 +239,4 @@ theorem extractByte_codeRegion_at (bytes : List (BitVec 8)) (k : Nat)
   rw [List.getElem_take, List.getElem_drop]
   congr 1; omega
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64

@@ -11,7 +11,9 @@ import EvmAsm.Rv64.Tactics.RunBlock
 
 open EvmAsm.Rv64.Tactics
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 -- ============================================================================
 -- Per-limb helper
@@ -204,4 +206,4 @@ theorem evm_swap_stack_spec (sp base : Word)
     (fun h hq => by xperm_hyp hq)
     h_main
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64

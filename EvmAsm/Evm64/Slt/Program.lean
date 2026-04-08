@@ -7,7 +7,9 @@
 import EvmAsm.Evm64.Stack
 import EvmAsm.Rv64.CPSSpec
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 /-- 256-bit EVM SLT (Signed Less Than): binary (pop 2, push 1, sp += 32).
     Compare MSB limbs (limb 3) with signed RV64 SLT instruction.
@@ -35,4 +37,4 @@ def evm_slt : Program :=
   SD .x12 .x5 0 ;;
   SD .x12 .x0 8 ;; SD .x12 .x0 16 ;; SD .x12 .x0 24
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64

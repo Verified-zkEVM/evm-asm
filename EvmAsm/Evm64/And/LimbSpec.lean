@@ -11,7 +11,9 @@ import EvmAsm.Rv64.Tactics.RunBlock
 
 open EvmAsm.Rv64.Tactics
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 /-- Per-limb AND spec (4 instructions: LD x7, LD x6, AND x7 x7 x6, SD x12 x7).
     Loads A[i] and B[i], computes AND, stores result at B[i]'s location. -/
@@ -33,4 +35,4 @@ theorem and_limb_spec (off_a off_b : BitVec 12)
        (mem_a ↦ₘ a_limb) ** (mem_b ↦ₘ (a_limb &&& b_limb))) := by
   runBlock
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64

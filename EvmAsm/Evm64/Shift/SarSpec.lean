@@ -14,7 +14,9 @@ import EvmAsm.Evm64.Shift.LimbSpec
 
 open EvmAsm.Rv64.Tactics
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 -- ============================================================================
 -- Per-limb Specs: SAR Last Limb (3 instructions)
@@ -284,4 +286,4 @@ theorem sar_sign_fill_path_spec (sp : Word)
   have S3 := sd_spec_gen .x12 .x5 (sp + 32) (BitVec.sshiftRight v3 63) v3 24 (base + 24) (by validMem)
   runBlock LD0 SR AD S0 S1 S2 S3
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64

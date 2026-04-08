@@ -14,7 +14,9 @@ import Mathlib.Tactic.Set
 
 open EvmAsm.Rv64.Tactics
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 -- ============================================================================
 -- Section 1: shlCode definition and helpers
@@ -1096,4 +1098,4 @@ theorem evm_shl_body_evmWord_spec (sp base : Word)
   exact cpsTriple_seq_with_perm_same_cr base (base + 64) (base + 360) _ _ _ _ _
     (fun h hp => by xperm_hyp hp) hphaseAB' hphaseCD
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64

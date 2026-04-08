@@ -17,7 +17,9 @@ import EvmAsm.Rv64.Tactics.RunBlock
 
 open EvmAsm.Rv64.Tactics
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 
 -- ============================================================================
@@ -890,4 +892,4 @@ theorem signext_phase_c_spec_pure (v5 v10 : Word) (base : Word)
       · exact ⟨_, List.Mem.tail _ (List.Mem.tail _ (List.Mem.head _)), rfl, fun h hp => by xperm_hyp hp⟩
       · exact ⟨_, List.Mem.tail _ (List.Mem.tail _ (List.Mem.tail _ (List.Mem.head _))), he3.symm, fun h hp => by xperm_hyp hp⟩)
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64

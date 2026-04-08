@@ -11,7 +11,9 @@ import EvmAsm.Evm64.DivMod.Compose.Base
 
 open EvmAsm.Rv64.Tactics
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 -- ============================================================================
 -- Section 5: CodeReq subsumption lemmas (via mono_unionAll / mono_sub_unionAll)
@@ -1128,4 +1130,4 @@ theorem evm_div_phaseB_n1_spec (sp base : Word)
     (fun h hq => by xperm_hyp hq)
     hphaseB
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64

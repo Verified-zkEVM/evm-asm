@@ -7,7 +7,9 @@
 
 import EvmAsm.Evm64.EvmWordArith.MultiLimb
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 namespace EvmWord
 
@@ -154,4 +156,4 @@ theorem trial_quotient_range (u_hi un1 d_hi d_lo : Nat)
 
 end EvmWord
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64

@@ -7,7 +7,9 @@
 import EvmAsm.Evm64.Stack
 import EvmAsm.Rv64.CPSSpec
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 /-- 256-bit EVM SUB: binary, pops 2, pushes 1.
     Limb 0: LD, LD, SLTU (borrow), SUB, SD (5 instructions).
@@ -35,4 +37,4 @@ def evm_sub : Program :=
   -- sp adjustment
   ADDI .x12 .x12 32
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64

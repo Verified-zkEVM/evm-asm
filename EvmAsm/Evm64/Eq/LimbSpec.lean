@@ -11,7 +11,9 @@ import EvmAsm.Rv64.Tactics.RunBlock
 
 open EvmAsm.Rv64.Tactics
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 /-- EQ limb 0 spec (3 instructions): LD x7, LD x6, XOR x7 x7 x6. -/
 theorem eq_limb0_spec (off_a off_b : BitVec 12)
@@ -51,4 +53,4 @@ theorem eq_or_limb_spec (off_a off_b : BitVec 12)
        (mem_a ↦ₘ a_limb) ** (mem_b ↦ₘ b_limb)) := by
   runBlock
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64

@@ -11,7 +11,9 @@ Block 13 (div128 at base+1068) is identical between divCode and modCode.
 
 open EvmAsm.Rv64.Tactics
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 -- ============================================================================
 -- div128 subroutine composition for modCode (Issue #89)
@@ -265,4 +267,4 @@ theorem mod_div128_spec (sp ret_addr d u_lo u_hi : Word) (base : Word)
     (fun h hq => by xperm_hyp hq)
     h12345
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64

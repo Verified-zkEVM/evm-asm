@@ -23,7 +23,9 @@ import EvmAsm.Rv64.Tactics.RunBlock
 
 open EvmAsm.Rv64.Tactics
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 -- ============================================================================
 -- Section 1: Per-limb Helpers
@@ -1052,4 +1054,4 @@ theorem shr_phase_a_spec (sp r5 r10 : Word)
       combined
   exact result
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64

@@ -41,7 +41,9 @@
 import EvmAsm.Evm64.Stack
 import EvmAsm.Rv64.CPSSpec
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 -- ============================================================================
 -- 128/64-bit unsigned division subroutine
@@ -635,4 +637,4 @@ def runModResult (sp : Word)
 -- Verify q*b + r = a for DIV(2^128-1,3): q=(0x5555...,0x5555...,0,0), r=0
 #eval runModResult 1024 0xFFFFFFFFFFFFFFFF 0xFFFFFFFFFFFFFFFF 0 0  3 0 0 0  1500  -- expect [0, 0, 0, 0]
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64

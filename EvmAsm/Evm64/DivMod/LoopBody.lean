@@ -12,7 +12,9 @@ import EvmAsm.Evm64.DivMod.Compose
 
 open EvmAsm.Rv64.Tactics
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 -- ============================================================================
 -- Section 1: CodeReq subsumption infrastructure for loop body instructions
@@ -1505,4 +1507,4 @@ theorem divK_trial_call_full_spec
     (fun h hq => by xperm_hyp hq)
     STLftaken_cleanTCP
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64

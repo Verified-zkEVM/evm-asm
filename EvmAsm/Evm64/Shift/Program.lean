@@ -35,7 +35,9 @@
 import EvmAsm.Evm64.Stack
 import EvmAsm.Rv64.CPSSpec
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 -- ============================================================================
 -- Sub-program definitions
@@ -846,4 +848,4 @@ def sar_body_0_prog (jal_off : BitVec 21) : Program :=
    .LD .x5 .x12 24, .SRA .x5 .x5 .x6, .SD .x12 .x5 24,
    .JAL .x0 jal_off]
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64

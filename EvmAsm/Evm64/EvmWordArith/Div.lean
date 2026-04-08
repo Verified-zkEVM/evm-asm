@@ -7,7 +7,9 @@
 
 import EvmAsm.Evm64.EvmWordArith.Common
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 namespace EvmWord
 
@@ -155,4 +157,4 @@ theorem mod_eq_of_euclidean (a b : EvmWord) (q r : EvmWord) (hbnz : b ≠ 0)
 
 end EvmWord
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64

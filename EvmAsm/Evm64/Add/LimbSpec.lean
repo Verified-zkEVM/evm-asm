@@ -11,7 +11,9 @@ import EvmAsm.Rv64.Tactics.RunBlock
 
 open EvmAsm.Rv64.Tactics
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 /-- ADD limb 0 spec (5 instructions): LD, LD, ADD, SLTU, SD.
     Computes sum = a + b (mod 2^64) and carry = (sum < b ? 1 : 0). -/
@@ -114,4 +116,4 @@ theorem add_limb_carry_spec (off_a off_b : BitVec 12)
     a_limb (sp + signExtend12 off_a) (base + 16) hvalid_b
   runBlock p1 p2
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64

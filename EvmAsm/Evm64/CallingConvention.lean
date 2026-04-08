@@ -32,7 +32,9 @@ import EvmAsm.Rv64.Tactics.RunBlock
 
 open EvmAsm.Rv64.Tactics
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 -- ============================================================================
 -- Program snippets
@@ -230,4 +232,4 @@ theorem nonleaf_function_spec
     (cpsTriple_seq prol_base (prol_base + 8) body_exit cr_prol cr_body hd1 _ _ _ hprol hbody)
     hepi
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64

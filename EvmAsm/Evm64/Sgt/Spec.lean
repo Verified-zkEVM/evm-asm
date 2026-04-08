@@ -16,7 +16,9 @@ import EvmAsm.Rv64.ControlFlow
 
 open EvmAsm.Rv64.Tactics
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 /-- CodeReq for the 256-bit EVM SGT operation.
     25 instructions = 100 bytes. SGT(a, b) = SLT(b, a): swapped load order. -/
@@ -170,4 +172,4 @@ theorem evm_sgt_stack_spec (sp base : Word)
       xperm_hyp hq)
     h_main
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64

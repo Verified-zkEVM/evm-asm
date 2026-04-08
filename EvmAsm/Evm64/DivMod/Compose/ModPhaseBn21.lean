@@ -4,7 +4,9 @@
 -/
 import EvmAsm.Evm64.DivMod.Compose.ModPhaseB
 open EvmAsm.Rv64.Tactics
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 -- ============================================================================
 -- MOD Phase B n=2 (b[3]=b[2]=0, b[1]≠0)
@@ -414,4 +416,4 @@ theorem evm_mod_phaseB_n1_spec (sp base : Word)
     (fun h hq => by xperm_hyp hq)
     hphaseB
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64

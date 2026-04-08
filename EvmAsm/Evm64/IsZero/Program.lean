@@ -7,7 +7,9 @@
 import EvmAsm.Evm64.Stack
 import EvmAsm.Rv64.CPSSpec
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 /-- 256-bit EVM ISZERO: unary (pop 1, push 1, sp unchanged).
     OR all 4 limbs into x7, then SLTIU x7, x7, 1 (x7 = x7 == 0 ? 1 : 0).
@@ -25,4 +27,4 @@ def evm_iszero : Program :=
   SD .x12 .x7 0 ;;
   SD .x12 .x0 8 ;; SD .x12 .x0 16 ;; SD .x12 .x0 24
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64

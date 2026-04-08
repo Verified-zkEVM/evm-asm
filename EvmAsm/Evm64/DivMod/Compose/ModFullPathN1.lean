@@ -14,7 +14,9 @@ import EvmAsm.Evm64.DivMod.Compose.ModEpilogue
 
 open EvmAsm.Rv64.Tactics
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 -- ============================================================================
 -- Phase A(ntaken) + Phase B(n=1) + CLZ: base → base+212
@@ -402,4 +404,4 @@ theorem evm_mod_n1_shift0_to_loopSetup_spec (sp base : Word)
     (fun h hq => by xperm_hyp hq)
     hFull
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64

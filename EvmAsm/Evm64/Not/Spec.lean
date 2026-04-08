@@ -8,7 +8,9 @@ import EvmAsm.Evm64.Not.LimbSpec
 
 open EvmAsm.Rv64.Tactics
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 -- ============================================================================
 -- Full NOT spec
@@ -78,4 +80,4 @@ theorem evm_not_stack_spec (sp base : Word)
       xperm_hyp hq)
     h_main
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64

@@ -7,7 +7,9 @@
 import EvmAsm.Evm64.Stack
 import EvmAsm.Rv64.CPSSpec
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 /-- 256-bit EVM ADD: binary, pops 2, pushes 1.
     Limb 0: LD, LD, ADD, SLTU (carry), SD (5 instructions).
@@ -36,4 +38,4 @@ def evm_add : Program :=
   -- sp adjustment
   ADDI .x12 .x12 32
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64

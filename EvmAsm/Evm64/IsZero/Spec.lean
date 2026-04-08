@@ -10,7 +10,9 @@ import EvmAsm.Evm64.EvmWordArith
 
 open EvmAsm.Rv64.Tactics
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 /-- CodeReq for the 256-bit EVM ISZERO operation.
     12 instructions = 48 bytes. OR-reduce 4 limbs + SLTIU boolean + store. -/
@@ -92,4 +94,4 @@ theorem evm_iszero_stack_spec (sp base : Word)
       xperm_hyp hq)
     h_main
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64

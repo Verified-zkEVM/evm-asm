@@ -7,7 +7,9 @@
 import EvmAsm.Evm64.Stack
 import EvmAsm.Rv64.CPSSpec
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 /-- 256-bit EVM EQ: binary (pop 2, push 1, sp += 32).
     XOR each limb pair, OR-reduce all XORs, SLTIU to boolean.
@@ -27,4 +29,4 @@ def evm_eq : Program :=
   SD .x12 .x7 0 ;;
   SD .x12 .x0 8 ;; SD .x12 .x0 16 ;; SD .x12 .x0 24
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64

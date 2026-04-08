@@ -10,7 +10,9 @@ import EvmAsm.Evm64.DivMod.Compose.Base
 
 open EvmAsm.Rv64.Tactics
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 -- ============================================================================
 -- Denorm code subsumption for modCode (block 9, skip 9 blocks)
@@ -161,4 +163,4 @@ theorem mod_denorm_body_spec (sp u0 u1 u2 u3 v2 v5 v7 shift : Word) (base : Word
     (fun h hq => by xperm_hyp hq)
     h_all
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64

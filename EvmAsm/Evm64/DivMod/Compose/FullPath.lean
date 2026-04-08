@@ -16,7 +16,9 @@ import EvmAsm.Evm64.DivMod.Compose.ModEpilogue
 
 open EvmAsm.Rv64.Tactics
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 -- ============================================================================
 -- Phase AB(n=4) → CLZ composition: base → base+212
@@ -1015,4 +1017,4 @@ theorem evm_mod_shift0_epilogue_spec (sp base : Word)
     (fun h hq => by xperm_hyp hq)
     hFull
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64

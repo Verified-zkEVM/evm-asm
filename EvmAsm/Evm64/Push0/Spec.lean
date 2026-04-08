@@ -11,7 +11,9 @@ import EvmAsm.Rv64.Tactics.RunBlock
 
 open EvmAsm.Rv64.Tactics
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 set_option maxHeartbeats 6400000 in
 /-- PUSH0: writes 4 zero limbs at nsp, moves SP backward by 32.
@@ -52,4 +54,4 @@ theorem evm_push0_stack_spec (nsp base : Word)
       (by exact pcFree_evmStackIs (nsp + 32) rest)
       (evm_push0_spec nsp base d0 d1 d2 d3 hvalid))
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64

@@ -9,7 +9,9 @@ import EvmAsm.Evm64.DivMod.Compose.Base
 
 open EvmAsm.Rv64.Tactics
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 -- ============================================================================
 -- Section 10i: NormA composition (normalize dividend, 21 instructions)
@@ -341,4 +343,4 @@ theorem divK_loopSetup_taken_spec (sp n v1 v5 : Word) (base : Word)
     (fun h hq => by xperm_hyp hq)
     h12
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64

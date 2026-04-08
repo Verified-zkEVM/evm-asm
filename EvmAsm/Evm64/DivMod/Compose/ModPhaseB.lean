@@ -10,7 +10,9 @@ import EvmAsm.Evm64.DivMod.Compose.Base
 
 open EvmAsm.Rv64.Tactics
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 -- ============================================================================
 -- MOD CodeReq subsumption lemmas for blocks 0 and 1
@@ -309,7 +311,7 @@ theorem mod_phB_sp8_32 (sp : Word) :
 theorem mod_phB_sp0_32 (sp : Word) :
     (sp + (0 : Word) + (32 : Word)) = sp + 32 := by bv_addr
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64
 
 -- n=3/2/1 cascade variants are in separate files:
 -- ModPhaseBn3.lean, ModPhaseBn21.lean

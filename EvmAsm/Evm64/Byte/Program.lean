@@ -39,7 +39,9 @@
 import EvmAsm.Evm64.Stack
 import EvmAsm.Rv64.CPSSpec
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 -- ============================================================================
 -- Sub-program definitions
@@ -277,4 +279,4 @@ example : runByteCheck 1024 32 0 0 0  0xFF 0 0 0  14 =
 example : runByteResult 1024 3 0 0 0  0 0 0 0x0011223344556677  24 =
     some [0x33, 0, 0, 0] := by native_decide
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64

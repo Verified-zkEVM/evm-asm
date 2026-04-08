@@ -9,7 +9,9 @@ import EvmAsm.Evm64.DivMod.Compose.Base
 
 open EvmAsm.Rv64.Tactics
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 -- ============================================================================
 -- Section 10l: Denorm composition (25 instructions at base+904)
@@ -506,4 +508,4 @@ theorem divK_mod_epilogue_spec (sp : Word) (base : Word)
     (fun h hq => by xperm_hyp hq)
     h12
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64

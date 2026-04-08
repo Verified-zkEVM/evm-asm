@@ -19,7 +19,9 @@ import Mathlib.Tactic.Set
 
 open EvmAsm.Rv64.Tactics
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 -- ============================================================================
 -- Full program CodeReq
@@ -1088,4 +1090,4 @@ theorem evm_byte_stack_spec (sp base : Word)
           xperm_hyp w)
         h_framed
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64

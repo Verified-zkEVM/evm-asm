@@ -8,7 +8,9 @@
 import EvmAsm.Evm64.Stack
 import EvmAsm.Rv64.CPSSpec
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 /-- One limb quad for SWAP: LD x7 from top, LD x6 from nth, SD x6 to top, SD x7 to nth. -/
 private def swap_one_limb (n i : Nat) : Program :=
@@ -47,4 +49,4 @@ abbrev evm_swap_code (base : Word) (n : Nat) : CodeReq :=
   |>.union (CodeReq.singleton (base + 56) (.SD .x12 .x6 (BitVec.ofNat 12 24)))
   |>.union (CodeReq.singleton (base + 60) (.SD .x12 .x7 (BitVec.ofNat 12 (n*32+24))))
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64

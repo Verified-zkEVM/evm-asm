@@ -10,7 +10,9 @@ import EvmAsm.Evm64.EvmWordArith
 
 open EvmAsm.Rv64.Tactics
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 /-- CodeReq for the 256-bit EVM SUB operation.
     30 instructions = 120 bytes. 4 per-limb SUB blocks + ADDI sp adjustment. -/
@@ -125,4 +127,4 @@ theorem evm_sub_stack_spec (sp base : Word)
       xperm_hyp hq)
     h_main
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64

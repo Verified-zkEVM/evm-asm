@@ -10,7 +10,9 @@ import EvmAsm.Evm64.DivMod.Compose.CLZ
 
 open EvmAsm.Rv64.Tactics
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 -- ============================================================================
 -- MOD CodeReq subsumption lemmas for block 2 (CLZ)
@@ -199,4 +201,4 @@ theorem mod_clz_spec (val v6_old v7_old : Word) (base : Word) :
     (fun h hq => by xperm_hyp hq)
     IefS0eS1eS2eS3eS4eS5e
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64

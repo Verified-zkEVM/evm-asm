@@ -11,7 +11,9 @@ import EvmAsm.Rv64.Tactics.RunBlock
 
 open EvmAsm.Rv64.Tactics
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 /-- Per-limb NOT spec (3 instructions: LD x7, XORI x7 x7 (-1), SD x12 x7).
     Unary: loads limb, complements it, stores back to same location. -/
@@ -28,4 +30,4 @@ theorem not_limb_spec (off : BitVec 12)
       ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ (limb ^^^ signExtend12 (-1))) ** (mem ↦ₘ (limb ^^^ signExtend12 (-1)))) := by
   runBlock
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64

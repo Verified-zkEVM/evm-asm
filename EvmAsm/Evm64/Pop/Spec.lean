@@ -10,7 +10,9 @@ import EvmAsm.Rv64.Tactics.RunBlock
 
 open EvmAsm.Rv64.Tactics
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 /-- POP: advances stack pointer by 32 bytes (discards top 256-bit element).
     1 instruction = 4 bytes. -/
@@ -33,4 +35,4 @@ theorem evm_pop_stack_spec (sp base : Word)
     (pcFree_sepConj (pcFree_evmWordIs sp a) (pcFree_evmStackIs (sp + 32) rest))
     (evm_pop_spec sp base)
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64

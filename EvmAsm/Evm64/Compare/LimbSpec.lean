@@ -15,7 +15,9 @@ import EvmAsm.Rv64.Tactics.RunBlock
 
 open EvmAsm.Rv64.Tactics
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 -- ============================================================================
 -- Per-limb Specs: LT (borrow propagation without storing results)
@@ -143,4 +145,4 @@ theorem slt_msb_load_spec (off_a off_b : BitVec 12)
        (mem_a ↦ₘ a3) ** (mem_b ↦ₘ b3)) := by
   runBlock
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64

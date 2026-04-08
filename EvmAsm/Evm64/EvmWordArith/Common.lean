@@ -10,7 +10,9 @@ import Mathlib.Tactic.NormNum
 import Mathlib.Tactic.Ring
 import Mathlib.Tactic.Positivity
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 namespace EvmWord
 
@@ -105,4 +107,4 @@ theorem borrow_or_val_01 {c1 c2 : Prop} [Decidable c1] [Decidable c2] :
 
 end EvmWord
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64

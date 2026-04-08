@@ -14,7 +14,9 @@ import EvmAsm.Evm64.DivMod.Compose.FullPath
 
 open EvmAsm.Rv64.Tactics
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 -- ============================================================================
 -- Address simplification lemmas for j=0 (n=2)
@@ -961,4 +963,4 @@ theorem evm_div_n2_full_spec (sp base : Word)
     retv, dv, dlov, sunv,
     by xperm_hyp hPL⟩
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64

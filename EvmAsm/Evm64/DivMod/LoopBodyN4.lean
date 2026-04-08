@@ -20,7 +20,9 @@ import EvmAsm.Evm64.DivMod.LoopBody
 
 open EvmAsm.Rv64.Tactics
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 -- ============================================================================
 -- Address rewriting lemmas for n=4 (no let-bindings, suitable for rw)
@@ -1468,4 +1470,4 @@ theorem divK_loop_body_n4_j0_spec
           ret_mem, d_mem, dlo_mem, scratch_un0, by xperm_hyp hp⟩)
         fullf
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64

@@ -9,7 +9,9 @@ import EvmAsm.Rv64.Basic
 import Std.Tactic.BVDecide
 import Mathlib.Tactic.Set
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 /-- A 256-bit EVM word. -/
 abbrev EvmWord := BitVec 256
@@ -556,4 +558,4 @@ theorem getLimbN_fromLimbs_const (w : Word) (k : Nat) :
 
 end EvmWord
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64

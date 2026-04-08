@@ -25,7 +25,9 @@ import EvmAsm.Evm64.DivMod.Compose.DivN1FullShift0
 
 open EvmAsm.Rv64.Tactics
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 -- ============================================================================
 -- Helper lemma: signExtend12 (4 : BitVec 12) - (4 : Word) = (0 : Word)
@@ -303,4 +305,4 @@ theorem evm_div_bnz_full_spec (sp base : Word)
             retout, dout, dlout, scout, by xperm_hyp hA⟩)
         h
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64

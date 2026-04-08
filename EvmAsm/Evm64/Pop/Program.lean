@@ -8,11 +8,13 @@
 import EvmAsm.Evm64.Stack
 import EvmAsm.Rv64.CPSSpec
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 def evm_pop : Program := ADDI .x12 .x12 32
 
 abbrev evm_pop_code (base : Word) : CodeReq :=
   CodeReq.ofProg base evm_pop
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64

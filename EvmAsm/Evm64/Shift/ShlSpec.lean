@@ -13,7 +13,9 @@ import EvmAsm.Evm64.Shift.LimbSpec
 
 open EvmAsm.Rv64.Tactics
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 -- ============================================================================
 -- Per-limb Specs: SHL Merge Limb (7 instructions)
@@ -314,4 +316,4 @@ theorem shl_body_0_spec (sp : Word)
   rw [hexit] at JL
   runBlock MM1 MM2 MM3 FL JL
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64

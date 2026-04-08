@@ -9,7 +9,9 @@
 import EvmAsm.Evm64.EvmWordArith.Common
 import EvmAsm.Rv64.Instructions
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 namespace EvmWord
 
@@ -207,4 +209,4 @@ theorem single_mul_val256 (q v0 v1 v2 v3 : Word) :
 
 end EvmWord
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64

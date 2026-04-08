@@ -37,7 +37,9 @@
 import EvmAsm.Evm64.Stack
 import EvmAsm.Rv64.CPSSpec
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 -- ============================================================================
 -- Sub-program definitions
@@ -302,4 +304,4 @@ example : runSignExtCheck 1024 0 0 0 0  0x7F 0 0 0  24 =
 example : runSignExtCheck 1024 31 0 0 0  0xFF 0 0 0  10 =
     some (192, 1056) := by native_decide
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64

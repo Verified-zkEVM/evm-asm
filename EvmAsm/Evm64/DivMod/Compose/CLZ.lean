@@ -9,7 +9,9 @@ import EvmAsm.Evm64.DivMod.Compose.Base
 
 open EvmAsm.Rv64.Tactics
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 -- ============================================================================
 -- Section 9: CLZ (Count Leading Zeros) composition
@@ -235,4 +237,4 @@ theorem divK_clz_spec (val v6_old v7_old : Word) (base : Word) :
     (fun h hq => by xperm_hyp hq)
     IefS0eS1eS2eS3eS4eS5e
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64

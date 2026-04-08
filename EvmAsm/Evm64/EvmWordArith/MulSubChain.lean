@@ -9,7 +9,9 @@
 
 import EvmAsm.Evm64.EvmWordArith.Div128Lemmas
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 namespace EvmWord
 
@@ -100,4 +102,4 @@ theorem mulsub_correction_eq (u_nat v_nat r_nat q_nat : Nat)
 
 end EvmWord
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64

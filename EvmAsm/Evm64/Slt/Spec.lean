@@ -15,7 +15,9 @@ import EvmAsm.Rv64.ControlFlow
 
 open EvmAsm.Rv64.Tactics
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 /-- CodeReq for the 256-bit EVM SLT operation.
     25 instructions = 100 bytes. MSB signed compare + lower borrow chain + store. -/
@@ -168,4 +170,4 @@ theorem evm_slt_stack_spec (sp base : Word)
       xperm_hyp hq)
     h_main
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64

@@ -13,7 +13,9 @@ import EvmAsm.Rv64.Tactics.RunBlock
 
 open EvmAsm.Rv64.Tactics
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 -- ============================================================================
 -- Zero path: b = 0, push 0. 5 instructions.
@@ -3092,4 +3094,4 @@ theorem divK_store_qj_spec (sp j q_hat v5_old v7_old q_old : Word)
   have I3 := sd_spec_gen .x7 .x11 q_addr q_hat q_old 0 (base + 12) hv'
   rw [haddr] at I3
   runBlock I0 I1 I2 I3
-end EvmAsm.Rv64
+end EvmAsm.Evm64

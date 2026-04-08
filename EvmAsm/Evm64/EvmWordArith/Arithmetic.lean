@@ -6,7 +6,9 @@
 
 import EvmAsm.Evm64.EvmWordArith.Common
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 namespace EvmWord
 
@@ -479,4 +481,4 @@ theorem sub_borrow_chain_correct (a b : EvmWord) :
 
 end EvmWord
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64

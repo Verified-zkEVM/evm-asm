@@ -16,7 +16,9 @@ import EvmAsm.Evm64.EvmWordArith
 
 open EvmAsm.Rv64.Tactics
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 -- ============================================================================
 -- DIV: Zero divisor stack spec (b = 0 → result = 0)
@@ -145,4 +147,4 @@ theorem evm_mod_bzero_stack_spec (sp base : Word)
         from by xperm) h).mp w1)
     h_raw
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64

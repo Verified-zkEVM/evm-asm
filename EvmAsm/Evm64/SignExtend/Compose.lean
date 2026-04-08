@@ -13,7 +13,9 @@ import EvmAsm.Evm64.EvmWordArith
 
 open EvmAsm.Rv64.Tactics
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 -- ============================================================================
 -- Section 1: signextCode definition and helpers
@@ -981,4 +983,4 @@ theorem signext_body_spec (sp base : Word)
     (fun h hq => by xperm_hyp hq)
     hfull
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64

@@ -9,7 +9,9 @@
 import EvmAsm.Evm64.EvmWordArith.MulSubChain
 import EvmAsm.Evm64.EvmWordArith.Div
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 namespace EvmWord
 
@@ -80,4 +82,4 @@ theorem div_mod_no_overflow (a b : EvmWord) (hb : b ≠ 0) :
 
 end EvmWord
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64

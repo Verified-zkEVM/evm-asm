@@ -12,7 +12,9 @@ import EvmAsm.Evm64.EvmWordArith
 
 open EvmAsm.Rv64.Tactics
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 /-- CodeReq for the 256-bit EVM GT operation.
     26 instructions = 104 bytes. GT(a, b) = LT(b, a): load b-limbs first. -/
@@ -130,4 +132,4 @@ theorem evm_gt_stack_spec (sp base : Word)
       xperm_hyp hq)
     h_main
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64

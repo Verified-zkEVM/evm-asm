@@ -9,7 +9,9 @@ import EvmAsm.Evm64.DivMod.Compose.Base
 
 open EvmAsm.Rv64.Tactics
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 /-- Phase C2 code (block 3) is subsumed by divCode. -/
 private theorem divK_phaseC2_code_sub_divCode (base : Word) :
@@ -277,4 +279,4 @@ theorem divK_normB_full_spec (sp b0 b1 b2 b3 v5 v7 shift anti_shift : Word) (bas
     (cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
       (fun h hp => by xperm_hyp hp) h1 h2)
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64

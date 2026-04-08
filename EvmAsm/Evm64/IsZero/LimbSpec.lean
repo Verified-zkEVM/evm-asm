@@ -11,7 +11,9 @@ import EvmAsm.Rv64.Tactics.RunBlock
 
 open EvmAsm.Rv64.Tactics
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 /-- ISZERO OR-limb spec (2 instructions): LD x6, OR x7 x7 x6.
     Loads a limb and OR-accumulates into x7. -/
@@ -29,4 +31,4 @@ theorem iszero_or_limb_spec (off : BitVec 12)
        (mem ↦ₘ a_limb)) := by
   runBlock
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64

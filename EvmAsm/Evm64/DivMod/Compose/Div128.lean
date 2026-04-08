@@ -10,7 +10,9 @@ for the div128 subroutine.
 
 open EvmAsm.Rv64.Tactics
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 -- ============================================================================
 -- Section 15: div128 subroutine composition (Issue #88)
@@ -271,4 +273,4 @@ theorem div128_spec (sp ret_addr d u_lo u_hi : Word) (base : Word)
     (fun h hq => by xperm_hyp hq)
     h12345
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64

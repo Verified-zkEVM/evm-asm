@@ -8,7 +8,9 @@
 import EvmAsm.Evm64.Stack
 import EvmAsm.Rv64.CPSSpec
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 /-- One limb pair for DUP: LD x7 from source offset, SD x7 to destination offset. -/
 private def dup_one_limb (n i : Nat) : Program :=
@@ -35,4 +37,4 @@ abbrev evm_dup_code (base : Word) (n : Nat) : CodeReq :=
   |>.union (CodeReq.singleton (base + 28) (.LD .x7 .x12 (BitVec.ofNat 12 (n*32+24))))
   |>.union (CodeReq.singleton (base + 32) (.SD .x12 .x7 (BitVec.ofNat 12 24)))
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64

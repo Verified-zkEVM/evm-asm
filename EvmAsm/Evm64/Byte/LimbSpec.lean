@@ -20,7 +20,9 @@ import EvmAsm.Rv64.Tactics.RunBlock
 
 open EvmAsm.Rv64.Tactics
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 -- ============================================================================
 -- Phase A: OR-reduce high index limbs (5 instructions, offset 0-16)
@@ -439,4 +441,4 @@ theorem byte_phase_c_spec (v5 v10 : Word) (base : Word)
     (fun h hp => by xperm_hyp hp) beq0f n2
   exact n1
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64

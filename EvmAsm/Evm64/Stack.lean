@@ -8,7 +8,9 @@
 import EvmAsm.Evm64.Basic
 import EvmAsm.Rv64.SepLogic
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 open EvmWord
 
@@ -99,4 +101,4 @@ theorem evmStackIs_split_at (sp : Word) (stack : List EvmWord) (k : Nat)
       simp only [List.take_succ_cons, List.drop_succ_cons, List.getElem_cons_succ]
       simp only [evmStackIs_cons, sepConj_assoc']
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64

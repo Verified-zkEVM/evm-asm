@@ -10,7 +10,9 @@ import EvmAsm.Evm64.EvmWordArith
 
 open EvmAsm.Rv64.Tactics
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 /-- CodeReq for the 256-bit EVM EQ operation.
     21 instructions = 84 bytes. XOR-OR accumulation + SLTIU boolean + store. -/
@@ -119,4 +121,4 @@ theorem evm_eq_stack_spec (sp base : Word)
       xperm_hyp hq)
     h_main
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64

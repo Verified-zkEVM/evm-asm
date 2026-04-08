@@ -19,7 +19,9 @@ import EvmAsm.Rv64.Tactics.RunBlock
 
 open EvmAsm.Rv64.Tactics
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 -- ============================================================================
 -- Column 3: b[3] × {a[0]} (5 instructions)
@@ -478,4 +480,4 @@ theorem evm_mul_spec (sp : Word) (base : Word)
   have S23EP := evm_mul_cols23ep_spec sp base a0 a1 b2 b3 c1_r2 c1_r3p b1 c0_r3p c1_cr2 c1_r3p hvalid
   runBlock S01 S23EP
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64

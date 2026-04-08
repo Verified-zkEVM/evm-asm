@@ -42,7 +42,9 @@
 import EvmAsm.Evm64.Stack
 import EvmAsm.Rv64.CPSSpec
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 -- ============================================================================
 -- Sub-program definitions
@@ -302,4 +304,4 @@ example : runMulResult 1024 0x1111111111111111 0x2222222222222222 0x333333333333
     1 0 0 0  63 =
     some [0x1111111111111111, 0x2222222222222222, 0x3333333333333333, 0x4444444444444444] := by native_decide
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64

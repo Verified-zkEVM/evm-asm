@@ -12,7 +12,9 @@ import EvmAsm.Evm64.Shift.Compose
 
 open EvmAsm.Rv64.Tactics
 
-namespace EvmAsm.Rv64
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
 
 -- ============================================================================
 -- Helpers
@@ -193,4 +195,4 @@ theorem evm_shr_stack_spec (sp base : Word)
     exact evm_shr_body_evmWord_spec sp base shift value r5 r6 r7 r10 r11
       hvalid hhigh_zero hlt_s0 hlt
 
-end EvmAsm.Rv64
+end EvmAsm.Evm64
