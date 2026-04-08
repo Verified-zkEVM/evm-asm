@@ -27,7 +27,7 @@ open EvmAsm.Rv64
 
 /-- A single CLZ binary-search stage. Checks if val>>>K ≠ 0:
     if so, keeps (count, val); otherwise, adds m to count and shifts val left. -/
-noncomputable def clzStep (K M_s : Nat) (m : Word) (p : Word × Word) : Word × Word :=
+def clzStep (K M_s : Nat) (m : Word) (p : Word × Word) : Word × Word :=
   (if p.2 >>> K ≠ 0 then p.1 else p.1 + m,
    if p.2 >>> K ≠ 0 then p.2 else p.2 <<< M_s)
 
@@ -78,7 +78,7 @@ private theorem se_32 : (signExtend12 (32 : BitVec 12)).toNat = 32 := by decide
 
 /-- The first 5 CLZ stages (0 through 4), producing an intermediate (count, value) pair.
     Stage 5 is handled separately since it only updates the count. -/
-noncomputable def clzPipeline (val : Word) : Word × Word :=
+def clzPipeline (val : Word) : Word × Word :=
   let s0 := clzStep 32 32 (signExtend12 32) ((0 : Word), val)
   let s1 := clzStep 48 16 (signExtend12 16) s0
   let s2 := clzStep 56 8  (signExtend12  8) s1
@@ -86,13 +86,13 @@ noncomputable def clzPipeline (val : Word) : Word × Word :=
   clzStep 62 2 (signExtend12 2) s3
 
 -- Intermediate stage references for bounds chain
-private noncomputable def clzS0 (val : Word) :=
+private def clzS0 (val : Word) :=
   clzStep 32 32 (signExtend12 32) ((0 : Word), val)
-private noncomputable def clzS1 (val : Word) :=
+private def clzS1 (val : Word) :=
   clzStep 48 16 (signExtend12 16) (clzS0 val)
-private noncomputable def clzS2 (val : Word) :=
+private def clzS2 (val : Word) :=
   clzStep 56 8  (signExtend12  8) (clzS1 val)
-private noncomputable def clzS3 (val : Word) :=
+private def clzS3 (val : Word) :=
   clzStep 60 4  (signExtend12  4) (clzS2 val)
 
 private theorem clzPipeline_unfold (val : Word) :
