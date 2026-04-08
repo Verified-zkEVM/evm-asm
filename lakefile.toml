@@ -7,5 +7,11 @@ leanOptions = []
 name = "mathlib"
 scope = "leanprover-community"
 
+# FORK of Sail-generated RISC-V spec (https://github.com/dhsorens/sail-riscv-lean); pulls in lean-sail.
+[[require]]
+name = "Lean_RV64D"
+git = "https://github.com/dhsorens/sail-riscv-lean"
+rev = "main"
+
 [[lean_lib]]
 name = "EvmAsm"

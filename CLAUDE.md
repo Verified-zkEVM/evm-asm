@@ -10,3 +10,7 @@ Read PLAN.md at the start of each session. Keep it updated as you work:
 - **Discovered new sub-tasks or blockers**: Add them to the relevant phase
 - **Added new infrastructure**: Update the Infrastructure section
 - **Before committing**: Check if PLAN.md needs updates for the work in this session
+
+## Proof Conventions
+
+- **No `native_decide` or `bv_decide`**: All proofs must be kernel-checkable. Use `decide` for concrete decidable propositions, or `omega`/`simp`/`ext` for bitvector reasoning. `native_decide` bypasses the kernel via code generation, introducing a soundness gap.
