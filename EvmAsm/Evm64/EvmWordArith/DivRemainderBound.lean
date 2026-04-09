@@ -7,7 +7,7 @@
 
   Key results:
   - quotient_le_of_euclidean: a = q*b + r → q ≤ a/b
-  - remainder_lt_of_ge_floor: a = q*b + r, q ≥ a/b → q = a/b ∧ r < b
+  - remainder_lt_of_ge_floor: a = q*b + r, a/b ≤ q → q = a/b ∧ r < b
   - mulsub_no_underflow_correct: no-underflow mulsub + overestimate → correct quotient
   - mulsub_addback_correct: underflow + addback + overestimate → correct quotient
   - val256_euclidean_to_div_mod: val256 Euclidean property → EvmWord.div/mod
@@ -27,12 +27,12 @@ namespace EvmWord
 
 /-- If `a = q * b + r` (Nat) with `b > 0`, then `q ≤ a / b`.
     The quotient in a Euclidean equation can never exceed the floor division. -/
-theorem quotient_le_of_euclidean (a b q r : Nat) (hb : 0 < b)
+theorem quotient_le_of_euclidean {a b q r : Nat} (hb : 0 < b)
     (heq : a = q * b + r) : q ≤ a / b := by
   have : q * b ≤ a := by omega
   exact Nat.le_div_iff_mul_le hb |>.mpr this
 
-/-- If `a = q * b + r` (Nat) with `b > 0` and `q ≥ a / b`,
+/-- If `a = q * b + r` (Nat) with `b > 0` and `a / b ≤ q`,
     then `q = a / b` and `r < b`.
 
     This is the fundamental reason the Algorithm D mulsub step works:
@@ -40,11 +40,11 @@ theorem quotient_le_of_euclidean (a b q r : Nat) (hb : 0 < b)
     so if no underflow occurs (`r ≥ 0`, automatic for Nat), the quotient
     must be exact and the remainder in range.
 
-    Proof: `q ≤ a/b` from the Euclidean equation, combined with `q ≥ a/b`,
+    Proof: `q ≤ a/b` from the Euclidean equation, combined with `a/b ≤ q`,
     gives `q = a/b`. Then `r = a - (a/b)*b = a mod b < b`. -/
-theorem remainder_lt_of_ge_floor (a b q r : Nat) (hb : 0 < b)
-    (heq : a = q * b + r) (hge : q ≥ a / b) : q = a / b ∧ r < b := by
-  have hle := quotient_le_of_euclidean a b q r hb heq
+theorem remainder_lt_of_ge_floor {a b q r : Nat} (hb : 0 < b)
+    (heq : a = q * b + r) (hge : a / b ≤ q) : q = a / b ∧ r < b := by
+  have hle := quotient_le_of_euclidean hb heq
   have hqeq : q = a / b := by omega
   subst hqeq
   constructor
@@ -64,24 +64,24 @@ theorem remainder_lt_of_ge_floor (a b q r : Nat) (hb : 0 < b)
 
     This is the happy path of Algorithm D: mulsub doesn't underflow,
     so no addback is needed, and the result is directly correct. -/
-theorem mulsub_no_underflow_correct (u_val v_val q_nat r_val : Nat)
+theorem mulsub_no_underflow_correct {u_val v_val q_nat r_val : Nat}
     (hv : 0 < v_val)
     (hmulsub : u_val = r_val + q_nat * v_val)
-    (hge : q_nat ≥ u_val / v_val) :
+    (hge : u_val / v_val ≤ q_nat) :
     q_nat = u_val / v_val ∧ r_val < v_val := by
   have heq : u_val = q_nat * v_val + r_val := by omega
-  exact remainder_lt_of_ge_floor u_val v_val q_nat r_val hv heq hge
+  exact remainder_lt_of_ge_floor hv heq hge
 
 -- ============================================================================
 -- Mulsub underflow + addback case
 -- ============================================================================
 
-/-- Underflow implies strict overestimate: if `q * v > u` (mulsub underflowed),
-    then `q ≥ u/v + 1`. Equivalently, the quotient digit strictly exceeds the
+/-- Underflow implies strict overestimate: if `u < q * v` (mulsub underflowed),
+    then `u / v + 1 ≤ q`. Equivalently, the quotient digit strictly exceeds the
     floor division value. -/
-theorem underflow_imp_strict_overestimate (u_val v_val q_nat : Nat)
-    (hoverflow : q_nat * v_val > u_val) :
-    q_nat ≥ u_val / v_val + 1 := by
+theorem underflow_imp_strict_overestimate {u_val v_val q_nat : Nat}
+    (hoverflow : u_val < q_nat * v_val) :
+    u_val / v_val + 1 ≤ q_nat := by
   -- q * v > u means q > u / v
   have : u_val / v_val < q_nat := by
     by_contra h; push Not at h
@@ -99,16 +99,16 @@ theorem underflow_imp_strict_overestimate (u_val v_val q_nat : Nat)
     - underflow occurred: `q * v > u` (otherwise cb3 would be 0)
 
     Then: `q - 1 = u / v` and `r_ab < v`. -/
-theorem mulsub_addback_correct (u_val v_val q_nat r_ab_val : Nat)
+theorem mulsub_addback_correct {u_val v_val q_nat r_ab_val : Nat}
     (hv : 0 < v_val)
     (h_combined : u_val = r_ab_val + (q_nat - 1) * v_val)
-    (hge : q_nat ≥ u_val / v_val + 1) :
+    (hge : u_val / v_val + 1 ≤ q_nat) :
     q_nat - 1 = u_val / v_val ∧ r_ab_val < v_val := by
   have hge0 := Nat.zero_le (u_val / v_val)
   have hq1 : q_nat ≥ 1 := by omega
   have heq : u_val = (q_nat - 1) * v_val + r_ab_val := by omega
-  have hge' : q_nat - 1 ≥ u_val / v_val := by omega
-  exact remainder_lt_of_ge_floor u_val v_val (q_nat - 1) r_ab_val hv heq hge'
+  have hge' : u_val / v_val ≤ q_nat - 1 := by omega
+  exact remainder_lt_of_ge_floor hv heq hge'
 
 -- ============================================================================
 -- Combined: either path gives correct Euclidean division
@@ -120,12 +120,12 @@ theorem mulsub_addback_correct (u_val v_val q_nat r_ab_val : Nat)
     - Underflow (cb3 = 1) + addback: q-1 is correct, corrected remainder in range
 
     This produces the final quotient digit and remainder for one iteration. -/
-theorem single_iteration_correct (u_val v_val : Nat) (q_digit r_val : Nat)
+theorem single_iteration_correct {u_val v_val q_digit r_val : Nat}
     (hv : 0 < v_val)
     (heuclidean : u_val = q_digit * v_val + r_val)
-    (hge : q_digit ≥ u_val / v_val) :
+    (hge : u_val / v_val ≤ q_digit) :
     q_digit = u_val / v_val ∧ r_val = u_val % v_val ∧ r_val < v_val := by
-  have ⟨hq, hr_lt⟩ := remainder_lt_of_ge_floor u_val v_val q_digit r_val hv heuclidean hge
+  have ⟨hq, hr_lt⟩ := remainder_lt_of_ge_floor hv heuclidean hge
   subst hq
   have h_mod := Nat.div_add_mod u_val v_val
   refine ⟨rfl, ?_, hr_lt⟩
@@ -140,7 +140,7 @@ theorem single_iteration_correct (u_val v_val : Nat) (q_digit r_val : Nat)
     Given limb-level values satisfying the Euclidean property at the Nat level,
     this bridges to the EvmWord operations via fromLimbs. -/
 theorem val256_euclidean_to_div_mod
-    (a0 a1 a2 a3 b0 b1 b2 b3 q0 q1 q2 q3 r0 r1 r2 r3 : Word)
+    {a0 a1 a2 a3 b0 b1 b2 b3 q0 q1 q2 q3 r0 r1 r2 r3 : Word}
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
     (heq : val256 a0 a1 a2 a3 =
            val256 q0 q1 q2 q3 * val256 b0 b1 b2 b3 + val256 r0 r1 r2 r3)
@@ -179,7 +179,7 @@ theorem val256_euclidean_to_div_mod
 
     This is used when shift ≠ 0: the algorithm normalizes, computes, then
     denormalizes the remainder by right-shifting by s. -/
-theorem norm_euclidean_correct (a_val b_val q_nat r_norm : Nat) (s : Nat)
+theorem norm_euclidean_correct {a_val b_val q_nat r_norm : Nat} (s : Nat)
     (heq : a_val * 2^s = q_nat * (b_val * 2^s) + r_norm)
     (hlt : r_norm < b_val * 2^s) :
     q_nat = a_val / b_val ∧ r_norm / 2^s = a_val % b_val := by
