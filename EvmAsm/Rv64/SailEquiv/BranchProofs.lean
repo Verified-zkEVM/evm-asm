@@ -4,108 +4,112 @@
   Per-instruction equivalence theorems for branch and jump instructions:
   BEQ, BNE, BLT, BGE, BLTU, BGEU, JAL, JALR.
 
-  Note: Branch instructions don't write registers (except JAL/JALR link register).
-  The key challenge is relating PC update semantics between the two models.
+  Branches don't write registers — they only update PC. Since StateRel
+  doesn't track PC (SAIL writes nextPC, Rv64 writes pc), branches
+  trivially preserve StateRel for registers and memory.
+
+  JAL/JALR additionally write a link register (rd := PC + 4).
 -/
 
 import EvmAsm.Rv64.Execution
 import EvmAsm.Rv64.SailEquiv.StateRel
-import EvmAsm.Rv64.SailEquiv.InstrMap
 import EvmAsm.Rv64.SailEquiv.MonadLemmas
-import EvmAsm.Rv64.SailEquiv.HelperEquiv
+import EvmAsm.Rv64.SailEquiv.ALUProofs
+import LeanRV64D
 
 open LeanRV64D.Functions
-open LeanRV64D.Defs
+open Sail
 
 namespace EvmAsm.Rv64.SailEquiv
 
+set_option maxHeartbeats 1600000
+
 -- ============================================================================
--- Conditional branches
+-- Conditional branches (BEQ, BNE, BLT, BGE, BLTU, BGEU)
 -- ============================================================================
 
-/-- BEQ rs1 rs2 offset: branch if equal. -/
 theorem beq_sail_equiv (s_rv : MachineState) (s_sail : SailState)
-    (hrel : StateRel s_rv s_sail) (rs1 rs2 : Reg) (offset : BitVec 13) :
-    let s_rv' := execInstrBr s_rv (.BEQ rs1 rs2 offset)
+    (hrel : StateRel s_rv s_sail)
+    (h_pc : s_sail.regs.get? Register.PC = some s_rv.pc)
+    (rs1 rs2 : Reg) (offset : BitVec 13) :
     ∃ s_sail',
       runSail (execute_BTYPE offset (regToRegidx rs2) (regToRegidx rs1) bop.BEQ) s_sail
         = some (RETIRE_SUCCESS, s_sail') ∧
-      StateRel s_rv' s_sail' := by
+      StateRel (execInstrBr s_rv (.BEQ rs1 rs2 offset)) s_sail' := by
   sorry
 
-/-- BNE rs1 rs2 offset: branch if not equal. -/
 theorem bne_sail_equiv (s_rv : MachineState) (s_sail : SailState)
-    (hrel : StateRel s_rv s_sail) (rs1 rs2 : Reg) (offset : BitVec 13) :
-    let s_rv' := execInstrBr s_rv (.BNE rs1 rs2 offset)
+    (hrel : StateRel s_rv s_sail)
+    (h_pc : s_sail.regs.get? Register.PC = some s_rv.pc)
+    (rs1 rs2 : Reg) (offset : BitVec 13) :
     ∃ s_sail',
       runSail (execute_BTYPE offset (regToRegidx rs2) (regToRegidx rs1) bop.BNE) s_sail
         = some (RETIRE_SUCCESS, s_sail') ∧
-      StateRel s_rv' s_sail' := by
+      StateRel (execInstrBr s_rv (.BNE rs1 rs2 offset)) s_sail' := by
   sorry
 
-/-- BLT rs1 rs2 offset: branch if less than (signed). -/
 theorem blt_sail_equiv (s_rv : MachineState) (s_sail : SailState)
-    (hrel : StateRel s_rv s_sail) (rs1 rs2 : Reg) (offset : BitVec 13) :
-    let s_rv' := execInstrBr s_rv (.BLT rs1 rs2 offset)
+    (hrel : StateRel s_rv s_sail)
+    (h_pc : s_sail.regs.get? Register.PC = some s_rv.pc)
+    (rs1 rs2 : Reg) (offset : BitVec 13) :
     ∃ s_sail',
       runSail (execute_BTYPE offset (regToRegidx rs2) (regToRegidx rs1) bop.BLT) s_sail
         = some (RETIRE_SUCCESS, s_sail') ∧
-      StateRel s_rv' s_sail' := by
+      StateRel (execInstrBr s_rv (.BLT rs1 rs2 offset)) s_sail' := by
   sorry
 
-/-- BGE rs1 rs2 offset: branch if greater or equal (signed). -/
 theorem bge_sail_equiv (s_rv : MachineState) (s_sail : SailState)
-    (hrel : StateRel s_rv s_sail) (rs1 rs2 : Reg) (offset : BitVec 13) :
-    let s_rv' := execInstrBr s_rv (.BGE rs1 rs2 offset)
+    (hrel : StateRel s_rv s_sail)
+    (h_pc : s_sail.regs.get? Register.PC = some s_rv.pc)
+    (rs1 rs2 : Reg) (offset : BitVec 13) :
     ∃ s_sail',
       runSail (execute_BTYPE offset (regToRegidx rs2) (regToRegidx rs1) bop.BGE) s_sail
         = some (RETIRE_SUCCESS, s_sail') ∧
-      StateRel s_rv' s_sail' := by
+      StateRel (execInstrBr s_rv (.BGE rs1 rs2 offset)) s_sail' := by
   sorry
 
-/-- BLTU rs1 rs2 offset: branch if less than (unsigned). -/
 theorem bltu_sail_equiv (s_rv : MachineState) (s_sail : SailState)
-    (hrel : StateRel s_rv s_sail) (rs1 rs2 : Reg) (offset : BitVec 13) :
-    let s_rv' := execInstrBr s_rv (.BLTU rs1 rs2 offset)
+    (hrel : StateRel s_rv s_sail)
+    (h_pc : s_sail.regs.get? Register.PC = some s_rv.pc)
+    (rs1 rs2 : Reg) (offset : BitVec 13) :
     ∃ s_sail',
       runSail (execute_BTYPE offset (regToRegidx rs2) (regToRegidx rs1) bop.BLTU) s_sail
         = some (RETIRE_SUCCESS, s_sail') ∧
-      StateRel s_rv' s_sail' := by
+      StateRel (execInstrBr s_rv (.BLTU rs1 rs2 offset)) s_sail' := by
   sorry
 
-/-- BGEU rs1 rs2 offset: branch if greater or equal (unsigned). -/
 theorem bgeu_sail_equiv (s_rv : MachineState) (s_sail : SailState)
-    (hrel : StateRel s_rv s_sail) (rs1 rs2 : Reg) (offset : BitVec 13) :
-    let s_rv' := execInstrBr s_rv (.BGEU rs1 rs2 offset)
+    (hrel : StateRel s_rv s_sail)
+    (h_pc : s_sail.regs.get? Register.PC = some s_rv.pc)
+    (rs1 rs2 : Reg) (offset : BitVec 13) :
     ∃ s_sail',
       runSail (execute_BTYPE offset (regToRegidx rs2) (regToRegidx rs1) bop.BGEU) s_sail
         = some (RETIRE_SUCCESS, s_sail') ∧
-      StateRel s_rv' s_sail' := by
+      StateRel (execInstrBr s_rv (.BGEU rs1 rs2 offset)) s_sail' := by
   sorry
 
 -- ============================================================================
--- Unconditional jumps
+-- Unconditional jumps (JAL, JALR)
 -- ============================================================================
 
-/-- JAL rd offset: jump and link. -/
 theorem jal_sail_equiv (s_rv : MachineState) (s_sail : SailState)
-    (hrel : StateRel s_rv s_sail) (rd : Reg) (offset : BitVec 21) :
-    let s_rv' := execInstrBr s_rv (.JAL rd offset)
+    (hrel : StateRel s_rv s_sail)
+    (h_pc : s_sail.regs.get? Register.PC = some s_rv.pc)
+    (rd : Reg) (offset : BitVec 21) :
     ∃ s_sail',
       runSail (execute_JAL offset (regToRegidx rd)) s_sail
         = some (RETIRE_SUCCESS, s_sail') ∧
-      StateRel s_rv' s_sail' := by
+      StateRel (execInstrBr s_rv (.JAL rd offset)) s_sail' := by
   sorry
 
-/-- JALR rd rs1 offset: jump and link register.
-    Key lemma needed: jalr_mask_equiv (bit-0 masking agreement). -/
 theorem jalr_sail_equiv (s_rv : MachineState) (s_sail : SailState)
-    (hrel : StateRel s_rv s_sail) (rd rs1 : Reg) (offset : BitVec 12) :
-    let s_rv' := execInstrBr s_rv (.JALR rd rs1 offset)
+    (hrel : StateRel s_rv s_sail)
+    (h_pc : s_sail.regs.get? Register.PC = some s_rv.pc)
+    (rd rs1 : Reg) (offset : BitVec 12) :
     ∃ s_sail',
       runSail (execute_JALR offset (regToRegidx rs1) (regToRegidx rd)) s_sail
         = some (RETIRE_SUCCESS, s_sail') ∧
-      StateRel s_rv' s_sail' := by
+      StateRel (execInstrBr s_rv (.JALR rd rs1 offset)) s_sail' := by
   sorry
 
 end EvmAsm.Rv64.SailEquiv
