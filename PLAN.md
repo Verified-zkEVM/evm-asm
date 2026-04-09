@@ -414,17 +414,25 @@ All phases below target **Evm64** primarily. Files are under `EvmAsm/Evm64/`.
   - Stack spec bridge: `DivLimbBridge.lean` — `ne_zero_iff_getLimbN_or` (EvmWord nonzero ↔ limbs OR
     nonzero), `getLimbN_fromLimbs_match` / `getLimbN_fromLimbs_{0,1,2,3}` (fromLimbs round-trip for
     reconstructing evmWordIs from individual memory cells) (done)
-  - **Semantic correctness path (two steps):**
+  - **Semantic correctness path (three steps):**
     - Step 1: Make `loopBodyPostN{1,2,3,4}` parametric — move existentially quantified output
-      values (x2v, x10v, x11v, un0v..un3v, u4v, qv, retv, dv, dlov, sunv) to definition
-      parameters. Theorems (`divK_loop_body_nk_combined_spec`, `_j0_spec`) wrap with `∃` in
-      their statements. Callers unchanged (still `obtain` from `∃`).
-      Status: N4 done, N1/N2/N3 in progress
-    - Step 2: Remove `∃` from theorem statements — expose concrete let-bindings (from div128,
-      mulsub, addback sub-specs) in postconditions instead. Callers use `intro_lets` to get
-      named local definitions like `q_trial := ...`, `un0 := ...` with known values.
-      This enables applying `mulsub_register_4limb_val256` → `single_iteration_correct` →
+      values to definition parameters. Theorems wrap with `∃` in statements.
+      Status: ✅ Done (N4 complete, N1/N2/N3 complete, PR #197 merged)
+    - Step 2: Per-case concrete specs — replace `∃` with `mulsubN4`/`addbackN4` outputs in
+      postconditions. Four per-case theorems (max_skip, max_addback, call_skip, call_addback)
+      use case-specific concrete `q_hat` (no symbolic if-then-else).
+      Files: `LoopBodyN4Concrete.lean` — `divK_loop_body_n4_j0_{max,call}_{skip,addback}_concrete`
+      Bridge: `mulsubN4_val256_eq` connects `mulsubN4` to the Euclidean equation
+      `val256(u) + c3*2^256 = val256(u_new) + q*val256(v)`.
+      Status: ✅ Done for N4 (4 per-case specs + semantic bridge theorem)
+    - Step 3: Combine per-case specs into unified concrete spec via general case-split lemma,
+      then apply `mulsubN4_val256_eq` → `single_iteration_correct` →
       `val256_euclidean_to_div_mod` to prove semantic correctness.
+      Status: Not started
+    - Note: unified concrete postcondition using `trialQuotientN4` (with if-then-else on
+      `BitVec.ult u_top v3`) is blocked by `isDefEq` limitation — the kernel cannot resolve
+      `if (symbolic_bool) then X else Y` using propositional hypotheses. Per-case approach
+      avoids this. An `intro_lets` tactic could unblock the unified approach in the future.
   - Stack-level specs with `evmWordIs (sp+32) (EvmWord.div a b)` / `(EvmWord.mod a b)` in postcondition
   - Combined spec merging b=0 + b≠0 into single `evm_div_stack_spec`/`evm_mod_stack_spec`
 
