@@ -10,6 +10,7 @@
 -/
 
 import EvmAsm.Evm64.DivMod.LoopBodyN4
+import EvmAsm.Evm64.EvmWordArith.DivMulSubCarry
 
 open EvmAsm.Rv64.Tactics
 
@@ -161,5 +162,32 @@ noncomputable def loopBodyN4_carry (v0 v1 v2 v3 u0 u1 u2 u3 u_top : Word) : Word
 noncomputable def loopBodyN4_borrow (v0 v1 v2 v3 u0 u1 u2 u3 u_top : Word) : Word :=
   let c3 := loopBodyN4_carry v0 v1 v2 v3 u0 u1 u2 u3 u_top
   if BitVec.ult u_top c3 then (1 : Word) else 0
+
+-- ============================================================================
+-- Semantic bridge: mulsubN4 satisfies the val256 Euclidean equation
+-- ============================================================================
+
+open EvmWord in
+/-- The mulsubN4 computation satisfies the 4-limb Euclidean equation.
+    This is the key bridge to semantic correctness: the register-level
+    multiply-subtract produces values satisfying
+    `val256(u) + carry * 2^256 = val256(u_new) + q * val256(v)`.
+
+    Proof: unfold mulsubN4 to expose the mulsub let-bindings, which
+    match exactly the pattern of mulsub_register_4limb_val256. -/
+theorem mulsubN4_val256_eq (q v0 v1 v2 v3 u0 u1 u2 u3 : Word) :
+    let ms := mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3
+    let un0 := ms.1; let un1 := ms.2.1; let un2 := ms.2.2.1
+    let un3 := ms.2.2.2.1; let c3 := ms.2.2.2.2
+    val256 u0 u1 u2 u3 + c3.toNat * 2^256 =
+      val256 un0 un1 un2 un3 + q.toNat * val256 v0 v1 v2 v3 := by
+  -- Unfold mulsubN4 to expose the register-level let-bindings
+  simp only [mulsubN4]
+  -- The let-bindings now match mulsub_register_4limb_val256 exactly:
+  -- fs0 = q * v0 + 0, ba0 = borrow_add, un0 = u0 - fs0, etc.
+  -- Note: signExtend12 0 = (0 : Word), so fs0 = q * v0 + 0
+  have hse0 : signExtend12 (0 : BitVec 12) = (0 : Word) := by decide
+  simp only [hse0]
+  exact mulsub_register_4limb_val256 q v0 v1 v2 v3 u0 u1 u2 u3
 
 end EvmAsm.Evm64
