@@ -25,7 +25,7 @@ open EvmAsm.Rv64
 /-- Compute the trial quotient for one loop iteration.
     If u_top < v3 (BLTU taken), uses 128÷64 trial division (div128).
     Otherwise uses MAX64 = signExtend12 4095 = 2^64-1. -/
-noncomputable def trialQuotientN4 (v3 u3 u_top : Word) : Word :=
+def trialQuotientN4 (v3 u3 u_top : Word) : Word :=
   if BitVec.ult u_top v3 then
     let d_hi := v3 >>> (32 : BitVec 6).toNat
     let d_lo := (v3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
@@ -55,7 +55,7 @@ noncomputable def trialQuotientN4 (v3 u3 u_top : Word) : Word :=
   else signExtend12 (4095 : BitVec 12)
 
 /-- Mulsub: compute u - q*v for 4 limbs, returning (un0, un1, un2, un3, c3). -/
-noncomputable def mulsubN4 (q v0 v1 v2 v3 u0 u1 u2 u3 : Word) :
+def mulsubN4 (q v0 v1 v2 v3 u0 u1 u2 u3 : Word) :
     Word × Word × Word × Word × Word :=
   let p0_lo := q * v0; let p0_hi := rv64_mulhu q v0
   let fs0 := p0_lo + (signExtend12 0 : Word)
@@ -84,7 +84,7 @@ noncomputable def mulsubN4 (q v0 v1 v2 v3 u0 u1 u2 u3 : Word) :
   (un0, un1, un2, un3, c3)
 
 /-- Addback: compute u + v for 4 limbs (used after mulsub underflow). -/
-noncomputable def addbackN4 (un0 un1 un2 un3 u4_new v0 v1 v2 v3 : Word) :
+def addbackN4 (un0 un1 un2 un3 u4_new v0 v1 v2 v3 : Word) :
     Word × Word × Word × Word × Word :=
   let upc0 := un0 + (signExtend12 0 : Word)
   let ac1_0 := if BitVec.ult upc0 (signExtend12 0 : Word) then (1 : Word) else 0
@@ -112,7 +112,7 @@ noncomputable def addbackN4 (un0 un1 un2 un3 u4_new v0 v1 v2 v3 : Word) :
 /-- Complete loop body output computation for n=4 at j=0.
     Returns the 13 output values as a let-binding chain in the return type.
     Mirrors the exact register-level computation of the Knuth D loop body. -/
-noncomputable def loopBodyN4Output
+def loopBodyN4Output
     (v0 v1 v2 v3 u0 u1 u2 u3 u_top : Word)
     (ret_mem d_mem dlo_mem scratch_un0 base : Word) :
     Word × Word × Word × Word × Word × Word × Word × Word × Word × Word × Word × Word × Word :=
@@ -149,17 +149,17 @@ noncomputable def loopBodyN4Output
 -- ============================================================================
 
 /-- The trial quotient from the loop body output. -/
-noncomputable def loopBodyN4_qhat (v3 u3 u_top : Word) : Word :=
+def loopBodyN4_qhat (v3 u3 u_top : Word) : Word :=
   trialQuotientN4 v3 u3 u_top
 
 /-- The mulsub carry from the loop body output. -/
-noncomputable def loopBodyN4_carry (v0 v1 v2 v3 u0 u1 u2 u3 u_top : Word) : Word :=
+def loopBodyN4_carry (v0 v1 v2 v3 u0 u1 u2 u3 u_top : Word) : Word :=
   let q_hat := trialQuotientN4 v3 u3 u_top
   let ms := mulsubN4 q_hat v0 v1 v2 v3 u0 u1 u2 u3
   ms.2.2.2.2  -- c3
 
 /-- The mulsub borrow flag (1 if underflow, 0 otherwise). -/
-noncomputable def loopBodyN4_borrow (v0 v1 v2 v3 u0 u1 u2 u3 u_top : Word) : Word :=
+def loopBodyN4_borrow (v0 v1 v2 v3 u0 u1 u2 u3 u_top : Word) : Word :=
   let c3 := loopBodyN4_carry v0 v1 v2 v3 u0 u1 u2 u3 u_top
   if BitVec.ult u_top c3 then (1 : Word) else 0
 
