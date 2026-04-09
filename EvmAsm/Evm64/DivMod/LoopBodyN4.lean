@@ -819,32 +819,32 @@ theorem divK_loop_body_n4_call_addback_spec
 -- ============================================================================
 
 /-- Postcondition for one loop iteration at n=4.
-    Path-dependent outputs are existentially quantified.
-    Both cpsBranch exits share this postcondition. -/
+    Output values are concrete parameters (not existentially quantified),
+    preserving the relationship between outputs and inputs for semantic
+    correctness proofs. -/
 def loopBodyPostN4
-    (sp j v0 v1 v2 v3 : Word) : Assertion :=
-  fun h =>
-    let u_base := sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat
-    let j' := j + signExtend12 4095
-    let q_addr := sp + signExtend12 4088 - j <<< (3 : BitVec 6).toNat
-    ∃ (x2v x10v x11v : Word)
-      (un0v un1v un2v un3v u4v qv : Word)
-      (retv dv dlov sunv : Word),
-    ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j') **
-     (.x5 ↦ᵣ j <<< (3 : BitVec 6).toNat) ** (.x6 ↦ᵣ u_base) **
-     (.x7 ↦ᵣ q_addr) ** (.x10 ↦ᵣ x10v) ** (.x11 ↦ᵣ x11v) **
-     (.x2 ↦ᵣ x2v) ** (.x0 ↦ᵣ (0 : Word)) **
-     (sp + signExtend12 3976 ↦ₘ j) ** (sp + signExtend12 3984 ↦ₘ (4 : Word)) **
-     ((sp + signExtend12 32) ↦ₘ v0) ** ((u_base + signExtend12 0) ↦ₘ un0v) **
-     ((sp + signExtend12 40) ↦ₘ v1) ** ((u_base + signExtend12 4088) ↦ₘ un1v) **
-     ((sp + signExtend12 48) ↦ₘ v2) ** ((u_base + signExtend12 4080) ↦ₘ un2v) **
-     ((sp + signExtend12 56) ↦ₘ v3) ** ((u_base + signExtend12 4072) ↦ₘ un3v) **
-     ((u_base + signExtend12 4064) ↦ₘ u4v) **
-     (q_addr ↦ₘ qv) **
-     (sp + signExtend12 3968 ↦ₘ retv) **
-     (sp + signExtend12 3960 ↦ₘ dv) **
-     (sp + signExtend12 3952 ↦ₘ dlov) **
-     (sp + signExtend12 3944 ↦ₘ sunv)) h
+    (sp j v0 v1 v2 v3 : Word)
+    (x2v x10v x11v : Word)
+    (un0v un1v un2v un3v u4v qv : Word)
+    (retv dv dlov sunv : Word) : Assertion :=
+  let u_base := sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat
+  let j' := j + signExtend12 4095
+  let q_addr := sp + signExtend12 4088 - j <<< (3 : BitVec 6).toNat
+  (.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j') **
+  (.x5 ↦ᵣ j <<< (3 : BitVec 6).toNat) ** (.x6 ↦ᵣ u_base) **
+  (.x7 ↦ᵣ q_addr) ** (.x10 ↦ᵣ x10v) ** (.x11 ↦ᵣ x11v) **
+  (.x2 ↦ᵣ x2v) ** (.x0 ↦ᵣ (0 : Word)) **
+  (sp + signExtend12 3976 ↦ₘ j) ** (sp + signExtend12 3984 ↦ₘ (4 : Word)) **
+  ((sp + signExtend12 32) ↦ₘ v0) ** ((u_base + signExtend12 0) ↦ₘ un0v) **
+  ((sp + signExtend12 40) ↦ₘ v1) ** ((u_base + signExtend12 4088) ↦ₘ un1v) **
+  ((sp + signExtend12 48) ↦ₘ v2) ** ((u_base + signExtend12 4080) ↦ₘ un2v) **
+  ((sp + signExtend12 56) ↦ₘ v3) ** ((u_base + signExtend12 4072) ↦ₘ un3v) **
+  ((u_base + signExtend12 4064) ↦ₘ u4v) **
+  (q_addr ↦ₘ qv) **
+  (sp + signExtend12 3968 ↦ₘ retv) **
+  (sp + signExtend12 3960 ↦ₘ dv) **
+  (sp + signExtend12 3952 ↦ₘ dlov) **
+  (sp + signExtend12 3944 ↦ₘ sunv)
 
 set_option maxRecDepth 8192 in
 set_option maxHeartbeats 12800000 in
@@ -896,9 +896,13 @@ theorem divK_loop_body_n4_combined_spec
        (sp + signExtend12 3952 ↦ₘ dlo_mem) **
        (sp + signExtend12 3944 ↦ₘ scratch_un0))
       (base + 448)
-      (loopBodyPostN4 sp j v0 v1 v2 v3)
+      (fun h => ∃ (x2v x10v x11v : Word) (un0v un1v un2v un3v u4v qv : Word)
+        (retv dv dlov sunv : Word),
+        loopBodyPostN4 sp j v0 v1 v2 v3 x2v x10v x11v un0v un1v un2v un3v u4v qv retv dv dlov sunv h)
       (base + 904)
-      (loopBodyPostN4 sp j v0 v1 v2 v3) := by
+      (fun h => ∃ (x2v x10v x11v : Word) (un0v un1v un2v un3v u4v qv : Word)
+        (retv dv dlov sunv : Word),
+        loopBodyPostN4 sp j v0 v1 v2 v3 x2v x10v x11v un0v un1v un2v un3v u4v qv retv dv dlov sunv h) := by
   intro u_base q_addr
   -- Case split on BLTU (u_top < v3?)
   by_cases hbltu : BitVec.ult u_top v3
@@ -968,9 +972,9 @@ theorem divK_loop_body_n4_combined_spec
       exact cpsBranch_consequence _ _ _ _ _ _ _ _ _ _
         (fun h hp => by xperm_hyp hp)
         (fun h hp => ⟨un3, c3, q_hat, un0, un1, un2, un3, u4_new, q_hat,
-          base + 516, v3, d_lo, div_un0, by xperm_hyp hp⟩)
+          base + 516, v3, d_lo, div_un0, by unfold loopBodyPostN4; xperm_hyp hp⟩)
         (fun h hp => ⟨un3, c3, q_hat, un0, un1, un2, un3, u4_new, q_hat,
-          base + 516, v3, d_lo, div_un0, by xperm_hyp hp⟩)
+          base + 516, v3, d_lo, div_un0, by unfold loopBodyPostN4; xperm_hyp hp⟩)
         HS0
     · -- Call + addback (borrow ≠ 0)
       let upc0 := un0 + (signExtend12 0 : Word)
@@ -1005,9 +1009,9 @@ theorem divK_loop_body_n4_combined_spec
       exact cpsBranch_consequence _ _ _ _ _ _ _ _ _ _
         (fun h hp => by xperm_hyp hp)
         (fun h hp => ⟨aun3, c3, q_hat', aun0, aun1, aun2, aun3, aun4, q_hat',
-          base + 516, v3, d_lo, div_un0, by xperm_hyp hp⟩)
+          base + 516, v3, d_lo, div_un0, by unfold loopBodyPostN4; xperm_hyp hp⟩)
         (fun h hp => ⟨aun3, c3, q_hat', aun0, aun1, aun2, aun3, aun4, q_hat',
-          base + 516, v3, d_lo, div_un0, by xperm_hyp hp⟩)
+          base + 516, v3, d_lo, div_un0, by unfold loopBodyPostN4; xperm_hyp hp⟩)
         HA0
   · -- BLTU not taken: max path
     let q_hat := signExtend12 (4095 : BitVec 12)
@@ -1056,9 +1060,9 @@ theorem divK_loop_body_n4_combined_spec
       exact cpsBranch_consequence _ _ _ _ _ _ _ _ _ _
         (fun h hp => by xperm_hyp hp)
         (fun h hp => ⟨un3, c3, q_hat, un0, un1, un2, un3, u4_new, q_hat,
-          ret_mem, d_mem, dlo_mem, scratch_un0, by xperm_hyp hp⟩)
+          ret_mem, d_mem, dlo_mem, scratch_un0, by unfold loopBodyPostN4; xperm_hyp hp⟩)
         (fun h hp => ⟨un3, c3, q_hat, un0, un1, un2, un3, u4_new, q_hat,
-          ret_mem, d_mem, dlo_mem, scratch_un0, by xperm_hyp hp⟩)
+          ret_mem, d_mem, dlo_mem, scratch_un0, by unfold loopBodyPostN4; xperm_hyp hp⟩)
         HSf
     · -- Max + addback (borrow ≠ 0)
       let upc0 := un0 + (signExtend12 0 : Word)
@@ -1098,9 +1102,9 @@ theorem divK_loop_body_n4_combined_spec
       exact cpsBranch_consequence _ _ _ _ _ _ _ _ _ _
         (fun h hp => by xperm_hyp hp)
         (fun h hp => ⟨aun3, c3, q_hat', aun0, aun1, aun2, aun3, aun4, q_hat',
-          ret_mem, d_mem, dlo_mem, scratch_un0, by xperm_hyp hp⟩)
+          ret_mem, d_mem, dlo_mem, scratch_un0, by unfold loopBodyPostN4; xperm_hyp hp⟩)
         (fun h hp => ⟨aun3, c3, q_hat', aun0, aun1, aun2, aun3, aun4, q_hat',
-          ret_mem, d_mem, dlo_mem, scratch_un0, by xperm_hyp hp⟩)
+          ret_mem, d_mem, dlo_mem, scratch_un0, by unfold loopBodyPostN4; xperm_hyp hp⟩)
         HAf
 
 
@@ -1157,7 +1161,9 @@ theorem divK_loop_body_n4_j0_spec
        (sp + signExtend12 3960 ↦ₘ d_mem) **
        (sp + signExtend12 3952 ↦ₘ dlo_mem) **
        (sp + signExtend12 3944 ↦ₘ scratch_un0))
-      (loopBodyPostN4 sp (0 : Word) v0 v1 v2 v3) := by
+      (fun h => ∃ (x2v x10v x11v : Word) (un0v un1v un2v un3v u4v qv : Word)
+        (retv dv dlov sunv : Word),
+        loopBodyPostN4 sp (0 : Word) v0 v1 v2 v3 x2v x10v x11v un0v un1v un2v un3v u4v qv retv dv dlov sunv h) := by
   intro u_base q_addr
   -- Case split on BLTU (u_top < v3?)
   by_cases hbltu : BitVec.ult u_top v3
@@ -1259,7 +1265,7 @@ theorem divK_loop_body_n4_j0_spec
       exact cpsTriple_consequence _ _ _ _ _ _ _
         (fun h hp => by xperm_hyp hp)
         (fun h hp => ⟨un3, c3, q_hat, un0, un1, un2, un3, u4_new, q_hat,
-          base + 516, v3, d_lo, div_un0, by xperm_hyp hp⟩)
+          base + 516, v3, d_lo, div_un0, by unfold loopBodyPostN4; xperm_hyp hp⟩)
         full
     · -- Call + addback
       let upc0 := un0 + (signExtend12 0 : Word)
@@ -1324,7 +1330,7 @@ theorem divK_loop_body_n4_j0_spec
       exact cpsTriple_consequence _ _ _ _ _ _ _
         (fun h hp => by xperm_hyp hp)
         (fun h hp => ⟨aun3, c3, q_hat', aun0, aun1, aun2, aun3, aun4, q_hat',
-          base + 516, v3, d_lo, div_un0, by xperm_hyp hp⟩)
+          base + 516, v3, d_lo, div_un0, by unfold loopBodyPostN4; xperm_hyp hp⟩)
         full
   · -- BLTU not taken: max path
     let q_hat := signExtend12 (4095 : BitVec 12)
@@ -1400,7 +1406,7 @@ theorem divK_loop_body_n4_j0_spec
       exact cpsTriple_consequence _ _ _ _ _ _ _
         (fun h hp => by xperm_hyp hp)
         (fun h hp => ⟨un3, c3, q_hat, un0, un1, un2, un3, u4_new, q_hat,
-          ret_mem, d_mem, dlo_mem, scratch_un0, by xperm_hyp hp⟩)
+          ret_mem, d_mem, dlo_mem, scratch_un0, by unfold loopBodyPostN4; xperm_hyp hp⟩)
         fullf
     · -- Max + addback
       let upc0 := un0 + (signExtend12 0 : Word)
@@ -1467,7 +1473,7 @@ theorem divK_loop_body_n4_j0_spec
       exact cpsTriple_consequence _ _ _ _ _ _ _
         (fun h hp => by xperm_hyp hp)
         (fun h hp => ⟨aun3, c3, q_hat', aun0, aun1, aun2, aun3, aun4, q_hat',
-          ret_mem, d_mem, dlo_mem, scratch_un0, by xperm_hyp hp⟩)
+          ret_mem, d_mem, dlo_mem, scratch_un0, by unfold loopBodyPostN4; xperm_hyp hp⟩)
         fullf
 
 end EvmAsm.Evm64

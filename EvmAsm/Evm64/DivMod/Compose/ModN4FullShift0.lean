@@ -182,7 +182,9 @@ theorem evm_mod_n4_shift0_preloop_loopbody_spec (sp base : Word)
        ((sp + signExtend12 3976) ↦ₘ j_old) **
        ((sp + signExtend12 3968) ↦ₘ ret_mem) ** ((sp + signExtend12 3960) ↦ₘ d_mem) **
        ((sp + signExtend12 3952) ↦ₘ dlo_mem) ** ((sp + signExtend12 3944) ↦ₘ scratch_un0))
-      (loopBodyPostN4 sp (0 : Word) b0 b1 b2 b3 **
+      ((fun h => ∃ (x2v x10v x11v : Word) (un0v un1v un2v un3v u4v qv : Word)
+        (retv dv dlov sunv : Word),
+        loopBodyPostN4 sp (0 : Word) b0 b1 b2 b3 x2v x10v x11v un0v un1v un2v un3v u4v qv retv dv dlov sunv h) **
        ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
        ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
        ((sp + signExtend12 4080) ↦ₘ (0 : Word)) **
@@ -352,14 +354,14 @@ theorem evm_mod_n4_shift0_full_spec (sp base : Word)
   obtain ⟨k1, s1, hstep1, hpc1, hQF⟩ := hPLLB F hF st hcr hPF hpc
   obtain ⟨h_full, hcompat1, h_qframe, h_f, heq_outer, hdisj_outer, hQFrame, hF_heap⟩ := hQF
   obtain ⟨h_lp, h_frame, heq_inner, hdisj_inner, hLP, hFrame⟩ := hQFrame
-  change loopBodyPostN4 sp (0 : Word) b0 b1 b2 b3 h_lp at hLP
-  unfold loopBodyPostN4 at hLP
-  simp only [j0_u0_addr_eq, j0_u1_addr_eq, j0_u2_addr_eq, j0_u3_addr_eq, j0_u4_addr_eq,
-    j0_q_addr_eq] at hLP
-  simp only [j0_shl3_eq, j0_j'_eq, j0_sub_zero,
-    signExtend12_32, signExtend12_40, signExtend12_48, signExtend12_56] at hLP
+  -- Destructure loopBodyPostN4 existentials
   obtain ⟨x2v, x10v, x11v, un0v, un1v, un2v, un3v, u4v, qv,
     retv, dv, dlov, sunv, hLP_atoms⟩ := hLP
+  unfold loopBodyPostN4 at hLP_atoms
+  simp only [j0_u0_addr_eq, j0_u1_addr_eq, j0_u2_addr_eq, j0_u3_addr_eq, j0_u4_addr_eq,
+    j0_q_addr_eq] at hLP_atoms
+  simp only [j0_shl3_eq, j0_j'_eq, j0_sub_zero,
+    signExtend12_32, signExtend12_40, signExtend12_48, signExtend12_56] at hLP_atoms
   -- Get post-loop chain for shift=0 MOD
   have hDE := evm_mod_shift0_epilogue_spec sp base
     un0v un1v un2v un3v ((clzResult b3).1)

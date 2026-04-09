@@ -191,7 +191,9 @@ theorem evm_div_n4_preloop_loopbody_spec (sp base : Word)
        ((sp + signExtend12 3976) ↦ₘ j_old) **
        ((sp + signExtend12 3968) ↦ₘ ret_mem) ** ((sp + signExtend12 3960) ↦ₘ d_mem) **
        ((sp + signExtend12 3952) ↦ₘ dlo_mem) ** ((sp + signExtend12 3944) ↦ₘ scratch_un0))
-      (loopBodyPostN4 sp (0 : Word) b0' b1' b2' b3' **
+      ((fun h => ∃ (x2v x10v x11v : Word) (un0v un1v un2v un3v u4v qv : Word)
+        (retv dv dlov sunv : Word),
+        loopBodyPostN4 sp (0 : Word) b0' b1' b2' b3' x2v x10v x11v un0v un1v un2v un3v u4v qv retv dv dlov sunv h) **
        ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
        ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
        ((sp + signExtend12 4080) ↦ₘ (0 : Word)) **
@@ -391,21 +393,20 @@ theorem evm_div_n4_full_spec (sp base : Word)
   -- Destructure holdsFor and sep conj
   obtain ⟨h_full, hcompat1, h_qframe, h_f, heq_outer, hdisj_outer, hQFrame, hF_heap⟩ := hQF
   obtain ⟨h_lp, h_frame, heq_inner, hdisj_inner, hLP, hFrame⟩ := hQFrame
-  -- Expand loopBodyPostN4
-  change loopBodyPostN4 sp (0 : Word) b0' b1' b2' b3' h_lp at hLP
+  -- Destructure loopBodyPostN4 existentials
+  obtain ⟨x2v, x10v, x11v, un0v, un1v, un2v, un3v, u4v, qv,
+    retv, dv, dlov, sunv, hLP_atoms⟩ := hLP
   -- Unfold loopBodyPostN4 WITHOUT unfolding signExtend12 (which would destroy atom identity)
-  unfold loopBodyPostN4 at hLP
+  unfold loopBodyPostN4 at hLP_atoms
   -- Simplify let-bindings and address expressions
   -- First: canonicalize compound addresses (u0-u4, q) that use the full u_base/q_addr patterns
   -- These must fire BEFORE j0_u_base_eq which partially simplifies
   simp only [j0_u0_addr_eq, j0_u1_addr_eq, j0_u2_addr_eq, j0_u3_addr_eq, j0_u4_addr_eq,
-    j0_q_addr_eq] at hLP
+    j0_q_addr_eq] at hLP_atoms
   -- Second: simplify remaining expressions (u_base in registers, j', signExtend12, etc.)
   simp only [j0_u_base_eq, j0_shl3_eq, j0_j'_eq, j0_sub_zero, j0_q_sub_zero,
     signExtend12_0, signExtend12_32, signExtend12_40, signExtend12_48, signExtend12_56,
-    word_add_zero] at hLP
-  obtain ⟨x2v, x10v, x11v, un0v, un1v, un2v, un3v, u4v, qv,
-    retv, dv, dlov, sunv, hLP_atoms⟩ := hLP
+    word_add_zero] at hLP_atoms
   -- Get post-loop chain with concrete values
   -- v2=x2v, v5=0, v6=sp+SE12(4056), v7=sp+SE12(4088), v10=x10v
   -- q0=qv, q1=0, q2=0, q3=0, m0=b0', m8=b1', m16=b2', m24=b3'
