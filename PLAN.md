@@ -388,6 +388,10 @@ All phases below target **Evm64** primarily. Files are under `EvmAsm/Evm64/`.
     algebraic proof via `clzStep` abstraction with stage bound chain (done)
   - Limb bridge: `DivLimbBridge.lean` — OR-reduce nonzero → val256 > 0 / fromLimbs ≠ 0,
     per-limb val256 lower bounds (n=1: ≥1, n=2: ≥2^64, n=3: ≥2^128, n=4: ≥2^192) (done)
+  - Per-limb mulsub: `DivMulSubLimb.lean` — `mulhu_toNat_le` (MULHU ≤ 2^64-2),
+    `mulsub_limb_nat_eq` (per-limb carry equation from register ops),
+    `mulsub_carry_word_eq` (Word carry = Nat carry when < 2^64),
+    `mulsub_4limb_euclidean_div` (4-limb chain → EvmWord.div/mod for single-digit quotient) (done)
   - Remaining: prove algorithm output satisfies Nat-level Euclidean property
     (carry chain analysis connecting specific register expressions to val256 equations)
   - Stack-level specs with `evmWordIs (sp+32) (EvmWord.div a b)` / `(EvmWord.mod a b)` in postcondition
