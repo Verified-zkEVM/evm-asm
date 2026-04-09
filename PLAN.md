@@ -395,6 +395,10 @@ All phases below target **Evm64** primarily. Files are under `EvmAsm/Evm64/`.
   - Per-limb addback: `DivAddbackLimb.lean` — `addback_limb_nat_eq` (per-limb carry equation),
     `addback_4limb_val256` (4-limb addition chain), `addback_correction_euclidean`
     (mulsub underflow + addback → corrected Euclidean with q-1) (done)
+  - Remainder bound: `DivRemainderBound.lean` — `remainder_lt_of_ge_floor` (key: Euclidean eq +
+    overestimate → exact quotient + remainder < divisor), `mulsub_no_underflow_correct` (happy path),
+    `mulsub_addback_correct` (addback path), `val256_euclidean_to_div_mod` (val256 → EvmWord bridge),
+    `norm_euclidean_correct` (normalization round-trip) (done)
   - Remaining: prove algorithm output satisfies Nat-level Euclidean property
     (carry chain analysis connecting specific register expressions to val256 equations)
   - Stack-level specs with `evmWordIs (sp+32) (EvmWord.div a b)` / `(EvmWord.mod a b)` in postcondition

@@ -25,3 +25,4 @@ import EvmAsm.Evm64.EvmWordArith.CLZLemmas
 import EvmAsm.Evm64.EvmWordArith.DivLimbBridge
 import EvmAsm.Evm64.EvmWordArith.DivMulSubLimb
 import EvmAsm.Evm64.EvmWordArith.DivAddbackLimb
+import EvmAsm.Evm64.EvmWordArith.DivRemainderBound
