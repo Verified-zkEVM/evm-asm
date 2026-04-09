@@ -113,7 +113,7 @@ theorem trial_quotient_le (u_hi un1 d_hi d_lo : Nat)
   -- q̂ ≤ B + 1: if q̂ ≥ B+2 then q̂*d_hi ≥ (B+2)*d_hi, giving 2*d_hi ≤ d_lo,
   -- contradicting d_hi ≥ B/2 and d_lo < B.
   have hq_bound : q_hat ≤ 2^32 + 1 := by
-    by_contra h_contra; push_neg at h_contra
+    by_contra h_contra; push Not at h_contra
     have h1 : (2^32 + 2) * d_hi ≤ q_hat * d_hi := Nat.mul_le_mul_right d_hi (by omega)
     have h2 : 2 * d_hi ≤ d_lo := by omega
     omega
@@ -139,7 +139,7 @@ theorem trial_quotient_le (u_hi un1 d_hi d_lo : Nat)
     have := Nat.div_add_mod X d; have := Nat.mod_lt X hd_pos; nlinarith
   have hlt : q_hat * d < (X / d + 3) * d := by nlinarith
   have : q_hat < X / d + 3 := by
-    by_contra hc; push_neg at hc
+    by_contra hc; push Not at hc
     exact Nat.not_lt.mpr (Nat.mul_le_mul_right d hc) hlt
   omega
 

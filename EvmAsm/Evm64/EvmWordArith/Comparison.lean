@@ -222,7 +222,7 @@ theorem slt_result_correct (a b : EvmWord) :
     constructor
     · intro h3; nlinarith [a0.isLt, b0.isLt, a1.isLt, b1.isLt, a2.isLt, b2.isLt]
     · intro hab
-      by_contra h3; push_neg at h3
+      by_contra h3; push Not at h3
       have hge : b3.toNat ≤ a3.toNat := h3
       have hne : a3.toNat ≠ b3.toNat := fun heq => h (BitVec.eq_of_toNat_eq heq)
       have hgt : a3.toNat ≥ b3.toNat + 1 := by omega

@@ -167,11 +167,11 @@ theorem evm_div_n4_preloop_loopbody_spec (sp base : Word)
     let b2' := (b2 <<< (shift.toNat % 64)) ||| (b1 >>> (anti_shift.toNat % 64))
     let b1' := (b1 <<< (shift.toNat % 64)) ||| (b0 >>> (anti_shift.toNat % 64))
     let b0' := b0 <<< (shift.toNat % 64)
-    let u4 := a3 >>> (anti_shift.toNat % 64)
-    let u3 := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (anti_shift.toNat % 64))
-    let u2 := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (anti_shift.toNat % 64))
-    let u1 := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (anti_shift.toNat % 64))
-    let u0 := a0 <<< (shift.toNat % 64)
+    let _u4 := a3 >>> (anti_shift.toNat % 64)
+    let _u3 := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (anti_shift.toNat % 64))
+    let _u2 := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (anti_shift.toNat % 64))
+    let _u1 := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (anti_shift.toNat % 64))
+    let _u0 := a0 <<< (shift.toNat % 64)
     cpsTriple base (base + 904) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b3).2 >>> (63 : Nat)) **
@@ -331,10 +331,10 @@ theorem evm_div_n4_full_spec (sp base : Word)
     (hv_scratch : isValidDwordAccess (sp + signExtend12 3944) = true) :
     let shift := (clzResult b3).1
     let anti_shift := signExtend12 (0 : BitVec 12) - shift
-    let b3' := (b3 <<< (shift.toNat % 64)) ||| (b2 >>> (anti_shift.toNat % 64))
-    let b2' := (b2 <<< (shift.toNat % 64)) ||| (b1 >>> (anti_shift.toNat % 64))
-    let b1' := (b1 <<< (shift.toNat % 64)) ||| (b0 >>> (anti_shift.toNat % 64))
-    let b0' := b0 <<< (shift.toNat % 64)
+    let _b3' := (b3 <<< (shift.toNat % 64)) ||| (b2 >>> (anti_shift.toNat % 64))
+    let _b2' := (b2 <<< (shift.toNat % 64)) ||| (b1 >>> (anti_shift.toNat % 64))
+    let _b1' := (b1 <<< (shift.toNat % 64)) ||| (b0 >>> (anti_shift.toNat % 64))
+    let _b0' := b0 <<< (shift.toNat % 64)
     cpsTriple base (base + 1064) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b3).2 >>> (63 : Nat)) **
@@ -404,9 +404,8 @@ theorem evm_div_n4_full_spec (sp base : Word)
   simp only [j0_u0_addr_eq, j0_u1_addr_eq, j0_u2_addr_eq, j0_u3_addr_eq, j0_u4_addr_eq,
     j0_q_addr_eq] at hLP_atoms
   -- Second: simplify remaining expressions (u_base in registers, j', signExtend12, etc.)
-  simp only [j0_u_base_eq, j0_shl3_eq, j0_j'_eq, j0_sub_zero, j0_q_sub_zero,
-    signExtend12_0, signExtend12_32, signExtend12_40, signExtend12_48, signExtend12_56,
-    word_add_zero] at hLP_atoms
+  simp only [j0_shl3_eq, j0_j'_eq, j0_sub_zero,
+    signExtend12_32, signExtend12_40, signExtend12_48, signExtend12_56] at hLP_atoms
   -- Get post-loop chain with concrete values
   -- v2=x2v, v5=0, v6=sp+SE12(4056), v7=sp+SE12(4088), v10=x10v
   -- q0=qv, q1=0, q2=0, q3=0, m0=b0', m8=b1', m16=b2', m24=b3'
@@ -502,7 +501,6 @@ theorem evm_div_n4_full_spec (sp base : Word)
   -- hPL : (POST_LOOP_POST ** LEFTOVER) h_pl
   -- Need: ∃ qv0 x2out ... scout, (35 atoms) h_pl
   -- Expand let-bindings in POST_LOOP_POST
-  intro_lets at hPL
   exact ⟨qv, _, signExtend12 (4095 : BitVec 12), x11v,
     _, _, _, _, u4v, retv, dv, dlov, sunv,
     by xperm_hyp hPL⟩
