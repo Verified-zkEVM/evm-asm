@@ -190,4 +190,106 @@ theorem mulsubN4_val256_eq (q v0 v1 v2 v3 u0 u1 u2 u3 : Word) :
   simp only [hse0]
   exact mulsub_register_4limb_val256 q v0 v1 v2 v3 u0 u1 u2 u3
 
+-- ============================================================================
+-- Per-case concrete specs: loop body at j=0 with mulsubN4-based postcondition
+-- ============================================================================
+
+set_option maxRecDepth 8192 in
+set_option maxHeartbeats 12800000 in
+/-- Concrete loop body for n=4, j=0, MAX+SKIP case (BLTU not taken, borrow=0).
+    Postcondition uses mulsubN4 outputs directly — no existentials. -/
+theorem divK_loop_body_n4_j0_max_skip_concrete
+    (sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
+     v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old : Word)
+    (ret_mem d_mem dlo_mem scratch_un0 : Word)
+    (base : Word)
+    (hv_j : isValidDwordAccess (sp + signExtend12 3976) = true)
+    (hv_n1 : isValidDwordAccess (sp + signExtend12 3984) = true)
+    (hv_uhi : isValidDwordAccess (sp + signExtend12 4056 - ((0 : Word) + (4 : Word)) <<< (3 : BitVec 6).toNat) = true)
+    (hv_ulo : isValidDwordAccess ((sp + signExtend12 4056 - ((0 : Word) + (4 : Word)) <<< (3 : BitVec 6).toNat) + 8) = true)
+    (hv_vtop : isValidDwordAccess (sp + ((4 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat + signExtend12 32) = true)
+    (hv_v0 : isValidDwordAccess (sp + signExtend12 32) = true)
+    (hv_u0 : isValidDwordAccess ((sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 0) = true)
+    (hv_v1 : isValidDwordAccess (sp + signExtend12 40) = true)
+    (hv_u1 : isValidDwordAccess ((sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4088) = true)
+    (hv_v2 : isValidDwordAccess (sp + signExtend12 48) = true)
+    (hv_u2 : isValidDwordAccess ((sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4080) = true)
+    (hv_v3 : isValidDwordAccess (sp + signExtend12 56) = true)
+    (hv_u3 : isValidDwordAccess ((sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4072) = true)
+    (hv_u4 : isValidDwordAccess ((sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4064) = true)
+    (hv_q : isValidDwordAccess (sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat) = true)
+    (hbltu : ¬BitVec.ult u_top v3) :
+    let u_base := sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat
+    let q_addr := sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat
+    let q_hat := signExtend12 (4095 : BitVec 12)
+    let ms := mulsubN4 q_hat v0 v1 v2 v3 u0 u1 u2 u3
+    let un0 := ms.1; let un1 := ms.2.1; let un2 := ms.2.2.1
+    let un3 := ms.2.2.2.1; let c3 := ms.2.2.2.2
+    let u4_new := u_top - c3
+    (if BitVec.ult u_top c3 then (1 : Word) else 0) = (0 : Word) →
+    cpsTriple (base + 448) (base + 904) (sharedDivModCode base)
+      ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (0 : Word)) **
+       (.x5 ↦ᵣ v5_old) ** (.x6 ↦ᵣ v6_old) **
+       (.x7 ↦ᵣ v7_old) ** (.x10 ↦ᵣ v10_old) ** (.x11 ↦ᵣ v11_old) **
+       (.x2 ↦ᵣ v2_old) ** (.x0 ↦ᵣ (0 : Word)) **
+       (sp + signExtend12 3976 ↦ₘ j_old) ** (sp + signExtend12 3984 ↦ₘ (4 : Word)) **
+       ((sp + signExtend12 32) ↦ₘ v0) ** ((u_base + signExtend12 0) ↦ₘ u0) **
+       ((sp + signExtend12 40) ↦ₘ v1) ** ((u_base + signExtend12 4088) ↦ₘ u1) **
+       ((sp + signExtend12 48) ↦ₘ v2) ** ((u_base + signExtend12 4080) ↦ₘ u2) **
+       ((sp + signExtend12 56) ↦ₘ v3) ** ((u_base + signExtend12 4072) ↦ₘ u3) **
+       ((u_base + signExtend12 4064) ↦ₘ u_top) **
+       (q_addr ↦ₘ q_old) **
+       (sp + signExtend12 3968 ↦ₘ ret_mem) **
+       (sp + signExtend12 3960 ↦ₘ d_mem) **
+       (sp + signExtend12 3952 ↦ₘ dlo_mem) **
+       (sp + signExtend12 3944 ↦ₘ scratch_un0))
+      (fun h => loopBodyPostN4 sp (0 : Word) v0 v1 v2 v3
+        un3 c3 q_hat un0 un1 un2 un3 u4_new q_hat
+        ret_mem d_mem dlo_mem scratch_un0 h) := by
+  intro u_base q_addr q_hat ms un0 un1 un2 un3 c3 u4_new hborrow
+  let vtop_base := sp + ((4 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
+  have TF := divK_trial_max_full_spec sp (0 : Word) (4 : Word) j_old v5_old v6_old v7_old v10_old v11_old
+    u_top u3 v3 base hv_j hv_n1 hv_uhi hv_ulo hv_vtop hbltu
+  dsimp only [] at TF
+  rw [u_addr_eq_n4 sp (0 : Word)] at TF
+  rw [u_addr8_eq_n4 sp (0 : Word)] at TF
+  rw [vtop_eq_v3_n4 sp] at TF
+  have MCS := divK_mulsub_correction_skip_spec sp q_hat (0 : Word) v0 v1 v2 v3 u0 u1 u2 u3 u_top
+    (0 : Word) u3 vtop_base u_top v3 v2_old base
+    hv_j hv_v0 hv_u0 hv_v1 hv_u1 hv_v2 hv_u2 hv_v3 hv_u3 hv_u4
+  intro_lets at MCS
+  have MCS0 := MCS hborrow
+  have SL := divK_store_loop_j0_spec sp q_hat u4_new (0 : Word) q_old base hv_q
+  intro_lets at SL
+  have TFf := cpsTriple_frame_left _ _ _ _ _
+    ((.x2 ↦ᵣ v2_old) **
+     ((sp + signExtend12 32) ↦ₘ v0) ** ((u_base + signExtend12 0) ↦ₘ u0) **
+     ((sp + signExtend12 40) ↦ₘ v1) ** ((u_base + signExtend12 4088) ↦ₘ u1) **
+     ((sp + signExtend12 48) ↦ₘ v2) ** ((u_base + signExtend12 4080) ↦ₘ u2) **
+     (q_addr ↦ₘ q_old))
+    (by pcFree) TF
+  seqFrame TFf MCS0
+  have SLf := cpsTriple_frame_left _ _ _ _ _
+    ((.x6 ↦ᵣ u_base) ** (.x10 ↦ᵣ c3) ** (.x2 ↦ᵣ un3) **
+     (sp + signExtend12 3976 ↦ₘ (0 : Word)) **
+     ((sp + signExtend12 32) ↦ₘ v0) ** ((u_base + signExtend12 0) ↦ₘ un0) **
+     ((sp + signExtend12 40) ↦ₘ v1) ** ((u_base + signExtend12 4088) ↦ₘ un1) **
+     ((sp + signExtend12 48) ↦ₘ v2) ** ((u_base + signExtend12 4080) ↦ₘ un2) **
+     ((sp + signExtend12 56) ↦ₘ v3) ** ((u_base + signExtend12 4072) ↦ₘ un3) **
+     ((u_base + signExtend12 4064) ↦ₘ u4_new) **
+     (sp + signExtend12 3984 ↦ₘ (4 : Word)))
+    (by pcFree) SL
+  have fullt := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+    (fun h hp => by rw [sepConj_assoc'] at hp; xperm_hyp hp) TFfMCS0 SLf
+  have fullf := cpsTriple_frame_left _ _ _ _ _
+    ((sp + signExtend12 3968 ↦ₘ ret_mem) **
+     (sp + signExtend12 3960 ↦ₘ d_mem) **
+     (sp + signExtend12 3952 ↦ₘ dlo_mem) **
+     (sp + signExtend12 3944 ↦ₘ scratch_un0))
+    (by pcFree) fullt
+  exact cpsTriple_consequence _ _ _ _ _ _ _
+    (fun h hp => by xperm_hyp hp)
+    (fun h hp => by unfold loopBodyPostN4; xperm_hyp hp)
+    fullf
+
 end EvmAsm.Evm64
