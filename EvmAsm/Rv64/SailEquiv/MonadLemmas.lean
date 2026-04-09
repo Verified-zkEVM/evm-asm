@@ -300,4 +300,31 @@ theorem runSail_get_next_pc (s : SailState) (v : BitVec 64)
     pure, EStateM.pure, bind, EStateM.bind, EStateM.get,
     get, MonadState.get, getThe, MonadStateOf.get]
 
+-- ============================================================================
+-- jump_to (for branches and jumps)
+-- ============================================================================
+
+@[simp] private theorem sail_access_eq (v : BitVec w) (i : Nat) :
+    Sail.BitVec.access v i = BitVec.ofBool v[i]! := rfl
+
+private theorem align4_bit0 (v : BitVec 64) (h : v &&& 3 = 0) :
+    v[0] = false := by
+  show v.getLsbD 0 = false
+  have := congrArg (·.getLsbD 0) h; simp at this; exact this
+
+private theorem align4_bit1 (v : BitVec 64) (h : v &&& 3 = 0) :
+    v[1] = false := by
+  show v.getLsbD 1 = false
+  have := congrArg (·.getLsbD 1) h; simp at this; exact this
+
+/-- jump_to succeeds for 4-byte aligned targets: writes nextPC, returns RETIRE_SUCCESS.
+    Requires 4-byte alignment (bits 0,1 = 0) and that `currentlyEnabled Ext_Zca`
+    succeeds in the SAIL state. The alignment makes the Zca result irrelevant
+    (bit_to_bool(target[1]) = false), but the monadic call must still succeed. -/
+theorem runSail_jump_to (target : BitVec 64) (s : SailState)
+    (h_align : target &&& 3 = 0) :
+    runSail (jump_to target) s =
+      some (RETIRE_SUCCESS, { s with regs := s.regs.insert Register.nextPC target }) := by
+  sorry  -- Blocked on currentlyEnabled Ext_Zca monadic call succeeding
+
 end EvmAsm.Rv64.SailEquiv
