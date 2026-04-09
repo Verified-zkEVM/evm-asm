@@ -341,7 +341,7 @@ private def expandAbbrevsInCpsTriple (proof : Expr) : MetaM Expr := do
   if ¬(← withoutModifyingState (isDefEq ty newTy)) then
     return proof  -- fallback: not definitionally equal (shouldn't happen for well-formed abbrevs)
   let eqTy ← mkEq ty newTy
-  let eqProof := mkApp2 (mkConst ``id [levelZero]) eqTy (← mkEqRefl ty)
+  let eqProof := mkApp2 (mkConst ``id [Level.zero]) eqTy (← mkEqRefl ty)
   mkEqMP eqProof proof
 
 /-- Normalize addresses in a cpsTriple proof.
@@ -368,7 +368,7 @@ private def normalizeSpecAddresses (proof : Expr) : MetaM Expr :=
     -- If let-inlining changed the type shape, wrap with @id to force the clean type
     -- (let-inlined type is definitionally equal, so the kernel accepts it)
     if workType == expandedType then Pure.pure expandedProof
-    else Pure.pure (mkApp2 (mkConst ``id [levelZero]) workType expandedProof)
+    else Pure.pure (mkApp2 (mkConst ``id [Level.zero]) workType expandedProof)
 
 /-- Normalize the exit address of a cpsTriple proof to match a target address.
     Uses fast reflection when possible, falls back to `bv_omega`. -/

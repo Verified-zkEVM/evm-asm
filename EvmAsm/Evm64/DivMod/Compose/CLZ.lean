@@ -120,7 +120,7 @@ private theorem divK_clz_stage_combined
   by_cases h : val >>> K.toNat ≠ 0
   · simp only [if_pos h]
     exact divK_clz_stage_taken_spec K M_s M_a val count v7 base h
-  · push_neg at h
+  · push Not at h
     simp only [if_neg (show ¬(val >>> K.toNat ≠ 0) from not_not.mpr h)]
     have hs := divK_clz_stage_ntaken_spec K M_s M_a val count v7 base h
     exact cpsTriple_consequence _ _ _ _ _ _ _
@@ -139,7 +139,7 @@ private theorem divK_clz_last_combined (val count v7 : Word) (base : Word) :
   by_cases h : val >>> (63 : Nat) ≠ 0
   · simp only [if_pos h]
     exact divK_clz_last_taken_spec val count v7 base h
-  · push_neg at h
+  · push Not at h
     simp only [if_neg (show ¬(val >>> (63 : Nat) ≠ 0) from not_not.mpr h)]
     have hs := divK_clz_last_ntaken_spec val count v7 base h
     exact cpsTriple_consequence _ _ _ _ _ _ _

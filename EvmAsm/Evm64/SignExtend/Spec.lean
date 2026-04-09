@@ -103,7 +103,7 @@ theorem evm_signextend_stack_spec (sp base : Word)
         (signext_nochange_geq31_spec sp base _ _ _ _ _ _ _ _ r5 r10 hhigh' hlarge hvalid)
         result hresult
   · -- b < 31: body path
-    push_neg at hge
+    push Not at hge
     have hhigh : b.getLimbN 1 ||| b.getLimbN 2 ||| b.getLimbN 3 = 0 :=
       EvmWord.high_limbs_zero_of_toNat_lt b (by omega)
     have hsmall : BitVec.ult (b.getLimbN 0) (signExtend12 (31 : BitVec 12)) = true := by

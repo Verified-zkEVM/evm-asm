@@ -321,11 +321,11 @@ theorem evm_div_n3_preloop_loopbody_spec (sp base : Word)
     let b2' := (b2 <<< (shift.toNat % 64)) ||| (b1 >>> (anti_shift.toNat % 64))
     let b1' := (b1 <<< (shift.toNat % 64)) ||| (b0 >>> (anti_shift.toNat % 64))
     let b0' := b0 <<< (shift.toNat % 64)
-    let u4 := a3 >>> (anti_shift.toNat % 64)
-    let u3 := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (anti_shift.toNat % 64))
-    let u2 := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (anti_shift.toNat % 64))
-    let u1 := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (anti_shift.toNat % 64))
-    let u0 := a0 <<< (shift.toNat % 64)
+    let _u4 := a3 >>> (anti_shift.toNat % 64)
+    let _u3 := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (anti_shift.toNat % 64))
+    let _u2 := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (anti_shift.toNat % 64))
+    let _u1 := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (anti_shift.toNat % 64))
+    let _u0 := a0 <<< (shift.toNat % 64)
     cpsTriple base (base + 904) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b2).2 >>> (63 : Nat)) **
@@ -466,9 +466,8 @@ theorem evm_div_n3_preloop_loopbody_spec (sp base : Word)
     unfold loopBodyPostN3 at hLP2_atoms
     simp only [j1_u0_addr_eq, j1_u1_addr_eq, j1_u2_addr_eq, j1_u3_addr_eq, j1_u4_addr_eq,
       j1_q_addr_eq] at hLP2_atoms
-    simp only [j1_u_base_eq, j1_shl3_eq, j1_j'_eq, j1_sub_8, j1_q_sub_8,
-      signExtend12_0, signExtend12_32, signExtend12_40, signExtend12_48, signExtend12_56,
-      word_add_zero] at hLP2_atoms
+    simp only [j1_shl3_eq, j1_j'_eq, j1_sub_8,
+      signExtend12_32, signExtend12_40, signExtend12_48, signExtend12_56] at hLP2_atoms
     -- Build j=0 spec with j=1 output values (window shift)
     have hLB0 := divK_loop_body_n3_j0_spec sp
       (1 : Word) (8 : Word) (sp + signExtend12 4048) (sp + signExtend12 4080)
@@ -533,9 +532,8 @@ theorem evm_div_n3_preloop_loopbody_spec (sp base : Word)
     unfold loopBodyPostN3 at hJ0_atoms
     simp only [j0_u0_addr_eq, j0_u1_addr_eq, j0_u2_addr_eq, j0_u3_addr_eq, j0_u4_addr_eq,
       j0_q_addr_eq] at hJ0_atoms
-    simp only [j0_u_base_eq, j0_shl3_eq, j0_j'_eq, j0_sub_zero, j0_q_sub_zero,
-      signExtend12_0, signExtend12_32, signExtend12_40, signExtend12_48, signExtend12_56,
-      word_add_zero] at hJ0_atoms
+    simp only [j0_shl3_eq, j0_j'_eq, j0_sub_zero,
+      signExtend12_32, signExtend12_40, signExtend12_48, signExtend12_56] at hJ0_atoms
     have hCombined3 : sepConj _ _ h_qf3 :=
       ⟨h_j0, h_fr0, hdisj_j0, heq_j0, hJ0_atoms, hFR0⟩
     exact ⟨_, _, _, _, _, _, _, _, _, _, _, _, _, u4v_j1, qv_j1, _, _, _, _, _,
@@ -550,9 +548,8 @@ theorem evm_div_n3_preloop_loopbody_spec (sp base : Word)
     unfold loopBodyPostN3 at hLP2_atoms
     simp only [j1_u0_addr_eq, j1_u1_addr_eq, j1_u2_addr_eq, j1_u3_addr_eq, j1_u4_addr_eq,
       j1_q_addr_eq] at hLP2_atoms
-    simp only [j1_u_base_eq, j1_shl3_eq, j1_j'_eq, j1_sub_8, j1_q_sub_8,
-      signExtend12_0, signExtend12_32, signExtend12_40, signExtend12_48, signExtend12_56,
-      word_add_zero] at hLP2_atoms
+    simp only [j1_shl3_eq, j1_j'_eq, j1_sub_8,
+      signExtend12_32, signExtend12_40, signExtend12_48, signExtend12_56] at hLP2_atoms
     have hCombined2 : sepConj _ _ h_qf2 :=
       ⟨h_lp2, h_frame2, hdisj_i2, heq_i2, hLP2_atoms, hFrame2⟩
     exact ⟨_, _, _, _, _, _, _, _, _, _, _, _, _, u4v_j1, qv_j1, _, _, _, _, _,
@@ -598,10 +595,10 @@ theorem evm_div_n3_full_spec (sp base : Word)
     (hv_scratch : isValidDwordAccess (sp + signExtend12 3944) = true) :
     let shift := (clzResult b2).1
     let anti_shift := signExtend12 (0 : BitVec 12) - shift
-    let b3' := (b3 <<< (shift.toNat % 64)) ||| (b2 >>> (anti_shift.toNat % 64))
-    let b2' := (b2 <<< (shift.toNat % 64)) ||| (b1 >>> (anti_shift.toNat % 64))
-    let b1' := (b1 <<< (shift.toNat % 64)) ||| (b0 >>> (anti_shift.toNat % 64))
-    let b0' := b0 <<< (shift.toNat % 64)
+    let _b3' := (b3 <<< (shift.toNat % 64)) ||| (b2 >>> (anti_shift.toNat % 64))
+    let _b2' := (b2 <<< (shift.toNat % 64)) ||| (b1 >>> (anti_shift.toNat % 64))
+    let _b1' := (b1 <<< (shift.toNat % 64)) ||| (b0 >>> (anti_shift.toNat % 64))
+    let _b0' := b0 <<< (shift.toNat % 64)
     cpsTriple base (base + 1064) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b2).2 >>> (63 : Nat)) **
@@ -748,7 +745,6 @@ theorem evm_div_n3_full_spec (sp base : Word)
   obtain ⟨h_pl, h_f3, heq_r, hdisj_r, hPL, hF3⟩ := hRF_heap
   refine ⟨h_pl, h_f3, heq_r, hdisj_r, ?_, hF3⟩
   -- Expand let-bindings in POST_LOOP_POST
-  intro_lets at hPL
   exact ⟨q0v, q1v, _, x1v, x11v,
     _, _, _, _, u4v, u5v, j_v,
     retv, dv, dlov, sunv,

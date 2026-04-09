@@ -25,7 +25,7 @@ private theorem carry_toNat (x y : Word) :
   split
   · rename_i h; have := (ult_iff _ _).mp h; rw [hsum] at this
     simp [BitVec.toNat_ofNat]; omega
-  · rename_i h; have := mt (ult_iff _ _).mpr h; rw [hsum] at this; push_neg at this
+  · rename_i h; have := mt (ult_iff _ _).mpr h; rw [hsum] at this; push Not at this
     simp [BitVec.toNat_ofNat]; omega
 
 -- OR of two {0,1}-valued Words
@@ -389,7 +389,7 @@ theorem sub_borrow_chain_correct (a b : EvmWord) :
   have hdiv0 : (a0.toNat + W - b0.toNat) / W = if a0.toNat < b0.toNat then 0 else 1 := by
     split
     · rename_i h; exact Nat.div_eq_of_lt (by omega)
-    · rename_i h; push_neg at h
+    · rename_i h; push Not at h
       rw [show a0.toNat + W - b0.toNat = (a0.toNat - b0.toNat) + 1 * W from by omega,
           Nat.add_mul_div_right _ _ hW, Nat.div_eq_of_lt (by omega)]
   -- 2-limb complement borrow

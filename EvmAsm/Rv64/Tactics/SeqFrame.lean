@@ -192,27 +192,27 @@ private def proveAddrNe (a1 a2 : Expr) : MetaM Expr := do
           | some k1Bv, some k2Bv =>
             -- base + k1 ≠ base + k2
             if k1 != k2 then
-              let neType := mkApp3 (mkConst ``Ne [levelOne]) addrType k1Bv k2Bv
+              let neType := mkApp3 (mkConst ``Ne [Level.one]) addrType k1Bv k2Bv
               let hne ← mkDecideProof neType
               return mkApp4 (mkConst ``EvmAsm.Rv64.addr_ne_of_bv_ne) base1 k1Bv k2Bv hne
           | none, some kBv =>
             -- base ≠ base + k
             let bv64Type := mkApp (mkConst ``BitVec) (mkNatLit 64)
             let zeroAddr ← mkNumeral bv64Type 0
-            let neType := mkApp3 (mkConst ``Ne [levelOne]) addrType kBv zeroAddr
+            let neType := mkApp3 (mkConst ``Ne [Level.one]) addrType kBv zeroAddr
             let hne ← mkDecideProof neType
             return mkApp3 (mkConst ``EvmAsm.Rv64.addr_ne_add_right) base1 kBv hne
           | some kBv, none =>
             -- base + k ≠ base
             let bv64Type := mkApp (mkConst ``BitVec) (mkNatLit 64)
             let zeroAddr ← mkNumeral bv64Type 0
-            let neType := mkApp3 (mkConst ``Ne [levelOne]) addrType kBv zeroAddr
+            let neType := mkApp3 (mkConst ``Ne [Level.one]) addrType kBv zeroAddr
             let hne ← mkDecideProof neType
             return mkApp3 (mkConst ``EvmAsm.Rv64.addr_add_ne_left) base1 kBv hne
           | none, none => (Pure.pure PUnit.unit : MetaM PUnit)
         catch _ => (Pure.pure PUnit.unit : MetaM PUnit)
   -- Fallback: bv_omega
-  let neqType := mkApp3 (mkConst ``Ne [levelOne]) addrType a1 a2
+  let neqType := mkApp3 (mkConst ``Ne [Level.one]) addrType a1 a2
   let neqMVar ← mkFreshExprMVar neqType
   let stx ← `(tactic| bv_omega)
   runTacticSilent neqMVar.mvarId! stx

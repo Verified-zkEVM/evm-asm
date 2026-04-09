@@ -1048,7 +1048,7 @@ theorem evm_byte_stack_spec (sp base : Word)
         have w := sepConj_mono_right (regIs_to_regOwn .x6 _) h hq
         xperm_hyp w)
       h_framed
-  · push_neg at hhigh
+  · push Not at hhigh
     -- hhigh : i1 ||| i2 ||| i3 = 0
     by_cases hlt : idx.toNat < 32
     · -- Case 3: idx < 32 → body path
