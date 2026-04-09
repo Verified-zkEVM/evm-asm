@@ -66,6 +66,45 @@ theorem unsigned_rem_equiv (a b : BitVec 64) (hb : b ≠ 0#64) :
   omega
 
 -- ============================================================================
+-- Signed division/remainder core equivalences
+-- ============================================================================
+
+/-- to_bits_truncate is equivalent to BitVec.ofInt. -/
+theorem to_bits_truncate_eq_ofInt (x : Int) :
+    to_bits_truncate (l := 64) x = BitVec.ofInt 64 x := by
+  simp [to_bits_truncate, get_slice_int]
+  apply BitVec.eq_of_toNat_eq; simp [BitVec.toNat_ofInt]; omega
+
+/-- Signed division: to_bits_truncate of Int.tdiv = BitVec.sdiv. -/
+theorem signed_div_equiv (a b : BitVec 64) :
+    to_bits_truncate (l := 64) (a.toInt.tdiv b.toInt) = BitVec.sdiv a b := by
+  rw [to_bits_truncate_eq_ofInt,
+    show a.sdiv b = BitVec.ofInt 64 (a.sdiv b).toInt from BitVec.ofInt_toInt.symm,
+    BitVec.toInt_sdiv]
+  apply BitVec.eq_of_toInt_eq; simp [BitVec.toInt_ofInt]
+
+/-- Signed remainder: to_bits_truncate of Int.tmod = BitVec.srem. -/
+theorem signed_rem_equiv (a b : BitVec 64) :
+    to_bits_truncate (l := 64) (a.toInt.tmod b.toInt) = BitVec.srem a b := by
+  rw [to_bits_truncate_eq_ofInt,
+    show BitVec.ofInt 64 (a.toInt.tmod b.toInt) = BitVec.ofInt 64 (a.srem b).toInt from by
+      rw [BitVec.toInt_srem]]
+  exact BitVec.ofInt_toInt
+
+/-- to_bits_truncate roundtrips through toInt (signed interpretation). -/
+theorem to_bits_truncate_toInt (a : BitVec 64) :
+    to_bits_truncate (l := 64) a.toInt = a := by
+  rw [to_bits_truncate_eq_ofInt]; exact BitVec.ofInt_toInt
+
+/-- BEq bridge for signed zero check: b.toInt == 0 ↔ b == 0#64. -/
+theorem int_toInt_beq_zero (b : BitVec 64) :
+    (b.toInt == (0 : Int)) = (b == 0#64) := by
+  simp [BEq.beq, decide_eq_decide, BitVec.toInt]
+  constructor
+  · intro h; split at h <;> (apply BitVec.eq_of_toNat_eq; simp at h ⊢; omega)
+  · intro h; subst h; simp
+
+-- ============================================================================
 -- Value equivalence wrappers (match exact post-simp SAIL form)
 -- ============================================================================
 
