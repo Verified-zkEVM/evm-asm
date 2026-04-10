@@ -909,6 +909,39 @@ theorem cpsBranch_seq_cpsBranch_with_perm_same_cr
       (fun _ hp => hp) (fun _ hp => hp) hperm h1)
     h2 ht1 ht2
 
+/-- Compose a cpsBranch (ntaken exit) with a cpsTriple, same CodeReq.
+    The taken exit is passed through with a postcondition weakening. -/
+theorem cpsBranch_seq_cpsTriple_same_cr (entry mid target exit_f : Word) (cr : CodeReq)
+    (P Q_t1 Q_f1 Q_f2 Q_t : Assertion)
+    (h1 : cpsBranch entry cr P target Q_t1 mid Q_f1)
+    (h2 : cpsTriple mid exit_f cr Q_f1 Q_f2)
+    (ht1 : ∀ h, Q_t1 h → Q_t h) :
+    cpsBranch entry cr P target Q_t exit_f Q_f2 := by
+  intro R hR s hcr hPR hpc
+  obtain ⟨k1, s1, hstep1, hbranch1⟩ := h1 R hR s hcr hPR hpc
+  rcases hbranch1 with ⟨hpc_t1, hQ_t1R⟩ | ⟨hpc_f1, hQ_f1R⟩
+  · exact ⟨k1, s1, hstep1, Or.inl ⟨hpc_t1, by
+      obtain ⟨hp, hcompat, hpq⟩ := hQ_t1R
+      exact ⟨hp, hcompat, sepConj_mono_left ht1 hp hpq⟩⟩⟩
+  · have hcr' := CodeReq.SatisfiedBy_preserved cr k1 s s1 hstep1 hcr
+    obtain ⟨k2, s2, hstep2, hpc2, hQ_f2R⟩ := h2 R hR s1 hcr' hQ_f1R hpc_f1
+    exact ⟨k1 + k2, s2, stepN_add_eq k1 k2 s s1 s2 hstep1 hstep2,
+           Or.inr ⟨hpc2, hQ_f2R⟩⟩
+
+/-- Like cpsBranch_seq_cpsTriple_same_cr but with a permutation between Q_f1 and the
+    cpsTriple precondition. -/
+theorem cpsBranch_seq_cpsTriple_with_perm_same_cr (entry mid target exit_f : Word) (cr : CodeReq)
+    (P Q_t1 Q_f1 R Q_f2 Q_t : Assertion)
+    (h1 : cpsBranch entry cr P target Q_t1 mid Q_f1)
+    (hperm : ∀ h, Q_f1 h → R h)
+    (h2 : cpsTriple mid exit_f cr R Q_f2)
+    (ht1 : ∀ h, Q_t1 h → Q_t h) :
+    cpsBranch entry cr P target Q_t exit_f Q_f2 :=
+  cpsBranch_seq_cpsTriple_same_cr entry mid target exit_f cr P Q_t1 R Q_f2 Q_t
+    (cpsBranch_consequence entry cr _ _ _ _ _ _ _ _
+      (fun _ hp => hp) (fun _ hp => hp) hperm h1)
+    h2 ht1
+
 /-- Compose a cpsBranch with a cpsNBranch on the not-taken path, same CodeReq. -/
 theorem cpsBranch_cons_cpsNBranch_same_cr (entry : Word) (cr : CodeReq)
     (P : Assertion) (exit_t : Word) (Q_t : Assertion)
