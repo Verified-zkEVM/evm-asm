@@ -362,7 +362,7 @@ All phases below target **Evm64** primarily. Files are under `EvmAsm/Evm64/`.
   - LoopBody (main Knuth D loop): 114 instructions at base+448
     - 20 sorry-free theorems in `LoopBody.lean` + N-specific variants in `LoopBodyN{1,2,3,4}.lean`
     - `intro_lets` tactic added for selective let-binding expansion (xperm scaling fix)
-    - Per-case concrete specs in `LoopBodyN{X}Concrete.lean` give exact output values
+    - Per-case concrete specs were in `LoopBodyN{X}Concrete.lean` (removed, see semantic path below)
   - Per-n full specs: removed (existentially quantified computation results → not useful)
   - Stack-level b≠0 specs: TODO (needs semantic correctness bridge first)
 
@@ -410,27 +410,32 @@ All phases below target **Evm64** primarily. Files are under `EvmAsm/Evm64/`.
   - Stack spec bridge: `DivLimbBridge.lean` — `ne_zero_iff_getLimbN_or` (EvmWord nonzero ↔ limbs OR
     nonzero), `getLimbN_fromLimbs_match` / `getLimbN_fromLimbs_{0,1,2,3}` (fromLimbs round-trip for
     reconstructing evmWordIs from individual memory cells) (done)
-  - **Semantic correctness path (three steps):**
+  - **Semantic correctness path:**
     - Step 1: Make `loopBodyPostN{1,2,3,4}` parametric — move output values to definition
       parameters so per-case concrete specs can fill them in concretely.
       Status: ✅ Done (PRs #197 + #202)
     - Step 2: Per-case concrete loop body specs (j=0) — four theorems per N (max_skip,
       max_addback, call_skip, call_addback) with concrete `q_hat` and mulsub/addback outputs.
-      Files: `LoopBodyN{1,2,3,4}Concrete.lean`
-      Bridge: `mulsubN4_val256_eq` connects register ops to Euclidean equation.
-      Status: ✅ Done for N4; ✅ Done for N1/N2/N3 (per-case specs complete)
-    - Step 3: Re-create per-n loop body single-iteration specs with concrete postconditions
-      (replacing the deleted ∃-postcondition versions). Use the per-case concrete specs from
-      step 2 and a case-split to produce a single `cpsTriple` with explicit output values.
-      Files: replace deleted `LoopBodyN{X}.lean` `j0_spec`/`combined_spec` with concrete versions.
-      Status: Not started
-    - Step 4: Re-create per-n full-path composition theorems (base→base+1064) with concrete
+      **Removed**: `LoopBodyN{1,2,3,4}Concrete.lean` and `LoopBodyN4Unified.lean` were not in
+      the default build, fell out of sync with `LoopDefs.lean` (duplicate `mulsubN4`/`addbackN4`),
+      and stopped compiling. Key content to recover when revisiting:
+        - `trialQuotientN4`: trial quotient computation (div128 or MAX64 based on BLTU)
+        - `mulsubN4_val256_eq`: semantic bridge (`val256(u) + c3 * 2^256 = val256(un) + q * val256(v)`)
+          — proved via `mulsub_register_4limb_val256` after unfolding `mulsubN4`
+        - Per-case concrete specs: instantiate `divK_loop_body_n4_{max,call}_{skip,addback}_spec`
+          at j=0 with concrete output values from `mulsubN4`/`addbackN4`
+        - `loopIterN4`/`loopBodyN4_fullpost`: unified iteration output (case-split on borrow)
+        - `divK_loop_body_n4_j0_unified`: single theorem covering all 4 paths
+      Status: Removed (rebuild needed when semantic correctness work resumes)
+    - Step 3: Per-n loop body single-iteration specs with concrete postconditions.
+      Use the per-case concrete specs from step 2 and a case-split to produce a single
+      `cpsTriple` with explicit output values.
+      Status: Not started (blocked on step 2 rebuild)
+    - Step 4: Per-n full-path composition theorems (base→base+1064) with concrete
       postconditions — composing pre-loop (normalization) + loop body + post-loop (denorm/epilogue).
-      Replaces deleted `DivN{1-4}Full.lean` / `ModN{1-4}Full.lean` and their Shift0 variants.
       Status: Not started
-    - Step 5: Combined b≠0 full spec with concrete postcondition (replaces deleted
-      `DivCombined.lean`/`ModCombined.lean`); then stack-level spec using `evmWordIs`
-      and proving `EvmWord.div`/`EvmWord.mod` correctness via the semantic bridge.
+    - Step 5: Combined b≠0 full spec with concrete postcondition; then stack-level spec
+      using `evmWordIs` and proving `EvmWord.div`/`EvmWord.mod` correctness via the semantic bridge.
       Status: Not started
 
 #### 4.3 SDIV and SMOD (Signed)
