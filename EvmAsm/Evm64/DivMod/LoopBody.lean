@@ -1015,8 +1015,6 @@ theorem divK_store_loop_spec
 private theorem j0_slt_zero :
     BitVec.slt ((0 : Word) + signExtend12 4095) 0 = true := by native_decide
 
-set_option maxRecDepth 4096 in
-set_option maxHeartbeats 3200000 in
 /-- Store q[0] + loop exit at j=0. Since j' = -1 < 0, BGE is not taken,
     so this is a cpsTriple (not cpsBranch) to base+904. -/
 theorem divK_store_loop_j0_spec
