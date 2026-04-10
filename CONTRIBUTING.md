@@ -36,4 +36,4 @@ Before sending work for review:
 
 ## Licensing
 
-This project is licensed under the MIT License. By contributing, you agree that your contributions are licensed under the same terms.
+This project is licensed under the terms described in the [`LICENSE`](LICENSE) file. By contributing, you agree that your contributions are licensed under the same terms.
