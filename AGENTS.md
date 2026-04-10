@@ -281,6 +281,110 @@ Large composition files (>1000 lines) should be split into independent sub-files
 
 This enables parallel kernel checking. The split reduced DivMod/Compose from 87s (monolithic) to 55s (critical path through Norm.lean).
 
+## Bundling Postconditions with `let` Bindings
+
+When a composed spec's postcondition has many `let` bindings (e.g., shift
+amounts, normalized limb values), wrap the entire postcondition — including
+the `let` computations — in an `@[irreducible] def` returning `Assertion`.
+This prevents Lean from repeatedly evaluating nested lets during type
+elaboration.
+
+### Pattern
+
+**Define** the postcondition function in a shared file (e.g., `Compose/Base.lean`):
+
+```lean
+@[irreducible]
+def myPost (sp param1 param2 ... : Word) : Assertion :=
+  let derived1 := f param1
+  let derived2 := g derived1 param2
+  -- ... all computed values as let bindings ...
+  (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ derived1) ** ... -- full assertion chain
+```
+
+**Provide an unfold lemma** (for consumers that need the expanded form):
+
+```lean
+theorem myPost_unfold (sp param1 param2 ... : Word) :
+    myPost sp param1 param2 ... =
+    let derived1 := f param1
+    ... -- same body as the def
+    := by delta myPost; rfl
+```
+
+**Use in theorem signatures** — the `let` bindings disappear from the type:
+
+```lean
+-- BEFORE (11 let bindings in the type, slow elaboration):
+theorem my_spec ... :
+    let shift := (clzResult b3).1
+    let anti_shift := ...
+    ... 9 more lets ...
+    cpsTriple ... precond (expanded 30-atom postcondition)
+
+-- AFTER (compact type, fast elaboration):
+theorem my_spec ... :
+    cpsTriple ... precond (myPost sp n_val (clzResult b3).1 a0 a1 a2 a3 ...)
+```
+
+**Proof changes** — define the `let` bindings locally and unfold at the end:
+
+```lean
+theorem my_spec ... :
+    cpsTriple ... precond (myPost sp n_val shift_arg ...) := by
+  -- Local lets for use in intermediate composition steps
+  let shift := shift_arg
+  let anti_shift := signExtend12 (0 : BitVec 12) - shift
+  ... -- same let bindings as in myPost body
+  -- ... composition steps (unchanged) ...
+  exact cpsTriple_consequence _ _ _ _ _ _ _
+    (fun h hp => by xperm_hyp hp)
+    (fun h hq => by delta myPost; xperm_hyp hq)  -- delta unfolds @[irreducible]
+    hFull
+```
+
+### Why `@[irreducible]`
+
+- `xperm` uses reducible transparency, so even a plain `def` is opaque to it.
+  `@[irreducible]` adds safety: `simp` and `whnf` at default transparency also
+  won't accidentally unfold it.
+- `delta` ignores transparency and always unfolds — use it in the proof's
+  final `cpsTriple_consequence` callback.
+- Matches the existing `phaseB_zeroed_mem` pattern in `PhaseAB.lean`.
+
+### Scaling: external consequence lemma
+
+As compositions grow, the inline `delta myPost; xperm_hyp hq` in each
+proof's `cpsTriple_consequence` callback may become a bottleneck. To avoid
+repeating this work in every consumer, extract the implication as a
+standalone lemma:
+
+```lean
+theorem myPost_consequence (sp param1 ... : Word) (h : PartialState)
+    (hq : (expanded_postcondition) h) :
+    myPost sp param1 ... h := by
+  delta myPost; xperm_hyp hq
+```
+
+Then each theorem's final step becomes:
+
+```lean
+  exact cpsTriple_consequence _ _ _ _ _ _ _
+    (fun h hp => by xperm_hyp hp)
+    (fun h hq => myPost_consequence sp param1 ... h hq)
+    hFull
+```
+
+This pays the `delta + xperm` cost once (when the lemma is checked) rather
+than in every theorem that produces `myPost`. Place the consequence lemma
+next to the `def` and `_unfold` lemma in the shared file.
+
+### When to apply
+
+Apply this pattern when a theorem's postcondition has **3+ `let` bindings**
+that compute derived values used in the assertion chain. The canonical example
+is `loopSetupPost` in `Compose/Base.lean` (11 let bindings, used by 8 theorems).
+
 ## End-to-End Composition with Existential Intermediates
 
 When composing specs where an intermediate postcondition has existentials (e.g., `loopBodyPostN4` which wraps computed values in `∃`), standard `cpsTriple_seq_with_perm_same_cr` doesn't work because the second spec's precondition depends on the existential witnesses.
