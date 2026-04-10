@@ -50,6 +50,31 @@ theorem q_addr_j0 (sp : Word) :
   simp only [j0_shift0]; exact BitVec.sub_zero _
 
 -- ============================================================================
+-- loopExitPostN4 at j=0: address normalization to sp-relative form
+-- ============================================================================
+
+/-- At j=0, loopExitPostN4 normalizes to sp-relative addresses. -/
+theorem loopExitPostN4_j0_eq (sp q_f c3 un0_f un1_f un2_f un3_f u4_f
+    v0 v1 v2 v3 : Word) :
+    loopExitPostN4 sp (0 : Word) q_f c3 un0_f un1_f un2_f un3_f u4_f v0 v1 v2 v3 =
+    ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ signExtend12 4095) **
+     (.x5 ↦ᵣ (0 : Word)) ** (.x6 ↦ᵣ sp + signExtend12 4056) **
+     (.x7 ↦ᵣ sp + signExtend12 4088) ** (.x10 ↦ᵣ c3) ** (.x11 ↦ᵣ q_f) **
+     (.x2 ↦ᵣ un3_f) ** (.x0 ↦ᵣ (0 : Word)) **
+     (sp + signExtend12 3976 ↦ₘ (0 : Word)) ** (sp + signExtend12 3984 ↦ₘ (4 : Word)) **
+     ((sp + signExtend12 32) ↦ₘ v0) ** ((sp + signExtend12 4056) ↦ₘ un0_f) **
+     ((sp + signExtend12 40) ↦ₘ v1) ** ((sp + signExtend12 4048) ↦ₘ un1_f) **
+     ((sp + signExtend12 48) ↦ₘ v2) ** ((sp + signExtend12 4040) ↦ₘ un2_f) **
+     ((sp + signExtend12 56) ↦ₘ v3) ** ((sp + signExtend12 4032) ↦ₘ un3_f) **
+     ((sp + signExtend12 4024) ↦ₘ u4_f) **
+     ((sp + signExtend12 4088) ↦ₘ q_f)) := by
+  simp only [loopExitPostN4_unfold]
+  rw [u_base_off0_j0, u_base_off4088_j0, u_base_off4080_j0,
+      u_base_off4072_j0, u_base_off4064_j0, u_base_j0, q_addr_j0]
+  simp only [j0_shift0]
+  rw [show (0 : Word) + signExtend12 4095 = signExtend12 4095 from BitVec.zero_add _]
+
+-- ============================================================================
 -- Loop body j=0 extended to divCode (from sharedDivModCode)
 -- ============================================================================
 
