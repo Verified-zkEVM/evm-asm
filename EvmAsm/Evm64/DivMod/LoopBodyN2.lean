@@ -396,36 +396,9 @@ theorem divK_loop_body_n2_call_skip_spec
     let rhat2_un0 := (rhat2c <<< (32 : BitVec 6).toNat) ||| div_un0
     let q0' := if BitVec.ult rhat2_un0 q0_dlo then q0c + signExtend12 4095 else q0c
     let q_hat := (q1' <<< (32 : BitVec 6).toNat) ||| q0'
-    -- Mulsub intermediates
-    let p0_lo := q_hat * v0; let p0_hi := rv64_mulhu q_hat v0
-    let fs0 := p0_lo + (signExtend12 0 : Word)
-    let ba0 := if BitVec.ult fs0 (signExtend12 0 : Word) then (1 : Word) else 0
-    let pc0 := ba0 + p0_hi
-    let bs0 := if BitVec.ult u0 fs0 then (1 : Word) else 0
-    let un0 := u0 - fs0; let c0 := pc0 + bs0
-    let p1_lo := q_hat * v1; let p1_hi := rv64_mulhu q_hat v1
-    let fs1 := p1_lo + c0
-    let ba1 := if BitVec.ult fs1 c0 then (1 : Word) else 0
-    let pc1 := ba1 + p1_hi
-    let bs1 := if BitVec.ult u1 fs1 then (1 : Word) else 0
-    let un1 := u1 - fs1; let c1 := pc1 + bs1
-    let p2_lo := q_hat * v2; let p2_hi := rv64_mulhu q_hat v2
-    let fs2 := p2_lo + c1
-    let ba2 := if BitVec.ult fs2 c1 then (1 : Word) else 0
-    let pc2 := ba2 + p2_hi
-    let bs2 := if BitVec.ult u2 fs2 then (1 : Word) else 0
-    let un2 := u2 - fs2; let c2 := pc2 + bs2
-    let p3_lo := q_hat * v3; let p3_hi := rv64_mulhu q_hat v3
-    let fs3 := p3_lo + c2
-    let ba3 := if BitVec.ult fs3 c2 then (1 : Word) else 0
-    let pc3 := ba3 + p3_hi
-    let bs3 := if BitVec.ult u3 fs3 then (1 : Word) else 0
-    let un3 := u3 - fs3; let c3 := pc3 + bs3
-    let u4_new := u_top - c3
-    let j' := j + signExtend12 4095
     let q_addr := sp + signExtend12 4088 - j <<< (3 : BitVec 6).toNat
     -- Hypothesis: borrow = 0
-    (if BitVec.ult u_top c3 then (1 : Word) else 0) = (0 : Word) →
+    (if BitVec.ult u_top (mulsubN4_c3 q_hat v0 v1 v2 v3 u0 u1 u2 u3) then (1 : Word) else 0) = (0 : Word) →
     cpsBranch (base + 448) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
        (.x5 ↦ᵣ v5_old) ** (.x6 ↦ᵣ v6_old) **
@@ -443,33 +416,13 @@ theorem divK_loop_body_n2_call_skip_spec
        (sp + signExtend12 3952 ↦ₘ dlo_mem) **
        (sp + signExtend12 3944 ↦ₘ scratch_un0))
       (base + 448)
-      ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j') **
-       (.x5 ↦ᵣ j <<< (3 : BitVec 6).toNat) ** (.x6 ↦ᵣ u_base) **
-       (.x7 ↦ᵣ q_addr) ** (.x10 ↦ᵣ c3) ** (.x11 ↦ᵣ q_hat) **
-       (.x2 ↦ᵣ un3) ** (.x0 ↦ᵣ (0 : Word)) **
-       (sp + signExtend12 3976 ↦ₘ j) ** (sp + signExtend12 3984 ↦ₘ (2 : Word)) **
-       ((sp + signExtend12 32) ↦ₘ v0) ** ((u_base + signExtend12 0) ↦ₘ un0) **
-       ((sp + signExtend12 40) ↦ₘ v1) ** ((u_base + signExtend12 4088) ↦ₘ un1) **
-       ((sp + signExtend12 48) ↦ₘ v2) ** ((u_base + signExtend12 4080) ↦ₘ un2) **
-       ((sp + signExtend12 56) ↦ₘ v3) ** ((u_base + signExtend12 4072) ↦ₘ un3) **
-       ((u_base + signExtend12 4064) ↦ₘ u4_new) **
-       (q_addr ↦ₘ q_hat) **
+      (loopBodyN2SkipPost sp j q_hat v0 v1 v2 v3 u0 u1 u2 u3 u_top **
        (sp + signExtend12 3968 ↦ₘ (base + 516)) **
        (sp + signExtend12 3960 ↦ₘ v1) **
        (sp + signExtend12 3952 ↦ₘ d_lo) **
        (sp + signExtend12 3944 ↦ₘ div_un0))
       (base + 904)
-      ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j') **
-       (.x5 ↦ᵣ j <<< (3 : BitVec 6).toNat) ** (.x6 ↦ᵣ u_base) **
-       (.x7 ↦ᵣ q_addr) ** (.x10 ↦ᵣ c3) ** (.x11 ↦ᵣ q_hat) **
-       (.x2 ↦ᵣ un3) ** (.x0 ↦ᵣ (0 : Word)) **
-       (sp + signExtend12 3976 ↦ₘ j) ** (sp + signExtend12 3984 ↦ₘ (2 : Word)) **
-       ((sp + signExtend12 32) ↦ₘ v0) ** ((u_base + signExtend12 0) ↦ₘ un0) **
-       ((sp + signExtend12 40) ↦ₘ v1) ** ((u_base + signExtend12 4088) ↦ₘ un1) **
-       ((sp + signExtend12 48) ↦ₘ v2) ** ((u_base + signExtend12 4080) ↦ₘ un2) **
-       ((sp + signExtend12 56) ↦ₘ v3) ** ((u_base + signExtend12 4072) ↦ₘ un3) **
-       ((u_base + signExtend12 4064) ↦ₘ u4_new) **
-       (q_addr ↦ₘ q_hat) **
+      (loopBodyN2SkipPost sp j q_hat v0 v1 v2 v3 u0 u1 u2 u3 u_top **
        (sp + signExtend12 3968 ↦ₘ (base + 516)) **
        (sp + signExtend12 3960 ↦ₘ v1) **
        (sp + signExtend12 3952 ↦ₘ d_lo) **
@@ -477,11 +430,34 @@ theorem divK_loop_body_n2_call_skip_spec
   intro u_base
         d_hi d_lo div_un1 div_un0 q1 rhat hi1 q1c rhatc q_dlo rhat_un1 q1' rhat'
         cu_rhat_un1 cu_q1_dlo un21 q0 rhat2 hi2 q0c rhat2c q0_dlo rhat2_un0 q0' q_hat
-        p0_lo p0_hi fs0 ba0 pc0 bs0 un0 c0
-        p1_lo p1_hi fs1 ba1 pc1 bs1 un1 c1
-        p2_lo p2_hi fs2 ba2 pc2 bs2 un2 c2
-        p3_lo p3_hi fs3 ba3 pc3 bs3 un3 c3 u4_new
-        j' q_addr hborrow
+        q_addr hborrow
+  let ms := mulsubN4 q_hat v0 v1 v2 v3 u0 u1 u2 u3
+  let p0_lo := q_hat * v0; let p0_hi := rv64_mulhu q_hat v0
+  let fs0 := p0_lo + (signExtend12 0 : Word)
+  let ba0 := if BitVec.ult fs0 (signExtend12 0 : Word) then (1 : Word) else 0
+  let pc0 := ba0 + p0_hi
+  let bs0 := if BitVec.ult u0 fs0 then (1 : Word) else 0
+  let un0 := u0 - fs0; let c0 := pc0 + bs0
+  let p1_lo := q_hat * v1; let p1_hi := rv64_mulhu q_hat v1
+  let fs1 := p1_lo + c0
+  let ba1 := if BitVec.ult fs1 c0 then (1 : Word) else 0
+  let pc1 := ba1 + p1_hi
+  let bs1 := if BitVec.ult u1 fs1 then (1 : Word) else 0
+  let un1 := u1 - fs1; let c1 := pc1 + bs1
+  let p2_lo := q_hat * v2; let p2_hi := rv64_mulhu q_hat v2
+  let fs2 := p2_lo + c1
+  let ba2 := if BitVec.ult fs2 c1 then (1 : Word) else 0
+  let pc2 := ba2 + p2_hi
+  let bs2 := if BitVec.ult u2 fs2 then (1 : Word) else 0
+  let un2 := u2 - fs2; let c2 := pc2 + bs2
+  let p3_lo := q_hat * v3; let p3_hi := rv64_mulhu q_hat v3
+  let fs3 := p3_lo + c2
+  let ba3 := if BitVec.ult fs3 c2 then (1 : Word) else 0
+  let pc3 := ba3 + p3_hi
+  let bs3 := if BitVec.ult u3 fs3 then (1 : Word) else 0
+  let un3 := u3 - fs3; let c3 := pc3 + bs3
+  let u4_new := u_top - c3
+  let j' := j + signExtend12 4095
   let vtop_base := sp + ((2 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
   -- 1. Trial call full (base+448 → base+516)
   have TF := divK_trial_call_full_spec sp j (2 : Word) j_old v5_old v6_old v7_old v10_old v11_old v2_old
@@ -530,8 +506,8 @@ theorem divK_loop_body_n2_call_skip_spec
     (fun h hp => by rw [sepConj_assoc'] at hp; xperm_hyp hp) TFfMCS0 SLf
   exact cpsBranch_consequence _ _ _ _ _ _ _ _ _ _
     (fun h hp => by xperm_hyp hp)
-    (fun h hp => by rw [sepConj_assoc'] at hp; xperm_hyp hp)
-    (fun h hp => by rw [sepConj_assoc'] at hp; xperm_hyp hp)
+    (fun h hp => by delta loopBodyN2SkipPost mulsubN4 loopExitPostN2; rw [sepConj_assoc'] at hp; xperm_hyp hp)
+    (fun h hp => by delta loopBodyN2SkipPost mulsubN4 loopExitPostN2; rw [sepConj_assoc'] at hp; xperm_hyp hp)
     full
 
 -- ============================================================================
