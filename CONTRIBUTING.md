@@ -18,7 +18,7 @@ Before sending work for review:
 
 ## Spec and Proof Guidelines
 
-- **No duplicate memory locations in preconditions.** A precondition that mentions the same memory location twice becomes unusable because separation logic requires disjointness.
+- **No duplicate memory locations in separation-logic assertions.** A `↦ₘ` assertion that mentions the same address twice in the same `**`-chain becomes unusable because separation logic requires disjointness. This rule applies only to `↦ₘ` (and `↦ᵣ`) atoms inside `Assertion` values, not to standalone `isValidDwordAccess` hypotheses (which are pure alignment checks and may legitimately share addresses).
 - **Do not existentially quantify results of computation.** Keep computed results concrete in postconditions — existentials hide information that downstream specs need.
 - **Avoid excessive `let` bindings before Hoare triples.** Many `let`s followed by a `cpsTriple` or `cpsBranch` conclusion is an anti-pattern that slows elaboration. When unavoidable, bundle the postcondition into an `@[irreducible] def` returning `Assertion` (see the Bundling Postconditions section of [`AGENTS.md`](AGENTS.md)). Pure math theorems (e.g., `fromLimbs`-based conclusions) may use `let` bindings freely for readability.
 - **No underscore-prefixed parameters.** If a function parameter is unused, remove it from the signature instead of prefixing with `_`.
