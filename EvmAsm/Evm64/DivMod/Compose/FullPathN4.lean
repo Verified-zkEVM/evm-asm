@@ -467,38 +467,7 @@ theorem evm_div_n4_full_max_skip_spec (sp base : Word)
     (fun h hq => by delta fullDivN4MaxSkipPost; rw [sepConj_assoc'] at hq; xperm_hyp hq)
     hFull
 
--- ============================================================================
--- div128 trial quotient computation (for call path)
--- ============================================================================
-
-/-- Trial quotient from div128 subroutine: divides (u_top : u3) by v3.
-    Encapsulates the 25-step div128 computation as a single function. -/
-def div128Quot (u_top u3 v3 : Word) : Word :=
-  let d_hi := v3 >>> (32 : BitVec 6).toNat
-  let d_lo := (v3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
-  let div_un1 := u3 >>> (32 : BitVec 6).toNat
-  let div_un0 := (u3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
-  let q1 := rv64_divu u_top d_hi
-  let rhat := u_top - q1 * d_hi
-  let hi1 := q1 >>> (32 : BitVec 6).toNat
-  let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
-  let rhatc := if hi1 = 0 then rhat else rhat + d_hi
-  let q_dlo := q1c * d_lo
-  let rhat_un1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
-  let q1' := if BitVec.ult rhat_un1 q_dlo then q1c + signExtend12 4095 else q1c
-  let rhat' := if BitVec.ult rhat_un1 q_dlo then rhatc + d_hi else rhatc
-  let cu_rhat_un1 := (rhat' <<< (32 : BitVec 6).toNat) ||| div_un1
-  let cu_q1_dlo := q1' * d_lo
-  let un21 := cu_rhat_un1 - cu_q1_dlo
-  let q0 := rv64_divu un21 d_hi
-  let rhat2 := un21 - q0 * d_hi
-  let hi2 := q0 >>> (32 : BitVec 6).toNat
-  let q0c := if hi2 = 0 then q0 else q0 + signExtend12 4095
-  let rhat2c := if hi2 = 0 then rhat2 else rhat2 + d_hi
-  let q0_dlo := q0c * d_lo
-  let rhat2_un0 := (rhat2c <<< (32 : BitVec 6).toNat) ||| div_un0
-  let q0' := if BitVec.ult rhat2_un0 q0_dlo then q0c + signExtend12 4095 else q0c
-  (q1' <<< (32 : BitVec 6).toNat) ||| q0'
+-- div128Quot is now defined in LoopDefs.lean (shared across all n-cases)
 
 -- ============================================================================
 -- Max+addback path: postcondition, condition, preloop, unfold, full path

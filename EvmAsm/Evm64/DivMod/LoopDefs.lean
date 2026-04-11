@@ -269,4 +269,80 @@ def loopBodyN3AddbackPost (sp j q_hat v0 v1 v2 v3 u0 u1 u2 u3 u_top : Word) : As
   let ab := addbackN4 un0 un1 un2 un3 u4_new v0 v1 v2 v3
   loopExitPostN3 sp j (q_hat + signExtend12 4095) c3 ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 ab.2.2.2.2 v0 v1 v2 v3
 
+-- ============================================================================
+-- div128 quotient computation (shared across all n-cases)
+-- ============================================================================
+
+/-- Trial quotient from the div128 subroutine: divides u_hi:u_lo by v_top. -/
+def div128Quot (u_hi u_lo v_top : Word) : Word :=
+  let d_hi := v_top >>> (32 : BitVec 6).toNat
+  let d_lo := (v_top <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+  let div_un1 := u_lo >>> (32 : BitVec 6).toNat
+  let div_un0 := (u_lo <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+  let q1 := rv64_divu u_hi d_hi
+  let rhat := u_hi - q1 * d_hi
+  let hi1 := q1 >>> (32 : BitVec 6).toNat
+  let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+  let rhatc := if hi1 = 0 then rhat else rhat + d_hi
+  let q_dlo := q1c * d_lo
+  let rhat_un1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
+  let q1' := if BitVec.ult rhat_un1 q_dlo then q1c + signExtend12 4095 else q1c
+  let rhat' := if BitVec.ult rhat_un1 q_dlo then rhatc + d_hi else rhatc
+  let cu_rhat_un1 := (rhat' <<< (32 : BitVec 6).toNat) ||| div_un1
+  let cu_q1_dlo := q1' * d_lo
+  let un21 := cu_rhat_un1 - cu_q1_dlo
+  let q0 := rv64_divu un21 d_hi
+  let rhat2 := un21 - q0 * d_hi
+  let hi2 := q0 >>> (32 : BitVec 6).toNat
+  let q0c := if hi2 = 0 then q0 else q0 + signExtend12 4095
+  let rhat2c := if hi2 = 0 then rhat2 else rhat2 + d_hi
+  let q0_dlo := q0c * d_lo
+  let rhat2_un0 := (rhat2c <<< (32 : BitVec 6).toNat) ||| div_un0
+  let q0' := if BitVec.ult rhat2_un0 q0_dlo then q0c + signExtend12 4095 else q0c
+  (q1' <<< (32 : BitVec 6).toNat) ||| q0'
+
+/-- Low 32 bits of v_top, stored to scratch during div128 call path. -/
+def div128DLo (v_top : Word) : Word :=
+  (v_top <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+
+/-- Low 32 bits of u_lo, stored to scratch during div128 call path. -/
+def div128Un0 (u_lo : Word) : Word :=
+  (u_lo <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+
+-- ============================================================================
+-- Call path postconditions for n=3 (includes div128 scratch cells)
+-- ============================================================================
+
+/-- Call+skip postcondition for n=3 loop body at j=0.
+    Bundles div128Quot computation + loopBodyN3SkipPost + scratch cells. -/
+@[irreducible]
+def loopBodyN3CallSkipPost (sp base v0 v1 v2 v3 u0 u1 u2 u3 u_top : Word) : Assertion :=
+  let q_hat := div128Quot u3 u2 v2
+  loopBodyN3SkipPost sp (0 : Word) q_hat v0 v1 v2 v3 u0 u1 u2 u3 u_top **
+  (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+  (sp + signExtend12 3960 ↦ₘ v2) **
+  (sp + signExtend12 3952 ↦ₘ div128DLo v2) **
+  (sp + signExtend12 3944 ↦ₘ div128Un0 u2)
+
+/-- Call+addback postcondition for n=3 loop body at j=0.
+    Bundles div128Quot computation + loopBodyN3AddbackPost + scratch cells. -/
+@[irreducible]
+def loopBodyN3CallAddbackPost (sp base v0 v1 v2 v3 u0 u1 u2 u3 u_top : Word) : Assertion :=
+  let q_hat := div128Quot u3 u2 v2
+  loopBodyN3AddbackPost sp (0 : Word) q_hat v0 v1 v2 v3 u0 u1 u2 u3 u_top **
+  (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+  (sp + signExtend12 3960 ↦ₘ v2) **
+  (sp + signExtend12 3952 ↦ₘ div128DLo v2) **
+  (sp + signExtend12 3944 ↦ₘ div128Un0 u2)
+
+/-- Borrow condition for n=3 call+skip: mulsub doesn't overflow. -/
+def isSkipBorrowN3Call (v0 v1 v2 v3 u0 u1 u2 u3 u_top : Word) : Prop :=
+  let q_hat := div128Quot u3 u2 v2
+  (if BitVec.ult u_top (mulsubN4_c3 q_hat v0 v1 v2 v3 u0 u1 u2 u3) then (1 : Word) else 0) = (0 : Word)
+
+/-- Borrow condition for n=3 call+addback: mulsub overflows. -/
+def isAddbackBorrowN3Call (v0 v1 v2 v3 u0 u1 u2 u3 u_top : Word) : Prop :=
+  let q_hat := div128Quot u3 u2 v2
+  (if BitVec.ult u_top (mulsubN4_c3 q_hat v0 v1 v2 v3 u0 u1 u2 u3) then (1 : Word) else 0) ≠ (0 : Word)
+
 end EvmAsm.Evm64
