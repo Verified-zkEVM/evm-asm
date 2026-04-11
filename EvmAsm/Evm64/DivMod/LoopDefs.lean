@@ -396,4 +396,35 @@ def loopBodyN3CallAddbackPostJ (sp base j v0 v1 v2 v3 u0 u1 u2 u3 u_top : Word) 
   (sp + signExtend12 3952 ↦ₘ div128DLo v2) **
   (sp + signExtend12 3944 ↦ₘ div128Un0 u2)
 
+-- ============================================================================
+-- Two-iteration loop postconditions for n=3 (max path)
+-- ============================================================================
+
+/-- Postcondition for the full n=3 two-iteration loop (max+skip at both j=1 and j=0).
+    Includes the j=0 exit postcondition plus j=1's carried frame atoms (u4_new, q[1]). -/
+@[irreducible]
+def loopN3MaxSkipSkipPost (sp v0 v1 v2 v3 u0 u1 u2 u3 u_top u0_orig : Word) : Assertion :=
+  let q_hat : Word := signExtend12 4095
+  let ms := mulsubN4 q_hat v0 v1 v2 v3 u0 u1 u2 u3
+  let u_base_1 := sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat
+  let q_addr_1 := sp + signExtend12 4088 - (1 : Word) <<< (3 : BitVec 6).toNat
+  loopBodyN3SkipPost sp (0 : Word) q_hat v0 v1 v2 v3
+    u0_orig ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 **
+  ((u_base_1 + signExtend12 4064) ↦ₘ (u_top - ms.2.2.2.2)) **
+  (q_addr_1 ↦ₘ q_hat)
+
+/-- j=0 BLTU condition for n=3 max path after j=1 max+skip: u3_j0 ≥ v2. -/
+def isMaxBltuN3After_j1_skip (v0 v1 v2 v3 u0 u1 u2 u3 : Word) : Prop :=
+  let q_hat : Word := signExtend12 4095
+  let ms := mulsubN4 q_hat v0 v1 v2 v3 u0 u1 u2 u3
+  ¬BitVec.ult ms.2.2.1 v2
+
+/-- j=0 borrow=0 condition for n=3 max path after j=1 max+skip. -/
+def isSkipBorrowN3After_j1_skip (v0 v1 v2 v3 u0 u1 u2 u3 u0_orig : Word) : Prop :=
+  let q_hat : Word := signExtend12 4095
+  let ms := mulsubN4 q_hat v0 v1 v2 v3 u0 u1 u2 u3
+  (if BitVec.ult ms.2.2.2.1
+      (mulsubN4_c3 q_hat v0 v1 v2 v3 u0_orig ms.1 ms.2.1 ms.2.2.1)
+    then (1 : Word) else 0) = (0 : Word)
+
 end EvmAsm.Evm64
