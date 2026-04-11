@@ -345,4 +345,30 @@ def isAddbackBorrowN3Call (v0 v1 v2 v3 u0 u1 u2 u3 u_top : Word) : Prop :=
   let q_hat := div128Quot u3 u2 v2
   (if BitVec.ult u_top (mulsubN4_c3 q_hat v0 v1 v2 v3 u0 u1 u2 u3) then (1 : Word) else 0) ≠ (0 : Word)
 
+-- ============================================================================
+-- Generic j versions of call path postconditions (for multi-iteration loops)
+-- ============================================================================
+
+/-- Call+skip postcondition for n=3 loop body, generic j.
+    Bundles div128Quot computation + loopBodyN3SkipPost + scratch cells. -/
+@[irreducible]
+def loopBodyN3CallSkipPostJ (sp base j v0 v1 v2 v3 u0 u1 u2 u3 u_top : Word) : Assertion :=
+  let q_hat := div128Quot u3 u2 v2
+  loopBodyN3SkipPost sp j q_hat v0 v1 v2 v3 u0 u1 u2 u3 u_top **
+  (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+  (sp + signExtend12 3960 ↦ₘ v2) **
+  (sp + signExtend12 3952 ↦ₘ div128DLo v2) **
+  (sp + signExtend12 3944 ↦ₘ div128Un0 u2)
+
+/-- Call+addback postcondition for n=3 loop body, generic j.
+    Bundles div128Quot computation + loopBodyN3AddbackPost + scratch cells. -/
+@[irreducible]
+def loopBodyN3CallAddbackPostJ (sp base j v0 v1 v2 v3 u0 u1 u2 u3 u_top : Word) : Assertion :=
+  let q_hat := div128Quot u3 u2 v2
+  loopBodyN3AddbackPost sp j q_hat v0 v1 v2 v3 u0 u1 u2 u3 u_top **
+  (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+  (sp + signExtend12 3960 ↦ₘ v2) **
+  (sp + signExtend12 3952 ↦ₘ div128DLo v2) **
+  (sp + signExtend12 3944 ↦ₘ div128Un0 u2)
+
 end EvmAsm.Evm64
