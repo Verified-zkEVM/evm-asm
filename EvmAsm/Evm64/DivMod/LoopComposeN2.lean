@@ -87,8 +87,6 @@ theorem u_j2_4072_eq_j1_4064 (sp : Word) :
 -- Unified per-iteration specs: case-split skip/addback internally
 -- ============================================================================
 
-set_option maxRecDepth 4096 in
-set_option maxHeartbeats 12800000 in
 /-- Unified j=2 max-path spec: handles both skip and addback internally.
     Produces loopIterPostN2Max which uses iterN2Max for the result values. -/
 theorem divK_loop_body_n2_max_unified_j2_spec
@@ -161,8 +159,6 @@ theorem divK_loop_body_n2_max_unified_j2_spec
         exact hp)
       (J2 hborrow)
 
-set_option maxRecDepth 4096 in
-set_option maxHeartbeats 12800000 in
 /-- Unified j=1 max-path spec: handles both skip and addback internally.
     Produces loopIterPostN2Max which uses iterN2Max for the result values. -/
 theorem divK_loop_body_n2_max_unified_j1_spec
@@ -235,8 +231,6 @@ theorem divK_loop_body_n2_max_unified_j1_spec
         exact hp)
       (J1 hborrow)
 
-set_option maxRecDepth 4096 in
-set_option maxHeartbeats 12800000 in
 /-- Unified j=0 max-path spec: handles both skip and addback internally.
     Since j=0, the BGE loop-back is not taken, giving a cpsTriple to base+904. -/
 theorem divK_loop_body_n2_max_unified_j0_spec
@@ -313,8 +307,6 @@ theorem divK_loop_body_n2_max_unified_j0_spec
 -- Unified per-iteration call-path specs
 -- ============================================================================
 
-set_option maxRecDepth 4096 in
-set_option maxHeartbeats 12800000 in
 /-- Unified j=2 call-path spec: handles both skip and addback internally. -/
 theorem divK_loop_body_n2_call_unified_j2_spec
     (sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
@@ -397,8 +389,6 @@ theorem divK_loop_body_n2_call_unified_j2_spec
         exact hp)
       J2
 
-set_option maxRecDepth 4096 in
-set_option maxHeartbeats 12800000 in
 /-- Unified j=1 call-path spec: handles both skip and addback internally. -/
 theorem divK_loop_body_n2_call_unified_j1_spec
     (sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
@@ -481,8 +471,6 @@ theorem divK_loop_body_n2_call_unified_j1_spec
         exact hp)
       J1
 
-set_option maxRecDepth 4096 in
-set_option maxHeartbeats 12800000 in
 /-- Unified j=0 call-path spec: handles both skip and addback internally.
     Since j=0, the BGE loop-back is not taken, giving a cpsTriple to base+904. -/
 theorem divK_loop_body_n2_call_unified_j0_spec
