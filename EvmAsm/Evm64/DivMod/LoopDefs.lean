@@ -789,4 +789,180 @@ def loopIterPostN2 (bltu : Bool) (sp base j v0 v1 v2 v3 u0 u1 u2 u3 u_top : Word
     (loopIterPostN2Max sp j v0 v1 v2 v3 u0 u1 u2 u3 u_top ** empAssertion) := by
   delta loopIterPostN2; rfl
 
+-- ============================================================================
+-- Three-iteration loop precondition/postcondition for n=2
+-- Issue #262: Bool-parameterized composition for 3 iterations (j=2,1,0)
+-- ============================================================================
+
+/-- Precondition for the n=2 three-iteration loop (j starts at 2).
+    Includes j=2's iteration precondition plus pre-existing atoms
+    for j=1 (u0_orig_1, q1_old) and j=0 (u0_orig_0, q0_old). -/
+def loopN2Pre (sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
+    v0 v1 v2 v3 u0 u1 u2 u3 u_top
+    u0_orig_1 u0_orig_0
+    q2_old q1_old q0_old : Word) : Assertion :=
+  let u_base_2 := sp + signExtend12 4056 - (2 : Word) <<< (3 : BitVec 6).toNat
+  let u_base_1 := sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat
+  let u_base_0 := sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat
+  let q_addr_2 := sp + signExtend12 4088 - (2 : Word) <<< (3 : BitVec 6).toNat
+  let q_addr_1 := sp + signExtend12 4088 - (1 : Word) <<< (3 : BitVec 6).toNat
+  let q_addr_0 := sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat
+  (.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (2 : Word)) **
+  (.x5 ↦ᵣ v5_old) ** (.x6 ↦ᵣ v6_old) **
+  (.x7 ↦ᵣ v7_old) ** (.x10 ↦ᵣ v10_old) ** (.x11 ↦ᵣ v11_old) **
+  (.x2 ↦ᵣ v2_old) ** (.x0 ↦ᵣ (0 : Word)) **
+  (sp + signExtend12 3976 ↦ₘ j_old) ** (sp + signExtend12 3984 ↦ₘ (2 : Word)) **
+  ((sp + signExtend12 32) ↦ₘ v0) ** ((u_base_2 + signExtend12 0) ↦ₘ u0) **
+  ((sp + signExtend12 40) ↦ₘ v1) ** ((u_base_2 + signExtend12 4088) ↦ₘ u1) **
+  ((sp + signExtend12 48) ↦ₘ v2) ** ((u_base_2 + signExtend12 4080) ↦ₘ u2) **
+  ((sp + signExtend12 56) ↦ₘ v3) ** ((u_base_2 + signExtend12 4072) ↦ₘ u3) **
+  ((u_base_2 + signExtend12 4064) ↦ₘ u_top) **
+  (q_addr_2 ↦ₘ q2_old) **
+  ((u_base_1 + signExtend12 0) ↦ₘ u0_orig_1) **
+  (q_addr_1 ↦ₘ q1_old) **
+  ((u_base_0 + signExtend12 0) ↦ₘ u0_orig_0) **
+  (q_addr_0 ↦ₘ q0_old)
+
+/-- Precondition for n=2 three-iteration loop with scratch cells.
+    Used when at least one iteration may take the call (div128) path. -/
+@[irreducible]
+def loopN2PreWithScratch (sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
+    v0 v1 v2 v3 u0 u1 u2 u3 u_top
+    u0_orig_1 u0_orig_0
+    q2_old q1_old q0_old
+    ret_mem d_mem dlo_mem scratch_un0 : Word) : Assertion :=
+  loopN2Pre sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
+    v0 v1 v2 v3 u0 u1 u2 u3 u_top
+    u0_orig_1 u0_orig_0 q2_old q1_old q0_old **
+  (sp + signExtend12 3968 ↦ₘ ret_mem) **
+  (sp + signExtend12 3960 ↦ₘ d_mem) **
+  (sp + signExtend12 3952 ↦ₘ dlo_mem) **
+  (sp + signExtend12 3944 ↦ₘ scratch_un0)
+
+-- ============================================================================
+-- Two-iteration (j=1, j=0) precondition/postcondition for n=2
+-- Mirrors loopN3Pre/loopN3UnifiedPost but with n=2 values
+-- ============================================================================
+
+/-- Precondition for n=2 two-iteration loop (j=1, j=0).
+    Same structure as loopN3Pre but with n_mem = 2. -/
+def loopN2Iter10Pre (sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
+    v0 v1 v2 v3 u0 u1 u2 u3 u_top u0_orig q1_old q0_old : Word) : Assertion :=
+  let u_base_1 := sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat
+  let u_base_0 := sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat
+  let q_addr_1 := sp + signExtend12 4088 - (1 : Word) <<< (3 : BitVec 6).toNat
+  let q_addr_0 := sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat
+  (.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (1 : Word)) **
+  (.x5 ↦ᵣ v5_old) ** (.x6 ↦ᵣ v6_old) **
+  (.x7 ↦ᵣ v7_old) ** (.x10 ↦ᵣ v10_old) ** (.x11 ↦ᵣ v11_old) **
+  (.x2 ↦ᵣ v2_old) ** (.x0 ↦ᵣ (0 : Word)) **
+  (sp + signExtend12 3976 ↦ₘ j_old) ** (sp + signExtend12 3984 ↦ₘ (2 : Word)) **
+  ((sp + signExtend12 32) ↦ₘ v0) ** ((u_base_1 + signExtend12 0) ↦ₘ u0) **
+  ((sp + signExtend12 40) ↦ₘ v1) ** ((u_base_1 + signExtend12 4088) ↦ₘ u1) **
+  ((sp + signExtend12 48) ↦ₘ v2) ** ((u_base_1 + signExtend12 4080) ↦ₘ u2) **
+  ((sp + signExtend12 56) ↦ₘ v3) ** ((u_base_1 + signExtend12 4072) ↦ₘ u3) **
+  ((u_base_1 + signExtend12 4064) ↦ₘ u_top) **
+  (q_addr_1 ↦ₘ q1_old) **
+  ((u_base_0 + signExtend12 0) ↦ₘ u0_orig) **
+  (q_addr_0 ↦ₘ q0_old)
+
+/-- Precondition for n=2 two-iteration loop with scratch cells. -/
+@[irreducible]
+def loopN2Iter10PreWithScratch (sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
+    v0 v1 v2 v3 u0 u1 u2 u3 u_top u0_orig q1_old q0_old
+    ret_mem d_mem dlo_mem scratch_un0 : Word) : Assertion :=
+  loopN2Iter10Pre sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
+    v0 v1 v2 v3 u0 u1 u2 u3 u_top u0_orig q1_old q0_old **
+  (sp + signExtend12 3968 ↦ₘ ret_mem) **
+  (sp + signExtend12 3960 ↦ₘ d_mem) **
+  (sp + signExtend12 3952 ↦ₘ dlo_mem) **
+  (sp + signExtend12 3944 ↦ₘ scratch_un0)
+
+/-- Unified postcondition for n=2 two-iteration loop (j=1, j=0).
+    Same structure as loopN3UnifiedPost but without j=2 carried atoms.
+    Scratch handling: call path includes scratch, max path carries passthrough params. -/
+@[irreducible]
+def loopN2Iter10Post (bltu_1 bltu_0 : Bool)
+    (sp base v0 v1 v2 v3 u0 u1 u2 u3 u_top u0_orig
+     ret_mem d_mem dlo_mem scratch_un0 : Word) : Assertion :=
+  let r1 := iterN2 bltu_1 v0 v1 v2 v3 u0 u1 u2 u3 u_top
+  let u_base_1 := sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat
+  let q_addr_1 := sp + signExtend12 4088 - (1 : Word) <<< (3 : BitVec 6).toNat
+  -- j=0 iteration postcondition (includes scratch if bltu_0 = true)
+  loopIterPostN2 bltu_0 sp base (0 : Word) v0 v1 v2 v3
+    u0_orig r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1 **
+  -- Carried atoms from j=1
+  ((u_base_1 + signExtend12 4064) ↦ₘ r1.2.2.2.2.2) ** (q_addr_1 ↦ₘ r1.1) **
+  -- Scratch cells
+  match bltu_1, bltu_0 with
+  | false, false =>
+    (sp + signExtend12 3968 ↦ₘ ret_mem) **
+    (sp + signExtend12 3960 ↦ₘ d_mem) **
+    (sp + signExtend12 3952 ↦ₘ dlo_mem) **
+    (sp + signExtend12 3944 ↦ₘ scratch_un0)
+  | false, true  => empAssertion
+  | true,  false =>
+    (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+    (sp + signExtend12 3960 ↦ₘ v1) **
+    (sp + signExtend12 3952 ↦ₘ div128DLo v1) **
+    (sp + signExtend12 3944 ↦ₘ div128Un0 u1)
+  | true,  true  => empAssertion
+
+/-- Unified postcondition for the n=2 three-iteration loop.
+    Parameterized by `(bltu_2 bltu_1 bltu_0 : Bool)` covering all 8 path combinations.
+
+    Structure:
+    - j=0 iteration postcondition (includes scratch when bltu_0 = true)
+    - Carried atoms from j=1 (u4, q) and j=2 (u4, q)
+    - Scratch cells: depend on which iteration was the last call path
+      - All max (F,F,F): passthrough original scratch params
+      - bltu_0=true: scratch handled inside loopIterPostN2Call (empAssertion here)
+      - Last call was j=1 (bltu_1=T, bltu_0=F): scratch from j=1's div128
+      - Last call was j=2 (bltu_2=T, others F): scratch from j=2's div128 -/
+@[irreducible]
+def loopN2UnifiedPost (bltu_2 bltu_1 bltu_0 : Bool)
+    (sp base v0 v1 v2 v3 u0 u1 u2 u3 u_top
+     u0_orig_1 u0_orig_0
+     ret_mem d_mem dlo_mem scratch_un0 : Word) : Assertion :=
+  -- Compute iteration results
+  let r2 := iterN2 bltu_2 v0 v1 v2 v3 u0 u1 u2 u3 u_top
+  let r1 := iterN2 bltu_1 v0 v1 v2 v3 u0_orig_1 r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1
+  -- Address bases for carried atoms
+  let u_base_2 := sp + signExtend12 4056 - (2 : Word) <<< (3 : BitVec 6).toNat
+  let u_base_1 := sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat
+  let q_addr_2 := sp + signExtend12 4088 - (2 : Word) <<< (3 : BitVec 6).toNat
+  let q_addr_1 := sp + signExtend12 4088 - (1 : Word) <<< (3 : BitVec 6).toNat
+  -- j=0 iteration postcondition (includes scratch if bltu_0 = true)
+  loopIterPostN2 bltu_0 sp base (0 : Word) v0 v1 v2 v3
+    u0_orig_0 r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1 **
+  -- Carried atoms from j=1 and j=2
+  ((u_base_1 + signExtend12 4064) ↦ₘ r1.2.2.2.2.2) ** (q_addr_1 ↦ₘ r1.1) **
+  ((u_base_2 + signExtend12 4064) ↦ₘ r2.2.2.2.2.2) ** (q_addr_2 ↦ₘ r2.1) **
+  -- Scratch cells
+  match bltu_2, bltu_1, bltu_0 with
+  | false, false, false =>
+    (sp + signExtend12 3968 ↦ₘ ret_mem) **
+    (sp + signExtend12 3960 ↦ₘ d_mem) **
+    (sp + signExtend12 3952 ↦ₘ dlo_mem) **
+    (sp + signExtend12 3944 ↦ₘ scratch_un0)
+  | false, false, true  => empAssertion
+  | false, true,  false =>
+    (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+    (sp + signExtend12 3960 ↦ₘ v1) **
+    (sp + signExtend12 3952 ↦ₘ div128DLo v1) **
+    (sp + signExtend12 3944 ↦ₘ div128Un0 r2.2.1)
+  | false, true,  true  => empAssertion
+  | true,  false, false =>
+    (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+    (sp + signExtend12 3960 ↦ₘ v1) **
+    (sp + signExtend12 3952 ↦ₘ div128DLo v1) **
+    (sp + signExtend12 3944 ↦ₘ div128Un0 u1)
+  | true,  false, true  => empAssertion
+  | true,  true,  false =>
+    (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+    (sp + signExtend12 3960 ↦ₘ v1) **
+    (sp + signExtend12 3952 ↦ₘ div128DLo v1) **
+    (sp + signExtend12 3944 ↦ₘ div128Un0 r2.2.1)
+  | true,  true,  true  => empAssertion
+
 end EvmAsm.Evm64
