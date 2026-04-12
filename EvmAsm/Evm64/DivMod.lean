@@ -6,6 +6,7 @@ import EvmAsm.Evm64.DivMod.LoopBody
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4Shift0
 import EvmAsm.Evm64.EvmWordArith.DivN4Overestimate
 import EvmAsm.Evm64.DivMod.LoopIterN3
+import EvmAsm.Evm64.DivMod.LoopIterN2
 import EvmAsm.Evm64.DivMod.LoopComposeN3
 import EvmAsm.Evm64.DivMod.Compose.FullPathN3Loop
 import EvmAsm.Evm64.DivMod.Compose.FullPathN3Shift0

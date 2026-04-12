@@ -550,6 +550,101 @@ def loopN3CallMaxPost (sp base v0 v1 v2 v3 u0 u1 u2 u3 u_top u0_orig : Word) : A
   (sp + signExtend12 3944 ↦ₘ div128Un0 u2)
 
 -- ============================================================================
+-- Unified per-iteration result for n=2 max path (BLTU not taken)
+-- ============================================================================
+
+/-- Per-iteration computation for n=2 when the trial quotient is max (BLTU not taken).
+    Internally handles both skip (borrow=0) and addback (borrow≠0) paths.
+    Returns (q_j, un0, un1, un2, un3, u4). -/
+def iterN2Max (v0 v1 v2 v3 u0 u1 u2 u3 u_top : Word) :
+    Word × Word × Word × Word × Word × Word :=
+  let q_hat : Word := signExtend12 4095
+  let ms := mulsubN4 q_hat v0 v1 v2 v3 u0 u1 u2 u3
+  let c3 := ms.2.2.2.2
+  if BitVec.ult u_top c3 then
+    let ab := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 (u_top - c3) v0 v1 v2 v3
+    (q_hat + signExtend12 4095, ab.1, ab.2.1, ab.2.2.1, ab.2.2.2.1, ab.2.2.2.2)
+  else
+    (q_hat, ms.1, ms.2.1, ms.2.2.1, ms.2.2.2.1, u_top - c3)
+
+/-- Unified postcondition for one n=2 max-path loop iteration.
+    Uses iterN2Max to compute the result values, covering both skip and addback. -/
+@[irreducible]
+def loopIterPostN2Max (sp j v0 v1 v2 v3 u0 u1 u2 u3 u_top : Word) : Assertion :=
+  let r := iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 u_top
+  let c3 := (mulsubN4 (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2
+  loopExitPostN2 sp j r.1 c3 r.2.1 r.2.2.1 r.2.2.2.1 r.2.2.2.2.1 r.2.2.2.2.2 v0 v1 v2 v3
+
+-- ============================================================================
+-- Unified per-iteration result for n=2 call path (BLTU taken)
+-- ============================================================================
+
+/-- Per-iteration computation for n=2 when the trial quotient comes from div128 (BLTU taken).
+    For n=2: div128 uses u_hi=u2, u_lo=u1, v_top=v1.
+    Internally handles both skip (borrow=0) and addback (borrow≠0) paths.
+    Returns (q_j, un0, un1, un2, un3, u4). -/
+def iterN2Call (v0 v1 v2 v3 u0 u1 u2 u3 u_top : Word) :
+    Word × Word × Word × Word × Word × Word :=
+  let q_hat := div128Quot u2 u1 v1
+  let ms := mulsubN4 q_hat v0 v1 v2 v3 u0 u1 u2 u3
+  let c3 := ms.2.2.2.2
+  if BitVec.ult u_top c3 then
+    let ab := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 (u_top - c3) v0 v1 v2 v3
+    (q_hat + signExtend12 4095, ab.1, ab.2.1, ab.2.2.1, ab.2.2.2.1, ab.2.2.2.2)
+  else
+    (q_hat, ms.1, ms.2.1, ms.2.2.1, ms.2.2.2.1, u_top - c3)
+
+/-- Unified postcondition for one n=2 call-path loop iteration.
+    Uses iterN2Call for the result values, plus div128 scratch cells. -/
+@[irreducible]
+def loopIterPostN2Call (sp base j v0 v1 v2 v3 u0 u1 u2 u3 u_top : Word) : Assertion :=
+  let r := iterN2Call v0 v1 v2 v3 u0 u1 u2 u3 u_top
+  let q_hat := div128Quot u2 u1 v1
+  let c3 := (mulsubN4 q_hat v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2
+  loopExitPostN2 sp j r.1 c3 r.2.1 r.2.2.1 r.2.2.2.1 r.2.2.2.2.1 r.2.2.2.2.2 v0 v1 v2 v3 **
+  (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+  (sp + signExtend12 3960 ↦ₘ v1) **
+  (sp + signExtend12 3952 ↦ₘ div128DLo v1) **
+  (sp + signExtend12 3944 ↦ₘ div128Un0 u1)
+
+/-- Borrow condition for n=2 call+skip: mulsub doesn't overflow. -/
+def isSkipBorrowN2Call (v0 v1 v2 v3 u0 u1 u2 u3 u_top : Word) : Prop :=
+  let q_hat := div128Quot u2 u1 v1
+  (if BitVec.ult u_top (mulsubN4_c3 q_hat v0 v1 v2 v3 u0 u1 u2 u3) then (1 : Word) else 0) = (0 : Word)
+
+/-- Borrow condition for n=2 call+addback: mulsub overflows. -/
+def isAddbackBorrowN2Call (v0 v1 v2 v3 u0 u1 u2 u3 u_top : Word) : Prop :=
+  let q_hat := div128Quot u2 u1 v1
+  (if BitVec.ult u_top (mulsubN4_c3 q_hat v0 v1 v2 v3 u0 u1 u2 u3) then (1 : Word) else 0) ≠ (0 : Word)
+
+-- ============================================================================
+-- Generic j versions of n=2 call path postconditions
+-- ============================================================================
+
+/-- Call+skip postcondition for n=2 loop body, generic j.
+    Bundles div128Quot computation + loopBodyN2SkipPost + scratch cells.
+    For n=2: div128 uses u_hi=u2, u_lo=u1, v_top=v1. -/
+@[irreducible]
+def loopBodyN2CallSkipPostJ (sp base j v0 v1 v2 v3 u0 u1 u2 u3 u_top : Word) : Assertion :=
+  let q_hat := div128Quot u2 u1 v1
+  loopBodyN2SkipPost sp j q_hat v0 v1 v2 v3 u0 u1 u2 u3 u_top **
+  (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+  (sp + signExtend12 3960 ↦ₘ v1) **
+  (sp + signExtend12 3952 ↦ₘ div128DLo v1) **
+  (sp + signExtend12 3944 ↦ₘ div128Un0 u1)
+
+/-- Call+addback postcondition for n=2 loop body, generic j.
+    Bundles div128Quot computation + loopBodyN2AddbackPost + scratch cells. -/
+@[irreducible]
+def loopBodyN2CallAddbackPostJ (sp base j v0 v1 v2 v3 u0 u1 u2 u3 u_top : Word) : Assertion :=
+  let q_hat := div128Quot u2 u1 v1
+  loopBodyN2AddbackPost sp j q_hat v0 v1 v2 v3 u0 u1 u2 u3 u_top **
+  (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+  (sp + signExtend12 3960 ↦ₘ v1) **
+  (sp + signExtend12 3952 ↦ₘ div128DLo v1) **
+  (sp + signExtend12 3944 ↦ₘ div128Un0 u1)
+
+-- ============================================================================
 -- Legacy two-iteration postconditions (max+skip × max+skip specific case)
 -- ============================================================================
 
