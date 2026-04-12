@@ -8,8 +8,10 @@
   Structure:
   1. `divK_loop_n2_iter10_unified_spec (bltu_1 bltu_0 : Bool)`:
      Two-iteration (j=1, j=0) composition — 4 cases, same pattern as n=3 unified.
-  2. `divK_loop_n2_unified_spec (bltu_2 bltu_1 bltu_0 : Bool)`:
-     Full three-iteration — composes j=2 with the two-iteration intermediate.
+  2. `divK_loop_n2_max_iter10_spec` / `divK_loop_n2_call_iter10_spec`:
+     Compose j=2 (max or call) with the two-iteration intermediate.
+  3. `divK_loop_n2_unified_spec (bltu_2 bltu_1 bltu_0 : Bool)`:
+     Full three-iteration — dispatches to the above via cases on bltu_2.
 -/
 
 import EvmAsm.Evm64.DivMod.LoopComposeN2
@@ -355,5 +357,13 @@ theorem divK_loop_n2_iter10_unified_spec (bltu_1 bltu_0 : Bool)
         simp only [iterN2_true, sepConj_emp_right']
         xperm_hyp hp)
       full
+
+-- ============================================================================
+-- Full three-iteration: compose j=2 with iter10 — separate lemmas per case
+-- ============================================================================
+
+-- TODO: divK_loop_n2_max_iter10_spec (bltu_2=false)
+-- TODO: divK_loop_n2_call_iter10_spec (bltu_2=true)
+-- TODO: divK_loop_n2_unified_spec dispatching to the above
 
 end EvmAsm.Evm64
