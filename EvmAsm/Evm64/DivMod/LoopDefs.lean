@@ -675,4 +675,118 @@ def isSkipBorrowN3After_j1_skip (v0 v1 v2 v3 u0 u1 u2 u3 u0_orig : Word) : Prop 
       (mulsubN4_c3 q_hat v0 v1 v2 v3 u0_orig ms.1 ms.2.1 ms.2.2.1)
     then (1 : Word) else 0) = (0 : Word)
 
+-- ============================================================================
+-- Unified (Bool-parameterized) per-iteration computation for n=3
+-- Issue #262: Unify max/call branch paths via Bool parameter
+-- ============================================================================
+
+/-- Unified per-iteration computation for n=3.
+    `bltu = true` means BLTU taken (call path, trial quotient from div128).
+    `bltu = false` means BLTU not taken (max path, trial quotient = 0xFFF).
+    Internally handles both skip and addback via iterN3Call/iterN3Max. -/
+def iterN3 (bltu : Bool) (v0 v1 v2 v3 u0 u1 u2 u3 u_top : Word) :
+    Word × Word × Word × Word × Word × Word :=
+  if bltu then iterN3Call v0 v1 v2 v3 u0 u1 u2 u3 u_top
+  else iterN3Max v0 v1 v2 v3 u0 u1 u2 u3 u_top
+
+@[simp]
+theorem iterN3_true (v0 v1 v2 v3 u0 u1 u2 u3 u_top : Word) :
+    iterN3 true v0 v1 v2 v3 u0 u1 u2 u3 u_top =
+    iterN3Call v0 v1 v2 v3 u0 u1 u2 u3 u_top := by
+  simp [iterN3]
+
+@[simp]
+theorem iterN3_false (v0 v1 v2 v3 u0 u1 u2 u3 u_top : Word) :
+    iterN3 false v0 v1 v2 v3 u0 u1 u2 u3 u_top =
+    iterN3Max v0 v1 v2 v3 u0 u1 u2 u3 u_top := by
+  simp [iterN3]
+
+/-- Unified per-iteration postcondition for n=3.
+    Delegates to loopIterPostN3Call (call path) or loopIterPostN3Max (max path).
+    When `bltu = true` (call path), includes div128 scratch cells.
+    When `bltu = false` (max path), appends empAssertion (stripped by sepConj_emp_right'). -/
+@[irreducible]
+def loopIterPostN3 (bltu : Bool) (sp base j v0 v1 v2 v3 u0 u1 u2 u3 u_top : Word) : Assertion :=
+  match bltu with
+  | true => loopIterPostN3Call sp base j v0 v1 v2 v3 u0 u1 u2 u3 u_top
+  | false => loopIterPostN3Max sp j v0 v1 v2 v3 u0 u1 u2 u3 u_top ** empAssertion
+
+@[simp] theorem loopIterPostN3_call (sp base j v0 v1 v2 v3 u0 u1 u2 u3 u_top : Word) :
+    loopIterPostN3 true sp base j v0 v1 v2 v3 u0 u1 u2 u3 u_top =
+    loopIterPostN3Call sp base j v0 v1 v2 v3 u0 u1 u2 u3 u_top := by
+  delta loopIterPostN3; rfl
+
+@[simp] theorem loopIterPostN3_max (sp base j v0 v1 v2 v3 u0 u1 u2 u3 u_top : Word) :
+    loopIterPostN3 false sp base j v0 v1 v2 v3 u0 u1 u2 u3 u_top =
+    (loopIterPostN3Max sp j v0 v1 v2 v3 u0 u1 u2 u3 u_top ** empAssertion) := by
+  delta loopIterPostN3; rfl
+
+-- ============================================================================
+-- Unified two-iteration loop postcondition for n=3
+-- ============================================================================
+
+/-- Unified postcondition for the n=3 two-iteration loop.
+    `bltu_1` is the BLTU outcome at j=1, `bltu_0` at j=0.
+    Delegates to existing per-path postconditions via match.
+    For max×max, scratch cells pass through unchanged (carried as parameters).
+    For other combinations, scratch cells are overwritten by div128 (params unused). -/
+@[irreducible]
+def loopN3UnifiedPost (bltu_1 bltu_0 : Bool)
+    (sp base v0 v1 v2 v3 u0 u1 u2 u3 u_top u0_orig : Word)
+    (ret_mem d_mem dlo_mem scratch_un0 : Word) : Assertion :=
+  match bltu_1, bltu_0 with
+  | false, false =>
+    loopN3MaxPost sp v0 v1 v2 v3 u0 u1 u2 u3 u_top u0_orig **
+    (sp + signExtend12 3968 ↦ₘ ret_mem) **
+    (sp + signExtend12 3960 ↦ₘ d_mem) **
+    (sp + signExtend12 3952 ↦ₘ dlo_mem) **
+    (sp + signExtend12 3944 ↦ₘ scratch_un0)
+  | true,  true  => loopN3CallCallPost sp base v0 v1 v2 v3 u0 u1 u2 u3 u_top u0_orig
+  | false, true  => loopN3MaxCallPost sp base v0 v1 v2 v3 u0 u1 u2 u3 u_top u0_orig
+  | true,  false => loopN3CallMaxPost sp base v0 v1 v2 v3 u0 u1 u2 u3 u_top u0_orig
+
+-- ============================================================================
+-- Unified (Bool-parameterized) per-iteration computation for n=2
+-- Issue #262: Same pattern as n=3 but div128 uses u2/u1/v1
+-- ============================================================================
+
+/-- Unified per-iteration computation for n=2.
+    `bltu = true` means BLTU taken (call path, trial quotient from div128).
+    `bltu = false` means BLTU not taken (max path, trial quotient = 0xFFF).
+    For n=2: div128 uses u_hi=u2, u_lo=u1, v_top=v1. -/
+def iterN2 (bltu : Bool) (v0 v1 v2 v3 u0 u1 u2 u3 u_top : Word) :
+    Word × Word × Word × Word × Word × Word :=
+  if bltu then iterN2Call v0 v1 v2 v3 u0 u1 u2 u3 u_top
+  else iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 u_top
+
+@[simp]
+theorem iterN2_true (v0 v1 v2 v3 u0 u1 u2 u3 u_top : Word) :
+    iterN2 true v0 v1 v2 v3 u0 u1 u2 u3 u_top =
+    iterN2Call v0 v1 v2 v3 u0 u1 u2 u3 u_top := by
+  simp [iterN2]
+
+@[simp]
+theorem iterN2_false (v0 v1 v2 v3 u0 u1 u2 u3 u_top : Word) :
+    iterN2 false v0 v1 v2 v3 u0 u1 u2 u3 u_top =
+    iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 u_top := by
+  simp [iterN2]
+
+/-- Unified per-iteration postcondition for n=2.
+    Same structure as loopIterPostN3 but delegates to loopIterPostN2Call/Max. -/
+@[irreducible]
+def loopIterPostN2 (bltu : Bool) (sp base j v0 v1 v2 v3 u0 u1 u2 u3 u_top : Word) : Assertion :=
+  match bltu with
+  | true => loopIterPostN2Call sp base j v0 v1 v2 v3 u0 u1 u2 u3 u_top
+  | false => loopIterPostN2Max sp j v0 v1 v2 v3 u0 u1 u2 u3 u_top ** empAssertion
+
+@[simp] theorem loopIterPostN2_call (sp base j v0 v1 v2 v3 u0 u1 u2 u3 u_top : Word) :
+    loopIterPostN2 true sp base j v0 v1 v2 v3 u0 u1 u2 u3 u_top =
+    loopIterPostN2Call sp base j v0 v1 v2 v3 u0 u1 u2 u3 u_top := by
+  delta loopIterPostN2; rfl
+
+@[simp] theorem loopIterPostN2_max (sp base j v0 v1 v2 v3 u0 u1 u2 u3 u_top : Word) :
+    loopIterPostN2 false sp base j v0 v1 v2 v3 u0 u1 u2 u3 u_top =
+    (loopIterPostN2Max sp j v0 v1 v2 v3 u0 u1 u2 u3 u_top ** empAssertion) := by
+  delta loopIterPostN2; rfl
+
 end EvmAsm.Evm64
