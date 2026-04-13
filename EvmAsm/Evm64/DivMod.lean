@@ -19,3 +19,4 @@ import EvmAsm.Evm64.DivMod.Compose.FullPathN2Full
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2Cases
 import EvmAsm.Evm64.DivMod.Compose.FullPathN3LoopFull
 import EvmAsm.Evm64.DivMod.Compose.FullPathN3Shift0
+import EvmAsm.Evm64.DivMod.Compose.FullPathN2Shift0
