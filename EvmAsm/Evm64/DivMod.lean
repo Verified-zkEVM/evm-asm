@@ -21,3 +21,4 @@ import EvmAsm.Evm64.DivMod.Compose.FullPathN3LoopFull
 import EvmAsm.Evm64.DivMod.Compose.FullPathN3Shift0
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2Shift0
 import EvmAsm.Evm64.DivMod.LoopIterN1
+import EvmAsm.Evm64.DivMod.LoopComposeN1
