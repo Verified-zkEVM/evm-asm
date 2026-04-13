@@ -435,7 +435,7 @@ All phases below target **Evm64** primarily. Files are under `EvmAsm/Evm64/`.
         - `iterN2Max`/`iterN2Call` marked `@[irreducible]` to prevent stuck if-reduction in projections
         - Unified condition predicates: `isTrialN3_j1/j0` (`FullPathN3LoopUnified.lean`)
       Immediate next steps:
-        - n=2 full-path composition (preloop+loop+denorm+epilogue, now unblocked)
+        - ✅ n=2 full-path composition (preloop+loop+denorm+epilogue, PRs #274–#277)
         - n=1 loop iteration specs + composition (4 iterations, Bool approach gives 1 theorem vs 16)
         - Unified full-path for n=3 (preloop+loop+denorm+epilogue, base→base+1064)
     - Step 3: Per-n full-path composition theorems (base→base+1064) with bundled postconditions.
@@ -445,12 +445,14 @@ All phases below target **Evm64** primarily. Files are under `EvmAsm/Evm64/`.
         - ✅ n=4 shift=0: `evm_div_n4_full_shift0_call_{skip,addback}_spec` (`FullPathN4Shift0.lean`)
         - ✅ n=3 shift≠0: 4 full-path theorems (`FullPathN3Loop.lean`) — can be replaced by unified version
         - ✅ n=3 shift=0: 2 full-path theorems (`FullPathN3Shift0.lean`)
-        - 🔧 n=2: unblocked (loop composition done), needs preloop+denorm+epilogue
+        - ✅ n=2 shift≠0: unified full-path `evm_div_n2_full_unified_spec` (`FullPathN2Full.lean`, `FullPathN2Cases.lean`)
+          8 per-case lemmas + unified dispatch via `delta + rfl` postcondition bridge
+        - 🔧 n=2 shift=0: not started (follows n=3 shift=0 pattern)
         - ❌ n=1: blocked on Step 2
       Immediate next steps:
         - Unified n=3 full-path theorem (1 theorem with Bool params, delegates to existing 4)
-        - n=2 full-path after loop composition is done
-        - n=1 full-path
+        - n=2 shift=0 full-path
+        - n=1 loop iteration specs + full-path
         - MOD variants: factor shared DIV/MOD loop to avoid duplication (Issue #266)
     - Step 4: Semantic correctness bridge — connect algorithm computations to `EvmWord.div`.
       Infrastructure exists: `div_correct_n4_no_shift`, `remainder_lt_of_ge_floor`,
@@ -478,8 +480,9 @@ All phases below target **Evm64** primarily. Files are under `EvmAsm/Evm64/`.
 
   **Path to EVM-level DIV/MOD specs (summary):**
   1. ✅ Complete n=2 loop composition with Bool unification (PRs #270–#272)
-  2. Complete n=1 loop iteration specs → build LoopComposeN1 with Bool unification
-  3. Build n=2 and n=1 full-path compositions (preloop+loop+denorm+epilogue)
+  2. ✅ Complete n=2 full-path composition (PRs #274–#277)
+  3. Complete n=1 loop iteration specs → build LoopComposeN1 with Bool unification
+  4. Build n=2 shift=0 and n=1 full-path compositions
   4. Complete Knuth's Theorem B (Step 4) — can proceed in parallel with 1-3
   5. Per-n semantic bridge: connect full-path postconditions to `EvmWord.div`/`EvmWord.mod`
   6. Stack-level spec: case-split b=0/≠0, then on n, compose full-path + semantic bridge
