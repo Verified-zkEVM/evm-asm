@@ -436,8 +436,8 @@ All phases below target **Evm64** primarily. Files are under `EvmAsm/Evm64/`.
         - Unified condition predicates: `isTrialN3_j1/j0` (`FullPathN3LoopUnified.lean`)
       Immediate next steps:
         - ✅ n=2 full-path composition (preloop+loop+denorm+epilogue, PRs #274–#277)
+        - ✅ Unified full-path for n=3 shift≠0 (PR #279) + n=2 shift=0
         - n=1 loop iteration specs + composition (4 iterations, Bool approach gives 1 theorem vs 16)
-        - Unified full-path for n=3 (preloop+loop+denorm+epilogue, base→base+1064)
     - Step 3: Per-n full-path composition theorems (base→base+1064) with bundled postconditions.
       Composes pre-loop (normalization) + loop body + post-loop (denorm/epilogue).
       Status:
@@ -447,11 +447,10 @@ All phases below target **Evm64** primarily. Files are under `EvmAsm/Evm64/`.
         - ✅ n=3 shift=0: 2 full-path theorems (`FullPathN3Shift0.lean`)
         - ✅ n=2 shift≠0: unified full-path `evm_div_n2_full_unified_spec` (`FullPathN2Full.lean`, `FullPathN2Cases.lean`)
           8 per-case lemmas + unified dispatch via `delta + rfl` postcondition bridge
-        - 🔧 n=2 shift=0: not started (follows n=3 shift=0 pattern)
+        - ✅ n=2 shift=0: unified full-path `evm_div_n2_full_shift0_unified_spec` (`FullPathN2Shift0.lean`)
+          j=2 always call (u4=0 < b1), unified over (bltu_1 bltu_0 : Bool) for 4 combinations
         - ❌ n=1: blocked on Step 2
       Immediate next steps:
-        - Unified n=3 full-path theorem (1 theorem with Bool params, delegates to existing 4)
-        - n=2 shift=0 full-path
         - n=1 loop iteration specs + full-path
         - MOD variants: factor shared DIV/MOD loop to avoid duplication (Issue #266)
     - Step 4: Semantic correctness bridge — connect algorithm computations to `EvmWord.div`.
