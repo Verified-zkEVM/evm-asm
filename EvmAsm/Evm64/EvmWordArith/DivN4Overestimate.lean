@@ -204,8 +204,80 @@ theorem n4_max_addback_correct (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
     omega
   exact div_correct_n4_no_shift hbnz hcombined hge
 
--- Note: The remaining missing pieces for full semantic bridge:
--- 1. Mulsub borrow bound (c3 ≤ 1): needed to derive hc3_one from hc3_nonzero
--- 2. Call path trial quotient overestimate (Knuth's Theorem B for div128)
+-- ============================================================================
+-- Mulsub borrow bound: c3 ≤ 1 when trial quotient overestimates by at most 1
+-- ============================================================================
+
+/-- When the trial quotient overestimates by at most 1 (q ≤ ⌊u/v⌋ + 1),
+    the mulsub borrow c3 is at most 1.
+
+    Proof: from mulsubN4_val256_eq, c3 * 2^256 = val256(un) + q*val256(v) - val256(u).
+    Since q*val256(v) ≤ val256(u) + val256(v), we get
+    c3 * 2^256 ≤ val256(un) + val256(v) < 2 * 2^256, hence c3 ≤ 1. -/
+theorem mulsubN4_c3_le_one (q v0 v1 v2 v3 u0 u1 u2 u3 : Word)
+    (hbnz : v0 ||| v1 ||| v2 ||| v3 ≠ 0)
+    (hq_over : q.toNat ≤ val256 u0 u1 u2 u3 / val256 v0 v1 v2 v3 + 1) :
+    (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2.toNat ≤ 1 := by
+  let ms := mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3
+  let c3 := ms.2.2.2.2
+  -- From mulsubN4_val256_eq: val256(u) + c3 * 2^256 = val256(un) + q * val256(v)
+  have hmulsub := mulsubN4_val256_eq q v0 v1 v2 v3 u0 u1 u2 u3
+  simp only [] at hmulsub
+  -- Bounds
+  have hu_bound := val256_bound u0 u1 u2 u3
+  have hun_bound := val256_bound ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1
+  have hv_bound := val256_bound v0 v1 v2 v3
+  have hv_pos := val256_pos_of_or_ne_zero v0 v1 v2 v3 hbnz
+  -- From hq_over: q * val256(v) ≤ (⌊u/v⌋ + 1) * val256(v)
+  --            = ⌊u/v⌋ * val256(v) + val256(v) ≤ val256(u) + val256(v)
+  have hdiv_mul_le : val256 u0 u1 u2 u3 / val256 v0 v1 v2 v3 *
+      val256 v0 v1 v2 v3 ≤ val256 u0 u1 u2 u3 :=
+    Nat.div_mul_le_self _ _
+  have hqv_le : q.toNat * val256 v0 v1 v2 v3 ≤
+      val256 u0 u1 u2 u3 + val256 v0 v1 v2 v3 := by
+    calc q.toNat * val256 v0 v1 v2 v3
+        ≤ (val256 u0 u1 u2 u3 / val256 v0 v1 v2 v3 + 1) * val256 v0 v1 v2 v3 :=
+          Nat.mul_le_mul_right _ hq_over
+      _ = val256 u0 u1 u2 u3 / val256 v0 v1 v2 v3 * val256 v0 v1 v2 v3 +
+          val256 v0 v1 v2 v3 := by ring
+      _ ≤ val256 u0 u1 u2 u3 + val256 v0 v1 v2 v3 :=
+          Nat.add_le_add_right hdiv_mul_le _
+  -- From hmulsub: c3 * 2^256 = val256(un) + q * val256(v) - val256(u)
+  -- So: c3 * 2^256 ≤ val256(un) + val256(v) < 2^256 + 2^256 = 2 * 2^256
+  have hc3_bound : c3.toNat * 2^256 < 2 * 2^256 := by
+    -- hmulsub: val256(u) + c3 * 2^256 = val256(un) + q * val256(v)
+    -- hence c3 * 2^256 = val256(un) + q * val256(v) - val256(u)
+    --                   ≤ val256(un) + val256(u) + val256(v) - val256(u)
+    --                   = val256(un) + val256(v)
+    --                   < 2^256 + 2^256
+    nlinarith
+  -- Therefore c3 < 2, i.e., c3.toNat ≤ 1
+  show c3.toNat ≤ 1
+  have h256_pos : (0 : Nat) < 2^256 := by positivity
+  have : c3.toNat < 2 := (Nat.mul_lt_mul_right h256_pos).mp hc3_bound
+  omega
+
+/-- When c3 ≤ 1, it's either 0 or 1 (as a Word). -/
+theorem mulsubN4_c3_eq_zero_or_one (q v0 v1 v2 v3 u0 u1 u2 u3 : Word)
+    (hbnz : v0 ||| v1 ||| v2 ||| v3 ≠ 0)
+    (hq_over : q.toNat ≤ val256 u0 u1 u2 u3 / val256 v0 v1 v2 v3 + 1) :
+    (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2 = 0 ∨
+    (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2 = 1 := by
+  have hle := mulsubN4_c3_le_one q v0 v1 v2 v3 u0 u1 u2 u3 hbnz hq_over
+  rcases Nat.eq_zero_or_pos (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2.toNat with h | h
+  · left; bv_omega
+  · right; bv_omega
+
+/-- When c3 ≤ 1 and c3 ≠ 0, then c3 = 1. This is the key link between
+    the algorithm's borrow check (c3 ≠ 0) and the addback hypothesis (c3 = 1). -/
+theorem mulsubN4_c3_ne_zero_imp_one (q v0 v1 v2 v3 u0 u1 u2 u3 : Word)
+    (hbnz : v0 ||| v1 ||| v2 ||| v3 ≠ 0)
+    (hq_over : q.toNat ≤ val256 u0 u1 u2 u3 / val256 v0 v1 v2 v3 + 1)
+    (hc3_nz : (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2 ≠ 0) :
+    (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2 = 1 :=
+  (mulsubN4_c3_eq_zero_or_one q v0 v1 v2 v3 u0 u1 u2 u3 hbnz hq_over |>.resolve_left hc3_nz)
+
+-- Note: Remaining missing piece for full semantic bridge:
+-- Call path trial quotient overestimate (Knuth's Theorem B for div128)
 
 end EvmAsm.Evm64
