@@ -422,7 +422,7 @@ All phases below target **Evm64** primarily. Files are under `EvmAsm/Evm64/`.
         - ✅ n=4: j=0 all 4 paths done (`LoopIterN4.lean`)
         - ✅ n=3: j=0 all 4 paths + j=1 all 4 paths + unified specs (`LoopIterN3.lean`, `LoopComposeN3.lean`)
         - ✅ n=2: j=0,j=1,j=2 all 4 paths + unified specs (`LoopIterN2.lean`, `LoopComposeN2.lean`)
-        - ❌ n=1: not started
+        - ✅ n=1: j=0,j=1,j=2,j=3 all 4 paths + unified specs (`LoopIterN1.lean`, `LoopComposeN1.lean`)
     - Step 2b: **Bool-parameterized loop composition** (Issue #262, PRs #267–#272).
       Unifies max/call branch paths via `(bltu : Bool)` parameter so that
       2^k path combinations collapse to 1 theorem.
@@ -432,12 +432,11 @@ All phases below target **Evm64** primarily. Files are under `EvmAsm/Evm64/`.
         - ✅ n=3 unified preloop+loop: `evm_div_n3_preloop_loop_unified_spec` (`Compose/FullPathN3LoopUnified.lean`)
         - ✅ n=2 unified 3-iteration composition: `divK_loop_n2_unified_spec (bltu_2 bltu_1 bltu_0 : Bool)` (`LoopUnifiedN2.lean`)
           Layered: iter10 (4 cases) → max/call+iter10 (2 lemmas) → unified dispatch
+        - ✅ n=1 unified 4-iteration composition: `divK_loop_n1_unified_spec (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)` (`LoopUnifiedN1.lean`)
+          5-layer composition: iter10 → max/call_iter10 → iter210 → max/call_iter210 → unified
         - `iterN2Max`/`iterN2Call` marked `@[irreducible]` to prevent stuck if-reduction in projections
-        - Unified condition predicates: `isTrialN3_j1/j0` (`FullPathN3LoopUnified.lean`)
-      Immediate next steps:
-        - ✅ n=2 full-path composition (preloop+loop+denorm+epilogue, PRs #274–#277)
-        - ✅ Unified full-path for n=3 shift≠0 (PR #279) + n=2 shift=0
-        - n=1 loop iteration specs + composition (4 iterations, Bool approach gives 1 theorem vs 16)
+        - Unified condition predicates: `isTrialN3_j1/j0`, `isTrialN1_j3/j2/j1/j0`
+      Issue #262 is **complete** — Bool unification achieved for all n-values (n=1,2,3; n=4 trivial).
     - Step 3: Per-n full-path composition theorems (base→base+1064) with bundled postconditions.
       Composes pre-loop (normalization) + loop body + post-loop (denorm/epilogue).
       Status:
@@ -449,9 +448,11 @@ All phases below target **Evm64** primarily. Files are under `EvmAsm/Evm64/`.
           8 per-case lemmas + unified dispatch via `delta + rfl` postcondition bridge
         - ✅ n=2 shift=0: unified full-path `evm_div_n2_full_shift0_unified_spec` (`FullPathN2Shift0.lean`)
           j=2 always call (u4=0 < b1), unified over (bltu_1 bltu_0 : Bool) for 4 combinations
-        - ❌ n=1: blocked on Step 2
-      Immediate next steps:
-        - n=1 loop iteration specs + full-path
+        - ✅ n=1 shift≠0: unified full-path `evm_div_n1_full_unified_spec` (`FullPathN1Full.lean`)
+          16-case denorm_comp with parametric denorm' helper, all 16 Bool combinations
+        - ✅ n=1 shift=0: unified full-path `evm_div_n1_full_shift0_unified_spec` (`FullPathN1Shift0.lean`)
+          j=3 always call (u_top=0 < b0), unified over (bltu_2 bltu_1 bltu_0 : Bool) for 8 combinations
+      All n-values complete. Next:
         - MOD variants: factor shared DIV/MOD loop to avoid duplication (Issue #266)
     - Step 4: Semantic correctness bridge — connect algorithm computations to `EvmWord.div`.
       Infrastructure exists: `div_correct_n4_no_shift`, `remainder_lt_of_ge_floor`,
@@ -480,9 +481,9 @@ All phases below target **Evm64** primarily. Files are under `EvmAsm/Evm64/`.
   **Path to EVM-level DIV/MOD specs (summary):**
   1. ✅ Complete n=2 loop composition with Bool unification (PRs #270–#272)
   2. ✅ Complete n=2 full-path composition (PRs #274–#277)
-  3. Complete n=1 loop iteration specs → build LoopComposeN1 with Bool unification
-  4. Build n=2 shift=0 and n=1 full-path compositions
-  4. Complete Knuth's Theorem B (Step 4) — can proceed in parallel with 1-3
+  3. ✅ Complete n=1 loop iteration specs + Bool-unified composition (PRs #282–#286)
+  4. ✅ Complete n=1 + n=2 shift=0 and shift≠0 full-path compositions (PRs #280, #288, #289)
+  5. Complete Knuth's Theorem B (Step 4) — can proceed in parallel
   5. Per-n semantic bridge: connect full-path postconditions to `EvmWord.div`/`EvmWord.mod`
   6. Stack-level spec: case-split b=0/≠0, then on n, compose full-path + semantic bridge
   7. Factor shared DIV/MOD loop (Issue #266) to derive MOD specs from DIV proofs
