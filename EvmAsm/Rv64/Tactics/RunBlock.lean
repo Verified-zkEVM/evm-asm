@@ -154,16 +154,16 @@ private def proveBvEq (old new_ : Expr) : MetaM (Option Expr) := do
   catch _ => return none
 
 /-- Prove `old = new` for concrete decidable propositions.
-    Uses `mkDecideProof` (no tactic overhead). Falls back to `native_decide` via `runTactic`. -/
-private def proveByNativeDecide (old new_ : Expr) : MetaM (Option Expr) := do
+    Uses `mkDecideProof` (no tactic overhead). Falls back to `decide` via `runTactic`. -/
+private def proveByDecide (old new_ : Expr) : MetaM (Option Expr) := do
   let eqType ← mkEq old new_
   -- Try mkDecideProof (fast path, avoids runTactic overhead)
   try return some (← mkDecideProof eqType)
   catch _ => (Pure.pure PUnit.unit : MetaM PUnit)
-  -- Fallback to native_decide
+  -- Fallback to decide
   let eqMVar ← mkFreshExprMVar eqType
   try
-    let stx ← `(tactic| native_decide)
+    let stx ← `(tactic| decide)
     runTacticSilent eqMVar.mvarId! stx
     return some (← instantiateMVars eqMVar)
   catch _ => return none
@@ -183,7 +183,7 @@ private def trySimplifyTop (e : Expr) : MetaM (Expr × Option Expr) := do
       if n12 < 2048 then
         let bv64 := mkApp (mkConst ``BitVec) (mkNatLit 64)
         let resultExpr ← mkNumeral bv64 n12
-        if let some pf ← proveByNativeDecide e resultExpr then
+        if let some pf ← proveByDecide e resultExpr then
           return (resultExpr, some pf)
         if let some pf ← proveBvEq e resultExpr then
           return (resultExpr, some pf)

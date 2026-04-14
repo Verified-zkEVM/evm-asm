@@ -48,7 +48,7 @@ theorem evm_not_spec (sp base : Word)
 -- ============================================================================
 
 theorem signExtend12_neg1_eq_allOnes : signExtend12 (-1 : BitVec 12) = BitVec.allOnes 64 := by
-  native_decide
+  decide
 
 /-- Stack-level 256-bit EVM NOT: complements an EvmWord in-place. -/
 theorem evm_not_stack_spec (sp base : Word)

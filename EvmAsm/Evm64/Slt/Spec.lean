@@ -72,7 +72,7 @@ theorem evm_slt_spec (sp : Word) (base : Word)
     have M := slt_msb_load_spec 24 56 sp a3 a3 v7 v6 base (by validMem) (by validMem)
     -- BEQ taken (a3 = a3)
     have B := beq_eq_spec .x7 .x6 (12 : BitVec 13) a3 (base + 8)
-    have hsig13 : signExtend13 (12 : BitVec 13) = (12 : Word) := by native_decide
+    have hsig13 : signExtend13 (12 : BitVec 13) = (12 : Word) := by decide
     simp only [hsig13] at B
     -- Lower limb borrow chain
     have L0 := lt_limb0_spec 0 32 sp a0 b0 a3 a3 v5 (base + 20) (by validMem) (by validMem)
@@ -96,7 +96,7 @@ theorem evm_slt_spec (sp : Word) (base : Word)
     have S := slt_spec_gen .x5 .x7 .x6 v5 a3 b3 (base + 12) (by nofun)
     -- JAL to store
     have J := jal_x0_spec_gen (64 : BitVec 21) (base + 16)
-    have hsig21 : signExtend21 (64 : BitVec 21) = (64 : Word) := by native_decide
+    have hsig21 : signExtend21 (64 : BitVec 21) = (64 : Word) := by decide
     simp only [hsig21] at J
     -- Store phase
     have A := addi_spec_gen_same .x12 sp 32 (base + 80) (by nofun)

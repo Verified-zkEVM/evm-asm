@@ -100,7 +100,7 @@ theorem signext_body_2_spec (sp : Word)
        ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3))
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result) ** (.x6 ↦ᵣ shift_amount) ** (.x10 ↦ᵣ sign_fill) **
        ((sp + 48) ↦ₘ result) ** ((sp + 56) ↦ₘ sign_fill)) := by
-  have h63 : (63 : BitVec 6).toNat = 63 := by native_decide
+  have h63 : (63 : BitVec 6).toNat = 63 := by decide
   have IP := signext_inplace_spec 48 sp v2 v5 shift_amount base (by validMem)
   have SR := srai_spec_gen .x10 .x5 v10
     (BitVec.sshiftRight (v2 <<< (shift_amount.toNat % 64)) (shift_amount.toNat % 64))
@@ -133,7 +133,7 @@ theorem signext_body_1_spec (sp : Word)
        ((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3))
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result) ** (.x6 ↦ᵣ shift_amount) ** (.x10 ↦ᵣ sign_fill) **
        ((sp + 40) ↦ₘ result) ** ((sp + 48) ↦ₘ sign_fill) ** ((sp + 56) ↦ₘ sign_fill)) := by
-  have h63 : (63 : BitVec 6).toNat = 63 := by native_decide
+  have h63 : (63 : BitVec 6).toNat = 63 := by decide
   have IP := signext_inplace_spec 40 sp v1 v5 shift_amount base (by validMem)
   have SR := srai_spec_gen .x10 .x5 v10
     (BitVec.sshiftRight (v1 <<< (shift_amount.toNat % 64)) (shift_amount.toNat % 64))
@@ -169,7 +169,7 @@ theorem signext_body_0_spec (sp : Word)
        ((sp + 32) ↦ₘ v0) ** ((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3))
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result) ** (.x6 ↦ᵣ shift_amount) ** (.x10 ↦ᵣ sign_fill) **
        ((sp + 32) ↦ₘ result) ** ((sp + 40) ↦ₘ sign_fill) ** ((sp + 48) ↦ₘ sign_fill) ** ((sp + 56) ↦ₘ sign_fill)) := by
-  have h63 : (63 : BitVec 6).toNat = 63 := by native_decide
+  have h63 : (63 : BitVec 6).toNat = 63 := by decide
   have IP := signext_inplace_spec 32 sp v0 v5 shift_amount base (by validMem)
   have SR := srai_spec_gen .x10 .x5 v10
     (BitVec.sshiftRight (v0 <<< (shift_amount.toNat % 64)) (shift_amount.toNat % 64))

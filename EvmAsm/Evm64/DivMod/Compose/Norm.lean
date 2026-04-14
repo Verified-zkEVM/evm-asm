@@ -26,13 +26,13 @@ private theorem beq_shift_sub_divCode (base : Word) :
       (divCode base) a = some i := by
   intro a i h
   have hlookup := CodeReq.ofProg_lookup (base + 212) (divK_phaseC2 172) 3
-    (by native_decide) (by native_decide)
-  rw [show BitVec.ofNat 64 (4 * 3) = (12 : Word) from by native_decide,
+    (by decide) (by decide)
+  rw [show BitVec.ofNat 64 (4 * 3) = (12 : Word) from by decide,
       show (base + 212 : Word) + 12 = base + 224 from by bv_addr] at hlookup
   exact divK_phaseC2_code_sub_divCode base a i
     (CodeReq.singleton_mono hlookup a i h)
 
-private theorem signExtend13_172 : signExtend13 (172 : BitVec 13) = (172 : Word) := by native_decide
+private theorem signExtend13_172 : signExtend13 (172 : BitVec 13) = (172 : Word) := by decide
 
 /-- Phase C2 body (base+212 → base+224): store shift, compute anti_shift.
     Extends to divCode. Uses first 3 instructions of phaseC2. -/
@@ -164,7 +164,7 @@ private theorem divK_normB_half1 (sp b0 b1 b2 b3 v5 v7 shift anti_shift : Word) 
     divK_normB_code_sub_divCode base a i
       (CodeReq.ofProg_mono_sub (base + 228) (base + 228) divK_normB
         (divK_normB_merge_prog 56 48) 0
-        (by bv_addr) (by native_decide) (by native_decide) (by native_decide) a i h)) hm1
+        (by bv_addr) (by decide) (by decide) (by decide) a i h)) hm1
   -- Frame merge1 with b[0], b[1] (not touched by merge1)
   have hm1ef := cpsTriple_frame_left _ _ _ _ _
     (((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1))
@@ -180,7 +180,7 @@ private theorem divK_normB_half1 (sp b0 b1 b2 b3 v5 v7 shift anti_shift : Word) 
     divK_normB_code_sub_divCode base a i
       (CodeReq.ofProg_mono_sub (base + 228) (base + 252) divK_normB
         (divK_normB_merge_prog 48 40) 6
-        (by bv_addr) (by native_decide) (by native_decide) (by native_decide) a i h)) hm2
+        (by bv_addr) (by decide) (by decide) (by decide) a i h)) hm2
   have hm2ef := cpsTriple_frame_left _ _ _ _ _
     (((sp + 32) ↦ₘ b0) ** ((sp + 56) ↦ₘ b3'))
     (by pcFree) hm2e
@@ -220,7 +220,7 @@ private theorem divK_normB_half2 (sp b0 b1 b2' b3' shift anti_shift : Word) (bas
     divK_normB_code_sub_divCode base a i
       (CodeReq.ofProg_mono_sub (base + 228) (base + 276) divK_normB
         (divK_normB_merge_prog 40 32) 12
-        (by bv_addr) (by native_decide) (by native_decide) (by native_decide) a i h)) hm3
+        (by bv_addr) (by decide) (by decide) (by decide) a i h)) hm3
   have hm3ef := cpsTriple_frame_left _ _ _ _ _
     (((sp + 48) ↦ₘ b2') ** ((sp + 56) ↦ₘ b3'))
     (by pcFree) hm3e
@@ -233,7 +233,7 @@ private theorem divK_normB_half2 (sp b0 b1 b2' b3' shift anti_shift : Word) (bas
     divK_normB_code_sub_divCode base a i
       (CodeReq.ofProg_mono_sub (base + 228) (base + 300) divK_normB
         (divK_normB_last_prog 32) 18
-        (by bv_addr) (by native_decide) (by native_decide) (by native_decide) a i h)) hl
+        (by bv_addr) (by decide) (by decide) (by decide) a i h)) hl
   have hlef := cpsTriple_frame_left _ _ _ _ _
     ((.x7 ↦ᵣ (b0 >>> (anti_shift.toNat % 64))) ** (.x2 ↦ᵣ anti_shift) **
      ((sp + 40) ↦ₘ b1') ** ((sp + 48) ↦ₘ b2') ** ((sp + 56) ↦ₘ b3'))

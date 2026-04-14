@@ -385,7 +385,7 @@ theorem evm_div_n4_shift0_to_loopSetup_spec (sp base : Word)
     u0_old u1_old u2_old u3_old u4_old ((clzResult b3).2) base
     hvalid hv_u0 hv_u1 hv_u2 hv_u3 hv_u4
   -- Normalize signExtend12 0 → 0 in CopyAU spec for xperm matching
-  simp only [show signExtend12 (0 : BitVec 12) = (0 : Word) from by native_decide] at hCopy
+  simp only [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide] at hCopy
   -- Frame CopyAU with registers and memory not in CopyAU
   have hCopyf := cpsTriple_frame_left _ _ _ _ _
     ((.x6 ↦ᵣ (clzResult b3).1) **
@@ -651,18 +651,18 @@ theorem mod_denorm_preamble_spec (sp shift v5 v6 v7 v2 v10 : Word) (base : Word)
     intro a i h
     exact divK_denorm_code_sub_modCode' base a i
       (CodeReq.ofProg_mono_sub (base + 904) (base + 904) divK_denorm
-        [.LD .x6 .x12 3992] 0 (by bv_addr) (by native_decide) (by native_decide) (by native_decide) a i h)) hld
+        [.LD .x6 .x12 3992] 0 (by bv_addr) (by decide) (by decide) (by decide) a i h)) hld
   -- 2. BEQ x6 x0 96 at base+908 (denorm instr [1])
   have hbeq := beq_spec_gen .x6 .x0 (96 : BitVec 13) shift (0 : Word) (base + 908)
   rw [show (base + 908 : Word) + signExtend13 (96 : BitVec 13) = base + 1004 from by
-        rw [show signExtend13 (96 : BitVec 13) = (96 : Word) from by native_decide]
+        rw [show signExtend13 (96 : BitVec 13) = (96 : Word) from by decide]
         bv_addr,
       show (base + 908 : Word) + 4 = base + 912 from by bv_addr] at hbeq
   have hbeqe := cpsBranch_extend_code (hmono := by
     intro a i h
     exact divK_denorm_code_sub_modCode' base a i
       (CodeReq.ofProg_mono_sub (base + 904) (base + 908) divK_denorm
-        [.BEQ .x6 .x0 96] 1 (by bv_addr) (by native_decide) (by native_decide) (by native_decide) a i h)) hbeq
+        [.BEQ .x6 .x0 96] 1 (by bv_addr) (by decide) (by decide) (by decide) a i h)) hbeq
   -- 3. Eliminate taken branch: shift ≠ 0 means BEQ not taken
   have hbeq_exit := cpsBranch_elim_ntaken _ _ _ _ _ _ _ hbeqe
     (fun hp hQt => by
@@ -795,18 +795,18 @@ theorem evm_div_shift0_epilogue_spec (sp base : Word)
     intro a i h
     exact divK_denorm_code_sub_divCode' base a i
       (CodeReq.ofProg_mono_sub (base + 904) (base + 904) divK_denorm
-        [.LD .x6 .x12 3992] 0 (by bv_addr) (by native_decide) (by native_decide) (by native_decide) a i h)) hld
+        [.LD .x6 .x12 3992] 0 (by bv_addr) (by decide) (by decide) (by decide) a i h)) hld
   -- 2. BEQ x6 x0 96 at base+908 (denorm instr [1])
   have hbeq := beq_spec_gen .x6 .x0 (96 : BitVec 13) shift (0 : Word) (base + 908)
   rw [show (base + 908 : Word) + signExtend13 (96 : BitVec 13) = base + 1004 from by
-        rw [show signExtend13 (96 : BitVec 13) = (96 : Word) from by native_decide]
+        rw [show signExtend13 (96 : BitVec 13) = (96 : Word) from by decide]
         bv_addr,
       show (base + 908 : Word) + 4 = base + 912 from by bv_addr] at hbeq
   have hbeqe := cpsBranch_extend_code (hmono := by
     intro a i h
     exact divK_denorm_code_sub_divCode' base a i
       (CodeReq.ofProg_mono_sub (base + 904) (base + 908) divK_denorm
-        [.BEQ .x6 .x0 96] 1 (by bv_addr) (by native_decide) (by native_decide) (by native_decide) a i h)) hbeq
+        [.BEQ .x6 .x0 96] 1 (by bv_addr) (by decide) (by decide) (by decide) a i h)) hbeq
   -- 3. Eliminate not-taken branch: shift = 0 means BEQ taken
   --    BEQ not-taken postcondition: (.x6 ↦ᵣ shift) ** (.x0 ↦ᵣ 0) ** ⌜shift ≠ 0⌝
   have hbeq_exit := cpsBranch_elim_taken_strip_pure2 _ _ _ _ _ _ _ _ _ hbeqe
@@ -890,18 +890,18 @@ theorem evm_mod_shift0_epilogue_spec (sp base : Word)
     intro a i h
     exact divK_denorm_code_sub_modCode' base a i
       (CodeReq.ofProg_mono_sub (base + 904) (base + 904) divK_denorm
-        [.LD .x6 .x12 3992] 0 (by bv_addr) (by native_decide) (by native_decide) (by native_decide) a i h)) hld
+        [.LD .x6 .x12 3992] 0 (by bv_addr) (by decide) (by decide) (by decide) a i h)) hld
   -- 2. BEQ x6 x0 96 at base+908 (denorm instr [1])
   have hbeq := beq_spec_gen .x6 .x0 (96 : BitVec 13) shift (0 : Word) (base + 908)
   rw [show (base + 908 : Word) + signExtend13 (96 : BitVec 13) = base + 1004 from by
-        rw [show signExtend13 (96 : BitVec 13) = (96 : Word) from by native_decide]
+        rw [show signExtend13 (96 : BitVec 13) = (96 : Word) from by decide]
         bv_addr,
       show (base + 908 : Word) + 4 = base + 912 from by bv_addr] at hbeq
   have hbeqe := cpsBranch_extend_code (hmono := by
     intro a i h
     exact divK_denorm_code_sub_modCode' base a i
       (CodeReq.ofProg_mono_sub (base + 904) (base + 908) divK_denorm
-        [.BEQ .x6 .x0 96] 1 (by bv_addr) (by native_decide) (by native_decide) (by native_decide) a i h)) hbeq
+        [.BEQ .x6 .x0 96] 1 (by bv_addr) (by decide) (by decide) (by decide) a i h)) hbeq
   -- 3. Eliminate not-taken branch: shift = 0 means BEQ taken
   --    BEQ not-taken postcondition: (.x6 ↦ᵣ shift) ** (.x0 ↦ᵣ 0) ** ⌜shift ≠ 0⌝
   have hbeq_exit := cpsBranch_elim_taken_strip_pure2 _ _ _ _ _ _ _ _ _ hbeqe

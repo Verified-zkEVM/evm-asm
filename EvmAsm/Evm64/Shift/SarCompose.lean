@@ -22,15 +22,15 @@ open EvmAsm.Rv64
 -- Section 1: sarCode definition and helpers
 -- ============================================================================
 
--- Sub-program length lemmas (cheap native_decide on small lists)
-private theorem sar_phase_a_len : sar_phase_a.length = 9 := by native_decide
-private theorem shr_phase_b_len : shr_phase_b.length = 7 := by native_decide
-private theorem sar_phase_c_len : sar_phase_c.length = 5 := by native_decide
-private theorem sar_body_3_prog_len : (sar_body_3_prog 268).length = 8 := by native_decide
-private theorem sar_body_2_prog_len : (sar_body_2_prog 212).length = 14 := by native_decide
-private theorem sar_body_1_prog_len : (sar_body_1_prog 132).length = 20 := by native_decide
-private theorem sar_body_0_prog_len : (sar_body_0_prog 32).length = 25 := by native_decide
-private theorem sar_sign_fill_path_len : sar_sign_fill_path.length = 7 := by native_decide
+-- Sub-program length lemmas (cheap decide on small lists)
+private theorem sar_phase_a_len : sar_phase_a.length = 9 := by decide
+private theorem shr_phase_b_len : shr_phase_b.length = 7 := by decide
+private theorem sar_phase_c_len : sar_phase_c.length = 5 := by decide
+private theorem sar_body_3_prog_len : (sar_body_3_prog 268).length = 8 := by decide
+private theorem sar_body_2_prog_len : (sar_body_2_prog 212).length = 14 := by decide
+private theorem sar_body_1_prog_len : (sar_body_1_prog 132).length = 20 := by decide
+private theorem sar_body_0_prog_len : (sar_body_0_prog 32).length = 25 := by decide
+private theorem sar_sign_fill_path_len : sar_sign_fill_path.length = 7 := by decide
 
 /-- Skip one ofProg block in a right-nested union via range disjointness. -/
 local macro "skipBlock" : tactic =>
@@ -86,7 +86,7 @@ private theorem ld_s1_sub_sarCode (base : Word) :
     ∀ a i, CodeReq.singleton base (.LD .x5 .x12 8) a = some i → sarCode base a = some i := by
   intro a i h
   have h1 := singleton_sub_ofProg base base sar_phase_a (.LD .x5 .x12 8) 0
-    (by native_decide) (by native_decide) (by bv_omega) (by native_decide) a i h
+    (by decide) (by decide) (by bv_omega) (by decide) a i h
   unfold sarCode; simp only [CodeReq.unionAll_cons]
   exact CodeReq.union_mono_left _ _ a i h1
 
@@ -94,7 +94,7 @@ private theorem ld_or_16_sub_sarCode (base : Word) :
     ∀ a i, shr_ld_or_acc_code 16 (base + 4) a = some i → sarCode base a = some i := by
   intro a i h; unfold shr_ld_or_acc_code at h
   have h1 := CodeReq.ofProg_mono_sub base (base + 4) sar_phase_a (shr_ld_or_acc_prog 16) 1
-    (by bv_omega) (by native_decide) (by native_decide) (by native_decide) a i h
+    (by bv_omega) (by decide) (by decide) (by decide) a i h
   unfold sarCode; simp only [CodeReq.unionAll_cons]
   exact CodeReq.union_mono_left _ _ a i h1
 
@@ -102,7 +102,7 @@ private theorem ld_or_24_sub_sarCode (base : Word) :
     ∀ a i, shr_ld_or_acc_code 24 (base + 12) a = some i → sarCode base a = some i := by
   intro a i h; unfold shr_ld_or_acc_code at h
   have h1 := CodeReq.ofProg_mono_sub base (base + 12) sar_phase_a (shr_ld_or_acc_prog 24) 3
-    (by bv_omega) (by native_decide) (by native_decide) (by native_decide) a i h
+    (by bv_omega) (by decide) (by decide) (by decide) a i h
   unfold sarCode; simp only [CodeReq.unionAll_cons]
   exact CodeReq.union_mono_left _ _ a i h1
 
@@ -110,7 +110,7 @@ private theorem bne_sub_sarCode (base : Word) :
     ∀ a i, CodeReq.singleton (base + 20) (.BNE .x5 .x0 332) a = some i → sarCode base a = some i := by
   intro a i h
   have h1 := singleton_sub_ofProg base (base + 20) sar_phase_a (.BNE .x5 .x0 332) 5
-    (by native_decide) (by native_decide) (by bv_omega) (by native_decide) a i h
+    (by decide) (by decide) (by bv_omega) (by decide) a i h
   unfold sarCode; simp only [CodeReq.unionAll_cons]
   exact CodeReq.union_mono_left _ _ a i h1
 
@@ -118,7 +118,7 @@ private theorem ld_s0_sub_sarCode (base : Word) :
     ∀ a i, CodeReq.singleton (base + 24) (.LD .x5 .x12 0) a = some i → sarCode base a = some i := by
   intro a i h
   have h1 := singleton_sub_ofProg base (base + 24) sar_phase_a (.LD .x5 .x12 0) 6
-    (by native_decide) (by native_decide) (by bv_omega) (by native_decide) a i h
+    (by decide) (by decide) (by bv_omega) (by decide) a i h
   unfold sarCode; simp only [CodeReq.unionAll_cons]
   exact CodeReq.union_mono_left _ _ a i h1
 
@@ -126,7 +126,7 @@ private theorem sltiu_sub_sarCode (base : Word) :
     ∀ a i, CodeReq.singleton (base + 28) (.SLTIU .x10 .x5 256) a = some i → sarCode base a = some i := by
   intro a i h
   have h1 := singleton_sub_ofProg base (base + 28) sar_phase_a (.SLTIU .x10 .x5 256) 7
-    (by native_decide) (by native_decide) (by bv_omega) (by native_decide) a i h
+    (by decide) (by decide) (by bv_omega) (by decide) a i h
   unfold sarCode; simp only [CodeReq.unionAll_cons]
   exact CodeReq.union_mono_left _ _ a i h1
 
@@ -134,7 +134,7 @@ private theorem beq_sub_sarCode (base : Word) :
     ∀ a i, CodeReq.singleton (base + 32) (.BEQ .x10 .x0 320) a = some i → sarCode base a = some i := by
   intro a i h
   have h1 := singleton_sub_ofProg base (base + 32) sar_phase_a (.BEQ .x10 .x0 320) 8
-    (by native_decide) (by native_decide) (by bv_omega) (by native_decide) a i h
+    (by decide) (by decide) (by bv_omega) (by decide) a i h
   unfold sarCode; simp only [CodeReq.unionAll_cons]
   exact CodeReq.union_mono_left _ _ a i h1
 
@@ -160,12 +160,12 @@ private theorem sar_phase_c_code_sub_ofProg (base : Word) :
   unfold sar_phase_c_code shr_cascade_step_code
   apply CodeReq_union_sub_both
   · exact singleton_sub_ofProg base base sar_phase_c (.BEQ .x5 .x0 188) 0
-      (by native_decide) (by native_decide) (by bv_omega) (by native_decide)
+      (by decide) (by decide) (by bv_omega) (by decide)
   · apply CodeReq_union_sub_both
     · exact CodeReq.ofProg_mono_sub base (base + 4) sar_phase_c (shr_cascade_step_prog 1 100) 1
-        (by bv_omega) (by native_decide) (by native_decide) (by native_decide)
+        (by bv_omega) (by decide) (by decide) (by decide)
     · exact CodeReq.ofProg_mono_sub base (base + 12) sar_phase_c (shr_cascade_step_prog 2 36) 3
-        (by bv_omega) (by native_decide) (by native_decide) (by native_decide)
+        (by bv_omega) (by decide) (by decide) (by decide)
 
 private theorem ofProg_phase_c_sub_sarCode (base : Word) :
     ∀ a i, (CodeReq.ofProg (base + 64) sar_phase_c) a = some i → sarCode base a = some i := by
@@ -216,24 +216,24 @@ private theorem sign_fill_code_sub_ofProg (base : Word) :
   unfold sar_sign_fill_path_code
   apply CodeReq_union_sub_both
   · exact singleton_sub_ofProg base base sar_sign_fill_path (.LD .x5 .x12 56) 0
-      (by native_decide) (by native_decide) (by bv_omega) (by native_decide)
+      (by decide) (by decide) (by bv_omega) (by decide)
   · apply CodeReq_union_sub_both
     · exact singleton_sub_ofProg base (base + 4) sar_sign_fill_path (.SRAI .x5 .x5 63) 1
-        (by native_decide) (by native_decide) (by bv_omega) (by native_decide)
+        (by decide) (by decide) (by bv_omega) (by decide)
     · apply CodeReq_union_sub_both
       · exact singleton_sub_ofProg base (base + 8) sar_sign_fill_path (.ADDI .x12 .x12 32) 2
-          (by native_decide) (by native_decide) (by bv_omega) (by native_decide)
+          (by decide) (by decide) (by bv_omega) (by decide)
       · apply CodeReq_union_sub_both
         · exact singleton_sub_ofProg base (base + 12) sar_sign_fill_path (.SD .x12 .x5 0) 3
-            (by native_decide) (by native_decide) (by bv_omega) (by native_decide)
+            (by decide) (by decide) (by bv_omega) (by decide)
         · apply CodeReq_union_sub_both
           · exact singleton_sub_ofProg base (base + 16) sar_sign_fill_path (.SD .x12 .x5 8) 4
-              (by native_decide) (by native_decide) (by bv_omega) (by native_decide)
+              (by decide) (by decide) (by bv_omega) (by decide)
           · apply CodeReq_union_sub_both
             · exact singleton_sub_ofProg base (base + 20) sar_sign_fill_path (.SD .x12 .x5 16) 5
-                (by native_decide) (by native_decide) (by bv_omega) (by native_decide)
+                (by decide) (by decide) (by bv_omega) (by decide)
             · exact singleton_sub_ofProg base (base + 24) sar_sign_fill_path (.SD .x12 .x5 24) 6
-                (by native_decide) (by native_decide) (by bv_omega) (by native_decide)
+                (by decide) (by decide) (by bv_omega) (by decide)
 
 private theorem ofProg_sign_fill_sub_sarCode (base : Word) :
     ∀ a i, (CodeReq.ofProg (base + 352) sar_sign_fill_path) a = some i → sarCode base a = some i := by
@@ -260,26 +260,26 @@ private theorem sar_off_32 (base : Word) : (base + 32 : Word) + 4 = base + 36 :=
 private theorem sar_off_36_28 (base : Word) : (base + 36 : Word) + 28 = base + 64 := by bv_omega
 private theorem sar_off_352_28 (base : Word) : (base + 352 : Word) + 28 = base + 380 := by bv_omega
 private theorem sar_bne_target (base : Word) : (base + 20 : Word) + signExtend13 332 = base + 352 := by
-  rw [show signExtend13 (332 : BitVec 13) = (332 : Word) from by native_decide]; bv_omega
+  rw [show signExtend13 (332 : BitVec 13) = (332 : Word) from by decide]; bv_omega
 private theorem sar_beq_target (base : Word) : (base + 32 : Word) + signExtend13 320 = base + 352 := by
-  rw [show signExtend13 (320 : BitVec 13) = (320 : Word) from by native_decide]; bv_omega
+  rw [show signExtend13 (320 : BitVec 13) = (320 : Word) from by decide]; bv_omega
 -- Phase C exit addresses
 private theorem sar_c_e0 (base : Word) : (base + 64 : Word) + signExtend13 188 = base + 252 := by
-  rw [show signExtend13 (188 : BitVec 13) = (188 : Word) from by native_decide]; bv_omega
+  rw [show signExtend13 (188 : BitVec 13) = (188 : Word) from by decide]; bv_omega
 private theorem sar_c_e1 (base : Word) : ((base + 64 : Word) + 8) + signExtend13 100 = base + 172 := by
-  rw [show signExtend13 (100 : BitVec 13) = (100 : Word) from by native_decide]; bv_omega
+  rw [show signExtend13 (100 : BitVec 13) = (100 : Word) from by decide]; bv_omega
 private theorem sar_c_e2 (base : Word) : ((base + 64 : Word) + 16) + signExtend13 36 = base + 116 := by
-  rw [show signExtend13 (36 : BitVec 13) = (36 : Word) from by native_decide]; bv_omega
+  rw [show signExtend13 (36 : BitVec 13) = (36 : Word) from by decide]; bv_omega
 private theorem sar_c_e3 (base : Word) : (base + 64 : Word) + 20 = base + 84 := by bv_omega
 -- Body exit addresses (JAL targets → base+380)
 private theorem sar_body3_exit (base : Word) : ((base + 84 : Word) + 28) + signExtend21 268 = base + 380 := by
-  rw [show signExtend21 (268 : BitVec 21) = (268 : Word) from by native_decide]; bv_omega
+  rw [show signExtend21 (268 : BitVec 21) = (268 : Word) from by decide]; bv_omega
 private theorem sar_body2_exit (base : Word) : ((base + 116 : Word) + 52) + signExtend21 212 = base + 380 := by
-  rw [show signExtend21 (212 : BitVec 21) = (212 : Word) from by native_decide]; bv_omega
+  rw [show signExtend21 (212 : BitVec 21) = (212 : Word) from by decide]; bv_omega
 private theorem sar_body1_exit (base : Word) : ((base + 172 : Word) + 76) + signExtend21 132 = base + 380 := by
-  rw [show signExtend21 (132 : BitVec 21) = (132 : Word) from by native_decide]; bv_omega
+  rw [show signExtend21 (132 : BitVec 21) = (132 : Word) from by decide]; bv_omega
 private theorem sar_body0_exit (base : Word) : ((base + 252 : Word) + 96) + signExtend21 32 = base + 380 := by
-  rw [show signExtend21 (32 : BitVec 21) = (32 : Word) from by native_decide]; bv_omega
+  rw [show signExtend21 (32 : BitVec 21) = (32 : Word) from by decide]; bv_omega
 
 private theorem sar_off_sp32 (sp : Word) : sp + signExtend12 (32 : BitVec 12) = sp + 32 := by
   simp only [signExtend12_32]
@@ -781,11 +781,11 @@ private theorem sar_bridge_merge (value : EvmWord) (s0 : Word)
   intro bs as_ mask; rw [hresult]
   have hbs_val : bs.toNat = s0.toNat % 64 := by
     simp only [bs, signExtend12_63]
-    rw [BitVec.toNat_and, show (63 : BitVec 64).toNat = 63 from by native_decide]
+    rw [BitVec.toNat_and, show (63 : BitVec 64).toNat = 63 from by decide]
     exact Nat.and_two_pow_sub_one_eq_mod s0.toNat 6
   have hbs_lt : bs.toNat < 64 := by omega
   have hL_div : s0.toNat / 64 = L := by
-    have h6 : (6 : BitVec 6).toNat = 6 := by native_decide
+    have h6 : (6 : BitVec 6).toNat = 6 := by decide
     rw [← hL, h6]; simp [BitVec.toNat_ushiftRight]; omega
   -- sshiftRight agrees with ushiftRight for merge limbs
   rw [getLimb_sshiftRight_eq_ushiftRight value s0.toNat i (by omega)]
@@ -800,7 +800,7 @@ private theorem sar_bridge_merge (value : EvmWord) (s0 : Word)
   · have hmask : mask = BitVec.allOnes 64 := by
       simp only [mask]; have : BitVec.ult (0 : Word) bs = true := by simp [BitVec.ult]; omega
       rw [this, show (if true = true then (1 : Word) else 0) = 1 from by decide]
-      show (0 : Word) - 1 = BitVec.allOnes 64; native_decide
+      show (0 : Word) - 1 = BitVec.allOnes 64; decide
     rw [show bs.toNat % 64 = s0.toNat % 64 from by omega,
         show as_.toNat % 64 = 64 - s0.toNat % 64 from by
           have : as_.toNat = 64 - bs.toNat := by simp only [as_]; bv_omega
@@ -820,10 +820,10 @@ private theorem sar_bridge_last (value : EvmWord) (s0 : Word)
   intro bs; rw [hresult]
   have hbs_val : bs.toNat = s0.toNat % 64 := by
     simp only [bs, signExtend12_63]
-    rw [BitVec.toNat_and, show (63 : BitVec 64).toNat = 63 from by native_decide]
+    rw [BitVec.toNat_and, show (63 : BitVec 64).toNat = 63 from by decide]
     exact Nat.and_two_pow_sub_one_eq_mod s0.toNat 6
   have hL_div : s0.toNat / 64 = L := by
-    have h6 : (6 : BitVec 6).toNat = 6 := by native_decide
+    have h6 : (6 : BitVec 6).toNat = 6 := by decide
     rw [← hL, h6]; simp [BitVec.toNat_ushiftRight]; omega
   rw [getLimb_sshiftRight_last value s0.toNat i (by omega)]
   congr 1; omega
@@ -841,7 +841,7 @@ private theorem sar_bridge_sign (value : EvmWord) (s0 : Word)
     getLimb result i := by
   rw [hresult]
   have hL_div : s0.toNat / 64 = L := by
-    have h6 : (6 : BitVec 6).toNat = 6 := by native_decide
+    have h6 : (6 : BitVec 6).toNat = 6 := by decide
     rw [← hL, h6]; simp [BitVec.toNat_ushiftRight]; omega
   -- getLimb (sshiftRight value n) i = sshiftRight (getLimb value 3) 63 for sign limbs
   rw [getLimb_sshiftRight_sign' value s0.toNat i (by omega)]
@@ -849,7 +849,7 @@ private theorem sar_bridge_sign (value : EvmWord) (s0 : Word)
   -- Both give sign extension (all bits = MSB of x)
   have hbs_val : bs.toNat = s0.toNat % 64 := by
     subst hbs; simp only [signExtend12_63]
-    rw [BitVec.toNat_and, show (63 : BitVec 64).toNat = 63 from by native_decide]
+    rw [BitVec.toNat_and, show (63 : BitVec 64).toNat = 63 from by decide]
     exact Nat.and_two_pow_sub_one_eq_mod s0.toNat 6
   simp only [getLimb]
   ext j
@@ -1143,7 +1143,7 @@ theorem evm_sar_body_evmWord_spec (sp base : Word)
         show BitVec.sshiftRight value shift.toNat = BitVec.sshiftRight value s0.toNat; congr 1
       have hL : (s0 >>> (6 : BitVec 6).toNat).toNat = 1 := by
         have := congrArg BitVec.toNat hls
-        simp only [show ((0 : Word) + signExtend12 1).toNat = 1 from by native_decide] at this
+        simp only [show ((0 : Word) + signExtend12 1).toNat = 1 from by decide] at this
         exact this
       have eq0 := sar_bridge_merge value s0 result hresult 1 0 hL (by omega) (by omega)
       have eq1 := sar_bridge_merge value s0 result hresult 1 1 hL (by omega) (by omega)
@@ -1162,7 +1162,7 @@ theorem evm_sar_body_evmWord_spec (sp base : Word)
         show BitVec.sshiftRight value shift.toNat = BitVec.sshiftRight value s0.toNat; congr 1
       have hL : (s0 >>> (6 : BitVec 6).toNat).toNat = 2 := by
         have := congrArg BitVec.toNat hls
-        simp only [show ((0 : Word) + signExtend12 2).toNat = 2 from by native_decide] at this
+        simp only [show ((0 : Word) + signExtend12 2).toNat = 2 from by decide] at this
         exact this
       have eq0 := sar_bridge_merge value s0 result hresult 2 0 hL (by omega) (by omega)
       have eq1 := sar_bridge_last value s0 result hresult 2 1 hL (by omega)
@@ -1182,7 +1182,7 @@ theorem evm_sar_body_evmWord_spec (sp base : Word)
         show BitVec.sshiftRight value shift.toNat = BitVec.sshiftRight value s0.toNat; congr 1
       have hL : (s0 >>> (6 : BitVec 6).toNat).toNat = 3 := by
         obtain ⟨h0, h1, h2⟩ := hls
-        have h6 : (6 : BitVec 6).toNat = 6 := by native_decide
+        have h6 : (6 : BitVec 6).toNat = 6 := by decide
         have hlt4 : limb_shift.toNat < 4 := by
           show (s0 >>> (6 : BitVec 6).toNat).toNat < 4
           rw [h6]; simp [BitVec.toNat_ushiftRight]; omega
@@ -1191,12 +1191,12 @@ theorem evm_sar_body_evmWord_spec (sp base : Word)
         have hn1 : limb_shift.toNat ≠ 1 :=
           fun hc => h1 (BitVec.eq_of_toNat_eq (by
             show limb_shift.toNat = ((0 : Word) + signExtend12 1).toNat
-            simp only [show ((0 : Word) + signExtend12 1).toNat = 1 from by native_decide]
+            simp only [show ((0 : Word) + signExtend12 1).toNat = 1 from by decide]
             exact hc))
         have hn2 : limb_shift.toNat ≠ 2 :=
           fun hc => h2 (BitVec.eq_of_toNat_eq (by
             show limb_shift.toNat = ((0 : Word) + signExtend12 2).toNat
-            simp only [show ((0 : Word) + signExtend12 2).toNat = 2 from by native_decide]
+            simp only [show ((0 : Word) + signExtend12 2).toNat = 2 from by decide]
             exact hc))
         show limb_shift.toNat = 3; omega
       have eq0 := sar_bridge_last value s0 result hresult 3 0 hL (by omega)

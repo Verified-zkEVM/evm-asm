@@ -157,7 +157,7 @@ def evm_mul : Program :=
 -- ============================================================================
 
 /-- evm_mul has exactly 63 instructions. -/
-example : evm_mul.length = 63 := by native_decide
+example : evm_mul.length = 63 := by decide
 
 -- ============================================================================
 -- Test infrastructure
@@ -208,7 +208,7 @@ def runMulCheck (sp : Word)
   | none => none
 
 -- ============================================================================
--- Concrete tests via native_decide
+-- Concrete tests via decide
 -- ============================================================================
 
 -- All paths are straight-line: 63 steps.
@@ -216,92 +216,92 @@ def runMulCheck (sp : Word)
 -- Test 1: 0 * 0 = 0
 /-- MUL(0, 0) = 0. -/
 example : runMulResult 1024 0 0 0 0  0 0 0 0  63 =
-    some [0, 0, 0, 0] := by native_decide
+    some [0, 0, 0, 0] := by decide
 
 -- Test 2: 1 * 1 = 1
 /-- MUL(1, 1) = 1. -/
 example : runMulResult 1024 1 0 0 0  1 0 0 0  63 =
-    some [1, 0, 0, 0] := by native_decide
+    some [1, 0, 0, 0] := by decide
 
 -- Test 3: 1 * 0 = 0
 /-- MUL(1, 0) = 0. -/
 example : runMulResult 1024 1 0 0 0  0 0 0 0  63 =
-    some [0, 0, 0, 0] := by native_decide
+    some [0, 0, 0, 0] := by decide
 
 -- Test 4: Small values: 0x1234 * 0x5678 = 0x06260060
 /-- MUL(0x1234, 0x5678) = 0x06260060. -/
 example : runMulResult 1024 0x1234 0 0 0  0x5678 0 0 0  63 =
-    some [0x06260060, 0, 0, 0] := by native_decide
+    some [0x06260060, 0, 0, 0] := by decide
 
 -- Test 5: 64-bit overflow: (2^64-1) * 2 = 2^65 - 2
 /-- MUL(0xFFFFFFFFFFFFFFFF, 2) crosses limb boundary. -/
 example : runMulResult 1024 0xFFFFFFFFFFFFFFFF 0 0 0  2 0 0 0  63 =
-    some [0xFFFFFFFFFFFFFFFE, 1, 0, 0] := by native_decide
+    some [0xFFFFFFFFFFFFFFFE, 1, 0, 0] := by decide
 
 -- Test 6: Limb 1 multiplication: 2^64 * 2^64 = 2^128
 /-- MUL(2^64, 2^64) = 2^128. -/
 example : runMulResult 1024 0 1 0 0  0 1 0 0  63 =
-    some [0, 0, 1, 0] := by native_decide
+    some [0, 0, 1, 0] := by decide
 
 -- Test 7: (2^256-1) * 2 mod 2^256 = 2^256-2
 /-- MUL(max256, 2): wraparound mod 2^256. -/
 example : runMulResult 1024
     0xFFFFFFFFFFFFFFFF 0xFFFFFFFFFFFFFFFF 0xFFFFFFFFFFFFFFFF 0xFFFFFFFFFFFFFFFF
     2 0 0 0  63 =
-    some [0xFFFFFFFFFFFFFFFE, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF] := by native_decide
+    some [0xFFFFFFFFFFFFFFFE, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF] := by decide
 
 -- Test 8: (2^256-1) * (2^256-1) mod 2^256 = 1
 /-- MUL(max256, max256) = 1 mod 2^256. -/
 example : runMulResult 1024
     0xFFFFFFFFFFFFFFFF 0xFFFFFFFFFFFFFFFF 0xFFFFFFFFFFFFFFFF 0xFFFFFFFFFFFFFFFF
     0xFFFFFFFFFFFFFFFF 0xFFFFFFFFFFFFFFFF 0xFFFFFFFFFFFFFFFF 0xFFFFFFFFFFFFFFFF  63 =
-    some [1, 0, 0, 0] := by native_decide
+    some [1, 0, 0, 0] := by decide
 
 -- Test 9: Cross-limb product: 0x100000000 * 0x100000000 = 0x10000000000000000
 /-- MUL with carry across limbs within limb 0. -/
 example : runMulResult 1024 0x100000000 0 0 0  0x100000000 0 0 0  63 =
-    some [0, 1, 0, 0] := by native_decide
+    some [0, 1, 0, 0] := by decide
 
 -- Test 10: Mixed limbs: [1, 1, 0, 0] * [1, 1, 0, 0] = 2^128 + 2*2^64 + 1 = [1, 2, 1, 0]
 /-- MUL([1,1,0,0], [1,1,0,0]) = [1,2,1,0]. -/
 example : runMulResult 1024 1 1 0 0  1 1 0 0  63 =
-    some [1, 2, 1, 0] := by native_decide
+    some [1, 2, 1, 0] := by decide
 
 -- Test 11: 2^192 * 2^64 = 2^256 = 0 mod 2^256
 /-- MUL(2^192, 2^64) = 0 (overflow). -/
 example : runMulResult 1024 0 0 0 1  0 1 0 0  63 =
-    some [0, 0, 0, 0] := by native_decide
+    some [0, 0, 0, 0] := by decide
 
 -- Test 12: Verify PC and sp after execution
 /-- After MUL, PC = 252 and x12 = sp + 32. -/
 example : runMulCheck 1024 1 0 0 0  1 0 0 0  63 =
-    some (252, 1056) := by native_decide
+    some (252, 1056) := by decide
 
 -- Test 13: Commutative check: a*b = b*a
 /-- MUL(0xDEADBEEF, 0xCAFEBABE) is commutative. -/
 example : runMulResult 1024 0xDEADBEEF 0 0 0  0xCAFEBABE 0 0 0  63 =
-    runMulResult 1024 0xCAFEBABE 0 0 0  0xDEADBEEF 0 0 0  63 := by native_decide
+    runMulResult 1024 0xCAFEBABE 0 0 0  0xDEADBEEF 0 0 0  63 := by decide
 
 -- Test 14: Large cross-limb: [0xFF..FF, 1, 0, 0] * [2, 0, 0, 0]
 -- a = 2^64 + (2^64-1) = 2^65 - 1. a * 2 = 2^66 - 2 = [0xFFFFFFFFFFFFFFFE, 3, 0, 0]
 /-- MUL with carry propagation across multiple limbs. -/
 example : runMulResult 1024 0xFFFFFFFFFFFFFFFF 1 0 0  2 0 0 0  63 =
-    some [0xFFFFFFFFFFFFFFFE, 3, 0, 0] := by native_decide
+    some [0xFFFFFFFFFFFFFFFE, 3, 0, 0] := by decide
 
 -- Test 15: All limbs active: [1, 2, 3, 4] * [5, 6, 7, 8]
 -- Manual verification via Python: (1 + 2*2^64 + 3*2^128 + 4*2^192) * (5 + 6*2^64 + 7*2^128 + 8*2^192) mod 2^256
 -- = 0x2000000000000002F00000000000002200000000000001D_truncated
 -- Python: hex((1 + 2*(1<<64) + 3*(1<<128) + 4*(1<<192)) * (5 + 6*(1<<64) + 7*(1<<128) + 8*(1<<192)) % (1<<256))
 -- = 0x2f000000000000220000000000000019_shifted... let's compute carefully
--- Actually let me just rely on native_decide
+-- Actually let me just rely on decide
 /-- MUL with all limbs active. -/
 example : runMulResult 1024 1 2 3 4  5 6 7 8  63 =
-    runMulResult 1024 5 6 7 8  1 2 3 4  63 := by native_decide
+    runMulResult 1024 5 6 7 8  1 2 3 4  63 := by decide
 
 -- Test 16: Identity: a * 1 = a
 /-- MUL(x, 1) = x. -/
 example : runMulResult 1024 0x1111111111111111 0x2222222222222222 0x3333333333333333 0x4444444444444444
     1 0 0 0  63 =
-    some [0x1111111111111111, 0x2222222222222222, 0x3333333333333333, 0x4444444444444444] := by native_decide
+    some [0x1111111111111111, 0x2222222222222222, 0x3333333333333333, 0x4444444444444444] := by decide
 
 end EvmAsm.Evm64

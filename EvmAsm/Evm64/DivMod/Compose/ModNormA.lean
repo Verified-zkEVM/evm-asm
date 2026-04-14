@@ -38,11 +38,11 @@ private theorem normA_sub_mod (base : Word) (sub_prog : List Instr) (k : Nat)
     (CodeReq.ofProg_mono_sub (base + 312) _ (divK_normA 40) _ k rfl hslice hk hbound a i h)
 
 -- signExtend12 for src/dst offsets used by normA specs
-private theorem mod_se12_24 : signExtend12 (24 : BitVec 12) = (24 : Word) := by native_decide
-private theorem mod_se12_16 : signExtend12 (16 : BitVec 12) = (16 : Word) := by native_decide
-private theorem mod_se12_8 : signExtend12 (8 : BitVec 12) = (8 : Word) := by native_decide
-private theorem mod_se12_0 : signExtend12 (0 : BitVec 12) = (0 : Word) := by native_decide
-private theorem mod_signExtend21_40 : signExtend21 (40 : BitVec 21) = (40 : Word) := by native_decide
+private theorem mod_se12_24 : signExtend12 (24 : BitVec 12) = (24 : Word) := by decide
+private theorem mod_se12_16 : signExtend12 (16 : BitVec 12) = (16 : Word) := by decide
+private theorem mod_se12_8 : signExtend12 (8 : BitVec 12) = (8 : Word) := by decide
+private theorem mod_se12_0 : signExtend12 (0 : BitVec 12) = (0 : Word) := by decide
+private theorem mod_signExtend21_40 : signExtend21 (40 : BitVec 21) = (40 : Word) := by decide
 
 set_option maxHeartbeats 25600000 in
 set_option maxRecDepth 4096 in
@@ -87,7 +87,7 @@ theorem mod_normA_full_spec (sp a0 a1 a2 a3 v5 v7 v10 shift anti_shift : Word)
     divK_normA_code_sub_modCode base a i
       (CodeReq.ofProg_mono_sub (base + 312) (base + 312) (divK_normA 40)
         (divK_normA_top_prog 24 4024) 0
-        (by bv_addr) (by native_decide) (by native_decide) (by native_decide) a i h)) htop
+        (by bv_addr) (by decide) (by decide) (by decide) a i h)) htop
   -- Frame top with x6, x10, a[0..2], u[0..3]
   have htopef := cpsTriple_frame_left _ _ _ _ _
     ((.x10 ↦ᵣ v10) ** (.x6 ↦ᵣ shift) **
@@ -105,7 +105,7 @@ theorem mod_normA_full_spec (sp a0 a1 a2 a3 v5 v7 v10 shift anti_shift : Word)
     divK_normA_code_sub_modCode base a i
       (CodeReq.ofProg_mono_sub (base + 312) (base + 324) (divK_normA 40)
         (divK_normA_mergeA_prog 16 4032) 3
-        (by bv_addr) (by native_decide) (by native_decide) (by native_decide) a i h)) hma1
+        (by bv_addr) (by decide) (by decide) (by decide) a i h)) hma1
   have hma1ef := cpsTriple_frame_left _ _ _ _ _
     (((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 24) ↦ₘ a3) **
      ((sp + signExtend12 4024) ↦ₘ u4) **
@@ -124,7 +124,7 @@ theorem mod_normA_full_spec (sp a0 a1 a2 a3 v5 v7 v10 shift anti_shift : Word)
     divK_normA_code_sub_modCode base a i
       (CodeReq.ofProg_mono_sub (base + 312) (base + 344) (divK_normA 40)
         (divK_normA_mergeB_prog 8 4040) 8
-        (by bv_addr) (by native_decide) (by native_decide) (by native_decide) a i h)) hmb
+        (by bv_addr) (by decide) (by decide) (by decide) a i h)) hmb
   have hmbef := cpsTriple_frame_left _ _ _ _ _
     (((sp + 0) ↦ₘ a0) ** ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
      ((sp + signExtend12 4024) ↦ₘ u4) ** ((sp + signExtend12 4032) ↦ₘ u3) **
@@ -142,7 +142,7 @@ theorem mod_normA_full_spec (sp a0 a1 a2 a3 v5 v7 v10 shift anti_shift : Word)
     divK_normA_code_sub_modCode base a i
       (CodeReq.ofProg_mono_sub (base + 312) (base + 364) (divK_normA 40)
         (divK_normA_mergeA_prog 0 4048) 13
-        (by bv_addr) (by native_decide) (by native_decide) (by native_decide) a i h)) hma2
+        (by bv_addr) (by decide) (by decide) (by decide) a i h)) hma2
   have hma2ef := cpsTriple_frame_left _ _ _ _ _
     (((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
      ((sp + signExtend12 4024) ↦ₘ u4) ** ((sp + signExtend12 4032) ↦ₘ u3) **
@@ -157,7 +157,7 @@ theorem mod_normA_full_spec (sp a0 a1 a2 a3 v5 v7 v10 shift anti_shift : Word)
     divK_normA_code_sub_modCode base a i
       (CodeReq.ofProg_mono_sub (base + 312) (base + 384) (divK_normA 40)
         (divK_normA_last_prog 4056) 18
-        (by bv_addr) (by native_decide) (by native_decide) (by native_decide) a i h)) hlast
+        (by bv_addr) (by decide) (by decide) (by decide) a i h)) hlast
   have hlastef := cpsTriple_frame_left _ _ _ _ _
     ((.x5 ↦ᵣ u1) ** (.x10 ↦ᵣ (a0 >>> (anti_shift.toNat % 64))) ** (.x2 ↦ᵣ anti_shift) **
      ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
@@ -176,7 +176,7 @@ theorem mod_normA_full_spec (sp a0 a1 a2 a3 v5 v7 v10 shift anti_shift : Word)
     exact divK_normA_code_sub_modCode base a i
       (CodeReq.singleton_mono (by
         have hlookup := CodeReq.ofProg_lookup (base + 312) (divK_normA 40) 20
-          (by native_decide) (by native_decide)
+          (by decide) (by decide)
         rw [show (base + 312 : Word) + BitVec.ofNat 64 (4 * 20) = base + 392 from by bv_addr]
           at hlookup
         exact hlookup) a i h)) hjal
@@ -260,13 +260,13 @@ private theorem blt_loopSetup_sub_modCode (base : Word) :
       (modCode base) a = some i := by
   intro a i h
   have hlookup := CodeReq.ofProg_lookup (base + 432) (divK_loopSetup 460) 3
-    (by native_decide) (by native_decide)
-  rw [show BitVec.ofNat 64 (4 * 3) = (12 : Word) from by native_decide,
+    (by decide) (by decide)
+  rw [show BitVec.ofNat 64 (4 * 3) = (12 : Word) from by decide,
       show (base + 432 : Word) + 12 = base + 444 from by bv_addr] at hlookup
   exact divK_loopSetup_code_sub_modCode base a i
     (CodeReq.singleton_mono hlookup a i h)
 
-private theorem mod_signExtend13_460 : signExtend13 (460 : BitVec 13) = (460 : Word) := by native_decide
+private theorem mod_signExtend13_460 : signExtend13 (460 : BitVec 13) = (460 : Word) := by decide
 
 set_option maxRecDepth 2048 in
 /-- LoopSetup when m >= 0 (n <= 4): falls through to loop body at base+448.

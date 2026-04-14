@@ -64,18 +64,18 @@ theorem divK_denorm_preamble_spec (sp shift v5 v6 v7 v2 v10 : Word) (base : Word
     intro a i h
     exact divK_denorm_code_sub_divCode base a i
       (CodeReq.ofProg_mono_sub (base + 904) (base + 904) divK_denorm
-        [.LD .x6 .x12 3992] 0 (by bv_addr) (by native_decide) (by native_decide) (by native_decide) a i h)) hld
+        [.LD .x6 .x12 3992] 0 (by bv_addr) (by decide) (by decide) (by decide) a i h)) hld
   -- 2. BEQ x6 x0 96 at base+908 (denorm instr [1])
   have hbeq := beq_spec_gen .x6 .x0 (96 : BitVec 13) shift (0 : Word) (base + 908)
   rw [show (base + 908 : Word) + signExtend13 (96 : BitVec 13) = base + 1004 from by
-        rw [show signExtend13 (96 : BitVec 13) = (96 : Word) from by native_decide]
+        rw [show signExtend13 (96 : BitVec 13) = (96 : Word) from by decide]
         bv_addr,
       show (base + 908 : Word) + 4 = base + 912 from by bv_addr] at hbeq
   have hbeqe := cpsBranch_extend_code (hmono := by
     intro a i h
     exact divK_denorm_code_sub_divCode base a i
       (CodeReq.ofProg_mono_sub (base + 904) (base + 908) divK_denorm
-        [.BEQ .x6 .x0 96] 1 (by bv_addr) (by native_decide) (by native_decide) (by native_decide) a i h)) hbeq
+        [.BEQ .x6 .x0 96] 1 (by bv_addr) (by decide) (by decide) (by decide) a i h)) hbeq
   -- 3. Eliminate taken branch: shift ≠ 0 means BEQ not taken
   have hbeq_exit := cpsBranch_elim_ntaken _ _ _ _ _ _ _ hbeqe
     (fun hp hQt => by
@@ -135,7 +135,7 @@ theorem divK_denorm_body_spec (sp u0 u1 u2 u3 v2 v5 v7 shift : Word) (base : Wor
     divK_denorm_code_sub_divCode base a i
       (CodeReq.ofProg_mono_sub (base + 904) (base + 912) divK_denorm
         [.ADDI .x2 .x0 0] 2
-        (by bv_addr) (by native_decide) (by native_decide) (by native_decide) a i h)) haddi
+        (by bv_addr) (by decide) (by decide) (by decide) a i h)) haddi
   -- Frame ADDI with x12, x5, x7, x6, and all memory
   have haddief := cpsTriple_frame_left _ _ _ _ _
     ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ shift) **
@@ -149,8 +149,8 @@ theorem divK_denorm_body_spec (sp u0 u1 u2 u3 v2 v5 v7 shift : Word) (base : Wor
     divK_denorm_code_sub_divCode base a i
       (CodeReq.singleton_mono (by
         have hlookup := CodeReq.ofProg_lookup (base + 904) divK_denorm 3
-          (by native_decide) (by native_decide)
-        rw [show BitVec.ofNat 64 (4 * 3) = (12 : Word) from by native_decide,
+          (by decide) (by decide)
+        rw [show BitVec.ofNat 64 (4 * 3) = (12 : Word) from by decide,
             show (base + 904 : Word) + 12 = base + 916 from by bv_addr] at hlookup
         exact hlookup) a i h)) hsub
   -- Frame SUB with x12, x5, x7, x0, and all memory
@@ -169,7 +169,7 @@ theorem divK_denorm_body_spec (sp u0 u1 u2 u3 v2 v5 v7 shift : Word) (base : Wor
     divK_denorm_code_sub_divCode base a i
       (CodeReq.ofProg_mono_sub (base + 904) (base + 920) divK_denorm
         (divK_denorm_merge_prog 4056 4048) 4
-        (by bv_addr) (by native_decide) (by native_decide) (by native_decide) a i h)) hm0
+        (by bv_addr) (by decide) (by decide) (by decide) a i h)) hm0
   have hm0ef := cpsTriple_frame_left _ _ _ _ _
     ((.x0 ↦ᵣ (0 : Word)) **
      ((sp + signExtend12 4040) ↦ₘ u2) ** ((sp + signExtend12 4032) ↦ₘ u3))
@@ -185,7 +185,7 @@ theorem divK_denorm_body_spec (sp u0 u1 u2 u3 v2 v5 v7 shift : Word) (base : Wor
     divK_denorm_code_sub_divCode base a i
       (CodeReq.ofProg_mono_sub (base + 904) (base + 944) divK_denorm
         (divK_denorm_merge_prog 4048 4040) 10
-        (by bv_addr) (by native_decide) (by native_decide) (by native_decide) a i h)) hm1
+        (by bv_addr) (by decide) (by decide) (by decide) a i h)) hm1
   have hm1ef := cpsTriple_frame_left _ _ _ _ _
     ((.x0 ↦ᵣ (0 : Word)) **
      ((sp + signExtend12 4056) ↦ₘ u0') ** ((sp + signExtend12 4032) ↦ₘ u3))
@@ -201,7 +201,7 @@ theorem divK_denorm_body_spec (sp u0 u1 u2 u3 v2 v5 v7 shift : Word) (base : Wor
     divK_denorm_code_sub_divCode base a i
       (CodeReq.ofProg_mono_sub (base + 904) (base + 968) divK_denorm
         (divK_denorm_merge_prog 4040 4032) 16
-        (by bv_addr) (by native_decide) (by native_decide) (by native_decide) a i h)) hm2
+        (by bv_addr) (by decide) (by decide) (by decide) a i h)) hm2
   have hm2ef := cpsTriple_frame_left _ _ _ _ _
     ((.x0 ↦ᵣ (0 : Word)) **
      ((sp + signExtend12 4056) ↦ₘ u0') ** ((sp + signExtend12 4048) ↦ₘ u1'))
@@ -215,7 +215,7 @@ theorem divK_denorm_body_spec (sp u0 u1 u2 u3 v2 v5 v7 shift : Word) (base : Wor
     divK_denorm_code_sub_divCode base a i
       (CodeReq.ofProg_mono_sub (base + 904) (base + 992) divK_denorm
         (divK_denorm_last_prog 4032) 22
-        (by bv_addr) (by native_decide) (by native_decide) (by native_decide) a i h)) hl
+        (by bv_addr) (by decide) (by decide) (by decide) a i h)) hl
   have hlef := cpsTriple_frame_left _ _ _ _ _
     ((.x7 ↦ᵣ (u3 <<< (anti_shift.toNat % 64))) ** (.x2 ↦ᵣ anti_shift) ** (.x0 ↦ᵣ (0 : Word)) **
      ((sp + signExtend12 4056) ↦ₘ u0') ** ((sp + signExtend12 4048) ↦ₘ u1') **
@@ -272,17 +272,17 @@ theorem divK_div_epilogue_spec (sp : Word) (base : Word)
     divK_divEpilogue_code_sub_divCode base a i
       (CodeReq.ofProg_mono_sub (base + 1004) (base + 1004) (divK_div_epilogue 24)
         (divK_epilogue_load_prog 4088 4080 4072 4064) 0
-        (by bv_addr) (by native_decide) (by native_decide) (by native_decide) a i h)) hload
+        (by bv_addr) (by decide) (by decide) (by decide) a i h)) hload
   -- Store phase (base+1020 → base+1064 via JAL)
   have hstore := divK_epilogue_store_spec sp (base + 1020) q0 q1 q2 q3 m0 m8 m16 m24 24 hvalid
   rw [show (base + 1020 : Word) + 20 + signExtend21 24 = base + 1064 from by
-        rw [show signExtend21 (24 : BitVec 21) = (24 : Word) from by native_decide]; bv_addr]
+        rw [show signExtend21 (24 : BitVec 21) = (24 : Word) from by decide]; bv_addr]
     at hstore
   have hstoree := cpsTriple_extend_code (hmono := fun a i h =>
     divK_divEpilogue_code_sub_divCode base a i
       (CodeReq.ofProg_mono_sub (base + 1004) (base + 1020) (divK_div_epilogue 24)
         (divK_epilogue_store_prog 24) 4
-        (by bv_addr) (by native_decide) (by native_decide) (by native_decide) a i h)) hstore
+        (by bv_addr) (by decide) (by decide) (by decide) a i h)) hstore
   -- Frame load with output memory
   have hloadef := cpsTriple_frame_left _ _ _ _ _
     (((sp + 32) ↦ₘ m0) ** ((sp + 40) ↦ₘ m8) ** ((sp + 48) ↦ₘ m16) ** ((sp + 56) ↦ₘ m24))
@@ -328,11 +328,11 @@ private theorem beq_singleton_sub_modCode (base : Word) :
   intro a i h
   exact CodeReq.union_mono_left _ _ a i
     (CodeReq.singleton_mono (CodeReq.ofProg_lookup base (divK_phaseA 1016) 7
-      (by native_decide) (by native_decide)) a i h)
+      (by decide) (by decide)) a i h)
 
 -- signExtend13 normalization needed for BEQ offset in MOD specs
 private theorem signExtend13_1016 : signExtend13 (1016 : BitVec 13) = (1016 : Word) := by
-  native_decide
+  decide
 
 -- ============================================================================
 -- Section 13: MOD zero path composition (b = 0)
@@ -481,17 +481,17 @@ theorem divK_mod_epilogue_spec (sp : Word) (base : Word)
     divK_modEpilogue_code_sub_modCode base a i
       (CodeReq.ofProg_mono_sub (base + 1004) (base + 1004) (divK_mod_epilogue 24)
         (divK_epilogue_load_prog 4056 4048 4040 4032) 0
-        (by bv_addr) (by native_decide) (by native_decide) (by native_decide) a i h)) hload
+        (by bv_addr) (by decide) (by decide) (by decide) a i h)) hload
   -- Store phase (base+1020 → base+1064 via JAL): advance sp, store u[0..3] to output
   have hstore := divK_epilogue_store_spec sp (base + 1020) u0 u1 u2 u3 m0 m8 m16 m24 24 hvalid
   rw [show (base + 1020 : Word) + 20 + signExtend21 24 = base + 1064 from by
-        rw [show signExtend21 (24 : BitVec 21) = (24 : Word) from by native_decide]; bv_addr]
+        rw [show signExtend21 (24 : BitVec 21) = (24 : Word) from by decide]; bv_addr]
     at hstore
   have hstoree := cpsTriple_extend_code (hmono := fun a i h =>
     divK_modEpilogue_code_sub_modCode base a i
       (CodeReq.ofProg_mono_sub (base + 1004) (base + 1020) (divK_mod_epilogue 24)
         (divK_epilogue_store_prog 24) 4
-        (by bv_addr) (by native_decide) (by native_decide) (by native_decide) a i h)) hstore
+        (by bv_addr) (by decide) (by decide) (by decide) a i h)) hstore
   -- Frame load with output memory
   have hloadef := cpsTriple_frame_left _ _ _ _ _
     (((sp + 32) ↦ₘ m0) ** ((sp + 40) ↦ₘ m8) ** ((sp + 48) ↦ₘ m16) ** ((sp + 56) ↦ₘ m24))

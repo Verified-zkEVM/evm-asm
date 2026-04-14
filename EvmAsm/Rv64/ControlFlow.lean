@@ -7,7 +7,7 @@
   This module provides:
   - if_eq: a conditional macro (if rs1 = rs2 then ... else ...)
   - CPS specifications for the macro
-  - Concrete examples verified by native_decide
+  - Concrete examples verified by decide
 -/
 
 import EvmAsm.Rv64.Basic
@@ -83,22 +83,22 @@ def runIfEqExample (x10val x11val : Word) (steps : Nat) : Option MachineState :=
 
 /-- When x10 = x11 = 42, after 3 steps x12 should be 1. -/
 example : (runIfEqExample 42 42 3).bind (fun s => some (s.getReg .x12)) = some 1 := by
-  native_decide
+  decide
 
 /-- When x10 = x11 = 42, after 3 steps PC should be at exit (16). -/
 example : (runIfEqExample 42 42 3).bind (fun s => some s.pc) = some 16 := by
-  native_decide
+  decide
 
 -- Unequal case: BNE(taken, offset=4*(1+1)+4=12) → PC=12, LI x12 0 → PC=16
 -- That's 2 steps to reach exit at PC=16
 
 /-- When x10 = 42, x11 = 99, after 2 steps x12 should be 0. -/
 example : (runIfEqExample 42 99 2).bind (fun s => some (s.getReg .x12)) = some 0 := by
-  native_decide
+  decide
 
 /-- When x10 = 42, x11 = 99, after 2 steps PC should be at exit (16). -/
 example : (runIfEqExample 42 99 2).bind (fun s => some s.pc) = some 16 := by
-  native_decide
+  decide
 
 -- ============================================================================
 -- Additional examples: larger bodies
@@ -116,11 +116,11 @@ def runIfEqArith (x10val x11val : Word) (steps : Nat) : Option MachineState :=
 
 /-- When x10 = x11 = 5: takes then-branch, x12 := 5 + 5 = 10. -/
 example : (runIfEqArith 5 5 3).bind (fun s => some (s.getReg .x12)) = some 10 := by
-  native_decide
+  decide
 
 /-- When x10 = 10, x11 = 3: takes else-branch, x12 := 10 - 3 = 7. -/
 example : (runIfEqArith 10 3 2).bind (fun s => some (s.getReg .x12)) = some 7 := by
-  native_decide
+  decide
 
 -- ============================================================================
 -- Helper lemmas for symbolic proofs
@@ -591,7 +591,7 @@ theorem if_eq_spec_n (rs1 rs2 : Reg) (v1 v2 : Word)
      with computed byte offsets for branches.
 
   2. **Step-based execution**: Using `loadProgram` + `stepN`, we can
-     execute the branching code correctly (verified by `native_decide`).
+     execute the branching code correctly (verified by `decide`).
 
   3. **CPS specification**: `cpsBranch` captures the two-exit nature
      of conditional code. `cpsBranch_merge` composes it back into
@@ -631,27 +631,27 @@ def runCountdown (x10val : Word) (steps : Nat) : Option MachineState :=
 -- x10=0: BEQ taken immediately → PC=12 in 1 step
 /-- When x10 = 0, exits immediately (1 step, PC=12). -/
 example : (runCountdown 0 1).bind (fun s => some s.pc) = some 12 := by
-  native_decide
+  decide
 
 /-- When x10 = 0, x10 stays 0. -/
 example : (runCountdown 0 1).bind (fun s => some (s.getReg .x10)) = some 0 := by
-  native_decide
+  decide
 
 -- x10=1: BEQ not taken → ADDI (x10=0) → JAL (back to 0) → BEQ taken → PC=12
 -- That's 4 steps per iteration + 1 for final exit = 4 steps total
 /-- When x10 = 1, exits after 4 steps (PC=12, x10=0). -/
 example : (runCountdown 1 4).bind (fun s => some s.pc) = some 12 := by
-  native_decide
+  decide
 
 example : (runCountdown 1 4).bind (fun s => some (s.getReg .x10)) = some 0 := by
-  native_decide
+  decide
 
 -- x10=3: 3 iterations × 3 steps + 1 final BEQ = 10 steps
 /-- When x10 = 3, exits after 10 steps (PC=12, x10=0). -/
 example : (runCountdown 3 10).bind (fun s => some s.pc) = some 12 := by
-  native_decide
+  decide
 
 example : (runCountdown 3 10).bind (fun s => some (s.getReg .x10)) = some 0 := by
-  native_decide
+  decide
 
 end EvmAsm.Rv64

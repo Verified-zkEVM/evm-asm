@@ -163,7 +163,7 @@ def evm_signextend : Program :=
 -- ============================================================================
 
 /-- evm_signextend has exactly 48 instructions. -/
-example : evm_signextend.length = 48 := by native_decide
+example : evm_signextend.length = 48 := by decide
 
 -- ============================================================================
 -- Test infrastructure
@@ -214,7 +214,7 @@ def runSignExtCheck (sp : Word)
   | none => none
 
 -- ============================================================================
--- Concrete tests via native_decide
+-- Concrete tests via decide
 -- ============================================================================
 
 -- Step counts by path:
@@ -228,80 +228,80 @@ def runSignExtCheck (sp : Word)
 -- Test 1: SIGNEXTEND(0, 0x7F) = 0x7F (byte 0, positive, no sign extension)
 /-- SIGNEXTEND(0, 0x7F): positive byte 0, result unchanged. -/
 example : runSignExtResult 1024 0 0 0 0  0x7F 0 0 0  24 =
-    some [0x7F, 0, 0, 0] := by native_decide
+    some [0x7F, 0, 0, 0] := by decide
 
 -- Test 2: SIGNEXTEND(0, 0x80) = sign-extends to all-ones upper
 /-- SIGNEXTEND(0, 0x80): negative byte 0, sign extends to 256 bits. -/
 example : runSignExtResult 1024 0 0 0 0  0x80 0 0 0  24 =
-    some [0xFFFFFFFFFFFFFF80, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF] := by native_decide
+    some [0xFFFFFFFFFFFFFF80, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF] := by decide
 
 -- Test 3: SIGNEXTEND(0, 0xFF) = all-ones
 /-- SIGNEXTEND(0, 0xFF): byte 0 = 0xFF, extends to -1. -/
 example : runSignExtResult 1024 0 0 0 0  0xFF 0 0 0  24 =
-    some [0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF] := by native_decide
+    some [0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF] := by decide
 
 -- Test 4: SIGNEXTEND(1, 0x7FFF) = 0x7FFF (byte 1, positive)
 /-- SIGNEXTEND(1, 0x7FFF): positive byte 1, result unchanged. -/
 example : runSignExtResult 1024 1 0 0 0  0x7FFF 0 0 0  24 =
-    some [0x7FFF, 0, 0, 0] := by native_decide
+    some [0x7FFF, 0, 0, 0] := by decide
 
 -- Test 5: SIGNEXTEND(1, 0x8000) = sign-extends from bit 15
 /-- SIGNEXTEND(1, 0x8000): negative byte 1, sign extends. -/
 example : runSignExtResult 1024 1 0 0 0  0x8000 0 0 0  24 =
-    some [0xFFFFFFFFFFFF8000, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF] := by native_decide
+    some [0xFFFFFFFFFFFF8000, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF] := by decide
 
 -- Test 6: SIGNEXTEND(7, x) where bit 63 of limb 0 is 0 — limbs 1-3 zeroed
 /-- SIGNEXTEND(7, ...): positive bit 63, higher limbs zeroed. -/
 example : runSignExtResult 1024 7 0 0 0  0x0102030405060708 0xAAAA 0xBBBB 0xCCCC  24 =
-    some [0x0102030405060708, 0, 0, 0] := by native_decide
+    some [0x0102030405060708, 0, 0, 0] := by decide
 
 -- Test 7: SIGNEXTEND(7, x) where bit 63 of limb 0 is 1 — limbs 1-3 filled
 /-- SIGNEXTEND(7, ...): negative bit 63, higher limbs set to all-ones. -/
 example : runSignExtResult 1024 7 0 0 0  0x8102030405060708 0 0 0  24 =
-    some [0x8102030405060708, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF] := by native_decide
+    some [0x8102030405060708, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF] := by decide
 
 -- Test 8: SIGNEXTEND(8, x) — byte 8, limb 1, positive
 /-- SIGNEXTEND(8, ...): byte 8, positive, x[0] unchanged. -/
 example : runSignExtResult 1024 8 0 0 0  0xABCD 0x7F 0xEEEE 0xDDDD  26 =
-    some [0xABCD, 0x7F, 0, 0] := by native_decide
+    some [0xABCD, 0x7F, 0, 0] := by decide
 
 -- Test 9: SIGNEXTEND(8, x) — byte 8, limb 1, negative
 /-- SIGNEXTEND(8, ...): byte 8, negative, x[0] unchanged, upper filled. -/
 example : runSignExtResult 1024 8 0 0 0  0xABCD 0xFF 0xEEEE 0xDDDD  26 =
-    some [0xABCD, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF] := by native_decide
+    some [0xABCD, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF] := by decide
 
 -- Test 10: SIGNEXTEND(16, x) — byte 16, limb 2
 /-- SIGNEXTEND(16, ...): byte 16, positive, x[0-1] unchanged. -/
 example : runSignExtResult 1024 16 0 0 0  0x1111 0x2222 0x7F 0x3333  27 =
-    some [0x1111, 0x2222, 0x7F, 0] := by native_decide
+    some [0x1111, 0x2222, 0x7F, 0] := by decide
 
 -- Test 11: SIGNEXTEND(30, x) — byte 30, limb 3, positive
 /-- SIGNEXTEND(30, ...): byte 30, positive, x[3] unchanged. -/
 example : runSignExtResult 1024 30 0 0 0  0x1111 0x2222 0x3333 0x007FFFFFFFFFFFFF  25 =
-    some [0x1111, 0x2222, 0x3333, 0x007FFFFFFFFFFFFF] := by native_decide
+    some [0x1111, 0x2222, 0x3333, 0x007FFFFFFFFFFFFF] := by decide
 
 -- Test 12: SIGNEXTEND(30, x) — byte 30, limb 3, negative
 /-- SIGNEXTEND(30, ...): byte 30, negative, x[3] sign-extended in MSB. -/
 example : runSignExtResult 1024 30 0 0 0  0x1111 0x2222 0x3333 0x0080000000000000  25 =
-    some [0x1111, 0x2222, 0x3333, 0xFF80000000000000] := by native_decide
+    some [0x1111, 0x2222, 0x3333, 0xFF80000000000000] := by decide
 
 -- Test 13: SIGNEXTEND(31, x) = x (no change, b >= 31)
 /-- SIGNEXTEND(31, ...): b=31, no change. -/
 example : runSignExtResult 1024 31 0 0 0  0x1111 0x2222 0x3333 0x4444  10 =
-    some [0x1111, 0x2222, 0x3333, 0x4444] := by native_decide
+    some [0x1111, 0x2222, 0x3333, 0x4444] := by decide
 
 -- Test 14: SIGNEXTEND with high b limbs nonzero — no change
 /-- SIGNEXTEND with large b: no change. -/
 example : runSignExtResult 1024 0 1 0 0  0x80 0 0 0  7 =
-    some [0x80, 0, 0, 0] := by native_decide
+    some [0x80, 0, 0, 0] := by decide
 
 -- Test 15: Verify PC and sp are correct after execution
 /-- After SIGNEXTEND(0, ...), PC = 192 and x12 = sp + 32. -/
 example : runSignExtCheck 1024 0 0 0 0  0x7F 0 0 0  24 =
-    some (192, 1056) := by native_decide
+    some (192, 1056) := by decide
 
 /-- After SIGNEXTEND(31, ...), PC = 192 and x12 = sp + 32. -/
 example : runSignExtCheck 1024 31 0 0 0  0xFF 0 0 0  10 =
-    some (192, 1056) := by native_decide
+    some (192, 1056) := by decide
 
 end EvmAsm.Evm64

@@ -230,7 +230,7 @@ def evm_shl : Program :=
 -- ============================================================================
 
 /-- evm_shr has exactly 90 instructions. -/
-example : evm_shr.length = 90 := by native_decide
+example : evm_shr.length = 90 := by decide
 
 -- ============================================================================
 -- Test infrastructure
@@ -282,7 +282,7 @@ def runShrResult (sp : Word)
   | none => none
 
 -- ============================================================================
--- Concrete tests via native_decide
+-- Concrete tests via decide
 -- ============================================================================
 
 -- Step counts by path:
@@ -296,7 +296,7 @@ def runShrResult (sp : Word)
 -- Test 1: SHR(0, value) = value (no shift, ls0 path, 42 steps)
 /-- SHR by 0: result equals input value. -/
 example : runShrResult 1024 0 0 0 0  0xDEADBEEFCAFE0000 0 0 1  42 =
-    some [0xDEADBEEFCAFE0000, 0, 0, 1] := by native_decide
+    some [0xDEADBEEFCAFE0000, 0, 0, 1] := by decide
 
 -- Test 2: SHR(1, value) (ls0 path, 42 steps)
 -- result[0] = (0xDEADBEEFCAFE0000 >>> 1) | (0 <<< 63) = 0x6F56DF77E57F0000
@@ -304,36 +304,36 @@ example : runShrResult 1024 0 0 0 0  0xDEADBEEFCAFE0000 0 0 1  42 =
 -- result[3] = 1 >>> 1 = 0
 /-- SHR by 1 bit. -/
 example : runShrResult 1024 1 0 0 0  0xDEADBEEFCAFE0000 0 0 1  42 =
-    some [0x6F56DF77E57F0000, 0, 0x8000000000000000, 0] := by native_decide
+    some [0x6F56DF77E57F0000, 0, 0x8000000000000000, 0] := by decide
 
 -- Test 3: SHR(64, value) (ls1 path, 38 steps)
 -- limb_shift=1, bit_shift=0
 -- result[i] = value[i+1] for i=0..2, result[3]=0
 /-- SHR by 64 bits (one full limb). -/
 example : runShrResult 1024 64 0 0 0  0xDEADBEEFCAFE0000 0 0 1  38 =
-    some [0, 0, 1, 0] := by native_decide
+    some [0, 0, 1, 0] := by decide
 
 -- Test 4: SHR(255, value) (ls3 path, 28 steps)
 -- limb_shift=3, bit_shift=63
 -- result[0] = value[3] >>> 63 = 1 >>> 63 = 0
 /-- SHR by 255 bits. -/
 example : runShrResult 1024 255 0 0 0  0xDEADBEEFCAFE0000 0 0 1  28 =
-    some [0, 0, 0, 0] := by native_decide
+    some [0, 0, 0, 0] := by decide
 
 -- Test 5: SHR(256, value) = 0 (zero path via limb0, 14 steps)
 /-- SHR by 256: result is all zeros. -/
 example : runShrResult 1024 256 0 0 0  0xDEADBEEFCAFE0000 0 0 1  14 =
-    some [0, 0, 0, 0] := by native_decide
+    some [0, 0, 0, 0] := by decide
 
 -- Test 6: SHR with nonzero high shift limb (zero path via BNE, 11 steps)
 /-- SHR with shift having nonzero high limbs: result is all zeros. -/
 example : runShrResult 1024 0 1 0 0  0xDEADBEEFCAFE0000 0 0 1  11 =
-    some [0, 0, 0, 0] := by native_decide
+    some [0, 0, 0, 0] := by decide
 
 -- Test 7: SHR(4, 0xFF) = 0x0F (ls0 path)
 /-- SHR(4, 0xFF) = 0x0F. -/
 example : runShrResult 1024 4 0 0 0  0xFF 0 0 0  42 =
-    some [0x0F, 0, 0, 0] := by native_decide
+    some [0x0F, 0, 0, 0] := by decide
 
 -- Test 8: SHR(65, all-F value) (ls1 path, 38 steps)
 -- limb_shift=1, bit_shift=1
@@ -344,30 +344,30 @@ example : runShrResult 1024 4 0 0 0  0xFF 0 0 0  42 =
 /-- SHR(65, all-F value): shift by 1 limb + 1 bit. -/
 example : runShrResult 1024 65 0 0 0
     0xFFFFFFFFFFFFFFFF 0xFFFFFFFFFFFFFFFF 0xFFFFFFFFFFFFFFFF 0xFFFFFFFFFFFFFFFF  38 =
-    some [0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0x7FFFFFFFFFFFFFFF, 0] := by native_decide
+    some [0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0x7FFFFFFFFFFFFFFF, 0] := by decide
 
 -- Test 9: SHR(192, ...) with v3 = 0xABCD1234 (ls3 path, 28 steps)
 -- limb_shift=3, bit_shift=0
 -- result[0] = value[3] >>> 0 = 0xABCD1234
 /-- SHR by 192 bits (3 full limbs). -/
 example : runShrResult 1024 192 0 0 0  1 2 3 0xABCD1234  28 =
-    some [0xABCD1234, 0, 0, 0] := by native_decide
+    some [0xABCD1234, 0, 0, 0] := by decide
 
 -- Test 10: Verify PC and sp are correct after execution
 /-- After SHR(0, ...), PC = 360 and x12 = sp + 32. -/
 example : runShrCheck 1024 0 0 0 0  0xDEADBEEFCAFE0000 0 0 1  42 =
-    some (360, 1056) := by native_decide
+    some (360, 1056) := by decide
 
 /-- After SHR(256, ...), PC = 360 and x12 = sp + 32. -/
 example : runShrCheck 1024 256 0 0 0  0xDEADBEEFCAFE0000 0 0 1  14 =
-    some (360, 1056) := by native_decide
+    some (360, 1056) := by decide
 
 -- ============================================================================
 -- SHL: Instruction count verification + tests
 -- ============================================================================
 
 /-- evm_shl has exactly 90 instructions. -/
-example : evm_shl.length = 90 := by native_decide
+example : evm_shl.length = 90 := by decide
 
 /-- Create a test state for SHL. -/
 def mkShlTestState (sp : Word)
@@ -415,60 +415,60 @@ def runShlCheck (sp : Word) (s0 s1 s2 s3 : Word) (v0 v1 v2 v3 : Word)
 -- Test 1: SHL(0, value) = value
 /-- SHL by 0: result equals input value. -/
 example : runShlResult 1024 0 0 0 0  0xDEADBEEF 0 0 1  42 =
-    some [0xDEADBEEF, 0, 0, 1] := by native_decide
+    some [0xDEADBEEF, 0, 0, 1] := by decide
 
 -- Test 2: SHL(1, 0xFF) = 0x1FE (ls0 path)
 /-- SHL by 1 bit. -/
 example : runShlResult 1024 1 0 0 0  0xFF 0 0 0  42 =
-    some [0x1FE, 0, 0, 0] := by native_decide
+    some [0x1FE, 0, 0, 0] := by decide
 
 -- Test 3: SHL(4, 0xFF) = 0xFF0 (ls0 path)
 /-- SHL(4, 0xFF) = 0xFF0. -/
 example : runShlResult 1024 4 0 0 0  0xFF 0 0 0  42 =
-    some [0xFF0, 0, 0, 0] := by native_decide
+    some [0xFF0, 0, 0, 0] := by decide
 
 -- Test 4: SHL(64, value) (ls1 path, 38 steps)
 -- limb_shift=1, bit_shift=0: result[i] = value[i-1]
 /-- SHL by 64 bits (one full limb). -/
 example : runShlResult 1024 64 0 0 0  0xDEADBEEF 0 0 1  38 =
-    some [0, 0xDEADBEEF, 0, 0] := by native_decide
+    some [0, 0xDEADBEEF, 0, 0] := by decide
 
 -- Test 5: SHL(65, all-F value) (ls1 path, 38 steps)
 /-- SHL(65, all-F value): shift by 1 limb + 1 bit. -/
 example : runShlResult 1024 65 0 0 0
     0xFFFFFFFFFFFFFFFF 0xFFFFFFFFFFFFFFFF 0xFFFFFFFFFFFFFFFF 0xFFFFFFFFFFFFFFFF  38 =
-    some [0, 0xFFFFFFFFFFFFFFFE, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF] := by native_decide
+    some [0, 0xFFFFFFFFFFFFFFFE, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF] := by decide
 
 -- Test 6: SHL(192, ...) with v0 = 0xABCD1234 (ls3 path, 28 steps)
 /-- SHL by 192 bits (3 full limbs). -/
 example : runShlResult 1024 192 0 0 0  0xABCD1234 2 3 4  28 =
-    some [0, 0, 0, 0xABCD1234] := by native_decide
+    some [0, 0, 0, 0xABCD1234] := by decide
 
 -- Test 7: SHL(128, value) (ls2 path, 34 steps)
 /-- SHL by 128 bits (2 full limbs). -/
 example : runShlResult 1024 128 0 0 0  0xA 0xB 0xC 0xD  34 =
-    some [0, 0, 0xA, 0xB] := by native_decide
+    some [0, 0, 0xA, 0xB] := by decide
 
 -- Test 8: SHL(256, value) = 0 (zero path, 14 steps)
 /-- SHL by 256: result is all zeros. -/
 example : runShlResult 1024 256 0 0 0  0xDEADBEEF 0 0 1  14 =
-    some [0, 0, 0, 0] := by native_decide
+    some [0, 0, 0, 0] := by decide
 
 -- Test 9: SHL with nonzero high shift limb (zero path, 11 steps)
 /-- SHL with shift having nonzero high limbs: result is all zeros. -/
 example : runShlResult 1024 0 1 0 0  0xDEADBEEF 0 0 1  11 =
-    some [0, 0, 0, 0] := by native_decide
+    some [0, 0, 0, 0] := by decide
 
 -- Test 10: SHL(1, ...) with carry across limb boundary
 -- v0 = 0x8000000000000000, SHL 1 → result[0] = 0, result[1] = 1
 /-- SHL by 1 with carry across limb boundary. -/
 example : runShlResult 1024 1 0 0 0  0x8000000000000000 0 0 0  42 =
-    some [0, 1, 0, 0] := by native_decide
+    some [0, 1, 0, 0] := by decide
 
 -- Test 11: Verify PC and sp are correct after execution
 /-- After SHL(0, ...), PC = 360 and x12 = sp + 32. -/
 example : runShlCheck 1024 0 0 0 0  0xFF 0 0 0  42 =
-    some (360, 1056) := by native_decide
+    some (360, 1056) := by decide
 
 -- ============================================================================
 -- SAR (Shift Arithmetic Right) sub-program definitions
@@ -587,7 +587,7 @@ def evm_sar : Program :=
 -- ============================================================================
 
 /-- evm_sar has exactly 95 instructions. -/
-example : evm_sar.length = 95 := by native_decide
+example : evm_sar.length = 95 := by decide
 
 /-- Create a test state for SAR. -/
 def mkSarTestState (sp : Word)
@@ -635,12 +635,12 @@ def runSarCheck (sp : Word) (s0 s1 s2 s3 : Word) (v0 v1 v2 v3 : Word)
 -- Test 1: SAR(0, positive) = identity
 /-- SAR by 0 on positive value: result equals input. -/
 example : runSarResult 1024 0 0 0 0  0xFF 0 0 0  42 =
-    some [0xFF, 0, 0, 0] := by native_decide
+    some [0xFF, 0, 0, 0] := by decide
 
 -- Test 2: SAR(1, 0xFF) = 0x7F (positive, ls0)
 /-- SAR(1, 0xFF) = 0x7F (positive value, logical shift). -/
 example : runSarResult 1024 1 0 0 0  0xFF 0 0 0  42 =
-    some [0x7F, 0, 0, 0] := by native_decide
+    some [0x7F, 0, 0, 0] := by decide
 
 -- Test 3: SAR(1, negative value) — MSB limb has sign bit set
 -- value = [0, 0, 0, 0x8000000000000000] (= -2^255 in signed)
@@ -656,7 +656,7 @@ example : runSarResult 1024 1 0 0 0  0xFF 0 0 0  42 =
 -- sar_last(24): SRA 0x8000000000000000 by 1 = 0xC000000000000000
 /-- SAR(1, -2^255): sign bit preserved. -/
 example : runSarResult 1024 1 0 0 0  0 0 0 0x8000000000000000  42 =
-    some [0, 0, 0, 0xC000000000000000] := by native_decide
+    some [0, 0, 0, 0xC000000000000000] := by decide
 
 -- Test 4: SAR(64, negative) (ls1, 39 steps)
 -- value = [0, 0, 0, 0xFFFFFFFFFFFFFFFF]
@@ -670,7 +670,7 @@ example : runSarResult 1024 1 0 0 0  0 0 0 0x8000000000000000  42 =
 -- result[3] = sign_ext = SRAI(0xFFFFFFFFFFFFFFFF, 63) = 0xFFFFFFFFFFFFFFFF
 /-- SAR(64, negative): shift by 1 full limb, sign extends. -/
 example : runSarResult 1024 64 0 0 0  0 0 0 0xFFFFFFFFFFFFFFFF  39 =
-    some [0, 0, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF] := by native_decide
+    some [0, 0, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF] := by decide
 
 -- Test 5: SAR(192, negative) (ls3, 29 steps)
 -- value = [1, 2, 3, 0x8000000000000000]
@@ -678,22 +678,22 @@ example : runSarResult 1024 64 0 0 0  0 0 0 0xFFFFFFFFFFFFFFFF  39 =
 -- result[1..3] = sign_ext = 0xFFFFFFFFFFFFFFFF
 /-- SAR(192, negative): shift by 3 limbs, sign-fills upper. -/
 example : runSarResult 1024 192 0 0 0  1 2 3 0x8000000000000000  29 =
-    some [0x8000000000000000, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF] := by native_decide
+    some [0x8000000000000000, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF] := by decide
 
 -- Test 6: SAR(256, negative) = all-1s (sign-fill path, 16 steps)
 /-- SAR(256, negative): result is all-1s (sign extension). -/
 example : runSarResult 1024 256 0 0 0  0 0 0 0x8000000000000000  16 =
-    some [0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF] := by native_decide
+    some [0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF] := by decide
 
 -- Test 7: SAR(256, positive) = all-0s
 /-- SAR(256, positive): result is all zeros. -/
 example : runSarResult 1024 256 0 0 0  0xFF 0 0 0  16 =
-    some [0, 0, 0, 0] := by native_decide
+    some [0, 0, 0, 0] := by decide
 
 -- Test 8: SAR with nonzero high shift limb, negative value (13 steps)
 /-- SAR with shift > 256 on negative: result is all-1s. -/
 example : runSarResult 1024 0 1 0 0  0 0 0 0xFFFFFFFFFFFFFFFF  13 =
-    some [0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF] := by native_decide
+    some [0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF] := by decide
 
 -- Test 9: SAR(128, value) (ls2, 35 steps)
 -- value = [0xA, 0xB, 0xC, 0x8000000000000001]
@@ -704,22 +704,22 @@ example : runSarResult 1024 0 1 0 0  0 0 0 0xFFFFFFFFFFFFFFFF  13 =
 -- result[2] = result[3] = 0xFFFFFFFFFFFFFFFF
 /-- SAR(128, negative): shift by 2 limbs. -/
 example : runSarResult 1024 128 0 0 0  0xA 0xB 0xC 0x8000000000000001  35 =
-    some [0xC, 0x8000000000000001, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF] := by native_decide
+    some [0xC, 0x8000000000000001, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF] := by decide
 
 -- Test 10: SAR(4, all-1s) = all-1s (arithmetic shift preserves sign)
 /-- SAR(4, -1) = -1 (all bits 1). -/
 example : runSarResult 1024 4 0 0 0
     0xFFFFFFFFFFFFFFFF 0xFFFFFFFFFFFFFFFF 0xFFFFFFFFFFFFFFFF 0xFFFFFFFFFFFFFFFF  42 =
-    some [0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF] := by native_decide
+    some [0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF] := by decide
 
 -- Test 11: Verify PC and sp after SAR
 /-- After SAR(0, ...), PC = 380 and x12 = sp + 32. -/
 example : runSarCheck 1024 0 0 0 0  0xFF 0 0 0  42 =
-    some (380, 1056) := by native_decide
+    some (380, 1056) := by decide
 
 /-- After SAR(256, negative), PC = 380 and x12 = sp + 32. -/
 example : runSarCheck 1024 256 0 0 0  0 0 0 0x8000000000000000  16 =
-    some (380, 1056) := by native_decide
+    some (380, 1056) := by decide
 
 -- ============================================================================
 -- Parametric program definitions (for specs with symbolic offsets)

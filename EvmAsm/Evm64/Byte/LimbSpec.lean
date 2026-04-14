@@ -264,33 +264,33 @@ private theorem byte_pc_instr_sub (base addr : Word) (instr : Instr) (k : Nat)
     (h_instr : byte_phase_c.get ⟨k, hk⟩ = instr) :
     ∀ a i, CodeReq.singleton addr instr a = some i → (byte_phase_c_code base) a = some i :=
   CodeReq.singleton_mono (h_instr ▸ CodeReq.ofProg_lookup_addr base byte_phase_c k addr hk
-    (by native_decide) h_addr)
+    (by decide) h_addr)
 
 -- Per-instruction subsumption lemmas (k = 0..4)
 private theorem byte_pc_sub_0 (base : Word) :
     ∀ a i, CodeReq.singleton base (.BEQ .x5 .x0 68) a = some i →
       (byte_phase_c_code base) a = some i :=
-  byte_pc_instr_sub base base _ 0 (by native_decide) (by bv_omega) (by native_decide)
+  byte_pc_instr_sub base base _ 0 (by decide) (by bv_omega) (by decide)
 
 private theorem byte_pc_sub_1 (base : Word) :
     ∀ a i, CodeReq.singleton (base + 4) (.ADDI .x10 .x0 1) a = some i →
       (byte_phase_c_code base) a = some i :=
-  byte_pc_instr_sub base (base + 4) _ 1 (by native_decide) (by bv_omega) (by native_decide)
+  byte_pc_instr_sub base (base + 4) _ 1 (by decide) (by bv_omega) (by decide)
 
 private theorem byte_pc_sub_2 (base : Word) :
     ∀ a i, CodeReq.singleton (base + 8) (.BEQ .x5 .x10 44) a = some i →
       (byte_phase_c_code base) a = some i :=
-  byte_pc_instr_sub base (base + 8) _ 2 (by native_decide) (by bv_omega) (by native_decide)
+  byte_pc_instr_sub base (base + 8) _ 2 (by decide) (by bv_omega) (by decide)
 
 private theorem byte_pc_sub_3 (base : Word) :
     ∀ a i, CodeReq.singleton (base + 12) (.ADDI .x10 .x0 2) a = some i →
       (byte_phase_c_code base) a = some i :=
-  byte_pc_instr_sub base (base + 12) _ 3 (by native_decide) (by bv_omega) (by native_decide)
+  byte_pc_instr_sub base (base + 12) _ 3 (by decide) (by bv_omega) (by decide)
 
 private theorem byte_pc_sub_4 (base : Word) :
     ∀ a i, CodeReq.singleton (base + 16) (.BEQ .x5 .x10 20) a = some i →
       (byte_phase_c_code base) a = some i :=
-  byte_pc_instr_sub base (base + 16) _ 4 (by native_decide) (by bv_omega) (by native_decide)
+  byte_pc_instr_sub base (base + 16) _ 4 (by decide) (by bv_omega) (by decide)
 
 set_option maxHeartbeats 6400000 in
 /-- Phase C cascade dispatch spec: branches on x5 (limb_from_msb) to 4 body entry points.

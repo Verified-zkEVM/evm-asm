@@ -14,25 +14,25 @@ namespace EvmAsm.Evm64
 open EvmAsm.Rv64
 
 -- ============================================================================
--- Program length lemmas (via native_decide)
+-- Program length lemmas (via decide)
 -- Non-private so they are accessible from sub-files via skipBlock macro.
 -- ============================================================================
 
-theorem divK_phaseA_len : (divK_phaseA 1016).length = 8 := by native_decide
-theorem divK_phaseB_len : divK_phaseB.length = 21 := by native_decide
-theorem divK_clz_len : divK_clz.length = 24 := by native_decide
-theorem divK_phaseC2_len : (divK_phaseC2 172).length = 4 := by native_decide
-theorem divK_normB_len : divK_normB.length = 21 := by native_decide
-theorem divK_normA_len : (divK_normA 40).length = 21 := by native_decide
-theorem divK_copyAU_len : divK_copyAU.length = 9 := by native_decide
-theorem divK_loopSetup_len : (divK_loopSetup 460).length = 4 := by native_decide
-theorem divK_loopBody_len : (divK_loopBody 556 7740).length = 114 := by native_decide
-theorem divK_denorm_len : divK_denorm.length = 25 := by native_decide
-theorem divK_divEpilogue_len : (divK_div_epilogue 24).length = 10 := by native_decide
-theorem divK_zeroPath_len : divK_zeroPath.length = 5 := by native_decide
-theorem divK_nop_len : (ADDI .x0 .x0 0 : Program).length = 1 := by native_decide
-theorem divK_div128_len : divK_div128.length = 49 := by native_decide
-theorem divK_modEpilogue_len : (divK_mod_epilogue 24).length = 10 := by native_decide
+theorem divK_phaseA_len : (divK_phaseA 1016).length = 8 := by decide
+theorem divK_phaseB_len : divK_phaseB.length = 21 := by decide
+theorem divK_clz_len : divK_clz.length = 24 := by decide
+theorem divK_phaseC2_len : (divK_phaseC2 172).length = 4 := by decide
+theorem divK_normB_len : divK_normB.length = 21 := by decide
+theorem divK_normA_len : (divK_normA 40).length = 21 := by decide
+theorem divK_copyAU_len : divK_copyAU.length = 9 := by decide
+theorem divK_loopSetup_len : (divK_loopSetup 460).length = 4 := by decide
+theorem divK_loopBody_len : (divK_loopBody 556 7740).length = 114 := by decide
+theorem divK_denorm_len : divK_denorm.length = 25 := by decide
+theorem divK_divEpilogue_len : (divK_div_epilogue 24).length = 10 := by decide
+theorem divK_zeroPath_len : divK_zeroPath.length = 5 := by decide
+theorem divK_nop_len : (ADDI .x0 .x0 0 : Program).length = 1 := by decide
+theorem divK_div128_len : divK_div128.length = 49 := by decide
+theorem divK_modEpilogue_len : (divK_mod_epilogue 24).length = 10 := by decide
 
 /-- Skip one ofProg block in a right-nested union via range disjointness.
     Closes the disjointness goal using block length lemmas + bv_omega. -/

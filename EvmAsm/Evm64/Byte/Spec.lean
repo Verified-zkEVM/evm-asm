@@ -32,16 +32,16 @@ abbrev evm_byte_code (base : Word) : CodeReq :=
   CodeReq.ofProg base evm_byte
 
 -- Program length verification
-private theorem byte_phase_a_len : byte_phase_a.length = 9 := by native_decide
-private theorem byte_phase_b_len : byte_phase_b.length = 5 := by native_decide
-private theorem byte_phase_c_len : byte_phase_c.length = 5 := by native_decide
-private theorem byte_body_3_len : byte_body_3.length = 4 := by native_decide
-private theorem byte_body_2_len : byte_body_2.length = 4 := by native_decide
-private theorem byte_body_1_len : byte_body_1.length = 4 := by native_decide
-private theorem byte_body_0_len : byte_body_0.length = 3 := by native_decide
-private theorem byte_store_len : byte_store.length = 6 := by native_decide
-private theorem byte_zero_path_len : byte_zero_path.length = 5 := by native_decide
-private theorem evm_byte_len : evm_byte.length = 45 := by native_decide
+private theorem byte_phase_a_len : byte_phase_a.length = 9 := by decide
+private theorem byte_phase_b_len : byte_phase_b.length = 5 := by decide
+private theorem byte_phase_c_len : byte_phase_c.length = 5 := by decide
+private theorem byte_body_3_len : byte_body_3.length = 4 := by decide
+private theorem byte_body_2_len : byte_body_2.length = 4 := by decide
+private theorem byte_body_1_len : byte_body_1.length = 4 := by decide
+private theorem byte_body_0_len : byte_body_0.length = 3 := by decide
+private theorem byte_store_len : byte_store.length = 6 := by decide
+private theorem byte_zero_path_len : byte_zero_path.length = 5 := by decide
+private theorem evm_byte_len : evm_byte.length = 45 := by decide
 
 -- ============================================================================
 -- CodeReq subsumption: each sub-phase code ⊆ evm_byte_code
@@ -52,56 +52,56 @@ private theorem byte_phase_a_sub (base : Word) :
     ∀ a i, (byte_phase_a_code base) a = some i → (evm_byte_code base) a = some i := by
   unfold evm_byte_code byte_phase_a_code
   exact CodeReq.ofProg_mono_sub base base evm_byte byte_phase_a 0
-    (by bv_omega) (by native_decide) (by native_decide) (by native_decide)
+    (by bv_omega) (by decide) (by decide) (by decide)
 
 /-- Phase B code (5 instrs at offset 36) is subsumed by evm_byte_code. -/
 private theorem byte_phase_b_sub (base : Word) :
     ∀ a i, (byte_phase_b_code (base + 36)) a = some i → (evm_byte_code base) a = some i := by
   unfold evm_byte_code byte_phase_b_code
   exact CodeReq.ofProg_mono_sub base (base + 36) evm_byte byte_phase_b 9
-    (by bv_omega) (by native_decide) (by native_decide) (by native_decide)
+    (by bv_omega) (by decide) (by decide) (by decide)
 
 /-- body_3 code (4 instrs at offset 76) is subsumed by evm_byte_code. -/
 private theorem byte_body_3_sub (base : Word) :
     ∀ a i, (byte_body_3_code (base + 76)) a = some i → (evm_byte_code base) a = some i := by
   unfold evm_byte_code byte_body_3_code
   exact CodeReq.ofProg_mono_sub base (base + 76) evm_byte byte_body_3 19
-    (by bv_omega) (by native_decide) (by native_decide) (by native_decide)
+    (by bv_omega) (by decide) (by decide) (by decide)
 
 /-- body_2 code (4 instrs at offset 92) is subsumed by evm_byte_code. -/
 private theorem byte_body_2_sub (base : Word) :
     ∀ a i, (byte_body_2_code (base + 92)) a = some i → (evm_byte_code base) a = some i := by
   unfold evm_byte_code byte_body_2_code
   exact CodeReq.ofProg_mono_sub base (base + 92) evm_byte byte_body_2 23
-    (by bv_omega) (by native_decide) (by native_decide) (by native_decide)
+    (by bv_omega) (by decide) (by decide) (by decide)
 
 /-- body_1 code (4 instrs at offset 108) is subsumed by evm_byte_code. -/
 private theorem byte_body_1_sub (base : Word) :
     ∀ a i, (byte_body_1_code (base + 108)) a = some i → (evm_byte_code base) a = some i := by
   unfold evm_byte_code byte_body_1_code
   exact CodeReq.ofProg_mono_sub base (base + 108) evm_byte byte_body_1 27
-    (by bv_omega) (by native_decide) (by native_decide) (by native_decide)
+    (by bv_omega) (by decide) (by decide) (by decide)
 
 /-- body_0 code (3 instrs at offset 124) is subsumed by evm_byte_code. -/
 private theorem byte_body_0_sub (base : Word) :
     ∀ a i, (byte_body_0_code (base + 124)) a = some i → (evm_byte_code base) a = some i := by
   unfold evm_byte_code byte_body_0_code
   exact CodeReq.ofProg_mono_sub base (base + 124) evm_byte byte_body_0 31
-    (by bv_omega) (by native_decide) (by native_decide) (by native_decide)
+    (by bv_omega) (by decide) (by decide) (by decide)
 
 /-- Store code (6 instrs at offset 136) is subsumed by evm_byte_code. -/
 private theorem byte_store_sub (base : Word) :
     ∀ a i, (byte_store_code (base + 136)) a = some i → (evm_byte_code base) a = some i := by
   unfold evm_byte_code byte_store_code
   exact CodeReq.ofProg_mono_sub base (base + 136) evm_byte byte_store 34
-    (by bv_omega) (by native_decide) (by native_decide) (by native_decide)
+    (by bv_omega) (by decide) (by decide) (by decide)
 
 /-- Zero path code (5 instrs at offset 160) is subsumed by evm_byte_code. -/
 private theorem byte_zero_path_sub (base : Word) :
     ∀ a i, (byte_zero_path_code (base + 160)) a = some i → (evm_byte_code base) a = some i := by
   unfold evm_byte_code byte_zero_path_code
   exact CodeReq.ofProg_mono_sub base (base + 160) evm_byte byte_zero_path 40
-    (by bv_omega) (by native_decide) (by native_decide) (by native_decide)
+    (by bv_omega) (by decide) (by decide) (by decide)
 
 -- ============================================================================
 -- Phase C subsumption
@@ -112,7 +112,7 @@ private theorem byte_phase_c_sub (base : Word) :
     ∀ a i, (byte_phase_c_code (base + 56)) a = some i → (evm_byte_code base) a = some i := by
   unfold evm_byte_code byte_phase_c_code
   exact CodeReq.ofProg_mono_sub base (base + 56) evm_byte byte_phase_c 14
-    (by bv_omega) (by native_decide) (by native_decide) (by native_decide)
+    (by bv_omega) (by decide) (by decide) (by decide)
 
 -- ============================================================================
 -- Singleton subsumption for individual branch instructions
@@ -125,35 +125,35 @@ private theorem singleton_sub_evm_byte (base addr : Word) (instr : Instr) (k : N
     (h_instr : evm_byte.get ⟨k, hk⟩ = instr) :
     ∀ a i, CodeReq.singleton addr instr a = some i → (evm_byte_code base) a = some i :=
   CodeReq.singleton_mono (h_instr ▸ CodeReq.ofProg_lookup_addr base evm_byte k addr hk
-    (by native_decide) h_addr)
+    (by decide) h_addr)
 
 /-- BNE x5 x0 140 singleton at base+20 is subsumed by evm_byte_code. -/
 private theorem byte_bne_sub (base : Word) :
     ∀ a i, CodeReq.singleton (base + 20) (.BNE .x5 .x0 140) a = some i →
       (evm_byte_code base) a = some i :=
   singleton_sub_evm_byte base (base + 20) (.BNE .x5 .x0 140) 5
-    (by native_decide) (by bv_omega) (by native_decide)
+    (by decide) (by bv_omega) (by decide)
 
 /-- LD x5 x12 0 singleton at base+24 is subsumed by evm_byte_code. -/
 private theorem byte_ld0_sub (base : Word) :
     ∀ a i, CodeReq.singleton (base + 24) (.LD .x5 .x12 0) a = some i →
       (evm_byte_code base) a = some i :=
   singleton_sub_evm_byte base (base + 24) (.LD .x5 .x12 0) 6
-    (by native_decide) (by bv_omega) (by native_decide)
+    (by decide) (by bv_omega) (by decide)
 
 /-- SLTIU x10 x5 32 singleton at base+28 is subsumed by evm_byte_code. -/
 private theorem byte_sltiu_sub (base : Word) :
     ∀ a i, CodeReq.singleton (base + 28) (.SLTIU .x10 .x5 32) a = some i →
       (evm_byte_code base) a = some i :=
   singleton_sub_evm_byte base (base + 28) (.SLTIU .x10 .x5 32) 7
-    (by native_decide) (by bv_omega) (by native_decide)
+    (by decide) (by bv_omega) (by decide)
 
 /-- BEQ x10 x0 128 singleton at base+32 is subsumed by evm_byte_code. -/
 private theorem byte_beq_sub (base : Word) :
     ∀ a i, CodeReq.singleton (base + 32) (.BEQ .x10 .x0 128) a = some i →
       (evm_byte_code base) a = some i :=
   singleton_sub_evm_byte base (base + 32) (.BEQ .x10 .x0 128) 8
-    (by native_decide) (by bv_omega) (by native_decide)
+    (by decide) (by bv_omega) (by decide)
 
 -- ============================================================================
 -- Address normalization lemmas
@@ -172,35 +172,35 @@ private theorem byte_off_160_20 (base : Word) : (base + 160 : Word) + 20 = base 
 
 -- BNE/BEQ branch targets
 private theorem byte_bne_target (base : Word) : (base + 20 : Word) + signExtend13 140 = base + 160 := by
-  rw [show signExtend13 (140 : BitVec 13) = (140 : Word) from by native_decide]; bv_omega
+  rw [show signExtend13 (140 : BitVec 13) = (140 : Word) from by decide]; bv_omega
 private theorem byte_beq_target (base : Word) : (base + 32 : Word) + signExtend13 128 = base + 160 := by
-  rw [show signExtend13 (128 : BitVec 13) = (128 : Word) from by native_decide]; bv_omega
+  rw [show signExtend13 (128 : BitVec 13) = (128 : Word) from by decide]; bv_omega
 
 -- Phase C exit addresses
 private theorem byte_c_e0 (base : Word) : (base + 56 : Word) + signExtend13 68 = base + 124 := by
-  rw [show signExtend13 (68 : BitVec 13) = (68 : Word) from by native_decide]; bv_omega
+  rw [show signExtend13 (68 : BitVec 13) = (68 : Word) from by decide]; bv_omega
 private theorem byte_c_e1 (base : Word) : ((base + 56 : Word) + 8) + signExtend13 44 = base + 108 := by
-  rw [show signExtend13 (44 : BitVec 13) = (44 : Word) from by native_decide]; bv_omega
+  rw [show signExtend13 (44 : BitVec 13) = (44 : Word) from by decide]; bv_omega
 private theorem byte_c_e2 (base : Word) : ((base + 56 : Word) + 16) + signExtend13 20 = base + 92 := by
-  rw [show signExtend13 (20 : BitVec 13) = (20 : Word) from by native_decide]; bv_omega
+  rw [show signExtend13 (20 : BitVec 13) = (20 : Word) from by decide]; bv_omega
 private theorem byte_c_e3 (base : Word) : (base + 56 : Word) + 20 = base + 76 := by bv_omega
 
 -- Body exit addresses (JAL targets → store at base+136)
 private theorem byte_body_3_exit_eq (base : Word) :
     (base + 76 + 12) + signExtend21 (48 : BitVec 21) = base + 136 := by
-  rw [show signExtend21 (48 : BitVec 21) = (48 : Word) from by native_decide]; bv_omega
+  rw [show signExtend21 (48 : BitVec 21) = (48 : Word) from by decide]; bv_omega
 private theorem byte_body_2_exit_eq (base : Word) :
     (base + 92 + 12) + signExtend21 (32 : BitVec 21) = base + 136 := by
-  rw [show signExtend21 (32 : BitVec 21) = (32 : Word) from by native_decide]; bv_omega
+  rw [show signExtend21 (32 : BitVec 21) = (32 : Word) from by decide]; bv_omega
 private theorem byte_body_1_exit_eq (base : Word) :
     (base + 108 + 12) + signExtend21 (16 : BitVec 21) = base + 136 := by
-  rw [show signExtend21 (16 : BitVec 21) = (16 : Word) from by native_decide]; bv_omega
+  rw [show signExtend21 (16 : BitVec 21) = (16 : Word) from by decide]; bv_omega
 -- body_0 is fallthrough: exits at base+124+12 = base+136 (no JAL)
 
 -- Store exit address
 private theorem byte_store_exit_eq (base : Word) :
     (base + 136 + 20) + signExtend21 (24 : BitVec 21) = base + 180 := by
-  rw [show signExtend21 (24 : BitVec 21) = (24 : Word) from by native_decide]; bv_omega
+  rw [show signExtend21 (24 : BitVec 21) = (24 : Word) from by decide]; bv_omega
 
 -- sp address normalization
 private theorem byte_off_sp32 (sp : Word) : sp + signExtend12 (32 : BitVec 12) = sp + 32 := by
@@ -272,7 +272,7 @@ private theorem cpsTriple_strip_pure_and_convert
 -- ============================================================================
 
 /-- signExtend12 (255 : BitVec 12) = (255 : Word). -/
-private theorem signExtend12_255 : signExtend12 (255 : BitVec 12) = (255 : Word) := by native_decide
+private theorem signExtend12_255 : signExtend12 (255 : BitVec 12) = (255 : Word) := by decide
 
 /-- Bridge from per-limb SRL+ANDI to natural number div+mod.
     `(limb >>> (n % 64)) &&& 255 = BitVec.ofNat 64 ((limb.toNat / 2^n) % 256)` for n < 64. -/
@@ -283,7 +283,7 @@ private theorem bv_srl_mask_eq (x : Word) (n : Nat) (hn : n < 64) :
   have hn64 : n % 64 = n := Nat.mod_eq_of_lt hn
   rw [hn64]; apply BitVec.eq_of_toNat_eq
   simp only [BitVec.toNat_and, BitVec.toNat_ushiftRight, Nat.shiftRight_eq_div_pow,
-             show (255 : Word).toNat = 255 from by native_decide,
+             show (255 : Word).toNat = 255 from by decide,
              BitVec.toNat_ofNat]
   rw [Nat.and_two_pow_sub_one_eq_mod _ 8]
   have hmod_lt : (x.toNat / 2 ^ n) % 256 < 2 ^ 64 := by
@@ -737,7 +737,7 @@ theorem evm_byte_body_evmWord_spec (sp base : Word)
   have hresult_high3 : getLimb result 3 = 0 :=
     byte_getLimb_high idx value (3 : Fin 4) (show (3 : Fin 4).val ≠ 0 by decide)
   have hresult_limb0 := byte_correct idx value hlt
-  have h3bv : (3 : BitVec 6).toNat = 3 := by native_decide
+  have h3bv : (3 : BitVec 6).toNat = 3 := by decide
   have hlimb_val : limb_from_msb.toNat = i0.toNat / 8 := by
     show (i0 >>> (3 : BitVec 6).toNat).toNat = i0.toNat / 8
     rw [h3bv]; simp [BitVec.toNat_ushiftRight]; omega
@@ -745,8 +745,8 @@ theorem evm_byte_body_evmWord_spec (sp base : Word)
     show (byte_in_limb <<< (3 : BitVec 6).toNat).toNat = (i0.toNat % 8) * 8
     rw [h3bv]
     simp only [byte_in_limb, BitVec.toNat_shiftLeft, BitVec.toNat_and,
-               show signExtend12 (7 : BitVec 12) = (7 : Word) from by native_decide,
-               show (7 : Word).toNat = 7 from by native_decide]
+               show signExtend12 (7 : BitVec 12) = (7 : Word) from by decide,
+               show (7 : Word).toNat = 7 from by decide]
     rw [Nat.and_two_pow_sub_one_eq_mod _ 3]
     have : i0.toNat % 8 < 8 := Nat.mod_lt _ (by omega)
     have : (i0.toNat % 8) * 8 < 2 ^ 64 := by omega
@@ -838,10 +838,10 @@ theorem evm_byte_body_evmWord_spec (sp base : Word)
     have : limb_from_msb.toNat = 0 := by rw [hd]; rfl
     omega
   have derive_K_1 (hd : limb_from_msb = (0 : Word) + signExtend12 1) : 1 = i0.toNat / 8 := by
-    have : limb_from_msb.toNat = 1 := by rw [hd]; native_decide
+    have : limb_from_msb.toNat = 1 := by rw [hd]; decide
     omega
   have derive_K_2 (hd : limb_from_msb = (0 : Word) + signExtend12 2) : 2 = i0.toNat / 8 := by
-    have : limb_from_msb.toNat = 2 := by rw [hd]; native_decide
+    have : limb_from_msb.toNat = 2 := by rw [hd]; decide
     omega
   have derive_K_3 (hd : limb_from_msb ≠ 0 ∧ limb_from_msb ≠ (0 : Word) + signExtend12 1 ∧
       limb_from_msb ≠ (0 : Word) + signExtend12 2) : 3 = i0.toNat / 8 := by
@@ -851,11 +851,11 @@ theorem evm_byte_body_evmWord_spec (sp base : Word)
     have hn1 : limb_from_msb.toNat ≠ 1 :=
       fun hc => h1 (BitVec.eq_of_toNat_eq (by
         show limb_from_msb.toNat = ((0 : Word) + signExtend12 1).toNat
-        simp only [show ((0 : Word) + signExtend12 1).toNat = 1 from by native_decide]; exact hc))
+        simp only [show ((0 : Word) + signExtend12 1).toNat = 1 from by decide]; exact hc))
     have hn2 : limb_from_msb.toNat ≠ 2 :=
       fun hc => h2 (BitVec.eq_of_toNat_eq (by
         show limb_from_msb.toNat = ((0 : Word) + signExtend12 2).toNat
-        simp only [show ((0 : Word) + signExtend12 2).toNat = 2 from by native_decide]; exact hc))
+        simp only [show ((0 : Word) + signExtend12 2).toNat = 2 from by decide]; exact hc))
     have hlt4 : limb_from_msb.toNat < 4 := by omega
     omega
   -- Build body+store specs WITHOUT the dispatch fact (just compose and weaken regs)
@@ -1055,7 +1055,7 @@ theorem evm_byte_stack_spec (sp base : Word)
       -- Need: BitVec.ult i0 (signExtend12 32) = true
       have hlt_i0 : BitVec.ult i0 (signExtend12 (32 : BitVec 12)) = true := by
         simp only [BitVec.ult, signExtend12_32,
-                   show (32 : Word).toNat = 32 from by native_decide]
+                   show (32 : Word).toNat = 32 from by decide]
         have hidx_toNat : idx.toNat = i0.toNat :=
           EvmWord.toNat_eq_getLimb0_of_high_zero idx hhigh
         rw [decide_eq_true_eq]; omega
@@ -1066,7 +1066,7 @@ theorem evm_byte_stack_spec (sp base : Word)
       -- Need: BitVec.ult i0 (signExtend12 32) = false
       have hlarge : BitVec.ult i0 (signExtend12 (32 : BitVec 12)) = false := by
         simp only [BitVec.ult, signExtend12_32,
-                   show (32 : Word).toNat = 32 from by native_decide]
+                   show (32 : Word).toNat = 32 from by decide]
         have hidx_toNat : idx.toNat = i0.toNat :=
           EvmWord.toNat_eq_getLimb0_of_high_zero idx hhigh
         rw [decide_eq_false_iff_not]; omega

@@ -208,7 +208,7 @@ theorem getLimbN_one (k : Nat) :
   split
   · next h =>
     have hfin : ∀ j : Fin 4, (1 : EvmWord).getLimb j = if j.val = 0 then 1 else 0 := by
-      native_decide
+      decide
     exact hfin ⟨k, h⟩
   · next h => simp [show ¬(k = 0) from by omega]
 
@@ -427,7 +427,7 @@ theorem high_limbs_zero_of_toNat_lt (v : EvmWord) (h : v.toNat < 2^64) :
 
 @[simp] theorem getLimb_one (i : Fin 4) :
     (1 : EvmWord).getLimb i = if i = 0 then 1 else 0 := by
-  have h : ∀ j : Fin 4, (1 : EvmWord).getLimb j = if j = 0 then 1 else 0 := by native_decide
+  have h : ∀ j : Fin 4, (1 : EvmWord).getLimb j = if j = 0 then 1 else 0 := by decide
   exact h i
 
 @[simp] theorem getLimb_ite (c : Prop) [Decidable c] (x y : EvmWord) (i : Fin 4) :
@@ -450,7 +450,7 @@ theorem eq_zero_iff_limbs (a : EvmWord) :
     a = 0 ↔ a.getLimb 0 = 0 ∧ a.getLimb 1 = 0 ∧ a.getLimb 2 = 0 ∧ a.getLimb 3 = 0 := by
   constructor
   · intro h; subst h
-    have hz : ∀ j : Fin 4, (0 : EvmWord).getLimb j = 0 := by native_decide
+    have hz : ∀ j : Fin 4, (0 : EvmWord).getLimb j = 0 := by decide
     exact ⟨hz 0, hz 1, hz 2, hz 3⟩
   · intro ⟨h0, h1, h2, h3⟩
     rw [← fromLimbs_getLimb a]

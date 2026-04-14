@@ -43,7 +43,7 @@ private theorem beq_singleton_sub_divCode (base : Word) :
   intro a i h
   exact CodeReq.union_mono_left _ _ a i
     (CodeReq.singleton_mono (CodeReq.ofProg_lookup base (divK_phaseA 1016) 7
-      (by native_decide) (by native_decide)) a i h)
+      (by decide) (by decide)) a i h)
 
 /-- Phase B init1 code (ofProg sub-range of block 1) is subsumed by divCode. -/
 private theorem divK_phaseB_init1_code_sub_divCode (base : Word) :
@@ -53,7 +53,7 @@ private theorem divK_phaseB_init1_code_sub_divCode (base : Word) :
   -- Lift from init1 sub-range to full phaseB block
   have h1 := CodeReq.ofProg_mono_sub (base + 32) (base + 32) divK_phaseB
     (divK_phaseB.take 7) 0
-    (by bv_addr) (by native_decide) (by native_decide) (by native_decide) a i h
+    (by bv_addr) (by decide) (by decide) (by decide) a i h
   -- Skip block 0 (phaseA disjoint from phaseB), match block 1
   exact CodeReq.mono_union_right
     (CodeReq.ofProg_disjoint_range _ _ _ _
@@ -67,7 +67,7 @@ private theorem divK_phaseB_init2_code_sub_divCode (base : Word) :
   intro a i h
   have h1 := CodeReq.ofProg_mono_sub (base + 32) (base + 60) divK_phaseB
     (divK_phaseB.drop 7 |>.take 2) 7
-    (by bv_addr) (by native_decide) (by native_decide) (by native_decide) a i h
+    (by bv_addr) (by decide) (by decide) (by decide) a i h
   exact CodeReq.mono_union_right
     (CodeReq.ofProg_disjoint_range _ _ _ _
       (fun k1 k2 hk1 hk2 => by simp only [divK_phaseA_len, divK_phaseB_len] at hk1 hk2; bv_omega))
@@ -80,8 +80,8 @@ private theorem addi_x5_singleton_sub_divCode (base : Word) :
   unfold divCode; simp only [CodeReq.unionAll_cons]
   intro a i h
   have hlookup := CodeReq.ofProg_lookup (base + 32) divK_phaseB 9
-    (by native_decide) (by native_decide)
-  rw [show BitVec.ofNat 64 (4 * 9) = (36 : Word) from by native_decide,
+    (by decide) (by decide)
+  rw [show BitVec.ofNat 64 (4 * 9) = (36 : Word) from by decide,
       show (base + 32 : Word) + 36 = base + 68 from by bv_addr] at hlookup
   have h1 := CodeReq.singleton_mono hlookup a i h
   exact CodeReq.mono_union_right
@@ -96,8 +96,8 @@ private theorem bne_x10_singleton_sub_divCode (base : Word) :
   unfold divCode; simp only [CodeReq.unionAll_cons]
   intro a i h
   have hlookup := CodeReq.ofProg_lookup (base + 32) divK_phaseB 10
-    (by native_decide) (by native_decide)
-  rw [show BitVec.ofNat 64 (4 * 10) = (40 : Word) from by native_decide,
+    (by decide) (by decide)
+  rw [show BitVec.ofNat 64 (4 * 10) = (40 : Word) from by decide,
       show (base + 32 : Word) + 40 = base + 72 from by bv_addr] at hlookup
   have h1 := CodeReq.singleton_mono hlookup a i h
   exact CodeReq.mono_union_right
@@ -112,7 +112,7 @@ private theorem divK_phaseB_tail_code_sub_divCode (base : Word) :
   intro a i h
   have h1 := CodeReq.ofProg_mono_sub (base + 32) (base + 96) divK_phaseB
     (divK_phaseB.drop 16) 16
-    (by bv_addr) (by native_decide) (by native_decide) (by native_decide) a i h
+    (by bv_addr) (by decide) (by decide) (by decide) a i h
   exact CodeReq.mono_union_right
     (CodeReq.ofProg_disjoint_range _ _ _ _
       (fun k1 k2 hk1 hk2 => by simp only [divK_phaseA_len, divK_phaseB_len] at hk1 hk2; bv_omega))
@@ -123,21 +123,21 @@ private theorem divK_phaseB_tail_code_sub_divCode (base : Word) :
 -- ============================================================================
 
 private theorem signExtend13_1016 : signExtend13 (1016 : BitVec 13) = (1016 : Word) := by
-  native_decide
+  decide
 
 private theorem signExtend13_24 : signExtend13 (24 : BitVec 13) = (24 : Word) := by
-  native_decide
+  decide
 
 -- Phase B n=4: signExtend12 4 = 4 (result of ADDI x5 x0 4 via addi_x0_spec_gen)
-private theorem divK_se12_4 : signExtend12 (4 : BitVec 12) = (4 : Word) := by native_decide
+private theorem divK_se12_4 : signExtend12 (4 : BitVec 12) = (4 : Word) := by decide
 
 -- Phase B tail address: nm1_x8 = (4 + signExtend12 4095) <<< 3 = 24
 private theorem divK_phaseB_n4_nm1_x8 :
     ((4 : Word) + signExtend12 (4095 : BitVec 12)) <<< (3 : BitVec 6).toNat = (24 : Word) := by
-  native_decide
+  decide
 
 -- signExtend12 32 = 32 (for tail load address: sp + 24 + signExtend12 32 = sp + 56)
-private theorem divK_se12_32 : signExtend12 (32 : BitVec 12) = (32 : Word) := by native_decide
+private theorem divK_se12_32 : signExtend12 (32 : BitVec 12) = (32 : Word) := by decide
 
 -- Address normalization lemmas for phaseB composition (separate theorems for heartbeat budget)
 private theorem phB_off_4 (base : Word) : (base + 32 : Word) + 4 = base + 36 := by bv_addr
@@ -458,8 +458,8 @@ private theorem addi_x5_3_sub_divCode (base : Word) :
   unfold divCode; simp only [CodeReq.unionAll_cons]
   intro a i h
   have hlookup := CodeReq.ofProg_lookup (base + 32) divK_phaseB 11
-    (by native_decide) (by native_decide)
-  rw [show BitVec.ofNat 64 (4 * 11) = (44 : Word) from by native_decide,
+    (by decide) (by decide)
+  rw [show BitVec.ofNat 64 (4 * 11) = (44 : Word) from by decide,
       show (base + 32 : Word) + 44 = base + 76 from by bv_addr] at hlookup
   have h1 := CodeReq.singleton_mono hlookup a i h
   exact CodeReq.mono_union_right
@@ -474,8 +474,8 @@ private theorem bne_x7_16_sub_divCode (base : Word) :
   unfold divCode; simp only [CodeReq.unionAll_cons]
   intro a i h
   have hlookup := CodeReq.ofProg_lookup (base + 32) divK_phaseB 12
-    (by native_decide) (by native_decide)
-  rw [show BitVec.ofNat 64 (4 * 12) = (48 : Word) from by native_decide,
+    (by decide) (by decide)
+  rw [show BitVec.ofNat 64 (4 * 12) = (48 : Word) from by decide,
       show (base + 32 : Word) + 48 = base + 80 from by bv_addr] at hlookup
   have h1 := CodeReq.singleton_mono hlookup a i h
   exact CodeReq.mono_union_right
@@ -490,8 +490,8 @@ private theorem addi_x5_2_sub_divCode (base : Word) :
   unfold divCode; simp only [CodeReq.unionAll_cons]
   intro a i h
   have hlookup := CodeReq.ofProg_lookup (base + 32) divK_phaseB 13
-    (by native_decide) (by native_decide)
-  rw [show BitVec.ofNat 64 (4 * 13) = (52 : Word) from by native_decide,
+    (by decide) (by decide)
+  rw [show BitVec.ofNat 64 (4 * 13) = (52 : Word) from by decide,
       show (base + 32 : Word) + 52 = base + 84 from by bv_addr] at hlookup
   have h1 := CodeReq.singleton_mono hlookup a i h
   exact CodeReq.mono_union_right
@@ -506,8 +506,8 @@ private theorem bne_x6_8_sub_divCode (base : Word) :
   unfold divCode; simp only [CodeReq.unionAll_cons]
   intro a i h
   have hlookup := CodeReq.ofProg_lookup (base + 32) divK_phaseB 14
-    (by native_decide) (by native_decide)
-  rw [show BitVec.ofNat 64 (4 * 14) = (56 : Word) from by native_decide,
+    (by decide) (by decide)
+  rw [show BitVec.ofNat 64 (4 * 14) = (56 : Word) from by decide,
       show (base + 32 : Word) + 56 = base + 88 from by bv_addr] at hlookup
   have h1 := CodeReq.singleton_mono hlookup a i h
   exact CodeReq.mono_union_right
@@ -522,8 +522,8 @@ private theorem addi_x5_1_sub_divCode (base : Word) :
   unfold divCode; simp only [CodeReq.unionAll_cons]
   intro a i h
   have hlookup := CodeReq.ofProg_lookup (base + 32) divK_phaseB 15
-    (by native_decide) (by native_decide)
-  rw [show BitVec.ofNat 64 (4 * 15) = (60 : Word) from by native_decide,
+    (by decide) (by decide)
+  rw [show BitVec.ofNat 64 (4 * 15) = (60 : Word) from by decide,
       show (base + 32 : Word) + 60 = base + 92 from by bv_addr] at hlookup
   have h1 := CodeReq.singleton_mono hlookup a i h
   exact CodeReq.mono_union_right
@@ -536,22 +536,22 @@ private theorem addi_x5_1_sub_divCode (base : Word) :
 -- ============================================================================
 
 -- signExtend constants for cascade steps
-private theorem divK_se12_3 : signExtend12 (3 : BitVec 12) = (3 : Word) := by native_decide
-private theorem divK_se12_2 : signExtend12 (2 : BitVec 12) = (2 : Word) := by native_decide
-private theorem divK_se12_1 : signExtend12 (1 : BitVec 12) = (1 : Word) := by native_decide
-private theorem signExtend13_16 : signExtend13 (16 : BitVec 13) = (16 : Word) := by native_decide
-private theorem signExtend13_8 : signExtend13 (8 : BitVec 13) = (8 : Word) := by native_decide
+private theorem divK_se12_3 : signExtend12 (3 : BitVec 12) = (3 : Word) := by decide
+private theorem divK_se12_2 : signExtend12 (2 : BitVec 12) = (2 : Word) := by decide
+private theorem divK_se12_1 : signExtend12 (1 : BitVec 12) = (1 : Word) := by decide
+private theorem signExtend13_16 : signExtend13 (16 : BitVec 13) = (16 : Word) := by decide
+private theorem signExtend13_8 : signExtend13 (8 : BitVec 13) = (8 : Word) := by decide
 
 -- nm1_x8 = (n + signExtend12 4095) <<< 3 for each n value
 private theorem divK_phaseB_n3_nm1_x8 :
     ((3 : Word) + signExtend12 (4095 : BitVec 12)) <<< (3 : BitVec 6).toNat = (16 : Word) := by
-  native_decide
+  decide
 private theorem divK_phaseB_n2_nm1_x8 :
     ((2 : Word) + signExtend12 (4095 : BitVec 12)) <<< (3 : BitVec 6).toNat = (8 : Word) := by
-  native_decide
+  decide
 private theorem divK_phaseB_n1_nm1_x8 :
     ((1 : Word) + signExtend12 (4095 : BitVec 12)) <<< (3 : BitVec 6).toNat = (0 : Word) := by
-  native_decide
+  decide
 
 -- Cascade address normalization
 private theorem phB_step1_4 (base : Word) : (base + 76 : Word) + 4 = base + 80 := by bv_addr
