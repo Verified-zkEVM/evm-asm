@@ -1,8 +1,13 @@
 /-
   EvmAsm.Evm64.EvmWordArith.Div128Lemmas
 
-  Mathematical foundations for div128 correctness: half-word OR-combine,
-  128-bit Euclidean uniqueness, and trial quotient bounds (Knuth TAOCP 4.3.1).
+  Mathematical foundations for div128 correctness and multi-limb division:
+  - Half-word OR-combine (non-overlapping shift+OR = add)
+  - 128-bit Euclidean uniqueness
+  - Trial quotient bounds (Knuth TAOCP 4.3.1): generalized and 256→128 level
+  - Product check correction: reduces overestimate from ≤ 2 to ≤ 1
+  - Full half-round theorem (overflow + product check)
+  - Mulsub borrow bound for n ≤ 3 (v3 = 0): c3 ≤ 1 unconditionally
 -/
 
 import EvmAsm.Evm64.EvmWordArith.MultiLimb
@@ -266,6 +271,68 @@ theorem half_round_overestimate_le_one (u_hi un1 d_hi d_lo q r : Nat)
   · -- Upper bound: q' ≤ q_true + 1
     exact correction_step_overestimate_le_one u_hi un1 d_hi d_lo q r (2^32)
       hd_pos hr hq_mul hq_le
+
+-- ============================================================================
+-- Generalized trial quotient bound (any base)
+-- ============================================================================
+
+/-- Generalized trial quotient bound: ⌊(u_hi * Bk + u_rest) / (d_hi * Bk + d_rest)⌋ ≤ ⌊u_hi / d_hi⌋.
+    Works for any "base" Bk (e.g., 2^32, 2^64, 2^128). The trial quotient using only the
+    top portions never underestimates the true quotient. -/
+theorem trial_quotient_ge_general (u_hi u_rest d_hi d_rest Bk : Nat)
+    (hd_hi : 0 < d_hi) (hu_rest : u_rest < Bk) :
+    (u_hi * Bk + u_rest) / (d_hi * Bk + d_rest) ≤ u_hi / d_hi := by
+  have hBk : 0 < Bk := by omega
+  have hd_pos : 0 < d_hi * Bk + d_rest := by positivity
+  have : (u_hi * Bk + u_rest) / (d_hi * Bk + d_rest) < u_hi / d_hi + 1 :=
+    (Nat.div_lt_iff_lt_mul hd_pos).mpr (by
+      have hq : u_hi < d_hi * (u_hi / d_hi + 1) := Nat.lt_mul_div_succ u_hi hd_hi
+      calc u_hi * Bk + u_rest
+          < (u_hi + 1) * Bk := by nlinarith
+        _ ≤ d_hi * (u_hi / d_hi + 1) * Bk := by nlinarith
+        _ = (u_hi / d_hi + 1) * (d_hi * Bk) := by ring
+        _ ≤ (u_hi / d_hi + 1) * (d_hi * Bk + d_rest) := by nlinarith)
+  omega
+
+-- ============================================================================
+-- val256 ↔ val128 decomposition
+-- ============================================================================
+
+/-- val256 decomposes into two val128 halves: val256 l0 l1 l2 l3 = val128 l3 l2 * 2^128 + val128 l1 l0. -/
+theorem val256_eq_val128_pair (l0 l1 l2 l3 : Word) :
+    val256 l0 l1 l2 l3 = val128 l3 l2 * 2 ^ 128 + val128 l1 l0 := by
+  unfold val256 val128; ring
+
+/-- val256 with top limb zero: val256 l0 l1 l2 0 = l2 * 2^128 + val128 l1 l0. -/
+theorem val256_top_zero (l0 l1 l2 : Word) :
+    val256 l0 l1 l2 0 = l2.toNat * 2 ^ 128 + val128 l1 l0 := by
+  unfold val256 val128; simp; ring
+
+-- ============================================================================
+-- Trial quotient bound: 256-bit ÷ 192-bit level
+-- ============================================================================
+
+/-- Trial quotient bound at the 64-bit level: the trial quotient val128(u3,u2)/v2
+    never underestimates the true quotient val256(u0,u1,u2,u3)/val256(v0,v1,v2,0).
+    This is the 256→128 analogue of `trial_quotient_ge`. -/
+theorem trial_quotient_ge_256 (u0 u1 u2 u3 v0 v1 v2 : Word) (hv2 : v2 ≠ 0) :
+    val256 u0 u1 u2 u3 / val256 v0 v1 v2 0 ≤ val128 u3 u2 / v2.toNat := by
+  rw [val256_eq_val128_pair u0 u1 u2 u3, val256_top_zero v0 v1 v2]
+  exact trial_quotient_ge_general (val128 u3 u2) (val128 u1 u0)
+    v2.toNat (val128 v1 v0) (2 ^ 128)
+    (Nat.pos_of_ne_zero (by intro h; apply hv2; exact BitVec.eq_of_toNat_eq h))
+    (val128_bound u1 u0)
+
+-- ============================================================================
+-- val256 bound with zero top limb
+-- ============================================================================
+
+/-- When the top limb is zero, val256 < 2^192. -/
+theorem val256_lt_pow192 (l0 l1 l2 : Word) :
+    val256 l0 l1 l2 0 < 2 ^ 192 := by
+  unfold val256; simp
+  have h0 := l0.isLt; have h1 := l1.isLt; have h2 := l2.isLt
+  nlinarith
 
 end EvmWord
 

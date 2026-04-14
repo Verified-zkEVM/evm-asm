@@ -11,6 +11,7 @@
 -/
 
 import EvmAsm.Evm64.EvmWordArith.DivAccumulate
+import EvmAsm.Evm64.EvmWordArith.Div128Lemmas
 import EvmAsm.Evm64.DivMod.LoopSemantic
 
 namespace EvmAsm.Evm64
@@ -277,7 +278,46 @@ theorem mulsubN4_c3_ne_zero_imp_one (q v0 v1 v2 v3 u0 u1 u2 u3 : Word)
     (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2 = 1 :=
   (mulsubN4_c3_eq_zero_or_one q v0 v1 v2 v3 u0 u1 u2 u3 hbnz hq_over |>.resolve_left hc3_nz)
 
--- Note: Remaining missing piece for full semantic bridge:
--- Call path trial quotient overestimate (Knuth's Theorem B for div128)
+-- ============================================================================
+-- Mulsub borrow bound for n ≤ 3 (v3 = 0): c3 ≤ 1 unconditionally
+-- ============================================================================
+
+-- When v3 = 0, val256(v) < 2^192, so q * val256(v) < 2^64 * 2^192 = 2^256
+-- for any 64-bit q. This gives c3 ≤ 1 without any overestimate hypothesis.
+
+/-- When the top divisor limb v3 = 0, the mulsub borrow c3 ≤ 1 for ANY
+    64-bit trial quotient q, without needing any overestimate bound.
+
+    Proof: from `mulsubN4_val256_eq`, c3 * 2^256 = val256(un) + q * val256(v) - val256(u).
+    Since val256(un) < 2^256 and val256(v) < 2^192 (because v3 = 0):
+    q * val256(v) ≤ (2^64-1) * (2^192-1) < 2^256.
+    So c3 * 2^256 < 2^256 + 2^256 = 2 * 2^256, hence c3 ≤ 1. -/
+theorem mulsubN4_c3_le_one_v3_zero (q v0 v1 v2 u0 u1 u2 u3 : Word) :
+    (mulsubN4 q v0 v1 v2 0 u0 u1 u2 u3).2.2.2.2.toNat ≤ 1 := by
+  have hmulsub := mulsubN4_val256_eq q v0 v1 v2 0 u0 u1 u2 u3
+  simp only [] at hmulsub
+  let ms := mulsubN4 q v0 v1 v2 0 u0 u1 u2 u3
+  let c3 := ms.2.2.2.2
+  have hun_bound := val256_bound ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1
+  have hv_bound := val256_lt_pow192 v0 v1 v2
+  have hq_bound := q.isLt
+  have hqv_bound : q.toNat * val256 v0 v1 v2 0 < 2 ^ 256 := by nlinarith
+  have hc3_bound : c3.toNat * 2 ^ 256 < 2 * 2 ^ 256 := by
+    show ms.2.2.2.2.toNat * 2 ^ 256 < 2 * 2 ^ 256; nlinarith
+  show c3.toNat ≤ 1
+  have h256_pos : (0 : Nat) < 2 ^ 256 := by positivity
+  have : c3.toNat < 2 := (Nat.mul_lt_mul_right h256_pos).mp hc3_bound
+  omega
+
+/-- When c3 ≠ 0 and v3 = 0, the borrow is exactly 1.
+    Immediate from `mulsubN4_c3_le_one_v3_zero`. -/
+theorem mulsubN4_c3_eq_one_v3_zero (q v0 v1 v2 u0 u1 u2 u3 : Word)
+    (hc3_nz : (mulsubN4 q v0 v1 v2 0 u0 u1 u2 u3).2.2.2.2 ≠ 0) :
+    (mulsubN4 q v0 v1 v2 0 u0 u1 u2 u3).2.2.2.2 = 1 := by
+  have h := mulsubN4_c3_le_one_v3_zero q v0 v1 v2 u0 u1 u2 u3
+  have hc3_pos : 0 < (mulsubN4 q v0 v1 v2 0 u0 u1 u2 u3).2.2.2.2.toNat := by
+    exact Nat.pos_of_ne_zero (by intro h0; exact hc3_nz (BitVec.eq_of_toNat_eq h0))
+  have h1 : (1 : Word).toNat = 1 := by decide
+  exact BitVec.eq_of_toNat_eq (by omega)
 
 end EvmAsm.Evm64
