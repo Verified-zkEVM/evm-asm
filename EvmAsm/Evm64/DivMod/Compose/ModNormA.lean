@@ -249,24 +249,24 @@ theorem mod_copyAU_full_spec (sp : Word)
 
 /-- LoopSetup code (block 7) is subsumed by modCode. -/
 private theorem divK_loopSetup_code_sub_modCode (base : Word) :
-    ∀ a i, (divK_loopSetup_code 460 (base + 432)) a = some i → (modCode base) a = some i := by
+    ∀ a i, (divK_loopSetup_code 464 (base + 432)) a = some i → (modCode base) a = some i := by
   unfold modCode divK_loopSetup_code; simp only [CodeReq.unionAll_cons]
   skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock
   exact CodeReq.union_mono_left _ _
 
 /-- BLT singleton at base+444 (index 3 of loopSetup) is subsumed by modCode. -/
 private theorem blt_loopSetup_sub_modCode (base : Word) :
-    ∀ a i, (CodeReq.singleton (base + 444) (.BLT .x1 .x0 460)) a = some i →
+    ∀ a i, (CodeReq.singleton (base + 444) (.BLT .x1 .x0 464)) a = some i →
       (modCode base) a = some i := by
   intro a i h
-  have hlookup := CodeReq.ofProg_lookup (base + 432) (divK_loopSetup 460) 3
+  have hlookup := CodeReq.ofProg_lookup (base + 432) (divK_loopSetup 464) 3
     (by decide) (by decide)
   rw [show BitVec.ofNat 64 (4 * 3) = (12 : Word) from by decide,
       show (base + 432 : Word) + 12 = base + 444 from by bv_addr] at hlookup
   exact divK_loopSetup_code_sub_modCode base a i
     (CodeReq.singleton_mono hlookup a i h)
 
-private theorem mod_signExtend13_460 : signExtend13 (460 : BitVec 13) = (460 : Word) := by decide
+private theorem mod_signExtend13_464 : signExtend13 (464 : BitVec 13) = (464 : Word) := by decide
 
 set_option maxRecDepth 2048 in
 /-- LoopSetup when m >= 0 (n <= 4): falls through to loop body at base+448.
@@ -281,12 +281,12 @@ theorem mod_loopSetup_ntaken_spec (sp n v1 v5 : Word) (base : Word)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ n) ** (.x1 ↦ᵣ m) ** (.x0 ↦ᵣ (0 : Word)) **
        ((sp + signExtend12 3984) ↦ₘ n)) := by
   intro m
-  have hbody := divK_loopSetup_body_spec sp n v1 v5 460 (base + 432) hv_n
+  have hbody := divK_loopSetup_body_spec sp n v1 v5 464 (base + 432) hv_n
   rw [show (base + 432 : Word) + 12 = base + 444 from by bv_addr] at hbody
   have hbodye := cpsTriple_extend_code (divK_loopSetup_code_sub_modCode base) hbody
-  have hblt_raw := blt_spec_gen .x1 .x0 460 m (0 : Word) (base + 444)
-  rw [show (base + 444 : Word) + signExtend13 460 = base + 904 from by
-        rw [mod_signExtend13_460]; bv_addr,
+  have hblt_raw := blt_spec_gen .x1 .x0 464 m (0 : Word) (base + 444)
+  rw [show (base + 444 : Word) + signExtend13 464 = base + 908 from by
+        rw [mod_signExtend13_464]; bv_addr,
       show (base + 444 : Word) + 4 = base + 448 from by bv_addr] at hblt_raw
   have hblt_clean := cpsBranch_elim_ntaken_strip_pure2 _ _ _ _ _ _ _ _ _ hblt_raw
     (fun hp hQt => by
@@ -310,18 +310,18 @@ theorem mod_loopSetup_taken_spec (sp n v1 v5 : Word) (base : Word)
     (hv_n : isValidDwordAccess (sp + signExtend12 3984) = true)
     (hm_lt : BitVec.slt (signExtend12 (4 : BitVec 12) - n) (0 : Word)) :
     let m := signExtend12 (4 : BitVec 12) - n
-    cpsTriple (base + 432) (base + 904) (modCode base)
+    cpsTriple (base + 432) (base + 908) (modCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x1 ↦ᵣ v1) ** (.x0 ↦ᵣ (0 : Word)) **
        ((sp + signExtend12 3984) ↦ₘ n))
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ n) ** (.x1 ↦ᵣ m) ** (.x0 ↦ᵣ (0 : Word)) **
        ((sp + signExtend12 3984) ↦ₘ n)) := by
   intro m
-  have hbody := divK_loopSetup_body_spec sp n v1 v5 460 (base + 432) hv_n
+  have hbody := divK_loopSetup_body_spec sp n v1 v5 464 (base + 432) hv_n
   rw [show (base + 432 : Word) + 12 = base + 444 from by bv_addr] at hbody
   have hbodye := cpsTriple_extend_code (divK_loopSetup_code_sub_modCode base) hbody
-  have hblt_raw := blt_spec_gen .x1 .x0 460 m (0 : Word) (base + 444)
-  rw [show (base + 444 : Word) + signExtend13 460 = base + 904 from by
-        rw [mod_signExtend13_460]; bv_addr,
+  have hblt_raw := blt_spec_gen .x1 .x0 464 m (0 : Word) (base + 444)
+  rw [show (base + 444 : Word) + signExtend13 464 = base + 908 from by
+        rw [mod_signExtend13_464]; bv_addr,
       show (base + 444 : Word) + 4 = base + 448 from by bv_addr] at hblt_raw
   have hblt_clean := cpsBranch_elim_taken_strip_pure2 _ _ _ _ _ _ _ _ _ hblt_raw
     (fun hp hQf => by

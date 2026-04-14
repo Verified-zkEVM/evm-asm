@@ -1,7 +1,7 @@
 /-
   EvmAsm.Evm64.DivMod.Compose.FullPathN2Cases
 
-  Per-case full n=2 DIV path lemmas (base → base+1064), one for each
+  Per-case full n=2 DIV path lemmas (base → base+1068), one for each
   of the 7 non-all-max combinations of (bltu_2, bltu_1, bltu_0).
 
   Each case has its OWN postcondition definition that uses `iterN2Max`/`iterN2Call`
@@ -302,7 +302,7 @@ theorem evm_div_n2_full_FFT_spec (sp base : Word)
     (hbltu_2 : isTrialN2_j2 false a3 b0 b1)
     (hbltu_1 : isTrialN2_j1 false false a1 a2 a3 b0 b1 b2 b3)
     (hbltu_0 : isTrialN2_j0 false false true a0 a1 a2 a3 b0 b1 b2 b3) :
-    cpsTriple base (base + 1064) (divCode base)
+    cpsTriple base (base + 1068) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b1).2 >>> (63 : Nat)) **
        (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
@@ -350,7 +350,7 @@ theorem evm_div_n2_full_FFT_spec (sp base : Word)
     hv_q0 hv_q1 hv_q2 hv_q3 hv_u0 hv_u1 hv_u2 hv_u3 hv_u4
     hv_u5 hv_u6 hv_u7 hv_n hv_shift hv_j hv_ret hv_d hv_dlo hv_scratch_un0 halign
     hbltu_2 hbltu_1 hbltu_0
-  -- 2. Post-loop: base+904 → base+1064
+  -- 2. Post-loop: base+904 → base+1068
   have hB := evm_div_preamble_denorm_epilogue_spec sp base
     r0.2.1 r0.2.2.1 r0.2.2.2.1 r0.2.2.2.2.1 shift
     r0.2.2.2.2.1 (0 : Word) (sp + signExtend12 4056) (sp + signExtend12 4088)
@@ -425,7 +425,7 @@ theorem evm_div_n2_full_FTF_spec (sp base : Word)
     (hbltu_2 : isTrialN2_j2 false a3 b0 b1)
     (hbltu_1 : isTrialN2_j1 false true a1 a2 a3 b0 b1 b2 b3)
     (hbltu_0 : isTrialN2_j0 false true false a0 a1 a2 a3 b0 b1 b2 b3) :
-    cpsTriple base (base + 1064) (divCode base)
+    cpsTriple base (base + 1068) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b1).2 >>> (63 : Nat)) **
        (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
@@ -473,7 +473,7 @@ theorem evm_div_n2_full_FTF_spec (sp base : Word)
     hv_q0 hv_q1 hv_q2 hv_q3 hv_u0 hv_u1 hv_u2 hv_u3 hv_u4
     hv_u5 hv_u6 hv_u7 hv_n hv_shift hv_j hv_ret hv_d hv_dlo hv_scratch_un0 halign
     hbltu_2 hbltu_1 hbltu_0
-  -- 2. Post-loop: base+904 → base+1064
+  -- 2. Post-loop: base+904 → base+1068
   have hB := evm_div_preamble_denorm_epilogue_spec sp base
     r0.2.1 r0.2.2.1 r0.2.2.2.1 r0.2.2.2.2.1 shift
     r0.2.2.2.2.1 (0 : Word) (sp + signExtend12 4056) (sp + signExtend12 4088)
@@ -548,7 +548,7 @@ theorem evm_div_n2_full_FTT_spec (sp base : Word)
     (hbltu_2 : isTrialN2_j2 false a3 b0 b1)
     (hbltu_1 : isTrialN2_j1 false true a1 a2 a3 b0 b1 b2 b3)
     (hbltu_0 : isTrialN2_j0 false true true a0 a1 a2 a3 b0 b1 b2 b3) :
-    cpsTriple base (base + 1064) (divCode base)
+    cpsTriple base (base + 1068) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b1).2 >>> (63 : Nat)) **
        (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
@@ -596,7 +596,7 @@ theorem evm_div_n2_full_FTT_spec (sp base : Word)
     hv_q0 hv_q1 hv_q2 hv_q3 hv_u0 hv_u1 hv_u2 hv_u3 hv_u4
     hv_u5 hv_u6 hv_u7 hv_n hv_shift hv_j hv_ret hv_d hv_dlo hv_scratch_un0 halign
     hbltu_2 hbltu_1 hbltu_0
-  -- 2. Post-loop: base+904 → base+1064
+  -- 2. Post-loop: base+904 → base+1068
   have hB := evm_div_preamble_denorm_epilogue_spec sp base
     r0.2.1 r0.2.2.1 r0.2.2.2.1 r0.2.2.2.2.1 shift
     r0.2.2.2.2.1 (0 : Word) (sp + signExtend12 4056) (sp + signExtend12 4088)
@@ -671,7 +671,7 @@ theorem evm_div_n2_full_TFF_spec (sp base : Word)
     (hbltu_2 : isTrialN2_j2 true a3 b0 b1)
     (hbltu_1 : isTrialN2_j1 true false a1 a2 a3 b0 b1 b2 b3)
     (hbltu_0 : isTrialN2_j0 true false false a0 a1 a2 a3 b0 b1 b2 b3) :
-    cpsTriple base (base + 1064) (divCode base)
+    cpsTriple base (base + 1068) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b1).2 >>> (63 : Nat)) **
        (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
@@ -719,7 +719,7 @@ theorem evm_div_n2_full_TFF_spec (sp base : Word)
     hv_q0 hv_q1 hv_q2 hv_q3 hv_u0 hv_u1 hv_u2 hv_u3 hv_u4
     hv_u5 hv_u6 hv_u7 hv_n hv_shift hv_j hv_ret hv_d hv_dlo hv_scratch_un0 halign
     hbltu_2 hbltu_1 hbltu_0
-  -- 2. Post-loop: base+904 → base+1064
+  -- 2. Post-loop: base+904 → base+1068
   have hB := evm_div_preamble_denorm_epilogue_spec sp base
     r0.2.1 r0.2.2.1 r0.2.2.2.1 r0.2.2.2.2.1 shift
     r0.2.2.2.2.1 (0 : Word) (sp + signExtend12 4056) (sp + signExtend12 4088)
@@ -794,7 +794,7 @@ theorem evm_div_n2_full_TFT_spec (sp base : Word)
     (hbltu_2 : isTrialN2_j2 true a3 b0 b1)
     (hbltu_1 : isTrialN2_j1 true false a1 a2 a3 b0 b1 b2 b3)
     (hbltu_0 : isTrialN2_j0 true false true a0 a1 a2 a3 b0 b1 b2 b3) :
-    cpsTriple base (base + 1064) (divCode base)
+    cpsTriple base (base + 1068) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b1).2 >>> (63 : Nat)) **
        (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
@@ -842,7 +842,7 @@ theorem evm_div_n2_full_TFT_spec (sp base : Word)
     hv_q0 hv_q1 hv_q2 hv_q3 hv_u0 hv_u1 hv_u2 hv_u3 hv_u4
     hv_u5 hv_u6 hv_u7 hv_n hv_shift hv_j hv_ret hv_d hv_dlo hv_scratch_un0 halign
     hbltu_2 hbltu_1 hbltu_0
-  -- 2. Post-loop: base+904 → base+1064
+  -- 2. Post-loop: base+904 → base+1068
   have hB := evm_div_preamble_denorm_epilogue_spec sp base
     r0.2.1 r0.2.2.1 r0.2.2.2.1 r0.2.2.2.2.1 shift
     r0.2.2.2.2.1 (0 : Word) (sp + signExtend12 4056) (sp + signExtend12 4088)
@@ -917,7 +917,7 @@ theorem evm_div_n2_full_TTF_spec (sp base : Word)
     (hbltu_2 : isTrialN2_j2 true a3 b0 b1)
     (hbltu_1 : isTrialN2_j1 true true a1 a2 a3 b0 b1 b2 b3)
     (hbltu_0 : isTrialN2_j0 true true false a0 a1 a2 a3 b0 b1 b2 b3) :
-    cpsTriple base (base + 1064) (divCode base)
+    cpsTriple base (base + 1068) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b1).2 >>> (63 : Nat)) **
        (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
@@ -965,7 +965,7 @@ theorem evm_div_n2_full_TTF_spec (sp base : Word)
     hv_q0 hv_q1 hv_q2 hv_q3 hv_u0 hv_u1 hv_u2 hv_u3 hv_u4
     hv_u5 hv_u6 hv_u7 hv_n hv_shift hv_j hv_ret hv_d hv_dlo hv_scratch_un0 halign
     hbltu_2 hbltu_1 hbltu_0
-  -- 2. Post-loop: base+904 → base+1064
+  -- 2. Post-loop: base+904 → base+1068
   have hB := evm_div_preamble_denorm_epilogue_spec sp base
     r0.2.1 r0.2.2.1 r0.2.2.2.1 r0.2.2.2.2.1 shift
     r0.2.2.2.2.1 (0 : Word) (sp + signExtend12 4056) (sp + signExtend12 4088)
@@ -1040,7 +1040,7 @@ theorem evm_div_n2_full_TTT_spec (sp base : Word)
     (hbltu_2 : isTrialN2_j2 true a3 b0 b1)
     (hbltu_1 : isTrialN2_j1 true true a1 a2 a3 b0 b1 b2 b3)
     (hbltu_0 : isTrialN2_j0 true true true a0 a1 a2 a3 b0 b1 b2 b3) :
-    cpsTriple base (base + 1064) (divCode base)
+    cpsTriple base (base + 1068) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b1).2 >>> (63 : Nat)) **
        (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
@@ -1088,7 +1088,7 @@ theorem evm_div_n2_full_TTT_spec (sp base : Word)
     hv_q0 hv_q1 hv_q2 hv_q3 hv_u0 hv_u1 hv_u2 hv_u3 hv_u4
     hv_u5 hv_u6 hv_u7 hv_n hv_shift hv_j hv_ret hv_d hv_dlo hv_scratch_un0 halign
     hbltu_2 hbltu_1 hbltu_0
-  -- 2. Post-loop: base+904 → base+1064
+  -- 2. Post-loop: base+904 → base+1068
   have hB := evm_div_preamble_denorm_epilogue_spec sp base
     r0.2.1 r0.2.2.1 r0.2.2.2.1 r0.2.2.2.2.1 shift
     r0.2.2.2.2.1 (0 : Word) (sp + signExtend12 4056) (sp + signExtend12 4088)

@@ -3,7 +3,7 @@
 
   Full n=3 DIV path composition for the shift=0 case:
   pre-loop → 2-iteration loop → shift=0 epilogue.
-  Composes base → base+1064 for the b[3]=0, b[2]≠0, shift=0 case.
+  Composes base → base+1068 for the b[3]=0, b[2]≠0, shift=0 case.
 
   When shift=0, normalization is identity (v=b, u=a, u4=0).
   Since u4=0 < b2 (b2≠0), the j=1 BLTU condition is always taken → call path.
@@ -71,7 +71,7 @@ private theorem divK_loop_n3_shift0_call_call_inst (sp base : Word)
     (hv_q0 : isValidDwordAccess (sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat) = true)
     (hb2nz : b2 ≠ 0)
     (hbltu_0 : isCallTrialN3Shift0_j0 a1 a2 a3 b0 b1 b2) :
-    cpsTriple (base + 448) (base + 904) (divCode base)
+    cpsTriple (base + 448) (base + 908) (divCode base)
       (loopN3PreWithScratch sp j_mem (3 : Word) (0 : Word) clz_hi (0 : Word) v11_old (0 : Word)
         b0 b1 b2 (0 : Word) a1 a2 a3 (0 : Word) (0 : Word) a0 (0 : Word) (0 : Word)
         ret_mem d_mem dlo_mem scratch_un0)
@@ -134,7 +134,7 @@ theorem evm_div_n3_preloop_shift0_call_call_spec (sp base : Word)
     (hv_scratch_un0 : isValidDwordAccess (sp + signExtend12 3944) = true)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
     (hbltu_0 : isCallTrialN3Shift0_j0 a1 a2 a3 b0 b1 b2) :
-    cpsTriple base (base + 904) (divCode base)
+    cpsTriple base (base + 908) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b2).2 >>> (63 : Nat)) **
        (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
@@ -265,7 +265,7 @@ private theorem evm_div_n3_shift0_cc_denorm' (sp base : Word)
     (hv_q1 : isValidDwordAccess (sp + signExtend12 4080) = true)
     (hv_q2 : isValidDwordAccess (sp + signExtend12 4072) = true)
     (hv_q3 : isValidDwordAccess (sp + signExtend12 4064) = true) :
-    cpsTriple (base + 904) (base + 1064) (divCode base)
+    cpsTriple (base + 908) (base + 1068) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ signExtend12 4095) **
        (.x5 ↦ᵣ (0 : Word)) ** (.x6 ↦ᵣ sp + signExtend12 4056) **
        (.x7 ↦ᵣ sp + signExtend12 4088) ** (.x10 ↦ᵣ c3_0) ** (.x11 ↦ᵣ r0_q) **
@@ -356,7 +356,7 @@ theorem evm_div_n3_shift0_cc_denorm_comp (sp base a0 a1 a2 a3 b0 b1 b2 : Word)
     (hv_q1 : isValidDwordAccess (sp + signExtend12 4080) = true)
     (hv_q2 : isValidDwordAccess (sp + signExtend12 4072) = true)
     (hv_q3 : isValidDwordAccess (sp + signExtend12 4064) = true) :
-    cpsTriple (base + 904) (base + 1064) (divCode base)
+    cpsTriple (base + 908) (base + 1068) (divCode base)
       (preloopN3Shift0CallCallPost sp base a0 a1 a2 a3 b0 b1 b2)
       (fullDivN3Shift0CallCallPost sp base a0 a1 a2 a3 b0 b1 b2) := by
   let r1 := iterN3Call b0 b1 b2 (0 : Word) a1 a2 a3 (0 : Word) (0 : Word)
@@ -378,7 +378,7 @@ theorem evm_div_n3_shift0_cc_denorm_comp (sp base a0 a1 a2 a3 b0 b1 b2 : Word)
     hD
 
 -- ============================================================================
--- Full n=3 DIV path (shift=0, call×call): base → base+1064
+-- Full n=3 DIV path (shift=0, call×call): base → base+1068
 -- ============================================================================
 
 theorem evm_div_n3_full_shift0_call_call_spec (sp base : Word)
@@ -410,7 +410,7 @@ theorem evm_div_n3_full_shift0_call_call_spec (sp base : Word)
     (hv_scratch_un0 : isValidDwordAccess (sp + signExtend12 3944) = true)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
     (hbltu_0 : isCallTrialN3Shift0_j0 a1 a2 a3 b0 b1 b2) :
-    cpsTriple base (base + 1064) (divCode base)
+    cpsTriple base (base + 1068) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b2).2 >>> (63 : Nat)) **
        (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
@@ -482,7 +482,7 @@ private theorem divK_loop_n3_shift0_call_max_inst (sp base : Word)
     (hv_q0 : isValidDwordAccess (sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat) = true)
     (hb2nz : b2 ≠ 0)
     (hbltu_0 : isMaxTrialN3Shift0_j0 a1 a2 a3 b0 b1 b2) :
-    cpsTriple (base + 448) (base + 904) (divCode base)
+    cpsTriple (base + 448) (base + 908) (divCode base)
       (loopN3PreWithScratch sp j_mem (3 : Word) (0 : Word) clz_hi (0 : Word) v11_old (0 : Word)
         b0 b1 b2 (0 : Word) a1 a2 a3 (0 : Word) (0 : Word) a0 (0 : Word) (0 : Word)
         ret_mem d_mem dlo_mem scratch_un0)
@@ -545,7 +545,7 @@ theorem evm_div_n3_preloop_shift0_call_max_spec (sp base : Word)
     (hv_scratch_un0 : isValidDwordAccess (sp + signExtend12 3944) = true)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
     (hbltu_0 : isMaxTrialN3Shift0_j0 a1 a2 a3 b0 b1 b2) :
-    cpsTriple base (base + 904) (divCode base)
+    cpsTriple base (base + 908) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b2).2 >>> (63 : Nat)) **
        (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
@@ -676,7 +676,7 @@ private theorem evm_div_n3_shift0_cm_denorm' (sp base : Word)
     (hv_q1 : isValidDwordAccess (sp + signExtend12 4080) = true)
     (hv_q2 : isValidDwordAccess (sp + signExtend12 4072) = true)
     (hv_q3 : isValidDwordAccess (sp + signExtend12 4064) = true) :
-    cpsTriple (base + 904) (base + 1064) (divCode base)
+    cpsTriple (base + 908) (base + 1068) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ signExtend12 4095) **
        (.x5 ↦ᵣ (0 : Word)) ** (.x6 ↦ᵣ sp + signExtend12 4056) **
        (.x7 ↦ᵣ sp + signExtend12 4088) ** (.x10 ↦ᵣ c3_0) ** (.x11 ↦ᵣ r0_q) **
@@ -767,7 +767,7 @@ theorem evm_div_n3_shift0_cm_denorm_comp (sp base a0 a1 a2 a3 b0 b1 b2 : Word)
     (hv_q1 : isValidDwordAccess (sp + signExtend12 4080) = true)
     (hv_q2 : isValidDwordAccess (sp + signExtend12 4072) = true)
     (hv_q3 : isValidDwordAccess (sp + signExtend12 4064) = true) :
-    cpsTriple (base + 904) (base + 1064) (divCode base)
+    cpsTriple (base + 908) (base + 1068) (divCode base)
       (preloopN3Shift0CallMaxPost sp base a0 a1 a2 a3 b0 b1 b2)
       (fullDivN3Shift0CallMaxPost sp base a0 a1 a2 a3 b0 b1 b2) := by
   let r1 := iterN3Call b0 b1 b2 (0 : Word) a1 a2 a3 (0 : Word) (0 : Word)
@@ -789,7 +789,7 @@ theorem evm_div_n3_shift0_cm_denorm_comp (sp base a0 a1 a2 a3 b0 b1 b2 : Word)
     hD
 
 -- ============================================================================
--- Full n=3 DIV path (shift=0, call×max): base → base+1064
+-- Full n=3 DIV path (shift=0, call×max): base → base+1068
 -- ============================================================================
 
 theorem evm_div_n3_full_shift0_call_max_spec (sp base : Word)
@@ -821,7 +821,7 @@ theorem evm_div_n3_full_shift0_call_max_spec (sp base : Word)
     (hv_scratch_un0 : isValidDwordAccess (sp + signExtend12 3944) = true)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
     (hbltu_0 : isMaxTrialN3Shift0_j0 a1 a2 a3 b0 b1 b2) :
-    cpsTriple base (base + 1064) (divCode base)
+    cpsTriple base (base + 1068) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b2).2 >>> (63 : Nat)) **
        (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **

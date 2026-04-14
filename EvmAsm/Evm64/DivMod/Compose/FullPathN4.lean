@@ -2,7 +2,7 @@
   EvmAsm.Evm64.DivMod.Compose.FullPathN4
 
   Full n=4 DIV path composition: pre-loop → loop body (j=0) → post-loop.
-  Composes base → base+1064 for the b[3]≠0 case.
+  Composes base → base+1068 for the b[3]≠0 case.
 
   For n=4, the loop runs exactly 1 iteration (j=0 only).
 -/
@@ -107,7 +107,7 @@ theorem divK_loop_body_n4_max_skip_j0_norm (sp base : Word)
     let q_hat : Word := signExtend12 4095
     (if BitVec.ult u_top (mulsubN4_c3 q_hat v0 v1 v2 v3 u0 u1 u2 u3)
      then (1 : Word) else 0) = (0 : Word) →
-    cpsTriple (base + 448) (base + 904) (divCode base)
+    cpsTriple (base + 448) (base + 908) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (0 : Word)) **
        (.x5 ↦ᵣ v5_old) ** (.x6 ↦ᵣ v6_old) **
        (.x7 ↦ᵣ v7_old) ** (.x10 ↦ᵣ v10_old) ** (.x11 ↦ᵣ v11_old) **
@@ -158,7 +158,7 @@ theorem divK_loop_body_n4_max_addback_j0_norm (sp base : Word)
     let q_hat : Word := signExtend12 4095
     (if BitVec.ult u_top (mulsubN4_c3 q_hat v0 v1 v2 v3 u0 u1 u2 u3)
      then (1 : Word) else 0) ≠ (0 : Word) →
-    cpsTriple (base + 448) (base + 904) (divCode base)
+    cpsTriple (base + 448) (base + 908) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (0 : Word)) **
        (.x5 ↦ᵣ v5_old) ** (.x6 ↦ᵣ v6_old) **
        (.x7 ↦ᵣ v7_old) ** (.x10 ↦ᵣ v10_old) ** (.x11 ↦ᵣ v11_old) **
@@ -218,7 +218,7 @@ theorem evm_div_n4_preloop_max_skip_spec (sp base : Word)
     (hv_vtop : isValidDwordAccess (sp + ((4 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat + signExtend12 32) = true)
     (hbltu : isMaxTrialN4 a3 b2 b3)
     (hborrow : isSkipBorrowN4Max a0 a1 a2 a3 b0 b1 b2 b3) :
-    cpsTriple base (base + 904) (divCode base)
+    cpsTriple base (base + 908) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b3).2 >>> (63 : Nat)) **
        (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
@@ -292,7 +292,7 @@ theorem evm_div_n4_preloop_max_skip_spec (sp base : Word)
     hFull
 
 -- ============================================================================
--- Full n=4 DIV path (max+skip, shift≠0): base → base+1064
+-- Full n=4 DIV path (max+skip, shift≠0): base → base+1068
 -- ============================================================================
 
 /-- Unfold preloopMaxSkipPostN4 to expanded form with sp-relative addresses. -/
@@ -335,7 +335,7 @@ theorem preloopMaxSkipPostN4_unfold (sp a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
   simp only [loopBodyN4SkipPost, loopExitPostN4_j0_eq, se12_32, se12_40, se12_48, se12_56]
 
 -- ============================================================================
--- Full n=4 DIV path (max+skip, shift≠0): base → base+1064
+-- Full n=4 DIV path (max+skip, shift≠0): base → base+1068
 -- ============================================================================
 
 /-- Full path postcondition for n=4 DIV (shift ≠ 0, max+skip).
@@ -367,7 +367,7 @@ def fullDivN4MaxSkipPost (sp a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Assertion :=
   (sp + signExtend12 3976 ↦ₘ (0 : Word)) **
   (.x1 ↦ᵣ signExtend12 4095) ** (.x11 ↦ᵣ q_hat)
 
-/-- Full n=4 DIV path: base → base+1064 (shift ≠ 0, max+skip).
+/-- Full n=4 DIV path: base → base+1068 (shift ≠ 0, max+skip).
     Composes pre-loop + loop body + denorm + epilogue. -/
 theorem evm_div_n4_full_max_skip_spec (sp base : Word)
     (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11_old : Word)
@@ -396,7 +396,7 @@ theorem evm_div_n4_full_max_skip_spec (sp base : Word)
     (hv_vtop : isValidDwordAccess (sp + ((4 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat + signExtend12 32) = true)
     (hbltu : isMaxTrialN4 a3 b2 b3)
     (hborrow : isSkipBorrowN4Max a0 a1 a2 a3 b0 b1 b2 b3) :
-    cpsTriple base (base + 1064) (divCode base)
+    cpsTriple base (base + 1068) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b3).2 >>> (63 : Nat)) **
        (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
@@ -435,7 +435,7 @@ theorem evm_div_n4_full_max_skip_spec (sp base : Word)
     hv_q0 hv_q1 hv_q2 hv_q3 hv_u0 hv_u1 hv_u2 hv_u3 hv_u4
     hv_u5 hv_u6 hv_u7 hv_n hv_shift hv_j hv_uhi hv_ulo hv_vtop
     hbltu hborrow
-  -- 2. Post-loop: base+904 → base+1064
+  -- 2. Post-loop: base+904 → base+1068
   have hB := evm_div_preamble_denorm_epilogue_spec sp base
     ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 shift
     ms.2.2.2.1 (0 : Word) (sp + signExtend12 4056) (sp + signExtend12 4088)
@@ -540,7 +540,7 @@ theorem evm_div_n4_preloop_max_addback_spec (sp base : Word)
     (hv_vtop : isValidDwordAccess (sp + ((4 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat + signExtend12 32) = true)
     (hbltu : isMaxTrialN4 a3 b2 b3)
     (hborrow : isAddbackBorrowN4Max a0 a1 a2 a3 b0 b1 b2 b3) :
-    cpsTriple base (base + 904) (divCode base)
+    cpsTriple base (base + 908) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b3).2 >>> (63 : Nat)) **
        (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
@@ -688,7 +688,7 @@ def fullDivN4MaxAddbackPost (sp a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Assertion :=
   (sp + signExtend12 3976 ↦ₘ (0 : Word)) **
   (.x1 ↦ᵣ signExtend12 4095) ** (.x11 ↦ᵣ q_hat')
 
-/-- Full n=4 DIV path: base → base+1064 (shift ≠ 0, max+addback). -/
+/-- Full n=4 DIV path: base → base+1068 (shift ≠ 0, max+addback). -/
 theorem evm_div_n4_full_max_addback_spec (sp base : Word)
     (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11_old : Word)
     (q0 q1 q2 q3 u0_old u1_old u2_old u3_old u4_old u5 u6 u7 n_mem shift_mem j_mem : Word)
@@ -716,7 +716,7 @@ theorem evm_div_n4_full_max_addback_spec (sp base : Word)
     (hv_vtop : isValidDwordAccess (sp + ((4 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat + signExtend12 32) = true)
     (hbltu : isMaxTrialN4 a3 b2 b3)
     (hborrow : isAddbackBorrowN4Max a0 a1 a2 a3 b0 b1 b2 b3) :
-    cpsTriple base (base + 1064) (divCode base)
+    cpsTriple base (base + 1068) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b3).2 >>> (63 : Nat)) **
        (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
@@ -861,7 +861,7 @@ theorem divK_loop_body_n4_call_skip_j0_norm (sp base : Word)
     let div_un0 := (u3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
     (if BitVec.ult u_top (mulsubN4_c3 q_hat v0 v1 v2 v3 u0 u1 u2 u3)
      then (1 : Word) else 0) = (0 : Word) →
-    cpsTriple (base + 448) (base + 904) (divCode base)
+    cpsTriple (base + 448) (base + 908) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (0 : Word)) **
        (.x5 ↦ᵣ v5_old) ** (.x6 ↦ᵣ v6_old) **
        (.x7 ↦ᵣ v7_old) ** (.x10 ↦ᵣ v10_old) ** (.x11 ↦ᵣ v11_old) **
@@ -929,7 +929,7 @@ theorem divK_loop_body_n4_call_addback_j0_norm (sp base : Word)
     let div_un0 := (u3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
     (if BitVec.ult u_top (mulsubN4_c3 q_hat v0 v1 v2 v3 u0 u1 u2 u3)
      then (1 : Word) else 0) ≠ (0 : Word) →
-    cpsTriple (base + 448) (base + 904) (divCode base)
+    cpsTriple (base + 448) (base + 908) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (0 : Word)) **
        (.x5 ↦ᵣ v5_old) ** (.x6 ↦ᵣ v6_old) **
        (.x7 ↦ᵣ v7_old) ** (.x10 ↦ᵣ v10_old) ** (.x11 ↦ᵣ v11_old) **
@@ -967,7 +967,7 @@ theorem divK_loop_body_n4_call_addback_j0_norm (sp base : Word)
   exact raw'
 
 -- ============================================================================
--- Call+skip full path: preloop + loop + postloop (base → base+1064)
+-- Call+skip full path: preloop + loop + postloop (base → base+1068)
 -- ============================================================================
 
 /-- Postcondition for pre-loop + call+skip loop body at n=4. -/
@@ -1081,7 +1081,7 @@ theorem evm_div_n4_preloop_call_skip_spec (sp base : Word)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
     (hbltu : isCallTrialN4 a3 b2 b3)
     (hborrow : isSkipBorrowN4Call a0 a1 a2 a3 b0 b1 b2 b3) :
-    cpsTriple base (base + 904) (divCode base)
+    cpsTriple base (base + 908) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b3).2 >>> (63 : Nat)) **
        (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
@@ -1195,7 +1195,7 @@ def fullDivN4CallSkipPost (sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Assertion :
   (sp + signExtend12 3952 ↦ₘ d_lo) **
   (sp + signExtend12 3944 ↦ₘ div_un0)
 
-/-- Full n=4 DIV path: base → base+1064 (shift ≠ 0, call+skip). -/
+/-- Full n=4 DIV path: base → base+1068 (shift ≠ 0, call+skip). -/
 theorem evm_div_n4_full_call_skip_spec (sp base : Word)
     (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11_old : Word)
     (q0 q1 q2 q3 u0_old u1_old u2_old u3_old u4_old u5 u6 u7 n_mem shift_mem j_mem : Word)
@@ -1229,7 +1229,7 @@ theorem evm_div_n4_full_call_skip_spec (sp base : Word)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
     (hbltu : isCallTrialN4 a3 b2 b3)
     (hborrow : isSkipBorrowN4Call a0 a1 a2 a3 b0 b1 b2 b3) :
-    cpsTriple base (base + 1064) (divCode base)
+    cpsTriple base (base + 1068) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b3).2 >>> (63 : Nat)) **
        (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
@@ -1277,7 +1277,7 @@ theorem evm_div_n4_full_call_skip_spec (sp base : Word)
     hv_u5 hv_u6 hv_u7 hv_n hv_shift hv_j hv_ret hv_d hv_dlo hv_scratch_un0
     hv_uhi hv_ulo hv_vtop halign
     hbltu hborrow
-  -- 2. Post-loop: base+904 → base+1064
+  -- 2. Post-loop: base+904 → base+1068
   have hB := evm_div_preamble_denorm_epilogue_spec sp base
     ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 shift
     ms.2.2.2.1 (0 : Word) (sp + signExtend12 4056) (sp + signExtend12 4088)
@@ -1465,7 +1465,7 @@ theorem evm_div_n4_preloop_call_addback_spec (sp base : Word)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
     (hbltu : isCallTrialN4 a3 b2 b3)
     (hborrow : isAddbackBorrowN4Call a0 a1 a2 a3 b0 b1 b2 b3) :
-    cpsTriple base (base + 904) (divCode base)
+    cpsTriple base (base + 908) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b3).2 >>> (63 : Nat)) **
        (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) ** (.x11 ↦ᵣ v11_old) **
@@ -1532,7 +1532,7 @@ theorem evm_div_n4_preloop_call_addback_spec (sp base : Word)
     (fun h hq => by delta preloopCallAddbackPostN4; xperm_hyp hq)
     hFull
 
-/-- Full n=4 DIV path: base → base+1064 (shift ≠ 0, call+addback). -/
+/-- Full n=4 DIV path: base → base+1068 (shift ≠ 0, call+addback). -/
 theorem evm_div_n4_full_call_addback_spec (sp base : Word)
     (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11_old : Word)
     (q0 q1 q2 q3 u0_old u1_old u2_old u3_old u4_old u5 u6 u7 n_mem shift_mem j_mem : Word)
@@ -1564,7 +1564,7 @@ theorem evm_div_n4_full_call_addback_spec (sp base : Word)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
     (hbltu : isCallTrialN4 a3 b2 b3)
     (hborrow : isAddbackBorrowN4Call a0 a1 a2 a3 b0 b1 b2 b3) :
-    cpsTriple base (base + 1064) (divCode base)
+    cpsTriple base (base + 1068) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b3).2 >>> (63 : Nat)) **
        (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) ** (.x11 ↦ᵣ v11_old) **

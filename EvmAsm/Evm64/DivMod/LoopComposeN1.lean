@@ -446,7 +446,7 @@ theorem divK_loop_body_n1_max_unified_j0_spec
     (hbltu : ¬BitVec.ult u1 v0) :
     let u_base := sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat
     let q_addr := sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat
-    cpsTriple (base + 448) (base + 904) (sharedDivModCode base)
+    cpsTriple (base + 448) (base + 908) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (0 : Word)) **
        (.x5 ↦ᵣ v5_old) ** (.x6 ↦ᵣ v6_old) **
        (.x7 ↦ᵣ v7_old) ** (.x10 ↦ᵣ v10_old) ** (.x11 ↦ᵣ v11_old) **
@@ -774,7 +774,7 @@ theorem divK_loop_body_n1_call_unified_j0_spec
     (hbltu : BitVec.ult u1 v0) :
     let u_base := sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat
     let q_addr := sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat
-    cpsTriple (base + 448) (base + 904) (sharedDivModCode base)
+    cpsTriple (base + 448) (base + 908) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (0 : Word)) **
        (.x5 ↦ᵣ v5_old) ** (.x6 ↦ᵣ v6_old) **
        (.x7 ↦ᵣ v7_old) ** (.x10 ↦ᵣ v10_old) ** (.x11 ↦ᵣ v11_old) **

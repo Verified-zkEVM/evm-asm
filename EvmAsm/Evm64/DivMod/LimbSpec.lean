@@ -50,7 +50,7 @@ theorem divK_zeroPath_spec (sp : Word) (base : Word)
 -- ============================================================================
 
 abbrev divK_phaseA_code (base : Word) : CodeReq :=
-  CodeReq.ofProg base (divK_phaseA 1016)
+  CodeReq.ofProg base (divK_phaseA 1020)
 
 /-- Phase A body: load and OR-reduce the 4 limbs of b.
     Produces x5 = b0 ||| b1 ||| b2 ||| b3.
@@ -97,14 +97,14 @@ theorem divK_phaseA_spec (sp : Word) (base : Word)
        ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
        ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3))
       -- Taken: bor = 0
-      ((base + 28) + signExtend13 1016) post
+      ((base + 28) + signExtend13 1020) post
       -- Not taken: bor ≠ 0
       (base + 32) post := by
   intro bor cr post
   -- 1. Body: 7 straight-line instructions
   have hbody := divK_phaseA_body_spec sp base b0 b1 b2 b3 v5 v10 hvalid
   -- 2. BEQ: branch at base + 28, drop pure facts
-  have hbeq_raw := beq_spec_gen .x5 .x0 1016 bor (0 : Word) (base + 28)
+  have hbeq_raw := beq_spec_gen .x5 .x0 1020 bor (0 : Word) (base + 28)
   have ha1 : (base + 28 : Word) + 4 = base + 32 := by bv_addr
   rw [ha1] at hbeq_raw
   have hbeq := cpsBranch_consequence _ _ _ _ _ _ _ _ _ _
@@ -124,10 +124,10 @@ theorem divK_phaseA_spec (sp : Word) (base : Word)
   have hbeq_ext := cpsBranch_extend_code (cr' := cr) (fun a i h => by
     simp only [CodeReq.singleton] at h
     split at h <;> simp_all only [Option.some.injEq, beq_iff_eq, reduceCtorEq]
-    -- a = base + 28, i = .BEQ .x5 .x0 1016
+    -- a = base + 28, i = .BEQ .x5 .x0 1020
     subst_vars
     show divK_phaseA_code base (base + 28) = _
-    exact CodeReq.ofProg_lookup base (divK_phaseA 1016) 7
+    exact CodeReq.ofProg_lookup base (divK_phaseA 1020) 7
       (by decide) (by decide)
     ) hbeq_framed
   -- 5. Compose body → BEQ with permutation (same CR)

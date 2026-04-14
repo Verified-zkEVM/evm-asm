@@ -1,8 +1,8 @@
 /-
   EvmAsm.Evm64.DivMod.Compose.FullPathN2Full
 
-  Full n=2 DIV path compositions (base → base+1064).
-  Composes preloop+loop (base → base+904) with denorm+epilogue (base+904 → base+1064).
+  Full n=2 DIV path compositions (base → base+1068).
+  Composes preloop+loop (base → base+904) with denorm+epilogue (base+904 → base+1068).
 
   Starts with the all-max case (bltu_2 = bltu_1 = bltu_0 = false) as the foundation.
 -/
@@ -61,7 +61,7 @@ def fullDivN2AllMaxPost (sp a0 a1 a2 a3 b0 b1 b2 b3 : Word)
   (sp + signExtend12 3944 ↦ₘ scratch_un0)
 
 -- ============================================================================
--- Full n=2 DIV path (all-max, shift≠0): base → base+1064
+-- Full n=2 DIV path (all-max, shift≠0): base → base+1068
 -- ============================================================================
 
 set_option maxRecDepth 4096 in
@@ -99,7 +99,7 @@ theorem evm_div_n2_full_all_max_spec (sp base : Word)
     (hbltu_2 : isTrialN2_j2 false a3 b0 b1)
     (hbltu_1 : isTrialN2_j1 false false a1 a2 a3 b0 b1 b2 b3)
     (hbltu_0 : isTrialN2_j0 false false false a0 a1 a2 a3 b0 b1 b2 b3) :
-    cpsTriple base (base + 1064) (divCode base)
+    cpsTriple base (base + 1068) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b1).2 >>> (63 : Nat)) **
        (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
@@ -148,7 +148,7 @@ theorem evm_div_n2_full_all_max_spec (sp base : Word)
     hv_q0 hv_q1 hv_q2 hv_q3 hv_u0 hv_u1 hv_u2 hv_u3 hv_u4
     hv_u5 hv_u6 hv_u7 hv_n hv_shift hv_j hv_ret hv_d hv_dlo hv_scratch_un0 halign
     hbltu_2 hbltu_1 hbltu_0
-  -- 2. Post-loop: base+904 → base+1064
+  -- 2. Post-loop: base+904 → base+1068
   have hB := evm_div_preamble_denorm_epilogue_spec sp base
     r0.2.1 r0.2.2.1 r0.2.2.2.1 r0.2.2.2.2.1 shift
     r0.2.2.2.2.1 (0 : Word) (sp + signExtend12 4056) (sp + signExtend12 4088)
@@ -267,7 +267,7 @@ def fullDivN2UnifiedPost (bltu_2 bltu_1 bltu_0 : Bool)
     (sp + signExtend12 3944 ↦ₘ div128Un0 r1.2.1)
 
 -- ============================================================================
--- Unified full n=2 DIV path (shift≠0): base → base+1064
+-- Unified full n=2 DIV path (shift≠0): base → base+1068
 -- ============================================================================
 
 set_option maxRecDepth 4096 in
@@ -306,7 +306,7 @@ theorem evm_div_n2_full_unified_spec (bltu_2 bltu_1 bltu_0 : Bool) (sp base : Wo
     (hbltu_2 : isTrialN2_j2 bltu_2 a3 b0 b1)
     (hbltu_1 : isTrialN2_j1 bltu_2 bltu_1 a1 a2 a3 b0 b1 b2 b3)
     (hbltu_0 : isTrialN2_j0 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3) :
-    cpsTriple base (base + 1064) (divCode base)
+    cpsTriple base (base + 1068) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b1).2 >>> (63 : Nat)) **
        (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **

@@ -3,7 +3,7 @@
 
   Full n=4 DIV path composition for the shift=0 case:
   pre-loop → loop body (j=0) → shift=0 epilogue.
-  Composes base → base+1064 for the b[3]≠0, shift=0 case.
+  Composes base → base+1068 for the b[3]≠0, shift=0 case.
 
   When shift=0, normalization is identity (b'=b, u=a, u4=0).
   Since u4=0 < b3 (b3≠0), the BLTU condition is always taken → call path only.
@@ -126,7 +126,7 @@ theorem evm_div_n4_preloop_shift0_call_skip_spec (sp base : Word)
     (hv_vtop : isValidDwordAccess (sp + ((4 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat + signExtend12 32) = true)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
     (hborrow : isSkipBorrowN4Shift0 a0 a1 a2 a3 b0 b1 b2 b3) :
-    cpsTriple base (base + 904) (divCode base)
+    cpsTriple base (base + 908) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b3).2 >>> (63 : Nat)) **
        (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
@@ -274,10 +274,10 @@ def fullDivN4Shift0CallSkipPost (sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Asser
   (sp + signExtend12 3944 ↦ₘ (a3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat)
 
 -- ============================================================================
--- Full n=4 DIV path (shift=0, call+skip): base → base+1064
+-- Full n=4 DIV path (shift=0, call+skip): base → base+1068
 -- ============================================================================
 
-/-- Full n=4 DIV path: base → base+1064 (shift=0, call+skip).
+/-- Full n=4 DIV path: base → base+1068 (shift=0, call+skip).
     Composes pre-loop + loop body + shift=0 epilogue. -/
 theorem evm_div_n4_full_shift0_call_skip_spec (sp base : Word)
     (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11_old : Word)
@@ -311,7 +311,7 @@ theorem evm_div_n4_full_shift0_call_skip_spec (sp base : Word)
     (hv_vtop : isValidDwordAccess (sp + ((4 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat + signExtend12 32) = true)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
     (hborrow : isSkipBorrowN4Shift0 a0 a1 a2 a3 b0 b1 b2 b3) :
-    cpsTriple base (base + 1064) (divCode base)
+    cpsTriple base (base + 1068) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b3).2 >>> (63 : Nat)) **
        (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) ** (.x11 ↦ᵣ v11_old) **
@@ -339,7 +339,7 @@ theorem evm_div_n4_full_shift0_call_skip_spec (sp base : Word)
     hv_q0 hv_q1 hv_q2 hv_q3 hv_u0 hv_u1 hv_u2 hv_u3 hv_u4
     hv_u5 hv_u6 hv_u7 hv_n hv_shift hv_j hv_ret hv_d hv_dlo hv_scratch_un0
     hv_uhi hv_ulo hv_vtop halign hborrow
-  -- 2. Post-loop: base+904 → base+1064 (shift=0 epilogue)
+  -- 2. Post-loop: base+904 → base+1068 (shift=0 epilogue)
   have hB := evm_div_shift0_epilogue_spec sp base
     ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 (0 : Word)
     ms.2.2.2.1 (0 : Word) (sp + signExtend12 4056) (sp + signExtend12 4088)
@@ -414,7 +414,7 @@ theorem evm_div_n4_preloop_shift0_call_addback_spec (sp base : Word)
     (hv_vtop : isValidDwordAccess (sp + ((4 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat + signExtend12 32) = true)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
     (hborrow : isAddbackBorrowN4Shift0 a0 a1 a2 a3 b0 b1 b2 b3) :
-    cpsTriple base (base + 904) (divCode base)
+    cpsTriple base (base + 908) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b3).2 >>> (63 : Nat)) **
        (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
@@ -568,10 +568,10 @@ def fullDivN4Shift0CallAddbackPost (sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word) : As
   (sp + signExtend12 3944 ↦ₘ (a3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat)
 
 -- ============================================================================
--- Full n=4 DIV path (shift=0, call+addback): base → base+1064
+-- Full n=4 DIV path (shift=0, call+addback): base → base+1068
 -- ============================================================================
 
-/-- Full n=4 DIV path: base → base+1064 (shift=0, call+addback).
+/-- Full n=4 DIV path: base → base+1068 (shift=0, call+addback).
     Composes pre-loop + loop body + shift=0 epilogue. -/
 theorem evm_div_n4_full_shift0_call_addback_spec (sp base : Word)
     (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11_old : Word)
@@ -605,7 +605,7 @@ theorem evm_div_n4_full_shift0_call_addback_spec (sp base : Word)
     (hv_vtop : isValidDwordAccess (sp + ((4 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat + signExtend12 32) = true)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
     (hborrow : isAddbackBorrowN4Shift0 a0 a1 a2 a3 b0 b1 b2 b3) :
-    cpsTriple base (base + 1064) (divCode base)
+    cpsTriple base (base + 1068) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b3).2 >>> (63 : Nat)) **
        (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) ** (.x11 ↦ᵣ v11_old) **
@@ -637,7 +637,7 @@ theorem evm_div_n4_full_shift0_call_addback_spec (sp base : Word)
     hv_q0 hv_q1 hv_q2 hv_q3 hv_u0 hv_u1 hv_u2 hv_u3 hv_u4
     hv_u5 hv_u6 hv_u7 hv_n hv_shift hv_j hv_ret hv_d hv_dlo hv_scratch_un0
     hv_uhi hv_ulo hv_vtop halign hborrow
-  -- 2. Post-loop: base+904 → base+1064 (shift=0 epilogue)
+  -- 2. Post-loop: base+904 → base+1068 (shift=0 epilogue)
   have hB := evm_div_shift0_epilogue_spec sp base
     ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 (0 : Word)
     ab.2.2.2.1 (0 : Word) (sp + signExtend12 4056) (sp + signExtend12 4088)

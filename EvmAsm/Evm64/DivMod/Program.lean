@@ -332,8 +332,8 @@ def divK_loopBody (subr_off : BitVec 21) (loop_back_off : BitVec 13) : Program :
   SD .x6 .x5 4064 ;;                          -- [69]
 
   -- CORRECTION: if borrow (x7 != 0), add v back and q_hat--
-  -- BEQ x7 x0 skips 37 instructions → offset = 37*4+4 = 152
-  single (.BEQ .x7 .x0 152) ;;               -- [70] skip correction → [108]
+  -- BEQ x7 x0 skips 38 instructions → offset = 38*4+4 = 156
+  single (.BEQ .x7 .x0 156) ;;               -- [70] skip correction → [109]
 
   -- Add-back: v[0..3] to u[j..j+3] with carry, then u[j+4]++, q_hat--
   ADDI .x7 .x0 0 ;;                           -- [71] carry = 0
@@ -376,15 +376,19 @@ def divK_loopBody (subr_off : BitVec 21) (loop_back_off : BitVec 13) : Program :
   -- q_hat--
   ADDI .x11 .x11 4095 ;;                      -- [107]
 
+  -- DOUBLE ADDBACK CHECK: if carry (x7) = 0, repeat addback
+  -- Offset = -148 bytes (back to [71]): 13-bit encoding = 8044
+  single (.BEQ .x7 .x0 8044) ;;              -- [108] if carry=0 → [71]
+
   -- STORE q[j]: q[j] at sp - 8 - j*8 = sp + (4088 - j*8)
-  SLLI .x5 .x1 3 ;;                           -- [108] j*8
-  ADDI .x7 .x12 4088 ;;                       -- [109] sp-8
-  single (.SUB .x7 .x7 .x5) ;;               -- [110] &q[j]
-  SD .x7 .x11 0 ;;                            -- [111] q[j] = q_hat
+  SLLI .x5 .x1 3 ;;                           -- [109] j*8
+  ADDI .x7 .x12 4088 ;;                       -- [110] sp-8
+  single (.SUB .x7 .x7 .x5) ;;               -- [111] &q[j]
+  SD .x7 .x11 0 ;;                            -- [112] q[j] = q_hat
 
   -- LOOP CONTROL
-  ADDI .x1 .x1 4095 ;;                        -- [112] j--
-  single (.BGE .x1 .x0 loop_back_off)         -- [113] if j >= 0 → loop
+  ADDI .x1 .x1 4095 ;;                        -- [113] j--
+  single (.BGE .x1 .x0 loop_back_off)         -- [114] if j >= 0 → loop
 
 /-- Phase E: De-normalize remainder. Right-shift u[0..3] by shift amount.
     25 instructions. -/
@@ -472,15 +476,15 @@ def divK_zeroPath : Program :=
 
 /-- 256-bit EVM DIV: Knuth Algorithm D. -/
 def evm_div : Program :=
-  divK_phaseA 1016 ;;
+  divK_phaseA 1020 ;;
   divK_phaseB ;;
   divK_clz ;;
   divK_phaseC2 172 ;;
   divK_normB ;;
   divK_normA 40 ;;
   divK_copyAU ;;
-  divK_loopSetup 460 ;;
-  divK_loopBody 556 7740 ;;
+  divK_loopSetup 464 ;;
+  divK_loopBody 560 7736 ;;
   divK_denorm ;;
   divK_div_epilogue 24 ;;
   divK_zeroPath ;;
@@ -489,15 +493,15 @@ def evm_div : Program :=
 
 /-- 256-bit EVM MOD: Knuth Algorithm D, outputs remainder. -/
 def evm_mod : Program :=
-  divK_phaseA 1016 ;;
+  divK_phaseA 1020 ;;
   divK_phaseB ;;
   divK_clz ;;
   divK_phaseC2 172 ;;
   divK_normB ;;
   divK_normA 40 ;;
   divK_copyAU ;;
-  divK_loopSetup 460 ;;
-  divK_loopBody 556 7740 ;;
+  divK_loopSetup 464 ;;
+  divK_loopBody 560 7736 ;;
   divK_denorm ;;
   divK_mod_epilogue 24 ;;
   divK_zeroPath ;;
@@ -519,7 +523,7 @@ def evm_mod : Program :=
 #eval (divK_normA 0).length        -- expect 22
 #eval divK_copyAU.length           -- expect 9
 #eval (divK_loopSetup 0).length   -- expect 4
-#eval (divK_loopBody 0 0).length  -- expect 114
+#eval (divK_loopBody 0 0).length  -- expect 115
 #eval divK_denorm.length           -- expect 25
 #eval (divK_div_epilogue 0).length -- expect 10
 #eval divK_zeroPath.length         -- expect 5

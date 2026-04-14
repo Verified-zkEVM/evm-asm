@@ -18,15 +18,15 @@ open EvmAsm.Rv64
 -- Non-private so they are accessible from sub-files via skipBlock macro.
 -- ============================================================================
 
-theorem divK_phaseA_len : (divK_phaseA 1016).length = 8 := by decide
+theorem divK_phaseA_len : (divK_phaseA 1020).length = 8 := by decide
 theorem divK_phaseB_len : divK_phaseB.length = 21 := by decide
 theorem divK_clz_len : divK_clz.length = 24 := by decide
 theorem divK_phaseC2_len : (divK_phaseC2 172).length = 4 := by decide
 theorem divK_normB_len : divK_normB.length = 21 := by decide
 theorem divK_normA_len : (divK_normA 40).length = 21 := by decide
 theorem divK_copyAU_len : divK_copyAU.length = 9 := by decide
-theorem divK_loopSetup_len : (divK_loopSetup 460).length = 4 := by decide
-theorem divK_loopBody_len : (divK_loopBody 556 7740).length = 114 := by decide
+theorem divK_loopSetup_len : (divK_loopSetup 464).length = 4 := by decide
+theorem divK_loopBody_len : (divK_loopBody 560 7736).length = 115 := by decide
 theorem divK_denorm_len : divK_denorm.length = 25 := by decide
 theorem divK_divEpilogue_len : (divK_div_epilogue 24).length = 10 := by decide
 theorem divK_zeroPath_len : divK_zeroPath.length = 5 := by decide
@@ -54,40 +54,40 @@ macro "skipBlock" : tactic =>
     This is the canonical CodeReq for all composed specs. -/
 abbrev divCode (base : Word) : CodeReq :=
   CodeReq.unionAll [
-    CodeReq.ofProg base (divK_phaseA 1016),             -- block 0
+    CodeReq.ofProg base (divK_phaseA 1020),             -- block 0
     CodeReq.ofProg (base + 32) divK_phaseB,              -- block 1
     CodeReq.ofProg (base + 116) divK_clz,                -- block 2
     CodeReq.ofProg (base + 212) (divK_phaseC2 172),      -- block 3
     CodeReq.ofProg (base + 228) divK_normB,              -- block 4
     CodeReq.ofProg (base + 312) (divK_normA 40),         -- block 5
     CodeReq.ofProg (base + 396) divK_copyAU,             -- block 6
-    CodeReq.ofProg (base + 432) (divK_loopSetup 460),    -- block 7
-    CodeReq.ofProg (base + 448) (divK_loopBody 556 7740),-- block 8
-    CodeReq.ofProg (base + 904) divK_denorm,             -- block 9
-    CodeReq.ofProg (base + 1004) (divK_div_epilogue 24), -- block 10
-    CodeReq.ofProg (base + 1044) divK_zeroPath,          -- block 11
-    CodeReq.ofProg (base + 1064) (ADDI .x0 .x0 0),      -- block 12
-    CodeReq.ofProg (base + 1068) divK_div128             -- block 13
+    CodeReq.ofProg (base + 432) (divK_loopSetup 464),    -- block 7
+    CodeReq.ofProg (base + 448) (divK_loopBody 560 7736),-- block 8
+    CodeReq.ofProg (base + 908) divK_denorm,             -- block 9
+    CodeReq.ofProg (base + 1008) (divK_div_epilogue 24), -- block 10
+    CodeReq.ofProg (base + 1048) divK_zeroPath,          -- block 11
+    CodeReq.ofProg (base + 1068) (ADDI .x0 .x0 0),      -- block 12
+    CodeReq.ofProg (base + 1072) divK_div128             -- block 13
   ]
 
 /-- The full evm_mod code split into 14 per-phase CodeReq.ofProg blocks.
     Identical to divCode except block 10 uses divK_mod_epilogue. -/
 abbrev modCode (base : Word) : CodeReq :=
   CodeReq.unionAll [
-    CodeReq.ofProg base (divK_phaseA 1016),
+    CodeReq.ofProg base (divK_phaseA 1020),
     CodeReq.ofProg (base + 32) divK_phaseB,
     CodeReq.ofProg (base + 116) divK_clz,
     CodeReq.ofProg (base + 212) (divK_phaseC2 172),
     CodeReq.ofProg (base + 228) divK_normB,
     CodeReq.ofProg (base + 312) (divK_normA 40),
     CodeReq.ofProg (base + 396) divK_copyAU,
-    CodeReq.ofProg (base + 432) (divK_loopSetup 460),
-    CodeReq.ofProg (base + 448) (divK_loopBody 556 7740),
-    CodeReq.ofProg (base + 904) divK_denorm,
-    CodeReq.ofProg (base + 1004) (divK_mod_epilogue 24),  -- block 10 differs from divCode
-    CodeReq.ofProg (base + 1044) divK_zeroPath,
-    CodeReq.ofProg (base + 1064) (ADDI .x0 .x0 0),
-    CodeReq.ofProg (base + 1068) divK_div128
+    CodeReq.ofProg (base + 432) (divK_loopSetup 464),
+    CodeReq.ofProg (base + 448) (divK_loopBody 560 7736),
+    CodeReq.ofProg (base + 908) divK_denorm,
+    CodeReq.ofProg (base + 1008) (divK_mod_epilogue 24),  -- block 10 differs from divCode
+    CodeReq.ofProg (base + 1048) divK_zeroPath,
+    CodeReq.ofProg (base + 1068) (ADDI .x0 .x0 0),
+    CodeReq.ofProg (base + 1072) divK_div128
   ]
 
 -- ============================================================================
@@ -99,25 +99,25 @@ abbrev modCode (base : Word) : CodeReq :=
     for DIV and MOD. -/
 abbrev sharedDivModCode (base : Word) : CodeReq :=
   CodeReq.unionAll [
-    CodeReq.ofProg base (divK_phaseA 1016),             -- block 0
+    CodeReq.ofProg base (divK_phaseA 1020),             -- block 0
     CodeReq.ofProg (base + 32) divK_phaseB,              -- block 1
     CodeReq.ofProg (base + 116) divK_clz,                -- block 2
     CodeReq.ofProg (base + 212) (divK_phaseC2 172),      -- block 3
     CodeReq.ofProg (base + 228) divK_normB,              -- block 4
     CodeReq.ofProg (base + 312) (divK_normA 40),         -- block 5
     CodeReq.ofProg (base + 396) divK_copyAU,             -- block 6
-    CodeReq.ofProg (base + 432) (divK_loopSetup 460),    -- block 7
-    CodeReq.ofProg (base + 448) (divK_loopBody 556 7740),-- block 8
-    CodeReq.ofProg (base + 904) divK_denorm,             -- block 9
+    CodeReq.ofProg (base + 432) (divK_loopSetup 464),    -- block 7
+    CodeReq.ofProg (base + 448) (divK_loopBody 560 7736),-- block 8
+    CodeReq.ofProg (base + 908) divK_denorm,             -- block 9
     -- NO epilogue block (this is where divCode and modCode differ)
-    CodeReq.ofProg (base + 1044) divK_zeroPath,          -- block 10 (was 11)
-    CodeReq.ofProg (base + 1064) (ADDI .x0 .x0 0),      -- block 11 (was 12)
-    CodeReq.ofProg (base + 1068) divK_div128             -- block 12 (was 13)
+    CodeReq.ofProg (base + 1048) divK_zeroPath,          -- block 10 (was 11)
+    CodeReq.ofProg (base + 1068) (ADDI .x0 .x0 0),      -- block 11 (was 12)
+    CodeReq.ofProg (base + 1072) divK_div128             -- block 12 (was 13)
   ]
 
 -- Per-block subsumption: each shared block ⊆ divCode.
 -- Blocks 0-9 are at the same union positions; blocks 10-12 (shared) = blocks 11-13 (divCode).
-private theorem shared_b0_div (b : Word) : ∀ a i, (CodeReq.ofProg b (divK_phaseA 1016)) a = some i → (divCode b) a = some i := by
+private theorem shared_b0_div (b : Word) : ∀ a i, (CodeReq.ofProg b (divK_phaseA 1020)) a = some i → (divCode b) a = some i := by
   unfold divCode; simp only [CodeReq.unionAll_cons]; exact CodeReq.union_mono_left _ _
 private theorem shared_b1_div (b : Word) : ∀ a i, (CodeReq.ofProg (b + 32) divK_phaseB) a = some i → (divCode b) a = some i := by
   unfold divCode; simp only [CodeReq.unionAll_cons]; skipBlock; exact CodeReq.union_mono_left _ _
@@ -131,17 +131,17 @@ private theorem shared_b5_div (b : Word) : ∀ a i, (CodeReq.ofProg (b + 312) (d
   unfold divCode; simp only [CodeReq.unionAll_cons]; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; exact CodeReq.union_mono_left _ _
 private theorem shared_b6_div (b : Word) : ∀ a i, (CodeReq.ofProg (b + 396) divK_copyAU) a = some i → (divCode b) a = some i := by
   unfold divCode; simp only [CodeReq.unionAll_cons]; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; exact CodeReq.union_mono_left _ _
-private theorem shared_b7_div (b : Word) : ∀ a i, (CodeReq.ofProg (b + 432) (divK_loopSetup 460)) a = some i → (divCode b) a = some i := by
+private theorem shared_b7_div (b : Word) : ∀ a i, (CodeReq.ofProg (b + 432) (divK_loopSetup 464)) a = some i → (divCode b) a = some i := by
   unfold divCode; simp only [CodeReq.unionAll_cons]; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; exact CodeReq.union_mono_left _ _
-private theorem shared_b8_div (b : Word) : ∀ a i, (CodeReq.ofProg (b + 448) (divK_loopBody 556 7740)) a = some i → (divCode b) a = some i := by
+private theorem shared_b8_div (b : Word) : ∀ a i, (CodeReq.ofProg (b + 448) (divK_loopBody 560 7736)) a = some i → (divCode b) a = some i := by
   unfold divCode; simp only [CodeReq.unionAll_cons]; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; exact CodeReq.union_mono_left _ _
-private theorem shared_b9_div (b : Word) : ∀ a i, (CodeReq.ofProg (b + 904) divK_denorm) a = some i → (divCode b) a = some i := by
+private theorem shared_b9_div (b : Word) : ∀ a i, (CodeReq.ofProg (b + 908) divK_denorm) a = some i → (divCode b) a = some i := by
   unfold divCode; simp only [CodeReq.unionAll_cons]; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; exact CodeReq.union_mono_left _ _
-private theorem shared_b10_div (b : Word) : ∀ a i, (CodeReq.ofProg (b + 1044) divK_zeroPath) a = some i → (divCode b) a = some i := by
+private theorem shared_b10_div (b : Word) : ∀ a i, (CodeReq.ofProg (b + 1048) divK_zeroPath) a = some i → (divCode b) a = some i := by
   unfold divCode; simp only [CodeReq.unionAll_cons]; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; exact CodeReq.union_mono_left _ _
-private theorem shared_b11_div (b : Word) : ∀ a i, (CodeReq.ofProg (b + 1064) (ADDI .x0 .x0 0 : Program)) a = some i → (divCode b) a = some i := by
+private theorem shared_b11_div (b : Word) : ∀ a i, (CodeReq.ofProg (b + 1068) (ADDI .x0 .x0 0 : Program)) a = some i → (divCode b) a = some i := by
   unfold divCode; simp only [CodeReq.unionAll_cons]; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; exact CodeReq.union_mono_left _ _
-private theorem shared_b12_div (b : Word) : ∀ a i, (CodeReq.ofProg (b + 1068) divK_div128) a = some i → (divCode b) a = some i := by
+private theorem shared_b12_div (b : Word) : ∀ a i, (CodeReq.ofProg (b + 1072) divK_div128) a = some i → (divCode b) a = some i := by
   unfold divCode; simp only [CodeReq.unionAll_cons]; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; exact CodeReq.union_mono_left _ _
 
 /-- sharedDivModCode ⊆ divCode: every shared block is also in divCode. -/
@@ -164,7 +164,7 @@ theorem sharedDivModCode_sub_divCode (base : Word) :
     (fun _ _ h => by simp [CodeReq.unionAll_nil, CodeReq.empty] at h)))))))))))))
 
 -- Per-block subsumption: each shared block ⊆ modCode.
-private theorem shared_b0_mod (b : Word) : ∀ a i, (CodeReq.ofProg b (divK_phaseA 1016)) a = some i → (modCode b) a = some i := by
+private theorem shared_b0_mod (b : Word) : ∀ a i, (CodeReq.ofProg b (divK_phaseA 1020)) a = some i → (modCode b) a = some i := by
   unfold modCode; simp only [CodeReq.unionAll_cons]; exact CodeReq.union_mono_left _ _
 private theorem shared_b1_mod (b : Word) : ∀ a i, (CodeReq.ofProg (b + 32) divK_phaseB) a = some i → (modCode b) a = some i := by
   unfold modCode; simp only [CodeReq.unionAll_cons]; skipBlock; exact CodeReq.union_mono_left _ _
@@ -178,17 +178,17 @@ private theorem shared_b5_mod (b : Word) : ∀ a i, (CodeReq.ofProg (b + 312) (d
   unfold modCode; simp only [CodeReq.unionAll_cons]; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; exact CodeReq.union_mono_left _ _
 private theorem shared_b6_mod (b : Word) : ∀ a i, (CodeReq.ofProg (b + 396) divK_copyAU) a = some i → (modCode b) a = some i := by
   unfold modCode; simp only [CodeReq.unionAll_cons]; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; exact CodeReq.union_mono_left _ _
-private theorem shared_b7_mod (b : Word) : ∀ a i, (CodeReq.ofProg (b + 432) (divK_loopSetup 460)) a = some i → (modCode b) a = some i := by
+private theorem shared_b7_mod (b : Word) : ∀ a i, (CodeReq.ofProg (b + 432) (divK_loopSetup 464)) a = some i → (modCode b) a = some i := by
   unfold modCode; simp only [CodeReq.unionAll_cons]; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; exact CodeReq.union_mono_left _ _
-private theorem shared_b8_mod (b : Word) : ∀ a i, (CodeReq.ofProg (b + 448) (divK_loopBody 556 7740)) a = some i → (modCode b) a = some i := by
+private theorem shared_b8_mod (b : Word) : ∀ a i, (CodeReq.ofProg (b + 448) (divK_loopBody 560 7736)) a = some i → (modCode b) a = some i := by
   unfold modCode; simp only [CodeReq.unionAll_cons]; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; exact CodeReq.union_mono_left _ _
-private theorem shared_b9_mod (b : Word) : ∀ a i, (CodeReq.ofProg (b + 904) divK_denorm) a = some i → (modCode b) a = some i := by
+private theorem shared_b9_mod (b : Word) : ∀ a i, (CodeReq.ofProg (b + 908) divK_denorm) a = some i → (modCode b) a = some i := by
   unfold modCode; simp only [CodeReq.unionAll_cons]; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; exact CodeReq.union_mono_left _ _
-private theorem shared_b10_mod (b : Word) : ∀ a i, (CodeReq.ofProg (b + 1044) divK_zeroPath) a = some i → (modCode b) a = some i := by
+private theorem shared_b10_mod (b : Word) : ∀ a i, (CodeReq.ofProg (b + 1048) divK_zeroPath) a = some i → (modCode b) a = some i := by
   unfold modCode; simp only [CodeReq.unionAll_cons]; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; exact CodeReq.union_mono_left _ _
-private theorem shared_b11_mod (b : Word) : ∀ a i, (CodeReq.ofProg (b + 1064) (ADDI .x0 .x0 0 : Program)) a = some i → (modCode b) a = some i := by
+private theorem shared_b11_mod (b : Word) : ∀ a i, (CodeReq.ofProg (b + 1068) (ADDI .x0 .x0 0 : Program)) a = some i → (modCode b) a = some i := by
   unfold modCode; simp only [CodeReq.unionAll_cons]; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; exact CodeReq.union_mono_left _ _
-private theorem shared_b12_mod (b : Word) : ∀ a i, (CodeReq.ofProg (b + 1068) divK_div128) a = some i → (modCode b) a = some i := by
+private theorem shared_b12_mod (b : Word) : ∀ a i, (CodeReq.ofProg (b + 1072) divK_div128) a = some i → (modCode b) a = some i := by
   unfold modCode; simp only [CodeReq.unionAll_cons]; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; exact CodeReq.union_mono_left _ _
 /-- sharedDivModCode ⊆ modCode: every shared block is also in modCode. -/
 theorem sharedDivModCode_sub_modCode (base : Word) :

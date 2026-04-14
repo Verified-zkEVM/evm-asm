@@ -28,7 +28,7 @@ private theorem divK_phaseA_code_sub_divCode (base : Word) :
 
 /-- Zero path code (5 instructions, block 11) is subsumed by divCode. -/
 private theorem divK_zeroPath_code_sub_divCode (base : Word) :
-    ∀ a i, (divK_zeroPath_code (base + 1044)) a = some i → (divCode base) a = some i := by
+    ∀ a i, (divK_zeroPath_code (base + 1048)) a = some i → (divCode base) a = some i := by
   unfold divCode divK_zeroPath_code; simp only [CodeReq.unionAll_cons]
   -- Skip blocks 0-10, then match block 11
   skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock
@@ -37,12 +37,12 @@ private theorem divK_zeroPath_code_sub_divCode (base : Word) :
 
 /-- BEQ singleton at base+28 is subsumed by divCode (part of block 0: phaseA). -/
 private theorem beq_singleton_sub_divCode (base : Word) :
-    ∀ a i, (CodeReq.singleton (base + 28) (.BEQ .x5 .x0 1016)) a = some i →
+    ∀ a i, (CodeReq.singleton (base + 28) (.BEQ .x5 .x0 1020)) a = some i →
       (divCode base) a = some i := by
   unfold divCode; simp only [CodeReq.unionAll_cons]
   intro a i h
   exact CodeReq.union_mono_left _ _ a i
-    (CodeReq.singleton_mono (CodeReq.ofProg_lookup base (divK_phaseA 1016) 7
+    (CodeReq.singleton_mono (CodeReq.ofProg_lookup base (divK_phaseA 1020) 7
       (by decide) (by decide)) a i h)
 
 /-- Phase B init1 code (ofProg sub-range of block 1) is subsumed by divCode. -/
@@ -122,7 +122,7 @@ private theorem divK_phaseB_tail_code_sub_divCode (base : Word) :
 -- Section 6: signExtend13 normalization
 -- ============================================================================
 
-private theorem signExtend13_1016 : signExtend13 (1016 : BitVec 13) = (1016 : Word) := by
+private theorem signExtend13_1020 : signExtend13 (1020 : BitVec 13) = (1020 : Word) := by
   decide
 
 private theorem signExtend13_24 : signExtend13 (24 : BitVec 13) = (24 : Word) := by
@@ -202,7 +202,7 @@ theorem evm_div_bzero_spec (sp base : Word)
     (b0 b1 b2 b3 v5 v10 : Word)
     (hbz : b0 ||| b1 ||| b2 ||| b3 = 0)
     (hvalid : ValidMemRange sp 8) :
-    cpsTriple base (base + 1064) (divCode base)
+    cpsTriple base (base + 1068) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
        ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3))
@@ -214,9 +214,9 @@ theorem evm_div_bzero_spec (sp base : Word)
   have hbody := cpsTriple_extend_code (divK_phaseA_code_sub_divCode base)
     (divK_phaseA_body_spec sp base b0 b1 b2 b3 v5 v10 hvalid)
   -- Step 2: BEQ at base+28, eliminate ntaken via hbz
-  have hbeq_raw := beq_spec_gen .x5 .x0 1016 (b0 ||| b1 ||| b2 ||| b3) (0 : Word) (base + 28)
-  rw [show (base + 28 : Word) + signExtend13 1016 = base + 1044 from by
-        rw [signExtend13_1016]; bv_addr,
+  have hbeq_raw := beq_spec_gen .x5 .x0 1020 (b0 ||| b1 ||| b2 ||| b3) (0 : Word) (base + 28)
+  rw [show (base + 28 : Word) + signExtend13 1020 = base + 1048 from by
+        rw [signExtend13_1020]; bv_addr,
       show (base + 28 : Word) + 4 = base + 32 from by bv_addr] at hbeq_raw
   have hbeq_clean := cpsBranch_elim_taken_strip_pure2 _ _ _ _ _ _ _ _ _ hbeq_raw
     (fun hp hQf => by
@@ -230,19 +230,19 @@ theorem evm_div_bzero_spec (sp base : Word)
      ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
      ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3))
     (by pcFree) hbeq
-  -- Step 4: Compose body → BEQ(taken): base → base+1044
+  -- Step 4: Compose body → BEQ(taken): base → base+1048
   have hAB := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
     (fun h hp => by xperm_hyp hp) hbody hbeq_framed
-  -- Step 5: ZeroPath (base+1044 → base+1064)
+  -- Step 5: ZeroPath (base+1048 → base+1068)
   -- Extend to divCode CodeReq
   have hzp := cpsTriple_extend_code (divK_zeroPath_code_sub_divCode base)
-    (divK_zeroPath_spec sp (base + 1044) b0 b1 b2 b3 hvalid)
-  rw [show (base + 1044 : Word) + 20 = base + 1064 from by bv_addr] at hzp
+    (divK_zeroPath_spec sp (base + 1048) b0 b1 b2 b3 hvalid)
+  rw [show (base + 1048 : Word) + 20 = base + 1068 from by bv_addr] at hzp
   -- Frame ZP with x5 + x10 + x0
   have hzp_framed := cpsTriple_frame_left _ _ _ _ _
     ((.x5 ↦ᵣ (b0 ||| b1 ||| b2 ||| b3)) ** (.x10 ↦ᵣ b3) ** (.x0 ↦ᵣ (0 : Word)))
     (by pcFree) hzp
-  -- Step 6: Compose AB → ZP: base → base+1064
+  -- Step 6: Compose AB → ZP: base → base+1068
   have hABZ := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
     (fun h hp => by xperm_hyp hp) hAB hzp_framed
   -- Step 7: Final consequence — rewrite bor → 0
@@ -274,9 +274,9 @@ theorem evm_div_phaseA_ntaken_spec (sp base : Word)
   have hbody := cpsTriple_extend_code (divK_phaseA_code_sub_divCode base)
     (divK_phaseA_body_spec sp base b0 b1 b2 b3 v5 v10 hvalid)
   -- Step 2: BEQ at base+28, eliminate taken path (b=0 absurd since hbnz)
-  have hbeq_raw := beq_spec_gen .x5 .x0 1016 (b0 ||| b1 ||| b2 ||| b3) (0 : Word) (base + 28)
-  rw [show (base + 28 : Word) + signExtend13 1016 = base + 1044 from by
-        rw [signExtend13_1016]; bv_addr,
+  have hbeq_raw := beq_spec_gen .x5 .x0 1020 (b0 ||| b1 ||| b2 ||| b3) (0 : Word) (base + 28)
+  rw [show (base + 28 : Word) + signExtend13 1020 = base + 1048 from by
+        rw [signExtend13_1020]; bv_addr,
       show (base + 28 : Word) + 4 = base + 32 from by bv_addr] at hbeq_raw
   have hbeq_clean := cpsBranch_elim_ntaken_strip_pure2 _ _ _ _ _ _ _ _ _ hbeq_raw
     (fun hp hQt => by

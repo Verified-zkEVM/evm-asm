@@ -6,7 +6,7 @@ import EvmAsm.Evm64.DivMod.Compose.Base
 MOD mirror of Div128.lean: composes 5 block specs
 (phase1, step1, compute_un21, step2, end) into a single `mod_div128_spec` theorem
 for the div128 subroutine under modCode.
-Block 13 (div128 at base+1068) is identical between divCode and modCode.
+Block 13 (div128 at base+1072) is identical between divCode and modCode.
 -/
 
 open EvmAsm.Rv64.Tactics
@@ -20,10 +20,10 @@ open EvmAsm.Rv64
 -- Compose 5 block specs into a single mod_div128_spec theorem.
 -- ============================================================================
 
--- Master subsumption: ofProg (base+1068) divK_div128 ⊆ modCode base
+-- Master subsumption: ofProg (base+1072) divK_div128 ⊆ modCode base
 -- Block 13 in modCode's unionAll; skip blocks 0-12.
 private theorem divK_div128_ofProg_sub_modCode (base : Word) :
-    ∀ a i, (CodeReq.ofProg (base + 1068) divK_div128) a = some i →
+    ∀ a i, (CodeReq.ofProg (base + 1072) divK_div128) a = some i →
       (modCode base) a = some i := by
   unfold modCode; simp only [CodeReq.unionAll_cons]
   skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock
@@ -46,24 +46,24 @@ private theorem CodeReq_union_sub_mod {cr1 cr2 target : CodeReq}
 -- Used to prove each singleton in a block's cr is subsumed by modCode.
 private theorem d128_sub_mod (base : Word) (k : Nat) (addr : Word) (instr : Instr)
     (hk : k < divK_div128.length)
-    (h_addr : addr = (base + 1068) + BitVec.ofNat 64 (4 * k))
+    (h_addr : addr = (base + 1072) + BitVec.ofNat 64 (4 * k))
     (h_instr : divK_div128.get ⟨k, hk⟩ = instr) :
     ∀ a i, CodeReq.singleton addr instr a = some i →
       (modCode base) a = some i := by
   subst h_addr; subst h_instr
   exact fun a i h => divK_div128_ofProg_sub_modCode base a i
     (CodeReq.singleton_mono
-      (CodeReq.ofProg_lookup (base + 1068) divK_div128 k hk (by decide)) a i h)
+      (CodeReq.ofProg_lookup (base + 1072) divK_div128 k hk (by decide)) a i h)
 
--- Address normalization: block entry offsets relative to (base + 1068)
-private theorem d128_off_40_mod (base : Word) : (base + 1068 : Word) + 40 = base + 1108 := by bv_addr
-private theorem d128_off_100_mod (base : Word) : (base + 1068 : Word) + 100 = base + 1168 := by bv_addr
-private theorem d128_off_120_mod (base : Word) : (base + 1068 : Word) + 120 = base + 1188 := by bv_addr
-private theorem d128_off_180_mod (base : Word) : (base + 1068 : Word) + 180 = base + 1248 := by bv_addr
+-- Address normalization: block entry offsets relative to (base + 1072)
+private theorem d128_off_40_mod (base : Word) : (base + 1072 : Word) + 40 = base + 1112 := by bv_addr
+private theorem d128_off_100_mod (base : Word) : (base + 1072 : Word) + 100 = base + 1172 := by bv_addr
+private theorem d128_off_120_mod (base : Word) : (base + 1072 : Word) + 120 = base + 1192 := by bv_addr
+private theorem d128_off_180_mod (base : Word) : (base + 1072 : Word) + 180 = base + 1252 := by bv_addr
 
 -- ============================================================================
 -- mod_div128_spec: compose 5 block specs into single subroutine theorem.
--- Entry: base+1068, Exit: ret_addr (via JALR), CodeReq: modCode base.
+-- Entry: base+1072, Exit: ret_addr (via JALR), CodeReq: modCode base.
 -- ============================================================================
 
 set_option maxHeartbeats 25600000 in
@@ -106,7 +106,7 @@ theorem mod_div128_spec (sp ret_addr d u_lo u_hi : Word) (base : Word)
     let q0' := if BitVec.ult rhat2_un0 q0_dlo then q0c + signExtend12 4095 else q0c
     -- End: combine q1' and q0'
     let q := (q1' <<< (32 : BitVec 6).toNat) ||| q0'
-    cpsTriple (base + 1068) ret_addr (modCode base)
+    cpsTriple (base + 1072) ret_addr (modCode base)
       (-- Precondition: caller registers + scratch memory
        (.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ ret_addr) ** (.x10 ↦ᵣ d) **
        (.x5 ↦ᵣ u_lo) ** (.x7 ↦ᵣ u_hi) **
@@ -128,15 +128,15 @@ theorem mod_div128_spec (sp ret_addr d u_lo u_hi : Word) (base : Word)
   -- Introduce all let bindings
   intro d_hi d_lo un1 un0 q1 rhat hi1 q1c rhatc q_dlo rhat_un1 q1' rhat' cu_rhat_un1 cu_q1_dlo un21 q0 rhat2 hi2 q0c rhat2c q0_dlo rhat2_un0 q0' q
   -- ================================================================
-  -- Block 1: Phase 1 (base+1068 → base+1108)
+  -- Block 1: Phase 1 (base+1072 → base+1112)
   -- Saves ret/d, splits d and u_lo into halves.
   -- ================================================================
   have hph1 := divK_div128_phase1_spec sp ret_addr d u_lo u_hi v1_old v6_old v11_old
-    ret_mem d_mem dlo_mem un0_mem (base + 1068) hv_ret hv_d hv_dlo hv_un0
-  rw [show (base + 1068 : Word) + 40 = base + 1108 from by bv_addr] at hph1
+    ret_mem d_mem dlo_mem un0_mem (base + 1072) hv_ret hv_d hv_dlo hv_un0
+  rw [show (base + 1072 : Word) + 40 = base + 1112 from by bv_addr] at hph1
   -- Extend phase1 cr to modCode
   have hph1e := cpsTriple_extend_code (hmono := by
-    -- phase1 cr: 10 singletons at (base+1068)+{0,4,...,36}, indices 0-9
+    -- phase1 cr: 10 singletons at (base+1072)+{0,4,...,36}, indices 0-9
     exact CodeReq_union_sub_mod (d128_sub_mod base 0 _ _ (by decide) (by bv_addr) (by decide))
      (CodeReq_union_sub_mod (d128_sub_mod base 1 _ _ (by decide) (by bv_addr) (by decide))
      (CodeReq_union_sub_mod (d128_sub_mod base 2 _ _ (by decide) (by bv_addr) (by decide))
@@ -153,12 +153,12 @@ theorem mod_div128_spec (sp ret_addr d u_lo u_hi : Word) (base : Word)
     (.x0 ↦ᵣ (0 : Word))
     (by pcFree) hph1e
   -- ================================================================
-  -- Block 2: Step 1 (base+1108 → base+1168)
+  -- Block 2: Step 1 (base+1112 → base+1172)
   -- Trial division q1, clamp, product check.
   -- ================================================================
   have hst1 := divK_div128_step1_spec sp u_hi d_hi un1 d_lo un0 d d_lo
-    (base + 1108) hv_dlo
-  rw [show (base + 1108 : Word) + 60 = base + 1168 from by bv_addr] at hst1
+    (base + 1112) hv_dlo
+  rw [show (base + 1112 : Word) + 60 = base + 1172 from by bv_addr] at hst1
   have hst1e := cpsTriple_extend_code (hmono := by
     exact CodeReq_union_sub_mod (d128_sub_mod base 10 _ _ (by decide) (by bv_addr) (by decide))
      (CodeReq_union_sub_mod (d128_sub_mod base 11 _ _ (by decide) (by bv_addr) (by decide))
@@ -185,12 +185,12 @@ theorem mod_div128_spec (sp ret_addr d u_lo u_hi : Word) (base : Word)
   have h12 := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
     (fun h hp => by xperm_hyp hp) hph1f hst1f
   -- ================================================================
-  -- Block 3: Compute un21 (base+1168 → base+1188)
+  -- Block 3: Compute un21 (base+1172 → base+1192)
   -- un21 = rhat*2^32 + un1 - q1*d_lo.
   -- ================================================================
   have hcu := divK_div128_compute_un21_spec sp q1' rhat' un1 rhat_un1 q_dlo d_lo
-    (base + 1168) hv_dlo
-  rw [show (base + 1168 : Word) + 20 = base + 1188 from by bv_addr] at hcu
+    (base + 1172) hv_dlo
+  rw [show (base + 1172 : Word) + 20 = base + 1192 from by bv_addr] at hcu
   have hcue := cpsTriple_extend_code (hmono := by
     exact CodeReq_union_sub_mod (d128_sub_mod base 25 _ _ (by decide) (by bv_addr) (by decide))
      (CodeReq_union_sub_mod (d128_sub_mod base 26 _ _ (by decide) (by bv_addr) (by decide))
@@ -208,12 +208,12 @@ theorem mod_div128_spec (sp ret_addr d u_lo u_hi : Word) (base : Word)
   have h123 := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
     (fun h hp => by xperm_hyp hp) h12 hcuf
   -- ================================================================
-  -- Block 4: Step 2 (base+1188 → base+1248)
+  -- Block 4: Step 2 (base+1192 → base+1252)
   -- Trial division q0, clamp, product check.
   -- ================================================================
   have hst2 := divK_div128_step2_spec sp un21 d_hi cu_q1_dlo cu_rhat_un1 un1 d_lo un0
-    (base + 1188) hv_dlo hv_un0
-  rw [show (base + 1188 : Word) + 60 = base + 1248 from by bv_addr] at hst2
+    (base + 1192) hv_dlo hv_un0
+  rw [show (base + 1192 : Word) + 60 = base + 1252 from by bv_addr] at hst2
   have hst2e := cpsTriple_extend_code (hmono := by
     exact CodeReq_union_sub_mod (d128_sub_mod base 30 _ _ (by decide) (by bv_addr) (by decide))
      (CodeReq_union_sub_mod (d128_sub_mod base 31 _ _ (by decide) (by bv_addr) (by decide))
@@ -240,11 +240,11 @@ theorem mod_div128_spec (sp ret_addr d u_lo u_hi : Word) (base : Word)
   have h1234 := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
     (fun h hp => by xperm_hyp hp) h123 hst2f
   -- ================================================================
-  -- Block 5: End (base+1248 → ret_addr via JALR)
+  -- Block 5: End (base+1252 → ret_addr via JALR)
   -- Combine q1'|q0' into q, restore return addr, return.
   -- ================================================================
   have hend := divK_div128_end_spec sp q1' q0' ret_addr un0 ret_addr
-    (base + 1248) hv_ret halign
+    (base + 1252) hv_ret halign
   have hende := cpsTriple_extend_code (hmono := by
     exact CodeReq_union_sub_mod (d128_sub_mod base 45 _ _ (by decide) (by bv_addr) (by decide))
      (CodeReq_union_sub_mod (d128_sub_mod base 46 _ _ (by decide) (by bv_addr) (by decide))

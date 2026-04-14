@@ -31,7 +31,7 @@ theorem evm_div_bzero_stack_spec (sp base : Word)
     (a b : EvmWord) (v5 v10 : Word)
     (hbz : b = 0)
     (hvalid : ValidMemRange sp 8) :
-    cpsTriple base (base + 1064) (divCode base)
+    cpsTriple base (base + 1068) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        evmWordIs (sp + 32) b)
       ((.x12 ↦ᵣ (sp + 32)) ** (regOwn .x5) ** (regOwn .x10) ** (.x0 ↦ᵣ (0 : Word)) **
@@ -94,7 +94,7 @@ theorem evm_mod_bzero_stack_spec (sp base : Word)
     (a b : EvmWord) (v5 v10 : Word)
     (hbz : b = 0)
     (hvalid : ValidMemRange sp 8) :
-    cpsTriple base (base + 1064) (modCode base)
+    cpsTriple base (base + 1068) (modCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        evmWordIs (sp + 32) b)
       ((.x12 ↦ᵣ (sp + 32)) ** (regOwn .x5) ** (regOwn .x10) ** (.x0 ↦ᵣ (0 : Word)) **

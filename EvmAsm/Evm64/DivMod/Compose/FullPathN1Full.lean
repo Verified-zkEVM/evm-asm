@@ -3,7 +3,7 @@
 
   Full n=1 DIV path composition for the shift≠0 case:
   pre-loop → 4-iteration loop → denorm + epilogue.
-  Composes base → base+1064 for the b[3]=b[2]=b[1]=0, b[0]≠0, shift≠0 case.
+  Composes base → base+1068 for the b[3]=b[2]=b[1]=0, b[0]≠0, shift≠0 case.
 
   Unified theorem with (bltu_3 bltu_2 bltu_1 bltu_0 : Bool) covers all 16 combinations.
   Uses a parametric denorm' helper + 16-case denorm_comp.
@@ -165,7 +165,7 @@ private theorem evm_div_n1_denorm' (sp base shift : Word)
     (hv_u1 : isValidDwordAccess (sp + signExtend12 4048) = true)
     (hv_u2 : isValidDwordAccess (sp + signExtend12 4040) = true)
     (hv_u3 : isValidDwordAccess (sp + signExtend12 4032) = true) :
-    cpsTriple (base + 904) (base + 1064) (divCode base)
+    cpsTriple (base + 908) (base + 1068) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ signExtend12 4095) **
        (.x5 ↦ᵣ (0 : Word)) ** (.x6 ↦ᵣ sp + signExtend12 4056) **
        (.x7 ↦ᵣ sp + signExtend12 4088) ** (.x10 ↦ᵣ c3_0) ** (.x11 ↦ᵣ r0_q) **
@@ -248,7 +248,7 @@ theorem evm_div_n1_denorm_comp (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
     (hv_u1 : isValidDwordAccess (sp + signExtend12 4048) = true)
     (hv_u2 : isValidDwordAccess (sp + signExtend12 4040) = true)
     (hv_u3 : isValidDwordAccess (sp + signExtend12 4032) = true) :
-    cpsTriple (base + 904) (base + 1064) (divCode base)
+    cpsTriple (base + 908) (base + 1068) (divCode base)
       (preloopN1UnifiedPost bltu_3 bltu_2 bltu_1 bltu_0 sp base a0 a1 a2 a3 b0 b1 b2 b3
         ret_mem d_mem dlo_mem scratch_un0)
       (fullDivN1UnifiedPost bltu_3 bltu_2 bltu_1 bltu_0 sp base a0 a1 a2 a3 b0 b1 b2 b3
@@ -637,7 +637,7 @@ theorem evm_div_n1_denorm_comp (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
       hD
 
 -- ============================================================================
--- Full n=1 DIV path (shift≠0, unified): base → base+1064
+-- Full n=1 DIV path (shift≠0, unified): base → base+1068
 -- ============================================================================
 
 /-- Unified full n=1 DIV path (shift ≠ 0), covering all 16 path combinations.
@@ -674,7 +674,7 @@ theorem evm_div_n1_full_unified_spec (bltu_3 bltu_2 bltu_1 bltu_0 : Bool) (sp ba
     (hbltu_2 : isTrialN1_j2 bltu_3 bltu_2 a2 a3 b0 b1 b2 b3)
     (hbltu_1 : isTrialN1_j1 bltu_3 bltu_2 bltu_1 a1 a2 a3 b0 b1 b2 b3)
     (hbltu_0 : isTrialN1_j0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3) :
-    cpsTriple base (base + 1064) (divCode base)
+    cpsTriple base (base + 1068) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b0).2 >>> (63 : Nat)) **
        (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **

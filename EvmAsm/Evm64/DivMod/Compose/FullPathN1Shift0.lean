@@ -3,7 +3,7 @@
 
   Full n=1 DIV path composition for the shift=0 case:
   pre-loop → 4-iteration loop → shift=0 epilogue.
-  Composes base → base+1064 for the b[3]=b[2]=b[1]=0, b[0]≠0, shift=0 case.
+  Composes base → base+1068 for the b[3]=b[2]=b[1]=0, b[0]≠0, shift=0 case.
 
   When shift=0, normalization is identity (v=b, u=a, u4=0).
   Since u4=0 < b0 (b0≠0), the j=3 BLTU condition is always taken → call path.
@@ -104,7 +104,7 @@ private theorem divK_loop_n1_shift0_inst (bltu_2 bltu_1 bltu_0 : Bool)
     (hbltu_2 : isTrialN1Shift0_j2 bltu_2 a3 b0)
     (hbltu_1 : isTrialN1Shift0_j1 bltu_2 bltu_1 a2 a3 b0)
     (hbltu_0 : isTrialN1Shift0_j0 bltu_2 bltu_1 bltu_0 a1 a2 a3 b0) :
-    cpsTriple (base + 448) (base + 904) (divCode base)
+    cpsTriple (base + 448) (base + 908) (divCode base)
       (loopN1PreWithScratch sp j_mem (1 : Word) (0 : Word)
         clz_hi (0 : Word) v11_old (0 : Word)
         b0 (0 : Word) (0 : Word) (0 : Word)
@@ -190,7 +190,7 @@ theorem evm_div_n1_preloop_shift0_spec
     (hbltu_2 : isTrialN1Shift0_j2 bltu_2 a3 b0)
     (hbltu_1 : isTrialN1Shift0_j1 bltu_2 bltu_1 a2 a3 b0)
     (hbltu_0 : isTrialN1Shift0_j0 bltu_2 bltu_1 bltu_0 a1 a2 a3 b0) :
-    cpsTriple base (base + 904) (divCode base)
+    cpsTriple base (base + 908) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b0).2 >>> (63 : Nat)) **
        (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
@@ -377,7 +377,7 @@ private theorem evm_div_n1_shift0_denorm' (sp base : Word)
     (hv_q1 : isValidDwordAccess (sp + signExtend12 4080) = true)
     (hv_q2 : isValidDwordAccess (sp + signExtend12 4072) = true)
     (hv_q3 : isValidDwordAccess (sp + signExtend12 4064) = true) :
-    cpsTriple (base + 904) (base + 1064) (divCode base)
+    cpsTriple (base + 908) (base + 1068) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ signExtend12 4095) **
        (.x5 ↦ᵣ (0 : Word)) ** (.x6 ↦ᵣ sp + signExtend12 4056) **
        (.x7 ↦ᵣ sp + signExtend12 4088) ** (.x10 ↦ᵣ c3_0) ** (.x11 ↦ᵣ r0_q) **
@@ -468,7 +468,7 @@ theorem evm_div_n1_shift0_denorm_comp (bltu_2 bltu_1 bltu_0 : Bool)
     (hv_q1 : isValidDwordAccess (sp + signExtend12 4080) = true)
     (hv_q2 : isValidDwordAccess (sp + signExtend12 4072) = true)
     (hv_q3 : isValidDwordAccess (sp + signExtend12 4064) = true) :
-    cpsTriple (base + 904) (base + 1064) (divCode base)
+    cpsTriple (base + 908) (base + 1068) (divCode base)
       (preloopN1Shift0Post bltu_2 bltu_1 bltu_0 sp base a0 a1 a2 a3 b0
         ret_mem d_mem dlo_mem scratch_un0)
       (fullDivN1Shift0UnifiedPost bltu_2 bltu_1 bltu_0 sp base a0 a1 a2 a3 b0) := by
@@ -637,7 +637,7 @@ theorem evm_div_n1_shift0_denorm_comp (bltu_2 bltu_1 bltu_0 : Bool)
       hD
 
 -- ============================================================================
--- Full n=1 DIV path (shift=0, unified): base → base+1064
+-- Full n=1 DIV path (shift=0, unified): base → base+1068
 -- ============================================================================
 
 /-- Unified full n=1 DIV path (shift=0), covering all 8 path combinations.
@@ -674,7 +674,7 @@ theorem evm_div_n1_full_shift0_unified_spec (bltu_2 bltu_1 bltu_0 : Bool) (sp ba
     (hbltu_2 : isTrialN1Shift0_j2 bltu_2 a3 b0)
     (hbltu_1 : isTrialN1Shift0_j1 bltu_2 bltu_1 a2 a3 b0)
     (hbltu_0 : isTrialN1Shift0_j0 bltu_2 bltu_1 bltu_0 a1 a2 a3 b0) :
-    cpsTriple base (base + 1064) (divCode base)
+    cpsTriple base (base + 1068) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b0).2 >>> (63 : Nat)) **
        (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **

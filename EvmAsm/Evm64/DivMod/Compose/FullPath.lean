@@ -437,12 +437,12 @@ theorem evm_div_n4_shift0_to_loopSetup_spec (sp base : Word)
     hFull
 
 -- ============================================================================
--- Post-loop chain: Denorm → DIV Epilogue (base+912 → base+1064)
+-- Post-loop chain: Denorm → DIV Epilogue (base+916 → base+1068)
 -- Denormalize u[] then load q[] to output.
 -- ============================================================================
 
 /-- Post-loop chain for DIV: denormalize u[], then load q[] to output.
-    base+912 → base+1064. Shift ≠ 0 case (denorm body executed). -/
+    base+916 → base+1068. Shift ≠ 0 case (denorm body executed). -/
 theorem evm_div_denorm_epilogue_spec (sp base : Word)
     (u0 u1 u2 u3 v2 v5 v7 v10 shift : Word)
     (q0 q1 q2 q3 m0 m8 m16 m24 : Word)
@@ -455,7 +455,7 @@ theorem evm_div_denorm_epilogue_spec (sp base : Word)
     (hv_u1 : isValidDwordAccess (sp + signExtend12 4048) = true)
     (hv_u2 : isValidDwordAccess (sp + signExtend12 4040) = true)
     (hv_u3 : isValidDwordAccess (sp + signExtend12 4032) = true) :
-    cpsTriple (base + 912) (base + 1064) (divCode base)
+    cpsTriple (base + 916) (base + 1068) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ shift) ** (.x7 ↦ᵣ v7) **
        (.x2 ↦ᵣ v2) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10) **
        ((sp + signExtend12 4056) ↦ₘ u0) ** ((sp + signExtend12 4048) ↦ₘ u1) **
@@ -470,7 +470,7 @@ theorem evm_div_denorm_epilogue_spec (sp base : Word)
   let u1' := (u1 >>> (shift.toNat % 64)) ||| (u2 <<< (anti_shift.toNat % 64))
   let u2' := (u2 >>> (shift.toNat % 64)) ||| (u3 <<< (anti_shift.toNat % 64))
   let u3' := u3 >>> (shift.toNat % 64)
-  -- Step 1: Denorm body (base+912 → base+1004)
+  -- Step 1: Denorm body (base+916 → base+1008)
   have hDenorm := divK_denorm_body_spec sp u0 u1 u2 u3 v2 v5 v7 shift base
     hv_u0 hv_u1 hv_u2 hv_u3
   intro_lets at hDenorm
@@ -482,7 +482,7 @@ theorem evm_div_denorm_epilogue_spec (sp base : Word)
      ((sp + 32) ↦ₘ m0) ** ((sp + 40) ↦ₘ m8) **
      ((sp + 48) ↦ₘ m16) ** ((sp + 56) ↦ₘ m24))
     (by pcFree) hDenorm
-  -- Step 2: DIV epilogue (base+1004 → base+1064)
+  -- Step 2: DIV epilogue (base+1008 → base+1068)
   -- After denorm: x5=u3', x6=shift, x7=(u3<<<anti_shift%64), x10=v10
   have hEpi := divK_div_epilogue_spec sp base q0 q1 q2 q3
     u3' shift (u3 <<< (anti_shift.toNat % 64)) v10 m0 m8 m16 m24
@@ -502,12 +502,12 @@ theorem evm_div_denorm_epilogue_spec (sp base : Word)
     hFull
 
 -- ============================================================================
--- Post-loop chain: Denorm → MOD Epilogue (base+912 → base+1064)
+-- Post-loop chain: Denorm → MOD Epilogue (base+916 → base+1068)
 -- Denormalize u[] then load u'[] (remainder) to output.
 -- ============================================================================
 
 /-- Post-loop chain for MOD: denormalize u[], then load u'[] to output.
-    base+912 → base+1064. Shift ≠ 0 case (denorm body executed). -/
+    base+916 → base+1068. Shift ≠ 0 case (denorm body executed). -/
 theorem evm_mod_denorm_epilogue_spec (sp base : Word)
     (u0 u1 u2 u3 v2 v5 v7 v10 shift : Word)
     (m0 m8 m16 m24 : Word)
@@ -516,7 +516,7 @@ theorem evm_mod_denorm_epilogue_spec (sp base : Word)
     (hv_u1 : isValidDwordAccess (sp + signExtend12 4048) = true)
     (hv_u2 : isValidDwordAccess (sp + signExtend12 4040) = true)
     (hv_u3 : isValidDwordAccess (sp + signExtend12 4032) = true) :
-    cpsTriple (base + 912) (base + 1064) (modCode base)
+    cpsTriple (base + 916) (base + 1068) (modCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ shift) ** (.x7 ↦ᵣ v7) **
        (.x2 ↦ᵣ v2) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10) **
        ((sp + signExtend12 4056) ↦ₘ u0) ** ((sp + signExtend12 4048) ↦ₘ u1) **
@@ -529,7 +529,7 @@ theorem evm_mod_denorm_epilogue_spec (sp base : Word)
   let u1' := (u1 >>> (shift.toNat % 64)) ||| (u2 <<< (anti_shift.toNat % 64))
   let u2' := (u2 >>> (shift.toNat % 64)) ||| (u3 <<< (anti_shift.toNat % 64))
   let u3' := u3 >>> (shift.toNat % 64)
-  -- Step 1: Denorm body (base+912 → base+1004, modCode)
+  -- Step 1: Denorm body (base+916 → base+1008, modCode)
   have hDenorm := mod_denorm_body_spec sp u0 u1 u2 u3 v2 v5 v7 shift base
     hv_u0 hv_u1 hv_u2 hv_u3
   intro_lets at hDenorm
@@ -539,7 +539,7 @@ theorem evm_mod_denorm_epilogue_spec (sp base : Word)
      ((sp + 32) ↦ₘ m0) ** ((sp + 40) ↦ₘ m8) **
      ((sp + 48) ↦ₘ m16) ** ((sp + 56) ↦ₘ m24))
     (by pcFree) hDenorm
-  -- Step 2: MOD epilogue (base+1004 → base+1064, modCode)
+  -- Step 2: MOD epilogue (base+1008 → base+1068, modCode)
   -- After denorm: x5=u3', x6=shift, x7=(u3<<<anti_shift%64), x10=v10
   -- Epilogue loads u'[] from 4056..4032 (the denormalized values)
   have hEpi := divK_mod_epilogue_spec sp base u0' u1' u2' u3'
@@ -558,12 +558,12 @@ theorem evm_mod_denorm_epilogue_spec (sp base : Word)
     hFull
 
 -- ============================================================================
--- Post-loop chain with preamble: Preamble → Denorm → DIV Epilogue (base+904 → base+1064)
+-- Post-loop chain with preamble: Preamble → Denorm → DIV Epilogue (base+908 → base+1068)
 -- Loads shift from memory, denormalizes u[], then loads q[] to output.
 -- ============================================================================
 
 /-- Post-loop chain for DIV with preamble: loads shift, denormalizes u[], outputs q[].
-    base+904 → base+1064. Shift ≠ 0 case. -/
+    base+908 → base+1068. Shift ≠ 0 case. -/
 theorem evm_div_preamble_denorm_epilogue_spec (sp base : Word)
     (u0 u1 u2 u3 shift v2 v5 v6 v7 v10 : Word)
     (q0 q1 q2 q3 m0 m8 m16 m24 : Word)
@@ -578,7 +578,7 @@ theorem evm_div_preamble_denorm_epilogue_spec (sp base : Word)
     (hv_u1 : isValidDwordAccess (sp + signExtend12 4048) = true)
     (hv_u2 : isValidDwordAccess (sp + signExtend12 4040) = true)
     (hv_u3 : isValidDwordAccess (sp + signExtend12 4032) = true) :
-    cpsTriple (base + 904) (base + 1064) (divCode base)
+    cpsTriple (base + 908) (base + 1068) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ v6) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x5 ↦ᵣ v5) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ v2) ** (.x10 ↦ᵣ v10) **
        ((sp + signExtend12 3992) ↦ₘ shift) **
@@ -590,7 +590,7 @@ theorem evm_div_preamble_denorm_epilogue_spec (sp base : Word)
        ((sp + 48) ↦ₘ m16) ** ((sp + 56) ↦ₘ m24))
       (denormDivPost sp shift u0 u1 u2 u3 q0 q1 q2 q3 **
        ((sp + signExtend12 3992) ↦ₘ shift)) := by
-  -- Step 1: Preamble (base+904 → base+912)
+  -- Step 1: Preamble (base+908 → base+916)
   have hPre := divK_denorm_preamble_spec sp shift v5 v6 v7 v2 v10 base hv_shift hshift_nz
   -- Frame preamble with u[], q[], output memory
   have hPreF := cpsTriple_frame_left _ _ _ _ _
@@ -601,7 +601,7 @@ theorem evm_div_preamble_denorm_epilogue_spec (sp base : Word)
      ((sp + 32) ↦ₘ m0) ** ((sp + 40) ↦ₘ m8) **
      ((sp + 48) ↦ₘ m16) ** ((sp + 56) ↦ₘ m24))
     (by pcFree) hPre
-  -- Step 2: Denorm + Epilogue (base+912 → base+1064)
+  -- Step 2: Denorm + Epilogue (base+916 → base+1068)
   have hDE := evm_div_denorm_epilogue_spec sp base u0 u1 u2 u3 v2 v5 v7 v10 shift
     q0 q1 q2 q3 m0 m8 m16 m24 hvalid hv_q0 hv_q1 hv_q2 hv_q3 hv_u0 hv_u1 hv_u2 hv_u3
   -- Frame epilogue with shift_mem
@@ -617,14 +617,14 @@ theorem evm_div_preamble_denorm_epilogue_spec (sp base : Word)
     hFull
 
 -- ============================================================================
--- MOD Denorm preamble: LD shift + BEQ (base+904 → base+912) with modCode
+-- MOD Denorm preamble: LD shift + BEQ (base+908 → base+916) with modCode
 -- Same instructions as divK_denorm_preamble_spec, but proved against modCode.
 -- ============================================================================
 
 /-- Denorm code (block 9) is subsumed by modCode.
     Re-proved here because the version in ModEpilogue.lean is private. -/
 private theorem divK_denorm_code_sub_modCode' (base : Word) :
-    ∀ a i, (CodeReq.ofProg (base + 904) divK_denorm) a = some i → (modCode base) a = some i := by
+    ∀ a i, (CodeReq.ofProg (base + 908) divK_denorm) a = some i → (modCode base) a = some i := by
   unfold modCode; simp only [CodeReq.unionAll_cons]
   skipBlock; skipBlock; skipBlock; skipBlock; skipBlock
   skipBlock; skipBlock; skipBlock; skipBlock
@@ -633,35 +633,35 @@ private theorem divK_denorm_code_sub_modCode' (base : Word) :
 set_option maxRecDepth 4096 in
 set_option maxHeartbeats 3200000 in
 /-- Denorm preamble for shift≠0 with modCode: LD shift from memory + BEQ not taken.
-    base+904 → base+912. -/
+    base+908 → base+916. -/
 theorem mod_denorm_preamble_spec (sp shift v5 v6 v7 v2 v10 : Word) (base : Word)
     (hv_shift : isValidDwordAccess (sp + signExtend12 3992) = true)
     (hshift_nz : shift ≠ 0) :
-    cpsTriple (base + 904) (base + 912) (modCode base)
+    cpsTriple (base + 908) (base + 916) (modCode base)
       ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ v6) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x5 ↦ᵣ v5) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ v2) ** (.x10 ↦ᵣ v10) **
        ((sp + signExtend12 3992) ↦ₘ shift))
       ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ shift) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x5 ↦ᵣ v5) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ v2) ** (.x10 ↦ᵣ v10) **
        ((sp + signExtend12 3992) ↦ₘ shift)) := by
-  -- 1. LD x6 x12 3992 at base+904 (denorm instr [0])
-  have hld := ld_spec_gen .x6 .x12 sp v6 shift (3992 : BitVec 12) (base + 904) (by nofun) hv_shift
-  rw [show (base + 904 : Word) + 4 = base + 908 from by bv_addr] at hld
+  -- 1. LD x6 x12 3992 at base+908 (denorm instr [0])
+  have hld := ld_spec_gen .x6 .x12 sp v6 shift (3992 : BitVec 12) (base + 908) (by nofun) hv_shift
+  rw [show (base + 908 : Word) + 4 = base + 912 from by bv_addr] at hld
   have hlde := cpsTriple_extend_code (hmono := by
     intro a i h
     exact divK_denorm_code_sub_modCode' base a i
-      (CodeReq.ofProg_mono_sub (base + 904) (base + 904) divK_denorm
+      (CodeReq.ofProg_mono_sub (base + 908) (base + 908) divK_denorm
         [.LD .x6 .x12 3992] 0 (by bv_addr) (by decide) (by decide) (by decide) a i h)) hld
-  -- 2. BEQ x6 x0 96 at base+908 (denorm instr [1])
-  have hbeq := beq_spec_gen .x6 .x0 (96 : BitVec 13) shift (0 : Word) (base + 908)
-  rw [show (base + 908 : Word) + signExtend13 (96 : BitVec 13) = base + 1004 from by
+  -- 2. BEQ x6 x0 96 at base+912 (denorm instr [1])
+  have hbeq := beq_spec_gen .x6 .x0 (96 : BitVec 13) shift (0 : Word) (base + 912)
+  rw [show (base + 912 : Word) + signExtend13 (96 : BitVec 13) = base + 1008 from by
         rw [show signExtend13 (96 : BitVec 13) = (96 : Word) from by decide]
         bv_addr,
-      show (base + 908 : Word) + 4 = base + 912 from by bv_addr] at hbeq
+      show (base + 912 : Word) + 4 = base + 916 from by bv_addr] at hbeq
   have hbeqe := cpsBranch_extend_code (hmono := by
     intro a i h
     exact divK_denorm_code_sub_modCode' base a i
-      (CodeReq.ofProg_mono_sub (base + 904) (base + 908) divK_denorm
+      (CodeReq.ofProg_mono_sub (base + 908) (base + 912) divK_denorm
         [.BEQ .x6 .x0 96] 1 (by bv_addr) (by decide) (by decide) (by decide) a i h)) hbeq
   -- 3. Eliminate taken branch: shift ≠ 0 means BEQ not taken
   have hbeq_exit := cpsBranch_elim_ntaken _ _ _ _ _ _ _ hbeqe
@@ -691,12 +691,12 @@ theorem mod_denorm_preamble_spec (sp shift v5 v6 v7 v2 v10 : Word) (base : Word)
     full
 
 -- ============================================================================
--- Post-loop chain with preamble: Preamble → Denorm → MOD Epilogue (base+904 → base+1064)
+-- Post-loop chain with preamble: Preamble → Denorm → MOD Epilogue (base+908 → base+1068)
 -- Loads shift from memory, denormalizes u[], then loads u'[] (remainder) to output.
 -- ============================================================================
 
 /-- Post-loop chain for MOD with preamble: loads shift, denormalizes u[], outputs u'[] (remainder).
-    base+904 → base+1064. Shift ≠ 0 case. -/
+    base+908 → base+1068. Shift ≠ 0 case. -/
 theorem evm_mod_preamble_denorm_epilogue_spec (sp base : Word)
     (u0 u1 u2 u3 shift v2 v5 v6 v7 v10 : Word)
     (m0 m8 m16 m24 : Word)
@@ -707,7 +707,7 @@ theorem evm_mod_preamble_denorm_epilogue_spec (sp base : Word)
     (hv_u1 : isValidDwordAccess (sp + signExtend12 4048) = true)
     (hv_u2 : isValidDwordAccess (sp + signExtend12 4040) = true)
     (hv_u3 : isValidDwordAccess (sp + signExtend12 4032) = true) :
-    cpsTriple (base + 904) (base + 1064) (modCode base)
+    cpsTriple (base + 908) (base + 1068) (modCode base)
       ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ v6) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x5 ↦ᵣ v5) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ v2) ** (.x10 ↦ᵣ v10) **
        ((sp + signExtend12 3992) ↦ₘ shift) **
@@ -717,7 +717,7 @@ theorem evm_mod_preamble_denorm_epilogue_spec (sp base : Word)
        ((sp + 48) ↦ₘ m16) ** ((sp + 56) ↦ₘ m24))
       (denormModPost sp shift u0 u1 u2 u3 **
        ((sp + signExtend12 3992) ↦ₘ shift)) := by
-  -- Step 1: Preamble (base+904 → base+912)
+  -- Step 1: Preamble (base+908 → base+916)
   have hPre := mod_denorm_preamble_spec sp shift v5 v6 v7 v2 v10 base hv_shift hshift_nz
   -- Frame preamble with u[], output memory
   have hPreF := cpsTriple_frame_left _ _ _ _ _
@@ -726,7 +726,7 @@ theorem evm_mod_preamble_denorm_epilogue_spec (sp base : Word)
      ((sp + 32) ↦ₘ m0) ** ((sp + 40) ↦ₘ m8) **
      ((sp + 48) ↦ₘ m16) ** ((sp + 56) ↦ₘ m24))
     (by pcFree) hPre
-  -- Step 2: Denorm + MOD Epilogue (base+912 → base+1064)
+  -- Step 2: Denorm + MOD Epilogue (base+916 → base+1068)
   have hDE := evm_mod_denorm_epilogue_spec sp base u0 u1 u2 u3 v2 v5 v7 v10 shift
     m0 m8 m16 m24 hvalid hv_u0 hv_u1 hv_u2 hv_u3
   -- Frame epilogue with shift_mem
@@ -748,21 +748,21 @@ theorem evm_mod_preamble_denorm_epilogue_spec (sp base : Word)
 /-- Denorm code (block 9) is subsumed by divCode.
     Re-proved here because the version in Epilogue.lean is private. -/
 private theorem divK_denorm_code_sub_divCode' (base : Word) :
-    ∀ a i, (CodeReq.ofProg (base + 904) divK_denorm) a = some i → (divCode base) a = some i := by
+    ∀ a i, (CodeReq.ofProg (base + 908) divK_denorm) a = some i → (divCode base) a = some i := by
   unfold divCode; simp only [CodeReq.unionAll_cons]
   skipBlock; skipBlock; skipBlock; skipBlock; skipBlock
   skipBlock; skipBlock; skipBlock; skipBlock
   exact CodeReq.union_mono_left _ _
 
 -- ============================================================================
--- DIV shift=0 post-loop: Preamble (LD+BEQ taken) → DIV Epilogue (base+904 → base+1064)
--- When shift=0, BEQ is taken, skipping denorm body directly to epilogue at base+1004.
+-- DIV shift=0 post-loop: Preamble (LD+BEQ taken) → DIV Epilogue (base+908 → base+1068)
+-- When shift=0, BEQ is taken, skipping denorm body directly to epilogue at base+1008.
 -- ============================================================================
 
 set_option maxRecDepth 4096 in
 set_option maxHeartbeats 3200000 in
 /-- DIV shift=0 post-loop: LD shift + BEQ taken → DIV epilogue.
-    base+904 → base+1064. Shift = 0 case (denorm body skipped). -/
+    base+908 → base+1068. Shift = 0 case (denorm body skipped). -/
 theorem evm_div_shift0_epilogue_spec (sp base : Word)
     (_u0 _u1 _u2 _u3 shift v2 v5 v6 v7 v10 : Word)
     (q0 q1 q2 q3 m0 m8 m16 m24 : Word)
@@ -773,7 +773,7 @@ theorem evm_div_shift0_epilogue_spec (sp base : Word)
     (hv_q1 : isValidDwordAccess (sp + signExtend12 4080) = true)
     (hv_q2 : isValidDwordAccess (sp + signExtend12 4072) = true)
     (hv_q3 : isValidDwordAccess (sp + signExtend12 4064) = true) :
-    cpsTriple (base + 904) (base + 1064) (divCode base)
+    cpsTriple (base + 908) (base + 1068) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ v6) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x5 ↦ᵣ v5) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ v2) ** (.x10 ↦ᵣ v10) **
        ((sp + signExtend12 3992) ↦ₘ shift) **
@@ -788,24 +788,24 @@ theorem evm_div_shift0_epilogue_spec (sp base : Word)
        ((sp + signExtend12 4072) ↦ₘ q2) ** ((sp + signExtend12 4064) ↦ₘ q3) **
        ((sp + 32) ↦ₘ q0) ** ((sp + 40) ↦ₘ q1) **
        ((sp + 48) ↦ₘ q2) ** ((sp + 56) ↦ₘ q3)) := by
-  -- 1. LD x6 x12 3992 at base+904 (denorm instr [0])
-  have hld := ld_spec_gen .x6 .x12 sp v6 shift (3992 : BitVec 12) (base + 904) (by nofun) hv_shift
-  rw [show (base + 904 : Word) + 4 = base + 908 from by bv_addr] at hld
+  -- 1. LD x6 x12 3992 at base+908 (denorm instr [0])
+  have hld := ld_spec_gen .x6 .x12 sp v6 shift (3992 : BitVec 12) (base + 908) (by nofun) hv_shift
+  rw [show (base + 908 : Word) + 4 = base + 912 from by bv_addr] at hld
   have hlde := cpsTriple_extend_code (hmono := by
     intro a i h
     exact divK_denorm_code_sub_divCode' base a i
-      (CodeReq.ofProg_mono_sub (base + 904) (base + 904) divK_denorm
+      (CodeReq.ofProg_mono_sub (base + 908) (base + 908) divK_denorm
         [.LD .x6 .x12 3992] 0 (by bv_addr) (by decide) (by decide) (by decide) a i h)) hld
-  -- 2. BEQ x6 x0 96 at base+908 (denorm instr [1])
-  have hbeq := beq_spec_gen .x6 .x0 (96 : BitVec 13) shift (0 : Word) (base + 908)
-  rw [show (base + 908 : Word) + signExtend13 (96 : BitVec 13) = base + 1004 from by
+  -- 2. BEQ x6 x0 96 at base+912 (denorm instr [1])
+  have hbeq := beq_spec_gen .x6 .x0 (96 : BitVec 13) shift (0 : Word) (base + 912)
+  rw [show (base + 912 : Word) + signExtend13 (96 : BitVec 13) = base + 1008 from by
         rw [show signExtend13 (96 : BitVec 13) = (96 : Word) from by decide]
         bv_addr,
-      show (base + 908 : Word) + 4 = base + 912 from by bv_addr] at hbeq
+      show (base + 912 : Word) + 4 = base + 916 from by bv_addr] at hbeq
   have hbeqe := cpsBranch_extend_code (hmono := by
     intro a i h
     exact divK_denorm_code_sub_divCode' base a i
-      (CodeReq.ofProg_mono_sub (base + 904) (base + 908) divK_denorm
+      (CodeReq.ofProg_mono_sub (base + 908) (base + 912) divK_denorm
         [.BEQ .x6 .x0 96] 1 (by bv_addr) (by decide) (by decide) (by decide) a i h)) hbeq
   -- 3. Eliminate not-taken branch: shift = 0 means BEQ taken
   --    BEQ not-taken postcondition: (.x6 ↦ᵣ shift) ** (.x0 ↦ᵣ 0) ** ⌜shift ≠ 0⌝
@@ -822,7 +822,7 @@ theorem evm_div_shift0_epilogue_spec (sp base : Word)
     ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ v2) ** (.x10 ↦ᵣ v10) **
      ((sp + signExtend12 3992) ↦ₘ shift))
     (by pcFree) hbeq_exit
-  -- 6. Compose LD → BEQ taken: base+904 → base+1004
+  -- 6. Compose LD → BEQ taken: base+908 → base+1008
   have hPre := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
     (fun h hp => by xperm_hyp hp) hldf hbeqf
   -- Frame preamble with q[], output memory
@@ -832,7 +832,7 @@ theorem evm_div_shift0_epilogue_spec (sp base : Word)
      ((sp + 32) ↦ₘ m0) ** ((sp + 40) ↦ₘ m8) **
      ((sp + 48) ↦ₘ m16) ** ((sp + 56) ↦ₘ m24))
     (by pcFree) hPre
-  -- 7. DIV epilogue (base+1004 → base+1064)
+  -- 7. DIV epilogue (base+1008 → base+1068)
   have hEpi := divK_div_epilogue_spec sp base q0 q1 q2 q3
     v5 shift v7 v10 m0 m8 m16 m24
     hvalid hv_q0 hv_q1 hv_q2 hv_q3
@@ -841,7 +841,7 @@ theorem evm_div_shift0_epilogue_spec (sp base : Word)
     ((.x2 ↦ᵣ v2) ** (.x0 ↦ᵣ (0 : Word)) **
      ((sp + signExtend12 3992) ↦ₘ shift))
     (by pcFree) hEpi
-  -- 8. Compose preamble → epilogue: base+904 → base+1064
+  -- 8. Compose preamble → epilogue: base+908 → base+1068
   have hFull := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
     (fun h hp => by xperm_hyp hp) hPreF hEpiF
   exact cpsTriple_consequence _ _ _ _ _ _ _
@@ -850,14 +850,14 @@ theorem evm_div_shift0_epilogue_spec (sp base : Word)
     hFull
 
 -- ============================================================================
--- MOD shift=0 post-loop: Preamble (LD+BEQ taken) → MOD Epilogue (base+904 → base+1064)
--- When shift=0, BEQ is taken, skipping denorm body directly to epilogue at base+1004.
+-- MOD shift=0 post-loop: Preamble (LD+BEQ taken) → MOD Epilogue (base+908 → base+1068)
+-- When shift=0, BEQ is taken, skipping denorm body directly to epilogue at base+1008.
 -- ============================================================================
 
 set_option maxRecDepth 4096 in
 set_option maxHeartbeats 3200000 in
 /-- MOD shift=0 post-loop: LD shift + BEQ taken → MOD epilogue.
-    base+904 → base+1064. Shift = 0 case (denorm body skipped). -/
+    base+908 → base+1068. Shift = 0 case (denorm body skipped). -/
 theorem evm_mod_shift0_epilogue_spec (sp base : Word)
     (u0 u1 u2 u3 shift v2 v5 v6 v7 v10 : Word)
     (m0 m8 m16 m24 : Word)
@@ -868,7 +868,7 @@ theorem evm_mod_shift0_epilogue_spec (sp base : Word)
     (hv_u1 : isValidDwordAccess (sp + signExtend12 4048) = true)
     (hv_u2 : isValidDwordAccess (sp + signExtend12 4040) = true)
     (hv_u3 : isValidDwordAccess (sp + signExtend12 4032) = true) :
-    cpsTriple (base + 904) (base + 1064) (modCode base)
+    cpsTriple (base + 908) (base + 1068) (modCode base)
       ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ v6) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x5 ↦ᵣ v5) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ v2) ** (.x10 ↦ᵣ v10) **
        ((sp + signExtend12 3992) ↦ₘ shift) **
@@ -883,24 +883,24 @@ theorem evm_mod_shift0_epilogue_spec (sp base : Word)
        ((sp + signExtend12 4040) ↦ₘ u2) ** ((sp + signExtend12 4032) ↦ₘ u3) **
        ((sp + 32) ↦ₘ u0) ** ((sp + 40) ↦ₘ u1) **
        ((sp + 48) ↦ₘ u2) ** ((sp + 56) ↦ₘ u3)) := by
-  -- 1. LD x6 x12 3992 at base+904 (denorm instr [0])
-  have hld := ld_spec_gen .x6 .x12 sp v6 shift (3992 : BitVec 12) (base + 904) (by nofun) hv_shift
-  rw [show (base + 904 : Word) + 4 = base + 908 from by bv_addr] at hld
+  -- 1. LD x6 x12 3992 at base+908 (denorm instr [0])
+  have hld := ld_spec_gen .x6 .x12 sp v6 shift (3992 : BitVec 12) (base + 908) (by nofun) hv_shift
+  rw [show (base + 908 : Word) + 4 = base + 912 from by bv_addr] at hld
   have hlde := cpsTriple_extend_code (hmono := by
     intro a i h
     exact divK_denorm_code_sub_modCode' base a i
-      (CodeReq.ofProg_mono_sub (base + 904) (base + 904) divK_denorm
+      (CodeReq.ofProg_mono_sub (base + 908) (base + 908) divK_denorm
         [.LD .x6 .x12 3992] 0 (by bv_addr) (by decide) (by decide) (by decide) a i h)) hld
-  -- 2. BEQ x6 x0 96 at base+908 (denorm instr [1])
-  have hbeq := beq_spec_gen .x6 .x0 (96 : BitVec 13) shift (0 : Word) (base + 908)
-  rw [show (base + 908 : Word) + signExtend13 (96 : BitVec 13) = base + 1004 from by
+  -- 2. BEQ x6 x0 96 at base+912 (denorm instr [1])
+  have hbeq := beq_spec_gen .x6 .x0 (96 : BitVec 13) shift (0 : Word) (base + 912)
+  rw [show (base + 912 : Word) + signExtend13 (96 : BitVec 13) = base + 1008 from by
         rw [show signExtend13 (96 : BitVec 13) = (96 : Word) from by decide]
         bv_addr,
-      show (base + 908 : Word) + 4 = base + 912 from by bv_addr] at hbeq
+      show (base + 912 : Word) + 4 = base + 916 from by bv_addr] at hbeq
   have hbeqe := cpsBranch_extend_code (hmono := by
     intro a i h
     exact divK_denorm_code_sub_modCode' base a i
-      (CodeReq.ofProg_mono_sub (base + 904) (base + 908) divK_denorm
+      (CodeReq.ofProg_mono_sub (base + 908) (base + 912) divK_denorm
         [.BEQ .x6 .x0 96] 1 (by bv_addr) (by decide) (by decide) (by decide) a i h)) hbeq
   -- 3. Eliminate not-taken branch: shift = 0 means BEQ taken
   --    BEQ not-taken postcondition: (.x6 ↦ᵣ shift) ** (.x0 ↦ᵣ 0) ** ⌜shift ≠ 0⌝
@@ -917,7 +917,7 @@ theorem evm_mod_shift0_epilogue_spec (sp base : Word)
     ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ v2) ** (.x10 ↦ᵣ v10) **
      ((sp + signExtend12 3992) ↦ₘ shift))
     (by pcFree) hbeq_exit
-  -- 6. Compose LD → BEQ taken: base+904 → base+1004
+  -- 6. Compose LD → BEQ taken: base+908 → base+1008
   have hPre := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
     (fun h hp => by xperm_hyp hp) hldf hbeqf
   -- Frame preamble with u[], output memory
@@ -927,7 +927,7 @@ theorem evm_mod_shift0_epilogue_spec (sp base : Word)
      ((sp + 32) ↦ₘ m0) ** ((sp + 40) ↦ₘ m8) **
      ((sp + 48) ↦ₘ m16) ** ((sp + 56) ↦ₘ m24))
     (by pcFree) hPre
-  -- 7. MOD epilogue (base+1004 → base+1064)
+  -- 7. MOD epilogue (base+1008 → base+1068)
   have hEpi := divK_mod_epilogue_spec sp base u0 u1 u2 u3
     v5 shift v7 v10 m0 m8 m16 m24
     hvalid hv_u0 hv_u1 hv_u2 hv_u3
@@ -936,7 +936,7 @@ theorem evm_mod_shift0_epilogue_spec (sp base : Word)
     ((.x2 ↦ᵣ v2) ** (.x0 ↦ᵣ (0 : Word)) **
      ((sp + signExtend12 3992) ↦ₘ shift))
     (by pcFree) hEpi
-  -- 8. Compose preamble → epilogue: base+904 → base+1064
+  -- 8. Compose preamble → epilogue: base+908 → base+1068
   have hFull := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
     (fun h hp => by xperm_hyp hp) hPreF hEpiF
   exact cpsTriple_consequence _ _ _ _ _ _ _
