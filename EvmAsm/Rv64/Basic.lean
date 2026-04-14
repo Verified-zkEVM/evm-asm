@@ -11,17 +11,40 @@ namespace EvmAsm.Rv64
 -- Registers
 -- ============================================================================
 
-/-- A small subset of RISC-V integer registers. -/
+/-- The 32 RISC-V integer registers. -/
 inductive Reg where
-  | x0  -- hardwired zero
-  | x1  -- ra
-  | x2  -- sp
+  | x0  -- zero (hardwired zero)
+  | x1  -- ra (return address)
+  | x2  -- sp (stack pointer)
+  | x3  -- gp (global pointer)
+  | x4  -- tp (thread pointer)
   | x5  -- t0
   | x6  -- t1
   | x7  -- t2
+  | x8  -- s0/fp (frame pointer)
+  | x9  -- s1
   | x10 -- a0
   | x11 -- a1
   | x12 -- a2
+  | x13 -- a3
+  | x14 -- a4
+  | x15 -- a5
+  | x16 -- a6
+  | x17 -- a7
+  | x18 -- s2
+  | x19 -- s3
+  | x20 -- s4
+  | x21 -- s5
+  | x22 -- s6
+  | x23 -- s7
+  | x24 -- s8
+  | x25 -- s9
+  | x26 -- s10
+  | x27 -- s11
+  | x28 -- t3
+  | x29 -- t4
+  | x30 -- t5
+  | x31 -- t6
   deriving DecidableEq, BEq, Repr, Hashable
 
 instance : LawfulBEq Reg where
@@ -34,12 +57,35 @@ def toNat : Reg → Nat
   | x0  => 0
   | x1  => 1
   | x2  => 2
+  | x3  => 3
+  | x4  => 4
   | x5  => 5
   | x6  => 6
   | x7  => 7
+  | x8  => 8
+  | x9  => 9
   | x10 => 10
   | x11 => 11
   | x12 => 12
+  | x13 => 13
+  | x14 => 14
+  | x15 => 15
+  | x16 => 16
+  | x17 => 17
+  | x18 => 18
+  | x19 => 19
+  | x20 => 20
+  | x21 => 21
+  | x22 => 22
+  | x23 => 23
+  | x24 => 24
+  | x25 => 25
+  | x26 => 26
+  | x27 => 27
+  | x28 => 28
+  | x29 => 29
+  | x30 => 30
+  | x31 => 31
 
 instance : ToString Reg where
   toString r := s!"x{r.toNat}"
