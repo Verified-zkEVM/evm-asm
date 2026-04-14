@@ -30,8 +30,7 @@ open EvmAsm.Rv64
 /-- Full path postcondition for n=2 DIV case (F,F,T): r2=Max, r1=Max, r0=Call.
     Scratch cells: j=0 call scratch. -/
 @[irreducible]
-def fullDivN2_FFT_Post (sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word)
-    (ret_mem d_mem dlo_mem scratch_un0 : Word) : Assertion :=
+def fullDivN2_FFT_Post (sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Assertion :=
   let shift := (clzResult b1).1
   let anti_shift := signExtend12 (0 : BitVec 12) - shift
   let v0' := b0 <<< (shift.toNat % 64)
@@ -65,8 +64,7 @@ def fullDivN2_FFT_Post (sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word)
 /-- Full path postcondition for n=2 DIV case (F,T,F): r2=Max, r1=Call, r0=Max.
     Scratch cells: j=1 call scratch. -/
 @[irreducible]
-def fullDivN2_FTF_Post (sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word)
-    (ret_mem d_mem dlo_mem scratch_un0 : Word) : Assertion :=
+def fullDivN2_FTF_Post (sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Assertion :=
   let shift := (clzResult b1).1
   let anti_shift := signExtend12 (0 : BitVec 12) - shift
   let v0' := b0 <<< (shift.toNat % 64)
@@ -100,8 +98,7 @@ def fullDivN2_FTF_Post (sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word)
 /-- Full path postcondition for n=2 DIV case (F,T,T): r2=Max, r1=Call, r0=Call.
     Scratch cells: j=0 call scratch. -/
 @[irreducible]
-def fullDivN2_FTT_Post (sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word)
-    (ret_mem d_mem dlo_mem scratch_un0 : Word) : Assertion :=
+def fullDivN2_FTT_Post (sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Assertion :=
   let shift := (clzResult b1).1
   let anti_shift := signExtend12 (0 : BitVec 12) - shift
   let v0' := b0 <<< (shift.toNat % 64)
@@ -135,8 +132,7 @@ def fullDivN2_FTT_Post (sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word)
 /-- Full path postcondition for n=2 DIV case (T,F,F): r2=Call, r1=Max, r0=Max.
     Scratch cells: j=2 call scratch. -/
 @[irreducible]
-def fullDivN2_TFF_Post (sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word)
-    (ret_mem d_mem dlo_mem scratch_un0 : Word) : Assertion :=
+def fullDivN2_TFF_Post (sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Assertion :=
   let shift := (clzResult b1).1
   let anti_shift := signExtend12 (0 : BitVec 12) - shift
   let v0' := b0 <<< (shift.toNat % 64)
@@ -170,8 +166,7 @@ def fullDivN2_TFF_Post (sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word)
 /-- Full path postcondition for n=2 DIV case (T,F,T): r2=Call, r1=Max, r0=Call.
     Scratch cells: j=0 call scratch. -/
 @[irreducible]
-def fullDivN2_TFT_Post (sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word)
-    (ret_mem d_mem dlo_mem scratch_un0 : Word) : Assertion :=
+def fullDivN2_TFT_Post (sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Assertion :=
   let shift := (clzResult b1).1
   let anti_shift := signExtend12 (0 : BitVec 12) - shift
   let v0' := b0 <<< (shift.toNat % 64)
@@ -205,8 +200,7 @@ def fullDivN2_TFT_Post (sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word)
 /-- Full path postcondition for n=2 DIV case (T,T,F): r2=Call, r1=Call, r0=Max.
     Scratch cells: j=1 call scratch. -/
 @[irreducible]
-def fullDivN2_TTF_Post (sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word)
-    (ret_mem d_mem dlo_mem scratch_un0 : Word) : Assertion :=
+def fullDivN2_TTF_Post (sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Assertion :=
   let shift := (clzResult b1).1
   let anti_shift := signExtend12 (0 : BitVec 12) - shift
   let v0' := b0 <<< (shift.toNat % 64)
@@ -240,8 +234,7 @@ def fullDivN2_TTF_Post (sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word)
 /-- Full path postcondition for n=2 DIV case (T,T,T): r2=Call, r1=Call, r0=Call.
     Scratch cells: j=0 call scratch. -/
 @[irreducible]
-def fullDivN2_TTT_Post (sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word)
-    (ret_mem d_mem dlo_mem scratch_un0 : Word) : Assertion :=
+def fullDivN2_TTT_Post (sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Assertion :=
   let shift := (clzResult b1).1
   let anti_shift := signExtend12 (0 : BitVec 12) - shift
   let v0' := b0 <<< (shift.toNat % 64)
@@ -331,8 +324,7 @@ theorem evm_div_n2_full_FFT_spec (sp base : Word)
        ((sp + signExtend12 3960) ↦ₘ d_mem) **
        ((sp + signExtend12 3952) ↦ₘ dlo_mem) **
        ((sp + signExtend12 3944) ↦ₘ scratch_un0))
-      (fullDivN2_FFT_Post sp base a0 a1 a2 a3 b0 b1 b2 b3
-        ret_mem d_mem dlo_mem scratch_un0) := by
+      (fullDivN2_FFT_Post sp base a0 a1 a2 a3 b0 b1 b2 b3) := by
   let shift := (clzResult b1).1
   let anti_shift := signExtend12 (0 : BitVec 12) - shift
   let v0' := b0 <<< (shift.toNat % 64)
@@ -385,8 +377,8 @@ theorem evm_div_n2_full_FFT_spec (sp base : Word)
   have hFull := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
     (fun h hp => by
       delta preloopN2UnifiedPost loopN2UnifiedPost at hp
-      simp (config := { decide := true }) only [iterN2_false, iterN2_true,
-        loopIterPostN2_max, loopIterPostN2_call, loopIterPostN2Max, loopIterPostN2Call,
+      simp (config := { decide := true }) only [iterN2_false,
+        loopIterPostN2_call, loopIterPostN2Call,
         sepConj_emp_right', loopExitPostN2_j0_eq,
         n2_ub2_off4064, n3_ub1_off4064, n2_qa2, n3_qa1,
         se12_32, se12_40, se12_48, se12_56] at hp
@@ -455,8 +447,7 @@ theorem evm_div_n2_full_FTF_spec (sp base : Word)
        ((sp + signExtend12 3960) ↦ₘ d_mem) **
        ((sp + signExtend12 3952) ↦ₘ dlo_mem) **
        ((sp + signExtend12 3944) ↦ₘ scratch_un0))
-      (fullDivN2_FTF_Post sp base a0 a1 a2 a3 b0 b1 b2 b3
-        ret_mem d_mem dlo_mem scratch_un0) := by
+      (fullDivN2_FTF_Post sp base a0 a1 a2 a3 b0 b1 b2 b3) := by
   let shift := (clzResult b1).1
   let anti_shift := signExtend12 (0 : BitVec 12) - shift
   let v0' := b0 <<< (shift.toNat % 64)
@@ -510,7 +501,7 @@ theorem evm_div_n2_full_FTF_spec (sp base : Word)
     (fun h hp => by
       delta preloopN2UnifiedPost loopN2UnifiedPost at hp
       simp (config := { decide := true }) only [iterN2_false, iterN2_true,
-        loopIterPostN2_max, loopIterPostN2_call, loopIterPostN2Max, loopIterPostN2Call,
+        loopIterPostN2_max, loopIterPostN2Max,
         sepConj_emp_right', loopExitPostN2_j0_eq,
         n2_ub2_off4064, n3_ub1_off4064, n2_qa2, n3_qa1,
         se12_32, se12_40, se12_48, se12_56] at hp
@@ -579,8 +570,7 @@ theorem evm_div_n2_full_FTT_spec (sp base : Word)
        ((sp + signExtend12 3960) ↦ₘ d_mem) **
        ((sp + signExtend12 3952) ↦ₘ dlo_mem) **
        ((sp + signExtend12 3944) ↦ₘ scratch_un0))
-      (fullDivN2_FTT_Post sp base a0 a1 a2 a3 b0 b1 b2 b3
-        ret_mem d_mem dlo_mem scratch_un0) := by
+      (fullDivN2_FTT_Post sp base a0 a1 a2 a3 b0 b1 b2 b3) := by
   let shift := (clzResult b1).1
   let anti_shift := signExtend12 (0 : BitVec 12) - shift
   let v0' := b0 <<< (shift.toNat % 64)
@@ -634,7 +624,7 @@ theorem evm_div_n2_full_FTT_spec (sp base : Word)
     (fun h hp => by
       delta preloopN2UnifiedPost loopN2UnifiedPost at hp
       simp (config := { decide := true }) only [iterN2_false, iterN2_true,
-        loopIterPostN2_max, loopIterPostN2_call, loopIterPostN2Max, loopIterPostN2Call,
+        loopIterPostN2_call, loopIterPostN2Call,
         sepConj_emp_right', loopExitPostN2_j0_eq,
         n2_ub2_off4064, n3_ub1_off4064, n2_qa2, n3_qa1,
         se12_32, se12_40, se12_48, se12_56] at hp
@@ -703,8 +693,7 @@ theorem evm_div_n2_full_TFF_spec (sp base : Word)
        ((sp + signExtend12 3960) ↦ₘ d_mem) **
        ((sp + signExtend12 3952) ↦ₘ dlo_mem) **
        ((sp + signExtend12 3944) ↦ₘ scratch_un0))
-      (fullDivN2_TFF_Post sp base a0 a1 a2 a3 b0 b1 b2 b3
-        ret_mem d_mem dlo_mem scratch_un0) := by
+      (fullDivN2_TFF_Post sp base a0 a1 a2 a3 b0 b1 b2 b3) := by
   let shift := (clzResult b1).1
   let anti_shift := signExtend12 (0 : BitVec 12) - shift
   let v0' := b0 <<< (shift.toNat % 64)
@@ -758,7 +747,7 @@ theorem evm_div_n2_full_TFF_spec (sp base : Word)
     (fun h hp => by
       delta preloopN2UnifiedPost loopN2UnifiedPost at hp
       simp (config := { decide := true }) only [iterN2_false, iterN2_true,
-        loopIterPostN2_max, loopIterPostN2_call, loopIterPostN2Max, loopIterPostN2Call,
+        loopIterPostN2_max, loopIterPostN2Max,
         sepConj_emp_right', loopExitPostN2_j0_eq,
         n2_ub2_off4064, n3_ub1_off4064, n2_qa2, n3_qa1,
         se12_32, se12_40, se12_48, se12_56] at hp
@@ -827,8 +816,7 @@ theorem evm_div_n2_full_TFT_spec (sp base : Word)
        ((sp + signExtend12 3960) ↦ₘ d_mem) **
        ((sp + signExtend12 3952) ↦ₘ dlo_mem) **
        ((sp + signExtend12 3944) ↦ₘ scratch_un0))
-      (fullDivN2_TFT_Post sp base a0 a1 a2 a3 b0 b1 b2 b3
-        ret_mem d_mem dlo_mem scratch_un0) := by
+      (fullDivN2_TFT_Post sp base a0 a1 a2 a3 b0 b1 b2 b3) := by
   let shift := (clzResult b1).1
   let anti_shift := signExtend12 (0 : BitVec 12) - shift
   let v0' := b0 <<< (shift.toNat % 64)
@@ -882,7 +870,7 @@ theorem evm_div_n2_full_TFT_spec (sp base : Word)
     (fun h hp => by
       delta preloopN2UnifiedPost loopN2UnifiedPost at hp
       simp (config := { decide := true }) only [iterN2_false, iterN2_true,
-        loopIterPostN2_max, loopIterPostN2_call, loopIterPostN2Max, loopIterPostN2Call,
+        loopIterPostN2_call, loopIterPostN2Call,
         sepConj_emp_right', loopExitPostN2_j0_eq,
         n2_ub2_off4064, n3_ub1_off4064, n2_qa2, n3_qa1,
         se12_32, se12_40, se12_48, se12_56] at hp
@@ -951,8 +939,7 @@ theorem evm_div_n2_full_TTF_spec (sp base : Word)
        ((sp + signExtend12 3960) ↦ₘ d_mem) **
        ((sp + signExtend12 3952) ↦ₘ dlo_mem) **
        ((sp + signExtend12 3944) ↦ₘ scratch_un0))
-      (fullDivN2_TTF_Post sp base a0 a1 a2 a3 b0 b1 b2 b3
-        ret_mem d_mem dlo_mem scratch_un0) := by
+      (fullDivN2_TTF_Post sp base a0 a1 a2 a3 b0 b1 b2 b3) := by
   let shift := (clzResult b1).1
   let anti_shift := signExtend12 (0 : BitVec 12) - shift
   let v0' := b0 <<< (shift.toNat % 64)
@@ -1005,8 +992,8 @@ theorem evm_div_n2_full_TTF_spec (sp base : Word)
   have hFull := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
     (fun h hp => by
       delta preloopN2UnifiedPost loopN2UnifiedPost at hp
-      simp (config := { decide := true }) only [iterN2_false, iterN2_true,
-        loopIterPostN2_max, loopIterPostN2_call, loopIterPostN2Max, loopIterPostN2Call,
+      simp (config := { decide := true }) only [iterN2_true,
+        loopIterPostN2_max, loopIterPostN2Max,
         sepConj_emp_right', loopExitPostN2_j0_eq,
         n2_ub2_off4064, n3_ub1_off4064, n2_qa2, n3_qa1,
         se12_32, se12_40, se12_48, se12_56] at hp
@@ -1075,8 +1062,7 @@ theorem evm_div_n2_full_TTT_spec (sp base : Word)
        ((sp + signExtend12 3960) ↦ₘ d_mem) **
        ((sp + signExtend12 3952) ↦ₘ dlo_mem) **
        ((sp + signExtend12 3944) ↦ₘ scratch_un0))
-      (fullDivN2_TTT_Post sp base a0 a1 a2 a3 b0 b1 b2 b3
-        ret_mem d_mem dlo_mem scratch_un0) := by
+      (fullDivN2_TTT_Post sp base a0 a1 a2 a3 b0 b1 b2 b3) := by
   let shift := (clzResult b1).1
   let anti_shift := signExtend12 (0 : BitVec 12) - shift
   let v0' := b0 <<< (shift.toNat % 64)
@@ -1129,8 +1115,8 @@ theorem evm_div_n2_full_TTT_spec (sp base : Word)
   have hFull := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
     (fun h hp => by
       delta preloopN2UnifiedPost loopN2UnifiedPost at hp
-      simp (config := { decide := true }) only [iterN2_false, iterN2_true,
-        loopIterPostN2_max, loopIterPostN2_call, loopIterPostN2Max, loopIterPostN2Call,
+      simp (config := { decide := true }) only [iterN2_true,
+        loopIterPostN2_call, loopIterPostN2Call,
         sepConj_emp_right', loopExitPostN2_j0_eq,
         n2_ub2_off4064, n3_ub1_off4064, n2_qa2, n3_qa1,
         se12_32, se12_40, se12_48, se12_56] at hp
