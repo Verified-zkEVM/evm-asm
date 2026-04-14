@@ -188,29 +188,55 @@ theorem product_check_gt_imp_overestimate (u_hi un1 d_hi d_lo q_hat r_hat : Nat)
             rw [hr_hat, Nat.add_sub_cancel' hq_mul]
   exact (Nat.div_lt_iff_lt_mul hd_pos).mpr hqd_gt
 
-/-- After the product check correction, the overestimate is ≤ 1.
-    If the product check passes (no correction needed), then q̂ ≤ q_true + 1.
-    If the product check fails and we decrement, the result ≤ q_true + 1
-    since the initial overestimate was ≤ 2. -/
-theorem corrected_quotient_le (u_hi un1 d_hi d_lo q_hat : Nat)
-    (hd_hi_pos : 0 < d_hi)
+/-- If the product check passes (`q̂ * d_lo ≤ r̂ * B + un1`), then `q̂ ≤ q_true`.
+    The trial quotient does NOT overestimate the true quotient in this branch. -/
+theorem product_check_pass_imp_le (u_hi un1 d_hi d_lo q_hat r_hat : Nat)
+    (B : Nat := 2^32)
+    (hd_pos : 0 < d_hi * B + d_lo)
     (hq_mul : q_hat * d_hi ≤ u_hi)
-    (r_hat : Nat) (hr_hat : r_hat = u_hi - q_hat * d_hi)
-    (hcheck_pass : q_hat * d_lo ≤ r_hat * 2^32 + un1) :
-    q_hat ≤ (u_hi * 2^32 + un1) / (d_hi * 2^32 + d_lo) + 1 := by
-  set d := d_hi * 2^32 + d_lo
-  set X := u_hi * 2^32 + un1
-  have hd_pos : 0 < d := by positivity
-  -- q̂ * d_lo ≤ r̂ * B + un1, so q̂ * d ≤ (q̂*d_hi + r̂)*B + un1 = u_hi*B + un1 = X
+    (hr_hat : r_hat = u_hi - q_hat * d_hi)
+    (hcheck_pass : q_hat * d_lo ≤ r_hat * B + un1) :
+    q_hat ≤ (u_hi * B + un1) / (d_hi * B + d_lo) := by
+  set d := d_hi * B + d_lo
+  set X := u_hi * B + un1
   have hqd_le : q_hat * d ≤ X := by
-    calc q_hat * d = q_hat * d_hi * 2^32 + q_hat * d_lo := by ring
-      _ ≤ q_hat * d_hi * 2^32 + r_hat * 2^32 + un1 := by omega
-      _ = (q_hat * d_hi + r_hat) * 2^32 + un1 := by ring
-      _ = u_hi * 2^32 + un1 := by
+    calc q_hat * d = q_hat * (d_hi * B + d_lo) := rfl
+      _ = q_hat * d_hi * B + q_hat * d_lo := by ring
+      _ ≤ q_hat * d_hi * B + r_hat * B + un1 := by omega
+      _ = (q_hat * d_hi + r_hat) * B + un1 := by ring
+      _ = u_hi * B + un1 := by
             rw [hr_hat, Nat.add_sub_cancel' hq_mul]
-  -- From q̂ * d ≤ X: q̂ ≤ X / d
-  have : q_hat ≤ X / d := Nat.le_div_iff_mul_le hd_pos |>.mpr hqd_le
-  omega
+  exact Nat.le_div_iff_mul_le hd_pos |>.mpr hqd_le
+
+/-- Full correction step: after at most one correction (decrement when product check
+    fails), the trial quotient overestimates by at most 1.
+    - If check passes: `q̂ ≤ q_true` (from `product_check_pass_imp_le`)
+    - If check fails: `q̂ - 1 ≤ q_true` since `q̂ > q_true`, and from the initial
+      bound `q̂ ≤ q_true + 2`, the decrement gives `q̂ - 1 ≤ q_true + 1`. -/
+theorem correction_step_overestimate_le_one (u_hi un1 d_hi d_lo q_hat r_hat : Nat)
+    (B : Nat := 2^32)
+    (hd_pos : 0 < d_hi * B + d_lo)
+    (hq_mul : q_hat * d_hi ≤ u_hi)
+    (hr_hat : r_hat = u_hi - q_hat * d_hi)
+    (hq_upper : q_hat ≤ (u_hi * B + un1) / (d_hi * B + d_lo) + 2) :
+    let q_corrected := if q_hat * d_lo > r_hat * B + un1 then q_hat - 1 else q_hat
+    q_corrected ≤ (u_hi * B + un1) / (d_hi * B + d_lo) + 1 := by
+  show (if q_hat * d_lo > r_hat * B + un1 then q_hat - 1 else q_hat) ≤ _
+  split
+  · -- Product check fails: decrement. q̂ > q_true and q̂ ≤ q_true + 2.
+    rename_i hfail
+    set q_true := (u_hi * B + un1) / (d_hi * B + d_lo)
+    have hgt : q_hat > q_true := product_check_gt_imp_overestimate u_hi un1 d_hi d_lo q_hat r_hat B
+      hd_pos hr_hat hq_mul hfail
+    -- q_hat ≤ q_true + 2 = (q_true + 1) + 1, so q_hat - 1 ≤ q_true + 1
+    exact Nat.sub_le_of_le_add (by omega : q_hat ≤ q_true + 1 + 1)
+  · -- Product check passes: q̂ ≤ q_true, so q̂ ≤ q_true + 1 trivially.
+    rename_i hpass
+    simp only [not_lt] at hpass
+    set q_true := (u_hi * B + un1) / (d_hi * B + d_lo)
+    have := product_check_pass_imp_le u_hi un1 d_hi d_lo q_hat r_hat B
+      hd_pos hq_mul hr_hat hpass
+    omega
 
 end EvmWord
 
