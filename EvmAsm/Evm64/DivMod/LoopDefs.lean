@@ -78,6 +78,31 @@ def addbackN4 (un0 un1 un2 un3 u4_new v0 v1 v2 v3 : Word) :
   let aun4 := u4_new + aco3
   (aun0, aun1, aun2, aun3, aun4)
 
+/-- Extract the 4-limb carry-out from addbackN4's intermediate computation.
+    This is the carry out of the 4th limb (aco3), before the u4_new addition.
+    Used by the double-addback check: if carry = 0, a second addback is needed. -/
+def addbackN4_carry (un0 un1 un2 un3 v0 v1 v2 v3 : Word) : Word :=
+  let upc0 := un0 + (signExtend12 0 : Word)
+  let ac1_0 := if BitVec.ult upc0 (signExtend12 0 : Word) then (1 : Word) else 0
+  let aun0 := upc0 + v0
+  let ac2_0 := if BitVec.ult aun0 v0 then (1 : Word) else 0
+  let aco0 := ac1_0 ||| ac2_0
+  let upc1 := un1 + aco0
+  let ac1_1 := if BitVec.ult upc1 aco0 then (1 : Word) else 0
+  let aun1 := upc1 + v1
+  let ac2_1 := if BitVec.ult aun1 v1 then (1 : Word) else 0
+  let aco1 := ac1_1 ||| ac2_1
+  let upc2 := un2 + aco1
+  let ac1_2 := if BitVec.ult upc2 aco1 then (1 : Word) else 0
+  let aun2 := upc2 + v2
+  let ac2_2 := if BitVec.ult aun2 v2 then (1 : Word) else 0
+  let aco2 := ac1_2 ||| ac2_2
+  let upc3 := un3 + aco2
+  let ac1_3 := if BitVec.ult upc3 aco2 then (1 : Word) else 0
+  let aun3 := upc3 + v3
+  let ac2_3 := if BitVec.ult aun3 v3 then (1 : Word) else 0
+  ac1_3 ||| ac2_3
+
 -- ============================================================================
 -- Loop exit postcondition for n=4
 -- Common assertion shape for both cpsBranch exits (taken/ntaken).
@@ -1456,5 +1481,65 @@ def loopN1UnifiedPost (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
     (sp + signExtend12 3952 ↦ₘ div128DLo v0) **
     (sp + signExtend12 3944 ↦ₘ div128Un0 u0_orig_1)
   | true,  true,  true,  true  => empAssertion
+
+-- ============================================================================
+-- Double-addback iter variants (models the FIXED algorithm)
+--
+-- These define the correct semantics with double addback: after the first
+-- addback, check addbackN4_carry; if carry = 0 (overestimate was 2),
+-- perform a second addback and decrement q by 2 instead of 1.
+--
+-- The original iterN*Max/iterN*Call definitions (above) model the CURRENT
+-- assembly which only does single addback. These _da variants model the
+-- FIXED assembly with the backward-branch double addback check.
+-- ============================================================================
+
+/-- Helper: single iteration with double addback, parameterized by q_hat.
+    Used by all iter*_da variants. -/
+def iterWithDoubleAddback (q_hat v0 v1 v2 v3 u0 u1 u2 u3 u_top : Word) :
+    Word × Word × Word × Word × Word × Word :=
+  let ms := mulsubN4 q_hat v0 v1 v2 v3 u0 u1 u2 u3
+  let c3 := ms.2.2.2.2
+  if BitVec.ult u_top c3 then
+    let ab := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 (u_top - c3) v0 v1 v2 v3
+    let carry := addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 v0 v1 v2 v3
+    if carry = 0 then
+      let ab' := addbackN4 ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 ab.2.2.2.2 v0 v1 v2 v3
+      (q_hat + signExtend12 4095 + signExtend12 4095,
+       ab'.1, ab'.2.1, ab'.2.2.1, ab'.2.2.2.1, ab'.2.2.2.2)
+    else
+      (q_hat + signExtend12 4095, ab.1, ab.2.1, ab.2.2.1, ab.2.2.2.1, ab.2.2.2.2)
+  else
+    (q_hat, ms.1, ms.2.1, ms.2.2.1, ms.2.2.2.1, u_top - c3)
+
+@[irreducible]
+def iterN1Max_da (v0 v1 v2 v3 u0 u1 u2 u3 u_top : Word) :
+    Word × Word × Word × Word × Word × Word :=
+  iterWithDoubleAddback (signExtend12 4095) v0 v1 v2 v3 u0 u1 u2 u3 u_top
+
+@[irreducible]
+def iterN1Call_da (v0 v1 v2 v3 u0 u1 u2 u3 u_top : Word) :
+    Word × Word × Word × Word × Word × Word :=
+  iterWithDoubleAddback (div128Quot u1 u0 v0) v0 v1 v2 v3 u0 u1 u2 u3 u_top
+
+@[irreducible]
+def iterN2Max_da (v0 v1 v2 v3 u0 u1 u2 u3 u_top : Word) :
+    Word × Word × Word × Word × Word × Word :=
+  iterWithDoubleAddback (signExtend12 4095) v0 v1 v2 v3 u0 u1 u2 u3 u_top
+
+@[irreducible]
+def iterN2Call_da (v0 v1 v2 v3 u0 u1 u2 u3 u_top : Word) :
+    Word × Word × Word × Word × Word × Word :=
+  iterWithDoubleAddback (div128Quot u2 u1 v1) v0 v1 v2 v3 u0 u1 u2 u3 u_top
+
+@[irreducible]
+def iterN3Max_da (v0 v1 v2 v3 u0 u1 u2 u3 u_top : Word) :
+    Word × Word × Word × Word × Word × Word :=
+  iterWithDoubleAddback (signExtend12 4095) v0 v1 v2 v3 u0 u1 u2 u3 u_top
+
+@[irreducible]
+def iterN3Call_da (v0 v1 v2 v3 u0 u1 u2 u3 u_top : Word) :
+    Word × Word × Word × Word × Word × Word :=
+  iterWithDoubleAddback (div128Quot u3 u2 v2) v0 v1 v2 v3 u0 u1 u2 u3 u_top
 
 end EvmAsm.Evm64

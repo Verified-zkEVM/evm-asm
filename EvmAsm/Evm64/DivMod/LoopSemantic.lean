@@ -36,29 +36,8 @@ theorem mulsubN4_val256_eq (q v0 v1 v2 v3 u0 u1 u2 u3 : Word) :
 -- Addback: addbackN4 satisfies the 4-limb val256 addition equation
 -- ============================================================================
 
-/-- Extract the 4-limb carry-out from addbackN4's intermediate computation.
-    This is the carry out of the 4th limb (aco3), before the u4_new addition. -/
-def addbackN4_carry (un0 un1 un2 un3 v0 v1 v2 v3 : Word) : Word :=
-  let upc0 := un0 + (signExtend12 0 : Word)
-  let ac1_0 := if BitVec.ult upc0 (signExtend12 0 : Word) then (1 : Word) else 0
-  let aun0 := upc0 + v0
-  let ac2_0 := if BitVec.ult aun0 v0 then (1 : Word) else 0
-  let aco0 := ac1_0 ||| ac2_0
-  let upc1 := un1 + aco0
-  let ac1_1 := if BitVec.ult upc1 aco0 then (1 : Word) else 0
-  let aun1 := upc1 + v1
-  let ac2_1 := if BitVec.ult aun1 v1 then (1 : Word) else 0
-  let aco1 := ac1_1 ||| ac2_1
-  let upc2 := un2 + aco1
-  let ac1_2 := if BitVec.ult upc2 aco1 then (1 : Word) else 0
-  let aun2 := upc2 + v2
-  let ac2_2 := if BitVec.ult aun2 v2 then (1 : Word) else 0
-  let aco2 := ac1_2 ||| ac2_2
-  let upc3 := un3 + aco2
-  let ac1_3 := if BitVec.ult upc3 aco2 then (1 : Word) else 0
-  let aun3 := upc3 + v3
-  let ac2_3 := if BitVec.ult aun3 v3 then (1 : Word) else 0
-  ac1_3 ||| ac2_3
+-- addbackN4_carry is now defined in LoopDefs.lean (moved there to support
+-- the double-addback iter definitions).
 
 /-- The first 4 components of addbackN4 satisfy the val256 addition equation:
     val256(un) + val256(v) = val256(aun) + carry * 2^256
