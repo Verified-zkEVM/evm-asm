@@ -94,7 +94,7 @@ theorem evm_signextend_stack_spec (sp base : Word)
         have h_toNat := EvmWord.toNat_eq_getLimb0_of_high_zero b hhigh'
         simp only [EvmWord.getLimb_as_getLimbN_0] at h_toNat
         rw [h_toNat] at hge
-        have h31 : (signExtend12 (31 : BitVec 12)).toNat = 31 := by native_decide
+        have h31 : (signExtend12 (31 : BitVec 12)).toNat = 31 := by decide
         simp only [BitVec.ult, h31]
         cases h : decide ((b.getLimbN 0).toNat < 31)
         · rfl
@@ -109,7 +109,7 @@ theorem evm_signextend_stack_spec (sp base : Word)
     have hsmall : BitVec.ult (b.getLimbN 0) (signExtend12 (31 : BitVec 12)) = true := by
       have hb_toNat := EvmWord.toNat_eq_getLimb0_of_high_zero b hhigh
       simp only [EvmWord.getLimb_as_getLimbN_0] at hb_toNat
-      have h31 : (signExtend12 (31 : BitVec 12)).toNat = 31 := by native_decide
+      have h31 : (signExtend12 (31 : BitVec 12)).toNat = 31 := by decide
       simp only [BitVec.ult, h31]
       cases h : decide ((b.getLimbN 0).toNat < 31)
       · simp at h; omega

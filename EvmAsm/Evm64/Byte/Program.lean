@@ -138,7 +138,7 @@ def evm_byte : Program :=
 -- ============================================================================
 
 /-- evm_byte has exactly 45 instructions. -/
-example : evm_byte.length = 45 := by native_decide
+example : evm_byte.length = 45 := by decide
 
 -- ============================================================================
 -- Test infrastructure
@@ -190,7 +190,7 @@ def runByteCheck (sp : Word)
   | none => none
 
 -- ============================================================================
--- Concrete tests via native_decide
+-- Concrete tests via decide
 -- ============================================================================
 
 -- Step counts by path:
@@ -205,78 +205,78 @@ def runByteCheck (sp : Word)
 -- limb 0 = 0xFF, shift = 56 - (31%8)*8 = 56 - 56 = 0, mask 0xFF → 0xFF
 /-- BYTE(31, 0xFF): extract LSB. -/
 example : runByteResult 1024 31 0 0 0  0xFF 0 0 0  29 =
-    some [0xFF, 0, 0, 0] := by native_decide
+    some [0xFF, 0, 0, 0] := by decide
 
 -- Test 2: BYTE(0, value) where value has MSB = 0xAB (byte 0 = MSB of limb 3)
 -- limb 3 = 0xAB00000000000000, shift = 56 - 0 = 56, (0xAB00000000000000 >>> 56) & 0xFF = 0xAB
 /-- BYTE(0, ...): extract MSB. -/
 example : runByteResult 1024 0 0 0 0  0 0 0 0xAB00000000000000  24 =
-    some [0xAB, 0, 0, 0] := by native_decide
+    some [0xAB, 0, 0, 0] := by decide
 
 -- Test 3: BYTE(32, value) = 0 (index out of range, zero path via SLTIU)
 /-- BYTE(32, ...): out of range, result is 0. -/
 example : runByteResult 1024 32 0 0 0  0xFF 0 0 0  14 =
-    some [0, 0, 0, 0] := by native_decide
+    some [0, 0, 0, 0] := by decide
 
 -- Test 4: BYTE with nonzero high index limb (zero path via BNE)
 /-- BYTE with high index limbs: result is 0. -/
 example : runByteResult 1024 0 1 0 0  0xFF 0 0 0  11 =
-    some [0, 0, 0, 0] := by native_decide
+    some [0, 0, 0, 0] := by decide
 
 -- Test 5: BYTE(7, value) = LSB byte of limb 3 (body_0 path)
 -- limb 3 = 0x0102030405060708, byte 7 = LSB of limb 3
 -- shift = 56 - 7*8 = 56-56 = 0, (0x0102030405060708 >>> 0) & 0xFF = 0x08
 /-- BYTE(7, ...): last byte of MSB limb. -/
 example : runByteResult 1024 7 0 0 0  0 0 0 0x0102030405060708  24 =
-    some [0x08, 0, 0, 0] := by native_decide
+    some [0x08, 0, 0, 0] := by decide
 
 -- Test 6: BYTE(8, value) = MSB byte of limb 2 (body_1 path)
 -- limb 2 = 0xABCDEF0012345678, byte 8 = MSB of limb 2
 -- shift = 56 - 0*8 = 56, (0xABCDEF0012345678 >>> 56) & 0xFF = 0xAB
 /-- BYTE(8, ...): first byte of second-from-MSB limb. -/
 example : runByteResult 1024 8 0 0 0  0 0 0xABCDEF0012345678 0  27 =
-    some [0xAB, 0, 0, 0] := by native_decide
+    some [0xAB, 0, 0, 0] := by decide
 
 -- Test 7: BYTE(16, value) = MSB byte of limb 1 (body_2 path)
 -- limb 1 = 0x1234567890ABCDEF, shift = 56
 -- (0x1234567890ABCDEF >>> 56) & 0xFF = 0x12
 /-- BYTE(16, ...): first byte of limb 1. -/
 example : runByteResult 1024 16 0 0 0  0 0x1234567890ABCDEF 0 0  29 =
-    some [0x12, 0, 0, 0] := by native_decide
+    some [0x12, 0, 0, 0] := by decide
 
 -- Test 8: BYTE(24, value) = MSB byte of limb 0 (body_3 path)
 -- limb 0 = 0xFEDCBA9876543210, shift = 56
 -- (0xFEDCBA9876543210 >>> 56) & 0xFF = 0xFE
 /-- BYTE(24, ...): first byte of LSB limb. -/
 example : runByteResult 1024 24 0 0 0  0xFEDCBA9876543210 0 0 0  29 =
-    some [0xFE, 0, 0, 0] := by native_decide
+    some [0xFE, 0, 0, 0] := by decide
 
 -- Test 9: BYTE(0, 0) = 0
 /-- BYTE(0, 0): zero value. -/
 example : runByteResult 1024 0 0 0 0  0 0 0 0  24 =
-    some [0, 0, 0, 0] := by native_decide
+    some [0, 0, 0, 0] := by decide
 
 -- Test 10: BYTE(15, value) = LSB byte of limb 2 (body_1 path)
 -- limb 2 = 0xABCDEF0012345678, byte 15 = LSB of limb 2
 -- shift = 56 - 7*8 = 0, (0xABCDEF0012345678 >>> 0) & 0xFF = 0x78
 /-- BYTE(15, ...): last byte of limb 2. -/
 example : runByteResult 1024 15 0 0 0  0 0 0xABCDEF0012345678 0  27 =
-    some [0x78, 0, 0, 0] := by native_decide
+    some [0x78, 0, 0, 0] := by decide
 
 -- Test 11: Verify PC and sp are correct after execution
 /-- After BYTE(0, ...), PC = 180 and x12 = sp + 32. -/
 example : runByteCheck 1024 0 0 0 0  0 0 0 1  24 =
-    some (180, 1056) := by native_decide
+    some (180, 1056) := by decide
 
 /-- After BYTE(32, ...), PC = 180 and x12 = sp + 32. -/
 example : runByteCheck 1024 32 0 0 0  0xFF 0 0 0  14 =
-    some (180, 1056) := by native_decide
+    some (180, 1056) := by decide
 
 -- Test 12: BYTE(3, value) with value = 0x...00112233445566778899AABBCCDDEEFF00112233
 -- We set limb 3 = 0x00112233_44556677, byte 3 = 0x33
 -- shift = 56 - 3*8 = 32, (0x0011223344556677 >>> 32) & 0xFF = 0x33
 /-- BYTE(3, ...): byte 3 from MSB limb. -/
 example : runByteResult 1024 3 0 0 0  0 0 0 0x0011223344556677  24 =
-    some [0x33, 0, 0, 0] := by native_decide
+    some [0x33, 0, 0, 0] := by decide
 
 end EvmAsm.Evm64

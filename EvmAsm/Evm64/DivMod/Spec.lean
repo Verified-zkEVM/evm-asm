@@ -38,13 +38,13 @@ theorem evm_div_bzero_stack_spec (sp base : Word)
        evmWordIs (sp + 32) (EvmWord.div a b)) := by
   subst hbz
   -- Normalize (0 : EvmWord).getLimb k to (0 : Word)
-  have hg0 : (0 : EvmWord).getLimbN 0 = (0 : Word) := by native_decide
-  have hg1 : (0 : EvmWord).getLimbN 1 = (0 : Word) := by native_decide
-  have hg2 : (0 : EvmWord).getLimbN 2 = (0 : Word) := by native_decide
-  have hg3 : (0 : EvmWord).getLimbN 3 = (0 : Word) := by native_decide
+  have hg0 : (0 : EvmWord).getLimbN 0 = (0 : Word) := by decide
+  have hg1 : (0 : EvmWord).getLimbN 1 = (0 : Word) := by decide
+  have hg2 : (0 : EvmWord).getLimbN 2 = (0 : Word) := by decide
+  have hg3 : (0 : EvmWord).getLimbN 3 = (0 : Word) := by decide
   -- Get the limb-level zero-path spec
   have hlimbs_or : (0 : EvmWord).getLimbN 0 ||| (0 : EvmWord).getLimbN 1 |||
-      (0 : EvmWord).getLimbN 2 ||| (0 : EvmWord).getLimbN 3 = (0 : Word) := by native_decide
+      (0 : EvmWord).getLimbN 2 ||| (0 : EvmWord).getLimbN 3 = (0 : Word) := by decide
   have h_raw := evm_div_bzero_spec sp base
     ((0 : EvmWord).getLimbN 0) ((0 : EvmWord).getLimbN 1)
     ((0 : EvmWord).getLimbN 2) ((0 : EvmWord).getLimbN 3)
@@ -100,12 +100,12 @@ theorem evm_mod_bzero_stack_spec (sp base : Word)
       ((.x12 ↦ᵣ (sp + 32)) ** (regOwn .x5) ** (regOwn .x10) ** (.x0 ↦ᵣ (0 : Word)) **
        evmWordIs (sp + 32) (EvmWord.mod a b)) := by
   subst hbz
-  have hg0 : (0 : EvmWord).getLimbN 0 = (0 : Word) := by native_decide
-  have hg1 : (0 : EvmWord).getLimbN 1 = (0 : Word) := by native_decide
-  have hg2 : (0 : EvmWord).getLimbN 2 = (0 : Word) := by native_decide
-  have hg3 : (0 : EvmWord).getLimbN 3 = (0 : Word) := by native_decide
+  have hg0 : (0 : EvmWord).getLimbN 0 = (0 : Word) := by decide
+  have hg1 : (0 : EvmWord).getLimbN 1 = (0 : Word) := by decide
+  have hg2 : (0 : EvmWord).getLimbN 2 = (0 : Word) := by decide
+  have hg3 : (0 : EvmWord).getLimbN 3 = (0 : Word) := by decide
   have hlimbs_or : (0 : EvmWord).getLimbN 0 ||| (0 : EvmWord).getLimbN 1 |||
-      (0 : EvmWord).getLimbN 2 ||| (0 : EvmWord).getLimbN 3 = (0 : Word) := by native_decide
+      (0 : EvmWord).getLimbN 2 ||| (0 : EvmWord).getLimbN 3 = (0 : Word) := by decide
   have h_raw := evm_mod_bzero_spec sp base
     ((0 : EvmWord).getLimbN 0) ((0 : EvmWord).getLimbN 1)
     ((0 : EvmWord).getLimbN 2) ((0 : EvmWord).getLimbN 3)

@@ -128,7 +128,7 @@ theorem divK_phaseA_spec (sp : Word) (base : Word)
     subst_vars
     show divK_phaseA_code base (base + 28) = _
     exact CodeReq.ofProg_lookup base (divK_phaseA 1016) 7
-      (by native_decide) (by native_decide)
+      (by decide) (by decide)
     ) hbeq_framed
   -- 5. Compose body → BEQ with permutation (same CR)
   have composed := cpsTriple_seq_cpsBranch_with_perm_same_cr _ _ _ _ _ _ _ _ _ _
@@ -915,7 +915,7 @@ theorem divK_clz_stage_taken_spec (K M_s : BitVec 6) (M_a : BitVec 12) (val coun
   have I0 := srli_spec_gen .x7 .x5 v7 val K base (by nofun)
   -- 2. BNE at base+4: taken → base+16
   have hbne_raw := bne_spec_gen .x7 .x0 (12 : BitVec 13) (val >>> K.toNat) (0 : Word) (base + 4)
-  have hsig : signExtend13 (12 : BitVec 13) = (12 : Word) := by native_decide
+  have hsig : signExtend13 (12 : BitVec 13) = (12 : Word) := by decide
   have ha_t : (base + 4) + signExtend13 (12 : BitVec 13) = base + 16 := by rw [hsig]; bv_addr
   have ha_f : (base + 4 : Word) + 4 = base + 8 := by bv_addr
   rw [ha_t, ha_f] at hbne_raw
@@ -981,7 +981,7 @@ theorem divK_clz_stage_ntaken_spec (K M_s : BitVec 6) (M_a : BitVec 12) (val cou
   have I0 := srli_spec_gen .x7 .x5 v7 val K base (by nofun)
   -- 2. BNE at base+4
   have hbne_raw := bne_spec_gen .x7 .x0 (12 : BitVec 13) (val >>> K.toNat) (0 : Word) (base + 4)
-  have hsig : signExtend13 (12 : BitVec 13) = (12 : Word) := by native_decide
+  have hsig : signExtend13 (12 : BitVec 13) = (12 : Word) := by decide
   have ha_t : (base + 4) + signExtend13 (12 : BitVec 13) = base + 16 := by rw [hsig]; bv_addr
   have ha_f : (base + 4 : Word) + 4 = base + 8 := by bv_addr
   rw [ha_t, ha_f] at hbne_raw
@@ -1062,10 +1062,10 @@ theorem divK_clz_last_taken_spec (val count v7 : Word) (base : Word)
               (.x7 ↦ᵣ (val >>> 63)) ** (.x0 ↦ᵣ (0 : Word))) := by
   intro cr
   have I0 := srli_spec_gen .x7 .x5 v7 val 63 base (by nofun)
-  have h63 : (63 : BitVec 6).toNat = 63 := by native_decide
+  have h63 : (63 : BitVec 6).toNat = 63 := by decide
   simp only [h63] at I0
   have hbne_raw := bne_spec_gen .x7 .x0 (8 : BitVec 13) (val >>> 63) (0 : Word) (base + 4)
-  have hsig : signExtend13 (8 : BitVec 13) = (8 : Word) := by native_decide
+  have hsig : signExtend13 (8 : BitVec 13) = (8 : Word) := by decide
   have ha_t : (base + 4) + signExtend13 (8 : BitVec 13) = base + 12 := by rw [hsig]; bv_addr
   have ha_f : (base + 4 : Word) + 4 = base + 8 := by bv_addr
   rw [ha_t, ha_f] at hbne_raw
@@ -1116,10 +1116,10 @@ theorem divK_clz_last_ntaken_spec (val count v7 : Word) (base : Word)
               (.x7 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word))) := by
   intro cr
   have I0 := srli_spec_gen .x7 .x5 v7 val 63 base (by nofun)
-  have h63 : (63 : BitVec 6).toNat = 63 := by native_decide
+  have h63 : (63 : BitVec 6).toNat = 63 := by decide
   simp only [h63] at I0
   have hbne_raw := bne_spec_gen .x7 .x0 (8 : BitVec 13) (val >>> 63) (0 : Word) (base + 4)
-  have hsig : signExtend13 (8 : BitVec 13) = (8 : Word) := by native_decide
+  have hsig : signExtend13 (8 : BitVec 13) = (8 : Word) := by decide
   have ha_t : (base + 4) + signExtend13 (8 : BitVec 13) = base + 12 := by rw [hsig]; bv_addr
   have ha_f : (base + 4 : Word) + 4 = base + 8 := by bv_addr
   rw [ha_t, ha_f] at hbne_raw
@@ -1363,7 +1363,7 @@ theorem divK_store_qj_write_spec (q_addr q_hat q_old : Word) (base : Word)
       ((.x7 ↦ᵣ q_addr) ** (.x11 ↦ᵣ q_hat) ** (q_addr ↦ₘ q_old))
       ((.x7 ↦ᵣ q_addr) ** (.x11 ↦ᵣ q_hat) ** (q_addr ↦ₘ q_hat)) := by
   intro cr
-  have hse : signExtend12 (0 : BitVec 12) = (0 : Word) := by native_decide
+  have hse : signExtend12 (0 : BitVec 12) = (0 : Word) := by decide
   have haddr : q_addr + signExtend12 (0 : BitVec 12) = q_addr := by rw [hse]; bv_omega
   have hv' : isValidDwordAccess (q_addr + signExtend12 0) = true := by rw [haddr]; exact hv
   have I0 := sd_spec_gen .x7 .x11 q_addr q_hat q_old 0 base hv'
@@ -1576,7 +1576,7 @@ theorem divK_trial_load_u_spec (sp j n v5_old v7_old u_hi u_lo : Word)
        (sp + signExtend12 3984 ↦ₘ n) **
        (u_addr ↦ₘ u_hi) ** ((u_addr + 8) ↦ₘ u_lo)) := by
   intro jpn jpn_x8 u0_base u_addr cr
-  have hse0 : signExtend12 (0 : BitVec 12) = (0 : Word) := by native_decide
+  have hse0 : signExtend12 (0 : BitVec 12) = (0 : Word) := by decide
   have haddr0 : u_addr + signExtend12 (0 : BitVec 12) = u_addr := by rw [hse0]; bv_omega
   have hv_uhi' : isValidDwordAccess (u_addr + signExtend12 0) = true := by rw [haddr0]; exact hv_uhi
   have I0 := ld_spec_gen .x5 .x12 sp v5_old n 3984 base (by nofun) hv_n
@@ -1637,7 +1637,7 @@ theorem divK_trial_max_spec (v11_old : Word) (base : Word) :
       ((.x11 ↦ᵣ v11_old) ** (.x0 ↦ᵣ 0))
       ((.x11 ↦ᵣ signExtend12 4095) ** (.x0 ↦ᵣ 0)) := by
   intro cr
-  have hj : signExtend21 (8 : BitVec 21) = (8 : Word) := by native_decide
+  have hj : signExtend21 (8 : BitVec 21) = (8 : Word) := by decide
   have I0 := addi_x0_spec_gen .x11 v11_old 4095 base (by nofun)
   have I1 := jal_x0_spec_gen 8 (base + 4)
   rw [hj] at I1
@@ -2010,7 +2010,7 @@ theorem divK_div128_clamp_q1_merged_spec (q1 rhat d_hi v5_old : Word) (base : Wo
     runBlock I0
   -- 2. BEQ at base+4 (keep pure facts)
   have hbeq_raw := beq_spec_gen .x5 .x0 (12 : BitVec 13) hi (0 : Word) (base + 4)
-  have hsig : signExtend13 (12 : BitVec 13) = (12 : Word) := by native_decide
+  have hsig : signExtend13 (12 : BitVec 13) = (12 : Word) := by decide
   have ha_t : (base + 4) + signExtend13 (12 : BitVec 13) = base + 16 := by rw [hsig]; bv_addr
   have ha_f : (base + 4 : Word) + 4 = base + 8 := by bv_addr
   rw [ha_t, ha_f] at hbeq_raw
@@ -2128,7 +2128,7 @@ theorem divK_div128_prodcheck1_merged_spec
     runBlock I0 I1 I2 I3
   -- 2. BLTU at base+16, strip pure
   have hbltu_raw := bltu_spec_gen .x1 .x5 (8 : BitVec 13) rhat_un1 q_dlo (base + 16)
-  have hsig : signExtend13 (8 : BitVec 13) = (8 : Word) := by native_decide
+  have hsig : signExtend13 (8 : BitVec 13) = (8 : Word) := by decide
   have ha_t : (base + 16) + signExtend13 (8 : BitVec 13) = base + 24 := by rw [hsig]; bv_addr
   have ha_f : (base + 16 : Word) + 4 = base + 20 := by bv_addr
   rw [ha_t, ha_f] at hbltu_raw
@@ -2201,7 +2201,7 @@ theorem divK_div128_prodcheck1_merged_spec
       obtain ⟨_, _, _, _, ⟨_, _, _, _, _, h_x0p⟩, _⟩ := hQt
       exact absurd ((sepConj_pure_right _ _ _).1 h_x0p).2 hcond)
     -- JAL skip: base+20 → base+32
-    have hj : signExtend21 (12 : BitVec 21) = (12 : Word) := by native_decide
+    have hj : signExtend21 (12 : BitVec 21) = (12 : Word) := by decide
     have I_jal := jal_x0_spec_gen 12 (base + 20)
     rw [hj] at I_jal
     have ha_jal : (base + 20 : Word) + 12 = base + 32 := by bv_addr
@@ -2279,7 +2279,7 @@ theorem divK_div128_clamp_q0_merged_spec (q0 rhat2 d_hi v1_old : Word) (base : W
     runBlock I0
   -- 2. BEQ at base+4 (keep pure facts)
   have hbeq_raw := beq_spec_gen .x1 .x0 (12 : BitVec 13) hi (0 : Word) (base + 4)
-  have hsig : signExtend13 (12 : BitVec 13) = (12 : Word) := by native_decide
+  have hsig : signExtend13 (12 : BitVec 13) = (12 : Word) := by decide
   have ha_t : (base + 4) + signExtend13 (12 : BitVec 13) = base + 16 := by rw [hsig]; bv_addr
   have ha_f : (base + 4 : Word) + 4 = base + 8 := by bv_addr
   rw [ha_t, ha_f] at hbeq_raw
@@ -2395,7 +2395,7 @@ theorem divK_div128_prodcheck2_merged_spec
     runBlock I0 I1 I2 I3 I4
   -- 2. BLTU at base+20
   have hbltu_raw := bltu_spec_gen .x1 .x7 (8 : BitVec 13) rhat2_un0 q0_dlo (base + 20)
-  have hsig : signExtend13 (8 : BitVec 13) = (8 : Word) := by native_decide
+  have hsig : signExtend13 (8 : BitVec 13) = (8 : Word) := by decide
   have ha_t : (base + 20) + signExtend13 (8 : BitVec 13) = base + 28 := by rw [hsig]; bv_addr
   have ha_f : (base + 20 : Word) + 4 = base + 24 := by bv_addr
   rw [ha_t, ha_f] at hbltu_raw
@@ -2464,7 +2464,7 @@ theorem divK_div128_prodcheck2_merged_spec
       obtain ⟨_, _, _, _, ⟨_, _, _, _, _, h_x0p⟩, _⟩ := hQt
       exact absurd ((sepConj_pure_right _ _ _).1 h_x0p).2 hcond)
     -- JAL skip: base+24 → base+32
-    have hj : signExtend21 (8 : BitVec 21) = (8 : Word) := by native_decide
+    have hj : signExtend21 (8 : BitVec 21) = (8 : Word) := by decide
     have I_jal := jal_x0_spec_gen 8 (base + 24)
     rw [hj] at I_jal
     have ha_jal : (base + 24 : Word) + 8 = base + 32 := by bv_addr
@@ -3038,7 +3038,7 @@ theorem divK_trial_load_spec
   let jpn := j + n
   let jpn_x8 := jpn <<< (3 : BitVec 6).toNat
   let u0_base := sp + signExtend12 4056
-  have hse0 : signExtend12 (0 : BitVec 12) = (0 : Word) := by native_decide
+  have hse0 : signExtend12 (0 : BitVec 12) = (0 : Word) := by decide
   have haddr0 : u_addr + signExtend12 (0 : BitVec 12) = u_addr := by rw [hse0]; bv_omega
   have hv_uhi' : isValidDwordAccess (u_addr + signExtend12 0) = true := by rw [haddr0]; exact hv_uhi
   have I0 := ld_spec_gen .x5 .x12 sp v5_old n 3984 base (by nofun) hv_n1
@@ -3088,7 +3088,7 @@ theorem divK_store_qj_spec (sp j q_hat v5_old v7_old q_old : Word)
   have I1 := addi_spec_gen .x7 .x12 v7_old sp 4088 (base + 4) (by nofun)
   have I2 := sub_spec_gen_rd_eq_rs1 .x7 .x5 (sp + signExtend12 4088) j_x8 (base + 8) (by nofun)
   -- SD instruction with signExtend12 normalization
-  have hse : signExtend12 (0 : BitVec 12) = (0 : Word) := by native_decide
+  have hse : signExtend12 (0 : BitVec 12) = (0 : Word) := by decide
   have haddr : q_addr + signExtend12 (0 : BitVec 12) = q_addr := by rw [hse]; bv_omega
   have hv' : isValidDwordAccess (q_addr + signExtend12 0) = true := by rw [haddr]; exact hv
   have I3 := sd_spec_gen .x7 .x11 q_addr q_hat q_old 0 (base + 12) hv'

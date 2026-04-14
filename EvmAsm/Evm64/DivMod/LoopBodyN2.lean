@@ -33,29 +33,29 @@ open EvmAsm.Rv64
 theorem u_addr_eq_n2 (sp j : Word) :
     sp + signExtend12 4056 - (j + (2 : Word)) <<< (3 : BitVec 6).toNat =
     (sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 4080 := by
-  simp only [show (3 : BitVec 6).toNat = 3 from by native_decide,
-    show signExtend12 (4056 : BitVec 12) = (18446744073709551576 : Word) from by native_decide,
-    show signExtend12 (4080 : BitVec 12) = (18446744073709551600 : Word) from by native_decide]
+  simp only [show (3 : BitVec 6).toNat = 3 from by decide,
+    show signExtend12 (4056 : BitVec 12) = (18446744073709551576 : Word) from by decide,
+    show signExtend12 (4080 : BitVec 12) = (18446744073709551600 : Word) from by decide]
   bv_omega
 
 /-- For n=2: (u_base + signExtend12 4080) + 8 = u_base + signExtend12 4088 -/
 theorem u_addr8_eq_n2 (sp j : Word) :
     ((sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 4080) + 8 =
     (sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 4088 := by
-  simp only [show (3 : BitVec 6).toNat = 3 from by native_decide,
-    show signExtend12 (4056 : BitVec 12) = (18446744073709551576 : Word) from by native_decide,
-    show signExtend12 (4080 : BitVec 12) = (18446744073709551600 : Word) from by native_decide,
-    show signExtend12 (4088 : BitVec 12) = (18446744073709551608 : Word) from by native_decide]
+  simp only [show (3 : BitVec 6).toNat = 3 from by decide,
+    show signExtend12 (4056 : BitVec 12) = (18446744073709551576 : Word) from by decide,
+    show signExtend12 (4080 : BitVec 12) = (18446744073709551600 : Word) from by decide,
+    show signExtend12 (4088 : BitVec 12) = (18446744073709551608 : Word) from by decide]
   bv_omega
 
 /-- For n=2: vtop_base + signExtend12 32 = sp + signExtend12 40 -/
 theorem vtop_eq_v1_n2 (sp : Word) :
     (sp + ((2 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat) + signExtend12 32 =
     sp + signExtend12 40 := by
-  simp only [show (3 : BitVec 6).toNat = 3 from by native_decide,
-    show signExtend12 (4095 : BitVec 12) = (18446744073709551615 : Word) from by native_decide,
-    show signExtend12 (32 : BitVec 12) = (32 : Word) from by native_decide,
-    show signExtend12 (40 : BitVec 12) = (40 : Word) from by native_decide]
+  simp only [show (3 : BitVec 6).toNat = 3 from by decide,
+    show signExtend12 (4095 : BitVec 12) = (18446744073709551615 : Word) from by decide,
+    show signExtend12 (32 : BitVec 12) = (32 : Word) from by decide,
+    show signExtend12 (40 : BitVec 12) = (40 : Word) from by decide]
   bv_omega
 
 -- ============================================================================

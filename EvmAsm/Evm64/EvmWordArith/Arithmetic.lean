@@ -31,7 +31,7 @@ private theorem carry_toNat (x y : Word) :
 -- OR of two {0,1}-valued Words
 private theorem or_01_toNat (x y : Word) (hx : x = 0 ∨ x = 1) (hy : y = 0 ∨ y = 1) :
     (x ||| y).toNat = min 1 (x.toNat + y.toNat) := by
-  rcases hx with rfl | rfl <;> rcases hy with rfl | rfl <;> native_decide
+  rcases hx with rfl | rfl <;> rcases hy with rfl | rfl <;> decide
 
 -- {0,1} fact for if-then-else
 private theorem ite_word_01 (c : Prop) [Decidable c] :

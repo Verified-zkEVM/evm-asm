@@ -177,7 +177,7 @@ theorem evm_sar_stack_spec (sp base : Word)
       have hlarge : BitVec.ult (shift.getLimb 0) (signExtend12 (256 : BitVec 12)) = false := by
         have h_toNat := EvmWord.toNat_eq_getLimb0_of_high_zero shift hhigh'
         rw [h_toNat] at hge
-        have h256 : (signExtend12 (256 : BitVec 12)).toNat = 256 := by native_decide
+        have h256 : (signExtend12 (256 : BitVec 12)).toNat = 256 := by decide
         simp only [BitVec.ult, h256]
         cases h : decide ((shift.getLimb 0).toNat < 256)
         · rfl
@@ -194,7 +194,7 @@ theorem evm_sar_stack_spec (sp base : Word)
     have hlt_s0 : BitVec.ult (shift.getLimb 0) (signExtend12 (256 : BitVec 12)) = true := by
       have h_toNat := EvmWord.toNat_eq_getLimb0_of_high_zero shift hhigh_zero
       rw [h_toNat] at hlt
-      have h256 : (signExtend12 (256 : BitVec 12)).toNat = 256 := by native_decide
+      have h256 : (signExtend12 (256 : BitVec 12)).toNat = 256 := by decide
       simp only [BitVec.ult, h256]
       cases h : decide ((shift.getLimb 0).toNat < 256)
       · simp at h; omega

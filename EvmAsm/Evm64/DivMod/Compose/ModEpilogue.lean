@@ -70,7 +70,7 @@ theorem mod_denorm_body_spec (sp u0 u1 u2 u3 v2 v5 v7 shift : Word) (base : Word
     divK_denorm_code_sub_modCode base a i
       (CodeReq.ofProg_mono_sub (base + 904) (base + 912) divK_denorm
         [.ADDI .x2 .x0 0] 2
-        (by bv_addr) (by native_decide) (by native_decide) (by native_decide) a i h)) haddi
+        (by bv_addr) (by decide) (by decide) (by decide) a i h)) haddi
   -- Frame ADDI with x12, x5, x7, x6, and all memory
   have haddief := cpsTriple_frame_left _ _ _ _ _
     ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ shift) **
@@ -84,8 +84,8 @@ theorem mod_denorm_body_spec (sp u0 u1 u2 u3 v2 v5 v7 shift : Word) (base : Word
     divK_denorm_code_sub_modCode base a i
       (CodeReq.singleton_mono (by
         have hlookup := CodeReq.ofProg_lookup (base + 904) divK_denorm 3
-          (by native_decide) (by native_decide)
-        rw [show BitVec.ofNat 64 (4 * 3) = (12 : Word) from by native_decide,
+          (by decide) (by decide)
+        rw [show BitVec.ofNat 64 (4 * 3) = (12 : Word) from by decide,
             show (base + 904 : Word) + 12 = base + 916 from by bv_addr] at hlookup
         exact hlookup) a i h)) hsub
   -- Frame SUB with x12, x5, x7, x0, and all memory
@@ -104,7 +104,7 @@ theorem mod_denorm_body_spec (sp u0 u1 u2 u3 v2 v5 v7 shift : Word) (base : Word
     divK_denorm_code_sub_modCode base a i
       (CodeReq.ofProg_mono_sub (base + 904) (base + 920) divK_denorm
         (divK_denorm_merge_prog 4056 4048) 4
-        (by bv_addr) (by native_decide) (by native_decide) (by native_decide) a i h)) hm0
+        (by bv_addr) (by decide) (by decide) (by decide) a i h)) hm0
   have hm0ef := cpsTriple_frame_left _ _ _ _ _
     ((.x0 ↦ᵣ (0 : Word)) **
      ((sp + signExtend12 4040) ↦ₘ u2) ** ((sp + signExtend12 4032) ↦ₘ u3))
@@ -120,7 +120,7 @@ theorem mod_denorm_body_spec (sp u0 u1 u2 u3 v2 v5 v7 shift : Word) (base : Word
     divK_denorm_code_sub_modCode base a i
       (CodeReq.ofProg_mono_sub (base + 904) (base + 944) divK_denorm
         (divK_denorm_merge_prog 4048 4040) 10
-        (by bv_addr) (by native_decide) (by native_decide) (by native_decide) a i h)) hm1
+        (by bv_addr) (by decide) (by decide) (by decide) a i h)) hm1
   have hm1ef := cpsTriple_frame_left _ _ _ _ _
     ((.x0 ↦ᵣ (0 : Word)) **
      ((sp + signExtend12 4056) ↦ₘ u0') ** ((sp + signExtend12 4032) ↦ₘ u3))
@@ -136,7 +136,7 @@ theorem mod_denorm_body_spec (sp u0 u1 u2 u3 v2 v5 v7 shift : Word) (base : Word
     divK_denorm_code_sub_modCode base a i
       (CodeReq.ofProg_mono_sub (base + 904) (base + 968) divK_denorm
         (divK_denorm_merge_prog 4040 4032) 16
-        (by bv_addr) (by native_decide) (by native_decide) (by native_decide) a i h)) hm2
+        (by bv_addr) (by decide) (by decide) (by decide) a i h)) hm2
   have hm2ef := cpsTriple_frame_left _ _ _ _ _
     ((.x0 ↦ᵣ (0 : Word)) **
      ((sp + signExtend12 4056) ↦ₘ u0') ** ((sp + signExtend12 4048) ↦ₘ u1'))
@@ -150,7 +150,7 @@ theorem mod_denorm_body_spec (sp u0 u1 u2 u3 v2 v5 v7 shift : Word) (base : Word
     divK_denorm_code_sub_modCode base a i
       (CodeReq.ofProg_mono_sub (base + 904) (base + 992) divK_denorm
         (divK_denorm_last_prog 4032) 22
-        (by bv_addr) (by native_decide) (by native_decide) (by native_decide) a i h)) hl
+        (by bv_addr) (by decide) (by decide) (by decide) a i h)) hl
   have hlef := cpsTriple_frame_left _ _ _ _ _
     ((.x7 ↦ᵣ (u3 <<< (anti_shift.toNat % 64))) ** (.x2 ↦ᵣ anti_shift) ** (.x0 ↦ᵣ (0 : Word)) **
      ((sp + signExtend12 4056) ↦ₘ u0') ** ((sp + signExtend12 4048) ↦ₘ u1') **

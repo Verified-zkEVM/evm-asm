@@ -16,7 +16,7 @@ namespace EvmAsm.Rv64
 
 theorem byteOffset_lt_8 (addr : Word) : byteOffset addr < 8 := by
   unfold byteOffset; rw [BitVec.toNat_and]
-  exact Nat.lt_of_le_of_lt Nat.and_le_right (by native_decide)
+  exact Nat.lt_of_le_of_lt Nat.and_le_right (by decide)
 
 /-! ## extractByte / replaceByte algebra
 

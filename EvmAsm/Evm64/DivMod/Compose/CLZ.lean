@@ -62,7 +62,7 @@ private theorem clz_init_sub (base : Word) :
   intro a i h
   exact divK_clz_code_sub_divCode base a i
     (CodeReq.singleton_mono (CodeReq.ofProg_lookup (base + 116) divK_clz 0
-      (by native_decide) (by native_decide)) a i (by rwa [show (base + 116 : Word) =
+      (by decide) (by decide)) a i (by rwa [show (base + 116 : Word) =
         base + 116 + BitVec.ofNat 64 (4 * 0) from by bv_addr] at h))
 
 -- CLZ stage parameters: (SRLI_K, SLLI_M_s, ADDI_M_a, instruction_index)
@@ -170,7 +170,7 @@ theorem divK_clz_spec (val v6_old v7_old : Word) (base : Word) :
     ((base + 116) + BitVec.ofNat 64 (4 * 1))
   dsimp only [] at S0
   have S0e := cpsTriple_extend_code (hmono := clz_stage_sub base 32 32 32 1
-    (by native_decide) (by native_decide) (by native_decide)) S0
+    (by decide) (by decide) (by decide)) S0
   rw [show (base + 116 : Word) + BitVec.ofNat 64 (4 * 1) = base + 120 from by bv_addr] at S0e
   rw [clz_addr1] at S0e
   seqFrame Ief S0e
@@ -183,7 +183,7 @@ theorem divK_clz_spec (val v6_old v7_old : Word) (base : Word) :
     ((base + 116) + BitVec.ofNat 64 (4 * 5))
   dsimp only [] at S1
   have S1e := cpsTriple_extend_code (hmono := clz_stage_sub base 48 16 16 5
-    (by native_decide) (by native_decide) (by native_decide)) S1
+    (by decide) (by decide) (by decide)) S1
   rw [show (base + 116 : Word) + BitVec.ofNat 64 (4 * 5) = base + 136 from by bv_addr] at S1e
   rw [clz_addr2] at S1e
   seqFrame IefS0e S1e
@@ -194,7 +194,7 @@ theorem divK_clz_spec (val v6_old v7_old : Word) (base : Word) :
     ((base + 116) + BitVec.ofNat 64 (4 * 9))
   dsimp only [] at S2
   have S2e := cpsTriple_extend_code (hmono := clz_stage_sub base 56 8 8 9
-    (by native_decide) (by native_decide) (by native_decide)) S2
+    (by decide) (by decide) (by decide)) S2
   rw [show (base + 116 : Word) + BitVec.ofNat 64 (4 * 9) = base + 152 from by bv_addr] at S2e
   rw [clz_addr3] at S2e
   seqFrame IefS0eS1e S2e
@@ -205,7 +205,7 @@ theorem divK_clz_spec (val v6_old v7_old : Word) (base : Word) :
     ((base + 116) + BitVec.ofNat 64 (4 * 13))
   dsimp only [] at S3
   have S3e := cpsTriple_extend_code (hmono := clz_stage_sub base 60 4 4 13
-    (by native_decide) (by native_decide) (by native_decide)) S3
+    (by decide) (by decide) (by decide)) S3
   rw [show (base + 116 : Word) + BitVec.ofNat 64 (4 * 13) = base + 168 from by bv_addr] at S3e
   rw [clz_addr4] at S3e
   seqFrame IefS0eS1eS2e S3e
@@ -216,7 +216,7 @@ theorem divK_clz_spec (val v6_old v7_old : Word) (base : Word) :
     ((base + 116) + BitVec.ofNat 64 (4 * 17))
   dsimp only [] at S4
   have S4e := cpsTriple_extend_code (hmono := clz_stage_sub base 62 2 2 17
-    (by native_decide) (by native_decide) (by native_decide)) S4
+    (by decide) (by decide) (by decide)) S4
   rw [show (base + 116 : Word) + BitVec.ofNat 64 (4 * 17) = base + 184 from by bv_addr] at S4e
   rw [clz_addr5] at S4e
   seqFrame IefS0eS1eS2eS3e S4e
@@ -227,7 +227,7 @@ theorem divK_clz_spec (val v6_old v7_old : Word) (base : Word) :
     ((base + 116) + BitVec.ofNat 64 (4 * 21))
   dsimp only [] at S5
   have S5e := cpsTriple_extend_code (hmono := clz_last_sub base 21
-    (by native_decide) (by native_decide) (by native_decide)) S5
+    (by decide) (by decide) (by decide)) S5
   rw [show (base + 116 : Word) + BitVec.ofNat 64 (4 * 21) = base + 200 from by bv_addr] at S5e
   rw [clz_addr6] at S5e
   seqFrame IefS0eS1eS2eS3eS4e S5e

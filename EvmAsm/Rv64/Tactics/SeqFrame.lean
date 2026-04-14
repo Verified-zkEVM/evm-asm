@@ -322,7 +322,7 @@ private def buildOfProgDisjointRange (cr1 cr2 : Expr) : MetaM Expr := do
   let mvar ← mkFreshExprMVar disjType
   let stx ← `(tactic| (
     apply CodeReq.ofProg_disjoint_range_len _ _ $(n1Stx) _ _ $(n2Stx)
-      (by native_decide) (by native_decide);
+      (by decide) (by decide);
     intro k1 k2 hk1 hk2;
     bv_omega))
   runTacticSilent mvar.mvarId! stx
@@ -374,7 +374,7 @@ partial def buildDisjointProof (cr1 cr2 : Expr) : MetaM Expr :=
       let mvar ← mkFreshExprMVar disjType
       let stx ← `(tactic|
         exact CodeReq.Disjoint.singleton_ofProg
-          (CodeReq.ofProg_none_range_len _ _ $(n2Stx) _ (by native_decide) (fun k hk => by bv_omega)))
+          (CodeReq.ofProg_none_range_len _ _ $(n2Stx) _ (by decide) (fun k hk => by bv_omega)))
       runTacticSilent mvar.mvarId! stx
       return ← instantiateMVars mvar
     catch _ => (Pure.pure PUnit.unit : MetaM PUnit)
@@ -394,7 +394,7 @@ partial def buildDisjointProof (cr1 cr2 : Expr) : MetaM Expr :=
       let mvar ← mkFreshExprMVar disjType
       let stx ← `(tactic|
         exact CodeReq.Disjoint.ofProg_singleton
-          (CodeReq.ofProg_none_range_len _ _ $(n1Stx) _ (by native_decide) (fun k hk => by bv_omega)))
+          (CodeReq.ofProg_none_range_len _ _ $(n1Stx) _ (by decide) (fun k hk => by bv_omega)))
       runTacticSilent mvar.mvarId! stx
       return ← instantiateMVars mvar
     catch _ => (Pure.pure PUnit.unit : MetaM PUnit)
@@ -457,7 +457,7 @@ partial def buildDisjointProof (cr1 cr2 : Expr) : MetaM Expr :=
         #[cr1, base, headInstr, rest, hd1, hd2]
     else if progW.isAppOfArity ``List.nil 1 then
       return mkApp2 (mkConst ``EvmAsm.Rv64.CodeReq.Disjoint.ofProg_nil_right) cr1 base
-  -- Fallback: try native_decide
+  -- Fallback: try decide
   let disjType := mkApp2 (mkConst ``EvmAsm.Rv64.CodeReq.Disjoint) cr1 cr2
   let disjMVar ← mkFreshExprMVar disjType
   let stx ← `(tactic| intro a; simp [CodeReq.singleton, CodeReq.union, CodeReq.empty]; decide)
@@ -761,7 +761,7 @@ private def buildMonoProofOfProgToOfProg (oldCrW : Expr)
     let stx ← `(tactic| bv_omega)
     runTacticSilent mvar.mvarId! stx
     instantiateMVars mvar
-  -- h_slice : (full.drop idx).take sub.length = sub — via native_decide
+  -- h_slice : (full.drop idx).take sub.length = sub — via decide
   let instrTy := mkConst ``EvmAsm.Rv64.Instr
   let dropExpr := mkApp3 (mkConst ``List.drop [.zero]) instrTy idxLit newCrProg
   let takeExpr := mkApp3 (mkConst ``List.take [.zero]) instrTy subLenLit dropExpr

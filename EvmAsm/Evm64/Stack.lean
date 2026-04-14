@@ -55,11 +55,11 @@ theorem evmStackIs_nil (sp : Word) :
 -- ============================================================================
 
 @[simp] theorem EvmWord.getLimb_zero (i : Fin 4) : (0 : EvmWord).getLimb i = 0 := by
-  have h : ∀ j : Fin 4, (0 : EvmWord).getLimb j = 0 := by native_decide
+  have h : ∀ j : Fin 4, (0 : EvmWord).getLimb j = 0 := by decide
   exact h i
 
 @[simp] theorem signExtend12_neg32 : signExtend12 (-32 : BitVec 12) = (-32 : Word) := by
-  native_decide
+  decide
 
 /-- Sign-extend a small non-negative 12-bit value to 64 bits.
     The MSB is clear when m < 2^11 = 2048, so signExtend = zeroExtend = identity. -/

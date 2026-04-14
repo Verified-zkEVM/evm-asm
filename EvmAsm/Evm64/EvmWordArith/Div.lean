@@ -66,7 +66,7 @@ theorem eq_zero_iff_limbs_or (b : EvmWord) :
   · intro h; subst h
     show (0 : EvmWord).getLimb 0 ||| (0 : EvmWord).getLimb 1 |||
          (0 : EvmWord).getLimb 2 ||| (0 : EvmWord).getLimb 3 = 0
-    native_decide
+    decide
   · intro h
     set b0 := b.getLimb 0 with hb0_def
     set b1 := b.getLimb 1 with hb1_def
