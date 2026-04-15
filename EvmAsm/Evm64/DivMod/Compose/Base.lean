@@ -6,6 +6,7 @@
 -/
 
 import EvmAsm.Evm64.DivMod.LimbSpec
+import EvmAsm.Evm64.DivMod.AddrNorm
 
 open EvmAsm.Rv64.Tactics
 

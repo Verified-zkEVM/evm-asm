@@ -272,6 +272,24 @@ have : (base + 228 : Word) + 24 = base + 252 := by bv_omega
 
 Impact: olean sizes drop 50-80% (e.g., LoopBody 16MB → 2.8MB), kernel checking time drops proportionally.
 
+### `divmod_addr` and named grind/simp sets
+
+For DivMod composition goals that mix `signExtend12`/shift/`toNat` evaluations with bitvec arithmetic, use the `divmod_addr` tactic from `EvmAsm/Evm64/DivMod/AddrNorm.lean`:
+
+```lean
+-- GOOD: one-line grind-first closure, atomic facts in a shared set
+theorem u_j1_0_eq_j0_4088 (sp : Word) :
+    (sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 0 =
+    (sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4088 := by
+  divmod_addr
+
+-- BAD: inline show-from-by-decide chain (hard to maintain, breaks on literal churn)
+theorem u_j1_0_eq_j0_4088' (sp : Word) : … := by
+  simp only [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide, …]; bv_omega
+```
+
+Adding a new concrete offset is a one-line `@[divmod_addr, grind =]` declaration in `AddrNorm.lean` — every downstream `by divmod_addr` proof picks it up automatically. See `CLAUDE.md` ("Building a strong grindset") for the full pattern and when to introduce additional grind sets.
+
 ### Parallel file splitting for Compose files
 
 Large composition files (>1000 lines) should be split into independent sub-files under a `Compose/` directory:
