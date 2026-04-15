@@ -258,7 +258,7 @@ theorem divK_loop_body_n1_max_unified_j3_spec
         delta loopIterPostN1Max iterN1Max mulsubN4_c3 at hb ⊢
         simp only [] at ⊢
         simp only [if_pos hb] at ⊢
-        delta loopBodyN1AddbackPost at hp
+        delta loopBodyN1AddbackPost loopBodyAddbackPost at hp
         exact hp)
       (J3 hborrow)
   · -- skip path
@@ -274,7 +274,7 @@ theorem divK_loop_body_n1_max_unified_j3_spec
         delta loopIterPostN1Max iterN1Max mulsubN4_c3 at hb ⊢
         simp only [] at ⊢
         simp only [if_neg hb] at ⊢
-        delta loopBodyN1SkipPost at hp
+        delta loopBodyN1SkipPost loopBodySkipPost at hp
         exact hp)
       (J3 hborrow)
 
@@ -330,7 +330,7 @@ theorem divK_loop_body_n1_max_unified_j2_spec
         delta loopIterPostN1Max iterN1Max mulsubN4_c3 at hb ⊢
         simp only [] at ⊢
         simp only [if_pos hb] at ⊢
-        delta loopBodyN1AddbackPost at hp
+        delta loopBodyN1AddbackPost loopBodyAddbackPost at hp
         exact hp)
       (J2 hborrow)
   · -- skip path
@@ -346,7 +346,7 @@ theorem divK_loop_body_n1_max_unified_j2_spec
         delta loopIterPostN1Max iterN1Max mulsubN4_c3 at hb ⊢
         simp only [] at ⊢
         simp only [if_neg hb] at ⊢
-        delta loopBodyN1SkipPost at hp
+        delta loopBodyN1SkipPost loopBodySkipPost at hp
         exact hp)
       (J2 hborrow)
 
@@ -402,7 +402,7 @@ theorem divK_loop_body_n1_max_unified_j1_spec
         delta loopIterPostN1Max iterN1Max mulsubN4_c3 at hb ⊢
         simp only [] at ⊢
         simp only [if_pos hb] at ⊢
-        delta loopBodyN1AddbackPost at hp
+        delta loopBodyN1AddbackPost loopBodyAddbackPost at hp
         exact hp)
       (J1 hborrow)
   · -- skip path
@@ -418,7 +418,7 @@ theorem divK_loop_body_n1_max_unified_j1_spec
         delta loopIterPostN1Max iterN1Max mulsubN4_c3 at hb ⊢
         simp only [] at ⊢
         simp only [if_neg hb] at ⊢
-        delta loopBodyN1SkipPost at hp
+        delta loopBodyN1SkipPost loopBodySkipPost at hp
         exact hp)
       (J1 hborrow)
 
@@ -474,7 +474,7 @@ theorem divK_loop_body_n1_max_unified_j0_spec
         delta loopIterPostN1Max iterN1Max mulsubN4_c3 at hb ⊢
         simp only [] at ⊢
         simp only [if_pos hb] at ⊢
-        delta loopBodyN1AddbackPost at hp
+        delta loopBodyN1AddbackPost loopBodyAddbackPost at hp
         exact hp)
       (J0 hborrow)
   · -- skip path
@@ -490,7 +490,7 @@ theorem divK_loop_body_n1_max_unified_j0_spec
         delta loopIterPostN1Max iterN1Max mulsubN4_c3 at hb ⊢
         simp only [] at ⊢
         simp only [if_neg hb] at ⊢
-        delta loopBodyN1SkipPost at hp
+        delta loopBodyN1SkipPost loopBodySkipPost at hp
         exact hp)
       (J0 hborrow)
 
@@ -560,7 +560,7 @@ theorem divK_loop_body_n1_call_unified_j3_spec
         delta loopIterPostN1Call iterN1Call mulsubN4_c3 at hb ⊢
         simp only [] at ⊢
         simp only [if_pos hb] at ⊢
-        delta loopBodyN1CallAddbackPostJ loopBodyN1AddbackPost at hp
+        delta loopBodyN1CallAddbackPostJ loopBodyN1AddbackPost loopBodyAddbackPost at hp
         exact hp)
       J3
   · -- skip path
@@ -576,7 +576,7 @@ theorem divK_loop_body_n1_call_unified_j3_spec
         delta loopIterPostN1Call iterN1Call mulsubN4_c3 at hb ⊢
         simp only [] at ⊢
         simp only [if_neg hb] at ⊢
-        delta loopBodyN1CallSkipPostJ loopBodyN1SkipPost at hp
+        delta loopBodyN1CallSkipPostJ loopBodyN1SkipPost loopBodySkipPost at hp
         exact hp)
       J3
 
@@ -642,7 +642,7 @@ theorem divK_loop_body_n1_call_unified_j2_spec
         delta loopIterPostN1Call iterN1Call mulsubN4_c3 at hb ⊢
         simp only [] at ⊢
         simp only [if_pos hb] at ⊢
-        delta loopBodyN1CallAddbackPostJ loopBodyN1AddbackPost at hp
+        delta loopBodyN1CallAddbackPostJ loopBodyN1AddbackPost loopBodyAddbackPost at hp
         exact hp)
       J2
   · -- skip path
@@ -658,7 +658,7 @@ theorem divK_loop_body_n1_call_unified_j2_spec
         delta loopIterPostN1Call iterN1Call mulsubN4_c3 at hb ⊢
         simp only [] at ⊢
         simp only [if_neg hb] at ⊢
-        delta loopBodyN1CallSkipPostJ loopBodyN1SkipPost at hp
+        delta loopBodyN1CallSkipPostJ loopBodyN1SkipPost loopBodySkipPost at hp
         exact hp)
       J2
 
@@ -724,7 +724,7 @@ theorem divK_loop_body_n1_call_unified_j1_spec
         delta loopIterPostN1Call iterN1Call mulsubN4_c3 at hb ⊢
         simp only [] at ⊢
         simp only [if_pos hb] at ⊢
-        delta loopBodyN1CallAddbackPostJ loopBodyN1AddbackPost at hp
+        delta loopBodyN1CallAddbackPostJ loopBodyN1AddbackPost loopBodyAddbackPost at hp
         exact hp)
       J1
   · -- skip path
@@ -740,7 +740,7 @@ theorem divK_loop_body_n1_call_unified_j1_spec
         delta loopIterPostN1Call iterN1Call mulsubN4_c3 at hb ⊢
         simp only [] at ⊢
         simp only [if_neg hb] at ⊢
-        delta loopBodyN1CallSkipPostJ loopBodyN1SkipPost at hp
+        delta loopBodyN1CallSkipPostJ loopBodyN1SkipPost loopBodySkipPost at hp
         exact hp)
       J1
 
@@ -807,7 +807,7 @@ theorem divK_loop_body_n1_call_unified_j0_spec
         delta loopIterPostN1Call iterN1Call mulsubN4_c3 at hb ⊢
         simp only [] at ⊢
         simp only [if_pos hb] at ⊢
-        delta loopBodyN1CallAddbackPostJ loopBodyN1AddbackPost at hp
+        delta loopBodyN1CallAddbackPostJ loopBodyN1AddbackPost loopBodyAddbackPost at hp
         exact hp)
       J0
   · -- skip path
@@ -823,7 +823,7 @@ theorem divK_loop_body_n1_call_unified_j0_spec
         delta loopIterPostN1Call iterN1Call mulsubN4_c3 at hb ⊢
         simp only [] at ⊢
         simp only [if_neg hb] at ⊢
-        delta loopBodyN1CallSkipPostJ loopBodyN1SkipPost at hp
+        delta loopBodyN1CallSkipPostJ loopBodyN1SkipPost loopBodySkipPost at hp
         exact hp)
       J0
 

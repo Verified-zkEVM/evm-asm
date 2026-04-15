@@ -139,7 +139,7 @@ theorem divK_loop_body_n1_max_skip_j0_spec
   -- 8. Permute final cpsTriple to match target
   exact cpsTriple_consequence _ _ _ _ _ _ _
     (fun h hp => by xperm_hyp hp)
-    (fun h hp => by delta loopBodyN1SkipPost mulsubN4 loopExitPostN1; rw [sepConj_assoc'] at hp; xperm_hyp hp)
+    (fun h hp => by delta loopBodyN1SkipPost loopBodySkipPost mulsubN4 loopExitPostN1 loopExitPost; rw [sepConj_assoc'] at hp; xperm_hyp hp)
     full
 
 -- ============================================================================
@@ -258,7 +258,7 @@ theorem divK_loop_body_n1_max_addback_j0_spec
     (fun h hp => by rw [sepConj_assoc'] at hp; xperm_hyp hp) TFfMCA0 SLf
   exact cpsTriple_consequence _ _ _ _ _ _ _
     (fun h hp => by xperm_hyp hp)
-    (fun h hp => by delta loopBodyN1AddbackPost mulsubN4 addbackN4 loopExitPostN1; rw [sepConj_assoc'] at hp; xperm_hyp hp)
+    (fun h hp => by delta loopBodyN1AddbackPost loopBodyAddbackPost mulsubN4 addbackN4 loopExitPostN1 loopExitPost; rw [sepConj_assoc'] at hp; xperm_hyp hp)
     full
 
 -- ============================================================================
@@ -363,7 +363,7 @@ theorem divK_loop_body_n1_max_skip_j3_spec
     (fun h hp => by rw [sepConj_assoc'] at hp; xperm_hyp hp) TFfMCS0 SLf
   exact cpsTriple_consequence _ _ _ _ _ _ _
     (fun h hp => by xperm_hyp hp)
-    (fun h hp => by delta loopBodyN1SkipPost mulsubN4 loopExitPostN1; rw [sepConj_assoc'] at hp; xperm_hyp hp)
+    (fun h hp => by delta loopBodyN1SkipPost loopBodySkipPost mulsubN4 loopExitPostN1 loopExitPost; rw [sepConj_assoc'] at hp; xperm_hyp hp)
     full
 
 -- ============================================================================
@@ -482,7 +482,7 @@ theorem divK_loop_body_n1_max_addback_j3_spec
     (fun h hp => by rw [sepConj_assoc'] at hp; xperm_hyp hp) TFfMCA0 SLf
   exact cpsTriple_consequence _ _ _ _ _ _ _
     (fun h hp => by xperm_hyp hp)
-    (fun h hp => by delta loopBodyN1AddbackPost mulsubN4 addbackN4 loopExitPostN1; rw [sepConj_assoc'] at hp; xperm_hyp hp)
+    (fun h hp => by delta loopBodyN1AddbackPost loopBodyAddbackPost mulsubN4 addbackN4 loopExitPostN1 loopExitPost; rw [sepConj_assoc'] at hp; xperm_hyp hp)
     full
 
 -- ============================================================================
@@ -587,7 +587,7 @@ theorem divK_loop_body_n1_max_skip_j1_spec
     (fun h hp => by rw [sepConj_assoc'] at hp; xperm_hyp hp) TFfMCS0 SLf
   exact cpsTriple_consequence _ _ _ _ _ _ _
     (fun h hp => by xperm_hyp hp)
-    (fun h hp => by delta loopBodyN1SkipPost mulsubN4 loopExitPostN1; rw [sepConj_assoc'] at hp; xperm_hyp hp)
+    (fun h hp => by delta loopBodyN1SkipPost loopBodySkipPost mulsubN4 loopExitPostN1 loopExitPost; rw [sepConj_assoc'] at hp; xperm_hyp hp)
     full
 
 -- ============================================================================
@@ -706,7 +706,7 @@ theorem divK_loop_body_n1_max_addback_j1_spec
     (fun h hp => by rw [sepConj_assoc'] at hp; xperm_hyp hp) TFfMCA0 SLf
   exact cpsTriple_consequence _ _ _ _ _ _ _
     (fun h hp => by xperm_hyp hp)
-    (fun h hp => by delta loopBodyN1AddbackPost mulsubN4 addbackN4 loopExitPostN1; rw [sepConj_assoc'] at hp; xperm_hyp hp)
+    (fun h hp => by delta loopBodyN1AddbackPost loopBodyAddbackPost mulsubN4 addbackN4 loopExitPostN1 loopExitPost; rw [sepConj_assoc'] at hp; xperm_hyp hp)
     full
 
 -- ============================================================================
@@ -811,7 +811,7 @@ theorem divK_loop_body_n1_max_skip_j2_spec
     (fun h hp => by rw [sepConj_assoc'] at hp; xperm_hyp hp) TFfMCS0 SLf
   exact cpsTriple_consequence _ _ _ _ _ _ _
     (fun h hp => by xperm_hyp hp)
-    (fun h hp => by delta loopBodyN1SkipPost mulsubN4 loopExitPostN1; rw [sepConj_assoc'] at hp; xperm_hyp hp)
+    (fun h hp => by delta loopBodyN1SkipPost loopBodySkipPost mulsubN4 loopExitPostN1 loopExitPost; rw [sepConj_assoc'] at hp; xperm_hyp hp)
     full
 
 -- ============================================================================
@@ -930,7 +930,7 @@ theorem divK_loop_body_n1_max_addback_j2_spec
     (fun h hp => by rw [sepConj_assoc'] at hp; xperm_hyp hp) TFfMCA0 SLf
   exact cpsTriple_consequence _ _ _ _ _ _ _
     (fun h hp => by xperm_hyp hp)
-    (fun h hp => by delta loopBodyN1AddbackPost mulsubN4 addbackN4 loopExitPostN1; rw [sepConj_assoc'] at hp; xperm_hyp hp)
+    (fun h hp => by delta loopBodyN1AddbackPost loopBodyAddbackPost mulsubN4 addbackN4 loopExitPostN1 loopExitPost; rw [sepConj_assoc'] at hp; xperm_hyp hp)
     full
 
 -- ============================================================================
@@ -1072,7 +1072,7 @@ theorem divK_loop_body_n1_call_skip_j0_spec
     (fun h hp => by xperm_hyp hp)
     (fun h hp => by
       delta loopBodyN1CallSkipPostJ div128Quot div128DLo div128Un0
-            loopBodyN1SkipPost mulsubN4 loopExitPostN1
+            loopBodyN1SkipPost loopBodySkipPost mulsubN4 loopExitPostN1 loopExitPost
       rw [sepConj_assoc'] at hp; xperm_hyp hp)
     full
 
@@ -1230,7 +1230,7 @@ theorem divK_loop_body_n1_call_addback_j0_spec
     (fun h hp => by xperm_hyp hp)
     (fun h hp => by
       delta loopBodyN1CallAddbackPostJ div128Quot div128DLo div128Un0
-            loopBodyN1AddbackPost mulsubN4 addbackN4 loopExitPostN1
+            loopBodyN1AddbackPost loopBodyAddbackPost mulsubN4 addbackN4 loopExitPostN1 loopExitPost
       rw [sepConj_assoc'] at hp; xperm_hyp hp)
     full
 
@@ -1374,7 +1374,7 @@ theorem divK_loop_body_n1_call_skip_j1_spec
     (fun h hp => by xperm_hyp hp)
     (fun h hp => by
       delta loopBodyN1CallSkipPostJ div128Quot div128DLo div128Un0
-            loopBodyN1SkipPost mulsubN4 loopExitPostN1
+            loopBodyN1SkipPost loopBodySkipPost mulsubN4 loopExitPostN1 loopExitPost
       rw [sepConj_assoc'] at hp; xperm_hyp hp)
     full
 
@@ -1533,7 +1533,7 @@ theorem divK_loop_body_n1_call_addback_j1_spec
     (fun h hp => by xperm_hyp hp)
     (fun h hp => by
       delta loopBodyN1CallAddbackPostJ div128Quot div128DLo div128Un0
-            loopBodyN1AddbackPost mulsubN4 addbackN4 loopExitPostN1
+            loopBodyN1AddbackPost loopBodyAddbackPost mulsubN4 addbackN4 loopExitPostN1 loopExitPost
       rw [sepConj_assoc'] at hp; xperm_hyp hp)
     full
 
@@ -1677,7 +1677,7 @@ theorem divK_loop_body_n1_call_skip_j2_spec
     (fun h hp => by xperm_hyp hp)
     (fun h hp => by
       delta loopBodyN1CallSkipPostJ div128Quot div128DLo div128Un0
-            loopBodyN1SkipPost mulsubN4 loopExitPostN1
+            loopBodyN1SkipPost loopBodySkipPost mulsubN4 loopExitPostN1 loopExitPost
       rw [sepConj_assoc'] at hp; xperm_hyp hp)
     full
 
@@ -1836,7 +1836,7 @@ theorem divK_loop_body_n1_call_addback_j2_spec
     (fun h hp => by xperm_hyp hp)
     (fun h hp => by
       delta loopBodyN1CallAddbackPostJ div128Quot div128DLo div128Un0
-            loopBodyN1AddbackPost mulsubN4 addbackN4 loopExitPostN1
+            loopBodyN1AddbackPost loopBodyAddbackPost mulsubN4 addbackN4 loopExitPostN1 loopExitPost
       rw [sepConj_assoc'] at hp; xperm_hyp hp)
     full
 
@@ -1980,7 +1980,7 @@ theorem divK_loop_body_n1_call_skip_j3_spec
     (fun h hp => by xperm_hyp hp)
     (fun h hp => by
       delta loopBodyN1CallSkipPostJ div128Quot div128DLo div128Un0
-            loopBodyN1SkipPost mulsubN4 loopExitPostN1
+            loopBodyN1SkipPost loopBodySkipPost mulsubN4 loopExitPostN1 loopExitPost
       rw [sepConj_assoc'] at hp; xperm_hyp hp)
     full
 
@@ -2139,7 +2139,7 @@ theorem divK_loop_body_n1_call_addback_j3_spec
     (fun h hp => by xperm_hyp hp)
     (fun h hp => by
       delta loopBodyN1CallAddbackPostJ div128Quot div128DLo div128Un0
-            loopBodyN1AddbackPost mulsubN4 addbackN4 loopExitPostN1
+            loopBodyN1AddbackPost loopBodyAddbackPost mulsubN4 addbackN4 loopExitPostN1 loopExitPost
       rw [sepConj_assoc'] at hp; xperm_hyp hp)
     full
 

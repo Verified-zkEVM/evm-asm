@@ -163,7 +163,7 @@ theorem divK_loop_n3_max_skip_skip_spec
   -- 3. Compose via perm: rewrite j=1 postcondition addresses → j=0 precondition
   have full := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
     (fun h hp => by
-      delta loopBodyN3SkipPost loopExitPostN3 at hp
+      delta loopBodyN3SkipPost loopBodySkipPost loopExitPostN3 loopExitPost at hp
       simp only [] at hp ⊢
       have hj' : (1 : Word) + signExtend12 4095 = (0 : Word) := by decide
       rw [hj', u_j1_0_eq_j0_4088 sp, u_j1_4088_eq_j0_4080 sp,
@@ -237,7 +237,7 @@ theorem divK_loop_body_n3_max_unified_j1_spec
         delta loopIterPostN3Max iterN3Max mulsubN4_c3 at hb ⊢
         simp only [] at ⊢
         simp only [if_pos hb] at ⊢
-        delta loopBodyN3AddbackPost at hp
+        delta loopBodyN3AddbackPost loopBodyAddbackPost at hp
         exact hp)
       (J1 hborrow)
   · -- skip path
@@ -253,7 +253,7 @@ theorem divK_loop_body_n3_max_unified_j1_spec
         delta loopIterPostN3Max iterN3Max mulsubN4_c3 at hb ⊢
         simp only [] at ⊢
         simp only [if_neg hb] at ⊢
-        delta loopBodyN3SkipPost at hp
+        delta loopBodyN3SkipPost loopBodySkipPost at hp
         exact hp)
       (J1 hborrow)
 
@@ -311,7 +311,7 @@ theorem divK_loop_body_n3_max_unified_j0_spec
         delta loopIterPostN3Max iterN3Max mulsubN4_c3 at hb ⊢
         simp only [] at ⊢
         simp only [if_pos hb] at ⊢
-        delta loopBodyN3AddbackPost at hp
+        delta loopBodyN3AddbackPost loopBodyAddbackPost at hp
         exact hp)
       (J0 hborrow)
   · -- skip path
@@ -327,7 +327,7 @@ theorem divK_loop_body_n3_max_unified_j0_spec
         delta loopIterPostN3Max iterN3Max mulsubN4_c3 at hb ⊢
         simp only [] at ⊢
         simp only [if_neg hb] at ⊢
-        delta loopBodyN3SkipPost at hp
+        delta loopBodyN3SkipPost loopBodySkipPost at hp
         exact hp)
       (J0 hborrow)
 
@@ -417,7 +417,7 @@ theorem divK_loop_n3_max_max_spec
   -- 4. Compose via perm: rewrite j=1 postcondition addresses → j=0 precondition
   have full := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
     (fun h hp => by
-      delta loopIterPostN3Max loopExitPostN3 at hp
+      delta loopIterPostN3Max loopExitPostN3 loopExitPost at hp
       simp only [] at hp ⊢
       have hj' : (1 : Word) + signExtend12 4095 = (0 : Word) := by decide
       rw [hj', u_j1_0_eq_j0_4088 sp, u_j1_4088_eq_j0_4080 sp,
@@ -501,7 +501,7 @@ theorem divK_loop_body_n3_call_unified_j1_spec
         delta loopIterPostN3Call iterN3Call mulsubN4_c3 at hb ⊢
         simp only [] at ⊢
         simp only [if_pos hb] at ⊢
-        delta loopBodyN3CallAddbackPostJ loopBodyN3AddbackPost at hp
+        delta loopBodyN3CallAddbackPostJ loopBodyN3AddbackPost loopBodyAddbackPost at hp
         exact hp)
       J1
   · -- skip path
@@ -517,7 +517,7 @@ theorem divK_loop_body_n3_call_unified_j1_spec
         delta loopIterPostN3Call iterN3Call mulsubN4_c3 at hb ⊢
         simp only [] at ⊢
         simp only [if_neg hb] at ⊢
-        delta loopBodyN3CallSkipPostJ loopBodyN3SkipPost at hp
+        delta loopBodyN3CallSkipPostJ loopBodyN3SkipPost loopBodySkipPost at hp
         exact hp)
       J1
 
@@ -586,7 +586,7 @@ theorem divK_loop_body_n3_call_unified_j0_spec
         delta loopIterPostN3Call iterN3Call mulsubN4_c3 at hb ⊢
         simp only [] at ⊢
         simp only [if_pos hb] at ⊢
-        delta loopBodyN3CallAddbackPost loopBodyN3AddbackPost at hp
+        delta loopBodyN3CallAddbackPost loopBodyN3AddbackPost loopBodyAddbackPost at hp
         exact hp)
       J0
   · -- skip path
@@ -602,7 +602,7 @@ theorem divK_loop_body_n3_call_unified_j0_spec
         delta loopIterPostN3Call iterN3Call mulsubN4_c3 at hb ⊢
         simp only [] at ⊢
         simp only [if_neg hb] at ⊢
-        delta loopBodyN3CallSkipPost loopBodyN3SkipPost at hp
+        delta loopBodyN3CallSkipPost loopBodyN3SkipPost loopBodySkipPost at hp
         exact hp)
       J0
 
@@ -703,7 +703,7 @@ theorem divK_loop_n3_call_call_spec
   -- 4. Compose via perm
   have full := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
     (fun h hp => by
-      delta loopIterPostN3Call loopExitPostN3 at hp
+      delta loopIterPostN3Call loopExitPostN3 loopExitPost at hp
       simp only [] at hp ⊢
       have hj' : (1 : Word) + signExtend12 4095 = (0 : Word) := by decide
       rw [hj', u_j1_0_eq_j0_4088 sp, u_j1_4088_eq_j0_4080 sp,
@@ -816,7 +816,7 @@ theorem divK_loop_n3_max_call_spec
   -- 4. Compose via perm
   have full := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
     (fun h hp => by
-      delta loopIterPostN3Max loopExitPostN3 at hp
+      delta loopIterPostN3Max loopExitPostN3 loopExitPost at hp
       simp only [] at hp ⊢
       have hj' : (1 : Word) + signExtend12 4095 = (0 : Word) := by decide
       rw [hj', u_j1_0_eq_j0_4088 sp, u_j1_4088_eq_j0_4080 sp,
@@ -926,7 +926,7 @@ theorem divK_loop_n3_call_max_spec
   -- 4. Compose via perm
   have full := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
     (fun h hp => by
-      delta loopIterPostN3Call loopExitPostN3 at hp
+      delta loopIterPostN3Call loopExitPostN3 loopExitPost at hp
       simp only [] at hp ⊢
       have hj' : (1 : Word) + signExtend12 4095 = (0 : Word) := by decide
       rw [hj', u_j1_0_eq_j0_4088 sp, u_j1_4088_eq_j0_4080 sp,

@@ -132,7 +132,7 @@ theorem divK_loop_n2_iter10_unified_spec (bltu_1 bltu_0 : Bool)
     -- Compose j=1 and j=0 via address rewriting
     have full := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
       (fun h hp => by
-        delta loopIterPostN2Max loopExitPostN2 at hp
+        delta loopIterPostN2Max loopExitPostN2 loopExitPost at hp
         simp only [] at hp ⊢
         have hj' : (1 : Word) + signExtend12 4095 = (0 : Word) := by decide
         rw [hj', u_j1_0_eq_j0_4088 sp, u_j1_4088_eq_j0_4080 sp,
@@ -202,7 +202,7 @@ theorem divK_loop_n2_iter10_unified_spec (bltu_1 bltu_0 : Bool)
       (by pcFree) J0
     have full := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
       (fun h hp => by
-        delta loopIterPostN2Max loopExitPostN2 at hp
+        delta loopIterPostN2Max loopExitPostN2 loopExitPost at hp
         simp only [] at hp ⊢
         have hj' : (1 : Word) + signExtend12 4095 = (0 : Word) := by decide
         rw [hj', u_j1_0_eq_j0_4088 sp, u_j1_4088_eq_j0_4080 sp,
@@ -273,7 +273,7 @@ theorem divK_loop_n2_iter10_unified_spec (bltu_1 bltu_0 : Bool)
       (by pcFree) J0
     have full := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
       (fun h hp => by
-        delta loopIterPostN2Call loopExitPostN2 at hp
+        delta loopIterPostN2Call loopExitPostN2 loopExitPost at hp
         simp only [] at hp ⊢
         have hj' : (1 : Word) + signExtend12 4095 = (0 : Word) := by decide
         rw [hj', u_j1_0_eq_j0_4088 sp, u_j1_4088_eq_j0_4080 sp,
@@ -342,7 +342,7 @@ theorem divK_loop_n2_iter10_unified_spec (bltu_1 bltu_0 : Bool)
       (by pcFree) J0
     have full := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
       (fun h hp => by
-        delta loopIterPostN2Call loopExitPostN2 at hp
+        delta loopIterPostN2Call loopExitPostN2 loopExitPost at hp
         simp only [] at hp ⊢
         have hj' : (1 : Word) + signExtend12 4095 = (0 : Word) := by decide
         rw [hj', u_j1_0_eq_j0_4088 sp, u_j1_4088_eq_j0_4080 sp,
@@ -468,7 +468,7 @@ theorem divK_loop_n2_max_iter10_spec (bltu_1 bltu_0 : Bool)
   -- Compose j=2 and iter10
   have full := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
     (fun h hp => by
-      delta loopIterPostN2Max loopExitPostN2 at hp
+      delta loopIterPostN2Max loopExitPostN2 loopExitPost at hp
       delta loopN2Iter10PreWithScratch loopN2Iter10Pre at ⊢
       simp only [] at hp ⊢
       have hj' : (2 : Word) + signExtend12 4095 = (1 : Word) := by decide
@@ -588,7 +588,7 @@ theorem divK_loop_n2_call_iter10_spec (bltu_1 bltu_0 : Bool)
   -- Compose j=2 and iter10
   have full := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
     (fun h hp => by
-      delta loopIterPostN2Call loopExitPostN2 at hp
+      delta loopIterPostN2Call loopExitPostN2 loopExitPost at hp
       delta loopN2Iter10PreWithScratch loopN2Iter10Pre at ⊢
       simp only [] at hp ⊢
       have hj' : (2 : Word) + signExtend12 4095 = (1 : Word) := by decide

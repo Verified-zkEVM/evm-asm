@@ -332,7 +332,7 @@ theorem preloopMaxSkipPostN4_unfold (sp a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
     ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
     ((sp + signExtend12 3992) ↦ₘ shift) := by
   delta preloopMaxSkipPostN4
-  simp only [loopBodyN4SkipPost, loopExitPostN4_j0_eq, se12_32, se12_40, se12_48, se12_56]
+  simp only [loopBodyN4SkipPost, loopBodySkipPost, loopExitPostN4_j0_eq, se12_32, se12_40, se12_48, se12_56]
 
 -- ============================================================================
 -- Full n=4 DIV path (max+skip, shift≠0): base → base+1064
@@ -654,7 +654,7 @@ theorem preloopMaxAddbackPostN4_unfold (sp a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
     ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
     ((sp + signExtend12 3992) ↦ₘ shift) := by
   delta preloopMaxAddbackPostN4
-  simp only [loopBodyN4AddbackPost, mulsubN4, addbackN4, loopExitPostN4_j0_eq,
+  simp only [loopBodyN4AddbackPost, loopBodyAddbackPost, mulsubN4, addbackN4, loopExitPostN4_j0_eq,
              se12_32, se12_40, se12_48, se12_56]
 
 /-- Full path postcondition for n=4 DIV (shift ≠ 0, max+addback). -/
@@ -1045,7 +1045,7 @@ theorem preloopCallSkipPostN4_unfold (sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
     ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
     ((sp + signExtend12 3992) ↦ₘ shift) := by
   delta preloopCallSkipPostN4
-  simp only [loopBodyN4SkipPost, loopExitPostN4_j0_eq, se12_32, se12_40, se12_48, se12_56]
+  simp only [loopBodyN4SkipPost, loopBodySkipPost, loopExitPostN4_j0_eq, se12_32, se12_40, se12_48, se12_56]
 
 /-- n=4 pre-loop + call+skip loop body: base → base+904 (shift ≠ 0). -/
 theorem evm_div_n4_preloop_call_skip_spec (sp base : Word)
@@ -1392,7 +1392,7 @@ theorem preloopCallAddbackPostN4_unfold (sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word)
     ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
     ((sp + signExtend12 3992) ↦ₘ shift) := by
   delta preloopCallAddbackPostN4
-  simp only [loopBodyN4AddbackPost, mulsubN4, addbackN4, loopExitPostN4_j0_eq,
+  simp only [loopBodyN4AddbackPost, loopBodyAddbackPost, mulsubN4, addbackN4, loopExitPostN4_j0_eq,
              se12_32, se12_40, se12_48, se12_56]
 
 /-- Full path postcondition for n=4 DIV (shift ≠ 0, call+addback). -/
