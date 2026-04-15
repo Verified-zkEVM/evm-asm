@@ -272,6 +272,10 @@ have : (base + 228 : Word) + 24 = base + 252 := by bv_omega
 
 Impact: olean sizes drop 50-80% (e.g., LoopBody 16MB → 2.8MB), kernel checking time drops proportionally.
 
+### Named grind/simp sets
+
+For closing repetitive proof patterns (e.g., DivMod address-arithmetic equalities via `divmod_addr`), use the registered grind/simp sets rather than inline `simp only [show … from by decide]; bv_omega` chains. See **[GRIND.md](GRIND.md)** for the full conventions, canonical reference implementation (`EvmAsm/Evm64/DivMod/AddrNorm.lean`), layout patterns, empirical justification, and the rollout roadmap.
+
 ### Parallel file splitting for Compose files
 
 Large composition files (>1000 lines) should be split into independent sub-files under a `Compose/` directory:

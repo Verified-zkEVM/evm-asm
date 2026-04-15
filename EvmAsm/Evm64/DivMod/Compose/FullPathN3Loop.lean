@@ -1142,7 +1142,7 @@ theorem loopExitPostN3_j0_eq (sp q_f c3 un0_f un1_f un2_f un3_f u4_f
      ((sp + signExtend12 56) ↦ₘ v3) ** ((sp + signExtend12 4032) ↦ₘ un3_f) **
      ((sp + signExtend12 4024) ↦ₘ u4_f) **
      ((sp + signExtend12 4088) ↦ₘ q_f)) := by
-  simp only [loopExitPostN3_unfold]
+  simp only [loopExitPost_unfold]
   rw [u_base_off0_j0, u_base_off4088_j0, u_base_off4080_j0,
       u_base_off4072_j0, u_base_off4064_j0, u_base_j0, q_addr_j0]
   simp only [show (0 : Word) <<< (3 : BitVec 6).toNat = (0 : Word) from by decide]

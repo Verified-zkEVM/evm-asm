@@ -29,53 +29,25 @@ open EvmAsm.Rv64
 theorem u_j1_0_eq_j0_4088 (sp : Word) :
     (sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 0 =
     (sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4088 := by
-  simp only [
-    show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide,
-    show signExtend12 (4056 : BitVec 12) = (18446744073709551576 : Word) from by decide,
-    show signExtend12 (4088 : BitVec 12) = (18446744073709551608 : Word) from by decide,
-    show (3 : BitVec 6).toNat = 3 from by decide,
-    show (0 : Word) <<< 3 = (0 : Word) from by decide,
-    show (1 : Word) <<< 3 = (8 : Word) from by decide]
-  bv_omega
+  divmod_addr
 
 /-- j=1 un1 at u_base(1)-8 = j=0 u2 at u_base(0)-16 -/
 theorem u_j1_4088_eq_j0_4080 (sp : Word) :
     (sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4088 =
     (sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4080 := by
-  simp only [
-    show signExtend12 (4056 : BitVec 12) = (18446744073709551576 : Word) from by decide,
-    show signExtend12 (4088 : BitVec 12) = (18446744073709551608 : Word) from by decide,
-    show signExtend12 (4080 : BitVec 12) = (18446744073709551600 : Word) from by decide,
-    show (3 : BitVec 6).toNat = 3 from by decide,
-    show (0 : Word) <<< 3 = (0 : Word) from by decide,
-    show (1 : Word) <<< 3 = (8 : Word) from by decide]
-  bv_omega
+  divmod_addr
 
 /-- j=1 un2 at u_base(1)-16 = j=0 u3 at u_base(0)-24 -/
 theorem u_j1_4080_eq_j0_4072 (sp : Word) :
     (sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4080 =
     (sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4072 := by
-  simp only [
-    show signExtend12 (4056 : BitVec 12) = (18446744073709551576 : Word) from by decide,
-    show signExtend12 (4080 : BitVec 12) = (18446744073709551600 : Word) from by decide,
-    show signExtend12 (4072 : BitVec 12) = (18446744073709551592 : Word) from by decide,
-    show (3 : BitVec 6).toNat = 3 from by decide,
-    show (0 : Word) <<< 3 = (0 : Word) from by decide,
-    show (1 : Word) <<< 3 = (8 : Word) from by decide]
-  bv_omega
+  divmod_addr
 
 /-- j=1 un3 at u_base(1)-24 = j=0 u_top at u_base(0)-32 -/
 theorem u_j1_4072_eq_j0_4064 (sp : Word) :
     (sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4072 =
     (sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4064 := by
-  simp only [
-    show signExtend12 (4056 : BitVec 12) = (18446744073709551576 : Word) from by decide,
-    show signExtend12 (4072 : BitVec 12) = (18446744073709551592 : Word) from by decide,
-    show signExtend12 (4064 : BitVec 12) = (18446744073709551584 : Word) from by decide,
-    show (3 : BitVec 6).toNat = 3 from by decide,
-    show (0 : Word) <<< 3 = (0 : Word) from by decide,
-    show (1 : Word) <<< 3 = (8 : Word) from by decide]
-  bv_omega
+  divmod_addr
 
 -- ============================================================================
 -- Two-iteration composition: max+skip at both j=1 and j=0
@@ -163,7 +135,7 @@ theorem divK_loop_n3_max_skip_skip_spec
   -- 3. Compose via perm: rewrite j=1 postcondition addresses → j=0 precondition
   have full := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
     (fun h hp => by
-      delta loopBodyN3SkipPost loopExitPostN3 at hp
+      delta loopBodyN3SkipPost loopBodySkipPost loopExitPostN3 loopExitPost at hp
       simp only [] at hp ⊢
       have hj' : (1 : Word) + signExtend12 4095 = (0 : Word) := by decide
       rw [hj', u_j1_0_eq_j0_4088 sp, u_j1_4088_eq_j0_4080 sp,
@@ -237,7 +209,7 @@ theorem divK_loop_body_n3_max_unified_j1_spec
         delta loopIterPostN3Max iterN3Max mulsubN4_c3 at hb ⊢
         simp only [] at ⊢
         simp only [if_pos hb] at ⊢
-        delta loopBodyN3AddbackPost at hp
+        delta loopBodyN3AddbackPost loopBodyAddbackPost at hp
         exact hp)
       (J1 hborrow)
   · -- skip path
@@ -253,7 +225,7 @@ theorem divK_loop_body_n3_max_unified_j1_spec
         delta loopIterPostN3Max iterN3Max mulsubN4_c3 at hb ⊢
         simp only [] at ⊢
         simp only [if_neg hb] at ⊢
-        delta loopBodyN3SkipPost at hp
+        delta loopBodyN3SkipPost loopBodySkipPost at hp
         exact hp)
       (J1 hborrow)
 
@@ -311,7 +283,7 @@ theorem divK_loop_body_n3_max_unified_j0_spec
         delta loopIterPostN3Max iterN3Max mulsubN4_c3 at hb ⊢
         simp only [] at ⊢
         simp only [if_pos hb] at ⊢
-        delta loopBodyN3AddbackPost at hp
+        delta loopBodyN3AddbackPost loopBodyAddbackPost at hp
         exact hp)
       (J0 hborrow)
   · -- skip path
@@ -327,7 +299,7 @@ theorem divK_loop_body_n3_max_unified_j0_spec
         delta loopIterPostN3Max iterN3Max mulsubN4_c3 at hb ⊢
         simp only [] at ⊢
         simp only [if_neg hb] at ⊢
-        delta loopBodyN3SkipPost at hp
+        delta loopBodyN3SkipPost loopBodySkipPost at hp
         exact hp)
       (J0 hborrow)
 
@@ -417,7 +389,7 @@ theorem divK_loop_n3_max_max_spec
   -- 4. Compose via perm: rewrite j=1 postcondition addresses → j=0 precondition
   have full := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
     (fun h hp => by
-      delta loopIterPostN3Max loopExitPostN3 at hp
+      delta loopIterPostN3Max loopExitPostN3 loopExitPost at hp
       simp only [] at hp ⊢
       have hj' : (1 : Word) + signExtend12 4095 = (0 : Word) := by decide
       rw [hj', u_j1_0_eq_j0_4088 sp, u_j1_4088_eq_j0_4080 sp,
@@ -501,7 +473,7 @@ theorem divK_loop_body_n3_call_unified_j1_spec
         delta loopIterPostN3Call iterN3Call mulsubN4_c3 at hb ⊢
         simp only [] at ⊢
         simp only [if_pos hb] at ⊢
-        delta loopBodyN3CallAddbackPostJ loopBodyN3AddbackPost at hp
+        delta loopBodyN3CallAddbackPostJ loopBodyN3AddbackPost loopBodyAddbackPost at hp
         exact hp)
       J1
   · -- skip path
@@ -517,7 +489,7 @@ theorem divK_loop_body_n3_call_unified_j1_spec
         delta loopIterPostN3Call iterN3Call mulsubN4_c3 at hb ⊢
         simp only [] at ⊢
         simp only [if_neg hb] at ⊢
-        delta loopBodyN3CallSkipPostJ loopBodyN3SkipPost at hp
+        delta loopBodyN3CallSkipPostJ loopBodyN3SkipPost loopBodySkipPost at hp
         exact hp)
       J1
 
@@ -586,7 +558,7 @@ theorem divK_loop_body_n3_call_unified_j0_spec
         delta loopIterPostN3Call iterN3Call mulsubN4_c3 at hb ⊢
         simp only [] at ⊢
         simp only [if_pos hb] at ⊢
-        delta loopBodyN3CallAddbackPost loopBodyN3AddbackPost at hp
+        delta loopBodyN3CallAddbackPost loopBodyN3AddbackPost loopBodyAddbackPost at hp
         exact hp)
       J0
   · -- skip path
@@ -602,7 +574,7 @@ theorem divK_loop_body_n3_call_unified_j0_spec
         delta loopIterPostN3Call iterN3Call mulsubN4_c3 at hb ⊢
         simp only [] at ⊢
         simp only [if_neg hb] at ⊢
-        delta loopBodyN3CallSkipPost loopBodyN3SkipPost at hp
+        delta loopBodyN3CallSkipPost loopBodyN3SkipPost loopBodySkipPost at hp
         exact hp)
       J0
 
@@ -703,7 +675,7 @@ theorem divK_loop_n3_call_call_spec
   -- 4. Compose via perm
   have full := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
     (fun h hp => by
-      delta loopIterPostN3Call loopExitPostN3 at hp
+      delta loopIterPostN3Call loopExitPostN3 loopExitPost at hp
       simp only [] at hp ⊢
       have hj' : (1 : Word) + signExtend12 4095 = (0 : Word) := by decide
       rw [hj', u_j1_0_eq_j0_4088 sp, u_j1_4088_eq_j0_4080 sp,
@@ -816,7 +788,7 @@ theorem divK_loop_n3_max_call_spec
   -- 4. Compose via perm
   have full := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
     (fun h hp => by
-      delta loopIterPostN3Max loopExitPostN3 at hp
+      delta loopIterPostN3Max loopExitPostN3 loopExitPost at hp
       simp only [] at hp ⊢
       have hj' : (1 : Word) + signExtend12 4095 = (0 : Word) := by decide
       rw [hj', u_j1_0_eq_j0_4088 sp, u_j1_4088_eq_j0_4080 sp,
@@ -926,7 +898,7 @@ theorem divK_loop_n3_call_max_spec
   -- 4. Compose via perm
   have full := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
     (fun h hp => by
-      delta loopIterPostN3Call loopExitPostN3 at hp
+      delta loopIterPostN3Call loopExitPostN3 loopExitPost at hp
       simp only [] at hp ⊢
       have hj' : (1 : Word) + signExtend12 4095 = (0 : Word) := by decide
       rw [hj', u_j1_0_eq_j0_4088 sp, u_j1_4088_eq_j0_4080 sp,

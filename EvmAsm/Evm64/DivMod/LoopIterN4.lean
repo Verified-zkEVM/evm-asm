@@ -134,7 +134,7 @@ theorem divK_loop_body_n4_max_skip_j0_spec
   -- 8. Permute final cpsTriple to match target
   exact cpsTriple_consequence _ _ _ _ _ _ _
     (fun h hp => by xperm_hyp hp)
-    (fun h hp => by delta loopBodyN4SkipPost mulsubN4 loopExitPostN4; rw [sepConj_assoc'] at hp; xperm_hyp hp)
+    (fun h hp => by delta loopBodyN4SkipPost loopBodySkipPost mulsubN4 loopExitPostN4 loopExitPost; rw [sepConj_assoc'] at hp; xperm_hyp hp)
     full
 
 -- ============================================================================
@@ -278,7 +278,7 @@ theorem divK_loop_body_n4_max_addback_j0_spec
   -- 8. Permute final cpsTriple to match target
   exact cpsTriple_consequence _ _ _ _ _ _ _
     (fun h hp => by xperm_hyp hp)
-    (fun h hp => by delta loopBodyN4AddbackPost mulsubN4 addbackN4 loopExitPostN4; rw [sepConj_assoc'] at hp; xperm_hyp hp)
+    (fun h hp => by delta loopBodyN4AddbackPost loopBodyAddbackPost mulsubN4 addbackN4 loopExitPostN4 loopExitPost; rw [sepConj_assoc'] at hp; xperm_hyp hp)
     full
 
 -- ============================================================================
@@ -437,7 +437,7 @@ theorem divK_loop_body_n4_call_skip_j0_spec
     (fun h hp => by rw [sepConj_assoc'] at hp; xperm_hyp hp) TFfMCS0 SLf
   exact cpsTriple_consequence _ _ _ _ _ _ _
     (fun h hp => by xperm_hyp hp)
-    (fun h hp => by delta loopBodyN4SkipPost mulsubN4 loopExitPostN4; rw [sepConj_assoc'] at hp; xperm_hyp hp)
+    (fun h hp => by delta loopBodyN4SkipPost loopBodySkipPost mulsubN4 loopExitPostN4 loopExitPost; rw [sepConj_assoc'] at hp; xperm_hyp hp)
     full
 
 -- ============================================================================
@@ -612,7 +612,7 @@ theorem divK_loop_body_n4_call_addback_j0_spec
     (fun h hp => by rw [sepConj_assoc'] at hp; xperm_hyp hp) TFfMCA0 SLf
   exact cpsTriple_consequence _ _ _ _ _ _ _
     (fun h hp => by xperm_hyp hp)
-    (fun h hp => by delta loopBodyN4AddbackPost mulsubN4 addbackN4 loopExitPostN4; rw [sepConj_assoc'] at hp; xperm_hyp hp)
+    (fun h hp => by delta loopBodyN4AddbackPost loopBodyAddbackPost mulsubN4 addbackN4 loopExitPostN4 loopExitPost; rw [sepConj_assoc'] at hp; xperm_hyp hp)
     full
 
 end EvmAsm.Evm64

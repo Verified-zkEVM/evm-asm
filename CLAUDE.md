@@ -14,3 +14,7 @@ Read PLAN.md at the start of each session. Keep it updated as you work:
 ## Proof Conventions
 
 - **No `native_decide` or `bv_decide`**: All proofs must be kernel-checkable. Use `decide` for concrete decidable propositions, or `omega`/`simp`/`ext` for bitvector reasoning. `native_decide` bypasses the kernel via code generation, introducing a soundness gap.
+
+## Simp/Grind sets
+
+See **[GRIND.md](GRIND.md)** for the full conventions on registering simp/grind sets, the canonical `divmod_addr` reference implementation, layout patterns, rules of thumb, empirical justification, and the rollout roadmap. Do **not** duplicate that content here or in AGENTS.md — link to GRIND.md instead.

@@ -125,6 +125,15 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
 - **Byte-level infrastructure** (`ByteOps.lean`): `extractByte`/`replaceByte`
   algebra, `generic_lbu_spec` and `generic_sb_spec` CPS specs bridging
   byte-addressable operations to word-level separation logic assertions.
+- **`divmod_addr` simp/grind set** (`Evm64/DivMod/AddrNorm.lean`, `AddrNormAttr.lean`,
+  issue #263): Registers atomic `signExtend12`/`<<<`/`BitVec.toNat` evaluations
+  on every concrete offset used in DivMod (33 signExtend12 offsets, 5 word
+  shifts, 11 BitVec 6 toNat values) as `@[divmod_addr, grind =]` facts. The
+  `divmod_addr` tactic macro closes address-arithmetic equalities grind-first,
+  simp+bv_omega-fallback. First migration: 4 lemmas in `LoopComposeN3.lean`.
+  Conventions, layout patterns, empirical justification, rules of thumb, and
+  rollout roadmap are documented in `GRIND.md` (single source of truth for
+  simp/grind-set conventions; `CLAUDE.md` and `AGENTS.md` link to it).
 - **LP64 Calling Convention** (`Evm64/CallingConvention.lean`): LP64-aligned
   calling convention for the x0–x12 register subset, per zkvm-standards.
   - x1 (ra) = return address, x2 (sp) = call stack (grows down, callee-saved)

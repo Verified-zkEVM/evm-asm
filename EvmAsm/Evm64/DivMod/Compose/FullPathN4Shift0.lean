@@ -235,7 +235,7 @@ theorem preloopShift0CallSkipPostN4_unfold (sp base a0 a1 a2 a3 b0 b1 b2 b3 : Wo
     ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
     ((sp + signExtend12 3992) ↦ₘ (0 : Word)) := by
   delta preloopShift0CallSkipPostN4
-  simp only [loopBodyN4SkipPost, loopExitPostN4_j0_eq, se12_32, se12_40, se12_48, se12_56]
+  simp only [loopBodyN4SkipPost, loopBodySkipPost, loopExitPostN4_j0_eq, se12_32, se12_40, se12_48, se12_56]
 
 -- ============================================================================
 -- Full path postcondition for n=4 DIV (shift=0, call+skip)
@@ -524,7 +524,7 @@ theorem preloopShift0CallAddbackPostN4_unfold (sp base a0 a1 a2 a3 b0 b1 b2 b3 :
     ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
     ((sp + signExtend12 3992) ↦ₘ (0 : Word)) := by
   delta preloopShift0CallAddbackPostN4
-  simp only [loopBodyN4AddbackPost, mulsubN4, addbackN4, loopExitPostN4_j0_eq,
+  simp only [loopBodyN4AddbackPost, loopBodyAddbackPost, mulsubN4, addbackN4, loopExitPostN4_j0_eq,
              se12_32, se12_40, se12_48, se12_56]
 
 -- ============================================================================
