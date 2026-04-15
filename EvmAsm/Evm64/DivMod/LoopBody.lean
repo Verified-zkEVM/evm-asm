@@ -9,6 +9,7 @@
 -/
 
 import EvmAsm.Evm64.DivMod.Compose
+import EvmAsm.Evm64.DivMod.LoopDefs
 
 open EvmAsm.Rv64.Tactics
 
@@ -1750,5 +1751,88 @@ theorem divK_trial_call_full_spec
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq)
     STLftaken_cleanTCP
+
+-- ============================================================================
+-- Section 10c: Mulsub + correction_addback + BEQ (both carry outcomes)
+-- Combined spec: base+516 → base+884 with case-split on addback carry.
+-- Uses iterWithDoubleAddback-style postcondition.
+-- ============================================================================
+
+set_option maxRecDepth 4096 in
+set_option maxHeartbeats 3200000 in
+/-- Mulsub + correction with addback + BEQ at [108]: when borrow ≠ 0, performs
+    first addback and then handles the BEQ:
+    - carry ≠ 0 (single addback): BEQ falls through to base+884
+    - carry = 0 (double addback): BEQ takes backward branch, second addback, then falls through
+    Entry: base+516, Exit: base+884. -/
+theorem divK_mulsub_correction_addback_beq_spec
+    (sp q_hat j v0 v1 v2 v3 u0 u1 u2 u3 u_top : Word)
+    (v1_old v5_old v6_old v7_old v10_old v2_old : Word)
+    (base : Word)
+    (hv_j : isValidDwordAccess (sp + signExtend12 3976) = true)
+    (hv_v0 : isValidDwordAccess (sp + signExtend12 32) = true)
+    (hv_u0 : isValidDwordAccess ((sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 0) = true)
+    (hv_v1 : isValidDwordAccess (sp + signExtend12 40) = true)
+    (hv_u1 : isValidDwordAccess ((sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 4088) = true)
+    (hv_v2 : isValidDwordAccess (sp + signExtend12 48) = true)
+    (hv_u2 : isValidDwordAccess ((sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 4080) = true)
+    (hv_v3 : isValidDwordAccess (sp + signExtend12 56) = true)
+    (hv_u3 : isValidDwordAccess ((sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 4072) = true)
+    (hv_u4 : isValidDwordAccess ((sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 4064) = true) :
+    let u_base := sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat
+    let ms := mulsubN4 q_hat v0 v1 v2 v3 u0 u1 u2 u3
+    let c3 := ms.2.2.2.2
+    let carry := addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 v0 v1 v2 v3
+    let ab := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 (u_top - c3) v0 v1 v2 v3
+    -- Double-addback results (only used when carry = 0)
+    let ab' := addbackN4 ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 ab.2.2.2.2 v0 v1 v2 v3
+    -- Final values depend on carry
+    let q_out := if carry = 0 then q_hat + signExtend12 4095 + signExtend12 4095
+                 else q_hat + signExtend12 4095
+    let un0_out := if carry = 0 then ab'.1 else ab.1
+    let un1_out := if carry = 0 then ab'.2.1 else ab.2.1
+    let un2_out := if carry = 0 then ab'.2.2.1 else ab.2.2.1
+    let un3_out := if carry = 0 then ab'.2.2.2.1 else ab.2.2.2.1
+    let u4_out := if carry = 0 then ab'.2.2.2.2 else ab.2.2.2.2
+    let carry_out := if carry = 0 then
+        addbackN4_carry ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 v0 v1 v2 v3
+      else carry
+    -- Hypothesis: borrow ≠ 0
+    (if BitVec.ult u_top c3 then (1 : Word) else 0) ≠ (0 : Word) →
+    cpsTriple (base + 516) (base + 884) (sharedDivModCode base)
+      ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ q_hat) **
+       (.x1 ↦ᵣ v1_old) ** (.x5 ↦ᵣ v5_old) ** (.x6 ↦ᵣ v6_old) **
+       (.x7 ↦ᵣ v7_old) ** (.x10 ↦ᵣ v10_old) ** (.x2 ↦ᵣ v2_old) **
+       (.x0 ↦ᵣ 0) **
+       (sp + signExtend12 3976 ↦ₘ j) **
+       ((sp + signExtend12 32) ↦ₘ v0) ** ((u_base + signExtend12 0) ↦ₘ u0) **
+       ((sp + signExtend12 40) ↦ₘ v1) ** ((u_base + signExtend12 4088) ↦ₘ u1) **
+       ((sp + signExtend12 48) ↦ₘ v2) ** ((u_base + signExtend12 4080) ↦ₘ u2) **
+       ((sp + signExtend12 56) ↦ₘ v3) ** ((u_base + signExtend12 4072) ↦ₘ u3) **
+       ((u_base + signExtend12 4064) ↦ₘ u_top))
+      ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ q_out) **
+       (.x1 ↦ᵣ j) ** (.x5 ↦ᵣ u4_out) ** (.x6 ↦ᵣ u_base) **
+       (.x7 ↦ᵣ carry_out) ** (.x10 ↦ᵣ c3) ** (.x2 ↦ᵣ un3_out) **
+       (.x0 ↦ᵣ 0) **
+       (sp + signExtend12 3976 ↦ₘ j) **
+       ((sp + signExtend12 32) ↦ₘ v0) ** ((u_base + signExtend12 0) ↦ₘ un0_out) **
+       ((sp + signExtend12 40) ↦ₘ v1) ** ((u_base + signExtend12 4088) ↦ₘ un1_out) **
+       ((sp + signExtend12 48) ↦ₘ v2) ** ((u_base + signExtend12 4080) ↦ₘ un2_out) **
+       ((sp + signExtend12 56) ↦ₘ v3) ** ((u_base + signExtend12 4072) ↦ₘ un3_out) **
+       ((u_base + signExtend12 4064) ↦ₘ u4_out)) := by
+  intro u_base ms c3 carry ab ab' q_out un0_out un1_out un2_out un3_out u4_out carry_out
+        hborrow
+  -- 1. Mulsub + first addback (base+516 → base+880)
+  have MCA := divK_mulsub_correction_addback_spec sp q_hat j v0 v1 v2 v3 u0 u1 u2 u3 u_top
+    v1_old v5_old v6_old v7_old v10_old v2_old base
+    hv_j hv_v0 hv_u0 hv_v1 hv_u1 hv_v2 hv_u2 hv_v3 hv_u3 hv_u4
+  intro_lets at MCA
+  have MCA0 := MCA hborrow
+  -- 2. Case split on carry
+  by_cases hcarry : carry = 0
+  · -- carry = 0: double addback path
+    sorry
+  · -- carry ≠ 0: single addback path (BEQ passthrough)
+    sorry
 
 end EvmAsm.Evm64
