@@ -1831,8 +1831,26 @@ theorem divK_mulsub_correction_addback_beq_spec
   -- 2. Case split on carry
   by_cases hcarry : carry = 0
   · -- carry = 0: double addback path
+    have hq : q_out = q_hat + signExtend12 4095 + signExtend12 4095 := if_pos hcarry
+    have h0 : un0_out = ab'.1 := if_pos hcarry
+    have h1 : un1_out = ab'.2.1 := if_pos hcarry
+    have h2 : un2_out = ab'.2.2.1 := if_pos hcarry
+    have h3 : un3_out = ab'.2.2.2.1 := if_pos hcarry
+    have h4 : u4_out = ab'.2.2.2.2 := if_pos hcarry
+    have hc : carry_out = addbackN4_carry ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 v0 v1 v2 v3 := if_pos hcarry
+    rw [hq, h0, h1, h2, h3, h4, hc]
+    -- TODO: compose mulsub+addback(→880) with double_addback_beq(880→884)
     sorry
   · -- carry ≠ 0: single addback path (BEQ passthrough)
-    sorry
+    have hq : q_out = q_hat + signExtend12 4095 := if_neg hcarry
+    have h0 : un0_out = ab.1 := if_neg hcarry
+    have h1 : un1_out = ab.2.1 := if_neg hcarry
+    have h2 : un2_out = ab.2.2.1 := if_neg hcarry
+    have h3 : un3_out = ab.2.2.2.1 := if_neg hcarry
+    have h4 : u4_out = ab.2.2.2.2 := if_neg hcarry
+    have hc : carry_out = carry := if_neg hcarry
+    rw [hq, h0, h1, h2, h3, h4, hc]
+    -- Use the existing MCA0 (which includes BEQ passthrough) with carry ≠ 0
+    exact MCA0 hcarry
 
 end EvmAsm.Evm64
