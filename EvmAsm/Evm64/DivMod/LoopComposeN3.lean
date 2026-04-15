@@ -986,4 +986,253 @@ theorem divK_loop_body_n3_max_unified_j1_da_spec
         exact hp)
       (J1 hborrow)
 
+-- ============================================================================
+-- Double-addback (_da) unified j=0 max-path spec
+-- Uses _beq LoopIter specs with borrow-branching loopIterPostN3Max_da.
+-- ============================================================================
+
+set_option maxRecDepth 4096 in
+set_option maxHeartbeats 12800000 in
+theorem divK_loop_body_n3_max_unified_j0_da_spec
+    (sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
+     v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old : Word)
+    (base : Word)
+    (hv_j : isValidDwordAccess (sp + signExtend12 3976) = true)
+    (hv_n1 : isValidDwordAccess (sp + signExtend12 3984) = true)
+    (hv_uhi : isValidDwordAccess (sp + signExtend12 4056 - (0 + (3 : Word)) <<< (3 : BitVec 6).toNat) = true)
+    (hv_ulo : isValidDwordAccess ((sp + signExtend12 4056 - (0 + (3 : Word)) <<< (3 : BitVec 6).toNat) + 8) = true)
+    (hv_vtop : isValidDwordAccess (sp + ((3 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat + signExtend12 32) = true)
+    (hv_v0 : isValidDwordAccess (sp + signExtend12 32) = true)
+    (hv_u0 : isValidDwordAccess ((sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 0) = true)
+    (hv_v1 : isValidDwordAccess (sp + signExtend12 40) = true)
+    (hv_u1 : isValidDwordAccess ((sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4088) = true)
+    (hv_v2 : isValidDwordAccess (sp + signExtend12 48) = true)
+    (hv_u2 : isValidDwordAccess ((sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4080) = true)
+    (hv_v3 : isValidDwordAccess (sp + signExtend12 56) = true)
+    (hv_u3 : isValidDwordAccess ((sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4072) = true)
+    (hv_u4 : isValidDwordAccess ((sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4064) = true)
+    (hv_q : isValidDwordAccess (sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat) = true)
+    (hbltu : ¬BitVec.ult u3 v2) :
+    let u_base := sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat
+    let q_addr := sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat
+    cpsTriple (base + 448) (base + 908) (sharedDivModCode base)
+      ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (0 : Word)) **
+       (.x5 ↦ᵣ v5_old) ** (.x6 ↦ᵣ v6_old) **
+       (.x7 ↦ᵣ v7_old) ** (.x10 ↦ᵣ v10_old) ** (.x11 ↦ᵣ v11_old) **
+       (.x2 ↦ᵣ v2_old) ** (.x0 ↦ᵣ (0 : Word)) **
+       (sp + signExtend12 3976 ↦ₘ j_old) ** (sp + signExtend12 3984 ↦ₘ (3 : Word)) **
+       ((sp + signExtend12 32) ↦ₘ v0) ** ((u_base + signExtend12 0) ↦ₘ u0) **
+       ((sp + signExtend12 40) ↦ₘ v1) ** ((u_base + signExtend12 4088) ↦ₘ u1) **
+       ((sp + signExtend12 48) ↦ₘ v2) ** ((u_base + signExtend12 4080) ↦ₘ u2) **
+       ((sp + signExtend12 56) ↦ₘ v3) ** ((u_base + signExtend12 4072) ↦ₘ u3) **
+       ((u_base + signExtend12 4064) ↦ₘ u_top) **
+       (q_addr ↦ₘ q_old))
+      (loopIterPostN3Max_da sp (0 : Word) v0 v1 v2 v3 u0 u1 u2 u3 u_top) := by
+  intro u_base q_addr
+  by_cases hb : BitVec.ult u_top (mulsubN4_c3 (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3)
+  · -- addback path: use _beq spec
+    have hborrow : (if BitVec.ult u_top (mulsubN4_c3 (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3)
+                    then (1 : Word) else 0) ≠ (0 : Word) := by rw [if_pos hb]; decide
+    have J0 := divK_loop_body_n3_max_addback_beq_j0_spec sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
+      v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old base
+      hv_j hv_n1 hv_uhi hv_ulo hv_vtop hv_v0 hv_u0 hv_v1 hv_u1 hv_v2 hv_u2 hv_v3 hv_u3 hv_u4 hv_q hbltu
+    intro_lets at J0
+    exact cpsTriple_consequence _ _ _ _ _ _ _
+      (fun h hp => hp)
+      (fun h hp => by
+        unfold loopIterPostN3Max_da
+        unfold mulsubN4_c3 at hb
+        simp only [if_pos hb]
+        exact hp)
+      (J0 hborrow)
+  · -- skip path: use existing skip spec (unchanged)
+    have hborrow : (if BitVec.ult u_top (mulsubN4_c3 (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3)
+                    then (1 : Word) else 0) = (0 : Word) := if_neg hb
+    have J0 := divK_loop_body_n3_max_skip_j0_spec sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
+      v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old base
+      hv_j hv_n1 hv_uhi hv_ulo hv_vtop hv_v0 hv_u0 hv_v1 hv_u1 hv_v2 hv_u2 hv_v3 hv_u3 hv_u4 hv_q hbltu
+    intro_lets at J0
+    exact cpsTriple_consequence _ _ _ _ _ _ _
+      (fun h hp => hp)
+      (fun h hp => by
+        unfold loopIterPostN3Max_da
+        unfold mulsubN4_c3 at hb
+        simp only [if_neg hb]
+        exact hp)
+      (J0 hborrow)
+
+-- ============================================================================
+-- Double-addback (_da) unified j=1 call-path spec
+-- Uses _beq LoopIter specs with borrow-branching loopIterPostN3Call_da.
+-- ============================================================================
+
+set_option maxRecDepth 4096 in
+set_option maxHeartbeats 12800000 in
+theorem divK_loop_body_n3_call_unified_j1_da_spec
+    (sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
+     v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old : Word)
+    (ret_mem d_mem dlo_mem scratch_un0 : Word)
+    (base : Word)
+    (hv_j : isValidDwordAccess (sp + signExtend12 3976) = true)
+    (hv_n1 : isValidDwordAccess (sp + signExtend12 3984) = true)
+    (hv_uhi : isValidDwordAccess (sp + signExtend12 4056 - (1 + (3 : Word)) <<< (3 : BitVec 6).toNat) = true)
+    (hv_ulo : isValidDwordAccess ((sp + signExtend12 4056 - (1 + (3 : Word)) <<< (3 : BitVec 6).toNat) + 8) = true)
+    (hv_vtop : isValidDwordAccess (sp + ((3 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat + signExtend12 32) = true)
+    (hv_ret : isValidDwordAccess (sp + signExtend12 3968) = true)
+    (hv_d   : isValidDwordAccess (sp + signExtend12 3960) = true)
+    (hv_dlo : isValidDwordAccess (sp + signExtend12 3952) = true)
+    (hv_scratch_un0 : isValidDwordAccess (sp + signExtend12 3944) = true)
+    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (hv_v0 : isValidDwordAccess (sp + signExtend12 32) = true)
+    (hv_u0 : isValidDwordAccess ((sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 0) = true)
+    (hv_v1 : isValidDwordAccess (sp + signExtend12 40) = true)
+    (hv_u1 : isValidDwordAccess ((sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4088) = true)
+    (hv_v2 : isValidDwordAccess (sp + signExtend12 48) = true)
+    (hv_u2 : isValidDwordAccess ((sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4080) = true)
+    (hv_v3 : isValidDwordAccess (sp + signExtend12 56) = true)
+    (hv_u3 : isValidDwordAccess ((sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4072) = true)
+    (hv_u4 : isValidDwordAccess ((sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4064) = true)
+    (hv_q : isValidDwordAccess (sp + signExtend12 4088 - (1 : Word) <<< (3 : BitVec 6).toNat) = true)
+    (hbltu : BitVec.ult u3 v2) :
+    let u_base := sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat
+    let q_addr := sp + signExtend12 4088 - (1 : Word) <<< (3 : BitVec 6).toNat
+    cpsTriple (base + 448) (base + 448) (sharedDivModCode base)
+      ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (1 : Word)) **
+       (.x5 ↦ᵣ v5_old) ** (.x6 ↦ᵣ v6_old) **
+       (.x7 ↦ᵣ v7_old) ** (.x10 ↦ᵣ v10_old) ** (.x11 ↦ᵣ v11_old) **
+       (.x2 ↦ᵣ v2_old) ** (.x0 ↦ᵣ (0 : Word)) **
+       (sp + signExtend12 3976 ↦ₘ j_old) ** (sp + signExtend12 3984 ↦ₘ (3 : Word)) **
+       ((sp + signExtend12 32) ↦ₘ v0) ** ((u_base + signExtend12 0) ↦ₘ u0) **
+       ((sp + signExtend12 40) ↦ₘ v1) ** ((u_base + signExtend12 4088) ↦ₘ u1) **
+       ((sp + signExtend12 48) ↦ₘ v2) ** ((u_base + signExtend12 4080) ↦ₘ u2) **
+       ((sp + signExtend12 56) ↦ₘ v3) ** ((u_base + signExtend12 4072) ↦ₘ u3) **
+       ((u_base + signExtend12 4064) ↦ₘ u_top) **
+       (q_addr ↦ₘ q_old) **
+       (sp + signExtend12 3968 ↦ₘ ret_mem) **
+       (sp + signExtend12 3960 ↦ₘ d_mem) **
+       (sp + signExtend12 3952 ↦ₘ dlo_mem) **
+       (sp + signExtend12 3944 ↦ₘ scratch_un0))
+      (loopIterPostN3Call_da sp base (1 : Word) v0 v1 v2 v3 u0 u1 u2 u3 u_top) := by
+  intro u_base q_addr
+  by_cases hb : BitVec.ult u_top (mulsubN4_c3 (div128Quot u3 u2 v2) v0 v1 v2 v3 u0 u1 u2 u3)
+  · -- addback path: use _beq spec
+    have hborrow : isAddbackBorrowN3Call v0 v1 v2 v3 u0 u1 u2 u3 u_top := by
+      delta isAddbackBorrowN3Call; simp only []; rw [if_pos hb]; decide
+    have J1 := divK_loop_body_n3_call_addback_beq_j1_spec sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
+      v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old ret_mem d_mem dlo_mem scratch_un0 base
+      hv_j hv_n1 hv_uhi hv_ulo hv_vtop hv_ret hv_d hv_dlo hv_scratch_un0 halign
+      hv_v0 hv_u0 hv_v1 hv_u1 hv_v2 hv_u2 hv_v3 hv_u3 hv_u4 hv_q hbltu hborrow
+    intro_lets at J1
+    exact cpsTriple_consequence _ _ _ _ _ _ _
+      (fun h hp => hp)
+      (fun h hp => by
+        unfold loopIterPostN3Call_da
+        unfold mulsubN4_c3 at hb
+        simp only [if_pos hb]
+        exact hp)
+      J1
+  · -- skip path
+    have hborrow : isSkipBorrowN3Call v0 v1 v2 v3 u0 u1 u2 u3 u_top := if_neg hb
+    have J1 := divK_loop_body_n3_call_skip_j1_spec sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
+      v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old ret_mem d_mem dlo_mem scratch_un0 base
+      hv_j hv_n1 hv_uhi hv_ulo hv_vtop hv_ret hv_d hv_dlo hv_scratch_un0 halign
+      hv_v0 hv_u0 hv_v1 hv_u1 hv_v2 hv_u2 hv_v3 hv_u3 hv_u4 hv_q hbltu hborrow
+    intro_lets at J1
+    exact cpsTriple_consequence _ _ _ _ _ _ _
+      (fun h hp => hp)
+      (fun h hp => by
+        unfold loopIterPostN3Call_da
+        unfold mulsubN4_c3 at hb
+        simp only [if_neg hb]
+        exact hp)
+      J1
+
+-- ============================================================================
+-- Double-addback (_da) unified j=0 call-path spec
+-- Uses _beq LoopIter specs with borrow-branching loopIterPostN3Call_da.
+-- ============================================================================
+
+set_option maxRecDepth 4096 in
+set_option maxHeartbeats 12800000 in
+theorem divK_loop_body_n3_call_unified_j0_da_spec
+    (sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
+     v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old : Word)
+    (ret_mem d_mem dlo_mem scratch_un0 : Word)
+    (base : Word)
+    (hv_j : isValidDwordAccess (sp + signExtend12 3976) = true)
+    (hv_n1 : isValidDwordAccess (sp + signExtend12 3984) = true)
+    (hv_uhi : isValidDwordAccess (sp + signExtend12 4056 - (0 + (3 : Word)) <<< (3 : BitVec 6).toNat) = true)
+    (hv_ulo : isValidDwordAccess ((sp + signExtend12 4056 - (0 + (3 : Word)) <<< (3 : BitVec 6).toNat) + 8) = true)
+    (hv_vtop : isValidDwordAccess (sp + ((3 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat + signExtend12 32) = true)
+    (hv_ret : isValidDwordAccess (sp + signExtend12 3968) = true)
+    (hv_d   : isValidDwordAccess (sp + signExtend12 3960) = true)
+    (hv_dlo : isValidDwordAccess (sp + signExtend12 3952) = true)
+    (hv_scratch_un0 : isValidDwordAccess (sp + signExtend12 3944) = true)
+    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (hv_v0 : isValidDwordAccess (sp + signExtend12 32) = true)
+    (hv_u0 : isValidDwordAccess ((sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 0) = true)
+    (hv_v1 : isValidDwordAccess (sp + signExtend12 40) = true)
+    (hv_u1 : isValidDwordAccess ((sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4088) = true)
+    (hv_v2 : isValidDwordAccess (sp + signExtend12 48) = true)
+    (hv_u2 : isValidDwordAccess ((sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4080) = true)
+    (hv_v3 : isValidDwordAccess (sp + signExtend12 56) = true)
+    (hv_u3 : isValidDwordAccess ((sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4072) = true)
+    (hv_u4 : isValidDwordAccess ((sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4064) = true)
+    (hv_q : isValidDwordAccess (sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat) = true)
+    (hbltu : BitVec.ult u3 v2) :
+    let u_base := sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat
+    let q_addr := sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat
+    cpsTriple (base + 448) (base + 908) (sharedDivModCode base)
+      ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (0 : Word)) **
+       (.x5 ↦ᵣ v5_old) ** (.x6 ↦ᵣ v6_old) **
+       (.x7 ↦ᵣ v7_old) ** (.x10 ↦ᵣ v10_old) ** (.x11 ↦ᵣ v11_old) **
+       (.x2 ↦ᵣ v2_old) ** (.x0 ↦ᵣ (0 : Word)) **
+       (sp + signExtend12 3976 ↦ₘ j_old) ** (sp + signExtend12 3984 ↦ₘ (3 : Word)) **
+       ((sp + signExtend12 32) ↦ₘ v0) ** ((u_base + signExtend12 0) ↦ₘ u0) **
+       ((sp + signExtend12 40) ↦ₘ v1) ** ((u_base + signExtend12 4088) ↦ₘ u1) **
+       ((sp + signExtend12 48) ↦ₘ v2) ** ((u_base + signExtend12 4080) ↦ₘ u2) **
+       ((sp + signExtend12 56) ↦ₘ v3) ** ((u_base + signExtend12 4072) ↦ₘ u3) **
+       ((u_base + signExtend12 4064) ↦ₘ u_top) **
+       (q_addr ↦ₘ q_old) **
+       (sp + signExtend12 3968 ↦ₘ ret_mem) **
+       (sp + signExtend12 3960 ↦ₘ d_mem) **
+       (sp + signExtend12 3952 ↦ₘ dlo_mem) **
+       (sp + signExtend12 3944 ↦ₘ scratch_un0))
+      (loopIterPostN3Call_da sp base (0 : Word) v0 v1 v2 v3 u0 u1 u2 u3 u_top) := by
+  intro u_base q_addr
+  by_cases hb : BitVec.ult u_top (mulsubN4_c3 (div128Quot u3 u2 v2) v0 v1 v2 v3 u0 u1 u2 u3)
+  · -- addback path: use _beq spec
+    have hborrow : isAddbackBorrowN3Call v0 v1 v2 v3 u0 u1 u2 u3 u_top := by
+      delta isAddbackBorrowN3Call; simp only []; rw [if_pos hb]; decide
+    have J0 := divK_loop_body_n3_call_addback_beq_j0_spec sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
+      v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old ret_mem d_mem dlo_mem scratch_un0 base
+      hv_j hv_n1 hv_uhi hv_ulo hv_vtop hv_ret hv_d hv_dlo hv_scratch_un0 halign
+      hv_v0 hv_u0 hv_v1 hv_u1 hv_v2 hv_u2 hv_v3 hv_u3 hv_u4 hv_q hbltu hborrow
+    intro_lets at J0
+    exact cpsTriple_consequence _ _ _ _ _ _ _
+      (fun h hp => hp)
+      (fun h hp => by
+        unfold loopIterPostN3Call_da
+        unfold mulsubN4_c3 at hb
+        simp only [if_pos hb]
+        delta loopBodyN3CallAddbackBeqPost loopBodyN3CallAddbackBeqPostJ at hp ⊢
+        exact hp)
+      J0
+  · -- skip path
+    have hborrow : isSkipBorrowN3Call v0 v1 v2 v3 u0 u1 u2 u3 u_top := if_neg hb
+    have J0 := divK_loop_body_n3_call_skip_j0_spec sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
+      v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old ret_mem d_mem dlo_mem scratch_un0 base
+      hv_j hv_n1 hv_uhi hv_ulo hv_vtop hv_ret hv_d hv_dlo hv_scratch_un0 halign
+      hv_v0 hv_u0 hv_v1 hv_u1 hv_v2 hv_u2 hv_v3 hv_u3 hv_u4 hv_q hbltu hborrow
+    intro_lets at J0
+    exact cpsTriple_consequence _ _ _ _ _ _ _
+      (fun h hp => hp)
+      (fun h hp => by
+        unfold loopIterPostN3Call_da
+        unfold mulsubN4_c3 at hb
+        simp only [if_neg hb]
+        delta loopBodyN3CallSkipPost loopBodyN3CallSkipPostJ at hp ⊢
+        exact hp)
+      J0
+
 end EvmAsm.Evm64
