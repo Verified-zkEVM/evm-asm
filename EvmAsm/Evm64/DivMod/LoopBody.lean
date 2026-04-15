@@ -1959,21 +1959,66 @@ theorem divK_mulsub_correction_addback_beq_spec
     have h4 : u4_out = ab'.2.2.2.2 := if_pos hcarry
     have hc : carry_out = addbackN4_carry ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 v0 v1 v2 v3 := if_pos hcarry
     rw [hq, h0, h1, h2, h3, h4, hc]
-    -- Get mulsub+addback (→880) — no intro_lets
-    have MCA880 := (divK_mulsub_correction_addback_880_spec sp q_hat j v0 v1 v2 v3 u0 u1 u2 u3 u_top
+    -- Direct 3-stage composition: mulsub(→728) + addback(728→880) + double_addback_beq(880→884)
+    -- Introduce the mulsub and addback intermediates as named let bindings
+    -- (mirroring the 880_spec proof pattern to ensure name consistency)
+    let p0_lo := q_hat * v0; let p0_hi := rv64_mulhu q_hat v0
+    let fs0 := p0_lo + (signExtend12 0 : Word)
+    let ba0 := if BitVec.ult fs0 (signExtend12 0 : Word) then (1 : Word) else 0
+    let pc0 := ba0 + p0_hi
+    let bs0 := if BitVec.ult u0 fs0 then (1 : Word) else 0
+    let un0 := u0 - fs0; let c0 := pc0 + bs0
+    let p1_lo := q_hat * v1; let p1_hi := rv64_mulhu q_hat v1
+    let fs1 := p1_lo + c0
+    let ba1 := if BitVec.ult fs1 c0 then (1 : Word) else 0
+    let pc1 := ba1 + p1_hi
+    let bs1 := if BitVec.ult u1 fs1 then (1 : Word) else 0
+    let un1 := u1 - fs1; let c1 := pc1 + bs1
+    let p2_lo := q_hat * v2; let p2_hi := rv64_mulhu q_hat v2
+    let fs2 := p2_lo + c1
+    let ba2 := if BitVec.ult fs2 c1 then (1 : Word) else 0
+    let pc2 := ba2 + p2_hi
+    let bs2 := if BitVec.ult u2 fs2 then (1 : Word) else 0
+    let un2 := u2 - fs2; let c2 := pc2 + bs2
+    let p3_lo := q_hat * v3; let p3_hi := rv64_mulhu q_hat v3
+    let fs3 := p3_lo + c2
+    let ba3 := if BitVec.ult fs3 c2 then (1 : Word) else 0
+    let pc3 := ba3 + p3_hi
+    let bs3 := if BitVec.ult u3 fs3 then (1 : Word) else 0
+    let un3 := u3 - fs3; let c3' := pc3 + bs3
+    let u4_new := u_top - c3'
+    -- Step A: Mulsub full (base+516 → base+728)
+    have MS := divK_mulsub_full_spec sp q_hat j v0 v1 v2 v3 u0 u1 u2 u3 u_top
       v1_old v5_old v6_old v7_old v10_old v2_old base
-      hv_j hv_v0 hv_u0 hv_v1 hv_u1 hv_v2 hv_u2 hv_v3 hv_u3 hv_u4) hborrow
-    -- Get double addback BEQ (880→884)
-    -- Use consequence to weaken DA's precondition: replace x7 = 0 with x7 = carry
-    -- Since carry = 0 by hcarry, (.x7 ↦ᵣ carry) → (.x7 ↦ᵣ 0) via rw
+      hv_j hv_v0 hv_u0 hv_v1 hv_u1 hv_v2 hv_u2 hv_v3 hv_u3 hv_u4
+    dsimp only [] at MS hborrow
+    -- Step B: Correction addback (base+728 → base+880)
+    have CA := divK_correction_addback_spec sp u_base
+      (if BitVec.ult u_top c3' then (1 : Word) else 0)
+      q_hat v0 v1 v2 v3 un0 un1 un2 un3 u4_new
+      u4_new un3 base hborrow
+      hv_v0 hv_u0 hv_v1 hv_u1 hv_v2 hv_u2 hv_v3 hv_u3 hv_u4
+    -- Step C: Compose mulsub + correction_addback (→880)
+    seqFrame MS CA
+    -- Step D: Double addback BEQ (880→884)
     have DA := divK_double_addback_beq_spec sp u_base
       (q_hat + signExtend12 4095) v0 v1 v2 v3
       ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 ab.2.2.2.2
       base hv_v0 hv_u0 hv_v1 hv_u1 hv_v2 hv_u2 hv_v3 hv_u3 hv_u4
-    -- TODO: Compose MCA880(→880) with DA(880→884)
-    -- Blocked by xperm_hyp isDefEq failure: MCA880 postcondition and DA precondition
-    -- have definitionally-equal but structurally-different let expansions for carry/aco3.
-    -- Need to normalize let expansions before composition (e.g., via delta/unfold).
+    -- Step E: Bridge x7: MSCA has x7=aco3 (from CA lets), DA needs x7=0.
+    -- aco3 (from CA) = carry (from outer spec) = 0 (by hcarry)
+    -- Use sepConj_mono to replace the x7 atom
+    have haco3_eq_carry : addbackN4_carry un0 un1 un2 un3 v0 v1 v2 v3 = carry := rfl
+    have haco3_zero : addbackN4_carry un0 un1 un2 un3 v0 v1 v2 v3 = 0 := by
+      rw [haco3_eq_carry]; exact hcarry
+    -- Rewrite MSCA's postcondition: replace aco3 (= addbackN4_carry un0..un3 v0..v3) with 0
+    -- The aco3 value in MSCA's postcondition IS addbackN4_carry un0 un1 un2 un3 v0 v1 v2 v3
+    -- because CA was called with (un0, un1, un2, un3) and that's what its aco3 expands to.
+    -- MSCA postcondition has x7 = aco3 (the CA-internal expanded carry expression).
+    -- DA precondition has x7 = 0. These are propositionally equal (via hcarry)
+    -- but aco3 is expanded inline (not as addbackN4_carry), preventing rw.
+    -- TODO: need a variant of correction_addback_spec whose postcondition uses
+    -- addbackN4_carry explicitly, or use delta to normalize both sides.
     sorry
   · -- carry ≠ 0: single addback path (BEQ passthrough)
     have hq : q_out = q_hat + signExtend12 4095 := if_neg hcarry
