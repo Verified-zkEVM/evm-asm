@@ -1,0 +1,118 @@
+/-
+  EvmAsm.Evm64.DivMod.Compose.Offsets
+
+  Named constants for byte offsets of each DivMod code block from the program
+  base. Canonical source of truth for `divCode`, `modCode`, `sharedDivModCode`,
+  and all downstream proofs that reference block boundaries.
+
+  Issue #301: Previously the offsets were hardcoded literals (`base + 448`,
+  `base + 904`, ...) scattered across ~40 files. Adding a single instruction
+  to one block would cascade into 500+ line diffs and error-prone sed-based
+  replacements. Named offsets localize the knowledge to this file; the
+  `drift_check_*` examples below fail at compile time if a block length
+  changes without updating the corresponding offset, pointing reviewers at
+  the exact constant that must be bumped.
+
+  Layout of `divCode` / `modCode` (all values in bytes from program base):
+
+    [phaseAOff    =   0] divK_phaseA        (32 bytes)
+    [phaseBOff    =  32] divK_phaseB        (84 bytes)
+    [clzOff       = 116] divK_clz           (96 bytes)
+    [phaseC2Off   = 212] divK_phaseC2       (16 bytes)
+    [normBOff     = 228] divK_normB         (84 bytes)
+    [normAOff     = 312] divK_normA         (84 bytes)
+    [copyAUOff    = 396] divK_copyAU        (36 bytes)
+    [loopSetupOff = 432] divK_loopSetup     (16 bytes)
+    [loopBodyOff  = 448] divK_loopBody     (456 bytes)
+    [denormOff    = 904] divK_denorm       (100 bytes)
+    [epilogueOff  =1004] divK_{div,mod}_epilogue (40 bytes)
+    [zeroPathOff  =1044] divK_zeroPath      (20 bytes)
+    [nopOff       =1064] ADDI x0, x0, 0      (4 bytes)
+    [div128Off    =1068] divK_div128       (196 bytes)
+-/
+
+import EvmAsm.Evm64.DivMod.Program
+
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
+
+-- ============================================================================
+-- Block start offsets (in bytes, as Word for direct use in `base + off`)
+-- ============================================================================
+
+/-- Offset of `divK_phaseA` (the entry block). -/
+abbrev phaseAOff    : Word :=    0
+/-- Offset of `divK_phaseB` (b=0 branch + leading-limb analysis). -/
+abbrev phaseBOff    : Word :=   32
+/-- Offset of `divK_clz` (count leading zeros for shift amount). -/
+abbrev clzOff       : Word :=  116
+/-- Offset of `divK_phaseC2` (branch on shift=0 fast path). -/
+abbrev phaseC2Off   : Word :=  212
+/-- Offset of `divK_normB` (normalize divisor b). -/
+abbrev normBOff     : Word :=  228
+/-- Offset of `divK_normA` (normalize dividend a). -/
+abbrev normAOff     : Word :=  312
+/-- Offset of `divK_copyAU` (copy a[] into u[] scratch). -/
+abbrev copyAUOff    : Word :=  396
+/-- Offset of `divK_loopSetup` (initialize loop counter j). -/
+abbrev loopSetupOff : Word :=  432
+/-- Offset of `divK_loopBody` (Knuth Algorithm D main loop body). -/
+abbrev loopBodyOff  : Word :=  448
+/-- Offset of `divK_denorm` (denormalize result back to original shift). -/
+abbrev denormOff    : Word :=  904
+/-- Offset of the epilogue (`divK_div_epilogue` for DIV, `divK_mod_epilogue`
+    for MOD; both are 40 bytes). -/
+abbrev epilogueOff  : Word := 1004
+/-- Offset of `divK_zeroPath` (b=0 quick return with result 0). -/
+abbrev zeroPathOff  : Word := 1044
+/-- Offset of the NOP separator between `divK_zeroPath` and `divK_div128`.
+    Ensures the subroutine entry differs from any block exit PC. -/
+abbrev nopOff       : Word := 1064
+/-- Offset of `divK_div128` (the 128÷64 long-division subroutine). -/
+abbrev div128Off    : Word := 1068
+
+-- ============================================================================
+-- Consistency / drift checks
+--
+-- Each `drift_check_*` below ties an offset to the sum of the previous offset
+-- plus the previous block's length × 4 (bytes per RV64 instruction). If a
+-- block grows or shrinks without the corresponding offset being updated, the
+-- affected check fails at compile time with a clear error pointing at the
+-- stale constant. This localizes address maintenance to this one file.
+--
+-- These are `example` declarations so they participate in the kernel check
+-- without polluting the name space. They resolve by `decide` (all inputs
+-- reduce to concrete numerals).
+-- ============================================================================
+
+/-- phaseBOff = phaseAOff + 4 · |divK_phaseA 1016|. -/
+example : phaseBOff = phaseAOff + 4 * (divK_phaseA 1016).length := by decide
+/-- clzOff = phaseBOff + 4 · |divK_phaseB|. -/
+example : clzOff = phaseBOff + 4 * divK_phaseB.length := by decide
+/-- phaseC2Off = clzOff + 4 · |divK_clz|. -/
+example : phaseC2Off = clzOff + 4 * divK_clz.length := by decide
+/-- normBOff = phaseC2Off + 4 · |divK_phaseC2 172|. -/
+example : normBOff = phaseC2Off + 4 * (divK_phaseC2 172).length := by decide
+/-- normAOff = normBOff + 4 · |divK_normB|. -/
+example : normAOff = normBOff + 4 * divK_normB.length := by decide
+/-- copyAUOff = normAOff + 4 · |divK_normA 40|. -/
+example : copyAUOff = normAOff + 4 * (divK_normA 40).length := by decide
+/-- loopSetupOff = copyAUOff + 4 · |divK_copyAU|. -/
+example : loopSetupOff = copyAUOff + 4 * divK_copyAU.length := by decide
+/-- loopBodyOff = loopSetupOff + 4 · |divK_loopSetup 460|. -/
+example : loopBodyOff = loopSetupOff + 4 * (divK_loopSetup 460).length := by decide
+/-- denormOff = loopBodyOff + 4 · |divK_loopBody 556 7740|. -/
+example : denormOff = loopBodyOff + 4 * (divK_loopBody 556 7740).length := by decide
+/-- epilogueOff = denormOff + 4 · |divK_denorm|. -/
+example : epilogueOff = denormOff + 4 * divK_denorm.length := by decide
+/-- zeroPathOff = epilogueOff + 4 · |divK_div_epilogue 24|
+    (DIV and MOD epilogues share the same length). -/
+example : zeroPathOff = epilogueOff + 4 * (divK_div_epilogue 24).length := by decide
+example : zeroPathOff = epilogueOff + 4 * (divK_mod_epilogue 24).length := by decide
+/-- nopOff = zeroPathOff + 4 · |divK_zeroPath|. -/
+example : nopOff = zeroPathOff + 4 * divK_zeroPath.length := by decide
+/-- div128Off = nopOff + 4 (single NOP instruction). -/
+example : div128Off = nopOff + 4 := by decide
+
+end EvmAsm.Evm64

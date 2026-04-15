@@ -22,7 +22,7 @@ open EvmAsm.Rv64
 
 /-- The loopBody ofProg (block 8) is subsumed by sharedDivModCode. -/
 private theorem divK_loopBody_ofProg_sub_sharedCode (base : Word) :
-    ∀ a i, (CodeReq.ofProg (base + 448) (divK_loopBody 556 7740)) a = some i →
+    ∀ a i, (CodeReq.ofProg (base + loopBodyOff) (divK_loopBody 556 7740)) a = some i →
       (sharedDivModCode base) a = some i := by
   unfold sharedDivModCode; simp only [CodeReq.unionAll_cons]
   skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock
@@ -32,14 +32,14 @@ private theorem divK_loopBody_ofProg_sub_sharedCode (base : Word) :
 /-- Helper: singleton at index k of divK_loopBody ⊆ sharedDivModCode base. -/
 private theorem lb_sub (base : Word) (k : Nat) (addr : Word) (instr : Instr)
     (hk : k < (divK_loopBody 556 7740).length)
-    (h_addr : addr = (base + 448) + BitVec.ofNat 64 (4 * k))
+    (h_addr : addr = (base + loopBodyOff) + BitVec.ofNat 64 (4 * k))
     (h_instr : (divK_loopBody 556 7740).get ⟨k, hk⟩ = instr) :
     ∀ a i, CodeReq.singleton addr instr a = some i →
       (sharedDivModCode base) a = some i := by
   subst h_addr; subst h_instr
   exact fun a i h => divK_loopBody_ofProg_sub_sharedCode base a i
     (CodeReq.singleton_mono
-      (CodeReq.ofProg_lookup (base + 448) (divK_loopBody 556 7740) k hk (by decide)) a i h)
+      (CodeReq.ofProg_lookup (base + loopBodyOff) (divK_loopBody 556 7740) k hk (by decide)) a i h)
 
 /-- Helper: combine two subsumption proofs over a union. -/
 private theorem CodeReq_union_sub {cr1 cr2 target : CodeReq}
@@ -54,12 +54,12 @@ private theorem CodeReq_union_sub {cr1 cr2 target : CodeReq}
 
 -- ============================================================================
 -- Section 2: Address normalization lemmas
--- Loop body base = base + 448.
--- Instruction [k] is at base + 448 + 4*k.
+-- Loop body base = base + loopBodyOff.
+-- Instruction [k] is at base + loopBodyOff + 4*k.
 -- ============================================================================
 
 -- Mulsub limb base addresses (instrs [22]-[65])
-private theorem lb_ms0 (base : Word) : (base + 448 : Word) + 88 = base + 536 := by bv_addr
+private theorem lb_ms0 (base : Word) : (base + loopBodyOff : Word) + 88 = base + 536 := by bv_addr
 private theorem lb_ms1 (base : Word) : (base + 536 : Word) + 44 = base + 580 := by bv_addr
 private theorem lb_ms2 (base : Word) : (base + 580 : Word) + 44 = base + 624 := by bv_addr
 private theorem lb_ms3 (base : Word) : (base + 624 : Word) + 44 = base + 668 := by bv_addr
@@ -240,7 +240,7 @@ theorem divK_mulsub_4limbs_spec
 -- ============================================================================
 
 -- Addback base addresses (instrs [71]-[107])
-private theorem lb_ab_init (base : Word) : (base + 448 : Word) + 284 = base + 732 := by bv_addr
+private theorem lb_ab_init (base : Word) : (base + loopBodyOff : Word) + 284 = base + 732 := by bv_addr
 private theorem lb_ab0 (base : Word) : (base + 732 : Word) + 4 = base + 736 := by bv_addr
 private theorem lb_ab0_end (base : Word) : (base + 736 : Word) + 32 = base + 768 := by bv_addr
 private theorem lb_ab1_end (base : Word) : (base + 768 : Word) + 32 = base + 800 := by bv_addr
@@ -713,7 +713,7 @@ theorem divK_correction_addback_spec
 -- Instrs [0]-[12] at base+448 → base+500.
 -- ============================================================================
 
-private theorem lb_save_j (base : Word) : (base + 448 : Word) + 4 = base + 452 := by bv_addr
+private theorem lb_save_j (base : Word) : (base + loopBodyOff : Word) + 4 = base + 452 := by bv_addr
 private theorem lb_trial_load (base : Word) : (base + 452 : Word) + 48 = base + 500 := by bv_addr
 
 set_option maxRecDepth 4096 in
@@ -731,7 +731,7 @@ theorem divK_save_trial_load_spec
     (hv_vtop : isValidDwordAccess (sp + (n + signExtend12 4095) <<< (3 : BitVec 6).toNat + signExtend12 32) = true) :
     let u_addr := sp + signExtend12 4056 - (j + n) <<< (3 : BitVec 6).toNat
     let vtop_base := sp + (n + signExtend12 4095) <<< (3 : BitVec 6).toNat
-    cpsTriple (base + 448) (base + 500) (sharedDivModCode base)
+    cpsTriple (base + loopBodyOff) (base + 500) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
        (.x5 ↦ᵣ v5_old) ** (.x6 ↦ᵣ v6_old) **
        (.x7 ↦ᵣ v7_old) ** (.x10 ↦ᵣ v10_old) **
@@ -748,7 +748,7 @@ theorem divK_save_trial_load_spec
        (vtop_base + signExtend12 32 ↦ₘ v_top)) := by
   intro u_addr vtop_base
   -- 1. Save j: instr [0] at base+448
-  have SJ := divK_save_j_spec sp j j_old (base + 448) hv_j
+  have SJ := divK_save_j_spec sp j j_old (base + loopBodyOff) hv_j
   rw [lb_save_j] at SJ
   have SJe := cpsTriple_extend_code (hmono :=
     lb_sub base 0 _ _ (by decide) (by bv_addr) (by decide)) SJ
@@ -926,7 +926,7 @@ theorem divK_trial_call_path_spec
 -- Address normalization for store_qj and loop control
 private theorem lb_sqj (base : Word) : (base + 880 : Word) + 16 = base + 896 := by bv_addr
 private theorem lb_lc_taken (base : Word) :
-    (base + 896 : Word) + 4 + signExtend13 (7740 : BitVec 13) = base + 448 := by
+    (base + 896 : Word) + 4 + signExtend13 (7740 : BitVec 13) = base + loopBodyOff := by
   have : signExtend13 (7740 : BitVec 13) = (18446744073709551164 : Word) := by decide
   rw [this]; bv_addr
 private theorem lb_lc_exit (base : Word) : (base + 896 : Word) + 8 = base + 904 := by bv_addr
@@ -948,7 +948,7 @@ theorem divK_store_loop_spec
       ((.x1 ↦ᵣ j) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ q_hat) **
        (.x5 ↦ᵣ v5_old) ** (.x7 ↦ᵣ v7_old) ** (.x0 ↦ᵣ (0 : Word)) **
        (q_addr ↦ₘ q_old))
-      (base + 448)
+      (base + loopBodyOff)
       ((.x1 ↦ᵣ j') ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ q_hat) **
        (.x5 ↦ᵣ j_x8) ** (.x7 ↦ᵣ q_addr) ** (.x0 ↦ᵣ (0 : Word)) **
        (q_addr ↦ₘ q_hat))
@@ -987,7 +987,7 @@ theorem divK_store_loop_spec
   have LCp : cpsBranch (base + 896) (sharedDivModCode base)
       ((.x1 ↦ᵣ j) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ q_hat) **
        (.x5 ↦ᵣ j_x8) ** (.x7 ↦ᵣ q_addr) ** (.x0 ↦ᵣ (0 : Word)) ** (q_addr ↦ₘ q_hat))
-      (base + 448)
+      (base + loopBodyOff)
       ((.x1 ↦ᵣ j') ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ q_hat) **
        (.x5 ↦ᵣ j_x8) ** (.x7 ↦ᵣ q_addr) ** (.x0 ↦ᵣ (0 : Word)) ** (q_addr ↦ₘ q_hat))
       (base + 904)
@@ -1047,7 +1047,7 @@ theorem divK_store_loop_j0_spec
     exact lb_sub base 112 _ _ (by decide) (by bv_addr) (by decide)) haddi
   -- 3. BGE x1 x0 7740 at base+900 (instr [113]) — RAW with pure condition
   have hbge_raw := bge_spec_gen .x1 .x0 (7740 : BitVec 13) j' (0 : Word) (base + 900)
-  rw [show (base + 900 : Word) + signExtend13 (7740 : BitVec 13) = base + 448 from by
+  rw [show (base + 900 : Word) + signExtend13 (7740 : BitVec 13) = base + loopBodyOff from by
         rw [show signExtend13 (7740 : BitVec 13) = (18446744073709551164 : Word) from by decide]
         bv_addr,
       show (base + 900 : Word) + 4 = base + 904 from by bv_addr] at hbge_raw
@@ -1110,7 +1110,7 @@ theorem divK_store_loop_jgt0_spec
     let j_x8 := j <<< (3 : BitVec 6).toNat
     let q_addr := sp + signExtend12 4088 - j_x8
     let j' := j + signExtend12 4095
-    cpsTriple (base + 880) (base + 448) (sharedDivModCode base)
+    cpsTriple (base + 880) (base + loopBodyOff) (sharedDivModCode base)
       ((.x1 ↦ᵣ j) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ q_hat) **
        (.x5 ↦ᵣ v5_old) ** (.x7 ↦ᵣ v7_old) ** (.x0 ↦ᵣ (0 : Word)) **
        (q_addr ↦ₘ q_old))
@@ -1134,7 +1134,7 @@ theorem divK_store_loop_jgt0_spec
     exact lb_sub base 112 _ _ (by decide) (by bv_addr) (by decide)) haddi
   -- 3. BGE x1 x0 7740 at base+900 (instr [113]) — RAW with pure condition
   have hbge_raw := bge_spec_gen .x1 .x0 (7740 : BitVec 13) j' (0 : Word) (base + 900)
-  rw [show (base + 900 : Word) + signExtend13 (7740 : BitVec 13) = base + 448 from by
+  rw [show (base + 900 : Word) + signExtend13 (7740 : BitVec 13) = base + loopBodyOff from by
         rw [show signExtend13 (7740 : BitVec 13) = (18446744073709551164 : Word) from by decide]
         bv_addr,
       show (base + 900 : Word) + 4 = base + 904 from by bv_addr] at hbge_raw
@@ -1422,7 +1422,7 @@ theorem divK_trial_max_full_spec
     (hbltu : ¬BitVec.ult u_hi v_top) :
     let u_addr := sp + signExtend12 4056 - (j + n) <<< (3 : BitVec 6).toNat
     let vtop_base := sp + (n + signExtend12 4095) <<< (3 : BitVec 6).toNat
-    cpsTriple (base + 448) (base + 516) (sharedDivModCode base)
+    cpsTriple (base + loopBodyOff) (base + 516) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
        (.x5 ↦ᵣ v5_old) ** (.x6 ↦ᵣ v6_old) **
        (.x7 ↦ᵣ v7_old) ** (.x10 ↦ᵣ v10_old) ** (.x11 ↦ᵣ v11_old) **
@@ -1524,7 +1524,7 @@ theorem divK_trial_call_full_spec
     let rhat2_un0 := (rhat2c <<< (32 : BitVec 6).toNat) ||| un0_div
     let q0' := if BitVec.ult rhat2_un0 q0_dlo then q0c + signExtend12 4095 else q0c
     let q := (q1' <<< (32 : BitVec 6).toNat) ||| q0'
-    cpsTriple (base + 448) (base + 516) (sharedDivModCode base)
+    cpsTriple (base + loopBodyOff) (base + 516) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
        (.x5 ↦ᵣ v5_old) ** (.x6 ↦ᵣ v6_old) **
        (.x7 ↦ᵣ v7_old) ** (.x10 ↦ᵣ v10_old) ** (.x11 ↦ᵣ v11_old) **
