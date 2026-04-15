@@ -1375,7 +1375,7 @@ theorem divK_mulsub_correction_addback_spec
     let q_hat' := q_hat + signExtend12 4095
     -- Hypothesis: borrow ≠ 0
     (if BitVec.ult u_top c3 then (1 : Word) else 0) ≠ (0 : Word) →
-    -- Hypothesis: addback carry ≠ 0 (single addback sufficient, overestimate ≤ 1)
+    -- Hypothesis: addback carry ≠ 0 (single addback sufficient)
     aco3 ≠ 0 →
     cpsTriple (base + 516) (base + 884) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ q_hat) **

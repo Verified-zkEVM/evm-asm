@@ -137,24 +137,29 @@ theorem divK_loop_body_n4_max_skip_spec
   let un3 := u3 - fs3; let c3 := pc3 + bs3
   let u4_new := u_top - c3
   let j' := j + signExtend12 4095
+  -- Abbreviation for vtop_base (register value, not a memory address)
   let vtop_base := sp + ((4 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
-  -- 1. Trial max full (base+448 → base+516)
+  -- 1. Trial max full (base+448 → base+516), instantiated with n=4, u_hi=u_top, u_lo=u3, v_top=v3
   have TF := divK_trial_max_full_spec sp j (4 : Word) j_old v5_old v6_old v7_old v10_old v11_old
     u_top u3 v3 base hv_j hv_n1 hv_uhi hv_ulo hv_vtop hbltu
+  -- Expand let-bindings in TF to expose raw address expressions
   dsimp only [] at TF
+  -- Rewrite u_addr → u_base + signExtend12 4064, and (u_addr+8) → u_base + signExtend12 4072
   rw [u_addr_eq_n4 sp j] at TF
   rw [u_addr8_eq_n4 sp j] at TF
+  -- Rewrite vtop_base + signExtend12 32 → sp + signExtend12 56
   rw [vtop_eq_v3_n4 sp] at TF
-  -- 2. Mulsub + correction skip (base+516 → base+884)
+  -- 2. Mulsub + correction skip (base+516 → base+880)
   have MCS := divK_mulsub_correction_skip_spec sp q_hat j v0 v1 v2 v3 u0 u1 u2 u3 u_top
     j u3 vtop_base u_top v3 v2_old base
     hv_j hv_v0 hv_u0 hv_v1 hv_u1 hv_v2 hv_u2 hv_v3 hv_u3 hv_u4
   intro_lets at MCS
   have MCS0 := MCS hborrow
-  -- 3. Store loop cpsBranch (base+884 → base+448/908)
+  -- 3. Store loop cpsBranch (base+880 → base+448/904)
   have SL := divK_store_loop_spec sp j q_hat u4_new (0 : Word) q_old base hv_q
   intro_lets at SL
-  -- 4. Frame TF with mulsub cells
+  -- 4. Frame TF with mulsub cells that DON'T overlap
+  --    (u_base+4064 ↦ₘ u_top, u_base+4072 ↦ₘ u3, sp+56 ↦ₘ v3 are already in TF)
   have TFf := cpsTriple_frame_left _ _ _ _ _
     ((.x2 ↦ᵣ v2_old) **
      ((sp + signExtend12 32) ↦ₘ v0) ** ((u_base + signExtend12 0) ↦ₘ u0) **
@@ -234,6 +239,7 @@ theorem divK_loop_body_n4_max_addback_spec
       (base + 448) (loopBodyN4AddbackPost sp j q_hat v0 v1 v2 v3 u0 u1 u2 u3 u_top)
       (base + 908) (loopBodyN4AddbackPost sp j q_hat v0 v1 v2 v3 u0 u1 u2 u3 u_top) := by
   intro u_base q_hat q_addr hborrow
+  -- Expand mulsub computation locally for intermediate steps
   let ms := mulsubN4 q_hat v0 v1 v2 v3 u0 u1 u2 u3
   let p0_lo := q_hat * v0; let p0_hi := rv64_mulhu q_hat v0
   let fs0 := p0_lo + (signExtend12 0 : Word)
@@ -284,6 +290,7 @@ theorem divK_loop_body_n4_max_addback_spec
   let aun4 := u4_new + aco3
   let q_hat' := q_hat + signExtend12 4095
   let j' := j + signExtend12 4095
+  -- Abbreviation for vtop_base (register value, not a memory address)
   let vtop_base := sp + ((4 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
   -- 1. Trial max full (base+448 → base+516)
   have TF := divK_trial_max_full_spec sp j (4 : Word) j_old v5_old v6_old v7_old v10_old v11_old
@@ -292,13 +299,13 @@ theorem divK_loop_body_n4_max_addback_spec
   rw [u_addr_eq_n4 sp j] at TF
   rw [u_addr8_eq_n4 sp j] at TF
   rw [vtop_eq_v3_n4 sp] at TF
-  -- 2. Mulsub + correction addback + BEQ passthrough (base+516 → base+884)
+  -- 2. Mulsub + correction addback (base+516 → base+880)
   have MCA := divK_mulsub_correction_addback_spec sp q_hat j v0 v1 v2 v3 u0 u1 u2 u3 u_top
     j u3 vtop_base u_top v3 v2_old base
     hv_j hv_v0 hv_u0 hv_v1 hv_u1 hv_v2 hv_u2 hv_v3 hv_u3 hv_u4
   intro_lets at MCA
-  have MCA0 := MCA hborrow sorry  -- TODO: prove aco3 ≠ 0 for n=4
-  -- 3. Store loop cpsBranch (base+884 → base+448/908)
+  have MCA0 := MCA hborrow sorry  -- TODO: prove aco3 ≠ 0
+  -- 3. Store loop cpsBranch (base+880 → base+448/904)
   have SL := divK_store_loop_spec sp j q_hat' aun4 aco3 q_old base hv_q
   intro_lets at SL
   -- 4. Frame TF with non-overlapping cells
@@ -465,13 +472,13 @@ theorem divK_loop_body_n4_call_skip_spec
   rw [u_addr_eq_n4 sp j] at TF
   rw [u_addr8_eq_n4 sp j] at TF
   rw [vtop_eq_v3_n4 sp] at TF
-  -- 2. Mulsub + correction skip (base+516 → base+884)
+  -- 2. Mulsub + correction skip (base+516 → base+880)
   have MCS := divK_mulsub_correction_skip_spec sp q_hat j v0 v1 v2 v3 u0 u1 u2 u3 u_top
     rhat2_un0 q0' d_hi q0_dlo q1' (base + 516) base
     hv_j hv_v0 hv_u0 hv_v1 hv_u1 hv_v2 hv_u2 hv_v3 hv_u3 hv_u4
   intro_lets at MCS
   have MCS0 := MCS hborrow
-  -- 3. Store loop cpsBranch (base+884 → base+448/908)
+  -- 3. Store loop cpsBranch (base+880 → base+448/904)
   have SL := divK_store_loop_spec sp j q_hat u4_new (0 : Word) q_old base hv_q
   intro_lets at SL
   -- 4. Frame TF (trial_call includes scratch memory, so don't add those to frame)
@@ -604,6 +611,7 @@ theorem divK_loop_body_n4_call_addback_spec
         d_hi d_lo div_un1 div_un0 q1 rhat hi1 q1c rhatc q_dlo rhat_un1 q1' rhat'
         cu_rhat_un1 cu_q1_dlo un21 q0 rhat2 hi2 q0c rhat2c q0_dlo rhat2_un0 q0' q_hat
         q_addr hborrow
+  -- Expand mulsub + addback computation locally for intermediate steps
   let ms := mulsubN4 q_hat v0 v1 v2 v3 u0 u1 u2 u3
   let p0_lo := q_hat * v0; let p0_hi := rv64_mulhu q_hat v0
   let fs0 := p0_lo + (signExtend12 0 : Word)
@@ -663,13 +671,13 @@ theorem divK_loop_body_n4_call_addback_spec
   rw [u_addr_eq_n4 sp j] at TF
   rw [u_addr8_eq_n4 sp j] at TF
   rw [vtop_eq_v3_n4 sp] at TF
-  -- 2. Mulsub + correction addback + BEQ passthrough (base+516 → base+884)
+  -- 2. Mulsub + correction addback (base+516 → base+880)
   have MCA := divK_mulsub_correction_addback_spec sp q_hat j v0 v1 v2 v3 u0 u1 u2 u3 u_top
     rhat2_un0 q0' d_hi q0_dlo q1' (base + 516) base
     hv_j hv_v0 hv_u0 hv_v1 hv_u1 hv_v2 hv_u2 hv_v3 hv_u3 hv_u4
   intro_lets at MCA
-  have MCA0 := MCA hborrow sorry  -- TODO: prove aco3 ≠ 0 for n=4
-  -- 3. Store loop cpsBranch (base+884 → base+448/908)
+  have MCA0 := MCA hborrow sorry  -- TODO: prove aco3 ≠ 0
+  -- 3. Store loop cpsBranch (base+880 → base+448/904)
   have SL := divK_store_loop_spec sp j q_hat' aun4 aco3 q_old base hv_q
   intro_lets at SL
   -- 4. Frame TF
