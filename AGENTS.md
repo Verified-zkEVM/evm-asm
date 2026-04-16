@@ -108,6 +108,10 @@ The project includes concrete test cases using `native_decide`:
 - Main branch: `main`
 - Create feature branches for new work
 - Use meaningful commit messages with Co-Authored-By line for AI contributions
+- **PR titles must follow conventional commit format**: `type[(scope)]: subject`
+  (e.g. `refactor: extract shared Shift Compose helpers`,
+  `fix(shr): address canonicalization in sign-fill path`). The PR summary bot
+  flags titles that don't match this format.
 
 ## References
 
