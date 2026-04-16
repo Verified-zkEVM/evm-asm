@@ -69,24 +69,24 @@ theorem shr_phase_a_code_sub_ofProg (base : Word) :
   unfold shr_phase_a_code shr_ld_or_acc_code
   apply CodeReq_union_sub_both
   · exact singleton_sub_ofProg base base shr_phase_a (.LD .x5 .x12 8) 0
-      (by decide) (by decide) (by bv_omega) (by decide)
+      (by decide) (by decide) (by simp) (by decide)
   · apply CodeReq_union_sub_both
     · exact CodeReq.ofProg_mono_sub base (base + 4) shr_phase_a (shr_ld_or_acc_prog 16) 1
-        (by bv_omega) (by decide) (by decide) (by decide)
+        (by simp) (by decide) (by decide) (by decide)
     · apply CodeReq_union_sub_both
       · exact CodeReq.ofProg_mono_sub base (base + 12) shr_phase_a (shr_ld_or_acc_prog 24) 3
-          (by bv_omega) (by decide) (by decide) (by decide)
+          (by simp) (by decide) (by decide) (by decide)
       · apply CodeReq_union_sub_both
         · exact singleton_sub_ofProg base (base + 20) shr_phase_a (.BNE .x5 .x0 320) 5
-            (by decide) (by decide) (by bv_omega) (by decide)
+            (by decide) (by decide) (by simp) (by decide)
         · apply CodeReq_union_sub_both
           · exact singleton_sub_ofProg base (base + 24) shr_phase_a (.LD .x5 .x12 0) 6
-              (by decide) (by decide) (by bv_omega) (by decide)
+              (by decide) (by decide) (by simp) (by decide)
           · apply CodeReq_union_sub_both
             · exact singleton_sub_ofProg base (base + 28) shr_phase_a (.SLTIU .x10 .x5 256) 7
-                (by decide) (by decide) (by bv_omega) (by decide)
+                (by decide) (by decide) (by simp) (by decide)
             · exact singleton_sub_ofProg base (base + 32) shr_phase_a (.BEQ .x10 .x0 308) 8
-                (by decide) (by decide) (by bv_omega) (by decide)
+                (by decide) (by decide) (by simp) (by decide)
 
 /-- Bridge: `shr_phase_c_code` (union chain, 5 instrs) ⊆ `ofProg shr_phase_c`. -/
 theorem shr_phase_c_code_sub_ofProg (base : Word) :
@@ -95,11 +95,11 @@ theorem shr_phase_c_code_sub_ofProg (base : Word) :
   unfold shr_phase_c_code shr_cascade_step_code
   apply CodeReq_union_sub_both
   · exact singleton_sub_ofProg base base shr_phase_c (.BEQ .x5 .x0 176) 0
-      (by decide) (by decide) (by bv_omega) (by decide)
+      (by decide) (by decide) (by simp) (by decide)
   · apply CodeReq_union_sub_both
     · exact CodeReq.ofProg_mono_sub base (base + 4) shr_phase_c (shr_cascade_step_prog 1 92) 1
-        (by bv_omega) (by decide) (by decide) (by decide)
+        (by simp) (by decide) (by decide) (by decide)
     · exact CodeReq.ofProg_mono_sub base (base + 12) shr_phase_c (shr_cascade_step_prog 2 32) 3
-        (by bv_omega) (by decide) (by decide) (by decide)
+        (by simp) (by decide) (by decide) (by decide)
 
 end EvmAsm.Evm64
