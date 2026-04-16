@@ -382,7 +382,7 @@ theorem addbackN4_second_carry_one (q v0 v1 v2 v3 u0 u1 u2 u3 : Word)
   have hu_v_lt_qv : val256 u0 u1 u2 u3 + val256 v0 v1 v2 v3 <
       q.toNat * val256 v0 v1 v2 v3 := by nlinarith
   have hq_ge_2 : q.toNat ≥ 2 := by
-    by_contra h; push_neg at h
+    by_contra h; push Not at h
     have : q.toNat * val256 v0 v1 v2 v3 ≤ 1 * val256 v0 v1 v2 v3 :=
       Nat.mul_le_mul_right _ (by omega)
     linarith
@@ -415,7 +415,7 @@ theorem addbackN4_second_carry_one (q v0 v1 v2 v3 u0 u1 u2 u3 : Word)
   -- If carry2 = 0 then hab' gives val256(ab)+val256(v) = val256(ab'_result) < 2^256,
   -- contradicting h_ab1_v_ge.
   have hc2_ge : carry2 ≥ 1 := by
-    by_contra h; push_neg at h
+    by_contra h; push Not at h
     have hc2_zero : carry2 = 0 := by omega
     rw [hc2_zero] at hab'
     -- hab': val256(ab) + val256(v) = val256(ab'_result) + 0 * 2^256
