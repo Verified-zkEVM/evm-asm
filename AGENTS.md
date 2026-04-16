@@ -483,6 +483,94 @@ when comparing structurally similar expressions.
 - For full-path compositions, also bundle the denorm input and frame
   groups as `@[irreducible] def`s
 
+## Double-Addback (_da) Postcondition Pattern
+
+The double-addback fix (BEQ instruction after addback) introduces a second
+addback path when carry=0. The `_da` postconditions use `@[irreducible]`
+definitions at two levels — the iteration function and the postcondition —
+with equation lemmas bridging between the raw spec output and the collapsed
+postcondition. This keeps **producers** cheap (single `rw`) and
+**consumers** cheap (single `xperm_hyp`, no case-split).
+
+### Architecture
+
+```
+iterN3Max_da          @[irreducible]  — collapsed 6-tuple with double-addback
+loopIterPostN3Max_da  @[irreducible]  — loopExitPostN3 with iterN3Max_da values
+```
+
+**Producer** (per-iteration _da spec, e.g., `divK_loop_body_n3_max_unified_j1_da_spec`):
+- Branches on borrow (`by_cases hb`), dispatches to beq or skip sub-spec
+- Wraps postcondition via `rw [← loopIterPostN3Max_da_addback ... hb]` or `_skip`
+- For j=0 call-path: also `rw [loopBodyN3CallAddbackBeqPost_eq_J]` to bridge
+  the j=0-specific variant to the generic-j equation lemma
+
+**Consumer** (per-path composition, e.g., `divK_loop_n3_max_max_da_spec`):
+- `delta loopIterPostN3Max_da loopExitPostN3 loopExitPost at hp` — expands
+  the `@[irreducible]` postcondition to raw atoms with opaque
+  `(iterN3Max_da ...).X` projections
+- `simp only [] at hp ⊢` — normalizes let-bindings
+- Address rewrites + `xperm_hyp hp` — single permutation pass, no case-split
+
+### Equation lemmas (in LoopDefs.lean)
+
+Each postcondition has two equation lemmas proved once:
+
+```lean
+theorem loopIterPostN3Max_da_addback (sp j v0 v1 v2 v3 u0 u1 u2 u3 u_top : Word)
+    (hb : BitVec.ult u_top (mulsubN4_c3 (signExtend12 4095 : Word) ...)) :
+    loopBodyN3AddbackBeqPost sp j (signExtend12 4095) v0 ... u_top =
+    loopIterPostN3Max_da sp j v0 ... u_top := by
+  delta loopIterPostN3Max_da iterN3Max_da iterWithDoubleAddback
+        loopBodyN3AddbackBeqPost loopBodyAddbackBeqPost loopExitPostN3 loopExitPost
+  unfold mulsubN4_c3 at hb; simp only [if_pos hb]; split <;> rfl
+```
+
+The `split <;> rfl` handles the inner carry=0 conditional: after resolving
+the outer borrow `if`, both sides have the same `if carry = 0 then ... else ...`
+structure. `split` case-splits on carry, then `rfl` closes each branch since
+the tuple projections match the conditional values.
+
+### Why this scales
+
+- **No heartbeat issues**: Consumers never expand `iterN3Max_da` (it's
+  `@[irreducible]`), so `simp` and `xperm_hyp` see small terms
+- **Single xperm_hyp**: The connecting function in multi-iteration compositions
+  does ONE permutation pass on ~25 atoms with opaque iter_da projections,
+  identical in cost to the non-_da version
+- **Equation lemmas amortize**: The `delta + simp + split <;> rfl` work is done
+  once per equation lemma, not repeated in every consumer
+
+### Scratch cell handling for unified postconditions
+
+When the outermost iteration (j=2 for N=2, j=3 for N=1) takes the call path,
+it overwrites scratch cells with div128 values. The unified postcondition
+(`loopN2UnifiedPost_da`) must conditionally set scratch values:
+
+```lean
+let scratch_ret := if bltu_2 then (base + 516) else ret_mem
+let scratch_d   := if bltu_2 then v1 else d_mem
+...
+```
+
+After `cases bltu_2`, use `simp only [Bool.false_eq_true, ↓reduceIte]` (max path)
+or `simp only [ite_true]` (call path) to resolve these conditionals before
+`xperm_hyp`.
+
+### BLTU projection for N=k
+
+The BLTU condition for iteration N=k compares `un_{k-1}` (the (k-1)-th
+u-component) with `v_{k-1}`. In the 6-tuple `(q, un0, un1, un2, un3, u4)`, projections are:
+`.1`=q, `.2.1`=un0, `.2.2.1`=un1, `.2.2.2.1`=un2, `.2.2.2.2.1`=un3, `.2.2.2.2.2`=u4.
+The BLTU compares `un_{N-1}` with `v_{N-1}`:
+- N=1: compare `un0` = `.2.1` with `v0`
+- N=2: compare `un1` = `.2.2.1` with `v1`
+- N=3: compare `un2` = `.2.2.2.1` with `v2`
+
+Be careful with the projection depth — off-by-one here causes type mismatches
+that are hard to diagnose (the error appears at the `hbltu` application site,
+far from the definition).
+
 ## Roadmap (PLAN.md)
 
 The project roadmap is maintained in `PLAN.md`. See `CLAUDE.md` for the
