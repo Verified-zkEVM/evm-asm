@@ -36,53 +36,25 @@ open EvmAsm.Rv64
 theorem u_n1_j3_0_eq_j2_4088 (sp : Word) :
     (sp + signExtend12 4056 - (3 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 0 =
     (sp + signExtend12 4056 - (2 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4088 := by
-  simp only [
-    show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide,
-    show signExtend12 (4056 : BitVec 12) = (18446744073709551576 : Word) from by decide,
-    show signExtend12 (4088 : BitVec 12) = (18446744073709551608 : Word) from by decide,
-    show (3 : BitVec 6).toNat = 3 from by decide,
-    show (2 : Word) <<< 3 = (16 : Word) from by decide,
-    show (3 : Word) <<< 3 = (24 : Word) from by decide]
-  bv_omega
+  divmod_addr
 
 /-- j=3 un1 at u_base(3)-8 = j=2 u2 at u_base(2)-16 -/
 theorem u_n1_j3_4088_eq_j2_4080 (sp : Word) :
     (sp + signExtend12 4056 - (3 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4088 =
     (sp + signExtend12 4056 - (2 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4080 := by
-  simp only [
-    show signExtend12 (4056 : BitVec 12) = (18446744073709551576 : Word) from by decide,
-    show signExtend12 (4088 : BitVec 12) = (18446744073709551608 : Word) from by decide,
-    show signExtend12 (4080 : BitVec 12) = (18446744073709551600 : Word) from by decide,
-    show (3 : BitVec 6).toNat = 3 from by decide,
-    show (2 : Word) <<< 3 = (16 : Word) from by decide,
-    show (3 : Word) <<< 3 = (24 : Word) from by decide]
-  bv_omega
+  divmod_addr
 
 /-- j=3 un2 at u_base(3)-16 = j=2 u3 at u_base(2)-24 -/
 theorem u_n1_j3_4080_eq_j2_4072 (sp : Word) :
     (sp + signExtend12 4056 - (3 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4080 =
     (sp + signExtend12 4056 - (2 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4072 := by
-  simp only [
-    show signExtend12 (4056 : BitVec 12) = (18446744073709551576 : Word) from by decide,
-    show signExtend12 (4080 : BitVec 12) = (18446744073709551600 : Word) from by decide,
-    show signExtend12 (4072 : BitVec 12) = (18446744073709551592 : Word) from by decide,
-    show (3 : BitVec 6).toNat = 3 from by decide,
-    show (2 : Word) <<< 3 = (16 : Word) from by decide,
-    show (3 : Word) <<< 3 = (24 : Word) from by decide]
-  bv_omega
+  divmod_addr
 
 /-- j=3 un3 at u_base(3)+4072 = j=2 u_top at u_base(2)+4064 -/
 theorem u_n1_j3_4072_eq_j2_4064 (sp : Word) :
     (sp + signExtend12 4056 - (3 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4072 =
     (sp + signExtend12 4056 - (2 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4064 := by
-  simp only [
-    show signExtend12 (4056 : BitVec 12) = (18446744073709551576 : Word) from by decide,
-    show signExtend12 (4072 : BitVec 12) = (18446744073709551592 : Word) from by decide,
-    show signExtend12 (4064 : BitVec 12) = (18446744073709551584 : Word) from by decide,
-    show (3 : BitVec 6).toNat = 3 from by decide,
-    show (2 : Word) <<< 3 = (16 : Word) from by decide,
-    show (3 : Word) <<< 3 = (24 : Word) from by decide]
-  bv_omega
+  divmod_addr
 
 -- ============================================================================
 -- Address equality lemmas for j=2 output → j=1 input transition
@@ -95,53 +67,25 @@ theorem u_n1_j3_4072_eq_j2_4064 (sp : Word) :
 theorem u_n1_j2_0_eq_j1_4088 (sp : Word) :
     (sp + signExtend12 4056 - (2 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 0 =
     (sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4088 := by
-  simp only [
-    show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide,
-    show signExtend12 (4056 : BitVec 12) = (18446744073709551576 : Word) from by decide,
-    show signExtend12 (4088 : BitVec 12) = (18446744073709551608 : Word) from by decide,
-    show (3 : BitVec 6).toNat = 3 from by decide,
-    show (1 : Word) <<< 3 = (8 : Word) from by decide,
-    show (2 : Word) <<< 3 = (16 : Word) from by decide]
-  bv_omega
+  divmod_addr
 
 /-- j=2 un1 at u_base(2)-8 = j=1 u2 at u_base(1)-16 -/
 theorem u_n1_j2_4088_eq_j1_4080 (sp : Word) :
     (sp + signExtend12 4056 - (2 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4088 =
     (sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4080 := by
-  simp only [
-    show signExtend12 (4056 : BitVec 12) = (18446744073709551576 : Word) from by decide,
-    show signExtend12 (4088 : BitVec 12) = (18446744073709551608 : Word) from by decide,
-    show signExtend12 (4080 : BitVec 12) = (18446744073709551600 : Word) from by decide,
-    show (3 : BitVec 6).toNat = 3 from by decide,
-    show (1 : Word) <<< 3 = (8 : Word) from by decide,
-    show (2 : Word) <<< 3 = (16 : Word) from by decide]
-  bv_omega
+  divmod_addr
 
 /-- j=2 un2 at u_base(2)-16 = j=1 u3 at u_base(1)-24 -/
 theorem u_n1_j2_4080_eq_j1_4072 (sp : Word) :
     (sp + signExtend12 4056 - (2 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4080 =
     (sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4072 := by
-  simp only [
-    show signExtend12 (4056 : BitVec 12) = (18446744073709551576 : Word) from by decide,
-    show signExtend12 (4080 : BitVec 12) = (18446744073709551600 : Word) from by decide,
-    show signExtend12 (4072 : BitVec 12) = (18446744073709551592 : Word) from by decide,
-    show (3 : BitVec 6).toNat = 3 from by decide,
-    show (1 : Word) <<< 3 = (8 : Word) from by decide,
-    show (2 : Word) <<< 3 = (16 : Word) from by decide]
-  bv_omega
+  divmod_addr
 
 /-- j=2 un3 at u_base(2)+4072 = j=1 u_top at u_base(1)+4064 -/
 theorem u_n1_j2_4072_eq_j1_4064 (sp : Word) :
     (sp + signExtend12 4056 - (2 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4072 =
     (sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4064 := by
-  simp only [
-    show signExtend12 (4056 : BitVec 12) = (18446744073709551576 : Word) from by decide,
-    show signExtend12 (4072 : BitVec 12) = (18446744073709551592 : Word) from by decide,
-    show signExtend12 (4064 : BitVec 12) = (18446744073709551584 : Word) from by decide,
-    show (3 : BitVec 6).toNat = 3 from by decide,
-    show (1 : Word) <<< 3 = (8 : Word) from by decide,
-    show (2 : Word) <<< 3 = (16 : Word) from by decide]
-  bv_omega
+  divmod_addr
 
 -- ============================================================================
 -- Address equality lemmas for j=1 output → j=0 input transition
@@ -154,53 +98,25 @@ theorem u_n1_j2_4072_eq_j1_4064 (sp : Word) :
 theorem u_n1_j1_0_eq_j0_4088 (sp : Word) :
     (sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 0 =
     (sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4088 := by
-  simp only [
-    show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide,
-    show signExtend12 (4056 : BitVec 12) = (18446744073709551576 : Word) from by decide,
-    show signExtend12 (4088 : BitVec 12) = (18446744073709551608 : Word) from by decide,
-    show (3 : BitVec 6).toNat = 3 from by decide,
-    show (0 : Word) <<< 3 = (0 : Word) from by decide,
-    show (1 : Word) <<< 3 = (8 : Word) from by decide]
-  bv_omega
+  divmod_addr
 
 /-- j=1 un1 at u_base(1)-8 = j=0 u2 at u_base(0)-16 -/
 theorem u_n1_j1_4088_eq_j0_4080 (sp : Word) :
     (sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4088 =
     (sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4080 := by
-  simp only [
-    show signExtend12 (4056 : BitVec 12) = (18446744073709551576 : Word) from by decide,
-    show signExtend12 (4088 : BitVec 12) = (18446744073709551608 : Word) from by decide,
-    show signExtend12 (4080 : BitVec 12) = (18446744073709551600 : Word) from by decide,
-    show (3 : BitVec 6).toNat = 3 from by decide,
-    show (0 : Word) <<< 3 = (0 : Word) from by decide,
-    show (1 : Word) <<< 3 = (8 : Word) from by decide]
-  bv_omega
+  divmod_addr
 
 /-- j=1 un2 at u_base(1)-16 = j=0 u3 at u_base(0)-24 -/
 theorem u_n1_j1_4080_eq_j0_4072 (sp : Word) :
     (sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4080 =
     (sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4072 := by
-  simp only [
-    show signExtend12 (4056 : BitVec 12) = (18446744073709551576 : Word) from by decide,
-    show signExtend12 (4080 : BitVec 12) = (18446744073709551600 : Word) from by decide,
-    show signExtend12 (4072 : BitVec 12) = (18446744073709551592 : Word) from by decide,
-    show (3 : BitVec 6).toNat = 3 from by decide,
-    show (0 : Word) <<< 3 = (0 : Word) from by decide,
-    show (1 : Word) <<< 3 = (8 : Word) from by decide]
-  bv_omega
+  divmod_addr
 
 /-- j=1 un3 at u_base(1)+4072 = j=0 u_top at u_base(0)+4064 -/
 theorem u_n1_j1_4072_eq_j0_4064 (sp : Word) :
     (sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4072 =
     (sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4064 := by
-  simp only [
-    show signExtend12 (4056 : BitVec 12) = (18446744073709551576 : Word) from by decide,
-    show signExtend12 (4072 : BitVec 12) = (18446744073709551592 : Word) from by decide,
-    show signExtend12 (4064 : BitVec 12) = (18446744073709551584 : Word) from by decide,
-    show (3 : BitVec 6).toNat = 3 from by decide,
-    show (0 : Word) <<< 3 = (0 : Word) from by decide,
-    show (1 : Word) <<< 3 = (8 : Word) from by decide]
-  bv_omega
+  divmod_addr
 
 -- ============================================================================
 -- Unified per-iteration max-path specs: case-split skip/addback internally
