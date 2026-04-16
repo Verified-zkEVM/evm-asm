@@ -20,6 +20,21 @@ open EvmAsm.Rv64
 -- For modCode, blocks 0-1 are at identical positions as divCode.
 -- ============================================================================
 
+/-- Skip the phaseA block when descending into `modCode`: any membership in
+    the phaseB block (left of the remaining union) lifts to membership in
+    `phaseA ∪ (phaseB ∪ rest)`. Used by all 10 `*_sub_modCode` theorems in
+    this file to avoid repeating the disjoint-range incantation. -/
+private theorem sub_modCode_of_phaseB_left (base : Word) (rest : CodeReq) :
+    ∀ a i,
+      CodeReq.ofProg (base + phaseBOff) divK_phaseB a = some i →
+      ((CodeReq.ofProg base (divK_phaseA 1016)).union
+        ((CodeReq.ofProg (base + phaseBOff) divK_phaseB).union rest)) a = some i :=
+  CodeReq.mono_union_right
+    (CodeReq.ofProg_disjoint_range _ _ _ _
+      (fun k1 k2 hk1 hk2 => by
+        simp only [divK_phaseA_len, divK_phaseB_len] at hk1 hk2; bv_omega))
+    (CodeReq.union_mono_left _ _)
+
 theorem divK_phaseB_init1_code_sub_modCode (base : Word) :
     ∀ a i, (divK_phaseB_init1_code (base + 32)) a = some i → (modCode base) a = some i := by
   unfold modCode; simp only [CodeReq.unionAll_cons]
@@ -27,10 +42,7 @@ theorem divK_phaseB_init1_code_sub_modCode (base : Word) :
   have h1 := CodeReq.ofProg_mono_sub (base + 32) (base + 32) divK_phaseB
     (divK_phaseB.take 7) 0
     (by bv_addr) (by decide) (by decide) (by decide) a i h
-  exact CodeReq.mono_union_right
-    (CodeReq.ofProg_disjoint_range _ _ _ _
-      (fun k1 k2 hk1 hk2 => by simp only [divK_phaseA_len, divK_phaseB_len] at hk1 hk2; bv_omega))
-    (CodeReq.union_mono_left _ _) a i h1
+  exact sub_modCode_of_phaseB_left base _ a i h1
 
 theorem divK_phaseB_init2_code_sub_modCode (base : Word) :
     ∀ a i, (divK_phaseB_init2_code (base + 60)) a = some i → (modCode base) a = some i := by
@@ -39,10 +51,7 @@ theorem divK_phaseB_init2_code_sub_modCode (base : Word) :
   have h1 := CodeReq.ofProg_mono_sub (base + 32) (base + 60) divK_phaseB
     (divK_phaseB.drop 7 |>.take 2) 7
     (by bv_addr) (by decide) (by decide) (by decide) a i h
-  exact CodeReq.mono_union_right
-    (CodeReq.ofProg_disjoint_range _ _ _ _
-      (fun k1 k2 hk1 hk2 => by simp only [divK_phaseA_len, divK_phaseB_len] at hk1 hk2; bv_omega))
-    (CodeReq.union_mono_left _ _) a i h1
+  exact sub_modCode_of_phaseB_left base _ a i h1
 
 theorem addi_x5_singleton_sub_modCode (base : Word) :
     ∀ a i, (CodeReq.singleton (base + 68) (.ADDI .x5 .x0 4)) a = some i →
@@ -54,10 +63,7 @@ theorem addi_x5_singleton_sub_modCode (base : Word) :
   rw [show BitVec.ofNat 64 (4 * 9) = (36 : Word) from by decide,
       show (base + 32 : Word) + 36 = base + 68 from by bv_addr] at hlookup
   have h1 := CodeReq.singleton_mono hlookup a i h
-  exact CodeReq.mono_union_right
-    (CodeReq.ofProg_disjoint_range _ _ _ _
-      (fun k1 k2 hk1 hk2 => by simp only [divK_phaseA_len, divK_phaseB_len] at hk1 hk2; bv_omega))
-    (CodeReq.union_mono_left _ _) a i h1
+  exact sub_modCode_of_phaseB_left base _ a i h1
 
 theorem bne_x10_singleton_sub_modCode (base : Word) :
     ∀ a i, (CodeReq.singleton (base + 72) (.BNE .x10 .x0 24)) a = some i →
@@ -69,10 +75,7 @@ theorem bne_x10_singleton_sub_modCode (base : Word) :
   rw [show BitVec.ofNat 64 (4 * 10) = (40 : Word) from by decide,
       show (base + 32 : Word) + 40 = base + 72 from by bv_addr] at hlookup
   have h1 := CodeReq.singleton_mono hlookup a i h
-  exact CodeReq.mono_union_right
-    (CodeReq.ofProg_disjoint_range _ _ _ _
-      (fun k1 k2 hk1 hk2 => by simp only [divK_phaseA_len, divK_phaseB_len] at hk1 hk2; bv_omega))
-    (CodeReq.union_mono_left _ _) a i h1
+  exact sub_modCode_of_phaseB_left base _ a i h1
 
 theorem divK_phaseB_tail_code_sub_modCode (base : Word) :
     ∀ a i, (divK_phaseB_tail_code (base + 96)) a = some i → (modCode base) a = some i := by
@@ -81,10 +84,7 @@ theorem divK_phaseB_tail_code_sub_modCode (base : Word) :
   have h1 := CodeReq.ofProg_mono_sub (base + 32) (base + 96) divK_phaseB
     (divK_phaseB.drop 16) 16
     (by bv_addr) (by decide) (by decide) (by decide) a i h
-  exact CodeReq.mono_union_right
-    (CodeReq.ofProg_disjoint_range _ _ _ _
-      (fun k1 k2 hk1 hk2 => by simp only [divK_phaseA_len, divK_phaseB_len] at hk1 hk2; bv_omega))
-    (CodeReq.union_mono_left _ _) a i h1
+  exact sub_modCode_of_phaseB_left base _ a i h1
 
 -- Address normalization helpers
 theorem mod_phB_off_28 (base : Word) : (base + 32 : Word) + 28 = base + 60 := by bv_addr
@@ -204,10 +204,7 @@ theorem addi_x5_3_sub_modCode (base : Word) :
   rw [show BitVec.ofNat 64 (4 * 11) = (44 : Word) from by decide,
       show (base + 32 : Word) + 44 = base + 76 from by bv_addr] at hlookup
   have h1 := CodeReq.singleton_mono hlookup a i h
-  exact CodeReq.mono_union_right
-    (CodeReq.ofProg_disjoint_range _ _ _ _
-      (fun k1 k2 hk1 hk2 => by simp only [divK_phaseA_len, divK_phaseB_len] at hk1 hk2; bv_omega))
-    (CodeReq.union_mono_left _ _) a i h1
+  exact sub_modCode_of_phaseB_left base _ a i h1
 
 -- BNE x7 x0 16 at base+80 (index 12 of phaseB)
 theorem bne_x7_16_sub_modCode (base : Word) :
@@ -220,10 +217,7 @@ theorem bne_x7_16_sub_modCode (base : Word) :
   rw [show BitVec.ofNat 64 (4 * 12) = (48 : Word) from by decide,
       show (base + 32 : Word) + 48 = base + 80 from by bv_addr] at hlookup
   have h1 := CodeReq.singleton_mono hlookup a i h
-  exact CodeReq.mono_union_right
-    (CodeReq.ofProg_disjoint_range _ _ _ _
-      (fun k1 k2 hk1 hk2 => by simp only [divK_phaseA_len, divK_phaseB_len] at hk1 hk2; bv_omega))
-    (CodeReq.union_mono_left _ _) a i h1
+  exact sub_modCode_of_phaseB_left base _ a i h1
 
 -- ADDI x5 x0 2 at base+84 (index 13 of phaseB)
 theorem addi_x5_2_sub_modCode (base : Word) :
@@ -236,10 +230,7 @@ theorem addi_x5_2_sub_modCode (base : Word) :
   rw [show BitVec.ofNat 64 (4 * 13) = (52 : Word) from by decide,
       show (base + 32 : Word) + 52 = base + 84 from by bv_addr] at hlookup
   have h1 := CodeReq.singleton_mono hlookup a i h
-  exact CodeReq.mono_union_right
-    (CodeReq.ofProg_disjoint_range _ _ _ _
-      (fun k1 k2 hk1 hk2 => by simp only [divK_phaseA_len, divK_phaseB_len] at hk1 hk2; bv_omega))
-    (CodeReq.union_mono_left _ _) a i h1
+  exact sub_modCode_of_phaseB_left base _ a i h1
 
 -- BNE x6 x0 8 at base+88 (index 14 of phaseB)
 theorem bne_x6_8_sub_modCode (base : Word) :
@@ -252,10 +243,7 @@ theorem bne_x6_8_sub_modCode (base : Word) :
   rw [show BitVec.ofNat 64 (4 * 14) = (56 : Word) from by decide,
       show (base + 32 : Word) + 56 = base + 88 from by bv_addr] at hlookup
   have h1 := CodeReq.singleton_mono hlookup a i h
-  exact CodeReq.mono_union_right
-    (CodeReq.ofProg_disjoint_range _ _ _ _
-      (fun k1 k2 hk1 hk2 => by simp only [divK_phaseA_len, divK_phaseB_len] at hk1 hk2; bv_omega))
-    (CodeReq.union_mono_left _ _) a i h1
+  exact sub_modCode_of_phaseB_left base _ a i h1
 
 -- ADDI x5 x0 1 at base+92 (index 15 of phaseB)
 theorem addi_x5_1_sub_modCode (base : Word) :
@@ -268,10 +256,7 @@ theorem addi_x5_1_sub_modCode (base : Word) :
   rw [show BitVec.ofNat 64 (4 * 15) = (60 : Word) from by decide,
       show (base + 32 : Word) + 60 = base + 92 from by bv_addr] at hlookup
   have h1 := CodeReq.singleton_mono hlookup a i h
-  exact CodeReq.mono_union_right
-    (CodeReq.ofProg_disjoint_range _ _ _ _
-      (fun k1 k2 hk1 hk2 => by simp only [divK_phaseA_len, divK_phaseB_len] at hk1 hk2; bv_omega))
-    (CodeReq.union_mono_left _ _) a i h1
+  exact sub_modCode_of_phaseB_left base _ a i h1
 
 -- ============================================================================
 -- MOD Phase B cascade constants and address lemmas
