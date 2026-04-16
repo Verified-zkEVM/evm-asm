@@ -10,6 +10,7 @@
 -/
 
 import EvmAsm.Evm64.Shift.SarSpec
+import EvmAsm.Evm64.Shift.ComposeBase
 import Mathlib.Tactic.Set
 
 open EvmAsm.Rv64.Tactics
@@ -22,9 +23,9 @@ open EvmAsm.Rv64
 -- Section 1: sarCode definition and helpers
 -- ============================================================================
 
--- Sub-program length lemmas (cheap decide on small lists)
+-- `shr_phase_b_len` lives in `ComposeBase` (shared with SHR/SHL).
+-- SAR-specific length lemmas remain local.
 private theorem sar_phase_a_len : sar_phase_a.length = 9 := by decide
-private theorem shr_phase_b_len : shr_phase_b.length = 7 := by decide
 private theorem sar_phase_c_len : sar_phase_c.length = 5 := by decide
 private theorem sar_body_3_prog_len : (sar_body_3_prog 268).length = 8 := by decide
 private theorem sar_body_2_prog_len : (sar_body_2_prog 212).length = 14 := by decide
@@ -54,27 +55,8 @@ abbrev sarCode (base : Word) : CodeReq :=
     CodeReq.ofProg (base + 352) sar_sign_fill_path         -- block 7: 7 instrs at +352
   ]
 
-/-- Weaken concrete register to existential ownership. -/
-private theorem regIs_to_regOwn (r : Reg) (v : Word) : ∀ h, (r ↦ᵣ v) h → (regOwn r) h :=
-  fun _ hp => ⟨v, hp⟩
-
-/-- If each half of a CodeReq union is subsumed by target, so is the union. -/
-private theorem CodeReq_union_sub_both {cr1 cr2 target : CodeReq}
-    (h1 : ∀ a i, cr1 a = some i → target a = some i)
-    (h2 : ∀ a i, cr2 a = some i → target a = some i) :
-    ∀ a i, (cr1.union cr2) a = some i → target a = some i := by
-  intro a i h
-  simp only [CodeReq.union] at h
-  cases h1a : cr1 a with
-  | none => simp [h1a] at h; exact h2 a i h
-  | some v => simp [h1a] at h; subst h; exact h1 a v h1a
-
-private theorem singleton_sub_ofProg (base addr : Word) (prog : List Instr) (instr : Instr) (k : Nat)
-    (hk : k < prog.length) (hbound : 4 * prog.length < 2 ^ 64)
-    (h_addr : addr = base + BitVec.ofNat 64 (4 * k))
-    (h_instr : prog.get ⟨k, hk⟩ = instr) :
-    ∀ a i, CodeReq.singleton addr instr a = some i → (CodeReq.ofProg base prog) a = some i :=
-  CodeReq.singleton_mono (h_instr ▸ CodeReq.ofProg_lookup_addr base prog k addr hk hbound h_addr)
+-- `regIs_to_regOwn`, `CodeReq_union_sub_both`, `singleton_sub_ofProg` now live
+-- in `EvmAsm.Evm64.Shift.ComposeBase` (shared across SHR/SHL/SAR).
 
 -- ============================================================================
 -- Section 2: Subsumption lemmas (via unionAll structural reasoning)

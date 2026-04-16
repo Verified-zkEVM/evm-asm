@@ -7,7 +7,7 @@
   - Body L (L=0..3, shift < 256): Phase A ntaken → B → C(exit L) → body_L → exit
 -/
 
-import EvmAsm.Evm64.Shift.LimbSpec
+import EvmAsm.Evm64.Shift.ComposeBase
 import Mathlib.Tactic.Set
 
 open EvmAsm.Rv64.Tactics
@@ -20,15 +20,12 @@ open EvmAsm.Rv64
 -- Section 1: shrCode definition and helpers
 -- ============================================================================
 
--- Sub-program length lemmas (cheap decide on small lists)
-private theorem shr_phase_a_len : shr_phase_a.length = 9 := by decide
-private theorem shr_phase_b_len : shr_phase_b.length = 7 := by decide
-private theorem shr_phase_c_len : shr_phase_c.length = 5 := by decide
+-- Shared SHR sub-program length lemmas live in `ComposeBase`.
+-- Body-specific length lemmas remain local.
 private theorem shr_body_3_prog_len : (shr_body_3_prog 252).length = 7 := by decide
 private theorem shr_body_2_prog_len : (shr_body_2_prog 200).length = 13 := by decide
 private theorem shr_body_1_prog_len : (shr_body_1_prog 124).length = 19 := by decide
 private theorem shr_body_0_prog_len : (shr_body_0_prog 24).length = 25 := by decide
-private theorem shr_zero_path_len : shr_zero_path.length = 5 := by decide
 
 /-- Skip one ofProg block in a right-nested union via range disjointness. -/
 local macro "skipBlock" : tactic =>
@@ -52,30 +49,8 @@ abbrev shrCode (base : Word) : CodeReq :=
     CodeReq.ofProg (base + 340) shr_zero_path              -- block 7: 5 instrs at +340
   ]
 
-/-- Weaken concrete register to existential ownership. -/
-private theorem regIs_to_regOwn (r : Reg) (v : Word) : ∀ h, (r ↦ᵣ v) h → (regOwn r) h :=
-  fun _ hp => ⟨v, hp⟩
-
-/-- If each half of a CodeReq union is subsumed by target, so is the union. -/
-private theorem CodeReq_union_sub_both {cr1 cr2 target : CodeReq}
-    (h1 : ∀ a i, cr1 a = some i → target a = some i)
-    (h2 : ∀ a i, cr2 a = some i → target a = some i) :
-    ∀ a i, (cr1.union cr2) a = some i → target a = some i := by
-  intro a i h
-  simp only [CodeReq.union] at h
-  cases h1a : cr1 a with
-  | none => simp [h1a] at h; exact h2 a i h
-  | some v => simp [h1a] at h; subst h; exact h1 a v h1a
-
-/-- A singleton at instruction k of a small program is subsumed by its ofProg.
-    Same pattern as the old singleton_sub_shrCode but parametric over any program. -/
-private theorem singleton_sub_ofProg (base addr : Word) (prog : List Instr) (instr : Instr) (k : Nat)
-    (hk : k < prog.length)
-    (hbound : 4 * prog.length < 2 ^ 64)
-    (h_addr : addr = base + BitVec.ofNat 64 (4 * k))
-    (h_instr : prog.get ⟨k, hk⟩ = instr) :
-    ∀ a i, CodeReq.singleton addr instr a = some i → (CodeReq.ofProg base prog) a = some i :=
-  CodeReq.singleton_mono (h_instr ▸ CodeReq.ofProg_lookup_addr base prog k addr hk hbound h_addr)
+-- `regIs_to_regOwn`, `CodeReq_union_sub_both`, `singleton_sub_ofProg` now live
+-- in `EvmAsm.Evm64.Shift.ComposeBase` (shared across SHR/SHL/SAR).
 
 -- ============================================================================
 -- Section 2: Subsumption lemmas (via unionAll structural reasoning)
@@ -85,38 +60,15 @@ private theorem singleton_sub_ofProg (base addr : Word) (prog : List Instr) (ins
 -- decide on small lists), then using structural union monotonicity.
 -- ============================================================================
 
--- Bridge: shr_phase_a_code (union chain) ⊆ ofProg shr_phase_a (9-element list)
-private theorem phase_a_code_sub_ofProg (base : Word) :
-    ∀ a i, shr_phase_a_code base a = some i →
-      (CodeReq.ofProg base shr_phase_a) a = some i := by
-  unfold shr_phase_a_code shr_ld_or_acc_code
-  apply CodeReq_union_sub_both
-  · exact singleton_sub_ofProg base base shr_phase_a (.LD .x5 .x12 8) 0
-      (by decide) (by decide) (by bv_omega) (by decide)
-  · apply CodeReq_union_sub_both
-    · exact CodeReq.ofProg_mono_sub base (base + 4) shr_phase_a (shr_ld_or_acc_prog 16) 1
-        (by bv_omega) (by decide) (by decide) (by decide)
-    · apply CodeReq_union_sub_both
-      · exact CodeReq.ofProg_mono_sub base (base + 12) shr_phase_a (shr_ld_or_acc_prog 24) 3
-          (by bv_omega) (by decide) (by decide) (by decide)
-      · apply CodeReq_union_sub_both
-        · exact singleton_sub_ofProg base (base + 20) shr_phase_a (.BNE .x5 .x0 320) 5
-            (by decide) (by decide) (by bv_omega) (by decide)
-        · apply CodeReq_union_sub_both
-          · exact singleton_sub_ofProg base (base + 24) shr_phase_a (.LD .x5 .x12 0) 6
-              (by decide) (by decide) (by bv_omega) (by decide)
-          · apply CodeReq_union_sub_both
-            · exact singleton_sub_ofProg base (base + 28) shr_phase_a (.SLTIU .x10 .x5 256) 7
-                (by decide) (by decide) (by bv_omega) (by decide)
-            · exact singleton_sub_ofProg base (base + 32) shr_phase_a (.BEQ .x10 .x0 308) 8
-                (by decide) (by decide) (by bv_omega) (by decide)
+-- Phase A union-chain ⊆ ofProg bridge (`shr_phase_a_code_sub_ofProg`) is shared
+-- and lives in `ComposeBase`.
 
 /-- Phase A code (union chain, 9 instrs at +0) is subsumed by shrCode (block 0). -/
 private theorem phase_a_sub_shrCode (base : Word) :
     ∀ a i, shr_phase_a_code base a = some i → shrCode base a = some i := by
   intro a i h
   unfold shrCode; simp only [CodeReq.unionAll_cons]
-  exact CodeReq.union_mono_left _ _ a i (phase_a_code_sub_ofProg base a i h)
+  exact CodeReq.union_mono_left _ _ a i (shr_phase_a_code_sub_ofProg base a i h)
 
 /-- Phase B code (ofProg, 7 instrs at +36) is subsumed by shrCode (block 1). -/
 private theorem phase_b_sub_shrCode (base : Word) :
@@ -125,19 +77,8 @@ private theorem phase_b_sub_shrCode (base : Word) :
   skipBlock
   exact CodeReq.union_mono_left _ _
 
--- Bridge: shr_phase_c_code (union chain) ⊆ ofProg shr_phase_c (5-element list)
-private theorem phase_c_code_sub_ofProg (base : Word) :
-    ∀ a i, shr_phase_c_code base a = some i →
-      (CodeReq.ofProg base shr_phase_c) a = some i := by
-  unfold shr_phase_c_code shr_cascade_step_code
-  apply CodeReq_union_sub_both
-  · exact singleton_sub_ofProg base base shr_phase_c (.BEQ .x5 .x0 176) 0
-      (by decide) (by decide) (by bv_omega) (by decide)
-  · apply CodeReq_union_sub_both
-    · exact CodeReq.ofProg_mono_sub base (base + 4) shr_phase_c (shr_cascade_step_prog 1 92) 1
-        (by bv_omega) (by decide) (by decide) (by decide)
-    · exact CodeReq.ofProg_mono_sub base (base + 12) shr_phase_c (shr_cascade_step_prog 2 32) 3
-        (by bv_omega) (by decide) (by decide) (by decide)
+-- Phase C union-chain ⊆ ofProg bridge (`shr_phase_c_code_sub_ofProg`) is shared
+-- and lives in `ComposeBase`.
 
 /-- ofProg shr_phase_c (block 2) is subsumed by shrCode. -/
 private theorem ofProg_phase_c_sub_shrCode (base : Word) :
@@ -150,7 +91,7 @@ private theorem ofProg_phase_c_sub_shrCode (base : Word) :
 private theorem phase_c_sub_shrCode (base : Word) :
     ∀ a i, shr_phase_c_code (base + 64) a = some i → shrCode base a = some i := by
   intro a i h
-  exact ofProg_phase_c_sub_shrCode base a i (phase_c_code_sub_ofProg (base + 64) a i h)
+  exact ofProg_phase_c_sub_shrCode base a i (shr_phase_c_code_sub_ofProg (base + 64) a i h)
 
 /-- Body 3 code (ofProg, 7 instrs at +84) is subsumed by shrCode (block 3). -/
 private theorem body_3_sub_shrCode (base : Word) :
