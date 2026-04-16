@@ -141,4 +141,196 @@ theorem rlp_phase1_step_spec (v5 v10 : Word)
   exact cpsTriple_seq_cpsBranch_with_perm _ _ _ _ hd _ _ _ target _ (base + 8) _
     (fun _ hp => hp) s1' s2'
 
+/-- Plain variant of `rlp_phase1_step_spec`: drops the `⌜…⌝` dispatch facts,
+    leaving just the register ownership. Simpler to chain when downstream
+    consumers don't need the ult-based discrimination. -/
+theorem rlp_phase1_step_spec_plain (v5 v10 : Word)
+    (k : BitVec 12) (offset : BitVec 13) (base target : Word)
+    (htarget : (base + 4) + signExtend13 offset = target) :
+    let k_val := (0 : Word) + signExtend12 k
+    let code := rlp_phase1_step_code k offset base
+    cpsBranch base code
+      ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10))
+      target ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ k_val))
+      (base + 8) ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ k_val)) :=
+  cpsBranch_consequence _ _ _ _ target _ _ (base + 8) _ _
+    (fun _ hp => hp)
+    (sepConj_strip_pure_end3 _ _ _ _)
+    (sepConj_strip_pure_end3 _ _ _ _)
+    (rlp_phase1_step_spec v5 v10 k offset base target htarget)
+
+-- ============================================================================
+-- Full classifier code: union of four cascade-step CodeReqs
+-- ============================================================================
+
+/-- Code requirement for the full Phase 1 classifier, as a union of the
+    four cascade-step `CodeReq`s. Matches the disjoint-composition
+    structure used in the classifier spec. -/
+abbrev rlp_phase1_classifier_code
+    (off_single off_short_str off_long_str off_short_list : BitVec 13)
+    (base : Word) : CodeReq :=
+  (rlp_phase1_step_code 0x80 off_single base).union
+  ((rlp_phase1_step_code 0xB8 off_short_str (base + 8)).union
+  ((rlp_phase1_step_code 0xC0 off_long_str (base + 16)).union
+  (rlp_phase1_step_code 0xF8 off_short_list (base + 24))))
+
+-- ============================================================================
+-- Spec: full 5-exit classifier
+-- ============================================================================
+
+/-- Two cascade-step `CodeReq`s whose bases are 8 bytes apart are disjoint.
+    Helper for the classifier composition. -/
+private theorem step_code_Disjoint_8 (k1 k2 : BitVec 12) (off1 off2 : BitVec 13)
+    (base : Word) :
+    (rlp_phase1_step_code k1 off1 base).Disjoint
+      (rlp_phase1_step_code k2 off2 (base + 8)) :=
+  CodeReq.Disjoint.union_left
+    (CodeReq.Disjoint.union_right
+      (CodeReq.Disjoint.singleton (by bv_omega) _ _)
+      (CodeReq.Disjoint.singleton (by bv_omega) _ _))
+    (CodeReq.Disjoint.union_right
+      (CodeReq.Disjoint.singleton (by bv_omega) _ _)
+      (CodeReq.Disjoint.singleton (by bv_omega) _ _))
+
+/-- Cascade-step at `base` is disjoint from step at `base + 16`. -/
+private theorem step_code_Disjoint_16 (k1 k2 : BitVec 12) (off1 off2 : BitVec 13)
+    (base : Word) :
+    (rlp_phase1_step_code k1 off1 base).Disjoint
+      (rlp_phase1_step_code k2 off2 (base + 16)) :=
+  CodeReq.Disjoint.union_left
+    (CodeReq.Disjoint.union_right
+      (CodeReq.Disjoint.singleton (by bv_omega) _ _)
+      (CodeReq.Disjoint.singleton (by bv_omega) _ _))
+    (CodeReq.Disjoint.union_right
+      (CodeReq.Disjoint.singleton (by bv_omega) _ _)
+      (CodeReq.Disjoint.singleton (by bv_omega) _ _))
+
+/-- Cascade-step at `base` is disjoint from step at `base + 24`. -/
+private theorem step_code_Disjoint_24 (k1 k2 : BitVec 12) (off1 off2 : BitVec 13)
+    (base : Word) :
+    (rlp_phase1_step_code k1 off1 base).Disjoint
+      (rlp_phase1_step_code k2 off2 (base + 24)) :=
+  CodeReq.Disjoint.union_left
+    (CodeReq.Disjoint.union_right
+      (CodeReq.Disjoint.singleton (by bv_omega) _ _)
+      (CodeReq.Disjoint.singleton (by bv_omega) _ _))
+    (CodeReq.Disjoint.union_right
+      (CodeReq.Disjoint.singleton (by bv_omega) _ _)
+      (CodeReq.Disjoint.singleton (by bv_omega) _ _))
+
+set_option maxHeartbeats 800000 in
+/-- Full 5-exit spec for the Phase 1 classifier.
+
+    Given `x5` holding the prefix byte (arbitrary 64-bit value, no range
+    constraint), `x0 = 0`, and `x10` arbitrary, the classifier reaches one
+    of five exits determined by the cascade:
+
+    | Exit PC  | When                                     |
+    |----------|------------------------------------------|
+    | `e1`     | first BLTU (k=0x80) taken                |
+    | `e2`     | second BLTU (k=0xB8) taken (fell #1)     |
+    | `e3`     | third BLTU (k=0xC0) taken  (fell #1,#2)  |
+    | `e4`     | fourth BLTU (k=0xF8) taken (fell #1..#3) |
+    | `e5`     | fall-through after all four BLTUs        |
+
+    This plain variant drops the dispatch facts; downstream phases can
+    recover them by re-reading the prefix byte or by using a pure-fact
+    variant (planned follow-up). -/
+theorem rlp_phase1_classifier_spec (v5 v10 : Word) (base : Word)
+    (off1 off2 off3 off4 : BitVec 13)
+    (e1 e2 e3 e4 e5 : Word)
+    (he1 : (base + 4) + signExtend13 off1 = e1)
+    (he2 : (base + 12) + signExtend13 off2 = e2)
+    (he3 : (base + 20) + signExtend13 off3 = e3)
+    (he4 : (base + 28) + signExtend13 off4 = e4)
+    (he5 : base + 32 = e5) :
+    let k1 := (0 : Word) + signExtend12 0x80
+    let k2 := (0 : Word) + signExtend12 0xB8
+    let k3 := (0 : Word) + signExtend12 0xC0
+    let k4 := (0 : Word) + signExtend12 0xF8
+    let code := rlp_phase1_classifier_code off1 off2 off3 off4 base
+    cpsNBranch base code
+      ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10))
+      [(e1, (.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ k1)),
+       (e2, (.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ k2)),
+       (e3, (.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ k3)),
+       (e4, (.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ k4)),
+       (e5, (.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ k4))] := by
+  -- Step specs (one per cascade step), with per-step target-address witnesses.
+  -- rlp_phase1_step_spec_plain gives us `cpsBranch base_i (...) e_i (...) (base_i + 8) (...)`.
+  have cs1 := rlp_phase1_step_spec_plain v5 v10 0x80 off1 base e1 he1
+  have cs2 := rlp_phase1_step_spec_plain v5 ((0 : Word) + signExtend12 0x80)
+    0xB8 off2 (base + 8) e2 (by
+      rw [show (base + 8 : Word) + 4 = base + 12 from by bv_omega]; exact he2)
+  have cs3 := rlp_phase1_step_spec_plain v5 ((0 : Word) + signExtend12 0xB8)
+    0xC0 off3 (base + 16) e3 (by
+      rw [show (base + 16 : Word) + 4 = base + 20 from by bv_omega]; exact he3)
+  have cs4 := rlp_phase1_step_spec_plain v5 ((0 : Word) + signExtend12 0xC0)
+    0xF8 off4 (base + 24) e4 (by
+      rw [show (base + 24 : Word) + 4 = base + 28 from by bv_omega]; exact he4)
+  -- Fallthrough after step 4 lands at base + 32 = e5.
+  rw [show (base + 24 : Word) + 8 = e5 from by rw [← he5]; bv_omega] at cs4
+  -- Align cs2/cs3 fallthrough PCs with the next step's base.
+  rw [show (base + 8 : Word) + 8 = base + 16 from by bv_omega] at cs2
+  rw [show (base + 16 : Word) + 8 = base + 24 from by bv_omega] at cs3
+  -- Disjointness between each step's CR and the union of remaining steps' CRs.
+  let cr1 := rlp_phase1_step_code 0x80 off1 base
+  let cr2 := rlp_phase1_step_code 0xB8 off2 (base + 8)
+  let cr3 := rlp_phase1_step_code 0xC0 off3 (base + 16)
+  let cr4 := rlp_phase1_step_code 0xF8 off4 (base + 24)
+  have hd12 : cr1.Disjoint cr2 := step_code_Disjoint_8 _ _ _ _ _
+  have hd13 : cr1.Disjoint cr3 := step_code_Disjoint_16 _ _ _ _ _
+  have hd14 : cr1.Disjoint cr4 := step_code_Disjoint_24 _ _ _ _ _
+  have hd23 : cr2.Disjoint cr3 := by
+    have := step_code_Disjoint_8 0xB8 0xC0 off2 off3 (base + 8)
+    rw [show (base + 8 : Word) + 8 = base + 16 from by bv_omega] at this
+    exact this
+  have hd24 : cr2.Disjoint cr4 := by
+    have := step_code_Disjoint_16 0xB8 0xF8 off2 off4 (base + 8)
+    rw [show (base + 8 : Word) + 16 = base + 24 from by bv_omega] at this
+    exact this
+  have hd34 : cr3.Disjoint cr4 := by
+    have := step_code_Disjoint_8 0xC0 0xF8 off3 off4 (base + 16)
+    rw [show (base + 16 : Word) + 8 = base + 24 from by bv_omega] at this
+    exact this
+  -- Fallthrough cpsNBranch at e5 (zero steps; refl).
+  have ft : cpsNBranch e5 CodeReq.empty
+      ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) **
+       (.x10 ↦ᵣ ((0 : Word) + signExtend12 0xF8)))
+      [(e5, (.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) **
+            (.x10 ↦ᵣ ((0 : Word) + signExtend12 0xF8)))] :=
+    cpsNBranch_refl e5 _ _ (fun _ hp => hp)
+  -- Chain step 4 + fallthrough → cpsNBranch at base+24 with [e4, e5].
+  have n4 := cpsBranch_cons_cpsNBranch (base + 24) cr4 CodeReq.empty
+    (CodeReq.Disjoint.empty_right cr4)
+    _ e4 _ e5 _ _ cs4 ft
+  -- Chain step 3 + n4 → cpsNBranch at base+16 with [e3, e4, e5].
+  have hunion_empty : ∀ (cr : CodeReq), cr.union CodeReq.empty = cr := by
+    intro cr; funext a; simp only [CodeReq.union, CodeReq.empty]; cases cr a <;> rfl
+  have hd3_rest : cr3.Disjoint (cr4.union CodeReq.empty) := by
+    rw [hunion_empty]; exact hd34
+  have n3 := cpsBranch_cons_cpsNBranch (base + 16) cr3 (cr4.union CodeReq.empty)
+    hd3_rest
+    _ e3 _ (base + 24) _ _ cs3 n4
+  -- Chain step 2 + n3 → cpsNBranch at base+8 with [e2, e3, e4, e5].
+  have hd2_rest : cr2.Disjoint (cr3.union (cr4.union CodeReq.empty)) := by
+    rw [hunion_empty]; exact CodeReq.Disjoint.union_right hd23 hd24
+  have n2 := cpsBranch_cons_cpsNBranch (base + 8) cr2
+    (cr3.union (cr4.union CodeReq.empty)) hd2_rest
+    _ e2 _ (base + 16) _ _ cs2 n3
+  -- Chain step 1 + n2 → cpsNBranch at base with [e1, e2, e3, e4, e5].
+  have hd1_rest : cr1.Disjoint (cr2.union (cr3.union (cr4.union CodeReq.empty))) := by
+    rw [hunion_empty]
+    exact CodeReq.Disjoint.union_right hd12 (CodeReq.Disjoint.union_right hd13 hd14)
+  have n1 := cpsBranch_cons_cpsNBranch base cr1
+    (cr2.union (cr3.union (cr4.union CodeReq.empty))) hd1_rest
+    _ e1 _ (base + 8) _ _ cs1 n2
+  -- The CR now is: cr1.union (cr2.union (cr3.union (cr4.union empty))).
+  -- Simplify the trailing `empty` and match the goal's classifier_code.
+  have hcr_eq : cr1.union (cr2.union (cr3.union (cr4.union CodeReq.empty))) =
+      rlp_phase1_classifier_code off1 off2 off3 off4 base := by
+    simp only [hunion_empty]; rfl
+  show cpsNBranch base (rlp_phase1_classifier_code off1 off2 off3 off4 base) _ _
+  exact hcr_eq ▸ n1
+
 end EvmAsm.Rv64.RLP
