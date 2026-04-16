@@ -10,6 +10,7 @@
 
 import EvmAsm.Evm64.DivMod.Compose
 import EvmAsm.Evm64.DivMod.LoopDefs
+import EvmAsm.Evm64.EvmWordArith.DivN4Overestimate
 
 open EvmAsm.Rv64.Tactics
 
@@ -1011,7 +1012,8 @@ theorem divK_double_addback_beq_spec
     (hv_u2 : isValidDwordAccess (u_base + signExtend12 4080) = true)
     (hv_v3 : isValidDwordAccess (sp + signExtend12 56) = true)
     (hv_u3 : isValidDwordAccess (u_base + signExtend12 4072) = true)
-    (hv_u4 : isValidDwordAccess (u_base + signExtend12 4064) = true) :
+    (hv_u4 : isValidDwordAccess (u_base + signExtend12 4064) = true)
+    (hcarry2_nz : addbackN4_carry aun0 aun1 aun2 aun3 v0 v1 v2 v3 ≠ 0) :
     -- Second addback intermediates (same chain as addbackN4 applied to first addback results)
     let upc0' := aun0 + (signExtend12 0 : Word)
     let ac1_0' := if BitVec.ult upc0' (signExtend12 0 : Word) then (1 : Word) else 0
@@ -1073,9 +1075,11 @@ theorem divK_double_addback_beq_spec
     hv_v0 hv_u0 hv_v1 hv_u1 hv_v2 hv_u2 hv_v3 hv_u3 hv_u4
   intro_lets at AB2
   -- 3. BEQ at [108] not taken (carry2 ≠ 0) → base+884
-  -- We sorry the carry2 ≠ 0 condition — proved by addbackN4_second_carry_one
-  -- when the overestimate hypothesis is available
-  have BPT := divK_beq_da_passthrough aco3' base sorry
+  have haco3_nz : aco3' ≠ 0 := by
+    unfold addbackN4_carry at hcarry2_nz
+    simp only [] at hcarry2_nz
+    exact hcarry2_nz
+  have BPT := divK_beq_da_passthrough aco3' base haco3_nz
   -- 4. Compose: BEQ taken (→732) + addback2 (732→880) + BEQ ntaken (880→884)
   -- Frame BEQ with addback atoms
   have beq_f := cpsTriple_frame_left _ _ _ _ _
@@ -1120,7 +1124,8 @@ theorem divK_double_addback_beq_named_spec
     (hv_u2 : isValidDwordAccess (u_base + signExtend12 4080) = true)
     (hv_v3 : isValidDwordAccess (sp + signExtend12 56) = true)
     (hv_u3 : isValidDwordAccess (u_base + signExtend12 4072) = true)
-    (hv_u4 : isValidDwordAccess (u_base + signExtend12 4064) = true) :
+    (hv_u4 : isValidDwordAccess (u_base + signExtend12 4064) = true)
+    (hcarry2_nz : addbackN4_carry aun0 aun1 aun2 aun3 v0 v1 v2 v3 ≠ 0) :
     let ab' := addbackN4 aun0 aun1 aun2 aun3 aun4 v0 v1 v2 v3
     let q_hat'' := q_hat' + signExtend12 4095
     cpsTriple (base + 880) (base + 884) (sharedDivModCode base)
@@ -1141,7 +1146,7 @@ theorem divK_double_addback_beq_named_spec
        ((u_base + signExtend12 4064) ↦ₘ ab'.2.2.2.2)) := by
   intro ab' q_hat''
   exact divK_double_addback_beq_spec sp u_base q_hat' v0 v1 v2 v3 aun0 aun1 aun2 aun3 aun4
-    base hv_v0 hv_u0 hv_v1 hv_u1 hv_v2 hv_u2 hv_v3 hv_u3 hv_u4
+    base hv_v0 hv_u0 hv_v1 hv_u1 hv_v2 hv_u2 hv_v3 hv_u3 hv_u4 hcarry2_nz
 
 set_option maxRecDepth 4096 in
 set_option maxHeartbeats 800000 in
@@ -2039,6 +2044,8 @@ theorem divK_mulsub_correction_addback_beq_spec
     let carry_out := if carry = 0 then
         addbackN4_carry ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 v0 v1 v2 v3
       else carry
+    -- Hypothesis: second addback carry nonzero (only needed if first carry = 0)
+    (carry = 0 → addbackN4_carry ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 v0 v1 v2 v3 ≠ 0) →
     -- Hypothesis: borrow ≠ 0
     (if BitVec.ult u_top c3 then (1 : Word) else 0) ≠ (0 : Word) →
     cpsTriple (base + 516) (base + 884) (sharedDivModCode base)
@@ -2063,7 +2070,7 @@ theorem divK_mulsub_correction_addback_beq_spec
        ((sp + signExtend12 56) ↦ₘ v3) ** ((u_base + signExtend12 4072) ↦ₘ un3_out) **
        ((u_base + signExtend12 4064) ↦ₘ u4_out)) := by
   intro u_base ms c3 carry ab ab' q_out un0_out un1_out un2_out un3_out u4_out carry_out
-        hborrow
+        hcarry2_nz hborrow
   -- 1. Mulsub + first addback (base+516 → base+880)
   have MCA := divK_mulsub_correction_addback_spec sp q_hat j v0 v1 v2 v3 u0 u1 u2 u3 u_top
     v1_old v5_old v6_old v7_old v10_old v2_old base
@@ -2088,10 +2095,12 @@ theorem divK_mulsub_correction_addback_beq_spec
     -- Rewrite carry to 0
     rw [show addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 v0 v1 v2 v3 = (0 : Word) from hcarry] at MCA_N
     -- Use named DA spec (880→884 with addbackN4 projections in postcondition)
+    have hcarry2 : addbackN4_carry ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 v0 v1 v2 v3 ≠ 0 :=
+      hcarry2_nz hcarry
     have DA := divK_double_addback_beq_named_spec sp u_base
       (q_hat + signExtend12 4095) v0 v1 v2 v3
       ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 ab.2.2.2.2
-      base hv_v0 hv_u0 hv_v1 hv_u1 hv_v2 hv_u2 hv_v3 hv_u3 hv_u4
+      base hv_v0 hv_u0 hv_v1 hv_u1 hv_v2 hv_u2 hv_v3 hv_u3 hv_u4 hcarry2
     -- Frame DA with extra atoms from MCA_N postcondition
     have DAf := cpsTriple_frame_left _ _ _ _ _
       ((.x1 ↦ᵣ j) ** (.x10 ↦ᵣ c3) **

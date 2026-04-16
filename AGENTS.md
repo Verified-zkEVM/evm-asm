@@ -78,6 +78,10 @@ When adding or modifying proofs:
 - **Do NOT add `set_option maxHeartbeats` to any file** unless you are in `Evm64/Shift/` composition files (Compose, ShlCompose, SarCompose) for body/path composition proofs. Heartbeat limits are configured globally in `lakefile.toml`.
 - **Do NOT add `set_option maxRecDepth` to any file.** Recursion depth is configured globally in `lakefile.toml`.
 - If a proof times out or hits recursion limits, restructure the proof (e.g., split into smaller lemmas, use intermediate `have` bindings) rather than increasing limits. Increasing `maxRecDepth`/`maxHeartbeats` is almost always a waste of time — the real issue is typically a unification mismatch, wrong argument order, or missing address canonicalization.
+- **Do not bump `maxHeartbeats` to make a slow proof compile.** Large heartbeat budgets just slow experiments — and the effect compounds: every retry, every edit, every CI run pays the cost. Needing monitors or `sleep` loops to wait for a build is itself a symptom that `maxHeartbeats` is too big. If a proof legitimately needs more than the default, it is too complicated — diagnose what is actually slow (a failing `rfl`, a stuck `xperm_hyp`, an accidentally false goal, or an `xperm` target with too many conjuncts) and simplify by:
+  1. Splitting the proof into smaller named lemmas.
+  2. Marking expensive intermediate definitions `@[irreducible]` and proving a small set of lemmas about them, so later proofs unfold via those lemmas instead of re-reducing the body each time.
+  3. Breaking up large `have`s into separate lemmas so the core composition step has fewer atoms to permute.
 - **Exception for Shift composition files**: `set_option maxHeartbeats` up to 6400000 is acceptable for body/path composition proofs (Section 4+) which are bottlenecked by `xperm_hyp` permutation on large atom chains. Subsumption lemmas (Section 2) should NOT need heartbeat overrides — they use structural `unionAll` reasoning.
 
 ## Common Pitfalls

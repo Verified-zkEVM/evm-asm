@@ -103,6 +103,18 @@ def addbackN4_carry (un0 un1 un2 un3 v0 v1 v2 v3 : Word) : Word :=
   let ac2_3 := if BitVec.ult aun3 v3 then (1 : Word) else 0
   ac1_3 ||| ac2_3
 
+/-- The first four limbs of `addbackN4` do not depend on `u4_new`; only the fifth limb does. -/
+theorem addbackN4_fst4_u4_indep (un0 un1 un2 un3 u4 u4' v0 v1 v2 v3 : Word) :
+    (addbackN4 un0 un1 un2 un3 u4 v0 v1 v2 v3).1 =
+      (addbackN4 un0 un1 un2 un3 u4' v0 v1 v2 v3).1 ∧
+    (addbackN4 un0 un1 un2 un3 u4 v0 v1 v2 v3).2.1 =
+      (addbackN4 un0 un1 un2 un3 u4' v0 v1 v2 v3).2.1 ∧
+    (addbackN4 un0 un1 un2 un3 u4 v0 v1 v2 v3).2.2.1 =
+      (addbackN4 un0 un1 un2 un3 u4' v0 v1 v2 v3).2.2.1 ∧
+    (addbackN4 un0 un1 un2 un3 u4 v0 v1 v2 v3).2.2.2.1 =
+      (addbackN4 un0 un1 un2 un3 u4' v0 v1 v2 v3).2.2.2.1 := by
+  refine ⟨rfl, rfl, rfl, rfl⟩
+
 -- ============================================================================
 -- Loop exit postcondition for n
 -- Common assertion shape for both cpsBranch exits (taken/ntaken).
@@ -478,6 +490,24 @@ def isSkipBorrowN1Call (v0 v1 v2 v3 u0 u1 u2 u3 u_top : Word) : Prop :=
 def isAddbackBorrowN1Call (v0 v1 v2 v3 u0 u1 u2 u3 u_top : Word) : Prop :=
   let q_hat := div128Quot u1 u0 v0
   (if BitVec.ult u_top (mulsubN4_c3 q_hat v0 v1 v2 v3 u0 u1 u2 u3) then (1 : Word) else 0) ≠ (0 : Word)
+
+/-- Double-addback progress for given q_hat: if the first addback produces
+    carry 0, the second addback must produce nonzero carry. -/
+def isAddbackCarry2Nz (q_hat v0 v1 v2 v3 u0 u1 u2 u3 u_top : Word) : Prop :=
+  let ms := mulsubN4 q_hat v0 v1 v2 v3 u0 u1 u2 u3
+  let ab := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 (u_top - ms.2.2.2.2) v0 v1 v2 v3
+  addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 v0 v1 v2 v3 = 0 →
+    addbackN4_carry ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 v0 v1 v2 v3 ≠ 0
+
+/-- Specialization of `isAddbackCarry2Nz` for n=1 call path, where
+    `q_hat = div128Quot u1 u0 v0`. -/
+def isAddbackCarry2NzN1Call (v0 v1 v2 v3 u0 u1 u2 u3 u_top : Word) : Prop :=
+  isAddbackCarry2Nz (div128Quot u1 u0 v0) v0 v1 v2 v3 u0 u1 u2 u3 u_top
+
+/-- Specialization of `isAddbackCarry2Nz` for n=1 max path, where
+    `q_hat = signExtend12 4095` (i.e. 2^64-1). -/
+def isAddbackCarry2NzN1Max (v0 v1 v2 v3 u0 u1 u2 u3 u_top : Word) : Prop :=
+  isAddbackCarry2Nz (signExtend12 4095) v0 v1 v2 v3 u0 u1 u2 u3 u_top
 
 -- ============================================================================
 -- Generic j versions of n=1 call path postconditions

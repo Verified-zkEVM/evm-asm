@@ -1708,7 +1708,9 @@ theorem divK_loop_body_n2_max_addback_j0_beq_spec
     (0 : Word) u1 vtop_base u2 v1 v2_old base
     hv_j hv_v0 hv_u0 hv_v1 hv_u1 hv_v2 hv_u2 hv_v3 hv_u3 hv_u4
   intro_lets at MCA
-  have MCA0 := MCA hborrow
+  have hcarry2_nz : addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 v0 v1 v2 v3 = 0 →
+      addbackN4_carry ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 v0 v1 v2 v3 ≠ 0 := sorry
+  have MCA0 := MCA hcarry2_nz hborrow
   have SL := divK_store_loop_j0_spec sp q_out u4_out carry_out q_old base hv_q
   intro_lets at SL
   have TFf := cpsTriple_frame_left _ _ _ _ _
@@ -1844,7 +1846,9 @@ theorem divK_loop_body_n2_call_addback_j0_beq_spec
     rhat2_un0 q0' d_hi q0_dlo q1' (base + 516) base
     hv_j hv_v0 hv_u0 hv_v1 hv_u1 hv_v2 hv_u2 hv_v3 hv_u3 hv_u4
   intro_lets at MCA
-  have MCA0 := MCA hborrow
+  have hcarry2_nz : addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 v0 v1 v2 v3 = 0 →
+      addbackN4_carry ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 v0 v1 v2 v3 ≠ 0 := sorry
+  have MCA0 := MCA hcarry2_nz hborrow
   -- 3. Store + loop exit j=0 (cpsTriple base+884 → base+908)
   have SL := divK_store_loop_j0_spec sp q_out u4_out carry_out q_old base hv_q
   intro_lets at SL
@@ -1953,7 +1957,9 @@ theorem divK_loop_body_n2_max_addback_j1_beq_spec
     (1 : Word) u1 vtop_base u2 v1 v2_old base
     hv_j hv_v0 hv_u0 hv_v1 hv_u1 hv_v2 hv_u2 hv_v3 hv_u3 hv_u4
   intro_lets at MCA
-  have MCA0 := MCA hborrow
+  have hcarry2_nz : addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 v0 v1 v2 v3 = 0 →
+      addbackN4_carry ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 v0 v1 v2 v3 ≠ 0 := sorry
+  have MCA0 := MCA hcarry2_nz hborrow
   have hj_pos : BitVec.slt ((1 : Word) + signExtend12 4095) 0 = false := by decide
   have SL := divK_store_loop_jgt0_spec sp (1 : Word) q_out u4_out carry_out q_old base hv_q hj_pos
   intro_lets at SL
@@ -2086,7 +2092,9 @@ theorem divK_loop_body_n2_call_addback_j1_beq_spec
     rhat2_un0 q0' d_hi q0_dlo q1' (base + 516) base
     hv_j hv_v0 hv_u0 hv_v1 hv_u1 hv_v2 hv_u2 hv_v3 hv_u3 hv_u4
   intro_lets at MCA
-  have MCA0 := MCA hborrow
+  have hcarry2_nz : addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 v0 v1 v2 v3 = 0 →
+      addbackN4_carry ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 v0 v1 v2 v3 ≠ 0 := sorry
+  have MCA0 := MCA hcarry2_nz hborrow
   have hj_pos : BitVec.slt ((1 : Word) + signExtend12 4095) 0 = false := by decide
   have SL := divK_store_loop_jgt0_spec sp (1 : Word) q_out u4_out carry_out q_old base hv_q hj_pos
   intro_lets at SL
@@ -2191,7 +2199,9 @@ theorem divK_loop_body_n2_max_addback_j2_beq_spec
     (2 : Word) u1 vtop_base u2 v1 v2_old base
     hv_j hv_v0 hv_u0 hv_v1 hv_u1 hv_v2 hv_u2 hv_v3 hv_u3 hv_u4
   intro_lets at MCA
-  have MCA0 := MCA hborrow
+  have hcarry2_nz : addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 v0 v1 v2 v3 = 0 →
+      addbackN4_carry ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 v0 v1 v2 v3 ≠ 0 := sorry
+  have MCA0 := MCA hcarry2_nz hborrow
   have hj_pos : BitVec.slt ((2 : Word) + signExtend12 4095) 0 = false := by decide
   have SL := divK_store_loop_jgt0_spec sp (2 : Word) q_out u4_out carry_out q_old base hv_q hj_pos
   intro_lets at SL
@@ -2324,7 +2334,9 @@ theorem divK_loop_body_n2_call_addback_j2_beq_spec
     rhat2_un0 q0' d_hi q0_dlo q1' (base + 516) base
     hv_j hv_v0 hv_u0 hv_v1 hv_u1 hv_v2 hv_u2 hv_v3 hv_u3 hv_u4
   intro_lets at MCA
-  have MCA0 := MCA hborrow
+  have hcarry2_nz : addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 v0 v1 v2 v3 = 0 →
+      addbackN4_carry ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 v0 v1 v2 v3 ≠ 0 := sorry
+  have MCA0 := MCA hcarry2_nz hborrow
   have hj_pos : BitVec.slt ((2 : Word) + signExtend12 4095) 0 = false := by decide
   have SL := divK_store_loop_jgt0_spec sp (2 : Word) q_out u4_out carry_out q_old base hv_q hj_pos
   intro_lets at SL

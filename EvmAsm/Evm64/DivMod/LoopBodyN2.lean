@@ -210,6 +210,11 @@ theorem divK_loop_body_n2_max_addback_spec
     let u_base := sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat
     let q_hat : Word := signExtend12 4095  -- MAX64
     let q_addr := sp + signExtend12 4088 - j <<< (3 : BitVec 6).toNat
+    let ms := mulsubN4 q_hat v0 v1 v2 v3 u0 u1 u2 u3
+    let ab := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 (u_top - ms.2.2.2.2) v0 v1 v2 v3
+    -- Hypothesis: second addback carry nonzero (only needed if first carry = 0)
+    (addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 v0 v1 v2 v3 = 0 →
+      addbackN4_carry ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 v0 v1 v2 v3 ≠ 0) →
     -- Hypothesis: borrow ≠ 0
     (if BitVec.ult u_top (mulsubN4_c3 q_hat v0 v1 v2 v3 u0 u1 u2 u3) then (1 : Word) else 0) ≠ (0 : Word) →
     cpsBranch (base + 448) (sharedDivModCode base)
@@ -226,12 +231,10 @@ theorem divK_loop_body_n2_max_addback_spec
        (q_addr ↦ₘ q_old))
       (base + 448) (loopBodyN2AddbackBeqPost sp j q_hat v0 v1 v2 v3 u0 u1 u2 u3 u_top)
       (base + 908) (loopBodyN2AddbackBeqPost sp j q_hat v0 v1 v2 v3 u0 u1 u2 u3 u_top) := by
-  intro u_base q_hat q_addr hborrow
+  intro u_base q_hat q_addr ms ab hcarry2_nz hborrow
   -- Local lets matching beq_spec structure
-  let ms := mulsubN4 q_hat v0 v1 v2 v3 u0 u1 u2 u3
   let c3 := ms.2.2.2.2
   let carry := addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 v0 v1 v2 v3
-  let ab := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 (u_top - c3) v0 v1 v2 v3
   let ab' := addbackN4 ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 ab.2.2.2.2 v0 v1 v2 v3
   let q_out := if carry = 0 then q_hat + signExtend12 4095 + signExtend12 4095
                else q_hat + signExtend12 4095
@@ -256,7 +259,7 @@ theorem divK_loop_body_n2_max_addback_spec
     j u1 vtop_base u2 v1 v2_old base
     hv_j hv_v0 hv_u0 hv_v1 hv_u1 hv_v2 hv_u2 hv_v3 hv_u3 hv_u4
   intro_lets at MCA
-  have MCA0 := MCA hborrow
+  have MCA0 := MCA hcarry2_nz hborrow
   -- 3. Store loop cpsBranch (base+880 → base+448/904)
   have SL := divK_store_loop_spec sp j q_out u4_out carry_out q_old base hv_q
   intro_lets at SL
@@ -529,6 +532,11 @@ theorem divK_loop_body_n2_call_addback_spec
     let q0' := if BitVec.ult rhat2_un0 q0_dlo then q0c + signExtend12 4095 else q0c
     let q_hat := (q1' <<< (32 : BitVec 6).toNat) ||| q0'
     let q_addr := sp + signExtend12 4088 - j <<< (3 : BitVec 6).toNat
+    let ms := mulsubN4 q_hat v0 v1 v2 v3 u0 u1 u2 u3
+    let ab := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 (u_top - ms.2.2.2.2) v0 v1 v2 v3
+    -- Hypothesis: second addback carry nonzero (only needed if first carry = 0)
+    (addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 v0 v1 v2 v3 = 0 →
+      addbackN4_carry ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 v0 v1 v2 v3 ≠ 0) →
     -- Hypothesis: borrow ≠ 0
     (if BitVec.ult u_top (mulsubN4_c3 q_hat v0 v1 v2 v3 u0 u1 u2 u3) then (1 : Word) else 0) ≠ (0 : Word) →
     cpsBranch (base + 448) (sharedDivModCode base)
@@ -562,12 +570,10 @@ theorem divK_loop_body_n2_call_addback_spec
   intro u_base
         d_hi d_lo div_un1 div_un0 q1 rhat hi1 q1c rhatc q_dlo rhat_un1 q1' rhat'
         cu_rhat_un1 cu_q1_dlo un21 q0 rhat2 hi2 q0c rhat2c q0_dlo rhat2_un0 q0' q_hat
-        q_addr hborrow
+        q_addr ms ab hcarry2_nz hborrow
   -- Local lets matching beq_spec structure
-  let ms := mulsubN4 q_hat v0 v1 v2 v3 u0 u1 u2 u3
   let c3 := ms.2.2.2.2
   let carry := addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 v0 v1 v2 v3
-  let ab := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 (u_top - c3) v0 v1 v2 v3
   let ab' := addbackN4 ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 ab.2.2.2.2 v0 v1 v2 v3
   let q_out := if carry = 0 then q_hat + signExtend12 4095 + signExtend12 4095
                else q_hat + signExtend12 4095
@@ -593,7 +599,7 @@ theorem divK_loop_body_n2_call_addback_spec
     rhat2_un0 q0' d_hi q0_dlo q1' (base + 516) base
     hv_j hv_v0 hv_u0 hv_v1 hv_u1 hv_v2 hv_u2 hv_v3 hv_u3 hv_u4
   intro_lets at MCA
-  have MCA0 := MCA hborrow
+  have MCA0 := MCA hcarry2_nz hborrow
   -- 3. Store loop cpsBranch (base+880 → base+448/904)
   have SL := divK_store_loop_spec sp j q_out u4_out carry_out q_old base hv_q
   intro_lets at SL
