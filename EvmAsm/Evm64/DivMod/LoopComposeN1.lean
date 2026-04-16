@@ -803,10 +803,7 @@ theorem divK_loop_body_n1_max_unified_j3_da_spec
     exact cpsTriple_consequence _ _ _ _ _ _ _
       (fun h hp => hp)
       (fun h hp => by
-        unfold loopIterPostN1Max_da
-        unfold mulsubN4_c3 at hb
-        simp only [if_pos hb]
-        exact hp)
+        rw [← loopIterPostN1Max_da_addback _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
       (J3 hborrow)
   · -- skip path
     have hborrow : (if BitVec.ult u_top (mulsubN4_c3 (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3)
@@ -818,10 +815,7 @@ theorem divK_loop_body_n1_max_unified_j3_da_spec
     exact cpsTriple_consequence _ _ _ _ _ _ _
       (fun h hp => hp)
       (fun h hp => by
-        unfold loopIterPostN1Max_da
-        unfold mulsubN4_c3 at hb
-        simp only [if_neg hb]
-        exact hp)
+        rw [← loopIterPostN1Max_da_skip _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
       (J3 hborrow)
 
 set_option maxRecDepth 4096 in
@@ -874,10 +868,7 @@ theorem divK_loop_body_n1_max_unified_j2_da_spec
     exact cpsTriple_consequence _ _ _ _ _ _ _
       (fun h hp => hp)
       (fun h hp => by
-        unfold loopIterPostN1Max_da
-        unfold mulsubN4_c3 at hb
-        simp only [if_pos hb]
-        exact hp)
+        rw [← loopIterPostN1Max_da_addback _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
       (J2 hborrow)
   · -- skip path
     have hborrow : (if BitVec.ult u_top (mulsubN4_c3 (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3)
@@ -889,10 +880,7 @@ theorem divK_loop_body_n1_max_unified_j2_da_spec
     exact cpsTriple_consequence _ _ _ _ _ _ _
       (fun h hp => hp)
       (fun h hp => by
-        unfold loopIterPostN1Max_da
-        unfold mulsubN4_c3 at hb
-        simp only [if_neg hb]
-        exact hp)
+        rw [← loopIterPostN1Max_da_skip _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
       (J2 hborrow)
 
 set_option maxRecDepth 4096 in
@@ -945,10 +933,7 @@ theorem divK_loop_body_n1_max_unified_j1_da_spec
     exact cpsTriple_consequence _ _ _ _ _ _ _
       (fun h hp => hp)
       (fun h hp => by
-        unfold loopIterPostN1Max_da
-        unfold mulsubN4_c3 at hb
-        simp only [if_pos hb]
-        exact hp)
+        rw [← loopIterPostN1Max_da_addback _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
       (J1 hborrow)
   · -- skip path
     have hborrow : (if BitVec.ult u_top (mulsubN4_c3 (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3)
@@ -960,10 +945,7 @@ theorem divK_loop_body_n1_max_unified_j1_da_spec
     exact cpsTriple_consequence _ _ _ _ _ _ _
       (fun h hp => hp)
       (fun h hp => by
-        unfold loopIterPostN1Max_da
-        unfold mulsubN4_c3 at hb
-        simp only [if_neg hb]
-        exact hp)
+        rw [← loopIterPostN1Max_da_skip _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
       (J1 hborrow)
 
 set_option maxRecDepth 4096 in
@@ -1017,10 +999,7 @@ theorem divK_loop_body_n1_max_unified_j0_da_spec
     exact cpsTriple_consequence _ _ _ _ _ _ _
       (fun h hp => hp)
       (fun h hp => by
-        unfold loopIterPostN1Max_da
-        unfold mulsubN4_c3 at hb
-        simp only [if_pos hb]
-        exact hp)
+        rw [← loopIterPostN1Max_da_addback _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
       (J0 hborrow)
   · -- skip path
     have hborrow : (if BitVec.ult u_top (mulsubN4_c3 (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3)
@@ -1032,10 +1011,7 @@ theorem divK_loop_body_n1_max_unified_j0_da_spec
     exact cpsTriple_consequence _ _ _ _ _ _ _
       (fun h hp => hp)
       (fun h hp => by
-        unfold loopIterPostN1Max_da
-        unfold mulsubN4_c3 at hb
-        simp only [if_neg hb]
-        exact hp)
+        rw [← loopIterPostN1Max_da_skip _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
       (J0 hborrow)
 
 -- ============================================================================
@@ -1103,10 +1079,7 @@ theorem divK_loop_body_n1_call_unified_j3_da_spec
     exact cpsTriple_consequence _ _ _ _ _ _ _
       (fun h hp => hp)
       (fun h hp => by
-        unfold loopIterPostN1Call_da
-        unfold mulsubN4_c3 at hb
-        simp only [if_pos hb]
-        exact hp)
+        rw [← loopIterPostN1Call_da_addback _ _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
       J3
   · -- skip path
     have hborrow : isSkipBorrowN1Call v0 v1 v2 v3 u0 u1 u2 u3 u_top := if_neg hb
@@ -1118,10 +1091,7 @@ theorem divK_loop_body_n1_call_unified_j3_da_spec
     exact cpsTriple_consequence _ _ _ _ _ _ _
       (fun h hp => hp)
       (fun h hp => by
-        unfold loopIterPostN1Call_da
-        unfold mulsubN4_c3 at hb
-        simp only [if_neg hb]
-        exact hp)
+        rw [← loopIterPostN1Call_da_skip _ _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
       J3
 
 set_option maxRecDepth 4096 in
@@ -1185,10 +1155,7 @@ theorem divK_loop_body_n1_call_unified_j2_da_spec
     exact cpsTriple_consequence _ _ _ _ _ _ _
       (fun h hp => hp)
       (fun h hp => by
-        unfold loopIterPostN1Call_da
-        unfold mulsubN4_c3 at hb
-        simp only [if_pos hb]
-        exact hp)
+        rw [← loopIterPostN1Call_da_addback _ _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
       J2
   · -- skip path
     have hborrow : isSkipBorrowN1Call v0 v1 v2 v3 u0 u1 u2 u3 u_top := if_neg hb
@@ -1200,10 +1167,7 @@ theorem divK_loop_body_n1_call_unified_j2_da_spec
     exact cpsTriple_consequence _ _ _ _ _ _ _
       (fun h hp => hp)
       (fun h hp => by
-        unfold loopIterPostN1Call_da
-        unfold mulsubN4_c3 at hb
-        simp only [if_neg hb]
-        exact hp)
+        rw [← loopIterPostN1Call_da_skip _ _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
       J2
 
 set_option maxRecDepth 4096 in
@@ -1267,10 +1231,7 @@ theorem divK_loop_body_n1_call_unified_j1_da_spec
     exact cpsTriple_consequence _ _ _ _ _ _ _
       (fun h hp => hp)
       (fun h hp => by
-        unfold loopIterPostN1Call_da
-        unfold mulsubN4_c3 at hb
-        simp only [if_pos hb]
-        exact hp)
+        rw [← loopIterPostN1Call_da_addback _ _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
       J1
   · -- skip path
     have hborrow : isSkipBorrowN1Call v0 v1 v2 v3 u0 u1 u2 u3 u_top := if_neg hb
@@ -1282,10 +1243,7 @@ theorem divK_loop_body_n1_call_unified_j1_da_spec
     exact cpsTriple_consequence _ _ _ _ _ _ _
       (fun h hp => hp)
       (fun h hp => by
-        unfold loopIterPostN1Call_da
-        unfold mulsubN4_c3 at hb
-        simp only [if_neg hb]
-        exact hp)
+        rw [← loopIterPostN1Call_da_skip _ _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
       J1
 
 set_option maxRecDepth 4096 in
@@ -1350,10 +1308,7 @@ theorem divK_loop_body_n1_call_unified_j0_da_spec
     exact cpsTriple_consequence _ _ _ _ _ _ _
       (fun h hp => hp)
       (fun h hp => by
-        unfold loopIterPostN1Call_da
-        unfold mulsubN4_c3 at hb
-        simp only [if_pos hb]
-        exact hp)
+        rw [← loopIterPostN1Call_da_addback _ _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
       J0
   · -- skip path
     have hborrow : isSkipBorrowN1Call v0 v1 v2 v3 u0 u1 u2 u3 u_top := if_neg hb
@@ -1365,10 +1320,7 @@ theorem divK_loop_body_n1_call_unified_j0_da_spec
     exact cpsTriple_consequence _ _ _ _ _ _ _
       (fun h hp => hp)
       (fun h hp => by
-        unfold loopIterPostN1Call_da
-        unfold mulsubN4_c3 at hb
-        simp only [if_neg hb]
-        exact hp)
+        rw [← loopIterPostN1Call_da_skip _ _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
       J0
 
 end EvmAsm.Evm64
