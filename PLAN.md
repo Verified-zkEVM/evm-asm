@@ -580,9 +580,13 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
 
 ### EL.3 RLP RISC-V Decoder (in progress)
 - **Files**: `EvmAsm/Rv64/RLP/`
-- Phase 1: Prefix classifier (cascade BLTUs, 5 exits) — ⏳ in progress
-  - `rlp_phase1_step_prog` / `rlp_phase1_step_spec` cascade-step building
-    block landed. Full 5-exit `cpsNBranch` composition pending.
+- Phase 1: Prefix classifier (cascade BLTUs, 5 exits) — ✅ plain spec landed
+  - `rlp_phase1_step_spec` (per-step with pure ult fact),
+    `rlp_phase1_step_spec_plain` (strips pure facts),
+    `rlp_phase1_classifier_spec` (full 5-exit `cpsNBranch` at boundaries
+    0x80, 0xB8, 0xC0, 0xF8).
+  - Pure-fact-propagating variant (each exit carries the accumulated
+    `ult`/`¬ult` chain identifying the category) still pending.
 - Phase 2: Length extraction (short inline + long big-endian loop)
 - Phase 3: Single-item flat decode (byte strings only)
 - Phase 4: HINT_READ integration (load RLP input into memory buffer)
