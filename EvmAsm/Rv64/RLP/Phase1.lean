@@ -218,24 +218,41 @@ private theorem step_code_Disjoint_24 (k1 k2 : BitVec 12) (off1 off2 : BitVec 13
       (CodeReq.Disjoint.singleton (by bv_omega) _ _)
       (CodeReq.Disjoint.singleton (by bv_omega) _ _))
 
-set_option maxHeartbeats 800000 in
+/-- Bundled exit postcondition for the Phase 1 classifier: the register-
+    ownership triple with `x10` holding the threshold constant `k`.
+    Wrapped in an `@[irreducible] def` to avoid leaking `let`-bound
+    intermediates into theorem statements — see `AGENTS.md` ("Bundling
+    Postconditions with `let` Bindings"). -/
+@[irreducible]
+def rlp_phase1_exit_post (v5 : Word) (k : BitVec 12) : Assertion :=
+  let k_val := (0 : Word) + signExtend12 k
+  (.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ k_val)
+
+/-- Unfold lemma for `rlp_phase1_exit_post`. Use when a consumer needs the
+    explicit register-ownership form. -/
+theorem rlp_phase1_exit_post_unfold (v5 : Word) (k : BitVec 12) :
+    rlp_phase1_exit_post v5 k =
+    ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) **
+     (.x10 ↦ᵣ ((0 : Word) + signExtend12 k))) := by
+  delta rlp_phase1_exit_post; rfl
+
 /-- Full 5-exit spec for the Phase 1 classifier.
 
     Given `x5` holding the prefix byte (arbitrary 64-bit value, no range
     constraint), `x0 = 0`, and `x10` arbitrary, the classifier reaches one
     of five exits determined by the cascade:
 
-    | Exit PC  | When                                     |
-    |----------|------------------------------------------|
-    | `e1`     | first BLTU (k=0x80) taken                |
-    | `e2`     | second BLTU (k=0xB8) taken (fell #1)     |
-    | `e3`     | third BLTU (k=0xC0) taken  (fell #1,#2)  |
-    | `e4`     | fourth BLTU (k=0xF8) taken (fell #1..#3) |
-    | `e5`     | fall-through after all four BLTUs        |
+    | Exit PC  | When                                     | `x10` on exit |
+    |----------|------------------------------------------|---------------|
+    | `e1`     | first BLTU (k=0x80) taken                | 0x80          |
+    | `e2`     | second BLTU (k=0xB8) taken (fell #1)     | 0xB8          |
+    | `e3`     | third BLTU (k=0xC0) taken  (fell #1,#2)  | 0xC0          |
+    | `e4`     | fourth BLTU (k=0xF8) taken (fell #1..#3) | 0xF8          |
+    | `e5`     | fall-through after all four BLTUs        | 0xF8          |
 
     This plain variant drops the dispatch facts; downstream phases can
     recover them by re-reading the prefix byte or by using a pure-fact
-    variant (planned follow-up). -/
+    variant (`rlp_phase1_classifier_spec_pure`). -/
 theorem rlp_phase1_classifier_spec (v5 v10 : Word) (base : Word)
     (off1 off2 off3 off4 : BitVec 13)
     (e1 e2 e3 e4 e5 : Word)
@@ -244,18 +261,13 @@ theorem rlp_phase1_classifier_spec (v5 v10 : Word) (base : Word)
     (he3 : (base + 20) + signExtend13 off3 = e3)
     (he4 : (base + 28) + signExtend13 off4 = e4)
     (he5 : base + 32 = e5) :
-    let k1 := (0 : Word) + signExtend12 0x80
-    let k2 := (0 : Word) + signExtend12 0xB8
-    let k3 := (0 : Word) + signExtend12 0xC0
-    let k4 := (0 : Word) + signExtend12 0xF8
-    let code := rlp_phase1_classifier_code off1 off2 off3 off4 base
-    cpsNBranch base code
+    cpsNBranch base (rlp_phase1_classifier_code off1 off2 off3 off4 base)
       ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10))
-      [(e1, (.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ k1)),
-       (e2, (.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ k2)),
-       (e3, (.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ k3)),
-       (e4, (.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ k4)),
-       (e5, (.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ k4))] := by
+      [(e1, rlp_phase1_exit_post v5 0x80),
+       (e2, rlp_phase1_exit_post v5 0xB8),
+       (e3, rlp_phase1_exit_post v5 0xC0),
+       (e4, rlp_phase1_exit_post v5 0xF8),
+       (e5, rlp_phase1_exit_post v5 0xF8)] := by
   -- Step specs (one per cascade step), with per-step target-address witnesses.
   -- rlp_phase1_step_spec_plain gives us `cpsBranch base_i (...) e_i (...) (base_i + 8) (...)`.
   have cs1 := rlp_phase1_step_spec_plain v5 v10 0x80 off1 base e1 he1
@@ -330,7 +342,9 @@ theorem rlp_phase1_classifier_spec (v5 v10 : Word) (base : Word)
   have hcr_eq : cr1.union (cr2.union (cr3.union (cr4.union CodeReq.empty))) =
       rlp_phase1_classifier_code off1 off2 off3 off4 base := by
     simp only [hunion_empty]; rfl
-  show cpsNBranch base (rlp_phase1_classifier_code off1 off2 off3 off4 base) _ _
+  -- Unfold the irreducible `rlp_phase1_exit_post` in the goal so n1's
+  -- explicit register-ownership posts match.
+  simp only [rlp_phase1_exit_post_unfold]
   exact hcr_eq ▸ n1
 
 end EvmAsm.Rv64.RLP
