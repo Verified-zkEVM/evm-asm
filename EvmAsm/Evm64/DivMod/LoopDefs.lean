@@ -1769,10 +1769,15 @@ def loopN2UnifiedPost_da (bltu_2 bltu_1 bltu_0 : Bool)
   -- Address bases for j=2 carried atoms
   let u_base_2 := sp + signExtend12 4056 - (2 : Word) <<< (3 : BitVec 6).toNat
   let q_addr_2 := sp + signExtend12 4088 - (2 : Word) <<< (3 : BitVec 6).toNat
+  -- Scratch values: call path overwrites them, max path passes through
+  let scratch_ret := if bltu_2 then (base + 516) else ret_mem
+  let scratch_d := if bltu_2 then v1 else d_mem
+  let scratch_dlo := if bltu_2 then div128DLo v1 else dlo_mem
+  let scratch_un0 := if bltu_2 then div128Un0 u1 else scratch_un0
   -- Two-iteration (j=1,j=0) _da postcondition with j=2's outputs as inputs
   loopN2Iter10Post_da bltu_1 bltu_0 sp base v0 v1 v2 v3
     u0_orig_1 r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1 u0_orig_0
-    ret_mem d_mem dlo_mem scratch_un0 **
+    scratch_ret scratch_d scratch_dlo scratch_un0 **
   -- Carried atoms from j=2
   ((u_base_2 + signExtend12 4064) ↦ₘ r2.2.2.2.2.2) ** (q_addr_2 ↦ₘ r2.1)
 

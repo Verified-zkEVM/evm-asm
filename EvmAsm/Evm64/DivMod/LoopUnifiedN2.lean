@@ -930,7 +930,7 @@ theorem divK_loop_n2_max_iter10_da_spec (bltu_1 bltu_0 : Bool)
     (fun h hp => by delta loopN2PreWithScratch loopN2Pre at hp; xperm_hyp hp)
     (fun h hp => by
       delta loopN2UnifiedPost_da loopN2Iter10Post_da at hp ⊢
-      simp only [iterN2_da_false] at hp ⊢
+      simp only [iterN2_da_false, Bool.false_eq_true, ↓reduceIte] at hp ⊢
       cases bltu_1 <;> cases bltu_0 <;> xperm_hyp hp)
     full
 
@@ -1043,8 +1043,9 @@ theorem divK_loop_n2_call_iter10_da_spec (bltu_1 bltu_0 : Bool)
   exact cpsTriple_consequence _ _ _ _ _ _ _
     (fun h hp => by delta loopN2PreWithScratch loopN2Pre at hp; xperm_hyp hp)
     (fun h hp => by
-      -- TODO: loopN2UnifiedPost_da scratch cell handling for call path needs fixing
-      sorry)
+      delta loopN2UnifiedPost_da loopN2Iter10Post_da at hp ⊢
+      simp only [iterN2_da_true, ite_true] at hp ⊢
+      cases bltu_1 <;> cases bltu_0 <;> xperm_hyp hp)
     full
 
 -- ============================================================================
