@@ -604,8 +604,11 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
   - `rlp_phase2_long_load_acc_spec` (`EvmAsm/Rv64/RLP/Phase2LongLoad.lean`):
     three-instruction `LBU x12, x13, 0` prefix over the accumulation
     step. Reads one byte from `mem[x13]` and folds it into `x11`.
-  - Full long-form loop (pointer/counter advance, branch-back,
-    invariant) still pending.
+  - `rlp_phase2_long_iter_spec` (`EvmAsm/Rv64/RLP/Phase2LongIter.lean`):
+    five-instruction full loop body (no back-branch) adding pointer
+    advance (`ADDI x13, x13, 1`) and counter decrement
+    (`ADDI x14, x14, -1`) on top of load-accumulate.
+  - Full long-form loop (BNE back-branch + loop invariant) still pending.
 - Phase 3: Single-item flat decode (byte strings only)
 - Phase 4: HINT_READ integration (load RLP input into memory buffer)
 - Phase 5: Recursive list decode (iterative with explicit stack)
