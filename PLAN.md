@@ -580,16 +580,18 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
 
 ### EL.3 RLP RISC-V Decoder (in progress)
 - **Files**: `EvmAsm/Rv64/RLP/`
-- Phase 1: Prefix classifier (cascade BLTUs, 5 exits) — ✅ both variants landed
+- Phase 1: Prefix classifier (cascade BLTUs, 5 exits) — ✅ all three variants landed
   - `rlp_phase1_step_spec` (per-step with pure ult fact),
-    `rlp_phase1_step_spec_plain` (strips pure facts).
+    `rlp_phase1_step_spec_plain` (strips pure facts),
+    `rlp_phase1_step_spec_acc` (frames with accumulator, merges into single `⌜Acc ∧ …⌝`).
   - `rlp_phase1_classifier_spec` — plain 5-exit `cpsNBranch` at boundaries
     0x80, 0xB8, 0xC0, 0xF8 (no dispatch facts).
   - `rlp_phase1_classifier_spec_pure` — per-step dispatch facts at each
-    exit (`⌜ult v5 k_i⌝` for taken exits, `⌜¬ ult v5 k4⌝` for fall-through).
-  - Optional accumulated-chain variant (each exit carries *all* prior
-    negations plus the current taken fact) not yet implemented; downstream
-    phases that only need the current-step fact can use `_pure` as-is.
+    exit (`⌜ult v5 k_i⌝` for taken, `⌜¬ ult v5 k4⌝` for fall-through).
+  - `rlp_phase1_classifier_spec_acc` — full accumulated-chain variant:
+    each exit carries the complete conjunction of prior `¬ult` facts plus
+    (for taken exits) the current `ult` fact. Enables downstream range
+    proofs like `0x80 ≤ p < 0xB8` at exit `e2`.
 - Phase 2: Length extraction — ⏳ short form landed
   - `rlp_phase2_short_length_spec` (`EvmAsm/Rv64/RLP/Phase2Short.lean`):
     one-instruction `ADDI x11, x5, -k` extractor for short byte strings

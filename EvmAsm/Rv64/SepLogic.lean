@@ -1288,6 +1288,40 @@ theorem sepConj_extract_pure_end3 (A B C : Assertion) (P : Prop) :
     obtain ⟨_, _, _, _, _, h3⟩ := h2
     exact ((sepConj_pure_right _ _ _).1 h3).2
 
+/-- Push the outer atom of a 4-chain left-associated `(3-chain) ** D`
+    into the right-associated 4-chain — the inverse of the tree shape
+    `cpsBranch_frame_left` produces when framing a 3-atom pre with a
+    single-atom frame:
+    `A ** B ** C ** D → (A ** B ** C) ** D`.
+
+    Useful to reconcile `cpsBranch_frame_left` output with a theorem
+    statement written in right-associated form. -/
+theorem sepConj_chain_push_outer (A B C D : Assertion) :
+    ∀ h, (A ** B ** C ** D) h → ((A ** B ** C) ** D) h := by
+  intro h hp
+  refine (sepConj_assoc _ _ _ _).mpr ?_
+  refine sepConj_mono_right ?_ _ hp
+  intro h' hp'
+  exact (sepConj_assoc _ _ _ _).mpr hp'
+
+/-- Merge a trailing framed pure fact into the existing pure fact at depth 3,
+    swapping the order:
+    `(A ** B ** C ** ⌜P⌝) ** ⌜Q⌝ → A ** B ** C ** ⌜Q ∧ P⌝`.
+
+    The outer left-associated shape is what `cpsBranch_frame_left` produces
+    when framed with `⌜Q⌝`; the right-associated output is what downstream
+    consumers with a single accumulated pure fact expect. -/
+theorem sepConj_merge_pure_and_end3 (A B C : Assertion) (P Q : Prop) :
+    ∀ h, ((A ** B ** C ** ⌜P⌝) ** ⌜Q⌝) h → (A ** B ** C ** ⌜Q ∧ P⌝) h := by
+  intro h hp
+  obtain ⟨hL, hR, _hdLR, huLR, hL_prop, ⟨eR, hQ⟩⟩ := hp
+  subst eR
+  rw [PartialState.union_empty_right] at huLR
+  subst huLR
+  refine sepConj_mono_right (sepConj_mono_right (sepConj_mono_right ?_)) _ hL_prop
+  intro h' ⟨eh, hP⟩
+  exact ⟨eh, hQ, hP⟩
+
 -- ============================================================================
 -- CompatibleWith decomposition through unions
 -- ============================================================================
