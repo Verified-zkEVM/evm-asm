@@ -22,6 +22,7 @@ open EvmAsm.Rv64
 -- n=3, BLTU not-taken (max path) + BEQ skip, j=0 → cpsTriple to base+904
 -- ============================================================================
 
+set_option maxRecDepth 4096 in
 /-- Loop body cpsTriple for n=3, max+skip, j=0.
     Since j=0, the BGE loop-back is not taken, giving a cpsTriple to base+904. -/
 theorem divK_loop_body_n3_max_skip_j0_spec
@@ -124,6 +125,7 @@ theorem divK_loop_body_n3_max_skip_j0_spec
 -- n=3, BLTU taken (call path) + BEQ skip, j=0 → cpsTriple to base+904
 -- ============================================================================
 
+set_option maxRecDepth 4096 in
 /-- Loop body cpsTriple for n=3, call+skip, j=0.
     Since j=0, the BGE loop-back is not taken, giving a cpsTriple to base+904. -/
 theorem divK_loop_body_n3_call_skip_j0_spec
@@ -256,6 +258,7 @@ theorem divK_loop_body_n3_call_skip_j0_spec
 -- n=3, BLTU not-taken (max path) + BEQ skip, j=1 → cpsTriple to base+448
 -- ============================================================================
 
+set_option maxRecDepth 4096 in
 /-- Loop body cpsTriple for n=3, max+skip, j=1.
     Since j=1, the BGE loop-back is taken (j' = 0 ≥ 0), giving a cpsTriple to base+448. -/
 theorem divK_loop_body_n3_max_skip_j1_spec
@@ -359,6 +362,7 @@ theorem divK_loop_body_n3_max_skip_j1_spec
 -- n=3, BLTU taken (call path) + BEQ skip, j=1 → cpsTriple to base+448
 -- ============================================================================
 
+set_option maxRecDepth 4096 in
 /-- Loop body cpsTriple for n=3, call+skip, j=1.
     Since j=1, the BGE loop-back is taken, giving a cpsTriple to base+448. -/
 theorem divK_loop_body_n3_call_skip_j1_spec
@@ -492,6 +496,7 @@ theorem divK_loop_body_n3_call_skip_j1_spec
 -- BEQ variants: n=3, max+addback+beq, j=0 → cpsTriple to base+908
 -- ============================================================================
 
+set_option maxRecDepth 4096 in
 /-- Loop body cpsTriple for n=3, max+addback+beq, j=0.
     Uses divK_mulsub_correction_addback_beq_spec to eliminate sorry. -/
 theorem divK_loop_body_n3_max_addback_beq_j0_spec
@@ -581,6 +586,7 @@ theorem divK_loop_body_n3_max_addback_beq_j0_spec
 -- BEQ variants: n=3, call+addback+beq, j=0 → cpsTriple to base+908
 -- ============================================================================
 
+set_option maxRecDepth 4096 in
 /-- Loop body cpsTriple for n=3, call+addback+beq, j=0.
     Uses divK_mulsub_correction_addback_beq_spec to eliminate sorry. -/
 theorem divK_loop_body_n3_call_addback_beq_j0_spec
@@ -712,6 +718,7 @@ theorem divK_loop_body_n3_call_addback_beq_j0_spec
 -- BEQ variants: n=3, max+addback+beq, j=1 → cpsTriple to base+448
 -- ============================================================================
 
+set_option maxRecDepth 4096 in
 /-- Loop body cpsTriple for n=3, max+addback+beq, j=1.
     Uses divK_mulsub_correction_addback_beq_spec to eliminate sorry. -/
 theorem divK_loop_body_n3_max_addback_beq_j1_spec
@@ -802,6 +809,7 @@ theorem divK_loop_body_n3_max_addback_beq_j1_spec
 -- BEQ variants: n=3, call+addback+beq, j=1 → cpsTriple to base+448
 -- ============================================================================
 
+set_option maxRecDepth 4096 in
 /-- Loop body cpsTriple for n=3, call+addback+beq, j=1.
     Uses divK_mulsub_correction_addback_beq_spec to eliminate sorry. -/
 theorem divK_loop_body_n3_call_addback_beq_j1_spec

@@ -73,10 +73,10 @@ private theorem lb_ms_end (base : Word) : (base + 668 : Word) + 44 = base + 712 
 -- Composes 4 × divK_mulsub_limb_spec using seqFrame for automatic framing.
 -- ============================================================================
 
+set_option maxRecDepth 4096 in
 /-- Multiply-subtract all 4 limbs: u[j+k] -= q_hat * v[k] for k=0..3 with carry chain.
     44 instructions, loop body indices [22]-[65].
     Entry: base+536, Exit: base+712, CodeReq: sharedDivModCode base. -/
-set_option maxRecDepth 4096 in
 theorem divK_mulsub_4limbs_spec
     (sp u_base q_hat v0 v1 v2 v3 u0 u1 u2 u3 : Word)
     (v5_init v7_init v2_init : Word)
@@ -242,10 +242,10 @@ private theorem lb_ab2_end (base : Word) : (base + 800 : Word) + 32 = base + 832
 private theorem lb_ab3_end (base : Word) : (base + 832 : Word) + 32 = base + 864 := by bv_addr
 private theorem lb_abf_end (base : Word) : (base + 864 : Word) + 16 = base + 880 := by bv_addr
 
+set_option maxRecDepth 4096 in
 /-- Full add-back correction: init carry + 4 limb corrections + final u[j+4] adjust + q_hat--.
     37 instructions, loop body indices [71]-[107].
     Entry: base+732, Exit: base+880, CodeReq: sharedDivModCode base. -/
-set_option maxRecDepth 4096 in
 theorem divK_addback_full_spec
     (sp u_base q_hat v0 v1 v2 v3 u0 u1 u2 u3 u4 : Word)
     (v7_init v5_init v2_init : Word)
@@ -400,10 +400,10 @@ private theorem lb_ms_setup (base : Word) : (base + 516 : Word) + 20 = base + 53
 -- Address normalization for sub_carry
 private theorem lb_sc (base : Word) : (base + 712 : Word) + 16 = base + 728 := by bv_addr
 
+set_option maxRecDepth 4096 in
 /-- Mulsub full: setup + 4-limb multiply-subtract + carry subtraction from u[j+4].
     53 instructions, loop body indices [17]-[69].
     Entry: base+516, Exit: base+728, CodeReq: sharedDivModCode base. -/
-set_option maxRecDepth 4096 in
 theorem divK_mulsub_full_spec
     (sp q_hat j v0 v1 v2 v3 u0 u1 u2 u3 u_top : Word)
     (v1_old v5_old v6_old v7_old v10_old v2_old : Word)
@@ -1549,10 +1549,10 @@ theorem divK_mulsub_correction_addback_named_880_spec
   exact (divK_mulsub_correction_addback_880_spec sp q_hat j v0 v1 v2 v3 u0 u1 u2 u3 u_top
     v1_old v5_old v6_old v7_old v10_old v2_old base) hborrow
 
+set_option maxRecDepth 4096 in
 /-- Mulsub + correction addback + BEQ passthrough: when mulsub produces borrow≠0,
     run addback, then BEQ falls through (carry ≠ 0).
     Entry: base+516, Exit: base+884, CodeReq: sharedDivModCode base. -/
-set_option maxRecDepth 4096 in
 theorem divK_mulsub_correction_addback_spec
     (sp q_hat j v0 v1 v2 v3 u0 u1 u2 u3 u_top : Word)
     (v1_old v5_old v6_old v7_old v10_old v2_old : Word)
@@ -1681,10 +1681,10 @@ theorem divK_mulsub_correction_addback_spec
 -- Entry: base+448, Exit: base+516 with x11 = MAX64.
 -- ============================================================================
 
+set_option maxRecDepth 4096 in
 /-- Trial quotient max path: save j + load + BLTU not-taken + trial_max.
     When u_hi >= v_top, sets q_hat = MAX64 without calling div128.
     Entry: base+448, Exit: base+516, CodeReq: sharedDivModCode base. -/
-set_option maxRecDepth 4096 in
 theorem divK_trial_max_full_spec
     (sp j n j_old v5_old v6_old v7_old v10_old v11_old u_hi u_lo v_top : Word)
     (base : Word)
@@ -1745,10 +1745,10 @@ theorem divK_trial_max_full_spec
 -- Entry: base+448, Exit: base+516, CodeReq: sharedDivModCode base.
 -- ============================================================================
 
+set_option maxRecDepth 4096 in
 /-- Trial quotient call path: save j + load + BLTU taken + JAL + div128.
     When u_hi < v_top, computes q_hat = div128(u_hi, u_lo, v_top).
     Entry: base+448, Exit: base+516, CodeReq: sharedDivModCode base. -/
-set_option maxRecDepth 4096 in
 theorem divK_trial_call_full_spec
     (sp j n j_old v5_old v6_old v7_old v10_old v11_old v2_old u_hi u_lo v_top : Word)
     (ret_mem d_mem dlo_mem un0_mem : Word)

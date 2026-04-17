@@ -19,6 +19,7 @@ open EvmAsm.Rv64
 
 -- n=1, max+addback BEQ, j=0
 
+set_option maxRecDepth 4096 in
 theorem divK_loop_body_n1_max_addback_j0_beq_spec
     (sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
      v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old : Word)
@@ -100,6 +101,7 @@ theorem divK_loop_body_n1_max_addback_j0_beq_spec
 
 -- n=1, max+addback BEQ, j=3
 
+set_option maxRecDepth 4096 in
 theorem divK_loop_body_n1_max_addback_j3_beq_spec
     (sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
      v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old : Word)
@@ -182,6 +184,7 @@ theorem divK_loop_body_n1_max_addback_j3_beq_spec
 
 -- n=1, max+addback BEQ, j=1
 
+set_option maxRecDepth 4096 in
 theorem divK_loop_body_n1_max_addback_j1_beq_spec
     (sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
      v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old : Word)
@@ -264,6 +267,7 @@ theorem divK_loop_body_n1_max_addback_j1_beq_spec
 
 -- n=1, max+addback BEQ, j=2
 
+set_option maxRecDepth 4096 in
 theorem divK_loop_body_n1_max_addback_j2_beq_spec
     (sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
      v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old : Word)
