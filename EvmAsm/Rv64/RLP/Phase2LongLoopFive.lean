@@ -65,11 +65,6 @@ theorem rlp_phase2_long_loop_five_byte_spec
     (hvalid4 : isValidByteAccess (ptr + 3) = true)
     (hvalid5 : isValidByteAccess (ptr + 4) = true)
     (hback : (base + 20) + signExtend13 back = base) :
-    let byte1 := (extractByte word_val (byteOffset ptr)).zeroExtend 64
-    let byte2 := (extractByte word_val (byteOffset (ptr + 1))).zeroExtend 64
-    let byte3 := (extractByte word_val (byteOffset (ptr + 2))).zeroExtend 64
-    let byte4 := (extractByte word_val (byteOffset (ptr + 3))).zeroExtend 64
-    let byte5 := (extractByte word_val (byteOffset (ptr + 4))).zeroExtend 64
     cpsTriple base (base + 24)
       (CodeReq.ofProg base (rlp_phase2_long_loop_body_prog back))
       ((.x11 ↦ᵣ len) ** (.x13 ↦ᵣ ptr) ** (.x14 ↦ᵣ (5 : Word)) **
