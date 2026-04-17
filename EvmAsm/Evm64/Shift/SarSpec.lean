@@ -33,9 +33,7 @@ abbrev sar_last_limb_code (base : Word) (dst_off : BitVec 12) : CodeReq :=
     Computes: result = BitVec.sshiftRight value[3] bit_shift
     Mirror of shr_last_limb_spec with SRA (arithmetic shift right). -/
 theorem sar_last_limb_spec (dst_off : BitVec 12)
-    (sp src dst_old v5 bit_shift : Word) (base : Word)
-    (hvalid_src : isValidDwordAccess (sp + signExtend12 (24 : BitVec 12)) = true)
-    (hvalid_dst : isValidDwordAccess (sp + signExtend12 dst_off) = true) :
+    (sp src dst_old v5 bit_shift : Word) (base : Word) :
     let mem_src := sp + signExtend12 (24 : BitVec 12)
     let mem_dst := sp + signExtend12 dst_off
     let result := BitVec.sshiftRight src (bit_shift.toNat % 64)
@@ -45,9 +43,9 @@ theorem sar_last_limb_spec (dst_off : BitVec 12)
        (mem_src ↦ₘ src) ** (mem_dst ↦ₘ dst_old))
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result) ** (.x6 ↦ᵣ bit_shift) **
        (mem_src ↦ₘ src) ** (mem_dst ↦ₘ result)) := by
-  have L := ld_spec_gen .x5 .x12 sp v5 src 24 base (by nofun) hvalid_src
+  have L := ld_spec_gen .x5 .x12 sp v5 src 24 base (by nofun)
   have SA := sra_spec_gen_rd_eq_rs1 .x5 .x6 src bit_shift (base + 4) (by nofun)
-  have SD_ := sd_spec_gen .x12 .x5 sp (BitVec.sshiftRight src (bit_shift.toNat % 64)) dst_old dst_off (base + 8) hvalid_dst
+  have SD_ := sd_spec_gen .x12 .x5 sp (BitVec.sshiftRight src (bit_shift.toNat % 64)) dst_old dst_off (base + 8)
   runBlock L SA SD_
 
 -- ============================================================================
@@ -63,17 +61,16 @@ abbrev sar_last_limb_inplace_code (base : Word) : CodeReq :=
     LD x5, 24(x12); SRA x5,x5,x6; SD x12,x5,24
     Reads and writes the same memory cell at sp+24. -/
 theorem sar_last_limb_inplace_spec
-    (sp src v5 bit_shift : Word) (base : Word)
-    (hvalid : isValidDwordAccess (sp + signExtend12 (24 : BitVec 12)) = true) :
+    (sp src v5 bit_shift : Word) (base : Word) :
     let mem := sp + signExtend12 (24 : BitVec 12)
     let result := BitVec.sshiftRight src (bit_shift.toNat % 64)
     let cr := sar_last_limb_inplace_code base
     cpsTriple base (base + 12) cr
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ bit_shift) ** (mem ↦ₘ src))
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result) ** (.x6 ↦ᵣ bit_shift) ** (mem ↦ₘ result)) := by
-  have L := ld_spec_gen .x5 .x12 sp v5 src 24 base (by nofun) hvalid
+  have L := ld_spec_gen .x5 .x12 sp v5 src 24 base (by nofun)
   have SA := sra_spec_gen_rd_eq_rs1 .x5 .x6 src bit_shift (base + 4) (by nofun)
-  have SD_ := sd_spec_gen .x12 .x5 sp (BitVec.sshiftRight src (bit_shift.toNat % 64)) src 24 (base + 8) hvalid
+  have SD_ := sd_spec_gen .x12 .x5 sp (BitVec.sshiftRight src (bit_shift.toNat % 64)) src 24 (base + 8)
   runBlock L SA SD_
 
 -- ============================================================================
@@ -103,12 +100,12 @@ theorem sar_body_3_spec (sp : Word)
        (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ sign_ext) ** (.x11 ↦ᵣ mask) **
        (sp ↦ₘ result0) ** ((sp + 8) ↦ₘ sign_ext) ** ((sp + 16) ↦ₘ sign_ext) ** ((sp + 24) ↦ₘ sign_ext)) := by
   have h63 : (63 : BitVec 6).toNat = 63 := by decide
-  have LL := sar_last_limb_spec 0 sp v3 v0 v5 bit_shift base (by validMem) (by validMem)
+  have LL := sar_last_limb_spec 0 sp v3 v0 v5 bit_shift base
   have SR := srai_spec_gen .x10 .x5 v10 (BitVec.sshiftRight v3 (bit_shift.toNat % 64)) 63 (base + 12) (by nofun)
   simp only [h63] at SR
-  have S0 := sd_spec_gen .x12 .x10 sp (BitVec.sshiftRight (BitVec.sshiftRight v3 (bit_shift.toNat % 64)) 63) v1 8 (base + 16) (by validMem)
-  have S1 := sd_spec_gen .x12 .x10 sp (BitVec.sshiftRight (BitVec.sshiftRight v3 (bit_shift.toNat % 64)) 63) v2 16 (base + 20) (by validMem)
-  have S2 := sd_spec_gen .x12 .x10 sp (BitVec.sshiftRight (BitVec.sshiftRight v3 (bit_shift.toNat % 64)) 63) v3 24 (base + 24) (by validMem)
+  have S0 := sd_spec_gen .x12 .x10 sp (BitVec.sshiftRight (BitVec.sshiftRight v3 (bit_shift.toNat % 64)) 63) v1 8 (base + 16)
+  have S1 := sd_spec_gen .x12 .x10 sp (BitVec.sshiftRight (BitVec.sshiftRight v3 (bit_shift.toNat % 64)) 63) v2 16 (base + 20)
+  have S2 := sd_spec_gen .x12 .x10 sp (BitVec.sshiftRight (BitVec.sshiftRight v3 (bit_shift.toNat % 64)) 63) v3 24 (base + 24)
   have JL := jal_x0_spec_gen jal_off (base + 28)
   rw [hexit] at JL
   runBlock LL SR S0 S1 S2 JL
@@ -139,18 +136,18 @@ theorem sar_body_2_spec (sp : Word)
        (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ sign_ext) ** (.x11 ↦ᵣ mask) **
        (sp ↦ₘ result0) ** ((sp + 8) ↦ₘ result1) ** ((sp + 16) ↦ₘ sign_ext) ** ((sp + 24) ↦ₘ sign_ext)) := by
   have h63 : (63 : BitVec 6).toNat = 63 := by decide
-  have MM := shr_merge_limb_spec 16 24 0 sp v2 v3 v0 v5 v10 bit_shift anti_shift mask base (by validMem) (by validMem) (by validMem)
+  have MM := shr_merge_limb_spec 16 24 0 sp v2 v3 v0 v5 v10 bit_shift anti_shift mask base
   have LL := sar_last_limb_spec 8 sp v3 v1
     ((v2 >>> (bit_shift.toNat % 64)) ||| ((v3 <<< (anti_shift.toNat % 64)) &&& mask))
-    bit_shift (base + 28) (by validMem) (by validMem)
+    bit_shift (base + 28)
   have SR := srai_spec_gen .x10 .x5
     ((v3 <<< (anti_shift.toNat % 64)) &&& mask)
     (BitVec.sshiftRight v3 (bit_shift.toNat % 64)) 63 (base + 40) (by nofun)
   simp only [h63] at SR
   have S0 := sd_spec_gen .x12 .x10 sp
-    (BitVec.sshiftRight (BitVec.sshiftRight v3 (bit_shift.toNat % 64)) 63) v2 16 (base + 44) (by validMem)
+    (BitVec.sshiftRight (BitVec.sshiftRight v3 (bit_shift.toNat % 64)) 63) v2 16 (base + 44)
   have S1 := sd_spec_gen .x12 .x10 sp
-    (BitVec.sshiftRight (BitVec.sshiftRight v3 (bit_shift.toNat % 64)) 63) v3 24 (base + 48) (by validMem)
+    (BitVec.sshiftRight (BitVec.sshiftRight v3 (bit_shift.toNat % 64)) 63) v3 24 (base + 48)
   have JL := jal_x0_spec_gen jal_off (base + 52)
   rw [hexit] at JL
   runBlock MM LL SR S0 S1 JL
@@ -182,20 +179,20 @@ theorem sar_body_1_spec (sp : Word)
        (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ sign_ext) ** (.x11 ↦ᵣ mask) **
        (sp ↦ₘ result0) ** ((sp + 8) ↦ₘ result1) ** ((sp + 16) ↦ₘ result2) ** ((sp + 24) ↦ₘ sign_ext)) := by
   have h63 : (63 : BitVec 6).toNat = 63 := by decide
-  have MM1 := shr_merge_limb_spec 8 16 0 sp v1 v2 v0 v5 v10 bit_shift anti_shift mask base (by validMem) (by validMem) (by validMem)
+  have MM1 := shr_merge_limb_spec 8 16 0 sp v1 v2 v0 v5 v10 bit_shift anti_shift mask base
   have MM2 := shr_merge_limb_spec 16 24 8 sp v2 v3 v1
     ((v1 >>> (bit_shift.toNat % 64)) ||| ((v2 <<< (anti_shift.toNat % 64)) &&& mask))
     ((v2 <<< (anti_shift.toNat % 64)) &&& mask)
-    bit_shift anti_shift mask (base + 28) (by validMem) (by validMem) (by validMem)
+    bit_shift anti_shift mask (base + 28)
   have LL := sar_last_limb_spec 16 sp v3 v2
     ((v2 >>> (bit_shift.toNat % 64)) ||| ((v3 <<< (anti_shift.toNat % 64)) &&& mask))
-    bit_shift (base + 56) (by validMem) (by validMem)
+    bit_shift (base + 56)
   have SR := srai_spec_gen .x10 .x5
     ((v3 <<< (anti_shift.toNat % 64)) &&& mask)
     (BitVec.sshiftRight v3 (bit_shift.toNat % 64)) 63 (base + 68) (by nofun)
   simp only [h63] at SR
   have S0 := sd_spec_gen .x12 .x10 sp
-    (BitVec.sshiftRight (BitVec.sshiftRight v3 (bit_shift.toNat % 64)) 63) v3 24 (base + 72) (by validMem)
+    (BitVec.sshiftRight (BitVec.sshiftRight v3 (bit_shift.toNat % 64)) 63) v3 24 (base + 72)
   have JL := jal_x0_spec_gen jal_off (base + 76)
   rw [hexit] at JL
   runBlock MM1 MM2 LL SR S0 JL
@@ -227,18 +224,18 @@ theorem sar_body_0_spec (sp : Word)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result3) ** (.x6 ↦ᵣ bit_shift) **
        (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ ((v3 <<< (anti_shift.toNat % 64)) &&& mask)) ** (.x11 ↦ᵣ mask) **
        (sp ↦ₘ result0) ** ((sp + 8) ↦ₘ result1) ** ((sp + 16) ↦ₘ result2) ** ((sp + 24) ↦ₘ result3)) := by
-  have MM1 := shr_merge_limb_inplace_spec 0 8 sp v0 v1 v5 v10 bit_shift anti_shift mask base (by validMem) (by validMem)
+  have MM1 := shr_merge_limb_inplace_spec 0 8 sp v0 v1 v5 v10 bit_shift anti_shift mask base
   have MM2 := shr_merge_limb_inplace_spec 8 16 sp v1 v2
     ((v0 >>> (bit_shift.toNat % 64)) ||| ((v1 <<< (anti_shift.toNat % 64)) &&& mask))
     ((v1 <<< (anti_shift.toNat % 64)) &&& mask)
-    bit_shift anti_shift mask (base + 28) (by validMem) (by validMem)
+    bit_shift anti_shift mask (base + 28)
   have MM3 := shr_merge_limb_inplace_spec 16 24 sp v2 v3
     ((v1 >>> (bit_shift.toNat % 64)) ||| ((v2 <<< (anti_shift.toNat % 64)) &&& mask))
     ((v2 <<< (anti_shift.toNat % 64)) &&& mask)
-    bit_shift anti_shift mask (base + 56) (by validMem) (by validMem)
+    bit_shift anti_shift mask (base + 56)
   have LL := sar_last_limb_inplace_spec sp v3
     ((v2 >>> (bit_shift.toNat % 64)) ||| ((v3 <<< (anti_shift.toNat % 64)) &&& mask))
-    bit_shift (base + 84) (by validMem)
+    bit_shift (base + 84)
   have JL := jal_x0_spec_gen jal_off (base + 96)
   rw [hexit] at JL
   runBlock MM1 MM2 MM3 LL JL
@@ -265,8 +262,7 @@ abbrev sar_sign_fill_path_code (base : Word) : CodeReq :=
 theorem sar_sign_fill_path_spec (sp : Word)
     (v5 v10 : Word)
     (v0 v1 v2 v3 : Word)
-    (base : Word) (hvalid_v3 : isValidDwordAccess (sp + signExtend12 (56 : BitVec 12)) = true)
-    (hvalid : ValidMemRange (sp + 32) 4) :
+    (base : Word) :
     let sign_ext := BitVec.sshiftRight v3 63
     let cr := sar_sign_fill_path_code base
     cpsTriple base (base + 28) cr
@@ -275,15 +271,15 @@ theorem sar_sign_fill_path_spec (sp : Word)
       ((.x12 ↦ᵣ (sp + 32)) ** (.x5 ↦ᵣ sign_ext) ** (.x10 ↦ᵣ v10) **
        ((sp + 32) ↦ₘ sign_ext) ** ((sp + 40) ↦ₘ sign_ext) ** ((sp + 48) ↦ₘ sign_ext) ** ((sp + 56) ↦ₘ sign_ext)) := by
   have h63 : (63 : BitVec 6).toNat = 63 := by decide
-  have LD0 := ld_spec_gen .x5 .x12 sp v5 v3 56 base (by nofun) hvalid_v3
+  have LD0 := ld_spec_gen .x5 .x12 sp v5 v3 56 base (by nofun)
   have SR := srai_spec_gen_same .x5 v3 63 (base + 4) (by nofun)
   simp only [h63] at SR
   have AD := addi_spec_gen_same .x12 sp 32 (base + 8) (by nofun)
   simp only [signExtend12_32] at AD
-  have S0 := sd_spec_gen .x12 .x5 (sp + 32) (BitVec.sshiftRight v3 63) v0 0 (base + 12) (by validMem)
-  have S1 := sd_spec_gen .x12 .x5 (sp + 32) (BitVec.sshiftRight v3 63) v1 8 (base + 16) (by validMem)
-  have S2 := sd_spec_gen .x12 .x5 (sp + 32) (BitVec.sshiftRight v3 63) v2 16 (base + 20) (by validMem)
-  have S3 := sd_spec_gen .x12 .x5 (sp + 32) (BitVec.sshiftRight v3 63) v3 24 (base + 24) (by validMem)
+  have S0 := sd_spec_gen .x12 .x5 (sp + 32) (BitVec.sshiftRight v3 63) v0 0 (base + 12)
+  have S1 := sd_spec_gen .x12 .x5 (sp + 32) (BitVec.sshiftRight v3 63) v1 8 (base + 16)
+  have S2 := sd_spec_gen .x12 .x5 (sp + 32) (BitVec.sshiftRight v3 63) v2 16 (base + 20)
+  have S3 := sd_spec_gen .x12 .x5 (sp + 32) (BitVec.sshiftRight v3 63) v3 24 (base + 24)
   runBlock LD0 SR AD S0 S1 S2 S3
 
 end EvmAsm.Evm64

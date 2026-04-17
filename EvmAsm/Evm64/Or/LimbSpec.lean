@@ -17,9 +17,7 @@ open EvmAsm.Rv64
 
 /-- Per-limb OR spec (4 instructions: LD x7, LD x6, OR x7 x7 x6, SD x12 x7). -/
 theorem or_limb_spec (off_a off_b : BitVec 12)
-    (sp a_limb b_limb v7 v6 : Word) (base : Word)
-    (hvalid_a : isValidDwordAccess (sp + signExtend12 off_a) = true)
-    (hvalid_b : isValidDwordAccess (sp + signExtend12 off_b) = true) :
+    (sp a_limb b_limb v7 v6 : Word) (base : Word) :
     let mem_a := sp + signExtend12 off_a
     let mem_b := sp + signExtend12 off_b
     let cr :=

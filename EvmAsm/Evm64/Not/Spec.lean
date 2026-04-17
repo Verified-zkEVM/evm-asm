@@ -37,10 +37,10 @@ theorem evm_not_spec (sp base : Word)
        (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ (a3 ^^^ c)) **
        (sp ↦ₘ (a0 ^^^ c)) ** ((sp + 8) ↦ₘ (a1 ^^^ c)) ** ((sp + 16) ↦ₘ (a2 ^^^ c)) ** ((sp + 24) ↦ₘ (a3 ^^^ c))) := by
   -- Compose 4 per-limb NOT specs via runBlock (manual mode with address normalization)
-  have L0 := not_limb_spec 0 sp a0 v7 base (by validMem)
-  have L1 := not_limb_spec 8 sp a1 (a0 ^^^ signExtend12 (-1 : BitVec 12)) (base + 12) (by validMem)
-  have L2 := not_limb_spec 16 sp a2 (a1 ^^^ signExtend12 (-1 : BitVec 12)) (base + 24) (by validMem)
-  have L3 := not_limb_spec 24 sp a3 (a2 ^^^ signExtend12 (-1 : BitVec 12)) (base + 36) (by validMem)
+  have L0 := not_limb_spec 0 sp a0 v7 base
+  have L1 := not_limb_spec 8 sp a1 (a0 ^^^ signExtend12 (-1 : BitVec 12)) (base + 12)
+  have L2 := not_limb_spec 16 sp a2 (a1 ^^^ signExtend12 (-1 : BitVec 12)) (base + 24)
+  have L3 := not_limb_spec 24 sp a3 (a2 ^^^ signExtend12 (-1 : BitVec 12)) (base + 36)
   runBlock L0 L1 L2 L3
 
 -- ============================================================================

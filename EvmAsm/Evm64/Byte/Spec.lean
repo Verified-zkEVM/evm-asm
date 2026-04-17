@@ -319,10 +319,7 @@ theorem evm_byte_zero_high_spec (sp base : Word)
   have hv32 : ValidMemRange (sp + 32) 4 := validMem_value_portion hvalid
   -- Step 1: OR-reduce (base → base+20) → extend to evm_byte_code
   have hOR := cpsTriple_extend_code (byte_phase_a_sub base)
-    (byte_phase_a_or_reduce_spec sp r5 r10 i1 i2 i3 base
-      (by simp only [signExtend12_8]; exact hv8)
-      (by simp only [signExtend12_16]; exact hv16)
-      (by simp only [signExtend12_24]; exact hv24))
+    (byte_phase_a_or_reduce_spec sp r5 r10 i1 i2 i3 base)
   simp only [signExtend12_8, signExtend12_16, signExtend12_24] at hOR
   -- Frame OR-reduce with remaining state
   have hOR_f := cpsTriple_frame_left base (base + 20) _ _ _
@@ -350,7 +347,7 @@ theorem evm_byte_zero_high_spec (sp base : Word)
     (fun h hp => by xperm_hyp hp) hOR_f hbne_framed
   -- Step 3: Zero path (base+160 → base+180) → extend to evm_byte_code
   have hzp := cpsTriple_extend_code (byte_zero_path_sub base)
-    (byte_zero_path_spec sp v0 v1 v2 v3 (base + 160) hvalid)
+    (byte_zero_path_spec sp v0 v1 v2 v3 (base + 160))
   simp only [signExtend12_32] at hzp
   rw [byte_off_160_20] at hzp
   -- Frame zero path with remaining state
@@ -412,10 +409,7 @@ theorem evm_byte_zero_geq32_spec (sp base : Word)
   have hv32 : ValidMemRange (sp + 32) 4 := validMem_value_portion hvalid
   -- Step 1: OR-reduce (base → base+20) → extend to evm_byte_code
   have hOR := cpsTriple_extend_code (byte_phase_a_sub base)
-    (byte_phase_a_or_reduce_spec sp r5 r10 i1 i2 i3 base
-      (by simp only [signExtend12_8]; exact hv8)
-      (by simp only [signExtend12_16]; exact hv16)
-      (by simp only [signExtend12_24]; exact hv24))
+    (byte_phase_a_or_reduce_spec sp r5 r10 i1 i2 i3 base)
   simp only [signExtend12_8, signExtend12_16, signExtend12_24] at hOR
   -- Frame OR-reduce with remaining state
   have hOR_f := cpsTriple_frame_left base (base + 20) _ _ _
@@ -442,7 +436,6 @@ theorem evm_byte_zero_geq32_spec (sp base : Word)
     (fun h hp => by xperm_hyp hp) hOR_f hbne_framed
   -- Step 3: LD x5 x12 0 at base+24
   have hld_raw := ld_spec_gen .x5 .x12 sp (i1 ||| i2 ||| i3) i0 0 (base + 24) (by nofun)
-    (by simp only [signExtend12_0]; rw [show sp + (0 : Word) = sp from by bv_omega]; exact hv0)
   simp only [signExtend12_0] at hld_raw
   rw [show sp + (0 : Word) = sp from by bv_omega, byte_off_24] at hld_raw
   have hld := cpsTriple_extend_code (byte_ld0_sub base) hld_raw
@@ -490,7 +483,7 @@ theorem evm_byte_zero_geq32_spec (sp base : Word)
     (fun h hp => by xperm_hyp hp) h1234 hbeq_framed
   -- Step 6: Zero path (base+160 → base+180)
   have hzp := cpsTriple_extend_code (byte_zero_path_sub base)
-    (byte_zero_path_spec sp v0 v1 v2 v3 (base + 160) hvalid)
+    (byte_zero_path_spec sp v0 v1 v2 v3 (base + 160))
   simp only [signExtend12_32] at hzp
   rw [byte_off_160_20] at hzp
   have hzp_framed := cpsTriple_frame_left (base + 160) (base + 180) _ _ _
@@ -599,10 +592,7 @@ theorem evm_byte_body_evmWord_spec (sp base : Word)
   have ha56' : (sp + 32 : Word) + 24 = sp + 56 := by bv_omega
   -- Phase A: OR-reduce (base → base+20)
   have hOR := cpsTriple_extend_code (byte_phase_a_sub base)
-    (byte_phase_a_or_reduce_spec sp r5 r10 i1 i2 i3 base
-      (by simp only [signExtend12_8]; exact hv8)
-      (by simp only [signExtend12_16]; exact hv16)
-      (by simp only [signExtend12_24]; exact hv24))
+    (byte_phase_a_or_reduce_spec sp r5 r10 i1 i2 i3 base)
   simp only [signExtend12_8, signExtend12_16, signExtend12_24] at hOR
   have hOR_f := cpsTriple_frame_left base (base + 20) _ _ _
     ((.x6 ↦ᵣ r6) ** (.x0 ↦ᵣ (0 : Word)) **
@@ -625,7 +615,6 @@ theorem evm_byte_body_evmWord_spec (sp base : Word)
     (fun h hp => by xperm_hyp hp) hOR_f hbne_framed
   -- LD x5 x12 0 at base+24
   have hld_raw := ld_spec_gen .x5 .x12 sp (i1 ||| i2 ||| i3) i0 0 (base + 24) (by nofun)
-    (by simp only [signExtend12_0]; rw [show sp + (0 : Word) = sp from by bv_omega]; exact hv0)
   simp only [signExtend12_0] at hld_raw
   rw [show sp + (0 : Word) = sp from by bv_omega, byte_off_24] at hld_raw
   have hld := cpsTriple_extend_code (byte_ld0_sub base) hld_raw
@@ -696,22 +685,22 @@ theorem evm_byte_body_evmWord_spec (sp base : Word)
   have hv56_single : isValidDwordAccess (sp + signExtend12 (56 : BitVec 12)) = true := by
     simp only [signExtend12_56]; have := hvalid.get (i := 7) (by omega); simpa using this
   -- Body 3 spec (load from sp+32, i.e. limb 0 = v0)
-  have hbody3_raw := byte_body_3_spec sp limb_from_msb shift_amount v0 (base + 76) hv32_single
+  have hbody3_raw := byte_body_3_spec sp limb_from_msb shift_amount v0 (base + 76)
   rw [byte_body_3_exit_eq] at hbody3_raw
   simp only [signExtend12_32] at hbody3_raw
   have hbody3 := cpsTriple_extend_code (byte_body_3_sub base) hbody3_raw
   -- Body 2 spec (load from sp+40, i.e. limb 1 = v1)
-  have hbody2_raw := byte_body_2_spec sp limb_from_msb shift_amount v1 (base + 92) hv40_single
+  have hbody2_raw := byte_body_2_spec sp limb_from_msb shift_amount v1 (base + 92)
   rw [byte_body_2_exit_eq] at hbody2_raw
   simp only [signExtend12_40] at hbody2_raw
   have hbody2 := cpsTriple_extend_code (byte_body_2_sub base) hbody2_raw
   -- Body 1 spec (load from sp+48, i.e. limb 2 = v2)
-  have hbody1_raw := byte_body_1_spec sp limb_from_msb shift_amount v2 (base + 108) hv48_single
+  have hbody1_raw := byte_body_1_spec sp limb_from_msb shift_amount v2 (base + 108)
   rw [byte_body_1_exit_eq] at hbody1_raw
   simp only [signExtend12_48] at hbody1_raw
   have hbody1 := cpsTriple_extend_code (byte_body_1_sub base) hbody1_raw
   -- Body 0 spec (load from sp+56, i.e. limb 3 = v3)
-  have hbody0_raw := byte_body_0_spec sp limb_from_msb shift_amount v3 (base + 124) hv56_single
+  have hbody0_raw := byte_body_0_spec sp limb_from_msb shift_amount v3 (base + 124)
   simp only [signExtend12_56] at hbody0_raw
   have hbody0_exit : (base + 124 : Word) + 12 = base + 136 := by bv_omega
   rw [hbody0_exit] at hbody0_raw
@@ -884,7 +873,7 @@ theorem evm_byte_body_evmWord_spec (sp base : Word)
       ((.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ x10v) **
        (sp ↦ₘ i0) ** ((sp + 8) ↦ₘ i1) ** ((sp + 16) ↦ₘ i2) ** ((sp + 24) ↦ₘ i3))
       (by pcFree) hbodyRaw
-    have hstore_raw := byte_store_spec sp resV v0 v1 v2 v3 (base + 136) hvalid
+    have hstore_raw := byte_store_spec sp resV v0 v1 v2 v3 (base + 136)
     rw [byte_store_exit_eq] at hstore_raw; simp only [signExtend12_32] at hstore_raw
     have hstore := cpsTriple_extend_code (byte_store_sub base) hstore_raw
     have hstore_f := cpsTriple_frame_left (base + 136) (base + 180) _ _ _

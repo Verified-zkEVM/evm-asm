@@ -117,16 +117,7 @@ set_option maxRecDepth 2048 in
 theorem evm_mod_phaseB_n4_spec (sp base : Word)
     (b1 b2 b3 : Word) (v5 v6 v7 : Word)
     (q0 q1 q2 q3 u5 u6 u7 n_mem : Word)
-    (hb3nz : b3 ≠ 0)
-    (hvalid : ValidMemRange sp 8)
-    (hv_q0 : isValidDwordAccess (sp + signExtend12 4088) = true)
-    (hv_q1 : isValidDwordAccess (sp + signExtend12 4080) = true)
-    (hv_q2 : isValidDwordAccess (sp + signExtend12 4072) = true)
-    (hv_q3 : isValidDwordAccess (sp + signExtend12 4064) = true)
-    (hv_u5 : isValidDwordAccess (sp + signExtend12 4016) = true)
-    (hv_u6 : isValidDwordAccess (sp + signExtend12 4008) = true)
-    (hv_u7 : isValidDwordAccess (sp + signExtend12 4000) = true)
-    (hv_n  : isValidDwordAccess (sp + signExtend12 3984) = true) :
+    (hb3nz : b3 ≠ 0) :
     cpsTriple (base + 32) (base + 116) (modCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ b3) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
@@ -146,7 +137,6 @@ theorem evm_mod_phaseB_n4_spec (sp base : Word)
        ((sp + signExtend12 3984) ↦ₘ (4 : Word))) := by
   -- ---- Step 1: init1 (base+32 → base+60) — zero q[0..3] and u[5..7]
   have hinit1_raw := divK_phaseB_init1_spec sp (base + 32) q0 q1 q2 q3 u5 u6 u7
-    hv_q0 hv_q1 hv_q2 hv_q3 hv_u5 hv_u6 hv_u7
   simp only [mod_phB_off_28] at hinit1_raw
   have hinit1 := cpsTriple_extend_code (divK_phaseB_init1_code_sub_modCode base) hinit1_raw
   have hinit1f := cpsTriple_frame_left _ _ _ _ _
@@ -155,7 +145,7 @@ theorem evm_mod_phaseB_n4_spec (sp base : Word)
      ((sp + signExtend12 3984) ↦ₘ n_mem))
     (by pcFree) hinit1
   -- ---- Step 2: init2 (base+60 → base+68) — load b[1], b[2]
-  have hinit2_raw := divK_phaseB_init2_spec sp (base + 60) b1 b2 v6 v7 hvalid
+  have hinit2_raw := divK_phaseB_init2_spec sp (base + 60) b1 b2 v6 v7
   simp only [mod_phB_i2_8] at hinit2_raw
   have hinit2 := cpsTriple_extend_code (divK_phaseB_init2_code_sub_modCode base) hinit2_raw
   seqFrame hinit1f hinit2
@@ -175,11 +165,7 @@ theorem evm_mod_phaseB_n4_spec (sp base : Word)
   have hbne := cpsTriple_extend_code (bne_x10_singleton_sub_modCode base) hbne_clean
   seqFrame hinit1fhinit2haddi hbne
   -- ---- Step 5: Tail (base+96 → base+116) — store n=4, load leading limb b[3]
-  have hv_limb : isValidDwordAccess
-      ((sp + ((4 : Word) + signExtend12 (4095 : BitVec 12)) <<< (3 : BitVec 6).toNat)
-       + signExtend12 (32 : BitVec 12)) = true := by
-    rw [mod_phB_sp24_32]; exact hvalid.get (show 7 < 8 from by omega)
-  have htail_raw := divK_phaseB_tail_spec sp (4 : Word) b3 n_mem (base + 96) hv_n hv_limb
+  have htail_raw := divK_phaseB_tail_spec sp (4 : Word) b3 n_mem (base + 96)
   simp only [mod_phB_t_20, mod_phB_sp24_32] at htail_raw
   have htail := cpsTriple_extend_code (divK_phaseB_tail_code_sub_modCode base) htail_raw
   seqFrame hinit1fhinit2haddihbne htail

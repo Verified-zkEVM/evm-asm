@@ -29,8 +29,7 @@ private theorem regIs_to_regOwn (r : Reg) (v : Word) : ∀ h, (r ↦ᵣ v) h →
     Uses evmWordIs for the b-operand at sp+32. The a-operand at sp is untouched. -/
 theorem evm_div_bzero_stack_spec (sp base : Word)
     (a b : EvmWord) (v5 v10 : Word)
-    (hbz : b = 0)
-    (hvalid : ValidMemRange sp 8) :
+    (hbz : b = 0) :
     cpsTriple base (base + nopOff) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        evmWordIs (sp + 32) b)
@@ -48,7 +47,7 @@ theorem evm_div_bzero_stack_spec (sp base : Word)
   have h_raw := evm_div_bzero_spec sp base
     ((0 : EvmWord).getLimbN 0) ((0 : EvmWord).getLimbN 1)
     ((0 : EvmWord).getLimbN 2) ((0 : EvmWord).getLimbN 3)
-    v5 v10 hlimbs_or hvalid
+    v5 v10 hlimbs_or
   simp only [hg0, hg1, hg2, hg3] at h_raw
   -- Bridge: div a 0 = 0, getLimb (div a 0) k = 0
   have hr0 : (EvmWord.div a 0).getLimbN 0 = 0 := EvmWord.div_getLimb_zero_right a 0
@@ -92,8 +91,7 @@ theorem evm_div_bzero_stack_spec (sp base : Word)
     Uses evmWordIs for the b-operand at sp+32. The a-operand at sp is untouched. -/
 theorem evm_mod_bzero_stack_spec (sp base : Word)
     (a b : EvmWord) (v5 v10 : Word)
-    (hbz : b = 0)
-    (hvalid : ValidMemRange sp 8) :
+    (hbz : b = 0) :
     cpsTriple base (base + nopOff) (modCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        evmWordIs (sp + 32) b)
@@ -109,7 +107,7 @@ theorem evm_mod_bzero_stack_spec (sp base : Word)
   have h_raw := evm_mod_bzero_spec sp base
     ((0 : EvmWord).getLimbN 0) ((0 : EvmWord).getLimbN 1)
     ((0 : EvmWord).getLimbN 2) ((0 : EvmWord).getLimbN 3)
-    v5 v10 hlimbs_or hvalid
+    v5 v10 hlimbs_or
   simp only [hg0, hg1, hg2, hg3] at h_raw
   have hr0 : (EvmWord.mod a 0).getLimbN 0 = 0 := EvmWord.mod_getLimb_zero_right a 0
   have hr1 : (EvmWord.mod a 0).getLimbN 1 = 0 := EvmWord.mod_getLimb_zero_right a 1

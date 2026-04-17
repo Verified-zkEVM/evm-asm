@@ -30,24 +30,21 @@ namespace EvmAsm.Rv64
 
 @[spec_gen_rv64] theorem ld_spec_gen (rd rs1 : Reg) (v_addr v_old mem_val : Word)
     (offset : BitVec 12) (addr : Word)
-    (hrd_ne_x0 : rd ≠ .x0)
-    (hvalid : isValidDwordAccess (v_addr + signExtend12 offset) = true) :
+    (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.LD rd rs1 offset))
       ((rs1 ↦ᵣ v_addr) ** (rd ↦ᵣ v_old) ** ((v_addr + signExtend12 offset) ↦ₘ mem_val))
       ((rs1 ↦ᵣ v_addr) ** (rd ↦ᵣ mem_val) ** ((v_addr + signExtend12 offset) ↦ₘ mem_val)) :=
-  generic_ld_spec rd rs1 v_addr v_old mem_val offset addr hrd_ne_x0 hvalid
+  generic_ld_spec rd rs1 v_addr v_old mem_val offset addr hrd_ne_x0
 
 @[spec_gen_rv64] theorem sd_spec_gen (rs1 rs2 : Reg) (v_addr v_data mem_old : Word)
-    (offset : BitVec 12) (addr : Word)
-    (hvalid : isValidDwordAccess (v_addr + signExtend12 offset) = true) :
+    (offset : BitVec 12) (addr : Word) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.SD rs1 rs2 offset))
       ((rs1 ↦ᵣ v_addr) ** (rs2 ↦ᵣ v_data) ** ((v_addr + signExtend12 offset) ↦ₘ mem_old))
       ((rs1 ↦ᵣ v_addr) ** (rs2 ↦ᵣ v_data) ** ((v_addr + signExtend12 offset) ↦ₘ v_data)) :=
-  generic_sd_spec rs1 rs2 v_addr v_data mem_old offset addr hvalid
+  generic_sd_spec rs1 rs2 v_addr v_data mem_old offset addr
 
 @[spec_gen_rv64] theorem sd_spec_gen_own (rs1 rs2 : Reg) (v_addr v_data : Word)
-    (offset : BitVec 12) (addr : Word)
-    (hvalid : isValidDwordAccess (v_addr + signExtend12 offset) = true) :
+    (offset : BitVec 12) (addr : Word) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.SD rs1 rs2 offset))
       ((rs1 ↦ᵣ v_addr) ** (rs2 ↦ᵣ v_data) ** memOwn (v_addr + signExtend12 offset))
       ((rs1 ↦ᵣ v_addr) ** (rs2 ↦ᵣ v_data) ** ((v_addr + signExtend12 offset) ↦ₘ v_data)) := by
@@ -58,7 +55,7 @@ namespace EvmAsm.Rv64
   obtain ⟨v, hv⟩ := hpM
   have hPR' : (((rs1 ↦ᵣ v_addr) ** (rs2 ↦ᵣ v_data) ** ((v_addr + signExtend12 offset) ↦ₘ v)) ** R).holdsFor s :=
     ⟨h, hcompat, h_P, h_R, hdisj, hunion, ⟨hR1, hRest2, hd2, hu2, hpR1, hR2, hM, hd3, hu3, hpR2, hv⟩, hpR⟩
-  exact sd_spec_gen rs1 rs2 v_addr v_data v offset addr hvalid R hR s hcr hPR' hpc
+  exact sd_spec_gen rs1 rs2 v_addr v_data v offset addr R hR s hcr hPR' hpc
 
 -- ============================================================================
 -- ALU specs (rd = rs1 case, most common in EVM programs)
@@ -531,12 +528,11 @@ namespace EvmAsm.Rv64
     Specialized version of sd_spec_gen for x0 (always reads as 0).
     Does not require (x0 ↦ᵣ 0) in pre/post. -/
 @[spec_gen_rv64] theorem sd_x0_spec_gen (rs1 : Reg) (v_addr mem_old : Word)
-    (offset : BitVec 12) (addr : Word)
-    (hvalid : isValidDwordAccess (v_addr + signExtend12 offset) = true) :
+    (offset : BitVec 12) (addr : Word) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.SD rs1 .x0 offset))
       ((rs1 ↦ᵣ v_addr) ** ((v_addr + signExtend12 offset) ↦ₘ mem_old))
       ((rs1 ↦ᵣ v_addr) ** ((v_addr + signExtend12 offset) ↦ₘ (0 : Word))) :=
-  generic_sd_x0_spec rs1 v_addr mem_old offset addr hvalid
+  generic_sd_x0_spec rs1 v_addr mem_old offset addr
 
 -- ============================================================================
 -- 3-register shift specs (rd ≠ rs1, rd ≠ rs2)
@@ -599,12 +595,11 @@ namespace EvmAsm.Rv64
 
 @[spec_gen_rv64] theorem ld_spec_gen_same (rd : Reg) (v_addr mem_val : Word)
     (offset : BitVec 12) (addr : Word)
-    (hrd_ne_x0 : rd ≠ .x0)
-    (hvalid : isValidDwordAccess (v_addr + signExtend12 offset) = true) :
+    (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.LD rd rd offset))
       ((rd ↦ᵣ v_addr) ** ((v_addr + signExtend12 offset) ↦ₘ mem_val))
       ((rd ↦ᵣ mem_val) ** ((v_addr + signExtend12 offset) ↦ₘ mem_val)) :=
-  ld_spec_same rd v_addr mem_val offset addr hrd_ne_x0 hvalid
+  ld_spec_same rd v_addr mem_val offset addr hrd_ne_x0
 
 -- ============================================================================
 -- ORI specs

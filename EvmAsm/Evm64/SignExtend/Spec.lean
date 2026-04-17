@@ -25,7 +25,6 @@ private theorem regIs_to_regOwn'' (r : Reg) (v : Word) : ∀ h, (r ↦ᵣ v) h �
 /-- Helper: lift a no-change raw-limb spec to evmWordIs form (with x6 framing). -/
 private theorem signext_nochange_lift (sp base : Word)
     (b x : EvmWord) (r5 r6 r10 : Word)
-    (_hvalid : ValidMemRange sp 8)
     (hmain : cpsTriple base (base + 192) (signextCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ r5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ r10) **
        (sp ↦ₘ b.getLimbN 0) ** ((sp + 8) ↦ₘ b.getLimbN 1) **
@@ -85,7 +84,7 @@ theorem evm_signextend_stack_spec (sp base : Word)
   · -- b >= 31: result = x (no change)
     have hresult : result = x := by simp [result, EvmWord.signextend_ge31 b x hge]
     by_cases hhigh : b.getLimbN 1 ||| b.getLimbN 2 ||| b.getLimbN 3 ≠ 0
-    · exact signext_nochange_lift sp base b x r5 r6 r10 hvalid
+    · exact signext_nochange_lift sp base b x r5 r6 r10
         (signext_nochange_high_spec sp base _ _ _ _ _ _ _ _ r5 r10 hhigh hvalid)
         result hresult
     · have hhigh' : b.getLimbN 1 ||| b.getLimbN 2 ||| b.getLimbN 3 = 0 :=
@@ -99,7 +98,7 @@ theorem evm_signextend_stack_spec (sp base : Word)
         cases h : decide ((b.getLimbN 0).toNat < 31)
         · rfl
         · simp at h; omega
-      exact signext_nochange_lift sp base b x r5 r6 r10 hvalid
+      exact signext_nochange_lift sp base b x r5 r6 r10
         (signext_nochange_geq31_spec sp base _ _ _ _ _ _ _ _ r5 r10 hhigh' hlarge hvalid)
         result hresult
   · -- b < 31: body path

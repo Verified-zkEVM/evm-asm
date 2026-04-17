@@ -594,8 +594,7 @@ theorem generic_jalr_spec (rd rs1 : Reg) (v1 v_old : Word) (offset : BitVec 12) 
     where addr = v_addr + signExtend12 offset -/
 theorem generic_ld_spec (rd rs1 : Reg) (v_addr v_old mem_val : Word)
     (offset : BitVec 12) (base : Word)
-    (hrd_ne_x0 : rd ≠ .x0)
-    (hvalid : isValidDwordAccess (v_addr + signExtend12 offset) = true) :
+    (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple base (base + 4) (CodeReq.singleton base (.LD rd rs1 offset))
       ((rs1 ↦ᵣ v_addr) ** (rd ↦ᵣ v_old) ** ((v_addr + signExtend12 offset) ↦ₘ mem_val))
       ((rs1 ↦ᵣ v_addr) ** (rd ↦ᵣ mem_val) ** ((v_addr + signExtend12 offset) ↦ₘ mem_val)) := by
@@ -605,9 +604,12 @@ theorem generic_ld_spec (rd rs1 : Reg) (v_addr v_old mem_val : Word)
   have hrs1 : s.getReg rs1 = v_addr :=
     (holdsFor_regIs _ _ s).mp (holdsFor_sepConj_elim_left
       (holdsFor_sepConj_elim_left hPR))
+  have hmem_piece := holdsFor_sepConj_elim_right (holdsFor_sepConj_elim_right
+    (holdsFor_sepConj_elim_left hPR))
   have hmem : s.getMem (v_addr + signExtend12 offset) = mem_val :=
-    (holdsFor_memIs _ _ s).mp (holdsFor_sepConj_elim_right (holdsFor_sepConj_elim_right
-      (holdsFor_sepConj_elim_left hPR)))
+    holdsFor_memIs_getMem hmem_piece
+  have hvalid : isValidDwordAccess (v_addr + signExtend12 offset) = true :=
+    holdsFor_memIs_isValidDwordAccess hmem_piece
   -- Step proof using step_ld
   have hstep' : step s = some (execInstrBr s (.LD rd rs1 offset)) :=
     step_ld s rd rs1 offset hfetch (hrs1 ▸ hvalid)
@@ -637,8 +639,7 @@ theorem generic_ld_spec (rd rs1 : Reg) (v_addr v_old mem_val : Word)
     Post: (rs1 ↦ᵣ v_addr) ** (rs2 ↦ᵣ v_data) ** (addr ↦ₘ v_data)
     where addr = v_addr + signExtend12 offset -/
 theorem generic_sd_spec (rs1 rs2 : Reg) (v_addr v_data mem_old : Word)
-    (offset : BitVec 12) (base : Word)
-    (hvalid : isValidDwordAccess (v_addr + signExtend12 offset) = true) :
+    (offset : BitVec 12) (base : Word) :
     cpsTriple base (base + 4) (CodeReq.singleton base (.SD rs1 rs2 offset))
       ((rs1 ↦ᵣ v_addr) ** (rs2 ↦ᵣ v_data) ** ((v_addr + signExtend12 offset) ↦ₘ mem_old))
       ((rs1 ↦ᵣ v_addr) ** (rs2 ↦ᵣ v_data) ** ((v_addr + signExtend12 offset) ↦ₘ v_data)) := by
@@ -651,6 +652,9 @@ theorem generic_sd_spec (rs1 rs2 : Reg) (v_addr v_data mem_old : Word)
   have hrs2 : s.getReg rs2 = v_data :=
     (holdsFor_regIs _ _ s).mp (holdsFor_sepConj_elim_left (holdsFor_sepConj_elim_right
       (holdsFor_sepConj_elim_left hPR)))
+  have hvalid : isValidDwordAccess (v_addr + signExtend12 offset) = true :=
+    holdsFor_memIs_isValidDwordAccess (holdsFor_sepConj_elim_right
+      (holdsFor_sepConj_elim_right (holdsFor_sepConj_elim_left hPR)))
   -- Step proof using step_sd
   have hstep' : step s = some (execInstrBr s (.SD rs1 rs2 offset)) :=
     step_sd s rs1 rs2 offset hfetch (hrs1 ▸ hvalid)
@@ -678,8 +682,7 @@ theorem generic_sd_spec (rs1 rs2 : Reg) (v_addr v_data mem_old : Word)
     Pre:  (rs1 ↦ᵣ v_addr) ** (addr ↦ₘ mem_old)
     Post: (rs1 ↦ᵣ v_addr) ** (addr ↦ₘ 0) -/
 theorem generic_sd_x0_spec (rs1 : Reg) (v_addr mem_old : Word)
-    (offset : BitVec 12) (base : Word)
-    (hvalid : isValidDwordAccess (v_addr + signExtend12 offset) = true) :
+    (offset : BitVec 12) (base : Word) :
     cpsTriple base (base + 4) (CodeReq.singleton base (.SD rs1 .x0 offset))
       ((rs1 ↦ᵣ v_addr) ** ((v_addr + signExtend12 offset) ↦ₘ mem_old))
       ((rs1 ↦ᵣ v_addr) ** ((v_addr + signExtend12 offset) ↦ₘ (0 : Word))) := by
@@ -688,6 +691,9 @@ theorem generic_sd_x0_spec (rs1 : Reg) (v_addr mem_old : Word)
     (CodeReq.singleton_satisfiedBy s.pc (.SD rs1 .x0 offset) s).mp hcr
   have hrs1 : s.getReg rs1 = v_addr :=
     (holdsFor_regIs _ _ s).mp (holdsFor_sepConj_elim_left
+      (holdsFor_sepConj_elim_left hPR))
+  have hvalid : isValidDwordAccess (v_addr + signExtend12 offset) = true :=
+    holdsFor_memIs_isValidDwordAccess (holdsFor_sepConj_elim_right
       (holdsFor_sepConj_elim_left hPR))
   have hstep' : step s = some (execInstrBr s (.SD rs1 .x0 offset)) :=
     step_sd s rs1 .x0 offset hfetch (hrs1 ▸ hvalid)

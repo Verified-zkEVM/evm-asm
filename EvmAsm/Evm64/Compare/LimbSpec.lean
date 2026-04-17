@@ -26,9 +26,7 @@ open EvmAsm.Rv64
 /-- LT limb 0 spec (3 instructions): LD, LD, SLTU.
     Computes initial borrow = (a < b ? 1 : 0). Does NOT modify memory. -/
 theorem lt_limb0_spec (off_a off_b : BitVec 12)
-    (sp a_limb b_limb v7 v6 v5 : Word) (base : Word)
-    (hvalid_a : isValidDwordAccess (sp + signExtend12 off_a) = true)
-    (hvalid_b : isValidDwordAccess (sp + signExtend12 off_b) = true) :
+    (sp a_limb b_limb v7 v6 v5 : Word) (base : Word) :
     let mem_a := sp + signExtend12 off_a
     let mem_b := sp + signExtend12 off_b
     let borrow := if BitVec.ult a_limb b_limb then (1 : Word) else 0
@@ -46,9 +44,7 @@ theorem lt_limb0_spec (off_a off_b : BitVec 12)
 /-- LT carry limb spec (6 instructions): LD, LD, SLTU, SUB, SLTU, OR.
     Propagates borrow without storing result. Memory is NOT modified. -/
 theorem lt_limb_carry_spec (off_a off_b : BitVec 12)
-    (sp a_limb b_limb v7 v6 borrow_in v11 : Word) (base : Word)
-    (hvalid_a : isValidDwordAccess (sp + signExtend12 off_a) = true)
-    (hvalid_b : isValidDwordAccess (sp + signExtend12 off_b) = true) :
+    (sp a_limb b_limb v7 v6 borrow_in v11 : Word) (base : Word) :
     let mem_a := sp + signExtend12 off_a
     let mem_b := sp + signExtend12 off_b
     let borrow1 := if BitVec.ult a_limb b_limb then (1 : Word) else 0
@@ -130,9 +126,7 @@ theorem beq_ne_spec (rs1 rs2 : Reg) (offset : BitVec 13)
 /-- SLT MSB load spec (2 instructions): LD x7, LD x6.
     Loads the MSB limbs (limb 3) of both operands into x7 and x6. -/
 theorem slt_msb_load_spec (off_a off_b : BitVec 12)
-    (sp a3 b3 v7 v6 : Word) (base : Word)
-    (hvalid_a : isValidDwordAccess (sp + signExtend12 off_a) = true)
-    (hvalid_b : isValidDwordAccess (sp + signExtend12 off_b) = true) :
+    (sp a3 b3 v7 v6 : Word) (base : Word) :
     let mem_a := sp + signExtend12 off_a
     let mem_b := sp + signExtend12 off_b
     let cr :=

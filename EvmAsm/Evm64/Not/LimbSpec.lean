@@ -18,8 +18,7 @@ open EvmAsm.Rv64
 /-- Per-limb NOT spec (3 instructions: LD x7, XORI x7 x7 (-1), SD x12 x7).
     Unary: loads limb, complements it, stores back to same location. -/
 theorem not_limb_spec (off : BitVec 12)
-    (sp limb v7 : Word) (base : Word)
-    (hvalid : isValidDwordAccess (sp + signExtend12 off) = true) :
+    (sp limb v7 : Word) (base : Word) :
     let mem := sp + signExtend12 off
     let cr :=
       CodeReq.union (CodeReq.singleton base (.LD .x7 .x12 off))

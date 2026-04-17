@@ -60,7 +60,6 @@ private theorem sar_sign_fill_evmWord_weaken (sp : Word) (s0 s1 s2 s3 r6 r7 r11 
     Shared proof structure for both high-limbs and s0≥256 cases. -/
 private theorem sar_sign_fill_lift (sp base : Word)
     (shift value : EvmWord) (r5 r6 r7 r10 r11 : Word)
-    (_hvalid : ValidMemRange sp 8)
     (hmain : cpsTriple base (base + 380) (sarCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ r5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ r10) **
        (sp ↦ₘ shift.getLimb 0) ** ((sp + 8) ↦ₘ shift.getLimb 1) **
@@ -168,7 +167,7 @@ theorem evm_sar_stack_spec (sp base : Word)
       simp [result, hge]
     -- Sub-case: high limbs nonzero or s0 ≥ 256
     by_cases hhigh : shift.getLimb 1 ||| shift.getLimb 2 ||| shift.getLimb 3 ≠ 0
-    · exact sar_sign_fill_lift sp base shift value r5 r6 r7 r10 r11 hvalid
+    · exact sar_sign_fill_lift sp base shift value r5 r6 r7 r10 r11
         (evm_sar_sign_fill_high_spec sp base _ _ _ _ _ _ _ _ r5 r10 hhigh hvalid)
         result hresult
     · have hhigh' : shift.getLimb 1 ||| shift.getLimb 2 ||| shift.getLimb 3 = 0 :=
@@ -182,7 +181,7 @@ theorem evm_sar_stack_spec (sp base : Word)
         cases h : decide ((shift.getLimb 0).toNat < 256)
         · rfl
         · simp at h; omega
-      exact sar_sign_fill_lift sp base shift value r5 r6 r7 r10 r11 hvalid
+      exact sar_sign_fill_lift sp base shift value r5 r6 r7 r10 r11
         (evm_sar_sign_fill_large_spec sp base _ _ _ _ _ _ _ _ r5 r10 hhigh' hlarge hvalid)
         result hresult
   · -- shift < 256: result = sshiftRight value shift.toNat

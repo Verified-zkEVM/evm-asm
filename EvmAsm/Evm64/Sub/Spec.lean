@@ -55,10 +55,10 @@ theorem evm_sub_spec (sp : Word) (base : Word)
        (sp ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
        ((sp + 32) ↦ₘ diff0) ** ((sp + 40) ↦ₘ result1) ** ((sp + 48) ↦ₘ result2) ** ((sp + 56) ↦ₘ result3)) := by
   intro borrow0 diff0 borrow1a temp1 borrow1b result1 borrow1 borrow2a temp2 borrow2b result2 borrow2 borrow3a temp3 borrow3b result3 borrow3
-  have L0 := sub_limb0_spec 0 32 sp a0 b0 v7 v6 v5 base (by validMem) (by validMem)
-  have L1 := sub_limb_carry_spec 8 40 sp a1 b1 diff0 b0 borrow0 v11 (base + 20) (by validMem) (by validMem)
-  have L2 := sub_limb_carry_spec 16 48 sp a2 b2 result1 borrow1b borrow1 borrow1a (base + 52) (by validMem) (by validMem)
-  have L3 := sub_limb_carry_spec 24 56 sp a3 b3 result2 borrow2b borrow2 borrow2a (base + 84) (by validMem) (by validMem)
+  have L0 := sub_limb0_spec 0 32 sp a0 b0 v7 v6 v5 base
+  have L1 := sub_limb_carry_spec 8 40 sp a1 b1 diff0 b0 borrow0 v11 (base + 20)
+  have L2 := sub_limb_carry_spec 16 48 sp a2 b2 result1 borrow1b borrow1 borrow1a (base + 52)
+  have L3 := sub_limb_carry_spec 24 56 sp a3 b3 result2 borrow2b borrow2 borrow2a (base + 84)
   have Laddi := addi_spec_gen_same .x12 sp 32 (base + 116) (by nofun)
   runBlock L0 L1 L2 L3 Laddi
 

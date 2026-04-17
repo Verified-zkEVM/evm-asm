@@ -47,12 +47,12 @@ theorem evm_eq_spec (sp : Word) (base : Word)
        ((sp + 32) ↦ₘ eq_result) ** ((sp + 40) ↦ₘ 0) ** ((sp + 48) ↦ₘ 0) ** ((sp + 56) ↦ₘ 0)) := by
   intro acc0 acc1 acc2 acc3 eq_result
   -- Per-limb EQ specs
-  have L0 := eq_limb0_spec 0 32 sp a0 b0 v7 v6 base (by validMem) (by validMem)
-  have L1 := eq_or_limb_spec 8 40 sp a1 b1 b0 v5 (a0 ^^^ b0) (base + 12) (by validMem) (by validMem)
+  have L0 := eq_limb0_spec 0 32 sp a0 b0 v7 v6 base
+  have L1 := eq_or_limb_spec 8 40 sp a1 b1 b0 v5 (a0 ^^^ b0) (base + 12)
   have L2 := eq_or_limb_spec 16 48 sp a2 b2 (a1 ^^^ b1) b1
-    ((a0 ^^^ b0) ||| (a1 ^^^ b1)) (base + 28) (by validMem) (by validMem)
+    ((a0 ^^^ b0) ||| (a1 ^^^ b1)) (base + 28)
   have L3 := eq_or_limb_spec 24 56 sp a3 b3 (a2 ^^^ b2) b2
-    ((a0 ^^^ b0) ||| (a1 ^^^ b1) ||| (a2 ^^^ b2)) (base + 44) (by validMem) (by validMem)
+    ((a0 ^^^ b0) ||| (a1 ^^^ b1) ||| (a2 ^^^ b2)) (base + 44)
   -- Store phase: SLTIU + ADDI + SD eq_result + 3×SD 0
   have T := sltiu_spec_gen_same .x7
     ((a0 ^^^ b0) ||| (a1 ^^^ b1) ||| (a2 ^^^ b2) ||| (a3 ^^^ b3)) 1 (base + 60) (by nofun)
@@ -61,10 +61,10 @@ theorem evm_eq_spec (sp : Word) (base : Word)
   simp only [signExtend12_32] at A
   have S0 := sd_spec_gen .x12 .x7 (sp + 32)
     (if BitVec.ult ((a0 ^^^ b0) ||| (a1 ^^^ b1) ||| (a2 ^^^ b2) ||| (a3 ^^^ b3)) (1 : Word) then (1 : Word) else 0)
-    b0 0 (base + 68) (by validMem)
-  have S1 := sd_x0_spec_gen .x12 (sp + 32) b1 8 (base + 72) (by validMem)
-  have S2 := sd_x0_spec_gen .x12 (sp + 32) b2 16 (base + 76) (by validMem)
-  have S3 := sd_x0_spec_gen .x12 (sp + 32) b3 24 (base + 80) (by validMem)
+    b0 0 (base + 68)
+  have S1 := sd_x0_spec_gen .x12 (sp + 32) b1 8 (base + 72)
+  have S2 := sd_x0_spec_gen .x12 (sp + 32) b2 16 (base + 76)
+  have S3 := sd_x0_spec_gen .x12 (sp + 32) b3 24 (base + 80)
   runBlock L0 L1 L2 L3 T A S0 S1 S2 S3
 
 -- ============================================================================

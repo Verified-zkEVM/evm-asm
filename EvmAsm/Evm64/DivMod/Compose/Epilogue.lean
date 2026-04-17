@@ -48,7 +48,6 @@ set_option maxHeartbeats 3200000 in
 /-- Denorm preamble for shift≠0: LD shift from memory + BEQ not taken.
     base+908 → base+916. Bridges the gap between loop body exit and denorm body. -/
 theorem divK_denorm_preamble_spec (sp shift v5 v6 v7 v2 v10 : Word) (base : Word)
-    (hv_shift : isValidDwordAccess (sp + signExtend12 3992) = true)
     (hshift_nz : shift ≠ 0) :
     cpsTriple (base + 908) (base + 916) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ v6) ** (.x0 ↦ᵣ (0 : Word)) **
@@ -58,7 +57,7 @@ theorem divK_denorm_preamble_spec (sp shift v5 v6 v7 v2 v10 : Word) (base : Word
        (.x5 ↦ᵣ v5) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ v2) ** (.x10 ↦ᵣ v10) **
        ((sp + signExtend12 3992) ↦ₘ shift)) := by
   -- 1. LD x6 x12 3992 at base+908 (denorm instr [0])
-  have hld := ld_spec_gen .x6 .x12 sp v6 shift (3992 : BitVec 12) (base + 908) (by nofun) hv_shift
+  have hld := ld_spec_gen .x6 .x12 sp v6 shift (3992 : BitVec 12) (base + 908) (by nofun)
   rw [show (base + 908 : Word) + 4 = base + 912 from by bv_addr] at hld
   have hlde := cpsTriple_extend_code (hmono := by
     intro a i h
@@ -108,11 +107,7 @@ set_option maxRecDepth 4096 in
 /-- Full Denorm (shift body only): denormalize u[0..3] by right-shifting.
     base+908+8 → base+908+100 (23 instructions: ADDI+SUB + 3×merge + last).
     Used when shift≠0. The BEQ and LD are handled separately. -/
-theorem divK_denorm_body_spec (sp u0 u1 u2 u3 v2 v5 v7 shift : Word) (base : Word)
-    (hv_u0 : isValidDwordAccess (sp + signExtend12 4056) = true)
-    (hv_u1 : isValidDwordAccess (sp + signExtend12 4048) = true)
-    (hv_u2 : isValidDwordAccess (sp + signExtend12 4040) = true)
-    (hv_u3 : isValidDwordAccess (sp + signExtend12 4032) = true) :
+theorem divK_denorm_body_spec (sp u0 u1 u2 u3 v2 v5 v7 shift : Word) (base : Word) :
     let anti_shift := signExtend12 (0 : BitVec 12) - shift
     let u0' := (u0 >>> (shift.toNat % 64)) ||| (u1 <<< (anti_shift.toNat % 64))
     let u1' := (u1 >>> (shift.toNat % 64)) ||| (u2 <<< (anti_shift.toNat % 64))
@@ -163,7 +158,6 @@ theorem divK_denorm_body_spec (sp u0 u1 u2 u3 v2 v5 v7 shift : Word) (base : Wor
     (fun h hp => by xperm_hyp hp) haddief hsubf
   -- Merge u[0] with u[1] (base+924 → base+948)
   have hm0 := divK_denorm_merge_spec 4056 4048 sp u0 u1 v5 v7 shift anti_shift (base + 924)
-    hv_u0 hv_u1
   rw [show (base + 924 : Word) + 24 = base + 948 from by bv_addr] at hm0
   have hm0e := cpsTriple_extend_code (hmono := fun a i h =>
     divK_denorm_code_sub_divCode base a i
@@ -179,7 +173,6 @@ theorem divK_denorm_body_spec (sp u0 u1 u2 u3 v2 v5 v7 shift : Word) (base : Wor
   -- Merge u[1] with u[2] (base+948 → base+972)
   have hm1 := divK_denorm_merge_spec 4048 4040 sp u1 u2
     u0' (u1 <<< (anti_shift.toNat % 64)) shift anti_shift (base + 948)
-    hv_u1 hv_u2
   rw [show (base + 948 : Word) + 24 = base + 972 from by bv_addr] at hm1
   have hm1e := cpsTriple_extend_code (hmono := fun a i h =>
     divK_denorm_code_sub_divCode base a i
@@ -195,7 +188,6 @@ theorem divK_denorm_body_spec (sp u0 u1 u2 u3 v2 v5 v7 shift : Word) (base : Wor
   -- Merge u[2] with u[3] (base+972 → base+996)
   have hm2 := divK_denorm_merge_spec 4040 4032 sp u2 u3
     u1' (u2 <<< (anti_shift.toNat % 64)) shift anti_shift (base + 972)
-    hv_u2 hv_u3
   rw [show (base + 972 : Word) + 24 = base + 996 from by bv_addr] at hm2
   have hm2e := cpsTriple_extend_code (hmono := fun a i h =>
     divK_denorm_code_sub_divCode base a i
@@ -209,7 +201,7 @@ theorem divK_denorm_body_spec (sp u0 u1 u2 u3 v2 v5 v7 shift : Word) (base : Wor
   have h_m2 := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
     (fun h hp => by xperm_hyp hp) h_m1 hm2ef
   -- Last u[3] (base+996 → base+1008)
-  have hl := divK_denorm_last_spec 4032 sp u3 u2' shift (base + 996) hv_u3
+  have hl := divK_denorm_last_spec 4032 sp u3 u2' shift (base + 996)
   rw [show (base + 996 : Word) + 12 = base + 1008 from by bv_addr] at hl
   have hle := cpsTriple_extend_code (hmono := fun a i h =>
     divK_denorm_code_sub_divCode base a i
@@ -247,12 +239,7 @@ set_option maxRecDepth 4096 in
 /-- Full DIV epilogue: load q[0..3] from scratch, advance sp, store to output, JAL to NOP.
     base+1008 → base+1068 (10 instructions). -/
 theorem divK_div_epilogue_spec (sp : Word) (base : Word)
-    (q0 q1 q2 q3 v5 v6 v7 v10 m0 m8 m16 m24 : Word)
-    (hvalid : ValidMemRange sp 8)
-    (hv_q0 : isValidDwordAccess (sp + signExtend12 4088) = true)
-    (hv_q1 : isValidDwordAccess (sp + signExtend12 4080) = true)
-    (hv_q2 : isValidDwordAccess (sp + signExtend12 4072) = true)
-    (hv_q3 : isValidDwordAccess (sp + signExtend12 4064) = true) :
+    (q0 q1 q2 q3 v5 v6 v7 v10 m0 m8 m16 m24 : Word) :
     cpsTriple (base + 1008) (base + 1068) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x10 ↦ᵣ v10) **
        ((sp + signExtend12 4088) ↦ₘ q0) ** ((sp + signExtend12 4080) ↦ₘ q1) **
@@ -266,7 +253,7 @@ theorem divK_div_epilogue_spec (sp : Word) (base : Word)
        ((sp + 48) ↦ₘ q2) ** ((sp + 56) ↦ₘ q3)) := by
   -- Load phase (base+1008 → base+1024)
   have hload := divK_epilogue_load_spec 4088 4080 4072 4064 sp q0 q1 q2 q3 v5 v6 v7 v10
-    (base + 1008) hv_q0 hv_q1 hv_q2 hv_q3
+    (base + 1008)
   rw [show (base + 1008 : Word) + 16 = base + 1024 from by bv_addr] at hload
   have hloade := cpsTriple_extend_code (hmono := fun a i h =>
     divK_divEpilogue_code_sub_divCode base a i
@@ -274,7 +261,7 @@ theorem divK_div_epilogue_spec (sp : Word) (base : Word)
         (divK_epilogue_load_prog 4088 4080 4072 4064) 0
         (by bv_addr) (by decide) (by decide) (by decide) a i h)) hload
   -- Store phase (base+1024 → base+1068 via JAL)
-  have hstore := divK_epilogue_store_spec sp (base + 1024) q0 q1 q2 q3 m0 m8 m16 m24 24 hvalid
+  have hstore := divK_epilogue_store_spec sp (base + 1024) q0 q1 q2 q3 m0 m8 m16 m24 24
   rw [show (base + 1024 : Word) + 20 + signExtend21 24 = base + 1068 from by
         rw [show signExtend21 (24 : BitVec 21) = (24 : Word) from by decide]; bv_addr]
     at hstore
@@ -344,8 +331,7 @@ set_option maxRecDepth 2048 in
     Execution path: phaseA body (7 instrs), BEQ taken, zeroPath (5 instrs). -/
 theorem evm_mod_bzero_spec (sp base : Word)
     (b0 b1 b2 b3 v5 v10 : Word)
-    (hbz : b0 ||| b1 ||| b2 ||| b3 = 0)
-    (hvalid : ValidMemRange sp 8) :
+    (hbz : b0 ||| b1 ||| b2 ||| b3 = 0) :
     cpsTriple base (base + 1068) (modCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
@@ -355,7 +341,7 @@ theorem evm_mod_bzero_spec (sp base : Word)
        ((sp + 48) ↦ₘ (0 : Word)) ** ((sp + 56) ↦ₘ (0 : Word))) := by
   -- Step 1: Phase A body (base → base+28, 7 straight-line instructions)
   have hbody := cpsTriple_extend_code (divK_phaseA_code_sub_modCode base)
-    (divK_phaseA_body_spec sp base b0 b1 b2 b3 v5 v10 hvalid)
+    (divK_phaseA_body_spec sp base b0 b1 b2 b3 v5 v10)
   -- Step 2: BEQ at base+28, eliminate ntaken via hbz
   have hbeq_raw := beq_spec_gen .x5 .x0 1020 (b0 ||| b1 ||| b2 ||| b3) (0 : Word) (base + 28)
   rw [show (base + 28 : Word) + signExtend13 1020 = base + 1048 from by
@@ -377,7 +363,7 @@ theorem evm_mod_bzero_spec (sp base : Word)
     (fun h hp => by xperm_hyp hp) hbody hbeq_framed
   -- Step 5: ZeroPath (base+1048 → base+1068)
   have hzp := cpsTriple_extend_code (divK_zeroPath_code_sub_modCode base)
-    (divK_zeroPath_spec sp (base + 1048) b0 b1 b2 b3 hvalid)
+    (divK_zeroPath_spec sp (base + 1048) b0 b1 b2 b3)
   rw [show (base + 1048 : Word) + 20 = base + 1068 from by bv_addr] at hzp
   -- Frame ZP with x5 + x10 + x0
   have hzp_framed := cpsTriple_frame_left _ _ _ _ _
@@ -401,8 +387,7 @@ set_option maxRecDepth 2048 in
     Execution path: phaseA body (7 instrs), BEQ not taken. -/
 theorem evm_mod_phaseA_ntaken_spec (sp base : Word)
     (b0 b1 b2 b3 v5 v10 : Word)
-    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
-    (hvalid : ValidMemRange sp 8) :
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0) :
     cpsTriple base (base + 32) (modCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
@@ -412,7 +397,7 @@ theorem evm_mod_phaseA_ntaken_spec (sp base : Word)
        ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3)) := by
   -- Step 1: Phase A body (base → base+28, 7 straight-line instructions)
   have hbody := cpsTriple_extend_code (divK_phaseA_code_sub_modCode base)
-    (divK_phaseA_body_spec sp base b0 b1 b2 b3 v5 v10 hvalid)
+    (divK_phaseA_body_spec sp base b0 b1 b2 b3 v5 v10)
   -- Step 2: BEQ at base+28, eliminate taken path (b=0 absurd since hbnz)
   have hbeq_raw := beq_spec_gen .x5 .x0 1020 (b0 ||| b1 ||| b2 ||| b3) (0 : Word) (base + 28)
   rw [show (base + 28 : Word) + signExtend13 1020 = base + 1048 from by
@@ -456,12 +441,7 @@ set_option maxRecDepth 4096 in
 /-- Full MOD epilogue: load u[0..3] (denormalized remainder), advance sp, store to output, JAL to NOP.
     base+1008 → base+1068 (10 instructions). -/
 theorem divK_mod_epilogue_spec (sp : Word) (base : Word)
-    (u0 u1 u2 u3 v5 v6 v7 v10 m0 m8 m16 m24 : Word)
-    (hvalid : ValidMemRange sp 8)
-    (hv_u0 : isValidDwordAccess (sp + signExtend12 4056) = true)
-    (hv_u1 : isValidDwordAccess (sp + signExtend12 4048) = true)
-    (hv_u2 : isValidDwordAccess (sp + signExtend12 4040) = true)
-    (hv_u3 : isValidDwordAccess (sp + signExtend12 4032) = true) :
+    (u0 u1 u2 u3 v5 v6 v7 v10 m0 m8 m16 m24 : Word) :
     cpsTriple (base + 1008) (base + 1068) (modCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x10 ↦ᵣ v10) **
        ((sp + signExtend12 4056) ↦ₘ u0) ** ((sp + signExtend12 4048) ↦ₘ u1) **
@@ -475,7 +455,7 @@ theorem divK_mod_epilogue_spec (sp : Word) (base : Word)
        ((sp + 48) ↦ₘ u2) ** ((sp + 56) ↦ₘ u3)) := by
   -- Load phase (base+1008 → base+1024): load u[0..3] from scratch memory
   have hload := divK_epilogue_load_spec 4056 4048 4040 4032 sp u0 u1 u2 u3 v5 v6 v7 v10
-    (base + 1008) hv_u0 hv_u1 hv_u2 hv_u3
+    (base + 1008)
   rw [show (base + 1008 : Word) + 16 = base + 1024 from by bv_addr] at hload
   have hloade := cpsTriple_extend_code (hmono := fun a i h =>
     divK_modEpilogue_code_sub_modCode base a i
@@ -483,7 +463,7 @@ theorem divK_mod_epilogue_spec (sp : Word) (base : Word)
         (divK_epilogue_load_prog 4056 4048 4040 4032) 0
         (by bv_addr) (by decide) (by decide) (by decide) a i h)) hload
   -- Store phase (base+1024 → base+1068 via JAL): advance sp, store u[0..3] to output
-  have hstore := divK_epilogue_store_spec sp (base + 1024) u0 u1 u2 u3 m0 m8 m16 m24 24 hvalid
+  have hstore := divK_epilogue_store_spec sp (base + 1024) u0 u1 u2 u3 m0 m8 m16 m24 24
   rw [show (base + 1024 : Word) + 20 + signExtend21 24 = base + 1068 from by
         rw [show signExtend21 (24 : BitVec 21) = (24 : Word) from by decide]; bv_addr]
     at hstore

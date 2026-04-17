@@ -260,19 +260,16 @@ theorem evm_shr_zero_high_spec (sp base : Word)
     exact this
   -- Step 1: LD x5 x12 8 at base → extend to shrCode
   have h1 := cpsTriple_extend_code (ld_s1_sub_shrCode base)
-    (ld_spec_gen .x5 .x12 sp r5 s1 8 base (by nofun)
-      (by simp only [signExtend12_8]; exact hv8))
+    (ld_spec_gen .x5 .x12 sp r5 s1 8 base (by nofun))
   simp only [signExtend12_8] at h1
   -- Step 2: LD/OR at base+4 → extend to shrCode
   have h2 := cpsTriple_extend_code (ld_or_16_sub_shrCode base)
-    (shr_ld_or_acc_spec sp s1 r10 s2 16 (base + 4)
-      (by simp only [signExtend12_16]; exact hv16))
+    (shr_ld_or_acc_spec sp s1 r10 s2 16 (base + 4))
   simp only [signExtend12_16] at h2
   rw [shr_off_4] at h2
   -- Step 3: LD/OR at base+12 → extend to shrCode
   have h3 := cpsTriple_extend_code (ld_or_24_sub_shrCode base)
-    (shr_ld_or_acc_spec sp (s1 ||| s2) s2 s3 24 (base + 12)
-      (by simp only [signExtend12_24]; exact hv24))
+    (shr_ld_or_acc_spec sp (s1 ||| s2) s2 s3 24 (base + 12))
   simp only [signExtend12_24] at h3
   rw [shr_off_12] at h3
   -- Frame and compose LD → LD/OR → LD/OR
@@ -318,7 +315,7 @@ theorem evm_shr_zero_high_spec (sp base : Word)
     (fun h hp => by xperm_hyp hp) h123 hbne_framed
   -- Step 5: Zero path (base+340 → base+360) → extend to shrCode
   have hzp := cpsTriple_extend_code (zero_path_sub_shrCode base)
-    (shr_zero_path_spec sp v0 v1 v2 v3 (base + 340) hv32)
+    (shr_zero_path_spec sp v0 v1 v2 v3 (base + 340))
   rw [shr_off_340_20] at hzp
   -- Frame zero path with remaining state
   have hzp_framed := cpsTriple_frame_left (base + 340) (base + 360) _ _ _
@@ -389,13 +386,13 @@ theorem evm_shr_zero_large_spec (sp base : Word)
     exact this
   -- Steps 1-3: Same linear chain as zero_high
   have h1 := cpsTriple_extend_code (ld_s1_sub_shrCode base)
-    (ld_spec_gen .x5 .x12 sp r5 s1 8 base (by nofun) (by simp only [signExtend12_8]; exact hv8))
+    (ld_spec_gen .x5 .x12 sp r5 s1 8 base (by nofun))
   simp only [signExtend12_8] at h1
   have h2 := cpsTriple_extend_code (ld_or_16_sub_shrCode base)
-    (shr_ld_or_acc_spec sp s1 r10 s2 16 (base + 4) (by simp only [signExtend12_16]; exact hv16))
+    (shr_ld_or_acc_spec sp s1 r10 s2 16 (base + 4))
   simp only [signExtend12_16] at h2; rw [shr_off_4] at h2
   have h3 := cpsTriple_extend_code (ld_or_24_sub_shrCode base)
-    (shr_ld_or_acc_spec sp (s1 ||| s2) s2 s3 24 (base + 12) (by simp only [signExtend12_24]; exact hv24))
+    (shr_ld_or_acc_spec sp (s1 ||| s2) s2 s3 24 (base + 12))
   simp only [signExtend12_24] at h3; rw [shr_off_12] at h3
   -- Frame + compose linear chain
   have h1f := cpsTriple_frame_left base (base + 4) _ _ _
@@ -436,7 +433,6 @@ theorem evm_shr_zero_large_spec (sp base : Word)
     (fun h hp => by xperm_hyp hp) h123 hbne_framed
   -- Step 5: LD x5 x12 0 at base+24 → extend to shrCode
   have hld_raw := ld_spec_gen .x5 .x12 sp (s1 ||| s2 ||| s3) s0 0 (base + 24) (by nofun)
-    (by simp only [signExtend12_0]; rw [show sp + (0 : Word) = sp from by bv_omega]; exact hv0)
   simp only [signExtend12_0] at hld_raw
   rw [show sp + (0 : Word) = sp from by bv_omega, shr_off_24] at hld_raw
   have hld := cpsTriple_extend_code (ld_s0_sub_shrCode base) hld_raw
@@ -484,7 +480,7 @@ theorem evm_shr_zero_large_spec (sp base : Word)
     (fun h hp => by xperm_hyp hp) h123456 hbeq_framed
   -- Step 8: Zero path (base+340 → base+360)
   have hzp := cpsTriple_extend_code (zero_path_sub_shrCode base)
-    (shr_zero_path_spec sp v0 v1 v2 v3 (base + 340) hv32)
+    (shr_zero_path_spec sp v0 v1 v2 v3 (base + 340))
   rw [shr_off_340_20] at hzp
   have hzp_framed := cpsTriple_frame_left (base + 340) (base + 360) _ _ _
     ((.x5 ↦ᵣ s0) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ sltiu_val) **
@@ -770,13 +766,13 @@ theorem evm_shr_body_evmWord_spec (sp base : Word)
   have ha56 : sp + 56 = (sp + 32 : Word) + 24 := by bv_omega
   -- Phase A: linear chain base -> base+36
   have h1 := cpsTriple_extend_code (ld_s1_sub_shrCode base)
-    (ld_spec_gen .x5 .x12 sp r5 s1 8 base (by nofun) (by simp only [signExtend12_8]; exact hv8))
+    (ld_spec_gen .x5 .x12 sp r5 s1 8 base (by nofun))
   simp only [signExtend12_8] at h1
   have h2 := cpsTriple_extend_code (ld_or_16_sub_shrCode base)
-    (shr_ld_or_acc_spec sp s1 r10 s2 16 (base + 4) (by simp only [signExtend12_16]; exact hv16))
+    (shr_ld_or_acc_spec sp s1 r10 s2 16 (base + 4))
   simp only [signExtend12_16] at h2; rw [shr_off_4] at h2
   have h3 := cpsTriple_extend_code (ld_or_24_sub_shrCode base)
-    (shr_ld_or_acc_spec sp (s1 ||| s2) s2 s3 24 (base + 12) (by simp only [signExtend12_24]; exact hv24))
+    (shr_ld_or_acc_spec sp (s1 ||| s2) s2 s3 24 (base + 12))
   simp only [signExtend12_24] at h3; rw [shr_off_12] at h3
   have h1f := cpsTriple_frame_left base (base + 4) _ _ _
     ((.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ r10) ** (.x6 ↦ᵣ r6) ** (.x7 ↦ᵣ r7) ** (.x11 ↦ᵣ r11) **
@@ -814,7 +810,6 @@ theorem evm_shr_body_evmWord_spec (sp base : Word)
     (fun h hp => by xperm_hyp hp) h123 hbne_framed
   -- LD x5 x12 0 at base+24
   have hld_raw := ld_spec_gen .x5 .x12 sp (s1 ||| s2 ||| s3) s0 0 (base + 24) (by nofun)
-    (by simp only [signExtend12_0]; rw [show sp + (0 : Word) = sp from by bv_omega]; exact hv0)
   simp only [signExtend12_0] at hld_raw
   rw [show sp + (0 : Word) = sp from by bv_omega, shr_off_24] at hld_raw
   have hld := cpsTriple_extend_code (ld_s0_sub_shrCode base) hld_raw

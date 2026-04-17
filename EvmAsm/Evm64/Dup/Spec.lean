@@ -22,9 +22,7 @@ open EvmAsm.Rv64
 /-- Two-instruction spec for DUP: LD x7 from source, SD x7 to destination.
     Copies src_val from src address to dst address. -/
 theorem dup_pair_spec (sp : Word)
-    (off_src off_dst : BitVec 12) (src_val dst_old v7 : Word) (base : Word)
-    (hvalid_src : isValidDwordAccess (sp + signExtend12 off_src) = true)
-    (hvalid_dst : isValidDwordAccess (sp + signExtend12 off_dst) = true) :
+    (off_src off_dst : BitVec 12) (src_val dst_old v7 : Word) (base : Word) :
     cpsTriple base (base + 8)
       (CodeReq.singleton base (.LD .x7 .x12 off_src) |>.union
         (CodeReq.singleton (base + 4) (.SD .x12 .x7 off_dst)))
@@ -98,19 +96,15 @@ theorem evm_dup_spec (nsp base : Word)
   -- Pair specs (LD + SD for each limb)
   have P0 := dup_pair_spec nsp
     (BitVec.ofNat 12 (n*32)) (BitVec.ofNat 12 0) s0 d0 v7 (base + 4)
-    (by rw [hse_s0]; exact hvs0) (by rw [hm0]; exact hv0)
   rw [hse_s0, hm0] at P0
   have P1 := dup_pair_spec nsp
     (BitVec.ofNat 12 (n*32+8)) (BitVec.ofNat 12 8) s1 d1 s0 (base + 12)
-    (by rw [hse_s1]; exact hvs8) (by rw [hm8]; exact hv8)
   rw [hse_s1, hm8] at P1
   have P2 := dup_pair_spec nsp
     (BitVec.ofNat 12 (n*32+16)) (BitVec.ofNat 12 16) s2 d2 s1 (base + 20)
-    (by rw [hse_s2]; exact hvs16) (by rw [hm16]; exact hv16)
   rw [hse_s2, hm16] at P2
   have P3 := dup_pair_spec nsp
     (BitVec.ofNat 12 (n*32+24)) (BitVec.ofNat 12 24) s3 d3 s2 (base + 28)
-    (by rw [hse_s3]; exact hvs24) (by rw [hm24]; exact hv24)
   rw [hse_s3, hm24] at P3
   runBlock sA P0 P1 P2 P3
 

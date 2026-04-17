@@ -72,10 +72,6 @@ set_option maxRecDepth 4096 in
 theorem div128_spec (sp ret_addr d u_lo u_hi : Word) (base : Word)
     (v1_old v6_old v11_old : Word)
     (ret_mem d_mem dlo_mem un0_mem : Word)
-    (hv_ret : isValidDwordAccess (sp + signExtend12 3968) = true)
-    (hv_d   : isValidDwordAccess (sp + signExtend12 3960) = true)
-    (hv_dlo : isValidDwordAccess (sp + signExtend12 3952) = true)
-    (hv_un0 : isValidDwordAccess (sp + signExtend12 3944) = true)
     (halign : (ret_addr + signExtend12 0) &&& ~~~1 = ret_addr) :
     -- Phase 1 intermediates
     let d_hi := d >>> (32 : BitVec 6).toNat
@@ -133,7 +129,7 @@ theorem div128_spec (sp ret_addr d u_lo u_hi : Word) (base : Word)
   -- Saves ret/d, splits d and u_lo into halves.
   -- ================================================================
   have hph1 := divK_div128_phase1_spec sp ret_addr d u_lo u_hi v1_old v6_old v11_old
-    ret_mem d_mem dlo_mem un0_mem (base + 1072) hv_ret hv_d hv_dlo hv_un0
+    ret_mem d_mem dlo_mem un0_mem (base + 1072)
   rw [show (base + 1072 : Word) + 40 = base + 1112 from by bv_addr] at hph1
   -- Extend phase1 cr to sharedDivModCode
   have hph1e := cpsTriple_extend_code (hmono := by
@@ -158,7 +154,7 @@ theorem div128_spec (sp ret_addr d u_lo u_hi : Word) (base : Word)
   -- Trial division q1, clamp, product check.
   -- ================================================================
   have hst1 := divK_div128_step1_spec sp u_hi d_hi un1 d_lo un0 d d_lo
-    (base + 1112) hv_dlo
+    (base + 1112)
   rw [show (base + 1112 : Word) + 60 = base + 1172 from by bv_addr] at hst1
   have hst1e := cpsTriple_extend_code (hmono := by
     exact CodeReq_union_sub (d128_sub base 10 _ _ (by decide) (by bv_addr) (by decide))
@@ -190,7 +186,7 @@ theorem div128_spec (sp ret_addr d u_lo u_hi : Word) (base : Word)
   -- un21 = rhat*2^32 + un1 - q1*d_lo.
   -- ================================================================
   have hcu := divK_div128_compute_un21_spec sp q1' rhat' un1 rhat_un1 q_dlo d_lo
-    (base + 1172) hv_dlo
+    (base + 1172)
   rw [show (base + 1172 : Word) + 20 = base + 1192 from by bv_addr] at hcu
   have hcue := cpsTriple_extend_code (hmono := by
     exact CodeReq_union_sub (d128_sub base 25 _ _ (by decide) (by bv_addr) (by decide))
@@ -216,7 +212,7 @@ theorem div128_spec (sp ret_addr d u_lo u_hi : Word) (base : Word)
   --         dlo=d_lo(mem[3952]), un0(mem[3944])
   -- ================================================================
   have hst2 := divK_div128_step2_spec sp un21 d_hi cu_q1_dlo cu_rhat_un1 un1 d_lo un0
-    (base + 1192) hv_dlo hv_un0
+    (base + 1192)
   rw [show (base + 1192 : Word) + 60 = base + 1252 from by bv_addr] at hst2
   have hst2e := cpsTriple_extend_code (hmono := by
     exact CodeReq_union_sub (d128_sub base 30 _ _ (by decide) (by bv_addr) (by decide))
@@ -250,7 +246,7 @@ theorem div128_spec (sp ret_addr d u_lo u_hi : Word) (base : Word)
   --         v11_old=un0(x11), ret_addr(mem[3968])
   -- ================================================================
   have hend := divK_div128_end_spec sp q1' q0' ret_addr un0 ret_addr
-    (base + 1252) hv_ret halign
+    (base + 1252) halign
   have hende := cpsTriple_extend_code (hmono := by
     exact CodeReq_union_sub (d128_sub base 45 _ _ (by decide) (by bv_addr) (by decide))
      (CodeReq_union_sub (d128_sub base 46 _ _ (by decide) (by bv_addr) (by decide))

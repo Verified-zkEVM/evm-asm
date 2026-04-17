@@ -35,10 +35,10 @@ theorem evm_and_spec (sp base : Word)
        (.x12 ↦ᵣ (sp + 32)) ** (.x7 ↦ᵣ (a3 &&& b3)) ** (.x6 ↦ᵣ b3) **
        (sp ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
        ((sp + 32) ↦ₘ (a0 &&& b0)) ** ((sp + 40) ↦ₘ (a1 &&& b1)) ** ((sp + 48) ↦ₘ (a2 &&& b2)) ** ((sp + 56) ↦ₘ (a3 &&& b3))) := by
-  have L0 := and_limb_spec 0 32 sp a0 b0 v7 v6 base (by validMem) (by validMem)
-  have L1 := and_limb_spec 8 40 sp a1 b1 (a0 &&& b0) b0 (base + 16) (by validMem) (by validMem)
-  have L2 := and_limb_spec 16 48 sp a2 b2 (a1 &&& b1) b1 (base + 32) (by validMem) (by validMem)
-  have L3 := and_limb_spec 24 56 sp a3 b3 (a2 &&& b2) b2 (base + 48) (by validMem) (by validMem)
+  have L0 := and_limb_spec 0 32 sp a0 b0 v7 v6 base
+  have L1 := and_limb_spec 8 40 sp a1 b1 (a0 &&& b0) b0 (base + 16)
+  have L2 := and_limb_spec 16 48 sp a2 b2 (a1 &&& b1) b1 (base + 32)
+  have L3 := and_limb_spec 24 56 sp a3 b3 (a2 &&& b2) b2 (base + 48)
   have LADDI := addi_spec_gen_same .x12 sp 32 (base + 64) (by nofun)
   runBlock L0 L1 L2 L3 LADDI
 

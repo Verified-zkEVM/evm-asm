@@ -18,9 +18,7 @@ open EvmAsm.Rv64
 /-- SUB limb 0 spec (5 instructions): LD, LD, SLTU, SUB, SD.
     Computes diff = a - b (mod 2^64) and borrow = (a < b ? 1 : 0). -/
 theorem sub_limb0_spec (off_a off_b : BitVec 12)
-    (sp a_limb b_limb v7 v6 v5 : Word) (base : Word)
-    (hvalid_a : isValidDwordAccess (sp + signExtend12 off_a) = true)
-    (hvalid_b : isValidDwordAccess (sp + signExtend12 off_b) = true) :
+    (sp a_limb b_limb v7 v6 v5 : Word) (base : Word) :
     let mem_a := sp + signExtend12 off_a
     let mem_b := sp + signExtend12 off_b
     let borrow := if BitVec.ult a_limb b_limb then (1 : Word) else 0
@@ -41,9 +39,7 @@ theorem sub_limb0_spec (off_a off_b : BitVec 12)
 /-- SUB carry limb phase 1 (4 instructions): LD, LD, SLTU, SUB.
     Loads a_limb and b_limb, computes borrow1 = (a < b ? 1 : 0), temp = a - b. -/
 theorem sub_limb_carry_spec_phase1 (off_a off_b : BitVec 12)
-    (sp a_limb b_limb v7 v6 borrow_in v11 : Word) (base : Word)
-    (hvalid_a : isValidDwordAccess (sp + signExtend12 off_a) = true)
-    (hvalid_b : isValidDwordAccess (sp + signExtend12 off_b) = true) :
+    (sp a_limb b_limb v7 v6 borrow_in v11 : Word) (base : Word) :
     let mem_a := sp + signExtend12 off_a
     let mem_b := sp + signExtend12 off_b
     let borrow1 := if BitVec.ult a_limb b_limb then (1 : Word) else 0
@@ -64,8 +60,7 @@ theorem sub_limb_carry_spec_phase1 (off_a off_b : BitVec 12)
     Takes temp, borrow1, borrow_in, computes borrow2 = (temp < borrow_in ? 1 : 0),
     result = temp - borrow_in, borrow_out = borrow1 ||| borrow2. -/
 theorem sub_limb_carry_spec_phase2 (off_b : BitVec 12)
-    (sp temp b_limb borrow_in borrow1 a_limb : Word) (mem_a : Word) (base : Word)
-    (hvalid_b : isValidDwordAccess (sp + signExtend12 off_b) = true) :
+    (sp temp b_limb borrow_in borrow1 a_limb : Word) (mem_a : Word) (base : Word) :
     let mem_b := sp + signExtend12 off_b
     let borrow2 := if BitVec.ult temp borrow_in then (1 : Word) else 0
     let result := temp - borrow_in
@@ -85,9 +80,7 @@ theorem sub_limb_carry_spec_phase2 (off_b : BitVec 12)
 /-- SUB carry limb spec (8 instructions): LD, LD, SLTU, SUB, SLTU, SUB, OR, SD.
     Composed from phase1 and phase2. -/
 theorem sub_limb_carry_spec (off_a off_b : BitVec 12)
-    (sp a_limb b_limb v7 v6 borrow_in v11 : Word) (base : Word)
-    (hvalid_a : isValidDwordAccess (sp + signExtend12 off_a) = true)
-    (hvalid_b : isValidDwordAccess (sp + signExtend12 off_b) = true) :
+    (sp a_limb b_limb v7 v6 borrow_in v11 : Word) (base : Word) :
     let mem_a := sp + signExtend12 off_a
     let mem_b := sp + signExtend12 off_b
     let borrow1 := if BitVec.ult a_limb b_limb then (1 : Word) else 0
@@ -110,10 +103,9 @@ theorem sub_limb_carry_spec (off_a off_b : BitVec 12)
       ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ result) ** (.x6 ↦ᵣ borrow2) ** (.x5 ↦ᵣ borrow_out) ** (.x11 ↦ᵣ borrow1) **
        (mem_a ↦ₘ a_limb) ** (mem_b ↦ₘ result)) := by
   have p1 := sub_limb_carry_spec_phase1 off_a off_b sp a_limb b_limb v7 v6 borrow_in v11 base
-    hvalid_a hvalid_b
   have p2 := sub_limb_carry_spec_phase2 off_b sp (a_limb - b_limb) b_limb borrow_in
     (if BitVec.ult a_limb b_limb then (1 : Word) else 0)
-    a_limb (sp + signExtend12 off_a) (base + 16) hvalid_b
+    a_limb (sp + signExtend12 off_a) (base + 16)
   runBlock p1 p2
 
 end EvmAsm.Evm64

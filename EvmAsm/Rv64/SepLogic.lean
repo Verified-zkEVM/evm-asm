@@ -329,9 +329,14 @@ def regIs (r : Reg) (v : Word) : Assertion :=
 /-- Notation: r ↦ᵣ v means register r holds value v. -/
 notation:50 r " ↦ᵣ " v => regIs r v
 
-/-- Memory at address a holds value v. -/
+/-- Memory at address a holds value v.
+    The assertion additionally requires `a` to be a valid dword-aligned
+    memory address (`isValidDwordAccess a = true`). This means `↦ₘ` cannot
+    hold at out-of-range or mis-aligned addresses, letting specs recover
+    the validity hypothesis from the precondition instead of taking it as
+    a separate side-condition (issue #338). -/
 def memIs (a : Word) (v : Word) : Assertion :=
-  fun h => h = PartialState.singletonMem a v
+  fun h => h = PartialState.singletonMem a v ∧ isValidDwordAccess a = true
 
 /-- Notation: a ↦ₘ v means memory at address a holds value v. -/
 notation:50 a " ↦ₘ " v => memIs a v
@@ -399,13 +404,25 @@ theorem holdsFor_regIs (r : Reg) (v : Word) (s : MachineState) :
 
 @[simp]
 theorem holdsFor_memIs (a : Word) (v : Word) (s : MachineState) :
-    (memIs a v).holdsFor s ↔ s.getMem a = v := by
+    (memIs a v).holdsFor s ↔ s.getMem a = v ∧ isValidDwordAccess a = true := by
   simp only [Assertion.holdsFor, memIs]
   constructor
-  · rintro ⟨h, hcompat, rfl⟩
-    exact (PartialState.CompatibleWith_singletonMem a v s).mp hcompat
-  · intro heq
-    exact ⟨_, (PartialState.CompatibleWith_singletonMem a v s).mpr heq, rfl⟩
+  · rintro ⟨h, hcompat, rfl, hvalid⟩
+    exact ⟨(PartialState.CompatibleWith_singletonMem a v s).mp hcompat, hvalid⟩
+  · rintro ⟨heq, hvalid⟩
+    exact ⟨_, (PartialState.CompatibleWith_singletonMem a v s).mpr heq, rfl, hvalid⟩
+
+/-- The validity hypothesis that `memIs` now encodes: if `(a ↦ₘ v).holdsFor s`
+    then `a` is a valid dword-aligned memory address. -/
+theorem holdsFor_memIs_isValidDwordAccess {a : Word} {v : Word} {s : MachineState}
+    (h : (memIs a v).holdsFor s) : isValidDwordAccess a = true :=
+  ((holdsFor_memIs a v s).mp h).2
+
+/-- The memory-content consequence of `memIs`: if `(a ↦ₘ v).holdsFor s`
+    then `s.getMem a = v`. -/
+theorem holdsFor_memIs_getMem {a : Word} {v : Word} {s : MachineState}
+    (h : (memIs a v).holdsFor s) : s.getMem a = v :=
+  ((holdsFor_memIs a v s).mp h).1
 
 @[simp]
 theorem holdsFor_pcIs (v : Word) (s : MachineState) :
@@ -432,10 +449,13 @@ theorem holdsFor_regOwn (r : Reg) (s : MachineState) :
 
 @[simp]
 theorem holdsFor_memOwn (a : Word) (s : MachineState) :
-    (memOwn a).holdsFor s ↔ True := by
-  simp only [iff_true, memOwn, Assertion.holdsFor]
-  exact ⟨_, (PartialState.CompatibleWith_singletonMem a (s.getMem a) s).mpr rfl,
-         s.getMem a, rfl⟩
+    (memOwn a).holdsFor s ↔ isValidDwordAccess a = true := by
+  simp only [memOwn, Assertion.holdsFor]
+  constructor
+  · rintro ⟨_, _, _, _, hvalid⟩; exact hvalid
+  · intro hvalid
+    exact ⟨_, (PartialState.CompatibleWith_singletonMem a (s.getMem a) s).mpr rfl,
+           s.getMem a, rfl, hvalid⟩
 
 theorem regIs_implies_regOwn (r : Reg) (v : Word) :
     ∀ h, regIs r v h → regOwn r h := fun _ hp => ⟨v, hp⟩
@@ -498,20 +518,22 @@ theorem holdsFor_sepConj_regIs_regIs {r1 r2 : Reg} {v1 v2 : Word} {s : MachineSt
 
 theorem holdsFor_sepConj_regIs_memIs {r : Reg} {v : Word} {a : Word} {w : Word}
     {s : MachineState} :
-    ((regIs r v) ** (memIs a w)).holdsFor s ↔ s.getReg r = v ∧ s.getMem a = w := by
+    ((regIs r v) ** (memIs a w)).holdsFor s ↔
+      s.getReg r = v ∧ s.getMem a = w ∧ isValidDwordAccess a = true := by
   constructor
   · rintro ⟨h, hcompat, h1, h2, hd, hunion, hp1, hp2⟩
-    rw [regIs] at hp1; rw [memIs] at hp2; subst hp1; subst hp2
+    rw [regIs] at hp1; obtain ⟨hp2, hvalid⟩ := hp2; subst hp1; subst hp2
     rw [← hunion] at hcompat
     rw [PartialState.CompatibleWith_union hd] at hcompat
     exact ⟨(PartialState.CompatibleWith_singletonReg r v s).mp hcompat.1,
-           (PartialState.CompatibleWith_singletonMem a w s).mp hcompat.2⟩
-  · intro ⟨h1, h2⟩
+           (PartialState.CompatibleWith_singletonMem a w s).mp hcompat.2,
+           hvalid⟩
+  · intro ⟨h1, h2, hvalid⟩
     have hd := singletonReg_disjoint_singletonMem r v a w
     exact ⟨_, (PartialState.CompatibleWith_union hd).mpr
       ⟨(PartialState.CompatibleWith_singletonReg r v s).mpr h1,
        (PartialState.CompatibleWith_singletonMem a w s).mpr h2⟩,
-      _, _, hd, rfl, rfl, rfl⟩
+      _, _, hd, rfl, rfl, ⟨rfl, hvalid⟩⟩
 
 -- ============================================================================
 -- holdsFor projection for sepConj
@@ -539,7 +561,7 @@ theorem pcFree_regIs (r : Reg) (v : Word) : (regIs r v).pcFree := by
   intro h hp; rw [regIs] at hp; subst hp; rfl
 
 theorem pcFree_memIs (a : Word) (v : Word) : (memIs a v).pcFree := by
-  intro h hp; rw [memIs] at hp; subst hp; rfl
+  intro h ⟨hp, _⟩; subst hp; rfl
 
 theorem pcFree_regOwn (r : Reg) : (regOwn r).pcFree := by
   intro h ⟨v, hv⟩; exact pcFree_regIs r v h hv
@@ -1522,7 +1544,7 @@ theorem holdsFor_sepConj_memIs_setMem {a : Word} {v v' : Word} {R : Assertion}
     (hPR : ((a ↦ₘ v) ** R).holdsFor s) :
     ((a ↦ₘ v') ** R).holdsFor (s.setMem a v') := by
   obtain ⟨hp, hcompat, h1, h2, hdisj, hunion, hh1, hh2⟩ := hPR
-  rw [memIs] at hh1; subst hh1; rw [← hunion] at hcompat
+  obtain ⟨hh1, hvalid⟩ := hh1; subst hh1; rw [← hunion] at hcompat
   -- h2 doesn't own address a (from disjointness)
   have ha2 : h2.mem a = none := by
     rcases hdisj.2.1 a with h | h
@@ -1549,7 +1571,7 @@ theorem holdsFor_sepConj_memIs_setMem {a : Word} {v v' : Word} {R : Assertion}
     split at ha' <;> simp_all
   -- h2 compatible with s.setMem a v' (doesn't own a)
   have hc2' : h2.CompatibleWith (s.setMem a v') := PartialState.CompatibleWith_setMem hc2 ha2
-  refine ⟨(PartialState.singletonMem a v').union h2, ?_, PartialState.singletonMem a v', h2, hdisj', rfl, rfl, hh2⟩
+  refine ⟨(PartialState.singletonMem a v').union h2, ?_, PartialState.singletonMem a v', h2, hdisj', rfl, ⟨rfl, hvalid⟩, hh2⟩
   exact (PartialState.CompatibleWith_union hdisj').mpr ⟨hc1', hc2'⟩
 
 /-- setMem preserves holdsFor for any assertion whose partial state doesn't own the address. -/

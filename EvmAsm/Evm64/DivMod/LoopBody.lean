@@ -81,15 +81,7 @@ set_option maxHeartbeats 800000 in
 theorem divK_mulsub_4limbs_spec
     (sp u_base q_hat v0 v1 v2 v3 u0 u1 u2 u3 : Word)
     (v5_init v7_init v2_init : Word)
-    (base : Word)
-    (hv_v0 : isValidDwordAccess (sp + signExtend12 32) = true)
-    (hv_u0 : isValidDwordAccess (u_base + signExtend12 0) = true)
-    (hv_v1 : isValidDwordAccess (sp + signExtend12 40) = true)
-    (hv_u1 : isValidDwordAccess (u_base + signExtend12 4088) = true)
-    (hv_v2 : isValidDwordAccess (sp + signExtend12 48) = true)
-    (hv_u2 : isValidDwordAccess (u_base + signExtend12 4080) = true)
-    (hv_v3 : isValidDwordAccess (sp + signExtend12 56) = true)
-    (hv_u3 : isValidDwordAccess (u_base + signExtend12 4072) = true) :
+    (base : Word) :
     -- Limb 0 intermediates
     let p0_lo := q_hat * v0
     let p0_hi := rv64_mulhu q_hat v0
@@ -148,7 +140,7 @@ theorem divK_mulsub_4limbs_spec
   -- Limb 0: instrs [22]-[32] at base+536
   have L0 := divK_mulsub_limb_spec sp u_base q_hat (signExtend12 0 : Word)
     v5_init v7_init v2_init v0 u0 32 0 (base + 536)
-    hv_v0 hv_u0
+
   rw [lb_ms1] at L0
   have L0e := cpsTriple_extend_code (hmono := by
     exact CodeReq_union_sub (lb_sub base 22 _ _ (by decide) (by bv_addr) (by decide))
@@ -166,7 +158,7 @@ theorem divK_mulsub_4limbs_spec
   -- Limb 1: instrs [33]-[43] at base+580
   have L1 := divK_mulsub_limb_spec sp u_base q_hat c0
     bs0 fs0 un0 v1 u1 40 4088 (base + 580)
-    hv_v1 hv_u1
+
   rw [lb_ms2] at L1
   have L1e := cpsTriple_extend_code (hmono := by
     exact CodeReq_union_sub (lb_sub base 33 _ _ (by decide) (by bv_addr) (by decide))
@@ -192,7 +184,7 @@ theorem divK_mulsub_4limbs_spec
   -- Limb 2: instrs [44]-[54] at base+624
   have L2 := divK_mulsub_limb_spec sp u_base q_hat c1
     bs1 fs1 un1 v2 u2 48 4080 (base + 624)
-    hv_v2 hv_u2
+
   rw [lb_ms3] at L2
   have L2e := cpsTriple_extend_code (hmono := by
     exact CodeReq_union_sub (lb_sub base 44 _ _ (by decide) (by bv_addr) (by decide))
@@ -212,7 +204,7 @@ theorem divK_mulsub_4limbs_spec
   -- Limb 3: instrs [55]-[65] at base+668
   have L3 := divK_mulsub_limb_spec sp u_base q_hat c2
     bs2 fs2 un2 v3 u3 56 4072 (base + 668)
-    hv_v3 hv_u3
+
   rw [lb_ms_end] at L3
   have L3e := cpsTriple_extend_code (hmono := by
     exact CodeReq_union_sub (lb_sub base 55 _ _ (by decide) (by bv_addr) (by decide))
@@ -259,16 +251,7 @@ set_option maxHeartbeats 800000 in
 theorem divK_addback_full_spec
     (sp u_base q_hat v0 v1 v2 v3 u0 u1 u2 u3 u4 : Word)
     (v7_init v5_init v2_init : Word)
-    (base : Word)
-    (hv_v0 : isValidDwordAccess (sp + signExtend12 32) = true)
-    (hv_u0 : isValidDwordAccess (u_base + signExtend12 0) = true)
-    (hv_v1 : isValidDwordAccess (sp + signExtend12 40) = true)
-    (hv_u1 : isValidDwordAccess (u_base + signExtend12 4088) = true)
-    (hv_v2 : isValidDwordAccess (sp + signExtend12 48) = true)
-    (hv_u2 : isValidDwordAccess (u_base + signExtend12 4080) = true)
-    (hv_v3 : isValidDwordAccess (sp + signExtend12 56) = true)
-    (hv_u3 : isValidDwordAccess (u_base + signExtend12 4072) = true)
-    (hv_u4 : isValidDwordAccess (u_base + signExtend12 4064) = true) :
+    (base : Word) :
     -- Limb 0 addback intermediates
     let upc0 := u0 + (signExtend12 0 : Word)
     let ac1_0 := if BitVec.ult upc0 (signExtend12 0 : Word) then (1 : Word) else 0
@@ -333,7 +316,7 @@ theorem divK_addback_full_spec
     (by pcFree) Ie
   -- Limb 0: instrs [72]-[79] at base+736
   have A0 := divK_addback_limb_spec sp u_base (signExtend12 0 : Word)
-    v5_init v2_init v0 u0 32 0 (base + 736) hv_v0 hv_u0
+    v5_init v2_init v0 u0 32 0 (base + 736)
   rw [lb_ab0_end] at A0
   have A0e := cpsTriple_extend_code (hmono := by
     exact CodeReq_union_sub (lb_sub base 72 _ _ (by decide) (by bv_addr) (by decide))
@@ -349,7 +332,7 @@ theorem divK_addback_full_spec
   seqFrame If A0e
   -- Limb 1: instrs [80]-[87] at base+768
   have A1 := divK_addback_limb_spec sp u_base aco0
-    ac2_0 aun0 v1 u1 40 4088 (base + 768) hv_v1 hv_u1
+    ac2_0 aun0 v1 u1 40 4088 (base + 768)
   rw [lb_ab1_end] at A1
   have A1e := cpsTriple_extend_code (hmono := by
     exact CodeReq_union_sub (lb_sub base 80 _ _ (by decide) (by bv_addr) (by decide))
@@ -364,7 +347,7 @@ theorem divK_addback_full_spec
   seqFrame IfA0e A1e
   -- Limb 2: instrs [88]-[95] at base+800
   have A2 := divK_addback_limb_spec sp u_base aco1
-    ac2_1 aun1 v2 u2 48 4080 (base + 800) hv_v2 hv_u2
+    ac2_1 aun1 v2 u2 48 4080 (base + 800)
   rw [lb_ab2_end] at A2
   have A2e := cpsTriple_extend_code (hmono := by
     exact CodeReq_union_sub (lb_sub base 88 _ _ (by decide) (by bv_addr) (by decide))
@@ -379,7 +362,7 @@ theorem divK_addback_full_spec
   seqFrame IfA0eA1e A2e
   -- Limb 3: instrs [96]-[103] at base+832
   have A3 := divK_addback_limb_spec sp u_base aco2
-    ac2_2 aun2 v3 u3 56 4072 (base + 832) hv_v3 hv_u3
+    ac2_2 aun2 v3 u3 56 4072 (base + 832)
   rw [lb_ab3_end] at A3
   have A3e := cpsTriple_extend_code (hmono := by
     exact CodeReq_union_sub (lb_sub base 96 _ _ (by decide) (by bv_addr) (by decide))
@@ -393,7 +376,7 @@ theorem divK_addback_full_spec
     A3
   seqFrame IfA0eA1eA2e A3e
   -- Final: instrs [104]-[107] at base+864
-  have AF := divK_addback_final_spec u_base aco3 q_hat ac2_3 u4 4064 (base + 864) hv_u4
+  have AF := divK_addback_final_spec u_base aco3 q_hat ac2_3 u4 4064 (base + 864)
   rw [lb_abf_end] at AF
   have AFe := cpsTriple_extend_code (hmono := by
     exact CodeReq_union_sub (lb_sub base 104 _ _ (by decide) (by bv_addr) (by decide))
@@ -427,17 +410,7 @@ set_option maxHeartbeats 1600000 in
 theorem divK_mulsub_full_spec
     (sp q_hat j v0 v1 v2 v3 u0 u1 u2 u3 u_top : Word)
     (v1_old v5_old v6_old v7_old v10_old v2_old : Word)
-    (base : Word)
-    (hv_j : isValidDwordAccess (sp + signExtend12 3976) = true)
-    (hv_v0 : isValidDwordAccess (sp + signExtend12 32) = true)
-    (hv_u0 : isValidDwordAccess ((sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 0) = true)
-    (hv_v1 : isValidDwordAccess (sp + signExtend12 40) = true)
-    (hv_u1 : isValidDwordAccess ((sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 4088) = true)
-    (hv_v2 : isValidDwordAccess (sp + signExtend12 48) = true)
-    (hv_u2 : isValidDwordAccess ((sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 4080) = true)
-    (hv_v3 : isValidDwordAccess (sp + signExtend12 56) = true)
-    (hv_u3 : isValidDwordAccess ((sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 4072) = true)
-    (hv_u4 : isValidDwordAccess ((sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 4064) = true) :
+    (base : Word) :
     let u_base := sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat
     -- Mulsub intermediates (same as mulsub_4limbs_spec)
     let p0_lo := q_hat * v0
@@ -503,7 +476,7 @@ theorem divK_mulsub_full_spec
         p3_lo p3_hi fs3 ba3 pc3 bs3 un3 c3
         borrow u4_new
   -- 1. Mulsub setup: instrs [17]-[21] at base+516
-  have S := divK_mulsub_setup_spec sp q_hat j v1_old v5_old v6_old v10_old (base + 516) hv_j
+  have S := divK_mulsub_setup_spec sp q_hat j v1_old v5_old v6_old v10_old (base + 516)
   rw [lb_ms_setup] at S
   have Se := cpsTriple_extend_code (hmono := by
     exact CodeReq_union_sub (lb_sub base 17 _ _ (by decide) (by bv_addr) (by decide))
@@ -522,12 +495,12 @@ theorem divK_mulsub_full_spec
     (by pcFree) Se
   -- 2. Mulsub 4 limbs: instrs [22]-[65] at base+536
   have M := divK_mulsub_4limbs_spec sp u_base q_hat v0 v1 v2 v3 u0 u1 u2 u3
-    (j <<< (3 : BitVec 6).toNat) v7_old v2_old base hv_v0 hv_u0 hv_v1 hv_u1 hv_v2 hv_u2 hv_v3 hv_u3
+    (j <<< (3 : BitVec 6).toNat) v7_old v2_old base
   intro_lets at M
   -- Compose setup + mulsub
   seqFrame Sf M
   -- 3. Sub-carry: instrs [66]-[69] at base+712
-  have SC := divK_sub_carry_spec u_base c3 bs3 fs3 u_top 4064 (base + 712) hv_u4
+  have SC := divK_sub_carry_spec u_base c3 bs3 fs3 u_top 4064 (base + 712)
   rw [lb_sc] at SC
   have SCe := cpsTriple_extend_code (hmono := by
     exact CodeReq_union_sub (lb_sub base 66 _ _ (by decide) (by bv_addr) (by decide))
@@ -623,16 +596,7 @@ set_option maxHeartbeats 1600000 in
 theorem divK_correction_addback_spec
     (sp u_base borrow q_hat v0 v1 v2 v3 u0 u1 u2 u3 u4 : Word)
     (v5_old v2_old : Word) (base : Word)
-    (hb : borrow ≠ (0 : Word))
-    (hv_v0 : isValidDwordAccess (sp + signExtend12 32) = true)
-    (hv_u0 : isValidDwordAccess (u_base + signExtend12 0) = true)
-    (hv_v1 : isValidDwordAccess (sp + signExtend12 40) = true)
-    (hv_u1 : isValidDwordAccess (u_base + signExtend12 4088) = true)
-    (hv_v2 : isValidDwordAccess (sp + signExtend12 48) = true)
-    (hv_u2 : isValidDwordAccess (u_base + signExtend12 4080) = true)
-    (hv_v3 : isValidDwordAccess (sp + signExtend12 56) = true)
-    (hv_u3 : isValidDwordAccess (u_base + signExtend12 4072) = true)
-    (hv_u4 : isValidDwordAccess (u_base + signExtend12 4064) = true) :
+    (hb : borrow ≠ (0 : Word)) :
     -- Addback intermediates
     let upc0 := u0 + (signExtend12 0 : Word)
     let ac1_0 := if BitVec.ult upc0 (signExtend12 0 : Word) then (1 : Word) else 0
@@ -703,7 +667,7 @@ theorem divK_correction_addback_spec
     (by pcFree) ntaken_clean
   -- Compose with addback_full (base+732 → base+880)
   have AB := divK_addback_full_spec sp u_base q_hat v0 v1 v2 v3 u0 u1 u2 u3 u4
-    borrow v5_old v2_old base hv_v0 hv_u0 hv_v1 hv_u1 hv_v2 hv_u2 hv_v3 hv_u3 hv_u4
+    borrow v5_old v2_old base
   dsimp only [] at AB
   seqFrame ntaken_framed AB
   exact cpsTriple_consequence _ _ _ _ _ _ _
@@ -716,16 +680,7 @@ theorem divK_correction_addback_spec
 theorem divK_correction_addback_named_spec
     (sp u_base borrow q_hat v0 v1 v2 v3 u0 u1 u2 u3 u4 : Word)
     (v5_old v2_old : Word) (base : Word)
-    (hb : borrow ≠ (0 : Word))
-    (hv_v0 : isValidDwordAccess (sp + signExtend12 32) = true)
-    (hv_u0 : isValidDwordAccess (u_base + signExtend12 0) = true)
-    (hv_v1 : isValidDwordAccess (sp + signExtend12 40) = true)
-    (hv_u1 : isValidDwordAccess (u_base + signExtend12 4088) = true)
-    (hv_v2 : isValidDwordAccess (sp + signExtend12 48) = true)
-    (hv_u2 : isValidDwordAccess (u_base + signExtend12 4080) = true)
-    (hv_v3 : isValidDwordAccess (sp + signExtend12 56) = true)
-    (hv_u3 : isValidDwordAccess (u_base + signExtend12 4072) = true)
-    (hv_u4 : isValidDwordAccess (u_base + signExtend12 4064) = true) :
+    (hb : borrow ≠ (0 : Word)) :
     let ab := addbackN4 u0 u1 u2 u3 u4 v0 v1 v2 v3
     let q_hat' := q_hat + signExtend12 4095
     cpsTriple (base + 728) (base + 880) (sharedDivModCode base)
@@ -745,7 +700,7 @@ theorem divK_correction_addback_named_spec
        ((u_base + signExtend12 4064) ↦ₘ ab.2.2.2.2)) := by
   intro ab q_hat'
   exact divK_correction_addback_spec sp u_base borrow q_hat v0 v1 v2 v3 u0 u1 u2 u3 u4
-    v5_old v2_old base hb hv_v0 hv_u0 hv_v1 hv_u1 hv_v2 hv_u2 hv_v3 hv_u3 hv_u4
+    v5_old v2_old base hb
 
 -- ============================================================================
 -- Section 7: Save j + trial load composition
@@ -762,12 +717,7 @@ set_option maxHeartbeats 800000 in
     Entry: base+448, Exit: base+500, CodeReq: sharedDivModCode base. -/
 theorem divK_save_trial_load_spec
     (sp j n j_old v5_old v6_old v7_old v10_old u_hi u_lo v_top : Word)
-    (base : Word)
-    (hv_j : isValidDwordAccess (sp + signExtend12 3976) = true)
-    (hv_n1 : isValidDwordAccess (sp + signExtend12 3984) = true)
-    (hv_uhi : isValidDwordAccess (sp + signExtend12 4056 - (j + n) <<< (3 : BitVec 6).toNat) = true)
-    (hv_ulo : isValidDwordAccess ((sp + signExtend12 4056 - (j + n) <<< (3 : BitVec 6).toNat) + 8) = true)
-    (hv_vtop : isValidDwordAccess (sp + (n + signExtend12 4095) <<< (3 : BitVec 6).toNat + signExtend12 32) = true) :
+    (base : Word) :
     let u_addr := sp + signExtend12 4056 - (j + n) <<< (3 : BitVec 6).toNat
     let vtop_base := sp + (n + signExtend12 4095) <<< (3 : BitVec 6).toNat
     cpsTriple (base + loopBodyOff) (base + 500) (sharedDivModCode base)
@@ -787,7 +737,7 @@ theorem divK_save_trial_load_spec
        (vtop_base + signExtend12 32 ↦ₘ v_top)) := by
   intro u_addr vtop_base
   -- 1. Save j: instr [0] at base+448
-  have SJ := divK_save_j_spec sp j j_old (base + loopBodyOff) hv_j
+  have SJ := divK_save_j_spec sp j j_old (base + loopBodyOff)
   rw [lb_save_j] at SJ
   have SJe := cpsTriple_extend_code (hmono :=
     lb_sub base 0 _ _ (by decide) (by bv_addr) (by decide)) SJ
@@ -801,7 +751,7 @@ theorem divK_save_trial_load_spec
     (by pcFree) SJe
   -- 2. Trial load: instrs [1]-[12] at base+452
   have TL := divK_trial_load_spec sp j n v5_old v6_old v7_old v10_old u_hi u_lo v_top
-    (base + 452) hv_n1 hv_uhi hv_ulo hv_vtop
+    (base + 452)
   dsimp only [] at TL
   rw [lb_trial_load] at TL
   have TLe := cpsTriple_extend_code (hmono := by
@@ -876,10 +826,6 @@ theorem divK_trial_call_path_spec
     (sp j u_lo u_hi v_top vtop_base : Word) (base : Word)
     (v2_old v11_old : Word)
     (ret_mem d_mem dlo_mem un0_mem : Word)
-    (hv_ret : isValidDwordAccess (sp + signExtend12 3968) = true)
-    (hv_d   : isValidDwordAccess (sp + signExtend12 3960) = true)
-    (hv_dlo : isValidDwordAccess (sp + signExtend12 3952) = true)
-    (hv_un0 : isValidDwordAccess (sp + signExtend12 3944) = true)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516) :
     -- div128 intermediates (same as div128_spec)
     let d_hi := v_top >>> (32 : BitVec 6).toNat
@@ -934,7 +880,7 @@ theorem divK_trial_call_path_spec
   -- 2. div128 subroutine: base+1072 → base+516
   have D := div128_spec sp (base + 516) v_top u_lo u_hi base
     j vtop_base v11_old ret_mem d_mem dlo_mem un0_mem
-    hv_ret hv_d hv_dlo hv_un0 halign
+    halign
   dsimp only [] at D
   -- 3. Frame JAL with all registers/memory for div128
   have Jf := cpsTriple_frame_left _ _ _ _ _
@@ -1005,15 +951,6 @@ private theorem lb_beq_back_taken (base : Word) :
 theorem divK_double_addback_beq_spec
     (sp u_base q_hat' v0 v1 v2 v3 aun0 aun1 aun2 aun3 aun4 : Word)
     (base : Word)
-    (hv_v0 : isValidDwordAccess (sp + signExtend12 32) = true)
-    (hv_u0 : isValidDwordAccess (u_base + signExtend12 0) = true)
-    (hv_v1 : isValidDwordAccess (sp + signExtend12 40) = true)
-    (hv_u1 : isValidDwordAccess (u_base + signExtend12 4088) = true)
-    (hv_v2 : isValidDwordAccess (sp + signExtend12 48) = true)
-    (hv_u2 : isValidDwordAccess (u_base + signExtend12 4080) = true)
-    (hv_v3 : isValidDwordAccess (sp + signExtend12 56) = true)
-    (hv_u3 : isValidDwordAccess (u_base + signExtend12 4072) = true)
-    (hv_u4 : isValidDwordAccess (u_base + signExtend12 4064) = true)
     (hcarry2_nz : addbackN4_carry aun0 aun1 aun2 aun3 v0 v1 v2 v3 ≠ 0) :
     -- Second addback intermediates (same chain as addbackN4 applied to first addback results)
     let upc0' := aun0 + (signExtend12 0 : Word)
@@ -1073,7 +1010,7 @@ theorem divK_double_addback_beq_spec
   -- 2. Second addback (base+732 → base+880)
   have AB2 := divK_addback_full_spec sp u_base q_hat' v0 v1 v2 v3 aun0 aun1 aun2 aun3 aun4
     (0 : Word) aun4 aun3 base
-    hv_v0 hv_u0 hv_v1 hv_u1 hv_v2 hv_u2 hv_v3 hv_u3 hv_u4
+
   intro_lets at AB2
   -- 3. BEQ at [108] not taken (carry2 ≠ 0) → base+884
   have haco3_nz : aco3' ≠ 0 := by
@@ -1117,15 +1054,6 @@ theorem divK_double_addback_beq_spec
 theorem divK_double_addback_beq_named_spec
     (sp u_base q_hat' v0 v1 v2 v3 aun0 aun1 aun2 aun3 aun4 : Word)
     (base : Word)
-    (hv_v0 : isValidDwordAccess (sp + signExtend12 32) = true)
-    (hv_u0 : isValidDwordAccess (u_base + signExtend12 0) = true)
-    (hv_v1 : isValidDwordAccess (sp + signExtend12 40) = true)
-    (hv_u1 : isValidDwordAccess (u_base + signExtend12 4088) = true)
-    (hv_v2 : isValidDwordAccess (sp + signExtend12 48) = true)
-    (hv_u2 : isValidDwordAccess (u_base + signExtend12 4080) = true)
-    (hv_v3 : isValidDwordAccess (sp + signExtend12 56) = true)
-    (hv_u3 : isValidDwordAccess (u_base + signExtend12 4072) = true)
-    (hv_u4 : isValidDwordAccess (u_base + signExtend12 4064) = true)
     (hcarry2_nz : addbackN4_carry aun0 aun1 aun2 aun3 v0 v1 v2 v3 ≠ 0) :
     let ab' := addbackN4 aun0 aun1 aun2 aun3 aun4 v0 v1 v2 v3
     let q_hat'' := q_hat' + signExtend12 4095
@@ -1147,7 +1075,7 @@ theorem divK_double_addback_beq_named_spec
        ((u_base + signExtend12 4064) ↦ₘ ab'.2.2.2.2)) := by
   intro ab' q_hat''
   exact divK_double_addback_beq_spec sp u_base q_hat' v0 v1 v2 v3 aun0 aun1 aun2 aun3 aun4
-    base hv_v0 hv_u0 hv_v1 hv_u1 hv_v2 hv_u2 hv_v3 hv_u3 hv_u4 hcarry2_nz
+    base hcarry2_nz
 
 set_option maxRecDepth 4096 in
 set_option maxHeartbeats 800000 in
@@ -1159,8 +1087,7 @@ set_option maxHeartbeats 800000 in
     CodeReq: sharedDivModCode base. -/
 theorem divK_store_loop_spec
     (sp j q_hat v5_old v7_old q_old : Word)
-    (base : Word)
-    (hv_q : isValidDwordAccess (sp + signExtend12 4088 - j <<< (3 : BitVec 6).toNat) = true) :
+    (base : Word) :
     let j_x8 := j <<< (3 : BitVec 6).toNat
     let q_addr := sp + signExtend12 4088 - j_x8
     let j' := j + signExtend12 4095
@@ -1178,7 +1105,7 @@ theorem divK_store_loop_spec
        (q_addr ↦ₘ q_hat)) := by
   intro j_x8 q_addr j'
   -- 1. Store q[j]: instrs [109]-[112] at base+884
-  have SQ := divK_store_qj_spec sp j q_hat v5_old v7_old q_old (base + 884) hv_q
+  have SQ := divK_store_qj_spec sp j q_hat v5_old v7_old q_old (base + 884)
   dsimp only [] at SQ
   rw [lb_sqj] at SQ
   have SQe := cpsTriple_extend_code (hmono := by
@@ -1239,8 +1166,7 @@ private theorem j0_slt_zero :
     so this is a cpsTriple (not cpsBranch) to base+908. -/
 theorem divK_store_loop_j0_spec
     (sp q_hat v5_old v7_old q_old : Word)
-    (base : Word)
-    (hv_q : isValidDwordAccess (sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat) = true) :
+    (base : Word) :
     let q_addr := sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat
     let j' := (0 : Word) + signExtend12 4095
     cpsTriple (base + 884) (base + 908) (sharedDivModCode base)
@@ -1252,7 +1178,7 @@ theorem divK_store_loop_j0_spec
        (q_addr ↦ₘ q_hat)) := by
   intro q_addr j'
   -- 1. Store q[j]: instrs [109]-[112] at base+884
-  have SQ := divK_store_qj_spec sp (0 : Word) q_hat v5_old v7_old q_old (base + 884) hv_q
+  have SQ := divK_store_qj_spec sp (0 : Word) q_hat v5_old v7_old q_old (base + 884)
   dsimp only [] at SQ
   rw [lb_sqj] at SQ
   have SQe := cpsTriple_extend_code (hmono := by
@@ -1325,7 +1251,6 @@ theorem divK_store_loop_j0_spec
 theorem divK_store_loop_jgt0_spec
     (sp j q_hat v5_old v7_old q_old : Word)
     (base : Word)
-    (hv_q : isValidDwordAccess (sp + signExtend12 4088 - j <<< (3 : BitVec 6).toNat) = true)
     (hj_pos : BitVec.slt (j + signExtend12 4095) 0 = false) :
     let j_x8 := j <<< (3 : BitVec 6).toNat
     let q_addr := sp + signExtend12 4088 - j_x8
@@ -1339,7 +1264,7 @@ theorem divK_store_loop_jgt0_spec
        (q_addr ↦ₘ q_hat)) := by
   intro j_x8 q_addr j'
   -- 1. Store q[j]: instrs [109]-[112] at base+884
-  have SQ := divK_store_qj_spec sp j q_hat v5_old v7_old q_old (base + 884) hv_q
+  have SQ := divK_store_qj_spec sp j q_hat v5_old v7_old q_old (base + 884)
   dsimp only [] at SQ
   rw [lb_sqj] at SQ
   have SQe := cpsTriple_extend_code (hmono := by
@@ -1414,17 +1339,7 @@ set_option maxHeartbeats 3200000 in
 theorem divK_mulsub_correction_skip_spec
     (sp q_hat j v0 v1 v2 v3 u0 u1 u2 u3 u_top : Word)
     (v1_old v5_old v6_old v7_old v10_old v2_old : Word)
-    (base : Word)
-    (hv_j : isValidDwordAccess (sp + signExtend12 3976) = true)
-    (hv_v0 : isValidDwordAccess (sp + signExtend12 32) = true)
-    (hv_u0 : isValidDwordAccess ((sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 0) = true)
-    (hv_v1 : isValidDwordAccess (sp + signExtend12 40) = true)
-    (hv_u1 : isValidDwordAccess ((sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 4088) = true)
-    (hv_v2 : isValidDwordAccess (sp + signExtend12 48) = true)
-    (hv_u2 : isValidDwordAccess ((sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 4080) = true)
-    (hv_v3 : isValidDwordAccess (sp + signExtend12 56) = true)
-    (hv_u3 : isValidDwordAccess ((sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 4072) = true)
-    (hv_u4 : isValidDwordAccess ((sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 4064) = true) :
+    (base : Word) :
     let u_base := sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat
     -- Mulsub intermediates
     let p0_lo := q_hat * v0; let p0_hi := rv64_mulhu q_hat v0
@@ -1484,7 +1399,7 @@ theorem divK_mulsub_correction_skip_spec
   -- 1. Mulsub full (base+516 → base+728)
   have MS := divK_mulsub_full_spec sp q_hat j v0 v1 v2 v3 u0 u1 u2 u3 u_top
     v1_old v5_old v6_old v7_old v10_old v2_old base
-    hv_j hv_v0 hv_u0 hv_v1 hv_u1 hv_v2 hv_u2 hv_v3 hv_u3 hv_u4
+
   dsimp only [] at MS hborrow
   -- 2. Rewrite borrow to 0 in mulsub postcondition
   rw [hborrow] at MS
@@ -1510,17 +1425,7 @@ set_option maxHeartbeats 3200000 in
 theorem divK_mulsub_correction_addback_880_spec
     (sp q_hat j v0 v1 v2 v3 u0 u1 u2 u3 u_top : Word)
     (v1_old v5_old v6_old v7_old v10_old v2_old : Word)
-    (base : Word)
-    (hv_j : isValidDwordAccess (sp + signExtend12 3976) = true)
-    (hv_v0 : isValidDwordAccess (sp + signExtend12 32) = true)
-    (hv_u0 : isValidDwordAccess ((sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 0) = true)
-    (hv_v1 : isValidDwordAccess (sp + signExtend12 40) = true)
-    (hv_u1 : isValidDwordAccess ((sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 4088) = true)
-    (hv_v2 : isValidDwordAccess (sp + signExtend12 48) = true)
-    (hv_u2 : isValidDwordAccess ((sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 4080) = true)
-    (hv_v3 : isValidDwordAccess (sp + signExtend12 56) = true)
-    (hv_u3 : isValidDwordAccess ((sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 4072) = true)
-    (hv_u4 : isValidDwordAccess ((sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 4064) = true) :
+    (base : Word) :
     let u_base := sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat
     -- Mulsub intermediates (same as in addback spec)
     let p0_lo := q_hat * v0; let p0_hi := rv64_mulhu q_hat v0
@@ -1605,14 +1510,14 @@ theorem divK_mulsub_correction_addback_880_spec
   -- 1. Mulsub full (base+516 → base+728)
   have MS := divK_mulsub_full_spec sp q_hat j v0 v1 v2 v3 u0 u1 u2 u3 u_top
     v1_old v5_old v6_old v7_old v10_old v2_old base
-    hv_j hv_v0 hv_u0 hv_v1 hv_u1 hv_v2 hv_u2 hv_v3 hv_u3 hv_u4
+
   dsimp only [] at MS hborrow
   -- 2. Correction addback (base+728 → base+880) with borrow ≠ 0
   have CA := divK_correction_addback_spec sp u_base
     (if BitVec.ult u_top c3 then (1 : Word) else 0)
     q_hat v0 v1 v2 v3 un0 un1 un2 un3 u4_new
     u4_new un3 base hborrow
-    hv_v0 hv_u0 hv_v1 hv_u1 hv_v2 hv_u2 hv_v3 hv_u3 hv_u4
+
   dsimp only [] at CA
   -- 3. Compose mulsub + correction_addback
   seqFrame MS CA
@@ -1628,17 +1533,7 @@ set_option maxHeartbeats 3200000 in
 theorem divK_mulsub_correction_addback_named_880_spec
     (sp q_hat j v0 v1 v2 v3 u0 u1 u2 u3 u_top : Word)
     (v1_old v5_old v6_old v7_old v10_old v2_old : Word)
-    (base : Word)
-    (hv_j : isValidDwordAccess (sp + signExtend12 3976) = true)
-    (hv_v0 : isValidDwordAccess (sp + signExtend12 32) = true)
-    (hv_u0 : isValidDwordAccess ((sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 0) = true)
-    (hv_v1 : isValidDwordAccess (sp + signExtend12 40) = true)
-    (hv_u1 : isValidDwordAccess ((sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 4088) = true)
-    (hv_v2 : isValidDwordAccess (sp + signExtend12 48) = true)
-    (hv_u2 : isValidDwordAccess ((sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 4080) = true)
-    (hv_v3 : isValidDwordAccess (sp + signExtend12 56) = true)
-    (hv_u3 : isValidDwordAccess ((sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 4072) = true)
-    (hv_u4 : isValidDwordAccess ((sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 4064) = true) :
+    (base : Word) :
     let u_base := sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat
     let ms := mulsubN4 q_hat v0 v1 v2 v3 u0 u1 u2 u3
     let c3 := ms.2.2.2.2
@@ -1669,8 +1564,7 @@ theorem divK_mulsub_correction_addback_named_880_spec
        ((u_base + signExtend12 4064) ↦ₘ ab.2.2.2.2)) := by
   intro u_base ms c3 ab q_hat' hborrow
   exact (divK_mulsub_correction_addback_880_spec sp q_hat j v0 v1 v2 v3 u0 u1 u2 u3 u_top
-    v1_old v5_old v6_old v7_old v10_old v2_old base
-    hv_j hv_v0 hv_u0 hv_v1 hv_u1 hv_v2 hv_u2 hv_v3 hv_u3 hv_u4) hborrow
+    v1_old v5_old v6_old v7_old v10_old v2_old base) hborrow
 
 set_option maxRecDepth 4096 in
 set_option maxHeartbeats 3200000 in
@@ -1680,17 +1574,7 @@ set_option maxHeartbeats 3200000 in
 theorem divK_mulsub_correction_addback_spec
     (sp q_hat j v0 v1 v2 v3 u0 u1 u2 u3 u_top : Word)
     (v1_old v5_old v6_old v7_old v10_old v2_old : Word)
-    (base : Word)
-    (hv_j : isValidDwordAccess (sp + signExtend12 3976) = true)
-    (hv_v0 : isValidDwordAccess (sp + signExtend12 32) = true)
-    (hv_u0 : isValidDwordAccess ((sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 0) = true)
-    (hv_v1 : isValidDwordAccess (sp + signExtend12 40) = true)
-    (hv_u1 : isValidDwordAccess ((sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 4088) = true)
-    (hv_v2 : isValidDwordAccess (sp + signExtend12 48) = true)
-    (hv_u2 : isValidDwordAccess ((sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 4080) = true)
-    (hv_v3 : isValidDwordAccess (sp + signExtend12 56) = true)
-    (hv_u3 : isValidDwordAccess ((sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 4072) = true)
-    (hv_u4 : isValidDwordAccess ((sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 4064) = true) :
+    (base : Word) :
     let u_base := sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat
     -- Mulsub intermediates
     let p0_lo := q_hat * v0; let p0_hi := rv64_mulhu q_hat v0
@@ -1777,14 +1661,14 @@ theorem divK_mulsub_correction_addback_spec
   -- 1. Mulsub full (base+516 → base+728)
   have MS := divK_mulsub_full_spec sp q_hat j v0 v1 v2 v3 u0 u1 u2 u3 u_top
     v1_old v5_old v6_old v7_old v10_old v2_old base
-    hv_j hv_v0 hv_u0 hv_v1 hv_u1 hv_v2 hv_u2 hv_v3 hv_u3 hv_u4
+
   dsimp only [] at MS hborrow
   -- 2. Correction addback (base+728 → base+880) with borrow ≠ 0
   have CA := divK_correction_addback_spec sp u_base
     (if BitVec.ult u_top c3 then (1 : Word) else 0)
     q_hat v0 v1 v2 v3 un0 un1 un2 un3 u4_new
     u4_new un3 base hborrow
-    hv_v0 hv_u0 hv_v1 hv_u1 hv_v2 hv_u2 hv_v3 hv_u3 hv_u4
+
   dsimp only [] at CA
   -- 3. BEQ passthrough (base+880 → base+884) with carry ≠ 0
   have BEQ := divK_beq_passthrough aco3 base hcarry
@@ -1823,11 +1707,6 @@ set_option maxHeartbeats 1600000 in
 theorem divK_trial_max_full_spec
     (sp j n j_old v5_old v6_old v7_old v10_old v11_old u_hi u_lo v_top : Word)
     (base : Word)
-    (hv_j : isValidDwordAccess (sp + signExtend12 3976) = true)
-    (hv_n1 : isValidDwordAccess (sp + signExtend12 3984) = true)
-    (hv_uhi : isValidDwordAccess (sp + signExtend12 4056 - (j + n) <<< (3 : BitVec 6).toNat) = true)
-    (hv_ulo : isValidDwordAccess ((sp + signExtend12 4056 - (j + n) <<< (3 : BitVec 6).toNat) + 8) = true)
-    (hv_vtop : isValidDwordAccess (sp + (n + signExtend12 4095) <<< (3 : BitVec 6).toNat + signExtend12 32) = true)
     (hbltu : ¬BitVec.ult u_hi v_top) :
     let u_addr := sp + signExtend12 4056 - (j + n) <<< (3 : BitVec 6).toNat
     let vtop_base := sp + (n + signExtend12 4095) <<< (3 : BitVec 6).toNat
@@ -1849,7 +1728,7 @@ theorem divK_trial_max_full_spec
   intro u_addr vtop_base
   -- 1. Save j + trial load (base+448 → base+500)
   have STL := divK_save_trial_load_spec sp j n j_old v5_old v6_old v7_old v10_old u_hi u_lo v_top
-    base hv_j hv_n1 hv_uhi hv_ulo hv_vtop
+    base
   dsimp only [] at STL
   -- 2. BLTU x7 x10 12 at base+500
   have hbltu_raw := bltu_spec_gen .x7 .x10 (12 : BitVec 13) u_hi v_top (base + 500)
@@ -1894,15 +1773,6 @@ theorem divK_trial_call_full_spec
     (sp j n j_old v5_old v6_old v7_old v10_old v11_old v2_old u_hi u_lo v_top : Word)
     (ret_mem d_mem dlo_mem un0_mem : Word)
     (base : Word)
-    (hv_j : isValidDwordAccess (sp + signExtend12 3976) = true)
-    (hv_n1 : isValidDwordAccess (sp + signExtend12 3984) = true)
-    (hv_uhi : isValidDwordAccess (sp + signExtend12 4056 - (j + n) <<< (3 : BitVec 6).toNat) = true)
-    (hv_ulo : isValidDwordAccess ((sp + signExtend12 4056 - (j + n) <<< (3 : BitVec 6).toNat) + 8) = true)
-    (hv_vtop : isValidDwordAccess (sp + (n + signExtend12 4095) <<< (3 : BitVec 6).toNat + signExtend12 32) = true)
-    (hv_ret : isValidDwordAccess (sp + signExtend12 3968) = true)
-    (hv_d   : isValidDwordAccess (sp + signExtend12 3960) = true)
-    (hv_dlo : isValidDwordAccess (sp + signExtend12 3952) = true)
-    (hv_un0 : isValidDwordAccess (sp + signExtend12 3944) = true)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
     (hbltu : BitVec.ult u_hi v_top) :
     let u_addr := sp + signExtend12 4056 - (j + n) <<< (3 : BitVec 6).toNat
@@ -1961,7 +1831,7 @@ theorem divK_trial_call_full_spec
         cu_rhat_un1 cu_q1_dlo un21 q0 rhat2 hi2 q0c rhat2c q0_dlo rhat2_un0 q0' q
   -- 1. Save j + trial load (base+448 → base+500)
   have STL := divK_save_trial_load_spec sp j n j_old v5_old v6_old v7_old v10_old u_hi u_lo v_top
-    base hv_j hv_n1 hv_uhi hv_ulo hv_vtop
+    base
   dsimp only [] at STL
   -- 2. BLTU x7 x10 12 at base+500
   have hbltu_raw := bltu_spec_gen .x7 .x10 (12 : BitVec 13) u_hi v_top (base + 500)
@@ -1980,7 +1850,7 @@ theorem divK_trial_call_full_spec
   -- 3. Trial call path (base+512 → base+516)
   have TCP := divK_trial_call_path_spec sp j u_lo u_hi v_top vtop_base base
     v2_old v11_old ret_mem d_mem dlo_mem un0_mem
-    hv_ret hv_d hv_dlo hv_un0 halign
+    halign
   dsimp only [] at TCP
   -- 4. Frame save_trial_load with x2, x11, x0, scratch memory
   have STLf := cpsTriple_frame_left _ _ _ _ _
@@ -2016,17 +1886,7 @@ set_option maxHeartbeats 3200000 in
 theorem divK_mulsub_correction_addback_beq_spec
     (sp q_hat j v0 v1 v2 v3 u0 u1 u2 u3 u_top : Word)
     (v1_old v5_old v6_old v7_old v10_old v2_old : Word)
-    (base : Word)
-    (hv_j : isValidDwordAccess (sp + signExtend12 3976) = true)
-    (hv_v0 : isValidDwordAccess (sp + signExtend12 32) = true)
-    (hv_u0 : isValidDwordAccess ((sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 0) = true)
-    (hv_v1 : isValidDwordAccess (sp + signExtend12 40) = true)
-    (hv_u1 : isValidDwordAccess ((sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 4088) = true)
-    (hv_v2 : isValidDwordAccess (sp + signExtend12 48) = true)
-    (hv_u2 : isValidDwordAccess ((sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 4080) = true)
-    (hv_v3 : isValidDwordAccess (sp + signExtend12 56) = true)
-    (hv_u3 : isValidDwordAccess ((sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 4072) = true)
-    (hv_u4 : isValidDwordAccess ((sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 4064) = true) :
+    (base : Word) :
     let u_base := sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat
     let ms := mulsubN4 q_hat v0 v1 v2 v3 u0 u1 u2 u3
     let c3 := ms.2.2.2.2
@@ -2075,7 +1935,7 @@ theorem divK_mulsub_correction_addback_beq_spec
   -- 1. Mulsub + first addback (base+516 → base+880)
   have MCA := divK_mulsub_correction_addback_spec sp q_hat j v0 v1 v2 v3 u0 u1 u2 u3 u_top
     v1_old v5_old v6_old v7_old v10_old v2_old base
-    hv_j hv_v0 hv_u0 hv_v1 hv_u1 hv_v2 hv_u2 hv_v3 hv_u3 hv_u4
+
   intro_lets at MCA
   have MCA0 := MCA hborrow
   -- 2. Case split on carry
@@ -2091,8 +1951,7 @@ theorem divK_mulsub_correction_addback_beq_spec
     rw [hq, h0, h1, h2, h3, h4, hc]
     -- Use named 880 spec (→880 with addbackN4_carry in postcondition)
     have MCA_N := (divK_mulsub_correction_addback_named_880_spec sp q_hat j v0 v1 v2 v3 u0 u1 u2 u3 u_top
-      v1_old v5_old v6_old v7_old v10_old v2_old base
-      hv_j hv_v0 hv_u0 hv_v1 hv_u1 hv_v2 hv_u2 hv_v3 hv_u3 hv_u4) hborrow
+      v1_old v5_old v6_old v7_old v10_old v2_old base) hborrow
     -- Rewrite carry to 0
     rw [show addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 v0 v1 v2 v3 = (0 : Word) from hcarry] at MCA_N
     -- Use named DA spec (880→884 with addbackN4 projections in postcondition)
@@ -2101,7 +1960,7 @@ theorem divK_mulsub_correction_addback_beq_spec
     have DA := divK_double_addback_beq_named_spec sp u_base
       (q_hat + signExtend12 4095) v0 v1 v2 v3
       ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 ab.2.2.2.2
-      base hv_v0 hv_u0 hv_v1 hv_u1 hv_v2 hv_u2 hv_v3 hv_u3 hv_u4 hcarry2
+      base hcarry2
     -- Frame DA with extra atoms from MCA_N postcondition
     have DAf := cpsTriple_frame_left _ _ _ _ _
       ((.x1 ↦ᵣ j) ** (.x10 ↦ᵣ c3) **

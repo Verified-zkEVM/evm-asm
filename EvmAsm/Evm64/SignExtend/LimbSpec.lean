@@ -37,8 +37,7 @@ abbrev signext_inplace_code (off : BitVec 12) (base : Word) : CodeReq :=
     Loads a 64-bit limb, sign-extends using shift_amount, stores back.
     Result = BitVec.sshiftRight (limb <<< (sa % 64)) (sa % 64) -/
 theorem signext_inplace_spec (off : BitVec 12)
-    (sp limb v5 shift_amount : Word) (base : Word)
-    (hvalid : isValidDwordAccess (sp + signExtend12 off) = true) :
+    (sp limb v5 shift_amount : Word) (base : Word) :
     let result := BitVec.sshiftRight (limb <<< (shift_amount.toNat % 64)) (shift_amount.toNat % 64)
     let code := signext_inplace_code off base
     cpsTriple base (base + 16) code
@@ -46,10 +45,10 @@ theorem signext_inplace_spec (off : BitVec 12)
        ((sp + signExtend12 off) ↦ₘ limb))
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result) ** (.x6 ↦ᵣ shift_amount) **
        ((sp + signExtend12 off) ↦ₘ result)) := by
-  have L := ld_spec_gen .x5 .x12 sp v5 limb off base (by nofun) hvalid
+  have L := ld_spec_gen .x5 .x12 sp v5 limb off base (by nofun)
   have SL := sll_spec_gen_rd_eq_rs1 .x5 .x6 limb shift_amount (base + 4) (by nofun)
   have SR := sra_spec_gen_rd_eq_rs1 .x5 .x6 (limb <<< (shift_amount.toNat % 64)) shift_amount (base + 8) (by nofun)
-  have SD_ := sd_spec_gen .x12 .x5 sp (BitVec.sshiftRight (limb <<< (shift_amount.toNat % 64)) (shift_amount.toNat % 64)) limb off (base + 12) hvalid
+  have SD_ := sd_spec_gen .x12 .x5 sp (BitVec.sshiftRight (limb <<< (shift_amount.toNat % 64)) (shift_amount.toNat % 64)) limb off (base + 12)
   runBlock L SL SR SD_
 
 -- ============================================================================
@@ -75,7 +74,7 @@ theorem signext_body_3_spec (sp : Word)
        ((sp + 56) ↦ₘ v3))
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result) ** (.x6 ↦ᵣ shift_amount) **
        ((sp + 56) ↦ₘ result)) := by
-  have IP := signext_inplace_spec 56 sp v3 v5 shift_amount base (by validMem)
+  have IP := signext_inplace_spec 56 sp v3 v5 shift_amount base
   have JL := jal_x0_spec_gen jal_off (base + 16)
   rw [hexit] at JL
   runBlock IP JL
@@ -101,14 +100,14 @@ theorem signext_body_2_spec (sp : Word)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result) ** (.x6 ↦ᵣ shift_amount) ** (.x10 ↦ᵣ sign_fill) **
        ((sp + 48) ↦ₘ result) ** ((sp + 56) ↦ₘ sign_fill)) := by
   have h63 : (63 : BitVec 6).toNat = 63 := by decide
-  have IP := signext_inplace_spec 48 sp v2 v5 shift_amount base (by validMem)
+  have IP := signext_inplace_spec 48 sp v2 v5 shift_amount base
   have SR := srai_spec_gen .x10 .x5 v10
     (BitVec.sshiftRight (v2 <<< (shift_amount.toNat % 64)) (shift_amount.toNat % 64))
     63 (base + 16) (by nofun)
   simp only [h63] at SR
   have S0 := sd_spec_gen .x12 .x10 sp
     (BitVec.sshiftRight (BitVec.sshiftRight (v2 <<< (shift_amount.toNat % 64)) (shift_amount.toNat % 64)) 63)
-    v3 56 (base + 20) (by validMem)
+    v3 56 (base + 20)
   have JL := jal_x0_spec_gen jal_off (base + 24)
   rw [hexit] at JL
   runBlock IP SR S0 JL
@@ -134,17 +133,17 @@ theorem signext_body_1_spec (sp : Word)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result) ** (.x6 ↦ᵣ shift_amount) ** (.x10 ↦ᵣ sign_fill) **
        ((sp + 40) ↦ₘ result) ** ((sp + 48) ↦ₘ sign_fill) ** ((sp + 56) ↦ₘ sign_fill)) := by
   have h63 : (63 : BitVec 6).toNat = 63 := by decide
-  have IP := signext_inplace_spec 40 sp v1 v5 shift_amount base (by validMem)
+  have IP := signext_inplace_spec 40 sp v1 v5 shift_amount base
   have SR := srai_spec_gen .x10 .x5 v10
     (BitVec.sshiftRight (v1 <<< (shift_amount.toNat % 64)) (shift_amount.toNat % 64))
     63 (base + 16) (by nofun)
   simp only [h63] at SR
   have S0 := sd_spec_gen .x12 .x10 sp
     (BitVec.sshiftRight (BitVec.sshiftRight (v1 <<< (shift_amount.toNat % 64)) (shift_amount.toNat % 64)) 63)
-    v2 48 (base + 20) (by validMem)
+    v2 48 (base + 20)
   have S1 := sd_spec_gen .x12 .x10 sp
     (BitVec.sshiftRight (BitVec.sshiftRight (v1 <<< (shift_amount.toNat % 64)) (shift_amount.toNat % 64)) 63)
-    v3 56 (base + 24) (by validMem)
+    v3 56 (base + 24)
   have JL := jal_x0_spec_gen jal_off (base + 28)
   rw [hexit] at JL
   runBlock IP SR S0 S1 JL
@@ -170,20 +169,20 @@ theorem signext_body_0_spec (sp : Word)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result) ** (.x6 ↦ᵣ shift_amount) ** (.x10 ↦ᵣ sign_fill) **
        ((sp + 32) ↦ₘ result) ** ((sp + 40) ↦ₘ sign_fill) ** ((sp + 48) ↦ₘ sign_fill) ** ((sp + 56) ↦ₘ sign_fill)) := by
   have h63 : (63 : BitVec 6).toNat = 63 := by decide
-  have IP := signext_inplace_spec 32 sp v0 v5 shift_amount base (by validMem)
+  have IP := signext_inplace_spec 32 sp v0 v5 shift_amount base
   have SR := srai_spec_gen .x10 .x5 v10
     (BitVec.sshiftRight (v0 <<< (shift_amount.toNat % 64)) (shift_amount.toNat % 64))
     63 (base + 16) (by nofun)
   simp only [h63] at SR
   have S0 := sd_spec_gen .x12 .x10 sp
     (BitVec.sshiftRight (BitVec.sshiftRight (v0 <<< (shift_amount.toNat % 64)) (shift_amount.toNat % 64)) 63)
-    v1 40 (base + 20) (by validMem)
+    v1 40 (base + 20)
   have S1 := sd_spec_gen .x12 .x10 sp
     (BitVec.sshiftRight (BitVec.sshiftRight (v0 <<< (shift_amount.toNat % 64)) (shift_amount.toNat % 64)) 63)
-    v2 48 (base + 24) (by validMem)
+    v2 48 (base + 24)
   have S2 := sd_spec_gen .x12 .x10 sp
     (BitVec.sshiftRight (BitVec.sshiftRight (v0 <<< (shift_amount.toNat % 64)) (shift_amount.toNat % 64)) 63)
-    v3 56 (base + 28) (by validMem)
+    v3 56 (base + 28)
   runBlock IP SR S0 S1 S2
 
 -- ============================================================================
@@ -238,13 +237,12 @@ abbrev signext_ld_or_acc_code (off : BitVec 12) (base : Word) : CodeReq :=
   CodeReq.ofProg base (signext_ld_or_acc_prog off)
 
 theorem signext_ld_or_acc_spec (sp acc prev_x10 val : Word) (off : BitVec 12)
-    (base : Word)
-    (hvalid : isValidDwordAccess (sp + signExtend12 off) = true) :
+    (base : Word) :
     let code := signext_ld_or_acc_code off base
     cpsTriple base (base + 8) code
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ acc) ** (.x10 ↦ᵣ prev_x10) ** ((sp + signExtend12 off) ↦ₘ val))
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ (acc ||| val)) ** (.x10 ↦ᵣ val) ** ((sp + signExtend12 off) ↦ₘ val)) := by
-  have L := ld_spec_gen .x10 .x12 sp prev_x10 val off base (by nofun) hvalid
+  have L := ld_spec_gen .x10 .x12 sp prev_x10 val off base (by nofun)
   have OR_ := or_spec_gen_rd_eq_rs1 .x5 .x10 acc val (base + 4) (by nofun)
   runBlock L OR_
 
@@ -375,10 +373,8 @@ theorem signext_phase_a_spec (sp r5 r10 : Word)
   let cr_beq := CodeReq.singleton (base + 32) (.BEQ .x10 .x0 156)
   -- ── Part 1: Linear chain base..base+20 (LD + LD/OR + LD/OR) ──
   have lw1 := ld_spec_gen .x5 .x12 sp r5 b1 8 base (by nofun)
-    (by simp only [signExtend12_8]; exact hv8)
   simp only [signExtend12_8] at lw1
   have lor2 := signext_ld_or_acc_spec sp b1 r10 b2 16 (base + 4)
-    (by simp only [signExtend12_16]; exact hv16)
   simp only [signExtend12_16] at lor2
   rw [ha48] at lor2
   have hd_ld1_lor2 : cr_ld1.Disjoint cr_lor2 :=
@@ -399,7 +395,6 @@ theorem signext_phase_a_spec (sp r5 r10 : Word)
     _ _ _ _
     (fun h hp => by xperm_hyp hp) lw1f lor2f
   have lor3 := signext_ld_or_acc_spec sp (b1 ||| b2) b2 b3 24 (base + 12)
-    (by simp only [signExtend12_24]; exact hv24)
   simp only [signExtend12_24] at lor3
   rw [ha128] at lor3
   have lor3f := cpsTriple_frame_left (base + 12) (base + 20) cr_lor3
@@ -460,7 +455,6 @@ theorem signext_phase_a_spec (sp r5 r10 : Word)
   -- ── Part 3: Fall-through path (base+24..base+32): LD + SLTIU + BEQ ──
   have lw5 := ld_spec_gen .x5 .x12 sp
     (b1 ||| b2 ||| b3) b0 0 (base + 24) (by nofun)
-    (by simp only [signExtend12_0]; rw [show sp + (0 : Word) = sp from by bv_omega]; exact hv0)
   simp only [signExtend12_0] at lw5
   rw [show sp + (0 : Word) = sp from by bv_omega] at lw5
   rw [ha24] at lw5

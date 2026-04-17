@@ -22,9 +22,7 @@ open EvmAsm.Rv64
 /-- Four-instruction spec for SWAP per-limb: LD x7 from A, LD x6 from B,
     SD x6 to A, SD x7 to B. Swaps values at offsets off_a and off_b. -/
 theorem swap_limb_spec (sp : Word)
-    (off_a off_b : BitVec 12) (a_val b_val v7 v6 : Word) (base : Word)
-    (hvalid_a : isValidDwordAccess (sp + signExtend12 off_a) = true)
-    (hvalid_b : isValidDwordAccess (sp + signExtend12 off_b) = true) :
+    (off_a off_b : BitVec 12) (a_val b_val v7 v6 : Word) (base : Word) :
     cpsTriple base (base + 16)
       (CodeReq.singleton base (.LD .x7 .x12 off_a) |>.union
         (CodeReq.singleton (base + 4) (.LD .x6 .x12 off_b) |>.union
@@ -97,22 +95,22 @@ theorem evm_swap_spec (sp base : Word)
   -- Limb 0 swap
   have L0 := swap_limb_spec sp
     (BitVec.ofNat 12 0) (BitVec.ofNat 12 (n*32))
-    a0 b0 v7 v6 base (by rw [hm0]; exact hv0) (by rw [hse_s0]; exact hvs0)
+    a0 b0 v7 v6 base
   rw [hm0, hse_s0] at L0
   -- Limb 1 swap
   have L1 := swap_limb_spec sp
     (BitVec.ofNat 12 8) (BitVec.ofNat 12 (n*32+8))
-    a1 b1 a0 b0 (base + 16) (by rw [hm8]; exact hv8) (by rw [hse_s1]; exact hvs8)
+    a1 b1 a0 b0 (base + 16)
   rw [hm8, hse_s1] at L1
   -- Limb 2 swap
   have L2 := swap_limb_spec sp
     (BitVec.ofNat 12 16) (BitVec.ofNat 12 (n*32+16))
-    a2 b2 a1 b1 (base + 32) (by rw [hm16]; exact hv16) (by rw [hse_s2]; exact hvs16)
+    a2 b2 a1 b1 (base + 32)
   rw [hm16, hse_s2] at L2
   -- Limb 3 swap
   have L3 := swap_limb_spec sp
     (BitVec.ofNat 12 24) (BitVec.ofNat 12 (n*32+24))
-    a3 b3 a2 b2 (base + 48) (by rw [hm24]; exact hv24) (by rw [hse_s3]; exact hvs24)
+    a3 b3 a2 b2 (base + 48)
   rw [hm24, hse_s3] at L3
   runBlock L0 L1 L2 L3
 

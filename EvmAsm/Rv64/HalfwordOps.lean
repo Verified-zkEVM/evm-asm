@@ -79,7 +79,7 @@ theorem generic_lhu_spec (rd rs1 : Reg) (v_addr v_old : Word)
     (holdsFor_regIs _ _ s).mp (holdsFor_sepConj_elim_left
       (holdsFor_sepConj_elim_left hPR))
   have hmem : s.getMem dwordAddr = word_val :=
-    (holdsFor_memIs _ _ s).mp (holdsFor_sepConj_elim_right (holdsFor_sepConj_elim_right
+    holdsFor_memIs_getMem (holdsFor_sepConj_elim_right (holdsFor_sepConj_elim_right
       (holdsFor_sepConj_elim_left hPR)))
   have hstep' : step s = some (execInstrBr s (.LHU rd rs1 offset)) :=
     step_lhu s rd rs1 offset hfetch (hrs1 ▸ hvalid)
@@ -124,7 +124,7 @@ theorem generic_lh_spec (rd rs1 : Reg) (v_addr v_old : Word)
     (holdsFor_regIs _ _ s).mp (holdsFor_sepConj_elim_left
       (holdsFor_sepConj_elim_left hPR))
   have hmem : s.getMem dwordAddr = word_val :=
-    (holdsFor_memIs _ _ s).mp (holdsFor_sepConj_elim_right (holdsFor_sepConj_elim_right
+    holdsFor_memIs_getMem (holdsFor_sepConj_elim_right (holdsFor_sepConj_elim_right
       (holdsFor_sepConj_elim_left hPR)))
   have hstep' : step s = some (execInstrBr s (.LH rd rs1 offset)) :=
     step_lh s rd rs1 offset hfetch (hrs1 ▸ hvalid)
@@ -170,7 +170,7 @@ theorem generic_sh_spec (rs1 rs2 : Reg) (v_addr v_data : Word)
     (holdsFor_regIs _ _ s).mp (holdsFor_sepConj_elim_left (holdsFor_sepConj_elim_right
       (holdsFor_sepConj_elim_left hPR)))
   have hmem : s.getMem dwordAddr = word_old :=
-    (holdsFor_memIs _ _ s).mp (holdsFor_sepConj_elim_right (holdsFor_sepConj_elim_right
+    holdsFor_memIs_getMem (holdsFor_sepConj_elim_right (holdsFor_sepConj_elim_right
       (holdsFor_sepConj_elim_left hPR)))
   have hstep' : step s = some (execInstrBr s (.SH rs1 rs2 offset)) :=
     step_sh s rs1 rs2 offset hfetch (hrs1 ▸ hvalid)

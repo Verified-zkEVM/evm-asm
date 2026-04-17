@@ -55,10 +55,10 @@ theorem evm_add_spec (sp : Word) (base : Word)
        (sp ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
        ((sp + 32) ↦ₘ sum0) ** ((sp + 40) ↦ₘ result1) ** ((sp + 48) ↦ₘ result2) ** ((sp + 56) ↦ₘ result3)) := by
   intro sum0 carry0 psum1 carry1a result1 carry1b carry1 psum2 carry2a result2 carry2b carry2 psum3 carry3a result3 carry3b carry3
-  have L0 := add_limb0_spec 0 32 sp a0 b0 v7 v6 v5 base (by validMem) (by validMem)
-  have L1 := add_limb_carry_spec 8 40 sp a1 b1 sum0 b0 carry0 v11 (base + 20) (by validMem) (by validMem)
-  have L2 := add_limb_carry_spec 16 48 sp a2 b2 result1 carry1b carry1 carry1a (base + 52) (by validMem) (by validMem)
-  have L3 := add_limb_carry_spec 24 56 sp a3 b3 result2 carry2b carry2 carry2a (base + 84) (by validMem) (by validMem)
+  have L0 := add_limb0_spec 0 32 sp a0 b0 v7 v6 v5 base
+  have L1 := add_limb_carry_spec 8 40 sp a1 b1 sum0 b0 carry0 v11 (base + 20)
+  have L2 := add_limb_carry_spec 16 48 sp a2 b2 result1 carry1b carry1 carry1a (base + 52)
+  have L3 := add_limb_carry_spec 24 56 sp a3 b3 result2 carry2b carry2 carry2a (base + 84)
   have Laddi := addi_spec_gen_same .x12 sp 32 (base + 116) (by nofun)
   runBlock L0 L1 L2 L3 Laddi
 

@@ -57,17 +57,17 @@ theorem evm_gt_spec (sp : Word) (base : Word)
        ((sp + 32) ↦ₘ borrow3) ** ((sp + 40) ↦ₘ 0) ** ((sp + 48) ↦ₘ 0) ** ((sp + 56) ↦ₘ 0)) := by
   intro borrow0 borrow1a temp1 borrow1b borrow1 borrow2a temp2 borrow2b borrow2 borrow3a temp3 borrow3b borrow3
   -- Per-limb borrow specs (GT swaps: b-limbs into x7, a-limbs into x6)
-  have L0 := lt_limb0_spec 32 0 sp b0 a0 v7 v6 v5 base (by validMem) (by validMem)
-  have L1 := lt_limb_carry_spec 40 8 sp b1 a1 b0 a0 borrow0 v11 (base + 12) (by validMem) (by validMem)
-  have L2 := lt_limb_carry_spec 48 16 sp b2 a2 temp1 borrow1b borrow1 borrow1a (base + 36) (by validMem) (by validMem)
-  have L3 := lt_limb_carry_spec 56 24 sp b3 a3 temp2 borrow2b borrow2 borrow2a (base + 60) (by validMem) (by validMem)
+  have L0 := lt_limb0_spec 32 0 sp b0 a0 v7 v6 v5 base
+  have L1 := lt_limb_carry_spec 40 8 sp b1 a1 b0 a0 borrow0 v11 (base + 12)
+  have L2 := lt_limb_carry_spec 48 16 sp b2 a2 temp1 borrow1b borrow1 borrow1a (base + 36)
+  have L3 := lt_limb_carry_spec 56 24 sp b3 a3 temp2 borrow2b borrow2 borrow2a (base + 60)
   -- Store phase
   have A := addi_spec_gen_same .x12 sp 32 (base + 84) (by nofun)
   simp only [signExtend12_32] at A
-  have S0 := sd_spec_gen .x12 .x5 (sp + 32) borrow3 b0 0 (base + 88) (by validMem)
-  have S1 := sd_x0_spec_gen .x12 (sp + 32) b1 8 (base + 92) (by validMem)
-  have S2 := sd_x0_spec_gen .x12 (sp + 32) b2 16 (base + 96) (by validMem)
-  have S3 := sd_x0_spec_gen .x12 (sp + 32) b3 24 (base + 100) (by validMem)
+  have S0 := sd_spec_gen .x12 .x5 (sp + 32) borrow3 b0 0 (base + 88)
+  have S1 := sd_x0_spec_gen .x12 (sp + 32) b1 8 (base + 92)
+  have S2 := sd_x0_spec_gen .x12 (sp + 32) b2 16 (base + 96)
+  have S3 := sd_x0_spec_gen .x12 (sp + 32) b3 24 (base + 100)
   runBlock L0 L1 L2 L3 A S0 S1 S2 S3
 
 -- ============================================================================

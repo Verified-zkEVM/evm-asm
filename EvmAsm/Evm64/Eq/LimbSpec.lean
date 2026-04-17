@@ -17,9 +17,7 @@ open EvmAsm.Rv64
 
 /-- EQ limb 0 spec (3 instructions): LD x7, LD x6, XOR x7 x7 x6. -/
 theorem eq_limb0_spec (off_a off_b : BitVec 12)
-    (sp a_limb b_limb v7 v6 : Word) (base : Word)
-    (hvalid_a : isValidDwordAccess (sp + signExtend12 off_a) = true)
-    (hvalid_b : isValidDwordAccess (sp + signExtend12 off_b) = true) :
+    (sp a_limb b_limb v7 v6 : Word) (base : Word) :
     let mem_a := sp + signExtend12 off_a
     let mem_b := sp + signExtend12 off_b
     let cr :=
@@ -35,9 +33,7 @@ theorem eq_limb0_spec (off_a off_b : BitVec 12)
 
 /-- EQ OR-limb spec (4 instructions): LD x6, LD x5, XOR x6 x6 x5, OR x7 x7 x6. -/
 theorem eq_or_limb_spec (off_a off_b : BitVec 12)
-    (sp a_limb b_limb v6 v5 acc : Word) (base : Word)
-    (hvalid_a : isValidDwordAccess (sp + signExtend12 off_a) = true)
-    (hvalid_b : isValidDwordAccess (sp + signExtend12 off_b) = true) :
+    (sp a_limb b_limb v6 v5 acc : Word) (base : Word) :
     let mem_a := sp + signExtend12 off_a
     let mem_b := sp + signExtend12 off_b
     let xor_k := a_limb ^^^ b_limb
