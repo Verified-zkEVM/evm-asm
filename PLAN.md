@@ -608,7 +608,12 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
     five-instruction full loop body (no back-branch) adding pointer
     advance (`ADDI x13, x13, 1`) and counter decrement
     (`ADDI x14, x14, -1`) on top of load-accumulate.
-  - Full long-form loop (BNE back-branch + loop invariant) still pending.
+  - `rlp_phase2_long_loop_body_spec`
+    (`EvmAsm/Rv64/RLP/Phase2LongLoopBody.lean`): six-instruction loop
+    body as a `cpsBranch` — iteration body + `BNE x14, x0, back`.
+    Taken at `(base+20) + signExtend13 back` with `⌜cnt' ≠ 0⌝`; fall-
+    through at `base + 24` with `⌜cnt' = 0⌝`.
+  - Full loop closure (iteration invariant over `cnt`) still pending.
 - Phase 3: Single-item flat decode (byte strings only)
 - Phase 4: HINT_READ integration (load RLP input into memory buffer)
 - Phase 5: Recursive list decode (iterative with explicit stack)
