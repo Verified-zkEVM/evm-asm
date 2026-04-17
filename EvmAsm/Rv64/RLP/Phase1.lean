@@ -351,7 +351,24 @@ theorem rlp_phase1_classifier_spec (v5 v10 : Word) (base : Word)
 -- Spec: 5-exit classifier with per-step dispatch facts
 -- ============================================================================
 
-set_option maxHeartbeats 1600000 in
+/-- Bundled exit postcondition with a dispatch fact: the register-ownership
+    triple (`x10 ↦ᵣ k_val`) conjoined with `⌜fact⌝`. Wrapped `@[irreducible]`
+    to keep `let` bindings out of the classifier theorem statement — see
+    AGENTS.md ("Bundling Postconditions with `let` Bindings"). -/
+@[irreducible]
+def rlp_phase1_exit_post_pure
+    (v5 : Word) (k : BitVec 12) (fact : Prop) : Assertion :=
+  let k_val := (0 : Word) + signExtend12 k
+  (.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ k_val) ** ⌜fact⌝
+
+/-- Unfold lemma for `rlp_phase1_exit_post_pure`. -/
+theorem rlp_phase1_exit_post_pure_unfold
+    (v5 : Word) (k : BitVec 12) (fact : Prop) :
+    rlp_phase1_exit_post_pure v5 k fact =
+    ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) **
+     (.x10 ↦ᵣ ((0 : Word) + signExtend12 k)) ** ⌜fact⌝) := by
+  delta rlp_phase1_exit_post_pure; rfl
+
 /-- Pure-fact variant of `rlp_phase1_classifier_spec`: each exit post carries
     the `⌜BitVec.ult v5 k_i⌝` (or negation, for the fall-through) fact from
     the corresponding BLTU. Downstream handlers can combine these with the
@@ -370,23 +387,18 @@ theorem rlp_phase1_classifier_spec_pure (v5 v10 : Word) (base : Word)
     (he3 : (base + 20) + signExtend13 off3 = e3)
     (he4 : (base + 28) + signExtend13 off4 = e4)
     (he5 : base + 32 = e5) :
-    let k1 := (0 : Word) + signExtend12 0x80
-    let k2 := (0 : Word) + signExtend12 0xB8
-    let k3 := (0 : Word) + signExtend12 0xC0
-    let k4 := (0 : Word) + signExtend12 0xF8
-    let code := rlp_phase1_classifier_code off1 off2 off3 off4 base
-    cpsNBranch base code
+    cpsNBranch base (rlp_phase1_classifier_code off1 off2 off3 off4 base)
       ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10))
-      [(e1, (.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ k1) **
-            ⌜BitVec.ult v5 k1⌝),
-       (e2, (.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ k2) **
-            ⌜BitVec.ult v5 k2⌝),
-       (e3, (.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ k3) **
-            ⌜BitVec.ult v5 k3⌝),
-       (e4, (.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ k4) **
-            ⌜BitVec.ult v5 k4⌝),
-       (e5, (.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ k4) **
-            ⌜¬ BitVec.ult v5 k4⌝)] := by
+      [(e1, rlp_phase1_exit_post_pure v5 0x80
+              (BitVec.ult v5 ((0 : Word) + signExtend12 0x80))),
+       (e2, rlp_phase1_exit_post_pure v5 0xB8
+              (BitVec.ult v5 ((0 : Word) + signExtend12 0xB8))),
+       (e3, rlp_phase1_exit_post_pure v5 0xC0
+              (BitVec.ult v5 ((0 : Word) + signExtend12 0xC0))),
+       (e4, rlp_phase1_exit_post_pure v5 0xF8
+              (BitVec.ult v5 ((0 : Word) + signExtend12 0xF8))),
+       (e5, rlp_phase1_exit_post_pure v5 0xF8
+              (¬ BitVec.ult v5 ((0 : Word) + signExtend12 0xF8)))] := by
   -- Step specs WITH pure facts preserved.
   have cs1 := rlp_phase1_step_spec v5 v10 0x80 off1 base e1 he1
   have cs2 := rlp_phase1_step_spec v5 ((0 : Word) + signExtend12 0x80)
@@ -463,7 +475,8 @@ theorem rlp_phase1_classifier_spec_pure (v5 v10 : Word) (base : Word)
   have hcr_eq : cr1.union (cr2.union (cr3.union (cr4.union CodeReq.empty))) =
       rlp_phase1_classifier_code off1 off2 off3 off4 base := by
     simp only [hunion_empty]; rfl
-  show cpsNBranch base (rlp_phase1_classifier_code off1 off2 off3 off4 base) _ _
+  -- Unfold `rlp_phase1_exit_post_pure` so n1's explicit posts match.
+  simp only [rlp_phase1_exit_post_pure_unfold]
   exact hcr_eq ▸ n1
 
 end EvmAsm.Rv64.RLP
