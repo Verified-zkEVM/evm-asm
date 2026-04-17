@@ -42,8 +42,7 @@ theorem evm_dup_spec (nsp base : Word)
     (n : Nat) (hn1 : 1 ≤ n) (hn16 : n ≤ 16)
     (s0 s1 s2 s3 : Word)
     (d0 d1 d2 d3 : Word)
-    (v7 : Word)
-    (hvalid : ValidMemRange nsp ((n + 1) * 4)) :
+    (v7 : Word) :
     cpsTriple base (base + 36) (evm_dup_code base n)
       ((.x12 ↦ᵣ (nsp + 32)) ** (.x7 ↦ᵣ v7) **
        (nsp ↦ₘ d0) ** ((nsp+8) ↦ₘ d1) ** ((nsp+16) ↦ₘ d2) ** ((nsp+24) ↦ₘ d3) **
@@ -75,20 +74,6 @@ theorem evm_dup_spec (nsp base : Word)
     rw [signExtend12_ofNat_small _ (by omega)]; bv_omega
   have hm24 : nsp + signExtend12 (BitVec.ofNat 12 24) = nsp + 24 := by
     rw [signExtend12_ofNat_small _ (by omega)]; bv_omega
-  -- Memory validity from ValidMemRange for dst locations
-  have hv0  : isValidDwordAccess nsp       = true := by have := hvalid.get (i := 0) (by omega); simpa using this
-  have hv8  : isValidDwordAccess (nsp + 8)  = true := by have := hvalid.get (i := 1) (by omega); simpa using this
-  have hv16 : isValidDwordAccess (nsp + 16) = true := by have := hvalid.get (i := 2) (by omega); simpa using this
-  have hv24 : isValidDwordAccess (nsp + 24) = true := by have := hvalid.get (i := 3) (by omega); simpa using this
-  -- Memory validity from ValidMemRange for src locations
-  have hvs0 : isValidDwordAccess (nsp + BitVec.ofNat 64 (n*32)) = true := by
-    have := hvalid.get (i := n*4) (by omega); rwa [show 8 * (n * 4) = n * 32 from by omega] at this
-  have hvs8 : isValidDwordAccess (nsp + BitVec.ofNat 64 (n*32+8)) = true := by
-    have := hvalid.get (i := n*4+1) (by omega); rwa [show 8 * (n * 4 + 1) = n * 32 + 8 from by omega] at this
-  have hvs16 : isValidDwordAccess (nsp + BitVec.ofNat 64 (n*32+16)) = true := by
-    have := hvalid.get (i := n*4+2) (by omega); rwa [show 8 * (n * 4 + 2) = n * 32 + 16 from by omega] at this
-  have hvs24 : isValidDwordAccess (nsp + BitVec.ofNat 64 (n*32+24)) = true := by
-    have := hvalid.get (i := n*4+3) (by omega); rwa [show 8 * (n * 4 + 3) = n * 32 + 24 from by omega] at this
   -- ADDI spec
   have sA := addi_spec_gen_same .x12 (nsp + 32) (-32) base (by nofun)
   simp only [signExtend12_neg32] at sA
@@ -115,8 +100,7 @@ theorem evm_dup_spec (nsp base : Word)
 /-- DUPn spec at evmWordIs level: copies the nth stack element to new top position. -/
 theorem evm_dup_evmword_spec (nsp base : Word)
     (n : Nat) (hn1 : 1 ≤ n) (hn16 : n ≤ 16)
-    (src dst : EvmWord) (v7 : Word)
-    (hvalid : ValidMemRange nsp ((n + 1) * 4)) :
+    (src dst : EvmWord) (v7 : Word) :
     cpsTriple base (base + 36) (evm_dup_code base n)
       ((.x12 ↦ᵣ (nsp + 32)) ** (.x7 ↦ᵣ v7) **
        evmWordIs nsp dst **
@@ -134,7 +118,7 @@ theorem evm_dup_evmword_spec (nsp base : Word)
   have h_main := evm_dup_spec nsp base n hn1 hn16
     (src.getLimbN 0) (src.getLimbN 1) (src.getLimbN 2) (src.getLimbN 3)
     (dst.getLimbN 0) (dst.getLimbN 1) (dst.getLimbN 2) (dst.getLimbN 3)
-    v7 hvalid
+    v7
   exact cpsTriple_consequence _ _ _ _ _ _ _
     (fun _ hp => by
       simp only [evmWordIs, haddr8, haddr16, haddr24] at hp
@@ -153,8 +137,7 @@ theorem evm_dup_evmword_spec (nsp base : Word)
 theorem evm_dup_stack_spec (nsp base : Word)
     (n : Nat) (hn1 : 1 ≤ n) (hn16 : n ≤ 16)
     (stack : List EvmWord) (hlen : n ≤ stack.length)
-    (d : EvmWord) (v7 : Word)
-    (hvalid : ValidMemRange nsp ((n + 1) * 4)) :
+    (d : EvmWord) (v7 : Word) :
     let vn := stack[n - 1]'(by omega)
     cpsTriple base (base + 36) (evm_dup_code base n)
       ((.x12 ↦ᵣ (nsp + 32)) ** (.x7 ↦ᵣ v7) **
@@ -180,7 +163,7 @@ theorem evm_dup_stack_spec (nsp base : Word)
     (evmStackIs (nsp + 32) (stack.take (n - 1)) **
      evmStackIs (nsp + BitVec.ofNat 64 (n * 32 + 32)) (stack.drop n))
     (by pcFree)
-    (evm_dup_evmword_spec nsp base n hn1 hn16 vn d v7 hvalid)
+    (evm_dup_evmword_spec nsp base n hn1 hn16 vn d v7)
   exact cpsTriple_consequence _ _ _ _ _ _ _
     (fun _ hp => by rw [hsplit] at hp; xperm_hyp hp)
     (fun _ hq => by rw [hsplit]; xperm_hyp hq)

@@ -1,7 +1,7 @@
 /-
   EvmAsm.Evm64.And.Spec
 
-  Full 256-bit EVM AND spec with ValidMemRange abstractions.
+  Full 256-bit EVM AND spec.
 -/
 
 import EvmAsm.Evm64.And.LimbSpec

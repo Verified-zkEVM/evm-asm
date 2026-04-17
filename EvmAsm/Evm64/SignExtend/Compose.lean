@@ -225,8 +225,7 @@ private theorem se_done_exit (base : Word) : (base + 188 : Word) + 4 = base + 19
     Execution: LD b1 → LD/OR b2 → LD/OR b3 → BNE(taken) → done. -/
 theorem signext_nochange_high_spec (sp base : Word)
     (b0 b1 b2 b3 v0 v1 v2 v3 r5 r10 : Word)
-    (hhigh : b1 ||| b2 ||| b3 ≠ 0)
-    (hvalid : ValidMemRange sp 8) :
+    (hhigh : b1 ||| b2 ||| b3 ≠ 0) :
     cpsTriple base (base + 192) (signextCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ r5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ r10) **
        (sp ↦ₘ b0) ** ((sp + 8) ↦ₘ b1) ** ((sp + 16) ↦ₘ b2) ** ((sp + 24) ↦ₘ b3) **
@@ -234,13 +233,6 @@ theorem signext_nochange_high_spec (sp base : Word)
       ((.x12 ↦ᵣ (sp + 32)) ** (regOwn .x5) ** (.x0 ↦ᵣ (0 : Word)) ** (regOwn .x10) **
        (sp ↦ₘ b0) ** ((sp + 8) ↦ₘ b1) ** ((sp + 16) ↦ₘ b2) ** ((sp + 24) ↦ₘ b3) **
        ((sp + 32) ↦ₘ v0) ** ((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3)) := by
-  -- Memory validity
-  have hv8 : isValidDwordAccess (sp + 8) = true := by
-    have := hvalid.get (i := 1) (by omega); simpa using this
-  have hv16 : isValidDwordAccess (sp + 16) = true := by
-    have := hvalid.get (i := 2) (by omega); simpa using this
-  have hv24 : isValidDwordAccess (sp + 24) = true := by
-    have := hvalid.get (i := 3) (by omega); simpa using this
   -- Step 1: LD x5 x12 8 at base → extend to signextCode
   have h1 := cpsTriple_extend_code (ld_b1_sub_signextCode base)
     (ld_spec_gen .x5 .x12 sp r5 b1 8 base (by nofun))
@@ -332,8 +324,7 @@ theorem signext_nochange_high_spec (sp base : Word)
 theorem signext_nochange_geq31_spec (sp base : Word)
     (b0 b1 b2 b3 v0 v1 v2 v3 r5 r10 : Word)
     (hlow : b1 ||| b2 ||| b3 = 0)
-    (hlarge : BitVec.ult b0 (signExtend12 (31 : BitVec 12)) = false)
-    (hvalid : ValidMemRange sp 8) :
+    (hlarge : BitVec.ult b0 (signExtend12 (31 : BitVec 12)) = false) :
     cpsTriple base (base + 192) (signextCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ r5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ r10) **
        (sp ↦ₘ b0) ** ((sp + 8) ↦ₘ b1) ** ((sp + 16) ↦ₘ b2) ** ((sp + 24) ↦ₘ b3) **
@@ -341,15 +332,6 @@ theorem signext_nochange_geq31_spec (sp base : Word)
       ((.x12 ↦ᵣ (sp + 32)) ** (regOwn .x5) ** (.x0 ↦ᵣ (0 : Word)) ** (regOwn .x10) **
        (sp ↦ₘ b0) ** ((sp + 8) ↦ₘ b1) ** ((sp + 16) ↦ₘ b2) ** ((sp + 24) ↦ₘ b3) **
        ((sp + 32) ↦ₘ v0) ** ((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3)) := by
-  -- Memory validity
-  have hv0 : isValidDwordAccess sp = true := by
-    have := hvalid.get (i := 0) (by omega); simpa using this
-  have hv8 : isValidDwordAccess (sp + 8) = true := by
-    have := hvalid.get (i := 1) (by omega); simpa using this
-  have hv16 : isValidDwordAccess (sp + 16) = true := by
-    have := hvalid.get (i := 2) (by omega); simpa using this
-  have hv24 : isValidDwordAccess (sp + 24) = true := by
-    have := hvalid.get (i := 3) (by omega); simpa using this
   -- Steps 1-3: Same linear chain
   have h1 := cpsTriple_extend_code (ld_b1_sub_signextCode base)
     (ld_spec_gen .x5 .x12 sp r5 b1 8 base (by nofun))
@@ -513,13 +495,6 @@ private theorem cpsNBranch_frame_left {entry : Word} {cr : CodeReq}
   refine ⟨k, s', hstep, (ex.1, ex.2 ** F), ?_, hpc', holdsFor_sepConj_assoc.mpr hQFR⟩
   exact List.mem_map.mpr ⟨ex, hmem, rfl⟩
 
-private theorem validMem_value_portion {sp : Word} (hvalid : ValidMemRange sp 8) :
-    ValidMemRange (sp + 32) 4 := by
-  intro i hi; have := hvalid.get (i := i + 4) (by omega)
-  have : isValidDwordAccess (sp + BitVec.ofNat 64 (8 * (i + 4))) = true := this
-  rw [show sp + BitVec.ofNat 64 (8 * (i + 4)) = sp + 32 + BitVec.ofNat 64 (8 * i) from by bv_omega] at this
-  exact this
-
 -- ============================================================================
 -- Section 6: Body path composition (b < 31)
 -- ============================================================================
@@ -528,7 +503,6 @@ private theorem validMem_value_portion {sp : Word} (hvalid : ValidMemRange sp 8)
     Composes Phase A ntaken → B → C → body_L → done. -/
 theorem signext_body_spec (sp base : Word)
     (b x : EvmWord) (r5 r6 r10 : Word)
-    (hvalid : ValidMemRange sp 8)
     (hhigh : b.getLimb 1 ||| b.getLimb 2 ||| b.getLimb 3 = 0)
     (hsmall : BitVec.ult (b.getLimb 0) (signExtend12 (31 : BitVec 12)) = true) :
     cpsTriple base (base + 192) (signextCode base)
@@ -548,15 +522,6 @@ theorem signext_body_spec (sp base : Word)
   set b2 := b.getLimb 2; set b3 := b.getLimb 3
   set v0 := x.getLimb 0; set v1 := x.getLimb 1
   set v2 := x.getLimb 2; set v3 := x.getLimb 3
-  -- Memory validity
-  have hv0 : isValidDwordAccess sp = true := by
-    have := hvalid.get (i := 0) (by omega); simpa using this
-  have hv8 : isValidDwordAccess (sp + 8) = true := by
-    have := hvalid.get (i := 1) (by omega); simpa using this
-  have hv16 : isValidDwordAccess (sp + 16) = true := by
-    have := hvalid.get (i := 2) (by omega); simpa using this
-  have hv24 : isValidDwordAccess (sp + 24) = true := by
-    have := hvalid.get (i := 3) (by omega); simpa using this
   -- Phase A: base → base+36 (same as no-change geq31 path but BEQ ntaken)
   have h1 := cpsTriple_extend_code (ld_b1_sub_signextCode base)
     (ld_spec_gen .x5 .x12 sp r5 b1 8 base (by nofun))

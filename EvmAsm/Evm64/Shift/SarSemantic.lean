@@ -146,8 +146,7 @@ private theorem sar_sign_fill_lift (sp base : Word)
     - `fromLimbs (fun _ => sshiftRight (value.getLimb 3) 63)` when shift ≥ 256
     - `sshiftRight value shift.toNat` when shift < 256 -/
 theorem evm_sar_stack_spec (sp base : Word)
-    (shift value : EvmWord) (r5 r6 r7 r10 r11 : Word)
-    (hvalid : ValidMemRange sp 8) :
+    (shift value : EvmWord) (r5 r6 r7 r10 r11 : Word) :
     let result := if shift.toNat ≥ 256
         then EvmWord.fromLimbs (fun _ => BitVec.sshiftRight (value.getLimb 3) 63)
         else BitVec.sshiftRight value shift.toNat
@@ -167,7 +166,7 @@ theorem evm_sar_stack_spec (sp base : Word)
     -- Sub-case: high limbs nonzero or s0 ≥ 256
     by_cases hhigh : shift.getLimb 1 ||| shift.getLimb 2 ||| shift.getLimb 3 ≠ 0
     · exact sar_sign_fill_lift sp base shift value r5 r6 r7 r10 r11
-        (evm_sar_sign_fill_high_spec sp base _ _ _ _ _ _ _ _ r5 r10 hhigh hvalid)
+        (evm_sar_sign_fill_high_spec sp base _ _ _ _ _ _ _ _ r5 r10 hhigh)
         result hresult
     · have hhigh' : shift.getLimb 1 ||| shift.getLimb 2 ||| shift.getLimb 3 = 0 :=
         Classical.byContradiction (fun h => hhigh h)
@@ -181,7 +180,7 @@ theorem evm_sar_stack_spec (sp base : Word)
         · rfl
         · simp at h; omega
       exact sar_sign_fill_lift sp base shift value r5 r6 r7 r10 r11
-        (evm_sar_sign_fill_large_spec sp base _ _ _ _ _ _ _ _ r5 r10 hhigh' hlarge hvalid)
+        (evm_sar_sign_fill_large_spec sp base _ _ _ _ _ _ _ _ r5 r10 hhigh' hlarge)
         result hresult
   · -- shift < 256: result = sshiftRight value shift.toNat
     have hlt : shift.toNat < 256 := Nat.lt_of_not_le hge
@@ -200,6 +199,6 @@ theorem evm_sar_stack_spec (sp base : Word)
     rw [show result = BitVec.sshiftRight value shift.toNat from by
       simp [result, show ¬(shift.toNat ≥ 256) from hge]]
     exact evm_sar_body_evmWord_spec sp base shift value r5 r6 r7 r10 r11
-      hvalid hhigh_zero hlt_s0 hlt
+      hhigh_zero hlt_s0 hlt
 
 end EvmAsm.Evm64

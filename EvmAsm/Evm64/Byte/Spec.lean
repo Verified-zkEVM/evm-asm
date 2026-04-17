@@ -214,14 +214,6 @@ private theorem byte_off_sp32 (sp : Word) : sp + signExtend12 (32 : BitVec 12) =
 private theorem regIs_to_regOwn (r : Reg) (v : Word) : ∀ h, (r ↦ᵣ v) h → (regOwn r) h :=
   fun _ hp => ⟨v, hp⟩
 
-/-- Helper to derive ValidMemRange for the value portion (sp+32..sp+56). -/
-private theorem validMem_value_portion {sp : Word} (hvalid : ValidMemRange sp 8) :
-    ValidMemRange (sp + 32) 4 := by
-  intro i hi; have := hvalid.get (i := i + 4) (by omega)
-  have : isValidDwordAccess (sp + BitVec.ofNat 64 (8 * (i + 4))) = true := this
-  rw [show sp + BitVec.ofNat 64 (8 * (i + 4)) = sp + 32 + BitVec.ofNat 64 (8 * i) from by bv_omega] at this
-  exact this
-
 /-- Monotonicity for cpsNBranch: extend to a larger CodeReq. -/
 private theorem cpsNBranch_extend_code {entry : Word} {cr cr' : CodeReq}
     {P : Assertion} {exits : List (Word × Assertion)}
@@ -299,8 +291,7 @@ private theorem bv_srl_mask_eq (x : Word) (n : Nat) (hn : n < 64) :
     Execution: LD idx[1] → LD/OR idx[2] → LD/OR idx[3] → BNE(taken) → zero_path. -/
 theorem evm_byte_zero_high_spec (sp base : Word)
     (i0 i1 i2 i3 v0 v1 v2 v3 r5 r10 : Word)
-    (hhigh : i1 ||| i2 ||| i3 ≠ 0)
-    (hvalid : ValidMemRange sp 8) :
+    (hhigh : i1 ||| i2 ||| i3 ≠ 0) :
     cpsTriple base (base + 180) (evm_byte_code base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ r5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ r10) **
        (sp ↦ₘ i0) ** ((sp + 8) ↦ₘ i1) ** ((sp + 16) ↦ₘ i2) ** ((sp + 24) ↦ₘ i3) **
@@ -308,14 +299,6 @@ theorem evm_byte_zero_high_spec (sp base : Word)
       ((.x12 ↦ᵣ (sp + 32)) ** (regOwn .x5) ** (.x0 ↦ᵣ (0 : Word)) ** (regOwn .x10) **
        (sp ↦ₘ i0) ** ((sp + 8) ↦ₘ i1) ** ((sp + 16) ↦ₘ i2) ** ((sp + 24) ↦ₘ i3) **
        ((sp + 32) ↦ₘ (0 : Word)) ** ((sp + 40) ↦ₘ (0 : Word)) ** ((sp + 48) ↦ₘ (0 : Word)) ** ((sp + 56) ↦ₘ (0 : Word))) := by
-  -- Memory validity
-  have hv8 : isValidDwordAccess (sp + 8) = true := by
-    have := hvalid.get (i := 1) (by omega); simpa using this
-  have hv16 : isValidDwordAccess (sp + 16) = true := by
-    have := hvalid.get (i := 2) (by omega); simpa using this
-  have hv24 : isValidDwordAccess (sp + 24) = true := by
-    have := hvalid.get (i := 3) (by omega); simpa using this
-  have hv32 : ValidMemRange (sp + 32) 4 := validMem_value_portion hvalid
   -- Step 1: OR-reduce (base → base+20) → extend to evm_byte_code
   have hOR := cpsTriple_extend_code (byte_phase_a_sub base)
     (byte_phase_a_or_reduce_spec sp r5 r10 i1 i2 i3 base)
@@ -386,8 +369,7 @@ theorem evm_byte_zero_high_spec (sp base : Word)
 theorem evm_byte_zero_geq32_spec (sp base : Word)
     (i0 i1 i2 i3 v0 v1 v2 v3 r5 r10 : Word)
     (hlow : i1 ||| i2 ||| i3 = 0)
-    (hlarge : BitVec.ult i0 (signExtend12 (32 : BitVec 12)) = false)
-    (hvalid : ValidMemRange sp 8) :
+    (hlarge : BitVec.ult i0 (signExtend12 (32 : BitVec 12)) = false) :
     cpsTriple base (base + 180) (evm_byte_code base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ r5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ r10) **
        (sp ↦ₘ i0) ** ((sp + 8) ↦ₘ i1) ** ((sp + 16) ↦ₘ i2) ** ((sp + 24) ↦ₘ i3) **
@@ -395,16 +377,6 @@ theorem evm_byte_zero_geq32_spec (sp base : Word)
       ((.x12 ↦ᵣ (sp + 32)) ** (regOwn .x5) ** (.x0 ↦ᵣ (0 : Word)) ** (regOwn .x10) **
        (sp ↦ₘ i0) ** ((sp + 8) ↦ₘ i1) ** ((sp + 16) ↦ₘ i2) ** ((sp + 24) ↦ₘ i3) **
        ((sp + 32) ↦ₘ (0 : Word)) ** ((sp + 40) ↦ₘ (0 : Word)) ** ((sp + 48) ↦ₘ (0 : Word)) ** ((sp + 56) ↦ₘ (0 : Word))) := by
-  -- Memory validity
-  have hv0 : isValidDwordAccess sp = true := by
-    have := hvalid.get (i := 0) (by omega); simpa using this
-  have hv8 : isValidDwordAccess (sp + 8) = true := by
-    have := hvalid.get (i := 1) (by omega); simpa using this
-  have hv16 : isValidDwordAccess (sp + 16) = true := by
-    have := hvalid.get (i := 2) (by omega); simpa using this
-  have hv24 : isValidDwordAccess (sp + 24) = true := by
-    have := hvalid.get (i := 3) (by omega); simpa using this
-  have hv32 : ValidMemRange (sp + 32) 4 := validMem_value_portion hvalid
   -- Step 1: OR-reduce (base → base+20) → extend to evm_byte_code
   have hOR := cpsTriple_extend_code (byte_phase_a_sub base)
     (byte_phase_a_or_reduce_spec sp r5 r10 i1 i2 i3 base)
@@ -521,7 +493,6 @@ open EvmWord in
     and uses byte_correct to connect per-limb results to EvmWord.byte. -/
 theorem evm_byte_body_evmWord_spec (sp base : Word)
     (idx value : EvmWord) (r5 r6 r10 : Word)
-    (hvalid : ValidMemRange sp 8)
     (hhigh_zero : idx.getLimbN 1 ||| idx.getLimbN 2 ||| idx.getLimbN 3 = 0)
     (hlt_i0 : BitVec.ult (idx.getLimbN 0) (signExtend12 (32 : BitVec 12)) = true)
     (hlt : idx.toNat < 32) :
@@ -570,16 +541,6 @@ theorem evm_byte_body_evmWord_spec (sp base : Word)
         xperm_hyp hq)
       h_raw
   -- Now prove h_raw in flat memIs form
-  -- Memory validity
-  have hv0 : isValidDwordAccess sp = true := by
-    have := hvalid.get (i := 0) (by omega); simpa using this
-  have hv8 : isValidDwordAccess (sp + 8) = true := by
-    have := hvalid.get (i := 1) (by omega); simpa using this
-  have hv16 : isValidDwordAccess (sp + 16) = true := by
-    have := hvalid.get (i := 2) (by omega); simpa using this
-  have hv24 : isValidDwordAccess (sp + 24) = true := by
-    have := hvalid.get (i := 3) (by omega); simpa using this
-  have hv32 : ValidMemRange (sp + 32) 4 := validMem_value_portion hvalid
   -- Address normalization for sp+32 region
   have ha40 : sp + 40 = (sp + 32 : Word) + 8 := by bv_omega
   have ha48 : sp + 48 = (sp + 32 : Word) + 16 := by bv_omega
@@ -673,14 +634,6 @@ theorem evm_byte_body_evmWord_spec (sp base : Word)
   have hphaseC := cpsNBranch_extend_code (byte_phase_c_sub base) hphaseC_raw
   -- Body specs extended to evm_byte_code, then composed with store
   -- body_3: base+76 → base+136 (via JAL 48), then store: base+136 → base+180
-  have hv32_single : isValidDwordAccess (sp + signExtend12 (32 : BitVec 12)) = true := by
-    simp only [signExtend12_32]; have := hvalid.get (i := 4) (by omega); simpa using this
-  have hv40_single : isValidDwordAccess (sp + signExtend12 (40 : BitVec 12)) = true := by
-    simp only [signExtend12_40]; have := hvalid.get (i := 5) (by omega); simpa using this
-  have hv48_single : isValidDwordAccess (sp + signExtend12 (48 : BitVec 12)) = true := by
-    simp only [signExtend12_48]; have := hvalid.get (i := 6) (by omega); simpa using this
-  have hv56_single : isValidDwordAccess (sp + signExtend12 (56 : BitVec 12)) = true := by
-    simp only [signExtend12_56]; have := hvalid.get (i := 7) (by omega); simpa using this
   -- Body 3 spec (load from sp+32, i.e. limb 0 = v0)
   have hbody3_raw := byte_body_3_spec sp limb_from_msb shift_amount v0 (base + 76)
   rw [byte_body_3_exit_eq] at hbody3_raw
@@ -970,8 +923,7 @@ theorem evm_byte_body_evmWord_spec (sp base : Word)
 
 /-- Stack-level BYTE spec using evmWordIs and EvmWord.byte. -/
 theorem evm_byte_stack_spec (sp base : Word)
-    (idx val : EvmWord) (v5 v6 v10 : Word)
-    (hvalid : ValidMemRange sp 8) :
+    (idx val : EvmWord) (v5 v6 v10 : Word) :
     cpsTriple base (base + 180) (evm_byte_code base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) **
        (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10) **
@@ -1012,7 +964,7 @@ theorem evm_byte_stack_spec (sp base : Word)
       rw [h1, h2, h3]; simp
     rw [hbyte_zero]
     -- Use evm_byte_zero_high_spec at the limb level, then wrap with evmWordIs
-    have h_raw := evm_byte_zero_high_spec sp base i0 i1 i2 i3 v0 v1 v2 v3 v5 v10 hhigh hvalid
+    have h_raw := evm_byte_zero_high_spec sp base i0 i1 i2 i3 v0 v1 v2 v3 v5 v10 hhigh
     -- Frame x6 (not used by zero_high path)
     have h_framed := cpsTriple_frame_left base (base + 180) _ _ _
       (.x6 ↦ᵣ v6) (by pcFree) h_raw
@@ -1044,7 +996,7 @@ theorem evm_byte_stack_spec (sp base : Word)
         have hidx_toNat : idx.toNat = i0.toNat :=
           EvmWord.toNat_eq_getLimb0_of_high_zero idx hhigh
         rw [decide_eq_true_eq]; omega
-      exact evm_byte_body_evmWord_spec sp base idx val v5 v6 v10 hvalid hhigh hlt_i0 hlt
+      exact evm_byte_body_evmWord_spec sp base idx val v5 v6 v10 hhigh hlt_i0 hlt
     · -- Case 2: idx.toNat >= 32, high limbs zero → zero result
       have hbyte_zero : EvmWord.byte idx val = 0 := EvmWord.byte_zero idx val hlt
       rw [hbyte_zero]
@@ -1055,7 +1007,7 @@ theorem evm_byte_stack_spec (sp base : Word)
         have hidx_toNat : idx.toNat = i0.toNat :=
           EvmWord.toNat_eq_getLimb0_of_high_zero idx hhigh
         rw [decide_eq_false_iff_not]; omega
-      have h_raw := evm_byte_zero_geq32_spec sp base i0 i1 i2 i3 v0 v1 v2 v3 v5 v10 hhigh hlarge hvalid
+      have h_raw := evm_byte_zero_geq32_spec sp base i0 i1 i2 i3 v0 v1 v2 v3 v5 v10 hhigh hlarge
       have h_framed := cpsTriple_frame_left base (base + 180) _ _ _
         (.x6 ↦ᵣ v6) (by pcFree) h_raw
       exact cpsTriple_consequence _ _ _ _ _ _ _
