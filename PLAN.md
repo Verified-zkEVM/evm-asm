@@ -592,13 +592,17 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
     each exit carries the complete conjunction of prior `¬ult` facts plus
     (for taken exits) the current `ult` fact. Enables downstream range
     proofs like `0x80 ≤ p < 0xB8` at exit `e2`.
-- Phase 2: Length extraction — ⏳ short form landed
+- Phase 2: Length extraction — ⏳ short form + long-form accumulation step
   - `rlp_phase2_short_length_spec` (`EvmAsm/Rv64/RLP/Phase2Short.lean`):
     one-instruction `ADDI x11, x5, -k` extractor for short byte strings
     (k = 0x80) and short lists (k = 0xC0). Concrete tests verify
     0x85 → 5, 0xB7 → 55, 0xC3 → 3, 0x80 → 0 via `decide`.
-  - Long form (length-of-length big-endian loop for 0xB8..0xBF /
-    0xF8..0xFF prefixes) still pending.
+  - `rlp_phase2_long_acc_spec` (`EvmAsm/Rv64/RLP/Phase2LongAcc.lean`):
+    two-instruction `SLLI x11, x11, 8 ; ADD x11, x11, x12` big-endian
+    accumulation core of the long-form length-of-length loop. Post:
+    `x11 ← (len <<< 8) + byte`.
+  - Full long-form loop (byte load, counter decrement, branch-back,
+    invariant) still pending.
 - Phase 3: Single-item flat decode (byte strings only)
 - Phase 4: HINT_READ integration (load RLP input into memory buffer)
 - Phase 5: Recursive list decode (iterative with explicit stack)
