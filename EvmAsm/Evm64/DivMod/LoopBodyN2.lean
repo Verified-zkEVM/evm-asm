@@ -61,21 +61,6 @@ theorem divK_loop_body_n2_max_skip_spec
     (sp j j_old v5_old v6_old v7_old v10_old v11_old v2_old
      v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old : Word)
     (base : Word)
-    (hv_j : isValidDwordAccess (sp + signExtend12 3976) = true)
-    (hv_n1 : isValidDwordAccess (sp + signExtend12 3984) = true)
-    (hv_uhi : isValidDwordAccess (sp + signExtend12 4056 - (j + (2 : Word)) <<< (3 : BitVec 6).toNat) = true)
-    (hv_ulo : isValidDwordAccess ((sp + signExtend12 4056 - (j + (2 : Word)) <<< (3 : BitVec 6).toNat) + 8) = true)
-    (hv_vtop : isValidDwordAccess (sp + ((2 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat + signExtend12 32) = true)
-    (hv_v0 : isValidDwordAccess (sp + signExtend12 32) = true)
-    (hv_u0 : isValidDwordAccess ((sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 0) = true)
-    (hv_v1 : isValidDwordAccess (sp + signExtend12 40) = true)
-    (hv_u1 : isValidDwordAccess ((sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 4088) = true)
-    (hv_v2 : isValidDwordAccess (sp + signExtend12 48) = true)
-    (hv_u2 : isValidDwordAccess ((sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 4080) = true)
-    (hv_v3 : isValidDwordAccess (sp + signExtend12 56) = true)
-    (hv_u3 : isValidDwordAccess ((sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 4072) = true)
-    (hv_u4 : isValidDwordAccess ((sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 4064) = true)
-    (hv_q : isValidDwordAccess (sp + signExtend12 4088 - j <<< (3 : BitVec 6).toNat) = true)
     (hbltu : ¬BitVec.ult u2 v1) :
     let u_base := sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat
     let q_hat : Word := signExtend12 4095  -- MAX64
@@ -129,7 +114,7 @@ theorem divK_loop_body_n2_max_skip_spec
   let vtop_base := sp + ((2 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
   -- 1. Trial max full (base+448 → base+516), instantiated with n=2, u_hi=u2, u_lo=u1, v_top=v1
   have TF := divK_trial_max_full_spec sp j (2 : Word) j_old v5_old v6_old v7_old v10_old v11_old
-    u2 u1 v1 base hv_j hv_n1 hv_uhi hv_ulo hv_vtop hbltu
+    u2 u1 v1 base hbltu
   -- Expand let-bindings in TF to expose raw address expressions
   dsimp only [] at TF
   -- Rewrite u_addr → u_base + signExtend12 4080, and (u_addr+8) → u_base + signExtend12 4088
@@ -191,21 +176,6 @@ theorem divK_loop_body_n2_max_addback_spec
     (sp j j_old v5_old v6_old v7_old v10_old v11_old v2_old
      v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old : Word)
     (base : Word)
-    (hv_j : isValidDwordAccess (sp + signExtend12 3976) = true)
-    (hv_n1 : isValidDwordAccess (sp + signExtend12 3984) = true)
-    (hv_uhi : isValidDwordAccess (sp + signExtend12 4056 - (j + (2 : Word)) <<< (3 : BitVec 6).toNat) = true)
-    (hv_ulo : isValidDwordAccess ((sp + signExtend12 4056 - (j + (2 : Word)) <<< (3 : BitVec 6).toNat) + 8) = true)
-    (hv_vtop : isValidDwordAccess (sp + ((2 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat + signExtend12 32) = true)
-    (hv_v0 : isValidDwordAccess (sp + signExtend12 32) = true)
-    (hv_u0 : isValidDwordAccess ((sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 0) = true)
-    (hv_v1 : isValidDwordAccess (sp + signExtend12 40) = true)
-    (hv_u1 : isValidDwordAccess ((sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 4088) = true)
-    (hv_v2 : isValidDwordAccess (sp + signExtend12 48) = true)
-    (hv_u2 : isValidDwordAccess ((sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 4080) = true)
-    (hv_v3 : isValidDwordAccess (sp + signExtend12 56) = true)
-    (hv_u3 : isValidDwordAccess ((sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 4072) = true)
-    (hv_u4 : isValidDwordAccess ((sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 4064) = true)
-    (hv_q : isValidDwordAccess (sp + signExtend12 4088 - j <<< (3 : BitVec 6).toNat) = true)
     (hbltu : ¬BitVec.ult u2 v1) :
     let u_base := sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat
     let q_hat : Word := signExtend12 4095  -- MAX64
@@ -249,7 +219,7 @@ theorem divK_loop_body_n2_max_addback_spec
   let vtop_base := sp + ((2 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
   -- 1. Trial max full (base+448 → base+516)
   have TF := divK_trial_max_full_spec sp j (2 : Word) j_old v5_old v6_old v7_old v10_old v11_old
-    u2 u1 v1 base hv_j hv_n1 hv_uhi hv_ulo hv_vtop hbltu
+    u2 u1 v1 base hbltu
   dsimp only [] at TF
   rw [u_addr_eq_n2 sp j] at TF
   rw [u_addr8_eq_n2 sp j] at TF
@@ -307,26 +277,7 @@ theorem divK_loop_body_n2_call_skip_spec
      v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old : Word)
     (ret_mem d_mem dlo_mem scratch_un0 : Word)
     (base : Word)
-    (hv_j : isValidDwordAccess (sp + signExtend12 3976) = true)
-    (hv_n1 : isValidDwordAccess (sp + signExtend12 3984) = true)
-    (hv_uhi : isValidDwordAccess (sp + signExtend12 4056 - (j + (2 : Word)) <<< (3 : BitVec 6).toNat) = true)
-    (hv_ulo : isValidDwordAccess ((sp + signExtend12 4056 - (j + (2 : Word)) <<< (3 : BitVec 6).toNat) + 8) = true)
-    (hv_vtop : isValidDwordAccess (sp + ((2 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat + signExtend12 32) = true)
-    (hv_ret : isValidDwordAccess (sp + signExtend12 3968) = true)
-    (hv_d   : isValidDwordAccess (sp + signExtend12 3960) = true)
-    (hv_dlo : isValidDwordAccess (sp + signExtend12 3952) = true)
-    (hv_scratch_un0 : isValidDwordAccess (sp + signExtend12 3944) = true)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
-    (hv_v0 : isValidDwordAccess (sp + signExtend12 32) = true)
-    (hv_u0 : isValidDwordAccess ((sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 0) = true)
-    (hv_v1 : isValidDwordAccess (sp + signExtend12 40) = true)
-    (hv_u1 : isValidDwordAccess ((sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 4088) = true)
-    (hv_v2 : isValidDwordAccess (sp + signExtend12 48) = true)
-    (hv_u2 : isValidDwordAccess ((sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 4080) = true)
-    (hv_v3 : isValidDwordAccess (sp + signExtend12 56) = true)
-    (hv_u3 : isValidDwordAccess ((sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 4072) = true)
-    (hv_u4 : isValidDwordAccess ((sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 4064) = true)
-    (hv_q : isValidDwordAccess (sp + signExtend12 4088 - j <<< (3 : BitVec 6).toNat) = true)
     (hbltu : BitVec.ult u2 v1) :
     let u_base := sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat
     -- div128 intermediates
@@ -421,7 +372,7 @@ theorem divK_loop_body_n2_call_skip_spec
   -- 1. Trial call full (base+448 → base+516)
   have TF := divK_trial_call_full_spec sp j (2 : Word) j_old v5_old v6_old v7_old v10_old v11_old v2_old
     u2 u1 v1 ret_mem d_mem dlo_mem scratch_un0 base
-    hv_j hv_n1 hv_uhi hv_ulo hv_vtop hv_ret hv_d hv_dlo hv_scratch_un0 halign hbltu
+    halign hbltu
   dsimp only [] at TF
   rw [u_addr_eq_n2 sp j] at TF
   rw [u_addr8_eq_n2 sp j] at TF
@@ -483,26 +434,7 @@ theorem divK_loop_body_n2_call_addback_spec
      v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old : Word)
     (ret_mem d_mem dlo_mem scratch_un0 : Word)
     (base : Word)
-    (hv_j : isValidDwordAccess (sp + signExtend12 3976) = true)
-    (hv_n1 : isValidDwordAccess (sp + signExtend12 3984) = true)
-    (hv_uhi : isValidDwordAccess (sp + signExtend12 4056 - (j + (2 : Word)) <<< (3 : BitVec 6).toNat) = true)
-    (hv_ulo : isValidDwordAccess ((sp + signExtend12 4056 - (j + (2 : Word)) <<< (3 : BitVec 6).toNat) + 8) = true)
-    (hv_vtop : isValidDwordAccess (sp + ((2 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat + signExtend12 32) = true)
-    (hv_ret : isValidDwordAccess (sp + signExtend12 3968) = true)
-    (hv_d   : isValidDwordAccess (sp + signExtend12 3960) = true)
-    (hv_dlo : isValidDwordAccess (sp + signExtend12 3952) = true)
-    (hv_scratch_un0 : isValidDwordAccess (sp + signExtend12 3944) = true)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
-    (hv_v0 : isValidDwordAccess (sp + signExtend12 32) = true)
-    (hv_u0 : isValidDwordAccess ((sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 0) = true)
-    (hv_v1 : isValidDwordAccess (sp + signExtend12 40) = true)
-    (hv_u1 : isValidDwordAccess ((sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 4088) = true)
-    (hv_v2 : isValidDwordAccess (sp + signExtend12 48) = true)
-    (hv_u2 : isValidDwordAccess ((sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 4080) = true)
-    (hv_v3 : isValidDwordAccess (sp + signExtend12 56) = true)
-    (hv_u3 : isValidDwordAccess ((sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 4072) = true)
-    (hv_u4 : isValidDwordAccess ((sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 4064) = true)
-    (hv_q : isValidDwordAccess (sp + signExtend12 4088 - j <<< (3 : BitVec 6).toNat) = true)
     (hbltu : BitVec.ult u2 v1) :
     let u_base := sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat
     -- div128 intermediates
@@ -589,7 +521,7 @@ theorem divK_loop_body_n2_call_addback_spec
   -- 1. Trial call full (base+448 → base+516)
   have TF := divK_trial_call_full_spec sp j (2 : Word) j_old v5_old v6_old v7_old v10_old v11_old v2_old
     u2 u1 v1 ret_mem d_mem dlo_mem scratch_un0 base
-    hv_j hv_n1 hv_uhi hv_ulo hv_vtop hv_ret hv_d hv_dlo hv_scratch_un0 halign hbltu
+    halign hbltu
   dsimp only [] at TF
   rw [u_addr_eq_n2 sp j] at TF
   rw [u_addr8_eq_n2 sp j] at TF

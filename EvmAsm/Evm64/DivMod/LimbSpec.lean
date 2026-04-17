@@ -1498,8 +1498,7 @@ theorem divK_correction_branch_spec (borrow : Word) (skip_off : BitVec 13) (base
     u_addr = sp + signExtend12 4056 - (j + n) <<< 3.
     u_hi = mem[u_addr], u_lo = mem[u_addr + 8]. -/
 theorem divK_trial_load_u_spec (sp j n v5_old v7_old u_hi u_lo : Word)
-    (base : Word)
-    (hv_uhi : isValidDwordAccess (sp + signExtend12 4056 - (j + n) <<< (3 : BitVec 6).toNat) = true) :
+    (base : Word) :
     let jpn := j + n
     let jpn_x8 := jpn <<< (3 : BitVec 6).toNat
     let u0_base := sp + signExtend12 4056
@@ -2449,8 +2448,7 @@ set_option maxRecDepth 2048 in
     Input: u_hi in x7, d_hi in x6, un1 in x11, dlo in memory.
     Output: refined q1 in x10, refined rhat in x7. -/
 theorem divK_div128_step1_spec
-    (sp u_hi d_hi un1 v1_old v5_old v10_old dlo : Word) (base : Word)
-    (hv : isValidDwordAccess (sp + signExtend12 3952) = true) :
+    (sp u_hi d_hi un1 v1_old v5_old v10_old dlo : Word) (base : Word) :
     let q1 := rv64_divu u_hi d_hi
     let rhat := u_hi - q1 * d_hi
     let hi := q1 >>> (32 : BitVec 6).toNat
@@ -2591,9 +2589,7 @@ set_option maxRecDepth 2048 in
     Input: un21 in x7, d_hi in x6, dlo/un0 in memory.
     Output: refined q0 in x5. -/
 theorem divK_div128_step2_spec
-    (sp un21 d_hi v1_old v5_old v11_old dlo un0 : Word) (base : Word)
-    (hv_dlo : isValidDwordAccess (sp + signExtend12 3952) = true)
-    (hv_un0 : isValidDwordAccess (sp + signExtend12 3944) = true) :
+    (sp un21 d_hi v1_old v5_old v11_old dlo un0 : Word) (base : Word) :
     let q0 := rv64_divu un21 d_hi
     let rhat2 := un21 - q0 * d_hi
     let hi := q0 >>> (32 : BitVec 6).toNat
@@ -2922,8 +2918,7 @@ set_option maxRecDepth 2048 in
     Output: x7 = u_hi, x5 = u_lo, x10 = v_top, x6 = vtop_base. -/
 theorem divK_trial_load_spec
     (sp j n v5_old v6_old v7_old v10_old u_hi u_lo v_top : Word)
-    (base : Word)
-    (hv_uhi : isValidDwordAccess (sp + signExtend12 4056 - (j + n) <<< (3 : BitVec 6).toNat) = true) :
+    (base : Word) :
     let u_addr := sp + signExtend12 4056 - (j + n) <<< (3 : BitVec 6).toNat
     let vtop_base := sp + (n + signExtend12 4095) <<< (3 : BitVec 6).toNat
     let cr :=
@@ -2984,8 +2979,7 @@ set_option maxRecDepth 2048 in
 /-- Store q[j]: compute address and store q_hat. 4 instructions.
     q_addr = sp + 4088 - j*8. -/
 theorem divK_store_qj_spec (sp j q_hat v5_old v7_old q_old : Word)
-    (base : Word)
-    (hv : isValidDwordAccess (sp + signExtend12 4088 - j <<< (3 : BitVec 6).toNat) = true) :
+    (base : Word) :
     let j_x8 := j <<< (3 : BitVec 6).toNat
     let q_addr := sp + signExtend12 4088 - j_x8
     let cr :=
@@ -3008,7 +3002,6 @@ theorem divK_store_qj_spec (sp j q_hat v5_old v7_old q_old : Word)
   -- SD instruction with signExtend12 normalization
   have hse : signExtend12 (0 : BitVec 12) = (0 : Word) := by decide
   have haddr : q_addr + signExtend12 (0 : BitVec 12) = q_addr := by rw [hse]; bv_omega
-  have hv' : isValidDwordAccess (q_addr + signExtend12 0) = true := by rw [haddr]; exact hv
   have I3 := sd_spec_gen .x7 .x11 q_addr q_hat q_old 0 (base + 12)
   rw [haddr] at I3
   runBlock I0 I1 I2 I3

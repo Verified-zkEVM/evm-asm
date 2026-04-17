@@ -125,38 +125,7 @@ private theorem evm_div_n1_loop_unified_inst
     (shift anti_shift v0' v1' v2' v3' u0_s u1_s u2_s u3_s u4_s : Word)
     (v10_val v11_old j_mem : Word)
     (ret_mem d_mem dlo_mem scratch_un0 : Word)
-    (hv_j : isValidDwordAccess (sp + signExtend12 3976) = true)
-    (hv_n1 : isValidDwordAccess (sp + signExtend12 3984) = true)
-    (hv_uhi_3 : isValidDwordAccess (sp + signExtend12 4056 - (3 + (1 : Word)) <<< (3 : BitVec 6).toNat) = true)
-    (hv_ulo_3 : isValidDwordAccess ((sp + signExtend12 4056 - (3 + (1 : Word)) <<< (3 : BitVec 6).toNat) + 8) = true)
-    (hv_vtop : isValidDwordAccess (sp + ((1 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat + signExtend12 32) = true)
-    (hv_ret : isValidDwordAccess (sp + signExtend12 3968) = true)
-    (hv_d   : isValidDwordAccess (sp + signExtend12 3960) = true)
-    (hv_dlo : isValidDwordAccess (sp + signExtend12 3952) = true)
-    (hv_scratch_un0 : isValidDwordAccess (sp + signExtend12 3944) = true)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
-    (hv_v0 : isValidDwordAccess (sp + signExtend12 32) = true)
-    (hv_v1 : isValidDwordAccess (sp + signExtend12 40) = true)
-    (hv_v2 : isValidDwordAccess (sp + signExtend12 48) = true)
-    (hv_v3 : isValidDwordAccess (sp + signExtend12 56) = true)
-    (hv_u0_3 : isValidDwordAccess ((sp + signExtend12 4056 - (3 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 0) = true)
-    (hv_u1_3 : isValidDwordAccess ((sp + signExtend12 4056 - (3 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4088) = true)
-    (hv_u2_3 : isValidDwordAccess ((sp + signExtend12 4056 - (3 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4080) = true)
-    (hv_u3_3 : isValidDwordAccess ((sp + signExtend12 4056 - (3 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4072) = true)
-    (hv_u4_3 : isValidDwordAccess ((sp + signExtend12 4056 - (3 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4064) = true)
-    (hv_q3 : isValidDwordAccess (sp + signExtend12 4088 - (3 : Word) <<< (3 : BitVec 6).toNat) = true)
-    (hv_uhi_2 : isValidDwordAccess (sp + signExtend12 4056 - (2 + (1 : Word)) <<< (3 : BitVec 6).toNat) = true)
-    (hv_ulo_2 : isValidDwordAccess ((sp + signExtend12 4056 - (2 + (1 : Word)) <<< (3 : BitVec 6).toNat) + 8) = true)
-    (hv_u0_2 : isValidDwordAccess ((sp + signExtend12 4056 - (2 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 0) = true)
-    (hv_q2 : isValidDwordAccess (sp + signExtend12 4088 - (2 : Word) <<< (3 : BitVec 6).toNat) = true)
-    (hv_uhi_1 : isValidDwordAccess (sp + signExtend12 4056 - (1 + (1 : Word)) <<< (3 : BitVec 6).toNat) = true)
-    (hv_ulo_1 : isValidDwordAccess ((sp + signExtend12 4056 - (1 + (1 : Word)) <<< (3 : BitVec 6).toNat) + 8) = true)
-    (hv_u0_1 : isValidDwordAccess ((sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 0) = true)
-    (hv_q1 : isValidDwordAccess (sp + signExtend12 4088 - (1 : Word) <<< (3 : BitVec 6).toNat) = true)
-    (hv_uhi_0 : isValidDwordAccess (sp + signExtend12 4056 - (0 + (1 : Word)) <<< (3 : BitVec 6).toNat) = true)
-    (hv_ulo_0 : isValidDwordAccess ((sp + signExtend12 4056 - (0 + (1 : Word)) <<< (3 : BitVec 6).toNat) + 8) = true)
-    (hv_u0_0 : isValidDwordAccess ((sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 0) = true)
-    (hv_q0 : isValidDwordAccess (sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat) = true)
     (hbltu_3 : bltu_3 = BitVec.ult u4_s v0')
     (hbltu_2 : bltu_2 = BitVec.ult
       (iterN1 bltu_3 v0' v1' v2' v3' u3_s u4_s (0 : Word) (0 : Word) (0 : Word)).2.1 v0')
@@ -203,8 +172,7 @@ private theorem evm_div_n1_loop_unified_inst
     sp j_mem (1 : Word) shift u0_s v10_val v11_old anti_shift
     v0' v1' v2' v3' u3_s u4_s (0 : Word) (0 : Word) (0 : Word)
     u2_s u1_s u0_s (0 : Word) (0 : Word) (0 : Word) (0 : Word)
-    ret_mem d_mem dlo_mem scratch_un0 base
-    hv_j hv_n1 hv_uhi_3 hv_ulo_3 hv_vtop hv_ret hv_d hv_dlo hv_scratch_un0 halign
+    ret_mem d_mem dlo_mem scratch_un0 base halign
 
 
 
@@ -216,8 +184,6 @@ private theorem evm_div_n1_loop_unified_inst
 -- Double-addback unified preloop+loop composition (base → base+904)
 -- ============================================================================
 
-set_option maxRecDepth 4096 in
-set_option maxHeartbeats 12800000 in
 /-- Unified preloop+loop for n=1 (double-addback), parameterized by `(bltu_3 bltu_2 bltu_1 bltu_0 : Bool)`.
     Covers all 16 path combinations.
     Precondition always includes scratch cells.
@@ -230,25 +196,6 @@ theorem evm_div_n1_preloop_loop_unified_spec
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
     (hb3z : b3 = 0) (hb2z : b2 = 0) (hb1z : b1 = 0)
     (hshift_nz : (clzResult b0).1 ≠ 0)
-    (hv_q0 : isValidDwordAccess (sp + signExtend12 4088) = true)
-    (hv_q1 : isValidDwordAccess (sp + signExtend12 4080) = true)
-    (hv_q2 : isValidDwordAccess (sp + signExtend12 4072) = true)
-    (hv_q3 : isValidDwordAccess (sp + signExtend12 4064) = true)
-    (hv_u0 : isValidDwordAccess (sp + signExtend12 4056) = true)
-    (hv_u1 : isValidDwordAccess (sp + signExtend12 4048) = true)
-    (hv_u2 : isValidDwordAccess (sp + signExtend12 4040) = true)
-    (hv_u3 : isValidDwordAccess (sp + signExtend12 4032) = true)
-    (hv_u4 : isValidDwordAccess (sp + signExtend12 4024) = true)
-    (hv_u5 : isValidDwordAccess (sp + signExtend12 4016) = true)
-    (hv_u6 : isValidDwordAccess (sp + signExtend12 4008) = true)
-    (hv_u7 : isValidDwordAccess (sp + signExtend12 4000) = true)
-    (hv_n  : isValidDwordAccess (sp + signExtend12 3984) = true)
-    (hv_shift : isValidDwordAccess (sp + signExtend12 3992) = true)
-    (hv_j  : isValidDwordAccess (sp + signExtend12 3976) = true)
-    (hv_ret : isValidDwordAccess (sp + signExtend12 3968) = true)
-    (hv_d   : isValidDwordAccess (sp + signExtend12 3960) = true)
-    (hv_dlo : isValidDwordAccess (sp + signExtend12 3952) = true)
-    (hv_scratch_un0 : isValidDwordAccess (sp + signExtend12 3944) = true)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
     (hbltu_3 : isTrialN1_j3 bltu_3 a3 b0)
     (hbltu_2 : isTrialN1_j2 bltu_3 bltu_2 a2 a3 b0 b1 b2 b3)
@@ -311,24 +258,7 @@ theorem evm_div_n1_preloop_loop_unified_spec
     (a3 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b0).1).toNat % 64))
     (a0 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b0).1).toNat % 64))
     v11_old j_mem
-    ret_mem d_mem dlo_mem scratch_un0
-
-    (by rw [n1_uhi_3_addr]; exact hv_u4) (by rw [n1_ulo_3_addr]; exact hv_u3)
-    (by rw [n1_vtop_addr, se12_32]; exact hvalid 4 (by omega))
-    hv_ret hv_d hv_dlo hv_scratch_un0 halign
-    (by rw [se12_32]; exact hvalid 4 (by omega))
-    (by rw [se12_40]; exact hvalid 5 (by omega))
-    (by rw [se12_48]; exact hvalid 6 (by omega))
-    (by rw [se12_56]; exact hvalid 7 (by omega))
-    (by rw [n1_ub3_off0]; exact hv_u3) (by rw [n1_ub3_off4088]; exact hv_u4)
-    (by rw [n1_ub3_off4080]; exact hv_u5) (by rw [n1_ub3_off4072]; exact hv_u6)
-    (by rw [n1_ub3_off4064]; exact hv_u7) (by rw [n1_qa3]; exact hv_q3)
-    (by rw [n1_uhi_2_addr]; exact hv_u3) (by rw [n1_ulo_2_addr]; exact hv_u2)
-    (by rw [n2_ub2_off0]; exact hv_u2) (by rw [n2_qa2]; exact hv_q2)
-    (by rw [n1_uhi_1_addr]; exact hv_u2) (by rw [n1_ulo_1_addr]; exact hv_u1)
-    (by rw [n3_ub1_off0]; exact hv_u1) (by rw [n3_qa1]; exact hv_q1)
-    (by rw [n1_uhi_0_addr]; exact hv_u1) (by rw [n1_ulo_0_addr]; exact hv_u0)
-    (by rw [n3_ub0_off0]; exact hv_u0) (by rw [n3_qa0]; exact hv_q0)
+    ret_mem d_mem dlo_mem scratch_un0 halign
     hbltu_3 hbltu_2 hbltu_1 hbltu_0 hcarry2
   -- Frame loop with a[], shift_mem (no spare q/u for n=1)
   have hLoopF := cpsTriple_frame_left _ _ _ _ _

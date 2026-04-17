@@ -117,15 +117,7 @@ set_option maxRecDepth 2048 in
 theorem evm_mod_phaseB_n4_spec (sp base : Word)
     (b1 b2 b3 : Word) (v5 v6 v7 : Word)
     (q0 q1 q2 q3 u5 u6 u7 n_mem : Word)
-    (hb3nz : b3 ≠ 0)
-    (hv_q0 : isValidDwordAccess (sp + signExtend12 4088) = true)
-    (hv_q1 : isValidDwordAccess (sp + signExtend12 4080) = true)
-    (hv_q2 : isValidDwordAccess (sp + signExtend12 4072) = true)
-    (hv_q3 : isValidDwordAccess (sp + signExtend12 4064) = true)
-    (hv_u5 : isValidDwordAccess (sp + signExtend12 4016) = true)
-    (hv_u6 : isValidDwordAccess (sp + signExtend12 4008) = true)
-    (hv_u7 : isValidDwordAccess (sp + signExtend12 4000) = true)
-    (hv_n  : isValidDwordAccess (sp + signExtend12 3984) = true) :
+    (hb3nz : b3 ≠ 0) :
     cpsTriple (base + 32) (base + 116) (modCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ b3) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **

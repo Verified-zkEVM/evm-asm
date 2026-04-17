@@ -56,7 +56,6 @@ set_option maxRecDepth 2048 in
 /-- Phase C2 when shift != 0: falls through to normB at base+228.
     MOD mirror of divK_phaseC2_ntaken_spec. -/
 theorem mod_phaseC2_ntaken_spec (sp shift v2 shift_mem : Word) (base : Word)
-    (hv_shift : isValidDwordAccess (sp + signExtend12 3992) = true)
     (hshift_nz : shift ≠ 0) :
     cpsTriple (base + 212) (base + 228) (modCode base)
       ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ v2) ** (.x0 ↦ᵣ (0 : Word)) **
@@ -88,7 +87,6 @@ set_option maxRecDepth 2048 in
 /-- Phase C2 when shift = 0: branches to copyAU at base+396.
     MOD mirror of divK_phaseC2_taken_spec. -/
 theorem mod_phaseC2_taken_spec (sp shift v2 shift_mem : Word) (base : Word)
-    (hv_shift : isValidDwordAccess (sp + signExtend12 3992) = true)
     (hshift_z : shift = 0) :
     cpsTriple (base + 212) (base + 396) (modCode base)
       ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ v2) ** (.x0 ↦ᵣ (0 : Word)) **

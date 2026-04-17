@@ -50,7 +50,6 @@ set_option maxRecDepth 2048 in
 /-- Phase C2 when shift ≠ 0: falls through to normB at base+228.
     Stores shift to scratch, computes anti_shift = -shift. -/
 theorem divK_phaseC2_ntaken_spec (sp shift v2 shift_mem : Word) (base : Word)
-    (hv_shift : isValidDwordAccess (sp + signExtend12 3992) = true)
     (hshift_nz : shift ≠ 0) :
     cpsTriple (base + 212) (base + 228) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ v2) ** (.x0 ↦ᵣ (0 : Word)) **
@@ -82,7 +81,6 @@ set_option maxRecDepth 2048 in
 /-- Phase C2 when shift = 0: branches to copyAU at base+396.
     Stores shift (=0) to scratch, computes anti_shift = 0. -/
 theorem divK_phaseC2_taken_spec (sp shift v2 shift_mem : Word) (base : Word)
-    (hv_shift : isValidDwordAccess (sp + signExtend12 3992) = true)
     (hshift_z : shift = 0) :
     cpsTriple (base + 212) (base + 396) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ v2) ** (.x0 ↦ᵣ (0 : Word)) **

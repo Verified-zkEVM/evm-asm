@@ -30,15 +30,7 @@ theorem evm_div_phaseAB_n4_clz_spec (sp base : Word)
     (b0 b1 b2 b3 v5 v6 v7 v10 : Word)
     (q0 q1 q2 q3 u5 u6 u7 n_mem : Word)
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
-    (hb3nz : b3 ≠ 0)
-    (hv_q0 : isValidDwordAccess (sp + signExtend12 4088) = true)
-    (hv_q1 : isValidDwordAccess (sp + signExtend12 4080) = true)
-    (hv_q2 : isValidDwordAccess (sp + signExtend12 4072) = true)
-    (hv_q3 : isValidDwordAccess (sp + signExtend12 4064) = true)
-    (hv_u5 : isValidDwordAccess (sp + signExtend12 4016) = true)
-    (hv_u6 : isValidDwordAccess (sp + signExtend12 4008) = true)
-    (hv_u7 : isValidDwordAccess (sp + signExtend12 4000) = true)
-    (hv_n  : isValidDwordAccess (sp + signExtend12 3984) = true) :
+    (hb3nz : b3 ≠ 0) :
     cpsTriple base (base + 212) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
@@ -90,16 +82,7 @@ theorem evm_div_n4_to_normB_spec (sp base : Word)
     (q0 q1 q2 q3 u5 u6 u7 n_mem shift_mem : Word)
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
     (hb3nz : b3 ≠ 0)
-    (hshift_nz : (clzResult b3).1 ≠ 0)
-    (hv_q0 : isValidDwordAccess (sp + signExtend12 4088) = true)
-    (hv_q1 : isValidDwordAccess (sp + signExtend12 4080) = true)
-    (hv_q2 : isValidDwordAccess (sp + signExtend12 4072) = true)
-    (hv_q3 : isValidDwordAccess (sp + signExtend12 4064) = true)
-    (hv_u5 : isValidDwordAccess (sp + signExtend12 4016) = true)
-    (hv_u6 : isValidDwordAccess (sp + signExtend12 4008) = true)
-    (hv_u7 : isValidDwordAccess (sp + signExtend12 4000) = true)
-    (hv_n  : isValidDwordAccess (sp + signExtend12 3984) = true)
-    (hv_shift : isValidDwordAccess (sp + signExtend12 3992) = true) :
+    (hshift_nz : (clzResult b3).1 ≠ 0) :
     cpsTriple base (base + 312) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b3).2 >>> (63 : Nat)) **
@@ -124,7 +107,7 @@ theorem evm_div_n4_to_normB_spec (sp base : Word)
   -- Step 2: PhaseC2 ntaken (base+212 → base+228)
   -- shift = (clzResult b3).1, need shift ≠ 0
   have hC2 := divK_phaseC2_ntaken_spec sp shift ((clzResult b3).2 >>> (63 : Nat))
-    shift_mem base hv_shift hshift_nz
+    shift_mem base hshift_nz
   -- Frame C2 with x5, x10, and all other memory
   have hC2f := cpsTriple_frame_left _ _ _ _ _
     ((.x5 ↦ᵣ (clzResult b3).2) ** (.x10 ↦ᵣ b3) **
@@ -173,21 +156,7 @@ theorem evm_div_n4_to_loopSetup_spec (sp base : Word)
     (q0 q1 q2 q3 u0_old u1_old u2_old u3_old u4_old u5 u6 u7 n_mem shift_mem : Word)
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
     (hb3nz : b3 ≠ 0)
-    (hshift_nz : (clzResult b3).1 ≠ 0)
-    (hv_q0 : isValidDwordAccess (sp + signExtend12 4088) = true)
-    (hv_q1 : isValidDwordAccess (sp + signExtend12 4080) = true)
-    (hv_q2 : isValidDwordAccess (sp + signExtend12 4072) = true)
-    (hv_q3 : isValidDwordAccess (sp + signExtend12 4064) = true)
-    (hv_u0 : isValidDwordAccess (sp + signExtend12 4056) = true)
-    (hv_u1 : isValidDwordAccess (sp + signExtend12 4048) = true)
-    (hv_u2 : isValidDwordAccess (sp + signExtend12 4040) = true)
-    (hv_u3 : isValidDwordAccess (sp + signExtend12 4032) = true)
-    (hv_u4 : isValidDwordAccess (sp + signExtend12 4024) = true)
-    (hv_u5 : isValidDwordAccess (sp + signExtend12 4016) = true)
-    (hv_u6 : isValidDwordAccess (sp + signExtend12 4008) = true)
-    (hv_u7 : isValidDwordAccess (sp + signExtend12 4000) = true)
-    (hv_n  : isValidDwordAccess (sp + signExtend12 3984) = true)
-    (hv_shift : isValidDwordAccess (sp + signExtend12 3992) = true) :
+    (hshift_nz : (clzResult b3).1 ≠ 0) :
     cpsTriple base (base + 448) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b3).2 >>> (63 : Nat)) **
@@ -292,21 +261,7 @@ theorem evm_div_n4_shift0_to_loopSetup_spec (sp base : Word)
     (q0 q1 q2 q3 u0_old u1_old u2_old u3_old u4_old u5 u6 u7 n_mem shift_mem : Word)
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
     (hb3nz : b3 ≠ 0)
-    (hshift_z : (clzResult b3).1 = 0)
-    (hv_q0 : isValidDwordAccess (sp + signExtend12 4088) = true)
-    (hv_q1 : isValidDwordAccess (sp + signExtend12 4080) = true)
-    (hv_q2 : isValidDwordAccess (sp + signExtend12 4072) = true)
-    (hv_q3 : isValidDwordAccess (sp + signExtend12 4064) = true)
-    (hv_u0 : isValidDwordAccess (sp + signExtend12 4056) = true)
-    (hv_u1 : isValidDwordAccess (sp + signExtend12 4048) = true)
-    (hv_u2 : isValidDwordAccess (sp + signExtend12 4040) = true)
-    (hv_u3 : isValidDwordAccess (sp + signExtend12 4032) = true)
-    (hv_u4 : isValidDwordAccess (sp + signExtend12 4024) = true)
-    (hv_u5 : isValidDwordAccess (sp + signExtend12 4016) = true)
-    (hv_u6 : isValidDwordAccess (sp + signExtend12 4008) = true)
-    (hv_u7 : isValidDwordAccess (sp + signExtend12 4000) = true)
-    (hv_n  : isValidDwordAccess (sp + signExtend12 3984) = true)
-    (hv_shift : isValidDwordAccess (sp + signExtend12 3992) = true) :
+    (hshift_z : (clzResult b3).1 = 0) :
     cpsTriple base (base + 448) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b3).2 >>> (63 : Nat)) **
@@ -355,7 +310,7 @@ theorem evm_div_n4_shift0_to_loopSetup_spec (sp base : Word)
     (by pcFree) hABCLZ
   -- Step 2: PhaseC2 taken (base+212 → base+396), shift = 0
   have hC2 := divK_phaseC2_taken_spec sp ((clzResult b3).1)
-    ((clzResult b3).2 >>> (63 : Nat)) shift_mem base hv_shift hshift_z
+    ((clzResult b3).2 >>> (63 : Nat)) shift_mem base hshift_z
   -- Frame C2 with everything not in C2's assertion
   have hC2f := cpsTriple_frame_left _ _ _ _ _
     ((.x5 ↦ᵣ (clzResult b3).2) ** (.x10 ↦ᵣ b3) **
@@ -441,15 +396,7 @@ theorem evm_div_n4_shift0_to_loopSetup_spec (sp base : Word)
     base+916 → base+1068. Shift ≠ 0 case (denorm body executed). -/
 theorem evm_div_denorm_epilogue_spec (sp base : Word)
     (u0 u1 u2 u3 v2 v5 v7 v10 shift : Word)
-    (q0 q1 q2 q3 m0 m8 m16 m24 : Word)
-    (hv_q0 : isValidDwordAccess (sp + signExtend12 4088) = true)
-    (hv_q1 : isValidDwordAccess (sp + signExtend12 4080) = true)
-    (hv_q2 : isValidDwordAccess (sp + signExtend12 4072) = true)
-    (hv_q3 : isValidDwordAccess (sp + signExtend12 4064) = true)
-    (hv_u0 : isValidDwordAccess (sp + signExtend12 4056) = true)
-    (hv_u1 : isValidDwordAccess (sp + signExtend12 4048) = true)
-    (hv_u2 : isValidDwordAccess (sp + signExtend12 4040) = true)
-    (hv_u3 : isValidDwordAccess (sp + signExtend12 4032) = true) :
+    (q0 q1 q2 q3 m0 m8 m16 m24 : Word) :
     cpsTriple (base + 916) (base + 1068) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ shift) ** (.x7 ↦ᵣ v7) **
        (.x2 ↦ᵣ v2) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10) **
@@ -505,11 +452,7 @@ theorem evm_div_denorm_epilogue_spec (sp base : Word)
     base+916 → base+1068. Shift ≠ 0 case (denorm body executed). -/
 theorem evm_mod_denorm_epilogue_spec (sp base : Word)
     (u0 u1 u2 u3 v2 v5 v7 v10 shift : Word)
-    (m0 m8 m16 m24 : Word)
-    (hv_u0 : isValidDwordAccess (sp + signExtend12 4056) = true)
-    (hv_u1 : isValidDwordAccess (sp + signExtend12 4048) = true)
-    (hv_u2 : isValidDwordAccess (sp + signExtend12 4040) = true)
-    (hv_u3 : isValidDwordAccess (sp + signExtend12 4032) = true) :
+    (m0 m8 m16 m24 : Word) :
     cpsTriple (base + 916) (base + 1068) (modCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ shift) ** (.x7 ↦ᵣ v7) **
        (.x2 ↦ᵣ v2) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10) **
@@ -561,16 +504,7 @@ theorem evm_mod_denorm_epilogue_spec (sp base : Word)
 theorem evm_div_preamble_denorm_epilogue_spec (sp base : Word)
     (u0 u1 u2 u3 shift v2 v5 v6 v7 v10 : Word)
     (q0 q1 q2 q3 m0 m8 m16 m24 : Word)
-    (hshift_nz : shift ≠ 0)
-    (hv_shift : isValidDwordAccess (sp + signExtend12 3992) = true)
-    (hv_q0 : isValidDwordAccess (sp + signExtend12 4088) = true)
-    (hv_q1 : isValidDwordAccess (sp + signExtend12 4080) = true)
-    (hv_q2 : isValidDwordAccess (sp + signExtend12 4072) = true)
-    (hv_q3 : isValidDwordAccess (sp + signExtend12 4064) = true)
-    (hv_u0 : isValidDwordAccess (sp + signExtend12 4056) = true)
-    (hv_u1 : isValidDwordAccess (sp + signExtend12 4048) = true)
-    (hv_u2 : isValidDwordAccess (sp + signExtend12 4040) = true)
-    (hv_u3 : isValidDwordAccess (sp + signExtend12 4032) = true) :
+    (hshift_nz : shift ≠ 0) :
     cpsTriple (base + 908) (base + 1068) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ v6) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x5 ↦ᵣ v5) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ v2) ** (.x10 ↦ᵣ v10) **
@@ -692,12 +626,7 @@ theorem mod_denorm_preamble_spec (sp shift v5 v6 v7 v2 v10 : Word) (base : Word)
 theorem evm_mod_preamble_denorm_epilogue_spec (sp base : Word)
     (u0 u1 u2 u3 shift v2 v5 v6 v7 v10 : Word)
     (m0 m8 m16 m24 : Word)
-    (hshift_nz : shift ≠ 0)
-    (hv_shift : isValidDwordAccess (sp + signExtend12 3992) = true)
-    (hv_u0 : isValidDwordAccess (sp + signExtend12 4056) = true)
-    (hv_u1 : isValidDwordAccess (sp + signExtend12 4048) = true)
-    (hv_u2 : isValidDwordAccess (sp + signExtend12 4040) = true)
-    (hv_u3 : isValidDwordAccess (sp + signExtend12 4032) = true) :
+    (hshift_nz : shift ≠ 0) :
     cpsTriple (base + 908) (base + 1068) (modCode base)
       ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ v6) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x5 ↦ᵣ v5) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ v2) ** (.x10 ↦ᵣ v10) **
@@ -757,11 +686,7 @@ set_option maxHeartbeats 3200000 in
 theorem evm_div_shift0_epilogue_spec (sp base : Word)
     (_u0 _u1 _u2 _u3 shift v2 v5 v6 v7 v10 : Word)
     (q0 q1 q2 q3 m0 m8 m16 m24 : Word)
-    (hshift_z : shift = 0)
-    (hv_q0 : isValidDwordAccess (sp + signExtend12 4088) = true)
-    (hv_q1 : isValidDwordAccess (sp + signExtend12 4080) = true)
-    (hv_q2 : isValidDwordAccess (sp + signExtend12 4072) = true)
-    (hv_q3 : isValidDwordAccess (sp + signExtend12 4064) = true) :
+    (hshift_z : shift = 0) :
     cpsTriple (base + 908) (base + 1068) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ v6) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x5 ↦ᵣ v5) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ v2) ** (.x10 ↦ᵣ v10) **
@@ -850,11 +775,7 @@ set_option maxHeartbeats 3200000 in
 theorem evm_mod_shift0_epilogue_spec (sp base : Word)
     (u0 u1 u2 u3 shift v2 v5 v6 v7 v10 : Word)
     (m0 m8 m16 m24 : Word)
-    (hshift_z : shift = 0)
-    (hv_u0 : isValidDwordAccess (sp + signExtend12 4056) = true)
-    (hv_u1 : isValidDwordAccess (sp + signExtend12 4048) = true)
-    (hv_u2 : isValidDwordAccess (sp + signExtend12 4040) = true)
-    (hv_u3 : isValidDwordAccess (sp + signExtend12 4032) = true) :
+    (hshift_z : shift = 0) :
     cpsTriple (base + 908) (base + 1068) (modCode base)
       ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ v6) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x5 ↦ᵣ v5) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ v2) ** (.x10 ↦ᵣ v10) **

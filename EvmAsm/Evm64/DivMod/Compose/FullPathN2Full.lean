@@ -64,8 +64,6 @@ def fullDivN2AllMaxPost (sp a0 a1 a2 a3 b0 b1 b2 b3 : Word)
 -- Full n=2 DIV path with double addback (all-max, shift≠0): base → base+1068
 -- ============================================================================
 
-set_option maxRecDepth 4096 in
-set_option maxHeartbeats 12800000 in
 /-- Full n=2 DIV path with double addback (shift ≠ 0, all-max: bltu_2=bltu_1=bltu_0=false).
     Composes pre-loop + three-iteration loop + denorm + epilogue. -/
 theorem evm_div_n2_full_all_max_spec (sp base : Word)
@@ -75,25 +73,6 @@ theorem evm_div_n2_full_all_max_spec (sp base : Word)
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
     (hb3z : b3 = 0) (hb2z : b2 = 0) (hb1nz : b1 ≠ 0)
     (hshift_nz : (clzResult b1).1 ≠ 0)
-    (hv_q0 : isValidDwordAccess (sp + signExtend12 4088) = true)
-    (hv_q1 : isValidDwordAccess (sp + signExtend12 4080) = true)
-    (hv_q2 : isValidDwordAccess (sp + signExtend12 4072) = true)
-    (hv_q3 : isValidDwordAccess (sp + signExtend12 4064) = true)
-    (hv_u0 : isValidDwordAccess (sp + signExtend12 4056) = true)
-    (hv_u1 : isValidDwordAccess (sp + signExtend12 4048) = true)
-    (hv_u2 : isValidDwordAccess (sp + signExtend12 4040) = true)
-    (hv_u3 : isValidDwordAccess (sp + signExtend12 4032) = true)
-    (hv_u4 : isValidDwordAccess (sp + signExtend12 4024) = true)
-    (hv_u5 : isValidDwordAccess (sp + signExtend12 4016) = true)
-    (hv_u6 : isValidDwordAccess (sp + signExtend12 4008) = true)
-    (hv_u7 : isValidDwordAccess (sp + signExtend12 4000) = true)
-    (hv_n  : isValidDwordAccess (sp + signExtend12 3984) = true)
-    (hv_shift : isValidDwordAccess (sp + signExtend12 3992) = true)
-    (hv_j  : isValidDwordAccess (sp + signExtend12 3976) = true)
-    (hv_ret : isValidDwordAccess (sp + signExtend12 3968) = true)
-    (hv_d   : isValidDwordAccess (sp + signExtend12 3960) = true)
-    (hv_dlo : isValidDwordAccess (sp + signExtend12 3952) = true)
-    (hv_scratch_un0 : isValidDwordAccess (sp + signExtend12 3944) = true)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
     (hbltu_2 : isTrialN2_j2 false a3 b0 b1)
     (hbltu_1 : isTrialN2_j1 false false a1 a2 a3 b0 b1 b2 b3)
@@ -147,9 +126,7 @@ theorem evm_div_n2_full_all_max_spec (sp base : Word)
     a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11_old
     q0 q1 q2 q3 u0_old u1_old u2_old u3_old u4_old u5 u6 u7 n_mem shift_mem j_mem
     ret_mem d_mem dlo_mem scratch_un0
-    hbnz hb3z hb2z hb1nz hshift_nz
-
-    hv_u5 hv_u6 hv_u7 hv_n hv_shift hv_j hv_ret hv_d hv_dlo hv_scratch_un0 halign
+    hbnz hb3z hb2z hb1nz hshift_nz halign
     hbltu_2 hbltu_1 hbltu_0 hcarry2
   -- 2. Post-loop: base+904 → base+1068
   have hB := evm_div_preamble_denorm_epilogue_spec sp base
@@ -273,8 +250,6 @@ def fullDivN2UnifiedPost (bltu_2 bltu_1 bltu_0 : Bool)
 -- Unified full n=2 DIV path with double addback: base → base+1068
 -- ============================================================================
 
-set_option maxRecDepth 4096 in
-set_option maxHeartbeats 12800000 in
 /-- Unified full n=2 DIV path (shift ≠ 0) with double addback,
     covering all 8 path combinations.
     Dispatches to per-case  lemmas via postcondition bridge. -/
@@ -285,25 +260,6 @@ theorem evm_div_n2_full_unified_spec (bltu_2 bltu_1 bltu_0 : Bool) (sp base : Wo
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
     (hb3z : b3 = 0) (hb2z : b2 = 0) (hb1nz : b1 ≠ 0)
     (hshift_nz : (clzResult b1).1 ≠ 0)
-    (hv_q0 : isValidDwordAccess (sp + signExtend12 4088) = true)
-    (hv_q1 : isValidDwordAccess (sp + signExtend12 4080) = true)
-    (hv_q2 : isValidDwordAccess (sp + signExtend12 4072) = true)
-    (hv_q3 : isValidDwordAccess (sp + signExtend12 4064) = true)
-    (hv_u0 : isValidDwordAccess (sp + signExtend12 4056) = true)
-    (hv_u1 : isValidDwordAccess (sp + signExtend12 4048) = true)
-    (hv_u2 : isValidDwordAccess (sp + signExtend12 4040) = true)
-    (hv_u3 : isValidDwordAccess (sp + signExtend12 4032) = true)
-    (hv_u4 : isValidDwordAccess (sp + signExtend12 4024) = true)
-    (hv_u5 : isValidDwordAccess (sp + signExtend12 4016) = true)
-    (hv_u6 : isValidDwordAccess (sp + signExtend12 4008) = true)
-    (hv_u7 : isValidDwordAccess (sp + signExtend12 4000) = true)
-    (hv_n  : isValidDwordAccess (sp + signExtend12 3984) = true)
-    (hv_shift : isValidDwordAccess (sp + signExtend12 3992) = true)
-    (hv_j  : isValidDwordAccess (sp + signExtend12 3976) = true)
-    (hv_ret : isValidDwordAccess (sp + signExtend12 3968) = true)
-    (hv_d   : isValidDwordAccess (sp + signExtend12 3960) = true)
-    (hv_dlo : isValidDwordAccess (sp + signExtend12 3952) = true)
-    (hv_scratch_un0 : isValidDwordAccess (sp + signExtend12 3944) = true)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
     (hbltu_2 : isTrialN2_j2 bltu_2 a3 b0 b1)
     (hbltu_1 : isTrialN2_j1 bltu_2 bltu_1 a1 a2 a3 b0 b1 b2 b3)
@@ -348,9 +304,7 @@ theorem evm_div_n2_full_unified_spec (bltu_2 bltu_1 bltu_0 : Bool) (sp base : Wo
       a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11_old
       q0 q1 q2 q3 u0_old u1_old u2_old u3_old u4_old u5 u6 u7 n_mem shift_mem j_mem
       ret_mem d_mem dlo_mem scratch_un0
-      hbnz hb3z hb2z hb1nz hshift_nz
-
-      hv_u5 hv_u6 hv_u7 hv_n hv_shift hv_j hv_ret hv_d hv_dlo hv_scratch_un0 halign
+      hbnz hb3z hb2z hb1nz hshift_nz halign
       hbltu_2 hbltu_1 hbltu_0 hcarry2
   all_goals (
     first
@@ -361,7 +315,7 @@ theorem evm_div_n2_full_unified_spec (bltu_2 bltu_1 bltu_0 : Bool) (sp base : Wo
           q0 q1 q2 q3 u0_old u1_old u2_old u3_old u4_old u5 u6 u7 n_mem shift_mem j_mem
           ret_mem d_mem dlo_mem scratch_un0 hbnz hb3z hb2z hb1nz hshift_nz
 
-          hv_u5 hv_u6 hv_u7 hv_n hv_shift hv_j hv_ret hv_d hv_dlo hv_scratch_un0 halign
+          halign
           hbltu_2 hbltu_1 hbltu_0 hcarry2)
     | (have h_eq : fullDivN2UnifiedPost false true false sp base a0 a1 a2 a3 b0 b1 b2 b3
           ret_mem d_mem dlo_mem scratch_un0 = fullDivN2_FTF_Post sp base a0 a1 a2 a3 b0 b1 b2 b3
@@ -370,7 +324,7 @@ theorem evm_div_n2_full_unified_spec (bltu_2 bltu_1 bltu_0 : Bool) (sp base : Wo
           q0 q1 q2 q3 u0_old u1_old u2_old u3_old u4_old u5 u6 u7 n_mem shift_mem j_mem
           ret_mem d_mem dlo_mem scratch_un0 hbnz hb3z hb2z hb1nz hshift_nz
 
-          hv_u5 hv_u6 hv_u7 hv_n hv_shift hv_j hv_ret hv_d hv_dlo hv_scratch_un0 halign
+          halign
           hbltu_2 hbltu_1 hbltu_0 hcarry2)
     | (have h_eq : fullDivN2UnifiedPost false true true sp base a0 a1 a2 a3 b0 b1 b2 b3
           ret_mem d_mem dlo_mem scratch_un0 = fullDivN2_FTT_Post sp base a0 a1 a2 a3 b0 b1 b2 b3
@@ -379,7 +333,7 @@ theorem evm_div_n2_full_unified_spec (bltu_2 bltu_1 bltu_0 : Bool) (sp base : Wo
           q0 q1 q2 q3 u0_old u1_old u2_old u3_old u4_old u5 u6 u7 n_mem shift_mem j_mem
           ret_mem d_mem dlo_mem scratch_un0 hbnz hb3z hb2z hb1nz hshift_nz
 
-          hv_u5 hv_u6 hv_u7 hv_n hv_shift hv_j hv_ret hv_d hv_dlo hv_scratch_un0 halign
+          halign
           hbltu_2 hbltu_1 hbltu_0 hcarry2)
     | (have h_eq : fullDivN2UnifiedPost true false false sp base a0 a1 a2 a3 b0 b1 b2 b3
           ret_mem d_mem dlo_mem scratch_un0 = fullDivN2_TFF_Post sp base a0 a1 a2 a3 b0 b1 b2 b3
@@ -388,7 +342,7 @@ theorem evm_div_n2_full_unified_spec (bltu_2 bltu_1 bltu_0 : Bool) (sp base : Wo
           q0 q1 q2 q3 u0_old u1_old u2_old u3_old u4_old u5 u6 u7 n_mem shift_mem j_mem
           ret_mem d_mem dlo_mem scratch_un0 hbnz hb3z hb2z hb1nz hshift_nz
 
-          hv_u5 hv_u6 hv_u7 hv_n hv_shift hv_j hv_ret hv_d hv_dlo hv_scratch_un0 halign
+          halign
           hbltu_2 hbltu_1 hbltu_0 hcarry2)
     | (have h_eq : fullDivN2UnifiedPost true false true sp base a0 a1 a2 a3 b0 b1 b2 b3
           ret_mem d_mem dlo_mem scratch_un0 = fullDivN2_TFT_Post sp base a0 a1 a2 a3 b0 b1 b2 b3
@@ -397,7 +351,7 @@ theorem evm_div_n2_full_unified_spec (bltu_2 bltu_1 bltu_0 : Bool) (sp base : Wo
           q0 q1 q2 q3 u0_old u1_old u2_old u3_old u4_old u5 u6 u7 n_mem shift_mem j_mem
           ret_mem d_mem dlo_mem scratch_un0 hbnz hb3z hb2z hb1nz hshift_nz
 
-          hv_u5 hv_u6 hv_u7 hv_n hv_shift hv_j hv_ret hv_d hv_dlo hv_scratch_un0 halign
+          halign
           hbltu_2 hbltu_1 hbltu_0 hcarry2)
     | (have h_eq : fullDivN2UnifiedPost true true false sp base a0 a1 a2 a3 b0 b1 b2 b3
           ret_mem d_mem dlo_mem scratch_un0 = fullDivN2_TTF_Post sp base a0 a1 a2 a3 b0 b1 b2 b3
@@ -406,7 +360,7 @@ theorem evm_div_n2_full_unified_spec (bltu_2 bltu_1 bltu_0 : Bool) (sp base : Wo
           q0 q1 q2 q3 u0_old u1_old u2_old u3_old u4_old u5 u6 u7 n_mem shift_mem j_mem
           ret_mem d_mem dlo_mem scratch_un0 hbnz hb3z hb2z hb1nz hshift_nz
 
-          hv_u5 hv_u6 hv_u7 hv_n hv_shift hv_j hv_ret hv_d hv_dlo hv_scratch_un0 halign
+          halign
           hbltu_2 hbltu_1 hbltu_0 hcarry2)
     | (have h_eq : fullDivN2UnifiedPost true true true sp base a0 a1 a2 a3 b0 b1 b2 b3
           ret_mem d_mem dlo_mem scratch_un0 = fullDivN2_TTT_Post sp base a0 a1 a2 a3 b0 b1 b2 b3
@@ -415,7 +369,7 @@ theorem evm_div_n2_full_unified_spec (bltu_2 bltu_1 bltu_0 : Bool) (sp base : Wo
           q0 q1 q2 q3 u0_old u1_old u2_old u3_old u4_old u5 u6 u7 n_mem shift_mem j_mem
           ret_mem d_mem dlo_mem scratch_un0 hbnz hb3z hb2z hb1nz hshift_nz
 
-          hv_u5 hv_u6 hv_u7 hv_n hv_shift hv_j hv_ret hv_d hv_dlo hv_scratch_un0 halign
+          halign
           hbltu_2 hbltu_1 hbltu_0 hcarry2))
 
 end EvmAsm.Evm64

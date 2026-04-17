@@ -61,26 +61,6 @@ theorem divK_loop_n3_max_skip_skip_spec
     (sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
      v0 v1 v2 v3 u0 u1 u2 u3 u_top u0_orig q1_old q0_old : Word)
     (base : Word)
-    -- Validity hypotheses (j=1 and j=0)
-    (hv_j : isValidDwordAccess (sp + signExtend12 3976) = true)
-    (hv_n1 : isValidDwordAccess (sp + signExtend12 3984) = true)
-    (hv_uhi_1 : isValidDwordAccess (sp + signExtend12 4056 - (1 + (3 : Word)) <<< (3 : BitVec 6).toNat) = true)
-    (hv_ulo_1 : isValidDwordAccess ((sp + signExtend12 4056 - (1 + (3 : Word)) <<< (3 : BitVec 6).toNat) + 8) = true)
-    (hv_vtop : isValidDwordAccess (sp + ((3 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat + signExtend12 32) = true)
-    (hv_v0 : isValidDwordAccess (sp + signExtend12 32) = true)
-    (hv_v1 : isValidDwordAccess (sp + signExtend12 40) = true)
-    (hv_v2 : isValidDwordAccess (sp + signExtend12 48) = true)
-    (hv_v3 : isValidDwordAccess (sp + signExtend12 56) = true)
-    (hv_u0_1 : isValidDwordAccess ((sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 0) = true)
-    (hv_u1_1 : isValidDwordAccess ((sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4088) = true)
-    (hv_u2_1 : isValidDwordAccess ((sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4080) = true)
-    (hv_u3_1 : isValidDwordAccess ((sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4072) = true)
-    (hv_u4_1 : isValidDwordAccess ((sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4064) = true)
-    (hv_q1 : isValidDwordAccess (sp + signExtend12 4088 - (1 : Word) <<< (3 : BitVec 6).toNat) = true)
-    (hv_uhi_0 : isValidDwordAccess (sp + signExtend12 4056 - (0 + (3 : Word)) <<< (3 : BitVec 6).toNat) = true)
-    (hv_ulo_0 : isValidDwordAccess ((sp + signExtend12 4056 - (0 + (3 : Word)) <<< (3 : BitVec 6).toNat) + 8) = true)
-    (hv_u0_0 : isValidDwordAccess ((sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 0) = true)
-    (hv_q0 : isValidDwordAccess (sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat) = true)
     -- Branch conditions (j=1)
     (hbltu_1 : ¬BitVec.ult u3 v2)
     (hborrow_1 : (if BitVec.ult u_top (mulsubN4_c3 (signExtend12 4095) v0 v1 v2 v3 u0 u1 u2 u3)
@@ -105,22 +85,13 @@ theorem divK_loop_n3_max_skip_skip_spec
   -- 1. j=1 iteration spec
   have J1 := divK_loop_body_n3_max_skip_j1_spec sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
     v0 v1 v2 v3 u0 u1 u2 u3 u_top q1_old base
-    hv_j hv_n1 hv_uhi_1 hv_ulo_1 hv_vtop hv_v0 hv_u0_1 hv_v1 hv_u1_1 hv_v2 hv_u2_1 hv_v3 hv_u3_1 hv_u4_1 hv_q1 hbltu_1
+    hbltu_1
   intro_lets at J1
   have J1s := J1 hborrow_1
   -- Frame j=1 with u0_orig and q0_old
   have J1f := cpsTriple_frame_left _ _ _ _ _
     (((u_base_0 + signExtend12 0) ↦ₘ u0_orig) ** (q_addr_0 ↦ₘ q0_old))
     (by pcFree) J1s
-  -- 2. j=0 iteration spec (instantiated with j=1 mulsub output)
-  have hv_u1_0 : isValidDwordAccess ((sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4088) = true := by
-    rw [← u_j1_0_eq_j0_4088]; exact
-  have hv_u2_0 : isValidDwordAccess ((sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4080) = true := by
-    rw [← u_j1_4088_eq_j0_4080]; exact
-  have hv_u3_0 : isValidDwordAccess ((sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4072) = true := by
-    rw [← u_j1_4080_eq_j0_4072]; exact
-  have hv_u4_0 : isValidDwordAccess ((sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4064) = true := by
-    rw [← u_j1_4072_eq_j0_4064]; exact
   have J0 := divK_loop_body_n3_max_skip_j0_spec sp (1 : Word)
     ((1 : Word) <<< (3 : BitVec 6).toNat) u_base_1 q_addr_1 ms.2.2.2.2 q_hat ms.2.2.2.1
     v0 v1 v2 v3 u0_orig ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 q0_old base
@@ -162,21 +133,6 @@ theorem divK_loop_body_n3_max_unified_j1_spec
     (sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
      v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old : Word)
     (base : Word)
-    (hv_j : isValidDwordAccess (sp + signExtend12 3976) = true)
-    (hv_n1 : isValidDwordAccess (sp + signExtend12 3984) = true)
-    (hv_uhi : isValidDwordAccess (sp + signExtend12 4056 - (1 + (3 : Word)) <<< (3 : BitVec 6).toNat) = true)
-    (hv_ulo : isValidDwordAccess ((sp + signExtend12 4056 - (1 + (3 : Word)) <<< (3 : BitVec 6).toNat) + 8) = true)
-    (hv_vtop : isValidDwordAccess (sp + ((3 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat + signExtend12 32) = true)
-    (hv_v0 : isValidDwordAccess (sp + signExtend12 32) = true)
-    (hv_u0 : isValidDwordAccess ((sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 0) = true)
-    (hv_v1 : isValidDwordAccess (sp + signExtend12 40) = true)
-    (hv_u1 : isValidDwordAccess ((sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4088) = true)
-    (hv_v2 : isValidDwordAccess (sp + signExtend12 48) = true)
-    (hv_u2 : isValidDwordAccess ((sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4080) = true)
-    (hv_v3 : isValidDwordAccess (sp + signExtend12 56) = true)
-    (hv_u3 : isValidDwordAccess ((sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4072) = true)
-    (hv_u4 : isValidDwordAccess ((sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4064) = true)
-    (hv_q : isValidDwordAccess (sp + signExtend12 4088 - (1 : Word) <<< (3 : BitVec 6).toNat) = true)
     (hbltu : ¬BitVec.ult u3 v2)
     (hcarry2_nz : isAddbackCarry2NzN3Max v0 v1 v2 v3 u0 u1 u2 u3 u_top) :
     let u_base := sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat
@@ -201,7 +157,7 @@ theorem divK_loop_body_n3_max_unified_j1_spec
                     then (1 : Word) else 0) ≠ (0 : Word) := by rw [if_pos hb]; decide
     have J1 := divK_loop_body_n3_max_addback_beq_j1_spec sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
       v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old base
-      hv_j hv_n1 hv_uhi hv_ulo hv_vtop hv_v0 hv_u0 hv_v1 hv_u1 hv_v2 hv_u2 hv_v3 hv_u3 hv_u4 hv_q hbltu hcarry2_nz
+      hbltu hcarry2_nz
     intro_lets at J1
     exact cpsTriple_consequence _ _ _ _ _ _ _
       (fun h hp => hp)
@@ -212,7 +168,7 @@ theorem divK_loop_body_n3_max_unified_j1_spec
                     then (1 : Word) else 0) = (0 : Word) := if_neg hb
     have J1 := divK_loop_body_n3_max_skip_j1_spec sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
       v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old base
-      hv_j hv_n1 hv_uhi hv_ulo hv_vtop hv_v0 hv_u0 hv_v1 hv_u1 hv_v2 hv_u2 hv_v3 hv_u3 hv_u4 hv_q hbltu
+      hbltu
     intro_lets at J1
     exact cpsTriple_consequence _ _ _ _ _ _ _
       (fun h hp => hp)
@@ -224,27 +180,10 @@ theorem divK_loop_body_n3_max_unified_j1_spec
 -- Uses _beq LoopIter specs with borrow-branching loopIterPostN3Max.
 -- ============================================================================
 
-set_option maxRecDepth 4096 in
-set_option maxHeartbeats 12800000 in
 theorem divK_loop_body_n3_max_unified_j0_spec
     (sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
      v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old : Word)
     (base : Word)
-    (hv_j : isValidDwordAccess (sp + signExtend12 3976) = true)
-    (hv_n1 : isValidDwordAccess (sp + signExtend12 3984) = true)
-    (hv_uhi : isValidDwordAccess (sp + signExtend12 4056 - (0 + (3 : Word)) <<< (3 : BitVec 6).toNat) = true)
-    (hv_ulo : isValidDwordAccess ((sp + signExtend12 4056 - (0 + (3 : Word)) <<< (3 : BitVec 6).toNat) + 8) = true)
-    (hv_vtop : isValidDwordAccess (sp + ((3 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat + signExtend12 32) = true)
-    (hv_v0 : isValidDwordAccess (sp + signExtend12 32) = true)
-    (hv_u0 : isValidDwordAccess ((sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 0) = true)
-    (hv_v1 : isValidDwordAccess (sp + signExtend12 40) = true)
-    (hv_u1 : isValidDwordAccess ((sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4088) = true)
-    (hv_v2 : isValidDwordAccess (sp + signExtend12 48) = true)
-    (hv_u2 : isValidDwordAccess ((sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4080) = true)
-    (hv_v3 : isValidDwordAccess (sp + signExtend12 56) = true)
-    (hv_u3 : isValidDwordAccess ((sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4072) = true)
-    (hv_u4 : isValidDwordAccess ((sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4064) = true)
-    (hv_q : isValidDwordAccess (sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat) = true)
     (hbltu : ¬BitVec.ult u3 v2)
     (hcarry2_nz : isAddbackCarry2NzN3Max v0 v1 v2 v3 u0 u1 u2 u3 u_top) :
     let u_base := sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat
@@ -269,7 +208,7 @@ theorem divK_loop_body_n3_max_unified_j0_spec
                     then (1 : Word) else 0) ≠ (0 : Word) := by rw [if_pos hb]; decide
     have J0 := divK_loop_body_n3_max_addback_beq_j0_spec sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
       v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old base
-      hv_j hv_n1 hv_uhi hv_ulo hv_vtop hv_v0 hv_u0 hv_v1 hv_u1 hv_v2 hv_u2 hv_v3 hv_u3 hv_u4 hv_q hbltu hcarry2_nz
+      hbltu hcarry2_nz
     intro_lets at J0
     exact cpsTriple_consequence _ _ _ _ _ _ _
       (fun h hp => hp)
@@ -280,7 +219,7 @@ theorem divK_loop_body_n3_max_unified_j0_spec
                     then (1 : Word) else 0) = (0 : Word) := if_neg hb
     have J0 := divK_loop_body_n3_max_skip_j0_spec sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
       v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old base
-      hv_j hv_n1 hv_uhi hv_ulo hv_vtop hv_v0 hv_u0 hv_v1 hv_u1 hv_v2 hv_u2 hv_v3 hv_u3 hv_u4 hv_q hbltu
+      hbltu
     intro_lets at J0
     exact cpsTriple_consequence _ _ _ _ _ _ _
       (fun h hp => hp)
@@ -292,33 +231,12 @@ theorem divK_loop_body_n3_max_unified_j0_spec
 -- Uses _beq LoopIter specs with borrow-branching loopIterPostN3Call.
 -- ============================================================================
 
-set_option maxRecDepth 4096 in
-set_option maxHeartbeats 12800000 in
 theorem divK_loop_body_n3_call_unified_j1_spec
     (sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
      v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old : Word)
     (ret_mem d_mem dlo_mem scratch_un0 : Word)
     (base : Word)
-    (hv_j : isValidDwordAccess (sp + signExtend12 3976) = true)
-    (hv_n1 : isValidDwordAccess (sp + signExtend12 3984) = true)
-    (hv_uhi : isValidDwordAccess (sp + signExtend12 4056 - (1 + (3 : Word)) <<< (3 : BitVec 6).toNat) = true)
-    (hv_ulo : isValidDwordAccess ((sp + signExtend12 4056 - (1 + (3 : Word)) <<< (3 : BitVec 6).toNat) + 8) = true)
-    (hv_vtop : isValidDwordAccess (sp + ((3 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat + signExtend12 32) = true)
-    (hv_ret : isValidDwordAccess (sp + signExtend12 3968) = true)
-    (hv_d   : isValidDwordAccess (sp + signExtend12 3960) = true)
-    (hv_dlo : isValidDwordAccess (sp + signExtend12 3952) = true)
-    (hv_scratch_un0 : isValidDwordAccess (sp + signExtend12 3944) = true)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
-    (hv_v0 : isValidDwordAccess (sp + signExtend12 32) = true)
-    (hv_u0 : isValidDwordAccess ((sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 0) = true)
-    (hv_v1 : isValidDwordAccess (sp + signExtend12 40) = true)
-    (hv_u1 : isValidDwordAccess ((sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4088) = true)
-    (hv_v2 : isValidDwordAccess (sp + signExtend12 48) = true)
-    (hv_u2 : isValidDwordAccess ((sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4080) = true)
-    (hv_v3 : isValidDwordAccess (sp + signExtend12 56) = true)
-    (hv_u3 : isValidDwordAccess ((sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4072) = true)
-    (hv_u4 : isValidDwordAccess ((sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4064) = true)
-    (hv_q : isValidDwordAccess (sp + signExtend12 4088 - (1 : Word) <<< (3 : BitVec 6).toNat) = true)
     (hbltu : BitVec.ult u3 v2)
     (hcarry2_nz : isAddbackCarry2NzN3Call v0 v1 v2 v3 u0 u1 u2 u3 u_top) :
     let u_base := sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat
@@ -347,8 +265,8 @@ theorem divK_loop_body_n3_call_unified_j1_spec
       delta isAddbackBorrowN3Call; simp only []; rw [if_pos hb]; decide
     have J1 := divK_loop_body_n3_call_addback_beq_j1_spec sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
       v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old ret_mem d_mem dlo_mem scratch_un0 base
-      hv_j hv_n1 hv_uhi hv_ulo hv_vtop hv_ret hv_d hv_dlo hv_scratch_un0 halign
-      hv_v0 hv_u0 hv_v1 hv_u1 hv_v2 hv_u2 hv_v3 hv_u3 hv_u4 hv_q hbltu hborrow hcarry2_nz
+      halign
+      hbltu hborrow hcarry2_nz
     intro_lets at J1
     exact cpsTriple_consequence _ _ _ _ _ _ _
       (fun h hp => hp)
@@ -358,8 +276,8 @@ theorem divK_loop_body_n3_call_unified_j1_spec
     have hborrow : isSkipBorrowN3Call v0 v1 v2 v3 u0 u1 u2 u3 u_top := if_neg hb
     have J1 := divK_loop_body_n3_call_skip_j1_spec sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
       v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old ret_mem d_mem dlo_mem scratch_un0 base
-      hv_j hv_n1 hv_uhi hv_ulo hv_vtop hv_ret hv_d hv_dlo hv_scratch_un0 halign
-      hv_v0 hv_u0 hv_v1 hv_u1 hv_v2 hv_u2 hv_v3 hv_u3 hv_u4 hv_q hbltu hborrow
+      halign
+      hbltu hborrow
     intro_lets at J1
     exact cpsTriple_consequence _ _ _ _ _ _ _
       (fun h hp => hp)
@@ -372,32 +290,12 @@ theorem divK_loop_body_n3_call_unified_j1_spec
 -- ============================================================================
 
 set_option maxRecDepth 4096 in
-set_option maxHeartbeats 12800000 in
 theorem divK_loop_body_n3_call_unified_j0_spec
     (sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
      v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old : Word)
     (ret_mem d_mem dlo_mem scratch_un0 : Word)
     (base : Word)
-    (hv_j : isValidDwordAccess (sp + signExtend12 3976) = true)
-    (hv_n1 : isValidDwordAccess (sp + signExtend12 3984) = true)
-    (hv_uhi : isValidDwordAccess (sp + signExtend12 4056 - (0 + (3 : Word)) <<< (3 : BitVec 6).toNat) = true)
-    (hv_ulo : isValidDwordAccess ((sp + signExtend12 4056 - (0 + (3 : Word)) <<< (3 : BitVec 6).toNat) + 8) = true)
-    (hv_vtop : isValidDwordAccess (sp + ((3 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat + signExtend12 32) = true)
-    (hv_ret : isValidDwordAccess (sp + signExtend12 3968) = true)
-    (hv_d   : isValidDwordAccess (sp + signExtend12 3960) = true)
-    (hv_dlo : isValidDwordAccess (sp + signExtend12 3952) = true)
-    (hv_scratch_un0 : isValidDwordAccess (sp + signExtend12 3944) = true)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
-    (hv_v0 : isValidDwordAccess (sp + signExtend12 32) = true)
-    (hv_u0 : isValidDwordAccess ((sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 0) = true)
-    (hv_v1 : isValidDwordAccess (sp + signExtend12 40) = true)
-    (hv_u1 : isValidDwordAccess ((sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4088) = true)
-    (hv_v2 : isValidDwordAccess (sp + signExtend12 48) = true)
-    (hv_u2 : isValidDwordAccess ((sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4080) = true)
-    (hv_v3 : isValidDwordAccess (sp + signExtend12 56) = true)
-    (hv_u3 : isValidDwordAccess ((sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4072) = true)
-    (hv_u4 : isValidDwordAccess ((sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4064) = true)
-    (hv_q : isValidDwordAccess (sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat) = true)
     (hbltu : BitVec.ult u3 v2)
     (hcarry2_nz : isAddbackCarry2NzN3Call v0 v1 v2 v3 u0 u1 u2 u3 u_top) :
     let u_base := sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat
@@ -426,8 +324,8 @@ theorem divK_loop_body_n3_call_unified_j0_spec
       delta isAddbackBorrowN3Call; simp only []; rw [if_pos hb]; decide
     have J0 := divK_loop_body_n3_call_addback_beq_j0_spec sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
       v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old ret_mem d_mem dlo_mem scratch_un0 base
-      hv_j hv_n1 hv_uhi hv_ulo hv_vtop hv_ret hv_d hv_dlo hv_scratch_un0 halign
-      hv_v0 hv_u0 hv_v1 hv_u1 hv_v2 hv_u2 hv_v3 hv_u3 hv_u4 hv_q hbltu hborrow hcarry2_nz
+      halign
+      hbltu hborrow hcarry2_nz
     intro_lets at J0
     exact cpsTriple_consequence _ _ _ _ _ _ _
       (fun h hp => hp)
@@ -439,8 +337,8 @@ theorem divK_loop_body_n3_call_unified_j0_spec
     have hborrow : isSkipBorrowN3Call v0 v1 v2 v3 u0 u1 u2 u3 u_top := if_neg hb
     have J0 := divK_loop_body_n3_call_skip_j0_spec sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
       v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old ret_mem d_mem dlo_mem scratch_un0 base
-      hv_j hv_n1 hv_uhi hv_ulo hv_vtop hv_ret hv_d hv_dlo hv_scratch_un0 halign
-      hv_v0 hv_u0 hv_v1 hv_u1 hv_v2 hv_u2 hv_v3 hv_u3 hv_u4 hv_q hbltu hborrow
+      halign
+      hbltu hborrow
     intro_lets at J0
     exact cpsTriple_consequence _ _ _ _ _ _ _
       (fun h hp => hp)
@@ -457,31 +355,10 @@ theorem divK_loop_body_n3_call_unified_j0_spec
 -- j=0  spec. Uses iterN3Max (non-irreducible) for postcondition matching.
 -- ============================================================================
 
-set_option maxRecDepth 4096 in
-set_option maxHeartbeats 12800000 in
 theorem divK_loop_n3_max_max_spec
     (sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
      v0 v1 v2 v3 u0 u1 u2 u3 u_top u0_orig q1_old q0_old : Word)
     (base : Word)
-    (hv_j : isValidDwordAccess (sp + signExtend12 3976) = true)
-    (hv_n1 : isValidDwordAccess (sp + signExtend12 3984) = true)
-    (hv_uhi_1 : isValidDwordAccess (sp + signExtend12 4056 - (1 + (3 : Word)) <<< (3 : BitVec 6).toNat) = true)
-    (hv_ulo_1 : isValidDwordAccess ((sp + signExtend12 4056 - (1 + (3 : Word)) <<< (3 : BitVec 6).toNat) + 8) = true)
-    (hv_vtop : isValidDwordAccess (sp + ((3 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat + signExtend12 32) = true)
-    (hv_v0 : isValidDwordAccess (sp + signExtend12 32) = true)
-    (hv_v1 : isValidDwordAccess (sp + signExtend12 40) = true)
-    (hv_v2 : isValidDwordAccess (sp + signExtend12 48) = true)
-    (hv_v3 : isValidDwordAccess (sp + signExtend12 56) = true)
-    (hv_u0_1 : isValidDwordAccess ((sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 0) = true)
-    (hv_u1_1 : isValidDwordAccess ((sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4088) = true)
-    (hv_u2_1 : isValidDwordAccess ((sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4080) = true)
-    (hv_u3_1 : isValidDwordAccess ((sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4072) = true)
-    (hv_u4_1 : isValidDwordAccess ((sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4064) = true)
-    (hv_q1 : isValidDwordAccess (sp + signExtend12 4088 - (1 : Word) <<< (3 : BitVec 6).toNat) = true)
-    (hv_uhi_0 : isValidDwordAccess (sp + signExtend12 4056 - (0 + (3 : Word)) <<< (3 : BitVec 6).toNat) = true)
-    (hv_ulo_0 : isValidDwordAccess ((sp + signExtend12 4056 - (0 + (3 : Word)) <<< (3 : BitVec 6).toNat) + 8) = true)
-    (hv_u0_0 : isValidDwordAccess ((sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 0) = true)
-    (hv_q0 : isValidDwordAccess (sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat) = true)
     (hbltu_1 : ¬BitVec.ult u3 v2)
     (hbltu_0 : ¬BitVec.ult (iterN3Max v0 v1 v2 v3 u0 u1 u2 u3 u_top).2.2.2.1 v2)
     (hcarry2 : Carry2NzAll v0 v1 v2 v3) :
@@ -497,22 +374,13 @@ theorem divK_loop_n3_max_max_spec
   -- 1. j=1  iteration spec
   have J1 := divK_loop_body_n3_max_unified_j1_spec sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
     v0 v1 v2 v3 u0 u1 u2 u3 u_top q1_old base
-    hv_j hv_n1 hv_uhi_1 hv_ulo_1 hv_vtop hv_v0 hv_u0_1 hv_v1 hv_u1_1 hv_v2 hv_u2_1 hv_v3 hv_u3_1 hv_u4_1 hv_q1 hbltu_1
+    hbltu_1
     (hcarry2 (signExtend12 4095) u0 u1 u2 u3 u_top : isAddbackCarry2NzN3Max v0 v1 v2 v3 u0 u1 u2 u3 u_top)
   intro_lets at J1
   -- Frame j=1 with u0_orig and q0_old
   have J1f := cpsTriple_frame_left _ _ _ _ _
     (((u_base_0 + signExtend12 0) ↦ₘ u0_orig) ** (q_addr_0 ↦ₘ q0_old))
     (by pcFree) J1
-  -- 2. Derive j=0 validity hypotheses via address rewriting
-  have hv_u1_0 : isValidDwordAccess ((sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4088) = true := by
-    rw [← u_j1_0_eq_j0_4088]; exact
-  have hv_u2_0 : isValidDwordAccess ((sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4080) = true := by
-    rw [← u_j1_4088_eq_j0_4080]; exact
-  have hv_u3_0 : isValidDwordAccess ((sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4072) = true := by
-    rw [← u_j1_4080_eq_j0_4072]; exact
-  have hv_u4_0 : isValidDwordAccess ((sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4064) = true := by
-    rw [← u_j1_4072_eq_j0_4064]; exact
   -- 3. j=0  iteration spec (inputs from j=1 via iterN3Max)
   have J0 := divK_loop_body_n3_max_unified_j0_spec sp (1 : Word)
     ((1 : Word) <<< (3 : BitVec 6).toNat) u_base_1 q_addr_1
@@ -567,37 +435,12 @@ theorem divK_loop_n3_max_max_spec
 -- j=0  spec. Uses iterN3Call (non-irreducible) for postcondition matching.
 -- ============================================================================
 
-set_option maxRecDepth 4096 in
-set_option maxHeartbeats 12800000 in
 theorem divK_loop_n3_call_call_spec
     (sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
      v0 v1 v2 v3 u0 u1 u2 u3 u_top u0_orig q1_old q0_old : Word)
     (ret_mem d_mem dlo_mem scratch_un0 : Word)
     (base : Word)
-    (hv_j : isValidDwordAccess (sp + signExtend12 3976) = true)
-    (hv_n1 : isValidDwordAccess (sp + signExtend12 3984) = true)
-    (hv_uhi_1 : isValidDwordAccess (sp + signExtend12 4056 - (1 + (3 : Word)) <<< (3 : BitVec 6).toNat) = true)
-    (hv_ulo_1 : isValidDwordAccess ((sp + signExtend12 4056 - (1 + (3 : Word)) <<< (3 : BitVec 6).toNat) + 8) = true)
-    (hv_vtop : isValidDwordAccess (sp + ((3 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat + signExtend12 32) = true)
-    (hv_ret : isValidDwordAccess (sp + signExtend12 3968) = true)
-    (hv_d   : isValidDwordAccess (sp + signExtend12 3960) = true)
-    (hv_dlo : isValidDwordAccess (sp + signExtend12 3952) = true)
-    (hv_scratch_un0 : isValidDwordAccess (sp + signExtend12 3944) = true)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
-    (hv_v0 : isValidDwordAccess (sp + signExtend12 32) = true)
-    (hv_v1 : isValidDwordAccess (sp + signExtend12 40) = true)
-    (hv_v2 : isValidDwordAccess (sp + signExtend12 48) = true)
-    (hv_v3 : isValidDwordAccess (sp + signExtend12 56) = true)
-    (hv_u0_1 : isValidDwordAccess ((sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 0) = true)
-    (hv_u1_1 : isValidDwordAccess ((sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4088) = true)
-    (hv_u2_1 : isValidDwordAccess ((sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4080) = true)
-    (hv_u3_1 : isValidDwordAccess ((sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4072) = true)
-    (hv_u4_1 : isValidDwordAccess ((sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4064) = true)
-    (hv_q1 : isValidDwordAccess (sp + signExtend12 4088 - (1 : Word) <<< (3 : BitVec 6).toNat) = true)
-    (hv_uhi_0 : isValidDwordAccess (sp + signExtend12 4056 - (0 + (3 : Word)) <<< (3 : BitVec 6).toNat) = true)
-    (hv_ulo_0 : isValidDwordAccess ((sp + signExtend12 4056 - (0 + (3 : Word)) <<< (3 : BitVec 6).toNat) + 8) = true)
-    (hv_u0_0 : isValidDwordAccess ((sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 0) = true)
-    (hv_q0 : isValidDwordAccess (sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat) = true)
     (hbltu_1 : BitVec.ult u3 v2)
     (hbltu_0 : BitVec.ult (iterN3Call v0 v1 v2 v3 u0 u1 u2 u3 u_top).2.2.2.1 v2)
     (hcarry2 : Carry2NzAll v0 v1 v2 v3) :
@@ -613,24 +456,14 @@ theorem divK_loop_n3_call_call_spec
   let q_addr_0 := sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat
   -- 1. j=1 call  iteration spec
   have J1 := divK_loop_body_n3_call_unified_j1_spec sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
-    v0 v1 v2 v3 u0 u1 u2 u3 u_top q1_old ret_mem d_mem dlo_mem scratch_un0 base
-    hv_j hv_n1 hv_uhi_1 hv_ulo_1 hv_vtop hv_ret hv_d hv_dlo hv_scratch_un0 halign
-    hv_v0 hv_u0_1 hv_v1 hv_u1_1 hv_v2 hv_u2_1 hv_v3 hv_u3_1 hv_u4_1 hv_q1 hbltu_1
+    v0 v1 v2 v3 u0 u1 u2 u3 u_top q1_old ret_mem d_mem dlo_mem scratch_un0 base halign
+    hbltu_1
     (hcarry2 (div128Quot u3 u2 v2) u0 u1 u2 u3 u_top : isAddbackCarry2NzN3Call v0 v1 v2 v3 u0 u1 u2 u3 u_top)
   intro_lets at J1
   -- Frame j=1 with u0_orig and q0_old
   have J1f := cpsTriple_frame_left _ _ _ _ _
     (((u_base_0 + signExtend12 0) ↦ₘ u0_orig) ** (q_addr_0 ↦ₘ q0_old))
     (by pcFree) J1
-  -- 2. Derive j=0 validity hypotheses via address rewriting
-  have hv_u1_0 : isValidDwordAccess ((sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4088) = true := by
-    rw [← u_j1_0_eq_j0_4088]; exact
-  have hv_u2_0 : isValidDwordAccess ((sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4080) = true := by
-    rw [← u_j1_4088_eq_j0_4080]; exact
-  have hv_u3_0 : isValidDwordAccess ((sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4072) = true := by
-    rw [← u_j1_4080_eq_j0_4072]; exact
-  have hv_u4_0 : isValidDwordAccess ((sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4064) = true := by
-    rw [← u_j1_4072_eq_j0_4064]; exact
   -- 3. j=0 call  iteration spec (inputs from j=1 via iterN3Call)
   have J0 := divK_loop_body_n3_call_unified_j0_spec sp (1 : Word)
     ((1 : Word) <<< (3 : BitVec 6).toNat) u_base_1 q_addr_1
@@ -646,7 +479,7 @@ theorem divK_loop_n3_call_call_spec
     q0_old
     (base + 516) v2 (div128DLo v2) (div128Un0 u2)
     base
-    hv_j hv_n1 hv_uhi_0 hv_ulo_0 hv_vtop hv_ret hv_d hv_dlo hv_scratch_un0 halign
+    halign
 
     hbltu_0
     (hcarry2 (div128Quot (iterN3Call v0 v1 v2 v3 u0 u1 u2 u3 u_top).2.2.2.1
@@ -688,37 +521,12 @@ theorem divK_loop_n3_call_call_spec
 -- consumed/written by j=0 call.
 -- ============================================================================
 
-set_option maxRecDepth 4096 in
-set_option maxHeartbeats 12800000 in
 theorem divK_loop_n3_max_call_spec
     (sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
      v0 v1 v2 v3 u0 u1 u2 u3 u_top u0_orig q1_old q0_old : Word)
     (ret_mem d_mem dlo_mem scratch_un0 : Word)
     (base : Word)
-    (hv_j : isValidDwordAccess (sp + signExtend12 3976) = true)
-    (hv_n1 : isValidDwordAccess (sp + signExtend12 3984) = true)
-    (hv_uhi_1 : isValidDwordAccess (sp + signExtend12 4056 - (1 + (3 : Word)) <<< (3 : BitVec 6).toNat) = true)
-    (hv_ulo_1 : isValidDwordAccess ((sp + signExtend12 4056 - (1 + (3 : Word)) <<< (3 : BitVec 6).toNat) + 8) = true)
-    (hv_vtop : isValidDwordAccess (sp + ((3 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat + signExtend12 32) = true)
-    (hv_ret : isValidDwordAccess (sp + signExtend12 3968) = true)
-    (hv_d   : isValidDwordAccess (sp + signExtend12 3960) = true)
-    (hv_dlo : isValidDwordAccess (sp + signExtend12 3952) = true)
-    (hv_scratch_un0 : isValidDwordAccess (sp + signExtend12 3944) = true)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
-    (hv_v0 : isValidDwordAccess (sp + signExtend12 32) = true)
-    (hv_v1 : isValidDwordAccess (sp + signExtend12 40) = true)
-    (hv_v2 : isValidDwordAccess (sp + signExtend12 48) = true)
-    (hv_v3 : isValidDwordAccess (sp + signExtend12 56) = true)
-    (hv_u0_1 : isValidDwordAccess ((sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 0) = true)
-    (hv_u1_1 : isValidDwordAccess ((sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4088) = true)
-    (hv_u2_1 : isValidDwordAccess ((sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4080) = true)
-    (hv_u3_1 : isValidDwordAccess ((sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4072) = true)
-    (hv_u4_1 : isValidDwordAccess ((sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4064) = true)
-    (hv_q1 : isValidDwordAccess (sp + signExtend12 4088 - (1 : Word) <<< (3 : BitVec 6).toNat) = true)
-    (hv_uhi_0 : isValidDwordAccess (sp + signExtend12 4056 - (0 + (3 : Word)) <<< (3 : BitVec 6).toNat) = true)
-    (hv_ulo_0 : isValidDwordAccess ((sp + signExtend12 4056 - (0 + (3 : Word)) <<< (3 : BitVec 6).toNat) + 8) = true)
-    (hv_u0_0 : isValidDwordAccess ((sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 0) = true)
-    (hv_q0 : isValidDwordAccess (sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat) = true)
     -- Branch conditions: j=1 max (BLTU not taken), j=0 call (BLTU taken)
     (hbltu_1 : ¬BitVec.ult u3 v2)
     (hbltu_0 : BitVec.ult (iterN3Max v0 v1 v2 v3 u0 u1 u2 u3 u_top).2.2.2.1 v2)
@@ -736,7 +544,7 @@ theorem divK_loop_n3_max_call_spec
   -- 1. j=1 max  spec (no scratch cells)
   have J1 := divK_loop_body_n3_max_unified_j1_spec sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
     v0 v1 v2 v3 u0 u1 u2 u3 u_top q1_old base
-    hv_j hv_n1 hv_uhi_1 hv_ulo_1 hv_vtop hv_v0 hv_u0_1 hv_v1 hv_u1_1 hv_v2 hv_u2_1 hv_v3 hv_u3_1 hv_u4_1 hv_q1 hbltu_1
+    hbltu_1
     (hcarry2 (signExtend12 4095) u0 u1 u2 u3 u_top : isAddbackCarry2NzN3Max v0 v1 v2 v3 u0 u1 u2 u3 u_top)
   intro_lets at J1
   -- Frame j=1 with u0_orig, q0_old, AND scratch cells (max doesn't touch scratch)
@@ -745,15 +553,6 @@ theorem divK_loop_n3_max_call_spec
      (sp + signExtend12 3968 ↦ₘ ret_mem) ** (sp + signExtend12 3960 ↦ₘ d_mem) **
      (sp + signExtend12 3952 ↦ₘ dlo_mem) ** (sp + signExtend12 3944 ↦ₘ scratch_un0))
     (by pcFree) J1
-  -- 2. Derive j=0 validity hypotheses
-  have hv_u1_0 : isValidDwordAccess ((sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4088) = true := by
-    rw [← u_j1_0_eq_j0_4088]; exact
-  have hv_u2_0 : isValidDwordAccess ((sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4080) = true := by
-    rw [← u_j1_4088_eq_j0_4080]; exact
-  have hv_u3_0 : isValidDwordAccess ((sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4072) = true := by
-    rw [← u_j1_4080_eq_j0_4072]; exact
-  have hv_u4_0 : isValidDwordAccess ((sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4064) = true := by
-    rw [← u_j1_4072_eq_j0_4064]; exact
   -- 3. j=0 call  spec (inputs from j=1 via iterN3Max, scratch from frame)
   have J0 := divK_loop_body_n3_call_unified_j0_spec sp (1 : Word)
     ((1 : Word) <<< (3 : BitVec 6).toNat) u_base_1 q_addr_1
@@ -769,7 +568,7 @@ theorem divK_loop_n3_max_call_spec
     q0_old
     ret_mem d_mem dlo_mem scratch_un0
     base
-    hv_j hv_n1 hv_uhi_0 hv_ulo_0 hv_vtop hv_ret hv_d hv_dlo hv_scratch_un0 halign
+    halign
 
     hbltu_0
     (hcarry2 (div128Quot (iterN3Max v0 v1 v2 v3 u0 u1 u2 u3 u_top).2.2.2.1
@@ -810,37 +609,12 @@ theorem divK_loop_n3_max_call_spec
 -- through in the frame since j=0 max doesn't touch them.
 -- ============================================================================
 
-set_option maxRecDepth 4096 in
-set_option maxHeartbeats 12800000 in
 theorem divK_loop_n3_call_max_spec
     (sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
      v0 v1 v2 v3 u0 u1 u2 u3 u_top u0_orig q1_old q0_old : Word)
     (ret_mem d_mem dlo_mem scratch_un0 : Word)
     (base : Word)
-    (hv_j : isValidDwordAccess (sp + signExtend12 3976) = true)
-    (hv_n1 : isValidDwordAccess (sp + signExtend12 3984) = true)
-    (hv_uhi_1 : isValidDwordAccess (sp + signExtend12 4056 - (1 + (3 : Word)) <<< (3 : BitVec 6).toNat) = true)
-    (hv_ulo_1 : isValidDwordAccess ((sp + signExtend12 4056 - (1 + (3 : Word)) <<< (3 : BitVec 6).toNat) + 8) = true)
-    (hv_vtop : isValidDwordAccess (sp + ((3 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat + signExtend12 32) = true)
-    (hv_ret : isValidDwordAccess (sp + signExtend12 3968) = true)
-    (hv_d   : isValidDwordAccess (sp + signExtend12 3960) = true)
-    (hv_dlo : isValidDwordAccess (sp + signExtend12 3952) = true)
-    (hv_scratch_un0 : isValidDwordAccess (sp + signExtend12 3944) = true)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
-    (hv_v0 : isValidDwordAccess (sp + signExtend12 32) = true)
-    (hv_v1 : isValidDwordAccess (sp + signExtend12 40) = true)
-    (hv_v2 : isValidDwordAccess (sp + signExtend12 48) = true)
-    (hv_v3 : isValidDwordAccess (sp + signExtend12 56) = true)
-    (hv_u0_1 : isValidDwordAccess ((sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 0) = true)
-    (hv_u1_1 : isValidDwordAccess ((sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4088) = true)
-    (hv_u2_1 : isValidDwordAccess ((sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4080) = true)
-    (hv_u3_1 : isValidDwordAccess ((sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4072) = true)
-    (hv_u4_1 : isValidDwordAccess ((sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4064) = true)
-    (hv_q1 : isValidDwordAccess (sp + signExtend12 4088 - (1 : Word) <<< (3 : BitVec 6).toNat) = true)
-    (hv_uhi_0 : isValidDwordAccess (sp + signExtend12 4056 - (0 + (3 : Word)) <<< (3 : BitVec 6).toNat) = true)
-    (hv_ulo_0 : isValidDwordAccess ((sp + signExtend12 4056 - (0 + (3 : Word)) <<< (3 : BitVec 6).toNat) + 8) = true)
-    (hv_u0_0 : isValidDwordAccess ((sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 0) = true)
-    (hv_q0 : isValidDwordAccess (sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat) = true)
     -- Branch conditions: j=1 call (BLTU taken), j=0 max (BLTU not taken)
     (hbltu_1 : BitVec.ult u3 v2)
     (hbltu_0 : ¬BitVec.ult (iterN3Call v0 v1 v2 v3 u0 u1 u2 u3 u_top).2.2.2.1 v2)
@@ -858,23 +632,13 @@ theorem divK_loop_n3_call_max_spec
   -- 1. j=1 call  spec (with scratch cells)
   have J1 := divK_loop_body_n3_call_unified_j1_spec sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
     v0 v1 v2 v3 u0 u1 u2 u3 u_top q1_old ret_mem d_mem dlo_mem scratch_un0 base
-    hv_j hv_n1 hv_uhi_1 hv_ulo_1 hv_vtop hv_ret hv_d hv_dlo hv_scratch_un0 halign
-    hv_v0 hv_u0_1 hv_v1 hv_u1_1 hv_v2 hv_u2_1 hv_v3 hv_u3_1 hv_u4_1 hv_q1 hbltu_1
+    halign hbltu_1
     (hcarry2 (div128Quot u3 u2 v2) u0 u1 u2 u3 u_top : isAddbackCarry2NzN3Call v0 v1 v2 v3 u0 u1 u2 u3 u_top)
   intro_lets at J1
   -- Frame j=1 with u0_orig and q0_old
   have J1f := cpsTriple_frame_left _ _ _ _ _
     (((u_base_0 + signExtend12 0) ↦ₘ u0_orig) ** (q_addr_0 ↦ₘ q0_old))
     (by pcFree) J1
-  -- 2. Derive j=0 validity hypotheses
-  have hv_u1_0 : isValidDwordAccess ((sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4088) = true := by
-    rw [← u_j1_0_eq_j0_4088]; exact
-  have hv_u2_0 : isValidDwordAccess ((sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4080) = true := by
-    rw [← u_j1_4088_eq_j0_4080]; exact
-  have hv_u3_0 : isValidDwordAccess ((sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4072) = true := by
-    rw [← u_j1_4080_eq_j0_4072]; exact
-  have hv_u4_0 : isValidDwordAccess ((sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4064) = true := by
-    rw [← u_j1_4072_eq_j0_4064]; exact
   -- 3. j=0 max  spec (inputs from j=1 via iterN3Call)
   have J0 := divK_loop_body_n3_max_unified_j0_spec sp (1 : Word)
     ((1 : Word) <<< (3 : BitVec 6).toNat) u_base_1 q_addr_1

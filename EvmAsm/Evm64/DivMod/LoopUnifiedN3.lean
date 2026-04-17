@@ -26,8 +26,6 @@ open EvmAsm.Rv64
 -- Uses iterN3 for the j=0 branch condition.
 -- ============================================================================
 
-set_option maxRecDepth 4096 in
-set_option maxHeartbeats 12800000 in
 /-- Unified n=3 two-iteration loop composition with double addback,
     parameterized by `(bltu_1 bltu_0 : Bool)`.
     Covers all 4 path combinations (max×max, call×call, max×call, call×max).
@@ -37,30 +35,7 @@ theorem divK_loop_n3_unified_spec (bltu_1 bltu_0 : Bool)
      v0 v1 v2 v3 u0 u1 u2 u3 u_top u0_orig q1_old q0_old : Word)
     (ret_mem d_mem dlo_mem scratch_un0 : Word)
     (base : Word)
-    (hv_j : isValidDwordAccess (sp + signExtend12 3976) = true)
-    (hv_n1 : isValidDwordAccess (sp + signExtend12 3984) = true)
-    (hv_uhi_1 : isValidDwordAccess (sp + signExtend12 4056 - (1 + (3 : Word)) <<< (3 : BitVec 6).toNat) = true)
-    (hv_ulo_1 : isValidDwordAccess ((sp + signExtend12 4056 - (1 + (3 : Word)) <<< (3 : BitVec 6).toNat) + 8) = true)
-    (hv_vtop : isValidDwordAccess (sp + ((3 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat + signExtend12 32) = true)
-    (hv_ret : isValidDwordAccess (sp + signExtend12 3968) = true)
-    (hv_d   : isValidDwordAccess (sp + signExtend12 3960) = true)
-    (hv_dlo : isValidDwordAccess (sp + signExtend12 3952) = true)
-    (hv_scratch_un0 : isValidDwordAccess (sp + signExtend12 3944) = true)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
-    (hv_v0 : isValidDwordAccess (sp + signExtend12 32) = true)
-    (hv_v1 : isValidDwordAccess (sp + signExtend12 40) = true)
-    (hv_v2 : isValidDwordAccess (sp + signExtend12 48) = true)
-    (hv_v3 : isValidDwordAccess (sp + signExtend12 56) = true)
-    (hv_u0_1 : isValidDwordAccess ((sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 0) = true)
-    (hv_u1_1 : isValidDwordAccess ((sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4088) = true)
-    (hv_u2_1 : isValidDwordAccess ((sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4080) = true)
-    (hv_u3_1 : isValidDwordAccess ((sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4072) = true)
-    (hv_u4_1 : isValidDwordAccess ((sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4064) = true)
-    (hv_q1 : isValidDwordAccess (sp + signExtend12 4088 - (1 : Word) <<< (3 : BitVec 6).toNat) = true)
-    (hv_uhi_0 : isValidDwordAccess (sp + signExtend12 4056 - (0 + (3 : Word)) <<< (3 : BitVec 6).toNat) = true)
-    (hv_ulo_0 : isValidDwordAccess ((sp + signExtend12 4056 - (0 + (3 : Word)) <<< (3 : BitVec 6).toNat) + 8) = true)
-    (hv_u0_0 : isValidDwordAccess ((sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 0) = true)
-    (hv_q0 : isValidDwordAccess (sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat) = true)
     -- Unified branch conditions (using iterN3 for j=0)
     (hbltu_1 : bltu_1 = BitVec.ult u3 v2)
     (hbltu_0 : bltu_0 = BitVec.ult (iterN3 bltu_1 v0 v1 v2 v3 u0 u1 u2 u3 u_top).2.2.2.1 v2)
@@ -79,9 +54,6 @@ theorem divK_loop_n3_unified_spec (bltu_1 bltu_0 : Bool)
       rw [show BitVec.ult _ v2 = false from hbltu_0.symm]; decide
     have hMM := divK_loop_n3_max_max_spec sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
       v0 v1 v2 v3 u0 u1 u2 u3 u_top u0_orig q1_old q0_old base
-
-
-
       hbltu_1' hbltu_0' hcarry2
     have hMMF := cpsTriple_frame_left _ _ _ _ _
       ((sp + signExtend12 3968 ↦ₘ ret_mem) **
@@ -100,12 +72,7 @@ theorem divK_loop_n3_unified_spec (bltu_1 bltu_0 : Bool)
       hbltu_0.symm ▸ rfl
     have hMC := divK_loop_n3_max_call_spec sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
       v0 v1 v2 v3 u0 u1 u2 u3 u_top u0_orig q1_old q0_old
-      ret_mem d_mem dlo_mem scratch_un0 base
-
-      hv_ret hv_d hv_dlo hv_scratch_un0 halign
-
-
-
+      ret_mem d_mem dlo_mem scratch_un0 base halign
       hbltu_1' hbltu_0' hcarry2
     exact cpsTriple_consequence _ _ _ _ _ _ _
       (fun h hp => hp)
@@ -117,12 +84,7 @@ theorem divK_loop_n3_unified_spec (bltu_1 bltu_0 : Bool)
       rw [show BitVec.ult _ v2 = false from hbltu_0.symm]; decide
     have hCM := divK_loop_n3_call_max_spec sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
       v0 v1 v2 v3 u0 u1 u2 u3 u_top u0_orig q1_old q0_old
-      ret_mem d_mem dlo_mem scratch_un0 base
-
-      hv_ret hv_d hv_dlo hv_scratch_un0 halign
-
-
-
+      ret_mem d_mem dlo_mem scratch_un0 base halign
       hbltu_1' hbltu_0' hcarry2
     exact cpsTriple_consequence _ _ _ _ _ _ _
       (fun h hp => hp)
@@ -134,12 +96,7 @@ theorem divK_loop_n3_unified_spec (bltu_1 bltu_0 : Bool)
       hbltu_0.symm ▸ rfl
     have hCC := divK_loop_n3_call_call_spec sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
       v0 v1 v2 v3 u0 u1 u2 u3 u_top u0_orig q1_old q0_old
-      ret_mem d_mem dlo_mem scratch_un0 base
-
-      hv_ret hv_d hv_dlo hv_scratch_un0 halign
-
-
-
+      ret_mem d_mem dlo_mem scratch_un0 base halign
       hbltu_1' hbltu_0' hcarry2
     exact cpsTriple_consequence _ _ _ _ _ _ _
       (fun h hp => hp)

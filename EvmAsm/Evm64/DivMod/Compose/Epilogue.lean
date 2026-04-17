@@ -107,11 +107,7 @@ set_option maxRecDepth 4096 in
 /-- Full Denorm (shift body only): denormalize u[0..3] by right-shifting.
     base+908+8 → base+908+100 (23 instructions: ADDI+SUB + 3×merge + last).
     Used when shift≠0. The BEQ and LD are handled separately. -/
-theorem divK_denorm_body_spec (sp u0 u1 u2 u3 v2 v5 v7 shift : Word) (base : Word)
-    (hv_u0 : isValidDwordAccess (sp + signExtend12 4056) = true)
-    (hv_u1 : isValidDwordAccess (sp + signExtend12 4048) = true)
-    (hv_u2 : isValidDwordAccess (sp + signExtend12 4040) = true)
-    (hv_u3 : isValidDwordAccess (sp + signExtend12 4032) = true) :
+theorem divK_denorm_body_spec (sp u0 u1 u2 u3 v2 v5 v7 shift : Word) (base : Word) :
     let anti_shift := signExtend12 (0 : BitVec 12) - shift
     let u0' := (u0 >>> (shift.toNat % 64)) ||| (u1 <<< (anti_shift.toNat % 64))
     let u1' := (u1 >>> (shift.toNat % 64)) ||| (u2 <<< (anti_shift.toNat % 64))
@@ -243,11 +239,7 @@ set_option maxRecDepth 4096 in
 /-- Full DIV epilogue: load q[0..3] from scratch, advance sp, store to output, JAL to NOP.
     base+1008 → base+1068 (10 instructions). -/
 theorem divK_div_epilogue_spec (sp : Word) (base : Word)
-    (q0 q1 q2 q3 v5 v6 v7 v10 m0 m8 m16 m24 : Word)
-    (hv_q0 : isValidDwordAccess (sp + signExtend12 4088) = true)
-    (hv_q1 : isValidDwordAccess (sp + signExtend12 4080) = true)
-    (hv_q2 : isValidDwordAccess (sp + signExtend12 4072) = true)
-    (hv_q3 : isValidDwordAccess (sp + signExtend12 4064) = true) :
+    (q0 q1 q2 q3 v5 v6 v7 v10 m0 m8 m16 m24 : Word) :
     cpsTriple (base + 1008) (base + 1068) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x10 ↦ᵣ v10) **
        ((sp + signExtend12 4088) ↦ₘ q0) ** ((sp + signExtend12 4080) ↦ₘ q1) **
@@ -449,11 +441,7 @@ set_option maxRecDepth 4096 in
 /-- Full MOD epilogue: load u[0..3] (denormalized remainder), advance sp, store to output, JAL to NOP.
     base+1008 → base+1068 (10 instructions). -/
 theorem divK_mod_epilogue_spec (sp : Word) (base : Word)
-    (u0 u1 u2 u3 v5 v6 v7 v10 m0 m8 m16 m24 : Word)
-    (hv_u0 : isValidDwordAccess (sp + signExtend12 4056) = true)
-    (hv_u1 : isValidDwordAccess (sp + signExtend12 4048) = true)
-    (hv_u2 : isValidDwordAccess (sp + signExtend12 4040) = true)
-    (hv_u3 : isValidDwordAccess (sp + signExtend12 4032) = true) :
+    (u0 u1 u2 u3 v5 v6 v7 v10 m0 m8 m16 m24 : Word) :
     cpsTriple (base + 1008) (base + 1068) (modCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x10 ↦ᵣ v10) **
        ((sp + signExtend12 4056) ↦ₘ u0) ** ((sp + signExtend12 4048) ↦ₘ u1) **

@@ -43,11 +43,7 @@ set_option maxRecDepth 4096 in
     base+904+16 → base+904+100 (21 instructions: ADDI+SUB + 3×merge + last).
     Used when shift≠0. The BEQ and LD are handled separately.
     Mirror of divK_denorm_body_spec from Epilogue.lean with modCode. -/
-theorem mod_denorm_body_spec (sp u0 u1 u2 u3 v2 v5 v7 shift : Word) (base : Word)
-    (hv_u0 : isValidDwordAccess (sp + signExtend12 4056) = true)
-    (hv_u1 : isValidDwordAccess (sp + signExtend12 4048) = true)
-    (hv_u2 : isValidDwordAccess (sp + signExtend12 4040) = true)
-    (hv_u3 : isValidDwordAccess (sp + signExtend12 4032) = true) :
+theorem mod_denorm_body_spec (sp u0 u1 u2 u3 v2 v5 v7 shift : Word) (base : Word) :
     let anti_shift := signExtend12 (0 : BitVec 12) - shift
     let u0' := (u0 >>> (shift.toNat % 64)) ||| (u1 <<< (anti_shift.toNat % 64))
     let u1' := (u1 >>> (shift.toNat % 64)) ||| (u2 <<< (anti_shift.toNat % 64))

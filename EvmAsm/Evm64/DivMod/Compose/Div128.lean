@@ -72,10 +72,6 @@ set_option maxRecDepth 4096 in
 theorem div128_spec (sp ret_addr d u_lo u_hi : Word) (base : Word)
     (v1_old v6_old v11_old : Word)
     (ret_mem d_mem dlo_mem un0_mem : Word)
-    (hv_ret : isValidDwordAccess (sp + signExtend12 3968) = true)
-    (hv_d   : isValidDwordAccess (sp + signExtend12 3960) = true)
-    (hv_dlo : isValidDwordAccess (sp + signExtend12 3952) = true)
-    (hv_un0 : isValidDwordAccess (sp + signExtend12 3944) = true)
     (halign : (ret_addr + signExtend12 0) &&& ~~~1 = ret_addr) :
     -- Phase 1 intermediates
     let d_hi := d >>> (32 : BitVec 6).toNat

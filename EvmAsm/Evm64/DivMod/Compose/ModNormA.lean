@@ -50,12 +50,7 @@ set_option maxRecDepth 4096 in
     base+312 -> base+432 (21 instructions including JAL).
     MOD mirror of divK_normA_full_spec. -/
 theorem mod_normA_full_spec (sp a0 a1 a2 a3 v5 v7 v10 shift anti_shift : Word)
-    (u0_old u1_old u2_old u3_old u4_old : Word) (base : Word)
-    (hv_u0 : isValidDwordAccess (sp + signExtend12 4056) = true)
-    (hv_u1 : isValidDwordAccess (sp + signExtend12 4048) = true)
-    (hv_u2 : isValidDwordAccess (sp + signExtend12 4040) = true)
-    (hv_u3 : isValidDwordAccess (sp + signExtend12 4032) = true)
-    (hv_u4 : isValidDwordAccess (sp + signExtend12 4024) = true) :
+    (u0_old u1_old u2_old u3_old u4_old : Word) (base : Word) :
     let u4 := a3 >>> (anti_shift.toNat % 64)
     let u3 := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (anti_shift.toNat % 64))
     let u2 := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (anti_shift.toNat % 64))
@@ -212,12 +207,7 @@ private theorem divK_copyAU_code_sub_modCode (base : Word) :
     base+396 -> base+432 (9 instructions).
     MOD mirror of divK_copyAU_full_spec. -/
 theorem mod_copyAU_full_spec (sp : Word)
-    (a0 a1 a2 a3 : Word) (u0 u1 u2 u3 u4 v5 : Word) (base : Word)
-    (hv_u0 : isValidDwordAccess (sp + signExtend12 4056) = true)
-    (hv_u1 : isValidDwordAccess (sp + signExtend12 4048) = true)
-    (hv_u2 : isValidDwordAccess (sp + signExtend12 4040) = true)
-    (hv_u3 : isValidDwordAccess (sp + signExtend12 4032) = true)
-    (hv_u4 : isValidDwordAccess (sp + signExtend12 4024) = true) :
+    (a0 a1 a2 a3 : Word) (u0 u1 u2 u3 u4 v5 : Word) (base : Word) :
     cpsTriple (base + 396) (base + 432) (modCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) **
        ((sp + signExtend12 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
@@ -265,7 +255,6 @@ set_option maxRecDepth 2048 in
 /-- LoopSetup when m >= 0 (n <= 4): falls through to loop body at base+448.
     MOD mirror of divK_loopSetup_ntaken_spec. -/
 theorem mod_loopSetup_ntaken_spec (sp n v1 v5 : Word) (base : Word)
-    (hv_n : isValidDwordAccess (sp + signExtend12 3984) = true)
     (hm_ge : ¬BitVec.slt (signExtend12 (4 : BitVec 12) - n) (0 : Word)) :
     let m := signExtend12 (4 : BitVec 12) - n
     cpsTriple (base + 432) (base + 448) (modCode base)
@@ -300,7 +289,6 @@ set_option maxRecDepth 2048 in
 /-- LoopSetup when m < 0 (n > 4, skip loop): branches to denorm at base+904.
     MOD mirror of divK_loopSetup_taken_spec. -/
 theorem mod_loopSetup_taken_spec (sp n v1 v5 : Word) (base : Word)
-    (hv_n : isValidDwordAccess (sp + signExtend12 3984) = true)
     (hm_lt : BitVec.slt (signExtend12 (4 : BitVec 12) - n) (0 : Word)) :
     let m := signExtend12 (4 : BitVec 12) - n
     cpsTriple (base + 432) (base + 908) (modCode base)
