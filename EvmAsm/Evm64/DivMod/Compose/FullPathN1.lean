@@ -301,7 +301,7 @@ theorem evm_div_n1_shift0_to_loopSetup_spec (sp base : Word)
   have hCopy := divK_copyAU_full_spec sp a0 a1 a2 a3
     u0_old u1_old u2_old u3_old u4_old ((clzResult b0).2) base
 
-  simp only [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide] at hCopy
+  simp only [EvmAsm.Evm64.DivMod.AddrNorm.se12_0] at hCopy
   have hCopyf := cpsTriple_frame_left _ _ _ _ _
     ((.x6 ↦ᵣ (clzResult b0).1) **
      (.x2 ↦ᵣ signExtend12 (0 : BitVec 12) - (clzResult b0).1) **
