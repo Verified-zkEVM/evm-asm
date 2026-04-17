@@ -330,8 +330,7 @@ theorem signext_phase_a_spec (sp r5 r10 : Word)
     (b0 b1 b2 b3 : Word)
     (base done_path : Word)
     (hdone1 : (base + 20) + signExtend13 168 = done_path)
-    (hdone2 : (base + 32) + signExtend13 156 = done_path)
-    (hvalid : ValidMemRange sp 4) :
+    (hdone2 : (base + 32) + signExtend13 156 = done_path) :
     let code := signext_phase_a_code base
     cpsBranch base code
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ r5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ r10) **
@@ -342,15 +341,6 @@ theorem signext_phase_a_spec (sp r5 r10 : Word)
       (base + 36)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ b0) ** (.x0 ↦ᵣ (0 : Word)) ** (regOwn .x10) **
        (sp ↦ₘ b0) ** ((sp + 8) ↦ₘ b1) ** ((sp + 16) ↦ₘ b2) ** ((sp + 24) ↦ₘ b3)) := by
-  -- Memory validity
-  have hv0 : isValidDwordAccess sp = true := by
-    have := hvalid.get (i := 0) (by omega); simpa using this
-  have hv8 : isValidDwordAccess (sp + 8) = true := by
-    have := hvalid.get (i := 1) (by omega); simpa using this
-  have hv16 : isValidDwordAccess (sp + 16) = true := by
-    have := hvalid.get (i := 2) (by omega); simpa using this
-  have hv24 : isValidDwordAccess (sp + 24) = true := by
-    have := hvalid.get (i := 3) (by omega); simpa using this
   -- Address arithmetic
   have ha48 : (base + 4 : Word) + 8 = base + 12 := by bv_omega
   have ha128 : (base + 12 : Word) + 8 = base + 20 := by bv_omega

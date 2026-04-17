@@ -1,7 +1,7 @@
 /-
   EvmAsm.Evm64.Xor.Spec
 
-  Full 256-bit EVM XOR spec with ValidMemRange abstractions.
+  Full 256-bit EVM XOR spec.
 -/
 
 import EvmAsm.Evm64.Xor.LimbSpec

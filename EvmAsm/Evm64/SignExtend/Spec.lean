@@ -70,8 +70,7 @@ private theorem signext_nochange_lift (sp base : Word)
 /-- **Main SIGNEXTEND theorem**: `evm_signextend` computes
     `EvmWord.signextend b x`. -/
 theorem evm_signextend_stack_spec (sp base : Word)
-    (b x : EvmWord) (r5 r6 r10 : Word)
-    (hvalid : ValidMemRange sp 8) :
+    (b x : EvmWord) (r5 r6 r10 : Word) :
     let result := EvmWord.signextend b x
     cpsTriple base (base + 192) (signextCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ r5) ** (.x6 ↦ᵣ r6) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ r10) **
@@ -84,7 +83,7 @@ theorem evm_signextend_stack_spec (sp base : Word)
     have hresult : result = x := by simp [result, EvmWord.signextend_ge31 b x hge]
     by_cases hhigh : b.getLimbN 1 ||| b.getLimbN 2 ||| b.getLimbN 3 ≠ 0
     · exact signext_nochange_lift sp base b x r5 r6 r10
-        (signext_nochange_high_spec sp base _ _ _ _ _ _ _ _ r5 r10 hhigh hvalid)
+        (signext_nochange_high_spec sp base _ _ _ _ _ _ _ _ r5 r10 hhigh)
         result hresult
     · have hhigh' : b.getLimbN 1 ||| b.getLimbN 2 ||| b.getLimbN 3 = 0 :=
         Classical.byContradiction (fun h => hhigh h)
@@ -98,7 +97,7 @@ theorem evm_signextend_stack_spec (sp base : Word)
         · rfl
         · simp at h; omega
       exact signext_nochange_lift sp base b x r5 r6 r10
-        (signext_nochange_geq31_spec sp base _ _ _ _ _ _ _ _ r5 r10 hhigh' hlarge hvalid)
+        (signext_nochange_geq31_spec sp base _ _ _ _ _ _ _ _ r5 r10 hhigh' hlarge)
         result hresult
   · -- b < 31: body path
     push Not at hge
@@ -113,7 +112,7 @@ theorem evm_signextend_stack_spec (sp base : Word)
       · simp at h; omega
       · rfl
     -- Use the body path theorem from Compose, lifting to evmWordIs
-    have h_raw := signext_body_spec sp base b x r5 r6 r10 hvalid hhigh hsmall
+    have h_raw := signext_body_spec sp base b x r5 r6 r10 hhigh hsmall
     exact cpsTriple_consequence _ _ _ _ _ _ _
       (fun h hp => by
         simp only [evmWordIs] at hp

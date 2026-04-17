@@ -45,8 +45,7 @@ theorem evm_swap_spec (sp base : Word)
     (n : Nat) (hn1 : 1 ≤ n) (hn16 : n ≤ 16)
     (a0 a1 a2 a3 : Word)
     (b0 b1 b2 b3 : Word)
-    (v7 v6 : Word)
-    (hvalid : ValidMemRange sp ((n + 1) * 4)) :
+    (v7 v6 : Word) :
     cpsTriple base (base + 64) (evm_swap_code base n)
       ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) **
        (sp ↦ₘ a0) ** ((sp+8) ↦ₘ a1) ** ((sp+16) ↦ₘ a2) ** ((sp+24) ↦ₘ a3) **
@@ -78,20 +77,6 @@ theorem evm_swap_spec (sp base : Word)
     rw [signExtend12_ofNat_small _ (by omega)]; bv_omega
   have hm24 : sp + signExtend12 (BitVec.ofNat 12 24) = sp + 24 := by
     rw [signExtend12_ofNat_small _ (by omega)]; bv_omega
-  -- Memory validity for destination locations (indices 0..3)
-  have hv0  : isValidDwordAccess sp       = true := by have := hvalid.get (i := 0) (by omega); simpa using this
-  have hv8  : isValidDwordAccess (sp + 8)  = true := by have := hvalid.get (i := 1) (by omega); simpa using this
-  have hv16 : isValidDwordAccess (sp + 16) = true := by have := hvalid.get (i := 2) (by omega); simpa using this
-  have hv24 : isValidDwordAccess (sp + 24) = true := by have := hvalid.get (i := 3) (by omega); simpa using this
-  -- Memory validity for source locations (indices n*4..n*4+3)
-  have hvs0 : isValidDwordAccess (sp + BitVec.ofNat 64 (n*32)) = true := by
-    have := hvalid.get (i := n*4) (by omega); rwa [show 8 * (n * 4) = n * 32 from by omega] at this
-  have hvs8 : isValidDwordAccess (sp + BitVec.ofNat 64 (n*32+8)) = true := by
-    have := hvalid.get (i := n*4+1) (by omega); rwa [show 8 * (n * 4 + 1) = n * 32 + 8 from by omega] at this
-  have hvs16 : isValidDwordAccess (sp + BitVec.ofNat 64 (n*32+16)) = true := by
-    have := hvalid.get (i := n*4+2) (by omega); rwa [show 8 * (n * 4 + 2) = n * 32 + 16 from by omega] at this
-  have hvs24 : isValidDwordAccess (sp + BitVec.ofNat 64 (n*32+24)) = true := by
-    have := hvalid.get (i := n*4+3) (by omega); rwa [show 8 * (n * 4 + 3) = n * 32 + 24 from by omega] at this
   -- Limb 0 swap
   have L0 := swap_limb_spec sp
     (BitVec.ofNat 12 0) (BitVec.ofNat 12 (n*32))
@@ -121,8 +106,7 @@ theorem evm_swap_spec (sp base : Word)
 /-- SWAPn spec at evmWordIs level: swaps the top and nth stack elements. -/
 theorem evm_swap_evmword_spec (sp base : Word)
     (n : Nat) (hn1 : 1 ≤ n) (hn16 : n ≤ 16)
-    (top nth : EvmWord) (v7 v6 : Word)
-    (hvalid : ValidMemRange sp ((n + 1) * 4)) :
+    (top nth : EvmWord) (v7 v6 : Word) :
     cpsTriple base (base + 64) (evm_swap_code base n)
       ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) **
        evmWordIs sp top **
@@ -147,7 +131,7 @@ theorem evm_swap_evmword_spec (sp base : Word)
     (evm_swap_spec sp base n hn1 hn16
       (top.getLimbN 0) (top.getLimbN 1) (top.getLimbN 2) (top.getLimbN 3)
       (nth.getLimbN 0) (nth.getLimbN 1) (nth.getLimbN 2) (nth.getLimbN 3)
-      v7 v6 hvalid)
+      v7 v6)
 
 -- ============================================================================
 -- Stack-level SWAP spec
@@ -157,8 +141,7 @@ theorem evm_swap_evmword_spec (sp base : Word)
 theorem evm_swap_stack_spec (sp base : Word)
     (n : Nat) (hn1 : 1 ≤ n) (hn16 : n ≤ 16)
     (stack : List EvmWord) (hlen : n + 1 ≤ stack.length)
-    (v7 v6 : Word)
-    (hvalid : ValidMemRange sp ((n + 1) * 4)) :
+    (v7 v6 : Word) :
     let top := stack[0]'(by omega)
     let nth := stack[n]'(by omega)
     cpsTriple base (base + 64) (evm_swap_code base n)
@@ -192,7 +175,7 @@ theorem evm_swap_stack_spec (sp base : Word)
     (evmStackIs (sp + 32) ((stack.drop 1).take (n - 1)) **
      evmStackIs (sp + BitVec.ofNat 64 ((n + 1) * 32)) ((stack.drop 1).drop n))
     (by pcFree)
-    (evm_swap_evmword_spec sp base n hn1 hn16 top nth v7 v6 hvalid)
+    (evm_swap_evmword_spec sp base n hn1 hn16 top nth v7 v6)
   have haddr32 : (sp + BitVec.ofNat 64 (1 * 32) : Word) = sp + 32 := by bv_omega
   exact cpsTriple_consequence _ _ _ _ _ _ _
     (fun h hp => by

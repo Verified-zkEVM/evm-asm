@@ -225,8 +225,7 @@ private theorem shl_body0_exit (base : Word) : ((base + 240 : Word) + 96) + sign
 /-- Zero path via BNE taken: high shift limbs are nonzero → shift ≥ 256 → result is zero. -/
 theorem evm_shl_zero_high_spec (sp base : Word)
     (s0 s1 s2 s3 v0 v1 v2 v3 r5 r10 : Word)
-    (hhigh : s1 ||| s2 ||| s3 ≠ 0)
-    (hvalid : ValidMemRange sp 8) :
+    (hhigh : s1 ||| s2 ||| s3 ≠ 0) :
     cpsTriple base (base + 360) (shlCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ r5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ r10) **
        (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3) **
@@ -234,18 +233,6 @@ theorem evm_shl_zero_high_spec (sp base : Word)
       ((.x12 ↦ᵣ (sp + 32)) ** (regOwn .x5) ** (.x0 ↦ᵣ (0 : Word)) ** (regOwn .x10) **
        (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3) **
        ((sp + 32) ↦ₘ (0 : Word)) ** ((sp + 40) ↦ₘ (0 : Word)) ** ((sp + 48) ↦ₘ (0 : Word)) ** ((sp + 56) ↦ₘ (0 : Word))) := by
-  -- Memory validity
-  have hv8 : isValidDwordAccess (sp + 8) = true := by
-    have := hvalid.get (i := 1) (by omega); simpa using this
-  have hv16 : isValidDwordAccess (sp + 16) = true := by
-    have := hvalid.get (i := 2) (by omega); simpa using this
-  have hv24 : isValidDwordAccess (sp + 24) = true := by
-    have := hvalid.get (i := 3) (by omega); simpa using this
-  have hv32 : ValidMemRange (sp + 32) 4 := by
-    intro i hi; have := hvalid.get (i := i + 4) (by omega)
-    have : isValidDwordAccess (sp + BitVec.ofNat 64 (8 * (i + 4))) = true := this
-    rw [show sp + BitVec.ofNat 64 (8 * (i + 4)) = sp + 32 + BitVec.ofNat 64 (8 * i) from by bv_omega] at this
-    exact this
   -- Step 1: LD x5 x12 8 at base → extend to shlCode
   have h1 := cpsTriple_extend_code (ld_s1_sub_shlCode base)
     (ld_spec_gen .x5 .x12 sp r5 s1 8 base (by nofun))
@@ -347,8 +334,7 @@ theorem evm_shl_zero_high_spec (sp base : Word)
 theorem evm_shl_zero_large_spec (sp base : Word)
     (s0 s1 s2 s3 v0 v1 v2 v3 r5 r10 : Word)
     (hlow : s1 ||| s2 ||| s3 = 0)
-    (hlarge : BitVec.ult s0 (signExtend12 (256 : BitVec 12)) = false)
-    (hvalid : ValidMemRange sp 8) :
+    (hlarge : BitVec.ult s0 (signExtend12 (256 : BitVec 12)) = false) :
     cpsTriple base (base + 360) (shlCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ r5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ r10) **
        (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3) **
@@ -356,20 +342,6 @@ theorem evm_shl_zero_large_spec (sp base : Word)
       ((.x12 ↦ᵣ (sp + 32)) ** (regOwn .x5) ** (.x0 ↦ᵣ (0 : Word)) ** (regOwn .x10) **
        (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3) **
        ((sp + 32) ↦ₘ (0 : Word)) ** ((sp + 40) ↦ₘ (0 : Word)) ** ((sp + 48) ↦ₘ (0 : Word)) ** ((sp + 56) ↦ₘ (0 : Word))) := by
-  -- Memory validity
-  have hv0 : isValidDwordAccess sp = true := by
-    have := hvalid.get (i := 0) (by omega); simpa using this
-  have hv8 : isValidDwordAccess (sp + 8) = true := by
-    have := hvalid.get (i := 1) (by omega); simpa using this
-  have hv16 : isValidDwordAccess (sp + 16) = true := by
-    have := hvalid.get (i := 2) (by omega); simpa using this
-  have hv24 : isValidDwordAccess (sp + 24) = true := by
-    have := hvalid.get (i := 3) (by omega); simpa using this
-  have hv32 : ValidMemRange (sp + 32) 4 := by
-    intro i hi; have := hvalid.get (i := i + 4) (by omega)
-    have : isValidDwordAccess (sp + BitVec.ofNat 64 (8 * (i + 4))) = true := this
-    rw [show sp + BitVec.ofNat 64 (8 * (i + 4)) = sp + 32 + BitVec.ofNat 64 (8 * i) from by bv_omega] at this
-    exact this
   -- Steps 1-3: Same linear chain as zero_high
   have h1 := cpsTriple_extend_code (ld_s1_sub_shlCode base)
     (ld_spec_gen .x5 .x12 sp r5 s1 8 base (by nofun))
@@ -538,14 +510,6 @@ private theorem shl_off_64_20 (base : Word) : (base + 64 : Word) + 20 = base + 8
 private theorem shl_off_sp32 (sp : Word) : sp + signExtend12 (32 : BitVec 12) = sp + 32 := by
   simp only [signExtend12_32]
 
--- Helper to derive ValidMemRange for the value portion (sp+32..sp+56)
-private theorem validMem_value_portion {sp : Word} (hvalid : ValidMemRange sp 8) :
-    ValidMemRange (sp + 32) 4 := by
-  intro i hi; have := hvalid.get (i := i + 4) (by omega)
-  have : isValidDwordAccess (sp + BitVec.ofNat 64 (8 * (i + 4))) = true := this
-  rw [show sp + BitVec.ofNat 64 (8 * (i + 4)) = sp + 32 + BitVec.ofNat 64 (8 * i) from by bv_omega] at this
-  exact this
-
 /-- Strip a pure fact ⌜fact⌝ from a cpsTriple's precondition and use it
     to convert the postcondition. -/
 private theorem cpsTriple_strip_pure_and_convert
@@ -666,7 +630,6 @@ open EvmWord in
     bridge lemmas to connect per-limb results to the 256-bit shift. -/
 theorem evm_shl_body_evmWord_spec (sp base : Word)
     (shift value : EvmWord) (r5 r6 r7 r10 r11 : Word)
-    (hvalid : ValidMemRange sp 8)
     (hhigh_zero : shift.getLimb 1 ||| shift.getLimb 2 ||| shift.getLimb 3 = 0)
     (hlt_s0 : BitVec.ult (shift.getLimb 0) (signExtend12 (256 : BitVec 12)) = true)
     (hlt : shift.toNat < 256) :
@@ -717,16 +680,6 @@ theorem evm_shl_body_evmWord_spec (sp base : Word)
         xperm_hyp hq)
       h_raw
   -- Now prove h_raw in flat raw memIs form
-  -- Memory validity
-  have hv0 : isValidDwordAccess sp = true := by
-    have := hvalid.get (i := 0) (by omega); simpa using this
-  have hv8 : isValidDwordAccess (sp + 8) = true := by
-    have := hvalid.get (i := 1) (by omega); simpa using this
-  have hv16 : isValidDwordAccess (sp + 16) = true := by
-    have := hvalid.get (i := 2) (by omega); simpa using this
-  have hv24 : isValidDwordAccess (sp + 24) = true := by
-    have := hvalid.get (i := 3) (by omega); simpa using this
-  have hv32 : ValidMemRange (sp + 32) 4 := validMem_value_portion hvalid
   -- Address normalization for sp+32 region
   have ha40 : sp + 40 = (sp + 32 : Word) + 8 := by bv_omega
   have ha48 : sp + 48 = (sp + 32 : Word) + 16 := by bv_omega
