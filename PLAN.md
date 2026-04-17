@@ -618,6 +618,12 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
     closure (lenLen = 1). When `x14 = 1` at entry, the taken branch is
     unreachable (`cnt' = 0`), so the `cpsBranch` collapses to a plain
     `cpsTriple` exiting at `base + 24`.
+  - `rlp_phase2_long_loop_two_byte_spec`
+    (`EvmAsm/Rv64/RLP/Phase2LongLoopTwo.lean`): two-iteration closure
+    (lenLen = 2). Composes the body spec (iter 1, BNE taken) with the
+    one-byte closure (iter 2, fall-through) via
+    `cpsTriple_seq_with_perm_same_cr`. Assumes both bytes live in the
+    same doubleword.
   - General `n`-iteration closure (induction over `cnt`) still pending.
 - Phase 3: Single-item flat decode (byte strings only)
 - Phase 4: HINT_READ integration (load RLP input into memory buffer)
