@@ -203,9 +203,9 @@ Every phase follows the same seven-step shape. Deviate only with a documented re
   3. `FullPathN2Loop.lean` (13) + `FullPathN3Loop.lean` (13) — **blocked on PR #300 merge**
   4. `ModPhaseB.lean` (15) + `Compose/ModPhaseBn21.lean` + `Compose/ModPhaseBn3.lean` — file-private `mod_divK_se12_*` shadows dropped (use `AddrNorm.se12_1..4` / Base.lean `se12_32`); one-off address lemmas remain.
   5. `Compose/NormA.lean` + `Compose/Norm.lean` + `Compose/Epilogue.lean` — also delete their file-private `se12_*` shadows, which collide-by-name with `AddrNorm.lean`'s globals. (Partial: NormA/Epilogue/ModNorm shadows removed — Norm.lean already uses Base.lean's public `se12_32..56` directly.)
-  6. Sweep: grep for any remaining `simp only [show signExtend12 .* by decide]` in `EvmAsm/Evm64/DivMod/` and clean up.
+  6. Sweep: grep for any remaining `simp only [show signExtend12 .* by decide]` in `EvmAsm/Evm64/DivMod/` and clean up. (✅ Landed: the 9 residual `signExtend12 0 = 0` rewrites at `hCopy` across `FullPath{,N1,N2,N3}.lean` / `ModFullPath{,N1,N2,N3}.lean` now reference `AddrNorm.se12_0`; `FullPathN4Beq.lean`'s two compound `signExtend12 4 - 4 = 0` rewrites use `AddrNorm.se12_4` + `BitVec.sub_self`.)
 - **Dependencies:** PR #300 (double-addback) for sub-PRs 2–3. Sub-PRs 1, 4, 5, 6 are unblocked today.
-- **Stop criterion:** `grep -r "simp only \[show signExtend12" EvmAsm/Evm64/DivMod/` returns zero matches.
+- **Stop criterion:** `grep -r "show signExtend12 .* by decide" EvmAsm/Evm64/DivMod/` returns zero matches. ✅ Met (2026-04-17).
 
 #### Phase 3 ⏳ — `rv64_addr` (generalize `bv_addr`)
 - **Goal:** a richer Rv64-wide address simp/grind set, subsuming today's `bv_addr` (`simp only [BitVec.add_assoc]; rfl`, 578 callsites in DivMod alone).

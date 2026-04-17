@@ -336,7 +336,7 @@ theorem evm_div_n4_shift0_to_loopSetup_spec (sp base : Word)
     u0_old u1_old u2_old u3_old u4_old ((clzResult b3).2) base
 
   -- Normalize signExtend12 0 → 0 in CopyAU spec for xperm matching
-  simp only [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide] at hCopy
+  simp only [EvmAsm.Evm64.DivMod.AddrNorm.se12_0] at hCopy
   -- Frame CopyAU with registers and memory not in CopyAU
   have hCopyf := cpsTriple_frame_left _ _ _ _ _
     ((.x6 ↦ᵣ (clzResult b3).1) **
