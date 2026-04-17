@@ -37,8 +37,6 @@ private theorem denorm_sub_mod (base : Word) (sub_prog : List Instr) (k : Nat)
   exact divK_denorm_code_sub_modCode base a i
     (CodeReq.ofProg_mono_sub (base + denormOff) _ divK_denorm _ k rfl hslice hk hbound a i h)
 
-set_option maxHeartbeats 12800000 in
-set_option maxRecDepth 4096 in
 /-- Full Denorm (shift body only) for modCode: denormalize u[0..3] by right-shifting.
     base+904+16 → base+904+100 (21 instructions: ADDI+SUB + 3×merge + last).
     Used when shift≠0. The BEQ and LD are handled separately.

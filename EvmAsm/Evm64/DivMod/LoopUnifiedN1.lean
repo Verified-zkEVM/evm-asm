@@ -31,8 +31,6 @@ open EvmAsm.Rv64
 -- Same pattern as divK_loop_n1_iter10_unified_spec but with  per-iteration specs
 -- ============================================================================
 
-set_option maxRecDepth 4096 in
-set_option maxHeartbeats 12800000 in
 /-- Unified n=1 two-iteration  loop composition for j=1 and j=0,
     parameterized by `(bltu_1 bltu_0 : Bool)`.
     Covers all 4 path combinations (max×max, call×call, max×call, call×max).
@@ -333,8 +331,6 @@ theorem divK_loop_n1_iter10_unified_spec (bltu_1 bltu_0 : Bool)
 -- Postcondition uses @[irreducible] loopN1Iter210Post
 -- ============================================================================
 
-set_option maxRecDepth 4096 in
-set_option maxHeartbeats 12800000 in
 /-- Three-iteration  composition when j=2 is max (bltu_2 = false).
     Composes j=2  max spec with the 2-iteration iter10 unified  spec. -/
 theorem divK_loop_n1_max_iter10_spec (bltu_1 bltu_0 : Bool)
@@ -418,8 +414,6 @@ theorem divK_loop_n1_max_iter10_spec (bltu_1 bltu_0 : Bool)
       cases bltu_1 <;> cases bltu_0 <;> xperm_hyp hp)
     full
 
-set_option maxRecDepth 4096 in
-set_option maxHeartbeats 12800000 in
 /-- Three-iteration  composition when j=2 is call (bltu_2 = true).
     Composes j=2  call spec with the 2-iteration iter10 unified  spec. -/
 theorem divK_loop_n1_call_iter10_spec (bltu_1 bltu_0 : Bool)
@@ -505,8 +499,6 @@ theorem divK_loop_n1_call_iter10_spec (bltu_1 bltu_0 : Bool)
 -- Three-iteration  unified dispatch: cases bltu_2
 -- ============================================================================
 
-set_option maxRecDepth 4096 in
-set_option maxHeartbeats 12800000 in
 /-- Unified n=1 three-iteration  loop composition, parameterized by
     `(bltu_2 bltu_1 bltu_0 : Bool)`.  Covers all 8 path combinations.
     Dispatches to divK_loop_n1_max_iter10_spec / divK_loop_n1_call_iter10_spec. -/
@@ -563,8 +555,6 @@ theorem divK_loop_n1_iter210_unified_spec (bltu_2 bltu_1 bltu_0 : Bool)
 -- Postcondition uses @[irreducible] loopN1UnifiedPost
 -- ============================================================================
 
-set_option maxRecDepth 4096 in
-set_option maxHeartbeats 12800000 in
 /-- Four-iteration  composition when j=3 is max (bltu_3 = false).
     Composes j=3  max spec with the 3-iteration iter210 unified  spec. -/
 theorem divK_loop_n1_max_iter210_spec (bltu_2 bltu_1 bltu_0 : Bool)
@@ -675,8 +665,6 @@ theorem divK_loop_n1_max_iter210_spec (bltu_2 bltu_1 bltu_0 : Bool)
       cases bltu_2 <;> cases bltu_1 <;> cases bltu_0 <;> xperm_hyp hp)
     full
 
-set_option maxRecDepth 4096 in
-set_option maxHeartbeats 12800000 in
 /-- Four-iteration  composition when j=3 is call (bltu_3 = true).
     Composes j=3  call spec with the 3-iteration iter210 unified  spec. -/
 theorem divK_loop_n1_call_iter210_spec (bltu_2 bltu_1 bltu_0 : Bool)
@@ -788,8 +776,6 @@ theorem divK_loop_n1_call_iter210_spec (bltu_2 bltu_1 bltu_0 : Bool)
 -- Final  unified dispatch: cases bltu_3, delegates to max/call  lemmas
 -- ============================================================================
 
-set_option maxRecDepth 4096 in
-set_option maxHeartbeats 12800000 in
 /-- Unified n=1 four-iteration  loop composition, parameterized by
     `(bltu_3 bltu_2 bltu_1 bltu_0 : Bool)`.  Covers all 16 path combinations.
     Dispatches to divK_loop_n1_max_iter210_spec / divK_loop_n1_call_iter210_spec. -/

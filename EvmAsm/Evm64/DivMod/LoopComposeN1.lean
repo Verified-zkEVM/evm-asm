@@ -128,8 +128,6 @@ theorem u_n1_j1_4072_eq_j0_4064 (sp : Word) :
 -- Unified per-iteration max-path  specs
 -- ============================================================================
 
-set_option maxRecDepth 4096 in
-set_option maxHeartbeats 12800000 in
 /-- Unified j=3 max-path  spec: uses _beq spec for addback, _skip for skip. -/
 theorem divK_loop_body_n1_max_unified_j3_spec
     (sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
@@ -178,8 +176,6 @@ theorem divK_loop_body_n1_max_unified_j3_spec
         rw [← loopIterPostN1Max_skip _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
       (J3 hborrow)
 
-set_option maxRecDepth 4096 in
-set_option maxHeartbeats 12800000 in
 /-- Unified j=2 max-path  spec: uses _beq spec for addback, _skip for skip. -/
 theorem divK_loop_body_n1_max_unified_j2_spec
     (sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
@@ -228,8 +224,6 @@ theorem divK_loop_body_n1_max_unified_j2_spec
         rw [← loopIterPostN1Max_skip _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
       (J2 hborrow)
 
-set_option maxRecDepth 4096 in
-set_option maxHeartbeats 12800000 in
 /-- Unified j=1 max-path  spec: uses _beq spec for addback, _skip for skip. -/
 theorem divK_loop_body_n1_max_unified_j1_spec
     (sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
@@ -280,8 +274,6 @@ theorem divK_loop_body_n1_max_unified_j1_spec
         rw [← loopIterPostN1Max_skip _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
       (J1 hborrow)
 
-set_option maxRecDepth 4096 in
-set_option maxHeartbeats 12800000 in
 /-- Unified j=0 max-path  spec: uses _beq spec for addback, _skip for skip.
     Since j=0, the BGE loop-back is not taken, giving a cpsTriple to base+904. -/
 theorem divK_loop_body_n1_max_unified_j0_spec
@@ -337,8 +329,6 @@ theorem divK_loop_body_n1_max_unified_j0_spec
 -- Unified per-iteration call-path  specs
 -- ============================================================================
 
-set_option maxRecDepth 4096 in
-set_option maxHeartbeats 12800000 in
 /-- Unified j=3 call-path  spec: uses _beq spec for addback, _skip for skip. -/
 theorem divK_loop_body_n1_call_unified_j3_spec
     (sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
@@ -396,8 +386,6 @@ theorem divK_loop_body_n1_call_unified_j3_spec
         rw [← loopIterPostN1Call_skip _ _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
       J3
 
-set_option maxRecDepth 4096 in
-set_option maxHeartbeats 12800000 in
 /-- Unified j=2 call-path  spec: uses _beq spec for addback, _skip for skip. -/
 theorem divK_loop_body_n1_call_unified_j2_spec
     (sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
@@ -455,8 +443,6 @@ theorem divK_loop_body_n1_call_unified_j2_spec
         rw [← loopIterPostN1Call_skip _ _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
       J2
 
-set_option maxRecDepth 4096 in
-set_option maxHeartbeats 12800000 in
 /-- Unified j=1 call-path  spec: uses _beq spec for addback, _skip for skip. -/
 theorem divK_loop_body_n1_call_unified_j1_spec
     (sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
@@ -514,8 +500,6 @@ theorem divK_loop_body_n1_call_unified_j1_spec
         rw [← loopIterPostN1Call_skip _ _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
       J1
 
-set_option maxRecDepth 4096 in
-set_option maxHeartbeats 12800000 in
 /-- Unified j=0 call-path  spec: uses _beq spec for addback, _skip for skip.
     Since j=0, the BGE loop-back is not taken, giving a cpsTriple to base+904. -/
 theorem divK_loop_body_n1_call_unified_j0_spec

@@ -295,7 +295,6 @@ private theorem bv_srl_mask_eq (x : Word) (n : Nat) (hn : n < 64) :
 -- Zero path composition: high limbs nonzero
 -- ============================================================================
 
-set_option maxHeartbeats 1600000 in
 /-- Zero path via BNE taken: high index limbs are nonzero → result is zero.
     Execution: LD idx[1] → LD/OR idx[2] → LD/OR idx[3] → BNE(taken) → zero_path. -/
 theorem evm_byte_zero_high_spec (sp base : Word)
@@ -382,7 +381,6 @@ theorem evm_byte_zero_high_spec (sp base : Word)
 -- Zero path composition: idx >= 32, high limbs zero
 -- ============================================================================
 
-set_option maxHeartbeats 3200000 in
 /-- Zero path via BEQ taken: i1=i2=i3=0 but i0 >= 32 → result is zero.
     Execution: OR-reduce → BNE(ntaken) → LD idx[0] → SLTIU → BEQ(taken) → zero_path. -/
 theorem evm_byte_zero_geq32_spec (sp base : Word)
@@ -518,7 +516,6 @@ theorem evm_byte_zero_geq32_spec (sp base : Word)
 -- ============================================================================
 
 open EvmWord in
-set_option maxHeartbeats 6400000 in
 /-- Body path: idx < 32 → result is `EvmWord.byte idx value`.
     Composes Phase A ntaken → Phase B → Phase C → body_L + store → exit
     and uses byte_correct to connect per-limb results to EvmWord.byte. -/
@@ -971,7 +968,6 @@ theorem evm_byte_body_evmWord_spec (sp base : Word)
 -- Stack-level spec: EvmWord.byte with evmWordIs
 -- ============================================================================
 
-set_option maxHeartbeats 4000000 in
 /-- Stack-level BYTE spec using evmWordIs and EvmWord.byte. -/
 theorem evm_byte_stack_spec (sp base : Word)
     (idx val : EvmWord) (v5 v6 v10 : Word)

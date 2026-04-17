@@ -86,13 +86,11 @@ private theorem phase_b_sub_signextCode (base : Word) :
   exact CodeReq.ofProg_mono_sub base (base + 36) evm_signextend signext_phase_b 9
     (by bv_omega) (by decide) (by decide) (by decide)
 
-set_option maxHeartbeats 4000000 in
 private theorem cascade_15_sub_signextCode (base : Word) :
     ∀ a i, CodeReq.ofProg (base + 60) (signext_cascade_step_prog 1 60) a = some i → signextCode base a = some i :=
   CodeReq.ofProg_mono_sub base (base + 60) evm_signextend (signext_cascade_step_prog 1 60) 15
     (by bv_omega) (by decide) (by decide) (by decide)
 
-set_option maxHeartbeats 4000000 in
 private theorem cascade_17_sub_signextCode (base : Word) :
     ∀ a i, CodeReq.ofProg (base + 68) (signext_cascade_step_prog 2 24) a = some i → signextCode base a = some i :=
   CodeReq.ofProg_mono_sub base (base + 68) evm_signextend (signext_cascade_step_prog 2 24) 17
@@ -223,7 +221,6 @@ private theorem se_done_exit (base : Word) : (base + 188 : Word) + 4 = base + 19
 -- Section 4: No-change path 1 — high limbs nonzero
 -- ============================================================================
 
-set_option maxHeartbeats 1600000 in
 /-- No-change path via BNE taken: high b limbs are nonzero → b >= 31 → x unchanged.
     Execution: LD b1 → LD/OR b2 → LD/OR b3 → BNE(taken) → done. -/
 theorem signext_nochange_high_spec (sp base : Word)
@@ -330,7 +327,6 @@ theorem signext_nochange_high_spec (sp base : Word)
         from by xperm) h).mp w1)
     hfull
 
-set_option maxHeartbeats 3200000 in
 /-- No-change path via BEQ taken: b1=b2=b3=0 but b[0] >= 31 → x unchanged.
     Execution: LD b1 → LD/OR b2 → LD/OR b3 → BNE(ntaken) → LD b0 → SLTIU → BEQ(taken) → done. -/
 theorem signext_nochange_geq31_spec (sp base : Word)
@@ -528,7 +524,6 @@ private theorem validMem_value_portion {sp : Word} (hvalid : ValidMemRange sp 8)
 -- Section 6: Body path composition (b < 31)
 -- ============================================================================
 
-set_option maxHeartbeats 12800000 in
 /-- Body path: b < 31 → raw-limb cpsTriple producing `signextend b x` limbs.
     Composes Phase A ntaken → B → C → body_L → done. -/
 theorem signext_body_spec (sp base : Word)

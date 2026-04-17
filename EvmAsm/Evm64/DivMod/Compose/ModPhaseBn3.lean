@@ -13,8 +13,6 @@ open EvmAsm.Rv64
 -- init1 → init2 → ADDI x5=4 → BNE x10 ntaken → ADDI x5=3 → BNE x7 taken → tail
 -- ============================================================================
 
-set_option maxHeartbeats 51200000 in
-set_option maxRecDepth 4096 in
 /-- MOD Phase B when b[3]=0, b[2]≠0 (n=3): zero scratch, load b[1..2], cascade to n=3, load b[2].
     Execution: init1(7) + init2(2) + step0(2) + step1(2) + tail(5) = 18 instrs.
     Exit at base+116 (start of CLZ). x5 = b[2] (leading limb), n = 3. -/

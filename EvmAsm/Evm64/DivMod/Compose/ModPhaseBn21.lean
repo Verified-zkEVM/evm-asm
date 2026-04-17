@@ -14,8 +14,6 @@ open EvmAsm.Rv64
 -- → ADDI x5=2 → BNE x6 taken → tail
 -- ============================================================================
 
-set_option maxHeartbeats 51200000 in
-set_option maxRecDepth 4096 in
 /-- MOD Phase B when b[3]=b[2]=0, b[1]≠0 (n=2): zero scratch, cascade to n=2, load b[1].
     Execution: init1(7) + init2(2) + 3×step(6) + tail(5) = 20 instrs.
     Exit at base+116. x5 = b[1] (leading limb), n = 2. -/
@@ -195,8 +193,6 @@ theorem evm_mod_phaseB_n2_spec (sp base : Word)
 -- → ADDI x5=2 → BNE x6 ntaken → ADDI x5=1 → tail
 -- ============================================================================
 
-set_option maxHeartbeats 51200000 in
-set_option maxRecDepth 4096 in
 /-- MOD Phase B when b[3]=b[2]=b[1]=0 (n=1): zero scratch, cascade falls through all BNEs, load b[0].
     Execution: all 21 instructions of divK_phaseB.
     Exit at base+116. x5 = b[0] (leading limb), n = 1.

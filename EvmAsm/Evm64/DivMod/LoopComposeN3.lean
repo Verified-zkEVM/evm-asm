@@ -53,8 +53,6 @@ theorem u_j1_4072_eq_j0_4064 (sp : Word) :
 -- Two-iteration composition: max+skip at both j=1 and j=0
 -- ============================================================================
 
-set_option maxRecDepth 4096 in
-set_option maxHeartbeats 12800000 in
 /-- Full n=3 loop (max+skip path at both iterations).
     Composes j=1 (base+448→base+448) with j=0 (base+448→base+904). -/
 theorem divK_loop_n3_max_skip_skip_spec
@@ -127,8 +125,6 @@ theorem divK_loop_n3_max_skip_skip_spec
 -- Uses _beq LoopIter specs with borrow-branching loopIterPostN3Max.
 -- ============================================================================
 
-set_option maxRecDepth 4096 in
-set_option maxHeartbeats 12800000 in
 theorem divK_loop_body_n3_max_unified_j1_spec
     (sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
      v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old : Word)
@@ -289,7 +285,6 @@ theorem divK_loop_body_n3_call_unified_j1_spec
 -- Uses _beq LoopIter specs with borrow-branching loopIterPostN3Call.
 -- ============================================================================
 
-set_option maxRecDepth 4096 in
 theorem divK_loop_body_n3_call_unified_j0_spec
     (sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
      v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old : Word)

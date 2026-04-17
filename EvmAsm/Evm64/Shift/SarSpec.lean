@@ -112,7 +112,6 @@ theorem sar_body_3_spec (sp : Word)
 abbrev sar_body_2_code (base : Word) (jal_off : BitVec 21) : CodeReq :=
   CodeReq.ofProg base (sar_body_2_prog jal_off)
 
-set_option maxHeartbeats 3200000 in
 /-- SAR body 2: limb_shift=2 (14 instructions).
     result[0] = merge(value[2],value[3]); result[1] = value[3] SRA bs;
     result[2..3] = sign_ext.
@@ -153,7 +152,6 @@ theorem sar_body_2_spec (sp : Word)
 abbrev sar_body_1_code (base : Word) (jal_off : BitVec 21) : CodeReq :=
   CodeReq.ofProg base (sar_body_1_prog jal_off)
 
-set_option maxHeartbeats 3200000 in
 /-- SAR body 1: limb_shift=1 (20 instructions).
     result[0] = merge(value[1],value[2]); result[1] = merge(value[2],value[3]);
     result[2] = value[3] SRA bs; result[3] = sign_ext.
@@ -197,7 +195,6 @@ theorem sar_body_1_spec (sp : Word)
 abbrev sar_body_0_code (base : Word) (jal_off : BitVec 21) : CodeReq :=
   CodeReq.ofProg base (sar_body_0_prog jal_off)
 
-set_option maxHeartbeats 3200000 in
 /-- SAR body 0: limb_shift=0 (25 instructions).
     result[i] = merge(value[i], value[i+1]) for i=0..2;
     result[3] = value[3] SRA bs.

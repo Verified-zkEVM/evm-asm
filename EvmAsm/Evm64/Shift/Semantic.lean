@@ -130,7 +130,6 @@ private theorem shr_zero_lift (sp base : Word)
 -- Main theorem
 -- ============================================================================
 
-set_option maxHeartbeats 1600000 in
 /-- **Main SHR theorem**: `evm_shr` computes the 256-bit logical right shift.
     Given shift and value as EvmWords on the stack, produces
     `if shift.toNat ≥ 256 then 0 else value >>> shift.toNat`. -/

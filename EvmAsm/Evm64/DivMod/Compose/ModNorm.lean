@@ -52,7 +52,6 @@ private theorem mod_phaseC2_body_modCode (sp shift v2 shift_mem : Word) (base : 
   rw [show (base + phaseC2Off : Word) + 12 = base + 224 from by bv_addr] at hbody
   exact cpsTriple_extend_code (divK_phaseC2_code_sub_modCode base) hbody
 
-set_option maxRecDepth 2048 in
 /-- Phase C2 when shift != 0: falls through to normB at base+228.
     MOD mirror of divK_phaseC2_ntaken_spec. -/
 theorem mod_phaseC2_ntaken_spec (sp shift v2 shift_mem : Word) (base : Word)
@@ -83,7 +82,6 @@ theorem mod_phaseC2_ntaken_spec (sp shift v2 shift_mem : Word) (base : Word)
     (fun h hq => by xperm_hyp hq)
     hC2
 
-set_option maxRecDepth 2048 in
 /-- Phase C2 when shift = 0: branches to copyAU at base+396.
     MOD mirror of divK_phaseC2_taken_spec. -/
 theorem mod_phaseC2_taken_spec (sp shift v2 shift_mem : Word) (base : Word)
@@ -132,8 +130,6 @@ private theorem mod_se12_48 : signExtend12 (48 : BitVec 12) = (48 : Word) := by 
 private theorem mod_se12_40 : signExtend12 (40 : BitVec 12) = (40 : Word) := by decide
 private theorem mod_se12_32 : signExtend12 (32 : BitVec 12) = (32 : Word) := by decide
 
-set_option maxHeartbeats 12800000 in
-set_option maxRecDepth 4096 in
 /-- NormB first half: merge1 (b[3] with b[2]) + merge2 (b[2] with b[1]).
     base+228 -> base+276 (12 instructions). MOD mirror. -/
 private theorem mod_normB_half1 (sp b0 b1 b2 b3 v5 v7 shift anti_shift : Word) (base : Word) :
@@ -182,8 +178,6 @@ private theorem mod_normB_half1 (sp b0 b1 b2 b3 v5 v7 shift anti_shift : Word) (
     (fun h hq => by xperm_hyp hq)
     h12
 
-set_option maxHeartbeats 12800000 in
-set_option maxRecDepth 4096 in
 /-- NormB second half: merge3 (b[1] with b[0]) + last (b[0] shift).
     base+276 -> base+312 (9 instructions). MOD mirror. -/
 private theorem mod_normB_half2 (sp b0 b1 b2' b3' shift anti_shift : Word) (base : Word) :
@@ -232,8 +226,6 @@ private theorem mod_normB_half2 (sp b0 b1 b2' b3' shift anti_shift : Word) (base
     (fun h hq => by xperm_hyp hq)
     h34
 
-set_option maxHeartbeats 800000 in
-set_option maxRecDepth 4096 in
 /-- Full NormB for modCode: normalize divisor b[0..3] in place by left-shifting.
     base+228 -> base+312 (21 instructions).
     MOD mirror of divK_normB_full_spec. -/

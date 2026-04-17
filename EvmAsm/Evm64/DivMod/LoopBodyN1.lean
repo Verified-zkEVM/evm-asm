@@ -155,7 +155,6 @@ theorem divK_trial_call_full_spec_n1
 -- Non-vacuous: no overlapping cells in precondition.
 -- ============================================================================
 
-set_option maxHeartbeats 1600000 in
 /-- Full loop body (BLTU ntaken + BEQ skip) for n=1.
     No overlapping cells: u_hi=u1, u_lo=u0, v_top=v0.
     Entry: base+448, cpsBranch to base+448/904. -/
@@ -263,7 +262,6 @@ theorem divK_loop_body_n1_max_skip_spec
 -- Section 13n1: Full loop body cpsBranch for n=1, BLTU not-taken + BEQ addback
 -- ============================================================================
 
-set_option maxHeartbeats 1600000 in
 /-- Full loop body (BLTU ntaken + BEQ addback) for n=1.
     No overlapping cells: u_hi=u1, u_lo=u0, v_top=v0.
     Entry: base+448, cpsBranch to base+448/904. -/
@@ -359,7 +357,6 @@ theorem divK_loop_body_n1_max_addback_spec
 -- Section 14n1: Full loop body cpsBranch for n=1, BLTU taken + BEQ skip
 -- ============================================================================
 
-set_option maxHeartbeats 1600000 in
 /-- Full loop body (BLTU taken + BEQ skip) for n=1.
     No overlapping cells: u_hi=u1, u_lo=u0, v_top=v0.
     Entry: base+448, cpsBranch to base+448/904. -/
@@ -513,7 +510,6 @@ theorem divK_loop_body_n1_call_skip_spec
 -- Section 15n1: Full loop body cpsBranch for n=1, BLTU taken + BEQ addback
 -- ============================================================================
 
-set_option maxHeartbeats 1600000 in
 /-- Full loop body (BLTU taken + BEQ addback) for n=1.
     No overlapping cells: u_hi=u1, u_lo=u0, v_top=v0.
     Entry: base+448, cpsBranch to base+448/904. -/

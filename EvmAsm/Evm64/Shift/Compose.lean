@@ -232,7 +232,6 @@ private theorem shr_body0_exit (base : Word) : ((base + 240 : Word) + 96) + sign
 -- Section 4: Zero path composition
 -- ============================================================================
 
-set_option maxHeartbeats 1600000 in
 /-- Zero path via BNE taken: high shift limbs are nonzero → shift ≥ 256 → result is zero.
     Execution: LD s1 → LD/OR s2 → LD/OR s3 → BNE(taken) → zero_path. -/
 theorem evm_shr_zero_high_spec (sp base : Word)
@@ -355,7 +354,6 @@ theorem evm_shr_zero_high_spec (sp base : Word)
         from by xperm) h).mp w1)
     hABZ
 
-set_option maxHeartbeats 3200000 in
 /-- Zero path via BEQ taken: s1=s2=s3=0 but s0 ≥ 256 → result is zero.
     Execution: LD s1 → LD/OR s2 → LD/OR s3 → BNE(ntaken) → LD s0 → SLTIU → BEQ(taken) → zero_path. -/
 theorem evm_shr_zero_large_spec (sp base : Word)
@@ -613,7 +611,6 @@ private theorem cpsTriple_strip_pure_and_convert
 
 -- Merge limb bridge: for limbs i where both getLimbN(i+L) and getLimbN(i+L+1) are in range.
 open EvmWord in
-set_option maxHeartbeats 800000 in
 private theorem shr_bridge_merge (value : EvmWord) (s0 : Word)
     (result : EvmWord) (hresult : result = value >>> s0.toNat)
     (L : Nat) (i : Fin 4)
@@ -654,7 +651,6 @@ private theorem shr_bridge_merge (value : EvmWord) (s0 : Word)
 
 -- Last limb bridge: for the highest non-zero limb (i+L = 3, second getLimbN out of range).
 open EvmWord in
-set_option maxHeartbeats 400000 in
 private theorem shr_bridge_last (value : EvmWord) (s0 : Word)
     (result : EvmWord) (hresult : result = value >>> s0.toNat)
     (L : Nat) (i : Fin 4)
@@ -676,7 +672,6 @@ private theorem shr_bridge_last (value : EvmWord) (s0 : Word)
 
 -- Zero limb bridge: for limbs beyond the shift (i+L >= 4, result is 0).
 open EvmWord in
-set_option maxHeartbeats 400000 in
 private theorem shr_bridge_zero (value : EvmWord) (s0 : Word)
     (result : EvmWord) (hresult : result = value >>> s0.toNat)
     (L : Nat) (i : Fin 4)
@@ -693,7 +688,6 @@ private theorem shr_bridge_zero (value : EvmWord) (s0 : Word)
   simp
 
 open EvmWord in
-set_option maxHeartbeats 6400000 in
 /-- Body path: shift < 256 → result is `value >>> shift.toNat`.
     Composes Phase A ntaken → B → C → body_L → exit and uses
     getLimb_ushiftRight to connect per-limb results to the 256-bit shift. -/

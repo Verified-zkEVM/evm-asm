@@ -18,8 +18,6 @@ open Sail
 
 namespace EvmAsm.Rv64.SailEquiv
 
-set_option maxHeartbeats 1600000
-set_option maxRecDepth 2000
 
 -- ============================================================================
 -- Proved helper lemmas for division/remainder
@@ -170,7 +168,6 @@ private theorem overflow_guard_div (a b : BitVec 64) (hb : b ≠ 0#64) :
     rw [hq_eq]; exact to_bits_truncate_neg_pow63
   · simp [hq]
 
-set_option maxHeartbeats 3200000 in
 /-- Full DIV (signed) value equivalence, including b=0 and overflow cases.
     Matches the exact post-simp form of execute_DIV with is_unsigned=false. -/
 theorem div_full_equiv_applied (a b : BitVec 64) :

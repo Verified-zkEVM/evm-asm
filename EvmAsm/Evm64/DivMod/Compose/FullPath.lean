@@ -557,8 +557,6 @@ private theorem divK_denorm_code_sub_modCode' (base : Word) :
   skipBlock; skipBlock; skipBlock; skipBlock
   exact CodeReq.union_mono_left _ _
 
-set_option maxRecDepth 4096 in
-set_option maxHeartbeats 3200000 in
 /-- Denorm preamble for shift≠0 with modCode: LD shift from memory + BEQ not taken.
     base+908 → base+916. -/
 theorem mod_denorm_preamble_spec (sp shift v5 v6 v7 v2 v10 : Word) (base : Word)
@@ -679,8 +677,6 @@ private theorem divK_denorm_code_sub_divCode' (base : Word) :
 -- When shift=0, BEQ is taken, skipping denorm body directly to epilogue at base+1008.
 -- ============================================================================
 
-set_option maxRecDepth 4096 in
-set_option maxHeartbeats 3200000 in
 /-- DIV shift=0 post-loop: LD shift + BEQ taken → DIV epilogue.
     base+908 → base+1068. Shift = 0 case (denorm body skipped). -/
 theorem evm_div_shift0_epilogue_spec (sp base : Word)
@@ -768,8 +764,6 @@ theorem evm_div_shift0_epilogue_spec (sp base : Word)
 -- When shift=0, BEQ is taken, skipping denorm body directly to epilogue at base+1008.
 -- ============================================================================
 
-set_option maxRecDepth 4096 in
-set_option maxHeartbeats 3200000 in
 /-- MOD shift=0 post-loop: LD shift + BEQ taken → MOD epilogue.
     base+908 → base+1068. Shift = 0 case (denorm body skipped). -/
 theorem evm_mod_shift0_epilogue_spec (sp base : Word)

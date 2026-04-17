@@ -191,7 +191,6 @@ theorem shl_body_3_spec (sp : Word)
 abbrev shl_body_2_code (base : Word) (jal_off : BitVec 21) : CodeReq :=
   CodeReq.ofProg base (shl_body_2_prog jal_off)
 
-set_option maxHeartbeats 3200000 in
 /-- Shift body 2: limb_shift=2.
     Result[3] = (value[1] <<< bs) ||| ((value[0] >>> as) &&& mask),
     Result[2] = value[0] <<< bs, rest = 0.
@@ -225,7 +224,6 @@ theorem shl_body_2_spec (sp : Word)
 abbrev shl_body_1_code (base : Word) (jal_off : BitVec 21) : CodeReq :=
   CodeReq.ofProg base (shl_body_1_prog jal_off)
 
-set_option maxHeartbeats 3200000 in
 /-- Shift body 1: limb_shift=1.
     Result[3] = merge(value[2],value[1]),
     Result[2] = merge(value[1],value[0]),
@@ -265,7 +263,6 @@ theorem shl_body_1_spec (sp : Word)
 abbrev shl_body_0_code (base : Word) (jal_off : BitVec 21) : CodeReq :=
   CodeReq.ofProg base (shl_body_0_prog jal_off)
 
-set_option maxHeartbeats 3200000 in
 /-- Shift body 0: limb_shift=0.
     Result[i] = merge(value[i], value[i-1]) for i=3..1,
     Result[0] = value[0] <<< bs.

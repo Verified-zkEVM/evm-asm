@@ -136,7 +136,6 @@ theorem shr_last_limb_inplace_spec
 abbrev shr_zero_path_code (base : Word) : CodeReq :=
   CodeReq.ofProg base shr_zero_path
 
-set_option maxHeartbeats 3200000 in
 theorem shr_zero_path_spec (sp : Word)
     (d0 d1 d2 d3 : Word)
     (base : Word) :
@@ -163,7 +162,6 @@ theorem shr_zero_path_spec (sp : Word)
 abbrev shr_phase_b_code (base : Word) : CodeReq :=
   CodeReq.ofProg base shr_phase_b
 
-set_option maxHeartbeats 1600000 in
 theorem shr_phase_b_spec (shift0 sp r6 r7 r11 : Word) (base : Word) :
     let bit_shift := shift0 &&& signExtend12 63
     let limb_shift := shift0 >>> (6 : BitVec 6).toNat
@@ -238,7 +236,6 @@ theorem shr_body_3_spec (sp : Word)
 abbrev shr_body_2_code (jal_off : BitVec 21) (base : Word) : CodeReq :=
   CodeReq.ofProg base (shr_body_2_prog jal_off)
 
-set_option maxHeartbeats 3200000 in
 theorem shr_body_2_spec (sp : Word)
     (v5 v10 bit_shift anti_shift mask : Word)
     (v0 v1 v2 v3 : Word)
@@ -269,7 +266,6 @@ theorem shr_body_2_spec (sp : Word)
 abbrev shr_body_1_code (jal_off : BitVec 21) (base : Word) : CodeReq :=
   CodeReq.ofProg base (shr_body_1_prog jal_off)
 
-set_option maxHeartbeats 3200000 in
 theorem shr_body_1_spec (sp : Word)
     (v5 v10 bit_shift anti_shift mask : Word)
     (v0 v1 v2 v3 : Word)
@@ -304,7 +300,6 @@ theorem shr_body_1_spec (sp : Word)
 abbrev shr_body_0_code (jal_off : BitVec 21) (base : Word) : CodeReq :=
   CodeReq.ofProg base (shr_body_0_prog jal_off)
 
-set_option maxHeartbeats 3200000 in
 theorem shr_body_0_spec (sp : Word)
     (v5 v10 bit_shift anti_shift mask : Word)
     (v0 v1 v2 v3 : Word)
@@ -449,7 +444,6 @@ abbrev shr_phase_c_code (base : Word) : CodeReq :=
   (CodeReq.union (shr_cascade_step_code 1 92 (base + 4))
   (shr_cascade_step_code 2 32 (base + 12)))
 
-set_option maxHeartbeats 3200000 in
 /-- Phase C spec: cascade dispatch on limb_shift (0-3).
     Uses disjoint composition to chain BEQ + two cascade steps. -/
 theorem shr_phase_c_spec (v5 v10 : Word) (base : Word)
@@ -559,7 +553,6 @@ theorem shr_phase_c_spec (v5 v10 : Word) (base : Word)
       · exact ⟨_, List.Mem.tail _ (List.Mem.tail _ (List.Mem.head _)), rfl, fun h hp => by xperm_hyp hp⟩
       · exact ⟨_, List.Mem.tail _ (List.Mem.tail _ (List.Mem.tail _ (List.Mem.head _))), he3.symm, fun h hp => by xperm_hyp hp⟩)
 
-set_option maxHeartbeats 6400000 in
 /-- Phase C spec with pure dispatch facts: each exit postcondition includes
     the constraint that identifies which branch was taken.
     Built by composing sub-specs with pure-fact framing. -/
@@ -728,7 +721,6 @@ abbrev shr_phase_a_code (base : Word) : CodeReq :=
   -- BEQ x10 x0 308 at base+32
   (CodeReq.singleton (base + 32) (.BEQ .x10 .x0 308)))))))
 
-set_option maxHeartbeats 6400000 in
 /-- Phase A spec: Check shift >= 256.
     9 instructions, cpsBranch with 2 exits:
     - Taken (zero_path): shift >= 256, x5/x10 are regOwn (existential)

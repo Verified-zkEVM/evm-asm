@@ -67,7 +67,6 @@ private theorem signext_nochange_lift (sp base : Word)
 -- Main theorem
 -- ============================================================================
 
-set_option maxHeartbeats 1600000 in
 /-- **Main SIGNEXTEND theorem**: `evm_signextend` computes
     `EvmWord.signextend b x`. -/
 theorem evm_signextend_stack_spec (sp base : Word)

@@ -21,7 +21,6 @@ open Sail
 
 namespace EvmAsm.Rv64.SailEquiv
 
-set_option maxHeartbeats 1600000
 
 -- ============================================================================
 -- ADDI, ANDI, ORI, XORI

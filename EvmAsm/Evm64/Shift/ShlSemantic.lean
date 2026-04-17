@@ -130,7 +130,6 @@ private theorem shl_zero_lift (sp base : Word)
 -- Main theorem
 -- ============================================================================
 
-set_option maxHeartbeats 1600000 in
 /-- **Main SHL theorem**: `evm_shl` computes the 256-bit logical left shift.
     Given shift and value as EvmWords on the stack, produces
     `if shift.toNat ≥ 256 then 0 else value <<< shift.toNat`. -/

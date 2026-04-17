@@ -52,8 +52,6 @@ theorem vtop_eq_v1_n2 (sp : Word) :
 -- Non-vacuous: no overlapping cells in precondition.
 -- ============================================================================
 
-set_option maxRecDepth 4096 in
-set_option maxHeartbeats 6400000 in
 /-- Full loop body (BLTU ntaken + BEQ skip) for n=2.
     No overlapping cells: u_hi=u2, u_lo=u1, v_top=v1.
     Entry: base+448, cpsBranch to base+448/904. -/
@@ -167,8 +165,6 @@ theorem divK_loop_body_n2_max_skip_spec
 -- Section 13n2: Full loop body cpsBranch for n=2, BLTU not-taken + BEQ addback
 -- ============================================================================
 
-set_option maxRecDepth 4096 in
-set_option maxHeartbeats 6400000 in
 /-- Full loop body (BLTU ntaken + BEQ addback) for n=2.
     No overlapping cells: u_hi=u2, u_lo=u1, v_top=v1.
     Entry: base+448, cpsBranch to base+448/904. -/
@@ -267,8 +263,6 @@ theorem divK_loop_body_n2_max_addback_spec
 -- Section 14n2: Full loop body cpsBranch for n=2, BLTU taken + BEQ skip
 -- ============================================================================
 
-set_option maxRecDepth 4096 in
-set_option maxHeartbeats 6400000 in
 /-- Full loop body (BLTU taken + BEQ skip) for n=2.
     No overlapping cells: u_hi=u2, u_lo=u1, v_top=v1.
     Entry: base+448, cpsBranch to base+448/904. -/
@@ -424,8 +418,6 @@ theorem divK_loop_body_n2_call_skip_spec
 -- Section 15n2: Full loop body cpsBranch for n=2, BLTU taken + BEQ addback
 -- ============================================================================
 
-set_option maxRecDepth 4096 in
-set_option maxHeartbeats 6400000 in
 /-- Full loop body (BLTU taken + BEQ addback) for n=2.
     No overlapping cells: u_hi=u2, u_lo=u1, v_top=v1.
     Entry: base+448, cpsBranch to base+448/904. -/

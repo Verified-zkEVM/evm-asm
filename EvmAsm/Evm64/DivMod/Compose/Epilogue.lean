@@ -43,8 +43,6 @@ private theorem se12_4040' : signExtend12 (4040 : BitVec 12) = signExtend12 4040
 private theorem se12_4048' : signExtend12 (4048 : BitVec 12) = signExtend12 4048 := rfl
 private theorem se12_4056' : signExtend12 (4056 : BitVec 12) = signExtend12 4056 := rfl
 
-set_option maxRecDepth 4096 in
-set_option maxHeartbeats 3200000 in
 /-- Denorm preamble for shift≠0: LD shift from memory + BEQ not taken.
     base+908 → base+916. Bridges the gap between loop body exit and denorm body. -/
 theorem divK_denorm_preamble_spec (sp shift v5 v6 v7 v2 v10 : Word) (base : Word)
@@ -102,8 +100,6 @@ theorem divK_denorm_preamble_spec (sp shift v5 v6 v7 v2 v10 : Word) (base : Word
     (fun h hq => by xperm_hyp hq)
     full
 
-set_option maxHeartbeats 12800000 in
-set_option maxRecDepth 4096 in
 /-- Full Denorm (shift body only): denormalize u[0..3] by right-shifting.
     base+908+8 → base+908+100 (23 instructions: ADDI+SUB + 3×merge + last).
     Used when shift≠0. The BEQ and LD are handled separately. -/
@@ -234,8 +230,6 @@ private theorem divK_divEpilogue_code_sub_divCode (base : Word) :
   skipBlock; skipBlock; skipBlock; skipBlock; skipBlock
   exact CodeReq.union_mono_left _ _
 
-set_option maxHeartbeats 12800000 in
-set_option maxRecDepth 4096 in
 /-- Full DIV epilogue: load q[0..3] from scratch, advance sp, store to output, JAL to NOP.
     base+1008 → base+1068 (10 instructions). -/
 theorem divK_div_epilogue_spec (sp : Word) (base : Word)
@@ -326,7 +320,6 @@ private theorem signExtend13_1020 : signExtend13 (1020 : BitVec 13) = (1020 : Wo
 -- Phase A body → BEQ(taken) → zeroPath → exit
 -- ============================================================================
 
-set_option maxRecDepth 2048 in
 /-- When b = 0 (all limbs zero), evm_mod writes zeros and advances sp.
     Execution path: phaseA body (7 instrs), BEQ taken, zeroPath (5 instrs). -/
 theorem evm_mod_bzero_spec (sp base : Word)
@@ -382,7 +375,6 @@ theorem evm_mod_bzero_spec (sp base : Word)
 -- Section 14: MOD Phase A not-taken composition (b ≠ 0)
 -- ============================================================================
 
-set_option maxRecDepth 2048 in
 /-- When b ≠ 0, evm_mod falls through Phase A to Phase B at base+32.
     Execution path: phaseA body (7 instrs), BEQ not taken. -/
 theorem evm_mod_phaseA_ntaken_spec (sp base : Word)
@@ -436,8 +428,6 @@ private theorem divK_modEpilogue_code_sub_modCode (base : Word) :
   skipBlock; skipBlock; skipBlock; skipBlock; skipBlock
   exact CodeReq.union_mono_left _ _
 
-set_option maxHeartbeats 12800000 in
-set_option maxRecDepth 4096 in
 /-- Full MOD epilogue: load u[0..3] (denormalized remainder), advance sp, store to output, JAL to NOP.
     base+1008 → base+1068 (10 instructions). -/
 theorem divK_mod_epilogue_spec (sp : Word) (base : Word)

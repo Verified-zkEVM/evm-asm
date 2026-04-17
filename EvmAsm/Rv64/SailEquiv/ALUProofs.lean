@@ -34,8 +34,6 @@ open Sail
 
 namespace EvmAsm.Rv64.SailEquiv
 
-set_option maxHeartbeats 1600000
-set_option maxRecDepth 1000
 
 -- ============================================================================
 -- Register inequality facts (pre-proved via decide)
@@ -117,7 +115,6 @@ theorem reg_agree_after_insert (s_sail : SailState) (s_rv : MachineState)
         | .x12 => { s_sail with regs := s_sail.regs.insert Register.x12 v }) r =
       some ((s_rv.setReg rd v).getReg r) := by
   intro r
-  set_option maxHeartbeats 800000 in
   cases rd <;> cases r <;>
     simp only [sailRegVal, MachineState.setReg, MachineState.getReg,
       Std.ExtDHashMap.get?_insert_self, Std.ExtDHashMap.get?_insert,

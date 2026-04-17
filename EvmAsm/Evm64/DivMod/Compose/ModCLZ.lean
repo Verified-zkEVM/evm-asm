@@ -112,8 +112,6 @@ private theorem mod_clz_last_combined (val count v7 : Word) (base : Word) :
       (fun _ hp => hp)
       (fun _ hp => by rw [show (val >>> (63 : Nat) : Word) = 0 from h]; exact hp) hs
 
-set_option maxRecDepth 4096 in
-set_option maxHeartbeats 6400000 in
 /-- Full CLZ composition for modCode: 24 instructions at base+116 -> base+212.
     Mirror of divK_clz_spec with modCode instead of divCode. -/
 theorem mod_clz_spec (val v6_old v7_old : Word) (base : Word) :

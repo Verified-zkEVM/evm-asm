@@ -141,7 +141,6 @@ private theorem sar_sign_fill_lift (sp base : Word)
 -- Main theorem
 -- ============================================================================
 
-set_option maxHeartbeats 1600000 in
 /-- **Main SAR theorem**: `evm_sar` computes the 256-bit arithmetic right shift.
     Given shift and value as EvmWords on the stack, produces:
     - `fromLimbs (fun _ => sshiftRight (value.getLimb 3) 63)` when shift ≥ 256

@@ -18,7 +18,6 @@ open EvmAsm.Rv64
 -- ============================================================================
 
 set_option maxRecDepth 4096 in
-set_option maxHeartbeats 400000 in
 /-- Loop body cpsTriple for n=1, call+skip, j=0.
     Since j=0, the BGE loop-back is not taken, giving a cpsTriple to base+904. -/
 theorem divK_loop_body_n1_call_skip_j0_spec
@@ -142,7 +141,6 @@ theorem divK_loop_body_n1_call_skip_j0_spec
 -- ============================================================================
 
 set_option maxRecDepth 4096 in
-set_option maxHeartbeats 400000 in
 /-- Loop body cpsTriple for n=1, call+skip, j=1.
     Since j=1, the BGE loop-back is taken, giving a cpsTriple to base+448. -/
 theorem divK_loop_body_n1_call_skip_j1_spec
@@ -267,7 +265,6 @@ theorem divK_loop_body_n1_call_skip_j1_spec
 -- ============================================================================
 
 set_option maxRecDepth 4096 in
-set_option maxHeartbeats 400000 in
 /-- Loop body cpsTriple for n=1, call+skip, j=2.
     Since j=2, the BGE loop-back is taken, giving a cpsTriple to base+448. -/
 theorem divK_loop_body_n1_call_skip_j2_spec
@@ -392,7 +389,6 @@ theorem divK_loop_body_n1_call_skip_j2_spec
 -- ============================================================================
 
 set_option maxRecDepth 4096 in
-set_option maxHeartbeats 400000 in
 /-- Loop body cpsTriple for n=1, call+skip, j=3.
     Since j=3, the BGE loop-back is taken, giving a cpsTriple to base+448. -/
 theorem divK_loop_body_n1_call_skip_j3_spec

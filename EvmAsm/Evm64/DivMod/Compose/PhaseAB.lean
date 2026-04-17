@@ -195,7 +195,6 @@ theorem phaseB_zeroed_mem_unfold (sp : Word) :
 -- Phase A body → BEQ(taken) → zeroPath → exit
 -- ============================================================================
 
-set_option maxRecDepth 2048 in
 /-- When b = 0 (all limbs zero), evm_div writes zeros and advances sp.
     Execution path: phaseA body (7 instrs), BEQ taken, zeroPath (5 instrs). -/
 theorem evm_div_bzero_spec (sp base : Word)
@@ -255,7 +254,6 @@ theorem evm_div_bzero_spec (sp base : Word)
 -- Phase A body → BEQ(ntaken) → fall through to Phase B
 -- ============================================================================
 
-set_option maxRecDepth 2048 in
 /-- When b ≠ 0, evm_div falls through Phase A to Phase B at base+32.
     Execution path: phaseA body (7 instrs), BEQ not taken. -/
 theorem evm_div_phaseA_ntaken_spec (sp base : Word)
@@ -302,8 +300,6 @@ theorem evm_div_phaseA_ntaken_spec (sp base : Word)
 -- init1 → init2 → ADDI x5=4 → BNE x10(taken) → tail
 -- ============================================================================
 
-set_option maxHeartbeats 51200000 in
-set_option maxRecDepth 4096 in
 /-- Phase B when b[3] ≠ 0 (n=4): zero scratch, load b[1..2], cascade BNE taken, load leading limb.
     Execution path: init1 (7 instrs) + init2 (2) + ADDI (1) + BNE taken (1) + tail (5) = 16 instrs.
     Exit at base+116 (start of CLZ). x5 = b[3] (leading limb), x6 = b[1], x7 = b[2], n = 4. -/
@@ -373,8 +369,6 @@ theorem evm_div_phaseB_n4_spec (sp base : Word)
 -- base → base+116 (entry to CLZ)
 -- ============================================================================
 
-set_option maxHeartbeats 25600000 in
-set_option maxRecDepth 2048 in
 /-- When b ≠ 0 and b[3] ≠ 0, evm_div executes Phase A (ntaken) then Phase B (n=4).
     Execution: 8 + 16 = 24 instructions, base → base+116 (start of CLZ).
     Pre/postcondition shapes reflect frame structure from composition. -/
@@ -529,8 +523,6 @@ private theorem phB_sp0_32 (sp : Word) : (sp + (0 : Word) + (32 : Word)) = sp + 
 -- init1 → init2 → ADDI x5=4 → BNE x10 ntaken → ADDI x5=3 → BNE x7 taken → tail
 -- ============================================================================
 
-set_option maxHeartbeats 51200000 in
-set_option maxRecDepth 4096 in
 /-- Phase B when b[3]=0, b[2]≠0 (n=3): zero scratch, load b[1..2], cascade to n=3, load b[2].
     Execution: init1(7) + init2(2) + step0(2) + step1(2) + tail(5) = 18 instrs.
     Exit at base+116 (start of CLZ). x5 = b[2] (leading limb), n = 3. -/
@@ -674,8 +666,6 @@ theorem evm_div_phaseB_n3_spec (sp base : Word)
 -- → ADDI x5=2 → BNE x6 taken → tail
 -- ============================================================================
 
-set_option maxHeartbeats 51200000 in
-set_option maxRecDepth 4096 in
 /-- Phase B when b[3]=b[2]=0, b[1]≠0 (n=2): zero scratch, cascade to n=2, load b[1].
     Execution: init1(7) + init2(2) + 3×step(6) + tail(5) = 20 instrs.
     Exit at base+116. x5 = b[1] (leading limb), n = 2. -/
@@ -854,8 +844,6 @@ theorem evm_div_phaseB_n2_spec (sp base : Word)
 -- → ADDI x5=2 → BNE x6 ntaken → ADDI x5=1 → tail
 -- ============================================================================
 
-set_option maxHeartbeats 51200000 in
-set_option maxRecDepth 4096 in
 /-- Phase B when b[3]=b[2]=b[1]=0 (n=1): zero scratch, cascade falls through all BNEs, load b[0].
     Execution: all 21 instructions of divK_phaseB.
     Exit at base+116. x5 = b[0] (leading limb), n = 1.

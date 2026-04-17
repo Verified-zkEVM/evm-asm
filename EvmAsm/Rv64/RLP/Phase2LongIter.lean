@@ -105,7 +105,6 @@ private theorem iter_addrs_distinct (base : Word) :
 -- Main spec
 -- ============================================================================
 
-set_option maxHeartbeats 400000 in
 /-- `cpsTriple` spec for one iteration of the long-form length loop.
 
     Composes five instruction specs — LBU + SLLI + ADD + ADDI (ptr) +

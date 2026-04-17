@@ -321,7 +321,6 @@ abbrev signext_phase_a_code (base : Word) : CodeReq :=
   -- BEQ x10 x0 156 at base+32
   (CodeReq.singleton (base + 32) (.BEQ .x10 .x0 156)))))))
 
-set_option maxHeartbeats 6400000 in
 /-- Phase A spec: Check b >= 31.
     9 instructions, cpsBranch with 2 exits:
     - Taken (done_path): b >= 31 (high limbs nonzero or b[0] >= 31)
@@ -612,7 +611,6 @@ abbrev signext_phase_c_code (base : Word) : CodeReq :=
   (CodeReq.union (signext_cascade_step_code 1 60 (base + 4))
   (signext_cascade_step_code 2 24 (base + 12)))
 
-set_option maxHeartbeats 3200000 in
 /-- Phase C spec: cascade dispatch on limb_idx (0-3).
     Uses disjoint composition to chain BEQ + two cascade steps. -/
 theorem signext_phase_c_spec (v5 v10 : Word) (base : Word)
@@ -762,7 +760,6 @@ theorem signext_cascade_step_spec_pure (v5 v10 : Word)
 -- Phase C with pure dispatch facts
 -- ============================================================================
 
-set_option maxHeartbeats 6400000 in
 /-- Phase C spec with pure dispatch facts: each exit postcondition includes
     the constraint that identifies which branch was taken. -/
 theorem signext_phase_c_spec_pure (v5 v10 : Word) (base : Word)

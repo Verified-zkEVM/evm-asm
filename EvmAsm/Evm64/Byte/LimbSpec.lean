@@ -282,7 +282,6 @@ private theorem byte_pc_sub_4 (base : Word) :
       (byte_phase_c_code base) a = some i :=
   byte_pc_instr_sub base (base + 16) _ 4 (by decide) (by bv_omega) (by decide)
 
-set_option maxHeartbeats 6400000 in
 /-- Phase C cascade dispatch spec: branches on x5 (limb_from_msb) to 4 body entry points.
     Each exit postcondition includes pure constraints identifying which branch was taken. -/
 theorem byte_phase_c_spec (v5 v10 : Word) (base : Word)

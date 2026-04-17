@@ -23,7 +23,6 @@ open EvmAsm.Rv64
 -- ============================================================================
 
 set_option maxRecDepth 4096 in
-set_option maxHeartbeats 6400000 in
 /-- Loop body cpsTriple for n=3, max+skip, j=0.
     Since j=0, the BGE loop-back is not taken, giving a cpsTriple to base+904. -/
 theorem divK_loop_body_n3_max_skip_j0_spec
@@ -127,7 +126,6 @@ theorem divK_loop_body_n3_max_skip_j0_spec
 -- ============================================================================
 
 set_option maxRecDepth 4096 in
-set_option maxHeartbeats 6400000 in
 /-- Loop body cpsTriple for n=3, call+skip, j=0.
     Since j=0, the BGE loop-back is not taken, giving a cpsTriple to base+904. -/
 theorem divK_loop_body_n3_call_skip_j0_spec
@@ -261,7 +259,6 @@ theorem divK_loop_body_n3_call_skip_j0_spec
 -- ============================================================================
 
 set_option maxRecDepth 4096 in
-set_option maxHeartbeats 6400000 in
 /-- Loop body cpsTriple for n=3, max+skip, j=1.
     Since j=1, the BGE loop-back is taken (j' = 0 ≥ 0), giving a cpsTriple to base+448. -/
 theorem divK_loop_body_n3_max_skip_j1_spec
@@ -366,7 +363,6 @@ theorem divK_loop_body_n3_max_skip_j1_spec
 -- ============================================================================
 
 set_option maxRecDepth 4096 in
-set_option maxHeartbeats 6400000 in
 /-- Loop body cpsTriple for n=3, call+skip, j=1.
     Since j=1, the BGE loop-back is taken, giving a cpsTriple to base+448. -/
 theorem divK_loop_body_n3_call_skip_j1_spec
@@ -501,7 +497,6 @@ theorem divK_loop_body_n3_call_skip_j1_spec
 -- ============================================================================
 
 set_option maxRecDepth 4096 in
-set_option maxHeartbeats 6400000 in
 /-- Loop body cpsTriple for n=3, max+addback+beq, j=0.
     Uses divK_mulsub_correction_addback_beq_spec to eliminate sorry. -/
 theorem divK_loop_body_n3_max_addback_beq_j0_spec
@@ -592,7 +587,6 @@ theorem divK_loop_body_n3_max_addback_beq_j0_spec
 -- ============================================================================
 
 set_option maxRecDepth 4096 in
-set_option maxHeartbeats 6400000 in
 /-- Loop body cpsTriple for n=3, call+addback+beq, j=0.
     Uses divK_mulsub_correction_addback_beq_spec to eliminate sorry. -/
 theorem divK_loop_body_n3_call_addback_beq_j0_spec
@@ -725,7 +719,6 @@ theorem divK_loop_body_n3_call_addback_beq_j0_spec
 -- ============================================================================
 
 set_option maxRecDepth 4096 in
-set_option maxHeartbeats 6400000 in
 /-- Loop body cpsTriple for n=3, max+addback+beq, j=1.
     Uses divK_mulsub_correction_addback_beq_spec to eliminate sorry. -/
 theorem divK_loop_body_n3_max_addback_beq_j1_spec
@@ -817,7 +810,6 @@ theorem divK_loop_body_n3_max_addback_beq_j1_spec
 -- ============================================================================
 
 set_option maxRecDepth 4096 in
-set_option maxHeartbeats 6400000 in
 /-- Loop body cpsTriple for n=3, call+addback+beq, j=1.
     Uses divK_mulsub_correction_addback_beq_spec to eliminate sorry. -/
 theorem divK_loop_body_n3_call_addback_beq_j1_spec

@@ -44,8 +44,6 @@ private theorem mod_se12_8 : signExtend12 (8 : BitVec 12) = (8 : Word) := by dec
 private theorem mod_se12_0 : signExtend12 (0 : BitVec 12) = (0 : Word) := by decide
 private theorem mod_signExtend21_40 : signExtend21 (40 : BitVec 21) = (40 : Word) := by decide
 
-set_option maxHeartbeats 25600000 in
-set_option maxRecDepth 4096 in
 /-- Full NormA for modCode: normalize dividend a[0..3] -> u[0..4] and jump to loopSetup.
     base+312 -> base+432 (21 instructions including JAL).
     MOD mirror of divK_normA_full_spec. -/
@@ -251,7 +249,6 @@ private theorem blt_loopSetup_sub_modCode (base : Word) :
 
 private theorem mod_signExtend13_464 : signExtend13 (464 : BitVec 13) = (464 : Word) := by decide
 
-set_option maxRecDepth 2048 in
 /-- LoopSetup when m >= 0 (n <= 4): falls through to loop body at base+448.
     MOD mirror of divK_loopSetup_ntaken_spec. -/
 theorem mod_loopSetup_ntaken_spec (sp n v1 v5 : Word) (base : Word)
@@ -285,7 +282,6 @@ theorem mod_loopSetup_ntaken_spec (sp n v1 v5 : Word) (base : Word)
     (fun h hq => by xperm_hyp hq)
     h12
 
-set_option maxRecDepth 2048 in
 /-- LoopSetup when m < 0 (n > 4, skip loop): branches to denorm at base+904.
     MOD mirror of divK_loopSetup_taken_spec. -/
 theorem mod_loopSetup_taken_spec (sp n v1 v5 : Word) (base : Word)

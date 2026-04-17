@@ -46,7 +46,6 @@ private theorem divK_phaseC2_body_divCode (sp shift v2 shift_mem : Word) (base :
   rw [show (base + phaseC2Off : Word) + 12 = base + 224 from by bv_addr] at hbody
   exact cpsTriple_extend_code (divK_phaseC2_code_sub_divCode base) hbody
 
-set_option maxRecDepth 2048 in
 /-- Phase C2 when shift ≠ 0: falls through to normB at base+228.
     Stores shift to scratch, computes anti_shift = -shift. -/
 theorem divK_phaseC2_ntaken_spec (sp shift v2 shift_mem : Word) (base : Word)
@@ -77,7 +76,6 @@ theorem divK_phaseC2_ntaken_spec (sp shift v2 shift_mem : Word) (base : Word)
     (fun h hq => by xperm_hyp hq)
     hC2
 
-set_option maxRecDepth 2048 in
 /-- Phase C2 when shift = 0: branches to copyAU at base+396.
     Stores shift (=0) to scratch, computes anti_shift = 0. -/
 theorem divK_phaseC2_taken_spec (sp shift v2 shift_mem : Word) (base : Word)
@@ -133,8 +131,6 @@ private theorem normB_sub (base : Word) (sub_prog : List Instr) (k : Nat)
 
 -- se12_32, se12_40, se12_48, se12_56 are in Base.lean
 
-set_option maxHeartbeats 12800000 in
-set_option maxRecDepth 4096 in
 /-- NormB first half: merge1 (b[3] with b[2]) + merge2 (b[2] with b[1]).
     base+228 → base+276 (12 instructions). -/
 private theorem divK_normB_half1 (sp b0 b1 b2 b3 v5 v7 shift anti_shift : Word) (base : Word) :
@@ -183,8 +179,6 @@ private theorem divK_normB_half1 (sp b0 b1 b2 b3 v5 v7 shift anti_shift : Word) 
     (fun h hq => by xperm_hyp hq)
     h12
 
-set_option maxHeartbeats 12800000 in
-set_option maxRecDepth 4096 in
 /-- NormB second half: merge3 (b[1] with b[0]) + last (b[0] shift).
     base+276 → base+312 (9 instructions). -/
 private theorem divK_normB_half2 (sp b0 b1 b2' b3' shift anti_shift : Word) (base : Word) :
@@ -233,8 +227,6 @@ private theorem divK_normB_half2 (sp b0 b1 b2' b3' shift anti_shift : Word) (bas
     (fun h hq => by xperm_hyp hq)
     h34
 
-set_option maxHeartbeats 800000 in
-set_option maxRecDepth 4096 in
 /-- Full NormB: normalize divisor b[0..3] in place by left-shifting.
     base+228 → base+312 (21 instructions).
     Pre: x12=sp, x6=shift, x2=anti_shift, b[0..3] at sp+32..56.

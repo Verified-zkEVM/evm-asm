@@ -608,7 +608,6 @@ theorem divK_phaseC2_body_spec (sp shift v2 shift_mem : Word)
 -- Phase C2 full: body + BEQ (shift = 0 branch). cpsBranch.
 -- ============================================================================
 
-set_option maxRecDepth 1024 in
 /-- Phase C2: store shift, compute anti_shift, BEQ if shift=0.
     Taken: shift = 0, skip normalization.
     Not taken: shift ≠ 0, proceed to normalize.
@@ -1353,7 +1352,6 @@ theorem divK_addback_final_spec (u_base carry q_hat v5_old u_top : Word)
 -- 2 instructions: ADDI + BGE.
 -- ============================================================================
 
-set_option maxRecDepth 1024 in
 /-- Loop control: decrement j and branch back if j >= 0. -/
 theorem divK_loop_control_spec (j : Word) (loop_back_off : BitVec 13)
     (base : Word) :
@@ -1915,7 +1913,6 @@ theorem divK_div128_restore_return_spec (sp v2_old ret_addr : Word) (base : Word
 -- BEQ skips correction if q1 < 2^32, else q1-- and rhat+=d_hi.
 -- ============================================================================
 
-set_option maxRecDepth 1024 in
 /-- div128 clamp q1: test q1 >= 2^32, conditionally decrement and adjust rhat.
     Instrs [13]-[16]. Both BEQ paths merge at base+16. -/
 theorem divK_div128_clamp_q1_merged_spec (q1 rhat d_hi v5_old : Word) (base : Word) :
@@ -2019,7 +2016,6 @@ theorem divK_div128_clamp_q1_merged_spec (q1 rhat d_hi v5_old : Word) (base : Wo
 -- BLTU taken → correction, BLTU ntaken → JAL skip. Both merge at base+32.
 -- ============================================================================
 
-set_option maxRecDepth 8192 in
 /-- div128 product check 1: compute q1*d_lo vs rhat*2^32+un1, conditionally correct.
     Instrs [17]-[24]. Both BLTU paths merge at base+32. -/
 theorem divK_div128_prodcheck1_merged_spec
@@ -2183,7 +2179,6 @@ theorem divK_div128_prodcheck1_merged_spec
 -- BEQ skips correction if q0 < 2^32, else q0-- and rhat2+=d_hi.
 -- ============================================================================
 
-set_option maxRecDepth 1024 in
 /-- div128 clamp q0: test q0 >= 2^32, conditionally decrement and adjust rhat2.
     Instrs [33]-[36]. Both BEQ paths merge at base+16. -/
 theorem divK_div128_clamp_q0_merged_spec (q0 rhat2 d_hi v1_old : Word) (base : Word) :
@@ -2284,7 +2279,6 @@ theorem divK_div128_clamp_q0_merged_spec (q0 rhat2 d_hi v1_old : Word) (base : W
 -- BLTU taken → ADDI correction, BLTU ntaken → JAL skip. Both merge at base+32.
 -- ============================================================================
 
-set_option maxRecDepth 8192 in
 /-- div128 product check 2: compute q0*d_lo vs rhat2*2^32+un0, conditionally correct q0.
     Instrs [37]-[44]. Both BLTU paths merge at base+32. -/
 theorem divK_div128_prodcheck2_merged_spec
@@ -2442,8 +2436,6 @@ theorem divK_div128_prodcheck2_merged_spec
 --   + LD+MUL+SLLI+OR+BLTU+JAL+ADDI+ADD (product check 1).
 -- ============================================================================
 
-set_option maxHeartbeats 4000000 in
-set_option maxRecDepth 2048 in
 /-- div128 step 1: trial division q1, clamp, product check. Instrs [10]-[24].
     Input: u_hi in x7, d_hi in x6, un1 in x11, dlo in memory.
     Output: refined q1 in x10, refined rhat in x7. -/
@@ -2583,8 +2575,6 @@ theorem divK_div128_step1_spec
 --   + LD+MUL+SLLI+LD+OR+BLTU+JAL+ADDI (product check 2).
 -- ============================================================================
 
-set_option maxHeartbeats 4000000 in
-set_option maxRecDepth 2048 in
 /-- div128 step 2: trial division q0, clamp, product check. Instrs [30]-[44].
     Input: un21 in x7, d_hi in x6, dlo/un0 in memory.
     Output: refined q0 in x5. -/
@@ -2724,7 +2714,6 @@ theorem divK_div128_step2_spec
 -- 10 instructions: SD+SD+SRLI+SLLI+SRLI+SD + SRLI+SLLI+SRLI+SD.
 -- ============================================================================
 
-set_option maxRecDepth 2048 in
 /-- div128 Phase 1: save return addr/d, split d and u_lo. Instrs [0]-[9].
     Input: x12=sp, x2=ret_addr, x10=d, x5=u_lo, x7=u_hi.
     Output: x6=d_hi, x11=un1, x5=un0 (saved), x7=u_hi (unchanged). -/
@@ -2780,7 +2769,6 @@ theorem divK_div128_phase1_spec
 -- 4 instructions: SLLI + OR + LD + JALR.
 -- ============================================================================
 
-set_option maxRecDepth 2048 in
 /-- div128 end phase: combine q1,q0 into q, restore return addr, return.
     Instrs [45]-[48]. Exit to ret_addr. -/
 theorem divK_div128_end_spec
@@ -2812,7 +2800,6 @@ theorem divK_div128_end_spec
 -- These compose partA+partB into single per-limb operations.
 -- ============================================================================
 
-set_option maxRecDepth 2048 in
 /-- Mul-sub full limb: partA (6 instrs) + partB (5 instrs) = 11 instructions.
     Input: q_hat (x11), carry_in (x10), v[i] and u[j+i] in memory.
     Output: carry_out (x10), u_new stored. -/
@@ -2865,7 +2852,6 @@ theorem divK_mulsub_limb_spec
   have I9 := add_spec_gen_rd_eq_rs1 .x10 .x5 partial_carry borrow_sub (base + 36) (by nofun)
   have I10 := sd_spec_gen .x6 .x2 u_base u_new u_i u_off (base + 40)
   runBlock I0 I1 I2 I3 I4 I5 I6 I7 I8 I9 I10
-set_option maxRecDepth 2048 in
 /-- Add-back full limb: partA (5 instrs) + partB (3 instrs) = 8 instructions.
     Input: carry_in (x7), v[i] and u[j+i] in memory.
     Output: carry_out (x7), u_new stored. -/
@@ -2912,7 +2898,6 @@ theorem divK_addback_limb_spec
 -- trial_load_u [1]-[7] + trial_load_vtop [8]-[12] = 12 instructions.
 -- ============================================================================
 
-set_option maxRecDepth 2048 in
 /-- Trial quotient load: fetch u_hi, u_lo, v_top from memory.
     Instrs [1]-[12] of loop body.
     Output: x7 = u_hi, x5 = u_lo, x10 = v_top, x6 = vtop_base. -/
@@ -2975,7 +2960,6 @@ theorem divK_trial_load_spec
 -- Composed store q[j]: addr computation + SD = 4 instructions.
 -- ============================================================================
 
-set_option maxRecDepth 2048 in
 /-- Store q[j]: compute address and store q_hat. 4 instructions.
     q_addr = sp + 4088 - j*8. -/
 theorem divK_store_qj_spec (sp j q_hat v5_old v7_old q_old : Word)

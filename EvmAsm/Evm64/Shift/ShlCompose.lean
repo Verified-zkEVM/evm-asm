@@ -222,7 +222,6 @@ private theorem shl_body0_exit (base : Word) : ((base + 240 : Word) + 96) + sign
 -- Section 4: Zero path composition
 -- ============================================================================
 
-set_option maxHeartbeats 1600000 in
 /-- Zero path via BNE taken: high shift limbs are nonzero → shift ≥ 256 → result is zero. -/
 theorem evm_shl_zero_high_spec (sp base : Word)
     (s0 s1 s2 s3 v0 v1 v2 v3 r5 r10 : Word)
@@ -344,7 +343,6 @@ theorem evm_shl_zero_high_spec (sp base : Word)
         from by xperm) h).mp w1)
     hABZ
 
-set_option maxHeartbeats 3200000 in
 /-- Zero path via BEQ taken: s1=s2=s3=0 but s0 ≥ 256 → result is zero. -/
 theorem evm_shl_zero_large_spec (sp base : Word)
     (s0 s1 s2 s3 v0 v1 v2 v3 r5 r10 : Word)
@@ -577,7 +575,6 @@ private theorem cpsTriple_strip_pure_and_convert
 
 -- Merge limb bridge: for limbs i where i > L (i-L and i-L-1 are both valid source limbs).
 open EvmWord in
-set_option maxHeartbeats 800000 in
 private theorem shl_bridge_merge (value : EvmWord) (s0 : Word)
     (result : EvmWord) (hresult : result = value <<< s0.toNat)
     (L : Nat) (i : Fin 4)
@@ -622,7 +619,6 @@ private theorem shl_bridge_merge (value : EvmWord) (s0 : Word)
 
 -- First limb bridge: for the lowest non-zero limb (i = L, only SLL).
 open EvmWord in
-set_option maxHeartbeats 400000 in
 private theorem shl_bridge_first (value : EvmWord) (s0 : Word)
     (result : EvmWord) (hresult : result = value <<< s0.toNat)
     (L : Nat) (i : Fin 4)
@@ -647,7 +643,6 @@ private theorem shl_bridge_first (value : EvmWord) (s0 : Word)
 
 -- Zero limb bridge: for limbs below the shift (i < L, result is 0).
 open EvmWord in
-set_option maxHeartbeats 400000 in
 private theorem shl_bridge_zero (value : EvmWord) (s0 : Word)
     (result : EvmWord) (hresult : result = value <<< s0.toNat)
     (L : Nat) (i : Fin 4)
@@ -666,7 +661,6 @@ private theorem shl_bridge_zero (value : EvmWord) (s0 : Word)
 -- ============================================================================
 
 open EvmWord in
-set_option maxHeartbeats 6400000 in
 /-- Body path: shift < 256 → result is `value <<< shift.toNat`.
     Composes Phase A ntaken → B → C → body_L → exit and uses
     bridge lemmas to connect per-limb results to the 256-bit shift. -/

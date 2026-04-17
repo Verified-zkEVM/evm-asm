@@ -146,8 +146,6 @@ private theorem divK_clz_last_combined (val count v7 : Word) (base : Word) :
       (fun _ hp => hp)
       (fun _ hp => by rw [show (val >>> (63 : Nat) : Word) = 0 from h]; exact hp) hs
 
-set_option maxRecDepth 4096 in
-set_option maxHeartbeats 6400000 in
 /-- Full CLZ composition: 24 instructions at base+116→base+212.
     Computes count of leading zeros in x6, shifts x5 left by that count.
     Entry: base+116 with x5=val, x6=v6_old, x7=v7_old, x0=0.

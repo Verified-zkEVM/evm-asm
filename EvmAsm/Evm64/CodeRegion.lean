@@ -47,7 +47,6 @@ def packBytes (bytes : List (BitVec 8)) : Word :=
 -- extractByte_packDword: the critical bridge lemma
 -- ============================================================================
 
-set_option maxHeartbeats 4000000 in
 private theorem epd_core (b0 b1 b2 b3 b4 b5 b6 b7 : BitVec 8) (k : Fin 8) :
     let w := b0.zeroExtend 64 |||
        (b1.zeroExtend 64 <<< 8) |||

@@ -67,8 +67,6 @@ private theorem d128_off_180 (base : Word) : (base + div128Off : Word) + 180 = b
 -- Entry: base+1072, Exit: ret_addr (via JALR), CodeReq: sharedDivModCode base.
 -- ============================================================================
 
-set_option maxHeartbeats 25600000 in
-set_option maxRecDepth 4096 in
 theorem div128_spec (sp ret_addr d u_lo u_hi : Word) (base : Word)
     (v1_old v6_old v11_old : Word)
     (ret_mem d_mem dlo_mem un0_mem : Word)

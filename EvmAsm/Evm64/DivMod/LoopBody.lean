@@ -74,7 +74,6 @@ private theorem lb_ms_end (base : Word) : (base + 668 : Word) + 44 = base + 712 
 -- ============================================================================
 
 set_option maxRecDepth 4096 in
-set_option maxHeartbeats 800000 in
 /-- Multiply-subtract all 4 limbs: u[j+k] -= q_hat * v[k] for k=0..3 with carry chain.
     44 instructions, loop body indices [22]-[65].
     Entry: base+536, Exit: base+712, CodeReq: sharedDivModCode base. -/
@@ -244,7 +243,6 @@ private theorem lb_ab3_end (base : Word) : (base + 832 : Word) + 32 = base + 864
 private theorem lb_abf_end (base : Word) : (base + 864 : Word) + 16 = base + 880 := by bv_addr
 
 set_option maxRecDepth 4096 in
-set_option maxHeartbeats 800000 in
 /-- Full add-back correction: init carry + 4 limb corrections + final u[j+4] adjust + q_hat--.
     37 instructions, loop body indices [71]-[107].
     Entry: base+732, Exit: base+880, CodeReq: sharedDivModCode base. -/
@@ -403,7 +401,6 @@ private theorem lb_ms_setup (base : Word) : (base + 516 : Word) + 20 = base + 53
 private theorem lb_sc (base : Word) : (base + 712 : Word) + 16 = base + 728 := by bv_addr
 
 set_option maxRecDepth 4096 in
-set_option maxHeartbeats 1600000 in
 /-- Mulsub full: setup + 4-limb multiply-subtract + carry subtraction from u[j+4].
     53 instructions, loop body indices [17]-[69].
     Entry: base+516, Exit: base+728, CodeReq: sharedDivModCode base. -/
@@ -589,8 +586,6 @@ theorem divK_correction_skip_spec
 -- BEQ not-taken → run addback. 38 instrs at base+728 → base+880.
 -- ============================================================================
 
-set_option maxRecDepth 4096 in
-set_option maxHeartbeats 1600000 in
 /-- Correction with addback: when borrow≠0, BEQ not-taken → addback_full.
     38 instructions. Modifies u values and decrements q_hat. -/
 theorem divK_correction_addback_spec
@@ -710,8 +705,6 @@ theorem divK_correction_addback_named_spec
 private theorem lb_save_j (base : Word) : (base + loopBodyOff : Word) + 4 = base + 452 := by bv_addr
 private theorem lb_trial_load (base : Word) : (base + 452 : Word) + 48 = base + 500 := by bv_addr
 
-set_option maxRecDepth 4096 in
-set_option maxHeartbeats 800000 in
 /-- Save j + trial load: save j to memory, then load u_hi, u_lo, v_top for trial quotient.
     13 instructions, loop body indices [0]-[12].
     Entry: base+448, Exit: base+500, CodeReq: sharedDivModCode base. -/
@@ -817,8 +810,6 @@ private theorem divK_trial_max_extended (v11_old : Word) (base : Word) :
 -- Instr [16] JAL x2 560 at base+512 → div128 at base+1072 → returns to base+516.
 -- ============================================================================
 
-set_option maxRecDepth 4096 in
-set_option maxHeartbeats 1600000 in
 /-- Trial call path: JAL x2 560 (instr [16]) + div128 subroutine.
     Entry: base+512, Exit: base+516, CodeReq: sharedDivModCode base.
     Computes q_hat = div128(u_hi, u_lo, v_top). -/
@@ -1077,8 +1068,6 @@ theorem divK_double_addback_beq_named_spec
   exact divK_double_addback_beq_spec sp u_base q_hat' v0 v1 v2 v3 aun0 aun1 aun2 aun3 aun4
     base hcarry2_nz
 
-set_option maxRecDepth 4096 in
-set_option maxHeartbeats 800000 in
 /-- Double-addback BEQ check + store q[j] + loop control.
     7 instructions, loop body indices [108]-[114].
     The BEQ at [108] checks if addback carry (x7) = 0.
@@ -1331,8 +1320,6 @@ theorem divK_store_loop_jgt0_spec
 -- Takes borrow as an explicit parameter (not let-bound) to enable rw.
 -- ============================================================================
 
-set_option maxRecDepth 4096 in
-set_option maxHeartbeats 3200000 in
 /-- Mulsub + correction skip: when mulsub produces borrow=0, skip addback.
     Takes borrow as explicit parameter to avoid let-binding expansion issues.
     Entry: base+516, Exit: base+880, CodeReq: sharedDivModCode base. -/
@@ -1417,8 +1404,6 @@ theorem divK_mulsub_correction_skip_spec
 -- Section 10b: Mulsub + correction_addback composition (borrow ≠ 0 path)
 -- ============================================================================
 
-set_option maxRecDepth 4096 in
-set_option maxHeartbeats 3200000 in
 /-- Mulsub + correction addback (without BEQ): when mulsub produces borrow≠0, run addback.
     Entry: base+516, Exit: base+880 (before BEQ at [108]).
     CodeReq: sharedDivModCode base. -/
@@ -1526,8 +1511,6 @@ theorem divK_mulsub_correction_addback_880_spec
     (fun h hq => by xperm_hyp hq)
     MSCA
 
-set_option maxRecDepth 4096 in
-set_option maxHeartbeats 3200000 in
 /-- Mulsub + correction addback (→880), named postcondition variant.
     Uses addbackN4/addbackN4_carry in postcondition for rewritability. -/
 theorem divK_mulsub_correction_addback_named_880_spec
@@ -1567,7 +1550,6 @@ theorem divK_mulsub_correction_addback_named_880_spec
     v1_old v5_old v6_old v7_old v10_old v2_old base) hborrow
 
 set_option maxRecDepth 4096 in
-set_option maxHeartbeats 3200000 in
 /-- Mulsub + correction addback + BEQ passthrough: when mulsub produces borrow≠0,
     run addback, then BEQ falls through (carry ≠ 0).
     Entry: base+516, Exit: base+884, CodeReq: sharedDivModCode base. -/
@@ -1700,7 +1682,6 @@ theorem divK_mulsub_correction_addback_spec
 -- ============================================================================
 
 set_option maxRecDepth 4096 in
-set_option maxHeartbeats 1600000 in
 /-- Trial quotient max path: save j + load + BLTU not-taken + trial_max.
     When u_hi >= v_top, sets q_hat = MAX64 without calling div128.
     Entry: base+448, Exit: base+516, CodeReq: sharedDivModCode base. -/
@@ -1765,7 +1746,6 @@ theorem divK_trial_max_full_spec
 -- ============================================================================
 
 set_option maxRecDepth 4096 in
-set_option maxHeartbeats 3200000 in
 /-- Trial quotient call path: save j + load + BLTU taken + JAL + div128.
     When u_hi < v_top, computes q_hat = div128(u_hi, u_lo, v_top).
     Entry: base+448, Exit: base+516, CodeReq: sharedDivModCode base. -/
@@ -1876,8 +1856,6 @@ theorem divK_trial_call_full_spec
 -- Uses iterWithDoubleAddback-style postcondition.
 -- ============================================================================
 
-set_option maxRecDepth 4096 in
-set_option maxHeartbeats 3200000 in
 /-- Mulsub + correction with addback + BEQ at [108]: when borrow ≠ 0, performs
     first addback and then handles the BEQ:
     - carry ≠ 0 (single addback): BEQ falls through to base+884

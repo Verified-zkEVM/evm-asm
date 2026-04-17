@@ -347,7 +347,6 @@ private theorem align4_getLsbD1 (v : BitVec 64) (h : v &&& 3 = 0) :
     v.getLsbD 1 = false := by
   have := congrArg (·.getLsbD 1) h; simp at this; exact this
 
-set_option maxHeartbeats 8000000 in
 /-- jump_to succeeds for 4-byte aligned targets: writes nextPC, returns RETIRE_SUCCESS.
     Requires 4-byte alignment (bits 0,1 = 0) and that misa is readable in the
     SAIL state. Alignment makes the Ext_Zca result irrelevant (bit 1 = 0). -/

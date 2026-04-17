@@ -110,8 +110,6 @@ theorem mod_phB_sp24_32 (sp : Word) :
 -- Mirror of evm_div_phaseB_n4_spec with modCode.
 -- ============================================================================
 
-set_option maxHeartbeats 6400000 in
-set_option maxRecDepth 2048 in
 /-- MOD Phase B for n=4 (b[3] ≠ 0): x5 = b[3], x10 = b[3] (leading limb).
     init1 → init2 → ADDI x5=4 → BNE(taken, b[3]≠0) → tail. -/
 theorem evm_mod_phaseB_n4_spec (sp base : Word)

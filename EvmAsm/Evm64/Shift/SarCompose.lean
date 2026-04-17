@@ -270,7 +270,6 @@ private theorem sar_off_sp32 (sp : Word) : sp + signExtend12 (32 : BitVec 12) = 
 -- Section 4: Sign-fill path composition
 -- ============================================================================
 
-set_option maxHeartbeats 1600000 in
 /-- Sign-fill via BNE taken: high shift limbs are nonzero → shift ≥ 256 → result is sign extension.
     Execution: LD s1 → LD/OR s2 → LD/OR s3 → BNE(taken) → sign_fill_path. -/
 theorem evm_sar_sign_fill_high_spec (sp base : Word)
@@ -388,7 +387,6 @@ theorem evm_sar_sign_fill_high_spec (sp base : Word)
         from by xperm) h).mp w1)
     hABS
 
-set_option maxHeartbeats 3200000 in
 /-- Sign-fill via BEQ taken: s1=s2=s3=0 but s0 ≥ 256 → result is sign extension. -/
 theorem evm_sar_sign_fill_large_spec (sp base : Word)
     (s0 s1 s2 s3 v0 v1 v2 v3 r5 r10 : Word)
@@ -551,7 +549,6 @@ theorem evm_sar_sign_fill_large_spec (sp base : Word)
 -- Section 5: Phase C spec (SAR-specific offsets)
 -- ============================================================================
 
-set_option maxHeartbeats 6400000 in
 /-- SAR Phase C cascade dispatch. Same structure as SHR but with SAR exit addresses. -/
 theorem sar_phase_c_spec_pure (v5 v10 : Word) (base : Word)
     (e0 e1 e2 e3 : Word)
@@ -744,7 +741,6 @@ private theorem cpsTriple_strip_pure_and_convert
 
 -- Merge limb bridge: identical formula to SHR, but for sshiftRight result.
 open EvmWord in
-set_option maxHeartbeats 800000 in
 private theorem sar_bridge_merge (value : EvmWord) (s0 : Word)
     (result : EvmWord) (hresult : result = BitVec.sshiftRight value s0.toNat)
     (L : Nat) (i : Fin 4)
@@ -787,7 +783,6 @@ private theorem sar_bridge_merge (value : EvmWord) (s0 : Word)
 
 -- Last limb bridge: for the highest non-zero limb (i+L = 3, SRA instead of SRL).
 open EvmWord in
-set_option maxHeartbeats 400000 in
 private theorem sar_bridge_last (value : EvmWord) (s0 : Word)
     (result : EvmWord) (hresult : result = BitVec.sshiftRight value s0.toNat)
     (L : Nat) (i : Fin 4)
@@ -808,7 +803,6 @@ private theorem sar_bridge_last (value : EvmWord) (s0 : Word)
 
 -- Sign limb bridge: for limbs beyond the shift (i+L >= 4, sign extension).
 open EvmWord in
-set_option maxHeartbeats 400000 in
 private theorem sar_bridge_sign (value : EvmWord) (s0 : Word)
     (result : EvmWord) (hresult : result = BitVec.sshiftRight value s0.toNat)
     (L : Nat) (i : Fin 4)
@@ -853,7 +847,6 @@ private theorem sar_bridge_sign (value : EvmWord) (s0 : Word)
 -- ============================================================================
 
 open EvmWord in
-set_option maxHeartbeats 6400000 in
 /-- Body path: shift < 256 → result is `sshiftRight value shift.toNat`.
     Composes Phase A ntaken → B → C → body_L → exit and uses
     bridge lemmas to connect per-limb results to the 256-bit arithmetic shift. -/

@@ -48,8 +48,6 @@ private theorem se12_4048 : signExtend12 (4048 : BitVec 12) = signExtend12 4048 
 private theorem se12_4056 : signExtend12 (4056 : BitVec 12) = signExtend12 4056 := rfl
 private theorem signExtend21_40 : signExtend21 (40 : BitVec 21) = (40 : Word) := by decide
 
-set_option maxHeartbeats 25600000 in
-set_option maxRecDepth 4096 in
 /-- Full NormA: normalize dividend a[0..3] → u[0..4] and jump to loopSetup.
     base+312 → base+432 (21 instructions including JAL).
     u[4] = a[3]>>>anti_shift, u[3..0] = merged shifted limbs. -/
@@ -257,7 +255,6 @@ private theorem blt_loopSetup_sub_divCode (base : Word) :
 
 private theorem signExtend13_464 : signExtend13 (464 : BitVec 13) = (464 : Word) := by decide
 
-set_option maxRecDepth 2048 in
 /-- LoopSetup when m ≥ 0 (n ≤ 4): falls through to loop body at base+448.
     Loads n from scratch, computes m = 4-n, BLT not taken. -/
 theorem divK_loopSetup_ntaken_spec (sp n v1 v5 : Word) (base : Word)
@@ -291,7 +288,6 @@ theorem divK_loopSetup_ntaken_spec (sp n v1 v5 : Word) (base : Word)
     (fun h hq => by xperm_hyp hq)
     h12
 
-set_option maxRecDepth 2048 in
 /-- LoopSetup when m < 0 (n > 4, skip loop): branches to denorm at base+904. -/
 theorem divK_loopSetup_taken_spec (sp n v1 v5 : Word) (base : Word)
     (hm_lt : BitVec.slt (signExtend12 (4 : BitVec 12) - n) (0 : Word)) :

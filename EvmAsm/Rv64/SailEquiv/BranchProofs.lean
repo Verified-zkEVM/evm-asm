@@ -22,7 +22,6 @@ open Sail
 
 namespace EvmAsm.Rv64.SailEquiv
 
-set_option maxHeartbeats 8000000
 
 -- ============================================================================
 -- Helper lemmas for branch proofs
