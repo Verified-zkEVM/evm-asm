@@ -308,6 +308,22 @@ def divScratchOwn (sp : Word) : Assertion :=
   memOwn (sp + signExtend12 3984) **
   memOwn (sp + signExtend12 3976)
 
+/-- Named unfold for `divScratchOwn`. Restores access to the underlying
+    definition once the `@[irreducible]` attribute has made `delta` the only
+    way in at call sites. Parallel to `divScratchValues_unfold`. -/
+theorem divScratchOwn_unfold (sp : Word) :
+    divScratchOwn sp =
+    (memOwn (sp + signExtend12 4088) ** memOwn (sp + signExtend12 4080) **
+     memOwn (sp + signExtend12 4072) ** memOwn (sp + signExtend12 4064) **
+     memOwn (sp + signExtend12 4056) ** memOwn (sp + signExtend12 4048) **
+     memOwn (sp + signExtend12 4040) ** memOwn (sp + signExtend12 4032) **
+     memOwn (sp + signExtend12 4024) ** memOwn (sp + signExtend12 4016) **
+     memOwn (sp + signExtend12 4008) ** memOwn (sp + signExtend12 4000) **
+     memOwn (sp + signExtend12 3992) **
+     memOwn (sp + signExtend12 3984) **
+     memOwn (sp + signExtend12 3976)) := by
+  delta divScratchOwn; rfl
+
 theorem pcFree_divScratchValues (sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
     shift_mem n_mem j_mem : Word) :
     (divScratchValues sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
