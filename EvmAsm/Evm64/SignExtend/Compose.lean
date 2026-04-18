@@ -10,12 +10,14 @@
 
 import EvmAsm.Evm64.SignExtend.LimbSpec
 import EvmAsm.Evm64.EvmWordArith
+import EvmAsm.Rv64.AddrNorm
 
 open EvmAsm.Rv64.Tactics
 
 namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
+open EvmAsm.Rv64.AddrNorm (se13_24 se13_60 se13_100 se13_156 se13_168 se21_36 se21_68 se21_96)
 
 -- ============================================================================
 -- Section 1: signextCode definition and helpers
@@ -197,24 +199,24 @@ private theorem se_off_24 (base : Word) : (base + 24 : Word) + 4 = base + 28 := 
 private theorem se_off_28 (base : Word) : (base + 28 : Word) + 4 = base + 32 := by bv_omega
 private theorem se_off_32 (base : Word) : (base + 32 : Word) + 4 = base + 36 := by bv_omega
 private theorem se_bne_target (base : Word) : (base + 20 : Word) + signExtend13 168 = base + 188 := by
-  rw [show signExtend13 (168 : BitVec 13) = (168 : Word) from by decide]; bv_omega
+  rw [se13_168]; bv_omega
 private theorem se_beq_target (base : Word) : (base + 32 : Word) + signExtend13 156 = base + 188 := by
-  rw [show signExtend13 (156 : BitVec 13) = (156 : Word) from by decide]; bv_omega
+  rw [se13_156]; bv_omega
 -- Phase C exit addresses
 private theorem se_c_e0 (base : Word) : (base + 56 : Word) + signExtend13 100 = base + 156 := by
-  rw [show signExtend13 (100 : BitVec 13) = (100 : Word) from by decide]; bv_omega
+  rw [se13_100]; bv_omega
 private theorem se_c_e1 (base : Word) : ((base + 56 : Word) + 8) + signExtend13 60 = base + 124 := by
-  rw [show signExtend13 (60 : BitVec 13) = (60 : Word) from by decide]; bv_omega
+  rw [se13_60]; bv_omega
 private theorem se_c_e2 (base : Word) : ((base + 56 : Word) + 16) + signExtend13 24 = base + 96 := by
-  rw [show signExtend13 (24 : BitVec 13) = (24 : Word) from by decide]; bv_omega
+  rw [se13_24]; bv_omega
 private theorem se_c_e3 (base : Word) : (base + 56 : Word) + 20 = base + 76 := by bv_omega
 -- Body exit addresses (JAL targets)
 private theorem se_body3_exit (base : Word) : ((base + 76 : Word) + 16) + signExtend21 96 = base + 188 := by
-  rw [show signExtend21 (96 : BitVec 21) = (96 : Word) from by decide]; bv_omega
+  rw [se21_96]; bv_omega
 private theorem se_body2_exit (base : Word) : ((base + 96 : Word) + 24) + signExtend21 68 = base + 188 := by
-  rw [show signExtend21 (68 : BitVec 21) = (68 : Word) from by decide]; bv_omega
+  rw [se21_68]; bv_omega
 private theorem se_body1_exit (base : Word) : ((base + 124 : Word) + 28) + signExtend21 36 = base + 188 := by
-  rw [show signExtend21 (36 : BitVec 21) = (36 : Word) from by decide]; bv_omega
+  rw [se21_36]; bv_omega
 private theorem se_done_exit (base : Word) : (base + 188 : Word) + 4 = base + 192 := by bv_omega
 
 -- ============================================================================
