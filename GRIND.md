@@ -164,14 +164,23 @@ When in doubt, write a short throwaway test demonstrating the duplication is rea
 
 ## 7. Sets currently in the repo
 
-| Set | File | Status | Issue / PR |
-|---|---|---|---|
-| `divmod_addr` | `EvmAsm/Evm64/DivMod/AddrNorm.lean` (+ `AddrNormAttr.lean`) | landed (infrastructure + 1 file migrated) | #263 / #304 |
-| `reg_ops` | `EvmAsm/Rv64/RegOps.lean` (+ `RegOpsAttr.lean`) | infrastructure landed (sanity proofs only, migrations pending) | GRIND.md Phase 5 |
-| `rv64_addr` | `EvmAsm/Rv64/AddrNorm.lean` (+ `AddrNormAttr.lean`) | infrastructure landed (~47 signExtend13 / signExtend21 atomic facts + associativity, sanity proofs only, migrations pending) | GRIND.md Phase 3 |
-| `byte_alg` | `EvmAsm/Rv64/ByteAlg.lean` (+ `ByteAlgAttr.lean`) | infrastructure landed (seeded with `extractByte_replaceByte_same`; further algebra identities pending) | GRIND.md Phase 4 |
+Sets are grouped by **scope**: Rv64-wide sets live under `EvmAsm/Rv64/` and are reachable from every downstream opcode file; opcode-specific sets live under `EvmAsm/Evm64/<Opcode>/` and only serve that opcode subtree (a new opcode should ship its own `<Opcode>Addr` grindset per the [`OPCODE_TEMPLATE.md`](EvmAsm/Evm64/OPCODE_TEMPLATE.md) §2.5 rule).
 
-Add new rows here as sets land. Each row should link the issue and the introducing PR.
+### Rv64-wide (repo-global)
+
+| Set | File | Closes | Status | Issue / PR |
+|---|---|---|---|---|
+| `rv64_addr` | `Rv64/AddrNorm.lean` (+ `AddrNormAttr.lean`) | `signExtend13` / `signExtend21` + `BitVec.add_assoc` address arithmetic | infrastructure landed (~47 atomic facts); `rw [show signExtend1? N …]` migration complete across DivMod / SignExtend / Shift / Byte | GRIND.md Phase 3 |
+| `reg_ops`   | `Rv64/RegOps.lean` (+ `RegOpsAttr.lean`) | `MachineState` projection chains (`pc_set<F>`, `getReg_setPC`, etc.) | infrastructure landed (sanity proofs only, bulk migrations pending) | GRIND.md Phase 5 |
+| `byte_alg`  | `Rv64/ByteAlg.lean` (+ `ByteAlgAttr.lean`) | `extractByte` / `replaceByte` algebra on `Word` | infrastructure landed (seeded with `extractByte_replaceByte_same`; further algebra identities pending) | GRIND.md Phase 4 |
+
+### Opcode-specific
+
+| Set | File | Closes | Status | Issue / PR |
+|---|---|---|---|---|
+| `divmod_addr` | `Evm64/DivMod/AddrNorm.lean` (+ `AddrNormAttr.lean`) | DivMod address arithmetic (`signExtend12` + `k <<< 3` + `toNat`) | landed (infrastructure + 1 file migrated; Phase 2 bulk `signExtend12` sweep complete) | #263 / #304 |
+
+Add new rows here as sets land. Each row should link the issue and the introducing PR, and go under the appropriate scope heading (Rv64-wide if it belongs next to the existing `rv64_addr` / `reg_ops` / `byte_alg`; Opcode-specific if it's scoped to a single `Evm64/<Opcode>/` subtree).
 
 ## 8. Rollout roadmap
 
