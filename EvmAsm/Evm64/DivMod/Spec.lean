@@ -292,6 +292,36 @@ theorem modN4StackPre_unfold (sp : Word) (a b : EvmWord)
        shift_mem n_mem j_mem) := by
   delta modN4StackPre; rfl
 
+/-- Full-depth unfold of `modN4StackPre`: expands the bundle, both
+    `evmWordIs` atoms, and `divScratchValues` into primitive `regIs` /
+    `memIs` atoms. Mirror of `divN4StackPre_unfold_atoms`. -/
+theorem modN4StackPre_unfold_atoms (sp : Word) (a b : EvmWord)
+    (v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     shift_mem n_mem j_mem : Word) :
+    modN4StackPre sp a b v5 v6 v7 v10 v11
+        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shift_mem n_mem j_mem =
+    ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
+     (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+     (.x2 ↦ᵣ (clzResult (b.getLimbN 3)).2 >>> (63 : Nat)) **
+     (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+     (.x11 ↦ᵣ v11) **
+     ((sp ↦ₘ a.getLimbN 0) ** ((sp + 8) ↦ₘ a.getLimbN 1) **
+      ((sp + 16) ↦ₘ a.getLimbN 2) ** ((sp + 24) ↦ₘ a.getLimbN 3)) **
+     (((sp + 32) ↦ₘ b.getLimbN 0) ** ((sp + 40) ↦ₘ b.getLimbN 1) **
+      ((sp + 48) ↦ₘ b.getLimbN 2) ** ((sp + 56) ↦ₘ b.getLimbN 3)) **
+     (((sp + signExtend12 4088) ↦ₘ q0) ** ((sp + signExtend12 4080) ↦ₘ q1) **
+      ((sp + signExtend12 4072) ↦ₘ q2) ** ((sp + signExtend12 4064) ↦ₘ q3) **
+      ((sp + signExtend12 4056) ↦ₘ u0) ** ((sp + signExtend12 4048) ↦ₘ u1) **
+      ((sp + signExtend12 4040) ↦ₘ u2) ** ((sp + signExtend12 4032) ↦ₘ u3) **
+      ((sp + signExtend12 4024) ↦ₘ u4) ** ((sp + signExtend12 4016) ↦ₘ u5) **
+      ((sp + signExtend12 4008) ↦ₘ u6) ** ((sp + signExtend12 4000) ↦ₘ u7) **
+      ((sp + signExtend12 3992) ↦ₘ shift_mem) **
+      ((sp + signExtend12 3984) ↦ₘ n_mem) **
+      ((sp + signExtend12 3976) ↦ₘ j_mem))) := by
+  rw [modN4StackPre_unfold, evmWordIs_sp_unfold, evmWordIs_sp32_unfold,
+      divScratchValues_unfold]
+
 /-- Named unfold for `divN4MaxSkipStackPost`. Restores access to the
     underlying definition once the `@[irreducible]` attribute has made
     `delta` the only way in at call sites. -/
