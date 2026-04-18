@@ -463,6 +463,34 @@ theorem evm_div_n4_full_max_skip_stack_pre_spec (sp base : Word)
     (fun _ hq => hq)
     hraw
 
+/-- Bundled version of `evm_div_n4_full_max_skip_stack_pre_spec`: takes the
+    precondition as a single `divN4StackPre` atom. Thin wrapper — unfolds the
+    bundle and defers to the unbundled spec. Useful when composing into the
+    final `evm_div_n4_max_skip_stack_spec` where the callers think of the
+    precondition as one named assertion. -/
+theorem evm_div_n4_full_max_skip_stack_pre_spec_bundled (sp base : Word)
+    (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     n_mem shift_mem j_mem : Word)
+    (hbnz : b ≠ 0)
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hbltu : isMaxTrialN4Evm a b)
+    (hborrow : isSkipBorrowN4MaxEvm a b) :
+    cpsTriple base (base + nopOff) (divCode base)
+      (divN4StackPre sp a b v5 v6 v7 v10 v11
+         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shift_mem n_mem j_mem)
+      (fullDivN4MaxSkipPost sp
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) := by
+  have h := evm_div_n4_full_max_skip_stack_pre_spec sp base a b
+    v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+    n_mem shift_mem j_mem hbnz hb3nz hshift_nz hbltu hborrow
+  exact cpsTriple_consequence _ _ _ _ _ _ _
+    (fun _ hp => by rw [divN4StackPre_unfold] at hp; exact hp)
+    (fun _ hq => hq)
+    h
+
 /-- Stack-level DIV spec for the zero divisor path: when b = 0, result is 0.
     Uses evmWordIs for the b-operand at sp+32. The a-operand at sp is untouched. -/
 theorem evm_div_bzero_stack_spec (sp base : Word)
