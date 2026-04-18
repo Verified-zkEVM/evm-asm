@@ -211,6 +211,38 @@ theorem divN4StackPre_unfold (sp : Word) (a b : EvmWord)
        shift_mem n_mem j_mem) := by
   delta divN4StackPre; rfl
 
+/-- MOD-side parallel of `divN4StackPre`. Identical content — same registers,
+    same operands, same scratch bundle. The name is kept distinct so the
+    forthcoming MOD stack spec reads symmetrically with its DIV counterpart.
+    Definitionally equal to `divN4StackPre`. -/
+@[irreducible]
+def modN4StackPre (sp : Word) (a b : EvmWord)
+    (v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     shift_mem n_mem j_mem : Word) : Assertion :=
+  (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
+  (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+  (.x2 ↦ᵣ (clzResult (b.getLimbN 3)).2 >>> (63 : Nat)) **
+  (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+  (.x11 ↦ᵣ v11) **
+  evmWordIs sp a ** evmWordIs (sp + 32) b **
+  divScratchValues sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+    shift_mem n_mem j_mem
+
+theorem pcFree_modN4StackPre (sp : Word) (a b : EvmWord)
+    (v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shift_mem n_mem j_mem : Word) :
+    (modN4StackPre sp a b v5 v6 v7 v10 v11
+      q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shift_mem n_mem j_mem).pcFree := by
+  delta modN4StackPre; pcFree
+
+instance (sp : Word) (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shift_mem n_mem j_mem : Word) :
+    Assertion.PCFree (modN4StackPre sp a b v5 v6 v7 v10 v11
+      q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shift_mem n_mem j_mem) :=
+  ⟨pcFree_modN4StackPre sp a b v5 v6 v7 v10 v11
+    q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shift_mem n_mem j_mem⟩
+
 /-- Named unfold for `divN4MaxSkipStackPost`. Restores access to the
     underlying definition once the `@[irreducible]` attribute has made
     `delta` the only way in at call sites. -/
