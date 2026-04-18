@@ -9,6 +9,7 @@
 -/
 
 import EvmAsm.Evm64.DivMod.Compose
+import EvmAsm.Evm64.DivMod.Compose.FullPathN4
 import EvmAsm.Evm64.EvmWordArith
 
 open EvmAsm.Rv64.Tactics
@@ -16,6 +17,38 @@ open EvmAsm.Rv64.Tactics
 namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
+
+-- ============================================================================
+-- EvmWord-level runtime condition predicates for the n=4 max path
+-- ============================================================================
+
+-- The full-path DIV spec `evm_div_n4_full_max_skip_spec` takes runtime
+-- conditions (`isMaxTrialN4`, `isSkipBorrowN4Max`) keyed off eight Word
+-- limbs. For the EvmWord-level stack spec, it's more natural to express
+-- these on `a b : EvmWord` directly — the wrappers below defer to the
+-- Word-level predicates via `a.getLimbN k` / `b.getLimbN k`.
+
+/-- Max trial quotient condition at n=4 in EvmWord form: `u4 ≥ b3'` after
+    normalization, i.e., the algorithm uses the maximum trial quotient
+    (`signExtend12 4095 = 2^64 - 1`). -/
+def isMaxTrialN4Evm (a b : EvmWord) : Prop :=
+  isMaxTrialN4 (a.getLimbN 3) (b.getLimbN 2) (b.getLimbN 3)
+
+/-- Skip-addback condition at n=4 max in EvmWord form: the runtime borrow
+    check `u4 < mulsubN4_c3` does not fire, so the algorithm skips the
+    addback step and uses `q_hat` as the quotient digit. -/
+def isSkipBorrowN4MaxEvm (a b : EvmWord) : Prop :=
+  isSkipBorrowN4Max (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+                    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+
+theorem isMaxTrialN4Evm_def (a b : EvmWord) :
+    isMaxTrialN4Evm a b =
+    isMaxTrialN4 (a.getLimbN 3) (b.getLimbN 2) (b.getLimbN 3) := rfl
+
+theorem isSkipBorrowN4MaxEvm_def (a b : EvmWord) :
+    isSkipBorrowN4MaxEvm a b =
+    isSkipBorrowN4Max (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+                      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) := rfl
 
 -- ============================================================================
 -- DIV: Zero divisor stack spec (b = 0 → result = 0)
