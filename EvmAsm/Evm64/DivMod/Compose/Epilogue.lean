@@ -333,7 +333,7 @@ theorem evm_mod_bzero_spec (sp base : Word)
   have hbeq_raw := beq_spec_gen .x5 .x0 1020 (b0 ||| b1 ||| b2 ||| b3) (0 : Word) (base + 28)
   rw [show (base + 28 : Word) + signExtend13 1020 = base + zeroPathOff from by
         rw [signExtend13_1020]; bv_addr,
-      show (base + 28 : Word) + 4 = base + 32 from by bv_addr] at hbeq_raw
+      show (base + 28 : Word) + 4 = base + phaseBOff from by bv_addr] at hbeq_raw
   have hbeq_clean := cpsBranch_elim_taken_strip_pure2 _ _ _ _ _ _ _ _ _ hbeq_raw
     (fun hp hQf => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQf
@@ -374,7 +374,7 @@ theorem evm_mod_bzero_spec (sp base : Word)
 theorem evm_mod_phaseA_ntaken_spec (sp base : Word)
     (b0 b1 b2 b3 v5 v10 : Word)
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0) :
-    cpsTriple base (base + 32) (modCode base)
+    cpsTriple base (base + phaseBOff) (modCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
        ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3))
@@ -388,7 +388,7 @@ theorem evm_mod_phaseA_ntaken_spec (sp base : Word)
   have hbeq_raw := beq_spec_gen .x5 .x0 1020 (b0 ||| b1 ||| b2 ||| b3) (0 : Word) (base + 28)
   rw [show (base + 28 : Word) + signExtend13 1020 = base + zeroPathOff from by
         rw [signExtend13_1020]; bv_addr,
-      show (base + 28 : Word) + 4 = base + 32 from by bv_addr] at hbeq_raw
+      show (base + 28 : Word) + 4 = base + phaseBOff from by bv_addr] at hbeq_raw
   have hbeq_clean := cpsBranch_elim_ntaken_strip_pure2 _ _ _ _ _ _ _ _ _ hbeq_raw
     (fun hp hQt => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQt

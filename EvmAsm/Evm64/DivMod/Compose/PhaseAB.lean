@@ -62,11 +62,11 @@ private theorem beq_singleton_sub_divCode (base : Word) :
 
 /-- Phase B init1 code (ofProg sub-range of block 1) is subsumed by divCode. -/
 private theorem divK_phaseB_init1_code_sub_divCode (base : Word) :
-    ∀ a i, (divK_phaseB_init1_code (base + 32)) a = some i → (divCode base) a = some i := by
+    ∀ a i, (divK_phaseB_init1_code (base + phaseBOff)) a = some i → (divCode base) a = some i := by
   unfold divCode; simp only [CodeReq.unionAll_cons]
   intro a i h
   -- Lift from init1 sub-range to full phaseB block
-  have h1 := CodeReq.ofProg_mono_sub (base + 32) (base + 32) divK_phaseB
+  have h1 := CodeReq.ofProg_mono_sub (base + phaseBOff) (base + phaseBOff) divK_phaseB
     (divK_phaseB.take 7) 0
     (by bv_addr) (by decide) (by decide) (by decide) a i h
   -- Skip block 0 (phaseA disjoint from phaseB), match block 1
@@ -77,7 +77,7 @@ private theorem divK_phaseB_init2_code_sub_divCode (base : Word) :
     ∀ a i, (divK_phaseB_init2_code (base + 60)) a = some i → (divCode base) a = some i := by
   unfold divCode; simp only [CodeReq.unionAll_cons]
   intro a i h
-  have h1 := CodeReq.ofProg_mono_sub (base + 32) (base + 60) divK_phaseB
+  have h1 := CodeReq.ofProg_mono_sub (base + phaseBOff) (base + 60) divK_phaseB
     (divK_phaseB.drop 7 |>.take 2) 7
     (by bv_addr) (by decide) (by decide) (by decide) a i h
   exact sub_divCode_of_phaseB_left base _ a i h1
@@ -88,10 +88,10 @@ private theorem addi_x5_singleton_sub_divCode (base : Word) :
       (divCode base) a = some i := by
   unfold divCode; simp only [CodeReq.unionAll_cons]
   intro a i h
-  have hlookup := CodeReq.ofProg_lookup (base + 32) divK_phaseB 9
+  have hlookup := CodeReq.ofProg_lookup (base + phaseBOff) divK_phaseB 9
     (by decide) (by decide)
   rw [show BitVec.ofNat 64 (4 * 9) = (36 : Word) from by decide,
-      show (base + 32 : Word) + 36 = base + 68 from by bv_addr] at hlookup
+      show (base + phaseBOff : Word) + 36 = base + 68 from by bv_addr] at hlookup
   have h1 := CodeReq.singleton_mono hlookup a i h
   exact sub_divCode_of_phaseB_left base _ a i h1
 
@@ -101,10 +101,10 @@ private theorem bne_x10_singleton_sub_divCode (base : Word) :
       (divCode base) a = some i := by
   unfold divCode; simp only [CodeReq.unionAll_cons]
   intro a i h
-  have hlookup := CodeReq.ofProg_lookup (base + 32) divK_phaseB 10
+  have hlookup := CodeReq.ofProg_lookup (base + phaseBOff) divK_phaseB 10
     (by decide) (by decide)
   rw [show BitVec.ofNat 64 (4 * 10) = (40 : Word) from by decide,
-      show (base + 32 : Word) + 40 = base + 72 from by bv_addr] at hlookup
+      show (base + phaseBOff : Word) + 40 = base + 72 from by bv_addr] at hlookup
   have h1 := CodeReq.singleton_mono hlookup a i h
   exact sub_divCode_of_phaseB_left base _ a i h1
 
@@ -113,7 +113,7 @@ private theorem divK_phaseB_tail_code_sub_divCode (base : Word) :
     ∀ a i, (divK_phaseB_tail_code (base + 96)) a = some i → (divCode base) a = some i := by
   unfold divCode; simp only [CodeReq.unionAll_cons]
   intro a i h
-  have h1 := CodeReq.ofProg_mono_sub (base + 32) (base + 96) divK_phaseB
+  have h1 := CodeReq.ofProg_mono_sub (base + phaseBOff) (base + 96) divK_phaseB
     (divK_phaseB.drop 16) 16
     (by bv_addr) (by decide) (by decide) (by decide) a i h
   exact sub_divCode_of_phaseB_left base _ a i h1
@@ -140,13 +140,13 @@ private theorem divK_phaseB_n4_nm1_x8 :
 private theorem divK_se12_32 : signExtend12 (32 : BitVec 12) = (32 : Word) := by decide
 
 -- Address normalization lemmas for phaseB composition (separate theorems for heartbeat budget)
-private theorem phB_off_4 (base : Word) : (base + 32 : Word) + 4 = base + 36 := by bv_addr
-private theorem phB_off_8 (base : Word) : (base + 32 : Word) + 8 = base + 40 := by bv_addr
-private theorem phB_off_12 (base : Word) : (base + 32 : Word) + 12 = base + 44 := by bv_addr
-private theorem phB_off_16 (base : Word) : (base + 32 : Word) + 16 = base + 48 := by bv_addr
-private theorem phB_off_20 (base : Word) : (base + 32 : Word) + 20 = base + 52 := by bv_addr
-private theorem phB_off_24 (base : Word) : (base + 32 : Word) + 24 = base + 56 := by bv_addr
-private theorem phB_off_28 (base : Word) : (base + 32 : Word) + 28 = base + 60 := by bv_addr
+private theorem phB_off_4 (base : Word) : (base + phaseBOff : Word) + 4 = base + 36 := by bv_addr
+private theorem phB_off_8 (base : Word) : (base + phaseBOff : Word) + 8 = base + 40 := by bv_addr
+private theorem phB_off_12 (base : Word) : (base + phaseBOff : Word) + 12 = base + 44 := by bv_addr
+private theorem phB_off_16 (base : Word) : (base + phaseBOff : Word) + 16 = base + 48 := by bv_addr
+private theorem phB_off_20 (base : Word) : (base + phaseBOff : Word) + 20 = base + 52 := by bv_addr
+private theorem phB_off_24 (base : Word) : (base + phaseBOff : Word) + 24 = base + 56 := by bv_addr
+private theorem phB_off_28 (base : Word) : (base + phaseBOff : Word) + 28 = base + 60 := by bv_addr
 private theorem phB_i2_4 (base : Word) : (base + 60 : Word) + 4 = base + 64 := by bv_addr
 private theorem phB_i2_8 (base : Word) : (base + 60 : Word) + 8 = base + 68 := by bv_addr
 private theorem phB_addi_4 (base : Word) : (base + 68 : Word) + 4 = base + 72 := by bv_addr
@@ -215,7 +215,7 @@ theorem evm_div_bzero_spec (sp base : Word)
   have hbeq_raw := beq_spec_gen .x5 .x0 1020 (b0 ||| b1 ||| b2 ||| b3) (0 : Word) (base + 28)
   rw [show (base + 28 : Word) + signExtend13 1020 = base + zeroPathOff from by
         rw [signExtend13_1020]; bv_addr,
-      show (base + 28 : Word) + 4 = base + 32 from by bv_addr] at hbeq_raw
+      show (base + 28 : Word) + 4 = base + phaseBOff from by bv_addr] at hbeq_raw
   have hbeq_clean := cpsBranch_elim_taken_strip_pure2 _ _ _ _ _ _ _ _ _ hbeq_raw
     (fun hp hQf => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQf
@@ -259,7 +259,7 @@ theorem evm_div_bzero_spec (sp base : Word)
 theorem evm_div_phaseA_ntaken_spec (sp base : Word)
     (b0 b1 b2 b3 v5 v10 : Word)
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0) :
-    cpsTriple base (base + 32) (divCode base)
+    cpsTriple base (base + phaseBOff) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
        ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3))
@@ -273,7 +273,7 @@ theorem evm_div_phaseA_ntaken_spec (sp base : Word)
   have hbeq_raw := beq_spec_gen .x5 .x0 1020 (b0 ||| b1 ||| b2 ||| b3) (0 : Word) (base + 28)
   rw [show (base + 28 : Word) + signExtend13 1020 = base + zeroPathOff from by
         rw [signExtend13_1020]; bv_addr,
-      show (base + 28 : Word) + 4 = base + 32 from by bv_addr] at hbeq_raw
+      show (base + 28 : Word) + 4 = base + phaseBOff from by bv_addr] at hbeq_raw
   have hbeq_clean := cpsBranch_elim_ntaken_strip_pure2 _ _ _ _ _ _ _ _ _ hbeq_raw
     (fun hp hQt => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQt
@@ -307,7 +307,7 @@ theorem evm_div_phaseB_n4_spec (sp base : Word)
     (b1 b2 b3 : Word) (v5 v6 v7 : Word)
     (q0 q1 q2 q3 u5 u6 u7 n_mem : Word)
     (hb3nz : b3 ≠ 0) :
-    cpsTriple (base + 32) (base + clzOff) (divCode base)
+    cpsTriple (base + phaseBOff) (base + clzOff) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ b3) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
        ((sp + 40) ↦ₘ b1) ** ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3) **
@@ -325,7 +325,7 @@ theorem evm_div_phaseB_n4_spec (sp base : Word)
        ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
        ((sp + signExtend12 3984) ↦ₘ (4 : Word))) := by
   -- ---- Step 1: init1 (base+32 → base+60) — zero q[0..3] and u[5..7]
-  have hinit1_raw := divK_phaseB_init1_spec sp (base + 32) q0 q1 q2 q3 u5 u6 u7
+  have hinit1_raw := divK_phaseB_init1_spec sp (base + phaseBOff) q0 q1 q2 q3 u5 u6 u7
   simp only [phB_off_28] at hinit1_raw
   have hinit1 := cpsTriple_extend_code (divK_phaseB_init1_code_sub_divCode base) hinit1_raw
   have hinit1f := cpsTriple_frame_left _ _ _ _ _
@@ -425,10 +425,10 @@ private theorem addi_x5_3_sub_divCode (base : Word) :
       (divCode base) a = some i := by
   unfold divCode; simp only [CodeReq.unionAll_cons]
   intro a i h
-  have hlookup := CodeReq.ofProg_lookup (base + 32) divK_phaseB 11
+  have hlookup := CodeReq.ofProg_lookup (base + phaseBOff) divK_phaseB 11
     (by decide) (by decide)
   rw [show BitVec.ofNat 64 (4 * 11) = (44 : Word) from by decide,
-      show (base + 32 : Word) + 44 = base + 76 from by bv_addr] at hlookup
+      show (base + phaseBOff : Word) + 44 = base + 76 from by bv_addr] at hlookup
   have h1 := CodeReq.singleton_mono hlookup a i h
   exact sub_divCode_of_phaseB_left base _ a i h1
 
@@ -438,10 +438,10 @@ private theorem bne_x7_16_sub_divCode (base : Word) :
       (divCode base) a = some i := by
   unfold divCode; simp only [CodeReq.unionAll_cons]
   intro a i h
-  have hlookup := CodeReq.ofProg_lookup (base + 32) divK_phaseB 12
+  have hlookup := CodeReq.ofProg_lookup (base + phaseBOff) divK_phaseB 12
     (by decide) (by decide)
   rw [show BitVec.ofNat 64 (4 * 12) = (48 : Word) from by decide,
-      show (base + 32 : Word) + 48 = base + 80 from by bv_addr] at hlookup
+      show (base + phaseBOff : Word) + 48 = base + 80 from by bv_addr] at hlookup
   have h1 := CodeReq.singleton_mono hlookup a i h
   exact sub_divCode_of_phaseB_left base _ a i h1
 
@@ -451,10 +451,10 @@ private theorem addi_x5_2_sub_divCode (base : Word) :
       (divCode base) a = some i := by
   unfold divCode; simp only [CodeReq.unionAll_cons]
   intro a i h
-  have hlookup := CodeReq.ofProg_lookup (base + 32) divK_phaseB 13
+  have hlookup := CodeReq.ofProg_lookup (base + phaseBOff) divK_phaseB 13
     (by decide) (by decide)
   rw [show BitVec.ofNat 64 (4 * 13) = (52 : Word) from by decide,
-      show (base + 32 : Word) + 52 = base + 84 from by bv_addr] at hlookup
+      show (base + phaseBOff : Word) + 52 = base + 84 from by bv_addr] at hlookup
   have h1 := CodeReq.singleton_mono hlookup a i h
   exact sub_divCode_of_phaseB_left base _ a i h1
 
@@ -464,10 +464,10 @@ private theorem bne_x6_8_sub_divCode (base : Word) :
       (divCode base) a = some i := by
   unfold divCode; simp only [CodeReq.unionAll_cons]
   intro a i h
-  have hlookup := CodeReq.ofProg_lookup (base + 32) divK_phaseB 14
+  have hlookup := CodeReq.ofProg_lookup (base + phaseBOff) divK_phaseB 14
     (by decide) (by decide)
   rw [show BitVec.ofNat 64 (4 * 14) = (56 : Word) from by decide,
-      show (base + 32 : Word) + 56 = base + 88 from by bv_addr] at hlookup
+      show (base + phaseBOff : Word) + 56 = base + 88 from by bv_addr] at hlookup
   have h1 := CodeReq.singleton_mono hlookup a i h
   exact sub_divCode_of_phaseB_left base _ a i h1
 
@@ -477,10 +477,10 @@ private theorem addi_x5_1_sub_divCode (base : Word) :
       (divCode base) a = some i := by
   unfold divCode; simp only [CodeReq.unionAll_cons]
   intro a i h
-  have hlookup := CodeReq.ofProg_lookup (base + 32) divK_phaseB 15
+  have hlookup := CodeReq.ofProg_lookup (base + phaseBOff) divK_phaseB 15
     (by decide) (by decide)
   rw [show BitVec.ofNat 64 (4 * 15) = (60 : Word) from by decide,
-      show (base + 32 : Word) + 60 = base + 92 from by bv_addr] at hlookup
+      show (base + phaseBOff : Word) + 60 = base + 92 from by bv_addr] at hlookup
   have h1 := CodeReq.singleton_mono hlookup a i h
   exact sub_divCode_of_phaseB_left base _ a i h1
 
@@ -530,7 +530,7 @@ theorem evm_div_phaseB_n3_spec (sp base : Word)
     (b1 b2 b3 : Word) (v5 v6 v7 : Word)
     (q0 q1 q2 q3 u5 u6 u7 n_mem : Word)
     (hb3z : b3 = 0) (hb2nz : b2 ≠ 0) :
-    cpsTriple (base + 32) (base + clzOff) (divCode base)
+    cpsTriple (base + phaseBOff) (base + clzOff) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ b3) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
        ((sp + 40) ↦ₘ b1) ** ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3) **
@@ -548,7 +548,7 @@ theorem evm_div_phaseB_n3_spec (sp base : Word)
        ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
        ((sp + signExtend12 3984) ↦ₘ (3 : Word))) := by
   -- ---- init1 (base+32 → base+60)
-  have hinit1_raw := divK_phaseB_init1_spec sp (base + 32) q0 q1 q2 q3 u5 u6 u7
+  have hinit1_raw := divK_phaseB_init1_spec sp (base + phaseBOff) q0 q1 q2 q3 u5 u6 u7
   simp only [phB_off_28] at hinit1_raw
   have hinit1 := cpsTriple_extend_code (divK_phaseB_init1_code_sub_divCode base) hinit1_raw
   have hinit1f := cpsTriple_frame_left _ _ _ _ _
@@ -673,7 +673,7 @@ theorem evm_div_phaseB_n2_spec (sp base : Word)
     (b1 b2 b3 : Word) (v5 v6 v7 : Word)
     (q0 q1 q2 q3 u5 u6 u7 n_mem : Word)
     (hb3z : b3 = 0) (hb2z : b2 = 0) (hb1nz : b1 ≠ 0) :
-    cpsTriple (base + 32) (base + clzOff) (divCode base)
+    cpsTriple (base + phaseBOff) (base + clzOff) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ b3) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
        ((sp + 40) ↦ₘ b1) ** ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3) **
@@ -691,7 +691,7 @@ theorem evm_div_phaseB_n2_spec (sp base : Word)
        ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
        ((sp + signExtend12 3984) ↦ₘ (2 : Word))) := by
   -- ---- init1 (base+32 → base+60)
-  have hinit1_raw := divK_phaseB_init1_spec sp (base + 32) q0 q1 q2 q3 u5 u6 u7
+  have hinit1_raw := divK_phaseB_init1_spec sp (base + phaseBOff) q0 q1 q2 q3 u5 u6 u7
   simp only [phB_off_28] at hinit1_raw
   have hinit1 := cpsTriple_extend_code (divK_phaseB_init1_code_sub_divCode base) hinit1_raw
   have hinit1f := cpsTriple_frame_left _ _ _ _ _
@@ -852,7 +852,7 @@ theorem evm_div_phaseB_n1_spec (sp base : Word)
     (b0 b1 b2 b3 : Word) (v5 v6 v7 : Word)
     (q0 q1 q2 q3 u5 u6 u7 n_mem : Word)
     (hb3z : b3 = 0) (hb2z : b2 = 0) (hb1z : b1 = 0) :
-    cpsTriple (base + 32) (base + clzOff) (divCode base)
+    cpsTriple (base + phaseBOff) (base + clzOff) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ b3) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
        ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) ** ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3) **
@@ -870,7 +870,7 @@ theorem evm_div_phaseB_n1_spec (sp base : Word)
        ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
        ((sp + signExtend12 3984) ↦ₘ (1 : Word))) := by
   -- ---- init1 (base+32 → base+60)
-  have hinit1_raw := divK_phaseB_init1_spec sp (base + 32) q0 q1 q2 q3 u5 u6 u7
+  have hinit1_raw := divK_phaseB_init1_spec sp (base + phaseBOff) q0 q1 q2 q3 u5 u6 u7
   simp only [phB_off_28] at hinit1_raw
   have hinit1 := cpsTriple_extend_code (divK_phaseB_init1_code_sub_divCode base) hinit1_raw
   have hinit1f := cpsTriple_frame_left _ _ _ _ _
