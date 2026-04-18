@@ -32,15 +32,7 @@ private theorem divK_div128_ofProg_sub_modCode (base : Word) :
   exact CodeReq.union_mono_left _ _
 
 -- Helper: combine two subsumption proofs over a union.
-private theorem CodeReq_union_sub_mod {cr1 cr2 target : CodeReq}
-    (h1 : ∀ a i, cr1 a = some i → target a = some i)
-    (h2 : ∀ a i, cr2 a = some i → target a = some i) :
-    ∀ a i, (cr1.union cr2) a = some i → target a = some i := by
-  intro a i h
-  simp only [CodeReq.union] at h
-  cases h1a : cr1 a with
-  | some j => rw [h1a] at h; simp at h; exact h ▸ h1 a j h1a
-  | none => rw [h1a] at h; simp at h; exact h2 a i h
+-- `CodeReq.union_sub` — use `CodeReq.union_sub` from `Rv64/SepLogic.lean` (shared).
 
 -- Helper: singleton at index k of divK_div128 with explicit instr ⊆ modCode base.
 -- Used to prove each singleton in a block's cr is subsumed by modCode.
@@ -131,15 +123,15 @@ theorem mod_div128_spec (sp ret_addr d u_lo u_hi : Word) (base : Word)
   -- Extend phase1 cr to modCode
   have hph1e := cpsTriple_extend_code (hmono := by
     -- phase1 cr: 10 singletons at (base+1072)+{0,4,...,36}, indices 0-9
-    exact CodeReq_union_sub_mod (d128_sub_mod base 0 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq_union_sub_mod (d128_sub_mod base 1 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq_union_sub_mod (d128_sub_mod base 2 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq_union_sub_mod (d128_sub_mod base 3 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq_union_sub_mod (d128_sub_mod base 4 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq_union_sub_mod (d128_sub_mod base 5 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq_union_sub_mod (d128_sub_mod base 6 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq_union_sub_mod (d128_sub_mod base 7 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq_union_sub_mod (d128_sub_mod base 8 _ _ (by decide) (by bv_addr) (by decide))
+    exact CodeReq.union_sub (d128_sub_mod base 0 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (d128_sub_mod base 1 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (d128_sub_mod base 2 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (d128_sub_mod base 3 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (d128_sub_mod base 4 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (d128_sub_mod base 5 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (d128_sub_mod base 6 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (d128_sub_mod base 7 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (d128_sub_mod base 8 _ _ (by decide) (by bv_addr) (by decide))
       (d128_sub_mod base 9 _ _ (by decide) (by bv_addr) (by decide)))))))))))
     hph1
   -- Frame phase1 with x0=0 (not used by phase1)
@@ -154,20 +146,20 @@ theorem mod_div128_spec (sp ret_addr d u_lo u_hi : Word) (base : Word)
     (base + 1112)
   rw [show (base + 1112 : Word) + 60 = base + 1172 from by bv_addr] at hst1
   have hst1e := cpsTriple_extend_code (hmono := by
-    exact CodeReq_union_sub_mod (d128_sub_mod base 10 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq_union_sub_mod (d128_sub_mod base 11 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq_union_sub_mod (d128_sub_mod base 12 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq_union_sub_mod (d128_sub_mod base 13 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq_union_sub_mod (d128_sub_mod base 14 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq_union_sub_mod (d128_sub_mod base 15 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq_union_sub_mod (d128_sub_mod base 16 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq_union_sub_mod (d128_sub_mod base 17 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq_union_sub_mod (d128_sub_mod base 18 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq_union_sub_mod (d128_sub_mod base 19 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq_union_sub_mod (d128_sub_mod base 20 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq_union_sub_mod (d128_sub_mod base 21 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq_union_sub_mod (d128_sub_mod base 22 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq_union_sub_mod (d128_sub_mod base 23 _ _ (by decide) (by bv_addr) (by decide))
+    exact CodeReq.union_sub (d128_sub_mod base 10 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (d128_sub_mod base 11 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (d128_sub_mod base 12 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (d128_sub_mod base 13 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (d128_sub_mod base 14 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (d128_sub_mod base 15 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (d128_sub_mod base 16 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (d128_sub_mod base 17 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (d128_sub_mod base 18 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (d128_sub_mod base 19 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (d128_sub_mod base 20 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (d128_sub_mod base 21 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (d128_sub_mod base 22 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (d128_sub_mod base 23 _ _ (by decide) (by bv_addr) (by decide))
       (d128_sub_mod base 24 _ _ (by decide) (by bv_addr) (by decide))))))))))))))))
     hst1
   -- Frame step1 with x2, mem[3968], mem[3960], mem[3944]
@@ -186,10 +178,10 @@ theorem mod_div128_spec (sp ret_addr d u_lo u_hi : Word) (base : Word)
     (base + 1172)
   rw [show (base + 1172 : Word) + 20 = base + 1192 from by bv_addr] at hcu
   have hcue := cpsTriple_extend_code (hmono := by
-    exact CodeReq_union_sub_mod (d128_sub_mod base 25 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq_union_sub_mod (d128_sub_mod base 26 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq_union_sub_mod (d128_sub_mod base 27 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq_union_sub_mod (d128_sub_mod base 28 _ _ (by decide) (by bv_addr) (by decide))
+    exact CodeReq.union_sub (d128_sub_mod base 25 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (d128_sub_mod base 26 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (d128_sub_mod base 27 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (d128_sub_mod base 28 _ _ (by decide) (by bv_addr) (by decide))
       (d128_sub_mod base 29 _ _ (by decide) (by bv_addr) (by decide))))))
     hcu
   -- Frame compute_un21 with x6, x0, x2, mem[3968], mem[3960], mem[3944]
@@ -209,20 +201,20 @@ theorem mod_div128_spec (sp ret_addr d u_lo u_hi : Word) (base : Word)
     (base + 1192)
   rw [show (base + 1192 : Word) + 60 = base + 1252 from by bv_addr] at hst2
   have hst2e := cpsTriple_extend_code (hmono := by
-    exact CodeReq_union_sub_mod (d128_sub_mod base 30 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq_union_sub_mod (d128_sub_mod base 31 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq_union_sub_mod (d128_sub_mod base 32 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq_union_sub_mod (d128_sub_mod base 33 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq_union_sub_mod (d128_sub_mod base 34 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq_union_sub_mod (d128_sub_mod base 35 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq_union_sub_mod (d128_sub_mod base 36 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq_union_sub_mod (d128_sub_mod base 37 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq_union_sub_mod (d128_sub_mod base 38 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq_union_sub_mod (d128_sub_mod base 39 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq_union_sub_mod (d128_sub_mod base 40 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq_union_sub_mod (d128_sub_mod base 41 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq_union_sub_mod (d128_sub_mod base 42 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq_union_sub_mod (d128_sub_mod base 43 _ _ (by decide) (by bv_addr) (by decide))
+    exact CodeReq.union_sub (d128_sub_mod base 30 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (d128_sub_mod base 31 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (d128_sub_mod base 32 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (d128_sub_mod base 33 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (d128_sub_mod base 34 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (d128_sub_mod base 35 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (d128_sub_mod base 36 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (d128_sub_mod base 37 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (d128_sub_mod base 38 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (d128_sub_mod base 39 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (d128_sub_mod base 40 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (d128_sub_mod base 41 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (d128_sub_mod base 42 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (d128_sub_mod base 43 _ _ (by decide) (by bv_addr) (by decide))
       (d128_sub_mod base 44 _ _ (by decide) (by bv_addr) (by decide))))))))))))))))
     hst2
   -- Frame step2 with x10, x2, mem[3968], mem[3960]
@@ -240,9 +232,9 @@ theorem mod_div128_spec (sp ret_addr d u_lo u_hi : Word) (base : Word)
   have hend := divK_div128_end_spec sp q1' q0' ret_addr un0 ret_addr
     (base + 1252) halign
   have hende := cpsTriple_extend_code (hmono := by
-    exact CodeReq_union_sub_mod (d128_sub_mod base 45 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq_union_sub_mod (d128_sub_mod base 46 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq_union_sub_mod (d128_sub_mod base 47 _ _ (by decide) (by bv_addr) (by decide))
+    exact CodeReq.union_sub (d128_sub_mod base 45 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (d128_sub_mod base 46 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (d128_sub_mod base 47 _ _ (by decide) (by bv_addr) (by decide))
       (d128_sub_mod base 48 _ _ (by decide) (by bv_addr) (by decide)))))
     hend
   -- Frame end with x7, x6, x1, x0, mem[3960], mem[3952], mem[3944]

@@ -2282,6 +2282,22 @@ theorem CodeReq.union_mono_tail {cr tail1 tail2 : CodeReq}
   | none => simp [hc] at hq ⊢; exact h a i hq
   | some j => simp [hc] at hq ⊢; exact hq
 
+/-- Combine two subsumption witnesses to subsume their union: if both
+    `cr1` and `cr2` are subsumed by `target`, then so is `cr1.union cr2`.
+    Shared across Evm64 opcode compose files (previously redeclared as
+    `private theorem CodeReq_union_sub` / `_sub_both` / `_sub_mod` in
+    `SignExtend/Compose.lean`, `DivMod/LoopBody.lean`,
+    `DivMod/Compose/Div128.lean`, `DivMod/Compose/ModDiv128.lean`). -/
+theorem CodeReq.union_sub {cr1 cr2 target : CodeReq}
+    (h1 : ∀ a i, cr1 a = some i → target a = some i)
+    (h2 : ∀ a i, cr2 a = some i → target a = some i) :
+    ∀ a i, (cr1.union cr2) a = some i → target a = some i := by
+  intro a i h
+  simp only [CodeReq.union] at h
+  cases h1a : cr1 a with
+  | some j => rw [h1a] at h; simp at h; exact h ▸ h1 a j h1a
+  | none => rw [h1a] at h; simp at h; exact h2 a i h
+
 /-- A singleton's only address can be found in a target CodeReq, if target maps that address
     to the same instruction. Useful for proving singleton ⊆ target. -/
 theorem CodeReq.singleton_mono {a : Word} {i : Instr} {cr : CodeReq}
