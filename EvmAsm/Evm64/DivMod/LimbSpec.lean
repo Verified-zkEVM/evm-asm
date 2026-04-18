@@ -8,11 +8,13 @@
 
 import EvmAsm.Evm64.DivMod.Program
 import EvmAsm.Evm64.DivMod.LimbSpec.AddBack
+import EvmAsm.Evm64.DivMod.LimbSpec.AddBackFinalLoopControl
 import EvmAsm.Evm64.DivMod.LimbSpec.CLZ
 import EvmAsm.Evm64.DivMod.LimbSpec.CopyAU
 import EvmAsm.Evm64.DivMod.LimbSpec.Denorm
 import EvmAsm.Evm64.DivMod.LimbSpec.Div128Phase1
 import EvmAsm.Evm64.DivMod.LimbSpec.Div128Tail
+import EvmAsm.Evm64.DivMod.LimbSpec.Div128UnProdCheck
 import EvmAsm.Evm64.DivMod.LimbSpec.Epilogue
 import EvmAsm.Evm64.DivMod.LimbSpec.LoopSetup
 import EvmAsm.Evm64.DivMod.LimbSpec.MulSub
@@ -183,89 +185,12 @@ theorem divK_store_qj_write_spec (q_addr q_hat q_old : Word) (base : Word) :
   rw [haddr] at I0
   runBlock I0
 
--- ============================================================================
--- Add-back finalization: u[j+4] += carry, q_hat--.
--- 4 instructions: LD + ADD + SD + ADDI.
--- ============================================================================
+-- AddBack finalization + Loop control specs (divK_addback_final_spec,
+-- divK_loop_control_spec) moved to
+-- EvmAsm.Evm64.DivMod.LimbSpec.AddBackFinalLoopControl (seventeenth chunk
+-- of #312 split). Re-exported via the import at the top of this file, so
+-- downstream surface is unchanged.
 
-/-- Add-back finalization after limb corrections. -/
-theorem divK_addback_final_spec (u_base carry q_hat v5_old u_top : Word)
-    (u_off : BitVec 12) (base : Word) :
-    let u_new := u_top + carry
-    let q_hat' := q_hat + signExtend12 4095
-    let cr :=
-      CodeReq.union (CodeReq.singleton base (.LD .x5 .x6 u_off))
-      (CodeReq.union (CodeReq.singleton (base + 4) (.ADD .x5 .x5 .x7))
-      (CodeReq.union (CodeReq.singleton (base + 8) (.SD .x6 .x5 u_off))
-       (CodeReq.singleton (base + 12) (.ADDI .x11 .x11 4095))))
-    cpsTriple base (base + 16) cr
-      ((.x6 ↦ᵣ u_base) ** (.x7 ↦ᵣ carry) ** (.x11 ↦ᵣ q_hat) **
-       (.x5 ↦ᵣ v5_old) ** (u_base + signExtend12 u_off ↦ₘ u_top))
-      ((.x6 ↦ᵣ u_base) ** (.x7 ↦ᵣ carry) ** (.x11 ↦ᵣ q_hat') **
-       (.x5 ↦ᵣ u_new) ** (u_base + signExtend12 u_off ↦ₘ u_new)) := by
-  intro u_new q_hat' cr
-  have I0 := ld_spec_gen .x5 .x6 u_base v5_old u_top u_off base (by nofun)
-  have I1 := add_spec_gen_rd_eq_rs1 .x5 .x7 u_top carry (base + 4) (by nofun)
-  have I2 := sd_spec_gen .x6 .x5 u_base u_new u_top u_off (base + 8)
-  have I3 := addi_spec_gen_same .x11 q_hat 4095 (base + 12) (by nofun)
-  runBlock I0 I1 I2 I3
-
--- ============================================================================
--- Loop control: j-- and BGE loop back.
--- 2 instructions: ADDI + BGE.
--- ============================================================================
-
-/-- Loop control: decrement j and branch back if j >= 0. -/
-theorem divK_loop_control_spec (j : Word) (loop_back_off : BitVec 13)
-    (base : Word) :
-    let j' := j + signExtend12 4095
-    let cr :=
-      CodeReq.union (CodeReq.singleton base (.ADDI .x1 .x1 4095))
-       (CodeReq.singleton (base + 4) (.BGE .x1 .x0 loop_back_off))
-    cpsBranch base cr
-      ((.x1 ↦ᵣ j) ** (.x0 ↦ᵣ 0))
-      (base + 4 + signExtend13 loop_back_off)
-      ((.x1 ↦ᵣ j') ** (.x0 ↦ᵣ 0))
-      (base + 8)
-      ((.x1 ↦ᵣ j') ** (.x0 ↦ᵣ 0)) := by
-  intro j' cr
-  -- 1. ADDI body
-  have hbody : cpsTriple base (base + 4) cr
-      ((.x1 ↦ᵣ j) ** (.x0 ↦ᵣ 0))
-      ((.x1 ↦ᵣ j') ** (.x0 ↦ᵣ 0)) := by
-    have I0 := addi_spec_gen_same .x1 j 4095 base (by nofun)
-    runBlock I0
-  -- 2. BGE, drop pure facts
-  have hbge_raw := bge_spec_gen .x1 .x0 loop_back_off j' 0 (base + 4)
-  have ha1 : (base + 4 : Word) + 4 = base + 8 := by bv_addr
-  rw [ha1] at hbge_raw
-  have hbge : cpsBranch (base + 4) _
-      ((.x1 ↦ᵣ j') ** (.x0 ↦ᵣ 0))
-      ((base + 4) + signExtend13 loop_back_off)
-        ((.x1 ↦ᵣ j') ** (.x0 ↦ᵣ 0))
-      (base + 8)
-        ((.x1 ↦ᵣ j') ** (.x0 ↦ᵣ 0)) :=
-    cpsBranch_consequence _ _ _ _ _ _ _ _ _ _
-      (fun _ hp => hp)
-      (fun h hp => sepConj_mono_right
-        (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1) h hp)
-      (fun h hp => sepConj_mono_right
-        (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1) h hp)
-      hbge_raw
-  -- 3. Extend BGE to full cr
-  have hbge_ext : cpsBranch (base + 4) cr
-      ((.x1 ↦ᵣ j') ** (.x0 ↦ᵣ 0))
-      ((base + 4) + signExtend13 loop_back_off) ((.x1 ↦ᵣ j') ** (.x0 ↦ᵣ 0))
-      (base + 8) ((.x1 ↦ᵣ j') ** (.x0 ↦ᵣ 0)) :=
-    fun R hR s hcr hPR hpc =>
-      hbge R hR s ((CodeReq.singleton_satisfiedBy _ _ s).mpr (hcr _ _ (by
-        show CodeReq.union (CodeReq.singleton base (.ADDI .x1 .x1 4095))
-          (CodeReq.singleton (base + 4) (.BGE .x1 .x0 loop_back_off)) (base + 4) = _
-        simp only [CodeReq.union, CodeReq.singleton]
-        have h0 : ¬(base + 4 = base) := by bv_omega
-        simp only [beq_iff_eq, h0, ↓reduceIte]))) hPR hpc
-  -- 4. Compose
-  exact cpsTriple_seq_cpsBranch_same_cr _ _ _ _ _ _ _ _ _ hbody hbge_ext
 -- Mul-sub setup + save_j + addback init specs
 -- (divK_mulsub_setup_spec, divK_save_j_spec, divK_addback_init_spec) moved to
 -- EvmAsm.Evm64.DivMod.LimbSpec.MulSubSetup (eighteenth chunk of #312 split).
@@ -283,101 +208,11 @@ theorem divK_loop_control_spec (j : Word) (loop_back_off : BitVec 13)
 -- Re-exported via the import at the top of this file, so downstream surface
 -- is unchanged.
 
--- ============================================================================
--- div128 subroutine: Compute un21 from rhat, un1, q1, d_lo.
--- 5 instructions: LD + SLLI + OR + MUL + SUB.
--- ============================================================================
-
-/-- div128 un21 = rhat*2^32 + un1 - q1*d_lo.
-    Loads d_lo from scratch memory. -/
-theorem divK_div128_compute_un21_spec (sp q1 rhat un1 v1_old v5_old dlo_mem : Word) (base : Word) :
-    let rhat_hi := rhat <<< (32 : BitVec 6).toNat
-    let rhat_un1 := rhat_hi ||| un1
-    let q1_dlo := q1 * dlo_mem
-    let un21 := rhat_un1 - q1_dlo
-    let cr :=
-      CodeReq.union (CodeReq.singleton base (.LD .x1 .x12 3952))
-      (CodeReq.union (CodeReq.singleton (base + 4) (.SLLI .x5 .x7 32))
-      (CodeReq.union (CodeReq.singleton (base + 8) (.OR .x5 .x5 .x11))
-      (CodeReq.union (CodeReq.singleton (base + 12) (.MUL .x1 .x10 .x1))
-       (CodeReq.singleton (base + 16) (.SUB .x7 .x5 .x1)))))
-    cpsTriple base (base + 20) cr
-      ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ q1) ** (.x7 ↦ᵣ rhat) **
-       (.x11 ↦ᵣ un1) ** (.x5 ↦ᵣ v5_old) ** (.x1 ↦ᵣ v1_old) **
-       (sp + signExtend12 3952 ↦ₘ dlo_mem))
-      ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ q1) ** (.x7 ↦ᵣ un21) **
-       (.x11 ↦ᵣ un1) ** (.x5 ↦ᵣ rhat_un1) ** (.x1 ↦ᵣ q1_dlo) **
-       (sp + signExtend12 3952 ↦ₘ dlo_mem)) := by
-  intro rhat_hi rhat_un1 q1_dlo un21 cr
-  have I0 := ld_spec_gen .x1 .x12 sp v1_old dlo_mem 3952 base (by nofun)
-  have I1 := slli_spec_gen .x5 .x7 v5_old rhat 32 (base + 4) (by nofun)
-  have I2 := or_spec_gen_rd_eq_rs1 .x5 .x11 rhat_hi un1 (base + 8) (by nofun)
-  have I3 := mul_spec_gen_rd_eq_rs2 .x1 .x10 q1 dlo_mem (base + 12) (by nofun)
-  have I4 := sub_spec_gen .x7 .x5 .x1 rhat_un1 q1_dlo rhat (base + 16) (by nofun)
-  runBlock I0 I1 I2 I3 I4
-
-
--- ============================================================================
--- div128 subroutine: Product check body (before BLTU).
--- 4 instructions: LD + MUL + SLLI + OR.
--- ============================================================================
-
-/-- div128 product check body: compute q*d_lo and rhat*2^32+un1 for comparison. -/
-theorem divK_div128_prodcheck_body_spec (sp q rhat un1 v1_old v5_old dlo : Word) (base : Word) :
-    let q_dlo := q * dlo
-    let rhat_hi := rhat <<< (32 : BitVec 6).toNat
-    let rhat_un1 := rhat_hi ||| un1
-    let cr :=
-      CodeReq.union (CodeReq.singleton base (.LD .x1 .x12 3952))
-      (CodeReq.union (CodeReq.singleton (base + 4) (.MUL .x5 .x10 .x1))
-      (CodeReq.union (CodeReq.singleton (base + 8) (.SLLI .x1 .x7 32))
-       (CodeReq.singleton (base + 12) (.OR .x1 .x1 .x11))))
-    cpsTriple base (base + 16) cr
-      ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ q) ** (.x7 ↦ᵣ rhat) ** (.x11 ↦ᵣ un1) **
-       (.x5 ↦ᵣ v5_old) ** (.x1 ↦ᵣ v1_old) ** (sp + signExtend12 3952 ↦ₘ dlo))
-      ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ q) ** (.x7 ↦ᵣ rhat) ** (.x11 ↦ᵣ un1) **
-       (.x5 ↦ᵣ q_dlo) ** (.x1 ↦ᵣ rhat_un1) ** (sp + signExtend12 3952 ↦ₘ dlo)) := by
-  intro q_dlo rhat_hi rhat_un1 cr
-  have I0 := ld_spec_gen .x1 .x12 sp v1_old dlo 3952 base (by nofun)
-  have I1 := mul_spec_gen .x5 .x10 .x1 v5_old q dlo (base + 4) (by nofun)
-  have I2 := slli_spec_gen .x1 .x7 dlo rhat 32 (base + 8) (by nofun)
-  have I3 := or_spec_gen_rd_eq_rs1 .x1 .x11 (rhat <<< (32 : BitVec 6).toNat) un1 (base + 12) (by nofun)
-  runBlock I0 I1 I2 I3
-
--- ============================================================================
--- div128 subroutine: Correction path (2 instrs: ADDI q-- + ADD rhat+=d_hi).
--- Used after product check BLTU taken, and also after q1/q0 clamp BEQ ntaken.
--- ============================================================================
-
-/-- div128 correction: q-- and rhat += d_hi. Generic for q1 (x10) or q0 (x5). -/
-theorem divK_div128_correct_q1_spec (q rhat d_hi : Word) (base : Word) :
-    let q' := q + signExtend12 4095
-    let rhat' := rhat + d_hi
-    let cr :=
-      CodeReq.union (CodeReq.singleton base (.ADDI .x10 .x10 4095))
-       (CodeReq.singleton (base + 4) (.ADD .x7 .x7 .x6))
-    cpsTriple base (base + 8) cr
-      ((.x10 ↦ᵣ q) ** (.x7 ↦ᵣ rhat) ** (.x6 ↦ᵣ d_hi))
-      ((.x10 ↦ᵣ q') ** (.x7 ↦ᵣ rhat') ** (.x6 ↦ᵣ d_hi)) := by
-  intro q' rhat' cr
-  have I0 := addi_spec_gen_same .x10 q 4095 base (by nofun)
-  have I1 := add_spec_gen_rd_eq_rs1 .x7 .x6 rhat d_hi (base + 4) (by nofun)
-  runBlock I0 I1
-
-/-- div128 correction for q0: q0-- and rhat2 += d_hi. -/
-theorem divK_div128_correct_q0_spec (q0 rhat2 d_hi : Word) (base : Word) :
-    let q0' := q0 + signExtend12 4095
-    let rhat2' := rhat2 + d_hi
-    let cr :=
-      CodeReq.union (CodeReq.singleton base (.ADDI .x5 .x5 4095))
-       (CodeReq.singleton (base + 4) (.ADD .x11 .x11 .x6))
-    cpsTriple base (base + 8) cr
-      ((.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ rhat2) ** (.x6 ↦ᵣ d_hi))
-      ((.x5 ↦ᵣ q0') ** (.x11 ↦ᵣ rhat2') ** (.x6 ↦ᵣ d_hi)) := by
-  intro q0' rhat2' cr
-  have I0 := addi_spec_gen_same .x5 q0 4095 base (by nofun)
-  have I1 := add_spec_gen_rd_eq_rs1 .x11 .x6 rhat2 d_hi (base + 4) (by nofun)
-  runBlock I0 I1
+-- div128 un21 + prodcheck body + q1/q0 corrections specs
+-- (divK_div128_{compute_un21,prodcheck_body,correct_q1,correct_q0}_spec)
+-- moved to EvmAsm.Evm64.DivMod.LimbSpec.Div128UnProdCheck (twenty-first
+-- chunk of #312 split). Re-exported via the import at the top of this file,
+-- so downstream surface is unchanged.
 
 -- div128 tail specs (divK_div128_{clamp_test_q1,clamp_test_q0,step2_init,
 -- prodcheck2_body,correct_q0_single,combine_q,restore_return}_spec) moved to

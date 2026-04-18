@@ -82,6 +82,12 @@ theorem evmStackIs_pair (sp : Word) (a b : EvmWord) :
     evmStackIs sp [a, b] = (evmWordIs sp a ** evmWordIs (sp + 32) b) := by
   rw [evmStackIs_cons_cons_nil, sepConj_emp_right']
 
+/-- Symmetric companion of `evmStackIs_pair`: singleton stack collapses to a
+    single `evmWordIs`. -/
+theorem evmStackIs_single (sp : Word) (v : EvmWord) :
+    evmStackIs sp [v] = evmWordIs sp v := by
+  rw [evmStackIs_cons_nil, sepConj_emp_right']
+
 -- ============================================================================
 -- evmWordIs unfold and limb-equality bridges
 -- ============================================================================
