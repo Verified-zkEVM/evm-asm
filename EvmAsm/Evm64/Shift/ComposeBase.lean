@@ -16,6 +16,7 @@
 -/
 
 import EvmAsm.Evm64.Shift.LimbSpec
+import EvmAsm.Rv64.AddrNorm
 
 namespace EvmAsm.Evm64
 
