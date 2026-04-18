@@ -17,7 +17,7 @@ namespace EvmWord
 -- ============================================================================
 
 -- Carry from 64-bit addition: (if ult (a+b) b then 1 else 0).toNat = (a.toNat + b.toNat) / 2^64
-private theorem carry_toNat (x y : Word) :
+theorem carry_toNat (x y : Word) :
     (if BitVec.ult (x + y) y then (1 : Word) else 0).toNat =
     (x.toNat + y.toNat) / 2^64 := by
   have hx := x.isLt; have hy := y.isLt
