@@ -503,8 +503,21 @@ All phases below target **Evm64** primarily. Files are under `EvmAsm/Evm64/`.
   6. Stack-level spec: case-split b=0/≠0, then on n, compose full-path + semantic bridge
   7. Factor shared DIV/MOD loop (Issue #266) to derive MOD specs from DIV proofs
 
+Before starting **any** of the remaining arithmetic opcodes below (SDIV,
+SMOD, ADDMOD, MULMOD, EXP), read
+[`EvmAsm/Evm64/OPCODE_TEMPLATE.md`](EvmAsm/Evm64/OPCODE_TEMPLATE.md) —
+it codifies the day-one conventions distilled from the DivMod retrofit
+experience (parallel `LimbSpec/` / `LoopDefs/` / `Compose/` layout,
+unified Bool/Fin dispatch from day one, sibling-opcode factoring,
+`@[irreducible]` bundling thresholds, named `Compose/Offsets.lean`,
+per-opcode `AddrNorm` grindset, `structure <Opcode>Valid` validity
+bundle). Tracked by issue #313.
+
 #### 4.3 SDIV and SMOD (Signed)
 - **Approach**: Check signs, compute unsigned div/mod, apply sign correction.
+- **Per OPCODE_TEMPLATE.md**: SMOD is a sign-sibling of SDIV; layout the
+  files with a shared body + per-sibling epilogue split from the first PR
+  (do not copy DIV's retrofit-style parallel MOD clone).
 
 #### 4.4 ADDMOD and MULMOD
 - **Approach**: ADDMOD needs 257-bit intermediate (carry). MULMOD needs
