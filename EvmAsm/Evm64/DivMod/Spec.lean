@@ -285,6 +285,19 @@ instance (sp n_val shift b0 b1 b2 b3 : Word) :
     Assertion.PCFree (normBPost sp n_val shift b0 b1 b2 b3) :=
   ⟨pcFree_normBPost sp n_val shift b0 b1 b2 b3⟩
 
+/-- `fullDivN4MaxSkipPost` is pc-free: all its atoms (inside the
+    `denormDivPost` sub-bundle plus the top-level wrapper atoms) are
+    `regIs` / `memIs`. Proof goes through `delta` since the bundle is
+    `@[irreducible]` and has no dedicated `_unfold` theorem. -/
+theorem pcFree_fullDivN4MaxSkipPost (sp a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
+    (fullDivN4MaxSkipPost sp a0 a1 a2 a3 b0 b1 b2 b3).pcFree := by
+  delta fullDivN4MaxSkipPost
+  pcFree
+
+instance (sp a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
+    Assertion.PCFree (fullDivN4MaxSkipPost sp a0 a1 a2 a3 b0 b1 b2 b3) :=
+  ⟨pcFree_fullDivN4MaxSkipPost sp a0 a1 a2 a3 b0 b1 b2 b3⟩
+
 /-- MOD counterpart of `div_n4_max_skip_stack_weaken`. Same pattern, same
     register/memory weakenings — only the result-slot `evmWordIs` holds
     `EvmWord.mod a b` instead of `EvmWord.div a b`. -/
