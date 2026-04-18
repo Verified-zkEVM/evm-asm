@@ -120,6 +120,39 @@ def divN4MaxSkipStackPost (sp : Word) (a b : EvmWord) : Assertion :=
   evmWordIs sp a ** evmWordIs (sp + 32) (EvmWord.div a b) **
   divScratchOwn sp
 
+theorem pcFree_divScratchOwn (sp : Word) : (divScratchOwn sp).pcFree := by
+  unfold divScratchOwn; pcFree
+
+instance (sp : Word) : Assertion.PCFree (divScratchOwn sp) :=
+  ⟨pcFree_divScratchOwn sp⟩
+
+theorem pcFree_divN4MaxSkipStackPost (sp : Word) (a b : EvmWord) :
+    (divN4MaxSkipStackPost sp a b).pcFree := by
+  unfold divN4MaxSkipStackPost; pcFree
+
+instance (sp : Word) (a b : EvmWord) :
+    Assertion.PCFree (divN4MaxSkipStackPost sp a b) :=
+  ⟨pcFree_divN4MaxSkipStackPost sp a b⟩
+
+/-- MOD counterpart of `divN4MaxSkipStackPost`: same structure, same register
+    and scratch handling, but the second operand slot holds `EvmWord.mod a b`
+    instead of `EvmWord.div a b`. Target shape for the forthcoming MOD stack
+    spec on the n=4 max+skip sub-path. -/
+def modN4MaxSkipStackPost (sp : Word) (a b : EvmWord) : Assertion :=
+  (.x12 ↦ᵣ (sp + 32)) ** regOwn .x1 ** regOwn .x2 **
+  regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+  regOwn .x10 ** regOwn .x11 ** (.x0 ↦ᵣ (0 : Word)) **
+  evmWordIs sp a ** evmWordIs (sp + 32) (EvmWord.mod a b) **
+  divScratchOwn sp
+
+theorem pcFree_modN4MaxSkipStackPost (sp : Word) (a b : EvmWord) :
+    (modN4MaxSkipStackPost sp a b).pcFree := by
+  unfold modN4MaxSkipStackPost; pcFree
+
+instance (sp : Word) (a b : EvmWord) :
+    Assertion.PCFree (modN4MaxSkipStackPost sp a b) :=
+  ⟨pcFree_modN4MaxSkipStackPost sp a b⟩
+
 /-- EvmWord-level wrapper around `evm_div_n4_full_max_skip_spec`. Same
     guarantee (full-path DIV from `base` to `base + nopOff` on the n=4 max+skip
     sub-path), but with the operands bundled as `evmWordIs sp a` /
