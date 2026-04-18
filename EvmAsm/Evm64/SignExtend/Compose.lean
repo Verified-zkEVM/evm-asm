@@ -26,9 +26,8 @@ open EvmAsm.Rv64.AddrNorm (se13_24 se13_60 se13_100 se13_156 se13_168 se21_36 se
 /-- The full evm_signextend code as a single CodeReq.ofProg block (48 instructions). -/
 abbrev signextCode (base : Word) : CodeReq := CodeReq.ofProg base evm_signextend
 
-/-- Weaken concrete register to existential ownership. -/
-private theorem regIs_to_regOwn' (r : Reg) (v : Word) : ∀ h, (r ↦ᵣ v) h → (regOwn r) h :=
-  fun _ hp => ⟨v, hp⟩
+-- `regIs_to_regOwn` lives in `Rv64/SepLogic.lean` (shared with the
+-- Byte / Shift / SignExtend opcode files).
 
 /-- If each half of a CodeReq union is subsumed by target, so is the union. -/
 private theorem CodeReq_union_sub_both {cr1 cr2 target : CodeReq}
@@ -306,14 +305,14 @@ theorem signext_nochange_high_spec (sp base : Word)
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by
       simp only [signExtend12_32] at hq
-      have w0 := sepConj_mono_left (regIs_to_regOwn' .x5 _) h
+      have w0 := sepConj_mono_left (regIs_to_regOwn .x5 _) h
         ((congrFun (show _ =
           ((.x5 ↦ᵣ (b1 ||| b2 ||| b3)) ** (.x10 ↦ᵣ b3) **
            (.x12 ↦ᵣ (sp + 32)) ** (.x0 ↦ᵣ (0 : Word)) **
            (sp ↦ₘ b0) ** ((sp + 8) ↦ₘ b1) ** ((sp + 16) ↦ₘ b2) ** ((sp + 24) ↦ₘ b3) **
            ((sp + 32) ↦ₘ v0) ** ((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3))
           from by xperm) h).mp hq)
-      have w1 := sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn' .x10 _)) h w0
+      have w1 := sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn .x10 _)) h w0
       exact (congrFun (show _ =
         ((.x12 ↦ᵣ (sp + 32)) ** (regOwn .x5) ** (.x0 ↦ᵣ (0 : Word)) ** (regOwn .x10) **
          (sp ↦ₘ b0) ** ((sp + 8) ↦ₘ b1) ** ((sp + 16) ↦ₘ b2) ** ((sp + 24) ↦ₘ b3) **
@@ -434,14 +433,14 @@ theorem signext_nochange_geq31_spec (sp base : Word)
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by
       simp only [signExtend12_32] at hq
-      have w0 := sepConj_mono_left (regIs_to_regOwn' .x5 _) h
+      have w0 := sepConj_mono_left (regIs_to_regOwn .x5 _) h
         ((congrFun (show _ =
           ((.x5 ↦ᵣ b0) ** (.x10 ↦ᵣ sltiu_val) **
            (.x12 ↦ᵣ (sp + 32)) ** (.x0 ↦ᵣ (0 : Word)) **
            (sp ↦ₘ b0) ** ((sp + 8) ↦ₘ b1) ** ((sp + 16) ↦ₘ b2) ** ((sp + 24) ↦ₘ b3) **
            ((sp + 32) ↦ₘ v0) ** ((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3))
           from by xperm) h).mp hq)
-      have w1 := sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn' .x10 _)) h w0
+      have w1 := sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn .x10 _)) h w0
       exact (congrFun (show _ =
         ((.x12 ↦ᵣ (sp + 32)) ** (regOwn .x5) ** (.x0 ↦ᵣ (0 : Word)) ** (regOwn .x10) **
          (sp ↦ₘ b0) ** ((sp + 8) ↦ₘ b1) ** ((sp + 16) ↦ₘ b2) ** ((sp + 24) ↦ₘ b3) **
@@ -692,9 +691,9 @@ theorem signext_body_spec (sp base : Word)
             ((sp + 32) ↦ₘ m32) ** ((sp + 40) ↦ₘ m40) ** ((sp + 48) ↦ₘ m48) ** ((sp + 56) ↦ₘ m56)) h := by
     intro r5v r6v r10v m32 m40 m48 m56 h hp
     rw [hse32] at hp
-    have w1 := sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn' .x5 _)) h hp
-    have w2 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn' .x6 _))) h w1
-    have w3 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn' .x10 _)))) h w2
+    have w1 := sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn .x5 _)) h hp
+    have w2 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn .x6 _))) h w1
+    have w3 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn .x10 _)))) h w2
     xperm_hyp w3
   -- Apply weakening to each body+done
   have hbd0_w := cpsTriple_consequence _ _ _ _ _ _ _
@@ -737,9 +736,9 @@ theorem signext_body_spec (sp base : Word)
       (.x12 ↦ᵣ (sp + 32)) ** (.x0 ↦ᵣ (0 : Word)) ** bmem **
       ((sp + 32) ↦ₘ v0) ** ((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ m56))
       from by xperm) h).mp hp
-    have w1 := sepConj_mono_left (regIs_to_regOwn' .x5 _) h hp'
-    have w2 := sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn' .x6 _)) h w1
-    have w3 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn' .x10 _))) h w2
+    have w1 := sepConj_mono_left (regIs_to_regOwn .x5 _) h hp'
+    have w2 := sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn .x6 _)) h w1
+    have w3 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn .x10 _))) h w2
     exact (congrFun (show _ = _ from by xperm) h).mp w3
   -- signextend bridge: connect body outputs to (EvmWord.signextend b x).getLimb i
   -- Key facts

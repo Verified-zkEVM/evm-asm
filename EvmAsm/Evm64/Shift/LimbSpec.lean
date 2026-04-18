@@ -699,9 +699,7 @@ theorem shr_phase_c_spec_pure (v5 v10 : Word) (base : Word)
 -- Section 8: Phase A (9 instructions, cpsBranch)
 -- ============================================================================
 
--- Helper: weaken concrete regs to regOwn
-private theorem regIs_to_regOwn (r : Reg) (v : Word) : ∀ h, (r ↦ᵣ v) h → (regOwn r) h :=
-  fun _ hp => ⟨v, hp⟩
+-- `regIs_to_regOwn` lives in `Rv64/SepLogic.lean` (shared).
 
 /-- Phase A code as explicit union of sub-CRs (matching disjoint composition structure).
     9 instructions: LD + LD/OR + LD/OR + BNE + LD + SLTIU + BEQ -/

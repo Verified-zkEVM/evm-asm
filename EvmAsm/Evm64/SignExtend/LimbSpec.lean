@@ -300,8 +300,7 @@ theorem signext_cascade_step_spec (v5 v10 : Word)
 -- Phase A: Check b >= 31 (9 instructions, cpsBranch)
 -- ============================================================================
 
-private theorem regIs_to_regOwn (r : Reg) (v : Word) : ∀ h, (r ↦ᵣ v) h → (regOwn r) h :=
-  fun _ hp => ⟨v, hp⟩
+-- `regIs_to_regOwn` lives in `Rv64/SepLogic.lean` (shared).
 
 /-- Phase A code as explicit union of sub-CRs (matching disjoint composition structure).
     9 instructions: LD + LD/OR + LD/OR + BNE + LD + SLTIU + BEQ -/

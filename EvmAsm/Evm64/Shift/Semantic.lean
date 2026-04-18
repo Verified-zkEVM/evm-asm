@@ -20,8 +20,7 @@ open EvmAsm.Rv64
 -- Helpers
 -- ============================================================================
 
-private theorem regIs_to_regOwn' (r : Reg) (v : Word) : ∀ h, (r ↦ᵣ v) h → (regOwn r) h :=
-  fun _ hp => ⟨v, hp⟩
+-- `regIs_to_regOwn` lives in `Rv64/SepLogic.lean` (shared).
 
 /-- Weaken: zero-result + frame regs → evmWordIs 0 + regOwn. -/
 private theorem shr_zero_evmWord_weaken (sp : Word) (s0 s1 s2 s3 r6 r7 r11 : Word) :
@@ -43,12 +42,12 @@ private theorem shr_zero_evmWord_weaken (sp : Word) (s0 s1 s2 s3 r6 r7 r11 : Wor
      ((sp + 32) ↦ₘ (0 : Word)) ** ((sp + 40) ↦ₘ (0 : Word)) **
      ((sp + 48) ↦ₘ (0 : Word)) ** ((sp + 56) ↦ₘ (0 : Word))) from by xperm) h).mp hp
   have w1 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
-    (sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn' .x6 _))))) h hp'
+    (sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn .x6 _))))) h hp'
   have w2 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
-    (sepConj_mono_right (sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn' .x7 _)))))) h w1
+    (sepConj_mono_right (sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn .x7 _)))))) h w1
   have w3 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
     (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
-      (sepConj_mono_left (regIs_to_regOwn' .x11 _))))))) h w2
+      (sepConj_mono_left (regIs_to_regOwn .x11 _))))))) h w2
   exact w3
 
 -- ============================================================================

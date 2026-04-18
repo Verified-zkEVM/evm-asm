@@ -4,6 +4,8 @@ This document is the single source of truth for how this repo organizes `grind`-
 
 `CLAUDE.md` and `AGENTS.md` link here from their proof-conventions sections — do not duplicate this content elsewhere.
 
+**If you are starting a new opcode subtree** (SDIV, SMOD, ADDMOD, MULMOD, EXP, …): read [`EvmAsm/Evm64/OPCODE_TEMPLATE.md`](EvmAsm/Evm64/OPCODE_TEMPLATE.md) alongside this doc. The template's §2.5 "Opcode-specific address grindset" rule directs you to ship an `<Opcode>Addr` / `<Opcode>AddrAttr` pair on the first commit that introduces a non-trivial address computation — this is the canonical shape defined in §3 here.
+
 ---
 
 ## 1. Why we are doing this

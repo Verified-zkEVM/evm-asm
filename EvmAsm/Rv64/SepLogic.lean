@@ -351,6 +351,14 @@ def regOwn (r : Reg) : Assertion := fun h => ∃ v, regIs r v h
 /-- Ownership of memory at address a with unspecified value. -/
 def memOwn (a : Word) : Assertion := fun h => ∃ v, memIs a v h
 
+/-- Weaken a concrete register assertion `r ↦ᵣ v` to the existential
+    `regOwn r` ownership form. Shared across Evm64 opcode files that
+    previously re-declared this as a `private theorem`
+    (`Evm64/SignExtend/*`, `Evm64/Shift/*`, `Evm64/Byte/Spec.lean`). -/
+theorem regIs_to_regOwn (r : Reg) (v : Word) :
+    ∀ h, (r ↦ᵣ v) h → (regOwn r) h :=
+  fun _ hp => ⟨v, hp⟩
+
 /-- The empty assertion: owns no resources. -/
 def empAssertion : Assertion := fun h => h = PartialState.empty
 

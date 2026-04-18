@@ -19,8 +19,7 @@ open EvmAsm.Rv64
 -- Helpers
 -- ============================================================================
 
-private theorem regIs_to_regOwn'' (r : Reg) (v : Word) : ∀ h, (r ↦ᵣ v) h → (regOwn r) h :=
-  fun _ hp => ⟨v, hp⟩
+-- `regIs_to_regOwn` lives in `Rv64/SepLogic.lean` (shared).
 
 /-- Helper: lift a no-change raw-limb spec to evmWordIs form (with x6 framing). -/
 private theorem signext_nochange_lift (sp base : Word)
@@ -59,7 +58,7 @@ private theorem signext_nochange_lift (sp base : Word)
       have ha48 : (sp + 32 : Word) + 16 = sp + 48 := by bv_omega
       have ha56 : (sp + 32 : Word) + 24 = sp + 56 := by bv_omega
       simp only [ha40, ha48, ha56]
-      have w := sepConj_mono_right (regIs_to_regOwn'' .x6 _) h hq
+      have w := sepConj_mono_right (regIs_to_regOwn .x6 _) h hq
       xperm_hyp w)
     hmain_f
 

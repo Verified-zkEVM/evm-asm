@@ -212,9 +212,7 @@ private theorem byte_off_sp32 (sp : Word) : sp + signExtend12 (32 : BitVec 12) =
 -- Helper lemmas
 -- ============================================================================
 
-/-- Weaken concrete register to existential ownership. -/
-private theorem regIs_to_regOwn (r : Reg) (v : Word) : ∀ h, (r ↦ᵣ v) h → (regOwn r) h :=
-  fun _ hp => ⟨v, hp⟩
+-- `regIs_to_regOwn` lives in `Rv64/SepLogic.lean` (shared).
 
 /-- Monotonicity for cpsNBranch: extend to a larger CodeReq. -/
 private theorem cpsNBranch_extend_code {entry : Word} {cr cr' : CodeReq}
