@@ -22,8 +22,7 @@ open EvmAsm.Rv64
 
 -- se12_32, se12_40, se12_48, se12_56 are in Base.lean
 
-/-- signExtend12(4) - 4 = 0, used for x1 register in loopSetupPost at n=4. -/
-private theorem x1_val_n4 : signExtend12 (4 : BitVec 12) - (4 : Word) = (0 : Word) := by decide
+-- `x1_val_n4` now lives in `Compose/Base.lean` (shared with FullPathN4Shift0).
 
 -- ============================================================================
 -- Postcondition and condition functions for n=4 composition

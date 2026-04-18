@@ -167,6 +167,7 @@ When in doubt, write a short throwaway test demonstrating the duplication is rea
 | `divmod_addr` | `EvmAsm/Evm64/DivMod/AddrNorm.lean` (+ `AddrNormAttr.lean`) | landed (infrastructure + 1 file migrated) | #263 / #304 |
 | `reg_ops` | `EvmAsm/Rv64/RegOps.lean` (+ `RegOpsAttr.lean`) | infrastructure landed (sanity proofs only, migrations pending) | GRIND.md Phase 5 |
 | `rv64_addr` | `EvmAsm/Rv64/AddrNorm.lean` (+ `AddrNormAttr.lean`) | infrastructure landed (~47 signExtend13 / signExtend21 atomic facts + associativity, sanity proofs only, migrations pending) | GRIND.md Phase 3 |
+| `byte_alg` | `EvmAsm/Rv64/ByteAlg.lean` (+ `ByteAlgAttr.lean`) | infrastructure landed (seeded with `extractByte_replaceByte_same`; further algebra identities pending) | GRIND.md Phase 4 |
 
 Add new rows here as sets land. Each row should link the issue and the introducing PR.
 
@@ -219,11 +220,12 @@ Every phase follows the same seven-step shape. Deviate only with a documented re
   - Migration PRs collapsing `rw [show signExtend1? N = <const> from by decide]` to `rw [se13_N]` / `rw [se21_N]`: **#385** (DivMod/Compose/, 28 sites), **#388** (SignExtend/Compose, 9 sites), **#390** (DivMod/LoopBody + DivMod/Compose/{Epilogue, FullPath}, 9 sites), **#392** (Shift/{Compose, ShlCompose, SarCompose}, 27 sites), **#395** (Byte/Spec, 9 sites) — 82 sites total across 11 files. Remaining: a single `signExtend12 31` site in `SignExtend/Compose.lean:748` (value 31 is not in the grindset — leave it or backfill separately).
   - Bulk migration of the pure-associativity `bv_addr` call-sites (578 in DivMod alone) is the remaining follow-up and can happen incrementally: `rv64_addr` already subsumes `bv_addr` via the simp fallback, so any call-site can switch in place.
 
-#### Phase 4 ⏳ — `byte_alg`
+#### Phase 4 🚧 — `byte_alg`
 - **Goal:** close `extractByte`/`replaceByte` algebra goals with one tactic.
-- **Targets:** new `EvmAsm/Rv64/ByteAlg.lean`. Atomic facts: `extractByte_replaceByte_same`, `extractByte_replaceByte_diff`, `replaceByte_replaceByte_same`, byte-index arithmetic, `extractByte` of concrete word literals.
+- **Targets:** new `EvmAsm/Rv64/ByteAlg.lean` (+ `ByteAlgAttr.lean`). Atomic facts: `extractByte_replaceByte_same`, `extractByte_replaceByte_diff`, `replaceByte_replaceByte_same`, byte-index arithmetic, `extractByte` of concrete word literals.
 - **Proof-of-value:** one file in `EvmAsm/Evm64/Byte/` (e.g., `Byte/Spec.lean`).
 - **Dependencies:** none.
+- **Status:** Infrastructure landed. `EvmAsm/Rv64/ByteAlg.lean` + `ByteAlgAttr.lean` declare the `@[byte_alg]` attribute (Layout B) and the `byte_alg` tactic macro (`first | grind | simp only [byte_alg]`). Seeded with the single algebra identity currently proved in `Rv64/ByteOps.lean`: `extractByte_replaceByte_same`. One sanity `example` exercises the tactic. Further siblings (`extractByte_replaceByte_diff` for `pos₁ ≠ pos₂`, `replaceByte_replaceByte_same` idempotency, byte-index arithmetic, `extractByte` of concrete word literals) land as one-line `@[byte_alg, grind =]` additions once proved.
 
 #### Phase 5 🚧 — `reg_ops`
 - **Goal:** close register-read-after-write chains (`getReg (setReg s r v) r' = …`, `setReg_setReg` commute/idempotent) with one tactic.

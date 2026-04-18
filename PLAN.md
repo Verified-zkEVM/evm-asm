@@ -134,6 +134,40 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   Conventions, layout patterns, empirical justification, rules of thumb, and
   rollout roadmap are documented in `GRIND.md` (single source of truth for
   simp/grind-set conventions; `CLAUDE.md` and `AGENTS.md` link to it).
+- **`rv64_addr` simp/grind set** (`Rv64/AddrNorm.lean`, `AddrNormAttr.lean`,
+  GRIND.md Phase 3): Rv64-wide counterpart to `divmod_addr`. Registers ~47
+  atomic facts (29 `signExtend13` evaluations + 19 `signExtend21` evaluations
+  + `word_zero_add` / `word_add_zero` identities) as `@[rv64_addr, grind =]`.
+  The `rv64_addr` tactic macro tries `grind` first and falls back to
+  `simp only [rv64_addr, BitVec.add_assoc]; rfl` — subsumes the legacy
+  `bv_addr`. Inline `rw [show signExtend1? N = <const> from by decide]`
+  migration complete across DivMod / SignExtend / Shift / Byte (82 sites
+  across 12 files under PRs #385 / #388 / #390 / #392 / #395).
+- **`reg_ops` simp/grind set** (`Rv64/RegOps.lean`, `RegOpsAttr.lean`,
+  GRIND.md Phase 5): Registers ~40 projection lemmas (`pc_set<F>`,
+  `code_set<F>`, `getReg_setPC`, `getMem_set<F>`, `committed_*`,
+  `publicValues_*`, `privateInput_*` + `_append{Commit,PublicValues}`)
+  from `Basic.lean` with `@[reg_ops, grind =]` via `attribute` commands.
+  The `reg_ops` tactic closes projection chains in one line. Inductive
+  `*_writeWords` / `*_writeBytesAsWords` variants deliberately excluded
+  to avoid grind-loop risk on open-ended lists.
+- **Opcode-subroutine template** (`Evm64/OPCODE_TEMPLATE.md`, issue #313):
+  Day-one conventions for the next opcode subtree — parallel
+  `LimbSpec/` / `LoopDefs/` / `Compose/` layout, unified Bool/Fin dispatch
+  from day one (no `<Opcode>Skip.lean` + `<Opcode>Addback.lean`
+  intermediates), sibling-opcode (SMOD/ADDMOD) factoring, `@[irreducible]`
+  bundling for ≥3 `let` bindings or >20-atom frames, named
+  `Compose/Offsets.lean` with drift checks, per-opcode `AddrNorm` +
+  `AddrNormAttr` files, `structure <Opcode>Valid` validity bundle,
+  pre-opcode audit checklist, reviewer checklist. Linked from `AGENTS.md`.
+- **`LoopDefs/{Iter,Post,Bundle}.lean` split** (`Evm64/DivMod/LoopDefs/`,
+  issue #312): Monolithic 1,359-line `LoopDefs.lean` split into three
+  focused sub-files — `Iter.lean` (pure `Word`/`Prop` computations),
+  `Post.lean` (Assertion-valued postconditions), `Bundle.lean`
+  (Assertion-valued preconditions). `LoopDefs.lean` reduced to a 16-line
+  hub that re-exports the three sub-files, so every downstream
+  `import EvmAsm.Evm64.DivMod.LoopDefs` works unchanged. Follow-on work
+  on `LimbSpec.lean` (still 2,992 lines) pending.
 - **File-size guardrail** (`scripts/check-file-size.sh`, issue #314): CI step
   enforcing per-file line caps (1200 for `Compose/**`, 1500 elsewhere; `Program.lean`
   exempt). Files may opt out with a `-- file-size-exception: <reason>` comment in
@@ -179,29 +213,18 @@ corresponding non-Spec files.
 - **Shared infra** added to `Stack.lean`: `signExtend12_ofNat_small`,
   `evmStackIs_split_at`, `EvmWord.getLimb_zero`, `signExtend12_neg32`.
 
-#### 2. ShiftSpec.lean — SHR per-limb, phase, body specs
+#### ~~2. ShiftSpec.lean — SHR per-limb, phase, body specs~~ ✅ DONE
 
-- **File**: `Evm64/ShiftSpec.lean`
-- **Programs**: `evm_shr` defined in `Shift.lean` (90 instructions, 3 phases)
-- **What was in the old file**:
-  - Per-limb helpers: `shr_merge_limb_spec` (7 instrs), `shr_last_limb_spec` (3),
-    `shr_ld_or_acc_spec` (2), `shr_last_limb_inplace_spec` (4)
-  - Phase specs: `shr_cascade_step_spec` (ADDI+BEQ cpsBranch),
-    `shr_phase_c_spec` (cascade dispatch, cpsNBranch with 4 exits),
-    `shr_phase_a_code_spec` (9 instrs, LD+OR+BNE+LD+SLTIU+BEQ)
-  - Body specs: `shr_body_{0,1,2,3}_spec` (7-25 instrs each, `runBlock`)
-  - Zero path: `shr_zero_path_spec` (5 instrs)
-- **Approach**: Per-limb specs use `runBlock` auto mode (straightforward).
-  Phase/body specs also use `runBlock`. The cascade and branch compositions
-  previously used manual `cpsTriple_seq_cpsBranch_with_perm` — replace with
-  `cpsTriple_seq_cpsBranch_with_perm_same_cr` after extending sub-specs to
-  a common CR via `cpsTriple_extend_code`, or provide `(by crDisjoint)` for
-  the `hd` argument.
-- **Key pitfall**: `runBlock` for body specs involving `JAL .x0 jal_off`
-  (symbolic offset) — the JAL's exit address `base + K + signExtend21 jal_off`
-  needs `rw [hexit]` before `runBlock`. The `bv_omega` calls for addresses
-  involving `signExtend21` may leak diagnostics; `runTacticSilent` suppresses
-  these.
+- **Files**: `Evm64/Shift/LimbSpec.lean` (SHR per-limb + phase + body specs),
+  `Evm64/Shift/Compose.lean` (`shrCode` + subsumption + composition),
+  `Evm64/Shift/Semantic.lean` (stack-level `evm_shr_stack_spec`).
+- **Status**: Fully proved (0 sorry). Per-limb helpers (`shr_merge_limb_spec`,
+  `shr_last_limb_spec`, `shr_ld_or_acc_spec`, `shr_last_limb_inplace_spec`),
+  phase specs (`shr_cascade_step_spec`, `shr_phase_c_spec`,
+  `shr_phase_a_code_spec`), body specs (`shr_body_{0,1,2,3}_spec`), and
+  zero path (`shr_zero_path_spec`) all recreated under the new
+  `CodeReq` + `runBlock` conventions. Mirrors items #3 (ShlSpec) and
+  #4 (SarSpec) below.
 
 #### ~~3. ShlSpec.lean — SHL per-limb + body specs~~ ✅ DONE
 
@@ -503,8 +526,21 @@ All phases below target **Evm64** primarily. Files are under `EvmAsm/Evm64/`.
   6. Stack-level spec: case-split b=0/≠0, then on n, compose full-path + semantic bridge
   7. Factor shared DIV/MOD loop (Issue #266) to derive MOD specs from DIV proofs
 
+Before starting **any** of the remaining arithmetic opcodes below (SDIV,
+SMOD, ADDMOD, MULMOD, EXP), read
+[`EvmAsm/Evm64/OPCODE_TEMPLATE.md`](EvmAsm/Evm64/OPCODE_TEMPLATE.md) —
+it codifies the day-one conventions distilled from the DivMod retrofit
+experience (parallel `LimbSpec/` / `LoopDefs/` / `Compose/` layout,
+unified Bool/Fin dispatch from day one, sibling-opcode factoring,
+`@[irreducible]` bundling thresholds, named `Compose/Offsets.lean`,
+per-opcode `AddrNorm` grindset, `structure <Opcode>Valid` validity
+bundle). Tracked by issue #313.
+
 #### 4.3 SDIV and SMOD (Signed)
 - **Approach**: Check signs, compute unsigned div/mod, apply sign correction.
+- **Per OPCODE_TEMPLATE.md**: SMOD is a sign-sibling of SDIV; layout the
+  files with a shared body + per-sibling epilogue split from the first PR
+  (do not copy DIV's retrofit-style parallel MOD clone).
 
 #### 4.4 ADDMOD and MULMOD
 - **Approach**: ADDMOD needs 257-bit intermediate (carry). MULMOD needs
