@@ -50,6 +50,16 @@ theorem evmStackIs_cons (sp : Word) (v : EvmWord) (vs : List EvmWord) :
 theorem evmStackIs_nil (sp : Word) :
     evmStackIs sp [] = empAssertion := rfl
 
+/-- Two-element stack: `evmStackIs sp [a, b]` unfolds to
+    `evmWordIs sp a ** evmWordIs (sp + 32) b ** empAssertion`. The
+    trailing `** empAssertion` comes from the single-element recursion
+    hitting `evmStackIs_nil` — `sepConj_empAssertion_right` eliminates it
+    at call sites. Provided as a named rewrite since the 2-element case
+    is what DIV/MOD/MUL/ADD/etc. stack specs all consume. -/
+theorem evmStackIs_cons_cons_nil (sp : Word) (a b : EvmWord) :
+    evmStackIs sp [a, b] =
+    (evmWordIs sp a ** evmWordIs (sp + 32) b ** empAssertion) := rfl
+
 -- ============================================================================
 -- evmWordIs unfold and limb-equality bridges
 -- ============================================================================
