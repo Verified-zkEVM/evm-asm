@@ -7,8 +7,11 @@
 -/
 
 import EvmAsm.Evm64.DivMod.Program
+import EvmAsm.Evm64.DivMod.LimbSpec.CopyAU
 import EvmAsm.Evm64.DivMod.LimbSpec.Denorm
+import EvmAsm.Evm64.DivMod.LimbSpec.Epilogue
 import EvmAsm.Evm64.DivMod.LimbSpec.NormA
+import EvmAsm.Evm64.DivMod.LimbSpec.NormB
 import EvmAsm.Evm64.DivMod.LimbSpec.PhaseA
 import EvmAsm.Rv64.SyscallSpecs
 import EvmAsm.Rv64.ControlFlow
@@ -104,108 +107,14 @@ theorem divK_phaseB_init2_spec (sp : Word) (base : Word)
   have I1 := ld_spec_gen .x7 .x12 sp v7 b2 48 (base + 4) (by nofun)
   runBlock I0 I1
 
--- ============================================================================
--- Phase C4: Copy a → u[0..4] unshifted (shift = 0). 9 instructions.
--- ============================================================================
+-- Phase C4 / CopyAU spec (divK_copyAU_{code,spec}) moved to
+-- EvmAsm.Evm64.DivMod.LimbSpec.CopyAU (fifth chunk of #312 split).
+-- Re-exported via the import at the top of this file, so downstream surface
+-- is unchanged.
 
-abbrev divK_copyAU_code (base : Word) : CodeReq :=
-  CodeReq.ofProg base divK_copyAU
-
-/-- Copy a[0..3] to u[0..3] and set u[4] = 0 (no shift needed). -/
-theorem divK_copyAU_spec (sp : Word) (base : Word)
-    (a0 a1 a2 a3 u0 u1 u2 u3 u4 : Word) (v5 : Word) :
-    let cr := divK_copyAU_code base
-    cpsTriple base (base + 36) cr
-      (
-       (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) **
-       ((sp + signExtend12 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
-       ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
-       ((sp + signExtend12 4056) ↦ₘ u0) ** ((sp + signExtend12 4048) ↦ₘ u1) **
-       ((sp + signExtend12 4040) ↦ₘ u2) ** ((sp + signExtend12 4032) ↦ₘ u3) **
-       ((sp + signExtend12 4024) ↦ₘ u4))
-      (
-       (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ a3) **
-       ((sp + signExtend12 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
-       ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
-       ((sp + signExtend12 4056) ↦ₘ a0) ** ((sp + signExtend12 4048) ↦ₘ a1) **
-       ((sp + signExtend12 4040) ↦ₘ a2) ** ((sp + signExtend12 4032) ↦ₘ a3) **
-       ((sp + signExtend12 4024) ↦ₘ (0 : Word))) := by
-  have I0 := ld_spec_gen .x5 .x12 sp v5 a0 0 base (by nofun)
-  have I1 := sd_spec_gen .x12 .x5 sp a0 u0 4056 (base + 4)
-  have I2 := ld_spec_gen .x5 .x12 sp a0 a1 8 (base + 8) (by nofun)
-  have I3 := sd_spec_gen .x12 .x5 sp a1 u1 4048 (base + 12)
-  have I4 := ld_spec_gen .x5 .x12 sp a1 a2 16 (base + 16) (by nofun)
-  have I5 := sd_spec_gen .x12 .x5 sp a2 u2 4040 (base + 20)
-  have I6 := ld_spec_gen .x5 .x12 sp a2 a3 24 (base + 24) (by nofun)
-  have I7 := sd_spec_gen .x12 .x5 sp a3 u3 4032 (base + 28)
-  have I8 := sd_x0_spec_gen .x12 sp u4 4024 (base + 32)
-  runBlock I0 I1 I2 I3 I4 I5 I6 I7 I8
-
--- ============================================================================
--- NormB: Normalize b in-place (shift > 0). 21 instructions.
--- Per-limb decomposition: 3 merge limbs (6 instr each) + 1 last limb (3 instr).
--- ============================================================================
-
-def divK_normB_merge_prog (high_off low_off : BitVec 12) : List Instr :=
-  [.LD .x5 .x12 high_off, .LD .x7 .x12 low_off, .SLL .x5 .x5 .x6,
-   .SRL .x7 .x7 .x2, .OR .x5 .x5 .x7, .SD .x12 .x5 high_off]
-
-abbrev divK_normB_merge_code (high_off low_off : BitVec 12) (base : Word) : CodeReq :=
-  CodeReq.ofProg base (divK_normB_merge_prog high_off low_off)
-
-/-- NormB merge limb (6 instructions): LD high, LD low, SLL, SRL, OR, SD.
-    Computes result = (high <<< shift) ||| (low >>> anti_shift) and stores to high_off.
-    x6 = shift, x2 = anti_shift (= 64 - shift as unsigned). -/
-theorem divK_normB_merge_spec (high_off low_off : BitVec 12)
-    (sp high low v5 v7 shift anti_shift : Word) (base : Word) :
-    let shifted_high := high <<< (shift.toNat % 64)
-    let shifted_low := low >>> (anti_shift.toNat % 64)
-    let result := shifted_high ||| shifted_low
-    let cr := divK_normB_merge_code high_off low_off base
-    cpsTriple base (base + 24) cr
-      (
-       (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x7 ↦ᵣ v7) **
-       (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ anti_shift) **
-       ((sp + signExtend12 high_off) ↦ₘ high) **
-       ((sp + signExtend12 low_off) ↦ₘ low))
-      (
-       (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result) ** (.x7 ↦ᵣ shifted_low) **
-       (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ anti_shift) **
-       ((sp + signExtend12 high_off) ↦ₘ result) **
-       ((sp + signExtend12 low_off) ↦ₘ low)) := by
-  intro shifted_high shifted_low result cr
-  have I0 := ld_spec_gen .x5 .x12 sp v5 high high_off base (by nofun)
-  have I1 := ld_spec_gen .x7 .x12 sp v7 low low_off (base + 4) (by nofun)
-  have I2 := sll_spec_gen_rd_eq_rs1 .x5 .x6 high shift (base + 8) (by nofun)
-  have I3 := srl_spec_gen_rd_eq_rs1 .x7 .x2 low anti_shift (base + 12) (by nofun)
-  have I4 := or_spec_gen_rd_eq_rs1 .x5 .x7 shifted_high shifted_low (base + 16) (by nofun)
-  have I5 := sd_spec_gen .x12 .x5 sp result high high_off (base + 20)
-  runBlock I0 I1 I2 I3 I4 I5
-
-def divK_normB_last_prog (off : BitVec 12) : List Instr :=
-  [.LD .x5 .x12 off, .SLL .x5 .x5 .x6, .SD .x12 .x5 off]
-
-abbrev divK_normB_last_code (off : BitVec 12) (base : Word) : CodeReq :=
-  CodeReq.ofProg base (divK_normB_last_prog off)
-
-/-- NormB last limb (3 instructions): LD, SLL, SD.
-    Computes result = val <<< shift and stores to off. -/
-theorem divK_normB_last_spec (off : BitVec 12)
-    (sp val v5 shift : Word) (base : Word) :
-    let result := val <<< (shift.toNat % 64)
-    let cr := divK_normB_last_code off base
-    cpsTriple base (base + 12) cr
-      (
-       (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ shift) **
-       ((sp + signExtend12 off) ↦ₘ val))
-      (
-       (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result) ** (.x6 ↦ᵣ shift) **
-       ((sp + signExtend12 off) ↦ₘ result)) := by
-  intro result cr
-  have I0 := ld_spec_gen .x5 .x12 sp v5 val off base (by nofun)
-  have I1 := sll_spec_gen_rd_eq_rs1 .x5 .x6 val shift (base + 4) (by nofun)
-  have I2 := sd_spec_gen .x12 .x5 sp result val off (base + 8)
-  runBlock I0 I1 I2
+-- NormB per-limb specs (divK_normB_merge_*, divK_normB_last_*) moved to
+-- EvmAsm.Evm64.DivMod.LimbSpec.NormB (second chunk of #312 split). Re-exported
+-- via the import at the top of this file, so downstream surface is unchanged.
 
 -- NormA per-limb specs (divK_normA_{top,mergeA,mergeB,last}_*) moved to
 -- EvmAsm.Evm64.DivMod.LimbSpec.NormA (third chunk of #312 split). Re-exported
@@ -215,64 +124,10 @@ theorem divK_normB_last_spec (off : BitVec 12)
 -- EvmAsm.Evm64.DivMod.LimbSpec.Denorm (first chunk of #312 split). Re-exported
 -- via the import at the top of this file, so downstream surface is unchanged.
 
--- ============================================================================
--- Epilogue: Copy q[0..3] or u[0..3] to output. 10 instructions each.
--- Split into load phase (4 LD) + store phase (ADDI + 4 SD) + JAL.
--- ============================================================================
-
-def divK_epilogue_load_prog (off0 off1 off2 off3 : BitVec 12) : List Instr :=
-  [.LD .x5 .x12 off0, .LD .x6 .x12 off1, .LD .x7 .x12 off2, .LD .x10 .x12 off3]
-
-abbrev divK_epilogue_load_code (off0 off1 off2 off3 : BitVec 12) (base : Word) : CodeReq :=
-  CodeReq.ofProg base (divK_epilogue_load_prog off0 off1 off2 off3)
-
-/-- Epilogue load phase: load 4 values from scratch space. 4 instructions.
-    Loads q[0..3] (for DIV) or u[0..3] (for MOD) into x5, x6, x7, x10. -/
-theorem divK_epilogue_load_spec (off0 off1 off2 off3 : BitVec 12)
-    (sp r0 r1 r2 r3 v5 v6 v7 v10 : Word) (base : Word) :
-    let cr := divK_epilogue_load_code off0 off1 off2 off3 base
-    cpsTriple base (base + 16) cr
-      (
-       (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x10 ↦ᵣ v10) **
-       ((sp + signExtend12 off0) ↦ₘ r0) ** ((sp + signExtend12 off1) ↦ₘ r1) **
-       ((sp + signExtend12 off2) ↦ₘ r2) ** ((sp + signExtend12 off3) ↦ₘ r3))
-      (
-       (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ r0) ** (.x6 ↦ᵣ r1) ** (.x7 ↦ᵣ r2) ** (.x10 ↦ᵣ r3) **
-       ((sp + signExtend12 off0) ↦ₘ r0) ** ((sp + signExtend12 off1) ↦ₘ r1) **
-       ((sp + signExtend12 off2) ↦ₘ r2) ** ((sp + signExtend12 off3) ↦ₘ r3)) := by
-  have I0 := ld_spec_gen .x5 .x12 sp v5 r0 off0 base (by nofun)
-  have I1 := ld_spec_gen .x6 .x12 sp v6 r1 off1 (base + 4) (by nofun)
-  have I2 := ld_spec_gen .x7 .x12 sp v7 r2 off2 (base + 8) (by nofun)
-  have I3 := ld_spec_gen .x10 .x12 sp v10 r3 off3 (base + 12) (by nofun)
-  runBlock I0 I1 I2 I3
-
-def divK_epilogue_store_prog (jal_off : BitVec 21) : List Instr :=
-  [.ADDI .x12 .x12 32, .SD .x12 .x5 0, .SD .x12 .x6 8,
-   .SD .x12 .x7 16, .SD .x12 .x10 24, .JAL .x0 jal_off]
-
-abbrev divK_epilogue_store_code (jal_off : BitVec 21) (base : Word) : CodeReq :=
-  CodeReq.ofProg base (divK_epilogue_store_prog jal_off)
-
-/-- Epilogue store phase: ADDI sp+32, store 4 values, JAL to exit. 6 instructions. -/
-theorem divK_epilogue_store_spec (sp : Word) (base : Word)
-    (r0 r1 r2 r3 m0 m8 m16 m24 : Word) (jal_off : BitVec 21) :
-    let cr := divK_epilogue_store_code jal_off base
-    cpsTriple base (base + 20 + signExtend21 jal_off) cr
-      (
-       (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ r0) ** (.x6 ↦ᵣ r1) ** (.x7 ↦ᵣ r2) ** (.x10 ↦ᵣ r3) **
-       ((sp + 32) ↦ₘ m0) ** ((sp + 40) ↦ₘ m8) **
-       ((sp + 48) ↦ₘ m16) ** ((sp + 56) ↦ₘ m24))
-      (
-       (.x12 ↦ᵣ (sp + 32)) ** (.x5 ↦ᵣ r0) ** (.x6 ↦ᵣ r1) ** (.x7 ↦ᵣ r2) ** (.x10 ↦ᵣ r3) **
-       ((sp + 32) ↦ₘ r0) ** ((sp + 40) ↦ₘ r1) **
-       ((sp + 48) ↦ₘ r2) ** ((sp + 56) ↦ₘ r3)) := by
-  have I0 := addi_spec_gen_same .x12 sp 32 base (by nofun)
-  have I1 := sd_spec_gen .x12 .x5 (sp + 32) r0 m0 0 (base + 4)
-  have I2 := sd_spec_gen .x12 .x6 (sp + 32) r1 m8 8 (base + 8)
-  have I3 := sd_spec_gen .x12 .x7 (sp + 32) r2 m16 16 (base + 12)
-  have I4 := sd_spec_gen .x12 .x10 (sp + 32) r3 m24 24 (base + 16)
-  have I5 := jal_x0_spec_gen jal_off (base + 20)
-  runBlock I0 I1 I2 I3 I4 I5
+-- Epilogue per-limb specs (divK_epilogue_{load,store}_*) moved to
+-- EvmAsm.Evm64.DivMod.LimbSpec.Epilogue (fourth chunk of #312 split).
+-- Re-exported via the import at the top of this file, so downstream surface
+-- is unchanged.
 
 -- ============================================================================
 -- Phase B tail: store n, compute address of b[n-1], load leading limb.
