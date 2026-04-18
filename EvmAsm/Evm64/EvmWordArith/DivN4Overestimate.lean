@@ -638,4 +638,102 @@ theorem n4_max_addback_div_mod_limbs (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
   · rw [← hr]; exact getLimbN_fromLimbs_2 _ _ _ _
   · rw [← hr]; exact getLimbN_fromLimbs_3 _ _ _ _
 
+-- ============================================================================
+-- EvmWord-level n=4 max bridges: state the skip/addback correctness directly
+-- in terms of `a b : EvmWord`, so call sites don't have to decompose into
+-- eight limb arguments.
+-- ============================================================================
+
+/-- Round-trip: reconstructing an `EvmWord` from its four limbs produces the
+    original value. Stated in the concrete match-on-`Fin 4` form that
+    `n4_max_{skip,addback}_correct` produce for `q`/`r`, so it composes
+    directly with those theorems. -/
+theorem EvmWord.fromLimbs_match_getLimbN_id (v : EvmWord) :
+    (EvmWord.fromLimbs fun i : Fin 4 =>
+      match i with
+      | 0 => v.getLimbN 0
+      | 1 => v.getLimbN 1
+      | 2 => v.getLimbN 2
+      | 3 => v.getLimbN 3) = v := by
+  have hfun : (fun i : Fin 4 =>
+      match i with
+      | 0 => v.getLimbN 0
+      | 1 => v.getLimbN 1
+      | 2 => v.getLimbN 2
+      | 3 => v.getLimbN 3) = v.getLimb := by
+    funext i
+    fin_cases i <;> simp [EvmWord.getLimbN]
+  rw [hfun, fromLimbs_getLimb]
+
+/-- n=4 max+skip path, EvmWord-level statement. Same content as
+    `n4_max_skip_div_mod_limbs` but with `a b : EvmWord` inputs and the
+    `mulsubN4` computation keyed off `a.getLimbN` / `b.getLimbN` — the exact
+    shape the DIV/MOD stack spec needs. -/
+theorem n4_max_skip_div_mod_getLimbN (a b : EvmWord)
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hc3_zero : (mulsubN4 (signExtend12 4095)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)).2.2.2.2 = 0) :
+    let ms := mulsubN4 (signExtend12 4095)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    (EvmWord.div a b).getLimbN 0 = (signExtend12 4095 : Word) ∧
+    (EvmWord.div a b).getLimbN 1 = 0 ∧
+    (EvmWord.div a b).getLimbN 2 = 0 ∧
+    (EvmWord.div a b).getLimbN 3 = 0 ∧
+    (EvmWord.mod a b).getLimbN 0 = ms.1 ∧
+    (EvmWord.mod a b).getLimbN 1 = ms.2.1 ∧
+    (EvmWord.mod a b).getLimbN 2 = ms.2.2.1 ∧
+    (EvmWord.mod a b).getLimbN 3 = ms.2.2.2.1 := by
+  intro ms
+  have hraw := n4_max_skip_div_mod_limbs
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+    hb3nz hc3_zero
+  rw [EvmWord.fromLimbs_match_getLimbN_id a, EvmWord.fromLimbs_match_getLimbN_id b] at hraw
+  exact hraw
+
+/-- n=4 max+addback path, EvmWord-level statement. EvmWord-level analogue of
+    `n4_max_addback_div_mod_limbs` with `a b : EvmWord` inputs. -/
+theorem n4_max_addback_div_mod_getLimbN (a b : EvmWord)
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hc3_one : (mulsubN4 (signExtend12 4095)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)).2.2.2.2 = 1)
+    (hcarry_one : addbackN4_carry
+      (mulsubN4 (signExtend12 4095)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)).1
+      (mulsubN4 (signExtend12 4095)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)).2.1
+      (mulsubN4 (signExtend12 4095)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)).2.2.1
+      (mulsubN4 (signExtend12 4095)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)).2.2.2.1
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) = 1) :
+    let ms := mulsubN4 (signExtend12 4095)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    let ab := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 ((0 : Word) - ms.2.2.2.2)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+    let q_hat' : Word := signExtend12 (4095 : BitVec 12) + signExtend12 (4095 : BitVec 12)
+    (EvmWord.div a b).getLimbN 0 = q_hat' ∧
+    (EvmWord.div a b).getLimbN 1 = 0 ∧
+    (EvmWord.div a b).getLimbN 2 = 0 ∧
+    (EvmWord.div a b).getLimbN 3 = 0 ∧
+    (EvmWord.mod a b).getLimbN 0 = ab.1 ∧
+    (EvmWord.mod a b).getLimbN 1 = ab.2.1 ∧
+    (EvmWord.mod a b).getLimbN 2 = ab.2.2.1 ∧
+    (EvmWord.mod a b).getLimbN 3 = ab.2.2.2.1 := by
+  intro ms ab q_hat'
+  have hraw := n4_max_addback_div_mod_limbs
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+    hb3nz hc3_one hcarry_one
+  rw [EvmWord.fromLimbs_match_getLimbN_id a, EvmWord.fromLimbs_match_getLimbN_id b] at hraw
+  exact hraw
+
 end EvmAsm.Evm64
