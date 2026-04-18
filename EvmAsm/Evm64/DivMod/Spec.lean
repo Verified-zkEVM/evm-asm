@@ -147,12 +147,25 @@ theorem n4MaxAddbackSemanticHolds_def (a b : EvmWord) :
     Paired with the forthcoming `evm_div_n4_max_skip_stack_spec` and derived
     from the concrete `fullDivN4MaxSkipPost` via the `n4_max_skip_div_mod_getLimbN`
     semantic bridge + `divScratchValues_implies_divScratchOwn` weakener. -/
+@[irreducible]
 def divN4MaxSkipStackPost (sp : Word) (a b : EvmWord) : Assertion :=
   (.x12 ↦ᵣ (sp + 32)) ** regOwn .x1 ** regOwn .x2 **
   regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
   regOwn .x10 ** regOwn .x11 ** (.x0 ↦ᵣ (0 : Word)) **
   evmWordIs sp a ** evmWordIs (sp + 32) (EvmWord.div a b) **
   divScratchOwn sp
+
+/-- Named unfold for `divN4MaxSkipStackPost`. Restores access to the
+    underlying definition once the `@[irreducible]` attribute has made
+    `delta` the only way in at call sites. -/
+theorem divN4MaxSkipStackPost_unfold (sp : Word) (a b : EvmWord) :
+    divN4MaxSkipStackPost sp a b =
+    ((.x12 ↦ᵣ (sp + 32)) ** regOwn .x1 ** regOwn .x2 **
+     regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+     regOwn .x10 ** regOwn .x11 ** (.x0 ↦ᵣ (0 : Word)) **
+     evmWordIs sp a ** evmWordIs (sp + 32) (EvmWord.div a b) **
+     divScratchOwn sp) := by
+  delta divN4MaxSkipStackPost; rfl
 
 theorem pcFree_divScratchOwn (sp : Word) : (divScratchOwn sp).pcFree := by
   unfold divScratchOwn; pcFree
@@ -162,7 +175,7 @@ instance (sp : Word) : Assertion.PCFree (divScratchOwn sp) :=
 
 theorem pcFree_divN4MaxSkipStackPost (sp : Word) (a b : EvmWord) :
     (divN4MaxSkipStackPost sp a b).pcFree := by
-  unfold divN4MaxSkipStackPost; pcFree
+  rw [divN4MaxSkipStackPost_unfold]; pcFree
 
 instance (sp : Word) (a b : EvmWord) :
     Assertion.PCFree (divN4MaxSkipStackPost sp a b) :=
@@ -205,6 +218,7 @@ theorem div_n4_max_skip_stack_weaken
     and scratch handling, but the second operand slot holds `EvmWord.mod a b`
     instead of `EvmWord.div a b`. Target shape for the forthcoming MOD stack
     spec on the n=4 max+skip sub-path. -/
+@[irreducible]
 def modN4MaxSkipStackPost (sp : Word) (a b : EvmWord) : Assertion :=
   (.x12 ↦ᵣ (sp + 32)) ** regOwn .x1 ** regOwn .x2 **
   regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
@@ -212,9 +226,19 @@ def modN4MaxSkipStackPost (sp : Word) (a b : EvmWord) : Assertion :=
   evmWordIs sp a ** evmWordIs (sp + 32) (EvmWord.mod a b) **
   divScratchOwn sp
 
+/-- Named unfold for `modN4MaxSkipStackPost`. -/
+theorem modN4MaxSkipStackPost_unfold (sp : Word) (a b : EvmWord) :
+    modN4MaxSkipStackPost sp a b =
+    ((.x12 ↦ᵣ (sp + 32)) ** regOwn .x1 ** regOwn .x2 **
+     regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+     regOwn .x10 ** regOwn .x11 ** (.x0 ↦ᵣ (0 : Word)) **
+     evmWordIs sp a ** evmWordIs (sp + 32) (EvmWord.mod a b) **
+     divScratchOwn sp) := by
+  delta modN4MaxSkipStackPost; rfl
+
 theorem pcFree_modN4MaxSkipStackPost (sp : Word) (a b : EvmWord) :
     (modN4MaxSkipStackPost sp a b).pcFree := by
-  unfold modN4MaxSkipStackPost; pcFree
+  rw [modN4MaxSkipStackPost_unfold]; pcFree
 
 instance (sp : Word) (a b : EvmWord) :
     Assertion.PCFree (modN4MaxSkipStackPost sp a b) :=
