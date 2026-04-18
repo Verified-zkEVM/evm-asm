@@ -561,4 +561,81 @@ theorem addbackN4_first_carry_ne_zero (q v0 v1 v2 v3 u0 u1 u2 u3 : Word)
   simp only [] at this
   rw [h] at this; simp at this
 
+-- ============================================================================
+-- Per-limb getLimb bridges: from n4_max_{skip,addback}_correct to direct
+-- `(EvmWord.div a b).getLimbN k = …` equalities (ready for
+-- `evmWordIs_sp32_limbs_eq` at stack-spec call sites).
+-- ============================================================================
+
+/-- n=4 max+skip path: per-limb quotient/remainder equalities for the
+    `EvmWord.div` / `EvmWord.mod` result. Direct consumer-facing form of
+    `n4_max_skip_correct` — replaces the `fromLimbs` wrapper with eight
+    `getLimbN` equalities that slot directly into `evmWordIs_sp32_limbs_eq`. -/
+theorem n4_max_skip_div_mod_limbs (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hb3nz : b3 ≠ 0)
+    (hc3_zero : (mulsubN4 (signExtend12 4095) b0 b1 b2 b3 a0 a1 a2 a3).2.2.2.2 = 0) :
+    let ms := mulsubN4 (signExtend12 4095) b0 b1 b2 b3 a0 a1 a2 a3
+    let a := fromLimbs fun i : Fin 4 =>
+      match i with | 0 => a0 | 1 => a1 | 2 => a2 | 3 => a3
+    let b := fromLimbs fun i : Fin 4 =>
+      match i with | 0 => b0 | 1 => b1 | 2 => b2 | 3 => b3
+    (EvmWord.div a b).getLimbN 0 = (signExtend12 4095 : Word) ∧
+    (EvmWord.div a b).getLimbN 1 = 0 ∧
+    (EvmWord.div a b).getLimbN 2 = 0 ∧
+    (EvmWord.div a b).getLimbN 3 = 0 ∧
+    (EvmWord.mod a b).getLimbN 0 = ms.1 ∧
+    (EvmWord.mod a b).getLimbN 1 = ms.2.1 ∧
+    (EvmWord.mod a b).getLimbN 2 = ms.2.2.1 ∧
+    (EvmWord.mod a b).getLimbN 3 = ms.2.2.2.1 := by
+  intro ms a b
+  have ⟨hq, hr⟩ := n4_max_skip_correct a0 a1 a2 a3 b0 b1 b2 b3 hb3nz hc3_zero
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  · rw [← hq]; exact getLimbN_fromLimbs_0 _ _ _ _
+  · rw [← hq]; exact getLimbN_fromLimbs_1 _ _ _ _
+  · rw [← hq]; exact getLimbN_fromLimbs_2 _ _ _ _
+  · rw [← hq]; exact getLimbN_fromLimbs_3 _ _ _ _
+  · rw [← hr]; exact getLimbN_fromLimbs_0 _ _ _ _
+  · rw [← hr]; exact getLimbN_fromLimbs_1 _ _ _ _
+  · rw [← hr]; exact getLimbN_fromLimbs_2 _ _ _ _
+  · rw [← hr]; exact getLimbN_fromLimbs_3 _ _ _ _
+
+/-- n=4 max+addback path: per-limb quotient/remainder equalities. Direct
+    consumer-facing form of `n4_max_addback_correct` — the corrected quotient
+    is `q_hat' = 2 * signExtend12 4095 = 2^64 - 2` in the low limb, zeros above. -/
+theorem n4_max_addback_div_mod_limbs (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hb3nz : b3 ≠ 0)
+    (hc3_one : (mulsubN4 (signExtend12 4095) b0 b1 b2 b3 a0 a1 a2 a3).2.2.2.2 = 1)
+    (hcarry_one : addbackN4_carry
+      (mulsubN4 (signExtend12 4095) b0 b1 b2 b3 a0 a1 a2 a3).1
+      (mulsubN4 (signExtend12 4095) b0 b1 b2 b3 a0 a1 a2 a3).2.1
+      (mulsubN4 (signExtend12 4095) b0 b1 b2 b3 a0 a1 a2 a3).2.2.1
+      (mulsubN4 (signExtend12 4095) b0 b1 b2 b3 a0 a1 a2 a3).2.2.2.1
+      b0 b1 b2 b3 = 1) :
+    let ms := mulsubN4 (signExtend12 4095) b0 b1 b2 b3 a0 a1 a2 a3
+    let ab := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 ((0 : Word) - ms.2.2.2.2) b0 b1 b2 b3
+    let q_hat' : Word := signExtend12 (4095 : BitVec 12) + signExtend12 (4095 : BitVec 12)
+    let a := fromLimbs fun i : Fin 4 =>
+      match i with | 0 => a0 | 1 => a1 | 2 => a2 | 3 => a3
+    let b := fromLimbs fun i : Fin 4 =>
+      match i with | 0 => b0 | 1 => b1 | 2 => b2 | 3 => b3
+    (EvmWord.div a b).getLimbN 0 = q_hat' ∧
+    (EvmWord.div a b).getLimbN 1 = 0 ∧
+    (EvmWord.div a b).getLimbN 2 = 0 ∧
+    (EvmWord.div a b).getLimbN 3 = 0 ∧
+    (EvmWord.mod a b).getLimbN 0 = ab.1 ∧
+    (EvmWord.mod a b).getLimbN 1 = ab.2.1 ∧
+    (EvmWord.mod a b).getLimbN 2 = ab.2.2.1 ∧
+    (EvmWord.mod a b).getLimbN 3 = ab.2.2.2.1 := by
+  intro ms ab q_hat' a b
+  have ⟨hq, hr⟩ := n4_max_addback_correct a0 a1 a2 a3 b0 b1 b2 b3 hb3nz hc3_one hcarry_one
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  · rw [← hq]; exact getLimbN_fromLimbs_0 _ _ _ _
+  · rw [← hq]; exact getLimbN_fromLimbs_1 _ _ _ _
+  · rw [← hq]; exact getLimbN_fromLimbs_2 _ _ _ _
+  · rw [← hq]; exact getLimbN_fromLimbs_3 _ _ _ _
+  · rw [← hr]; exact getLimbN_fromLimbs_0 _ _ _ _
+  · rw [← hr]; exact getLimbN_fromLimbs_1 _ _ _ _
+  · rw [← hr]; exact getLimbN_fromLimbs_2 _ _ _ _
+  · rw [← hr]; exact getLimbN_fromLimbs_3 _ _ _ _
+
 end EvmAsm.Evm64
