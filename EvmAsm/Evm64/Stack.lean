@@ -97,6 +97,38 @@ theorem evmWordIs_sp32_limbs_eq (sp : Word) (v : EvmWord) (w0 w1 w2 w3 : Word)
      ((sp + 48) ↦ₘ w2) ** ((sp + 56) ↦ₘ w3)) := by
   rw [evmWordIs_sp32_unfold, h0, h1, h2, h3]
 
+/-- Mid-tree variant of `evmWordIs_sp_limbs_eq`: fold four limb atoms into
+    `evmWordIs sp v` **even when they sit in the middle of a sepConj chain**,
+    by explicitly threading the rest of the chain (`Q`) through the equality.
+
+    The plain `evmWordIs_sp_limbs_eq`'s RHS is a four-atom right-terminal
+    sub-tree; `rw ←` finds it only when the last of those four atoms has no
+    right neighbor. When the four atoms live mid-chain (e.g. in the unfolded
+    `fullDivN4MaxSkipPost`'s post), Lean's syntactic matcher can't find that
+    sub-tree — folding fails. This variant makes the "rest of chain" explicit
+    so the pattern `atoms ** Q` matches wherever the atoms appear. -/
+theorem evmWordIs_sp_limbs_eq_right (sp : Word) (v : EvmWord) (w0 w1 w2 w3 : Word)
+    (Q : Assertion)
+    (h0 : v.getLimbN 0 = w0) (h1 : v.getLimbN 1 = w1)
+    (h2 : v.getLimbN 2 = w2) (h3 : v.getLimbN 3 = w3) :
+    ((sp ↦ₘ w0) ** ((sp + 8) ↦ₘ w1) **
+     ((sp + 16) ↦ₘ w2) ** ((sp + 24) ↦ₘ w3) ** Q) =
+    (evmWordIs sp v ** Q) := by
+  rw [evmWordIs_sp_limbs_eq sp v w0 w1 w2 w3 h0 h1 h2 h3]
+  rw [sepConj_assoc', sepConj_assoc', sepConj_assoc']
+
+/-- Mid-tree variant of `evmWordIs_sp32_limbs_eq`. Same purpose as
+    `evmWordIs_sp_limbs_eq_right` but for the `b`-operand slot at `sp+32`. -/
+theorem evmWordIs_sp32_limbs_eq_right (sp : Word) (v : EvmWord) (w0 w1 w2 w3 : Word)
+    (Q : Assertion)
+    (h0 : v.getLimbN 0 = w0) (h1 : v.getLimbN 1 = w1)
+    (h2 : v.getLimbN 2 = w2) (h3 : v.getLimbN 3 = w3) :
+    (((sp + 32) ↦ₘ w0) ** ((sp + 40) ↦ₘ w1) **
+     ((sp + 48) ↦ₘ w2) ** ((sp + 56) ↦ₘ w3) ** Q) =
+    (evmWordIs (sp + 32) v ** Q) := by
+  rw [evmWordIs_sp32_limbs_eq sp v w0 w1 w2 w3 h0 h1 h2 h3]
+  rw [sepConj_assoc', sepConj_assoc', sepConj_assoc']
+
 -- ============================================================================
 -- Shared infrastructure for stack operation specs
 -- ============================================================================
