@@ -156,6 +156,43 @@ def divN4MaxSkipStackPost (sp : Word) (a b : EvmWord) : Assertion :=
   evmWordIs sp a ** evmWordIs (sp + 32) (EvmWord.div a b) **
   divScratchOwn sp
 
+/-- Stack-level precondition shape for the n=4 DIV path. Bundles the 9
+    registers (including the pre-execution values of `x1, x2, x6, x7, x11`
+    that the algorithm overwrites), the `evmWordIs sp a` / `evmWordIs (sp+32) b`
+    operand slots, and the `divScratchValues` starting state into a single
+    named assertion.
+
+    Paired with `divN4MaxSkipStackPost` — the forthcoming
+    `evm_div_n4_max_skip_stack_spec` will have this as its precondition and
+    that as its postcondition. -/
+@[irreducible]
+def divN4StackPre (sp : Word) (a b : EvmWord)
+    (v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     shift_mem n_mem j_mem : Word) : Assertion :=
+  (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
+  (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+  (.x2 ↦ᵣ (clzResult (b.getLimbN 3)).2 >>> (63 : Nat)) **
+  (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+  (.x11 ↦ᵣ v11) **
+  evmWordIs sp a ** evmWordIs (sp + 32) b **
+  divScratchValues sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+    shift_mem n_mem j_mem
+
+theorem pcFree_divN4StackPre (sp : Word) (a b : EvmWord)
+    (v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shift_mem n_mem j_mem : Word) :
+    (divN4StackPre sp a b v5 v6 v7 v10 v11
+      q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shift_mem n_mem j_mem).pcFree := by
+  delta divN4StackPre; pcFree
+
+instance (sp : Word) (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shift_mem n_mem j_mem : Word) :
+    Assertion.PCFree (divN4StackPre sp a b v5 v6 v7 v10 v11
+      q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shift_mem n_mem j_mem) :=
+  ⟨pcFree_divN4StackPre sp a b v5 v6 v7 v10 v11
+    q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shift_mem n_mem j_mem⟩
+
 /-- Named unfold for `divN4MaxSkipStackPost`. Restores access to the
     underlying definition once the `@[irreducible]` attribute has made
     `delta` the only way in at call sites. -/
