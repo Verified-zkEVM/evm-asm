@@ -492,6 +492,26 @@ theorem se12_40 : signExtend12 (40 : BitVec 12) = (40 : Word) := by decide
 theorem se12_48 : signExtend12 (48 : BitVec 12) = (48 : Word) := by decide
 theorem se12_56 : signExtend12 (56 : BitVec 12) = (56 : Word) := by decide
 
+-- ============================================================================
+-- Shared `phB_off_*` address rewrites.
+-- `base + phaseBOff` is the entry PC of `divK_phaseB` (and the structurally
+-- identical block in `modCode`). `phB_off_k` rewrites `(base + phaseBOff) + k`
+-- to `base + (phaseBOff + k)` with the constant folded on the RHS, so that
+-- `simp only [phB_off_k]` closes the address-matching goal that appears when
+-- a `divK_phaseB_*` sub-spec is embedded in `divCode base` / `modCode base`.
+-- Consumers: PhaseAB.lean (DIV side), ModPhaseB.lean, ModPhaseBn3.lean,
+-- ModPhaseBn21.lean (MOD side). Previously duplicated as `private phB_off_*`
+-- in PhaseAB.lean and `mod_phB_off_28` in ModPhaseB.lean.
+-- ============================================================================
+
+theorem phB_off_4  (base : Word) : (base + phaseBOff : Word) + 4  = base + 36 := by bv_addr
+theorem phB_off_8  (base : Word) : (base + phaseBOff : Word) + 8  = base + 40 := by bv_addr
+theorem phB_off_12 (base : Word) : (base + phaseBOff : Word) + 12 = base + 44 := by bv_addr
+theorem phB_off_16 (base : Word) : (base + phaseBOff : Word) + 16 = base + 48 := by bv_addr
+theorem phB_off_20 (base : Word) : (base + phaseBOff : Word) + 20 = base + 52 := by bv_addr
+theorem phB_off_24 (base : Word) : (base + phaseBOff : Word) + 24 = base + 56 := by bv_addr
+theorem phB_off_28 (base : Word) : (base + phaseBOff : Word) + 28 = base + 60 := by bv_addr
+
 /-- When b ≠ 0, 0 < b in unsigned ordering (BitVec.ult). -/
 theorem ult_zero_of_ne {b : Word} (h : b ≠ 0) : BitVec.ult 0 b := by
   unfold BitVec.ult; simp

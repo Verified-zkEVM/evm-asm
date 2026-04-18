@@ -88,7 +88,9 @@ theorem divK_phaseB_tail_code_sub_modCode (base : Word) :
   exact sub_modCode_of_phaseB_left base _ a i h1
 
 -- Address normalization helpers
-theorem mod_phB_off_28 (base : Word) : (base + phaseBOff : Word) + 28 = base + 60 := by bv_addr
+-- The former `mod_phB_off_28` (identical to PhaseAB's private `phB_off_28`)
+-- now lives in `Compose/Base.lean` as the shared `phB_off_28` and is used
+-- directly from both the DIV and MOD sides.
 theorem mod_phB_i2_8 (base : Word) : (base + 60 : Word) + 8 = base + 68 := by bv_addr
 theorem mod_phB_addi_4 (base : Word) : (base + 68 : Word) + 4 = base + 72 := by bv_addr
 theorem mod_phB_bne_4 (base : Word) : (base + 72 : Word) + 4 = base + 76 := by bv_addr
@@ -131,7 +133,7 @@ theorem evm_mod_phaseB_n4_spec (sp base : Word)
        ((sp + signExtend12 3984) ↦ₘ (4 : Word))) := by
   -- ---- Step 1: init1 (base+32 → base+60) — zero q[0..3] and u[5..7]
   have hinit1_raw := divK_phaseB_init1_spec sp (base + phaseBOff) q0 q1 q2 q3 u5 u6 u7
-  simp only [mod_phB_off_28] at hinit1_raw
+  simp only [phB_off_28] at hinit1_raw
   have hinit1 := cpsTriple_extend_code (divK_phaseB_init1_code_sub_modCode base) hinit1_raw
   have hinit1f := cpsTriple_frame_left _ _ _ _ _
     ((.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ b3) ** (.x0 ↦ᵣ (0 : Word)) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **

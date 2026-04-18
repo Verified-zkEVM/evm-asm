@@ -139,14 +139,8 @@ private theorem divK_phaseB_n4_nm1_x8 :
 -- signExtend12 32 = 32 (for tail load address: sp + 24 + signExtend12 32 = sp + 56)
 private theorem divK_se12_32 : signExtend12 (32 : BitVec 12) = (32 : Word) := by decide
 
--- Address normalization lemmas for phaseB composition (separate theorems for heartbeat budget)
-private theorem phB_off_4 (base : Word) : (base + phaseBOff : Word) + 4 = base + 36 := by bv_addr
-private theorem phB_off_8 (base : Word) : (base + phaseBOff : Word) + 8 = base + 40 := by bv_addr
-private theorem phB_off_12 (base : Word) : (base + phaseBOff : Word) + 12 = base + 44 := by bv_addr
-private theorem phB_off_16 (base : Word) : (base + phaseBOff : Word) + 16 = base + 48 := by bv_addr
-private theorem phB_off_20 (base : Word) : (base + phaseBOff : Word) + 20 = base + 52 := by bv_addr
-private theorem phB_off_24 (base : Word) : (base + phaseBOff : Word) + 24 = base + 56 := by bv_addr
-private theorem phB_off_28 (base : Word) : (base + phaseBOff : Word) + 28 = base + 60 := by bv_addr
+-- Address normalization lemmas `phB_off_{4..28}` now live in `Compose/Base.lean`
+-- and are shared with the MOD-side files (ModPhaseB / ModPhaseBn3 / ModPhaseBn21).
 private theorem phB_i2_4 (base : Word) : (base + 60 : Word) + 4 = base + 64 := by bv_addr
 private theorem phB_i2_8 (base : Word) : (base + 60 : Word) + 8 = base + 68 := by bv_addr
 private theorem phB_addi_4 (base : Word) : (base + 68 : Word) + 4 = base + 72 := by bv_addr

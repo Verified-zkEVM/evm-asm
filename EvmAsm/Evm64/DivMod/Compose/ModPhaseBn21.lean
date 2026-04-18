@@ -41,7 +41,7 @@ theorem evm_mod_phaseB_n2_spec (sp base : Word)
        ((sp + signExtend12 3984) ↦ₘ (2 : Word))) := by
   -- ---- init1 (base+32 → base+60)
   have hinit1_raw := divK_phaseB_init1_spec sp (base + phaseBOff) q0 q1 q2 q3 u5 u6 u7
-  simp only [mod_phB_off_28] at hinit1_raw
+  simp only [phB_off_28] at hinit1_raw
   have hinit1 := cpsTriple_extend_code (divK_phaseB_init1_code_sub_modCode base) hinit1_raw
   have hinit1f := cpsTriple_frame_left _ _ _ _ _
     ((.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ b3) ** (.x0 ↦ᵣ (0 : Word)) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
@@ -221,7 +221,7 @@ theorem evm_mod_phaseB_n1_spec (sp base : Word)
        ((sp + signExtend12 3984) ↦ₘ (1 : Word))) := by
   -- ---- init1 (base+32 → base+60)
   have hinit1_raw := divK_phaseB_init1_spec sp (base + phaseBOff) q0 q1 q2 q3 u5 u6 u7
-  simp only [mod_phB_off_28] at hinit1_raw
+  simp only [phB_off_28] at hinit1_raw
   have hinit1 := cpsTriple_extend_code (divK_phaseB_init1_code_sub_modCode base) hinit1_raw
   have hinit1f := cpsTriple_frame_left _ _ _ _ _
     ((.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ b3) ** (.x0 ↦ᵣ (0 : Word)) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
