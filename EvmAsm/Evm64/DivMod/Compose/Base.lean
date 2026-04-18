@@ -554,6 +554,11 @@ theorem phB_off_20 (base : Word) : (base + phaseBOff : Word) + 20 = base + 52 :=
 theorem phB_off_24 (base : Word) : (base + phaseBOff : Word) + 24 = base + 56 := by bv_addr
 theorem phB_off_28 (base : Word) : (base + phaseBOff : Word) + 28 = base + 60 := by bv_addr
 
+-- n=4 special: x1 = signExtend12 4 - 4 = 0, used by the shift-0 fast path
+-- and the main `FullPathN4` path. Shared here so the two consumer files
+-- (`FullPathN4.lean`, `FullPathN4Shift0.lean`) don't re-declare it privately.
+theorem x1_val_n4 : signExtend12 (4 : BitVec 12) - (4 : Word) = (0 : Word) := by decide
+
 -- Shared `signExtend13`/`signExtend21` evaluations for these seven concrete
 -- offsets (8, 16, 24, 172, 464, 1020 and 21_40) used to live here as
 -- `theorem signExtend13_N`. They have been migrated to the repo-wide

@@ -265,8 +265,8 @@ private theorem cpsTriple_strip_pure_and_convert
 -- Bridge lemma: connect per-limb body output to EvmWord.byte result
 -- ============================================================================
 
-/-- signExtend12 (255 : BitVec 12) = (255 : Word). -/
-private theorem signExtend12_255 : signExtend12 (255 : BitVec 12) = (255 : Word) := by decide
+-- `signExtend12_255` is the `@[simp]` theorem in `EvmAsm/Rv64/Instructions.lean`
+-- (reachable via `open EvmAsm.Rv64` at the file header).
 
 /-- Bridge from per-limb SRL+ANDI to natural number div+mod.
     `(limb >>> (n % 64)) &&& 255 = BitVec.ofNat 64 ((limb.toNat / 2^n) % 256)` for n < 64. -/

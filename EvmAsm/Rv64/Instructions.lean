@@ -76,6 +76,7 @@ def signExtend21 (imm : BitVec 21) : Word :=
 @[simp] theorem signExtend12_5  : signExtend12 (5  : BitVec 12) = (5  : Word) := by decide
 @[simp] theorem signExtend12_6  : signExtend12 (6  : BitVec 12) = (6  : Word) := by decide
 @[simp] theorem signExtend12_63 : signExtend12 (63 : BitVec 12) = (63 : Word) := by decide
+@[simp] theorem signExtend12_255 : signExtend12 (255 : BitVec 12) = (255 : Word) := by decide
 
 -- Negative offsets used by DivMod scratch memory (signExtend12 of values >= 2048)
 @[simp] theorem signExtend12_4095 : signExtend12 (4095 : BitVec 12) = (18446744073709551615 : Word) := by decide  -- -1
