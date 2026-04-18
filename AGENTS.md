@@ -132,6 +132,14 @@ The project includes concrete test cases using `native_decide`:
 - **sail-riscv-lean**: https://github.com/opencompl/sail-riscv-lean (same toolchain)
 - **Lean 4 docs**: https://lean-lang.org/documentation/
 
+## Frame-automation Tactics
+
+**Primary reference:** [`TACTICS.md`](TACTICS.md) is the user guide for
+`runBlock`, `seqFrame`, `xperm`, `xcancel`, the `@[spec_gen]` registry,
+and the domain-specific grindsets (`divmod_addr`, `rv64_addr`, `reg_ops`,
+`byte_alg`). Read it before hand-writing a `cpsTriple_seq_*` chain or
+wiring a new `@[...]` equality-closing attribute from scratch.
+
 ## Separation Conjunction Permutation Tactic
 
 The `sep_perm` tactic (defined in `SepLogic.lean`) closes goals that require rearranging `sepConj` (`**`) chains. It works by AC-normalizing both the hypothesis and goal using `simp` with three equality lemmas:
