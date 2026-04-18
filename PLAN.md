@@ -134,6 +134,40 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   Conventions, layout patterns, empirical justification, rules of thumb, and
   rollout roadmap are documented in `GRIND.md` (single source of truth for
   simp/grind-set conventions; `CLAUDE.md` and `AGENTS.md` link to it).
+- **`rv64_addr` simp/grind set** (`Rv64/AddrNorm.lean`, `AddrNormAttr.lean`,
+  GRIND.md Phase 3): Rv64-wide counterpart to `divmod_addr`. Registers ~47
+  atomic facts (29 `signExtend13` evaluations + 19 `signExtend21` evaluations
+  + `word_zero_add` / `word_add_zero` identities) as `@[rv64_addr, grind =]`.
+  The `rv64_addr` tactic macro tries `grind` first and falls back to
+  `simp only [rv64_addr, BitVec.add_assoc]; rfl` — subsumes the legacy
+  `bv_addr`. Inline `rw [show signExtend1? N = <const> from by decide]`
+  migration complete across DivMod / SignExtend / Shift / Byte (82 sites
+  across 12 files under PRs #385 / #388 / #390 / #392 / #395).
+- **`reg_ops` simp/grind set** (`Rv64/RegOps.lean`, `RegOpsAttr.lean`,
+  GRIND.md Phase 5): Registers ~40 projection lemmas (`pc_set<F>`,
+  `code_set<F>`, `getReg_setPC`, `getMem_set<F>`, `committed_*`,
+  `publicValues_*`, `privateInput_*` + `_append{Commit,PublicValues}`)
+  from `Basic.lean` with `@[reg_ops, grind =]` via `attribute` commands.
+  The `reg_ops` tactic closes projection chains in one line. Inductive
+  `*_writeWords` / `*_writeBytesAsWords` variants deliberately excluded
+  to avoid grind-loop risk on open-ended lists.
+- **Opcode-subroutine template** (`Evm64/OPCODE_TEMPLATE.md`, issue #313):
+  Day-one conventions for the next opcode subtree — parallel
+  `LimbSpec/` / `LoopDefs/` / `Compose/` layout, unified Bool/Fin dispatch
+  from day one (no `<Opcode>Skip.lean` + `<Opcode>Addback.lean`
+  intermediates), sibling-opcode (SMOD/ADDMOD) factoring, `@[irreducible]`
+  bundling for ≥3 `let` bindings or >20-atom frames, named
+  `Compose/Offsets.lean` with drift checks, per-opcode `AddrNorm` +
+  `AddrNormAttr` files, `structure <Opcode>Valid` validity bundle,
+  pre-opcode audit checklist, reviewer checklist. Linked from `AGENTS.md`.
+- **`LoopDefs/{Iter,Post,Bundle}.lean` split** (`Evm64/DivMod/LoopDefs/`,
+  issue #312): Monolithic 1,359-line `LoopDefs.lean` split into three
+  focused sub-files — `Iter.lean` (pure `Word`/`Prop` computations),
+  `Post.lean` (Assertion-valued postconditions), `Bundle.lean`
+  (Assertion-valued preconditions). `LoopDefs.lean` reduced to a 16-line
+  hub that re-exports the three sub-files, so every downstream
+  `import EvmAsm.Evm64.DivMod.LoopDefs` works unchanged. Follow-on work
+  on `LimbSpec.lean` (still 2,992 lines) pending.
 - **File-size guardrail** (`scripts/check-file-size.sh`, issue #314): CI step
   enforcing per-file line caps (1200 for `Compose/**`, 1500 elsewhere; `Program.lean`
   exempt). Files may opt out with a `-- file-size-exception: <reason>` comment in
