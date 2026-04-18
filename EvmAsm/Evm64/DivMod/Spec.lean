@@ -272,6 +272,34 @@ theorem divN4MaxSkipStackPost_unfold (sp : Word) (a b : EvmWord) :
      divScratchOwn sp) := by
   delta divN4MaxSkipStackPost; rfl
 
+/-- Full-depth unfold of `divN4MaxSkipStackPost`: expands the bundle, its
+    inner `evmWordIs` atoms, and `divScratchOwn` all at once. The final RHS
+    has only primitive assertion atoms (`regIs`, `regOwn`, `memIs`, `memOwn`),
+    which is the shape a position-by-position weakening proof wants to match
+    against. Companion to the partial `_unfold` variant; both coexist because
+    some call sites want the `evmWordIs` / `divScratchOwn` bundles kept. -/
+theorem divN4MaxSkipStackPost_unfold_atoms (sp : Word) (a b : EvmWord) :
+    divN4MaxSkipStackPost sp a b =
+    ((.x12 ↦ᵣ (sp + 32)) ** regOwn .x1 ** regOwn .x2 **
+     regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+     regOwn .x10 ** regOwn .x11 ** (.x0 ↦ᵣ (0 : Word)) **
+     ((sp ↦ₘ a.getLimbN 0) ** ((sp + 8) ↦ₘ a.getLimbN 1) **
+      ((sp + 16) ↦ₘ a.getLimbN 2) ** ((sp + 24) ↦ₘ a.getLimbN 3)) **
+     (((sp + 32) ↦ₘ (EvmWord.div a b).getLimbN 0) **
+      ((sp + 40) ↦ₘ (EvmWord.div a b).getLimbN 1) **
+      ((sp + 48) ↦ₘ (EvmWord.div a b).getLimbN 2) **
+      ((sp + 56) ↦ₘ (EvmWord.div a b).getLimbN 3)) **
+     (memOwn (sp + signExtend12 4088) ** memOwn (sp + signExtend12 4080) **
+      memOwn (sp + signExtend12 4072) ** memOwn (sp + signExtend12 4064) **
+      memOwn (sp + signExtend12 4056) ** memOwn (sp + signExtend12 4048) **
+      memOwn (sp + signExtend12 4040) ** memOwn (sp + signExtend12 4032) **
+      memOwn (sp + signExtend12 4024) ** memOwn (sp + signExtend12 4016) **
+      memOwn (sp + signExtend12 4008) ** memOwn (sp + signExtend12 4000) **
+      memOwn (sp + signExtend12 3992) ** memOwn (sp + signExtend12 3984) **
+      memOwn (sp + signExtend12 3976))) := by
+  rw [divN4MaxSkipStackPost_unfold, evmWordIs_sp_unfold, evmWordIs_sp32_unfold,
+      divScratchOwn_unfold]
+
 theorem pcFree_divScratchOwn (sp : Word) : (divScratchOwn sp).pcFree := by
   unfold divScratchOwn; pcFree
 
