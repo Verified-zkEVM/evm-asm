@@ -13,6 +13,7 @@ import EvmAsm.Evm64.DivMod.LimbSpec.Denorm
 import EvmAsm.Evm64.DivMod.LimbSpec.Epilogue
 import EvmAsm.Evm64.DivMod.LimbSpec.LoopSetup
 import EvmAsm.Evm64.DivMod.LimbSpec.MulSub
+import EvmAsm.Evm64.DivMod.LimbSpec.MulSubSetup
 import EvmAsm.Evm64.DivMod.LimbSpec.NormA
 import EvmAsm.Evm64.DivMod.LimbSpec.NormB
 import EvmAsm.Evm64.DivMod.LimbSpec.PhaseBTail
@@ -640,67 +641,11 @@ theorem divK_loop_control_spec (j : Word) (loop_back_off : BitVec 13)
         simp only [beq_iff_eq, h0, ↓reduceIte]))) hPR hpc
   -- 4. Compose
   exact cpsTriple_seq_cpsBranch_same_cr _ _ _ _ _ _ _ _ _ hbody hbge_ext
--- ============================================================================
--- Mul-sub setup: restore j, compute u_base = &u[j], init carry = 0.
--- 5 instructions: LD + SLLI + ADDI + SUB + ADDI.
--- ============================================================================
-
-/-- Mul-sub setup: restore j from scratch, compute u_base, zero carry. -/
-theorem divK_mulsub_setup_spec (sp q_hat j v1_old v5_old v6_old v10_old : Word)
-    (base : Word) :
-    let j_x8 := j <<< (3 : BitVec 6).toNat
-    let sp_m40 := sp + signExtend12 4056
-    let u_base := sp_m40 - j_x8
-    let cr :=
-      CodeReq.union (CodeReq.singleton base (.LD .x1 .x12 3976))
-      (CodeReq.union (CodeReq.singleton (base + 4) (.SLLI .x5 .x1 3))
-      (CodeReq.union (CodeReq.singleton (base + 8) (.ADDI .x6 .x12 4056))
-      (CodeReq.union (CodeReq.singleton (base + 12) (.SUB .x6 .x6 .x5))
-       (CodeReq.singleton (base + 16) (.ADDI .x10 .x0 0)))))
-    cpsTriple base (base + 20) cr
-      ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ q_hat) **
-       (.x1 ↦ᵣ v1_old) ** (.x5 ↦ᵣ v5_old) ** (.x6 ↦ᵣ v6_old) **
-       (.x10 ↦ᵣ v10_old) ** (.x0 ↦ᵣ 0) **
-       (sp + signExtend12 3976 ↦ₘ j))
-      ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ q_hat) **
-       (.x1 ↦ᵣ j) ** (.x5 ↦ᵣ j_x8) ** (.x6 ↦ᵣ u_base) **
-       (.x10 ↦ᵣ signExtend12 0) ** (.x0 ↦ᵣ 0) **
-       (sp + signExtend12 3976 ↦ₘ j)) := by
-  intro j_x8 sp_m40 u_base cr
-  have I0 := ld_spec_gen .x1 .x12 sp v1_old j 3976 base (by nofun)
-  have I1 := slli_spec_gen .x5 .x1 v5_old j 3 (base + 4) (by nofun)
-  have I2 := addi_spec_gen .x6 .x12 v6_old sp 4056 (base + 8) (by nofun)
-  have I3 := sub_spec_gen_rd_eq_rs1 .x6 .x5 sp_m40 j_x8 (base + 12) (by nofun)
-  have I4 := addi_x0_spec_gen .x10 v10_old 0 (base + 16) (by nofun)
-  runBlock I0 I1 I2 I3 I4
-
--- ============================================================================
--- Save j: 1 instruction SD.
--- ============================================================================
-
-/-- Save j to scratch memory. -/
-theorem divK_save_j_spec (sp j j_old : Word) (base : Word) :
-    let cr := CodeReq.singleton base (.SD .x12 .x1 3976)
-    cpsTriple base (base + 4) cr
-      ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) ** (sp + signExtend12 3976 ↦ₘ j_old))
-      ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) ** (sp + signExtend12 3976 ↦ₘ j)) := by
-  intro cr
-  have I0 := sd_spec_gen .x12 .x1 sp j j_old 3976 base
-  runBlock I0
-
--- ============================================================================
--- Addback carry init: ADDI x7 x0 0 (set carry = 0).
--- ============================================================================
-
-/-- Initialize add-back carry to 0. -/
-theorem divK_addback_init_spec (v7_old : Word) (base : Word) :
-    let cr := CodeReq.singleton base (.ADDI .x7 .x0 0)
-    cpsTriple base (base + 4) cr
-      ((.x7 ↦ᵣ v7_old) ** (.x0 ↦ᵣ 0))
-      ((.x7 ↦ᵣ signExtend12 0) ** (.x0 ↦ᵣ 0)) := by
-  intro cr
-  have I0 := addi_x0_spec_gen .x7 v7_old 0 base (by nofun)
-  runBlock I0
+-- Mul-sub setup + save_j + addback init specs
+-- (divK_mulsub_setup_spec, divK_save_j_spec, divK_addback_init_spec) moved to
+-- EvmAsm.Evm64.DivMod.LimbSpec.MulSubSetup (eighteenth chunk of #312 split).
+-- Re-exported via the import at the top of this file, so downstream surface
+-- is unchanged.
 
 -- ============================================================================
 -- Addback condition: BEQ x7 x0 (skip correction if no borrow).
