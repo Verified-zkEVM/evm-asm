@@ -26,3 +26,5 @@ import EvmAsm.Rv64.ByteOps
 import EvmAsm.Rv64.HalfwordOps
 import EvmAsm.Rv64.WordOps
 import EvmAsm.Rv64.RLP
+import EvmAsm.Rv64.RegOpsAttr
+import EvmAsm.Rv64.RegOps
