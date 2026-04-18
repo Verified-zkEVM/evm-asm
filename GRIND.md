@@ -166,6 +166,7 @@ When in doubt, write a short throwaway test demonstrating the duplication is rea
 |---|---|---|---|
 | `divmod_addr` | `EvmAsm/Evm64/DivMod/AddrNorm.lean` (+ `AddrNormAttr.lean`) | landed (infrastructure + 1 file migrated) | #263 / #304 |
 | `reg_ops` | `EvmAsm/Rv64/RegOps.lean` (+ `RegOpsAttr.lean`) | infrastructure landed (sanity proofs only, migrations pending) | GRIND.md Phase 5 |
+| `rv64_addr` | `EvmAsm/Rv64/AddrNorm.lean` (+ `AddrNormAttr.lean`) | infrastructure landed (~47 signExtend13 / signExtend21 atomic facts + associativity, sanity proofs only, migrations pending) | GRIND.md Phase 3 |
 
 Add new rows here as sets land. Each row should link the issue and the introducing PR.
 
@@ -208,12 +209,13 @@ Every phase follows the same seven-step shape. Deviate only with a documented re
 - **Dependencies:** PR #300 (double-addback) for sub-PRs 2–3. Sub-PRs 1, 4, 5, 6 are unblocked today.
 - **Stop criterion:** `grep -r "show signExtend12 .* by decide" EvmAsm/Evm64/DivMod/` returns zero matches. ✅ Met (2026-04-17).
 
-#### Phase 3 ⏳ — `rv64_addr` (generalize `bv_addr`)
+#### Phase 3 🚧 — `rv64_addr` (generalize `bv_addr`)
 - **Goal:** a richer Rv64-wide address simp/grind set, subsuming today's `bv_addr` (`simp only [BitVec.add_assoc]; rfl`, 578 callsites in DivMod alone).
-- **Targets:** new `EvmAsm/Rv64/Tactics/AddrNorm.lean` (+ `AddrNormAttr.lean` if Layout B). Atomic facts: `signExtend13`/`signExtend21` evaluations on common branch/jump offsets, `BitVec.add_assoc` rewrites, `Word + 0 = Word` identities.
+- **Targets:** new `EvmAsm/Rv64/AddrNorm.lean` (+ `AddrNormAttr.lean`, Layout B). Atomic facts: `signExtend13`/`signExtend21` evaluations on common branch/jump offsets, `BitVec.add_assoc` rewrites (via the tactic fallback), `Word + 0 = Word` identities.
 - **Proof-of-value:** migrate one file inside `EvmAsm/Rv64/` (e.g., specs in `Rv64/SyscallSpecs.lean`).
 - **Dependencies:** none (independent of DivMod work).
 - **Stop criterion:** `bv_addr` is either gone or a deprecated alias; bulk migration tracked via the Phase 3 follow-up issue.
+- **Status:** Infrastructure landed. `EvmAsm/Rv64/AddrNorm.lean` (+ `AddrNormAttr.lean`) register ~47 atomic facts: 29 `signExtend13` evaluations (27 small-offset `se13_*`, 2 large-offset), 19 `signExtend21` evaluations, plus `word_zero_add` and `word_add_zero` identities. The `rv64_addr` tactic macro tries `grind` first and falls back to `simp only [rv64_addr, BitVec.add_assoc]; rfl` — subsumes the legacy `bv_addr` shape. Four sanity `example`s exercise pure associativity, small-offset signExtend13, large-offset signExtend13, and signExtend21. Bulk migration of `bv_addr` call-sites is the pending follow-up.
 
 #### Phase 4 ⏳ — `byte_alg`
 - **Goal:** close `extractByte`/`replaceByte` algebra goals with one tactic.

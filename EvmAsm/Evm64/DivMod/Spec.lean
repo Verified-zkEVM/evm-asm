@@ -84,6 +84,7 @@ theorem isAddbackBorrowN4CallEvm_def (a b : EvmWord) :
     isAddbackBorrowN4Call (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
                           (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) := rfl
 
+
 -- ============================================================================
 -- Stack-level post state for n=4 max-skip DIV
 -- ============================================================================
@@ -243,6 +244,19 @@ theorem pcFree_modN4MaxSkipStackPost (sp : Word) (a b : EvmWord) :
 instance (sp : Word) (a b : EvmWord) :
     Assertion.PCFree (modN4MaxSkipStackPost sp a b) :=
   ⟨pcFree_modN4MaxSkipStackPost sp a b⟩
+
+-- ============================================================================
+-- pcFree for DivMod post bundles
+-- ============================================================================
+
+/-- `denormDivPost` is pc-free: all its atoms are `regIs` / `memIs`. -/
+theorem pcFree_denormDivPost (sp shift u0 u1 u2 u3 q0 q1 q2 q3 : Word) :
+    (denormDivPost sp shift u0 u1 u2 u3 q0 q1 q2 q3).pcFree := by
+  rw [denormDivPost_unfold]; pcFree
+
+instance (sp shift u0 u1 u2 u3 q0 q1 q2 q3 : Word) :
+    Assertion.PCFree (denormDivPost sp shift u0 u1 u2 u3 q0 q1 q2 q3) :=
+  ⟨pcFree_denormDivPost sp shift u0 u1 u2 u3 q0 q1 q2 q3⟩
 
 /-- MOD counterpart of `div_n4_max_skip_stack_weaken`. Same pattern, same
     register/memory weakenings — only the result-slot `evmWordIs` holds

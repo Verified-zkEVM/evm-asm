@@ -239,6 +239,7 @@ theorem sharedDivModCode_sub_modCode (base : Word) :
     The full-path specs universally-quantify over these values since the program
     overwrites them; the predicate packages them so stack specs aren't littered
     with fifteen `↦ₘ` lines at every call site. -/
+@[irreducible]
 def divScratchValues (sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
     shift_mem n_mem j_mem : Word) : Assertion :=
   ((sp + signExtend12 4088) ↦ₘ q0) ** ((sp + signExtend12 4080) ↦ₘ q1) **
@@ -266,12 +267,36 @@ theorem divScratchValues_unfold (sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
      ((sp + signExtend12 4008) ↦ₘ u6) ** ((sp + signExtend12 4000) ↦ₘ u7) **
      ((sp + signExtend12 3992) ↦ₘ shift_mem) **
      ((sp + signExtend12 3984) ↦ₘ n_mem) **
-     ((sp + signExtend12 3976) ↦ₘ j_mem)) := rfl
+     ((sp + signExtend12 3976) ↦ₘ j_mem)) := by
+  delta divScratchValues; rfl
+
+/-- Mid-tree variant of `divScratchValues_unfold`: threads a `Q` through the
+    equality so `rw ←` can fold the 15 atoms into a `divScratchValues` bundle
+    **even when they sit in the middle of a longer sepConj chain**. Counterpart
+    to `evmWordIs_sp{_,32}_limbs_eq_right`. Used by the DIV/MOD stack-spec
+    composition where scratch atoms are scattered across the unfolded
+    `fullDivN4MaxSkipPost` post. -/
+theorem divScratchValues_unfold_right (sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+    shift_mem n_mem j_mem : Word) (Q : Assertion) :
+    (((sp + signExtend12 4088) ↦ₘ q0) ** ((sp + signExtend12 4080) ↦ₘ q1) **
+     ((sp + signExtend12 4072) ↦ₘ q2) ** ((sp + signExtend12 4064) ↦ₘ q3) **
+     ((sp + signExtend12 4056) ↦ₘ u0) ** ((sp + signExtend12 4048) ↦ₘ u1) **
+     ((sp + signExtend12 4040) ↦ₘ u2) ** ((sp + signExtend12 4032) ↦ₘ u3) **
+     ((sp + signExtend12 4024) ↦ₘ u4) ** ((sp + signExtend12 4016) ↦ₘ u5) **
+     ((sp + signExtend12 4008) ↦ₘ u6) ** ((sp + signExtend12 4000) ↦ₘ u7) **
+     ((sp + signExtend12 3992) ↦ₘ shift_mem) **
+     ((sp + signExtend12 3984) ↦ₘ n_mem) **
+     ((sp + signExtend12 3976) ↦ₘ j_mem) ** Q) =
+    (divScratchValues sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+      shift_mem n_mem j_mem ** Q) := by
+  rw [divScratchValues_unfold]
+  iterate 14 rw [sepConj_assoc']
 
 /-- Value-agnostic counterpart to `divScratchValues`: the same 15 cells but
     with ownership only (no commitment to specific values). Suitable for the
     postcondition of a stack-level DIV/MOD spec that doesn't want to expose
     the algorithm's internal scratch state to callers. -/
+@[irreducible]
 def divScratchOwn (sp : Word) : Assertion :=
   memOwn (sp + signExtend12 4088) ** memOwn (sp + signExtend12 4080) **
   memOwn (sp + signExtend12 4072) ** memOwn (sp + signExtend12 4064) **
@@ -282,6 +307,22 @@ def divScratchOwn (sp : Word) : Assertion :=
   memOwn (sp + signExtend12 3992) **
   memOwn (sp + signExtend12 3984) **
   memOwn (sp + signExtend12 3976)
+
+/-- Named unfold for `divScratchOwn`. Restores access to the underlying
+    definition once the `@[irreducible]` attribute has made `delta` the only
+    way in at call sites. Parallel to `divScratchValues_unfold`. -/
+theorem divScratchOwn_unfold (sp : Word) :
+    divScratchOwn sp =
+    (memOwn (sp + signExtend12 4088) ** memOwn (sp + signExtend12 4080) **
+     memOwn (sp + signExtend12 4072) ** memOwn (sp + signExtend12 4064) **
+     memOwn (sp + signExtend12 4056) ** memOwn (sp + signExtend12 4048) **
+     memOwn (sp + signExtend12 4040) ** memOwn (sp + signExtend12 4032) **
+     memOwn (sp + signExtend12 4024) ** memOwn (sp + signExtend12 4016) **
+     memOwn (sp + signExtend12 4008) ** memOwn (sp + signExtend12 4000) **
+     memOwn (sp + signExtend12 3992) **
+     memOwn (sp + signExtend12 3984) **
+     memOwn (sp + signExtend12 3976)) := by
+  delta divScratchOwn; rfl
 
 theorem pcFree_divScratchValues (sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
     shift_mem n_mem j_mem : Word) :
@@ -511,6 +552,26 @@ theorem phB_off_16 (base : Word) : (base + phaseBOff : Word) + 16 = base + 48 :=
 theorem phB_off_20 (base : Word) : (base + phaseBOff : Word) + 20 = base + 52 := by bv_addr
 theorem phB_off_24 (base : Word) : (base + phaseBOff : Word) + 24 = base + 56 := by bv_addr
 theorem phB_off_28 (base : Word) : (base + phaseBOff : Word) + 28 = base + 60 := by bv_addr
+
+-- ============================================================================
+-- Shared concrete-offset `signExtend13` / `signExtend21` evaluations.
+-- Previously scattered as `private theorem signExtend13_N` across PhaseAB /
+-- Epilogue / Norm / NormA plus `mod_signExtend13_N` / `mod_signExtend21_N`
+-- duplicates across ModPhaseB / ModNorm / ModNormA — every copy was
+-- verbatim `by decide`. Consolidate to a single shared set so the MOD-side
+-- `mod_` prefix disappears and adding a new concrete offset is a one-line
+-- edit in this file. Naming mirrors `EvmAsm/Rv64/AddrNorm.lean`'s `se13_N`
+-- pattern but keeps the original `signExtend13_N` form used by every
+-- existing call-site.
+-- ============================================================================
+
+theorem signExtend13_8    : signExtend13 (8    : BitVec 13) = (8    : Word) := by decide
+theorem signExtend13_16   : signExtend13 (16   : BitVec 13) = (16   : Word) := by decide
+theorem signExtend13_24   : signExtend13 (24   : BitVec 13) = (24   : Word) := by decide
+theorem signExtend13_172  : signExtend13 (172  : BitVec 13) = (172  : Word) := by decide
+theorem signExtend13_464  : signExtend13 (464  : BitVec 13) = (464  : Word) := by decide
+theorem signExtend13_1020 : signExtend13 (1020 : BitVec 13) = (1020 : Word) := by decide
+theorem signExtend21_40   : signExtend21 (40   : BitVec 21) = (40   : Word) := by decide
 
 /-- When b ≠ 0, 0 < b in unsigned ordering (BitVec.ult). -/
 theorem ult_zero_of_ne {b : Word} (h : b ≠ 0) : BitVec.ult 0 b := by

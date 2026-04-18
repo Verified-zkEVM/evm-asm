@@ -120,13 +120,15 @@ private theorem divK_phaseB_tail_code_sub_divCode (base : Word) :
 
 -- ============================================================================
 -- Section 6: signExtend13 normalization
+--
+-- `signExtend13_{8,16,24,1020}` now live in `Compose/Base.lean` and are shared
+-- with the MOD-side files (ModPhaseB / ModNorm / ModNormA) — the identical
+-- `mod_signExtend13_*` duplicates on the MOD side are gone.
 -- ============================================================================
 
-private theorem signExtend13_1020 : signExtend13 (1020 : BitVec 13) = (1020 : Word) := by
-  decide
-
-private theorem signExtend13_24 : signExtend13 (24 : BitVec 13) = (24 : Word) := by
-  decide
+-- `signExtend13_{24,1020}` / `divK_se12_{4}` now live in `Compose/Base.lean`
+-- and `Rv64/Instructions.lean` respectively — call sites use the shared names
+-- (`signExtend13_24`, `signExtend13_1020`, `signExtend12_4`) directly.
 
 -- Phase B tail address: nm1_x8 = (4 + signExtend12 4095) <<< 3 = 24
 private theorem divK_phaseB_n4_nm1_x8 :
@@ -481,8 +483,7 @@ private theorem addi_x5_1_sub_divCode (base : Word) :
 
 -- signExtend constants for cascade steps
 -- `divK_se12_{1,2,3}` removed: use `signExtend12_{1,2,3}` from Rv64/Instructions.lean.
-private theorem signExtend13_16 : signExtend13 (16 : BitVec 13) = (16 : Word) := by decide
-private theorem signExtend13_8 : signExtend13 (8 : BitVec 13) = (8 : Word) := by decide
+-- `signExtend13_{8,16}` moved to `Compose/Base.lean` (shared with MOD side).
 
 -- nm1_x8 = (n + signExtend12 4095) <<< 3 for each n value
 private theorem divK_phaseB_n3_nm1_x8 :

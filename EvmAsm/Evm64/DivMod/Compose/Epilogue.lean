@@ -305,9 +305,7 @@ private theorem beq_singleton_sub_modCode (base : Word) :
     (CodeReq.singleton_mono (CodeReq.ofProg_lookup base (divK_phaseA 1020) 7
       (by decide) (by decide)) a i h)
 
--- signExtend13 normalization needed for BEQ offset in MOD specs
-private theorem signExtend13_1020 : signExtend13 (1020 : BitVec 13) = (1020 : Word) := by
-  decide
+-- `signExtend13_1020` moved to `Compose/Base.lean` (shared).
 
 -- ============================================================================
 -- Section 13: MOD zero path composition (b = 0)
