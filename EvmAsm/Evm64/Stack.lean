@@ -60,6 +60,19 @@ theorem evmStackIs_cons_cons_nil (sp : Word) (a b : EvmWord) :
     evmStackIs sp [a, b] =
     (evmWordIs sp a ** evmWordIs (sp + 32) b ** empAssertion) := rfl
 
+/-- Singleton stack: `evmStackIs sp [v]` unfolds to
+    `evmWordIs sp v ** empAssertion`. Useful for post-pop states. -/
+theorem evmStackIs_cons_nil (sp : Word) (v : EvmWord) :
+    evmStackIs sp [v] = (evmWordIs sp v ** empAssertion) := rfl
+
+/-- Three-element stack: `evmStackIs sp [a, b, c]` unfolds to nested
+    `evmWordIs` atoms at `sp`, `sp+32`, `sp+64` plus `empAssertion`.
+    Useful for trinary ops like ADDMOD / MULMOD. -/
+theorem evmStackIs_cons_cons_cons_nil (sp : Word) (a b c : EvmWord) :
+    evmStackIs sp [a, b, c] =
+    (evmWordIs sp a ** evmWordIs (sp + 32) b **
+     evmWordIs (sp + 32 + 32) c ** empAssertion) := rfl
+
 -- ============================================================================
 -- evmWordIs unfold and limb-equality bridges
 -- ============================================================================
