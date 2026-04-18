@@ -165,6 +165,7 @@ When in doubt, write a short throwaway test demonstrating the duplication is rea
 | Set | File | Status | Issue / PR |
 |---|---|---|---|
 | `divmod_addr` | `EvmAsm/Evm64/DivMod/AddrNorm.lean` (+ `AddrNormAttr.lean`) | landed (infrastructure + 1 file migrated) | #263 / #304 |
+| `reg_ops` | `EvmAsm/Rv64/RegOps.lean` (+ `RegOpsAttr.lean`) | infrastructure landed (sanity proofs only, migrations pending) | GRIND.md Phase 5 |
 
 Add new rows here as sets land. Each row should link the issue and the introducing PR.
 
@@ -220,12 +221,13 @@ Every phase follows the same seven-step shape. Deviate only with a documented re
 - **Proof-of-value:** one file in `EvmAsm/Evm64/Byte/` (e.g., `Byte/Spec.lean`).
 - **Dependencies:** none.
 
-#### Phase 5 ⏳ — `reg_ops`
+#### Phase 5 🚧 — `reg_ops`
 - **Goal:** close register-read-after-write chains (`getReg (setReg s r v) r' = …`, `setReg_setReg` commute/idempotent) with one tactic.
 - **Targets:** the existing `@[simp]` lemmas on `getReg`/`setReg`/`getPC`/`setPC` in `Rv64/Basic.lean` are *augmented* with `@[grind =]` — behavior of existing simp-based proofs does not change. Tactic macro wraps `grind` over the set.
 - **Proof-of-value:** migrate proofs in `Rv64/Tactics/RunBlock.lean` that hand-chain these lemmas.
 - **Risk:** **lowest** of any phase — adding `@[grind =]` to already-`@[simp]` lemmas cannot break existing proofs.
 - **Sequencing note:** can run in parallel with Phase 2 — no merge-conflict exposure.
+- **Status:** Infrastructure landed. `EvmAsm/Rv64/RegOps.lean` (+ `RegOpsAttr.lean`) register ~40 projection lemmas (`pc_set<Field>`, `code_set<Field>`, `getReg_setPC`, `getMem_set<Field>`, `committed_*`, `publicValues_*`, `privateInput_*`, plus `_append{Commit,PublicValues}`) in the `reg_ops` simp set and the `grind` equational index. Two sanity `example`s exercise the tactic. Deliberately excluded: the inductive `*_writeWords` / `*_writeBytesAsWords` family (grind-loop risk on open-ended list arguments). Bulk migration of `RunBlock.lean` call-sites is the pending follow-up.
 
 #### Phase 6 ⏳ — `bv_eval`
 - **Goal:** close concrete BitVec/Word arithmetic evaluations (`(1 : Word) <<< 6 = 64`, `BitVec.toNat` of small literals, `Word + 0 = Word`, `BitVec.add_assoc/comm` chain rewrites).
