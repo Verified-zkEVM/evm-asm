@@ -258,6 +258,15 @@ instance (sp shift u0 u1 u2 u3 q0 q1 q2 q3 : Word) :
     Assertion.PCFree (denormDivPost sp shift u0 u1 u2 u3 q0 q1 q2 q3) :=
   ⟨pcFree_denormDivPost sp shift u0 u1 u2 u3 q0 q1 q2 q3⟩
 
+/-- `loopSetupPost` is pc-free: all its atoms are `regIs` / `memIs`. -/
+theorem pcFree_loopSetupPost (sp n_val shift a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
+    (loopSetupPost sp n_val shift a0 a1 a2 a3 b0 b1 b2 b3).pcFree := by
+  rw [loopSetupPost_unfold]; pcFree
+
+instance (sp n_val shift a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
+    Assertion.PCFree (loopSetupPost sp n_val shift a0 a1 a2 a3 b0 b1 b2 b3) :=
+  ⟨pcFree_loopSetupPost sp n_val shift a0 a1 a2 a3 b0 b1 b2 b3⟩
+
 /-- MOD counterpart of `div_n4_max_skip_stack_weaken`. Same pattern, same
     register/memory weakenings — only the result-slot `evmWordIs` holds
     `EvmWord.mod a b` instead of `EvmWord.div a b`. -/
