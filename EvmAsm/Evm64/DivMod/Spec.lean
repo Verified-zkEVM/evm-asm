@@ -76,6 +76,29 @@ theorem n4MaxSkipSemanticHolds_def (a b : EvmWord) :
         (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)).2.2.2.2 = 0) :=
   rfl
 
+/-- Semantic-correctness precondition for the n=4 max+addback sub-path: on
+    **un-normalized** `a`, `b` limbs with the maximum trial quotient, the
+    mulsub carry is `1` *and* the addback carry is `1`. Together these two
+    facts feed `n4_max_addback_div_mod_getLimbN` to conclude the per-limb
+    `EvmWord.div` / `EvmWord.mod` equalities. -/
+def n4MaxAddbackSemanticHolds (a b : EvmWord) : Prop :=
+  let ms := mulsubN4 (signExtend12 4095)
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+  ms.2.2.2.2 = 1 ∧
+  addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) = 1
+
+theorem n4MaxAddbackSemanticHolds_def (a b : EvmWord) :
+    n4MaxAddbackSemanticHolds a b =
+    (let ms := mulsubN4 (signExtend12 4095)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+     ms.2.2.2.2 = 1 ∧
+     addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1
+       (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) = 1) :=
+  rfl
+
 /-- Stack-level postcondition shape for the n=4 DIV max+skip path.
 
     * `.x12 ↦ᵣ (sp+32)` — EVM stack pointer advanced past the popped second operand.
