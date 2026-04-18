@@ -608,3 +608,13 @@ far from the definition).
 
 The project roadmap is maintained in `PLAN.md`. See `CLAUDE.md` for the
 maintenance protocol (when and how to update it).
+
+## New opcode conventions (OPCODE_TEMPLATE.md)
+
+Before starting a new opcode subtree (SDIV, SMOD, ADDMOD, MULMOD, EXP, …),
+read **[`EvmAsm/Evm64/OPCODE_TEMPLATE.md`](EvmAsm/Evm64/OPCODE_TEMPLATE.md)**.
+It codifies the directory layout, unified-dispatch-first rule, named offset
+constants, address grindset, validity bundling, and review checklist
+distilled from the DivMod retrofit work. Landing a new opcode on this
+substrate from day one avoids the retrofit tax documented in issues
+#262 / #263 / #264 / #265 / #266 / #283 / #301 / #312.
