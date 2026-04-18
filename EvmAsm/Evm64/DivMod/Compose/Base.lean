@@ -268,6 +268,32 @@ theorem divScratchValues_unfold (sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
      ((sp + signExtend12 3984) ↦ₘ n_mem) **
      ((sp + signExtend12 3976) ↦ₘ j_mem)) := rfl
 
+/-- Value-agnostic counterpart to `divScratchValues`: the same 15 cells but
+    with ownership only (no commitment to specific values). Suitable for the
+    postcondition of a stack-level DIV/MOD spec that doesn't want to expose
+    the algorithm's internal scratch state to callers. -/
+def divScratchOwn (sp : Word) : Assertion :=
+  memOwn (sp + signExtend12 4088) ** memOwn (sp + signExtend12 4080) **
+  memOwn (sp + signExtend12 4072) ** memOwn (sp + signExtend12 4064) **
+  memOwn (sp + signExtend12 4056) ** memOwn (sp + signExtend12 4048) **
+  memOwn (sp + signExtend12 4040) ** memOwn (sp + signExtend12 4032) **
+  memOwn (sp + signExtend12 4024) ** memOwn (sp + signExtend12 4016) **
+  memOwn (sp + signExtend12 4008) ** memOwn (sp + signExtend12 4000) **
+  memOwn (sp + signExtend12 3992) **
+  memOwn (sp + signExtend12 3984) **
+  memOwn (sp + signExtend12 3976)
+
+/-- Weakening: any concrete scratch state implies ownership of the same 15
+    cells. This lets a stack spec hide the scratch values on exit. -/
+theorem divScratchValues_implies_divScratchOwn
+    (sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shift_mem n_mem j_mem : Word) :
+    ∀ h, divScratchValues sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        shift_mem n_mem j_mem h → divScratchOwn sp h := by
+  unfold divScratchValues divScratchOwn
+  -- Weaken each of the 15 memIs cells to memOwn, left to right.
+  iterate 14 apply sepConj_mono (memIs_implies_memOwn _ _)
+  exact memIs_implies_memOwn _ _
+
 /-- Postcondition for the shift≠0 path from entry to loop setup.
     Encapsulates the shift/anti_shift computation, normalized b'[0..3],
     and normalized u[0..4] as internal let bindings.
