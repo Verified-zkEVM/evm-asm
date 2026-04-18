@@ -54,6 +54,28 @@ theorem isSkipBorrowN4MaxEvm_def (a b : EvmWord) :
 -- Stack-level post state for n=4 max-skip DIV
 -- ============================================================================
 
+/-- Semantic-correctness precondition for the n=4 max+skip sub-path: the
+    mulsub carry on **un-normalized** `a`, `b` limbs with the maximum trial
+    quotient (`signExtend12 4095 = 2^64 - 1`) is zero.
+
+    This is what `n4_max_skip_div_mod_getLimbN` consumes to conclude
+    `(EvmWord.div a b).getLimbN k` values. It is distinct from the runtime
+    borrow check `isSkipBorrowN4MaxEvm` (which inspects the **normalized**
+    mulsub carry), so the forthcoming stack spec takes both as separate
+    hypotheses. Packaging the long equality behind a named predicate keeps
+    the stack-spec signature readable. -/
+def n4MaxSkipSemanticHolds (a b : EvmWord) : Prop :=
+  (mulsubN4 (signExtend12 4095)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)).2.2.2.2 = 0
+
+theorem n4MaxSkipSemanticHolds_def (a b : EvmWord) :
+    n4MaxSkipSemanticHolds a b =
+    ((mulsubN4 (signExtend12 4095)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)).2.2.2.2 = 0) :=
+  rfl
+
 /-- Stack-level postcondition shape for the n=4 DIV max+skip path.
 
     * `.x12 ↦ᵣ (sp+32)` — EVM stack pointer advanced past the popped second operand.
