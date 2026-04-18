@@ -239,6 +239,7 @@ theorem sharedDivModCode_sub_modCode (base : Word) :
     The full-path specs universally-quantify over these values since the program
     overwrites them; the predicate packages them so stack specs aren't littered
     with fifteen `↦ₘ` lines at every call site. -/
+@[irreducible]
 def divScratchValues (sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
     shift_mem n_mem j_mem : Word) : Assertion :=
   ((sp + signExtend12 4088) ↦ₘ q0) ** ((sp + signExtend12 4080) ↦ₘ q1) **
@@ -266,7 +267,8 @@ theorem divScratchValues_unfold (sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
      ((sp + signExtend12 4008) ↦ₘ u6) ** ((sp + signExtend12 4000) ↦ₘ u7) **
      ((sp + signExtend12 3992) ↦ₘ shift_mem) **
      ((sp + signExtend12 3984) ↦ₘ n_mem) **
-     ((sp + signExtend12 3976) ↦ₘ j_mem)) := rfl
+     ((sp + signExtend12 3976) ↦ₘ j_mem)) := by
+  delta divScratchValues; rfl
 
 /-- Mid-tree variant of `divScratchValues_unfold`: threads a `Q` through the
     equality so `rw ←` can fold the 15 atoms into a `divScratchValues` bundle
@@ -294,6 +296,7 @@ theorem divScratchValues_unfold_right (sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
     with ownership only (no commitment to specific values). Suitable for the
     postcondition of a stack-level DIV/MOD spec that doesn't want to expose
     the algorithm's internal scratch state to callers. -/
+@[irreducible]
 def divScratchOwn (sp : Word) : Assertion :=
   memOwn (sp + signExtend12 4088) ** memOwn (sp + signExtend12 4080) **
   memOwn (sp + signExtend12 4072) ** memOwn (sp + signExtend12 4064) **
