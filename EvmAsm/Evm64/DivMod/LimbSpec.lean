@@ -9,6 +9,7 @@
 import EvmAsm.Evm64.DivMod.Program
 import EvmAsm.Evm64.DivMod.LimbSpec.Denorm
 import EvmAsm.Evm64.DivMod.LimbSpec.NormA
+import EvmAsm.Evm64.DivMod.LimbSpec.PhaseBInit
 import EvmAsm.Rv64.SyscallSpecs
 import EvmAsm.Rv64.ControlFlow
 import EvmAsm.Rv64.Tactics.XSimp
@@ -140,57 +141,10 @@ theorem divK_phaseA_spec (sp : Word) (base : Word)
     (fun h hp => by xperm_hyp hp)
     (fun h hp => by xperm_hyp hp)
     composed
--- ============================================================================
--- Phase B init: zero out q[0..3] and u[5..7], load b[1] and b[2].
--- 9 straight-line instructions.
--- ============================================================================
-
-abbrev divK_phaseB_init1_code (base : Word) : CodeReq :=
-  CodeReq.ofProg base (divK_phaseB.take 7)
-
-/-- Phase B init part 1: zero scratch q[0..3] and u[5..7]. 7 instructions. -/
-theorem divK_phaseB_init1_spec (sp : Word) (base : Word)
-    (q0 q1 q2 q3 u5 u6 u7 : Word) :
-    let cr := divK_phaseB_init1_code base
-    cpsTriple base (base + 28) cr
-      (
-       (.x12 ↦ᵣ sp) **
-       ((sp + signExtend12 4088) ↦ₘ q0) ** ((sp + signExtend12 4080) ↦ₘ q1) **
-       ((sp + signExtend12 4072) ↦ₘ q2) ** ((sp + signExtend12 4064) ↦ₘ q3) **
-       ((sp + signExtend12 4016) ↦ₘ u5) ** ((sp + signExtend12 4008) ↦ₘ u6) **
-       ((sp + signExtend12 4000) ↦ₘ u7))
-      (
-       (.x12 ↦ᵣ sp) **
-       ((sp + signExtend12 4088) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4080) ↦ₘ (0 : Word)) **
-       ((sp + signExtend12 4072) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4064) ↦ₘ (0 : Word)) **
-       ((sp + signExtend12 4016) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
-       ((sp + signExtend12 4000) ↦ₘ (0 : Word))) := by
-  have I0 := sd_x0_spec_gen .x12 sp q0 4088 base
-  have I1 := sd_x0_spec_gen .x12 sp q1 4080 (base + 4)
-  have I2 := sd_x0_spec_gen .x12 sp q2 4072 (base + 8)
-  have I3 := sd_x0_spec_gen .x12 sp q3 4064 (base + 12)
-  have I4 := sd_x0_spec_gen .x12 sp u5 4016 (base + 16)
-  have I5 := sd_x0_spec_gen .x12 sp u6 4008 (base + 20)
-  have I6 := sd_x0_spec_gen .x12 sp u7 4000 (base + 24)
-  runBlock I0 I1 I2 I3 I4 I5 I6
-
-abbrev divK_phaseB_init2_code (base : Word) : CodeReq :=
-  CodeReq.ofProg base (divK_phaseB.drop 7 |>.take 2)
-
-/-- Phase B init part 2: load b[1] and b[2]. 2 instructions. -/
-theorem divK_phaseB_init2_spec (sp : Word) (base : Word)
-    (b1 b2 : Word) (v6 v7 : Word) :
-    let cr := divK_phaseB_init2_code base
-    cpsTriple base (base + 8) cr
-      (
-       (.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
-       ((sp + 40) ↦ₘ b1) ** ((sp + 48) ↦ₘ b2))
-      (
-       (.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ b1) ** (.x7 ↦ᵣ b2) **
-       ((sp + 40) ↦ₘ b1) ** ((sp + 48) ↦ₘ b2)) := by
-  have I0 := ld_spec_gen .x6 .x12 sp v6 b1 40 base (by nofun)
-  have I1 := ld_spec_gen .x7 .x12 sp v7 b2 48 (base + 4) (by nofun)
-  runBlock I0 I1
+-- Phase B init specs (divK_phaseB_init{1,2}_{code,spec}) moved to
+-- EvmAsm.Evm64.DivMod.LimbSpec.PhaseBInit (eighth chunk of #312 split).
+-- Re-exported via the import at the top of this file, so downstream surface
+-- is unchanged.
 
 -- ============================================================================
 -- Phase C4: Copy a → u[0..4] unshifted (shift = 0). 9 instructions.
