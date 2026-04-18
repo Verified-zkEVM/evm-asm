@@ -511,28 +511,7 @@ private theorem shl_off_64_20 (base : Word) : (base + 64 : Word) + 20 = base + 8
 private theorem shl_off_sp32 (sp : Word) : sp + signExtend12 (32 : BitVec 12) = sp + 32 := by
   simp only [signExtend12_32]
 
-/-- Strip a pure fact ⌜fact⌝ from a cpsTriple's precondition and use it
-    to convert the postcondition. -/
-private theorem cpsTriple_strip_pure_and_convert
-    {entry exit_ : Word} {cr : CodeReq}
-    {P Q Q' : Assertion} {fact : Prop}
-    (hbody : cpsTriple entry exit_ cr P Q)
-    (hpost : fact → ∀ h, Q h → Q' h) :
-    cpsTriple entry exit_ cr (P ** ⌜fact⌝) Q' := by
-  intro R hR s hcr hPFR hpc
-  have hfact : fact := by
-    obtain ⟨hp, _, hpq⟩ := hPFR
-    obtain ⟨h1, _, _, _, hPF, _⟩ := hpq
-    exact ((sepConj_pure_right P fact h1).1 hPF).2
-  have hPR : (P ** R).holdsFor s := by
-    obtain ⟨hp, hcompat, hpq⟩ := hPFR
-    exact ⟨hp, hcompat, by
-      obtain ⟨h1, h2, hd, hunion, hPF, hR_⟩ := hpq
-      exact ⟨h1, h2, hd, hunion, ((sepConj_pure_right P fact h1).1 hPF).1, hR_⟩⟩
-  obtain ⟨k, s', hstep, hpc', hQR⟩ := hbody R hR s hcr hPR hpc
-  exact ⟨k, s', hstep, hpc', by
-    obtain ⟨hp', hcompat', hpq'⟩ := hQR
-    exact ⟨hp', hcompat', sepConj_mono_left (hpost hfact) hp' hpq'⟩⟩
+-- `cpsTriple_strip_pure_and_convert` lives in `Rv64/CPSSpec.lean` (shared).
 
 -- ============================================================================
 -- SHL Bridge lemmas: connect per-limb body outputs to getLimb (value <<< n)

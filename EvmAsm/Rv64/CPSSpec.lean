@@ -95,6 +95,37 @@ theorem cpsTriple_consequence (entry exit_ : Word) (cr : CodeReq)
     obtain ⟨hp, hcompat, hpq⟩ := hQR
     exact ⟨hp, hcompat, sepConj_mono_left hpost hp hpq⟩⟩
 
+/-- Strip a pure hypothesis from a `cpsTriple`'s precondition and use it
+    simultaneously to weaken the postcondition. The pre-assertion `P ** ⌜fact⌝`
+    lets the consumer simultaneously extract the pure `fact` and the non-pure
+    part `P` — this is the exact shape that arises after `cpsBranch` elimination
+    (the branch's taken/not-taken pre-assertion carries the concrete branch
+    condition as a pure fact that the post-processing step needs).
+
+    Shared across the Evm64 opcode compositions (`Byte/Spec.lean`,
+    `SignExtend/Compose.lean`, `Shift/{Compose, ShlCompose, SarCompose}.lean`)
+    that previously each re-declared this as a `private theorem`. -/
+theorem cpsTriple_strip_pure_and_convert
+    {entry exit_ : Word} {cr : CodeReq}
+    {P Q Q' : Assertion} {fact : Prop}
+    (hbody : cpsTriple entry exit_ cr P Q)
+    (hpost : fact → ∀ h, Q h → Q' h) :
+    cpsTriple entry exit_ cr (P ** ⌜fact⌝) Q' := by
+  intro R hR s hcr hPFR hpc
+  have hfact : fact := by
+    obtain ⟨hp, _, hpq⟩ := hPFR
+    obtain ⟨h1, _, _, _, hPF, _⟩ := hpq
+    exact ((sepConj_pure_right P fact h1).1 hPF).2
+  have hPR : (P ** R).holdsFor s := by
+    obtain ⟨hp, hcompat, hpq⟩ := hPFR
+    exact ⟨hp, hcompat, by
+      obtain ⟨h1, h2, hd, hunion, hPF, hR_⟩ := hpq
+      exact ⟨h1, h2, hd, hunion, ((sepConj_pure_right P fact h1).1 hPF).1, hR_⟩⟩
+  obtain ⟨k, s', hstep, hpc', hQR⟩ := hbody R hR s hcr hPR hpc
+  exact ⟨k, s', hstep, hpc', by
+    obtain ⟨hp', hcompat', hpq'⟩ := hQR
+    exact ⟨hp', hcompat', sepConj_mono_left (hpost hfact) hp' hpq'⟩⟩
+
 /-- Rule of consequence for cpsBranch: strengthen pre, weaken both posts. -/
 theorem cpsBranch_consequence (entry : Word) (cr : CodeReq)
     (P P' : Assertion) (exit_t : Word) (Q_t Q_t' : Assertion)
