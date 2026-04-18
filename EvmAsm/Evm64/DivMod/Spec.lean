@@ -426,6 +426,36 @@ theorem modN4MaxSkipStackPost_unfold_atoms (sp : Word) (a b : EvmWord) :
   rw [modN4MaxSkipStackPost_unfold, evmWordIs_sp_unfold, evmWordIs_sp32_unfold,
       divScratchOwn_unfold]
 
+/-- Mid-tree variant of `divN4StackPre_unfold_atoms`: threads a remainder
+    `Q` through the equality so `rw ←` can fold atoms back into the stack
+    pre bundle even when they sit mid-chain. Parallel to the other `_right`
+    fold variants. -/
+theorem divN4StackPre_unfold_atoms_right (sp : Word) (a b : EvmWord)
+    (v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shift_mem n_mem j_mem : Word)
+    (Q : Assertion) :
+    (((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
+      (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+      (.x2 ↦ᵣ (clzResult (b.getLimbN 3)).2 >>> (63 : Nat)) **
+      (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+      (.x11 ↦ᵣ v11) **
+      ((sp ↦ₘ a.getLimbN 0) ** ((sp + 8) ↦ₘ a.getLimbN 1) **
+       ((sp + 16) ↦ₘ a.getLimbN 2) ** ((sp + 24) ↦ₘ a.getLimbN 3)) **
+      (((sp + 32) ↦ₘ b.getLimbN 0) ** ((sp + 40) ↦ₘ b.getLimbN 1) **
+       ((sp + 48) ↦ₘ b.getLimbN 2) ** ((sp + 56) ↦ₘ b.getLimbN 3)) **
+      (((sp + signExtend12 4088) ↦ₘ q0) ** ((sp + signExtend12 4080) ↦ₘ q1) **
+       ((sp + signExtend12 4072) ↦ₘ q2) ** ((sp + signExtend12 4064) ↦ₘ q3) **
+       ((sp + signExtend12 4056) ↦ₘ u0) ** ((sp + signExtend12 4048) ↦ₘ u1) **
+       ((sp + signExtend12 4040) ↦ₘ u2) ** ((sp + signExtend12 4032) ↦ₘ u3) **
+       ((sp + signExtend12 4024) ↦ₘ u4) ** ((sp + signExtend12 4016) ↦ₘ u5) **
+       ((sp + signExtend12 4008) ↦ₘ u6) ** ((sp + signExtend12 4000) ↦ₘ u7) **
+       ((sp + signExtend12 3992) ↦ₘ shift_mem) **
+       ((sp + signExtend12 3984) ↦ₘ n_mem) **
+       ((sp + signExtend12 3976) ↦ₘ j_mem))) ** Q) =
+    (divN4StackPre sp a b v5 v6 v7 v10 v11
+      q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shift_mem n_mem j_mem ** Q) := by
+  rw [divN4StackPre_unfold_atoms]
+
 /-- Mid-tree variant of the `divN4MaxSkipStackPost_unfold_atoms` family:
     threads a remainder `Q` through the equality so `rw ←` can fold the
     atoms back into the stack post bundle **even when they sit mid-chain**.
