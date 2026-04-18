@@ -29,16 +29,7 @@ abbrev signextCode (base : Word) : CodeReq := CodeReq.ofProg base evm_signextend
 -- `regIs_to_regOwn` lives in `Rv64/SepLogic.lean` (shared with the
 -- Byte / Shift / SignExtend opcode files).
 
-/-- If each half of a CodeReq union is subsumed by target, so is the union. -/
-private theorem CodeReq_union_sub_both {cr1 cr2 target : CodeReq}
-    (h1 : ∀ a i, cr1 a = some i → target a = some i)
-    (h2 : ∀ a i, cr2 a = some i → target a = some i) :
-    ∀ a i, (cr1.union cr2) a = some i → target a = some i := by
-  intro a i h
-  simp only [CodeReq.union] at h
-  cases h1a : cr1 a with
-  | none => simp [h1a] at h; exact h2 a i h
-  | some v => simp [h1a] at h; subst h; exact h1 a v h1a
+-- `CodeReq_union_sub_both` — use `CodeReq.union_sub` from `Rv64/SepLogic.lean` (shared).
 
 /-- A singleton at instruction k of evm_signextend is subsumed by signextCode. -/
 private theorem singleton_sub_signextCode (base addr : Word) (instr : Instr) (k : Nat)
@@ -57,24 +48,24 @@ private theorem singleton_sub_signextCode (base addr : Word) (instr : Instr) (k 
 private theorem phase_a_sub_signextCode (base : Word) :
     ∀ a i, signext_phase_a_code base a = some i → signextCode base a = some i := by
   unfold signext_phase_a_code
-  apply CodeReq_union_sub_both
+  apply CodeReq.union_sub
   · exact singleton_sub_signextCode base base (.LD .x5 .x12 8) 0
       (by decide) (by bv_omega) (by decide)
-  · apply CodeReq_union_sub_both
+  · apply CodeReq.union_sub
     · unfold signext_ld_or_acc_code
       exact CodeReq.ofProg_mono_sub base (base + 4) evm_signextend (signext_ld_or_acc_prog 16) 1
         (by bv_omega) (by decide) (by decide) (by decide)
-    · apply CodeReq_union_sub_both
+    · apply CodeReq.union_sub
       · unfold signext_ld_or_acc_code
         exact CodeReq.ofProg_mono_sub base (base + 12) evm_signextend (signext_ld_or_acc_prog 24) 3
           (by bv_omega) (by decide) (by decide) (by decide)
-      · apply CodeReq_union_sub_both
+      · apply CodeReq.union_sub
         · exact singleton_sub_signextCode base (base + 20) (.BNE .x5 .x0 168) 5
             (by decide) (by bv_omega) (by decide)
-        · apply CodeReq_union_sub_both
+        · apply CodeReq.union_sub
           · exact singleton_sub_signextCode base (base + 24) (.LD .x5 .x12 0) 6
               (by decide) (by bv_omega) (by decide)
-          · apply CodeReq_union_sub_both
+          · apply CodeReq.union_sub
             · exact singleton_sub_signextCode base (base + 28) (.SLTIU .x10 .x5 31) 7
                 (by decide) (by bv_omega) (by decide)
             · exact singleton_sub_signextCode base (base + 32) (.BEQ .x10 .x0 156) 8
@@ -101,10 +92,10 @@ private theorem cascade_17_sub_signextCode (base : Word) :
 private theorem phase_c_sub_signextCode (base : Word) :
     ∀ a i, signext_phase_c_code (base + 56) a = some i → signextCode base a = some i := by
   unfold signext_phase_c_code
-  apply CodeReq_union_sub_both
+  apply CodeReq.union_sub
   · exact singleton_sub_signextCode base (base + 56) (.BEQ .x5 .x0 100) 14
       (by decide) (by bv_omega) (by decide)
-  · apply CodeReq_union_sub_both
+  · apply CodeReq.union_sub
     · unfold signext_cascade_step_code
       have : (base + 56 : Word) + 4 = base + 60 := by bv_omega
       rw [this]
