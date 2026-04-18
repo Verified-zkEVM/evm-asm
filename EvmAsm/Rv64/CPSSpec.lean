@@ -485,6 +485,35 @@ theorem cpsNBranch_weaken_exits (entry : Word) (cr : CodeReq)
   obtain ⟨k, s', hstep, ex, hmem, hpc', hQR⟩ := h R hR s hcr hPR hpc
   exact ⟨k, s', hstep, ex, hsub ex hmem, hpc', hQR⟩
 
+/-- Weaken the code requirement of a `cpsNBranch` via monotonic extension.
+    Shared across the Evm64 opcode compositions (Shift/{Compose,ShlCompose,
+    SarCompose}, Byte/Spec, SignExtend/Compose) that previously each
+    re-declared this as a `private theorem`. -/
+theorem cpsNBranch_extend_code {entry : Word} {cr cr' : CodeReq}
+    {P : Assertion} {exits : List (Word × Assertion)}
+    (hmono : ∀ a i, cr a = some i → cr' a = some i)
+    (h : cpsNBranch entry cr P exits) :
+    cpsNBranch entry cr' P exits := by
+  intro R hR s hcr' hPR hpc
+  exact h R hR s (CodeReq.SatisfiedBy_mono s hmono hcr') hPR hpc
+
+/-- Frame a `cpsNBranch` on the left by a PC-free frame `F`: the pre-assertion
+    becomes `P ** F` and each exit assertion in the list becomes `ex.2 ** F`.
+    Shared across Evm64 opcode compositions — previously 5× `private theorem`
+    duplicates. -/
+theorem cpsNBranch_frame_left {entry : Word} {cr : CodeReq}
+    {P : Assertion} {exits : List (Word × Assertion)} {F : Assertion}
+    (hF : F.pcFree) (h : cpsNBranch entry cr P exits) :
+    cpsNBranch entry cr (P ** F) (exits.map (fun ex => (ex.1, ex.2 ** F))) := by
+  intro R hR s hcr hPFR hpc
+  have hFR : (F ** R).pcFree := pcFree_sepConj hF hR
+  have hPFR' : (P ** (F ** R)).holdsFor s :=
+    holdsFor_sepConj_assoc.mp hPFR
+  obtain ⟨k, s', hstep, ex, hmem, hpc', hQFR⟩ :=
+    h (F ** R) hFR s hcr hPFR' hpc
+  refine ⟨k, s', hstep, (ex.1, ex.2 ** F), ?_, hpc', holdsFor_sepConj_assoc.mpr hQFR⟩
+  exact List.mem_map.mpr ⟨ex, hmem, rfl⟩
+
 /-- Extend the head exit by composing a cpsTriple after it. -/
 theorem cpsNBranch_extend_head (entry l l' : Word) (cr : CodeReq)
     (P Q R : Assertion)

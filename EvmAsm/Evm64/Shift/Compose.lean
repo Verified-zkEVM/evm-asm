@@ -493,30 +493,8 @@ theorem evm_shr_zero_large_spec (sp base : Word)
 -- Section 5: Body path composition
 -- ============================================================================
 
--- Helpers for extending code requirements to cpsNBranch
-
-/-- Monotonicity for cpsNBranch: extend to a larger CodeReq. -/
-private theorem cpsNBranch_extend_code {entry : Word} {cr cr' : CodeReq}
-    {P : Assertion} {exits : List (Word × Assertion)}
-    (hmono : ∀ a i, cr a = some i → cr' a = some i)
-    (h : cpsNBranch entry cr P exits) :
-    cpsNBranch entry cr' P exits := by
-  intro R hR s hcr' hPR hpc
-  exact h R hR s (CodeReq.SatisfiedBy_mono s hmono hcr') hPR hpc
-
-/-- Frame rule for cpsNBranch: frames each exit postcondition with F. -/
-private theorem cpsNBranch_frame_left {entry : Word} {cr : CodeReq}
-    {P : Assertion} {exits : List (Word × Assertion)} {F : Assertion}
-    (hF : F.pcFree) (h : cpsNBranch entry cr P exits) :
-    cpsNBranch entry cr (P ** F) (exits.map (fun ex => (ex.1, ex.2 ** F))) := by
-  intro R hR s hcr hPFR hpc
-  have hFR : (F ** R).pcFree := pcFree_sepConj hF hR
-  have hPFR' : (P ** (F ** R)).holdsFor s :=
-    holdsFor_sepConj_assoc.mp hPFR
-  obtain ⟨k, s', hstep, ex, hmem, hpc', hQFR⟩ :=
-    h (F ** R) hFR s hcr hPFR' hpc
-  refine ⟨k, s', hstep, (ex.1, ex.2 ** F), ?_, hpc', holdsFor_sepConj_assoc.mpr hQFR⟩
-  exact List.mem_map.mpr ⟨ex, hmem, rfl⟩
+-- `cpsNBranch_extend_code` and `cpsNBranch_frame_left` live in
+-- `Rv64/CPSSpec.lean` (shared).
 
 -- Address normalization lemmas for body path
 private theorem shr_off_64_20 (base : Word) : (base + 64 : Word) + 20 = base + 84 := by bv_omega

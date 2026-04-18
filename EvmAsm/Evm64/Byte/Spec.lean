@@ -214,28 +214,8 @@ private theorem byte_off_sp32 (sp : Word) : sp + signExtend12 (32 : BitVec 12) =
 
 -- `regIs_to_regOwn` lives in `Rv64/SepLogic.lean` (shared).
 
-/-- Monotonicity for cpsNBranch: extend to a larger CodeReq. -/
-private theorem cpsNBranch_extend_code {entry : Word} {cr cr' : CodeReq}
-    {P : Assertion} {exits : List (Word × Assertion)}
-    (hmono : ∀ a i, cr a = some i → cr' a = some i)
-    (h : cpsNBranch entry cr P exits) :
-    cpsNBranch entry cr' P exits := by
-  intro R hR s hcr' hPR hpc
-  exact h R hR s (CodeReq.SatisfiedBy_mono s hmono hcr') hPR hpc
-
-/-- Frame rule for cpsNBranch: frames each exit postcondition with F. -/
-private theorem cpsNBranch_frame_left {entry : Word} {cr : CodeReq}
-    {P : Assertion} {exits : List (Word × Assertion)} {F : Assertion}
-    (hF : F.pcFree) (h : cpsNBranch entry cr P exits) :
-    cpsNBranch entry cr (P ** F) (exits.map (fun ex => (ex.1, ex.2 ** F))) := by
-  intro R hR s hcr hPFR hpc
-  have hFR : (F ** R).pcFree := pcFree_sepConj hF hR
-  have hPFR' : (P ** (F ** R)).holdsFor s :=
-    holdsFor_sepConj_assoc.mp hPFR
-  obtain ⟨k, s', hstep, ex, hmem, hpc', hQFR⟩ :=
-    h (F ** R) hFR s hcr hPFR' hpc
-  refine ⟨k, s', hstep, (ex.1, ex.2 ** F), ?_, hpc', holdsFor_sepConj_assoc.mpr hQFR⟩
-  exact List.mem_map.mpr ⟨ex, hmem, rfl⟩
+-- `cpsNBranch_extend_code` and `cpsNBranch_frame_left` live in
+-- `Rv64/CPSSpec.lean` (shared).
 
 /-- Strip a pure fact from a cpsTriple's precondition and use it to convert the postcondition. -/
 private theorem cpsTriple_strip_pure_and_convert
