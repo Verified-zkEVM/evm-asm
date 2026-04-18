@@ -95,8 +95,7 @@ theorem mod_phB_i2_8 (base : Word) : (base + 60 : Word) + 8 = base + 68 := by bv
 theorem mod_phB_addi_4 (base : Word) : (base + 68 : Word) + 4 = base + 72 := by bv_addr
 theorem mod_phB_bne_4 (base : Word) : (base + 72 : Word) + 4 = base + 76 := by bv_addr
 theorem mod_phB_t_20 (base : Word) : (base + 96 : Word) + 20 = base + clzOff := by bv_addr
-theorem mod_signExtend13_24 : signExtend13 (24 : BitVec 13) = (24 : Word) := by
-  decide
+-- `mod_signExtend13_24` → use `signExtend13_24` from `Compose/Base.lean`.
 theorem mod_phB_sp24_32 (sp : Word) :
     sp + ((4 : Word) + signExtend12 (4095 : BitVec 12)) <<< (3 : BitVec 6).toNat +
       signExtend12 (32 : BitVec 12) = sp + 56 := by
@@ -153,7 +152,7 @@ theorem evm_mod_phaseB_n4_spec (sp base : Word)
   -- ---- Step 4: BNE x10 x0 24 at base+72, elim ntaken (b3=0 absurd)
   have hbne_raw := bne_spec_gen .x10 .x0 24 b3 (0 : Word) (base + 72)
   rw [show (base + 72 : Word) + signExtend13 24 = base + 96 from by
-        rw [mod_signExtend13_24]; bv_addr, mod_phB_bne_4] at hbne_raw
+        rw [signExtend13_24]; bv_addr, mod_phB_bne_4] at hbne_raw
   have hbne_clean := cpsBranch_elim_taken_strip_pure2 _ _ _ _ _ _ _ _ _ hbne_raw
     (fun hp hQf => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQf
@@ -244,10 +243,8 @@ theorem addi_x5_1_sub_modCode (base : Word) :
 -- MOD Phase B cascade constants and address lemmas
 -- ============================================================================
 
--- signExtend13 constants for cascade branches (se12_* come from AddrNorm)
-theorem mod_signExtend13_16 : signExtend13 (16 : BitVec 13) = (16 : Word) := by
-  decide
-theorem mod_signExtend13_8 : signExtend13 (8 : BitVec 13) = (8 : Word) := by decide
+-- signExtend13 constants for cascade branches: `signExtend13_{8,16}` now live
+-- in `Compose/Base.lean` (shared with PhaseAB). `se12_*` come from AddrNorm.
 
 -- nm1_x8 = (n + signExtend12 4095) <<< 3 for each n value
 theorem mod_divK_phaseB_n3_nm1_x8 :

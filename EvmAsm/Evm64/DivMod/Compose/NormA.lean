@@ -39,7 +39,7 @@ private theorem normA_sub (base : Word) (sub_prog : List Instr) (k : Nat)
 -- signExtend12 rewrites pulled from the divmod_addr global set (AddrNorm.lean).
 open EvmAsm.Evm64.DivMod.AddrNorm (se12_0 se12_8 se12_16 se12_24)
 
-private theorem signExtend21_40 : signExtend21 (40 : BitVec 21) = (40 : Word) := by decide
+-- `signExtend21_40` moved to `Compose/Base.lean` (shared with ModNormA).
 
 /-- Full NormA: normalize dividend a[0..3] → u[0..4] and jump to loopSetup.
     base+312 → base+432 (21 instructions including JAL).
@@ -246,7 +246,7 @@ private theorem blt_loopSetup_sub_divCode (base : Word) :
   exact divK_loopSetup_code_sub_divCode base a i
     (CodeReq.singleton_mono hlookup a i h)
 
-private theorem signExtend13_464 : signExtend13 (464 : BitVec 13) = (464 : Word) := by decide
+-- `signExtend13_464` moved to `Compose/Base.lean` (shared with ModNormA).
 
 /-- LoopSetup when m ≥ 0 (n ≤ 4): falls through to loop body at base+448.
     Loads n from scratch, computes m = 4-n, BLT not taken. -/

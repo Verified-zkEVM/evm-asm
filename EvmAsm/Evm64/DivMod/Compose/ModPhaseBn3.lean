@@ -80,7 +80,7 @@ theorem evm_mod_phaseB_n3_spec (sp base : Word)
   -- ---- Cascade step 0: BNE x10 ntaken (base+72 → base+76, b3=0)
   have hbne0_raw := bne_spec_gen .x10 .x0 24 b3 (0 : Word) (base + 72)
   rw [show (base + 72 : Word) + signExtend13 24 = base + 96 from by
-        rw [mod_signExtend13_24]; bv_addr, mod_phB_bne_4] at hbne0_raw
+        rw [signExtend13_24]; bv_addr, mod_phB_bne_4] at hbne0_raw
   have hbne0_clean := cpsBranch_elim_ntaken_strip_pure2 _ _ _ _ _ _ _ _ _ hbne0_raw
     (fun hp hQt => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQt
@@ -115,7 +115,7 @@ theorem evm_mod_phaseB_n3_spec (sp base : Word)
   -- ---- Cascade step 1: BNE x7 taken (base+80 → base+96, b2≠0)
   have hbne1_raw := bne_spec_gen .x7 .x0 16 b2 (0 : Word) (base + 80)
   rw [show (base + 80 : Word) + signExtend13 16 = base + 96 from by
-        rw [mod_signExtend13_16]; bv_addr, mod_phB_step1_8] at hbne1_raw
+        rw [signExtend13_16]; bv_addr, mod_phB_step1_8] at hbne1_raw
   have hbne1_clean := cpsBranch_elim_taken_strip_pure2 _ _ _ _ _ _ _ _ _ hbne1_raw
     (fun hp hQf => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQf

@@ -38,7 +38,7 @@ private theorem beq_shift_sub_modCode (base : Word) :
   exact divK_phaseC2_code_sub_modCode base a i
     (CodeReq.singleton_mono hlookup a i h)
 
-private theorem mod_signExtend13_172 : signExtend13 (172 : BitVec 13) = (172 : Word) := by decide
+-- `signExtend13_172` → use `signExtend13_172` from `Compose/Base.lean`.
 
 /-- Phase C2 body (base+212 -> base+224): store shift, compute anti_shift.
     Extends to modCode. Uses first 3 instructions of phaseC2. -/
@@ -64,7 +64,7 @@ theorem mod_phaseC2_ntaken_spec (sp shift v2 shift_mem : Word) (base : Word)
   have hbody := mod_phaseC2_body_modCode sp shift v2 shift_mem base
   have hbeq_raw := beq_spec_gen .x6 .x0 172 shift (0 : Word) (base + 224)
   rw [show (base + 224 : Word) + signExtend13 172 = base + copyAUOff from by
-        rw [mod_signExtend13_172]; bv_addr,
+        rw [signExtend13_172]; bv_addr,
       show (base + 224 : Word) + 4 = base + normBOff from by bv_addr] at hbeq_raw
   have hbeq_clean := cpsBranch_elim_ntaken_strip_pure2 _ _ _ _ _ _ _ _ _ hbeq_raw
     (fun hp hQt => by
@@ -94,7 +94,7 @@ theorem mod_phaseC2_taken_spec (sp shift v2 shift_mem : Word) (base : Word)
   have hbody := mod_phaseC2_body_modCode sp shift v2 shift_mem base
   have hbeq_raw := beq_spec_gen .x6 .x0 172 shift (0 : Word) (base + 224)
   rw [show (base + 224 : Word) + signExtend13 172 = base + copyAUOff from by
-        rw [mod_signExtend13_172]; bv_addr,
+        rw [signExtend13_172]; bv_addr,
       show (base + 224 : Word) + 4 = base + normBOff from by bv_addr] at hbeq_raw
   have hbeq_clean := cpsBranch_elim_taken_strip_pure2 _ _ _ _ _ _ _ _ _ hbeq_raw
     (fun hp hQf => by

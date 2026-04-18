@@ -120,13 +120,11 @@ private theorem divK_phaseB_tail_code_sub_divCode (base : Word) :
 
 -- ============================================================================
 -- Section 6: signExtend13 normalization
+--
+-- `signExtend13_{8,16,24,1020}` now live in `Compose/Base.lean` and are shared
+-- with the MOD-side files (ModPhaseB / ModNorm / ModNormA) — the identical
+-- `mod_signExtend13_*` duplicates on the MOD side are gone.
 -- ============================================================================
-
-private theorem signExtend13_1020 : signExtend13 (1020 : BitVec 13) = (1020 : Word) := by
-  decide
-
-private theorem signExtend13_24 : signExtend13 (24 : BitVec 13) = (24 : Word) := by
-  decide
 
 -- Phase B n=4: signExtend12 4 = 4 (result of ADDI x5 x0 4 via addi_x0_spec_gen)
 private theorem divK_se12_4 : signExtend12 (4 : BitVec 12) = (4 : Word) := by decide
@@ -486,8 +484,7 @@ private theorem addi_x5_1_sub_divCode (base : Word) :
 private theorem divK_se12_3 : signExtend12 (3 : BitVec 12) = (3 : Word) := by decide
 private theorem divK_se12_2 : signExtend12 (2 : BitVec 12) = (2 : Word) := by decide
 private theorem divK_se12_1 : signExtend12 (1 : BitVec 12) = (1 : Word) := by decide
-private theorem signExtend13_16 : signExtend13 (16 : BitVec 13) = (16 : Word) := by decide
-private theorem signExtend13_8 : signExtend13 (8 : BitVec 13) = (8 : Word) := by decide
+-- `signExtend13_{8,16}` moved to `Compose/Base.lean` (shared with MOD side).
 
 -- nm1_x8 = (n + signExtend12 4095) <<< 3 for each n value
 private theorem divK_phaseB_n3_nm1_x8 :
