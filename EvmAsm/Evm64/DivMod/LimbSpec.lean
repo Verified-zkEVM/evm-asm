@@ -7,6 +7,7 @@
 -/
 
 import EvmAsm.Evm64.DivMod.Program
+import EvmAsm.Evm64.DivMod.LimbSpec.AddBack
 import EvmAsm.Evm64.DivMod.LimbSpec.AddBackFinalLoopControl
 import EvmAsm.Evm64.DivMod.LimbSpec.CopyAU
 import EvmAsm.Evm64.DivMod.LimbSpec.Denorm
@@ -15,8 +16,10 @@ import EvmAsm.Evm64.DivMod.LimbSpec.LoopSetup
 import EvmAsm.Evm64.DivMod.LimbSpec.MulSub
 import EvmAsm.Evm64.DivMod.LimbSpec.NormA
 import EvmAsm.Evm64.DivMod.LimbSpec.NormB
-import EvmAsm.Evm64.DivMod.LimbSpec.PhaseBCascade
 import EvmAsm.Evm64.DivMod.LimbSpec.PhaseA
+import EvmAsm.Evm64.DivMod.LimbSpec.PhaseBCascade
+import EvmAsm.Evm64.DivMod.LimbSpec.PhaseBInit
+import EvmAsm.Evm64.DivMod.LimbSpec.PhaseBTail
 import EvmAsm.Evm64.DivMod.LimbSpec.ZeroPath
 import EvmAsm.Rv64.SyscallSpecs
 import EvmAsm.Rv64.ControlFlow
@@ -39,57 +42,15 @@ open EvmAsm.Rv64
 -- Re-exported via the import at the top of this file, so downstream surface
 -- is unchanged.
 
--- ============================================================================
--- Phase B init: zero out q[0..3] and u[5..7], load b[1] and b[2].
--- 9 straight-line instructions.
--- ============================================================================
+-- Phase A specs (divK_phaseA_{code,body_spec,spec}) moved to
+-- EvmAsm.Evm64.DivMod.LimbSpec.PhaseA (seventh chunk of #312 split).
+-- Re-exported via the import at the top of this file, so downstream surface
+-- is unchanged.
 
-abbrev divK_phaseB_init1_code (base : Word) : CodeReq :=
-  CodeReq.ofProg base (divK_phaseB.take 7)
-
-/-- Phase B init part 1: zero scratch q[0..3] and u[5..7]. 7 instructions. -/
-theorem divK_phaseB_init1_spec (sp : Word) (base : Word)
-    (q0 q1 q2 q3 u5 u6 u7 : Word) :
-    let cr := divK_phaseB_init1_code base
-    cpsTriple base (base + 28) cr
-      (
-       (.x12 ↦ᵣ sp) **
-       ((sp + signExtend12 4088) ↦ₘ q0) ** ((sp + signExtend12 4080) ↦ₘ q1) **
-       ((sp + signExtend12 4072) ↦ₘ q2) ** ((sp + signExtend12 4064) ↦ₘ q3) **
-       ((sp + signExtend12 4016) ↦ₘ u5) ** ((sp + signExtend12 4008) ↦ₘ u6) **
-       ((sp + signExtend12 4000) ↦ₘ u7))
-      (
-       (.x12 ↦ᵣ sp) **
-       ((sp + signExtend12 4088) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4080) ↦ₘ (0 : Word)) **
-       ((sp + signExtend12 4072) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4064) ↦ₘ (0 : Word)) **
-       ((sp + signExtend12 4016) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
-       ((sp + signExtend12 4000) ↦ₘ (0 : Word))) := by
-  have I0 := sd_x0_spec_gen .x12 sp q0 4088 base
-  have I1 := sd_x0_spec_gen .x12 sp q1 4080 (base + 4)
-  have I2 := sd_x0_spec_gen .x12 sp q2 4072 (base + 8)
-  have I3 := sd_x0_spec_gen .x12 sp q3 4064 (base + 12)
-  have I4 := sd_x0_spec_gen .x12 sp u5 4016 (base + 16)
-  have I5 := sd_x0_spec_gen .x12 sp u6 4008 (base + 20)
-  have I6 := sd_x0_spec_gen .x12 sp u7 4000 (base + 24)
-  runBlock I0 I1 I2 I3 I4 I5 I6
-
-abbrev divK_phaseB_init2_code (base : Word) : CodeReq :=
-  CodeReq.ofProg base (divK_phaseB.drop 7 |>.take 2)
-
-/-- Phase B init part 2: load b[1] and b[2]. 2 instructions. -/
-theorem divK_phaseB_init2_spec (sp : Word) (base : Word)
-    (b1 b2 : Word) (v6 v7 : Word) :
-    let cr := divK_phaseB_init2_code base
-    cpsTriple base (base + 8) cr
-      (
-       (.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
-       ((sp + 40) ↦ₘ b1) ** ((sp + 48) ↦ₘ b2))
-      (
-       (.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ b1) ** (.x7 ↦ᵣ b2) **
-       ((sp + 40) ↦ₘ b1) ** ((sp + 48) ↦ₘ b2)) := by
-  have I0 := ld_spec_gen .x6 .x12 sp v6 b1 40 base (by nofun)
-  have I1 := ld_spec_gen .x7 .x12 sp v7 b2 48 (base + 4) (by nofun)
-  runBlock I0 I1
+-- Phase B init specs (divK_phaseB_init{1,2}_{code,spec}) moved to
+-- EvmAsm.Evm64.DivMod.LimbSpec.PhaseBInit (eighth chunk of #312 split).
+-- Re-exported via the import at the top of this file, so downstream surface
+-- is unchanged.
 
 -- Phase C4 / CopyAU spec (divK_copyAU_{code,spec}) moved to
 -- EvmAsm.Evm64.DivMod.LimbSpec.CopyAU (fifth chunk of #312 split).
@@ -113,37 +74,10 @@ theorem divK_phaseB_init2_spec (sp : Word) (base : Word)
 -- Re-exported via the import at the top of this file, so downstream surface
 -- is unchanged.
 
--- ============================================================================
--- Phase B tail: store n, compute address of b[n-1], load leading limb.
--- 5 instructions: SD, ADDI, SLLI, ADD, LD.
--- ============================================================================
-
-abbrev divK_phaseB_tail_code (base : Word) : CodeReq :=
-  CodeReq.ofProg base (divK_phaseB.drop 16)
-
-/-- Phase B tail: store n to scratch, compute sp + (n-1)*8, load b[n-1].
-    x5 = n on entry. On exit, x5 = leading limb b[n-1]. -/
-theorem divK_phaseB_tail_spec (sp n leading_limb n_mem : Word) (base : Word) :
-    let nm1 := n + signExtend12 4095
-    let nm1_x8 := nm1 <<< (3 : BitVec 6).toNat
-    let addr_lead := sp + nm1_x8
-    let cr := divK_phaseB_tail_code base
-    cpsTriple base (base + 20) cr
-      (
-       (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ n) **
-       ((sp + signExtend12 3984) ↦ₘ n_mem) **
-       ((addr_lead + signExtend12 32) ↦ₘ leading_limb))
-      (
-       (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ leading_limb) **
-       ((sp + signExtend12 3984) ↦ₘ n) **
-       ((addr_lead + signExtend12 32) ↦ₘ leading_limb)) := by
-  intro nm1 nm1_x8 addr_lead cr
-  have I0 := sd_spec_gen .x12 .x5 sp n n_mem 3984 base
-  have I1 := addi_spec_gen_same .x5 n 4095 (base + 4) (by nofun)
-  have I2 := slli_spec_gen_same .x5 nm1 3 (base + 8) (by nofun)
-  have I3 := add_spec_gen_rd_eq_rs2 .x5 .x12 sp nm1_x8 (base + 12) (by nofun)
-  have I4 := ld_spec_gen_same .x5 addr_lead leading_limb 32 (base + 16) (by nofun)
-  runBlock I0 I1 I2 I3 I4
+-- Phase B tail spec (divK_phaseB_tail_{code,spec}) moved to
+-- EvmAsm.Evm64.DivMod.LimbSpec.PhaseBTail (tenth chunk of #312 split).
+-- Re-exported via the import at the top of this file, so downstream surface
+-- is unchanged.
 
 -- ============================================================================
 -- Phase C2 body: store shift, compute anti_shift. 3 instructions.
@@ -551,63 +485,10 @@ theorem divK_clz_last_ntaken_spec (val count v7 : Word) (base : Word)
 -- Re-exported via the import at the top of this file, so downstream surface
 -- is unchanged.
 
--- ============================================================================
--- Add-back correction limb: 8 instructions per limb.
--- u[j+i] += v[i] + carry_in, with carry propagation.
--- ============================================================================
-
-/-- Add-back Part A: LD v[i], LD u[j+i], ADD carry, SLTU carry1, ADD v[i].
-    5 instructions. Produces sum (x2) and carry1 (x7). -/
-theorem divK_addback_partA_spec (sp u_base carry_in v5_old v2_old v_i u_i : Word)
-    (v_off : BitVec 12) (u_off : BitVec 12) (base : Word) :
-    let u_plus_carry := u_i + carry_in
-    let carry1 := if BitVec.ult u_plus_carry carry_in then (1 : Word) else 0
-    let u_new := u_plus_carry + v_i
-    let cr :=
-      CodeReq.union (CodeReq.singleton base (.LD .x5 .x12 v_off))
-      (CodeReq.union (CodeReq.singleton (base + 4) (.LD .x2 .x6 u_off))
-      (CodeReq.union (CodeReq.singleton (base + 8) (.ADD .x2 .x2 .x7))
-      (CodeReq.union (CodeReq.singleton (base + 12) (.SLTU .x7 .x2 .x7))
-       (CodeReq.singleton (base + 16) (.ADD .x2 .x2 .x5)))))
-    cpsTriple base (base + 20) cr
-      ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ u_base) ** (.x7 ↦ᵣ carry_in) **
-       (.x5 ↦ᵣ v5_old) ** (.x2 ↦ᵣ v2_old) **
-       ((sp + signExtend12 v_off) ↦ₘ v_i) **
-       ((u_base + signExtend12 u_off) ↦ₘ u_i))
-      ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ u_base) ** (.x7 ↦ᵣ carry1) **
-       (.x5 ↦ᵣ v_i) ** (.x2 ↦ᵣ u_new) **
-       ((sp + signExtend12 v_off) ↦ₘ v_i) **
-       ((u_base + signExtend12 u_off) ↦ₘ u_i)) := by
-  intro u_plus_carry carry1 u_new cr
-  have I0 := ld_spec_gen .x5 .x12 sp v5_old v_i v_off base (by nofun)
-  have I1 := ld_spec_gen .x2 .x6 u_base v2_old u_i u_off (base + 4) (by nofun)
-  have I2 := add_spec_gen_rd_eq_rs1 .x2 .x7 u_i carry_in (base + 8) (by nofun)
-  have I3 := sltu_spec_gen_rd_eq_rs2 .x7 .x2 u_plus_carry carry_in (base + 12) (by nofun)
-  have I4 := add_spec_gen_rd_eq_rs1 .x2 .x5 u_plus_carry v_i (base + 16) (by nofun)
-  runBlock I0 I1 I2 I3 I4
-
-/-- Add-back Part B: SLTU carry2, OR carry_out, SD u_new.
-    3 instructions. Produces carry_out (x7) and stores u_new. -/
-theorem divK_addback_partB_spec (u_base carry1 v_i u_new u_i : Word)
-    (u_off : BitVec 12) (base : Word) :
-    let carry2 := if BitVec.ult u_new v_i then (1 : Word) else 0
-    let carry_out := carry1 ||| carry2
-    let cr :=
-      CodeReq.union (CodeReq.singleton base (.SLTU .x5 .x2 .x5))
-      (CodeReq.union (CodeReq.singleton (base + 4) (.OR .x7 .x7 .x5))
-       (CodeReq.singleton (base + 8) (.SD .x6 .x2 u_off)))
-    cpsTriple base (base + 12) cr
-      ((.x6 ↦ᵣ u_base) ** (.x7 ↦ᵣ carry1) **
-       (.x5 ↦ᵣ v_i) ** (.x2 ↦ᵣ u_new) **
-       ((u_base + signExtend12 u_off) ↦ₘ u_i))
-      ((.x6 ↦ᵣ u_base) ** (.x7 ↦ᵣ carry_out) **
-       (.x5 ↦ᵣ carry2) ** (.x2 ↦ᵣ u_new) **
-       ((u_base + signExtend12 u_off) ↦ₘ u_new)) := by
-  intro carry2 carry_out cr
-  have I0 := sltu_spec_gen_rd_eq_rs2 .x5 .x2 u_new v_i base (by nofun)
-  have I1 := or_spec_gen_rd_eq_rs1 .x7 .x5 carry1 carry2 (base + 4) (by nofun)
-  have I2 := sd_spec_gen .x6 .x2 u_base u_new u_i u_off (base + 8)
-  runBlock I0 I1 I2
+-- Add-back partA/partB specs (divK_addback_{partA,partB}_spec) moved to
+-- EvmAsm.Evm64.DivMod.LimbSpec.AddBack (fifteenth chunk of #312 split).
+-- Re-exported via the import at the top of this file, so downstream surface
+-- is unchanged.
 
 -- ============================================================================
 -- Subtract carry from u[j+4]: 4 instructions after mul-sub limbs.
