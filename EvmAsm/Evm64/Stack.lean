@@ -73,6 +73,15 @@ theorem evmStackIs_cons_cons_cons_nil (sp : Word) (a b c : EvmWord) :
     (evmWordIs sp a ** evmWordIs (sp + 32) b **
      evmWordIs (sp + 32 + 32) c ** empAssertion) := rfl
 
+/-- Two-element stack unfold without the trailing `empAssertion`:
+    `evmStackIs sp [a, b] = evmWordIs sp a ** evmWordIs (sp + 32) b`.
+    Derived from `evmStackIs_cons_cons_nil` by applying
+    `sepConj_emp_right'`. Most binary-op stack specs want this cleaner
+    2-atom form rather than the raw definition. -/
+theorem evmStackIs_pair (sp : Word) (a b : EvmWord) :
+    evmStackIs sp [a, b] = (evmWordIs sp a ** evmWordIs (sp + 32) b) := by
+  rw [evmStackIs_cons_cons_nil, sepConj_emp_right']
+
 -- ============================================================================
 -- evmWordIs unfold and limb-equality bridges
 -- ============================================================================
