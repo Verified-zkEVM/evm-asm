@@ -51,6 +51,31 @@ theorem isSkipBorrowN4MaxEvm_def (a b : EvmWord) :
                       (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) := rfl
 
 -- ============================================================================
+-- Stack-level post state for n=4 max-skip DIV
+-- ============================================================================
+
+/-- Stack-level postcondition shape for the n=4 DIV max+skip path.
+
+    * `.x12 ↦ᵣ (sp+32)` — EVM stack pointer advanced past the popped second operand.
+    * `regOwn` for every scratch register the program touches (`x1, x2, x5, x6,
+      x7, x10, x11`). Caller has ownership but no knowledge of the final values.
+    * `.x0 ↦ᵣ 0` — the zero register is preserved.
+    * `evmWordIs sp a` — first operand preserved at its original location.
+    * `evmWordIs (sp+32) (EvmWord.div a b)` — DIV result written over the second
+      operand slot.
+    * `divScratchOwn sp` — ownership of all 15 scratch cells, values unspecified.
+
+    Paired with the forthcoming `evm_div_n4_max_skip_stack_spec` and derived
+    from the concrete `fullDivN4MaxSkipPost` via the `n4_max_skip_div_mod_getLimbN`
+    semantic bridge + `divScratchValues_implies_divScratchOwn` weakener. -/
+def divN4MaxSkipStackPost (sp : Word) (a b : EvmWord) : Assertion :=
+  (.x12 ↦ᵣ (sp + 32)) ** regOwn .x1 ** regOwn .x2 **
+  regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+  regOwn .x10 ** regOwn .x11 ** (.x0 ↦ᵣ (0 : Word)) **
+  evmWordIs sp a ** evmWordIs (sp + 32) (EvmWord.div a b) **
+  divScratchOwn sp
+
+-- ============================================================================
 -- DIV: Zero divisor stack spec (b = 0 → result = 0)
 -- ============================================================================
 
