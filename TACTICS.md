@@ -13,6 +13,21 @@ User guide for the frame automation tactics in `EvmAsm/Tactics/`.
 | `@[spec_gen]` | `SpecDb.lean` | Register instruction specs for auto-resolution |
 | `#spec_db` | `SpecDb.lean` | Print all registered instruction specs |
 
+**For closing arithmetic / address equality goals**, see the grindsets
+documented in [`GRIND.md`](GRIND.md):
+
+| Grindset | File | Closes |
+|----------|------|--------|
+| `divmod_addr` | `Evm64/DivMod/AddrNorm.lean`  | DivMod address arithmetic (signExtend12 + shift + toNat) |
+| `rv64_addr`   | `Rv64/AddrNorm.lean`           | Rv64-wide address arithmetic (signExtend13/21 + assoc), subsumes `bv_addr` |
+| `reg_ops`     | `Rv64/RegOps.lean`             | `MachineState` projection chains (`pc_set<F>`, `getReg_setPC`, etc.) |
+| `byte_alg`    | `Rv64/ByteAlg.lean`            | `extractByte` / `replaceByte` algebra on `Word` |
+
+Each grindset exposes a `by <name>` tactic (`by divmod_addr`, `by rv64_addr`,
+…) that tries `grind` first and falls back to a per-domain `simp only [...]`
+closer. New atomic facts are added as one-line `@[<set>, grind =]` lemmas
+in the set's file; consumers pick them up automatically.
+
 ## runBlock
 
 The primary tactic for verifying basic blocks. Composes instruction specs
