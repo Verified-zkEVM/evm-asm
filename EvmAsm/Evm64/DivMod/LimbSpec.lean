@@ -12,6 +12,7 @@ import EvmAsm.Evm64.DivMod.LimbSpec.Denorm
 import EvmAsm.Evm64.DivMod.LimbSpec.Epilogue
 import EvmAsm.Evm64.DivMod.LimbSpec.NormA
 import EvmAsm.Evm64.DivMod.LimbSpec.NormB
+import EvmAsm.Evm64.DivMod.LimbSpec.ZeroPath
 import EvmAsm.Rv64.SyscallSpecs
 import EvmAsm.Rv64.ControlFlow
 import EvmAsm.Rv64.Tactics.XSimp
@@ -23,31 +24,10 @@ namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
 
--- ============================================================================
--- Zero path: b = 0, push 0. 5 instructions.
--- ============================================================================
-
-abbrev divK_zeroPath_code (base : Word) : CodeReq :=
-  CodeReq.ofProg base divK_zeroPath
-
-/-- Zero path: advance sp by 32, store four zeros at the output location.
-    Used when b = 0 (both DIV and MOD return 0). -/
-theorem divK_zeroPath_spec (sp : Word) (base : Word)
-    (m32 m40 m48 m56 : Word) :
-    let cr := divK_zeroPath_code base
-    cpsTriple base (base + 20) cr
-      ((.x12 ↦ᵣ sp) **
-       ((sp + 32) ↦ₘ m32) ** ((sp + 40) ↦ₘ m40) **
-       ((sp + 48) ↦ₘ m48) ** ((sp + 56) ↦ₘ m56))
-      ((.x12 ↦ᵣ (sp + 32)) **
-       ((sp + 32) ↦ₘ (0 : Word)) ** ((sp + 40) ↦ₘ (0 : Word)) **
-       ((sp + 48) ↦ₘ (0 : Word)) ** ((sp + 56) ↦ₘ (0 : Word))) := by
-  have I0 := addi_spec_gen_same .x12 sp 32 base (by nofun)
-  have I1 := sd_x0_spec_gen .x12 (sp + 32) m32 0 (base + 4)
-  have I2 := sd_x0_spec_gen .x12 (sp + 32) m40 8 (base + 8)
-  have I3 := sd_x0_spec_gen .x12 (sp + 32) m48 16 (base + 12)
-  have I4 := sd_x0_spec_gen .x12 (sp + 32) m56 24 (base + 16)
-  runBlock I0 I1 I2 I3 I4
+-- Zero path spec (divK_zeroPath_{code,spec}) moved to
+-- EvmAsm.Evm64.DivMod.LimbSpec.ZeroPath (sixth chunk of #312 split).
+-- Re-exported via the import at the top of this file, so downstream surface
+-- is unchanged.
 
 -- ============================================================================
 -- Phase A body: OR-reduce b[0..3]. 7 instructions (straight-line).
