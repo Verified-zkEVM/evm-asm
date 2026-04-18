@@ -12,7 +12,7 @@ open EvmAsm.Rv64.Tactics
 namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
-open EvmAsm.Rv64.AddrNorm (se13_1020)
+open EvmAsm.Rv64.AddrNorm (se13_96 se13_1020 se21_24)
 
 -- ============================================================================
 -- Section 10l: Denorm composition (25 instructions at base+904)
@@ -60,8 +60,7 @@ theorem divK_denorm_preamble_spec (sp shift v5 v6 v7 v2 v10 : Word) (base : Word
   -- 2. BEQ x6 x0 96 at base+912 (denorm instr [1])
   have hbeq := beq_spec_gen .x6 .x0 (96 : BitVec 13) shift (0 : Word) (base + 912)
   rw [show (base + 912 : Word) + signExtend13 (96 : BitVec 13) = base + epilogueOff from by
-        rw [show signExtend13 (96 : BitVec 13) = (96 : Word) from by decide]
-        bv_addr,
+        rw [se13_96]; bv_addr,
       show (base + 912 : Word) + 4 = base + 916 from by bv_addr] at hbeq
   have hbeqe := cpsBranch_extend_code (hmono := by
     intro a i h
@@ -252,7 +251,7 @@ theorem divK_div_epilogue_spec (sp : Word) (base : Word)
   -- Store phase (base+1024 → base+1068 via JAL)
   have hstore := divK_epilogue_store_spec sp (base + 1024) q0 q1 q2 q3 m0 m8 m16 m24 24
   rw [show (base + 1024 : Word) + 20 + signExtend21 24 = base + nopOff from by
-        rw [show signExtend21 (24 : BitVec 21) = (24 : Word) from by decide]; bv_addr]
+        rw [se21_24]; bv_addr]
     at hstore
   have hstoree := cpsTriple_extend_code (hmono := fun a i h =>
     divK_divEpilogue_code_sub_divCode base a i
@@ -448,7 +447,7 @@ theorem divK_mod_epilogue_spec (sp : Word) (base : Word)
   -- Store phase (base+1024 → base+1068 via JAL): advance sp, store u[0..3] to output
   have hstore := divK_epilogue_store_spec sp (base + 1024) u0 u1 u2 u3 m0 m8 m16 m24 24
   rw [show (base + 1024 : Word) + 20 + signExtend21 24 = base + nopOff from by
-        rw [show signExtend21 (24 : BitVec 21) = (24 : Word) from by decide]; bv_addr]
+        rw [se21_24]; bv_addr]
     at hstore
   have hstoree := cpsTriple_extend_code (hmono := fun a i h =>
     divK_modEpilogue_code_sub_modCode base a i

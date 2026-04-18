@@ -18,6 +18,7 @@ open EvmAsm.Rv64.Tactics
 namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
+open EvmAsm.Rv64.AddrNorm (se13_7736 se13_8044)
 
 -- ============================================================================
 -- Section 1: CodeReq subsumption infrastructure for loop body instructions
@@ -931,7 +932,7 @@ theorem divK_beq_passthrough (carry : Word) (base : Word) (hne : carry ≠ 0) :
 -- Address normalization for BEQ taken (double-addback backward branch)
 private theorem lb_beq_back_taken (base : Word) :
     (base + 880 : Word) + signExtend13 (8044 : BitVec 13) = base + 732 := by
-  rw [show signExtend13 (8044 : BitVec 13) = (18446744073709551468 : Word) from by decide]
+  rw [se13_8044]
   bv_addr
 
 /-- Double-addback path at [108]: when first addback carry (x7) = 0, BEQ jumps back to [71]
@@ -1183,7 +1184,7 @@ theorem divK_store_loop_j0_spec
   -- 3. BGE x1 x0 7736 at base+904 (instr [114])
   have hbge_raw := bge_spec_gen .x1 .x0 (7736 : BitVec 13) j' (0 : Word) (base + 904)
   rw [show (base + 904 : Word) + signExtend13 (7736 : BitVec 13) = base + loopBodyOff from by
-        rw [show signExtend13 (7736 : BitVec 13) = (18446744073709551160 : Word) from by decide]
+        rw [se13_7736]
         bv_addr,
       show (base + 904 : Word) + 4 = base + denormOff from by bv_addr] at hbge_raw
   have hbge_ext := cpsBranch_extend_code (hmono := by
@@ -1269,7 +1270,7 @@ theorem divK_store_loop_jgt0_spec
   -- 3. BGE x1 x0 7736 at base+904 (instr [114])
   have hbge_raw := bge_spec_gen .x1 .x0 (7736 : BitVec 13) j' (0 : Word) (base + 904)
   rw [show (base + 904 : Word) + signExtend13 (7736 : BitVec 13) = base + loopBodyOff from by
-        rw [show signExtend13 (7736 : BitVec 13) = (18446744073709551160 : Word) from by decide]
+        rw [se13_7736]
         bv_addr,
       show (base + 904 : Word) + 4 = base + denormOff from by bv_addr] at hbge_raw
   have hbge_ext := cpsBranch_extend_code (hmono := by
