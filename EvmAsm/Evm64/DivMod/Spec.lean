@@ -168,6 +168,39 @@ instance (sp : Word) (a b : EvmWord) :
     Assertion.PCFree (divN4MaxSkipStackPost sp a b) :=
   ⟨pcFree_divN4MaxSkipStackPost sp a b⟩
 
+/-- Weakening bridge from a concrete post state (specific register values +
+    concrete scratch cells via `divScratchValues`) to `divN4MaxSkipStackPost`.
+    Parallels the `mul_stack_weaken` helper in `Multiply/Spec.lean`. Weakens
+    the 7 scratch registers from `regIs` to `regOwn` and the 15 scratch cells
+    from `memIs` to `memOwn`; the two `evmWordIs` atoms, `.x12`, and `.x0`
+    pass through unchanged. -/
+theorem div_n4_max_skip_stack_weaken
+    (sp : Word) (a b : EvmWord)
+    (v1_p v2_p v5_p v6_p v7_p v10_p v11_p : Word)
+    (q0_p q1_p q2_p q3_p u0_p u1_p u2_p u3_p u4_p u5_p u6_p u7_p
+     shift_p n_p j_p : Word) :
+    ∀ h,
+      ((.x12 ↦ᵣ (sp + 32)) **
+       (.x1 ↦ᵣ v1_p) ** (.x2 ↦ᵣ v2_p) **
+       (.x5 ↦ᵣ v5_p) ** (.x6 ↦ᵣ v6_p) ** (.x7 ↦ᵣ v7_p) **
+       (.x10 ↦ᵣ v10_p) ** (.x11 ↦ᵣ v11_p) **
+       (.x0 ↦ᵣ (0 : Word)) **
+       evmWordIs sp a ** evmWordIs (sp + 32) (EvmWord.div a b) **
+       divScratchValues sp q0_p q1_p q2_p q3_p u0_p u1_p u2_p u3_p u4_p
+         u5_p u6_p u7_p shift_p n_p j_p) h →
+      divN4MaxSkipStackPost sp a b h := by
+  intro h hp
+  rw [divScratchValues_unfold] at hp
+  delta divN4MaxSkipStackPost
+  unfold divScratchOwn
+  refine sepConj_mono_right ?_ h hp
+  iterate 7 apply sepConj_mono (regIs_implies_regOwn _ _)
+  apply sepConj_mono_right
+  apply sepConj_mono_right
+  apply sepConj_mono_right
+  iterate 14 apply sepConj_mono (memIs_implies_memOwn _ _)
+  exact memIs_implies_memOwn _ _
+
 /-- MOD counterpart of `divN4MaxSkipStackPost`: same structure, same register
     and scratch handling, but the second operand slot holds `EvmWord.mod a b`
     instead of `EvmWord.div a b`. Target shape for the forthcoming MOD stack
