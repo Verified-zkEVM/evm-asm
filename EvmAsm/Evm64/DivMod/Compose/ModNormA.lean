@@ -38,10 +38,7 @@ private theorem normA_sub_mod (base : Word) (sub_prog : List Instr) (k : Nat)
     (CodeReq.ofProg_mono_sub (base + normAOff) _ (divK_normA 40) _ k rfl hslice hk hbound a i h)
 
 -- signExtend12 for src/dst offsets used by normA specs
-private theorem mod_se12_24 : signExtend12 (24 : BitVec 12) = (24 : Word) := by decide
-private theorem mod_se12_16 : signExtend12 (16 : BitVec 12) = (16 : Word) := by decide
-private theorem mod_se12_8 : signExtend12 (8 : BitVec 12) = (8 : Word) := by decide
-private theorem mod_se12_0 : signExtend12 (0 : BitVec 12) = (0 : Word) := by decide
+-- `mod_se12_{0,8,16,24}` removed: use `signExtend12_{0,8,16,24}` from Rv64/Instructions.lean.
 -- `signExtend21_40` → use `signExtend21_40` from `Compose/Base.lean`.
 
 /-- Full NormA for modCode: normalize dividend a[0..3] -> u[0..4] and jump to loopSetup.
@@ -72,7 +69,7 @@ theorem mod_normA_full_spec (sp a0 a1 a2 a3 v5 v7 v10 shift anti_shift : Word)
   intro u4 u3 u2 u1 u0
   -- Top: LD a[3], SRL->u[4], SD u[4] (base+312 -> base+324)
   have htop := divK_normA_top_spec 24 4024 sp a3 v5 v7 anti_shift u4_old (base + normAOff)
-  simp only [mod_se12_24] at htop
+  simp only [signExtend12_24] at htop
   rw [show (base + normAOff : Word) + 12 = base + 324 from by bv_addr] at htop
   have htope := cpsTriple_extend_code (hmono := fun a i h =>
     divK_normA_code_sub_modCode base a i
@@ -89,7 +86,7 @@ theorem mod_normA_full_spec (sp a0 a1 a2 a3 v5 v7 v10 shift anti_shift : Word)
     (by pcFree) htope
   -- MergeA 1: u[3] = (a[3]<<<shift) | (a[2]>>>anti) (base+324 -> base+344)
   have hma1 := divK_normA_mergeA_spec 16 4032 sp a3 a2 u4 v10 shift anti_shift u3_old (base + 324)
-  simp only [mod_se12_16] at hma1
+  simp only [signExtend12_16] at hma1
   rw [show (base + 324 : Word) + 20 = base + 344 from by bv_addr] at hma1
   have hma1e := cpsTriple_extend_code (hmono := fun a i h =>
     divK_normA_code_sub_modCode base a i
@@ -107,7 +104,7 @@ theorem mod_normA_full_spec (sp a0 a1 a2 a3 v5 v7 v10 shift anti_shift : Word)
   -- MergeB: u[2] = (a[2]<<<shift) | (a[1]>>>anti) (base+344 -> base+364)
   have hmb := divK_normA_mergeB_spec 8 4040 sp a2 a1 u3 (a2 >>> (anti_shift.toNat % 64))
     shift anti_shift u2_old (base + 344)
-  simp only [mod_se12_8] at hmb
+  simp only [signExtend12_8] at hmb
   rw [show (base + 344 : Word) + 20 = base + 364 from by bv_addr] at hmb
   have hmbe := cpsTriple_extend_code (hmono := fun a i h =>
     divK_normA_code_sub_modCode base a i
@@ -124,7 +121,7 @@ theorem mod_normA_full_spec (sp a0 a1 a2 a3 v5 v7 v10 shift anti_shift : Word)
   -- MergeA 2: u[1] = (a[1]<<<shift) | (a[0]>>>anti) (base+364 -> base+384)
   have hma2 := divK_normA_mergeA_spec 0 4048 sp a1 a0 u2 (a1 >>> (anti_shift.toNat % 64))
     shift anti_shift u1_old (base + 364)
-  simp only [mod_se12_0] at hma2
+  simp only [signExtend12_0] at hma2
   rw [show (base + 364 : Word) + 20 = base + 384 from by bv_addr] at hma2
   have hma2e := cpsTriple_extend_code (hmono := fun a i h =>
     divK_normA_code_sub_modCode base a i

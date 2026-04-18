@@ -126,16 +126,17 @@ private theorem divK_phaseB_tail_code_sub_divCode (base : Word) :
 -- `mod_signExtend13_*` duplicates on the MOD side are gone.
 -- ============================================================================
 
--- Phase B n=4: signExtend12 4 = 4 (result of ADDI x5 x0 4 via addi_x0_spec_gen)
-private theorem divK_se12_4 : signExtend12 (4 : BitVec 12) = (4 : Word) := by decide
+-- `signExtend13_{24,1020}` / `divK_se12_{4}` now live in `Compose/Base.lean`
+-- and `Rv64/Instructions.lean` respectively — call sites use the shared names
+-- (`signExtend13_24`, `signExtend13_1020`, `signExtend12_4`) directly.
 
 -- Phase B tail address: nm1_x8 = (4 + signExtend12 4095) <<< 3 = 24
 private theorem divK_phaseB_n4_nm1_x8 :
     ((4 : Word) + signExtend12 (4095 : BitVec 12)) <<< (3 : BitVec 6).toNat = (24 : Word) := by
   decide
 
--- signExtend12 32 = 32 (for tail load address: sp + 24 + signExtend12 32 = sp + 56)
-private theorem divK_se12_32 : signExtend12 (32 : BitVec 12) = (32 : Word) := by decide
+-- `divK_se12_{4,32}` removed: use the `@[simp]`-tagged `signExtend12_4`,
+-- `signExtend12_32` from `Rv64/Instructions.lean` directly.
 
 -- Address normalization lemmas `phB_off_{4..28}` now live in `Compose/Base.lean`
 -- and are shared with the MOD-side files (ModPhaseB / ModPhaseBn3 / ModPhaseBn21).
@@ -332,7 +333,7 @@ theorem evm_div_phaseB_n4_spec (sp base : Word)
   seqFrame hinit1f hinit2
   -- ---- Step 3: ADDI x5 x0 4 at base+68 → base+72
   have haddi_raw := addi_x0_spec_gen .x5 v5 4 (base + 68) (by nofun)
-  simp only [phB_addi_4, divK_se12_4] at haddi_raw
+  simp only [phB_addi_4, signExtend12_4] at haddi_raw
   have haddi := cpsTriple_extend_code (addi_x5_singleton_sub_divCode base) haddi_raw
   seqFrame hinit1fhinit2 haddi
   -- ---- Step 4: BNE x10 x0 24 at base+72, elim ntaken (b3=0 absurd)
@@ -347,7 +348,7 @@ theorem evm_div_phaseB_n4_spec (sp base : Word)
   seqFrame hinit1fhinit2haddi hbne
   -- ---- Step 5: Tail (base+96 → base+116) — store n=4, load leading limb b[3]
   have htail_raw := divK_phaseB_tail_spec sp (4 : Word) b3 n_mem (base + 96)
-  simp only [phB_t_20, divK_phaseB_n4_nm1_x8, divK_se12_32, phB_sp24_32] at htail_raw
+  simp only [phB_t_20, divK_phaseB_n4_nm1_x8, signExtend12_32, phB_sp24_32] at htail_raw
   have htail := cpsTriple_extend_code (divK_phaseB_tail_code_sub_divCode base) htail_raw
   seqFrame hinit1fhinit2haddihbne htail
   -- ---- Step 6: Final consequence — permute assertions
@@ -481,9 +482,7 @@ private theorem addi_x5_1_sub_divCode (base : Word) :
 -- ============================================================================
 
 -- signExtend constants for cascade steps
-private theorem divK_se12_3 : signExtend12 (3 : BitVec 12) = (3 : Word) := by decide
-private theorem divK_se12_2 : signExtend12 (2 : BitVec 12) = (2 : Word) := by decide
-private theorem divK_se12_1 : signExtend12 (1 : BitVec 12) = (1 : Word) := by decide
+-- `divK_se12_{1,2,3}` removed: use `signExtend12_{1,2,3}` from Rv64/Instructions.lean.
 -- `signExtend13_{8,16}` moved to `Compose/Base.lean` (shared with MOD side).
 
 -- nm1_x8 = (n + signExtend12 4095) <<< 3 for each n value
@@ -564,7 +563,7 @@ theorem evm_div_phaseB_n3_spec (sp base : Word)
     (fun h hp => by xperm_hyp hp) hinit1f hinit2f
   -- ---- Cascade step 0: ADDI x5=4 (base+68 → base+72)
   have haddi0_raw := addi_x0_spec_gen .x5 v5 4 (base + 68) (by nofun)
-  simp only [phB_addi_4, divK_se12_4] at haddi0_raw
+  simp only [phB_addi_4, signExtend12_4] at haddi0_raw
   have haddi0 := cpsTriple_extend_code (addi_x5_singleton_sub_divCode base) haddi0_raw
   have haddi0f := cpsTriple_frame_left _ _ _ _ _
     ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ b3) ** (.x6 ↦ᵣ b1) ** (.x7 ↦ᵣ b2) **
@@ -599,7 +598,7 @@ theorem evm_div_phaseB_n3_spec (sp base : Word)
     (fun h hp => by xperm_hyp hp) h123 hbne0f
   -- ---- Cascade step 1: ADDI x5=3 (base+76 → base+80)
   have haddi1_raw := addi_x0_spec_gen .x5 (4 : Word) 3 (base + 76) (by nofun)
-  simp only [phB_step1_4, divK_se12_3] at haddi1_raw
+  simp only [phB_step1_4, signExtend12_3] at haddi1_raw
   have haddi1 := cpsTriple_extend_code (addi_x5_3_sub_divCode base) haddi1_raw
   have haddi1f := cpsTriple_frame_left _ _ _ _ _
     ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ b3) ** (.x6 ↦ᵣ b1) ** (.x7 ↦ᵣ b2) **
@@ -634,7 +633,7 @@ theorem evm_div_phaseB_n3_spec (sp base : Word)
     (fun h hp => by xperm_hyp hp) h12345 hbne1f
   -- ---- Tail (base+96 → base+116)
   have htail_raw := divK_phaseB_tail_spec sp (3 : Word) b2 n_mem (base + 96)
-  simp only [phB_t_20, divK_phaseB_n3_nm1_x8, divK_se12_32, phB_sp16_32] at htail_raw
+  simp only [phB_t_20, divK_phaseB_n3_nm1_x8, signExtend12_32, phB_sp16_32] at htail_raw
   have htail := cpsTriple_extend_code (divK_phaseB_tail_code_sub_divCode base) htail_raw
   have htailf := cpsTriple_frame_left _ _ _ _ _
     ((.x10 ↦ᵣ b3) ** (.x0 ↦ᵣ (0 : Word)) ** (.x6 ↦ᵣ b1) ** (.x7 ↦ᵣ b2) **
@@ -707,7 +706,7 @@ theorem evm_div_phaseB_n2_spec (sp base : Word)
     (fun h hp => by xperm_hyp hp) hinit1f hinit2f
   -- ---- Cascade step 0: ADDI x5=4 (base+68 → base+72)
   have haddi0_raw := addi_x0_spec_gen .x5 v5 4 (base + 68) (by nofun)
-  simp only [phB_addi_4, divK_se12_4] at haddi0_raw
+  simp only [phB_addi_4, signExtend12_4] at haddi0_raw
   have haddi0 := cpsTriple_extend_code (addi_x5_singleton_sub_divCode base) haddi0_raw
   have haddi0f := cpsTriple_frame_left _ _ _ _ _
     ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ b3) ** (.x6 ↦ᵣ b1) ** (.x7 ↦ᵣ b2) **
@@ -742,7 +741,7 @@ theorem evm_div_phaseB_n2_spec (sp base : Word)
     (fun h hp => by xperm_hyp hp) h123 hbne0f
   -- ---- Cascade step 1: ADDI x5=3 (base+76 → base+80)
   have haddi1_raw := addi_x0_spec_gen .x5 (4 : Word) 3 (base + 76) (by nofun)
-  simp only [phB_step1_4, divK_se12_3] at haddi1_raw
+  simp only [phB_step1_4, signExtend12_3] at haddi1_raw
   have haddi1 := cpsTriple_extend_code (addi_x5_3_sub_divCode base) haddi1_raw
   have haddi1f := cpsTriple_frame_left _ _ _ _ _
     ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ b3) ** (.x6 ↦ᵣ b1) ** (.x7 ↦ᵣ b2) **
@@ -777,7 +776,7 @@ theorem evm_div_phaseB_n2_spec (sp base : Word)
     (fun h hp => by xperm_hyp hp) h12345 hbne1f
   -- ---- Cascade step 2: ADDI x5=2 (base+84 → base+88)
   have haddi2_raw := addi_x0_spec_gen .x5 (3 : Word) 2 (base + 84) (by nofun)
-  simp only [phB_step2_4, divK_se12_2] at haddi2_raw
+  simp only [phB_step2_4, signExtend12_2] at haddi2_raw
   have haddi2 := cpsTriple_extend_code (addi_x5_2_sub_divCode base) haddi2_raw
   have haddi2f := cpsTriple_frame_left _ _ _ _ _
     ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ b3) ** (.x7 ↦ᵣ b2) ** (.x6 ↦ᵣ b1) **
@@ -812,7 +811,7 @@ theorem evm_div_phaseB_n2_spec (sp base : Word)
     (fun h hp => by xperm_hyp hp) h1234567 hbne2f
   -- ---- Tail (base+96 → base+116)
   have htail_raw := divK_phaseB_tail_spec sp (2 : Word) b1 n_mem (base + 96)
-  simp only [phB_t_20, divK_phaseB_n2_nm1_x8, divK_se12_32, phB_sp8_32] at htail_raw
+  simp only [phB_t_20, divK_phaseB_n2_nm1_x8, signExtend12_32, phB_sp8_32] at htail_raw
   have htail := cpsTriple_extend_code (divK_phaseB_tail_code_sub_divCode base) htail_raw
   have htailf := cpsTriple_frame_left _ _ _ _ _
     ((.x10 ↦ᵣ b3) ** (.x0 ↦ᵣ (0 : Word)) ** (.x6 ↦ᵣ b1) ** (.x7 ↦ᵣ b2) **
@@ -886,7 +885,7 @@ theorem evm_div_phaseB_n1_spec (sp base : Word)
     (fun h hp => by xperm_hyp hp) hinit1f hinit2f
   -- ---- Cascade step 0: ADDI x5=4 (base+68 → base+72)
   have haddi0_raw := addi_x0_spec_gen .x5 v5 4 (base + 68) (by nofun)
-  simp only [phB_addi_4, divK_se12_4] at haddi0_raw
+  simp only [phB_addi_4, signExtend12_4] at haddi0_raw
   have haddi0 := cpsTriple_extend_code (addi_x5_singleton_sub_divCode base) haddi0_raw
   have haddi0f := cpsTriple_frame_left _ _ _ _ _
     ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ b3) ** (.x6 ↦ᵣ b1) ** (.x7 ↦ᵣ b2) **
@@ -921,7 +920,7 @@ theorem evm_div_phaseB_n1_spec (sp base : Word)
     (fun h hp => by xperm_hyp hp) h123 hbne0f
   -- ---- Cascade step 1: ADDI x5=3 (base+76 → base+80)
   have haddi1_raw := addi_x0_spec_gen .x5 (4 : Word) 3 (base + 76) (by nofun)
-  simp only [phB_step1_4, divK_se12_3] at haddi1_raw
+  simp only [phB_step1_4, signExtend12_3] at haddi1_raw
   have haddi1 := cpsTriple_extend_code (addi_x5_3_sub_divCode base) haddi1_raw
   have haddi1f := cpsTriple_frame_left _ _ _ _ _
     ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ b3) ** (.x6 ↦ᵣ b1) ** (.x7 ↦ᵣ b2) **
@@ -956,7 +955,7 @@ theorem evm_div_phaseB_n1_spec (sp base : Word)
     (fun h hp => by xperm_hyp hp) h12345 hbne1f
   -- ---- Cascade step 2: ADDI x5=2 (base+84 → base+88)
   have haddi2_raw := addi_x0_spec_gen .x5 (3 : Word) 2 (base + 84) (by nofun)
-  simp only [phB_step2_4, divK_se12_2] at haddi2_raw
+  simp only [phB_step2_4, signExtend12_2] at haddi2_raw
   have haddi2 := cpsTriple_extend_code (addi_x5_2_sub_divCode base) haddi2_raw
   have haddi2f := cpsTriple_frame_left _ _ _ _ _
     ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ b3) ** (.x7 ↦ᵣ b2) ** (.x6 ↦ᵣ b1) **
@@ -991,7 +990,7 @@ theorem evm_div_phaseB_n1_spec (sp base : Word)
     (fun h hp => by xperm_hyp hp) h1234567 hbne2f
   -- ---- Fallthrough: ADDI x5=1 (base+92 → base+96)
   have haddi3_raw := addi_x0_spec_gen .x5 (2 : Word) 1 (base + 92) (by nofun)
-  simp only [phB_fall_4, divK_se12_1] at haddi3_raw
+  simp only [phB_fall_4, signExtend12_1] at haddi3_raw
   have haddi3 := cpsTriple_extend_code (addi_x5_1_sub_divCode base) haddi3_raw
   have haddi3f := cpsTriple_frame_left _ _ _ _ _
     ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ b3) ** (.x6 ↦ᵣ b1) ** (.x7 ↦ᵣ b2) **
@@ -1006,7 +1005,7 @@ theorem evm_div_phaseB_n1_spec (sp base : Word)
     (fun h hp => by xperm_hyp hp) h12345678 haddi3f
   -- ---- Tail (base+96 → base+116)
   have htail_raw := divK_phaseB_tail_spec sp (1 : Word) b0 n_mem (base + 96)
-  simp only [phB_t_20, divK_phaseB_n1_nm1_x8, divK_se12_32, phB_sp0_32] at htail_raw
+  simp only [phB_t_20, divK_phaseB_n1_nm1_x8, signExtend12_32, phB_sp0_32] at htail_raw
   have htail := cpsTriple_extend_code (divK_phaseB_tail_code_sub_divCode base) htail_raw
   have htailf := cpsTriple_frame_left _ _ _ _ _
     ((.x10 ↦ᵣ b3) ** (.x0 ↦ᵣ (0 : Word)) ** (.x6 ↦ᵣ b1) ** (.x7 ↦ᵣ b2) **
