@@ -32,7 +32,7 @@ private theorem beq_shift_sub_divCode (base : Word) :
   exact divK_phaseC2_code_sub_divCode base a i
     (CodeReq.singleton_mono hlookup a i h)
 
-private theorem signExtend13_172 : signExtend13 (172 : BitVec 13) = (172 : Word) := by decide
+-- `signExtend13_172` moved to `Compose/Base.lean` (shared with ModNorm).
 
 /-- Phase C2 body (base+212 → base+224): store shift, compute anti_shift.
     Extends to divCode. Uses first 3 instructions of phaseC2. -/

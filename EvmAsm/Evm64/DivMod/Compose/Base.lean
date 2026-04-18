@@ -512,6 +512,26 @@ theorem phB_off_20 (base : Word) : (base + phaseBOff : Word) + 20 = base + 52 :=
 theorem phB_off_24 (base : Word) : (base + phaseBOff : Word) + 24 = base + 56 := by bv_addr
 theorem phB_off_28 (base : Word) : (base + phaseBOff : Word) + 28 = base + 60 := by bv_addr
 
+-- ============================================================================
+-- Shared concrete-offset `signExtend13` / `signExtend21` evaluations.
+-- Previously scattered as `private theorem signExtend13_N` across PhaseAB /
+-- Epilogue / Norm / NormA plus `mod_signExtend13_N` / `mod_signExtend21_N`
+-- duplicates across ModPhaseB / ModNorm / ModNormA — every copy was
+-- verbatim `by decide`. Consolidate to a single shared set so the MOD-side
+-- `mod_` prefix disappears and adding a new concrete offset is a one-line
+-- edit in this file. Naming mirrors `EvmAsm/Rv64/AddrNorm.lean`'s `se13_N`
+-- pattern but keeps the original `signExtend13_N` form used by every
+-- existing call-site.
+-- ============================================================================
+
+theorem signExtend13_8    : signExtend13 (8    : BitVec 13) = (8    : Word) := by decide
+theorem signExtend13_16   : signExtend13 (16   : BitVec 13) = (16   : Word) := by decide
+theorem signExtend13_24   : signExtend13 (24   : BitVec 13) = (24   : Word) := by decide
+theorem signExtend13_172  : signExtend13 (172  : BitVec 13) = (172  : Word) := by decide
+theorem signExtend13_464  : signExtend13 (464  : BitVec 13) = (464  : Word) := by decide
+theorem signExtend13_1020 : signExtend13 (1020 : BitVec 13) = (1020 : Word) := by decide
+theorem signExtend21_40   : signExtend21 (40   : BitVec 21) = (40   : Word) := by decide
+
 /-- When b ≠ 0, 0 < b in unsigned ordering (BitVec.ult). -/
 theorem ult_zero_of_ne {b : Word} (h : b ≠ 0) : BitVec.ult 0 b := by
   unfold BitVec.ult; simp
