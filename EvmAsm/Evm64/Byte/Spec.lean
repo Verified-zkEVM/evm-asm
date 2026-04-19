@@ -24,7 +24,8 @@ open EvmAsm.Rv64.Tactics
 namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
-open EvmAsm.Rv64.AddrNorm (se13_20 se13_44 se13_68 se13_128 se13_140 se21_16 se21_24 se21_32 se21_48
+open EvmAsm.Rv64.AddrNorm (se12_7 se13_20 se13_44 se13_68 se13_128 se13_140
+  se21_16 se21_24 se21_32 se21_48
   zero_add_se12_1_toNat zero_add_se12_2_toNat bv6_toNat_3 word_add_zero)
 
 -- ============================================================================
@@ -622,8 +623,7 @@ theorem evm_byte_body_evmWord_spec (sp base : Word)
   have hbyte_shift_val : byte_shift.toNat = (i0.toNat % 8) * 8 := by
     show (byte_in_limb <<< (3 : BitVec 6).toNat).toNat = (i0.toNat % 8) * 8
     rw [h3bv]
-    simp only [byte_in_limb, BitVec.toNat_shiftLeft, BitVec.toNat_and,
-               show signExtend12 (7 : BitVec 12) = (7 : Word) from by decide,
+    simp only [byte_in_limb, BitVec.toNat_shiftLeft, BitVec.toNat_and, se12_7,
                show (7 : Word).toNat = 7 from by decide]
     rw [Nat.and_two_pow_sub_one_eq_mod _ 3]
     have : i0.toNat % 8 < 8 := Nat.mod_lt _ (by omega)
