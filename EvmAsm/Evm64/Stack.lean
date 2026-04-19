@@ -100,6 +100,16 @@ theorem evmStackIs_triple (sp : Word) (a b c : EvmWord) :
      evmWordIs (sp + 32 + 32) c) := by
   rw [evmStackIs_cons_cons_cons_nil, sepConj_emp_right']
 
+/-- Flattened-offset variant of `evmStackIs_triple`: the third address is
+    `sp + 64` instead of `sp + 32 + 32`. Those are *not* definitionally equal
+    for `Word = BitVec 64` (the addition associates around `sp`), so call
+    sites that want the flat `sp + 64` form reach for this variant. -/
+theorem evmStackIs_triple_flat (sp : Word) (a b c : EvmWord) :
+    evmStackIs sp [a, b, c] =
+    (evmWordIs sp a ** evmWordIs (sp + 32) b ** evmWordIs (sp + 64) c) := by
+  rw [evmStackIs_triple]
+  rw [show (sp + 32 + 32 : Word) = sp + 64 from by bv_omega]
+
 -- ============================================================================
 -- evmWordIs unfold and limb-equality bridges
 -- ============================================================================
