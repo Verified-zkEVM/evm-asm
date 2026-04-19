@@ -48,6 +48,16 @@ instance (sp : Word) (values : List EvmWord) : Assertion.PCFree (evmStackIs sp v
 theorem evmStackIs_cons (sp : Word) (v : EvmWord) (vs : List EvmWord) :
     evmStackIs sp (v :: vs) = (evmWordIs sp v ** evmStackIs (sp + 32) vs) := rfl
 
+/-- Mid-tree variant of `evmStackIs_cons`: threads a remainder `Q` through
+    the equality so `rw ←` can fold `evmWordIs sp v ** evmStackIs (sp+32) vs`
+    back into `evmStackIs sp (v :: vs)` even when those atoms sit in the
+    middle of a longer sepConj chain. Parallels the `_right` family on
+    `evmStackIs_{single,pair,triple,append}`. -/
+theorem evmStackIs_cons_right (sp : Word) (v : EvmWord) (vs : List EvmWord)
+    (Q : Assertion) :
+    ((evmWordIs sp v ** evmStackIs (sp + 32) vs) ** Q) =
+    (evmStackIs sp (v :: vs) ** Q) := rfl
+
 theorem evmStackIs_nil (sp : Word) :
     evmStackIs sp [] = empAssertion := rfl
 
