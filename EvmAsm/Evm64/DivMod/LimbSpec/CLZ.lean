@@ -160,7 +160,7 @@ theorem divK_clz_stage_ntaken_spec (K M_s : BitVec 6) (M_a : BitVec 12) (val cou
   have hframed := cpsTriple_frame_left _ _ _ _ _
     ((.x7 ↦ᵣ (val >>> K.toNat)) ** (.x0 ↦ᵣ (0 : Word)))
     (by pcFree) hslli_addi
-  have full := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have full := cpsTriple_seq_perm_same_cr
     (fun h hp => by
       have hp' := sepConj_mono_left (sepConj_mono_right
         (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1)) h hp
@@ -286,7 +286,7 @@ theorem divK_clz_last_ntaken_spec (val count v7 : Word) (base : Word)
   have hframed := cpsTriple_frame_left _ _ _ _ _
     ((.x5 ↦ᵣ val) ** (.x7 ↦ᵣ (val >>> 63)) ** (.x0 ↦ᵣ (0 : Word)))
     (by pcFree) haddi
-  have full := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have full := cpsTriple_seq_perm_same_cr
     (fun h hp => by
       have hp' := sepConj_mono_left (sepConj_mono_right
         (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1)) h hp

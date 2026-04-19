@@ -232,7 +232,7 @@ theorem evm_div_n2_preloop_loop_unified_spec
      ((sp + signExtend12 3992) ↦ₘ (clzResult b1).1))
     (by pcFree) hLoop
   -- 3. Compose preloop + loop
-  have hFull := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have hFull := cpsTriple_seq_perm_same_cr
     (fun h hp => by
       delta loopSetupPost at hp
       simp only [x1_val_n2] at hp

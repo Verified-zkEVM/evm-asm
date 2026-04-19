@@ -103,7 +103,7 @@ theorem divK_loop_n3_max_skip_skip_spec
     (((u_base_1 + signExtend12 4064) ↦ₘ (u_top - ms.2.2.2.2)) ** (q_addr_1 ↦ₘ q_hat))
     (by pcFree) J0s
   -- 3. Compose via perm: rewrite j=1 postcondition addresses → j=0 precondition
-  have full := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have full := cpsTriple_seq_perm_same_cr
     (fun h hp => by
       delta loopBodyN3SkipPost loopBodySkipPost loopExitPostN3 loopExitPost at hp
       simp only [] at hp ⊢
@@ -406,7 +406,7 @@ theorem divK_loop_n3_max_max_spec
   -- 4. Compose: rewrite j=1  postcondition → j=0 precondition
   --    loopIterPostN3Max unfolds to if-then-else, so we case-split on borrow
   --    then unfold the branch to get concrete assertions for xperm_hyp.
-  have full := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have full := cpsTriple_seq_perm_same_cr
     (fun h hp => by
       -- iterN3Max is @[irreducible] so projections stay opaque after delta
       delta loopIterPostN3Max loopExitPostN3 loopExitPost at hp
@@ -492,7 +492,7 @@ theorem divK_loop_n3_call_call_spec
      (q_addr_1 ↦ₘ (iterN3Call v0 v1 v2 v3 u0 u1 u2 u3 u_top).1))
     (by pcFree) J0
   -- 4. Compose: rewrite j=1  postcondition → j=0 precondition
-  have full := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have full := cpsTriple_seq_perm_same_cr
     (fun h hp => by
       -- iterN3Call is @[irreducible] so projections stay opaque after delta
       delta loopIterPostN3Call loopExitPostN3 loopExitPost at hp
@@ -581,7 +581,7 @@ theorem divK_loop_n3_max_call_spec
      (q_addr_1 ↦ₘ (iterN3Max v0 v1 v2 v3 u0 u1 u2 u3 u_top).1))
     (by pcFree) J0
   -- 4. Compose: rewrite j=1 max  postcondition → j=0 precondition
-  have full := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have full := cpsTriple_seq_perm_same_cr
     (fun h hp => by
       delta loopIterPostN3Max loopExitPostN3 loopExitPost at hp
       simp only [] at hp ⊢
@@ -666,7 +666,7 @@ theorem divK_loop_n3_call_max_spec
      (sp + signExtend12 3944 ↦ₘ div128Un0 u2))
     (by pcFree) J0
   -- 4. Compose: rewrite j=1 call  postcondition → j=0 precondition
-  have full := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have full := cpsTriple_seq_perm_same_cr
     (fun h hp => by
       delta loopIterPostN3Call loopExitPostN3 loopExitPost at hp
       simp only [] at hp ⊢

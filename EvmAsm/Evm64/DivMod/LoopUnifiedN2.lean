@@ -178,7 +178,7 @@ theorem divK_loop_n2_max_iter10_spec (bltu_1 bltu_0 : Bool)
   have H10f := cpsTriple_frame_left _ _ _ _ _
     (((u_base_2 + signExtend12 4064) ↦ₘ r2.2.2.2.2.2) ** (q_addr_2 ↦ₘ r2.1))
     (by pcFree) H10
-  have full := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have full := cpsTriple_seq_perm_same_cr
     (fun h hp => by
       delta loopIterPostN2Max loopExitPostN2 loopExitPost at hp
       delta loopN2Iter10PreWithScratch loopN2Iter10Pre at ⊢
@@ -254,7 +254,7 @@ theorem divK_loop_n2_call_iter10_spec (bltu_1 bltu_0 : Bool)
   have H10f := cpsTriple_frame_left _ _ _ _ _
     (((u_base_2 + signExtend12 4064) ↦ₘ r2.2.2.2.2.2) ** (q_addr_2 ↦ₘ r2.1))
     (by pcFree) H10
-  have full := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have full := cpsTriple_seq_perm_same_cr
     (fun h hp => by
       delta loopIterPostN2Call loopExitPostN2 loopExitPost at hp
       delta loopN2Iter10PreWithScratch loopN2Iter10Pre at ⊢

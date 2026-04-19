@@ -188,7 +188,7 @@ theorem evm_div_n4_preloop_max_skip_spec (sp base : Word)
      ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
      ((sp + signExtend12 3992) ↦ₘ shift))
     (by pcFree) hLoop'
-  have hFull := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have hFull := cpsTriple_seq_perm_same_cr
     (fun h hp => by
       delta loopSetupPost at hp
       simp only [x1_val_n4] at hp
@@ -475,7 +475,7 @@ theorem evm_div_n4_full_max_skip_spec (sp base : Word)
      (.x1 ↦ᵣ signExtend12 4095) ** (.x11 ↦ᵣ q_hat))
     (by pcFree) hB
   -- 3. Compose A + B
-  have hFull := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have hFull := cpsTriple_seq_perm_same_cr
     (fun h hp => by
       simp only [preloopMaxSkipPostN4_unfold] at hp
       xperm_hyp hp) hA hBF
@@ -731,7 +731,7 @@ theorem evm_div_n4_preloop_call_skip_spec (sp base : Word)
      ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
      ((sp + signExtend12 3992) ↦ₘ shift))
     (by pcFree) hLoop'
-  have hFull := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have hFull := cpsTriple_seq_perm_same_cr
     (fun h hp => by
       delta loopSetupPost at hp
       simp only [x1_val_n4] at hp
@@ -855,7 +855,7 @@ theorem evm_div_n4_full_call_skip_spec (sp base : Word)
      (sp + signExtend12 3944 ↦ₘ div_un0))
     (by pcFree) hB
   -- 3. Compose
-  have hFull := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have hFull := cpsTriple_seq_perm_same_cr
     (fun h hp => by
       simp only [preloopCallSkipPostN4_unfold] at hp
       xperm_hyp hp) hA hBF

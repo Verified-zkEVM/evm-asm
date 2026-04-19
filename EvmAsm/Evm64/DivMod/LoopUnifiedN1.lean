@@ -108,7 +108,7 @@ theorem divK_loop_n1_iter10_unified_spec (bltu_1 bltu_0 : Bool)
        (sp + signExtend12 3952 ↦ₘ dlo_mem) ** (sp + signExtend12 3944 ↦ₘ scratch_un0))
       (by pcFree) J0
     -- Compose j=1 and j=0 via address rewriting
-    have full := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+    have full := cpsTriple_seq_perm_same_cr
       (fun h hp => by
         delta loopIterPostN1Max loopExitPostN1 loopExitPost at hp
         simp only [] at hp ⊢
@@ -175,7 +175,7 @@ theorem divK_loop_n1_iter10_unified_spec (bltu_1 bltu_0 : Bool)
       (((u_base_1 + signExtend12 4064) ↦ₘ (iterN1Max v0 v1 v2 v3 u0 u1 u2 u3 u_top).2.2.2.2.2) **
        (q_addr_1 ↦ₘ (iterN1Max v0 v1 v2 v3 u0 u1 u2 u3 u_top).1))
       (by pcFree) J0
-    have full := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+    have full := cpsTriple_seq_perm_same_cr
       (fun h hp => by
         delta loopIterPostN1Max loopExitPostN1 loopExitPost at hp
         simp only [] at hp ⊢
@@ -243,7 +243,7 @@ theorem divK_loop_n1_iter10_unified_spec (bltu_1 bltu_0 : Bool)
        (sp + signExtend12 3952 ↦ₘ div128DLo v0) **
        (sp + signExtend12 3944 ↦ₘ div128Un0 u0))
       (by pcFree) J0
-    have full := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+    have full := cpsTriple_seq_perm_same_cr
       (fun h hp => by
         delta loopIterPostN1Call loopExitPostN1 loopExitPost at hp
         simp only [] at hp ⊢
@@ -309,7 +309,7 @@ theorem divK_loop_n1_iter10_unified_spec (bltu_1 bltu_0 : Bool)
       (((u_base_1 + signExtend12 4064) ↦ₘ (iterN1Call v0 v1 v2 v3 u0 u1 u2 u3 u_top).2.2.2.2.2) **
        (q_addr_1 ↦ₘ (iterN1Call v0 v1 v2 v3 u0 u1 u2 u3 u_top).1))
       (by pcFree) J0
-    have full := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+    have full := cpsTriple_seq_perm_same_cr
       (fun h hp => by
         delta loopIterPostN1Call loopExitPostN1 loopExitPost at hp
         simp only [] at hp ⊢
@@ -396,7 +396,7 @@ theorem divK_loop_n1_max_iter10_spec (bltu_1 bltu_0 : Bool)
     (((u_base_2 + signExtend12 4064) ↦ₘ r2.2.2.2.2.2) ** (q_addr_2 ↦ₘ r2.1))
     (by pcFree) H10
   -- Compose j=2 and iter10
-  have full := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have full := cpsTriple_seq_perm_same_cr
     (fun h hp => by
       delta loopIterPostN1Max loopExitPostN1 loopExitPost at hp
       delta loopN1Iter10PreWithScratch loopN1Iter10Pre at ⊢
@@ -477,7 +477,7 @@ theorem divK_loop_n1_call_iter10_spec (bltu_1 bltu_0 : Bool)
     (((u_base_2 + signExtend12 4064) ↦ₘ r2.2.2.2.2.2) ** (q_addr_2 ↦ₘ r2.1))
     (by pcFree) H10
   -- Compose j=2 and iter10
-  have full := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have full := cpsTriple_seq_perm_same_cr
     (fun h hp => by
       delta loopIterPostN1Call loopExitPostN1 loopExitPost at hp
       delta loopN1Iter10PreWithScratch loopN1Iter10Pre at ⊢
@@ -642,7 +642,7 @@ theorem divK_loop_n1_max_iter210_spec (bltu_2 bltu_1 bltu_0 : Bool)
     (((u_base_3 + signExtend12 4064) ↦ₘ r3.2.2.2.2.2) ** (q_addr_3 ↦ₘ r3.1))
     (by pcFree) H210
   -- Compose j=3 and iter210
-  have full := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have full := cpsTriple_seq_perm_same_cr
     (fun h hp => by
       delta loopIterPostN1Max loopExitPostN1 loopExitPost at hp
       delta loopN1Iter210PreWithScratch loopN1Iter210Pre at ⊢
@@ -749,7 +749,7 @@ theorem divK_loop_n1_call_iter210_spec (bltu_2 bltu_1 bltu_0 : Bool)
     (((u_base_3 + signExtend12 4064) ↦ₘ r3.2.2.2.2.2) ** (q_addr_3 ↦ₘ r3.1))
     (by pcFree) H210
   -- Compose j=3 and iter210
-  have full := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have full := cpsTriple_seq_perm_same_cr
     (fun h hp => by
       delta loopIterPostN1Call loopExitPostN1 loopExitPost at hp
       delta loopN1Iter210PreWithScratch loopN1Iter210Pre at ⊢

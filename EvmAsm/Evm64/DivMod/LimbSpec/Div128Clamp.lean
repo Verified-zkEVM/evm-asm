@@ -105,7 +105,7 @@ theorem divK_div128_clamp_q1_merged_spec (q1 rhat d_hi v5_old : Word) (base : Wo
     have hcorr_framed := cpsTriple_frame_left _ _ _ _ _
       ((.x5 ↦ᵣ hi) ** (.x0 ↦ᵣ (0 : Word)))
       (by pcFree) hcorr
-    have full := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+    have full := cpsTriple_seq_perm_same_cr
       (fun h hp => by
         have hp' := sepConj_mono_left (sepConj_mono_right
           (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1)) h hp
@@ -190,7 +190,7 @@ theorem divK_div128_clamp_q0_merged_spec (q0 rhat2 d_hi v1_old : Word) (base : W
     have hcorr_framed := cpsTriple_frame_left _ _ _ _ _
       ((.x1 ↦ᵣ hi) ** (.x0 ↦ᵣ (0 : Word)))
       (by pcFree) hcorr
-    have full := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+    have full := cpsTriple_seq_perm_same_cr
       (fun h hp => by
         have hp' := sepConj_mono_left (sepConj_mono_right
           (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1)) h hp

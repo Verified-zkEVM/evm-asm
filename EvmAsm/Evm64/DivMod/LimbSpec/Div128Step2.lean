@@ -113,7 +113,7 @@ theorem divK_div128_step2_spec
     ((.x7 ↦ᵣ un21) ** (.x12 ↦ᵣ sp) **
      (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0))
     (by pcFree) h2
-  have h12 := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have h12 := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h1f h2f
   have h3_raw := divK_div128_prodcheck2_merged_spec sp q0c rhat2c hi
     un21 dlo un0 (base + 28)
@@ -150,7 +150,7 @@ theorem divK_div128_step2_spec
   have h3f := cpsTriple_frame_left _ _ _ _ _
     ((.x6 ↦ᵣ d_hi) ** (.x0 ↦ᵣ 0))
     (by pcFree) h3
-  have h123 := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have h123 := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h12 h3f
   exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)

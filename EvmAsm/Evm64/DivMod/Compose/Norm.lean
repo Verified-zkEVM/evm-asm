@@ -70,7 +70,7 @@ theorem divK_phaseC2_ntaken_spec (sp shift v2 shift_mem : Word) (base : Word)
     ((.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ (signExtend12 (0 : BitVec 12) - shift)) **
      ((sp + signExtend12 3992) ↦ₘ shift))
     (by pcFree) hbeq
-  have hC2 := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have hC2 := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hbody hbeqf
   exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)
@@ -100,7 +100,7 @@ theorem divK_phaseC2_taken_spec (sp shift v2 shift_mem : Word) (base : Word)
     ((.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ (signExtend12 (0 : BitVec 12) - shift)) **
      ((sp + signExtend12 3992) ↦ₘ shift))
     (by pcFree) hbeq
-  have hC2 := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have hC2 := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hbody hbeqf
   exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)
@@ -162,7 +162,7 @@ private theorem divK_normB_half1 (sp b0 b1 b2 b3 v5 v7 shift anti_shift : Word) 
   have hm2ef := cpsTriple_frame_left _ _ _ _ _
     (((sp + 32) ↦ₘ b0) ** ((sp + 56) ↦ₘ b3'))
     (by pcFree) hm2e
-  have h12 := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have h12 := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hm1ef hm2ef
   exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)
@@ -210,7 +210,7 @@ private theorem divK_normB_half2 (sp b0 b1 b2' b3' shift anti_shift : Word) (bas
     ((.x7 ↦ᵣ (b0 >>> (anti_shift.toNat % 64))) ** (.x2 ↦ᵣ anti_shift) **
      ((sp + 40) ↦ₘ b1') ** ((sp + 48) ↦ₘ b2') ** ((sp + 56) ↦ₘ b3'))
     (by pcFree) hle
-  have h34 := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have h34 := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hm3ef hlef
   exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)
@@ -241,7 +241,7 @@ theorem divK_normB_full_spec (sp b0 b1 b2 b3 v5 v7 shift anti_shift : Word) (bas
   exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq)
-    (cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+    (cpsTriple_seq_perm_same_cr
       (fun h hp => by xperm_hyp hp) h1 h2)
 
 end EvmAsm.Evm64

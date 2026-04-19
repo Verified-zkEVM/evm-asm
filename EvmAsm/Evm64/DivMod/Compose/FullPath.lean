@@ -65,7 +65,7 @@ theorem evm_div_phaseAB_n4_clz_spec (sp base : Word)
      ((sp + signExtend12 4000) ↦ₘ (0 : Word)) ** ((sp + signExtend12 3984) ↦ₘ (4 : Word)))
     (by pcFree) hCLZ
   -- Compose AB → CLZ
-  have hABCLZ := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have hABCLZ := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hAB hCLZf
   exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)
@@ -121,7 +121,7 @@ theorem evm_div_n4_to_normB_spec (sp base : Word)
      ((sp + signExtend12 4000) ↦ₘ (0 : Word)) ** ((sp + signExtend12 3984) ↦ₘ (4 : Word)))
     (by pcFree) hC2
   -- Compose AB+CLZ → C2
-  have hABC2 := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have hABC2 := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hABCLZf hC2f
   -- Step 3: NormB (base+228 → base+312)
   have hNB := divK_normB_full_spec sp b0 b1 b2 b3
@@ -138,7 +138,7 @@ theorem evm_div_n4_to_normB_spec (sp base : Word)
      ((sp + signExtend12 3992) ↦ₘ shift))
     (by pcFree) hNB
   -- Compose AB+CLZ+C2 → NormB
-  have hFull := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have hFull := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hABC2 hNBf
   exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)
@@ -217,7 +217,7 @@ theorem evm_div_n4_to_loopSetup_spec (sp base : Word)
      ((sp + signExtend12 3992) ↦ₘ shift))
     (by pcFree) hNormA
   -- Compose NormB → NormA
-  have hNA := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have hNA := cpsTriple_seq_perm_same_cr
     (fun h hp => by delta normBPost at hp; xperm_hyp hp) hNormBf hNormAf
   -- Step 3: LoopSetup ntaken (base+432 → base+448)
   -- For n=4: m = signExtend12(4) - 4 = 0, so BLT 0 < 0 is false → ntaken
@@ -242,7 +242,7 @@ theorem evm_div_n4_to_loopSetup_spec (sp base : Word)
      ((sp + signExtend12 3992) ↦ₘ shift))
     (by pcFree) hLS
   -- Compose (through NormA) → LoopSetup
-  have hFull := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have hFull := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hNA hLSf
   exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)
@@ -330,7 +330,7 @@ theorem evm_div_n4_shift0_to_loopSetup_spec (sp base : Word)
      ((sp + signExtend12 4000) ↦ₘ (0 : Word)) ** ((sp + signExtend12 3984) ↦ₘ (4 : Word)))
     (by pcFree) hC2
   -- Compose AB+CLZ → C2
-  have hABC2 := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have hABC2 := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hABCLZf hC2f
   -- Step 3: CopyAU (base+396 → base+432)
   have hCopy := divK_copyAU_full_spec sp a0 a1 a2 a3
@@ -354,7 +354,7 @@ theorem evm_div_n4_shift0_to_loopSetup_spec (sp base : Word)
      ((sp + signExtend12 3992) ↦ₘ (clzResult b3).1))
     (by pcFree) hCopy
   -- Compose → CopyAU
-  have hABC2C := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have hABC2C := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hABC2 hCopyf
   -- Step 4: LoopSetup ntaken (base+432 → base+448)
   -- For n=4: m = signExtend12(4) - 4, BLT 0 < 0 is false → ntaken
@@ -381,7 +381,7 @@ theorem evm_div_n4_shift0_to_loopSetup_spec (sp base : Word)
      ((sp + signExtend12 3992) ↦ₘ (clzResult b3).1))
     (by pcFree) hLS
   -- Compose all → LoopSetup
-  have hFull := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have hFull := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hABC2C hLSf
   exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)
@@ -437,7 +437,7 @@ theorem evm_div_denorm_epilogue_spec (sp base : Word)
      ((sp + signExtend12 4040) ↦ₘ u2') ** ((sp + signExtend12 4032) ↦ₘ u3'))
     (by pcFree) hEpi
   -- Compose denorm → epilogue
-  have hFull := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have hFull := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hDenormF hEpiF
   exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)
@@ -488,7 +488,7 @@ theorem evm_mod_denorm_epilogue_spec (sp base : Word)
     ((.x2 ↦ᵣ anti_shift) ** (.x0 ↦ᵣ (0 : Word)))
     (by pcFree) hEpi
   -- Compose denorm → epilogue
-  have hFull := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have hFull := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hDenormF hEpiF
   exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)
@@ -537,7 +537,7 @@ theorem evm_div_preamble_denorm_epilogue_spec (sp base : Word)
     (((sp + signExtend12 3992) ↦ₘ shift))
     (by pcFree) hDE
   -- Compose preamble → denorm+epilogue
-  have hFull := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have hFull := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hPreF hDEF
   exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)
@@ -608,7 +608,7 @@ theorem mod_denorm_preamble_spec (sp shift v5 v6 v7 v2 v10 : Word) (base : Word)
      ((sp + signExtend12 3992) ↦ₘ shift))
     (by pcFree) hbeq_clean
   -- 6. Compose LD → BEQ exit
-  have full := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have full := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hldf hbeqf
   exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)
@@ -653,7 +653,7 @@ theorem evm_mod_preamble_denorm_epilogue_spec (sp base : Word)
     (((sp + signExtend12 3992) ↦ₘ shift))
     (by pcFree) hDE
   -- Compose preamble → denorm+epilogue
-  have hFull := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have hFull := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hPreF hDEF
   exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)
@@ -734,7 +734,7 @@ theorem evm_div_shift0_epilogue_spec (sp base : Word)
      ((sp + signExtend12 3992) ↦ₘ shift))
     (by pcFree) hbeq_exit
   -- 6. Compose LD → BEQ taken: base+908 → base+1008
-  have hPre := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have hPre := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hldf hbeqf
   -- Frame preamble with q[], output memory
   have hPreF := cpsTriple_frame_left _ _ _ _ _
@@ -753,7 +753,7 @@ theorem evm_div_shift0_epilogue_spec (sp base : Word)
      ((sp + signExtend12 3992) ↦ₘ shift))
     (by pcFree) hEpi
   -- 8. Compose preamble → epilogue: base+908 → base+1068
-  have hFull := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have hFull := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hPreF hEpiF
   exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)
@@ -821,7 +821,7 @@ theorem evm_mod_shift0_epilogue_spec (sp base : Word)
      ((sp + signExtend12 3992) ↦ₘ shift))
     (by pcFree) hbeq_exit
   -- 6. Compose LD → BEQ taken: base+908 → base+1008
-  have hPre := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have hPre := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hldf hbeqf
   -- Frame preamble with u[], output memory
   have hPreF := cpsTriple_frame_left _ _ _ _ _
@@ -840,7 +840,7 @@ theorem evm_mod_shift0_epilogue_spec (sp base : Word)
      ((sp + signExtend12 3992) ↦ₘ shift))
     (by pcFree) hEpi
   -- 8. Compose preamble → epilogue: base+908 → base+1068
-  have hFull := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have hFull := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hPreF hEpiF
   exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)

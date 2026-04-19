@@ -445,7 +445,7 @@ theorem divK_loop_n2_max_max_spec
      (q_addr_1 ↦ₘ (iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 u_top).1))
     (by pcFree) J0
   -- 4. Compose: rewrite j=1  postcondition → j=0 precondition
-  have full := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have full := cpsTriple_seq_perm_same_cr
     (fun h hp => by
       delta loopIterPostN2Max loopExitPostN2 loopExitPost at hp
       simp only [] at hp ⊢
@@ -526,7 +526,7 @@ theorem divK_loop_n2_call_call_spec
      (q_addr_1 ↦ₘ (iterN2Call v0 v1 v2 v3 u0 u1 u2 u3 u_top).1))
     (by pcFree) J0
   -- 4. Compose: rewrite j=1  postcondition → j=0 precondition
-  have full := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have full := cpsTriple_seq_perm_same_cr
     (fun h hp => by
       delta loopIterPostN2Call loopExitPostN2 loopExitPost at hp
       simp only [] at hp ⊢
@@ -614,7 +614,7 @@ theorem divK_loop_n2_max_call_spec
      (q_addr_1 ↦ₘ (iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 u_top).1))
     (by pcFree) J0
   -- 4. Compose: rewrite j=1 max  postcondition → j=0 precondition
-  have full := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have full := cpsTriple_seq_perm_same_cr
     (fun h hp => by
       delta loopIterPostN2Max loopExitPostN2 loopExitPost at hp
       simp only [] at hp ⊢
@@ -700,7 +700,7 @@ theorem divK_loop_n2_call_max_spec
      (sp + signExtend12 3944 ↦ₘ div128Un0 u1))
     (by pcFree) J0
   -- 4. Compose: rewrite j=1 call  postcondition → j=0 precondition
-  have full := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have full := cpsTriple_seq_perm_same_cr
     (fun h hp => by
       delta loopIterPostN2Call loopExitPostN2 loopExitPost at hp
       simp only [] at hp ⊢

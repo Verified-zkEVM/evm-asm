@@ -76,7 +76,7 @@ theorem divK_denorm_preamble_spec (sp shift v5 v6 v7 v2 v10 : Word) (base : Word
      ((sp + signExtend12 3992) ↦ₘ shift))
     (by pcFree) hbeq_clean
   -- 6. Compose LD → BEQ exit
-  have full := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have full := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hldf hbeqf
   exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)
@@ -133,7 +133,7 @@ theorem divK_denorm_body_spec (sp u0 u1 u2 u3 v2 v5 v7 shift : Word) (base : Wor
      ((sp + signExtend12 4056) ↦ₘ u0) ** ((sp + signExtend12 4048) ↦ₘ u1) **
      ((sp + signExtend12 4040) ↦ₘ u2) ** ((sp + signExtend12 4032) ↦ₘ u3))
     (by pcFree) hsube
-  have h_anti := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have h_anti := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) haddief hsubf
   -- Merge u[0] with u[1] (base+924 → base+948)
   have hm0 := divK_denorm_merge_spec 4056 4048 sp u0 u1 v5 v7 shift anti_shift (base + 924)
@@ -147,7 +147,7 @@ theorem divK_denorm_body_spec (sp u0 u1 u2 u3 v2 v5 v7 shift : Word) (base : Wor
     ((.x0 ↦ᵣ (0 : Word)) **
      ((sp + signExtend12 4040) ↦ₘ u2) ** ((sp + signExtend12 4032) ↦ₘ u3))
     (by pcFree) hm0e
-  have h_m0 := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have h_m0 := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h_anti hm0ef
   -- Merge u[1] with u[2] (base+948 → base+972)
   have hm1 := divK_denorm_merge_spec 4048 4040 sp u1 u2
@@ -162,7 +162,7 @@ theorem divK_denorm_body_spec (sp u0 u1 u2 u3 v2 v5 v7 shift : Word) (base : Wor
     ((.x0 ↦ᵣ (0 : Word)) **
      ((sp + signExtend12 4056) ↦ₘ u0') ** ((sp + signExtend12 4032) ↦ₘ u3))
     (by pcFree) hm1e
-  have h_m1 := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have h_m1 := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h_m0 hm1ef
   -- Merge u[2] with u[3] (base+972 → base+996)
   have hm2 := divK_denorm_merge_spec 4040 4032 sp u2 u3
@@ -177,7 +177,7 @@ theorem divK_denorm_body_spec (sp u0 u1 u2 u3 v2 v5 v7 shift : Word) (base : Wor
     ((.x0 ↦ᵣ (0 : Word)) **
      ((sp + signExtend12 4056) ↦ₘ u0') ** ((sp + signExtend12 4048) ↦ₘ u1'))
     (by pcFree) hm2e
-  have h_m2 := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have h_m2 := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h_m1 hm2ef
   -- Last u[3] (base+996 → base+1008)
   have hl := divK_denorm_last_spec 4032 sp u3 u2' shift (base + 996)
@@ -192,7 +192,7 @@ theorem divK_denorm_body_spec (sp u0 u1 u2 u3 v2 v5 v7 shift : Word) (base : Wor
      ((sp + signExtend12 4056) ↦ₘ u0') ** ((sp + signExtend12 4048) ↦ₘ u1') **
      ((sp + signExtend12 4040) ↦ₘ u2'))
     (by pcFree) hle
-  have h_all := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have h_all := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h_m2 hlef
   exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)
@@ -256,7 +256,7 @@ theorem divK_div_epilogue_spec (sp : Word) (base : Word)
     (((sp + signExtend12 4088) ↦ₘ q0) ** ((sp + signExtend12 4080) ↦ₘ q1) **
      ((sp + signExtend12 4072) ↦ₘ q2) ** ((sp + signExtend12 4064) ↦ₘ q3))
     (by pcFree) hstoree
-  have h12 := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have h12 := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hloadef hstoref
   exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)
@@ -333,7 +333,7 @@ theorem evm_mod_bzero_spec (sp base : Word)
      ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3))
     (by pcFree) hbeq
   -- Step 4: Compose body → BEQ(taken): base → base+1048
-  have hAB := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have hAB := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hbody hbeq_framed
   -- Step 5: ZeroPath (base+1048 → base+1068)
   have hzp := cpsTriple_extend_code (divK_zeroPath_code_sub_modCode base)
@@ -344,7 +344,7 @@ theorem evm_mod_bzero_spec (sp base : Word)
     ((.x5 ↦ᵣ (b0 ||| b1 ||| b2 ||| b3)) ** (.x10 ↦ᵣ b3) ** (.x0 ↦ᵣ (0 : Word)))
     (by pcFree) hzp
   -- Step 6: Compose AB → ZP: base → base+1068
-  have hABZ := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have hABZ := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hAB hzp_framed
   -- Step 7: Final consequence — rewrite bor → 0
   exact cpsTriple_weaken
@@ -388,7 +388,7 @@ theorem evm_mod_phaseA_ntaken_spec (sp base : Word)
      ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3))
     (by pcFree) hbeq
   -- Step 4: Compose body → BEQ(ntaken): base → base+32
-  have hAB := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have hAB := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hbody hbeq_framed
   -- Step 5: Final consequence — permute assertions
   exact cpsTriple_weaken
@@ -452,7 +452,7 @@ theorem divK_mod_epilogue_spec (sp : Word) (base : Word)
     (((sp + signExtend12 4056) ↦ₘ u0) ** ((sp + signExtend12 4048) ↦ₘ u1) **
      ((sp + signExtend12 4040) ↦ₘ u2) ** ((sp + signExtend12 4032) ↦ₘ u3))
     (by pcFree) hstoree
-  have h12 := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have h12 := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hloadef hstoref
   exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)

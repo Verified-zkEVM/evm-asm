@@ -59,7 +59,7 @@ theorem evm_mod_phaseAB_n1_clz_spec (sp base : Word)
   have hB := evm_mod_phaseB_n1_spec sp base b0 b1 b2 b3
     (b0 ||| b1 ||| b2 ||| b3) v6 v7 q0 q1 q2 q3 u5 u6 u7 n_mem
     hb3z hb2z hb1z
-  have hAB := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have hAB := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hAf hB
   -- CLZ on b0
   have hCLZ := mod_clz_spec b0 b1 b2 base
@@ -72,7 +72,7 @@ theorem evm_mod_phaseAB_n1_clz_spec (sp base : Word)
      ((sp + signExtend12 4016) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
      ((sp + signExtend12 4000) ↦ₘ (0 : Word)) ** ((sp + signExtend12 3984) ↦ₘ (1 : Word)))
     (by pcFree) hCLZ
-  have hABCLZ := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have hABCLZ := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hAB hCLZf
   exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)
@@ -152,7 +152,7 @@ theorem evm_mod_n1_to_loopSetup_spec (sp base : Word)
      ((sp + signExtend12 4016) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
      ((sp + signExtend12 4000) ↦ₘ (0 : Word)) ** ((sp + signExtend12 3984) ↦ₘ (1 : Word)))
     (by pcFree) hC2
-  have hABC2 := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have hABC2 := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hABCLZf hC2f
   -- Step 3: NormB (base+228 → base+312)
   have hNB := mod_normB_full_spec sp b0 b1 b2 b3
@@ -173,7 +173,7 @@ theorem evm_mod_n1_to_loopSetup_spec (sp base : Word)
      ((sp + signExtend12 4000) ↦ₘ (0 : Word)) ** ((sp + signExtend12 3984) ↦ₘ (1 : Word)) **
      ((sp + signExtend12 3992) ↦ₘ shift))
     (by pcFree) hNB
-  have hABC2NB := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have hABC2NB := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hABC2 hNBf
   -- Step 4: NormA (base+312 → base+432)
   have hNormA := mod_normA_full_spec sp a0 a1 a2 a3
@@ -191,7 +191,7 @@ theorem evm_mod_n1_to_loopSetup_spec (sp base : Word)
      ((sp + signExtend12 4000) ↦ₘ (0 : Word)) ** ((sp + signExtend12 3984) ↦ₘ (1 : Word)) **
      ((sp + signExtend12 3992) ↦ₘ shift))
     (by pcFree) hNormA
-  have hNA := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have hNA := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hABC2NB hNormAf
   -- Step 5: LoopSetup ntaken (base+432 → base+448), n=1, m=3
   have hLS := mod_loopSetup_ntaken_spec sp (1 : Word)
@@ -213,7 +213,7 @@ theorem evm_mod_n1_to_loopSetup_spec (sp base : Word)
      ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
      ((sp + signExtend12 3992) ↦ₘ shift))
     (by pcFree) hLS
-  have hFull := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have hFull := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hNA hLSf
   exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)
@@ -297,7 +297,7 @@ theorem evm_mod_n1_shift0_to_loopSetup_spec (sp base : Word)
      ((sp + signExtend12 4016) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
      ((sp + signExtend12 4000) ↦ₘ (0 : Word)) ** ((sp + signExtend12 3984) ↦ₘ (1 : Word)))
     (by pcFree) hC2
-  have hABC2 := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have hABC2 := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hABCLZf hC2f
   -- Step 3: CopyAU (base+396 → base+432)
   have hCopy := mod_copyAU_full_spec sp a0 a1 a2 a3
@@ -318,7 +318,7 @@ theorem evm_mod_n1_shift0_to_loopSetup_spec (sp base : Word)
      ((sp + signExtend12 4000) ↦ₘ (0 : Word)) ** ((sp + signExtend12 3984) ↦ₘ (1 : Word)) **
      ((sp + signExtend12 3992) ↦ₘ (clzResult b0).1))
     (by pcFree) hCopy
-  have hABC2C := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have hABC2C := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hABC2 hCopyf
   -- Step 4: LoopSetup ntaken (base+432 → base+448), n=3
   have hLS := mod_loopSetup_ntaken_spec sp (1 : Word)
@@ -342,7 +342,7 @@ theorem evm_mod_n1_shift0_to_loopSetup_spec (sp base : Word)
      ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
      ((sp + signExtend12 3992) ↦ₘ (clzResult b0).1))
     (by pcFree) hLS
-  have hFull := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have hFull := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hABC2C hLSf
   exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)

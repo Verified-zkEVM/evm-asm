@@ -153,7 +153,7 @@ theorem evm_div_n2_full_all_max_spec (sp base : Word)
      (sp + signExtend12 3944 ↦ₘ scratch_un0))
     (by pcFree) hB
   -- 3. Compose A + B
-  have hFull := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have hFull := cpsTriple_seq_perm_same_cr
     (fun h hp => by
       delta preloopN2UnifiedPost loopN2UnifiedPost at hp
       simp (config := { decide := true }) only [iterN2_false, ite_false] at hp

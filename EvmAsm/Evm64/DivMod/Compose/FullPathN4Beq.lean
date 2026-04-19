@@ -278,7 +278,7 @@ theorem evm_div_n4_preloop_max_addback_beq_spec (sp base : Word)
      ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
      ((sp + signExtend12 3992) ↦ₘ shift))
     (by pcFree) hLoop'
-  have hFull := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have hFull := cpsTriple_seq_perm_same_cr
     (fun h hp => by
       delta loopSetupPost at hp
       simp only [EvmAsm.Evm64.DivMod.AddrNorm.se12_4, BitVec.sub_self] at hp
@@ -436,7 +436,7 @@ theorem evm_div_n4_preloop_call_addback_beq_spec (sp base : Word)
      ((sp + signExtend12 4008) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
      ((sp + signExtend12 3992) ↦ₘ shift))
     (by pcFree) hLoop'
-  have hFull := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have hFull := cpsTriple_seq_perm_same_cr
     (fun h hp => by
       delta loopSetupPost at hp
       simp only [EvmAsm.Evm64.DivMod.AddrNorm.se12_4, BitVec.sub_self] at hp
@@ -641,7 +641,7 @@ theorem evm_div_n4_full_max_addback_beq_spec (sp base : Word)
      (sp + signExtend12 3976 ↦ₘ (0 : Word)) **
      (.x1 ↦ᵣ signExtend12 4095) ** (.x11 ↦ᵣ q_out))
     (by pcFree) hB
-  have hFull := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have hFull := cpsTriple_seq_perm_same_cr
     (fun h hp => by
       simp only [preloopMaxAddbackBeqPostN4_unfold] at hp
       xperm_hyp hp) hA hBF
@@ -860,7 +860,7 @@ theorem evm_div_n4_full_call_addback_beq_spec (sp base : Word)
      (sp + signExtend12 3968 ↦ₘ (base + 516)) ** (sp + signExtend12 3960 ↦ₘ b3') **
      (sp + signExtend12 3952 ↦ₘ d_lo) ** (sp + signExtend12 3944 ↦ₘ div_un0))
     (by pcFree) hB
-  have hFull := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have hFull := cpsTriple_seq_perm_same_cr
     (fun h hp => by simp only [preloopCallAddbackBeqPostN4_unfold] at hp; xperm_hyp hp) hA hBF
   exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)

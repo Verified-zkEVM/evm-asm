@@ -126,7 +126,7 @@ theorem divK_loop_body_n1_call_addback_j0_beq_spec
      (sp + signExtend12 3952 ↦ₘ d_lo) **
      (sp + signExtend12 3944 ↦ₘ div_un0))
     (by pcFree) SL
-  have full := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have full := cpsTriple_seq_perm_same_cr
     (fun h hp => by rw [sepConj_assoc'] at hp; xperm_hyp hp) TFfMCA0 SLf
   exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)
@@ -245,7 +245,7 @@ theorem divK_loop_body_n1_call_addback_j1_beq_spec
      (sp + signExtend12 3952 ↦ₘ d_lo) **
      (sp + signExtend12 3944 ↦ₘ div_un0))
     (by pcFree) SL
-  have full := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have full := cpsTriple_seq_perm_same_cr
     (fun h hp => by rw [sepConj_assoc'] at hp; xperm_hyp hp) TFfMCA0 SLf
   exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)
@@ -364,7 +364,7 @@ theorem divK_loop_body_n1_call_addback_j2_beq_spec
      (sp + signExtend12 3952 ↦ₘ d_lo) **
      (sp + signExtend12 3944 ↦ₘ div_un0))
     (by pcFree) SL
-  have full := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have full := cpsTriple_seq_perm_same_cr
     (fun h hp => by rw [sepConj_assoc'] at hp; xperm_hyp hp) TFfMCA0 SLf
   exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)
@@ -483,7 +483,7 @@ theorem divK_loop_body_n1_call_addback_j3_beq_spec
      (sp + signExtend12 3952 ↦ₘ d_lo) **
      (sp + signExtend12 3944 ↦ₘ div_un0))
     (by pcFree) SL
-  have full := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have full := cpsTriple_seq_perm_same_cr
     (fun h hp => by rw [sepConj_assoc'] at hp; xperm_hyp hp) TFfMCA0 SLf
   exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)

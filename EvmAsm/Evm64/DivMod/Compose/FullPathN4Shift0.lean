@@ -137,7 +137,7 @@ theorem evm_div_n4_preloop_shift0_call_skip_spec (sp base : Word)
      ((sp + signExtend12 3992) ↦ₘ (clzResult b3).1))
     (by pcFree) hLoop'
   -- Compose preloop → loop body
-  have hFull := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have hFull := cpsTriple_seq_perm_same_cr
     (fun h hp => by
       simp only [x1_val_n4] at hp
       xperm_hyp hp) hPreF hLoopF
@@ -289,7 +289,7 @@ theorem evm_div_n4_full_shift0_call_skip_spec (sp base : Word)
      (sp + signExtend12 3944 ↦ₘ (a3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat))
     (by pcFree) hB
   -- 3. Compose A + B
-  have hFull := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have hFull := cpsTriple_seq_perm_same_cr
     (fun h hp => by
       simp only [preloopShift0CallSkipPostN4_unfold] at hp
       xperm_hyp hp) hA hBF

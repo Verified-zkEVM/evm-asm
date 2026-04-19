@@ -88,7 +88,7 @@ theorem divK_normA_full_spec (sp a0 a1 a2 a3 v5 v7 v10 shift anti_shift : Word)
      ((sp + signExtend12 4040) ↦ₘ u2_old) ** ((sp + signExtend12 4048) ↦ₘ u1_old) **
      ((sp + signExtend12 4056) ↦ₘ u0_old))
     (by pcFree) hma1e
-  have h12 := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have h12 := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) htopef hma1ef
   -- MergeB: u[2] = (a[2]<<<shift) | (a[1]>>>anti) (base+344 → base+364)
   have hmb := divK_normA_mergeB_spec 8 4040 sp a2 a1 u3 (a2 >>> (anti_shift.toNat % 64))
@@ -105,7 +105,7 @@ theorem divK_normA_full_spec (sp a0 a1 a2 a3 v5 v7 v10 shift anti_shift : Word)
      ((sp + signExtend12 4024) ↦ₘ u4) ** ((sp + signExtend12 4032) ↦ₘ u3) **
      ((sp + signExtend12 4048) ↦ₘ u1_old) ** ((sp + signExtend12 4056) ↦ₘ u0_old))
     (by pcFree) hmbe
-  have h123 := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have h123 := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h12 hmbef
   -- MergeA 2: u[1] = (a[1]<<<shift) | (a[0]>>>anti) (base+364 → base+384)
   have hma2 := divK_normA_mergeA_spec 0 4048 sp a1 a0 u2 (a1 >>> (anti_shift.toNat % 64))
@@ -122,7 +122,7 @@ theorem divK_normA_full_spec (sp a0 a1 a2 a3 v5 v7 v10 shift anti_shift : Word)
      ((sp + signExtend12 4024) ↦ₘ u4) ** ((sp + signExtend12 4032) ↦ₘ u3) **
      ((sp + signExtend12 4040) ↦ₘ u2) ** ((sp + signExtend12 4056) ↦ₘ u0_old))
     (by pcFree) hma2e
-  have h1234 := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have h1234 := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h123 hma2ef
   -- Last: u[0] = a[0]<<<shift (base+384 → base+392)
   have hlast := divK_normA_last_spec 4056 sp a0 shift u0_old (base + 384)
@@ -139,7 +139,7 @@ theorem divK_normA_full_spec (sp a0 a1 a2 a3 v5 v7 v10 shift anti_shift : Word)
      ((sp + signExtend12 4024) ↦ₘ u4) ** ((sp + signExtend12 4032) ↦ₘ u3) **
      ((sp + signExtend12 4040) ↦ₘ u2) ** ((sp + signExtend12 4048) ↦ₘ u1))
     (by pcFree) hlaste
-  have h12345 := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have h12345 := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h1234 hlastef
   -- JAL x0 40 at base+392 → base+432 (1 instruction, empAssertion pre/post)
   have hjal := jal_x0_spec_gen 40 (base + 392)
@@ -171,7 +171,7 @@ theorem divK_normA_full_spec (sp a0 a1 a2 a3 v5 v7 v10 shift anti_shift : Word)
       (fun h hp => by show (empAssertion ** postAll) h; rw [sepConj_emp_left']; exact hp)
       (fun h hp => by rw [sepConj_emp_left'] at hp; exact hp)
       hjalef
-  have h123456 := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have h123456 := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h12345 hjal_clean
   exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)
@@ -263,7 +263,7 @@ theorem divK_loopSetup_ntaken_spec (sp n v1 v5 : Word) (base : Word)
   have hbltef := cpsTriple_frame_left _ _ _ _ _
     ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ n) ** ((sp + signExtend12 3984) ↦ₘ n))
     (by pcFree) hblte
-  have h12 := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have h12 := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hbodye hbltef
   exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)
@@ -295,7 +295,7 @@ theorem divK_loopSetup_taken_spec (sp n v1 v5 : Word) (base : Word)
   have hbltef := cpsTriple_frame_left _ _ _ _ _
     ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ n) ** ((sp + signExtend12 3984) ↦ₘ n))
     (by pcFree) hblte
-  have h12 := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have h12 := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hbodye hbltef
   exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)

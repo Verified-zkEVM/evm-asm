@@ -143,7 +143,7 @@ theorem evm_div_n2_full_FFT_spec (sp base : Word)
      (sp + signExtend12 3952 ↦ₘ div128DLo v1') **
      (sp + signExtend12 3944 ↦ₘ div128Un0 r1.2.1))
     (by pcFree) hB
-  have hFull := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have hFull := cpsTriple_seq_perm_same_cr
     (fun h hp => by
       delta preloopN2UnifiedPost loopN2UnifiedPost at hp
       simp (config := { decide := true }) only [iterN2_false, ite_false] at hp
@@ -276,7 +276,7 @@ theorem evm_div_n2_full_FTF_spec (sp base : Word)
      (sp + signExtend12 3952 ↦ₘ div128DLo v1') **
      (sp + signExtend12 3944 ↦ₘ div128Un0 r2.2.1))
     (by pcFree) hB
-  have hFull := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have hFull := cpsTriple_seq_perm_same_cr
     (fun h hp => by
       delta preloopN2UnifiedPost loopN2UnifiedPost at hp
       simp (config := { decide := true }) only [iterN2_false, ite_false] at hp
@@ -409,7 +409,7 @@ theorem evm_div_n2_full_FTT_spec (sp base : Word)
      (sp + signExtend12 3952 ↦ₘ div128DLo v1') **
      (sp + signExtend12 3944 ↦ₘ div128Un0 r1.2.1))
     (by pcFree) hB
-  have hFull := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have hFull := cpsTriple_seq_perm_same_cr
     (fun h hp => by
       delta preloopN2UnifiedPost loopN2UnifiedPost at hp
       simp (config := { decide := true }) only [iterN2_false, ite_false] at hp
@@ -542,7 +542,7 @@ theorem evm_div_n2_full_TFF_spec (sp base : Word)
      (sp + signExtend12 3952 ↦ₘ div128DLo v1') **
      (sp + signExtend12 3944 ↦ₘ div128Un0 u3_s))
     (by pcFree) hB
-  have hFull := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have hFull := cpsTriple_seq_perm_same_cr
     (fun h hp => by
       delta preloopN2UnifiedPost loopN2UnifiedPost at hp
       simp (config := { decide := true }) only [iterN2_true, ite_true] at hp
@@ -675,7 +675,7 @@ theorem evm_div_n2_full_TFT_spec (sp base : Word)
      (sp + signExtend12 3952 ↦ₘ div128DLo v1') **
      (sp + signExtend12 3944 ↦ₘ div128Un0 r1.2.1))
     (by pcFree) hB
-  have hFull := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have hFull := cpsTriple_seq_perm_same_cr
     (fun h hp => by
       delta preloopN2UnifiedPost loopN2UnifiedPost at hp
       simp (config := { decide := true }) only [iterN2_true, ite_true] at hp
@@ -808,7 +808,7 @@ theorem evm_div_n2_full_TTF_spec (sp base : Word)
      (sp + signExtend12 3952 ↦ₘ div128DLo v1') **
      (sp + signExtend12 3944 ↦ₘ div128Un0 r2.2.1))
     (by pcFree) hB
-  have hFull := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have hFull := cpsTriple_seq_perm_same_cr
     (fun h hp => by
       delta preloopN2UnifiedPost loopN2UnifiedPost at hp
       simp (config := { decide := true }) only [iterN2_true, ite_true] at hp
@@ -941,7 +941,7 @@ theorem evm_div_n2_full_TTT_spec (sp base : Word)
      (sp + signExtend12 3952 ↦ₘ div128DLo v1') **
      (sp + signExtend12 3944 ↦ₘ div128Un0 r1.2.1))
     (by pcFree) hB
-  have hFull := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have hFull := cpsTriple_seq_perm_same_cr
     (fun h hp => by
       delta preloopN2UnifiedPost loopN2UnifiedPost at hp
       simp (config := { decide := true }) only [iterN2_true, ite_true] at hp

@@ -114,7 +114,7 @@ theorem divK_div128_prodcheck1_merged_spec
       ((.x1 ↦ᵣ rhat_un1) ** (.x5 ↦ᵣ q_dlo) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ un1) **
        (sp + signExtend12 3952 ↦ₘ dlo))
       (by pcFree) hcorr
-    have full := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+    have full := cpsTriple_seq_perm_same_cr
       (fun h hp => by
         have hp' := sepConj_mono_left (sepConj_mono_right
           (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1)) h hp
@@ -167,7 +167,7 @@ theorem divK_div128_prodcheck1_merged_spec
     exact cpsTriple_weaken
       (fun _ hp => hp)
       (fun h hp => by xperm_hyp hp)
-      (cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+      (cpsTriple_seq_perm_same_cr
         (fun _ hp => hp)
         ntaken_clean hjal_framed)
 

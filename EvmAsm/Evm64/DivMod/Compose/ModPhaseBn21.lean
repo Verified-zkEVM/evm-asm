@@ -62,7 +62,7 @@ theorem evm_mod_phaseB_n2_spec (sp base : Word)
      ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
      ((sp + signExtend12 3984) ↦ₘ n_mem))
     (by pcFree) hinit2
-  have h12 := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have h12 := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hinit1f hinit2f
   -- ---- Cascade step 0: ADDI x5=4 (base+68 → base+72)
   have haddi0_raw := addi_x0_spec_gen .x5 v5 4 (base + 68) (by nofun)
@@ -77,7 +77,7 @@ theorem evm_mod_phaseB_n2_spec (sp base : Word)
      ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
      ((sp + signExtend12 3984) ↦ₘ n_mem))
     (by pcFree) haddi0
-  have h123 := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have h123 := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h12 haddi0f
   -- ---- Cascade step 0: BNE x10 ntaken (base+72 → base+76, b3=0)
   have hbne0_raw := bne_spec_gen .x10 .x0 24 b3 (0 : Word) (base + 72)
@@ -97,7 +97,7 @@ theorem evm_mod_phaseB_n2_spec (sp base : Word)
      ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
      ((sp + signExtend12 3984) ↦ₘ n_mem))
     (by pcFree) hbne0
-  have h1234 := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have h1234 := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h123 hbne0f
   -- ---- Cascade step 1: ADDI x5=3 (base+76 → base+80)
   have haddi1_raw := addi_x0_spec_gen .x5 (4 : Word) 3 (base + 76) (by nofun)
@@ -112,7 +112,7 @@ theorem evm_mod_phaseB_n2_spec (sp base : Word)
      ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
      ((sp + signExtend12 3984) ↦ₘ n_mem))
     (by pcFree) haddi1
-  have h12345 := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have h12345 := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h1234 haddi1f
   -- ---- Cascade step 1: BNE x7 ntaken (base+80 → base+84, b2=0)
   have hbne1_raw := bne_spec_gen .x7 .x0 16 b2 (0 : Word) (base + 80)
@@ -132,7 +132,7 @@ theorem evm_mod_phaseB_n2_spec (sp base : Word)
      ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
      ((sp + signExtend12 3984) ↦ₘ n_mem))
     (by pcFree) hbne1
-  have h123456 := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have h123456 := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h12345 hbne1f
   -- ---- Cascade step 2: ADDI x5=2 (base+84 → base+88)
   have haddi2_raw := addi_x0_spec_gen .x5 (3 : Word) 2 (base + 84) (by nofun)
@@ -147,7 +147,7 @@ theorem evm_mod_phaseB_n2_spec (sp base : Word)
      ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
      ((sp + signExtend12 3984) ↦ₘ n_mem))
     (by pcFree) haddi2
-  have h1234567 := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have h1234567 := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h123456 haddi2f
   -- ---- Cascade step 2: BNE x6 taken (base+88 → base+96, b1≠0)
   have hbne2_raw := bne_spec_gen .x6 .x0 8 b1 (0 : Word) (base + 88)
@@ -167,7 +167,7 @@ theorem evm_mod_phaseB_n2_spec (sp base : Word)
      ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
      ((sp + signExtend12 3984) ↦ₘ n_mem))
     (by pcFree) hbne2
-  have h12345678 := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have h12345678 := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h1234567 hbne2f
   -- ---- Tail (base+96 → base+116)
   have htail_raw := divK_phaseB_tail_spec sp (2 : Word) b1 n_mem (base + 96)
@@ -182,7 +182,7 @@ theorem evm_mod_phaseB_n2_spec (sp base : Word)
      ((sp + signExtend12 4016) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
      ((sp + signExtend12 4000) ↦ₘ (0 : Word)))
     (by pcFree) htail
-  have hphaseB := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have hphaseB := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h12345678 htailf
   exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)
@@ -242,7 +242,7 @@ theorem evm_mod_phaseB_n1_spec (sp base : Word)
      ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
      ((sp + signExtend12 3984) ↦ₘ n_mem))
     (by pcFree) hinit2
-  have h12 := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have h12 := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hinit1f hinit2f
   -- ---- Cascade step 0: ADDI x5=4 (base+68 → base+72)
   have haddi0_raw := addi_x0_spec_gen .x5 v5 4 (base + 68) (by nofun)
@@ -257,7 +257,7 @@ theorem evm_mod_phaseB_n1_spec (sp base : Word)
      ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
      ((sp + signExtend12 3984) ↦ₘ n_mem))
     (by pcFree) haddi0
-  have h123 := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have h123 := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h12 haddi0f
   -- ---- Cascade step 0: BNE x10 ntaken (base+72 → base+76, b3=0)
   have hbne0_raw := bne_spec_gen .x10 .x0 24 b3 (0 : Word) (base + 72)
@@ -277,7 +277,7 @@ theorem evm_mod_phaseB_n1_spec (sp base : Word)
      ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
      ((sp + signExtend12 3984) ↦ₘ n_mem))
     (by pcFree) hbne0
-  have h1234 := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have h1234 := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h123 hbne0f
   -- ---- Cascade step 1: ADDI x5=3 (base+76 → base+80)
   have haddi1_raw := addi_x0_spec_gen .x5 (4 : Word) 3 (base + 76) (by nofun)
@@ -292,7 +292,7 @@ theorem evm_mod_phaseB_n1_spec (sp base : Word)
      ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
      ((sp + signExtend12 3984) ↦ₘ n_mem))
     (by pcFree) haddi1
-  have h12345 := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have h12345 := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h1234 haddi1f
   -- ---- Cascade step 1: BNE x7 ntaken (base+80 → base+84, b2=0)
   have hbne1_raw := bne_spec_gen .x7 .x0 16 b2 (0 : Word) (base + 80)
@@ -312,7 +312,7 @@ theorem evm_mod_phaseB_n1_spec (sp base : Word)
      ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
      ((sp + signExtend12 3984) ↦ₘ n_mem))
     (by pcFree) hbne1
-  have h123456 := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have h123456 := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h12345 hbne1f
   -- ---- Cascade step 2: ADDI x5=2 (base+84 → base+88)
   have haddi2_raw := addi_x0_spec_gen .x5 (3 : Word) 2 (base + 84) (by nofun)
@@ -327,7 +327,7 @@ theorem evm_mod_phaseB_n1_spec (sp base : Word)
      ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
      ((sp + signExtend12 3984) ↦ₘ n_mem))
     (by pcFree) haddi2
-  have h1234567 := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have h1234567 := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h123456 haddi2f
   -- ---- Cascade step 2: BNE x6 ntaken (base+88 → base+92, b1=0)
   have hbne2_raw := bne_spec_gen .x6 .x0 8 b1 (0 : Word) (base + 88)
@@ -347,7 +347,7 @@ theorem evm_mod_phaseB_n1_spec (sp base : Word)
      ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
      ((sp + signExtend12 3984) ↦ₘ n_mem))
     (by pcFree) hbne2
-  have h12345678 := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have h12345678 := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h1234567 hbne2f
   -- ---- Fallthrough: ADDI x5=1 (base+92 → base+96)
   have haddi3_raw := addi_x0_spec_gen .x5 (2 : Word) 1 (base + 92) (by nofun)
@@ -362,7 +362,7 @@ theorem evm_mod_phaseB_n1_spec (sp base : Word)
      ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
      ((sp + signExtend12 3984) ↦ₘ n_mem))
     (by pcFree) haddi3
-  have h123456789 := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have h123456789 := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h12345678 haddi3f
   -- ---- Tail (base+96 → base+116)
   have htail_raw := divK_phaseB_tail_spec sp (1 : Word) b0 n_mem (base + 96)
@@ -377,7 +377,7 @@ theorem evm_mod_phaseB_n1_spec (sp base : Word)
      ((sp + signExtend12 4016) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
      ((sp + signExtend12 4000) ↦ₘ (0 : Word)))
     (by pcFree) htail
-  have hphaseB := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have hphaseB := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h123456789 htailf
   exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)

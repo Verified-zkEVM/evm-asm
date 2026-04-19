@@ -78,7 +78,7 @@ theorem mod_denorm_body_spec (sp u0 u1 u2 u3 v2 v5 v7 shift : Word) (base : Word
      ((sp + signExtend12 4056) ↦ₘ u0) ** ((sp + signExtend12 4048) ↦ₘ u1) **
      ((sp + signExtend12 4040) ↦ₘ u2) ** ((sp + signExtend12 4032) ↦ₘ u3))
     (by pcFree) hsube
-  have h_anti := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have h_anti := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) haddief hsubf
   -- Merge u[0] with u[1] (base+924 → base+948)
   have hm0 := divK_denorm_merge_spec 4056 4048 sp u0 u1 v5 v7 shift anti_shift (base + 924)
@@ -92,7 +92,7 @@ theorem mod_denorm_body_spec (sp u0 u1 u2 u3 v2 v5 v7 shift : Word) (base : Word
     ((.x0 ↦ᵣ (0 : Word)) **
      ((sp + signExtend12 4040) ↦ₘ u2) ** ((sp + signExtend12 4032) ↦ₘ u3))
     (by pcFree) hm0e
-  have h_m0 := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have h_m0 := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h_anti hm0ef
   -- Merge u[1] with u[2] (base+948 → base+972)
   have hm1 := divK_denorm_merge_spec 4048 4040 sp u1 u2
@@ -107,7 +107,7 @@ theorem mod_denorm_body_spec (sp u0 u1 u2 u3 v2 v5 v7 shift : Word) (base : Word
     ((.x0 ↦ᵣ (0 : Word)) **
      ((sp + signExtend12 4056) ↦ₘ u0') ** ((sp + signExtend12 4032) ↦ₘ u3))
     (by pcFree) hm1e
-  have h_m1 := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have h_m1 := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h_m0 hm1ef
   -- Merge u[2] with u[3] (base+972 → base+996)
   have hm2 := divK_denorm_merge_spec 4040 4032 sp u2 u3
@@ -122,7 +122,7 @@ theorem mod_denorm_body_spec (sp u0 u1 u2 u3 v2 v5 v7 shift : Word) (base : Word
     ((.x0 ↦ᵣ (0 : Word)) **
      ((sp + signExtend12 4056) ↦ₘ u0') ** ((sp + signExtend12 4048) ↦ₘ u1'))
     (by pcFree) hm2e
-  have h_m2 := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have h_m2 := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h_m1 hm2ef
   -- Last u[3] (base+996 → base+1008)
   have hl := divK_denorm_last_spec 4032 sp u3 u2' shift (base + 996)
@@ -137,7 +137,7 @@ theorem mod_denorm_body_spec (sp u0 u1 u2 u3 v2 v5 v7 shift : Word) (base : Word
      ((sp + signExtend12 4056) ↦ₘ u0') ** ((sp + signExtend12 4048) ↦ₘ u1') **
      ((sp + signExtend12 4040) ↦ₘ u2'))
     (by pcFree) hle
-  have h_all := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have h_all := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h_m2 hlef
   exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)

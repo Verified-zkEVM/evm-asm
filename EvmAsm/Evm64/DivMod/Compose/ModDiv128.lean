@@ -162,7 +162,7 @@ theorem mod_div128_spec (sp ret_addr d u_lo u_hi : Word) (base : Word)
      (sp + signExtend12 3960 ↦ₘ d) ** (sp + signExtend12 3944 ↦ₘ un0))
     (by pcFree) hst1e
   -- Compose phase1 → step1
-  have h12 := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have h12 := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hph1f hst1f
   -- ================================================================
   -- Block 3: Compute un21 (base+1172 → base+1192)
@@ -185,7 +185,7 @@ theorem mod_div128_spec (sp ret_addr d u_lo u_hi : Word) (base : Word)
      (sp + signExtend12 3960 ↦ₘ d) ** (sp + signExtend12 3944 ↦ₘ un0))
     (by pcFree) hcue
   -- Compose (phase1→step1) → compute_un21
-  have h123 := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have h123 := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h12 hcuf
   -- ================================================================
   -- Block 4: Step 2 (base+1192 → base+1252)
@@ -217,7 +217,7 @@ theorem mod_div128_spec (sp ret_addr d u_lo u_hi : Word) (base : Word)
      (sp + signExtend12 3968 ↦ₘ ret_addr) ** (sp + signExtend12 3960 ↦ₘ d))
     (by pcFree) hst2e
   -- Compose (→step1→compute_un21) → step2
-  have h1234 := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have h1234 := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h123 hst2f
   -- ================================================================
   -- Block 5: End (base+1252 → ret_addr via JALR)
@@ -239,7 +239,7 @@ theorem mod_div128_spec (sp ret_addr d u_lo u_hi : Word) (base : Word)
      (sp + signExtend12 3944 ↦ₘ un0))
     (by pcFree) hende
   -- Compose (→step2) → end
-  have h12345 := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+  have h12345 := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h1234 hendf
   -- Final permutation to canonical pre/post order
   exact cpsTriple_weaken
