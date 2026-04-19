@@ -212,6 +212,22 @@ theorem getLimbN_one (k : Nat) :
     exact hfin ⟨k, h⟩
   · next h => simp [show ¬(k = 0) from by omega]
 
+/-- `(1 : EvmWord).getLimbN k = 0` for `k ≠ 0`. Avoids the chained `getLimbN_one`
+    + `show ¬((k : Nat) = 0) from by decide` idiom at call sites that know `k`
+    is a concrete positive literal (issue #263). -/
+theorem getLimbN_one_of_ne_zero (k : Nat) (hk : k ≠ 0) :
+    (1 : EvmWord).getLimbN k = 0 := by
+  rw [getLimbN_one, if_neg hk]
+
+theorem getLimbN_one_zero : (1 : EvmWord).getLimbN 0 = 1 := by
+  rw [getLimbN_one, if_pos rfl]
+theorem getLimbN_one_one : (1 : EvmWord).getLimbN 1 = 0 :=
+  getLimbN_one_of_ne_zero 1 (by decide)
+theorem getLimbN_one_two : (1 : EvmWord).getLimbN 2 = 0 :=
+  getLimbN_one_of_ne_zero 2 (by decide)
+theorem getLimbN_one_three : (1 : EvmWord).getLimbN 3 = 0 :=
+  getLimbN_one_of_ne_zero 3 (by decide)
+
 theorem getLimbN_ite (c : Prop) [Decidable c] (x y : EvmWord) (k : Nat) :
     (if c then x else y).getLimbN k = if c then x.getLimbN k else y.getLimbN k := by
   split <;> rfl

@@ -104,10 +104,9 @@ theorem evm_eq_stack_spec (sp base : Word)
       xperm_hyp hp)
     (fun h hq => by
       unfold evmWordIs
-      simp only [EvmWord.getLimbN_ite, EvmWord.getLimbN_one, EvmWord.getLimbN_zero,
-                 show ¬((1 : Nat) = 0) from by decide,
-                 show ¬((2 : Nat) = 0) from by decide,
-                 show ¬((3 : Nat) = 0) from by decide,
+      simp only [EvmWord.getLimbN_ite, EvmWord.getLimbN_zero,
+                 EvmWord.getLimbN_one_zero, EvmWord.getLimbN_one_one,
+                 EvmWord.getLimbN_one_two, EvmWord.getLimbN_one_three,
                  ite_true, ite_false, ite_self,
                  ← EvmWord.eq_xor_or_reduce_correct]
       simp only [EvmWord.getLimb_as_getLimbN_0, EvmWord.getLimb_as_getLimbN_1,
