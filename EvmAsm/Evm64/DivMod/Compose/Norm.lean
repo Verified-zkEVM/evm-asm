@@ -72,7 +72,7 @@ theorem divK_phaseC2_ntaken_spec (sp shift v2 shift_mem : Word) (base : Word)
     (by pcFree) hbeq
   have hC2 := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
     (fun h hp => by xperm_hyp hp) hbody hbeqf
-  exact cpsTriple_consequence _ _ _ _ _ _ _
+  exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq)
     hC2
@@ -102,7 +102,7 @@ theorem divK_phaseC2_taken_spec (sp shift v2 shift_mem : Word) (base : Word)
     (by pcFree) hbeq
   have hC2 := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
     (fun h hp => by xperm_hyp hp) hbody hbeqf
-  exact cpsTriple_consequence _ _ _ _ _ _ _
+  exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq)
     hC2
@@ -164,7 +164,7 @@ private theorem divK_normB_half1 (sp b0 b1 b2 b3 v5 v7 shift anti_shift : Word) 
     (by pcFree) hm2e
   have h12 := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
     (fun h hp => by xperm_hyp hp) hm1ef hm2ef
-  exact cpsTriple_consequence _ _ _ _ _ _ _
+  exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq)
     h12
@@ -212,7 +212,7 @@ private theorem divK_normB_half2 (sp b0 b1 b2' b3' shift anti_shift : Word) (bas
     (by pcFree) hle
   have h34 := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
     (fun h hp => by xperm_hyp hp) hm3ef hlef
-  exact cpsTriple_consequence _ _ _ _ _ _ _
+  exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq)
     h34
@@ -238,7 +238,7 @@ theorem divK_normB_full_spec (sp b0 b1 b2 b3 v5 v7 shift anti_shift : Word) (bas
   intro b3' b2' b1' b0'
   have h1 := divK_normB_half1 sp b0 b1 b2 b3 v5 v7 shift anti_shift base
   have h2 := divK_normB_half2 sp b0 b1 b2' b3' shift anti_shift base
-  exact cpsTriple_consequence _ _ _ _ _ _ _
+  exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq)
     (cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _

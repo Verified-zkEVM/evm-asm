@@ -152,7 +152,7 @@ theorem evm_div_n2_full_FFT_spec (sp base : Word)
         n2_ub2_off4064, n3_ub1_off4064, n2_qa2, n3_qa1,
         se12_32, se12_40, se12_48, se12_56] at hp
       xperm_hyp hp) hA hBF
-  exact cpsTriple_consequence _ _ _ _ _ _ _
+  exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by delta fullDivN2_FFT_Post; rw [sepConj_assoc'] at hq; xperm_hyp hq)
     hFull
@@ -285,7 +285,7 @@ theorem evm_div_n2_full_FTF_spec (sp base : Word)
         n2_ub2_off4064, n3_ub1_off4064, n2_qa2, n3_qa1,
         se12_32, se12_40, se12_48, se12_56] at hp
       xperm_hyp hp) hA hBF
-  exact cpsTriple_consequence _ _ _ _ _ _ _
+  exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by delta fullDivN2_FTF_Post; rw [sepConj_assoc'] at hq; xperm_hyp hq)
     hFull
@@ -418,7 +418,7 @@ theorem evm_div_n2_full_FTT_spec (sp base : Word)
         n2_ub2_off4064, n3_ub1_off4064, n2_qa2, n3_qa1,
         se12_32, se12_40, se12_48, se12_56] at hp
       xperm_hyp hp) hA hBF
-  exact cpsTriple_consequence _ _ _ _ _ _ _
+  exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by delta fullDivN2_FTT_Post; rw [sepConj_assoc'] at hq; xperm_hyp hq)
     hFull
@@ -551,7 +551,7 @@ theorem evm_div_n2_full_TFF_spec (sp base : Word)
         n2_ub2_off4064, n3_ub1_off4064, n2_qa2, n3_qa1,
         se12_32, se12_40, se12_48, se12_56] at hp
       xperm_hyp hp) hA hBF
-  exact cpsTriple_consequence _ _ _ _ _ _ _
+  exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by delta fullDivN2_TFF_Post; rw [sepConj_assoc'] at hq; xperm_hyp hq)
     hFull
@@ -684,7 +684,7 @@ theorem evm_div_n2_full_TFT_spec (sp base : Word)
         n2_ub2_off4064, n3_ub1_off4064, n2_qa2, n3_qa1,
         se12_32, se12_40, se12_48, se12_56] at hp
       xperm_hyp hp) hA hBF
-  exact cpsTriple_consequence _ _ _ _ _ _ _
+  exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by delta fullDivN2_TFT_Post; rw [sepConj_assoc'] at hq; xperm_hyp hq)
     hFull
@@ -817,7 +817,7 @@ theorem evm_div_n2_full_TTF_spec (sp base : Word)
         n2_ub2_off4064, n3_ub1_off4064, n2_qa2, n3_qa1,
         se12_32, se12_40, se12_48, se12_56] at hp
       xperm_hyp hp) hA hBF
-  exact cpsTriple_consequence _ _ _ _ _ _ _
+  exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by delta fullDivN2_TTF_Post; rw [sepConj_assoc'] at hq; xperm_hyp hq)
     hFull
@@ -950,7 +950,7 @@ theorem evm_div_n2_full_TTT_spec (sp base : Word)
         n2_ub2_off4064, n3_ub1_off4064, n2_qa2, n3_qa1,
         se12_32, se12_40, se12_48, se12_56] at hp
       xperm_hyp hp) hA hBF
-  exact cpsTriple_consequence _ _ _ _ _ _ _
+  exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by delta fullDivN2_TTT_Post; rw [sepConj_assoc'] at hq; xperm_hyp hq)
     hFull

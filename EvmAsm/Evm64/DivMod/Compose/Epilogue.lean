@@ -61,7 +61,7 @@ theorem divK_denorm_preamble_spec (sp shift v5 v6 v7 v2 v10 : Word) (base : Word
     (fun hp hQt => by
       obtain ⟨_, _, _, _, _, ⟨_, _, _, _, _, ⟨_, hpure⟩⟩⟩ := hQt
       exact hshift_nz hpure)
-  have hbeq_clean := cpsTriple_consequence _ _ _ _ _ _ _
+  have hbeq_clean := cpsTriple_weaken
     (fun h hp => hp)
     (fun h hp => sepConj_mono_right
       (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1) h hp)
@@ -78,7 +78,7 @@ theorem divK_denorm_preamble_spec (sp shift v5 v6 v7 v2 v10 : Word) (base : Word
   -- 6. Compose LD → BEQ exit
   have full := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
     (fun h hp => by xperm_hyp hp) hldf hbeqf
-  exact cpsTriple_consequence _ _ _ _ _ _ _
+  exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq)
     full
@@ -194,7 +194,7 @@ theorem divK_denorm_body_spec (sp u0 u1 u2 u3 v2 v5 v7 shift : Word) (base : Wor
     (by pcFree) hle
   have h_all := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
     (fun h hp => by xperm_hyp hp) h_m2 hlef
-  exact cpsTriple_consequence _ _ _ _ _ _ _
+  exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq)
     h_all
@@ -258,7 +258,7 @@ theorem divK_div_epilogue_spec (sp : Word) (base : Word)
     (by pcFree) hstoree
   have h12 := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
     (fun h hp => by xperm_hyp hp) hloadef hstoref
-  exact cpsTriple_consequence _ _ _ _ _ _ _
+  exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq)
     h12
@@ -347,7 +347,7 @@ theorem evm_mod_bzero_spec (sp base : Word)
   have hABZ := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
     (fun h hp => by xperm_hyp hp) hAB hzp_framed
   -- Step 7: Final consequence — rewrite bor → 0
-  exact cpsTriple_consequence _ _ _ _ _ _ _
+  exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by rw [hbz] at hq; xperm_hyp hq)
     hABZ
@@ -391,7 +391,7 @@ theorem evm_mod_phaseA_ntaken_spec (sp base : Word)
   have hAB := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
     (fun h hp => by xperm_hyp hp) hbody hbeq_framed
   -- Step 5: Final consequence — permute assertions
-  exact cpsTriple_consequence _ _ _ _ _ _ _
+  exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq)
     hAB
@@ -454,7 +454,7 @@ theorem divK_mod_epilogue_spec (sp : Word) (base : Word)
     (by pcFree) hstoree
   have h12 := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
     (fun h hp => by xperm_hyp hp) hloadef hstoref
-  exact cpsTriple_consequence _ _ _ _ _ _ _
+  exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq)
     h12

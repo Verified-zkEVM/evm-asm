@@ -204,7 +204,7 @@ theorem evm_div_bzero_spec (sp base : Word)
   have hABZ := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
     (fun h hp => by xperm_hyp hp) hAB hzp_framed
   -- Step 7: Final consequence — rewrite bor → 0
-  exact cpsTriple_consequence _ _ _ _ _ _ _
+  exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by rw [hbz] at hq; xperm_hyp hq)
     hABZ
@@ -250,7 +250,7 @@ theorem evm_div_phaseA_ntaken_spec (sp base : Word)
   have hAB := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
     (fun h hp => by xperm_hyp hp) hbody hbeq_framed
   -- Step 5: Final consequence — permute assertions
-  exact cpsTriple_consequence _ _ _ _ _ _ _
+  exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq)
     hAB
@@ -319,7 +319,7 @@ theorem evm_div_phaseB_n4_spec (sp base : Word)
   have htail := cpsTriple_extend_code (divK_phaseB_tail_code_sub_divCode base) htail_raw
   seqFrame hinit1fhinit2haddihbne htail
   -- ---- Step 6: Final consequence — permute assertions
-  exact cpsTriple_consequence _ _ _ _ _ _ _
+  exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq)
     hinit1fhinit2haddihbnehtail
@@ -370,7 +370,7 @@ theorem evm_div_phaseAB_n4_spec (sp base : Word)
     (by pcFree) hB
   have hAB := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
     (fun h hp => by xperm_hyp hp) hAf hBf
-  exact cpsTriple_consequence _ _ _ _ _ _ _
+  exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq)
     hAB
@@ -612,7 +612,7 @@ theorem evm_div_phaseB_n3_spec (sp base : Word)
     (by pcFree) htail
   have hphaseB := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
     (fun h hp => by xperm_hyp hp) h123456 htailf
-  exact cpsTriple_consequence _ _ _ _ _ _ _
+  exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq)
     hphaseB
@@ -790,7 +790,7 @@ theorem evm_div_phaseB_n2_spec (sp base : Word)
     (by pcFree) htail
   have hphaseB := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
     (fun h hp => by xperm_hyp hp) h12345678 htailf
-  exact cpsTriple_consequence _ _ _ _ _ _ _
+  exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq)
     hphaseB
@@ -984,7 +984,7 @@ theorem evm_div_phaseB_n1_spec (sp base : Word)
     (by pcFree) htail
   have hphaseB := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
     (fun h hp => by xperm_hyp hp) h123456789 htailf
-  exact cpsTriple_consequence _ _ _ _ _ _ _
+  exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq)
     hphaseB
