@@ -295,6 +295,30 @@ theorem evmWordIs_one (addr : Word) :
   rw [EvmWord.getLimbN_one_zero, EvmWord.getLimbN_one_one,
       EvmWord.getLimbN_one_two, EvmWord.getLimbN_one_three]
 
+/-- `evmWordIs addr (EvmWord.fromLimbs (fun _ => w))` unfolds to four
+    identical-valued memIs atoms. Specializes the generic
+    `evmWordIs_sp_limbs_eq` to the uniform-limb constant case; covers
+    both the all-zero (`evmWordIs_zero`) and all-ones (e.g. `-1` in
+    two's complement) patterns uniformly. -/
+theorem evmWordIs_fromLimbs_const (addr : Word) (w : Word) :
+    evmWordIs addr (EvmWord.fromLimbs (fun _ => w)) =
+    ((addr ↦ₘ w) ** ((addr + 8) ↦ₘ w) **
+     ((addr + 16) ↦ₘ w) ** ((addr + 24) ↦ₘ w)) := by
+  unfold evmWordIs
+  rw [EvmWord.getLimbN_fromLimbs_const_0, EvmWord.getLimbN_fromLimbs_const_1,
+      EvmWord.getLimbN_fromLimbs_const_2, EvmWord.getLimbN_fromLimbs_const_3]
+
+/-- Mid-tree variant of `evmWordIs_fromLimbs_const`: threads a remainder
+    `Q` so `rw ←` can fold four identical-valued memIs atoms back into
+    `evmWordIs addr (fromLimbs (fun _ => w))` even when they sit in the
+    middle of a longer sepConj chain. -/
+theorem evmWordIs_fromLimbs_const_right (addr : Word) (w : Word) (Q : Assertion) :
+    ((addr ↦ₘ w) ** ((addr + 8) ↦ₘ w) **
+     ((addr + 16) ↦ₘ w) ** ((addr + 24) ↦ₘ w) ** Q) =
+    (evmWordIs addr (EvmWord.fromLimbs (fun _ => w)) ** Q) := by
+  rw [evmWordIs_fromLimbs_const]
+  rw [sepConj_assoc', sepConj_assoc', sepConj_assoc']
+
 /-- Mid-tree variant of `evmWordIs_zero`: threads a remainder `Q` so
     `rw ←` can fold four zero memIs atoms back into `evmWordIs addr 0`
     even when they sit in the middle of a longer sepConj chain. -/
