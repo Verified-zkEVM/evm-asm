@@ -110,6 +110,22 @@ theorem evmStackIs_triple_flat (sp : Word) (a b c : EvmWord) :
   rw [evmStackIs_triple]
   rw [show (sp + 32 + 32 : Word) = sp + 64 from by bv_omega]
 
+/-- Mid-tree variant of `evmStackIs_pair`: threads a remainder `Q` so
+    `rw ←` can fold two `evmWordIs` atoms into an `evmStackIs [a, b]`
+    bundle **even when they sit in the middle of a longer sepConj chain**.
+    Parallels the `_right` family on `evmWordIs_sp*_limbs_eq`. -/
+theorem evmStackIs_pair_right (sp : Word) (a b : EvmWord) (Q : Assertion) :
+    ((evmWordIs sp a ** evmWordIs (sp + 32) b) ** Q) =
+    (evmStackIs sp [a, b] ** Q) := by
+  rw [evmStackIs_pair]
+
+/-- Mid-tree variant of `evmStackIs_single`: threads a remainder `Q` so
+    `rw ←` can fold a single `evmWordIs` atom into an `evmStackIs [v]`
+    bundle mid-chain. Parallel to `evmStackIs_pair_right`. -/
+theorem evmStackIs_single_right (sp : Word) (v : EvmWord) (Q : Assertion) :
+    (evmWordIs sp v ** Q) = (evmStackIs sp [v] ** Q) := by
+  rw [evmStackIs_single]
+
 -- ============================================================================
 -- evmWordIs unfold and limb-equality bridges
 -- ============================================================================
