@@ -17,7 +17,7 @@ namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
 open EvmAsm.Rv64.AddrNorm (se13_32 se13_92 se13_176 se13_308 se13_320 se21_24 se21_124 se21_200 se21_252
-  zero_add_se12_1_toNat zero_add_se12_2_toNat bv6_toNat_6)
+  zero_add_se12_1_toNat zero_add_se12_2_toNat bv6_toNat_6 word_add_zero)
 
 -- ============================================================================
 -- Section 1: shrCode definition and helpers
@@ -407,7 +407,7 @@ theorem evm_shr_zero_large_spec (sp base : Word)
   -- Step 5: LD x5 x12 0 at base+24 → extend to shrCode
   have hld_raw := ld_spec_gen .x5 .x12 sp (s1 ||| s2 ||| s3) s0 0 (base + 24) (by nofun)
   simp only [signExtend12_0] at hld_raw
-  rw [show sp + (0 : Word) = sp from by bv_omega, shr_off_24] at hld_raw
+  rw [word_add_zero, shr_off_24] at hld_raw
   have hld := cpsTriple_extend_code (ld_s0_sub_shrCode base) hld_raw
   -- Step 6: SLTIU at base+28 → extend to shrCode
   have hsltiu_raw := sltiu_spec_gen .x10 .x5 s3 s0 256 (base + 28) (by nofun)
@@ -500,8 +500,6 @@ theorem evm_shr_zero_large_spec (sp base : Word)
 
 -- Address normalization lemmas for body path
 private theorem shr_off_64_20 (base : Word) : (base + 64 : Word) + 20 = base + 84 := by bv_omega
-private theorem shr_off_sp32 (sp : Word) : sp + signExtend12 (32 : BitVec 12) = sp + 32 := by
-  simp only [signExtend12_32]
 
 -- ============================================================================
 -- Section 5a: Phase A ntaken → Phase B composition
@@ -714,7 +712,7 @@ theorem evm_shr_body_evmWord_spec (sp base : Word)
   -- LD x5 x12 0 at base+24
   have hld_raw := ld_spec_gen .x5 .x12 sp (s1 ||| s2 ||| s3) s0 0 (base + 24) (by nofun)
   simp only [signExtend12_0] at hld_raw
-  rw [show sp + (0 : Word) = sp from by bv_omega, shr_off_24] at hld_raw
+  rw [word_add_zero, shr_off_24] at hld_raw
   have hld := cpsTriple_extend_code (ld_s0_sub_shrCode base) hld_raw
   -- SLTIU at base+28
   have hsltiu_raw := sltiu_spec_gen .x10 .x5 s3 s0 256 (base + 28) (by nofun)
@@ -761,7 +759,7 @@ theorem evm_shr_body_evmWord_spec (sp base : Word)
   have hphaseB_raw := shr_phase_b_spec s0 sp r6 r7 r11 (base + 36)
   have hphaseB := cpsTriple_extend_code (phase_b_sub_shrCode base) hphaseB_raw
   rw [shr_off_36_28] at hphaseB
-  rw [shr_off_sp32] at hphaseB
+  simp only [signExtend12_32] at hphaseB
   have hphaseB_f := cpsTriple_frame_left (base + 36) (base + 64) _ _ _
     ((.x10 ↦ᵣ sltiu_val) **
      (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3) **

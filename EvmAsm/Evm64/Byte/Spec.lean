@@ -206,10 +206,6 @@ private theorem byte_store_exit_eq (base : Word) :
     (base + 136 + 20) + signExtend21 (24 : BitVec 21) = base + 180 := by
   rw [se21_24]; bv_omega
 
--- sp address normalization
-private theorem byte_off_sp32 (sp : Word) : sp + signExtend12 (32 : BitVec 12) = sp + 32 := by
-  simp only [signExtend12_32]
-
 -- ============================================================================
 -- Helper lemmas
 -- ============================================================================
