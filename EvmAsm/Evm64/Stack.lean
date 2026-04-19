@@ -179,6 +179,22 @@ theorem evmWordIs_sp32_limbs_eq_right (sp : Word) (v : EvmWord) (w0 w1 w2 w3 : W
   rw [evmWordIs_sp32_limbs_eq sp v w0 w1 w2 w3 h0 h1 h2 h3]
   rw [sepConj_assoc', sepConj_assoc', sepConj_assoc']
 
+/-- `evmWordIs addr (0 : EvmWord)` unfolds to four zero-valued memIs atoms.
+    Thin wrapper around `evmWordIs_sp_limbs_eq` / the definitional unfold
+    specialized to `v = 0` — saves callers from inlining four
+    `(0 : EvmWord).getLimbN k = 0` facts on every zero-path spec. Applies at
+    arbitrary `addr`, so it covers both the `sp` and `sp+32` positions uniformly. -/
+theorem evmWordIs_zero (addr : Word) :
+    evmWordIs addr (0 : EvmWord) =
+    ((addr ↦ₘ (0 : Word)) ** ((addr + 8) ↦ₘ (0 : Word)) **
+     ((addr + 16) ↦ₘ (0 : Word)) ** ((addr + 24) ↦ₘ (0 : Word))) := by
+  unfold evmWordIs
+  have h0 : (0 : EvmWord).getLimbN 0 = (0 : Word) := by decide
+  have h1 : (0 : EvmWord).getLimbN 1 = (0 : Word) := by decide
+  have h2 : (0 : EvmWord).getLimbN 2 = (0 : Word) := by decide
+  have h3 : (0 : EvmWord).getLimbN 3 = (0 : Word) := by decide
+  rw [h0, h1, h2, h3]
+
 -- ============================================================================
 -- Shared infrastructure for stack operation specs
 -- ============================================================================
