@@ -44,6 +44,7 @@
 
 import EvmAsm.Evm64.DivMod.Compose
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4
+import EvmAsm.Evm64.DivMod.Compose.ModFullPathN4
 import EvmAsm.Evm64.EvmWordArith
 
 open EvmAsm.Rv64.Tactics
@@ -856,6 +857,80 @@ theorem evm_mod_bzero_stack_spec (sp base : Word)
          ((sp + 48) ↦ₘ (0 : Word)) ** ((sp + 56) ↦ₘ (0 : Word)))
         from by xperm) h).mp w1)
     h_raw
+
+/-- MOD mirror of `evm_div_n4_full_max_skip_stack_pre_spec`.
+
+    EvmWord-level wrapper around `evm_mod_n4_full_max_skip_spec`. Same guarantee
+    (full-path MOD from `base` to `base + nopOff` on the n=4 max+skip sub-path),
+    but with the operands bundled as `evmWordIs sp a` / `evmWordIs (sp+32) b`
+    and the 15 scratch cells bundled as `divScratchValues`. The postcondition
+    is still the concrete `fullModN4MaxSkipPost` — turning that into
+    `modN4MaxSkipStackPost` requires a denormalization bridge that's deferred
+    to the forthcoming MOD stack spec. -/
+theorem evm_mod_n4_full_max_skip_stack_pre_spec (sp base : Word)
+    (a b : EvmWord) (v5 v6 v7 v10 v11_old : Word)
+    (q0 q1 q2 q3 u0_old u1_old u2_old u3_old u4_old u5 u6 u7
+     n_mem shift_mem j_mem : Word)
+    (hbnz : b ≠ 0)
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hbltu : isMaxTrialN4Evm a b)
+    (hborrow : isSkipBorrowN4MaxEvm a b) :
+    cpsTriple base (base + nopOff) (modCode base)
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
+       (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+       (.x2 ↦ᵣ (clzResult (b.getLimbN 3)).2 >>> (63 : Nat)) **
+       (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+       (.x11 ↦ᵣ v11_old) **
+       evmWordIs sp a ** evmWordIs (sp + 32) b **
+       divScratchValues sp q0 q1 q2 q3 u0_old u1_old u2_old u3_old u4_old
+         u5 u6 u7 shift_mem n_mem j_mem)
+      (fullModN4MaxSkipPost sp
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) := by
+  have hbnz' : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 ||| b.getLimbN 3 ≠ 0 :=
+    (EvmWord.ne_zero_iff_getLimbN_or b).mp hbnz
+  have hraw := evm_mod_n4_full_max_skip_spec sp base
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+    v5 v6 v7 v10 v11_old
+    q0 q1 q2 q3 u0_old u1_old u2_old u3_old u4_old u5 u6 u7
+    n_mem shift_mem j_mem
+    hbnz' hb3nz hshift_nz hbltu hborrow
+  exact cpsTriple_weaken
+    (fun h hp => by
+      rw [evmWordIs_sp_limbs_eq sp a _ _ _ _ rfl rfl rfl rfl,
+          evmWordIs_sp32_limbs_eq sp b _ _ _ _ rfl rfl rfl rfl,
+          divScratchValues_unfold] at hp
+      rw [show (sp + 0 : Word) = sp from by bv_omega]
+      xperm_hyp hp)
+    (fun _ hq => hq)
+    hraw
+
+/-- Bundled MOD version mirroring `evm_div_n4_full_max_skip_stack_pre_spec_bundled`:
+    takes the precondition as a single `modN4StackPre` atom. -/
+theorem evm_mod_n4_full_max_skip_stack_pre_spec_bundled (sp base : Word)
+    (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     n_mem shift_mem j_mem : Word)
+    (hbnz : b ≠ 0)
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hbltu : isMaxTrialN4Evm a b)
+    (hborrow : isSkipBorrowN4MaxEvm a b) :
+    cpsTriple base (base + nopOff) (modCode base)
+      (modN4StackPre sp a b v5 v6 v7 v10 v11
+         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shift_mem n_mem j_mem)
+      (fullModN4MaxSkipPost sp
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) := by
+  have h := evm_mod_n4_full_max_skip_stack_pre_spec sp base a b
+    v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+    n_mem shift_mem j_mem hbnz hb3nz hshift_nz hbltu hborrow
+  exact cpsTriple_weaken
+    (fun _ hp => by rw [modN4StackPre_unfold] at hp; exact hp)
+    (fun _ hq => hq)
+    h
 
 -- ============================================================================
 -- Sublemmas towards evm_div_n4_max_skip_stack_spec (reshape plan)
