@@ -410,15 +410,15 @@ theorem evm_shl_zero_large_spec (sp base : Word)
   -- Compose h1234 → h56
   have h123456 := cpsTriple_seq_with_perm_same_cr base (base + 24) (base + 32) _ _ _ _ _
     (fun h hp => by xperm_hyp hp) h1234 h56
-  -- Step 7: BEQ at base+32 → eliminate ntaken (sltiu_val = 0 since s0 ≥ 256)
-  let sltiu_val := (if BitVec.ult s0 (signExtend12 (256 : BitVec 12)) then (1 : Word) else (0 : Word))
-  have hbeq_raw := beq_spec_gen .x10 .x0 308 sltiu_val (0 : Word) (base + 32)
+  -- Step 7: BEQ at base+32 → eliminate ntaken (sltiuVal = 0 since s0 ≥ 256)
+  let sltiuVal := (if BitVec.ult s0 (signExtend12 (256 : BitVec 12)) then (1 : Word) else (0 : Word))
+  have hbeq_raw := beq_spec_gen .x10 .x0 308 sltiuVal (0 : Word) (base + 32)
   rw [shl_beq_target, shl_off_32] at hbeq_raw
   have hbeq := cpsBranch_extend_code (beq_sub_shlCode base) hbeq_raw
-  -- sltiu_val = 0 (since s0 ≥ 256 → ult is false)
-  have hsltiu_eq : sltiu_val = (0 : Word) := by
-    simp only [sltiu_val, hlarge]; decide
-  -- Eliminate ntaken: ntaken postcondition has ⌜sltiu_val ≠ 0⌝, but sltiu_val = 0
+  -- sltiuVal = 0 (since s0 ≥ 256 → ult is false)
+  have hsltiu_eq : sltiuVal = (0 : Word) := by
+    simp only [sltiuVal, hlarge]; decide
+  -- Eliminate ntaken: ntaken postcondition has ⌜sltiuVal ≠ 0⌝, but sltiuVal = 0
   have hbeq_taken := cpsBranch_takenStripPure2 hbeq
     (fun hp hQf => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQf
@@ -437,7 +437,7 @@ theorem evm_shl_zero_large_spec (sp base : Word)
     (shr_zero_path_spec sp v0 v1 v2 v3 (base + 340))
   rw [shl_off_340_20] at hzp
   have hzp_framed := cpsTriple_frame_left (base + 340) (base + 360) _ _ _
-    ((.x5 ↦ᵣ s0) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ sltiu_val) **
+    ((.x5 ↦ᵣ s0) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ sltiuVal) **
      (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3))
     (by pcFree) hzp
   -- Address normalization lemmas
@@ -459,7 +459,7 @@ theorem evm_shl_zero_large_spec (sp base : Word)
       simp only [ha40', ha48', ha56'] at hq
       have w0 := sepConj_mono_left (regIs_to_regOwn .x5 _) h
         ((congrFun (show _ =
-          ((.x5 ↦ᵣ s0) ** (.x10 ↦ᵣ sltiu_val) **
+          ((.x5 ↦ᵣ s0) ** (.x10 ↦ᵣ sltiuVal) **
            (.x12 ↦ᵣ (sp + 32)) ** (.x0 ↦ᵣ (0 : Word)) **
            (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3) **
            ((sp + 32) ↦ₘ (0 : Word)) ** ((sp + 40) ↦ₘ (0 : Word)) ** ((sp + 48) ↦ₘ (0 : Word)) ** ((sp + 56) ↦ₘ (0 : Word)))
@@ -697,10 +697,10 @@ theorem evm_shl_body_evmWord_spec (sp base : Word)
     (fun h hp => by xperm_hyp hp) hld_f hsltiu_f
   have h123456 := cpsTriple_seq_with_perm_same_cr base (base + 24) (base + 32) _ _ _ _ _
     (fun h hp => by xperm_hyp hp) h1234 h56
-  -- BEQ at base+32: eliminate TAKEN (sltiu_val=1 since s0<256, so 1=0 is absurd)
-  let sltiu_val := (if BitVec.ult s0 (signExtend12 (256 : BitVec 12)) then (1 : Word) else (0 : Word))
-  have hsltiu_eq : sltiu_val = (1 : Word) := by simp only [sltiu_val, hlt_s0]; decide
-  have hbeq_raw := beq_spec_gen .x10 .x0 308 sltiu_val (0 : Word) (base + 32)
+  -- BEQ at base+32: eliminate TAKEN (sltiuVal=1 since s0<256, so 1=0 is absurd)
+  let sltiuVal := (if BitVec.ult s0 (signExtend12 (256 : BitVec 12)) then (1 : Word) else (0 : Word))
+  have hsltiu_eq : sltiuVal = (1 : Word) := by simp only [sltiuVal, hlt_s0]; decide
+  have hbeq_raw := beq_spec_gen .x10 .x0 308 sltiuVal (0 : Word) (base + 32)
   rw [shl_beq_target, shl_off_32] at hbeq_raw
   have hbeq := cpsBranch_extend_code (beq_sub_shlCode base) hbeq_raw
   have hbeq_ntaken := cpsBranch_ntakenStripPure2 hbeq
@@ -716,39 +716,39 @@ theorem evm_shl_body_evmWord_spec (sp base : Word)
   have hphaseA := cpsTriple_seq_with_perm_same_cr base (base + 32) (base + 36) _ _ _ _ _
     (fun h hp => by xperm_hyp hp) h123456 hbeq_framed
   -- Phase B: base+36 -> base+64
-  let bit_shift := s0 &&& signExtend12 63
-  let limb_shift := s0 >>> (6 : BitVec 6).toNat
-  let cond := if BitVec.ult (0 : Word) bit_shift then (1 : Word) else 0
+  let bitShift := s0 &&& signExtend12 63
+  let limbShift := s0 >>> (6 : BitVec 6).toNat
+  let cond := if BitVec.ult (0 : Word) bitShift then (1 : Word) else 0
   let mask := (0 : Word) - cond
-  let anti_shift := (64 : Word) - bit_shift
+  let antiShift := (64 : Word) - bitShift
   have hphaseB_raw := shr_phase_b_spec s0 sp r6 r7 r11 (base + 36)
   have hphaseB := cpsTriple_extend_code (phase_b_sub_shlCode base) hphaseB_raw
   rw [shl_off_36_28] at hphaseB
   simp only [signExtend12_32] at hphaseB
   have hphaseB_f := cpsTriple_frame_left (base + 36) (base + 64) _ _ _
-    ((.x10 ↦ᵣ sltiu_val) **
+    ((.x10 ↦ᵣ sltiuVal) **
      (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3) **
      ((sp + 32) ↦ₘ v0) ** ((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3))
     (by pcFree) hphaseB
   have hphaseAB := cpsTriple_seq_with_perm_same_cr base (base + 36) (base + 64) _ _ _ _ _
     (fun h hp => by xperm_hyp hp) hphaseA hphaseB_f
   -- Phase C: cascade dispatch at base+64 (with pure dispatch facts)
-  have hphaseC_raw := shr_phase_c_spec_pure limb_shift sltiu_val (base + 64)
+  have hphaseC_raw := shr_phase_c_spec_pure limbShift sltiuVal (base + 64)
     (base + 240) (base + 164) (base + 112) (base + 84)
     (shl_c_e0 base) (shl_c_e1 base) (shl_c_e2 base) (shl_c_e3 base)
   have hphaseC := cpsNBranch_extend_code (phase_c_sub_shlCode base) hphaseC_raw
   -- Body specs extended to shlCode
   have hbody3 := cpsTriple_extend_code (shl_body_3_sub_shlCode base)
-    (shl_body_3_spec (sp + 32) limb_shift ((0 : Word) + signExtend12 2) bit_shift anti_shift mask
+    (shl_body_3_spec (sp + 32) limbShift ((0 : Word) + signExtend12 2) bitShift antiShift mask
       v0 v1 v2 v3 (base + 84) (base + 360) 252 (shl_body3_exit base))
   have hbody2 := cpsTriple_extend_code (shl_body_2_sub_shlCode base)
-    (shl_body_2_spec (sp + 32) limb_shift ((0 : Word) + signExtend12 2) bit_shift anti_shift mask
+    (shl_body_2_spec (sp + 32) limbShift ((0 : Word) + signExtend12 2) bitShift antiShift mask
       v0 v1 v2 v3 (base + 112) (base + 360) 200 (shl_body2_exit base))
   have hbody1 := cpsTriple_extend_code (shl_body_1_sub_shlCode base)
-    (shl_body_1_spec (sp + 32) limb_shift ((0 : Word) + signExtend12 1) bit_shift anti_shift mask
+    (shl_body_1_spec (sp + 32) limbShift ((0 : Word) + signExtend12 1) bitShift antiShift mask
       v0 v1 v2 v3 (base + 164) (base + 360) 124 (shl_body1_exit base))
   have hbody0 := cpsTriple_extend_code (shl_body_0_sub_shlCode base)
-    (shl_body_0_spec (sp + 32) limb_shift sltiu_val bit_shift anti_shift mask
+    (shl_body_0_spec (sp + 32) limbShift sltiuVal bitShift antiShift mask
       v0 v1 v2 v3 (base + 240) (base + 360) 24 (shl_body0_exit base))
   -- Frame each body with (x0=0 ** shift_mem)
   have hbody3_f := cpsTriple_frame_left (base + 84) (base + 360) _ _ _
@@ -805,7 +805,7 @@ theorem evm_shl_body_evmWord_spec (sp base : Word)
      ((sp + 48) ↦ₘ getLimb result 2) ** ((sp + 56) ↦ₘ getLimb result 3)
   -- Body 0 (L=0): first(i=0), merge(i=1,2,3)
   have hbody0_ev := @cpsTriple_strip_pure_and_convert _ _ _ _ _ resultPost _
-    hbody0_w (fun (hls : limb_shift = 0) h hq => by
+    hbody0_w (fun (hls : limbShift = 0) h hq => by
       have hresult : result = value <<< s0.toNat := by
         show value <<< shift.toNat = value <<< s0.toNat; congr 1
       have hL : (s0 >>> (6 : BitVec 6).toNat).toNat = 0 := congrArg BitVec.toNat hls
@@ -821,7 +821,7 @@ theorem evm_shl_body_evmWord_spec (sp base : Word)
       rw [← eq0, ← eq1, ← eq2, ← eq3]; exact hq)
   -- Body 1 (L=1): zero(i=0), first(i=1), merge(i=2,3)
   have hbody1_ev := @cpsTriple_strip_pure_and_convert _ _ _ _ _ resultPost _
-    hbody1_w (fun (hls : limb_shift = (0 : Word) + signExtend12 1) h hq => by
+    hbody1_w (fun (hls : limbShift = (0 : Word) + signExtend12 1) h hq => by
       have hresult : result = value <<< s0.toNat := by
         show value <<< shift.toNat = value <<< s0.toNat; congr 1
       have hL : (s0 >>> (6 : BitVec 6).toNat).toNat = 1 := by
@@ -840,7 +840,7 @@ theorem evm_shl_body_evmWord_spec (sp base : Word)
       rw [← eq1, ← eq2, ← eq3, eq0]; exact hq)
   -- Body 2 (L=2): zero(i=0,1), first(i=2), merge(i=3)
   have hbody2_ev := @cpsTriple_strip_pure_and_convert _ _ _ _ _ resultPost _
-    hbody2_w (fun (hls : limb_shift = (0 : Word) + signExtend12 2) h hq => by
+    hbody2_w (fun (hls : limbShift = (0 : Word) + signExtend12 2) h hq => by
       have hresult : result = value <<< s0.toNat := by
         show value <<< shift.toNat = value <<< s0.toNat; congr 1
       have hL : (s0 >>> (6 : BitVec 6).toNat).toNat = 2 := by
@@ -859,29 +859,29 @@ theorem evm_shl_body_evmWord_spec (sp base : Word)
       rw [← eq2, ← eq3, eq0, eq1]; exact hq)
   -- Body 3 (L=3): zero(i=0,1,2), first(i=3)
   have hbody3_ev := @cpsTriple_strip_pure_and_convert _ _ _ _ _ resultPost _
-    hbody3_w (fun (hls : limb_shift ≠ 0 ∧ limb_shift ≠ (0 : Word) + signExtend12 1 ∧
-                limb_shift ≠ (0 : Word) + signExtend12 2) h hq => by
+    hbody3_w (fun (hls : limbShift ≠ 0 ∧ limbShift ≠ (0 : Word) + signExtend12 1 ∧
+                limbShift ≠ (0 : Word) + signExtend12 2) h hq => by
       have hresult : result = value <<< s0.toNat := by
         show value <<< shift.toNat = value <<< s0.toNat; congr 1
       have hL : (s0 >>> (6 : BitVec 6).toNat).toNat = 3 := by
         obtain ⟨h0, h1, h2⟩ := hls
         have h6 := bv6_toNat_6
-        have hlt4 : limb_shift.toNat < 4 := by
+        have hlt4 : limbShift.toNat < 4 := by
           show (s0 >>> (6 : BitVec 6).toNat).toNat < 4
           rw [h6]; simp [BitVec.toNat_ushiftRight]; omega
-        have hn0 : limb_shift.toNat ≠ 0 :=
+        have hn0 : limbShift.toNat ≠ 0 :=
           fun hc => h0 (BitVec.eq_of_toNat_eq (by simpa using hc))
-        have hn1 : limb_shift.toNat ≠ 1 :=
+        have hn1 : limbShift.toNat ≠ 1 :=
           fun hc => h1 (BitVec.eq_of_toNat_eq (by
-            show limb_shift.toNat = ((0 : Word) + signExtend12 1).toNat
+            show limbShift.toNat = ((0 : Word) + signExtend12 1).toNat
             simp only [zero_add_se12_1_toNat]
             exact hc))
-        have hn2 : limb_shift.toNat ≠ 2 :=
+        have hn2 : limbShift.toNat ≠ 2 :=
           fun hc => h2 (BitVec.eq_of_toNat_eq (by
-            show limb_shift.toNat = ((0 : Word) + signExtend12 2).toNat
+            show limbShift.toNat = ((0 : Word) + signExtend12 2).toNat
             simp only [zero_add_se12_2_toNat]
             exact hc))
-        show limb_shift.toNat = 3; omega
+        show limbShift.toNat = 3; omega
       have eq0 := shl_bridge_zero value s0 result hresult 3 0 hL (by omega)
       have eq1 := shl_bridge_zero value s0 result hresult 3 1 hL (by omega)
       have eq2 := shl_bridge_zero value s0 result hresult 3 2 hL (by omega)
@@ -894,7 +894,7 @@ theorem evm_shl_body_evmWord_spec (sp base : Word)
       rw [← eq3, eq0, eq1, eq2]; exact hq)
   -- Frame Phase C and merge with body specs
   have hphaseC_framed := cpsNBranch_frame_left
-    (F := (.x6 ↦ᵣ bit_shift) ** (.x7 ↦ᵣ anti_shift) ** (.x11 ↦ᵣ mask) ** (.x12 ↦ᵣ (sp + 32)) **
+    (F := (.x6 ↦ᵣ bitShift) ** (.x7 ↦ᵣ antiShift) ** (.x11 ↦ᵣ mask) ** (.x12 ↦ᵣ (sp + 32)) **
           (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3) **
           ((sp + 32) ↦ₘ v0) ** ((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3))
     (by pcFree) hphaseC
@@ -918,9 +918,9 @@ theorem evm_shl_body_evmWord_spec (sp base : Word)
        (.x6 ↦ᵣ r6) ** (.x7 ↦ᵣ r7) ** (.x11 ↦ᵣ r11) **
        (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3) **
        ((sp + 32) ↦ₘ v0) ** ((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3))
-      ((.x5 ↦ᵣ limb_shift) ** (.x6 ↦ᵣ bit_shift) ** (.x0 ↦ᵣ (0 : Word)) **
-       (.x11 ↦ᵣ mask) ** (.x7 ↦ᵣ anti_shift) ** (.x12 ↦ᵣ (sp + 32)) **
-       (.x10 ↦ᵣ sltiu_val) **
+      ((.x5 ↦ᵣ limbShift) ** (.x6 ↦ᵣ bitShift) ** (.x0 ↦ᵣ (0 : Word)) **
+       (.x11 ↦ᵣ mask) ** (.x7 ↦ᵣ antiShift) ** (.x12 ↦ᵣ (sp + 32)) **
+       (.x10 ↦ᵣ sltiuVal) **
        (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3) **
        ((sp + 32) ↦ₘ v0) ** ((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3)) :=
     cpsTriple_weaken
