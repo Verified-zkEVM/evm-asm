@@ -257,7 +257,7 @@ theorem evm_byte_zero_high_spec (sp base : Word)
   rw [byte_bne_target, byte_off_20] at hbne_raw
   have hbne := cpsBranch_extend_code (byte_bne_sub base) hbne_raw
   -- Eliminate ntaken path (i1|||i2|||i3 = 0 contradicts hhigh)
-  have hbne_taken := cpsBranch_elim_taken_strip_pure2 _ _ _ _ _ _ _ _ _ hbne
+  have hbne_taken := cpsBranch_takenStripPure2 hbne
     (fun hp hQf => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQf
       exact absurd ((sepConj_pure_right _ _ _).mp h_rest).2 hhigh)
@@ -334,7 +334,7 @@ theorem evm_byte_zero_geq32_spec (sp base : Word)
   have hbne_raw := bne_spec_gen .x5 .x0 140 (i1 ||| i2 ||| i3) (0 : Word) (base + 20)
   rw [byte_bne_target, byte_off_20] at hbne_raw
   have hbne := cpsBranch_extend_code (byte_bne_sub base) hbne_raw
-  have hbne_ntaken := cpsBranch_elim_ntaken_strip_pure2 _ _ _ _ _ _ _ _ _ hbne
+  have hbne_ntaken := cpsBranch_ntakenStripPure2 hbne
     (fun hp hQt => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQt
       exact ((sepConj_pure_right _ _ _).mp h_rest).2 hlow)
@@ -382,7 +382,7 @@ theorem evm_byte_zero_geq32_spec (sp base : Word)
   have hsltiu_eq : sltiu_val = (0 : Word) := by
     simp only [sltiu_val, hlarge]; decide
   -- Eliminate ntaken: ntaken postcondition has ⌜sltiu_val ≠ 0⌝, but sltiu_val = 0
-  have hbeq_taken := cpsBranch_elim_taken_strip_pure2 _ _ _ _ _ _ _ _ _ hbeq
+  have hbeq_taken := cpsBranch_takenStripPure2 hbeq
     (fun hp hQf => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQf
       exact ((sepConj_pure_right _ _ _).mp h_rest).2 hsltiu_eq)
@@ -500,7 +500,7 @@ theorem evm_byte_body_evmWord_spec (sp base : Word)
   have hbne_raw := bne_spec_gen .x5 .x0 140 (i1 ||| i2 ||| i3) (0 : Word) (base + 20)
   rw [byte_bne_target, byte_off_20] at hbne_raw
   have hbne := cpsBranch_extend_code (byte_bne_sub base) hbne_raw
-  have hbne_ntaken := cpsBranch_elim_ntaken_strip_pure2 _ _ _ _ _ _ _ _ _ hbne
+  have hbne_ntaken := cpsBranch_ntakenStripPure2 hbne
     (fun hp hQt => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQt
       exact ((sepConj_pure_right _ _ _).mp h_rest).2 hhigh_zero)
@@ -540,7 +540,7 @@ theorem evm_byte_body_evmWord_spec (sp base : Word)
   have hbeq_raw := beq_spec_gen .x10 .x0 128 sltiu_val (0 : Word) (base + 32)
   rw [byte_beq_target, byte_off_32] at hbeq_raw
   have hbeq := cpsBranch_extend_code (byte_beq_sub base) hbeq_raw
-  have hbeq_ntaken := cpsBranch_elim_ntaken_strip_pure2 _ _ _ _ _ _ _ _ _ hbeq
+  have hbeq_ntaken := cpsBranch_ntakenStripPure2 hbeq
     (fun hp hQt => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQt
       have heq := ((sepConj_pure_right _ _ _).mp h_rest).2

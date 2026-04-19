@@ -61,7 +61,7 @@ theorem divK_phaseC2_ntaken_spec (sp shift v2 shift_mem : Word) (base : Word)
   rw [show (base + 224 : Word) + signExtend13 172 = base + copyAUOff from by
         rw [se13_172]; bv_addr,
       show (base + 224 : Word) + 4 = base + normBOff from by bv_addr] at hbeq_raw
-  have hbeq_clean := cpsBranch_elim_ntaken_strip_pure2 _ _ _ _ _ _ _ _ _ hbeq_raw
+  have hbeq_clean := cpsBranch_ntakenStripPure2 hbeq_raw
     (fun hp hQt => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQt
       exact absurd ((sepConj_pure_right _ _ _).mp h_rest).2 (show shift ≠ (0 : Word) from hshift_nz))
@@ -91,7 +91,7 @@ theorem divK_phaseC2_taken_spec (sp shift v2 shift_mem : Word) (base : Word)
   rw [show (base + 224 : Word) + signExtend13 172 = base + copyAUOff from by
         rw [se13_172]; bv_addr,
       show (base + 224 : Word) + 4 = base + normBOff from by bv_addr] at hbeq_raw
-  have hbeq_clean := cpsBranch_elim_taken_strip_pure2 _ _ _ _ _ _ _ _ _ hbeq_raw
+  have hbeq_clean := cpsBranch_takenStripPure2 hbeq_raw
     (fun hp hQf => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQf
       exact absurd hshift_z ((sepConj_pure_right _ _ _).mp h_rest).2)

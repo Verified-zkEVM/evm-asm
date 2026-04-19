@@ -321,7 +321,7 @@ theorem evm_mod_bzero_spec (sp base : Word)
   rw [show (base + 28 : Word) + signExtend13 1020 = base + zeroPathOff from by
         rw [se13_1020]; bv_addr,
       show (base + 28 : Word) + 4 = base + phaseBOff from by bv_addr] at hbeq_raw
-  have hbeq_clean := cpsBranch_elim_taken_strip_pure2 _ _ _ _ _ _ _ _ _ hbeq_raw
+  have hbeq_clean := cpsBranch_takenStripPure2 hbeq_raw
     (fun hp hQf => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQf
       exact absurd hbz ((sepConj_pure_right _ _ _).mp h_rest).2)
@@ -376,7 +376,7 @@ theorem evm_mod_phaseA_ntaken_spec (sp base : Word)
   rw [show (base + 28 : Word) + signExtend13 1020 = base + zeroPathOff from by
         rw [se13_1020]; bv_addr,
       show (base + 28 : Word) + 4 = base + phaseBOff from by bv_addr] at hbeq_raw
-  have hbeq_clean := cpsBranch_elim_ntaken_strip_pure2 _ _ _ _ _ _ _ _ _ hbeq_raw
+  have hbeq_clean := cpsBranch_ntakenStripPure2 hbeq_raw
     (fun hp hQt => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQt
       exact absurd ((sepConj_pure_right _ _ _).mp h_rest).2 hbnz)

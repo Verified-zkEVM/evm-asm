@@ -176,7 +176,7 @@ theorem evm_div_bzero_spec (sp base : Word)
   rw [show (base + 28 : Word) + signExtend13 1020 = base + zeroPathOff from by
         rw [se13_1020]; bv_addr,
       show (base + 28 : Word) + 4 = base + phaseBOff from by bv_addr] at hbeq_raw
-  have hbeq_clean := cpsBranch_elim_taken_strip_pure2 _ _ _ _ _ _ _ _ _ hbeq_raw
+  have hbeq_clean := cpsBranch_takenStripPure2 hbeq_raw
     (fun hp hQf => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQf
       exact absurd hbz ((sepConj_pure_right _ _ _).mp h_rest).2)
@@ -234,7 +234,7 @@ theorem evm_div_phaseA_ntaken_spec (sp base : Word)
   rw [show (base + 28 : Word) + signExtend13 1020 = base + zeroPathOff from by
         rw [se13_1020]; bv_addr,
       show (base + 28 : Word) + 4 = base + phaseBOff from by bv_addr] at hbeq_raw
-  have hbeq_clean := cpsBranch_elim_ntaken_strip_pure2 _ _ _ _ _ _ _ _ _ hbeq_raw
+  have hbeq_clean := cpsBranch_ntakenStripPure2 hbeq_raw
     (fun hp hQt => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQt
       exact absurd ((sepConj_pure_right _ _ _).mp h_rest).2 hbnz)
@@ -307,7 +307,7 @@ theorem evm_div_phaseB_n4_spec (sp base : Word)
   have hbne_raw := bne_spec_gen .x10 .x0 24 b3 (0 : Word) (base + 72)
   rw [show (base + 72 : Word) + signExtend13 24 = base + 96 from by
         rw [se13_24]; bv_addr, phB_bne_4] at hbne_raw
-  have hbne_clean := cpsBranch_elim_taken_strip_pure2 _ _ _ _ _ _ _ _ _ hbne_raw
+  have hbne_clean := cpsBranch_takenStripPure2 hbne_raw
     (fun hp hQf => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQf
       exact absurd ((sepConj_pure_right _ _ _).mp h_rest).2 hb3nz)
@@ -547,7 +547,7 @@ theorem evm_div_phaseB_n3_spec (sp base : Word)
   have hbne0_raw := bne_spec_gen .x10 .x0 24 b3 (0 : Word) (base + 72)
   rw [show (base + 72 : Word) + signExtend13 24 = base + 96 from by
         rw [se13_24]; bv_addr, phB_bne_4] at hbne0_raw
-  have hbne0_clean := cpsBranch_elim_ntaken_strip_pure2 _ _ _ _ _ _ _ _ _ hbne0_raw
+  have hbne0_clean := cpsBranch_ntakenStripPure2 hbne0_raw
     (fun hp hQt => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQt
       exact absurd hb3z ((sepConj_pure_right _ _ _).mp h_rest).2)
@@ -582,7 +582,7 @@ theorem evm_div_phaseB_n3_spec (sp base : Word)
   have hbne1_raw := bne_spec_gen .x7 .x0 16 b2 (0 : Word) (base + 80)
   rw [show (base + 80 : Word) + signExtend13 16 = base + 96 from by
         rw [se13_16]; bv_addr, phB_step1_8] at hbne1_raw
-  have hbne1_clean := cpsBranch_elim_taken_strip_pure2 _ _ _ _ _ _ _ _ _ hbne1_raw
+  have hbne1_clean := cpsBranch_takenStripPure2 hbne1_raw
     (fun hp hQf => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQf
       exact absurd ((sepConj_pure_right _ _ _).mp h_rest).2 hb2nz)
@@ -690,7 +690,7 @@ theorem evm_div_phaseB_n2_spec (sp base : Word)
   have hbne0_raw := bne_spec_gen .x10 .x0 24 b3 (0 : Word) (base + 72)
   rw [show (base + 72 : Word) + signExtend13 24 = base + 96 from by
         rw [se13_24]; bv_addr, phB_bne_4] at hbne0_raw
-  have hbne0_clean := cpsBranch_elim_ntaken_strip_pure2 _ _ _ _ _ _ _ _ _ hbne0_raw
+  have hbne0_clean := cpsBranch_ntakenStripPure2 hbne0_raw
     (fun hp hQt => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQt
       exact absurd hb3z ((sepConj_pure_right _ _ _).mp h_rest).2)
@@ -725,7 +725,7 @@ theorem evm_div_phaseB_n2_spec (sp base : Word)
   have hbne1_raw := bne_spec_gen .x7 .x0 16 b2 (0 : Word) (base + 80)
   rw [show (base + 80 : Word) + signExtend13 16 = base + 96 from by
         rw [se13_16]; bv_addr, phB_step1_8] at hbne1_raw
-  have hbne1_clean := cpsBranch_elim_ntaken_strip_pure2 _ _ _ _ _ _ _ _ _ hbne1_raw
+  have hbne1_clean := cpsBranch_ntakenStripPure2 hbne1_raw
     (fun hp hQt => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQt
       exact absurd hb2z ((sepConj_pure_right _ _ _).mp h_rest).2)
@@ -760,7 +760,7 @@ theorem evm_div_phaseB_n2_spec (sp base : Word)
   have hbne2_raw := bne_spec_gen .x6 .x0 8 b1 (0 : Word) (base + 88)
   rw [show (base + 88 : Word) + signExtend13 8 = base + 96 from by
         rw [se13_8]; bv_addr, phB_step2_8] at hbne2_raw
-  have hbne2_clean := cpsBranch_elim_taken_strip_pure2 _ _ _ _ _ _ _ _ _ hbne2_raw
+  have hbne2_clean := cpsBranch_takenStripPure2 hbne2_raw
     (fun hp hQf => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQf
       exact absurd ((sepConj_pure_right _ _ _).mp h_rest).2 hb1nz)
@@ -869,7 +869,7 @@ theorem evm_div_phaseB_n1_spec (sp base : Word)
   have hbne0_raw := bne_spec_gen .x10 .x0 24 b3 (0 : Word) (base + 72)
   rw [show (base + 72 : Word) + signExtend13 24 = base + 96 from by
         rw [se13_24]; bv_addr, phB_bne_4] at hbne0_raw
-  have hbne0_clean := cpsBranch_elim_ntaken_strip_pure2 _ _ _ _ _ _ _ _ _ hbne0_raw
+  have hbne0_clean := cpsBranch_ntakenStripPure2 hbne0_raw
     (fun hp hQt => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQt
       exact absurd hb3z ((sepConj_pure_right _ _ _).mp h_rest).2)
@@ -904,7 +904,7 @@ theorem evm_div_phaseB_n1_spec (sp base : Word)
   have hbne1_raw := bne_spec_gen .x7 .x0 16 b2 (0 : Word) (base + 80)
   rw [show (base + 80 : Word) + signExtend13 16 = base + 96 from by
         rw [se13_16]; bv_addr, phB_step1_8] at hbne1_raw
-  have hbne1_clean := cpsBranch_elim_ntaken_strip_pure2 _ _ _ _ _ _ _ _ _ hbne1_raw
+  have hbne1_clean := cpsBranch_ntakenStripPure2 hbne1_raw
     (fun hp hQt => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQt
       exact absurd hb2z ((sepConj_pure_right _ _ _).mp h_rest).2)
@@ -939,7 +939,7 @@ theorem evm_div_phaseB_n1_spec (sp base : Word)
   have hbne2_raw := bne_spec_gen .x6 .x0 8 b1 (0 : Word) (base + 88)
   rw [show (base + 88 : Word) + signExtend13 8 = base + 96 from by
         rw [se13_8]; bv_addr, phB_step2_8] at hbne2_raw
-  have hbne2_clean := cpsBranch_elim_ntaken_strip_pure2 _ _ _ _ _ _ _ _ _ hbne2_raw
+  have hbne2_clean := cpsBranch_ntakenStripPure2 hbne2_raw
     (fun hp hQt => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQt
       exact absurd hb1z ((sepConj_pure_right _ _ _).mp h_rest).2)

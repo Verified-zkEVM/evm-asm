@@ -255,7 +255,7 @@ theorem divK_loopSetup_ntaken_spec (sp n v1 v5 : Word) (base : Word)
   rw [show (base + 444 : Word) + signExtend13 464 = base + denormOff from by
         rw [se13_464]; bv_addr,
       show (base + 444 : Word) + 4 = base + loopBodyOff from by bv_addr] at hblt_raw
-  have hblt_clean := cpsBranch_elim_ntaken_strip_pure2 _ _ _ _ _ _ _ _ _ hblt_raw
+  have hblt_clean := cpsBranch_ntakenStripPure2 hblt_raw
     (fun hp hQt => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQt
       exact absurd ((sepConj_pure_right _ _ _).mp h_rest).2 hm_ge)
@@ -287,7 +287,7 @@ theorem divK_loopSetup_taken_spec (sp n v1 v5 : Word) (base : Word)
   rw [show (base + 444 : Word) + signExtend13 464 = base + denormOff from by
         rw [se13_464]; bv_addr,
       show (base + 444 : Word) + 4 = base + loopBodyOff from by bv_addr] at hblt_raw
-  have hblt_clean := cpsBranch_elim_taken_strip_pure2 _ _ _ _ _ _ _ _ _ hblt_raw
+  have hblt_clean := cpsBranch_takenStripPure2 hblt_raw
     (fun hp hQf => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQf
       exact absurd hm_lt ((sepConj_pure_right _ _ _).mp h_rest).2)

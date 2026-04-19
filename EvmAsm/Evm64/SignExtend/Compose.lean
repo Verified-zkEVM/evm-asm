@@ -240,7 +240,7 @@ theorem signext_nochange_high_spec (sp base : Word)
   have hbne_raw := bne_spec_gen .x5 .x0 168 (b1 ||| b2 ||| b3) (0 : Word) (base + 20)
   rw [se_bne_target, se_off_20] at hbne_raw
   have hbne := cpsBranch_extend_code (bne_sub_signextCode base) hbne_raw
-  have hbne_taken := cpsBranch_elim_taken_strip_pure2 _ _ _ _ _ _ _ _ _ hbne
+  have hbne_taken := cpsBranch_takenStripPure2 hbne
     (fun hp hQf => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQf
       exact absurd ((sepConj_pure_right _ _ _).mp h_rest).2 hhigh)
@@ -332,7 +332,7 @@ theorem signext_nochange_geq31_spec (sp base : Word)
   have hbne_raw := bne_spec_gen .x5 .x0 168 (b1 ||| b2 ||| b3) (0 : Word) (base + 20)
   rw [se_bne_target, se_off_20] at hbne_raw
   have hbne := cpsBranch_extend_code (bne_sub_signextCode base) hbne_raw
-  have hbne_ntaken := cpsBranch_elim_ntaken_strip_pure2 _ _ _ _ _ _ _ _ _ hbne
+  have hbne_ntaken := cpsBranch_ntakenStripPure2 hbne
     (fun hp hQt => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQt
       exact ((sepConj_pure_right _ _ _).mp h_rest).2 hlow)
@@ -373,7 +373,7 @@ theorem signext_nochange_geq31_spec (sp base : Word)
   have hbeq := cpsBranch_extend_code (beq_sub_signextCode base) hbeq_raw
   have hsltiu_eq : sltiu_val = (0 : Word) := by
     simp only [sltiu_val, hlarge]; decide
-  have hbeq_taken := cpsBranch_elim_taken_strip_pure2 _ _ _ _ _ _ _ _ _ hbeq
+  have hbeq_taken := cpsBranch_takenStripPure2 hbeq
     (fun hp hQf => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQf
       exact ((sepConj_pure_right _ _ _).mp h_rest).2 hsltiu_eq)
@@ -477,7 +477,7 @@ theorem signext_body_spec (sp base : Word)
   have hbne_raw := bne_spec_gen .x5 .x0 168 (b1 ||| b2 ||| b3) (0 : Word) (base + 20)
   rw [se_bne_target, se_off_20] at hbne_raw
   have hbne := cpsBranch_extend_code (bne_sub_signextCode base) hbne_raw
-  have hbne_nt := cpsBranch_elim_ntaken_strip_pure2 _ _ _ _ _ _ _ _ _ hbne
+  have hbne_nt := cpsBranch_ntakenStripPure2 hbne
     (fun hp hQt => by obtain ⟨_, _, _, _, _, h_rest⟩ := hQt; exact ((sepConj_pure_right _ _ _).mp h_rest).2 hhigh)
   have hbne_f := cpsTriple_frame_left (base + 20) (base + 24) _ _ _
     ((.x6 ↦ᵣ r6) ** (.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ b3) ** (sp ↦ₘ b0) ** ((sp + 8) ↦ₘ b1) ** ((sp + 16) ↦ₘ b2) ** ((sp + 24) ↦ₘ b3) **
@@ -508,7 +508,7 @@ theorem signext_body_spec (sp base : Word)
   have hbeq_raw := beq_spec_gen .x10 .x0 156 sltiu_val (0 : Word) (base + 32)
   rw [se_beq_target, se_off_32] at hbeq_raw
   have hbeq := cpsBranch_extend_code (beq_sub_signextCode base) hbeq_raw
-  have hbeq_nt := cpsBranch_elim_ntaken_strip_pure2 _ _ _ _ _ _ _ _ _ hbeq
+  have hbeq_nt := cpsBranch_ntakenStripPure2 hbeq
     (fun hp hQt => by obtain ⟨_, _, _, _, _, h_rest⟩ := hQt; have := ((sepConj_pure_right _ _ _).mp h_rest).2; simp [hsltiu_eq] at this)
   have hbeq_f := cpsTriple_frame_left (base + 32) (base + 36) _ _ _
     ((.x6 ↦ᵣ r6) ** (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ b0) ** (sp ↦ₘ b0) ** ((sp + 8) ↦ₘ b1) ** ((sp + 16) ↦ₘ b2) ** ((sp + 24) ↦ₘ b3) **

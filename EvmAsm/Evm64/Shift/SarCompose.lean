@@ -326,7 +326,7 @@ theorem evm_sar_sign_fill_high_spec (sp base : Word)
   rw [sar_bne_target, sar_off_20] at hbne_raw
   have hbne := cpsBranch_extend_code (bne_sub_sarCode base) hbne_raw
   -- Eliminate ntaken path (s1|||s2|||s3 = 0 contradicts hhigh)
-  have hbne_taken := cpsBranch_elim_taken_strip_pure2 _ _ _ _ _ _ _ _ _ hbne
+  have hbne_taken := cpsBranch_takenStripPure2 hbne
     (fun hp hQf => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQf
       exact absurd ((sepConj_pure_right _ _ _).mp h_rest).2 hhigh)
@@ -421,7 +421,7 @@ theorem evm_sar_sign_fill_large_spec (sp base : Word)
   have hbne_raw := bne_spec_gen .x5 .x0 332 (s1 ||| s2 ||| s3) (0 : Word) (base + 20)
   rw [sar_bne_target, sar_off_20] at hbne_raw
   have hbne := cpsBranch_extend_code (bne_sub_sarCode base) hbne_raw
-  have hbne_ntaken := cpsBranch_elim_ntaken_strip_pure2 _ _ _ _ _ _ _ _ _ hbne
+  have hbne_ntaken := cpsBranch_ntakenStripPure2 hbne
     (fun hp hQt => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQt
       exact ((sepConj_pure_right _ _ _).mp h_rest).2 hlow)
@@ -468,7 +468,7 @@ theorem evm_sar_sign_fill_large_spec (sp base : Word)
   have hsltiu_eq : sltiu_val = (0 : Word) := by
     simp only [sltiu_val, hlarge]; decide
   -- Eliminate ntaken: ntaken postcondition has ⌜sltiu_val ≠ 0⌝, but sltiu_val = 0
-  have hbeq_taken := cpsBranch_elim_taken_strip_pure2 _ _ _ _ _ _ _ _ _ hbeq
+  have hbeq_taken := cpsBranch_takenStripPure2 hbeq
     (fun hp hQf => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQf
       exact ((sepConj_pure_right _ _ _).mp h_rest).2 hsltiu_eq)
@@ -851,7 +851,7 @@ theorem evm_sar_body_evmWord_spec (sp base : Word)
   have hbne_raw := bne_spec_gen .x5 .x0 332 (s1 ||| s2 ||| s3) (0 : Word) (base + 20)
   rw [sar_bne_target, sar_off_20] at hbne_raw
   have hbne := cpsBranch_extend_code (bne_sub_sarCode base) hbne_raw
-  have hbne_ntaken := cpsBranch_elim_ntaken_strip_pure2 _ _ _ _ _ _ _ _ _ hbne
+  have hbne_ntaken := cpsBranch_ntakenStripPure2 hbne
     (fun hp hQt => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQt
       exact ((sepConj_pure_right _ _ _).mp h_rest).2 hhigh_zero)
@@ -891,7 +891,7 @@ theorem evm_sar_body_evmWord_spec (sp base : Word)
   have hbeq_raw := beq_spec_gen .x10 .x0 320 sltiu_val (0 : Word) (base + 32)
   rw [sar_beq_target, sar_off_32] at hbeq_raw
   have hbeq := cpsBranch_extend_code (beq_sub_sarCode base) hbeq_raw
-  have hbeq_ntaken := cpsBranch_elim_ntaken_strip_pure2 _ _ _ _ _ _ _ _ _ hbeq
+  have hbeq_ntaken := cpsBranch_ntakenStripPure2 hbeq
     (fun hp hQt => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQt
       have heq := ((sepConj_pure_right _ _ _).mp h_rest).2

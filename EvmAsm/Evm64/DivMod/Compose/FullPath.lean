@@ -720,7 +720,7 @@ theorem evm_div_shift0_epilogue_spec (sp base : Word)
         [.BEQ .x6 .x0 96] 1 (by bv_addr) (by decide) (by decide) (by decide) a i h)) hbeq
   -- 3. Eliminate not-taken branch: shift = 0 means BEQ taken
   --    BEQ not-taken postcondition: (.x6 ↦ᵣ shift) ** (.x0 ↦ᵣ 0) ** ⌜shift ≠ 0⌝
-  have hbeq_exit := cpsBranch_elim_taken_strip_pure2 _ _ _ _ _ _ _ _ _ hbeqe
+  have hbeq_exit := cpsBranch_takenStripPure2 hbeqe
     (fun hp hQf => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQf
       exact absurd hshift_z ((sepConj_pure_right _ _ _).mp h_rest).2)
@@ -807,7 +807,7 @@ theorem evm_mod_shift0_epilogue_spec (sp base : Word)
         [.BEQ .x6 .x0 96] 1 (by bv_addr) (by decide) (by decide) (by decide) a i h)) hbeq
   -- 3. Eliminate not-taken branch: shift = 0 means BEQ taken
   --    BEQ not-taken postcondition: (.x6 ↦ᵣ shift) ** (.x0 ↦ᵣ 0) ** ⌜shift ≠ 0⌝
-  have hbeq_exit := cpsBranch_elim_taken_strip_pure2 _ _ _ _ _ _ _ _ _ hbeqe
+  have hbeq_exit := cpsBranch_takenStripPure2 hbeqe
     (fun hp hQf => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQf
       exact absurd hshift_z ((sepConj_pure_right _ _ _).mp h_rest).2)

@@ -156,7 +156,7 @@ theorem evm_mod_phaseB_n4_spec (sp base : Word)
   have hbne_raw := bne_spec_gen .x10 .x0 24 b3 (0 : Word) (base + 72)
   rw [show (base + 72 : Word) + signExtend13 24 = base + 96 from by
         rw [se13_24]; bv_addr, mod_phB_bne_4] at hbne_raw
-  have hbne_clean := cpsBranch_elim_taken_strip_pure2 _ _ _ _ _ _ _ _ _ hbne_raw
+  have hbne_clean := cpsBranch_takenStripPure2 hbne_raw
     (fun hp hQf => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQf
       exact absurd ((sepConj_pure_right _ _ _).mp h_rest).2 hb3nz)

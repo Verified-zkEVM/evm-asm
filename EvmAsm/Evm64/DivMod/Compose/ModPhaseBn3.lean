@@ -82,7 +82,7 @@ theorem evm_mod_phaseB_n3_spec (sp base : Word)
   have hbne0_raw := bne_spec_gen .x10 .x0 24 b3 (0 : Word) (base + 72)
   rw [show (base + 72 : Word) + signExtend13 24 = base + 96 from by
         rw [se13_24]; bv_addr, mod_phB_bne_4] at hbne0_raw
-  have hbne0_clean := cpsBranch_elim_ntaken_strip_pure2 _ _ _ _ _ _ _ _ _ hbne0_raw
+  have hbne0_clean := cpsBranch_ntakenStripPure2 hbne0_raw
     (fun hp hQt => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQt
       exact absurd hb3z ((sepConj_pure_right _ _ _).mp h_rest).2)
@@ -117,7 +117,7 @@ theorem evm_mod_phaseB_n3_spec (sp base : Word)
   have hbne1_raw := bne_spec_gen .x7 .x0 16 b2 (0 : Word) (base + 80)
   rw [show (base + 80 : Word) + signExtend13 16 = base + 96 from by
         rw [se13_16]; bv_addr, mod_phB_step1_8] at hbne1_raw
-  have hbne1_clean := cpsBranch_elim_taken_strip_pure2 _ _ _ _ _ _ _ _ _ hbne1_raw
+  have hbne1_clean := cpsBranch_takenStripPure2 hbne1_raw
     (fun hp hQf => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQf
       exact absurd ((sepConj_pure_right _ _ _).mp h_rest).2 hb2nz)
