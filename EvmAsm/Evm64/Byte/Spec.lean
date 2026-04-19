@@ -25,7 +25,7 @@ namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
 open EvmAsm.Rv64.AddrNorm (se13_20 se13_44 se13_68 se13_128 se13_140 se21_16 se21_24 se21_32 se21_48
-  zero_add_se12_1_toNat zero_add_se12_2_toNat)
+  zero_add_se12_1_toNat zero_add_se12_2_toNat bv6_toNat_3)
 
 -- ============================================================================
 -- Full program CodeReq
@@ -634,7 +634,7 @@ theorem evm_byte_body_evmWord_spec (sp base : Word)
   have hresult_high3 : getLimb result 3 = 0 :=
     byte_getLimb_high idx value (3 : Fin 4) (show (3 : Fin 4).val ≠ 0 by decide)
   have hresult_limb0 := byte_correct idx value hlt
-  have h3bv : (3 : BitVec 6).toNat = 3 := by decide
+  have h3bv := bv6_toNat_3
   have hlimb_val : limb_from_msb.toNat = i0.toNat / 8 := by
     show (i0 >>> (3 : BitVec 6).toNat).toNat = i0.toNat / 8
     rw [h3bv]; simp [BitVec.toNat_ushiftRight]; omega
