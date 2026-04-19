@@ -274,6 +274,37 @@ def fullDivN4MaxSkipPost (sp a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Assertion :=
   (sp + signExtend12 3976 ↦ₘ (0 : Word)) **
   (.x1 ↦ᵣ signExtend12 4095) ** (.x11 ↦ᵣ q_hat)
 
+/-- Named unfold for `fullDivN4MaxSkipPost`. Restores access to the
+    underlying sepConj structure once the `@[irreducible]` attribute
+    above makes `delta` the only way in. Parallel to the `_unfold`
+    theorems for the other post bundles (`denormDivPost_unfold` etc.). -/
+theorem fullDivN4MaxSkipPost_unfold (sp a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
+    fullDivN4MaxSkipPost sp a0 a1 a2 a3 b0 b1 b2 b3 =
+    (let shift := (clzResult b3).1
+     let anti_shift := signExtend12 (0 : BitVec 12) - shift
+     let b3' := (b3 <<< (shift.toNat % 64)) ||| (b2 >>> (anti_shift.toNat % 64))
+     let b2' := (b2 <<< (shift.toNat % 64)) ||| (b1 >>> (anti_shift.toNat % 64))
+     let b1' := (b1 <<< (shift.toNat % 64)) ||| (b0 >>> (anti_shift.toNat % 64))
+     let b0' := b0 <<< (shift.toNat % 64)
+     let u3 := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (anti_shift.toNat % 64))
+     let u2 := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (anti_shift.toNat % 64))
+     let u1 := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (anti_shift.toNat % 64))
+     let u0 := a0 <<< (shift.toNat % 64)
+     let q_hat : Word := signExtend12 4095
+     let ms := mulsubN4 q_hat b0' b1' b2' b3' u0 u1 u2 u3
+     denormDivPost sp shift ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 q_hat 0 0 0 **
+     ((sp + signExtend12 3992) ↦ₘ shift) **
+     ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
+     ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+     ((sp + signExtend12 4024) ↦ₘ (a3 >>> (anti_shift.toNat % 64)) - ms.2.2.2.2) **
+     ((sp + signExtend12 4016) ↦ₘ (0 : Word)) **
+     ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
+     ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
+     (sp + signExtend12 3984 ↦ₘ (4 : Word)) **
+     (sp + signExtend12 3976 ↦ₘ (0 : Word)) **
+     (.x1 ↦ᵣ signExtend12 4095) ** (.x11 ↦ᵣ q_hat)) := by
+  delta fullDivN4MaxSkipPost; rfl
+
 /-- `fullDivN4MaxSkipPost` is pc-free: all its atoms (inside the
     `denormDivPost` sub-bundle plus the top-level wrapper atoms) are
     `regIs` / `memIs`. Proof goes through `delta` since the bundle is
