@@ -2,16 +2,16 @@
   EvmAsm.Evm64.DivMod.LoopBodyN4
 
   Fixed loop body compositions for n=4 (4-limb divisor, m=0, single iteration).
-  Eliminates the u_addr/window-cell and vtop/v3 overlaps in the generic spec.
+  Eliminates the uAddr/window-cell and vtop/v3 overlaps in the generic spec.
 
   For n=4, three address overlaps exist:
-  1. u_addr = u_base + signExtend12 4064  (both refer to u[j+4])
-  2. u_addr + 8 = u_base + signExtend12 4072  (both refer to u[j+3])
-  3. vtop_base + signExtend12 32 = sp + signExtend12 56  (both refer to v[3])
+  1. uAddr = u_base + signExtend12 4064  (both refer to u[j+4])
+  2. uAddr + 8 = u_base + signExtend12 4072  (both refer to u[j+3])
+  3. vtopBase + signExtend12 32 = sp + signExtend12 56  (both refer to v[3])
 
   This file eliminates these overlaps by:
   - Expanding the trial spec's let-bindings via dsimp
-  - Rewriting u_addr and vtop_base to canonical u_base-relative form
+  - Rewriting uAddr and vtopBase to canonical u_base-relative form
   - Framing only with cells NOT already in the trial spec
   - Composing without cell duplication in any separating conjunction
 -/
@@ -29,7 +29,7 @@ open EvmAsm.Rv64
 -- Address rewriting lemmas for n=4 (no let-bindings, suitable for rw)
 -- ============================================================================
 
-/-- For n=4: u_addr = u_base + signExtend12 4064 -/
+/-- For n=4: uAddr = u_base + signExtend12 4064 -/
 theorem u_addr_eq_n4 (sp j : Word) :
     sp + signExtend12 4056 - (j + (4 : Word)) <<< (3 : BitVec 6).toNat =
     (sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 4064 := by
@@ -41,7 +41,7 @@ theorem u_addr8_eq_n4 (sp j : Word) :
     (sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 4072 := by
   divmod_addr
 
-/-- For n=4: vtop_base + signExtend12 32 = sp + signExtend12 56 -/
+/-- For n=4: vtopBase + signExtend12 32 = sp + signExtend12 56 -/
 theorem vtop_eq_v3_n4 (sp : Word) :
     (sp + ((4 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat) + signExtend12 32 =
     sp + signExtend12 56 := by
@@ -109,21 +109,21 @@ theorem divK_loop_body_n4_max_skip_spec
   let un3 := u3 - fs3; let c3 := pc3 + bs3
   let u4_new := u_top - c3
   let j' := j + signExtend12 4095
-  -- Abbreviation for vtop_base (register value, not a memory address)
-  let vtop_base := sp + ((4 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
+  -- Abbreviation for vtopBase (register value, not a memory address)
+  let vtopBase := sp + ((4 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
   -- 1. Trial max full (base+448 → base+516), instantiated with n=4, u_hi=u_top, u_lo=u3, v_top=v3
   have TF := divK_trial_max_full_spec sp j (4 : Word) j_old v5_old v6_old v7_old v10_old v11_old
     u_top u3 v3 base hbltu
   -- Expand let-bindings in TF to expose raw address expressions
   dsimp only [] at TF
-  -- Rewrite u_addr → u_base + signExtend12 4064, and (u_addr+8) → u_base + signExtend12 4072
+  -- Rewrite uAddr → u_base + signExtend12 4064, and (uAddr+8) → u_base + signExtend12 4072
   rw [u_addr_eq_n4 sp j] at TF
   rw [u_addr8_eq_n4 sp j] at TF
-  -- Rewrite vtop_base + signExtend12 32 → sp + signExtend12 56
+  -- Rewrite vtopBase + signExtend12 32 → sp + signExtend12 56
   rw [vtop_eq_v3_n4 sp] at TF
   -- 2. Mulsub + correction skip (base+516 → base+880)
   have MCS := divK_mulsub_correction_skip_spec sp q_hat j v0 v1 v2 v3 u0 u1 u2 u3 u_top
-    j u3 vtop_base u_top v3 v2_old base
+    j u3 vtopBase u_top v3 v2_old base
 
   intro_lets at MCS
   have MCS0 := MCS hborrow
@@ -213,8 +213,8 @@ theorem divK_loop_body_n4_max_addback_spec
   let carry_out := if carry = 0 then
       addbackN4_carry ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 v0 v1 v2 v3
     else carry
-  -- Abbreviation for vtop_base (register value, not a memory address)
-  let vtop_base := sp + ((4 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
+  -- Abbreviation for vtopBase (register value, not a memory address)
+  let vtopBase := sp + ((4 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
   -- 1. Trial max full (base+448 → base+516)
   have TF := divK_trial_max_full_spec sp j (4 : Word) j_old v5_old v6_old v7_old v10_old v11_old
     u_top u3 v3 base hbltu
@@ -224,7 +224,7 @@ theorem divK_loop_body_n4_max_addback_spec
   rw [vtop_eq_v3_n4 sp] at TF
   -- 2. Mulsub + correction addback + BEQ (base+516 → base+884)
   have MCA := divK_mulsub_correction_addback_beq_spec sp q_hat j v0 v1 v2 v3 u0 u1 u2 u3 u_top
-    j u3 vtop_base u_top v3 v2_old base
+    j u3 vtopBase u_top v3 v2_old base
 
   intro_lets at MCA
   have MCA0 := MCA hcarry2_nz hborrow
@@ -365,7 +365,7 @@ theorem divK_loop_body_n4_call_skip_spec
   let un3 := u3 - fs3; let c3 := pc3 + bs3
   let u4_new := u_top - c3
   let j' := j + signExtend12 4095
-  let vtop_base := sp + ((4 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
+  let vtopBase := sp + ((4 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
   -- 1. Trial call full (base+448 → base+516)
   have TF := divK_trial_call_full_spec sp j (4 : Word) j_old v5_old v6_old v7_old v10_old v11_old v2_old
     u_top u3 v3 ret_mem d_mem dlo_mem scratch_un0 base
@@ -511,7 +511,7 @@ theorem divK_loop_body_n4_call_addback_spec
   let carry_out := if carry = 0 then
       addbackN4_carry ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 v0 v1 v2 v3
     else carry
-  let vtop_base := sp + ((4 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
+  let vtopBase := sp + ((4 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
   -- 1. Trial call full (base+448 → base+516)
   have TF := divK_trial_call_full_spec sp j (4 : Word) j_old v5_old v6_old v7_old v10_old v11_old v2_old
     u_top u3 v3 ret_mem d_mem dlo_mem scratch_un0 base

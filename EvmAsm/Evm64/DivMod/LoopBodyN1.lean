@@ -2,16 +2,16 @@
   EvmAsm.Evm64.DivMod.LoopBodyN1
 
   Fixed loop body compositions for n=1 (1-limb divisor).
-  Eliminates the u_addr/window-cell and vtop/v0 overlaps in the generic spec.
+  Eliminates the uAddr/window-cell and vtop/v0 overlaps in the generic spec.
 
   For n=1, three address overlaps exist:
-  1. u_addr = u_base + signExtend12 4088  (both refer to u[j+1])
-  2. u_addr + 8 = u_base + signExtend12 0  (both refer to u[j+0])
-  3. vtop_base + signExtend12 32 = sp + signExtend12 32  (both refer to v[0])
+  1. uAddr = u_base + signExtend12 4088  (both refer to u[j+1])
+  2. uAddr + 8 = u_base + signExtend12 0  (both refer to u[j+0])
+  3. vtopBase + signExtend12 32 = sp + signExtend12 32  (both refer to v[0])
 
   This file eliminates these overlaps by:
   - Expanding the trial spec's let-bindings via dsimp
-  - Rewriting u_addr and vtop_base to canonical u_base-relative form
+  - Rewriting uAddr and vtopBase to canonical u_base-relative form
   - Framing only with cells NOT already in the trial spec
   - Composing without cell duplication in any separating conjunction
 -/
@@ -29,7 +29,7 @@ open EvmAsm.Rv64
 -- Address rewriting lemmas for n=1 (no let-bindings, suitable for rw)
 -- ============================================================================
 
-/-- For n=1: u_addr = u_base + signExtend12 4088 -/
+/-- For n=1: uAddr = u_base + signExtend12 4088 -/
 theorem u_addr_eq_n1 (sp j : Word) :
     sp + signExtend12 4056 - (j + (1 : Word)) <<< (3 : BitVec 6).toNat =
     (sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 4088 := by
@@ -41,7 +41,7 @@ theorem u_addr8_eq_n1 (sp j : Word) :
     (sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 0 := by
   divmod_addr
 
-/-- For n=1: vtop_base + signExtend12 32 = sp + signExtend12 32 -/
+/-- For n=1: vtopBase + signExtend12 32 = sp + signExtend12 32 -/
 theorem vtop_eq_v0_n1 (sp : Word) :
     (sp + ((1 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat) + signExtend12 32 =
     sp + signExtend12 32 := by
@@ -57,7 +57,7 @@ theorem divK_trial_max_full_spec_n1
     (base : Word)
     (hbltu : ¬BitVec.ult u1 v0) :
     let u_base := sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat
-    let vtop_base := sp + ((1 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
+    let vtopBase := sp + ((1 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
     cpsTriple (base + loopBodyOff) (base + 516) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
        (.x5 ↦ᵣ v5_old) ** (.x6 ↦ᵣ v6_old) **
@@ -67,13 +67,13 @@ theorem divK_trial_max_full_spec_n1
        ((u_base + signExtend12 4088) ↦ₘ u1) ** ((u_base + signExtend12 0) ↦ₘ u0) **
        ((sp + signExtend12 32) ↦ₘ v0))
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
-       (.x5 ↦ᵣ u0) ** (.x6 ↦ᵣ vtop_base) **
+       (.x5 ↦ᵣ u0) ** (.x6 ↦ᵣ vtopBase) **
        (.x7 ↦ᵣ u1) ** (.x10 ↦ᵣ v0) ** (.x11 ↦ᵣ signExtend12 4095) **
        (.x0 ↦ᵣ (0 : Word)) **
        (sp + signExtend12 3976 ↦ₘ j) ** (sp + signExtend12 3984 ↦ₘ (1 : Word)) **
        ((u_base + signExtend12 4088) ↦ₘ u1) ** ((u_base + signExtend12 0) ↦ₘ u0) **
        ((sp + signExtend12 32) ↦ₘ v0)) := by
-  intro u_base vtop_base
+  intro u_base vtopBase
   have TF := divK_trial_max_full_spec sp j (1 : Word) j_old v5_old v6_old v7_old v10_old v11_old
     u1 u0 v0 base hbltu
   dsimp only [] at TF
@@ -211,15 +211,15 @@ theorem divK_loop_body_n1_max_skip_spec
   let un3 := u3 - fs3; let c3 := pc3 + bs3
   let u4_new := u_top - c3
   let j' := j + signExtend12 4095
-  -- Abbreviation for vtop_base (register value, not a memory address)
-  let vtop_base := sp + ((1 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
+  -- Abbreviation for vtopBase (register value, not a memory address)
+  let vtopBase := sp + ((1 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
   -- 1. Trial max full for n=1 (base+448 → base+516)
   have TF := divK_trial_max_full_spec_n1 sp j j_old v5_old v6_old v7_old v10_old v11_old
     u1 u0 v0 base hbltu
   dsimp only [] at TF
   -- 2. Mulsub + correction skip (base+516 → base+880)
   have MCS := divK_mulsub_correction_skip_spec sp q_hat j v0 v1 v2 v3 u0 u1 u2 u3 u_top
-    j u0 vtop_base u1 v0 v2_old base
+    j u0 vtopBase u1 v0 v2_old base
 
   intro_lets at MCS
   have MCS0 := MCS hborrow
@@ -309,14 +309,14 @@ theorem divK_loop_body_n1_max_addback_spec
   let carry_out := if carry = 0 then
       addbackN4_carry ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 v0 v1 v2 v3
     else carry
-  let vtop_base := sp + ((1 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
+  let vtopBase := sp + ((1 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
   -- 1. Trial max full for n=1 (base+448 → base+516)
   have TF := divK_trial_max_full_spec_n1 sp j j_old v5_old v6_old v7_old v10_old v11_old
     u1 u0 v0 base hbltu
   dsimp only [] at TF
   -- 2. Mulsub + correction addback + BEQ (base+516 → base+884)
   have MCA := divK_mulsub_correction_addback_beq_spec sp q_hat j v0 v1 v2 v3 u0 u1 u2 u3 u_top
-    j u0 vtop_base u1 v0 v2_old base
+    j u0 vtopBase u1 v0 v2_old base
 
   intro_lets at MCA
   have MCA0 := MCA hcarry2_nz hborrow
@@ -457,7 +457,7 @@ theorem divK_loop_body_n1_call_skip_spec
   let un3 := u3 - fs3; let c3 := pc3 + bs3
   let u4_new := u_top - c3
   let j' := j + signExtend12 4095
-  let vtop_base := sp + ((1 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
+  let vtopBase := sp + ((1 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
   -- 1. Trial call full for n=1 (base+448 → base+516)
   have TF := divK_trial_call_full_spec_n1 sp j j_old v5_old v6_old v7_old v10_old v11_old v2_old
     u1 u0 v0 ret_mem d_mem dlo_mem scratch_un0 base
@@ -601,7 +601,7 @@ theorem divK_loop_body_n1_call_addback_spec
   let carry_out := if carry = 0 then
       addbackN4_carry ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 v0 v1 v2 v3
     else carry
-  let vtop_base := sp + ((1 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
+  let vtopBase := sp + ((1 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
   -- 1. Trial call full for n=1 (base+448 → base+516)
   have TF := divK_trial_call_full_spec_n1 sp j j_old v5_old v6_old v7_old v10_old v11_old v2_old
     u1 u0 v0 ret_mem d_mem dlo_mem scratch_un0 base

@@ -80,7 +80,7 @@ theorem divK_loop_body_n2_max_skip_j0_spec
   let bs3 := if BitVec.ult u3 fs3 then (1 : Word) else 0
   let un3 := u3 - fs3; let c3 := pc3 + bs3
   let u4_new := u_top - c3
-  let vtop_base := sp + ((2 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
+  let vtopBase := sp + ((2 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
   -- 1. Trial max full (base+448 → base+516)
   have TF := divK_trial_max_full_spec sp (0 : Word) (2 : Word) j_old v5_old v6_old v7_old v10_old v11_old
     u2 u1 v1 base hbltu
@@ -90,7 +90,7 @@ theorem divK_loop_body_n2_max_skip_j0_spec
   rw [vtop_eq_v1_n2 sp] at TF
   -- 2. Mulsub + correction skip (base+516 → base+880)
   have MCS := divK_mulsub_correction_skip_spec sp q_hat (0 : Word) v0 v1 v2 v3 u0 u1 u2 u3 u_top
-    (0 : Word) u1 vtop_base u2 v1 v2_old base
+    (0 : Word) u1 vtopBase u2 v1 v2_old base
 
   intro_lets at MCS
   have MCS0 := MCS hborrow
@@ -188,7 +188,7 @@ theorem divK_loop_body_n2_call_skip_j0_spec
   let q_hat := (q1' <<< (32 : BitVec 6).toNat) ||| q0'
   -- Unfold borrow condition
   unfold isSkipBorrowN2Call div128Quot at hborrow
-  let vtop_base := sp + ((2 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
+  let vtopBase := sp + ((2 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
   -- 1. Trial call full (base+448 → base+516)
   have TF := divK_trial_call_full_spec sp (0 : Word) (2 : Word) j_old v5_old v6_old v7_old v10_old v11_old v2_old
     u2 u1 v1 ret_mem d_mem dlo_mem scratch_un0 base
@@ -309,7 +309,7 @@ theorem divK_loop_body_n2_max_skip_j1_spec
   let pc3 := ba3 + p3_hi; let bs3 := if BitVec.ult u3 fs3 then (1 : Word) else 0
   let un3 := u3 - fs3; let c3 := pc3 + bs3
   let u4_new := u_top - c3
-  let vtop_base := sp + ((2 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
+  let vtopBase := sp + ((2 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
   have TF := divK_trial_max_full_spec sp (1 : Word) (2 : Word) j_old v5_old v6_old v7_old v10_old v11_old
     u2 u1 v1 base hbltu
   dsimp only [] at TF
@@ -317,7 +317,7 @@ theorem divK_loop_body_n2_max_skip_j1_spec
   rw [u_addr8_eq_n2 sp (1 : Word)] at TF
   rw [vtop_eq_v1_n2 sp] at TF
   have MCS := divK_mulsub_correction_skip_spec sp q_hat (1 : Word) v0 v1 v2 v3 u0 u1 u2 u3 u_top
-    (1 : Word) u1 vtop_base u2 v1 v2_old base
+    (1 : Word) u1 vtopBase u2 v1 v2_old base
 
   intro_lets at MCS
   have MCS0 := MCS hborrow
@@ -408,7 +408,7 @@ theorem divK_loop_body_n2_call_skip_j1_spec
   let q0' := if BitVec.ult rhat2_un0 q0_dlo then q0c + signExtend12 4095 else q0c
   let q_hat := (q1' <<< (32 : BitVec 6).toNat) ||| q0'
   unfold isSkipBorrowN2Call div128Quot at hborrow
-  let vtop_base := sp + ((2 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
+  let vtopBase := sp + ((2 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
   have TF := divK_trial_call_full_spec sp (1 : Word) (2 : Word) j_old v5_old v6_old v7_old v10_old v11_old v2_old
     u2 u1 v1 ret_mem d_mem dlo_mem scratch_un0 base
     halign hbltu
@@ -524,7 +524,7 @@ theorem divK_loop_body_n2_max_skip_j2_spec
   let pc3 := ba3 + p3_hi; let bs3 := if BitVec.ult u3 fs3 then (1 : Word) else 0
   let un3 := u3 - fs3; let c3 := pc3 + bs3
   let u4_new := u_top - c3
-  let vtop_base := sp + ((2 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
+  let vtopBase := sp + ((2 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
   have TF := divK_trial_max_full_spec sp (2 : Word) (2 : Word) j_old v5_old v6_old v7_old v10_old v11_old
     u2 u1 v1 base hbltu
   dsimp only [] at TF
@@ -532,7 +532,7 @@ theorem divK_loop_body_n2_max_skip_j2_spec
   rw [u_addr8_eq_n2 sp (2 : Word)] at TF
   rw [vtop_eq_v1_n2 sp] at TF
   have MCS := divK_mulsub_correction_skip_spec sp q_hat (2 : Word) v0 v1 v2 v3 u0 u1 u2 u3 u_top
-    (2 : Word) u1 vtop_base u2 v1 v2_old base
+    (2 : Word) u1 vtopBase u2 v1 v2_old base
 
   intro_lets at MCS
   have MCS0 := MCS hborrow
@@ -623,7 +623,7 @@ theorem divK_loop_body_n2_call_skip_j2_spec
   let q0' := if BitVec.ult rhat2_un0 q0_dlo then q0c + signExtend12 4095 else q0c
   let q_hat := (q1' <<< (32 : BitVec 6).toNat) ||| q0'
   unfold isSkipBorrowN2Call div128Quot at hborrow
-  let vtop_base := sp + ((2 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
+  let vtopBase := sp + ((2 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
   have TF := divK_trial_call_full_spec sp (2 : Word) (2 : Word) j_old v5_old v6_old v7_old v10_old v11_old v2_old
     u2 u1 v1 ret_mem d_mem dlo_mem scratch_un0 base
     halign hbltu
@@ -738,7 +738,7 @@ theorem divK_loop_body_n2_max_addback_j0_beq_spec
   let carry_out := if carry = 0 then
       addbackN4_carry ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 v0 v1 v2 v3
     else carry
-  let vtop_base := sp + ((2 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
+  let vtopBase := sp + ((2 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
   have TF := divK_trial_max_full_spec sp (0 : Word) (2 : Word) j_old v5_old v6_old v7_old v10_old v11_old
     u2 u1 v1 base hbltu
   dsimp only [] at TF
@@ -746,7 +746,7 @@ theorem divK_loop_body_n2_max_addback_j0_beq_spec
   rw [u_addr8_eq_n2 sp (0 : Word)] at TF
   rw [vtop_eq_v1_n2 sp] at TF
   have MCA := divK_mulsub_correction_addback_beq_spec sp q_hat (0 : Word) v0 v1 v2 v3 u0 u1 u2 u3 u_top
-    (0 : Word) u1 vtop_base u2 v1 v2_old base
+    (0 : Word) u1 vtopBase u2 v1 v2_old base
 
   intro_lets at MCA
   unfold isAddbackCarry2NzN2Max isAddbackCarry2Nz at hcarry2_nz
@@ -853,7 +853,7 @@ theorem divK_loop_body_n2_call_addback_j0_beq_spec
   let carry_out := if carry = 0 then
       addbackN4_carry ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 v0 v1 v2 v3
     else carry
-  let vtop_base := sp + ((2 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
+  let vtopBase := sp + ((2 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
   -- 1. Trial call full (base+448 → base+516)
   have TF := divK_trial_call_full_spec sp (0 : Word) (2 : Word) j_old v5_old v6_old v7_old v10_old v11_old v2_old
     u2 u1 v1 ret_mem d_mem dlo_mem scratch_un0 base
@@ -951,7 +951,7 @@ theorem divK_loop_body_n2_max_addback_j1_beq_spec
   let carry_out := if carry = 0 then
       addbackN4_carry ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 v0 v1 v2 v3
     else carry
-  let vtop_base := sp + ((2 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
+  let vtopBase := sp + ((2 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
   have TF := divK_trial_max_full_spec sp (1 : Word) (2 : Word) j_old v5_old v6_old v7_old v10_old v11_old
     u2 u1 v1 base hbltu
   dsimp only [] at TF
@@ -959,7 +959,7 @@ theorem divK_loop_body_n2_max_addback_j1_beq_spec
   rw [u_addr8_eq_n2 sp (1 : Word)] at TF
   rw [vtop_eq_v1_n2 sp] at TF
   have MCA := divK_mulsub_correction_addback_beq_spec sp q_hat (1 : Word) v0 v1 v2 v3 u0 u1 u2 u3 u_top
-    (1 : Word) u1 vtop_base u2 v1 v2_old base
+    (1 : Word) u1 vtopBase u2 v1 v2_old base
 
   intro_lets at MCA
   unfold isAddbackCarry2NzN2Max isAddbackCarry2Nz at hcarry2_nz
@@ -1065,7 +1065,7 @@ theorem divK_loop_body_n2_call_addback_j1_beq_spec
   let carry_out := if carry = 0 then
       addbackN4_carry ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 v0 v1 v2 v3
     else carry
-  let vtop_base := sp + ((2 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
+  let vtopBase := sp + ((2 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
   have TF := divK_trial_call_full_spec sp (1 : Word) (2 : Word) j_old v5_old v6_old v7_old v10_old v11_old v2_old
     u2 u1 v1 ret_mem d_mem dlo_mem scratch_un0 base
     halign hbltu
@@ -1157,7 +1157,7 @@ theorem divK_loop_body_n2_max_addback_j2_beq_spec
   let carry_out := if carry = 0 then
       addbackN4_carry ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 v0 v1 v2 v3
     else carry
-  let vtop_base := sp + ((2 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
+  let vtopBase := sp + ((2 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
   have TF := divK_trial_max_full_spec sp (2 : Word) (2 : Word) j_old v5_old v6_old v7_old v10_old v11_old
     u2 u1 v1 base hbltu
   dsimp only [] at TF
@@ -1165,7 +1165,7 @@ theorem divK_loop_body_n2_max_addback_j2_beq_spec
   rw [u_addr8_eq_n2 sp (2 : Word)] at TF
   rw [vtop_eq_v1_n2 sp] at TF
   have MCA := divK_mulsub_correction_addback_beq_spec sp q_hat (2 : Word) v0 v1 v2 v3 u0 u1 u2 u3 u_top
-    (2 : Word) u1 vtop_base u2 v1 v2_old base
+    (2 : Word) u1 vtopBase u2 v1 v2_old base
 
   intro_lets at MCA
   unfold isAddbackCarry2NzN2Max isAddbackCarry2Nz at hcarry2_nz
@@ -1271,7 +1271,7 @@ theorem divK_loop_body_n2_call_addback_j2_beq_spec
   let carry_out := if carry = 0 then
       addbackN4_carry ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 v0 v1 v2 v3
     else carry
-  let vtop_base := sp + ((2 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
+  let vtopBase := sp + ((2 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
   have TF := divK_trial_call_full_spec sp (2 : Word) (2 : Word) j_old v5_old v6_old v7_old v10_old v11_old v2_old
     u2 u1 v1 ret_mem d_mem dlo_mem scratch_un0 base
     halign hbltu

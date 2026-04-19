@@ -74,7 +74,7 @@ theorem divK_loop_body_n4_max_skip_j0_spec
   let un3 := u3 - fs3; let c3 := pc3 + bs3
   let u4_new := u_top - c3
 
-  let vtop_base := sp + ((4 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
+  let vtopBase := sp + ((4 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
   -- 1. Trial max full (base+448 → base+516)
   have TF := divK_trial_max_full_spec sp (0 : Word) (4 : Word) j_old v5_old v6_old v7_old v10_old v11_old
     u_top u3 v3 base hbltu
@@ -84,7 +84,7 @@ theorem divK_loop_body_n4_max_skip_j0_spec
   rw [vtop_eq_v3_n4 sp] at TF
   -- 2. Mulsub + correction skip (base+516 → base+880)
   have MCS := divK_mulsub_correction_skip_spec sp q_hat (0 : Word) v0 v1 v2 v3 u0 u1 u2 u3 u_top
-    (0 : Word) u3 vtop_base u_top v3 v2_old base
+    (0 : Word) u3 vtopBase u_top v3 v2_old base
 
   intro_lets at MCS
   have MCS0 := MCS hborrow
@@ -210,7 +210,7 @@ theorem divK_loop_body_n4_call_skip_j0_spec
   let un3 := u3 - fs3; let c3 := pc3 + bs3
   let u4_new := u_top - c3
 
-  let vtop_base := sp + ((4 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
+  let vtopBase := sp + ((4 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
   -- 1. Trial call full (base+448 → base+516)
   have TF := divK_trial_call_full_spec sp (0 : Word) (4 : Word) j_old v5_old v6_old v7_old v10_old v11_old v2_old
     u_top u3 v3 ret_mem d_mem dlo_mem scratch_un0 base
@@ -310,7 +310,7 @@ theorem divK_loop_body_n4_max_addback_j0_beq_spec
   let carry_out := if carry = 0 then
       addbackN4_carry ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 v0 v1 v2 v3
     else carry
-  let vtop_base := sp + ((4 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
+  let vtopBase := sp + ((4 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
   -- 1. Trial max full (base+448 → base+516)
   have TF := divK_trial_max_full_spec sp (0 : Word) (4 : Word) j_old v5_old v6_old v7_old v10_old v11_old
     u_top u3 v3 base hbltu
@@ -320,7 +320,7 @@ theorem divK_loop_body_n4_max_addback_j0_beq_spec
   rw [vtop_eq_v3_n4 sp] at TF
   -- 2. Use beq_spec instead of old spec (NO sorry!)
   have MCA := divK_mulsub_correction_addback_beq_spec sp q_hat (0 : Word) v0 v1 v2 v3 u0 u1 u2 u3 u_top
-    (0 : Word) u3 vtop_base u_top v3 v2_old base
+    (0 : Word) u3 vtopBase u_top v3 v2_old base
 
   intro_lets at MCA
   unfold isAddbackCarry2NzN4Max isAddbackCarry2Nz at hcarry2_nz
@@ -446,7 +446,7 @@ theorem divK_loop_body_n4_call_addback_j0_beq_spec
   let carry_out := if carry = 0 then
       addbackN4_carry ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 v0 v1 v2 v3
     else carry
-  let vtop_base := sp + ((4 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
+  let vtopBase := sp + ((4 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
   -- 1. Trial call full (base+448 → base+516)
   have TF := divK_trial_call_full_spec sp (0 : Word) (4 : Word) j_old v5_old v6_old v7_old v10_old v11_old v2_old
     u_top u3 v3 ret_mem d_mem dlo_mem scratch_un0 base
