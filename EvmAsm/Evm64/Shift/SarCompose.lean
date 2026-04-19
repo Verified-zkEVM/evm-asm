@@ -20,7 +20,7 @@ namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
 open EvmAsm.Rv64.AddrNorm (se13_36 se13_100 se13_188 se13_320 se13_332 se21_32 se21_132 se21_212 se21_268
-  zero_add_se12_1_toNat zero_add_se12_2_toNat bv6_toNat_6)
+  zero_add_se12_1_toNat zero_add_se12_2_toNat bv6_toNat_6 word_add_zero)
 
 -- ============================================================================
 -- Section 1: sarCode definition and helpers
@@ -437,7 +437,7 @@ theorem evm_sar_sign_fill_large_spec (sp base : Word)
   -- Step 5: LD x5 x12 0 at base+24 → extend to sarCode
   have hld_raw := ld_spec_gen .x5 .x12 sp (s1 ||| s2 ||| s3) s0 0 (base + 24) (by nofun)
   simp only [signExtend12_0] at hld_raw
-  rw [show sp + (0 : Word) = sp from by bv_omega, sar_off_24] at hld_raw
+  rw [word_add_zero, sar_off_24] at hld_raw
   have hld := cpsTriple_extend_code (ld_s0_sub_sarCode base) hld_raw
   -- Step 6: SLTIU at base+28 → extend to sarCode
   have hsltiu_raw := sltiu_spec_gen .x10 .x5 s3 s0 256 (base + 28) (by nofun)
@@ -868,7 +868,7 @@ theorem evm_sar_body_evmWord_spec (sp base : Word)
   -- LD x5 x12 0 at base+24
   have hld_raw := ld_spec_gen .x5 .x12 sp (s1 ||| s2 ||| s3) s0 0 (base + 24) (by nofun)
   simp only [signExtend12_0] at hld_raw
-  rw [show sp + (0 : Word) = sp from by bv_omega, sar_off_24] at hld_raw
+  rw [word_add_zero, sar_off_24] at hld_raw
   have hld := cpsTriple_extend_code (ld_s0_sub_sarCode base) hld_raw
   -- SLTIU at base+28
   have hsltiu_raw := sltiu_spec_gen .x10 .x5 s3 s0 256 (base + 28) (by nofun)
