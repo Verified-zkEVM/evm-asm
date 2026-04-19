@@ -20,7 +20,7 @@ namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
 open EvmAsm.Rv64.AddrNorm (se13_36 se13_100 se13_188 se13_320 se13_332 se21_32 se21_132 se21_212 se21_268
-  zero_add_se12_1_toNat zero_add_se12_2_toNat)
+  zero_add_se12_1_toNat zero_add_se12_2_toNat bv6_toNat_6)
 
 -- ============================================================================
 -- Section 1: sarCode definition and helpers
@@ -681,7 +681,7 @@ private theorem sar_bridge_merge (value : EvmWord) (s0 : Word)
     exact Nat.and_two_pow_sub_one_eq_mod s0.toNat 6
   have hbs_lt : bs.toNat < 64 := by omega
   have hL_div : s0.toNat / 64 = L := by
-    have h6 : (6 : BitVec 6).toNat = 6 := by decide
+    have h6 := bv6_toNat_6
     rw [← hL, h6]; simp [BitVec.toNat_ushiftRight]; omega
   -- sshiftRight agrees with ushiftRight for merge limbs
   rw [getLimb_sshiftRight_eq_ushiftRight value s0.toNat i (by omega)]
@@ -718,7 +718,7 @@ private theorem sar_bridge_last (value : EvmWord) (s0 : Word)
     rw [BitVec.toNat_and, show (63 : BitVec 64).toNat = 63 from by decide]
     exact Nat.and_two_pow_sub_one_eq_mod s0.toNat 6
   have hL_div : s0.toNat / 64 = L := by
-    have h6 : (6 : BitVec 6).toNat = 6 := by decide
+    have h6 := bv6_toNat_6
     rw [← hL, h6]; simp [BitVec.toNat_ushiftRight]; omega
   rw [getLimb_sshiftRight_last value s0.toNat i (by omega)]
   congr 1; omega
@@ -735,7 +735,7 @@ private theorem sar_bridge_sign (value : EvmWord) (s0 : Word)
     getLimb result i := by
   rw [hresult]
   have hL_div : s0.toNat / 64 = L := by
-    have h6 : (6 : BitVec 6).toNat = 6 := by decide
+    have h6 := bv6_toNat_6
     rw [← hL, h6]; simp [BitVec.toNat_ushiftRight]; omega
   -- getLimb (sshiftRight value n) i = sshiftRight (getLimb value 3) 63 for sign limbs
   rw [getLimb_sshiftRight_sign' value s0.toNat i (by omega)]
@@ -1059,7 +1059,7 @@ theorem evm_sar_body_evmWord_spec (sp base : Word)
         show BitVec.sshiftRight value shift.toNat = BitVec.sshiftRight value s0.toNat; congr 1
       have hL : (s0 >>> (6 : BitVec 6).toNat).toNat = 3 := by
         obtain ⟨h0, h1, h2⟩ := hls
-        have h6 : (6 : BitVec 6).toNat = 6 := by decide
+        have h6 := bv6_toNat_6
         have hlt4 : limb_shift.toNat < 4 := by
           show (s0 >>> (6 : BitVec 6).toNat).toNat < 4
           rw [h6]; simp [BitVec.toNat_ushiftRight]; omega

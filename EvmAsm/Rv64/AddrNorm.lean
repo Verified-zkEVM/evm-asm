@@ -172,6 +172,7 @@ theorem word_add_zero (x : Word) : x + (0 : Word) = x := BitVec.add_zero x
 @[rv64_addr, grind =] theorem bv6_toNat_2  : (2  : BitVec 6).toNat = 2  := by decide
 @[rv64_addr, grind =] theorem bv6_toNat_3  : (3  : BitVec 6).toNat = 3  := by decide
 @[rv64_addr, grind =] theorem bv6_toNat_4  : (4  : BitVec 6).toNat = 4  := by decide
+@[rv64_addr, grind =] theorem bv6_toNat_6  : (6  : BitVec 6).toNat = 6  := by decide
 @[rv64_addr, grind =] theorem bv6_toNat_8  : (8  : BitVec 6).toNat = 8  := by decide
 @[rv64_addr, grind =] theorem bv6_toNat_16 : (16 : BitVec 6).toNat = 16 := by decide
 @[rv64_addr, grind =] theorem bv6_toNat_32 : (32 : BitVec 6).toNat = 32 := by decide
