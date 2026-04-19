@@ -36,7 +36,7 @@ theorem eq_or_limb_spec (offA offB : BitVec 12)
     (sp a_limb b_limb v6 v5 acc : Word) (base : Word) :
     let memA := sp + signExtend12 offA
     let memB := sp + signExtend12 offB
-    let xor_k := a_limb ^^^ b_limb
+    let xorK := a_limb ^^^ b_limb
     let cr :=
       CodeReq.union (CodeReq.singleton base (.LD .x6 .x12 offA))
       (CodeReq.union (CodeReq.singleton (base + 4) (.LD .x5 .x12 offB))
@@ -45,7 +45,7 @@ theorem eq_or_limb_spec (offA offB : BitVec 12)
     cpsTriple base (base + 16) cr
       ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ acc) ** (.x6 ↦ᵣ v6) ** (.x5 ↦ᵣ v5) **
        (memA ↦ₘ a_limb) ** (memB ↦ₘ b_limb))
-      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ (acc ||| xor_k)) ** (.x6 ↦ᵣ xor_k) ** (.x5 ↦ᵣ b_limb) **
+      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ (acc ||| xorK)) ** (.x6 ↦ᵣ xorK) ** (.x5 ↦ᵣ b_limb) **
        (memA ↦ₘ a_limb) ** (memB ↦ₘ b_limb)) := by
   runBlock
 

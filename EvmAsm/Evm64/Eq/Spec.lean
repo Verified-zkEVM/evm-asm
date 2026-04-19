@@ -33,7 +33,7 @@ theorem evm_eq_spec (sp : Word) (base : Word)
     let acc1 := acc0 ||| (a1 ^^^ b1)
     let acc2 := acc1 ||| (a2 ^^^ b2)
     let acc3 := acc2 ||| (a3 ^^^ b3)
-    let eq_result := if BitVec.ult acc3 (1 : Word) then (1 : Word) else 0
+    let eqResult := if BitVec.ult acc3 (1 : Word) then (1 : Word) else 0
     let code := evm_eq_code base
     cpsTriple base (base + 84) code
       (-- Registers + memory
@@ -42,10 +42,10 @@ theorem evm_eq_spec (sp : Word) (base : Word)
        ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) ** ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3))
       (-- Registers + memory (updated)
        (.x12 ↦ᵣ (sp + 32)) **
-       (.x7 ↦ᵣ eq_result) ** (.x6 ↦ᵣ (a3 ^^^ b3)) ** (.x5 ↦ᵣ b3) ** (.x11 ↦ᵣ v11) **
+       (.x7 ↦ᵣ eqResult) ** (.x6 ↦ᵣ (a3 ^^^ b3)) ** (.x5 ↦ᵣ b3) ** (.x11 ↦ᵣ v11) **
        (sp ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
-       ((sp + 32) ↦ₘ eq_result) ** ((sp + 40) ↦ₘ 0) ** ((sp + 48) ↦ₘ 0) ** ((sp + 56) ↦ₘ 0)) := by
-  intro acc0 acc1 acc2 acc3 eq_result
+       ((sp + 32) ↦ₘ eqResult) ** ((sp + 40) ↦ₘ 0) ** ((sp + 48) ↦ₘ 0) ** ((sp + 56) ↦ₘ 0)) := by
+  intro acc0 acc1 acc2 acc3 eqResult
   -- Per-limb EQ specs
   have L0 := eq_limb0_spec 0 32 sp a0 b0 v7 v6 base
   have L1 := eq_or_limb_spec 8 40 sp a1 b1 b0 v5 (a0 ^^^ b0) (base + 12)
@@ -53,7 +53,7 @@ theorem evm_eq_spec (sp : Word) (base : Word)
     ((a0 ^^^ b0) ||| (a1 ^^^ b1)) (base + 28)
   have L3 := eq_or_limb_spec 24 56 sp a3 b3 (a2 ^^^ b2) b2
     ((a0 ^^^ b0) ||| (a1 ^^^ b1) ||| (a2 ^^^ b2)) (base + 44)
-  -- Store phase: SLTIU + ADDI + SD eq_result + 3×SD 0
+  -- Store phase: SLTIU + ADDI + SD eqResult + 3×SD 0
   have T := sltiu_spec_gen_same .x7
     ((a0 ^^^ b0) ||| (a1 ^^^ b1) ||| (a2 ^^^ b2) ||| (a3 ^^^ b3)) 1 (base + 60) (by nofun)
   simp only [signExtend12_1] at T
@@ -79,7 +79,7 @@ theorem evm_eq_stack_spec (sp base : Word)
     let acc1 := acc0 ||| (a.getLimbN 1 ^^^ b.getLimbN 1)
     let acc2 := acc1 ||| (a.getLimbN 2 ^^^ b.getLimbN 2)
     let acc3 := acc2 ||| (a.getLimbN 3 ^^^ b.getLimbN 3)
-    let eq_result := if BitVec.ult acc3 (1 : Word) then (1 : Word) else 0
+    let eqResult := if BitVec.ult acc3 (1 : Word) then (1 : Word) else 0
     let code := evm_eq_code base
     cpsTriple base (base + 84) code
       (-- Registers + memory
@@ -87,10 +87,10 @@ theorem evm_eq_stack_spec (sp base : Word)
        evmWordIs sp a ** evmWordIs (sp + 32) b)
       (-- Registers + memory (updated)
        (.x12 ↦ᵣ (sp + 32)) **
-       (.x7 ↦ᵣ eq_result) ** (.x6 ↦ᵣ (a.getLimbN 3 ^^^ b.getLimbN 3)) **
+       (.x7 ↦ᵣ eqResult) ** (.x6 ↦ᵣ (a.getLimbN 3 ^^^ b.getLimbN 3)) **
        (.x5 ↦ᵣ b.getLimbN 3) ** (.x11 ↦ᵣ v11) **
        evmWordIs sp a ** evmWordIs (sp + 32) (if a = b then 1 else 0)) := by
-  intro acc0 acc1 acc2 acc3 eq_result
+  intro acc0 acc1 acc2 acc3 eqResult
   have h_main := evm_eq_spec sp base
     (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
     (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
