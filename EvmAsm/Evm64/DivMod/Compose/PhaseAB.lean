@@ -2,7 +2,7 @@
   EvmAsm.Evm64.DivMod.Compose.PhaseAB
 
   Phase A and Phase B composition specs for DivMod.
-  Includes subsumption lemmas, signExtend/address helpers, phaseB_zeroed_mem,
+  Includes subsumption lemmas, signExtend/address helpers,
   zero-path composition, Phase A ntaken, Phase B for n=4/3/2/1,
   and Phase AB n=4 composition.
 -/
@@ -150,37 +150,6 @@ private theorem phB_t_20 (base : Word) : (base + 96 : Word) + 20 = base + clzOff
 private theorem phB_sp24_32 (sp : Word) : (sp + (24 : Word) + (32 : Word)) = sp + 56 := by bv_addr
 
 -- ============================================================================
--- Section 6b: Opaque memory bundle for phaseB invariant cells
--- These 7 memory cells are zeroed by init1 and stay zero throughout phaseB.
--- Bundling them reduces the atom count for xperm matching.
--- ============================================================================
-
-/-- The 7 memory cells zeroed by phaseB init1 (q[0..3] + u[5..7]).
-    Marked @[irreducible] so xperm treats this as 1 opaque atom, not 7. -/
-@[irreducible]
-def phaseB_zeroed_mem (sp : Word) : Assertion :=
-  ((sp + signExtend12 4088) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4080) ↦ₘ (0 : Word)) **
-  ((sp + signExtend12 4072) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4064) ↦ₘ (0 : Word)) **
-  ((sp + signExtend12 4016) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
-  ((sp + signExtend12 4000) ↦ₘ (0 : Word))
-
-/-- Fold 7 individual memory-zero assertions into the opaque bundle. -/
-theorem phaseB_zeroed_mem_fold (sp : Word) :
-    (((sp + signExtend12 4088) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4080) ↦ₘ (0 : Word)) **
-    ((sp + signExtend12 4072) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4064) ↦ₘ (0 : Word)) **
-    ((sp + signExtend12 4016) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
-    ((sp + signExtend12 4000) ↦ₘ (0 : Word))) = phaseB_zeroed_mem sp := by
-  delta phaseB_zeroed_mem; rfl
-
-/-- Unfold the opaque bundle back to 7 individual assertions. -/
-theorem phaseB_zeroed_mem_unfold (sp : Word) :
-    phaseB_zeroed_mem sp =
-    (((sp + signExtend12 4088) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4080) ↦ₘ (0 : Word)) **
-    ((sp + signExtend12 4072) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4064) ↦ₘ (0 : Word)) **
-    ((sp + signExtend12 4016) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
-    ((sp + signExtend12 4000) ↦ₘ (0 : Word))) := by
-  delta phaseB_zeroed_mem; rfl
-
 -- ============================================================================
 -- Section 7: Zero path composition (b = 0)
 -- Phase A body → BEQ(taken) → zeroPath → exit
