@@ -239,6 +239,34 @@ theorem evmWordIs_sp64_unfold (sp : Word) (v : EvmWord) :
   unfold evmWordIs
   rw [spAddr64_8, spAddr64_16, spAddr64_24]
 
+/-- Mid-tree variant of `evmWordIs_sp_unfold`: threads a remainder `Q` so
+    `rw ←` can fold `(sp ↦ₘ v.getLimbN 0) ** …` back into `evmWordIs sp v`
+    even when the atoms sit mid-chain. Simpler call than
+    `evmWordIs_sp_limbs_eq_right` when the caller already has the atoms
+    in `v.getLimbN k` form (no explicit `hk : v.getLimbN k = wk` threads). -/
+theorem evmWordIs_sp_unfold_right (sp : Word) (v : EvmWord) (Q : Assertion) :
+    ((sp ↦ₘ v.getLimbN 0) ** ((sp + 8) ↦ₘ v.getLimbN 1) **
+     ((sp + 16) ↦ₘ v.getLimbN 2) ** ((sp + 24) ↦ₘ v.getLimbN 3) ** Q) =
+    (evmWordIs sp v ** Q) := by
+  rw [evmWordIs_sp_unfold]
+  rw [sepConj_assoc', sepConj_assoc', sepConj_assoc']
+
+/-- Mid-tree variant of `evmWordIs_sp32_unfold`. -/
+theorem evmWordIs_sp32_unfold_right (sp : Word) (v : EvmWord) (Q : Assertion) :
+    (((sp + 32) ↦ₘ v.getLimbN 0) ** ((sp + 40) ↦ₘ v.getLimbN 1) **
+     ((sp + 48) ↦ₘ v.getLimbN 2) ** ((sp + 56) ↦ₘ v.getLimbN 3) ** Q) =
+    (evmWordIs (sp + 32) v ** Q) := by
+  rw [evmWordIs_sp32_unfold]
+  rw [sepConj_assoc', sepConj_assoc', sepConj_assoc']
+
+/-- Mid-tree variant of `evmWordIs_sp64_unfold`. Third-slot companion. -/
+theorem evmWordIs_sp64_unfold_right (sp : Word) (v : EvmWord) (Q : Assertion) :
+    (((sp + 64) ↦ₘ v.getLimbN 0) ** ((sp + 72) ↦ₘ v.getLimbN 1) **
+     ((sp + 80) ↦ₘ v.getLimbN 2) ** ((sp + 88) ↦ₘ v.getLimbN 3) ** Q) =
+    (evmWordIs (sp + 64) v ** Q) := by
+  rw [evmWordIs_sp64_unfold]
+  rw [sepConj_assoc', sepConj_assoc', sepConj_assoc']
+
 /-- Rewrite `evmWordIs sp v` to four limb atoms given explicit getLimbN
     equalities. Decouples the caller's representation of `v` from the limb
     form — works uniformly whether the equalities come from
