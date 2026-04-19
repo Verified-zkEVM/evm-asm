@@ -164,14 +164,11 @@ private theorem byte_beq_sub (base : Word) :
 -- ============================================================================
 
 -- Phase A offsets
-private theorem byte_off_4 (base : Word) : (base + 4 : Word) + 8 = base + 12 := by bv_omega
-private theorem byte_off_12 (base : Word) : (base + 12 : Word) + 8 = base + 20 := by bv_omega
 private theorem byte_off_20 (base : Word) : (base + 20 : Word) + 4 = base + 24 := by bv_omega
 private theorem byte_off_24 (base : Word) : (base + 24 : Word) + 4 = base + 28 := by bv_omega
 private theorem byte_off_28 (base : Word) : (base + 28 : Word) + 4 = base + 32 := by bv_omega
 private theorem byte_off_32 (base : Word) : (base + 32 : Word) + 4 = base + 36 := by bv_omega
 private theorem byte_off_36_20 (base : Word) : (base + 36 : Word) + 20 = base + 56 := by bv_omega
-private theorem byte_off_56_20 (base : Word) : (base + 56 : Word) + 20 = base + 76 := by bv_omega
 private theorem byte_off_160_20 (base : Word) : (base + 160 : Word) + 20 = base + 180 := by bv_omega
 
 -- BNE/BEQ branch targets

@@ -498,9 +498,6 @@ theorem evm_shr_zero_large_spec (sp base : Word)
 -- `cpsNBranch_extend_code` and `cpsNBranch_frame_left` live in
 -- `Rv64/CPSSpec.lean` (shared).
 
--- Address normalization lemmas for body path
-private theorem shr_off_64_20 (base : Word) : (base + 64 : Word) + 20 = base + 84 := by bv_omega
-
 -- ============================================================================
 -- Section 5a: Phase A ntaken → Phase B composition
 -- ============================================================================

@@ -488,9 +488,6 @@ theorem evm_shl_zero_large_spec (sp base : Word)
 -- `cpsNBranch_extend_code` and `cpsNBranch_frame_left` live in
 -- `Rv64/CPSSpec.lean` (shared).
 
--- Address normalization lemmas for body path
-private theorem shl_off_64_20 (base : Word) : (base + 64 : Word) + 20 = base + 84 := by bv_omega
-
 -- `cpsTriple_strip_pure_and_convert` lives in `Rv64/CPSSpec.lean` (shared).
 
 -- ============================================================================

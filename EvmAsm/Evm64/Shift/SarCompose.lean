@@ -649,9 +649,6 @@ theorem sar_phase_c_spec_pure (v5 v10 : Word) (base : Word)
 -- `cpsNBranch_extend_code` and `cpsNBranch_frame_left` live in
 -- `Rv64/CPSSpec.lean` (shared).
 
--- Address normalization for body path
-private theorem sar_off_64_20 (base : Word) : (base + 64 : Word) + 20 = base + 84 := by bv_omega
-
 -- `cpsTriple_strip_pure_and_convert` lives in `Rv64/CPSSpec.lean` (shared).
 
 -- ============================================================================
