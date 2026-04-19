@@ -79,9 +79,13 @@ theorem cpsTriple_seq (l1 l2 l3 : Word) (cr1 cr2 : CodeReq)
 
 /-- Consequence: strengthen precondition and weaken postcondition.
     Note: implications are at the assertion (PartialState) level, not holdsFor level,
-    because (P' ** R).holdsFor s → (P ** R).holdsFor s requires P' h → P h pointwise. -/
-theorem cpsTriple_consequence (entry exit_ : Word) (cr : CodeReq)
-    (P P' Q Q' : Assertion)
+    because (P' ** R).holdsFor s → (P ** R).holdsFor s requires P' h → P h pointwise.
+
+    All pre/post-condition arguments are implicit: `P`/`Q` unify from the triple
+    `h`, `P'`/`Q'` from the expected goal type. Prefer this over
+    `cpsTriple_consequence` (which takes seven explicit `_` arguments). -/
+theorem cpsTriple_weaken {entry exit_ : Word} {cr : CodeReq}
+    {P P' Q Q' : Assertion}
     (hpre  : ∀ h, P' h → P h)
     (hpost : ∀ h, Q h → Q' h)
     (h : cpsTriple entry exit_ cr P Q) :
@@ -94,6 +98,17 @@ theorem cpsTriple_consequence (entry exit_ : Word) (cr : CodeReq)
   exact ⟨k, s', hstep, hpc', by
     obtain ⟨hp, hcompat, hpq⟩ := hQR
     exact ⟨hp, hcompat, sepConj_mono_left hpost hp hpq⟩⟩
+
+/-- Explicit-argument variant of `cpsTriple_weaken`. Kept for backwards
+    compatibility; prefer `cpsTriple_weaken` in new code. -/
+@[deprecated cpsTriple_weaken (since := "2026-04-19")]
+theorem cpsTriple_consequence (entry exit_ : Word) (cr : CodeReq)
+    (P P' Q Q' : Assertion)
+    (hpre  : ∀ h, P' h → P h)
+    (hpost : ∀ h, Q h → Q' h)
+    (h : cpsTriple entry exit_ cr P Q) :
+    cpsTriple entry exit_ cr P' Q' :=
+  cpsTriple_weaken hpre hpost h
 
 /-- Strip a pure hypothesis from a `cpsTriple`'s precondition and use it
     simultaneously to weaken the postcondition. The pre-assertion `P ** ⌜fact⌝`
@@ -286,7 +301,7 @@ theorem cpsBranch_elim_taken_strip_pure2
     (hbr : cpsBranch entry cr P l_t (A ** B ** ⌜Prop_t⌝) l_f Q_f)
     (h_absurd : ∀ hp, Q_f hp → False) :
     cpsTriple entry l_t cr P (A ** B) :=
-  cpsTriple_consequence _ _ _ _ _ _ _
+  cpsTriple_weaken
     (fun _ hp => hp)
     (sepConj_strip_pure_end2 A B Prop_t)
     (cpsBranch_elim_taken _ _ _ _ _ _ _ hbr h_absurd)
@@ -296,7 +311,7 @@ theorem cpsBranch_elim_taken_strip_pure3
     (hbr : cpsBranch entry cr P l_t (A ** B ** C ** ⌜Prop_t⌝) l_f Q_f)
     (h_absurd : ∀ hp, Q_f hp → False) :
     cpsTriple entry l_t cr P (A ** B ** C) :=
-  cpsTriple_consequence _ _ _ _ _ _ _
+  cpsTriple_weaken
     (fun _ hp => hp)
     (sepConj_strip_pure_end3 A B C Prop_t)
     (cpsBranch_elim_taken _ _ _ _ _ _ _ hbr h_absurd)
@@ -308,7 +323,7 @@ theorem cpsBranch_elim_ntaken_strip_pure2
     (hbr : cpsBranch entry cr P l_t Q_t l_f (A ** B ** ⌜Prop_f⌝))
     (h_absurd : ∀ hp, Q_t hp → False) :
     cpsTriple entry l_f cr P (A ** B) :=
-  cpsTriple_consequence _ _ _ _ _ _ _
+  cpsTriple_weaken
     (fun _ hp => hp)
     (sepConj_strip_pure_end2 A B Prop_f)
     (cpsBranch_elim_ntaken _ _ _ _ _ _ _ hbr h_absurd)
@@ -322,7 +337,7 @@ theorem cpsBranch_elim_ntaken_strip_pure3
     (hbr : cpsBranch entry cr P l_t Q_t l_f (A ** B ** C ** ⌜Prop_f⌝))
     (h_absurd : ∀ hp, Q_t hp → False) :
     cpsTriple entry l_f cr P (A ** B ** C) :=
-  cpsTriple_consequence _ _ _ _ _ _ _
+  cpsTriple_weaken
     (fun _ hp => hp)
     (sepConj_strip_pure_end3 A B C Prop_f)
     (cpsBranch_elim_ntaken _ _ _ _ _ _ _ hbr h_absurd)
