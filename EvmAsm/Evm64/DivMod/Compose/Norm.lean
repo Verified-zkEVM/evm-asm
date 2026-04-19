@@ -119,17 +119,6 @@ private theorem divK_normB_code_sub_divCode (base : Word) :
   skipBlock; skipBlock; skipBlock; skipBlock
   exact CodeReq.union_mono_left _ _
 
-/-- Helper: NormB sub-block subsumption via ofProg_mono_sub. -/
-private theorem normB_sub (base : Word) (sub_prog : List Instr) (k : Nat)
-    (hk : k + sub_prog.length ≤ divK_normB.length)
-    (hslice : (divK_normB.drop k).take sub_prog.length = sub_prog)
-    (hbound : 4 * divK_normB.length < 2 ^ 64) :
-    ∀ a i, (CodeReq.ofProg ((base + normBOff) + BitVec.ofNat 64 (4 * k)) sub_prog) a = some i →
-      (divCode base) a = some i := by
-  intro a i h
-  exact divK_normB_code_sub_divCode base a i
-    (CodeReq.ofProg_mono_sub (base + normBOff) _ divK_normB _ k rfl hslice hk hbound a i h)
-
 -- se12_32, se12_40, se12_48, se12_56 are in Base.lean
 
 /-- NormB first half: merge1 (b[3] with b[2]) + merge2 (b[2] with b[1]).

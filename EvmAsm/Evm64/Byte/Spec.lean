@@ -35,18 +35,6 @@ open EvmAsm.Rv64.AddrNorm (se13_20 se13_44 se13_68 se13_128 se13_140 se21_16 se2
 abbrev evm_byte_code (base : Word) : CodeReq :=
   CodeReq.ofProg base evm_byte
 
--- Program length verification
-private theorem byte_phase_a_len : byte_phase_a.length = 9 := by decide
-private theorem byte_phase_b_len : byte_phase_b.length = 5 := by decide
-private theorem byte_phase_c_len : byte_phase_c.length = 5 := by decide
-private theorem byte_body_3_len : byte_body_3.length = 4 := by decide
-private theorem byte_body_2_len : byte_body_2.length = 4 := by decide
-private theorem byte_body_1_len : byte_body_1.length = 4 := by decide
-private theorem byte_body_0_len : byte_body_0.length = 3 := by decide
-private theorem byte_store_len : byte_store.length = 6 := by decide
-private theorem byte_zero_path_len : byte_zero_path.length = 5 := by decide
-private theorem evm_byte_len : evm_byte.length = 45 := by decide
-
 -- ============================================================================
 -- CodeReq subsumption: each sub-phase code ⊆ evm_byte_code
 -- ============================================================================
@@ -164,14 +152,11 @@ private theorem byte_beq_sub (base : Word) :
 -- ============================================================================
 
 -- Phase A offsets
-private theorem byte_off_4 (base : Word) : (base + 4 : Word) + 8 = base + 12 := by bv_omega
-private theorem byte_off_12 (base : Word) : (base + 12 : Word) + 8 = base + 20 := by bv_omega
 private theorem byte_off_20 (base : Word) : (base + 20 : Word) + 4 = base + 24 := by bv_omega
 private theorem byte_off_24 (base : Word) : (base + 24 : Word) + 4 = base + 28 := by bv_omega
 private theorem byte_off_28 (base : Word) : (base + 28 : Word) + 4 = base + 32 := by bv_omega
 private theorem byte_off_32 (base : Word) : (base + 32 : Word) + 4 = base + 36 := by bv_omega
 private theorem byte_off_36_20 (base : Word) : (base + 36 : Word) + 20 = base + 56 := by bv_omega
-private theorem byte_off_56_20 (base : Word) : (base + 56 : Word) + 20 = base + 76 := by bv_omega
 private theorem byte_off_160_20 (base : Word) : (base + 160 : Word) + 20 = base + 180 := by bv_omega
 
 -- BNE/BEQ branch targets

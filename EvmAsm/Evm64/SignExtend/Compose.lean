@@ -46,33 +46,6 @@ private theorem singleton_sub_signextCode (base addr : Word) (instr : Instr) (k 
 -- Section 2: Subsumption lemmas
 -- ============================================================================
 
-/-- Phase A code (union chain, 9 instrs at +0) is subsumed by signextCode. -/
-private theorem phase_a_sub_signextCode (base : Word) :
-    ∀ a i, signext_phase_a_code base a = some i → signextCode base a = some i := by
-  unfold signext_phase_a_code
-  apply CodeReq.union_sub
-  · exact singleton_sub_signextCode base base (.LD .x5 .x12 8) 0
-      (by decide) (by bv_omega) (by decide)
-  · apply CodeReq.union_sub
-    · unfold signext_ld_or_acc_code
-      exact CodeReq.ofProg_mono_sub base (base + 4) evm_signextend (signext_ld_or_acc_prog 16) 1
-        (by bv_omega) (by decide) (by decide) (by decide)
-    · apply CodeReq.union_sub
-      · unfold signext_ld_or_acc_code
-        exact CodeReq.ofProg_mono_sub base (base + 12) evm_signextend (signext_ld_or_acc_prog 24) 3
-          (by bv_omega) (by decide) (by decide) (by decide)
-      · apply CodeReq.union_sub
-        · exact singleton_sub_signextCode base (base + 20) (.BNE .x5 .x0 168) 5
-            (by decide) (by bv_omega) (by decide)
-        · apply CodeReq.union_sub
-          · exact singleton_sub_signextCode base (base + 24) (.LD .x5 .x12 0) 6
-              (by decide) (by bv_omega) (by decide)
-          · apply CodeReq.union_sub
-            · exact singleton_sub_signextCode base (base + 28) (.SLTIU .x10 .x5 31) 7
-                (by decide) (by bv_omega) (by decide)
-            · exact singleton_sub_signextCode base (base + 32) (.BEQ .x10 .x0 156) 8
-                (by decide) (by bv_omega) (by decide)
-
 /-- Phase B code (ofProg, 5 instrs at +36) is subsumed by signextCode. -/
 private theorem phase_b_sub_signextCode (base : Word) :
     ∀ a i, signext_phase_b_code (base + 36) a = some i → signextCode base a = some i := by

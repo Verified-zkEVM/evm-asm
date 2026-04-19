@@ -25,17 +25,6 @@ private theorem divK_normA_code_sub_divCode (base : Word) :
   skipBlock; skipBlock; skipBlock; skipBlock; skipBlock
   exact CodeReq.union_mono_left _ _
 
-/-- Helper: NormA sub-block subsumption via ofProg_mono_sub. -/
-private theorem normA_sub (base : Word) (sub_prog : List Instr) (k : Nat)
-    (hk : k + sub_prog.length ≤ (divK_normA 40).length)
-    (hslice : ((divK_normA 40).drop k).take sub_prog.length = sub_prog)
-    (hbound : 4 * (divK_normA 40).length < 2 ^ 64) :
-    ∀ a i, (CodeReq.ofProg ((base + normAOff) + BitVec.ofNat 64 (4 * k)) sub_prog) a = some i →
-      (divCode base) a = some i := by
-  intro a i h
-  exact divK_normA_code_sub_divCode base a i
-    (CodeReq.ofProg_mono_sub (base + normAOff) _ (divK_normA 40) _ k rfl hslice hk hbound a i h)
-
 -- signExtend12 rewrites pulled from the divmod_addr global set (AddrNorm.lean).
 open EvmAsm.Evm64.DivMod.AddrNorm (se12_0 se12_8 se12_16 se12_24)
 -- signExtend13/21 rewrites pulled from the rv64_addr global set (Rv64/AddrNorm.lean).

@@ -27,17 +27,6 @@ private theorem divK_normA_code_sub_modCode (base : Word) :
   skipBlock; skipBlock; skipBlock; skipBlock; skipBlock
   exact CodeReq.union_mono_left _ _
 
-/-- Helper: NormA sub-block subsumption via ofProg_mono_sub for modCode. -/
-private theorem normA_sub_mod (base : Word) (sub_prog : List Instr) (k : Nat)
-    (hk : k + sub_prog.length ≤ (divK_normA 40).length)
-    (hslice : ((divK_normA 40).drop k).take sub_prog.length = sub_prog)
-    (hbound : 4 * (divK_normA 40).length < 2 ^ 64) :
-    ∀ a i, (CodeReq.ofProg ((base + normAOff) + BitVec.ofNat 64 (4 * k)) sub_prog) a = some i →
-      (modCode base) a = some i := by
-  intro a i h
-  exact divK_normA_code_sub_modCode base a i
-    (CodeReq.ofProg_mono_sub (base + normAOff) _ (divK_normA 40) _ k rfl hslice hk hbound a i h)
-
 -- signExtend12 for src/dst offsets used by normA specs
 -- `mod_se12_{0,8,16,24}` removed: use `signExtend12_{0,8,16,24}` from Rv64/Instructions.lean.
 -- `signExtend21_40` → use `signExtend21_40` from `Compose/Base.lean`.

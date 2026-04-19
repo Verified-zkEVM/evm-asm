@@ -27,17 +27,6 @@ private theorem divK_denorm_code_sub_divCode (base : Word) :
   skipBlock; skipBlock; skipBlock; skipBlock
   exact CodeReq.union_mono_left _ _
 
-/-- Helper: Denorm sub-block subsumption via ofProg_mono_sub. -/
-private theorem denorm_sub (base : Word) (sub_prog : List Instr) (k : Nat)
-    (hk : k + sub_prog.length ≤ divK_denorm.length)
-    (hslice : (divK_denorm.drop k).take sub_prog.length = sub_prog)
-    (hbound : 4 * divK_denorm.length < 2 ^ 64) :
-    ∀ a i, (CodeReq.ofProg ((base + denormOff) + BitVec.ofNat 64 (4 * k)) sub_prog) a = some i →
-      (divCode base) a = some i := by
-  intro a i h
-  exact divK_denorm_code_sub_divCode base a i
-    (CodeReq.ofProg_mono_sub (base + denormOff) _ divK_denorm _ k rfl hslice hk hbound a i h)
-
 /-- Denorm preamble for shift≠0: LD shift from memory + BEQ not taken.
     base+908 → base+916. Bridges the gap between loop body exit and denorm body. -/
 theorem divK_denorm_preamble_spec (sp shift v5 v6 v7 v2 v10 : Word) (base : Word)
