@@ -283,6 +283,15 @@ theorem evmStackIs_append (sp : Word) (xs ys : List EvmWord) :
     simp only [List.cons_append, evmStackIs_cons, List.length_cons]
     rw [ih (sp + 32), hshift, sepConj_assoc']
 
+/-- Snoc: `evmStackIs sp (xs ++ [v]) = evmStackIs sp xs **
+    evmWordIs (sp + 32 * xs.length) v`. Specialized corollary of
+    `evmStackIs_append` with `ys = [v]` — PUSH-style stack extensions
+    that tack exactly one element onto the top reach for this variant. -/
+theorem evmStackIs_snoc (sp : Word) (xs : List EvmWord) (v : EvmWord) :
+    evmStackIs sp (xs ++ [v]) =
+    (evmStackIs sp xs ** evmWordIs (sp + BitVec.ofNat 64 (xs.length * 32)) v) := by
+  rw [evmStackIs_append, evmStackIs_single]
+
 /-- Split evmStackIs at position k: extract the kth element (0-indexed). -/
 theorem evmStackIs_split_at (sp : Word) (stack : List EvmWord) (k : Nat)
     (hk : k < stack.length) :
