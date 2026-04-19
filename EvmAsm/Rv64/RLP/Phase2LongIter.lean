@@ -157,13 +157,13 @@ theorem rlp_phase2_long_iter_spec
   have addi_cnt_raw := addi_spec_gen_same .x14 cnt (-1) (base + 16) (by nofun)
   rw [show (base + 16 : Word) + 4 = base + 20 from by bv_omega] at addi_cnt_raw
   -- Frame each step with the assertions it doesn't touch, and chain.
-  -- To keep the proof compact, we use `cpsTriple_consequence` with
+  -- To keep the proof compact, we use `cpsTriple_weaken` with
   -- `xperm_hyp` to reshape pre/post to a common right-associated form.
   have frame_and_perm :=
     fun {entry exit_ : Word} {cr : CodeReq} {P P' Q Q' : Assertion}
         (hpre : ∀ h, P' h → P h) (hpost : ∀ h, Q h → Q' h)
         (h : cpsTriple entry exit_ cr P Q) =>
-      cpsTriple_consequence entry exit_ cr P P' Q Q' hpre hpost h
+      cpsTriple_weaken (P := P) (Q := Q) (P' := P') (Q' := Q') hpre hpost h
   -- Step 1 framed with (x11, x14, memory) — leaves (x12, x13) to LBU.
   have s1 : cpsTriple base (base + 4)
       (CodeReq.singleton base (.LBU .x12 .x13 0))
