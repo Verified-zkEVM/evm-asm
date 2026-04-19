@@ -23,7 +23,7 @@
     3976(-120):            saved j (loop counter)
     3968(-128):            subroutine: saved return addr
     3960(-136):            subroutine: saved d
-    3952(-144):            subroutine: saved d_lo
+    3952(-144):            subroutine: saved dLo
     3944(-152):            subroutine: saved un0
   After: result at sp+32..sp+56, x12 = sp + 32.
 
@@ -59,40 +59,40 @@ def divK_div128 : Program :=
   -- Save return addr and d
   SD .x12 .x2 3968 ;;                         -- [0]  save return addr
   SD .x12 .x10 3960 ;;                        -- [1]  save d
-  -- Split d: d_hi = d >> 32, d_lo = (d << 32) >> 32
-  SRLI .x6 .x10 32 ;;                         -- [2]  x6 = d_hi (>= 2^31)
-  SLLI .x1 .x10 32 ;; SRLI .x1 .x1 32 ;;     -- [3,4] x1 = d_lo
-  SD .x12 .x1 3952 ;;                         -- [5]  save d_lo
+  -- Split d: dHi = d >> 32, dLo = (d << 32) >> 32
+  SRLI .x6 .x10 32 ;;                         -- [2]  x6 = dHi (>= 2^31)
+  SLLI .x1 .x10 32 ;; SRLI .x1 .x1 32 ;;     -- [3,4] x1 = dLo
+  SD .x12 .x1 3952 ;;                         -- [5]  save dLo
   -- Split u_lo: un1 = u_lo >> 32, un0 = (u_lo << 32) >> 32
   SRLI .x11 .x5 32 ;;                         -- [6]  x11 = un1
   SLLI .x5 .x5 32 ;; SRLI .x5 .x5 32 ;;      -- [7,8] x5 = un0
   SD .x12 .x5 3944 ;;                         -- [9]  save un0
-  -- Step 1: q1 = DIVU(u_hi, d_hi), rhat = u_hi - q1*d_hi
-  -- x7 = u_hi, x6 = d_hi
+  -- Step 1: q1 = DIVU(u_hi, dHi), rhat = u_hi - q1*dHi
+  -- x7 = u_hi, x6 = dHi
   single (.DIVU .x10 .x7 .x6) ;;             -- [10] x10 = q1 (use x10 since we saved d)
-  single (.MUL .x5 .x10 .x6) ;;              -- [11] x5 = q1 * d_hi
+  single (.MUL .x5 .x10 .x6) ;;              -- [11] x5 = q1 * dHi
   single (.SUB .x7 .x7 .x5) ;;               -- [12] x7 = rhat
   -- Refine q1: clamp to < 2^32
   SRLI .x5 .x10 32 ;;                         -- [13] test q1 >= 2^32
   single (.BEQ .x5 .x0 12) ;;                -- [14] skip if q1 < 2^32 → [17]
   ADDI .x10 .x10 4095 ;;                      -- [15] q1--
-  single (.ADD .x7 .x7 .x6) ;;               -- [16] rhat += d_hi
-  -- [17] Product check: q1*d_lo > rhat*2^32 + un1?
-  LD .x1 .x12 3952 ;;                         -- [17] x1 = d_lo
-  single (.MUL .x5 .x10 .x1) ;;              -- [18] x5 = q1 * d_lo
+  single (.ADD .x7 .x7 .x6) ;;               -- [16] rhat += dHi
+  -- [17] Product check: q1*dLo > rhat*2^32 + un1?
+  LD .x1 .x12 3952 ;;                         -- [17] x1 = dLo
+  single (.MUL .x5 .x10 .x1) ;;              -- [18] x5 = q1 * dLo
   SLLI .x1 .x7 32 ;;                          -- [19] x1 = rhat << 32
   single (.OR .x1 .x1 .x11) ;;               -- [20] x1 = rhat*2^32 + un1
   single (.BLTU .x1 .x5 8) ;;                -- [21] if rhs < lhs → correct [23]
   JAL .x0 12 ;;                                -- [22] skip → [25]
   ADDI .x10 .x10 4095 ;;                      -- [23] q1--
-  single (.ADD .x7 .x7 .x6) ;;               -- [24] rhat += d_hi
-  -- Compute un21 = rhat*2^32 + un1 - q1*d_lo
-  LD .x1 .x12 3952 ;;                         -- [25] d_lo
+  single (.ADD .x7 .x7 .x6) ;;               -- [24] rhat += dHi
+  -- Compute un21 = rhat*2^32 + un1 - q1*dLo
+  LD .x1 .x12 3952 ;;                         -- [25] dLo
   SLLI .x5 .x7 32 ;;                          -- [26] rhat << 32
   single (.OR .x5 .x5 .x11) ;;               -- [27] x5 = rhat*2^32 + un1
-  single (.MUL .x1 .x10 .x1) ;;              -- [28] x1 = q1 * d_lo
+  single (.MUL .x1 .x10 .x1) ;;              -- [28] x1 = q1 * dLo
   single (.SUB .x7 .x5 .x1) ;;               -- [29] x7 = un21
-  -- Step 2: q0 = DIVU(un21, d_hi), rhat2 = un21 - q0*d_hi
+  -- Step 2: q0 = DIVU(un21, dHi), rhat2 = un21 - q0*dHi
   single (.DIVU .x5 .x7 .x6) ;;              -- [30] x5 = q0
   single (.MUL .x1 .x5 .x6) ;;               -- [31]
   single (.SUB .x11 .x7 .x1) ;;              -- [32] x11 = rhat2
@@ -100,10 +100,10 @@ def divK_div128 : Program :=
   SRLI .x1 .x5 32 ;;                          -- [33]
   single (.BEQ .x1 .x0 12) ;;                -- [34] skip if q0 < 2^32 → [37]
   ADDI .x5 .x5 4095 ;;                        -- [35] q0--
-  single (.ADD .x11 .x11 .x6) ;;             -- [36] rhat2 += d_hi
+  single (.ADD .x11 .x11 .x6) ;;             -- [36] rhat2 += dHi
   -- [37] Product check for q0
-  LD .x1 .x12 3952 ;;                         -- [37] d_lo
-  single (.MUL .x7 .x5 .x1) ;;               -- [38] x7 = q0 * d_lo
+  LD .x1 .x12 3952 ;;                         -- [37] dLo
+  single (.MUL .x7 .x5 .x1) ;;               -- [38] x7 = q0 * dLo
   SLLI .x1 .x11 32 ;;                         -- [39] rhat2 << 32
   LD .x11 .x12 3944 ;;                        -- [40] un0
   single (.OR .x1 .x1 .x11) ;;               -- [41] x1 = rhat2*2^32 + un0

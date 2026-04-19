@@ -46,12 +46,12 @@ def isSkipBorrowN4Shift0 (a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Prop :=
 @[irreducible]
 def preloopShift0CallSkipPostN4 (sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Assertion :=
   let q_hat := div128Quot (0 : Word) a3 b3
-  let d_lo := (b3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+  let dLo := (b3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
   let div_un0 := (a3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
   loopBodyN4SkipPost sp (0 : Word) q_hat b0 b1 b2 b3 a0 a1 a2 a3 (0 : Word) **
   (sp + signExtend12 3968 ↦ₘ (base + 516)) **
   (sp + signExtend12 3960 ↦ₘ b3) **
-  (sp + signExtend12 3952 ↦ₘ d_lo) **
+  (sp + signExtend12 3952 ↦ₘ dLo) **
   (sp + signExtend12 3944 ↦ₘ div_un0) **
   ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
   ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
@@ -154,7 +154,7 @@ theorem evm_div_n4_preloop_shift0_call_skip_spec (sp base : Word)
 theorem preloopShift0CallSkipPostN4_unfold (sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
     preloopShift0CallSkipPostN4 sp base a0 a1 a2 a3 b0 b1 b2 b3 =
     let q_hat := div128Quot (0 : Word) a3 b3
-    let d_lo := (b3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+    let dLo := (b3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
     let div_un0 := (a3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
     let ms := mulsubN4 q_hat b0 b1 b2 b3 a0 a1 a2 a3
     ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ signExtend12 4095) **
@@ -170,7 +170,7 @@ theorem preloopShift0CallSkipPostN4_unfold (sp base a0 a1 a2 a3 b0 b1 b2 b3 : Wo
      ((sp + signExtend12 4088) ↦ₘ q_hat)) **
     (sp + signExtend12 3968 ↦ₘ (base + 516)) **
     (sp + signExtend12 3960 ↦ₘ b3) **
-    (sp + signExtend12 3952 ↦ₘ d_lo) **
+    (sp + signExtend12 3952 ↦ₘ dLo) **
     (sp + signExtend12 3944 ↦ₘ div_un0) **
     ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
     ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
