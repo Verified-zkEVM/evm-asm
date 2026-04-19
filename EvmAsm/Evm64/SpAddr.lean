@@ -30,4 +30,13 @@ theorem spAddr32_8  (sp : Word) : sp + 32 + 8  = sp + 40 := by bv_addr
 theorem spAddr32_16 (sp : Word) : sp + 32 + 16 = sp + 48 := by bv_addr
 theorem spAddr32_24 (sp : Word) : sp + 32 + 24 = sp + 56 := by bv_addr
 
+/-- Third-slot siblings of `spAddr32_*`: flatten `(sp + 64) + {8,16,24}` →
+    `sp + {72,80,88}`. Parallel to the `(sp + 32) + …` family above but for
+    the third operand of ternary 256-bit opcodes (ADDMOD / MULMOD),
+    which lives at stack offset `sp + 64`. Also covers the internal
+    address bumps `evmWordIs_sp64_unfold` needs. -/
+theorem spAddr64_8  (sp : Word) : sp + 64 + 8  = sp + 72 := by bv_addr
+theorem spAddr64_16 (sp : Word) : sp + 64 + 16 = sp + 80 := by bv_addr
+theorem spAddr64_24 (sp : Word) : sp + 64 + 24 = sp + 88 := by bv_addr
+
 end EvmAsm.Evm64
