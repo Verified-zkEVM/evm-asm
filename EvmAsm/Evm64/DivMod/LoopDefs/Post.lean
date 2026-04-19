@@ -126,6 +126,41 @@ abbrev loopBodyN3AddbackBeqPost := loopBodyAddbackBeqPost (3 : Word)
 abbrev loopBodyN4AddbackBeqPost := loopBodyAddbackBeqPost (4 : Word)
 
 -- ============================================================================
+-- Unified (Bool-parameterized) loop body postcondition: skip/addback+BEQ
+-- Issue #283: Unify skip/addback via `(borrow_zero : Bool)`.
+-- `borrow_zero = true`  → skip path (borrow = 0, mulsub didn't underflow)
+-- `borrow_zero = false` → addback+BEQ path (borrow ≠ 0, mulsub underflowed)
+-- ============================================================================
+
+/-- Unified loop body postcondition parameterized on borrow condition.
+    `borrow_zero = true` selects the skip path;
+    `borrow_zero = false` selects the addback+BEQ (double-addback) path. -/
+def loopBodyUnifiedPost (borrow_zero : Bool) (n : Word)
+    (sp j q_hat v0 v1 v2 v3 u0 u1 u2 u3 u_top : Word) : Assertion :=
+  if borrow_zero then loopBodySkipPost n sp j q_hat v0 v1 v2 v3 u0 u1 u2 u3 u_top
+  else loopBodyAddbackBeqPost n sp j q_hat v0 v1 v2 v3 u0 u1 u2 u3 u_top
+
+@[simp]
+theorem loopBodyUnifiedPost_true (n : Word)
+    (sp j q_hat v0 v1 v2 v3 u0 u1 u2 u3 u_top : Word) :
+    loopBodyUnifiedPost true n sp j q_hat v0 v1 v2 v3 u0 u1 u2 u3 u_top =
+    loopBodySkipPost n sp j q_hat v0 v1 v2 v3 u0 u1 u2 u3 u_top := by
+  simp [loopBodyUnifiedPost]
+
+@[simp]
+theorem loopBodyUnifiedPost_false (n : Word)
+    (sp j q_hat v0 v1 v2 v3 u0 u1 u2 u3 u_top : Word) :
+    loopBodyUnifiedPost false n sp j q_hat v0 v1 v2 v3 u0 u1 u2 u3 u_top =
+    loopBodyAddbackBeqPost n sp j q_hat v0 v1 v2 v3 u0 u1 u2 u3 u_top := by
+  simp [loopBodyUnifiedPost]
+
+/-- Per-n abbreviations for the unified postcondition. -/
+abbrev loopBodyUnifiedPostN1 (borrow_zero : Bool) := loopBodyUnifiedPost borrow_zero (1 : Word)
+abbrev loopBodyUnifiedPostN2 (borrow_zero : Bool) := loopBodyUnifiedPost borrow_zero (2 : Word)
+abbrev loopBodyUnifiedPostN3 (borrow_zero : Bool) := loopBodyUnifiedPost borrow_zero (3 : Word)
+abbrev loopBodyUnifiedPostN4 (borrow_zero : Bool) := loopBodyUnifiedPost borrow_zero (4 : Word)
+
+-- ============================================================================
 -- Call path postconditions for n=3 (includes div128 scratch cells)
 -- ============================================================================
 
