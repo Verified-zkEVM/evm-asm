@@ -216,6 +216,60 @@ theorem val256_normalize {s : Nat} (hs0 : 0 < s) (hs : s < 64)
       ← ha0, ← ha1, ← ha2]
   ring
 
+/-- General form of normalization without the top-limb bound: the normalized
+    4-limb value plus the overflow bit `u4 := a3 >>> (64 - s)` (shifted up to
+    the 2^256 position) equals `val256(a) * 2^s`. This is the identity
+    actually used by Knuth algorithm D — the overflow limb `u4` is what the
+    algorithm tracks as the dividend's top limb during mulsub.
+
+    Specializes to `val256_normalize` when `u4 = 0` (i.e. `a3 < 2^(64-s)`). -/
+theorem val256_normalize_general {s : Nat} (hs0 : 0 < s) (hs : s < 64)
+    (a0 a1 a2 a3 : Word) :
+    val256 (a0 <<< s)
+           ((a1 <<< s) ||| (a0 >>> (64 - s)))
+           ((a2 <<< s) ||| (a1 >>> (64 - s)))
+           ((a3 <<< s) ||| (a2 >>> (64 - s)))
+      + (a3 >>> (64 - s)).toNat * 2 ^ 256
+      = val256 a0 a1 a2 a3 * 2^s := by
+  unfold val256
+  rw [norm_pair_toNat hs0 hs, norm_pair_toNat hs0 hs, norm_pair_toNat hs0 hs,
+      BitVec.toNat_shiftLeft, BitVec.toNat_ushiftRight, Nat.shiftRight_eq_div_pow]
+  simp only [Nat.shiftLeft_eq]
+  have hpow64 : (2 : Nat) ^ (64 - s) * 2 ^ s = 2 ^ 64 := by
+    rw [← pow_add, show (64 - s) + s = 64 from by omega]
+  rw [show (a0.toNat * 2 ^ s) % 2 ^ 64 = (a0.toNat % 2 ^ (64 - s)) * 2 ^ s from by
+        rw [show (2 : Nat) ^ 64 = 2 ^ (64 - s) * 2 ^ s from hpow64.symm,
+            Nat.mul_mod_mul_right]]
+  set mod0 := a0.toNat % 2 ^ (64 - s)
+  set div0 := a0.toNat / 2 ^ (64 - s)
+  set mod1 := a1.toNat % 2 ^ (64 - s)
+  set div1 := a1.toNat / 2 ^ (64 - s)
+  set mod2 := a2.toNat % 2 ^ (64 - s)
+  set div2 := a2.toNat / 2 ^ (64 - s)
+  set mod3 := a3.toNat % 2 ^ (64 - s)
+  set div3 := a3.toNat / 2 ^ (64 - s)
+  have ha0 : mod0 + div0 * 2 ^ (64 - s) = a0.toNat := by
+    show a0.toNat % 2 ^ (64 - s) + a0.toNat / 2 ^ (64 - s) * 2 ^ (64 - s) = a0.toNat
+    rw [Nat.mul_comm]; exact Nat.mod_add_div _ _
+  have ha1 : mod1 + div1 * 2 ^ (64 - s) = a1.toNat := by
+    show a1.toNat % 2 ^ (64 - s) + a1.toNat / 2 ^ (64 - s) * 2 ^ (64 - s) = a1.toNat
+    rw [Nat.mul_comm]; exact Nat.mod_add_div _ _
+  have ha2 : mod2 + div2 * 2 ^ (64 - s) = a2.toNat := by
+    show a2.toNat % 2 ^ (64 - s) + a2.toNat / 2 ^ (64 - s) * 2 ^ (64 - s) = a2.toNat
+    rw [Nat.mul_comm]; exact Nat.mod_add_div _ _
+  have ha3 : mod3 + div3 * 2 ^ (64 - s) = a3.toNat := by
+    show a3.toNat % 2 ^ (64 - s) + a3.toNat / 2 ^ (64 - s) * 2 ^ (64 - s) = a3.toNat
+    rw [Nat.mul_comm]; exact Nat.mod_add_div _ _
+  set t := (2 : Nat) ^ (64 - s) with ht_def
+  have ht : t * 2 ^ s = 2 ^ 64 := hpow64
+  rw [show (2 : Nat) ^ 64 = t * 2 ^ s from ht.symm,
+      show (2 : Nat) ^ 128 = t * 2 ^ s * (t * 2 ^ s) from by rw [ht]; decide,
+      show (2 : Nat) ^ 192 = t * 2 ^ s * (t * 2 ^ s) * (t * 2 ^ s) from by rw [ht]; decide,
+      show (2 : Nat) ^ 256 = t * 2 ^ s * (t * 2 ^ s) * (t * 2 ^ s) * (t * 2 ^ s)
+        from by rw [ht]; decide,
+      ← ha0, ← ha1, ← ha2, ← ha3]
+  ring
+
 end EvmWord
 
 end EvmAsm.Evm64
