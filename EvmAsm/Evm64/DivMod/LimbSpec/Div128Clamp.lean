@@ -84,7 +84,7 @@ theorem divK_div128_clamp_q1_merged_spec (q1 rhat d_hi v5_old : Word) (base : Wo
     have taken := cpsBranch_elim_taken _ _ _ _ _ _ _ composed (fun hp hQf => by
       obtain ⟨_, _, _, _, ⟨_, _, _, _, _, h_x0p⟩, _⟩ := hQf
       exact ((sepConj_pure_right _ _ _).1 h_x0p).2 hcond)
-    exact cpsTriple_consequence _ _ _ _ _ _ _
+    exact cpsTriple_weaken
       (fun h hp => hp)
       (fun h hp => by
         have hp' := sepConj_mono_left (sepConj_mono_right
@@ -110,7 +110,7 @@ theorem divK_div128_clamp_q1_merged_spec (q1 rhat d_hi v5_old : Word) (base : Wo
         have hp' := sepConj_mono_left (sepConj_mono_right
           (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1)) h hp
         xperm_hyp hp') ntaken hcorr_framed
-    exact cpsTriple_consequence _ _ _ _ _ _ _
+    exact cpsTriple_weaken
       (fun h hp => hp)
       (fun h hp => by xperm_hyp hp) full
 
@@ -169,7 +169,7 @@ theorem divK_div128_clamp_q0_merged_spec (q0 rhat2 d_hi v1_old : Word) (base : W
     have taken := cpsBranch_elim_taken _ _ _ _ _ _ _ composed (fun hp hQf => by
       obtain ⟨_, _, _, _, ⟨_, _, _, _, _, h_x0p⟩, _⟩ := hQf
       exact ((sepConj_pure_right _ _ _).1 h_x0p).2 hcond)
-    exact cpsTriple_consequence _ _ _ _ _ _ _
+    exact cpsTriple_weaken
       (fun h hp => hp)
       (fun h hp => by
         have hp' := sepConj_mono_left (sepConj_mono_right
@@ -195,7 +195,7 @@ theorem divK_div128_clamp_q0_merged_spec (q0 rhat2 d_hi v1_old : Word) (base : W
         have hp' := sepConj_mono_left (sepConj_mono_right
           (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1)) h hp
         xperm_hyp hp') ntaken hcorr_framed
-    exact cpsTriple_consequence _ _ _ _ _ _ _
+    exact cpsTriple_weaken
       (fun h hp => hp)
       (fun h hp => by xperm_hyp hp) full
 

@@ -120,7 +120,7 @@ theorem divK_div128_prodcheck1_merged_spec
           (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1)) h hp
         xperm_hyp hp')
       taken_br hcorr_framed
-    exact cpsTriple_consequence _ _ _ _ _ _ _
+    exact cpsTriple_weaken
       (fun h hp => hp)
       (fun h hp => by xperm_hyp hp) full
   · have hq : q1' = q1 := if_neg hcond
@@ -154,7 +154,7 @@ theorem divK_div128_prodcheck1_merged_spec
         ((.x1 ↦ᵣ rhat_un1) ** (.x5 ↦ᵣ q_dlo) **
          (.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ q1) ** (.x7 ↦ᵣ rhat) ** (.x11 ↦ᵣ un1) **
          (.x6 ↦ᵣ d_hi) ** (sp + signExtend12 3952 ↦ₘ dlo)) :=
-      cpsTriple_consequence _ _ _ _ _ _ _
+      cpsTriple_weaken
         (fun h hp => hp)
         (fun h hp => by
           have hp' : (((.x1 ↦ᵣ rhat_un1) ** (.x5 ↦ᵣ q_dlo)) **
@@ -164,7 +164,7 @@ theorem divK_div128_prodcheck1_merged_spec
               (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1)) h hp
           xperm_hyp hp')
         ntaken_br
-    exact cpsTriple_consequence _ _ _ _ _ _ _
+    exact cpsTriple_weaken
       (fun _ hp => hp)
       (fun h hp => by xperm_hyp hp)
       (cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _

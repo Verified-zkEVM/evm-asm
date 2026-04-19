@@ -166,7 +166,7 @@ theorem divK_clz_stage_ntaken_spec (K M_s : BitVec 6) (M_a : BitVec 12) (val cou
         (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1)) h hp
       xperm_hyp hp')
     ntaken hframed
-  exact cpsTriple_consequence _ _ _ _ _ _ _
+  exact cpsTriple_weaken
     (fun h hp => hp)
     (fun h hp => by rw [heq] at hp; xperm_hyp hp)
     full
@@ -292,7 +292,7 @@ theorem divK_clz_last_ntaken_spec (val count v7 : Word) (base : Word)
         (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1)) h hp
       xperm_hyp hp')
     ntaken hframed
-  exact cpsTriple_consequence _ _ _ _ _ _ _
+  exact cpsTriple_weaken
     (fun h hp => hp)
     (fun h hp => by rw [heq] at hp; xperm_hyp hp)
     full
