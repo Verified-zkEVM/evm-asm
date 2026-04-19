@@ -572,6 +572,23 @@ theorem getLimbN_fromLimbs_const (w : Word) (k : Nat) :
   · next h => simp [getLimb_fromLimbs_const]
   · next h => simp_all
 
+/-- `k`-specialized variants of `getLimbN_fromLimbs_const` for `k = 0, 1, 2, 3`.
+    Avoids the chained `getLimbN_fromLimbs_const` + `show (k : Nat) < 4 from by decide`
+    + `ite_true` idiom at call sites that iterate over the four concrete limb
+    indices (issue #263). -/
+theorem getLimbN_fromLimbs_const_0 (w : Word) :
+    (fromLimbs (fun _ => w)).getLimbN 0 = w := by
+  rw [getLimbN_fromLimbs_const, if_pos (by decide)]
+theorem getLimbN_fromLimbs_const_1 (w : Word) :
+    (fromLimbs (fun _ => w)).getLimbN 1 = w := by
+  rw [getLimbN_fromLimbs_const, if_pos (by decide)]
+theorem getLimbN_fromLimbs_const_2 (w : Word) :
+    (fromLimbs (fun _ => w)).getLimbN 2 = w := by
+  rw [getLimbN_fromLimbs_const, if_pos (by decide)]
+theorem getLimbN_fromLimbs_const_3 (w : Word) :
+    (fromLimbs (fun _ => w)).getLimbN 3 = w := by
+  rw [getLimbN_fromLimbs_const, if_pos (by decide)]
+
 end EvmWord
 
 end EvmAsm.Evm64
