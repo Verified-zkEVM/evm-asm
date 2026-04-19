@@ -92,13 +92,13 @@ theorem signext_body_2_spec (sp : Word)
     (base exit : Word) (jal_off : BitVec 21)
     (hexit : (base + 24) + signExtend21 jal_off = exit) :
     let result := BitVec.sshiftRight (v2 <<< (shift_amount.toNat % 64)) (shift_amount.toNat % 64)
-    let sign_fill := BitVec.sshiftRight result 63
+    let signFill := BitVec.sshiftRight result 63
     let code := signext_body_2_code base jal_off
     cpsTriple base exit code
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ shift_amount) ** (.x10 ↦ᵣ v10) **
        ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3))
-      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result) ** (.x6 ↦ᵣ shift_amount) ** (.x10 ↦ᵣ sign_fill) **
-       ((sp + 48) ↦ₘ result) ** ((sp + 56) ↦ₘ sign_fill)) := by
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result) ** (.x6 ↦ᵣ shift_amount) ** (.x10 ↦ᵣ signFill) **
+       ((sp + 48) ↦ₘ result) ** ((sp + 56) ↦ₘ signFill)) := by
   have h63 := bv6_toNat_63
   have IP := signext_inplace_spec 48 sp v2 v5 shift_amount base
   have SR := srai_spec_gen .x10 .x5 v10
@@ -124,13 +124,13 @@ theorem signext_body_1_spec (sp : Word)
     (base exit : Word) (jal_off : BitVec 21)
     (hexit : (base + 28) + signExtend21 jal_off = exit) :
     let result := BitVec.sshiftRight (v1 <<< (shift_amount.toNat % 64)) (shift_amount.toNat % 64)
-    let sign_fill := BitVec.sshiftRight result 63
+    let signFill := BitVec.sshiftRight result 63
     let code := signext_body_1_code base jal_off
     cpsTriple base exit code
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ shift_amount) ** (.x10 ↦ᵣ v10) **
        ((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3))
-      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result) ** (.x6 ↦ᵣ shift_amount) ** (.x10 ↦ᵣ sign_fill) **
-       ((sp + 40) ↦ₘ result) ** ((sp + 48) ↦ₘ sign_fill) ** ((sp + 56) ↦ₘ sign_fill)) := by
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result) ** (.x6 ↦ᵣ shift_amount) ** (.x10 ↦ᵣ signFill) **
+       ((sp + 40) ↦ₘ result) ** ((sp + 48) ↦ₘ signFill) ** ((sp + 56) ↦ₘ signFill)) := by
   have h63 := bv6_toNat_63
   have IP := signext_inplace_spec 40 sp v1 v5 shift_amount base
   have SR := srai_spec_gen .x10 .x5 v10
@@ -159,13 +159,13 @@ theorem signext_body_0_spec (sp : Word)
     (v5 v10 shift_amount : Word) (v0 v1 v2 v3 : Word)
     (base : Word) :
     let result := BitVec.sshiftRight (v0 <<< (shift_amount.toNat % 64)) (shift_amount.toNat % 64)
-    let sign_fill := BitVec.sshiftRight result 63
+    let signFill := BitVec.sshiftRight result 63
     let code := signext_body_0_code base
     cpsTriple base (base + 32) code
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ shift_amount) ** (.x10 ↦ᵣ v10) **
        ((sp + 32) ↦ₘ v0) ** ((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3))
-      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result) ** (.x6 ↦ᵣ shift_amount) ** (.x10 ↦ᵣ sign_fill) **
-       ((sp + 32) ↦ₘ result) ** ((sp + 40) ↦ₘ sign_fill) ** ((sp + 48) ↦ₘ sign_fill) ** ((sp + 56) ↦ₘ sign_fill)) := by
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result) ** (.x6 ↦ᵣ shift_amount) ** (.x10 ↦ᵣ signFill) **
+       ((sp + 32) ↦ₘ result) ** ((sp + 40) ↦ₘ signFill) ** ((sp + 48) ↦ₘ signFill) ** ((sp + 56) ↦ₘ signFill)) := by
   have h63 := bv6_toNat_63
   have IP := signext_inplace_spec 32 sp v0 v5 shift_amount base
   have SR := srai_spec_gen .x10 .x5 v10
