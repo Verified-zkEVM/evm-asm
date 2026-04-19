@@ -320,6 +320,92 @@ instance pcFreeInst_fullDivN4MaxSkipPost
     Assertion.PCFree (fullDivN4MaxSkipPost sp a0 a1 a2 a3 b0 b1 b2 b3) :=
   ⟨pcFree_fullDivN4MaxSkipPost sp a0 a1 a2 a3 b0 b1 b2 b3⟩
 
+-- ============================================================================
+-- Full n=4 MOD path postcondition (max+skip, shift≠0)
+-- ============================================================================
+
+/-- Full path postcondition for n=4 MOD (shift ≠ 0, max+skip). Parallels
+    `fullDivN4MaxSkipPost` but wraps `denormModPost` instead of
+    `denormDivPost`: the `sp+32..sp+56` output slot holds the
+    *denormalized* remainder limbs (MOD result), while the scratch
+    cells at `sp+4088..sp+4064` still carry the raw `q_hat / 0 / 0 / 0`
+    trial-quotient values from the loop-body phase.
+
+    Scaffolding for the forthcoming `evm_mod_n4_full_max_skip_spec`.
+    Mirrors `fullDivN4MaxSkipPost` atom-for-atom except for the inner
+    `denormDivPost` / `denormModPost` swap and the resulting output-slot
+    values. -/
+@[irreducible]
+def fullModN4MaxSkipPost (sp a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Assertion :=
+  let shift := (clzResult b3).1
+  let anti_shift := signExtend12 (0 : BitVec 12) - shift
+  let b3' := (b3 <<< (shift.toNat % 64)) ||| (b2 >>> (anti_shift.toNat % 64))
+  let b2' := (b2 <<< (shift.toNat % 64)) ||| (b1 >>> (anti_shift.toNat % 64))
+  let b1' := (b1 <<< (shift.toNat % 64)) ||| (b0 >>> (anti_shift.toNat % 64))
+  let b0' := b0 <<< (shift.toNat % 64)
+  let u3 := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (anti_shift.toNat % 64))
+  let u2 := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (anti_shift.toNat % 64))
+  let u1 := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (anti_shift.toNat % 64))
+  let u0 := a0 <<< (shift.toNat % 64)
+  let q_hat : Word := signExtend12 4095
+  let ms := mulsubN4 q_hat b0' b1' b2' b3' u0 u1 u2 u3
+  denormModPost sp shift ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 **
+  ((sp + signExtend12 4088) ↦ₘ q_hat) ** ((sp + signExtend12 4080) ↦ₘ (0 : Word)) **
+  ((sp + signExtend12 4072) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4064) ↦ₘ (0 : Word)) **
+  ((sp + signExtend12 3992) ↦ₘ shift) **
+  ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
+  ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+  ((sp + signExtend12 4024) ↦ₘ (a3 >>> (anti_shift.toNat % 64)) - ms.2.2.2.2) **
+  ((sp + signExtend12 4016) ↦ₘ (0 : Word)) **
+  ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
+  ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
+  (sp + signExtend12 3984 ↦ₘ (4 : Word)) **
+  (sp + signExtend12 3976 ↦ₘ (0 : Word)) **
+  (.x1 ↦ᵣ signExtend12 4095) ** (.x11 ↦ᵣ q_hat)
+
+/-- Named unfold for `fullModN4MaxSkipPost`. Mirror of
+    `fullDivN4MaxSkipPost_unfold`. -/
+theorem fullModN4MaxSkipPost_unfold (sp a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
+    fullModN4MaxSkipPost sp a0 a1 a2 a3 b0 b1 b2 b3 =
+    (let shift := (clzResult b3).1
+     let anti_shift := signExtend12 (0 : BitVec 12) - shift
+     let b3' := (b3 <<< (shift.toNat % 64)) ||| (b2 >>> (anti_shift.toNat % 64))
+     let b2' := (b2 <<< (shift.toNat % 64)) ||| (b1 >>> (anti_shift.toNat % 64))
+     let b1' := (b1 <<< (shift.toNat % 64)) ||| (b0 >>> (anti_shift.toNat % 64))
+     let b0' := b0 <<< (shift.toNat % 64)
+     let u3 := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (anti_shift.toNat % 64))
+     let u2 := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (anti_shift.toNat % 64))
+     let u1 := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (anti_shift.toNat % 64))
+     let u0 := a0 <<< (shift.toNat % 64)
+     let q_hat : Word := signExtend12 4095
+     let ms := mulsubN4 q_hat b0' b1' b2' b3' u0 u1 u2 u3
+     denormModPost sp shift ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 **
+     ((sp + signExtend12 4088) ↦ₘ q_hat) ** ((sp + signExtend12 4080) ↦ₘ (0 : Word)) **
+     ((sp + signExtend12 4072) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4064) ↦ₘ (0 : Word)) **
+     ((sp + signExtend12 3992) ↦ₘ shift) **
+     ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
+     ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+     ((sp + signExtend12 4024) ↦ₘ (a3 >>> (anti_shift.toNat % 64)) - ms.2.2.2.2) **
+     ((sp + signExtend12 4016) ↦ₘ (0 : Word)) **
+     ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
+     ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
+     (sp + signExtend12 3984 ↦ₘ (4 : Word)) **
+     (sp + signExtend12 3976 ↦ₘ (0 : Word)) **
+     (.x1 ↦ᵣ signExtend12 4095) ** (.x11 ↦ᵣ q_hat)) := by
+  delta fullModN4MaxSkipPost; rfl
+
+/-- `fullModN4MaxSkipPost` is pc-free. Mirror of
+    `pcFree_fullDivN4MaxSkipPost`. -/
+theorem pcFree_fullModN4MaxSkipPost (sp a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
+    (fullModN4MaxSkipPost sp a0 a1 a2 a3 b0 b1 b2 b3).pcFree := by
+  delta fullModN4MaxSkipPost
+  pcFree
+
+instance pcFreeInst_fullModN4MaxSkipPost
+    (sp a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
+    Assertion.PCFree (fullModN4MaxSkipPost sp a0 a1 a2 a3 b0 b1 b2 b3) :=
+  ⟨pcFree_fullModN4MaxSkipPost sp a0 a1 a2 a3 b0 b1 b2 b3⟩
+
 /-- Full n=4 DIV path: base → base+1068 (shift ≠ 0, max+skip).
     Composes pre-loop + loop body + denorm + epilogue. -/
 theorem evm_div_n4_full_max_skip_spec (sp base : Word)
