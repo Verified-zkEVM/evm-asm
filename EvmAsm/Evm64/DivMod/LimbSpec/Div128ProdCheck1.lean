@@ -16,12 +16,14 @@
 -/
 
 import EvmAsm.Evm64.DivMod.Program
+import EvmAsm.Rv64.AddrNorm
 import EvmAsm.Rv64.SyscallSpecs
 import EvmAsm.Rv64.ControlFlow
 import EvmAsm.Rv64.Tactics.XSimp
 import EvmAsm.Rv64.Tactics.RunBlock
 
 open EvmAsm.Rv64.Tactics
+open EvmAsm.Rv64.AddrNorm (se13_8 se21_12)
 
 namespace EvmAsm.Evm64
 
@@ -65,8 +67,7 @@ theorem divK_div128_prodcheck1_merged_spec
     have I3 := or_spec_gen_rd_eq_rs1 .x1 .x11 (rhat <<< (32 : BitVec 6).toNat) un1 (base + 12) (by nofun)
     runBlock I0 I1 I2 I3
   have hbltu_raw := bltu_spec_gen .x1 .x5 (8 : BitVec 13) rhat_un1 q_dlo (base + 16)
-  have hsig : signExtend13 (8 : BitVec 13) = (8 : Word) := by decide
-  have ha_t : (base + 16) + signExtend13 (8 : BitVec 13) = base + 24 := by rw [hsig]; bv_addr
+  have ha_t : (base + 16) + signExtend13 (8 : BitVec 13) = base + 24 := by rw [se13_8]; bv_addr
   have ha_f : (base + 16 : Word) + 4 = base + 20 := by bv_addr
   rw [ha_t, ha_f] at hbltu_raw
   have hbltu_framed := cpsBranch_frame_left _ _ _ _ _ _ _
@@ -128,9 +129,8 @@ theorem divK_div128_prodcheck1_merged_spec
     have ntaken_br := cpsBranch_elim_ntaken _ _ _ _ _ _ _ composed (fun hp hQt => by
       obtain ⟨_, _, _, _, ⟨_, _, _, _, _, h_x0p⟩, _⟩ := hQt
       exact absurd ((sepConj_pure_right _ _ _).1 h_x0p).2 hcond)
-    have hj : signExtend21 (12 : BitVec 21) = (12 : Word) := by decide
     have I_jal := jal_x0_spec_gen 12 (base + 20)
-    rw [hj] at I_jal
+    rw [se21_12] at I_jal
     have ha_jal : (base + 20 : Word) + 12 = base + 32 := by bv_addr
     rw [ha_jal] at I_jal
     have hcr_jal : ∀ a i, CodeReq.singleton (base + 20) (.JAL .x0 12) a = some i →

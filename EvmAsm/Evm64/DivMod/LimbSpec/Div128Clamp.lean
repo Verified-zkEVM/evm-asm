@@ -16,12 +16,14 @@
 -/
 
 import EvmAsm.Evm64.DivMod.Program
+import EvmAsm.Rv64.AddrNorm
 import EvmAsm.Rv64.SyscallSpecs
 import EvmAsm.Rv64.ControlFlow
 import EvmAsm.Rv64.Tactics.XSimp
 import EvmAsm.Rv64.Tactics.RunBlock
 
 open EvmAsm.Rv64.Tactics
+open EvmAsm.Rv64.AddrNorm (se13_12)
 
 namespace EvmAsm.Evm64
 
@@ -52,8 +54,7 @@ theorem divK_div128_clamp_q1_merged_spec (q1 rhat d_hi v5_old : Word) (base : Wo
        (.x5 ↦ᵣ hi) ** (.x0 ↦ᵣ 0)) := by
     runBlock I0
   have hbeq_raw := beq_spec_gen .x5 .x0 (12 : BitVec 13) hi (0 : Word) (base + 4)
-  have hsig : signExtend13 (12 : BitVec 13) = (12 : Word) := by decide
-  have ha_t : (base + 4) + signExtend13 (12 : BitVec 13) = base + 16 := by rw [hsig]; bv_addr
+  have ha_t : (base + 4) + signExtend13 (12 : BitVec 13) = base + 16 := by rw [se13_12]; bv_addr
   have ha_f : (base + 4 : Word) + 4 = base + 8 := by bv_addr
   rw [ha_t, ha_f] at hbeq_raw
   have hbeq_framed := cpsBranch_frame_left _ _ _ _ _ _ _
@@ -138,8 +139,7 @@ theorem divK_div128_clamp_q0_merged_spec (q0 rhat2 d_hi v1_old : Word) (base : W
     have I0 := srli_spec_gen .x1 .x5 v1_old q0 32 base (by nofun)
     runBlock I0
   have hbeq_raw := beq_spec_gen .x1 .x0 (12 : BitVec 13) hi (0 : Word) (base + 4)
-  have hsig : signExtend13 (12 : BitVec 13) = (12 : Word) := by decide
-  have ha_t : (base + 4) + signExtend13 (12 : BitVec 13) = base + 16 := by rw [hsig]; bv_addr
+  have ha_t : (base + 4) + signExtend13 (12 : BitVec 13) = base + 16 := by rw [se13_12]; bv_addr
   have ha_f : (base + 4 : Word) + 4 = base + 8 := by bv_addr
   rw [ha_t, ha_f] at hbeq_raw
   have hbeq_framed := cpsBranch_frame_left _ _ _ _ _ _ _

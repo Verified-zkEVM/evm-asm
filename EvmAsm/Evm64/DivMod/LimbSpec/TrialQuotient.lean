@@ -19,12 +19,16 @@
 -/
 
 import EvmAsm.Evm64.DivMod.Program
+import EvmAsm.Evm64.DivMod.AddrNorm
+import EvmAsm.Rv64.AddrNorm
 import EvmAsm.Rv64.SyscallSpecs
 import EvmAsm.Rv64.ControlFlow
 import EvmAsm.Rv64.Tactics.XSimp
 import EvmAsm.Rv64.Tactics.RunBlock
 
 open EvmAsm.Rv64.Tactics
+open EvmAsm.Rv64.AddrNorm (se21_8)
+open EvmAsm.Evm64.DivMod.AddrNorm (se12_0)
 
 namespace EvmAsm.Evm64
 
@@ -76,8 +80,7 @@ theorem divK_trial_load_u_spec (sp j n v5_old v7_old u_hi u_lo : Word)
        (sp + signExtend12 3984 ↦ₘ n) **
        (u_addr ↦ₘ u_hi) ** ((u_addr + 8) ↦ₘ u_lo)) := by
   intro jpn jpn_x8 u0_base u_addr cr
-  have hse0 : signExtend12 (0 : BitVec 12) = (0 : Word) := by decide
-  have haddr0 : u_addr + signExtend12 (0 : BitVec 12) = u_addr := by rw [hse0]; bv_omega
+  have haddr0 : u_addr + signExtend12 (0 : BitVec 12) = u_addr := by rw [se12_0]; bv_omega
   have I0 := ld_spec_gen .x5 .x12 sp v5_old n 3984 base (by nofun)
   have I1 := add_spec_gen .x7 .x1 .x5 j n v7_old (base + 4) (by nofun)
   have I2 := slli_spec_gen_same .x7 jpn 3 (base + 8) (by nofun)
@@ -124,10 +127,9 @@ theorem divK_trial_max_spec (v11_old : Word) (base : Word) :
       ((.x11 ↦ᵣ v11_old) ** (.x0 ↦ᵣ 0))
       ((.x11 ↦ᵣ signExtend12 4095) ** (.x0 ↦ᵣ 0)) := by
   intro cr
-  have hj : signExtend21 (8 : BitVec 21) = (8 : Word) := by decide
   have I0 := addi_x0_spec_gen .x11 v11_old 4095 base (by nofun)
   have I1 := jal_x0_spec_gen 8 (base + 4)
-  rw [hj] at I1
+  rw [se21_8] at I1
   have ha : (base + 4 : Word) + 8 = base + 12 := by bv_addr
   rw [ha] at I1
   runBlock I0 I1

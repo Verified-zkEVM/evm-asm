@@ -10,12 +10,14 @@
 -/
 
 import EvmAsm.Evm64.DivMod.LoopDefs
+import EvmAsm.Evm64.DivMod.AddrNorm
 import EvmAsm.Evm64.EvmWordArith.DivMulSubCarry
 import EvmAsm.Evm64.EvmWordArith.DivAddbackCarry
 
 namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64 EvmWord
+open EvmAsm.Evm64.DivMod.AddrNorm (se12_0)
 
 -- ============================================================================
 -- Mulsub: mulsubN4 satisfies the 4-limb val256 Euclidean equation
@@ -28,8 +30,7 @@ theorem mulsubN4_val256_eq (q v0 v1 v2 v3 u0 u1 u2 u3 : Word) :
     let ms := mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3
     val256 u0 u1 u2 u3 + ms.2.2.2.2.toNat * 2^256 =
       val256 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 + q.toNat * val256 v0 v1 v2 v3 := by
-  have hsig : signExtend12 (0 : BitVec 12) = (0 : Word) := by decide
-  simp only [mulsubN4, hsig]
+  simp only [mulsubN4, se12_0]
   exact mulsub_register_4limb_val256 q v0 v1 v2 v3 u0 u1 u2 u3
 
 -- ============================================================================
@@ -47,9 +48,8 @@ theorem addbackN4_val256_eq (un0 un1 un2 un3 u4_new v0 v1 v2 v3 : Word) :
     let carry := addbackN4_carry un0 un1 un2 un3 v0 v1 v2 v3
     val256 un0 un1 un2 un3 + val256 v0 v1 v2 v3 =
       val256 ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 + carry.toNat * 2^256 := by
-  have hsig : signExtend12 (0 : BitVec 12) = (0 : Word) := by decide
-  simp only [addbackN4_carry, hsig]
-  simp only [addbackN4, hsig]
+  simp only [addbackN4_carry, se12_0]
+  simp only [addbackN4, se12_0]
   exact addback_register_4limb_val256 v0 v1 v2 v3 un0 un1 un2 un3
 
 /-- The 5th component of addbackN4 is u4_new + carry. -/
