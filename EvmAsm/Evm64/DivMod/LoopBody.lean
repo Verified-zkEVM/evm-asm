@@ -660,6 +660,33 @@ theorem divK_correction_addback_spec
     (fun h hq => by xperm_hyp hq)
     ntaken_framedAB
 
+/-- Variant of correction_addback_spec with addbackN4/addbackN4_carry in postcondition.
+    Same proof via cpsTriple_consequence (definitional equality). -/
+theorem divK_correction_addback_named_spec
+    (sp u_base borrow q_hat v0 v1 v2 v3 u0 u1 u2 u3 u4 : Word)
+    (v5_old v2_old : Word) (base : Word)
+    (hb : borrow ≠ (0 : Word)) :
+    let ab := addbackN4 u0 u1 u2 u3 u4 v0 v1 v2 v3
+    let q_hat' := q_hat + signExtend12 4095
+    cpsTriple (base + 728) (base + 880) (sharedDivModCode base)
+      ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ u_base) ** (.x7 ↦ᵣ borrow) **
+       (.x11 ↦ᵣ q_hat) ** (.x5 ↦ᵣ v5_old) ** (.x2 ↦ᵣ v2_old) ** (.x0 ↦ᵣ (0 : Word)) **
+       ((sp + signExtend12 32) ↦ₘ v0) ** ((u_base + signExtend12 0) ↦ₘ u0) **
+       ((sp + signExtend12 40) ↦ₘ v1) ** ((u_base + signExtend12 4088) ↦ₘ u1) **
+       ((sp + signExtend12 48) ↦ₘ v2) ** ((u_base + signExtend12 4080) ↦ₘ u2) **
+       ((sp + signExtend12 56) ↦ₘ v3) ** ((u_base + signExtend12 4072) ↦ₘ u3) **
+       ((u_base + signExtend12 4064) ↦ₘ u4))
+      ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ u_base) ** (.x7 ↦ᵣ addbackN4_carry u0 u1 u2 u3 v0 v1 v2 v3) **
+       (.x11 ↦ᵣ q_hat') ** (.x5 ↦ᵣ ab.2.2.2.2) ** (.x2 ↦ᵣ ab.2.2.2.1) ** (.x0 ↦ᵣ (0 : Word)) **
+       ((sp + signExtend12 32) ↦ₘ v0) ** ((u_base + signExtend12 0) ↦ₘ ab.1) **
+       ((sp + signExtend12 40) ↦ₘ v1) ** ((u_base + signExtend12 4088) ↦ₘ ab.2.1) **
+       ((sp + signExtend12 48) ↦ₘ v2) ** ((u_base + signExtend12 4080) ↦ₘ ab.2.2.1) **
+       ((sp + signExtend12 56) ↦ₘ v3) ** ((u_base + signExtend12 4072) ↦ₘ ab.2.2.2.1) **
+       ((u_base + signExtend12 4064) ↦ₘ ab.2.2.2.2)) := by
+  intro ab q_hat'
+  exact divK_correction_addback_spec sp u_base borrow q_hat v0 v1 v2 v3 u0 u1 u2 u3 u4
+    v5_old v2_old base hb
+
 -- ============================================================================
 -- Section 7: Save j + trial load composition
 -- Instrs [0]-[12] at base+448 → base+500.
