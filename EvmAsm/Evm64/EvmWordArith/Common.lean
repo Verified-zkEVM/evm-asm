@@ -55,11 +55,6 @@ theorem toNat_eq_limb_sum (v : EvmWord) :
   have hv := v.isLt  -- v.toNat < 2^256
   omega
 
--- getLimb as toNat division
-private theorem getLimb_toNat_eq (v : EvmWord) (i : Fin 4) :
-    (v.getLimb i).toNat = (v.toNat / 2 ^ (i.val * 64)) % 2 ^ 64 := by
-  simp only [getLimb, BitVec.extractLsb'_toNat, Nat.shiftRight_eq_div_pow]
-
 -- BitVec.ult ↔ toNat comparison
 theorem ult_iff {n : Nat} (x y : BitVec n) : BitVec.ult x y ↔ x.toNat < y.toNat :=
   ⟨fun h => BitVec.lt_def.mp (of_decide_eq_true h),

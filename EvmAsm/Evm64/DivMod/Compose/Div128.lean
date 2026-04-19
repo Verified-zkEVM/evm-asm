@@ -48,12 +48,6 @@ private theorem d128_sub (base : Word) (k : Nat) (addr : Word) (instr : Instr)
 -- Abbreviation for repeated `by decide` / `by bv_addr` calls
 -- Each block's subsumption uses: CodeReq.union_sub (d128_sub ...) (CodeReq.union_sub ...)
 
--- Address normalization: block entry offsets relative to (base + div128Off)
-private theorem d128_off_40 (base : Word) : (base + div128Off : Word) + 40 = base + 1112 := by bv_addr
-private theorem d128_off_100 (base : Word) : (base + div128Off : Word) + 100 = base + 1172 := by bv_addr
-private theorem d128_off_120 (base : Word) : (base + div128Off : Word) + 120 = base + 1192 := by bv_addr
-private theorem d128_off_180 (base : Word) : (base + div128Off : Word) + 180 = base + 1252 := by bv_addr
-
 -- ============================================================================
 -- div128_spec: compose 5 block specs into single subroutine theorem.
 -- Entry: base+1072, Exit: ret_addr (via JALR), CodeReq: sharedDivModCode base.

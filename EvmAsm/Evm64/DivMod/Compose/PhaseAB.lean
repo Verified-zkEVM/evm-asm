@@ -143,14 +143,9 @@ private theorem divK_phaseB_n4_nm1_x8 :
 
 -- Address normalization lemmas `phB_off_{4..28}` now live in `Compose/Base.lean`
 -- and are shared with the MOD-side files (ModPhaseB / ModPhaseBn3 / ModPhaseBn21).
-private theorem phB_i2_4 (base : Word) : (base + 60 : Word) + 4 = base + 64 := by bv_addr
 private theorem phB_i2_8 (base : Word) : (base + 60 : Word) + 8 = base + 68 := by bv_addr
 private theorem phB_addi_4 (base : Word) : (base + 68 : Word) + 4 = base + 72 := by bv_addr
 private theorem phB_bne_4 (base : Word) : (base + 72 : Word) + 4 = base + 76 := by bv_addr
-private theorem phB_t_4 (base : Word) : (base + 96 : Word) + 4 = base + 100 := by bv_addr
-private theorem phB_t_8 (base : Word) : (base + 96 : Word) + 8 = base + 104 := by bv_addr
-private theorem phB_t_12 (base : Word) : (base + 96 : Word) + 12 = base + 108 := by bv_addr
-private theorem phB_t_16 (base : Word) : (base + 96 : Word) + 16 = base + 112 := by bv_addr
 private theorem phB_t_20 (base : Word) : (base + 96 : Word) + 20 = base + clzOff := by bv_addr
 private theorem phB_sp24_32 (sp : Word) : (sp + (24 : Word) + (32 : Word)) = sp + 56 := by bv_addr
 

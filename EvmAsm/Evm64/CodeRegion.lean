@@ -110,13 +110,6 @@ def evmCodeIs (base : Word) (bytes : List (BitVec 8)) : Assertion :=
 @[simp] theorem evmCodeIs_nil (base : Word) :
     evmCodeIs base [] = empAssertion := rfl
 
-private theorem numChunks_pos {n : Nat} (hn : 0 < n) : 0 < numChunks n := by
-  unfold numChunks; omega
-
-private theorem numChunks_step {n : Nat} (hn : 0 < n) :
-    numChunks n = numChunks (n - min n 8) + 1 := by
-  unfold numChunks; omega
-
 /-- evmCodeIs of a non-empty list decomposes into a chunk and the rest. -/
 theorem evmCodeIs_nonempty (base : Word) (bytes : List (BitVec 8)) (h : bytes ≠ []) :
     evmCodeIs base bytes =

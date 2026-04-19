@@ -27,17 +27,6 @@ private theorem divK_denorm_code_sub_modCode (base : Word) :
   skipBlock; skipBlock; skipBlock; skipBlock
   exact CodeReq.union_mono_left _ _
 
-/-- Helper: Denorm sub-block subsumption via ofProg_mono_sub for modCode. -/
-private theorem denorm_sub_mod (base : Word) (sub_prog : List Instr) (k : Nat)
-    (hk : k + sub_prog.length ≤ divK_denorm.length)
-    (hslice : (divK_denorm.drop k).take sub_prog.length = sub_prog)
-    (hbound : 4 * divK_denorm.length < 2 ^ 64) :
-    ∀ a i, (CodeReq.ofProg ((base + denormOff) + BitVec.ofNat 64 (4 * k)) sub_prog) a = some i →
-      (modCode base) a = some i := by
-  intro a i h
-  exact divK_denorm_code_sub_modCode base a i
-    (CodeReq.ofProg_mono_sub (base + denormOff) _ divK_denorm _ k rfl hslice hk hbound a i h)
-
 /-- Full Denorm (shift body only) for modCode: denormalize u[0..3] by right-shifting.
     base+904+16 → base+904+100 (21 instructions: ADDI+SUB + 3×merge + last).
     Used when shift≠0. The BEQ and LD are handled separately.
