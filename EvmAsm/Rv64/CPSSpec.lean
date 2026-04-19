@@ -141,10 +141,14 @@ theorem cpsTriple_strip_pure_and_convert
     obtain ⟨hp', hcompat', hpq'⟩ := hQR
     exact ⟨hp', hcompat', sepConj_mono_left (hpost hfact) hp' hpq'⟩⟩
 
-/-- Rule of consequence for cpsBranch: strengthen pre, weaken both posts. -/
-theorem cpsBranch_consequence (entry : Word) (cr : CodeReq)
-    (P P' : Assertion) (exit_t : Word) (Q_t Q_t' : Assertion)
-    (exit_f : Word) (Q_f Q_f' : Assertion)
+/-- Rule of consequence for cpsBranch: strengthen pre, weaken both posts.
+
+    All pre/post-condition arguments are implicit: `P`/`Q_t`/`Q_f` unify from
+    the branch `h`, and `P'`/`Q_t'`/`Q_f'` from the expected goal type. Prefer
+    this over `cpsBranch_consequence` (which takes nine explicit `_` arguments). -/
+theorem cpsBranch_weaken {entry : Word} {cr : CodeReq}
+    {P P' : Assertion} {exit_t : Word} {Q_t Q_t' : Assertion}
+    {exit_f : Word} {Q_f Q_f' : Assertion}
     (hpre : ∀ h, P' h → P h)
     (hpost_t : ∀ h, Q_t h → Q_t' h)
     (hpost_f : ∀ h, Q_f h → Q_f' h)
@@ -162,6 +166,19 @@ theorem cpsBranch_consequence (entry : Word) (cr : CodeReq)
   · exact ⟨k, s', hstep, Or.inr ⟨hpc_f, by
       obtain ⟨hp, hcompat, hpq⟩ := hQR_f
       exact ⟨hp, hcompat, sepConj_mono_left hpost_f hp hpq⟩⟩⟩
+
+/-- Explicit-argument variant of `cpsBranch_weaken`. Kept for backwards
+    compatibility; prefer `cpsBranch_weaken` in new code. -/
+@[deprecated cpsBranch_weaken (since := "2026-04-19")]
+theorem cpsBranch_consequence (entry : Word) (cr : CodeReq)
+    (P P' : Assertion) (exit_t : Word) (Q_t Q_t' : Assertion)
+    (exit_f : Word) (Q_f Q_f' : Assertion)
+    (hpre : ∀ h, P' h → P h)
+    (hpost_t : ∀ h, Q_t h → Q_t' h)
+    (hpost_f : ∀ h, Q_f h → Q_f' h)
+    (h : cpsBranch entry cr P exit_t Q_t exit_f Q_f) :
+    cpsBranch entry cr P' exit_t Q_t' exit_f Q_f' :=
+  cpsBranch_weaken hpre hpost_t hpost_f h
 
 /-- Swap the two branch targets of a cpsBranch. -/
 theorem cpsBranch_swap (entry : Word) (cr : CodeReq) (P : Assertion)
