@@ -14,6 +14,7 @@ open EvmAsm.Rv64.Tactics
 namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
+open EvmAsm.Rv64.AddrNorm (se12_32 se12_40 se12_48 se12_56)
 
 -- ============================================================================
 -- Address normalization lemmas for j=0
@@ -172,6 +173,41 @@ theorem divK_loop_body_n4_max_skip_j0_modCode
   refine cpsTriple_weaken ?_ (fun _ hq => hq) h
   intro _ hp
   rw [loopBodyN4SkipJ0Pre_unfold] at hp
+  exact hp
+
+/-- Max_skip j=0 loop body against modCode with sp-relative addresses in the
+    precondition. Mirror of the DIV `divK_loop_body_n4_max_skip_j0_norm`
+    with `divCode → modCode`. `q_hat = signExtend12 4095` is inlined so no
+    `let` bindings appear in the statement. -/
+theorem divK_loop_body_n4_max_skip_j0_norm_modCode (sp base : Word)
+    (j_old v5_old v6_old v7_old v10_old v11_old v2_old : Word)
+    (v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old : Word)
+    (hbltu : ¬BitVec.ult u_top v3)
+    (hborrow : (if BitVec.ult u_top
+                  (mulsubN4_c3 (signExtend12 4095) v0 v1 v2 v3 u0 u1 u2 u3)
+                then (1 : Word) else 0) = (0 : Word)) :
+    cpsTriple (base + loopBodyOff) (base + denormOff) (modCode base)
+      ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (0 : Word)) **
+       (.x5 ↦ᵣ v5_old) ** (.x6 ↦ᵣ v6_old) **
+       (.x7 ↦ᵣ v7_old) ** (.x10 ↦ᵣ v10_old) ** (.x11 ↦ᵣ v11_old) **
+       (.x2 ↦ᵣ v2_old) ** (.x0 ↦ᵣ (0 : Word)) **
+       (sp + signExtend12 3976 ↦ₘ j_old) ** (sp + signExtend12 3984 ↦ₘ (4 : Word)) **
+       ((sp + 32) ↦ₘ v0) ** ((sp + signExtend12 4056) ↦ₘ u0) **
+       ((sp + 40) ↦ₘ v1) ** ((sp + signExtend12 4048) ↦ₘ u1) **
+       ((sp + 48) ↦ₘ v2) ** ((sp + signExtend12 4040) ↦ₘ u2) **
+       ((sp + 56) ↦ₘ v3) ** ((sp + signExtend12 4032) ↦ₘ u3) **
+       ((sp + signExtend12 4024) ↦ₘ u_top) **
+       ((sp + signExtend12 4088) ↦ₘ q_old))
+      (loopBodyN4SkipPost sp (0 : Word) (signExtend12 4095)
+        v0 v1 v2 v3 u0 u1 u2 u3 u_top) := by
+  have raw := divK_loop_body_n4_max_skip_j0_modCode sp j_old v5_old v6_old v7_old
+    v10_old v11_old v2_old v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old base hbltu hborrow
+  refine cpsTriple_weaken ?_ (fun _ hq => hq) raw
+  intro _ hp
+  rw [loopBodyN4SkipJ0Pre_unfold]
+  simp only [se12_32, se12_40, se12_48, se12_56,
+             u_base_off0_j0, u_base_off4088_j0, u_base_off4080_j0,
+             u_base_off4072_j0, u_base_off4064_j0, q_addr_j0]
   exact hp
 
 -- ============================================================================
