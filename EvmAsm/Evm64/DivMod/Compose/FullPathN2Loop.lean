@@ -18,6 +18,7 @@ open EvmAsm.Rv64.Tactics
 namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
+open EvmAsm.Evm64.DivMod.AddrNorm (bv6_toNat_3 word_shl3_0)
 
 -- ============================================================================
 -- Address normalization lemmas for n=2 preloop+loop composition
@@ -121,7 +122,7 @@ theorem loopExitPostN2_j0_eq (sp q_f c3 un0_f un1_f un2_f un3_f u4_f
   simp only [loopExitPost_unfold]
   rw [u_base_off0_j0, u_base_off4088_j0, u_base_off4080_j0,
       u_base_off4072_j0, u_base_off4064_j0, u_base_j0, q_addr_j0]
-  simp only [show (0 : Word) <<< (3 : BitVec 6).toNat = (0 : Word) from by decide]
+  simp only [bv6_toNat_3, word_shl3_0]
   rw [show (0 : Word) + signExtend12 4095 = signExtend12 4095 from BitVec.zero_add _]
 
 -- ============================================================================
