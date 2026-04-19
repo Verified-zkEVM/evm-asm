@@ -25,6 +25,7 @@ open EvmAsm.Rv64.Tactics
 namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
+open EvmAsm.Evm64.DivMod.AddrNorm (jpred_1 jpred_2 jpred_3)
 
 -- ============================================================================
 -- Double-addback () two-iteration (j=1, j=0) unified composition
@@ -111,7 +112,7 @@ theorem divK_loop_n1_iter10_unified_spec (bltu_1 bltu_0 : Bool)
       (fun h hp => by
         delta loopIterPostN1Max loopExitPostN1 loopExitPost at hp
         simp only [] at hp ⊢
-        have hj' : (1 : Word) + signExtend12 4095 = (0 : Word) := by decide
+        have hj' := jpred_1
         rw [hj', u_n1_j1_0_eq_j0_4088 sp, u_n1_j1_4088_eq_j0_4080 sp,
             u_n1_j1_4080_eq_j0_4072 sp, u_n1_j1_4072_eq_j0_4064 sp] at hp
         rw [sepConj_assoc'] at hp
@@ -178,7 +179,7 @@ theorem divK_loop_n1_iter10_unified_spec (bltu_1 bltu_0 : Bool)
       (fun h hp => by
         delta loopIterPostN1Max loopExitPostN1 loopExitPost at hp
         simp only [] at hp ⊢
-        have hj' : (1 : Word) + signExtend12 4095 = (0 : Word) := by decide
+        have hj' := jpred_1
         rw [hj', u_n1_j1_0_eq_j0_4088 sp, u_n1_j1_4088_eq_j0_4080 sp,
             u_n1_j1_4080_eq_j0_4072 sp, u_n1_j1_4072_eq_j0_4064 sp] at hp
         rw [sepConj_assoc'] at hp
@@ -246,7 +247,7 @@ theorem divK_loop_n1_iter10_unified_spec (bltu_1 bltu_0 : Bool)
       (fun h hp => by
         delta loopIterPostN1Call loopExitPostN1 loopExitPost at hp
         simp only [] at hp ⊢
-        have hj' : (1 : Word) + signExtend12 4095 = (0 : Word) := by decide
+        have hj' := jpred_1
         rw [hj', u_n1_j1_0_eq_j0_4088 sp, u_n1_j1_4088_eq_j0_4080 sp,
             u_n1_j1_4080_eq_j0_4072 sp, u_n1_j1_4072_eq_j0_4064 sp] at hp
         rw [sepConj_assoc'] at hp
@@ -312,7 +313,7 @@ theorem divK_loop_n1_iter10_unified_spec (bltu_1 bltu_0 : Bool)
       (fun h hp => by
         delta loopIterPostN1Call loopExitPostN1 loopExitPost at hp
         simp only [] at hp ⊢
-        have hj' : (1 : Word) + signExtend12 4095 = (0 : Word) := by decide
+        have hj' := jpred_1
         rw [hj', u_n1_j1_0_eq_j0_4088 sp, u_n1_j1_4088_eq_j0_4080 sp,
             u_n1_j1_4080_eq_j0_4072 sp, u_n1_j1_4072_eq_j0_4064 sp] at hp
         rw [sepConj_assoc'] at hp
@@ -400,7 +401,7 @@ theorem divK_loop_n1_max_iter10_spec (bltu_1 bltu_0 : Bool)
       delta loopIterPostN1Max loopExitPostN1 loopExitPost at hp
       delta loopN1Iter10PreWithScratch loopN1Iter10Pre at ⊢
       simp only [] at hp ⊢
-      have hj' : (2 : Word) + signExtend12 4095 = (1 : Word) := by decide
+      have hj' := jpred_2
       rw [hj', u_n1_j2_0_eq_j1_4088 sp, u_n1_j2_4088_eq_j1_4080 sp,
           u_n1_j2_4080_eq_j1_4072 sp, u_n1_j2_4072_eq_j1_4064 sp] at hp
       rw [sepConj_assoc'] at hp
@@ -481,7 +482,7 @@ theorem divK_loop_n1_call_iter10_spec (bltu_1 bltu_0 : Bool)
       delta loopIterPostN1Call loopExitPostN1 loopExitPost at hp
       delta loopN1Iter10PreWithScratch loopN1Iter10Pre at ⊢
       simp only [] at hp ⊢
-      have hj' : (2 : Word) + signExtend12 4095 = (1 : Word) := by decide
+      have hj' := jpred_2
       rw [hj', u_n1_j2_0_eq_j1_4088 sp, u_n1_j2_4088_eq_j1_4080 sp,
           u_n1_j2_4080_eq_j1_4072 sp, u_n1_j2_4072_eq_j1_4064 sp] at hp
       rw [sepConj_assoc'] at hp
@@ -646,7 +647,7 @@ theorem divK_loop_n1_max_iter210_spec (bltu_2 bltu_1 bltu_0 : Bool)
       delta loopIterPostN1Max loopExitPostN1 loopExitPost at hp
       delta loopN1Iter210PreWithScratch loopN1Iter210Pre at ⊢
       simp only [] at hp ⊢
-      have hj' : (3 : Word) + signExtend12 4095 = (2 : Word) := by decide
+      have hj' := jpred_3
       rw [hj', u_n1_j3_0_eq_j2_4088 sp, u_n1_j3_4088_eq_j2_4080 sp,
           u_n1_j3_4080_eq_j2_4072 sp, u_n1_j3_4072_eq_j2_4064 sp] at hp
       rw [sepConj_assoc'] at hp
@@ -753,7 +754,7 @@ theorem divK_loop_n1_call_iter210_spec (bltu_2 bltu_1 bltu_0 : Bool)
       delta loopIterPostN1Call loopExitPostN1 loopExitPost at hp
       delta loopN1Iter210PreWithScratch loopN1Iter210Pre at ⊢
       simp only [] at hp ⊢
-      have hj' : (3 : Word) + signExtend12 4095 = (2 : Word) := by decide
+      have hj' := jpred_3
       rw [hj', u_n1_j3_0_eq_j2_4088 sp, u_n1_j3_4088_eq_j2_4080 sp,
           u_n1_j3_4080_eq_j2_4072 sp, u_n1_j3_4072_eq_j2_4064 sp] at hp
       rw [sepConj_assoc'] at hp

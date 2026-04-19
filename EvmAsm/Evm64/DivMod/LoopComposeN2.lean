@@ -22,6 +22,7 @@ open EvmAsm.Rv64.Tactics
 namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
+open EvmAsm.Evm64.DivMod.AddrNorm (jpred_1)
 
 -- ============================================================================
 -- Address equality lemmas for j=2 output → j=1 input transition
@@ -448,7 +449,7 @@ theorem divK_loop_n2_max_max_spec
     (fun h hp => by
       delta loopIterPostN2Max loopExitPostN2 loopExitPost at hp
       simp only [] at hp ⊢
-      have hj' : (1 : Word) + signExtend12 4095 = (0 : Word) := by decide
+      have hj' := jpred_1
       rw [hj', u_j1_0_eq_j0_4088 sp, u_j1_4088_eq_j0_4080 sp,
           u_j1_4080_eq_j0_4072 sp, u_j1_4072_eq_j0_4064 sp] at hp
       rw [sepConj_assoc'] at hp
@@ -529,7 +530,7 @@ theorem divK_loop_n2_call_call_spec
     (fun h hp => by
       delta loopIterPostN2Call loopExitPostN2 loopExitPost at hp
       simp only [] at hp ⊢
-      have hj' : (1 : Word) + signExtend12 4095 = (0 : Word) := by decide
+      have hj' := jpred_1
       rw [hj', u_j1_0_eq_j0_4088 sp, u_j1_4088_eq_j0_4080 sp,
           u_j1_4080_eq_j0_4072 sp, u_j1_4072_eq_j0_4064 sp] at hp
       rw [sepConj_assoc'] at hp
@@ -617,7 +618,7 @@ theorem divK_loop_n2_max_call_spec
     (fun h hp => by
       delta loopIterPostN2Max loopExitPostN2 loopExitPost at hp
       simp only [] at hp ⊢
-      have hj' : (1 : Word) + signExtend12 4095 = (0 : Word) := by decide
+      have hj' := jpred_1
       rw [hj', u_j1_0_eq_j0_4088 sp, u_j1_4088_eq_j0_4080 sp,
           u_j1_4080_eq_j0_4072 sp, u_j1_4072_eq_j0_4064 sp] at hp
       rw [sepConj_assoc'] at hp
@@ -703,7 +704,7 @@ theorem divK_loop_n2_call_max_spec
     (fun h hp => by
       delta loopIterPostN2Call loopExitPostN2 loopExitPost at hp
       simp only [] at hp ⊢
-      have hj' : (1 : Word) + signExtend12 4095 = (0 : Word) := by decide
+      have hj' := jpred_1
       rw [hj', u_j1_0_eq_j0_4088 sp, u_j1_4088_eq_j0_4080 sp,
           u_j1_4080_eq_j0_4072 sp, u_j1_4072_eq_j0_4064 sp] at hp
       rw [sepConj_assoc'] at hp
