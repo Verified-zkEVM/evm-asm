@@ -426,16 +426,15 @@ theorem div_n4_max_skip_stack_weaken
          u5_p u6_p u7_p shift_p n_p j_p) h →
       divN4MaxSkipStackPost sp a b h := by
   intro h hp
-  rw [divScratchValues_unfold] at hp
   delta divN4MaxSkipStackPost
-  unfold divScratchOwn
   refine sepConj_mono_right ?_ h hp
   iterate 7 apply sepConj_mono (regIs_implies_regOwn _ _)
   apply sepConj_mono_right
   apply sepConj_mono_right
   apply sepConj_mono_right
-  iterate 14 apply sepConj_mono (memIs_implies_memOwn _ _)
-  exact memIs_implies_memOwn _ _
+  exact divScratchValues_implies_divScratchOwn
+    sp q0_p q1_p q2_p q3_p u0_p u1_p u2_p u3_p u4_p u5_p u6_p u7_p
+    shift_p n_p j_p
 
 /-- MOD counterpart of `divN4MaxSkipStackPost`: same structure, same register
     and scratch handling, but the second operand slot holds `EvmWord.mod a b`
@@ -656,16 +655,15 @@ theorem mod_n4_max_skip_stack_weaken
          u5_p u6_p u7_p shift_p n_p j_p) h →
       modN4MaxSkipStackPost sp a b h := by
   intro h hp
-  rw [divScratchValues_unfold] at hp
   delta modN4MaxSkipStackPost
-  unfold divScratchOwn
   refine sepConj_mono_right ?_ h hp
   iterate 7 apply sepConj_mono (regIs_implies_regOwn _ _)
   apply sepConj_mono_right
   apply sepConj_mono_right
   apply sepConj_mono_right
-  iterate 14 apply sepConj_mono (memIs_implies_memOwn _ _)
-  exact memIs_implies_memOwn _ _
+  exact divScratchValues_implies_divScratchOwn
+    sp q0_p q1_p q2_p q3_p u0_p u1_p u2_p u3_p u4_p u5_p u6_p u7_p
+    shift_p n_p j_p
 
 /-- EvmWord-level wrapper around `evm_div_n4_full_max_skip_spec`. Same
     guarantee (full-path DIV from `base` to `base + nopOff` on the n=4 max+skip
