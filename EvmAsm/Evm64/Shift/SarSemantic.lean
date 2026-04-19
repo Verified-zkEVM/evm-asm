@@ -114,10 +114,9 @@ private theorem sar_sign_fill_lift (sp base : Word)
       simp only [ha40, ha48, ha56] at hp
       xperm_hyp hp)
     (fun h hq => by
-      simp only [evmWordIs, EvmWord.getLimbN_fromLimbs_const,
-                 show (0 : Nat) < 4 from by decide, show (1 : Nat) < 4 from by decide,
-                 show (2 : Nat) < 4 from by decide, show (3 : Nat) < 4 from by decide,
-                 ite_true]
+      simp only [evmWordIs, EvmWord.getLimbN_fromLimbs_const_0,
+                 EvmWord.getLimbN_fromLimbs_const_1, EvmWord.getLimbN_fromLimbs_const_2,
+                 EvmWord.getLimbN_fromLimbs_const_3]
       simp only [← EvmWord.getLimb_as_getLimbN_0, ← EvmWord.getLimb_as_getLimbN_1,
                  ← EvmWord.getLimb_as_getLimbN_2, ← EvmWord.getLimb_as_getLimbN_3]
       have ha40 : (sp + 32 : Word) + 8 = sp + 40 := by bv_omega
