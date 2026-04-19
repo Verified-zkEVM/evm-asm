@@ -307,7 +307,7 @@ theorem evm_shl_zero_high_spec (sp base : Word)
       simp only [ha40, ha48, ha56] at hp
       xperm_hyp hp) hAB hzp_framed
   -- Final: normalize addresses back + weaken regs to regOwn
-  exact cpsTriple_consequence _ _ _ _ _ _ _
+  exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by
       simp only [ha40', ha48', ha56'] at hq
@@ -453,7 +453,7 @@ theorem evm_shl_zero_large_spec (sp base : Word)
       simp only [ha40, ha48, ha56] at hp
       xperm_hyp hp) h1234567 hzp_framed
   -- Final: normalize addresses back + weaken regs to regOwn
-  exact cpsTriple_consequence _ _ _ _ _ _ _
+  exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by
       simp only [ha40', ha48', ha56'] at hq
@@ -611,7 +611,7 @@ theorem evm_shl_body_evmWord_spec (sp base : Word)
        (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3) **
        ((sp + 32) ↦ₘ getLimb result 0) ** ((sp + 40) ↦ₘ getLimb result 1) **
        ((sp + 48) ↦ₘ getLimb result 2) ** ((sp + 56) ↦ₘ getLimb result 3)) by
-    exact cpsTriple_consequence _ _ _ _ _ _ _
+    exact cpsTriple_weaken
       (fun h hp => by
         unfold evmWordIs at hp
         simp only [← EvmWord.getLimb_as_getLimbN_0, ← EvmWord.getLimb_as_getLimbN_1,
@@ -785,13 +785,13 @@ theorem evm_shl_body_evmWord_spec (sp base : Word)
     have w5 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn .x11 _)))))) h w4
     exact (congrFun (show _ = _ from by xperm) h).mp w5
   -- Apply weakening to each body (keep concrete mem values)
-  have hbody0_w := cpsTriple_consequence _ _ _ _ _ _ _
+  have hbody0_w := cpsTriple_weaken
     (fun h hp => hp) (fun h hq => body_post_weaken _ _ _ _ _ _ _ _ _ h (by xperm_hyp hq)) hbody0_f
-  have hbody1_w := cpsTriple_consequence _ _ _ _ _ _ _
+  have hbody1_w := cpsTriple_weaken
     (fun h hp => hp) (fun h hq => body_post_weaken _ _ _ _ _ _ _ _ _ h (by xperm_hyp hq)) hbody1_f
-  have hbody2_w := cpsTriple_consequence _ _ _ _ _ _ _
+  have hbody2_w := cpsTriple_weaken
     (fun h hp => hp) (fun h hq => body_post_weaken _ _ _ _ _ _ _ _ _ h (by xperm_hyp hq)) hbody2_f
-  have hbody3_w := cpsTriple_consequence _ _ _ _ _ _ _
+  have hbody3_w := cpsTriple_weaken
     (fun h hp => hp) (fun h hq => body_post_weaken _ _ _ _ _ _ _ _ _ h (by xperm_hyp hq)) hbody3_f
   -- Bitvector bridge: common facts
   have hshift_toNat : shift.toNat = s0.toNat :=
@@ -904,13 +904,13 @@ theorem evm_shl_body_evmWord_spec (sp base : Word)
     (fun exit hmem => by
       simp only [List.mem_cons, List.mem_nil_iff, or_false] at hmem
       rcases hmem with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
-      · exact cpsTriple_consequence _ _ _ _ _ _ _
+      · exact cpsTriple_weaken
           (fun h hp => by xperm_hyp hp) (fun _ hq => hq) hbody0_ev
-      · exact cpsTriple_consequence _ _ _ _ _ _ _
+      · exact cpsTriple_weaken
           (fun h hp => by xperm_hyp hp) (fun _ hq => hq) hbody1_ev
-      · exact cpsTriple_consequence _ _ _ _ _ _ _
+      · exact cpsTriple_weaken
           (fun h hp => by xperm_hyp hp) (fun _ hq => hq) hbody2_ev
-      · exact cpsTriple_consequence _ _ _ _ _ _ _
+      · exact cpsTriple_weaken
           (fun h hp => by xperm_hyp hp) (fun _ hq => hq) hbody3_ev)
   -- Flatten hphaseAB postcondition for composition
   have hphaseAB' : cpsTriple base (base + 64) (shlCode base)
@@ -923,7 +923,7 @@ theorem evm_shl_body_evmWord_spec (sp base : Word)
        (.x10 ↦ᵣ sltiu_val) **
        (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3) **
        ((sp + 32) ↦ₘ v0) ** ((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3)) :=
-    cpsTriple_consequence _ _ _ _ _ _ _
+    cpsTriple_weaken
       (fun h hp => by xperm_hyp hp)
       (fun h hq => by xperm_hyp hq)
       hphaseAB
