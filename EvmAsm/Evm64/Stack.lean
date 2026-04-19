@@ -179,9 +179,7 @@ theorem evmWordIs_sp64_unfold (sp : Word) (v : EvmWord) :
     (((sp + 64) ↦ₘ v.getLimbN 0) ** ((sp + 72) ↦ₘ v.getLimbN 1) **
      ((sp + 80) ↦ₘ v.getLimbN 2) ** ((sp + 88) ↦ₘ v.getLimbN 3)) := by
   unfold evmWordIs
-  rw [show (sp + 64 : Word) + 8 = sp + 72 from by bv_omega,
-      show (sp + 64 : Word) + 16 = sp + 80 from by bv_omega,
-      show (sp + 64 : Word) + 24 = sp + 88 from by bv_omega]
+  rw [spAddr64_8, spAddr64_16, spAddr64_24]
 
 /-- Rewrite `evmWordIs sp v` to four limb atoms given explicit getLimbN
     equalities. Decouples the caller's representation of `v` from the limb
