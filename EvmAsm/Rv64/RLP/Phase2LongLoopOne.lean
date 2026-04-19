@@ -96,7 +96,7 @@ theorem rlp_phase2_long_loop_one_byte_spec
     obtain ⟨_, _, _, _, _, hpost⟩ := hpost -- peel memory
     exact hpost.2 rfl
   -- `cpsBranch_elim_ntaken` drops the taken branch.
-  have tri := cpsBranch_elim_ntaken _ _ _ _ _ _ _ body h_absurd
+  have tri := cpsBranch_ntakenPath body h_absurd
   -- Weaken the post: unfold the `@[irreducible]` wrapper and strip the
   -- trailing `⌜(0 : Word) = 0⌝ = True` pure fact (via 5 `mono_right` wraps
   -- reaching the innermost `F ** ⌜P⌝`).
