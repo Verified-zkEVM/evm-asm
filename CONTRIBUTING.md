@@ -29,6 +29,22 @@ Before sending work for review:
 - Keep imports at the top of the file.
 - Follow the naming conventions and proof patterns documented in [`AGENTS.md`](AGENTS.md).
 
+### Naming conventions (Mathlib-aligned)
+
+We follow the [Mathlib4 naming guide](https://leanprover-community.github.io/contribute/naming.html#capitalization). Summary:
+
+1. **Terms of `Prop`s** (proofs, theorem names) — `snake_case`. e.g. `add_comm`, `evm_div_spec`.
+2. **`Prop`s and `Type`s** (inductive types, structures, classes) — `UpperCamelCase`. e.g. `CodeReq`, `PartialState`.
+3. **Functions** — named like their return value (so `Prop`-returning functions are `snake_case`, `Type`-returning functions are `UpperCamelCase`).
+4. **All other terms of `Type`s** — `lowerCamelCase`. e.g. `clzResult`, `loopBodyOff`.
+5. Inside a `snake_case` name, an `UpperCamelCase` segment appears in `lowerCamelCase`. e.g. `List.bitVec_cons`, not `List.BitVec_cons`.
+6. Acronyms are lowercased/uppercased as a group (`LE`, `le`, not `lE`).
+
+**Local variables inside proofs** (bound by `have`, `intro`, `let`) follow the same rules by extension:
+
+- Proof/hypothesis names (most `have`/`intro`) — `snake_case` (rule 1). Short forms like `h`, `hx`, `h1`, `hab` are standard. Descriptive forms like `carry_in`, `u_plus_carry` are fine.
+- `let`-bound values of `Type`s — `lowerCamelCase` (rule 4). e.g. `let midPoint := ...`.
+
 ## Git Workflow
 
 - Main branch: `main`
