@@ -18,7 +18,8 @@ namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
 open EvmAsm.Rv64.AddrNorm (se13_24 se13_60 se13_100 se13_156 se13_168 se21_36 se21_68 se21_96
-  zero_add_se12_1_toNat zero_add_se12_2_toNat)
+  zero_add_se12_1_toNat zero_add_se12_2_toNat
+  se12_7 bv6_toNat_3)
 
 -- ============================================================================
 -- Section 1: signextCode definition and helpers
@@ -716,28 +717,25 @@ theorem signext_body_spec (sp base : Word)
   -- limb_idx.toNat = b.toNat / 8
   have hlimb_idx_eq : limb_idx.toNat = b.toNat / 8 := by
     show (b0 >>> (3 : BitVec 6).toNat).toNat = b.toNat / 8
-    have h3 : (3 : BitVec 6).toNat = 3 := by decide
-    rw [h3, BitVec.toNat_ushiftRight, hb0_eq_b]
+    rw [bv6_toNat_3, BitVec.toNat_ushiftRight, hb0_eq_b]
     simp [Nat.shiftRight_eq_div_pow]
   -- shift_amount.toNat % 64 = 56 - (b.toNat % 8) * 8
   have hsa_mod : shift_amount.toNat % 64 = 56 - (b.toNat % 8) * 8 := by
     show ((56 : Word) - byte_shift).toNat % 64 = 56 - (b.toNat % 8) * 8
-    have h3 : (3 : BitVec 6).toNat = 3 := by decide
     -- byte_shift = (b0 &&& 7) <<< 3
     have hbs : byte_shift = (b0 &&& signExtend12 (7 : BitVec 12)) <<< (3 : BitVec 6).toNat := rfl
-    rw [h3] at hbs
+    rw [bv6_toNat_3] at hbs
     -- b0.toNat < 31 → we can compute everything via bv_omega style
     -- (b0 &&& 7).toNat = b0.toNat % 8
-    have h7 : signExtend12 (7 : BitVec 12) = (7 : Word) := by decide
     have hand : (b0 &&& (7 : Word)).toNat = b0.toNat % 8 := by
       rw [BitVec.toNat_and]; exact Nat.and_two_pow_sub_one_eq_mod b0.toNat 3
     -- ((b0 &&& 7) <<< 3).toNat = (b0.toNat % 8) * 8
     have hm8 : b0.toNat % 8 < 8 := Nat.mod_lt _ (by omega)
     have hshift_val : byte_shift.toNat = (b0.toNat % 8) * 8 := by
-      rw [hbs, h7]; bv_omega
+      rw [hbs, se12_7]; bv_omega
     -- 56 - byte_shift fits in Word and the mod 64 is identity
     have h56_sub : ((56 : Word) - byte_shift).toNat = 56 - (b0.toNat % 8) * 8 := by
-      rw [hbs, h7]; bv_omega
+      rw [hbs, se12_7]; bv_omega
     rw [h56_sub, hb0_eq_b]
     have hm8 : b.toNat % 8 < 8 := Nat.mod_lt _ (by omega)
     omega
