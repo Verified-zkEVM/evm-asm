@@ -589,12 +589,6 @@ theorem normBPost_unfold (sp n_val shift b0 b1 b2 b3 : Word) :
 -- in PhaseAB.lean and `mod_phB_off_28` in ModPhaseB.lean.
 -- ============================================================================
 
-theorem phB_off_4  (base : Word) : (base + phaseBOff : Word) + 4  = base + 36 := by bv_addr
-theorem phB_off_8  (base : Word) : (base + phaseBOff : Word) + 8  = base + 40 := by bv_addr
-theorem phB_off_12 (base : Word) : (base + phaseBOff : Word) + 12 = base + 44 := by bv_addr
-theorem phB_off_16 (base : Word) : (base + phaseBOff : Word) + 16 = base + 48 := by bv_addr
-theorem phB_off_20 (base : Word) : (base + phaseBOff : Word) + 20 = base + 52 := by bv_addr
-theorem phB_off_24 (base : Word) : (base + phaseBOff : Word) + 24 = base + 56 := by bv_addr
 theorem phB_off_28 (base : Word) : (base + phaseBOff : Word) + 28 = base + 60 := by bv_addr
 
 -- n=4 special: x1 = signExtend12 4 - 4 = 0, used by the shift-0 fast path
