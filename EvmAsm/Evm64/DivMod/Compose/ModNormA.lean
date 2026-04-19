@@ -269,4 +269,37 @@ theorem mod_loopSetup_ntaken_spec (sp n v1 v5 : Word) (base : Word)
     (fun h hq => by xperm_hyp hq)
     h12
 
+/-- LoopSetup when m < 0 (n > 4, skip loop): branches to denorm at base+904.
+    MOD mirror of divK_loopSetup_taken_spec. -/
+theorem mod_loopSetup_taken_spec (sp n v1 v5 : Word) (base : Word)
+    (hm_lt : BitVec.slt (signExtend12 (4 : BitVec 12) - n) (0 : Word)) :
+    let m := signExtend12 (4 : BitVec 12) - n
+    cpsTriple (base + loopSetupOff) (base + denormOff) (modCode base)
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x1 ↦ᵣ v1) ** (.x0 ↦ᵣ (0 : Word)) **
+       ((sp + signExtend12 3984) ↦ₘ n))
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ n) ** (.x1 ↦ᵣ m) ** (.x0 ↦ᵣ (0 : Word)) **
+       ((sp + signExtend12 3984) ↦ₘ n)) := by
+  intro m
+  have hbody := divK_loopSetup_body_spec sp n v1 v5 464 (base + loopSetupOff)
+  rw [show (base + loopSetupOff : Word) + 12 = base + 444 from by bv_addr] at hbody
+  have hbodye := cpsTriple_extend_code (divK_loopSetup_code_sub_modCode base) hbody
+  have hblt_raw := blt_spec_gen .x1 .x0 464 m (0 : Word) (base + 444)
+  rw [show (base + 444 : Word) + signExtend13 464 = base + denormOff from by
+        rw [se13_464]; bv_addr,
+      show (base + 444 : Word) + 4 = base + loopBodyOff from by bv_addr] at hblt_raw
+  have hblt_clean := cpsBranch_elim_taken_strip_pure2 _ _ _ _ _ _ _ _ _ hblt_raw
+    (fun hp hQf => by
+      obtain ⟨_, _, _, _, _, h_rest⟩ := hQf
+      exact absurd hm_lt ((sepConj_pure_right _ _ _).mp h_rest).2)
+  have hblte := cpsTriple_extend_code (blt_loopSetup_sub_modCode base) hblt_clean
+  have hbltef := cpsTriple_frame_left _ _ _ _ _
+    ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ n) ** ((sp + signExtend12 3984) ↦ₘ n))
+    (by pcFree) hblte
+  have h12 := cpsTriple_seq_with_perm_same_cr _ _ _ _ _ _ _ _
+    (fun h hp => by xperm_hyp hp) hbodye hbltef
+  exact cpsTriple_consequence _ _ _ _ _ _ _
+    (fun h hp => by xperm_hyp hp)
+    (fun h hq => by xperm_hyp hq)
+    h12
+
 end EvmAsm.Evm64
