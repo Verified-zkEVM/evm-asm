@@ -32,23 +32,23 @@ abbrev divK_phaseB_tail_code (base : Word) : CodeReq :=
 theorem divK_phaseB_tail_spec (sp n leading_limb n_mem : Word) (base : Word) :
     let nm1 := n + signExtend12 4095
     let nm1_x8 := nm1 <<< (3 : BitVec 6).toNat
-    let addr_lead := sp + nm1_x8
+    let addrLead := sp + nm1_x8
     let cr := divK_phaseB_tail_code base
     cpsTriple base (base + 20) cr
       (
        (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ n) **
        ((sp + signExtend12 3984) ↦ₘ n_mem) **
-       ((addr_lead + signExtend12 32) ↦ₘ leading_limb))
+       ((addrLead + signExtend12 32) ↦ₘ leading_limb))
       (
        (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ leading_limb) **
        ((sp + signExtend12 3984) ↦ₘ n) **
-       ((addr_lead + signExtend12 32) ↦ₘ leading_limb)) := by
-  intro nm1 nm1_x8 addr_lead cr
+       ((addrLead + signExtend12 32) ↦ₘ leading_limb)) := by
+  intro nm1 nm1_x8 addrLead cr
   have I0 := sd_spec_gen .x12 .x5 sp n n_mem 3984 base
   have I1 := addi_spec_gen_same .x5 n 4095 (base + 4) (by nofun)
   have I2 := slli_spec_gen_same .x5 nm1 3 (base + 8) (by nofun)
   have I3 := add_spec_gen_rd_eq_rs2 .x5 .x12 sp nm1_x8 (base + 12) (by nofun)
-  have I4 := ld_spec_gen_same .x5 addr_lead leading_limb 32 (base + 16) (by nofun)
+  have I4 := ld_spec_gen_same .x5 addrLead leading_limb 32 (base + 16) (by nofun)
   runBlock I0 I1 I2 I3 I4
 
 end EvmAsm.Evm64

@@ -6,7 +6,7 @@
     * `divK_div128_phase1_spec` — Instrs [0]-[9], 10 instructions:
       SD+SD+SRLI+SLLI+SRLI+SD (save_split_d) followed by
       SRLI+SLLI+SRLI+SD (split_ulo). Saves the return address and `d`,
-      splits `d` into `d_hi`/`d_lo`, splits `u_lo` into `un1`/`un0`.
+      splits `d` into `dHi`/`dLo`, splits `u_lo` into `un1`/`un0`.
     * `divK_div128_end_spec` — Instrs [45]-[48], 4 instructions:
       SLLI+OR (combine_q → `q = q1<<32 | q0`) followed by LD+JALR
       (restore return addr and jump back). Exits at `ret_addr`.
@@ -31,12 +31,12 @@ open EvmAsm.Rv64
 
 /-- div128 Phase 1: save return addr/d, split d and u_lo. Instrs [0]-[9].
     Input: x12=sp, x2=ret_addr, x10=d, x5=u_lo, x7=u_hi.
-    Output: x6=d_hi, x11=un1, x5=un0 (saved), x7=u_hi (unchanged). -/
+    Output: x6=dHi, x11=un1, x5=un0 (saved), x7=u_hi (unchanged). -/
 theorem divK_div128_phase1_spec
     (sp ret_addr d u_lo u_hi v1_old v6_old v11_old
      ret_mem d_mem dlo_mem un0_mem : Word) (base : Word) :
-    let d_hi := d >>> (32 : BitVec 6).toNat
-    let d_lo := (d <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+    let dHi := d >>> (32 : BitVec 6).toNat
+    let dLo := (d <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
     let un1 := u_lo >>> (32 : BitVec 6).toNat
     let un0 := (u_lo <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
     let cr :=
@@ -59,19 +59,19 @@ theorem divK_div128_phase1_spec
        (sp + signExtend12 3952 ↦ₘ dlo_mem) **
        (sp + signExtend12 3944 ↦ₘ un0_mem))
       ((.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ ret_addr) ** (.x10 ↦ᵣ d) **
-       (.x6 ↦ᵣ d_hi) ** (.x1 ↦ᵣ d_lo) ** (.x5 ↦ᵣ un0) **
+       (.x6 ↦ᵣ dHi) ** (.x1 ↦ᵣ dLo) ** (.x5 ↦ᵣ un0) **
        (.x11 ↦ᵣ un1) ** (.x7 ↦ᵣ u_hi) **
        (sp + signExtend12 3968 ↦ₘ ret_addr) **
        (sp + signExtend12 3960 ↦ₘ d) **
-       (sp + signExtend12 3952 ↦ₘ d_lo) **
+       (sp + signExtend12 3952 ↦ₘ dLo) **
        (sp + signExtend12 3944 ↦ₘ un0)) := by
-  intro d_hi d_lo un1 un0 cr
+  intro dHi dLo un1 un0 cr
   have I0 := sd_spec_gen .x12 .x2 sp ret_addr ret_mem 3968 base
   have I1 := sd_spec_gen .x12 .x10 sp d d_mem 3960 (base + 4)
   have I2 := srli_spec_gen .x6 .x10 v6_old d 32 (base + 8) (by nofun)
   have I3 := slli_spec_gen .x1 .x10 v1_old d 32 (base + 12) (by nofun)
   have I4 := srli_spec_gen_same .x1 (d <<< (32 : BitVec 6).toNat) 32 (base + 16) (by nofun)
-  have I5 := sd_spec_gen .x12 .x1 sp d_lo dlo_mem 3952 (base + 20)
+  have I5 := sd_spec_gen .x12 .x1 sp dLo dlo_mem 3952 (base + 20)
   have I6 := srli_spec_gen .x11 .x5 v11_old u_lo 32 (base + 24) (by nofun)
   have I7 := slli_spec_gen_same .x5 u_lo 32 (base + 28) (by nofun)
   have I8 := srli_spec_gen_same .x5 (u_lo <<< (32 : BitVec 6).toNat) 32 (base + 32) (by nofun)
