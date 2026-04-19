@@ -11,6 +11,7 @@
 
 import EvmAsm.Evm64.Shift.SarSpec
 import EvmAsm.Evm64.Shift.ComposeBase
+import EvmAsm.Evm64.SpAddr
 import Mathlib.Tactic.Set
 
 open EvmAsm.Rv64.Tactics
@@ -535,9 +536,9 @@ theorem sar_phase_c_spec_pure (v5 v10 : Word) (base : Word)
        (e3, (.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ ((0 : Word) + signExtend12 2)) **
             ⌜v5 ≠ 0 ∧ v5 ≠ (0 : Word) + signExtend12 1 ∧ v5 ≠ (0 : Word) + signExtend12 2⌝)] := by
   have hc1 : ((base + 4 : Word) + 4) + signExtend13 100 = e1 := by
-    rw [show (base + 4 : Word) + 4 = base + 8 from by bv_omega]; exact he1
+    rw [show (base + 4 : Word) + 4 = base + 8 from by bv_addr]; exact he1
   have hc2 : ((base + 12 : Word) + 4) + signExtend13 36 = e2 := by
-    rw [show (base + 12 : Word) + 4 = base + 16 from by bv_omega]; exact he2
+    rw [show (base + 12 : Word) + 4 = base + 16 from by bv_addr]; exact he2
   let cr_beq0 := CodeReq.singleton base (.BEQ .x5 .x0 188)
   let cr_cs1 := shr_cascade_step_code 1 100 (base + 4)
   let cr_cs2 := shr_cascade_step_code 2 36 (base + 12)
@@ -571,7 +572,7 @@ theorem sar_phase_c_spec_pure (v5 v10 : Word) (base : Word)
       (cpsBranch_frame_left _ _ _ _ _ _ _ (.x10 ↦ᵣ v10) (by pcFree) beq0_raw)
   -- Step 1: cascade step at base+4
   have cs1_raw := shr_cascade_step_spec_pure v5 v10 1 100 (base + 4) e1 hc1
-  rw [show (base + 4 : Word) + 8 = base + 12 from by bv_omega] at cs1_raw
+  rw [show (base + 4 : Word) + 8 = base + 12 from by bv_addr] at cs1_raw
   have cs1f := cpsBranch_frame_left _ _ _ _ _ _ _ (⌜v5 ≠ (0 : Word)⌝) (pcFree_pure _) cs1_raw
   have cs1_clean : cpsBranch (base + 4) cr_cs1
       ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10) ** ⌜v5 ≠ (0 : Word)⌝)
@@ -589,7 +590,7 @@ theorem sar_phase_c_spec_pure (v5 v10 : Word) (base : Word)
       cs1f
   -- Step 2: cascade step at base+12
   have cs2_raw := shr_cascade_step_spec_pure v5 ((0 : Word) + signExtend12 1) 2 36 (base + 12) e2 hc2
-  rw [show (base + 12 : Word) + 8 = base + 20 from by bv_omega] at cs2_raw
+  rw [show (base + 12 : Word) + 8 = base + 20 from by bv_addr] at cs2_raw
   have cs2f := cpsBranch_frame_left _ _ _ _ _ _ _
     (⌜v5 ≠ 0 ∧ v5 ≠ (0 : Word) + signExtend12 1⌝) (pcFree_pure _) cs2_raw
   have cs2_clean : cpsBranch (base + 12) cr_cs2
@@ -809,17 +810,13 @@ theorem evm_sar_body_evmWord_spec (sp base : Word)
         unfold evmWordIs at hp
         simp only [← EvmWord.getLimb_as_getLimbN_0, ← EvmWord.getLimb_as_getLimbN_1,
                    ← EvmWord.getLimb_as_getLimbN_2, ← EvmWord.getLimb_as_getLimbN_3] at hp
-        simp only [show (sp + 32 : Word) + 8 = sp + 40 from by bv_omega,
-                   show (sp + 32 : Word) + 16 = sp + 48 from by bv_omega,
-                   show (sp + 32 : Word) + 24 = sp + 56 from by bv_omega] at hp
+        simp only [spAddr32_8, spAddr32_16, spAddr32_24] at hp
         xperm_hyp hp)
       (fun h hq => by
         unfold evmWordIs
         simp only [← EvmWord.getLimb_as_getLimbN_0, ← EvmWord.getLimb_as_getLimbN_1,
                    ← EvmWord.getLimb_as_getLimbN_2, ← EvmWord.getLimb_as_getLimbN_3]
-        simp only [show (sp + 32 : Word) + 8 = sp + 40 from by bv_omega,
-                   show (sp + 32 : Word) + 16 = sp + 48 from by bv_omega,
-                   show (sp + 32 : Word) + 24 = sp + 56 from by bv_omega]
+        simp only [spAddr32_8, spAddr32_16, spAddr32_24]
         xperm_hyp hq)
       h_raw
   -- Now prove h_raw in flat raw memIs form

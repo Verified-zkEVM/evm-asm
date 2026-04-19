@@ -11,6 +11,7 @@
 
 import EvmAsm.Evm64.Shift.ShlSpec
 import EvmAsm.Evm64.Shift.ComposeBase
+import EvmAsm.Evm64.SpAddr
 import Mathlib.Tactic.Set
 
 open EvmAsm.Rv64.Tactics
@@ -627,17 +628,13 @@ theorem evm_shl_body_evmWord_spec (sp base : Word)
         unfold evmWordIs at hp
         simp only [← EvmWord.getLimb_as_getLimbN_0, ← EvmWord.getLimb_as_getLimbN_1,
                    ← EvmWord.getLimb_as_getLimbN_2, ← EvmWord.getLimb_as_getLimbN_3] at hp
-        simp only [show (sp + 32 : Word) + 8 = sp + 40 from by bv_omega,
-                   show (sp + 32 : Word) + 16 = sp + 48 from by bv_omega,
-                   show (sp + 32 : Word) + 24 = sp + 56 from by bv_omega] at hp
+        simp only [spAddr32_8, spAddr32_16, spAddr32_24] at hp
         xperm_hyp hp)
       (fun h hq => by
         unfold evmWordIs
         simp only [← EvmWord.getLimb_as_getLimbN_0, ← EvmWord.getLimb_as_getLimbN_1,
                    ← EvmWord.getLimb_as_getLimbN_2, ← EvmWord.getLimb_as_getLimbN_3]
-        simp only [show (sp + 32 : Word) + 8 = sp + 40 from by bv_omega,
-                   show (sp + 32 : Word) + 16 = sp + 48 from by bv_omega,
-                   show (sp + 32 : Word) + 24 = sp + 56 from by bv_omega]
+        simp only [spAddr32_8, spAddr32_16, spAddr32_24]
         xperm_hyp hq)
       h_raw
   -- Now prove h_raw in flat raw memIs form
