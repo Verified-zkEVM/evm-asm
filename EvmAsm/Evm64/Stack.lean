@@ -88,6 +88,18 @@ theorem evmStackIs_single (sp : Word) (v : EvmWord) :
     evmStackIs sp [v] = evmWordIs sp v := by
   rw [evmStackIs_cons_nil, sepConj_emp_right']
 
+/-- Three-element stack unfold without the trailing `empAssertion`:
+    `evmStackIs sp [a, b, c] = evmWordIs sp a ** evmWordIs (sp+32) b **
+    evmWordIs (sp+64) c`. Derived from `evmStackIs_cons_cons_cons_nil` by
+    applying `sepConj_emp_right'`. Ternary-op stack specs (ADDMOD /
+    MULMOD) want this cleaner 3-atom form rather than the raw definition.
+    Parallels `evmStackIs_pair` / `evmStackIs_single`. -/
+theorem evmStackIs_triple (sp : Word) (a b c : EvmWord) :
+    evmStackIs sp [a, b, c] =
+    (evmWordIs sp a ** evmWordIs (sp + 32) b **
+     evmWordIs (sp + 32 + 32) c) := by
+  rw [evmStackIs_cons_cons_cons_nil, sepConj_emp_right']
+
 -- ============================================================================
 -- evmWordIs unfold and limb-equality bridges
 -- ============================================================================
