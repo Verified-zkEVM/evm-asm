@@ -171,6 +171,19 @@ theorem evmWordIs_sp32_unfold (sp : Word) (v : EvmWord) :
       show (sp + 32 : Word) + 16 = sp + 48 from by bv_omega,
       show (sp + 32 : Word) + 24 = sp + 56 from by bv_omega]
 
+/-- Unfold `evmWordIs (sp+64) v` into four limb-level memory atoms at the
+    absolute stack addresses `sp+64, sp+72, sp+80, sp+88`. Third-slot
+    counterpart to `evmWordIs_sp32_unfold` — useful for ternary-op stack
+    specs (ADDMOD / MULMOD) whose third operand lives at `sp + 64`. -/
+theorem evmWordIs_sp64_unfold (sp : Word) (v : EvmWord) :
+    evmWordIs (sp + 64) v =
+    (((sp + 64) ↦ₘ v.getLimbN 0) ** ((sp + 72) ↦ₘ v.getLimbN 1) **
+     ((sp + 80) ↦ₘ v.getLimbN 2) ** ((sp + 88) ↦ₘ v.getLimbN 3)) := by
+  unfold evmWordIs
+  rw [show (sp + 64 : Word) + 8 = sp + 72 from by bv_omega,
+      show (sp + 64 : Word) + 16 = sp + 80 from by bv_omega,
+      show (sp + 64 : Word) + 24 = sp + 88 from by bv_omega]
+
 /-- Rewrite `evmWordIs sp v` to four limb atoms given explicit getLimbN
     equalities. Decouples the caller's representation of `v` from the limb
     form — works uniformly whether the equalities come from
@@ -192,6 +205,16 @@ theorem evmWordIs_sp32_limbs_eq (sp : Word) (v : EvmWord) (w0 w1 w2 w3 : Word)
     (((sp + 32) ↦ₘ w0) ** ((sp + 40) ↦ₘ w1) **
      ((sp + 48) ↦ₘ w2) ** ((sp + 56) ↦ₘ w3)) := by
   rw [evmWordIs_sp32_unfold, h0, h1, h2, h3]
+
+/-- Rewrite `evmWordIs (sp+64) v` to four limb atoms given explicit getLimbN
+    equalities. Third-slot companion to `evmWordIs_sp32_limbs_eq`. -/
+theorem evmWordIs_sp64_limbs_eq (sp : Word) (v : EvmWord) (w0 w1 w2 w3 : Word)
+    (h0 : v.getLimbN 0 = w0) (h1 : v.getLimbN 1 = w1)
+    (h2 : v.getLimbN 2 = w2) (h3 : v.getLimbN 3 = w3) :
+    evmWordIs (sp + 64) v =
+    (((sp + 64) ↦ₘ w0) ** ((sp + 72) ↦ₘ w1) **
+     ((sp + 80) ↦ₘ w2) ** ((sp + 88) ↦ₘ w3)) := by
+  rw [evmWordIs_sp64_unfold, h0, h1, h2, h3]
 
 /-- Mid-tree variant of `evmWordIs_sp_limbs_eq`: fold four limb atoms into
     `evmWordIs sp v` **even when they sit in the middle of a sepConj chain**,
