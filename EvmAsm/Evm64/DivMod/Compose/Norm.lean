@@ -12,7 +12,7 @@ open EvmAsm.Rv64.Tactics
 namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
-open EvmAsm.Rv64.AddrNorm (se13_172 bv64_4mul_3)
+open EvmAsm.Rv64.AddrNorm (se13_172 bv64_4mul_3 se12_32 se12_40 se12_48 se12_56)
 
 /-- Phase C2 code (block 3) is subsumed by divCode. -/
 private theorem divK_phaseC2_code_sub_divCode (base : Word) :

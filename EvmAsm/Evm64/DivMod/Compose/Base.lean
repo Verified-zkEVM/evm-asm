@@ -543,13 +543,12 @@ theorem normBPost_unfold (sp n_val shift b0 b1 b2 b3 : Word) :
   delta normBPost; rfl
 
 -- ============================================================================
--- Shared signExtend12 normalization lemmas (used by FullPathN3/N4 compositions)
+-- `se12_32`/`se12_40`/`se12_48`/`se12_56` were deleted by issue #493 / #494:
+-- they now live canonically in `Rv64/AddrNorm.lean` as part of the
+-- `rv64_addr` grindset. Consumers should `open EvmAsm.Rv64.AddrNorm
+-- (se12_32 se12_40 se12_48 se12_56)` directly instead of relying on these
+-- duplicates.
 -- ============================================================================
-
-theorem se12_32 : signExtend12 (32 : BitVec 12) = (32 : Word) := by decide
-theorem se12_40 : signExtend12 (40 : BitVec 12) = (40 : Word) := by decide
-theorem se12_48 : signExtend12 (48 : BitVec 12) = (48 : Word) := by decide
-theorem se12_56 : signExtend12 (56 : BitVec 12) = (56 : Word) := by decide
 
 -- ============================================================================
 -- Shared `phB_off_*` address rewrites.

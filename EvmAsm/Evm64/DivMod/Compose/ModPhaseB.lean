@@ -14,7 +14,7 @@ namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
 open EvmAsm.Evm64.DivMod.AddrNorm (se12_1 se12_2 se12_3 se12_4 se12_4095)
-open EvmAsm.Rv64.AddrNorm (se13_24
+open EvmAsm.Rv64.AddrNorm (se13_24 se12_32
   bv64_4mul_9 bv64_4mul_10 bv64_4mul_11 bv64_4mul_12 bv64_4mul_13
   bv64_4mul_14 bv64_4mul_15)
 

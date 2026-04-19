@@ -15,12 +15,13 @@ open EvmAsm.Rv64.Tactics
 namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
+open EvmAsm.Rv64.AddrNorm (se12_32 se12_40 se12_48 se12_56)
 
 -- ============================================================================
 -- Address form helpers: signExtend12 K = K for small offsets
 -- ============================================================================
 
--- se12_32, se12_40, se12_48, se12_56 are in Base.lean
+-- se12_32, se12_40, se12_48, se12_56 live in Rv64/AddrNorm.lean (#494).
 
 -- `x1_val_n4` now lives in `Compose/Base.lean` (shared with FullPathN4Shift0).
 
