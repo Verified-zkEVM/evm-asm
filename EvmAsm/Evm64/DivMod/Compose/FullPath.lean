@@ -589,7 +589,7 @@ theorem mod_denorm_preamble_spec (sp shift v5 v6 v7 v2 v10 : Word) (base : Word)
       (CodeReq.ofProg_mono_sub (base + denormOff) (base + 912) divK_denorm
         [.BEQ .x6 .x0 96] 1 (by bv_addr) (by decide) (by decide) (by decide) a i h)) hbeq
   -- 3. Eliminate taken branch: shift ≠ 0 means BEQ not taken
-  have hbeq_exit := cpsBranch_elim_ntaken _ _ _ _ _ _ _ hbeqe
+  have hbeq_exit := cpsBranch_ntakenPath hbeqe
     (fun hp hQt => by
       obtain ⟨_, _, _, _, _, ⟨_, _, _, _, _, ⟨_, hpure⟩⟩⟩ := hQt
       exact hshift_nz hpure)

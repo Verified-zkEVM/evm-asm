@@ -81,7 +81,7 @@ theorem divK_div128_clamp_q1_merged_spec (q1 rhat d_hi v5_old : Word) (base : Wo
   · have hq : q1' = q1 := if_pos hcond
     have hr : rhat' = rhat := if_pos hcond
     rw [hq, hr]
-    have taken := cpsBranch_elim_taken _ _ _ _ _ _ _ composed (fun hp hQf => by
+    have taken := cpsBranch_takenPath composed (fun hp hQf => by
       obtain ⟨_, _, _, _, ⟨_, _, _, _, _, h_x0p⟩, _⟩ := hQf
       exact ((sepConj_pure_right _ _ _).1 h_x0p).2 hcond)
     exact cpsTriple_weaken
@@ -93,7 +93,7 @@ theorem divK_div128_clamp_q1_merged_spec (q1 rhat d_hi v5_old : Word) (base : Wo
   · have hq : q1' = q1 + signExtend12 4095 := if_neg hcond
     have hr : rhat' = rhat + d_hi := if_neg hcond
     rw [hq, hr]
-    have ntaken := cpsBranch_elim_ntaken _ _ _ _ _ _ _ composed (fun hp hQt => by
+    have ntaken := cpsBranch_ntakenPath composed (fun hp hQt => by
       obtain ⟨_, _, _, _, ⟨_, _, _, _, _, h_x0p⟩, _⟩ := hQt
       exact hcond ((sepConj_pure_right _ _ _).1 h_x0p).2)
     have I1 := addi_spec_gen_same .x10 q1 4095 (base + 8) (by nofun)
@@ -166,7 +166,7 @@ theorem divK_div128_clamp_q0_merged_spec (q0 rhat2 d_hi v1_old : Word) (base : W
   · have hq : q0' = q0 := if_pos hcond
     have hr : rhat2' = rhat2 := if_pos hcond
     rw [hq, hr]
-    have taken := cpsBranch_elim_taken _ _ _ _ _ _ _ composed (fun hp hQf => by
+    have taken := cpsBranch_takenPath composed (fun hp hQf => by
       obtain ⟨_, _, _, _, ⟨_, _, _, _, _, h_x0p⟩, _⟩ := hQf
       exact ((sepConj_pure_right _ _ _).1 h_x0p).2 hcond)
     exact cpsTriple_weaken
@@ -178,7 +178,7 @@ theorem divK_div128_clamp_q0_merged_spec (q0 rhat2 d_hi v1_old : Word) (base : W
   · have hq : q0' = q0 + signExtend12 4095 := if_neg hcond
     have hr : rhat2' = rhat2 + d_hi := if_neg hcond
     rw [hq, hr]
-    have ntaken := cpsBranch_elim_ntaken _ _ _ _ _ _ _ composed (fun hp hQt => by
+    have ntaken := cpsBranch_ntakenPath composed (fun hp hQt => by
       obtain ⟨_, _, _, _, ⟨_, _, _, _, _, h_x0p⟩, _⟩ := hQt
       exact hcond ((sepConj_pure_right _ _ _).1 h_x0p).2)
     have I1 := addi_spec_gen_same .x5 q0 4095 (base + 8) (by nofun)

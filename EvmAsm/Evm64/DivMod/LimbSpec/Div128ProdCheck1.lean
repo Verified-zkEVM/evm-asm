@@ -101,7 +101,7 @@ theorem divK_div128_prodcheck1_merged_spec
   · have hq : q1' = q1 + signExtend12 4095 := if_pos hcond
     have hr : rhat' = rhat + d_hi := if_pos hcond
     rw [hq, hr]
-    have taken_br := cpsBranch_elim_taken _ _ _ _ _ _ _ composed (fun hp hQf => by
+    have taken_br := cpsBranch_takenPath composed (fun hp hQf => by
       obtain ⟨_, _, _, _, ⟨_, _, _, _, _, h_x0p⟩, _⟩ := hQf
       exact ((sepConj_pure_right _ _ _).1 h_x0p).2 hcond)
     have I4 := addi_spec_gen_same .x10 q1 4095 (base + 24) (by nofun)
@@ -126,7 +126,7 @@ theorem divK_div128_prodcheck1_merged_spec
   · have hq : q1' = q1 := if_neg hcond
     have hr : rhat' = rhat := if_neg hcond
     rw [hq, hr]
-    have ntaken_br := cpsBranch_elim_ntaken _ _ _ _ _ _ _ composed (fun hp hQt => by
+    have ntaken_br := cpsBranch_ntakenPath composed (fun hp hQt => by
       obtain ⟨_, _, _, _, ⟨_, _, _, _, _, h_x0p⟩, _⟩ := hQt
       exact absurd ((sepConj_pure_right _ _ _).1 h_x0p).2 hcond)
     have I_jal := jal_x0_spec_gen 12 (base + 20)
