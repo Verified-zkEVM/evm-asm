@@ -7,6 +7,7 @@
 
 import EvmAsm.Evm64.Eq.LimbSpec
 import EvmAsm.Evm64.EvmWordArith
+import EvmAsm.Evm64.SpAddr
 
 open EvmAsm.Rv64.Tactics
 
@@ -97,10 +98,7 @@ theorem evm_eq_stack_spec (sp base : Word)
   exact cpsTriple_consequence _ _ _ _ _ _ _
     (fun h hp => by
       simp only [evmWordIs] at hp
-      have : (sp : Word) + 32 + 8 = sp + 40 := by bv_omega
-      have : (sp : Word) + 32 + 16 = sp + 48 := by bv_omega
-      have : (sp : Word) + 32 + 24 = sp + 56 := by bv_omega
-      rw [‹sp + 32 + 8 = sp + 40›, ‹sp + 32 + 16 = sp + 48›, ‹sp + 32 + 24 = sp + 56›] at hp
+      rw [spAddr32_8, spAddr32_16, spAddr32_24] at hp
       xperm_hyp hp)
     (fun h hq => by
       unfold evmWordIs
@@ -111,10 +109,7 @@ theorem evm_eq_stack_spec (sp base : Word)
                  ← EvmWord.eq_xor_or_reduce_correct]
       simp only [EvmWord.getLimb_as_getLimbN_0, EvmWord.getLimb_as_getLimbN_1,
                  EvmWord.getLimb_as_getLimbN_2, EvmWord.getLimb_as_getLimbN_3]
-      have : (sp : Word) + 32 + 8 = sp + 40 := by bv_omega
-      have : (sp : Word) + 32 + 16 = sp + 48 := by bv_omega
-      have : (sp : Word) + 32 + 24 = sp + 56 := by bv_omega
-      rw [‹sp + 32 + 8 = sp + 40›, ‹sp + 32 + 16 = sp + 48›, ‹sp + 32 + 24 = sp + 56›]
+      rw [spAddr32_8, spAddr32_16, spAddr32_24]
       xperm_hyp hq)
     h_main
 
