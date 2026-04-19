@@ -688,13 +688,27 @@ theorem cpsTriple_seq_same_cr (l1 l2 l3 : Word) (cr : CodeReq)
   exact ⟨k1 + k2, s2, stepN_add_eq k1 k2 s s1 s2 hstep1 hstep2, hpc2, hRF⟩
 
 /-- Sequential composition with midpoint permutation (same CodeReq).
-    Like `cpsTriple_seq_with_perm` but for same-CR (no disjointness required). -/
-theorem cpsTriple_seq_with_perm_same_cr (s m e : Word) (cr : CodeReq)
-    (P Q1 Q2 R : Assertion) (hperm : ∀ h, Q1 h → Q2 h)
+    Like `cpsTriple_seq_with_perm` but for same-CR (no disjointness required).
+
+    All position/code/assertion arguments are implicit: `s`, `m`, `e`, `cr`,
+    `P`, `Q1`, `R` unify from `h1`/`h2`, and `Q2` from `hperm`. Prefer this
+    over `cpsTriple_seq_with_perm_same_cr` (which takes nine explicit
+    arguments before the proof inputs). -/
+theorem cpsTriple_seq_perm_same_cr {s m e : Word} {cr : CodeReq}
+    {P Q1 Q2 R : Assertion} (hperm : ∀ h, Q1 h → Q2 h)
     (h1 : cpsTriple s m cr P Q1) (h2 : cpsTriple m e cr Q2 R) :
     cpsTriple s e cr P R :=
   cpsTriple_seq_same_cr s m e cr P Q2 R
     (cpsTriple_consequence s m cr P P Q1 Q2 (fun _ hp => hp) hperm h1) h2
+
+/-- Explicit-argument variant of `cpsTriple_seq_perm_same_cr`. Kept for
+    backwards compatibility; prefer `cpsTriple_seq_perm_same_cr` in new code. -/
+@[deprecated cpsTriple_seq_perm_same_cr (since := "2026-04-19")]
+theorem cpsTriple_seq_with_perm_same_cr (s m e : Word) (cr : CodeReq)
+    (P Q1 Q2 R : Assertion) (hperm : ∀ h, Q1 h → Q2 h)
+    (h1 : cpsTriple s m cr P Q1) (h2 : cpsTriple m e cr Q2 R) :
+    cpsTriple s e cr P R :=
+  cpsTriple_seq_perm_same_cr hperm h1 h2
 
 -- ============================================================================
 -- Cascade composition (for dispatch chains like Phase C)
