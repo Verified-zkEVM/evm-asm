@@ -6,6 +6,7 @@
 -/
 
 import EvmAsm.Evm64.Basic
+import EvmAsm.Evm64.SpAddr
 import EvmAsm.Rv64.SepLogic
 
 namespace EvmAsm.Evm64
@@ -167,9 +168,7 @@ theorem evmWordIs_sp32_unfold (sp : Word) (v : EvmWord) :
     (((sp + 32) ↦ₘ v.getLimbN 0) ** ((sp + 40) ↦ₘ v.getLimbN 1) **
      ((sp + 48) ↦ₘ v.getLimbN 2) ** ((sp + 56) ↦ₘ v.getLimbN 3)) := by
   unfold evmWordIs
-  rw [show (sp + 32 : Word) + 8 = sp + 40 from by bv_omega,
-      show (sp + 32 : Word) + 16 = sp + 48 from by bv_omega,
-      show (sp + 32 : Word) + 24 = sp + 56 from by bv_omega]
+  rw [spAddr32_8, spAddr32_16, spAddr32_24]
 
 /-- Unfold `evmWordIs (sp+64) v` into four limb-level memory atoms at the
     absolute stack addresses `sp+64, sp+72, sp+80, sp+88`. Third-slot
