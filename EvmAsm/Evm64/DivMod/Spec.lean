@@ -897,4 +897,66 @@ theorem output_slot_to_evmWordIs_mod_n4_max_skip (sp : Word) (a b : EvmWord)
   rw [evmWordIs_sp32_limbs_eq sp (EvmWord.mod a b) _ _ _ _
       hmod0 hmod1 hmod2 hmod3]
 
+-- ============================================================================
+-- DIV: n=4 max+skip stack spec
+-- ============================================================================
+
+/-- EVM-stack-level DIV spec on the n=4 max+skip sub-path.
+
+    Consumes runtime conditions (`isMaxTrialN4Evm`, `isSkipBorrowN4MaxEvm`),
+    the semantic-correctness fact `n4MaxSkipSemanticHolds`, and the shift
+    non-zero condition. Produces the clean
+    `divN4StackPre` → `divN4MaxSkipStackPost` shape.
+
+    Reduces to `evm_div_n4_full_max_skip_stack_pre_spec_bundled` + a
+    postcondition reshape via `n4_max_skip_div_mod_getLimbN` and
+    `div_n4_max_skip_stack_weaken`. See
+    `project_div_n4_reshape_plan.md` for the sublemma decomposition. -/
+theorem evm_div_n4_max_skip_stack_spec (sp base : Word)
+    (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     n_mem shift_mem j_mem : Word)
+    (hbnz : b ≠ 0)
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hbltu : isMaxTrialN4Evm a b)
+    (hborrow : isSkipBorrowN4MaxEvm a b)
+    (hsem : n4MaxSkipSemanticHolds a b) :
+    cpsTriple base (base + nopOff) (divCode base)
+      (divN4StackPre sp a b v5 v6 v7 v10 v11
+         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shift_mem n_mem j_mem)
+      (divN4MaxSkipStackPost sp a b) := by
+  have h_pre := evm_div_n4_full_max_skip_stack_pre_spec_bundled sp base a b
+    v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 n_mem shift_mem j_mem
+    hbnz hb3nz hshift_nz hbltu hborrow
+  obtain ⟨hdiv0, hdiv1, hdiv2, hdiv3, _, _, _, _⟩ :=
+    n4_max_skip_div_mod_getLimbN a b hb3nz hsem
+  refine cpsTriple_weaken (fun _ hp => hp) ?_ h_pre
+  intro h hq
+  -- Flatten the post: both unfolds in one `simp only` pass, which
+  -- zeta-reduces through `fullDivN4MaxSkipPost_unfold`'s let-bindings
+  -- (unlike `rw`, which gets blocked by them).
+  simp only [fullDivN4MaxSkipPost_unfold, denormDivPost_unfold] at hq
+  -- Apply the weakener — its input takes a specific explicit atom shape.
+  apply div_n4_max_skip_stack_weaken sp a b _ _ _ _ _ _ _
+    _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ h
+  -- Unfold the `evmWordIs` / `divScratchValues` bundles on the goal side
+  -- to expose matching atoms, then normalize addresses and use the
+  -- semantic bridge to rewrite the four output-slot atoms.
+  rw [show evmWordIs sp a =
+      ((sp ↦ₘ a.getLimbN 0) ** ((sp + 8) ↦ₘ a.getLimbN 1) **
+       ((sp + 16) ↦ₘ a.getLimbN 2) ** ((sp + 24) ↦ₘ a.getLimbN 3))
+      from evmWordIs_sp_unfold sp a]
+  rw [show evmWordIs (sp + 32) (EvmWord.div a b) =
+      (((sp + 32) ↦ₘ (signExtend12 4095 : Word)) **
+       ((sp + 40) ↦ₘ (0 : Word)) **
+       ((sp + 48) ↦ₘ (0 : Word)) **
+       ((sp + 56) ↦ₘ (0 : Word)))
+      from by rw [evmWordIs_sp32_limbs_eq sp (EvmWord.div a b) _ _ _ _
+                  hdiv0 hdiv1 hdiv2 hdiv3]]
+  rw [divScratchValues_unfold]
+  -- Normalize `sp + 0` on the hypothesis side to match the goal's `sp`.
+  rw [show (sp + 0 : Word) = sp from by bv_omega] at hq
+  xperm_hyp hq
+
 end EvmAsm.Evm64
