@@ -295,6 +295,26 @@ theorem evmWordIs_one (addr : Word) :
   rw [EvmWord.getLimbN_one_zero, EvmWord.getLimbN_one_one,
       EvmWord.getLimbN_one_two, EvmWord.getLimbN_one_three]
 
+/-- Mid-tree variant of `evmWordIs_zero`: threads a remainder `Q` so
+    `rw ←` can fold four zero memIs atoms back into `evmWordIs addr 0`
+    even when they sit in the middle of a longer sepConj chain. -/
+theorem evmWordIs_zero_right (addr : Word) (Q : Assertion) :
+    ((addr ↦ₘ (0 : Word)) ** ((addr + 8) ↦ₘ (0 : Word)) **
+     ((addr + 16) ↦ₘ (0 : Word)) ** ((addr + 24) ↦ₘ (0 : Word)) ** Q) =
+    (evmWordIs addr (0 : EvmWord) ** Q) := by
+  rw [evmWordIs_zero]
+  rw [sepConj_assoc', sepConj_assoc', sepConj_assoc']
+
+/-- Mid-tree variant of `evmWordIs_one`: threads a remainder `Q` so
+    `rw ←` can fold `(addr ↦ₘ 1) ** (addr+8 ↦ₘ 0) ** (addr+16 ↦ₘ 0) **
+    (addr+24 ↦ₘ 0)` back into `evmWordIs addr 1` mid-chain. -/
+theorem evmWordIs_one_right (addr : Word) (Q : Assertion) :
+    ((addr ↦ₘ (1 : Word)) ** ((addr + 8) ↦ₘ (0 : Word)) **
+     ((addr + 16) ↦ₘ (0 : Word)) ** ((addr + 24) ↦ₘ (0 : Word)) ** Q) =
+    (evmWordIs addr (1 : EvmWord) ** Q) := by
+  rw [evmWordIs_one]
+  rw [sepConj_assoc', sepConj_assoc', sepConj_assoc']
+
 -- ============================================================================
 -- Shared infrastructure for stack operation specs
 -- ============================================================================
