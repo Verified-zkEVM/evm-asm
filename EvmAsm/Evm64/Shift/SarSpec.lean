@@ -11,12 +11,14 @@
 -/
 
 import EvmAsm.Evm64.Shift.LimbSpec
+import EvmAsm.Rv64.AddrNorm
 
 open EvmAsm.Rv64.Tactics
 
 namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
+open EvmAsm.Rv64.AddrNorm (bv6_toNat_63)
 
 -- ============================================================================
 -- Per-limb Specs: SAR Last Limb (3 instructions)
@@ -98,7 +100,7 @@ theorem sar_body_3_spec (sp : Word)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result0) ** (.x6 ↦ᵣ bit_shift) **
        (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ sign_ext) ** (.x11 ↦ᵣ mask) **
        (sp ↦ₘ result0) ** ((sp + 8) ↦ₘ sign_ext) ** ((sp + 16) ↦ₘ sign_ext) ** ((sp + 24) ↦ₘ sign_ext)) := by
-  have h63 : (63 : BitVec 6).toNat = 63 := by decide
+  have h63 := bv6_toNat_63
   have LL := sar_last_limb_spec 0 sp v3 v0 v5 bit_shift base
   have SR := srai_spec_gen .x10 .x5 v10 (BitVec.sshiftRight v3 (bit_shift.toNat % 64)) 63 (base + 12) (by nofun)
   simp only [h63] at SR
@@ -132,7 +134,7 @@ theorem sar_body_2_spec (sp : Word)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result1) ** (.x6 ↦ᵣ bit_shift) **
        (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ sign_ext) ** (.x11 ↦ᵣ mask) **
        (sp ↦ₘ result0) ** ((sp + 8) ↦ₘ result1) ** ((sp + 16) ↦ₘ sign_ext) ** ((sp + 24) ↦ₘ sign_ext)) := by
-  have h63 : (63 : BitVec 6).toNat = 63 := by decide
+  have h63 := bv6_toNat_63
   have MM := shr_merge_limb_spec 16 24 0 sp v2 v3 v0 v5 v10 bit_shift anti_shift mask base
   have LL := sar_last_limb_spec 8 sp v3 v1
     ((v2 >>> (bit_shift.toNat % 64)) ||| ((v3 <<< (anti_shift.toNat % 64)) &&& mask))
@@ -173,7 +175,7 @@ theorem sar_body_1_spec (sp : Word)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result2) ** (.x6 ↦ᵣ bit_shift) **
        (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ sign_ext) ** (.x11 ↦ᵣ mask) **
        (sp ↦ₘ result0) ** ((sp + 8) ↦ₘ result1) ** ((sp + 16) ↦ₘ result2) ** ((sp + 24) ↦ₘ sign_ext)) := by
-  have h63 : (63 : BitVec 6).toNat = 63 := by decide
+  have h63 := bv6_toNat_63
   have MM1 := shr_merge_limb_spec 8 16 0 sp v1 v2 v0 v5 v10 bit_shift anti_shift mask base
   have MM2 := shr_merge_limb_spec 16 24 8 sp v2 v3 v1
     ((v1 >>> (bit_shift.toNat % 64)) ||| ((v2 <<< (anti_shift.toNat % 64)) &&& mask))
@@ -263,7 +265,7 @@ theorem sar_sign_fill_path_spec (sp : Word)
        ((sp + 32) ↦ₘ v0) ** ((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3))
       ((.x12 ↦ᵣ (sp + 32)) ** (.x5 ↦ᵣ sign_ext) ** (.x10 ↦ᵣ v10) **
        ((sp + 32) ↦ₘ sign_ext) ** ((sp + 40) ↦ₘ sign_ext) ** ((sp + 48) ↦ₘ sign_ext) ** ((sp + 56) ↦ₘ sign_ext)) := by
-  have h63 : (63 : BitVec 6).toNat = 63 := by decide
+  have h63 := bv6_toNat_63
   have LD0 := ld_spec_gen .x5 .x12 sp v5 v3 56 base (by nofun)
   have SR := srai_spec_gen_same .x5 v3 63 (base + 4) (by nofun)
   simp only [h63] at SR

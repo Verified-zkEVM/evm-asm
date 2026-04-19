@@ -129,6 +129,19 @@ export EvmAsm.Rv64.AddrNorm
     BitVec.slt ((3 : Word) + signExtend12 4095) 0 = false := by decide
 
 -- ============================================================================
+-- Concrete value of j − 1 after `ADDI j j -1` (i.e. `j + signExtend12 4095`)
+-- for j ∈ {1, 2, 3}. Used by `hj' : (j : Word) + signExtend12 4095 = (j-1)`
+-- sites in LoopUnified / LoopCompose files.
+-- ============================================================================
+
+@[divmod_addr, grind =] theorem jpred_1 :
+    (1 : Word) + signExtend12 4095 = (0 : Word) := by decide
+@[divmod_addr, grind =] theorem jpred_2 :
+    (2 : Word) + signExtend12 4095 = (1 : Word) := by decide
+@[divmod_addr, grind =] theorem jpred_3 :
+    (3 : Word) + signExtend12 4095 = (2 : Word) := by decide
+
+-- ============================================================================
 -- `divmod_addr` tactic
 --
 -- Primary: `grind` (sees all @[grind =]-registered atomic facts).

@@ -21,6 +21,7 @@ open EvmAsm.Rv64.Tactics
 namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
+open EvmAsm.Evm64.DivMod.AddrNorm (jpred_2)
 
 -- ============================================================================
 -- Double-addback () two-iteration (j=1, j=0) unified composition
@@ -182,7 +183,7 @@ theorem divK_loop_n2_max_iter10_spec (bltu_1 bltu_0 : Bool)
       delta loopIterPostN2Max loopExitPostN2 loopExitPost at hp
       delta loopN2Iter10PreWithScratch loopN2Iter10Pre at ⊢
       simp only [] at hp ⊢
-      have hj' : (2 : Word) + signExtend12 4095 = (1 : Word) := by decide
+      have hj' := jpred_2
       rw [hj', u_j2_0_eq_j1_4088 sp, u_j2_4088_eq_j1_4080 sp,
           u_j2_4080_eq_j1_4072 sp, u_j2_4072_eq_j1_4064 sp] at hp
       rw [sepConj_assoc'] at hp
@@ -258,7 +259,7 @@ theorem divK_loop_n2_call_iter10_spec (bltu_1 bltu_0 : Bool)
       delta loopIterPostN2Call loopExitPostN2 loopExitPost at hp
       delta loopN2Iter10PreWithScratch loopN2Iter10Pre at ⊢
       simp only [] at hp ⊢
-      have hj' : (2 : Word) + signExtend12 4095 = (1 : Word) := by decide
+      have hj' := jpred_2
       rw [hj', u_j2_0_eq_j1_4088 sp, u_j2_4088_eq_j1_4080 sp,
           u_j2_4080_eq_j1_4072 sp, u_j2_4072_eq_j1_4064 sp] at hp
       rw [sepConj_assoc'] at hp
