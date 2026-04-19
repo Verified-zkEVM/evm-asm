@@ -60,22 +60,6 @@ theorem n3_qa1 (sp : Word) :
 theorem n3_qa0 (sp : Word) :
     sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat = sp + signExtend12 4088 := by
   divmod_addr
-theorem n3_uhi_1_addr (sp : Word) :
-    sp + signExtend12 4056 - (1 + (3 : Word)) <<< (3 : BitVec 6).toNat = sp + signExtend12 4024 := by
-  divmod_addr
-theorem n3_ulo_1_addr (sp : Word) :
-    (sp + signExtend12 4056 - (1 + (3 : Word)) <<< (3 : BitVec 6).toNat) + 8 = sp + signExtend12 4032 := by
-  divmod_addr
-theorem n3_vtop_addr (sp : Word) :
-    sp + ((3 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat + signExtend12 32 = sp + 48 := by
-  divmod_addr
-theorem n3_uhi_0_addr (sp : Word) :
-    sp + signExtend12 4056 - (0 + (3 : Word)) <<< (3 : BitVec 6).toNat = sp + signExtend12 4032 := by
-  divmod_addr
-theorem n3_ulo_0_addr (sp : Word) :
-    (sp + signExtend12 4056 - (0 + (3 : Word)) <<< (3 : BitVec 6).toNat) + 8 = sp + signExtend12 4040 := by
-  divmod_addr
-
 -- ============================================================================
 -- Lift unified n=3  loop from sharedDivModCode to divCode
 -- ============================================================================
