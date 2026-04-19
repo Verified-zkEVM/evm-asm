@@ -165,6 +165,14 @@ theorem evmStackIs_triple_flat_right (sp : Word) (a b c : EvmWord)
     (evmStackIs sp [a, b, c] ** Q) := by
   rw [evmStackIs_triple_flat]
 
+/-- Congruence: if the stored values agree, `evmWordIs` at the same
+    address agrees. Trivial `congrArg` application, but named for use
+    with `rw [evmWordIs_congr hv]` style rewriting where `hv : v = w`
+    is a hypothesis produced by an upstream bridge lemma. -/
+theorem evmWordIs_congr (addr : Word) {v w : EvmWord} (hv : v = w) :
+    evmWordIs addr v = evmWordIs addr w :=
+  congrArg (evmWordIs addr) hv
+
 -- ============================================================================
 -- evmWordIs unfold and limb-equality bridges
 -- ============================================================================
