@@ -28,51 +28,51 @@ namespace EvmWord
 /-- Per-limb addback Nat-level equation.
 
     The addback_limb operation does a two-step addition:
-    - u_plus_carry = u_i + carry_in (with overflow detection)
-    - u_new = u_plus_carry + v_i (with overflow detection)
+    - uPlusCarry = u_i + carry_in (with overflow detection)
+    - uNew = uPlusCarry + v_i (with overflow detection)
     - carry_out = carry1 ||| carry2
 
     At the Nat level, this is simply:
-      u_i + v_i + carry_in = carry_nat * 2^64 + u_new
+      u_i + v_i + carry_in = carry_nat * 2^64 + uNew
     where carry_nat = (u_i + v_i + carry_in) / 2^64 ∈ {0, 1}.
 
     We state the equation at the Nat level without referencing the
     register-level carry_out Word, since the carries are used only
     to propagate between limbs (and the 4-limb composition telescopes). -/
 theorem addback_limb_nat_eq (u_i v_i carry_in : Word) (hci : carry_in.toNat ≤ 1) :
-    let u_plus_carry := u_i + carry_in
-    let u_new := u_plus_carry + v_i
+    let uPlusCarry := u_i + carry_in
+    let uNew := uPlusCarry + v_i
     ∃ (carry_nat : Nat), carry_nat ≤ 1 ∧
-      u_i.toNat + v_i.toNat + carry_in.toNat = carry_nat * 2^64 + u_new.toNat := by
-  intro u_plus_carry u_new
-  -- Step 1: u_i + carry_in = c1 * 2^64 + u_plus_carry
+      u_i.toNat + v_i.toNat + carry_in.toNat = carry_nat * 2^64 + uNew.toNat := by
+  intro uPlusCarry uNew
+  -- Step 1: u_i + carry_in = c1 * 2^64 + uPlusCarry
   have h1 := add_carry_nat u_i carry_in
-  -- Step 2: u_plus_carry + v_i = c2 * 2^64 + u_new
-  have h2 := add_carry_nat u_plus_carry v_i
+  -- Step 2: uPlusCarry + v_i = c2 * 2^64 + uNew
+  have h2 := add_carry_nat uPlusCarry v_i
   -- Combined carry
   set c1 := (u_i.toNat + carry_in.toNat) / 2^64
-  set c2 := (u_plus_carry.toNat + v_i.toNat) / 2^64
+  set c2 := (uPlusCarry.toNat + v_i.toNat) / 2^64
   have hc1_01 := add_carry_01 u_i carry_in
-  have hc2_01 := add_carry_01 u_plus_carry v_i
-  -- Total: u_i + v_i + carry_in = (c1 + c2) * 2^64 + u_new
+  have hc2_01 := add_carry_01 uPlusCarry v_i
+  -- Total: u_i + v_i + carry_in = (c1 + c2) * 2^64 + uNew
   -- But c1 + c2 ≤ 1 (the two carries are exclusive)
   have hu := u_i.isLt; have hv := v_i.isLt
   have htot : u_i.toNat + v_i.toNat + carry_in.toNat < 2 * 2^64 := by omega
-  have hupc : u_plus_carry.toNat = (u_i.toNat + carry_in.toNat) % 2^64 :=
+  have hupc : uPlusCarry.toNat = (u_i.toNat + carry_in.toNat) % 2^64 :=
     BitVec.toNat_add u_i carry_in
-  -- If c1 = 1 then u_plus_carry is small, so c2 = 0
+  -- If c1 = 1 then uPlusCarry is small, so c2 = 0
   have hexcl : c1 + c2 ≤ 1 := by
     rcases hc1_01 with h | h <;> rcases hc2_01 with h' | h'
     · omega
     · omega
-    · -- c1 = 1: u_plus_carry = u_i + ci - 2^64, which is small
-      have : u_plus_carry.toNat = u_i.toNat + carry_in.toNat - 2^64 := by rw [hupc]; omega
-      have : u_plus_carry.toNat + v_i.toNat < 2^64 := by omega
+    · -- c1 = 1: uPlusCarry = u_i + ci - 2^64, which is small
+      have : uPlusCarry.toNat = u_i.toNat + carry_in.toNat - 2^64 := by rw [hupc]; omega
+      have : uPlusCarry.toNat + v_i.toNat < 2^64 := by omega
       have : c2 = 0 := Nat.div_eq_of_lt (by omega)
       omega
     · -- c1 = 1, c2 = 1: impossible since total < 2 * 2^64
-      have : u_plus_carry.toNat = u_i.toNat + carry_in.toNat - 2^64 := by rw [hupc]; omega
-      have : u_plus_carry.toNat + v_i.toNat < 2^64 := by omega
+      have : uPlusCarry.toNat = u_i.toNat + carry_in.toNat - 2^64 := by rw [hupc]; omega
+      have : uPlusCarry.toNat + v_i.toNat < 2^64 := by omega
       omega
   refine ⟨c1 + c2, hexcl, ?_⟩
   nlinarith [h1, h2]
@@ -83,7 +83,7 @@ theorem addback_limb_nat_eq (u_i v_i carry_in : Word) (hci : carry_in.toNat ≤ 
 
 /-- 4-limb addback: adding the divisor back to the underflowed remainder.
     Given per-limb carry equations, the val256 result satisfies:
-      val256 u + val256 v = val256 u_new + carry_out * 2^256
+      val256 u + val256 v = val256 uNew + carry_out * 2^256
     where carry_out ∈ {0, 1}. -/
 theorem addback_4limb_val256
     (u0 u1 u2 u3 v0 v1 v2 v3 r0 r1 r2 r3 : Word)
