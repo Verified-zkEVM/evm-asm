@@ -65,13 +65,6 @@ abbrev shlCode (base : Word) : CodeReq :=
 -- Phase A union-chain ⊆ ofProg bridge (`shr_phase_a_code_sub_ofProg`) is shared
 -- and lives in `ComposeBase`.
 
-/-- Phase A code (union chain, 9 instrs at +0) is subsumed by shlCode (block 0). -/
-private theorem phase_a_sub_shlCode (base : Word) :
-    ∀ a i, shr_phase_a_code base a = some i → shlCode base a = some i := by
-  intro a i h
-  unfold shlCode; simp only [CodeReq.unionAll_cons]
-  exact CodeReq.union_mono_left _ _ a i (shr_phase_a_code_sub_ofProg base a i h)
-
 /-- Phase B code (ofProg, 7 instrs at +36) is subsumed by shlCode (block 1). -/
 private theorem phase_b_sub_shlCode (base : Word) :
     ∀ a i, shr_phase_b_code (base + 36) a = some i → shlCode base a = some i := by
@@ -487,9 +480,6 @@ theorem evm_shl_zero_large_spec (sp base : Word)
 
 -- `cpsNBranch_extend_code` and `cpsNBranch_frame_left` live in
 -- `Rv64/CPSSpec.lean` (shared).
-
--- Address normalization lemmas for body path
-private theorem shl_off_64_20 (base : Word) : (base + 64 : Word) + 20 = base + 84 := by bv_omega
 
 -- `cpsTriple_strip_pure_and_convert` lives in `Rv64/CPSSpec.lean` (shared).
 

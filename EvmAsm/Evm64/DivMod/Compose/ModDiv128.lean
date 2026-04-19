@@ -47,12 +47,6 @@ private theorem d128_sub_mod (base : Word) (k : Nat) (addr : Word) (instr : Inst
     (CodeReq.singleton_mono
       (CodeReq.ofProg_lookup (base + div128Off) divK_div128 k hk (by decide)) a i h)
 
--- Address normalization: block entry offsets relative to (base + div128Off)
-private theorem d128_off_40_mod (base : Word) : (base + div128Off : Word) + 40 = base + 1112 := by bv_addr
-private theorem d128_off_100_mod (base : Word) : (base + div128Off : Word) + 100 = base + 1172 := by bv_addr
-private theorem d128_off_120_mod (base : Word) : (base + div128Off : Word) + 120 = base + 1192 := by bv_addr
-private theorem d128_off_180_mod (base : Word) : (base + div128Off : Word) + 180 = base + 1252 := by bv_addr
-
 -- ============================================================================
 -- mod_div128_spec: compose 5 block specs into single subroutine theorem.
 -- Entry: base+1072, Exit: ret_addr (via JALR), CodeReq: modCode base.
