@@ -124,10 +124,10 @@ theorem slt_result_correct (a b : EvmWord) :
     let borrow2b := if BitVec.ult temp2 borrow1 then (1 : Word) else 0
     let borrow2 := borrow2a ||| borrow2b
     -- Signed comparison of MSB limbs
-    let slt_msb := if BitVec.slt a3 b3 then (1 : Word) else 0
-    let result := if a3 = b3 then borrow2 else slt_msb
+    let sltMsb := if BitVec.slt a3 b3 then (1 : Word) else 0
+    let result := if a3 = b3 then borrow2 else sltMsb
     result = if BitVec.slt a b then (1 : Word) else 0 := by
-  intro a0 b0 a1 b1 a2 b2 a3 b3 borrow0 borrow1a temp1 borrow1b borrow1 borrow2a temp2 borrow2b borrow2 slt_msb result
+  intro a0 b0 a1 b1 a2 b2 a3 b3 borrow0 borrow1a temp1 borrow1b borrow1 borrow2a temp2 borrow2b borrow2 sltMsb result
   -- Key: a.msb = a3.msb (bit 255 of a = bit 63 of a3 = MSB of getLimb 3)
   have hmsb_a : a.msb = a3.msb := by
     show a.getLsbD (256 - 1) = (a.extractLsb' (3 * 64) 64).getLsbD (64 - 1)
@@ -210,7 +210,7 @@ theorem slt_result_correct (a b : EvmWord) :
     -- slt a b ↔ slt a3 b3
     have hmsb_neq : a.msb ≠ b.msb ↔ a3.msb ≠ b3.msb := by rw [hmsb_a, hmsb_b]
     -- slt = msb_xor ⊕ ult for both 256-bit and 64-bit
-    simp only [slt_msb]
+    simp only [sltMsb]
     rw [BitVec.slt_eq_ult (x := a) (y := b), BitVec.slt_eq_ult (x := a3) (y := b3)]
     rw [hmsb_a, hmsb_b]
     -- msb terms now match. Suffices: ult a3 b3 = ult a b

@@ -28,7 +28,7 @@ namespace EvmAsm.Evm64
 open EvmAsm.Rv64
 
 /-- Mul-sub setup: restore j from scratch, compute u_base, zero carry. -/
-theorem divK_mulsub_setup_spec (sp q_hat j v1_old v5_old v6_old v10_old : Word)
+theorem divK_mulsub_setup_spec (sp qHat j v1_old v5_old v6_old v10_old : Word)
     (base : Word) :
     let j_x8 := j <<< (3 : BitVec 6).toNat
     let sp_m40 := sp + signExtend12 4056
@@ -40,11 +40,11 @@ theorem divK_mulsub_setup_spec (sp q_hat j v1_old v5_old v6_old v10_old : Word)
       (CodeReq.union (CodeReq.singleton (base + 12) (.SUB .x6 .x6 .x5))
        (CodeReq.singleton (base + 16) (.ADDI .x10 .x0 0)))))
     cpsTriple base (base + 20) cr
-      ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ q_hat) **
+      ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
        (.x1 ↦ᵣ v1_old) ** (.x5 ↦ᵣ v5_old) ** (.x6 ↦ᵣ v6_old) **
        (.x10 ↦ᵣ v10_old) ** (.x0 ↦ᵣ 0) **
        (sp + signExtend12 3976 ↦ₘ j))
-      ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ q_hat) **
+      ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
        (.x1 ↦ᵣ j) ** (.x5 ↦ᵣ j_x8) ** (.x6 ↦ᵣ u_base) **
        (.x10 ↦ᵣ signExtend12 0) ** (.x0 ↦ᵣ 0) **
        (sp + signExtend12 3976 ↦ₘ j)) := by

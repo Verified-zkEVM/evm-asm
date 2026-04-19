@@ -78,10 +78,10 @@ theorem val128_mod_unique (u_hi u_lo : Word) (d q r : Nat)
 -- ============================================================================
 
 -- The trial quotient q̂ = ⌊u_hi / d_hi⌋ overestimates the true quotient digit
--- q_true = ⌊(u_hi * B + un1) / d⌋ where d = d_hi * B + d_lo, B = 2^32.
+-- qTrue = ⌊(u_hi * B + un1) / d⌋ where d = d_hi * B + d_lo, B = 2^32.
 --
--- Bound 1 (no normalization needed): q̂ ≥ q_true
--- Bound 2 (normalization: d_hi ≥ B/2): q̂ ≤ q_true + 2
+-- Bound 1 (no normalization needed): q̂ ≥ qTrue
+-- Bound 2 (normalization: d_hi ≥ B/2): q̂ ≤ qTrue + 2
 
 /-- Trial quotient upper bound: `⌊u_hi / d_hi⌋ ≥ ⌊(u_hi * B + un1) / d⌋`.
     The trial quotient never underestimates. No normalization needed.
@@ -112,50 +112,50 @@ theorem trial_quotient_le (u_hi un1 d_hi d_lo : Nat)
     u_hi / d_hi ≤ (u_hi * 2^32 + un1) / (d_hi * 2^32 + d_lo) + 2 := by
   have hd_hi : 0 < d_hi := by omega
   set d := d_hi * 2^32 + d_lo
-  set q_hat := u_hi / d_hi
+  set qHat := u_hi / d_hi
   have hd_pos : 0 < d := by positivity
-  have hq_mul : q_hat * d_hi ≤ u_hi := Nat.div_mul_le_self u_hi d_hi
+  have hq_mul : qHat * d_hi ≤ u_hi := Nat.div_mul_le_self u_hi d_hi
   -- q̂ ≤ B + 1: if q̂ ≥ B+2 then q̂*d_hi ≥ (B+2)*d_hi, giving 2*d_hi ≤ d_lo,
   -- contradicting d_hi ≥ B/2 and d_lo < B.
-  have hq_bound : q_hat ≤ 2^32 + 1 := by
+  have hq_bound : qHat ≤ 2^32 + 1 := by
     by_contra h_contra; push Not at h_contra
-    have h1 : (2^32 + 2) * d_hi ≤ q_hat * d_hi := Nat.mul_le_mul_right d_hi (by omega)
+    have h1 : (2^32 + 2) * d_hi ≤ qHat * d_hi := Nat.mul_le_mul_right d_hi (by omega)
     have h2 : 2 * d_hi ≤ d_lo := by omega
     omega
   -- q̂ * d_lo < B² ≤ 2d
-  have hq_dlo_bound : q_hat * d_lo < 2^64 := by
+  have hq_dlo_bound : qHat * d_lo < 2^64 := by
     have : d_lo ≤ 2^32 - 1 := by omega
-    have : q_hat * d_lo ≤ (2^32 + 1) * (2^32 - 1) := Nat.mul_le_mul hq_bound this
+    have : qHat * d_lo ≤ (2^32 + 1) * (2^32 - 1) := Nat.mul_le_mul hq_bound this
     norm_num at this ⊢; omega
   have h2d_ge : 2 * d ≥ 2^64 := by
     show 2 * (d_hi * 2^32 + d_lo) ≥ _; omega
-  have hq_d_eq : q_hat * d = q_hat * d_hi * 2^32 + q_hat * d_lo := by
-    show q_hat * (d_hi * 2^32 + d_lo) = _; ring
+  have hq_d_eq : qHat * d = qHat * d_hi * 2^32 + qHat * d_lo := by
+    show qHat * (d_hi * 2^32 + d_lo) = _; ring
   -- Key: q̂ * d ≤ u_hi * B + 2d ≤ X + 2d where X = u_hi * B + un1
   set X := u_hi * 2^32 + un1
-  have key : q_hat * d ≤ X + 2 * d := by
-    calc q_hat * d = q_hat * d_hi * 2^32 + q_hat * d_lo := hq_d_eq
-      _ ≤ u_hi * 2^32 + q_hat * d_lo := by nlinarith
+  have key : qHat * d ≤ X + 2 * d := by
+    calc qHat * d = qHat * d_hi * 2^32 + qHat * d_lo := hq_d_eq
+      _ ≤ u_hi * 2^32 + qHat * d_lo := by nlinarith
       _ ≤ u_hi * 2^32 + 2^64 := by omega
       _ ≤ u_hi * 2^32 + 2 * d := by omega
       _ ≤ X + 2 * d := by omega
   -- Convert: q̂ * d ≤ X + 2d < (X/d + 3) * d → q̂ < X/d + 3 → q̂ ≤ X/d + 2
   have hXmod : X < (X / d + 1) * d := by
     have := Nat.div_add_mod X d; have := Nat.mod_lt X hd_pos; nlinarith
-  have hlt : q_hat * d < (X / d + 3) * d := by nlinarith
-  have : q_hat < X / d + 3 := by
+  have hlt : qHat * d < (X / d + 3) * d := by nlinarith
+  have : qHat < X / d + 3 := by
     by_contra hc; push Not at hc
     exact Nat.not_lt.mpr (Nat.mul_le_mul_right d hc) hlt
   omega
 
 /-- Combined: the trial quotient is within 2 of the true value.
-    `q_true ≤ q̂ ≤ q_true + 2` when `d_hi ≥ B/2` (normalization condition). -/
+    `qTrue ≤ q̂ ≤ qTrue + 2` when `d_hi ≥ B/2` (normalization condition). -/
 theorem trial_quotient_range (u_hi un1 d_hi d_lo : Nat)
     (hd_hi_bound : d_hi < 2^32) (hd_lo : d_lo < 2^32)
     (hun1 : un1 < 2^32) (hu : u_hi < d_hi * 2^32 + d_lo) (hnorm : d_hi ≥ 2^31) :
-    let q_hat := u_hi / d_hi
-    let q_true := (u_hi * 2^32 + un1) / (d_hi * 2^32 + d_lo)
-    q_true ≤ q_hat ∧ q_hat ≤ q_true + 2 :=
+    let qHat := u_hi / d_hi
+    let qTrue := (u_hi * 2^32 + un1) / (d_hi * 2^32 + d_lo)
+    qTrue ≤ qHat ∧ qHat ≤ qTrue + 2 :=
   ⟨trial_quotient_ge u_hi un1 d_hi d_lo (by omega) hun1,
    trial_quotient_le u_hi un1 d_hi d_lo hd_hi_bound hd_lo hun1 hu hnorm⟩
 
@@ -169,73 +169,73 @@ theorem trial_quotient_range (u_hi un1 d_hi d_lo : Nat)
 -- After at most one correction, the overestimate is ≤ 1.
 
 /-- Product check soundness: if `q̂ * d_lo > r̂ * B + un1`,
-    then `q̂ > q_true` (the trial quotient strictly overestimates).
+    then `q̂ > qTrue` (the trial quotient strictly overestimates).
 
     Proof: q̂ * d = q̂ * d_hi * B + q̂ * d_lo > r̂ * d_hi * B + r̂ * B + un1
     and from r̂ = u_hi - q̂ * d_hi: q̂ * d_hi = u_hi - r̂,
     so q̂ * d > (u_hi - r̂) * B + r̂ * B + un1 = u_hi * B + un1. -/
-theorem product_check_gt_imp_overestimate (u_hi un1 d_hi d_lo q_hat r_hat : Nat)
+theorem product_check_gt_imp_overestimate (u_hi un1 d_hi d_lo qHat r_hat : Nat)
     (B : Nat := 2^32)
     (hd_pos : 0 < d_hi * B + d_lo)
-    (hr_hat : r_hat = u_hi - q_hat * d_hi)
-    (hq_mul : q_hat * d_hi ≤ u_hi)
-    (hcheck : q_hat * d_lo > r_hat * B + un1) :
-    q_hat > (u_hi * B + un1) / (d_hi * B + d_lo) := by
+    (hr_hat : r_hat = u_hi - qHat * d_hi)
+    (hq_mul : qHat * d_hi ≤ u_hi)
+    (hcheck : qHat * d_lo > r_hat * B + un1) :
+    qHat > (u_hi * B + un1) / (d_hi * B + d_lo) := by
   set d := d_hi * B + d_lo
   set X := u_hi * B + un1
   -- q̂ * d = q̂ * d_hi * B + q̂ * d_lo > (u_hi - r̂) * B + r̂ * B + un1 = X
-  have hqd_gt : q_hat * d > X := by
-    calc q_hat * d = q_hat * (d_hi * B + d_lo) := rfl
-      _ = q_hat * d_hi * B + q_hat * d_lo := by ring
-      _ > q_hat * d_hi * B + r_hat * B + un1 := by omega
-      _ = (q_hat * d_hi + r_hat) * B + un1 := by ring
+  have hqd_gt : qHat * d > X := by
+    calc qHat * d = qHat * (d_hi * B + d_lo) := rfl
+      _ = qHat * d_hi * B + qHat * d_lo := by ring
+      _ > qHat * d_hi * B + r_hat * B + un1 := by omega
+      _ = (qHat * d_hi + r_hat) * B + un1 := by ring
       _ = u_hi * B + un1 := by
             rw [hr_hat, Nat.add_sub_cancel' hq_mul]
   exact (Nat.div_lt_iff_lt_mul hd_pos).mpr hqd_gt
 
-/-- If the product check passes (`q̂ * d_lo ≤ r̂ * B + un1`), then `q̂ ≤ q_true`.
+/-- If the product check passes (`q̂ * d_lo ≤ r̂ * B + un1`), then `q̂ ≤ qTrue`.
     The trial quotient does NOT overestimate the true quotient in this branch. -/
-theorem product_check_pass_imp_le (u_hi un1 d_hi d_lo q_hat r_hat : Nat)
+theorem product_check_pass_imp_le (u_hi un1 d_hi d_lo qHat r_hat : Nat)
     (B : Nat := 2^32)
     (hd_pos : 0 < d_hi * B + d_lo)
-    (hr_hat : r_hat = u_hi - q_hat * d_hi)
-    (hq_mul : q_hat * d_hi ≤ u_hi)
-    (hcheck_pass : q_hat * d_lo ≤ r_hat * B + un1) :
-    q_hat ≤ (u_hi * B + un1) / (d_hi * B + d_lo) := by
+    (hr_hat : r_hat = u_hi - qHat * d_hi)
+    (hq_mul : qHat * d_hi ≤ u_hi)
+    (hcheck_pass : qHat * d_lo ≤ r_hat * B + un1) :
+    qHat ≤ (u_hi * B + un1) / (d_hi * B + d_lo) := by
   set d := d_hi * B + d_lo
   set X := u_hi * B + un1
-  have hqd_le : q_hat * d ≤ X := by
-    calc q_hat * d = q_hat * (d_hi * B + d_lo) := rfl
-      _ = q_hat * d_hi * B + q_hat * d_lo := by ring
-      _ ≤ q_hat * d_hi * B + r_hat * B + un1 := by omega
-      _ = (q_hat * d_hi + r_hat) * B + un1 := by ring
+  have hqd_le : qHat * d ≤ X := by
+    calc qHat * d = qHat * (d_hi * B + d_lo) := rfl
+      _ = qHat * d_hi * B + qHat * d_lo := by ring
+      _ ≤ qHat * d_hi * B + r_hat * B + un1 := by omega
+      _ = (qHat * d_hi + r_hat) * B + un1 := by ring
       _ = u_hi * B + un1 := by
             rw [hr_hat, Nat.add_sub_cancel' hq_mul]
   exact Nat.le_div_iff_mul_le hd_pos |>.mpr hqd_le
 
 /-- Full correction step: after at most one correction (decrement when product check
     fails), the trial quotient overestimates by at most 1.
-    - If check passes: `q̂ ≤ q_true` (from `product_check_pass_imp_le`)
-    - If check fails: `q̂ - 1 ≤ q_true + 1` since `q̂ > q_true` and `q̂ ≤ q_true + 2` -/
-theorem correction_step_overestimate_le_one (u_hi un1 d_hi d_lo q_hat r_hat : Nat)
+    - If check passes: `q̂ ≤ qTrue` (from `product_check_pass_imp_le`)
+    - If check fails: `q̂ - 1 ≤ qTrue + 1` since `q̂ > qTrue` and `q̂ ≤ qTrue + 2` -/
+theorem correction_step_overestimate_le_one (u_hi un1 d_hi d_lo qHat r_hat : Nat)
     (B : Nat := 2^32)
     (hd_pos : 0 < d_hi * B + d_lo)
-    (hr_hat : r_hat = u_hi - q_hat * d_hi)
-    (hq_mul : q_hat * d_hi ≤ u_hi)
-    (hq_upper : q_hat ≤ (u_hi * B + un1) / (d_hi * B + d_lo) + 2) :
-    (if q_hat * d_lo > r_hat * B + un1 then q_hat - 1 else q_hat) ≤
+    (hr_hat : r_hat = u_hi - qHat * d_hi)
+    (hq_mul : qHat * d_hi ≤ u_hi)
+    (hq_upper : qHat ≤ (u_hi * B + un1) / (d_hi * B + d_lo) + 2) :
+    (if qHat * d_lo > r_hat * B + un1 then qHat - 1 else qHat) ≤
       (u_hi * B + un1) / (d_hi * B + d_lo) + 1 := by
-  set q_true := (u_hi * B + un1) / (d_hi * B + d_lo)
+  set qTrue := (u_hi * B + un1) / (d_hi * B + d_lo)
   split
-  · -- Product check fails: decrement. q̂ > q_true and q̂ ≤ q_true + 2.
+  · -- Product check fails: decrement. q̂ > qTrue and q̂ ≤ qTrue + 2.
     rename_i hfail
-    have hgt : q_hat > q_true := product_check_gt_imp_overestimate u_hi un1 d_hi d_lo q_hat r_hat B
+    have hgt : qHat > qTrue := product_check_gt_imp_overestimate u_hi un1 d_hi d_lo qHat r_hat B
       hd_pos hr_hat hq_mul hfail
-    exact Nat.sub_le_of_le_add (by omega : q_hat ≤ q_true + 1 + 1)
-  · -- Product check passes: q̂ ≤ q_true, so q̂ ≤ q_true + 1 trivially.
+    exact Nat.sub_le_of_le_add (by omega : qHat ≤ qTrue + 1 + 1)
+  · -- Product check passes: q̂ ≤ qTrue, so q̂ ≤ qTrue + 1 trivially.
     rename_i hpass
     simp only [not_lt] at hpass
-    have := product_check_pass_imp_le u_hi un1 d_hi d_lo q_hat r_hat B
+    have := product_check_pass_imp_le u_hi un1 d_hi d_lo qHat r_hat B
       hd_pos hr_hat hq_mul hpass
     omega
 
@@ -243,12 +243,12 @@ theorem correction_step_overestimate_le_one (u_hi un1 d_hi d_lo q_hat r_hat : Na
 -- Full half-round: overflow clamp + product check = overestimate ≤ 1
 -- ============================================================================
 
-/-- Full half-round: any quotient q satisfying q_true ≤ q ≤ q_true + 2
-    (the trial quotient range) can be corrected to q_true ≤ q' ≤ q_true + 1
+/-- Full half-round: any quotient q satisfying qTrue ≤ q ≤ qTrue + 2
+    (the trial quotient range) can be corrected to qTrue ≤ q' ≤ qTrue + 1
     via the product check, provided q * d_hi ≤ u_hi (the trial division invariant).
 
     This captures both the overflow correction case (which reduces the bound
-    from ≤ q_true + 2 to ≤ q_true + 1) and the no-overflow case (where
+    from ≤ qTrue + 2 to ≤ qTrue + 1) and the no-overflow case (where
     correction_step_overestimate_le_one applies directly). -/
 theorem half_round_overestimate_le_one (u_hi un1 d_hi d_lo q r : Nat)
     (hd_pos : 0 < d_hi * 2^32 + d_lo)
@@ -256,11 +256,11 @@ theorem half_round_overestimate_le_one (u_hi un1 d_hi d_lo q r : Nat)
     (hq_mul : q * d_hi ≤ u_hi)
     (hq_ge : (u_hi * 2^32 + un1) / (d_hi * 2^32 + d_lo) ≤ q)
     (hq_le : q ≤ (u_hi * 2^32 + un1) / (d_hi * 2^32 + d_lo) + 2) :
-    let q_true := (u_hi * 2^32 + un1) / (d_hi * 2^32 + d_lo)
+    let qTrue := (u_hi * 2^32 + un1) / (d_hi * 2^32 + d_lo)
     let q' := if q * d_lo > r * 2^32 + un1 then q - 1 else q
-    q_true ≤ q' ∧ q' ≤ q_true + 1 := by
+    qTrue ≤ q' ∧ q' ≤ qTrue + 1 := by
   constructor
-  · -- Lower bound: q' ≥ q_true
+  · -- Lower bound: q' ≥ qTrue
     split
     · rename_i hfail
       have hgt : q > (u_hi * 2^32 + un1) / (d_hi * 2^32 + d_lo) :=
@@ -268,7 +268,7 @@ theorem half_round_overestimate_le_one (u_hi un1 d_hi d_lo q r : Nat)
           hd_pos hr hq_mul hfail
       omega
     · exact hq_ge
-  · -- Upper bound: q' ≤ q_true + 1
+  · -- Upper bound: q' ≤ qTrue + 1
     exact correction_step_overestimate_le_one u_hi un1 d_hi d_lo q r (2^32)
       hd_pos hr hq_mul hq_le
 
