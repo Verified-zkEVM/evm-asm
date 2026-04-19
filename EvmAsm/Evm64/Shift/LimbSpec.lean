@@ -384,8 +384,7 @@ theorem shr_cascade_step_spec (v5 v10 : Word)
       (fun h hp => by xperm_hyp hp)
       (fun h hp => by xperm_hyp hp)
       (cpsBranch_frameR (.x0 ↦ᵣ (0 : Word)) (by pcFree)
-        (cpsBranch_consequence (base + 4) _ _ _
-          target _ _ (base + 8) _ _
+        (cpsBranch_weaken
           (fun _ hp => hp)
           (fun h hp => sepConj_mono_right
             (fun h' hp' => ((sepConj_pure_right _ (v5 = (0 : Word) + signExtend12 k) h').1 hp').1) h hp)
@@ -819,8 +818,7 @@ theorem shr_phase_a_spec (sp r5 r10 : Word)
       ((.x5 ↦ᵣ (s1 ||| s2 ||| s3)) ** (.x0 ↦ᵣ (0 : Word)))
       zero_path ((.x5 ↦ᵣ (s1 ||| s2 ||| s3)) ** (.x0 ↦ᵣ (0 : Word)))
       (base + 24) ((.x5 ↦ᵣ (s1 ||| s2 ||| s3)) ** (.x0 ↦ᵣ (0 : Word))) :=
-    cpsBranch_consequence (base + 20) _ _ _
-      zero_path _ _ (base + 24) _ _
+    cpsBranch_weaken
       (fun _ hp => hp)
       (fun h hp => sepConj_mono_right
         (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1) h hp)
@@ -886,8 +884,7 @@ theorem shr_phase_a_spec (sp r5 r10 : Word)
       ((.x10 ↦ᵣ sltiu_val) ** (.x0 ↦ᵣ (0 : Word)))
       zero_path ((.x10 ↦ᵣ sltiu_val) ** (.x0 ↦ᵣ (0 : Word)))
       (base + 36) ((.x10 ↦ᵣ sltiu_val) ** (.x0 ↦ᵣ (0 : Word))) :=
-    cpsBranch_consequence (base + 32) _ _ _
-      zero_path _ _ (base + 36) _ _
+    cpsBranch_weaken
       (fun _ hp => hp)
       (fun h hp => sepConj_mono_right
         (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1) h hp)
