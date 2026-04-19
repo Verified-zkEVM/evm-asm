@@ -17,7 +17,7 @@ import EvmAsm.Rv64.Tactics.XSimp
 import EvmAsm.Rv64.Tactics.RunBlock
 
 open EvmAsm.Rv64.Tactics
-open EvmAsm.Rv64.AddrNorm (bv6_toNat_63)
+open EvmAsm.Rv64.AddrNorm (bv6_toNat_63 word_add_zero)
 
 namespace EvmAsm.Evm64
 
@@ -442,7 +442,7 @@ theorem signext_phase_a_spec (sp r5 r10 : Word)
   have lw5 := ld_spec_gen .x5 .x12 sp
     (b1 ||| b2 ||| b3) b0 0 (base + 24) (by nofun)
   simp only [signExtend12_0] at lw5
-  rw [show sp + (0 : Word) = sp from by bv_omega] at lw5
+  rw [word_add_zero] at lw5
   rw [ha24] at lw5
   have sltiu_raw := sltiu_spec_gen .x10 .x5 b3 b0 31 (base + 28) (by nofun)
   rw [ha28] at sltiu_raw

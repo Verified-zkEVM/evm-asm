@@ -16,12 +16,14 @@
 -/
 
 import EvmAsm.Evm64.Shift.Program
+import EvmAsm.Rv64.AddrNorm
 import EvmAsm.Rv64.SyscallSpecs
 import EvmAsm.Rv64.ControlFlow
 import EvmAsm.Rv64.Tactics.XSimp
 import EvmAsm.Rv64.Tactics.RunBlock
 
 open EvmAsm.Rv64.Tactics
+open EvmAsm.Rv64.AddrNorm (word_add_zero)
 
 namespace EvmAsm.Evm64
 
@@ -852,7 +854,7 @@ theorem shr_phase_a_spec (sp r5 r10 : Word)
   have lw5 := ld_spec_gen .x5 .x12 sp
     (s1 ||| s2 ||| s3) s0 0 (base + 24) (by nofun)
   simp only [signExtend12_0] at lw5
-  rw [show sp + (0 : Word) = sp from by bv_omega] at lw5
+  rw [word_add_zero] at lw5
   rw [ha24] at lw5
   -- Step 6: SLTIU x10 x5 256 at base+28
   have sltiu_raw := sltiu_spec_gen .x10 .x5 s3 s0 256 (base + 28) (by nofun)
