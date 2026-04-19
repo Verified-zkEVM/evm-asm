@@ -25,7 +25,7 @@ namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
 open EvmAsm.Rv64.AddrNorm (se13_20 se13_44 se13_68 se13_128 se13_140 se21_16 se21_24 se21_32 se21_48
-  zero_add_se12_1_toNat zero_add_se12_2_toNat bv6_toNat_3)
+  zero_add_se12_1_toNat zero_add_se12_2_toNat bv6_toNat_3 word_add_zero)
 
 -- ============================================================================
 -- Full program CodeReq
@@ -365,7 +365,7 @@ theorem evm_byte_zero_geq32_spec (sp base : Word)
   -- Step 3: LD x5 x12 0 at base+24
   have hld_raw := ld_spec_gen .x5 .x12 sp (i1 ||| i2 ||| i3) i0 0 (base + 24) (by nofun)
   simp only [signExtend12_0] at hld_raw
-  rw [show sp + (0 : Word) = sp from by bv_omega, byte_off_24] at hld_raw
+  rw [word_add_zero, byte_off_24] at hld_raw
   have hld := cpsTriple_extend_code (byte_ld0_sub base) hld_raw
   -- Step 4: SLTIU at base+28
   have hsltiu_raw := sltiu_spec_gen .x10 .x5 i3 i0 32 (base + 28) (by nofun)
@@ -528,7 +528,7 @@ theorem evm_byte_body_evmWord_spec (sp base : Word)
   -- LD x5 x12 0 at base+24
   have hld_raw := ld_spec_gen .x5 .x12 sp (i1 ||| i2 ||| i3) i0 0 (base + 24) (by nofun)
   simp only [signExtend12_0] at hld_raw
-  rw [show sp + (0 : Word) = sp from by bv_omega, byte_off_24] at hld_raw
+  rw [word_add_zero, byte_off_24] at hld_raw
   have hld := cpsTriple_extend_code (byte_ld0_sub base) hld_raw
   -- SLTIU at base+28
   have hsltiu_raw := sltiu_spec_gen .x10 .x5 i3 i0 32 (base + 28) (by nofun)

@@ -19,7 +19,7 @@ namespace EvmAsm.Evm64
 open EvmAsm.Rv64
 open EvmAsm.Rv64.AddrNorm (se13_24 se13_60 se13_100 se13_156 se13_168 se21_36 se21_68 se21_96
   zero_add_se12_1_toNat zero_add_se12_2_toNat
-  se12_7 bv6_toNat_3)
+  se12_7 bv6_toNat_3 word_add_zero)
 
 -- ============================================================================
 -- Section 1: signextCode definition and helpers
@@ -373,7 +373,7 @@ theorem signext_nochange_geq31_spec (sp base : Word)
   -- Step 5: LD x5 x12 0 at base+24
   have hld_raw := ld_spec_gen .x5 .x12 sp (b1 ||| b2 ||| b3) b0 0 (base + 24) (by nofun)
   simp only [signExtend12_0] at hld_raw
-  rw [show sp + (0 : Word) = sp from by bv_omega, se_off_24] at hld_raw
+  rw [word_add_zero, se_off_24] at hld_raw
   have hld := cpsTriple_extend_code (ld_b0_sub_signextCode base) hld_raw
   -- Step 6: SLTIU at base+28
   have hsltiu_raw := sltiu_spec_gen .x10 .x5 b3 b0 31 (base + 28) (by nofun)
@@ -513,7 +513,7 @@ theorem signext_body_spec (sp base : Word)
     (fun h hp => by xperm_hyp hp) h123 hbne_f
   -- LD b0
   have hld_raw := ld_spec_gen .x5 .x12 sp (b1 ||| b2 ||| b3) b0 0 (base + 24) (by nofun)
-  simp only [signExtend12_0] at hld_raw; rw [show sp + (0 : Word) = sp from by bv_omega, se_off_24] at hld_raw
+  simp only [signExtend12_0] at hld_raw; rw [word_add_zero, se_off_24] at hld_raw
   have hld := cpsTriple_extend_code (ld_b0_sub_signextCode base) hld_raw
   -- SLTIU
   have hsltiu_raw := sltiu_spec_gen .x10 .x5 b3 b0 31 (base + 28) (by nofun)
