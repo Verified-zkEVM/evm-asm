@@ -12,6 +12,7 @@ open EvmAsm.Rv64.Tactics
 namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
+open EvmAsm.Evm64.DivMod.AddrNorm (slt_jpos_1 slt_jpos_2 slt_jpos_3)
 
 -- ============================================================================
 -- BEQ variants: max path addback with double-addback handling (no sorry)
@@ -154,7 +155,7 @@ theorem divK_loop_body_n1_max_addback_j3_beq_spec
   intro_lets at MCA
   unfold isAddbackCarry2NzN1Max isAddbackCarry2Nz at hcarry2_nz
   have MCA0 := MCA hcarry2_nz hborrow
-  have hj_pos : BitVec.slt ((3 : Word) + signExtend12 4095) 0 = false := by decide
+  have hj_pos := slt_jpos_3
   have SL := divK_store_loop_jgt0_spec sp (3 : Word) q_out u4_out carry_out q_old base hj_pos
   intro_lets at SL
   have TFf := cpsTriple_frame_left _ _ _ _ _
@@ -237,7 +238,7 @@ theorem divK_loop_body_n1_max_addback_j1_beq_spec
   intro_lets at MCA
   unfold isAddbackCarry2NzN1Max isAddbackCarry2Nz at hcarry2_nz
   have MCA0 := MCA hcarry2_nz hborrow
-  have hj_pos : BitVec.slt ((1 : Word) + signExtend12 4095) 0 = false := by decide
+  have hj_pos := slt_jpos_1
   have SL := divK_store_loop_jgt0_spec sp (1 : Word) q_out u4_out carry_out q_old base hj_pos
   intro_lets at SL
   have TFf := cpsTriple_frame_left _ _ _ _ _
@@ -320,7 +321,7 @@ theorem divK_loop_body_n1_max_addback_j2_beq_spec
   intro_lets at MCA
   unfold isAddbackCarry2NzN1Max isAddbackCarry2Nz at hcarry2_nz
   have MCA0 := MCA hcarry2_nz hborrow
-  have hj_pos : BitVec.slt ((2 : Word) + signExtend12 4095) 0 = false := by decide
+  have hj_pos := slt_jpos_2
   have SL := divK_store_loop_jgt0_spec sp (2 : Word) q_out u4_out carry_out q_old base hj_pos
   intro_lets at SL
   have TFf := cpsTriple_frame_left _ _ _ _ _

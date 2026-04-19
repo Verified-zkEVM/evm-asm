@@ -12,6 +12,7 @@ open EvmAsm.Rv64.Tactics
 namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
+open EvmAsm.Evm64.DivMod.AddrNorm (slt_jpos_1 slt_jpos_2 slt_jpos_3)
 
 -- ============================================================================
 -- n=1, BLTU not-taken (max path) + BEQ skip, j=0 → cpsTriple to base+904
@@ -177,7 +178,7 @@ theorem divK_loop_body_n1_max_skip_j3_spec
 
   intro_lets at MCS
   have MCS0 := MCS hborrow
-  have hj_pos : BitVec.slt ((3 : Word) + signExtend12 4095) 0 = false := by decide
+  have hj_pos := slt_jpos_3
   have SL := divK_store_loop_jgt0_spec sp (3 : Word) q_hat u4_new (0 : Word) q_old base hj_pos
   intro_lets at SL
   have TFf := cpsTriple_frame_left _ _ _ _ _
@@ -266,7 +267,7 @@ theorem divK_loop_body_n1_max_skip_j1_spec
 
   intro_lets at MCS
   have MCS0 := MCS hborrow
-  have hj_pos : BitVec.slt ((1 : Word) + signExtend12 4095) 0 = false := by decide
+  have hj_pos := slt_jpos_1
   have SL := divK_store_loop_jgt0_spec sp (1 : Word) q_hat u4_new (0 : Word) q_old base hj_pos
   intro_lets at SL
   have TFf := cpsTriple_frame_left _ _ _ _ _
@@ -355,7 +356,7 @@ theorem divK_loop_body_n1_max_skip_j2_spec
 
   intro_lets at MCS
   have MCS0 := MCS hborrow
-  have hj_pos : BitVec.slt ((2 : Word) + signExtend12 4095) 0 = false := by decide
+  have hj_pos := slt_jpos_2
   have SL := divK_store_loop_jgt0_spec sp (2 : Word) q_hat u4_new (0 : Word) q_old base hj_pos
   intro_lets at SL
   have TFf := cpsTriple_frame_left _ _ _ _ _

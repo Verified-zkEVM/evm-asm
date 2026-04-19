@@ -115,6 +115,20 @@ export EvmAsm.Rv64.AddrNorm
 @[divmod_addr, grind =] theorem word_zero_add (x : Word) : (0 : Word) + x = x := BitVec.zero_add x
 
 -- ============================================================================
+-- Loop-counter positivity: after `ADDI j j -1` (ie. `j + signExtend12 4095`),
+-- `j - 1 ≥ 0` for `j ∈ {1, 2, 3}`. Used by the `hj_pos` hypotheses in
+-- LoopIterN1/{Max,MaxBeq,Call,CallBeq} and LoopIterN{2,3} to discharge the
+-- BLT-not-taken side condition (the 4-bit signed encoding of j − 1).
+-- ============================================================================
+
+@[divmod_addr, grind =] theorem slt_jpos_1 :
+    BitVec.slt ((1 : Word) + signExtend12 4095) 0 = false := by decide
+@[divmod_addr, grind =] theorem slt_jpos_2 :
+    BitVec.slt ((2 : Word) + signExtend12 4095) 0 = false := by decide
+@[divmod_addr, grind =] theorem slt_jpos_3 :
+    BitVec.slt ((3 : Word) + signExtend12 4095) 0 = false := by decide
+
+-- ============================================================================
 -- `divmod_addr` tactic
 --
 -- Primary: `grind` (sees all @[grind =]-registered atomic facts).

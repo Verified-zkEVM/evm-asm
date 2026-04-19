@@ -17,6 +17,7 @@ open EvmAsm.Rv64.Tactics
 namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
+open EvmAsm.Evm64.DivMod.AddrNorm (slt_jpos_1)
 
 -- ============================================================================
 -- n=3, BLTU not-taken (max path) + BEQ skip, j=0 → cpsTriple to base+904
@@ -325,7 +326,7 @@ theorem divK_loop_body_n3_max_skip_j1_spec
   intro_lets at MCS
   have MCS0 := MCS hborrow
   -- 3. Store + loop continue j=1 (cpsTriple base+880 → base+448)
-  have hj_pos : BitVec.slt ((1 : Word) + signExtend12 4095) 0 = false := by decide
+  have hj_pos := slt_jpos_1
   have SL := divK_store_loop_jgt0_spec sp (1 : Word) q_hat u4_new (0 : Word) q_old base hj_pos
   intro_lets at SL
   -- 4. Frame TF with mulsub cells
@@ -454,7 +455,7 @@ theorem divK_loop_body_n3_call_skip_j1_spec
   let un3 := u3 - fs3; let c3 := pc3 + bs3
   let u4_new := u_top - c3
   -- 3. Store + loop back j=1 (cpsTriple base+880 → base+448)
-  have hj_pos : BitVec.slt ((1 : Word) + signExtend12 4095) 0 = false := by decide
+  have hj_pos := slt_jpos_1
   have SL := divK_store_loop_jgt0_spec sp (1 : Word) q_hat u4_new (0 : Word) q_old base hj_pos
   intro_lets at SL
   -- 4. Frame TF (for n=3: v2, u2, u3 consumed by trial; v3, u_top in frame)
@@ -777,7 +778,7 @@ theorem divK_loop_body_n3_max_addback_beq_j1_spec
   intro_lets at MCA
   have MCA0 := MCA hcarry2_nz hborrow
   -- 3. Store + loop continue j=1 (cpsTriple base+884 → base+448)
-  have hj_pos : BitVec.slt ((1 : Word) + signExtend12 4095) 0 = false := by decide
+  have hj_pos := slt_jpos_1
   have SL := divK_store_loop_jgt0_spec sp (1 : Word) q_out u4_out carry_out q_old base hj_pos
   intro_lets at SL
   have TFf := cpsTriple_frame_left _ _ _ _ _
@@ -900,7 +901,7 @@ theorem divK_loop_body_n3_call_addback_beq_j1_spec
   unfold isAddbackCarry2NzN3Call isAddbackCarry2Nz div128Quot at hcarry2_nz
   have MCA0 := MCA hcarry2_nz hborrow
   -- 3. Store + loop back j=1 (cpsTriple base+884 → base+448)
-  have hj_pos : BitVec.slt ((1 : Word) + signExtend12 4095) 0 = false := by decide
+  have hj_pos := slt_jpos_1
   have SL := divK_store_loop_jgt0_spec sp (1 : Word) q_out u4_out carry_out q_old base hj_pos
   intro_lets at SL
   -- 4. Frame TF

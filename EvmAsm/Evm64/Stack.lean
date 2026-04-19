@@ -279,11 +279,21 @@ theorem evmWordIs_zero (addr : Word) :
     ((addr ↦ₘ (0 : Word)) ** ((addr + 8) ↦ₘ (0 : Word)) **
      ((addr + 16) ↦ₘ (0 : Word)) ** ((addr + 24) ↦ₘ (0 : Word))) := by
   unfold evmWordIs
-  have h0 : (0 : EvmWord).getLimbN 0 = (0 : Word) := by decide
-  have h1 : (0 : EvmWord).getLimbN 1 = (0 : Word) := by decide
-  have h2 : (0 : EvmWord).getLimbN 2 = (0 : Word) := by decide
-  have h3 : (0 : EvmWord).getLimbN 3 = (0 : Word) := by decide
-  rw [h0, h1, h2, h3]
+  rw [EvmWord.getLimbN_zero 0, EvmWord.getLimbN_zero 1,
+      EvmWord.getLimbN_zero 2, EvmWord.getLimbN_zero 3]
+
+/-- `evmWordIs addr (1 : EvmWord)` unfolds to one non-zero memIs atom
+    (at the LSB) and three zero memIs atoms (at the higher limbs).
+    Thin wrapper around the definitional unfold specialized to `v = 1` —
+    saves callers from inlining four `(1 : EvmWord).getLimbN k` facts
+    on every IsZero-path spec. Applies at arbitrary `addr`. -/
+theorem evmWordIs_one (addr : Word) :
+    evmWordIs addr (1 : EvmWord) =
+    ((addr ↦ₘ (1 : Word)) ** ((addr + 8) ↦ₘ (0 : Word)) **
+     ((addr + 16) ↦ₘ (0 : Word)) ** ((addr + 24) ↦ₘ (0 : Word))) := by
+  unfold evmWordIs
+  rw [EvmWord.getLimbN_one_zero, EvmWord.getLimbN_one_one,
+      EvmWord.getLimbN_one_two, EvmWord.getLimbN_one_three]
 
 -- ============================================================================
 -- Shared infrastructure for stack operation specs
