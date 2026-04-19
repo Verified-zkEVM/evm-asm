@@ -96,7 +96,7 @@ theorem rlp_phase2_long_loop_five_byte_spec
     obtain ⟨_, _, _, _, _, hpost⟩ := hpost
     obtain ⟨_, _, _, _, _, hpost⟩ := hpost
     exact absurd hpost.2 (by decide)
-  have tri1 := cpsBranch_elim_taken _ _ _ _ _ _ _ body h_absurd
+  have tri1 := cpsBranch_takenPath body h_absurd
   rw [hback] at tri1
   have tri1' : cpsTriple base base
       (CodeReq.ofProg base (rlp_phase2_long_loop_body_prog back))

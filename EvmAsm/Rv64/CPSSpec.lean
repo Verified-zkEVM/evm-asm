@@ -342,7 +342,7 @@ theorem cpsBranch_takenStripPure2
   cpsTriple_weaken
     (fun _ hp => hp)
     (sepConj_strip_pure_end2 A B Prop_t)
-    (cpsBranch_elim_taken _ _ _ _ _ _ _ hbr h_absurd)
+    (cpsBranch_takenPath hbr h_absurd)
 
 /-- Explicit-argument variant of `cpsBranch_takenStripPure2`. Deprecated;
     prefer `cpsBranch_takenStripPure2` in new code. -/
@@ -365,7 +365,7 @@ theorem cpsBranch_takenStripPure3
   cpsTriple_weaken
     (fun _ hp => hp)
     (sepConj_strip_pure_end3 A B C Prop_t)
-    (cpsBranch_elim_taken _ _ _ _ _ _ _ hbr h_absurd)
+    (cpsBranch_takenPath hbr h_absurd)
 
 /-- Explicit-argument variant of `cpsBranch_takenStripPure3`. Deprecated;
     prefer `cpsBranch_takenStripPure3` in new code. -/
@@ -388,7 +388,7 @@ theorem cpsBranch_ntakenStripPure2
   cpsTriple_weaken
     (fun _ hp => hp)
     (sepConj_strip_pure_end2 A B Prop_f)
-    (cpsBranch_elim_ntaken _ _ _ _ _ _ _ hbr h_absurd)
+    (cpsBranch_ntakenPath hbr h_absurd)
 
 /-- Explicit-argument variant of `cpsBranch_ntakenStripPure2`. Deprecated;
     prefer `cpsBranch_ntakenStripPure2` in new code. -/
@@ -411,7 +411,7 @@ theorem cpsBranch_ntakenStripPure3
   cpsTriple_weaken
     (fun _ hp => hp)
     (sepConj_strip_pure_end3 A B C Prop_f)
-    (cpsBranch_elim_ntaken _ _ _ _ _ _ _ hbr h_absurd)
+    (cpsBranch_ntakenPath hbr h_absurd)
 
 /-- Explicit-argument variant of `cpsBranch_ntakenStripPure3`. Deprecated;
     prefer `cpsBranch_ntakenStripPure3` in new code. -/

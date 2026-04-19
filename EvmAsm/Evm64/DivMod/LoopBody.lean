@@ -544,7 +544,7 @@ theorem divK_correction_skip_spec
   have hbeq_ext := cpsBranch_extend_code (hmono :=
     lb_sub base 70 _ _ (by decide) (by bv_addr) (by decide)) hbeq
   -- Eliminate not-taken path (⌜0 ≠ 0⌝ is False)
-  have skip := cpsBranch_elim_taken _ _ _ _ _ _ _ hbeq_ext (fun hp hQf => by
+  have skip := cpsBranch_takenPath hbeq_ext (fun hp hQf => by
     obtain ⟨_, _, _, _, _, ⟨_, _, _, _, _, ⟨_, hpure⟩⟩⟩ := hQf
     exact hpure rfl)
   -- Strip pure fact from taken postcondition
@@ -628,7 +628,7 @@ theorem divK_correction_addback_spec
   have hbeq_ext := cpsBranch_extend_code (hmono :=
     lb_sub base 70 _ _ (by decide) (by bv_addr) (by decide)) hbeq
   -- Eliminate taken path (⌜borrow = 0⌝ contradicts hb)
-  have ntaken := cpsBranch_elim_ntaken _ _ _ _ _ _ _ hbeq_ext (fun hp hQt => by
+  have ntaken := cpsBranch_ntakenPath hbeq_ext (fun hp hQt => by
     obtain ⟨_, _, _, _, _, ⟨_, _, _, _, _, ⟨_, hpure⟩⟩⟩ := hQt
     exact hb hpure)
   -- Strip pure fact from not-taken postcondition
@@ -906,7 +906,7 @@ theorem divK_beq_passthrough (carry : Word) (base : Word) (hne : carry ≠ 0) :
   rw [lb_beq_back_ntaken] at hbeq
   have hbeq_ext := cpsBranch_extend_code (hmono :=
     lb_sub base 108 _ _ (by decide) (by bv_addr) (by decide)) hbeq
-  have ntaken := cpsBranch_elim_ntaken _ _ _ _ _ _ _ hbeq_ext (fun hp hQt => by
+  have ntaken := cpsBranch_ntakenPath hbeq_ext (fun hp hQt => by
     obtain ⟨_, _, _, _, _, ⟨_, _, _, _, _, ⟨_, hpure⟩⟩⟩ := hQt
     exact hne hpure)
   exact cpsTriple_weaken
@@ -976,7 +976,7 @@ theorem divK_double_addback_beq_spec
   have hbeq_ext := cpsBranch_extend_code (hmono :=
     lb_sub base 108 _ _ (by decide) (by bv_addr) (by decide)) hbeq
   -- Eliminate not-taken path (⌜0 ≠ 0⌝ is absurd)
-  have beq_taken := cpsBranch_elim_taken _ _ _ _ _ _ _ hbeq_ext (fun hp hQf => by
+  have beq_taken := cpsBranch_takenPath hbeq_ext (fun hp hQf => by
     obtain ⟨_, _, _, _, _, ⟨_, _, _, _, _, ⟨_, hpure⟩⟩⟩ := hQf
     exact hpure rfl)
   -- Strip pure fact from taken postcondition
@@ -1176,7 +1176,7 @@ theorem divK_store_loop_j0_spec
   have hbge_ext := cpsBranch_extend_code (hmono := by
     exact lb_sub base 114 _ _ (by decide) (by bv_addr) (by decide)) hbge_raw
   -- 4. Eliminate taken branch: j' = -1 < 0, so BGE is not taken
-  have hbge_exit_raw := cpsBranch_elim_ntaken _ _ _ _ _ _ _ hbge_ext
+  have hbge_exit_raw := cpsBranch_ntakenPath hbge_ext
     (fun hp hQt => by
       obtain ⟨_, _, _, _, _, ⟨_, _, _, _, _, ⟨_, hpure⟩⟩⟩ := hQt
       exact hpure j0_slt_zero)
@@ -1262,7 +1262,7 @@ theorem divK_store_loop_jgt0_spec
   have hbge_ext := cpsBranch_extend_code (hmono := by
     exact lb_sub base 114 _ _ (by decide) (by bv_addr) (by decide)) hbge_raw
   -- 4. Eliminate not-taken branch: j' = j-1 ≥ 0, so BGE is taken
-  have hbge_exit_raw := cpsBranch_elim_taken _ _ _ _ _ _ _ hbge_ext
+  have hbge_exit_raw := cpsBranch_takenPath hbge_ext
     (fun hp hQf => by
       obtain ⟨_, _, _, _, _, ⟨_, _, _, _, _, ⟨_, hpure⟩⟩⟩ := hQf
       exact absurd hpure (by rw [hj_pos]; exact Bool.false_ne_true))
@@ -1704,7 +1704,7 @@ theorem divK_trial_max_full_spec
   have hbltu_ext := cpsBranch_extend_code (hmono :=
     lb_sub base 13 _ _ (by decide) (by bv_addr) (by decide)) hbltu_raw
   -- Eliminate taken path (⌜BitVec.ult u_hi v_top⌝ contradicts hbltu)
-  have ntaken := cpsBranch_elim_ntaken _ _ _ _ _ _ _ hbltu_ext (fun hp hQt => by
+  have ntaken := cpsBranch_ntakenPath hbltu_ext (fun hp hQt => by
     obtain ⟨_, _, _, _, _, ⟨_, _, _, _, _, ⟨_, hpure⟩⟩⟩ := hQt
     exact hbltu hpure)
   -- Strip pure fact
@@ -1806,7 +1806,7 @@ theorem divK_trial_call_full_spec
   have hbltu_ext := cpsBranch_extend_code (hmono :=
     lb_sub base 13 _ _ (by decide) (by bv_addr) (by decide)) hbltu_raw
   -- Eliminate ntaken path (⌜¬BitVec.ult u_hi v_top⌝ contradicts hbltu)
-  have taken := cpsBranch_elim_taken _ _ _ _ _ _ _ hbltu_ext (fun hp hQf => by
+  have taken := cpsBranch_takenPath hbltu_ext (fun hp hQf => by
     obtain ⟨_, _, _, _, _, ⟨_, _, _, _, _, ⟨_, hpure⟩⟩⟩ := hQf
     exact hpure hbltu)
   -- Strip pure fact from taken postcondition
