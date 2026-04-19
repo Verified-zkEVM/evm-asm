@@ -310,11 +310,10 @@ theorem cpsBranch_elim_ntaken (entry l_t l_f : Word) (cr : CodeReq)
   · exact ⟨k, s', hstep, hpc_f, hQ_fR⟩
 
 /-- Eliminate the not-taken path from a cpsBranch AND strip the trailing pure fact
-    from the taken postcondition (depth 3: A ** B ** C ** ⌜P⌝ → A ** B ** C).
-    The return type is explicitly `cpsTriple entry l_t P (A ** B ** C)`, avoiding
-    lambda-wrapped postconditions. -/
-theorem cpsBranch_elim_taken_strip_pure2
-    (entry l_t l_f : Word) (cr : CodeReq) (P A B : Assertion) (Prop_t : Prop) (Q_f : Assertion)
+    from the taken postcondition (depth 2: A ** B ** ⌜P⌝ → A ** B). All arguments
+    except the two proofs are implicit — inferred from `hbr`. -/
+theorem cpsBranch_takenStripPure2
+    {entry l_t l_f : Word} {cr : CodeReq} {P A B : Assertion} {Prop_t : Prop} {Q_f : Assertion}
     (hbr : cpsBranch entry cr P l_t (A ** B ** ⌜Prop_t⌝) l_f Q_f)
     (h_absurd : ∀ hp, Q_f hp → False) :
     cpsTriple entry l_t cr P (A ** B) :=
@@ -323,8 +322,21 @@ theorem cpsBranch_elim_taken_strip_pure2
     (sepConj_strip_pure_end2 A B Prop_t)
     (cpsBranch_elim_taken _ _ _ _ _ _ _ hbr h_absurd)
 
-theorem cpsBranch_elim_taken_strip_pure3
-    (entry l_t l_f : Word) (cr : CodeReq) (P A B C : Assertion) (Prop_t : Prop) (Q_f : Assertion)
+/-- Explicit-argument variant of `cpsBranch_takenStripPure2`. Deprecated;
+    prefer `cpsBranch_takenStripPure2` in new code. -/
+@[deprecated cpsBranch_takenStripPure2 (since := "2026-04-19")]
+theorem cpsBranch_elim_taken_strip_pure2
+    (entry l_t l_f : Word) (cr : CodeReq) (P A B : Assertion) (Prop_t : Prop) (Q_f : Assertion)
+    (hbr : cpsBranch entry cr P l_t (A ** B ** ⌜Prop_t⌝) l_f Q_f)
+    (h_absurd : ∀ hp, Q_f hp → False) :
+    cpsTriple entry l_t cr P (A ** B) :=
+  cpsBranch_takenStripPure2 hbr h_absurd
+
+/-- Eliminate the not-taken path from a cpsBranch AND strip the trailing pure fact
+    from the taken postcondition (depth 3: A ** B ** C ** ⌜P⌝ → A ** B ** C).
+    All arguments except the two proofs are implicit — inferred from `hbr`. -/
+theorem cpsBranch_takenStripPure3
+    {entry l_t l_f : Word} {cr : CodeReq} {P A B C : Assertion} {Prop_t : Prop} {Q_f : Assertion}
     (hbr : cpsBranch entry cr P l_t (A ** B ** C ** ⌜Prop_t⌝) l_f Q_f)
     (h_absurd : ∀ hp, Q_f hp → False) :
     cpsTriple entry l_t cr P (A ** B ** C) :=
@@ -333,10 +345,21 @@ theorem cpsBranch_elim_taken_strip_pure3
     (sepConj_strip_pure_end3 A B C Prop_t)
     (cpsBranch_elim_taken _ _ _ _ _ _ _ hbr h_absurd)
 
+/-- Explicit-argument variant of `cpsBranch_takenStripPure3`. Deprecated;
+    prefer `cpsBranch_takenStripPure3` in new code. -/
+@[deprecated cpsBranch_takenStripPure3 (since := "2026-04-19")]
+theorem cpsBranch_elim_taken_strip_pure3
+    (entry l_t l_f : Word) (cr : CodeReq) (P A B C : Assertion) (Prop_t : Prop) (Q_f : Assertion)
+    (hbr : cpsBranch entry cr P l_t (A ** B ** C ** ⌜Prop_t⌝) l_f Q_f)
+    (h_absurd : ∀ hp, Q_f hp → False) :
+    cpsTriple entry l_t cr P (A ** B ** C) :=
+  cpsBranch_takenStripPure3 hbr h_absurd
+
 /-- Eliminate the taken path from a cpsBranch AND strip the trailing pure fact
-    from the not-taken postcondition (depth 2: A ** B ** ⌜P⌝ → A ** B). -/
-theorem cpsBranch_elim_ntaken_strip_pure2
-    (entry l_t l_f : Word) (cr : CodeReq) (P A B : Assertion) (Prop_f : Prop) (Q_t : Assertion)
+    from the not-taken postcondition (depth 2: A ** B ** ⌜P⌝ → A ** B).
+    All arguments except the two proofs are implicit — inferred from `hbr`. -/
+theorem cpsBranch_ntakenStripPure2
+    {entry l_t l_f : Word} {cr : CodeReq} {P A B : Assertion} {Prop_f : Prop} {Q_t : Assertion}
     (hbr : cpsBranch entry cr P l_t Q_t l_f (A ** B ** ⌜Prop_f⌝))
     (h_absurd : ∀ hp, Q_t hp → False) :
     cpsTriple entry l_f cr P (A ** B) :=
@@ -345,12 +368,21 @@ theorem cpsBranch_elim_ntaken_strip_pure2
     (sepConj_strip_pure_end2 A B Prop_f)
     (cpsBranch_elim_ntaken _ _ _ _ _ _ _ hbr h_absurd)
 
+/-- Explicit-argument variant of `cpsBranch_ntakenStripPure2`. Deprecated;
+    prefer `cpsBranch_ntakenStripPure2` in new code. -/
+@[deprecated cpsBranch_ntakenStripPure2 (since := "2026-04-19")]
+theorem cpsBranch_elim_ntaken_strip_pure2
+    (entry l_t l_f : Word) (cr : CodeReq) (P A B : Assertion) (Prop_f : Prop) (Q_t : Assertion)
+    (hbr : cpsBranch entry cr P l_t Q_t l_f (A ** B ** ⌜Prop_f⌝))
+    (h_absurd : ∀ hp, Q_t hp → False) :
+    cpsTriple entry l_f cr P (A ** B) :=
+  cpsBranch_ntakenStripPure2 hbr h_absurd
+
 /-- Eliminate the taken path from a cpsBranch AND strip the trailing pure fact
     from the not-taken postcondition (depth 3: A ** B ** C ** ⌜P⌝ → A ** B ** C).
-    The return type is explicitly `cpsTriple entry l_f P (A ** B ** C)`, avoiding
-    lambda-wrapped postconditions. -/
-theorem cpsBranch_elim_ntaken_strip_pure3
-    (entry l_t l_f : Word) (cr : CodeReq) (P A B C : Assertion) (Prop_f : Prop) (Q_t : Assertion)
+    All arguments except the two proofs are implicit — inferred from `hbr`. -/
+theorem cpsBranch_ntakenStripPure3
+    {entry l_t l_f : Word} {cr : CodeReq} {P A B C : Assertion} {Prop_f : Prop} {Q_t : Assertion}
     (hbr : cpsBranch entry cr P l_t Q_t l_f (A ** B ** C ** ⌜Prop_f⌝))
     (h_absurd : ∀ hp, Q_t hp → False) :
     cpsTriple entry l_f cr P (A ** B ** C) :=
@@ -358,6 +390,16 @@ theorem cpsBranch_elim_ntaken_strip_pure3
     (fun _ hp => hp)
     (sepConj_strip_pure_end3 A B C Prop_f)
     (cpsBranch_elim_ntaken _ _ _ _ _ _ _ hbr h_absurd)
+
+/-- Explicit-argument variant of `cpsBranch_ntakenStripPure3`. Deprecated;
+    prefer `cpsBranch_ntakenStripPure3` in new code. -/
+@[deprecated cpsBranch_ntakenStripPure3 (since := "2026-04-19")]
+theorem cpsBranch_elim_ntaken_strip_pure3
+    (entry l_t l_f : Word) (cr : CodeReq) (P A B C : Assertion) (Prop_f : Prop) (Q_t : Assertion)
+    (hbr : cpsBranch entry cr P l_t Q_t l_f (A ** B ** C ** ⌜Prop_f⌝))
+    (h_absurd : ∀ hp, Q_t hp → False) :
+    cpsTriple entry l_f cr P (A ** B ** C) :=
+  cpsBranch_ntakenStripPure3 hbr h_absurd
 
 /-- A cpsTriple with zero steps: if entry = exit and P implies Q, trivially holds. -/
 theorem cpsTriple_refl (addr : Word) (P Q : Assertion)
