@@ -113,6 +113,74 @@ theorem word_add_zero (x : Word) : x + (0 : Word) = x := BitVec.add_zero x
 @[rv64_addr, grind =] theorem se21_560 : signExtend21 (560 : BitVec 21) = (560 : Word) := by decide
 
 -- ============================================================================
+-- Atomic `signExtend12` evaluations (issue #493)
+--
+-- For offsets < 2^11, the result equals the input (zero-extended).
+-- For offsets ≥ 2^11, the result is (2^64 + offset - 2^12), i.e. the
+-- two's-complement encoding of (offset - 4096).
+-- All proofs are `by decide` (kernel-checkable).
+--
+-- These used to live in `Evm64/DivMod/AddrNorm.lean` under `divmod_addr`,
+-- but `signExtend12` is Rv64-level and the same identities are needed by
+-- Shift/SignExtend/Byte opcodes that cannot import DivMod. Promoted here
+-- and re-tagged with `@[divmod_addr]` in `Evm64/DivMod/AddrNorm.lean` so
+-- the `divmod_addr` grindset keeps the same coverage.
+-- ============================================================================
+
+-- Small offsets (< 2^11): result = input
+@[rv64_addr, grind =] theorem se12_0  : signExtend12 (0  : BitVec 12) = (0  : Word) := by decide
+@[rv64_addr, grind =] theorem se12_1  : signExtend12 (1  : BitVec 12) = (1  : Word) := by decide
+@[rv64_addr, grind =] theorem se12_2  : signExtend12 (2  : BitVec 12) = (2  : Word) := by decide
+@[rv64_addr, grind =] theorem se12_3  : signExtend12 (3  : BitVec 12) = (3  : Word) := by decide
+@[rv64_addr, grind =] theorem se12_4  : signExtend12 (4  : BitVec 12) = (4  : Word) := by decide
+@[rv64_addr, grind =] theorem se12_8  : signExtend12 (8  : BitVec 12) = (8  : Word) := by decide
+@[rv64_addr, grind =] theorem se12_12 : signExtend12 (12 : BitVec 12) = (12 : Word) := by decide
+@[rv64_addr, grind =] theorem se12_16 : signExtend12 (16 : BitVec 12) = (16 : Word) := by decide
+@[rv64_addr, grind =] theorem se12_24 : signExtend12 (24 : BitVec 12) = (24 : Word) := by decide
+@[rv64_addr, grind =] theorem se12_32 : signExtend12 (32 : BitVec 12) = (32 : Word) := by decide
+@[rv64_addr, grind =] theorem se12_40 : signExtend12 (40 : BitVec 12) = (40 : Word) := by decide
+@[rv64_addr, grind =] theorem se12_48 : signExtend12 (48 : BitVec 12) = (48 : Word) := by decide
+@[rv64_addr, grind =] theorem se12_56 : signExtend12 (56 : BitVec 12) = (56 : Word) := by decide
+
+-- Large offsets (≥ 2^11): result = 2^64 + offset - 2^12
+@[rv64_addr, grind =] theorem se12_3944 : signExtend12 (3944 : BitVec 12) = (18446744073709551464 : Word) := by decide
+@[rv64_addr, grind =] theorem se12_3952 : signExtend12 (3952 : BitVec 12) = (18446744073709551472 : Word) := by decide
+@[rv64_addr, grind =] theorem se12_3960 : signExtend12 (3960 : BitVec 12) = (18446744073709551480 : Word) := by decide
+@[rv64_addr, grind =] theorem se12_3968 : signExtend12 (3968 : BitVec 12) = (18446744073709551488 : Word) := by decide
+@[rv64_addr, grind =] theorem se12_3976 : signExtend12 (3976 : BitVec 12) = (18446744073709551496 : Word) := by decide
+@[rv64_addr, grind =] theorem se12_3984 : signExtend12 (3984 : BitVec 12) = (18446744073709551504 : Word) := by decide
+@[rv64_addr, grind =] theorem se12_3992 : signExtend12 (3992 : BitVec 12) = (18446744073709551512 : Word) := by decide
+@[rv64_addr, grind =] theorem se12_4000 : signExtend12 (4000 : BitVec 12) = (18446744073709551520 : Word) := by decide
+@[rv64_addr, grind =] theorem se12_4008 : signExtend12 (4008 : BitVec 12) = (18446744073709551528 : Word) := by decide
+@[rv64_addr, grind =] theorem se12_4016 : signExtend12 (4016 : BitVec 12) = (18446744073709551536 : Word) := by decide
+@[rv64_addr, grind =] theorem se12_4024 : signExtend12 (4024 : BitVec 12) = (18446744073709551544 : Word) := by decide
+@[rv64_addr, grind =] theorem se12_4032 : signExtend12 (4032 : BitVec 12) = (18446744073709551552 : Word) := by decide
+@[rv64_addr, grind =] theorem se12_4040 : signExtend12 (4040 : BitVec 12) = (18446744073709551560 : Word) := by decide
+@[rv64_addr, grind =] theorem se12_4048 : signExtend12 (4048 : BitVec 12) = (18446744073709551568 : Word) := by decide
+@[rv64_addr, grind =] theorem se12_4056 : signExtend12 (4056 : BitVec 12) = (18446744073709551576 : Word) := by decide
+@[rv64_addr, grind =] theorem se12_4064 : signExtend12 (4064 : BitVec 12) = (18446744073709551584 : Word) := by decide
+@[rv64_addr, grind =] theorem se12_4072 : signExtend12 (4072 : BitVec 12) = (18446744073709551592 : Word) := by decide
+@[rv64_addr, grind =] theorem se12_4080 : signExtend12 (4080 : BitVec 12) = (18446744073709551600 : Word) := by decide
+@[rv64_addr, grind =] theorem se12_4088 : signExtend12 (4088 : BitVec 12) = (18446744073709551608 : Word) := by decide
+@[rv64_addr, grind =] theorem se12_4095 : signExtend12 (4095 : BitVec 12) = (18446744073709551615 : Word) := by decide
+
+-- ============================================================================
+-- Atomic `(k : BitVec 6).toNat` evaluations (issue #493, promoted)
+-- ============================================================================
+
+@[rv64_addr, grind =] theorem bv6_toNat_2  : (2  : BitVec 6).toNat = 2  := by decide
+@[rv64_addr, grind =] theorem bv6_toNat_3  : (3  : BitVec 6).toNat = 3  := by decide
+@[rv64_addr, grind =] theorem bv6_toNat_4  : (4  : BitVec 6).toNat = 4  := by decide
+@[rv64_addr, grind =] theorem bv6_toNat_8  : (8  : BitVec 6).toNat = 8  := by decide
+@[rv64_addr, grind =] theorem bv6_toNat_16 : (16 : BitVec 6).toNat = 16 := by decide
+@[rv64_addr, grind =] theorem bv6_toNat_32 : (32 : BitVec 6).toNat = 32 := by decide
+@[rv64_addr, grind =] theorem bv6_toNat_48 : (48 : BitVec 6).toNat = 48 := by decide
+@[rv64_addr, grind =] theorem bv6_toNat_56 : (56 : BitVec 6).toNat = 56 := by decide
+@[rv64_addr, grind =] theorem bv6_toNat_60 : (60 : BitVec 6).toNat = 60 := by decide
+@[rv64_addr, grind =] theorem bv6_toNat_62 : (62 : BitVec 6).toNat = 62 := by decide
+@[rv64_addr, grind =] theorem bv6_toNat_63 : (63 : BitVec 6).toNat = 63 := by decide
+
+-- ============================================================================
 -- `BitVec.ofNat 64 (4 * N)` evaluations (RV64 instruction stride × index)
 --
 -- `CodeReq.ofProg_lookup` produces address offsets of the form
