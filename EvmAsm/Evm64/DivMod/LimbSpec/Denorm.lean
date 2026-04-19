@@ -43,9 +43,9 @@ abbrev divK_denorm_merge_code (curr_off next_off : BitVec 12) (base : Word) : Co
     x6 = shift, x2 = anti_shift. -/
 theorem divK_denorm_merge_spec (curr_off next_off : BitVec 12)
     (sp curr next v5 v7 shift anti_shift : Word) (base : Word) :
-    let shifted_curr := curr >>> (shift.toNat % 64)
-    let shifted_next := next <<< (anti_shift.toNat % 64)
-    let result := shifted_curr ||| shifted_next
+    let shiftedCurr := curr >>> (shift.toNat % 64)
+    let shiftedNext := next <<< (anti_shift.toNat % 64)
+    let result := shiftedCurr ||| shiftedNext
     let cr := divK_denorm_merge_code curr_off next_off base
     cpsTriple base (base + 24) cr
       (
@@ -54,16 +54,16 @@ theorem divK_denorm_merge_spec (curr_off next_off : BitVec 12)
        ((sp + signExtend12 curr_off) ↦ₘ curr) **
        ((sp + signExtend12 next_off) ↦ₘ next))
       (
-       (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result) ** (.x7 ↦ᵣ shifted_next) **
+       (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result) ** (.x7 ↦ᵣ shiftedNext) **
        (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ anti_shift) **
        ((sp + signExtend12 curr_off) ↦ₘ result) **
        ((sp + signExtend12 next_off) ↦ₘ next)) := by
-  intro shifted_curr shifted_next result cr
+  intro shiftedCurr shiftedNext result cr
   have I0 := ld_spec_gen .x5 .x12 sp v5 curr curr_off base (by nofun)
   have I1 := ld_spec_gen .x7 .x12 sp v7 next next_off (base + 4) (by nofun)
   have I2 := srl_spec_gen_rd_eq_rs1 .x5 .x6 curr shift (base + 8) (by nofun)
   have I3 := sll_spec_gen_rd_eq_rs1 .x7 .x2 next anti_shift (base + 12) (by nofun)
-  have I4 := or_spec_gen_rd_eq_rs1 .x5 .x7 shifted_curr shifted_next (base + 16) (by nofun)
+  have I4 := or_spec_gen_rd_eq_rs1 .x5 .x7 shiftedCurr shiftedNext (base + 16) (by nofun)
   have I5 := sd_spec_gen .x12 .x5 sp result curr curr_off (base + 20)
   runBlock I0 I1 I2 I3 I4 I5
 
