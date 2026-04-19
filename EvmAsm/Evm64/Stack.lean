@@ -248,6 +248,20 @@ theorem evmWordIs_sp32_limbs_eq_right (sp : Word) (v : EvmWord) (w0 w1 w2 w3 : W
   rw [evmWordIs_sp32_limbs_eq sp v w0 w1 w2 w3 h0 h1 h2 h3]
   rw [sepConj_assoc', sepConj_assoc', sepConj_assoc']
 
+/-- Mid-tree variant of `evmWordIs_sp64_limbs_eq`. Third-slot companion
+    to `evmWordIs_sp_limbs_eq_right` / `evmWordIs_sp32_limbs_eq_right`,
+    for ternary-op stack specs (ADDMOD / MULMOD) whose third operand
+    lives at `sp + 64`. -/
+theorem evmWordIs_sp64_limbs_eq_right (sp : Word) (v : EvmWord) (w0 w1 w2 w3 : Word)
+    (Q : Assertion)
+    (h0 : v.getLimbN 0 = w0) (h1 : v.getLimbN 1 = w1)
+    (h2 : v.getLimbN 2 = w2) (h3 : v.getLimbN 3 = w3) :
+    (((sp + 64) ↦ₘ w0) ** ((sp + 72) ↦ₘ w1) **
+     ((sp + 80) ↦ₘ w2) ** ((sp + 88) ↦ₘ w3) ** Q) =
+    (evmWordIs (sp + 64) v ** Q) := by
+  rw [evmWordIs_sp64_limbs_eq sp v w0 w1 w2 w3 h0 h1 h2 h3]
+  rw [sepConj_assoc', sepConj_assoc', sepConj_assoc']
+
 /-- `evmWordIs addr (0 : EvmWord)` unfolds to four zero-valued memIs atoms.
     Thin wrapper around `evmWordIs_sp_limbs_eq` / the definitional unfold
     specialized to `v = 0` — saves callers from inlining four
