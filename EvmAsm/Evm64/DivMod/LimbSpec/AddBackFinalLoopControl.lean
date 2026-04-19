@@ -31,7 +31,7 @@ open EvmAsm.Rv64
 /-- Add-back finalization after limb corrections. -/
 theorem divK_addback_final_spec (u_base carry q_hat v5_old u_top : Word)
     (u_off : BitVec 12) (base : Word) :
-    let u_new := u_top + carry
+    let uNew := u_top + carry
     let q_hat' := q_hat + signExtend12 4095
     let cr :=
       CodeReq.union (CodeReq.singleton base (.LD .x5 .x6 u_off))
@@ -42,11 +42,11 @@ theorem divK_addback_final_spec (u_base carry q_hat v5_old u_top : Word)
       ((.x6 ↦ᵣ u_base) ** (.x7 ↦ᵣ carry) ** (.x11 ↦ᵣ q_hat) **
        (.x5 ↦ᵣ v5_old) ** (u_base + signExtend12 u_off ↦ₘ u_top))
       ((.x6 ↦ᵣ u_base) ** (.x7 ↦ᵣ carry) ** (.x11 ↦ᵣ q_hat') **
-       (.x5 ↦ᵣ u_new) ** (u_base + signExtend12 u_off ↦ₘ u_new)) := by
-  intro u_new q_hat' cr
+       (.x5 ↦ᵣ uNew) ** (u_base + signExtend12 u_off ↦ₘ uNew)) := by
+  intro uNew q_hat' cr
   have I0 := ld_spec_gen .x5 .x6 u_base v5_old u_top u_off base (by nofun)
   have I1 := add_spec_gen_rd_eq_rs1 .x5 .x7 u_top carry (base + 4) (by nofun)
-  have I2 := sd_spec_gen .x6 .x5 u_base u_new u_top u_off (base + 8)
+  have I2 := sd_spec_gen .x6 .x5 u_base uNew u_top u_off (base + 8)
   have I3 := addi_spec_gen_same .x11 q_hat 4095 (base + 12) (by nofun)
   runBlock I0 I1 I2 I3
 
