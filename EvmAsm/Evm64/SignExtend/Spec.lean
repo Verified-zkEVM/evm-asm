@@ -8,6 +8,7 @@
 
 import EvmAsm.Evm64.SignExtend.Compose
 import EvmAsm.Evm64.EvmWordArith
+import EvmAsm.Evm64.SpAddr
 
 open EvmAsm.Rv64.Tactics
 
@@ -47,17 +48,11 @@ private theorem signext_nochange_lift (sp base : Word)
   exact cpsTriple_consequence _ _ _ _ _ _ _
     (fun h hp => by
       simp only [evmWordIs] at hp
-      have ha40 : (sp + 32 : Word) + 8 = sp + 40 := by bv_omega
-      have ha48 : (sp + 32 : Word) + 16 = sp + 48 := by bv_omega
-      have ha56 : (sp + 32 : Word) + 24 = sp + 56 := by bv_omega
-      simp only [ha40, ha48, ha56] at hp
+      simp only [spAddr32_8, spAddr32_16, spAddr32_24] at hp
       xperm_hyp hp)
     (fun h hq => by
       simp only [evmWordIs]
-      have ha40 : (sp + 32 : Word) + 8 = sp + 40 := by bv_omega
-      have ha48 : (sp + 32 : Word) + 16 = sp + 48 := by bv_omega
-      have ha56 : (sp + 32 : Word) + 24 = sp + 56 := by bv_omega
-      simp only [ha40, ha48, ha56]
+      simp only [spAddr32_8, spAddr32_16, spAddr32_24]
       have w := sepConj_mono_right (regIs_to_regOwn .x6 _) h hq
       xperm_hyp w)
     hmain_f
@@ -115,19 +110,13 @@ theorem evm_signextend_stack_spec (sp base : Word)
     exact cpsTriple_consequence _ _ _ _ _ _ _
       (fun h hp => by
         simp only [evmWordIs] at hp
-        have ha40 : (sp + 32 : Word) + 8 = sp + 40 := by bv_omega
-        have ha48 : (sp + 32 : Word) + 16 = sp + 48 := by bv_omega
-        have ha56 : (sp + 32 : Word) + 24 = sp + 56 := by bv_omega
-        simp only [ha40, ha48, ha56] at hp
+        simp only [spAddr32_8, spAddr32_16, spAddr32_24] at hp
         simp only [EvmWord.getLimb_as_getLimbN_0, EvmWord.getLimb_as_getLimbN_1,
                    EvmWord.getLimb_as_getLimbN_2, EvmWord.getLimb_as_getLimbN_3]
         xperm_hyp hp)
       (fun h hq => by
         simp only [evmWordIs]
-        have ha40 : (sp + 32 : Word) + 8 = sp + 40 := by bv_omega
-        have ha48 : (sp + 32 : Word) + 16 = sp + 48 := by bv_omega
-        have ha56 : (sp + 32 : Word) + 24 = sp + 56 := by bv_omega
-        simp only [ha40, ha48, ha56]
+        simp only [spAddr32_8, spAddr32_16, spAddr32_24]
         simp only [EvmWord.getLimb_as_getLimbN_0, EvmWord.getLimb_as_getLimbN_1,
                    EvmWord.getLimb_as_getLimbN_2, EvmWord.getLimb_as_getLimbN_3] at hq
         xperm_hyp hq)
