@@ -85,9 +85,9 @@ theorem divK_mulsub_limb_spec
 theorem divK_addback_limb_spec
     (sp u_base carry_in v5_old v2_old v_i u_i : Word)
     (v_off u_off : BitVec 12) (base : Word) :
-    let u_plus_carry := u_i + carry_in
-    let carry1 := if BitVec.ult u_plus_carry carry_in then (1 : Word) else 0
-    let uNew := u_plus_carry + v_i
+    let uPlusCarry := u_i + carry_in
+    let carry1 := if BitVec.ult uPlusCarry carry_in then (1 : Word) else 0
+    let uNew := uPlusCarry + v_i
     let carry2 := if BitVec.ult uNew v_i then (1 : Word) else 0
     let carryOut := carry1 ||| carry2
     let cr :=
@@ -108,12 +108,12 @@ theorem divK_addback_limb_spec
        (.x5 ↦ᵣ carry2) ** (.x2 ↦ᵣ uNew) **
        ((sp + signExtend12 v_off) ↦ₘ v_i) **
        ((u_base + signExtend12 u_off) ↦ₘ uNew)) := by
-  intro u_plus_carry carry1 uNew carry2 carryOut cr
+  intro uPlusCarry carry1 uNew carry2 carryOut cr
   have I0 := ld_spec_gen .x5 .x12 sp v5_old v_i v_off base (by nofun)
   have I1 := ld_spec_gen .x2 .x6 u_base v2_old u_i u_off (base + 4) (by nofun)
   have I2 := add_spec_gen_rd_eq_rs1 .x2 .x7 u_i carry_in (base + 8) (by nofun)
-  have I3 := sltu_spec_gen_rd_eq_rs2 .x7 .x2 u_plus_carry carry_in (base + 12) (by nofun)
-  have I4 := add_spec_gen_rd_eq_rs1 .x2 .x5 u_plus_carry v_i (base + 16) (by nofun)
+  have I3 := sltu_spec_gen_rd_eq_rs2 .x7 .x2 uPlusCarry carry_in (base + 12) (by nofun)
+  have I4 := add_spec_gen_rd_eq_rs1 .x2 .x5 uPlusCarry v_i (base + 16) (by nofun)
   have I5 := sltu_spec_gen_rd_eq_rs2 .x5 .x2 uNew v_i (base + 20) (by nofun)
   have I6 := or_spec_gen_rd_eq_rs1 .x7 .x5 carry1 carry2 (base + 24) (by nofun)
   have I7 := sd_spec_gen .x6 .x2 u_base uNew u_i u_off (base + 28)
