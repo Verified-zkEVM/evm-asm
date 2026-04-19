@@ -857,4 +857,44 @@ theorem evm_mod_bzero_stack_spec (sp base : Word)
         from by xperm) h).mp w1)
     h_raw
 
+-- ============================================================================
+-- Sublemmas towards evm_div_n4_max_skip_stack_spec (reshape plan)
+-- ============================================================================
+
+/-- Output-slot semantic reshape ("S2" from the reshape plan): the four
+    output-slot atoms in `fullDivN4MaxSkipPost` carry the concrete values
+    `signExtend12 4095 / 0 / 0 / 0`. Under the semantic precondition
+    `n4MaxSkipSemanticHolds` (and shift non-zero), those values equal
+    `(EvmWord.div a b).getLimbN 0..3`, so the four atoms fold into
+    `evmWordIs (sp + 32) (EvmWord.div a b)`. -/
+theorem output_slot_to_evmWordIs_div_n4_max_skip (sp : Word) (a b : EvmWord)
+    (hb3nz : b.getLimbN 3 ≠ 0) (hsem : n4MaxSkipSemanticHolds a b) :
+    (((sp + 32) ↦ₘ (signExtend12 4095 : Word)) **
+     ((sp + 40) ↦ₘ (0 : Word)) **
+     ((sp + 48) ↦ₘ (0 : Word)) **
+     ((sp + 56) ↦ₘ (0 : Word))) =
+    evmWordIs (sp + 32) (EvmWord.div a b) := by
+  obtain ⟨hdiv0, hdiv1, hdiv2, hdiv3, _, _, _, _⟩ :=
+    n4_max_skip_div_mod_getLimbN a b hb3nz hsem
+  rw [evmWordIs_sp32_limbs_eq sp (EvmWord.div a b) _ _ _ _
+      hdiv0 hdiv1 hdiv2 hdiv3]
+
+/-- MOD counterpart of `output_slot_to_evmWordIs_div_n4_max_skip`: on the
+    max+skip path, the mod result limbs equal the four `mulsubN4` outputs. -/
+theorem output_slot_to_evmWordIs_mod_n4_max_skip (sp : Word) (a b : EvmWord)
+    (hb3nz : b.getLimbN 3 ≠ 0) (hsem : n4MaxSkipSemanticHolds a b) :
+    let ms := mulsubN4 (signExtend12 4095)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    (((sp + 32) ↦ₘ ms.1) **
+     ((sp + 40) ↦ₘ ms.2.1) **
+     ((sp + 48) ↦ₘ ms.2.2.1) **
+     ((sp + 56) ↦ₘ ms.2.2.2.1)) =
+    evmWordIs (sp + 32) (EvmWord.mod a b) := by
+  obtain ⟨_, _, _, _, hmod0, hmod1, hmod2, hmod3⟩ :=
+    n4_max_skip_div_mod_getLimbN a b hb3nz hsem
+  intro _
+  rw [evmWordIs_sp32_limbs_eq sp (EvmWord.mod a b) _ _ _ _
+      hmod0 hmod1 hmod2 hmod3]
+
 end EvmAsm.Evm64
