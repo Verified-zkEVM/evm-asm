@@ -8,7 +8,7 @@ namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
 open EvmAsm.Evm64.DivMod.AddrNorm (se12_3 se12_4)
-open EvmAsm.Rv64.AddrNorm (se13_16 se13_24)
+open EvmAsm.Rv64.AddrNorm (se13_16 se13_24 se12_32)
 
 -- ============================================================================
 -- MOD Phase B n=3 (b[3]=0, b[2]≠0)

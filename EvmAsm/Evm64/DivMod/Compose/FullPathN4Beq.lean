@@ -14,6 +14,7 @@ open EvmAsm.Rv64.Tactics
 namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
+open EvmAsm.Rv64.AddrNorm (se12_32 se12_40 se12_48 se12_56)
 
 -- ============================================================================
 -- Loop body n=4 _da (BEQ): sp-relative precondition

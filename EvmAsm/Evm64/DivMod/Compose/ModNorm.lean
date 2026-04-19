@@ -14,7 +14,7 @@ open EvmAsm.Rv64.Tactics
 namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
-open EvmAsm.Rv64.AddrNorm (se13_172 bv64_4mul_3)
+open EvmAsm.Rv64.AddrNorm (se13_172 bv64_4mul_3 se12_32 se12_40 se12_48 se12_56)
 
 -- ============================================================================
 -- MOD CodeReq subsumption lemmas for block 3 (PhaseC2) and block 4 (NormB)

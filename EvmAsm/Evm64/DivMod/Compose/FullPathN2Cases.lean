@@ -22,6 +22,7 @@ open EvmAsm.Rv64.Tactics
 namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
+open EvmAsm.Rv64.AddrNorm (se12_32 se12_40 se12_48 se12_56)
 
 -- ============================================================================
 -- Double-addback variant: Case (F,F,T) — r2=Max, r1=Max, r0=Call
