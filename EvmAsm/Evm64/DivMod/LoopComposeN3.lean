@@ -114,7 +114,7 @@ theorem divK_loop_n3_max_skip_skip_spec
       xperm_hyp hp)
     J1f J0f
   -- 4. Clean up postcondition
-  exact cpsTriple_consequence _ _ _ _ _ _ _
+  exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hp => by
       delta loopN3MaxSkipSkipPost
@@ -156,7 +156,7 @@ theorem divK_loop_body_n3_max_unified_j1_spec
       v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old base
       hbltu hcarry2_nz
     intro_lets at J1
-    exact cpsTriple_consequence _ _ _ _ _ _ _
+    exact cpsTriple_weaken
       (fun h hp => hp)
       (fun h hp => by rw [← loopIterPostN3Max_addback _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
       (J1 hborrow)
@@ -167,7 +167,7 @@ theorem divK_loop_body_n3_max_unified_j1_spec
       v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old base
       hbltu
     intro_lets at J1
-    exact cpsTriple_consequence _ _ _ _ _ _ _
+    exact cpsTriple_weaken
       (fun h hp => hp)
       (fun h hp => by rw [← loopIterPostN3Max_skip _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
       (J1 hborrow)
@@ -207,7 +207,7 @@ theorem divK_loop_body_n3_max_unified_j0_spec
       v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old base
       hbltu hcarry2_nz
     intro_lets at J0
-    exact cpsTriple_consequence _ _ _ _ _ _ _
+    exact cpsTriple_weaken
       (fun h hp => hp)
       (fun h hp => by rw [← loopIterPostN3Max_addback _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
       (J0 hborrow)
@@ -218,7 +218,7 @@ theorem divK_loop_body_n3_max_unified_j0_spec
       v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old base
       hbltu
     intro_lets at J0
-    exact cpsTriple_consequence _ _ _ _ _ _ _
+    exact cpsTriple_weaken
       (fun h hp => hp)
       (fun h hp => by rw [← loopIterPostN3Max_skip _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
       (J0 hborrow)
@@ -265,7 +265,7 @@ theorem divK_loop_body_n3_call_unified_j1_spec
       halign
       hbltu hborrow hcarry2_nz
     intro_lets at J1
-    exact cpsTriple_consequence _ _ _ _ _ _ _
+    exact cpsTriple_weaken
       (fun h hp => hp)
       (fun h hp => by rw [← loopIterPostN3Call_addback _ _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
       J1
@@ -276,7 +276,7 @@ theorem divK_loop_body_n3_call_unified_j1_spec
       halign
       hbltu hborrow
     intro_lets at J1
-    exact cpsTriple_consequence _ _ _ _ _ _ _
+    exact cpsTriple_weaken
       (fun h hp => hp)
       (fun h hp => by rw [← loopIterPostN3Call_skip _ _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
       J1
@@ -323,7 +323,7 @@ theorem divK_loop_body_n3_call_unified_j0_spec
       halign
       hbltu hborrow hcarry2_nz
     intro_lets at J0
-    exact cpsTriple_consequence _ _ _ _ _ _ _
+    exact cpsTriple_weaken
       (fun h hp => hp)
       (fun h hp => by
         rw [loopBodyN3CallAddbackBeqPost_eq_J] at hp
@@ -336,7 +336,7 @@ theorem divK_loop_body_n3_call_unified_j0_spec
       halign
       hbltu hborrow
     intro_lets at J0
-    exact cpsTriple_consequence _ _ _ _ _ _ _
+    exact cpsTriple_weaken
       (fun h hp => hp)
       (fun h hp => by
         delta loopIterPostN3Call iterN3Call iterWithDoubleAddback
@@ -418,7 +418,7 @@ theorem divK_loop_n3_max_max_spec
       xperm_hyp hp)
     J1f J0f
   -- 5. Clean up postcondition
-  exact cpsTriple_consequence _ _ _ _ _ _ _
+  exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hp => by
       delta loopN3MaxPost
@@ -504,7 +504,7 @@ theorem divK_loop_n3_call_call_spec
       xperm_hyp hp)
     J1f J0f
   -- 5. Clean up postcondition
-  exact cpsTriple_consequence _ _ _ _ _ _ _
+  exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hp => by
       delta loopN3CallCallPost
@@ -592,7 +592,7 @@ theorem divK_loop_n3_max_call_spec
       xperm_hyp hp)
     J1f J0f
   -- 5. Clean up postcondition
-  exact cpsTriple_consequence _ _ _ _ _ _ _
+  exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hp => by
       delta loopN3MaxCallPost
@@ -677,7 +677,7 @@ theorem divK_loop_n3_call_max_spec
       xperm_hyp hp)
     J1f J0f
   -- 5. Clean up postcondition
-  exact cpsTriple_consequence _ _ _ _ _ _ _
+  exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hp => by
       delta loopN3CallMaxPost

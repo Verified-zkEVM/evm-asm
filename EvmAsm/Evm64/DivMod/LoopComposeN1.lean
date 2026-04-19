@@ -159,7 +159,7 @@ theorem divK_loop_body_n1_max_unified_j3_spec
       v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old base hbltu
       hcarry2_nz
     intro_lets at J3
-    exact cpsTriple_consequence _ _ _ _ _ _ _
+    exact cpsTriple_weaken
       (fun h hp => hp)
       (fun h hp => by
         rw [← loopIterPostN1Max_addback _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
@@ -170,7 +170,7 @@ theorem divK_loop_body_n1_max_unified_j3_spec
     have J3 := divK_loop_body_n1_max_skip_j3_spec sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
       v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old base hbltu
     intro_lets at J3
-    exact cpsTriple_consequence _ _ _ _ _ _ _
+    exact cpsTriple_weaken
       (fun h hp => hp)
       (fun h hp => by
         rw [← loopIterPostN1Max_skip _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
@@ -207,7 +207,7 @@ theorem divK_loop_body_n1_max_unified_j2_spec
       v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old base hbltu
       hcarry2_nz
     intro_lets at J2
-    exact cpsTriple_consequence _ _ _ _ _ _ _
+    exact cpsTriple_weaken
       (fun h hp => hp)
       (fun h hp => by
         rw [← loopIterPostN1Max_addback _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
@@ -218,7 +218,7 @@ theorem divK_loop_body_n1_max_unified_j2_spec
     have J2 := divK_loop_body_n1_max_skip_j2_spec sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
       v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old base hbltu
     intro_lets at J2
-    exact cpsTriple_consequence _ _ _ _ _ _ _
+    exact cpsTriple_weaken
       (fun h hp => hp)
       (fun h hp => by
         rw [← loopIterPostN1Max_skip _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
@@ -256,7 +256,7 @@ theorem divK_loop_body_n1_max_unified_j1_spec
       hbltu
       hcarry2_nz
     intro_lets at J1
-    exact cpsTriple_consequence _ _ _ _ _ _ _
+    exact cpsTriple_weaken
       (fun h hp => hp)
       (fun h hp => by
         rw [← loopIterPostN1Max_addback _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
@@ -268,7 +268,7 @@ theorem divK_loop_body_n1_max_unified_j1_spec
       v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old base
       hbltu
     intro_lets at J1
-    exact cpsTriple_consequence _ _ _ _ _ _ _
+    exact cpsTriple_weaken
       (fun h hp => hp)
       (fun h hp => by
         rw [← loopIterPostN1Max_skip _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
@@ -307,7 +307,7 @@ theorem divK_loop_body_n1_max_unified_j0_spec
       hbltu
       hcarry2_nz
     intro_lets at J0
-    exact cpsTriple_consequence _ _ _ _ _ _ _
+    exact cpsTriple_weaken
       (fun h hp => hp)
       (fun h hp => by
         rw [← loopIterPostN1Max_addback _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
@@ -319,7 +319,7 @@ theorem divK_loop_body_n1_max_unified_j0_spec
       v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old base
       hbltu
     intro_lets at J0
-    exact cpsTriple_consequence _ _ _ _ _ _ _
+    exact cpsTriple_weaken
       (fun h hp => hp)
       (fun h hp => by
         rw [← loopIterPostN1Max_skip _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
@@ -368,7 +368,7 @@ theorem divK_loop_body_n1_call_unified_j3_spec
       hbltu hborrow
       hcarry2_nz
     intro_lets at J3
-    exact cpsTriple_consequence _ _ _ _ _ _ _
+    exact cpsTriple_weaken
       (fun h hp => hp)
       (fun h hp => by
         rw [← loopIterPostN1Call_addback _ _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
@@ -380,7 +380,7 @@ theorem divK_loop_body_n1_call_unified_j3_spec
       halign
       hbltu hborrow
     intro_lets at J3
-    exact cpsTriple_consequence _ _ _ _ _ _ _
+    exact cpsTriple_weaken
       (fun h hp => hp)
       (fun h hp => by
         rw [← loopIterPostN1Call_skip _ _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
@@ -425,7 +425,7 @@ theorem divK_loop_body_n1_call_unified_j2_spec
       hbltu hborrow
       hcarry2_nz
     intro_lets at J2
-    exact cpsTriple_consequence _ _ _ _ _ _ _
+    exact cpsTriple_weaken
       (fun h hp => hp)
       (fun h hp => by
         rw [← loopIterPostN1Call_addback _ _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
@@ -437,7 +437,7 @@ theorem divK_loop_body_n1_call_unified_j2_spec
       halign
       hbltu hborrow
     intro_lets at J2
-    exact cpsTriple_consequence _ _ _ _ _ _ _
+    exact cpsTriple_weaken
       (fun h hp => hp)
       (fun h hp => by
         rw [← loopIterPostN1Call_skip _ _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
@@ -482,7 +482,7 @@ theorem divK_loop_body_n1_call_unified_j1_spec
       hbltu hborrow
       hcarry2_nz
     intro_lets at J1
-    exact cpsTriple_consequence _ _ _ _ _ _ _
+    exact cpsTriple_weaken
       (fun h hp => hp)
       (fun h hp => by
         rw [← loopIterPostN1Call_addback _ _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
@@ -494,7 +494,7 @@ theorem divK_loop_body_n1_call_unified_j1_spec
       halign
       hbltu hborrow
     intro_lets at J1
-    exact cpsTriple_consequence _ _ _ _ _ _ _
+    exact cpsTriple_weaken
       (fun h hp => hp)
       (fun h hp => by
         rw [← loopIterPostN1Call_skip _ _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
@@ -540,7 +540,7 @@ theorem divK_loop_body_n1_call_unified_j0_spec
       hbltu hborrow
       hcarry2_nz
     intro_lets at J0
-    exact cpsTriple_consequence _ _ _ _ _ _ _
+    exact cpsTriple_weaken
       (fun h hp => hp)
       (fun h hp => by
         rw [← loopIterPostN1Call_addback _ _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
@@ -552,7 +552,7 @@ theorem divK_loop_body_n1_call_unified_j0_spec
       halign
       hbltu hborrow
     intro_lets at J0
-    exact cpsTriple_consequence _ _ _ _ _ _ _
+    exact cpsTriple_weaken
       (fun h hp => hp)
       (fun h hp => by
         rw [← loopIterPostN1Call_skip _ _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
