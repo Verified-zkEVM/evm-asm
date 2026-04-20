@@ -21,6 +21,20 @@ namespace EvmAsm.Evm64
 
 open EvmWord EvmAsm.Rv64
 
+/-- Local copy of `EvmWord.fromLimbs_match_getLimbN_id` with the match
+    expression elaborated in this file's context, so that the auxiliary
+    `match` function identity matches the one produced for our new lemmas'
+    `fromLimbs fun i => match i with ...` patterns. Needed because
+    `rewrite` requires syntactic identity of the match-auxiliary function,
+    and Lean generates these per-file. -/
+private theorem fromLimbs_match_getLimbN_id_local (v : EvmWord) :
+    (EvmWord.fromLimbs fun i : Fin 4 =>
+      match i with
+      | 0 => v.getLimbN 0
+      | 1 => v.getLimbN 1
+      | 2 => v.getLimbN 2
+      | 3 => v.getLimbN 3) = v := EvmWord.fromLimbs_match_getLimbN_id v
+
 /-- Inversion: if the second-addback carry is 1 (double-addback path), the
     trial quotient `q` overestimates `⌊val256(u)/val256(v)⌋` by at most 2.
     Converse to `addbackN4_second_carry_one` — that theorem assumes
@@ -303,5 +317,59 @@ theorem n4_max_double_addback_div_mod_limbs (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
   · rw [← hr]; exact getLimbN_fromLimbs_1 _ _ _ _
   · rw [← hr]; exact getLimbN_fromLimbs_2 _ _ _ _
   · rw [← hr]; exact getLimbN_fromLimbs_3 _ _ _ _
+
+/-- n=4 max+double-addback path, EvmWord-level statement. Consumer form for
+    stack specs: takes `a b : EvmWord`, works off `getLimbN`. Parallels
+    `n4_max_addback_div_mod_getLimbN`. -/
+theorem n4_max_double_addback_div_mod_getLimbN (a b : EvmWord)
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hc3_one : (mulsubN4 (signExtend12 4095)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)).2.2.2.2 = 1)
+    (hcarry1_zero : addbackN4_carry
+      (mulsubN4 (signExtend12 4095)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)).1
+      (mulsubN4 (signExtend12 4095)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)).2.1
+      (mulsubN4 (signExtend12 4095)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)).2.2.1
+      (mulsubN4 (signExtend12 4095)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)).2.2.2.1
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) = 0)
+    (hcarry2_one :
+      let ms := mulsubN4 (signExtend12 4095)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      let ab := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 ((0 : Word) - ms.2.2.2.2)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+      (addbackN4_carry ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).toNat = 1) :
+    let ms := mulsubN4 (signExtend12 4095)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    let ab := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 ((0 : Word) - ms.2.2.2.2)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+    let ab' := addbackN4 ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 ab.2.2.2.2
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+    let q_hat'' : Word := signExtend12 (4095 : BitVec 12) +
+      signExtend12 (4095 : BitVec 12) + signExtend12 (4095 : BitVec 12)
+    (EvmWord.div a b).getLimbN 0 = q_hat'' ∧
+    (EvmWord.div a b).getLimbN 1 = 0 ∧
+    (EvmWord.div a b).getLimbN 2 = 0 ∧
+    (EvmWord.div a b).getLimbN 3 = 0 ∧
+    (EvmWord.mod a b).getLimbN 0 = ab'.1 ∧
+    (EvmWord.mod a b).getLimbN 1 = ab'.2.1 ∧
+    (EvmWord.mod a b).getLimbN 2 = ab'.2.2.1 ∧
+    (EvmWord.mod a b).getLimbN 3 = ab'.2.2.2.1 := by
+  have hraw := n4_max_double_addback_div_mod_limbs
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+    hb3nz hc3_one hcarry1_zero hcarry2_one
+  rw [fromLimbs_match_getLimbN_id_local a, fromLimbs_match_getLimbN_id_local b] at hraw
+  exact hraw
 
 end EvmAsm.Evm64

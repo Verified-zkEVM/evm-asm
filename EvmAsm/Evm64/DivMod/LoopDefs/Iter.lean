@@ -137,10 +137,10 @@ def div128Quot (u_hi u_lo v_top : Word) : Word :=
   let hi1 := q1 >>> (32 : BitVec 6).toNat
   let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
   let rhatc := if hi1 = 0 then rhat else rhat + dHi
-  let q_dlo := q1c * dLo
-  let rhat_un1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
-  let q1' := if BitVec.ult rhat_un1 q_dlo then q1c + signExtend12 4095 else q1c
-  let rhat' := if BitVec.ult rhat_un1 q_dlo then rhatc + dHi else rhatc
+  let qDlo := q1c * dLo
+  let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
+  let q1' := if BitVec.ult rhatUn1 qDlo then q1c + signExtend12 4095 else q1c
+  let rhat' := if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc
   let cu_rhat_un1 := (rhat' <<< (32 : BitVec 6).toNat) ||| div_un1
   let cu_q1_dlo := q1' * dLo
   let un21 := cu_rhat_un1 - cu_q1_dlo
@@ -149,9 +149,9 @@ def div128Quot (u_hi u_lo v_top : Word) : Word :=
   let hi2 := q0 >>> (32 : BitVec 6).toNat
   let q0c := if hi2 = 0 then q0 else q0 + signExtend12 4095
   let rhat2c := if hi2 = 0 then rhat2 else rhat2 + dHi
-  let q0_dlo := q0c * dLo
-  let rhat2_un0 := (rhat2c <<< (32 : BitVec 6).toNat) ||| div_un0
-  let q0' := if BitVec.ult rhat2_un0 q0_dlo then q0c + signExtend12 4095 else q0c
+  let q0Dlo := q0c * dLo
+  let rhat2Un0 := (rhat2c <<< (32 : BitVec 6).toNat) ||| div_un0
+  let q0' := if BitVec.ult rhat2Un0 q0Dlo then q0c + signExtend12 4095 else q0c
   (q1' <<< (32 : BitVec 6).toNat) ||| q0'
 
 /-- Low 32 bits of v_top, stored to scratch during div128 call path. -/

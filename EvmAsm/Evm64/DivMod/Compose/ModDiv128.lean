@@ -67,10 +67,10 @@ theorem mod_div128_spec (sp ret_addr d u_lo u_hi : Word) (base : Word)
     let hi1 := q1 >>> (32 : BitVec 6).toNat
     let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
     let rhatc := if hi1 = 0 then rhat else rhat + dHi
-    let q_dlo := q1c * dLo
-    let rhat_un1 := (rhatc <<< (32 : BitVec 6).toNat) ||| un1
-    let q1' := if BitVec.ult rhat_un1 q_dlo then q1c + signExtend12 4095 else q1c
-    let rhat' := if BitVec.ult rhat_un1 q_dlo then rhatc + dHi else rhatc
+    let qDlo := q1c * dLo
+    let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| un1
+    let q1' := if BitVec.ult rhatUn1 qDlo then q1c + signExtend12 4095 else q1c
+    let rhat' := if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc
     -- Compute un21 intermediates (x5, x1 values after compute_un21)
     let cu_rhat_un1 := (rhat' <<< (32 : BitVec 6).toNat) ||| un1
     let cu_q1_dlo := q1' * dLo
@@ -81,9 +81,9 @@ theorem mod_div128_spec (sp ret_addr d u_lo u_hi : Word) (base : Word)
     let hi2 := q0 >>> (32 : BitVec 6).toNat
     let q0c := if hi2 = 0 then q0 else q0 + signExtend12 4095
     let rhat2c := if hi2 = 0 then rhat2 else rhat2 + dHi
-    let q0_dlo := q0c * dLo
-    let rhat2_un0 := (rhat2c <<< (32 : BitVec 6).toNat) ||| un0
-    let q0' := if BitVec.ult rhat2_un0 q0_dlo then q0c + signExtend12 4095 else q0c
+    let q0Dlo := q0c * dLo
+    let rhat2Un0 := (rhat2c <<< (32 : BitVec 6).toNat) ||| un0
+    let q0' := if BitVec.ult rhat2Un0 q0Dlo then q0c + signExtend12 4095 else q0c
     -- End: combine q1' and q0'
     let q := (q1' <<< (32 : BitVec 6).toNat) ||| q0'
     cpsTriple (base + div128Off) ret_addr (modCode base)
@@ -98,15 +98,15 @@ theorem mod_div128_spec (sp ret_addr d u_lo u_hi : Word) (base : Word)
        (sp + signExtend12 3944 ↦ₘ un0_mem))
       (-- Postcondition: x11=quotient, all regs/mem updated
        (.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ ret_addr) ** (.x10 ↦ᵣ q1') **
-       (.x5 ↦ᵣ q0') ** (.x7 ↦ᵣ q0_dlo) **
-       (.x6 ↦ᵣ dHi) ** (.x1 ↦ᵣ rhat2_un0) ** (.x11 ↦ᵣ q) **
+       (.x5 ↦ᵣ q0') ** (.x7 ↦ᵣ q0Dlo) **
+       (.x6 ↦ᵣ dHi) ** (.x1 ↦ᵣ rhat2Un0) ** (.x11 ↦ᵣ q) **
        (.x0 ↦ᵣ (0 : Word)) **
        (sp + signExtend12 3968 ↦ₘ ret_addr) **
        (sp + signExtend12 3960 ↦ₘ d) **
        (sp + signExtend12 3952 ↦ₘ dLo) **
        (sp + signExtend12 3944 ↦ₘ un0)) := by
   -- Introduce all let bindings
-  intro dHi dLo un1 un0 q1 rhat hi1 q1c rhatc q_dlo rhat_un1 q1' rhat' cu_rhat_un1 cu_q1_dlo un21 q0 rhat2 hi2 q0c rhat2c q0_dlo rhat2_un0 q0' q
+  intro dHi dLo un1 un0 q1 rhat hi1 q1c rhatc qDlo rhatUn1 q1' rhat' cu_rhat_un1 cu_q1_dlo un21 q0 rhat2 hi2 q0c rhat2c q0Dlo rhat2Un0 q0' q
   -- ================================================================
   -- Block 1: Phase 1 (base+1072 → base+1112)
   -- Saves ret/d, splits d and u_lo into halves.
@@ -168,7 +168,7 @@ theorem mod_div128_spec (sp ret_addr d u_lo u_hi : Word) (base : Word)
   -- Block 3: Compute un21 (base+1172 → base+1192)
   -- un21 = rhat*2^32 + un1 - q1*dLo.
   -- ================================================================
-  have hcu := divK_div128_compute_un21_spec sp q1' rhat' un1 rhat_un1 q_dlo dLo
+  have hcu := divK_div128_compute_un21_spec sp q1' rhat' un1 rhatUn1 qDlo dLo
     (base + 1172)
   rw [show (base + 1172 : Word) + 20 = base + 1192 from by bv_addr] at hcu
   have hcue := cpsTriple_extend_code (hmono := by
@@ -233,7 +233,7 @@ theorem mod_div128_spec (sp ret_addr d u_lo u_hi : Word) (base : Word)
     hend
   -- Frame end with x7, x6, x1, x0, mem[3960], mem[3952], mem[3944]
   have hendf := cpsTriple_frameR
-    ((.x7 ↦ᵣ q0_dlo) ** (.x6 ↦ᵣ dHi) ** (.x1 ↦ᵣ rhat2_un0) **
+    ((.x7 ↦ᵣ q0Dlo) ** (.x6 ↦ᵣ dHi) ** (.x1 ↦ᵣ rhat2Un0) **
      (.x0 ↦ᵣ (0 : Word)) **
      (sp + signExtend12 3960 ↦ₘ d) ** (sp + signExtend12 3952 ↦ₘ dLo) **
      (sp + signExtend12 3944 ↦ₘ un0))
