@@ -299,7 +299,7 @@ theorem evm_div_n4_preloop_max_addback_beq_spec (sp base : Word)
   have hFull := cpsTriple_seq_perm_same_cr
     (fun h hp => by
       delta loopSetupPost at hp
-      rw [show signExtend12 (4 : BitVec 12) - (4 : Word) = (0 : Word) from by decide] at hp
+      rw [x1_val_n4] at hp
       xperm_hyp hp) hPreF hLoopF
   exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)
@@ -457,7 +457,7 @@ theorem evm_div_n4_preloop_call_addback_beq_spec (sp base : Word)
   have hFull := cpsTriple_seq_perm_same_cr
     (fun h hp => by
       delta loopSetupPost at hp
-      rw [show signExtend12 (4 : BitVec 12) - (4 : Word) = (0 : Word) from by decide] at hp
+      rw [x1_val_n4] at hp
       xperm_hyp hp) hPreF hLoopF
   exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)
