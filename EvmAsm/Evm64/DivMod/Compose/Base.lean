@@ -296,6 +296,35 @@ theorem divScratchValues_unfold_right (sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
   rw [divScratchValues_unfold]
   iterate 14 rw [sepConj_assoc']
 
+/-- Extension of `divScratchValues` with the 4 additional call-path scratch
+    cells at `sp + signExtend12 3968/3960/3952/3944` — the `div128`-subroutine
+    return address, the normalized top-divisor limb `d = b3'`, its low 32
+    bits `dLo`, and the `u_top`-next-limb normalized halfword. Total: 19 cells.
+
+    Used by the call-trial paths (`evm_div_n4_full_call_{skip,addback}_spec`)
+    which need these 4 extra scratch slots for the `div128Quot` computation.
+    The max-trial paths use only the 15 cells of `divScratchValues`. -/
+@[irreducible]
+def divScratchValuesCall (sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+    shiftMem nMem jMem retMem dMem dloMem scratch_un0 : Word) : Assertion :=
+  divScratchValues sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem **
+  ((sp + signExtend12 3968) ↦ₘ retMem) **
+  ((sp + signExtend12 3960) ↦ₘ dMem) **
+  ((sp + signExtend12 3952) ↦ₘ dloMem) **
+  ((sp + signExtend12 3944) ↦ₘ scratch_un0)
+
+/-- Named unfold for `divScratchValuesCall`. -/
+theorem divScratchValuesCall_unfold (sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+    shiftMem nMem jMem retMem dMem dloMem scratch_un0 : Word) :
+    divScratchValuesCall sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratch_un0 =
+    (divScratchValues sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem **
+     ((sp + signExtend12 3968) ↦ₘ retMem) **
+     ((sp + signExtend12 3960) ↦ₘ dMem) **
+     ((sp + signExtend12 3952) ↦ₘ dloMem) **
+     ((sp + signExtend12 3944) ↦ₘ scratch_un0)) := by
+  delta divScratchValuesCall; rfl
+
 /-- Value-agnostic counterpart to `divScratchValues`: the same 15 cells but
     with ownership only (no commitment to specific values). Suitable for the
     postcondition of a stack-level DIV/MOD spec that doesn't want to expose
