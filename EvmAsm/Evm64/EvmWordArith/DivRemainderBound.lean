@@ -179,13 +179,13 @@ theorem val256_euclidean_to_div_mod
 
     This is used when shift ≠ 0: the algorithm normalizes, computes, then
     denormalizes the remainder by right-shifting by s. -/
-theorem norm_euclidean_correct {aVal bVal q_nat r_norm : Nat} (s : Nat)
-    (heq : aVal * 2^s = q_nat * (bVal * 2^s) + r_norm)
+theorem norm_euclidean_correct {aVal bVal qNat r_norm : Nat} (s : Nat)
+    (heq : aVal * 2^s = qNat * (bVal * 2^s) + r_norm)
     (hlt : r_norm < bVal * 2^s) :
-    q_nat = aVal / bVal ∧ r_norm / 2^s = aVal % bVal := by
+    qNat = aVal / bVal ∧ r_norm / 2^s = aVal % bVal := by
   -- Convert to the form expected by norm_euclidean_bridge
-  have heq' : aVal * 2^s = bVal * 2^s * q_nat + r_norm := by linarith
-  exact norm_euclidean_bridge aVal bVal q_nat r_norm s heq' hlt
+  have heq' : aVal * 2^s = bVal * 2^s * qNat + r_norm := by linarith
+  exact norm_euclidean_bridge aVal bVal qNat r_norm s heq' hlt
 
 end EvmWord
 

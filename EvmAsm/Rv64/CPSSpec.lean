@@ -206,38 +206,38 @@ theorem cpsBranch_exit_absurd (entry : Word) (cr : CodeReq) (P : Assertion)
 -- regOwn / memOwn lifting helpers
 -- ============================================================================
 
-/-- Lift a spec quantified over v_old to one with regOwn in tail position:
-    (∀ v_old, cpsTriple ... cr (P ** (r ↦ᵣ v_old)) Q) → cpsTriple ... cr (P ** regOwn r) Q -/
+/-- Lift a spec quantified over vOld to one with regOwn in tail position:
+    (∀ vOld, cpsTriple ... cr (P ** (r ↦ᵣ vOld)) Q) → cpsTriple ... cr (P ** regOwn r) Q -/
 theorem cpsTriple_of_forall_regIs_to_regOwn
     {entry exit_ r P Q} (cr : CodeReq)
-    (h : ∀ v_old, cpsTriple entry exit_ cr (P ** (r ↦ᵣ v_old)) Q) :
+    (h : ∀ vOld, cpsTriple entry exit_ cr (P ** (r ↦ᵣ vOld)) Q) :
     cpsTriple entry exit_ cr (P ** regOwn r) Q := by
   intro R hR s hcr hPR hpc
   obtain ⟨hp, hcompat, h1, h2, hd12, hunion12, hPown1, hR2⟩ := hPR
-  obtain ⟨h3, h4, hd34, hunion34, hP3, ⟨v_old, hv4⟩⟩ := hPown1
-  exact h v_old R hR s hcr
+  obtain ⟨h3, h4, hd34, hunion34, hP3, ⟨vOld, hv4⟩⟩ := hPown1
+  exact h vOld R hR s hcr
     ⟨hp, hcompat, h1, h2, hd12, hunion12, ⟨h3, h4, hd34, hunion34, hP3, hv4⟩, hR2⟩ hpc
 
-/-- Lift a spec quantified over v_old to one with regOwn as entire precondition:
-    (∀ v_old, cpsTriple ... cr (r ↦ᵣ v_old) Q) → cpsTriple ... cr (regOwn r) Q -/
+/-- Lift a spec quantified over vOld to one with regOwn as entire precondition:
+    (∀ vOld, cpsTriple ... cr (r ↦ᵣ vOld) Q) → cpsTriple ... cr (regOwn r) Q -/
 theorem cpsTriple_of_forall_regIs_to_regOwn_single
     {entry exit_ r Q} (cr : CodeReq)
-    (h : ∀ v_old, cpsTriple entry exit_ cr (r ↦ᵣ v_old) Q) :
+    (h : ∀ vOld, cpsTriple entry exit_ cr (r ↦ᵣ vOld) Q) :
     cpsTriple entry exit_ cr (regOwn r) Q := by
   intro R hR s hcr hPR hpc
-  obtain ⟨hp, hcompat, h1, h2, hd, hunion, ⟨v_old, hv⟩, hR2⟩ := hPR
-  exact h v_old R hR s hcr ⟨hp, hcompat, h1, h2, hd, hunion, hv, hR2⟩ hpc
+  obtain ⟨hp, hcompat, h1, h2, hd, hunion, ⟨vOld, hv⟩, hR2⟩ := hPR
+  exact h vOld R hR s hcr ⟨hp, hcompat, h1, h2, hd, hunion, hv, hR2⟩ hpc
 
-/-- Lift a spec quantified over v_old to one with memOwn in tail position:
-    (∀ v_old, cpsTriple ... cr (P ** (a ↦ₘ v_old)) Q) → cpsTriple ... cr (P ** memOwn a) Q -/
+/-- Lift a spec quantified over vOld to one with memOwn in tail position:
+    (∀ vOld, cpsTriple ... cr (P ** (a ↦ₘ vOld)) Q) → cpsTriple ... cr (P ** memOwn a) Q -/
 theorem cpsTriple_of_forall_memIs_to_memOwn
     {entry exit_ a P Q} (cr : CodeReq)
-    (h : ∀ v_old, cpsTriple entry exit_ cr (P ** (a ↦ₘ v_old)) Q) :
+    (h : ∀ vOld, cpsTriple entry exit_ cr (P ** (a ↦ₘ vOld)) Q) :
     cpsTriple entry exit_ cr (P ** memOwn a) Q := by
   intro R hR s hcr hPR hpc
   obtain ⟨hp, hcompat, h1, h2, hd12, hunion12, hPown1, hR2⟩ := hPR
-  obtain ⟨h3, h4, hd34, hunion34, hP3, ⟨v_old, hv4⟩⟩ := hPown1
-  exact h v_old R hR s hcr
+  obtain ⟨h3, h4, hd34, hunion34, hP3, ⟨vOld, hv4⟩⟩ := hPown1
+  exact h vOld R hR s hcr
     ⟨hp, hcompat, h1, h2, hd12, hunion12, ⟨h3, h4, hd34, hunion34, hP3, hv4⟩, hR2⟩ hpc
 
 /-- Branch elimination: if both branch exits lead to the same
