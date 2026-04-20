@@ -43,10 +43,10 @@ example : rlp_phase2_long_load_acc_prog.length = 3 := rfl
 -- Spec
 -- ============================================================================
 
-/-- Bundled post: `x11` holds `(len <<< 8) + byte_zext`, `x12` holds the
+/-- Bundled post: `x11` holds `(len <<< 8) + byteZext`, `x12` holds the
     loaded byte (zero-extended to 64 bits), `x13` and memory are unchanged.
 
-    `byte_zext` is parametric — the caller supplies the concrete byte
+    `byteZext` is parametric — the caller supplies the concrete byte
     value extracted from the containing doubleword. Wrapped
     `@[irreducible]` to keep the let-bindings out of the theorem statement. -/
 @[irreducible]
@@ -120,7 +120,7 @@ theorem rlp_phase2_long_load_acc_spec (len ptr v12_old wordVal dwordAddr : Word)
       (fun h hp => by xperm_hyp hp)
       (cpsTriple_frameR (.x11 ↦ᵣ len) (by pcFree) lbu)
   -- Step 2: accumulation step at `base + 4`. Frame with `x13` and memory.
-  have acc := rlp_phase2_long_acc_spec len byte_zext (base + 4)
+  have acc := rlp_phase2_long_acc_spec len byteZext (base + 4)
   simp only [rlp_phase2_long_acc_post_unfold] at acc
   rw [show (base + 4 : Word) + 8 = base + 12 from by bv_omega] at acc
   have acc_framed : cpsTriple (base + 4) (base + 12)

@@ -156,17 +156,17 @@ theorem rlp_phase2_long_loop_body_spec
   -- permute to the shape produced by `iter'`'s post.
   have bne_framed : cpsBranch (base + 20)
       (CodeReq.singleton (base + 20) (.BNE .x14 .x0 back))
-      ((.x11 ↦ᵣ ((len <<< 8) + byte_zext)) **
+      ((.x11 ↦ᵣ ((len <<< 8) + byteZext)) **
        (.x13 ↦ᵣ (ptr + 1)) ** (.x14 ↦ᵣ cnt') **
        (.x12 ↦ᵣ byte_zext) ** (.x0 ↦ᵣ (0 : Word)) **
        (dwordAddr ↦ₘ wordVal))
       ((base + 20) + signExtend13 back)
-        ((.x11 ↦ᵣ ((len <<< 8) + byte_zext)) **
+        ((.x11 ↦ᵣ ((len <<< 8) + byteZext)) **
          (.x13 ↦ᵣ (ptr + 1)) ** (.x14 ↦ᵣ cnt') **
          (.x12 ↦ᵣ byte_zext) ** (.x0 ↦ᵣ (0 : Word)) **
          (dwordAddr ↦ₘ wordVal) ** ⌜cnt' ≠ 0⌝)
       (base + 24)
-        ((.x11 ↦ᵣ ((len <<< 8) + byte_zext)) **
+        ((.x11 ↦ᵣ ((len <<< 8) + byteZext)) **
          (.x13 ↦ᵣ (ptr + 1)) ** (.x14 ↦ᵣ cnt') **
          (.x12 ↦ᵣ byte_zext) ** (.x0 ↦ᵣ (0 : Word)) **
          (dwordAddr ↦ₘ wordVal) ** ⌜cnt' = 0⌝) := by

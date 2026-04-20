@@ -146,7 +146,7 @@ theorem rlp_phase2_long_iter_spec
   rw [show (base + 4 : Word) + 4 = base + 8 from by bv_omega] at slli_raw
   rw [h_shamt] at slli_raw
   -- Step 3: ADD x11, x11, x12.
-  have add_raw := add_spec_gen_rd_eq_rs1 .x11 .x12 (len <<< 8) byte_zext
+  have add_raw := add_spec_gen_rd_eq_rs1 .x11 .x12 (len <<< 8) byteZext
     (base + 8) (by nofun)
   rw [show (base + 8 : Word) + 4 = base + 12 from by bv_omega] at add_raw
   -- Step 4: ADDI x13, x13, 1.
