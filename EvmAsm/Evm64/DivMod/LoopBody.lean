@@ -1065,21 +1065,21 @@ theorem divK_store_loop_spec
     (sp j q_hat v5_old v7_old q_old : Word)
     (base : Word) :
     let j_x8 := j <<< (3 : BitVec 6).toNat
-    let q_addr := sp + signExtend12 4088 - j_x8
+    let qAddr := sp + signExtend12 4088 - j_x8
     let j' := j + signExtend12 4095
     cpsBranch (base + 884) (sharedDivModCode base)
       ((.x1 ↦ᵣ j) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ q_hat) **
        (.x5 ↦ᵣ v5_old) ** (.x7 ↦ᵣ v7_old) ** (.x0 ↦ᵣ (0 : Word)) **
-       (q_addr ↦ₘ q_old))
+       (qAddr ↦ₘ q_old))
       (base + loopBodyOff)
       ((.x1 ↦ᵣ j') ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ q_hat) **
-       (.x5 ↦ᵣ j_x8) ** (.x7 ↦ᵣ q_addr) ** (.x0 ↦ᵣ (0 : Word)) **
-       (q_addr ↦ₘ q_hat))
+       (.x5 ↦ᵣ j_x8) ** (.x7 ↦ᵣ qAddr) ** (.x0 ↦ᵣ (0 : Word)) **
+       (qAddr ↦ₘ q_hat))
       (base + denormOff)
       ((.x1 ↦ᵣ j') ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ q_hat) **
-       (.x5 ↦ᵣ j_x8) ** (.x7 ↦ᵣ q_addr) ** (.x0 ↦ᵣ (0 : Word)) **
-       (q_addr ↦ₘ q_hat)) := by
-  intro j_x8 q_addr j'
+       (.x5 ↦ᵣ j_x8) ** (.x7 ↦ᵣ qAddr) ** (.x0 ↦ᵣ (0 : Word)) **
+       (qAddr ↦ₘ q_hat)) := by
+  intro j_x8 qAddr j'
   -- 1. Store q[j]: instrs [109]-[112] at base+884
   have SQ := divK_store_qj_spec sp j q_hat v5_old v7_old q_old (base + 884)
   dsimp only [] at SQ
@@ -1099,9 +1099,9 @@ theorem divK_store_loop_spec
   -- 3. Add x0 to store_qj via frame, then reshape via consequence
   have SQx0 : cpsTriple (base + 884) (base + 900) (sharedDivModCode base)
       ((.x1 ↦ᵣ j) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ q_hat) **
-       (.x5 ↦ᵣ v5_old) ** (.x7 ↦ᵣ v7_old) ** (.x0 ↦ᵣ (0 : Word)) ** (q_addr ↦ₘ q_old))
+       (.x5 ↦ᵣ v5_old) ** (.x7 ↦ᵣ v7_old) ** (.x0 ↦ᵣ (0 : Word)) ** (qAddr ↦ₘ q_old))
       ((.x1 ↦ᵣ j) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ q_hat) **
-       (.x5 ↦ᵣ j_x8) ** (.x7 ↦ᵣ q_addr) ** (.x0 ↦ᵣ (0 : Word)) ** (q_addr ↦ₘ q_hat)) :=
+       (.x5 ↦ᵣ j_x8) ** (.x7 ↦ᵣ qAddr) ** (.x0 ↦ᵣ (0 : Word)) ** (qAddr ↦ₘ q_hat)) :=
     cpsTriple_weaken
       (fun h hp => by xperm_hyp hp)
       (fun h hp => by xperm_hyp hp)
@@ -1109,21 +1109,21 @@ theorem divK_store_loop_spec
   -- 4. Frame loop_control with store_qj postcondition atoms, then reshape
   have LCp : cpsBranch (base + 900) (sharedDivModCode base)
       ((.x1 ↦ᵣ j) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ q_hat) **
-       (.x5 ↦ᵣ j_x8) ** (.x7 ↦ᵣ q_addr) ** (.x0 ↦ᵣ (0 : Word)) ** (q_addr ↦ₘ q_hat))
+       (.x5 ↦ᵣ j_x8) ** (.x7 ↦ᵣ qAddr) ** (.x0 ↦ᵣ (0 : Word)) ** (qAddr ↦ₘ q_hat))
       (base + loopBodyOff)
       ((.x1 ↦ᵣ j') ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ q_hat) **
-       (.x5 ↦ᵣ j_x8) ** (.x7 ↦ᵣ q_addr) ** (.x0 ↦ᵣ (0 : Word)) ** (q_addr ↦ₘ q_hat))
+       (.x5 ↦ᵣ j_x8) ** (.x7 ↦ᵣ qAddr) ** (.x0 ↦ᵣ (0 : Word)) ** (qAddr ↦ₘ q_hat))
       (base + denormOff)
       ((.x1 ↦ᵣ j') ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ q_hat) **
-       (.x5 ↦ᵣ j_x8) ** (.x7 ↦ᵣ q_addr) ** (.x0 ↦ᵣ (0 : Word)) ** (q_addr ↦ₘ q_hat)) :=
+       (.x5 ↦ᵣ j_x8) ** (.x7 ↦ᵣ qAddr) ** (.x0 ↦ᵣ (0 : Word)) ** (qAddr ↦ₘ q_hat)) :=
     cpsBranch_weaken
       (fun h hp => by xperm_hyp hp)
       (fun h hp => by xperm_hyp hp)
       (fun h hp => by xperm_hyp hp)
       (cpsBranch_frameR
         ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ q_hat) **
-         (.x5 ↦ᵣ j_x8) ** (.x7 ↦ᵣ q_addr) **
-         (q_addr ↦ₘ q_hat))
+         (.x5 ↦ᵣ j_x8) ** (.x7 ↦ᵣ qAddr) **
+         (qAddr ↦ₘ q_hat))
         (by pcFree) LCe)
   -- 5. Compose store_qj(+x0) → loop_control(reshaped)
   exact cpsTriple_seq_cpsBranch_perm_same_cr
@@ -1143,16 +1143,16 @@ private theorem j0_slt_zero :
 theorem divK_store_loop_j0_spec
     (sp q_hat v5_old v7_old q_old : Word)
     (base : Word) :
-    let q_addr := sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat
+    let qAddr := sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat
     let j' := (0 : Word) + signExtend12 4095
     cpsTriple (base + 884) (base + denormOff) (sharedDivModCode base)
       ((.x1 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ q_hat) **
        (.x5 ↦ᵣ v5_old) ** (.x7 ↦ᵣ v7_old) ** (.x0 ↦ᵣ (0 : Word)) **
-       (q_addr ↦ₘ q_old))
+       (qAddr ↦ₘ q_old))
       ((.x1 ↦ᵣ j') ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ q_hat) **
-       (.x5 ↦ᵣ (0 : Word) <<< (3 : BitVec 6).toNat) ** (.x7 ↦ᵣ q_addr) ** (.x0 ↦ᵣ (0 : Word)) **
-       (q_addr ↦ₘ q_hat)) := by
-  intro q_addr j'
+       (.x5 ↦ᵣ (0 : Word) <<< (3 : BitVec 6).toNat) ** (.x7 ↦ᵣ qAddr) ** (.x0 ↦ᵣ (0 : Word)) **
+       (qAddr ↦ₘ q_hat)) := by
+  intro qAddr j'
   -- 1. Store q[j]: instrs [109]-[112] at base+884
   have SQ := divK_store_qj_spec sp (0 : Word) q_hat v5_old v7_old q_old (base + 884)
   dsimp only [] at SQ
@@ -1189,10 +1189,10 @@ theorem divK_store_loop_j0_spec
   -- 5. Build store_qj + x0 frame → base+900
   have SQx0 : cpsTriple (base + 884) (base + 900) (sharedDivModCode base)
       ((.x1 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ q_hat) **
-       (.x5 ↦ᵣ v5_old) ** (.x7 ↦ᵣ v7_old) ** (.x0 ↦ᵣ (0 : Word)) ** (q_addr ↦ₘ q_old))
+       (.x5 ↦ᵣ v5_old) ** (.x7 ↦ᵣ v7_old) ** (.x0 ↦ᵣ (0 : Word)) ** (qAddr ↦ₘ q_old))
       ((.x1 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ q_hat) **
-       (.x5 ↦ᵣ (0 : Word) <<< (3 : BitVec 6).toNat) ** (.x7 ↦ᵣ q_addr) **
-       (.x0 ↦ᵣ (0 : Word)) ** (q_addr ↦ₘ q_hat)) :=
+       (.x5 ↦ᵣ (0 : Word) <<< (3 : BitVec 6).toNat) ** (.x7 ↦ᵣ qAddr) **
+       (.x0 ↦ᵣ (0 : Word)) ** (qAddr ↦ₘ q_hat)) :=
     cpsTriple_weaken
       (fun h hp => by xperm_hyp hp)
       (fun h hp => by xperm_hyp hp)
@@ -1206,8 +1206,8 @@ theorem divK_store_loop_j0_spec
   -- Frame with remaining atoms
   have addi_bge_framed := cpsTriple_frameR
       ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ q_hat) **
-       (.x5 ↦ᵣ (0 : Word) <<< (3 : BitVec 6).toNat) ** (.x7 ↦ᵣ q_addr) **
-       (q_addr ↦ₘ q_hat))
+       (.x5 ↦ᵣ (0 : Word) <<< (3 : BitVec 6).toNat) ** (.x7 ↦ᵣ qAddr) **
+       (qAddr ↦ₘ q_hat))
       (by pcFree) addi_bge
   -- 7. Compose: store_qj → (ADDI → BGE exit)
   have full := cpsTriple_seq_perm_same_cr
@@ -1229,16 +1229,16 @@ theorem divK_store_loop_jgt0_spec
     (base : Word)
     (hj_pos : BitVec.slt (j + signExtend12 4095) 0 = false) :
     let j_x8 := j <<< (3 : BitVec 6).toNat
-    let q_addr := sp + signExtend12 4088 - j_x8
+    let qAddr := sp + signExtend12 4088 - j_x8
     let j' := j + signExtend12 4095
     cpsTriple (base + 884) (base + loopBodyOff) (sharedDivModCode base)
       ((.x1 ↦ᵣ j) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ q_hat) **
        (.x5 ↦ᵣ v5_old) ** (.x7 ↦ᵣ v7_old) ** (.x0 ↦ᵣ (0 : Word)) **
-       (q_addr ↦ₘ q_old))
+       (qAddr ↦ₘ q_old))
       ((.x1 ↦ᵣ j') ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ q_hat) **
-       (.x5 ↦ᵣ j_x8) ** (.x7 ↦ᵣ q_addr) ** (.x0 ↦ᵣ (0 : Word)) **
-       (q_addr ↦ₘ q_hat)) := by
-  intro j_x8 q_addr j'
+       (.x5 ↦ᵣ j_x8) ** (.x7 ↦ᵣ qAddr) ** (.x0 ↦ᵣ (0 : Word)) **
+       (qAddr ↦ₘ q_hat)) := by
+  intro j_x8 qAddr j'
   -- 1. Store q[j]: instrs [109]-[112] at base+884
   have SQ := divK_store_qj_spec sp j q_hat v5_old v7_old q_old (base + 884)
   dsimp only [] at SQ
@@ -1275,9 +1275,9 @@ theorem divK_store_loop_jgt0_spec
   -- 5. Build store_qj + x0 frame → base+900
   have SQx0 : cpsTriple (base + 884) (base + 900) (sharedDivModCode base)
       ((.x1 ↦ᵣ j) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ q_hat) **
-       (.x5 ↦ᵣ v5_old) ** (.x7 ↦ᵣ v7_old) ** (.x0 ↦ᵣ (0 : Word)) ** (q_addr ↦ₘ q_old))
+       (.x5 ↦ᵣ v5_old) ** (.x7 ↦ᵣ v7_old) ** (.x0 ↦ᵣ (0 : Word)) ** (qAddr ↦ₘ q_old))
       ((.x1 ↦ᵣ j) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ q_hat) **
-       (.x5 ↦ᵣ j_x8) ** (.x7 ↦ᵣ q_addr) ** (.x0 ↦ᵣ (0 : Word)) ** (q_addr ↦ₘ q_hat)) :=
+       (.x5 ↦ᵣ j_x8) ** (.x7 ↦ᵣ qAddr) ** (.x0 ↦ᵣ (0 : Word)) ** (qAddr ↦ₘ q_hat)) :=
     cpsTriple_weaken
       (fun h hp => by xperm_hyp hp)
       (fun h hp => by xperm_hyp hp)
@@ -1291,8 +1291,8 @@ theorem divK_store_loop_jgt0_spec
   -- Frame with remaining atoms
   have addi_bge_framed := cpsTriple_frameR
       ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ q_hat) **
-       (.x5 ↦ᵣ j_x8) ** (.x7 ↦ᵣ q_addr) **
-       (q_addr ↦ₘ q_hat))
+       (.x5 ↦ᵣ j_x8) ** (.x7 ↦ᵣ qAddr) **
+       (qAddr ↦ₘ q_hat))
       (by pcFree) addi_bge
   -- 7. Compose: store_qj → (ADDI → BGE exit)
   have full := cpsTriple_seq_perm_same_cr
