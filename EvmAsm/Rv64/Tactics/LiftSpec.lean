@@ -14,7 +14,7 @@
 
   1. The goal should be `cpsTriple entry exit goalPre goalPost`
   2. `h_main` should be `cpsTriple entry exit mainPre mainPost`
-  3. Applies `cpsTriple_consequence` with `h_main`
+  3. Applies `cpsTriple_weaken` with `h_main`
   4. In the pre/post lambdas: unfolds `evmWordIs`/`evmStackIs`, normalizes
      addresses via `BitVec.add_assoc`, then permutes via `xperm_hyp`
 -/
