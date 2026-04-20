@@ -29,6 +29,7 @@ import EvmAsm.Evm64.EvmWordArith.Val256ModBridge
 namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
+open EvmAsm.Rv64.AddrNorm (word_toNat_0)
 
 namespace EvmWord
 
@@ -78,7 +79,7 @@ theorem val256_denorm_eq_val256_mod_max_skip
   -- Using mulsubN4_val256_eq (normalized) + val256_normalize_general + val256_normalize.
   have h_un_raw := mulsubN4_val256_eq (signExtend12 4095) b0 b1 b2 b3 a0 a1 a2 a3
   simp only [] at h_un_raw
-  rw [hc3_un_zero, show (0 : Word).toNat = 0 from by decide,
+  rw [hc3_un_zero, word_toNat_0,
       Nat.zero_mul, Nat.add_zero] at h_un_raw
   have h_n_raw := mulsubN4_val256_eq (signExtend12 4095) b0' b1' b2' b3' u0 u1 u2 u3
   simp only [] at h_n_raw

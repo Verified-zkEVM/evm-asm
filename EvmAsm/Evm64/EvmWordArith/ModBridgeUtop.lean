@@ -25,6 +25,7 @@ import EvmAsm.Evm64.DivMod.LoopSemantic
 namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
+open EvmAsm.Rv64.AddrNorm (word_toNat_0)
 
 namespace EvmWord
 
@@ -189,7 +190,7 @@ theorem u_top_eq_c3_n_max_skip
   -- Derive the 4 Euclidean-style hypotheses at Nat level.
   have h_un_raw := mulsubN4_val256_eq (signExtend12 4095) b0 b1 b2 b3 a0 a1 a2 a3
   simp only [] at h_un_raw
-  rw [hc3_un_zero, show (0 : Word).toNat = 0 from by decide,
+  rw [hc3_un_zero, word_toNat_0,
       Nat.zero_mul, Nat.add_zero] at h_un_raw
   -- h_un_raw : val256(a) = val256(ms_un) + qHat * val256(b)
   have h_n_raw := mulsubN4_val256_eq (signExtend12 4095)

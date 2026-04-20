@@ -511,7 +511,7 @@ private theorem shl_bridge_merge (value : EvmWord) (s0 : Word)
   · -- bs > 0 case: mask = allOnes 64, helper mask = allOnes 64
     have hmask : mask = BitVec.allOnes 64 := by
       simp only [mask]; have : BitVec.ult (0 : Word) bs = true := by simp [BitVec.ult]; omega
-      rw [this, show (if true = true then (1 : Word) else 0) = 1 from by decide]
+      rw [this, if_pos rfl]
       show (0 : Word) - 1 = BitVec.allOnes 64; decide
     rw [show bs.toNat % 64 = s0.toNat % 64 from by omega,
         show as_.toNat % 64 = 64 - s0.toNat % 64 from by

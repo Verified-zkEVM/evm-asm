@@ -19,6 +19,7 @@ import EvmAsm.Evm64.EvmWordArith.DivN4Overestimate
 namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
+open EvmAsm.Rv64.AddrNorm (word_toNat_0)
 
 namespace EvmWord
 
@@ -40,7 +41,7 @@ theorem val256_ms_un_eq_val256_mod_max_skip
   have hmulsub_raw := mulsubN4_val256_eq (signExtend12 4095) b0 b1 b2 b3 a0 a1 a2 a3
   simp only [] at hmulsub_raw
   rw [show ms.2.2.2.2 = (0 : Word) from hc3_zero] at hmulsub_raw
-  rw [show (0 : Word).toNat = 0 from by decide, Nat.zero_mul, Nat.add_zero]
+  rw [word_toNat_0, Nat.zero_mul, Nat.add_zero]
     at hmulsub_raw
   -- Rearrange into the form expected by `remainder_lt_of_ge_floor`.
   have hmulsub : val256 a0 a1 a2 a3 =
