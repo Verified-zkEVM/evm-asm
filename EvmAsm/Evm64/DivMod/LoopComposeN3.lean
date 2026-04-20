@@ -758,17 +758,19 @@ theorem divK_loop_body_n3_call_iter_spec (j : Fin 2)
 -- Single `(j : Fin 2) (bltu : Bool)` iter spec for n=3
 -- ============================================================================
 
-/-- Unified iter spec for n=3: one theorem covering all 8 original path combinations. -/
+/-- Unified iter spec for n=3: one theorem covering all 8 original path combinations.
+    Uses `if bltu then ... else ...` hypothesis API so concrete-bltu call sites don't
+    need vacuous dischargers — they pass the reduced hypothesis directly. -/
 theorem divK_loop_body_n3_iter_spec (j : Fin 2) (bltu : Bool)
     (sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
      v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old : Word)
     (ret_mem d_mem dlo_mem scratch_un0 : Word)
     (base : Word)
-    (halign : bltu = true → ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
-    (hbltu_max : bltu = false → ¬BitVec.ult u3 v2)
-    (hbltu_call : bltu = true → BitVec.ult u3 v2)
-    (hcarry_max : bltu = false → isAddbackCarry2NzN3Max v0 v1 v2 v3 u0 u1 u2 u3 u_top)
-    (hcarry_call : bltu = true → isAddbackCarry2NzN3Call v0 v1 v2 v3 u0 u1 u2 u3 u_top) :
+    (halign : if bltu then ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516
+              else True)
+    (hbltu : if bltu then BitVec.ult u3 v2 else ¬BitVec.ult u3 v2)
+    (hcarry : if bltu then isAddbackCarry2NzN3Call v0 v1 v2 v3 u0 u1 u2 u3 u_top
+              else isAddbackCarry2NzN3Max v0 v1 v2 v3 u0 u1 u2 u3 u_top) :
     let exit_addr := if j.val = 0 then base + denormOff else base + loopBodyOff
     cpsTriple (base + loopBodyOff) exit_addr (sharedDivModCode base)
       (match bltu with
@@ -782,22 +784,17 @@ theorem divK_loop_body_n3_iter_spec (j : Fin 2) (bltu : Bool)
       (loopIterPostN3 bltu sp base (j.val : Word) v0 v1 v2 v3 u0 u1 u2 u3 u_top) := by
   intro exit_addr
   cases bltu
-  · simp only []
-    have hbltu' := hbltu_max rfl
-    have hcarry := hcarry_max rfl
+  · rw [if_neg (by decide)] at hbltu hcarry
     have H := divK_loop_body_n3_max_iter_spec j sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
-      v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old base hbltu' hcarry
+      v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old base hbltu hcarry
     intro_lets at H
     exact cpsTriple_weaken
       (fun _ hp => by delta loopBodyPre at hp; xperm_hyp hp)
       (fun _ hp => by unfold loopIterPostN3; simp only []; rw [sepConj_emp_right']; exact hp)
       H
-  · simp only []
-    have hbltu' := hbltu_call rfl
-    have halign' := halign rfl
-    have hcarry := hcarry_call rfl
+  · rw [if_pos rfl] at halign hbltu hcarry
     have H := divK_loop_body_n3_call_iter_spec j sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
-      v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old ret_mem d_mem dlo_mem scratch_un0 base halign' hbltu' hcarry
+      v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old ret_mem d_mem dlo_mem scratch_un0 base halign hbltu hcarry
     intro_lets at H
     exact cpsTriple_weaken
       (fun _ hp => by delta loopBodyPreWithScratch loopBodyPre at hp; xperm_hyp hp)
