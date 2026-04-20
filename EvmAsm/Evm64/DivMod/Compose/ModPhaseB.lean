@@ -14,7 +14,7 @@ namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
 open EvmAsm.Evm64.DivMod.AddrNorm (se12_1 se12_2 se12_3 se12_4 se12_4095)
-open EvmAsm.Rv64.AddrNorm (se13_24 se12_32
+open EvmAsm.Rv64.AddrNorm (se12_32
   bv64_4mul_9 bv64_4mul_10 bv64_4mul_11 bv64_4mul_12 bv64_4mul_13
   bv64_4mul_14 bv64_4mul_15)
 
@@ -154,8 +154,8 @@ theorem evm_mod_phaseB_n4_spec (sp base : Word)
   seqFrame hinit1fhinit2 haddi
   -- ---- Step 4: BNE x10 x0 24 at base+72, elim ntaken (b3=0 absurd)
   have hbne_raw := bne_spec_gen .x10 .x0 24 b3 (0 : Word) (base + 72)
-  rw [show (base + 72 : Word) + signExtend13 24 = base + 96 from by
-        rw [se13_24]; bv_addr, mod_phB_bne_4] at hbne_raw
+  rw [show (base + 72 : Word) + signExtend13 24 = base + 96 from by rv64_addr,
+      mod_phB_bne_4] at hbne_raw
   have hbne_clean := cpsBranch_takenStripPure2 hbne_raw
     (fun hp hQf => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQf
