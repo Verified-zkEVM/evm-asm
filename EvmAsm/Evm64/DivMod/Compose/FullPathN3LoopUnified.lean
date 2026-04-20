@@ -39,12 +39,12 @@ def isTrialN3_j0 (bltu_1 bltu_0 : Bool) (a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Prop 
   let v1' := (b1 <<< (shift.toNat % 64)) ||| (b0 >>> (anti_shift.toNat % 64))
   let v2' := (b2 <<< (shift.toNat % 64)) ||| (b1 >>> (anti_shift.toNat % 64))
   let v3' := (b3 <<< (shift.toNat % 64)) ||| (b2 >>> (anti_shift.toNat % 64))
-  let u1_s := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (anti_shift.toNat % 64))
-  let u2_s := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (anti_shift.toNat % 64))
-  let u3_s := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (anti_shift.toNat % 64))
+  let u1S := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (anti_shift.toNat % 64))
+  let u2S := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (anti_shift.toNat % 64))
+  let u3S := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (anti_shift.toNat % 64))
   let u4_s := a3 >>> (anti_shift.toNat % 64)
   bltu_0 = BitVec.ult
-    (iterN3 bltu_1 v0' v1' v2' v3' u1_s u2_s u3_s u4_s (0 : Word)).2.2.2.1
+    (iterN3 bltu_1 v0' v1' v2' v3' u1S u2S u3S u4_s (0 : Word)).2.2.2.1
     v2'
 
 -- ============================================================================
@@ -64,12 +64,12 @@ def preloopN3UnifiedPost (bltu_1 bltu_0 : Bool)
   let v1' := (b1 <<< (shift.toNat % 64)) ||| (b0 >>> (anti_shift.toNat % 64))
   let v2' := (b2 <<< (shift.toNat % 64)) ||| (b1 >>> (anti_shift.toNat % 64))
   let v3' := (b3 <<< (shift.toNat % 64)) ||| (b2 >>> (anti_shift.toNat % 64))
-  let u0_s := a0 <<< (shift.toNat % 64)
-  let u1_s := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (anti_shift.toNat % 64))
-  let u2_s := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (anti_shift.toNat % 64))
-  let u3_s := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (anti_shift.toNat % 64))
+  let u0S := a0 <<< (shift.toNat % 64)
+  let u1S := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (anti_shift.toNat % 64))
+  let u2S := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (anti_shift.toNat % 64))
+  let u3S := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (anti_shift.toNat % 64))
   loopN3UnifiedPost bltu_1 bltu_0 sp base
-    v0' v1' v2' v3' u1_s u2_s u3_s (a3 >>> (anti_shift.toNat % 64)) (0 : Word) u0_s
+    v0' v1' v2' v3' u1S u2S u3S (a3 >>> (anti_shift.toNat % 64)) (0 : Word) u0S
     ret_mem d_mem dlo_mem scratch_un0 **
   ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
   ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **

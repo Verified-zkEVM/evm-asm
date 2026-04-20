@@ -38,14 +38,14 @@ def fullDivN2_FFT_Post (sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Assertion :=
   let v1' := (b1 <<< (shift.toNat % 64)) ||| (b0 >>> (anti_shift.toNat % 64))
   let v2' := (b2 <<< (shift.toNat % 64)) ||| (b1 >>> (anti_shift.toNat % 64))
   let v3' := (b3 <<< (shift.toNat % 64)) ||| (b2 >>> (anti_shift.toNat % 64))
-  let u0_s := a0 <<< (shift.toNat % 64)
-  let u1_s := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (anti_shift.toNat % 64))
-  let u2_s := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (anti_shift.toNat % 64))
-  let u3_s := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (anti_shift.toNat % 64))
+  let u0S := a0 <<< (shift.toNat % 64)
+  let u1S := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (anti_shift.toNat % 64))
+  let u2S := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (anti_shift.toNat % 64))
+  let u3S := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (anti_shift.toNat % 64))
   let u4_s := a3 >>> (anti_shift.toNat % 64)
-  let r2 := iterN2Max v0' v1' v2' v3' u2_s u3_s u4_s (0 : Word) (0 : Word)
-  let r1 := iterN2Max v0' v1' v2' v3' u1_s r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1
-  let r0 := iterN2Call v0' v1' v2' v3' u0_s r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1
+  let r2 := iterN2Max v0' v1' v2' v3' u2S u3S u4_s (0 : Word) (0 : Word)
+  let r1 := iterN2Max v0' v1' v2' v3' u1S r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1
+  let r0 := iterN2Call v0' v1' v2' v3' u0S r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1
   denormDivPost sp shift r0.2.1 r0.2.2.1 r0.2.2.2.1 r0.2.2.2.2.1 r0.1 r1.1 r2.1 (0 : Word) **
   ((sp + signExtend12 3992) ↦ₘ shift) **
   ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
@@ -106,16 +106,16 @@ theorem evm_div_n2_full_FFT_spec (sp base : Word)
   let v1' := (b1 <<< (shift.toNat % 64)) ||| (b0 >>> (anti_shift.toNat % 64))
   let v2' := (b2 <<< (shift.toNat % 64)) ||| (b1 >>> (anti_shift.toNat % 64))
   let v3' := (b3 <<< (shift.toNat % 64)) ||| (b2 >>> (anti_shift.toNat % 64))
-  let u0_s := a0 <<< (shift.toNat % 64)
-  let u1_s := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (anti_shift.toNat % 64))
-  let u2_s := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (anti_shift.toNat % 64))
-  let u3_s := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (anti_shift.toNat % 64))
+  let u0S := a0 <<< (shift.toNat % 64)
+  let u1S := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (anti_shift.toNat % 64))
+  let u2S := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (anti_shift.toNat % 64))
+  let u3S := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (anti_shift.toNat % 64))
   let u4_s := a3 >>> (anti_shift.toNat % 64)
-  let r2 := iterN2Max v0' v1' v2' v3' u2_s u3_s u4_s (0 : Word) (0 : Word)
-  let r1 := iterN2Max v0' v1' v2' v3' u1_s r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1
-  let r0 := iterN2Call v0' v1' v2' v3' u0_s r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1
+  let r2 := iterN2Max v0' v1' v2' v3' u2S u3S u4_s (0 : Word) (0 : Word)
+  let r1 := iterN2Max v0' v1' v2' v3' u1S r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1
+  let r0 := iterN2Call v0' v1' v2' v3' u0S r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1
   let c3_0 := (mulsubN4 (div128Quot r1.2.2.1 r1.2.1 v1') v0' v1' v2' v3'
-    u0_s r1.2.1 r1.2.2.1 r1.2.2.2.1).2.2.2.2
+    u0S r1.2.1 r1.2.2.1 r1.2.2.2.1).2.2.2.2
   have hA := evm_div_n2_preloop_loop_unified_spec false false true sp base
     a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11_old
     q0 q1 q2 q3 u0_old u1_old u2_old u3_old u4_old u5 u6 u7 n_mem shift_mem j_mem
@@ -171,14 +171,14 @@ def fullDivN2_FTF_Post (sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Assertion :=
   let v1' := (b1 <<< (shift.toNat % 64)) ||| (b0 >>> (anti_shift.toNat % 64))
   let v2' := (b2 <<< (shift.toNat % 64)) ||| (b1 >>> (anti_shift.toNat % 64))
   let v3' := (b3 <<< (shift.toNat % 64)) ||| (b2 >>> (anti_shift.toNat % 64))
-  let u0_s := a0 <<< (shift.toNat % 64)
-  let u1_s := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (anti_shift.toNat % 64))
-  let u2_s := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (anti_shift.toNat % 64))
-  let u3_s := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (anti_shift.toNat % 64))
+  let u0S := a0 <<< (shift.toNat % 64)
+  let u1S := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (anti_shift.toNat % 64))
+  let u2S := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (anti_shift.toNat % 64))
+  let u3S := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (anti_shift.toNat % 64))
   let u4_s := a3 >>> (anti_shift.toNat % 64)
-  let r2 := iterN2Max v0' v1' v2' v3' u2_s u3_s u4_s (0 : Word) (0 : Word)
-  let r1 := iterN2Call v0' v1' v2' v3' u1_s r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1
-  let r0 := iterN2Max v0' v1' v2' v3' u0_s r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1
+  let r2 := iterN2Max v0' v1' v2' v3' u2S u3S u4_s (0 : Word) (0 : Word)
+  let r1 := iterN2Call v0' v1' v2' v3' u1S r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1
+  let r0 := iterN2Max v0' v1' v2' v3' u0S r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1
   denormDivPost sp shift r0.2.1 r0.2.2.1 r0.2.2.2.1 r0.2.2.2.2.1 r0.1 r1.1 r2.1 (0 : Word) **
   ((sp + signExtend12 3992) ↦ₘ shift) **
   ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
@@ -239,16 +239,16 @@ theorem evm_div_n2_full_FTF_spec (sp base : Word)
   let v1' := (b1 <<< (shift.toNat % 64)) ||| (b0 >>> (anti_shift.toNat % 64))
   let v2' := (b2 <<< (shift.toNat % 64)) ||| (b1 >>> (anti_shift.toNat % 64))
   let v3' := (b3 <<< (shift.toNat % 64)) ||| (b2 >>> (anti_shift.toNat % 64))
-  let u0_s := a0 <<< (shift.toNat % 64)
-  let u1_s := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (anti_shift.toNat % 64))
-  let u2_s := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (anti_shift.toNat % 64))
-  let u3_s := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (anti_shift.toNat % 64))
+  let u0S := a0 <<< (shift.toNat % 64)
+  let u1S := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (anti_shift.toNat % 64))
+  let u2S := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (anti_shift.toNat % 64))
+  let u3S := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (anti_shift.toNat % 64))
   let u4_s := a3 >>> (anti_shift.toNat % 64)
-  let r2 := iterN2Max v0' v1' v2' v3' u2_s u3_s u4_s (0 : Word) (0 : Word)
-  let r1 := iterN2Call v0' v1' v2' v3' u1_s r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1
-  let r0 := iterN2Max v0' v1' v2' v3' u0_s r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1
+  let r2 := iterN2Max v0' v1' v2' v3' u2S u3S u4_s (0 : Word) (0 : Word)
+  let r1 := iterN2Call v0' v1' v2' v3' u1S r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1
+  let r0 := iterN2Max v0' v1' v2' v3' u0S r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1
   let c3_0 := (mulsubN4 (signExtend12 4095 : Word) v0' v1' v2' v3'
-    u0_s r1.2.1 r1.2.2.1 r1.2.2.2.1).2.2.2.2
+    u0S r1.2.1 r1.2.2.1 r1.2.2.2.1).2.2.2.2
   have hA := evm_div_n2_preloop_loop_unified_spec false true false sp base
     a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11_old
     q0 q1 q2 q3 u0_old u1_old u2_old u3_old u4_old u5 u6 u7 n_mem shift_mem j_mem
@@ -304,14 +304,14 @@ def fullDivN2_FTT_Post (sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Assertion :=
   let v1' := (b1 <<< (shift.toNat % 64)) ||| (b0 >>> (anti_shift.toNat % 64))
   let v2' := (b2 <<< (shift.toNat % 64)) ||| (b1 >>> (anti_shift.toNat % 64))
   let v3' := (b3 <<< (shift.toNat % 64)) ||| (b2 >>> (anti_shift.toNat % 64))
-  let u0_s := a0 <<< (shift.toNat % 64)
-  let u1_s := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (anti_shift.toNat % 64))
-  let u2_s := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (anti_shift.toNat % 64))
-  let u3_s := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (anti_shift.toNat % 64))
+  let u0S := a0 <<< (shift.toNat % 64)
+  let u1S := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (anti_shift.toNat % 64))
+  let u2S := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (anti_shift.toNat % 64))
+  let u3S := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (anti_shift.toNat % 64))
   let u4_s := a3 >>> (anti_shift.toNat % 64)
-  let r2 := iterN2Max v0' v1' v2' v3' u2_s u3_s u4_s (0 : Word) (0 : Word)
-  let r1 := iterN2Call v0' v1' v2' v3' u1_s r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1
-  let r0 := iterN2Call v0' v1' v2' v3' u0_s r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1
+  let r2 := iterN2Max v0' v1' v2' v3' u2S u3S u4_s (0 : Word) (0 : Word)
+  let r1 := iterN2Call v0' v1' v2' v3' u1S r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1
+  let r0 := iterN2Call v0' v1' v2' v3' u0S r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1
   denormDivPost sp shift r0.2.1 r0.2.2.1 r0.2.2.2.1 r0.2.2.2.2.1 r0.1 r1.1 r2.1 (0 : Word) **
   ((sp + signExtend12 3992) ↦ₘ shift) **
   ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
@@ -372,16 +372,16 @@ theorem evm_div_n2_full_FTT_spec (sp base : Word)
   let v1' := (b1 <<< (shift.toNat % 64)) ||| (b0 >>> (anti_shift.toNat % 64))
   let v2' := (b2 <<< (shift.toNat % 64)) ||| (b1 >>> (anti_shift.toNat % 64))
   let v3' := (b3 <<< (shift.toNat % 64)) ||| (b2 >>> (anti_shift.toNat % 64))
-  let u0_s := a0 <<< (shift.toNat % 64)
-  let u1_s := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (anti_shift.toNat % 64))
-  let u2_s := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (anti_shift.toNat % 64))
-  let u3_s := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (anti_shift.toNat % 64))
+  let u0S := a0 <<< (shift.toNat % 64)
+  let u1S := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (anti_shift.toNat % 64))
+  let u2S := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (anti_shift.toNat % 64))
+  let u3S := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (anti_shift.toNat % 64))
   let u4_s := a3 >>> (anti_shift.toNat % 64)
-  let r2 := iterN2Max v0' v1' v2' v3' u2_s u3_s u4_s (0 : Word) (0 : Word)
-  let r1 := iterN2Call v0' v1' v2' v3' u1_s r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1
-  let r0 := iterN2Call v0' v1' v2' v3' u0_s r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1
+  let r2 := iterN2Max v0' v1' v2' v3' u2S u3S u4_s (0 : Word) (0 : Word)
+  let r1 := iterN2Call v0' v1' v2' v3' u1S r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1
+  let r0 := iterN2Call v0' v1' v2' v3' u0S r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1
   let c3_0 := (mulsubN4 (div128Quot r1.2.2.1 r1.2.1 v1') v0' v1' v2' v3'
-    u0_s r1.2.1 r1.2.2.1 r1.2.2.2.1).2.2.2.2
+    u0S r1.2.1 r1.2.2.1 r1.2.2.2.1).2.2.2.2
   have hA := evm_div_n2_preloop_loop_unified_spec false true true sp base
     a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11_old
     q0 q1 q2 q3 u0_old u1_old u2_old u3_old u4_old u5 u6 u7 n_mem shift_mem j_mem
@@ -437,14 +437,14 @@ def fullDivN2_TFF_Post (sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Assertion :=
   let v1' := (b1 <<< (shift.toNat % 64)) ||| (b0 >>> (anti_shift.toNat % 64))
   let v2' := (b2 <<< (shift.toNat % 64)) ||| (b1 >>> (anti_shift.toNat % 64))
   let v3' := (b3 <<< (shift.toNat % 64)) ||| (b2 >>> (anti_shift.toNat % 64))
-  let u0_s := a0 <<< (shift.toNat % 64)
-  let u1_s := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (anti_shift.toNat % 64))
-  let u2_s := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (anti_shift.toNat % 64))
-  let u3_s := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (anti_shift.toNat % 64))
+  let u0S := a0 <<< (shift.toNat % 64)
+  let u1S := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (anti_shift.toNat % 64))
+  let u2S := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (anti_shift.toNat % 64))
+  let u3S := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (anti_shift.toNat % 64))
   let u4_s := a3 >>> (anti_shift.toNat % 64)
-  let r2 := iterN2Call v0' v1' v2' v3' u2_s u3_s u4_s (0 : Word) (0 : Word)
-  let r1 := iterN2Max v0' v1' v2' v3' u1_s r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1
-  let r0 := iterN2Max v0' v1' v2' v3' u0_s r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1
+  let r2 := iterN2Call v0' v1' v2' v3' u2S u3S u4_s (0 : Word) (0 : Word)
+  let r1 := iterN2Max v0' v1' v2' v3' u1S r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1
+  let r0 := iterN2Max v0' v1' v2' v3' u0S r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1
   denormDivPost sp shift r0.2.1 r0.2.2.1 r0.2.2.2.1 r0.2.2.2.2.1 r0.1 r1.1 r2.1 (0 : Word) **
   ((sp + signExtend12 3992) ↦ₘ shift) **
   ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
@@ -459,7 +459,7 @@ def fullDivN2_TFF_Post (sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Assertion :=
   (sp + signExtend12 3968 ↦ₘ (base + 516)) **
   (sp + signExtend12 3960 ↦ₘ v1') **
   (sp + signExtend12 3952 ↦ₘ div128DLo v1') **
-  (sp + signExtend12 3944 ↦ₘ div128Un0 u3_s)
+  (sp + signExtend12 3944 ↦ₘ div128Un0 u3S)
 
 theorem evm_div_n2_full_TFF_spec (sp base : Word)
     (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11_old : Word)
@@ -505,16 +505,16 @@ theorem evm_div_n2_full_TFF_spec (sp base : Word)
   let v1' := (b1 <<< (shift.toNat % 64)) ||| (b0 >>> (anti_shift.toNat % 64))
   let v2' := (b2 <<< (shift.toNat % 64)) ||| (b1 >>> (anti_shift.toNat % 64))
   let v3' := (b3 <<< (shift.toNat % 64)) ||| (b2 >>> (anti_shift.toNat % 64))
-  let u0_s := a0 <<< (shift.toNat % 64)
-  let u1_s := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (anti_shift.toNat % 64))
-  let u2_s := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (anti_shift.toNat % 64))
-  let u3_s := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (anti_shift.toNat % 64))
+  let u0S := a0 <<< (shift.toNat % 64)
+  let u1S := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (anti_shift.toNat % 64))
+  let u2S := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (anti_shift.toNat % 64))
+  let u3S := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (anti_shift.toNat % 64))
   let u4_s := a3 >>> (anti_shift.toNat % 64)
-  let r2 := iterN2Call v0' v1' v2' v3' u2_s u3_s u4_s (0 : Word) (0 : Word)
-  let r1 := iterN2Max v0' v1' v2' v3' u1_s r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1
-  let r0 := iterN2Max v0' v1' v2' v3' u0_s r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1
+  let r2 := iterN2Call v0' v1' v2' v3' u2S u3S u4_s (0 : Word) (0 : Word)
+  let r1 := iterN2Max v0' v1' v2' v3' u1S r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1
+  let r0 := iterN2Max v0' v1' v2' v3' u0S r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1
   let c3_0 := (mulsubN4 (signExtend12 4095 : Word) v0' v1' v2' v3'
-    u0_s r1.2.1 r1.2.2.1 r1.2.2.2.1).2.2.2.2
+    u0S r1.2.1 r1.2.2.1 r1.2.2.2.1).2.2.2.2
   have hA := evm_div_n2_preloop_loop_unified_spec true false false sp base
     a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11_old
     q0 q1 q2 q3 u0_old u1_old u2_old u3_old u4_old u5 u6 u7 n_mem shift_mem j_mem
@@ -540,7 +540,7 @@ theorem evm_div_n2_full_TFF_spec (sp base : Word)
      (sp + signExtend12 3968 ↦ₘ (base + 516)) **
      (sp + signExtend12 3960 ↦ₘ v1') **
      (sp + signExtend12 3952 ↦ₘ div128DLo v1') **
-     (sp + signExtend12 3944 ↦ₘ div128Un0 u3_s))
+     (sp + signExtend12 3944 ↦ₘ div128Un0 u3S))
     (by pcFree) hB
   have hFull := cpsTriple_seq_perm_same_cr
     (fun h hp => by
@@ -570,14 +570,14 @@ def fullDivN2_TFT_Post (sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Assertion :=
   let v1' := (b1 <<< (shift.toNat % 64)) ||| (b0 >>> (anti_shift.toNat % 64))
   let v2' := (b2 <<< (shift.toNat % 64)) ||| (b1 >>> (anti_shift.toNat % 64))
   let v3' := (b3 <<< (shift.toNat % 64)) ||| (b2 >>> (anti_shift.toNat % 64))
-  let u0_s := a0 <<< (shift.toNat % 64)
-  let u1_s := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (anti_shift.toNat % 64))
-  let u2_s := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (anti_shift.toNat % 64))
-  let u3_s := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (anti_shift.toNat % 64))
+  let u0S := a0 <<< (shift.toNat % 64)
+  let u1S := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (anti_shift.toNat % 64))
+  let u2S := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (anti_shift.toNat % 64))
+  let u3S := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (anti_shift.toNat % 64))
   let u4_s := a3 >>> (anti_shift.toNat % 64)
-  let r2 := iterN2Call v0' v1' v2' v3' u2_s u3_s u4_s (0 : Word) (0 : Word)
-  let r1 := iterN2Max v0' v1' v2' v3' u1_s r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1
-  let r0 := iterN2Call v0' v1' v2' v3' u0_s r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1
+  let r2 := iterN2Call v0' v1' v2' v3' u2S u3S u4_s (0 : Word) (0 : Word)
+  let r1 := iterN2Max v0' v1' v2' v3' u1S r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1
+  let r0 := iterN2Call v0' v1' v2' v3' u0S r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1
   denormDivPost sp shift r0.2.1 r0.2.2.1 r0.2.2.2.1 r0.2.2.2.2.1 r0.1 r1.1 r2.1 (0 : Word) **
   ((sp + signExtend12 3992) ↦ₘ shift) **
   ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
@@ -638,16 +638,16 @@ theorem evm_div_n2_full_TFT_spec (sp base : Word)
   let v1' := (b1 <<< (shift.toNat % 64)) ||| (b0 >>> (anti_shift.toNat % 64))
   let v2' := (b2 <<< (shift.toNat % 64)) ||| (b1 >>> (anti_shift.toNat % 64))
   let v3' := (b3 <<< (shift.toNat % 64)) ||| (b2 >>> (anti_shift.toNat % 64))
-  let u0_s := a0 <<< (shift.toNat % 64)
-  let u1_s := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (anti_shift.toNat % 64))
-  let u2_s := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (anti_shift.toNat % 64))
-  let u3_s := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (anti_shift.toNat % 64))
+  let u0S := a0 <<< (shift.toNat % 64)
+  let u1S := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (anti_shift.toNat % 64))
+  let u2S := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (anti_shift.toNat % 64))
+  let u3S := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (anti_shift.toNat % 64))
   let u4_s := a3 >>> (anti_shift.toNat % 64)
-  let r2 := iterN2Call v0' v1' v2' v3' u2_s u3_s u4_s (0 : Word) (0 : Word)
-  let r1 := iterN2Max v0' v1' v2' v3' u1_s r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1
-  let r0 := iterN2Call v0' v1' v2' v3' u0_s r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1
+  let r2 := iterN2Call v0' v1' v2' v3' u2S u3S u4_s (0 : Word) (0 : Word)
+  let r1 := iterN2Max v0' v1' v2' v3' u1S r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1
+  let r0 := iterN2Call v0' v1' v2' v3' u0S r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1
   let c3_0 := (mulsubN4 (div128Quot r1.2.2.1 r1.2.1 v1') v0' v1' v2' v3'
-    u0_s r1.2.1 r1.2.2.1 r1.2.2.2.1).2.2.2.2
+    u0S r1.2.1 r1.2.2.1 r1.2.2.2.1).2.2.2.2
   have hA := evm_div_n2_preloop_loop_unified_spec true false true sp base
     a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11_old
     q0 q1 q2 q3 u0_old u1_old u2_old u3_old u4_old u5 u6 u7 n_mem shift_mem j_mem
@@ -703,14 +703,14 @@ def fullDivN2_TTF_Post (sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Assertion :=
   let v1' := (b1 <<< (shift.toNat % 64)) ||| (b0 >>> (anti_shift.toNat % 64))
   let v2' := (b2 <<< (shift.toNat % 64)) ||| (b1 >>> (anti_shift.toNat % 64))
   let v3' := (b3 <<< (shift.toNat % 64)) ||| (b2 >>> (anti_shift.toNat % 64))
-  let u0_s := a0 <<< (shift.toNat % 64)
-  let u1_s := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (anti_shift.toNat % 64))
-  let u2_s := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (anti_shift.toNat % 64))
-  let u3_s := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (anti_shift.toNat % 64))
+  let u0S := a0 <<< (shift.toNat % 64)
+  let u1S := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (anti_shift.toNat % 64))
+  let u2S := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (anti_shift.toNat % 64))
+  let u3S := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (anti_shift.toNat % 64))
   let u4_s := a3 >>> (anti_shift.toNat % 64)
-  let r2 := iterN2Call v0' v1' v2' v3' u2_s u3_s u4_s (0 : Word) (0 : Word)
-  let r1 := iterN2Call v0' v1' v2' v3' u1_s r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1
-  let r0 := iterN2Max v0' v1' v2' v3' u0_s r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1
+  let r2 := iterN2Call v0' v1' v2' v3' u2S u3S u4_s (0 : Word) (0 : Word)
+  let r1 := iterN2Call v0' v1' v2' v3' u1S r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1
+  let r0 := iterN2Max v0' v1' v2' v3' u0S r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1
   denormDivPost sp shift r0.2.1 r0.2.2.1 r0.2.2.2.1 r0.2.2.2.2.1 r0.1 r1.1 r2.1 (0 : Word) **
   ((sp + signExtend12 3992) ↦ₘ shift) **
   ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
@@ -771,16 +771,16 @@ theorem evm_div_n2_full_TTF_spec (sp base : Word)
   let v1' := (b1 <<< (shift.toNat % 64)) ||| (b0 >>> (anti_shift.toNat % 64))
   let v2' := (b2 <<< (shift.toNat % 64)) ||| (b1 >>> (anti_shift.toNat % 64))
   let v3' := (b3 <<< (shift.toNat % 64)) ||| (b2 >>> (anti_shift.toNat % 64))
-  let u0_s := a0 <<< (shift.toNat % 64)
-  let u1_s := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (anti_shift.toNat % 64))
-  let u2_s := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (anti_shift.toNat % 64))
-  let u3_s := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (anti_shift.toNat % 64))
+  let u0S := a0 <<< (shift.toNat % 64)
+  let u1S := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (anti_shift.toNat % 64))
+  let u2S := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (anti_shift.toNat % 64))
+  let u3S := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (anti_shift.toNat % 64))
   let u4_s := a3 >>> (anti_shift.toNat % 64)
-  let r2 := iterN2Call v0' v1' v2' v3' u2_s u3_s u4_s (0 : Word) (0 : Word)
-  let r1 := iterN2Call v0' v1' v2' v3' u1_s r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1
-  let r0 := iterN2Max v0' v1' v2' v3' u0_s r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1
+  let r2 := iterN2Call v0' v1' v2' v3' u2S u3S u4_s (0 : Word) (0 : Word)
+  let r1 := iterN2Call v0' v1' v2' v3' u1S r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1
+  let r0 := iterN2Max v0' v1' v2' v3' u0S r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1
   let c3_0 := (mulsubN4 (signExtend12 4095 : Word) v0' v1' v2' v3'
-    u0_s r1.2.1 r1.2.2.1 r1.2.2.2.1).2.2.2.2
+    u0S r1.2.1 r1.2.2.1 r1.2.2.2.1).2.2.2.2
   have hA := evm_div_n2_preloop_loop_unified_spec true true false sp base
     a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11_old
     q0 q1 q2 q3 u0_old u1_old u2_old u3_old u4_old u5 u6 u7 n_mem shift_mem j_mem
@@ -836,14 +836,14 @@ def fullDivN2_TTT_Post (sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Assertion :=
   let v1' := (b1 <<< (shift.toNat % 64)) ||| (b0 >>> (anti_shift.toNat % 64))
   let v2' := (b2 <<< (shift.toNat % 64)) ||| (b1 >>> (anti_shift.toNat % 64))
   let v3' := (b3 <<< (shift.toNat % 64)) ||| (b2 >>> (anti_shift.toNat % 64))
-  let u0_s := a0 <<< (shift.toNat % 64)
-  let u1_s := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (anti_shift.toNat % 64))
-  let u2_s := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (anti_shift.toNat % 64))
-  let u3_s := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (anti_shift.toNat % 64))
+  let u0S := a0 <<< (shift.toNat % 64)
+  let u1S := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (anti_shift.toNat % 64))
+  let u2S := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (anti_shift.toNat % 64))
+  let u3S := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (anti_shift.toNat % 64))
   let u4_s := a3 >>> (anti_shift.toNat % 64)
-  let r2 := iterN2Call v0' v1' v2' v3' u2_s u3_s u4_s (0 : Word) (0 : Word)
-  let r1 := iterN2Call v0' v1' v2' v3' u1_s r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1
-  let r0 := iterN2Call v0' v1' v2' v3' u0_s r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1
+  let r2 := iterN2Call v0' v1' v2' v3' u2S u3S u4_s (0 : Word) (0 : Word)
+  let r1 := iterN2Call v0' v1' v2' v3' u1S r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1
+  let r0 := iterN2Call v0' v1' v2' v3' u0S r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1
   denormDivPost sp shift r0.2.1 r0.2.2.1 r0.2.2.2.1 r0.2.2.2.2.1 r0.1 r1.1 r2.1 (0 : Word) **
   ((sp + signExtend12 3992) ↦ₘ shift) **
   ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
@@ -904,16 +904,16 @@ theorem evm_div_n2_full_TTT_spec (sp base : Word)
   let v1' := (b1 <<< (shift.toNat % 64)) ||| (b0 >>> (anti_shift.toNat % 64))
   let v2' := (b2 <<< (shift.toNat % 64)) ||| (b1 >>> (anti_shift.toNat % 64))
   let v3' := (b3 <<< (shift.toNat % 64)) ||| (b2 >>> (anti_shift.toNat % 64))
-  let u0_s := a0 <<< (shift.toNat % 64)
-  let u1_s := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (anti_shift.toNat % 64))
-  let u2_s := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (anti_shift.toNat % 64))
-  let u3_s := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (anti_shift.toNat % 64))
+  let u0S := a0 <<< (shift.toNat % 64)
+  let u1S := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (anti_shift.toNat % 64))
+  let u2S := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (anti_shift.toNat % 64))
+  let u3S := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (anti_shift.toNat % 64))
   let u4_s := a3 >>> (anti_shift.toNat % 64)
-  let r2 := iterN2Call v0' v1' v2' v3' u2_s u3_s u4_s (0 : Word) (0 : Word)
-  let r1 := iterN2Call v0' v1' v2' v3' u1_s r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1
-  let r0 := iterN2Call v0' v1' v2' v3' u0_s r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1
+  let r2 := iterN2Call v0' v1' v2' v3' u2S u3S u4_s (0 : Word) (0 : Word)
+  let r1 := iterN2Call v0' v1' v2' v3' u1S r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1
+  let r0 := iterN2Call v0' v1' v2' v3' u0S r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1
   let c3_0 := (mulsubN4 (div128Quot r1.2.2.1 r1.2.1 v1') v0' v1' v2' v3'
-    u0_s r1.2.1 r1.2.2.1 r1.2.2.2.1).2.2.2.2
+    u0S r1.2.1 r1.2.2.1 r1.2.2.2.1).2.2.2.2
   have hA := evm_div_n2_preloop_loop_unified_spec true true true sp base
     a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11_old
     q0 q1 q2 q3 u0_old u1_old u2_old u3_old u4_old u5 u6 u7 n_mem shift_mem j_mem

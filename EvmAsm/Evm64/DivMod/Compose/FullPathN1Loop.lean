@@ -77,9 +77,9 @@ theorem n1_qa3 (sp : Word) :
 
 /-- Specialize `loopExitPostN1` at `j=0`: all u_base/q_addr offsets become
     flat `sp + signExtend12 K` addresses. Uses the shared u_base_off*_j0 lemmas. -/
-theorem loopExitPostN1_j0_eq (sp q_f c3 un0_f un1_f un2_f un3_f u4_f
+theorem loopExitPostN1_j0_eq (sp q_f c3 un0_f un1_f un2_f un3_f u4F
     v0 v1 v2 v3 : Word) :
-    loopExitPostN1 sp (0 : Word) q_f c3 un0_f un1_f un2_f un3_f u4_f v0 v1 v2 v3 =
+    loopExitPostN1 sp (0 : Word) q_f c3 un0_f un1_f un2_f un3_f u4F v0 v1 v2 v3 =
     ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ signExtend12 4095) **
      (.x5 ↦ᵣ (0 : Word)) ** (.x6 ↦ᵣ sp + signExtend12 4056) **
      (.x7 ↦ᵣ sp + signExtend12 4088) ** (.x10 ↦ᵣ c3) ** (.x11 ↦ᵣ q_f) **
@@ -89,7 +89,7 @@ theorem loopExitPostN1_j0_eq (sp q_f c3 un0_f un1_f un2_f un3_f u4_f
      ((sp + signExtend12 40) ↦ₘ v1) ** ((sp + signExtend12 4048) ↦ₘ un1_f) **
      ((sp + signExtend12 48) ↦ₘ v2) ** ((sp + signExtend12 4040) ↦ₘ un2_f) **
      ((sp + signExtend12 56) ↦ₘ v3) ** ((sp + signExtend12 4032) ↦ₘ un3_f) **
-     ((sp + signExtend12 4024) ↦ₘ u4_f) **
+     ((sp + signExtend12 4024) ↦ₘ u4F) **
      ((sp + signExtend12 4088) ↦ₘ q_f)) := by
   simp only [loopExitPost_unfold]
   rw [u_base_off0_j0, u_base_off4088_j0, u_base_off4080_j0,

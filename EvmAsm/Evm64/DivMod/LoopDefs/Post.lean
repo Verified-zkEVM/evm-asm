@@ -24,14 +24,14 @@ open EvmAsm.Rv64
 -- ============================================================================
 -- Loop exit postcondition for n
 -- Common assertion shape for both cpsBranch exits (taken/ntaken).
--- Parameterized by the final output values (un0_f..un3_f, u4_f, q_f, c3).
+-- Parameterized by the final output values (un0_f..un3_f, u4F, q_f, c3).
 -- ============================================================================
 
 /-- Loop exit postcondition for n. Both taken (loop-back) and ntaken (exit)
     paths produce this same assertion shape, differing only in the output values.
     Encapsulates u_base/j'/q_addr address computation + 21-atom assertion chain. -/
 @[irreducible]
-def loopExitPost (n : Word) (sp j q_f c3 un0_f un1_f un2_f un3_f u4_f
+def loopExitPost (n : Word) (sp j q_f c3 un0_f un1_f un2_f un3_f u4F
     v0 v1 v2 v3 : Word) : Assertion :=
   let u_base := sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat
   let j' := j + signExtend12 4095
@@ -45,12 +45,12 @@ def loopExitPost (n : Word) (sp j q_f c3 un0_f un1_f un2_f un3_f u4_f
   ((sp + signExtend12 40) ↦ₘ v1) ** ((u_base + signExtend12 4088) ↦ₘ un1_f) **
   ((sp + signExtend12 48) ↦ₘ v2) ** ((u_base + signExtend12 4080) ↦ₘ un2_f) **
   ((sp + signExtend12 56) ↦ₘ v3) ** ((u_base + signExtend12 4072) ↦ₘ un3_f) **
-  ((u_base + signExtend12 4064) ↦ₘ u4_f) **
+  ((u_base + signExtend12 4064) ↦ₘ u4F) **
   (q_addr ↦ₘ q_f)
 
-theorem loopExitPost_unfold (n: Word) (sp j q_f c3 un0_f un1_f un2_f un3_f u4_f
+theorem loopExitPost_unfold (n: Word) (sp j q_f c3 un0_f un1_f un2_f un3_f u4F
     v0 v1 v2 v3 : Word) :
-    loopExitPost n sp j q_f c3 un0_f un1_f un2_f un3_f u4_f v0 v1 v2 v3 =
+    loopExitPost n sp j q_f c3 un0_f un1_f un2_f un3_f u4F v0 v1 v2 v3 =
     let u_base := sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat
     let j' := j + signExtend12 4095
     let q_addr := sp + signExtend12 4088 - j <<< (3 : BitVec 6).toNat
@@ -63,7 +63,7 @@ theorem loopExitPost_unfold (n: Word) (sp j q_f c3 un0_f un1_f un2_f un3_f u4_f
     ((sp + signExtend12 40) ↦ₘ v1) ** ((u_base + signExtend12 4088) ↦ₘ un1_f) **
     ((sp + signExtend12 48) ↦ₘ v2) ** ((u_base + signExtend12 4080) ↦ₘ un2_f) **
     ((sp + signExtend12 56) ↦ₘ v3) ** ((u_base + signExtend12 4072) ↦ₘ un3_f) **
-    ((u_base + signExtend12 4064) ↦ₘ u4_f) **
+    ((u_base + signExtend12 4064) ↦ₘ u4F) **
     (q_addr ↦ₘ q_f) := by
   delta loopExitPost; rfl
 

@@ -445,7 +445,7 @@ instance (sp : Word) (a b : EvmWord) :
 theorem div_n4_max_skip_stack_weaken
     (sp : Word) (a b : EvmWord)
     (v1_p v2_p v5_p v6_p v7_p v10_p v11_p : Word)
-    (q0_p q1_p q2_p q3_p u0_p u1_p u2_p u3_p u4_p u5_p u6_p u7_p
+    (q0_p q1_p q2_p q3_p u0P u1P u2P u3P u4_p u5_p u6_p u7_p
      shift_p n_p j_p : Word) :
     ∀ h,
       ((.x12 ↦ᵣ (sp + 32)) **
@@ -454,7 +454,7 @@ theorem div_n4_max_skip_stack_weaken
        (.x10 ↦ᵣ v10_p) ** (.x11 ↦ᵣ v11_p) **
        (.x0 ↦ᵣ (0 : Word)) **
        evmWordIs sp a ** evmWordIs (sp + 32) (EvmWord.div a b) **
-       divScratchValues sp q0_p q1_p q2_p q3_p u0_p u1_p u2_p u3_p u4_p
+       divScratchValues sp q0_p q1_p q2_p q3_p u0P u1P u2P u3P u4_p
          u5_p u6_p u7_p shift_p n_p j_p) h →
       divN4MaxSkipStackPost sp a b h := by
   intro h hp
@@ -465,7 +465,7 @@ theorem div_n4_max_skip_stack_weaken
   apply sepConj_mono_right
   apply sepConj_mono_right
   exact divScratchValues_implies_divScratchOwn
-    sp q0_p q1_p q2_p q3_p u0_p u1_p u2_p u3_p u4_p u5_p u6_p u7_p
+    sp q0_p q1_p q2_p q3_p u0P u1P u2P u3P u4_p u5_p u6_p u7_p
     shift_p n_p j_p
 
 /-- MOD counterpart of `divN4MaxSkipStackPost`: same structure, same register
@@ -643,7 +643,7 @@ instance (sp : Word) (a b : EvmWord) :
 theorem mod_n4_max_skip_stack_weaken
     (sp : Word) (a b : EvmWord)
     (v1_p v2_p v5_p v6_p v7_p v10_p v11_p : Word)
-    (q0_p q1_p q2_p q3_p u0_p u1_p u2_p u3_p u4_p u5_p u6_p u7_p
+    (q0_p q1_p q2_p q3_p u0P u1P u2P u3P u4_p u5_p u6_p u7_p
      shift_p n_p j_p : Word) :
     ∀ h,
       ((.x12 ↦ᵣ (sp + 32)) **
@@ -652,7 +652,7 @@ theorem mod_n4_max_skip_stack_weaken
        (.x10 ↦ᵣ v10_p) ** (.x11 ↦ᵣ v11_p) **
        (.x0 ↦ᵣ (0 : Word)) **
        evmWordIs sp a ** evmWordIs (sp + 32) (EvmWord.mod a b) **
-       divScratchValues sp q0_p q1_p q2_p q3_p u0_p u1_p u2_p u3_p u4_p
+       divScratchValues sp q0_p q1_p q2_p q3_p u0P u1P u2P u3P u4_p
          u5_p u6_p u7_p shift_p n_p j_p) h →
       modN4MaxSkipStackPost sp a b h := by
   intro h hp
@@ -663,7 +663,7 @@ theorem mod_n4_max_skip_stack_weaken
   apply sepConj_mono_right
   apply sepConj_mono_right
   exact divScratchValues_implies_divScratchOwn
-    sp q0_p q1_p q2_p q3_p u0_p u1_p u2_p u3_p u4_p u5_p u6_p u7_p
+    sp q0_p q1_p q2_p q3_p u0P u1P u2P u3P u4_p u5_p u6_p u7_p
     shift_p n_p j_p
 
 /-- EvmWord-level wrapper around `evm_div_n4_full_max_skip_spec`. Same
