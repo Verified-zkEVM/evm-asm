@@ -137,7 +137,7 @@ theorem rlp_phase1_step_spec (v5 v10 : Word)
       (fun h hp => by xperm_hyp hp)
       (fun h hp => by xperm_hyp hp)
       (cpsBranch_frameR (.x0 ↦ᵣ (0 : Word)) (by pcFree) s2_raw)
-  exact cpsTriple_seq_cpsBranch_with_perm _ _ _ _ hd _ _ _ target _ (base + 8) _
+  exact cpsTriple_seq_cpsBranch_with_perm hd
     (fun _ hp => hp) s1' s2'
 
 /-- Plain variant of `rlp_phase1_step_spec`: drops the `⌜…⌝` dispatch facts,

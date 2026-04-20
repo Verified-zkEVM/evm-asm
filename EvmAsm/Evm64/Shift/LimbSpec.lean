@@ -391,7 +391,7 @@ theorem shr_cascade_step_spec (v5 v10 : Word)
             (fun h' hp' => ((sepConj_pure_right _ (v5 ≠ (0 : Word) + signExtend12 k) h').1 hp').1) h hp)
           s2_raw))
   -- Compose with disjoint CRs
-  exact cpsTriple_seq_cpsBranch_with_perm _ _ _ _ hd _ _ _ target _ (base + 8) _
+  exact cpsTriple_seq_cpsBranch_with_perm hd
     (fun _ hp => hp) s1' s2'
 
 /-- Cascade step variant that preserves pure dispatch facts.
@@ -430,7 +430,7 @@ theorem shr_cascade_step_spec_pure (v5 v10 : Word)
       (fun h hp => by xperm_hyp hp)
       (fun h hp => by xperm_hyp hp)
       (cpsBranch_frameR (.x0 ↦ᵣ (0 : Word)) (by pcFree) s2_raw)
-  exact cpsTriple_seq_cpsBranch_with_perm _ _ _ _ hd _ _ _ target _ (base + 8) _
+  exact cpsTriple_seq_cpsBranch_with_perm hd
     (fun _ hp => hp) s1' s2'
 
 -- ============================================================================
@@ -824,8 +824,7 @@ theorem shr_phase_a_spec (sp r5 r10 : Word)
         (CodeReq.Disjoint.singleton (by bv_omega) _ _)
         (CodeReq.Disjoint.singleton (by bv_omega) _ _))
   -- Compose linear chain + BNE branch
-  have br1 := cpsTriple_seq_cpsBranch_with_perm base (base + 20) crLinear crBne hd_lin_bne
-    _ _ _ zero_path _ (base + 24) _
+  have br1 := cpsTriple_seq_cpsBranch_with_perm hd_lin_bne
     (fun h hp => by xperm_hyp hp) c13 bne1f
   -- BR1 CR: crLinear ∪ crBne
   -- ── Part 3: Fall-through path (base+24..base+32): LD + SLTIU + BEQ ──
@@ -873,9 +872,7 @@ theorem shr_phase_a_spec (sp r5 r10 : Word)
       (CodeReq.Disjoint.singleton (by bv_omega) _ _)
       (CodeReq.Disjoint.singleton (by bv_omega) _ _)
   -- Compose LD+SLTIU chain with BEQ branch
-  have br2 := cpsTriple_seq_cpsBranch_with_perm (base + 24) (base + 32)
-    (crLd5.union crSltiu) crBeq hd_56_beq
-    _ _ _ zero_path _ (base + 36) _
+  have br2 := cpsTriple_seq_cpsBranch_with_perm hd_56_beq
     (fun h hp => by xperm_hyp hp) c56 beq1f
   -- BR2 CR: (crLd5 ∪ crSltiu) ∪ crBeq
   let crTail := (crLd5.union crSltiu).union crBeq

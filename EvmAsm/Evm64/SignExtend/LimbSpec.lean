@@ -290,7 +290,7 @@ theorem signext_cascade_step_spec (v5 v10 : Word)
           (fun h hp => sepConj_mono_right
             (fun h' hp' => ((sepConj_pure_right _ (v5 ≠ (0 : Word) + signExtend12 k) h').1 hp').1) h hp)
           s2_raw))
-  exact cpsTriple_seq_cpsBranch_with_perm _ _ _ _ hd _ _ _ target _ (base + 8) _
+  exact cpsTriple_seq_cpsBranch_with_perm hd
     (fun _ hp => hp) s1' s2'
 
 -- ============================================================================
@@ -415,8 +415,7 @@ theorem signext_phase_a_spec (sp r5 r10 : Word)
       (CodeReq.Disjoint.union_left
         (CodeReq.Disjoint.singleton (by bv_omega) _ _)
         (CodeReq.Disjoint.singleton (by bv_omega) _ _))
-  have br1 := cpsTriple_seq_cpsBranch_with_perm base (base + 20) crLinear crBne hd_lin_bne
-    _ _ _ done_path _ (base + 24) _
+  have br1 := cpsTriple_seq_cpsBranch_with_perm hd_lin_bne
     (fun h hp => by xperm_hyp hp) c13 bne1f
   -- ── Part 3: Fall-through path (base+24..base+32): LD + SLTIU + BEQ ──
   have lw5 := ld_spec_gen .x5 .x12 sp
@@ -455,9 +454,7 @@ theorem signext_phase_a_spec (sp r5 r10 : Word)
     CodeReq.Disjoint.union_left
       (CodeReq.Disjoint.singleton (by bv_omega) _ _)
       (CodeReq.Disjoint.singleton (by bv_omega) _ _)
-  have br2 := cpsTriple_seq_cpsBranch_with_perm (base + 24) (base + 32)
-    (crLd5.union crSltiu) crBeq hd_56_beq
-    _ _ _ done_path _ (base + 36) _
+  have br2 := cpsTriple_seq_cpsBranch_with_perm hd_56_beq
     (fun h hp => by xperm_hyp hp) c56 beq1f
   let crTail := (crLd5.union crSltiu).union crBeq
   -- ── Part 4: Combine br1 and br2 ──
@@ -707,7 +704,7 @@ theorem signext_cascade_step_spec_pure (v5 v10 : Word)
       (fun h hp => by xperm_hyp hp)
       (fun h hp => by xperm_hyp hp)
       (cpsBranch_frameR (.x0 ↦ᵣ (0 : Word)) (by pcFree) s2_raw)
-  exact cpsTriple_seq_cpsBranch_with_perm _ _ _ _ hd _ _ _ target _ (base + 8) _
+  exact cpsTriple_seq_cpsBranch_with_perm hd
     (fun _ hp => hp) s1' s2'
 
 -- ============================================================================

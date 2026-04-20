@@ -737,9 +737,9 @@ theorem cpsTriple_seq_cpsBranch {entry mid : Word} {cr1 cr2 : CodeReq}
   exact ⟨k1 + k2, s2, stepN_add_eq k1 k2 s s1 s2 hstep1 hstep2, hbranch⟩
 
 /-- Sequential composition with permutation: cpsTriple followed by cpsBranch. -/
-theorem cpsTriple_seq_cpsBranch_with_perm (entry mid : Word) (cr1 cr2 : CodeReq)
+theorem cpsTriple_seq_cpsBranch_with_perm {entry mid : Word} {cr1 cr2 : CodeReq}
     (hd : cr1.Disjoint cr2)
-    (P Q1 Q2 : Assertion) (exit_t : Word) (Q_t : Assertion) (exit_f : Word) (Q_f : Assertion)
+    {P Q1 Q2 : Assertion} {exit_t : Word} {Q_t : Assertion} {exit_f : Word} {Q_f : Assertion}
     (hperm : ∀ h, Q1 h → Q2 h)
     (h1 : cpsTriple entry mid cr1 P Q1)
     (h2 : cpsBranch mid cr2 Q2 exit_t Q_t exit_f Q_f) :
