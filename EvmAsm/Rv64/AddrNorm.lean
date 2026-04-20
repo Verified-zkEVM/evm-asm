@@ -137,11 +137,17 @@ theorem word_add_zero (x : Word) : x + (0 : Word) = x := BitVec.add_zero x
 @[rv64_addr, grind =] theorem se12_8  : signExtend12 (8  : BitVec 12) = (8  : Word) := by decide
 @[rv64_addr, grind =] theorem se12_12 : signExtend12 (12 : BitVec 12) = (12 : Word) := by decide
 @[rv64_addr, grind =] theorem se12_16 : signExtend12 (16 : BitVec 12) = (16 : Word) := by decide
+@[rv64_addr, grind =] theorem se12_20 : signExtend12 (20 : BitVec 12) = (20 : Word) := by decide
 @[rv64_addr, grind =] theorem se12_24 : signExtend12 (24 : BitVec 12) = (24 : Word) := by decide
+@[rv64_addr, grind =] theorem se12_28 : signExtend12 (28 : BitVec 12) = (28 : Word) := by decide
 @[rv64_addr, grind =] theorem se12_32 : signExtend12 (32 : BitVec 12) = (32 : Word) := by decide
+@[rv64_addr, grind =] theorem se12_36 : signExtend12 (36 : BitVec 12) = (36 : Word) := by decide
 @[rv64_addr, grind =] theorem se12_40 : signExtend12 (40 : BitVec 12) = (40 : Word) := by decide
+@[rv64_addr, grind =] theorem se12_44 : signExtend12 (44 : BitVec 12) = (44 : Word) := by decide
 @[rv64_addr, grind =] theorem se12_48 : signExtend12 (48 : BitVec 12) = (48 : Word) := by decide
+@[rv64_addr, grind =] theorem se12_52 : signExtend12 (52 : BitVec 12) = (52 : Word) := by decide
 @[rv64_addr, grind =] theorem se12_56 : signExtend12 (56 : BitVec 12) = (56 : Word) := by decide
+@[rv64_addr, grind =] theorem se12_60 : signExtend12 (60 : BitVec 12) = (60 : Word) := by decide
 
 -- Large offsets (≥ 2^11): result = 2^64 + offset - 2^12
 @[rv64_addr, grind =] theorem se12_3944 : signExtend12 (3944 : BitVec 12) = (18446744073709551464 : Word) := by decide
