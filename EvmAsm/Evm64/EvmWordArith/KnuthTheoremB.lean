@@ -27,9 +27,12 @@
     `q_r ≤ u_nat / v_nat + 2` (call-trial regime). Composed from the above.
   - `val256_split_top_limb` — Word→Nat bridge exposing `h_v_split`/`h_v_rest`
     for concrete 4-limb val256 values (feeds abstract Knuth B).
+  - `b3_prime_ge_pow63` — normalized divisor top limb `b3'` is ≥ 2^63
+    (directly feeds abstract Knuth B's `h_v_norm`).
 -/
 
 import EvmAsm.Evm64.EvmWordArith.DivN4Overestimate
+import EvmAsm.Evm64.EvmWordArith.MaxTrialVacuity
 
 namespace EvmAsm.Evm64
 
@@ -264,5 +267,22 @@ theorem val256_split_top_limb (b0 b1 b2 b3 : Word) :
     -- b_i < 2^64, so b0 + b1*2^64 + b2*2^128 ≤ 2^192 - 1 < 2^192
     nlinarith
   · unfold val256; ring
+
+/-- The normalized divisor top limb `b3' = (b3 << shift) ||| (b2 >> antiShift)`
+    satisfies `b3'.toNat ≥ 2^63`.
+
+    Directly feeds the `h_v_norm` hypothesis of the abstract Knuth B theorems.
+    Combines `b3_shifted_ge_pow63` with OR-monotonicity (`Nat.left_le_or`). -/
+theorem b3_prime_ge_pow63 (b3 b2 : Word) (hb3nz : b3 ≠ 0)
+    (antiShift : Word) :
+    ((b3 <<< ((clzResult b3).1.toNat % 64)) |||
+      (b2 >>> (antiShift.toNat % 64))).toNat ≥ 2^63 := by
+  have h_b3_shifted := b3_shifted_ge_pow63 b3 hb3nz
+  have h_or_ge :
+      ((b3 <<< ((clzResult b3).1.toNat % 64)) |||
+        (b2 >>> (antiShift.toNat % 64))).toNat ≥
+      (b3 <<< ((clzResult b3).1.toNat % 64)).toNat := by
+    rw [BitVec.toNat_or]; exact Nat.left_le_or
+  exact le_trans h_b3_shifted h_or_ge
 
 end EvmAsm.Evm64
