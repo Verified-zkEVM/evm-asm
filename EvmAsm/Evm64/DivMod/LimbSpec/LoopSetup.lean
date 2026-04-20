@@ -101,12 +101,11 @@ theorem divK_loopSetup_spec (sp n v1 v5 : Word)
       exact CodeReq.ofProg_lookup base (divK_loopSetup bltOff) 3
         (by omega) (by omega)
     · simp at h) hblt_framed
-  have composed := cpsTriple_seq_cpsBranch_perm_same_cr
-    (fun h hp => by xperm_hyp hp) hbody hblt_ext
   exact cpsBranch_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hp => by xperm_hyp hp)
     (fun h hp => by xperm_hyp hp)
-    composed
+    (cpsTriple_seq_cpsBranch_perm_same_cr
+      (fun h hp => by xperm_hyp hp) hbody hblt_ext)
 
 end EvmAsm.Evm64

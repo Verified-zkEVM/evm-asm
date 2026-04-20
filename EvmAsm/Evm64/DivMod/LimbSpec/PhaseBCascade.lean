@@ -87,13 +87,12 @@ theorem divK_phaseB_cascade_step_spec (nVal : BitVec 12) (rx : Reg) (check v5 : 
       have h0 : ¬(base + 4 = base) := by bv_omega
       simp only [beq_iff_eq, h0, ↓reduceIte]
     · simp at h) hbne_framed
-  -- 5. Compose
-  have composed := cpsTriple_seq_cpsBranch_perm_same_cr
-    (fun h hp => by xperm_hyp hp) hbody hbne_ext
+  -- 5. Compose and clean up postconditions
   exact cpsBranch_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hp => by xperm_hyp hp)
     (fun h hp => by xperm_hyp hp)
-    composed
+    (cpsTriple_seq_cpsBranch_perm_same_cr
+      (fun h hp => by xperm_hyp hp) hbody hbne_ext)
 
 end EvmAsm.Evm64

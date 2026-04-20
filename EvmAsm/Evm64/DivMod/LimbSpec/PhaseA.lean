@@ -104,14 +104,12 @@ theorem divK_phaseA_spec (sp : Word) (base : Word)
     exact CodeReq.ofProg_lookup base (divK_phaseA 1020) 7
       (by decide) (by decide)
     ) hbeq_framed
-  -- 5. Compose body → BEQ with permutation (same CR)
-  have composed := cpsTriple_seq_cpsBranch_perm_same_cr
-    (fun h hp => by xperm_hyp hp) hbody hbeq_ext
-  -- 6. Final permutation of postconditions
+  -- 5. Compose body → BEQ with permutation (same CR) and clean up postconditions
   exact cpsBranch_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hp => by xperm_hyp hp)
     (fun h hp => by xperm_hyp hp)
-    composed
+    (cpsTriple_seq_cpsBranch_perm_same_cr
+      (fun h hp => by xperm_hyp hp) hbody hbeq_ext)
 
 end EvmAsm.Evm64

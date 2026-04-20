@@ -104,12 +104,11 @@ theorem divK_phaseC2_spec (sp shift v2 shiftMem : Word)
       exact CodeReq.ofProg_lookup base (divK_phaseC2 shift0_off) 3
         (by omega) (by omega)
     · simp at h) hbeq_framed
-  have composed := cpsTriple_seq_cpsBranch_perm_same_cr
-    (fun h hp => by xperm_hyp hp) hbody hbeq_ext
   exact cpsBranch_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hp => by xperm_hyp hp)
     (fun h hp => by xperm_hyp hp)
-    composed
+    (cpsTriple_seq_cpsBranch_perm_same_cr
+      (fun h hp => by xperm_hyp hp) hbody hbeq_ext)
 
 end EvmAsm.Evm64
