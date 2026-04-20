@@ -530,8 +530,7 @@ private theorem shr_bridge_merge (value : EvmWord) (s0 : Word)
     exact Nat.and_two_pow_sub_one_eq_mod s0.toNat 6
   have hbs_lt : bs.toNat < 64 := by omega
   have hL_div : s0.toNat / 64 = L := by
-    have h6 := bv6_toNat_6
-    rw [← hL, h6]; simp [BitVec.toNat_ushiftRight]; omega
+    rw [← hL, bv6_toNat_6]; simp [BitVec.toNat_ushiftRight]; omega
   rw [getLimb_ushiftRight value s0.toNat i, hL_div,
       getLimbN_lt value (i.val + L) hiL,
       getLimbN_lt value (i.val + L + 1) hiL1]
@@ -565,8 +564,7 @@ private theorem shr_bridge_last (value : EvmWord) (s0 : Word)
     rw [BitVec.toNat_and, show (63 : BitVec 64).toNat = 63 from by decide]
     exact Nat.and_two_pow_sub_one_eq_mod s0.toNat 6
   have hL_div : s0.toNat / 64 = L := by
-    have h6 := bv6_toNat_6
-    rw [← hL, h6]; simp [BitVec.toNat_ushiftRight]; omega
+    rw [← hL, bv6_toNat_6]; simp [BitVec.toNat_ushiftRight]; omega
   rw [getLimb_ushiftRight value s0.toNat i, hL_div, hiL,
       getLimbN_lt value 3 (by omega), getLimbN_ge value 4 (by omega)]
   simp [show bs.toNat % 64 = s0.toNat % 64 from by omega]
@@ -581,8 +579,7 @@ private theorem shr_bridge_zero (value : EvmWord) (s0 : Word)
     getLimb result i = 0 := by
   rw [hresult]
   have hL_div : s0.toNat / 64 = L := by
-    have h6 := bv6_toNat_6
-    rw [← hL, h6]; simp [BitVec.toNat_ushiftRight]; omega
+    rw [← hL, bv6_toNat_6]; simp [BitVec.toNat_ushiftRight]; omega
   rw [getLimb_ushiftRight value s0.toNat i, hL_div,
       getLimbN_ge value (i.val + L) (by omega),
       getLimbN_ge value (i.val + L + 1) (by omega)]
@@ -871,10 +868,9 @@ theorem evm_shr_body_evmWord_spec (sp base : Word)
         show value >>> shift.toNat = value >>> s0.toNat; congr 1
       have hL : (s0 >>> (6 : BitVec 6).toNat).toNat = 3 := by
         obtain ⟨h0, h1, h2⟩ := hls
-        have h6 := bv6_toNat_6
         have hlt4 : limbShift.toNat < 4 := by
           show (s0 >>> (6 : BitVec 6).toNat).toNat < 4
-          rw [h6]; simp [BitVec.toNat_ushiftRight]; omega
+          rw [bv6_toNat_6]; simp [BitVec.toNat_ushiftRight]; omega
         have hn0 : limbShift.toNat ≠ 0 :=
           fun hc => h0 (BitVec.eq_of_toNat_eq (by simpa using hc))
         have hn1 : limbShift.toNat ≠ 1 :=
