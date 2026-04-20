@@ -226,9 +226,10 @@ theorem cpsBranch_merge (entry l_t l_f exit_ : Word) (cr1 cr_t cr_f : CodeReq)
     exact ⟨k1 + k2, s2, stepN_add_eq k1 k2 s s1 s2 hstep1 hstep2, hpc2, hR⟩
 
 /-- Like cpsBranch_merge but with the same CodeReq for all three specs.
-    No disjointness needed since code requirements are shared. -/
-theorem cpsBranch_merge_same_cr (entry l_t l_f exit_ : Word) (cr : CodeReq)
-    (P Q_t Q_f R : Assertion)
+    No disjointness needed since code requirements are shared.
+    All position/code/assertion arguments are implicit — inferred from `hbr`/`h_t`/`h_f`. -/
+theorem cpsBranch_merge_same_cr {entry l_t l_f exit_ : Word} {cr : CodeReq}
+    {P Q_t Q_f R : Assertion}
     (hbr   : cpsBranch entry cr P l_t Q_t l_f Q_f)
     (h_t   : cpsTriple l_t exit_ cr Q_t R)
     (h_f   : cpsTriple l_f exit_ cr Q_f R) :
