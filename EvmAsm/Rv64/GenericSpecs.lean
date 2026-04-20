@@ -589,15 +589,15 @@ theorem generic_jalr_spec (rd rs1 : Reg) (v1 v_old : Word) (offset : BitVec 12) 
 -- ============================================================================
 
 /-- Generic spec for LD: load doubleword from memory.
-    Pre:  (rs1 ↦ᵣ v_addr) ** (rd ↦ᵣ v_old) ** (addr ↦ₘ mem_val)
-    Post: (rs1 ↦ᵣ v_addr) ** (rd ↦ᵣ mem_val) ** (addr ↦ₘ mem_val)
+    Pre:  (rs1 ↦ᵣ v_addr) ** (rd ↦ᵣ v_old) ** (addr ↦ₘ memVal)
+    Post: (rs1 ↦ᵣ v_addr) ** (rd ↦ᵣ memVal) ** (addr ↦ₘ memVal)
     where addr = v_addr + signExtend12 offset -/
-theorem generic_ld_spec (rd rs1 : Reg) (v_addr v_old mem_val : Word)
+theorem generic_ld_spec (rd rs1 : Reg) (v_addr v_old memVal : Word)
     (offset : BitVec 12) (base : Word)
     (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple base (base + 4) (CodeReq.singleton base (.LD rd rs1 offset))
-      ((rs1 ↦ᵣ v_addr) ** (rd ↦ᵣ v_old) ** ((v_addr + signExtend12 offset) ↦ₘ mem_val))
-      ((rs1 ↦ᵣ v_addr) ** (rd ↦ᵣ mem_val) ** ((v_addr + signExtend12 offset) ↦ₘ mem_val)) := by
+      ((rs1 ↦ᵣ v_addr) ** (rd ↦ᵣ v_old) ** ((v_addr + signExtend12 offset) ↦ₘ memVal))
+      ((rs1 ↦ᵣ v_addr) ** (rd ↦ᵣ memVal) ** ((v_addr + signExtend12 offset) ↦ₘ memVal)) := by
   intro R hR s hcr hPR hpc; subst hpc
   have hfetch : s.code s.pc = some (.LD rd rs1 offset) :=
     (CodeReq.singleton_satisfiedBy s.pc (.LD rd rs1 offset) s).mp hcr
@@ -606,7 +606,7 @@ theorem generic_ld_spec (rd rs1 : Reg) (v_addr v_old mem_val : Word)
       (holdsFor_sepConj_elim_left hPR))
   have hmem_piece := holdsFor_sepConj_elim_right (holdsFor_sepConj_elim_right
     (holdsFor_sepConj_elim_left hPR))
-  have hmem : s.getMem (v_addr + signExtend12 offset) = mem_val :=
+  have hmem : s.getMem (v_addr + signExtend12 offset) = memVal :=
     holdsFor_memIs_getMem hmem_piece
   have hvalid : isValidDwordAccess (v_addr + signExtend12 offset) = true :=
     holdsFor_memIs_isValidDwordAccess hmem_piece
@@ -614,9 +614,9 @@ theorem generic_ld_spec (rd rs1 : Reg) (v_addr v_old mem_val : Word)
   have hstep' : step s = some (execInstrBr s (.LD rd rs1 offset)) :=
     step_ld s rd rs1 offset hfetch (hrs1 ▸ hvalid)
   -- execInstrBr s (.LD rd rs1 offset) = (s.setReg rd (s.getMem (s.getReg rs1 + signExtend12 offset))).setPC (s.pc + 4)
-  have hexec' : execInstrBr s (.LD rd rs1 offset) = (s.setReg rd mem_val).setPC (s.pc + 4) := by
+  have hexec' : execInstrBr s (.LD rd rs1 offset) = (s.setReg rd memVal).setPC (s.pc + 4) := by
     simp only [execInstrBr, hrs1, hmem]
-  refine ⟨1, (s.setReg rd mem_val).setPC (s.pc + 4), ?_, rfl, ?_⟩
+  refine ⟨1, (s.setReg rd memVal).setPC (s.pc + 4), ?_, rfl, ?_⟩
   · show (step s).bind (stepN 0) = some _
     rw [hstep', hexec']; rfl
   · -- Pull rd (position 2) to front: 1 pull_second + assoc
@@ -625,7 +625,7 @@ theorem generic_ld_spec (rd rs1 : Reg) (v_addr v_old mem_val : Word)
     -- Need to separate rd from mem first
     have h1a := holdsFor_sepConj_assoc.mp h1
     -- h1a : (rd ** (mem ** (rs1 ** R)))
-    have h2 := holdsFor_sepConj_regIs_setReg (v' := mem_val) hrd_ne_x0 h1a
+    have h2 := holdsFor_sepConj_regIs_setReg (v' := memVal) hrd_ne_x0 h1a
     have h3 := holdsFor_sepConj_assoc.mpr h2
     have h4 := holdsFor_sepConj_pull_second.mpr h3
     exact holdsFor_pcFree_setPC (pcFree_sepConj (by pcFree) hR) _ _ h4

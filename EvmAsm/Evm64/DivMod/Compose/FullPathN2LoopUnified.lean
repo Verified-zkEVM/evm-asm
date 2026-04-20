@@ -109,7 +109,7 @@ def preloopN2UnifiedPost (bltu_2 bltu_1 bltu_0 : Bool)
 private theorem evm_div_n2_loop_unified_inst
     (bltu_2 bltu_1 bltu_0 : Bool) (sp base : Word)
     (shift anti_shift v0' v1' v2' v3' u0_s u1_s u2_s u3_s u4_s : Word)
-    (v10_val v11_old j_mem : Word)
+    (v10_val v11_old jMem : Word)
     (ret_mem d_mem dlo_mem scratch_un0 : Word)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
     (hbltu_2 : bltu_2 = BitVec.ult u4_s v1')
@@ -124,7 +124,7 @@ private theorem evm_div_n2_loop_unified_inst
       v1')
     (hcarry2 : Carry2NzAll v0' v1' v2' v3') :
     cpsTriple (base + loopBodyOff) (base + denormOff) (divCode base)
-      (loopN2PreWithScratch sp j_mem (2 : Word) shift u0_s v10_val v11_old anti_shift
+      (loopN2PreWithScratch sp jMem (2 : Word) shift u0_s v10_val v11_old anti_shift
         v0' v1' v2' v3' u2_s u3_s u4_s (0 : Word) (0 : Word)
         u1_s u0_s (0 : Word) (0 : Word) (0 : Word)
         ret_mem d_mem dlo_mem scratch_un0)
@@ -132,7 +132,7 @@ private theorem evm_div_n2_loop_unified_inst
         v0' v1' v2' v3' u2_s u3_s u4_s (0 : Word) (0 : Word)
         u1_s u0_s ret_mem d_mem dlo_mem scratch_un0) :=
   divK_loop_n2_unified_divCode bltu_2 bltu_1 bltu_0
-    sp j_mem (2 : Word) shift u0_s v10_val v11_old anti_shift
+    sp jMem (2 : Word) shift u0_s v10_val v11_old anti_shift
     v0' v1' v2' v3' u2_s u3_s u4_s (0 : Word) (0 : Word)
     u1_s u0_s (0 : Word) (0 : Word) (0 : Word)
     ret_mem d_mem dlo_mem scratch_un0 base halign
@@ -153,7 +153,7 @@ private theorem evm_div_n2_loop_unified_inst
 theorem evm_div_n2_preloop_loop_unified_spec
     (bltu_2 bltu_1 bltu_0 : Bool) (sp base : Word)
     (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11_old : Word)
-    (q0 q1 q2 q3 u0_old u1_old u2_old u3_old u4_old u5 u6 u7 n_mem shift_mem j_mem : Word)
+    (q0 q1 q2 q3 u0_old u1_old u2_old u3_old u4_old u5 u6 u7 n_mem shiftMem jMem : Word)
     (ret_mem d_mem dlo_mem scratch_un0 : Word)
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
     (hb3z : b3 = 0) (hb2z : b2 = 0) (hb1nz : b1 ≠ 0)
@@ -182,8 +182,8 @@ theorem evm_div_n2_preloop_loop_unified_spec
        ((sp + signExtend12 4024) ↦ₘ u4_old) **
        ((sp + signExtend12 4016) ↦ₘ u5) ** ((sp + signExtend12 4008) ↦ₘ u6) **
        ((sp + signExtend12 4000) ↦ₘ u7) ** ((sp + signExtend12 3984) ↦ₘ n_mem) **
-       ((sp + signExtend12 3992) ↦ₘ shift_mem) **
-       ((sp + signExtend12 3976) ↦ₘ j_mem) **
+       ((sp + signExtend12 3992) ↦ₘ shiftMem) **
+       ((sp + signExtend12 3976) ↦ₘ jMem) **
        ((sp + signExtend12 3968) ↦ₘ ret_mem) **
        ((sp + signExtend12 3960) ↦ₘ d_mem) **
        ((sp + signExtend12 3952) ↦ₘ dlo_mem) **
@@ -193,13 +193,13 @@ theorem evm_div_n2_preloop_loop_unified_spec
   -- 1. Pre-loop: base → base+448
   have hPre := evm_div_n2_to_loopSetup_spec sp base
     a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10
-    q0 q1 q2 q3 u0_old u1_old u2_old u3_old u4_old u5 u6 u7 n_mem shift_mem
+    q0 q1 q2 q3 u0_old u1_old u2_old u3_old u4_old u5 u6 u7 n_mem shiftMem
     hbnz hb3z hb2z hb1nz hshift_nz
 
 
-  -- Frame preloop with .x11, j_mem, scratch cells
+  -- Frame preloop with .x11, jMem, scratch cells
   have hPreF := cpsTriple_frameR
-    ((.x11 ↦ᵣ v11_old) ** ((sp + signExtend12 3976) ↦ₘ j_mem) **
+    ((.x11 ↦ᵣ v11_old) ** ((sp + signExtend12 3976) ↦ₘ jMem) **
      (sp + signExtend12 3968 ↦ₘ ret_mem) **
      (sp + signExtend12 3960 ↦ₘ d_mem) **
      (sp + signExtend12 3952 ↦ₘ dlo_mem) **
@@ -218,12 +218,12 @@ theorem evm_div_n2_preloop_loop_unified_spec
     ((a3 <<< (((clzResult b1).1).toNat % 64)) ||| (a2 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b1).1).toNat % 64)))
     (a3 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b1).1).toNat % 64))
     (a0 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b1).1).toNat % 64))
-    v11_old j_mem
+    v11_old jMem
     ret_mem d_mem dlo_mem scratch_un0
 
     halign
     hbltu_2 hbltu_1 hbltu_0 hcarry2
-  -- Frame loop with a[], spare q3, spare u7, shift_mem
+  -- Frame loop with a[], spare q3, spare u7, shiftMem
   have hLoopF := cpsTriple_frameR
     (((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
      ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **

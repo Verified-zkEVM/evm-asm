@@ -283,13 +283,13 @@ theorem if_eq_branch_step (rs1 rs2 : Reg) (v1 v2 : Word)
     (hP : P.pcFree)
     (ht_small : 4 * (then_body.length + 1) + 4 < 2^12) :
     let else_off : BitVec 13 := BitVec.ofNat 13 (4 * (then_body.length + 1) + 4)
-    let bne_instr := Instr.BNE rs1 rs2 else_off
-    let then_entry := base + 4
-    let else_entry := base + 4 + BitVec.ofNat 64 (4 * then_body.length) + 4
-    let pre := (base ↦ᵢ bne_instr) ** (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2))
+    let bneInstr := Instr.BNE rs1 rs2 else_off
+    let thenEntry := base + 4
+    let elseEntry := base + 4 + BitVec.ofNat 64 (4 * then_body.length) + 4
+    let pre := (base ↦ᵢ bneInstr) ** (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2))
     cpsBranch base CodeReq.empty pre
-      then_entry ((base ↦ᵢ bne_instr) ** (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2) ⋒ ⌜v1 = v2⌝))
-      else_entry ((base ↦ᵢ bne_instr) ** (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2) ⋒ ⌜v1 ≠ v2⌝)) := by
+      thenEntry ((base ↦ᵢ bneInstr) ** (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2) ⋒ ⌜v1 = v2⌝))
+      elseEntry ((base ↦ᵢ bneInstr) ** (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2) ⋒ ⌜v1 ≠ v2⌝)) := by
   simp only
   intro R hR s _hcr hPR hpc; subst hpc
   -- Extract instrAt from the precondition
@@ -310,7 +310,7 @@ theorem if_eq_branch_step (rs1 rs2 : Reg) (v1 v2 : Word)
     pcFree_sepConj (pcFree_sepConj (pcFree_instrAt _ _) (pcFree_aAnd hP (pcFree_aAnd (pcFree_regIs _ _) (pcFree_regIs _ _)))) hR
   -- Case split on v1 = v2
   by_cases heq : v1 = v2
-  · -- Not taken: v1 = v2 → PC = s.pc + 4 = then_entry (exit_t)
+  · -- Not taken: v1 = v2 → PC = s.pc + 4 = thenEntry (exit_t)
     have hexec' : execInstrBr s (Instr.BNE rs1 rs2 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4))) = s.setPC (s.pc + 4) := by
       simp only [execInstrBr, hrs1, hrs2, heq, bne_iff_ne, ne_eq, not_true_eq_false, ite_false]
     refine ⟨1, s.setPC (s.pc + 4), ?_, Or.inl ⟨by simp [MachineState.setPC], ?_⟩⟩
@@ -322,7 +322,7 @@ theorem if_eq_branch_step (rs1 rs2 : Reg) (v1 v2 : Word)
       obtain ⟨hp, hcompat, h1, h2, hd, hu, ⟨ha, hb, hda, hua, hinstr, haand⟩, hR2⟩ := hPR'
       exact ⟨hp, hcompat, h1, h2, hd, hu,
         ⟨ha, hb, hda, hua, hinstr, aAnd_mono_right (aAnd_mono_right (aAnd_pure_right_of_true heq)) hb haand⟩, hR2⟩
-  · -- Taken: v1 ≠ v2 → PC = s.pc + signExtend13(else_off) = else_entry (exit_f)
+  · -- Taken: v1 ≠ v2 → PC = s.pc + signExtend13(else_off) = elseEntry (exit_f)
     have hexec' : execInstrBr s (Instr.BNE rs1 rs2 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4))) =
         s.setPC (s.pc + signExtend13 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4))) := by
       simp only [execInstrBr, hrs1, hrs2, bne_iff_ne, ne_eq, heq, not_false_eq_true, ite_true]
@@ -351,7 +351,7 @@ theorem if_eq_branch_step (rs1 rs2 : Reg) (v1 v2 : Word)
 
     Uses additive conjunction (⋒) so rs1 and rs2 may be the same register.
 
-    Requires instrAt for both the BNE at base and the JAL at then_exit. -/
+    Requires instrAt for both the BNE at base and the JAL at thenExit. -/
 theorem if_eq_spec (rs1 rs2 : Reg) (v1 v2 : Word)
     (then_body else_body : Program)
     (base : Word) (P Q : Assertion)
@@ -360,18 +360,18 @@ theorem if_eq_spec (rs1 rs2 : Reg) (v1 v2 : Word)
     (he_small : 4 * (else_body.length) + 4 < 2^20) :
     let prog := if_eq rs1 rs2 then_body else_body
     let exit_ := base + BitVec.ofNat 64 (4 * prog.length)
-    let then_entry := base + 4
-    let then_exit  := base + 4 + BitVec.ofNat 64 (4 * then_body.length)
-    let else_entry := then_exit + 4
-    let else_exit  := exit_
+    let thenEntry := base + 4
+    let thenExit  := base + 4 + BitVec.ofNat 64 (4 * then_body.length)
+    let elseEntry := thenExit + 4
+    let elseExit  := exit_
     let else_off : BitVec 13 := BitVec.ofNat 13 (4 * (then_body.length + 1) + 4)
     let end_off  : BitVec 21 := BitVec.ofNat 21 (4 * else_body.length + 4)
-    let bne_instr := Instr.BNE rs1 rs2 else_off
-    let jal_instr := Instr.JAL .x0 end_off
-    let pre := (base ↦ᵢ bne_instr) ** (then_exit ↦ᵢ jal_instr) ** (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2))
-    (cpsTriple then_entry then_exit CodeReq.empty
+    let bneInstr := Instr.BNE rs1 rs2 else_off
+    let jalInstr := Instr.JAL .x0 end_off
+    let pre := (base ↦ᵢ bneInstr) ** (thenExit ↦ᵢ jalInstr) ** (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2))
+    (cpsTriple thenEntry thenExit CodeReq.empty
       (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2) ⋒ ⌜v1 = v2⌝) Q) →
-    (cpsTriple else_entry else_exit CodeReq.empty
+    (cpsTriple elseEntry elseExit CodeReq.empty
       (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2) ⋒ ⌜v1 ≠ v2⌝) Q) →
     cpsTriple base exit_ CodeReq.empty pre Q := by
   simp only
@@ -411,7 +411,7 @@ theorem if_eq_spec (rs1 rs2 : Reg) (v1 v2 : Word)
     funext h; exact propext ⟨fun hp => by sep_perm hp, fun hp => by sep_perm hp⟩
   -- Case split on v1 = v2
   by_cases heq : v1 = v2
-  · -- BNE not taken: v1 = v2, PC -> s.pc + 4 = then_entry
+  · -- BNE not taken: v1 = v2, PC -> s.pc + 4 = thenEntry
     have hexec' : execInstrBr s (Instr.BNE rs1 rs2 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4))) = s.setPC (s.pc + 4) := by
       simp only [execInstrBr, hrs1, hrs2, heq, bne_iff_ne, ne_eq, not_true_eq_false, ite_false]
     -- After BNE: all pcFree assertions preserved
@@ -429,7 +429,7 @@ theorem if_eq_spec (rs1 rs2 : Reg) (v1 v2 : Word)
     -- Apply then-body triple
     obtain ⟨k2, s2, hstep2, hpc2, hQR2⟩ := hthen _ hframe_pcfree
       (s.setPC (s.pc + 4)) (CodeReq.empty_satisfiedBy _) hPR1' rfl
-    -- hQR2 : (Q ** (bne ** jal ** R)).holdsFor s2 at s2.pc = then_exit
+    -- hQR2 : (Q ** (bne ** jal ** R)).holdsFor s2 at s2.pc = thenExit
     -- Rearrange for JAL: (Q ** (bne ** (jal ** R))) -> (jal ** (bne ** Q ** R))
     have hassert_perm2 :
       (Q ** ((s.pc ↦ᵢ Instr.BNE rs1 rs2 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4))) **
@@ -465,7 +465,7 @@ theorem if_eq_spec (rs1 rs2 : Reg) (v1 v2 : Word)
       simp only [sepConj_emp_left'] at hQR3; exact hQR3
     have hQR3' : (Q ** R).holdsFor s3 :=
       holdsFor_sepConj_elim_right (holdsFor_sepConj_elim_right hQR3_flat)
-    -- The exit address: then_exit + signExtend21(end_off) = exit_
+    -- The exit address: thenExit + signExtend21(end_off) = exit_
     have hexit : (s.pc + 4 + BitVec.ofNat 64 (4 * then_body.length)) + signExtend21 (BitVec.ofNat 21 (4 * else_body.length + 4)) =
         s.pc + BitVec.ofNat 64 (4 * (if_eq rs1 rs2 then_body else_body).length) := by
       rw [signExtend21_ofNat_small _ he_small]
@@ -478,7 +478,7 @@ theorem if_eq_spec (rs1 rs2 : Reg) (v1 v2 : Word)
       stepN_add_eq 1 (k2 + k3) s _ s3 hstep1
         (stepN_add_eq k2 k3 _ s2 s3 hstep2 hstep3),
       hpc3, hQR3'⟩
-  · -- BNE taken: v1 /= v2, PC -> else_entry
+  · -- BNE taken: v1 /= v2, PC -> elseEntry
     have hexec' : execInstrBr s (Instr.BNE rs1 rs2 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4))) =
         s.setPC (s.pc + signExtend13 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4))) := by
       simp only [execInstrBr, hrs1, hrs2, bne_iff_ne, ne_eq, heq, not_false_eq_true, ite_true]
@@ -537,13 +537,13 @@ theorem if_eq_branch_step_n (rs1 rs2 : Reg) (v1 v2 : Word)
     (hP : P.pcFree)
     (ht_small : 4 * (then_body.length + 1) + 4 < 2^12) :
     let else_off : BitVec 13 := BitVec.ofNat 13 (4 * (then_body.length + 1) + 4)
-    let bne_instr := Instr.BNE rs1 rs2 else_off
-    let then_entry := base + 4
-    let else_entry := base + 4 + BitVec.ofNat 64 (4 * then_body.length) + 4
-    let pre := (base ↦ᵢ bne_instr) ** (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2))
+    let bneInstr := Instr.BNE rs1 rs2 else_off
+    let thenEntry := base + 4
+    let elseEntry := base + 4 + BitVec.ofNat 64 (4 * then_body.length) + 4
+    let pre := (base ↦ᵢ bneInstr) ** (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2))
     cpsNBranch base CodeReq.empty pre
-      [ (then_entry, (base ↦ᵢ bne_instr) ** (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2) ⋒ ⌜v1 = v2⌝)),
-        (else_entry, (base ↦ᵢ bne_instr) ** (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2) ⋒ ⌜v1 ≠ v2⌝)) ] := by
+      [ (thenEntry, (base ↦ᵢ bneInstr) ** (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2) ⋒ ⌜v1 = v2⌝)),
+        (elseEntry, (base ↦ᵢ bneInstr) ** (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2) ⋒ ⌜v1 ≠ v2⌝)) ] := by
   simp only
   exact cpsBranch_to_cpsNBranch _ _ _ _ _ _ _
     (if_eq_branch_step rs1 rs2 v1 v2 then_body base P hP ht_small)
@@ -552,7 +552,7 @@ theorem if_eq_branch_step_n (rs1 rs2 : Reg) (v1 v2 : Word)
 
     Uses additive conjunction (⋒) so rs1 and rs2 may be the same register.
 
-    Requires instrAt for both the BNE at base and the JAL at then_exit.
+    Requires instrAt for both the BNE at base and the JAL at thenExit.
     Same statement as if_eq_spec; provided for API symmetry with if_eq_branch_step_n. -/
 theorem if_eq_spec_n (rs1 rs2 : Reg) (v1 v2 : Word)
     (then_body else_body : Program)
@@ -562,18 +562,18 @@ theorem if_eq_spec_n (rs1 rs2 : Reg) (v1 v2 : Word)
     (he_small : 4 * (else_body.length) + 4 < 2^20) :
     let prog := if_eq rs1 rs2 then_body else_body
     let exit_ := base + BitVec.ofNat 64 (4 * prog.length)
-    let then_entry := base + 4
-    let then_exit  := base + 4 + BitVec.ofNat 64 (4 * then_body.length)
-    let else_entry := then_exit + 4
-    let else_exit  := exit_
+    let thenEntry := base + 4
+    let thenExit  := base + 4 + BitVec.ofNat 64 (4 * then_body.length)
+    let elseEntry := thenExit + 4
+    let elseExit  := exit_
     let else_off : BitVec 13 := BitVec.ofNat 13 (4 * (then_body.length + 1) + 4)
     let end_off  : BitVec 21 := BitVec.ofNat 21 (4 * else_body.length + 4)
-    let bne_instr := Instr.BNE rs1 rs2 else_off
-    let jal_instr := Instr.JAL .x0 end_off
-    let pre := (base ↦ᵢ bne_instr) ** (then_exit ↦ᵢ jal_instr) ** (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2))
-    (cpsTriple then_entry then_exit CodeReq.empty
+    let bneInstr := Instr.BNE rs1 rs2 else_off
+    let jalInstr := Instr.JAL .x0 end_off
+    let pre := (base ↦ᵢ bneInstr) ** (thenExit ↦ᵢ jalInstr) ** (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2))
+    (cpsTriple thenEntry thenExit CodeReq.empty
       (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2) ⋒ ⌜v1 = v2⌝) Q) →
-    (cpsTriple else_entry else_exit CodeReq.empty
+    (cpsTriple elseEntry elseExit CodeReq.empty
       (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2) ⋒ ⌜v1 ≠ v2⌝) Q) →
     cpsTriple base exit_ CodeReq.empty pre Q := by
   exact if_eq_spec rs1 rs2 v1 v2 then_body else_body base P Q hP hQ ht_small he_small

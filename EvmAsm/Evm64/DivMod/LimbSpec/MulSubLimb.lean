@@ -29,15 +29,15 @@ namespace EvmAsm.Evm64
 open EvmAsm.Rv64
 
 /-- Mul-sub full limb: partA (6 instrs) + partB (5 instrs) = 11 instructions.
-    Input: qHat (x11), carry_in (x10), v[i] and u[j+i] in memory.
+    Input: qHat (x11), carryIn (x10), v[i] and u[j+i] in memory.
     Output: carryOut (x10), uNew stored. -/
 theorem divK_mulsub_limb_spec
-    (sp u_base qHat carry_in v5_old v7_old v2_old v_i u_i : Word)
+    (sp u_base qHat carryIn v5_old v7_old v2_old v_i u_i : Word)
     (v_off u_off : BitVec 12) (base : Word) :
     let prodLo := qHat * v_i
     let prodHi := rv64_mulhu qHat v_i
-    let fullSub := prodLo + carry_in
-    let borrowAdd := if BitVec.ult fullSub carry_in then (1 : Word) else 0
+    let fullSub := prodLo + carryIn
+    let borrowAdd := if BitVec.ult fullSub carryIn then (1 : Word) else 0
     let partialCarry := borrowAdd + prodHi
     let borrowSub := if BitVec.ult u_i fullSub then (1 : Word) else 0
     let uNew := u_i - fullSub
@@ -55,7 +55,7 @@ theorem divK_mulsub_limb_spec
       (CodeReq.union (CodeReq.singleton (base + 36) (.ADD .x10 .x10 .x5))
        (CodeReq.singleton (base + 40) (.SD .x6 .x2 u_off)))))))))))
     cpsTriple base (base + 44) cr
-      ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) ** (.x10 ↦ᵣ carry_in) **
+      ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) ** (.x10 ↦ᵣ carryIn) **
        (.x6 ↦ᵣ u_base) ** (.x5 ↦ᵣ v5_old) ** (.x7 ↦ᵣ v7_old) **
        (.x2 ↦ᵣ v2_old) **
        ((sp + signExtend12 v_off) ↦ₘ v_i) **
@@ -69,8 +69,8 @@ theorem divK_mulsub_limb_spec
   have I0 := ld_spec_gen .x5 .x12 sp v5_old v_i v_off base (by nofun)
   have I1 := mul_spec_gen .x7 .x11 .x5 v7_old qHat v_i (base + 4) (by nofun)
   have I2 := mulhu_spec_gen_rd_eq_rs2 .x5 .x11 qHat v_i (base + 8) (by nofun)
-  have I3 := add_spec_gen_rd_eq_rs1 .x7 .x10 prodLo carry_in (base + 12) (by nofun)
-  have I4 := sltu_spec_gen_rd_eq_rs2 .x10 .x7 fullSub carry_in (base + 16) (by nofun)
+  have I3 := add_spec_gen_rd_eq_rs1 .x7 .x10 prodLo carryIn (base + 12) (by nofun)
+  have I4 := sltu_spec_gen_rd_eq_rs2 .x10 .x7 fullSub carryIn (base + 16) (by nofun)
   have I5 := add_spec_gen_rd_eq_rs1 .x10 .x5 borrowAdd prodHi (base + 20) (by nofun)
   have I6 := ld_spec_gen .x2 .x6 u_base v2_old u_i u_off (base + 24) (by nofun)
   have I7 := sltu_spec_gen .x5 .x2 .x7 prodHi u_i fullSub (base + 28) (by nofun)
@@ -80,13 +80,13 @@ theorem divK_mulsub_limb_spec
   runBlock I0 I1 I2 I3 I4 I5 I6 I7 I8 I9 I10
 
 /-- Add-back full limb: partA (5 instrs) + partB (3 instrs) = 8 instructions.
-    Input: carry_in (x7), v[i] and u[j+i] in memory.
+    Input: carryIn (x7), v[i] and u[j+i] in memory.
     Output: carryOut (x7), uNew stored. -/
 theorem divK_addback_limb_spec
-    (sp u_base carry_in v5_old v2_old v_i u_i : Word)
+    (sp u_base carryIn v5_old v2_old v_i u_i : Word)
     (v_off u_off : BitVec 12) (base : Word) :
-    let uPlusCarry := u_i + carry_in
-    let carry1 := if BitVec.ult uPlusCarry carry_in then (1 : Word) else 0
+    let uPlusCarry := u_i + carryIn
+    let carry1 := if BitVec.ult uPlusCarry carryIn then (1 : Word) else 0
     let uNew := uPlusCarry + v_i
     let carry2 := if BitVec.ult uNew v_i then (1 : Word) else 0
     let carryOut := carry1 ||| carry2
@@ -100,7 +100,7 @@ theorem divK_addback_limb_spec
       (CodeReq.union (CodeReq.singleton (base + 24) (.OR .x7 .x7 .x5))
        (CodeReq.singleton (base + 28) (.SD .x6 .x2 u_off))))))))
     cpsTriple base (base + 32) cr
-      ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ u_base) ** (.x7 ↦ᵣ carry_in) **
+      ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ u_base) ** (.x7 ↦ᵣ carryIn) **
        (.x5 ↦ᵣ v5_old) ** (.x2 ↦ᵣ v2_old) **
        ((sp + signExtend12 v_off) ↦ₘ v_i) **
        ((u_base + signExtend12 u_off) ↦ₘ u_i))
@@ -111,8 +111,8 @@ theorem divK_addback_limb_spec
   intro uPlusCarry carry1 uNew carry2 carryOut cr
   have I0 := ld_spec_gen .x5 .x12 sp v5_old v_i v_off base (by nofun)
   have I1 := ld_spec_gen .x2 .x6 u_base v2_old u_i u_off (base + 4) (by nofun)
-  have I2 := add_spec_gen_rd_eq_rs1 .x2 .x7 u_i carry_in (base + 8) (by nofun)
-  have I3 := sltu_spec_gen_rd_eq_rs2 .x7 .x2 uPlusCarry carry_in (base + 12) (by nofun)
+  have I2 := add_spec_gen_rd_eq_rs1 .x2 .x7 u_i carryIn (base + 8) (by nofun)
+  have I3 := sltu_spec_gen_rd_eq_rs2 .x7 .x2 uPlusCarry carryIn (base + 12) (by nofun)
   have I4 := add_spec_gen_rd_eq_rs1 .x2 .x5 uPlusCarry v_i (base + 16) (by nofun)
   have I5 := sltu_spec_gen_rd_eq_rs2 .x5 .x2 uNew v_i (base + 20) (by nofun)
   have I6 := or_spec_gen_rd_eq_rs1 .x7 .x5 carry1 carry2 (base + 24) (by nofun)

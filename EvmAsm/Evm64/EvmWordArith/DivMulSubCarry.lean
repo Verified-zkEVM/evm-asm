@@ -46,29 +46,29 @@ private theorem prodLo_le_one_of_mulhu_max {q v_i : Word}
 /-- The per-limb mulsub carry is strictly less than 2^64.
 
     The carry is `borrowAdd + prodHi + borrowSub` where:
-    - borrowAdd ∈ {0, 1} (from prodLo + carry_in overflow)
+    - borrowAdd ∈ {0, 1} (from prodLo + carryIn overflow)
     - prodHi ≤ 2^64 - 2 (from MULHU bound)
     - borrowSub ∈ {0, 1} (from u_i < fullSub underflow)
 
     When prodHi ≤ 2^64 - 3: carry ≤ 1 + (2^64 - 3) + 1 = 2^64 - 1 < 2^64.
     When prodHi = 2^64 - 2: prodLo ≤ 1, and borrowAdd = 1 forces
     fullSub.toNat = 0 (modular wrap leaves 0), making borrowSub = 0. -/
-theorem mulsub_limb_carry_strict_lt (q v_i u_i carry_in : Word) :
+theorem mulsub_limb_carry_strict_lt (q v_i u_i carryIn : Word) :
     let prodLo := q * v_i
     let prodHi := rv64_mulhu q v_i
-    let fullSub := prodLo + carry_in
-    let borrowAdd := if BitVec.ult fullSub carry_in then (1 : Word) else 0
+    let fullSub := prodLo + carryIn
+    let borrowAdd := if BitVec.ult fullSub carryIn then (1 : Word) else 0
     let borrowSub := if BitVec.ult u_i fullSub then (1 : Word) else 0
     borrowAdd.toNat + prodHi.toNat + borrowSub.toNat < 2^64 := by
   intro prodLo prodHi fullSub borrowAdd borrowSub
   have h_ph := mulhu_toNat_le q v_i
   -- Work with Nat-level values: ba_n, bs_n ∈ {0, 1}
-  set ba_n := if fullSub.toNat < carry_in.toNat then 1 else 0 with h_ba_def
+  set ba_n := if fullSub.toNat < carryIn.toNat then 1 else 0 with h_ba_def
   set bs_n := if u_i.toNat < fullSub.toNat then 1 else 0 with h_bs_def
   -- Convert borrowAdd/borrowSub toNat to ba_n/bs_n
   have h_ba : borrowAdd.toNat = ba_n := by
-    show (if BitVec.ult fullSub carry_in then (1 : Word) else 0).toNat = ba_n
-    simp only [h_ba_def]; by_cases h : fullSub.toNat < carry_in.toNat <;> simp [BitVec.ult, h]
+    show (if BitVec.ult fullSub carryIn then (1 : Word) else 0).toNat = ba_n
+    simp only [h_ba_def]; by_cases h : fullSub.toNat < carryIn.toNat <;> simp [BitVec.ult, h]
   have h_bs : borrowSub.toNat = bs_n := by
     show (if BitVec.ult u_i fullSub then (1 : Word) else 0).toNat = bs_n
     simp only [h_bs_def]; by_cases h : u_i.toNat < fullSub.toNat <;> simp [BitVec.ult, h]
@@ -88,22 +88,22 @@ theorem mulsub_limb_carry_strict_lt (q v_i u_i carry_in : Word) :
   have h_plo : (q * v_i).toNat ≤ 1 := prodLo_le_one_of_mulhu_max h_ph_eq
   -- Suffices: ba_n + bs_n ≤ 1
   suffices ba_n + bs_n ≤ 1 by omega
-  have h_fs_val : fullSub.toNat = ((q * v_i).toNat + carry_in.toNat) % 2^64 :=
-    BitVec.toNat_add (q * v_i) carry_in
-  have h_ci := carry_in.isLt
+  have h_fs_val : fullSub.toNat = ((q * v_i).toNat + carryIn.toNat) % 2^64 :=
+    BitVec.toNat_add (q * v_i) carryIn
+  have h_ci := carryIn.isLt
   -- Case: ba_n = 0 → immediate
   by_cases h_ba_0 : ba_n = 0
   · omega
   -- Case: ba_n = 1 → overflow → fullSub = 0 → bs_n = 0
   have h_ba_1 : ba_n = 1 := by omega
-  -- ba_n = 1 means fullSub.toNat < carry_in.toNat
-  have h_ov : fullSub.toNat < carry_in.toNat := by
+  -- ba_n = 1 means fullSub.toNat < carryIn.toNat
+  have h_ov : fullSub.toNat < carryIn.toNat := by
     simp only [h_ba_def] at h_ba_1; split at h_ba_1 <;> [assumption; omega]
-  -- overflow: (q * v_i).toNat + carry_in.toNat ≥ 2^64
-  have h_overflow : (q * v_i).toNat + carry_in.toNat ≥ 2^64 := by
+  -- overflow: (q * v_i).toNat + carryIn.toNat ≥ 2^64
+  have h_overflow : (q * v_i).toNat + carryIn.toNat ≥ 2^64 := by
     by_contra h_no; push Not at h_no
     rw [h_fs_val, Nat.mod_eq_of_lt h_no] at h_ov; omega
-  -- (q * v_i).toNat = 1 and carry_in = 2^64 - 1
+  -- (q * v_i).toNat = 1 and carryIn = 2^64 - 1
   have h_plo_1 : (q * v_i).toNat = 1 := by omega
   -- fullSub = 0
   have h_fs_0 : fullSub.toNat = 0 := by rw [h_fs_val]; omega
@@ -121,39 +121,39 @@ theorem mulsub_limb_carry_strict_lt (q v_i u_i carry_in : Word) :
 
     This follows from `mulsub_limb_carry_strict_lt` (carry < 2^64 means
     the Word additions don't overflow) and `mulsub_carry_word_eq`. -/
-theorem mulsub_limb_word_carry_eq (q v_i u_i carry_in : Word) :
+theorem mulsub_limb_word_carry_eq (q v_i u_i carryIn : Word) :
     let prodLo := q * v_i
     let prodHi := rv64_mulhu q v_i
-    let fullSub := prodLo + carry_in
-    let borrowAdd := if BitVec.ult fullSub carry_in then (1 : Word) else 0
+    let fullSub := prodLo + carryIn
+    let borrowAdd := if BitVec.ult fullSub carryIn then (1 : Word) else 0
     let borrowSub := if BitVec.ult u_i fullSub then (1 : Word) else 0
     ((borrowAdd + prodHi) + borrowSub).toNat =
       borrowAdd.toNat + prodHi.toNat + borrowSub.toNat := by
   intro prodLo prodHi fullSub borrowAdd borrowSub
   exact mulsub_carry_word_eq borrowAdd prodHi borrowSub
-    (mulsub_limb_carry_strict_lt q v_i u_i carry_in)
+    (mulsub_limb_carry_strict_lt q v_i u_i carryIn)
 
 -- ============================================================================
 -- Per-limb equation using Word carry directly
 -- ============================================================================
 
-/-- Per-limb mulsub Nat equation using the Word carry_out directly.
+/-- Per-limb mulsub Nat equation using the Word carryOut directly.
     Combines `mulsub_limb_nat_eq` and `mulsub_limb_word_carry_eq` so the
-    carry_out can be passed directly as carry_in to the next limb. -/
-theorem mulsub_limb_nat_word_eq (q v_i u_i carry_in : Word) :
+    carryOut can be passed directly as carryIn to the next limb. -/
+theorem mulsub_limb_nat_word_eq (q v_i u_i carryIn : Word) :
     let prodLo := q * v_i
     let prodHi := rv64_mulhu q v_i
-    let fullSub := prodLo + carry_in
-    let borrowAdd := if BitVec.ult fullSub carry_in then (1 : Word) else 0
-    let u_new := u_i - fullSub
+    let fullSub := prodLo + carryIn
+    let borrowAdd := if BitVec.ult fullSub carryIn then (1 : Word) else 0
+    let uNew := u_i - fullSub
     let borrowSub := if BitVec.ult u_i fullSub then (1 : Word) else 0
-    let carry_out := (borrowAdd + prodHi) + borrowSub
-    u_i.toNat + carry_out.toNat * 2^64 =
-      u_new.toNat + q.toNat * v_i.toNat + carry_in.toNat := by
-  intro prodLo prodHi fullSub borrowAdd u_new borrowSub carry_out
-  rw [show carry_out = (borrowAdd + prodHi) + borrowSub from rfl,
-      mulsub_limb_word_carry_eq q v_i u_i carry_in]
-  exact mulsub_limb_nat_eq q v_i u_i carry_in
+    let carryOut := (borrowAdd + prodHi) + borrowSub
+    u_i.toNat + carryOut.toNat * 2^64 =
+      uNew.toNat + q.toNat * v_i.toNat + carryIn.toNat := by
+  intro prodLo prodHi fullSub borrowAdd uNew borrowSub carryOut
+  rw [show carryOut = (borrowAdd + prodHi) + borrowSub from rfl,
+      mulsub_limb_word_carry_eq q v_i u_i carryIn]
+  exact mulsub_limb_nat_eq q v_i u_i carryIn
 
 -- ============================================================================
 -- 4-limb composition: register ops → val256 equation
@@ -164,30 +164,30 @@ theorem mulsub_limb_nat_word_eq (q v_i u_i carry_in : Word) :
     This connects the exact register-level computation from `divK_mulsub_full_spec`
     to the mathematical Euclidean equation. The let-bindings match those in the
     mulsub loop body: for each limb i, compute prodLo/hi, fullSub, borrows,
-    updated u_new, and carry_out.
+    updated uNew, and carryOut.
 
     The initial carry is 0 (first limb). Each subsequent limb uses the
     Word carry from the previous limb. -/
 theorem mulsub_register_4limb_val256 (q v0 v1 v2 v3 u0 u1 u2 u3 : Word) :
-    -- Limb 0 (carry_in = 0)
+    -- Limb 0 (carryIn = 0)
     let fs0 := q * v0 + (0 : Word)
     let ba0 := if BitVec.ult fs0 (0 : Word) then (1 : Word) else 0
     let un0 := u0 - fs0
     let bs0 := if BitVec.ult u0 fs0 then (1 : Word) else 0
     let c0 := (ba0 + rv64_mulhu q v0) + bs0
-    -- Limb 1 (carry_in = c0)
+    -- Limb 1 (carryIn = c0)
     let fs1 := q * v1 + c0
     let ba1 := if BitVec.ult fs1 c0 then (1 : Word) else 0
     let un1 := u1 - fs1
     let bs1 := if BitVec.ult u1 fs1 then (1 : Word) else 0
     let c1 := (ba1 + rv64_mulhu q v1) + bs1
-    -- Limb 2 (carry_in = c1)
+    -- Limb 2 (carryIn = c1)
     let fs2 := q * v2 + c1
     let ba2 := if BitVec.ult fs2 c1 then (1 : Word) else 0
     let un2 := u2 - fs2
     let bs2 := if BitVec.ult u2 fs2 then (1 : Word) else 0
     let c2 := (ba2 + rv64_mulhu q v2) + bs2
-    -- Limb 3 (carry_in = c2)
+    -- Limb 3 (carryIn = c2)
     let fs3 := q * v3 + c2
     let ba3 := if BitVec.ult fs3 c2 then (1 : Word) else 0
     let un3 := u3 - fs3
@@ -205,7 +205,7 @@ theorem mulsub_register_4limb_val256 (q v0 v1 v2 v3 u0 u1 u2 u3 : Word) :
   have h1 := mulsub_limb_nat_word_eq q v1 u1 c0
   have h2 := mulsub_limb_nat_word_eq q v2 u2 c1
   have h3 := mulsub_limb_nat_word_eq q v3 u3 c2
-  -- Simplify h0: carry_in = 0, so (0 : Word).toNat = 0
+  -- Simplify h0: carryIn = 0, so (0 : Word).toNat = 0
   have h0' : u0.toNat + c0.toNat * 2^64 = un0.toNat + q.toNat * v0.toNat := by
     have := h0; simp only [show (0 : Word).toNat = 0 from rfl] at this; linarith
   -- Chain via mulsub_chain_nat

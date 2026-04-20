@@ -70,7 +70,7 @@ theorem divK_denorm_preamble_spec (sp shift v5 v6 v7 v2 v10 : Word) (base : Word
   have hldf := cpsTriple_frameR
     ((.x0 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ v5) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ v2) ** (.x10 ↦ᵣ v10))
     (by pcFree) hlde
-  -- 5. Frame BEQ exit with x12, x5, x7, x2, x10, shift_mem
+  -- 5. Frame BEQ exit with x12, x5, x7, x2, x10, shiftMem
   have hbeqf := cpsTriple_frameR
     ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ v2) ** (.x10 ↦ᵣ v10) **
      ((sp + signExtend12 3992) ↦ₘ shift))

@@ -170,11 +170,11 @@ def reconstructDword (mem : Std.ExtHashMap Nat (BitVec 8)) (addr : Nat) : BitVec
 
 /-- The abstraction relation between Rv64.MachineState and SAIL state.
     Asserts register and memory agreement only. -/
-structure StateRel (s_rv : MachineState) (s_sail : SailState) : Prop where
+structure StateRel (sRv : MachineState) (sSail : SailState) : Prop where
   /-- Registers agree on all 32 integer registers. -/
-  reg_agree : ∀ (r : Reg), sailRegVal s_sail r = some (s_rv.getReg r)
+  reg_agree : ∀ (r : Reg), sailRegVal sSail r = some (sRv.getReg r)
   /-- Memory agrees: SAIL bytes reconstruct to Rv64 doublewords. -/
   mem_agree : ∀ (a : BitVec 64),
-    reconstructDword s_sail.mem a.toNat = s_rv.getMem a
+    reconstructDword sSail.mem a.toNat = sRv.getMem a
 
 end EvmAsm.Rv64.SailEquiv
