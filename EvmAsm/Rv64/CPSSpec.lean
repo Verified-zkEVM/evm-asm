@@ -154,9 +154,10 @@ theorem cpsBranch_weaken {entry : Word} {cr : CodeReq}
       obtain ⟨hp, hcompat, hpq⟩ := hQR_f
       exact ⟨hp, hcompat, sepConj_mono_left hpost_f hp hpq⟩⟩⟩
 
-/-- Swap the two branch targets of a cpsBranch. -/
-theorem cpsBranch_swap (entry : Word) (cr : CodeReq) (P : Assertion)
-    (exit_t : Word) (Q_t : Assertion) (exit_f : Word) (Q_f : Assertion)
+/-- Swap the two branch targets of a cpsBranch.
+    All position/code/assertion arguments are implicit — inferred from `h`. -/
+theorem cpsBranch_swap {entry : Word} {cr : CodeReq} {P : Assertion}
+    {exit_t : Word} {Q_t : Assertion} {exit_f : Word} {Q_f : Assertion}
     (h : cpsBranch entry cr P exit_t Q_t exit_f Q_f) :
     cpsBranch entry cr P exit_f Q_f exit_t Q_t := by
   intro R hR s hcr hPR hpc
