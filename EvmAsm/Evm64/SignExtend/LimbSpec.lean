@@ -99,12 +99,11 @@ theorem signext_body_2_spec (sp : Word)
        ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3))
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result) ** (.x6 ↦ᵣ shiftAmount) ** (.x10 ↦ᵣ signFill) **
        ((sp + 48) ↦ₘ result) ** ((sp + 56) ↦ₘ signFill)) := by
-  have h63 := bv6_toNat_63
   have IP := signext_inplace_spec 48 sp v2 v5 shiftAmount base
   have SR := srai_spec_gen .x10 .x5 v10
     (BitVec.sshiftRight (v2 <<< (shiftAmount.toNat % 64)) (shiftAmount.toNat % 64))
     63 (base + 16) (by nofun)
-  simp only [h63] at SR
+  simp only [bv6_toNat_63] at SR
   have S0 := sd_spec_gen .x12 .x10 sp
     (BitVec.sshiftRight (BitVec.sshiftRight (v2 <<< (shiftAmount.toNat % 64)) (shiftAmount.toNat % 64)) 63)
     v3 56 (base + 20)
@@ -131,12 +130,11 @@ theorem signext_body_1_spec (sp : Word)
        ((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3))
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result) ** (.x6 ↦ᵣ shiftAmount) ** (.x10 ↦ᵣ signFill) **
        ((sp + 40) ↦ₘ result) ** ((sp + 48) ↦ₘ signFill) ** ((sp + 56) ↦ₘ signFill)) := by
-  have h63 := bv6_toNat_63
   have IP := signext_inplace_spec 40 sp v1 v5 shiftAmount base
   have SR := srai_spec_gen .x10 .x5 v10
     (BitVec.sshiftRight (v1 <<< (shiftAmount.toNat % 64)) (shiftAmount.toNat % 64))
     63 (base + 16) (by nofun)
-  simp only [h63] at SR
+  simp only [bv6_toNat_63] at SR
   have S0 := sd_spec_gen .x12 .x10 sp
     (BitVec.sshiftRight (BitVec.sshiftRight (v1 <<< (shiftAmount.toNat % 64)) (shiftAmount.toNat % 64)) 63)
     v2 48 (base + 20)
@@ -166,12 +164,11 @@ theorem signext_body_0_spec (sp : Word)
        ((sp + 32) ↦ₘ v0) ** ((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3))
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result) ** (.x6 ↦ᵣ shiftAmount) ** (.x10 ↦ᵣ signFill) **
        ((sp + 32) ↦ₘ result) ** ((sp + 40) ↦ₘ signFill) ** ((sp + 48) ↦ₘ signFill) ** ((sp + 56) ↦ₘ signFill)) := by
-  have h63 := bv6_toNat_63
   have IP := signext_inplace_spec 32 sp v0 v5 shiftAmount base
   have SR := srai_spec_gen .x10 .x5 v10
     (BitVec.sshiftRight (v0 <<< (shiftAmount.toNat % 64)) (shiftAmount.toNat % 64))
     63 (base + 16) (by nofun)
-  simp only [h63] at SR
+  simp only [bv6_toNat_63] at SR
   have S0 := sd_spec_gen .x12 .x10 sp
     (BitVec.sshiftRight (BitVec.sshiftRight (v0 <<< (shiftAmount.toNat % 64)) (shiftAmount.toNat % 64)) 63)
     v1 40 (base + 20)

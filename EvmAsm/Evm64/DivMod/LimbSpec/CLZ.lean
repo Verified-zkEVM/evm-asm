@@ -188,11 +188,9 @@ theorem divK_clz_last_taken_spec (val count v7 : Word) (base : Word)
               (.x7 ↦ᵣ (val >>> 63)) ** (.x0 ↦ᵣ (0 : Word))) := by
   intro cr
   have I0 := srli_spec_gen .x7 .x5 v7 val 63 base (by nofun)
-  have h63 := bv6_toNat_63
-  simp only [h63] at I0
+  simp only [bv6_toNat_63] at I0
   have hbne_raw := bne_spec_gen .x7 .x0 (8 : BitVec 13) (val >>> 63) (0 : Word) (base + 4)
-  have hsig := se13_8
-  have ha_t : (base + 4) + signExtend13 (8 : BitVec 13) = base + 12 := by rw [hsig]; bv_addr
+  have ha_t : (base + 4) + signExtend13 (8 : BitVec 13) = base + 12 := by rw [se13_8]; bv_addr
   have ha_f : (base + 4 : Word) + 4 = base + 8 := by bv_addr
   rw [ha_t, ha_f] at hbne_raw
   have hbne_framed := cpsBranch_frameR
@@ -243,11 +241,9 @@ theorem divK_clz_last_ntaken_spec (val count v7 : Word) (base : Word)
               (.x7 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word))) := by
   intro cr
   have I0 := srli_spec_gen .x7 .x5 v7 val 63 base (by nofun)
-  have h63 := bv6_toNat_63
-  simp only [h63] at I0
+  simp only [bv6_toNat_63] at I0
   have hbne_raw := bne_spec_gen .x7 .x0 (8 : BitVec 13) (val >>> 63) (0 : Word) (base + 4)
-  have hsig := se13_8
-  have ha_t : (base + 4) + signExtend13 (8 : BitVec 13) = base + 12 := by rw [hsig]; bv_addr
+  have ha_t : (base + 4) + signExtend13 (8 : BitVec 13) = base + 12 := by rw [se13_8]; bv_addr
   have ha_f : (base + 4 : Word) + 4 = base + 8 := by bv_addr
   rw [ha_t, ha_f] at hbne_raw
   have hbne_framed := cpsBranch_frameR
