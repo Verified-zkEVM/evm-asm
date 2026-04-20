@@ -1209,6 +1209,54 @@ theorem output_slot_to_evmWordIs_mod_n4_max_addback_single (sp : Word)
   rw [evmWordIs_sp32_limbs_eq sp (EvmWord.mod a b) _ _ _ _
       hmod0 hmod1 hmod2 hmod3]
 
+/-- Max+double-addback DIV output-slot reshape: the four sp+32..sp+56 atoms
+    written by `denormDivPost` with `q_out = signExtend12 4095 * 3`
+    (from `fullDivN4MaxAddbackBeqPost` when `carry = 0`) and upper q-limbs
+    zero fold into `evmWordIs (sp+32) (EvmWord.div a b)` under
+    `n4MaxDoubleAddbackSemanticHolds`. Parallel to the single-addback
+    reshape, but with `q_out = 2^64 - 3` instead of `2^64 - 2`. -/
+theorem output_slot_to_evmWordIs_div_n4_max_addback_double (sp : Word)
+    (a b : EvmWord)
+    (hb3nz : b.getLimbN 3 ≠ 0) (hsem : n4MaxDoubleAddbackSemanticHolds a b) :
+    (((sp + 32) ↦ₘ
+        (signExtend12 4095 + signExtend12 4095 + signExtend12 4095 : Word)) **
+     ((sp + 40) ↦ₘ (0 : Word)) **
+     ((sp + 48) ↦ₘ (0 : Word)) **
+     ((sp + 56) ↦ₘ (0 : Word))) =
+    evmWordIs (sp + 32) (EvmWord.div a b) := by
+  obtain ⟨hc3_one, hcarry1_zero, hcarry2_one⟩ := hsem
+  obtain ⟨hdiv0, hdiv1, hdiv2, hdiv3, _, _, _, _⟩ :=
+    n4_max_double_addback_div_mod_getLimbN a b hb3nz hc3_one hcarry1_zero hcarry2_one
+  rw [evmWordIs_sp32_limbs_eq sp (EvmWord.div a b) _ _ _ _
+      hdiv0 hdiv1 hdiv2 hdiv3]
+
+/-- Max+double-addback MOD output-slot reshape: the four sp+32..sp+56 atoms
+    carrying the second-addback low-4 limbs `ab'.{1, 2.1, 2.2.1, 2.2.2.1}`
+    fold into `evmWordIs (sp+32) (EvmWord.mod a b)` under
+    `n4MaxDoubleAddbackSemanticHolds`. As with the single-addback MOD
+    reshape, denormalization is threaded at the stack-spec call site. -/
+theorem output_slot_to_evmWordIs_mod_n4_max_addback_double (sp : Word)
+    (a b : EvmWord)
+    (hb3nz : b.getLimbN 3 ≠ 0) (hsem : n4MaxDoubleAddbackSemanticHolds a b) :
+    let ms := mulsubN4 (signExtend12 4095)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    let ab := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 ((0 : Word) - ms.2.2.2.2)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+    let ab' := addbackN4 ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 ab.2.2.2.2
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+    (((sp + 32) ↦ₘ ab'.1) **
+     ((sp + 40) ↦ₘ ab'.2.1) **
+     ((sp + 48) ↦ₘ ab'.2.2.1) **
+     ((sp + 56) ↦ₘ ab'.2.2.2.1)) =
+    evmWordIs (sp + 32) (EvmWord.mod a b) := by
+  obtain ⟨hc3_one, hcarry1_zero, hcarry2_one⟩ := hsem
+  obtain ⟨_, _, _, _, hmod0, hmod1, hmod2, hmod3⟩ :=
+    n4_max_double_addback_div_mod_getLimbN a b hb3nz hc3_one hcarry1_zero hcarry2_one
+  intro _ _ _
+  rw [evmWordIs_sp32_limbs_eq sp (EvmWord.mod a b) _ _ _ _
+      hmod0 hmod1 hmod2 hmod3]
+
 -- ============================================================================
 -- DIV: n=4 max+skip stack spec
 -- ============================================================================
