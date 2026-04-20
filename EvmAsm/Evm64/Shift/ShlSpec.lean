@@ -37,7 +37,7 @@ abbrev shl_merge_limb_code (base : Word) (src_off prev_off dst_off : BitVec 12) 
     Computes: result = (src <<< bit_shift) ||| ((prev >>> antiShift) &&& mask)
     Mirror of shr_merge_limb_spec with SLL/SRL swapped. -/
 theorem shl_merge_limb_spec (src_off prev_off dst_off : BitVec 12)
-    (sp src prev dst_old v5 v10 bit_shift antiShift mask : Word) (base : Word) :
+    (sp src prev dstOld v5 v10 bit_shift antiShift mask : Word) (base : Word) :
     let memSrc := sp + signExtend12 src_off
     let memPrev := sp + signExtend12 prev_off
     let memDst := sp + signExtend12 dst_off
@@ -48,7 +48,7 @@ theorem shl_merge_limb_spec (src_off prev_off dst_off : BitVec 12)
     cpsTriple base (base + 28) cr
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ bit_shift) **
        (.x7 ↦ᵣ antiShift) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ mask) **
-       (memSrc ↦ₘ src) ** (memPrev ↦ₘ prev) ** (memDst ↦ₘ dst_old))
+       (memSrc ↦ₘ src) ** (memPrev ↦ₘ prev) ** (memDst ↦ₘ dstOld))
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result) ** (.x6 ↦ᵣ bit_shift) **
        (.x7 ↦ᵣ antiShift) ** (.x10 ↦ᵣ shiftedPrev) ** (.x11 ↦ᵣ mask) **
        (memSrc ↦ₘ src) ** (memPrev ↦ₘ prev) ** (memDst ↦ₘ result)) := by
@@ -58,7 +58,7 @@ theorem shl_merge_limb_spec (src_off prev_off dst_off : BitVec 12)
   have SR := srl_spec_gen_rd_eq_rs1 .x10 .x7 prev antiShift (base + 12) (by nofun)
   have AN := and_spec_gen_rd_eq_rs1 .x10 .x11 (prev >>> (antiShift.toNat % 64)) mask (base + 16) (by nofun)
   have OR_ := or_spec_gen_rd_eq_rs1 .x5 .x10 (src <<< (bit_shift.toNat % 64)) ((prev >>> (antiShift.toNat % 64)) &&& mask) (base + 20) (by nofun)
-  have SD_ := sd_spec_gen .x12 .x5 sp ((src <<< (bit_shift.toNat % 64)) ||| ((prev >>> (antiShift.toNat % 64)) &&& mask)) dst_old dst_off (base + 24)
+  have SD_ := sd_spec_gen .x12 .x5 sp ((src <<< (bit_shift.toNat % 64)) ||| ((prev >>> (antiShift.toNat % 64)) &&& mask)) dstOld dst_off (base + 24)
   runBlock L1 SL L2 SR AN OR_ SD_
 
 -- ============================================================================
@@ -76,19 +76,19 @@ abbrev shl_first_limb_code (base : Word) (dst_off : BitVec 12) : CodeReq :=
     Computes: result = value[0] <<< bit_shift
     Mirror of shr_last_limb_spec: reads from offset 0 (lowest limb), uses SLL. -/
 theorem shl_first_limb_spec (dst_off : BitVec 12)
-    (sp src dst_old v5 bit_shift : Word) (base : Word) :
+    (sp src dstOld v5 bit_shift : Word) (base : Word) :
     let memSrc := sp + signExtend12 (0 : BitVec 12)
     let memDst := sp + signExtend12 dst_off
     let result := src <<< (bit_shift.toNat % 64)
     let cr := shl_first_limb_code base dst_off
     cpsTriple base (base + 12) cr
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ bit_shift) **
-       (memSrc ↦ₘ src) ** (memDst ↦ₘ dst_old))
+       (memSrc ↦ₘ src) ** (memDst ↦ₘ dstOld))
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result) ** (.x6 ↦ᵣ bit_shift) **
        (memSrc ↦ₘ src) ** (memDst ↦ₘ result)) := by
   have L := ld_spec_gen .x5 .x12 sp v5 src 0 base (by nofun)
   have SL := sll_spec_gen_rd_eq_rs1 .x5 .x6 src bit_shift (base + 4) (by nofun)
-  have SD_ := sd_spec_gen .x12 .x5 sp (src <<< (bit_shift.toNat % 64)) dst_old dst_off (base + 8)
+  have SD_ := sd_spec_gen .x12 .x5 sp (src <<< (bit_shift.toNat % 64)) dstOld dst_off (base + 8)
   runBlock L SL SD_
 
 -- ============================================================================

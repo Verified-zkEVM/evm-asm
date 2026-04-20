@@ -31,7 +31,7 @@ open EvmAsm.Rv64
 
 /-- Mul-sub limb Part A: LD v[i], MUL, MULHU, ADD, SLTU, ADD.
     6 instructions. Produces fullSub (x7) and partialCarry (x10). -/
-theorem divK_mulsub_partA_spec (sp qHat carryIn v5_old v7_old v_i : Word)
+theorem divK_mulsub_partA_spec (sp qHat carryIn v5Old v7Old v_i : Word)
     (v_off : BitVec 12) (base : Word) :
     let prodLo := qHat * v_i
     let prodHi := rv64_mulhu qHat v_i
@@ -47,14 +47,14 @@ theorem divK_mulsub_partA_spec (sp qHat carryIn v5_old v7_old v_i : Word)
        (CodeReq.singleton (base + 20) (.ADD .x10 .x10 .x5))))))
     cpsTriple base (base + 24) cr
       ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) ** (.x10 ↦ᵣ carryIn) **
-       (.x5 ↦ᵣ v5_old) ** (.x7 ↦ᵣ v7_old) **
+       (.x5 ↦ᵣ v5Old) ** (.x7 ↦ᵣ v7Old) **
        ((sp + signExtend12 v_off) ↦ₘ v_i))
       ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) ** (.x10 ↦ᵣ partialCarry) **
        (.x5 ↦ᵣ prodHi) ** (.x7 ↦ᵣ fullSub) **
        ((sp + signExtend12 v_off) ↦ₘ v_i)) := by
   intro prodLo prodHi fullSub borrowAdd partialCarry cr
-  have I0 := ld_spec_gen .x5 .x12 sp v5_old v_i v_off base (by nofun)
-  have I1 := mul_spec_gen .x7 .x11 .x5 v7_old qHat v_i (base + 4) (by nofun)
+  have I0 := ld_spec_gen .x5 .x12 sp v5Old v_i v_off base (by nofun)
+  have I1 := mul_spec_gen .x7 .x11 .x5 v7Old qHat v_i (base + 4) (by nofun)
   have I2 := mulhu_spec_gen_rd_eq_rs2 .x5 .x11 qHat v_i (base + 8) (by nofun)
   have I3 := add_spec_gen_rd_eq_rs1 .x7 .x10 prodLo carryIn (base + 12) (by nofun)
   have I4 := sltu_spec_gen_rd_eq_rs2 .x10 .x7 fullSub carryIn (base + 16) (by nofun)
@@ -63,7 +63,7 @@ theorem divK_mulsub_partA_spec (sp qHat carryIn v5_old v7_old v_i : Word)
 
 /-- Mul-sub limb Part B: LD u[j+i], SLTU, SUB, ADD, SD.
     5 instructions. Produces carryOut (x10) and stores uNew. -/
-theorem divK_mulsub_partB_spec (uBase partialCarry prodHi fullSub v2_old u_i : Word)
+theorem divK_mulsub_partB_spec (uBase partialCarry prodHi fullSub v2Old u_i : Word)
     (u_off : BitVec 12) (base : Word) :
     let borrowSub := if BitVec.ult u_i fullSub then (1 : Word) else 0
     let uNew := u_i - fullSub
@@ -76,13 +76,13 @@ theorem divK_mulsub_partB_spec (uBase partialCarry prodHi fullSub v2_old u_i : W
        (CodeReq.singleton (base + 16) (.SD .x6 .x2 u_off)))))
     cpsTriple base (base + 20) cr
       ((.x6 ↦ᵣ uBase) ** (.x10 ↦ᵣ partialCarry) **
-       (.x5 ↦ᵣ prodHi) ** (.x7 ↦ᵣ fullSub) ** (.x2 ↦ᵣ v2_old) **
+       (.x5 ↦ᵣ prodHi) ** (.x7 ↦ᵣ fullSub) ** (.x2 ↦ᵣ v2Old) **
        ((uBase + signExtend12 u_off) ↦ₘ u_i))
       ((.x6 ↦ᵣ uBase) ** (.x10 ↦ᵣ carryOut) **
        (.x5 ↦ᵣ borrowSub) ** (.x7 ↦ᵣ fullSub) ** (.x2 ↦ᵣ uNew) **
        ((uBase + signExtend12 u_off) ↦ₘ uNew)) := by
   intro borrowSub uNew carryOut cr
-  have I0 := ld_spec_gen .x2 .x6 uBase v2_old u_i u_off base (by nofun)
+  have I0 := ld_spec_gen .x2 .x6 uBase v2Old u_i u_off base (by nofun)
   have I1 := sltu_spec_gen .x5 .x2 .x7 prodHi u_i fullSub (base + 4) (by nofun)
   have I2 := sub_spec_gen_rd_eq_rs1 .x2 .x7 u_i fullSub (base + 8) (by nofun)
   have I3 := add_spec_gen_rd_eq_rs1 .x10 .x5 partialCarry borrowSub (base + 12) (by nofun)

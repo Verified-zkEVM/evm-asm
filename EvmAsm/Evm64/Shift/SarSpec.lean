@@ -35,19 +35,19 @@ abbrev sar_last_limb_code (base : Word) (dst_off : BitVec 12) : CodeReq :=
     Computes: result = BitVec.sshiftRight value[3] bit_shift
     Mirror of shr_last_limb_spec with SRA (arithmetic shift right). -/
 theorem sar_last_limb_spec (dst_off : BitVec 12)
-    (sp src dst_old v5 bit_shift : Word) (base : Word) :
+    (sp src dstOld v5 bit_shift : Word) (base : Word) :
     let memSrc := sp + signExtend12 (24 : BitVec 12)
     let memDst := sp + signExtend12 dst_off
     let result := BitVec.sshiftRight src (bit_shift.toNat % 64)
     let cr := sar_last_limb_code base dst_off
     cpsTriple base (base + 12) cr
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ bit_shift) **
-       (memSrc ↦ₘ src) ** (memDst ↦ₘ dst_old))
+       (memSrc ↦ₘ src) ** (memDst ↦ₘ dstOld))
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result) ** (.x6 ↦ᵣ bit_shift) **
        (memSrc ↦ₘ src) ** (memDst ↦ₘ result)) := by
   have L := ld_spec_gen .x5 .x12 sp v5 src 24 base (by nofun)
   have SA := sra_spec_gen_rd_eq_rs1 .x5 .x6 src bit_shift (base + 4) (by nofun)
-  have SD_ := sd_spec_gen .x12 .x5 sp (BitVec.sshiftRight src (bit_shift.toNat % 64)) dst_old dst_off (base + 8)
+  have SD_ := sd_spec_gen .x12 .x5 sp (BitVec.sshiftRight src (bit_shift.toNat % 64)) dstOld dst_off (base + 8)
   runBlock L SA SD_
 
 -- ============================================================================
