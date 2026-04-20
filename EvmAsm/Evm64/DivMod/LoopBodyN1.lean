@@ -246,7 +246,7 @@ theorem divK_loop_body_n1_max_skip_spec
   have full := cpsTriple_seq_cpsBranch_perm_same_cr
     (fun h hp => by rw [sepConj_assoc'] at hp; xperm_hyp hp) TFfMCS0 SLf
   -- 8. Permute final cpsBranch to match target
-  exact cpsBranch_consequence _ _ _ _ _ _ _ _ _ _
+  exact cpsBranch_weaken
     (fun h hp => by delta loopBodyPre at hp; xperm_hyp hp)
     (fun h hp => by delta loopBodyN1SkipPost loopBodySkipPost mulsubN4 loopExitPostN1 loopExitPost; rw [sepConj_assoc'] at hp; xperm_hyp hp)
     (fun h hp => by delta loopBodyN1SkipPost loopBodySkipPost mulsubN4 loopExitPostN1 loopExitPost; rw [sepConj_assoc'] at hp; xperm_hyp hp)
@@ -338,7 +338,7 @@ theorem divK_loop_body_n1_max_addback_spec
   -- 7. Compose
   have full := cpsTriple_seq_cpsBranch_perm_same_cr
     (fun h hp => by rw [sepConj_assoc'] at hp; xperm_hyp hp) TFfMCA0 SLf
-  exact cpsBranch_consequence _ _ _ _ _ _ _ _ _ _
+  exact cpsBranch_weaken
     (fun h hp => by delta loopBodyPre at hp; xperm_hyp hp)
     (fun h hp => by delta loopBodyN1AddbackBeqPost loopBodyAddbackBeqPost loopExitPostN1 loopExitPost; rw [sepConj_assoc'] at hp; xperm_hyp hp)
     (fun h hp => by delta loopBodyN1AddbackBeqPost loopBodyAddbackBeqPost loopExitPostN1 loopExitPost; rw [sepConj_assoc'] at hp; xperm_hyp hp)
@@ -469,7 +469,7 @@ theorem divK_loop_body_n1_call_skip_spec
   -- 7. Compose
   have full := cpsTriple_seq_cpsBranch_perm_same_cr
     (fun h hp => by rw [sepConj_assoc'] at hp; xperm_hyp hp) TFfMCS0 SLf
-  exact cpsBranch_consequence _ _ _ _ _ _ _ _ _ _
+  exact cpsBranch_weaken
     (fun h hp => by delta loopBodyPreWithScratch loopBodyPre at hp; xperm_hyp hp)
     (fun h hp => by
       delta loopBodyN1CallSkipPostJ div128Quot div128DLo div128Un0
@@ -598,7 +598,7 @@ theorem divK_loop_body_n1_call_addback_spec
   -- 7. Compose
   have full := cpsTriple_seq_cpsBranch_perm_same_cr
     (fun h hp => by rw [sepConj_assoc'] at hp; xperm_hyp hp) TFfMCA0 SLf
-  exact cpsBranch_consequence _ _ _ _ _ _ _ _ _ _
+  exact cpsBranch_weaken
     (fun h hp => by delta loopBodyPreWithScratch loopBodyPre at hp; xperm_hyp hp)
     (fun h hp => by
       delta loopBodyN1CallAddbackBeqPostJ div128Quot div128DLo div128Un0

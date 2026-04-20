@@ -99,12 +99,11 @@ theorem signext_body_2_spec (sp : Word)
        ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3))
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result) ** (.x6 ↦ᵣ shiftAmount) ** (.x10 ↦ᵣ signFill) **
        ((sp + 48) ↦ₘ result) ** ((sp + 56) ↦ₘ signFill)) := by
-  have h63 := bv6_toNat_63
   have IP := signext_inplace_spec 48 sp v2 v5 shiftAmount base
   have SR := srai_spec_gen .x10 .x5 v10
     (BitVec.sshiftRight (v2 <<< (shiftAmount.toNat % 64)) (shiftAmount.toNat % 64))
     63 (base + 16) (by nofun)
-  simp only [h63] at SR
+  simp only [bv6_toNat_63] at SR
   have S0 := sd_spec_gen .x12 .x10 sp
     (BitVec.sshiftRight (BitVec.sshiftRight (v2 <<< (shiftAmount.toNat % 64)) (shiftAmount.toNat % 64)) 63)
     v3 56 (base + 20)
@@ -131,12 +130,11 @@ theorem signext_body_1_spec (sp : Word)
        ((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3))
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result) ** (.x6 ↦ᵣ shiftAmount) ** (.x10 ↦ᵣ signFill) **
        ((sp + 40) ↦ₘ result) ** ((sp + 48) ↦ₘ signFill) ** ((sp + 56) ↦ₘ signFill)) := by
-  have h63 := bv6_toNat_63
   have IP := signext_inplace_spec 40 sp v1 v5 shiftAmount base
   have SR := srai_spec_gen .x10 .x5 v10
     (BitVec.sshiftRight (v1 <<< (shiftAmount.toNat % 64)) (shiftAmount.toNat % 64))
     63 (base + 16) (by nofun)
-  simp only [h63] at SR
+  simp only [bv6_toNat_63] at SR
   have S0 := sd_spec_gen .x12 .x10 sp
     (BitVec.sshiftRight (BitVec.sshiftRight (v1 <<< (shiftAmount.toNat % 64)) (shiftAmount.toNat % 64)) 63)
     v2 48 (base + 20)
@@ -166,12 +164,11 @@ theorem signext_body_0_spec (sp : Word)
        ((sp + 32) ↦ₘ v0) ** ((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3))
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result) ** (.x6 ↦ᵣ shiftAmount) ** (.x10 ↦ᵣ signFill) **
        ((sp + 32) ↦ₘ result) ** ((sp + 40) ↦ₘ signFill) ** ((sp + 48) ↦ₘ signFill) ** ((sp + 56) ↦ₘ signFill)) := by
-  have h63 := bv6_toNat_63
   have IP := signext_inplace_spec 32 sp v0 v5 shiftAmount base
   have SR := srai_spec_gen .x10 .x5 v10
     (BitVec.sshiftRight (v0 <<< (shiftAmount.toNat % 64)) (shiftAmount.toNat % 64))
     63 (base + 16) (by nofun)
-  simp only [h63] at SR
+  simp only [bv6_toNat_63] at SR
   have S0 := sd_spec_gen .x12 .x10 sp
     (BitVec.sshiftRight (BitVec.sshiftRight (v0 <<< (shiftAmount.toNat % 64)) (shiftAmount.toNat % 64)) 63)
     v1 40 (base + 20)
@@ -365,27 +362,15 @@ theorem signext_phase_a_spec (sp r5 r10 : Word)
     CodeReq.Disjoint.union_right
       (CodeReq.Disjoint.singleton (by bv_omega) _ _)
       (CodeReq.Disjoint.singleton (by bv_omega) _ _)
-  have lw1f := cpsTriple_frame_left base (base + 4) crLd1
-    ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ r5) ** ((sp + 8) ↦ₘ b1))
-    ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ b1) ** ((sp + 8) ↦ₘ b1))
-    ((.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ r10) ** (sp ↦ₘ b0) ** ((sp + 16) ↦ₘ b2) ** ((sp + 24) ↦ₘ b3))
-    (by pcFree) lw1
-  have lor2f := cpsTriple_frame_left (base + 4) (base + 12) crLor2
-    ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ b1) ** (.x10 ↦ᵣ r10) ** ((sp + 16) ↦ₘ b2))
-    ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ (b1 ||| b2)) ** (.x10 ↦ᵣ b2) ** ((sp + 16) ↦ₘ b2))
-    ((.x0 ↦ᵣ (0 : Word)) ** (sp ↦ₘ b0) ** ((sp + 8) ↦ₘ b1) ** ((sp + 24) ↦ₘ b3))
-    (by pcFree) lor2
+  have lw1f := cpsTriple_frameR ((.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ r10) ** (sp ↦ₘ b0) ** ((sp + 16) ↦ₘ b2) ** ((sp + 24) ↦ₘ b3)) (by pcFree) lw1
+  have lor2f := cpsTriple_frameR ((.x0 ↦ᵣ (0 : Word)) ** (sp ↦ₘ b0) ** ((sp + 8) ↦ₘ b1) ** ((sp + 24) ↦ₘ b3)) (by pcFree) lor2
   have c12 := cpsTriple_seq_with_perm base (base + 4) (base + 12) crLd1 crLor2 hd_ld1_lor2
     _ _ _ _
     (fun h hp => by xperm_hyp hp) lw1f lor2f
   have lor3 := signext_ld_or_acc_spec sp (b1 ||| b2) b2 b3 24 (base + 12)
   simp only [signExtend12_24] at lor3
   rw [ha128] at lor3
-  have lor3f := cpsTriple_frame_left (base + 12) (base + 20) crLor3
-    ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ (b1 ||| b2)) ** (.x10 ↦ᵣ b2) ** ((sp + 24) ↦ₘ b3))
-    ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ (b1 ||| b2 ||| b3)) ** (.x10 ↦ᵣ b3) ** ((sp + 24) ↦ₘ b3))
-    ((.x0 ↦ᵣ (0 : Word)) ** (sp ↦ₘ b0) ** ((sp + 8) ↦ₘ b1) ** ((sp + 16) ↦ₘ b2))
-    (by pcFree) lor3
+  have lor3f := cpsTriple_frameR ((.x0 ↦ᵣ (0 : Word)) ** (sp ↦ₘ b0) ** ((sp + 8) ↦ₘ b1) ** ((sp + 16) ↦ₘ b2)) (by pcFree) lor3
   have hd_12_lor3 : (crLd1.union crLor2).Disjoint crLor3 :=
     CodeReq.Disjoint.union_left
       (CodeReq.Disjoint.union_right
@@ -417,9 +402,7 @@ theorem signext_phase_a_spec (sp r5 r10 : Word)
       (fun h hp => sepConj_mono_right
         (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1) h hp)
       bne_raw
-  have bne1f := cpsBranch_frame_left (base + 20) crBne
-    ((.x5 ↦ᵣ (b1 ||| b2 ||| b3)) ** (.x0 ↦ᵣ (0 : Word)))
-    done_path _ (base + 24) _
+  have bne1f := cpsBranch_frameR
     ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ b3) ** (sp ↦ₘ b0) ** ((sp + 8) ↦ₘ b1) ** ((sp + 16) ↦ₘ b2) ** ((sp + 24) ↦ₘ b3))
     (by pcFree) bne1
   have hd_lin_bne : crLinear.Disjoint crBne :=
@@ -446,16 +429,8 @@ theorem signext_phase_a_spec (sp r5 r10 : Word)
   let sltiuVal := (if BitVec.ult b0 (signExtend12 (31 : BitVec 12)) then (1 : Word) else (0 : Word))
   have hd_ld5_sltiu : crLd5.Disjoint crSltiu :=
     CodeReq.Disjoint.singleton (by bv_omega) _ _
-  have lw5f := cpsTriple_frame_left (base + 24) (base + 28) crLd5
-    ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ (b1 ||| b2 ||| b3)) ** (sp ↦ₘ b0))
-    ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ b0) ** (sp ↦ₘ b0))
-    ((.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ b3) ** ((sp + 8) ↦ₘ b1) ** ((sp + 16) ↦ₘ b2) ** ((sp + 24) ↦ₘ b3))
-    (by pcFree) lw5
-  have sltiuf := cpsTriple_frame_left (base + 28) (base + 32) crSltiu
-    ((.x5 ↦ᵣ b0) ** (.x10 ↦ᵣ b3))
-    ((.x5 ↦ᵣ b0) ** (.x10 ↦ᵣ sltiuVal))
-    ((.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) ** (sp ↦ₘ b0) ** ((sp + 8) ↦ₘ b1) ** ((sp + 16) ↦ₘ b2) ** ((sp + 24) ↦ₘ b3))
-    (by pcFree) sltiu_raw
+  have lw5f := cpsTriple_frameR ((.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ b3) ** ((sp + 8) ↦ₘ b1) ** ((sp + 16) ↦ₘ b2) ** ((sp + 24) ↦ₘ b3)) (by pcFree) lw5
+  have sltiuf := cpsTriple_frameR ((.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) ** (sp ↦ₘ b0) ** ((sp + 8) ↦ₘ b1) ** ((sp + 16) ↦ₘ b2) ** ((sp + 24) ↦ₘ b3)) (by pcFree) sltiu_raw
   have c56 := cpsTriple_seq_with_perm (base + 24) (base + 28) (base + 32)
     crLd5 crSltiu hd_ld5_sltiu
     _ _ _ _
@@ -473,9 +448,7 @@ theorem signext_phase_a_spec (sp r5 r10 : Word)
       (fun h hp => sepConj_mono_right
         (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1) h hp)
       beq_raw
-  have beq1f := cpsBranch_frame_left (base + 32) crBeq
-    ((.x10 ↦ᵣ sltiuVal) ** (.x0 ↦ᵣ (0 : Word)))
-    done_path _ (base + 36) _
+  have beq1f := cpsBranch_frameR
     ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ b0) ** (sp ↦ₘ b0) ** ((sp + 8) ↦ₘ b1) ** ((sp + 16) ↦ₘ b2) ** ((sp + 24) ↦ₘ b3))
     (by pcFree) beq1
   have hd_56_beq : (crLd5.union crSltiu).Disjoint crBeq :=
@@ -652,9 +625,7 @@ theorem signext_phase_c_spec (v5 v10 : Word) (base : Word)
       (fun h hp => sepConj_mono_right
         (fun h' hp' => ((sepConj_pure_right _ (v5 ≠ (0 : Word)) h').1 hp').1) h hp)
       beq0_raw
-  have beq0f := cpsBranch_frame_left base cr_beq0
-    ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)))
-    e0 _ (base + 4) _
+  have beq0f := cpsBranch_frameR
     (.x10 ↦ᵣ v10) (by pcFree) beq0
   -- Step 1: cascade step at base+4
   have cs1 := signext_cascade_step_spec v5 v10 1 60 (base + 4) e1 hc1

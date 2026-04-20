@@ -125,26 +125,23 @@ theorem rlp_phase2_long_iter_spec
   simp only [rlp_phase2_long_iter_post_unfold]
   rw [iter_code_split]
   -- Helpers: `signExtend12 1 = 1` and `signExtend12 0 = 0`.
-  have h_se1 := se12_1
-  have h_se0 := se12_0
-  have h_shamt := bv6_toNat_8
   -- Distinct-addresses plumbing.
   obtain ⟨h01, h02, h03, h04, h12, h13, h14, h23, h24, h34⟩ :=
     iter_addrs_distinct base
   set byteZext := (extractByte wordVal (byteOffset ptr)).zeroExtend 64
   -- Step 1: LBU x12, x13, 0.
   have halign0 : alignToDword (ptr + signExtend12 (0 : BitVec 12)) = dwordAddr := by
-    rw [h_se0]; simpa using halign
+    rw [se12_0]; simpa using halign
   have hvalid0 : isValidByteAccess (ptr + signExtend12 (0 : BitVec 12)) = true := by
-    rw [h_se0]; simpa using hvalid
+    rw [se12_0]; simpa using hvalid
   have lbu_raw := generic_lbu_spec .x12 .x13 ptr v12Old 0 base dwordAddr wordVal
     (by nofun) halign0 hvalid0
   rw [show ptr + signExtend12 (0 : BitVec 12) = ptr from by
-        rw [h_se0]; bv_omega] at lbu_raw
+        rw [se12_0]; bv_omega] at lbu_raw
   -- Step 2: SLLI x11, x11, 8.
   have slli_raw := slli_spec_gen_same .x11 len 8 (base + 4) (by nofun)
   rw [show (base + 4 : Word) + 4 = base + 8 from by bv_omega] at slli_raw
-  rw [h_shamt] at slli_raw
+  rw [bv6_toNat_8] at slli_raw
   -- Step 3: ADD x11, x11, x12.
   have add_raw := add_spec_gen_rd_eq_rs1 .x11 .x12 (len <<< 8) byteZext
     (base + 8) (by nofun)
@@ -152,7 +149,7 @@ theorem rlp_phase2_long_iter_spec
   -- Step 4: ADDI x13, x13, 1.
   have addi_ptr_raw := addi_spec_gen_same .x13 ptr 1 (base + 12) (by nofun)
   rw [show (base + 12 : Word) + 4 = base + 16 from by bv_omega] at addi_ptr_raw
-  rw [h_se1] at addi_ptr_raw
+  rw [se12_1] at addi_ptr_raw
   -- Step 5: ADDI x14, x14, -1.
   have addi_cnt_raw := addi_spec_gen_same .x14 cnt (-1) (base + 16) (by nofun)
   rw [show (base + 16 : Word) + 4 = base + 20 from by bv_omega] at addi_cnt_raw

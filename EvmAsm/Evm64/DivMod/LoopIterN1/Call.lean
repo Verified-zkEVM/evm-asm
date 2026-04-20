@@ -227,8 +227,7 @@ theorem divK_loop_body_n1_call_skip_j1_spec
   let pc3 := ba3 + p3_hi; let bs3 := if BitVec.ult u3 fs3 then (1 : Word) else 0
   let un3 := u3 - fs3; let c3 := pc3 + bs3
   let u4_new := uTop - c3
-  have hj_pos := slt_jpos_1
-  have SL := divK_store_loop_jgt0_spec sp (1 : Word) qHat u4_new (0 : Word) qOld base hj_pos
+  have SL := divK_store_loop_jgt0_spec sp (1 : Word) qHat u4_new (0 : Word) qOld base slt_jpos_1
   intro_lets at SL
   have TFf := cpsTriple_frameR
     (((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4080) ↦ₘ u2) **
@@ -351,8 +350,7 @@ theorem divK_loop_body_n1_call_skip_j2_spec
   let pc3 := ba3 + p3_hi; let bs3 := if BitVec.ult u3 fs3 then (1 : Word) else 0
   let un3 := u3 - fs3; let c3 := pc3 + bs3
   let u4_new := uTop - c3
-  have hj_pos := slt_jpos_2
-  have SL := divK_store_loop_jgt0_spec sp (2 : Word) qHat u4_new (0 : Word) qOld base hj_pos
+  have SL := divK_store_loop_jgt0_spec sp (2 : Word) qHat u4_new (0 : Word) qOld base slt_jpos_2
   intro_lets at SL
   have TFf := cpsTriple_frameR
     (((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4080) ↦ₘ u2) **
@@ -475,8 +473,7 @@ theorem divK_loop_body_n1_call_skip_j3_spec
   let pc3 := ba3 + p3_hi; let bs3 := if BitVec.ult u3 fs3 then (1 : Word) else 0
   let un3 := u3 - fs3; let c3 := pc3 + bs3
   let u4_new := uTop - c3
-  have hj_pos := slt_jpos_3
-  have SL := divK_store_loop_jgt0_spec sp (3 : Word) qHat u4_new (0 : Word) qOld base hj_pos
+  have SL := divK_store_loop_jgt0_spec sp (3 : Word) qHat u4_new (0 : Word) qOld base slt_jpos_3
   intro_lets at SL
   have TFf := cpsTriple_frameR
     (((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4080) ↦ₘ u2) **

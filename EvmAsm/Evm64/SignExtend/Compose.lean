@@ -615,7 +615,7 @@ theorem signext_body_spec (sp base : Word)
   -- When we frame hbd3 for merging, x10 is part of the external frame.
   -- So body_3 post just needs (.x12 ↦ᵣ sp+32) ** (.x5 ↦ᵣ _) ** (.x6 ↦ᵣ _) ** mem
   -- and the x10 from Phase C exit is carried in the frame.
-  -- After hbd3_w (via cpsTriple_consequence), we just need to weaken x5, x6, and keep everything else.
+  -- After hbd3_w (via cpsTriple_weaken), we just need to weaken x5, x6, and keep everything else.
   -- Then x10 from the Phase C frame gets weakened to regOwn .x10 separately in the merge step.
   -- Actually, the simpler approach: frame hbd3 with (.x10 ↦ᵣ _) from Phase C exit, then weaken.
   -- But the way cpsNBranch_merge works is: for each exit (addr, Q), prove cpsTriple addr exit_ cr Q R.

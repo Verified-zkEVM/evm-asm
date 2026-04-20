@@ -634,7 +634,7 @@ theorem divK_loop_body_n4_max_unified_spec
     have base_spec := divK_loop_body_n4_max_addback_spec
       sp j jOld v5Old v6Old v7Old v10Old v11Old v2Old
       v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base hbltu (hcarry (by decide)) hborrow
-    exact cpsBranch_consequence _ _ _ _ _ _ _ _ _ _
+    exact cpsBranch_weaken
       (fun _ hp => by delta loopBodyPre at hp; xperm_hyp hp)
       (fun _ hp => hp)
       (fun _ hp => hp)
@@ -645,7 +645,7 @@ theorem divK_loop_body_n4_max_unified_spec
     have base_spec := divK_loop_body_n4_max_skip_spec
       sp j jOld v5Old v6Old v7Old v10Old v11Old v2Old
       v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base hbltu hborrow
-    exact cpsBranch_consequence _ _ _ _ _ _ _ _ _ _
+    exact cpsBranch_weaken
       (fun _ hp => by delta loopBodyPre at hp; xperm_hyp hp)
       (fun _ hp => hp)
       (fun _ hp => hp)
@@ -696,7 +696,7 @@ theorem divK_loop_body_n4_call_unified_spec
       sp j jOld v5Old v6Old v7Old v10Old v11Old v2Old
       v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0
       base halign hbltu (hcarry (by decide)) hborrow
-    exact cpsBranch_consequence _ _ _ _ _ _ _ _ _ _
+    exact cpsBranch_weaken
       (fun _ hp => by delta loopBodyPreWithScratch loopBodyPre at hp; xperm_hyp hp)
       (fun _ hp => hp)
       (fun _ hp => hp)
@@ -708,7 +708,7 @@ theorem divK_loop_body_n4_call_unified_spec
       sp j jOld v5Old v6Old v7Old v10Old v11Old v2Old
       v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0
       base halign hbltu hborrow
-    exact cpsBranch_consequence _ _ _ _ _ _ _ _ _ _
+    exact cpsBranch_weaken
       (fun _ hp => by delta loopBodyPreWithScratch loopBodyPre at hp; xperm_hyp hp)
       (fun _ hp => hp)
       (fun _ hp => hp)

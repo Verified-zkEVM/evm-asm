@@ -100,10 +100,9 @@ theorem sar_body_3_spec (sp : Word)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result0) ** (.x6 ↦ᵣ bit_shift) **
        (.x7 ↦ᵣ antiShift) ** (.x10 ↦ᵣ signExt) ** (.x11 ↦ᵣ mask) **
        (sp ↦ₘ result0) ** ((sp + 8) ↦ₘ signExt) ** ((sp + 16) ↦ₘ signExt) ** ((sp + 24) ↦ₘ signExt)) := by
-  have h63 := bv6_toNat_63
   have LL := sar_last_limb_spec 0 sp v3 v0 v5 bit_shift base
   have SR := srai_spec_gen .x10 .x5 v10 (BitVec.sshiftRight v3 (bit_shift.toNat % 64)) 63 (base + 12) (by nofun)
-  simp only [h63] at SR
+  simp only [bv6_toNat_63] at SR
   have S0 := sd_spec_gen .x12 .x10 sp (BitVec.sshiftRight (BitVec.sshiftRight v3 (bit_shift.toNat % 64)) 63) v1 8 (base + 16)
   have S1 := sd_spec_gen .x12 .x10 sp (BitVec.sshiftRight (BitVec.sshiftRight v3 (bit_shift.toNat % 64)) 63) v2 16 (base + 20)
   have S2 := sd_spec_gen .x12 .x10 sp (BitVec.sshiftRight (BitVec.sshiftRight v3 (bit_shift.toNat % 64)) 63) v3 24 (base + 24)
@@ -134,7 +133,6 @@ theorem sar_body_2_spec (sp : Word)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result1) ** (.x6 ↦ᵣ bit_shift) **
        (.x7 ↦ᵣ antiShift) ** (.x10 ↦ᵣ signExt) ** (.x11 ↦ᵣ mask) **
        (sp ↦ₘ result0) ** ((sp + 8) ↦ₘ result1) ** ((sp + 16) ↦ₘ signExt) ** ((sp + 24) ↦ₘ signExt)) := by
-  have h63 := bv6_toNat_63
   have MM := shr_merge_limb_spec 16 24 0 sp v2 v3 v0 v5 v10 bit_shift antiShift mask base
   have LL := sar_last_limb_spec 8 sp v3 v1
     ((v2 >>> (bit_shift.toNat % 64)) ||| ((v3 <<< (antiShift.toNat % 64)) &&& mask))
@@ -142,7 +140,7 @@ theorem sar_body_2_spec (sp : Word)
   have SR := srai_spec_gen .x10 .x5
     ((v3 <<< (antiShift.toNat % 64)) &&& mask)
     (BitVec.sshiftRight v3 (bit_shift.toNat % 64)) 63 (base + 40) (by nofun)
-  simp only [h63] at SR
+  simp only [bv6_toNat_63] at SR
   have S0 := sd_spec_gen .x12 .x10 sp
     (BitVec.sshiftRight (BitVec.sshiftRight v3 (bit_shift.toNat % 64)) 63) v2 16 (base + 44)
   have S1 := sd_spec_gen .x12 .x10 sp
@@ -175,7 +173,6 @@ theorem sar_body_1_spec (sp : Word)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result2) ** (.x6 ↦ᵣ bit_shift) **
        (.x7 ↦ᵣ antiShift) ** (.x10 ↦ᵣ signExt) ** (.x11 ↦ᵣ mask) **
        (sp ↦ₘ result0) ** ((sp + 8) ↦ₘ result1) ** ((sp + 16) ↦ₘ result2) ** ((sp + 24) ↦ₘ signExt)) := by
-  have h63 := bv6_toNat_63
   have MM1 := shr_merge_limb_spec 8 16 0 sp v1 v2 v0 v5 v10 bit_shift antiShift mask base
   have MM2 := shr_merge_limb_spec 16 24 8 sp v2 v3 v1
     ((v1 >>> (bit_shift.toNat % 64)) ||| ((v2 <<< (antiShift.toNat % 64)) &&& mask))
@@ -187,7 +184,7 @@ theorem sar_body_1_spec (sp : Word)
   have SR := srai_spec_gen .x10 .x5
     ((v3 <<< (antiShift.toNat % 64)) &&& mask)
     (BitVec.sshiftRight v3 (bit_shift.toNat % 64)) 63 (base + 68) (by nofun)
-  simp only [h63] at SR
+  simp only [bv6_toNat_63] at SR
   have S0 := sd_spec_gen .x12 .x10 sp
     (BitVec.sshiftRight (BitVec.sshiftRight v3 (bit_shift.toNat % 64)) 63) v3 24 (base + 72)
   have JL := jal_x0_spec_gen jal_off (base + 76)
@@ -265,10 +262,9 @@ theorem sar_sign_fill_path_spec (sp : Word)
        ((sp + 32) ↦ₘ v0) ** ((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3))
       ((.x12 ↦ᵣ (sp + 32)) ** (.x5 ↦ᵣ signExt) ** (.x10 ↦ᵣ v10) **
        ((sp + 32) ↦ₘ signExt) ** ((sp + 40) ↦ₘ signExt) ** ((sp + 48) ↦ₘ signExt) ** ((sp + 56) ↦ₘ signExt)) := by
-  have h63 := bv6_toNat_63
   have LD0 := ld_spec_gen .x5 .x12 sp v5 v3 56 base (by nofun)
   have SR := srai_spec_gen_same .x5 v3 63 (base + 4) (by nofun)
-  simp only [h63] at SR
+  simp only [bv6_toNat_63] at SR
   have AD := addi_spec_gen_same .x12 sp 32 (base + 8) (by nofun)
   simp only [signExtend12_32] at AD
   have S0 := sd_spec_gen .x12 .x5 (sp + 32) (BitVec.sshiftRight v3 63) v0 0 (base + 12)

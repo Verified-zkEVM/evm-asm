@@ -321,8 +321,7 @@ theorem divK_loop_body_n2_max_skip_j1_spec
 
   intro_lets at MCS
   have MCS0 := MCS hborrow
-  have hj_pos := slt_jpos_1
-  have SL := divK_store_loop_jgt0_spec sp (1 : Word) qHat u4_new (0 : Word) qOld base hj_pos
+  have SL := divK_store_loop_jgt0_spec sp (1 : Word) qHat u4_new (0 : Word) qOld base slt_jpos_1
   intro_lets at SL
   have TFf := cpsTriple_frameR
     ((.x2 ↦ᵣ v2Old) **
@@ -439,8 +438,7 @@ theorem divK_loop_body_n2_call_skip_j1_spec
   let pc3 := ba3 + p3_hi; let bs3 := if BitVec.ult u3 fs3 then (1 : Word) else 0
   let un3 := u3 - fs3; let c3 := pc3 + bs3
   let u4_new := uTop - c3
-  have hj_pos := slt_jpos_1
-  have SL := divK_store_loop_jgt0_spec sp (1 : Word) qHat u4_new (0 : Word) qOld base hj_pos
+  have SL := divK_store_loop_jgt0_spec sp (1 : Word) qHat u4_new (0 : Word) qOld base slt_jpos_1
   intro_lets at SL
   have TFf := cpsTriple_frameR
     (((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
@@ -536,8 +534,7 @@ theorem divK_loop_body_n2_max_skip_j2_spec
 
   intro_lets at MCS
   have MCS0 := MCS hborrow
-  have hj_pos := slt_jpos_2
-  have SL := divK_store_loop_jgt0_spec sp (2 : Word) qHat u4_new (0 : Word) qOld base hj_pos
+  have SL := divK_store_loop_jgt0_spec sp (2 : Word) qHat u4_new (0 : Word) qOld base slt_jpos_2
   intro_lets at SL
   have TFf := cpsTriple_frameR
     ((.x2 ↦ᵣ v2Old) **
@@ -654,8 +651,7 @@ theorem divK_loop_body_n2_call_skip_j2_spec
   let pc3 := ba3 + p3_hi; let bs3 := if BitVec.ult u3 fs3 then (1 : Word) else 0
   let un3 := u3 - fs3; let c3 := pc3 + bs3
   let u4_new := uTop - c3
-  have hj_pos := slt_jpos_2
-  have SL := divK_store_loop_jgt0_spec sp (2 : Word) qHat u4_new (0 : Word) qOld base hj_pos
+  have SL := divK_store_loop_jgt0_spec sp (2 : Word) qHat u4_new (0 : Word) qOld base slt_jpos_2
   intro_lets at SL
   have TFf := cpsTriple_frameR
     (((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
@@ -964,8 +960,7 @@ theorem divK_loop_body_n2_max_addback_j1_beq_spec
   intro_lets at MCA
   unfold isAddbackCarry2NzN2Max isAddbackCarry2Nz at hcarry2_nz
   have MCA0 := MCA hcarry2_nz hborrow
-  have hj_pos := slt_jpos_1
-  have SL := divK_store_loop_jgt0_spec sp (1 : Word) q_out u4_out carryOut qOld base hj_pos
+  have SL := divK_store_loop_jgt0_spec sp (1 : Word) q_out u4_out carryOut qOld base slt_jpos_1
   intro_lets at SL
   have TFf := cpsTriple_frameR
     ((.x2 ↦ᵣ v2Old) **
@@ -1079,8 +1074,7 @@ theorem divK_loop_body_n2_call_addback_j1_beq_spec
   intro_lets at MCA
   unfold isAddbackCarry2NzN2Call isAddbackCarry2Nz div128Quot at hcarry2_nz
   have MCA0 := MCA hcarry2_nz hborrow
-  have hj_pos := slt_jpos_1
-  have SL := divK_store_loop_jgt0_spec sp (1 : Word) q_out u4_out carryOut qOld base hj_pos
+  have SL := divK_store_loop_jgt0_spec sp (1 : Word) q_out u4_out carryOut qOld base slt_jpos_1
   intro_lets at SL
   have TFf := cpsTriple_frameR
     (((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
@@ -1170,8 +1164,7 @@ theorem divK_loop_body_n2_max_addback_j2_beq_spec
   intro_lets at MCA
   unfold isAddbackCarry2NzN2Max isAddbackCarry2Nz at hcarry2_nz
   have MCA0 := MCA hcarry2_nz hborrow
-  have hj_pos := slt_jpos_2
-  have SL := divK_store_loop_jgt0_spec sp (2 : Word) q_out u4_out carryOut qOld base hj_pos
+  have SL := divK_store_loop_jgt0_spec sp (2 : Word) q_out u4_out carryOut qOld base slt_jpos_2
   intro_lets at SL
   have TFf := cpsTriple_frameR
     ((.x2 ↦ᵣ v2Old) **
@@ -1285,8 +1278,7 @@ theorem divK_loop_body_n2_call_addback_j2_beq_spec
   intro_lets at MCA
   unfold isAddbackCarry2NzN2Call isAddbackCarry2Nz div128Quot at hcarry2_nz
   have MCA0 := MCA hcarry2_nz hborrow
-  have hj_pos := slt_jpos_2
-  have SL := divK_store_loop_jgt0_spec sp (2 : Word) q_out u4_out carryOut qOld base hj_pos
+  have SL := divK_store_loop_jgt0_spec sp (2 : Word) q_out u4_out carryOut qOld base slt_jpos_2
   intro_lets at SL
   have TFf := cpsTriple_frameR
     (((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **

@@ -329,10 +329,9 @@ theorem byte_phase_c_spec (v5 v10 : Word) (base : Word)
   rw [hbeq1_nf] at beq1_raw beq1_cr
   have beq1f := cpsBranch_frameR (.x0 ↦ᵣ (0 : Word)) (by pcFree) beq1_cr
   -- Compose addi1 + beq1 (let Lean infer intermediate shapes)
-  have cs1_composed := cpsTriple_seq_cpsBranch_with_perm_same_cr
-    (base + 4) (base + 8) cr _ _ _ e1 _ (base + 12) _
+  have cs1_composed := cpsTriple_seq_cpsBranch_perm_same_cr
     (fun h hp => by xperm_hyp hp) addi1f beq1f
-  -- Clean up cs1 to canonical form via cpsBranch_consequence
+  -- Clean up cs1 to canonical form via cpsBranch_weaken
   have cs1_clean : cpsBranch (base + 4) cr
       ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10))
       e1 ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ ((0 : Word) + signExtend12 1)) ** ⌜v5 = (0 : Word) + signExtend12 1⌝)
@@ -378,8 +377,7 @@ theorem byte_phase_c_spec (v5 v10 : Word) (base : Word)
   rw [hbeq2_nf] at beq2_raw beq2_cr
   have beq2f := cpsBranch_frameR (.x0 ↦ᵣ (0 : Word)) (by pcFree) beq2_cr
   -- Compose addi2 + beq2 (let Lean infer intermediate shapes)
-  have cs2_composed := cpsTriple_seq_cpsBranch_with_perm_same_cr
-    (base + 12) (base + 16) cr _ _ _ e2 _ (base + 20) _
+  have cs2_composed := cpsTriple_seq_cpsBranch_perm_same_cr
     (fun h hp => by xperm_hyp hp) addi2f beq2f
   -- Clean up cs2 to canonical form
   have cs2_clean : cpsBranch (base + 12) cr

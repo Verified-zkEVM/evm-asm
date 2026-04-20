@@ -155,8 +155,7 @@ theorem divK_loop_body_n1_max_addback_j3_beq_spec
   intro_lets at MCA
   unfold isAddbackCarry2NzN1Max isAddbackCarry2Nz at hcarry2_nz
   have MCA0 := MCA hcarry2_nz hborrow
-  have hj_pos := slt_jpos_3
-  have SL := divK_store_loop_jgt0_spec sp (3 : Word) q_out u4_out carryOut qOld base hj_pos
+  have SL := divK_store_loop_jgt0_spec sp (3 : Word) q_out u4_out carryOut qOld base slt_jpos_3
   intro_lets at SL
   have TFf := cpsTriple_frameR
     ((.x2 ↦ᵣ v2Old) **
@@ -238,8 +237,7 @@ theorem divK_loop_body_n1_max_addback_j1_beq_spec
   intro_lets at MCA
   unfold isAddbackCarry2NzN1Max isAddbackCarry2Nz at hcarry2_nz
   have MCA0 := MCA hcarry2_nz hborrow
-  have hj_pos := slt_jpos_1
-  have SL := divK_store_loop_jgt0_spec sp (1 : Word) q_out u4_out carryOut qOld base hj_pos
+  have SL := divK_store_loop_jgt0_spec sp (1 : Word) q_out u4_out carryOut qOld base slt_jpos_1
   intro_lets at SL
   have TFf := cpsTriple_frameR
     ((.x2 ↦ᵣ v2Old) **
@@ -321,8 +319,7 @@ theorem divK_loop_body_n1_max_addback_j2_beq_spec
   intro_lets at MCA
   unfold isAddbackCarry2NzN1Max isAddbackCarry2Nz at hcarry2_nz
   have MCA0 := MCA hcarry2_nz hborrow
-  have hj_pos := slt_jpos_2
-  have SL := divK_store_loop_jgt0_spec sp (2 : Word) q_out u4_out carryOut qOld base hj_pos
+  have SL := divK_store_loop_jgt0_spec sp (2 : Word) q_out u4_out carryOut qOld base slt_jpos_2
   intro_lets at SL
   have TFf := cpsTriple_frameR
     ((.x2 ↦ᵣ v2Old) **

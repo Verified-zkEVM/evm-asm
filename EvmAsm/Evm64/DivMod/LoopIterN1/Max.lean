@@ -178,8 +178,7 @@ theorem divK_loop_body_n1_max_skip_j3_spec
 
   intro_lets at MCS
   have MCS0 := MCS hborrow
-  have hj_pos := slt_jpos_3
-  have SL := divK_store_loop_jgt0_spec sp (3 : Word) qHat u4_new (0 : Word) qOld base hj_pos
+  have SL := divK_store_loop_jgt0_spec sp (3 : Word) qHat u4_new (0 : Word) qOld base slt_jpos_3
   intro_lets at SL
   have TFf := cpsTriple_frameR
     ((.x2 ↦ᵣ v2Old) **
@@ -267,8 +266,7 @@ theorem divK_loop_body_n1_max_skip_j1_spec
 
   intro_lets at MCS
   have MCS0 := MCS hborrow
-  have hj_pos := slt_jpos_1
-  have SL := divK_store_loop_jgt0_spec sp (1 : Word) qHat u4_new (0 : Word) qOld base hj_pos
+  have SL := divK_store_loop_jgt0_spec sp (1 : Word) qHat u4_new (0 : Word) qOld base slt_jpos_1
   intro_lets at SL
   have TFf := cpsTriple_frameR
     ((.x2 ↦ᵣ v2Old) **
@@ -356,8 +354,7 @@ theorem divK_loop_body_n1_max_skip_j2_spec
 
   intro_lets at MCS
   have MCS0 := MCS hborrow
-  have hj_pos := slt_jpos_2
-  have SL := divK_store_loop_jgt0_spec sp (2 : Word) qHat u4_new (0 : Word) qOld base hj_pos
+  have SL := divK_store_loop_jgt0_spec sp (2 : Word) qHat u4_new (0 : Word) qOld base slt_jpos_2
   intro_lets at SL
   have TFf := cpsTriple_frameR
     ((.x2 ↦ᵣ v2Old) **
