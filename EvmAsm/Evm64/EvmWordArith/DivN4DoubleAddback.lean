@@ -253,4 +253,55 @@ theorem n4_max_double_addback_correct (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
     rw [hq_val, hq_hat''_toNat]; exact hcombined
   exact val256_euclidean_to_div_mod hbnz heuclid hab'_bound
 
+-- ============================================================================
+-- Per-limb and EvmWord-level bridges for the double-addback case
+-- ============================================================================
+
+/-- n=4 max+double-addback path: per-limb quotient/remainder equalities.
+    Direct consumer-facing form of `n4_max_double_addback_correct` —
+    parallels `n4_max_addback_div_mod_limbs`. The corrected quotient is
+    `q_hat'' = 3 * signExtend12 4095 = 2^64 - 3` in the low limb. -/
+theorem n4_max_double_addback_div_mod_limbs (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hb3nz : b3 ≠ 0)
+    (hc3_one : (mulsubN4 (signExtend12 4095) b0 b1 b2 b3 a0 a1 a2 a3).2.2.2.2 = 1)
+    (hcarry1_zero : addbackN4_carry
+      (mulsubN4 (signExtend12 4095) b0 b1 b2 b3 a0 a1 a2 a3).1
+      (mulsubN4 (signExtend12 4095) b0 b1 b2 b3 a0 a1 a2 a3).2.1
+      (mulsubN4 (signExtend12 4095) b0 b1 b2 b3 a0 a1 a2 a3).2.2.1
+      (mulsubN4 (signExtend12 4095) b0 b1 b2 b3 a0 a1 a2 a3).2.2.2.1
+      b0 b1 b2 b3 = 0)
+    (hcarry2_one :
+      let ms := mulsubN4 (signExtend12 4095) b0 b1 b2 b3 a0 a1 a2 a3
+      let ab := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 ((0 : Word) - ms.2.2.2.2) b0 b1 b2 b3
+      (addbackN4_carry ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 b0 b1 b2 b3).toNat = 1) :
+    let ms := mulsubN4 (signExtend12 4095) b0 b1 b2 b3 a0 a1 a2 a3
+    let ab := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 ((0 : Word) - ms.2.2.2.2) b0 b1 b2 b3
+    let ab' := addbackN4 ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 ab.2.2.2.2 b0 b1 b2 b3
+    let q_hat'' : Word := signExtend12 (4095 : BitVec 12) +
+      signExtend12 (4095 : BitVec 12) + signExtend12 (4095 : BitVec 12)
+    let a := fromLimbs fun i : Fin 4 =>
+      match i with | 0 => a0 | 1 => a1 | 2 => a2 | 3 => a3
+    let b := fromLimbs fun i : Fin 4 =>
+      match i with | 0 => b0 | 1 => b1 | 2 => b2 | 3 => b3
+    (EvmWord.div a b).getLimbN 0 = q_hat'' ∧
+    (EvmWord.div a b).getLimbN 1 = 0 ∧
+    (EvmWord.div a b).getLimbN 2 = 0 ∧
+    (EvmWord.div a b).getLimbN 3 = 0 ∧
+    (EvmWord.mod a b).getLimbN 0 = ab'.1 ∧
+    (EvmWord.mod a b).getLimbN 1 = ab'.2.1 ∧
+    (EvmWord.mod a b).getLimbN 2 = ab'.2.2.1 ∧
+    (EvmWord.mod a b).getLimbN 3 = ab'.2.2.2.1 := by
+  intro ms ab ab' q_hat'' a b
+  have ⟨hq, hr⟩ := n4_max_double_addback_correct a0 a1 a2 a3 b0 b1 b2 b3
+    hb3nz hc3_one hcarry1_zero hcarry2_one
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  · rw [← hq]; exact getLimbN_fromLimbs_0 _ _ _ _
+  · rw [← hq]; exact getLimbN_fromLimbs_1 _ _ _ _
+  · rw [← hq]; exact getLimbN_fromLimbs_2 _ _ _ _
+  · rw [← hq]; exact getLimbN_fromLimbs_3 _ _ _ _
+  · rw [← hr]; exact getLimbN_fromLimbs_0 _ _ _ _
+  · rw [← hr]; exact getLimbN_fromLimbs_1 _ _ _ _
+  · rw [← hr]; exact getLimbN_fromLimbs_2 _ _ _ _
+  · rw [← hr]; exact getLimbN_fromLimbs_3 _ _ _ _
+
 end EvmAsm.Evm64
