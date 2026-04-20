@@ -531,7 +531,6 @@ theorem divK_loop_body_n4_iter_spec (j : Fin 1) (bltu borrow_zero : Bool)
              then (1 : Word) else 0) ≠ (0 : Word))) :
     let q_hat_max : Word := signExtend12 4095
     let q_hat_call := div128Quot u_top u3 v3
-    let q_hat := if bltu then q_hat_call else q_hat_max
     cpsTriple (base + loopBodyOff) (base + denormOff) (sharedDivModCode base)
       (match bltu with
        | true => loopBodyPreWithScratch (4 : Word) sp (0 : Word) j_old
@@ -550,7 +549,7 @@ theorem divK_loop_body_n4_iter_spec (j : Fin 1) (bltu borrow_zero : Bool)
          (sp + signExtend12 3944 ↦ₘ (u3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat)
        | false =>
          loopBodyUnifiedPostN4 borrow_zero sp (j.val : Word) q_hat_max v0 v1 v2 v3 u0 u1 u2 u3 u_top) := by
-  intro q_hat_max q_hat_call q_hat
+  intro q_hat_max q_hat_call
   fin_cases j
   cases bltu
   · -- bltu = false (max path)
