@@ -874,7 +874,7 @@ def seqFrameCore (h1Expr h2Expr : Expr) : MetaM Expr :=
 
   -- Check if P2 is empAssertion (e.g., jal_x0_spec_gen).
   -- When P2 = empAssertion, the spec needs no state atoms. We frame h2 with Q1,
-  -- then use cpsTriple_consequence with sepConj_emp_left' to eliminate empAssertion.
+  -- then use cpsTriple_weaken with sepConj_emp_left' to eliminate empAssertion.
   let preP2N ← normForSepConj preP2
   let p2IsEmp := preP2N == mkConst ``EvmAsm.Rv64.empAssertion
 
@@ -906,7 +906,7 @@ def seqFrameCore (h1Expr h2Expr : Expr) : MetaM Expr :=
     #[mid2, exit_, cr2, preP2, postQ2, frameExpr, pcFreeProof, h2Expr]
 
   -- When P2 = empAssertion, simplify (empAssertion ** F) to F and (Q2 ** F) similarly.
-  -- Uses cpsTriple_consequence with sepConj_emp_left' to eliminate empAssertion.
+  -- Uses cpsTriple_weaken with sepConj_emp_left' to eliminate empAssertion.
   if p2IsEmp then
     -- Build pre-simplification: empAssertion ** F → F
     -- hpre : F → empAssertion ** F (reverse direction for consequence pre)
@@ -982,7 +982,7 @@ def assignOrPermute (goal : MVarId) (result : Expr) : MetaM Unit := do
   if ← withoutModifyingState (isDefEq goalType resultType) then
     goal.assign result
     return
-  -- Attempt 2: permute postcondition (and extend CR if needed) via cpsTriple_consequence
+  -- Attempt 2: permute postcondition (and extend CR if needed) via cpsTriple_weaken
   let some (gEntry, gExit, gCr, gPre, goalPost) ← parseCpsTriple? goalType
     | throwError "seqFrame: goal is not a cpsTriple"
   let some (rEntry, rExit, rCr, _, resultPost) ← parseCpsTriple? resultType

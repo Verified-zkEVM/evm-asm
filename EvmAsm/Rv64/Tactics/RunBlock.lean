@@ -411,7 +411,7 @@ private def frameFirstSpec (s1Expr : Expr) (goalPre : Expr) : MetaM Expr :=
   let frameAtoms ← computeFrame goalPre preP1
   if frameAtoms.isEmpty then
     -- No frame needed, just permute precondition
-    -- cpsTriple_consequence (P P' Q Q') (hpre : P' → P) (hpost : Q → Q') (h : cpsTriple P Q) : cpsTriple P' Q'
+    -- cpsTriple_weaken (P P' Q Q') (hpre : P' → P) (hpost : Q → Q') (h : cpsTriple P Q) : cpsTriple P' Q'
     -- P = preP1 (from s1), P' = goalPre (what we want), hpre : goalPre → preP1
     let prePermProof ← mkPermLambda goalPre preP1
     let postIdProof ← mkIdLambda postQ1
@@ -427,7 +427,7 @@ private def frameFirstSpec (s1Expr : Expr) (goalPre : Expr) : MetaM Expr :=
     #[entry, exit_, cr1, preP1, postQ1, frameExpr, pcFreeProof, s1Expr]
   -- Permute precondition: goalPre → (P1 ** F)
   let p1StarFrame := mkApp2 (mkConst ``EvmAsm.Rv64.sepConj) preP1 frameExpr
-  -- cpsTriple_consequence (P P' Q Q') (hpre : P' → P) (hpost : Q → Q') (h : cpsTriple P Q) : cpsTriple P' Q'
+  -- cpsTriple_weaken (P P' Q Q') (hpre : P' → P) (hpost : Q → Q') (h : cpsTriple P Q) : cpsTriple P' Q'
   -- P = p1StarFrame (from s1Framed), P' = goalPre, hpre : goalPre → p1StarFrame
   let prePermProof ← mkPermLambda goalPre p1StarFrame
   let q1StarFrame := mkApp2 (mkConst ``EvmAsm.Rv64.sepConj) postQ1 frameExpr
