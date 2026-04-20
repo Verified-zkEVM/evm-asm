@@ -8,9 +8,9 @@
       — single SRLI writing `hi = q >>> 32` used by the BEQ in the
       clamp-merged wrappers.
     * `divK_div128_step2_init_spec` — 3-instr DIVU/MUL/SUB computing
-      `q0 = un21 / d_hi` and `rhat2 = un21 - q0 * d_hi`.
+      `q0 = un21 / dHi` and `rhat2 = un21 - q0 * dHi`.
     * `divK_div128_prodcheck2_body_spec` — 5-instr LD/MUL/SLLI/LD/OR
-      producing `q0*d_lo` and `rhat2*2^32 + un0` for the BLTU.
+      producing `q0*dLo` and `rhat2*2^32 + un0` for the BLTU.
     * `divK_div128_correct_q0_single_spec` — single ADDI that just
       decrements q0 after the product-check-2 BLTU.
     * `divK_div128_combine_q_spec` — 2-instr SLLI/OR producing
@@ -58,26 +58,26 @@ theorem divK_div128_clamp_test_q0_spec (q0 v1_old : Word) (base : Word) :
   have I0 := srli_spec_gen .x1 .x5 v1_old q0 32 base (by nofun)
   runBlock I0
 
-/-- div128 Step 2: q0 = DIVU(un21, d_hi), rhat2 = un21 - q0 * d_hi. -/
-theorem divK_div128_step2_init_spec (un21 d_hi v1_old v5_old v11_old : Word) (base : Word) :
-    let q0 := rv64_divu un21 d_hi
-    let rhat2 := un21 - q0 * d_hi
+/-- div128 Step 2: q0 = DIVU(un21, dHi), rhat2 = un21 - q0 * dHi. -/
+theorem divK_div128_step2_init_spec (un21 dHi v1_old v5_old v11_old : Word) (base : Word) :
+    let q0 := rv64_divu un21 dHi
+    let rhat2 := un21 - q0 * dHi
     let cr :=
       CodeReq.union (CodeReq.singleton base (.DIVU .x5 .x7 .x6))
       (CodeReq.union (CodeReq.singleton (base + 4) (.MUL .x1 .x5 .x6))
        (CodeReq.singleton (base + 8) (.SUB .x11 .x7 .x1)))
     cpsTriple base (base + 12) cr
-      ((.x7 ↦ᵣ un21) ** (.x6 ↦ᵣ d_hi) **
+      ((.x7 ↦ᵣ un21) ** (.x6 ↦ᵣ dHi) **
        (.x5 ↦ᵣ v5_old) ** (.x1 ↦ᵣ v1_old) ** (.x11 ↦ᵣ v11_old))
-      ((.x7 ↦ᵣ un21) ** (.x6 ↦ᵣ d_hi) **
-       (.x5 ↦ᵣ q0) ** (.x1 ↦ᵣ q0 * d_hi) ** (.x11 ↦ᵣ rhat2)) := by
+      ((.x7 ↦ᵣ un21) ** (.x6 ↦ᵣ dHi) **
+       (.x5 ↦ᵣ q0) ** (.x1 ↦ᵣ q0 * dHi) ** (.x11 ↦ᵣ rhat2)) := by
   intro q0 rhat2 cr
-  have I0 := divu_spec_gen .x5 .x7 .x6 v5_old un21 d_hi base (by nofun)
-  have I1 := mul_spec_gen .x1 .x5 .x6 v1_old q0 d_hi (base + 4) (by nofun)
-  have I2 := sub_spec_gen .x11 .x7 .x1 un21 (q0 * d_hi) v11_old (base + 8) (by nofun)
+  have I0 := divu_spec_gen .x5 .x7 .x6 v5_old un21 dHi base (by nofun)
+  have I1 := mul_spec_gen .x1 .x5 .x6 v1_old q0 dHi (base + 4) (by nofun)
+  have I2 := sub_spec_gen .x11 .x7 .x1 un21 (q0 * dHi) v11_old (base + 8) (by nofun)
   runBlock I0 I1 I2
 
-/-- div128 product check 2: compute q0*d_lo and rhat2*2^32+un0 for comparison. -/
+/-- div128 product check 2: compute q0*dLo and rhat2*2^32+un0 for comparison. -/
 theorem divK_div128_prodcheck2_body_spec (sp q0 rhat2 v1_old v7_old dlo un0 : Word)
     (base : Word) :
     let q0_dlo := q0 * dlo

@@ -100,7 +100,7 @@ theorem divK_loop_body_n4_call_addback_j0_beq_norm (sp base : Word)
     (hbltu : BitVec.ult u_top v3)
     (hcarry2_nz : isAddbackCarry2NzN4Call v0 v1 v2 v3 u0 u1 u2 u3 u_top) :
     let q_hat := div128Quot u_top u3 v3
-    let d_lo := (v3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+    let dLo := (v3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
     let div_un0 := (u3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
     (if BitVec.ult u_top (mulsubN4_c3 q_hat v0 v1 v2 v3 u0 u1 u2 u3)
      then (1 : Word) else 0) ≠ (0 : Word) →
@@ -123,9 +123,9 @@ theorem divK_loop_body_n4_call_addback_j0_beq_norm (sp base : Word)
       (loopBodyN4AddbackBeqPost sp (0 : Word) q_hat v0 v1 v2 v3 u0 u1 u2 u3 u_top **
        (sp + signExtend12 3968 ↦ₘ (base + 516)) **
        (sp + signExtend12 3960 ↦ₘ v3) **
-       (sp + signExtend12 3952 ↦ₘ d_lo) **
+       (sp + signExtend12 3952 ↦ₘ dLo) **
        (sp + signExtend12 3944 ↦ₘ div_un0)) := by
-  intro q_hat d_lo div_un0 hborrow
+  intro q_hat dLo div_un0 hborrow
   rw [← se12_32] at hv_v0; rw [← se12_40] at
   rw [← se12_48] at hv_v2; rw [← se12_56] at
   rw [← u_base_off0_j0] at hv_u0; rw [← u_base_off4088_j0] at
@@ -309,12 +309,12 @@ def preloopCallAddbackBeqPostN4 (sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Asser
   let u1 := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (anti_shift.toNat % 64))
   let u0 := a0 <<< (shift.toNat % 64)
   let q_hat := div128Quot u4 u3 b3'
-  let d_lo := (b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+  let dLo := (b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
   let div_un0 := (u3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
   loopBodyN4AddbackBeqPost sp (0 : Word) q_hat b0' b1' b2' b3' u0 u1 u2 u3 u4 **
   (sp + signExtend12 3968 ↦ₘ (base + 516)) **
   (sp + signExtend12 3960 ↦ₘ b3') **
-  (sp + signExtend12 3952 ↦ₘ d_lo) **
+  (sp + signExtend12 3952 ↦ₘ dLo) **
   (sp + signExtend12 3944 ↦ₘ div_un0) **
   ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
   ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
@@ -669,7 +669,7 @@ theorem preloopCallAddbackBeqPostN4_unfold (sp base a0 a1 a2 a3 b0 b1 b2 b3 : Wo
     let u1 := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (anti_shift.toNat % 64))
     let u0 := a0 <<< (shift.toNat % 64)
     let q_hat := div128Quot u4 u3 b3'
-    let d_lo := (b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+    let dLo := (b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
     let div_un0 := (u3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
     let ms := mulsubN4 q_hat b0' b1' b2' b3' u0 u1 u2 u3
     let c3 := ms.2.2.2.2
@@ -697,7 +697,7 @@ theorem preloopCallAddbackBeqPostN4_unfold (sp base a0 a1 a2 a3 b0 b1 b2 b3 : Wo
      ((sp + signExtend12 4088) ↦ₘ q_out)) **
     (sp + signExtend12 3968 ↦ₘ (base + 516)) **
     (sp + signExtend12 3960 ↦ₘ b3') **
-    (sp + signExtend12 3952 ↦ₘ d_lo) **
+    (sp + signExtend12 3952 ↦ₘ dLo) **
     (sp + signExtend12 3944 ↦ₘ div_un0) **
     ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
     ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
@@ -726,7 +726,7 @@ def fullDivN4CallAddbackBeqPost (sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Asser
   let u1 := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (anti_shift.toNat % 64))
   let u0 := a0 <<< (shift.toNat % 64)
   let q_hat := div128Quot u4 u3 b3'
-  let d_lo := (b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+  let dLo := (b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
   let div_un0 := (u3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
   let ms := mulsubN4 q_hat b0' b1' b2' b3' u0 u1 u2 u3
   let c3 := ms.2.2.2.2
@@ -754,7 +754,7 @@ def fullDivN4CallAddbackBeqPost (sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Asser
   (.x1 ↦ᵣ signExtend12 4095) ** (.x11 ↦ᵣ q_out) **
   (sp + signExtend12 3968 ↦ₘ (base + 516)) **
   (sp + signExtend12 3960 ↦ₘ b3') **
-  (sp + signExtend12 3952 ↦ₘ d_lo) **
+  (sp + signExtend12 3952 ↦ₘ dLo) **
   (sp + signExtend12 3944 ↦ₘ div_un0)
 
 /-- Full n=4 DIV path: base → base+1068 (shift ≠ 0, call+addback BEQ). -/
@@ -817,7 +817,7 @@ theorem evm_div_n4_full_call_addback_beq_spec (sp base : Word)
   let u3 := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (anti_shift.toNat % 64))
   let u0 := a0 <<< (shift.toNat % 64)
   let q_hat := div128Quot u4 u3 b3'
-  let d_lo := (b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+  let dLo := (b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
   let div_un0 := (u3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
   let ms := mulsubN4 q_hat b0' b1' b2' b3' u0
     ((a1 <<< (shift.toNat % 64)) ||| (a0 >>> (anti_shift.toNat % 64)))
@@ -858,7 +858,7 @@ theorem evm_div_n4_full_call_addback_beq_spec (sp base : Word)
      (sp + signExtend12 3984 ↦ₘ (4 : Word)) ** (sp + signExtend12 3976 ↦ₘ (0 : Word)) **
      (.x1 ↦ᵣ signExtend12 4095) ** (.x11 ↦ᵣ q_out) **
      (sp + signExtend12 3968 ↦ₘ (base + 516)) ** (sp + signExtend12 3960 ↦ₘ b3') **
-     (sp + signExtend12 3952 ↦ₘ d_lo) ** (sp + signExtend12 3944 ↦ₘ div_un0))
+     (sp + signExtend12 3952 ↦ₘ dLo) ** (sp + signExtend12 3944 ↦ₘ div_un0))
     (by pcFree) hB
   have hFull := cpsTriple_seq_perm_same_cr
     (fun h hp => by simp only [preloopCallAddbackBeqPostN4_unfold] at hp; xperm_hyp hp) hA hBF
