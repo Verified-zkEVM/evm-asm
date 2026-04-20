@@ -242,15 +242,13 @@ theorem divK_loop_body_n1_max_skip_spec
      ((uBase + signExtend12 4064) ↦ₘ u4_new) **
      (sp + signExtend12 3984 ↦ₘ (1 : Word)))
     (by pcFree) SL
-  -- 7. Compose pre_store (cpsTriple) with SLf (cpsBranch)
-  have full := cpsTriple_seq_cpsBranch_perm_same_cr
-    (fun h hp => by rw [sepConj_assoc'] at hp; xperm_hyp hp) TFfMCS0 SLf
-  -- 8. Permute final cpsBranch to match target
+  -- 7. Compose pre_store (cpsTriple) with SLf (cpsBranch), then permute to match target
   exact cpsBranch_weaken
     (fun h hp => by delta loopBodyPre at hp; xperm_hyp hp)
     (fun h hp => by delta loopBodyN1SkipPost loopBodySkipPost mulsubN4 loopExitPostN1 loopExitPost; rw [sepConj_assoc'] at hp; xperm_hyp hp)
     (fun h hp => by delta loopBodyN1SkipPost loopBodySkipPost mulsubN4 loopExitPostN1 loopExitPost; rw [sepConj_assoc'] at hp; xperm_hyp hp)
-    full
+    (cpsTriple_seq_cpsBranch_perm_same_cr
+      (fun h hp => by rw [sepConj_assoc'] at hp; xperm_hyp hp) TFfMCS0 SLf)
 
 -- ============================================================================
 -- Section 13n1: Full loop body cpsBranch for n=1, BLTU not-taken + BEQ addback
@@ -336,13 +334,12 @@ theorem divK_loop_body_n1_max_addback_spec
      (sp + signExtend12 3984 ↦ₘ (1 : Word)))
     (by pcFree) SL
   -- 7. Compose
-  have full := cpsTriple_seq_cpsBranch_perm_same_cr
-    (fun h hp => by rw [sepConj_assoc'] at hp; xperm_hyp hp) TFfMCA0 SLf
   exact cpsBranch_weaken
     (fun h hp => by delta loopBodyPre at hp; xperm_hyp hp)
     (fun h hp => by delta loopBodyN1AddbackBeqPost loopBodyAddbackBeqPost loopExitPostN1 loopExitPost; rw [sepConj_assoc'] at hp; xperm_hyp hp)
     (fun h hp => by delta loopBodyN1AddbackBeqPost loopBodyAddbackBeqPost loopExitPostN1 loopExitPost; rw [sepConj_assoc'] at hp; xperm_hyp hp)
-    full
+    (cpsTriple_seq_cpsBranch_perm_same_cr
+      (fun h hp => by rw [sepConj_assoc'] at hp; xperm_hyp hp) TFfMCA0 SLf)
 
 -- ============================================================================
 -- Section 14n1: Full loop body cpsBranch for n=1, BLTU taken + BEQ skip
@@ -467,8 +464,6 @@ theorem divK_loop_body_n1_call_skip_spec
      (sp + signExtend12 3944 ↦ₘ div_un0))
     (by pcFree) SL
   -- 7. Compose
-  have full := cpsTriple_seq_cpsBranch_perm_same_cr
-    (fun h hp => by rw [sepConj_assoc'] at hp; xperm_hyp hp) TFfMCS0 SLf
   exact cpsBranch_weaken
     (fun h hp => by delta loopBodyPreWithScratch loopBodyPre at hp; xperm_hyp hp)
     (fun h hp => by
@@ -479,7 +474,8 @@ theorem divK_loop_body_n1_call_skip_spec
       delta loopBodyN1CallSkipPostJ div128Quot div128DLo div128Un0
             loopBodyN1SkipPost loopBodySkipPost mulsubN4 loopExitPostN1 loopExitPost
       rw [sepConj_assoc'] at hp; xperm_hyp hp)
-    full
+    (cpsTriple_seq_cpsBranch_perm_same_cr
+      (fun h hp => by rw [sepConj_assoc'] at hp; xperm_hyp hp) TFfMCS0 SLf)
 
 -- ============================================================================
 -- Section 15n1: Full loop body cpsBranch for n=1, BLTU taken + BEQ addback
@@ -596,8 +592,6 @@ theorem divK_loop_body_n1_call_addback_spec
      (sp + signExtend12 3944 ↦ₘ div_un0))
     (by pcFree) SL
   -- 7. Compose
-  have full := cpsTriple_seq_cpsBranch_perm_same_cr
-    (fun h hp => by rw [sepConj_assoc'] at hp; xperm_hyp hp) TFfMCA0 SLf
   exact cpsBranch_weaken
     (fun h hp => by delta loopBodyPreWithScratch loopBodyPre at hp; xperm_hyp hp)
     (fun h hp => by
@@ -608,7 +602,8 @@ theorem divK_loop_body_n1_call_addback_spec
       delta loopBodyN1CallAddbackBeqPostJ div128Quot div128DLo div128Un0
             loopBodyN1AddbackBeqPost loopBodyAddbackBeqPost loopExitPostN1 loopExitPost
       rw [sepConj_assoc'] at hp; xperm_hyp hp)
-    full
+    (cpsTriple_seq_cpsBranch_perm_same_cr
+      (fun h hp => by rw [sepConj_assoc'] at hp; xperm_hyp hp) TFfMCA0 SLf)
 
 -- ============================================================================
 -- Section 16n1: Combined loop body cpsBranch for n=1 (all 4 paths unified)
