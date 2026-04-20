@@ -130,8 +130,6 @@ theorem divK_loop_n2_unified_divCode (bltu_2 bltu_1 bltu_0 : Bool)
       retMem dMem dloMem scratch_un0 base halign
 
 
-
-
       hbltu_2 hbltu_1 hbltu_0 hcarry2)
 
 end EvmAsm.Evm64

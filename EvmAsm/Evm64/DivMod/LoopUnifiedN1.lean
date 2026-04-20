@@ -389,7 +389,6 @@ theorem divK_loop_n1_max_iter10_spec (bltu_1 bltu_0 : Bool)
     retMem dMem dloMem scratch_un0 base halign
 
 
-
     hbltu_1 hbltu_0 hcarry2
   -- Frame iter10 with j=2 carried atoms
   have H10f := cpsTriple_frameR
@@ -470,7 +469,6 @@ theorem divK_loop_n1_call_iter10_spec (bltu_1 bltu_0 : Bool)
     (base + 516) v0 (div128DLo v0) (div128Un0 u0) base halign
 
 
-
     hbltu_1 hbltu_0 hcarry2
   -- Frame iter10 with j=2 carried atoms
   have H10f := cpsTriple_frameR
@@ -536,8 +534,6 @@ theorem divK_loop_n1_iter210_unified_spec (bltu_2 bltu_1 bltu_0 : Bool)
       retMem dMem dloMem scratch_un0 base halign
 
 
-
-
       hbltu_2' hbltu_1 hbltu_0 hcarry2
   · -- bltu_2 = true -> call
     have hbltu_2' : BitVec.ult u1 v0 := hbltu_2.symm ▸ rfl
@@ -545,8 +541,6 @@ theorem divK_loop_n1_iter210_unified_spec (bltu_2 bltu_1 bltu_0 : Bool)
       sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
       v0 v1 v2 v3 u0 u1 u2 u3 uTop u0_orig_1 u0_orig_0 q2Old q1Old q0Old
       retMem dMem dloMem scratch_un0 base halign
-
-
 
 
       hbltu_2' hbltu_1 hbltu_0 hcarry2

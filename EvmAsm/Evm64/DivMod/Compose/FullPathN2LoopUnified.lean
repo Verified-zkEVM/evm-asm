@@ -138,8 +138,6 @@ private theorem evm_div_n2_loop_unified_inst
     retMem dMem dloMem scratch_un0 base halign
 
 
-
-
     hbltu_2 hbltu_1 hbltu_0 hcarry2
 
 -- ============================================================================

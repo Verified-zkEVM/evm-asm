@@ -77,7 +77,6 @@ theorem divK_loop_n2_iter10_unified_spec (bltu_1 bltu_0 : Bool)
       retMem dMem dloMem scratch_un0 base halign
 
 
-
       hbltu_1' hbltu_0' hcarry2
     exact cpsTriple_weaken
       (fun h hp => hp)
@@ -92,7 +91,6 @@ theorem divK_loop_n2_iter10_unified_spec (bltu_1 bltu_0 : Bool)
       retMem dMem dloMem scratch_un0 base halign
 
 
-
       hbltu_1' hbltu_0' hcarry2
     exact cpsTriple_weaken
       (fun h hp => hp)
@@ -105,7 +103,6 @@ theorem divK_loop_n2_iter10_unified_spec (bltu_1 bltu_0 : Bool)
     have hCC := divK_loop_n2_call_call_spec sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
       v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
       retMem dMem dloMem scratch_un0 base halign
-
 
 
       hbltu_1' hbltu_0' hcarry2
@@ -171,7 +168,6 @@ theorem divK_loop_n2_max_iter10_spec (bltu_1 bltu_0 : Bool)
     u0_orig_1 r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1
     u0_orig_0 q1Old q0Old
     retMem dMem dloMem scratch_un0 base halign
-
 
 
     hbltu_1 hbltu_0 hcarry2
@@ -249,7 +245,6 @@ theorem divK_loop_n2_call_iter10_spec (bltu_1 bltu_0 : Bool)
     (base + 516) v1 (div128DLo v1) (div128Un0 u1) base halign
 
 
-
     hbltu_1 hbltu_0 hcarry2
   have H10f := cpsTriple_frameR
     (((u_base_2 + signExtend12 4064) ↦ₘ r2.2.2.2.2.2) ** (q_addr_2 ↦ₘ r2.1))
@@ -313,8 +308,6 @@ theorem divK_loop_n2_unified_spec (bltu_2 bltu_1 bltu_0 : Bool)
       retMem dMem dloMem scratch_un0 base halign
 
 
-
-
       hbltu_2' hbltu_1 hbltu_0 hcarry2
   · -- bltu_2 = true → call
     have hbltu_2' : BitVec.ult u2 v1 := hbltu_2.symm ▸ rfl
@@ -322,8 +315,6 @@ theorem divK_loop_n2_unified_spec (bltu_2 bltu_1 bltu_0 : Bool)
       sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
       v0 v1 v2 v3 u0 u1 u2 u3 uTop u0_orig_1 u0_orig_0 q2Old q1Old q0Old
       retMem dMem dloMem scratch_un0 base halign
-
-
 
 
       hbltu_2' hbltu_1 hbltu_0 hcarry2
