@@ -64,12 +64,12 @@ theorem remainder_lt_of_ge_floor {a b q r : Nat} (hb : 0 < b)
 
     This is the happy path of Algorithm D: mulsub doesn't underflow,
     so no addback is needed, and the result is directly correct. -/
-theorem mulsub_no_underflow_correct {u_val v_val q_nat r_val : Nat}
-    (hv : 0 < v_val)
-    (hmulsub : u_val = r_val + q_nat * v_val)
-    (hge : u_val / v_val ≤ q_nat) :
-    q_nat = u_val / v_val ∧ r_val < v_val := by
-  have heq : u_val = q_nat * v_val + r_val := by omega
+theorem mulsub_no_underflow_correct {uVal vVal qNat r_val : Nat}
+    (hv : 0 < vVal)
+    (hmulsub : uVal = r_val + qNat * vVal)
+    (hge : uVal / vVal ≤ qNat) :
+    qNat = uVal / vVal ∧ r_val < vVal := by
+  have heq : uVal = qNat * vVal + r_val := by omega
   exact remainder_lt_of_ge_floor hv heq hge
 
 -- ============================================================================
@@ -79,14 +79,14 @@ theorem mulsub_no_underflow_correct {u_val v_val q_nat r_val : Nat}
 /-- Underflow implies strict overestimate: if `u < q * v` (mulsub underflowed),
     then `u / v + 1 ≤ q`. Equivalently, the quotient digit strictly exceeds the
     floor division value. -/
-theorem underflow_imp_strict_overestimate {u_val v_val q_nat : Nat}
-    (hoverflow : u_val < q_nat * v_val) :
-    u_val / v_val + 1 ≤ q_nat := by
+theorem underflow_imp_strict_overestimate {uVal vVal qNat : Nat}
+    (hoverflow : uVal < qNat * vVal) :
+    uVal / vVal + 1 ≤ qNat := by
   -- q * v > u means q > u / v
-  have : u_val / v_val < q_nat := by
+  have : uVal / vVal < qNat := by
     by_contra h; push Not at h
-    have := Nat.div_mul_le_self u_val v_val
-    nlinarith [Nat.mul_le_mul_right v_val h]
+    have := Nat.div_mul_le_self uVal vVal
+    nlinarith [Nat.mul_le_mul_right vVal h]
   omega
 
 /-- Addback correctness: after mulsub underflow and addback, the corrected
@@ -99,15 +99,15 @@ theorem underflow_imp_strict_overestimate {u_val v_val q_nat : Nat}
     - underflow occurred: `q * v > u` (otherwise cb3 would be 0)
 
     Then: `q - 1 = u / v` and `r_ab < v`. -/
-theorem mulsub_addback_correct {u_val v_val q_nat r_ab_val : Nat}
-    (hv : 0 < v_val)
-    (h_combined : u_val = r_ab_val + (q_nat - 1) * v_val)
-    (hge : u_val / v_val + 1 ≤ q_nat) :
-    q_nat - 1 = u_val / v_val ∧ r_ab_val < v_val := by
-  have hge0 := Nat.zero_le (u_val / v_val)
-  have hq1 : q_nat ≥ 1 := by omega
-  have heq : u_val = (q_nat - 1) * v_val + r_ab_val := by omega
-  have hge' : u_val / v_val ≤ q_nat - 1 := by omega
+theorem mulsub_addback_correct {uVal vVal qNat rAbVal : Nat}
+    (hv : 0 < vVal)
+    (h_combined : uVal = rAbVal + (qNat - 1) * vVal)
+    (hge : uVal / vVal + 1 ≤ qNat) :
+    qNat - 1 = uVal / vVal ∧ rAbVal < vVal := by
+  have hge0 := Nat.zero_le (uVal / vVal)
+  have hq1 : qNat ≥ 1 := by omega
+  have heq : uVal = (qNat - 1) * vVal + rAbVal := by omega
+  have hge' : uVal / vVal ≤ qNat - 1 := by omega
   exact remainder_lt_of_ge_floor hv heq hge'
 
 -- ============================================================================
@@ -120,16 +120,16 @@ theorem mulsub_addback_correct {u_val v_val q_nat r_ab_val : Nat}
     - Underflow (cb3 = 1) + addback: q-1 is correct, corrected remainder in range
 
     This produces the final quotient digit and remainder for one iteration. -/
-theorem single_iteration_correct {u_val v_val q_digit r_val : Nat}
-    (hv : 0 < v_val)
-    (heuclidean : u_val = q_digit * v_val + r_val)
-    (hge : u_val / v_val ≤ q_digit) :
-    q_digit = u_val / v_val ∧ r_val = u_val % v_val ∧ r_val < v_val := by
+theorem single_iteration_correct {uVal vVal q_digit r_val : Nat}
+    (hv : 0 < vVal)
+    (heuclidean : uVal = q_digit * vVal + r_val)
+    (hge : uVal / vVal ≤ q_digit) :
+    q_digit = uVal / vVal ∧ r_val = uVal % vVal ∧ r_val < vVal := by
   have ⟨hq, hr_lt⟩ := remainder_lt_of_ge_floor hv heuclidean hge
   subst hq
-  have h_mod := Nat.div_add_mod u_val v_val
+  have h_mod := Nat.div_add_mod uVal vVal
   refine ⟨rfl, ?_, hr_lt⟩
-  nlinarith [Nat.mul_comm v_val (u_val / v_val)]
+  nlinarith [Nat.mul_comm vVal (uVal / vVal)]
 
 -- ============================================================================
 -- val256-level Euclidean → EvmWord.div/mod via fromLimbs
@@ -179,13 +179,13 @@ theorem val256_euclidean_to_div_mod
 
     This is used when shift ≠ 0: the algorithm normalizes, computes, then
     denormalizes the remainder by right-shifting by s. -/
-theorem norm_euclidean_correct {a_val b_val q_nat r_norm : Nat} (s : Nat)
-    (heq : a_val * 2^s = q_nat * (b_val * 2^s) + r_norm)
-    (hlt : r_norm < b_val * 2^s) :
-    q_nat = a_val / b_val ∧ r_norm / 2^s = a_val % b_val := by
+theorem norm_euclidean_correct {aVal bVal qNat r_norm : Nat} (s : Nat)
+    (heq : aVal * 2^s = qNat * (bVal * 2^s) + r_norm)
+    (hlt : r_norm < bVal * 2^s) :
+    qNat = aVal / bVal ∧ r_norm / 2^s = aVal % bVal := by
   -- Convert to the form expected by norm_euclidean_bridge
-  have heq' : a_val * 2^s = b_val * 2^s * q_nat + r_norm := by linarith
-  exact norm_euclidean_bridge a_val b_val q_nat r_norm s heq' hlt
+  have heq' : aVal * 2^s = bVal * 2^s * qNat + r_norm := by linarith
+  exact norm_euclidean_bridge aVal bVal qNat r_norm s heq' hlt
 
 end EvmWord
 

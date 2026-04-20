@@ -102,7 +102,7 @@ def isMaxTrialN4Evm (a b : EvmWord) : Prop :=
 
 /-- Skip-addback condition at n=4 max in EvmWord form: the runtime borrow
     check `u4 < mulsubN4_c3` does not fire, so the algorithm skips the
-    addback step and uses `q_hat` as the quotient digit. -/
+    addback step and uses `qHat` as the quotient digit. -/
 def isSkipBorrowN4MaxEvm (a b : EvmWord) : Prop :=
   isSkipBorrowN4Max (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
                     (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
@@ -235,7 +235,7 @@ def divN4MaxSkipStackPost (sp : Word) (a b : EvmWord) : Assertion :=
 def divN4StackPre (sp : Word) (a b : EvmWord)
     (v5 v6 v7 v10 v11 : Word)
     (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-     shiftMem n_mem jMem : Word) : Assertion :=
+     shiftMem nMem jMem : Word) : Assertion :=
   (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
   (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
   (.x2 ↦ᵣ (clzResult (b.getLimbN 3)).2 >>> (63 : Nat)) **
@@ -243,30 +243,30 @@ def divN4StackPre (sp : Word) (a b : EvmWord)
   (.x11 ↦ᵣ v11) **
   evmWordIs sp a ** evmWordIs (sp + 32) b **
   divScratchValues sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-    shiftMem n_mem jMem
+    shiftMem nMem jMem
 
 theorem pcFree_divN4StackPre (sp : Word) (a b : EvmWord)
     (v5 v6 v7 v10 v11 : Word)
-    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem n_mem jMem : Word) :
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem : Word) :
     (divN4StackPre sp a b v5 v6 v7 v10 v11
-      q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem n_mem jMem).pcFree := by
+      q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem).pcFree := by
   delta divN4StackPre; pcFree
 
 instance (sp : Word) (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
-    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem n_mem jMem : Word) :
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem : Word) :
     Assertion.PCFree (divN4StackPre sp a b v5 v6 v7 v10 v11
-      q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem n_mem jMem) :=
+      q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem) :=
   ⟨pcFree_divN4StackPre sp a b v5 v6 v7 v10 v11
-    q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem n_mem jMem⟩
+    q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem⟩
 
 /-- Named unfold for `divN4StackPre`. Restores access to the atomic
     components once `@[irreducible]` has made `delta` the only path in. -/
 theorem divN4StackPre_unfold (sp : Word) (a b : EvmWord)
     (v5 v6 v7 v10 v11 : Word)
     (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-     shiftMem n_mem jMem : Word) :
+     shiftMem nMem jMem : Word) :
     divN4StackPre sp a b v5 v6 v7 v10 v11
-        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem n_mem jMem =
+        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem =
     ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
      (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
      (.x2 ↦ᵣ (clzResult (b.getLimbN 3)).2 >>> (63 : Nat)) **
@@ -274,7 +274,7 @@ theorem divN4StackPre_unfold (sp : Word) (a b : EvmWord)
      (.x11 ↦ᵣ v11) **
      evmWordIs sp a ** evmWordIs (sp + 32) b **
      divScratchValues sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-       shiftMem n_mem jMem) := by
+       shiftMem nMem jMem) := by
   delta divN4StackPre; rfl
 
 /-- Full-depth unfold of `divN4StackPre`: expands the bundle, both `evmWordIs`
@@ -285,9 +285,9 @@ theorem divN4StackPre_unfold (sp : Word) (a b : EvmWord)
 theorem divN4StackPre_unfold_atoms (sp : Word) (a b : EvmWord)
     (v5 v6 v7 v10 v11 : Word)
     (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-     shiftMem n_mem jMem : Word) :
+     shiftMem nMem jMem : Word) :
     divN4StackPre sp a b v5 v6 v7 v10 v11
-        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem n_mem jMem =
+        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem =
     ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
      (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
      (.x2 ↦ᵣ (clzResult (b.getLimbN 3)).2 >>> (63 : Nat)) **
@@ -304,7 +304,7 @@ theorem divN4StackPre_unfold_atoms (sp : Word) (a b : EvmWord)
       ((sp + signExtend12 4024) ↦ₘ u4) ** ((sp + signExtend12 4016) ↦ₘ u5) **
       ((sp + signExtend12 4008) ↦ₘ u6) ** ((sp + signExtend12 4000) ↦ₘ u7) **
       ((sp + signExtend12 3992) ↦ₘ shiftMem) **
-      ((sp + signExtend12 3984) ↦ₘ n_mem) **
+      ((sp + signExtend12 3984) ↦ₘ nMem) **
       ((sp + signExtend12 3976) ↦ₘ jMem))) := by
   rw [divN4StackPre_unfold, evmWordIs_sp_unfold, evmWordIs_sp32_unfold,
       divScratchValues_unfold]
@@ -317,7 +317,7 @@ theorem divN4StackPre_unfold_atoms (sp : Word) (a b : EvmWord)
 def modN4StackPre (sp : Word) (a b : EvmWord)
     (v5 v6 v7 v10 v11 : Word)
     (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-     shiftMem n_mem jMem : Word) : Assertion :=
+     shiftMem nMem jMem : Word) : Assertion :=
   (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
   (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
   (.x2 ↦ᵣ (clzResult (b.getLimbN 3)).2 >>> (63 : Nat)) **
@@ -325,29 +325,29 @@ def modN4StackPre (sp : Word) (a b : EvmWord)
   (.x11 ↦ᵣ v11) **
   evmWordIs sp a ** evmWordIs (sp + 32) b **
   divScratchValues sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-    shiftMem n_mem jMem
+    shiftMem nMem jMem
 
 theorem pcFree_modN4StackPre (sp : Word) (a b : EvmWord)
     (v5 v6 v7 v10 v11 : Word)
-    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem n_mem jMem : Word) :
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem : Word) :
     (modN4StackPre sp a b v5 v6 v7 v10 v11
-      q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem n_mem jMem).pcFree := by
+      q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem).pcFree := by
   delta modN4StackPre; pcFree
 
 instance (sp : Word) (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
-    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem n_mem jMem : Word) :
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem : Word) :
     Assertion.PCFree (modN4StackPre sp a b v5 v6 v7 v10 v11
-      q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem n_mem jMem) :=
+      q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem) :=
   ⟨pcFree_modN4StackPre sp a b v5 v6 v7 v10 v11
-    q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem n_mem jMem⟩
+    q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem⟩
 
 /-- Named unfold for `modN4StackPre`. Mirror of `divN4StackPre_unfold`. -/
 theorem modN4StackPre_unfold (sp : Word) (a b : EvmWord)
     (v5 v6 v7 v10 v11 : Word)
     (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-     shiftMem n_mem jMem : Word) :
+     shiftMem nMem jMem : Word) :
     modN4StackPre sp a b v5 v6 v7 v10 v11
-        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem n_mem jMem =
+        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem =
     ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
      (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
      (.x2 ↦ᵣ (clzResult (b.getLimbN 3)).2 >>> (63 : Nat)) **
@@ -355,7 +355,7 @@ theorem modN4StackPre_unfold (sp : Word) (a b : EvmWord)
      (.x11 ↦ᵣ v11) **
      evmWordIs sp a ** evmWordIs (sp + 32) b **
      divScratchValues sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-       shiftMem n_mem jMem) := by
+       shiftMem nMem jMem) := by
   delta modN4StackPre; rfl
 
 /-- Full-depth unfold of `modN4StackPre`: expands the bundle, both
@@ -364,9 +364,9 @@ theorem modN4StackPre_unfold (sp : Word) (a b : EvmWord)
 theorem modN4StackPre_unfold_atoms (sp : Word) (a b : EvmWord)
     (v5 v6 v7 v10 v11 : Word)
     (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-     shiftMem n_mem jMem : Word) :
+     shiftMem nMem jMem : Word) :
     modN4StackPre sp a b v5 v6 v7 v10 v11
-        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem n_mem jMem =
+        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem =
     ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
      (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
      (.x2 ↦ᵣ (clzResult (b.getLimbN 3)).2 >>> (63 : Nat)) **
@@ -383,7 +383,7 @@ theorem modN4StackPre_unfold_atoms (sp : Word) (a b : EvmWord)
       ((sp + signExtend12 4024) ↦ₘ u4) ** ((sp + signExtend12 4016) ↦ₘ u5) **
       ((sp + signExtend12 4008) ↦ₘ u6) ** ((sp + signExtend12 4000) ↦ₘ u7) **
       ((sp + signExtend12 3992) ↦ₘ shiftMem) **
-      ((sp + signExtend12 3984) ↦ₘ n_mem) **
+      ((sp + signExtend12 3984) ↦ₘ nMem) **
       ((sp + signExtend12 3976) ↦ₘ jMem))) := by
   rw [modN4StackPre_unfold, evmWordIs_sp_unfold, evmWordIs_sp32_unfold,
       divScratchValues_unfold]
@@ -445,7 +445,7 @@ instance (sp : Word) (a b : EvmWord) :
 theorem div_n4_max_skip_stack_weaken
     (sp : Word) (a b : EvmWord)
     (v1_p v2_p v5_p v6_p v7_p v10_p v11_p : Word)
-    (q0_p q1_p q2_p q3_p u0_p u1_p u2_p u3_p u4_p u5_p u6_p u7_p
+    (q0P q1P q2_p q3_p u0P u1P u2P u3P u4_p u5_p u6_p u7_p
      shift_p n_p j_p : Word) :
     ∀ h,
       ((.x12 ↦ᵣ (sp + 32)) **
@@ -454,7 +454,7 @@ theorem div_n4_max_skip_stack_weaken
        (.x10 ↦ᵣ v10_p) ** (.x11 ↦ᵣ v11_p) **
        (.x0 ↦ᵣ (0 : Word)) **
        evmWordIs sp a ** evmWordIs (sp + 32) (EvmWord.div a b) **
-       divScratchValues sp q0_p q1_p q2_p q3_p u0_p u1_p u2_p u3_p u4_p
+       divScratchValues sp q0P q1P q2_p q3_p u0P u1P u2P u3P u4_p
          u5_p u6_p u7_p shift_p n_p j_p) h →
       divN4MaxSkipStackPost sp a b h := by
   intro h hp
@@ -465,7 +465,7 @@ theorem div_n4_max_skip_stack_weaken
   apply sepConj_mono_right
   apply sepConj_mono_right
   exact divScratchValues_implies_divScratchOwn
-    sp q0_p q1_p q2_p q3_p u0_p u1_p u2_p u3_p u4_p u5_p u6_p u7_p
+    sp q0P q1P q2_p q3_p u0P u1P u2P u3P u4_p u5_p u6_p u7_p
     shift_p n_p j_p
 
 /-- MOD counterpart of `divN4MaxSkipStackPost`: same structure, same register
@@ -545,7 +545,7 @@ theorem modN4MaxSkipStackPost_unfold_atoms_right (sp : Word) (a b : EvmWord)
     `divN4StackPre_unfold_atoms_right`. -/
 theorem modN4StackPre_unfold_atoms_right (sp : Word) (a b : EvmWord)
     (v5 v6 v7 v10 v11 : Word)
-    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem n_mem jMem : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem : Word)
     (Q : Assertion) :
     (((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
       (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
@@ -563,10 +563,10 @@ theorem modN4StackPre_unfold_atoms_right (sp : Word) (a b : EvmWord)
        ((sp + signExtend12 4024) ↦ₘ u4) ** ((sp + signExtend12 4016) ↦ₘ u5) **
        ((sp + signExtend12 4008) ↦ₘ u6) ** ((sp + signExtend12 4000) ↦ₘ u7) **
        ((sp + signExtend12 3992) ↦ₘ shiftMem) **
-       ((sp + signExtend12 3984) ↦ₘ n_mem) **
+       ((sp + signExtend12 3984) ↦ₘ nMem) **
        ((sp + signExtend12 3976) ↦ₘ jMem))) ** Q) =
     (modN4StackPre sp a b v5 v6 v7 v10 v11
-      q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem n_mem jMem ** Q) := by
+      q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem ** Q) := by
   rw [modN4StackPre_unfold_atoms]
 
 /-- Mid-tree variant of `divN4StackPre_unfold_atoms`: threads a remainder
@@ -575,7 +575,7 @@ theorem modN4StackPre_unfold_atoms_right (sp : Word) (a b : EvmWord)
     fold variants. -/
 theorem divN4StackPre_unfold_atoms_right (sp : Word) (a b : EvmWord)
     (v5 v6 v7 v10 v11 : Word)
-    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem n_mem jMem : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem : Word)
     (Q : Assertion) :
     (((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
       (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
@@ -593,10 +593,10 @@ theorem divN4StackPre_unfold_atoms_right (sp : Word) (a b : EvmWord)
        ((sp + signExtend12 4024) ↦ₘ u4) ** ((sp + signExtend12 4016) ↦ₘ u5) **
        ((sp + signExtend12 4008) ↦ₘ u6) ** ((sp + signExtend12 4000) ↦ₘ u7) **
        ((sp + signExtend12 3992) ↦ₘ shiftMem) **
-       ((sp + signExtend12 3984) ↦ₘ n_mem) **
+       ((sp + signExtend12 3984) ↦ₘ nMem) **
        ((sp + signExtend12 3976) ↦ₘ jMem))) ** Q) =
     (divN4StackPre sp a b v5 v6 v7 v10 v11
-      q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem n_mem jMem ** Q) := by
+      q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem ** Q) := by
   rw [divN4StackPre_unfold_atoms]
 
 /-- Mid-tree variant of the `divN4MaxSkipStackPost_unfold_atoms` family:
@@ -643,7 +643,7 @@ instance (sp : Word) (a b : EvmWord) :
 theorem mod_n4_max_skip_stack_weaken
     (sp : Word) (a b : EvmWord)
     (v1_p v2_p v5_p v6_p v7_p v10_p v11_p : Word)
-    (q0_p q1_p q2_p q3_p u0_p u1_p u2_p u3_p u4_p u5_p u6_p u7_p
+    (q0P q1P q2_p q3_p u0P u1P u2P u3P u4_p u5_p u6_p u7_p
      shift_p n_p j_p : Word) :
     ∀ h,
       ((.x12 ↦ᵣ (sp + 32)) **
@@ -652,7 +652,7 @@ theorem mod_n4_max_skip_stack_weaken
        (.x10 ↦ᵣ v10_p) ** (.x11 ↦ᵣ v11_p) **
        (.x0 ↦ᵣ (0 : Word)) **
        evmWordIs sp a ** evmWordIs (sp + 32) (EvmWord.mod a b) **
-       divScratchValues sp q0_p q1_p q2_p q3_p u0_p u1_p u2_p u3_p u4_p
+       divScratchValues sp q0P q1P q2_p q3_p u0P u1P u2P u3P u4_p
          u5_p u6_p u7_p shift_p n_p j_p) h →
       modN4MaxSkipStackPost sp a b h := by
   intro h hp
@@ -663,7 +663,7 @@ theorem mod_n4_max_skip_stack_weaken
   apply sepConj_mono_right
   apply sepConj_mono_right
   exact divScratchValues_implies_divScratchOwn
-    sp q0_p q1_p q2_p q3_p u0_p u1_p u2_p u3_p u4_p u5_p u6_p u7_p
+    sp q0P q1P q2_p q3_p u0P u1P u2P u3P u4_p u5_p u6_p u7_p
     shift_p n_p j_p
 
 /-- EvmWord-level wrapper around `evm_div_n4_full_max_skip_spec`. Same
@@ -738,7 +738,7 @@ theorem divScratchCellCount_pos : 0 < divScratchCellCount := by decide
 theorem evm_div_n4_full_max_skip_stack_pre_spec_bundled (sp base : Word)
     (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
     (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-     n_mem shiftMem jMem : Word)
+     nMem shiftMem jMem : Word)
     (hbnz : b ≠ 0)
     (hb3nz : b.getLimbN 3 ≠ 0)
     (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
@@ -746,13 +746,13 @@ theorem evm_div_n4_full_max_skip_stack_pre_spec_bundled (sp base : Word)
     (hborrow : isSkipBorrowN4MaxEvm a b) :
     cpsTriple base (base + nopOff) (divCode base)
       (divN4StackPre sp a b v5 v6 v7 v10 v11
-         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem n_mem jMem)
+         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem)
       (fullDivN4MaxSkipPost sp
         (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
         (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) := by
   have h := evm_div_n4_full_max_skip_stack_pre_spec sp base a b
     v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-    n_mem shiftMem jMem hbnz hb3nz hshift_nz hbltu hborrow
+    nMem shiftMem jMem hbnz hb3nz hshift_nz hbltu hborrow
   exact cpsTriple_weaken
     (fun _ hp => by rw [divN4StackPre_unfold] at hp; exact hp)
     (fun _ hq => hq)
@@ -913,7 +913,7 @@ theorem evm_mod_n4_full_max_skip_stack_pre_spec (sp base : Word)
 theorem evm_mod_n4_full_max_skip_stack_pre_spec_bundled (sp base : Word)
     (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
     (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-     n_mem shiftMem jMem : Word)
+     nMem shiftMem jMem : Word)
     (hbnz : b ≠ 0)
     (hb3nz : b.getLimbN 3 ≠ 0)
     (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
@@ -921,13 +921,13 @@ theorem evm_mod_n4_full_max_skip_stack_pre_spec_bundled (sp base : Word)
     (hborrow : isSkipBorrowN4MaxEvm a b) :
     cpsTriple base (base + nopOff) (modCode base)
       (modN4StackPre sp a b v5 v6 v7 v10 v11
-         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem n_mem jMem)
+         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem)
       (fullModN4MaxSkipPost sp
         (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
         (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) := by
   have h := evm_mod_n4_full_max_skip_stack_pre_spec sp base a b
     v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-    n_mem shiftMem jMem hbnz hb3nz hshift_nz hbltu hborrow
+    nMem shiftMem jMem hbnz hb3nz hshift_nz hbltu hborrow
   exact cpsTriple_weaken
     (fun _ hp => by rw [modN4StackPre_unfold] at hp; exact hp)
     (fun _ hq => hq)
@@ -991,7 +991,7 @@ theorem output_slot_to_evmWordIs_mod_n4_max_skip (sp : Word) (a b : EvmWord)
 theorem evm_div_n4_max_skip_stack_spec (sp base : Word)
     (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
     (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-     n_mem shiftMem jMem : Word)
+     nMem shiftMem jMem : Word)
     (hbnz : b ≠ 0)
     (hb3nz : b.getLimbN 3 ≠ 0)
     (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
@@ -1000,10 +1000,10 @@ theorem evm_div_n4_max_skip_stack_spec (sp base : Word)
     (hsem : n4MaxSkipSemanticHolds a b) :
     cpsTriple base (base + nopOff) (divCode base)
       (divN4StackPre sp a b v5 v6 v7 v10 v11
-         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem n_mem jMem)
+         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem)
       (divN4MaxSkipStackPost sp a b) := by
   have h_pre := evm_div_n4_full_max_skip_stack_pre_spec_bundled sp base a b
-    v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 n_mem shiftMem jMem
+    v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 nMem shiftMem jMem
     hbnz hb3nz hshift_nz hbltu hborrow
   obtain ⟨hdiv0, hdiv1, hdiv2, hdiv3, _, _, _, _⟩ :=
     n4_max_skip_div_mod_getLimbN a b hb3nz hsem
@@ -1055,7 +1055,7 @@ theorem evm_div_n4_max_skip_stack_spec (sp base : Word)
 theorem evm_mod_n4_max_skip_stack_spec (sp base : Word)
     (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
     (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-     n_mem shiftMem jMem : Word)
+     nMem shiftMem jMem : Word)
     (hbnz : b ≠ 0)
     (hb3nz : b.getLimbN 3 ≠ 0)
     (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
@@ -1066,10 +1066,10 @@ theorem evm_mod_n4_max_skip_stack_spec (sp base : Word)
         2 ^ (64 - (clzResult (b.getLimbN 3)).1.toNat)) :
     cpsTriple base (base + nopOff) (modCode base)
       (modN4StackPre sp a b v5 v6 v7 v10 v11
-         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem n_mem jMem)
+         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem)
       (modN4MaxSkipStackPost sp a b) := by
   have h_pre := evm_mod_n4_full_max_skip_stack_pre_spec_bundled sp base a b
-    v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 n_mem shiftMem jMem
+    v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 nMem shiftMem jMem
     hbnz hb3nz hshift_nz hbltu hborrow
   -- Shift bound: clzResult.1.toNat ≤ 63, and hshift_nz gives it > 0.
   have hshift_le_63 := clzResult_fst_toNat_le (b.getLimbN 3)
@@ -1083,7 +1083,7 @@ theorem evm_mod_n4_max_skip_stack_spec (sp base : Word)
   have hshift_lt_64 : (clzResult (b.getLimbN 3)).1.toNat < 64 := by omega
   have hmod_eq : (clzResult (b.getLimbN 3)).1.toNat % 64 =
       (clzResult (b.getLimbN 3)).1.toNat := by omega
-  -- c3_n ≤ u_top from runtime skip borrow, specialized to our shift form.
+  -- c3_n ≤ uTop from runtime skip borrow, specialized to our shift form.
   have hc3_le := EvmWord.c3_le_u_top_of_skip_borrow
     (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
     (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) hborrow

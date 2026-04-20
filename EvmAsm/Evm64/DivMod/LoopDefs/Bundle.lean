@@ -32,7 +32,7 @@ open EvmAsm.Rv64
     Bundles registers, v-cells, u-cells at j=1 base, and extra j=0 cells. -/
 @[irreducible]
 def loopN3Pre (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-    v0 v1 v2 v3 u0 u1 u2 u3 u_top u0_orig q1Old q0Old : Word) : Assertion :=
+    v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old : Word) : Assertion :=
   let u_base_1 := sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat
   let u_base_0 := sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat
   let q_addr_1 := sp + signExtend12 4088 - (1 : Word) <<< (3 : BitVec 6).toNat
@@ -46,9 +46,9 @@ def loopN3Pre (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
   ((sp + signExtend12 40) ↦ₘ v1) ** ((u_base_1 + signExtend12 4088) ↦ₘ u1) **
   ((sp + signExtend12 48) ↦ₘ v2) ** ((u_base_1 + signExtend12 4080) ↦ₘ u2) **
   ((sp + signExtend12 56) ↦ₘ v3) ** ((u_base_1 + signExtend12 4072) ↦ₘ u3) **
-  ((u_base_1 + signExtend12 4064) ↦ₘ u_top) **
+  ((u_base_1 + signExtend12 4064) ↦ₘ uTop) **
   (q_addr_1 ↦ₘ q1Old) **
-  ((u_base_0 + signExtend12 0) ↦ₘ u0_orig) **
+  ((u_base_0 + signExtend12 0) ↦ₘ u0Orig) **
   (q_addr_0 ↦ₘ q0Old)
 
 
@@ -60,13 +60,13 @@ def loopN3Pre (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
     Used when at least one iteration takes the call (div128) path. -/
 @[irreducible]
 def loopN3PreWithScratch (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-    v0 v1 v2 v3 u0 u1 u2 u3 u_top u0_orig q1Old q0Old
-    ret_mem d_mem dlo_mem scratch_un0 : Word) : Assertion :=
+    v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
+    retMem dMem dloMem scratch_un0 : Word) : Assertion :=
   loopN3Pre sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-    v0 v1 v2 v3 u0 u1 u2 u3 u_top u0_orig q1Old q0Old **
-  (sp + signExtend12 3968 ↦ₘ ret_mem) **
-  (sp + signExtend12 3960 ↦ₘ d_mem) **
-  (sp + signExtend12 3952 ↦ₘ dlo_mem) **
+    v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old **
+  (sp + signExtend12 3968 ↦ₘ retMem) **
+  (sp + signExtend12 3960 ↦ₘ dMem) **
+  (sp + signExtend12 3952 ↦ₘ dloMem) **
   (sp + signExtend12 3944 ↦ₘ scratch_un0)
 
 
@@ -79,7 +79,7 @@ def loopN3PreWithScratch (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
     for j=1 (u0_orig_1, q1Old) and j=0 (u0_orig_0, q0Old). -/
 @[irreducible]
 def loopN2Pre (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-    v0 v1 v2 v3 u0 u1 u2 u3 u_top
+    v0 v1 v2 v3 u0 u1 u2 u3 uTop
     u0_orig_1 u0_orig_0
     q2Old q1Old q0Old : Word) : Assertion :=
   let u_base_2 := sp + signExtend12 4056 - (2 : Word) <<< (3 : BitVec 6).toNat
@@ -97,7 +97,7 @@ def loopN2Pre (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
   ((sp + signExtend12 40) ↦ₘ v1) ** ((u_base_2 + signExtend12 4088) ↦ₘ u1) **
   ((sp + signExtend12 48) ↦ₘ v2) ** ((u_base_2 + signExtend12 4080) ↦ₘ u2) **
   ((sp + signExtend12 56) ↦ₘ v3) ** ((u_base_2 + signExtend12 4072) ↦ₘ u3) **
-  ((u_base_2 + signExtend12 4064) ↦ₘ u_top) **
+  ((u_base_2 + signExtend12 4064) ↦ₘ uTop) **
   (q_addr_2 ↦ₘ q2Old) **
   ((u_base_1 + signExtend12 0) ↦ₘ u0_orig_1) **
   (q_addr_1 ↦ₘ q1Old) **
@@ -108,16 +108,16 @@ def loopN2Pre (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
     Used when at least one iteration may take the call (div128) path. -/
 @[irreducible]
 def loopN2PreWithScratch (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-    v0 v1 v2 v3 u0 u1 u2 u3 u_top
+    v0 v1 v2 v3 u0 u1 u2 u3 uTop
     u0_orig_1 u0_orig_0
     q2Old q1Old q0Old
-    ret_mem d_mem dlo_mem scratch_un0 : Word) : Assertion :=
+    retMem dMem dloMem scratch_un0 : Word) : Assertion :=
   loopN2Pre sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-    v0 v1 v2 v3 u0 u1 u2 u3 u_top
+    v0 v1 v2 v3 u0 u1 u2 u3 uTop
     u0_orig_1 u0_orig_0 q2Old q1Old q0Old **
-  (sp + signExtend12 3968 ↦ₘ ret_mem) **
-  (sp + signExtend12 3960 ↦ₘ d_mem) **
-  (sp + signExtend12 3952 ↦ₘ dlo_mem) **
+  (sp + signExtend12 3968 ↦ₘ retMem) **
+  (sp + signExtend12 3960 ↦ₘ dMem) **
+  (sp + signExtend12 3952 ↦ₘ dloMem) **
   (sp + signExtend12 3944 ↦ₘ scratch_un0)
 
 
@@ -126,10 +126,10 @@ def loopN2PreWithScratch (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
 -- ============================================================================
 
 /-- Precondition for n=2 two-iteration loop (j=1, j=0).
-    Same structure as loopN3Pre but with n_mem = 2. -/
+    Same structure as loopN3Pre but with nMem = 2. -/
 @[irreducible]
 def loopN2Iter10Pre (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-    v0 v1 v2 v3 u0 u1 u2 u3 u_top u0_orig q1Old q0Old : Word) : Assertion :=
+    v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old : Word) : Assertion :=
   let u_base_1 := sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat
   let u_base_0 := sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat
   let q_addr_1 := sp + signExtend12 4088 - (1 : Word) <<< (3 : BitVec 6).toNat
@@ -143,21 +143,21 @@ def loopN2Iter10Pre (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
   ((sp + signExtend12 40) ↦ₘ v1) ** ((u_base_1 + signExtend12 4088) ↦ₘ u1) **
   ((sp + signExtend12 48) ↦ₘ v2) ** ((u_base_1 + signExtend12 4080) ↦ₘ u2) **
   ((sp + signExtend12 56) ↦ₘ v3) ** ((u_base_1 + signExtend12 4072) ↦ₘ u3) **
-  ((u_base_1 + signExtend12 4064) ↦ₘ u_top) **
+  ((u_base_1 + signExtend12 4064) ↦ₘ uTop) **
   (q_addr_1 ↦ₘ q1Old) **
-  ((u_base_0 + signExtend12 0) ↦ₘ u0_orig) **
+  ((u_base_0 + signExtend12 0) ↦ₘ u0Orig) **
   (q_addr_0 ↦ₘ q0Old)
 
 /-- Precondition for n=2 two-iteration loop with scratch cells. -/
 @[irreducible]
 def loopN2Iter10PreWithScratch (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-    v0 v1 v2 v3 u0 u1 u2 u3 u_top u0_orig q1Old q0Old
-    ret_mem d_mem dlo_mem scratch_un0 : Word) : Assertion :=
+    v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
+    retMem dMem dloMem scratch_un0 : Word) : Assertion :=
   loopN2Iter10Pre sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-    v0 v1 v2 v3 u0 u1 u2 u3 u_top u0_orig q1Old q0Old **
-  (sp + signExtend12 3968 ↦ₘ ret_mem) **
-  (sp + signExtend12 3960 ↦ₘ d_mem) **
-  (sp + signExtend12 3952 ↦ₘ dlo_mem) **
+    v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old **
+  (sp + signExtend12 3968 ↦ₘ retMem) **
+  (sp + signExtend12 3960 ↦ₘ dMem) **
+  (sp + signExtend12 3952 ↦ₘ dloMem) **
   (sp + signExtend12 3944 ↦ₘ scratch_un0)
 
 
@@ -170,7 +170,7 @@ def loopN2Iter10PreWithScratch (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
     for j=2 (u0_orig_2, q2Old), j=1 (u0_orig_1, q1Old), and j=0 (u0_orig_0, q0Old). -/
 @[irreducible]
 def loopN1Pre (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-    v0 v1 v2 v3 u0 u1 u2 u3 u_top
+    v0 v1 v2 v3 u0 u1 u2 u3 uTop
     u0_orig_2 u0_orig_1 u0_orig_0
     q3Old q2Old q1Old q0Old : Word) : Assertion :=
   let u_base_3 := sp + signExtend12 4056 - (3 : Word) <<< (3 : BitVec 6).toNat
@@ -190,7 +190,7 @@ def loopN1Pre (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
   ((sp + signExtend12 40) ↦ₘ v1) ** ((u_base_3 + signExtend12 4088) ↦ₘ u1) **
   ((sp + signExtend12 48) ↦ₘ v2) ** ((u_base_3 + signExtend12 4080) ↦ₘ u2) **
   ((sp + signExtend12 56) ↦ₘ v3) ** ((u_base_3 + signExtend12 4072) ↦ₘ u3) **
-  ((u_base_3 + signExtend12 4064) ↦ₘ u_top) **
+  ((u_base_3 + signExtend12 4064) ↦ₘ uTop) **
   (q_addr_3 ↦ₘ q3Old) **
   ((u_base_2 + signExtend12 0) ↦ₘ u0_orig_2) **
   (q_addr_2 ↦ₘ q2Old) **
@@ -203,16 +203,16 @@ def loopN1Pre (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
     Used when at least one iteration may take the call (div128) path. -/
 @[irreducible]
 def loopN1PreWithScratch (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-    v0 v1 v2 v3 u0 u1 u2 u3 u_top
+    v0 v1 v2 v3 u0 u1 u2 u3 uTop
     u0_orig_2 u0_orig_1 u0_orig_0
     q3Old q2Old q1Old q0Old
-    ret_mem d_mem dlo_mem scratch_un0 : Word) : Assertion :=
+    retMem dMem dloMem scratch_un0 : Word) : Assertion :=
   loopN1Pre sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-    v0 v1 v2 v3 u0 u1 u2 u3 u_top
+    v0 v1 v2 v3 u0 u1 u2 u3 uTop
     u0_orig_2 u0_orig_1 u0_orig_0 q3Old q2Old q1Old q0Old **
-  (sp + signExtend12 3968 ↦ₘ ret_mem) **
-  (sp + signExtend12 3960 ↦ₘ d_mem) **
-  (sp + signExtend12 3952 ↦ₘ dlo_mem) **
+  (sp + signExtend12 3968 ↦ₘ retMem) **
+  (sp + signExtend12 3960 ↦ₘ dMem) **
+  (sp + signExtend12 3952 ↦ₘ dloMem) **
   (sp + signExtend12 3944 ↦ₘ scratch_un0)
 
 
@@ -221,10 +221,10 @@ def loopN1PreWithScratch (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
 -- ============================================================================
 
 /-- Precondition for n=1 two-iteration loop (j=1, j=0).
-    Same structure as loopN2Iter10Pre but with n_mem = 1. -/
+    Same structure as loopN2Iter10Pre but with nMem = 1. -/
 @[irreducible]
 def loopN1Iter10Pre (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-    v0 v1 v2 v3 u0 u1 u2 u3 u_top u0_orig q1Old q0Old : Word) : Assertion :=
+    v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old : Word) : Assertion :=
   let u_base_1 := sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat
   let u_base_0 := sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat
   let q_addr_1 := sp + signExtend12 4088 - (1 : Word) <<< (3 : BitVec 6).toNat
@@ -238,21 +238,21 @@ def loopN1Iter10Pre (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
   ((sp + signExtend12 40) ↦ₘ v1) ** ((u_base_1 + signExtend12 4088) ↦ₘ u1) **
   ((sp + signExtend12 48) ↦ₘ v2) ** ((u_base_1 + signExtend12 4080) ↦ₘ u2) **
   ((sp + signExtend12 56) ↦ₘ v3) ** ((u_base_1 + signExtend12 4072) ↦ₘ u3) **
-  ((u_base_1 + signExtend12 4064) ↦ₘ u_top) **
+  ((u_base_1 + signExtend12 4064) ↦ₘ uTop) **
   (q_addr_1 ↦ₘ q1Old) **
-  ((u_base_0 + signExtend12 0) ↦ₘ u0_orig) **
+  ((u_base_0 + signExtend12 0) ↦ₘ u0Orig) **
   (q_addr_0 ↦ₘ q0Old)
 
 /-- Precondition for n=1 two-iteration loop with scratch cells. -/
 @[irreducible]
 def loopN1Iter10PreWithScratch (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-    v0 v1 v2 v3 u0 u1 u2 u3 u_top u0_orig q1Old q0Old
-    ret_mem d_mem dlo_mem scratch_un0 : Word) : Assertion :=
+    v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
+    retMem dMem dloMem scratch_un0 : Word) : Assertion :=
   loopN1Iter10Pre sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-    v0 v1 v2 v3 u0 u1 u2 u3 u_top u0_orig q1Old q0Old **
-  (sp + signExtend12 3968 ↦ₘ ret_mem) **
-  (sp + signExtend12 3960 ↦ₘ d_mem) **
-  (sp + signExtend12 3952 ↦ₘ dlo_mem) **
+    v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old **
+  (sp + signExtend12 3968 ↦ₘ retMem) **
+  (sp + signExtend12 3960 ↦ₘ dMem) **
+  (sp + signExtend12 3952 ↦ₘ dloMem) **
   (sp + signExtend12 3944 ↦ₘ scratch_un0)
 
 
@@ -261,10 +261,10 @@ def loopN1Iter10PreWithScratch (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
 -- ============================================================================
 
 /-- Precondition for n=1 three-iteration loop (j=2, j=1, j=0).
-    Same structure as loopN2Pre but with n_mem = 1, starting at j=2. -/
+    Same structure as loopN2Pre but with nMem = 1, starting at j=2. -/
 @[irreducible]
 def loopN1Iter210Pre (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-    v0 v1 v2 v3 u0 u1 u2 u3 u_top
+    v0 v1 v2 v3 u0 u1 u2 u3 uTop
     u0_orig_1 u0_orig_0
     q2Old q1Old q0Old : Word) : Assertion :=
   let u_base_2 := sp + signExtend12 4056 - (2 : Word) <<< (3 : BitVec 6).toNat
@@ -282,7 +282,7 @@ def loopN1Iter210Pre (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
   ((sp + signExtend12 40) ↦ₘ v1) ** ((u_base_2 + signExtend12 4088) ↦ₘ u1) **
   ((sp + signExtend12 48) ↦ₘ v2) ** ((u_base_2 + signExtend12 4080) ↦ₘ u2) **
   ((sp + signExtend12 56) ↦ₘ v3) ** ((u_base_2 + signExtend12 4072) ↦ₘ u3) **
-  ((u_base_2 + signExtend12 4064) ↦ₘ u_top) **
+  ((u_base_2 + signExtend12 4064) ↦ₘ uTop) **
   (q_addr_2 ↦ₘ q2Old) **
   ((u_base_1 + signExtend12 0) ↦ₘ u0_orig_1) **
   (q_addr_1 ↦ₘ q1Old) **
@@ -292,16 +292,16 @@ def loopN1Iter210Pre (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
 /-- Precondition for n=1 three-iteration loop with scratch cells. -/
 @[irreducible]
 def loopN1Iter210PreWithScratch (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-    v0 v1 v2 v3 u0 u1 u2 u3 u_top
+    v0 v1 v2 v3 u0 u1 u2 u3 uTop
     u0_orig_1 u0_orig_0
     q2Old q1Old q0Old
-    ret_mem d_mem dlo_mem scratch_un0 : Word) : Assertion :=
+    retMem dMem dloMem scratch_un0 : Word) : Assertion :=
   loopN1Iter210Pre sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-    v0 v1 v2 v3 u0 u1 u2 u3 u_top
+    v0 v1 v2 v3 u0 u1 u2 u3 uTop
     u0_orig_1 u0_orig_0 q2Old q1Old q0Old **
-  (sp + signExtend12 3968 ↦ₘ ret_mem) **
-  (sp + signExtend12 3960 ↦ₘ d_mem) **
-  (sp + signExtend12 3952 ↦ₘ dlo_mem) **
+  (sp + signExtend12 3968 ↦ₘ retMem) **
+  (sp + signExtend12 3960 ↦ₘ dMem) **
+  (sp + signExtend12 3952 ↦ₘ dloMem) **
   (sp + signExtend12 3944 ↦ₘ scratch_un0)
 
 end EvmAsm.Evm64

@@ -8,9 +8,9 @@
       SRLI, SLLI, SRLI, SD) that saves the return address and `d` to
       scratch, and splits `d` into `dHi` / `dLo`.
     * `divK_div128_split_ulo_spec` — 4-instruction block (SRLI, SLLI,
-      SRLI, SD) that splits `u_lo` into `un1` / `un0` and saves `un0`.
+      SRLI, SD) that splits `uLo` into `un1` / `un0` and saves `un0`.
     * `divK_div128_step1_init_spec` — 3-instruction block (DIVU, MUL,
-      SUB) computing `q1 = u_hi / dHi` and `rhat = u_hi - q1 * dHi`.
+      SUB) computing `q1 = uHi / dHi` and `rhat = uHi - q1 * dHi`.
 
   Twentieth chunk of the `LimbSpec.lean` split tracked by issue #312.
   The consumer surface is unchanged: `LimbSpec.lean` re-exports this file
@@ -31,8 +31,8 @@ namespace EvmAsm.Evm64
 open EvmAsm.Rv64
 
 /-- div128 Phase 1a: save x2 (return addr) and x10 (d), compute dHi and dLo. -/
-theorem divK_div128_save_split_d_spec (sp ret_addr d v1Old v6Old
-    ret_mem d_mem dlo_mem : Word) (base : Word) :
+theorem divK_div128_save_split_d_spec (sp retAddr d v1Old v6Old
+    retMem dMem dloMem : Word) (base : Word) :
     let dHi := d >>> (32 : BitVec 6).toNat
     let dLo := (d <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
     let cr :=
@@ -43,44 +43,44 @@ theorem divK_div128_save_split_d_spec (sp ret_addr d v1Old v6Old
       (CodeReq.union (CodeReq.singleton (base + 16) (.SRLI .x1 .x1 32))
        (CodeReq.singleton (base + 20) (.SD .x12 .x1 3952))))))
     cpsTriple base (base + 24) cr
-      ((.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ ret_addr) ** (.x10 ↦ᵣ d) **
+      ((.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ retAddr) ** (.x10 ↦ᵣ d) **
        (.x6 ↦ᵣ v6Old) ** (.x1 ↦ᵣ v1Old) **
-       (sp + signExtend12 3968 ↦ₘ ret_mem) **
-       (sp + signExtend12 3960 ↦ₘ d_mem) **
-       (sp + signExtend12 3952 ↦ₘ dlo_mem))
-      ((.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ ret_addr) ** (.x10 ↦ᵣ d) **
+       (sp + signExtend12 3968 ↦ₘ retMem) **
+       (sp + signExtend12 3960 ↦ₘ dMem) **
+       (sp + signExtend12 3952 ↦ₘ dloMem))
+      ((.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ retAddr) ** (.x10 ↦ᵣ d) **
        (.x6 ↦ᵣ dHi) ** (.x1 ↦ᵣ dLo) **
-       (sp + signExtend12 3968 ↦ₘ ret_addr) **
+       (sp + signExtend12 3968 ↦ₘ retAddr) **
        (sp + signExtend12 3960 ↦ₘ d) **
        (sp + signExtend12 3952 ↦ₘ dLo)) := by
   intro dHi dLo cr
-  have I0 := sd_spec_gen .x12 .x2 sp ret_addr ret_mem 3968 base
-  have I1 := sd_spec_gen .x12 .x10 sp d d_mem 3960 (base + 4)
+  have I0 := sd_spec_gen .x12 .x2 sp retAddr retMem 3968 base
+  have I1 := sd_spec_gen .x12 .x10 sp d dMem 3960 (base + 4)
   have I2 := srli_spec_gen .x6 .x10 v6Old d 32 (base + 8) (by nofun)
   have I3 := slli_spec_gen .x1 .x10 v1Old d 32 (base + 12) (by nofun)
   have I4 := srli_spec_gen_same .x1 (d <<< (32 : BitVec 6).toNat) 32 (base + 16) (by nofun)
-  have I5 := sd_spec_gen .x12 .x1 sp dLo dlo_mem 3952 (base + 20)
+  have I5 := sd_spec_gen .x12 .x1 sp dLo dloMem 3952 (base + 20)
   runBlock I0 I1 I2 I3 I4 I5
 
-/-- div128 Phase 1b: split u_lo into un1 (x11) and un0 (x5), save un0. -/
-theorem divK_div128_split_ulo_spec (sp u_lo v11Old un0_mem : Word) (base : Word) :
-    let un1 := u_lo >>> (32 : BitVec 6).toNat
-    let un0 := (u_lo <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+/-- div128 Phase 1b: split uLo into un1 (x11) and un0 (x5), save un0. -/
+theorem divK_div128_split_ulo_spec (sp uLo v11Old un0Mem : Word) (base : Word) :
+    let un1 := uLo >>> (32 : BitVec 6).toNat
+    let un0 := (uLo <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
     let cr :=
       CodeReq.union (CodeReq.singleton base (.SRLI .x11 .x5 32))
       (CodeReq.union (CodeReq.singleton (base + 4) (.SLLI .x5 .x5 32))
       (CodeReq.union (CodeReq.singleton (base + 8) (.SRLI .x5 .x5 32))
        (CodeReq.singleton (base + 12) (.SD .x12 .x5 3944))))
     cpsTriple base (base + 16) cr
-      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ u_lo) ** (.x11 ↦ᵣ v11Old) **
-       (sp + signExtend12 3944 ↦ₘ un0_mem))
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ uLo) ** (.x11 ↦ᵣ v11Old) **
+       (sp + signExtend12 3944 ↦ₘ un0Mem))
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ un0) ** (.x11 ↦ᵣ un1) **
        (sp + signExtend12 3944 ↦ₘ un0)) := by
   intro un1 un0 cr
-  have I0 := srli_spec_gen .x11 .x5 v11Old u_lo 32 base (by nofun)
-  have I1 := slli_spec_gen_same .x5 u_lo 32 (base + 4) (by nofun)
-  have I2 := srli_spec_gen_same .x5 (u_lo <<< (32 : BitVec 6).toNat) 32 (base + 8) (by nofun)
-  have I3 := sd_spec_gen .x12 .x5 sp un0 un0_mem 3944 (base + 12)
+  have I0 := srli_spec_gen .x11 .x5 v11Old uLo 32 base (by nofun)
+  have I1 := slli_spec_gen_same .x5 uLo 32 (base + 4) (by nofun)
+  have I2 := srli_spec_gen_same .x5 (uLo <<< (32 : BitVec 6).toNat) 32 (base + 8) (by nofun)
+  have I3 := sd_spec_gen .x12 .x5 sp un0 un0Mem 3944 (base + 12)
   runBlock I0 I1 I2 I3
 
 /-- div128 Step 1: q1 = DIVU(uHi, dHi), rhat = uHi - q1 * dHi. -/

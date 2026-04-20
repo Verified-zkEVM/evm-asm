@@ -18,7 +18,7 @@
   - LoopIterN1.MaxBeq:  BLTU not-taken path, BEQ double-addback
   - LoopIterN1.CallBeq: BLTU taken path, BEQ double-addback
 
-  For n=1: BLTU compares u1 vs v0, div128 uses u_hi=u1, u_lo=u0, v_top=v0.
+  For n=1: BLTU compares u1 vs v0, div128 uses uHi=u1, uLo=u0, vTop=v0.
 -/
 
 import EvmAsm.Evm64.DivMod.LoopIterN1.Max

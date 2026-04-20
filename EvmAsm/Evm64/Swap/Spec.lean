@@ -22,16 +22,16 @@ open EvmAsm.Rv64
 /-- Four-instruction spec for SWAP per-limb: LD x7 from A, LD x6 from B,
     SD x6 to A, SD x7 to B. Swaps values at offsets off_a and off_b. -/
 theorem swap_limb_spec (sp : Word)
-    (off_a off_b : BitVec 12) (a_val b_val v7 v6 : Word) (base : Word) :
+    (off_a off_b : BitVec 12) (aVal bVal v7 v6 : Word) (base : Word) :
     cpsTriple base (base + 16)
       (CodeReq.singleton base (.LD .x7 .x12 off_a) |>.union
         (CodeReq.singleton (base + 4) (.LD .x6 .x12 off_b) |>.union
         (CodeReq.singleton (base + 8) (.SD .x12 .x6 off_a) |>.union
          (CodeReq.singleton (base + 12) (.SD .x12 .x7 off_b)))))
       ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) **
-       ((sp + signExtend12 off_a) ↦ₘ a_val) ** ((sp + signExtend12 off_b) ↦ₘ b_val))
-      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ a_val) ** (.x6 ↦ᵣ b_val) **
-       ((sp + signExtend12 off_a) ↦ₘ b_val) ** ((sp + signExtend12 off_b) ↦ₘ a_val)) := by
+       ((sp + signExtend12 off_a) ↦ₘ aVal) ** ((sp + signExtend12 off_b) ↦ₘ bVal))
+      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ aVal) ** (.x6 ↦ᵣ bVal) **
+       ((sp + signExtend12 off_a) ↦ₘ bVal) ** ((sp + signExtend12 off_b) ↦ₘ aVal)) := by
   runBlock
 
 -- ============================================================================
