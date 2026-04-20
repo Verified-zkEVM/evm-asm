@@ -2,16 +2,16 @@
   EvmAsm.Evm64.DivMod.LoopBodyN1
 
   Fixed loop body compositions for n=1 (1-limb divisor).
-  Eliminates the u_addr/window-cell and vtop/v0 overlaps in the generic spec.
+  Eliminates the uAddr/window-cell and vtop/v0 overlaps in the generic spec.
 
   For n=1, three address overlaps exist:
-  1. u_addr = u_base + signExtend12 4088  (both refer to u[j+1])
-  2. u_addr + 8 = u_base + signExtend12 0  (both refer to u[j+0])
-  3. vtop_base + signExtend12 32 = sp + signExtend12 32  (both refer to v[0])
+  1. uAddr = u_base + signExtend12 4088  (both refer to u[j+1])
+  2. uAddr + 8 = u_base + signExtend12 0  (both refer to u[j+0])
+  3. vtopBase + signExtend12 32 = sp + signExtend12 32  (both refer to v[0])
 
   This file eliminates these overlaps by:
   - Expanding the trial spec's let-bindings via dsimp
-  - Rewriting u_addr and vtop_base to canonical u_base-relative form
+  - Rewriting uAddr and vtopBase to canonical u_base-relative form
   - Framing only with cells NOT already in the trial spec
   - Composing without cell duplication in any separating conjunction
 -/
@@ -29,7 +29,7 @@ open EvmAsm.Rv64
 -- Address rewriting lemmas for n=1 (no let-bindings, suitable for rw)
 -- ============================================================================
 
-/-- For n=1: u_addr = u_base + signExtend12 4088 -/
+/-- For n=1: uAddr = u_base + signExtend12 4088 -/
 theorem u_addr_eq_n1 (sp j : Word) :
     sp + signExtend12 4056 - (j + (1 : Word)) <<< (3 : BitVec 6).toNat =
     (sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 4088 := by
@@ -41,7 +41,7 @@ theorem u_addr8_eq_n1 (sp j : Word) :
     (sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 0 := by
   divmod_addr
 
-/-- For n=1: vtop_base + signExtend12 32 = sp + signExtend12 32 -/
+/-- For n=1: vtopBase + signExtend12 32 = sp + signExtend12 32 -/
 theorem vtop_eq_v0_n1 (sp : Word) :
     (sp + ((1 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat) + signExtend12 32 =
     sp + signExtend12 32 := by
@@ -57,7 +57,7 @@ theorem divK_trial_max_full_spec_n1
     (base : Word)
     (hbltu : ¬BitVec.ult u1 v0) :
     let u_base := sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat
-    let vtop_base := sp + ((1 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
+    let vtopBase := sp + ((1 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
     cpsTriple (base + loopBodyOff) (base + 516) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
        (.x5 ↦ᵣ v5_old) ** (.x6 ↦ᵣ v6_old) **
@@ -67,13 +67,13 @@ theorem divK_trial_max_full_spec_n1
        ((u_base + signExtend12 4088) ↦ₘ u1) ** ((u_base + signExtend12 0) ↦ₘ u0) **
        ((sp + signExtend12 32) ↦ₘ v0))
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
-       (.x5 ↦ᵣ u0) ** (.x6 ↦ᵣ vtop_base) **
+       (.x5 ↦ᵣ u0) ** (.x6 ↦ᵣ vtopBase) **
        (.x7 ↦ᵣ u1) ** (.x10 ↦ᵣ v0) ** (.x11 ↦ᵣ signExtend12 4095) **
        (.x0 ↦ᵣ (0 : Word)) **
        (sp + signExtend12 3976 ↦ₘ j) ** (sp + signExtend12 3984 ↦ₘ (1 : Word)) **
        ((u_base + signExtend12 4088) ↦ₘ u1) ** ((u_base + signExtend12 0) ↦ₘ u0) **
        ((sp + signExtend12 32) ↦ₘ v0)) := by
-  intro u_base vtop_base
+  intro u_base vtopBase
   have TF := divK_trial_max_full_spec sp j (1 : Word) j_old v5_old v6_old v7_old v10_old v11_old
     u1 u0 v0 base hbltu
   dsimp only [] at TF
@@ -165,7 +165,7 @@ theorem divK_loop_body_n1_max_skip_spec
     (hbltu : ¬BitVec.ult u1 v0) :
     let u_base := sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat
     let qHat : Word := signExtend12 4095  -- MAX64
-    let q_addr := sp + signExtend12 4088 - j <<< (3 : BitVec 6).toNat
+    let qAddr := sp + signExtend12 4088 - j <<< (3 : BitVec 6).toNat
     -- Hypothesis: borrow = 0
     (if BitVec.ult u_top (mulsubN4_c3 qHat v0 v1 v2 v3 u0 u1 u2 u3) then (1 : Word) else 0) = (0 : Word) →
     cpsBranch (base + loopBodyOff) (sharedDivModCode base)
@@ -179,10 +179,10 @@ theorem divK_loop_body_n1_max_skip_spec
        ((sp + signExtend12 48) ↦ₘ v2) ** ((u_base + signExtend12 4080) ↦ₘ u2) **
        ((sp + signExtend12 56) ↦ₘ v3) ** ((u_base + signExtend12 4072) ↦ₘ u3) **
        ((u_base + signExtend12 4064) ↦ₘ u_top) **
-       (q_addr ↦ₘ q_old))
+       (qAddr ↦ₘ q_old))
       (base + loopBodyOff) (loopBodyN1SkipPost sp j qHat v0 v1 v2 v3 u0 u1 u2 u3 u_top)
       (base + denormOff) (loopBodyN1SkipPost sp j qHat v0 v1 v2 v3 u0 u1 u2 u3 u_top) := by
-  intro u_base qHat q_addr hborrow
+  intro u_base qHat qAddr hborrow
   -- Expand mulsub computation locally for intermediate steps
   let ms := mulsubN4 qHat v0 v1 v2 v3 u0 u1 u2 u3
   let p0_lo := qHat * v0; let p0_hi := rv64_mulhu qHat v0
@@ -211,15 +211,15 @@ theorem divK_loop_body_n1_max_skip_spec
   let un3 := u3 - fs3; let c3 := pc3 + bs3
   let u4_new := u_top - c3
   let j' := j + signExtend12 4095
-  -- Abbreviation for vtop_base (register value, not a memory address)
-  let vtop_base := sp + ((1 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
+  -- Abbreviation for vtopBase (register value, not a memory address)
+  let vtopBase := sp + ((1 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
   -- 1. Trial max full for n=1 (base+448 → base+516)
   have TF := divK_trial_max_full_spec_n1 sp j j_old v5_old v6_old v7_old v10_old v11_old
     u1 u0 v0 base hbltu
   dsimp only [] at TF
   -- 2. Mulsub + correction skip (base+516 → base+880)
   have MCS := divK_mulsub_correction_skip_spec sp qHat j v0 v1 v2 v3 u0 u1 u2 u3 u_top
-    j u0 vtop_base u1 v0 v2_old base
+    j u0 vtopBase u1 v0 v2_old base
 
   intro_lets at MCS
   have MCS0 := MCS hborrow
@@ -233,7 +233,7 @@ theorem divK_loop_body_n1_max_skip_spec
      ((sp + signExtend12 40) ↦ₘ v1) ** ((u_base + signExtend12 4080) ↦ₘ u2) **
      ((sp + signExtend12 48) ↦ₘ v2) ** ((u_base + signExtend12 4072) ↦ₘ u3) **
      ((sp + signExtend12 56) ↦ₘ v3) ** ((u_base + signExtend12 4064) ↦ₘ u_top) **
-     (q_addr ↦ₘ q_old))
+     (qAddr ↦ₘ q_old))
     (by pcFree) TF
   -- 5. Compose TF + MCS0
   seqFrame TFf MCS0
@@ -272,7 +272,7 @@ theorem divK_loop_body_n1_max_addback_spec
     (hbltu : ¬BitVec.ult u1 v0) :
     let u_base := sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat
     let qHat : Word := signExtend12 4095  -- MAX64
-    let q_addr := sp + signExtend12 4088 - j <<< (3 : BitVec 6).toNat
+    let qAddr := sp + signExtend12 4088 - j <<< (3 : BitVec 6).toNat
     let ms := mulsubN4 qHat v0 v1 v2 v3 u0 u1 u2 u3
     let ab := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 (u_top - ms.2.2.2.2) v0 v1 v2 v3
     -- Hypothesis: second addback carry nonzero (only needed if first carry = 0)
@@ -291,10 +291,10 @@ theorem divK_loop_body_n1_max_addback_spec
        ((sp + signExtend12 48) ↦ₘ v2) ** ((u_base + signExtend12 4080) ↦ₘ u2) **
        ((sp + signExtend12 56) ↦ₘ v3) ** ((u_base + signExtend12 4072) ↦ₘ u3) **
        ((u_base + signExtend12 4064) ↦ₘ u_top) **
-       (q_addr ↦ₘ q_old))
+       (qAddr ↦ₘ q_old))
       (base + loopBodyOff) (loopBodyN1AddbackBeqPost sp j qHat v0 v1 v2 v3 u0 u1 u2 u3 u_top)
       (base + denormOff) (loopBodyN1AddbackBeqPost sp j qHat v0 v1 v2 v3 u0 u1 u2 u3 u_top) := by
-  intro u_base qHat q_addr ms ab hcarry2_nz hborrow
+  intro u_base qHat qAddr ms ab hcarry2_nz hborrow
   -- Local lets matching beq_spec structure
   let c3 := ms.2.2.2.2
   let carry := addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 v0 v1 v2 v3
@@ -309,14 +309,14 @@ theorem divK_loop_body_n1_max_addback_spec
   let carry_out := if carry = 0 then
       addbackN4_carry ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 v0 v1 v2 v3
     else carry
-  let vtop_base := sp + ((1 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
+  let vtopBase := sp + ((1 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
   -- 1. Trial max full for n=1 (base+448 → base+516)
   have TF := divK_trial_max_full_spec_n1 sp j j_old v5_old v6_old v7_old v10_old v11_old
     u1 u0 v0 base hbltu
   dsimp only [] at TF
   -- 2. Mulsub + correction addback + BEQ (base+516 → base+884)
   have MCA := divK_mulsub_correction_addback_beq_spec sp qHat j v0 v1 v2 v3 u0 u1 u2 u3 u_top
-    j u0 vtop_base u1 v0 v2_old base
+    j u0 vtopBase u1 v0 v2_old base
 
   intro_lets at MCA
   have MCA0 := MCA hcarry2_nz hborrow
@@ -329,7 +329,7 @@ theorem divK_loop_body_n1_max_addback_spec
      ((sp + signExtend12 40) ↦ₘ v1) ** ((u_base + signExtend12 4080) ↦ₘ u2) **
      ((sp + signExtend12 48) ↦ₘ v2) ** ((u_base + signExtend12 4072) ↦ₘ u3) **
      ((sp + signExtend12 56) ↦ₘ v3) ** ((u_base + signExtend12 4064) ↦ₘ u_top) **
-     (q_addr ↦ₘ q_old))
+     (qAddr ↦ₘ q_old))
     (by pcFree) TF
   -- 5. Compose TF + MCA0
   seqFrame TFf MCA0
@@ -394,7 +394,7 @@ theorem divK_loop_body_n1_call_skip_spec
     let rhat2_un0 := (rhat2c <<< (32 : BitVec 6).toNat) ||| div_un0
     let q0' := if BitVec.ult rhat2_un0 q0_dlo then q0c + signExtend12 4095 else q0c
     let qHat := (q1' <<< (32 : BitVec 6).toNat) ||| q0'
-    let q_addr := sp + signExtend12 4088 - j <<< (3 : BitVec 6).toNat
+    let qAddr := sp + signExtend12 4088 - j <<< (3 : BitVec 6).toNat
     -- Hypothesis: borrow = 0
     (if BitVec.ult u_top (mulsubN4_c3 qHat v0 v1 v2 v3 u0 u1 u2 u3) then (1 : Word) else 0) = (0 : Word) →
     cpsBranch (base + loopBodyOff) (sharedDivModCode base)
@@ -408,7 +408,7 @@ theorem divK_loop_body_n1_call_skip_spec
        ((sp + signExtend12 48) ↦ₘ v2) ** ((u_base + signExtend12 4080) ↦ₘ u2) **
        ((sp + signExtend12 56) ↦ₘ v3) ** ((u_base + signExtend12 4072) ↦ₘ u3) **
        ((u_base + signExtend12 4064) ↦ₘ u_top) **
-       (q_addr ↦ₘ q_old) **
+       (qAddr ↦ₘ q_old) **
        (sp + signExtend12 3968 ↦ₘ ret_mem) **
        (sp + signExtend12 3960 ↦ₘ d_mem) **
        (sp + signExtend12 3952 ↦ₘ dlo_mem) **
@@ -428,7 +428,7 @@ theorem divK_loop_body_n1_call_skip_spec
   intro u_base
         d_hi d_lo div_un1 div_un0 q1 rhat hi1 q1c rhatc q_dlo rhat_un1 q1' rhat'
         cu_rhat_un1 cu_q1_dlo un21 q0 rhat2 hi2 q0c rhat2c q0_dlo rhat2_un0 q0' qHat
-        q_addr hborrow
+        qAddr hborrow
   -- Expand mulsub computation locally for intermediate steps
   let ms := mulsubN4 qHat v0 v1 v2 v3 u0 u1 u2 u3
   let p0_lo := qHat * v0; let p0_hi := rv64_mulhu qHat v0
@@ -457,7 +457,7 @@ theorem divK_loop_body_n1_call_skip_spec
   let un3 := u3 - fs3; let c3 := pc3 + bs3
   let u4_new := u_top - c3
   let j' := j + signExtend12 4095
-  let vtop_base := sp + ((1 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
+  let vtopBase := sp + ((1 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
   -- 1. Trial call full for n=1 (base+448 → base+516)
   have TF := divK_trial_call_full_spec_n1 sp j j_old v5_old v6_old v7_old v10_old v11_old v2_old
     u1 u0 v0 ret_mem d_mem dlo_mem scratch_un0 base
@@ -478,7 +478,7 @@ theorem divK_loop_body_n1_call_skip_spec
     (((sp + signExtend12 40) ↦ₘ v1) ** ((u_base + signExtend12 4080) ↦ₘ u2) **
      ((sp + signExtend12 48) ↦ₘ v2) ** ((u_base + signExtend12 4072) ↦ₘ u3) **
      ((sp + signExtend12 56) ↦ₘ v3) ** ((u_base + signExtend12 4064) ↦ₘ u_top) **
-     (q_addr ↦ₘ q_old))
+     (qAddr ↦ₘ q_old))
     (by pcFree) TF
   -- 5. Compose TF + MCS0
   seqFrame TFf MCS0
@@ -547,7 +547,7 @@ theorem divK_loop_body_n1_call_addback_spec
     let rhat2_un0 := (rhat2c <<< (32 : BitVec 6).toNat) ||| div_un0
     let q0' := if BitVec.ult rhat2_un0 q0_dlo then q0c + signExtend12 4095 else q0c
     let qHat := (q1' <<< (32 : BitVec 6).toNat) ||| q0'
-    let q_addr := sp + signExtend12 4088 - j <<< (3 : BitVec 6).toNat
+    let qAddr := sp + signExtend12 4088 - j <<< (3 : BitVec 6).toNat
     let ms := mulsubN4 qHat v0 v1 v2 v3 u0 u1 u2 u3
     let ab := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 (u_top - ms.2.2.2.2) v0 v1 v2 v3
     -- Hypothesis: second addback carry nonzero (only needed if first carry = 0)
@@ -566,7 +566,7 @@ theorem divK_loop_body_n1_call_addback_spec
        ((sp + signExtend12 48) ↦ₘ v2) ** ((u_base + signExtend12 4080) ↦ₘ u2) **
        ((sp + signExtend12 56) ↦ₘ v3) ** ((u_base + signExtend12 4072) ↦ₘ u3) **
        ((u_base + signExtend12 4064) ↦ₘ u_top) **
-       (q_addr ↦ₘ q_old) **
+       (qAddr ↦ₘ q_old) **
        (sp + signExtend12 3968 ↦ₘ ret_mem) **
        (sp + signExtend12 3960 ↦ₘ d_mem) **
        (sp + signExtend12 3952 ↦ₘ dlo_mem) **
@@ -586,7 +586,7 @@ theorem divK_loop_body_n1_call_addback_spec
   intro u_base
         d_hi d_lo div_un1 div_un0 q1 rhat hi1 q1c rhatc q_dlo rhat_un1 q1' rhat'
         cu_rhat_un1 cu_q1_dlo un21 q0 rhat2 hi2 q0c rhat2c q0_dlo rhat2_un0 q0' qHat
-        q_addr ms ab hcarry2_nz hborrow
+        qAddr ms ab hcarry2_nz hborrow
   -- Local lets matching beq_spec structure
   let c3 := ms.2.2.2.2
   let carry := addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 v0 v1 v2 v3
@@ -601,7 +601,7 @@ theorem divK_loop_body_n1_call_addback_spec
   let carry_out := if carry = 0 then
       addbackN4_carry ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 v0 v1 v2 v3
     else carry
-  let vtop_base := sp + ((1 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
+  let vtopBase := sp + ((1 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
   -- 1. Trial call full for n=1 (base+448 → base+516)
   have TF := divK_trial_call_full_spec_n1 sp j j_old v5_old v6_old v7_old v10_old v11_old v2_old
     u1 u0 v0 ret_mem d_mem dlo_mem scratch_un0 base
@@ -621,7 +621,7 @@ theorem divK_loop_body_n1_call_addback_spec
     (((sp + signExtend12 40) ↦ₘ v1) ** ((u_base + signExtend12 4080) ↦ₘ u2) **
      ((sp + signExtend12 48) ↦ₘ v2) ** ((u_base + signExtend12 4072) ↦ₘ u3) **
      ((sp + signExtend12 56) ↦ₘ v3) ** ((u_base + signExtend12 4064) ↦ₘ u_top) **
-     (q_addr ↦ₘ q_old))
+     (qAddr ↦ₘ q_old))
     (by pcFree) TF
   -- 5. Compose TF + MCA0
   seqFrame TFf MCA0
@@ -663,10 +663,10 @@ def loopBodyPostN1
     (retv dv dlov sunv : Word) : Assertion :=
   let u_base := sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat
   let j' := j + signExtend12 4095
-  let q_addr := sp + signExtend12 4088 - j <<< (3 : BitVec 6).toNat
+  let qAddr := sp + signExtend12 4088 - j <<< (3 : BitVec 6).toNat
   (.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j') **
   (.x5 ↦ᵣ j <<< (3 : BitVec 6).toNat) ** (.x6 ↦ᵣ u_base) **
-  (.x7 ↦ᵣ q_addr) ** (.x10 ↦ᵣ x10v) ** (.x11 ↦ᵣ x11v) **
+  (.x7 ↦ᵣ qAddr) ** (.x10 ↦ᵣ x10v) ** (.x11 ↦ᵣ x11v) **
   (.x2 ↦ᵣ x2v) ** (.x0 ↦ᵣ (0 : Word)) **
   (sp + signExtend12 3976 ↦ₘ j) ** (sp + signExtend12 3984 ↦ₘ (1 : Word)) **
   ((sp + signExtend12 32) ↦ₘ v0) ** ((u_base + signExtend12 0) ↦ₘ un0v) **
@@ -674,7 +674,7 @@ def loopBodyPostN1
   ((sp + signExtend12 48) ↦ₘ v2) ** ((u_base + signExtend12 4080) ↦ₘ un2v) **
   ((sp + signExtend12 56) ↦ₘ v3) ** ((u_base + signExtend12 4072) ↦ₘ un3v) **
   ((u_base + signExtend12 4064) ↦ₘ u4v) **
-  (q_addr ↦ₘ qv) **
+  (qAddr ↦ₘ qv) **
   (sp + signExtend12 3968 ↦ₘ retv) **
   (sp + signExtend12 3960 ↦ₘ dv) **
   (sp + signExtend12 3952 ↦ₘ dlov) **
