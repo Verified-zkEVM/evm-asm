@@ -20,7 +20,7 @@ namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
 open EvmAsm.Rv64.AddrNorm (se13_36 se13_100 se13_188 se13_320 se13_332 se21_32 se21_132 se21_212 se21_268
-  zero_add_se12_1_toNat zero_add_se12_2_toNat bv6_toNat_6 word_add_zero)
+  zero_add_se12_1_toNat zero_add_se12_2_toNat bv6_toNat_6 bv64_toNat_63 word_add_zero)
 
 -- ============================================================================
 -- Section 1: sarCode definition and helpers
@@ -660,7 +660,7 @@ private theorem sar_bridge_merge (value : EvmWord) (s0 : Word)
   intro bs as_ mask; rw [hresult]
   have hbs_val : bs.toNat = s0.toNat % 64 := by
     simp only [bs, signExtend12_63]
-    rw [BitVec.toNat_and, show (63 : BitVec 64).toNat = 63 from by decide]
+    rw [BitVec.toNat_and, bv64_toNat_63]
     exact Nat.and_two_pow_sub_one_eq_mod s0.toNat 6
   have hbs_lt : bs.toNat < 64 := by omega
   have hL_div : s0.toNat / 64 = L := by
@@ -697,7 +697,7 @@ private theorem sar_bridge_last (value : EvmWord) (s0 : Word)
   intro bs; rw [hresult]
   have hbs_val : bs.toNat = s0.toNat % 64 := by
     simp only [bs, signExtend12_63]
-    rw [BitVec.toNat_and, show (63 : BitVec 64).toNat = 63 from by decide]
+    rw [BitVec.toNat_and, bv64_toNat_63]
     exact Nat.and_two_pow_sub_one_eq_mod s0.toNat 6
   have hL_div : s0.toNat / 64 = L := by
     rw [← hL, bv6_toNat_6]; simp [BitVec.toNat_ushiftRight]; omega
@@ -723,7 +723,7 @@ private theorem sar_bridge_sign (value : EvmWord) (s0 : Word)
   -- Both give sign extension (all bits = MSB of x)
   have hbs_val : bs.toNat = s0.toNat % 64 := by
     subst hbs; simp only [signExtend12_63]
-    rw [BitVec.toNat_and, show (63 : BitVec 64).toNat = 63 from by decide]
+    rw [BitVec.toNat_and, bv64_toNat_63]
     exact Nat.and_two_pow_sub_one_eq_mod s0.toNat 6
   simp only [getLimb]
   ext j

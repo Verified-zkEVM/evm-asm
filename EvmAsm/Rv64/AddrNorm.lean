@@ -182,6 +182,8 @@ theorem word_add_zero (x : Word) : x + (0 : Word) = x := BitVec.add_zero x
 @[rv64_addr, grind =] theorem bv6_toNat_62 : (62 : BitVec 6).toNat = 62 := by decide
 @[rv64_addr, grind =] theorem bv6_toNat_63 : (63 : BitVec 6).toNat = 63 := by decide
 
+@[rv64_addr, grind =] theorem bv64_toNat_63 : (63 : BitVec 64).toNat = 63 := by decide
+
 -- ============================================================================
 -- `BitVec.ofNat 64 (4 * N)` evaluations (RV64 instruction stride × index)
 --
