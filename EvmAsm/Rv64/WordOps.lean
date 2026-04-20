@@ -21,10 +21,10 @@ local macro "word32_algebra" : tactic =>
 
 private theorem erws_0 (w : Word) (v : BitVec 32) :
     extractWord32 (replaceWord32 w 0 v) 0 = v := by
-  simp only [extractWord32, replaceWord32, show (0 : Nat) * 32 = 0 from rfl]; word32_algebra
+  simp only [extractWord32, replaceWord32]; word32_algebra
 private theorem erws_1 (w : Word) (v : BitVec 32) :
     extractWord32 (replaceWord32 w 1 v) 1 = v := by
-  simp only [extractWord32, replaceWord32, show (1 : Nat) * 32 = 32 from rfl]; word32_algebra
+  simp only [extractWord32, replaceWord32]; word32_algebra
 
 theorem extractWord32_replaceWord32_same (w : Word) (pos : Fin 2) (v : BitVec 32) :
     extractWord32 (replaceWord32 w pos.val v) pos.val = v := by

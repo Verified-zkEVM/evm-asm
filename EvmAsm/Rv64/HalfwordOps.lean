@@ -21,16 +21,16 @@ local macro "halfword_algebra" : tactic =>
 
 private theorem erhs_0 (w : Word) (h : BitVec 16) :
     extractHalfword (replaceHalfword w 0 h) 0 = h := by
-  simp only [extractHalfword, replaceHalfword, show (0 : Nat) * 16 = 0 from rfl]; halfword_algebra
+  simp only [extractHalfword, replaceHalfword]; halfword_algebra
 private theorem erhs_1 (w : Word) (h : BitVec 16) :
     extractHalfword (replaceHalfword w 1 h) 1 = h := by
-  simp only [extractHalfword, replaceHalfword, show (1 : Nat) * 16 = 16 from rfl]; halfword_algebra
+  simp only [extractHalfword, replaceHalfword]; halfword_algebra
 private theorem erhs_2 (w : Word) (h : BitVec 16) :
     extractHalfword (replaceHalfword w 2 h) 2 = h := by
-  simp only [extractHalfword, replaceHalfword, show (2 : Nat) * 16 = 32 from rfl]; halfword_algebra
+  simp only [extractHalfword, replaceHalfword]; halfword_algebra
 private theorem erhs_3 (w : Word) (h : BitVec 16) :
     extractHalfword (replaceHalfword w 3 h) 3 = h := by
-  simp only [extractHalfword, replaceHalfword, show (3 : Nat) * 16 = 48 from rfl]; halfword_algebra
+  simp only [extractHalfword, replaceHalfword]; halfword_algebra
 
 theorem extractHalfword_replaceHalfword_same (w : Word) (pos : Fin 4) (h : BitVec 16) :
     extractHalfword (replaceHalfword w pos.val h) pos.val = h := by

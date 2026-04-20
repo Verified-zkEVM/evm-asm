@@ -29,28 +29,28 @@ local macro "byte_algebra" : tactic =>
 
 private theorem erbs_0 (w : Word) (b : BitVec 8) :
     extractByte (replaceByte w 0 b) 0 = b := by
-  simp only [extractByte, replaceByte, show (0 : Nat) * 8 = 0 from rfl]; byte_algebra
+  simp only [extractByte, replaceByte]; byte_algebra
 private theorem erbs_1 (w : Word) (b : BitVec 8) :
     extractByte (replaceByte w 1 b) 1 = b := by
-  simp only [extractByte, replaceByte, show (1 : Nat) * 8 = 8 from rfl]; byte_algebra
+  simp only [extractByte, replaceByte]; byte_algebra
 private theorem erbs_2 (w : Word) (b : BitVec 8) :
     extractByte (replaceByte w 2 b) 2 = b := by
-  simp only [extractByte, replaceByte, show (2 : Nat) * 8 = 16 from rfl]; byte_algebra
+  simp only [extractByte, replaceByte]; byte_algebra
 private theorem erbs_3 (w : Word) (b : BitVec 8) :
     extractByte (replaceByte w 3 b) 3 = b := by
-  simp only [extractByte, replaceByte, show (3 : Nat) * 8 = 24 from rfl]; byte_algebra
+  simp only [extractByte, replaceByte]; byte_algebra
 private theorem erbs_4 (w : Word) (b : BitVec 8) :
     extractByte (replaceByte w 4 b) 4 = b := by
-  simp only [extractByte, replaceByte, show (4 : Nat) * 8 = 32 from rfl]; byte_algebra
+  simp only [extractByte, replaceByte]; byte_algebra
 private theorem erbs_5 (w : Word) (b : BitVec 8) :
     extractByte (replaceByte w 5 b) 5 = b := by
-  simp only [extractByte, replaceByte, show (5 : Nat) * 8 = 40 from rfl]; byte_algebra
+  simp only [extractByte, replaceByte]; byte_algebra
 private theorem erbs_6 (w : Word) (b : BitVec 8) :
     extractByte (replaceByte w 6 b) 6 = b := by
-  simp only [extractByte, replaceByte, show (6 : Nat) * 8 = 48 from rfl]; byte_algebra
+  simp only [extractByte, replaceByte]; byte_algebra
 private theorem erbs_7 (w : Word) (b : BitVec 8) :
     extractByte (replaceByte w 7 b) 7 = b := by
-  simp only [extractByte, replaceByte, show (7 : Nat) * 8 = 56 from rfl]; byte_algebra
+  simp only [extractByte, replaceByte]; byte_algebra
 
 theorem extractByte_replaceByte_same (w : Word) (pos : Fin 8) (b : BitVec 8) :
     extractByte (replaceByte w pos.val b) pos.val = b := by
