@@ -152,6 +152,32 @@ theorem isAddbackBorrowN4CallEvm_def (a b : EvmWord) :
     isAddbackBorrowN4Call (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
                           (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) := rfl
 
+/-- Addback-needed condition at n=4 max path in EvmWord form: the runtime
+    borrow check fires (mulsub underflowed), so the algorithm decrements
+    the max trial quotient and adds back `b'` to the partial remainder
+    (possibly twice — see `isAddbackCarry2NzN4MaxAbEvm`). -/
+def isAddbackBorrowN4MaxEvm (a b : EvmWord) : Prop :=
+  isAddbackBorrowN4Max (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+                       (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+
+theorem isAddbackBorrowN4MaxEvm_def (a b : EvmWord) :
+    isAddbackBorrowN4MaxEvm a b =
+    isAddbackBorrowN4Max (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+                         (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) := rfl
+
+/-- Double-addback carry2≠0 condition at n=4 max path in EvmWord form: after
+    mulsub underflow + first-addback (carry1 = 0), the second addback fires
+    (carry2 ≠ 0). Together with `isAddbackBorrowN4MaxEvm` this pins the
+    algorithm to the double-addback branch. -/
+def isAddbackCarry2NzN4MaxAbEvm (a b : EvmWord) : Prop :=
+  isAddbackCarry2NzN4MaxAb (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+                           (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+
+theorem isAddbackCarry2NzN4MaxAbEvm_def (a b : EvmWord) :
+    isAddbackCarry2NzN4MaxAbEvm a b =
+    isAddbackCarry2NzN4MaxAb (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+                             (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) := rfl
+
 
 -- ============================================================================
 -- Stack-level post state for n=4 max-skip DIV
@@ -792,6 +818,131 @@ theorem evm_div_n4_full_max_skip_stack_pre_spec_bundled (sp base : Word)
   have h := evm_div_n4_full_max_skip_stack_pre_spec sp base a b
     v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
     nMem shiftMem jMem hbnz hb3nz hshift_nz hbltu hborrow
+  exact cpsTriple_weaken
+    (fun _ hp => by rw [divN4StackPre_unfold] at hp; exact hp)
+    (fun _ hq => hq)
+    h
+
+-- ============================================================================
+-- DIV n=4 max+addback BEQ full-path stack-pre wrappers
+-- ============================================================================
+
+/-- EvmWord-level wrapper over `evm_div_n4_full_max_addback_beq_spec`: same
+    shape as `evm_div_n4_full_max_skip_stack_pre_spec` but for the
+    max+addback BEQ sub-path (double-addback included). The extra
+    `hvalid : ValidMemRange sp 8` hypothesis is threaded through, along
+    with all 20 individual `hv_*` access hypotheses and `hbltu`,
+    `hcarry2_nz`, `hborrow`. The postcondition is the concrete
+    `fullDivN4MaxAddbackBeqPost` — turning that into a stack post
+    requires the semantic-correctness bridge (single-addback or
+    double-addback) threaded separately in the final stack spec. -/
+theorem evm_div_n4_full_max_addback_beq_stack_pre_spec (sp base : Word)
+    (a b : EvmWord) (v5 v6 v7 v10 v11Old : Word)
+    (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+     nMem shiftMem jMem : Word)
+    (hbnz : b ≠ 0)
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hvalid : ValidMemRange sp 8)
+    (hv_q0 : isValidDwordAccess (sp + signExtend12 4088) = true)
+    (hv_q1 : isValidDwordAccess (sp + signExtend12 4080) = true)
+    (hv_q2 : isValidDwordAccess (sp + signExtend12 4072) = true)
+    (hv_q3 : isValidDwordAccess (sp + signExtend12 4064) = true)
+    (hv_u0 : isValidDwordAccess (sp + signExtend12 4056) = true)
+    (hv_u1 : isValidDwordAccess (sp + signExtend12 4048) = true)
+    (hv_u2 : isValidDwordAccess (sp + signExtend12 4040) = true)
+    (hv_u3 : isValidDwordAccess (sp + signExtend12 4032) = true)
+    (hv_u4 : isValidDwordAccess (sp + signExtend12 4024) = true)
+    (hv_u5 : isValidDwordAccess (sp + signExtend12 4016) = true)
+    (hv_u6 : isValidDwordAccess (sp + signExtend12 4008) = true)
+    (hv_u7 : isValidDwordAccess (sp + signExtend12 4000) = true)
+    (hv_n  : isValidDwordAccess (sp + signExtend12 3984) = true)
+    (hv_shift : isValidDwordAccess (sp + signExtend12 3992) = true)
+    (hv_j  : isValidDwordAccess (sp + signExtend12 3976) = true)
+    (hv_uhi : isValidDwordAccess (sp + signExtend12 4056 - (0 + (4 : Word)) <<< (3 : BitVec 6).toNat) = true)
+    (hv_ulo : isValidDwordAccess ((sp + signExtend12 4056 - (0 + (4 : Word)) <<< (3 : BitVec 6).toNat) + 8) = true)
+    (hv_vtop : isValidDwordAccess (sp + ((4 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat + signExtend12 32) = true)
+    (hbltu : isMaxTrialN4Evm a b)
+    (hcarry2_nz : isAddbackCarry2NzN4MaxAbEvm a b)
+    (hborrow : isAddbackBorrowN4MaxEvm a b) :
+    cpsTriple base (base + nopOff) (divCode base)
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
+       (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+       (.x2 ↦ᵣ (clzResult (b.getLimbN 3)).2 >>> (63 : Nat)) **
+       (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+       (.x11 ↦ᵣ v11Old) **
+       evmWordIs sp a ** evmWordIs (sp + 32) b **
+       divScratchValues sp q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old
+         u5 u6 u7 shiftMem nMem jMem)
+      (fullDivN4MaxAddbackBeqPost sp
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) := by
+  have hbnz' : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 ||| b.getLimbN 3 ≠ 0 :=
+    (EvmWord.ne_zero_iff_getLimbN_or b).mp hbnz
+  have hraw := evm_div_n4_full_max_addback_beq_spec sp base
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+    v5 v6 v7 v10 v11Old
+    q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+    nMem shiftMem jMem
+    hbnz' hb3nz hshift_nz hvalid
+    hv_q0 hv_q1 hv_q2 hv_q3 hv_u0 hv_u1 hv_u2 hv_u3 hv_u4
+    hv_u5 hv_u6 hv_u7 hv_n hv_shift hv_j hv_uhi hv_ulo hv_vtop
+    hbltu hcarry2_nz hborrow
+  exact cpsTriple_weaken
+    (fun h hp => by
+      rw [evmWordIs_sp_limbs_eq sp a _ _ _ _ rfl rfl rfl rfl,
+          evmWordIs_sp32_limbs_eq sp b _ _ _ _ rfl rfl rfl rfl,
+          divScratchValues_unfold] at hp
+      rw [word_add_zero]
+      xperm_hyp hp)
+    (fun _ hq => hq)
+    hraw
+
+/-- Bundled version of `evm_div_n4_full_max_addback_beq_stack_pre_spec`:
+    takes the precondition as a single `divN4StackPre` atom. Parallels
+    `evm_div_n4_full_max_skip_stack_pre_spec_bundled`. -/
+theorem evm_div_n4_full_max_addback_beq_stack_pre_spec_bundled (sp base : Word)
+    (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem : Word)
+    (hbnz : b ≠ 0)
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hvalid : ValidMemRange sp 8)
+    (hv_q0 : isValidDwordAccess (sp + signExtend12 4088) = true)
+    (hv_q1 : isValidDwordAccess (sp + signExtend12 4080) = true)
+    (hv_q2 : isValidDwordAccess (sp + signExtend12 4072) = true)
+    (hv_q3 : isValidDwordAccess (sp + signExtend12 4064) = true)
+    (hv_u0 : isValidDwordAccess (sp + signExtend12 4056) = true)
+    (hv_u1 : isValidDwordAccess (sp + signExtend12 4048) = true)
+    (hv_u2 : isValidDwordAccess (sp + signExtend12 4040) = true)
+    (hv_u3 : isValidDwordAccess (sp + signExtend12 4032) = true)
+    (hv_u4 : isValidDwordAccess (sp + signExtend12 4024) = true)
+    (hv_u5 : isValidDwordAccess (sp + signExtend12 4016) = true)
+    (hv_u6 : isValidDwordAccess (sp + signExtend12 4008) = true)
+    (hv_u7 : isValidDwordAccess (sp + signExtend12 4000) = true)
+    (hv_n  : isValidDwordAccess (sp + signExtend12 3984) = true)
+    (hv_shift : isValidDwordAccess (sp + signExtend12 3992) = true)
+    (hv_j  : isValidDwordAccess (sp + signExtend12 3976) = true)
+    (hv_uhi : isValidDwordAccess (sp + signExtend12 4056 - (0 + (4 : Word)) <<< (3 : BitVec 6).toNat) = true)
+    (hv_ulo : isValidDwordAccess ((sp + signExtend12 4056 - (0 + (4 : Word)) <<< (3 : BitVec 6).toNat) + 8) = true)
+    (hv_vtop : isValidDwordAccess (sp + ((4 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat + signExtend12 32) = true)
+    (hbltu : isMaxTrialN4Evm a b)
+    (hcarry2_nz : isAddbackCarry2NzN4MaxAbEvm a b)
+    (hborrow : isAddbackBorrowN4MaxEvm a b) :
+    cpsTriple base (base + nopOff) (divCode base)
+      (divN4StackPre sp a b v5 v6 v7 v10 v11
+         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem)
+      (fullDivN4MaxAddbackBeqPost sp
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) := by
+  have h := evm_div_n4_full_max_addback_beq_stack_pre_spec sp base a b
+    v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+    nMem shiftMem jMem hbnz hb3nz hshift_nz hvalid
+    hv_q0 hv_q1 hv_q2 hv_q3 hv_u0 hv_u1 hv_u2 hv_u3 hv_u4
+    hv_u5 hv_u6 hv_u7 hv_n hv_shift hv_j hv_uhi hv_ulo hv_vtop
+    hbltu hcarry2_nz hborrow
   exact cpsTriple_weaken
     (fun _ hp => by rw [divN4StackPre_unfold] at hp; exact hp)
     (fun _ hq => hq)
