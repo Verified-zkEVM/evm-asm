@@ -364,8 +364,7 @@ theorem signext_phase_a_spec (sp r5 r10 : Word)
       (CodeReq.Disjoint.singleton (by bv_omega) _ _)
   have lw1f := cpsTriple_frameR ((.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ r10) ** (sp ↦ₘ b0) ** ((sp + 16) ↦ₘ b2) ** ((sp + 24) ↦ₘ b3)) (by pcFree) lw1
   have lor2f := cpsTriple_frameR ((.x0 ↦ᵣ (0 : Word)) ** (sp ↦ₘ b0) ** ((sp + 8) ↦ₘ b1) ** ((sp + 24) ↦ₘ b3)) (by pcFree) lor2
-  have c12 := cpsTriple_seq_with_perm base (base + 4) (base + 12) crLd1 crLor2 hd_ld1_lor2
-    _ _ _ _
+  have c12 := cpsTriple_seq_with_perm hd_ld1_lor2
     (fun h hp => by xperm_hyp hp) lw1f lor2f
   have lor3 := signext_ld_or_acc_spec sp (b1 ||| b2) b2 b3 24 (base + 12)
   simp only [signExtend12_24] at lor3
@@ -383,9 +382,7 @@ theorem signext_phase_a_spec (sp r5 r10 : Word)
         (CodeReq.Disjoint.union_right
           (CodeReq.Disjoint.singleton (by bv_omega) _ _)
           (CodeReq.Disjoint.singleton (by bv_omega) _ _)))
-  have c13 := cpsTriple_seq_with_perm base (base + 12) (base + 20)
-    (crLd1.union crLor2) crLor3 hd_12_lor3
-    _ _ _ _
+  have c13 := cpsTriple_seq_with_perm hd_12_lor3
     (fun h hp => by xperm_hyp hp) c12 lor3f
   let crLinear := (crLd1.union crLor2).union crLor3
   -- ── Part 2: BNE at base+20 (first branch) ──
@@ -431,9 +428,7 @@ theorem signext_phase_a_spec (sp r5 r10 : Word)
     CodeReq.Disjoint.singleton (by bv_omega) _ _
   have lw5f := cpsTriple_frameR ((.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ b3) ** ((sp + 8) ↦ₘ b1) ** ((sp + 16) ↦ₘ b2) ** ((sp + 24) ↦ₘ b3)) (by pcFree) lw5
   have sltiuf := cpsTriple_frameR ((.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) ** (sp ↦ₘ b0) ** ((sp + 8) ↦ₘ b1) ** ((sp + 16) ↦ₘ b2) ** ((sp + 24) ↦ₘ b3)) (by pcFree) sltiu_raw
-  have c56 := cpsTriple_seq_with_perm (base + 24) (base + 28) (base + 32)
-    crLd5 crSltiu hd_ld5_sltiu
-    _ _ _ _
+  have c56 := cpsTriple_seq_with_perm hd_ld5_sltiu
     (fun h hp => by xperm_hyp hp) lw5f sltiuf
   have beq_raw := beq_spec_gen .x10 .x0 156 sltiuVal (0 : Word) (base + 32)
   rw [hdone2, ha32] at beq_raw

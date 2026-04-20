@@ -648,9 +648,9 @@ theorem cpsTriple_seq_halt {entry mid : Word} {cr1 cr2 : CodeReq}
     when Q1 and Q2 are AC-permutations (proved by hperm).
     Both Q1 and Q2 are fully determined by h1/h2, so the permutation
     obligation has no metavar ambiguity. -/
-theorem cpsTriple_seq_with_perm (s m e : Word) (cr1 cr2 : CodeReq)
+theorem cpsTriple_seq_with_perm {s m e : Word} {cr1 cr2 : CodeReq}
     (hd : cr1.Disjoint cr2)
-    (P Q1 Q2 R : Assertion)
+    {P Q1 Q2 R : Assertion}
     (hperm : ∀ h, Q1 h → Q2 h)
     (h1 : cpsTriple s m cr1 P Q1)
     (h2 : cpsTriple m e cr2 Q2 R) :

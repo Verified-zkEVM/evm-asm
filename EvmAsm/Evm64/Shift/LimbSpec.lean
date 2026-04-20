@@ -767,8 +767,7 @@ theorem shr_phase_a_spec (sp r5 r10 : Word)
   -- Compose LD + LD/OR (need to frame + perm)
   have lw1f := cpsTriple_frameR ((.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ r10) ** (sp ↦ₘ s0) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3)) (by pcFree) lw1
   have lor2f := cpsTriple_frameR ((.x0 ↦ᵣ (0 : Word)) ** (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 24) ↦ₘ s3)) (by pcFree) lor2
-  have c12 := cpsTriple_seq_with_perm base (base + 4) (base + 12) crLd1 crLor2 hd_ld1_lor2
-    _ _ _ _
+  have c12 := cpsTriple_seq_with_perm hd_ld1_lor2
     (fun h hp => by xperm_hyp hp) lw1f lor2f
   -- Step 3: shr_ld_or_acc at base+12 (CR = crLor3, exit = (base+12)+8 = base+20)
   have lor3 := shr_ld_or_acc_spec sp (s1 ||| s2) s2 s3 24 (base + 12)
@@ -788,9 +787,7 @@ theorem shr_phase_a_spec (sp r5 r10 : Word)
         (CodeReq.Disjoint.union_right
           (CodeReq.Disjoint.singleton (by bv_omega) _ _)
           (CodeReq.Disjoint.singleton (by bv_omega) _ _)))
-  have c13 := cpsTriple_seq_with_perm base (base + 12) (base + 20)
-    (crLd1.union crLor2) crLor3 hd_12_lor3
-    _ _ _ _
+  have c13 := cpsTriple_seq_with_perm hd_12_lor3
     (fun h hp => by xperm_hyp hp) c12 lor3f
   -- CR so far: (crLd1 ∪ crLor2) ∪ crLor3
   let crLinear := (crLd1.union crLor2).union crLor3
@@ -845,9 +842,7 @@ theorem shr_phase_a_spec (sp r5 r10 : Word)
   -- Frame and compose LD + SLTIU
   have lw5f := cpsTriple_frameR ((.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ s3) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3)) (by pcFree) lw5
   have sltiuf := cpsTriple_frameR ((.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) ** (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3)) (by pcFree) sltiu_raw
-  have c56 := cpsTriple_seq_with_perm (base + 24) (base + 28) (base + 32)
-    crLd5 crSltiu hd_ld5_sltiu
-    _ _ _ _
+  have c56 := cpsTriple_seq_with_perm hd_ld5_sltiu
     (fun h hp => by xperm_hyp hp) lw5f sltiuf
   -- Step 7: BEQ x10 x0 308 at base+32
   have beq_raw := beq_spec_gen .x10 .x0 308 sltiuVal (0 : Word) (base + 32)
