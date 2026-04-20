@@ -264,17 +264,17 @@ theorem div_correct_n1_no_shift
 
     This handles all n-cases and both shift=0 and shift≠0. For shift=0,
     use s=0 (2^0 = 1, so the equation simplifies to val256(a) = q_val * val256(b) + r). -/
-theorem div_quotient_of_normalized {a_val b_val q_val r_norm : Nat} (s : Nat)
-    (hmulsub : a_val * 2^s = q_val * (b_val * 2^s) + r_norm)
-    (hlt : r_norm < b_val * 2^s) :
-    q_val = a_val / b_val :=
+theorem div_quotient_of_normalized {aVal bVal q_val r_norm : Nat} (s : Nat)
+    (hmulsub : aVal * 2^s = q_val * (bVal * 2^s) + r_norm)
+    (hlt : r_norm < bVal * 2^s) :
+    q_val = aVal / bVal :=
   (norm_euclidean_correct s hmulsub hlt).1
 
 /-- Normalization also recovers the remainder: r_norm / 2^s = a % b. -/
-theorem mod_remainder_of_normalized {a_val b_val q_val r_norm : Nat} (s : Nat)
-    (hmulsub : a_val * 2^s = q_val * (b_val * 2^s) + r_norm)
-    (hlt : r_norm < b_val * 2^s) :
-    r_norm / 2^s = a_val % b_val :=
+theorem mod_remainder_of_normalized {aVal bVal q_val r_norm : Nat} (s : Nat)
+    (hmulsub : aVal * 2^s = q_val * (bVal * 2^s) + r_norm)
+    (hlt : r_norm < bVal * 2^s) :
+    r_norm / 2^s = aVal % bVal :=
   (norm_euclidean_correct s hmulsub hlt).2
 
 /-- Bridge from val256-level quotient correctness to EvmWord.div.
