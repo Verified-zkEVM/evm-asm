@@ -417,9 +417,7 @@ theorem signext_phase_a_spec (sp r5 r10 : Word)
       (fun h hp => sepConj_mono_right
         (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1) h hp)
       bne_raw
-  have bne1f := cpsBranch_frame_left (base + 20) crBne
-    ((.x5 ↦ᵣ (b1 ||| b2 ||| b3)) ** (.x0 ↦ᵣ (0 : Word)))
-    done_path _ (base + 24) _
+  have bne1f := cpsBranch_frameR
     ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ b3) ** (sp ↦ₘ b0) ** ((sp + 8) ↦ₘ b1) ** ((sp + 16) ↦ₘ b2) ** ((sp + 24) ↦ₘ b3))
     (by pcFree) bne1
   have hd_lin_bne : crLinear.Disjoint crBne :=
@@ -473,9 +471,7 @@ theorem signext_phase_a_spec (sp r5 r10 : Word)
       (fun h hp => sepConj_mono_right
         (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1) h hp)
       beq_raw
-  have beq1f := cpsBranch_frame_left (base + 32) crBeq
-    ((.x10 ↦ᵣ sltiuVal) ** (.x0 ↦ᵣ (0 : Word)))
-    done_path _ (base + 36) _
+  have beq1f := cpsBranch_frameR
     ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ b0) ** (sp ↦ₘ b0) ** ((sp + 8) ↦ₘ b1) ** ((sp + 16) ↦ₘ b2) ** ((sp + 24) ↦ₘ b3))
     (by pcFree) beq1
   have hd_56_beq : (crLd5.union crSltiu).Disjoint crBeq :=
@@ -652,9 +648,7 @@ theorem signext_phase_c_spec (v5 v10 : Word) (base : Word)
       (fun h hp => sepConj_mono_right
         (fun h' hp' => ((sepConj_pure_right _ (v5 ≠ (0 : Word)) h').1 hp').1) h hp)
       beq0_raw
-  have beq0f := cpsBranch_frame_left base cr_beq0
-    ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)))
-    e0 _ (base + 4) _
+  have beq0f := cpsBranch_frameR
     (.x10 ↦ᵣ v10) (by pcFree) beq0
   -- Step 1: cascade step at base+4
   have cs1 := signext_cascade_step_spec v5 v10 1 60 (base + 4) e1 hc1

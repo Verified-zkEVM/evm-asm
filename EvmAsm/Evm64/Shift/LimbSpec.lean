@@ -500,9 +500,7 @@ theorem shr_phase_c_spec (v5 v10 : Word) (base : Word)
         (fun h' hp' => ((sepConj_pure_right _ (v5 ≠ (0 : Word)) h').1 hp').1) h hp)
       beq0_raw
   -- Frame BEQ with x10
-  have beq0f := cpsBranch_frame_left base cr_beq0
-    ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)))
-    e0 _ (base + 4) _
+  have beq0f := cpsBranch_frameR
     (.x10 ↦ᵣ v10) (by pcFree) beq0
   -- Step 1: cascade step at base+4 (CR = cr_cs1)
   have cs1 := shr_cascade_step_spec v5 v10 1 92 (base + 4) e1 hc1
@@ -824,11 +822,8 @@ theorem shr_phase_a_spec (sp r5 r10 : Word)
         (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1) h hp)
       bne_raw
   -- Frame BNE with remaining state
-  have bne1f := cpsBranch_frame_left (base + 20) crBne
-    ((.x5 ↦ᵣ (s1 ||| s2 ||| s3)) ** (.x0 ↦ᵣ (0 : Word)))
-    zero_path _ (base + 24) _
-    ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ s3) ** (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3))
-    (by pcFree) bne1
+  have bne1f := cpsBranch_frameR
+    ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ s3) ** (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3)) (by pcFree) bne1
   -- Disjoint: crLinear vs crBne
   have hd_lin_bne : crLinear.Disjoint crBne :=
     CodeReq.Disjoint.union_left
@@ -890,11 +885,8 @@ theorem shr_phase_a_spec (sp r5 r10 : Word)
         (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1) h hp)
       beq_raw
   -- Frame BEQ with remaining state
-  have beq1f := cpsBranch_frame_left (base + 32) crBeq
-    ((.x10 ↦ᵣ sltiuVal) ** (.x0 ↦ᵣ (0 : Word)))
-    zero_path _ (base + 36) _
-    ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ s0) ** (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3))
-    (by pcFree) beq1
+  have beq1f := cpsBranch_frameR
+    ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ s0) ** (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3)) (by pcFree) beq1
   -- Disjoint: (crLd5 ∪ crSltiu) vs crBeq
   have hd_56_beq : (crLd5.union crSltiu).Disjoint crBeq :=
     CodeReq.Disjoint.union_left
