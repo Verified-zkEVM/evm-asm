@@ -30,7 +30,7 @@ open EvmAsm.Rv64
 
 /-- Add-back Part A: LD v[i], LD u[j+i], ADD carry, SLTU carry1, ADD v[i].
     5 instructions. Produces sum (x2) and carry1 (x7). -/
-theorem divK_addback_partA_spec (sp uBase carryIn v5_old v2_old v_i u_i : Word)
+theorem divK_addback_partA_spec (sp uBase carryIn v5Old v2Old v_i u_i : Word)
     (v_off : BitVec 12) (u_off : BitVec 12) (base : Word) :
     let uPlusCarry := u_i + carryIn
     let carry1 := if BitVec.ult uPlusCarry carryIn then (1 : Word) else 0
@@ -43,7 +43,7 @@ theorem divK_addback_partA_spec (sp uBase carryIn v5_old v2_old v_i u_i : Word)
        (CodeReq.singleton (base + 16) (.ADD .x2 .x2 .x5)))))
     cpsTriple base (base + 20) cr
       ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ uBase) ** (.x7 ↦ᵣ carryIn) **
-       (.x5 ↦ᵣ v5_old) ** (.x2 ↦ᵣ v2_old) **
+       (.x5 ↦ᵣ v5Old) ** (.x2 ↦ᵣ v2Old) **
        ((sp + signExtend12 v_off) ↦ₘ v_i) **
        ((uBase + signExtend12 u_off) ↦ₘ u_i))
       ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ uBase) ** (.x7 ↦ᵣ carry1) **
@@ -51,8 +51,8 @@ theorem divK_addback_partA_spec (sp uBase carryIn v5_old v2_old v_i u_i : Word)
        ((sp + signExtend12 v_off) ↦ₘ v_i) **
        ((uBase + signExtend12 u_off) ↦ₘ u_i)) := by
   intro uPlusCarry carry1 uNew cr
-  have I0 := ld_spec_gen .x5 .x12 sp v5_old v_i v_off base (by nofun)
-  have I1 := ld_spec_gen .x2 .x6 uBase v2_old u_i u_off (base + 4) (by nofun)
+  have I0 := ld_spec_gen .x5 .x12 sp v5Old v_i v_off base (by nofun)
+  have I1 := ld_spec_gen .x2 .x6 uBase v2Old u_i u_off (base + 4) (by nofun)
   have I2 := add_spec_gen_rd_eq_rs1 .x2 .x7 u_i carryIn (base + 8) (by nofun)
   have I3 := sltu_spec_gen_rd_eq_rs2 .x7 .x2 uPlusCarry carryIn (base + 12) (by nofun)
   have I4 := add_spec_gen_rd_eq_rs1 .x2 .x5 uPlusCarry v_i (base + 16) (by nofun)

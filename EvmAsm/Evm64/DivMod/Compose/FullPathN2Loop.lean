@@ -75,18 +75,18 @@ theorem n2_qa2 (sp : Word) :
 
 /-- Specialize `loopExitPostN2` at `j=0`: all uBase/qAddr offsets become
     flat `sp + signExtend12 K` addresses. Uses the shared u_base_off*_j0 lemmas. -/
-theorem loopExitPostN2_j0_eq (sp q_f c3 un0_f un1_f un2_f un3_f u4F
+theorem loopExitPostN2_j0_eq (sp q_f c3 un0F un1F un2F un3F u4F
     v0 v1 v2 v3 : Word) :
-    loopExitPostN2 sp (0 : Word) q_f c3 un0_f un1_f un2_f un3_f u4F v0 v1 v2 v3 =
+    loopExitPostN2 sp (0 : Word) q_f c3 un0F un1F un2F un3F u4F v0 v1 v2 v3 =
     ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ signExtend12 4095) **
      (.x5 ↦ᵣ (0 : Word)) ** (.x6 ↦ᵣ sp + signExtend12 4056) **
      (.x7 ↦ᵣ sp + signExtend12 4088) ** (.x10 ↦ᵣ c3) ** (.x11 ↦ᵣ q_f) **
      (.x2 ↦ᵣ un3F) ** (.x0 ↦ᵣ (0 : Word)) **
      (sp + signExtend12 3976 ↦ₘ (0 : Word)) ** (sp + signExtend12 3984 ↦ₘ (2 : Word)) **
-     ((sp + signExtend12 32) ↦ₘ v0) ** ((sp + signExtend12 4056) ↦ₘ un0_f) **
-     ((sp + signExtend12 40) ↦ₘ v1) ** ((sp + signExtend12 4048) ↦ₘ un1_f) **
-     ((sp + signExtend12 48) ↦ₘ v2) ** ((sp + signExtend12 4040) ↦ₘ un2_f) **
-     ((sp + signExtend12 56) ↦ₘ v3) ** ((sp + signExtend12 4032) ↦ₘ un3_f) **
+     ((sp + signExtend12 32) ↦ₘ v0) ** ((sp + signExtend12 4056) ↦ₘ un0F) **
+     ((sp + signExtend12 40) ↦ₘ v1) ** ((sp + signExtend12 4048) ↦ₘ un1F) **
+     ((sp + signExtend12 48) ↦ₘ v2) ** ((sp + signExtend12 4040) ↦ₘ un2F) **
+     ((sp + signExtend12 56) ↦ₘ v3) ** ((sp + signExtend12 4032) ↦ₘ un3F) **
      ((sp + signExtend12 4024) ↦ₘ u4F) **
      ((sp + signExtend12 4088) ↦ₘ q_f)) := by
   simp only [loopExitPost_unfold]
@@ -101,10 +101,10 @@ theorem loopExitPostN2_j0_eq (sp q_f c3 un0_f un1_f un2_f un3_f u4F
 
 /-- Lift the unified n=2 3-iteration  loop spec from sharedDivModCode to divCode. -/
 theorem divK_loop_n2_unified_divCode (bltu_2 bltu_1 bltu_0 : Bool)
-    (sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
+    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
      v0 v1 v2 v3 u0 u1 u2 u3 uTop
      u0_orig_1 u0_orig_0
-     q2_old q1_old q0_old : Word)
+     q2Old q1Old q0Old : Word)
     (retMem dMem dloMem scratch_un0 : Word)
     (base : Word)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
@@ -117,16 +117,16 @@ theorem divK_loop_n2_unified_divCode (bltu_2 bltu_1 bltu_0 : Bool)
       (iterN2 bltu_2 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.1).2.2.1 v1)
     (hcarry2 : Carry2NzAll v0 v1 v2 v3) :
     cpsTriple (base + loopBodyOff) (base + denormOff) (divCode base)
-      (loopN2PreWithScratch sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
+      (loopN2PreWithScratch sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
         v0 v1 v2 v3 u0 u1 u2 u3 uTop
-        u0_orig_1 u0_orig_0 q2_old q1_old q0_old
+        u0_orig_1 u0_orig_0 q2Old q1Old q0Old
         retMem dMem dloMem scratch_un0)
       (loopN2UnifiedPost bltu_2 bltu_1 bltu_0 sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop
         u0_orig_1 u0_orig_0 retMem dMem dloMem scratch_un0) :=
   cpsTriple_extend_code (hmono := sharedDivModCode_sub_divCode base)
     (divK_loop_n2_unified_spec bltu_2 bltu_1 bltu_0
-      sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
-      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0_orig_1 u0_orig_0 q2_old q1_old q0_old
+      sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0_orig_1 u0_orig_0 q2Old q1Old q0Old
       retMem dMem dloMem scratch_un0 base halign
 
 

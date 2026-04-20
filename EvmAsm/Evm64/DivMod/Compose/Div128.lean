@@ -54,7 +54,7 @@ private theorem d128_sub (base : Word) (k : Nat) (addr : Word) (instr : Instr)
 -- ============================================================================
 
 theorem div128_spec (sp retAddr d uLo uHi : Word) (base : Word)
-    (v1_old v6_old v11_old : Word)
+    (v1Old v6Old v11Old : Word)
     (retMem dMem dloMem un0Mem : Word)
     (halign : (retAddr + signExtend12 0) &&& ~~~1 = retAddr) :
     -- Phase 1 intermediates
@@ -91,7 +91,7 @@ theorem div128_spec (sp retAddr d uLo uHi : Word) (base : Word)
       (-- Precondition: caller registers + scratch memory
        (.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ retAddr) ** (.x10 ↦ᵣ d) **
        (.x5 ↦ᵣ uLo) ** (.x7 ↦ᵣ uHi) **
-       (.x6 ↦ᵣ v6_old) ** (.x1 ↦ᵣ v1_old) ** (.x11 ↦ᵣ v11_old) **
+       (.x6 ↦ᵣ v6Old) ** (.x1 ↦ᵣ v1Old) ** (.x11 ↦ᵣ v11Old) **
        (.x0 ↦ᵣ (0 : Word)) **
        (sp + signExtend12 3968 ↦ₘ retMem) **
        (sp + signExtend12 3960 ↦ₘ dMem) **
@@ -112,7 +112,7 @@ theorem div128_spec (sp retAddr d uLo uHi : Word) (base : Word)
   -- Block 1: Phase 1 (base+1072 → base+1112)
   -- Saves ret/d, splits d and uLo into halves.
   -- ================================================================
-  have hph1 := divK_div128_phase1_spec sp retAddr d uLo uHi v1_old v6_old v11_old
+  have hph1 := divK_div128_phase1_spec sp retAddr d uLo uHi v1Old v6Old v11Old
     retMem dMem dloMem un0Mem (base + div128Off)
   rw [show (base + div128Off : Word) + 40 = base + 1112 from by bv_addr] at hph1
   -- Extend phase1 cr to sharedDivModCode
@@ -191,8 +191,8 @@ theorem div128_spec (sp retAddr d uLo uHi : Word) (base : Word)
   -- ================================================================
   -- Block 4: Step 2 (base+1192 → base+1252)
   -- Trial division q0, clamp, product check.
-  -- Params: un21(x7), dHi(x6), v1_old=cu_q1_dlo(x1),
-  --         v5_old=cu_rhat_un1(x5), v11_old=un1(x11),
+  -- Params: un21(x7), dHi(x6), v1Old=cu_q1_dlo(x1),
+  --         v5Old=cu_rhat_un1(x5), v11Old=un1(x11),
   --         dlo=dLo(mem[3952]), un0(mem[3944])
   -- ================================================================
   have hst2 := divK_div128_step2_spec sp un21 dHi cu_q1_dlo cu_rhat_un1 un1 dLo un0
@@ -226,8 +226,8 @@ theorem div128_spec (sp retAddr d uLo uHi : Word) (base : Word)
   -- ================================================================
   -- Block 5: End (base+1252 → retAddr via JALR)
   -- Combine q1'|q0' into q, restore return addr, return.
-  -- Params: q1=q1'(x10), q0=q0'(x5), v2_old=retAddr(x2),
-  --         v11_old=un0(x11), retAddr(mem[3968])
+  -- Params: q1=q1'(x10), q0=q0'(x5), v2Old=retAddr(x2),
+  --         v11Old=un0(x11), retAddr(mem[3968])
   -- ================================================================
   have hend := divK_div128_end_spec sp q1' q0' retAddr un0 retAddr
     (base + 1252) halign
