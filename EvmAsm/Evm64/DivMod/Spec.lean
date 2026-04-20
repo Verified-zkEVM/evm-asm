@@ -1041,13 +1041,11 @@ theorem evm_div_n4_max_skip_stack_spec (sp base : Word)
 
 /-- EVM-stack-level MOD spec on the n=4 max+skip sub-path.
 
-    Mirror of `evm_div_n4_max_skip_stack_spec` but for MOD. In addition to
-    the five runtime + semantic conditions the DIV stack spec takes, MOD
-    also needs the CLZ top-limb bound
-    `b.getLimbN 3 < 2^(64 - clz(b.getLimbN 3))`, since the post reshape
-    goes through the denormalization round-trip. This bound is implicit
-    in the CLZ algorithm's semantics and expected to be discharged at call
-    sites by a future CLZ correctness lemma.
+    Mirror of `evm_div_n4_max_skip_stack_spec` but for MOD. Takes the same
+    five runtime + semantic conditions as DIV. The CLZ top-limb bound
+    `b.getLimbN 3 < 2^(64 - clz(b.getLimbN 3))`, needed internally for
+    the post reshape through the denormalization round-trip, is discharged
+    via `clzResult_fst_top_bound`.
 
     Reduces to `evm_mod_n4_full_max_skip_stack_pre_spec_bundled` + a post
     reshape via `output_slot_to_evmWordIs_mod_n4_max_skip_denorm` and
@@ -1061,13 +1059,14 @@ theorem evm_mod_n4_max_skip_stack_spec (sp base : Word)
     (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
     (hbltu : isMaxTrialN4Evm a b)
     (hborrow : isSkipBorrowN4MaxEvm a b)
-    (hsem : n4MaxSkipSemanticHolds a b)
-    (hb3_bound : (b.getLimbN 3).toNat <
-        2 ^ (64 - (clzResult (b.getLimbN 3)).1.toNat)) :
+    (hsem : n4MaxSkipSemanticHolds a b) :
     cpsTriple base (base + nopOff) (modCode base)
       (modN4StackPre sp a b v5 v6 v7 v10 v11
          q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shift_mem n_mem j_mem)
       (modN4MaxSkipStackPost sp a b) := by
+  have hb3_bound : (b.getLimbN 3).toNat <
+      2 ^ (64 - (clzResult (b.getLimbN 3)).1.toNat) :=
+    clzResult_fst_top_bound (b.getLimbN 3)
   have h_pre := evm_mod_n4_full_max_skip_stack_pre_spec_bundled sp base a b
     v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 n_mem shift_mem j_mem
     hbnz hb3nz hshift_nz hbltu hborrow
