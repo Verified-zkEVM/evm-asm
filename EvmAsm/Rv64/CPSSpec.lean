@@ -203,10 +203,11 @@ theorem cpsTriple_of_forall_memIs_to_memOwn
     ⟨hp, hcompat, h1, h2, hd12, hunion12, ⟨h3, h4, hd34, hunion34, hP3, hv4⟩, hR2⟩ hpc
 
 /-- Branch elimination: if both branch exits lead to the same
-    continuation exit with R, merge back into a single cpsTriple. -/
-theorem cpsBranch_merge (entry l_t l_f exit_ : Word) (cr1 cr_t cr_f : CodeReq)
+    continuation exit with R, merge back into a single cpsTriple.
+    All position/code/assertion arguments are implicit — inferred from `hbr`/`h_t`/`h_f`. -/
+theorem cpsBranch_merge {entry l_t l_f exit_ : Word} {cr1 cr_t cr_f : CodeReq}
     (hd1 : cr1.Disjoint (cr_t.union cr_f)) (hd2 : cr_t.Disjoint cr_f)
-    (P Q_t Q_f R : Assertion)
+    {P Q_t Q_f R : Assertion}
     (hbr   : cpsBranch entry cr1 P l_t Q_t l_f Q_f)
     (h_t   : cpsTriple l_t exit_ cr_t Q_t R)
     (h_f   : cpsTriple l_f exit_ cr_f Q_f R) :
