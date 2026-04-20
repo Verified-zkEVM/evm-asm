@@ -6,7 +6,7 @@
     * `divK_mulsub_partA_spec` — 6 instructions (LD, MUL, MULHU, ADD,
       SLTU, ADD): load v[i], compute `prodLo = qHat * v_i`,
       `prodHi = MULHU qHat v_i`, and form `fullSub = prodLo +
-      carry_in` and `partialCarry = (fullSub < carry_in) + prodHi`.
+      carryIn` and `partialCarry = (fullSub < carryIn) + prodHi`.
     * `divK_mulsub_partB_spec` — 5 instructions (LD, SLTU, SUB, ADD, SD):
       load u[j+i], compute `uNew = u_i - fullSub`,
       `carryOut = partialCarry + (u_i < fullSub)`, store `uNew`.
@@ -31,12 +31,12 @@ open EvmAsm.Rv64
 
 /-- Mul-sub limb Part A: LD v[i], MUL, MULHU, ADD, SLTU, ADD.
     6 instructions. Produces fullSub (x7) and partialCarry (x10). -/
-theorem divK_mulsub_partA_spec (sp qHat carry_in v5_old v7_old v_i : Word)
+theorem divK_mulsub_partA_spec (sp qHat carryIn v5_old v7_old v_i : Word)
     (v_off : BitVec 12) (base : Word) :
     let prodLo := qHat * v_i
     let prodHi := rv64_mulhu qHat v_i
-    let fullSub := prodLo + carry_in
-    let borrowAdd := if BitVec.ult fullSub carry_in then (1 : Word) else 0
+    let fullSub := prodLo + carryIn
+    let borrowAdd := if BitVec.ult fullSub carryIn then (1 : Word) else 0
     let partialCarry := borrowAdd + prodHi
     let cr :=
       CodeReq.union (CodeReq.singleton base (.LD .x5 .x12 v_off))
@@ -46,7 +46,7 @@ theorem divK_mulsub_partA_spec (sp qHat carry_in v5_old v7_old v_i : Word)
       (CodeReq.union (CodeReq.singleton (base + 16) (.SLTU .x10 .x7 .x10))
        (CodeReq.singleton (base + 20) (.ADD .x10 .x10 .x5))))))
     cpsTriple base (base + 24) cr
-      ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) ** (.x10 ↦ᵣ carry_in) **
+      ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) ** (.x10 ↦ᵣ carryIn) **
        (.x5 ↦ᵣ v5_old) ** (.x7 ↦ᵣ v7_old) **
        ((sp + signExtend12 v_off) ↦ₘ v_i))
       ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) ** (.x10 ↦ᵣ partialCarry) **
@@ -56,8 +56,8 @@ theorem divK_mulsub_partA_spec (sp qHat carry_in v5_old v7_old v_i : Word)
   have I0 := ld_spec_gen .x5 .x12 sp v5_old v_i v_off base (by nofun)
   have I1 := mul_spec_gen .x7 .x11 .x5 v7_old qHat v_i (base + 4) (by nofun)
   have I2 := mulhu_spec_gen_rd_eq_rs2 .x5 .x11 qHat v_i (base + 8) (by nofun)
-  have I3 := add_spec_gen_rd_eq_rs1 .x7 .x10 prodLo carry_in (base + 12) (by nofun)
-  have I4 := sltu_spec_gen_rd_eq_rs2 .x10 .x7 fullSub carry_in (base + 16) (by nofun)
+  have I3 := add_spec_gen_rd_eq_rs1 .x7 .x10 prodLo carryIn (base + 12) (by nofun)
+  have I4 := sltu_spec_gen_rd_eq_rs2 .x10 .x7 fullSub carryIn (base + 16) (by nofun)
   have I5 := add_spec_gen_rd_eq_rs1 .x10 .x5 borrowAdd prodHi (base + 20) (by nofun)
   runBlock I0 I1 I2 I3 I4 I5
 

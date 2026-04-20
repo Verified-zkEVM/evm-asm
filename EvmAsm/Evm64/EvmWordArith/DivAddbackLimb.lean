@@ -28,50 +28,50 @@ namespace EvmWord
 /-- Per-limb addback Nat-level equation.
 
     The addback_limb operation does a two-step addition:
-    - uPlusCarry = u_i + carry_in (with overflow detection)
+    - uPlusCarry = u_i + carryIn (with overflow detection)
     - uNew = uPlusCarry + v_i (with overflow detection)
-    - carry_out = carry1 ||| carry2
+    - carryOut = carry1 ||| carry2
 
     At the Nat level, this is simply:
-      u_i + v_i + carry_in = carry_nat * 2^64 + uNew
-    where carry_nat = (u_i + v_i + carry_in) / 2^64 ∈ {0, 1}.
+      u_i + v_i + carryIn = carry_nat * 2^64 + uNew
+    where carry_nat = (u_i + v_i + carryIn) / 2^64 ∈ {0, 1}.
 
     We state the equation at the Nat level without referencing the
-    register-level carry_out Word, since the carries are used only
+    register-level carryOut Word, since the carries are used only
     to propagate between limbs (and the 4-limb composition telescopes). -/
-theorem addback_limb_nat_eq (u_i v_i carry_in : Word) (hci : carry_in.toNat ≤ 1) :
-    let uPlusCarry := u_i + carry_in
+theorem addback_limb_nat_eq (u_i v_i carryIn : Word) (hci : carryIn.toNat ≤ 1) :
+    let uPlusCarry := u_i + carryIn
     let uNew := uPlusCarry + v_i
     ∃ (carry_nat : Nat), carry_nat ≤ 1 ∧
-      u_i.toNat + v_i.toNat + carry_in.toNat = carry_nat * 2^64 + uNew.toNat := by
+      u_i.toNat + v_i.toNat + carryIn.toNat = carry_nat * 2^64 + uNew.toNat := by
   intro uPlusCarry uNew
-  -- Step 1: u_i + carry_in = c1 * 2^64 + uPlusCarry
-  have h1 := add_carry_nat u_i carry_in
+  -- Step 1: u_i + carryIn = c1 * 2^64 + uPlusCarry
+  have h1 := add_carry_nat u_i carryIn
   -- Step 2: uPlusCarry + v_i = c2 * 2^64 + uNew
   have h2 := add_carry_nat uPlusCarry v_i
   -- Combined carry
-  set c1 := (u_i.toNat + carry_in.toNat) / 2^64
+  set c1 := (u_i.toNat + carryIn.toNat) / 2^64
   set c2 := (uPlusCarry.toNat + v_i.toNat) / 2^64
-  have hc1_01 := add_carry_01 u_i carry_in
+  have hc1_01 := add_carry_01 u_i carryIn
   have hc2_01 := add_carry_01 uPlusCarry v_i
-  -- Total: u_i + v_i + carry_in = (c1 + c2) * 2^64 + uNew
+  -- Total: u_i + v_i + carryIn = (c1 + c2) * 2^64 + uNew
   -- But c1 + c2 ≤ 1 (the two carries are exclusive)
   have hu := u_i.isLt; have hv := v_i.isLt
-  have htot : u_i.toNat + v_i.toNat + carry_in.toNat < 2 * 2^64 := by omega
-  have hupc : uPlusCarry.toNat = (u_i.toNat + carry_in.toNat) % 2^64 :=
-    BitVec.toNat_add u_i carry_in
+  have htot : u_i.toNat + v_i.toNat + carryIn.toNat < 2 * 2^64 := by omega
+  have hupc : uPlusCarry.toNat = (u_i.toNat + carryIn.toNat) % 2^64 :=
+    BitVec.toNat_add u_i carryIn
   -- If c1 = 1 then uPlusCarry is small, so c2 = 0
   have hexcl : c1 + c2 ≤ 1 := by
     rcases hc1_01 with h | h <;> rcases hc2_01 with h' | h'
     · omega
     · omega
     · -- c1 = 1: uPlusCarry = u_i + ci - 2^64, which is small
-      have : uPlusCarry.toNat = u_i.toNat + carry_in.toNat - 2^64 := by rw [hupc]; omega
+      have : uPlusCarry.toNat = u_i.toNat + carryIn.toNat - 2^64 := by rw [hupc]; omega
       have : uPlusCarry.toNat + v_i.toNat < 2^64 := by omega
       have : c2 = 0 := Nat.div_eq_of_lt (by omega)
       omega
     · -- c1 = 1, c2 = 1: impossible since total < 2 * 2^64
-      have : uPlusCarry.toNat = u_i.toNat + carry_in.toNat - 2^64 := by rw [hupc]; omega
+      have : uPlusCarry.toNat = u_i.toNat + carryIn.toNat - 2^64 := by rw [hupc]; omega
       have : uPlusCarry.toNat + v_i.toNat < 2^64 := by omega
       omega
   refine ⟨c1 + c2, hexcl, ?_⟩
@@ -83,8 +83,8 @@ theorem addback_limb_nat_eq (u_i v_i carry_in : Word) (hci : carry_in.toNat ≤ 
 
 /-- 4-limb addback: adding the divisor back to the underflowed remainder.
     Given per-limb carry equations, the val256 result satisfies:
-      val256 u + val256 v = val256 uNew + carry_out * 2^256
-    where carry_out ∈ {0, 1}. -/
+      val256 u + val256 v = val256 uNew + carryOut * 2^256
+    where carryOut ∈ {0, 1}. -/
 theorem addback_4limb_val256
     (u0 u1 u2 u3 v0 v1 v2 v3 r0 r1 r2 r3 : Word)
     (c0 c1 c2 c3 : Nat)
@@ -96,7 +96,7 @@ theorem addback_4limb_val256
     val256 r0 r1 r2 r3 + c3 * 2^256 := by
   unfold val256; nlinarith
 
-/-- Addback with carry_in for limb 0 (the initial carry is from the mulsub borrow).
+/-- Addback with carryIn for limb 0 (the initial carry is from the mulsub borrow).
     When the mulsub borrow is 0, the addback carry chain starts with 0.
     This variant takes a general initial carry for the first limb. -/
 theorem addback_4limb_val256_with_carry
@@ -114,7 +114,7 @@ theorem addback_4limb_val256_with_carry
 -- End-to-end: mulsub underflow + addback → corrected Euclidean
 -- ============================================================================
 
-/-- When mulsub underflows (cb3 = 1) and addback produces carry_out = 1,
+/-- When mulsub underflows (cb3 = 1) and addback produces carryOut = 1,
     the corrected result satisfies the Euclidean property with quotient q-1.
 
     This combines:

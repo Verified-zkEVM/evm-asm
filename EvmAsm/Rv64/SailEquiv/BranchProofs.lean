@@ -32,9 +32,9 @@ private theorem sign_extend_13_eq (imm : BitVec 13) :
   unfold sign_extend signExtend13 Sail.BitVec.signExtend; rfl
 
 /-- Writing Register.nextPC preserves StateRel (nextPC is not in the tracked register set). -/
-theorem stateRel_nextPC (s_rv : MachineState) (s_sail : SailState)
-    (hrel : StateRel s_rv s_sail) (v : BitVec 64) :
-    StateRel s_rv { s_sail with regs := s_sail.regs.insert Register.nextPC v } :=
+theorem stateRel_nextPC (sRv : MachineState) (sSail : SailState)
+    (hrel : StateRel sRv sSail) (v : BitVec 64) :
+    StateRel sRv { sSail with regs := sSail.regs.insert Register.nextPC v } :=
   ⟨fun r => by
     have ha := hrel.reg_agree r
     cases r <;> simp only [sailRegVal, Std.ExtDHashMap.get?_insert,
@@ -77,22 +77,22 @@ private theorem uge_equiv (a b : BitVec 64) : zopz0zKzJ_u a b = !zopz0zI_u a b :
 -- Conditional branches (BEQ, BNE, BLT, BGE, BLTU, BGEU)
 -- ============================================================================
 
-theorem beq_sail_equiv (s_rv : MachineState) (s_sail : SailState)
-    (hrel : StateRel s_rv s_sail)
-    (h_pc : s_sail.regs.get? Register.PC = some s_rv.pc)
-    (h_misa : ∃ v, s_sail.regs.get? Register.misa = some v)
+theorem beq_sail_equiv (sRv : MachineState) (sSail : SailState)
+    (hrel : StateRel sRv sSail)
+    (h_pc : sSail.regs.get? Register.PC = some sRv.pc)
+    (h_misa : ∃ v, sSail.regs.get? Register.misa = some v)
     (rs1 rs2 : Reg) (offset : BitVec 13)
-    (h_align : (s_rv.pc + signExtend13 offset) &&& 3 = 0) :
-    ∃ s_sail',
-      runSail (execute_BTYPE offset (regToRegidx rs2) (regToRegidx rs1) bop.BEQ) s_sail
-        = some (RETIRE_SUCCESS, s_sail') ∧
-      StateRel (execInstrBr s_rv (.BEQ rs1 rs2 offset)) s_sail' := by
+    (h_align : (sRv.pc + signExtend13 offset) &&& 3 = 0) :
+    ∃ sSail',
+      runSail (execute_BTYPE offset (regToRegidx rs2) (regToRegidx rs1) bop.BEQ) sSail
+        = some (RETIRE_SUCCESS, sSail') ∧
+      StateRel (execInstrBr sRv (.BEQ rs1 rs2 offset)) sSail' := by
   obtain ⟨misa_val, h_misa⟩ := h_misa
   unfold execute_BTYPE
-  simp only [runSail_bind, runSail_rX_bits_of_stateRel s_rv s_sail hrel, runSail_pure]
-  by_cases h : s_rv.getReg rs1 == s_rv.getReg rs2
+  simp only [runSail_bind, runSail_rX_bits_of_stateRel sRv sSail hrel, runSail_pure]
+  by_cases h : sRv.getReg rs1 == sRv.getReg rs2
   · simp only [h, ite_true, runSail_bind,
-      runSail_readReg_PC s_sail s_rv.pc h_pc, runSail_pure, sign_extend_13_eq]
+      runSail_readReg_PC sSail sRv.pc h_pc, runSail_pure, sign_extend_13_eq]
     rw [runSail_jump_to _ _ misa_val h_align h_misa]
     exact ⟨_, rfl, stateRel_nextPC _ _
       ⟨fun r => by simp [execInstrBr, h]; exact hrel.reg_agree r,
@@ -102,22 +102,22 @@ theorem beq_sail_equiv (s_rv : MachineState) (s_sail : SailState)
       ⟨fun r => by simp [execInstrBr, h]; exact hrel.reg_agree r,
        fun a => by simp [execInstrBr, h]; exact hrel.mem_agree a⟩⟩
 
-theorem bne_sail_equiv (s_rv : MachineState) (s_sail : SailState)
-    (hrel : StateRel s_rv s_sail)
-    (h_pc : s_sail.regs.get? Register.PC = some s_rv.pc)
-    (h_misa : ∃ v, s_sail.regs.get? Register.misa = some v)
+theorem bne_sail_equiv (sRv : MachineState) (sSail : SailState)
+    (hrel : StateRel sRv sSail)
+    (h_pc : sSail.regs.get? Register.PC = some sRv.pc)
+    (h_misa : ∃ v, sSail.regs.get? Register.misa = some v)
     (rs1 rs2 : Reg) (offset : BitVec 13)
-    (h_align : (s_rv.pc + signExtend13 offset) &&& 3 = 0) :
-    ∃ s_sail',
-      runSail (execute_BTYPE offset (regToRegidx rs2) (regToRegidx rs1) bop.BNE) s_sail
-        = some (RETIRE_SUCCESS, s_sail') ∧
-      StateRel (execInstrBr s_rv (.BNE rs1 rs2 offset)) s_sail' := by
+    (h_align : (sRv.pc + signExtend13 offset) &&& 3 = 0) :
+    ∃ sSail',
+      runSail (execute_BTYPE offset (regToRegidx rs2) (regToRegidx rs1) bop.BNE) sSail
+        = some (RETIRE_SUCCESS, sSail') ∧
+      StateRel (execInstrBr sRv (.BNE rs1 rs2 offset)) sSail' := by
   obtain ⟨misa_val, h_misa⟩ := h_misa
   unfold execute_BTYPE
-  simp only [runSail_bind, runSail_rX_bits_of_stateRel s_rv s_sail hrel, runSail_pure]
-  by_cases h : s_rv.getReg rs1 != s_rv.getReg rs2
+  simp only [runSail_bind, runSail_rX_bits_of_stateRel sRv sSail hrel, runSail_pure]
+  by_cases h : sRv.getReg rs1 != sRv.getReg rs2
   · simp only [h, ite_true, runSail_bind,
-      runSail_readReg_PC s_sail s_rv.pc h_pc, runSail_pure, sign_extend_13_eq]
+      runSail_readReg_PC sSail sRv.pc h_pc, runSail_pure, sign_extend_13_eq]
     rw [runSail_jump_to _ _ misa_val h_align h_misa]
     exact ⟨_, rfl, stateRel_nextPC _ _
       ⟨fun r => by simp [execInstrBr, h]; exact hrel.reg_agree r,
@@ -127,22 +127,22 @@ theorem bne_sail_equiv (s_rv : MachineState) (s_sail : SailState)
       ⟨fun r => by simp [execInstrBr, h]; exact hrel.reg_agree r,
        fun a => by simp [execInstrBr, h]; exact hrel.mem_agree a⟩⟩
 
-theorem blt_sail_equiv (s_rv : MachineState) (s_sail : SailState)
-    (hrel : StateRel s_rv s_sail)
-    (h_pc : s_sail.regs.get? Register.PC = some s_rv.pc)
-    (h_misa : ∃ v, s_sail.regs.get? Register.misa = some v)
+theorem blt_sail_equiv (sRv : MachineState) (sSail : SailState)
+    (hrel : StateRel sRv sSail)
+    (h_pc : sSail.regs.get? Register.PC = some sRv.pc)
+    (h_misa : ∃ v, sSail.regs.get? Register.misa = some v)
     (rs1 rs2 : Reg) (offset : BitVec 13)
-    (h_align : (s_rv.pc + signExtend13 offset) &&& 3 = 0) :
-    ∃ s_sail',
-      runSail (execute_BTYPE offset (regToRegidx rs2) (regToRegidx rs1) bop.BLT) s_sail
-        = some (RETIRE_SUCCESS, s_sail') ∧
-      StateRel (execInstrBr s_rv (.BLT rs1 rs2 offset)) s_sail' := by
+    (h_align : (sRv.pc + signExtend13 offset) &&& 3 = 0) :
+    ∃ sSail',
+      runSail (execute_BTYPE offset (regToRegidx rs2) (regToRegidx rs1) bop.BLT) sSail
+        = some (RETIRE_SUCCESS, sSail') ∧
+      StateRel (execInstrBr sRv (.BLT rs1 rs2 offset)) sSail' := by
   obtain ⟨misa_val, h_misa⟩ := h_misa
   unfold execute_BTYPE
-  simp only [runSail_bind, runSail_rX_bits_of_stateRel s_rv s_sail hrel, runSail_pure, slt_equiv]
-  by_cases h : BitVec.slt (s_rv.getReg rs1) (s_rv.getReg rs2)
+  simp only [runSail_bind, runSail_rX_bits_of_stateRel sRv sSail hrel, runSail_pure, slt_equiv]
+  by_cases h : BitVec.slt (sRv.getReg rs1) (sRv.getReg rs2)
   · simp only [h, ite_true, runSail_bind,
-      runSail_readReg_PC s_sail s_rv.pc h_pc, runSail_pure, sign_extend_13_eq]
+      runSail_readReg_PC sSail sRv.pc h_pc, runSail_pure, sign_extend_13_eq]
     rw [runSail_jump_to _ _ misa_val h_align h_misa]
     exact ⟨_, rfl, stateRel_nextPC _ _
       ⟨fun r => by simp [execInstrBr, h]; exact hrel.reg_agree r,
@@ -152,51 +152,51 @@ theorem blt_sail_equiv (s_rv : MachineState) (s_sail : SailState)
       ⟨fun r => by simp [execInstrBr, h]; exact hrel.reg_agree r,
        fun a => by simp [execInstrBr, h]; exact hrel.mem_agree a⟩⟩
 
-theorem bge_sail_equiv (s_rv : MachineState) (s_sail : SailState)
-    (hrel : StateRel s_rv s_sail)
-    (h_pc : s_sail.regs.get? Register.PC = some s_rv.pc)
-    (h_misa : ∃ v, s_sail.regs.get? Register.misa = some v)
+theorem bge_sail_equiv (sRv : MachineState) (sSail : SailState)
+    (hrel : StateRel sRv sSail)
+    (h_pc : sSail.regs.get? Register.PC = some sRv.pc)
+    (h_misa : ∃ v, sSail.regs.get? Register.misa = some v)
     (rs1 rs2 : Reg) (offset : BitVec 13)
-    (h_align : (s_rv.pc + signExtend13 offset) &&& 3 = 0) :
-    ∃ s_sail',
-      runSail (execute_BTYPE offset (regToRegidx rs2) (regToRegidx rs1) bop.BGE) s_sail
-        = some (RETIRE_SUCCESS, s_sail') ∧
-      StateRel (execInstrBr s_rv (.BGE rs1 rs2 offset)) s_sail' := by
+    (h_align : (sRv.pc + signExtend13 offset) &&& 3 = 0) :
+    ∃ sSail',
+      runSail (execute_BTYPE offset (regToRegidx rs2) (regToRegidx rs1) bop.BGE) sSail
+        = some (RETIRE_SUCCESS, sSail') ∧
+      StateRel (execInstrBr sRv (.BGE rs1 rs2 offset)) sSail' := by
   obtain ⟨misa_val, h_misa⟩ := h_misa
   unfold execute_BTYPE
-  simp only [runSail_bind, runSail_rX_bits_of_stateRel s_rv s_sail hrel, runSail_pure,
+  simp only [runSail_bind, runSail_rX_bits_of_stateRel sRv sSail hrel, runSail_pure,
     sge_equiv, slt_equiv]
-  by_cases h : BitVec.slt (s_rv.getReg rs1) (s_rv.getReg rs2)
+  by_cases h : BitVec.slt (sRv.getReg rs1) (sRv.getReg rs2)
   · -- slt = true, so !slt = false → not taken
     simp only [h, Bool.not_true, ite_false]
     exact ⟨_, rfl,
       ⟨fun r => by simp [execInstrBr, show ¬¬BitVec.slt _ _ from fun h' => absurd h h']; exact hrel.reg_agree r,
        fun a => by simp [execInstrBr, show ¬¬BitVec.slt _ _ from fun h' => absurd h h']; exact hrel.mem_agree a⟩⟩
   · -- slt = false, so !slt = true → taken
-    simp only [show BitVec.slt (s_rv.getReg rs1) (s_rv.getReg rs2) = false from by simp [h],
+    simp only [show BitVec.slt (sRv.getReg rs1) (sRv.getReg rs2) = false from by simp [h],
       Bool.not_false, ite_true, runSail_bind,
-      runSail_readReg_PC s_sail s_rv.pc h_pc, runSail_pure, sign_extend_13_eq]
+      runSail_readReg_PC sSail sRv.pc h_pc, runSail_pure, sign_extend_13_eq]
     rw [runSail_jump_to _ _ misa_val h_align h_misa]
     exact ⟨_, rfl, stateRel_nextPC _ _
       ⟨fun r => by simp [execInstrBr, h]; exact hrel.reg_agree r,
        fun a => by simp [execInstrBr, h]; exact hrel.mem_agree a⟩ _⟩
 
-theorem bltu_sail_equiv (s_rv : MachineState) (s_sail : SailState)
-    (hrel : StateRel s_rv s_sail)
-    (h_pc : s_sail.regs.get? Register.PC = some s_rv.pc)
-    (h_misa : ∃ v, s_sail.regs.get? Register.misa = some v)
+theorem bltu_sail_equiv (sRv : MachineState) (sSail : SailState)
+    (hrel : StateRel sRv sSail)
+    (h_pc : sSail.regs.get? Register.PC = some sRv.pc)
+    (h_misa : ∃ v, sSail.regs.get? Register.misa = some v)
     (rs1 rs2 : Reg) (offset : BitVec 13)
-    (h_align : (s_rv.pc + signExtend13 offset) &&& 3 = 0) :
-    ∃ s_sail',
-      runSail (execute_BTYPE offset (regToRegidx rs2) (regToRegidx rs1) bop.BLTU) s_sail
-        = some (RETIRE_SUCCESS, s_sail') ∧
-      StateRel (execInstrBr s_rv (.BLTU rs1 rs2 offset)) s_sail' := by
+    (h_align : (sRv.pc + signExtend13 offset) &&& 3 = 0) :
+    ∃ sSail',
+      runSail (execute_BTYPE offset (regToRegidx rs2) (regToRegidx rs1) bop.BLTU) sSail
+        = some (RETIRE_SUCCESS, sSail') ∧
+      StateRel (execInstrBr sRv (.BLTU rs1 rs2 offset)) sSail' := by
   obtain ⟨misa_val, h_misa⟩ := h_misa
   unfold execute_BTYPE
-  simp only [runSail_bind, runSail_rX_bits_of_stateRel s_rv s_sail hrel, runSail_pure, ult_equiv]
-  by_cases h : BitVec.ult (s_rv.getReg rs1) (s_rv.getReg rs2)
+  simp only [runSail_bind, runSail_rX_bits_of_stateRel sRv sSail hrel, runSail_pure, ult_equiv]
+  by_cases h : BitVec.ult (sRv.getReg rs1) (sRv.getReg rs2)
   · simp only [h, ite_true, runSail_bind,
-      runSail_readReg_PC s_sail s_rv.pc h_pc, runSail_pure, sign_extend_13_eq]
+      runSail_readReg_PC sSail sRv.pc h_pc, runSail_pure, sign_extend_13_eq]
     rw [runSail_jump_to _ _ misa_val h_align h_misa]
     exact ⟨_, rfl, stateRel_nextPC _ _
       ⟨fun r => by simp [execInstrBr, h]; exact hrel.reg_agree r,
@@ -206,30 +206,30 @@ theorem bltu_sail_equiv (s_rv : MachineState) (s_sail : SailState)
       ⟨fun r => by simp [execInstrBr, h]; exact hrel.reg_agree r,
        fun a => by simp [execInstrBr, h]; exact hrel.mem_agree a⟩⟩
 
-theorem bgeu_sail_equiv (s_rv : MachineState) (s_sail : SailState)
-    (hrel : StateRel s_rv s_sail)
-    (h_pc : s_sail.regs.get? Register.PC = some s_rv.pc)
-    (h_misa : ∃ v, s_sail.regs.get? Register.misa = some v)
+theorem bgeu_sail_equiv (sRv : MachineState) (sSail : SailState)
+    (hrel : StateRel sRv sSail)
+    (h_pc : sSail.regs.get? Register.PC = some sRv.pc)
+    (h_misa : ∃ v, sSail.regs.get? Register.misa = some v)
     (rs1 rs2 : Reg) (offset : BitVec 13)
-    (h_align : (s_rv.pc + signExtend13 offset) &&& 3 = 0) :
-    ∃ s_sail',
-      runSail (execute_BTYPE offset (regToRegidx rs2) (regToRegidx rs1) bop.BGEU) s_sail
-        = some (RETIRE_SUCCESS, s_sail') ∧
-      StateRel (execInstrBr s_rv (.BGEU rs1 rs2 offset)) s_sail' := by
+    (h_align : (sRv.pc + signExtend13 offset) &&& 3 = 0) :
+    ∃ sSail',
+      runSail (execute_BTYPE offset (regToRegidx rs2) (regToRegidx rs1) bop.BGEU) sSail
+        = some (RETIRE_SUCCESS, sSail') ∧
+      StateRel (execInstrBr sRv (.BGEU rs1 rs2 offset)) sSail' := by
   obtain ⟨misa_val, h_misa⟩ := h_misa
   unfold execute_BTYPE
-  simp only [runSail_bind, runSail_rX_bits_of_stateRel s_rv s_sail hrel, runSail_pure,
+  simp only [runSail_bind, runSail_rX_bits_of_stateRel sRv sSail hrel, runSail_pure,
     uge_equiv, ult_equiv]
-  by_cases h : BitVec.ult (s_rv.getReg rs1) (s_rv.getReg rs2)
+  by_cases h : BitVec.ult (sRv.getReg rs1) (sRv.getReg rs2)
   · -- ult = true, so !ult = false → not taken
     simp only [h, Bool.not_true, ite_false]
     exact ⟨_, rfl,
       ⟨fun r => by simp [execInstrBr, show ¬¬BitVec.ult _ _ from fun h' => absurd h h']; exact hrel.reg_agree r,
        fun a => by simp [execInstrBr, show ¬¬BitVec.ult _ _ from fun h' => absurd h h']; exact hrel.mem_agree a⟩⟩
   · -- ult = false, so !ult = true → taken
-    simp only [show BitVec.ult (s_rv.getReg rs1) (s_rv.getReg rs2) = false from by simp [h],
+    simp only [show BitVec.ult (sRv.getReg rs1) (sRv.getReg rs2) = false from by simp [h],
       Bool.not_false, ite_true, runSail_bind,
-      runSail_readReg_PC s_sail s_rv.pc h_pc, runSail_pure, sign_extend_13_eq]
+      runSail_readReg_PC sSail sRv.pc h_pc, runSail_pure, sign_extend_13_eq]
     rw [runSail_jump_to _ _ misa_val h_align h_misa]
     exact ⟨_, rfl, stateRel_nextPC _ _
       ⟨fun r => by simp [execInstrBr, h]; exact hrel.reg_agree r,
@@ -243,22 +243,22 @@ private theorem sign_extend_21_eq (imm : BitVec 21) :
     sign_extend (m := 64) imm = signExtend21 imm := by
   unfold sign_extend signExtend21 Sail.BitVec.signExtend; rfl
 
-theorem jal_sail_equiv (s_rv : MachineState) (s_sail : SailState)
-    (hrel : StateRel s_rv s_sail)
-    (h_pc : s_sail.regs.get? Register.PC = some s_rv.pc)
-    (h_nextpc : s_sail.regs.get? Register.nextPC = some (s_rv.pc + 4))
-    (h_misa : ∃ v, s_sail.regs.get? Register.misa = some v)
+theorem jal_sail_equiv (sRv : MachineState) (sSail : SailState)
+    (hrel : StateRel sRv sSail)
+    (h_pc : sSail.regs.get? Register.PC = some sRv.pc)
+    (h_nextpc : sSail.regs.get? Register.nextPC = some (sRv.pc + 4))
+    (h_misa : ∃ v, sSail.regs.get? Register.misa = some v)
     (rd : Reg) (offset : BitVec 21)
-    (h_align : (s_rv.pc + signExtend21 offset) &&& 3 = 0) :
-    ∃ s_sail',
-      runSail (execute_JAL offset (regToRegidx rd)) s_sail
-        = some (RETIRE_SUCCESS, s_sail') ∧
-      StateRel (execInstrBr s_rv (.JAL rd offset)) s_sail' := by
+    (h_align : (sRv.pc + signExtend21 offset) &&& 3 = 0) :
+    ∃ sSail',
+      runSail (execute_JAL offset (regToRegidx rd)) sSail
+        = some (RETIRE_SUCCESS, sSail') ∧
+      StateRel (execInstrBr sRv (.JAL rd offset)) sSail' := by
   obtain ⟨misa_val, h_misa⟩ := h_misa
   unfold execute_JAL
   simp only [runSail_bind,
-    runSail_get_next_pc s_sail (s_rv.pc + 4) h_nextpc,
-    runSail_readReg_PC s_sail s_rv.pc h_pc,
+    runSail_get_next_pc sSail (sRv.pc + 4) h_nextpc,
+    runSail_readReg_PC sSail sRv.pc h_pc,
     sign_extend_21_eq]
   rw [runSail_jump_to _ _ misa_val h_align h_misa]
   simp only [RETIRE_SUCCESS, runSail_bind, runSail_pure]
@@ -303,34 +303,34 @@ private theorem runSail_ok_bind (f : Unit → SailM β) (s s' : SailState)
     runSail (m >>= f) s = runSail (f ()) s' := by
   simp [runSail, bind, EStateM.bind, hm]
 
-theorem jalr_sail_equiv (s_rv : MachineState) (s_sail : SailState)
-    (hrel : StateRel s_rv s_sail)
-    (h_pc : s_sail.regs.get? Register.PC = some s_rv.pc)
-    (h_nextpc : s_sail.regs.get? Register.nextPC = some (s_rv.pc + 4))
-    (h_misa : ∃ v, s_sail.regs.get? Register.misa = some v)
+theorem jalr_sail_equiv (sRv : MachineState) (sSail : SailState)
+    (hrel : StateRel sRv sSail)
+    (h_pc : sSail.regs.get? Register.PC = some sRv.pc)
+    (h_nextpc : sSail.regs.get? Register.nextPC = some (sRv.pc + 4))
+    (h_misa : ∃ v, sSail.regs.get? Register.misa = some v)
     (rd rs1 : Reg) (offset : BitVec 12)
     -- update_elp_state succeeds and preserves StateRel + relevant state
-    (h_elp : ∃ s_mid, update_elp_state (regToRegidx rs1) s_sail = .ok () s_mid ∧
-      StateRel s_rv s_mid ∧
-      s_mid.regs.get? Register.PC = some s_rv.pc ∧
-      s_mid.regs.get? Register.nextPC = some (s_rv.pc + 4) ∧
+    (h_elp : ∃ s_mid, update_elp_state (regToRegidx rs1) sSail = .ok () s_mid ∧
+      StateRel sRv s_mid ∧
+      s_mid.regs.get? Register.PC = some sRv.pc ∧
+      s_mid.regs.get? Register.nextPC = some (sRv.pc + 4) ∧
       (∃ v, s_mid.regs.get? Register.misa = some v))
-    (h_align : ((s_rv.getReg rs1 + signExtend12 offset) &&& ~~~1#64) &&& 3 = 0) :
-    ∃ s_sail',
-      runSail (execute_JALR offset (regToRegidx rs1) (regToRegidx rd)) s_sail
-        = some (RETIRE_SUCCESS, s_sail') ∧
-      StateRel (execInstrBr s_rv (.JALR rd rs1 offset)) s_sail' := by
+    (h_align : ((sRv.getReg rs1 + signExtend12 offset) &&& ~~~1#64) &&& 3 = 0) :
+    ∃ sSail',
+      runSail (execute_JALR offset (regToRegidx rs1) (regToRegidx rd)) sSail
+        = some (RETIRE_SUCCESS, sSail') ∧
+      StateRel (execInstrBr sRv (.JALR rd rs1 offset)) sSail' := by
   obtain ⟨s_mid, h_elp_ok, hrel_mid, h_pc_mid, h_nextpc_mid, h_misa_mid⟩ := h_elp
   obtain ⟨misa_val, h_misa_mid⟩ := h_misa_mid
   unfold execute_JALR
-  rw [runSail_ok_bind _ s_sail s_mid _ h_elp_ok]
+  rw [runSail_ok_bind _ sSail s_mid _ h_elp_ok]
   simp only [runSail_bind, runSail_pure,
-    runSail_get_next_pc s_mid (s_rv.pc + 4) h_nextpc_mid,
-    runSail_rX_bits_of_stateRel s_rv s_mid hrel_mid,
+    runSail_get_next_pc s_mid (sRv.pc + 4) h_nextpc_mid,
+    runSail_rX_bits_of_stateRel sRv s_mid hrel_mid,
     sign_extend_12_eq]
   -- Rewrite BitVec.update to &&& ~~~1 before applying jump_to
-  simp only [show @Sail.BitVec.update (m := 64) (s_rv.getReg rs1 + signExtend12 offset) 0 0#1 =
-    (s_rv.getReg rs1 + signExtend12 offset) &&& ~~~1#64 from jalr_mask_equiv _]
+  simp only [show @Sail.BitVec.update (m := 64) (sRv.getReg rs1 + signExtend12 offset) 0 0#1 =
+    (sRv.getReg rs1 + signExtend12 offset) &&& ~~~1#64 from jalr_mask_equiv _]
   rw [runSail_jump_to _ _ misa_val h_align h_misa_mid]
   simp only [RETIRE_SUCCESS, runSail_bind, runSail_pure]
   cases rd <;>

@@ -28,13 +28,13 @@ namespace EvmAsm.Rv64
 -- LD/SD specs (primary memory access for EVM64)
 -- ============================================================================
 
-@[spec_gen_rv64] theorem ld_spec_gen (rd rs1 : Reg) (v_addr v_old mem_val : Word)
+@[spec_gen_rv64] theorem ld_spec_gen (rd rs1 : Reg) (v_addr v_old memVal : Word)
     (offset : BitVec 12) (addr : Word)
     (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.LD rd rs1 offset))
-      ((rs1 ↦ᵣ v_addr) ** (rd ↦ᵣ v_old) ** ((v_addr + signExtend12 offset) ↦ₘ mem_val))
-      ((rs1 ↦ᵣ v_addr) ** (rd ↦ᵣ mem_val) ** ((v_addr + signExtend12 offset) ↦ₘ mem_val)) :=
-  generic_ld_spec rd rs1 v_addr v_old mem_val offset addr hrd_ne_x0
+      ((rs1 ↦ᵣ v_addr) ** (rd ↦ᵣ v_old) ** ((v_addr + signExtend12 offset) ↦ₘ memVal))
+      ((rs1 ↦ᵣ v_addr) ** (rd ↦ᵣ memVal) ** ((v_addr + signExtend12 offset) ↦ₘ memVal)) :=
+  generic_ld_spec rd rs1 v_addr v_old memVal offset addr hrd_ne_x0
 
 @[spec_gen_rv64] theorem sd_spec_gen (rs1 rs2 : Reg) (v_addr v_data mem_old : Word)
     (offset : BitVec 12) (addr : Word) :
@@ -593,13 +593,13 @@ namespace EvmAsm.Rv64
 -- LD same register: LD rd, offset(rd) (rd = rs1)
 -- ============================================================================
 
-@[spec_gen_rv64] theorem ld_spec_gen_same (rd : Reg) (v_addr mem_val : Word)
+@[spec_gen_rv64] theorem ld_spec_gen_same (rd : Reg) (v_addr memVal : Word)
     (offset : BitVec 12) (addr : Word)
     (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.LD rd rd offset))
-      ((rd ↦ᵣ v_addr) ** ((v_addr + signExtend12 offset) ↦ₘ mem_val))
-      ((rd ↦ᵣ mem_val) ** ((v_addr + signExtend12 offset) ↦ₘ mem_val)) :=
-  ld_spec_same rd v_addr mem_val offset addr hrd_ne_x0
+      ((rd ↦ᵣ v_addr) ** ((v_addr + signExtend12 offset) ↦ₘ memVal))
+      ((rd ↦ᵣ memVal) ** ((v_addr + signExtend12 offset) ↦ₘ memVal)) :=
+  ld_spec_same rd v_addr memVal offset addr hrd_ne_x0
 
 -- ============================================================================
 -- ORI specs

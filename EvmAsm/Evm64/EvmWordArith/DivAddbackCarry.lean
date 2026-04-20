@@ -45,33 +45,33 @@ theorem or_toNat_eq_add_of_le_one {a b : Word}
 -- ============================================================================
 
 /-- Helper: the two overflow flags from the two-step addition can't both be 1.
-    If the first addition overflows (u + carry_in ≥ 2^64), the intermediate
+    If the first addition overflows (u + carryIn ≥ 2^64), the intermediate
     result is small, so the second addition (intermediate + v) can't also overflow
     when the total carry is ≤ 1. -/
-private theorem addback_carries_exclusive (u_i v_i carry_in : Word)
-    (hci : carry_in.toNat ≤ 1) :
-    let uPlusCarry := u_i + carry_in
+private theorem addback_carries_exclusive (u_i v_i carryIn : Word)
+    (hci : carryIn.toNat ≤ 1) :
+    let uPlusCarry := u_i + carryIn
     let uNew := uPlusCarry + v_i
-    let ac1 := if BitVec.ult uPlusCarry carry_in then (1 : Word) else 0
+    let ac1 := if BitVec.ult uPlusCarry carryIn then (1 : Word) else 0
     let ac2 := if BitVec.ult uNew v_i then (1 : Word) else 0
     ac1.toNat + ac2.toNat ≤ 1 := by
   intro uPlusCarry uNew ac1 ac2
   -- Convert to Nat
-  have h_ac1 : ac1.toNat = (u_i.toNat + carry_in.toNat) / 2^64 := by
-    show (if BitVec.ult uPlusCarry carry_in then (1 : Word) else 0).toNat = _
-    have hci_lt := carry_in.isLt; have hui := u_i.isLt
-    by_cases h : u_i.toNat + carry_in.toNat < 2^64
-    · have : uPlusCarry.toNat ≥ carry_in.toNat := by
-        show (u_i + carry_in).toNat ≥ _
+  have h_ac1 : ac1.toNat = (u_i.toNat + carryIn.toNat) / 2^64 := by
+    show (if BitVec.ult uPlusCarry carryIn then (1 : Word) else 0).toNat = _
+    have hci_lt := carryIn.isLt; have hui := u_i.isLt
+    by_cases h : u_i.toNat + carryIn.toNat < 2^64
+    · have : uPlusCarry.toNat ≥ carryIn.toNat := by
+        show (u_i + carryIn).toNat ≥ _
         rw [BitVec.toNat_add, Nat.mod_eq_of_lt h]; omega
-      simp [BitVec.ult, show ¬(uPlusCarry.toNat < carry_in.toNat) from by omega]
+      simp [BitVec.ult, show ¬(uPlusCarry.toNat < carryIn.toNat) from by omega]
       exact (Nat.div_eq_of_lt h).symm
     · push Not at h
-      have : uPlusCarry.toNat < carry_in.toNat := by
-        show (u_i + carry_in).toNat < _
+      have : uPlusCarry.toNat < carryIn.toNat := by
+        show (u_i + carryIn).toNat < _
         rw [BitVec.toNat_add]; omega
       simp [BitVec.ult, this]
-      have : u_i.toNat + carry_in.toNat < 2 * 2^64 := by omega
+      have : u_i.toNat + carryIn.toNat < 2 * 2^64 := by omega
       omega
   have h_ac2 : ac2.toNat = (uPlusCarry.toNat + v_i.toNat) / 2^64 := by
     show (if BitVec.ult uNew v_i then (1 : Word) else 0).toNat = _
@@ -90,14 +90,14 @@ private theorem addback_carries_exclusive (u_i v_i carry_in : Word)
       have : uPlusCarry.toNat + v_i.toNat < 2 * 2^64 := by omega
       omega
   rw [h_ac1, h_ac2]
-  -- Total: u_i + v_i + carry_in < 2 * 2^64 (since each < 2^64 and carry_in ≤ 1)
+  -- Total: u_i + v_i + carryIn < 2 * 2^64 (since each < 2^64 and carryIn ≤ 1)
   have hui := u_i.isLt; have hv := v_i.isLt
-  have htot : u_i.toNat + v_i.toNat + carry_in.toNat < 2 * 2^64 := by omega
+  have htot : u_i.toNat + v_i.toNat + carryIn.toNat < 2 * 2^64 := by omega
   -- c1 + c2 = (u_i + ci) / B + (upc + v) / B where upc = (u_i + ci) % B
-  have hupc : uPlusCarry.toNat = (u_i.toNat + carry_in.toNat) % 2^64 :=
-    BitVec.toNat_add u_i carry_in
+  have hupc : uPlusCarry.toNat = (u_i.toNat + carryIn.toNat) % 2^64 :=
+    BitVec.toNat_add u_i carryIn
   -- Case split on c1
-  have hc1_01 := add_carry_01 u_i carry_in
+  have hc1_01 := add_carry_01 u_i carryIn
   rcases hc1_01 with hc1_0 | hc1_1
   · -- c1 = 0: no overflow in first add. Then c2 ≤ 1.
     rw [hc1_0]; simp
@@ -105,26 +105,26 @@ private theorem addback_carries_exclusive (u_i v_i carry_in : Word)
     rcases this with h | h <;> omega
   · -- c1 = 1: first add overflowed. upc is small. Second add can't overflow.
     rw [hc1_1]
-    have : uPlusCarry.toNat = u_i.toNat + carry_in.toNat - 2^64 := by rw [hupc]; omega
+    have : uPlusCarry.toNat = u_i.toNat + carryIn.toNat - 2^64 := by rw [hupc]; omega
     have : uPlusCarry.toNat + v_i.toNat < 2^64 := by omega
     have : (uPlusCarry.toNat + v_i.toNat) / 2^64 = 0 := Nat.div_eq_of_lt (by omega)
     omega
 
 /-- Per-limb addback Nat equation using the Word OR carry directly.
-    The two-step addition `(u_i + carry_in) + v_i` with OR carry propagation
+    The two-step addition `(u_i + carryIn) + v_i` with OR carry propagation
     satisfies the same Nat equation as standard add-with-carry. -/
-theorem addback_limb_nat_word_eq (u_i v_i carry_in : Word) (hci : carry_in.toNat ≤ 1) :
-    let uPlusCarry := u_i + carry_in
+theorem addback_limb_nat_word_eq (u_i v_i carryIn : Word) (hci : carryIn.toNat ≤ 1) :
+    let uPlusCarry := u_i + carryIn
     let uNew := uPlusCarry + v_i
-    let ac1 := if BitVec.ult uPlusCarry carry_in then (1 : Word) else 0
+    let ac1 := if BitVec.ult uPlusCarry carryIn then (1 : Word) else 0
     let ac2 := if BitVec.ult uNew v_i then (1 : Word) else 0
     let carryOut := ac1 ||| ac2
     carryOut.toNat ≤ 1 ∧
-    u_i.toNat + v_i.toNat + carry_in.toNat = carryOut.toNat * 2^64 + uNew.toNat := by
+    u_i.toNat + v_i.toNat + carryIn.toNat = carryOut.toNat * 2^64 + uNew.toNat := by
   intro uPlusCarry uNew ac1 ac2 carryOut
-  have h_excl := addback_carries_exclusive u_i v_i carry_in hci
+  have h_excl := addback_carries_exclusive u_i v_i carryIn hci
   have h_ac1_01 : ac1.toNat ≤ 1 := by
-    show (if BitVec.ult uPlusCarry carry_in then (1 : Word) else 0).toNat ≤ 1
+    show (if BitVec.ult uPlusCarry carryIn then (1 : Word) else 0).toNat ≤ 1
     split <;> simp_all
   have h_ac2_01 : ac2.toNat ≤ 1 := by
     show (if BitVec.ult uNew v_i then (1 : Word) else 0).toNat ≤ 1
@@ -137,22 +137,22 @@ theorem addback_limb_nat_word_eq (u_i v_i carry_in : Word) (hci : carry_in.toNat
   · -- The addback equation: derive directly from two-step addition
     rw [show carryOut = ac1 ||| ac2 from rfl, h_or]
     -- Connect ac1, ac2 to division values
-    have h_ac1_div : ac1.toNat = (u_i.toNat + carry_in.toNat) / 2^64 := by
-      show (if BitVec.ult uPlusCarry carry_in then (1 : Word) else 0).toNat = _
-      have hci_lt := carry_in.isLt; have hui := u_i.isLt
-      by_cases h : u_i.toNat + carry_in.toNat < 2^64
-      · have : ¬(uPlusCarry.toNat < carry_in.toNat) := by
-          have : uPlusCarry.toNat = (u_i.toNat + carry_in.toNat) % 2^64 :=
-            BitVec.toNat_add u_i carry_in
+    have h_ac1_div : ac1.toNat = (u_i.toNat + carryIn.toNat) / 2^64 := by
+      show (if BitVec.ult uPlusCarry carryIn then (1 : Word) else 0).toNat = _
+      have hci_lt := carryIn.isLt; have hui := u_i.isLt
+      by_cases h : u_i.toNat + carryIn.toNat < 2^64
+      · have : ¬(uPlusCarry.toNat < carryIn.toNat) := by
+          have : uPlusCarry.toNat = (u_i.toNat + carryIn.toNat) % 2^64 :=
+            BitVec.toNat_add u_i carryIn
           rw [this, Nat.mod_eq_of_lt h]; omega
         simp [BitVec.ult, this]; exact (Nat.div_eq_of_lt h).symm
       · push Not at h
-        have : uPlusCarry.toNat < carry_in.toNat := by
-          have : uPlusCarry.toNat = (u_i.toNat + carry_in.toNat) % 2^64 :=
-            BitVec.toNat_add u_i carry_in
+        have : uPlusCarry.toNat < carryIn.toNat := by
+          have : uPlusCarry.toNat = (u_i.toNat + carryIn.toNat) % 2^64 :=
+            BitVec.toNat_add u_i carryIn
           rw [this]; omega
         simp [BitVec.ult, this]
-        have : u_i.toNat + carry_in.toNat < 2 * 2^64 := by omega
+        have : u_i.toNat + carryIn.toNat < 2 * 2^64 := by omega
         omega
     have h_ac2_div : ac2.toNat = (uPlusCarry.toNat + v_i.toNat) / 2^64 := by
       show (if BitVec.ult uNew v_i then (1 : Word) else 0).toNat = _
@@ -171,8 +171,8 @@ theorem addback_limb_nat_word_eq (u_i v_i carry_in : Word) (hci : carry_in.toNat
         simp [BitVec.ult, this]
         have : uPlusCarry.toNat + v_i.toNat < 2 * 2^64 := by omega
         omega
-    -- Step 1: u_i + carry_in = div1 * 2^64 + uPlusCarry
-    have h1 := add_carry_nat u_i carry_in
+    -- Step 1: u_i + carryIn = div1 * 2^64 + uPlusCarry
+    have h1 := add_carry_nat u_i carryIn
     -- Step 2: uPlusCarry + v_i = div2 * 2^64 + uNew
     have h2 := add_carry_nat uPlusCarry v_i
     -- Combined with ac1 = div1, ac2 = div2:
@@ -190,25 +190,25 @@ theorem addback_limb_nat_word_eq (u_i v_i carry_in : Word) (hci : carry_in.toNat
     The let-bindings match the addback path in the loop body. -/
 theorem addback_register_4limb_val256
     (v0 v1 v2 v3 un0 un1 un2 un3 : Word) :
-    -- Limb 0 (carry_in = 0)
+    -- Limb 0 (carryIn = 0)
     let upc0 := un0 + (0 : Word)
     let aun0 := upc0 + v0
     let ac1_0 := if BitVec.ult upc0 (0 : Word) then (1 : Word) else 0
     let ac2_0 := if BitVec.ult aun0 v0 then (1 : Word) else 0
     let co0 := ac1_0 ||| ac2_0
-    -- Limb 1 (carry_in = co0)
+    -- Limb 1 (carryIn = co0)
     let upc1 := un1 + co0
     let aun1 := upc1 + v1
     let ac1_1 := if BitVec.ult upc1 co0 then (1 : Word) else 0
     let ac2_1 := if BitVec.ult aun1 v1 then (1 : Word) else 0
     let co1 := ac1_1 ||| ac2_1
-    -- Limb 2 (carry_in = co1)
+    -- Limb 2 (carryIn = co1)
     let upc2 := un2 + co1
     let aun2 := upc2 + v2
     let ac1_2 := if BitVec.ult upc2 co1 then (1 : Word) else 0
     let ac2_2 := if BitVec.ult aun2 v2 then (1 : Word) else 0
     let co2 := ac1_2 ||| ac2_2
-    -- Limb 3 (carry_in = co2)
+    -- Limb 3 (carryIn = co2)
     let upc3 := un3 + co2
     let aun3 := upc3 + v3
     let ac1_3 := if BitVec.ult upc3 co2 then (1 : Word) else 0
@@ -226,7 +226,7 @@ theorem addback_register_4limb_val256
   have h1 := addback_limb_nat_word_eq un1 v1 co0 h0.1
   have h2 := addback_limb_nat_word_eq un2 v2 co1 h1.1
   have h3 := addback_limb_nat_word_eq un3 v3 co2 h2.1
-  -- Simplify h0: carry_in = 0
+  -- Simplify h0: carryIn = 0
   have h0' : un0.toNat + v0.toNat = co0.toNat * 2^64 + aun0.toNat := by
     have := h0.2; simp only [show (0 : Word).toNat = 0 from rfl] at this; linarith
   -- Chain via addback_4limb_val256

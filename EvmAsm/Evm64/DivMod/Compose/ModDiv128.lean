@@ -57,31 +57,31 @@ theorem mod_div128_spec (sp ret_addr d u_lo u_hi : Word) (base : Word)
     (ret_mem d_mem dlo_mem un0_mem : Word)
     (halign : (ret_addr + signExtend12 0) &&& ~~~1 = ret_addr) :
     -- Phase 1 intermediates
-    let d_hi := d >>> (32 : BitVec 6).toNat
-    let d_lo := (d <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+    let dHi := d >>> (32 : BitVec 6).toNat
+    let dLo := (d <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
     let un1 := u_lo >>> (32 : BitVec 6).toNat
     let un0 := (u_lo <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
     -- Step 1 intermediates
-    let q1 := rv64_divu u_hi d_hi
-    let rhat := u_hi - q1 * d_hi
+    let q1 := rv64_divu u_hi dHi
+    let rhat := u_hi - q1 * dHi
     let hi1 := q1 >>> (32 : BitVec 6).toNat
     let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
-    let rhatc := if hi1 = 0 then rhat else rhat + d_hi
-    let q_dlo := q1c * d_lo
+    let rhatc := if hi1 = 0 then rhat else rhat + dHi
+    let q_dlo := q1c * dLo
     let rhat_un1 := (rhatc <<< (32 : BitVec 6).toNat) ||| un1
     let q1' := if BitVec.ult rhat_un1 q_dlo then q1c + signExtend12 4095 else q1c
-    let rhat' := if BitVec.ult rhat_un1 q_dlo then rhatc + d_hi else rhatc
+    let rhat' := if BitVec.ult rhat_un1 q_dlo then rhatc + dHi else rhatc
     -- Compute un21 intermediates (x5, x1 values after compute_un21)
     let cu_rhat_un1 := (rhat' <<< (32 : BitVec 6).toNat) ||| un1
-    let cu_q1_dlo := q1' * d_lo
+    let cu_q1_dlo := q1' * dLo
     let un21 := cu_rhat_un1 - cu_q1_dlo
     -- Step 2 intermediates
-    let q0 := rv64_divu un21 d_hi
-    let rhat2 := un21 - q0 * d_hi
+    let q0 := rv64_divu un21 dHi
+    let rhat2 := un21 - q0 * dHi
     let hi2 := q0 >>> (32 : BitVec 6).toNat
     let q0c := if hi2 = 0 then q0 else q0 + signExtend12 4095
-    let rhat2c := if hi2 = 0 then rhat2 else rhat2 + d_hi
-    let q0_dlo := q0c * d_lo
+    let rhat2c := if hi2 = 0 then rhat2 else rhat2 + dHi
+    let q0_dlo := q0c * dLo
     let rhat2_un0 := (rhat2c <<< (32 : BitVec 6).toNat) ||| un0
     let q0' := if BitVec.ult rhat2_un0 q0_dlo then q0c + signExtend12 4095 else q0c
     -- End: combine q1' and q0'
@@ -99,14 +99,14 @@ theorem mod_div128_spec (sp ret_addr d u_lo u_hi : Word) (base : Word)
       (-- Postcondition: x11=quotient, all regs/mem updated
        (.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ ret_addr) ** (.x10 ↦ᵣ q1') **
        (.x5 ↦ᵣ q0') ** (.x7 ↦ᵣ q0_dlo) **
-       (.x6 ↦ᵣ d_hi) ** (.x1 ↦ᵣ rhat2_un0) ** (.x11 ↦ᵣ q) **
+       (.x6 ↦ᵣ dHi) ** (.x1 ↦ᵣ rhat2_un0) ** (.x11 ↦ᵣ q) **
        (.x0 ↦ᵣ (0 : Word)) **
        (sp + signExtend12 3968 ↦ₘ ret_addr) **
        (sp + signExtend12 3960 ↦ₘ d) **
-       (sp + signExtend12 3952 ↦ₘ d_lo) **
+       (sp + signExtend12 3952 ↦ₘ dLo) **
        (sp + signExtend12 3944 ↦ₘ un0)) := by
   -- Introduce all let bindings
-  intro d_hi d_lo un1 un0 q1 rhat hi1 q1c rhatc q_dlo rhat_un1 q1' rhat' cu_rhat_un1 cu_q1_dlo un21 q0 rhat2 hi2 q0c rhat2c q0_dlo rhat2_un0 q0' q
+  intro dHi dLo un1 un0 q1 rhat hi1 q1c rhatc q_dlo rhat_un1 q1' rhat' cu_rhat_un1 cu_q1_dlo un21 q0 rhat2 hi2 q0c rhat2c q0_dlo rhat2_un0 q0' q
   -- ================================================================
   -- Block 1: Phase 1 (base+1072 → base+1112)
   -- Saves ret/d, splits d and u_lo into halves.
@@ -136,7 +136,7 @@ theorem mod_div128_spec (sp ret_addr d u_lo u_hi : Word) (base : Word)
   -- Block 2: Step 1 (base+1112 → base+1172)
   -- Trial division q1, clamp, product check.
   -- ================================================================
-  have hst1 := divK_div128_step1_spec sp u_hi d_hi un1 d_lo un0 d d_lo
+  have hst1 := divK_div128_step1_spec sp u_hi dHi un1 dLo un0 d dLo
     (base + 1112)
   rw [show (base + 1112 : Word) + 60 = base + 1172 from by bv_addr] at hst1
   have hst1e := cpsTriple_extend_code (hmono := by
@@ -166,9 +166,9 @@ theorem mod_div128_spec (sp ret_addr d u_lo u_hi : Word) (base : Word)
     (fun h hp => by xperm_hyp hp) hph1f hst1f
   -- ================================================================
   -- Block 3: Compute un21 (base+1172 → base+1192)
-  -- un21 = rhat*2^32 + un1 - q1*d_lo.
+  -- un21 = rhat*2^32 + un1 - q1*dLo.
   -- ================================================================
-  have hcu := divK_div128_compute_un21_spec sp q1' rhat' un1 rhat_un1 q_dlo d_lo
+  have hcu := divK_div128_compute_un21_spec sp q1' rhat' un1 rhat_un1 q_dlo dLo
     (base + 1172)
   rw [show (base + 1172 : Word) + 20 = base + 1192 from by bv_addr] at hcu
   have hcue := cpsTriple_extend_code (hmono := by
@@ -180,7 +180,7 @@ theorem mod_div128_spec (sp ret_addr d u_lo u_hi : Word) (base : Word)
     hcu
   -- Frame compute_un21 with x6, x0, x2, mem[3968], mem[3960], mem[3944]
   have hcuf := cpsTriple_frameR
-    ((.x6 ↦ᵣ d_hi) ** (.x0 ↦ᵣ (0 : Word)) **
+    ((.x6 ↦ᵣ dHi) ** (.x0 ↦ᵣ (0 : Word)) **
      (.x2 ↦ᵣ ret_addr) ** (sp + signExtend12 3968 ↦ₘ ret_addr) **
      (sp + signExtend12 3960 ↦ₘ d) ** (sp + signExtend12 3944 ↦ₘ un0))
     (by pcFree) hcue
@@ -191,7 +191,7 @@ theorem mod_div128_spec (sp ret_addr d u_lo u_hi : Word) (base : Word)
   -- Block 4: Step 2 (base+1192 → base+1252)
   -- Trial division q0, clamp, product check.
   -- ================================================================
-  have hst2 := divK_div128_step2_spec sp un21 d_hi cu_q1_dlo cu_rhat_un1 un1 d_lo un0
+  have hst2 := divK_div128_step2_spec sp un21 dHi cu_q1_dlo cu_rhat_un1 un1 dLo un0
     (base + 1192)
   rw [show (base + 1192 : Word) + 60 = base + 1252 from by bv_addr] at hst2
   have hst2e := cpsTriple_extend_code (hmono := by
@@ -233,9 +233,9 @@ theorem mod_div128_spec (sp ret_addr d u_lo u_hi : Word) (base : Word)
     hend
   -- Frame end with x7, x6, x1, x0, mem[3960], mem[3952], mem[3944]
   have hendf := cpsTriple_frameR
-    ((.x7 ↦ᵣ q0_dlo) ** (.x6 ↦ᵣ d_hi) ** (.x1 ↦ᵣ rhat2_un0) **
+    ((.x7 ↦ᵣ q0_dlo) ** (.x6 ↦ᵣ dHi) ** (.x1 ↦ᵣ rhat2_un0) **
      (.x0 ↦ᵣ (0 : Word)) **
-     (sp + signExtend12 3960 ↦ₘ d) ** (sp + signExtend12 3952 ↦ₘ d_lo) **
+     (sp + signExtend12 3960 ↦ₘ d) ** (sp + signExtend12 3952 ↦ₘ dLo) **
      (sp + signExtend12 3944 ↦ₘ un0))
     (by pcFree) hende
   -- Compose (→step2) → end
