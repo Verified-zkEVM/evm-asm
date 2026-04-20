@@ -714,10 +714,11 @@ theorem cpsTriple_seq_cpsNBranch_with_perm {entry mid : Word} {cr1 cr2 : CodeReq
 
 /-- Sequential composition: cpsTriple followed by cpsBranch.
     If code reaches mid with Q, and from mid it branches, then the
-    composition branches from entry. -/
-theorem cpsTriple_seq_cpsBranch (entry mid : Word) (cr1 cr2 : CodeReq)
+    composition branches from entry.
+    All position/code/assertion arguments are implicit — inferred from `h1`/`h2`. -/
+theorem cpsTriple_seq_cpsBranch {entry mid : Word} {cr1 cr2 : CodeReq}
     (hd : cr1.Disjoint cr2)
-    (P Q : Assertion) (exit_t : Word) (Q_t : Assertion) (exit_f : Word) (Q_f : Assertion)
+    {P Q : Assertion} {exit_t : Word} {Q_t : Assertion} {exit_f : Word} {Q_f : Assertion}
     (h1 : cpsTriple entry mid cr1 P Q)
     (h2 : cpsBranch mid cr2 Q exit_t Q_t exit_f Q_f) :
     cpsBranch entry (cr1.union cr2) P exit_t Q_t exit_f Q_f := by
@@ -737,7 +738,7 @@ theorem cpsTriple_seq_cpsBranch_with_perm (entry mid : Word) (cr1 cr2 : CodeReq)
     (h1 : cpsTriple entry mid cr1 P Q1)
     (h2 : cpsBranch mid cr2 Q2 exit_t Q_t exit_f Q_f) :
     cpsBranch entry (cr1.union cr2) P exit_t Q_t exit_f Q_f :=
-  cpsTriple_seq_cpsBranch entry mid cr1 cr2 hd P Q2 exit_t Q_t exit_f Q_f
+  cpsTriple_seq_cpsBranch hd
     (cpsTriple_weaken (fun _ hp => hp) hperm h1) h2
 
 /-- Compose a cpsBranch with a cpsNBranch on the not-taken (false) path.

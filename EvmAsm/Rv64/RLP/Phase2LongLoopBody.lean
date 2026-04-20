@@ -200,6 +200,6 @@ theorem rlp_phase2_long_loop_body_spec
             CodeReq.empty a = _
         simp only [CodeReq.union, hcr])
       bne_framed
-  exact cpsTriple_seq_cpsBranch _ _ _ _ hd_iter_bne _ _ _ _ _ _ iter' bne_ext
+  exact cpsTriple_seq_cpsBranch hd_iter_bne iter' bne_ext
 
 end EvmAsm.Rv64.RLP
