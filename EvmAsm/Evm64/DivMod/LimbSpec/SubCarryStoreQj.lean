@@ -60,9 +60,9 @@ theorem divK_sub_carry_spec (u_base carry_in v5_old v7_old u_top : Word)
     First 3 instructions compute qAddr. Then SD stores. Split into 3+1. -/
 theorem divK_store_qj_addr_spec (sp j v5_old v7_old : Word)
     (base : Word) :
-    let j_x8 := j <<< (3 : BitVec 6).toNat
+    let jX8 := j <<< (3 : BitVec 6).toNat
     let sp_m8 := sp + signExtend12 4088
-    let qAddr := sp_m8 - j_x8
+    let qAddr := sp_m8 - jX8
     let cr :=
       CodeReq.union (CodeReq.singleton base (.SLLI .x5 .x1 3))
       (CodeReq.union (CodeReq.singleton (base + 4) (.ADDI .x7 .x12 4088))
@@ -71,11 +71,11 @@ theorem divK_store_qj_addr_spec (sp j v5_old v7_old : Word)
       ((.x1 ↦ᵣ j) ** (.x12 ↦ᵣ sp) **
        (.x5 ↦ᵣ v5_old) ** (.x7 ↦ᵣ v7_old))
       ((.x1 ↦ᵣ j) ** (.x12 ↦ᵣ sp) **
-       (.x5 ↦ᵣ j_x8) ** (.x7 ↦ᵣ qAddr)) := by
-  intro j_x8 sp_m8 qAddr cr
+       (.x5 ↦ᵣ jX8) ** (.x7 ↦ᵣ qAddr)) := by
+  intro jX8 sp_m8 qAddr cr
   have I0 := slli_spec_gen .x5 .x1 v5_old j 3 base (by nofun)
   have I1 := addi_spec_gen .x7 .x12 v7_old sp 4088 (base + 4) (by nofun)
-  have I2 := sub_spec_gen_rd_eq_rs1 .x7 .x5 sp_m8 j_x8 (base + 8) (by nofun)
+  have I2 := sub_spec_gen_rd_eq_rs1 .x7 .x5 sp_m8 jX8 (base + 8) (by nofun)
   runBlock I0 I1 I2
 
 /-- Store q[j]: SD q_hat at qAddr. 1 instruction. -/

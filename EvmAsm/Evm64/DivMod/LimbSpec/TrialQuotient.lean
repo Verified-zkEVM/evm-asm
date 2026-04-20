@@ -59,9 +59,9 @@ theorem divK_correction_branch_spec (borrow : Word) (skip_off : BitVec 13) (base
 theorem divK_trial_load_u_spec (sp j n v5_old v7_old u_hi u_lo : Word)
     (base : Word) :
     let jpn := j + n
-    let jpn_x8 := jpn <<< (3 : BitVec 6).toNat
+    let jpnX8 := jpn <<< (3 : BitVec 6).toNat
     let u0_base := sp + signExtend12 4056
-    let uAddr := u0_base - jpn_x8
+    let uAddr := u0_base - jpnX8
     let cr :=
       CodeReq.union (CodeReq.singleton base (.LD .x5 .x12 3984))
       (CodeReq.union (CodeReq.singleton (base + 4) (.ADD .x7 .x1 .x5))
@@ -79,14 +79,14 @@ theorem divK_trial_load_u_spec (sp j n v5_old v7_old u_hi u_lo : Word)
        (.x5 ↦ᵣ u_lo) ** (.x7 ↦ᵣ u_hi) **
        (sp + signExtend12 3984 ↦ₘ n) **
        (uAddr ↦ₘ u_hi) ** ((uAddr + 8) ↦ₘ u_lo)) := by
-  intro jpn jpn_x8 u0_base uAddr cr
+  intro jpn jpnX8 u0_base uAddr cr
   have haddr0 : uAddr + signExtend12 (0 : BitVec 12) = uAddr := by rw [se12_0]; bv_omega
   have I0 := ld_spec_gen .x5 .x12 sp v5_old n 3984 base (by nofun)
   have I1 := add_spec_gen .x7 .x1 .x5 j n v7_old (base + 4) (by nofun)
   have I2 := slli_spec_gen_same .x7 jpn 3 (base + 8) (by nofun)
   have I3 := addi_spec_gen .x5 .x12 n sp 4056 (base + 12) (by nofun)
-  have I4 := sub_spec_gen_rd_eq_rs1 .x5 .x7 u0_base jpn_x8 (base + 16) (by nofun)
-  have I5 := ld_spec_gen .x7 .x5 uAddr jpn_x8 u_hi 0 (base + 20) (by nofun)
+  have I4 := sub_spec_gen_rd_eq_rs1 .x5 .x7 u0_base jpnX8 (base + 16) (by nofun)
+  have I5 := ld_spec_gen .x7 .x5 uAddr jpnX8 u_hi 0 (base + 20) (by nofun)
   rw [haddr0] at I5
   have I6 := ld_spec_gen_same .x5 uAddr u_lo 8 (base + 24) (by nofun)
   runBlock I0 I1 I2 I3 I4 I5 I6
@@ -97,8 +97,8 @@ theorem divK_trial_load_u_spec (sp j n v5_old v7_old u_hi u_lo : Word)
 theorem divK_trial_load_vtop_spec (sp n v6_old v10_old v_top : Word)
     (base : Word) :
     let nm1 := n + signExtend12 4095
-    let nm1_x8 := nm1 <<< (3 : BitVec 6).toNat
-    let vtopBase := sp + nm1_x8
+    let nm1X8 := nm1 <<< (3 : BitVec 6).toNat
+    let vtopBase := sp + nm1X8
     let cr :=
       CodeReq.union (CodeReq.singleton base (.LD .x6 .x12 3984))
       (CodeReq.union (CodeReq.singleton (base + 4) (.ADDI .x6 .x6 4095))
@@ -110,11 +110,11 @@ theorem divK_trial_load_vtop_spec (sp n v6_old v10_old v_top : Word)
        (sp + signExtend12 3984 ↦ₘ n) ** (vtopBase + signExtend12 32 ↦ₘ v_top))
       ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ vtopBase) ** (.x10 ↦ᵣ v_top) **
        (sp + signExtend12 3984 ↦ₘ n) ** (vtopBase + signExtend12 32 ↦ₘ v_top)) := by
-  intro nm1 nm1_x8 vtopBase cr
+  intro nm1 nm1X8 vtopBase cr
   have I0 := ld_spec_gen .x6 .x12 sp v6_old n 3984 base (by nofun)
   have I1 := addi_spec_gen_same .x6 n 4095 (base + 4) (by nofun)
   have I2 := slli_spec_gen_same .x6 nm1 3 (base + 8) (by nofun)
-  have I3 := add_spec_gen_rd_eq_rs2 .x6 .x12 sp nm1_x8 (base + 12) (by nofun)
+  have I3 := add_spec_gen_rd_eq_rs2 .x6 .x12 sp nm1X8 (base + 12) (by nofun)
   have I4 := ld_spec_gen .x10 .x6 vtopBase v10_old v_top 32 (base + 16) (by nofun)
   runBlock I0 I1 I2 I3 I4
 

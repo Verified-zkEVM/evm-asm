@@ -249,7 +249,7 @@ theorem addi_x5_1_sub_modCode (base : Word) :
 -- signExtend13 constants for cascade branches: `signExtend13_{8,16}` now live
 -- in `Compose/Base.lean` (shared with PhaseAB). `se12_*` come from AddrNorm.
 
--- nm1_x8 = (n + signExtend12 4095) <<< 3 for each n value
+-- nm1X8 = (n + signExtend12 4095) <<< 3 for each n value
 theorem mod_divK_phaseB_n3_nm1_x8 :
     ((3 : Word) + signExtend12 (4095 : BitVec 12)) <<< (3 : BitVec 6).toNat = (16 : Word) := by
   decide

@@ -65,23 +65,23 @@ theorem divK_trial_load_spec
        (vtopBase + signExtend12 32 ↦ₘ v_top)) := by
   intro uAddr vtopBase cr
   let jpn := j + n
-  let jpn_x8 := jpn <<< (3 : BitVec 6).toNat
+  let jpnX8 := jpn <<< (3 : BitVec 6).toNat
   let u0_base := sp + signExtend12 4056
   have haddr0 : uAddr + signExtend12 (0 : BitVec 12) = uAddr := by rw [se12_0]; bv_omega
   have I0 := ld_spec_gen .x5 .x12 sp v5_old n 3984 base (by nofun)
   have I1 := add_spec_gen .x7 .x1 .x5 j n v7_old (base + 4) (by nofun)
   have I2 := slli_spec_gen_same .x7 jpn 3 (base + 8) (by nofun)
   have I3 := addi_spec_gen .x5 .x12 n sp 4056 (base + 12) (by nofun)
-  have I4 := sub_spec_gen_rd_eq_rs1 .x5 .x7 u0_base jpn_x8 (base + 16) (by nofun)
-  have I5 := ld_spec_gen .x7 .x5 uAddr jpn_x8 u_hi 0 (base + 20) (by nofun)
+  have I4 := sub_spec_gen_rd_eq_rs1 .x5 .x7 u0_base jpnX8 (base + 16) (by nofun)
+  have I5 := ld_spec_gen .x7 .x5 uAddr jpnX8 u_hi 0 (base + 20) (by nofun)
   rw [haddr0] at I5
   have I6 := ld_spec_gen_same .x5 uAddr u_lo 8 (base + 24) (by nofun)
   let nm1 := n + signExtend12 4095
-  let nm1_x8 := nm1 <<< (3 : BitVec 6).toNat
+  let nm1X8 := nm1 <<< (3 : BitVec 6).toNat
   have I7 := ld_spec_gen .x6 .x12 sp v6_old n 3984 (base + 28) (by nofun)
   have I8 := addi_spec_gen_same .x6 n 4095 (base + 32) (by nofun)
   have I9 := slli_spec_gen_same .x6 nm1 3 (base + 36) (by nofun)
-  have I10 := add_spec_gen_rd_eq_rs2 .x6 .x12 sp nm1_x8 (base + 40) (by nofun)
+  have I10 := add_spec_gen_rd_eq_rs2 .x6 .x12 sp nm1X8 (base + 40) (by nofun)
   have I11 := ld_spec_gen .x10 .x6 vtopBase v10_old v_top 32 (base + 44) (by nofun)
   runBlock I0 I1 I2 I3 I4 I5 I6 I7 I8 I9 I10 I11
 
@@ -89,8 +89,8 @@ theorem divK_trial_load_spec
     qAddr = sp + 4088 - j*8. -/
 theorem divK_store_qj_spec (sp j q_hat v5_old v7_old q_old : Word)
     (base : Word) :
-    let j_x8 := j <<< (3 : BitVec 6).toNat
-    let qAddr := sp + signExtend12 4088 - j_x8
+    let jX8 := j <<< (3 : BitVec 6).toNat
+    let qAddr := sp + signExtend12 4088 - jX8
     let cr :=
       CodeReq.union (CodeReq.singleton base (.SLLI .x5 .x1 3))
       (CodeReq.union (CodeReq.singleton (base + 4) (.ADDI .x7 .x12 4088))
@@ -101,12 +101,12 @@ theorem divK_store_qj_spec (sp j q_hat v5_old v7_old q_old : Word)
        (.x5 ↦ᵣ v5_old) ** (.x7 ↦ᵣ v7_old) **
        (qAddr ↦ₘ q_old))
       ((.x1 ↦ᵣ j) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ q_hat) **
-       (.x5 ↦ᵣ j_x8) ** (.x7 ↦ᵣ qAddr) **
+       (.x5 ↦ᵣ jX8) ** (.x7 ↦ᵣ qAddr) **
        (qAddr ↦ₘ q_hat)) := by
-  intro j_x8 qAddr cr
+  intro jX8 qAddr cr
   have I0 := slli_spec_gen .x5 .x1 v5_old j 3 base (by nofun)
   have I1 := addi_spec_gen .x7 .x12 v7_old sp 4088 (base + 4) (by nofun)
-  have I2 := sub_spec_gen_rd_eq_rs1 .x7 .x5 (sp + signExtend12 4088) j_x8 (base + 8) (by nofun)
+  have I2 := sub_spec_gen_rd_eq_rs1 .x7 .x5 (sp + signExtend12 4088) jX8 (base + 8) (by nofun)
   have haddr : qAddr + signExtend12 (0 : BitVec 12) = qAddr := by rw [se12_0]; bv_omega
   have I3 := sd_spec_gen .x7 .x11 qAddr q_hat q_old 0 (base + 12)
   rw [haddr] at I3

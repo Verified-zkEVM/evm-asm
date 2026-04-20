@@ -133,7 +133,7 @@ private theorem divK_phaseB_tail_code_sub_divCode (base : Word) :
 -- and `Rv64/Instructions.lean` respectively — call sites use the shared names
 -- (`signExtend13_24`, `signExtend13_1020`, `signExtend12_4`) directly.
 
--- Phase B tail address: nm1_x8 = (4 + signExtend12 4095) <<< 3 = 24
+-- Phase B tail address: nm1X8 = (4 + signExtend12 4095) <<< 3 = 24
 private theorem divK_phaseB_n4_nm1_x8 :
     ((4 : Word) + signExtend12 (4095 : BitVec 12)) <<< (3 : BitVec 6).toNat = (24 : Word) := by
   decide
@@ -452,7 +452,7 @@ private theorem addi_x5_1_sub_divCode (base : Word) :
 -- `divK_se12_{1,2,3}` removed: use `signExtend12_{1,2,3}` from Rv64/Instructions.lean.
 -- `signExtend13_{8,16}` moved to `Compose/Base.lean` (shared with MOD side).
 
--- nm1_x8 = (n + signExtend12 4095) <<< 3 for each n value
+-- nm1X8 = (n + signExtend12 4095) <<< 3 for each n value
 private theorem divK_phaseB_n3_nm1_x8 :
     ((3 : Word) + signExtend12 (4095 : BitVec 12)) <<< (3 : BitVec 6).toNat = (16 : Word) := by
   decide
