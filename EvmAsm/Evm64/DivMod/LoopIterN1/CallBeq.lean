@@ -58,10 +58,10 @@ theorem divK_loop_body_n1_call_addback_j0_beq_spec
   let hi1 := q1 >>> (32 : BitVec 6).toNat
   let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
   let rhatc := if hi1 = 0 then rhat else rhat + dHi
-  let q_dlo := q1c * dLo
-  let rhat_un1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
-  let q1' := if BitVec.ult rhat_un1 q_dlo then q1c + signExtend12 4095 else q1c
-  let rhat' := if BitVec.ult rhat_un1 q_dlo then rhatc + dHi else rhatc
+  let qDlo := q1c * dLo
+  let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
+  let q1' := if BitVec.ult rhatUn1 qDlo then q1c + signExtend12 4095 else q1c
+  let rhat' := if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc
   let cu_rhat_un1 := (rhat' <<< (32 : BitVec 6).toNat) ||| div_un1
   let cu_q1_dlo := q1' * dLo
   let un21 := cu_rhat_un1 - cu_q1_dlo
@@ -69,9 +69,9 @@ theorem divK_loop_body_n1_call_addback_j0_beq_spec
   let hi2 := q0 >>> (32 : BitVec 6).toNat
   let q0c := if hi2 = 0 then q0 else q0 + signExtend12 4095
   let rhat2c := if hi2 = 0 then rhat2 else rhat2 + dHi
-  let q0_dlo := q0c * dLo
-  let rhat2_un0 := (rhat2c <<< (32 : BitVec 6).toNat) ||| div_un0
-  let q0' := if BitVec.ult rhat2_un0 q0_dlo then q0c + signExtend12 4095 else q0c
+  let q0Dlo := q0c * dLo
+  let rhat2Un0 := (rhat2c <<< (32 : BitVec 6).toNat) ||| div_un0
+  let q0' := if BitVec.ult rhat2Un0 q0Dlo then q0c + signExtend12 4095 else q0c
   let q_hat := (q1' <<< (32 : BitVec 6).toNat) ||| q0'
   unfold isAddbackBorrowN1Call div128Quot at hborrow
   let vtop_base := sp + ((1 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
@@ -98,7 +98,7 @@ theorem divK_loop_body_n1_call_addback_j0_beq_spec
       addbackN4_carry ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 v0 v1 v2 v3
     else carry
   have MCA := divK_mulsub_correction_addback_beq_spec sp q_hat (0 : Word) v0 v1 v2 v3 u0 u1 u2 u3 u_top
-    rhat2_un0 q0' dHi q0_dlo q1' (base + 516) base
+    rhat2Un0 q0' dHi q0Dlo q1' (base + 516) base
 
   intro_lets at MCA
   unfold isAddbackCarry2NzN1Call isAddbackCarry2Nz div128Quot at hcarry2_nz
@@ -176,10 +176,10 @@ theorem divK_loop_body_n1_call_addback_j1_beq_spec
   let hi1 := q1 >>> (32 : BitVec 6).toNat
   let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
   let rhatc := if hi1 = 0 then rhat else rhat + dHi
-  let q_dlo := q1c * dLo
-  let rhat_un1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
-  let q1' := if BitVec.ult rhat_un1 q_dlo then q1c + signExtend12 4095 else q1c
-  let rhat' := if BitVec.ult rhat_un1 q_dlo then rhatc + dHi else rhatc
+  let qDlo := q1c * dLo
+  let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
+  let q1' := if BitVec.ult rhatUn1 qDlo then q1c + signExtend12 4095 else q1c
+  let rhat' := if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc
   let cu_rhat_un1 := (rhat' <<< (32 : BitVec 6).toNat) ||| div_un1
   let cu_q1_dlo := q1' * dLo
   let un21 := cu_rhat_un1 - cu_q1_dlo
@@ -187,9 +187,9 @@ theorem divK_loop_body_n1_call_addback_j1_beq_spec
   let hi2 := q0 >>> (32 : BitVec 6).toNat
   let q0c := if hi2 = 0 then q0 else q0 + signExtend12 4095
   let rhat2c := if hi2 = 0 then rhat2 else rhat2 + dHi
-  let q0_dlo := q0c * dLo
-  let rhat2_un0 := (rhat2c <<< (32 : BitVec 6).toNat) ||| div_un0
-  let q0' := if BitVec.ult rhat2_un0 q0_dlo then q0c + signExtend12 4095 else q0c
+  let q0Dlo := q0c * dLo
+  let rhat2Un0 := (rhat2c <<< (32 : BitVec 6).toNat) ||| div_un0
+  let q0' := if BitVec.ult rhat2Un0 q0Dlo then q0c + signExtend12 4095 else q0c
   let q_hat := (q1' <<< (32 : BitVec 6).toNat) ||| q0'
   unfold isAddbackBorrowN1Call div128Quot at hborrow
   let vtop_base := sp + ((1 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
@@ -216,7 +216,7 @@ theorem divK_loop_body_n1_call_addback_j1_beq_spec
       addbackN4_carry ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 v0 v1 v2 v3
     else carry
   have MCA := divK_mulsub_correction_addback_beq_spec sp q_hat (1 : Word) v0 v1 v2 v3 u0 u1 u2 u3 u_top
-    rhat2_un0 q0' dHi q0_dlo q1' (base + 516) base
+    rhat2Un0 q0' dHi q0Dlo q1' (base + 516) base
 
   intro_lets at MCA
   unfold isAddbackCarry2NzN1Call isAddbackCarry2Nz div128Quot at hcarry2_nz
@@ -295,10 +295,10 @@ theorem divK_loop_body_n1_call_addback_j2_beq_spec
   let hi1 := q1 >>> (32 : BitVec 6).toNat
   let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
   let rhatc := if hi1 = 0 then rhat else rhat + dHi
-  let q_dlo := q1c * dLo
-  let rhat_un1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
-  let q1' := if BitVec.ult rhat_un1 q_dlo then q1c + signExtend12 4095 else q1c
-  let rhat' := if BitVec.ult rhat_un1 q_dlo then rhatc + dHi else rhatc
+  let qDlo := q1c * dLo
+  let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
+  let q1' := if BitVec.ult rhatUn1 qDlo then q1c + signExtend12 4095 else q1c
+  let rhat' := if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc
   let cu_rhat_un1 := (rhat' <<< (32 : BitVec 6).toNat) ||| div_un1
   let cu_q1_dlo := q1' * dLo
   let un21 := cu_rhat_un1 - cu_q1_dlo
@@ -306,9 +306,9 @@ theorem divK_loop_body_n1_call_addback_j2_beq_spec
   let hi2 := q0 >>> (32 : BitVec 6).toNat
   let q0c := if hi2 = 0 then q0 else q0 + signExtend12 4095
   let rhat2c := if hi2 = 0 then rhat2 else rhat2 + dHi
-  let q0_dlo := q0c * dLo
-  let rhat2_un0 := (rhat2c <<< (32 : BitVec 6).toNat) ||| div_un0
-  let q0' := if BitVec.ult rhat2_un0 q0_dlo then q0c + signExtend12 4095 else q0c
+  let q0Dlo := q0c * dLo
+  let rhat2Un0 := (rhat2c <<< (32 : BitVec 6).toNat) ||| div_un0
+  let q0' := if BitVec.ult rhat2Un0 q0Dlo then q0c + signExtend12 4095 else q0c
   let q_hat := (q1' <<< (32 : BitVec 6).toNat) ||| q0'
   unfold isAddbackBorrowN1Call div128Quot at hborrow
   let vtop_base := sp + ((1 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
@@ -335,7 +335,7 @@ theorem divK_loop_body_n1_call_addback_j2_beq_spec
       addbackN4_carry ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 v0 v1 v2 v3
     else carry
   have MCA := divK_mulsub_correction_addback_beq_spec sp q_hat (2 : Word) v0 v1 v2 v3 u0 u1 u2 u3 u_top
-    rhat2_un0 q0' dHi q0_dlo q1' (base + 516) base
+    rhat2Un0 q0' dHi q0Dlo q1' (base + 516) base
 
   intro_lets at MCA
   unfold isAddbackCarry2NzN1Call isAddbackCarry2Nz div128Quot at hcarry2_nz
@@ -414,10 +414,10 @@ theorem divK_loop_body_n1_call_addback_j3_beq_spec
   let hi1 := q1 >>> (32 : BitVec 6).toNat
   let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
   let rhatc := if hi1 = 0 then rhat else rhat + dHi
-  let q_dlo := q1c * dLo
-  let rhat_un1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
-  let q1' := if BitVec.ult rhat_un1 q_dlo then q1c + signExtend12 4095 else q1c
-  let rhat' := if BitVec.ult rhat_un1 q_dlo then rhatc + dHi else rhatc
+  let qDlo := q1c * dLo
+  let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
+  let q1' := if BitVec.ult rhatUn1 qDlo then q1c + signExtend12 4095 else q1c
+  let rhat' := if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc
   let cu_rhat_un1 := (rhat' <<< (32 : BitVec 6).toNat) ||| div_un1
   let cu_q1_dlo := q1' * dLo
   let un21 := cu_rhat_un1 - cu_q1_dlo
@@ -425,9 +425,9 @@ theorem divK_loop_body_n1_call_addback_j3_beq_spec
   let hi2 := q0 >>> (32 : BitVec 6).toNat
   let q0c := if hi2 = 0 then q0 else q0 + signExtend12 4095
   let rhat2c := if hi2 = 0 then rhat2 else rhat2 + dHi
-  let q0_dlo := q0c * dLo
-  let rhat2_un0 := (rhat2c <<< (32 : BitVec 6).toNat) ||| div_un0
-  let q0' := if BitVec.ult rhat2_un0 q0_dlo then q0c + signExtend12 4095 else q0c
+  let q0Dlo := q0c * dLo
+  let rhat2Un0 := (rhat2c <<< (32 : BitVec 6).toNat) ||| div_un0
+  let q0' := if BitVec.ult rhat2Un0 q0Dlo then q0c + signExtend12 4095 else q0c
   let q_hat := (q1' <<< (32 : BitVec 6).toNat) ||| q0'
   unfold isAddbackBorrowN1Call div128Quot at hborrow
   let vtop_base := sp + ((1 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
@@ -454,7 +454,7 @@ theorem divK_loop_body_n1_call_addback_j3_beq_spec
       addbackN4_carry ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 v0 v1 v2 v3
     else carry
   have MCA := divK_mulsub_correction_addback_beq_spec sp q_hat (3 : Word) v0 v1 v2 v3 u0 u1 u2 u3 u_top
-    rhat2_un0 q0' dHi q0_dlo q1' (base + 516) base
+    rhat2Un0 q0' dHi q0Dlo q1' (base + 516) base
 
   intro_lets at MCA
   unfold isAddbackCarry2NzN1Call isAddbackCarry2Nz div128Quot at hcarry2_nz

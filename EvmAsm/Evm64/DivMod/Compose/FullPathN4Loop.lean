@@ -233,10 +233,10 @@ theorem divK_loop_body_n4_call_skip_j0_divCode
     let hi1 := q1 >>> (32 : BitVec 6).toNat
     let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
     let rhatc := if hi1 = 0 then rhat else rhat + dHi
-    let q_dlo := q1c * dLo
-    let rhat_un1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
-    let q1' := if BitVec.ult rhat_un1 q_dlo then q1c + signExtend12 4095 else q1c
-    let rhat' := if BitVec.ult rhat_un1 q_dlo then rhatc + dHi else rhatc
+    let qDlo := q1c * dLo
+    let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
+    let q1' := if BitVec.ult rhatUn1 qDlo then q1c + signExtend12 4095 else q1c
+    let rhat' := if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc
     let cu_rhat_un1 := (rhat' <<< (32 : BitVec 6).toNat) ||| div_un1
     let cu_q1_dlo := q1' * dLo
     let un21 := cu_rhat_un1 - cu_q1_dlo
@@ -245,9 +245,9 @@ theorem divK_loop_body_n4_call_skip_j0_divCode
     let hi2 := q0 >>> (32 : BitVec 6).toNat
     let q0c := if hi2 = 0 then q0 else q0 + signExtend12 4095
     let rhat2c := if hi2 = 0 then rhat2 else rhat2 + dHi
-    let q0_dlo := q0c * dLo
-    let rhat2_un0 := (rhat2c <<< (32 : BitVec 6).toNat) ||| div_un0
-    let q0' := if BitVec.ult rhat2_un0 q0_dlo then q0c + signExtend12 4095 else q0c
+    let q0Dlo := q0c * dLo
+    let rhat2Un0 := (rhat2c <<< (32 : BitVec 6).toNat) ||| div_un0
+    let q0' := if BitVec.ult rhat2Un0 q0Dlo then q0c + signExtend12 4095 else q0c
     let q_hat := (q1' <<< (32 : BitVec 6).toNat) ||| q0'
     let qAddr := sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat
     (if BitVec.ult u_top (mulsubN4_c3 q_hat v0 v1 v2 v3 u0 u1 u2 u3) then (1 : Word) else 0) = (0 : Word) →
@@ -273,8 +273,8 @@ theorem divK_loop_body_n4_call_skip_j0_divCode
        (sp + signExtend12 3952 ↦ₘ dLo) **
        (sp + signExtend12 3944 ↦ₘ div_un0)) := by
   intro u_base
-        dHi dLo div_un1 div_un0 q1 rhat hi1 q1c rhatc q_dlo rhat_un1 q1' rhat'
-        cu_rhat_un1 cu_q1_dlo un21 q0 rhat2 hi2 q0c rhat2c q0_dlo rhat2_un0 q0' q_hat
+        dHi dLo div_un1 div_un0 q1 rhat hi1 q1c rhatc qDlo rhatUn1 q1' rhat'
+        cu_rhat_un1 cu_q1_dlo un21 q0 rhat2 hi2 q0c rhat2c q0Dlo rhat2Un0 q0' q_hat
         qAddr hborrow
   exact cpsTriple_extend_code (hmono := sharedDivModCode_sub_divCode base)
     (divK_loop_body_n4_call_skip_j0_spec sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
@@ -334,10 +334,10 @@ theorem divK_loop_body_n4_call_addback_j0_beq_divCode
     let hi1 := q1 >>> (32 : BitVec 6).toNat
     let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
     let rhatc := if hi1 = 0 then rhat else rhat + dHi
-    let q_dlo := q1c * dLo
-    let rhat_un1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
-    let q1' := if BitVec.ult rhat_un1 q_dlo then q1c + signExtend12 4095 else q1c
-    let rhat' := if BitVec.ult rhat_un1 q_dlo then rhatc + dHi else rhatc
+    let qDlo := q1c * dLo
+    let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
+    let q1' := if BitVec.ult rhatUn1 qDlo then q1c + signExtend12 4095 else q1c
+    let rhat' := if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc
     let cu_rhat_un1 := (rhat' <<< (32 : BitVec 6).toNat) ||| div_un1
     let cu_q1_dlo := q1' * dLo
     let un21 := cu_rhat_un1 - cu_q1_dlo
@@ -346,9 +346,9 @@ theorem divK_loop_body_n4_call_addback_j0_beq_divCode
     let hi2 := q0 >>> (32 : BitVec 6).toNat
     let q0c := if hi2 = 0 then q0 else q0 + signExtend12 4095
     let rhat2c := if hi2 = 0 then rhat2 else rhat2 + dHi
-    let q0_dlo := q0c * dLo
-    let rhat2_un0 := (rhat2c <<< (32 : BitVec 6).toNat) ||| div_un0
-    let q0' := if BitVec.ult rhat2_un0 q0_dlo then q0c + signExtend12 4095 else q0c
+    let q0Dlo := q0c * dLo
+    let rhat2Un0 := (rhat2c <<< (32 : BitVec 6).toNat) ||| div_un0
+    let q0' := if BitVec.ult rhat2Un0 q0Dlo then q0c + signExtend12 4095 else q0c
     let q_hat := (q1' <<< (32 : BitVec 6).toNat) ||| q0'
     let qAddr := sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat
     (if BitVec.ult u_top (mulsubN4_c3 q_hat v0 v1 v2 v3 u0 u1 u2 u3) then (1 : Word) else 0) ≠ (0 : Word) →
@@ -374,8 +374,8 @@ theorem divK_loop_body_n4_call_addback_j0_beq_divCode
        (sp + signExtend12 3952 ↦ₘ dLo) **
        (sp + signExtend12 3944 ↦ₘ div_un0)) := by
   intro u_base
-        dHi dLo div_un1 div_un0 q1 rhat hi1 q1c rhatc q_dlo rhat_un1 q1' rhat'
-        cu_rhat_un1 cu_q1_dlo un21 q0 rhat2 hi2 q0c rhat2c q0_dlo rhat2_un0 q0' q_hat
+        dHi dLo div_un1 div_un0 q1 rhat hi1 q1c rhatc qDlo rhatUn1 q1' rhat'
+        cu_rhat_un1 cu_q1_dlo un21 q0 rhat2 hi2 q0c rhat2c q0Dlo rhat2Un0 q0' q_hat
         qAddr hborrow
   exact cpsTriple_extend_code (hmono := sharedDivModCode_sub_divCode base)
     (divK_loop_body_n4_call_addback_j0_beq_spec sp j_old v5_old v6_old v7_old v10_old v11_old v2_old

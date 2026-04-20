@@ -38,9 +38,9 @@ theorem divK_div128_step1_spec
     let q1c := if hi = 0 then q1 else q1 + signExtend12 4095
     let rhatc := if hi = 0 then rhat else rhat + dHi
     let qDlo := q1c * dlo
-    let rhat_un1 := (rhatc <<< (32 : BitVec 6).toNat) ||| un1
-    let q1' := if BitVec.ult rhat_un1 qDlo then q1c + signExtend12 4095 else q1c
-    let rhat' := if BitVec.ult rhat_un1 qDlo then rhatc + dHi else rhatc
+    let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| un1
+    let q1' := if BitVec.ult rhatUn1 qDlo then q1c + signExtend12 4095 else q1c
+    let rhat' := if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc
     let cr :=
       CodeReq.union (CodeReq.singleton base (.DIVU .x10 .x7 .x6))
       (CodeReq.union (CodeReq.singleton (base + 4) (.MUL .x5 .x10 .x6))
@@ -62,9 +62,9 @@ theorem divK_div128_step1_spec
        (.x5 ↦ᵣ v5_old) ** (.x11 ↦ᵣ un1) ** (.x1 ↦ᵣ v1_old) **
        (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) ** (sp + signExtend12 3952 ↦ₘ dlo))
       ((.x7 ↦ᵣ rhat') ** (.x6 ↦ᵣ dHi) ** (.x10 ↦ᵣ q1') **
-       (.x5 ↦ᵣ qDlo) ** (.x11 ↦ᵣ un1) ** (.x1 ↦ᵣ rhat_un1) **
+       (.x5 ↦ᵣ qDlo) ** (.x11 ↦ᵣ un1) ** (.x1 ↦ᵣ rhatUn1) **
        (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) ** (sp + signExtend12 3952 ↦ₘ dlo)) := by
-  intro q1 rhat hi q1c rhatc qDlo rhat_un1 q1' rhat' cr
+  intro q1 rhat hi q1c rhatc qDlo rhatUn1 q1' rhat' cr
   have hcr_eq : cr =
       CodeReq.union (CodeReq.singleton base (.DIVU .x10 .x7 .x6))
       (CodeReq.union (CodeReq.singleton (base + 4) (.MUL .x5 .x10 .x6))
