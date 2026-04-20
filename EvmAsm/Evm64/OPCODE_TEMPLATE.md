@@ -77,11 +77,12 @@ Compose/
 DivMod retrofitted this under issue #266; MOD initially had a parallel clone
 of every DIV file, which doubled the LOC.
 
-### 2.3 `@[irreducible] def` + `_consequence` for large postconditions
+### 2.3 `@[irreducible] def` + `_unfold` for large postconditions
 
 Any postcondition with ≥3 `let` bindings — or any frame with ≥20 atoms —
 **must** be wrapped in `@[irreducible] def` with an accompanying `_unfold`
-(or `_consequence`) lemma. This is non-negotiable for scaling.
+lemma (callers peel back via `simp only [myPost_unfold]` or `delta myPost`
+inside a `cpsTriple_weaken` hook). This is non-negotiable for scaling.
 
 Reasons, both hit during the DivMod build-out:
 - Lean's WHNF elaboration at 25+ instruction atoms in a single theorem type
