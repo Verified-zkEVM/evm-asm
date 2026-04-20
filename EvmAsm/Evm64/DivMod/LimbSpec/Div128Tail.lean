@@ -80,9 +80,9 @@ theorem divK_div128_step2_init_spec (un21 dHi v1_old v5_old v11_old : Word) (bas
 /-- div128 product check 2: compute q0*dLo and rhat2*2^32+un0 for comparison. -/
 theorem divK_div128_prodcheck2_body_spec (sp q0 rhat2 v1_old v7_old dlo un0 : Word)
     (base : Word) :
-    let q0_dlo := q0 * dlo
+    let q0Dlo := q0 * dlo
     let rhat2_hi := rhat2 <<< (32 : BitVec 6).toNat
-    let rhat2_un0 := rhat2_hi ||| un0
+    let rhat2Un0 := rhat2_hi ||| un0
     let cr :=
       CodeReq.union (CodeReq.singleton base (.LD .x1 .x12 3952))
       (CodeReq.union (CodeReq.singleton (base + 4) (.MUL .x7 .x5 .x1))
@@ -94,9 +94,9 @@ theorem divK_div128_prodcheck2_body_spec (sp q0 rhat2 v1_old v7_old dlo un0 : Wo
        (.x7 ↦ᵣ v7_old) ** (.x1 ↦ᵣ v1_old) **
        (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0))
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ un0) **
-       (.x7 ↦ᵣ q0_dlo) ** (.x1 ↦ᵣ rhat2_un0) **
+       (.x7 ↦ᵣ q0Dlo) ** (.x1 ↦ᵣ rhat2Un0) **
        (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0)) := by
-  intro q0_dlo rhat2_hi rhat2_un0 cr
+  intro q0Dlo rhat2_hi rhat2Un0 cr
   have I0 := ld_spec_gen .x1 .x12 sp v1_old dlo 3952 base (by nofun)
   have I1 := mul_spec_gen .x7 .x5 .x1 v7_old q0 dlo (base + 4) (by nofun)
   have I2 := slli_spec_gen .x1 .x11 dlo rhat2 32 (base + 8) (by nofun)
