@@ -326,8 +326,9 @@ theorem cpsBranch_ntakenStripPure3
     (sepConj_strip_pure_end3 A B C Prop_f)
     (cpsBranch_ntakenPath hbr h_absurd)
 
-/-- A cpsTriple with zero steps: if entry = exit and P implies Q, trivially holds. -/
-theorem cpsTriple_refl (addr : Word) (P Q : Assertion)
+/-- A cpsTriple with zero steps: if entry = exit and P implies Q, trivially holds.
+    All position/assertion arguments are implicit — inferred from `h`. -/
+theorem cpsTriple_refl {addr : Word} {P Q : Assertion}
     (h : ∀ hp, P hp → Q hp) :
     cpsTriple addr addr CodeReq.empty P Q := by
   intro R hR s _hcr hPR hpc
@@ -396,8 +397,9 @@ def cpsNBranch (entry : Word) (cr : CodeReq) (P : Assertion)
 -- Edge cases
 -- ============================================================================
 
-/-- An N-branch with no exits is vacuously false (no reachable exit). -/
-theorem cpsNBranch_nil_false (entry : Word) (cr : CodeReq) (P : Assertion)
+/-- An N-branch with no exits is vacuously false (no reachable exit).
+    All position/code/assertion arguments are implicit — inferred from `h`. -/
+theorem cpsNBranch_nil_false {entry : Word} {cr : CodeReq} {P : Assertion}
     (h : cpsNBranch entry cr P [])
     (s : MachineState) (hcr : cr.SatisfiedBy s) (hP : P.holdsFor s) (hpc : s.pc = entry) : False := by
   -- Use empAssertion as the frame
@@ -590,9 +592,10 @@ def cpsHaltTriple (entry : Word) (cr : CodeReq)
 
 /-- Promote a `cpsTriple` to a `cpsHaltTriple` when the exit address is halted.
     If execution reaches exit_ with Q, and every state satisfying (Q ** R) at exit_ is halted,
-    then the program halts with Q. -/
-theorem cpsTriple_to_cpsHaltTriple (entry exit_ : Word) (cr : CodeReq)
-    (P Q : Assertion)
+    then the program halts with Q.
+    All position/code/assertion arguments are implicit — inferred from `h`/`hhalt`. -/
+theorem cpsTriple_to_cpsHaltTriple {entry exit_ : Word} {cr : CodeReq}
+    {P Q : Assertion}
     (h : cpsTriple entry exit_ cr P Q)
     (hhalt : ∀ (R : Assertion), R.pcFree → ∀ s, (Q ** R).holdsFor s → s.pc = exit_ →
       isHalted s = true) :
