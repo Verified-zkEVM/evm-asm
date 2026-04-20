@@ -69,14 +69,14 @@ theorem rlp_phase2_long_load_acc_post_unfold
     `ptr` (established via `halign`, `hvalid`). After execution, `x11`
     holds `len * 256 + byte` (as BitVec arithmetic) and `x12` holds the
     zero-extended byte. `x13` and memory are preserved. -/
-theorem rlp_phase2_long_load_acc_spec (len ptr v12_old wordVal dwordAddr : Word)
+theorem rlp_phase2_long_load_acc_spec (len ptr v12Old wordVal dwordAddr : Word)
     (base : Word)
     (halign : alignToDword ptr = dwordAddr)
     (hvalid : isValidByteAccess ptr = true) :
     let byteZext := (extractByte wordVal (byteOffset ptr)).zeroExtend 64
     cpsTriple base (base + 12)
       (CodeReq.ofProg base rlp_phase2_long_load_acc_prog)
-      ((.x11 ↦ᵣ len) ** (.x13 ↦ᵣ ptr) ** (.x12 ↦ᵣ v12_old) **
+      ((.x11 ↦ᵣ len) ** (.x13 ↦ᵣ ptr) ** (.x12 ↦ᵣ v12Old) **
        (dwordAddr ↦ₘ wordVal))
       (rlp_phase2_long_load_acc_post len ptr byteZext wordVal dwordAddr) := by
   simp only [rlp_phase2_long_load_acc_post_unfold]
@@ -104,14 +104,14 @@ theorem rlp_phase2_long_load_acc_spec (len ptr v12_old wordVal dwordAddr : Word)
     rw [hptr_eq]; exact halign
   have hvalid' : isValidByteAccess (ptr + signExtend12 (0 : BitVec 12)) = true := by
     rw [hptr_eq]; exact hvalid
-  have lbu := generic_lbu_spec .x12 .x13 ptr v12_old 0 base dwordAddr wordVal
+  have lbu := generic_lbu_spec .x12 .x13 ptr v12Old 0 base dwordAddr wordVal
     (by nofun) halign' hvalid'
   rw [hptr_eq] at lbu
   -- Frame LBU with `x11 ↦ᵣ len` and permute to match the sequence shape.
   let byteZext := (extractByte wordVal (byteOffset ptr)).zeroExtend 64
   have lbu_framed : cpsTriple base (base + 4)
       (CodeReq.singleton base (.LBU .x12 .x13 0))
-      ((.x11 ↦ᵣ len) ** (.x13 ↦ᵣ ptr) ** (.x12 ↦ᵣ v12_old) **
+      ((.x11 ↦ᵣ len) ** (.x13 ↦ᵣ ptr) ** (.x12 ↦ᵣ v12Old) **
        (dwordAddr ↦ₘ wordVal))
       ((.x11 ↦ᵣ len) ** (.x13 ↦ᵣ ptr) ** (.x12 ↦ᵣ byteZext) **
        (dwordAddr ↦ₘ wordVal)) :=

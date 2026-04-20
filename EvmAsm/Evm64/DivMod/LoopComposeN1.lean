@@ -130,8 +130,8 @@ theorem u_n1_j1_4072_eq_j0_4064 (sp : Word) :
 
 /-- Unified j=3 max-path  spec: uses _beq spec for addback, _skip for skip. -/
 theorem divK_loop_body_n1_max_unified_j3_spec
-    (sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
-     v0 v1 v2 v3 u0 u1 u2 u3 uTop q_old : Word)
+    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+     v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
     (base : Word)
     (hbltu : ¬BitVec.ult u1 v0)
     (hcarry2_nz : isAddbackCarry2NzN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
@@ -139,24 +139,24 @@ theorem divK_loop_body_n1_max_unified_j3_spec
     let qAddr := sp + signExtend12 4088 - (3 : Word) <<< (3 : BitVec 6).toNat
     cpsTriple (base + loopBodyOff) (base + loopBodyOff) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (3 : Word)) **
-       (.x5 ↦ᵣ v5_old) ** (.x6 ↦ᵣ v6_old) **
-       (.x7 ↦ᵣ v7_old) ** (.x10 ↦ᵣ v10_old) ** (.x11 ↦ᵣ v11_old) **
-       (.x2 ↦ᵣ v2_old) ** (.x0 ↦ᵣ (0 : Word)) **
-       (sp + signExtend12 3976 ↦ₘ j_old) ** (sp + signExtend12 3984 ↦ₘ (1 : Word)) **
+       (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
+       (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
+       (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
+       (sp + signExtend12 3976 ↦ₘ jOld) ** (sp + signExtend12 3984 ↦ₘ (1 : Word)) **
        ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
        ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4088) ↦ₘ u1) **
        ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4080) ↦ₘ u2) **
        ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ u3) **
        ((uBase + signExtend12 4064) ↦ₘ uTop) **
-       (qAddr ↦ₘ q_old))
+       (qAddr ↦ₘ qOld))
       (loopIterPostN1Max sp (3 : Word) v0 v1 v2 v3 u0 u1 u2 u3 uTop) := by
   intro uBase qAddr
   by_cases hb : BitVec.ult uTop (mulsubN4_c3 (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3)
   · -- addback path
     have hborrow : (if BitVec.ult uTop (mulsubN4_c3 (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3)
                     then (1 : Word) else 0) ≠ (0 : Word) := by rw [if_pos hb]; decide
-    have J3 := divK_loop_body_n1_max_addback_j3_beq_spec sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
-      v0 v1 v2 v3 u0 u1 u2 u3 uTop q_old base hbltu
+    have J3 := divK_loop_body_n1_max_addback_j3_beq_spec sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base hbltu
       hcarry2_nz
     intro_lets at J3
     exact cpsTriple_weaken
@@ -167,8 +167,8 @@ theorem divK_loop_body_n1_max_unified_j3_spec
   · -- skip path
     have hborrow : (if BitVec.ult uTop (mulsubN4_c3 (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3)
                     then (1 : Word) else 0) = (0 : Word) := if_neg hb
-    have J3 := divK_loop_body_n1_max_skip_j3_spec sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
-      v0 v1 v2 v3 u0 u1 u2 u3 uTop q_old base hbltu
+    have J3 := divK_loop_body_n1_max_skip_j3_spec sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base hbltu
     intro_lets at J3
     exact cpsTriple_weaken
       (fun h hp => hp)
@@ -178,8 +178,8 @@ theorem divK_loop_body_n1_max_unified_j3_spec
 
 /-- Unified j=2 max-path  spec: uses _beq spec for addback, _skip for skip. -/
 theorem divK_loop_body_n1_max_unified_j2_spec
-    (sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
-     v0 v1 v2 v3 u0 u1 u2 u3 uTop q_old : Word)
+    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+     v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
     (base : Word)
     (hbltu : ¬BitVec.ult u1 v0)
     (hcarry2_nz : isAddbackCarry2NzN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
@@ -187,24 +187,24 @@ theorem divK_loop_body_n1_max_unified_j2_spec
     let qAddr := sp + signExtend12 4088 - (2 : Word) <<< (3 : BitVec 6).toNat
     cpsTriple (base + loopBodyOff) (base + loopBodyOff) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (2 : Word)) **
-       (.x5 ↦ᵣ v5_old) ** (.x6 ↦ᵣ v6_old) **
-       (.x7 ↦ᵣ v7_old) ** (.x10 ↦ᵣ v10_old) ** (.x11 ↦ᵣ v11_old) **
-       (.x2 ↦ᵣ v2_old) ** (.x0 ↦ᵣ (0 : Word)) **
-       (sp + signExtend12 3976 ↦ₘ j_old) ** (sp + signExtend12 3984 ↦ₘ (1 : Word)) **
+       (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
+       (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
+       (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
+       (sp + signExtend12 3976 ↦ₘ jOld) ** (sp + signExtend12 3984 ↦ₘ (1 : Word)) **
        ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
        ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4088) ↦ₘ u1) **
        ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4080) ↦ₘ u2) **
        ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ u3) **
        ((uBase + signExtend12 4064) ↦ₘ uTop) **
-       (qAddr ↦ₘ q_old))
+       (qAddr ↦ₘ qOld))
       (loopIterPostN1Max sp (2 : Word) v0 v1 v2 v3 u0 u1 u2 u3 uTop) := by
   intro uBase qAddr
   by_cases hb : BitVec.ult uTop (mulsubN4_c3 (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3)
   · -- addback path
     have hborrow : (if BitVec.ult uTop (mulsubN4_c3 (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3)
                     then (1 : Word) else 0) ≠ (0 : Word) := by rw [if_pos hb]; decide
-    have J2 := divK_loop_body_n1_max_addback_j2_beq_spec sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
-      v0 v1 v2 v3 u0 u1 u2 u3 uTop q_old base hbltu
+    have J2 := divK_loop_body_n1_max_addback_j2_beq_spec sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base hbltu
       hcarry2_nz
     intro_lets at J2
     exact cpsTriple_weaken
@@ -215,8 +215,8 @@ theorem divK_loop_body_n1_max_unified_j2_spec
   · -- skip path
     have hborrow : (if BitVec.ult uTop (mulsubN4_c3 (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3)
                     then (1 : Word) else 0) = (0 : Word) := if_neg hb
-    have J2 := divK_loop_body_n1_max_skip_j2_spec sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
-      v0 v1 v2 v3 u0 u1 u2 u3 uTop q_old base hbltu
+    have J2 := divK_loop_body_n1_max_skip_j2_spec sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base hbltu
     intro_lets at J2
     exact cpsTriple_weaken
       (fun h hp => hp)
@@ -226,8 +226,8 @@ theorem divK_loop_body_n1_max_unified_j2_spec
 
 /-- Unified j=1 max-path  spec: uses _beq spec for addback, _skip for skip. -/
 theorem divK_loop_body_n1_max_unified_j1_spec
-    (sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
-     v0 v1 v2 v3 u0 u1 u2 u3 uTop q_old : Word)
+    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+     v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
     (base : Word)
     (hbltu : ¬BitVec.ult u1 v0)
     (hcarry2_nz : isAddbackCarry2NzN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
@@ -235,24 +235,24 @@ theorem divK_loop_body_n1_max_unified_j1_spec
     let qAddr := sp + signExtend12 4088 - (1 : Word) <<< (3 : BitVec 6).toNat
     cpsTriple (base + loopBodyOff) (base + loopBodyOff) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (1 : Word)) **
-       (.x5 ↦ᵣ v5_old) ** (.x6 ↦ᵣ v6_old) **
-       (.x7 ↦ᵣ v7_old) ** (.x10 ↦ᵣ v10_old) ** (.x11 ↦ᵣ v11_old) **
-       (.x2 ↦ᵣ v2_old) ** (.x0 ↦ᵣ (0 : Word)) **
-       (sp + signExtend12 3976 ↦ₘ j_old) ** (sp + signExtend12 3984 ↦ₘ (1 : Word)) **
+       (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
+       (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
+       (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
+       (sp + signExtend12 3976 ↦ₘ jOld) ** (sp + signExtend12 3984 ↦ₘ (1 : Word)) **
        ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
        ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4088) ↦ₘ u1) **
        ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4080) ↦ₘ u2) **
        ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ u3) **
        ((uBase + signExtend12 4064) ↦ₘ uTop) **
-       (qAddr ↦ₘ q_old))
+       (qAddr ↦ₘ qOld))
       (loopIterPostN1Max sp (1 : Word) v0 v1 v2 v3 u0 u1 u2 u3 uTop) := by
   intro uBase qAddr
   by_cases hb : BitVec.ult uTop (mulsubN4_c3 (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3)
   · -- addback path
     have hborrow : (if BitVec.ult uTop (mulsubN4_c3 (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3)
                     then (1 : Word) else 0) ≠ (0 : Word) := by rw [if_pos hb]; decide
-    have J1 := divK_loop_body_n1_max_addback_j1_beq_spec sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
-      v0 v1 v2 v3 u0 u1 u2 u3 uTop q_old base
+    have J1 := divK_loop_body_n1_max_addback_j1_beq_spec sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base
       hbltu
       hcarry2_nz
     intro_lets at J1
@@ -264,8 +264,8 @@ theorem divK_loop_body_n1_max_unified_j1_spec
   · -- skip path
     have hborrow : (if BitVec.ult uTop (mulsubN4_c3 (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3)
                     then (1 : Word) else 0) = (0 : Word) := if_neg hb
-    have J1 := divK_loop_body_n1_max_skip_j1_spec sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
-      v0 v1 v2 v3 u0 u1 u2 u3 uTop q_old base
+    have J1 := divK_loop_body_n1_max_skip_j1_spec sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base
       hbltu
     intro_lets at J1
     exact cpsTriple_weaken
@@ -277,8 +277,8 @@ theorem divK_loop_body_n1_max_unified_j1_spec
 /-- Unified j=0 max-path  spec: uses _beq spec for addback, _skip for skip.
     Since j=0, the BGE loop-back is not taken, giving a cpsTriple to base+904. -/
 theorem divK_loop_body_n1_max_unified_j0_spec
-    (sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
-     v0 v1 v2 v3 u0 u1 u2 u3 uTop q_old : Word)
+    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+     v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
     (base : Word)
     (hbltu : ¬BitVec.ult u1 v0)
     (hcarry2_nz : isAddbackCarry2NzN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
@@ -286,24 +286,24 @@ theorem divK_loop_body_n1_max_unified_j0_spec
     let qAddr := sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat
     cpsTriple (base + loopBodyOff) (base + denormOff) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (0 : Word)) **
-       (.x5 ↦ᵣ v5_old) ** (.x6 ↦ᵣ v6_old) **
-       (.x7 ↦ᵣ v7_old) ** (.x10 ↦ᵣ v10_old) ** (.x11 ↦ᵣ v11_old) **
-       (.x2 ↦ᵣ v2_old) ** (.x0 ↦ᵣ (0 : Word)) **
-       (sp + signExtend12 3976 ↦ₘ j_old) ** (sp + signExtend12 3984 ↦ₘ (1 : Word)) **
+       (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
+       (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
+       (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
+       (sp + signExtend12 3976 ↦ₘ jOld) ** (sp + signExtend12 3984 ↦ₘ (1 : Word)) **
        ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
        ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4088) ↦ₘ u1) **
        ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4080) ↦ₘ u2) **
        ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ u3) **
        ((uBase + signExtend12 4064) ↦ₘ uTop) **
-       (qAddr ↦ₘ q_old))
+       (qAddr ↦ₘ qOld))
       (loopIterPostN1Max sp (0 : Word) v0 v1 v2 v3 u0 u1 u2 u3 uTop) := by
   intro uBase qAddr
   by_cases hb : BitVec.ult uTop (mulsubN4_c3 (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3)
   · -- addback path
     have hborrow : (if BitVec.ult uTop (mulsubN4_c3 (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3)
                     then (1 : Word) else 0) ≠ (0 : Word) := by rw [if_pos hb]; decide
-    have J0 := divK_loop_body_n1_max_addback_j0_beq_spec sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
-      v0 v1 v2 v3 u0 u1 u2 u3 uTop q_old base
+    have J0 := divK_loop_body_n1_max_addback_j0_beq_spec sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base
       hbltu
       hcarry2_nz
     intro_lets at J0
@@ -315,8 +315,8 @@ theorem divK_loop_body_n1_max_unified_j0_spec
   · -- skip path
     have hborrow : (if BitVec.ult uTop (mulsubN4_c3 (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3)
                     then (1 : Word) else 0) = (0 : Word) := if_neg hb
-    have J0 := divK_loop_body_n1_max_skip_j0_spec sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
-      v0 v1 v2 v3 u0 u1 u2 u3 uTop q_old base
+    have J0 := divK_loop_body_n1_max_skip_j0_spec sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base
       hbltu
     intro_lets at J0
     exact cpsTriple_weaken
@@ -331,8 +331,8 @@ theorem divK_loop_body_n1_max_unified_j0_spec
 
 /-- Unified j=3 call-path  spec: uses _beq spec for addback, _skip for skip. -/
 theorem divK_loop_body_n1_call_unified_j3_spec
-    (sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
-     v0 v1 v2 v3 u0 u1 u2 u3 uTop q_old : Word)
+    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+     v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
     (retMem dMem dloMem scratch_un0 : Word)
     (base : Word)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
@@ -342,16 +342,16 @@ theorem divK_loop_body_n1_call_unified_j3_spec
     let qAddr := sp + signExtend12 4088 - (3 : Word) <<< (3 : BitVec 6).toNat
     cpsTriple (base + loopBodyOff) (base + loopBodyOff) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (3 : Word)) **
-       (.x5 ↦ᵣ v5_old) ** (.x6 ↦ᵣ v6_old) **
-       (.x7 ↦ᵣ v7_old) ** (.x10 ↦ᵣ v10_old) ** (.x11 ↦ᵣ v11_old) **
-       (.x2 ↦ᵣ v2_old) ** (.x0 ↦ᵣ (0 : Word)) **
-       (sp + signExtend12 3976 ↦ₘ j_old) ** (sp + signExtend12 3984 ↦ₘ (1 : Word)) **
+       (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
+       (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
+       (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
+       (sp + signExtend12 3976 ↦ₘ jOld) ** (sp + signExtend12 3984 ↦ₘ (1 : Word)) **
        ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
        ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4088) ↦ₘ u1) **
        ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4080) ↦ₘ u2) **
        ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ u3) **
        ((uBase + signExtend12 4064) ↦ₘ uTop) **
-       (qAddr ↦ₘ q_old) **
+       (qAddr ↦ₘ qOld) **
        (sp + signExtend12 3968 ↦ₘ retMem) **
        (sp + signExtend12 3960 ↦ₘ dMem) **
        (sp + signExtend12 3952 ↦ₘ dloMem) **
@@ -362,8 +362,8 @@ theorem divK_loop_body_n1_call_unified_j3_spec
   · -- addback path
     have hborrow : isAddbackBorrowN1Call v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
       delta isAddbackBorrowN1Call; simp only []; rw [if_pos hb]; decide
-    have J3 := divK_loop_body_n1_call_addback_j3_beq_spec sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
-      v0 v1 v2 v3 u0 u1 u2 u3 uTop q_old retMem dMem dloMem scratch_un0 base
+    have J3 := divK_loop_body_n1_call_addback_j3_beq_spec sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0 base
       halign
       hbltu hborrow
       hcarry2_nz
@@ -375,8 +375,8 @@ theorem divK_loop_body_n1_call_unified_j3_spec
       J3
   · -- skip path
     have hborrow : isSkipBorrowN1Call v0 v1 v2 v3 u0 u1 u2 u3 uTop := if_neg hb
-    have J3 := divK_loop_body_n1_call_skip_j3_spec sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
-      v0 v1 v2 v3 u0 u1 u2 u3 uTop q_old retMem dMem dloMem scratch_un0 base
+    have J3 := divK_loop_body_n1_call_skip_j3_spec sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0 base
       halign
       hbltu hborrow
     intro_lets at J3
@@ -388,8 +388,8 @@ theorem divK_loop_body_n1_call_unified_j3_spec
 
 /-- Unified j=2 call-path  spec: uses _beq spec for addback, _skip for skip. -/
 theorem divK_loop_body_n1_call_unified_j2_spec
-    (sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
-     v0 v1 v2 v3 u0 u1 u2 u3 uTop q_old : Word)
+    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+     v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
     (retMem dMem dloMem scratch_un0 : Word)
     (base : Word)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
@@ -399,16 +399,16 @@ theorem divK_loop_body_n1_call_unified_j2_spec
     let qAddr := sp + signExtend12 4088 - (2 : Word) <<< (3 : BitVec 6).toNat
     cpsTriple (base + loopBodyOff) (base + loopBodyOff) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (2 : Word)) **
-       (.x5 ↦ᵣ v5_old) ** (.x6 ↦ᵣ v6_old) **
-       (.x7 ↦ᵣ v7_old) ** (.x10 ↦ᵣ v10_old) ** (.x11 ↦ᵣ v11_old) **
-       (.x2 ↦ᵣ v2_old) ** (.x0 ↦ᵣ (0 : Word)) **
-       (sp + signExtend12 3976 ↦ₘ j_old) ** (sp + signExtend12 3984 ↦ₘ (1 : Word)) **
+       (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
+       (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
+       (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
+       (sp + signExtend12 3976 ↦ₘ jOld) ** (sp + signExtend12 3984 ↦ₘ (1 : Word)) **
        ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
        ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4088) ↦ₘ u1) **
        ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4080) ↦ₘ u2) **
        ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ u3) **
        ((uBase + signExtend12 4064) ↦ₘ uTop) **
-       (qAddr ↦ₘ q_old) **
+       (qAddr ↦ₘ qOld) **
        (sp + signExtend12 3968 ↦ₘ retMem) **
        (sp + signExtend12 3960 ↦ₘ dMem) **
        (sp + signExtend12 3952 ↦ₘ dloMem) **
@@ -419,8 +419,8 @@ theorem divK_loop_body_n1_call_unified_j2_spec
   · -- addback path
     have hborrow : isAddbackBorrowN1Call v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
       delta isAddbackBorrowN1Call; simp only []; rw [if_pos hb]; decide
-    have J2 := divK_loop_body_n1_call_addback_j2_beq_spec sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
-      v0 v1 v2 v3 u0 u1 u2 u3 uTop q_old retMem dMem dloMem scratch_un0 base
+    have J2 := divK_loop_body_n1_call_addback_j2_beq_spec sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0 base
       halign
       hbltu hborrow
       hcarry2_nz
@@ -432,8 +432,8 @@ theorem divK_loop_body_n1_call_unified_j2_spec
       J2
   · -- skip path
     have hborrow : isSkipBorrowN1Call v0 v1 v2 v3 u0 u1 u2 u3 uTop := if_neg hb
-    have J2 := divK_loop_body_n1_call_skip_j2_spec sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
-      v0 v1 v2 v3 u0 u1 u2 u3 uTop q_old retMem dMem dloMem scratch_un0 base
+    have J2 := divK_loop_body_n1_call_skip_j2_spec sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0 base
       halign
       hbltu hborrow
     intro_lets at J2
@@ -445,8 +445,8 @@ theorem divK_loop_body_n1_call_unified_j2_spec
 
 /-- Unified j=1 call-path  spec: uses _beq spec for addback, _skip for skip. -/
 theorem divK_loop_body_n1_call_unified_j1_spec
-    (sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
-     v0 v1 v2 v3 u0 u1 u2 u3 uTop q_old : Word)
+    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+     v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
     (retMem dMem dloMem scratch_un0 : Word)
     (base : Word)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
@@ -456,16 +456,16 @@ theorem divK_loop_body_n1_call_unified_j1_spec
     let qAddr := sp + signExtend12 4088 - (1 : Word) <<< (3 : BitVec 6).toNat
     cpsTriple (base + loopBodyOff) (base + loopBodyOff) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (1 : Word)) **
-       (.x5 ↦ᵣ v5_old) ** (.x6 ↦ᵣ v6_old) **
-       (.x7 ↦ᵣ v7_old) ** (.x10 ↦ᵣ v10_old) ** (.x11 ↦ᵣ v11_old) **
-       (.x2 ↦ᵣ v2_old) ** (.x0 ↦ᵣ (0 : Word)) **
-       (sp + signExtend12 3976 ↦ₘ j_old) ** (sp + signExtend12 3984 ↦ₘ (1 : Word)) **
+       (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
+       (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
+       (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
+       (sp + signExtend12 3976 ↦ₘ jOld) ** (sp + signExtend12 3984 ↦ₘ (1 : Word)) **
        ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
        ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4088) ↦ₘ u1) **
        ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4080) ↦ₘ u2) **
        ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ u3) **
        ((uBase + signExtend12 4064) ↦ₘ uTop) **
-       (qAddr ↦ₘ q_old) **
+       (qAddr ↦ₘ qOld) **
        (sp + signExtend12 3968 ↦ₘ retMem) **
        (sp + signExtend12 3960 ↦ₘ dMem) **
        (sp + signExtend12 3952 ↦ₘ dloMem) **
@@ -476,8 +476,8 @@ theorem divK_loop_body_n1_call_unified_j1_spec
   · -- addback path
     have hborrow : isAddbackBorrowN1Call v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
       delta isAddbackBorrowN1Call; simp only []; rw [if_pos hb]; decide
-    have J1 := divK_loop_body_n1_call_addback_j1_beq_spec sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
-      v0 v1 v2 v3 u0 u1 u2 u3 uTop q_old retMem dMem dloMem scratch_un0 base
+    have J1 := divK_loop_body_n1_call_addback_j1_beq_spec sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0 base
       halign
       hbltu hborrow
       hcarry2_nz
@@ -489,8 +489,8 @@ theorem divK_loop_body_n1_call_unified_j1_spec
       J1
   · -- skip path
     have hborrow : isSkipBorrowN1Call v0 v1 v2 v3 u0 u1 u2 u3 uTop := if_neg hb
-    have J1 := divK_loop_body_n1_call_skip_j1_spec sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
-      v0 v1 v2 v3 u0 u1 u2 u3 uTop q_old retMem dMem dloMem scratch_un0 base
+    have J1 := divK_loop_body_n1_call_skip_j1_spec sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0 base
       halign
       hbltu hborrow
     intro_lets at J1
@@ -503,8 +503,8 @@ theorem divK_loop_body_n1_call_unified_j1_spec
 /-- Unified j=0 call-path  spec: uses _beq spec for addback, _skip for skip.
     Since j=0, the BGE loop-back is not taken, giving a cpsTriple to base+904. -/
 theorem divK_loop_body_n1_call_unified_j0_spec
-    (sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
-     v0 v1 v2 v3 u0 u1 u2 u3 uTop q_old : Word)
+    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+     v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
     (retMem dMem dloMem scratch_un0 : Word)
     (base : Word)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
@@ -514,16 +514,16 @@ theorem divK_loop_body_n1_call_unified_j0_spec
     let qAddr := sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat
     cpsTriple (base + loopBodyOff) (base + denormOff) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (0 : Word)) **
-       (.x5 ↦ᵣ v5_old) ** (.x6 ↦ᵣ v6_old) **
-       (.x7 ↦ᵣ v7_old) ** (.x10 ↦ᵣ v10_old) ** (.x11 ↦ᵣ v11_old) **
-       (.x2 ↦ᵣ v2_old) ** (.x0 ↦ᵣ (0 : Word)) **
-       (sp + signExtend12 3976 ↦ₘ j_old) ** (sp + signExtend12 3984 ↦ₘ (1 : Word)) **
+       (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
+       (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
+       (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
+       (sp + signExtend12 3976 ↦ₘ jOld) ** (sp + signExtend12 3984 ↦ₘ (1 : Word)) **
        ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
        ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4088) ↦ₘ u1) **
        ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4080) ↦ₘ u2) **
        ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ u3) **
        ((uBase + signExtend12 4064) ↦ₘ uTop) **
-       (qAddr ↦ₘ q_old) **
+       (qAddr ↦ₘ qOld) **
        (sp + signExtend12 3968 ↦ₘ retMem) **
        (sp + signExtend12 3960 ↦ₘ dMem) **
        (sp + signExtend12 3952 ↦ₘ dloMem) **
@@ -534,8 +534,8 @@ theorem divK_loop_body_n1_call_unified_j0_spec
   · -- addback path
     have hborrow : isAddbackBorrowN1Call v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
       delta isAddbackBorrowN1Call; simp only []; rw [if_pos hb]; decide
-    have J0 := divK_loop_body_n1_call_addback_j0_beq_spec sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
-      v0 v1 v2 v3 u0 u1 u2 u3 uTop q_old retMem dMem dloMem scratch_un0 base
+    have J0 := divK_loop_body_n1_call_addback_j0_beq_spec sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0 base
       halign
       hbltu hborrow
       hcarry2_nz
@@ -547,8 +547,8 @@ theorem divK_loop_body_n1_call_unified_j0_spec
       J0
   · -- skip path
     have hborrow : isSkipBorrowN1Call v0 v1 v2 v3 u0 u1 u2 u3 uTop := if_neg hb
-    have J0 := divK_loop_body_n1_call_skip_j0_spec sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
-      v0 v1 v2 v3 u0 u1 u2 u3 uTop q_old retMem dMem dloMem scratch_un0 base
+    have J0 := divK_loop_body_n1_call_skip_j0_spec sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0 base
       halign
       hbltu hborrow
     intro_lets at J0

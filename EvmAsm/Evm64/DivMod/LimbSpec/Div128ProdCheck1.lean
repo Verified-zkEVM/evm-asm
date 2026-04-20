@@ -32,7 +32,7 @@ open EvmAsm.Rv64
 /-- div128 product check 1: compute q1*dLo vs rhat*2^32+un1, conditionally correct.
     Instrs [17]-[24]. Both BLTU paths merge at base+32. -/
 theorem divK_div128_prodcheck1_merged_spec
-    (sp q1 rhat dHi un1 v1_old v5_old dlo : Word) (base : Word) :
+    (sp q1 rhat dHi un1 v1Old v5Old dlo : Word) (base : Word) :
     let qDlo := q1 * dlo
     let rhatUn1 := (rhat <<< (32 : BitVec 6).toNat) ||| un1
     let q1' := if BitVec.ult rhatUn1 qDlo then q1 + signExtend12 4095 else q1
@@ -48,7 +48,7 @@ theorem divK_div128_prodcheck1_merged_spec
        (CodeReq.singleton (base + 28) (.ADD .x7 .x7 .x6))))))))
     cpsTriple base (base + 32) cr
       ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ q1) ** (.x7 ↦ᵣ rhat) ** (.x11 ↦ᵣ un1) **
-       (.x5 ↦ᵣ v5_old) ** (.x1 ↦ᵣ v1_old) ** (.x6 ↦ᵣ dHi) **
+       (.x5 ↦ᵣ v5Old) ** (.x1 ↦ᵣ v1Old) ** (.x6 ↦ᵣ dHi) **
        (sp + signExtend12 3952 ↦ₘ dlo))
       ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ q1') ** (.x7 ↦ᵣ rhat') ** (.x11 ↦ᵣ un1) **
        (.x5 ↦ᵣ qDlo) ** (.x1 ↦ᵣ rhatUn1) ** (.x6 ↦ᵣ dHi) **
@@ -56,13 +56,13 @@ theorem divK_div128_prodcheck1_merged_spec
   intro qDlo rhatUn1 q1' rhat' cr
   have hbody : cpsTriple base (base + 16) cr
       ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ q1) ** (.x7 ↦ᵣ rhat) ** (.x11 ↦ᵣ un1) **
-       (.x5 ↦ᵣ v5_old) ** (.x1 ↦ᵣ v1_old) ** (.x6 ↦ᵣ dHi) **
+       (.x5 ↦ᵣ v5Old) ** (.x1 ↦ᵣ v1Old) ** (.x6 ↦ᵣ dHi) **
        (sp + signExtend12 3952 ↦ₘ dlo))
       ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ q1) ** (.x7 ↦ᵣ rhat) ** (.x11 ↦ᵣ un1) **
        (.x5 ↦ᵣ qDlo) ** (.x1 ↦ᵣ rhatUn1) ** (.x6 ↦ᵣ dHi) **
        (sp + signExtend12 3952 ↦ₘ dlo)) := by
-    have I0 := ld_spec_gen .x1 .x12 sp v1_old dlo 3952 base (by nofun)
-    have I1 := mul_spec_gen .x5 .x10 .x1 v5_old q1 dlo (base + 4) (by nofun)
+    have I0 := ld_spec_gen .x1 .x12 sp v1Old dlo 3952 base (by nofun)
+    have I1 := mul_spec_gen .x5 .x10 .x1 v5Old q1 dlo (base + 4) (by nofun)
     have I2 := slli_spec_gen .x1 .x7 dlo rhat 32 (base + 8) (by nofun)
     have I3 := or_spec_gen_rd_eq_rs1 .x1 .x11 (rhat <<< (32 : BitVec 6).toNat) un1 (base + 12) (by nofun)
     runBlock I0 I1 I2 I3
@@ -149,7 +149,7 @@ theorem divK_div128_prodcheck1_merged_spec
     simp only [sepConj_emp_left'] at hjal_framed
     have ntaken_clean : cpsTriple base (base + 20) cr
         ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ q1) ** (.x7 ↦ᵣ rhat) ** (.x11 ↦ᵣ un1) **
-         (.x5 ↦ᵣ v5_old) ** (.x1 ↦ᵣ v1_old) ** (.x6 ↦ᵣ dHi) **
+         (.x5 ↦ᵣ v5Old) ** (.x1 ↦ᵣ v1Old) ** (.x6 ↦ᵣ dHi) **
          (sp + signExtend12 3952 ↦ₘ dlo))
         ((.x1 ↦ᵣ rhatUn1) ** (.x5 ↦ᵣ qDlo) **
          (.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ q1) ** (.x7 ↦ᵣ rhat) ** (.x11 ↦ᵣ un1) **

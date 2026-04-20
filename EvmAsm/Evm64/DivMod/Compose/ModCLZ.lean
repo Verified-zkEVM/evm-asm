@@ -114,21 +114,21 @@ private theorem mod_clz_last_combined (val count v7 : Word) (base : Word) :
 
 /-- Full CLZ composition for modCode: 24 instructions at base+116 -> base+212.
     Mirror of divK_clz_spec with modCode instead of divCode. -/
-theorem mod_clz_spec (val v6_old v7_old : Word) (base : Word) :
+theorem mod_clz_spec (val v6Old v7Old : Word) (base : Word) :
     cpsTriple (base + clzOff) (base + phaseC2Off) (modCode base)
-      ((.x5 ↦ᵣ val) ** (.x6 ↦ᵣ v6_old) ** (.x7 ↦ᵣ v7_old) ** (.x0 ↦ᵣ (0 : Word)))
+      ((.x5 ↦ᵣ val) ** (.x6 ↦ᵣ v6Old) ** (.x7 ↦ᵣ v7Old) ** (.x0 ↦ᵣ (0 : Word)))
       ((.x5 ↦ᵣ (clzResult val).2) ** (.x6 ↦ᵣ (clzResult val).1) **
        (.x7 ↦ᵣ (clzResult val).2 >>> (63 : Nat)) ** (.x0 ↦ᵣ (0 : Word))) := by
   unfold clzResult
   -- 0. Init: ADDI x6 x0 0 (base+116 -> base+120)
-  have I := divK_clz_init_spec v6_old (base + clzOff)
+  have I := divK_clz_init_spec v6Old (base + clzOff)
   have Ie := cpsTriple_extend_code (hmono := clz_init_sub_mod base) I
   rw [mod_clz_addr0] at Ie
   -- Frame init with x5, x7
   have Ief := cpsTriple_frameR
-    ((.x5 ↦ᵣ val) ** (.x7 ↦ᵣ v7_old)) (by pcFree) Ie
+    ((.x5 ↦ᵣ val) ** (.x7 ↦ᵣ v7Old)) (by pcFree) Ie
   -- Stage 0: K=32, M_s=32, M_a=32 (base+120 -> base+136)
-  have S0 := mod_clz_stage_combined 32 32 32 val (signExtend12 0) v7_old
+  have S0 := mod_clz_stage_combined 32 32 32 val (signExtend12 0) v7Old
     ((base + clzOff) + BitVec.ofNat 64 (4 * 1))
   dsimp only [] at S0
   have S0e := cpsTriple_extend_code (hmono := clz_stage_sub_mod base 32 32 32 1

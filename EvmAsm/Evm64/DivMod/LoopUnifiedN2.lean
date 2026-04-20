@@ -33,8 +33,8 @@ open EvmAsm.Evm64.DivMod.AddrNorm (jpred_2)
     Covers all 4 path combinations (max×max, call×call, max×call, call×max).
     Dispatches to existing  per-path specs in LoopComposeN2.lean. -/
 theorem divK_loop_n2_iter10_unified_spec (bltu_1 bltu_0 : Bool)
-    (sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
-     v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1_old q0_old : Word)
+    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+     v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old : Word)
     (retMem dMem dloMem scratch_un0 : Word)
     (base : Word)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
@@ -43,8 +43,8 @@ theorem divK_loop_n2_iter10_unified_spec (bltu_1 bltu_0 : Bool)
     (hbltu_0 : bltu_0 = BitVec.ult (iterN2 bltu_1 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1 v1)
     (hcarry2 : Carry2NzAll v0 v1 v2 v3) :
     cpsTriple (base + loopBodyOff) (base + denormOff) (sharedDivModCode base)
-      (loopN2Iter10PreWithScratch sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
-        v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1_old q0_old
+      (loopN2Iter10PreWithScratch sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
         retMem dMem dloMem scratch_un0)
       (loopN2Iter10Post bltu_1 bltu_0 sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig
         retMem dMem dloMem scratch_un0) := by
@@ -54,8 +54,8 @@ theorem divK_loop_n2_iter10_unified_spec (bltu_1 bltu_0 : Bool)
       rw [show BitVec.ult u2 v1 = false from hbltu_1.symm]; decide
     have hbltu_0' : ¬BitVec.ult (iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1 v1 := by
       rw [show BitVec.ult _ v1 = false from hbltu_0.symm]; decide
-    have hMM := divK_loop_n2_max_max_spec sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
-      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1_old q0_old base
+    have hMM := divK_loop_n2_max_max_spec sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old base
       hbltu_1' hbltu_0' hcarry2
     have hMMF := cpsTriple_frameR
       ((sp + signExtend12 3968 ↦ₘ retMem) **
@@ -72,8 +72,8 @@ theorem divK_loop_n2_iter10_unified_spec (bltu_1 bltu_0 : Bool)
       rw [show BitVec.ult u2 v1 = false from hbltu_1.symm]; decide
     have hbltu_0' : BitVec.ult (iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1 v1 :=
       hbltu_0.symm ▸ rfl
-    have hMC := divK_loop_n2_max_call_spec sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
-      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1_old q0_old
+    have hMC := divK_loop_n2_max_call_spec sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
       retMem dMem dloMem scratch_un0 base halign
 
 
@@ -87,8 +87,8 @@ theorem divK_loop_n2_iter10_unified_spec (bltu_1 bltu_0 : Bool)
     have hbltu_1' : BitVec.ult u2 v1 := hbltu_1.symm ▸ rfl
     have hbltu_0' : ¬BitVec.ult (iterN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1 v1 := by
       rw [show BitVec.ult _ v1 = false from hbltu_0.symm]; decide
-    have hCM := divK_loop_n2_call_max_spec sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
-      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1_old q0_old
+    have hCM := divK_loop_n2_call_max_spec sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
       retMem dMem dloMem scratch_un0 base halign
 
 
@@ -102,8 +102,8 @@ theorem divK_loop_n2_iter10_unified_spec (bltu_1 bltu_0 : Bool)
     have hbltu_1' : BitVec.ult u2 v1 := hbltu_1.symm ▸ rfl
     have hbltu_0' : BitVec.ult (iterN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1 v1 :=
       hbltu_0.symm ▸ rfl
-    have hCC := divK_loop_n2_call_call_spec sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
-      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1_old q0_old
+    have hCC := divK_loop_n2_call_call_spec sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
       retMem dMem dloMem scratch_un0 base halign
 
 
@@ -122,10 +122,10 @@ theorem divK_loop_n2_iter10_unified_spec (bltu_1 bltu_0 : Bool)
 /-- Three-iteration  composition when j=2 is max (bltu_2 = false).
     Composes j=2  max spec with the 2-iteration iter10 unified  spec. -/
 theorem divK_loop_n2_max_iter10_spec (bltu_1 bltu_0 : Bool)
-    (sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
+    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
      v0 v1 v2 v3 u0 u1 u2 u3 uTop
      u0_orig_1 u0_orig_0
-     q2_old q1_old q0_old : Word)
+     q2Old q1Old q0Old : Word)
     (retMem dMem dloMem scratch_un0 : Word)
     (base : Word)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
@@ -138,9 +138,9 @@ theorem divK_loop_n2_max_iter10_spec (bltu_1 bltu_0 : Bool)
       (iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.1).2.2.1 v1)
     (hcarry2 : Carry2NzAll v0 v1 v2 v3) :
     cpsTriple (base + loopBodyOff) (base + denormOff) (sharedDivModCode base)
-      (loopN2PreWithScratch sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
+      (loopN2PreWithScratch sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
         v0 v1 v2 v3 u0 u1 u2 u3 uTop
-        u0_orig_1 u0_orig_0 q2_old q1_old q0_old
+        u0_orig_1 u0_orig_0 q2Old q1Old q0Old
         retMem dMem dloMem scratch_un0)
       (loopN2UnifiedPost false bltu_1 bltu_0 sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop
         u0_orig_1 u0_orig_0 retMem dMem dloMem scratch_un0) := by
@@ -151,15 +151,15 @@ theorem divK_loop_n2_max_iter10_spec (bltu_1 bltu_0 : Bool)
   let q_addr_1 := sp + signExtend12 4088 - (1 : Word) <<< (3 : BitVec 6).toNat
   let u_base_0 := sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat
   let q_addr_0 := sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat
-  have J2 := divK_loop_body_n2_max_unified_j2_spec sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
-    v0 v1 v2 v3 u0 u1 u2 u3 uTop q2_old base
+  have J2 := divK_loop_body_n2_max_unified_j2_spec sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+    v0 v1 v2 v3 u0 u1 u2 u3 uTop q2Old base
 
     hbltu_2
     (hcarry2 (signExtend12 4095) u0 u1 u2 u3 uTop : isAddbackCarry2NzN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop)
   intro_lets at J2
   have J2f := cpsTriple_frameR
-    (((u_base_1 + signExtend12 0) ↦ₘ u0_orig_1) ** (q_addr_1 ↦ₘ q1_old) **
-     ((u_base_0 + signExtend12 0) ↦ₘ u0_orig_0) ** (q_addr_0 ↦ₘ q0_old) **
+    (((u_base_1 + signExtend12 0) ↦ₘ u0_orig_1) ** (q_addr_1 ↦ₘ q1Old) **
+     ((u_base_0 + signExtend12 0) ↦ₘ u0_orig_0) ** (q_addr_0 ↦ₘ q0Old) **
      (sp + signExtend12 3968 ↦ₘ retMem) ** (sp + signExtend12 3960 ↦ₘ dMem) **
      (sp + signExtend12 3952 ↦ₘ dloMem) ** (sp + signExtend12 3944 ↦ₘ scratch_un0))
     (by pcFree) J2
@@ -169,7 +169,7 @@ theorem divK_loop_n2_max_iter10_spec (bltu_1 bltu_0 : Bool)
     r2.1 r2.2.2.2.2.1
     v0 v1 v2 v3
     u0_orig_1 r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1
-    u0_orig_0 q1_old q0_old
+    u0_orig_0 q1Old q0Old
     retMem dMem dloMem scratch_un0 base halign
 
 
@@ -200,10 +200,10 @@ theorem divK_loop_n2_max_iter10_spec (bltu_1 bltu_0 : Bool)
 /-- Three-iteration  composition when j=2 is call (bltu_2 = true).
     Composes j=2  call spec with the 2-iteration iter10 unified  spec. -/
 theorem divK_loop_n2_call_iter10_spec (bltu_1 bltu_0 : Bool)
-    (sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
+    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
      v0 v1 v2 v3 u0 u1 u2 u3 uTop
      u0_orig_1 u0_orig_0
-     q2_old q1_old q0_old : Word)
+     q2Old q1Old q0Old : Word)
     (retMem dMem dloMem scratch_un0 : Word)
     (base : Word)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
@@ -216,9 +216,9 @@ theorem divK_loop_n2_call_iter10_spec (bltu_1 bltu_0 : Bool)
       (iterN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.1).2.2.1 v1)
     (hcarry2 : Carry2NzAll v0 v1 v2 v3) :
     cpsTriple (base + loopBodyOff) (base + denormOff) (sharedDivModCode base)
-      (loopN2PreWithScratch sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
+      (loopN2PreWithScratch sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
         v0 v1 v2 v3 u0 u1 u2 u3 uTop
-        u0_orig_1 u0_orig_0 q2_old q1_old q0_old
+        u0_orig_1 u0_orig_0 q2Old q1Old q0Old
         retMem dMem dloMem scratch_un0)
       (loopN2UnifiedPost true bltu_1 bltu_0 sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop
         u0_orig_1 u0_orig_0 retMem dMem dloMem scratch_un0) := by
@@ -229,15 +229,15 @@ theorem divK_loop_n2_call_iter10_spec (bltu_1 bltu_0 : Bool)
   let q_addr_1 := sp + signExtend12 4088 - (1 : Word) <<< (3 : BitVec 6).toNat
   let u_base_0 := sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat
   let q_addr_0 := sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat
-  have J2 := divK_loop_body_n2_call_unified_j2_spec sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
-    v0 v1 v2 v3 u0 u1 u2 u3 uTop q2_old retMem dMem dloMem scratch_un0 base halign
+  have J2 := divK_loop_body_n2_call_unified_j2_spec sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+    v0 v1 v2 v3 u0 u1 u2 u3 uTop q2Old retMem dMem dloMem scratch_un0 base halign
 
     hbltu_2
     (hcarry2 (div128Quot u2 u1 v1) u0 u1 u2 u3 uTop : isAddbackCarry2NzN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop)
   intro_lets at J2
   have J2f := cpsTriple_frameR
-    (((u_base_1 + signExtend12 0) ↦ₘ u0_orig_1) ** (q_addr_1 ↦ₘ q1_old) **
-     ((u_base_0 + signExtend12 0) ↦ₘ u0_orig_0) ** (q_addr_0 ↦ₘ q0_old))
+    (((u_base_1 + signExtend12 0) ↦ₘ u0_orig_1) ** (q_addr_1 ↦ₘ q1Old) **
+     ((u_base_0 + signExtend12 0) ↦ₘ u0_orig_0) ** (q_addr_0 ↦ₘ q0Old))
     (by pcFree) J2
   have H10 := divK_loop_n2_iter10_unified_spec bltu_1 bltu_0
     sp (2 : Word) ((2 : Word) <<< (3 : BitVec 6).toNat) u_base_2 q_addr_2
@@ -245,7 +245,7 @@ theorem divK_loop_n2_call_iter10_spec (bltu_1 bltu_0 : Bool)
     r2.1 r2.2.2.2.2.1
     v0 v1 v2 v3
     u0_orig_1 r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1
-    u0_orig_0 q1_old q0_old
+    u0_orig_0 q1Old q0Old
     (base + 516) v1 (div128DLo v1) (div128Un0 u1) base halign
 
 
@@ -281,10 +281,10 @@ theorem divK_loop_n2_call_iter10_spec (bltu_1 bltu_0 : Bool)
     `(bltu_2 bltu_1 bltu_0 : Bool)`.  Covers all 8 path combinations.
     Dispatches to divK_loop_n2_max_iter10_spec / divK_loop_n2_call_iter10_spec. -/
 theorem divK_loop_n2_unified_spec (bltu_2 bltu_1 bltu_0 : Bool)
-    (sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
+    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
      v0 v1 v2 v3 u0 u1 u2 u3 uTop
      u0_orig_1 u0_orig_0
-     q2_old q1_old q0_old : Word)
+     q2Old q1Old q0Old : Word)
     (retMem dMem dloMem scratch_un0 : Word)
     (base : Word)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
@@ -297,9 +297,9 @@ theorem divK_loop_n2_unified_spec (bltu_2 bltu_1 bltu_0 : Bool)
       (iterN2 bltu_2 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.1).2.2.1 v1)
     (hcarry2 : Carry2NzAll v0 v1 v2 v3) :
     cpsTriple (base + loopBodyOff) (base + denormOff) (sharedDivModCode base)
-      (loopN2PreWithScratch sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
+      (loopN2PreWithScratch sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
         v0 v1 v2 v3 u0 u1 u2 u3 uTop
-        u0_orig_1 u0_orig_0 q2_old q1_old q0_old
+        u0_orig_1 u0_orig_0 q2Old q1Old q0Old
         retMem dMem dloMem scratch_un0)
       (loopN2UnifiedPost bltu_2 bltu_1 bltu_0 sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop
         u0_orig_1 u0_orig_0 retMem dMem dloMem scratch_un0) := by
@@ -308,8 +308,8 @@ theorem divK_loop_n2_unified_spec (bltu_2 bltu_1 bltu_0 : Bool)
     have hbltu_2' : ¬BitVec.ult u2 v1 := by
       rw [show BitVec.ult u2 v1 = false from hbltu_2.symm]; decide
     exact divK_loop_n2_max_iter10_spec bltu_1 bltu_0
-      sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
-      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0_orig_1 u0_orig_0 q2_old q1_old q0_old
+      sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0_orig_1 u0_orig_0 q2Old q1Old q0Old
       retMem dMem dloMem scratch_un0 base halign
 
 
@@ -319,8 +319,8 @@ theorem divK_loop_n2_unified_spec (bltu_2 bltu_1 bltu_0 : Bool)
   · -- bltu_2 = true → call
     have hbltu_2' : BitVec.ult u2 v1 := hbltu_2.symm ▸ rfl
     exact divK_loop_n2_call_iter10_spec bltu_1 bltu_0
-      sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
-      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0_orig_1 u0_orig_0 q2_old q1_old q0_old
+      sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0_orig_1 u0_orig_0 q2Old q1Old q0Old
       retMem dMem dloMem scratch_un0 base halign
 
 
