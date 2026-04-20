@@ -20,6 +20,7 @@
   - `knuth_v_nat_lt_v_top_succ_mul_pow192` — v_nat < (v_top + 1) * 2^192.
   - `knuth_v_nat_ge_pow255_abstract` — Nat-level v_nat ≥ 2^255.
   - `knuth_q_hat_clamp_le_div` / `knuth_q_hat_clamp_lt_pow64` — min-clamp bounds.
+  - `knuth_core_ineq` — `x * z < y + 2 * z → x ≤ y / z + 2` (Knuth overshoot step).
 -/
 
 import EvmAsm.Evm64.EvmWordArith.DivN4Overestimate
@@ -127,5 +128,28 @@ theorem knuth_q_hat_clamp_lt_pow64 (u_top u_next v_top q_hat : Nat)
   have := Nat.min_le_right ((u_top * 2^64 + u_next) / v_top) (2^64 - 1)
   have hpow : (0:Nat) < 2^64 := by positivity
   omega
+
+/-- Knuth B core overshoot inequality (Nat-abstract):
+    `x * z < y + 2 * z` plus `0 < z` implies `x ≤ y / z + 2`.
+
+    This is the final combinator for the "q_hat ≤ q_true + 2" step. After
+    accumulating `q_hat_raw * v_nat < u_nat + 2 * v_nat` (from the trial
+    remainder bookkeeping + the `v_nat ≥ 2^255` normalization lower bound),
+    applying this lemma yields `q_hat_raw ≤ u_nat / v_nat + 2 = q_true + 2`.
+
+    Proof: by contradiction. If `x ≥ y / z + 3`, then
+    `(y/z + 3) * z ≤ x * z < y + 2 * z`, so `(y/z) * z + 3*z < y + 2*z`,
+    i.e. `(y/z) * z + z < y`. But `y = (y/z) * z + y%z` and `y%z < z`, so
+    `y < (y/z) * z + z`. Contradiction. -/
+theorem knuth_core_ineq (x y z : Nat) (hz : 0 < z)
+    (h : x * z < y + 2 * z) :
+    x ≤ y / z + 2 := by
+  by_contra hgt
+  push Not at hgt
+  have h3 : y / z + 3 ≤ x := hgt
+  have h4 : (y / z + 3) * z ≤ x * z := Nat.mul_le_mul_right z h3
+  have hd : z * (y / z) + y % z = y := Nat.div_add_mod y z
+  have hm : y % z < z := Nat.mod_lt y hz
+  nlinarith
 
 end EvmAsm.Evm64
