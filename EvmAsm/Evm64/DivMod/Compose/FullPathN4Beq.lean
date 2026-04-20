@@ -58,15 +58,13 @@ theorem divK_loop_body_n4_max_addback_j0_beq_norm (sp base : Word)
        ((sp + signExtend12 4088) ↦ₘ qOld))
       (loopBodyN4AddbackBeqPost sp (0 : Word) qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop) := by
   intro qHat hborrow
-  rw [← se12_32] at hv_v0; rw [← se12_40] at
-  rw [← se12_48] at hv_v2; rw [← se12_56] at
-  rw [← u_base_off0_j0] at hv_u0; rw [← u_base_off4088_j0] at
-  rw [← u_base_off4080_j0] at hv_u2; rw [← u_base_off4072_j0] at
-  rw [← u_base_off4064_j0] at hv_u4; rw [← q_addr_j0] at
+  rw [← se12_32] at hv_v0; rw [← se12_40] at hv_v1
+  rw [← se12_48] at hv_v2; rw [← se12_56] at hv_v3
+  rw [← u_base_off0_j0] at hv_u0; rw [← u_base_off4088_j0] at hv_u1
+  rw [← u_base_off4080_j0] at hv_u2; rw [← u_base_off4072_j0] at hv_u3
+  rw [← u_base_off4064_j0] at hv_u4; rw [← q_addr_j0] at hv_q
   have raw := divK_loop_body_n4_max_addback_j0_beq_divCode sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-    v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base
-
-    hv_v3 hv_u3 hv_u4 hv_q hbltu hcarry2_nz hborrow
+    v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base hbltu hcarry2_nz hborrow
   simp only [se12_32, se12_40, se12_48, se12_56,
              u_base_off0_j0, u_base_off4088_j0, u_base_off4080_j0,
              u_base_off4072_j0, u_base_off4064_j0, q_addr_j0] at raw
@@ -126,15 +124,13 @@ theorem divK_loop_body_n4_call_addback_j0_beq_norm (sp base : Word)
        (sp + signExtend12 3952 ↦ₘ dLo) **
        (sp + signExtend12 3944 ↦ₘ div_un0)) := by
   intro qHat dLo div_un0 hborrow
-  rw [← se12_32] at hv_v0; rw [← se12_40] at
-  rw [← se12_48] at hv_v2; rw [← se12_56] at
-  rw [← u_base_off0_j0] at hv_u0; rw [← u_base_off4088_j0] at
-  rw [← u_base_off4080_j0] at hv_u2; rw [← u_base_off4072_j0] at
-  rw [← u_base_off4064_j0] at hv_u4; rw [← q_addr_j0] at
+  rw [← se12_32] at hv_v0; rw [← se12_40] at hv_v1
+  rw [← se12_48] at hv_v2; rw [← se12_56] at hv_v3
+  rw [← u_base_off0_j0] at hv_u0; rw [← u_base_off4088_j0] at hv_u1
+  rw [← u_base_off4080_j0] at hv_u2; rw [← u_base_off4072_j0] at hv_u3
+  rw [← u_base_off4064_j0] at hv_u4; rw [← q_addr_j0] at hv_q
   have raw := divK_loop_body_n4_call_addback_j0_beq_divCode sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-    v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0 base
-    hv_j hv_n1 hv_uhi hv_ulo hv_vtop hv_ret hv_d hv_dlo hv_scratch_un0 halign
-    hv_v0 hv_u0 hv_v1 hv_u1 hv_v2 hv_u2 hv_v3 hv_u3 hv_u4 hv_q hbltu hcarry2_nz
+    v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0 base halign hbltu hcarry2_nz
   have raw' := raw hborrow
   simp only [se12_32, se12_40, se12_48, se12_56,
              u_base_off0_j0, u_base_off4088_j0, u_base_off4080_j0,
@@ -643,9 +639,9 @@ theorem evm_div_n4_full_max_addback_beq_spec (sp base : Word)
   have hA := evm_div_n4_preloop_max_addback_beq_spec sp base
     a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old
     q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem
-    hbnz hb3nz hshift_nz
-
-
+    hbnz hb3nz hshift_nz hvalid
+    hv_q0 hv_q1 hv_q2 hv_q3 hv_u0 hv_u1 hv_u2 hv_u3 hv_u4 hv_u5 hv_u6 hv_u7
+    hv_n hv_shift hv_j hv_uhi hv_ulo hv_vtop
     hbltu hcarry2_nz hborrow
   have hB := evm_div_preamble_denorm_epilogue_spec sp base
     un0Out un1Out un2Out un3Out shift
