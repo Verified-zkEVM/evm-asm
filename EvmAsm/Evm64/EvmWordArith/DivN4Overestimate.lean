@@ -17,7 +17,7 @@ import EvmAsm.Evm64.DivMod.LoopSemantic
 namespace EvmAsm.Evm64
 
 open EvmWord EvmAsm.Rv64
-open EvmAsm.Rv64.AddrNorm (word_toNat_1)
+open EvmAsm.Rv64.AddrNorm (word_toNat_0 word_toNat_1)
 
 -- ============================================================================
 -- Max trial overestimate: qHat = 2^64 - 1 ≥ ⌊val256(a)/val256(b)⌋
@@ -78,8 +78,7 @@ theorem n4_max_skip_correct (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
   simp only [] at hmulsub_raw
   -- c3 = 0, so val256(u) = val256(un) + q * val256(v)
   rw [show ms.2.2.2.2 = (0 : Word) from hc3_zero] at hmulsub_raw
-  have : (0 : Word).toNat = 0 := by decide
-  rw [this, Nat.zero_mul, Nat.add_zero] at hmulsub_raw
+  rw [word_toNat_0, Nat.zero_mul, Nat.add_zero] at hmulsub_raw
   -- Rearrange: val256 a = q.toNat * val256 b + val256 r
   have hmulsub : val256 a0 a1 a2 a3 =
       (signExtend12 (4095 : BitVec 12) : Word).toNat * val256 b0 b1 b2 b3 +
