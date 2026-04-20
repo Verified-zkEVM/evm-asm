@@ -22,7 +22,7 @@ open EvmAsm.Evm64.DivMod.AddrNorm (bv6_toNat_3 word_shl3_0)
 
 -- ============================================================================
 -- Address normalization lemmas for n=1 preloop+loop composition
--- Maps u_base(j)/q_addr(j) relative offsets to flat sp+signExtend12 offsets.
+-- Maps u_base(j)/qAddr(j) relative offsets to flat sp+signExtend12 offsets.
 -- signExtend12/<<</>> → concrete values via simp, then bv_omega.
 -- bv_addr only handles (a+k1)+k2=a+k3; these involve subtraction and shifts,
 -- so bv_omega is required. Pattern matches FullPathN2Loop.lean.
@@ -63,7 +63,7 @@ theorem n1_ub3_off4064 (sp : Word) :
 -- u_base(1)+0 = sp+se(4048), already covered by n3_ub1_off0
 -- u_base(0)+0 = sp+se(4056), already covered by n3_ub0_off0
 
--- q_addr(j) = sp + se(4088) - j<<<3
+-- qAddr(j) = sp + se(4088) - j<<<3
 theorem n1_qa3 (sp : Word) :
     sp + signExtend12 4088 - (3 : Word) <<< (3 : BitVec 6).toNat = sp + signExtend12 4064 := by
   divmod_addr
@@ -75,7 +75,7 @@ theorem n1_qa3 (sp : Word) :
 -- loopExitPostN1 at j=0: concrete address specialization
 -- ============================================================================
 
-/-- Specialize `loopExitPostN1` at `j=0`: all u_base/q_addr offsets become
+/-- Specialize `loopExitPostN1` at `j=0`: all u_base/qAddr offsets become
     flat `sp + signExtend12 K` addresses. Uses the shared u_base_off*_j0 lemmas. -/
 theorem loopExitPostN1_j0_eq (sp q_f c3 un0_f un1_f un2_f un3_f u4_f
     v0 v1 v2 v3 : Word) :

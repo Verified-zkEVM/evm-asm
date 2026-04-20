@@ -172,6 +172,26 @@ theorem toNat_ge_of_ushiftRight_63 {val : Word}
   rw [BitVec.toNat_ushiftRight, Nat.shiftRight_eq_div_pow] at hne
   have := val.isLt; omega
 
+/-- General form: `val >>> K = 0` iff `val.toNat < 2^K`. -/
+theorem ushiftRight_eq_zero_iff {val : Word} (K : Nat) :
+    val >>> K = 0 ↔ val.toNat < 2 ^ K := by
+  constructor
+  · intro hz
+    have h0 : (val >>> K).toNat = 0 := by rw [hz]; rfl
+    rw [BitVec.toNat_ushiftRight, Nat.shiftRight_eq_div_pow] at h0
+    rcases (Nat.div_eq_zero_iff).mp h0 with hc | hc
+    · exact absurd hc (by positivity)
+    · exact hc
+  · intro hlt
+    apply BitVec.eq_of_toNat_eq
+    rw [BitVec.toNat_ushiftRight, Nat.shiftRight_eq_div_pow]
+    simp [Nat.div_eq_zero_iff, hlt]
+
+/-- Contrapositive form: `val >>> K ≠ 0` iff `val.toNat ≥ 2^K`. -/
+theorem ushiftRight_ne_zero_iff {val : Word} (K : Nat) :
+    val >>> K ≠ 0 ↔ val.toNat ≥ 2 ^ K := by
+  rw [ne_eq, ushiftRight_eq_zero_iff K]; omega
+
 -- ============================================================================
 -- Backward pass: if pipeline count = 0, all stages passed and value = val
 -- ============================================================================
@@ -318,5 +338,146 @@ theorem clzResult_fst_eq_zero_iff (val : Word) :
     rw [BitVec.toNat_ushiftRight, Nat.shiftRight_eq_div_pow] at this
     have := val.isLt; omega
   · exact msb_imp_clz_zero val
+
+-- ============================================================================
+-- Pipeline invariant: val * 2^count = value.toNat (no overflow at each stage)
+-- ============================================================================
+
+/-- Generic clzStep invariant: if `K + M_s = 64`, `m.toNat = M_s`, and the
+    input count's Nat is small enough to avoid wraparound, then the shift
+    relation `val * 2^count = value.toNat` is preserved. -/
+theorem clzStep_invariant_pres (K M_s : Nat) (m : Word) (val : Word) (p : Word × Word)
+    (hinv : val.toNat * 2^p.1.toNat = p.2.toNat)
+    (hKMs : K + M_s = 64)
+    (hm_toNat : m.toNat = M_s)
+    (hp_count_bound : p.1.toNat + M_s < 2^64) :
+    val.toNat * 2^(clzStep K M_s m p).1.toNat = (clzStep K M_s m p).2.toNat := by
+  unfold clzStep
+  split
+  · -- pass case: count and value unchanged
+    exact hinv
+  · rename_i hfail
+    push Not at hfail
+    -- fail case: p.2 >>> K = 0, i.e., p.2.toNat < 2^K
+    have hp2_lt : p.2.toNat < 2^K := (ushiftRight_eq_zero_iff K).mp hfail
+    -- (p.2 <<< M_s).toNat = p.2.toNat * 2^M_s (no wrap since K + M_s = 64)
+    have hp2_shifted : (p.2 <<< M_s).toNat = p.2.toNat * 2^M_s := by
+      rw [BitVec.toNat_shiftLeft]
+      simp only [Nat.shiftLeft_eq]
+      have : p.2.toNat * 2^M_s < 2^64 := by
+        have hpos : 0 < (2 : Nat) ^ M_s := by positivity
+        have : p.2.toNat * 2^M_s < 2^K * 2^M_s :=
+          Nat.mul_lt_mul_right hpos |>.mpr hp2_lt
+        rw [← pow_add, hKMs] at this; exact this
+      exact Nat.mod_eq_of_lt this
+    -- (p.1 + m).toNat = p.1.toNat + M_s (no wrap by hp_count_bound + hm_toNat)
+    have hp1_sum : (p.1 + m).toNat = p.1.toNat + M_s := by
+      rw [BitVec.toNat_add, hm_toNat]
+      exact Nat.mod_eq_of_lt hp_count_bound
+    -- Now prove: val * 2^(p.1 + m).toNat = (p.2 <<< M_s).toNat
+    show val.toNat * 2^(p.1 + m).toNat = (p.2 <<< M_s).toNat
+    rw [hp2_shifted, hp1_sum, pow_add, ← Nat.mul_assoc, hinv]
+
+/-- Specialized: clzStep preserves the invariant AND the count is bounded
+    (for M_s ≤ 32, ensuring no overflow in any CLZ stage). -/
+theorem clzStep_invariant_and_bound (K M_s : Nat) (m : Word) (val : Word)
+    (p : Word × Word) (B_in B_out : Nat)
+    (hinv : val.toNat * 2^p.1.toNat = p.2.toNat)
+    (hcount : p.1.toNat ≤ B_in)
+    (hKMs : K + M_s = 64)
+    (hm_toNat : m.toNat = M_s)
+    (hBout : B_in + M_s = B_out)
+    (hB_lt : B_out < 2^64) :
+    val.toNat * 2^(clzStep K M_s m p).1.toNat = (clzStep K M_s m p).2.toNat ∧
+    (clzStep K M_s m p).1.toNat ≤ B_out := by
+  refine ⟨?_, ?_⟩
+  · apply clzStep_invariant_pres K M_s m val p hinv hKMs hm_toNat
+    omega
+  · -- Count bound
+    unfold clzStep
+    split
+    · show p.1.toNat ≤ B_out; omega
+    · show (p.1 + m).toNat ≤ B_out
+      rw [BitVec.toNat_add, hm_toNat, Nat.mod_eq_of_lt (by omega : p.1.toNat + M_s < 2^64)]
+      omega
+
+/-- Full pipeline invariant: after all 5 pipeline stages, the invariant
+    `val * 2^count = value` holds, and count is bounded by 62. -/
+theorem clzPipeline_invariant (val : Word) :
+    val.toNat * 2^(clzPipeline val).1.toNat = (clzPipeline val).2.toNat ∧
+    (clzPipeline val).1.toNat ≤ 62 := by
+  rw [clzPipeline_unfold]
+  -- Initial invariant: val * 2^0 = val
+  have h0 : val.toNat * 2^((0 : Word), val).1.toNat = ((0 : Word), val).2.toNat := by
+    simp
+  have hb0 : ((0 : Word), val).1.toNat ≤ 0 := by simp
+  -- Stage 0: K=32, M_s=32, m=signExtend12 32. Invariant + bound ≤ 32.
+  have h1 := clzStep_invariant_and_bound 32 32 (signExtend12 32) val _ 0 32
+    h0 hb0 (by norm_num) se_32 (by norm_num) (by norm_num)
+  -- Stage 1: K=48, M_s=16, m=signExtend12 16. Invariant + bound ≤ 48.
+  have h2 := clzStep_invariant_and_bound 48 16 (signExtend12 16) val _ 32 48
+    h1.1 h1.2 (by norm_num) se_16 (by norm_num) (by norm_num)
+  -- Stage 2: K=56, M_s=8.
+  have h3 := clzStep_invariant_and_bound 56 8 (signExtend12 8) val _ 48 56
+    h2.1 h2.2 (by norm_num) se_8 (by norm_num) (by norm_num)
+  -- Stage 3: K=60, M_s=4.
+  have h4 := clzStep_invariant_and_bound 60 4 (signExtend12 4) val _ 56 60
+    h3.1 h3.2 (by norm_num) se_4 (by norm_num) (by norm_num)
+  -- Stage 4 (final pipeline stage): K=62, M_s=2.
+  have h5 := clzStep_invariant_and_bound 62 2 (signExtend12 2) val _ 60 62
+    h4.1 h4.2 (by norm_num) se_2 (by norm_num) (by norm_num)
+  exact h5
+
+/-- CLZ top-limb bound: when `val ≠ 0`, `val.toNat < 2^(64 - clz)`. This is
+    the main consumer-facing bound that the MOD stack spec's `hb3_bound`
+    hypothesis needs. -/
+theorem clzResult_fst_top_bound (val : Word) :
+    val.toNat < 2 ^ (64 - (clzResult val).1.toNat) := by
+  obtain ⟨hinv, hcount⟩ := clzPipeline_invariant val
+  -- Value is a Word, so bounded by 2^64.
+  have hval_lt : (clzPipeline val).2.toNat < 2^64 := (clzPipeline val).2.isLt
+  rw [clzResult_fst_eq]
+  by_cases h5 : (clzPipeline val).2 >>> 63 ≠ 0
+  · -- Stage 5 passed: clzResult.1 = pipeline.1.
+    rw [if_pos h5]
+    -- From invariant: val * 2^count = value < 2^64, so val < 2^(64-count).
+    have : val.toNat * 2^(clzPipeline val).1.toNat < 2^64 := by
+      rw [hinv]; exact hval_lt
+    have hpos : 0 < 2^(clzPipeline val).1.toNat := Nat.pos_of_ne_zero (by positivity)
+    have hpow_eq : (2 : Nat)^64 = 2^(64 - (clzPipeline val).1.toNat) *
+        2^(clzPipeline val).1.toNat := by
+      rw [← pow_add, show 64 - (clzPipeline val).1.toNat + (clzPipeline val).1.toNat =
+          64 from by omega]
+    rw [hpow_eq] at this
+    exact Nat.lt_of_mul_lt_mul_right this
+  · -- Stage 5 failed: clzResult.1 = pipeline.1 + 1.
+    simp only [h5, if_false]
+    push Not at h5
+    -- value < 2^63 (from h5: value >>> 63 = 0, applying ushiftRight_eq_zero_iff).
+    have hval_lt_63 : (clzPipeline val).2.toNat < 2^63 :=
+      (ushiftRight_eq_zero_iff 63).mp h5
+    -- From invariant: val * 2^count = value < 2^63, so val < 2^(63-count).
+    have : val.toNat * 2^(clzPipeline val).1.toNat < 2^63 := by
+      rw [hinv]; exact hval_lt_63
+    have hpos : 0 < 2^(clzPipeline val).1.toNat := Nat.pos_of_ne_zero (by positivity)
+    -- Show clzPipeline.1.toNat + signExtend12 1 = pipeline.1.toNat + 1, toNat-wise.
+    have hsum_toNat :
+        ((clzPipeline val).1 + signExtend12 (1 : BitVec 12)).toNat =
+        (clzPipeline val).1.toNat + 1 := by
+      rw [BitVec.toNat_add, se_1]
+      exact Nat.mod_eq_of_lt (by omega : (clzPipeline val).1.toNat + 1 < 2^64)
+    rw [hsum_toNat]
+    -- Target: val < 2^(64 - (count + 1)) = 2^(63 - count).
+    -- We have: val * 2^count < 2^63 = 2^(63-count) * 2^count.
+    have hpow_eq : (2 : Nat)^63 = 2^(63 - (clzPipeline val).1.toNat) *
+        2^(clzPipeline val).1.toNat := by
+      rw [← pow_add, show 63 - (clzPipeline val).1.toNat + (clzPipeline val).1.toNat =
+          63 from by omega]
+    rw [hpow_eq] at this
+    have hlt : val.toNat < 2^(63 - (clzPipeline val).1.toNat) :=
+      Nat.lt_of_mul_lt_mul_right this
+    have hsub : 64 - ((clzPipeline val).1.toNat + 1) = 63 - (clzPipeline val).1.toNat := by
+      omega
+    rw [hsub]; exact hlt
 
 end EvmAsm.Evm64
