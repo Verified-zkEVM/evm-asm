@@ -598,11 +598,11 @@ theorem evm_byte_body_evmWord_spec (sp base : Word)
   have hidx_toNat : idx.toNat = i0.toNat :=
     EvmWord.toNat_eq_getLimb0_of_high_zero idx hhigh_zero
   have hresult_high1 : getLimb result 1 = 0 :=
-    byte_getLimb_high idx value (1 : Fin 4) (show (1 : Fin 4).val ≠ 0 by decide)
+    byte_getLimb_high idx value (1 : Fin 4) (by decide)
   have hresult_high2 : getLimb result 2 = 0 :=
-    byte_getLimb_high idx value (2 : Fin 4) (show (2 : Fin 4).val ≠ 0 by decide)
+    byte_getLimb_high idx value (2 : Fin 4) (by decide)
   have hresult_high3 : getLimb result 3 = 0 :=
-    byte_getLimb_high idx value (3 : Fin 4) (show (3 : Fin 4).val ≠ 0 by decide)
+    byte_getLimb_high idx value (3 : Fin 4) (by decide)
   have hresult_limb0 := byte_correct idx value hlt
   have hlimb_val : limbFromMsb.toNat = i0.toNat / 8 := by
     show (i0 >>> (3 : BitVec 6).toNat).toNat = i0.toNat / 8
