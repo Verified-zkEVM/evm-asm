@@ -225,13 +225,13 @@ theorem add_carry_chain_correct (a b : EvmWord) :
 -- ============================================================================
 
 /-- Helper: subtraction of a single limb with borrow produces the right toNat value. -/
-private theorem sub_limb_toNat {a_limb b_limb borrow : Word}
+private theorem sub_limb_toNat {aLimb bLimb borrow : Word}
     (hborrow : borrow.toNat = 0 ∨ borrow.toNat = 1) :
-    (a_limb - b_limb - borrow).toNat =
-    (a_limb.toNat + 2^64 - b_limb.toNat + 2^64 - borrow.toNat) % 2^64 := by
+    (aLimb - bLimb - borrow).toNat =
+    (aLimb.toNat + 2^64 - bLimb.toNat + 2^64 - borrow.toNat) % 2^64 := by
   simp only [BitVec.toNat_sub]
-  have ha := a_limb.isLt
-  have hb := b_limb.isLt
+  have ha := aLimb.isLt
+  have hb := bLimb.isLt
   rcases hborrow with h | h <;> simp only [h] <;> omega
 
 /-- Each limb of a - b equals the borrow-chain result at that limb position. -/

@@ -26,7 +26,7 @@ open EvmAsm.Rv64.AddrNorm (se12_32 se12_40 se12_48 se12_56)
     and the DIV/MOD-specific loopSetup/loop-body theorems swapped. -/
 theorem evm_mod_n4_preloop_max_skip_spec (sp base : Word)
     (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11_old : Word)
-    (q0 q1 q2 q3 u0_old u1_old u2_old u3_old u4_old u5 u6 u7 n_mem shiftMem jMem : Word)
+    (q0 q1 q2 q3 u0_old u1_old u2_old u3_old u4_old u5 u6 u7 nMem shiftMem jMem : Word)
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
     (hb3nz : b3 ≠ 0)
     (hshift_nz : (clzResult b3).1 ≠ 0)
@@ -47,32 +47,32 @@ theorem evm_mod_n4_preloop_max_skip_spec (sp base : Word)
        ((sp + signExtend12 4040) ↦ₘ u2_old) ** ((sp + signExtend12 4032) ↦ₘ u3_old) **
        ((sp + signExtend12 4024) ↦ₘ u4_old) **
        ((sp + signExtend12 4016) ↦ₘ u5) ** ((sp + signExtend12 4008) ↦ₘ u6) **
-       ((sp + signExtend12 4000) ↦ₘ u7) ** ((sp + signExtend12 3984) ↦ₘ n_mem) **
+       ((sp + signExtend12 4000) ↦ₘ u7) ** ((sp + signExtend12 3984) ↦ₘ nMem) **
        ((sp + signExtend12 3992) ↦ₘ shiftMem) **
        ((sp + signExtend12 3976) ↦ₘ jMem))
       (preloopMaxSkipPostN4 sp a0 a1 a2 a3 b0 b1 b2 b3) := by
   unfold isMaxTrialN4 at hbltu
   unfold isSkipBorrowN4Max at hborrow
   let shift := (clzResult b3).1
-  let anti_shift := signExtend12 (0 : BitVec 12) - shift
-  let b3' := (b3 <<< (shift.toNat % 64)) ||| (b2 >>> (anti_shift.toNat % 64))
-  let b2' := (b2 <<< (shift.toNat % 64)) ||| (b1 >>> (anti_shift.toNat % 64))
-  let b1' := (b1 <<< (shift.toNat % 64)) ||| (b0 >>> (anti_shift.toNat % 64))
+  let antiShift := signExtend12 (0 : BitVec 12) - shift
+  let b3' := (b3 <<< (shift.toNat % 64)) ||| (b2 >>> (antiShift.toNat % 64))
+  let b2' := (b2 <<< (shift.toNat % 64)) ||| (b1 >>> (antiShift.toNat % 64))
+  let b1' := (b1 <<< (shift.toNat % 64)) ||| (b0 >>> (antiShift.toNat % 64))
   let b0' := b0 <<< (shift.toNat % 64)
-  let u4 := a3 >>> (anti_shift.toNat % 64)
-  let u3 := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (anti_shift.toNat % 64))
-  let u2 := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (anti_shift.toNat % 64))
-  let u1 := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (anti_shift.toNat % 64))
+  let u4 := a3 >>> (antiShift.toNat % 64)
+  let u3 := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (antiShift.toNat % 64))
+  let u2 := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (antiShift.toNat % 64))
+  let u1 := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (antiShift.toNat % 64))
   let u0 := a0 <<< (shift.toNat % 64)
   have hPre := evm_mod_n4_to_loopSetup_spec sp base
     a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10
-    q0 q1 q2 q3 u0_old u1_old u2_old u3_old u4_old u5 u6 u7 n_mem shiftMem
+    q0 q1 q2 q3 u0_old u1_old u2_old u3_old u4_old u5 u6 u7 nMem shiftMem
     hbnz hb3nz hshift_nz
   have hPreF := cpsTriple_frameR
     ((.x11 ↦ᵣ v11_old) ** ((sp + signExtend12 3976) ↦ₘ jMem))
     (by pcFree) hPre
   have hLoop := divK_loop_body_n4_max_skip_j0_norm_modCode sp base
-    jMem (4 : Word) shift u0 (a0 >>> (anti_shift.toNat % 64)) v11_old anti_shift
+    jMem (4 : Word) shift u0 (a0 >>> (antiShift.toNat % 64)) v11_old antiShift
     b0' b1' b2' b3' u0 u1 u2 u3 u4 (0 : Word)
     hbltu hborrow
   have hLoopF := cpsTriple_frameR
@@ -106,7 +106,7 @@ theorem evm_mod_n4_preloop_max_skip_spec (sp base : Word)
     `modCode` and the MOD-specific post-loop composer. -/
 theorem evm_mod_n4_full_max_skip_spec (sp base : Word)
     (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11_old : Word)
-    (q0 q1 q2 q3 u0_old u1_old u2_old u3_old u4_old u5 u6 u7 n_mem shiftMem jMem : Word)
+    (q0 q1 q2 q3 u0_old u1_old u2_old u3_old u4_old u5 u6 u7 nMem shiftMem jMem : Word)
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
     (hb3nz : b3 ≠ 0)
     (hshift_nz : (clzResult b3).1 ≠ 0)
@@ -127,26 +127,26 @@ theorem evm_mod_n4_full_max_skip_spec (sp base : Word)
        ((sp + signExtend12 4040) ↦ₘ u2_old) ** ((sp + signExtend12 4032) ↦ₘ u3_old) **
        ((sp + signExtend12 4024) ↦ₘ u4_old) **
        ((sp + signExtend12 4016) ↦ₘ u5) ** ((sp + signExtend12 4008) ↦ₘ u6) **
-       ((sp + signExtend12 4000) ↦ₘ u7) ** ((sp + signExtend12 3984) ↦ₘ n_mem) **
+       ((sp + signExtend12 4000) ↦ₘ u7) ** ((sp + signExtend12 3984) ↦ₘ nMem) **
        ((sp + signExtend12 3992) ↦ₘ shiftMem) **
        ((sp + signExtend12 3976) ↦ₘ jMem))
       (fullModN4MaxSkipPost sp a0 a1 a2 a3 b0 b1 b2 b3) := by
   let shift := (clzResult b3).1
-  let anti_shift := signExtend12 (0 : BitVec 12) - shift
-  let b3' := (b3 <<< (shift.toNat % 64)) ||| (b2 >>> (anti_shift.toNat % 64))
-  let b2' := (b2 <<< (shift.toNat % 64)) ||| (b1 >>> (anti_shift.toNat % 64))
-  let b1' := (b1 <<< (shift.toNat % 64)) ||| (b0 >>> (anti_shift.toNat % 64))
+  let antiShift := signExtend12 (0 : BitVec 12) - shift
+  let b3' := (b3 <<< (shift.toNat % 64)) ||| (b2 >>> (antiShift.toNat % 64))
+  let b2' := (b2 <<< (shift.toNat % 64)) ||| (b1 >>> (antiShift.toNat % 64))
+  let b1' := (b1 <<< (shift.toNat % 64)) ||| (b0 >>> (antiShift.toNat % 64))
   let b0' := b0 <<< (shift.toNat % 64)
-  let u3 := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (anti_shift.toNat % 64))
-  let u2 := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (anti_shift.toNat % 64))
-  let u1 := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (anti_shift.toNat % 64))
+  let u3 := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (antiShift.toNat % 64))
+  let u2 := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (antiShift.toNat % 64))
+  let u1 := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (antiShift.toNat % 64))
   let u0 := a0 <<< (shift.toNat % 64)
-  let q_hat : Word := signExtend12 4095
-  let ms := mulsubN4 q_hat b0' b1' b2' b3' u0 u1 u2 u3
+  let qHat : Word := signExtend12 4095
+  let ms := mulsubN4 qHat b0' b1' b2' b3' u0 u1 u2 u3
   -- 1. Pre-loop + loop body: base → base+denormOff
   have hA := evm_mod_n4_preloop_max_skip_spec sp base
     a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11_old
-    q0 q1 q2 q3 u0_old u1_old u2_old u3_old u4_old u5 u6 u7 n_mem shiftMem jMem
+    q0 q1 q2 q3 u0_old u1_old u2_old u3_old u4_old u5 u6 u7 nMem shiftMem jMem
     hbnz hb3nz hshift_nz hbltu hborrow
   -- 2. Post-loop: base+denormOff → base+nopOff (modCode)
   have hB := evm_mod_preamble_denorm_epilogue_spec sp base
@@ -157,19 +157,19 @@ theorem evm_mod_n4_full_max_skip_spec (sp base : Word)
     hshift_nz
   -- Frame post-loop with remainder atoms (4 q cells, a-atoms, zeros, x1, x11)
   have hBF := cpsTriple_frameR
-    (((sp + signExtend12 4088) ↦ₘ q_hat) **
+    (((sp + signExtend12 4088) ↦ₘ qHat) **
      ((sp + signExtend12 4080) ↦ₘ (0 : Word)) **
      ((sp + signExtend12 4072) ↦ₘ (0 : Word)) **
      ((sp + signExtend12 4064) ↦ₘ (0 : Word)) **
      ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
      ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
-     ((sp + signExtend12 4024) ↦ₘ (a3 >>> (anti_shift.toNat % 64)) - ms.2.2.2.2) **
+     ((sp + signExtend12 4024) ↦ₘ (a3 >>> (antiShift.toNat % 64)) - ms.2.2.2.2) **
      ((sp + signExtend12 4016) ↦ₘ (0 : Word)) **
      ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
      ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
      (sp + signExtend12 3984 ↦ₘ (4 : Word)) **
      (sp + signExtend12 3976 ↦ₘ (0 : Word)) **
-     (.x1 ↦ᵣ signExtend12 4095) ** (.x11 ↦ᵣ q_hat))
+     (.x1 ↦ᵣ signExtend12 4095) ** (.x11 ↦ᵣ qHat))
     (by pcFree) hB
   -- 3. Compose A + B
   have hFull := cpsTriple_seq_perm_same_cr

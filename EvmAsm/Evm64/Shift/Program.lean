@@ -18,14 +18,14 @@
   Register allocation:
     x12 = EVM stack pointer
     x6  = bit_shift (0-63), preserved during limb processing
-    x7  = anti_shift = 64 - bit_shift, preserved
+    x7  = antiShift = 64 - bit_shift, preserved
     x11 = mask (0 or 0xFFFFFFFFFFFFFFFF), preserved
     x5  = temp: current limb during processing, limb_shift during dispatch
     x10 = temp: next limb during processing
 
   Program layout (90 instructions = 360 bytes):
     Phase A (9 instrs):  Check shift >= 256
-    Phase B (7 instrs):  Extract bit_shift, limb_shift, mask, anti_shift
+    Phase B (7 instrs):  Extract bit_shift, limb_shift, mask, antiShift
     Phase C (5 instrs):  Cascade dispatch on limb_shift (0-3)
     Phase D (64 instrs): 4 shift bodies (ls3 through ls0)
     Phase E (5 instrs):  Zero path (shift >= 256)
@@ -62,7 +62,7 @@ def shr_phase_b : Program :=
   single (.SLTU .x11 .x0 .x6) ;;            -- x11 = (bit_shift > 0)
   single (.SUB .x11 .x0 .x11) ;;            -- x11 = mask
   LI .x7 64 ;;                               -- x7 = 64
-  single (.SUB .x7 .x7 .x6) ;;              -- x7 = anti_shift
+  single (.SUB .x7 .x7 .x6) ;;              -- x7 = antiShift
   ADDI .x12 .x12 32                          -- pop shift word
 
 /-- Phase C: Cascade dispatch (5 instructions). -/
@@ -151,7 +151,7 @@ def evm_shr : Program :=
 
   For output limb i (with limb_shift L):
     result[i] = (value[i - L] <<< bit_shift) |
-                ((value[i - L - 1] >>> anti_shift) &&& mask)
+                ((value[i - L - 1] >>> antiShift) &&& mask)
   where undefined indices → 0.
 
   Register allocation: same as SHR.
@@ -485,7 +485,7 @@ example : runShlCheck 1024 0 0 0 0  0xFF 0 0 0  42 =
   Register allocation: same as SHR/SHL.
   Program layout: 95 instructions = 380 bytes.
     Phase A (9 instrs):  Check shift >= 256 → sign_fill path
-    Phase B (7 instrs):  Extract bit_shift, limb_shift, mask, anti_shift (reuses shr_phase_b)
+    Phase B (7 instrs):  Extract bit_shift, limb_shift, mask, antiShift (reuses shr_phase_b)
     Phase C (5 instrs):  Cascade dispatch on limb_shift (0-3)
     Phase D (67 instrs): 4 shift bodies (ls3=8, ls2=14, ls1=20, ls0=25)
     Phase E (7 instrs):  Sign-fill path (shift >= 256)
@@ -646,9 +646,9 @@ example : runSarResult 1024 1 0 0 0  0xFF 0 0 0  42 =
 -- value = [0, 0, 0, 0x8000000000000000] (= -2^255 in signed)
 -- SAR(1): result[3] = SRA(0x8000000000000000, 1) = 0xC000000000000000
 -- result[2] = (0>>>1) | ((0x8000000000000000 <<< 63) & mask) = 0
--- Actually anti_shift = 63, value[3] <<< 63 = 0x8000000000000000 <<< 63 = 0
+-- Actually antiShift = 63, value[3] <<< 63 = 0x8000000000000000 <<< 63 = 0
 -- Hmm, let me think more carefully...
--- bit_shift=1, anti_shift=63
+-- bit_shift=1, antiShift=63
 -- merge(16,24,16): SRL value[2] by 1 | (SLL value[3] by 63) & mask
 -- value[2]=0, value[3]=0x8000000000000000
 -- SRL 0 by 1 = 0, SLL 0x8000000000000000 by 63 = 0 (bit 63 shifted out)

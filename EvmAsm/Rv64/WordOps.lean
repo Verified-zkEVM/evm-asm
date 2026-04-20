@@ -46,39 +46,39 @@ LWU reads a 32-bit word from memory at a 4-byte aligned address and zero-extends
 
 theorem generic_lwu_spec (rd rs1 : Reg) (v_addr v_old : Word)
     (offset : BitVec 12) (base : Word)
-    (dwordAddr : Word) (word_val : Word)
+    (dwordAddr : Word) (wordVal : Word)
     (hrd_ne_x0 : rd ≠ .x0)
     (halign : alignToDword (v_addr + signExtend12 offset) = dwordAddr)
     (hvalid : isValidMemAccess (v_addr + signExtend12 offset) = true) :
     cpsTriple base (base + 4)
       (CodeReq.singleton base (.LWU rd rs1 offset))
-      ((rs1 ↦ᵣ v_addr) ** (rd ↦ᵣ v_old) ** (dwordAddr ↦ₘ word_val))
+      ((rs1 ↦ᵣ v_addr) ** (rd ↦ᵣ v_old) ** (dwordAddr ↦ₘ wordVal))
       ((rs1 ↦ᵣ v_addr) **
-       (rd ↦ᵣ (extractWord32 word_val ((byteOffset (v_addr + signExtend12 offset)) / 4)).zeroExtend 64) **
-       (dwordAddr ↦ₘ word_val)) := by
+       (rd ↦ᵣ (extractWord32 wordVal ((byteOffset (v_addr + signExtend12 offset)) / 4)).zeroExtend 64) **
+       (dwordAddr ↦ₘ wordVal)) := by
   intro R hR s hcr hPR hpc; subst hpc
   have hfetch : s.code s.pc = some (.LWU rd rs1 offset) :=
     (CodeReq.singleton_satisfiedBy s.pc (.LWU rd rs1 offset) s).mp hcr
   have hrs1 : s.getReg rs1 = v_addr :=
     (holdsFor_regIs _ _ s).mp (holdsFor_sepConj_elim_left
       (holdsFor_sepConj_elim_left hPR))
-  have hmem : s.getMem dwordAddr = word_val :=
+  have hmem : s.getMem dwordAddr = wordVal :=
     holdsFor_memIs_getMem (holdsFor_sepConj_elim_right (holdsFor_sepConj_elim_right
       (holdsFor_sepConj_elim_left hPR)))
   have hstep' : step s = some (execInstrBr s (.LWU rd rs1 offset)) :=
     step_lwu s rd rs1 offset hfetch (hrs1 ▸ hvalid)
   have hexec' : execInstrBr s (.LWU rd rs1 offset) =
-      (s.setReg rd ((extractWord32 word_val ((byteOffset (v_addr + signExtend12 offset)) / 4)).zeroExtend 64)).setPC (s.pc + 4) := by
+      (s.setReg rd ((extractWord32 wordVal ((byteOffset (v_addr + signExtend12 offset)) / 4)).zeroExtend 64)).setPC (s.pc + 4) := by
     simp only [execInstrBr, hrs1, getWord32_eq]; rw [halign, hmem]
   refine ⟨1,
-    (s.setReg rd ((extractWord32 word_val ((byteOffset (v_addr + signExtend12 offset)) / 4)).zeroExtend 64)).setPC (s.pc + 4),
+    (s.setReg rd ((extractWord32 wordVal ((byteOffset (v_addr + signExtend12 offset)) / 4)).zeroExtend 64)).setPC (s.pc + 4),
     ?_, rfl, ?_⟩
   · show (step s).bind (stepN 0) = some _
     rw [hstep', hexec']; rfl
   · have h1 := holdsFor_sepConj_pull_second.mp hPR
     have h1a := holdsFor_sepConj_assoc.mp h1
     have h2 := holdsFor_sepConj_regIs_setReg
-      (v' := (extractWord32 word_val ((byteOffset (v_addr + signExtend12 offset)) / 4)).zeroExtend 64)
+      (v' := (extractWord32 wordVal ((byteOffset (v_addr + signExtend12 offset)) / 4)).zeroExtend 64)
       hrd_ne_x0 h1a
     have h3 := holdsFor_sepConj_assoc.mpr h2
     have h4 := holdsFor_sepConj_pull_second.mpr h3
@@ -90,39 +90,39 @@ LW reads a 32-bit word from memory at a 4-byte aligned address and sign-extends 
 
 theorem generic_lw_spec (rd rs1 : Reg) (v_addr v_old : Word)
     (offset : BitVec 12) (base : Word)
-    (dwordAddr : Word) (word_val : Word)
+    (dwordAddr : Word) (wordVal : Word)
     (hrd_ne_x0 : rd ≠ .x0)
     (halign : alignToDword (v_addr + signExtend12 offset) = dwordAddr)
     (hvalid : isValidMemAccess (v_addr + signExtend12 offset) = true) :
     cpsTriple base (base + 4)
       (CodeReq.singleton base (.LW rd rs1 offset))
-      ((rs1 ↦ᵣ v_addr) ** (rd ↦ᵣ v_old) ** (dwordAddr ↦ₘ word_val))
+      ((rs1 ↦ᵣ v_addr) ** (rd ↦ᵣ v_old) ** (dwordAddr ↦ₘ wordVal))
       ((rs1 ↦ᵣ v_addr) **
-       (rd ↦ᵣ (extractWord32 word_val ((byteOffset (v_addr + signExtend12 offset)) / 4)).signExtend 64) **
-       (dwordAddr ↦ₘ word_val)) := by
+       (rd ↦ᵣ (extractWord32 wordVal ((byteOffset (v_addr + signExtend12 offset)) / 4)).signExtend 64) **
+       (dwordAddr ↦ₘ wordVal)) := by
   intro R hR s hcr hPR hpc; subst hpc
   have hfetch : s.code s.pc = some (.LW rd rs1 offset) :=
     (CodeReq.singleton_satisfiedBy s.pc (.LW rd rs1 offset) s).mp hcr
   have hrs1 : s.getReg rs1 = v_addr :=
     (holdsFor_regIs _ _ s).mp (holdsFor_sepConj_elim_left
       (holdsFor_sepConj_elim_left hPR))
-  have hmem : s.getMem dwordAddr = word_val :=
+  have hmem : s.getMem dwordAddr = wordVal :=
     holdsFor_memIs_getMem (holdsFor_sepConj_elim_right (holdsFor_sepConj_elim_right
       (holdsFor_sepConj_elim_left hPR)))
   have hstep' : step s = some (execInstrBr s (.LW rd rs1 offset)) :=
     step_lw s rd rs1 offset hfetch (hrs1 ▸ hvalid)
   have hexec' : execInstrBr s (.LW rd rs1 offset) =
-      (s.setReg rd ((extractWord32 word_val ((byteOffset (v_addr + signExtend12 offset)) / 4)).signExtend 64)).setPC (s.pc + 4) := by
+      (s.setReg rd ((extractWord32 wordVal ((byteOffset (v_addr + signExtend12 offset)) / 4)).signExtend 64)).setPC (s.pc + 4) := by
     simp only [execInstrBr, hrs1, getWord32_eq]; rw [halign, hmem]
   refine ⟨1,
-    (s.setReg rd ((extractWord32 word_val ((byteOffset (v_addr + signExtend12 offset)) / 4)).signExtend 64)).setPC (s.pc + 4),
+    (s.setReg rd ((extractWord32 wordVal ((byteOffset (v_addr + signExtend12 offset)) / 4)).signExtend 64)).setPC (s.pc + 4),
     ?_, rfl, ?_⟩
   · show (step s).bind (stepN 0) = some _
     rw [hstep', hexec']; rfl
   · have h1 := holdsFor_sepConj_pull_second.mp hPR
     have h1a := holdsFor_sepConj_assoc.mp h1
     have h2 := holdsFor_sepConj_regIs_setReg
-      (v' := (extractWord32 word_val ((byteOffset (v_addr + signExtend12 offset)) / 4)).signExtend 64)
+      (v' := (extractWord32 wordVal ((byteOffset (v_addr + signExtend12 offset)) / 4)).signExtend 64)
       hrd_ne_x0 h1a
     have h3 := holdsFor_sepConj_assoc.mpr h2
     have h4 := holdsFor_sepConj_pull_second.mpr h3

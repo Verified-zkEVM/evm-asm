@@ -689,32 +689,32 @@ namespace EvmAsm.Rv64
 
 @[spec_gen_rv64] theorem lbu_spec_gen (rd rs1 : Reg) (v_addr v_old : Word)
     (offset : BitVec 12) (addr : Word)
-    (dwordAddr : Word) (word_val : Word)
+    (dwordAddr : Word) (wordVal : Word)
     (hrd_ne_x0 : rd ≠ .x0)
     (halign : alignToDword (v_addr + signExtend12 offset) = dwordAddr)
     (hvalid : isValidByteAccess (v_addr + signExtend12 offset) = true) :
     cpsTriple addr (addr + 4)
       (CodeReq.singleton addr (.LBU rd rs1 offset))
-      ((rs1 ↦ᵣ v_addr) ** (rd ↦ᵣ v_old) ** (dwordAddr ↦ₘ word_val))
+      ((rs1 ↦ᵣ v_addr) ** (rd ↦ᵣ v_old) ** (dwordAddr ↦ₘ wordVal))
       ((rs1 ↦ᵣ v_addr) **
-       (rd ↦ᵣ (extractByte word_val (byteOffset (v_addr + signExtend12 offset))).zeroExtend 64) **
-       (dwordAddr ↦ₘ word_val)) :=
-  generic_lbu_spec rd rs1 v_addr v_old offset addr dwordAddr word_val
+       (rd ↦ᵣ (extractByte wordVal (byteOffset (v_addr + signExtend12 offset))).zeroExtend 64) **
+       (dwordAddr ↦ₘ wordVal)) :=
+  generic_lbu_spec rd rs1 v_addr v_old offset addr dwordAddr wordVal
     hrd_ne_x0 halign hvalid
 
 @[spec_gen_rv64] theorem lb_spec_gen (rd rs1 : Reg) (v_addr v_old : Word)
     (offset : BitVec 12) (addr : Word)
-    (dwordAddr : Word) (word_val : Word)
+    (dwordAddr : Word) (wordVal : Word)
     (hrd_ne_x0 : rd ≠ .x0)
     (halign : alignToDword (v_addr + signExtend12 offset) = dwordAddr)
     (hvalid : isValidByteAccess (v_addr + signExtend12 offset) = true) :
     cpsTriple addr (addr + 4)
       (CodeReq.singleton addr (.LB rd rs1 offset))
-      ((rs1 ↦ᵣ v_addr) ** (rd ↦ᵣ v_old) ** (dwordAddr ↦ₘ word_val))
+      ((rs1 ↦ᵣ v_addr) ** (rd ↦ᵣ v_old) ** (dwordAddr ↦ₘ wordVal))
       ((rs1 ↦ᵣ v_addr) **
-       (rd ↦ᵣ (extractByte word_val (byteOffset (v_addr + signExtend12 offset))).signExtend 64) **
-       (dwordAddr ↦ₘ word_val)) :=
-  generic_lb_spec rd rs1 v_addr v_old offset addr dwordAddr word_val
+       (rd ↦ᵣ (extractByte wordVal (byteOffset (v_addr + signExtend12 offset))).signExtend 64) **
+       (dwordAddr ↦ₘ wordVal)) :=
+  generic_lb_spec rd rs1 v_addr v_old offset addr dwordAddr wordVal
     hrd_ne_x0 halign hvalid
 
 @[spec_gen_rv64] theorem sb_spec_gen (rs1 rs2 : Reg) (v_addr v_data : Word)
@@ -812,32 +812,32 @@ namespace EvmAsm.Rv64
 
 @[spec_gen_rv64] theorem lhu_spec_gen (rd rs1 : Reg) (v_addr v_old : Word)
     (offset : BitVec 12) (addr : Word)
-    (dwordAddr : Word) (word_val : Word)
+    (dwordAddr : Word) (wordVal : Word)
     (hrd_ne_x0 : rd ≠ .x0)
     (halign : alignToDword (v_addr + signExtend12 offset) = dwordAddr)
     (hvalid : isValidHalfwordAccess (v_addr + signExtend12 offset) = true) :
     cpsTriple addr (addr + 4)
       (CodeReq.singleton addr (.LHU rd rs1 offset))
-      ((rs1 ↦ᵣ v_addr) ** (rd ↦ᵣ v_old) ** (dwordAddr ↦ₘ word_val))
+      ((rs1 ↦ᵣ v_addr) ** (rd ↦ᵣ v_old) ** (dwordAddr ↦ₘ wordVal))
       ((rs1 ↦ᵣ v_addr) **
-       (rd ↦ᵣ (extractHalfword word_val ((byteOffset (v_addr + signExtend12 offset)) / 2)).zeroExtend 64) **
-       (dwordAddr ↦ₘ word_val)) :=
-  generic_lhu_spec rd rs1 v_addr v_old offset addr dwordAddr word_val
+       (rd ↦ᵣ (extractHalfword wordVal ((byteOffset (v_addr + signExtend12 offset)) / 2)).zeroExtend 64) **
+       (dwordAddr ↦ₘ wordVal)) :=
+  generic_lhu_spec rd rs1 v_addr v_old offset addr dwordAddr wordVal
     hrd_ne_x0 halign hvalid
 
 @[spec_gen_rv64] theorem lh_spec_gen (rd rs1 : Reg) (v_addr v_old : Word)
     (offset : BitVec 12) (addr : Word)
-    (dwordAddr : Word) (word_val : Word)
+    (dwordAddr : Word) (wordVal : Word)
     (hrd_ne_x0 : rd ≠ .x0)
     (halign : alignToDword (v_addr + signExtend12 offset) = dwordAddr)
     (hvalid : isValidHalfwordAccess (v_addr + signExtend12 offset) = true) :
     cpsTriple addr (addr + 4)
       (CodeReq.singleton addr (.LH rd rs1 offset))
-      ((rs1 ↦ᵣ v_addr) ** (rd ↦ᵣ v_old) ** (dwordAddr ↦ₘ word_val))
+      ((rs1 ↦ᵣ v_addr) ** (rd ↦ᵣ v_old) ** (dwordAddr ↦ₘ wordVal))
       ((rs1 ↦ᵣ v_addr) **
-       (rd ↦ᵣ (extractHalfword word_val ((byteOffset (v_addr + signExtend12 offset)) / 2)).signExtend 64) **
-       (dwordAddr ↦ₘ word_val)) :=
-  generic_lh_spec rd rs1 v_addr v_old offset addr dwordAddr word_val
+       (rd ↦ᵣ (extractHalfword wordVal ((byteOffset (v_addr + signExtend12 offset)) / 2)).signExtend 64) **
+       (dwordAddr ↦ₘ wordVal)) :=
+  generic_lh_spec rd rs1 v_addr v_old offset addr dwordAddr wordVal
     hrd_ne_x0 halign hvalid
 
 @[spec_gen_rv64] theorem sh_spec_gen (rs1 rs2 : Reg) (v_addr v_data : Word)
@@ -859,32 +859,32 @@ namespace EvmAsm.Rv64
 
 @[spec_gen_rv64] theorem lwu_spec_gen (rd rs1 : Reg) (v_addr v_old : Word)
     (offset : BitVec 12) (addr : Word)
-    (dwordAddr : Word) (word_val : Word)
+    (dwordAddr : Word) (wordVal : Word)
     (hrd_ne_x0 : rd ≠ .x0)
     (halign : alignToDword (v_addr + signExtend12 offset) = dwordAddr)
     (hvalid : isValidMemAccess (v_addr + signExtend12 offset) = true) :
     cpsTriple addr (addr + 4)
       (CodeReq.singleton addr (.LWU rd rs1 offset))
-      ((rs1 ↦ᵣ v_addr) ** (rd ↦ᵣ v_old) ** (dwordAddr ↦ₘ word_val))
+      ((rs1 ↦ᵣ v_addr) ** (rd ↦ᵣ v_old) ** (dwordAddr ↦ₘ wordVal))
       ((rs1 ↦ᵣ v_addr) **
-       (rd ↦ᵣ (extractWord32 word_val ((byteOffset (v_addr + signExtend12 offset)) / 4)).zeroExtend 64) **
-       (dwordAddr ↦ₘ word_val)) :=
-  generic_lwu_spec rd rs1 v_addr v_old offset addr dwordAddr word_val
+       (rd ↦ᵣ (extractWord32 wordVal ((byteOffset (v_addr + signExtend12 offset)) / 4)).zeroExtend 64) **
+       (dwordAddr ↦ₘ wordVal)) :=
+  generic_lwu_spec rd rs1 v_addr v_old offset addr dwordAddr wordVal
     hrd_ne_x0 halign hvalid
 
 @[spec_gen_rv64] theorem lw_spec_gen (rd rs1 : Reg) (v_addr v_old : Word)
     (offset : BitVec 12) (addr : Word)
-    (dwordAddr : Word) (word_val : Word)
+    (dwordAddr : Word) (wordVal : Word)
     (hrd_ne_x0 : rd ≠ .x0)
     (halign : alignToDword (v_addr + signExtend12 offset) = dwordAddr)
     (hvalid : isValidMemAccess (v_addr + signExtend12 offset) = true) :
     cpsTriple addr (addr + 4)
       (CodeReq.singleton addr (.LW rd rs1 offset))
-      ((rs1 ↦ᵣ v_addr) ** (rd ↦ᵣ v_old) ** (dwordAddr ↦ₘ word_val))
+      ((rs1 ↦ᵣ v_addr) ** (rd ↦ᵣ v_old) ** (dwordAddr ↦ₘ wordVal))
       ((rs1 ↦ᵣ v_addr) **
-       (rd ↦ᵣ (extractWord32 word_val ((byteOffset (v_addr + signExtend12 offset)) / 4)).signExtend 64) **
-       (dwordAddr ↦ₘ word_val)) :=
-  generic_lw_spec rd rs1 v_addr v_old offset addr dwordAddr word_val
+       (rd ↦ᵣ (extractWord32 wordVal ((byteOffset (v_addr + signExtend12 offset)) / 4)).signExtend 64) **
+       (dwordAddr ↦ₘ wordVal)) :=
+  generic_lw_spec rd rs1 v_addr v_old offset addr dwordAddr wordVal
     hrd_ne_x0 halign hvalid
 
 @[spec_gen_rv64] theorem sw_spec_gen (rs1 rs2 : Reg) (v_addr v_data : Word)

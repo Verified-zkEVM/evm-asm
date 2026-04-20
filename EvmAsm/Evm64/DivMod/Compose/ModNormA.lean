@@ -34,23 +34,23 @@ private theorem divK_normA_code_sub_modCode (base : Word) :
 /-- Full NormA for modCode: normalize dividend a[0..3] -> u[0..4] and jump to loopSetup.
     base+312 -> base+432 (21 instructions including JAL).
     MOD mirror of divK_normA_full_spec. -/
-theorem mod_normA_full_spec (sp a0 a1 a2 a3 v5 v7 v10 shift anti_shift : Word)
+theorem mod_normA_full_spec (sp a0 a1 a2 a3 v5 v7 v10 shift antiShift : Word)
     (u0_old u1_old u2_old u3_old u4_old : Word) (base : Word) :
-    let u4 := a3 >>> (anti_shift.toNat % 64)
-    let u3 := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (anti_shift.toNat % 64))
-    let u2 := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (anti_shift.toNat % 64))
-    let u1 := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (anti_shift.toNat % 64))
+    let u4 := a3 >>> (antiShift.toNat % 64)
+    let u3 := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (antiShift.toNat % 64))
+    let u2 := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (antiShift.toNat % 64))
+    let u1 := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (antiShift.toNat % 64))
     let u0 := a0 <<< (shift.toNat % 64)
     cpsTriple (base + normAOff) (base + loopSetupOff) (modCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x7 ↦ᵣ v7) ** (.x10 ↦ᵣ v10) **
-       (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ anti_shift) **
+       (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ antiShift) **
        ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
        ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
        ((sp + signExtend12 4024) ↦ₘ u4_old) ** ((sp + signExtend12 4032) ↦ₘ u3_old) **
        ((sp + signExtend12 4040) ↦ₘ u2_old) ** ((sp + signExtend12 4048) ↦ₘ u1_old) **
        ((sp + signExtend12 4056) ↦ₘ u0_old))
-      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ u1) ** (.x7 ↦ᵣ u0) ** (.x10 ↦ᵣ (a0 >>> (anti_shift.toNat % 64))) **
-       (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ anti_shift) **
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ u1) ** (.x7 ↦ᵣ u0) ** (.x10 ↦ᵣ (a0 >>> (antiShift.toNat % 64))) **
+       (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ antiShift) **
        ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
        ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
        ((sp + signExtend12 4024) ↦ₘ u4) ** ((sp + signExtend12 4032) ↦ₘ u3) **
@@ -58,7 +58,7 @@ theorem mod_normA_full_spec (sp a0 a1 a2 a3 v5 v7 v10 shift anti_shift : Word)
        ((sp + signExtend12 4056) ↦ₘ u0)) := by
   intro u4 u3 u2 u1 u0
   -- Top: LD a[3], SRL->u[4], SD u[4] (base+312 -> base+324)
-  have htop := divK_normA_top_spec 24 4024 sp a3 v5 v7 anti_shift u4_old (base + normAOff)
+  have htop := divK_normA_top_spec 24 4024 sp a3 v5 v7 antiShift u4_old (base + normAOff)
   simp only [signExtend12_24] at htop
   rw [show (base + normAOff : Word) + 12 = base + 324 from by bv_addr] at htop
   have htope := cpsTriple_extend_code (hmono := fun a i h =>
@@ -75,7 +75,7 @@ theorem mod_normA_full_spec (sp a0 a1 a2 a3 v5 v7 v10 shift anti_shift : Word)
      ((sp + signExtend12 4056) ↦ₘ u0_old))
     (by pcFree) htope
   -- MergeA 1: u[3] = (a[3]<<<shift) | (a[2]>>>anti) (base+324 -> base+344)
-  have hma1 := divK_normA_mergeA_spec 16 4032 sp a3 a2 u4 v10 shift anti_shift u3_old (base + 324)
+  have hma1 := divK_normA_mergeA_spec 16 4032 sp a3 a2 u4 v10 shift antiShift u3_old (base + 324)
   simp only [signExtend12_16] at hma1
   rw [show (base + 324 : Word) + 20 = base + 344 from by bv_addr] at hma1
   have hma1e := cpsTriple_extend_code (hmono := fun a i h =>
@@ -92,8 +92,8 @@ theorem mod_normA_full_spec (sp a0 a1 a2 a3 v5 v7 v10 shift anti_shift : Word)
   have h12 := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) htopef hma1ef
   -- MergeB: u[2] = (a[2]<<<shift) | (a[1]>>>anti) (base+344 -> base+364)
-  have hmb := divK_normA_mergeB_spec 8 4040 sp a2 a1 u3 (a2 >>> (anti_shift.toNat % 64))
-    shift anti_shift u2_old (base + 344)
+  have hmb := divK_normA_mergeB_spec 8 4040 sp a2 a1 u3 (a2 >>> (antiShift.toNat % 64))
+    shift antiShift u2_old (base + 344)
   simp only [signExtend12_8] at hmb
   rw [show (base + 344 : Word) + 20 = base + 364 from by bv_addr] at hmb
   have hmbe := cpsTriple_extend_code (hmono := fun a i h =>
@@ -109,8 +109,8 @@ theorem mod_normA_full_spec (sp a0 a1 a2 a3 v5 v7 v10 shift anti_shift : Word)
   have h123 := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h12 hmbef
   -- MergeA 2: u[1] = (a[1]<<<shift) | (a[0]>>>anti) (base+364 -> base+384)
-  have hma2 := divK_normA_mergeA_spec 0 4048 sp a1 a0 u2 (a1 >>> (anti_shift.toNat % 64))
-    shift anti_shift u1_old (base + 364)
+  have hma2 := divK_normA_mergeA_spec 0 4048 sp a1 a0 u2 (a1 >>> (antiShift.toNat % 64))
+    shift antiShift u1_old (base + 364)
   simp only [signExtend12_0] at hma2
   rw [show (base + 364 : Word) + 20 = base + 384 from by bv_addr] at hma2
   have hma2e := cpsTriple_extend_code (hmono := fun a i h =>
@@ -134,7 +134,7 @@ theorem mod_normA_full_spec (sp a0 a1 a2 a3 v5 v7 v10 shift anti_shift : Word)
         (divK_normA_last_prog 4056) 18
         (by bv_addr) (by decide) (by decide) (by decide) a i h)) hlast
   have hlastef := cpsTriple_frameR
-    ((.x5 ↦ᵣ u1) ** (.x10 ↦ᵣ (a0 >>> (anti_shift.toNat % 64))) ** (.x2 ↦ᵣ anti_shift) **
+    ((.x5 ↦ᵣ u1) ** (.x10 ↦ᵣ (a0 >>> (antiShift.toNat % 64))) ** (.x2 ↦ᵣ antiShift) **
      ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
      ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
      ((sp + signExtend12 4024) ↦ₘ u4) ** ((sp + signExtend12 4032) ↦ₘ u3) **
@@ -157,8 +157,8 @@ theorem mod_normA_full_spec (sp a0 a1 a2 a3 v5 v7 v10 shift anti_shift : Word)
         exact hlookup) a i h)) hjal
   -- Frame JAL with everything, then strip empAssertion via consequence
   let postAll := (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ u1) ** (.x7 ↦ᵣ u0) **
-    (.x10 ↦ᵣ (a0 >>> (anti_shift.toNat % 64))) **
-    (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ anti_shift) **
+    (.x10 ↦ᵣ (a0 >>> (antiShift.toNat % 64))) **
+    (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ antiShift) **
     ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
     ((sp + signExtend12 4024) ↦ₘ u4) ** ((sp + signExtend12 4032) ↦ₘ u3) **
     ((sp + signExtend12 4040) ↦ₘ u2) ** ((sp + signExtend12 4048) ↦ₘ u1) **

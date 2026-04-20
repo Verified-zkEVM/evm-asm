@@ -55,22 +55,22 @@ example (back : BitVec 13) :
     fall-through exit). -/
 @[irreducible]
 def rlp_phase2_long_loop_body_post
-    (len ptr cnt byteZext word_val dwordAddr : Word) (P : Prop) : Assertion :=
+    (len ptr cnt byteZext wordVal dwordAddr : Word) (P : Prop) : Assertion :=
   let length' := (len <<< 8) + byteZext
   let ptr'    := ptr + 1
   let cnt'    := cnt + signExtend12 (-1 : BitVec 12)
   (.x11 ↦ᵣ length') ** (.x13 ↦ᵣ ptr') ** (.x14 ↦ᵣ cnt') **
     (.x12 ↦ᵣ byteZext) ** (.x0 ↦ᵣ (0 : Word)) **
-    (dwordAddr ↦ₘ word_val) ** ⌜P⌝
+    (dwordAddr ↦ₘ wordVal) ** ⌜P⌝
 
 theorem rlp_phase2_long_loop_body_post_unfold
-    (len ptr cnt byteZext word_val dwordAddr : Word) (P : Prop) :
-    rlp_phase2_long_loop_body_post len ptr cnt byteZext word_val dwordAddr P =
+    (len ptr cnt byteZext wordVal dwordAddr : Word) (P : Prop) :
+    rlp_phase2_long_loop_body_post len ptr cnt byteZext wordVal dwordAddr P =
     ((.x11 ↦ᵣ ((len <<< 8) + byteZext)) **
      (.x13 ↦ᵣ (ptr + 1)) **
      (.x14 ↦ᵣ (cnt + signExtend12 (-1 : BitVec 12))) **
      (.x12 ↦ᵣ byteZext) ** (.x0 ↦ᵣ (0 : Word)) **
-     (dwordAddr ↦ₘ word_val) ** ⌜P⌝) := by
+     (dwordAddr ↦ₘ wordVal) ** ⌜P⌝) := by
   delta rlp_phase2_long_loop_body_post; rfl
 
 /-- `cpsBranch` spec for one pass through the long-form length-loop body.
@@ -80,21 +80,21 @@ theorem rlp_phase2_long_loop_body_post_unfold
     (`cnt' ≠ 0` on taken, `cnt' = 0` on fall-through) flows directly from
     BNE's postcondition. -/
 theorem rlp_phase2_long_loop_body_spec
-    (len ptr cnt v12_old word_val dwordAddr : Word)
+    (len ptr cnt v12_old wordVal dwordAddr : Word)
     (base : Word) (back : BitVec 13)
     (halign : alignToDword ptr = dwordAddr)
     (hvalid : isValidByteAccess ptr = true) :
-    let byteZext := (extractByte word_val (byteOffset ptr)).zeroExtend 64
+    let byteZext := (extractByte wordVal (byteOffset ptr)).zeroExtend 64
     let cnt'      := cnt + signExtend12 (-1 : BitVec 12)
     cpsBranch base (CodeReq.ofProg base (rlp_phase2_long_loop_body_prog back))
       ((.x11 ↦ᵣ len) ** (.x13 ↦ᵣ ptr) ** (.x14 ↦ᵣ cnt) **
        (.x12 ↦ᵣ v12_old) ** (.x0 ↦ᵣ (0 : Word)) **
-       (dwordAddr ↦ₘ word_val))
+       (dwordAddr ↦ₘ wordVal))
       ((base + 20) + signExtend13 back)
-        (rlp_phase2_long_loop_body_post len ptr cnt byteZext word_val
+        (rlp_phase2_long_loop_body_post len ptr cnt byteZext wordVal
            dwordAddr (cnt' ≠ 0))
       (base + 24)
-        (rlp_phase2_long_loop_body_post len ptr cnt byteZext word_val
+        (rlp_phase2_long_loop_body_post len ptr cnt byteZext wordVal
            dwordAddr (cnt' = 0)) := by
   -- The loop-body `ofProg` splits as `ofProg base iter_prog ∪ ofProg (base+20) [BNE]`
   -- via `ofProg_append`; the tail is one singleton plus an `empty`.
@@ -131,21 +131,21 @@ theorem rlp_phase2_long_loop_body_spec
   rw [hcr_eq]
   simp only [rlp_phase2_long_loop_body_post_unfold]
   -- Get iter_spec (5 instructions base → base+20).
-  have iter := rlp_phase2_long_iter_spec len ptr cnt v12_old word_val dwordAddr
+  have iter := rlp_phase2_long_iter_spec len ptr cnt v12_old wordVal dwordAddr
     base halign hvalid
   simp only [rlp_phase2_long_iter_post_unfold] at iter
-  set byteZext := (extractByte word_val (byteOffset ptr)).zeroExtend 64
+  set byteZext := (extractByte wordVal (byteOffset ptr)).zeroExtend 64
   set cnt' := cnt + signExtend12 (-1 : BitVec 12)
   -- Frame iter with (.x0 ↦ᵣ 0) so the composition state matches bne's.
   have iter' : cpsTriple base (base + 20)
       (CodeReq.ofProg base rlp_phase2_long_iter_prog)
       ((.x11 ↦ᵣ len) ** (.x13 ↦ᵣ ptr) ** (.x14 ↦ᵣ cnt) **
        (.x12 ↦ᵣ v12_old) ** (.x0 ↦ᵣ (0 : Word)) **
-       (dwordAddr ↦ₘ word_val))
+       (dwordAddr ↦ₘ wordVal))
       ((.x11 ↦ᵣ ((len <<< 8) + byteZext)) **
        (.x13 ↦ᵣ (ptr + 1)) ** (.x14 ↦ᵣ cnt') **
        (.x12 ↦ᵣ byteZext) ** (.x0 ↦ᵣ (0 : Word)) **
-       (dwordAddr ↦ₘ word_val)) :=
+       (dwordAddr ↦ₘ wordVal)) :=
     cpsTriple_weaken
       (fun h hp => by xperm_hyp hp)
       (fun h hp => by xperm_hyp hp)
@@ -159,17 +159,17 @@ theorem rlp_phase2_long_loop_body_spec
       ((.x11 ↦ᵣ ((len <<< 8) + byteZext)) **
        (.x13 ↦ᵣ (ptr + 1)) ** (.x14 ↦ᵣ cnt') **
        (.x12 ↦ᵣ byteZext) ** (.x0 ↦ᵣ (0 : Word)) **
-       (dwordAddr ↦ₘ word_val))
+       (dwordAddr ↦ₘ wordVal))
       ((base + 20) + signExtend13 back)
         ((.x11 ↦ᵣ ((len <<< 8) + byteZext)) **
          (.x13 ↦ᵣ (ptr + 1)) ** (.x14 ↦ᵣ cnt') **
          (.x12 ↦ᵣ byteZext) ** (.x0 ↦ᵣ (0 : Word)) **
-         (dwordAddr ↦ₘ word_val) ** ⌜cnt' ≠ 0⌝)
+         (dwordAddr ↦ₘ wordVal) ** ⌜cnt' ≠ 0⌝)
       (base + 24)
         ((.x11 ↦ᵣ ((len <<< 8) + byteZext)) **
          (.x13 ↦ᵣ (ptr + 1)) ** (.x14 ↦ᵣ cnt') **
          (.x12 ↦ᵣ byteZext) ** (.x0 ↦ᵣ (0 : Word)) **
-         (dwordAddr ↦ₘ word_val) ** ⌜cnt' = 0⌝) := by
+         (dwordAddr ↦ₘ wordVal) ** ⌜cnt' = 0⌝) := by
     have h_eq_20_4 : (base + 20 : Word) + 4 = base + 24 := by bv_omega
     rw [h_eq_20_4] at bne_raw
     exact cpsBranch_weaken
@@ -179,7 +179,7 @@ theorem rlp_phase2_long_loop_body_spec
       (cpsBranch_frameR
         ((.x11 ↦ᵣ ((len <<< 8) + byteZext)) **
          (.x13 ↦ᵣ (ptr + 1)) ** (.x12 ↦ᵣ byteZext) **
-         (dwordAddr ↦ₘ word_val)) (by pcFree) bne_raw)
+         (dwordAddr ↦ₘ wordVal)) (by pcFree) bne_raw)
   -- Disjointness between iter CR and BNE-singleton-union-empty CR.
   have hd_iter_bne : (CodeReq.ofProg base rlp_phase2_long_iter_prog).Disjoint
       ((CodeReq.singleton (base + 20) (.BNE .x14 .x0 back)).union

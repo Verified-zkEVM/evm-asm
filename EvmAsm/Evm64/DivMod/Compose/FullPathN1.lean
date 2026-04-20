@@ -24,7 +24,7 @@ open EvmAsm.Rv64
     base → base+212. CLZ on b0, x6 = shift = clzResult(b0).1. -/
 theorem evm_div_phaseAB_n1_clz_spec (sp base : Word)
     (b0 b1 b2 b3 v5 v6 v7 v10 : Word)
-    (q0 q1 q2 q3 u5 u6 u7 n_mem : Word)
+    (q0 q1 q2 q3 u5 u6 u7 nMem : Word)
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
     (hb3z : b3 = 0) (hb2z : b2 = 0) (hb1z : b1 = 0) :
     cpsTriple base (base + phaseC2Off) (divCode base)
@@ -35,7 +35,7 @@ theorem evm_div_phaseAB_n1_clz_spec (sp base : Word)
        ((sp + signExtend12 4088) ↦ₘ q0) ** ((sp + signExtend12 4080) ↦ₘ q1) **
        ((sp + signExtend12 4072) ↦ₘ q2) ** ((sp + signExtend12 4064) ↦ₘ q3) **
        ((sp + signExtend12 4016) ↦ₘ u5) ** ((sp + signExtend12 4008) ↦ₘ u6) **
-       ((sp + signExtend12 4000) ↦ₘ u7) ** ((sp + signExtend12 3984) ↦ₘ n_mem))
+       ((sp + signExtend12 4000) ↦ₘ u7) ** ((sp + signExtend12 3984) ↦ₘ nMem))
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ (clzResult b0).2) ** (.x10 ↦ᵣ b3) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ (clzResult b0).1) ** (.x7 ↦ᵣ (clzResult b0).2 >>> (63 : Nat)) **
        ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
@@ -51,11 +51,11 @@ theorem evm_div_phaseAB_n1_clz_spec (sp base : Word)
      ((sp + signExtend12 4088) ↦ₘ q0) ** ((sp + signExtend12 4080) ↦ₘ q1) **
      ((sp + signExtend12 4072) ↦ₘ q2) ** ((sp + signExtend12 4064) ↦ₘ q3) **
      ((sp + signExtend12 4016) ↦ₘ u5) ** ((sp + signExtend12 4008) ↦ₘ u6) **
-     ((sp + signExtend12 4000) ↦ₘ u7) ** ((sp + signExtend12 3984) ↦ₘ n_mem))
+     ((sp + signExtend12 4000) ↦ₘ u7) ** ((sp + signExtend12 3984) ↦ₘ nMem))
     (by pcFree) hA
   -- Phase B n=1 (includes b0 in assertion, no framing needed)
   have hB := evm_div_phaseB_n1_spec sp base b0 b1 b2 b3
-    (b0 ||| b1 ||| b2 ||| b3) v6 v7 q0 q1 q2 q3 u5 u6 u7 n_mem
+    (b0 ||| b1 ||| b2 ||| b3) v6 v7 q0 q1 q2 q3 u5 u6 u7 nMem
     hb3z hb2z hb1z
   have hAB := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hAf hB
@@ -85,7 +85,7 @@ theorem evm_div_phaseAB_n1_clz_spec (sp base : Word)
     base → base+448. -/
 theorem evm_div_n1_to_loopSetup_spec (sp base : Word)
     (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 : Word)
-    (q0 q1 q2 q3 u0_old u1_old u2_old u3_old u4_old u5 u6 u7 n_mem shiftMem : Word)
+    (q0 q1 q2 q3 u0_old u1_old u2_old u3_old u4_old u5 u6 u7 nMem shiftMem : Word)
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
     (hb3z : b3 = 0) (hb2z : b2 = 0) (hb1z : b1 = 0)
     (hshift_nz : (clzResult b0).1 ≠ 0) :
@@ -103,23 +103,23 @@ theorem evm_div_n1_to_loopSetup_spec (sp base : Word)
        ((sp + signExtend12 4040) ↦ₘ u2_old) ** ((sp + signExtend12 4032) ↦ₘ u3_old) **
        ((sp + signExtend12 4024) ↦ₘ u4_old) **
        ((sp + signExtend12 4016) ↦ₘ u5) ** ((sp + signExtend12 4008) ↦ₘ u6) **
-       ((sp + signExtend12 4000) ↦ₘ u7) ** ((sp + signExtend12 3984) ↦ₘ n_mem) **
+       ((sp + signExtend12 4000) ↦ₘ u7) ** ((sp + signExtend12 3984) ↦ₘ nMem) **
        ((sp + signExtend12 3992) ↦ₘ shiftMem))
       (loopSetupPost sp (1 : Word) (clzResult b0).1 a0 a1 a2 a3 b0 b1 b2 b3) := by
   let shift := (clzResult b0).1
-  let anti_shift := signExtend12 (0 : BitVec 12) - shift
-  let b3' := (b3 <<< (shift.toNat % 64)) ||| (b2 >>> (anti_shift.toNat % 64))
-  let b2' := (b2 <<< (shift.toNat % 64)) ||| (b1 >>> (anti_shift.toNat % 64))
-  let b1' := (b1 <<< (shift.toNat % 64)) ||| (b0 >>> (anti_shift.toNat % 64))
+  let antiShift := signExtend12 (0 : BitVec 12) - shift
+  let b3' := (b3 <<< (shift.toNat % 64)) ||| (b2 >>> (antiShift.toNat % 64))
+  let b2' := (b2 <<< (shift.toNat % 64)) ||| (b1 >>> (antiShift.toNat % 64))
+  let b1' := (b1 <<< (shift.toNat % 64)) ||| (b0 >>> (antiShift.toNat % 64))
   let b0' := b0 <<< (shift.toNat % 64)
-  let u4 := a3 >>> (anti_shift.toNat % 64)
-  let u3 := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (anti_shift.toNat % 64))
-  let u2 := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (anti_shift.toNat % 64))
-  let u1 := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (anti_shift.toNat % 64))
+  let u4 := a3 >>> (antiShift.toNat % 64)
+  let u3 := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (antiShift.toNat % 64))
+  let u2 := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (antiShift.toNat % 64))
+  let u1 := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (antiShift.toNat % 64))
   let u0 := a0 <<< (shift.toNat % 64)
   -- Step 1: PhaseAB(n=1) + CLZ (base → base+212)
   have hABCLZ := evm_div_phaseAB_n1_clz_spec sp base b0 b1 b2 b3 v5 v6 v7 v10
-    q0 q1 q2 q3 u5 u6 u7 n_mem hbnz hb3z hb2z hb1z
+    q0 q1 q2 q3 u5 u6 u7 nMem hbnz hb3z hb2z hb1z
 
   have hABCLZf := cpsTriple_frameR
     ((.x2 ↦ᵣ (clzResult b0).2 >>> (63 : Nat)) **
@@ -155,7 +155,7 @@ theorem evm_div_n1_to_loopSetup_spec (sp base : Word)
   -- Step 3: NormB (base+228 → base+312)
   have hNB := divK_normB_full_spec sp b0 b1 b2 b3
     (clzResult b0).2 ((clzResult b0).2 >>> (63 : Nat))
-    shift anti_shift base
+    shift antiShift base
   intro_lets at hNB
   have hNBf := cpsTriple_frameR
     ((.x10 ↦ᵣ b3) ** (.x0 ↦ᵣ (0 : Word)) **
@@ -175,7 +175,7 @@ theorem evm_div_n1_to_loopSetup_spec (sp base : Word)
     (fun h hp => by xperm_hyp hp) hABC2 hNBf
   -- Step 4: NormA (base+312 → base+432)
   have hNormA := divK_normA_full_spec sp a0 a1 a2 a3
-    b0' (b0 >>> (anti_shift.toNat % 64)) b3 shift anti_shift
+    b0' (b0 >>> (antiShift.toNat % 64)) b3 shift antiShift
     u0_old u1_old u2_old u3_old u4_old base
   intro_lets at hNormA
   have hNormAf := cpsTriple_frameR
@@ -196,8 +196,8 @@ theorem evm_div_n1_to_loopSetup_spec (sp base : Word)
     (signExtend12 (4 : BitVec 12) - (4 : Word)) u1 base
     (by decide)
   have hLSf := cpsTriple_frameR
-    ((.x10 ↦ᵣ (a0 >>> (anti_shift.toNat % 64))) **
-     (.x6 ↦ᵣ shift) ** (.x7 ↦ᵣ u0) ** (.x2 ↦ᵣ anti_shift) **
+    ((.x10 ↦ᵣ (a0 >>> (antiShift.toNat % 64))) **
+     (.x6 ↦ᵣ shift) ** (.x7 ↦ᵣ u0) ** (.x2 ↦ᵣ antiShift) **
      ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
      ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
      ((sp + 32) ↦ₘ b0') ** ((sp + 40) ↦ₘ b1') **
@@ -226,7 +226,7 @@ theorem evm_div_n1_to_loopSetup_spec (sp base : Word)
     base → base+448. b[] already normalized, u[] = copy of a[]. -/
 theorem evm_div_n1_shift0_to_loopSetup_spec (sp base : Word)
     (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 : Word)
-    (q0 q1 q2 q3 u0_old u1_old u2_old u3_old u4_old u5 u6 u7 n_mem shiftMem : Word)
+    (q0 q1 q2 q3 u0_old u1_old u2_old u3_old u4_old u5 u6 u7 nMem shiftMem : Word)
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
     (hb3z : b3 = 0) (hb2z : b2 = 0) (hb1z : b1 = 0)
     (hshift_z : (clzResult b0).1 = 0) :
@@ -244,7 +244,7 @@ theorem evm_div_n1_shift0_to_loopSetup_spec (sp base : Word)
        ((sp + signExtend12 4040) ↦ₘ u2_old) ** ((sp + signExtend12 4032) ↦ₘ u3_old) **
        ((sp + signExtend12 4024) ↦ₘ u4_old) **
        ((sp + signExtend12 4016) ↦ₘ u5) ** ((sp + signExtend12 4008) ↦ₘ u6) **
-       ((sp + signExtend12 4000) ↦ₘ u7) ** ((sp + signExtend12 3984) ↦ₘ n_mem) **
+       ((sp + signExtend12 4000) ↦ₘ u7) ** ((sp + signExtend12 3984) ↦ₘ nMem) **
        ((sp + signExtend12 3992) ↦ₘ shiftMem))
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ (1 : Word)) ** (.x10 ↦ᵣ b3) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ (clzResult b0).1) ** (.x7 ↦ᵣ (clzResult b0).2 >>> (63 : Nat)) **
@@ -264,7 +264,7 @@ theorem evm_div_n1_shift0_to_loopSetup_spec (sp base : Word)
        ((sp + signExtend12 3992) ↦ₘ (clzResult b0).1)) := by
   -- Step 1: PhaseAB(n=1) + CLZ (base → base+212)
   have hABCLZ := evm_div_phaseAB_n1_clz_spec sp base b0 b1 b2 b3 v5 v6 v7 v10
-    q0 q1 q2 q3 u5 u6 u7 n_mem hbnz hb3z hb2z hb1z
+    q0 q1 q2 q3 u5 u6 u7 nMem hbnz hb3z hb2z hb1z
 
   have hABCLZf := cpsTriple_frameR
     ((.x2 ↦ᵣ (clzResult b0).2 >>> (63 : Nat)) **

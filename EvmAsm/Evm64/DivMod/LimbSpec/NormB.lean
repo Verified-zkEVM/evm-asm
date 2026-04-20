@@ -4,8 +4,8 @@
   Per-limb CPS specs for the Knuth Algorithm D normalize-b phase:
     * `divK_normB_merge_prog` / `divK_normB_merge_code` / `divK_normB_merge_spec`
       — 6-instruction merge: LD high, LD low, SLL high<<shift,
-        SRL low>>anti_shift, OR, SD high. Computes
-        `result = (high <<< shift) ||| (low >>> anti_shift)`.
+        SRL low>>antiShift, OR, SD high. Computes
+        `result = (high <<< shift) ||| (low >>> antiShift)`.
     * `divK_normB_last_prog` / `divK_normB_last_code` / `divK_normB_last_spec`
       — 3-instruction last-limb: LD, SLL, SD. Computes `val <<< shift`.
 
@@ -39,30 +39,30 @@ abbrev divK_normB_merge_code (high_off low_off : BitVec 12) (base : Word) : Code
   CodeReq.ofProg base (divK_normB_merge_prog high_off low_off)
 
 /-- NormB merge limb (6 instructions): LD high, LD low, SLL, SRL, OR, SD.
-    Computes result = (high <<< shift) ||| (low >>> anti_shift) and stores to high_off.
-    x6 = shift, x2 = anti_shift (= 64 - shift as unsigned). -/
+    Computes result = (high <<< shift) ||| (low >>> antiShift) and stores to high_off.
+    x6 = shift, x2 = antiShift (= 64 - shift as unsigned). -/
 theorem divK_normB_merge_spec (high_off low_off : BitVec 12)
-    (sp high low v5 v7 shift anti_shift : Word) (base : Word) :
+    (sp high low v5 v7 shift antiShift : Word) (base : Word) :
     let shiftedHigh := high <<< (shift.toNat % 64)
-    let shiftedLow := low >>> (anti_shift.toNat % 64)
+    let shiftedLow := low >>> (antiShift.toNat % 64)
     let result := shiftedHigh ||| shiftedLow
     let cr := divK_normB_merge_code high_off low_off base
     cpsTriple base (base + 24) cr
       (
        (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x7 ↦ᵣ v7) **
-       (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ anti_shift) **
+       (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ antiShift) **
        ((sp + signExtend12 high_off) ↦ₘ high) **
        ((sp + signExtend12 low_off) ↦ₘ low))
       (
        (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result) ** (.x7 ↦ᵣ shiftedLow) **
-       (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ anti_shift) **
+       (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ antiShift) **
        ((sp + signExtend12 high_off) ↦ₘ result) **
        ((sp + signExtend12 low_off) ↦ₘ low)) := by
   intro shiftedHigh shiftedLow result cr
   have I0 := ld_spec_gen .x5 .x12 sp v5 high high_off base (by nofun)
   have I1 := ld_spec_gen .x7 .x12 sp v7 low low_off (base + 4) (by nofun)
   have I2 := sll_spec_gen_rd_eq_rs1 .x5 .x6 high shift (base + 8) (by nofun)
-  have I3 := srl_spec_gen_rd_eq_rs1 .x7 .x2 low anti_shift (base + 12) (by nofun)
+  have I3 := srl_spec_gen_rd_eq_rs1 .x7 .x2 low antiShift (base + 12) (by nofun)
   have I4 := or_spec_gen_rd_eq_rs1 .x5 .x7 shiftedHigh shiftedLow (base + 16) (by nofun)
   have I5 := sd_spec_gen .x12 .x5 sp result high high_off (base + 20)
   runBlock I0 I1 I2 I3 I4 I5
