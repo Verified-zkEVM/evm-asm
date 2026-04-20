@@ -13,7 +13,8 @@ is intended as the single reference for anyone evaluating what EvmAsm's
 ## 1. Statements that are proved
 
 All proofs are elaborated and kernel-checked by Lean 4. The build passes with
-no `sorry` and no `admit` (enforced by CI).
+no `sorry` and no `admit` (enforced by CI via
+[`scripts/check-no-sorry.sh`](scripts/check-no-sorry.sh)).
 
 Per-opcode *stack-level* specs (`evm_<opcode>_stack_spec`) state, for each
 implemented EVM opcode:
@@ -90,9 +91,12 @@ lake build
 A successful build is the proof artifact. The build:
 
 - Compiles all declarations in `EvmAsm/` through the Lean kernel.
-- Fails if any file contains `sorry` or `admit`.
-- Fails if any deprecated tactic or kernel-unsound tactic is introduced in
-  `EvmAsm/` (enforced by the build, not by a linter).
+- Fails if any file under `EvmAsm/` contains `sorry` or `admit` outside
+  comments (enforced by [`scripts/check-no-sorry.sh`](scripts/check-no-sorry.sh)
+  in the `Build` workflow).
+- Forbids `native_decide` and `bv_decide` by policy
+  (see [`CONTRIBUTING.md`](CONTRIBUTING.md)). Enforcement is by review;
+  existing violations are scoped to the helpers documented in §2.
 
 ## 5. Reporting a soundness issue
 
