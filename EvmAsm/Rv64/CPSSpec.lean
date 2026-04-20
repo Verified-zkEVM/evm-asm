@@ -163,19 +163,6 @@ theorem cpsBranch_swap (entry : Word) (cr : CodeReq) (P : Assertion)
   obtain ⟨k, s', hstep, hbranch⟩ := h R hR s hcr hPR hpc
   exact ⟨k, s', hstep, hbranch.symm⟩
 
-/-- Extract cpsTriple from cpsBranch when the taken-branch postcondition is unsatisfiable. -/
-theorem cpsBranch_exit_absurd (entry : Word) (cr : CodeReq) (P : Assertion)
-    (exit_t : Word) (Q_t : Assertion) (exit_f : Word) (Q_f : Assertion)
-    (h : cpsBranch entry cr P exit_t Q_t exit_f Q_f)
-    (habsurd : ∀ h, Q_t h → False) :
-    cpsTriple entry exit_f cr P Q_f := by
-  intro R hR s hcr hPR hpc
-  obtain ⟨k, s', hstep, hbranch⟩ := h R hR s hcr hPR hpc
-  rcases hbranch with ⟨hpc_t, hQt⟩ | ⟨hpc_f, hQf⟩
-  · obtain ⟨_, _, h1, _, _, _, hQ1, _⟩ := hQt
-    exact absurd hQ1 (habsurd h1)
-  · exact ⟨k, s', hstep, hpc_f, hQf⟩
-
 -- ============================================================================
 -- regOwn / memOwn lifting helpers
 -- ============================================================================
