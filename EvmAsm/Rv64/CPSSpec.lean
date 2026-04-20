@@ -615,10 +615,11 @@ theorem cpsHaltTriple_weaken {entry : Word} {cr : CodeReq}
 
 /-- Sequence a `cpsTriple` followed by a `cpsHaltTriple`:
     if code reaches midpoint with Q, and from midpoint it halts with R, then
-    the composition halts with R. -/
-theorem cpsTriple_seq_halt (entry mid : Word) (cr1 cr2 : CodeReq)
+    the composition halts with R.
+    All position/code/assertion arguments are implicit — inferred from `h1`/`h2`. -/
+theorem cpsTriple_seq_halt {entry mid : Word} {cr1 cr2 : CodeReq}
     (hd : cr1.Disjoint cr2)
-    (P Q R : Assertion)
+    {P Q R : Assertion}
     (h1 : cpsTriple entry mid cr1 P Q)
     (h2 : cpsHaltTriple mid cr2 Q R) :
     cpsHaltTriple entry (cr1.union cr2) P R := by
