@@ -122,12 +122,12 @@ theorem addback_4limb_val256_with_carry
     2. addback: val256(r_ms) + val256(v) = val256(r_ab) + carry * 2^256
     3. Carry = 1 (since r_ms is close to 2^256), cancelling: val256(u) = val256(r_ab) + (q-1)*val256(v) -/
 theorem addback_correction_euclidean
-    (u_val v_val r_ms_val r_ab_val : Nat) (q_nat : Nat)
-    (h_mulsub : u_val + 2^256 = r_ms_val + q_nat * v_val)
-    (h_addback : r_ms_val + v_val = r_ab_val + 2^256)
-    (hq : 0 < q_nat) :
-    u_val = r_ab_val + (q_nat - 1) * v_val := by
-  nlinarith [mulsub_correction_eq u_val v_val r_ms_val q_nat h_mulsub hq]
+    (uVal vVal rMsVal rAbVal : Nat) (qNat : Nat)
+    (h_mulsub : uVal + 2^256 = rMsVal + qNat * vVal)
+    (h_addback : rMsVal + vVal = rAbVal + 2^256)
+    (hq : 0 < qNat) :
+    uVal = rAbVal + (qNat - 1) * vVal := by
+  nlinarith [mulsub_correction_eq uVal vVal rMsVal qNat h_mulsub hq]
 
 end EvmWord
 

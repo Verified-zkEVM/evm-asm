@@ -63,26 +63,26 @@ theorem sub_borrow_nat (a b : Word) :
 
     - `cb_3 = 0`: no underflow, `val256 r = val256 u - q * val256 v`
     - `cb_3 > 0`: underflow occurred, correction needed (add v back, decrement q) -/
-theorem mulsub_chain_nat (q_nat : Nat) (u0 u1 u2 u3 v0 v1 v2 v3 r0 r1 r2 r3 : Word)
+theorem mulsub_chain_nat (qNat : Nat) (u0 u1 u2 u3 v0 v1 v2 v3 r0 r1 r2 r3 : Word)
     (cb0 cb1 cb2 cb3 : Nat)
-    (h0 : u0.toNat + cb0 * 2^64 = r0.toNat + q_nat * v0.toNat)
-    (h1 : u1.toNat + cb1 * 2^64 = r1.toNat + q_nat * v1.toNat + cb0)
-    (h2 : u2.toNat + cb2 * 2^64 = r2.toNat + q_nat * v2.toNat + cb1)
-    (h3 : u3.toNat + cb3 * 2^64 = r3.toNat + q_nat * v3.toNat + cb2) :
+    (h0 : u0.toNat + cb0 * 2^64 = r0.toNat + qNat * v0.toNat)
+    (h1 : u1.toNat + cb1 * 2^64 = r1.toNat + qNat * v1.toNat + cb0)
+    (h2 : u2.toNat + cb2 * 2^64 = r2.toNat + qNat * v2.toNat + cb1)
+    (h3 : u3.toNat + cb3 * 2^64 = r3.toNat + qNat * v3.toNat + cb2) :
     val256 u0 u1 u2 u3 + cb3 * 2^256 =
-    val256 r0 r1 r2 r3 + q_nat * val256 v0 v1 v2 v3 := by
+    val256 r0 r1 r2 r3 + qNat * val256 v0 v1 v2 v3 := by
   unfold val256; nlinarith
 
 /-- When the multiply-subtract has no underflow (`cb3 = 0`), the result is exact. -/
-theorem mulsub_chain_no_underflow (q_nat : Nat)
+theorem mulsub_chain_no_underflow (qNat : Nat)
     (u0 u1 u2 u3 v0 v1 v2 v3 r0 r1 r2 r3 : Word)
     (cb0 cb1 cb2 : Nat)
-    (h0 : u0.toNat + cb0 * 2^64 = r0.toNat + q_nat * v0.toNat)
-    (h1 : u1.toNat + cb1 * 2^64 = r1.toNat + q_nat * v1.toNat + cb0)
-    (h2 : u2.toNat + cb2 * 2^64 = r2.toNat + q_nat * v2.toNat + cb1)
-    (h3 : u3.toNat = r3.toNat + q_nat * v3.toNat + cb2) :
-    val256 u0 u1 u2 u3 = val256 r0 r1 r2 r3 + q_nat * val256 v0 v1 v2 v3 := by
-  have := mulsub_chain_nat q_nat u0 u1 u2 u3 v0 v1 v2 v3 r0 r1 r2 r3
+    (h0 : u0.toNat + cb0 * 2^64 = r0.toNat + qNat * v0.toNat)
+    (h1 : u1.toNat + cb1 * 2^64 = r1.toNat + qNat * v1.toNat + cb0)
+    (h2 : u2.toNat + cb2 * 2^64 = r2.toNat + qNat * v2.toNat + cb1)
+    (h3 : u3.toNat = r3.toNat + qNat * v3.toNat + cb2) :
+    val256 u0 u1 u2 u3 = val256 r0 r1 r2 r3 + qNat * val256 v0 v1 v2 v3 := by
+  have := mulsub_chain_nat qNat u0 u1 u2 u3 v0 v1 v2 v3 r0 r1 r2 r3
     cb0 cb1 cb2 0 h0 h1 h2 (by linarith)
   simp at this; exact this
 
@@ -93,12 +93,12 @@ theorem mulsub_chain_no_underflow (q_nat : Nat)
 /-- After correction (add v back, decrement q), the equation holds.
     If `val256 u + 2^256 = val256 r + q * val256 v` with cb = 1 (underflow),
     then: `val256 u + 2^256 = (val256 r + val256 v) + (q - 1) * val256 v`. -/
-theorem mulsub_correction_eq (u_nat v_nat r_nat q_nat : Nat)
-    (hchain : u_nat + 2^256 = r_nat + q_nat * v_nat)
-    (hq : 0 < q_nat) :
-    u_nat + 2^256 = (r_nat + v_nat) + (q_nat - 1) * v_nat := by
-  have hq1 : q_nat = 1 + (q_nat - 1) := by omega
-  nlinarith [show q_nat * v_nat = v_nat + (q_nat - 1) * v_nat by nlinarith]
+theorem mulsub_correction_eq (u_nat v_nat r_nat qNat : Nat)
+    (hchain : u_nat + 2^256 = r_nat + qNat * v_nat)
+    (hq : 0 < qNat) :
+    u_nat + 2^256 = (r_nat + v_nat) + (qNat - 1) * v_nat := by
+  have hq1 : qNat = 1 + (qNat - 1) := by omega
+  nlinarith [show qNat * v_nat = v_nat + (qNat - 1) * v_nat by nlinarith]
 
 end EvmWord
 
