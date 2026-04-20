@@ -606,9 +606,9 @@ theorem mul_correct_limb3 (a b : EvmWord) :
   rw [hSB]
   exact hRHS.symm
 
--- -- ============================================================================
--- -- Main theorem combining all four limbs
--- -- ============================================================================
+-- ============================================================================
+-- Main theorem combining all four limbs
+-- ============================================================================
 
 theorem mul_correct (a b : EvmWord):
     let a0 := a.getLimb 0; let a1 := a.getLimb 1; let a2 := a.getLimb 2; let a3 := a.getLimb 3;
