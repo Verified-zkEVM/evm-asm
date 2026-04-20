@@ -564,6 +564,48 @@ def fullDivN4MaxAddbackBeqPost (sp a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Assertion :
   (sp + signExtend12 3976 ↦ₘ (0 : Word)) **
   (.x1 ↦ᵣ signExtend12 4095) ** (.x11 ↦ᵣ q_out)
 
+/-- Named unfold for `fullDivN4MaxAddbackBeqPost`. Parallel to
+    `fullDivN4MaxSkipPost_unfold` — restores access to the atomic
+    components once `@[irreducible]` has made `delta` the only path. -/
+theorem fullDivN4MaxAddbackBeqPost_unfold (sp a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
+    fullDivN4MaxAddbackBeqPost sp a0 a1 a2 a3 b0 b1 b2 b3 =
+    (let shift := (clzResult b3).1
+     let antiShift := signExtend12 (0 : BitVec 12) - shift
+     let b3' := (b3 <<< (shift.toNat % 64)) ||| (b2 >>> (antiShift.toNat % 64))
+     let b2' := (b2 <<< (shift.toNat % 64)) ||| (b1 >>> (antiShift.toNat % 64))
+     let b1' := (b1 <<< (shift.toNat % 64)) ||| (b0 >>> (antiShift.toNat % 64))
+     let b0' := b0 <<< (shift.toNat % 64)
+     let u3 := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (antiShift.toNat % 64))
+     let u2 := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (antiShift.toNat % 64))
+     let u1 := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (antiShift.toNat % 64))
+     let u0 := a0 <<< (shift.toNat % 64)
+     let qHat : Word := signExtend12 4095
+     let ms := mulsubN4 qHat b0' b1' b2' b3' u0 u1 u2 u3
+     let c3 := ms.2.2.2.2
+     let u4_new := (a3 >>> (antiShift.toNat % 64)) - c3
+     let ab := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 u4_new b0' b1' b2' b3'
+     let ab' := addbackN4 ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 ab.2.2.2.2 b0' b1' b2' b3'
+     let carry := addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 b0' b1' b2' b3'
+     let q_out := if carry = 0 then qHat + signExtend12 4095 + signExtend12 4095
+                  else qHat + signExtend12 4095
+     let un0Out := if carry = 0 then ab'.1 else ab.1
+     let un1Out := if carry = 0 then ab'.2.1 else ab.2.1
+     let un2Out := if carry = 0 then ab'.2.2.1 else ab.2.2.1
+     let un3Out := if carry = 0 then ab'.2.2.2.1 else ab.2.2.2.1
+     let u4_out := if carry = 0 then ab'.2.2.2.2 else ab.2.2.2.2
+     denormDivPost sp shift un0Out un1Out un2Out un3Out q_out 0 0 0 **
+     ((sp + signExtend12 3992) ↦ₘ shift) **
+     ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
+     ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+     ((sp + signExtend12 4024) ↦ₘ u4_out) **
+     ((sp + signExtend12 4016) ↦ₘ (0 : Word)) **
+     ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
+     ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
+     (sp + signExtend12 3984 ↦ₘ (4 : Word)) **
+     (sp + signExtend12 3976 ↦ₘ (0 : Word)) **
+     (.x1 ↦ᵣ signExtend12 4095) ** (.x11 ↦ᵣ q_out)) := by
+  delta fullDivN4MaxAddbackBeqPost; rfl
+
 /-- Full n=4 DIV path: base → base+1068 (shift ≠ 0, max+addback BEQ). -/
 theorem evm_div_n4_full_max_addback_beq_spec (sp base : Word)
     (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old : Word)
