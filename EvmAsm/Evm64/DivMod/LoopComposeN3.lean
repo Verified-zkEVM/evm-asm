@@ -684,4 +684,124 @@ theorem divK_loop_n3_call_max_spec
       exact hp)
     full
 
+-- ============================================================================
+-- Fin-parametric iter specs for n=3
+-- ============================================================================
+
+/-- Fin-parametric unified max-path iter spec for n=3. -/
+theorem divK_loop_body_n3_max_iter_spec (j : Fin 2)
+    (sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
+     v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old : Word)
+    (base : Word)
+    (hbltu : ¬BitVec.ult u3 v2)
+    (hcarry2_nz : isAddbackCarry2NzN3Max v0 v1 v2 v3 u0 u1 u2 u3 u_top) :
+    let u_base := sp + signExtend12 4056 - (j.val : Word) <<< (3 : BitVec 6).toNat
+    let q_addr := sp + signExtend12 4088 - (j.val : Word) <<< (3 : BitVec 6).toNat
+    let exit_addr := if j.val = 0 then base + denormOff else base + loopBodyOff
+    cpsTriple (base + loopBodyOff) exit_addr (sharedDivModCode base)
+      ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (j.val : Word)) **
+       (.x5 ↦ᵣ v5_old) ** (.x6 ↦ᵣ v6_old) **
+       (.x7 ↦ᵣ v7_old) ** (.x10 ↦ᵣ v10_old) ** (.x11 ↦ᵣ v11_old) **
+       (.x2 ↦ᵣ v2_old) ** (.x0 ↦ᵣ (0 : Word)) **
+       (sp + signExtend12 3976 ↦ₘ j_old) ** (sp + signExtend12 3984 ↦ₘ (3 : Word)) **
+       ((sp + signExtend12 32) ↦ₘ v0) ** ((u_base + signExtend12 0) ↦ₘ u0) **
+       ((sp + signExtend12 40) ↦ₘ v1) ** ((u_base + signExtend12 4088) ↦ₘ u1) **
+       ((sp + signExtend12 48) ↦ₘ v2) ** ((u_base + signExtend12 4080) ↦ₘ u2) **
+       ((sp + signExtend12 56) ↦ₘ v3) ** ((u_base + signExtend12 4072) ↦ₘ u3) **
+       ((u_base + signExtend12 4064) ↦ₘ u_top) **
+       (q_addr ↦ₘ q_old))
+      (loopIterPostN3Max sp (j.val : Word) v0 v1 v2 v3 u0 u1 u2 u3 u_top) := by
+  intro u_base q_addr exit_addr
+  fin_cases j
+  · exact divK_loop_body_n3_max_unified_j0_spec sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
+      v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old base hbltu hcarry2_nz
+  · exact divK_loop_body_n3_max_unified_j1_spec sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
+      v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old base hbltu hcarry2_nz
+
+/-- Fin-parametric unified call-path iter spec for n=3. -/
+theorem divK_loop_body_n3_call_iter_spec (j : Fin 2)
+    (sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
+     v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old : Word)
+    (ret_mem d_mem dlo_mem scratch_un0 : Word)
+    (base : Word)
+    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (hbltu : BitVec.ult u3 v2)
+    (hcarry2_nz : isAddbackCarry2NzN3Call v0 v1 v2 v3 u0 u1 u2 u3 u_top) :
+    let u_base := sp + signExtend12 4056 - (j.val : Word) <<< (3 : BitVec 6).toNat
+    let q_addr := sp + signExtend12 4088 - (j.val : Word) <<< (3 : BitVec 6).toNat
+    let exit_addr := if j.val = 0 then base + denormOff else base + loopBodyOff
+    cpsTriple (base + loopBodyOff) exit_addr (sharedDivModCode base)
+      ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (j.val : Word)) **
+       (.x5 ↦ᵣ v5_old) ** (.x6 ↦ᵣ v6_old) **
+       (.x7 ↦ᵣ v7_old) ** (.x10 ↦ᵣ v10_old) ** (.x11 ↦ᵣ v11_old) **
+       (.x2 ↦ᵣ v2_old) ** (.x0 ↦ᵣ (0 : Word)) **
+       (sp + signExtend12 3976 ↦ₘ j_old) ** (sp + signExtend12 3984 ↦ₘ (3 : Word)) **
+       ((sp + signExtend12 32) ↦ₘ v0) ** ((u_base + signExtend12 0) ↦ₘ u0) **
+       ((sp + signExtend12 40) ↦ₘ v1) ** ((u_base + signExtend12 4088) ↦ₘ u1) **
+       ((sp + signExtend12 48) ↦ₘ v2) ** ((u_base + signExtend12 4080) ↦ₘ u2) **
+       ((sp + signExtend12 56) ↦ₘ v3) ** ((u_base + signExtend12 4072) ↦ₘ u3) **
+       ((u_base + signExtend12 4064) ↦ₘ u_top) **
+       (q_addr ↦ₘ q_old) **
+       (sp + signExtend12 3968 ↦ₘ ret_mem) **
+       (sp + signExtend12 3960 ↦ₘ d_mem) **
+       (sp + signExtend12 3952 ↦ₘ dlo_mem) **
+       (sp + signExtend12 3944 ↦ₘ scratch_un0))
+      (loopIterPostN3Call sp base (j.val : Word) v0 v1 v2 v3 u0 u1 u2 u3 u_top) := by
+  intro u_base q_addr exit_addr
+  fin_cases j
+  · exact divK_loop_body_n3_call_unified_j0_spec sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
+      v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old ret_mem d_mem dlo_mem scratch_un0 base halign hbltu hcarry2_nz
+  · exact divK_loop_body_n3_call_unified_j1_spec sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
+      v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old ret_mem d_mem dlo_mem scratch_un0 base halign hbltu hcarry2_nz
+
+-- ============================================================================
+-- Single `(j : Fin 2) (bltu : Bool)` iter spec for n=3
+-- ============================================================================
+
+/-- Unified iter spec for n=3: one theorem covering all 8 original path combinations. -/
+theorem divK_loop_body_n3_iter_spec (j : Fin 2) (bltu : Bool)
+    (sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
+     v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old : Word)
+    (ret_mem d_mem dlo_mem scratch_un0 : Word)
+    (base : Word)
+    (halign : bltu = true → ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (hbltu_max : bltu = false → ¬BitVec.ult u3 v2)
+    (hbltu_call : bltu = true → BitVec.ult u3 v2)
+    (hcarry_max : bltu = false → isAddbackCarry2NzN3Max v0 v1 v2 v3 u0 u1 u2 u3 u_top)
+    (hcarry_call : bltu = true → isAddbackCarry2NzN3Call v0 v1 v2 v3 u0 u1 u2 u3 u_top) :
+    let exit_addr := if j.val = 0 then base + denormOff else base + loopBodyOff
+    cpsTriple (base + loopBodyOff) exit_addr (sharedDivModCode base)
+      (match bltu with
+       | true => loopBodyPreWithScratch (3 : Word) sp (j.val : Word) j_old
+                   v5_old v6_old v7_old v10_old v11_old v2_old
+                   v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old
+                   ret_mem d_mem dlo_mem scratch_un0
+       | false => loopBodyPre (3 : Word) sp (j.val : Word) j_old
+                    v5_old v6_old v7_old v10_old v11_old v2_old
+                    v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old)
+      (loopIterPostN3 bltu sp base (j.val : Word) v0 v1 v2 v3 u0 u1 u2 u3 u_top) := by
+  intro exit_addr
+  cases bltu
+  · simp only []
+    have hbltu' := hbltu_max rfl
+    have hcarry := hcarry_max rfl
+    have H := divK_loop_body_n3_max_iter_spec j sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
+      v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old base hbltu' hcarry
+    intro_lets at H
+    exact cpsTriple_weaken
+      (fun _ hp => by delta loopBodyPre at hp; xperm_hyp hp)
+      (fun _ hp => by unfold loopIterPostN3; simp only []; rw [sepConj_emp_right']; exact hp)
+      H
+  · simp only []
+    have hbltu' := hbltu_call rfl
+    have halign' := halign rfl
+    have hcarry := hcarry_call rfl
+    have H := divK_loop_body_n3_call_iter_spec j sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
+      v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old ret_mem d_mem dlo_mem scratch_un0 base halign' hbltu' hcarry
+    intro_lets at H
+    exact cpsTriple_weaken
+      (fun _ hp => by delta loopBodyPreWithScratch loopBodyPre at hp; xperm_hyp hp)
+      (fun _ hp => by unfold loopIterPostN3; simp only []; exact hp)
+      H
+
 end EvmAsm.Evm64

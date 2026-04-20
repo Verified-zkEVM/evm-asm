@@ -497,4 +497,120 @@ theorem divK_loop_body_n4_call_addback_j0_beq_spec
     (fun h hp => by delta loopBodyN4AddbackBeqPost loopBodyAddbackBeqPost loopExitPostN4 loopExitPost; rw [sepConj_assoc'] at hp; xperm_hyp hp)
     full
 
+-- ============================================================================
+-- Single `(j : Fin 1) (bltu borrow_zero : Bool)` iter spec for n=4
+-- Unifies all 4 raw specs (max_skip, max_addback_beq, call_skip, call_addback_beq)
+-- into one theorem. Since N4 has j=0 only, Fin 1 is trivial.
+-- Postcondition uses `loopBodyUnifiedPostN4 borrow_zero`.
+-- ============================================================================
+
+/-- Unified iter spec for n=4: one theorem covering 4 original path combinations
+    (max/call × skip/addback). Uses `preIterN4 bltu` for precondition shape. -/
+theorem divK_loop_body_n4_iter_spec (j : Fin 1) (bltu borrow_zero : Bool)
+    (sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
+     v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old : Word)
+    (ret_mem d_mem dlo_mem scratch_un0 : Word)
+    (base : Word)
+    (halign : bltu = true → ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (hbltu_max : bltu = false → ¬BitVec.ult u_top v3)
+    (hbltu_call : bltu = true → BitVec.ult u_top v3)
+    (hcarry_max : bltu = false → borrow_zero = false → isAddbackCarry2NzN4Max v0 v1 v2 v3 u0 u1 u2 u3 u_top)
+    (hcarry_call : bltu = true → borrow_zero = false → isAddbackCarry2NzN4Call v0 v1 v2 v3 u0 u1 u2 u3 u_top)
+    (hborrow_max : bltu = false →
+      (if borrow_zero
+       then (if BitVec.ult u_top (mulsubN4_c3 (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3)
+             then (1 : Word) else 0) = (0 : Word)
+       else (if BitVec.ult u_top (mulsubN4_c3 (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3)
+             then (1 : Word) else 0) ≠ (0 : Word)))
+    (hborrow_call : bltu = true →
+      let q_hat := div128Quot u_top u3 v3
+      (if borrow_zero
+       then (if BitVec.ult u_top (mulsubN4_c3 q_hat v0 v1 v2 v3 u0 u1 u2 u3)
+             then (1 : Word) else 0) = (0 : Word)
+       else (if BitVec.ult u_top (mulsubN4_c3 q_hat v0 v1 v2 v3 u0 u1 u2 u3)
+             then (1 : Word) else 0) ≠ (0 : Word))) :
+    let q_hat_max : Word := signExtend12 4095
+    let q_hat_call := div128Quot u_top u3 v3
+    let q_hat := if bltu then q_hat_call else q_hat_max
+    cpsTriple (base + loopBodyOff) (base + denormOff) (sharedDivModCode base)
+      (match bltu with
+       | true => loopBodyPreWithScratch (4 : Word) sp (0 : Word) j_old
+                   v5_old v6_old v7_old v10_old v11_old v2_old
+                   v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old
+                   ret_mem d_mem dlo_mem scratch_un0
+       | false => loopBodyPre (4 : Word) sp (0 : Word) j_old
+                    v5_old v6_old v7_old v10_old v11_old v2_old
+                    v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old)
+      (match bltu with
+       | true =>
+         loopBodyUnifiedPostN4 borrow_zero sp (j.val : Word) q_hat_call v0 v1 v2 v3 u0 u1 u2 u3 u_top **
+         (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+         (sp + signExtend12 3960 ↦ₘ v3) **
+         (sp + signExtend12 3952 ↦ₘ (v3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat) **
+         (sp + signExtend12 3944 ↦ₘ (u3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat)
+       | false =>
+         loopBodyUnifiedPostN4 borrow_zero sp (j.val : Word) q_hat_max v0 v1 v2 v3 u0 u1 u2 u3 u_top) := by
+  intro q_hat_max q_hat_call q_hat
+  fin_cases j
+  cases bltu
+  · -- bltu = false (max path)
+    simp only []
+    have hbltu' := hbltu_max rfl
+    have hborrow' := hborrow_max rfl
+    cases borrow_zero
+    · -- borrow_zero = false (addback path)
+      simp only [loopBodyUnifiedPost_false]
+      rw [if_neg (by decide)] at hborrow'
+      have hcarry := hcarry_max rfl rfl
+      have H := divK_loop_body_n4_max_addback_j0_beq_spec sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
+        v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old base hbltu' hcarry
+      intro_lets at H
+      have Hout := H hborrow'
+      exact cpsTriple_weaken
+        (fun _ hp => by delta loopBodyPre at hp; xperm_hyp hp)
+        (fun _ hp => hp)
+        Hout
+    · -- borrow_zero = true (skip path)
+      simp only [loopBodyUnifiedPost_true]
+      rw [if_pos rfl] at hborrow'
+      have H := divK_loop_body_n4_max_skip_j0_spec sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
+        v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old base hbltu'
+      intro_lets at H
+      have Hout := H hborrow'
+      exact cpsTriple_weaken
+        (fun _ hp => by delta loopBodyPre at hp; xperm_hyp hp)
+        (fun _ hp => hp)
+        Hout
+  · -- bltu = true (call path)
+    simp only []
+    have hbltu' := hbltu_call rfl
+    have halign' := halign rfl
+    have hborrow' := hborrow_call rfl
+    cases borrow_zero
+    · -- borrow_zero = false (addback)
+      simp only [loopBodyUnifiedPost_false]
+      rw [if_neg (by decide)] at hborrow'
+      have hcarry := hcarry_call rfl rfl
+      have H := divK_loop_body_n4_call_addback_j0_beq_spec sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
+        v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old ret_mem d_mem dlo_mem scratch_un0 base
+        halign' hbltu' hcarry
+      intro_lets at H
+      have Hout := H hborrow'
+      exact cpsTriple_weaken
+        (fun _ hp => by delta loopBodyPreWithScratch loopBodyPre at hp; xperm_hyp hp)
+        (fun _ hp => hp)
+        Hout
+    · -- borrow_zero = true (skip)
+      simp only [loopBodyUnifiedPost_true]
+      rw [if_pos rfl] at hborrow'
+      have H := divK_loop_body_n4_call_skip_j0_spec sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
+        v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old ret_mem d_mem dlo_mem scratch_un0 base
+        halign' hbltu'
+      intro_lets at H
+      have Hout := H hborrow'
+      exact cpsTriple_weaken
+        (fun _ hp => by delta loopBodyPreWithScratch loopBodyPre at hp; xperm_hyp hp)
+        (fun _ hp => hp)
+        Hout
+
 end EvmAsm.Evm64
