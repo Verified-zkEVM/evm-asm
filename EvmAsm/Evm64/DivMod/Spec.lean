@@ -1281,7 +1281,7 @@ theorem evm_mod_n4_max_skip_stack_spec (sp base : Word)
   -- the Lemma G adapter uses.
   have h0se12 : signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1 =
       -((clzResult (b.getLimbN 3)).1) := by
-    rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide]
+    rw [signExtend12_0]
     simp
   have hanti_toNat_mod :
       (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64 =
