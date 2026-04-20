@@ -937,13 +937,15 @@ theorem cpsTriple_loop_simple
     : ∀ n, cpsTriple entry exit_ cr (inv n) Q :=
   cpsTriple_loop entry exit_ cr inv Q h_base h_step
 
-/-- Loop rule with permutation on back-edge and exit postconditions. -/
+/-- Loop rule with permutation on back-edge and exit postconditions.
+    All position/code/assertion arguments are implicit — inferred from
+    `h_base`/`h_step`/`hperm_*`. -/
 theorem cpsTriple_loop_with_perm
-    (entry exit_ : Word) (cr : CodeReq)
-    (inv : Nat → Assertion)
-    (Q : Assertion)
-    (inv' : Nat → Assertion)
-    (Q' : Assertion)
+    {entry exit_ : Word} {cr : CodeReq}
+    {inv : Nat → Assertion}
+    {Q : Assertion}
+    {inv' : Nat → Assertion}
+    {Q' : Assertion}
     (h_base : cpsTriple entry exit_ cr (inv 0) Q)
     (h_step : ∀ n, cpsBranch entry cr (inv (n + 1))
                               exit_ Q'
