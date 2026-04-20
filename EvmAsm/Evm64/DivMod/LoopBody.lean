@@ -661,7 +661,7 @@ theorem divK_correction_addback_spec
     ntaken_framedAB
 
 /-- Variant of correction_addback_spec with addbackN4/addbackN4_carry in postcondition.
-    Same proof via cpsTriple_consequence (definitional equality). -/
+    Same proof via cpsTriple_weaken (definitional equality). -/
 theorem divK_correction_addback_named_spec
     (sp uBase borrow qHat v0 v1 v2 v3 u0 u1 u2 u3 u4 : Word)
     (v5_old v2_old : Word) (base : Word)

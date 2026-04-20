@@ -83,7 +83,7 @@ private theorem sar_sign_fill_lift (sp base : Word)
        (regOwn .x6) ** (regOwn .x7) ** (regOwn .x11) **
        evmWordIs sp shift ** evmWordIs (sp + 32) result) := by
   subst hresult
-  have hframed := cpsTriple_frame_left base (base + 380) _ _ _
+  have hframed := cpsTriple_frameR
     ((.x6 ↦ᵣ r6) ** (.x7 ↦ᵣ r7) ** (.x11 ↦ᵣ r11))
     (by pcFree) hmain
   have hflat : cpsTriple base (base + 380) (sarCode base)

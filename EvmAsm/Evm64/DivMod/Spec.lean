@@ -24,9 +24,10 @@
     `isAddbackBorrowN4CallEvm`. Each is a thin shim over the Word-level
     predicate plus a `_def` `rfl` lemma.
   * Semantic-correctness predicates: `n4MaxSkipSemanticHolds`,
-    `n4MaxAddbackSemanticHolds` — package the un-normalized `mulsubN4`-carry
-    hypotheses `n4_max_skip_div_mod_getLimbN` / `n4_max_addback_div_mod_getLimbN`
-    consume.
+    `n4MaxAddbackSemanticHolds`, `n4MaxDoubleAddbackSemanticHolds` — package
+    the un-normalized `mulsubN4`-carry hypotheses that
+    `n4_max_skip_div_mod_getLimbN` / `n4_max_addback_div_mod_getLimbN` /
+    `n4_max_double_addback_div_mod_getLimbN` consume.
   * Weakeners: `div_n4_max_skip_stack_weaken`, `mod_n4_max_skip_stack_weaken` —
     turn specific register values + `evmWordIs` operand atoms + `divScratchValues`
     into `divN4MaxSkipStackPost` / `modN4MaxSkipStackPost`.
@@ -198,6 +199,43 @@ theorem n4MaxAddbackSemanticHolds_def (a b : EvmWord) :
      ms.2.2.2.2 = 1 ∧
      addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1
        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) = 1) :=
+  rfl
+
+/-- Semantic-correctness precondition for the n=4 max+double-addback sub-path:
+    on **un-normalized** `a`, `b` limbs with the maximum trial quotient, the
+    mulsub carry is `1`, the *first* addback carry is `0` (first addback didn't
+    overflow the low 256 bits), and the *second* addback carry is `1`
+    (second addback did overflow). Together these three facts feed
+    `n4_max_double_addback_div_mod_getLimbN` to conclude the per-limb
+    `EvmWord.div` / `EvmWord.mod` equalities for the double-addback path.
+
+    This is distinct from `n4MaxAddbackSemanticHolds` (single-addback: c3=1 ∧
+    carry1=1) and fires on the complementary algorithm branch where the first
+    addback doesn't correct the borrow but the second one does. -/
+def n4MaxDoubleAddbackSemanticHolds (a b : EvmWord) : Prop :=
+  let ms := mulsubN4 (signExtend12 4095)
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+  let ab := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 ((0 : Word) - ms.2.2.2.2)
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+  ms.2.2.2.2 = 1 ∧
+  addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) = 0 ∧
+  (addbackN4_carry ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).toNat = 1
+
+theorem n4MaxDoubleAddbackSemanticHolds_def (a b : EvmWord) :
+    n4MaxDoubleAddbackSemanticHolds a b =
+    (let ms := mulsubN4 (signExtend12 4095)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+     let ab := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 ((0 : Word) - ms.2.2.2.2)
+       (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+     ms.2.2.2.2 = 1 ∧
+     addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1
+       (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) = 0 ∧
+     (addbackN4_carry ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1
+       (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).toNat = 1) :=
   rfl
 
 /-- Stack-level postcondition shape for the n=4 DIV max+skip path.
@@ -1041,13 +1079,11 @@ theorem evm_div_n4_max_skip_stack_spec (sp base : Word)
 
 /-- EVM-stack-level MOD spec on the n=4 max+skip sub-path.
 
-    Mirror of `evm_div_n4_max_skip_stack_spec` but for MOD. In addition to
-    the five runtime + semantic conditions the DIV stack spec takes, MOD
-    also needs the CLZ top-limb bound
-    `b.getLimbN 3 < 2^(64 - clz(b.getLimbN 3))`, since the post reshape
-    goes through the denormalization round-trip. This bound is implicit
-    in the CLZ algorithm's semantics and expected to be discharged at call
-    sites by a future CLZ correctness lemma.
+    Mirror of `evm_div_n4_max_skip_stack_spec` but for MOD. Takes the same
+    five runtime + semantic conditions as DIV. The CLZ top-limb bound
+    `b.getLimbN 3 < 2^(64 - clz(b.getLimbN 3))`, needed internally for
+    the post reshape through the denormalization round-trip, is discharged
+    via `clzResult_fst_top_bound`.
 
     Reduces to `evm_mod_n4_full_max_skip_stack_pre_spec_bundled` + a post
     reshape via `output_slot_to_evmWordIs_mod_n4_max_skip_denorm` and
@@ -1061,13 +1097,14 @@ theorem evm_mod_n4_max_skip_stack_spec (sp base : Word)
     (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
     (hbltu : isMaxTrialN4Evm a b)
     (hborrow : isSkipBorrowN4MaxEvm a b)
-    (hsem : n4MaxSkipSemanticHolds a b)
-    (hb3_bound : (b.getLimbN 3).toNat <
-        2 ^ (64 - (clzResult (b.getLimbN 3)).1.toNat)) :
+    (hsem : n4MaxSkipSemanticHolds a b) :
     cpsTriple base (base + nopOff) (modCode base)
       (modN4StackPre sp a b v5 v6 v7 v10 v11
          q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem)
       (modN4MaxSkipStackPost sp a b) := by
+  have hb3_bound : (b.getLimbN 3).toNat <
+      2 ^ (64 - (clzResult (b.getLimbN 3)).1.toNat) :=
+    clzResult_fst_top_bound (b.getLimbN 3)
   have h_pre := evm_mod_n4_full_max_skip_stack_pre_spec_bundled sp base a b
     v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 nMem shiftMem jMem
     hbnz hb3nz hshift_nz hbltu hborrow
