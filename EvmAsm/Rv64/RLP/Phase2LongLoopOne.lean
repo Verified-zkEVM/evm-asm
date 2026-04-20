@@ -57,7 +57,7 @@ theorem rlp_phase2_long_loop_one_byte_post_unfold
     Derived from `rlp_phase2_long_loop_body_spec` by observing that when
     `cnt = 1`, `cnt' = 1 + signExtend12 (-1) = 0`, so the taken-branch
     post `⌜cnt' ≠ 0⌝` collapses to `⌜(0 : Word) ≠ 0⌝ = False`. The
-    `cpsBranch_elim_ntaken` rule then turns the two-exit branch into a
+    `cpsBranch_ntakenPath` rule then turns the two-exit branch into a
     single-exit triple at the fall-through. -/
 theorem rlp_phase2_long_loop_one_byte_spec
     (len ptr v12Old wordVal dwordAddr : Word)
@@ -95,7 +95,7 @@ theorem rlp_phase2_long_loop_one_byte_spec
     obtain ⟨_, _, _, _, _, hpost⟩ := hpost -- peel x0
     obtain ⟨_, _, _, _, _, hpost⟩ := hpost -- peel memory
     exact hpost.2 rfl
-  -- `cpsBranch_elim_ntaken` drops the taken branch.
+  -- `cpsBranch_ntakenPath` drops the taken branch.
   have tri := cpsBranch_ntakenPath body h_absurd
   -- Weaken the post: unfold the `@[irreducible]` wrapper and strip the
   -- trailing `⌜(0 : Word) = 0⌝ = True` pure fact (via 5 `mono_right` wraps

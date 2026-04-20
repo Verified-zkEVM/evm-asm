@@ -100,7 +100,7 @@ theorem rlp_phase2_long_loop_two_byte_spec
     obtain ⟨_, _, _, _, _, hpost⟩ := hpost -- peel x0
     obtain ⟨_, _, _, _, _, hpost⟩ := hpost -- peel memory
     exact absurd hpost.2 (by decide)
-  -- `cpsBranch_elim_taken` drops fall-through. Keeps taken exit (loops back).
+  -- `cpsBranch_takenPath` drops fall-through. Keeps taken exit (loops back).
   have tri1 := cpsBranch_takenPath body h_absurd
   -- Taken exit is `(base + 20) + signExtend13 back = base` by hback.
   rw [hback] at tri1
