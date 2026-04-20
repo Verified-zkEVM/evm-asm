@@ -19,8 +19,8 @@ open EvmAsm.Rv64.Tactics
 namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
-open EvmAsm.Rv64.AddrNorm (se13_32 se13_92 se13_176 se13_308 se13_320 se21_24 se21_124 se21_200 se21_252
-  zero_add_se12_1_toNat zero_add_se12_2_toNat bv6_toNat_6 bv64_toNat_63 word_add_zero)
+open EvmAsm.Rv64.AddrNorm
+  (zero_add_se12_1_toNat zero_add_se12_2_toNat bv6_toNat_6 bv64_toNat_63 word_add_zero)
 
 -- ============================================================================
 -- Section 1: shlCode definition and helpers
@@ -193,26 +193,26 @@ private theorem shl_off_32 (base : Word) : (base + 32 : Word) + 4 = base + 36 :=
 private theorem shl_off_36_28 (base : Word) : (base + 36 : Word) + 28 = base + 64 := by bv_omega
 private theorem shl_off_340_20 (base : Word) : (base + 340 : Word) + 20 = base + 360 := by bv_omega
 private theorem shl_bne_target (base : Word) : (base + 20 : Word) + signExtend13 320 = base + 340 := by
-  rw [se13_320]; bv_omega
+  rv64_addr
 private theorem shl_beq_target (base : Word) : (base + 32 : Word) + signExtend13 308 = base + 340 := by
-  rw [se13_308]; bv_omega
+  rv64_addr
 -- Phase C exit addresses
 private theorem shl_c_e0 (base : Word) : (base + 64 : Word) + signExtend13 176 = base + 240 := by
-  rw [se13_176]; bv_omega
+  rv64_addr
 private theorem shl_c_e1 (base : Word) : ((base + 64 : Word) + 8) + signExtend13 92 = base + 164 := by
-  rw [se13_92]; bv_omega
+  rv64_addr
 private theorem shl_c_e2 (base : Word) : ((base + 64 : Word) + 16) + signExtend13 32 = base + 112 := by
-  rw [se13_32]; bv_omega
+  rv64_addr
 private theorem shl_c_e3 (base : Word) : (base + 64 : Word) + 20 = base + 84 := by bv_omega
 -- Body exit addresses (JAL targets)
 private theorem shl_body3_exit (base : Word) : ((base + 84 : Word) + 24) + signExtend21 252 = base + 360 := by
-  rw [se21_252]; bv_omega
+  rv64_addr
 private theorem shl_body2_exit (base : Word) : ((base + 112 : Word) + 48) + signExtend21 200 = base + 360 := by
-  rw [se21_200]; bv_omega
+  rv64_addr
 private theorem shl_body1_exit (base : Word) : ((base + 164 : Word) + 72) + signExtend21 124 = base + 360 := by
-  rw [se21_124]; bv_omega
+  rv64_addr
 private theorem shl_body0_exit (base : Word) : ((base + 240 : Word) + 96) + signExtend21 24 = base + 360 := by
-  rw [se21_24]; bv_omega
+  rv64_addr
 
 -- ============================================================================
 -- Section 4: Zero path composition
