@@ -208,6 +208,7 @@ theorem word_add_zero (x : Word) : x + (0 : Word) = x := BitVec.add_zero x
 -- Migrating those sites to the `rv64_addr` grindset localizes the knowledge.
 -- ============================================================================
 
+@[rv64_addr, grind =] theorem bv64_4mul_0  : BitVec.ofNat 64 (4 * 0)  = (0  : Word) := by decide
 @[rv64_addr, grind =] theorem bv64_4mul_1  : BitVec.ofNat 64 (4 * 1)  = (4  : Word) := by decide
 @[rv64_addr, grind =] theorem bv64_4mul_3  : BitVec.ofNat 64 (4 * 3)  = (12 : Word) := by decide
 @[rv64_addr, grind =] theorem bv64_4mul_5  : BitVec.ofNat 64 (4 * 5)  = (20 : Word) := by decide
