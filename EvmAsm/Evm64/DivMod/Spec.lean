@@ -445,7 +445,7 @@ instance (sp : Word) (a b : EvmWord) :
 theorem div_n4_max_skip_stack_weaken
     (sp : Word) (a b : EvmWord)
     (v1_p v2_p v5_p v6_p v7_p v10_p v11_p : Word)
-    (q0_p q1_p q2_p q3_p u0_p u1_p u2_p u3_p u4_p u5_p u6_p u7_p
+    (q0P q1P q2_p q3_p u0P u1P u2P u3P u4_p u5_p u6_p u7_p
      shift_p n_p j_p : Word) :
     ∀ h,
       ((.x12 ↦ᵣ (sp + 32)) **
@@ -454,7 +454,7 @@ theorem div_n4_max_skip_stack_weaken
        (.x10 ↦ᵣ v10_p) ** (.x11 ↦ᵣ v11_p) **
        (.x0 ↦ᵣ (0 : Word)) **
        evmWordIs sp a ** evmWordIs (sp + 32) (EvmWord.div a b) **
-       divScratchValues sp q0_p q1_p q2_p q3_p u0_p u1_p u2_p u3_p u4_p
+       divScratchValues sp q0P q1P q2_p q3_p u0P u1P u2P u3P u4_p
          u5_p u6_p u7_p shift_p n_p j_p) h →
       divN4MaxSkipStackPost sp a b h := by
   intro h hp
@@ -465,7 +465,7 @@ theorem div_n4_max_skip_stack_weaken
   apply sepConj_mono_right
   apply sepConj_mono_right
   exact divScratchValues_implies_divScratchOwn
-    sp q0_p q1_p q2_p q3_p u0_p u1_p u2_p u3_p u4_p u5_p u6_p u7_p
+    sp q0P q1P q2_p q3_p u0P u1P u2P u3P u4_p u5_p u6_p u7_p
     shift_p n_p j_p
 
 /-- MOD counterpart of `divN4MaxSkipStackPost`: same structure, same register
@@ -643,7 +643,7 @@ instance (sp : Word) (a b : EvmWord) :
 theorem mod_n4_max_skip_stack_weaken
     (sp : Word) (a b : EvmWord)
     (v1_p v2_p v5_p v6_p v7_p v10_p v11_p : Word)
-    (q0_p q1_p q2_p q3_p u0_p u1_p u2_p u3_p u4_p u5_p u6_p u7_p
+    (q0P q1P q2_p q3_p u0P u1P u2P u3P u4_p u5_p u6_p u7_p
      shift_p n_p j_p : Word) :
     ∀ h,
       ((.x12 ↦ᵣ (sp + 32)) **
@@ -652,7 +652,7 @@ theorem mod_n4_max_skip_stack_weaken
        (.x10 ↦ᵣ v10_p) ** (.x11 ↦ᵣ v11_p) **
        (.x0 ↦ᵣ (0 : Word)) **
        evmWordIs sp a ** evmWordIs (sp + 32) (EvmWord.mod a b) **
-       divScratchValues sp q0_p q1_p q2_p q3_p u0_p u1_p u2_p u3_p u4_p
+       divScratchValues sp q0P q1P q2_p q3_p u0P u1P u2P u3P u4_p
          u5_p u6_p u7_p shift_p n_p j_p) h →
       modN4MaxSkipStackPost sp a b h := by
   intro h hp
@@ -663,7 +663,7 @@ theorem mod_n4_max_skip_stack_weaken
   apply sepConj_mono_right
   apply sepConj_mono_right
   exact divScratchValues_implies_divScratchOwn
-    sp q0_p q1_p q2_p q3_p u0_p u1_p u2_p u3_p u4_p u5_p u6_p u7_p
+    sp q0P q1P q2_p q3_p u0P u1P u2P u3P u4_p u5_p u6_p u7_p
     shift_p n_p j_p
 
 /-- EvmWord-level wrapper around `evm_div_n4_full_max_skip_spec`. Same
@@ -674,8 +674,8 @@ theorem mod_n4_max_skip_stack_weaken
     that into `divN4MaxSkipStackPost` requires the semantic-correctness bridge
     (`hc3_zero`) which is threaded separately in the final stack spec. -/
 theorem evm_div_n4_full_max_skip_stack_pre_spec (sp base : Word)
-    (a b : EvmWord) (v5 v6 v7 v10 v11_old : Word)
-    (q0 q1 q2 q3 u0_old u1_old u2_old u3_old u4_old u5 u6 u7
+    (a b : EvmWord) (v5 v6 v7 v10 v11Old : Word)
+    (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
      nMem shiftMem jMem : Word)
     (hbnz : b ≠ 0)
     (hb3nz : b.getLimbN 3 ≠ 0)
@@ -687,9 +687,9 @@ theorem evm_div_n4_full_max_skip_stack_pre_spec (sp base : Word)
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
        (.x2 ↦ᵣ (clzResult (b.getLimbN 3)).2 >>> (63 : Nat)) **
        (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
-       (.x11 ↦ᵣ v11_old) **
+       (.x11 ↦ᵣ v11Old) **
        evmWordIs sp a ** evmWordIs (sp + 32) b **
-       divScratchValues sp q0 q1 q2 q3 u0_old u1_old u2_old u3_old u4_old
+       divScratchValues sp q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old
          u5 u6 u7 shiftMem nMem jMem)
       (fullDivN4MaxSkipPost sp
         (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
@@ -699,8 +699,8 @@ theorem evm_div_n4_full_max_skip_stack_pre_spec (sp base : Word)
   have hraw := evm_div_n4_full_max_skip_spec sp base
     (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
     (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
-    v5 v6 v7 v10 v11_old
-    q0 q1 q2 q3 u0_old u1_old u2_old u3_old u4_old u5 u6 u7
+    v5 v6 v7 v10 v11Old
+    q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
     nMem shiftMem jMem
     hbnz' hb3nz hshift_nz hbltu hborrow
   exact cpsTriple_weaken
@@ -869,8 +869,8 @@ theorem evm_mod_bzero_stack_spec (sp base : Word)
     `modN4MaxSkipStackPost` requires a denormalization bridge that's deferred
     to the forthcoming MOD stack spec. -/
 theorem evm_mod_n4_full_max_skip_stack_pre_spec (sp base : Word)
-    (a b : EvmWord) (v5 v6 v7 v10 v11_old : Word)
-    (q0 q1 q2 q3 u0_old u1_old u2_old u3_old u4_old u5 u6 u7
+    (a b : EvmWord) (v5 v6 v7 v10 v11Old : Word)
+    (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
      nMem shiftMem jMem : Word)
     (hbnz : b ≠ 0)
     (hb3nz : b.getLimbN 3 ≠ 0)
@@ -882,9 +882,9 @@ theorem evm_mod_n4_full_max_skip_stack_pre_spec (sp base : Word)
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
        (.x2 ↦ᵣ (clzResult (b.getLimbN 3)).2 >>> (63 : Nat)) **
        (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
-       (.x11 ↦ᵣ v11_old) **
+       (.x11 ↦ᵣ v11Old) **
        evmWordIs sp a ** evmWordIs (sp + 32) b **
-       divScratchValues sp q0 q1 q2 q3 u0_old u1_old u2_old u3_old u4_old
+       divScratchValues sp q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old
          u5 u6 u7 shiftMem nMem jMem)
       (fullModN4MaxSkipPost sp
         (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
@@ -894,8 +894,8 @@ theorem evm_mod_n4_full_max_skip_stack_pre_spec (sp base : Word)
   have hraw := evm_mod_n4_full_max_skip_spec sp base
     (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
     (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
-    v5 v6 v7 v10 v11_old
-    q0 q1 q2 q3 u0_old u1_old u2_old u3_old u4_old u5 u6 u7
+    v5 v6 v7 v10 v11Old
+    q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
     nMem shiftMem jMem
     hbnz' hb3nz hshift_nz hbltu hborrow
   exact cpsTriple_weaken

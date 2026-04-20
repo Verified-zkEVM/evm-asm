@@ -22,12 +22,12 @@ open EvmAsm.Rv64
 /-- Two-instruction spec for DUP: LD x7 from source, SD x7 to destination.
     Copies src_val from src address to dst address. -/
 theorem dup_pair_spec (sp : Word)
-    (off_src off_dst : BitVec 12) (src_val dst_old v7 : Word) (base : Word) :
+    (off_src off_dst : BitVec 12) (src_val dstOld v7 : Word) (base : Word) :
     cpsTriple base (base + 8)
       (CodeReq.singleton base (.LD .x7 .x12 off_src) |>.union
         (CodeReq.singleton (base + 4) (.SD .x12 .x7 off_dst)))
       ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) **
-       ((sp + signExtend12 off_src) ↦ₘ src_val) ** ((sp + signExtend12 off_dst) ↦ₘ dst_old))
+       ((sp + signExtend12 off_src) ↦ₘ src_val) ** ((sp + signExtend12 off_dst) ↦ₘ dstOld))
       ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ src_val) **
        ((sp + signExtend12 off_src) ↦ₘ src_val) ** ((sp + signExtend12 off_dst) ↦ₘ src_val)) := by
   runBlock

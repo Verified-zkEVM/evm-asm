@@ -31,7 +31,7 @@ open EvmAsm.Rv64
 
 /-- div128 clamp q1: test q1 >= 2^32, conditionally decrement and adjust rhat.
     Instrs [13]-[16]. Both BEQ paths merge at base+16. -/
-theorem divK_div128_clamp_q1_merged_spec (q1 rhat dHi v5_old : Word) (base : Word) :
+theorem divK_div128_clamp_q1_merged_spec (q1 rhat dHi v5Old : Word) (base : Word) :
     let hi := q1 >>> (32 : BitVec 6).toNat
     let q1' := if hi = 0 then q1 else q1 + signExtend12 4095
     let rhat' := if hi = 0 then rhat else rhat + dHi
@@ -42,14 +42,14 @@ theorem divK_div128_clamp_q1_merged_spec (q1 rhat dHi v5_old : Word) (base : Wor
        (CodeReq.singleton (base + 12) (.ADD .x7 .x7 .x6))))
     cpsTriple base (base + 16) cr
       ((.x10 ↦ᵣ q1) ** (.x7 ↦ᵣ rhat) ** (.x6 ↦ᵣ dHi) **
-       (.x5 ↦ᵣ v5_old) ** (.x0 ↦ᵣ 0))
+       (.x5 ↦ᵣ v5Old) ** (.x0 ↦ᵣ 0))
       ((.x10 ↦ᵣ q1') ** (.x7 ↦ᵣ rhat') ** (.x6 ↦ᵣ dHi) **
        (.x5 ↦ᵣ hi) ** (.x0 ↦ᵣ 0)) := by
   intro hi q1' rhat' cr
-  have I0 := srli_spec_gen .x5 .x10 v5_old q1 32 base (by nofun)
+  have I0 := srli_spec_gen .x5 .x10 v5Old q1 32 base (by nofun)
   have hbody : cpsTriple base (base + 4) cr
       ((.x10 ↦ᵣ q1) ** (.x7 ↦ᵣ rhat) ** (.x6 ↦ᵣ dHi) **
-       (.x5 ↦ᵣ v5_old) ** (.x0 ↦ᵣ 0))
+       (.x5 ↦ᵣ v5Old) ** (.x0 ↦ᵣ 0))
       ((.x10 ↦ᵣ q1) ** (.x7 ↦ᵣ rhat) ** (.x6 ↦ᵣ dHi) **
        (.x5 ↦ᵣ hi) ** (.x0 ↦ᵣ 0)) := by
     runBlock I0
@@ -116,7 +116,7 @@ theorem divK_div128_clamp_q1_merged_spec (q1 rhat dHi v5_old : Word) (base : Wor
 
 /-- div128 clamp q0: test q0 >= 2^32, conditionally decrement and adjust rhat2.
     Instrs [33]-[36]. Both BEQ paths merge at base+16. -/
-theorem divK_div128_clamp_q0_merged_spec (q0 rhat2 dHi v1_old : Word) (base : Word) :
+theorem divK_div128_clamp_q0_merged_spec (q0 rhat2 dHi v1Old : Word) (base : Word) :
     let hi := q0 >>> (32 : BitVec 6).toNat
     let q0' := if hi = 0 then q0 else q0 + signExtend12 4095
     let rhat2' := if hi = 0 then rhat2 else rhat2 + dHi
@@ -127,16 +127,16 @@ theorem divK_div128_clamp_q0_merged_spec (q0 rhat2 dHi v1_old : Word) (base : Wo
        (CodeReq.singleton (base + 12) (.ADD .x11 .x11 .x6))))
     cpsTriple base (base + 16) cr
       ((.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ rhat2) ** (.x6 ↦ᵣ dHi) **
-       (.x1 ↦ᵣ v1_old) ** (.x0 ↦ᵣ 0))
+       (.x1 ↦ᵣ v1Old) ** (.x0 ↦ᵣ 0))
       ((.x5 ↦ᵣ q0') ** (.x11 ↦ᵣ rhat2') ** (.x6 ↦ᵣ dHi) **
        (.x1 ↦ᵣ hi) ** (.x0 ↦ᵣ 0)) := by
   intro hi q0' rhat2' cr
   have hbody : cpsTriple base (base + 4) cr
       ((.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ rhat2) ** (.x6 ↦ᵣ dHi) **
-       (.x1 ↦ᵣ v1_old) ** (.x0 ↦ᵣ 0))
+       (.x1 ↦ᵣ v1Old) ** (.x0 ↦ᵣ 0))
       ((.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ rhat2) ** (.x6 ↦ᵣ dHi) **
        (.x1 ↦ᵣ hi) ** (.x0 ↦ᵣ 0)) := by
-    have I0 := srli_spec_gen .x1 .x5 v1_old q0 32 base (by nofun)
+    have I0 := srli_spec_gen .x1 .x5 v1Old q0 32 base (by nofun)
     runBlock I0
   have hbeq_raw := beq_spec_gen .x1 .x0 (12 : BitVec 13) hi (0 : Word) (base + 4)
   have ha_t : (base + 4) + signExtend13 (12 : BitVec 13) = base + 16 := by rw [se13_12]; bv_addr

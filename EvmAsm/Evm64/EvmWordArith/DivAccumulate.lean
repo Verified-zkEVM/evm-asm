@@ -62,9 +62,9 @@ theorem val256_zero_upper_1 (q0 q1 q2 : Word) :
 
 /-- 1 iteration (n=4 case): the single mulsub directly gives the Euclidean equation.
     No accumulation needed — this is the base case. -/
-theorem iter_accumulate_1 {uVal vVal q0_nat r_val : Nat}
-    (h0 : uVal = q0_nat * vVal + r_val) :
-    uVal = q0_nat * vVal + r_val := h0
+theorem iter_accumulate_1 {uVal vVal q0Nat r_val : Nat}
+    (h0 : uVal = q0Nat * vVal + r_val) :
+    uVal = q0Nat * vVal + r_val := h0
 
 /-- 2 iterations (n=3 case): digits q1 (high) and q0 (low).
 
@@ -84,28 +84,28 @@ theorem iter_accumulate_1 {uVal vVal q0_nat r_val : Nat}
     Actually, in Algorithm D, the iterations work on shifted windows. Let me
     use a more direct formulation: the accumulated quotient digits form the
     full quotient. -/
-theorem iter_accumulate_2 {uVal vVal q1_nat q0_nat mid_val r_val : Nat}
-    (h1 : uVal = q1_nat * vVal * 2^64 + mid_val)
-    (h0 : mid_val = q0_nat * vVal + r_val) :
-    uVal = (q1_nat * 2^64 + q0_nat) * vVal + r_val := by
+theorem iter_accumulate_2 {uVal vVal q1Nat q0Nat mid_val r_val : Nat}
+    (h1 : uVal = q1Nat * vVal * 2^64 + mid_val)
+    (h0 : mid_val = q0Nat * vVal + r_val) :
+    uVal = (q1Nat * 2^64 + q0Nat) * vVal + r_val := by
   nlinarith
 
 /-- 3 iterations (n=2 case): digits q2, q1, q0. -/
-theorem iter_accumulate_3 {uVal vVal q2_nat q1_nat q0_nat mid2_val mid1_val r_val : Nat}
-    (h2 : uVal = q2_nat * vVal * 2^128 + mid2_val)
-    (h1 : mid2_val = q1_nat * vVal * 2^64 + mid1_val)
-    (h0 : mid1_val = q0_nat * vVal + r_val) :
-    uVal = (q2_nat * 2^128 + q1_nat * 2^64 + q0_nat) * vVal + r_val := by
+theorem iter_accumulate_3 {uVal vVal q2Nat q1Nat q0Nat mid2_val mid1_val r_val : Nat}
+    (h2 : uVal = q2Nat * vVal * 2^128 + mid2_val)
+    (h1 : mid2_val = q1Nat * vVal * 2^64 + mid1_val)
+    (h0 : mid1_val = q0Nat * vVal + r_val) :
+    uVal = (q2Nat * 2^128 + q1Nat * 2^64 + q0Nat) * vVal + r_val := by
   nlinarith
 
 /-- 4 iterations (n=1 case): digits q3, q2, q1, q0. -/
 theorem iter_accumulate_4
-    {uVal vVal q3_nat q2_nat q1_nat q0_nat mid3_val mid2_val mid1_val r_val : Nat}
-    (h3 : uVal = q3_nat * vVal * 2^192 + mid3_val)
-    (h2 : mid3_val = q2_nat * vVal * 2^128 + mid2_val)
-    (h1 : mid2_val = q1_nat * vVal * 2^64 + mid1_val)
-    (h0 : mid1_val = q0_nat * vVal + r_val) :
-    uVal = (q3_nat * 2^192 + q2_nat * 2^128 + q1_nat * 2^64 + q0_nat) * vVal + r_val := by
+    {uVal vVal q3Nat q2Nat q1Nat q0Nat mid3_val mid2_val mid1_val r_val : Nat}
+    (h3 : uVal = q3Nat * vVal * 2^192 + mid3_val)
+    (h2 : mid3_val = q2Nat * vVal * 2^128 + mid2_val)
+    (h1 : mid2_val = q1Nat * vVal * 2^64 + mid1_val)
+    (h0 : mid1_val = q0Nat * vVal + r_val) :
+    uVal = (q3Nat * 2^192 + q2Nat * 2^128 + q1Nat * 2^64 + q0Nat) * vVal + r_val := by
   nlinarith
 
 -- ============================================================================

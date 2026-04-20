@@ -24,14 +24,14 @@ open EvmAsm.Rv64
 -- ============================================================================
 -- Loop exit postcondition for n
 -- Common assertion shape for both cpsBranch exits (taken/ntaken).
--- Parameterized by the final output values (un0_f..un3_f, u4_f, q_f, c3).
+-- Parameterized by the final output values (un0F..un3F, u4F, q_f, c3).
 -- ============================================================================
 
 /-- Loop exit postcondition for n. Both taken (loop-back) and ntaken (exit)
     paths produce this same assertion shape, differing only in the output values.
     Encapsulates uBase/j'/qAddr address computation + 21-atom assertion chain. -/
 @[irreducible]
-def loopExitPost (n : Word) (sp j q_f c3 un0_f un1_f un2_f un3_f u4_f
+def loopExitPost (n : Word) (sp j q_f c3 un0F un1F un2F un3F u4F
     v0 v1 v2 v3 : Word) : Assertion :=
   let uBase := sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat
   let j' := j + signExtend12 4095
@@ -39,31 +39,31 @@ def loopExitPost (n : Word) (sp j q_f c3 un0_f un1_f un2_f un3_f u4_f
   (.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j') **
   (.x5 ↦ᵣ j <<< (3 : BitVec 6).toNat) ** (.x6 ↦ᵣ uBase) **
   (.x7 ↦ᵣ qAddr) ** (.x10 ↦ᵣ c3) ** (.x11 ↦ᵣ q_f) **
-  (.x2 ↦ᵣ un3_f) ** (.x0 ↦ᵣ (0 : Word)) **
+  (.x2 ↦ᵣ un3F) ** (.x0 ↦ᵣ (0 : Word)) **
   (sp + signExtend12 3976 ↦ₘ j) ** (sp + signExtend12 3984 ↦ₘ n) **
-  ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ un0_f) **
-  ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4088) ↦ₘ un1_f) **
-  ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4080) ↦ₘ un2_f) **
-  ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ un3_f) **
-  ((uBase + signExtend12 4064) ↦ₘ u4_f) **
+  ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ un0F) **
+  ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4088) ↦ₘ un1F) **
+  ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4080) ↦ₘ un2F) **
+  ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ un3F) **
+  ((uBase + signExtend12 4064) ↦ₘ u4F) **
   (qAddr ↦ₘ q_f)
 
-theorem loopExitPost_unfold (n: Word) (sp j q_f c3 un0_f un1_f un2_f un3_f u4_f
+theorem loopExitPost_unfold (n: Word) (sp j q_f c3 un0F un1F un2F un3F u4F
     v0 v1 v2 v3 : Word) :
-    loopExitPost n sp j q_f c3 un0_f un1_f un2_f un3_f u4_f v0 v1 v2 v3 =
+    loopExitPost n sp j q_f c3 un0F un1F un2F un3F u4F v0 v1 v2 v3 =
     let uBase := sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat
     let j' := j + signExtend12 4095
     let qAddr := sp + signExtend12 4088 - j <<< (3 : BitVec 6).toNat
     (.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j') **
     (.x5 ↦ᵣ j <<< (3 : BitVec 6).toNat) ** (.x6 ↦ᵣ uBase) **
     (.x7 ↦ᵣ qAddr) ** (.x10 ↦ᵣ c3) ** (.x11 ↦ᵣ q_f) **
-    (.x2 ↦ᵣ un3_f) ** (.x0 ↦ᵣ (0 : Word)) **
+    (.x2 ↦ᵣ un3F) ** (.x0 ↦ᵣ (0 : Word)) **
     (sp + signExtend12 3976 ↦ₘ j) ** (sp + signExtend12 3984 ↦ₘ n) **
-    ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ un0_f) **
-    ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4088) ↦ₘ un1_f) **
-    ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4080) ↦ₘ un2_f) **
-    ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ un3_f) **
-    ((uBase + signExtend12 4064) ↦ₘ u4_f) **
+    ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ un0F) **
+    ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4088) ↦ₘ un1F) **
+    ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4080) ↦ₘ un2F) **
+    ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ un3F) **
+    ((uBase + signExtend12 4064) ↦ₘ u4F) **
     (qAddr ↦ₘ q_f) := by
   delta loopExitPost; rfl
 
@@ -113,12 +113,12 @@ def loopBodyAddbackBeqPost (n : Word) (sp j qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop : 
   let ab' := addbackN4 ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 ab.2.2.2.2 v0 v1 v2 v3
   let q_out := if carry = 0 then qHat + signExtend12 4095 + signExtend12 4095
                else qHat + signExtend12 4095
-  let un0_out := if carry = 0 then ab'.1 else ab.1
-  let un1_out := if carry = 0 then ab'.2.1 else ab.2.1
-  let un2_out := if carry = 0 then ab'.2.2.1 else ab.2.2.1
-  let un3_out := if carry = 0 then ab'.2.2.2.1 else ab.2.2.2.1
+  let un0Out := if carry = 0 then ab'.1 else ab.1
+  let un1Out := if carry = 0 then ab'.2.1 else ab.2.1
+  let un2Out := if carry = 0 then ab'.2.2.1 else ab.2.2.1
+  let un3Out := if carry = 0 then ab'.2.2.2.1 else ab.2.2.2.1
   let u4_out := if carry = 0 then ab'.2.2.2.2 else ab.2.2.2.2
-  loopExitPost n sp j q_out c3 un0_out un1_out un2_out un3_out u4_out v0 v1 v2 v3
+  loopExitPost n sp j q_out c3 un0Out un1Out un2Out un3Out u4_out v0 v1 v2 v3
 
 abbrev loopBodyN1AddbackBeqPost := loopBodyAddbackBeqPost (1 : Word)
 abbrev loopBodyN2AddbackBeqPost := loopBodyAddbackBeqPost (2 : Word)
