@@ -83,8 +83,8 @@ theorem divK_div128_phase1_spec
 theorem divK_div128_end_spec
     (sp q1 q0 v2_old v11_old ret_addr : Word) (base : Word)
     (halign : (ret_addr + signExtend12 0) &&& ~~~1 = ret_addr) :
-    let q1_hi := q1 <<< (32 : BitVec 6).toNat
-    let q := q1_hi ||| q0
+    let q1Hi := q1 <<< (32 : BitVec 6).toNat
+    let q := q1Hi ||| q0
     let cr :=
       CodeReq.union (CodeReq.singleton base (.SLLI .x11 .x10 32))
       (CodeReq.union (CodeReq.singleton (base + 4) (.OR .x11 .x11 .x5))
@@ -95,9 +95,9 @@ theorem divK_div128_end_spec
        (.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ v2_old) ** (sp + signExtend12 3968 ↦ₘ ret_addr))
       ((.x10 ↦ᵣ q1) ** (.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ q) **
        (.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ ret_addr) ** (sp + signExtend12 3968 ↦ₘ ret_addr)) := by
-  intro q1_hi q cr
+  intro q1Hi q cr
   have I0 := slli_spec_gen .x11 .x10 v11_old q1 32 base (by nofun)
-  have I1 := or_spec_gen_rd_eq_rs1 .x11 .x5 q1_hi q0 (base + 4) (by nofun)
+  have I1 := or_spec_gen_rd_eq_rs1 .x11 .x5 q1Hi q0 (base + 4) (by nofun)
   have I2 := ld_spec_gen .x2 .x12 sp v2_old ret_addr 3968 (base + 8) (by nofun)
   have I3 := jalr_x0_spec_gen .x2 ret_addr 0 (base + 12)
   rw [halign] at I3
