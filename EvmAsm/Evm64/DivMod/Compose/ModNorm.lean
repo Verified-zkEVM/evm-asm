@@ -14,7 +14,7 @@ open EvmAsm.Rv64.Tactics
 namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
-open EvmAsm.Rv64.AddrNorm (se13_172 bv64_4mul_3 se12_32 se12_40 se12_48 se12_56)
+open EvmAsm.Rv64.AddrNorm (bv64_4mul_3 se12_32 se12_40 se12_48 se12_56)
 
 -- ============================================================================
 -- MOD CodeReq subsumption lemmas for block 3 (PhaseC2) and block 4 (NormB)
@@ -64,8 +64,7 @@ theorem mod_phaseC2_ntaken_spec (sp shift v2 shiftMem : Word) (base : Word)
        (.x0 ↦ᵣ (0 : Word)) ** ((sp + signExtend12 3992) ↦ₘ shift)) := by
   have hbody := mod_phaseC2_body_modCode sp shift v2 shiftMem base
   have hbeq_raw := beq_spec_gen .x6 .x0 172 shift (0 : Word) (base + 224)
-  rw [show (base + 224 : Word) + signExtend13 172 = base + copyAUOff from by
-        rw [se13_172]; bv_addr,
+  rw [show (base + 224 : Word) + signExtend13 172 = base + copyAUOff from by rv64_addr,
       show (base + 224 : Word) + 4 = base + normBOff from by bv_addr] at hbeq_raw
   have hbeq_clean := cpsBranch_ntakenStripPure2 hbeq_raw
     (fun hp hQt => by
@@ -94,8 +93,7 @@ theorem mod_phaseC2_taken_spec (sp shift v2 shiftMem : Word) (base : Word)
        (.x0 ↦ᵣ (0 : Word)) ** ((sp + signExtend12 3992) ↦ₘ shift)) := by
   have hbody := mod_phaseC2_body_modCode sp shift v2 shiftMem base
   have hbeq_raw := beq_spec_gen .x6 .x0 172 shift (0 : Word) (base + 224)
-  rw [show (base + 224 : Word) + signExtend13 172 = base + copyAUOff from by
-        rw [se13_172]; bv_addr,
+  rw [show (base + 224 : Word) + signExtend13 172 = base + copyAUOff from by rv64_addr,
       show (base + 224 : Word) + 4 = base + normBOff from by bv_addr] at hbeq_raw
   have hbeq_clean := cpsBranch_takenStripPure2 hbeq_raw
     (fun hp hQf => by
