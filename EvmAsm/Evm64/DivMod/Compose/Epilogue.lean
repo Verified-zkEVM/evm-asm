@@ -12,7 +12,7 @@ open EvmAsm.Rv64.Tactics
 namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
-open EvmAsm.Rv64.AddrNorm (se13_96 se13_1020 se21_24 bv64_4mul_3)
+open EvmAsm.Rv64.AddrNorm (bv64_4mul_3)
 
 -- ============================================================================
 -- Section 10l: Denorm composition (25 instructions at base+904)
@@ -48,8 +48,7 @@ theorem divK_denorm_preamble_spec (sp shift v5 v6 v7 v2 v10 : Word) (base : Word
         [.LD .x6 .x12 3992] 0 (by bv_addr) (by decide) (by decide) (by decide) a i h)) hld
   -- 2. BEQ x6 x0 96 at base+912 (denorm instr [1])
   have hbeq := beq_spec_gen .x6 .x0 (96 : BitVec 13) shift (0 : Word) (base + 912)
-  rw [show (base + 912 : Word) + signExtend13 (96 : BitVec 13) = base + epilogueOff from by
-        rw [se13_96]; bv_addr,
+  rw [show (base + 912 : Word) + signExtend13 (96 : BitVec 13) = base + epilogueOff from by rv64_addr,
       show (base + 912 : Word) + 4 = base + 916 from by bv_addr] at hbeq
   have hbeqe := cpsBranch_extend_code (hmono := by
     intro a i h
@@ -239,8 +238,7 @@ theorem divK_div_epilogue_spec (sp : Word) (base : Word)
         (by bv_addr) (by decide) (by decide) (by decide) a i h)) hload
   -- Store phase (base+1024 → base+1068 via JAL)
   have hstore := divK_epilogue_store_spec sp (base + 1024) q0 q1 q2 q3 m0 m8 m16 m24 24
-  rw [show (base + 1024 : Word) + 20 + signExtend21 24 = base + nopOff from by
-        rw [se21_24]; bv_addr]
+  rw [show (base + 1024 : Word) + 20 + signExtend21 24 = base + nopOff from by rv64_addr]
     at hstore
   have hstoree := cpsTriple_extend_code (hmono := fun a i h =>
     divK_divEpilogue_code_sub_divCode base a i
@@ -318,8 +316,7 @@ theorem evm_mod_bzero_spec (sp base : Word)
     (divK_phaseA_body_spec sp base b0 b1 b2 b3 v5 v10)
   -- Step 2: BEQ at base+28, eliminate ntaken via hbz
   have hbeq_raw := beq_spec_gen .x5 .x0 1020 (b0 ||| b1 ||| b2 ||| b3) (0 : Word) (base + 28)
-  rw [show (base + 28 : Word) + signExtend13 1020 = base + zeroPathOff from by
-        rw [se13_1020]; bv_addr,
+  rw [show (base + 28 : Word) + signExtend13 1020 = base + zeroPathOff from by rv64_addr,
       show (base + 28 : Word) + 4 = base + phaseBOff from by bv_addr] at hbeq_raw
   have hbeq_clean := cpsBranch_takenStripPure2 hbeq_raw
     (fun hp hQf => by
@@ -373,8 +370,7 @@ theorem evm_mod_phaseA_ntaken_spec (sp base : Word)
     (divK_phaseA_body_spec sp base b0 b1 b2 b3 v5 v10)
   -- Step 2: BEQ at base+28, eliminate taken path (b=0 absurd since hbnz)
   have hbeq_raw := beq_spec_gen .x5 .x0 1020 (b0 ||| b1 ||| b2 ||| b3) (0 : Word) (base + 28)
-  rw [show (base + 28 : Word) + signExtend13 1020 = base + zeroPathOff from by
-        rw [se13_1020]; bv_addr,
+  rw [show (base + 28 : Word) + signExtend13 1020 = base + zeroPathOff from by rv64_addr,
       show (base + 28 : Word) + 4 = base + phaseBOff from by bv_addr] at hbeq_raw
   have hbeq_clean := cpsBranch_ntakenStripPure2 hbeq_raw
     (fun hp hQt => by
@@ -435,8 +431,7 @@ theorem divK_mod_epilogue_spec (sp : Word) (base : Word)
         (by bv_addr) (by decide) (by decide) (by decide) a i h)) hload
   -- Store phase (base+1024 → base+1068 via JAL): advance sp, store u[0..3] to output
   have hstore := divK_epilogue_store_spec sp (base + 1024) u0 u1 u2 u3 m0 m8 m16 m24 24
-  rw [show (base + 1024 : Word) + 20 + signExtend21 24 = base + nopOff from by
-        rw [se21_24]; bv_addr]
+  rw [show (base + 1024 : Word) + 20 + signExtend21 24 = base + nopOff from by rv64_addr]
     at hstore
   have hstoree := cpsTriple_extend_code (hmono := fun a i h =>
     divK_modEpilogue_code_sub_modCode base a i
