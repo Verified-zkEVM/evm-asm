@@ -16,6 +16,7 @@ import EvmAsm.Evm64.EvmWordArith.DivAddbackLimb
 namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
+open EvmAsm.Rv64.AddrNorm (word_toNat_0)
 
 namespace EvmWord
 
@@ -228,7 +229,7 @@ theorem addback_register_4limb_val256
   have h3 := addback_limb_nat_word_eq un3 v3 co2 h2.1
   -- Simplify h0: carryIn = 0
   have h0' : un0.toNat + v0.toNat = co0.toNat * 2^64 + aun0.toNat := by
-    have := h0.2; simp only [show (0 : Word).toNat = 0 from rfl] at this; linarith
+    have := h0.2; simp only [word_toNat_0] at this; linarith
   -- Chain via addback_4limb_val256
   exact addback_4limb_val256 un0 un1 un2 un3 v0 v1 v2 v3 aun0 aun1 aun2 aun3
     co0.toNat co1.toNat co2.toNat co3.toNat h0' h1.2 h2.2 h3.2

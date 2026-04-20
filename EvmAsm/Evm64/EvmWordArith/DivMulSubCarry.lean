@@ -20,6 +20,7 @@ import EvmAsm.Evm64.EvmWordArith.DivMulSubLimb
 namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
+open EvmAsm.Rv64.AddrNorm (word_toNat_0)
 
 namespace EvmWord
 
@@ -207,7 +208,7 @@ theorem mulsub_register_4limb_val256 (q v0 v1 v2 v3 u0 u1 u2 u3 : Word) :
   have h3 := mulsub_limb_nat_word_eq q v3 u3 c2
   -- Simplify h0: carryIn = 0, so (0 : Word).toNat = 0
   have h0' : u0.toNat + c0.toNat * 2^64 = un0.toNat + q.toNat * v0.toNat := by
-    have := h0; simp only [show (0 : Word).toNat = 0 from rfl] at this; linarith
+    have := h0; simp only [word_toNat_0] at this; linarith
   -- Chain via mulsub_chain_nat
   exact mulsub_chain_nat q.toNat u0 u1 u2 u3 v0 v1 v2 v3 un0 un1 un2 un3
     c0.toNat c1.toNat c2.toNat c3.toNat h0' h1 h2 h3

@@ -16,10 +16,12 @@
 -/
 
 import EvmAsm.Evm64.EvmWordArith.DivLimbBridge
+import EvmAsm.Rv64.AddrNorm
 
 namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
+open EvmAsm.Rv64.AddrNorm (word_toNat_0)
 
 namespace EvmWord
 
@@ -235,7 +237,7 @@ theorem mulsub_4limb_euclidean_div (qNat : Nat)
   have hb : b.toNat = val256 v0 v1 v2 v3 := by
     show (fromLimbs _).toNat = _; rw [fromLimbs_toNat]; dsimp only []; unfold val256; norm_num
   have hq : q.toNat = qNat := by
-    show (fromLimbs _).toNat = qNat; rw [fromLimbs_toNat, show (0 : Word).toNat = 0 from rfl]
+    show (fromLimbs _).toNat = qNat; rw [fromLimbs_toNat, word_toNat_0]
     simp only [BitVec.toNat_ofNat]; omega
   have hr : r.toNat = val256 r0 r1 r2 r3 := by
     show (fromLimbs _).toNat = _; rw [fromLimbs_toNat]; dsimp only []; unfold val256; norm_num
