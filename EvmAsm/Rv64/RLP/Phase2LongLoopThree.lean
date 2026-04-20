@@ -133,7 +133,7 @@ theorem rlp_phase2_long_loop_three_byte_spec
   have h_ptr_3 : (ptr + 1 : Word) + 2 = ptr + 3 := by bv_omega
   rw [h_ptr_2, h_ptr_3] at two_byte
   have composed :=
-    cpsTriple_seq_with_perm_same_cr base base (base + 24) _ _ _ _ _
+    cpsTriple_seq_perm_same_cr
       (fun h hp => by xperm_hyp hp) tri1' two_byte
   exact cpsTriple_weaken
     (fun _ hp => hp)

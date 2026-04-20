@@ -344,16 +344,6 @@ theorem cpsBranch_takenStripPure2
     (sepConj_strip_pure_end2 A B Prop_t)
     (cpsBranch_takenPath hbr h_absurd)
 
-/-- Explicit-argument variant of `cpsBranch_takenStripPure2`. Deprecated;
-    prefer `cpsBranch_takenStripPure2` in new code. -/
-@[deprecated cpsBranch_takenStripPure2 (since := "2026-04-19")]
-theorem cpsBranch_elim_taken_strip_pure2
-    (entry l_t l_f : Word) (cr : CodeReq) (P A B : Assertion) (Prop_t : Prop) (Q_f : Assertion)
-    (hbr : cpsBranch entry cr P l_t (A ** B ** ⌜Prop_t⌝) l_f Q_f)
-    (h_absurd : ∀ hp, Q_f hp → False) :
-    cpsTriple entry l_t cr P (A ** B) :=
-  cpsBranch_takenStripPure2 hbr h_absurd
-
 /-- Eliminate the not-taken path from a cpsBranch AND strip the trailing pure fact
     from the taken postcondition (depth 3: A ** B ** C ** ⌜P⌝ → A ** B ** C).
     All arguments except the two proofs are implicit — inferred from `hbr`. -/
@@ -366,16 +356,6 @@ theorem cpsBranch_takenStripPure3
     (fun _ hp => hp)
     (sepConj_strip_pure_end3 A B C Prop_t)
     (cpsBranch_takenPath hbr h_absurd)
-
-/-- Explicit-argument variant of `cpsBranch_takenStripPure3`. Deprecated;
-    prefer `cpsBranch_takenStripPure3` in new code. -/
-@[deprecated cpsBranch_takenStripPure3 (since := "2026-04-19")]
-theorem cpsBranch_elim_taken_strip_pure3
-    (entry l_t l_f : Word) (cr : CodeReq) (P A B C : Assertion) (Prop_t : Prop) (Q_f : Assertion)
-    (hbr : cpsBranch entry cr P l_t (A ** B ** C ** ⌜Prop_t⌝) l_f Q_f)
-    (h_absurd : ∀ hp, Q_f hp → False) :
-    cpsTriple entry l_t cr P (A ** B ** C) :=
-  cpsBranch_takenStripPure3 hbr h_absurd
 
 /-- Eliminate the taken path from a cpsBranch AND strip the trailing pure fact
     from the not-taken postcondition (depth 2: A ** B ** ⌜P⌝ → A ** B).
@@ -390,16 +370,6 @@ theorem cpsBranch_ntakenStripPure2
     (sepConj_strip_pure_end2 A B Prop_f)
     (cpsBranch_ntakenPath hbr h_absurd)
 
-/-- Explicit-argument variant of `cpsBranch_ntakenStripPure2`. Deprecated;
-    prefer `cpsBranch_ntakenStripPure2` in new code. -/
-@[deprecated cpsBranch_ntakenStripPure2 (since := "2026-04-19")]
-theorem cpsBranch_elim_ntaken_strip_pure2
-    (entry l_t l_f : Word) (cr : CodeReq) (P A B : Assertion) (Prop_f : Prop) (Q_t : Assertion)
-    (hbr : cpsBranch entry cr P l_t Q_t l_f (A ** B ** ⌜Prop_f⌝))
-    (h_absurd : ∀ hp, Q_t hp → False) :
-    cpsTriple entry l_f cr P (A ** B) :=
-  cpsBranch_ntakenStripPure2 hbr h_absurd
-
 /-- Eliminate the taken path from a cpsBranch AND strip the trailing pure fact
     from the not-taken postcondition (depth 3: A ** B ** C ** ⌜P⌝ → A ** B ** C).
     All arguments except the two proofs are implicit — inferred from `hbr`. -/
@@ -412,16 +382,6 @@ theorem cpsBranch_ntakenStripPure3
     (fun _ hp => hp)
     (sepConj_strip_pure_end3 A B C Prop_f)
     (cpsBranch_ntakenPath hbr h_absurd)
-
-/-- Explicit-argument variant of `cpsBranch_ntakenStripPure3`. Deprecated;
-    prefer `cpsBranch_ntakenStripPure3` in new code. -/
-@[deprecated cpsBranch_ntakenStripPure3 (since := "2026-04-19")]
-theorem cpsBranch_elim_ntaken_strip_pure3
-    (entry l_t l_f : Word) (cr : CodeReq) (P A B C : Assertion) (Prop_f : Prop) (Q_t : Assertion)
-    (hbr : cpsBranch entry cr P l_t Q_t l_f (A ** B ** C ** ⌜Prop_f⌝))
-    (h_absurd : ∀ hp, Q_t hp → False) :
-    cpsTriple entry l_f cr P (A ** B ** C) :=
-  cpsBranch_ntakenStripPure3 hbr h_absurd
 
 /-- A cpsTriple with zero steps: if entry = exit and P implies Q, trivially holds. -/
 theorem cpsTriple_refl (addr : Word) (P Q : Assertion)
@@ -995,16 +955,6 @@ theorem cpsTriple_frameL {entry exit_ : Word} {cr : CodeReq} {P Q : Assertion}
   have hPFR := holdsFor_sepConj_pull_second.mp hFPR
   obtain ⟨k, s', hstep, hpc', hpost⟩ := h (F ** R) (pcFree_sepConj hF hR) s hcr hPFR hpc
   exact ⟨k, s', hstep, hpc', holdsFor_sepConj_pull_second.mpr hpost⟩
-
-/-- Explicit-argument variant of `cpsTriple_frameL`. Kept for backwards
-    compatibility; prefer `cpsTriple_frameL` in new code. Note the name
-    is a misnomer — it adds `F` to the *left* of the sepConj chain. -/
-@[deprecated cpsTriple_frameL (since := "2026-04-19")]
-theorem cpsTriple_frame_right (entry exit_ : Word) (cr : CodeReq)
-    (P Q F : Assertion) (hF : F.pcFree)
-    (h : cpsTriple entry exit_ cr P Q) :
-    cpsTriple entry exit_ cr (F ** P) (F ** Q) :=
-  cpsTriple_frameL F hF h
 
 /-- Frame for cpsBranch: add `F` on the right. Position/code/pre/post args
     are all implicit; prefer this over `cpsBranch_frame_left` (which takes

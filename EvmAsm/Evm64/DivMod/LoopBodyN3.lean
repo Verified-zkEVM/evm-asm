@@ -208,7 +208,7 @@ theorem divK_loop_body_n3_max_addback_spec
   let un2_out := if carry = 0 then ab'.2.2.1 else ab.2.2.1
   let un3_out := if carry = 0 then ab'.2.2.2.1 else ab.2.2.2.1
   let u4_out := if carry = 0 then ab'.2.2.2.2 else ab.2.2.2.2
-  let carry_out := if carry = 0 then
+  let carryOut := if carry = 0 then
       addbackN4_carry ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 v0 v1 v2 v3
     else carry
   -- Abbreviation for vtopBase (register value, not a memory address)
@@ -227,7 +227,7 @@ theorem divK_loop_body_n3_max_addback_spec
   intro_lets at MCA
   have MCA0 := MCA hcarry2_nz hborrow
   -- 3. Store loop cpsBranch (base+884 → base+448/908)
-  have SL := divK_store_loop_spec sp j q_out u4_out carry_out q_old base
+  have SL := divK_store_loop_spec sp j q_out u4_out carryOut q_old base
   intro_lets at SL
   -- 4. Frame TF with non-overlapping cells
   have TFf := cpsTriple_frameR
@@ -275,28 +275,28 @@ theorem divK_loop_body_n3_call_skip_spec
     (hbltu : BitVec.ult u3 v2) :
     let u_base := sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat
     -- div128 intermediates
-    let d_hi := v2 >>> (32 : BitVec 6).toNat
-    let d_lo := (v2 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+    let dHi := v2 >>> (32 : BitVec 6).toNat
+    let dLo := (v2 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
     let div_un1 := u2 >>> (32 : BitVec 6).toNat
     let div_un0 := (u2 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
-    let q1 := rv64_divu u3 d_hi
-    let rhat := u3 - q1 * d_hi
+    let q1 := rv64_divu u3 dHi
+    let rhat := u3 - q1 * dHi
     let hi1 := q1 >>> (32 : BitVec 6).toNat
     let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
-    let rhatc := if hi1 = 0 then rhat else rhat + d_hi
-    let q_dlo := q1c * d_lo
+    let rhatc := if hi1 = 0 then rhat else rhat + dHi
+    let q_dlo := q1c * dLo
     let rhat_un1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
     let q1' := if BitVec.ult rhat_un1 q_dlo then q1c + signExtend12 4095 else q1c
-    let rhat' := if BitVec.ult rhat_un1 q_dlo then rhatc + d_hi else rhatc
+    let rhat' := if BitVec.ult rhat_un1 q_dlo then rhatc + dHi else rhatc
     let cu_rhat_un1 := (rhat' <<< (32 : BitVec 6).toNat) ||| div_un1
-    let cu_q1_dlo := q1' * d_lo
+    let cu_q1_dlo := q1' * dLo
     let un21 := cu_rhat_un1 - cu_q1_dlo
-    let q0 := rv64_divu un21 d_hi
-    let rhat2 := un21 - q0 * d_hi
+    let q0 := rv64_divu un21 dHi
+    let rhat2 := un21 - q0 * dHi
     let hi2 := q0 >>> (32 : BitVec 6).toNat
     let q0c := if hi2 = 0 then q0 else q0 + signExtend12 4095
-    let rhat2c := if hi2 = 0 then rhat2 else rhat2 + d_hi
-    let q0_dlo := q0c * d_lo
+    let rhat2c := if hi2 = 0 then rhat2 else rhat2 + dHi
+    let q0_dlo := q0c * dLo
     let rhat2_un0 := (rhat2c <<< (32 : BitVec 6).toNat) ||| div_un0
     let q0' := if BitVec.ult rhat2_un0 q0_dlo then q0c + signExtend12 4095 else q0c
     let q_hat := (q1' <<< (32 : BitVec 6).toNat) ||| q0'
@@ -323,16 +323,16 @@ theorem divK_loop_body_n3_call_skip_spec
       (loopBodyN3SkipPost sp j q_hat v0 v1 v2 v3 u0 u1 u2 u3 u_top **
        (sp + signExtend12 3968 ↦ₘ (base + 516)) **
        (sp + signExtend12 3960 ↦ₘ v2) **
-       (sp + signExtend12 3952 ↦ₘ d_lo) **
+       (sp + signExtend12 3952 ↦ₘ dLo) **
        (sp + signExtend12 3944 ↦ₘ div_un0))
       (base + denormOff)
       (loopBodyN3SkipPost sp j q_hat v0 v1 v2 v3 u0 u1 u2 u3 u_top **
        (sp + signExtend12 3968 ↦ₘ (base + 516)) **
        (sp + signExtend12 3960 ↦ₘ v2) **
-       (sp + signExtend12 3952 ↦ₘ d_lo) **
+       (sp + signExtend12 3952 ↦ₘ dLo) **
        (sp + signExtend12 3944 ↦ₘ div_un0)) := by
   intro u_base
-        d_hi d_lo div_un1 div_un0 q1 rhat hi1 q1c rhatc q_dlo rhat_un1 q1' rhat'
+        dHi dLo div_un1 div_un0 q1 rhat hi1 q1c rhatc q_dlo rhat_un1 q1' rhat'
         cu_rhat_un1 cu_q1_dlo un21 q0 rhat2 hi2 q0c rhat2c q0_dlo rhat2_un0 q0' q_hat
         qAddr hborrow
   let ms := mulsubN4 q_hat v0 v1 v2 v3 u0 u1 u2 u3
@@ -373,7 +373,7 @@ theorem divK_loop_body_n3_call_skip_spec
   rw [vtop_eq_v2_n3 sp] at TF
   -- 2. Mulsub + correction skip (base+516 → base+880)
   have MCS := divK_mulsub_correction_skip_spec sp q_hat j v0 v1 v2 v3 u0 u1 u2 u3 u_top
-    rhat2_un0 q0' d_hi q0_dlo q1' (base + 516) base
+    rhat2_un0 q0' dHi q0_dlo q1' (base + 516) base
 
   intro_lets at MCS
   have MCS0 := MCS hborrow
@@ -402,7 +402,7 @@ theorem divK_loop_body_n3_call_skip_spec
      (sp + signExtend12 3984 ↦ₘ (3 : Word)) **
      (sp + signExtend12 3968 ↦ₘ (base + 516)) **
      (sp + signExtend12 3960 ↦ₘ v2) **
-     (sp + signExtend12 3952 ↦ₘ d_lo) **
+     (sp + signExtend12 3952 ↦ₘ dLo) **
      (sp + signExtend12 3944 ↦ₘ div_un0))
     (by pcFree) SL
   -- 7. Compose
@@ -430,28 +430,28 @@ theorem divK_loop_body_n3_call_addback_spec
     (hbltu : BitVec.ult u3 v2) :
     let u_base := sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat
     -- div128 intermediates
-    let d_hi := v2 >>> (32 : BitVec 6).toNat
-    let d_lo := (v2 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+    let dHi := v2 >>> (32 : BitVec 6).toNat
+    let dLo := (v2 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
     let div_un1 := u2 >>> (32 : BitVec 6).toNat
     let div_un0 := (u2 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
-    let q1 := rv64_divu u3 d_hi
-    let rhat := u3 - q1 * d_hi
+    let q1 := rv64_divu u3 dHi
+    let rhat := u3 - q1 * dHi
     let hi1 := q1 >>> (32 : BitVec 6).toNat
     let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
-    let rhatc := if hi1 = 0 then rhat else rhat + d_hi
-    let q_dlo := q1c * d_lo
+    let rhatc := if hi1 = 0 then rhat else rhat + dHi
+    let q_dlo := q1c * dLo
     let rhat_un1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
     let q1' := if BitVec.ult rhat_un1 q_dlo then q1c + signExtend12 4095 else q1c
-    let rhat' := if BitVec.ult rhat_un1 q_dlo then rhatc + d_hi else rhatc
+    let rhat' := if BitVec.ult rhat_un1 q_dlo then rhatc + dHi else rhatc
     let cu_rhat_un1 := (rhat' <<< (32 : BitVec 6).toNat) ||| div_un1
-    let cu_q1_dlo := q1' * d_lo
+    let cu_q1_dlo := q1' * dLo
     let un21 := cu_rhat_un1 - cu_q1_dlo
-    let q0 := rv64_divu un21 d_hi
-    let rhat2 := un21 - q0 * d_hi
+    let q0 := rv64_divu un21 dHi
+    let rhat2 := un21 - q0 * dHi
     let hi2 := q0 >>> (32 : BitVec 6).toNat
     let q0c := if hi2 = 0 then q0 else q0 + signExtend12 4095
-    let rhat2c := if hi2 = 0 then rhat2 else rhat2 + d_hi
-    let q0_dlo := q0c * d_lo
+    let rhat2c := if hi2 = 0 then rhat2 else rhat2 + dHi
+    let q0_dlo := q0c * dLo
     let rhat2_un0 := (rhat2c <<< (32 : BitVec 6).toNat) ||| div_un0
     let q0' := if BitVec.ult rhat2_un0 q0_dlo then q0c + signExtend12 4095 else q0c
     let q_hat := (q1' <<< (32 : BitVec 6).toNat) ||| q0'
@@ -483,16 +483,16 @@ theorem divK_loop_body_n3_call_addback_spec
       (loopBodyN3AddbackBeqPost sp j q_hat v0 v1 v2 v3 u0 u1 u2 u3 u_top **
        (sp + signExtend12 3968 ↦ₘ (base + 516)) **
        (sp + signExtend12 3960 ↦ₘ v2) **
-       (sp + signExtend12 3952 ↦ₘ d_lo) **
+       (sp + signExtend12 3952 ↦ₘ dLo) **
        (sp + signExtend12 3944 ↦ₘ div_un0))
       (base + denormOff)
       (loopBodyN3AddbackBeqPost sp j q_hat v0 v1 v2 v3 u0 u1 u2 u3 u_top **
        (sp + signExtend12 3968 ↦ₘ (base + 516)) **
        (sp + signExtend12 3960 ↦ₘ v2) **
-       (sp + signExtend12 3952 ↦ₘ d_lo) **
+       (sp + signExtend12 3952 ↦ₘ dLo) **
        (sp + signExtend12 3944 ↦ₘ div_un0)) := by
   intro u_base
-        d_hi d_lo div_un1 div_un0 q1 rhat hi1 q1c rhatc q_dlo rhat_un1 q1' rhat'
+        dHi dLo div_un1 div_un0 q1 rhat hi1 q1c rhatc q_dlo rhat_un1 q1' rhat'
         cu_rhat_un1 cu_q1_dlo un21 q0 rhat2 hi2 q0c rhat2c q0_dlo rhat2_un0 q0' q_hat
         qAddr ms ab hcarry2_nz hborrow
   -- Local lets matching beq_spec structure
@@ -506,7 +506,7 @@ theorem divK_loop_body_n3_call_addback_spec
   let un2_out := if carry = 0 then ab'.2.2.1 else ab.2.2.1
   let un3_out := if carry = 0 then ab'.2.2.2.1 else ab.2.2.2.1
   let u4_out := if carry = 0 then ab'.2.2.2.2 else ab.2.2.2.2
-  let carry_out := if carry = 0 then
+  let carryOut := if carry = 0 then
       addbackN4_carry ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 v0 v1 v2 v3
     else carry
   let vtopBase := sp + ((3 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
@@ -520,12 +520,12 @@ theorem divK_loop_body_n3_call_addback_spec
   rw [vtop_eq_v2_n3 sp] at TF
   -- 2. Mulsub + correction addback + BEQ (base+516 → base+884)
   have MCA := divK_mulsub_correction_addback_beq_spec sp q_hat j v0 v1 v2 v3 u0 u1 u2 u3 u_top
-    rhat2_un0 q0' d_hi q0_dlo q1' (base + 516) base
+    rhat2_un0 q0' dHi q0_dlo q1' (base + 516) base
 
   intro_lets at MCA
   have MCA0 := MCA hcarry2_nz hborrow
   -- 3. Store loop cpsBranch (base+884 → base+448/908)
-  have SL := divK_store_loop_spec sp j q_out u4_out carry_out q_old base
+  have SL := divK_store_loop_spec sp j q_out u4_out carryOut q_old base
   intro_lets at SL
   -- 4. Frame TF
   have TFf := cpsTriple_frameR
@@ -548,7 +548,7 @@ theorem divK_loop_body_n3_call_addback_spec
      (sp + signExtend12 3984 ↦ₘ (3 : Word)) **
      (sp + signExtend12 3968 ↦ₘ (base + 516)) **
      (sp + signExtend12 3960 ↦ₘ v2) **
-     (sp + signExtend12 3952 ↦ₘ d_lo) **
+     (sp + signExtend12 3952 ↦ₘ dLo) **
      (sp + signExtend12 3944 ↦ₘ div_un0))
     (by pcFree) SL
   -- 7. Compose

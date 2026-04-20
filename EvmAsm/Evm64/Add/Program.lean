@@ -13,7 +13,7 @@ open EvmAsm.Rv64
 
 /-- 256-bit EVM ADD: binary, pops 2, pushes 1.
     Limb 0: LD, LD, ADD, SLTU (carry), SD (5 instructions).
-    Limbs 1-3: LD, LD, ADD, SLTU (carry1), ADD (carry_in), SLTU (carry2), OR (carry_out), SD (8 each).
+    Limbs 1-3: LD, LD, ADD, SLTU (carry1), ADD (carryIn), SLTU (carry2), OR (carryOut), SD (8 each).
     Then ADDI sp, sp, 32.
     Registers: x12=sp, x7=acc, x6=operand, x5=carry, x11=carry1. -/
 def evm_add : Program :=

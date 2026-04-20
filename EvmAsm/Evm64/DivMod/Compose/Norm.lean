@@ -37,26 +37,26 @@ private theorem beq_shift_sub_divCode (base : Word) :
 
 /-- Phase C2 body (base+212 → base+224): store shift, compute anti_shift.
     Extends to divCode. Uses first 3 instructions of phaseC2. -/
-private theorem divK_phaseC2_body_divCode (sp shift v2 shift_mem : Word) (base : Word) :
+private theorem divK_phaseC2_body_divCode (sp shift v2 shiftMem : Word) (base : Word) :
     cpsTriple (base + phaseC2Off) (base + 224) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ v2) ** (.x0 ↦ᵣ (0 : Word)) **
-       ((sp + signExtend12 3992) ↦ₘ shift_mem))
+       ((sp + signExtend12 3992) ↦ₘ shiftMem))
       ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ (signExtend12 (0 : BitVec 12) - shift)) **
        (.x0 ↦ᵣ (0 : Word)) ** ((sp + signExtend12 3992) ↦ₘ shift)) := by
-  have hbody := divK_phaseC2_body_spec sp shift v2 shift_mem 172 (base + phaseC2Off)
+  have hbody := divK_phaseC2_body_spec sp shift v2 shiftMem 172 (base + phaseC2Off)
   rw [show (base + phaseC2Off : Word) + 12 = base + 224 from by bv_addr] at hbody
   exact cpsTriple_extend_code (divK_phaseC2_code_sub_divCode base) hbody
 
 /-- Phase C2 when shift ≠ 0: falls through to normB at base+228.
     Stores shift to scratch, computes anti_shift = -shift. -/
-theorem divK_phaseC2_ntaken_spec (sp shift v2 shift_mem : Word) (base : Word)
+theorem divK_phaseC2_ntaken_spec (sp shift v2 shiftMem : Word) (base : Word)
     (hshift_nz : shift ≠ 0) :
     cpsTriple (base + phaseC2Off) (base + normBOff) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ v2) ** (.x0 ↦ᵣ (0 : Word)) **
-       ((sp + signExtend12 3992) ↦ₘ shift_mem))
+       ((sp + signExtend12 3992) ↦ₘ shiftMem))
       ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ (signExtend12 (0 : BitVec 12) - shift)) **
        (.x0 ↦ᵣ (0 : Word)) ** ((sp + signExtend12 3992) ↦ₘ shift)) := by
-  have hbody := divK_phaseC2_body_divCode sp shift v2 shift_mem base
+  have hbody := divK_phaseC2_body_divCode sp shift v2 shiftMem base
   have hbeq_raw := beq_spec_gen .x6 .x0 172 shift (0 : Word) (base + 224)
   rw [show (base + 224 : Word) + signExtend13 172 = base + copyAUOff from by
         rw [se13_172]; bv_addr,
@@ -79,14 +79,14 @@ theorem divK_phaseC2_ntaken_spec (sp shift v2 shift_mem : Word) (base : Word)
 
 /-- Phase C2 when shift = 0: branches to copyAU at base+396.
     Stores shift (=0) to scratch, computes anti_shift = 0. -/
-theorem divK_phaseC2_taken_spec (sp shift v2 shift_mem : Word) (base : Word)
+theorem divK_phaseC2_taken_spec (sp shift v2 shiftMem : Word) (base : Word)
     (hshift_z : shift = 0) :
     cpsTriple (base + phaseC2Off) (base + copyAUOff) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ v2) ** (.x0 ↦ᵣ (0 : Word)) **
-       ((sp + signExtend12 3992) ↦ₘ shift_mem))
+       ((sp + signExtend12 3992) ↦ₘ shiftMem))
       ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ (signExtend12 (0 : BitVec 12) - shift)) **
        (.x0 ↦ᵣ (0 : Word)) ** ((sp + signExtend12 3992) ↦ₘ shift)) := by
-  have hbody := divK_phaseC2_body_divCode sp shift v2 shift_mem base
+  have hbody := divK_phaseC2_body_divCode sp shift v2 shiftMem base
   have hbeq_raw := beq_spec_gen .x6 .x0 172 shift (0 : Word) (base + 224)
   rw [show (base + 224 : Word) + signExtend13 172 = base + copyAUOff from by
         rw [se13_172]; bv_addr,

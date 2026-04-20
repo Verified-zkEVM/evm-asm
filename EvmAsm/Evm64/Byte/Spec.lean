@@ -248,7 +248,7 @@ theorem evm_byte_zero_high_spec (sp base : Word)
     (byte_phase_a_or_reduce_spec sp r5 r10 i1 i2 i3 base)
   simp only [signExtend12_8, signExtend12_16, signExtend12_24] at hOR
   -- Frame OR-reduce with remaining state
-  have hOR_f := cpsTriple_frame_left base (base + 20) _ _ _
+  have hOR_f := cpsTriple_frameR
     ((.x0 ↦ᵣ (0 : Word)) **
      (sp ↦ₘ i0) ** ((sp + 32) ↦ₘ v0) ** ((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3))
     (by pcFree) hOR
@@ -262,7 +262,7 @@ theorem evm_byte_zero_high_spec (sp base : Word)
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQf
       exact absurd ((sepConj_pure_right _ _ _).mp h_rest).2 hhigh)
   -- Frame BNE with remaining state
-  have hbne_framed := cpsTriple_frame_left (base + 20) (base + 160) _ _ _
+  have hbne_framed := cpsTriple_frameR
     ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ i3) **
      (sp ↦ₘ i0) ** ((sp + 8) ↦ₘ i1) ** ((sp + 16) ↦ₘ i2) ** ((sp + 24) ↦ₘ i3) **
      ((sp + 32) ↦ₘ v0) ** ((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3))
@@ -277,7 +277,7 @@ theorem evm_byte_zero_high_spec (sp base : Word)
   simp only [signExtend12_32] at hzp
   rw [byte_off_160_20] at hzp
   -- Frame zero path with remaining state
-  have hzp_framed := cpsTriple_frame_left (base + 160) (base + 180) _ _ _
+  have hzp_framed := cpsTriple_frameR
     ((.x5 ↦ᵣ (i1 ||| i2 ||| i3)) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ i3) **
      (sp ↦ₘ i0) ** ((sp + 8) ↦ₘ i1) ** ((sp + 16) ↦ₘ i2) ** ((sp + 24) ↦ₘ i3))
     (by pcFree) hzp
@@ -326,7 +326,7 @@ theorem evm_byte_zero_geq32_spec (sp base : Word)
     (byte_phase_a_or_reduce_spec sp r5 r10 i1 i2 i3 base)
   simp only [signExtend12_8, signExtend12_16, signExtend12_24] at hOR
   -- Frame OR-reduce with remaining state
-  have hOR_f := cpsTriple_frame_left base (base + 20) _ _ _
+  have hOR_f := cpsTriple_frameR
     ((.x0 ↦ᵣ (0 : Word)) **
      (sp ↦ₘ i0) ** ((sp + 32) ↦ₘ v0) ** ((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3))
     (by pcFree) hOR
@@ -339,7 +339,7 @@ theorem evm_byte_zero_geq32_spec (sp base : Word)
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQt
       exact ((sepConj_pure_right _ _ _).mp h_rest).2 hlow)
   -- Frame BNE(ntaken) with remaining state
-  have hbne_framed := cpsTriple_frame_left (base + 20) (base + 24) _ _ _
+  have hbne_framed := cpsTriple_frameR
     ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ i3) **
      (sp ↦ₘ i0) ** ((sp + 8) ↦ₘ i1) ** ((sp + 16) ↦ₘ i2) ** ((sp + 24) ↦ₘ i3) **
      ((sp + 32) ↦ₘ v0) ** ((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3))
@@ -358,12 +358,12 @@ theorem evm_byte_zero_geq32_spec (sp base : Word)
   rw [byte_off_28] at hsltiu_raw
   have hsltiu := cpsTriple_extend_code (byte_sltiu_sub base) hsltiu_raw
   -- Frame + compose LD → SLTIU
-  have hld_f := cpsTriple_frame_left (base + 24) (base + 28) _ _ _
+  have hld_f := cpsTriple_frameR
     ((.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ i3) **
      ((sp + 8) ↦ₘ i1) ** ((sp + 16) ↦ₘ i2) ** ((sp + 24) ↦ₘ i3) **
      ((sp + 32) ↦ₘ v0) ** ((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3))
     (by pcFree) hld
-  have hsltiu_f := cpsTriple_frame_left (base + 28) (base + 32) _ _ _
+  have hsltiu_f := cpsTriple_frameR
     ((.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) **
      (sp ↦ₘ i0) ** ((sp + 8) ↦ₘ i1) ** ((sp + 16) ↦ₘ i2) ** ((sp + 24) ↦ₘ i3) **
      ((sp + 32) ↦ₘ v0) ** ((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3))
@@ -387,7 +387,7 @@ theorem evm_byte_zero_geq32_spec (sp base : Word)
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQf
       exact ((sepConj_pure_right _ _ _).mp h_rest).2 hsltiu_eq)
   -- Frame BEQ(taken) with remaining state
-  have hbeq_framed := cpsTriple_frame_left (base + 32) (base + 160) _ _ _
+  have hbeq_framed := cpsTriple_frameR
     ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ i0) **
      (sp ↦ₘ i0) ** ((sp + 8) ↦ₘ i1) ** ((sp + 16) ↦ₘ i2) ** ((sp + 24) ↦ₘ i3) **
      ((sp + 32) ↦ₘ v0) ** ((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3))
@@ -400,7 +400,7 @@ theorem evm_byte_zero_geq32_spec (sp base : Word)
     (byte_zero_path_spec sp v0 v1 v2 v3 (base + 160))
   simp only [signExtend12_32] at hzp
   rw [byte_off_160_20] at hzp
-  have hzp_framed := cpsTriple_frame_left (base + 160) (base + 180) _ _ _
+  have hzp_framed := cpsTriple_frameR
     ((.x5 ↦ᵣ i0) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ sltiuVal) **
      (sp ↦ₘ i0) ** ((sp + 8) ↦ₘ i1) ** ((sp + 16) ↦ₘ i2) ** ((sp + 24) ↦ₘ i3))
     (by pcFree) hzp
@@ -492,7 +492,7 @@ theorem evm_byte_body_evmWord_spec (sp base : Word)
   have hOR := cpsTriple_extend_code (byte_phase_a_sub base)
     (byte_phase_a_or_reduce_spec sp r5 r10 i1 i2 i3 base)
   simp only [signExtend12_8, signExtend12_16, signExtend12_24] at hOR
-  have hOR_f := cpsTriple_frame_left base (base + 20) _ _ _
+  have hOR_f := cpsTriple_frameR
     ((.x6 ↦ᵣ r6) ** (.x0 ↦ᵣ (0 : Word)) **
      (sp ↦ₘ i0) ** ((sp + 32) ↦ₘ v0) ** ((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3))
     (by pcFree) hOR
@@ -504,7 +504,7 @@ theorem evm_byte_body_evmWord_spec (sp base : Word)
     (fun hp hQt => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQt
       exact ((sepConj_pure_right _ _ _).mp h_rest).2 hhigh_zero)
-  have hbne_framed := cpsTriple_frame_left (base + 20) (base + 24) _ _ _
+  have hbne_framed := cpsTriple_frameR
     ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ i3) ** (.x6 ↦ᵣ r6) **
      (sp ↦ₘ i0) ** ((sp + 8) ↦ₘ i1) ** ((sp + 16) ↦ₘ i2) ** ((sp + 24) ↦ₘ i3) **
      ((sp + 32) ↦ₘ v0) ** ((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3))
@@ -520,12 +520,12 @@ theorem evm_byte_body_evmWord_spec (sp base : Word)
   have hsltiu_raw := sltiu_spec_gen .x10 .x5 i3 i0 32 (base + 28) (by nofun)
   rw [byte_off_28] at hsltiu_raw
   have hsltiu := cpsTriple_extend_code (byte_sltiu_sub base) hsltiu_raw
-  have hld_f := cpsTriple_frame_left (base + 24) (base + 28) _ _ _
+  have hld_f := cpsTriple_frameR
     ((.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ i3) ** (.x6 ↦ᵣ r6) **
      ((sp + 8) ↦ₘ i1) ** ((sp + 16) ↦ₘ i2) ** ((sp + 24) ↦ₘ i3) **
      ((sp + 32) ↦ₘ v0) ** ((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3))
     (by pcFree) hld
-  have hsltiu_f := cpsTriple_frame_left (base + 28) (base + 32) _ _ _
+  have hsltiu_f := cpsTriple_frameR
     ((.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) ** (.x6 ↦ᵣ r6) **
      (sp ↦ₘ i0) ** ((sp + 8) ↦ₘ i1) ** ((sp + 16) ↦ₘ i2) ** ((sp + 24) ↦ₘ i3) **
      ((sp + 32) ↦ₘ v0) ** ((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3))
@@ -545,7 +545,7 @@ theorem evm_byte_body_evmWord_spec (sp base : Word)
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQt
       have heq := ((sepConj_pure_right _ _ _).mp h_rest).2
       simp [hsltiu_eq] at heq)
-  have hbeq_framed := cpsTriple_frame_left (base + 32) (base + 36) _ _ _
+  have hbeq_framed := cpsTriple_frameR
     ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ i0) ** (.x6 ↦ᵣ r6) **
      (sp ↦ₘ i0) ** ((sp + 8) ↦ₘ i1) ** ((sp + 16) ↦ₘ i2) ** ((sp + 24) ↦ₘ i3) **
      ((sp + 32) ↦ₘ v0) ** ((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3))
@@ -560,7 +560,7 @@ theorem evm_byte_body_evmWord_spec (sp base : Word)
   have hphaseB_raw := byte_phase_b_spec i0 r6 sltiuVal (base + 36)
   have hphaseB := cpsTriple_extend_code (byte_phase_b_sub base) hphaseB_raw
   rw [byte_off_36_20] at hphaseB
-  have hphaseB_f := cpsTriple_frame_left (base + 36) (base + 56) _ _ _
+  have hphaseB_f := cpsTriple_frameR
     ((.x12 ↦ᵣ sp) **
      (sp ↦ₘ i0) ** ((sp + 8) ↦ₘ i1) ** ((sp + 16) ↦ₘ i2) ** ((sp + 24) ↦ₘ i3) **
      ((sp + 32) ↦ₘ v0) ** ((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3))
@@ -603,7 +603,7 @@ theorem evm_byte_body_evmWord_spec (sp base : Word)
   -- The approach: frame Phase C, then merge with body+store per exit.
   -- Each body: bodyBase → base+136 (extended to evm_byte_code)
   -- Store: base+136 → base+180 (extended to evm_byte_code)
-  -- Compose body → store, frame with x0/x10/idx_mem, weaken regs, bridge via bv_srl_mask_eq + byte_correct
+  -- Compose body → store, frame with x0/x10/idxMem, weaken regs, bridge via bv_srl_mask_eq + byte_correct
   --
   -- Due to the different x10 values per Phase C exit and the complex memory layouts,
   -- the composition is done inline in the merge callback.
@@ -667,7 +667,7 @@ theorem evm_byte_body_evmWord_spec (sp base : Word)
   -- Body 3 (loads v0 from sp+32): already has all 4 val cells in pre/post after framing with val_mem_1,2,3
   -- But the raw body specs have only 1 val cell. Need to frame with other 3 val cells first.
   -- body_3 has: pre = (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ _) ** (.x6 ↦ᵣ shiftAmount) ** ((sp+32)↦ₘv0)
-  have hb3_val_f := cpsTriple_frame_left (base + 76) (base + 136) _ _ _
+  have hb3_val_f := cpsTriple_frameR
     (((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3)) (by pcFree) hbody3
   have hb3_canon : cpsTriple (base + 76) (base + 136) (evm_byte_code base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ limbFromMsb) ** (.x6 ↦ᵣ shiftAmount) **
@@ -676,7 +676,7 @@ theorem evm_byte_body_evmWord_spec (sp base : Word)
        ((sp + 32) ↦ₘ v0) ** ((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3)) :=
     cpsTriple_weaken
       (fun h hp => by xperm_hyp hp) (fun h hq => by xperm_hyp hq) hb3_val_f
-  have hb2_val_f := cpsTriple_frame_left (base + 92) (base + 136) _ _ _
+  have hb2_val_f := cpsTriple_frameR
     (((sp + 32) ↦ₘ v0) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3)) (by pcFree) hbody2
   have hb2_canon : cpsTriple (base + 92) (base + 136) (evm_byte_code base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ limbFromMsb) ** (.x6 ↦ᵣ shiftAmount) **
@@ -685,7 +685,7 @@ theorem evm_byte_body_evmWord_spec (sp base : Word)
        ((sp + 32) ↦ₘ v0) ** ((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3)) :=
     cpsTriple_weaken
       (fun h hp => by xperm_hyp hp) (fun h hq => by xperm_hyp hq) hb2_val_f
-  have hb1_val_f := cpsTriple_frame_left (base + 108) (base + 136) _ _ _
+  have hb1_val_f := cpsTriple_frameR
     (((sp + 32) ↦ₘ v0) ** ((sp + 40) ↦ₘ v1) ** ((sp + 56) ↦ₘ v3)) (by pcFree) hbody1
   have hb1_canon : cpsTriple (base + 108) (base + 136) (evm_byte_code base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ limbFromMsb) ** (.x6 ↦ᵣ shiftAmount) **
@@ -694,7 +694,7 @@ theorem evm_byte_body_evmWord_spec (sp base : Word)
        ((sp + 32) ↦ₘ v0) ** ((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3)) :=
     cpsTriple_weaken
       (fun h hp => by xperm_hyp hp) (fun h hq => by xperm_hyp hq) hb1_val_f
-  have hb0_val_f := cpsTriple_frame_left (base + 124) (base + 136) _ _ _
+  have hb0_val_f := cpsTriple_frameR
     (((sp + 32) ↦ₘ v0) ** ((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2)) (by pcFree) hbody0
   have hb0_canon : cpsTriple (base + 124) (base + 136) (evm_byte_code base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ limbFromMsb) ** (.x6 ↦ᵣ shiftAmount) **
@@ -758,14 +758,14 @@ theorem evm_byte_body_evmWord_spec (sp base : Word)
          (sp ↦ₘ i0) ** ((sp + 8) ↦ₘ i1) ** ((sp + 16) ↦ₘ i2) ** ((sp + 24) ↦ₘ i3) **
          ((sp + 32) ↦ₘ resV) ** ((sp + 40) ↦ₘ (0 : Word)) ** ((sp + 48) ↦ₘ (0 : Word)) ** ((sp + 56) ↦ₘ (0 : Word))) := by
     intro bodyBase x10v vLimb hbodyRaw resV
-    have hbody_f := cpsTriple_frame_left bodyBase (base + 136) _ _ _
+    have hbody_f := cpsTriple_frameR
       ((.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ x10v) **
        (sp ↦ₘ i0) ** ((sp + 8) ↦ₘ i1) ** ((sp + 16) ↦ₘ i2) ** ((sp + 24) ↦ₘ i3))
       (by pcFree) hbodyRaw
     have hstore_raw := byte_store_spec sp resV v0 v1 v2 v3 (base + 136)
     rw [byte_store_exit_eq] at hstore_raw; simp only [signExtend12_32] at hstore_raw
     have hstore := cpsTriple_extend_code (byte_store_sub base) hstore_raw
-    have hstore_f := cpsTriple_frame_left (base + 136) (base + 180) _ _ _
+    have hstore_f := cpsTriple_frameR
       ((.x6 ↦ᵣ shiftAmount) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ x10v) **
        (sp ↦ₘ i0) ** ((sp + 8) ↦ₘ i1) ** ((sp + 16) ↦ₘ i2) ** ((sp + 24) ↦ₘ i3))
       (by pcFree) hstore
@@ -905,7 +905,7 @@ theorem evm_byte_stack_spec (sp base : Word)
     -- Use evm_byte_zero_high_spec at the limb level, then wrap with evmWordIs
     have h_raw := evm_byte_zero_high_spec sp base i0 i1 i2 i3 v0 v1 v2 v3 v5 v10 hhigh
     -- Frame x6 (not used by zero_high path)
-    have h_framed := cpsTriple_frame_left base (base + 180) _ _ _
+    have h_framed := cpsTriple_frameR
       (.x6 ↦ᵣ v6) (by pcFree) h_raw
     -- Convert to evmWordIs form
     exact cpsTriple_weaken
@@ -943,7 +943,7 @@ theorem evm_byte_stack_spec (sp base : Word)
           EvmWord.toNat_eq_getLimb0_of_high_zero idx hhigh
         rw [decide_eq_false_iff_not]; omega
       have h_raw := evm_byte_zero_geq32_spec sp base i0 i1 i2 i3 v0 v1 v2 v3 v5 v10 hhigh hlarge
-      have h_framed := cpsTriple_frame_left base (base + 180) _ _ _
+      have h_framed := cpsTriple_frameR
         (.x6 ↦ᵣ v6) (by pcFree) h_raw
       exact cpsTriple_weaken
         (fun h hp => by
