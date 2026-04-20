@@ -545,7 +545,7 @@ theorem if_eq_branch_step_n (rs1 rs2 : Reg) (v1 v2 : Word)
       [ (thenEntry, (base ↦ᵢ bneInstr) ** (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2) ⋒ ⌜v1 = v2⌝)),
         (elseEntry, (base ↦ᵢ bneInstr) ** (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2) ⋒ ⌜v1 ≠ v2⌝)) ] := by
   simp only
-  exact cpsBranch_to_cpsNBranch _ _ _ _ _ _ _
+  exact cpsBranch_to_cpsNBranch
     (if_eq_branch_step rs1 rs2 v1 v2 then_body base P hP ht_small)
 
 /-- Full N-exit CPS specification for if_eq, using cpsNBranch_merge.

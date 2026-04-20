@@ -448,11 +448,12 @@ theorem cpsNBranch_to_cpsTriple {entry exit_ : Word} {cr : CodeReq}
   | head => exact ⟨k, s', hstep, hpc', hQR⟩
   | tail _ h => exact absurd h List.not_mem_nil
 
-/-- A 2-exit cpsBranch can be viewed as a cpsNBranch with two exits. -/
-theorem cpsBranch_to_cpsNBranch (entry : Word) (cr : CodeReq)
-    (P : Assertion)
-    (exit_t : Word) (Q_t : Assertion)
-    (exit_f : Word) (Q_f : Assertion)
+/-- A 2-exit cpsBranch can be viewed as a cpsNBranch with two exits.
+    All position/code/assertion arguments are implicit — inferred from `h`. -/
+theorem cpsBranch_to_cpsNBranch {entry : Word} {cr : CodeReq}
+    {P : Assertion}
+    {exit_t : Word} {Q_t : Assertion}
+    {exit_f : Word} {Q_f : Assertion}
     (h : cpsBranch entry cr P exit_t Q_t exit_f Q_f) :
     cpsNBranch entry cr P [(exit_t, Q_t), (exit_f, Q_f)] := by
   intro R hR s hcr hPR hpc
