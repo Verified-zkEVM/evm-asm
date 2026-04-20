@@ -191,7 +191,7 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
 ## Pending: Recreate Deleted Spec Files
 
 Five Evm64 spec files were deleted because their CodeReq migration was
-incomplete (manual `cpsTriple_seq_with_perm` calls lacked the `hd :
+incomplete (manual `cpsTriple_seq_perm_same_cr` calls lacked the `hd :
 cr1.Disjoint cr2` argument added during the migration, and CR tree shapes
 didn't match goals). The program definitions and tests remain in the
 corresponding non-Spec files.
@@ -270,9 +270,9 @@ corresponding non-Spec files.
 
 - Use `runBlock` auto mode wherever possible (handles CR extension, address
   normalization, and composition automatically).
-- For manual compositions with different CRs, use `cpsTriple_seq_with_perm`
+- For manual compositions with different CRs, use `cpsTriple_seq_perm`
   with `(by crDisjoint)` for the `hd` argument, or extend to a common CR
-  first and use `_same_cr` variants.
+  first and use `_same_cr` variants (`cpsTriple_seq_perm_same_cr`).
 - All `_code` abbrevs should be `CodeReq` — prefer `CodeReq.ofProg base prog`
   over chains of `singleton.union`. See MultiplySpec.lean for the current pattern.
 - Theorem statements use 5-arg `cpsTriple base exit cr P Q` with no

@@ -235,7 +235,7 @@ This is a **prototype** demonstrating the approach. Current state:
     frame parameter and tactics instantiate it during composition.
   - The instruction specs with explicit frame in `compiler/src/compiler/GoFlatToRiscv.v`
     (lines 439-546) informed the design of composing instruction specs with
-    `cpsTriple_frameR` + `cpsTriple_seq_with_perm`.
+    `cpsTriple_frameR` + `cpsTriple_seq_perm_same_cr`.
 - Knuth, D.E. (1997). *The Art of Computer Programming, Volume 2:
   Seminumerical Algorithms* (3rd ed.), §4.3.1 "The Classical Algorithms."
   Addison-Wesley. Algorithm D is used for the DIV/MOD opcodes in `Evm64/DivMod.lean`.
