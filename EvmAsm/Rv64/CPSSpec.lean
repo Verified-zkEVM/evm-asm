@@ -652,9 +652,10 @@ theorem cpsTriple_seq_with_perm (s m e : Word) (cr1 cr2 : CodeReq)
     (cpsTriple_weaken (fun _ hp => hp) hperm h1) h2
 
 /-- Sequence with same CodeReq: compose two CPS triples sharing the same CodeReq.
-    Unlike `cpsTriple_seq`, does not require disjointness (same cr on both sides). -/
-theorem cpsTriple_seq_same_cr (l1 l2 l3 : Word) (cr : CodeReq)
-    (P Q R : Assertion)
+    Unlike `cpsTriple_seq`, does not require disjointness (same cr on both sides).
+    All position/code/assertion arguments are implicit — inferred from `h1`/`h2`. -/
+theorem cpsTriple_seq_same_cr {l1 l2 l3 : Word} {cr : CodeReq}
+    {P Q R : Assertion}
     (h1 : cpsTriple l1 l2 cr P Q) (h2 : cpsTriple l2 l3 cr Q R) :
     cpsTriple l1 l3 cr P R := by
   intro F hF s hcr hPF hpc
@@ -672,7 +673,7 @@ theorem cpsTriple_seq_perm_same_cr {s m e : Word} {cr : CodeReq}
     {P Q1 Q2 R : Assertion} (hperm : ∀ h, Q1 h → Q2 h)
     (h1 : cpsTriple s m cr P Q1) (h2 : cpsTriple m e cr Q2 R) :
     cpsTriple s e cr P R :=
-  cpsTriple_seq_same_cr s m e cr P Q2 R
+  cpsTriple_seq_same_cr
     (cpsTriple_weaken (fun _ hp => hp) hperm h1) h2
 
 -- ============================================================================
