@@ -19,8 +19,8 @@ open EvmAsm.Rv64.Tactics
 namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
-open EvmAsm.Rv64.AddrNorm (se13_36 se13_100 se13_188 se13_320 se13_332 se21_32 se21_132 se21_212 se21_268
-  zero_add_se12_1_toNat zero_add_se12_2_toNat bv6_toNat_6 bv64_toNat_63 word_add_zero)
+open EvmAsm.Rv64.AddrNorm
+  (zero_add_se12_1_toNat zero_add_se12_2_toNat bv6_toNat_6 bv64_toNat_63 word_add_zero)
 
 -- ============================================================================
 -- Section 1: sarCode definition and helpers
@@ -245,26 +245,26 @@ private theorem sar_off_32 (base : Word) : (base + 32 : Word) + 4 = base + 36 :=
 private theorem sar_off_36_28 (base : Word) : (base + 36 : Word) + 28 = base + 64 := by bv_omega
 private theorem sar_off_352_28 (base : Word) : (base + 352 : Word) + 28 = base + 380 := by bv_omega
 private theorem sar_bne_target (base : Word) : (base + 20 : Word) + signExtend13 332 = base + 352 := by
-  rw [se13_332]; bv_omega
+  rv64_addr
 private theorem sar_beq_target (base : Word) : (base + 32 : Word) + signExtend13 320 = base + 352 := by
-  rw [se13_320]; bv_omega
+  rv64_addr
 -- Phase C exit addresses
 private theorem sar_c_e0 (base : Word) : (base + 64 : Word) + signExtend13 188 = base + 252 := by
-  rw [se13_188]; bv_omega
+  rv64_addr
 private theorem sar_c_e1 (base : Word) : ((base + 64 : Word) + 8) + signExtend13 100 = base + 172 := by
-  rw [se13_100]; bv_omega
+  rv64_addr
 private theorem sar_c_e2 (base : Word) : ((base + 64 : Word) + 16) + signExtend13 36 = base + 116 := by
-  rw [se13_36]; bv_omega
+  rv64_addr
 private theorem sar_c_e3 (base : Word) : (base + 64 : Word) + 20 = base + 84 := by bv_omega
 -- Body exit addresses (JAL targets → base+380)
 private theorem sar_body3_exit (base : Word) : ((base + 84 : Word) + 28) + signExtend21 268 = base + 380 := by
-  rw [se21_268]; bv_omega
+  rv64_addr
 private theorem sar_body2_exit (base : Word) : ((base + 116 : Word) + 52) + signExtend21 212 = base + 380 := by
-  rw [se21_212]; bv_omega
+  rv64_addr
 private theorem sar_body1_exit (base : Word) : ((base + 172 : Word) + 76) + signExtend21 132 = base + 380 := by
-  rw [se21_132]; bv_omega
+  rv64_addr
 private theorem sar_body0_exit (base : Word) : ((base + 252 : Word) + 96) + signExtend21 32 = base + 380 := by
-  rw [se21_32]; bv_omega
+  rv64_addr
 
 -- ============================================================================
 -- Section 4: Sign-fill path composition
