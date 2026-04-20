@@ -1373,4 +1373,51 @@ theorem evm_mod_n4_max_skip_stack_spec (sp base : Word)
   simp only [hmod_eq, hanti_toNat_mod] at hq
   xperm_hyp hq
 
+-- ============================================================================
+-- DIV/MOD: n=4 max+addback BEQ stack specs — vacuous under `hshift_nz`
+-- ============================================================================
+
+/-- EVM-stack-level DIV spec on the n=4 max+addback BEQ sub-path.
+
+    **Vacuous under `hshift_nz`**: by `isMaxTrialN4_false_of_shift_nz`
+    (`EvmWordArith/MaxTrialVacuity.lean`), `isMaxTrialN4Evm a b` (which
+    unfolds to `isMaxTrialN4` on b's top limb) cannot hold simultaneously
+    with non-zero shift. So the precondition set is unsatisfiable and
+    the spec is trivially provable via `exfalso`.
+
+    This closes Phase F of the n=4 max+addback stack spec roadmap
+    (Issue #61): the bridge chain I was planning is not needed, because
+    the runtime path this spec describes is dead code at runtime for
+    shift > 0. -/
+theorem evm_div_n4_max_addback_beq_stack_spec (sp base : Word)
+    (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem : Word)
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hbltu : isMaxTrialN4Evm a b) :
+    cpsTriple base (base + nopOff) (divCode base)
+      (divN4StackPre sp a b v5 v6 v7 v10 v11
+         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem)
+      (divN4MaxSkipStackPost sp a b) := by
+  exfalso
+  exact isMaxTrialN4_false_of_shift_nz (a.getLimbN 3) (b.getLimbN 2) (b.getLimbN 3)
+    hb3nz hshift_nz hbltu
+
+/-- MOD counterpart of `evm_div_n4_max_addback_beq_stack_spec` — also vacuous. -/
+theorem evm_mod_n4_max_addback_beq_stack_spec (sp base : Word)
+    (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem : Word)
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hbltu : isMaxTrialN4Evm a b) :
+    cpsTriple base (base + nopOff) (modCode base)
+      (modN4StackPre sp a b v5 v6 v7 v10 v11
+         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem)
+      (modN4MaxSkipStackPost sp a b) := by
+  exfalso
+  exact isMaxTrialN4_false_of_shift_nz (a.getLimbN 3) (b.getLimbN 2) (b.getLimbN 3)
+    hb3nz hshift_nz hbltu
+
 end EvmAsm.Evm64
