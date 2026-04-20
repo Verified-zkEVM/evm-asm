@@ -39,28 +39,28 @@ abbrev shr_merge_limb_code (src_off next_off dst_off : BitVec 12) (base : Word) 
   CodeReq.ofProg base (shr_merge_limb_prog src_off next_off dst_off)
 
 theorem shr_merge_limb_spec (src_off next_off dst_off : BitVec 12)
-    (sp src next dst_old v5 v10 bit_shift anti_shift mask : Word) (base : Word) :
+    (sp src next dstOld v5 v10 bit_shift antiShift mask : Word) (base : Word) :
     let memSrc := sp + signExtend12 src_off
     let memNext := sp + signExtend12 next_off
     let memDst := sp + signExtend12 dst_off
     let shiftedSrc := src >>> (bit_shift.toNat % 64)
-    let shiftedNext := (next <<< (anti_shift.toNat % 64)) &&& mask
+    let shiftedNext := (next <<< (antiShift.toNat % 64)) &&& mask
     let result := shiftedSrc ||| shiftedNext
     let code := shr_merge_limb_code src_off next_off dst_off base
     cpsTriple base (base + 28) code
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ bit_shift) **
-       (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ mask) **
-       (memSrc ↦ₘ src) ** (memNext ↦ₘ next) ** (memDst ↦ₘ dst_old))
+       (.x7 ↦ᵣ antiShift) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ mask) **
+       (memSrc ↦ₘ src) ** (memNext ↦ₘ next) ** (memDst ↦ₘ dstOld))
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result) ** (.x6 ↦ᵣ bit_shift) **
-       (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ shiftedNext) ** (.x11 ↦ᵣ mask) **
+       (.x7 ↦ᵣ antiShift) ** (.x10 ↦ᵣ shiftedNext) ** (.x11 ↦ᵣ mask) **
        (memSrc ↦ₘ src) ** (memNext ↦ₘ next) ** (memDst ↦ₘ result)) := by
   have L1 := ld_spec_gen .x5 .x12 sp v5 src src_off base (by nofun)
   have SR := srl_spec_gen_rd_eq_rs1 .x5 .x6 src bit_shift (base + 4) (by nofun)
   have L2 := ld_spec_gen .x10 .x12 sp v10 next next_off (base + 8) (by nofun)
-  have SL := sll_spec_gen_rd_eq_rs1 .x10 .x7 next anti_shift (base + 12) (by nofun)
-  have AN := and_spec_gen_rd_eq_rs1 .x10 .x11 (next <<< (anti_shift.toNat % 64)) mask (base + 16) (by nofun)
-  have OR_ := or_spec_gen_rd_eq_rs1 .x5 .x10 (src >>> (bit_shift.toNat % 64)) ((next <<< (anti_shift.toNat % 64)) &&& mask) (base + 20) (by nofun)
-  have SD_ := sd_spec_gen .x12 .x5 sp ((src >>> (bit_shift.toNat % 64)) ||| ((next <<< (anti_shift.toNat % 64)) &&& mask)) dst_old dst_off (base + 24)
+  have SL := sll_spec_gen_rd_eq_rs1 .x10 .x7 next antiShift (base + 12) (by nofun)
+  have AN := and_spec_gen_rd_eq_rs1 .x10 .x11 (next <<< (antiShift.toNat % 64)) mask (base + 16) (by nofun)
+  have OR_ := or_spec_gen_rd_eq_rs1 .x5 .x10 (src >>> (bit_shift.toNat % 64)) ((next <<< (antiShift.toNat % 64)) &&& mask) (base + 20) (by nofun)
+  have SD_ := sd_spec_gen .x12 .x5 sp ((src >>> (bit_shift.toNat % 64)) ||| ((next <<< (antiShift.toNat % 64)) &&& mask)) dstOld dst_off (base + 24)
   runBlock L1 SR L2 SL AN OR_ SD_
 
 -- SHR Last Limb (3 instructions)
@@ -69,19 +69,19 @@ abbrev shr_last_limb_code (dst_off : BitVec 12) (base : Word) : CodeReq :=
   CodeReq.ofProg base (shr_last_limb_prog dst_off)
 
 theorem shr_last_limb_spec (dst_off : BitVec 12)
-    (sp src dst_old v5 bit_shift : Word) (base : Word) :
+    (sp src dstOld v5 bit_shift : Word) (base : Word) :
     let memSrc := sp + signExtend12 (24 : BitVec 12)
     let memDst := sp + signExtend12 dst_off
     let result := src >>> (bit_shift.toNat % 64)
     let code := shr_last_limb_code dst_off base
     cpsTriple base (base + 12) code
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ bit_shift) **
-       (memSrc ↦ₘ src) ** (memDst ↦ₘ dst_old))
+       (memSrc ↦ₘ src) ** (memDst ↦ₘ dstOld))
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result) ** (.x6 ↦ᵣ bit_shift) **
        (memSrc ↦ₘ src) ** (memDst ↦ₘ result)) := by
   have L := ld_spec_gen .x5 .x12 sp v5 src 24 base (by nofun)
   have SR := srl_spec_gen_rd_eq_rs1 .x5 .x6 src bit_shift (base + 4) (by nofun)
-  have SD_ := sd_spec_gen .x12 .x5 sp (src >>> (bit_shift.toNat % 64)) dst_old dst_off (base + 8)
+  have SD_ := sd_spec_gen .x12 .x5 sp (src >>> (bit_shift.toNat % 64)) dstOld dst_off (base + 8)
   runBlock L SR SD_
 
 -- SHR Merge Limb In-place (7 instructions, src_off = dst_off)
@@ -90,27 +90,27 @@ abbrev shr_merge_limb_inplace_code (off next_off : BitVec 12) (base : Word) : Co
   CodeReq.ofProg base (shr_merge_limb_inplace_prog off next_off)
 
 theorem shr_merge_limb_inplace_spec (off next_off : BitVec 12)
-    (sp src next v5 v10 bit_shift anti_shift mask : Word) (base : Word) :
+    (sp src next v5 v10 bit_shift antiShift mask : Word) (base : Word) :
     let memLoc := sp + signExtend12 off
     let memNext := sp + signExtend12 next_off
     let shiftedSrc := src >>> (bit_shift.toNat % 64)
-    let shiftedNext := (next <<< (anti_shift.toNat % 64)) &&& mask
+    let shiftedNext := (next <<< (antiShift.toNat % 64)) &&& mask
     let result := shiftedSrc ||| shiftedNext
     let code := shr_merge_limb_inplace_code off next_off base
     cpsTriple base (base + 28) code
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ bit_shift) **
-       (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ mask) **
+       (.x7 ↦ᵣ antiShift) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ mask) **
        (memLoc ↦ₘ src) ** (memNext ↦ₘ next))
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result) ** (.x6 ↦ᵣ bit_shift) **
-       (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ shiftedNext) ** (.x11 ↦ᵣ mask) **
+       (.x7 ↦ᵣ antiShift) ** (.x10 ↦ᵣ shiftedNext) ** (.x11 ↦ᵣ mask) **
        (memLoc ↦ₘ result) ** (memNext ↦ₘ next)) := by
   have L1 := ld_spec_gen .x5 .x12 sp v5 src off base (by nofun)
   have SR := srl_spec_gen_rd_eq_rs1 .x5 .x6 src bit_shift (base + 4) (by nofun)
   have L2 := ld_spec_gen .x10 .x12 sp v10 next next_off (base + 8) (by nofun)
-  have SL := sll_spec_gen_rd_eq_rs1 .x10 .x7 next anti_shift (base + 12) (by nofun)
-  have AN := and_spec_gen_rd_eq_rs1 .x10 .x11 (next <<< (anti_shift.toNat % 64)) mask (base + 16) (by nofun)
-  have OR_ := or_spec_gen_rd_eq_rs1 .x5 .x10 (src >>> (bit_shift.toNat % 64)) ((next <<< (anti_shift.toNat % 64)) &&& mask) (base + 20) (by nofun)
-  have SD_ := sd_spec_gen .x12 .x5 sp ((src >>> (bit_shift.toNat % 64)) ||| ((next <<< (anti_shift.toNat % 64)) &&& mask)) src off (base + 24)
+  have SL := sll_spec_gen_rd_eq_rs1 .x10 .x7 next antiShift (base + 12) (by nofun)
+  have AN := and_spec_gen_rd_eq_rs1 .x10 .x11 (next <<< (antiShift.toNat % 64)) mask (base + 16) (by nofun)
+  have OR_ := or_spec_gen_rd_eq_rs1 .x5 .x10 (src >>> (bit_shift.toNat % 64)) ((next <<< (antiShift.toNat % 64)) &&& mask) (base + 20) (by nofun)
+  have SD_ := sd_spec_gen .x12 .x5 sp ((src >>> (bit_shift.toNat % 64)) ||| ((next <<< (antiShift.toNat % 64)) &&& mask)) src off (base + 24)
   runBlock L1 SR L2 SL AN OR_ SD_
 
 -- SHR Last Limb In-place (3 instructions, dst_off = 24)
@@ -169,13 +169,13 @@ theorem shr_phase_b_spec (shift0 sp r6 r7 r11 : Word) (base : Word) :
     let limb_shift := shift0 >>> (6 : BitVec 6).toNat
     let cond := if BitVec.ult (0 : Word) bit_shift then (1 : Word) else 0
     let mask := (0 : Word) - cond
-    let anti_shift := (64 : Word) - bit_shift
+    let antiShift := (64 : Word) - bit_shift
     let code := shr_phase_b_code base
     cpsTriple base (base + 28) code
       ((.x5 ↦ᵣ shift0) ** (.x6 ↦ᵣ r6) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x11 ↦ᵣ r11) ** (.x7 ↦ᵣ r7) ** (.x12 ↦ᵣ sp))
       ((.x5 ↦ᵣ limb_shift) ** (.x6 ↦ᵣ bit_shift) ** (.x0 ↦ᵣ (0 : Word)) **
-       (.x11 ↦ᵣ mask) ** (.x7 ↦ᵣ anti_shift) ** (.x12 ↦ᵣ (sp + signExtend12 32))) := by
+       (.x11 ↦ᵣ mask) ** (.x7 ↦ᵣ antiShift) ** (.x12 ↦ᵣ (sp + signExtend12 32))) := by
   have A1 := andi_spec_gen .x6 .x5 r6 shift0 63 base (by nofun)
   have SR := srli_spec_gen_same .x5 shift0 6 (base + 4) (by nofun)
   have SL := sltu_spec_gen .x11 .x0 .x6 r11 (0 : Word) (shift0 &&& signExtend12 63) (base + 8) (by nofun)
@@ -212,7 +212,7 @@ abbrev shr_body_3_code (jal_off : BitVec 21) (base : Word) : CodeReq :=
   CodeReq.ofProg base (shr_body_3_prog jal_off)
 
 theorem shr_body_3_spec (sp : Word)
-    (v5 v10 bit_shift anti_shift mask : Word)
+    (v5 v10 bit_shift antiShift mask : Word)
     (v0 v1 v2 v3 : Word)
     (base exit : Word) (jal_off : BitVec 21)
     (hexit : (base + 24) + signExtend21 jal_off = exit) :
@@ -220,10 +220,10 @@ theorem shr_body_3_spec (sp : Word)
     let code := shr_body_3_code jal_off base
     cpsTriple base exit code
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ bit_shift) **
-       (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ mask) **
+       (.x7 ↦ᵣ antiShift) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ mask) **
        (sp ↦ₘ v0) ** ((sp + 8) ↦ₘ v1) ** ((sp + 16) ↦ₘ v2) ** ((sp + 24) ↦ₘ v3))
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result0) ** (.x6 ↦ᵣ bit_shift) **
-       (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ mask) **
+       (.x7 ↦ᵣ antiShift) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ mask) **
        (sp ↦ₘ result0) ** ((sp + 8) ↦ₘ 0) ** ((sp + 16) ↦ₘ 0) ** ((sp + 24) ↦ₘ 0)) := by
   have LL := shr_last_limb_spec 0 sp v3 v0 v5 bit_shift base
   have S0 := sd_x0_spec_gen .x12 sp v1 8 (base + 12)
@@ -239,23 +239,23 @@ abbrev shr_body_2_code (jal_off : BitVec 21) (base : Word) : CodeReq :=
   CodeReq.ofProg base (shr_body_2_prog jal_off)
 
 theorem shr_body_2_spec (sp : Word)
-    (v5 v10 bit_shift anti_shift mask : Word)
+    (v5 v10 bit_shift antiShift mask : Word)
     (v0 v1 v2 v3 : Word)
     (base exit : Word) (jal_off : BitVec 21)
     (hexit : (base + 48) + signExtend21 jal_off = exit) :
-    let result0 := (v2 >>> (bit_shift.toNat % 64)) ||| ((v3 <<< (anti_shift.toNat % 64)) &&& mask)
+    let result0 := (v2 >>> (bit_shift.toNat % 64)) ||| ((v3 <<< (antiShift.toNat % 64)) &&& mask)
     let result1 := v3 >>> (bit_shift.toNat % 64)
     let code := shr_body_2_code jal_off base
     cpsTriple base exit code
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ bit_shift) **
-       (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ mask) **
+       (.x7 ↦ᵣ antiShift) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ mask) **
        (sp ↦ₘ v0) ** ((sp + 8) ↦ₘ v1) ** ((sp + 16) ↦ₘ v2) ** ((sp + 24) ↦ₘ v3))
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result1) ** (.x6 ↦ᵣ bit_shift) **
-       (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ ((v3 <<< (anti_shift.toNat % 64)) &&& mask)) ** (.x11 ↦ᵣ mask) **
+       (.x7 ↦ᵣ antiShift) ** (.x10 ↦ᵣ ((v3 <<< (antiShift.toNat % 64)) &&& mask)) ** (.x11 ↦ᵣ mask) **
        (sp ↦ₘ result0) ** ((sp + 8) ↦ₘ result1) ** ((sp + 16) ↦ₘ 0) ** ((sp + 24) ↦ₘ 0)) := by
-  have MM := shr_merge_limb_spec 16 24 0 sp v2 v3 v0 v5 v10 bit_shift anti_shift mask base
+  have MM := shr_merge_limb_spec 16 24 0 sp v2 v3 v0 v5 v10 bit_shift antiShift mask base
   have LL := shr_last_limb_spec 8 sp v3 v1
-    ((v2 >>> (bit_shift.toNat % 64)) ||| ((v3 <<< (anti_shift.toNat % 64)) &&& mask))
+    ((v2 >>> (bit_shift.toNat % 64)) ||| ((v3 <<< (antiShift.toNat % 64)) &&& mask))
     bit_shift (base + 28)
   have S0 := sd_x0_spec_gen .x12 sp v2 16 (base + 40)
   have S1 := sd_x0_spec_gen .x12 sp v3 24 (base + 44)
@@ -269,28 +269,28 @@ abbrev shr_body_1_code (jal_off : BitVec 21) (base : Word) : CodeReq :=
   CodeReq.ofProg base (shr_body_1_prog jal_off)
 
 theorem shr_body_1_spec (sp : Word)
-    (v5 v10 bit_shift anti_shift mask : Word)
+    (v5 v10 bit_shift antiShift mask : Word)
     (v0 v1 v2 v3 : Word)
     (base exit : Word) (jal_off : BitVec 21)
     (hexit : (base + 72) + signExtend21 jal_off = exit) :
-    let result0 := (v1 >>> (bit_shift.toNat % 64)) ||| ((v2 <<< (anti_shift.toNat % 64)) &&& mask)
-    let result1 := (v2 >>> (bit_shift.toNat % 64)) ||| ((v3 <<< (anti_shift.toNat % 64)) &&& mask)
+    let result0 := (v1 >>> (bit_shift.toNat % 64)) ||| ((v2 <<< (antiShift.toNat % 64)) &&& mask)
+    let result1 := (v2 >>> (bit_shift.toNat % 64)) ||| ((v3 <<< (antiShift.toNat % 64)) &&& mask)
     let result2 := v3 >>> (bit_shift.toNat % 64)
     let code := shr_body_1_code jal_off base
     cpsTriple base exit code
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ bit_shift) **
-       (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ mask) **
+       (.x7 ↦ᵣ antiShift) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ mask) **
        (sp ↦ₘ v0) ** ((sp + 8) ↦ₘ v1) ** ((sp + 16) ↦ₘ v2) ** ((sp + 24) ↦ₘ v3))
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result2) ** (.x6 ↦ᵣ bit_shift) **
-       (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ ((v3 <<< (anti_shift.toNat % 64)) &&& mask)) ** (.x11 ↦ᵣ mask) **
+       (.x7 ↦ᵣ antiShift) ** (.x10 ↦ᵣ ((v3 <<< (antiShift.toNat % 64)) &&& mask)) ** (.x11 ↦ᵣ mask) **
        (sp ↦ₘ result0) ** ((sp + 8) ↦ₘ result1) ** ((sp + 16) ↦ₘ result2) ** ((sp + 24) ↦ₘ 0)) := by
-  have MM1 := shr_merge_limb_spec 8 16 0 sp v1 v2 v0 v5 v10 bit_shift anti_shift mask base
+  have MM1 := shr_merge_limb_spec 8 16 0 sp v1 v2 v0 v5 v10 bit_shift antiShift mask base
   have MM2 := shr_merge_limb_spec 16 24 8 sp v2 v3 v1
-    ((v1 >>> (bit_shift.toNat % 64)) ||| ((v2 <<< (anti_shift.toNat % 64)) &&& mask))
-    ((v2 <<< (anti_shift.toNat % 64)) &&& mask)
-    bit_shift anti_shift mask (base + 28)
+    ((v1 >>> (bit_shift.toNat % 64)) ||| ((v2 <<< (antiShift.toNat % 64)) &&& mask))
+    ((v2 <<< (antiShift.toNat % 64)) &&& mask)
+    bit_shift antiShift mask (base + 28)
   have LL := shr_last_limb_spec 16 sp v3 v2
-    ((v2 >>> (bit_shift.toNat % 64)) ||| ((v3 <<< (anti_shift.toNat % 64)) &&& mask))
+    ((v2 >>> (bit_shift.toNat % 64)) ||| ((v3 <<< (antiShift.toNat % 64)) &&& mask))
     bit_shift (base + 56)
   have S0 := sd_x0_spec_gen .x12 sp v3 24 (base + 68)
   subst exit
@@ -303,33 +303,33 @@ abbrev shr_body_0_code (jal_off : BitVec 21) (base : Word) : CodeReq :=
   CodeReq.ofProg base (shr_body_0_prog jal_off)
 
 theorem shr_body_0_spec (sp : Word)
-    (v5 v10 bit_shift anti_shift mask : Word)
+    (v5 v10 bit_shift antiShift mask : Word)
     (v0 v1 v2 v3 : Word)
     (base exit : Word) (jal_off : BitVec 21)
     (hexit : (base + 96) + signExtend21 jal_off = exit) :
-    let result0 := (v0 >>> (bit_shift.toNat % 64)) ||| ((v1 <<< (anti_shift.toNat % 64)) &&& mask)
-    let result1 := (v1 >>> (bit_shift.toNat % 64)) ||| ((v2 <<< (anti_shift.toNat % 64)) &&& mask)
-    let result2 := (v2 >>> (bit_shift.toNat % 64)) ||| ((v3 <<< (anti_shift.toNat % 64)) &&& mask)
+    let result0 := (v0 >>> (bit_shift.toNat % 64)) ||| ((v1 <<< (antiShift.toNat % 64)) &&& mask)
+    let result1 := (v1 >>> (bit_shift.toNat % 64)) ||| ((v2 <<< (antiShift.toNat % 64)) &&& mask)
+    let result2 := (v2 >>> (bit_shift.toNat % 64)) ||| ((v3 <<< (antiShift.toNat % 64)) &&& mask)
     let result3 := v3 >>> (bit_shift.toNat % 64)
     let code := shr_body_0_code jal_off base
     cpsTriple base exit code
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ bit_shift) **
-       (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ mask) **
+       (.x7 ↦ᵣ antiShift) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ mask) **
        (sp ↦ₘ v0) ** ((sp + 8) ↦ₘ v1) ** ((sp + 16) ↦ₘ v2) ** ((sp + 24) ↦ₘ v3))
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result3) ** (.x6 ↦ᵣ bit_shift) **
-       (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ ((v3 <<< (anti_shift.toNat % 64)) &&& mask)) ** (.x11 ↦ᵣ mask) **
+       (.x7 ↦ᵣ antiShift) ** (.x10 ↦ᵣ ((v3 <<< (antiShift.toNat % 64)) &&& mask)) ** (.x11 ↦ᵣ mask) **
        (sp ↦ₘ result0) ** ((sp + 8) ↦ₘ result1) ** ((sp + 16) ↦ₘ result2) ** ((sp + 24) ↦ₘ result3)) := by
-  have MM1 := shr_merge_limb_inplace_spec 0 8 sp v0 v1 v5 v10 bit_shift anti_shift mask base
+  have MM1 := shr_merge_limb_inplace_spec 0 8 sp v0 v1 v5 v10 bit_shift antiShift mask base
   have MM2 := shr_merge_limb_inplace_spec 8 16 sp v1 v2
-    ((v0 >>> (bit_shift.toNat % 64)) ||| ((v1 <<< (anti_shift.toNat % 64)) &&& mask))
-    ((v1 <<< (anti_shift.toNat % 64)) &&& mask)
-    bit_shift anti_shift mask (base + 28)
+    ((v0 >>> (bit_shift.toNat % 64)) ||| ((v1 <<< (antiShift.toNat % 64)) &&& mask))
+    ((v1 <<< (antiShift.toNat % 64)) &&& mask)
+    bit_shift antiShift mask (base + 28)
   have MM3 := shr_merge_limb_inplace_spec 16 24 sp v2 v3
-    ((v1 >>> (bit_shift.toNat % 64)) ||| ((v2 <<< (anti_shift.toNat % 64)) &&& mask))
-    ((v2 <<< (anti_shift.toNat % 64)) &&& mask)
-    bit_shift anti_shift mask (base + 56)
+    ((v1 >>> (bit_shift.toNat % 64)) ||| ((v2 <<< (antiShift.toNat % 64)) &&& mask))
+    ((v2 <<< (antiShift.toNat % 64)) &&& mask)
+    bit_shift antiShift mask (base + 56)
   have LL := shr_last_limb_inplace_spec sp v3
-    ((v2 >>> (bit_shift.toNat % 64)) ||| ((v3 <<< (anti_shift.toNat % 64)) &&& mask))
+    ((v2 >>> (bit_shift.toNat % 64)) ||| ((v3 <<< (antiShift.toNat % 64)) &&& mask))
     bit_shift (base + 84)
   subst exit
   have JL := jal_x0_spec_gen jal_off (base + 96)

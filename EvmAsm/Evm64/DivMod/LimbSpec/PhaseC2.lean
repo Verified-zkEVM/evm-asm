@@ -51,10 +51,10 @@ theorem divK_phaseC2_body_spec (sp shift v2 shiftMem : Word)
     (signExtend12 (0 : BitVec 12)) shift (base + 8) (by nofun)
   runBlock I0 I1 I2
 
-/-- Phase C2: store shift, compute anti_shift, BEQ if shift=0.
+/-- Phase C2: store shift, compute antiShift, BEQ if shift=0.
     Taken: shift = 0, skip normalization.
     Not taken: shift ≠ 0, proceed to normalize.
-    anti_shift = signExtend12 0 - shift (= 0 - shift = negation of shift amount). -/
+    antiShift = signExtend12 0 - shift (= 0 - shift = negation of shift amount). -/
 theorem divK_phaseC2_spec (sp shift v2 shiftMem : Word)
     (shift0_off : BitVec 13) (base : Word) :
     let cr := divK_phaseC2_code shift0_off base

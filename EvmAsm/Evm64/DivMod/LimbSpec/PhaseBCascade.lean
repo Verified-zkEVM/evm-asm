@@ -2,12 +2,12 @@
   EvmAsm.Evm64.DivMod.LimbSpec.PhaseBCascade
 
   CPS spec for a single step of the Knuth Algorithm D phase-B cascade —
-  the repeating `ADDI x5 = n_val; BNE rx x0 → end` pattern that computes
+  the repeating `ADDI x5 = nVal; BNE rx x0 → end` pattern that computes
   `n` (the index of the highest non-zero limb of the divisor):
     * `divK_phaseB_cascade_step_code` — a 2-instruction `CodeReq.union`
       of the ADDI and the BNE.
     * `divK_phaseB_cascade_step_spec` — full `cpsBranch` spec: in either
-      branch `x5 = n_val`; the taken branch jumps when `rx ≠ 0`.
+      branch `x5 = nVal`; the taken branch jumps when `rx ≠ 0`.
 
   Eleventh chunk of the `LimbSpec.lean` split tracked by issue #312. The
   consumer surface is unchanged: `LimbSpec.lean` re-exports this file so
@@ -27,18 +27,18 @@ namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
 
-abbrev divK_phaseB_cascade_step_code (n_val : BitVec 12) (rx : Reg) (bne_off : BitVec 13)
+abbrev divK_phaseB_cascade_step_code (nVal : BitVec 12) (rx : Reg) (bne_off : BitVec 13)
     (base : Word) : CodeReq :=
-  CodeReq.union (CodeReq.singleton base (.ADDI .x5 .x0 n_val))
+  CodeReq.union (CodeReq.singleton base (.ADDI .x5 .x0 nVal))
    (CodeReq.singleton (base + 4) (.BNE rx .x0 bne_off))
 
-/-- Single cascade step: load n_val into x5, then BNE on rx vs x0.
-    Taken: rx ≠ 0 (limb is nonzero), branch to target with x5 = n_val.
-    Not taken: rx = 0, fall through with x5 = n_val. -/
-theorem divK_phaseB_cascade_step_spec (n_val : BitVec 12) (rx : Reg) (check v5 : Word)
+/-- Single cascade step: load nVal into x5, then BNE on rx vs x0.
+    Taken: rx ≠ 0 (limb is nonzero), branch to target with x5 = nVal.
+    Not taken: rx = 0, fall through with x5 = nVal. -/
+theorem divK_phaseB_cascade_step_spec (nVal : BitVec 12) (rx : Reg) (check v5 : Word)
     (bne_off : BitVec 13) (base : Word) :
-    let n := (0 : Word) + signExtend12 n_val
-    let cr := divK_phaseB_cascade_step_code n_val rx bne_off base
+    let n := (0 : Word) + signExtend12 nVal
+    let cr := divK_phaseB_cascade_step_code nVal rx bne_off base
     let post :=
       (.x5 ↦ᵣ n) ** (.x0 ↦ᵣ (0 : Word)) ** (rx ↦ᵣ check)
     cpsBranch base cr
@@ -52,7 +52,7 @@ theorem divK_phaseB_cascade_step_spec (n_val : BitVec 12) (rx : Reg) (check v5 :
   have hbody : cpsTriple base (base + 4) cr
       ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (rx ↦ᵣ check))
       ((.x5 ↦ᵣ n) ** (.x0 ↦ᵣ (0 : Word)) ** (rx ↦ᵣ check)) := by
-    have I0 := addi_spec_gen .x5 .x0 v5 (0 : Word) n_val base (by nofun)
+    have I0 := addi_spec_gen .x5 .x0 v5 (0 : Word) nVal base (by nofun)
     runBlock I0
   -- 2. BNE at base + 4, drop pure facts
   have hbne_raw := bne_spec_gen rx .x0 bne_off check (0 : Word) (base + 4)
@@ -82,7 +82,7 @@ theorem divK_phaseB_cascade_step_spec (n_val : BitVec 12) (rx : Reg) (check v5 :
     · next heq =>
       rw [beq_iff_eq] at heq; subst heq
       simp only [Option.some.injEq] at h; subst h
-      show divK_phaseB_cascade_step_code n_val rx bne_off base (base + 4) = _
+      show divK_phaseB_cascade_step_code nVal rx bne_off base (base + 4) = _
       simp only [divK_phaseB_cascade_step_code, CodeReq.union, CodeReq.singleton]
       have h0 : ¬(base + 4 = base) := by bv_omega
       simp only [beq_iff_eq, h0, ↓reduceIte]

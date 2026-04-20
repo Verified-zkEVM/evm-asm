@@ -97,7 +97,7 @@ elab "intro_lets" "at" h:ident : tactic => withMainContext do
       return none
     match existingFvar? with
     | some existingFvarId =>
-      -- Reuse existing let-def (avoids name collision like u_base vs u_base✝)
+      -- Reuse existing let-def (avoids name collision like uBase vs uBase✝)
       ty := _body.instantiate1 (.fvar existingFvarId)
     | none =>
       -- Add new local let-definition: `name : binderType := value`
@@ -720,7 +720,7 @@ private partial def verifyProgSlice (full sub : Expr) (idx : Nat)
     else break
   return some (subLen, fullLen)
 
-/-- Build a mono proof for `ofProg sub_base sub_prog ⊆ ofProg base full_prog`
+/-- Build a mono proof for `ofProg subBase sub_prog ⊆ ofProg base full_prog`
     using `ofProg_mono_sub`. Finds the sub-program as a contiguous slice. -/
 private def buildMonoProofOfProgToOfProg (oldCrW : Expr)
     (newCrBase newCrProg : Expr) : MetaM (Option Expr) := do
@@ -739,11 +739,11 @@ private def buildMonoProofOfProgToOfProg (oldCrW : Expr)
   let idx := (subOff - newOff) / 4
   -- Verify the sub-program is a contiguous slice
   let some (subLen, fullLen) ← verifyProgSlice newCrProg subProg idx | return none
-  -- Build proof: ofProg_mono_sub base sub_base full sub idx h_addr h_slice h_range hbound
+  -- Build proof: ofProg_mono_sub base subBase full sub idx h_addr h_slice h_range hbound
   let idxLit := mkNatLit idx
   let subLenLit := mkNatLit subLen
   let fullLenLit := mkNatLit fullLen
-  -- h_addr : sub_base = base + BitVec.ofNat 64 (4 * idx)
+  -- h_addr : subBase = base + BitVec.ofNat 64 (4 * idx)
   let fourIdx := mkNatLit (4 * idx)
   let bvOfNat := mkApp2 (mkConst ``BitVec.ofNat) (mkNatLit 64) fourIdx
   let addrSum := mkApp6
@@ -781,7 +781,7 @@ private def buildMonoProofOfProgToOfProg (oldCrW : Expr)
     let ltType := mkApp4 (mkConst ``LT.lt [.zero]) (mkConst ``Nat) (mkConst ``instLTNat)
       fourFullLen pow64
     mkDecideProof ltType
-  -- Assemble: ofProg_mono_sub base sub_base full sub idx h_addr h_slice h_range hbound
+  -- Assemble: ofProg_mono_sub base subBase full sub idx h_addr h_slice h_range hbound
   return some (mkAppN (mkConst ``EvmAsm.Rv64.CodeReq.ofProg_mono_sub)
     #[newCrBase, subBase, newCrProg, subProg, idxLit, h_addr, h_slice, h_range, hbound])
 

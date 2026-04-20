@@ -25,26 +25,26 @@ open EvmAsm.Rv64.AddrNorm (se12_32 se12_40 se12_48 se12_56)
     since the first iteration doesn't use `iterN3`. -/
 def isTrialN3_j1 (bltu : Bool) (a3 b1 b2 : Word) : Prop :=
   let shift := (clzResult b2).1
-  let anti_shift := signExtend12 (0 : BitVec 12) - shift
+  let antiShift := signExtend12 (0 : BitVec 12) - shift
   bltu = BitVec.ult
-    (a3 >>> (anti_shift.toNat % 64))
-    ((b2 <<< (shift.toNat % 64)) ||| (b1 >>> (anti_shift.toNat % 64)))
+    (a3 >>> (antiShift.toNat % 64))
+    ((b2 <<< (shift.toNat % 64)) ||| (b1 >>> (antiShift.toNat % 64)))
 
 /-- j=0 trial condition for n=3 (double-addback), dependent on j=1 path (bltu_1).
     Checks the BLTU condition after the j=1 iteration result using `iterN3`. -/
 def isTrialN3_j0 (bltu_1 bltu_0 : Bool) (a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Prop :=
   let shift := (clzResult b2).1
-  let anti_shift := signExtend12 (0 : BitVec 12) - shift
+  let antiShift := signExtend12 (0 : BitVec 12) - shift
   let v0' := b0 <<< (shift.toNat % 64)
-  let v1' := (b1 <<< (shift.toNat % 64)) ||| (b0 >>> (anti_shift.toNat % 64))
-  let v2' := (b2 <<< (shift.toNat % 64)) ||| (b1 >>> (anti_shift.toNat % 64))
-  let v3' := (b3 <<< (shift.toNat % 64)) ||| (b2 >>> (anti_shift.toNat % 64))
-  let u1_s := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (anti_shift.toNat % 64))
-  let u2_s := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (anti_shift.toNat % 64))
-  let u3_s := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (anti_shift.toNat % 64))
-  let u4_s := a3 >>> (anti_shift.toNat % 64)
+  let v1' := (b1 <<< (shift.toNat % 64)) ||| (b0 >>> (antiShift.toNat % 64))
+  let v2' := (b2 <<< (shift.toNat % 64)) ||| (b1 >>> (antiShift.toNat % 64))
+  let v3' := (b3 <<< (shift.toNat % 64)) ||| (b2 >>> (antiShift.toNat % 64))
+  let u1S := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (antiShift.toNat % 64))
+  let u2S := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (antiShift.toNat % 64))
+  let u3S := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (antiShift.toNat % 64))
+  let u4_s := a3 >>> (antiShift.toNat % 64)
   bltu_0 = BitVec.ult
-    (iterN3 bltu_1 v0' v1' v2' v3' u1_s u2_s u3_s u4_s (0 : Word)).2.2.2.1
+    (iterN3 bltu_1 v0' v1' v2' v3' u1S u2S u3S u4_s (0 : Word)).2.2.2.1
     v2'
 
 -- ============================================================================
@@ -57,20 +57,20 @@ def isTrialN3_j0 (bltu_1 bltu_0 : Bool) (a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Prop 
 @[irreducible]
 def preloopN3UnifiedPost (bltu_1 bltu_0 : Bool)
     (sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word)
-    (ret_mem d_mem dlo_mem scratch_un0 : Word) : Assertion :=
+    (retMem dMem dloMem scratch_un0 : Word) : Assertion :=
   let shift := (clzResult b2).1
-  let anti_shift := signExtend12 (0 : BitVec 12) - shift
+  let antiShift := signExtend12 (0 : BitVec 12) - shift
   let v0' := b0 <<< (shift.toNat % 64)
-  let v1' := (b1 <<< (shift.toNat % 64)) ||| (b0 >>> (anti_shift.toNat % 64))
-  let v2' := (b2 <<< (shift.toNat % 64)) ||| (b1 >>> (anti_shift.toNat % 64))
-  let v3' := (b3 <<< (shift.toNat % 64)) ||| (b2 >>> (anti_shift.toNat % 64))
-  let u0_s := a0 <<< (shift.toNat % 64)
-  let u1_s := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (anti_shift.toNat % 64))
-  let u2_s := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (anti_shift.toNat % 64))
-  let u3_s := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (anti_shift.toNat % 64))
+  let v1' := (b1 <<< (shift.toNat % 64)) ||| (b0 >>> (antiShift.toNat % 64))
+  let v2' := (b2 <<< (shift.toNat % 64)) ||| (b1 >>> (antiShift.toNat % 64))
+  let v3' := (b3 <<< (shift.toNat % 64)) ||| (b2 >>> (antiShift.toNat % 64))
+  let u0S := a0 <<< (shift.toNat % 64)
+  let u1S := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (antiShift.toNat % 64))
+  let u2S := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (antiShift.toNat % 64))
+  let u3S := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (antiShift.toNat % 64))
   loopN3UnifiedPost bltu_1 bltu_0 sp base
-    v0' v1' v2' v3' u1_s u2_s u3_s (a3 >>> (anti_shift.toNat % 64)) (0 : Word) u0_s
-    ret_mem d_mem dlo_mem scratch_un0 **
+    v0' v1' v2' v3' u1S u2S u3S (a3 >>> (antiShift.toNat % 64)) (0 : Word) u0S
+    retMem dMem dloMem scratch_un0 **
   ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
   ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
   ((sp + signExtend12 4072) ↦ₘ (0 : Word)) **
@@ -87,25 +87,25 @@ def preloopN3UnifiedPost (bltu_1 bltu_0 : Bool)
     Separates the loop application from the composition for heartbeat budgeting. -/
 private theorem evm_div_n3_loop_unified_inst
     (bltu_1 bltu_0 : Bool) (sp base : Word)
-    (shift anti_shift b0' b1' b2' b3' u0 u1 u2 u3 u4 : Word)
+    (shift antiShift b0' b1' b2' b3' u0 u1 u2 u3 u4 : Word)
     (v10_old v11_old jMem : Word)
-    (ret_mem d_mem dlo_mem scratch_un0 : Word)
+    (retMem dMem dloMem scratch_un0 : Word)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
     (hbltu_1 : bltu_1 = BitVec.ult u4 b2')
     (hbltu_0 : bltu_0 = BitVec.ult
       (iterN3 bltu_1 b0' b1' b2' b3' u1 u2 u3 u4 (0 : Word)).2.2.2.1 b2')
     (hcarry2 : Carry2NzAll b0' b1' b2' b3') :
     cpsTriple (base + loopBodyOff) (base + denormOff) (divCode base)
-      (loopN3PreWithScratch sp jMem (3 : Word) shift u0 v10_old v11_old anti_shift
+      (loopN3PreWithScratch sp jMem (3 : Word) shift u0 v10_old v11_old antiShift
         b0' b1' b2' b3' u1 u2 u3 u4 (0 : Word) u0 (0 : Word) (0 : Word)
-        ret_mem d_mem dlo_mem scratch_un0)
+        retMem dMem dloMem scratch_un0)
       (loopN3UnifiedPost bltu_1 bltu_0 sp base
         b0' b1' b2' b3' u1 u2 u3 u4 (0 : Word) u0
-        ret_mem d_mem dlo_mem scratch_un0) :=
+        retMem dMem dloMem scratch_un0) :=
   divK_loop_n3_unified_divCode bltu_1 bltu_0
-    sp jMem (3 : Word) shift u0 v10_old v11_old anti_shift
+    sp jMem (3 : Word) shift u0 v10_old v11_old antiShift
     b0' b1' b2' b3' u1 u2 u3 u4 (0 : Word) u0 (0 : Word) (0 : Word)
-    ret_mem d_mem dlo_mem scratch_un0 base halign
+    retMem dMem dloMem scratch_un0 base halign
     hbltu_1 hbltu_0 hcarry2
 
 -- ============================================================================
@@ -118,8 +118,8 @@ private theorem evm_div_n3_loop_unified_inst
     Composes preloop (base→base+448) with unified loop (base+448→base+908). -/
 theorem evm_div_n3_preloop_loop_unified_spec (bltu_1 bltu_0 : Bool) (sp base : Word)
     (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11_old : Word)
-    (q0 q1 q2 q3 u0_old u1_old u2_old u3_old u4_old u5 u6 u7 n_mem shiftMem jMem : Word)
-    (ret_mem d_mem dlo_mem scratch_un0 : Word)
+    (q0 q1 q2 q3 u0_old u1_old u2_old u3_old u4_old u5 u6 u7 nMem shiftMem jMem : Word)
+    (retMem dMem dloMem scratch_un0 : Word)
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
     (hb3z : b3 = 0) (hb2nz : b2 ≠ 0)
     (hshift_nz : (clzResult b2).1 ≠ 0)
@@ -145,26 +145,26 @@ theorem evm_div_n3_preloop_loop_unified_spec (bltu_1 bltu_0 : Bool) (sp base : W
        ((sp + signExtend12 4040) ↦ₘ u2_old) ** ((sp + signExtend12 4032) ↦ₘ u3_old) **
        ((sp + signExtend12 4024) ↦ₘ u4_old) **
        ((sp + signExtend12 4016) ↦ₘ u5) ** ((sp + signExtend12 4008) ↦ₘ u6) **
-       ((sp + signExtend12 4000) ↦ₘ u7) ** ((sp + signExtend12 3984) ↦ₘ n_mem) **
+       ((sp + signExtend12 4000) ↦ₘ u7) ** ((sp + signExtend12 3984) ↦ₘ nMem) **
        ((sp + signExtend12 3992) ↦ₘ shiftMem) **
        ((sp + signExtend12 3976) ↦ₘ jMem) **
-       ((sp + signExtend12 3968) ↦ₘ ret_mem) **
-       ((sp + signExtend12 3960) ↦ₘ d_mem) **
-       ((sp + signExtend12 3952) ↦ₘ dlo_mem) **
+       ((sp + signExtend12 3968) ↦ₘ retMem) **
+       ((sp + signExtend12 3960) ↦ₘ dMem) **
+       ((sp + signExtend12 3952) ↦ₘ dloMem) **
        ((sp + signExtend12 3944) ↦ₘ scratch_un0))
       (preloopN3UnifiedPost bltu_1 bltu_0 sp base a0 a1 a2 a3 b0 b1 b2 b3
-        ret_mem d_mem dlo_mem scratch_un0) := by
+        retMem dMem dloMem scratch_un0) := by
   -- 1. Pre-loop: base → base+448
   have hPre := evm_div_n3_to_loopSetup_spec sp base
     a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10
-    q0 q1 q2 q3 u0_old u1_old u2_old u3_old u4_old u5 u6 u7 n_mem shiftMem
+    q0 q1 q2 q3 u0_old u1_old u2_old u3_old u4_old u5 u6 u7 nMem shiftMem
     hbnz hb3z hb2nz hshift_nz
   -- Frame preloop with .x11, jMem, scratch cells
   have hPreF := cpsTriple_frameR
     ((.x11 ↦ᵣ v11_old) ** ((sp + signExtend12 3976) ↦ₘ jMem) **
-     (sp + signExtend12 3968 ↦ₘ ret_mem) **
-     (sp + signExtend12 3960 ↦ₘ d_mem) **
-     (sp + signExtend12 3952 ↦ₘ dlo_mem) **
+     (sp + signExtend12 3968 ↦ₘ retMem) **
+     (sp + signExtend12 3960 ↦ₘ dMem) **
+     (sp + signExtend12 3952 ↦ₘ dloMem) **
      (sp + signExtend12 3944 ↦ₘ scratch_un0))
     (by pcFree) hPre
   -- 2. Loop: base+448 → base+908 (unified da, with explicit normalized values)
@@ -181,7 +181,7 @@ theorem evm_div_n3_preloop_loop_unified_spec (bltu_1 bltu_0 : Bool) (sp base : W
     (a3 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b2).1).toNat % 64))
     (a0 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b2).1).toNat % 64))
     v11_old jMem
-    ret_mem d_mem dlo_mem scratch_un0
+    retMem dMem dloMem scratch_un0
     halign
     hbltu_1 hbltu_0 hcarry2
   -- Frame loop with a[], spare q[2..3], spare u[6..7], shiftMem

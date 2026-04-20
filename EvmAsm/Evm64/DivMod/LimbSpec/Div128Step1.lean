@@ -28,19 +28,19 @@ namespace EvmAsm.Evm64
 open EvmAsm.Rv64
 
 /-- div128 step 1: trial division q1, clamp, product check. Instrs [10]-[24].
-    Input: u_hi in x7, dHi in x6, un1 in x11, dlo in memory.
+    Input: uHi in x7, dHi in x6, un1 in x11, dlo in memory.
     Output: refined q1 in x10, refined rhat in x7. -/
 theorem divK_div128_step1_spec
-    (sp u_hi dHi un1 v1_old v5_old v10_old dlo : Word) (base : Word) :
-    let q1 := rv64_divu u_hi dHi
-    let rhat := u_hi - q1 * dHi
+    (sp uHi dHi un1 v1_old v5_old v10_old dlo : Word) (base : Word) :
+    let q1 := rv64_divu uHi dHi
+    let rhat := uHi - q1 * dHi
     let hi := q1 >>> (32 : BitVec 6).toNat
     let q1c := if hi = 0 then q1 else q1 + signExtend12 4095
     let rhatc := if hi = 0 then rhat else rhat + dHi
     let qDlo := q1c * dlo
-    let rhat_un1 := (rhatc <<< (32 : BitVec 6).toNat) ||| un1
-    let q1' := if BitVec.ult rhat_un1 qDlo then q1c + signExtend12 4095 else q1c
-    let rhat' := if BitVec.ult rhat_un1 qDlo then rhatc + dHi else rhatc
+    let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| un1
+    let q1' := if BitVec.ult rhatUn1 qDlo then q1c + signExtend12 4095 else q1c
+    let rhat' := if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc
     let cr :=
       CodeReq.union (CodeReq.singleton base (.DIVU .x10 .x7 .x6))
       (CodeReq.union (CodeReq.singleton (base + 4) (.MUL .x5 .x10 .x6))
@@ -58,13 +58,13 @@ theorem divK_div128_step1_spec
       (CodeReq.union (CodeReq.singleton (base + 52) (.ADDI .x10 .x10 4095))
        (CodeReq.singleton (base + 56) (.ADD .x7 .x7 .x6)))))))))))))))
     cpsTriple base (base + 60) cr
-      ((.x7 ↦ᵣ u_hi) ** (.x6 ↦ᵣ dHi) ** (.x10 ↦ᵣ v10_old) **
+      ((.x7 ↦ᵣ uHi) ** (.x6 ↦ᵣ dHi) ** (.x10 ↦ᵣ v10_old) **
        (.x5 ↦ᵣ v5_old) ** (.x11 ↦ᵣ un1) ** (.x1 ↦ᵣ v1_old) **
        (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) ** (sp + signExtend12 3952 ↦ₘ dlo))
       ((.x7 ↦ᵣ rhat') ** (.x6 ↦ᵣ dHi) ** (.x10 ↦ᵣ q1') **
-       (.x5 ↦ᵣ qDlo) ** (.x11 ↦ᵣ un1) ** (.x1 ↦ᵣ rhat_un1) **
+       (.x5 ↦ᵣ qDlo) ** (.x11 ↦ᵣ un1) ** (.x1 ↦ᵣ rhatUn1) **
        (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) ** (sp + signExtend12 3952 ↦ₘ dlo)) := by
-  intro q1 rhat hi q1c rhatc qDlo rhat_un1 q1' rhat' cr
+  intro q1 rhat hi q1c rhatc qDlo rhatUn1 q1' rhat' cr
   have hcr_eq : cr =
       CodeReq.union (CodeReq.singleton base (.DIVU .x10 .x7 .x6))
       (CodeReq.union (CodeReq.singleton (base + 4) (.MUL .x5 .x10 .x6))
@@ -81,7 +81,7 @@ theorem divK_div128_step1_spec
       (CodeReq.union (CodeReq.singleton (base + 48) (.JAL .x0 12))
       (CodeReq.union (CodeReq.singleton (base + 52) (.ADDI .x10 .x10 4095))
        (CodeReq.singleton (base + 56) (.ADD .x7 .x7 .x6))))))))))))))) := rfl
-  have h1_raw := divK_div128_step1_init_spec u_hi dHi v5_old v10_old base
+  have h1_raw := divK_div128_step1_init_spec uHi dHi v5_old v10_old base
   have h1 : cpsTriple base (base + 12) cr _ _ :=
     cpsTriple_extend_code (h := h1_raw) (hmono := by
       rw [hcr_eq]; exact CodeReq.union_mono_tail (CodeReq.union_mono_tail (CodeReq.union_mono_left _ _)))

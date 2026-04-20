@@ -114,7 +114,7 @@ theorem mod_phB_sp24_32 (sp : Word) :
     init1 → init2 → ADDI x5=4 → BNE(taken, b[3]≠0) → tail. -/
 theorem evm_mod_phaseB_n4_spec (sp base : Word)
     (b1 b2 b3 : Word) (v5 v6 v7 : Word)
-    (q0 q1 q2 q3 u5 u6 u7 n_mem : Word)
+    (q0 q1 q2 q3 u5 u6 u7 nMem : Word)
     (hb3nz : b3 ≠ 0) :
     cpsTriple (base + phaseBOff) (base + clzOff) (modCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ b3) ** (.x0 ↦ᵣ (0 : Word)) **
@@ -124,7 +124,7 @@ theorem evm_mod_phaseB_n4_spec (sp base : Word)
        ((sp + signExtend12 4072) ↦ₘ q2) ** ((sp + signExtend12 4064) ↦ₘ q3) **
        ((sp + signExtend12 4016) ↦ₘ u5) ** ((sp + signExtend12 4008) ↦ₘ u6) **
        ((sp + signExtend12 4000) ↦ₘ u7) **
-       ((sp + signExtend12 3984) ↦ₘ n_mem))
+       ((sp + signExtend12 3984) ↦ₘ nMem))
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ b3) ** (.x10 ↦ᵣ b3) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ b1) ** (.x7 ↦ᵣ b2) **
        ((sp + 40) ↦ₘ b1) ** ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3) **
@@ -140,7 +140,7 @@ theorem evm_mod_phaseB_n4_spec (sp base : Word)
   have hinit1f := cpsTriple_frameR
     ((.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ b3) ** (.x0 ↦ᵣ (0 : Word)) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
      ((sp + 40) ↦ₘ b1) ** ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3) **
-     ((sp + signExtend12 3984) ↦ₘ n_mem))
+     ((sp + signExtend12 3984) ↦ₘ nMem))
     (by pcFree) hinit1
   -- ---- Step 2: init2 (base+60 → base+68) — load b[1], b[2]
   have hinit2_raw := divK_phaseB_init2_spec sp (base + 60) b1 b2 v6 v7
@@ -163,7 +163,7 @@ theorem evm_mod_phaseB_n4_spec (sp base : Word)
   have hbne := cpsTriple_extend_code (bne_x10_singleton_sub_modCode base) hbne_clean
   seqFrame hinit1fhinit2haddi hbne
   -- ---- Step 5: Tail (base+96 → base+116) — store n=4, load leading limb b[3]
-  have htail_raw := divK_phaseB_tail_spec sp (4 : Word) b3 n_mem (base + 96)
+  have htail_raw := divK_phaseB_tail_spec sp (4 : Word) b3 nMem (base + 96)
   simp only [mod_phB_t_20, mod_phB_sp24_32] at htail_raw
   have htail := cpsTriple_extend_code (divK_phaseB_tail_code_sub_modCode base) htail_raw
   seqFrame hinit1fhinit2haddihbne htail
@@ -249,7 +249,7 @@ theorem addi_x5_1_sub_modCode (base : Word) :
 -- signExtend13 constants for cascade branches: `signExtend13_{8,16}` now live
 -- in `Compose/Base.lean` (shared with PhaseAB). `se12_*` come from AddrNorm.
 
--- nm1_x8 = (n + signExtend12 4095) <<< 3 for each n value
+-- nm1X8 = (n + signExtend12 4095) <<< 3 for each n value
 theorem mod_divK_phaseB_n3_nm1_x8 :
     ((3 : Word) + signExtend12 (4095 : BitVec 12)) <<< (3 : BitVec 6).toNat = (16 : Word) := by
   decide

@@ -190,16 +190,16 @@ theorem mulsub_carry_word_eq (borrowAdd prodHi borrowSub : Word)
 /-- Composing 4 per-limb Nat-level equations gives the full val256 equation
     via `mulsub_chain_nat`. The carries cb0..cb3 telescope, leaving only cb3:
       val256 u + cb3 * 2^256 = val256 r + q * val256 v -/
-theorem mulsub_4limb_val256 (q_nat : Nat)
+theorem mulsub_4limb_val256 (qNat : Nat)
     (u0 u1 u2 u3 v0 v1 v2 v3 r0 r1 r2 r3 : Word)
     (cb0 cb1 cb2 cb3 : Nat)
-    (h0 : u0.toNat + cb0 * 2^64 = r0.toNat + q_nat * v0.toNat)
-    (h1 : u1.toNat + cb1 * 2^64 = r1.toNat + q_nat * v1.toNat + cb0)
-    (h2 : u2.toNat + cb2 * 2^64 = r2.toNat + q_nat * v2.toNat + cb1)
-    (h3 : u3.toNat + cb3 * 2^64 = r3.toNat + q_nat * v3.toNat + cb2) :
+    (h0 : u0.toNat + cb0 * 2^64 = r0.toNat + qNat * v0.toNat)
+    (h1 : u1.toNat + cb1 * 2^64 = r1.toNat + qNat * v1.toNat + cb0)
+    (h2 : u2.toNat + cb2 * 2^64 = r2.toNat + qNat * v2.toNat + cb1)
+    (h3 : u3.toNat + cb3 * 2^64 = r3.toNat + qNat * v3.toNat + cb2) :
     val256 u0 u1 u2 u3 + cb3 * 2^256 =
-    val256 r0 r1 r2 r3 + q_nat * val256 v0 v1 v2 v3 :=
-  mulsub_chain_nat q_nat u0 u1 u2 u3 v0 v1 v2 v3 r0 r1 r2 r3 cb0 cb1 cb2 cb3
+    val256 r0 r1 r2 r3 + qNat * val256 v0 v1 v2 v3 :=
+  mulsub_chain_nat qNat u0 u1 u2 u3 v0 v1 v2 v3 r0 r1 r2 r3 cb0 cb1 cb2 cb3
     h0 h1 h2 h3
 
 /-- When the final carry cb3 = 0 (no underflow) and remainder < divisor,
@@ -207,14 +207,14 @@ theorem mulsub_4limb_val256 (q_nat : Nat)
     q = EvmWord.div and r = EvmWord.mod.
 
     This handles the single-digit quotient case (n=4 in Knuth's Algorithm D). -/
-theorem mulsub_4limb_euclidean_div (q_nat : Nat)
+theorem mulsub_4limb_euclidean_div (qNat : Nat)
     (u0 u1 u2 u3 v0 v1 v2 v3 r0 r1 r2 r3 : Word)
     (cb0 cb1 cb2 : Nat)
-    (hq_bound : q_nat < 2^64)
-    (h0 : u0.toNat + cb0 * 2^64 = r0.toNat + q_nat * v0.toNat)
-    (h1 : u1.toNat + cb1 * 2^64 = r1.toNat + q_nat * v1.toNat + cb0)
-    (h2 : u2.toNat + cb2 * 2^64 = r2.toNat + q_nat * v2.toNat + cb1)
-    (h3 : u3.toNat = r3.toNat + q_nat * v3.toNat + cb2)
+    (hq_bound : qNat < 2^64)
+    (h0 : u0.toNat + cb0 * 2^64 = r0.toNat + qNat * v0.toNat)
+    (h1 : u1.toNat + cb1 * 2^64 = r1.toNat + qNat * v1.toNat + cb0)
+    (h2 : u2.toNat + cb2 * 2^64 = r2.toNat + qNat * v2.toNat + cb1)
+    (h3 : u3.toNat = r3.toNat + qNat * v3.toNat + cb2)
     (h_rem : val256 r0 r1 r2 r3 < val256 v0 v1 v2 v3)
     (hbnz : v0 ||| v1 ||| v2 ||| v3 ≠ 0) :
     let a := fromLimbs fun i : Fin 4 =>
@@ -222,20 +222,20 @@ theorem mulsub_4limb_euclidean_div (q_nat : Nat)
     let b := fromLimbs fun i : Fin 4 =>
       match i with | 0 => v0 | 1 => v1 | 2 => v2 | 3 => v3
     let q := fromLimbs fun i : Fin 4 =>
-      match i with | 0 => BitVec.ofNat 64 q_nat | _ => 0
+      match i with | 0 => BitVec.ofNat 64 qNat | _ => 0
     let r := fromLimbs fun i : Fin 4 =>
       match i with | 0 => r0 | 1 => r1 | 2 => r2 | 3 => r3
     q = EvmWord.div a b ∧ r = EvmWord.mod a b := by
   intro a b q r
-  have h_chain := mulsub_chain_no_underflow q_nat u0 u1 u2 u3 v0 v1 v2 v3
+  have h_chain := mulsub_chain_no_underflow qNat u0 u1 u2 u3 v0 v1 v2 v3
     r0 r1 r2 r3 cb0 cb1 cb2 h0 h1 h2 h3
   -- Connect fromLimbs.toNat to val256
   have ha : a.toNat = val256 u0 u1 u2 u3 := by
     show (fromLimbs _).toNat = _; rw [fromLimbs_toNat]; dsimp only []; unfold val256; norm_num
   have hb : b.toNat = val256 v0 v1 v2 v3 := by
     show (fromLimbs _).toNat = _; rw [fromLimbs_toNat]; dsimp only []; unfold val256; norm_num
-  have hq : q.toNat = q_nat := by
-    show (fromLimbs _).toNat = q_nat; rw [fromLimbs_toNat, show (0 : Word).toNat = 0 from rfl]
+  have hq : q.toNat = qNat := by
+    show (fromLimbs _).toNat = qNat; rw [fromLimbs_toNat, show (0 : Word).toNat = 0 from rfl]
     simp only [BitVec.toNat_ofNat]; omega
   have hr : r.toNat = val256 r0 r1 r2 r3 := by
     show (fromLimbs _).toNat = _; rw [fromLimbs_toNat]; dsimp only []; unfold val256; norm_num
