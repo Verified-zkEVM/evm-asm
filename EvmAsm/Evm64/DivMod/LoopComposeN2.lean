@@ -414,9 +414,9 @@ theorem divK_loop_n2_max_max_spec
     hbltu_1
     (hcarry2 (signExtend12 4095) u0 u1 u2 u3 uTop : isAddbackCarry2NzN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop)
   intro_lets at J1
-  -- Frame j=1 with u0Orig and q0_old
+  -- Frame j=1 with u0Orig and q0Old
   have J1f := cpsTriple_frameR
-    (((u_base_0 + signExtend12 0) ↦ₘ u0Orig) ** (q_addr_0 ↦ₘ q0_old))
+    (((u_base_0 + signExtend12 0) ↦ₘ u0Orig) ** (q_addr_0 ↦ₘ q0Old))
     (by pcFree) J1
   -- 3. j=0  iteration spec (inputs from j=1 via iterN2Max)
   have J0 := divK_loop_body_n2_max_unified_j0_spec sp (1 : Word)
@@ -430,7 +430,7 @@ theorem divK_loop_n2_max_max_spec
     (iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1
     (iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.1
     (iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.1
-    q0_old base
+    q0Old base
 
     hbltu_0
     (hcarry2 (signExtend12 4095) u0Orig
@@ -491,9 +491,9 @@ theorem divK_loop_n2_call_call_spec
     v0 v1 v2 v3 u0 u1 u2 u3 uTop q1_old retMem dMem dloMem scratch_un0 base halign hbltu_1
     (hcarry2 (div128Quot u2 u1 v1) u0 u1 u2 u3 uTop : isAddbackCarry2NzN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop)
   intro_lets at J1
-  -- Frame j=1 with u0Orig and q0_old
+  -- Frame j=1 with u0Orig and q0Old
   have J1f := cpsTriple_frameR
-    (((u_base_0 + signExtend12 0) ↦ₘ u0Orig) ** (q_addr_0 ↦ₘ q0_old))
+    (((u_base_0 + signExtend12 0) ↦ₘ u0Orig) ** (q_addr_0 ↦ₘ q0Old))
     (by pcFree) J1
   -- 3. j=0 call  iteration spec (inputs from j=1 via iterN2Call)
   have J0 := divK_loop_body_n2_call_unified_j0_spec sp (1 : Word)
@@ -507,7 +507,7 @@ theorem divK_loop_n2_call_call_spec
     (iterN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1
     (iterN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.1
     (iterN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.1
-    q0_old
+    q0Old
     (base + 516) v1 (div128DLo v1) (div128Un0 u1)
     base halign
 
@@ -576,9 +576,9 @@ theorem divK_loop_n2_max_call_spec
     hbltu_1
     (hcarry2 (signExtend12 4095) u0 u1 u2 u3 uTop : isAddbackCarry2NzN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop)
   intro_lets at J1
-  -- Frame j=1 with u0Orig, q0_old, AND scratch cells (max doesn't touch scratch)
+  -- Frame j=1 with u0Orig, q0Old, AND scratch cells (max doesn't touch scratch)
   have J1f := cpsTriple_frameR
-    (((u_base_0 + signExtend12 0) ↦ₘ u0Orig) ** (q_addr_0 ↦ₘ q0_old) **
+    (((u_base_0 + signExtend12 0) ↦ₘ u0Orig) ** (q_addr_0 ↦ₘ q0Old) **
      (sp + signExtend12 3968 ↦ₘ retMem) ** (sp + signExtend12 3960 ↦ₘ dMem) **
      (sp + signExtend12 3952 ↦ₘ dloMem) ** (sp + signExtend12 3944 ↦ₘ scratch_un0))
     (by pcFree) J1
@@ -594,7 +594,7 @@ theorem divK_loop_n2_max_call_spec
     (iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1
     (iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.1
     (iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.1
-    q0_old
+    q0Old
     retMem dMem dloMem scratch_un0
     base
     halign
@@ -665,9 +665,9 @@ theorem divK_loop_n2_call_max_spec
     hbltu_1
     (hcarry2 (div128Quot u2 u1 v1) u0 u1 u2 u3 uTop : isAddbackCarry2NzN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop)
   intro_lets at J1
-  -- Frame j=1 with u0Orig and q0_old
+  -- Frame j=1 with u0Orig and q0Old
   have J1f := cpsTriple_frameR
-    (((u_base_0 + signExtend12 0) ↦ₘ u0Orig) ** (q_addr_0 ↦ₘ q0_old))
+    (((u_base_0 + signExtend12 0) ↦ₘ u0Orig) ** (q_addr_0 ↦ₘ q0Old))
     (by pcFree) J1
   -- 3. j=0 max  spec (inputs from j=1 via iterN2Call)
   have J0 := divK_loop_body_n2_max_unified_j0_spec sp (1 : Word)
@@ -681,7 +681,7 @@ theorem divK_loop_n2_call_max_spec
     (iterN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1
     (iterN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.1
     (iterN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.1
-    q0_old base
+    q0Old base
 
     hbltu_0
     (hcarry2 (signExtend12 4095) u0Orig

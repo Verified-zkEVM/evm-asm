@@ -60,8 +60,8 @@ theorem divK_trial_max_full_spec_n1
     let vtopBase := sp + ((1 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
     cpsTriple (base + loopBodyOff) (base + 516) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
-       (.x5 ↦ᵣ v5_old) ** (.x6 ↦ᵣ v6_old) **
-       (.x7 ↦ᵣ v7_old) ** (.x10 ↦ᵣ v10_old) ** (.x11 ↦ᵣ v11_old) **
+       (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
+       (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
        (.x0 ↦ᵣ (0 : Word)) **
        (sp + signExtend12 3976 ↦ₘ jOld) ** (sp + signExtend12 3984 ↦ₘ (1 : Word)) **
        ((uBase + signExtend12 4088) ↦ₘ u1) ** ((uBase + signExtend12 0) ↦ₘ u0) **
@@ -219,7 +219,7 @@ theorem divK_loop_body_n1_max_skip_spec
   dsimp only [] at TF
   -- 2. Mulsub + correction skip (base+516 → base+880)
   have MCS := divK_mulsub_correction_skip_spec sp qHat j v0 v1 v2 v3 u0 u1 u2 u3 uTop
-    j u0 vtopBase u1 v0 v2_old base
+    j u0 vtopBase u1 v0 v2Old base
 
   intro_lets at MCS
   have MCS0 := MCS hborrow
@@ -229,7 +229,7 @@ theorem divK_loop_body_n1_max_skip_spec
   -- 4. Frame TF with mulsub cells that DON'T overlap
   --    (uBase+4088 ↦ₘ u1, uBase+0 ↦ₘ u0, sp+32 ↦ₘ v0 are already in TF)
   have TFf := cpsTriple_frameR
-    ((.x2 ↦ᵣ v2_old) **
+    ((.x2 ↦ᵣ v2Old) **
      ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4080) ↦ₘ u2) **
      ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4072) ↦ₘ u3) **
      ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4064) ↦ₘ uTop) **
@@ -316,7 +316,7 @@ theorem divK_loop_body_n1_max_addback_spec
   dsimp only [] at TF
   -- 2. Mulsub + correction addback + BEQ (base+516 → base+884)
   have MCA := divK_mulsub_correction_addback_beq_spec sp qHat j v0 v1 v2 v3 u0 u1 u2 u3 uTop
-    j u0 vtopBase u1 v0 v2_old base
+    j u0 vtopBase u1 v0 v2Old base
 
   intro_lets at MCA
   have MCA0 := MCA hcarry2_nz hborrow
@@ -325,7 +325,7 @@ theorem divK_loop_body_n1_max_addback_spec
   intro_lets at SL
   -- 4. Frame TF with non-overlapping cells
   have TFf := cpsTriple_frameR
-    ((.x2 ↦ᵣ v2_old) **
+    ((.x2 ↦ᵣ v2Old) **
      ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4080) ↦ₘ u2) **
      ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4072) ↦ₘ u3) **
      ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4064) ↦ₘ uTop) **

@@ -85,7 +85,7 @@ theorem divK_loop_body_n3_max_skip_j0_spec
   rw [vtop_eq_v2_n3 sp] at TF
   -- 2. Mulsub + correction skip (base+516 → base+880)
   have MCS := divK_mulsub_correction_skip_spec sp qHat (0 : Word) v0 v1 v2 v3 u0 u1 u2 u3 uTop
-    (0 : Word) u2 vtopBase u3 v2 v2_old base
+    (0 : Word) u2 vtopBase u3 v2 v2Old base
 
   intro_lets at MCS
   have MCS0 := MCS hborrow
@@ -94,7 +94,7 @@ theorem divK_loop_body_n3_max_skip_j0_spec
   intro_lets at SL
   -- 4. Frame TF with mulsub cells
   have TFf := cpsTriple_frameR
-    ((.x2 ↦ᵣ v2_old) **
+    ((.x2 ↦ᵣ v2Old) **
      ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
      ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4088) ↦ₘ u1) **
      ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4064) ↦ₘ uTop) **
@@ -321,7 +321,7 @@ theorem divK_loop_body_n3_max_skip_j1_spec
   rw [vtop_eq_v2_n3 sp] at TF
   -- 2. Mulsub + correction skip (base+516 → base+880)
   have MCS := divK_mulsub_correction_skip_spec sp qHat (1 : Word) v0 v1 v2 v3 u0 u1 u2 u3 uTop
-    (1 : Word) u2 vtopBase u3 v2 v2_old base
+    (1 : Word) u2 vtopBase u3 v2 v2Old base
 
   intro_lets at MCS
   have MCS0 := MCS hborrow
@@ -331,7 +331,7 @@ theorem divK_loop_body_n3_max_skip_j1_spec
   intro_lets at SL
   -- 4. Frame TF with mulsub cells
   have TFf := cpsTriple_frameR
-    ((.x2 ↦ᵣ v2_old) **
+    ((.x2 ↦ᵣ v2Old) **
      ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
      ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4088) ↦ₘ u1) **
      ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4064) ↦ₘ uTop) **
@@ -551,7 +551,7 @@ theorem divK_loop_body_n3_max_addback_beq_j0_spec
   rw [vtop_eq_v2_n3 sp] at TF
   -- 2. Mulsub + correction addback + BEQ (base+516 → base+884)
   have MCA := divK_mulsub_correction_addback_beq_spec sp qHat (0 : Word) v0 v1 v2 v3 u0 u1 u2 u3 uTop
-    (0 : Word) u2 vtopBase u3 v2 v2_old base
+    (0 : Word) u2 vtopBase u3 v2 v2Old base
 
   intro_lets at MCA
   have MCA0 := MCA hcarry2_nz hborrow
@@ -559,7 +559,7 @@ theorem divK_loop_body_n3_max_addback_beq_j0_spec
   have SL := divK_store_loop_j0_spec sp q_out u4_out carryOut qOld base
   intro_lets at SL
   have TFf := cpsTriple_frameR
-    ((.x2 ↦ᵣ v2_old) **
+    ((.x2 ↦ᵣ v2Old) **
      ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
      ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4088) ↦ₘ u1) **
      ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4064) ↦ₘ uTop) **
@@ -773,7 +773,7 @@ theorem divK_loop_body_n3_max_addback_beq_j1_spec
   rw [vtop_eq_v2_n3 sp] at TF
   -- 2. Mulsub + correction addback + BEQ (base+516 → base+884)
   have MCA := divK_mulsub_correction_addback_beq_spec sp qHat (1 : Word) v0 v1 v2 v3 u0 u1 u2 u3 uTop
-    (1 : Word) u2 vtopBase u3 v2 v2_old base
+    (1 : Word) u2 vtopBase u3 v2 v2Old base
 
   intro_lets at MCA
   have MCA0 := MCA hcarry2_nz hborrow
@@ -782,7 +782,7 @@ theorem divK_loop_body_n3_max_addback_beq_j1_spec
   have SL := divK_store_loop_jgt0_spec sp (1 : Word) q_out u4_out carryOut qOld base hj_pos
   intro_lets at SL
   have TFf := cpsTriple_frameR
-    ((.x2 ↦ᵣ v2_old) **
+    ((.x2 ↦ᵣ v2Old) **
      ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
      ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4088) ↦ₘ u1) **
      ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4064) ↦ₘ uTop) **

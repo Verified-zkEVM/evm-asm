@@ -123,7 +123,7 @@ theorem divK_loop_body_n4_max_skip_spec
   rw [vtop_eq_v3_n4 sp] at TF
   -- 2. Mulsub + correction skip (base+516 → base+880)
   have MCS := divK_mulsub_correction_skip_spec sp qHat j v0 v1 v2 v3 u0 u1 u2 u3 uTop
-    j u3 vtopBase uTop v3 v2_old base
+    j u3 vtopBase uTop v3 v2Old base
 
   intro_lets at MCS
   have MCS0 := MCS hborrow
@@ -133,7 +133,7 @@ theorem divK_loop_body_n4_max_skip_spec
   -- 4. Frame TF with mulsub cells that DON'T overlap
   --    (uBase+4064 ↦ₘ uTop, uBase+4072 ↦ₘ u3, sp+56 ↦ₘ v3 are already in TF)
   have TFf := cpsTriple_frameR
-    ((.x2 ↦ᵣ v2_old) **
+    ((.x2 ↦ᵣ v2Old) **
      ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
      ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4088) ↦ₘ u1) **
      ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4080) ↦ₘ u2) **
@@ -224,7 +224,7 @@ theorem divK_loop_body_n4_max_addback_spec
   rw [vtop_eq_v3_n4 sp] at TF
   -- 2. Mulsub + correction addback + BEQ (base+516 → base+884)
   have MCA := divK_mulsub_correction_addback_beq_spec sp qHat j v0 v1 v2 v3 u0 u1 u2 u3 uTop
-    j u3 vtopBase uTop v3 v2_old base
+    j u3 vtopBase uTop v3 v2Old base
 
   intro_lets at MCA
   have MCA0 := MCA hcarry2_nz hborrow
@@ -233,7 +233,7 @@ theorem divK_loop_body_n4_max_addback_spec
   intro_lets at SL
   -- 4. Frame TF with non-overlapping cells
   have TFf := cpsTriple_frameR
-    ((.x2 ↦ᵣ v2_old) **
+    ((.x2 ↦ᵣ v2Old) **
      ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
      ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4088) ↦ₘ u1) **
      ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4080) ↦ₘ u2) **

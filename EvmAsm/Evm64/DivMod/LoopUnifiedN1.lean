@@ -72,9 +72,9 @@ theorem divK_loop_n1_iter10_unified_spec (bltu_1 bltu_0 : Bool)
       hbltu_1'
       (hcarry2 (signExtend12 4095) u0 u1 u2 u3 uTop : isAddbackCarry2NzN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop)
     intro_lets at J1
-    -- Frame j=1 with u0Orig, q0_old, and scratch
+    -- Frame j=1 with u0Orig, q0Old, and scratch
     have J1f := cpsTriple_frameR
-      (((u_base_0 + signExtend12 0) ↦ₘ u0Orig) ** (q_addr_0 ↦ₘ q0_old) **
+      (((u_base_0 + signExtend12 0) ↦ₘ u0Orig) ** (q_addr_0 ↦ₘ q0Old) **
        (sp + signExtend12 3968 ↦ₘ retMem) ** (sp + signExtend12 3960 ↦ₘ dMem) **
        (sp + signExtend12 3952 ↦ₘ dloMem) ** (sp + signExtend12 3944 ↦ₘ scratch_un0))
       (by pcFree) J1
@@ -91,7 +91,7 @@ theorem divK_loop_n1_iter10_unified_spec (bltu_1 bltu_0 : Bool)
       (iterN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1
       (iterN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.1
       (iterN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.1
-      q0_old base
+      q0Old base
 
       hbltu_0'
       (hcarry2 (signExtend12 4095) u0Orig
@@ -144,7 +144,7 @@ theorem divK_loop_n1_iter10_unified_spec (bltu_1 bltu_0 : Bool)
       (hcarry2 (signExtend12 4095) u0 u1 u2 u3 uTop : isAddbackCarry2NzN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop)
     intro_lets at J1
     have J1f := cpsTriple_frameR
-      (((u_base_0 + signExtend12 0) ↦ₘ u0Orig) ** (q_addr_0 ↦ₘ q0_old) **
+      (((u_base_0 + signExtend12 0) ↦ₘ u0Orig) ** (q_addr_0 ↦ₘ q0Old) **
        (sp + signExtend12 3968 ↦ₘ retMem) ** (sp + signExtend12 3960 ↦ₘ dMem) **
        (sp + signExtend12 3952 ↦ₘ dloMem) ** (sp + signExtend12 3944 ↦ₘ scratch_un0))
       (by pcFree) J1
@@ -160,7 +160,7 @@ theorem divK_loop_n1_iter10_unified_spec (bltu_1 bltu_0 : Bool)
       (iterN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1
       (iterN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.1
       (iterN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.1
-      q0_old retMem dMem dloMem scratch_un0 base
+      q0Old retMem dMem dloMem scratch_un0 base
       halign
 
       hbltu_0'
@@ -209,9 +209,9 @@ theorem divK_loop_n1_iter10_unified_spec (bltu_1 bltu_0 : Bool)
       hbltu_1'
       (hcarry2 (div128Quot u1 u0 v0) u0 u1 u2 u3 uTop : isAddbackCarry2NzN1Call v0 v1 v2 v3 u0 u1 u2 u3 uTop)
     intro_lets at J1
-    -- Frame j=1 with u0Orig, q0_old only (scratch is in call spec)
+    -- Frame j=1 with u0Orig, q0Old only (scratch is in call spec)
     have J1f := cpsTriple_frameR
-      (((u_base_0 + signExtend12 0) ↦ₘ u0Orig) ** (q_addr_0 ↦ₘ q0_old))
+      (((u_base_0 + signExtend12 0) ↦ₘ u0Orig) ** (q_addr_0 ↦ₘ q0Old))
       (by pcFree) J1
     -- j=0 max  spec (no scratch)
     have J0 := divK_loop_body_n1_max_unified_j0_spec sp (1 : Word)
@@ -225,7 +225,7 @@ theorem divK_loop_n1_iter10_unified_spec (bltu_1 bltu_0 : Bool)
       (iterN1Call v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1
       (iterN1Call v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.1
       (iterN1Call v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.1
-      q0_old base
+      q0Old base
 
       hbltu_0'
       (hcarry2 (signExtend12 4095) u0Orig
@@ -277,9 +277,9 @@ theorem divK_loop_n1_iter10_unified_spec (bltu_1 bltu_0 : Bool)
       hbltu_1'
       (hcarry2 (div128Quot u1 u0 v0) u0 u1 u2 u3 uTop : isAddbackCarry2NzN1Call v0 v1 v2 v3 u0 u1 u2 u3 uTop)
     intro_lets at J1
-    -- Frame j=1 with u0Orig, q0_old only
+    -- Frame j=1 with u0Orig, q0Old only
     have J1f := cpsTriple_frameR
-      (((u_base_0 + signExtend12 0) ↦ₘ u0Orig) ** (q_addr_0 ↦ₘ q0_old))
+      (((u_base_0 + signExtend12 0) ↦ₘ u0Orig) ** (q_addr_0 ↦ₘ q0Old))
       (by pcFree) J1
     -- j=0 call  spec (includes scratch -- j=0 overwrites j=1's scratch)
     have J0 := divK_loop_body_n1_call_unified_j0_spec sp (1 : Word)
@@ -293,7 +293,7 @@ theorem divK_loop_n1_iter10_unified_spec (bltu_1 bltu_0 : Bool)
       (iterN1Call v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1
       (iterN1Call v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.1
       (iterN1Call v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.1
-      q0_old
+      q0Old
       (base + 516) v0 (div128DLo v0) (div128Un0 u0) base
       halign
 
@@ -338,7 +338,7 @@ theorem divK_loop_n1_max_iter10_spec (bltu_1 bltu_0 : Bool)
     (sp jOld v5_old v6_old v7_old v10_old v11_old v2_old
      v0 v1 v2 v3 u0 u1 u2 u3 uTop
      u0_orig_1 u0_orig_0
-     q2_old q1_old q0_old : Word)
+     q2Old q1Old q0Old : Word)
     (retMem dMem dloMem scratch_un0 : Word)
     (base : Word)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
@@ -353,7 +353,7 @@ theorem divK_loop_n1_max_iter10_spec (bltu_1 bltu_0 : Bool)
     cpsTriple (base + loopBodyOff) (base + denormOff) (sharedDivModCode base)
       (loopN1Iter210PreWithScratch sp jOld v5_old v6_old v7_old v10_old v11_old v2_old
         v0 v1 v2 v3 u0 u1 u2 u3 uTop
-        u0_orig_1 u0_orig_0 q2_old q1_old q0_old
+        u0_orig_1 u0_orig_0 q2Old q1Old q0Old
         retMem dMem dloMem scratch_un0)
       (loopN1Iter210Post false bltu_1 bltu_0 sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop
         u0_orig_1 u0_orig_0 retMem dMem dloMem scratch_un0) := by
@@ -373,8 +373,8 @@ theorem divK_loop_n1_max_iter10_spec (bltu_1 bltu_0 : Bool)
   intro_lets at J2
   -- Frame j=2 with iter10 extra atoms and scratch
   have J2f := cpsTriple_frameR
-    (((u_base_1 + signExtend12 0) ↦ₘ u0_orig_1) ** (q_addr_1 ↦ₘ q1_old) **
-     ((u_base_0 + signExtend12 0) ↦ₘ u0_orig_0) ** (q_addr_0 ↦ₘ q0_old) **
+    (((u_base_1 + signExtend12 0) ↦ₘ u0_orig_1) ** (q_addr_1 ↦ₘ q1Old) **
+     ((u_base_0 + signExtend12 0) ↦ₘ u0_orig_0) ** (q_addr_0 ↦ₘ q0Old) **
      (sp + signExtend12 3968 ↦ₘ retMem) ** (sp + signExtend12 3960 ↦ₘ dMem) **
      (sp + signExtend12 3952 ↦ₘ dloMem) ** (sp + signExtend12 3944 ↦ₘ scratch_un0))
     (by pcFree) J2
@@ -385,7 +385,7 @@ theorem divK_loop_n1_max_iter10_spec (bltu_1 bltu_0 : Bool)
     r2.1 r2.2.2.2.2.1
     v0 v1 v2 v3
     u0_orig_1 r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1
-    u0_orig_0 q1_old q0_old
+    u0_orig_0 q1Old q0Old
     retMem dMem dloMem scratch_un0 base halign
 
 
@@ -421,7 +421,7 @@ theorem divK_loop_n1_call_iter10_spec (bltu_1 bltu_0 : Bool)
     (sp jOld v5_old v6_old v7_old v10_old v11_old v2_old
      v0 v1 v2 v3 u0 u1 u2 u3 uTop
      u0_orig_1 u0_orig_0
-     q2_old q1_old q0_old : Word)
+     q2Old q1Old q0Old : Word)
     (retMem dMem dloMem scratch_un0 : Word)
     (base : Word)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
@@ -436,7 +436,7 @@ theorem divK_loop_n1_call_iter10_spec (bltu_1 bltu_0 : Bool)
     cpsTriple (base + loopBodyOff) (base + denormOff) (sharedDivModCode base)
       (loopN1Iter210PreWithScratch sp jOld v5_old v6_old v7_old v10_old v11_old v2_old
         v0 v1 v2 v3 u0 u1 u2 u3 uTop
-        u0_orig_1 u0_orig_0 q2_old q1_old q0_old
+        u0_orig_1 u0_orig_0 q2Old q1Old q0Old
         retMem dMem dloMem scratch_un0)
       (loopN1Iter210Post true bltu_1 bltu_0 sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop
         u0_orig_1 u0_orig_0 retMem dMem dloMem scratch_un0) := by
@@ -456,8 +456,8 @@ theorem divK_loop_n1_call_iter10_spec (bltu_1 bltu_0 : Bool)
   intro_lets at J2
   -- Frame j=2 with iter10 extra atoms only (scratch consumed by call)
   have J2f := cpsTriple_frameR
-    (((u_base_1 + signExtend12 0) ↦ₘ u0_orig_1) ** (q_addr_1 ↦ₘ q1_old) **
-     ((u_base_0 + signExtend12 0) ↦ₘ u0_orig_0) ** (q_addr_0 ↦ₘ q0_old))
+    (((u_base_1 + signExtend12 0) ↦ₘ u0_orig_1) ** (q_addr_1 ↦ₘ q1Old) **
+     ((u_base_0 + signExtend12 0) ↦ₘ u0_orig_0) ** (q_addr_0 ↦ₘ q0Old))
     (by pcFree) J2
   -- iter10  unified spec (inputs from j=2 call  output, scratch = j=2 call values)
   have H10 := divK_loop_n1_iter10_unified_spec bltu_1 bltu_0
@@ -466,7 +466,7 @@ theorem divK_loop_n1_call_iter10_spec (bltu_1 bltu_0 : Bool)
     r2.1 r2.2.2.2.2.1
     v0 v1 v2 v3
     u0_orig_1 r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1
-    u0_orig_0 q1_old q0_old
+    u0_orig_0 q1Old q0Old
     (base + 516) v0 (div128DLo v0) (div128Un0 u0) base halign
 
 
@@ -507,7 +507,7 @@ theorem divK_loop_n1_iter210_unified_spec (bltu_2 bltu_1 bltu_0 : Bool)
     (sp jOld v5_old v6_old v7_old v10_old v11_old v2_old
      v0 v1 v2 v3 u0 u1 u2 u3 uTop
      u0_orig_1 u0_orig_0
-     q2_old q1_old q0_old : Word)
+     q2Old q1Old q0Old : Word)
     (retMem dMem dloMem scratch_un0 : Word)
     (base : Word)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
@@ -522,7 +522,7 @@ theorem divK_loop_n1_iter210_unified_spec (bltu_2 bltu_1 bltu_0 : Bool)
     cpsTriple (base + loopBodyOff) (base + denormOff) (sharedDivModCode base)
       (loopN1Iter210PreWithScratch sp jOld v5_old v6_old v7_old v10_old v11_old v2_old
         v0 v1 v2 v3 u0 u1 u2 u3 uTop
-        u0_orig_1 u0_orig_0 q2_old q1_old q0_old
+        u0_orig_1 u0_orig_0 q2Old q1Old q0Old
         retMem dMem dloMem scratch_un0)
       (loopN1Iter210Post bltu_2 bltu_1 bltu_0 sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop
         u0_orig_1 u0_orig_0 retMem dMem dloMem scratch_un0) := by
@@ -562,7 +562,7 @@ theorem divK_loop_n1_max_iter210_spec (bltu_2 bltu_1 bltu_0 : Bool)
     (sp jOld v5_old v6_old v7_old v10_old v11_old v2_old
      v0 v1 v2 v3 u0 u1 u2 u3 uTop
      u0_orig_2 u0_orig_1 u0_orig_0
-     q3_old q2_old q1_old q0_old : Word)
+     q3Old q2Old q1Old q0Old : Word)
     (retMem dMem dloMem scratch_un0 : Word)
     (base : Word)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
@@ -598,7 +598,7 @@ theorem divK_loop_n1_max_iter210_spec (bltu_2 bltu_1 bltu_0 : Bool)
     cpsTriple (base + loopBodyOff) (base + denormOff) (sharedDivModCode base)
       (loopN1PreWithScratch sp jOld v5_old v6_old v7_old v10_old v11_old v2_old
         v0 v1 v2 v3 u0 u1 u2 u3 uTop
-        u0_orig_2 u0_orig_1 u0_orig_0 q3_old q2_old q1_old q0_old
+        u0_orig_2 u0_orig_1 u0_orig_0 q3Old q2Old q1Old q0Old
         retMem dMem dloMem scratch_un0)
       (loopN1UnifiedPost false bltu_2 bltu_1 bltu_0 sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop
         u0_orig_2 u0_orig_1 u0_orig_0 retMem dMem dloMem scratch_un0) := by
@@ -620,9 +620,9 @@ theorem divK_loop_n1_max_iter210_spec (bltu_2 bltu_1 bltu_0 : Bool)
   intro_lets at J3
   -- Frame j=3 with iter210 extra atoms and scratch
   have J3f := cpsTriple_frameR
-    (((u_base_2 + signExtend12 0) ↦ₘ u0_orig_2) ** (q_addr_2 ↦ₘ q2_old) **
-     ((u_base_1 + signExtend12 0) ↦ₘ u0_orig_1) ** (q_addr_1 ↦ₘ q1_old) **
-     ((u_base_0 + signExtend12 0) ↦ₘ u0_orig_0) ** (q_addr_0 ↦ₘ q0_old) **
+    (((u_base_2 + signExtend12 0) ↦ₘ u0_orig_2) ** (q_addr_2 ↦ₘ q2Old) **
+     ((u_base_1 + signExtend12 0) ↦ₘ u0_orig_1) ** (q_addr_1 ↦ₘ q1Old) **
+     ((u_base_0 + signExtend12 0) ↦ₘ u0_orig_0) ** (q_addr_0 ↦ₘ q0Old) **
      (sp + signExtend12 3968 ↦ₘ retMem) ** (sp + signExtend12 3960 ↦ₘ dMem) **
      (sp + signExtend12 3952 ↦ₘ dloMem) ** (sp + signExtend12 3944 ↦ₘ scratch_un0))
     (by pcFree) J3
@@ -634,7 +634,7 @@ theorem divK_loop_n1_max_iter210_spec (bltu_2 bltu_1 bltu_0 : Bool)
     v0 v1 v2 v3
     u0_orig_2 r3.2.1 r3.2.2.1 r3.2.2.2.1 r3.2.2.2.2.1
     u0_orig_1 u0_orig_0
-    q2_old q1_old q0_old
+    q2Old q1Old q0Old
     retMem dMem dloMem scratch_un0 base halign
     hbltu_2 hbltu_1 hbltu_0 hcarry2
   -- Frame iter210 with j=3 carried atoms
@@ -672,7 +672,7 @@ theorem divK_loop_n1_call_iter210_spec (bltu_2 bltu_1 bltu_0 : Bool)
     (sp jOld v5_old v6_old v7_old v10_old v11_old v2_old
      v0 v1 v2 v3 u0 u1 u2 u3 uTop
      u0_orig_2 u0_orig_1 u0_orig_0
-     q3_old q2_old q1_old q0_old : Word)
+     q3Old q2Old q1Old q0Old : Word)
     (retMem dMem dloMem scratch_un0 : Word)
     (base : Word)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
@@ -708,7 +708,7 @@ theorem divK_loop_n1_call_iter210_spec (bltu_2 bltu_1 bltu_0 : Bool)
     cpsTriple (base + loopBodyOff) (base + denormOff) (sharedDivModCode base)
       (loopN1PreWithScratch sp jOld v5_old v6_old v7_old v10_old v11_old v2_old
         v0 v1 v2 v3 u0 u1 u2 u3 uTop
-        u0_orig_2 u0_orig_1 u0_orig_0 q3_old q2_old q1_old q0_old
+        u0_orig_2 u0_orig_1 u0_orig_0 q3Old q2Old q1Old q0Old
         retMem dMem dloMem scratch_un0)
       (loopN1UnifiedPost true bltu_2 bltu_1 bltu_0 sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop
         u0_orig_2 u0_orig_1 u0_orig_0 retMem dMem dloMem scratch_un0) := by
@@ -729,9 +729,9 @@ theorem divK_loop_n1_call_iter210_spec (bltu_2 bltu_1 bltu_0 : Bool)
   intro_lets at J3
   -- Frame j=3 with iter210 extra atoms only (scratch consumed by call)
   have J3f := cpsTriple_frameR
-    (((u_base_2 + signExtend12 0) ↦ₘ u0_orig_2) ** (q_addr_2 ↦ₘ q2_old) **
-     ((u_base_1 + signExtend12 0) ↦ₘ u0_orig_1) ** (q_addr_1 ↦ₘ q1_old) **
-     ((u_base_0 + signExtend12 0) ↦ₘ u0_orig_0) ** (q_addr_0 ↦ₘ q0_old))
+    (((u_base_2 + signExtend12 0) ↦ₘ u0_orig_2) ** (q_addr_2 ↦ₘ q2Old) **
+     ((u_base_1 + signExtend12 0) ↦ₘ u0_orig_1) ** (q_addr_1 ↦ₘ q1Old) **
+     ((u_base_0 + signExtend12 0) ↦ₘ u0_orig_0) ** (q_addr_0 ↦ₘ q0Old))
     (by pcFree) J3
   -- iter210  unified spec (inputs from j=3 call  output, scratch = j=3 call values)
   have H210 := divK_loop_n1_iter210_unified_spec bltu_2 bltu_1 bltu_0
@@ -741,7 +741,7 @@ theorem divK_loop_n1_call_iter210_spec (bltu_2 bltu_1 bltu_0 : Bool)
     v0 v1 v2 v3
     u0_orig_2 r3.2.1 r3.2.2.1 r3.2.2.2.1 r3.2.2.2.2.1
     u0_orig_1 u0_orig_0
-    q2_old q1_old q0_old
+    q2Old q1Old q0Old
     (base + 516) v0 (div128DLo v0) (div128Un0 u0) base halign
     hbltu_2 hbltu_1 hbltu_0 hcarry2
   -- Frame iter210 with j=3 carried atoms
@@ -784,7 +784,7 @@ theorem divK_loop_n1_unified_spec (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
     (sp jOld v5_old v6_old v7_old v10_old v11_old v2_old
      v0 v1 v2 v3 u0 u1 u2 u3 uTop
      u0_orig_2 u0_orig_1 u0_orig_0
-     q3_old q2_old q1_old q0_old : Word)
+     q3Old q2Old q1Old q0Old : Word)
     (retMem dMem dloMem scratch_un0 : Word)
     (base : Word)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
@@ -820,7 +820,7 @@ theorem divK_loop_n1_unified_spec (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
     cpsTriple (base + loopBodyOff) (base + denormOff) (sharedDivModCode base)
       (loopN1PreWithScratch sp jOld v5_old v6_old v7_old v10_old v11_old v2_old
         v0 v1 v2 v3 u0 u1 u2 u3 uTop
-        u0_orig_2 u0_orig_1 u0_orig_0 q3_old q2_old q1_old q0_old
+        u0_orig_2 u0_orig_1 u0_orig_0 q3Old q2Old q1Old q0Old
         retMem dMem dloMem scratch_un0)
       (loopN1UnifiedPost bltu_3 bltu_2 bltu_1 bltu_0 sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop
         u0_orig_2 u0_orig_1 u0_orig_0 retMem dMem dloMem scratch_un0) := by
@@ -831,7 +831,7 @@ theorem divK_loop_n1_unified_spec (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
     exact divK_loop_n1_max_iter210_spec bltu_2 bltu_1 bltu_0
       sp jOld v5_old v6_old v7_old v10_old v11_old v2_old
       v0 v1 v2 v3 u0 u1 u2 u3 uTop u0_orig_2 u0_orig_1 u0_orig_0
-      q3_old q2_old q1_old q0_old
+      q3Old q2Old q1Old q0Old
       retMem dMem dloMem scratch_un0 base halign
       hbltu_3' hbltu_2 hbltu_1 hbltu_0 hcarry2
   · -- bltu_3 = true -> call
@@ -839,7 +839,7 @@ theorem divK_loop_n1_unified_spec (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
     exact divK_loop_n1_call_iter210_spec bltu_2 bltu_1 bltu_0
       sp jOld v5_old v6_old v7_old v10_old v11_old v2_old
       v0 v1 v2 v3 u0 u1 u2 u3 uTop u0_orig_2 u0_orig_1 u0_orig_0
-      q3_old q2_old q1_old q0_old
+      q3Old q2Old q1Old q0Old
       retMem dMem dloMem scratch_un0 base
       halign
       hbltu_3' hbltu_2 hbltu_1 hbltu_0 hcarry2

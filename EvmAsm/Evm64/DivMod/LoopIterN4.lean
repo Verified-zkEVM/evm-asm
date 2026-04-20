@@ -84,7 +84,7 @@ theorem divK_loop_body_n4_max_skip_j0_spec
   rw [vtop_eq_v3_n4 sp] at TF
   -- 2. Mulsub + correction skip (base+516 → base+880)
   have MCS := divK_mulsub_correction_skip_spec sp qHat (0 : Word) v0 v1 v2 v3 u0 u1 u2 u3 uTop
-    (0 : Word) u3 vtopBase uTop v3 v2_old base
+    (0 : Word) u3 vtopBase uTop v3 v2Old base
 
   intro_lets at MCS
   have MCS0 := MCS hborrow
@@ -93,7 +93,7 @@ theorem divK_loop_body_n4_max_skip_j0_spec
   intro_lets at SL
   -- 4. Frame TF with mulsub cells
   have TFf := cpsTriple_frameR
-    ((.x2 ↦ᵣ v2_old) **
+    ((.x2 ↦ᵣ v2Old) **
      ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
      ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4088) ↦ₘ u1) **
      ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4080) ↦ₘ u2) **
@@ -320,7 +320,7 @@ theorem divK_loop_body_n4_max_addback_j0_beq_spec
   rw [vtop_eq_v3_n4 sp] at TF
   -- 2. Use beq_spec instead of old spec (NO sorry!)
   have MCA := divK_mulsub_correction_addback_beq_spec sp qHat (0 : Word) v0 v1 v2 v3 u0 u1 u2 u3 uTop
-    (0 : Word) u3 vtopBase uTop v3 v2_old base
+    (0 : Word) u3 vtopBase uTop v3 v2Old base
 
   intro_lets at MCA
   unfold isAddbackCarry2NzN4Max isAddbackCarry2Nz at hcarry2_nz
@@ -330,7 +330,7 @@ theorem divK_loop_body_n4_max_addback_j0_beq_spec
   intro_lets at SL
   -- 4. Frame TF with mulsub cells
   have TFf := cpsTriple_frameR
-    ((.x2 ↦ᵣ v2_old) **
+    ((.x2 ↦ᵣ v2Old) **
      ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
      ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4088) ↦ₘ u1) **
      ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4080) ↦ₘ u2) **

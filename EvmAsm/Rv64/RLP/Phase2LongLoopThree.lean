@@ -59,7 +59,7 @@ theorem rlp_phase2_long_loop_three_byte_post_unfold
     `cnt' = 2 ≠ 0`); the remaining two iterations are folded into
     `rlp_phase2_long_loop_two_byte_spec` (#336). -/
 theorem rlp_phase2_long_loop_three_byte_spec
-    (len ptr v12_old wordVal dwordAddr : Word)
+    (len ptr v12Old wordVal dwordAddr : Word)
     (base : Word) (back : BitVec 13)
     (halign1 : alignToDword ptr = dwordAddr)
     (halign2 : alignToDword (ptr + 1) = dwordAddr)
@@ -71,7 +71,7 @@ theorem rlp_phase2_long_loop_three_byte_spec
     cpsTriple base (base + 24)
       (CodeReq.ofProg base (rlp_phase2_long_loop_body_prog back))
       ((.x11 ↦ᵣ len) ** (.x13 ↦ᵣ ptr) ** (.x14 ↦ᵣ (3 : Word)) **
-       (.x12 ↦ᵣ v12_old) ** (.x0 ↦ᵣ (0 : Word)) **
+       (.x12 ↦ᵣ v12Old) ** (.x0 ↦ᵣ (0 : Word)) **
        (dwordAddr ↦ₘ wordVal))
       (rlp_phase2_long_loop_three_byte_post len ptr
         ((extractByte wordVal (byteOffset ptr)).zeroExtend 64)
@@ -80,7 +80,7 @@ theorem rlp_phase2_long_loop_three_byte_spec
         wordVal dwordAddr) := by
   simp only [rlp_phase2_long_loop_three_byte_post_unfold]
   -- Iter 1: body spec at cnt = 3. cnt' = 2.
-  have body := rlp_phase2_long_loop_body_spec len ptr (3 : Word) v12_old
+  have body := rlp_phase2_long_loop_body_spec len ptr (3 : Word) v12Old
     wordVal dwordAddr base back halign1 hvalid1
   have hcnt' : (3 : Word) + signExtend12 (-1 : BitVec 12) = (2 : Word) := by
     decide
@@ -105,7 +105,7 @@ theorem rlp_phase2_long_loop_three_byte_spec
   have tri1' : cpsTriple base base
       (CodeReq.ofProg base (rlp_phase2_long_loop_body_prog back))
       ((.x11 ↦ᵣ len) ** (.x13 ↦ᵣ ptr) ** (.x14 ↦ᵣ (3 : Word)) **
-       (.x12 ↦ᵣ v12_old) ** (.x0 ↦ᵣ (0 : Word)) **
+       (.x12 ↦ᵣ v12Old) ** (.x0 ↦ᵣ (0 : Word)) **
        (dwordAddr ↦ₘ wordVal))
       ((.x11 ↦ᵣ ((len <<< 8) + byte1)) ** (.x13 ↦ᵣ (ptr + 1)) **
        (.x14 ↦ᵣ (2 : Word)) ** (.x12 ↦ᵣ byte1) **

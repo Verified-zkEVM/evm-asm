@@ -712,8 +712,8 @@ theorem mod_n4_max_skip_stack_weaken
     that into `divN4MaxSkipStackPost` requires the semantic-correctness bridge
     (`hc3_zero`) which is threaded separately in the final stack spec. -/
 theorem evm_div_n4_full_max_skip_stack_pre_spec (sp base : Word)
-    (a b : EvmWord) (v5 v6 v7 v10 v11_old : Word)
-    (q0 q1 q2 q3 u0_old u1_old u2_old u3_old u4_old u5 u6 u7
+    (a b : EvmWord) (v5 v6 v7 v10 v11Old : Word)
+    (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
      nMem shiftMem jMem : Word)
     (hbnz : b ≠ 0)
     (hb3nz : b.getLimbN 3 ≠ 0)
@@ -725,9 +725,9 @@ theorem evm_div_n4_full_max_skip_stack_pre_spec (sp base : Word)
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
        (.x2 ↦ᵣ (clzResult (b.getLimbN 3)).2 >>> (63 : Nat)) **
        (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
-       (.x11 ↦ᵣ v11_old) **
+       (.x11 ↦ᵣ v11Old) **
        evmWordIs sp a ** evmWordIs (sp + 32) b **
-       divScratchValues sp q0 q1 q2 q3 u0_old u1_old u2_old u3_old u4_old
+       divScratchValues sp q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old
          u5 u6 u7 shiftMem nMem jMem)
       (fullDivN4MaxSkipPost sp
         (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
@@ -737,8 +737,8 @@ theorem evm_div_n4_full_max_skip_stack_pre_spec (sp base : Word)
   have hraw := evm_div_n4_full_max_skip_spec sp base
     (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
     (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
-    v5 v6 v7 v10 v11_old
-    q0 q1 q2 q3 u0_old u1_old u2_old u3_old u4_old u5 u6 u7
+    v5 v6 v7 v10 v11Old
+    q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
     nMem shiftMem jMem
     hbnz' hb3nz hshift_nz hbltu hborrow
   exact cpsTriple_weaken
@@ -907,8 +907,8 @@ theorem evm_mod_bzero_stack_spec (sp base : Word)
     `modN4MaxSkipStackPost` requires a denormalization bridge that's deferred
     to the forthcoming MOD stack spec. -/
 theorem evm_mod_n4_full_max_skip_stack_pre_spec (sp base : Word)
-    (a b : EvmWord) (v5 v6 v7 v10 v11_old : Word)
-    (q0 q1 q2 q3 u0_old u1_old u2_old u3_old u4_old u5 u6 u7
+    (a b : EvmWord) (v5 v6 v7 v10 v11Old : Word)
+    (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
      nMem shiftMem jMem : Word)
     (hbnz : b ≠ 0)
     (hb3nz : b.getLimbN 3 ≠ 0)
@@ -920,9 +920,9 @@ theorem evm_mod_n4_full_max_skip_stack_pre_spec (sp base : Word)
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
        (.x2 ↦ᵣ (clzResult (b.getLimbN 3)).2 >>> (63 : Nat)) **
        (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
-       (.x11 ↦ᵣ v11_old) **
+       (.x11 ↦ᵣ v11Old) **
        evmWordIs sp a ** evmWordIs (sp + 32) b **
-       divScratchValues sp q0 q1 q2 q3 u0_old u1_old u2_old u3_old u4_old
+       divScratchValues sp q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old
          u5 u6 u7 shiftMem nMem jMem)
       (fullModN4MaxSkipPost sp
         (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
@@ -932,8 +932,8 @@ theorem evm_mod_n4_full_max_skip_stack_pre_spec (sp base : Word)
   have hraw := evm_mod_n4_full_max_skip_spec sp base
     (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
     (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
-    v5 v6 v7 v10 v11_old
-    q0 q1 q2 q3 u0_old u1_old u2_old u3_old u4_old u5 u6 u7
+    v5 v6 v7 v10 v11Old
+    q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
     nMem shiftMem jMem
     hbnz' hb3nz hshift_nz hbltu hborrow
   exact cpsTriple_weaken
@@ -1079,13 +1079,11 @@ theorem evm_div_n4_max_skip_stack_spec (sp base : Word)
 
 /-- EVM-stack-level MOD spec on the n=4 max+skip sub-path.
 
-    Mirror of `evm_div_n4_max_skip_stack_spec` but for MOD. In addition to
-    the five runtime + semantic conditions the DIV stack spec takes, MOD
-    also needs the CLZ top-limb bound
-    `b.getLimbN 3 < 2^(64 - clz(b.getLimbN 3))`, since the post reshape
-    goes through the denormalization round-trip. This bound is implicit
-    in the CLZ algorithm's semantics and expected to be discharged at call
-    sites by a future CLZ correctness lemma.
+    Mirror of `evm_div_n4_max_skip_stack_spec` but for MOD. Takes the same
+    five runtime + semantic conditions as DIV. The CLZ top-limb bound
+    `b.getLimbN 3 < 2^(64 - clz(b.getLimbN 3))`, needed internally for
+    the post reshape through the denormalization round-trip, is discharged
+    via `clzResult_fst_top_bound`.
 
     Reduces to `evm_mod_n4_full_max_skip_stack_pre_spec_bundled` + a post
     reshape via `output_slot_to_evmWordIs_mod_n4_max_skip_denorm` and
@@ -1099,13 +1097,14 @@ theorem evm_mod_n4_max_skip_stack_spec (sp base : Word)
     (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
     (hbltu : isMaxTrialN4Evm a b)
     (hborrow : isSkipBorrowN4MaxEvm a b)
-    (hsem : n4MaxSkipSemanticHolds a b)
-    (hb3_bound : (b.getLimbN 3).toNat <
-        2 ^ (64 - (clzResult (b.getLimbN 3)).1.toNat)) :
+    (hsem : n4MaxSkipSemanticHolds a b) :
     cpsTriple base (base + nopOff) (modCode base)
       (modN4StackPre sp a b v5 v6 v7 v10 v11
          q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem)
       (modN4MaxSkipStackPost sp a b) := by
+  have hb3_bound : (b.getLimbN 3).toNat <
+      2 ^ (64 - (clzResult (b.getLimbN 3)).1.toNat) :=
+    clzResult_fst_top_bound (b.getLimbN 3)
   have h_pre := evm_mod_n4_full_max_skip_stack_pre_spec_bundled sp base a b
     v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 nMem shiftMem jMem
     hbnz hb3nz hshift_nz hbltu hborrow

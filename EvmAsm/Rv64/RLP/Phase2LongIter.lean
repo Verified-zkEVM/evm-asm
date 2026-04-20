@@ -113,14 +113,14 @@ private theorem iter_addrs_distinct (base : Word) :
     ADDI (counter) — each framed with the registers and memory not
     touched by that instruction. -/
 theorem rlp_phase2_long_iter_spec
-    (len ptr cnt v12_old wordVal dwordAddr : Word) (base : Word)
+    (len ptr cnt v12Old wordVal dwordAddr : Word) (base : Word)
     (halign : alignToDword ptr = dwordAddr)
     (hvalid : isValidByteAccess ptr = true) :
     let byteZext := (extractByte wordVal (byteOffset ptr)).zeroExtend 64
     cpsTriple base (base + 20)
       (CodeReq.ofProg base rlp_phase2_long_iter_prog)
       ((.x11 ↦ᵣ len) ** (.x13 ↦ᵣ ptr) ** (.x14 ↦ᵣ cnt) **
-       (.x12 ↦ᵣ v12_old) ** (dwordAddr ↦ₘ wordVal))
+       (.x12 ↦ᵣ v12Old) ** (dwordAddr ↦ₘ wordVal))
       (rlp_phase2_long_iter_post len ptr cnt byteZext wordVal dwordAddr) := by
   simp only [rlp_phase2_long_iter_post_unfold]
   rw [iter_code_split]
@@ -137,7 +137,7 @@ theorem rlp_phase2_long_iter_spec
     rw [h_se0]; simpa using halign
   have hvalid0 : isValidByteAccess (ptr + signExtend12 (0 : BitVec 12)) = true := by
     rw [h_se0]; simpa using hvalid
-  have lbu_raw := generic_lbu_spec .x12 .x13 ptr v12_old 0 base dwordAddr wordVal
+  have lbu_raw := generic_lbu_spec .x12 .x13 ptr v12Old 0 base dwordAddr wordVal
     (by nofun) halign0 hvalid0
   rw [show ptr + signExtend12 (0 : BitVec 12) = ptr from by
         rw [h_se0]; bv_omega] at lbu_raw
@@ -168,7 +168,7 @@ theorem rlp_phase2_long_iter_spec
   have s1 : cpsTriple base (base + 4)
       (CodeReq.singleton base (.LBU .x12 .x13 0))
       ((.x11 ↦ᵣ len) ** (.x13 ↦ᵣ ptr) ** (.x14 ↦ᵣ cnt) **
-       (.x12 ↦ᵣ v12_old) ** (dwordAddr ↦ₘ wordVal))
+       (.x12 ↦ᵣ v12Old) ** (dwordAddr ↦ₘ wordVal))
       ((.x11 ↦ᵣ len) ** (.x13 ↦ᵣ ptr) ** (.x14 ↦ᵣ cnt) **
        (.x12 ↦ᵣ byteZext) ** (dwordAddr ↦ₘ wordVal)) :=
     frame_and_perm

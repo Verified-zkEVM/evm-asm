@@ -90,7 +90,7 @@ theorem divK_loop_body_n2_max_skip_j0_spec
   rw [vtop_eq_v1_n2 sp] at TF
   -- 2. Mulsub + correction skip (base+516 → base+880)
   have MCS := divK_mulsub_correction_skip_spec sp qHat (0 : Word) v0 v1 v2 v3 u0 u1 u2 u3 uTop
-    (0 : Word) u1 vtopBase u2 v1 v2_old base
+    (0 : Word) u1 vtopBase u2 v1 v2Old base
 
   intro_lets at MCS
   have MCS0 := MCS hborrow
@@ -99,7 +99,7 @@ theorem divK_loop_body_n2_max_skip_j0_spec
   intro_lets at SL
   -- 4. Frame TF with mulsub cells (n=2: u2,u1,v1 consumed by trial; v0,u0,v2,u3,v3,uTop in frame)
   have TFf := cpsTriple_frameR
-    ((.x2 ↦ᵣ v2_old) **
+    ((.x2 ↦ᵣ v2Old) **
      ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
      ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4072) ↦ₘ u3) **
      ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4064) ↦ₘ uTop) **
@@ -317,7 +317,7 @@ theorem divK_loop_body_n2_max_skip_j1_spec
   rw [u_addr8_eq_n2 sp (1 : Word)] at TF
   rw [vtop_eq_v1_n2 sp] at TF
   have MCS := divK_mulsub_correction_skip_spec sp qHat (1 : Word) v0 v1 v2 v3 u0 u1 u2 u3 uTop
-    (1 : Word) u1 vtopBase u2 v1 v2_old base
+    (1 : Word) u1 vtopBase u2 v1 v2Old base
 
   intro_lets at MCS
   have MCS0 := MCS hborrow
@@ -325,7 +325,7 @@ theorem divK_loop_body_n2_max_skip_j1_spec
   have SL := divK_store_loop_jgt0_spec sp (1 : Word) qHat u4_new (0 : Word) qOld base hj_pos
   intro_lets at SL
   have TFf := cpsTriple_frameR
-    ((.x2 ↦ᵣ v2_old) **
+    ((.x2 ↦ᵣ v2Old) **
      ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
      ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4072) ↦ₘ u3) **
      ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4064) ↦ₘ uTop) **
@@ -532,7 +532,7 @@ theorem divK_loop_body_n2_max_skip_j2_spec
   rw [u_addr8_eq_n2 sp (2 : Word)] at TF
   rw [vtop_eq_v1_n2 sp] at TF
   have MCS := divK_mulsub_correction_skip_spec sp qHat (2 : Word) v0 v1 v2 v3 u0 u1 u2 u3 uTop
-    (2 : Word) u1 vtopBase u2 v1 v2_old base
+    (2 : Word) u1 vtopBase u2 v1 v2Old base
 
   intro_lets at MCS
   have MCS0 := MCS hborrow
@@ -540,7 +540,7 @@ theorem divK_loop_body_n2_max_skip_j2_spec
   have SL := divK_store_loop_jgt0_spec sp (2 : Word) qHat u4_new (0 : Word) qOld base hj_pos
   intro_lets at SL
   have TFf := cpsTriple_frameR
-    ((.x2 ↦ᵣ v2_old) **
+    ((.x2 ↦ᵣ v2Old) **
      ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
      ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4072) ↦ₘ u3) **
      ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4064) ↦ₘ uTop) **
@@ -746,7 +746,7 @@ theorem divK_loop_body_n2_max_addback_j0_beq_spec
   rw [u_addr8_eq_n2 sp (0 : Word)] at TF
   rw [vtop_eq_v1_n2 sp] at TF
   have MCA := divK_mulsub_correction_addback_beq_spec sp qHat (0 : Word) v0 v1 v2 v3 u0 u1 u2 u3 uTop
-    (0 : Word) u1 vtopBase u2 v1 v2_old base
+    (0 : Word) u1 vtopBase u2 v1 v2Old base
 
   intro_lets at MCA
   unfold isAddbackCarry2NzN2Max isAddbackCarry2Nz at hcarry2_nz
@@ -754,7 +754,7 @@ theorem divK_loop_body_n2_max_addback_j0_beq_spec
   have SL := divK_store_loop_j0_spec sp q_out u4_out carryOut qOld base
   intro_lets at SL
   have TFf := cpsTriple_frameR
-    ((.x2 ↦ᵣ v2_old) **
+    ((.x2 ↦ᵣ v2Old) **
      ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
      ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4072) ↦ₘ u3) **
      ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4064) ↦ₘ uTop) **
@@ -959,7 +959,7 @@ theorem divK_loop_body_n2_max_addback_j1_beq_spec
   rw [u_addr8_eq_n2 sp (1 : Word)] at TF
   rw [vtop_eq_v1_n2 sp] at TF
   have MCA := divK_mulsub_correction_addback_beq_spec sp qHat (1 : Word) v0 v1 v2 v3 u0 u1 u2 u3 uTop
-    (1 : Word) u1 vtopBase u2 v1 v2_old base
+    (1 : Word) u1 vtopBase u2 v1 v2Old base
 
   intro_lets at MCA
   unfold isAddbackCarry2NzN2Max isAddbackCarry2Nz at hcarry2_nz
@@ -968,7 +968,7 @@ theorem divK_loop_body_n2_max_addback_j1_beq_spec
   have SL := divK_store_loop_jgt0_spec sp (1 : Word) q_out u4_out carryOut qOld base hj_pos
   intro_lets at SL
   have TFf := cpsTriple_frameR
-    ((.x2 ↦ᵣ v2_old) **
+    ((.x2 ↦ᵣ v2Old) **
      ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
      ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4072) ↦ₘ u3) **
      ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4064) ↦ₘ uTop) **
@@ -1165,7 +1165,7 @@ theorem divK_loop_body_n2_max_addback_j2_beq_spec
   rw [u_addr8_eq_n2 sp (2 : Word)] at TF
   rw [vtop_eq_v1_n2 sp] at TF
   have MCA := divK_mulsub_correction_addback_beq_spec sp qHat (2 : Word) v0 v1 v2 v3 u0 u1 u2 u3 uTop
-    (2 : Word) u1 vtopBase u2 v1 v2_old base
+    (2 : Word) u1 vtopBase u2 v1 v2Old base
 
   intro_lets at MCA
   unfold isAddbackCarry2NzN2Max isAddbackCarry2Nz at hcarry2_nz
@@ -1174,7 +1174,7 @@ theorem divK_loop_body_n2_max_addback_j2_beq_spec
   have SL := divK_store_loop_jgt0_spec sp (2 : Word) q_out u4_out carryOut qOld base hj_pos
   intro_lets at SL
   have TFf := cpsTriple_frameR
-    ((.x2 ↦ᵣ v2_old) **
+    ((.x2 ↦ᵣ v2Old) **
      ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
      ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4072) ↦ₘ u3) **
      ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4064) ↦ₘ uTop) **

@@ -106,7 +106,7 @@ theorem divK_loop_n1_unified_divCode (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
     (sp jOld v5_old v6_old v7_old v10_old v11_old v2_old
      v0 v1 v2 v3 u0 u1 u2 u3 uTop
      u0_orig_2 u0_orig_1 u0_orig_0
-     q3_old q2_old q1_old q0_old : Word)
+     q3Old q2Old q1Old q0Old : Word)
     (retMem dMem dloMem scratch_un0 : Word)
     (base : Word)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
@@ -142,7 +142,7 @@ theorem divK_loop_n1_unified_divCode (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
     cpsTriple (base + loopBodyOff) (base + denormOff) (divCode base)
       (loopN1PreWithScratch sp jOld v5_old v6_old v7_old v10_old v11_old v2_old
         v0 v1 v2 v3 u0 u1 u2 u3 uTop
-        u0_orig_2 u0_orig_1 u0_orig_0 q3_old q2_old q1_old q0_old
+        u0_orig_2 u0_orig_1 u0_orig_0 q3Old q2Old q1Old q0Old
         retMem dMem dloMem scratch_un0)
       (loopN1UnifiedPost bltu_3 bltu_2 bltu_1 bltu_0 sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop
         u0_orig_2 u0_orig_1 u0_orig_0 retMem dMem dloMem scratch_un0) :=
@@ -150,7 +150,7 @@ theorem divK_loop_n1_unified_divCode (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
     (divK_loop_n1_unified_spec bltu_3 bltu_2 bltu_1 bltu_0
       sp jOld v5_old v6_old v7_old v10_old v11_old v2_old
       v0 v1 v2 v3 u0 u1 u2 u3 uTop u0_orig_2 u0_orig_1 u0_orig_0
-      q3_old q2_old q1_old q0_old
+      q3Old q2Old q1Old q0Old
       retMem dMem dloMem scratch_un0 base halign
       hbltu_3 hbltu_2 hbltu_1 hbltu_0 hcarry2)
 
