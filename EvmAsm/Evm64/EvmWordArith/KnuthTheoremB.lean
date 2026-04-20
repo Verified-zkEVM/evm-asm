@@ -23,6 +23,8 @@
   - `knuth_core_ineq` — `x * z < y + 2 * z → x ≤ y / z + 2` (Knuth overshoot step).
   - `knuth_q_r_v_nat_bound` — `q_r * v_nat < u_nat + 2 * v_nat` under call-trial
     assumption `u_top < v_top` (feeds `knuth_core_ineq`).
+  - `knuth_theorem_b_abstract` — the Nat-abstract form of Knuth's Theorem B:
+    `q_r ≤ u_nat / v_nat + 2` (call-trial regime). Composed from the above.
 -/
 
 import EvmAsm.Evm64.EvmWordArith.DivN4Overestimate
@@ -210,5 +212,38 @@ theorem knuth_q_r_v_nat_bound
   have h_pos192 : (0:Nat) < 2^192 := by positivity
   have h_2vnat : 2 * v_nat ≥ 2 * 2^255 := Nat.mul_le_mul_left 2 hv_nat_ge
   omega
+
+/-- Knuth's TAOCP Vol 2 §4.3.1 Theorem B — Nat-abstract form (call-trial regime).
+
+    Under the call-trial hypothesis `u_top < v_top` + normalization
+    (`v_top ≥ 2^63`, `v_rest < 2^192`, `u_next < 2^64`), the raw 2-limb trial
+    quotient `q_r = (u_top * 2^64 + u_next) / v_top` overestimates the true
+    quotient `u_nat / v_nat` by at most 2:
+    ```
+      q_r ≤ u_nat / v_nat + 2
+    ```
+    This is the core mathematical content of Knuth's Theorem B.
+
+    Proof: apply `knuth_q_r_v_nat_bound` to derive the multiplicative
+    inequality, then close with `knuth_core_ineq`. -/
+theorem knuth_theorem_b_abstract
+    (u_nat v_nat u_top u_next u_rest v_top v_rest : Nat)
+    (h_u_split : u_top * 2^256 + u_next * 2^192 + u_rest = u_nat)
+    (h_v_split : v_nat = v_top * 2^192 + v_rest)
+    (h_v_rest : v_rest < 2^192)
+    (h_v_norm : v_top ≥ 2^63)
+    (hu_top_lt : u_top < v_top)
+    (hu_next_lt : u_next < 2^64) :
+    (u_top * 2^64 + u_next) / v_top ≤ u_nat / v_nat + 2 := by
+  have hv_nat_pos : 0 < v_nat := by
+    have h1 : v_nat ≥ 2^255 :=
+      knuth_v_nat_ge_pow255_abstract v_nat v_top v_rest h_v_norm h_v_split
+    have : (0:Nat) < 2^255 := by positivity
+    omega
+  have h_mul_bound :
+      (u_top * 2^64 + u_next) / v_top * v_nat < u_nat + 2 * v_nat :=
+    knuth_q_r_v_nat_bound u_nat v_nat u_top u_next u_rest v_top v_rest
+      h_u_split h_v_split h_v_rest h_v_norm hu_top_lt hu_next_lt
+  exact knuth_core_ineq _ _ _ hv_nat_pos h_mul_bound
 
 end EvmAsm.Evm64
