@@ -42,8 +42,8 @@ We follow the [Mathlib4 naming guide](https://leanprover-community.github.io/con
 
 **Local variables inside proofs** (bound by `have`, `intro`, `let`) follow the same rules by extension:
 
-- Proof/hypothesis names (most `have`/`intro`) — `snake_case` (rule 1). Short forms like `h`, `hx`, `h1`, `hab` are standard. Descriptive forms like `carry_in`, `u_plus_carry` are fine.
-- `let`-bound values of `Type`s — `lowerCamelCase` (rule 4). e.g. `let midPoint := ...`.
+- Proof/hypothesis names (most `have`/`intro`) — `snake_case` (rule 1). Short forms like `h`, `hx`, `h1`, `hab` are standard. Descriptive forms like `h_carry_pos`, `add_lt_aux` are fine.
+- `let`-bound values of `Type`s — `lowerCamelCase` (rule 4). e.g. `let midPoint := ...`, `let carryIn := ...`. A Word-valued local called `carryIn` is a Type term (rule 4), not a Prop term (rule 1) — even though the underlying computation is carry arithmetic.
 
 ## Git Workflow
 

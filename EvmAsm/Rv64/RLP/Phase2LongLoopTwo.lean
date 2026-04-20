@@ -131,7 +131,7 @@ theorem rlp_phase2_long_loop_two_byte_spec
   -- Both CRs are the same (loop body prog at base), so use `_seq_same_cr`.
   -- Need to convert tri1''s post into one_byte's pre shape via consequence.
   have composed :=
-    cpsTriple_seq_with_perm_same_cr base base (base + 24) _ _ _ _ _
+    cpsTriple_seq_perm_same_cr
       (fun h hp => by xperm_hyp hp) tri1' one_byte
   -- Final post: rewrite `ptr + 1 + 1 = ptr + 2` and reshape.
   have h_ptr_2 : (ptr + 1 : Word) + 1 = ptr + 2 := by bv_omega
