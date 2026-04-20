@@ -166,7 +166,11 @@ def isAddbackCarry2NzN4MaxAb (a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Prop :=
   let u0 := a0 <<< (shift.toNat % 64)
   isAddbackCarry2NzN4Max b0' b1' b2' b3' u0 u1 u2 u3 u4
 
-/-- n=4 pre-loop + max+addback BEQ loop body: base → base+908 (shift ≠ 0). -/
+/-- n=4 pre-loop + max+addback BEQ loop body: base → base+908 (shift ≠ 0).
+
+    After #720 dropped the unused \`hv_*\` params from the inner
+    \`divK_loop_body_n4_max_addback_j0_beq_norm\`, the 18 corresponding
+    validity hypotheses here also became unused and are removed. -/
 theorem evm_div_n4_preloop_max_addback_beq_spec (sp base : Word)
     (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old : Word)
     (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem : Word)
@@ -174,24 +178,6 @@ theorem evm_div_n4_preloop_max_addback_beq_spec (sp base : Word)
     (hb3nz : b3 ≠ 0)
     (hshift_nz : (clzResult b3).1 ≠ 0)
     (hvalid : ValidMemRange sp 8)
-    (hv_q0 : isValidDwordAccess (sp + signExtend12 4088) = true)
-    (hv_q1 : isValidDwordAccess (sp + signExtend12 4080) = true)
-    (hv_q2 : isValidDwordAccess (sp + signExtend12 4072) = true)
-    (hv_q3 : isValidDwordAccess (sp + signExtend12 4064) = true)
-    (hv_u0 : isValidDwordAccess (sp + signExtend12 4056) = true)
-    (hv_u1 : isValidDwordAccess (sp + signExtend12 4048) = true)
-    (hv_u2 : isValidDwordAccess (sp + signExtend12 4040) = true)
-    (hv_u3 : isValidDwordAccess (sp + signExtend12 4032) = true)
-    (hv_u4 : isValidDwordAccess (sp + signExtend12 4024) = true)
-    (hv_u5 : isValidDwordAccess (sp + signExtend12 4016) = true)
-    (hv_u6 : isValidDwordAccess (sp + signExtend12 4008) = true)
-    (hv_u7 : isValidDwordAccess (sp + signExtend12 4000) = true)
-    (hv_n  : isValidDwordAccess (sp + signExtend12 3984) = true)
-    (hv_shift : isValidDwordAccess (sp + signExtend12 3992) = true)
-    (hv_j  : isValidDwordAccess (sp + signExtend12 3976) = true)
-    (hv_uhi : isValidDwordAccess (sp + signExtend12 4056 - (0 + (4 : Word)) <<< (3 : BitVec 6).toNat) = true)
-    (hv_ulo : isValidDwordAccess ((sp + signExtend12 4056 - (0 + (4 : Word)) <<< (3 : BitVec 6).toNat) + 8) = true)
-    (hv_vtop : isValidDwordAccess (sp + ((4 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat + signExtend12 32) = true)
     (hbltu : isMaxTrialN4 a3 b2 b3)
     (hcarry2_nz : isAddbackCarry2NzN4MaxAb a0 a1 a2 a3 b0 b1 b2 b3)
     (hborrow : isAddbackBorrowN4Max a0 a1 a2 a3 b0 b1 b2 b3) :
@@ -321,35 +307,17 @@ def isAddbackCarry2NzN4CallAb (a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Prop :=
   let u0 := a0 <<< (shift.toNat % 64)
   isAddbackCarry2NzN4Call b0' b1' b2' b3' u0 u1 u2 u3 u4
 
-/-- n=4 pre-loop + call+addback BEQ loop body: base → base+908 (shift ≠ 0). -/
+/-- n=4 pre-loop + call+addback BEQ loop body: base → base+908 (shift ≠ 0).
+
+    After #720 dropped the unused \`hv_*\` params from the inner
+    \`divK_loop_body_n4_call_addback_j0_beq_norm\`, the 22 corresponding
+    validity hypotheses here also became unused and are removed. -/
 theorem evm_div_n4_preloop_call_addback_beq_spec (sp base : Word)
     (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old : Word)
     (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem : Word)
     (retMem dMem dloMem scratch_un0 : Word)
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0) (hb3nz : b3 ≠ 0)
     (hshift_nz : (clzResult b3).1 ≠ 0) (hvalid : ValidMemRange sp 8)
-    (hv_q0 : isValidDwordAccess (sp + signExtend12 4088) = true)
-    (hv_q1 : isValidDwordAccess (sp + signExtend12 4080) = true)
-    (hv_q2 : isValidDwordAccess (sp + signExtend12 4072) = true)
-    (hv_q3 : isValidDwordAccess (sp + signExtend12 4064) = true)
-    (hv_u0 : isValidDwordAccess (sp + signExtend12 4056) = true)
-    (hv_u1 : isValidDwordAccess (sp + signExtend12 4048) = true)
-    (hv_u2 : isValidDwordAccess (sp + signExtend12 4040) = true)
-    (hv_u3 : isValidDwordAccess (sp + signExtend12 4032) = true)
-    (hv_u4 : isValidDwordAccess (sp + signExtend12 4024) = true)
-    (hv_u5 : isValidDwordAccess (sp + signExtend12 4016) = true)
-    (hv_u6 : isValidDwordAccess (sp + signExtend12 4008) = true)
-    (hv_u7 : isValidDwordAccess (sp + signExtend12 4000) = true)
-    (hv_n  : isValidDwordAccess (sp + signExtend12 3984) = true)
-    (hv_shift : isValidDwordAccess (sp + signExtend12 3992) = true)
-    (hv_j  : isValidDwordAccess (sp + signExtend12 3976) = true)
-    (hv_ret : isValidDwordAccess (sp + signExtend12 3968) = true)
-    (hv_d   : isValidDwordAccess (sp + signExtend12 3960) = true)
-    (hv_dlo : isValidDwordAccess (sp + signExtend12 3952) = true)
-    (hv_scratch_un0 : isValidDwordAccess (sp + signExtend12 3944) = true)
-    (hv_uhi : isValidDwordAccess (sp + signExtend12 4056 - (0 + (4 : Word)) <<< (3 : BitVec 6).toNat) = true)
-    (hv_ulo : isValidDwordAccess ((sp + signExtend12 4056 - (0 + (4 : Word)) <<< (3 : BitVec 6).toNat) + 8) = true)
-    (hv_vtop : isValidDwordAccess (sp + ((4 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat + signExtend12 32) = true)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
     (hbltu : isCallTrialN4 a3 b2 b3)
     (hcarry2_nz : isAddbackCarry2NzN4CallAb a0 a1 a2 a3 b0 b1 b2 b3)
@@ -642,8 +610,6 @@ theorem evm_div_n4_full_max_addback_beq_spec (sp base : Word)
     a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old
     q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem
     hbnz hb3nz hshift_nz hvalid
-    hv_q0 hv_q1 hv_q2 hv_q3 hv_u0 hv_u1 hv_u2 hv_u3 hv_u4 hv_u5 hv_u6 hv_u7
-    hv_n hv_shift hv_j hv_uhi hv_ulo hv_vtop
     hbltu hcarry2_nz hborrow
   have hB := evm_div_preamble_denorm_epilogue_spec sp base
     un0Out un1Out un2Out un3Out shift
@@ -861,10 +827,7 @@ theorem evm_div_n4_full_call_addback_beq_spec (sp base : Word)
     q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem
     retMem dMem dloMem scratch_un0
     hbnz hb3nz hshift_nz hvalid
-    hv_q0 hv_q1 hv_q2 hv_q3 hv_u0 hv_u1 hv_u2 hv_u3 hv_u4 hv_u5 hv_u6 hv_u7
-    hv_n hv_shift hv_j hv_ret hv_d hv_dlo hv_scratch_un0
-    hv_uhi hv_ulo hv_vtop halign
-    hbltu hcarry2_nz hborrow
+    halign hbltu hcarry2_nz hborrow
   have hB := evm_div_preamble_denorm_epilogue_spec sp base
     un0Out un1Out un2Out un3Out shift
     un3Out (0 : Word) (sp + signExtend12 4056) (sp + signExtend12 4088)
