@@ -156,7 +156,7 @@ theorem divK_trial_call_full_spec_n1
 -- ============================================================================
 
 /-- Full loop body (BLTU ntaken + BEQ skip) for n=1.
-    No overlapping cells: u_hi=u1, u_lo=u0, v_top=v0.
+    No overlapping cells: uHi=u1, uLo=u0, v_top=v0.
     Entry: base+448, cpsBranch to base+448/904. -/
 theorem divK_loop_body_n1_max_skip_spec
     (sp j j_old v5_old v6_old v7_old v10_old v11_old v2_old
@@ -263,7 +263,7 @@ theorem divK_loop_body_n1_max_skip_spec
 -- ============================================================================
 
 /-- Full loop body (BLTU ntaken + BEQ addback) for n=1.
-    No overlapping cells: u_hi=u1, u_lo=u0, v_top=v0.
+    No overlapping cells: uHi=u1, uLo=u0, v_top=v0.
     Entry: base+448, cpsBranch to base+448/904. -/
 theorem divK_loop_body_n1_max_addback_spec
     (sp j j_old v5_old v6_old v7_old v10_old v11_old v2_old
@@ -358,7 +358,7 @@ theorem divK_loop_body_n1_max_addback_spec
 -- ============================================================================
 
 /-- Full loop body (BLTU taken + BEQ skip) for n=1.
-    No overlapping cells: u_hi=u1, u_lo=u0, v_top=v0.
+    No overlapping cells: uHi=u1, uLo=u0, v_top=v0.
     Entry: base+448, cpsBranch to base+448/904. -/
 theorem divK_loop_body_n1_call_skip_spec
     (sp j j_old v5_old v6_old v7_old v10_old v11_old v2_old
@@ -511,7 +511,7 @@ theorem divK_loop_body_n1_call_skip_spec
 -- ============================================================================
 
 /-- Full loop body (BLTU taken + BEQ addback) for n=1.
-    No overlapping cells: u_hi=u1, u_lo=u0, v_top=v0.
+    No overlapping cells: uHi=u1, uLo=u0, v_top=v0.
     Entry: base+448, cpsBranch to base+448/904. -/
 theorem divK_loop_body_n1_call_addback_spec
     (sp j j_old v5_old v6_old v7_old v10_old v11_old v2_old

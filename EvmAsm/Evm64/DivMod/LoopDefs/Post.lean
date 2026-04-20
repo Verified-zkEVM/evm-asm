@@ -220,7 +220,7 @@ theorem loopBodyN3CallAddbackBeqPost_eq_J (sp base v0 v1 v2 v3 u0 u1 u2 u3 u_top
 
 /-- Call+skip postcondition for n=1 loop body, generic j.
     Bundles div128Quot computation + loopBodyN1SkipPost + scratch cells.
-    For n=1: div128 uses u_hi=u1, u_lo=u0, v_top=v0. -/
+    For n=1: div128 uses uHi=u1, uLo=u0, v_top=v0. -/
 @[irreducible]
 def loopBodyN1CallSkipPostJ (sp base j v0 v1 v2 v3 u0 u1 u2 u3 u_top : Word) : Assertion :=
   let q_hat := div128Quot u1 u0 v0
@@ -257,7 +257,7 @@ def loopBodyN1CallAddbackBeqPostJ (sp base j v0 v1 v2 v3 u0 u1 u2 u3 u_top : Wor
 
 /-- Call+skip postcondition for n=2 loop body, generic j.
     Bundles div128Quot computation + loopBodyN2SkipPost + scratch cells.
-    For n=2: div128 uses u_hi=u2, u_lo=u1, v_top=v1. -/
+    For n=2: div128 uses uHi=u2, uLo=u1, v_top=v1. -/
 @[irreducible]
 def loopBodyN2CallSkipPostJ (sp base j v0 v1 v2 v3 u0 u1 u2 u3 u_top : Word) : Assertion :=
   let q_hat := div128Quot u2 u1 v1

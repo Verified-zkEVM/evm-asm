@@ -53,7 +53,7 @@ theorem vtop_eq_v2_n3 (sp : Word) :
 -- ============================================================================
 
 /-- Full loop body (BLTU ntaken + BEQ skip) for n=3.
-    No overlapping cells: u_hi=u3, u_lo=u2, v_top=v2.
+    No overlapping cells: uHi=u3, uLo=u2, v_top=v2.
     Entry: base+448, cpsBranch to base+448/904. -/
 theorem divK_loop_body_n3_max_skip_spec
     (sp j j_old v5_old v6_old v7_old v10_old v11_old v2_old
@@ -109,7 +109,7 @@ theorem divK_loop_body_n3_max_skip_spec
   let j' := j + signExtend12 4095
   -- Abbreviation for vtop_base (register value, not a memory address)
   let vtop_base := sp + ((3 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
-  -- 1. Trial max full (base+448 → base+516), instantiated with n=3, u_hi=u3, u_lo=u2, v_top=v2
+  -- 1. Trial max full (base+448 → base+516), instantiated with n=3, uHi=u3, uLo=u2, v_top=v2
   have TF := divK_trial_max_full_spec sp j (3 : Word) j_old v5_old v6_old v7_old v10_old v11_old
     u3 u2 v2 base hbltu
   -- Expand let-bindings in TF to expose raw address expressions
@@ -165,7 +165,7 @@ theorem divK_loop_body_n3_max_skip_spec
 -- ============================================================================
 
 /-- Full loop body (BLTU ntaken + BEQ addback) for n=3.
-    No overlapping cells: u_hi=u3, u_lo=u2, v_top=v2.
+    No overlapping cells: uHi=u3, uLo=u2, v_top=v2.
     Entry: base+448, cpsBranch to base+448/904. -/
 theorem divK_loop_body_n3_max_addback_spec
     (sp j j_old v5_old v6_old v7_old v10_old v11_old v2_old
@@ -264,7 +264,7 @@ theorem divK_loop_body_n3_max_addback_spec
 -- ============================================================================
 
 /-- Full loop body (BLTU taken + BEQ skip) for n=3.
-    No overlapping cells: u_hi=u3, u_lo=u2, v_top=v2.
+    No overlapping cells: uHi=u3, uLo=u2, v_top=v2.
     Entry: base+448, cpsBranch to base+448/904. -/
 theorem divK_loop_body_n3_call_skip_spec
     (sp j j_old v5_old v6_old v7_old v10_old v11_old v2_old
@@ -419,7 +419,7 @@ theorem divK_loop_body_n3_call_skip_spec
 -- ============================================================================
 
 /-- Full loop body (BLTU taken + BEQ addback) for n=3.
-    No overlapping cells: u_hi=u3, u_lo=u2, v_top=v2.
+    No overlapping cells: uHi=u3, uLo=u2, v_top=v2.
     Entry: base+448, cpsBranch to base+448/904. -/
 theorem divK_loop_body_n3_call_addback_spec
     (sp j j_old v5_old v6_old v7_old v10_old v11_old v2_old

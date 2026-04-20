@@ -3,7 +3,7 @@
 
   Two straight-line composition specs for the Knuth loop body:
     * `divK_trial_load_spec` — 12-instruction composition (trial_load_u
-      + trial_load_vtop) that fetches `u_hi`, `u_lo`, and `v_top` from
+      + trial_load_vtop) that fetches `uHi`, `uLo`, and `v_top` from
       memory in preparation for the trial-quotient estimation.
     * `divK_store_qj_spec` — 4-instruction composition (store_qj_addr
       + store_qj_write) that computes `qAddr = sp + 4088 - 8*j` and
@@ -29,11 +29,11 @@ namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
 
-/-- Trial quotient load: fetch u_hi, u_lo, v_top from memory.
+/-- Trial quotient load: fetch uHi, uLo, v_top from memory.
     Instrs [1]-[12] of loop body.
-    Output: x7 = u_hi, x5 = u_lo, x10 = v_top, x6 = vtopBase. -/
+    Output: x7 = uHi, x5 = uLo, x10 = v_top, x6 = vtopBase. -/
 theorem divK_trial_load_spec
-    (sp j n v5_old v6_old v7_old v10_old u_hi u_lo v_top : Word)
+    (sp j n v5_old v6_old v7_old v10_old uHi uLo v_top : Word)
     (base : Word) :
     let uAddr := sp + signExtend12 4056 - (j + n) <<< (3 : BitVec 6).toNat
     let vtopBase := sp + (n + signExtend12 4095) <<< (3 : BitVec 6).toNat
@@ -55,13 +55,13 @@ theorem divK_trial_load_spec
        (.x5 ↦ᵣ v5_old) ** (.x6 ↦ᵣ v6_old) **
        (.x7 ↦ᵣ v7_old) ** (.x10 ↦ᵣ v10_old) **
        (sp + signExtend12 3984 ↦ₘ n) **
-       (uAddr ↦ₘ u_hi) ** ((uAddr + 8) ↦ₘ u_lo) **
+       (uAddr ↦ₘ uHi) ** ((uAddr + 8) ↦ₘ uLo) **
        (vtopBase + signExtend12 32 ↦ₘ v_top))
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
-       (.x5 ↦ᵣ u_lo) ** (.x6 ↦ᵣ vtopBase) **
-       (.x7 ↦ᵣ u_hi) ** (.x10 ↦ᵣ v_top) **
+       (.x5 ↦ᵣ uLo) ** (.x6 ↦ᵣ vtopBase) **
+       (.x7 ↦ᵣ uHi) ** (.x10 ↦ᵣ v_top) **
        (sp + signExtend12 3984 ↦ₘ n) **
-       (uAddr ↦ₘ u_hi) ** ((uAddr + 8) ↦ₘ u_lo) **
+       (uAddr ↦ₘ uHi) ** ((uAddr + 8) ↦ₘ uLo) **
        (vtopBase + signExtend12 32 ↦ₘ v_top)) := by
   intro uAddr vtopBase cr
   let jpn := j + n
@@ -73,9 +73,9 @@ theorem divK_trial_load_spec
   have I2 := slli_spec_gen_same .x7 jpn 3 (base + 8) (by nofun)
   have I3 := addi_spec_gen .x5 .x12 n sp 4056 (base + 12) (by nofun)
   have I4 := sub_spec_gen_rd_eq_rs1 .x5 .x7 u0_base jpn_x8 (base + 16) (by nofun)
-  have I5 := ld_spec_gen .x7 .x5 uAddr jpn_x8 u_hi 0 (base + 20) (by nofun)
+  have I5 := ld_spec_gen .x7 .x5 uAddr jpn_x8 uHi 0 (base + 20) (by nofun)
   rw [haddr0] at I5
-  have I6 := ld_spec_gen_same .x5 uAddr u_lo 8 (base + 24) (by nofun)
+  have I6 := ld_spec_gen_same .x5 uAddr uLo 8 (base + 24) (by nofun)
   let nm1 := n + signExtend12 4095
   let nm1_x8 := nm1 <<< (3 : BitVec 6).toNat
   have I7 := ld_spec_gen .x6 .x12 sp v6_old n 3984 (base + 28) (by nofun)

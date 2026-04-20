@@ -53,18 +53,18 @@ private theorem d128_sub (base : Word) (k : Nat) (addr : Word) (instr : Instr)
 -- Entry: base+1072, Exit: ret_addr (via JALR), CodeReq: sharedDivModCode base.
 -- ============================================================================
 
-theorem div128_spec (sp ret_addr d u_lo u_hi : Word) (base : Word)
+theorem div128_spec (sp ret_addr d uLo uHi : Word) (base : Word)
     (v1_old v6_old v11_old : Word)
     (ret_mem d_mem dlo_mem un0_mem : Word)
     (halign : (ret_addr + signExtend12 0) &&& ~~~1 = ret_addr) :
     -- Phase 1 intermediates
     let d_hi := d >>> (32 : BitVec 6).toNat
     let d_lo := (d <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
-    let un1 := u_lo >>> (32 : BitVec 6).toNat
-    let un0 := (u_lo <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+    let un1 := uLo >>> (32 : BitVec 6).toNat
+    let un0 := (uLo <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
     -- Step 1 intermediates
-    let q1 := rv64_divu u_hi d_hi
-    let rhat := u_hi - q1 * d_hi
+    let q1 := rv64_divu uHi d_hi
+    let rhat := uHi - q1 * d_hi
     let hi1 := q1 >>> (32 : BitVec 6).toNat
     let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
     let rhatc := if hi1 = 0 then rhat else rhat + d_hi
@@ -90,7 +90,7 @@ theorem div128_spec (sp ret_addr d u_lo u_hi : Word) (base : Word)
     cpsTriple (base + div128Off) ret_addr (sharedDivModCode base)
       (-- Precondition: caller registers + scratch memory
        (.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ ret_addr) ** (.x10 ↦ᵣ d) **
-       (.x5 ↦ᵣ u_lo) ** (.x7 ↦ᵣ u_hi) **
+       (.x5 ↦ᵣ uLo) ** (.x7 ↦ᵣ uHi) **
        (.x6 ↦ᵣ v6_old) ** (.x1 ↦ᵣ v1_old) ** (.x11 ↦ᵣ v11_old) **
        (.x0 ↦ᵣ (0 : Word)) **
        (sp + signExtend12 3968 ↦ₘ ret_mem) **
@@ -110,9 +110,9 @@ theorem div128_spec (sp ret_addr d u_lo u_hi : Word) (base : Word)
   intro d_hi d_lo un1 un0 q1 rhat hi1 q1c rhatc q_dlo rhat_un1 q1' rhat' cu_rhat_un1 cu_q1_dlo un21 q0 rhat2 hi2 q0c rhat2c q0_dlo rhat2_un0 q0' q
   -- ================================================================
   -- Block 1: Phase 1 (base+1072 → base+1112)
-  -- Saves ret/d, splits d and u_lo into halves.
+  -- Saves ret/d, splits d and uLo into halves.
   -- ================================================================
-  have hph1 := divK_div128_phase1_spec sp ret_addr d u_lo u_hi v1_old v6_old v11_old
+  have hph1 := divK_div128_phase1_spec sp ret_addr d uLo uHi v1_old v6_old v11_old
     ret_mem d_mem dlo_mem un0_mem (base + div128Off)
   rw [show (base + div128Off : Word) + 40 = base + 1112 from by bv_addr] at hph1
   -- Extend phase1 cr to sharedDivModCode
@@ -137,7 +137,7 @@ theorem div128_spec (sp ret_addr d u_lo u_hi : Word) (base : Word)
   -- Block 2: Step 1 (base+1112 → base+1172)
   -- Trial division q1, clamp, product check.
   -- ================================================================
-  have hst1 := divK_div128_step1_spec sp u_hi d_hi un1 d_lo un0 d d_lo
+  have hst1 := divK_div128_step1_spec sp uHi d_hi un1 d_lo un0 d d_lo
     (base + 1112)
   rw [show (base + 1112 : Word) + 60 = base + 1172 from by bv_addr] at hst1
   have hst1e := cpsTriple_extend_code (hmono := by

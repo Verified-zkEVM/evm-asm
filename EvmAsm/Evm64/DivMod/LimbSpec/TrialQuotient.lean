@@ -53,10 +53,10 @@ theorem divK_correction_branch_spec (borrow : Word) (skip_off : BitVec 13) (base
       (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1) h hp)
     hbeq
 
-/-- Load u_hi = u[j+n] and u_lo = u[j+n-1] for trial quotient estimation.
+/-- Load uHi = u[j+n] and uLo = u[j+n-1] for trial quotient estimation.
     uAddr = sp + signExtend12 4056 - (j + n) <<< 3.
-    u_hi = mem[uAddr], u_lo = mem[uAddr + 8]. -/
-theorem divK_trial_load_u_spec (sp j n v5_old v7_old u_hi u_lo : Word)
+    uHi = mem[uAddr], uLo = mem[uAddr + 8]. -/
+theorem divK_trial_load_u_spec (sp j n v5_old v7_old uHi uLo : Word)
     (base : Word) :
     let jpn := j + n
     let jpn_x8 := jpn <<< (3 : BitVec 6).toNat
@@ -74,11 +74,11 @@ theorem divK_trial_load_u_spec (sp j n v5_old v7_old u_hi u_lo : Word)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
        (.x5 ↦ᵣ v5_old) ** (.x7 ↦ᵣ v7_old) **
        (sp + signExtend12 3984 ↦ₘ n) **
-       (uAddr ↦ₘ u_hi) ** ((uAddr + 8) ↦ₘ u_lo))
+       (uAddr ↦ₘ uHi) ** ((uAddr + 8) ↦ₘ uLo))
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
-       (.x5 ↦ᵣ u_lo) ** (.x7 ↦ᵣ u_hi) **
+       (.x5 ↦ᵣ uLo) ** (.x7 ↦ᵣ uHi) **
        (sp + signExtend12 3984 ↦ₘ n) **
-       (uAddr ↦ₘ u_hi) ** ((uAddr + 8) ↦ₘ u_lo)) := by
+       (uAddr ↦ₘ uHi) ** ((uAddr + 8) ↦ₘ uLo)) := by
   intro jpn jpn_x8 u0_base uAddr cr
   have haddr0 : uAddr + signExtend12 (0 : BitVec 12) = uAddr := by rw [se12_0]; bv_omega
   have I0 := ld_spec_gen .x5 .x12 sp v5_old n 3984 base (by nofun)
@@ -86,9 +86,9 @@ theorem divK_trial_load_u_spec (sp j n v5_old v7_old u_hi u_lo : Word)
   have I2 := slli_spec_gen_same .x7 jpn 3 (base + 8) (by nofun)
   have I3 := addi_spec_gen .x5 .x12 n sp 4056 (base + 12) (by nofun)
   have I4 := sub_spec_gen_rd_eq_rs1 .x5 .x7 u0_base jpn_x8 (base + 16) (by nofun)
-  have I5 := ld_spec_gen .x7 .x5 uAddr jpn_x8 u_hi 0 (base + 20) (by nofun)
+  have I5 := ld_spec_gen .x7 .x5 uAddr jpn_x8 uHi 0 (base + 20) (by nofun)
   rw [haddr0] at I5
-  have I6 := ld_spec_gen_same .x5 uAddr u_lo 8 (base + 24) (by nofun)
+  have I6 := ld_spec_gen_same .x5 uAddr uLo 8 (base + 24) (by nofun)
   runBlock I0 I1 I2 I3 I4 I5 I6
 
 /-- Load v_top = b[n-1] for trial quotient estimation.

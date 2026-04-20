@@ -695,11 +695,11 @@ theorem divK_correction_addback_named_spec
 private theorem lb_save_j (base : Word) : (base + loopBodyOff : Word) + 4 = base + 452 := by bv_addr
 private theorem lb_trial_load (base : Word) : (base + 452 : Word) + 48 = base + 500 := by bv_addr
 
-/-- Save j + trial load: save j to memory, then load u_hi, u_lo, v_top for trial quotient.
+/-- Save j + trial load: save j to memory, then load uHi, uLo, v_top for trial quotient.
     13 instructions, loop body indices [0]-[12].
     Entry: base+448, Exit: base+500, CodeReq: sharedDivModCode base. -/
 theorem divK_save_trial_load_spec
-    (sp j n j_old v5_old v6_old v7_old v10_old u_hi u_lo v_top : Word)
+    (sp j n j_old v5_old v6_old v7_old v10_old uHi uLo v_top : Word)
     (base : Word) :
     let u_addr := sp + signExtend12 4056 - (j + n) <<< (3 : BitVec 6).toNat
     let vtop_base := sp + (n + signExtend12 4095) <<< (3 : BitVec 6).toNat
@@ -709,14 +709,14 @@ theorem divK_save_trial_load_spec
        (.x7 ↦ᵣ v7_old) ** (.x10 ↦ᵣ v10_old) **
        (sp + signExtend12 3976 ↦ₘ j_old) **
        (sp + signExtend12 3984 ↦ₘ n) **
-       (u_addr ↦ₘ u_hi) ** ((u_addr + 8) ↦ₘ u_lo) **
+       (u_addr ↦ₘ uHi) ** ((u_addr + 8) ↦ₘ uLo) **
        (vtop_base + signExtend12 32 ↦ₘ v_top))
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
-       (.x5 ↦ᵣ u_lo) ** (.x6 ↦ᵣ vtop_base) **
-       (.x7 ↦ᵣ u_hi) ** (.x10 ↦ᵣ v_top) **
+       (.x5 ↦ᵣ uLo) ** (.x6 ↦ᵣ vtop_base) **
+       (.x7 ↦ᵣ uHi) ** (.x10 ↦ᵣ v_top) **
        (sp + signExtend12 3976 ↦ₘ j) **
        (sp + signExtend12 3984 ↦ₘ n) **
-       (u_addr ↦ₘ u_hi) ** ((u_addr + 8) ↦ₘ u_lo) **
+       (u_addr ↦ₘ uHi) ** ((u_addr + 8) ↦ₘ uLo) **
        (vtop_base + signExtend12 32 ↦ₘ v_top)) := by
   intro u_addr vtop_base
   -- 1. Save j: instr [0] at base+448
@@ -729,11 +729,11 @@ theorem divK_save_trial_load_spec
     ((.x5 ↦ᵣ v5_old) ** (.x6 ↦ᵣ v6_old) **
      (.x7 ↦ᵣ v7_old) ** (.x10 ↦ᵣ v10_old) **
      (sp + signExtend12 3984 ↦ₘ n) **
-     (u_addr ↦ₘ u_hi) ** ((u_addr + 8) ↦ₘ u_lo) **
+     (u_addr ↦ₘ uHi) ** ((u_addr + 8) ↦ₘ uLo) **
      (vtop_base + signExtend12 32 ↦ₘ v_top))
     (by pcFree) SJe
   -- 2. Trial load: instrs [1]-[12] at base+452
-  have TL := divK_trial_load_spec sp j n v5_old v6_old v7_old v10_old u_hi u_lo v_top
+  have TL := divK_trial_load_spec sp j n v5_old v6_old v7_old v10_old uHi uLo v_top
     (base + 452)
   dsimp only [] at TL
   rw [lb_trial_load] at TL
@@ -760,10 +760,10 @@ theorem divK_save_trial_load_spec
 
 -- ============================================================================
 -- Section 8: Trial quotient BLTU branch + div128/max composition
--- After trial_load (base+500): x7=u_hi, x10=v_top, x5=u_lo.
+-- After trial_load (base+500): x7=uHi, x10=v_top, x5=uLo.
 -- BLTU x7 x10 12 at base+500:
---   Taken (u_hi < v_top) → base+512: JAL x2 560 → div128 → base+516, x11=q
---   Not-taken (u_hi >= v_top) → base+504: ADDI x11 x0 4095 + JAL x0 8 → base+516
+--   Taken (uHi < v_top) → base+512: JAL x2 560 → div128 → base+516, x11=q
+--   Not-taken (uHi >= v_top) → base+504: ADDI x11 x0 4095 + JAL x0 8 → base+516
 -- ============================================================================
 
 -- Address normalization for trial quotient
@@ -776,7 +776,7 @@ private theorem lb_jal_target (base : Word) : (base + 512 : Word) + signExtend21
 private theorem lb_jal_ret (base : Word) : (base + 512 : Word) + 4 = base + 516 := by bv_addr
 
 -- ============================================================================
--- Section 8a: Trial quotient NOT-TAKEN path (u_hi >= v_top)
+-- Section 8a: Trial quotient NOT-TAKEN path (uHi >= v_top)
 -- Instrs [14]-[15] at base+504: ADDI x11 x0 4095 + JAL x0 8 → base+516.
 -- ============================================================================
 
@@ -794,25 +794,25 @@ private theorem divK_trial_max_extended (v11_old : Word) (base : Word) :
       (lb_sub base 15 _ _ (by decide) (by bv_addr) (by decide))) TM
 
 -- ============================================================================
--- Section 8b: Trial quotient TAKEN path (u_hi < v_top)
+-- Section 8b: Trial quotient TAKEN path (uHi < v_top)
 -- Instr [16] JAL x2 560 at base+512 → div128 at base+1072 → returns to base+516.
 -- ============================================================================
 
 /-- Trial call path: JAL x2 560 (instr [16]) + div128 subroutine.
     Entry: base+512, Exit: base+516, CodeReq: sharedDivModCode base.
-    Computes q_hat = div128(u_hi, u_lo, v_top). -/
+    Computes q_hat = div128(uHi, uLo, v_top). -/
 theorem divK_trial_call_path_spec
-    (sp j u_lo u_hi v_top vtop_base : Word) (base : Word)
+    (sp j uLo uHi v_top vtop_base : Word) (base : Word)
     (v2_old v11_old : Word)
     (ret_mem d_mem dlo_mem un0_mem : Word)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516) :
     -- div128 intermediates (same as div128_spec)
     let d_hi := v_top >>> (32 : BitVec 6).toNat
     let d_lo := (v_top <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
-    let un1 := u_lo >>> (32 : BitVec 6).toNat
-    let un0 := (u_lo <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
-    let q1 := rv64_divu u_hi d_hi
-    let rhat := u_hi - q1 * d_hi
+    let un1 := uLo >>> (32 : BitVec 6).toNat
+    let un0 := (uLo <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+    let q1 := rv64_divu uHi d_hi
+    let rhat := uHi - q1 * d_hi
     let hi1 := q1 >>> (32 : BitVec 6).toNat
     let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
     let rhatc := if hi1 = 0 then rhat else rhat + d_hi
@@ -834,8 +834,8 @@ theorem divK_trial_call_path_spec
     let q := (q1' <<< (32 : BitVec 6).toNat) ||| q0'
     cpsTriple (base + 512) (base + 516) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
-       (.x5 ↦ᵣ u_lo) ** (.x6 ↦ᵣ vtop_base) **
-       (.x7 ↦ᵣ u_hi) ** (.x10 ↦ᵣ v_top) **
+       (.x5 ↦ᵣ uLo) ** (.x6 ↦ᵣ vtop_base) **
+       (.x7 ↦ᵣ uHi) ** (.x10 ↦ᵣ v_top) **
        (.x2 ↦ᵣ v2_old) ** (.x11 ↦ᵣ v11_old) ** (.x0 ↦ᵣ (0 : Word)) **
        (sp + signExtend12 3968 ↦ₘ ret_mem) **
        (sp + signExtend12 3960 ↦ₘ d_mem) **
@@ -857,15 +857,15 @@ theorem divK_trial_call_path_spec
   have Je := cpsTriple_extend_code (hmono :=
     lb_sub base 16 _ _ (by decide) (by bv_addr) (by decide)) J
   -- 2. div128 subroutine: base+1072 → base+516
-  have D := div128_spec sp (base + 516) v_top u_lo u_hi base
+  have D := div128_spec sp (base + 516) v_top uLo uHi base
     j vtop_base v11_old ret_mem d_mem dlo_mem un0_mem
     halign
   dsimp only [] at D
   -- 3. Frame JAL with all registers/memory for div128
   have Jf := cpsTriple_frameR
     ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
-     (.x5 ↦ᵣ u_lo) ** (.x6 ↦ᵣ vtop_base) **
-     (.x7 ↦ᵣ u_hi) ** (.x10 ↦ᵣ v_top) **
+     (.x5 ↦ᵣ uLo) ** (.x6 ↦ᵣ vtop_base) **
+     (.x7 ↦ᵣ uHi) ** (.x10 ↦ᵣ v_top) **
      (.x11 ↦ᵣ v11_old) ** (.x0 ↦ᵣ (0 : Word)) **
      (sp + signExtend12 3968 ↦ₘ ret_mem) **
      (sp + signExtend12 3960 ↦ₘ d_mem) **
@@ -1670,12 +1670,12 @@ theorem divK_mulsub_correction_addback_spec
 
 set_option maxRecDepth 4096 in
 /-- Trial quotient max path: save j + load + BLTU not-taken + trial_max.
-    When u_hi >= v_top, sets q_hat = MAX64 without calling div128.
+    When uHi >= v_top, sets q_hat = MAX64 without calling div128.
     Entry: base+448, Exit: base+516, CodeReq: sharedDivModCode base. -/
 theorem divK_trial_max_full_spec
-    (sp j n j_old v5_old v6_old v7_old v10_old v11_old u_hi u_lo v_top : Word)
+    (sp j n j_old v5_old v6_old v7_old v10_old v11_old uHi uLo v_top : Word)
     (base : Word)
-    (hbltu : ¬BitVec.ult u_hi v_top) :
+    (hbltu : ¬BitVec.ult uHi v_top) :
     let u_addr := sp + signExtend12 4056 - (j + n) <<< (3 : BitVec 6).toNat
     let vtop_base := sp + (n + signExtend12 4095) <<< (3 : BitVec 6).toNat
     cpsTriple (base + loopBodyOff) (base + 516) (sharedDivModCode base)
@@ -1684,26 +1684,26 @@ theorem divK_trial_max_full_spec
        (.x7 ↦ᵣ v7_old) ** (.x10 ↦ᵣ v10_old) ** (.x11 ↦ᵣ v11_old) **
        (.x0 ↦ᵣ (0 : Word)) **
        (sp + signExtend12 3976 ↦ₘ j_old) ** (sp + signExtend12 3984 ↦ₘ n) **
-       (u_addr ↦ₘ u_hi) ** ((u_addr + 8) ↦ₘ u_lo) **
+       (u_addr ↦ₘ uHi) ** ((u_addr + 8) ↦ₘ uLo) **
        (vtop_base + signExtend12 32 ↦ₘ v_top))
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
-       (.x5 ↦ᵣ u_lo) ** (.x6 ↦ᵣ vtop_base) **
-       (.x7 ↦ᵣ u_hi) ** (.x10 ↦ᵣ v_top) ** (.x11 ↦ᵣ signExtend12 4095) **
+       (.x5 ↦ᵣ uLo) ** (.x6 ↦ᵣ vtop_base) **
+       (.x7 ↦ᵣ uHi) ** (.x10 ↦ᵣ v_top) ** (.x11 ↦ᵣ signExtend12 4095) **
        (.x0 ↦ᵣ (0 : Word)) **
        (sp + signExtend12 3976 ↦ₘ j) ** (sp + signExtend12 3984 ↦ₘ n) **
-       (u_addr ↦ₘ u_hi) ** ((u_addr + 8) ↦ₘ u_lo) **
+       (u_addr ↦ₘ uHi) ** ((u_addr + 8) ↦ₘ uLo) **
        (vtop_base + signExtend12 32 ↦ₘ v_top)) := by
   intro u_addr vtop_base
   -- 1. Save j + trial load (base+448 → base+500)
-  have STL := divK_save_trial_load_spec sp j n j_old v5_old v6_old v7_old v10_old u_hi u_lo v_top
+  have STL := divK_save_trial_load_spec sp j n j_old v5_old v6_old v7_old v10_old uHi uLo v_top
     base
   dsimp only [] at STL
   -- 2. BLTU x7 x10 12 at base+500
-  have hbltu_raw := bltu_spec_gen .x7 .x10 (12 : BitVec 13) u_hi v_top (base + 500)
+  have hbltu_raw := bltu_spec_gen .x7 .x10 (12 : BitVec 13) uHi v_top (base + 500)
   rw [lb_bltu_taken, lb_bltu_ntaken] at hbltu_raw
   have hbltu_ext := cpsBranch_extend_code (hmono :=
     lb_sub base 13 _ _ (by decide) (by bv_addr) (by decide)) hbltu_raw
-  -- Eliminate taken path (⌜BitVec.ult u_hi v_top⌝ contradicts hbltu)
+  -- Eliminate taken path (⌜BitVec.ult uHi v_top⌝ contradicts hbltu)
   have ntaken := cpsBranch_ntakenPath hbltu_ext (fun hp hQt => by
     obtain ⟨_, _, _, _, _, ⟨_, _, _, _, _, ⟨_, hpure⟩⟩⟩ := hQt
     exact hbltu hpure)
@@ -1728,29 +1728,29 @@ theorem divK_trial_max_full_spec
 
 -- ============================================================================
 -- Section 11b: Trial quotient call path (BLTU taken): save + load + BLTU + JAL + div128
--- When u_hi < v_top, calls div128 to compute the trial quotient.
+-- When uHi < v_top, calls div128 to compute the trial quotient.
 -- Entry: base+448, Exit: base+516, CodeReq: sharedDivModCode base.
 -- ============================================================================
 
 set_option maxRecDepth 4096 in
 /-- Trial quotient call path: save j + load + BLTU taken + JAL + div128.
-    When u_hi < v_top, computes q_hat = div128(u_hi, u_lo, v_top).
+    When uHi < v_top, computes q_hat = div128(uHi, uLo, v_top).
     Entry: base+448, Exit: base+516, CodeReq: sharedDivModCode base. -/
 theorem divK_trial_call_full_spec
-    (sp j n j_old v5_old v6_old v7_old v10_old v11_old v2_old u_hi u_lo v_top : Word)
+    (sp j n j_old v5_old v6_old v7_old v10_old v11_old v2_old uHi uLo v_top : Word)
     (ret_mem d_mem dlo_mem un0_mem : Word)
     (base : Word)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
-    (hbltu : BitVec.ult u_hi v_top) :
+    (hbltu : BitVec.ult uHi v_top) :
     let u_addr := sp + signExtend12 4056 - (j + n) <<< (3 : BitVec 6).toNat
     let vtop_base := sp + (n + signExtend12 4095) <<< (3 : BitVec 6).toNat
     -- div128 intermediates
     let d_hi := v_top >>> (32 : BitVec 6).toNat
     let d_lo := (v_top <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
-    let un1 := u_lo >>> (32 : BitVec 6).toNat
-    let un0_div := (u_lo <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
-    let q1 := rv64_divu u_hi d_hi
-    let rhat := u_hi - q1 * d_hi
+    let un1 := uLo >>> (32 : BitVec 6).toNat
+    let un0_div := (uLo <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+    let q1 := rv64_divu uHi d_hi
+    let rhat := uHi - q1 * d_hi
     let hi1 := q1 >>> (32 : BitVec 6).toNat
     let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
     let rhatc := if hi1 = 0 then rhat else rhat + d_hi
@@ -1776,7 +1776,7 @@ theorem divK_trial_call_full_spec
        (.x7 ↦ᵣ v7_old) ** (.x10 ↦ᵣ v10_old) ** (.x11 ↦ᵣ v11_old) **
        (.x2 ↦ᵣ v2_old) ** (.x0 ↦ᵣ (0 : Word)) **
        (sp + signExtend12 3976 ↦ₘ j_old) ** (sp + signExtend12 3984 ↦ₘ n) **
-       (u_addr ↦ₘ u_hi) ** ((u_addr + 8) ↦ₘ u_lo) **
+       (u_addr ↦ₘ uHi) ** ((u_addr + 8) ↦ₘ uLo) **
        (vtop_base + signExtend12 32 ↦ₘ v_top) **
        (sp + signExtend12 3968 ↦ₘ ret_mem) **
        (sp + signExtend12 3960 ↦ₘ d_mem) **
@@ -1787,7 +1787,7 @@ theorem divK_trial_call_full_spec
        (.x7 ↦ᵣ q0_dlo) ** (.x10 ↦ᵣ q1') ** (.x11 ↦ᵣ q) **
        (.x2 ↦ᵣ (base + 516)) ** (.x0 ↦ᵣ (0 : Word)) **
        (sp + signExtend12 3976 ↦ₘ j) ** (sp + signExtend12 3984 ↦ₘ n) **
-       (u_addr ↦ₘ u_hi) ** ((u_addr + 8) ↦ₘ u_lo) **
+       (u_addr ↦ₘ uHi) ** ((u_addr + 8) ↦ₘ uLo) **
        (vtop_base + signExtend12 32 ↦ₘ v_top) **
        (sp + signExtend12 3968 ↦ₘ (base + 516)) **
        (sp + signExtend12 3960 ↦ₘ v_top) **
@@ -1797,15 +1797,15 @@ theorem divK_trial_call_full_spec
         d_hi d_lo un1 un0_div q1 rhat hi1 q1c rhatc q_dlo rhat_un1 q1' rhat'
         cu_rhat_un1 cu_q1_dlo un21 q0 rhat2 hi2 q0c rhat2c q0_dlo rhat2_un0 q0' q
   -- 1. Save j + trial load (base+448 → base+500)
-  have STL := divK_save_trial_load_spec sp j n j_old v5_old v6_old v7_old v10_old u_hi u_lo v_top
+  have STL := divK_save_trial_load_spec sp j n j_old v5_old v6_old v7_old v10_old uHi uLo v_top
     base
   dsimp only [] at STL
   -- 2. BLTU x7 x10 12 at base+500
-  have hbltu_raw := bltu_spec_gen .x7 .x10 (12 : BitVec 13) u_hi v_top (base + 500)
+  have hbltu_raw := bltu_spec_gen .x7 .x10 (12 : BitVec 13) uHi v_top (base + 500)
   rw [lb_bltu_taken, lb_bltu_ntaken] at hbltu_raw
   have hbltu_ext := cpsBranch_extend_code (hmono :=
     lb_sub base 13 _ _ (by decide) (by bv_addr) (by decide)) hbltu_raw
-  -- Eliminate ntaken path (⌜¬BitVec.ult u_hi v_top⌝ contradicts hbltu)
+  -- Eliminate ntaken path (⌜¬BitVec.ult uHi v_top⌝ contradicts hbltu)
   have taken := cpsBranch_takenPath hbltu_ext (fun hp hQf => by
     obtain ⟨_, _, _, _, _, ⟨_, _, _, _, _, ⟨_, hpure⟩⟩⟩ := hQf
     exact hpure hbltu)
@@ -1815,7 +1815,7 @@ theorem divK_trial_call_full_spec
     (fun h hp => sepConj_mono_right
       (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1) h hp) taken
   -- 3. Trial call path (base+512 → base+516)
-  have TCP := divK_trial_call_path_spec sp j u_lo u_hi v_top vtop_base base
+  have TCP := divK_trial_call_path_spec sp j uLo uHi v_top vtop_base base
     v2_old v11_old ret_mem d_mem dlo_mem un0_mem
     halign
   dsimp only [] at TCP

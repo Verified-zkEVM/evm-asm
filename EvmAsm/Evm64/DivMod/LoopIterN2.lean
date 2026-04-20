@@ -12,7 +12,7 @@
   - j=1 (middle iteration): cpsTriple base+448 → base+448
   - j=2 (first iteration): cpsTriple base+448 → base+448
 
-  For n=2: BLTU compares u2 vs v1, div128 uses u_hi=u2, u_lo=u1, v_top=v1.
+  For n=2: BLTU compares u2 vs v1, div128 uses uHi=u2, uLo=u1, v_top=v1.
 -/
 
 import EvmAsm.Evm64.DivMod.LoopBodyN2
@@ -162,7 +162,7 @@ theorem divK_loop_body_n2_call_skip_j0_spec
        (sp + signExtend12 3944 ↦ₘ scratch_un0))
       (loopBodyN2CallSkipPostJ sp base (0 : Word) v0 v1 v2 v3 u0 u1 u2 u3 u_top) := by
   intro u_base q_addr
-  -- Reconstruct div128 intermediates for n=2: v_top=v1, u_hi=u2, u_lo=u1
+  -- Reconstruct div128 intermediates for n=2: v_top=v1, uHi=u2, uLo=u1
   let d_hi := v1 >>> (32 : BitVec 6).toNat
   let d_lo := (v1 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
   let div_un1 := u1 >>> (32 : BitVec 6).toNat

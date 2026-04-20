@@ -69,13 +69,13 @@ theorem iter_accumulate_1 {u_val v_val q0_nat r_val : Nat}
 /-- 2 iterations (n=3 case): digits q1 (high) and q0 (low).
 
     Iteration 1 (j=1): operates on u[1..4], produces q1.
-      u_hi * 2^64 + u_lo_part = q1 * v + u'
+      uHi * 2^64 + u_lo_part = q1 * v + u'
     This means the "upper portion" of the dividend satisfies the equation.
 
     Iteration 0 (j=0): operates on u'[0..3], produces q0.
       u' = q0 * v + r
 
-    Combined: u_hi * 2^64 + u_lo_part = (q1 * 2^64 + q0) * v + r
+    Combined: uHi * 2^64 + u_lo_part = (q1 * 2^64 + q0) * v + r
     But we work at the full val level where the iteration equations are:
 
     iter 1: u_total = q1 * (v * 2^64) + u'_total  (q1 accounts for position)

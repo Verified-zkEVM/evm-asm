@@ -126,14 +126,14 @@ def mulsubN4_c3 (q_hat v0 v1 v2 v3 u0 u1 u2 u3 : Word) : Word :=
 -- div128 quotient computation (shared across all n-cases)
 -- ============================================================================
 
-/-- Trial quotient from the div128 subroutine: divides u_hi:u_lo by v_top. -/
-def div128Quot (u_hi u_lo v_top : Word) : Word :=
+/-- Trial quotient from the div128 subroutine: divides uHi:uLo by v_top. -/
+def div128Quot (uHi uLo v_top : Word) : Word :=
   let d_hi := v_top >>> (32 : BitVec 6).toNat
   let d_lo := (v_top <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
-  let div_un1 := u_lo >>> (32 : BitVec 6).toNat
-  let div_un0 := (u_lo <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
-  let q1 := rv64_divu u_hi d_hi
-  let rhat := u_hi - q1 * d_hi
+  let div_un1 := uLo >>> (32 : BitVec 6).toNat
+  let div_un0 := (uLo <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+  let q1 := rv64_divu uHi d_hi
+  let rhat := uHi - q1 * d_hi
   let hi1 := q1 >>> (32 : BitVec 6).toNat
   let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
   let rhatc := if hi1 = 0 then rhat else rhat + d_hi
@@ -158,9 +158,9 @@ def div128Quot (u_hi u_lo v_top : Word) : Word :=
 def div128DLo (v_top : Word) : Word :=
   (v_top <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
 
-/-- Low 32 bits of u_lo, stored to scratch during div128 call path. -/
-def div128Un0 (u_lo : Word) : Word :=
-  (u_lo <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+/-- Low 32 bits of uLo, stored to scratch during div128 call path. -/
+def div128Un0 (uLo : Word) : Word :=
+  (uLo <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
 
 -- ============================================================================
 -- Double-addback iter variants (model the FIXED algorithm with double addback)
