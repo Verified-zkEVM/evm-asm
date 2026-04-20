@@ -83,11 +83,11 @@ theorem rlp_phase2_short_length_post_unfold (v5 : Word) (k : BitVec 12) :
     (just not interpretable as a payload length). Downstream consumers
     typically compose this with a preceding Phase 1 exit post so that
     `v5 ∈ [k, k + 55]` is available and the subtraction lands in `[0, 55]`. -/
-theorem rlp_phase2_short_length_spec (v5 v11_old : Word)
+theorem rlp_phase2_short_length_spec (v5 v11Old : Word)
     (k : BitVec 12) (base : Word) :
     cpsTriple base (base + 4)
       (CodeReq.ofProg base (rlp_phase2_short_length_prog k))
-      ((.x5 ↦ᵣ v5) ** (.x11 ↦ᵣ v11_old))
+      ((.x5 ↦ᵣ v5) ** (.x11 ↦ᵣ v11Old))
       (rlp_phase2_short_length_post v5 k) := by
   simp only [rlp_phase2_short_length_post_unfold]
   -- The one-instruction `ofProg` reduces to a singleton CodeReq.
@@ -98,6 +98,6 @@ theorem rlp_phase2_short_length_spec (v5 v11_old : Word)
       CodeReq.union, CodeReq.empty]
     cases (CodeReq.singleton base (.ADDI .x11 .x5 (-k))) a <;> rfl
   rw [hcr]
-  exact addi_spec_gen .x11 .x5 v11_old v5 (-k) base (by nofun)
+  exact addi_spec_gen .x11 .x5 v11Old v5 (-k) base (by nofun)
 
 end EvmAsm.Rv64.RLP

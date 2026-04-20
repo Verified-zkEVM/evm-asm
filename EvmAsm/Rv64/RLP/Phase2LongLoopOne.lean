@@ -60,7 +60,7 @@ theorem rlp_phase2_long_loop_one_byte_post_unfold
     `cpsBranch_elim_ntaken` rule then turns the two-exit branch into a
     single-exit triple at the fall-through. -/
 theorem rlp_phase2_long_loop_one_byte_spec
-    (len ptr v12_old wordVal dwordAddr : Word)
+    (len ptr v12Old wordVal dwordAddr : Word)
     (base : Word) (back : BitVec 13)
     (halign : alignToDword ptr = dwordAddr)
     (hvalid : isValidByteAccess ptr = true) :
@@ -68,13 +68,13 @@ theorem rlp_phase2_long_loop_one_byte_spec
     cpsTriple base (base + 24)
       (CodeReq.ofProg base (rlp_phase2_long_loop_body_prog back))
       ((.x11 ↦ᵣ len) ** (.x13 ↦ᵣ ptr) ** (.x14 ↦ᵣ (1 : Word)) **
-       (.x12 ↦ᵣ v12_old) ** (.x0 ↦ᵣ (0 : Word)) **
+       (.x12 ↦ᵣ v12Old) ** (.x0 ↦ᵣ (0 : Word)) **
        (dwordAddr ↦ₘ wordVal))
       (rlp_phase2_long_loop_one_byte_post len ptr byteZext wordVal
          dwordAddr) := by
   simp only [rlp_phase2_long_loop_one_byte_post_unfold]
   -- Body spec instantiated at cnt = 1.
-  have body := rlp_phase2_long_loop_body_spec len ptr (1 : Word) v12_old
+  have body := rlp_phase2_long_loop_body_spec len ptr (1 : Word) v12Old
     wordVal dwordAddr base back halign hvalid
   -- For cnt = 1, `cnt' = (1 : Word) + signExtend12 (-1 : BitVec 12) = 0`.
   have hcnt' : (1 : Word) + signExtend12 (-1 : BitVec 12) = (0 : Word) := by

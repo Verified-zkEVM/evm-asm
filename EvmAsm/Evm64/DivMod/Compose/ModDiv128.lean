@@ -53,7 +53,7 @@ private theorem d128_sub_mod (base : Word) (k : Nat) (addr : Word) (instr : Inst
 -- ============================================================================
 
 theorem mod_div128_spec (sp retAddr d uLo uHi : Word) (base : Word)
-    (v1_old v6_old v11_old : Word)
+    (v1Old v6Old v11Old : Word)
     (retMem dMem dloMem un0Mem : Word)
     (halign : (retAddr + signExtend12 0) &&& ~~~1 = retAddr) :
     -- Phase 1 intermediates
@@ -90,7 +90,7 @@ theorem mod_div128_spec (sp retAddr d uLo uHi : Word) (base : Word)
       (-- Precondition: caller registers + scratch memory
        (.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ retAddr) ** (.x10 ↦ᵣ d) **
        (.x5 ↦ᵣ uLo) ** (.x7 ↦ᵣ uHi) **
-       (.x6 ↦ᵣ v6_old) ** (.x1 ↦ᵣ v1_old) ** (.x11 ↦ᵣ v11_old) **
+       (.x6 ↦ᵣ v6Old) ** (.x1 ↦ᵣ v1Old) ** (.x11 ↦ᵣ v11Old) **
        (.x0 ↦ᵣ (0 : Word)) **
        (sp + signExtend12 3968 ↦ₘ retMem) **
        (sp + signExtend12 3960 ↦ₘ dMem) **
@@ -111,7 +111,7 @@ theorem mod_div128_spec (sp retAddr d uLo uHi : Word) (base : Word)
   -- Block 1: Phase 1 (base+1072 → base+1112)
   -- Saves ret/d, splits d and uLo into halves.
   -- ================================================================
-  have hph1 := divK_div128_phase1_spec sp retAddr d uLo uHi v1_old v6_old v11_old
+  have hph1 := divK_div128_phase1_spec sp retAddr d uLo uHi v1Old v6Old v11Old
     retMem dMem dloMem un0Mem (base + div128Off)
   rw [show (base + div128Off : Word) + 40 = base + 1112 from by bv_addr] at hph1
   -- Extend phase1 cr to modCode

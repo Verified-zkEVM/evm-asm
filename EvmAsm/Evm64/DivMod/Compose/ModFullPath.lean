@@ -188,7 +188,7 @@ theorem evm_mod_n4_to_normB_spec (sp base : Word)
     base → base+448. Normalizes b[] and a[], sets up loop parameters. -/
 theorem evm_mod_n4_to_loopSetup_spec (sp base : Word)
     (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 : Word)
-    (q0 q1 q2 q3 u0_old u1_old u2_old u3_old u4_old u5 u6 u7 nMem shiftMem : Word)
+    (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem : Word)
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
     (hb3nz : b3 ≠ 0)
     (hshift_nz : (clzResult b3).1 ≠ 0) :
@@ -202,9 +202,9 @@ theorem evm_mod_n4_to_loopSetup_spec (sp base : Word)
        ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3) **
        ((sp + signExtend12 4088) ↦ₘ q0) ** ((sp + signExtend12 4080) ↦ₘ q1) **
        ((sp + signExtend12 4072) ↦ₘ q2) ** ((sp + signExtend12 4064) ↦ₘ q3) **
-       ((sp + signExtend12 4056) ↦ₘ u0_old) ** ((sp + signExtend12 4048) ↦ₘ u1_old) **
-       ((sp + signExtend12 4040) ↦ₘ u2_old) ** ((sp + signExtend12 4032) ↦ₘ u3_old) **
-       ((sp + signExtend12 4024) ↦ₘ u4_old) **
+       ((sp + signExtend12 4056) ↦ₘ u0Old) ** ((sp + signExtend12 4048) ↦ₘ u1Old) **
+       ((sp + signExtend12 4040) ↦ₘ u2Old) ** ((sp + signExtend12 4032) ↦ₘ u3Old) **
+       ((sp + signExtend12 4024) ↦ₘ u4Old) **
        ((sp + signExtend12 4016) ↦ₘ u5) ** ((sp + signExtend12 4008) ↦ₘ u6) **
        ((sp + signExtend12 4000) ↦ₘ u7) ** ((sp + signExtend12 3984) ↦ₘ nMem) **
        ((sp + signExtend12 3992) ↦ₘ shiftMem))
@@ -228,14 +228,14 @@ theorem evm_mod_n4_to_loopSetup_spec (sp base : Word)
     ((.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
      ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
      ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
-     ((sp + signExtend12 4056) ↦ₘ u0_old) ** ((sp + signExtend12 4048) ↦ₘ u1_old) **
-     ((sp + signExtend12 4040) ↦ₘ u2_old) ** ((sp + signExtend12 4032) ↦ₘ u3_old) **
-     ((sp + signExtend12 4024) ↦ₘ u4_old))
+     ((sp + signExtend12 4056) ↦ₘ u0Old) ** ((sp + signExtend12 4048) ↦ₘ u1Old) **
+     ((sp + signExtend12 4040) ↦ₘ u2Old) ** ((sp + signExtend12 4032) ↦ₘ u3Old) **
+     ((sp + signExtend12 4024) ↦ₘ u4Old))
     (by pcFree) hNormB
   -- Step 2: NormA (base+312 → base+432)
   have hNormA := mod_normA_full_spec sp a0 a1 a2 a3
     b0' (b0 >>> (antiShift.toNat % 64)) b3 shift antiShift
-    u0_old u1_old u2_old u3_old u4_old base
+    u0Old u1Old u2Old u3Old u4Old base
   intro_lets at hNormA
   have hNormAf := cpsTriple_frameR
     ((.x0 ↦ᵣ (0 : Word)) **
@@ -285,7 +285,7 @@ theorem evm_mod_n4_to_loopSetup_spec (sp base : Word)
     base → base+448. b[] already normalized, u[] = copy of a[]. -/
 theorem evm_mod_n4_shift0_to_loopSetup_spec (sp base : Word)
     (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 : Word)
-    (q0 q1 q2 q3 u0_old u1_old u2_old u3_old u4_old u5 u6 u7 nMem shiftMem : Word)
+    (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem : Word)
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
     (hb3nz : b3 ≠ 0)
     (hshift_z : (clzResult b3).1 = 0) :
@@ -299,9 +299,9 @@ theorem evm_mod_n4_shift0_to_loopSetup_spec (sp base : Word)
        ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3) **
        ((sp + signExtend12 4088) ↦ₘ q0) ** ((sp + signExtend12 4080) ↦ₘ q1) **
        ((sp + signExtend12 4072) ↦ₘ q2) ** ((sp + signExtend12 4064) ↦ₘ q3) **
-       ((sp + signExtend12 4056) ↦ₘ u0_old) ** ((sp + signExtend12 4048) ↦ₘ u1_old) **
-       ((sp + signExtend12 4040) ↦ₘ u2_old) ** ((sp + signExtend12 4032) ↦ₘ u3_old) **
-       ((sp + signExtend12 4024) ↦ₘ u4_old) **
+       ((sp + signExtend12 4056) ↦ₘ u0Old) ** ((sp + signExtend12 4048) ↦ₘ u1Old) **
+       ((sp + signExtend12 4040) ↦ₘ u2Old) ** ((sp + signExtend12 4032) ↦ₘ u3Old) **
+       ((sp + signExtend12 4024) ↦ₘ u4Old) **
        ((sp + signExtend12 4016) ↦ₘ u5) ** ((sp + signExtend12 4008) ↦ₘ u6) **
        ((sp + signExtend12 4000) ↦ₘ u7) ** ((sp + signExtend12 3984) ↦ₘ nMem) **
        ((sp + signExtend12 3992) ↦ₘ shiftMem))
@@ -329,9 +329,9 @@ theorem evm_mod_n4_shift0_to_loopSetup_spec (sp base : Word)
      (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
      ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
      ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
-     ((sp + signExtend12 4056) ↦ₘ u0_old) ** ((sp + signExtend12 4048) ↦ₘ u1_old) **
-     ((sp + signExtend12 4040) ↦ₘ u2_old) ** ((sp + signExtend12 4032) ↦ₘ u3_old) **
-     ((sp + signExtend12 4024) ↦ₘ u4_old) **
+     ((sp + signExtend12 4056) ↦ₘ u0Old) ** ((sp + signExtend12 4048) ↦ₘ u1Old) **
+     ((sp + signExtend12 4040) ↦ₘ u2Old) ** ((sp + signExtend12 4032) ↦ₘ u3Old) **
+     ((sp + signExtend12 4024) ↦ₘ u4Old) **
      ((sp + signExtend12 3992) ↦ₘ shiftMem))
     (by pcFree) hABCLZ
   -- Step 2: PhaseC2 taken (base+212 → base+396)
@@ -347,9 +347,9 @@ theorem evm_mod_n4_shift0_to_loopSetup_spec (sp base : Word)
      ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3) **
      ((sp + signExtend12 4088) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4080) ↦ₘ (0 : Word)) **
      ((sp + signExtend12 4072) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4064) ↦ₘ (0 : Word)) **
-     ((sp + signExtend12 4056) ↦ₘ u0_old) ** ((sp + signExtend12 4048) ↦ₘ u1_old) **
-     ((sp + signExtend12 4040) ↦ₘ u2_old) ** ((sp + signExtend12 4032) ↦ₘ u3_old) **
-     ((sp + signExtend12 4024) ↦ₘ u4_old) **
+     ((sp + signExtend12 4056) ↦ₘ u0Old) ** ((sp + signExtend12 4048) ↦ₘ u1Old) **
+     ((sp + signExtend12 4040) ↦ₘ u2Old) ** ((sp + signExtend12 4032) ↦ₘ u3Old) **
+     ((sp + signExtend12 4024) ↦ₘ u4Old) **
      ((sp + signExtend12 4016) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
      ((sp + signExtend12 4000) ↦ₘ (0 : Word)) ** ((sp + signExtend12 3984) ↦ₘ (4 : Word)))
     (by pcFree) hC2
@@ -357,7 +357,7 @@ theorem evm_mod_n4_shift0_to_loopSetup_spec (sp base : Word)
     (fun h hp => by xperm_hyp hp) hABCLZf hC2f
   -- Step 3: CopyAU (base+396 → base+432)
   have hCopy := mod_copyAU_full_spec sp a0 a1 a2 a3
-    u0_old u1_old u2_old u3_old u4_old ((clzResult b3).2) base
+    u0Old u1Old u2Old u3Old u4Old ((clzResult b3).2) base
 
   simp only [EvmAsm.Evm64.DivMod.AddrNorm.se12_0] at hCopy
   have hCopyf := cpsTriple_frameR

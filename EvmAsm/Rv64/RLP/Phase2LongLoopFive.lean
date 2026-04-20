@@ -52,7 +52,7 @@ theorem rlp_phase2_long_loop_five_byte_post_unfold
 
     Iter 1 (cnt 5→4, BNE taken) + four-byte closure (iters 2–5). -/
 theorem rlp_phase2_long_loop_five_byte_spec
-    (len ptr v12_old wordVal dwordAddr : Word)
+    (len ptr v12Old wordVal dwordAddr : Word)
     (base : Word) (back : BitVec 13)
     (halign1 : alignToDword ptr = dwordAddr)
     (halign2 : alignToDword (ptr + 1) = dwordAddr)
@@ -68,7 +68,7 @@ theorem rlp_phase2_long_loop_five_byte_spec
     cpsTriple base (base + 24)
       (CodeReq.ofProg base (rlp_phase2_long_loop_body_prog back))
       ((.x11 ↦ᵣ len) ** (.x13 ↦ᵣ ptr) ** (.x14 ↦ᵣ (5 : Word)) **
-       (.x12 ↦ᵣ v12_old) ** (.x0 ↦ᵣ (0 : Word)) **
+       (.x12 ↦ᵣ v12Old) ** (.x0 ↦ᵣ (0 : Word)) **
        (dwordAddr ↦ₘ wordVal))
       (rlp_phase2_long_loop_five_byte_post len ptr
         ((extractByte wordVal (byteOffset ptr)).zeroExtend 64)
@@ -78,7 +78,7 @@ theorem rlp_phase2_long_loop_five_byte_spec
         ((extractByte wordVal (byteOffset (ptr + 4))).zeroExtend 64)
         wordVal dwordAddr) := by
   simp only [rlp_phase2_long_loop_five_byte_post_unfold]
-  have body := rlp_phase2_long_loop_body_spec len ptr (5 : Word) v12_old
+  have body := rlp_phase2_long_loop_body_spec len ptr (5 : Word) v12Old
     wordVal dwordAddr base back halign1 hvalid1
   have hcnt' : (5 : Word) + signExtend12 (-1 : BitVec 12) = (4 : Word) := by
     decide
@@ -101,7 +101,7 @@ theorem rlp_phase2_long_loop_five_byte_spec
   have tri1' : cpsTriple base base
       (CodeReq.ofProg base (rlp_phase2_long_loop_body_prog back))
       ((.x11 ↦ᵣ len) ** (.x13 ↦ᵣ ptr) ** (.x14 ↦ᵣ (5 : Word)) **
-       (.x12 ↦ᵣ v12_old) ** (.x0 ↦ᵣ (0 : Word)) **
+       (.x12 ↦ᵣ v12Old) ** (.x0 ↦ᵣ (0 : Word)) **
        (dwordAddr ↦ₘ wordVal))
       ((.x11 ↦ᵣ ((len <<< 8) + byte1)) ** (.x13 ↦ᵣ (ptr + 1)) **
        (.x14 ↦ᵣ (4 : Word)) ** (.x12 ↦ᵣ byte1) **

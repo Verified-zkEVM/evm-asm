@@ -44,7 +44,7 @@ theorem divK_phaseB_tail_spec (sp n leading_limb nMem : Word) (base : Word) :
        ((sp + signExtend12 3984) ↦ₘ n) **
        ((addrLead + signExtend12 32) ↦ₘ leading_limb)) := by
   intro nm1 nm1X8 addrLead cr
-  have I0 := sd_spec_gen .x12 .x5 sp n n_mem 3984 base
+  have I0 := sd_spec_gen .x12 .x5 sp n nMem 3984 base
   have I1 := addi_spec_gen_same .x5 n 4095 (base + 4) (by nofun)
   have I2 := slli_spec_gen_same .x5 nm1 3 (base + 8) (by nofun)
   have I3 := add_spec_gen_rd_eq_rs2 .x5 .x12 sp nm1X8 (base + 12) (by nofun)

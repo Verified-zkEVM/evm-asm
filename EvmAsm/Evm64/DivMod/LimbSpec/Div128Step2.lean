@@ -31,7 +31,7 @@ open EvmAsm.Rv64
     Input: un21 in x7, dHi in x6, dlo/un0 in memory.
     Output: refined q0 in x5. -/
 theorem divK_div128_step2_spec
-    (sp un21 dHi v1_old v5_old v11_old dlo un0 : Word) (base : Word) :
+    (sp un21 dHi v1Old v5Old v11Old dlo un0 : Word) (base : Word) :
     let q0 := rv64_divu un21 dHi
     let rhat2 := un21 - q0 * dHi
     let hi := q0 >>> (32 : BitVec 6).toNat
@@ -57,8 +57,8 @@ theorem divK_div128_step2_spec
       (CodeReq.union (CodeReq.singleton (base + 52) (.JAL .x0 8))
        (CodeReq.singleton (base + 56) (.ADDI .x5 .x5 4095)))))))))))))))
     cpsTriple base (base + 60) cr
-      ((.x7 ↦ᵣ un21) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ v5_old) **
-       (.x1 ↦ᵣ v1_old) ** (.x11 ↦ᵣ v11_old) **
+      ((.x7 ↦ᵣ un21) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ v5Old) **
+       (.x1 ↦ᵣ v1Old) ** (.x11 ↦ᵣ v11Old) **
        (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) **
        (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0))
       ((.x7 ↦ᵣ q0Dlo) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ q0') **
@@ -82,7 +82,7 @@ theorem divK_div128_step2_spec
       (CodeReq.union (CodeReq.singleton (base + 48) (.BLTU .x1 .x7 8))
       (CodeReq.union (CodeReq.singleton (base + 52) (.JAL .x0 8))
        (CodeReq.singleton (base + 56) (.ADDI .x5 .x5 4095))))))))))))))) := rfl
-  have h1_raw := divK_div128_step2_init_spec un21 dHi v1_old v5_old v11_old base
+  have h1_raw := divK_div128_step2_init_spec un21 dHi v1Old v5Old v11Old base
   have h1 : cpsTriple base (base + 12) cr _ _ :=
     cpsTriple_extend_code (h := h1_raw) (hmono := by
       rw [hcr_eq]; exact CodeReq.union_mono_tail (CodeReq.union_mono_tail (CodeReq.union_mono_left _ _)))
