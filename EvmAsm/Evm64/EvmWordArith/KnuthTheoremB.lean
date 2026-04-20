@@ -21,6 +21,8 @@
   - `knuth_v_nat_ge_pow255_abstract` — Nat-level v_nat ≥ 2^255.
   - `knuth_q_hat_clamp_le_div` / `knuth_q_hat_clamp_lt_pow64` — min-clamp bounds.
   - `knuth_core_ineq` — `x * z < y + 2 * z → x ≤ y / z + 2` (Knuth overshoot step).
+  - `knuth_q_r_v_nat_bound` — `q_r * v_nat < u_nat + 2 * v_nat` under call-trial
+    assumption `u_top < v_top` (feeds `knuth_core_ineq`).
 -/
 
 import EvmAsm.Evm64.EvmWordArith.DivN4Overestimate
@@ -151,5 +153,62 @@ theorem knuth_core_ineq (x y z : Nat) (hz : 0 < z)
   have hd : z * (y / z) + y % z = y := Nat.div_add_mod y z
   have hm : y % z < z := Nat.mod_lt y hz
   nlinarith
+
+/-- Knuth B — trial-remainder bookkeeping (Nat-abstract call-trial bound).
+
+    Under the call-trial hypothesis `u_top < v_top` and standard normalization
+    (`v_top ≥ 2^63`, `v_rest < 2^192`, `u_next < 2^64`), the raw 2-limb trial
+    quotient `q_r = (u_top * 2^64 + u_next) / v_top` satisfies
+    `q_r * v_nat < u_nat + 2 * v_nat`.
+
+    Combined with `knuth_core_ineq`, this yields `q_r ≤ u_nat / v_nat + 2`,
+    the "overestimate by at most 2" conclusion of Knuth's Theorem B. -/
+theorem knuth_q_r_v_nat_bound
+    (u_nat v_nat u_top u_next u_rest v_top v_rest : Nat)
+    (h_u_split : u_top * 2^256 + u_next * 2^192 + u_rest = u_nat)
+    (h_v_split : v_nat = v_top * 2^192 + v_rest)
+    (h_v_rest : v_rest < 2^192)
+    (h_v_norm : v_top ≥ 2^63)
+    (hu_top_lt : u_top < v_top)
+    (hu_next_lt : u_next < 2^64) :
+    (u_top * 2^64 + u_next) / v_top * v_nat < u_nat + 2 * v_nat := by
+  set u_hat := u_top * 2^64 + u_next with hu_hat_def
+  set q_r := u_hat / v_top with hq_r_def
+  -- Basic facts
+  have hv_top_pos : 0 < v_top := by
+    have : (0:Nat) < 2^63 := by positivity
+    omega
+  -- u_hat < v_top * 2^64 (call-trial: u_top < v_top, u_next < 2^64)
+  have hu_hat_lt : u_hat < v_top * 2^64 := by
+    have h1 : (u_top + 1) * 2^64 ≤ v_top * 2^64 := Nat.mul_le_mul_right _ hu_top_lt
+    simp only [hu_hat_def]; nlinarith
+  -- q_r < 2^64 (Nat.div_lt_of_lt_mul expects n < k * m → n / k < m)
+  have hqr_lt : q_r < 2^64 := Nat.div_lt_of_lt_mul hu_hat_lt
+  -- q_r * v_top ≤ u_hat (floor div)
+  have hqr_vt_le : q_r * v_top ≤ u_hat := Nat.div_mul_le_self u_hat v_top
+  -- u_hat * 2^192 ≤ u_nat (from knuth_u_hat_mul_pow192_le)
+  have hu_hat_mul_le : u_hat * 2^192 ≤ u_nat :=
+    knuth_u_hat_mul_pow192_le u_nat u_top u_next u_rest h_u_split
+  -- So q_r * v_top * 2^192 ≤ u_nat
+  have hqr_vt_pow : q_r * v_top * 2^192 ≤ u_nat :=
+    le_trans (Nat.mul_le_mul_right _ hqr_vt_le) hu_hat_mul_le
+  -- v_nat ≥ 2^255
+  have hv_nat_ge : v_nat ≥ 2^255 :=
+    knuth_v_nat_ge_pow255_abstract v_nat v_top v_rest h_v_norm h_v_split
+  -- Expand q_r * v_nat using h_v_split
+  have heq : q_r * v_nat = q_r * v_top * 2^192 + q_r * v_rest := by
+    rw [h_v_split]; ring
+  -- Bound q_r * v_rest < 2 * v_nat
+  have h_pow : (2:Nat)^64 * 2^192 = 2^256 := by rw [← pow_add]
+  have h_pow_split : (2:Nat)^256 = 2 * 2^255 := by
+    rw [show (256:Nat) = 1 + 255 from rfl, pow_add, pow_one]
+  have hqr_vrest_le : q_r * v_rest ≤ q_r * 2^192 :=
+    Nat.mul_le_mul_left _ (by omega)
+  have hqr1_pow_le : (q_r + 1) * 2^192 ≤ 2^64 * 2^192 :=
+    Nat.mul_le_mul_right _ hqr_lt
+  have h_expand : (q_r + 1) * 2^192 = q_r * 2^192 + 2^192 := by ring
+  have h_pos192 : (0:Nat) < 2^192 := by positivity
+  have h_2vnat : 2 * v_nat ≥ 2 * 2^255 := Nat.mul_le_mul_left 2 hv_nat_ge
+  omega
 
 end EvmAsm.Evm64
