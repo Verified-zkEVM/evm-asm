@@ -51,16 +51,16 @@ example : rlp_phase2_long_load_acc_prog.length = 3 := rfl
     `@[irreducible]` to keep the let-bindings out of the theorem statement. -/
 @[irreducible]
 def rlp_phase2_long_load_acc_post
-    (len ptr byte_zext wordVal dwordAddr : Word) : Assertion :=
-  let length' := (len <<< 8) + byte_zext
-  (.x11 ↦ᵣ length') ** (.x13 ↦ᵣ ptr) ** (.x12 ↦ᵣ byte_zext) **
+    (len ptr byteZext wordVal dwordAddr : Word) : Assertion :=
+  let length' := (len <<< 8) + byteZext
+  (.x11 ↦ᵣ length') ** (.x13 ↦ᵣ ptr) ** (.x12 ↦ᵣ byteZext) **
     (dwordAddr ↦ₘ wordVal)
 
 theorem rlp_phase2_long_load_acc_post_unfold
-    (len ptr byte_zext wordVal dwordAddr : Word) :
-    rlp_phase2_long_load_acc_post len ptr byte_zext wordVal dwordAddr =
-    ((.x11 ↦ᵣ ((len <<< 8) + byte_zext)) ** (.x13 ↦ᵣ ptr) **
-     (.x12 ↦ᵣ byte_zext) ** (dwordAddr ↦ₘ wordVal)) := by
+    (len ptr byteZext wordVal dwordAddr : Word) :
+    rlp_phase2_long_load_acc_post len ptr byteZext wordVal dwordAddr =
+    ((.x11 ↦ᵣ ((len <<< 8) + byteZext)) ** (.x13 ↦ᵣ ptr) **
+     (.x12 ↦ᵣ byteZext) ** (dwordAddr ↦ₘ wordVal)) := by
   delta rlp_phase2_long_load_acc_post; rfl
 
 /-- `cpsTriple` spec for the load-and-accumulate step.
@@ -73,12 +73,12 @@ theorem rlp_phase2_long_load_acc_spec (len ptr v12_old wordVal dwordAddr : Word)
     (base : Word)
     (halign : alignToDword ptr = dwordAddr)
     (hvalid : isValidByteAccess ptr = true) :
-    let byte_zext := (extractByte wordVal (byteOffset ptr)).zeroExtend 64
+    let byteZext := (extractByte wordVal (byteOffset ptr)).zeroExtend 64
     cpsTriple base (base + 12)
       (CodeReq.ofProg base rlp_phase2_long_load_acc_prog)
       ((.x11 ↦ᵣ len) ** (.x13 ↦ᵣ ptr) ** (.x12 ↦ᵣ v12_old) **
        (dwordAddr ↦ₘ wordVal))
-      (rlp_phase2_long_load_acc_post len ptr byte_zext wordVal dwordAddr) := by
+      (rlp_phase2_long_load_acc_post len ptr byteZext wordVal dwordAddr) := by
   simp only [rlp_phase2_long_load_acc_post_unfold]
   -- Reshape the top-level CodeReq: `ofProg base (LBU :: acc_prog)` unfolds
   -- to `singleton base LBU ∪ ofProg (base + 4) acc_prog`.
@@ -108,12 +108,12 @@ theorem rlp_phase2_long_load_acc_spec (len ptr v12_old wordVal dwordAddr : Word)
     (by nofun) halign' hvalid'
   rw [hptr_eq] at lbu
   -- Frame LBU with `x11 ↦ᵣ len` and permute to match the sequence shape.
-  let byte_zext := (extractByte wordVal (byteOffset ptr)).zeroExtend 64
+  let byteZext := (extractByte wordVal (byteOffset ptr)).zeroExtend 64
   have lbu_framed : cpsTriple base (base + 4)
       (CodeReq.singleton base (.LBU .x12 .x13 0))
       ((.x11 ↦ᵣ len) ** (.x13 ↦ᵣ ptr) ** (.x12 ↦ᵣ v12_old) **
        (dwordAddr ↦ₘ wordVal))
-      ((.x11 ↦ᵣ len) ** (.x13 ↦ᵣ ptr) ** (.x12 ↦ᵣ byte_zext) **
+      ((.x11 ↦ᵣ len) ** (.x13 ↦ᵣ ptr) ** (.x12 ↦ᵣ byteZext) **
        (dwordAddr ↦ₘ wordVal)) :=
     cpsTriple_weaken
       (fun h hp => by xperm_hyp hp)
@@ -125,10 +125,10 @@ theorem rlp_phase2_long_load_acc_spec (len ptr v12_old wordVal dwordAddr : Word)
   rw [show (base + 4 : Word) + 8 = base + 12 from by bv_omega] at acc
   have acc_framed : cpsTriple (base + 4) (base + 12)
       (CodeReq.ofProg (base + 4) rlp_phase2_long_acc_prog)
-      ((.x11 ↦ᵣ len) ** (.x13 ↦ᵣ ptr) ** (.x12 ↦ᵣ byte_zext) **
+      ((.x11 ↦ᵣ len) ** (.x13 ↦ᵣ ptr) ** (.x12 ↦ᵣ byteZext) **
        (dwordAddr ↦ₘ wordVal))
-      ((.x11 ↦ᵣ ((len <<< 8) + byte_zext)) ** (.x13 ↦ᵣ ptr) **
-       (.x12 ↦ᵣ byte_zext) ** (dwordAddr ↦ₘ wordVal)) :=
+      ((.x11 ↦ᵣ ((len <<< 8) + byteZext)) ** (.x13 ↦ᵣ ptr) **
+       (.x12 ↦ᵣ byteZext) ** (dwordAddr ↦ₘ wordVal)) :=
     cpsTriple_weaken
       (fun h hp => by xperm_hyp hp)
       (fun h hp => by xperm_hyp hp)
