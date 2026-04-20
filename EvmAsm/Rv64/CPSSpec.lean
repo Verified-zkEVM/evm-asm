@@ -853,8 +853,7 @@ theorem cpsNBranch_weaken_posts (entry : Word) (cr : CodeReq)
 
 /-- Frame a pcFree assertion `F` on the right of a cpsTriple: pre becomes
     `P ** F` and post becomes `Q ** F`. Position/code/pre/post args are all
-    implicit; prefer this over `cpsTriple_frame_left` (which takes five
-    explicit `_` arguments before the frame `F`). -/
+    implicit. -/
 theorem cpsTriple_frameR {entry exit_ : Word} {cr : CodeReq} {P Q : Assertion}
     (F : Assertion) (hF : F.pcFree)
     (h : cpsTriple entry exit_ cr P Q) :
@@ -863,16 +862,6 @@ theorem cpsTriple_frameR {entry exit_ : Word} {cr : CodeReq} {P Q : Assertion}
   have hPFR' := holdsFor_sepConj_assoc.mp hPFR
   obtain ⟨k, s', hstep, hpc', hpost⟩ := h (F ** R) (pcFree_sepConj hF hR) s hcr hPFR' hpc
   exact ⟨k, s', hstep, hpc', holdsFor_sepConj_assoc.mpr hpost⟩
-
-/-- Explicit-argument variant of `cpsTriple_frameR`. Kept for backwards
-    compatibility; prefer `cpsTriple_frameR` in new code. Note the name
-    is a misnomer — it adds `F` to the *right* of the sepConj chain. -/
-@[deprecated cpsTriple_frameR (since := "2026-04-19")]
-theorem cpsTriple_frame_left (entry exit_ : Word) (cr : CodeReq)
-    (P Q F : Assertion) (hF : F.pcFree)
-    (h : cpsTriple entry exit_ cr P Q) :
-    cpsTriple entry exit_ cr (P ** F) (Q ** F) :=
-  cpsTriple_frameR F hF h
 
 /-- Frame a pcFree assertion `F` on the left of a cpsTriple: pre becomes
     `F ** P` and post becomes `F ** Q`. Position/code/pre/post args are all

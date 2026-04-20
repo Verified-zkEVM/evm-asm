@@ -423,7 +423,7 @@ private def frameFirstSpec (s1Expr : Expr) (goalPre : Expr) : MetaM Expr :=
   let pcFreeProof ← try buildPcFreeProof frameExpr
     catch _ => throwError "runBlock: could not prove pcFree for initial frame:\n  {frameExpr}"
   -- Frame s1: cpsTriple entry exit cr1 (P1 ** F) (Q1 ** F)
-  let s1Framed := mkAppN (mkConst ``EvmAsm.Rv64.cpsTriple_frame_left)
+  let s1Framed := mkAppN (mkConst ``EvmAsm.Rv64.cpsTriple_frameR)
     #[entry, exit_, cr1, preP1, postQ1, frameExpr, pcFreeProof, s1Expr]
   -- Permute precondition: goalPre → (P1 ** F)
   let p1StarFrame := mkApp2 (mkConst ``EvmAsm.Rv64.sepConj) preP1 frameExpr

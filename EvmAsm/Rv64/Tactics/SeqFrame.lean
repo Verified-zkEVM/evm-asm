@@ -17,7 +17,7 @@
 
   1. Extracts postcondition Q1 of h1 and precondition P2 of h2
   2. Computes frame F = Q1 \ P2 (atoms in Q1 not matched by P2)
-  3. Frames h2: `cpsTriple_frame_left` produces `cpsTriple mid exit (P2 ** F) (Q2 ** F)`
+  3. Frames h2: `cpsTriple_frameR` produces `cpsTriple mid exit (P2 ** F) (Q2 ** F)`
   4. Builds permutation proof Q1 → (P2 ** F)
   5. Composes via `cpsTriple_seq_with_perm`
 
@@ -902,7 +902,7 @@ def seqFrameCore (h1Expr h2Expr : Expr) : MetaM Expr :=
     catch _ => throwError "seqFrame: could not prove pcFree for frame:\n  {frameExpr}"
 
   -- h2Framed : cpsTriple mid exit_ cr2 (P2 ** F) (Q2 ** F)
-  let h2Framed := mkAppN (mkConst ``EvmAsm.Rv64.cpsTriple_frame_left)
+  let h2Framed := mkAppN (mkConst ``EvmAsm.Rv64.cpsTriple_frameR)
     #[mid2, exit_, cr2, preP2, postQ2, frameExpr, pcFreeProof, h2Expr]
 
   -- When P2 = empAssertion, simplify (empAssertion ** F) to F and (Q2 ** F) similarly.
