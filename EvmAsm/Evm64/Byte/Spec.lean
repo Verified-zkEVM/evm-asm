@@ -268,7 +268,7 @@ theorem evm_byte_zero_high_spec (sp base : Word)
      ((sp + 32) ↦ₘ v0) ** ((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3))
     (by pcFree) hbne_taken
   -- Compose OR-reduce → BNE(taken)
-  have hAB := cpsTriple_seq_perm_same_cr 
+  have hAB := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hOR_f hbne_framed
   -- Step 3: Zero path (base+160 → base+180) → extend to evm_byte_code
   have hzp := cpsTriple_extend_code (byte_zero_path_sub base)
@@ -281,7 +281,7 @@ theorem evm_byte_zero_high_spec (sp base : Word)
      (sp ↦ₘ i0) ** ((sp + 8) ↦ₘ i1) ** ((sp + 16) ↦ₘ i2) ** ((sp + 24) ↦ₘ i3))
     (by pcFree) hzp
   -- Compose AB → ZP: normalize addresses in perm callback
-  have hABZ := cpsTriple_seq_perm_same_cr 
+  have hABZ := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hAB hzp_framed
   -- Final: weaken regs to regOwn
   exact cpsTriple_weaken
@@ -343,7 +343,7 @@ theorem evm_byte_zero_geq32_spec (sp base : Word)
      ((sp + 32) ↦ₘ v0) ** ((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3))
     (by pcFree) hbne_ntaken
   -- Compose OR-reduce → BNE(ntaken)
-  have h12 := cpsTriple_seq_perm_same_cr 
+  have h12 := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hOR_f hbne_framed
   -- Step 3: LD x5 x12 0 at base+24
   have hld_raw := ld_spec_gen .x5 .x12 sp (i1 ||| i2 ||| i3) i0 0 (base + 24) (by nofun)
@@ -399,7 +399,7 @@ theorem evm_byte_zero_geq32_spec (sp base : Word)
      (sp ↦ₘ i0) ** ((sp + 8) ↦ₘ i1) ** ((sp + 16) ↦ₘ i2) ** ((sp + 24) ↦ₘ i3))
     (by pcFree) hzp
   -- Compose → ZP: normalize addresses in perm callback
-  have hfull := cpsTriple_seq_perm_same_cr 
+  have hfull := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h12345 hzp_framed
   -- Final: weaken regs to regOwn
   exact cpsTriple_weaken

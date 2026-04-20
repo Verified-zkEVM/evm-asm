@@ -225,14 +225,14 @@ theorem signext_nochange_high_spec (sp base : Word)
      (sp ↦ₘ b0) ** ((sp + 8) ↦ₘ b1) ** ((sp + 24) ↦ₘ b3) **
      ((sp + 32) ↦ₘ v0) ** ((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3))
     (by pcFree) h2
-  have h12 := cpsTriple_seq_perm_same_cr 
+  have h12 := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h1f h2f
   have h3f := cpsTriple_frameR
     ((.x0 ↦ᵣ (0 : Word)) **
      (sp ↦ₘ b0) ** ((sp + 8) ↦ₘ b1) ** ((sp + 16) ↦ₘ b2) **
      ((sp + 32) ↦ₘ v0) ** ((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3))
     (by pcFree) h3
-  have h123 := cpsTriple_seq_perm_same_cr 
+  have h123 := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h12 h3f
   -- Step 4: BNE at base+20 → extend, eliminate ntaken
   have hbne_raw := bne_spec_gen .x5 .x0 168 (b1 ||| b2 ||| b3) (0 : Word) (base + 20)
@@ -249,7 +249,7 @@ theorem signext_nochange_high_spec (sp base : Word)
      ((sp + 32) ↦ₘ v0) ** ((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3))
     (by pcFree) hbne_taken
   -- Compose → BNE
-  have hAB := cpsTriple_seq_perm_same_cr 
+  have hAB := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h123 hbne_framed
   -- Step 5: Done (base+188 → base+192) → extend
   have hdone := cpsTriple_extend_code (done_sub_signextCode base)
@@ -260,7 +260,7 @@ theorem signext_nochange_high_spec (sp base : Word)
      (sp ↦ₘ b0) ** ((sp + 8) ↦ₘ b1) ** ((sp + 16) ↦ₘ b2) ** ((sp + 24) ↦ₘ b3) **
      ((sp + 32) ↦ₘ v0) ** ((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3))
     (by pcFree) hdone
-  have hfull := cpsTriple_seq_perm_same_cr 
+  have hfull := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hAB hdone_framed
   -- Final: weaken regs to regOwn + perm
   exact cpsTriple_weaken

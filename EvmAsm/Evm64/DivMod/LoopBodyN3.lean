@@ -593,7 +593,7 @@ def loopBodyPostN3
 
 
 -- ============================================================================
--- Unified max-path loop body 
+-- Unified max-path loop body
 -- ============================================================================
 
 /-- Unified loop body (BLTU ntaken) for n=3, parameterized by borrow condition.

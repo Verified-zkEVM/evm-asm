@@ -20,7 +20,7 @@ namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
 open EvmAsm.Rv64.AddrNorm (se13_36 se13_100 se13_188 se13_320 se13_332 se21_32 se21_132 se21_212 se21_268
-  zero_add_se12_1_toNat zero_add_se12_2_toNat bv6_toNat_6 word_add_zero)
+  zero_add_se12_1_toNat zero_add_se12_2_toNat bv6_toNat_6 bv64_toNat_63 word_add_zero)
 
 -- ============================================================================
 -- Section 1: sarCode definition and helpers
@@ -310,14 +310,14 @@ theorem evm_sar_sign_fill_high_spec (sp base : Word)
      (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 24) ↦ₘ s3) **
      ((sp + 32) ↦ₘ v0) ** ((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3))
     (by pcFree) h2
-  have h12 := cpsTriple_seq_perm_same_cr 
+  have h12 := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h1f h2f
   have h3f := cpsTriple_frameR
     ((.x0 ↦ᵣ (0 : Word)) **
      (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) **
      ((sp + 32) ↦ₘ v0) ** ((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3))
     (by pcFree) h3
-  have h123 := cpsTriple_seq_perm_same_cr 
+  have h123 := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h12 h3f
   -- Step 4: BNE at base+20 → extend to sarCode, eliminate ntaken
   have hbne_raw := bne_spec_gen .x5 .x0 332 (s1 ||| s2 ||| s3) (0 : Word) (base + 20)
@@ -335,7 +335,7 @@ theorem evm_sar_sign_fill_high_spec (sp base : Word)
      ((sp + 32) ↦ₘ v0) ** ((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3))
     (by pcFree) hbne_taken
   -- Compose linear chain → BNE(taken)
-  have hAB := cpsTriple_seq_perm_same_cr 
+  have hAB := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h123 hbne_framed
   -- Step 5: Sign-fill path (base+352 → base+380) → extend to sarCode
   have hsfp := cpsTriple_extend_code (sign_fill_sub_sarCode base)
@@ -347,7 +347,7 @@ theorem evm_sar_sign_fill_high_spec (sp base : Word)
      (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3))
     (by pcFree) hsfp
   -- Compose AB → sign-fill: no address normalization needed (sign-fill uses sp+40 etc. directly)
-  have hABS := cpsTriple_seq_perm_same_cr 
+  have hABS := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hAB hsfp_framed
   -- Final: weaken regs to regOwn
   exact cpsTriple_weaken
@@ -660,7 +660,7 @@ private theorem sar_bridge_merge (value : EvmWord) (s0 : Word)
   intro bs as_ mask; rw [hresult]
   have hbs_val : bs.toNat = s0.toNat % 64 := by
     simp only [bs, signExtend12_63]
-    rw [BitVec.toNat_and, show (63 : BitVec 64).toNat = 63 from by decide]
+    rw [BitVec.toNat_and, bv64_toNat_63]
     exact Nat.and_two_pow_sub_one_eq_mod s0.toNat 6
   have hbs_lt : bs.toNat < 64 := by omega
   have hL_div : s0.toNat / 64 = L := by
@@ -697,7 +697,7 @@ private theorem sar_bridge_last (value : EvmWord) (s0 : Word)
   intro bs; rw [hresult]
   have hbs_val : bs.toNat = s0.toNat % 64 := by
     simp only [bs, signExtend12_63]
-    rw [BitVec.toNat_and, show (63 : BitVec 64).toNat = 63 from by decide]
+    rw [BitVec.toNat_and, bv64_toNat_63]
     exact Nat.and_two_pow_sub_one_eq_mod s0.toNat 6
   have hL_div : s0.toNat / 64 = L := by
     rw [← hL, bv6_toNat_6]; simp [BitVec.toNat_ushiftRight]; omega
@@ -723,7 +723,7 @@ private theorem sar_bridge_sign (value : EvmWord) (s0 : Word)
   -- Both give sign extension (all bits = MSB of x)
   have hbs_val : bs.toNat = s0.toNat % 64 := by
     subst hbs; simp only [signExtend12_63]
-    rw [BitVec.toNat_and, show (63 : BitVec 64).toNat = 63 from by decide]
+    rw [BitVec.toNat_and, bv64_toNat_63]
     exact Nat.and_two_pow_sub_one_eq_mod s0.toNat 6
   simp only [getLimb]
   ext j

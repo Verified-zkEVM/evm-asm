@@ -596,7 +596,7 @@ def loopBodyPostN4
 
 
 -- ============================================================================
--- Unified max-path loop body 
+-- Unified max-path loop body
 -- ============================================================================
 
 /-- Unified loop body (BLTU ntaken) for n=4, parameterized by borrow condition.
