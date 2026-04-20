@@ -23,7 +23,6 @@ import EvmAsm.Rv64.Tactics.XSimp
 import EvmAsm.Rv64.Tactics.RunBlock
 
 open EvmAsm.Rv64.Tactics
-open EvmAsm.Evm64.DivMod.AddrNorm (se12_0)
 
 namespace EvmAsm.Evm64
 
@@ -67,7 +66,7 @@ theorem divK_trial_load_spec
   let jpn := j + n
   let jpnX8 := jpn <<< (3 : BitVec 6).toNat
   let u0_base := sp + signExtend12 4056
-  have haddr0 : uAddr + signExtend12 (0 : BitVec 12) = uAddr := by rw [se12_0]; bv_omega
+  have haddr0 : uAddr + signExtend12 (0 : BitVec 12) = uAddr := by rv64_addr
   have I0 := ld_spec_gen .x5 .x12 sp v5Old n 3984 base (by nofun)
   have I1 := add_spec_gen .x7 .x1 .x5 j n v7Old (base + 4) (by nofun)
   have I2 := slli_spec_gen_same .x7 jpn 3 (base + 8) (by nofun)
@@ -107,7 +106,7 @@ theorem divK_store_qj_spec (sp j qHat v5Old v7Old qOld : Word)
   have I0 := slli_spec_gen .x5 .x1 v5Old j 3 base (by nofun)
   have I1 := addi_spec_gen .x7 .x12 v7Old sp 4088 (base + 4) (by nofun)
   have I2 := sub_spec_gen_rd_eq_rs1 .x7 .x5 (sp + signExtend12 4088) jX8 (base + 8) (by nofun)
-  have haddr : qAddr + signExtend12 (0 : BitVec 12) = qAddr := by rw [se12_0]; bv_omega
+  have haddr : qAddr + signExtend12 (0 : BitVec 12) = qAddr := by rv64_addr
   have I3 := sd_spec_gen .x7 .x11 qAddr qHat qOld 0 (base + 12)
   rw [haddr] at I3
   runBlock I0 I1 I2 I3

@@ -25,7 +25,6 @@ import EvmAsm.Rv64.Tactics.XSimp
 import EvmAsm.Rv64.Tactics.RunBlock
 
 open EvmAsm.Rv64.Tactics
-open EvmAsm.Evm64.DivMod.AddrNorm (se12_0)
 
 namespace EvmAsm.Evm64
 
@@ -85,7 +84,7 @@ theorem divK_store_qj_write_spec (qAddr qHat qOld : Word) (base : Word) :
       ((.x7 ↦ᵣ qAddr) ** (.x11 ↦ᵣ qHat) ** (qAddr ↦ₘ qOld))
       ((.x7 ↦ᵣ qAddr) ** (.x11 ↦ᵣ qHat) ** (qAddr ↦ₘ qHat)) := by
   intro cr
-  have haddr : qAddr + signExtend12 (0 : BitVec 12) = qAddr := by rw [se12_0]; bv_omega
+  have haddr : qAddr + signExtend12 (0 : BitVec 12) = qAddr := by rv64_addr
   have I0 := sd_spec_gen .x7 .x11 qAddr qHat qOld 0 base
   rw [haddr] at I0
   runBlock I0

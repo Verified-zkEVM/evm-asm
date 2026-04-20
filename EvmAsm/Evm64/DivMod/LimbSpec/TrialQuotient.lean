@@ -28,7 +28,6 @@ import EvmAsm.Rv64.Tactics.RunBlock
 
 open EvmAsm.Rv64.Tactics
 open EvmAsm.Rv64.AddrNorm (se21_8)
-open EvmAsm.Evm64.DivMod.AddrNorm (se12_0)
 
 namespace EvmAsm.Evm64
 
@@ -80,7 +79,7 @@ theorem divK_trial_load_u_spec (sp j n v5Old v7Old uHi uLo : Word)
        (sp + signExtend12 3984 ↦ₘ n) **
        (uAddr ↦ₘ uHi) ** ((uAddr + 8) ↦ₘ uLo)) := by
   intro jpn jpnX8 u0_base uAddr cr
-  have haddr0 : uAddr + signExtend12 (0 : BitVec 12) = uAddr := by rw [se12_0]; bv_omega
+  have haddr0 : uAddr + signExtend12 (0 : BitVec 12) = uAddr := by rv64_addr
   have I0 := ld_spec_gen .x5 .x12 sp v5Old n 3984 base (by nofun)
   have I1 := add_spec_gen .x7 .x1 .x5 j n v7Old (base + 4) (by nofun)
   have I2 := slli_spec_gen_same .x7 jpn 3 (base + 8) (by nofun)
