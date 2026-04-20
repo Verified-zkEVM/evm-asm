@@ -278,10 +278,10 @@ def divK_loopBody (subr_off : BitVec 21) (loop_back_off : BitVec 13) : Program :
   single (.MUL .x7 .x11 .x5) ;;              -- [23] prod_lo
   single (.MULHU .x5 .x11 .x5) ;;            -- [24] prod_hi
   single (.ADD .x7 .x7 .x10) ;;              -- [25] full_sub = prod_lo + carry
-  single (.SLTU .x10 .x7 .x10) ;;            -- [26] borrow_add
+  single (.SLTU .x10 .x7 .x10) ;;            -- [26] borrowAdd
   single (.ADD .x10 .x10 .x5) ;;             -- [27] partial_carry = borrow + prod_hi
   LD .x2 .x6 0 ;;                             -- [28] u[j+0]
-  single (.SLTU .x5 .x2 .x7) ;;              -- [29] borrow_sub
+  single (.SLTU .x5 .x2 .x7) ;;              -- [29] borrowSub
   single (.SUB .x2 .x2 .x7) ;;               -- [30] u_new
   single (.ADD .x10 .x10 .x5) ;;             -- [31] carry_out
   SD .x6 .x2 0 ;;                             -- [32] store u[j+0]
