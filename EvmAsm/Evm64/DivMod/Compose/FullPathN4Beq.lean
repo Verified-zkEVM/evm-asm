@@ -20,25 +20,14 @@ open EvmAsm.Rv64.AddrNorm (se12_32 se12_40 se12_48 se12_56)
 -- Loop body n=4 _da (BEQ): sp-relative precondition
 -- ============================================================================
 
-/-- Loop body n=4, max+addback (BEQ double-addback), j=0 with sp-relative addresses. -/
+/-- Loop body n=4, max+addback (BEQ double-addback), j=0 with sp-relative addresses.
+
+    The 15 `hv_*` validity hypotheses that used to precede `hbltu` were never
+    consumed by the proof — they were only threaded through via no-op
+    \`rw [← …] at hv_*\` rewrites — so they are dropped entirely. -/
 theorem divK_loop_body_n4_max_addback_j0_beq_norm (sp base : Word)
     (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
     (v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
-    (hv_j : isValidDwordAccess (sp + signExtend12 3976) = true)
-    (hv_n1 : isValidDwordAccess (sp + signExtend12 3984) = true)
-    (hv_uhi : isValidDwordAccess (sp + signExtend12 4056 - (0 + (4 : Word)) <<< (3 : BitVec 6).toNat) = true)
-    (hv_ulo : isValidDwordAccess ((sp + signExtend12 4056 - (0 + (4 : Word)) <<< (3 : BitVec 6).toNat) + 8) = true)
-    (hv_vtop : isValidDwordAccess (sp + ((4 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat + signExtend12 32) = true)
-    (hv_v0 : isValidDwordAccess (sp + 32) = true)
-    (hv_u0 : isValidDwordAccess (sp + signExtend12 4056) = true)
-    (hv_v1 : isValidDwordAccess (sp + 40) = true)
-    (hv_u1 : isValidDwordAccess (sp + signExtend12 4048) = true)
-    (hv_v2 : isValidDwordAccess (sp + 48) = true)
-    (hv_u2 : isValidDwordAccess (sp + signExtend12 4040) = true)
-    (hv_v3 : isValidDwordAccess (sp + 56) = true)
-    (hv_u3 : isValidDwordAccess (sp + signExtend12 4032) = true)
-    (hv_u4 : isValidDwordAccess (sp + signExtend12 4024) = true)
-    (hv_q : isValidDwordAccess (sp + signExtend12 4088) = true)
     (hbltu : ¬BitVec.ult uTop v3)
     (hcarry2_nz : isAddbackCarry2NzN4Max v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
     let qHat : Word := signExtend12 4095
@@ -58,11 +47,6 @@ theorem divK_loop_body_n4_max_addback_j0_beq_norm (sp base : Word)
        ((sp + signExtend12 4088) ↦ₘ qOld))
       (loopBodyN4AddbackBeqPost sp (0 : Word) qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop) := by
   intro qHat hborrow
-  rw [← se12_32] at hv_v0; rw [← se12_40] at hv_v1
-  rw [← se12_48] at hv_v2; rw [← se12_56] at hv_v3
-  rw [← u_base_off0_j0] at hv_u0; rw [← u_base_off4088_j0] at hv_u1
-  rw [← u_base_off4080_j0] at hv_u2; rw [← u_base_off4072_j0] at hv_u3
-  rw [← u_base_off4064_j0] at hv_u4; rw [← q_addr_j0] at hv_q
   have raw := divK_loop_body_n4_max_addback_j0_beq_divCode sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
     v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base hbltu hcarry2_nz hborrow
   simp only [se12_32, se12_40, se12_48, se12_56,
@@ -70,31 +54,16 @@ theorem divK_loop_body_n4_max_addback_j0_beq_norm (sp base : Word)
              u_base_off4072_j0, u_base_off4064_j0, q_addr_j0] at raw
   exact raw
 
-/-- Loop body n=4, call+addback (BEQ double-addback), j=0 with sp-relative addresses. -/
+/-- Loop body n=4, call+addback (BEQ double-addback), j=0 with sp-relative addresses.
+
+    The 19 `hv_*` validity hypotheses that surrounded `halign` were never
+    consumed by the proof — they were only threaded through via no-op
+    \`rw [← …] at hv_*\` rewrites — so they are dropped entirely. -/
 theorem divK_loop_body_n4_call_addback_j0_beq_norm (sp base : Word)
     (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
     (v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
     (retMem dMem dloMem scratch_un0 : Word)
-    (hv_j : isValidDwordAccess (sp + signExtend12 3976) = true)
-    (hv_n1 : isValidDwordAccess (sp + signExtend12 3984) = true)
-    (hv_uhi : isValidDwordAccess (sp + signExtend12 4056 - (0 + (4 : Word)) <<< (3 : BitVec 6).toNat) = true)
-    (hv_ulo : isValidDwordAccess ((sp + signExtend12 4056 - (0 + (4 : Word)) <<< (3 : BitVec 6).toNat) + 8) = true)
-    (hv_vtop : isValidDwordAccess (sp + ((4 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat + signExtend12 32) = true)
-    (hv_ret : isValidDwordAccess (sp + signExtend12 3968) = true)
-    (hv_d   : isValidDwordAccess (sp + signExtend12 3960) = true)
-    (hv_dlo : isValidDwordAccess (sp + signExtend12 3952) = true)
-    (hv_scratch_un0 : isValidDwordAccess (sp + signExtend12 3944) = true)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
-    (hv_v0 : isValidDwordAccess (sp + 32) = true)
-    (hv_u0 : isValidDwordAccess (sp + signExtend12 4056) = true)
-    (hv_v1 : isValidDwordAccess (sp + 40) = true)
-    (hv_u1 : isValidDwordAccess (sp + signExtend12 4048) = true)
-    (hv_v2 : isValidDwordAccess (sp + 48) = true)
-    (hv_u2 : isValidDwordAccess (sp + signExtend12 4040) = true)
-    (hv_v3 : isValidDwordAccess (sp + 56) = true)
-    (hv_u3 : isValidDwordAccess (sp + signExtend12 4032) = true)
-    (hv_u4 : isValidDwordAccess (sp + signExtend12 4024) = true)
-    (hv_q : isValidDwordAccess (sp + signExtend12 4088) = true)
     (hbltu : BitVec.ult uTop v3)
     (hcarry2_nz : isAddbackCarry2NzN4Call v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
     let qHat := div128Quot uTop u3 v3
@@ -124,11 +93,6 @@ theorem divK_loop_body_n4_call_addback_j0_beq_norm (sp base : Word)
        (sp + signExtend12 3952 ↦ₘ dLo) **
        (sp + signExtend12 3944 ↦ₘ div_un0)) := by
   intro qHat dLo div_un0 hborrow
-  rw [← se12_32] at hv_v0; rw [← se12_40] at hv_v1
-  rw [← se12_48] at hv_v2; rw [← se12_56] at hv_v3
-  rw [← u_base_off0_j0] at hv_u0; rw [← u_base_off4088_j0] at hv_u1
-  rw [← u_base_off4080_j0] at hv_u2; rw [← u_base_off4072_j0] at hv_u3
-  rw [← u_base_off4064_j0] at hv_u4; rw [← q_addr_j0] at hv_q
   have raw := divK_loop_body_n4_call_addback_j0_beq_divCode sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
     v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0 base halign hbltu hcarry2_nz
   have raw' := raw hborrow
@@ -280,8 +244,6 @@ theorem evm_div_n4_preloop_max_addback_beq_spec (sp base : Word)
   have hLoop := divK_loop_body_n4_max_addback_j0_beq_norm sp base
     jMem (4 : Word) shift u0 (a0 >>> (antiShift.toNat % 64)) v11Old antiShift
     b0' b1' b2' b3' u0 u1 u2 u3 u4 (0 : Word)
-    hv_j hv_n hv_uhi hv_ulo hv_vtop
-    hv_v0 hv_u0 hv_v1 hv_u1 hv_v2 hv_u2 hv_v3 hv_u3 hv_u4 hv_q0
     hbltu hcarry2_nz
   intro_lets at hLoop
   have hLoop' := hLoop hborrow
@@ -442,9 +404,7 @@ theorem evm_div_n4_preloop_call_addback_beq_spec (sp base : Word)
     jMem (4 : Word) shift u0 (a0 >>> (antiShift.toNat % 64)) v11Old antiShift
     b0' b1' b2' b3' u0 u1 u2 u3 u4 (0 : Word)
     retMem dMem dloMem scratch_un0
-    hv_j hv_n hv_uhi hv_ulo hv_vtop hv_ret hv_d hv_dlo hv_scratch_un0 halign
-    hv_v0 hv_u0 hv_v1 hv_u1 hv_v2 hv_u2 hv_v3 hv_u3 hv_u4 hv_q0
-    hbltu hcarry2_nz
+    halign hbltu hcarry2_nz
   intro_lets at hLoop
   have hLoop' := hLoop hborrow
   have hLoopF := cpsTriple_frameR
