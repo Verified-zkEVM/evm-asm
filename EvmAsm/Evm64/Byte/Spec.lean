@@ -840,7 +840,7 @@ theorem evm_byte_body_evmWord_spec (sp base : Word)
       (fun h hq => by xperm_hyp hq)
       hphaseAB
   -- Final: Phase AB → Phase CD
-  exact cpsTriple_seq_with_perm_same_cr base (base + 56) (base + 180) _ _ _ _ _
+  exact cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hphaseAB' hphaseCD
 
 -- ============================================================================
