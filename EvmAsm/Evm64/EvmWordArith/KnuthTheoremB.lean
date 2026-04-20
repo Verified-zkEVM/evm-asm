@@ -14,6 +14,8 @@
   Currently contains:
   - `val256_div_scale_invariant` (Step 0).
   - `rv64_divu_toNat` (Step 1a — RV64 divu → Nat div bridge).
+  - `val256_ge_pow255_of_normalized` — normalized divisor ≥ 2^255.
+  - `val256_split_hi2` — split val256 into (hi2-limb * 2^128 + lo2-limb) form.
 -/
 
 import EvmAsm.Evm64.EvmWordArith.DivN4Overestimate
@@ -48,5 +50,28 @@ theorem rv64_divu_toNat (a b : Word) (hb : b ≠ 0) :
     simp at hbeq
     exact hbeq
   · rw [BitVec.toNat_udiv]
+
+/-- Under the normalization precondition `b3.toNat ≥ 2^63`, the 4-limb
+    divisor is at least `2^255` (i.e. the top bit of the 256-bit value
+    is set). Used by Knuth B to bound `v_nat` from below.
+
+    Proof: `val256 ≥ b3.toNat * 2^192 ≥ 2^63 * 2^192 = 2^255`. -/
+theorem val256_ge_pow255_of_normalized
+    (b0 b1 b2 b3 : Word) (hb3 : b3.toNat ≥ 2^63) :
+    val256 b0 b1 b2 b3 ≥ 2^255 := by
+  unfold val256
+  have h : b3.toNat * 2^192 ≥ 2^63 * 2^192 := Nat.mul_le_mul_right _ hb3
+  have hpow : (2:Nat)^63 * 2^192 = 2^255 := by norm_num
+  nlinarith
+
+/-- Split a 4-limb value into its high-2-limb half and low-2-limb half:
+    `val256 a0 a1 a2 a3 = (a3*B + a2) * B^2 + (a1*B + a0)` where `B = 2^64`.
+    Used by Knuth B to express the "trial quotient" in terms of
+    `u_top * 2^64 + u3` (the high pair) and `u2 * 2^64 + u1` (the low pair). -/
+theorem val256_split_hi2 (a0 a1 a2 a3 : Word) :
+    val256 a0 a1 a2 a3 =
+      (a3.toNat * 2^64 + a2.toNat) * 2^128 +
+      (a1.toNat * 2^64 + a0.toNat) := by
+  unfold val256; ring
 
 end EvmAsm.Evm64
