@@ -2,7 +2,7 @@
   EvmAsm.Evm64.DivMod.LimbSpec.LoopSetup
 
   CPS specs for the Knuth Algorithm D main-loop setup:
-    * `divK_loopSetup_code` — `CodeReq.ofProg base (divK_loopSetup blt_off)`.
+    * `divK_loopSetup_code` — `CodeReq.ofProg base (divK_loopSetup bltOff)`.
     * `divK_loopSetup_body_spec` — 3-instruction body (LD n, ADDI x1 = 4,
       SUB x1 = 4 - n).
     * `divK_loopSetup_spec` — full `cpsBranch` wrapping body + BLT that
@@ -26,14 +26,14 @@ namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
 
-abbrev divK_loopSetup_code (blt_off : BitVec 13) (base : Word) : CodeReq :=
-  CodeReq.ofProg base (divK_loopSetup blt_off)
+abbrev divK_loopSetup_code (bltOff : BitVec 13) (base : Word) : CodeReq :=
+  CodeReq.ofProg base (divK_loopSetup bltOff)
 
 /-- Loop setup body: load n, compute m = 4 - n. 3 straight-line instructions.
     Uses signExtend12 4 directly to match addi_x0_spec_gen + sub_spec_gen output. -/
 theorem divK_loopSetup_body_spec (sp n v1 v5 : Word)
-    (blt_off : BitVec 13) (base : Word) :
-    let cr := divK_loopSetup_code blt_off base
+    (bltOff : BitVec 13) (base : Word) :
+    let cr := divK_loopSetup_code bltOff base
     cpsTriple base (base + 12) cr
       (
        (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x1 ↦ᵣ v1) ** (.x0 ↦ᵣ (0 : Word)) **
@@ -53,9 +53,9 @@ theorem divK_loopSetup_body_spec (sp n v1 v5 : Word)
     Taken: m < 0 (n > 4, impossible in practice but handled).
     Not taken: m >= 0, proceed to loop. -/
 theorem divK_loopSetup_spec (sp n v1 v5 : Word)
-    (blt_off : BitVec 13) (base : Word) :
+    (bltOff : BitVec 13) (base : Word) :
     let m := signExtend12 (4 : BitVec 12) - n
-    let cr := divK_loopSetup_code blt_off base
+    let cr := divK_loopSetup_code bltOff base
     let post :=
       (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ n) ** (.x1 ↦ᵣ m) ** (.x0 ↦ᵣ (0 : Word)) **
       ((sp + signExtend12 3984) ↦ₘ n)
@@ -64,17 +64,17 @@ theorem divK_loopSetup_spec (sp n v1 v5 : Word)
        (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x1 ↦ᵣ v1) ** (.x0 ↦ᵣ (0 : Word)) **
        ((sp + signExtend12 3984) ↦ₘ n))
       -- Taken: m < 0 (signed)
-      ((base + 12) + signExtend13 blt_off) post
+      ((base + 12) + signExtend13 bltOff) post
       -- Not taken: m >= 0
       (base + 16) post := by
   intro m cr post
-  have hbody := divK_loopSetup_body_spec sp n v1 v5 blt_off base
-  have hblt_raw := blt_spec_gen .x1 .x0 blt_off m (0 : Word) (base + 12)
+  have hbody := divK_loopSetup_body_spec sp n v1 v5 bltOff base
+  have hblt_raw := blt_spec_gen .x1 .x0 bltOff m (0 : Word) (base + 12)
   have ha1 : (base + 12 : Word) + 4 = base + 16 := by bv_addr
   rw [ha1] at hblt_raw
   have hblt : cpsBranch (base + 12) _
       ((.x1 ↦ᵣ m) ** (.x0 ↦ᵣ (0 : Word)))
-      ((base + 12) + signExtend13 blt_off)
+      ((base + 12) + signExtend13 bltOff)
         ((.x1 ↦ᵣ m) ** (.x0 ↦ᵣ (0 : Word)))
       (base + 16)
         ((.x1 ↦ᵣ m) ** (.x0 ↦ᵣ (0 : Word))) :=
@@ -95,10 +95,10 @@ theorem divK_loopSetup_spec (sp n v1 v5 : Word)
     · next heq =>
       rw [beq_iff_eq] at heq; subst heq
       simp only [Option.some.injEq] at h; subst h
-      show divK_loopSetup_code blt_off base (base + 12) = _
-      have hlen : (divK_loopSetup blt_off).length = 4 := by
+      show divK_loopSetup_code bltOff base (base + 12) = _
+      have hlen : (divK_loopSetup bltOff).length = 4 := by
         unfold divK_loopSetup LD ADDI single seq; rfl
-      exact CodeReq.ofProg_lookup base (divK_loopSetup blt_off) 3
+      exact CodeReq.ofProg_lookup base (divK_loopSetup bltOff) 3
         (by omega) (by omega)
     · simp at h) hblt_framed
   have composed := cpsTriple_seq_cpsBranch_perm_same_cr

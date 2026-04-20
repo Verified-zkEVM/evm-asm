@@ -410,11 +410,11 @@ def step (s : MachineState) : Option MachineState :=
     else if t0 == (0xF1 : Word) then  -- HINT_READ syscall
       let addr := s.getReg .x10
       let nbytes := s.getReg .x11
-      let nbytes_val := nbytes.toNat
+      let nbytesVal := nbytes.toNat
       -- SP1: pops nbytes bytes, groups into 8-byte LE dwords, writes to dword-aligned memory
-      if nbytes_val ≤ s.privateInput.length then
-        let bytes := s.privateInput.take nbytes_val
-        let s' := { s with privateInput := s.privateInput.drop nbytes_val }
+      if nbytesVal ≤ s.privateInput.length then
+        let bytes := s.privateInput.take nbytesVal
+        let s' := { s with privateInput := s.privateInput.drop nbytesVal }
         some ((s'.writeBytesAsWords addr bytes).setPC (s.pc + 4))
       else
         none  -- trap: not enough input (SP1: panic)
@@ -665,9 +665,9 @@ theorem step_ecall_hint_read (s : MachineState)
     (ht0 : s.getReg .x5 = BitVec.ofNat 64 0xF1)
     (hsuff : (s.getReg .x11).toNat ≤ s.privateInput.length) :
     step s =
-      let nbytes_val := (s.getReg .x11).toNat
-      let bytes := s.privateInput.take nbytes_val
-      let s' := { s with privateInput := s.privateInput.drop nbytes_val }
+      let nbytesVal := (s.getReg .x11).toNat
+      let bytes := s.privateInput.take nbytesVal
+      let s' := { s with privateInput := s.privateInput.drop nbytesVal }
       some ((s'.writeBytesAsWords (s.getReg .x10) bytes).setPC (s.pc + 4)) := by
   simp [step, hfetch, ht0, hsuff]
 

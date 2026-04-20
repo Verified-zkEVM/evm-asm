@@ -116,7 +116,7 @@ theorem evm_lt_stack_spec (sp base : Word)
       simp only [EvmWord.getLimbN_ite, EvmWord.getLimbN_zero,
                  EvmWord.getLimbN_one_zero, EvmWord.getLimbN_one_one,
                  EvmWord.getLimbN_one_two, EvmWord.getLimbN_one_three,
-                 ite_true, ite_false, ite_self,
+                 ite_self,
                  ← EvmWord.lt_borrow_chain_correct a b]
       simp only [EvmWord.getLimb_as_getLimbN_0, EvmWord.getLimb_as_getLimbN_1,
                  EvmWord.getLimb_as_getLimbN_2, EvmWord.getLimb_as_getLimbN_3]

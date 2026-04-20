@@ -34,28 +34,28 @@ abbrev divK_phaseC2_code (shift0_off : BitVec 13) (base : Word) : CodeReq :=
     Preserves x6 and x0 for the subsequent BEQ.
     The postcondition uses `signExtend12 (0 : BitVec 12) - shift` (= 0 - shift)
     to match the syntactic form produced by addi_x0_spec_gen + sub_spec_gen. -/
-theorem divK_phaseC2_body_spec (sp shift v2 shift_mem : Word)
+theorem divK_phaseC2_body_spec (sp shift v2 shiftMem : Word)
     (shift0_off : BitVec 13) (base : Word) :
     let cr := divK_phaseC2_code shift0_off base
     cpsTriple base (base + 12) cr
       (
        (.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ v2) ** (.x0 ↦ᵣ (0 : Word)) **
-       ((sp + signExtend12 3992) ↦ₘ shift_mem))
+       ((sp + signExtend12 3992) ↦ₘ shiftMem))
       (
        (.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ (signExtend12 (0 : BitVec 12) - shift)) ** (.x0 ↦ᵣ (0 : Word)) **
        ((sp + signExtend12 3992) ↦ₘ shift)) := by
   intro cr
-  have I0 := sd_spec_gen .x12 .x6 sp shift shift_mem 3992 base
+  have I0 := sd_spec_gen .x12 .x6 sp shift shiftMem 3992 base
   have I1 := addi_x0_spec_gen .x2 v2 0 (base + 4) (by nofun)
   have I2 := sub_spec_gen_rd_eq_rs1 .x2 .x6
     (signExtend12 (0 : BitVec 12)) shift (base + 8) (by nofun)
   runBlock I0 I1 I2
 
-/-- Phase C2: store shift, compute anti_shift, BEQ if shift=0.
+/-- Phase C2: store shift, compute antiShift, BEQ if shift=0.
     Taken: shift = 0, skip normalization.
     Not taken: shift ≠ 0, proceed to normalize.
-    anti_shift = signExtend12 0 - shift (= 0 - shift = negation of shift amount). -/
-theorem divK_phaseC2_spec (sp shift v2 shift_mem : Word)
+    antiShift = signExtend12 0 - shift (= 0 - shift = negation of shift amount). -/
+theorem divK_phaseC2_spec (sp shift v2 shiftMem : Word)
     (shift0_off : BitVec 13) (base : Word) :
     let cr := divK_phaseC2_code shift0_off base
     let post :=
@@ -65,13 +65,13 @@ theorem divK_phaseC2_spec (sp shift v2 shift_mem : Word)
     cpsBranch base cr
       (
        (.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ v2) ** (.x0 ↦ᵣ (0 : Word)) **
-       ((sp + signExtend12 3992) ↦ₘ shift_mem))
+       ((sp + signExtend12 3992) ↦ₘ shiftMem))
       -- Taken: shift = 0
       ((base + 12) + signExtend13 shift0_off) post
       -- Not taken: shift ≠ 0
       (base + 16) post := by
   intro cr post
-  have hbody := divK_phaseC2_body_spec sp shift v2 shift_mem shift0_off base
+  have hbody := divK_phaseC2_body_spec sp shift v2 shiftMem shift0_off base
   have hbeq_raw := beq_spec_gen .x6 .x0 shift0_off shift (0 : Word) (base + 12)
   have ha1 : (base + 12 : Word) + 4 = base + 16 := by bv_addr
   rw [ha1] at hbeq_raw

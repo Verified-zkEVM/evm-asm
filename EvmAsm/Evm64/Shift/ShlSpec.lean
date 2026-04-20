@@ -34,31 +34,31 @@ abbrev shl_merge_limb_code (base : Word) (src_off prev_off dst_off : BitVec 12) 
     LD x5, src_off(x12); SLL x5,x5,x6; LD x10, prev_off(x12);
     SRL x10,x10,x7; AND x10,x10,x11; OR x5,x5,x10; SD x12,x5,dst_off
 
-    Computes: result = (src <<< bit_shift) ||| ((prev >>> anti_shift) &&& mask)
+    Computes: result = (src <<< bit_shift) ||| ((prev >>> antiShift) &&& mask)
     Mirror of shr_merge_limb_spec with SLL/SRL swapped. -/
 theorem shl_merge_limb_spec (src_off prev_off dst_off : BitVec 12)
-    (sp src prev dst_old v5 v10 bit_shift anti_shift mask : Word) (base : Word) :
+    (sp src prev dst_old v5 v10 bit_shift antiShift mask : Word) (base : Word) :
     let memSrc := sp + signExtend12 src_off
     let memPrev := sp + signExtend12 prev_off
     let memDst := sp + signExtend12 dst_off
     let shiftedSrc := src <<< (bit_shift.toNat % 64)
-    let shiftedPrev := (prev >>> (anti_shift.toNat % 64)) &&& mask
+    let shiftedPrev := (prev >>> (antiShift.toNat % 64)) &&& mask
     let result := shiftedSrc ||| shiftedPrev
     let cr := shl_merge_limb_code base src_off prev_off dst_off
     cpsTriple base (base + 28) cr
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ bit_shift) **
-       (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ mask) **
+       (.x7 ↦ᵣ antiShift) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ mask) **
        (memSrc ↦ₘ src) ** (memPrev ↦ₘ prev) ** (memDst ↦ₘ dst_old))
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result) ** (.x6 ↦ᵣ bit_shift) **
-       (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ shiftedPrev) ** (.x11 ↦ᵣ mask) **
+       (.x7 ↦ᵣ antiShift) ** (.x10 ↦ᵣ shiftedPrev) ** (.x11 ↦ᵣ mask) **
        (memSrc ↦ₘ src) ** (memPrev ↦ₘ prev) ** (memDst ↦ₘ result)) := by
   have L1 := ld_spec_gen .x5 .x12 sp v5 src src_off base (by nofun)
   have SL := sll_spec_gen_rd_eq_rs1 .x5 .x6 src bit_shift (base + 4) (by nofun)
   have L2 := ld_spec_gen .x10 .x12 sp v10 prev prev_off (base + 8) (by nofun)
-  have SR := srl_spec_gen_rd_eq_rs1 .x10 .x7 prev anti_shift (base + 12) (by nofun)
-  have AN := and_spec_gen_rd_eq_rs1 .x10 .x11 (prev >>> (anti_shift.toNat % 64)) mask (base + 16) (by nofun)
-  have OR_ := or_spec_gen_rd_eq_rs1 .x5 .x10 (src <<< (bit_shift.toNat % 64)) ((prev >>> (anti_shift.toNat % 64)) &&& mask) (base + 20) (by nofun)
-  have SD_ := sd_spec_gen .x12 .x5 sp ((src <<< (bit_shift.toNat % 64)) ||| ((prev >>> (anti_shift.toNat % 64)) &&& mask)) dst_old dst_off (base + 24)
+  have SR := srl_spec_gen_rd_eq_rs1 .x10 .x7 prev antiShift (base + 12) (by nofun)
+  have AN := and_spec_gen_rd_eq_rs1 .x10 .x11 (prev >>> (antiShift.toNat % 64)) mask (base + 16) (by nofun)
+  have OR_ := or_spec_gen_rd_eq_rs1 .x5 .x10 (src <<< (bit_shift.toNat % 64)) ((prev >>> (antiShift.toNat % 64)) &&& mask) (base + 20) (by nofun)
+  have SD_ := sd_spec_gen .x12 .x5 sp ((src <<< (bit_shift.toNat % 64)) ||| ((prev >>> (antiShift.toNat % 64)) &&& mask)) dst_old dst_off (base + 24)
   runBlock L1 SL L2 SR AN OR_ SD_
 
 -- ============================================================================
@@ -107,27 +107,27 @@ abbrev shl_merge_limb_inplace_code (base : Word) (off prev_off : BitVec 12) : Co
 /-- SHL merge limb in-place spec (7 instructions):
     Same as shl_merge_limb_spec but src_off = dst_off. -/
 theorem shl_merge_limb_inplace_spec (off prev_off : BitVec 12)
-    (sp src prev v5 v10 bit_shift anti_shift mask : Word) (base : Word) :
+    (sp src prev v5 v10 bit_shift antiShift mask : Word) (base : Word) :
     let memLoc := sp + signExtend12 off
     let memPrev := sp + signExtend12 prev_off
     let shiftedSrc := src <<< (bit_shift.toNat % 64)
-    let shiftedPrev := (prev >>> (anti_shift.toNat % 64)) &&& mask
+    let shiftedPrev := (prev >>> (antiShift.toNat % 64)) &&& mask
     let result := shiftedSrc ||| shiftedPrev
     let cr := shl_merge_limb_inplace_code base off prev_off
     cpsTriple base (base + 28) cr
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ bit_shift) **
-       (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ mask) **
+       (.x7 ↦ᵣ antiShift) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ mask) **
        (memLoc ↦ₘ src) ** (memPrev ↦ₘ prev))
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result) ** (.x6 ↦ᵣ bit_shift) **
-       (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ shiftedPrev) ** (.x11 ↦ᵣ mask) **
+       (.x7 ↦ᵣ antiShift) ** (.x10 ↦ᵣ shiftedPrev) ** (.x11 ↦ᵣ mask) **
        (memLoc ↦ₘ result) ** (memPrev ↦ₘ prev)) := by
   have L1 := ld_spec_gen .x5 .x12 sp v5 src off base (by nofun)
   have SL := sll_spec_gen_rd_eq_rs1 .x5 .x6 src bit_shift (base + 4) (by nofun)
   have L2 := ld_spec_gen .x10 .x12 sp v10 prev prev_off (base + 8) (by nofun)
-  have SR := srl_spec_gen_rd_eq_rs1 .x10 .x7 prev anti_shift (base + 12) (by nofun)
-  have AN := and_spec_gen_rd_eq_rs1 .x10 .x11 (prev >>> (anti_shift.toNat % 64)) mask (base + 16) (by nofun)
-  have OR_ := or_spec_gen_rd_eq_rs1 .x5 .x10 (src <<< (bit_shift.toNat % 64)) ((prev >>> (anti_shift.toNat % 64)) &&& mask) (base + 20) (by nofun)
-  have SD_ := sd_spec_gen .x12 .x5 sp ((src <<< (bit_shift.toNat % 64)) ||| ((prev >>> (anti_shift.toNat % 64)) &&& mask)) src off (base + 24)
+  have SR := srl_spec_gen_rd_eq_rs1 .x10 .x7 prev antiShift (base + 12) (by nofun)
+  have AN := and_spec_gen_rd_eq_rs1 .x10 .x11 (prev >>> (antiShift.toNat % 64)) mask (base + 16) (by nofun)
+  have OR_ := or_spec_gen_rd_eq_rs1 .x5 .x10 (src <<< (bit_shift.toNat % 64)) ((prev >>> (antiShift.toNat % 64)) &&& mask) (base + 20) (by nofun)
+  have SD_ := sd_spec_gen .x12 .x5 sp ((src <<< (bit_shift.toNat % 64)) ||| ((prev >>> (antiShift.toNat % 64)) &&& mask)) src off (base + 24)
   runBlock L1 SL L2 SR AN OR_ SD_
 
 -- ============================================================================
@@ -167,7 +167,7 @@ abbrev shl_body_3_code (base : Word) (jal_off : BitVec 21) : CodeReq :=
     Comprises: shl_first_limb(24), 3x SD, JAL.
     7 instructions from base to exit (via JAL). -/
 theorem shl_body_3_spec (sp : Word)
-    (v5 v10 bit_shift anti_shift mask : Word)
+    (v5 v10 bit_shift antiShift mask : Word)
     (v0 v1 v2 v3 : Word)
     (base exit : Word) (jal_off : BitVec 21)
     (hexit : (base + 24) + signExtend21 jal_off = exit) :
@@ -175,10 +175,10 @@ theorem shl_body_3_spec (sp : Word)
     let cr := shl_body_3_code base jal_off
     cpsTriple base exit cr
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ bit_shift) **
-       (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ mask) **
+       (.x7 ↦ᵣ antiShift) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ mask) **
        (sp ↦ₘ v0) ** ((sp + 8) ↦ₘ v1) ** ((sp + 16) ↦ₘ v2) ** ((sp + 24) ↦ₘ v3))
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result3) ** (.x6 ↦ᵣ bit_shift) **
-       (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ mask) **
+       (.x7 ↦ᵣ antiShift) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ mask) **
        (sp ↦ₘ 0) ** ((sp + 8) ↦ₘ 0) ** ((sp + 16) ↦ₘ 0) ** ((sp + 24) ↦ₘ result3)) := by
   have FL := shl_first_limb_spec 24 sp v0 v3 v5 bit_shift base
   have S0 := sd_x0_spec_gen .x12 sp v2 16 (base + 12)
@@ -197,23 +197,23 @@ abbrev shl_body_2_code (base : Word) (jal_off : BitVec 21) : CodeReq :=
     Comprises: shl_merge_limb(8,0,24), shl_first_limb(16), 2x SD, JAL.
     13 instructions from base to exit (via JAL). -/
 theorem shl_body_2_spec (sp : Word)
-    (v5 v10 bit_shift anti_shift mask : Word)
+    (v5 v10 bit_shift antiShift mask : Word)
     (v0 v1 v2 v3 : Word)
     (base exit : Word) (jal_off : BitVec 21)
     (hexit : (base + 48) + signExtend21 jal_off = exit) :
-    let result3 := (v1 <<< (bit_shift.toNat % 64)) ||| ((v0 >>> (anti_shift.toNat % 64)) &&& mask)
+    let result3 := (v1 <<< (bit_shift.toNat % 64)) ||| ((v0 >>> (antiShift.toNat % 64)) &&& mask)
     let result2 := v0 <<< (bit_shift.toNat % 64)
     let cr := shl_body_2_code base jal_off
     cpsTriple base exit cr
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ bit_shift) **
-       (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ mask) **
+       (.x7 ↦ᵣ antiShift) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ mask) **
        (sp ↦ₘ v0) ** ((sp + 8) ↦ₘ v1) ** ((sp + 16) ↦ₘ v2) ** ((sp + 24) ↦ₘ v3))
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result2) ** (.x6 ↦ᵣ bit_shift) **
-       (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ ((v0 >>> (anti_shift.toNat % 64)) &&& mask)) ** (.x11 ↦ᵣ mask) **
+       (.x7 ↦ᵣ antiShift) ** (.x10 ↦ᵣ ((v0 >>> (antiShift.toNat % 64)) &&& mask)) ** (.x11 ↦ᵣ mask) **
        (sp ↦ₘ 0) ** ((sp + 8) ↦ₘ 0) ** ((sp + 16) ↦ₘ result2) ** ((sp + 24) ↦ₘ result3)) := by
-  have MM := shl_merge_limb_spec 8 0 24 sp v1 v0 v3 v5 v10 bit_shift anti_shift mask base
+  have MM := shl_merge_limb_spec 8 0 24 sp v1 v0 v3 v5 v10 bit_shift antiShift mask base
   have FL := shl_first_limb_spec 16 sp v0 v2
-    ((v1 <<< (bit_shift.toNat % 64)) ||| ((v0 >>> (anti_shift.toNat % 64)) &&& mask))
+    ((v1 <<< (bit_shift.toNat % 64)) ||| ((v0 >>> (antiShift.toNat % 64)) &&& mask))
     bit_shift (base + 28)
   have S0 := sd_x0_spec_gen .x12 sp v1 8 (base + 40)
   have S1 := sd_x0_spec_gen .x12 sp v0 0 (base + 44)
@@ -232,28 +232,28 @@ abbrev shl_body_1_code (base : Word) (jal_off : BitVec 21) : CodeReq :=
     shl_first_limb(8), SD, JAL.
     19 instructions from base to exit (via JAL). -/
 theorem shl_body_1_spec (sp : Word)
-    (v5 v10 bit_shift anti_shift mask : Word)
+    (v5 v10 bit_shift antiShift mask : Word)
     (v0 v1 v2 v3 : Word)
     (base exit : Word) (jal_off : BitVec 21)
     (hexit : (base + 72) + signExtend21 jal_off = exit) :
-    let result3 := (v2 <<< (bit_shift.toNat % 64)) ||| ((v1 >>> (anti_shift.toNat % 64)) &&& mask)
-    let result2 := (v1 <<< (bit_shift.toNat % 64)) ||| ((v0 >>> (anti_shift.toNat % 64)) &&& mask)
+    let result3 := (v2 <<< (bit_shift.toNat % 64)) ||| ((v1 >>> (antiShift.toNat % 64)) &&& mask)
+    let result2 := (v1 <<< (bit_shift.toNat % 64)) ||| ((v0 >>> (antiShift.toNat % 64)) &&& mask)
     let result1 := v0 <<< (bit_shift.toNat % 64)
     let cr := shl_body_1_code base jal_off
     cpsTriple base exit cr
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ bit_shift) **
-       (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ mask) **
+       (.x7 ↦ᵣ antiShift) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ mask) **
        (sp ↦ₘ v0) ** ((sp + 8) ↦ₘ v1) ** ((sp + 16) ↦ₘ v2) ** ((sp + 24) ↦ₘ v3))
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result1) ** (.x6 ↦ᵣ bit_shift) **
-       (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ ((v0 >>> (anti_shift.toNat % 64)) &&& mask)) ** (.x11 ↦ᵣ mask) **
+       (.x7 ↦ᵣ antiShift) ** (.x10 ↦ᵣ ((v0 >>> (antiShift.toNat % 64)) &&& mask)) ** (.x11 ↦ᵣ mask) **
        (sp ↦ₘ 0) ** ((sp + 8) ↦ₘ result1) ** ((sp + 16) ↦ₘ result2) ** ((sp + 24) ↦ₘ result3)) := by
-  have MM1 := shl_merge_limb_spec 16 8 24 sp v2 v1 v3 v5 v10 bit_shift anti_shift mask base
+  have MM1 := shl_merge_limb_spec 16 8 24 sp v2 v1 v3 v5 v10 bit_shift antiShift mask base
   have MM2 := shl_merge_limb_spec 8 0 16 sp v1 v0 v2
-    ((v2 <<< (bit_shift.toNat % 64)) ||| ((v1 >>> (anti_shift.toNat % 64)) &&& mask))
-    ((v1 >>> (anti_shift.toNat % 64)) &&& mask)
-    bit_shift anti_shift mask (base + 28)
+    ((v2 <<< (bit_shift.toNat % 64)) ||| ((v1 >>> (antiShift.toNat % 64)) &&& mask))
+    ((v1 >>> (antiShift.toNat % 64)) &&& mask)
+    bit_shift antiShift mask (base + 28)
   have FL := shl_first_limb_spec 8 sp v0 v1
-    ((v1 <<< (bit_shift.toNat % 64)) ||| ((v0 >>> (anti_shift.toNat % 64)) &&& mask))
+    ((v1 <<< (bit_shift.toNat % 64)) ||| ((v0 >>> (antiShift.toNat % 64)) &&& mask))
     bit_shift (base + 56)
   have S0 := sd_x0_spec_gen .x12 sp v0 0 (base + 68)
   have JL := jal_x0_spec_gen jal_off (base + 72)
@@ -269,33 +269,33 @@ abbrev shl_body_0_code (base : Word) (jal_off : BitVec 21) : CodeReq :=
     Comprises: 3x shl_merge_limb_inplace + shl_first_limb_inplace + JAL.
     25 instructions from base to exit (via JAL). -/
 theorem shl_body_0_spec (sp : Word)
-    (v5 v10 bit_shift anti_shift mask : Word)
+    (v5 v10 bit_shift antiShift mask : Word)
     (v0 v1 v2 v3 : Word)
     (base exit : Word) (jal_off : BitVec 21)
     (hexit : (base + 96) + signExtend21 jal_off = exit) :
-    let result3 := (v3 <<< (bit_shift.toNat % 64)) ||| ((v2 >>> (anti_shift.toNat % 64)) &&& mask)
-    let result2 := (v2 <<< (bit_shift.toNat % 64)) ||| ((v1 >>> (anti_shift.toNat % 64)) &&& mask)
-    let result1 := (v1 <<< (bit_shift.toNat % 64)) ||| ((v0 >>> (anti_shift.toNat % 64)) &&& mask)
+    let result3 := (v3 <<< (bit_shift.toNat % 64)) ||| ((v2 >>> (antiShift.toNat % 64)) &&& mask)
+    let result2 := (v2 <<< (bit_shift.toNat % 64)) ||| ((v1 >>> (antiShift.toNat % 64)) &&& mask)
+    let result1 := (v1 <<< (bit_shift.toNat % 64)) ||| ((v0 >>> (antiShift.toNat % 64)) &&& mask)
     let result0 := v0 <<< (bit_shift.toNat % 64)
     let cr := shl_body_0_code base jal_off
     cpsTriple base exit cr
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ bit_shift) **
-       (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ mask) **
+       (.x7 ↦ᵣ antiShift) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ mask) **
        (sp ↦ₘ v0) ** ((sp + 8) ↦ₘ v1) ** ((sp + 16) ↦ₘ v2) ** ((sp + 24) ↦ₘ v3))
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result0) ** (.x6 ↦ᵣ bit_shift) **
-       (.x7 ↦ᵣ anti_shift) ** (.x10 ↦ᵣ ((v0 >>> (anti_shift.toNat % 64)) &&& mask)) ** (.x11 ↦ᵣ mask) **
+       (.x7 ↦ᵣ antiShift) ** (.x10 ↦ᵣ ((v0 >>> (antiShift.toNat % 64)) &&& mask)) ** (.x11 ↦ᵣ mask) **
        (sp ↦ₘ result0) ** ((sp + 8) ↦ₘ result1) ** ((sp + 16) ↦ₘ result2) ** ((sp + 24) ↦ₘ result3)) := by
-  have MM1 := shl_merge_limb_inplace_spec 24 16 sp v3 v2 v5 v10 bit_shift anti_shift mask base
+  have MM1 := shl_merge_limb_inplace_spec 24 16 sp v3 v2 v5 v10 bit_shift antiShift mask base
   have MM2 := shl_merge_limb_inplace_spec 16 8 sp v2 v1
-    ((v3 <<< (bit_shift.toNat % 64)) ||| ((v2 >>> (anti_shift.toNat % 64)) &&& mask))
-    ((v2 >>> (anti_shift.toNat % 64)) &&& mask)
-    bit_shift anti_shift mask (base + 28)
+    ((v3 <<< (bit_shift.toNat % 64)) ||| ((v2 >>> (antiShift.toNat % 64)) &&& mask))
+    ((v2 >>> (antiShift.toNat % 64)) &&& mask)
+    bit_shift antiShift mask (base + 28)
   have MM3 := shl_merge_limb_inplace_spec 8 0 sp v1 v0
-    ((v2 <<< (bit_shift.toNat % 64)) ||| ((v1 >>> (anti_shift.toNat % 64)) &&& mask))
-    ((v1 >>> (anti_shift.toNat % 64)) &&& mask)
-    bit_shift anti_shift mask (base + 56)
+    ((v2 <<< (bit_shift.toNat % 64)) ||| ((v1 >>> (antiShift.toNat % 64)) &&& mask))
+    ((v1 >>> (antiShift.toNat % 64)) &&& mask)
+    bit_shift antiShift mask (base + 56)
   have FL := shl_first_limb_inplace_spec sp v0
-    ((v1 <<< (bit_shift.toNat % 64)) ||| ((v0 >>> (anti_shift.toNat % 64)) &&& mask))
+    ((v1 <<< (bit_shift.toNat % 64)) ||| ((v0 >>> (antiShift.toNat % 64)) &&& mask))
     bit_shift (base + 84)
   have JL := jal_x0_spec_gen jal_off (base + 96)
   rw [hexit] at JL

@@ -29,7 +29,7 @@ abbrev divK_phaseB_tail_code (base : Word) : CodeReq :=
 
 /-- Phase B tail: store n to scratch, compute sp + (n-1)*8, load b[n-1].
     x5 = n on entry. On exit, x5 = leading limb b[n-1]. -/
-theorem divK_phaseB_tail_spec (sp n leading_limb n_mem : Word) (base : Word) :
+theorem divK_phaseB_tail_spec (sp n leading_limb nMem : Word) (base : Word) :
     let nm1 := n + signExtend12 4095
     let nm1X8 := nm1 <<< (3 : BitVec 6).toNat
     let addrLead := sp + nm1X8
@@ -37,7 +37,7 @@ theorem divK_phaseB_tail_spec (sp n leading_limb n_mem : Word) (base : Word) :
     cpsTriple base (base + 20) cr
       (
        (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ n) **
-       ((sp + signExtend12 3984) ↦ₘ n_mem) **
+       ((sp + signExtend12 3984) ↦ₘ nMem) **
        ((addrLead + signExtend12 32) ↦ₘ leading_limb))
       (
        (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ leading_limb) **

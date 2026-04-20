@@ -93,12 +93,12 @@ theorem rlp_phase2_long_acc_spec (len byte : Word) (base : Word) :
     CodeReq.Disjoint.singleton (by bv_omega) _ _
   -- Step 1: SLLI x11, x11, 8 — use `slli_spec_gen_same` (rd = rs1),
   -- then frame with x12 to bring it into scope.
-  have s1_base := slli_spec_gen_same .x11 len 8 base (by nofun)
+  have s1Base := slli_spec_gen_same .x11 len 8 base (by nofun)
   have s1 : cpsTriple base (base + 4)
       (CodeReq.singleton base (.SLLI .x11 .x11 8))
       ((.x11 ↦ᵣ len) ** (.x12 ↦ᵣ byte))
       ((.x11 ↦ᵣ (len <<< (8 : BitVec 6).toNat)) ** (.x12 ↦ᵣ byte)) :=
-    cpsTriple_frameR (.x12 ↦ᵣ byte) (by pcFree) s1_base
+    cpsTriple_frameR (.x12 ↦ᵣ byte) (by pcFree) s1Base
   -- Step 2: ADD x11, x11, x12 — `add_spec_gen_rd_eq_rs1` (rd = rs1 = x11,
   -- rs2 = x12). No framing needed.
   have s2 := add_spec_gen_rd_eq_rs1 .x11 .x12

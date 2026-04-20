@@ -31,29 +31,29 @@ namespace EvmAsm.Rv64.SailEquiv
 -- Doubleword loads/stores (LD/SD)
 -- ============================================================================
 
-theorem ld_sail_equiv (s_rv : MachineState) (s_sail : SailState)
-    (hrel : StateRel s_rv s_sail) (rd rs1 : Reg) (offset : BitVec 12)
-    (h_exec : ∃ s_sail',
-      execute_LOAD offset (regToRegidx rs1) (regToRegidx rd) false 8 s_sail =
-        .ok RETIRE_SUCCESS s_sail' ∧
-      StateRel (execInstrBr s_rv (.LD rd rs1 offset)) s_sail') :
-    ∃ s_sail',
-      runSail (execute_LOAD offset (regToRegidx rs1) (regToRegidx rd) false 8) s_sail
-        = some (RETIRE_SUCCESS, s_sail') ∧
-      StateRel (execInstrBr s_rv (.LD rd rs1 offset)) s_sail' := by
+theorem ld_sail_equiv (sRv : MachineState) (sSail : SailState)
+    (hrel : StateRel sRv sSail) (rd rs1 : Reg) (offset : BitVec 12)
+    (h_exec : ∃ sSail',
+      execute_LOAD offset (regToRegidx rs1) (regToRegidx rd) false 8 sSail =
+        .ok RETIRE_SUCCESS sSail' ∧
+      StateRel (execInstrBr sRv (.LD rd rs1 offset)) sSail') :
+    ∃ sSail',
+      runSail (execute_LOAD offset (regToRegidx rs1) (regToRegidx rd) false 8) sSail
+        = some (RETIRE_SUCCESS, sSail') ∧
+      StateRel (execInstrBr sRv (.LD rd rs1 offset)) sSail' := by
   obtain ⟨s', h_ok, hrel'⟩ := h_exec
   exact ⟨s', by simp [runSail, h_ok], hrel'⟩
 
-theorem sd_sail_equiv (s_rv : MachineState) (s_sail : SailState)
-    (hrel : StateRel s_rv s_sail) (rs1 rs2 : Reg) (offset : BitVec 12)
-    (h_exec : ∃ s_sail',
-      execute_STORE offset (regToRegidx rs2) (regToRegidx rs1) 8 s_sail =
-        .ok RETIRE_SUCCESS s_sail' ∧
-      StateRel (execInstrBr s_rv (.SD rs1 rs2 offset)) s_sail') :
-    ∃ s_sail',
-      runSail (execute_STORE offset (regToRegidx rs2) (regToRegidx rs1) 8) s_sail
-        = some (RETIRE_SUCCESS, s_sail') ∧
-      StateRel (execInstrBr s_rv (.SD rs1 rs2 offset)) s_sail' := by
+theorem sd_sail_equiv (sRv : MachineState) (sSail : SailState)
+    (hrel : StateRel sRv sSail) (rs1 rs2 : Reg) (offset : BitVec 12)
+    (h_exec : ∃ sSail',
+      execute_STORE offset (regToRegidx rs2) (regToRegidx rs1) 8 sSail =
+        .ok RETIRE_SUCCESS sSail' ∧
+      StateRel (execInstrBr sRv (.SD rs1 rs2 offset)) sSail') :
+    ∃ sSail',
+      runSail (execute_STORE offset (regToRegidx rs2) (regToRegidx rs1) 8) sSail
+        = some (RETIRE_SUCCESS, sSail') ∧
+      StateRel (execInstrBr sRv (.SD rs1 rs2 offset)) sSail' := by
   obtain ⟨s', h_ok, hrel'⟩ := h_exec
   exact ⟨s', by simp [runSail, h_ok], hrel'⟩
 
@@ -61,42 +61,42 @@ theorem sd_sail_equiv (s_rv : MachineState) (s_sail : SailState)
 -- Word loads/stores (LW/LWU/SW)
 -- ============================================================================
 
-theorem lw_sail_equiv (s_rv : MachineState) (s_sail : SailState)
-    (hrel : StateRel s_rv s_sail) (rd rs1 : Reg) (offset : BitVec 12)
-    (h_exec : ∃ s_sail',
-      execute_LOAD offset (regToRegidx rs1) (regToRegidx rd) false 4 s_sail =
-        .ok RETIRE_SUCCESS s_sail' ∧
-      StateRel (execInstrBr s_rv (.LW rd rs1 offset)) s_sail') :
-    ∃ s_sail',
-      runSail (execute_LOAD offset (regToRegidx rs1) (regToRegidx rd) false 4) s_sail
-        = some (RETIRE_SUCCESS, s_sail') ∧
-      StateRel (execInstrBr s_rv (.LW rd rs1 offset)) s_sail' := by
+theorem lw_sail_equiv (sRv : MachineState) (sSail : SailState)
+    (hrel : StateRel sRv sSail) (rd rs1 : Reg) (offset : BitVec 12)
+    (h_exec : ∃ sSail',
+      execute_LOAD offset (regToRegidx rs1) (regToRegidx rd) false 4 sSail =
+        .ok RETIRE_SUCCESS sSail' ∧
+      StateRel (execInstrBr sRv (.LW rd rs1 offset)) sSail') :
+    ∃ sSail',
+      runSail (execute_LOAD offset (regToRegidx rs1) (regToRegidx rd) false 4) sSail
+        = some (RETIRE_SUCCESS, sSail') ∧
+      StateRel (execInstrBr sRv (.LW rd rs1 offset)) sSail' := by
   obtain ⟨s', h_ok, hrel'⟩ := h_exec
   exact ⟨s', by simp [runSail, h_ok], hrel'⟩
 
-theorem lwu_sail_equiv (s_rv : MachineState) (s_sail : SailState)
-    (hrel : StateRel s_rv s_sail) (rd rs1 : Reg) (offset : BitVec 12)
-    (h_exec : ∃ s_sail',
-      execute_LOAD offset (regToRegidx rs1) (regToRegidx rd) true 4 s_sail =
-        .ok RETIRE_SUCCESS s_sail' ∧
-      StateRel (execInstrBr s_rv (.LWU rd rs1 offset)) s_sail') :
-    ∃ s_sail',
-      runSail (execute_LOAD offset (regToRegidx rs1) (regToRegidx rd) true 4) s_sail
-        = some (RETIRE_SUCCESS, s_sail') ∧
-      StateRel (execInstrBr s_rv (.LWU rd rs1 offset)) s_sail' := by
+theorem lwu_sail_equiv (sRv : MachineState) (sSail : SailState)
+    (hrel : StateRel sRv sSail) (rd rs1 : Reg) (offset : BitVec 12)
+    (h_exec : ∃ sSail',
+      execute_LOAD offset (regToRegidx rs1) (regToRegidx rd) true 4 sSail =
+        .ok RETIRE_SUCCESS sSail' ∧
+      StateRel (execInstrBr sRv (.LWU rd rs1 offset)) sSail') :
+    ∃ sSail',
+      runSail (execute_LOAD offset (regToRegidx rs1) (regToRegidx rd) true 4) sSail
+        = some (RETIRE_SUCCESS, sSail') ∧
+      StateRel (execInstrBr sRv (.LWU rd rs1 offset)) sSail' := by
   obtain ⟨s', h_ok, hrel'⟩ := h_exec
   exact ⟨s', by simp [runSail, h_ok], hrel'⟩
 
-theorem sw_sail_equiv (s_rv : MachineState) (s_sail : SailState)
-    (hrel : StateRel s_rv s_sail) (rs1 rs2 : Reg) (offset : BitVec 12)
-    (h_exec : ∃ s_sail',
-      execute_STORE offset (regToRegidx rs2) (regToRegidx rs1) 4 s_sail =
-        .ok RETIRE_SUCCESS s_sail' ∧
-      StateRel (execInstrBr s_rv (.SW rs1 rs2 offset)) s_sail') :
-    ∃ s_sail',
-      runSail (execute_STORE offset (regToRegidx rs2) (regToRegidx rs1) 4) s_sail
-        = some (RETIRE_SUCCESS, s_sail') ∧
-      StateRel (execInstrBr s_rv (.SW rs1 rs2 offset)) s_sail' := by
+theorem sw_sail_equiv (sRv : MachineState) (sSail : SailState)
+    (hrel : StateRel sRv sSail) (rs1 rs2 : Reg) (offset : BitVec 12)
+    (h_exec : ∃ sSail',
+      execute_STORE offset (regToRegidx rs2) (regToRegidx rs1) 4 sSail =
+        .ok RETIRE_SUCCESS sSail' ∧
+      StateRel (execInstrBr sRv (.SW rs1 rs2 offset)) sSail') :
+    ∃ sSail',
+      runSail (execute_STORE offset (regToRegidx rs2) (regToRegidx rs1) 4) sSail
+        = some (RETIRE_SUCCESS, sSail') ∧
+      StateRel (execInstrBr sRv (.SW rs1 rs2 offset)) sSail' := by
   obtain ⟨s', h_ok, hrel'⟩ := h_exec
   exact ⟨s', by simp [runSail, h_ok], hrel'⟩
 
@@ -104,42 +104,42 @@ theorem sw_sail_equiv (s_rv : MachineState) (s_sail : SailState)
 -- Byte loads/stores (LB/LBU/SB)
 -- ============================================================================
 
-theorem lb_sail_equiv (s_rv : MachineState) (s_sail : SailState)
-    (hrel : StateRel s_rv s_sail) (rd rs1 : Reg) (offset : BitVec 12)
-    (h_exec : ∃ s_sail',
-      execute_LOAD offset (regToRegidx rs1) (regToRegidx rd) false 1 s_sail =
-        .ok RETIRE_SUCCESS s_sail' ∧
-      StateRel (execInstrBr s_rv (.LB rd rs1 offset)) s_sail') :
-    ∃ s_sail',
-      runSail (execute_LOAD offset (regToRegidx rs1) (regToRegidx rd) false 1) s_sail
-        = some (RETIRE_SUCCESS, s_sail') ∧
-      StateRel (execInstrBr s_rv (.LB rd rs1 offset)) s_sail' := by
+theorem lb_sail_equiv (sRv : MachineState) (sSail : SailState)
+    (hrel : StateRel sRv sSail) (rd rs1 : Reg) (offset : BitVec 12)
+    (h_exec : ∃ sSail',
+      execute_LOAD offset (regToRegidx rs1) (regToRegidx rd) false 1 sSail =
+        .ok RETIRE_SUCCESS sSail' ∧
+      StateRel (execInstrBr sRv (.LB rd rs1 offset)) sSail') :
+    ∃ sSail',
+      runSail (execute_LOAD offset (regToRegidx rs1) (regToRegidx rd) false 1) sSail
+        = some (RETIRE_SUCCESS, sSail') ∧
+      StateRel (execInstrBr sRv (.LB rd rs1 offset)) sSail' := by
   obtain ⟨s', h_ok, hrel'⟩ := h_exec
   exact ⟨s', by simp [runSail, h_ok], hrel'⟩
 
-theorem lbu_sail_equiv (s_rv : MachineState) (s_sail : SailState)
-    (hrel : StateRel s_rv s_sail) (rd rs1 : Reg) (offset : BitVec 12)
-    (h_exec : ∃ s_sail',
-      execute_LOAD offset (regToRegidx rs1) (regToRegidx rd) true 1 s_sail =
-        .ok RETIRE_SUCCESS s_sail' ∧
-      StateRel (execInstrBr s_rv (.LBU rd rs1 offset)) s_sail') :
-    ∃ s_sail',
-      runSail (execute_LOAD offset (regToRegidx rs1) (regToRegidx rd) true 1) s_sail
-        = some (RETIRE_SUCCESS, s_sail') ∧
-      StateRel (execInstrBr s_rv (.LBU rd rs1 offset)) s_sail' := by
+theorem lbu_sail_equiv (sRv : MachineState) (sSail : SailState)
+    (hrel : StateRel sRv sSail) (rd rs1 : Reg) (offset : BitVec 12)
+    (h_exec : ∃ sSail',
+      execute_LOAD offset (regToRegidx rs1) (regToRegidx rd) true 1 sSail =
+        .ok RETIRE_SUCCESS sSail' ∧
+      StateRel (execInstrBr sRv (.LBU rd rs1 offset)) sSail') :
+    ∃ sSail',
+      runSail (execute_LOAD offset (regToRegidx rs1) (regToRegidx rd) true 1) sSail
+        = some (RETIRE_SUCCESS, sSail') ∧
+      StateRel (execInstrBr sRv (.LBU rd rs1 offset)) sSail' := by
   obtain ⟨s', h_ok, hrel'⟩ := h_exec
   exact ⟨s', by simp [runSail, h_ok], hrel'⟩
 
-theorem sb_sail_equiv (s_rv : MachineState) (s_sail : SailState)
-    (hrel : StateRel s_rv s_sail) (rs1 rs2 : Reg) (offset : BitVec 12)
-    (h_exec : ∃ s_sail',
-      execute_STORE offset (regToRegidx rs2) (regToRegidx rs1) 1 s_sail =
-        .ok RETIRE_SUCCESS s_sail' ∧
-      StateRel (execInstrBr s_rv (.SB rs1 rs2 offset)) s_sail') :
-    ∃ s_sail',
-      runSail (execute_STORE offset (regToRegidx rs2) (regToRegidx rs1) 1) s_sail
-        = some (RETIRE_SUCCESS, s_sail') ∧
-      StateRel (execInstrBr s_rv (.SB rs1 rs2 offset)) s_sail' := by
+theorem sb_sail_equiv (sRv : MachineState) (sSail : SailState)
+    (hrel : StateRel sRv sSail) (rs1 rs2 : Reg) (offset : BitVec 12)
+    (h_exec : ∃ sSail',
+      execute_STORE offset (regToRegidx rs2) (regToRegidx rs1) 1 sSail =
+        .ok RETIRE_SUCCESS sSail' ∧
+      StateRel (execInstrBr sRv (.SB rs1 rs2 offset)) sSail') :
+    ∃ sSail',
+      runSail (execute_STORE offset (regToRegidx rs2) (regToRegidx rs1) 1) sSail
+        = some (RETIRE_SUCCESS, sSail') ∧
+      StateRel (execInstrBr sRv (.SB rs1 rs2 offset)) sSail' := by
   obtain ⟨s', h_ok, hrel'⟩ := h_exec
   exact ⟨s', by simp [runSail, h_ok], hrel'⟩
 
@@ -147,42 +147,42 @@ theorem sb_sail_equiv (s_rv : MachineState) (s_sail : SailState)
 -- Halfword loads/stores (LH/LHU/SH)
 -- ============================================================================
 
-theorem lh_sail_equiv (s_rv : MachineState) (s_sail : SailState)
-    (hrel : StateRel s_rv s_sail) (rd rs1 : Reg) (offset : BitVec 12)
-    (h_exec : ∃ s_sail',
-      execute_LOAD offset (regToRegidx rs1) (regToRegidx rd) false 2 s_sail =
-        .ok RETIRE_SUCCESS s_sail' ∧
-      StateRel (execInstrBr s_rv (.LH rd rs1 offset)) s_sail') :
-    ∃ s_sail',
-      runSail (execute_LOAD offset (regToRegidx rs1) (regToRegidx rd) false 2) s_sail
-        = some (RETIRE_SUCCESS, s_sail') ∧
-      StateRel (execInstrBr s_rv (.LH rd rs1 offset)) s_sail' := by
+theorem lh_sail_equiv (sRv : MachineState) (sSail : SailState)
+    (hrel : StateRel sRv sSail) (rd rs1 : Reg) (offset : BitVec 12)
+    (h_exec : ∃ sSail',
+      execute_LOAD offset (regToRegidx rs1) (regToRegidx rd) false 2 sSail =
+        .ok RETIRE_SUCCESS sSail' ∧
+      StateRel (execInstrBr sRv (.LH rd rs1 offset)) sSail') :
+    ∃ sSail',
+      runSail (execute_LOAD offset (regToRegidx rs1) (regToRegidx rd) false 2) sSail
+        = some (RETIRE_SUCCESS, sSail') ∧
+      StateRel (execInstrBr sRv (.LH rd rs1 offset)) sSail' := by
   obtain ⟨s', h_ok, hrel'⟩ := h_exec
   exact ⟨s', by simp [runSail, h_ok], hrel'⟩
 
-theorem lhu_sail_equiv (s_rv : MachineState) (s_sail : SailState)
-    (hrel : StateRel s_rv s_sail) (rd rs1 : Reg) (offset : BitVec 12)
-    (h_exec : ∃ s_sail',
-      execute_LOAD offset (regToRegidx rs1) (regToRegidx rd) true 2 s_sail =
-        .ok RETIRE_SUCCESS s_sail' ∧
-      StateRel (execInstrBr s_rv (.LHU rd rs1 offset)) s_sail') :
-    ∃ s_sail',
-      runSail (execute_LOAD offset (regToRegidx rs1) (regToRegidx rd) true 2) s_sail
-        = some (RETIRE_SUCCESS, s_sail') ∧
-      StateRel (execInstrBr s_rv (.LHU rd rs1 offset)) s_sail' := by
+theorem lhu_sail_equiv (sRv : MachineState) (sSail : SailState)
+    (hrel : StateRel sRv sSail) (rd rs1 : Reg) (offset : BitVec 12)
+    (h_exec : ∃ sSail',
+      execute_LOAD offset (regToRegidx rs1) (regToRegidx rd) true 2 sSail =
+        .ok RETIRE_SUCCESS sSail' ∧
+      StateRel (execInstrBr sRv (.LHU rd rs1 offset)) sSail') :
+    ∃ sSail',
+      runSail (execute_LOAD offset (regToRegidx rs1) (regToRegidx rd) true 2) sSail
+        = some (RETIRE_SUCCESS, sSail') ∧
+      StateRel (execInstrBr sRv (.LHU rd rs1 offset)) sSail' := by
   obtain ⟨s', h_ok, hrel'⟩ := h_exec
   exact ⟨s', by simp [runSail, h_ok], hrel'⟩
 
-theorem sh_sail_equiv (s_rv : MachineState) (s_sail : SailState)
-    (hrel : StateRel s_rv s_sail) (rs1 rs2 : Reg) (offset : BitVec 12)
-    (h_exec : ∃ s_sail',
-      execute_STORE offset (regToRegidx rs2) (regToRegidx rs1) 2 s_sail =
-        .ok RETIRE_SUCCESS s_sail' ∧
-      StateRel (execInstrBr s_rv (.SH rs1 rs2 offset)) s_sail') :
-    ∃ s_sail',
-      runSail (execute_STORE offset (regToRegidx rs2) (regToRegidx rs1) 2) s_sail
-        = some (RETIRE_SUCCESS, s_sail') ∧
-      StateRel (execInstrBr s_rv (.SH rs1 rs2 offset)) s_sail' := by
+theorem sh_sail_equiv (sRv : MachineState) (sSail : SailState)
+    (hrel : StateRel sRv sSail) (rs1 rs2 : Reg) (offset : BitVec 12)
+    (h_exec : ∃ sSail',
+      execute_STORE offset (regToRegidx rs2) (regToRegidx rs1) 2 sSail =
+        .ok RETIRE_SUCCESS sSail' ∧
+      StateRel (execInstrBr sRv (.SH rs1 rs2 offset)) sSail') :
+    ∃ sSail',
+      runSail (execute_STORE offset (regToRegidx rs2) (regToRegidx rs1) 2) sSail
+        = some (RETIRE_SUCCESS, sSail') ∧
+      StateRel (execInstrBr sRv (.SH rs1 rs2 offset)) sSail' := by
   obtain ⟨s', h_ok, hrel'⟩ := h_exec
   exact ⟨s', by simp [runSail, h_ok], hrel'⟩
 

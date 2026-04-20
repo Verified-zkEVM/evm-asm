@@ -4,7 +4,7 @@
   CPS specs for the small setup/save/init blocks around the mul-sub and
   add-back inner loops of the Knuth Algorithm D step:
     * `divK_mulsub_setup_spec` — 5 instructions (LD, SLLI, ADDI, SUB,
-      ADDI) that restore `j` from scratch, compute `u_base = sp - 8*j`,
+      ADDI) that restore `j` from scratch, compute `uBase = sp - 8*j`,
       and zero the carry.
     * `divK_save_j_spec` — single SD storing `j` back to scratch.
     * `divK_addback_init_spec` — single ADDI zeroing the add-back carry.
@@ -27,7 +27,7 @@ namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
 
-/-- Mul-sub setup: restore j from scratch, compute u_base, zero carry. -/
+/-- Mul-sub setup: restore j from scratch, compute uBase, zero carry. -/
 theorem divK_mulsub_setup_spec (sp qHat j v1_old v5_old v6_old v10_old : Word)
     (base : Word) :
     let jX8 := j <<< (3 : BitVec 6).toNat

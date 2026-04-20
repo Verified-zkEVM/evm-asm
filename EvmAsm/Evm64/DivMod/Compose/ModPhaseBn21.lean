@@ -21,7 +21,7 @@ open EvmAsm.Rv64.AddrNorm (se13_8 se13_16 se13_24 se12_32)
     Exit at base+116. x5 = b[1] (leading limb), n = 2. -/
 theorem evm_mod_phaseB_n2_spec (sp base : Word)
     (b1 b2 b3 : Word) (v5 v6 v7 : Word)
-    (q0 q1 q2 q3 u5 u6 u7 n_mem : Word)
+    (q0 q1 q2 q3 u5 u6 u7 nMem : Word)
     (hb3z : b3 = 0) (hb2z : b2 = 0) (hb1nz : b1 ≠ 0) :
     cpsTriple (base + phaseBOff) (base + clzOff) (modCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ b3) ** (.x0 ↦ᵣ (0 : Word)) **
@@ -31,7 +31,7 @@ theorem evm_mod_phaseB_n2_spec (sp base : Word)
        ((sp + signExtend12 4072) ↦ₘ q2) ** ((sp + signExtend12 4064) ↦ₘ q3) **
        ((sp + signExtend12 4016) ↦ₘ u5) ** ((sp + signExtend12 4008) ↦ₘ u6) **
        ((sp + signExtend12 4000) ↦ₘ u7) **
-       ((sp + signExtend12 3984) ↦ₘ n_mem))
+       ((sp + signExtend12 3984) ↦ₘ nMem))
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ b1) ** (.x10 ↦ᵣ b3) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ b1) ** (.x7 ↦ᵣ b2) **
        ((sp + 40) ↦ₘ b1) ** ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3) **
@@ -47,7 +47,7 @@ theorem evm_mod_phaseB_n2_spec (sp base : Word)
   have hinit1f := cpsTriple_frameR
     ((.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ b3) ** (.x0 ↦ᵣ (0 : Word)) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
      ((sp + 40) ↦ₘ b1) ** ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3) **
-     ((sp + signExtend12 3984) ↦ₘ n_mem))
+     ((sp + signExtend12 3984) ↦ₘ nMem))
     (by pcFree) hinit1
   -- ---- init2 (base+60 → base+68)
   have hinit2_raw := divK_phaseB_init2_spec sp (base + 60) b1 b2 v6 v7
@@ -60,7 +60,7 @@ theorem evm_mod_phaseB_n2_spec (sp base : Word)
      ((sp + signExtend12 4072) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4064) ↦ₘ (0 : Word)) **
      ((sp + signExtend12 4016) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
      ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
-     ((sp + signExtend12 3984) ↦ₘ n_mem))
+     ((sp + signExtend12 3984) ↦ₘ nMem))
     (by pcFree) hinit2
   have h12 := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hinit1f hinit2f
@@ -75,7 +75,7 @@ theorem evm_mod_phaseB_n2_spec (sp base : Word)
      ((sp + signExtend12 4072) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4064) ↦ₘ (0 : Word)) **
      ((sp + signExtend12 4016) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
      ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
-     ((sp + signExtend12 3984) ↦ₘ n_mem))
+     ((sp + signExtend12 3984) ↦ₘ nMem))
     (by pcFree) haddi0
   have h123 := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h12 haddi0f
@@ -95,7 +95,7 @@ theorem evm_mod_phaseB_n2_spec (sp base : Word)
      ((sp + signExtend12 4072) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4064) ↦ₘ (0 : Word)) **
      ((sp + signExtend12 4016) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
      ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
-     ((sp + signExtend12 3984) ↦ₘ n_mem))
+     ((sp + signExtend12 3984) ↦ₘ nMem))
     (by pcFree) hbne0
   have h1234 := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h123 hbne0f
@@ -110,7 +110,7 @@ theorem evm_mod_phaseB_n2_spec (sp base : Word)
      ((sp + signExtend12 4072) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4064) ↦ₘ (0 : Word)) **
      ((sp + signExtend12 4016) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
      ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
-     ((sp + signExtend12 3984) ↦ₘ n_mem))
+     ((sp + signExtend12 3984) ↦ₘ nMem))
     (by pcFree) haddi1
   have h12345 := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h1234 haddi1f
@@ -130,7 +130,7 @@ theorem evm_mod_phaseB_n2_spec (sp base : Word)
      ((sp + signExtend12 4072) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4064) ↦ₘ (0 : Word)) **
      ((sp + signExtend12 4016) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
      ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
-     ((sp + signExtend12 3984) ↦ₘ n_mem))
+     ((sp + signExtend12 3984) ↦ₘ nMem))
     (by pcFree) hbne1
   have h123456 := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h12345 hbne1f
@@ -145,7 +145,7 @@ theorem evm_mod_phaseB_n2_spec (sp base : Word)
      ((sp + signExtend12 4072) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4064) ↦ₘ (0 : Word)) **
      ((sp + signExtend12 4016) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
      ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
-     ((sp + signExtend12 3984) ↦ₘ n_mem))
+     ((sp + signExtend12 3984) ↦ₘ nMem))
     (by pcFree) haddi2
   have h1234567 := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h123456 haddi2f
@@ -165,12 +165,12 @@ theorem evm_mod_phaseB_n2_spec (sp base : Word)
      ((sp + signExtend12 4072) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4064) ↦ₘ (0 : Word)) **
      ((sp + signExtend12 4016) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
      ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
-     ((sp + signExtend12 3984) ↦ₘ n_mem))
+     ((sp + signExtend12 3984) ↦ₘ nMem))
     (by pcFree) hbne2
   have h12345678 := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h1234567 hbne2f
   -- ---- Tail (base+96 → base+116)
-  have htail_raw := divK_phaseB_tail_spec sp (2 : Word) b1 n_mem (base + 96)
+  have htail_raw := divK_phaseB_tail_spec sp (2 : Word) b1 nMem (base + 96)
   simp only [mod_phB_t_20, mod_divK_phaseB_n2_nm1_x8, se12_32,
     mod_phB_sp8_32] at htail_raw
   have htail := cpsTriple_extend_code (divK_phaseB_tail_code_sub_modCode base) htail_raw
@@ -201,7 +201,7 @@ theorem evm_mod_phaseB_n2_spec (sp base : Word)
     Note: b[0] must be in precondition since the tail loads from sp+32. -/
 theorem evm_mod_phaseB_n1_spec (sp base : Word)
     (b0 b1 b2 b3 : Word) (v5 v6 v7 : Word)
-    (q0 q1 q2 q3 u5 u6 u7 n_mem : Word)
+    (q0 q1 q2 q3 u5 u6 u7 nMem : Word)
     (hb3z : b3 = 0) (hb2z : b2 = 0) (hb1z : b1 = 0) :
     cpsTriple (base + phaseBOff) (base + clzOff) (modCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ b3) ** (.x0 ↦ᵣ (0 : Word)) **
@@ -211,7 +211,7 @@ theorem evm_mod_phaseB_n1_spec (sp base : Word)
        ((sp + signExtend12 4072) ↦ₘ q2) ** ((sp + signExtend12 4064) ↦ₘ q3) **
        ((sp + signExtend12 4016) ↦ₘ u5) ** ((sp + signExtend12 4008) ↦ₘ u6) **
        ((sp + signExtend12 4000) ↦ₘ u7) **
-       ((sp + signExtend12 3984) ↦ₘ n_mem))
+       ((sp + signExtend12 3984) ↦ₘ nMem))
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ b0) ** (.x10 ↦ᵣ b3) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ b1) ** (.x7 ↦ᵣ b2) **
        ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) ** ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3) **
@@ -227,7 +227,7 @@ theorem evm_mod_phaseB_n1_spec (sp base : Word)
   have hinit1f := cpsTriple_frameR
     ((.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ b3) ** (.x0 ↦ᵣ (0 : Word)) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
      ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) ** ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3) **
-     ((sp + signExtend12 3984) ↦ₘ n_mem))
+     ((sp + signExtend12 3984) ↦ₘ nMem))
     (by pcFree) hinit1
   -- ---- init2 (base+60 → base+68)
   have hinit2_raw := divK_phaseB_init2_spec sp (base + 60) b1 b2 v6 v7
@@ -240,7 +240,7 @@ theorem evm_mod_phaseB_n1_spec (sp base : Word)
      ((sp + signExtend12 4072) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4064) ↦ₘ (0 : Word)) **
      ((sp + signExtend12 4016) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
      ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
-     ((sp + signExtend12 3984) ↦ₘ n_mem))
+     ((sp + signExtend12 3984) ↦ₘ nMem))
     (by pcFree) hinit2
   have h12 := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hinit1f hinit2f
@@ -255,7 +255,7 @@ theorem evm_mod_phaseB_n1_spec (sp base : Word)
      ((sp + signExtend12 4072) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4064) ↦ₘ (0 : Word)) **
      ((sp + signExtend12 4016) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
      ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
-     ((sp + signExtend12 3984) ↦ₘ n_mem))
+     ((sp + signExtend12 3984) ↦ₘ nMem))
     (by pcFree) haddi0
   have h123 := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h12 haddi0f
@@ -275,7 +275,7 @@ theorem evm_mod_phaseB_n1_spec (sp base : Word)
      ((sp + signExtend12 4072) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4064) ↦ₘ (0 : Word)) **
      ((sp + signExtend12 4016) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
      ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
-     ((sp + signExtend12 3984) ↦ₘ n_mem))
+     ((sp + signExtend12 3984) ↦ₘ nMem))
     (by pcFree) hbne0
   have h1234 := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h123 hbne0f
@@ -290,7 +290,7 @@ theorem evm_mod_phaseB_n1_spec (sp base : Word)
      ((sp + signExtend12 4072) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4064) ↦ₘ (0 : Word)) **
      ((sp + signExtend12 4016) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
      ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
-     ((sp + signExtend12 3984) ↦ₘ n_mem))
+     ((sp + signExtend12 3984) ↦ₘ nMem))
     (by pcFree) haddi1
   have h12345 := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h1234 haddi1f
@@ -310,7 +310,7 @@ theorem evm_mod_phaseB_n1_spec (sp base : Word)
      ((sp + signExtend12 4072) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4064) ↦ₘ (0 : Word)) **
      ((sp + signExtend12 4016) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
      ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
-     ((sp + signExtend12 3984) ↦ₘ n_mem))
+     ((sp + signExtend12 3984) ↦ₘ nMem))
     (by pcFree) hbne1
   have h123456 := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h12345 hbne1f
@@ -325,7 +325,7 @@ theorem evm_mod_phaseB_n1_spec (sp base : Word)
      ((sp + signExtend12 4072) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4064) ↦ₘ (0 : Word)) **
      ((sp + signExtend12 4016) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
      ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
-     ((sp + signExtend12 3984) ↦ₘ n_mem))
+     ((sp + signExtend12 3984) ↦ₘ nMem))
     (by pcFree) haddi2
   have h1234567 := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h123456 haddi2f
@@ -345,7 +345,7 @@ theorem evm_mod_phaseB_n1_spec (sp base : Word)
      ((sp + signExtend12 4072) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4064) ↦ₘ (0 : Word)) **
      ((sp + signExtend12 4016) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
      ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
-     ((sp + signExtend12 3984) ↦ₘ n_mem))
+     ((sp + signExtend12 3984) ↦ₘ nMem))
     (by pcFree) hbne2
   have h12345678 := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h1234567 hbne2f
@@ -360,12 +360,12 @@ theorem evm_mod_phaseB_n1_spec (sp base : Word)
      ((sp + signExtend12 4072) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4064) ↦ₘ (0 : Word)) **
      ((sp + signExtend12 4016) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
      ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
-     ((sp + signExtend12 3984) ↦ₘ n_mem))
+     ((sp + signExtend12 3984) ↦ₘ nMem))
     (by pcFree) haddi3
   have h123456789 := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h12345678 haddi3f
   -- ---- Tail (base+96 → base+116)
-  have htail_raw := divK_phaseB_tail_spec sp (1 : Word) b0 n_mem (base + 96)
+  have htail_raw := divK_phaseB_tail_spec sp (1 : Word) b0 nMem (base + 96)
   simp only [mod_phB_t_20, mod_divK_phaseB_n1_nm1_x8, se12_32,
     mod_phB_sp0_32] at htail_raw
   have htail := cpsTriple_extend_code (divK_phaseB_tail_code_sub_modCode base) htail_raw

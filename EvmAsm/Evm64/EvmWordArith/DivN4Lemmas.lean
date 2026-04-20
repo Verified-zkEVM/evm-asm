@@ -6,7 +6,7 @@
   runs a single loop iteration. These lemmas establish:
   - quotient bound (≤ 1) from MSB condition
   - division correctness for the q=0 and q=1 subcases
-  - val128 simplification when u_hi = 0
+  - val128 simplification when uHi = 0
 -/
 
 import EvmAsm.Evm64.EvmWordArith.DivBridge
@@ -21,22 +21,22 @@ namespace EvmWord
 -- val128 simplification
 -- ============================================================================
 
-/-- When u_hi = 0, val128 reduces to the low word's toNat. -/
-theorem val128_zero_hi (u_lo : Word) : val128 0 u_lo = u_lo.toNat := by
+/-- When uHi = 0, val128 reduces to the low word's toNat. -/
+theorem val128_zero_hi (uLo : Word) : val128 0 uLo = uLo.toNat := by
   unfold val128; simp
 
 -- ============================================================================
 -- Quotient bound for n=4 shift=0
 -- ============================================================================
 
-/-- When the divisor's MSB is set (d ≥ 2^63) and u_hi = 0,
+/-- When the divisor's MSB is set (d ≥ 2^63) and uHi = 0,
     the 128-bit quotient is at most 1.
     This is the key bound for n=4 shift=0: the single loop iteration
     produces a trial quotient q̂ ∈ {0, 1}. -/
-theorem div_nat_le_one_of_msb (u_lo d : Word) (hd : d.toNat ≥ 2^63) :
-    u_lo.toNat / d.toNat ≤ 1 := by
-  have hulo := u_lo.isLt
-  have : u_lo.toNat / d.toNat < 2 := by
+theorem div_nat_le_one_of_msb (uLo d : Word) (hd : d.toNat ≥ 2^63) :
+    uLo.toNat / d.toNat ≤ 1 := by
+  have hulo := uLo.isLt
+  have : uLo.toNat / d.toNat < 2 := by
     rw [Nat.div_lt_iff_lt_mul (by omega : 0 < d.toNat)]
     nlinarith
   omega
@@ -88,7 +88,7 @@ theorem mod_sub_of_ge_lt (a b : EvmWord)
 -- ============================================================================
 
 /-- If the top limb b3 has MSB set (b3 ≥ 2^63), then its upper half-word
-    satisfies the normalization condition d_hi ≥ 2^31 for trial quotient bounds. -/
+    satisfies the normalization condition dHi ≥ 2^31 for trial quotient bounds. -/
 theorem msb_imp_hi32_ge (b3 : Word) (hmsb : b3.toNat ≥ 2^63) :
     (hi32 b3).toNat ≥ 2^31 := by
   unfold hi32

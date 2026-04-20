@@ -300,12 +300,12 @@ theorem evm_sar_sign_fill_high_spec (sp base : Word)
   simp only [signExtend12_24] at h3
   rw [sar_off_12] at h3
   -- Frame and compose LD → LD/OR → LD/OR
-  have h1f := cpsTriple_frame_left base (base + 4) _ _ _
+  have h1f := cpsTriple_frameR
     ((.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ r10) **
      (sp ↦ₘ s0) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3) **
      ((sp + 32) ↦ₘ v0) ** ((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3))
     (by pcFree) h1
-  have h2f := cpsTriple_frame_left (base + 4) (base + 12) _ _ _
+  have h2f := cpsTriple_frameR
     ((.x0 ↦ᵣ (0 : Word)) **
      (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 24) ↦ₘ s3) **
      ((sp + 32) ↦ₘ v0) ** ((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3))
@@ -313,7 +313,7 @@ theorem evm_sar_sign_fill_high_spec (sp base : Word)
   have h12 := cpsTriple_seq_with_perm_same_cr base (base + 4) (base + 12) _
     _ _ _ _
     (fun h hp => by xperm_hyp hp) h1f h2f
-  have h3f := cpsTriple_frame_left (base + 12) (base + 20) _ _ _
+  have h3f := cpsTriple_frameR
     ((.x0 ↦ᵣ (0 : Word)) **
      (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) **
      ((sp + 32) ↦ₘ v0) ** ((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3))
@@ -331,7 +331,7 @@ theorem evm_sar_sign_fill_high_spec (sp base : Word)
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQf
       exact absurd ((sepConj_pure_right _ _ _).mp h_rest).2 hhigh)
   -- Frame BNE with remaining state
-  have hbne_framed := cpsTriple_frame_left (base + 20) (base + 352) _ _ _
+  have hbne_framed := cpsTriple_frameR
     ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ s3) **
      (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3) **
      ((sp + 32) ↦ₘ v0) ** ((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3))
@@ -345,7 +345,7 @@ theorem evm_sar_sign_fill_high_spec (sp base : Word)
     (sar_sign_fill_path_spec sp (s1 ||| s2 ||| s3) s3 v0 v1 v2 v3 (base + 352))
   rw [sar_off_352_28] at hsfp
   -- Frame sign-fill path with remaining state
-  have hsfp_framed := cpsTriple_frame_left (base + 352) (base + 380) _ _ _
+  have hsfp_framed := cpsTriple_frameR
     ((.x0 ↦ᵣ (0 : Word)) **
      (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3))
     (by pcFree) hsfp
@@ -398,19 +398,19 @@ theorem evm_sar_sign_fill_large_spec (sp base : Word)
     (shr_ld_or_acc_spec sp (s1 ||| s2) s2 s3 24 (base + 12))
   simp only [signExtend12_24] at h3; rw [sar_off_12] at h3
   -- Frame + compose linear chain
-  have h1f := cpsTriple_frame_left base (base + 4) _ _ _
+  have h1f := cpsTriple_frameR
     ((.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ r10) **
      (sp ↦ₘ s0) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3) **
      ((sp + 32) ↦ₘ v0) ** ((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3))
     (by pcFree) h1
-  have h2f := cpsTriple_frame_left (base + 4) (base + 12) _ _ _
+  have h2f := cpsTriple_frameR
     ((.x0 ↦ᵣ (0 : Word)) **
      (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 24) ↦ₘ s3) **
      ((sp + 32) ↦ₘ v0) ** ((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3))
     (by pcFree) h2
   have h12 := cpsTriple_seq_with_perm_same_cr base (base + 4) (base + 12) _ _ _ _ _
     (fun h hp => by xperm_hyp hp) h1f h2f
-  have h3f := cpsTriple_frame_left (base + 12) (base + 20) _ _ _
+  have h3f := cpsTriple_frameR
     ((.x0 ↦ᵣ (0 : Word)) **
      (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) **
      ((sp + 32) ↦ₘ v0) ** ((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3))
@@ -426,7 +426,7 @@ theorem evm_sar_sign_fill_large_spec (sp base : Word)
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQt
       exact ((sepConj_pure_right _ _ _).mp h_rest).2 hlow)
   -- Frame BNE(ntaken) with remaining state
-  have hbne_framed := cpsTriple_frame_left (base + 20) (base + 24) _ _ _
+  have hbne_framed := cpsTriple_frameR
     ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ s3) **
      (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3) **
      ((sp + 32) ↦ₘ v0) ** ((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3))
@@ -444,12 +444,12 @@ theorem evm_sar_sign_fill_large_spec (sp base : Word)
   rw [sar_off_28] at hsltiu_raw
   have hsltiu := cpsTriple_extend_code (sltiu_sub_sarCode base) hsltiu_raw
   -- Frame + compose LD → SLTIU
-  have hld_f := cpsTriple_frame_left (base + 24) (base + 28) _ _ _
+  have hld_f := cpsTriple_frameR
     ((.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ s3) **
      ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3) **
      ((sp + 32) ↦ₘ v0) ** ((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3))
     (by pcFree) hld
-  have hsltiu_f := cpsTriple_frame_left (base + 28) (base + 32) _ _ _
+  have hsltiu_f := cpsTriple_frameR
     ((.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) **
      (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3) **
      ((sp + 32) ↦ₘ v0) ** ((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3))
@@ -473,7 +473,7 @@ theorem evm_sar_sign_fill_large_spec (sp base : Word)
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQf
       exact ((sepConj_pure_right _ _ _).mp h_rest).2 hsltiu_eq)
   -- Frame BEQ(taken) with remaining state
-  have hbeq_framed := cpsTriple_frame_left (base + 32) (base + 352) _ _ _
+  have hbeq_framed := cpsTriple_frameR
     ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ s0) **
      (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3) **
      ((sp + 32) ↦ₘ v0) ** ((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3))
@@ -485,7 +485,7 @@ theorem evm_sar_sign_fill_large_spec (sp base : Word)
   have hsfp := cpsTriple_extend_code (sign_fill_sub_sarCode base)
     (sar_sign_fill_path_spec sp s0 sltiuVal v0 v1 v2 v3 (base + 352))
   rw [sar_off_352_28] at hsfp
-  have hsfp_framed := cpsTriple_frame_left (base + 352) (base + 380) _ _ _
+  have hsfp_framed := cpsTriple_frameR
     ((.x0 ↦ᵣ (0 : Word)) **
      (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3))
     (by pcFree) hsfp
@@ -828,19 +828,19 @@ theorem evm_sar_body_evmWord_spec (sp base : Word)
   have h3 := cpsTriple_extend_code (ld_or_24_sub_sarCode base)
     (shr_ld_or_acc_spec sp (s1 ||| s2) s2 s3 24 (base + 12))
   simp only [signExtend12_24] at h3; rw [sar_off_12] at h3
-  have h1f := cpsTriple_frame_left base (base + 4) _ _ _
+  have h1f := cpsTriple_frameR
     ((.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ r10) ** (.x6 ↦ᵣ r6) ** (.x7 ↦ᵣ r7) ** (.x11 ↦ᵣ r11) **
      (sp ↦ₘ s0) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3) **
      ((sp + 32) ↦ₘ v0) ** ((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3))
     (by pcFree) h1
-  have h2f := cpsTriple_frame_left (base + 4) (base + 12) _ _ _
+  have h2f := cpsTriple_frameR
     ((.x0 ↦ᵣ (0 : Word)) ** (.x6 ↦ᵣ r6) ** (.x7 ↦ᵣ r7) ** (.x11 ↦ᵣ r11) **
      (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 24) ↦ₘ s3) **
      ((sp + 32) ↦ₘ v0) ** ((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3))
     (by pcFree) h2
   have h12 := cpsTriple_seq_with_perm_same_cr base (base + 4) (base + 12) _ _ _ _ _
     (fun h hp => by xperm_hyp hp) h1f h2f
-  have h3f := cpsTriple_frame_left (base + 12) (base + 20) _ _ _
+  have h3f := cpsTriple_frameR
     ((.x0 ↦ᵣ (0 : Word)) ** (.x6 ↦ᵣ r6) ** (.x7 ↦ᵣ r7) ** (.x11 ↦ᵣ r11) **
      (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) **
      ((sp + 32) ↦ₘ v0) ** ((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3))
@@ -855,7 +855,7 @@ theorem evm_sar_body_evmWord_spec (sp base : Word)
     (fun hp hQt => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQt
       exact ((sepConj_pure_right _ _ _).mp h_rest).2 hhigh_zero)
-  have hbne_framed := cpsTriple_frame_left (base + 20) (base + 24) _ _ _
+  have hbne_framed := cpsTriple_frameR
     ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ s3) ** (.x6 ↦ᵣ r6) ** (.x7 ↦ᵣ r7) ** (.x11 ↦ᵣ r11) **
      (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3) **
      ((sp + 32) ↦ₘ v0) ** ((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3))
@@ -871,12 +871,12 @@ theorem evm_sar_body_evmWord_spec (sp base : Word)
   have hsltiu_raw := sltiu_spec_gen .x10 .x5 s3 s0 256 (base + 28) (by nofun)
   rw [sar_off_28] at hsltiu_raw
   have hsltiu := cpsTriple_extend_code (sltiu_sub_sarCode base) hsltiu_raw
-  have hld_f := cpsTriple_frame_left (base + 24) (base + 28) _ _ _
+  have hld_f := cpsTriple_frameR
     ((.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ s3) ** (.x6 ↦ᵣ r6) ** (.x7 ↦ᵣ r7) ** (.x11 ↦ᵣ r11) **
      ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3) **
      ((sp + 32) ↦ₘ v0) ** ((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3))
     (by pcFree) hld
-  have hsltiu_f := cpsTriple_frame_left (base + 28) (base + 32) _ _ _
+  have hsltiu_f := cpsTriple_frameR
     ((.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) ** (.x6 ↦ᵣ r6) ** (.x7 ↦ᵣ r7) ** (.x11 ↦ᵣ r11) **
      (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3) **
      ((sp + 32) ↦ₘ v0) ** ((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3))
@@ -896,7 +896,7 @@ theorem evm_sar_body_evmWord_spec (sp base : Word)
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQt
       have heq := ((sepConj_pure_right _ _ _).mp h_rest).2
       simp [hsltiu_eq] at heq)
-  have hbeq_framed := cpsTriple_frame_left (base + 32) (base + 36) _ _ _
+  have hbeq_framed := cpsTriple_frameR
     ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ s0) ** (.x6 ↦ᵣ r6) ** (.x7 ↦ᵣ r7) ** (.x11 ↦ᵣ r11) **
      (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3) **
      ((sp + 32) ↦ₘ v0) ** ((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3))
@@ -913,7 +913,7 @@ theorem evm_sar_body_evmWord_spec (sp base : Word)
   have hphaseB := cpsTriple_extend_code (phase_b_sub_sarCode base) hphaseB_raw
   rw [sar_off_36_28] at hphaseB
   simp only [signExtend12_32] at hphaseB
-  have hphaseB_f := cpsTriple_frame_left (base + 36) (base + 64) _ _ _
+  have hphaseB_f := cpsTriple_frameR
     ((.x10 ↦ᵣ sltiuVal) **
      (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3) **
      ((sp + 32) ↦ₘ v0) ** ((sp + 40) ↦ₘ v1) ** ((sp + 48) ↦ₘ v2) ** ((sp + 56) ↦ₘ v3))
@@ -938,17 +938,17 @@ theorem evm_sar_body_evmWord_spec (sp base : Word)
   have hbody0 := cpsTriple_extend_code (sar_body_0_sub_sarCode base)
     (sar_body_0_spec (sp + 32) limbShift sltiuVal bitShift antiShift mask
       v0 v1 v2 v3 (base + 252) (base + 380) 32 (sar_body0_exit base))
-  -- Frame each body with (x0=0 ** shift_mem)
-  have hbody3_f := cpsTriple_frame_left (base + 84) (base + 380) _ _ _
+  -- Frame each body with (x0=0 ** shiftMem)
+  have hbody3_f := cpsTriple_frameR
     ((.x0 ↦ᵣ (0 : Word)) ** (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3))
     (by pcFree) hbody3
-  have hbody2_f := cpsTriple_frame_left (base + 116) (base + 380) _ _ _
+  have hbody2_f := cpsTriple_frameR
     ((.x0 ↦ᵣ (0 : Word)) ** (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3))
     (by pcFree) hbody2
-  have hbody1_f := cpsTriple_frame_left (base + 172) (base + 380) _ _ _
+  have hbody1_f := cpsTriple_frameR
     ((.x0 ↦ᵣ (0 : Word)) ** (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3))
     (by pcFree) hbody1
-  have hbody0_f := cpsTriple_frame_left (base + 252) (base + 380) _ _ _
+  have hbody0_f := cpsTriple_frameR
     ((.x0 ↦ᵣ (0 : Word)) ** (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3))
     (by pcFree) hbody0
   have ha40' : (sp + 32 : Word) + 8 = sp + 40 := by bv_omega

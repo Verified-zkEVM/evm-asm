@@ -2479,16 +2479,16 @@ theorem CodeReq.ofProg_mono_subrange (base : Word) (pre mid suf : List Instr)
     (by rwa [← List.append_assoc]) a i
     (CodeReq.ofProg_mono_append_left _ mid suf a i h)
 
-/-- Sub-range monotonicity with explicit offset: `ofProg sub_base sub ⊆ ofProg base full`
+/-- Sub-range monotonicity with explicit offset: `ofProg subBase sub ⊆ ofProg base full`
     when `sub` is a contiguous slice of `full` starting at instruction index `idx`
-    (byte offset `sub_base = base + 4*idx`). -/
-theorem CodeReq.ofProg_mono_sub (base sub_base : Word) (full sub : List Instr)
+    (byte offset `subBase = base + 4*idx`). -/
+theorem CodeReq.ofProg_mono_sub (base subBase : Word) (full sub : List Instr)
     (idx : Nat)
-    (h_addr : sub_base = base + BitVec.ofNat 64 (4 * idx))
+    (h_addr : subBase = base + BitVec.ofNat 64 (4 * idx))
     (h_slice : (full.drop idx).take sub.length = sub)
     (h_range : idx + sub.length ≤ full.length)
     (hbound : 4 * full.length < 2^64) :
-    ∀ a i, (CodeReq.ofProg sub_base sub) a = some i →
+    ∀ a i, (CodeReq.ofProg subBase sub) a = some i →
            (CodeReq.ofProg base full) a = some i := by
   intro a i h; rw [h_addr] at h
   -- Decompose: full.drop idx = sub ++ full.drop (idx + sub.length)
