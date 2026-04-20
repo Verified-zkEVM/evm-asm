@@ -80,7 +80,7 @@ theorem generic_lbu_spec (rd rs1 : Reg) (v_addr vOld : Word)
     (hvalid : isValidByteAccess (v_addr + signExtend12 offset) = true) :
     cpsTriple base (base + 4)
       (CodeReq.singleton base (.LBU rd rs1 offset))
-      ((rs1 ↦ᵣ v_addr) ** (rd ↦ᵣ v_old) ** (dwordAddr ↦ₘ wordVal))
+      ((rs1 ↦ᵣ v_addr) ** (rd ↦ᵣ vOld) ** (dwordAddr ↦ₘ wordVal))
       ((rs1 ↦ᵣ v_addr) **
        (rd ↦ᵣ (extractByte wordVal (byteOffset (v_addr + signExtend12 offset))).zeroExtend 64) **
        (dwordAddr ↦ₘ wordVal)) := by
@@ -125,7 +125,7 @@ theorem generic_lb_spec (rd rs1 : Reg) (v_addr vOld : Word)
     (hvalid : isValidByteAccess (v_addr + signExtend12 offset) = true) :
     cpsTriple base (base + 4)
       (CodeReq.singleton base (.LB rd rs1 offset))
-      ((rs1 ↦ᵣ v_addr) ** (rd ↦ᵣ v_old) ** (dwordAddr ↦ₘ wordVal))
+      ((rs1 ↦ᵣ v_addr) ** (rd ↦ᵣ vOld) ** (dwordAddr ↦ₘ wordVal))
       ((rs1 ↦ᵣ v_addr) **
        (rd ↦ᵣ (extractByte wordVal (byteOffset (v_addr + signExtend12 offset))).signExtend 64) **
        (dwordAddr ↦ₘ wordVal)) := by

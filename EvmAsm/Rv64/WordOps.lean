@@ -52,7 +52,7 @@ theorem generic_lwu_spec (rd rs1 : Reg) (v_addr vOld : Word)
     (hvalid : isValidMemAccess (v_addr + signExtend12 offset) = true) :
     cpsTriple base (base + 4)
       (CodeReq.singleton base (.LWU rd rs1 offset))
-      ((rs1 ↦ᵣ v_addr) ** (rd ↦ᵣ v_old) ** (dwordAddr ↦ₘ wordVal))
+      ((rs1 ↦ᵣ v_addr) ** (rd ↦ᵣ vOld) ** (dwordAddr ↦ₘ wordVal))
       ((rs1 ↦ᵣ v_addr) **
        (rd ↦ᵣ (extractWord32 wordVal ((byteOffset (v_addr + signExtend12 offset)) / 4)).zeroExtend 64) **
        (dwordAddr ↦ₘ wordVal)) := by
@@ -96,7 +96,7 @@ theorem generic_lw_spec (rd rs1 : Reg) (v_addr vOld : Word)
     (hvalid : isValidMemAccess (v_addr + signExtend12 offset) = true) :
     cpsTriple base (base + 4)
       (CodeReq.singleton base (.LW rd rs1 offset))
-      ((rs1 ↦ᵣ v_addr) ** (rd ↦ᵣ v_old) ** (dwordAddr ↦ₘ wordVal))
+      ((rs1 ↦ᵣ v_addr) ** (rd ↦ᵣ vOld) ** (dwordAddr ↦ₘ wordVal))
       ((rs1 ↦ᵣ v_addr) **
        (rd ↦ᵣ (extractWord32 wordVal ((byteOffset (v_addr + signExtend12 offset)) / 4)).signExtend 64) **
        (dwordAddr ↦ₘ wordVal)) := by

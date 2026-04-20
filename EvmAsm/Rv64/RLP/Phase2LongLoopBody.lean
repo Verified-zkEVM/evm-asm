@@ -80,7 +80,7 @@ theorem rlp_phase2_long_loop_body_post_unfold
     (`cnt' ≠ 0` on taken, `cnt' = 0` on fall-through) flows directly from
     BNE's postcondition. -/
 theorem rlp_phase2_long_loop_body_spec
-    (len ptr cnt v12_old wordVal dwordAddr : Word)
+    (len ptr cnt v12Old wordVal dwordAddr : Word)
     (base : Word) (back : BitVec 13)
     (halign : alignToDword ptr = dwordAddr)
     (hvalid : isValidByteAccess ptr = true) :
@@ -88,7 +88,7 @@ theorem rlp_phase2_long_loop_body_spec
     let cnt'      := cnt + signExtend12 (-1 : BitVec 12)
     cpsBranch base (CodeReq.ofProg base (rlp_phase2_long_loop_body_prog back))
       ((.x11 ↦ᵣ len) ** (.x13 ↦ᵣ ptr) ** (.x14 ↦ᵣ cnt) **
-       (.x12 ↦ᵣ v12_old) ** (.x0 ↦ᵣ (0 : Word)) **
+       (.x12 ↦ᵣ v12Old) ** (.x0 ↦ᵣ (0 : Word)) **
        (dwordAddr ↦ₘ wordVal))
       ((base + 20) + signExtend13 back)
         (rlp_phase2_long_loop_body_post len ptr cnt byteZext wordVal
@@ -131,7 +131,7 @@ theorem rlp_phase2_long_loop_body_spec
   rw [hcr_eq]
   simp only [rlp_phase2_long_loop_body_post_unfold]
   -- Get iter_spec (5 instructions base → base+20).
-  have iter := rlp_phase2_long_iter_spec len ptr cnt v12_old wordVal dwordAddr
+  have iter := rlp_phase2_long_iter_spec len ptr cnt v12Old wordVal dwordAddr
     base halign hvalid
   simp only [rlp_phase2_long_iter_post_unfold] at iter
   set byteZext := (extractByte wordVal (byteOffset ptr)).zeroExtend 64
@@ -140,7 +140,7 @@ theorem rlp_phase2_long_loop_body_spec
   have iter' : cpsTriple base (base + 20)
       (CodeReq.ofProg base rlp_phase2_long_iter_prog)
       ((.x11 ↦ᵣ len) ** (.x13 ↦ᵣ ptr) ** (.x14 ↦ᵣ cnt) **
-       (.x12 ↦ᵣ v12_old) ** (.x0 ↦ᵣ (0 : Word)) **
+       (.x12 ↦ᵣ v12Old) ** (.x0 ↦ᵣ (0 : Word)) **
        (dwordAddr ↦ₘ wordVal))
       ((.x11 ↦ᵣ ((len <<< 8) + byteZext)) **
        (.x13 ↦ᵣ (ptr + 1)) ** (.x14 ↦ᵣ cnt') **

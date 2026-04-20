@@ -67,7 +67,7 @@ theorem generic_lhu_spec (rd rs1 : Reg) (v_addr vOld : Word)
     (hvalid : isValidHalfwordAccess (v_addr + signExtend12 offset) = true) :
     cpsTriple base (base + 4)
       (CodeReq.singleton base (.LHU rd rs1 offset))
-      ((rs1 ↦ᵣ v_addr) ** (rd ↦ᵣ v_old) ** (dwordAddr ↦ₘ wordVal))
+      ((rs1 ↦ᵣ v_addr) ** (rd ↦ᵣ vOld) ** (dwordAddr ↦ₘ wordVal))
       ((rs1 ↦ᵣ v_addr) **
        (rd ↦ᵣ (extractHalfword wordVal ((byteOffset (v_addr + signExtend12 offset)) / 2)).zeroExtend 64) **
        (dwordAddr ↦ₘ wordVal)) := by
@@ -111,7 +111,7 @@ theorem generic_lh_spec (rd rs1 : Reg) (v_addr vOld : Word)
     (hvalid : isValidHalfwordAccess (v_addr + signExtend12 offset) = true) :
     cpsTriple base (base + 4)
       (CodeReq.singleton base (.LH rd rs1 offset))
-      ((rs1 ↦ᵣ v_addr) ** (rd ↦ᵣ v_old) ** (dwordAddr ↦ₘ wordVal))
+      ((rs1 ↦ᵣ v_addr) ** (rd ↦ᵣ vOld) ** (dwordAddr ↦ₘ wordVal))
       ((rs1 ↦ᵣ v_addr) **
        (rd ↦ᵣ (extractHalfword wordVal ((byteOffset (v_addr + signExtend12 offset)) / 2)).signExtend 64) **
        (dwordAddr ↦ₘ wordVal)) := by
