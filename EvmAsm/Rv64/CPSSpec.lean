@@ -171,7 +171,7 @@ theorem cpsBranch_swap {entry : Word} {cr : CodeReq} {P : Assertion}
 /-- Lift a spec quantified over vOld to one with regOwn in tail position:
     (∀ vOld, cpsTriple ... cr (P ** (r ↦ᵣ vOld)) Q) → cpsTriple ... cr (P ** regOwn r) Q -/
 theorem cpsTriple_of_forall_regIs_to_regOwn
-    {entry exit_ r P Q} (cr : CodeReq)
+    {entry exit_ r P Q} {cr : CodeReq}
     (h : ∀ vOld, cpsTriple entry exit_ cr (P ** (r ↦ᵣ vOld)) Q) :
     cpsTriple entry exit_ cr (P ** regOwn r) Q := by
   intro R hR s hcr hPR hpc
@@ -183,7 +183,7 @@ theorem cpsTriple_of_forall_regIs_to_regOwn
 /-- Lift a spec quantified over vOld to one with regOwn as entire precondition:
     (∀ vOld, cpsTriple ... cr (r ↦ᵣ vOld) Q) → cpsTriple ... cr (regOwn r) Q -/
 theorem cpsTriple_of_forall_regIs_to_regOwn_single
-    {entry exit_ r Q} (cr : CodeReq)
+    {entry exit_ r Q} {cr : CodeReq}
     (h : ∀ vOld, cpsTriple entry exit_ cr (r ↦ᵣ vOld) Q) :
     cpsTriple entry exit_ cr (regOwn r) Q := by
   intro R hR s hcr hPR hpc
@@ -193,7 +193,7 @@ theorem cpsTriple_of_forall_regIs_to_regOwn_single
 /-- Lift a spec quantified over vOld to one with memOwn in tail position:
     (∀ vOld, cpsTriple ... cr (P ** (a ↦ₘ vOld)) Q) → cpsTriple ... cr (P ** memOwn a) Q -/
 theorem cpsTriple_of_forall_memIs_to_memOwn
-    {entry exit_ a P Q} (cr : CodeReq)
+    {entry exit_ a P Q} {cr : CodeReq}
     (h : ∀ vOld, cpsTriple entry exit_ cr (P ** (a ↦ₘ vOld)) Q) :
     cpsTriple entry exit_ cr (P ** memOwn a) Q := by
   intro R hR s hcr hPR hpc
