@@ -30,12 +30,12 @@
   Register allocation:
     x12 = EVM stack pointer (preserved)
     x1  = loop counter j / temp
-    x2  = anti_shift / subroutine return addr
+    x2  = antiShift / subroutine return addr
     x5  = general temp
-    x6  = general temp / u_base in mul-sub
+    x6  = general temp / uBase in mul-sub
     x7  = general temp
     x10 = general temp / carry in mul-sub
-    x11 = general temp / q_hat
+    x11 = general temp / qHat
 -/
 
 import EvmAsm.Evm64.Stack
@@ -51,8 +51,8 @@ open EvmAsm.Rv64
 
 /-- 128/64-bit unsigned division subroutine (Hacker's Delight divlu).
     Called via JAL x2, offset. Returns via JALR x0, x2, 0.
-    Input: x7 = u_hi (< d), x5 = u_lo, x10 = d (normalized, >= 2^63)
-    Output: x11 = floor((u_hi * 2^64 + u_lo) / d)
+    Input: x7 = uHi (< d), x5 = uLo, x10 = d (normalized, >= 2^63)
+    Output: x11 = floor((uHi * 2^64 + uLo) / d)
     Clobbers: x1, x5, x6, x7, x10, x11. Preserves: x2, x12.
     Uses scratch memory at 3992, 3984, 3976, 3968 (offsets from x12). -/
 def divK_div128 : Program :=
@@ -63,12 +63,12 @@ def divK_div128 : Program :=
   SRLI .x6 .x10 32 ;;                         -- [2]  x6 = dHi (>= 2^31)
   SLLI .x1 .x10 32 ;; SRLI .x1 .x1 32 ;;     -- [3,4] x1 = dLo
   SD .x12 .x1 3952 ;;                         -- [5]  save dLo
-  -- Split u_lo: un1 = u_lo >> 32, un0 = (u_lo << 32) >> 32
+  -- Split uLo: un1 = uLo >> 32, un0 = (uLo << 32) >> 32
   SRLI .x11 .x5 32 ;;                         -- [6]  x11 = un1
   SLLI .x5 .x5 32 ;; SRLI .x5 .x5 32 ;;      -- [7,8] x5 = un0
   SD .x12 .x5 3944 ;;                         -- [9]  save un0
-  -- Step 1: q1 = DIVU(u_hi, dHi), rhat = u_hi - q1*dHi
-  -- x7 = u_hi, x6 = dHi
+  -- Step 1: q1 = DIVU(uHi, dHi), rhat = uHi - q1*dHi
+  -- x7 = uHi, x6 = dHi
   single (.DIVU .x10 .x7 .x6) ;;             -- [10] x10 = q1 (use x10 since we saved d)
   single (.MUL .x5 .x10 .x6) ;;              -- [11] x5 = q1 * dHi
   single (.SUB .x7 .x7 .x5) ;;               -- [12] x7 = rhat
@@ -168,15 +168,15 @@ def divK_clz : Program :=
   SRLI .x7 .x5 63 ;; single (.BNE .x7 .x0 8) ;;
   ADDI .x6 .x6 1
 
-/-- Phase C2: Store shift, compute anti_shift, BEQ if shift=0.
-    4 instructions. x6 = shift, x2 = anti_shift. -/
+/-- Phase C2: Store shift, compute antiShift, BEQ if shift=0.
+    4 instructions. x6 = shift, x2 = antiShift. -/
 def divK_phaseC2 (shift0_off : BitVec 13) : Program :=
   SD .x12 .x6 3992 ;;
   ADDI .x2 .x0 0 ;; single (.SUB .x2 .x2 .x6) ;;
   single (.BEQ .x6 .x0 shift0_off)
 
 /-- Phase C3a: Normalize b in-place (shift > 0).
-    21 instructions. x6 = shift, x2 = anti_shift. -/
+    21 instructions. x6 = shift, x2 = antiShift. -/
 def divK_normB : Program :=
   LD .x5 .x12 56 ;; LD .x7 .x12 48 ;;
   single (.SLL .x5 .x5 .x6) ;; single (.SRL .x7 .x7 .x2) ;; single (.OR .x5 .x5 .x7) ;;
@@ -217,19 +217,19 @@ def divK_copyAU : Program :=
 
 /-- Loop setup: compute m = 4-n, j = m (start of loop counter).
     4 instructions. BLT if j < 0 (signed). -/
-def divK_loopSetup (blt_off : BitVec 13) : Program :=
+def divK_loopSetup (bltOff : BitVec 13) : Program :=
   LD .x5 .x12 3984 ;;
   ADDI .x1 .x0 4 ;; single (.SUB .x1 .x1 .x5) ;;
-  single (.BLT .x1 .x0 blt_off)
+  single (.BLT .x1 .x0 bltOff)
 
 /-- Loop body: trial quotient + multiply-subtract + correction + store q[j].
     Starts at loop_start. Includes save/restore of j.
 
     Layout within loop body (instruction indices relative to loop_start):
       [0]     SD save j
-      [1..13] load u[j+n], u[j+n-1], v_top; check u_hi>=v_top; call 128/64
+      [1..13] load u[j+n], u[j+n-1], vTop; check uHi>=vTop; call 128/64
       [14]    LD restore j
-      [15..17] mul-sub setup (u_base, carry=0)
+      [15..17] mul-sub setup (uBase, carry=0)
       [18..61] mul-sub 4 limbs (4 × 11 instrs)
       [62..65] subtract carry from u[j+4]
       [66]    BEQ skip correction
@@ -251,42 +251,42 @@ def divK_loopBody (subr_off : BitVec 21) (loop_back_off : BitVec 13) : Program :
   LD .x7 .x5 0 ;;                             -- [6] x7 = u[j+n] (hi)
   LD .x5 .x5 8 ;;                             -- [7] x5 = u[j+n-1] (lo)
 
-  -- Load v_top = b[n-1]
+  -- Load vTop = b[n-1]
   LD .x6 .x12 3984 ;;                         -- [8] n
   ADDI .x6 .x6 4095 ;;                        -- [9] n-1
   SLLI .x6 .x6 3 ;;                           -- [10] (n-1)*8
   single (.ADD .x6 .x12 .x6) ;;              -- [11] &b[n-1]
-  LD .x10 .x6 32 ;;                            -- [12] x10 = v_top = b[n-1]
+  LD .x10 .x6 32 ;;                            -- [12] x10 = vTop = b[n-1]
 
   -- Trial quotient
-  single (.BLTU .x7 .x10 12) ;;              -- [13] u_hi < v_top? → [16] call 128/64
-  ADDI .x11 .x0 4095 ;;                       -- [14] q_hat = MAX64
+  single (.BLTU .x7 .x10 12) ;;              -- [13] uHi < vTop? → [16] call 128/64
+  ADDI .x11 .x0 4095 ;;                       -- [14] qHat = MAX64
   JAL .x0 8 ;;                                 -- [15] skip call → [17]
   JAL .x2 subr_off ;;                          -- [16] call 128/64 subroutine
 
-  -- Restore j, compute u_base
+  -- Restore j, compute uBase
   LD .x1 .x12 3976 ;;                         -- [17] restore j
   SLLI .x5 .x1 3 ;;                           -- [18] j*8
   ADDI .x6 .x12 4056 ;;                       -- [19] sp-40
-  single (.SUB .x6 .x6 .x5) ;;               -- [20] x6 = u_base = &u[j]
+  single (.SUB .x6 .x6 .x5) ;;               -- [20] x6 = uBase = &u[j]
 
   -- Init carry = 0
   ADDI .x10 .x0 0 ;;                          -- [21] carry = 0
 
-  -- MUL-SUB LIMB 0: v[0] at sp+32, u[j+0] at u_base+0
+  -- MUL-SUB LIMB 0: v[0] at sp+32, u[j+0] at uBase+0
   LD .x5 .x12 32 ;;                           -- [22]
   single (.MUL .x7 .x11 .x5) ;;              -- [23] prod_lo
   single (.MULHU .x5 .x11 .x5) ;;            -- [24] prod_hi
   single (.ADD .x7 .x7 .x10) ;;              -- [25] full_sub = prod_lo + carry
-  single (.SLTU .x10 .x7 .x10) ;;            -- [26] borrow_add
+  single (.SLTU .x10 .x7 .x10) ;;            -- [26] borrowAdd
   single (.ADD .x10 .x10 .x5) ;;             -- [27] partial_carry = borrow + prod_hi
   LD .x2 .x6 0 ;;                             -- [28] u[j+0]
-  single (.SLTU .x5 .x2 .x7) ;;              -- [29] borrow_sub
+  single (.SLTU .x5 .x2 .x7) ;;              -- [29] borrowSub
   single (.SUB .x2 .x2 .x7) ;;               -- [30] uNew
   single (.ADD .x10 .x10 .x5) ;;             -- [31] carryOut
   SD .x6 .x2 0 ;;                             -- [32] store u[j+0]
 
-  -- MUL-SUB LIMB 1: v[1] at sp+40, u[j+1] at u_base-8 (4088)
+  -- MUL-SUB LIMB 1: v[1] at sp+40, u[j+1] at uBase-8 (4088)
   LD .x5 .x12 40 ;;                           -- [33]
   single (.MUL .x7 .x11 .x5) ;;              -- [34]
   single (.MULHU .x5 .x11 .x5) ;;            -- [35]
@@ -299,7 +299,7 @@ def divK_loopBody (subr_off : BitVec 21) (loop_back_off : BitVec 13) : Program :
   single (.ADD .x10 .x10 .x5) ;;             -- [42]
   SD .x6 .x2 4088 ;;                          -- [43]
 
-  -- MUL-SUB LIMB 2: v[2] at sp+48, u[j+2] at u_base-16 (4080)
+  -- MUL-SUB LIMB 2: v[2] at sp+48, u[j+2] at uBase-16 (4080)
   LD .x5 .x12 48 ;;                           -- [44]
   single (.MUL .x7 .x11 .x5) ;;              -- [45]
   single (.MULHU .x5 .x11 .x5) ;;            -- [46]
@@ -312,7 +312,7 @@ def divK_loopBody (subr_off : BitVec 21) (loop_back_off : BitVec 13) : Program :
   single (.ADD .x10 .x10 .x5) ;;             -- [53]
   SD .x6 .x2 4080 ;;                          -- [54]
 
-  -- MUL-SUB LIMB 3: v[3] at sp+56, u[j+3] at u_base-24 (4072)
+  -- MUL-SUB LIMB 3: v[3] at sp+56, u[j+3] at uBase-24 (4072)
   LD .x5 .x12 56 ;;                           -- [55]
   single (.MUL .x7 .x11 .x5) ;;              -- [56]
   single (.MULHU .x5 .x11 .x5) ;;            -- [57]
@@ -325,17 +325,17 @@ def divK_loopBody (subr_off : BitVec 21) (loop_back_off : BitVec 13) : Program :
   single (.ADD .x10 .x10 .x5) ;;             -- [64]
   SD .x6 .x2 4072 ;;                          -- [65]
 
-  -- SUBTRACT CARRY FROM u[j+4]: u_base-32 (4064)
+  -- SUBTRACT CARRY FROM u[j+4]: uBase-32 (4064)
   LD .x5 .x6 4064 ;;                          -- [66] u[j+4]
   single (.SLTU .x7 .x5 .x10) ;;             -- [67] borrow
   single (.SUB .x5 .x5 .x10) ;;              -- [68]
   SD .x6 .x5 4064 ;;                          -- [69]
 
-  -- CORRECTION: if borrow (x7 != 0), add v back and q_hat--
+  -- CORRECTION: if borrow (x7 != 0), add v back and qHat--
   -- BEQ x7 x0 skips 38 instructions → offset = 38*4+4 = 156
   single (.BEQ .x7 .x0 156) ;;               -- [70] skip correction → [109]
 
-  -- Add-back: v[0..3] to u[j..j+3] with carry, then u[j+4]++, q_hat--
+  -- Add-back: v[0..3] to u[j..j+3] with carry, then u[j+4]++, qHat--
   ADDI .x7 .x0 0 ;;                           -- [71] carry = 0
   -- Limb 0
   LD .x5 .x12 32 ;; LD .x2 .x6 0 ;;          -- [72,73]
@@ -373,7 +373,7 @@ def divK_loopBody (subr_off : BitVec 21) (loop_back_off : BitVec 13) : Program :
   LD .x5 .x6 4064 ;;                          -- [104]
   single (.ADD .x5 .x5 .x7) ;;               -- [105]
   SD .x6 .x5 4064 ;;                          -- [106]
-  -- q_hat--
+  -- qHat--
   ADDI .x11 .x11 4095 ;;                      -- [107]
 
   -- DOUBLE ADDBACK CHECK: if carry (x7) = 0, repeat addback
@@ -384,7 +384,7 @@ def divK_loopBody (subr_off : BitVec 21) (loop_back_off : BitVec 13) : Program :
   SLLI .x5 .x1 3 ;;                           -- [109] j*8
   ADDI .x7 .x12 4088 ;;                       -- [110] sp-8
   single (.SUB .x7 .x7 .x5) ;;               -- [111] &q[j]
-  SD .x7 .x11 0 ;;                            -- [112] q[j] = q_hat
+  SD .x7 .x11 0 ;;                            -- [112] q[j] = qHat
 
   -- LOOP CONTROL
   ADDI .x1 .x1 4095 ;;                        -- [113] j--
@@ -395,7 +395,7 @@ def divK_loopBody (subr_off : BitVec 21) (loop_back_off : BitVec 13) : Program :
 def divK_denorm : Program :=
   LD .x6 .x12 3992 ;;                         -- [0] shift
   single (.BEQ .x6 .x0 96) ;;                -- [1] if shift=0, skip → [25]
-  ADDI .x2 .x0 0 ;; single (.SUB .x2 .x2 .x6) ;; -- [2,3] anti_shift
+  ADDI .x2 .x0 0 ;; single (.SUB .x2 .x2 .x6) ;; -- [2,3] antiShift
   -- u[0]
   LD .x5 .x12 4056 ;; LD .x7 .x12 4048 ;;    -- [4,5]
   single (.SRL .x5 .x5 .x6) ;;               -- [6]

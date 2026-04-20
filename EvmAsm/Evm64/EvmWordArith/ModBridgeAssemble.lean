@@ -71,7 +71,7 @@ theorem val256_denorm_eq_val256_mod_max_skip
   -- Step 1: Apply Lemma A (val256_denormalize).
   have h_denorm := val256_denormalize hs0 hs msN.1 msN.2.1 msN.2.2.1 msN.2.2.2.1
   -- h_denorm : val256(u') = val256(msN) / 2^s
-  -- Step 2: Use Lemma C (u_top = c3_n) to derive val256(msN) = val256(ms_un) * 2^s.
+  -- Step 2: Use Lemma C (uTop = c3_n) to derive val256(msN) = val256(ms_un) * 2^s.
   have h_utop_eq := u_top_eq_c3_n_max_skip a0 a1 a2 a3 b0 b1 b2 b3
     hbnz hb3nz s hs0 hs hb3_bound hc3_un_zero hc3_n_le_u_top
   -- Step 3: Derive val256(msN) = val256(ms_un) * 2^s from Lemma C + Euclidean equations.
@@ -87,10 +87,10 @@ theorem val256_denorm_eq_val256_mod_max_skip
   -- Massage h_n_raw to use Vb * 2^s for the divisor.
   rw [h_norm_b] at h_n_raw
   -- Now combine:
-  --   h_un_raw : val256 a = val256 ms_un + q_hat * val256 b
-  --   h_norm_u : val256 u + u_top * 2^256 = val256 a * 2^s
-  --   h_n_raw : val256 u + c3_n * 2^256 = val256 msN + q_hat * (val256 b * 2^s)
-  --   h_utop_eq : u_top.toNat = c3_n.toNat
+  --   h_un_raw : val256 a = val256 ms_un + qHat * val256 b
+  --   h_norm_u : val256 u + uTop * 2^256 = val256 a * 2^s
+  --   h_n_raw : val256 u + c3_n * 2^256 = val256 msN + qHat * (val256 b * 2^s)
+  --   h_utop_eq : uTop.toNat = c3_n.toNat
   -- Derive: val256(msN) = val256(ms_un) * 2^s.
   have h_ms_n_scaled :
       val256 msN.1 msN.2.1 msN.2.2.1 msN.2.2.2.1 =
@@ -110,7 +110,7 @@ theorem val256_denorm_eq_val256_mod_max_skip
     set Vb : Nat := val256 b0 b1 b2 b3
     set Q : Nat := (signExtend12 (4095 : BitVec 12)).toNat
     have hqa : Q * (Vb * 2 ^ s) = Q * Vb * 2 ^ s := by ring
-    -- Substitute u_top = c3_n via h_utop_eq into h_norm_u.
+    -- Substitute uTop = c3_n via h_utop_eq into h_norm_u.
     rw [h_utop_eq] at h_norm_u
     -- Now:
     --   h_norm_u : Vu + c3_n * 2^256 = Va * 2^s

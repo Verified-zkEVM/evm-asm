@@ -19,7 +19,7 @@ namespace EvmAsm.Evm64
 open EvmWord EvmAsm.Rv64
 
 -- ============================================================================
--- Max trial overestimate: q_hat = 2^64 - 1 ≥ ⌊val256(a)/val256(b)⌋
+-- Max trial overestimate: qHat = 2^64 - 1 ≥ ⌊val256(a)/val256(b)⌋
 -- ============================================================================
 
 /-- When b3 ≠ 0, val256(a)/val256(b) ≤ 2^64 - 1.
@@ -54,7 +54,7 @@ theorem max_trial_overestimate_n4 (a0 a1 a2 a3 b0 b1 b2 b3 : Word) (hb3nz : b3 �
 
 /-- Skip path (c3 = 0, max trial) at n=4: when mulsubN4 produces no borrow,
     the max trial quotient (2^64-1) equals ⌊val256(a)/val256(b)⌋
-    and fromLimbs [q_hat, 0, 0, 0] = EvmWord.div a b. -/
+    and fromLimbs [qHat, 0, 0, 0] = EvmWord.div a b. -/
 theorem n4_max_skip_correct (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
     (hb3nz : b3 ≠ 0)
     (hc3_zero : (mulsubN4 (signExtend12 4095) b0 b1 b2 b3 a0 a1 a2 a3).2.2.2.2 = 0) :
@@ -83,7 +83,7 @@ theorem n4_max_skip_correct (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
   have hmulsub : val256 a0 a1 a2 a3 =
       (signExtend12 (4095 : BitVec 12) : Word).toNat * val256 b0 b1 b2 b3 +
       val256 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 := by linarith
-  -- Overestimate: val256(a)/val256(b) ≤ q_hat.toNat
+  -- Overestimate: val256(a)/val256(b) ≤ qHat.toNat
   have hge := max_trial_overestimate_n4 a0 a1 a2 a3 b0 b1 b2 b3 hb3nz
   exact div_correct_n4_no_shift hbnz hmulsub hge
 
@@ -141,7 +141,7 @@ theorem mulsub_addback_val256_combined (q v0 v1 v2 v3 u0 u1 u2 u3 u4_new : Word)
 -- ============================================================================
 
 /-- Addback path (c3 = 1, max trial) at n=4: when mulsubN4 underflows with
-    borrow 1 and addback produces carry 1, the corrected quotient (q_hat - 1)
+    borrow 1 and addback produces carry 1, the corrected quotient (qHat - 1)
     equals ⌊val256(a)/val256(b)⌋. -/
 theorem n4_max_addback_correct (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
     (hb3nz : b3 ≠ 0)
@@ -154,21 +154,21 @@ theorem n4_max_addback_correct (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
       b0 b1 b2 b3 = 1) :
     let ms := mulsubN4 (signExtend12 4095) b0 b1 b2 b3 a0 a1 a2 a3
     let ab := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 ((0 : Word) - ms.2.2.2.2) b0 b1 b2 b3
-    let q_hat' := signExtend12 (4095 : BitVec 12) + signExtend12 (4095 : BitVec 12)
+    let qHat' := signExtend12 (4095 : BitVec 12) + signExtend12 (4095 : BitVec 12)
     let a := fromLimbs fun i : Fin 4 =>
       match i with | 0 => a0 | 1 => a1 | 2 => a2 | 3 => a3
     let b := fromLimbs fun i : Fin 4 =>
       match i with | 0 => b0 | 1 => b1 | 2 => b2 | 3 => b3
     let q := fromLimbs fun i : Fin 4 =>
-      match i with | 0 => q_hat' | 1 => (0 : Word) | 2 => (0 : Word) | 3 => (0 : Word)
+      match i with | 0 => qHat' | 1 => (0 : Word) | 2 => (0 : Word) | 3 => (0 : Word)
     let r := fromLimbs fun i : Fin 4 =>
       match i with | 0 => ab.1 | 1 => ab.2.1 | 2 => ab.2.2.1 | 3 => ab.2.2.2.1
     q = EvmWord.div a b ∧ r = EvmWord.mod a b := by
-  intro ms ab q_hat' a b q r
+  intro ms ab qHat' a b q r
   have hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0 := by
     intro h; exact hb3nz (BitVec.or_eq_zero_iff.mp h).2
   have hq_hat_toNat : (signExtend12 (4095 : BitVec 12) : Word).toNat = 2^64 - 1 := by decide
-  have hq_hat'_toNat : q_hat'.toNat = 2^64 - 2 := by decide
+  have hq_hat'_toNat : qHat'.toNat = 2^64 - 2 := by decide
   -- Combined Euclidean equation from mulsub(c3=1) + addback(carry=1)
   -- Pass u4_new = 0 - ms.2.2.2.2 so addbackN4 matches ab's definition
   have hcombined := mulsub_addback_val256_combined
@@ -176,23 +176,23 @@ theorem n4_max_addback_correct (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
     hc3_one hcarry_one (by rw [hq_hat_toNat]; omega)
   simp only [] at hcombined
   -- hcombined now mentions addbackN4 ... (0 - ms.2.2.2.2) ... which matches ab
-  -- Rewrite (signExtend12 4095).toNat - 1 to q_hat'.toNat
-  rw [show (signExtend12 (4095 : BitVec 12) : Word).toNat - 1 = q_hat'.toNat from by
+  -- Rewrite (signExtend12 4095).toNat - 1 to qHat'.toNat
+  rw [show (signExtend12 (4095 : BitVec 12) : Word).toNat - 1 = qHat'.toNat from by
     rw [hq_hat_toNat, hq_hat'_toNat]; omega] at hcombined
   -- Normalize hcombined to use let-bound ab
-  change val256 a0 a1 a2 a3 = q_hat'.toNat * val256 b0 b1 b2 b3 +
+  change val256 a0 a1 a2 a3 = qHat'.toNat * val256 b0 b1 b2 b3 +
     val256 ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 at hcombined
-  -- Strict overestimate: c3 ≥ 1 implies q_hat * v > u, so u/v < q_hat, hence u/v ≤ q_hat'
-  have hge : val256 a0 a1 a2 a3 / val256 b0 b1 b2 b3 ≤ q_hat'.toNat := by
+  -- Strict overestimate: c3 ≥ 1 implies qHat * v > u, so u/v < qHat, hence u/v ≤ qHat'
+  have hge : val256 a0 a1 a2 a3 / val256 b0 b1 b2 b3 ≤ qHat'.toNat := by
     rw [hq_hat'_toNat]
-    -- From mulsubN4_val256_eq with c3 = 1: q_hat * val(v) ≥ val(u) + 1
+    -- From mulsubN4_val256_eq with c3 = 1: qHat * val(v) ≥ val(u) + 1
     have hmulsub_raw := mulsubN4_val256_eq (signExtend12 4095) b0 b1 b2 b3 a0 a1 a2 a3
     simp only [] at hmulsub_raw
     rw [show ms.2.2.2.2 = (1 : Word) from hc3_one] at hmulsub_raw
     have h1 : (1 : Word).toNat = 1 := by decide
     rw [h1] at hmulsub_raw
-    -- hmulsub_raw: val256 u + 1 * 2^256 = val256 un + q_hat * val256 v
-    -- So q_hat * val256 v ≥ val256 u + 1 (since 2^256 > val256 un)
+    -- hmulsub_raw: val256 u + 1 * 2^256 = val256 un + qHat * val256 v
+    -- So qHat * val256 v ≥ val256 u + 1 (since 2^256 > val256 un)
     have hv_bound := val256_bound ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1
     have hv_pos := val256_pos_of_or_ne_zero b0 b1 b2 b3 hbnz
     have hq_mul_gt : (signExtend12 (4095 : BitVec 12) : Word).toNat * val256 b0 b1 b2 b3 >
@@ -601,7 +601,7 @@ theorem n4_max_skip_div_mod_limbs (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
 
 /-- n=4 max+addback path: per-limb quotient/remainder equalities. Direct
     consumer-facing form of `n4_max_addback_correct` — the corrected quotient
-    is `q_hat' = 2 * signExtend12 4095 = 2^64 - 2` in the low limb, zeros above. -/
+    is `qHat' = 2 * signExtend12 4095 = 2^64 - 2` in the low limb, zeros above. -/
 theorem n4_max_addback_div_mod_limbs (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
     (hb3nz : b3 ≠ 0)
     (hc3_one : (mulsubN4 (signExtend12 4095) b0 b1 b2 b3 a0 a1 a2 a3).2.2.2.2 = 1)
@@ -613,12 +613,12 @@ theorem n4_max_addback_div_mod_limbs (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
       b0 b1 b2 b3 = 1) :
     let ms := mulsubN4 (signExtend12 4095) b0 b1 b2 b3 a0 a1 a2 a3
     let ab := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 ((0 : Word) - ms.2.2.2.2) b0 b1 b2 b3
-    let q_hat' : Word := signExtend12 (4095 : BitVec 12) + signExtend12 (4095 : BitVec 12)
+    let qHat' : Word := signExtend12 (4095 : BitVec 12) + signExtend12 (4095 : BitVec 12)
     let a := fromLimbs fun i : Fin 4 =>
       match i with | 0 => a0 | 1 => a1 | 2 => a2 | 3 => a3
     let b := fromLimbs fun i : Fin 4 =>
       match i with | 0 => b0 | 1 => b1 | 2 => b2 | 3 => b3
-    (EvmWord.div a b).getLimbN 0 = q_hat' ∧
+    (EvmWord.div a b).getLimbN 0 = qHat' ∧
     (EvmWord.div a b).getLimbN 1 = 0 ∧
     (EvmWord.div a b).getLimbN 2 = 0 ∧
     (EvmWord.div a b).getLimbN 3 = 0 ∧
@@ -626,7 +626,7 @@ theorem n4_max_addback_div_mod_limbs (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
     (EvmWord.mod a b).getLimbN 1 = ab.2.1 ∧
     (EvmWord.mod a b).getLimbN 2 = ab.2.2.1 ∧
     (EvmWord.mod a b).getLimbN 3 = ab.2.2.2.1 := by
-  intro ms ab q_hat' a b
+  intro ms ab qHat' a b
   have ⟨hq, hr⟩ := n4_max_addback_correct a0 a1 a2 a3 b0 b1 b2 b3 hb3nz hc3_one hcarry_one
   refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · rw [← hq]; exact getLimbN_fromLimbs_0 _ _ _ _
@@ -719,8 +719,8 @@ theorem n4_max_addback_div_mod_getLimbN (a b : EvmWord)
         (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
     let ab := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 ((0 : Word) - ms.2.2.2.2)
         (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
-    let q_hat' : Word := signExtend12 (4095 : BitVec 12) + signExtend12 (4095 : BitVec 12)
-    (EvmWord.div a b).getLimbN 0 = q_hat' ∧
+    let qHat' : Word := signExtend12 (4095 : BitVec 12) + signExtend12 (4095 : BitVec 12)
+    (EvmWord.div a b).getLimbN 0 = qHat' ∧
     (EvmWord.div a b).getLimbN 1 = 0 ∧
     (EvmWord.div a b).getLimbN 2 = 0 ∧
     (EvmWord.div a b).getLimbN 3 = 0 ∧
@@ -728,7 +728,7 @@ theorem n4_max_addback_div_mod_getLimbN (a b : EvmWord)
     (EvmWord.mod a b).getLimbN 1 = ab.2.1 ∧
     (EvmWord.mod a b).getLimbN 2 = ab.2.2.1 ∧
     (EvmWord.mod a b).getLimbN 3 = ab.2.2.2.1 := by
-  intro ms ab q_hat'
+  intro ms ab qHat'
   have hraw := n4_max_addback_div_mod_limbs
     (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
     (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)

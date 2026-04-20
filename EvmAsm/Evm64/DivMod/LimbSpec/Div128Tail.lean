@@ -117,31 +117,31 @@ theorem divK_div128_correct_q0_single_spec (q0 : Word) (base : Word) :
 
 /-- div128 combine: x11 = q1<<32 | q0. -/
 theorem divK_div128_combine_q_spec (q1 q0 v11_old : Word) (base : Word) :
-    let q1_hi := q1 <<< (32 : BitVec 6).toNat
-    let q := q1_hi ||| q0
+    let q1Hi := q1 <<< (32 : BitVec 6).toNat
+    let q := q1Hi ||| q0
     let cr :=
       CodeReq.union (CodeReq.singleton base (.SLLI .x11 .x10 32))
        (CodeReq.singleton (base + 4) (.OR .x11 .x11 .x5))
     cpsTriple base (base + 8) cr
       ((.x10 ↦ᵣ q1) ** (.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ v11_old))
       ((.x10 ↦ᵣ q1) ** (.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ q)) := by
-  intro q1_hi q cr
+  intro q1Hi q cr
   have I0 := slli_spec_gen .x11 .x10 v11_old q1 32 base (by nofun)
-  have I1 := or_spec_gen_rd_eq_rs1 .x11 .x5 q1_hi q0 (base + 4) (by nofun)
+  have I1 := or_spec_gen_rd_eq_rs1 .x11 .x5 q1Hi q0 (base + 4) (by nofun)
   runBlock I0 I1
 
 /-- div128 restore and return: load return addr, JALR x0 x2 0. -/
-theorem divK_div128_restore_return_spec (sp v2_old ret_addr : Word) (base : Word)
-    (halign : (ret_addr + signExtend12 0) &&& ~~~1 = ret_addr) :
+theorem divK_div128_restore_return_spec (sp v2_old retAddr : Word) (base : Word)
+    (halign : (retAddr + signExtend12 0) &&& ~~~1 = retAddr) :
     let cr :=
       CodeReq.union (CodeReq.singleton base (.LD .x2 .x12 3968))
        (CodeReq.singleton (base + 4) (.JALR .x0 .x2 0))
-    cpsTriple base ret_addr cr
-      ((.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ v2_old) ** (sp + signExtend12 3968 ↦ₘ ret_addr))
-      ((.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ ret_addr) ** (sp + signExtend12 3968 ↦ₘ ret_addr)) := by
+    cpsTriple base retAddr cr
+      ((.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ v2_old) ** (sp + signExtend12 3968 ↦ₘ retAddr))
+      ((.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ retAddr) ** (sp + signExtend12 3968 ↦ₘ retAddr)) := by
   intro cr
-  have I0 := ld_spec_gen .x2 .x12 sp v2_old ret_addr 3968 base (by nofun)
-  have I1 := jalr_x0_spec_gen .x2 ret_addr 0 (base + 4)
+  have I0 := ld_spec_gen .x2 .x12 sp v2_old retAddr 3968 base (by nofun)
+  have I1 := jalr_x0_spec_gen .x2 retAddr 0 (base + 4)
   rw [halign] at I1
   runBlock I0 I1
 

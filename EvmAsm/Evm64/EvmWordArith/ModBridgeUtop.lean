@@ -1,19 +1,19 @@
 /-
   EvmAsm.Evm64.EvmWordArith.ModBridgeUtop
 
-  The `u_top = c3_n` invariant for Knuth algorithm D at n=4 max+skip.
+  The `uTop = c3_n` invariant for Knuth algorithm D at n=4 max+skip.
 
   During algorithm D's normalization step, the top bits of the dividend
-  `a3 >>> (64 - s)` become an implicit 5th limb `u_top`. The mulsub on
-  the normalized 4-limb dividend + divisor produces `ms_n` with carry
+  `a3 >>> (64 - s)` become an implicit 5th limb `uTop`. The mulsub on
+  the normalized 4-limb dividend + divisor produces `msN` with carry
   `c3_n`. This lemma proves that under the max+skip conditions,
-  `u_top = c3_n` (not merely `u_top ≥ c3_n` as the runtime skip check
+  `uTop = c3_n` (not merely `uTop ≥ c3_n` as the runtime skip check
   gives). The identity is the key missing invariant for the MOD
   denormalization bridge.
 
   Preconditions used:
   - b3 ≠ 0 and CLZ top-limb bound `b3 < 2^(64 - s)` (for s = clz(b3)).
-  - `hborrow` : the runtime skip borrow gives `c3_n ≤ u_top`.
+  - `hborrow` : the runtime skip borrow gives `c3_n ≤ uTop`.
   - `hsem`    : un-normalized mulsub carry is 0 (semantic skip).
 -/
 
@@ -49,7 +49,7 @@ theorem nat_top_eq_of_lt_pow256 {vPow vN u c : Nat}
     normalized dividend) and `val256_normalize` (for the normalized divisor,
     which needs the CLZ top-limb bound), substituting into
     `mulsubN4_val256_eq`, yields a combined Euclidean equation with an
-    `(u_top - c3_n) * 2^256` residual term.
+    `(uTop - c3_n) * 2^256` residual term.
 
     The caller uses this + `nat_top_eq_of_lt_pow256` to collapse the
     residual to zero (yielding Lemma C). -/
@@ -65,23 +65,23 @@ theorem val256_normalized_mulsub_eq
     let u2 := (a2 <<< s) ||| (a1 >>> (64 - s))
     let u1 := (a1 <<< s) ||| (a0 >>> (64 - s))
     let u0 := a0 <<< s
-    let u_top := a3 >>> (64 - s)
-    let q_hat : Word := signExtend12 4095
-    let ms := mulsubN4 q_hat b0' b1' b2' b3' u0 u1 u2 u3
+    let uTop := a3 >>> (64 - s)
+    let qHat : Word := signExtend12 4095
+    let ms := mulsubN4 qHat b0' b1' b2' b3' u0 u1 u2 u3
     val256 a0 a1 a2 a3 * 2^s + ms.2.2.2.2.toNat * 2 ^ 256
-      = q_hat.toNat * (val256 b0 b1 b2 b3 * 2^s) +
+      = qHat.toNat * (val256 b0 b1 b2 b3 * 2^s) +
         val256 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 +
-        u_top.toNat * 2 ^ 256 := by
-  intro b3' b2' b1' b0' u3 u2 u1 u0 u_top q_hat ms
+        uTop.toNat * 2 ^ 256 := by
+  intro b3' b2' b1' b0' u3 u2 u1 u0 uTop qHat ms
   -- Normalize the dividend limbs.
-  have h_norm_a : val256 u0 u1 u2 u3 + u_top.toNat * 2 ^ 256 =
+  have h_norm_a : val256 u0 u1 u2 u3 + uTop.toNat * 2 ^ 256 =
       val256 a0 a1 a2 a3 * 2^s :=
     val256_normalize_general hs0 hs a0 a1 a2 a3
   -- Normalize the divisor limbs (needs the CLZ bound on b3).
   have h_norm_b : val256 b0' b1' b2' b3' = val256 b0 b1 b2 b3 * 2^s :=
     val256_normalize hs0 hs b0 b1 b2 b3 hb3_bound
   -- Apply mulsubN4_val256_eq on the normalized limbs.
-  have h_mulsub := mulsubN4_val256_eq q_hat b0' b1' b2' b3' u0 u1 u2 u3
+  have h_mulsub := mulsubN4_val256_eq qHat b0' b1' b2' b3' u0 u1 u2 u3
   simp only [] at h_mulsub
   -- Substitute the normalization facts and solve linearly.
   rw [h_norm_b] at h_mulsub
@@ -104,40 +104,40 @@ theorem val256_lt_of_b3_bound (b0 b1 b2 b3 : Word) (s : Nat) (hs : s ≤ 64)
   nlinarith [h0, h1, h2, hb3_bound,
              (show 0 < 2 ^ (64 - s) from by positivity)]
 
-/-- Fully abstract Nat-level `u_top = c3_n` lemma. Takes all relevant
+/-- Fully abstract Nat-level `uTop = c3_n` lemma. Takes all relevant
     Euclidean equations and bounds as plain Nat facts — lets the caller
     plug in `val256(ms_un)`, `val256(a) * 2^s`, etc. without forcing
     the elaborator to unfold `mulsubN4` or `val256_normalized_mulsub_eq`
     internals. Composes the un-normalized Euclidean equation with the
     normalization identity and the 2^256 pigeonhole to collapse
-    `u_top - c3_n = 0`. -/
+    `uTop - c3_n = 0`. -/
 theorem u_top_eq_c3_nat_form
     {Va Vb Vms_un Vms_n Vu Vbn : Nat}
-    {u_top c3_n Q : Nat}
+    {uTop c3_n Q : Nat}
     (s : Nat)
     (h_Va : Va = Vms_un + Q * Vb)
-    (h_norm_u : Vu + u_top * 2 ^ 256 = Va * 2 ^ s)
+    (h_norm_u : Vu + uTop * 2 ^ 256 = Va * 2 ^ s)
     (h_norm_b : Vbn = Vb * 2 ^ s)
     (h_Vn : Vu + c3_n * 2 ^ 256 = Vms_n + Q * Vbn)
     (h_Vms_un_lt_Vb : Vms_un < Vb)
     (h_Vb_bound : Vb < 2 ^ (256 - s))
     (hs_le : s ≤ 256)
     (hs_pos : 0 < 2 ^ s)
-    (h_c3_le : c3_n ≤ u_top) :
-    u_top = c3_n := by
+    (h_c3_le : c3_n ≤ uTop) :
+    uTop = c3_n := by
   -- Scale un-normalized Euclidean by 2^s.
   have h_Va_scaled : Va * 2 ^ s = Vms_un * 2 ^ s + Q * Vb * 2 ^ s := by
     rw [h_Va]; ring
   -- Merge the two Euclidean equations (via Va*2^s pivot).
   have h_n_combined : Vu + c3_n * 2 ^ 256 = Vms_n + Q * (Vb * 2 ^ s) := by
     rw [h_norm_b] at h_Vn; exact h_Vn
-  -- Va * 2^s + c3_n * 2^256 = Vms_n + Q * Vb * 2^s + u_top * 2^256
+  -- Va * 2^s + c3_n * 2^256 = Vms_n + Q * Vb * 2^s + uTop * 2^256
   have h_shifted : Va * 2 ^ s + c3_n * 2 ^ 256 =
-      Vms_n + Q * Vb * 2 ^ s + u_top * 2 ^ 256 := by
+      Vms_n + Q * Vb * 2 ^ s + uTop * 2 ^ 256 := by
     have hqa : Q * (Vb * 2 ^ s) = Q * Vb * 2 ^ s := by ring
     linarith [h_norm_u, h_n_combined, hqa]
   -- Substitute h_Va_scaled and cancel Q * Vb * 2^s:
-  have h_cancel : Vms_un * 2 ^ s + c3_n * 2 ^ 256 = Vms_n + u_top * 2 ^ 256 := by
+  have h_cancel : Vms_un * 2 ^ s + c3_n * 2 ^ 256 = Vms_n + uTop * 2 ^ 256 := by
     linarith
   -- Bound Vms_un * 2^s < 2^256.
   have hpow : (2 : Nat) ^ (256 - s) * 2 ^ s = 2 ^ 256 := by
@@ -147,12 +147,12 @@ theorem u_top_eq_c3_nat_form
         < Vb * 2 ^ s := Nat.mul_lt_mul_right hs_pos |>.mpr h_Vms_un_lt_Vb
       _ < 2 ^ (256 - s) * 2 ^ s := Nat.mul_lt_mul_right hs_pos |>.mpr h_Vb_bound
       _ = 2 ^ 256 := hpow
-  -- Pigeonhole: from h_cancel + h_bound + h_c3_le → u_top = c3_n.
+  -- Pigeonhole: from h_cancel + h_bound + h_c3_le → uTop = c3_n.
   have h_eq_form : Vms_un * 2 ^ s =
-      Vms_n + (u_top - c3_n) * 2 ^ 256 := by omega
+      Vms_n + (uTop - c3_n) * 2 ^ 256 := by omega
   exact nat_top_eq_of_lt_pow256 h_c3_le h_eq_form h_bound
 
-/-- Word-level wrapper: `u_top = c3_n` for the n=4 max+skip path.
+/-- Word-level wrapper: `uTop = c3_n` for the n=4 max+skip path.
     Specializes `u_top_eq_c3_nat_form` to the concrete normalized limbs
     `a_i <<< s | a_{i-1} >>> (64-s)` etc. Takes the CLZ top-limb bound on
     `b3` and the un-normalized / normalized skip conditions, and concludes
@@ -191,7 +191,7 @@ theorem u_top_eq_c3_n_max_skip
   simp only [] at h_un_raw
   rw [hc3_un_zero, show (0 : Word).toNat = 0 from by decide,
       Nat.zero_mul, Nat.add_zero] at h_un_raw
-  -- h_un_raw : val256(a) = val256(ms_un) + q_hat * val256(b)
+  -- h_un_raw : val256(a) = val256(ms_un) + qHat * val256(b)
   have h_n_raw := mulsubN4_val256_eq (signExtend12 4095)
     (b0 <<< s)
     ((b1 <<< s) ||| (b0 >>> (64 - s)))
@@ -202,7 +202,7 @@ theorem u_top_eq_c3_n_max_skip
     ((a2 <<< s) ||| (a1 >>> (64 - s)))
     ((a3 <<< s) ||| (a2 >>> (64 - s)))
   simp only [] at h_n_raw
-  -- h_n_raw : val256(u) + c3_n * 2^256 = val256(ms_n) + q_hat * val256(b_norm)
+  -- h_n_raw : val256(u) + c3_n * 2^256 = val256(msN) + qHat * val256(b_norm)
   have h_norm_u := val256_normalize_general hs0 hs a0 a1 a2 a3
   have h_norm_b := val256_normalize hs0 hs b0 b1 b2 b3 hb3_bound
   have h_ms_un_lt_b :=

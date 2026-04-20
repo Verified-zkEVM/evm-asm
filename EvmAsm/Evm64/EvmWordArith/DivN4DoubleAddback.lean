@@ -112,7 +112,7 @@ theorem hq_over_from_second_carry_one (q v0 v1 v2 v3 u0 u1 u2 u3 : Word)
 -- ============================================================================
 
 /-- Double-addback path (c3 = 1, carry1 = 0, carry2 = 1, max trial) at n=4:
-    the corrected quotient `q_hat - 2 = signExtend12 4095 * 3 = 2^64 - 3`
+    the corrected quotient `qHat - 2 = signExtend12 4095 * 3 = 2^64 - 3`
     equals ⌊val256(a)/val256(b)⌋, and the second-addback remainder equals
     `val256(a) mod val256(b)`.
 
@@ -135,21 +135,21 @@ theorem n4_max_double_addback_correct (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
     let ms := mulsubN4 (signExtend12 4095) b0 b1 b2 b3 a0 a1 a2 a3
     let ab := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 ((0 : Word) - ms.2.2.2.2) b0 b1 b2 b3
     let ab' := addbackN4 ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 ab.2.2.2.2 b0 b1 b2 b3
-    let q_hat'' : Word := signExtend12 (4095 : BitVec 12) +
+    let qHat'' : Word := signExtend12 (4095 : BitVec 12) +
       signExtend12 (4095 : BitVec 12) + signExtend12 (4095 : BitVec 12)
     let a := fromLimbs fun i : Fin 4 =>
       match i with | 0 => a0 | 1 => a1 | 2 => a2 | 3 => a3
     let b := fromLimbs fun i : Fin 4 =>
       match i with | 0 => b0 | 1 => b1 | 2 => b2 | 3 => b3
     let q := fromLimbs fun i : Fin 4 =>
-      match i with | 0 => q_hat'' | 1 => (0 : Word) | 2 => (0 : Word) | 3 => (0 : Word)
+      match i with | 0 => qHat'' | 1 => (0 : Word) | 2 => (0 : Word) | 3 => (0 : Word)
     let r := fromLimbs fun i : Fin 4 =>
       match i with | 0 => ab'.1 | 1 => ab'.2.1 | 2 => ab'.2.2.1 | 3 => ab'.2.2.2.1
     q = EvmWord.div a b ∧ r = EvmWord.mod a b := by
-  intro ms ab ab' q_hat'' a b q r
+  intro ms ab ab' qHat'' a b q r
   have hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0 := by
     intro h; exact hb3nz (BitVec.or_eq_zero_iff.mp h).2
-  -- Bridge: for any u_top, addbackN4's low-4 outputs are the same. So both
+  -- Bridge: for any uTop, addbackN4's low-4 outputs are the same. So both
   -- the algorithm's `ab` (u4_new = 0 - c3) and lemma's ab (u4_new = 0) share
   -- low-4 limbs, and the second-addback low-4 outputs also match.
   have h_ab_indep := addbackN4_fst4_u4_indep ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1
@@ -171,7 +171,7 @@ theorem n4_max_double_addback_correct (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
   -- Derive hq_over from carry2 = 1.
   have hq_over := hq_over_from_second_carry_one (signExtend12 4095) b0 b1 b2 b3 a0 a1 a2 a3
     hbnz hc3_one hcarry1_zero hcarry2_lem
-  -- q_hat ≥ 2: trivial.
+  -- qHat ≥ 2: trivial.
   have hq_hat_toNat : (signExtend12 (4095 : BitVec 12) : Word).toNat = 2 ^ 64 - 1 := by decide
   have hq_ge_2 : (signExtend12 (4095 : BitVec 12) : Word).toNat ≥ 2 := by
     rw [hq_hat_toNat]; decide
@@ -180,8 +180,8 @@ theorem n4_max_double_addback_correct (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
     (signExtend12 4095) b0 b1 b2 b3 a0 a1 a2 a3 hbnz hq_over hc3_one hcarry1_zero hq_ge_2
   simp only [] at hcombined
   -- Bridge from lemma's ab' to algorithm's ab': both second addbacks compute
-  -- from the same low-4 ab limbs (low 4 are u_top-independent), and second
-  -- addback's low-4 outputs are themselves u_top-independent. So their
+  -- from the same low-4 ab limbs (low 4 are uTop-independent), and second
+  -- addback's low-4 outputs are themselves uTop-independent. So their
   -- low-4 val256s match.
   have h_ab'_alg_indep := addbackN4_fst4_u4_indep ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1
     ab.2.2.2.2 0 b0 b1 b2 b3
@@ -258,11 +258,11 @@ theorem n4_max_double_addback_correct (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
   have hab'_bound : val256 ab'.1 ab'.2.1 ab'.2.2.1 ab'.2.2.2.1 < val256 b0 b1 b2 b3 := by
     rw [hab'_eq1, hab'_eq21, hab'_eq221, hab'_eq2221]; exact hab'_bound_lem
   -- Rewrite the Euclidean equation in val256_euclidean_to_div_mod's expected form.
-  have hq_hat''_toNat : q_hat''.toNat = (signExtend12 (4095 : BitVec 12) : Word).toNat - 2 := by
-    simp only [q_hat'']; decide
-  have hq_val : val256 q_hat'' 0 0 0 = q_hat''.toNat := val256_zero_upper_3 q_hat''
+  have hq_hat''_toNat : qHat''.toNat = (signExtend12 (4095 : BitVec 12) : Word).toNat - 2 := by
+    simp only [qHat'']; decide
+  have hq_val : val256 qHat'' 0 0 0 = qHat''.toNat := val256_zero_upper_3 qHat''
   have heuclid : val256 a0 a1 a2 a3 =
-      val256 q_hat'' 0 0 0 * val256 b0 b1 b2 b3 +
+      val256 qHat'' 0 0 0 * val256 b0 b1 b2 b3 +
       val256 ab'.1 ab'.2.1 ab'.2.2.1 ab'.2.2.2.1 := by
     rw [hq_val, hq_hat''_toNat]; exact hcombined
   exact val256_euclidean_to_div_mod hbnz heuclid hab'_bound
@@ -274,7 +274,7 @@ theorem n4_max_double_addback_correct (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
 /-- n=4 max+double-addback path: per-limb quotient/remainder equalities.
     Direct consumer-facing form of `n4_max_double_addback_correct` —
     parallels `n4_max_addback_div_mod_limbs`. The corrected quotient is
-    `q_hat'' = 3 * signExtend12 4095 = 2^64 - 3` in the low limb. -/
+    `qHat'' = 3 * signExtend12 4095 = 2^64 - 3` in the low limb. -/
 theorem n4_max_double_addback_div_mod_limbs (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
     (hb3nz : b3 ≠ 0)
     (hc3_one : (mulsubN4 (signExtend12 4095) b0 b1 b2 b3 a0 a1 a2 a3).2.2.2.2 = 1)
@@ -291,13 +291,13 @@ theorem n4_max_double_addback_div_mod_limbs (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
     let ms := mulsubN4 (signExtend12 4095) b0 b1 b2 b3 a0 a1 a2 a3
     let ab := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 ((0 : Word) - ms.2.2.2.2) b0 b1 b2 b3
     let ab' := addbackN4 ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 ab.2.2.2.2 b0 b1 b2 b3
-    let q_hat'' : Word := signExtend12 (4095 : BitVec 12) +
+    let qHat'' : Word := signExtend12 (4095 : BitVec 12) +
       signExtend12 (4095 : BitVec 12) + signExtend12 (4095 : BitVec 12)
     let a := fromLimbs fun i : Fin 4 =>
       match i with | 0 => a0 | 1 => a1 | 2 => a2 | 3 => a3
     let b := fromLimbs fun i : Fin 4 =>
       match i with | 0 => b0 | 1 => b1 | 2 => b2 | 3 => b3
-    (EvmWord.div a b).getLimbN 0 = q_hat'' ∧
+    (EvmWord.div a b).getLimbN 0 = qHat'' ∧
     (EvmWord.div a b).getLimbN 1 = 0 ∧
     (EvmWord.div a b).getLimbN 2 = 0 ∧
     (EvmWord.div a b).getLimbN 3 = 0 ∧
@@ -305,7 +305,7 @@ theorem n4_max_double_addback_div_mod_limbs (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
     (EvmWord.mod a b).getLimbN 1 = ab'.2.1 ∧
     (EvmWord.mod a b).getLimbN 2 = ab'.2.2.1 ∧
     (EvmWord.mod a b).getLimbN 3 = ab'.2.2.2.1 := by
-  intro ms ab ab' q_hat'' a b
+  intro ms ab ab' qHat'' a b
   have ⟨hq, hr⟩ := n4_max_double_addback_correct a0 a1 a2 a3 b0 b1 b2 b3
     hb3nz hc3_one hcarry1_zero hcarry2_one
   refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
@@ -355,9 +355,9 @@ theorem n4_max_double_addback_div_mod_getLimbN (a b : EvmWord)
         (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
     let ab' := addbackN4 ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 ab.2.2.2.2
         (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
-    let q_hat'' : Word := signExtend12 (4095 : BitVec 12) +
+    let qHat'' : Word := signExtend12 (4095 : BitVec 12) +
       signExtend12 (4095 : BitVec 12) + signExtend12 (4095 : BitVec 12)
-    (EvmWord.div a b).getLimbN 0 = q_hat'' ∧
+    (EvmWord.div a b).getLimbN 0 = qHat'' ∧
     (EvmWord.div a b).getLimbN 1 = 0 ∧
     (EvmWord.div a b).getLimbN 2 = 0 ∧
     (EvmWord.div a b).getLimbN 3 = 0 ∧

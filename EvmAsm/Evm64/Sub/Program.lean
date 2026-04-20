@@ -13,7 +13,7 @@ open EvmAsm.Rv64
 
 /-- 256-bit EVM SUB: binary, pops 2, pushes 1.
     Limb 0: LD, LD, SLTU (borrow), SUB, SD (5 instructions).
-    Limbs 1-3: LD, LD, SLTU (borrow1), SUB, SLTU (borrow2), SUB (borrow_in), OR (borrow_out), SD (8 each).
+    Limbs 1-3: LD, LD, SLTU (borrow1), SUB, SLTU (borrow2), SUB (borrowIn), OR (borrowOut), SD (8 each).
     Then ADDI sp, sp, 32. -/
 def evm_sub : Program :=
   -- Limb 0 (5 instructions)

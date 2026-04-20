@@ -36,7 +36,7 @@ theorem val256_ms_un_eq_val256_mod_max_skip
     val256 a0 a1 a2 a3 % val256 b0 b1 b2 b3 := by
   intro ms
   -- From `mulsubN4_val256_eq` with c3 = 0:
-  --   val256(a) = q_hat * val256(b) + val256(ms)
+  --   val256(a) = qHat * val256(b) + val256(ms)
   have hmulsub_raw := mulsubN4_val256_eq (signExtend12 4095) b0 b1 b2 b3 a0 a1 a2 a3
   simp only [] at hmulsub_raw
   rw [show ms.2.2.2.2 = (0 : Word) from hc3_zero] at hmulsub_raw
@@ -46,11 +46,11 @@ theorem val256_ms_un_eq_val256_mod_max_skip
   have hmulsub : val256 a0 a1 a2 a3 =
       (signExtend12 (4095 : BitVec 12) : Word).toNat * val256 b0 b1 b2 b3 +
       val256 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 := by linarith
-  -- Overestimate: val256(a)/val256(b) ≤ q_hat.
+  -- Overestimate: val256(a)/val256(b) ≤ qHat.
   have hge := max_trial_overestimate_n4 a0 a1 a2 a3 b0 b1 b2 b3 hb3nz
   have hv := val256_pos_of_or_ne_zero b0 b1 b2 b3 hbnz
   have ⟨hq, hr_lt⟩ := remainder_lt_of_ge_floor hv hmulsub hge
-  -- Substitute `q_hat = val256(a)/val256(b)` into the mulsub equation, then
+  -- Substitute `qHat = val256(a)/val256(b)` into the mulsub equation, then
   -- compare with `Nat.div_add_mod` to conclude.
   rw [hq] at hmulsub
   have hdam := Nat.div_add_mod (val256 a0 a1 a2 a3) (val256 b0 b1 b2 b3)

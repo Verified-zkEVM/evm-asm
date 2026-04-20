@@ -34,21 +34,21 @@ open EvmAsm.Rv64
     fact is needed (the caller knows we exited via fall-through). -/
 @[irreducible]
 def rlp_phase2_long_loop_one_byte_post
-    (len ptr byteZext word_val dwordAddr : Word) : Assertion :=
+    (len ptr byteZext wordVal dwordAddr : Word) : Assertion :=
   let length' := (len <<< 8) + byteZext
   let ptr'    := ptr + 1
   (.x11 ↦ᵣ length') ** (.x13 ↦ᵣ ptr') ** (.x14 ↦ᵣ (0 : Word)) **
     (.x12 ↦ᵣ byteZext) ** (.x0 ↦ᵣ (0 : Word)) **
-    (dwordAddr ↦ₘ word_val)
+    (dwordAddr ↦ₘ wordVal)
 
 theorem rlp_phase2_long_loop_one_byte_post_unfold
-    (len ptr byteZext word_val dwordAddr : Word) :
-    rlp_phase2_long_loop_one_byte_post len ptr byteZext word_val dwordAddr =
+    (len ptr byteZext wordVal dwordAddr : Word) :
+    rlp_phase2_long_loop_one_byte_post len ptr byteZext wordVal dwordAddr =
     ((.x11 ↦ᵣ ((len <<< 8) + byteZext)) **
      (.x13 ↦ᵣ (ptr + 1)) **
      (.x14 ↦ᵣ (0 : Word)) **
      (.x12 ↦ᵣ byteZext) ** (.x0 ↦ᵣ (0 : Word)) **
-     (dwordAddr ↦ₘ word_val)) := by
+     (dwordAddr ↦ₘ wordVal)) := by
   delta rlp_phase2_long_loop_one_byte_post; rfl
 
 /-- `cpsTriple` spec for the single-iteration (lenLen = 1) closure of
@@ -60,31 +60,31 @@ theorem rlp_phase2_long_loop_one_byte_post_unfold
     `cpsBranch_elim_ntaken` rule then turns the two-exit branch into a
     single-exit triple at the fall-through. -/
 theorem rlp_phase2_long_loop_one_byte_spec
-    (len ptr v12_old word_val dwordAddr : Word)
+    (len ptr v12_old wordVal dwordAddr : Word)
     (base : Word) (back : BitVec 13)
     (halign : alignToDword ptr = dwordAddr)
     (hvalid : isValidByteAccess ptr = true) :
-    let byteZext := (extractByte word_val (byteOffset ptr)).zeroExtend 64
+    let byteZext := (extractByte wordVal (byteOffset ptr)).zeroExtend 64
     cpsTriple base (base + 24)
       (CodeReq.ofProg base (rlp_phase2_long_loop_body_prog back))
       ((.x11 ↦ᵣ len) ** (.x13 ↦ᵣ ptr) ** (.x14 ↦ᵣ (1 : Word)) **
        (.x12 ↦ᵣ v12_old) ** (.x0 ↦ᵣ (0 : Word)) **
-       (dwordAddr ↦ₘ word_val))
-      (rlp_phase2_long_loop_one_byte_post len ptr byteZext word_val
+       (dwordAddr ↦ₘ wordVal))
+      (rlp_phase2_long_loop_one_byte_post len ptr byteZext wordVal
          dwordAddr) := by
   simp only [rlp_phase2_long_loop_one_byte_post_unfold]
   -- Body spec instantiated at cnt = 1.
   have body := rlp_phase2_long_loop_body_spec len ptr (1 : Word) v12_old
-    word_val dwordAddr base back halign hvalid
+    wordVal dwordAddr base back halign hvalid
   -- For cnt = 1, `cnt' = (1 : Word) + signExtend12 (-1 : BitVec 12) = 0`.
   have hcnt' : (1 : Word) + signExtend12 (-1 : BitVec 12) = (0 : Word) := by
     decide
   rw [hcnt'] at body
   -- The taken post carries `⌜(0 : Word) ≠ 0⌝`, which is False. Extract it
   -- via six layers of destructuring and derive the contradiction.
-  set byteZext := (extractByte word_val (byteOffset ptr)).zeroExtend 64
+  set byteZext := (extractByte wordVal (byteOffset ptr)).zeroExtend 64
   have h_absurd : ∀ hp,
-      rlp_phase2_long_loop_body_post len ptr (1 : Word) byteZext word_val
+      rlp_phase2_long_loop_body_post len ptr (1 : Word) byteZext wordVal
          dwordAddr ((0 : Word) ≠ 0) hp → False := by
     intro hp hpost
     simp only [rlp_phase2_long_loop_body_post_unfold] at hpost

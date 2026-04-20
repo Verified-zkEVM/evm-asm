@@ -18,7 +18,7 @@ open EvmAsm.Rv64
 /-- Per-limb AND spec (4 instructions: LD x7, LD x6, AND x7 x7 x6, SD x12 x7).
     Loads A[i] and B[i], computes AND, stores result at B[i]'s location. -/
 theorem and_limb_spec (offA offB : BitVec 12)
-    (sp a_limb b_limb v7 v6 : Word) (base : Word) :
+    (sp aLimb bLimb v7 v6 : Word) (base : Word) :
     let memA := sp + signExtend12 offA
     let memB := sp + signExtend12 offB
     let cr :=
@@ -28,9 +28,9 @@ theorem and_limb_spec (offA offB : BitVec 12)
        (CodeReq.singleton (base + 12) (.SD .x12 .x7 offB))))
     cpsTriple base (base + 16) cr
       ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) **
-       (memA ↦ₘ a_limb) ** (memB ↦ₘ b_limb))
-      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ (a_limb &&& b_limb)) ** (.x6 ↦ᵣ b_limb) **
-       (memA ↦ₘ a_limb) ** (memB ↦ₘ (a_limb &&& b_limb))) := by
+       (memA ↦ₘ aLimb) ** (memB ↦ₘ bLimb))
+      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ (aLimb &&& bLimb)) ** (.x6 ↦ᵣ bLimb) **
+       (memA ↦ₘ aLimb) ** (memB ↦ₘ (aLimb &&& bLimb))) := by
   runBlock
 
 end EvmAsm.Evm64

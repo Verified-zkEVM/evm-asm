@@ -37,21 +37,21 @@ open EvmAsm.Rv64
     `x11` in big-endian order. -/
 @[irreducible]
 def rlp_phase2_long_loop_two_byte_post
-    (len ptr byte1 byte2 word_val dwordAddr : Word) : Assertion :=
+    (len ptr byte1 byte2 wordVal dwordAddr : Word) : Assertion :=
   let length' := ((len <<< 8) + byte1) <<< 8 + byte2
   let ptr'    := ptr + 2
   (.x11 ↦ᵣ length') ** (.x13 ↦ᵣ ptr') ** (.x14 ↦ᵣ (0 : Word)) **
     (.x12 ↦ᵣ byte2) ** (.x0 ↦ᵣ (0 : Word)) **
-    (dwordAddr ↦ₘ word_val)
+    (dwordAddr ↦ₘ wordVal)
 
 theorem rlp_phase2_long_loop_two_byte_post_unfold
-    (len ptr byte1 byte2 word_val dwordAddr : Word) :
-    rlp_phase2_long_loop_two_byte_post len ptr byte1 byte2 word_val dwordAddr =
+    (len ptr byte1 byte2 wordVal dwordAddr : Word) :
+    rlp_phase2_long_loop_two_byte_post len ptr byte1 byte2 wordVal dwordAddr =
     ((.x11 ↦ᵣ (((len <<< 8) + byte1) <<< 8 + byte2)) **
      (.x13 ↦ᵣ (ptr + 2)) **
      (.x14 ↦ᵣ (0 : Word)) **
      (.x12 ↦ᵣ byte2) ** (.x0 ↦ᵣ (0 : Word)) **
-     (dwordAddr ↦ₘ word_val)) := by
+     (dwordAddr ↦ₘ wordVal)) := by
   delta rlp_phase2_long_loop_two_byte_post; rfl
 
 /-- `cpsTriple` spec for the two-iteration (lenLen = 2) closure of
@@ -62,7 +62,7 @@ theorem rlp_phase2_long_loop_two_byte_post_unfold
     iteration then runs with `cnt = 1`, falls through, and lands at
     `base + 24`. -/
 theorem rlp_phase2_long_loop_two_byte_spec
-    (len ptr v12_old word_val dwordAddr : Word)
+    (len ptr v12_old wordVal dwordAddr : Word)
     (base : Word) (back : BitVec 13)
     (halign1 : alignToDword ptr = dwordAddr)
     (halign2 : alignToDword (ptr + 1) = dwordAddr)
@@ -73,23 +73,23 @@ theorem rlp_phase2_long_loop_two_byte_spec
       (CodeReq.ofProg base (rlp_phase2_long_loop_body_prog back))
       ((.x11 ↦ᵣ len) ** (.x13 ↦ᵣ ptr) ** (.x14 ↦ᵣ (2 : Word)) **
        (.x12 ↦ᵣ v12_old) ** (.x0 ↦ᵣ (0 : Word)) **
-       (dwordAddr ↦ₘ word_val))
+       (dwordAddr ↦ₘ wordVal))
       (rlp_phase2_long_loop_two_byte_post len ptr
-        ((extractByte word_val (byteOffset ptr)).zeroExtend 64)
-        ((extractByte word_val (byteOffset (ptr + 1))).zeroExtend 64)
-        word_val dwordAddr) := by
+        ((extractByte wordVal (byteOffset ptr)).zeroExtend 64)
+        ((extractByte wordVal (byteOffset (ptr + 1))).zeroExtend 64)
+        wordVal dwordAddr) := by
   simp only [rlp_phase2_long_loop_two_byte_post_unfold]
   -- Iter 1: loop-body spec at cnt = 2.
   have body := rlp_phase2_long_loop_body_spec len ptr (2 : Word) v12_old
-    word_val dwordAddr base back halign1 hvalid1
+    wordVal dwordAddr base back halign1 hvalid1
   -- cnt' = 2 + signExtend12 (-1) = 1. Rewrite.
   have hcnt' : (2 : Word) + signExtend12 (-1 : BitVec 12) = (1 : Word) := by
     decide
   rw [hcnt'] at body
   -- The fall-through carries `⌜(1 : Word) = 0⌝`, which is False.
-  set byte1 := (extractByte word_val (byteOffset ptr)).zeroExtend 64
+  set byte1 := (extractByte wordVal (byteOffset ptr)).zeroExtend 64
   have h_absurd : ∀ hp,
-      rlp_phase2_long_loop_body_post len ptr (2 : Word) byte1 word_val
+      rlp_phase2_long_loop_body_post len ptr (2 : Word) byte1 wordVal
          dwordAddr ((1 : Word) = 0) hp → False := by
     intro hp hpost
     simp only [rlp_phase2_long_loop_body_post_unfold] at hpost
@@ -110,10 +110,10 @@ theorem rlp_phase2_long_loop_two_byte_spec
       (CodeReq.ofProg base (rlp_phase2_long_loop_body_prog back))
       ((.x11 ↦ᵣ len) ** (.x13 ↦ᵣ ptr) ** (.x14 ↦ᵣ (2 : Word)) **
        (.x12 ↦ᵣ v12_old) ** (.x0 ↦ᵣ (0 : Word)) **
-       (dwordAddr ↦ₘ word_val))
+       (dwordAddr ↦ₘ wordVal))
       ((.x11 ↦ᵣ ((len <<< 8) + byte1)) ** (.x13 ↦ᵣ (ptr + 1)) **
        (.x14 ↦ᵣ (1 : Word)) ** (.x12 ↦ᵣ byte1) **
-       (.x0 ↦ᵣ (0 : Word)) ** (dwordAddr ↦ₘ word_val)) :=
+       (.x0 ↦ᵣ (0 : Word)) ** (dwordAddr ↦ₘ wordVal)) :=
     cpsTriple_weaken
       (fun _ hp => hp)
       (fun h hp => by
@@ -126,7 +126,7 @@ theorem rlp_phase2_long_loop_two_byte_spec
   -- Iter 2: one-byte spec at base, using state from tri1's post.
   -- Permute post to match one-byte spec's pre shape (put x13, x14 first).
   have one_byte := rlp_phase2_long_loop_one_byte_spec ((len <<< 8) + byte1)
-    (ptr + 1) byte1 word_val dwordAddr base back halign2 hvalid2
+    (ptr + 1) byte1 wordVal dwordAddr base back halign2 hvalid2
   simp only [rlp_phase2_long_loop_one_byte_post_unfold] at one_byte
   -- Both CRs are the same (loop body prog at base), so use `_seq_same_cr`.
   -- Need to convert tri1''s post into one_byte's pre shape via consequence.
