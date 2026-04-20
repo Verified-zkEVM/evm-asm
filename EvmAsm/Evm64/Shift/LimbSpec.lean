@@ -39,7 +39,7 @@ abbrev shr_merge_limb_code (src_off next_off dst_off : BitVec 12) (base : Word) 
   CodeReq.ofProg base (shr_merge_limb_prog src_off next_off dst_off)
 
 theorem shr_merge_limb_spec (src_off next_off dst_off : BitVec 12)
-    (sp src next dst_old v5 v10 bit_shift antiShift mask : Word) (base : Word) :
+    (sp src next dstOld v5 v10 bit_shift antiShift mask : Word) (base : Word) :
     let memSrc := sp + signExtend12 src_off
     let memNext := sp + signExtend12 next_off
     let memDst := sp + signExtend12 dst_off
@@ -50,7 +50,7 @@ theorem shr_merge_limb_spec (src_off next_off dst_off : BitVec 12)
     cpsTriple base (base + 28) code
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ bit_shift) **
        (.x7 ↦ᵣ antiShift) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ mask) **
-       (memSrc ↦ₘ src) ** (memNext ↦ₘ next) ** (memDst ↦ₘ dst_old))
+       (memSrc ↦ₘ src) ** (memNext ↦ₘ next) ** (memDst ↦ₘ dstOld))
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result) ** (.x6 ↦ᵣ bit_shift) **
        (.x7 ↦ᵣ antiShift) ** (.x10 ↦ᵣ shiftedNext) ** (.x11 ↦ᵣ mask) **
        (memSrc ↦ₘ src) ** (memNext ↦ₘ next) ** (memDst ↦ₘ result)) := by
@@ -60,7 +60,7 @@ theorem shr_merge_limb_spec (src_off next_off dst_off : BitVec 12)
   have SL := sll_spec_gen_rd_eq_rs1 .x10 .x7 next antiShift (base + 12) (by nofun)
   have AN := and_spec_gen_rd_eq_rs1 .x10 .x11 (next <<< (antiShift.toNat % 64)) mask (base + 16) (by nofun)
   have OR_ := or_spec_gen_rd_eq_rs1 .x5 .x10 (src >>> (bit_shift.toNat % 64)) ((next <<< (antiShift.toNat % 64)) &&& mask) (base + 20) (by nofun)
-  have SD_ := sd_spec_gen .x12 .x5 sp ((src >>> (bit_shift.toNat % 64)) ||| ((next <<< (antiShift.toNat % 64)) &&& mask)) dst_old dst_off (base + 24)
+  have SD_ := sd_spec_gen .x12 .x5 sp ((src >>> (bit_shift.toNat % 64)) ||| ((next <<< (antiShift.toNat % 64)) &&& mask)) dstOld dst_off (base + 24)
   runBlock L1 SR L2 SL AN OR_ SD_
 
 -- SHR Last Limb (3 instructions)
@@ -69,19 +69,19 @@ abbrev shr_last_limb_code (dst_off : BitVec 12) (base : Word) : CodeReq :=
   CodeReq.ofProg base (shr_last_limb_prog dst_off)
 
 theorem shr_last_limb_spec (dst_off : BitVec 12)
-    (sp src dst_old v5 bit_shift : Word) (base : Word) :
+    (sp src dstOld v5 bit_shift : Word) (base : Word) :
     let memSrc := sp + signExtend12 (24 : BitVec 12)
     let memDst := sp + signExtend12 dst_off
     let result := src >>> (bit_shift.toNat % 64)
     let code := shr_last_limb_code dst_off base
     cpsTriple base (base + 12) code
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ bit_shift) **
-       (memSrc ↦ₘ src) ** (memDst ↦ₘ dst_old))
+       (memSrc ↦ₘ src) ** (memDst ↦ₘ dstOld))
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result) ** (.x6 ↦ᵣ bit_shift) **
        (memSrc ↦ₘ src) ** (memDst ↦ₘ result)) := by
   have L := ld_spec_gen .x5 .x12 sp v5 src 24 base (by nofun)
   have SR := srl_spec_gen_rd_eq_rs1 .x5 .x6 src bit_shift (base + 4) (by nofun)
-  have SD_ := sd_spec_gen .x12 .x5 sp (src >>> (bit_shift.toNat % 64)) dst_old dst_off (base + 8)
+  have SD_ := sd_spec_gen .x12 .x5 sp (src >>> (bit_shift.toNat % 64)) dstOld dst_off (base + 8)
   runBlock L SR SD_
 
 -- SHR Merge Limb In-place (7 instructions, src_off = dst_off)

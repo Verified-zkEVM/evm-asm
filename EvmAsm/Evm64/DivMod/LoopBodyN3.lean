@@ -56,8 +56,8 @@ theorem vtop_eq_v2_n3 (sp : Word) :
     No overlapping cells: uHi=u3, uLo=u2, vTop=v2.
     Entry: base+448, cpsBranch to base+448/904. -/
 theorem divK_loop_body_n3_max_skip_spec
-    (sp j j_old v5_old v6_old v7_old v10_old v11_old v2_old
-     v0 v1 v2 v3 u0 u1 u2 u3 uTop q_old : Word)
+    (sp j jOld v5Old v6Old v7Old v10Old v11Old v2Old
+     v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
     (base : Word)
     (hbltu : ¬BitVec.ult u3 v2) :
     let uBase := sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat
@@ -67,16 +67,16 @@ theorem divK_loop_body_n3_max_skip_spec
     (if BitVec.ult uTop (mulsubN4_c3 qHat v0 v1 v2 v3 u0 u1 u2 u3) then (1 : Word) else 0) = (0 : Word) →
     cpsBranch (base + loopBodyOff) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
-       (.x5 ↦ᵣ v5_old) ** (.x6 ↦ᵣ v6_old) **
-       (.x7 ↦ᵣ v7_old) ** (.x10 ↦ᵣ v10_old) ** (.x11 ↦ᵣ v11_old) **
-       (.x2 ↦ᵣ v2_old) ** (.x0 ↦ᵣ (0 : Word)) **
-       (sp + signExtend12 3976 ↦ₘ j_old) ** (sp + signExtend12 3984 ↦ₘ (3 : Word)) **
+       (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
+       (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
+       (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
+       (sp + signExtend12 3976 ↦ₘ jOld) ** (sp + signExtend12 3984 ↦ₘ (3 : Word)) **
        ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
        ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4088) ↦ₘ u1) **
        ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4080) ↦ₘ u2) **
        ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ u3) **
        ((uBase + signExtend12 4064) ↦ₘ uTop) **
-       (qAddr ↦ₘ q_old))
+       (qAddr ↦ₘ qOld))
       (base + loopBodyOff) (loopBodyN3SkipPost sp j qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop)
       (base + denormOff) (loopBodyN3SkipPost sp j qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop) := by
   intro uBase qHat qAddr hborrow
@@ -110,7 +110,7 @@ theorem divK_loop_body_n3_max_skip_spec
   -- Abbreviation for vtopBase (register value, not a memory address)
   let vtopBase := sp + ((3 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
   -- 1. Trial max full (base+448 → base+516), instantiated with n=3, uHi=u3, uLo=u2, vTop=v2
-  have TF := divK_trial_max_full_spec sp j (3 : Word) j_old v5_old v6_old v7_old v10_old v11_old
+  have TF := divK_trial_max_full_spec sp j (3 : Word) jOld v5Old v6Old v7Old v10Old v11Old
     u3 u2 v2 base hbltu
   -- Expand let-bindings in TF to expose raw address expressions
   dsimp only [] at TF
@@ -121,21 +121,21 @@ theorem divK_loop_body_n3_max_skip_spec
   rw [vtop_eq_v2_n3 sp] at TF
   -- 2. Mulsub + correction skip (base+516 → base+880)
   have MCS := divK_mulsub_correction_skip_spec sp qHat j v0 v1 v2 v3 u0 u1 u2 u3 uTop
-    j u2 vtopBase u3 v2 v2_old base
+    j u2 vtopBase u3 v2 v2Old base
 
   intro_lets at MCS
   have MCS0 := MCS hborrow
   -- 3. Store loop cpsBranch (base+880 → base+448/904)
-  have SL := divK_store_loop_spec sp j qHat u4_new (0 : Word) q_old base
+  have SL := divK_store_loop_spec sp j qHat u4_new (0 : Word) qOld base
   intro_lets at SL
   -- 4. Frame TF with mulsub cells that DON'T overlap
   --    (uBase+4072 ↦ₘ u3, uBase+4080 ↦ₘ u2, sp+48 ↦ₘ v2 are already in TF)
   have TFf := cpsTriple_frameR
-    ((.x2 ↦ᵣ v2_old) **
+    ((.x2 ↦ᵣ v2Old) **
      ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
      ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4088) ↦ₘ u1) **
      ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4064) ↦ₘ uTop) **
-     (qAddr ↦ₘ q_old))
+     (qAddr ↦ₘ qOld))
     (by pcFree) TF
   -- 5. Compose TF + MCS0
   seqFrame TFf MCS0
@@ -168,8 +168,8 @@ theorem divK_loop_body_n3_max_skip_spec
     No overlapping cells: uHi=u3, uLo=u2, vTop=v2.
     Entry: base+448, cpsBranch to base+448/904. -/
 theorem divK_loop_body_n3_max_addback_spec
-    (sp j j_old v5_old v6_old v7_old v10_old v11_old v2_old
-     v0 v1 v2 v3 u0 u1 u2 u3 uTop q_old : Word)
+    (sp j jOld v5Old v6Old v7Old v10Old v11Old v2Old
+     v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
     (base : Word)
     (hbltu : ¬BitVec.ult u3 v2) :
     let uBase := sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat
@@ -184,16 +184,16 @@ theorem divK_loop_body_n3_max_addback_spec
     (if BitVec.ult uTop (mulsubN4_c3 qHat v0 v1 v2 v3 u0 u1 u2 u3) then (1 : Word) else 0) ≠ (0 : Word) →
     cpsBranch (base + loopBodyOff) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
-       (.x5 ↦ᵣ v5_old) ** (.x6 ↦ᵣ v6_old) **
-       (.x7 ↦ᵣ v7_old) ** (.x10 ↦ᵣ v10_old) ** (.x11 ↦ᵣ v11_old) **
-       (.x2 ↦ᵣ v2_old) ** (.x0 ↦ᵣ (0 : Word)) **
-       (sp + signExtend12 3976 ↦ₘ j_old) ** (sp + signExtend12 3984 ↦ₘ (3 : Word)) **
+       (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
+       (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
+       (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
+       (sp + signExtend12 3976 ↦ₘ jOld) ** (sp + signExtend12 3984 ↦ₘ (3 : Word)) **
        ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
        ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4088) ↦ₘ u1) **
        ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4080) ↦ₘ u2) **
        ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ u3) **
        ((uBase + signExtend12 4064) ↦ₘ uTop) **
-       (qAddr ↦ₘ q_old))
+       (qAddr ↦ₘ qOld))
       (base + loopBodyOff) (loopBodyN3AddbackBeqPost sp j qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop)
       (base + denormOff) (loopBodyN3AddbackBeqPost sp j qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop) := by
   intro uBase qHat qAddr ms ab hcarry2_nz hborrow
@@ -214,7 +214,7 @@ theorem divK_loop_body_n3_max_addback_spec
   -- Abbreviation for vtopBase (register value, not a memory address)
   let vtopBase := sp + ((3 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
   -- 1. Trial max full (base+448 → base+516)
-  have TF := divK_trial_max_full_spec sp j (3 : Word) j_old v5_old v6_old v7_old v10_old v11_old
+  have TF := divK_trial_max_full_spec sp j (3 : Word) jOld v5Old v6Old v7Old v10Old v11Old
     u3 u2 v2 base hbltu
   dsimp only [] at TF
   rw [u_addr_eq_n3 sp j] at TF
@@ -222,20 +222,20 @@ theorem divK_loop_body_n3_max_addback_spec
   rw [vtop_eq_v2_n3 sp] at TF
   -- 2. Mulsub + correction addback + BEQ (base+516 → base+884)
   have MCA := divK_mulsub_correction_addback_beq_spec sp qHat j v0 v1 v2 v3 u0 u1 u2 u3 uTop
-    j u2 vtopBase u3 v2 v2_old base
+    j u2 vtopBase u3 v2 v2Old base
 
   intro_lets at MCA
   have MCA0 := MCA hcarry2_nz hborrow
   -- 3. Store loop cpsBranch (base+884 → base+448/908)
-  have SL := divK_store_loop_spec sp j q_out u4_out carryOut q_old base
+  have SL := divK_store_loop_spec sp j q_out u4_out carryOut qOld base
   intro_lets at SL
   -- 4. Frame TF with non-overlapping cells
   have TFf := cpsTriple_frameR
-    ((.x2 ↦ᵣ v2_old) **
+    ((.x2 ↦ᵣ v2Old) **
      ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
      ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4088) ↦ₘ u1) **
      ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4064) ↦ₘ uTop) **
-     (qAddr ↦ₘ q_old))
+     (qAddr ↦ₘ qOld))
     (by pcFree) TF
   -- 5. Compose TF + MCA0
   seqFrame TFf MCA0
@@ -267,8 +267,8 @@ theorem divK_loop_body_n3_max_addback_spec
     No overlapping cells: uHi=u3, uLo=u2, vTop=v2.
     Entry: base+448, cpsBranch to base+448/904. -/
 theorem divK_loop_body_n3_call_skip_spec
-    (sp j j_old v5_old v6_old v7_old v10_old v11_old v2_old
-     v0 v1 v2 v3 u0 u1 u2 u3 uTop q_old : Word)
+    (sp j jOld v5Old v6Old v7Old v10Old v11Old v2Old
+     v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
     (retMem dMem dloMem scratch_un0 : Word)
     (base : Word)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
@@ -305,16 +305,16 @@ theorem divK_loop_body_n3_call_skip_spec
     (if BitVec.ult uTop (mulsubN4_c3 qHat v0 v1 v2 v3 u0 u1 u2 u3) then (1 : Word) else 0) = (0 : Word) →
     cpsBranch (base + loopBodyOff) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
-       (.x5 ↦ᵣ v5_old) ** (.x6 ↦ᵣ v6_old) **
-       (.x7 ↦ᵣ v7_old) ** (.x10 ↦ᵣ v10_old) ** (.x11 ↦ᵣ v11_old) **
-       (.x2 ↦ᵣ v2_old) ** (.x0 ↦ᵣ (0 : Word)) **
-       (sp + signExtend12 3976 ↦ₘ j_old) ** (sp + signExtend12 3984 ↦ₘ (3 : Word)) **
+       (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
+       (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
+       (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
+       (sp + signExtend12 3976 ↦ₘ jOld) ** (sp + signExtend12 3984 ↦ₘ (3 : Word)) **
        ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
        ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4088) ↦ₘ u1) **
        ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4080) ↦ₘ u2) **
        ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ u3) **
        ((uBase + signExtend12 4064) ↦ₘ uTop) **
-       (qAddr ↦ₘ q_old) **
+       (qAddr ↦ₘ qOld) **
        (sp + signExtend12 3968 ↦ₘ retMem) **
        (sp + signExtend12 3960 ↦ₘ dMem) **
        (sp + signExtend12 3952 ↦ₘ dloMem) **
@@ -364,7 +364,7 @@ theorem divK_loop_body_n3_call_skip_spec
   let j' := j + signExtend12 4095
   let vtopBase := sp + ((3 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
   -- 1. Trial call full (base+448 → base+516)
-  have TF := divK_trial_call_full_spec sp j (3 : Word) j_old v5_old v6_old v7_old v10_old v11_old v2_old
+  have TF := divK_trial_call_full_spec sp j (3 : Word) jOld v5Old v6Old v7Old v10Old v11Old v2Old
     u3 u2 v2 retMem dMem dloMem scratch_un0 base
     halign hbltu
   dsimp only [] at TF
@@ -378,7 +378,7 @@ theorem divK_loop_body_n3_call_skip_spec
   intro_lets at MCS
   have MCS0 := MCS hborrow
   -- 3. Store loop cpsBranch (base+880 → base+448/904)
-  have SL := divK_store_loop_spec sp j qHat u4_new (0 : Word) q_old base
+  have SL := divK_store_loop_spec sp j qHat u4_new (0 : Word) qOld base
   intro_lets at SL
   -- 4. Frame TF (trial_call includes scratch memory, so don't add those to frame)
   --    For n=3: uBase+4072 ↦ u3, uBase+4080 ↦ u2, sp+48 ↦ v2 are in the trial
@@ -386,7 +386,7 @@ theorem divK_loop_body_n3_call_skip_spec
     (((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
      ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4088) ↦ₘ u1) **
      ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4064) ↦ₘ uTop) **
-     (qAddr ↦ₘ q_old))
+     (qAddr ↦ₘ qOld))
     (by pcFree) TF
   -- 5. Compose TF + MCS0
   seqFrame TFf MCS0
@@ -422,8 +422,8 @@ theorem divK_loop_body_n3_call_skip_spec
     No overlapping cells: uHi=u3, uLo=u2, vTop=v2.
     Entry: base+448, cpsBranch to base+448/904. -/
 theorem divK_loop_body_n3_call_addback_spec
-    (sp j j_old v5_old v6_old v7_old v10_old v11_old v2_old
-     v0 v1 v2 v3 u0 u1 u2 u3 uTop q_old : Word)
+    (sp j jOld v5Old v6Old v7Old v10Old v11Old v2Old
+     v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
     (retMem dMem dloMem scratch_un0 : Word)
     (base : Word)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
@@ -465,16 +465,16 @@ theorem divK_loop_body_n3_call_addback_spec
     (if BitVec.ult uTop (mulsubN4_c3 qHat v0 v1 v2 v3 u0 u1 u2 u3) then (1 : Word) else 0) ≠ (0 : Word) →
     cpsBranch (base + loopBodyOff) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
-       (.x5 ↦ᵣ v5_old) ** (.x6 ↦ᵣ v6_old) **
-       (.x7 ↦ᵣ v7_old) ** (.x10 ↦ᵣ v10_old) ** (.x11 ↦ᵣ v11_old) **
-       (.x2 ↦ᵣ v2_old) ** (.x0 ↦ᵣ (0 : Word)) **
-       (sp + signExtend12 3976 ↦ₘ j_old) ** (sp + signExtend12 3984 ↦ₘ (3 : Word)) **
+       (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
+       (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
+       (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
+       (sp + signExtend12 3976 ↦ₘ jOld) ** (sp + signExtend12 3984 ↦ₘ (3 : Word)) **
        ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
        ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4088) ↦ₘ u1) **
        ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4080) ↦ₘ u2) **
        ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ u3) **
        ((uBase + signExtend12 4064) ↦ₘ uTop) **
-       (qAddr ↦ₘ q_old) **
+       (qAddr ↦ₘ qOld) **
        (sp + signExtend12 3968 ↦ₘ retMem) **
        (sp + signExtend12 3960 ↦ₘ dMem) **
        (sp + signExtend12 3952 ↦ₘ dloMem) **
@@ -511,7 +511,7 @@ theorem divK_loop_body_n3_call_addback_spec
     else carry
   let vtopBase := sp + ((3 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
   -- 1. Trial call full (base+448 → base+516)
-  have TF := divK_trial_call_full_spec sp j (3 : Word) j_old v5_old v6_old v7_old v10_old v11_old v2_old
+  have TF := divK_trial_call_full_spec sp j (3 : Word) jOld v5Old v6Old v7Old v10Old v11Old v2Old
     u3 u2 v2 retMem dMem dloMem scratch_un0 base
     halign hbltu
   dsimp only [] at TF
@@ -525,14 +525,14 @@ theorem divK_loop_body_n3_call_addback_spec
   intro_lets at MCA
   have MCA0 := MCA hcarry2_nz hborrow
   -- 3. Store loop cpsBranch (base+884 → base+448/908)
-  have SL := divK_store_loop_spec sp j q_out u4_out carryOut q_old base
+  have SL := divK_store_loop_spec sp j q_out u4_out carryOut qOld base
   intro_lets at SL
   -- 4. Frame TF
   have TFf := cpsTriple_frameR
     (((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
      ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4088) ↦ₘ u1) **
      ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4064) ↦ₘ uTop) **
-     (qAddr ↦ₘ q_old))
+     (qAddr ↦ₘ qOld))
     (by pcFree) TF
   -- 5. Compose TF + MCA0
   seqFrame TFf MCA0
