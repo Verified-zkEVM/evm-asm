@@ -5,7 +5,7 @@
   product-check section:
     * `divK_div128_prodcheck2_merged_spec` — 8 instructions: LD + MUL +
       SLLI + LD + OR (body) + BLTU + JAL (branch) + ADDI (correction).
-      If `rhat2*2^32 + un0 < q0*d_lo`, BLTU takes the correction path
+      If `rhat2*2^32 + un0 < q0*dLo`, BLTU takes the correction path
       (ADDI `q0--`); otherwise JAL skips the correction. Both branches
       merge at `base + 32`. Note there's only one correction instruction
       here (no rhat2 update, unlike product check 1).
@@ -30,7 +30,7 @@ namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
 
-/-- div128 product check 2: compute q0*d_lo vs rhat2*2^32+un0, conditionally correct q0.
+/-- div128 product check 2: compute q0*dLo vs rhat2*2^32+un0, conditionally correct q0.
     Instrs [37]-[44]. Both BLTU paths merge at base+32. -/
 theorem divK_div128_prodcheck2_merged_spec
     (sp q0 rhat2 v1_old v7_old dlo un0 : Word) (base : Word) :

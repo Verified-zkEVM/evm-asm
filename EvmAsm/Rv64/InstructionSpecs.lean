@@ -224,40 +224,40 @@ theorem auipc_spec (rd : Reg) (v_old : Word) (imm : BitVec 20) (base : Word)
 -- ============================================================================
 
 /-- LD rd, offset(rs1): rd := mem[rs1 + sext(offset)] (registers distinct) -/
-theorem ld_spec (rd rs1 : Reg) (v_addr v_old mem_val : Word) (offset : BitVec 12) (base : Word)
+theorem ld_spec (rd rs1 : Reg) (v_addr v_old memVal : Word) (offset : BitVec 12) (base : Word)
     (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple base (base + 4) (CodeReq.singleton base (.LD rd rs1 offset))
-      ((rs1 ↦ᵣ v_addr) ** (rd ↦ᵣ v_old) ** ((v_addr + signExtend12 offset) ↦ₘ mem_val))
-      ((rs1 ↦ᵣ v_addr) ** (rd ↦ᵣ mem_val) ** ((v_addr + signExtend12 offset) ↦ₘ mem_val)) :=
-  generic_ld_spec rd rs1 v_addr v_old mem_val offset base hrd_ne_x0
+      ((rs1 ↦ᵣ v_addr) ** (rd ↦ᵣ v_old) ** ((v_addr + signExtend12 offset) ↦ₘ memVal))
+      ((rs1 ↦ᵣ v_addr) ** (rd ↦ᵣ memVal) ** ((v_addr + signExtend12 offset) ↦ₘ memVal)) :=
+  generic_ld_spec rd rs1 v_addr v_old memVal offset base hrd_ne_x0
 
 /-- LD rd, offset(rd): rd := mem[rd + sext(offset)] (same register) -/
-theorem ld_spec_same (rd : Reg) (v_addr mem_val : Word) (offset : BitVec 12) (base : Word)
+theorem ld_spec_same (rd : Reg) (v_addr memVal : Word) (offset : BitVec 12) (base : Word)
     (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple base (base + 4) (CodeReq.singleton base (.LD rd rd offset))
-      ((rd ↦ᵣ v_addr) ** ((v_addr + signExtend12 offset) ↦ₘ mem_val))
-      ((rd ↦ᵣ mem_val) ** ((v_addr + signExtend12 offset) ↦ₘ mem_val)) := by
+      ((rd ↦ᵣ v_addr) ** ((v_addr + signExtend12 offset) ↦ₘ memVal))
+      ((rd ↦ᵣ memVal) ** ((v_addr + signExtend12 offset) ↦ₘ memVal)) := by
   intro R hR s hcr hPR hpc; subst hpc
   have hfetch : s.code s.pc = some (.LD rd rd offset) :=
     (CodeReq.singleton_satisfiedBy s.pc (.LD rd rd offset) s).mp hcr
   have hrd : s.getReg rd = v_addr :=
     (holdsFor_regIs _ _ s).mp (holdsFor_sepConj_elim_left (holdsFor_sepConj_elim_left hPR))
   have hmem_piece := holdsFor_sepConj_elim_right (holdsFor_sepConj_elim_left hPR)
-  have hmem : s.getMem (v_addr + signExtend12 offset) = mem_val :=
+  have hmem : s.getMem (v_addr + signExtend12 offset) = memVal :=
     holdsFor_memIs_getMem hmem_piece
   have hvalid : isValidDwordAccess (v_addr + signExtend12 offset) = true :=
     holdsFor_memIs_isValidDwordAccess hmem_piece
   have hstep' : step s = some (execInstrBr s (.LD rd rd offset)) :=
     step_ld s rd rd offset hfetch (hrd ▸ hvalid)
-  have hexec' : execInstrBr s (.LD rd rd offset) = (s.setReg rd mem_val).setPC (s.pc + 4) := by
+  have hexec' : execInstrBr s (.LD rd rd offset) = (s.setReg rd memVal).setPC (s.pc + 4) := by
     simp only [execInstrBr, hrd, hmem]
-  refine ⟨1, (s.setReg rd mem_val).setPC (s.pc + 4), ?_, rfl, ?_⟩
+  refine ⟨1, (s.setReg rd memVal).setPC (s.pc + 4), ?_, rfl, ?_⟩
   · show (step s).bind (stepN 0) = some _
     rw [hstep', hexec']; rfl
   · -- Pre: (rd ** mem) ** R → assoc → rd ** (mem ** R)
     have h1 := holdsFor_sepConj_assoc.mp hPR
     -- Update rd: rd ** (mem ** R) → rd' ** (mem ** R)
-    have h2 := holdsFor_sepConj_regIs_setReg (v' := mem_val) hrd_ne_x0 h1
+    have h2 := holdsFor_sepConj_regIs_setReg (v' := memVal) hrd_ne_x0 h1
     -- Reassociate: rd' ** (mem ** R) → (rd' ** mem) ** R
     have h3 := holdsFor_sepConj_assoc.mpr h2
     exact holdsFor_pcFree_setPC (pcFree_sepConj (by pcFree) hR) _ _ h3

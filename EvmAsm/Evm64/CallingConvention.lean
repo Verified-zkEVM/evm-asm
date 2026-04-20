@@ -173,10 +173,7 @@ theorem callNear_function_spec
       ((CodeReq.singleton call_site (.JAL .x1 offset)).union cr_func)
       ((.x1 ↦ᵣ old_ra) ** P)
       ((.x1 ↦ᵣ (call_site + 4)) ** Q) := by
-  have hcall := cpsTriple_frame_left call_site (call_site + signExtend21 offset)
-    (CodeReq.singleton call_site (.JAL .x1 offset))
-    (.x1 ↦ᵣ old_ra) (.x1 ↦ᵣ (call_site + 4))
-    P hP (callNear_spec offset call_site old_ra)
+  have hcall := cpsTriple_frameR P hP (callNear_spec offset call_site old_ra)
   rw [hoff] at hcall
   exact cpsTriple_seq call_site func_entry ((call_site + 4) &&& ~~~1)
     (CodeReq.singleton call_site (.JAL .x1 offset)) cr_func hd

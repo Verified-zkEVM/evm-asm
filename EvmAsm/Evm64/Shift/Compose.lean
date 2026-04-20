@@ -775,7 +775,7 @@ theorem evm_shr_body_evmWord_spec (sp base : Word)
   have hbody0 := cpsTriple_extend_code (body_0_sub_shrCode base)
     (shr_body_0_spec (sp + 32) limbShift sltiuVal bitShift antiShift mask
       v0 v1 v2 v3 (base + 240) (base + 360) 24 (shr_body0_exit base))
-  -- Frame each body with (x0=0 ** shift_mem)
+  -- Frame each body with (x0=0 ** shiftMem)
   have hbody3_f := cpsTriple_frame_left (base + 84) (base + 360) _ _ _
     ((.x0 ↦ᵣ (0 : Word)) ** (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3))
     (by pcFree) hbody3

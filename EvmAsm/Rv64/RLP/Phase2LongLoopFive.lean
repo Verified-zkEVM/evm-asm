@@ -134,7 +134,7 @@ theorem rlp_phase2_long_loop_five_byte_spec
   have h_ptr_5 : (ptr + 1 : Word) + 4 = ptr + 5 := by bv_omega
   rw [h_ptr_2, h_ptr_3, h_ptr_4, h_ptr_5] at four_byte
   have composed :=
-    cpsTriple_seq_with_perm_same_cr base base (base + 24) _ _ _ _ _
+    cpsTriple_seq_perm_same_cr
       (fun h hp => by xperm_hyp hp) tri1' four_byte
   exact cpsTriple_weaken
     (fun _ hp => hp)
