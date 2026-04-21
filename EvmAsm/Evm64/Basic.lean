@@ -234,7 +234,7 @@ theorem getLimbN_one_two : (1 : EvmWord).getLimbN 2 = 0 :=
 theorem getLimbN_one_three : (1 : EvmWord).getLimbN 3 = 0 :=
   getLimbN_one_of_ne_zero 3 (by decide)
 
-theorem getLimbN_ite (c : Prop) [Decidable c] (x y : EvmWord) (k : Nat) :
+theorem getLimbN_ite {c : Prop} [Decidable c] {x y : EvmWord} {k : Nat} :
     (if c then x else y).getLimbN k = if c then x.getLimbN k else y.getLimbN k := by
   split <;> rfl
 
