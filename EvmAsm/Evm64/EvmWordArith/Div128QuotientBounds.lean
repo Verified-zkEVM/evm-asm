@@ -484,4 +484,66 @@ theorem div128Quot_un21_toNat (uHi dHi dLo uLo rhatUn1 : Word)
   congr 1
   omega
 
+/-- **KB-3j: un21.toNat case-split on wraparound.** Resolves the
+    modular formula from KB-3i into two cases based on whether the
+    BitVec subtraction wraps:
+
+    Let `A := (rhat'.toNat % 2^32) * 2^32 + (uLo >>> 32).toNat`
+    and `B := q1'.toNat * dLo.toNat`.
+
+    - **No wrap** (`B ≤ A`): `un21.toNat = A - B`.
+    - **Wrap** (`A < B`): `un21.toNat = A + 2^64 - B`.
+
+    The "no wrap" case is Knuth's expected flow. The "wrap" case should
+    never occur in Knuth's algorithm by the multiplication-check
+    invariant (Phase 1b was designed to prevent it), but formalizing
+    that takes substantial work, so this lemma exposes both branches
+    and leaves the choice to downstream reasoning. -/
+theorem div128Quot_un21_toNat_case (uHi dHi dLo uLo rhatUn1 : Word)
+    (hdHi_ge : dHi.toNat ≥ 2^31)
+    (hdLo_lt : dLo.toNat < 2^32)
+    (huHi_lt_vTop : uHi.toNat < dHi.toNat * 2^32 + dLo.toNat) :
+    let q1 := rv64_divu uHi dHi
+    let rhat := uHi - q1 * dHi
+    let hi1 := q1 >>> (32 : BitVec 6).toNat
+    let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+    let rhatc := if hi1 = 0 then rhat else rhat + dHi
+    let q1' := if BitVec.ult rhatUn1 (q1c * dLo) then q1c + signExtend12 4095
+               else q1c
+    let rhat' := if BitVec.ult rhatUn1 (q1c * dLo) then rhatc + dHi else rhatc
+    let div_un1 := uLo >>> (32 : BitVec 6).toNat
+    let cu_rhat_un1 := (rhat' <<< (32 : BitVec 6).toNat) ||| div_un1
+    let cu_q1_dlo := q1' * dLo
+    let un21 := cu_rhat_un1 - cu_q1_dlo
+    let A := (rhat'.toNat % 2^32) * 2^32 + div_un1.toNat
+    let B := q1'.toNat * dLo.toNat
+    (B ≤ A → un21.toNat = A - B) ∧
+    (A < B → un21.toNat = A + 2^64 - B) := by
+  intro q1 rhat hi1 q1c rhatc q1' rhat' div_un1 cu_rhat_un1 cu_q1_dlo un21 A B
+  have h_formula : un21.toNat = (A + 2^64 - B) % 2^64 :=
+    div128Quot_un21_toNat uHi dHi dLo uLo rhatUn1
+      hdHi_ge hdLo_lt huHi_lt_vTop
+  have h_A_lt : A < 2^64 := by
+    show (rhat'.toNat % 2^32) * 2^32 + div_un1.toNat < 2^64
+    have h_rhat_mod : rhat'.toNat % 2^32 < 2^32 := Nat.mod_lt _ (by decide)
+    have h_divun1_lt : div_un1.toNat < 2^32 := Word_ushiftRight_32_lt_pow32 uLo
+    nlinarith
+  have h_B_lt : B < 2^64 := by
+    show q1'.toNat * dLo.toNat < 2^64
+    have h_cu : cu_q1_dlo.toNat = q1'.toNat * dLo.toNat :=
+      div128Quot_q1_prime_dLo_no_wrap uHi dHi dLo rhatUn1
+        hdHi_ge hdLo_lt huHi_lt_vTop
+    have := cu_q1_dlo.isLt
+    omega
+  refine ⟨?_, ?_⟩
+  · intro hBA
+    rw [h_formula]
+    show (A + 2^64 - B) % 2^64 = A - B
+    rw [show A + 2^64 - B = (A - B) + 2^64 from by omega,
+        Nat.add_mod_right, Nat.mod_eq_of_lt (by omega : A - B < 2^64)]
+  · intro hAB
+    rw [h_formula]
+    show (A + 2^64 - B) % 2^64 = A + 2^64 - B
+    exact Nat.mod_eq_of_lt (by omega)
+
 end EvmAsm.Evm64
