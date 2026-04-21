@@ -134,27 +134,27 @@ theorem pcIndep_and {P Q : MachineState → Prop} (hP : pcIndep P) (hQ : pcIndep
   intro s v ⟨hp, hq⟩
   exact ⟨hP s v hp, hQ s v hq⟩
 
-theorem pcIndep_holdsFor_regIs (r : Reg) (val : Word) :
+theorem pcIndep_holdsFor_regIs {r : Reg} {val : Word} :
     pcIndep (regIs r val).holdsFor := by
   intro s v h
   simp only [holdsFor_regIs, MachineState.getReg_setPC] at *; exact h
 
-theorem pcIndep_holdsFor_memIs (a : Word) (val : Word) :
+theorem pcIndep_holdsFor_memIs {a : Word} {val : Word} :
     pcIndep (memIs a val).holdsFor := by
   intro s v h
   simp only [holdsFor_memIs, MachineState.getMem, MachineState.setPC] at *; exact h
 
-theorem pcIndep_committedIs (vals : List (Word × Word)) :
+theorem pcIndep_committedIs {vals : List (Word × Word)} :
     pcIndep (MachineState.committedIs vals) := by
   intro s v h
   simp only [MachineState.committedIs, MachineState.committed_setPC] at *; exact h
 
-theorem pcIndep_publicValuesIs (vals : List (BitVec 8)) :
+theorem pcIndep_publicValuesIs {vals : List (BitVec 8)} :
     pcIndep (MachineState.publicValuesIs vals) := by
   intro s v h
   simp only [MachineState.publicValuesIs, MachineState.publicValues_setPC] at *; exact h
 
-theorem pcIndep_privateInputIs (vals : List (BitVec 8)) :
+theorem pcIndep_privateInputIs {vals : List (BitVec 8)} :
     pcIndep (MachineState.privateInputIs vals) := by
   intro s v h
   simp only [MachineState.privateInputIs, MachineState.privateInput_setPC] at *; exact h
