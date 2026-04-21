@@ -1054,4 +1054,43 @@ theorem div128Quot_phase1b_no_underflow (uHi dHi : Word)
     div128Quot_phase1b_post uHi dHi q1c rhatc dLo rhatUn1 hdHi_lt h_post h_rhatc_lt
   omega
 
+/-- **KB-3b: Post-Phase-1b output bound on `q1'.toNat`.** After the
+    multiplication-check correction, `q1'` is still bounded by `2^33`:
+
+    ```
+    q1'.toNat < 2^33
+    ```
+
+    - Check doesn't fire → `q1' = q1c < 2^33` (from `div128Quot_q1c_lt_pow33`).
+    - Check fires → `q1' = q1c - 1 < q1c < 2^33`.
+
+    Used in Phase 2 analysis to bound `q1' * dLo` (which feeds into the
+    `un21` computation). Companion to `div128Quot_rhat_prime_lt_3dHi`
+    (bound on `rhat'`). -/
+theorem div128Quot_q1_prime_lt_pow33 (uHi dHi : Word)
+    (hdHi_ge : dHi.toNat ≥ 2^31) (dLo rhatUn1 : Word) :
+    let q1 := rv64_divu uHi dHi
+    let hi1 := q1 >>> (32 : BitVec 6).toNat
+    let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+    let q1' := if BitVec.ult rhatUn1 (q1c * dLo) then q1c + signExtend12 4095
+               else q1c
+    q1'.toNat < 2^33 := by
+  intro q1 hi1 q1c q1'
+  have h_q1c_lt : q1c.toNat < 2^33 := div128Quot_q1c_lt_pow33 uHi dHi hdHi_ge
+  by_cases h_check : BitVec.ult rhatUn1 (q1c * dLo)
+  · have h_q1c_pos := div128Quot_phase1b_check_implies_q1c_pos q1c dLo rhatUn1 h_check
+    have h_q1'_eq : q1'.toNat = q1c.toNat - 1 := by
+      show (if BitVec.ult rhatUn1 (q1c * dLo) then q1c + signExtend12 4095 else q1c).toNat = _
+      rw [if_pos h_check]
+      have h_se_neg1 : (signExtend12 (4095 : BitVec 12) : Word).toNat = 2^64 - 1 := by decide
+      rw [BitVec.toNat_add, h_se_neg1]
+      have h_q1c_lt_word : q1c.toNat - 1 < 2^64 := by have := q1c.isLt; omega
+      rw [show q1c.toNat + (2^64 - 1) = (q1c.toNat - 1) + 2^64 from by omega,
+          Nat.add_mod_right, Nat.mod_eq_of_lt h_q1c_lt_word]
+    omega
+  · have h_q1'_eq : q1'.toNat = q1c.toNat := by
+      show (if BitVec.ult rhatUn1 (q1c * dLo) then q1c + signExtend12 4095 else q1c).toNat = _
+      rw [if_neg h_check]
+    omega
+
 end EvmAsm.Evm64
