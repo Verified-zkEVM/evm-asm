@@ -352,7 +352,7 @@ namespace EvmAsm.Rv64
       ((addr ↦ᵢ .ECALL) ** (.x5 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ exitCode)) := by
   intro R hR s hcr hPR hpc; subst hpc
   have hfetch : s.code s.pc = some .ECALL :=
-    (holdsFor_instrAt _ _ s).mp (holdsFor_sepConj_elim_left (holdsFor_sepConj_elim_left hPR))
+    holdsFor_instrAt.mp (holdsFor_sepConj_elim_left (holdsFor_sepConj_elim_left hPR))
   have hx5 : s.getReg .x5 = (0 : Word) :=
     (holdsFor_regIs _ _ s).mp (holdsFor_sepConj_elim_left
       (holdsFor_sepConj_elim_right (holdsFor_sepConj_elim_left hPR)))

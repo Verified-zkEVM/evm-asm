@@ -1961,7 +1961,7 @@ end PartialState
 -- ============================================================================
 
 @[simp]
-theorem holdsFor_instrAt (a : Word) (i : Instr) (s : MachineState) :
+theorem holdsFor_instrAt {a : Word} {i : Instr} {s : MachineState} :
     (instrAt a i).holdsFor s ↔ s.code a = some i := by
   simp only [Assertion.holdsFor, instrAt]
   constructor
@@ -2605,7 +2605,7 @@ theorem CodeReq.singleton_satisfiedBy (a : Word) (i : Instr) (s : MachineState) 
 /-- An instrAt fact gives CodeReq.singleton satisfaction. -/
 theorem instrAt_singleton_satisfiedBy (a : Word) (i : Instr) (s : MachineState)
     (h : (instrAt a i).holdsFor s) : (CodeReq.singleton a i).SatisfiedBy s :=
-  (CodeReq.singleton_satisfiedBy a i s).mpr ((holdsFor_instrAt a i s).mp h)
+  (CodeReq.singleton_satisfiedBy a i s).mpr (holdsFor_instrAt.mp h)
 
 /-- Step preserves code (single step). -/
 theorem step_code_preserved (s s' : MachineState) (h : step s = some s') :

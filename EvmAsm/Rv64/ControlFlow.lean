@@ -294,7 +294,7 @@ theorem if_eq_branch_step (rs1 rs2 : Reg) (v1 v2 : Word)
   intro R hR s _hcr hPR hpc; subst hpc
   -- Extract instrAt from the precondition
   have hfetch : s.code s.pc = some (Instr.BNE rs1 rs2 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4))) :=
-    (holdsFor_instrAt _ _ s).mp (holdsFor_sepConj_elim_left (holdsFor_sepConj_elim_left hPR))
+    holdsFor_instrAt.mp (holdsFor_sepConj_elim_left (holdsFor_sepConj_elim_left hPR))
   -- Extract register values from the aAnd part
   have haAnd := holdsFor_sepConj_elim_right (holdsFor_sepConj_elim_left hPR)
   have hrs1 : s.getReg rs1 = v1 :=
@@ -379,7 +379,7 @@ theorem if_eq_spec (rs1 rs2 : Reg) (v1 v2 : Word)
   -- hPR : ((bne ** (jal ** aAnd)) ** R).holdsFor s
   -- Extract instrAt facts
   have hfetch_bne : s.code s.pc = some (Instr.BNE rs1 rs2 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4))) :=
-    (holdsFor_instrAt _ _ s).mp (holdsFor_sepConj_elim_left (holdsFor_sepConj_elim_left hPR))
+    holdsFor_instrAt.mp (holdsFor_sepConj_elim_left (holdsFor_sepConj_elim_left hPR))
   -- Extract register values from the aAnd part
   have haAnd := holdsFor_sepConj_elim_right (holdsFor_sepConj_elim_right (holdsFor_sepConj_elim_left hPR))
   have hrs1 : s.getReg rs1 = v1 :=
