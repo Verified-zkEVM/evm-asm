@@ -343,7 +343,7 @@ theorem byte_phase_c_spec (v5 v10 : Word) (base : Word)
       cs1_composed
   -- Frame cs1 with ⌜v5 ≠ 0⌝, clean up postconditions
   have cs1_framed := cpsBranch_frameR
-    (⌜v5 ≠ (0 : Word)⌝) (pcFree_pure _) cs1_clean
+    (⌜v5 ≠ (0 : Word)⌝) pcFree_pure cs1_clean
   have cs1_final : cpsBranch (base + 4) cr
       ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10) ** ⌜v5 ≠ (0 : Word)⌝)
       e1 ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ ((0 : Word) + signExtend12 1)) ** ⌜v5 = (0 : Word) + signExtend12 1⌝)
@@ -351,14 +351,14 @@ theorem byte_phase_c_spec (v5 v10 : Word) (base : Word)
     cpsBranch_weaken
       (fun h hp => (congrFun (show _ = _ from by xperm) h).mp hp)
       -- taken: strip ⌜v5 ≠ 0⌝ frame
-      (fun h hp => (sepConj_pure_right _ _ h).1 hp |>.1)
+      (fun h hp => (sepConj_pure_right h).1 hp |>.1)
       -- ntaken: combine ⌜v5 ≠ 0⌝ ∧ ⌜v5 ≠ 1⌝
       (fun h hp => by
-        have ⟨hinner, hne0⟩ := (sepConj_pure_right _ _ h).1 hp
+        have ⟨hinner, hne0⟩ := (sepConj_pure_right h).1 hp
         have hne1 := sepConj_extract_pure_end3 h hinner
         have hregs := sepConj_strip_pure_end3 h hinner
         exact (congrFun (show _ = _ from by xperm) h).mp
-          ((sepConj_pure_right _ _ h).2 (And.intro hregs (And.intro hne0 hne1))))
+          ((sepConj_pure_right h).2 (And.intro hregs (And.intro hne0 hne1))))
       cs1_framed
   -- Step 3: ADDI x10 x0 2 at base+12 (extend to cr, frame with x5)
   have addi2_raw := addi_spec_gen .x10 .x0 ((0 : Word) + signExtend12 1) (0 : Word) 2 (base + 12) (by nofun)
@@ -391,7 +391,7 @@ theorem byte_phase_c_spec (v5 v10 : Word) (base : Word)
       cs2_composed
   -- Frame cs2 with ⌜v5 ≠ 0 ∧ v5 ≠ 1⌝, clean up postconditions
   have cs2_framed := cpsBranch_frameR
-    (⌜v5 ≠ 0 ∧ v5 ≠ (0 : Word) + signExtend12 1⌝) (pcFree_pure _) cs2_clean
+    (⌜v5 ≠ 0 ∧ v5 ≠ (0 : Word) + signExtend12 1⌝) pcFree_pure cs2_clean
   have cs2_final : cpsBranch (base + 12) cr
       ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ ((0 : Word) + signExtend12 1)) ** ⌜v5 ≠ 0 ∧ v5 ≠ (0 : Word) + signExtend12 1⌝)
       e2 ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ ((0 : Word) + signExtend12 2)) ** ⌜v5 = (0 : Word) + signExtend12 2⌝)
@@ -399,14 +399,14 @@ theorem byte_phase_c_spec (v5 v10 : Word) (base : Word)
     cpsBranch_weaken
       (fun h hp => (congrFun (show _ = _ from by xperm) h).mp hp)
       -- taken: strip ⌜conj⌝ frame
-      (fun h hp => (sepConj_pure_right _ _ h).1 hp |>.1)
+      (fun h hp => (sepConj_pure_right h).1 hp |>.1)
       -- ntaken: combine ⌜v5≠0 ∧ v5≠1⌝ ∧ ⌜v5≠2⌝
       (fun h hp => by
-        have ⟨hinner, ⟨hne0, hne1⟩⟩ := (sepConj_pure_right _ _ h).1 hp
+        have ⟨hinner, ⟨hne0, hne1⟩⟩ := (sepConj_pure_right h).1 hp
         have hne2 := sepConj_extract_pure_end3 h hinner
         have hregs := sepConj_strip_pure_end3 h hinner
         exact (congrFun (show _ = _ from by xperm) h).mp
-          ((sepConj_pure_right _ _ h).2 (And.intro hregs (And.intro hne0 (And.intro hne1 hne2)))))
+          ((sepConj_pure_right h).2 (And.intro hregs (And.intro hne0 (And.intro hne1 hne2)))))
       cs2_framed
   -- Build cpsNBranch from inside out
   -- Fallthrough at base+20: trivial single-exit (0 steps)

@@ -20,19 +20,19 @@ namespace EvmWord
 -- ============================================================================
 
 /-- Normalization preserves the quotient: `(a * 2^s) / (b * 2^s) = a / b`. -/
-theorem norm_div_eq (a b s : Nat) :
+theorem norm_div_eq {a b s : Nat} :
     (a * 2^s) / (b * 2^s) = a / b := by
   rcases Nat.eq_zero_or_pos b with rfl | hb
   · simp
   · rw [Nat.mul_comm a, Nat.mul_comm b, Nat.mul_div_mul_left _ _ (by positivity)]
 
 /-- Normalization scales the remainder: `(a * 2^s) % (b * 2^s) = (a % b) * 2^s`. -/
-theorem norm_mod_eq (a b s : Nat) :
+theorem norm_mod_eq {a b s : Nat} :
     (a * 2^s) % (b * 2^s) = (a % b) * 2^s :=
   Nat.mul_mod_mul_right (2^s) a b
 
 /-- Denormalization: dividing the scaled remainder by 2^s gives the true remainder. -/
-theorem denorm_mod_eq (a b s : Nat) :
+theorem denorm_mod_eq {a b s : Nat} :
     (a * 2^s) % (b * 2^s) / 2^s = a % b := by
   rw [norm_mod_eq, Nat.mul_comm, Nat.mul_div_cancel_left _ (by positivity : 0 < 2^s)]
 
@@ -43,7 +43,7 @@ theorem denorm_mod_eq (a b s : Nat) :
 /-- If we prove the Euclidean property for normalized values `a' = a * 2^s`,
     `b' = b * 2^s`, the quotient is the same as for the original values,
     and the remainder can be recovered by dividing by 2^s. -/
-theorem norm_euclidean_bridge (a b q r s : Nat)
+theorem norm_euclidean_bridge {a b q r s : Nat}
     (h_eq : a * 2^s = b * 2^s * q + r)
     (h_rem : r < b * 2^s) :
     q = a / b ∧ r / 2^s = a % b := by

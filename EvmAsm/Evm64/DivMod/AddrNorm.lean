@@ -112,7 +112,7 @@ export EvmAsm.Rv64.AddrNorm
 -- to a concrete literal, leaving `0 + literal` behind).
 -- ============================================================================
 
-@[divmod_addr, grind =] theorem word_zero_add (x : Word) : (0 : Word) + x = x := BitVec.zero_add x
+@[divmod_addr, grind =] theorem word_zero_add {x : Word} : (0 : Word) + x = x := BitVec.zero_add x
 
 -- ============================================================================
 -- Loop-counter positivity: after `ADDI j j -1` (ie. `j + signExtend12 4095`),

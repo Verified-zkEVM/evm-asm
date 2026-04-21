@@ -33,9 +33,8 @@ namespace EvmWord
     Max product: (2^64-1)² = 2^128 - 2·2^64 + 1, high half = 2^64 - 2. -/
 theorem mulhu_toNat_le (a b : Word) : (rv64_mulhu a b).toNat ≤ 2^64 - 2 := by
   rw [rv64_mulhu_toNat]
-  have ha := a.isLt; have hb := b.isLt
-  have h1 : a.toNat ≤ 2^64 - 1 := by omega
-  have h2 : b.toNat ≤ 2^64 - 1 := by omega
+  have h1 : a.toNat ≤ 2^64 - 1 := by have := a.isLt; omega
+  have h2 : b.toNat ≤ 2^64 - 1 := by have := b.isLt; omega
   have h3 : a.toNat * b.toNat ≤ (2^64 - 1) * (2^64 - 1) := Nat.mul_le_mul h1 h2
   suffices (2^64 - 1) * (2^64 - 1) / 2^64 = 2^64 - 2 by
     exact Nat.le_trans (Nat.div_le_div_right h3) (Nat.le_of_eq this)
@@ -244,8 +243,8 @@ theorem mulsub_4limb_euclidean_div (qNat : Nat)
   have h_eq : a.toNat = b.toNat * q.toNat + r.toNat := by
     rw [ha, hb, hq, hr]; linarith
   have h_lt : r.toNat < b.toNat := by rw [hr, hb]; exact h_rem
-  have h_bnz : b ≠ 0 := fromLimbs_ne_zero_of_or v0 v1 v2 v3 hbnz
-  exact div_from_mulsub a b q r h_bnz h_eq h_lt
+  have h_bnz : b ≠ 0 := fromLimbs_ne_zero_of_or hbnz
+  exact div_from_mulsub h_bnz h_eq h_lt
 
 end EvmWord
 

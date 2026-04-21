@@ -147,7 +147,7 @@ theorem mul_correct_limb2 (a b : EvmWord) :
 
 /-- Recombine div/mod into a single linear equation: q*W + r = x.
     Used to convert nested div/mod pairs into flat linear constraints for omega. -/
-private theorem div_mod_eq (x W q r : Nat) (hq : q = x / W) (hr : r = x % W) :
+private theorem div_mod_eq (W : Nat) {x q r : Nat} (hq : q = x / W) (hr : r = x % W) :
     q * W + r = x := by subst hq; subst hr; rw [Nat.mul_comm]; exact Nat.div_add_mod x W
 
 /-- Mod-flattening: (a % W + b) % W = (a + b) % W for W = 2^64.
@@ -466,32 +466,32 @@ private theorem carry_chain_limb3 (a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
   have fp12 := mul_full_product a1 b2
   have fp03 := mul_full_product a0 b3
   -- Col0 Euclidean carry chain (carry*W + result = inputs, no nested div/mod)
-  have euc_c0_r1 := div_mod_eq _ (2^64) _ _ h_c0_c1 h_c0_r1
+  have euc_c0_r1 := div_mod_eq (2^64) h_c0_c1 h_c0_r1
   -- euc_c0_r1 : c0_c1.toNat * 2^64 + c0_r1.toNat = mu00 + lo10
-  have euc_sum10_c1 := div_mod_eq _ (2^64) _ _ rfl h_sum10_c1
+  have euc_sum10_c1 := div_mod_eq (2^64) rfl h_sum10_c1
   -- lost carry: q * W + (mu10 + c0_c1).toNat = mu10 + c0_c1.toNat
-  have euc_c0_r2 := div_mod_eq _ (2^64) _ _ h_c0_c2 h_c0_r2
+  have euc_c0_r2 := div_mod_eq (2^64) h_c0_c2 h_c0_r2
   -- c0_c2 * W + c0_r2 = (mu10+c0_c1).toNat + lo20
-  have euc_sum20_c2 := div_mod_eq _ (2^64) _ _ rfl h_sum20_c2
+  have euc_sum20_c2 := div_mod_eq (2^64) rfl h_sum20_c2
   -- lost carry: q * W + (mu20 + c0_c2).toNat = mu20 + c0_c2.toNat
-  have euc_c0_r3p := div_mod_eq _ (2^64) _ _ rfl h_c0_r3p
+  have euc_c0_r3p := div_mod_eq (2^64) rfl h_c0_r3p
   -- lost carry: q * W + c0_r3p.toNat = (mu20+c0_c2).toNat + lo30
   -- Col1 Euclidean carry chain
-  have euc_c1_r1 := div_mod_eq _ (2^64) _ _ h_c1_c1 h_c1_r1
-  have euc_c1_rc := div_mod_eq _ (2^64) _ _ rfl h_c1_rc
-  have euc_c1_r2a := div_mod_eq _ (2^64) _ _ h_c1_cr1 h_c1_r2a
-  have euc_c1_r2 := div_mod_eq _ (2^64) _ _ h_c1_cr2 h_c1_r2
-  have euc_c1_rc2 := div_mod_eq _ (2^64) _ _ rfl h_c1_rc2
-  have euc_c1_cr1rc2 := div_mod_eq _ (2^64) _ _ rfl h_c1_cr1rc2
-  have euc_c1_inner := div_mod_eq _ (2^64) _ _ rfl h_c1_inner
-  have euc_c1_r3p := div_mod_eq _ (2^64) _ _ rfl h_c1_r3p
+  have euc_c1_r1 := div_mod_eq (2^64) h_c1_c1 h_c1_r1
+  have euc_c1_rc := div_mod_eq (2^64) rfl h_c1_rc
+  have euc_c1_r2a := div_mod_eq (2^64) h_c1_cr1 h_c1_r2a
+  have euc_c1_r2 := div_mod_eq (2^64) h_c1_cr2 h_c1_r2
+  have euc_c1_rc2 := div_mod_eq (2^64) rfl h_c1_rc2
+  have euc_c1_cr1rc2 := div_mod_eq (2^64) rfl h_c1_cr1rc2
+  have euc_c1_inner := div_mod_eq (2^64) rfl h_c1_inner
+  have euc_c1_r3p := div_mod_eq (2^64) rfl h_c1_r3p
   -- Col2 Euclidean carry chain
-  have euc_c2_r2 := div_mod_eq _ (2^64) _ _ h_c2_c h_c2_r2
-  have euc_c2_rc_inner := div_mod_eq _ (2^64) _ _ rfl h_c2_rc_inner
-  have euc_c2_rc := div_mod_eq _ (2^64) _ _ rfl h_c2_rc
-  have euc_c2_r3 := div_mod_eq _ (2^64) _ _ rfl h_c2_r3
+  have euc_c2_r2 := div_mod_eq (2^64) h_c2_c h_c2_r2
+  have euc_c2_rc_inner := div_mod_eq (2^64) rfl h_c2_rc_inner
+  have euc_c2_rc := div_mod_eq (2^64) rfl h_c2_rc
+  have euc_c2_r3 := div_mod_eq (2^64) rfl h_c2_r3
   -- Col3 final
-  have euc_r3 := div_mod_eq _ (2^64) _ _ rfl h_r3
+  have euc_r3 := div_mod_eq (2^64) rfl h_r3
   -- RHS: express D_k in terms of full products (eliminates nonlinear a_i*b_j)
   have hD0 : D0 = (rv64_mulhu a0 b0).toNat * 2^64 + (a0 * b0).toNat := fp00.symm
   have hD1 : D1 = (rv64_mulhu a0 b1).toNat * 2^64 + (a0 * b1).toNat +
@@ -507,10 +507,10 @@ private theorem carry_chain_limb3 (a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
       ((rv64_mulhu a3 b0).toNat * 2^64 + (a3 * b0).toNat) :=
     congrArg₂ (· + ·) (congrArg₂ (· + ·) (congrArg₂ (· + ·) fp03.symm fp12.symm) fp21.symm) fp30.symm
   -- RHS Euclidean: C_k * W + remainder = D_k + C_{k-1} (linearizes the nested div/mod)
-  have euc_C1 := div_mod_eq D0 (2^64) C1 (D0 % 2^64) rfl rfl
-  have euc_C2 := div_mod_eq (D1 + C1) (2^64) C2 ((D1 + C1) % 2^64) rfl rfl
-  have euc_C3 := div_mod_eq (D2 + C2) (2^64) C3 ((D2 + C2) % 2^64) rfl rfl
-  have euc_rhs := div_mod_eq (D3 + C3) (2^64) ((D3 + C3) / 2^64) ((D3 + C3) % 2^64) rfl rfl
+  have euc_C1 := div_mod_eq (x := D0) (q := C1) (r := D0 % 2^64) (2^64) rfl rfl
+  have euc_C2 := div_mod_eq (x := D1 + C1) (q := C2) (r := (D1 + C1) % 2^64) (2^64) rfl rfl
+  have euc_C3 := div_mod_eq (x := D2 + C2) (q := C3) (r := (D2 + C2) % 2^64) (2^64) rfl rfl
+  have euc_rhs := div_mod_eq (x := D3 + C3) (2^64) rfl rfl
   -- All equations are now linear. Reduce to mod-congruence, then extract to private lemma.
   -- Step 1: r3_final.toNat = (sum) % W, so suffices to show (sum) % W = (D3+C3) % W
   have h_suffices : (c2_r3.toNat + (a0 * b3).toNat) % 2^64 = (D3 + C3) % 2^64 := by

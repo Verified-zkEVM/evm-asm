@@ -18,7 +18,7 @@ def Program := List Instr
 
 instance : Append Program := ⟨List.append⟩
 
-@[simp] theorem Program.length_append (p q : Program) : (p ++ q).length = p.length + q.length :=
+@[simp] theorem Program.length_append {p q : Program} : (p ++ q).length = p.length + q.length :=
   List.length_append (as := p) (bs := q)
 
 @[simp] theorem Program.getElem?_append (p q : Program) (i : Nat) :
@@ -43,10 +43,10 @@ def execProgram (s : MachineState) : Program → MachineState
   | []      => s
   | i :: is => execProgram (execInstr s i) is
 
-@[simp] theorem execProgram_nil (s : MachineState) :
+@[simp] theorem execProgram_nil {s : MachineState} :
     execProgram s [] = s := rfl
 
-@[simp] theorem execProgram_cons (s : MachineState) (i : Instr) (is : List Instr) :
+@[simp] theorem execProgram_cons {s : MachineState} {i : Instr} {is : List Instr} :
     execProgram s (i :: is) = execProgram (execInstr s i) is := rfl
 
 theorem execProgram_append (s : MachineState) (p1 p2 : Program) :

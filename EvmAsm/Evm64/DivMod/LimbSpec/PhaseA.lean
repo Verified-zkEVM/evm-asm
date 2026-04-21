@@ -84,9 +84,9 @@ theorem divK_phaseA_spec (sp : Word) (base : Word)
   have hbeq := cpsBranch_weaken
     (fun _ hp => hp)
     (fun h hp => sepConj_mono_right
-      (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1) h hp)
+      (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp)
     (fun h hp => sepConj_mono_right
-      (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1) h hp)
+      (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp)
     hbeq_raw
   -- 3. Frame BEQ with remaining registers and memory
   have hbeq_framed := cpsBranch_frameR

@@ -121,7 +121,7 @@ theorem rlp_phase2_long_loop_two_byte_spec
         refine sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
           (sepConj_mono_right (sepConj_mono_right ?_)))) h hp
         intro h' hp'
-        exact ((sepConj_pure_right _ _ _).1 hp').1)
+        exact ((sepConj_pure_right _).1 hp').1)
       tri1
   -- Iter 2: one-byte spec at base, using state from tri1's post.
   -- Permute post to match one-byte spec's pre shape (put x13, x14 first).

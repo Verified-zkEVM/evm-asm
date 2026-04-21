@@ -264,13 +264,13 @@ def isValidDwordAccess (addr : Word) : Bool :=
 def isValidMemAccess (addr : Word) : Bool :=
   isValidMemAddr addr && isAligned4 addr
 
-@[simp] theorem isValidDwordAccess_eq (addr : Word) :
+@[simp] theorem isValidDwordAccess_eq {addr : Word} :
     isValidDwordAccess addr = (isValidMemAddr addr && isAligned8 addr) := rfl
 
-@[simp] theorem isValidMemAccess_eq (addr : Word) :
+@[simp] theorem isValidMemAccess_eq {addr : Word} :
     isValidMemAccess addr = (isValidMemAddr addr && isAligned4 addr) := rfl
 
-@[simp] theorem isValidMemAddr_eq (addr : Word) :
+@[simp] theorem isValidMemAddr_eq {addr : Word} :
     isValidMemAddr addr = (decide (MEM_START ≤ addr.toNat) && decide (addr.toNat ≤ MEM_END)) := rfl
 
 @[simp] theorem isAligned8_eq (addr : Word) :
@@ -293,10 +293,10 @@ def isValidByteAccess (addr : Word) : Bool :=
 @[simp] theorem isAligned2_eq (addr : Word) :
     isAligned2 addr = (addr.toNat % 2 == 0) := rfl
 
-@[simp] theorem isValidHalfwordAccess_eq (addr : Word) :
+@[simp] theorem isValidHalfwordAccess_eq {addr : Word} :
     isValidHalfwordAccess addr = (isValidMemAddr addr && isAligned2 addr) := rfl
 
-@[simp] theorem isValidByteAccess_eq (addr : Word) :
+@[simp] theorem isValidByteAccess_eq {addr : Word} :
     isValidByteAccess addr = isValidMemAddr addr := rfl
 
 /-- ValidMemRange addr n holds when n consecutive doubleword-aligned memory accesses
@@ -497,31 +497,31 @@ termination_by l => l.length
 @[simp] theorem pc_setWord32 (s : MachineState) (addr : Word) (v : BitVec 32) :
     (s.setWord32 addr v).pc = s.pc := by simp [setWord32]
 
-@[simp] theorem code_setReg (s : MachineState) (r : Reg) (v : Word) :
+@[simp] theorem code_setReg {s : MachineState} {r : Reg} {v : Word} :
     (s.setReg r v).code = s.code := by cases r <;> rfl
 
-@[simp] theorem code_setMem (s : MachineState) (a : Word) (v : Word) :
+@[simp] theorem code_setMem {s : MachineState} {a : Word} {v : Word} :
     (s.setMem a v).code = s.code := by simp [setMem]
 
-@[simp] theorem code_setPC (s : MachineState) (v : Word) :
+@[simp] theorem code_setPC {s : MachineState} {v : Word} :
     (s.setPC v).code = s.code := by simp [setPC]
 
-@[simp] theorem code_setByte (s : MachineState) (addr : Word) (b : BitVec 8) :
+@[simp] theorem code_setByte {s : MachineState} {addr : Word} {b : BitVec 8} :
     (s.setByte addr b).code = s.code := by simp [setByte]
 
-@[simp] theorem code_setHalfword (s : MachineState) (addr : Word) (h : BitVec 16) :
+@[simp] theorem code_setHalfword {s : MachineState} {addr : Word} {h : BitVec 16} :
     (s.setHalfword addr h).code = s.code := by simp [setHalfword]
 
-@[simp] theorem code_setWord32 (s : MachineState) (addr : Word) (v : BitVec 32) :
+@[simp] theorem code_setWord32 {s : MachineState} {addr : Word} {v : BitVec 32} :
     (s.setWord32 addr v).code = s.code := by simp [setWord32]
 
-@[simp] theorem code_appendCommit (s : MachineState) (a0 a1 : Word) :
+@[simp] theorem code_appendCommit {s : MachineState} {a0 a1 : Word} :
     (s.appendCommit a0 a1).code = s.code := by simp [appendCommit]
 
-@[simp] theorem code_appendPublicValues (s : MachineState) (bytes : List (BitVec 8)) :
+@[simp] theorem code_appendPublicValues {s : MachineState} {bytes : List (BitVec 8)} :
     (s.appendPublicValues bytes).code = s.code := by simp [appendPublicValues]
 
-@[simp] theorem code_writeWords (s : MachineState) (base : Word) (words : List Word) :
+@[simp] theorem code_writeWords {s : MachineState} {base : Word} {words : List Word} :
     (s.writeWords base words).code = s.code := by
   induction words generalizing s base with
   | nil => rfl

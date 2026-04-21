@@ -159,11 +159,11 @@ theorem val256_euclidean_to_div_mod
   have hb : b.toNat = val256 b0 b1 b2 b3 := (val256_eq_fromLimbs_toNat b0 b1 b2 b3).symm
   have hq : q.toNat = val256 q0 q1 q2 q3 := (val256_eq_fromLimbs_toNat q0 q1 q2 q3).symm
   have hr : r.toNat = val256 r0 r1 r2 r3 := (val256_eq_fromLimbs_toNat r0 r1 r2 r3).symm
-  have hbnz' : b ≠ 0 := fromLimbs_ne_zero_of_or b0 b1 b2 b3 hbnz
+  have hbnz' : b ≠ 0 := fromLimbs_ne_zero_of_or hbnz
   have h_nat_eq : a.toNat = b.toNat * q.toNat + r.toNat := by
     rw [ha, hb, hq, hr]; nlinarith [Nat.mul_comm (val256 q0 q1 q2 q3) (val256 b0 b1 b2 b3)]
   have h_nat_lt : r.toNat < b.toNat := by rw [hr, hb]; exact hlt
-  exact div_from_mulsub a b q r hbnz' h_nat_eq h_nat_lt
+  exact div_from_mulsub hbnz' h_nat_eq h_nat_lt
 
 -- ============================================================================
 -- Normalization round-trip: normalized Euclidean → original div/mod
@@ -185,7 +185,7 @@ theorem norm_euclidean_correct {aVal bVal qNat r_norm : Nat} (s : Nat)
     qNat = aVal / bVal ∧ r_norm / 2^s = aVal % bVal := by
   -- Convert to the form expected by norm_euclidean_bridge
   have heq' : aVal * 2^s = bVal * 2^s * qNat + r_norm := by linarith
-  exact norm_euclidean_bridge aVal bVal qNat r_norm s heq' hlt
+  exact norm_euclidean_bridge heq' hlt
 
 end EvmWord
 

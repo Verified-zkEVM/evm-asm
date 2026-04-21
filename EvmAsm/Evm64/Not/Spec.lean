@@ -63,7 +63,7 @@ theorem evm_not_stack_spec (sp base : Word)
   have not_limb_eq : ∀ (k : Nat), k < 4 →
       (~~~a).getLimbN k = a.getLimbN k ^^^ signExtend12 (-1 : BitVec 12) := by
     intro k hk
-    rw [EvmWord.getLimbN_not _ _ hk, BitVec.not_def, BitVec.xor_comm, ← signExtend12_neg1_eq_allOnes]
+    rw [EvmWord.getLimbN_not hk, BitVec.not_def, BitVec.xor_comm, ← signExtend12_neg1_eq_allOnes]
   -- Apply evm_not_spec with individual limbs
   have h_main := evm_not_spec sp base
     (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)

@@ -43,7 +43,7 @@ theorem lt_borrow_chain_correct (a b : EvmWord) :
     · rename_i h; rw [if_neg (fun hlt => h ((ult_iff _ _).mpr hlt))]; rfl
   -- Step 2: borrow1 tracks 2-limb comparison
   have hb1_or : borrow1 = if (BitVec.ult a1 b1 ∨ BitVec.ult temp1 borrow0)
-      then (1 : Word) else 0 := borrow_or_iff _ _
+      then (1 : Word) else 0 := borrow_or_iff
   have htemp1_nat : temp1.toNat = (a1.toNat + 2^64 - b1.toNat) % 2^64 := by
     simp only [temp1, BitVec.toNat_sub]; congr 1; omega
   have hb1_cond : (BitVec.ult a1 b1 ∨ BitVec.ult temp1 borrow0) ↔
@@ -59,7 +59,7 @@ theorem lt_borrow_chain_correct (a b : EvmWord) :
     · rename_i h; rw [if_neg (fun hlt => h (hb1_cond.mpr hlt))]; rfl
   -- Step 3: borrow2 tracks 3-limb comparison
   have hb2_or : borrow2 = if (BitVec.ult a2 b2 ∨ BitVec.ult temp2 borrow1)
-      then (1 : Word) else 0 := borrow_or_iff _ _
+      then (1 : Word) else 0 := borrow_or_iff
   have htemp2_nat : temp2.toNat = (a2.toNat + 2^64 - b2.toNat) % 2^64 := by
     simp only [temp2, BitVec.toNat_sub]; congr 1; omega
   have hb2_cond : (BitVec.ult a2 b2 ∨ BitVec.ult temp2 borrow1) ↔
@@ -80,7 +80,7 @@ theorem lt_borrow_chain_correct (a b : EvmWord) :
     · rename_i h; rw [if_neg (fun hlt => h (hb2_cond.mpr hlt))]; rfl
   -- Step 4: borrow3 tracks full 4-limb comparison
   have hb3_or : borrow3 = if (BitVec.ult a3 b3 ∨ BitVec.ult temp3 borrow2)
-      then (1 : Word) else 0 := borrow_or_iff _ _
+      then (1 : Word) else 0 := borrow_or_iff
   have htemp3_nat : temp3.toNat = (a3.toNat + 2^64 - b3.toNat) % 2^64 := by
     simp only [temp3, BitVec.toNat_sub]; congr 1; omega
   have hb3_cond : (BitVec.ult a3 b3 ∨ BitVec.ult temp3 borrow2) ↔
@@ -154,7 +154,7 @@ theorem slt_result_correct (a b : EvmWord) :
       convert borrow_step_iff (2^64) a1.isLt b1.isLt a0.isLt b0.isLt using 2; omega
     have hb1_nat : borrow1.toNat = if (a0.toNat + a1.toNat * 2^64 <
         b0.toNat + b1.toNat * 2^64) then 1 else 0 := by
-      rw [show borrow1 = _ from borrow_or_iff _ _]; split
+      rw [show borrow1 = _ from borrow_or_iff]; split
       · rename_i hh; rw [if_pos (hb1_cond.mp hh)]; rfl
       · rename_i hh; rw [if_neg (fun hlt => hh (hb1_cond.mpr hlt))]; rfl
     have hb2_cond : (BitVec.ult a2 b2 ∨ BitVec.ult temp2 borrow1) ↔
@@ -173,13 +173,13 @@ theorem slt_result_correct (a b : EvmWord) :
     constructor
     · intro hb2
       have hb2_or : borrow2 = if (BitVec.ult a2 b2 ∨ BitVec.ult temp2 borrow1)
-          then (1 : Word) else 0 := borrow_or_iff _ _
+          then (1 : Word) else 0 := borrow_or_iff
       rw [hb2_or] at hb2; split at hb2
       · exact hb2_cond.mp ‹_›
       · simp at hb2
     · intro hlt
       have hb2_or : borrow2 = if (BitVec.ult a2 b2 ∨ BitVec.ult temp2 borrow1)
-          then (1 : Word) else 0 := borrow_or_iff _ _
+          then (1 : Word) else 0 := borrow_or_iff
       rw [hb2_or, if_pos (hb2_cond.mpr hlt)]
   by_cases h : a3 = b3
   · -- MSB limbs equal
