@@ -74,7 +74,7 @@ theorem hq_over_from_second_carry_one (q v0 v1 v2 v3 u0 u1 u2 u3 : Word)
   simp only [] at hab'
   rw [hcarry2_one] at hab'
   -- Bounds
-  have hv_pos : 0 < val256 v0 v1 v2 v3 := val256_pos_of_or_ne_zero v0 v1 v2 v3 hbnz
+  have hv_pos : 0 < val256 v0 v1 v2 v3 := val256_pos_of_or_ne_zero hbnz
   have hab'_bound := val256_bound
     (addbackN4 ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 0 v0 v1 v2 v3).1
     (addbackN4 ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 0 v0 v1 v2 v3).2.1
@@ -309,14 +309,14 @@ theorem n4_max_double_addback_div_mod_limbs (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
   have ⟨hq, hr⟩ := n4_max_double_addback_correct a0 a1 a2 a3 b0 b1 b2 b3
     hb3nz hc3_one hcarry1_zero hcarry2_one
   refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · rw [← hq]; exact getLimbN_fromLimbs_0 _ _ _ _
-  · rw [← hq]; exact getLimbN_fromLimbs_1 _ _ _ _
-  · rw [← hq]; exact getLimbN_fromLimbs_2 _ _ _ _
-  · rw [← hq]; exact getLimbN_fromLimbs_3 _ _ _ _
-  · rw [← hr]; exact getLimbN_fromLimbs_0 _ _ _ _
-  · rw [← hr]; exact getLimbN_fromLimbs_1 _ _ _ _
-  · rw [← hr]; exact getLimbN_fromLimbs_2 _ _ _ _
-  · rw [← hr]; exact getLimbN_fromLimbs_3 _ _ _ _
+  · rw [← hq]; exact getLimbN_fromLimbs_0
+  · rw [← hq]; exact getLimbN_fromLimbs_1
+  · rw [← hq]; exact getLimbN_fromLimbs_2
+  · rw [← hq]; exact getLimbN_fromLimbs_3
+  · rw [← hr]; exact getLimbN_fromLimbs_0
+  · rw [← hr]; exact getLimbN_fromLimbs_1
+  · rw [← hr]; exact getLimbN_fromLimbs_2
+  · rw [← hr]; exact getLimbN_fromLimbs_3
 
 /-- n=4 max+double-addback path, EvmWord-level statement. Consumer form for
     stack specs: takes `a b : EvmWord`, works off `getLimbN`. Parallels

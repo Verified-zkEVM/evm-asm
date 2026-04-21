@@ -123,7 +123,7 @@ theorem runSail_rX_bits_x12 (s : SailState) (v : BitVec 64)
 
 /-- If StateRel holds, reading any Rv64 register from the SAIL state via rX_bits
     returns the same value as getReg, without modifying state. -/
-theorem runSail_rX_bits_of_stateRel (sRv : MachineState) (sSail : SailState)
+theorem runSail_rX_bits_of_stateRel {sRv : MachineState} {sSail : SailState}
     (hrel : StateRel sRv sSail) (r : Reg) :
     runSail (rX_bits (regToRegidx r)) sSail = some (sRv.getReg r, sSail) := by
   have ha := hrel.reg_agree r
@@ -262,7 +262,7 @@ theorem runSail_xreg_write_callback (reg : regidx) (v : BitVec 64) (s : SailStat
 -- ============================================================================
 
 /-- get_arch_pc reads the PC register without modifying state. -/
-theorem runSail_get_arch_pc (s : SailState) (pc : BitVec 64)
+theorem runSail_get_arch_pc {s : SailState} {pc : BitVec 64}
     (h : s.regs.get? Register.PC = some pc) :
     runSail (get_arch_pc ()) s = some (pc, s) := by
   simp [runSail, get_arch_pc, PreSail.readReg, h,
@@ -274,7 +274,7 @@ theorem runSail_get_arch_pc (s : SailState) (pc : BitVec 64)
 -- ============================================================================
 
 /-- readReg PC returns the PC value without modifying state. -/
-theorem runSail_readReg_PC (s : SailState) (pc : BitVec 64)
+theorem runSail_readReg_PC {s : SailState} {pc : BitVec 64}
     (h : s.regs.get? Register.PC = some pc) :
     runSail (readReg Register.PC : SailM (BitVec 64)) s = some (pc, s) := by
   simp [runSail, PreSail.readReg, h,
@@ -293,7 +293,7 @@ theorem runSail_set_next_pc (target : BitVec 64) (s : SailState) :
     LeanRV64D.Functions.xlen]
 
 /-- get_next_pc reads the nextPC register. -/
-theorem runSail_get_next_pc (s : SailState) (v : BitVec 64)
+theorem runSail_get_next_pc {s : SailState} {v : BitVec 64}
     (h : s.regs.get? Register.nextPC = some v) :
     runSail (get_next_pc ()) s = some (v, s) := by
   simp [runSail, get_next_pc, PreSail.readReg, h,

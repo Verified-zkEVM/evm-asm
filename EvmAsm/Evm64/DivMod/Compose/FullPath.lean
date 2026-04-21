@@ -593,7 +593,7 @@ theorem mod_denorm_preamble_spec (sp shift v5 v6 v7 v2 v10 : Word) (base : Word)
   have hbeq_clean := cpsTriple_weaken
     (fun h hp => hp)
     (fun h hp => sepConj_mono_right
-      (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1) h hp)
+      (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp)
     hbeq_exit
   -- 4. Frame LD with x0, x5, x7, x2, x10
   have hldf := cpsTriple_frameR
@@ -718,7 +718,7 @@ theorem evm_div_shift0_epilogue_spec (sp base : Word)
   have hbeq_exit := cpsBranch_takenStripPure2 hbeqe
     (fun hp hQf => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQf
-      exact absurd hshift_z ((sepConj_pure_right _ _ _).mp h_rest).2)
+      exact absurd hshift_z ((sepConj_pure_right _).mp h_rest).2)
   -- 4. Frame LD with x0, x5, x7, x2, x10
   have hldf := cpsTriple_frameR
     ((.x0 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ v5) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ v2) ** (.x10 ↦ᵣ v10))
@@ -803,7 +803,7 @@ theorem evm_mod_shift0_epilogue_spec (sp base : Word)
   have hbeq_exit := cpsBranch_takenStripPure2 hbeqe
     (fun hp hQf => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQf
-      exact absurd hshift_z ((sepConj_pure_right _ _ _).mp h_rest).2)
+      exact absurd hshift_z ((sepConj_pure_right _).mp h_rest).2)
   -- 4. Frame LD with x0, x5, x7, x2, x10
   have hldf := cpsTriple_frameR
     ((.x0 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ v5) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ v2) ** (.x10 ↦ᵣ v10))

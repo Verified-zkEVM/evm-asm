@@ -36,7 +36,7 @@ private theorem shl_body_0_prog_len : (shl_body_0_prog 24).length = 25 := by dec
 /-- Skip one ofProg block in a right-nested union via range disjointness. -/
 local macro "skipBlock" : tactic =>
   `(tactic| apply CodeReq.mono_union_right
-      (CodeReq.ofProg_disjoint_range _ _ _ _ (fun k1 k2 hk1 hk2 => by
+      (CodeReq.ofProg_disjoint_range (fun k1 k2 hk1 hk2 => by
         simp only [shr_phase_a_len, shr_phase_b_len, shr_phase_c_len,
           shl_body_3_prog_len, shl_body_2_prog_len, shl_body_1_prog_len,
           shl_body_0_prog_len, shr_zero_path_len] at hk1 hk2
@@ -271,7 +271,7 @@ theorem evm_shl_zero_high_spec (sp base : Word)
   have hbne_taken := cpsBranch_takenStripPure2 hbne
     (fun hp hQf => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQf
-      exact absurd ((sepConj_pure_right _ _ _).mp h_rest).2 hhigh)
+      exact absurd ((sepConj_pure_right _).mp h_rest).2 hhigh)
   -- Frame BNE with remaining state
   have hbne_framed := cpsTriple_frameR
     ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ s3) **
@@ -369,7 +369,7 @@ theorem evm_shl_zero_large_spec (sp base : Word)
   have hbne_ntaken := cpsBranch_ntakenStripPure2 hbne
     (fun hp hQt => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQt
-      exact ((sepConj_pure_right _ _ _).mp h_rest).2 hlow)
+      exact ((sepConj_pure_right _).mp h_rest).2 hlow)
   -- Frame BNE(ntaken) with remaining state
   have hbne_framed := cpsTriple_frameR
     ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ s3) **
@@ -413,7 +413,7 @@ theorem evm_shl_zero_large_spec (sp base : Word)
   have hbeq_taken := cpsBranch_takenStripPure2 hbeq
     (fun hp hQf => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQf
-      exact ((sepConj_pure_right _ _ _).mp h_rest).2 hsltiu_eq)
+      exact ((sepConj_pure_right _).mp h_rest).2 hsltiu_eq)
   -- Frame BEQ(taken) with remaining state
   have hbeq_framed := cpsTriple_frameR
     ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ s0) **
@@ -498,7 +498,7 @@ private theorem shl_bridge_merge (value : EvmWord) (s0 : Word)
   have hL_div : s0.toNat / 64 = L := by
     rw [← hL, bv6_toNat_6]; simp [BitVec.toNat_ushiftRight]; omega
   -- Use getLimb_shiftLeft: i*64 >= s0.toNat since i >= L+1 and s0.toNat = L*64 + bs < (L+1)*64
-  rw [getLimb_shiftLeft value s0.toNat i (by omega), hL_div,
+  rw [getLimb_shiftLeft (by omega), hL_div,
       getLimbN_lt value (i.val - L) hiLsub,
       getLimbN_lt value (i.val - L - 1) hiLsub1]
   -- Now match the masks and shift amounts
@@ -536,7 +536,7 @@ private theorem shl_bridge_first (value : EvmWord) (s0 : Word)
   have hL_div : s0.toNat / 64 = L := by
     rw [← hL, bv6_toNat_6]; simp [BitVec.toNat_ushiftRight]; omega
   -- Use getLimb_shiftLeft_eq_div: i.val = n / 64
-  rw [getLimb_shiftLeft_eq_div value s0.toNat i (by omega)]
+  rw [getLimb_shiftLeft_eq_div (by omega)]
   -- getLimbN v 0 = getLimb v ⟨0, _⟩
   rw [getLimbN_lt value 0 (by omega)]
   -- Shift amounts match: bs.toNat % 64 = s0.toNat % 64
@@ -554,7 +554,7 @@ private theorem shl_bridge_zero (value : EvmWord) (s0 : Word)
   have hL_div : s0.toNat / 64 = L := by
     rw [← hL, bv6_toNat_6]; simp [BitVec.toNat_ushiftRight]; omega
   -- Use getLimb_shiftLeft_low: (i+1)*64 <= s0.toNat since i < L and s0.toNat >= L*64
-  exact getLimb_shiftLeft_low value s0.toNat i (by omega)
+  exact getLimb_shiftLeft_low (by omega)
 
 -- ============================================================================
 -- Section 6: Body path composition with evmWordIs postcondition
@@ -650,7 +650,7 @@ theorem evm_shl_body_evmWord_spec (sp base : Word)
   have hbne_ntaken := cpsBranch_ntakenStripPure2 hbne
     (fun hp hQt => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQt
-      exact ((sepConj_pure_right _ _ _).mp h_rest).2 hhigh_zero)
+      exact ((sepConj_pure_right _).mp h_rest).2 hhigh_zero)
   have hbne_framed := cpsTriple_frameR
     ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ s3) ** (.x6 ↦ᵣ r6) ** (.x7 ↦ᵣ r7) ** (.x11 ↦ᵣ r11) **
      (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3) **
@@ -687,7 +687,7 @@ theorem evm_shl_body_evmWord_spec (sp base : Word)
   have hbeq_ntaken := cpsBranch_ntakenStripPure2 hbeq
     (fun hp hQt => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQt
-      have heq := ((sepConj_pure_right _ _ _).mp h_rest).2
+      have heq := ((sepConj_pure_right _).mp h_rest).2
       simp [hsltiu_eq] at heq)
   have hbeq_framed := cpsTriple_frameR
     ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ s0) ** (.x6 ↦ᵣ r6) ** (.x7 ↦ᵣ r7) ** (.x11 ↦ᵣ r11) **

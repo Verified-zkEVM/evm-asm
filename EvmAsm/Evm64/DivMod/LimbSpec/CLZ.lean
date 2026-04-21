@@ -81,7 +81,7 @@ theorem divK_clz_stage_taken_spec (K M_s : BitVec 6) (M_a : BitVec 12) (val coun
         (((.x7 ↦ᵣ (val >>> K.toNat)) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜val >>> K.toNat = 0⌝) **
          ((.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count))) :=
     fun R hR s hcr hPR hpc =>
-      hbne_framed R hR s ((CodeReq.singleton_satisfiedBy _ _ s).mpr (hcr _ _ (by
+      hbne_framed R hR s (CodeReq.singleton_satisfiedBy.mpr (hcr _ _ (by
         show divK_clz_stage_code K M_s M_a base (base + 4) = _
         simp only [divK_clz_stage_code, divK_clz_stage_prog,
           CodeReq.ofProg_cons, CodeReq.ofProg_nil,
@@ -96,14 +96,14 @@ theorem divK_clz_stage_taken_spec (K M_s : BitVec 6) (M_a : BitVec 12) (val coun
     (fun h hp => by xperm_hyp hp) hbody hbne_ext
   have taken := cpsBranch_takenPath composed (fun hp hQf => by
     obtain ⟨_, _, _, _, ⟨_, _, _, _, _, h_x0p⟩, _⟩ := hQf
-    exact hne ((sepConj_pure_right _ _ _).1 h_x0p).2)
+    exact hne ((sepConj_pure_right _).1 h_x0p).2)
   intro R hR s hcr hPR hpc
   obtain ⟨k, s', hstep, hpc', hQR⟩ := taken R hR s hcr hPR hpc
   exact ⟨k, s', hstep, hpc', by
     obtain ⟨hp, hcompat, hpq⟩ := hQR
     exact ⟨hp, hcompat, sepConj_mono_left (fun h hp => by
       have hp' := sepConj_mono_left (sepConj_mono_right
-        (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1)) h hp
+        (fun h' hp' => ((sepConj_pure_right h').1 hp').1)) h hp
       xperm_hyp hp') hp hpq⟩⟩
 
 /-- CLZ stage, not-taken branch: val >>> K = 0, execute SLLI+ADDI.
@@ -134,7 +134,7 @@ theorem divK_clz_stage_ntaken_spec (K M_s : BitVec 6) (M_a : BitVec 12) (val cou
         (((.x7 ↦ᵣ (val >>> K.toNat)) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜val >>> K.toNat = 0⌝) **
          ((.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count))) :=
     fun R hR s hcr hPR hpc =>
-      hbne_framed R hR s ((CodeReq.singleton_satisfiedBy _ _ s).mpr (hcr _ _ (by
+      hbne_framed R hR s (CodeReq.singleton_satisfiedBy.mpr (hcr _ _ (by
         show divK_clz_stage_code K M_s M_a base (base + 4) = _
         simp only [divK_clz_stage_code, divK_clz_stage_prog,
           CodeReq.ofProg_cons, CodeReq.ofProg_nil,
@@ -149,7 +149,7 @@ theorem divK_clz_stage_ntaken_spec (K M_s : BitVec 6) (M_a : BitVec 12) (val cou
     (fun h hp => by xperm_hyp hp) hbody hbne_ext
   have ntaken := cpsBranch_ntakenPath composed (fun hp hQt => by
     obtain ⟨_, _, _, _, ⟨_, _, _, _, _, h_x0p⟩, _⟩ := hQt
-    exact ((sepConj_pure_right _ _ _).1 h_x0p).2 (by rw [heq]))
+    exact ((sepConj_pure_right _).1 h_x0p).2 (by rw [heq]))
   have I1 := slli_spec_gen_same .x5 val M_s (base + 8) (by nofun)
   have I2 := addi_spec_gen_same .x6 count M_a (base + 12) (by nofun)
   have hslli_addi : cpsTriple (base + 8) (base + 16) cr
@@ -162,7 +162,7 @@ theorem divK_clz_stage_ntaken_spec (K M_s : BitVec 6) (M_a : BitVec 12) (val cou
   have full := cpsTriple_seq_perm_same_cr
     (fun h hp => by
       have hp' := sepConj_mono_left (sepConj_mono_right
-        (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1)) h hp
+        (fun h' hp' => ((sepConj_pure_right h').1 hp').1)) h hp
       xperm_hyp hp')
     ntaken hframed
   exact cpsTriple_weaken
@@ -204,7 +204,7 @@ theorem divK_clz_last_taken_spec (val count v7 : Word) (base : Word)
         (((.x7 ↦ᵣ (val >>> 63)) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜val >>> 63 = 0⌝) **
          ((.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count))) :=
     fun R hR s hcr hPR hpc =>
-      hbne_framed R hR s ((CodeReq.singleton_satisfiedBy _ _ s).mpr (hcr _ _ (by
+      hbne_framed R hR s (CodeReq.singleton_satisfiedBy.mpr (hcr _ _ (by
         show divK_clz_last_code base (base + 4) = _
         simp only [divK_clz_last_code, divK_clz_last_prog,
           CodeReq.ofProg_cons, CodeReq.ofProg_nil,
@@ -219,14 +219,14 @@ theorem divK_clz_last_taken_spec (val count v7 : Word) (base : Word)
     (fun h hp => by xperm_hyp hp) hbody hbne_ext
   have taken := cpsBranch_takenPath composed (fun hp hQf => by
     obtain ⟨_, _, _, _, ⟨_, _, _, _, _, h_x0p⟩, _⟩ := hQf
-    exact hne ((sepConj_pure_right _ _ _).1 h_x0p).2)
+    exact hne ((sepConj_pure_right _).1 h_x0p).2)
   intro R hR s hcr hPR hpc
   obtain ⟨k, s', hstep, hpc', hQR⟩ := taken R hR s hcr hPR hpc
   exact ⟨k, s', hstep, hpc', by
     obtain ⟨hp, hcompat, hpq⟩ := hQR
     exact ⟨hp, hcompat, sepConj_mono_left (fun h hp => by
       have hp' := sepConj_mono_left (sepConj_mono_right
-        (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1)) h hp
+        (fun h' hp' => ((sepConj_pure_right h').1 hp').1)) h hp
       xperm_hyp hp') hp hpq⟩⟩
 
 /-- CLZ last stage, ntaken: val >>> 63 = 0, execute ADDI.
@@ -257,7 +257,7 @@ theorem divK_clz_last_ntaken_spec (val count v7 : Word) (base : Word)
         (((.x7 ↦ᵣ (val >>> 63)) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜val >>> 63 = 0⌝) **
          ((.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count))) :=
     fun R hR s hcr hPR hpc =>
-      hbne_framed R hR s ((CodeReq.singleton_satisfiedBy _ _ s).mpr (hcr _ _ (by
+      hbne_framed R hR s (CodeReq.singleton_satisfiedBy.mpr (hcr _ _ (by
         show divK_clz_last_code base (base + 4) = _
         simp only [divK_clz_last_code, divK_clz_last_prog,
           CodeReq.ofProg_cons, CodeReq.ofProg_nil,
@@ -272,7 +272,7 @@ theorem divK_clz_last_ntaken_spec (val count v7 : Word) (base : Word)
     (fun h hp => by xperm_hyp hp) hbody hbne_ext
   have ntaken := cpsBranch_ntakenPath composed (fun hp hQt => by
     obtain ⟨_, _, _, _, ⟨_, _, _, _, _, h_x0p⟩, _⟩ := hQt
-    exact ((sepConj_pure_right _ _ _).1 h_x0p).2 (by rw [heq]))
+    exact ((sepConj_pure_right _).1 h_x0p).2 (by rw [heq]))
   have I2 := addi_spec_gen_same .x6 count 1 (base + 8) (by nofun)
   have haddi : cpsTriple (base + 8) (base + 12) cr
       (.x6 ↦ᵣ count)
@@ -284,7 +284,7 @@ theorem divK_clz_last_ntaken_spec (val count v7 : Word) (base : Word)
   have full := cpsTriple_seq_perm_same_cr
     (fun h hp => by
       have hp' := sepConj_mono_left (sepConj_mono_right
-        (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1)) h hp
+        (fun h' hp' => ((sepConj_pure_right h').1 hp').1)) h hp
       xperm_hyp hp')
     ntaken hframed
   exact cpsTriple_weaken

@@ -58,15 +58,15 @@ theorem generic_lwu_spec (rd rs1 : Reg) (v_addr vOld : Word)
        (dwordAddr ↦ₘ wordVal)) := by
   intro R hR s hcr hPR hpc; subst hpc
   have hfetch : s.code s.pc = some (.LWU rd rs1 offset) :=
-    (CodeReq.singleton_satisfiedBy s.pc (.LWU rd rs1 offset) s).mp hcr
+    CodeReq.singleton_satisfiedBy.mp hcr
   have hrs1 : s.getReg rs1 = v_addr :=
-    (holdsFor_regIs _ _ s).mp (holdsFor_sepConj_elim_left
+    holdsFor_regIs.mp (holdsFor_sepConj_elim_left
       (holdsFor_sepConj_elim_left hPR))
   have hmem : s.getMem dwordAddr = wordVal :=
     holdsFor_memIs_getMem (holdsFor_sepConj_elim_right (holdsFor_sepConj_elim_right
       (holdsFor_sepConj_elim_left hPR)))
   have hstep' : step s = some (execInstrBr s (.LWU rd rs1 offset)) :=
-    step_lwu s rd rs1 offset hfetch (hrs1 ▸ hvalid)
+    step_lwu hfetch (hrs1 ▸ hvalid)
   have hexec' : execInstrBr s (.LWU rd rs1 offset) =
       (s.setReg rd ((extractWord32 wordVal ((byteOffset (v_addr + signExtend12 offset)) / 4)).zeroExtend 64)).setPC (s.pc + 4) := by
     simp only [execInstrBr, hrs1, getWord32_eq]; rw [halign, hmem]
@@ -82,7 +82,7 @@ theorem generic_lwu_spec (rd rs1 : Reg) (v_addr vOld : Word)
       hrd_ne_x0 h1a
     have h3 := holdsFor_sepConj_assoc.mpr h2
     have h4 := holdsFor_sepConj_pull_second.mpr h3
-    exact holdsFor_pcFree_setPC (pcFree_sepConj (by pcFree) hR) _ _ h4
+    exact holdsFor_pcFree_setPC (pcFree_sepConj (by pcFree) hR) h4
 
 /-! ## LW generic spec
 
@@ -102,15 +102,15 @@ theorem generic_lw_spec (rd rs1 : Reg) (v_addr vOld : Word)
        (dwordAddr ↦ₘ wordVal)) := by
   intro R hR s hcr hPR hpc; subst hpc
   have hfetch : s.code s.pc = some (.LW rd rs1 offset) :=
-    (CodeReq.singleton_satisfiedBy s.pc (.LW rd rs1 offset) s).mp hcr
+    CodeReq.singleton_satisfiedBy.mp hcr
   have hrs1 : s.getReg rs1 = v_addr :=
-    (holdsFor_regIs _ _ s).mp (holdsFor_sepConj_elim_left
+    holdsFor_regIs.mp (holdsFor_sepConj_elim_left
       (holdsFor_sepConj_elim_left hPR))
   have hmem : s.getMem dwordAddr = wordVal :=
     holdsFor_memIs_getMem (holdsFor_sepConj_elim_right (holdsFor_sepConj_elim_right
       (holdsFor_sepConj_elim_left hPR)))
   have hstep' : step s = some (execInstrBr s (.LW rd rs1 offset)) :=
-    step_lw s rd rs1 offset hfetch (hrs1 ▸ hvalid)
+    step_lw hfetch (hrs1 ▸ hvalid)
   have hexec' : execInstrBr s (.LW rd rs1 offset) =
       (s.setReg rd ((extractWord32 wordVal ((byteOffset (v_addr + signExtend12 offset)) / 4)).signExtend 64)).setPC (s.pc + 4) := by
     simp only [execInstrBr, hrs1, getWord32_eq]; rw [halign, hmem]
@@ -126,7 +126,7 @@ theorem generic_lw_spec (rd rs1 : Reg) (v_addr vOld : Word)
       hrd_ne_x0 h1a
     have h3 := holdsFor_sepConj_assoc.mpr h2
     have h4 := holdsFor_sepConj_pull_second.mpr h3
-    exact holdsFor_pcFree_setPC (pcFree_sepConj (by pcFree) hR) _ _ h4
+    exact holdsFor_pcFree_setPC (pcFree_sepConj (by pcFree) hR) h4
 
 /-! ## SW generic spec
 
@@ -144,18 +144,18 @@ theorem generic_sw_spec (rs1 rs2 : Reg) (v_addr v_data : Word)
        (dwordAddr ↦ₘ replaceWord32 wordOld ((byteOffset (v_addr + signExtend12 offset)) / 4) (v_data.truncate 32))) := by
   intro R hR s hcr hPR hpc; subst hpc
   have hfetch : s.code s.pc = some (.SW rs1 rs2 offset) :=
-    (CodeReq.singleton_satisfiedBy s.pc (.SW rs1 rs2 offset) s).mp hcr
+    CodeReq.singleton_satisfiedBy.mp hcr
   have hrs1 : s.getReg rs1 = v_addr :=
-    (holdsFor_regIs _ _ s).mp (holdsFor_sepConj_elim_left
+    holdsFor_regIs.mp (holdsFor_sepConj_elim_left
       (holdsFor_sepConj_elim_left hPR))
   have hrs2 : s.getReg rs2 = v_data :=
-    (holdsFor_regIs _ _ s).mp (holdsFor_sepConj_elim_left (holdsFor_sepConj_elim_right
+    holdsFor_regIs.mp (holdsFor_sepConj_elim_left (holdsFor_sepConj_elim_right
       (holdsFor_sepConj_elim_left hPR)))
   have hmem : s.getMem dwordAddr = wordOld :=
     holdsFor_memIs_getMem (holdsFor_sepConj_elim_right (holdsFor_sepConj_elim_right
       (holdsFor_sepConj_elim_left hPR)))
   have hstep' : step s = some (execInstrBr s (.SW rs1 rs2 offset)) :=
-    step_sw s rs1 rs2 offset hfetch (hrs1 ▸ hvalid)
+    step_sw hfetch (hrs1 ▸ hvalid)
   have hexec' : execInstrBr s (.SW rs1 rs2 offset) =
       (s.setMem dwordAddr (replaceWord32 wordOld ((byteOffset (v_addr + signExtend12 offset)) / 4) (v_data.truncate 32))).setPC (s.pc + 4) := by
     simp only [execInstrBr, hrs1, hrs2, setWord32_eq]; rw [halign, hmem]
@@ -170,6 +170,6 @@ theorem generic_sw_spec (rs1 rs2 : Reg) (v_addr v_data : Word)
       (v' := replaceWord32 wordOld ((byteOffset (v_addr + signExtend12 offset)) / 4) (v_data.truncate 32)) h2
     have h4 := holdsFor_sepConj_pull_second.mpr h3
     have h5 := holdsFor_sepConj_pull_second.mpr h4
-    exact holdsFor_pcFree_setPC (pcFree_sepConj (by pcFree) hR) _ _ h5
+    exact holdsFor_pcFree_setPC (pcFree_sepConj (by pcFree) hR) h5
 
 end EvmAsm.Rv64

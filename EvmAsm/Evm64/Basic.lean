@@ -37,28 +37,27 @@ def fromLimbs (limbs : Fin 4 → Word) : EvmWord :=
   ((limbs 3).zeroExtend 256 <<< 192)
 
 /-- Bitwise AND distributes over limbs. -/
-theorem getLimb_and (x y : EvmWord) (i : Fin 4) :
+theorem getLimb_and {x y : EvmWord} {i : Fin 4} :
     (x &&& y).getLimb i = x.getLimb i &&& y.getLimb i := by
   simp only [getLimb, BitVec.extractLsb'_and]
 
 /-- Bitwise OR distributes over limbs. -/
-theorem getLimb_or (x y : EvmWord) (i : Fin 4) :
+theorem getLimb_or {x y : EvmWord} {i : Fin 4} :
     (x ||| y).getLimb i = x.getLimb i ||| y.getLimb i := by
   simp only [getLimb, BitVec.extractLsb'_or]
 
 /-- Bitwise XOR distributes over limbs. -/
-theorem getLimb_xor (x y : EvmWord) (i : Fin 4) :
+theorem getLimb_xor {x y : EvmWord} {i : Fin 4} :
     (x ^^^ y).getLimb i = x.getLimb i ^^^ y.getLimb i := by
   simp only [getLimb, BitVec.extractLsb'_xor]
 
 /-- Bitwise NOT distributes over limbs. -/
-theorem getLimb_not (x : EvmWord) (i : Fin 4) :
+theorem getLimb_not {x : EvmWord} {i : Fin 4} :
     (~~~x).getLimb i = ~~~(x.getLimb i) := by
   simp only [getLimb]
-  have hi := i.isLt
   ext j
   simp only [BitVec.getElem_extractLsb', BitVec.getElem_not, BitVec.getLsbD_not]
-  have hbound : i.val * 64 + j < 256 := by omega
+  have hbound : i.val * 64 + j < 256 := by have := i.isLt; omega
   simp [hbound]
 
 /-- Round-trip: fromLimbs ∘ getLimb = id. -/
@@ -95,7 +94,7 @@ private theorem getLimb_fromLimbs_3 (limbs : Fin 4 → Word) :
   bv_decide
 
 /-- Round-trip: getLimb ∘ fromLimbs = id. -/
-theorem getLimb_fromLimbs (limbs : Fin 4 → Word) (i : Fin 4) :
+theorem getLimb_fromLimbs {limbs : Fin 4 → Word} {i : Fin 4} :
     (EvmWord.fromLimbs limbs).getLimb i = limbs i := by
   rcases i with ⟨i, hi⟩
   have : i = 0 ∨ i = 1 ∨ i = 2 ∨ i = 3 := by omega
@@ -134,7 +133,7 @@ theorem fromLimbs_toNat (f : Fin 4 → Word) :
 def toLimbs (v : EvmWord) : List Word :=
   List.ofFn fun i : Fin 4 => v.getLimb i
 
-theorem toLimbs_length (v : EvmWord) : v.toLimbs.length = 4 := by
+theorem toLimbs_length {v : EvmWord} : v.toLimbs.length = 4 := by
   simp [toLimbs]
 
 private theorem or3_eq_zero_left (a b c : BitVec 64) (h : a ||| b ||| c = 0) : a = 0 := by
@@ -158,7 +157,7 @@ theorem toNat_eq_getLimb0_of_high_zero (v : EvmWord)
   have hn3 : (v.extractLsb' (3 * 64) 64).toNat = 0 := by rw [h3]; rfl
   simp [BitVec.extractLsb'_toNat] at hn1 hn2 hn3
   simp [BitVec.extractLsb'_toNat]
-  have hv := v.isLt
+  have := v.isLt
   omega
 
 /-- Extract the k-th 64-bit limb, returning 0 when k ≥ 4 (out of range). -/
@@ -175,31 +174,31 @@ theorem getLimbN_ge (v : EvmWord) (k : Nat) (h : k ≥ 4) :
 
 /-- Convert getLimb (Fin 4) to getLimbN (Nat). Use this simp lemma to normalize
     all getLimb calls to getLimbN for consistent Expr.hash in xperm. -/
-theorem getLimb_eq_getLimbN (v : EvmWord) (i : Fin 4) :
+theorem getLimb_eq_getLimbN {v : EvmWord} {i : Fin 4} :
     v.getLimb i = v.getLimbN i.val := by
   simp [getLimbN, i.isLt]
 
 /-- Convert `getLimb (k : Fin 4)` to `getLimbN k` for concrete indices.
     Use `simp only [getLimb_as_getLimbN]` to batch-convert bridge lemma hypotheses. -/
-theorem getLimb_as_getLimbN_0 (v : EvmWord) : v.getLimb 0 = v.getLimbN 0 := by simp [getLimbN]
-theorem getLimb_as_getLimbN_1 (v : EvmWord) : v.getLimb 1 = v.getLimbN 1 := by simp [getLimbN]
-theorem getLimb_as_getLimbN_2 (v : EvmWord) : v.getLimb 2 = v.getLimbN 2 := by simp [getLimbN]
-theorem getLimb_as_getLimbN_3 (v : EvmWord) : v.getLimb 3 = v.getLimbN 3 := by simp [getLimbN]
+theorem getLimb_as_getLimbN_0 {v : EvmWord} : v.getLimb 0 = v.getLimbN 0 := by simp [getLimbN]
+theorem getLimb_as_getLimbN_1 {v : EvmWord} : v.getLimb 1 = v.getLimbN 1 := by simp [getLimbN]
+theorem getLimb_as_getLimbN_2 {v : EvmWord} : v.getLimb 2 = v.getLimbN 2 := by simp [getLimbN]
+theorem getLimb_as_getLimbN_3 {v : EvmWord} : v.getLimb 3 = v.getLimbN 3 := by simp [getLimbN]
 
 -- getLimbN versions of operation lemmas (for xperm AC fast path consistency)
-theorem getLimbN_and (x y : EvmWord) (k : Nat) :
+theorem getLimbN_and {x y : EvmWord} {k : Nat} :
     (x &&& y).getLimbN k = x.getLimbN k &&& y.getLimbN k := by
   simp [getLimbN]; split <;> simp [getLimb, BitVec.extractLsb'_and]
 
-theorem getLimbN_or (x y : EvmWord) (k : Nat) :
+theorem getLimbN_or {x y : EvmWord} {k : Nat} :
     (x ||| y).getLimbN k = x.getLimbN k ||| y.getLimbN k := by
   simp [getLimbN]; split <;> simp [getLimb, BitVec.extractLsb'_or]
 
-theorem getLimbN_xor (x y : EvmWord) (k : Nat) :
+theorem getLimbN_xor {x y : EvmWord} {k : Nat} :
     (x ^^^ y).getLimbN k = x.getLimbN k ^^^ y.getLimbN k := by
   simp [getLimbN]; split <;> simp [getLimb, BitVec.extractLsb'_xor]
 
-theorem getLimbN_not (x : EvmWord) (k : Nat) (hk : k < 4) :
+theorem getLimbN_not {x : EvmWord} {k : Nat} (hk : k < 4) :
     (~~~ x).getLimbN k = ~~~ (x.getLimbN k) := by
   simp only [getLimbN, hk, dif_pos, getLimb_not]
 
@@ -222,20 +221,20 @@ theorem getLimbN_one (k : Nat) :
 /-- `(1 : EvmWord).getLimbN k = 0` for `k ≠ 0`. Avoids the chained `getLimbN_one`
     + `show ¬((k : Nat) = 0) from by decide` idiom at call sites that know `k`
     is a concrete positive literal (issue #263). -/
-theorem getLimbN_one_of_ne_zero (k : Nat) (hk : k ≠ 0) :
+theorem getLimbN_one_of_ne_zero {k : Nat} (hk : k ≠ 0) :
     (1 : EvmWord).getLimbN k = 0 := by
   rw [getLimbN_one, if_neg hk]
 
 theorem getLimbN_one_zero : (1 : EvmWord).getLimbN 0 = 1 := by
   rw [getLimbN_one, if_pos rfl]
 theorem getLimbN_one_one : (1 : EvmWord).getLimbN 1 = 0 :=
-  getLimbN_one_of_ne_zero 1 (by decide)
+  getLimbN_one_of_ne_zero (by decide)
 theorem getLimbN_one_two : (1 : EvmWord).getLimbN 2 = 0 :=
-  getLimbN_one_of_ne_zero 2 (by decide)
+  getLimbN_one_of_ne_zero (by decide)
 theorem getLimbN_one_three : (1 : EvmWord).getLimbN 3 = 0 :=
-  getLimbN_one_of_ne_zero 3 (by decide)
+  getLimbN_one_of_ne_zero (by decide)
 
-theorem getLimbN_ite (c : Prop) [Decidable c] (x y : EvmWord) (k : Nat) :
+theorem getLimbN_ite {c : Prop} [Decidable c] {x y : EvmWord} {k : Nat} :
     (if c then x else y).getLimbN k = if c then x.getLimbN k else y.getLimbN k := by
   split <;> rfl
 
@@ -300,7 +299,7 @@ theorem shiftLeft_geq_256 (v : EvmWord) (n : Nat) (h : n ≥ 256) :
     `getLimb (v <<< n) i = (getLimbN v (i - ls) <<< bs) ||| ((getLimbN v (i - ls - 1) >>> (64 - bs)) &&& mask)`
 
     The condition `i * 64 ≥ n` ensures all 64 extracted bits come from `v`. -/
-theorem getLimb_shiftLeft (v : EvmWord) (n : Nat) (i : Fin 4) (hge : i.val * 64 ≥ n) :
+theorem getLimb_shiftLeft {v : EvmWord} {n : Nat} {i : Fin 4} (hge : i.val * 64 ≥ n) :
     getLimb (v <<< n) i =
     (getLimbN v (i.val - n / 64) <<< (n % 64)) |||
     ((getLimbN v (i.val - n / 64 - 1) >>> (64 - n % 64)) &&&
@@ -356,7 +355,7 @@ theorem getLimb_shiftLeft (v : EvmWord) (n : Nat) (i : Fin 4) (hge : i.val * 64 
 
 /-- **SHL bridge lemma (first limb).** When `i = n / 64`, the i-th limb of `v <<< n` equals
     the lowest limb of `v` shifted left by `n % 64`. -/
-theorem getLimb_shiftLeft_eq_div (v : EvmWord) (n : Nat) (i : Fin 4) (heq : i.val = n / 64) :
+theorem getLimb_shiftLeft_eq_div {v : EvmWord} {n : Nat} {i : Fin 4} (heq : i.val = n / 64) :
     getLimb (v <<< n) i = getLimbN v 0 <<< (n % 64) := by
   simp only [getLimb]
   rw [getLimbN_eq_extractLsb']
@@ -375,7 +374,7 @@ theorem getLimb_shiftLeft_eq_div (v : EvmWord) (n : Nat) (i : Fin 4) (heq : i.va
 
 /-- **SHL bridge lemma (zero limb).** When `(i + 1) * 64 ≤ n`, the i-th limb of `v <<< n`
     is zero (all extracted bits are below the shift amount). -/
-theorem getLimb_shiftLeft_low (v : EvmWord) (n : Nat) (i : Fin 4) (hlo : (i.val + 1) * 64 ≤ n) :
+theorem getLimb_shiftLeft_low {v : EvmWord} {n : Nat} {i : Fin 4} (hlo : (i.val + 1) * 64 ≤ n) :
     getLimb (v <<< n) i = 0 := by
   simp only [getLimb]
   ext j
@@ -385,7 +384,7 @@ theorem getLimb_shiftLeft_low (v : EvmWord) (n : Nat) (i : Fin 4) (hlo : (i.val 
   simp [hlt]
 
 /-- Shifting a 256-bit word right by 0 is the identity on each limb. -/
-theorem getLimb_ushiftRight_zero (v : EvmWord) (i : Fin 4) :
+theorem getLimb_ushiftRight_zero {v : EvmWord} {i : Fin 4} :
     getLimb (v >>> 0) i = v.getLimb i := by
   simp [getLimb]
 
@@ -448,12 +447,12 @@ theorem high_limbs_zero_of_toNat_lt (v : EvmWord) (h : v.toNat < 2^64) :
   have h3 := hlimb 3 (by omega)
   simp [h1, h2, h3]
 
-@[simp] theorem getLimb_one (i : Fin 4) :
+@[simp] theorem getLimb_one {i : Fin 4} :
     (1 : EvmWord).getLimb i = if i = 0 then 1 else 0 := by
   have h : ∀ j : Fin 4, (1 : EvmWord).getLimb j = if j = 0 then 1 else 0 := by decide
   exact h i
 
-@[simp] theorem getLimb_ite (c : Prop) [Decidable c] (x y : EvmWord) (i : Fin 4) :
+@[simp] theorem getLimb_ite {c : Prop} [Decidable c] {x y : EvmWord} {i : Fin 4} :
     (if c then x else y).getLimb i = if c then x.getLimb i else y.getLimb i := by
   split <;> rfl
 
@@ -485,7 +484,7 @@ theorem eq_zero_iff_limbs (a : EvmWord) :
 /-- For merge limbs (all 64 extracted bits within v), sshiftRight agrees with ushiftRight.
     When `(i+1)*64 + n ≤ 256`, all bit positions `i*64 + j` (j < 64) satisfy
     `n + (i*64 + j) < 256`, so no sign extension occurs. -/
-theorem getLimb_sshiftRight_eq_ushiftRight (v : EvmWord) (n : Nat) (i : Fin 4)
+theorem getLimb_sshiftRight_eq_ushiftRight {v : EvmWord} {n : Nat} {i : Fin 4}
     (h : (i.val + 1) * 64 + n ≤ 256) :
     getLimb (BitVec.sshiftRight v n) i = getLimb (v >>> n) i := by
   simp only [getLimb]
@@ -500,7 +499,7 @@ theorem getLimb_sshiftRight_eq_ushiftRight (v : EvmWord) (n : Nat) (i : Fin 4)
 /-- **SAR bridge lemma (last limb).** When `i + n/64 = 3`, the i-th limb of
     `sshiftRight v n` equals `sshiftRight (v.getLimb 3) (n % 64)`.
     This is the limb that gets arithmetic (sign-preserving) shift. -/
-theorem getLimb_sshiftRight_last (v : EvmWord) (n : Nat) (i : Fin 4)
+theorem getLimb_sshiftRight_last {v : EvmWord} {n : Nat} {i : Fin 4}
     (hiL : i.val + n / 64 = 3) :
     getLimb (BitVec.sshiftRight v n) i =
     BitVec.sshiftRight (v.getLimb ⟨3, by omega⟩) (n % 64) := by
@@ -526,7 +525,7 @@ theorem getLimb_sshiftRight_last (v : EvmWord) (n : Nat) (i : Fin 4)
 
 /-- **SAR bridge lemma (sign limb via getLimb 3).** When `i + n/64 ≥ 4`, the i-th limb of
     `sshiftRight v n` equals `sshiftRight (v.getLimb 3) 63`. -/
-theorem getLimb_sshiftRight_sign' (v : EvmWord) (n : Nat) (i : Fin 4)
+theorem getLimb_sshiftRight_sign' {v : EvmWord} {n : Nat} {i : Fin 4}
     (hiL : i.val + n / 64 ≥ 4) :
     getLimb (BitVec.sshiftRight v n) i =
     BitVec.sshiftRight (v.getLimb ⟨3, by omega⟩) 63 := by
@@ -557,10 +556,10 @@ theorem getLimb_sshiftRight_sign' (v : EvmWord) (n : Nat) (i : Fin 4)
 theorem getLimb_sshiftRight_geq_256 (v : EvmWord) (n : Nat) (h : n ≥ 256) (i : Fin 4) :
     getLimb (BitVec.sshiftRight v n) i =
     BitVec.sshiftRight (v.getLimb ⟨3, by omega⟩) 63 :=
-  getLimb_sshiftRight_sign' v n i (by omega)
+  getLimb_sshiftRight_sign' (by omega)
 
 /-- `getLimb` of `fromLimbs` with a constant function. -/
-theorem getLimb_fromLimbs_const (w : Word) (i : Fin 4) :
+theorem getLimb_fromLimbs_const {w : Word} {i : Fin 4} :
     (fromLimbs (fun _ => w)).getLimb i = w := by
   match i with
   | ⟨0, _⟩ => simp [fromLimbs, getLimb]; bv_decide
@@ -569,7 +568,7 @@ theorem getLimb_fromLimbs_const (w : Word) (i : Fin 4) :
   | ⟨3, _⟩ => simp [fromLimbs, getLimb]; bv_decide
   | ⟨n+4, h⟩ => exact absurd h (by omega)
 
-theorem getLimbN_fromLimbs_const (w : Word) (k : Nat) :
+theorem getLimbN_fromLimbs_const {w : Word} {k : Nat} :
     (fromLimbs (fun _ => w)).getLimbN k = if k < 4 then w else 0 := by
   unfold getLimbN
   split

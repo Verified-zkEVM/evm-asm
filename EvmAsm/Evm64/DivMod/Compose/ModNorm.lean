@@ -69,7 +69,7 @@ theorem mod_phaseC2_ntaken_spec (sp shift v2 shiftMem : Word) (base : Word)
   have hbeq_clean := cpsBranch_ntakenStripPure2 hbeq_raw
     (fun hp hQt => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQt
-      exact absurd ((sepConj_pure_right _ _ _).mp h_rest).2 (show shift ≠ (0 : Word) from hshift_nz))
+      exact absurd ((sepConj_pure_right _).mp h_rest).2 (show shift ≠ (0 : Word) from hshift_nz))
   have hbeq := cpsTriple_extend_code (beq_shift_sub_modCode base) hbeq_clean
   have hbeqf := cpsTriple_frameR
     ((.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ (signExtend12 (0 : BitVec 12) - shift)) **
@@ -98,7 +98,7 @@ theorem mod_phaseC2_taken_spec (sp shift v2 shiftMem : Word) (base : Word)
   have hbeq_clean := cpsBranch_takenStripPure2 hbeq_raw
     (fun hp hQf => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQf
-      exact absurd hshift_z ((sepConj_pure_right _ _ _).mp h_rest).2)
+      exact absurd hshift_z ((sepConj_pure_right _).mp h_rest).2)
   have hbeq := cpsTriple_extend_code (beq_shift_sub_modCode base) hbeq_clean
   have hbeqf := cpsTriple_frameR
     ((.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ (signExtend12 (0 : BitVec 12) - shift)) **

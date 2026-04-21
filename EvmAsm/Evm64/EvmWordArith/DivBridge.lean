@@ -25,18 +25,18 @@ namespace EvmWord
 
 /-- If the Nat-level equation `a = b * q + r` holds and `a < 2^256`,
     then the BitVec-level equation `a = b * q + r` holds (no overflow). -/
-theorem bv_eq_of_nat_eq (a b q r : EvmWord)
+theorem bv_eq_of_nat_eq {a b q r : EvmWord}
     (h_nat : a.toNat = b.toNat * q.toNat + r.toNat) :
     a = b * q + r := by
   apply BitVec.eq_of_toNat_eq
   rw [BitVec.toNat_add, BitVec.toNat_mul]
-  have ha := a.isLt
+  have := a.isLt
   rw [Nat.mod_eq_of_lt (show b.toNat * q.toNat < 2^256 by omega),
       Nat.mod_eq_of_lt (show b.toNat * q.toNat + r.toNat < 2^256 by omega)]
   exact h_nat
 
 /-- Nat strict inequality implies BitVec strict inequality. -/
-theorem bv_lt_of_nat_lt (a b : EvmWord) (h : a.toNat < b.toNat) : a < b :=
+theorem bv_lt_of_nat_lt {a b : EvmWord} (h : a.toNat < b.toNat) : a < b :=
   BitVec.lt_def.mpr h
 
 -- ============================================================================
@@ -53,9 +53,9 @@ theorem div_of_nat_euclidean (a b q r : EvmWord) (hbnz : b ≠ 0)
     (h_nat_eq : a.toNat = b.toNat * q.toNat + r.toNat)
     (h_nat_lt : r.toNat < b.toNat) :
     q = EvmWord.div a b :=
-  div_eq_of_euclidean a b q r hbnz
-    (bv_eq_of_nat_eq a b q r h_nat_eq)
-    (bv_lt_of_nat_lt r b h_nat_lt)
+  div_eq_of_euclidean hbnz
+    (bv_eq_of_nat_eq h_nat_eq)
+    (bv_lt_of_nat_lt h_nat_lt)
     (by have := a.isLt; omega)
 
 /-- If the Nat-level Euclidean property holds (`a = b * q + r` with `r < b`),
@@ -64,9 +64,9 @@ theorem mod_of_nat_euclidean (a b q r : EvmWord) (hbnz : b ≠ 0)
     (h_nat_eq : a.toNat = b.toNat * q.toNat + r.toNat)
     (h_nat_lt : r.toNat < b.toNat) :
     r = EvmWord.mod a b :=
-  mod_eq_of_euclidean a b q r hbnz
-    (bv_eq_of_nat_eq a b q r h_nat_eq)
-    (bv_lt_of_nat_lt r b h_nat_lt)
+  mod_eq_of_euclidean hbnz
+    (bv_eq_of_nat_eq h_nat_eq)
+    (bv_lt_of_nat_lt h_nat_lt)
     (by have := a.isLt; omega)
 
 -- ============================================================================
@@ -99,7 +99,7 @@ theorem val256_mul_single (q v0 v1 v2 v3 : Word) :
     (no underflow) and `val256 r < val256 b`, then `fromLimbs q_limbs = div a b`.
 
     This connects `mulsub_chain_no_underflow` to `div_of_nat_euclidean`. -/
-theorem div_from_mulsub (a b q r : EvmWord)
+theorem div_from_mulsub {a b q r : EvmWord}
     (hbnz : b ≠ 0)
     (h_chain : a.toNat = b.toNat * q.toNat + r.toNat)
     (h_rem : r.toNat < b.toNat) :

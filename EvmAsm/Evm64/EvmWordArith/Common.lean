@@ -39,7 +39,7 @@ theorem xor_eq_zero_imp {n : Nat} {x y : BitVec n} (h : x ^^^ y = 0) : x = y :=
   BitVec.xor_eq_zero_iff.mp h
 
 -- OR of two borrow/carry flags (0-or-1 valued bitvectors)
-theorem borrow_or_iff (c1 c2 : Prop) [Decidable c1] [Decidable c2] :
+theorem borrow_or_iff {c1 c2 : Prop} [Decidable c1] [Decidable c2] :
     ((if c1 then (1 : Word) else 0) ||| (if c2 then (1 : Word) else 0)) =
     (if (c1 ∨ c2) then (1 : Word) else 0) := by
   by_cases h1 : c1 <;> by_cases h2 : c2 <;> simp_all

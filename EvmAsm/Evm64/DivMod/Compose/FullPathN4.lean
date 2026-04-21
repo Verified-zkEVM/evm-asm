@@ -310,7 +310,7 @@ theorem fullDivN4MaxSkipPost_unfold (sp a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
     `regIs` / `memIs`. Proof goes through `delta` since the bundle is
     `@[irreducible]`; the inner `denormDivPost` is handled by its
     own `Assertion.PCFree` instance. -/
-theorem pcFree_fullDivN4MaxSkipPost (sp a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
+theorem pcFree_fullDivN4MaxSkipPost {sp a0 a1 a2 a3 b0 b1 b2 b3 : Word} :
     (fullDivN4MaxSkipPost sp a0 a1 a2 a3 b0 b1 b2 b3).pcFree := by
   delta fullDivN4MaxSkipPost
   pcFree
@@ -318,7 +318,7 @@ theorem pcFree_fullDivN4MaxSkipPost (sp a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
 instance pcFreeInst_fullDivN4MaxSkipPost
     (sp a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
     Assertion.PCFree (fullDivN4MaxSkipPost sp a0 a1 a2 a3 b0 b1 b2 b3) :=
-  ⟨pcFree_fullDivN4MaxSkipPost sp a0 a1 a2 a3 b0 b1 b2 b3⟩
+  ⟨pcFree_fullDivN4MaxSkipPost⟩
 
 -- ============================================================================
 -- Full n=4 MOD path postcondition (max+skip, shift≠0)
@@ -396,7 +396,7 @@ theorem fullModN4MaxSkipPost_unfold (sp a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
 
 /-- `fullModN4MaxSkipPost` is pc-free. Mirror of
     `pcFree_fullDivN4MaxSkipPost`. -/
-theorem pcFree_fullModN4MaxSkipPost (sp a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
+theorem pcFree_fullModN4MaxSkipPost {sp a0 a1 a2 a3 b0 b1 b2 b3 : Word} :
     (fullModN4MaxSkipPost sp a0 a1 a2 a3 b0 b1 b2 b3).pcFree := by
   delta fullModN4MaxSkipPost
   pcFree
@@ -404,7 +404,7 @@ theorem pcFree_fullModN4MaxSkipPost (sp a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
 instance pcFreeInst_fullModN4MaxSkipPost
     (sp a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
     Assertion.PCFree (fullModN4MaxSkipPost sp a0 a1 a2 a3 b0 b1 b2 b3) :=
-  ⟨pcFree_fullModN4MaxSkipPost sp a0 a1 a2 a3 b0 b1 b2 b3⟩
+  ⟨pcFree_fullModN4MaxSkipPost⟩
 
 /-- Full n=4 DIV path: base → base+1068 (shift ≠ 0, max+skip).
     Composes pre-loop + loop body + denorm + epilogue. -/
@@ -864,5 +864,60 @@ theorem evm_div_n4_full_call_skip_spec (sp base : Word)
     (fun h hq => by delta fullDivN4CallSkipPost; rw [sepConj_assoc'] at hq; xperm_hyp hq)
     hFull
 
+/-- Full path postcondition for n=4 MOD (shift ≠ 0, call+skip).
+    Mirror of `fullDivN4CallSkipPost` but wraps `denormModPost` instead
+    of `denormDivPost`: the `sp+32..sp+56` output slot holds the
+    *denormalized* remainder limbs (MOD result), while the call-trial
+    scratch cells (return address, dHi, dLo, scratch_un0) carry the
+    same div128-subroutine values as in the DIV variant.
+
+    Scaffolding for the forthcoming `evm_mod_n4_full_call_skip_spec`. -/
+@[irreducible]
+def fullModN4CallSkipPost (sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Assertion :=
+  let shift := (clzResult b3).1
+  let antiShift := signExtend12 (0 : BitVec 12) - shift
+  let b3' := (b3 <<< (shift.toNat % 64)) ||| (b2 >>> (antiShift.toNat % 64))
+  let b2' := (b2 <<< (shift.toNat % 64)) ||| (b1 >>> (antiShift.toNat % 64))
+  let b1' := (b1 <<< (shift.toNat % 64)) ||| (b0 >>> (antiShift.toNat % 64))
+  let b0' := b0 <<< (shift.toNat % 64)
+  let u4 := a3 >>> (antiShift.toNat % 64)
+  let u3 := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (antiShift.toNat % 64))
+  let u2 := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (antiShift.toNat % 64))
+  let u1 := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (antiShift.toNat % 64))
+  let u0 := a0 <<< (shift.toNat % 64)
+  let qHat := div128Quot u4 u3 b3'
+  let dLo := (b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+  let div_un0 := (u3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+  let ms := mulsubN4 qHat b0' b1' b2' b3' u0 u1 u2 u3
+  denormModPost sp shift ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 **
+  ((sp + signExtend12 4088) ↦ₘ qHat) **
+  ((sp + signExtend12 4080) ↦ₘ (0 : Word)) **
+  ((sp + signExtend12 4072) ↦ₘ (0 : Word)) **
+  ((sp + signExtend12 4064) ↦ₘ (0 : Word)) **
+  ((sp + signExtend12 3992) ↦ₘ shift) **
+  ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
+  ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+  ((sp + signExtend12 4024) ↦ₘ u4 - ms.2.2.2.2) **
+  ((sp + signExtend12 4016) ↦ₘ (0 : Word)) **
+  ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
+  ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
+  (sp + signExtend12 3984 ↦ₘ (4 : Word)) **
+  (sp + signExtend12 3976 ↦ₘ (0 : Word)) **
+  (.x1 ↦ᵣ signExtend12 4095) ** (.x11 ↦ᵣ qHat) **
+  (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+  (sp + signExtend12 3960 ↦ₘ b3') **
+  (sp + signExtend12 3952 ↦ₘ dLo) **
+  (sp + signExtend12 3944 ↦ₘ div_un0)
+
+/-- `fullModN4CallSkipPost` is pc-free. Mirror of `pcFree_fullDivN4CallSkipPost`. -/
+theorem pcFree_fullModN4CallSkipPost {sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word} :
+    (fullModN4CallSkipPost sp base a0 a1 a2 a3 b0 b1 b2 b3).pcFree := by
+  delta fullModN4CallSkipPost
+  pcFree
+
+instance pcFreeInst_fullModN4CallSkipPost
+    (sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
+    Assertion.PCFree (fullModN4CallSkipPost sp base a0 a1 a2 a3 b0 b1 b2 b3) :=
+  ⟨pcFree_fullModN4CallSkipPost⟩
 
 end EvmAsm.Evm64

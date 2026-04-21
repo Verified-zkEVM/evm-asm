@@ -39,7 +39,7 @@ private theorem sar_sign_fill_path_len : sar_sign_fill_path.length = 7 := by dec
 /-- Skip one ofProg block in a right-nested union via range disjointness. -/
 local macro "skipBlock" : tactic =>
   `(tactic| apply CodeReq.mono_union_right
-      (CodeReq.ofProg_disjoint_range _ _ _ _ (fun k1 k2 hk1 hk2 => by
+      (CodeReq.ofProg_disjoint_range (fun k1 k2 hk1 hk2 => by
         simp only [sar_phase_a_len, shr_phase_b_len, sar_phase_c_len,
           sar_body_3_prog_len, sar_body_2_prog_len, sar_body_1_prog_len,
           sar_body_0_prog_len, sar_sign_fill_path_len] at hk1 hk2
@@ -327,7 +327,7 @@ theorem evm_sar_sign_fill_high_spec (sp base : Word)
   have hbne_taken := cpsBranch_takenStripPure2 hbne
     (fun hp hQf => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQf
-      exact absurd ((sepConj_pure_right _ _ _).mp h_rest).2 hhigh)
+      exact absurd ((sepConj_pure_right _).mp h_rest).2 hhigh)
   -- Frame BNE with remaining state
   have hbne_framed := cpsTriple_frameR
     ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ s3) **
@@ -418,7 +418,7 @@ theorem evm_sar_sign_fill_large_spec (sp base : Word)
   have hbne_ntaken := cpsBranch_ntakenStripPure2 hbne
     (fun hp hQt => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQt
-      exact ((sepConj_pure_right _ _ _).mp h_rest).2 hlow)
+      exact ((sepConj_pure_right _).mp h_rest).2 hlow)
   -- Frame BNE(ntaken) with remaining state
   have hbne_framed := cpsTriple_frameR
     ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ s3) **
@@ -462,7 +462,7 @@ theorem evm_sar_sign_fill_large_spec (sp base : Word)
   have hbeq_taken := cpsBranch_takenStripPure2 hbeq
     (fun hp hQf => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQf
-      exact ((sepConj_pure_right _ _ _).mp h_rest).2 hsltiu_eq)
+      exact ((sepConj_pure_right _).mp h_rest).2 hsltiu_eq)
   -- Frame BEQ(taken) with remaining state
   have hbeq_framed := cpsTriple_frameR
     ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ s0) **
@@ -530,20 +530,20 @@ theorem sar_phase_c_spec_pure (v5 v10 : Word) (base : Word)
   let cr_cs2 := shr_cascade_step_code 2 36 (base + 12)
   have hd_beq0_cs1 : cr_beq0.Disjoint cr_cs1 :=
     CodeReq.Disjoint.union_right
-      (CodeReq.Disjoint.singleton (by bv_omega) _ _)
-      (CodeReq.Disjoint.singleton (by bv_omega) _ _)
+      (CodeReq.Disjoint.singleton (by bv_omega))
+      (CodeReq.Disjoint.singleton (by bv_omega))
   have hd_beq0_cs2 : cr_beq0.Disjoint cr_cs2 :=
     CodeReq.Disjoint.union_right
-      (CodeReq.Disjoint.singleton (by bv_omega) _ _)
-      (CodeReq.Disjoint.singleton (by bv_omega) _ _)
+      (CodeReq.Disjoint.singleton (by bv_omega))
+      (CodeReq.Disjoint.singleton (by bv_omega))
   have hd_cs1_cs2 : cr_cs1.Disjoint cr_cs2 :=
     CodeReq.Disjoint.union_left
       (CodeReq.Disjoint.union_right
-        (CodeReq.Disjoint.singleton (by bv_omega) _ _)
-        (CodeReq.Disjoint.singleton (by bv_omega) _ _))
+        (CodeReq.Disjoint.singleton (by bv_omega))
+        (CodeReq.Disjoint.singleton (by bv_omega)))
       (CodeReq.Disjoint.union_right
-        (CodeReq.Disjoint.singleton (by bv_omega) _ _)
-        (CodeReq.Disjoint.singleton (by bv_omega) _ _))
+        (CodeReq.Disjoint.singleton (by bv_omega))
+        (CodeReq.Disjoint.singleton (by bv_omega)))
   -- Step 0: BEQ x5 x0 188
   have beq0_raw := beq_spec_gen .x5 .x0 188 v5 (0 : Word) base
   rw [he0] at beq0_raw
@@ -559,39 +559,39 @@ theorem sar_phase_c_spec_pure (v5 v10 : Word) (base : Word)
   -- Step 1: cascade step at base+4
   have cs1_raw := shr_cascade_step_spec_pure v5 v10 1 100 (base + 4) e1 hc1
   rw [show (base + 4 : Word) + 8 = base + 12 from by bv_addr] at cs1_raw
-  have cs1f := cpsBranch_frameR (⌜v5 ≠ (0 : Word)⌝) (pcFree_pure _) cs1_raw
+  have cs1f := cpsBranch_frameR (⌜v5 ≠ (0 : Word)⌝) pcFree_pure cs1_raw
   have cs1_clean : cpsBranch (base + 4) cr_cs1
       ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10) ** ⌜v5 ≠ (0 : Word)⌝)
       e1 ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ ((0 : Word) + signExtend12 1)) ** ⌜v5 = (0 : Word) + signExtend12 1⌝)
       (base + 12) ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ ((0 : Word) + signExtend12 1)) ** ⌜v5 ≠ 0 ∧ v5 ≠ (0 : Word) + signExtend12 1⌝) :=
     cpsBranch_weaken
       (fun h hp => (congrFun (show _ = _ from by xperm) h).mp hp)
-      (fun h hp => (sepConj_pure_right _ _ h).1 hp |>.1)
+      (fun h hp => (sepConj_pure_right h).1 hp |>.1)
       (fun h hp => by
-        have ⟨hinner, hne0⟩ := (sepConj_pure_right _ _ h).1 hp
+        have ⟨hinner, hne0⟩ := (sepConj_pure_right h).1 hp
         have hne1 := sepConj_extract_pure_end3 h hinner
         have hregs := sepConj_strip_pure_end3 h hinner
         exact (congrFun (show _ = _ from by xperm) h).mp
-          ((sepConj_pure_right _ _ h).2 (And.intro hregs (And.intro hne0 hne1))))
+          ((sepConj_pure_right h).2 (And.intro hregs (And.intro hne0 hne1))))
       cs1f
   -- Step 2: cascade step at base+12
   have cs2_raw := shr_cascade_step_spec_pure v5 ((0 : Word) + signExtend12 1) 2 36 (base + 12) e2 hc2
   rw [show (base + 12 : Word) + 8 = base + 20 from by bv_addr] at cs2_raw
   have cs2f := cpsBranch_frameR
-    (⌜v5 ≠ 0 ∧ v5 ≠ (0 : Word) + signExtend12 1⌝) (pcFree_pure _) cs2_raw
+    (⌜v5 ≠ 0 ∧ v5 ≠ (0 : Word) + signExtend12 1⌝) pcFree_pure cs2_raw
   have cs2_clean : cpsBranch (base + 12) cr_cs2
       ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ ((0 : Word) + signExtend12 1)) ** ⌜v5 ≠ 0 ∧ v5 ≠ (0 : Word) + signExtend12 1⌝)
       e2 ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ ((0 : Word) + signExtend12 2)) ** ⌜v5 = (0 : Word) + signExtend12 2⌝)
       (base + 20) ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ ((0 : Word) + signExtend12 2)) ** ⌜v5 ≠ 0 ∧ v5 ≠ (0 : Word) + signExtend12 1 ∧ v5 ≠ (0 : Word) + signExtend12 2⌝) :=
     cpsBranch_weaken
       (fun h hp => (congrFun (show _ = _ from by xperm) h).mp hp)
-      (fun h hp => (sepConj_pure_right _ _ h).1 hp |>.1)
+      (fun h hp => (sepConj_pure_right h).1 hp |>.1)
       (fun h hp => by
-        have ⟨hinner, ⟨hne0, hne1⟩⟩ := (sepConj_pure_right _ _ h).1 hp
+        have ⟨hinner, ⟨hne0, hne1⟩⟩ := (sepConj_pure_right h).1 hp
         have hne2 := sepConj_extract_pure_end3 h hinner
         have hregs := sepConj_strip_pure_end3 h hinner
         exact (congrFun (show _ = _ from by xperm) h).mp
-          ((sepConj_pure_right _ _ h).2 (And.intro hregs (And.intro hne0 (And.intro hne1 hne2)))))
+          ((sepConj_pure_right h).2 (And.intro hregs (And.intro hne0 (And.intro hne1 hne2)))))
       cs2f
   -- Fallthrough at base+20
   have ft := cpsNBranch_refl (base + 20)
@@ -660,7 +660,7 @@ private theorem sar_bridge_merge (value : EvmWord) (s0 : Word)
   have hL_div : s0.toNat / 64 = L := by
     rw [← hL, bv6_toNat_6]; simp [BitVec.toNat_ushiftRight]; omega
   -- sshiftRight agrees with ushiftRight for merge limbs
-  rw [getLimb_sshiftRight_eq_ushiftRight value s0.toNat i (by omega)]
+  rw [getLimb_sshiftRight_eq_ushiftRight (by omega)]
   rw [getLimb_ushiftRight value s0.toNat i, hL_div,
       getLimbN_lt value (i.val + L) (by omega),
       getLimbN_lt value (i.val + L + 1) hiL1]
@@ -695,7 +695,7 @@ private theorem sar_bridge_last (value : EvmWord) (s0 : Word)
     exact Nat.and_two_pow_sub_one_eq_mod s0.toNat 6
   have hL_div : s0.toNat / 64 = L := by
     rw [← hL, bv6_toNat_6]; simp [BitVec.toNat_ushiftRight]; omega
-  rw [getLimb_sshiftRight_last value s0.toNat i (by omega)]
+  rw [getLimb_sshiftRight_last (by omega)]
   congr 1; omega
 
 -- Sign limb bridge: for limbs beyond the shift (i+L >= 4, sign extension).
@@ -712,7 +712,7 @@ private theorem sar_bridge_sign (value : EvmWord) (s0 : Word)
   have hL_div : s0.toNat / 64 = L := by
     rw [← hL, bv6_toNat_6]; simp [BitVec.toNat_ushiftRight]; omega
   -- getLimb (sshiftRight value n) i = sshiftRight (getLimb value 3) 63 for sign limbs
-  rw [getLimb_sshiftRight_sign' value s0.toNat i (by omega)]
+  rw [getLimb_sshiftRight_sign' (by omega)]
   -- sshiftRight (sshiftRight x bs) 63 = sshiftRight x 63 when bs < 64
   -- Both give sign extension (all bits = MSB of x)
   have hbs_val : bs.toNat = s0.toNat % 64 := by
@@ -832,7 +832,7 @@ theorem evm_sar_body_evmWord_spec (sp base : Word)
   have hbne_ntaken := cpsBranch_ntakenStripPure2 hbne
     (fun hp hQt => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQt
-      exact ((sepConj_pure_right _ _ _).mp h_rest).2 hhigh_zero)
+      exact ((sepConj_pure_right _).mp h_rest).2 hhigh_zero)
   have hbne_framed := cpsTriple_frameR
     ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ s3) ** (.x6 ↦ᵣ r6) ** (.x7 ↦ᵣ r7) ** (.x11 ↦ᵣ r11) **
      (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3) **
@@ -869,7 +869,7 @@ theorem evm_sar_body_evmWord_spec (sp base : Word)
   have hbeq_ntaken := cpsBranch_ntakenStripPure2 hbeq
     (fun hp hQt => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQt
-      have heq := ((sepConj_pure_right _ _ _).mp h_rest).2
+      have heq := ((sepConj_pure_right _).mp h_rest).2
       simp [hsltiu_eq] at heq)
   have hbeq_framed := cpsTriple_frameR
     ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ s0) ** (.x6 ↦ᵣ r6) ** (.x7 ↦ᵣ r7) ** (.x11 ↦ᵣ r11) **

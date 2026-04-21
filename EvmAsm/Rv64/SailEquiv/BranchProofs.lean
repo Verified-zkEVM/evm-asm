@@ -32,7 +32,7 @@ private theorem sign_extend_13_eq (imm : BitVec 13) :
   unfold sign_extend signExtend13 Sail.BitVec.signExtend; rfl
 
 /-- Writing Register.nextPC preserves StateRel (nextPC is not in the tracked register set). -/
-theorem stateRel_nextPC (sRv : MachineState) (sSail : SailState)
+theorem stateRel_nextPC {sRv : MachineState} {sSail : SailState}
     (hrel : StateRel sRv sSail) (v : BitVec 64) :
     StateRel sRv { sSail with regs := sSail.regs.insert Register.nextPC v } :=
   ⟨fun r => by
@@ -89,12 +89,12 @@ theorem beq_sail_equiv (sRv : MachineState) (sSail : SailState)
       StateRel (execInstrBr sRv (.BEQ rs1 rs2 offset)) sSail' := by
   obtain ⟨misa_val, h_misa⟩ := h_misa
   unfold execute_BTYPE
-  simp only [runSail_bind, runSail_rX_bits_of_stateRel sRv sSail hrel, runSail_pure]
+  simp only [runSail_bind, runSail_rX_bits_of_stateRel hrel, runSail_pure]
   by_cases h : sRv.getReg rs1 == sRv.getReg rs2
   · simp only [h, ite_true, runSail_bind,
-      runSail_readReg_PC sSail sRv.pc h_pc, runSail_pure, sign_extend_13_eq]
+      runSail_readReg_PC h_pc, runSail_pure, sign_extend_13_eq]
     rw [runSail_jump_to _ _ misa_val h_align h_misa]
-    exact ⟨_, rfl, stateRel_nextPC _ _
+    exact ⟨_, rfl, stateRel_nextPC
       ⟨fun r => by simp [execInstrBr, h]; exact hrel.reg_agree r,
        fun a => by simp [execInstrBr, h]; exact hrel.mem_agree a⟩ _⟩
   · simp only [h, ite_false]
@@ -114,12 +114,12 @@ theorem bne_sail_equiv (sRv : MachineState) (sSail : SailState)
       StateRel (execInstrBr sRv (.BNE rs1 rs2 offset)) sSail' := by
   obtain ⟨misa_val, h_misa⟩ := h_misa
   unfold execute_BTYPE
-  simp only [runSail_bind, runSail_rX_bits_of_stateRel sRv sSail hrel, runSail_pure]
+  simp only [runSail_bind, runSail_rX_bits_of_stateRel hrel, runSail_pure]
   by_cases h : sRv.getReg rs1 != sRv.getReg rs2
   · simp only [h, ite_true, runSail_bind,
-      runSail_readReg_PC sSail sRv.pc h_pc, runSail_pure, sign_extend_13_eq]
+      runSail_readReg_PC h_pc, runSail_pure, sign_extend_13_eq]
     rw [runSail_jump_to _ _ misa_val h_align h_misa]
-    exact ⟨_, rfl, stateRel_nextPC _ _
+    exact ⟨_, rfl, stateRel_nextPC
       ⟨fun r => by simp [execInstrBr, h]; exact hrel.reg_agree r,
        fun a => by simp [execInstrBr, h]; exact hrel.mem_agree a⟩ _⟩
   · simp only [h, ite_false]
@@ -139,12 +139,12 @@ theorem blt_sail_equiv (sRv : MachineState) (sSail : SailState)
       StateRel (execInstrBr sRv (.BLT rs1 rs2 offset)) sSail' := by
   obtain ⟨misa_val, h_misa⟩ := h_misa
   unfold execute_BTYPE
-  simp only [runSail_bind, runSail_rX_bits_of_stateRel sRv sSail hrel, runSail_pure, slt_equiv]
+  simp only [runSail_bind, runSail_rX_bits_of_stateRel hrel, runSail_pure, slt_equiv]
   by_cases h : BitVec.slt (sRv.getReg rs1) (sRv.getReg rs2)
   · simp only [h, ite_true, runSail_bind,
-      runSail_readReg_PC sSail sRv.pc h_pc, runSail_pure, sign_extend_13_eq]
+      runSail_readReg_PC h_pc, runSail_pure, sign_extend_13_eq]
     rw [runSail_jump_to _ _ misa_val h_align h_misa]
-    exact ⟨_, rfl, stateRel_nextPC _ _
+    exact ⟨_, rfl, stateRel_nextPC
       ⟨fun r => by simp [execInstrBr, h]; exact hrel.reg_agree r,
        fun a => by simp [execInstrBr, h]; exact hrel.mem_agree a⟩ _⟩
   · simp only [h, ite_false]
@@ -164,7 +164,7 @@ theorem bge_sail_equiv (sRv : MachineState) (sSail : SailState)
       StateRel (execInstrBr sRv (.BGE rs1 rs2 offset)) sSail' := by
   obtain ⟨misa_val, h_misa⟩ := h_misa
   unfold execute_BTYPE
-  simp only [runSail_bind, runSail_rX_bits_of_stateRel sRv sSail hrel, runSail_pure,
+  simp only [runSail_bind, runSail_rX_bits_of_stateRel hrel, runSail_pure,
     sge_equiv, slt_equiv]
   by_cases h : BitVec.slt (sRv.getReg rs1) (sRv.getReg rs2)
   · -- slt = true, so !slt = false → not taken
@@ -175,9 +175,9 @@ theorem bge_sail_equiv (sRv : MachineState) (sSail : SailState)
   · -- slt = false, so !slt = true → taken
     simp only [show BitVec.slt (sRv.getReg rs1) (sRv.getReg rs2) = false from by simp [h],
       Bool.not_false, ite_true, runSail_bind,
-      runSail_readReg_PC sSail sRv.pc h_pc, runSail_pure, sign_extend_13_eq]
+      runSail_readReg_PC h_pc, runSail_pure, sign_extend_13_eq]
     rw [runSail_jump_to _ _ misa_val h_align h_misa]
-    exact ⟨_, rfl, stateRel_nextPC _ _
+    exact ⟨_, rfl, stateRel_nextPC
       ⟨fun r => by simp [execInstrBr, h]; exact hrel.reg_agree r,
        fun a => by simp [execInstrBr, h]; exact hrel.mem_agree a⟩ _⟩
 
@@ -193,12 +193,12 @@ theorem bltu_sail_equiv (sRv : MachineState) (sSail : SailState)
       StateRel (execInstrBr sRv (.BLTU rs1 rs2 offset)) sSail' := by
   obtain ⟨misa_val, h_misa⟩ := h_misa
   unfold execute_BTYPE
-  simp only [runSail_bind, runSail_rX_bits_of_stateRel sRv sSail hrel, runSail_pure, ult_equiv]
+  simp only [runSail_bind, runSail_rX_bits_of_stateRel hrel, runSail_pure, ult_equiv]
   by_cases h : BitVec.ult (sRv.getReg rs1) (sRv.getReg rs2)
   · simp only [h, ite_true, runSail_bind,
-      runSail_readReg_PC sSail sRv.pc h_pc, runSail_pure, sign_extend_13_eq]
+      runSail_readReg_PC h_pc, runSail_pure, sign_extend_13_eq]
     rw [runSail_jump_to _ _ misa_val h_align h_misa]
-    exact ⟨_, rfl, stateRel_nextPC _ _
+    exact ⟨_, rfl, stateRel_nextPC
       ⟨fun r => by simp [execInstrBr, h]; exact hrel.reg_agree r,
        fun a => by simp [execInstrBr, h]; exact hrel.mem_agree a⟩ _⟩
   · simp only [h, ite_false]
@@ -218,7 +218,7 @@ theorem bgeu_sail_equiv (sRv : MachineState) (sSail : SailState)
       StateRel (execInstrBr sRv (.BGEU rs1 rs2 offset)) sSail' := by
   obtain ⟨misa_val, h_misa⟩ := h_misa
   unfold execute_BTYPE
-  simp only [runSail_bind, runSail_rX_bits_of_stateRel sRv sSail hrel, runSail_pure,
+  simp only [runSail_bind, runSail_rX_bits_of_stateRel hrel, runSail_pure,
     uge_equiv, ult_equiv]
   by_cases h : BitVec.ult (sRv.getReg rs1) (sRv.getReg rs2)
   · -- ult = true, so !ult = false → not taken
@@ -229,9 +229,9 @@ theorem bgeu_sail_equiv (sRv : MachineState) (sSail : SailState)
   · -- ult = false, so !ult = true → taken
     simp only [show BitVec.ult (sRv.getReg rs1) (sRv.getReg rs2) = false from by simp [h],
       Bool.not_false, ite_true, runSail_bind,
-      runSail_readReg_PC sSail sRv.pc h_pc, runSail_pure, sign_extend_13_eq]
+      runSail_readReg_PC h_pc, runSail_pure, sign_extend_13_eq]
     rw [runSail_jump_to _ _ misa_val h_align h_misa]
-    exact ⟨_, rfl, stateRel_nextPC _ _
+    exact ⟨_, rfl, stateRel_nextPC
       ⟨fun r => by simp [execInstrBr, h]; exact hrel.reg_agree r,
        fun a => by simp [execInstrBr, h]; exact hrel.mem_agree a⟩ _⟩
 
@@ -257,8 +257,8 @@ theorem jal_sail_equiv (sRv : MachineState) (sSail : SailState)
   obtain ⟨misa_val, h_misa⟩ := h_misa
   unfold execute_JAL
   simp only [runSail_bind,
-    runSail_get_next_pc sSail (sRv.pc + 4) h_nextpc,
-    runSail_readReg_PC sSail sRv.pc h_pc,
+    runSail_get_next_pc h_nextpc,
+    runSail_readReg_PC h_pc,
     sign_extend_21_eq]
   rw [runSail_jump_to _ _ misa_val h_align h_misa]
   simp only [RETIRE_SUCCESS, runSail_bind, runSail_pure]
@@ -268,23 +268,23 @@ theorem jal_sail_equiv (sRv : MachineState) (sSail : SailState)
       runSail_wX_bits_x5, runSail_wX_bits_x6, runSail_wX_bits_x7,
       runSail_wX_bits_x10, runSail_wX_bits_x11, runSail_wX_bits_x12]
   all_goals first
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert _ _ (stateRel_nextPC _ _ hrel _) .x0 _ r,
+    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert _ _ (stateRel_nextPC hrel _) .x0 _ r,
         fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert _ _ (stateRel_nextPC _ _ hrel _) .x1 _ r,
+    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert _ _ (stateRel_nextPC hrel _) .x1 _ r,
         fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert _ _ (stateRel_nextPC _ _ hrel _) .x2 _ r,
+    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert _ _ (stateRel_nextPC hrel _) .x2 _ r,
         fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert _ _ (stateRel_nextPC _ _ hrel _) .x5 _ r,
+    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert _ _ (stateRel_nextPC hrel _) .x5 _ r,
         fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert _ _ (stateRel_nextPC _ _ hrel _) .x6 _ r,
+    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert _ _ (stateRel_nextPC hrel _) .x6 _ r,
         fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert _ _ (stateRel_nextPC _ _ hrel _) .x7 _ r,
+    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert _ _ (stateRel_nextPC hrel _) .x7 _ r,
         fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert _ _ (stateRel_nextPC _ _ hrel _) .x10 _ r,
+    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert _ _ (stateRel_nextPC hrel _) .x10 _ r,
         fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert _ _ (stateRel_nextPC _ _ hrel _) .x11 _ r,
+    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert _ _ (stateRel_nextPC hrel _) .x11 _ r,
         fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert _ _ (stateRel_nextPC _ _ hrel _) .x12 _ r,
+    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert _ _ (stateRel_nextPC hrel _) .x12 _ r,
         fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
 
 private theorem sign_extend_12_eq (imm : BitVec 12) :
@@ -325,8 +325,8 @@ theorem jalr_sail_equiv (sRv : MachineState) (sSail : SailState)
   unfold execute_JALR
   rw [runSail_ok_bind _ sSail s_mid _ h_elp_ok]
   simp only [runSail_bind, runSail_pure,
-    runSail_get_next_pc s_mid (sRv.pc + 4) h_nextpc_mid,
-    runSail_rX_bits_of_stateRel sRv s_mid hrel_mid,
+    runSail_get_next_pc h_nextpc_mid,
+    runSail_rX_bits_of_stateRel hrel_mid,
     sign_extend_12_eq]
   -- Rewrite BitVec.update to &&& ~~~1 before applying jump_to
   simp only [show @Sail.BitVec.update (m := 64) (sRv.getReg rs1 + signExtend12 offset) 0 0#1 =
@@ -339,23 +339,23 @@ theorem jalr_sail_equiv (sRv : MachineState) (sSail : SailState)
       runSail_wX_bits_x5, runSail_wX_bits_x6, runSail_wX_bits_x7,
       runSail_wX_bits_x10, runSail_wX_bits_x11, runSail_wX_bits_x12]
   all_goals first
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert _ _ (stateRel_nextPC _ _ hrel_mid _) .x0 _ r,
+    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert _ _ (stateRel_nextPC hrel_mid _) .x0 _ r,
         fun a => by simpa [execInstrBr, MachineState.setPC] using hrel_mid.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert _ _ (stateRel_nextPC _ _ hrel_mid _) .x1 _ r,
+    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert _ _ (stateRel_nextPC hrel_mid _) .x1 _ r,
         fun a => by simpa [execInstrBr, MachineState.setPC] using hrel_mid.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert _ _ (stateRel_nextPC _ _ hrel_mid _) .x2 _ r,
+    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert _ _ (stateRel_nextPC hrel_mid _) .x2 _ r,
         fun a => by simpa [execInstrBr, MachineState.setPC] using hrel_mid.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert _ _ (stateRel_nextPC _ _ hrel_mid _) .x5 _ r,
+    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert _ _ (stateRel_nextPC hrel_mid _) .x5 _ r,
         fun a => by simpa [execInstrBr, MachineState.setPC] using hrel_mid.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert _ _ (stateRel_nextPC _ _ hrel_mid _) .x6 _ r,
+    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert _ _ (stateRel_nextPC hrel_mid _) .x6 _ r,
         fun a => by simpa [execInstrBr, MachineState.setPC] using hrel_mid.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert _ _ (stateRel_nextPC _ _ hrel_mid _) .x7 _ r,
+    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert _ _ (stateRel_nextPC hrel_mid _) .x7 _ r,
         fun a => by simpa [execInstrBr, MachineState.setPC] using hrel_mid.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert _ _ (stateRel_nextPC _ _ hrel_mid _) .x10 _ r,
+    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert _ _ (stateRel_nextPC hrel_mid _) .x10 _ r,
         fun a => by simpa [execInstrBr, MachineState.setPC] using hrel_mid.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert _ _ (stateRel_nextPC _ _ hrel_mid _) .x11 _ r,
+    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert _ _ (stateRel_nextPC hrel_mid _) .x11 _ r,
         fun a => by simpa [execInstrBr, MachineState.setPC] using hrel_mid.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert _ _ (stateRel_nextPC _ _ hrel_mid _) .x12 _ r,
+    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert _ _ (stateRel_nextPC hrel_mid _) .x12 _ r,
         fun a => by simpa [execInstrBr, MachineState.setPC] using hrel_mid.mem_agree a⟩⟩
 
 end EvmAsm.Rv64.SailEquiv

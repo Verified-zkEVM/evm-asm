@@ -497,31 +497,31 @@ termination_by l => l.length
 @[simp] theorem pc_setWord32 (s : MachineState) (addr : Word) (v : BitVec 32) :
     (s.setWord32 addr v).pc = s.pc := by simp [setWord32]
 
-@[simp] theorem code_setReg (s : MachineState) (r : Reg) (v : Word) :
+@[simp] theorem code_setReg {s : MachineState} {r : Reg} {v : Word} :
     (s.setReg r v).code = s.code := by cases r <;> rfl
 
-@[simp] theorem code_setMem (s : MachineState) (a : Word) (v : Word) :
+@[simp] theorem code_setMem {s : MachineState} {a : Word} {v : Word} :
     (s.setMem a v).code = s.code := by simp [setMem]
 
-@[simp] theorem code_setPC (s : MachineState) (v : Word) :
+@[simp] theorem code_setPC {s : MachineState} {v : Word} :
     (s.setPC v).code = s.code := by simp [setPC]
 
-@[simp] theorem code_setByte (s : MachineState) (addr : Word) (b : BitVec 8) :
+@[simp] theorem code_setByte {s : MachineState} {addr : Word} {b : BitVec 8} :
     (s.setByte addr b).code = s.code := by simp [setByte]
 
-@[simp] theorem code_setHalfword (s : MachineState) (addr : Word) (h : BitVec 16) :
+@[simp] theorem code_setHalfword {s : MachineState} {addr : Word} {h : BitVec 16} :
     (s.setHalfword addr h).code = s.code := by simp [setHalfword]
 
-@[simp] theorem code_setWord32 (s : MachineState) (addr : Word) (v : BitVec 32) :
+@[simp] theorem code_setWord32 {s : MachineState} {addr : Word} {v : BitVec 32} :
     (s.setWord32 addr v).code = s.code := by simp [setWord32]
 
-@[simp] theorem code_appendCommit (s : MachineState) (a0 a1 : Word) :
+@[simp] theorem code_appendCommit {s : MachineState} {a0 a1 : Word} :
     (s.appendCommit a0 a1).code = s.code := by simp [appendCommit]
 
-@[simp] theorem code_appendPublicValues (s : MachineState) (bytes : List (BitVec 8)) :
+@[simp] theorem code_appendPublicValues {s : MachineState} {bytes : List (BitVec 8)} :
     (s.appendPublicValues bytes).code = s.code := by simp [appendPublicValues]
 
-@[simp] theorem code_writeWords (s : MachineState) (base : Word) (words : List Word) :
+@[simp] theorem code_writeWords {s : MachineState} {base : Word} {words : List Word} :
     (s.writeWords base words).code = s.code := by
   induction words generalizing s base with
   | nil => rfl

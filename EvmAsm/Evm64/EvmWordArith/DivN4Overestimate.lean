@@ -192,7 +192,7 @@ theorem n4_max_addback_correct (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
     -- hmulsub_raw: val256 u + 1 * 2^256 = val256 un + qHat * val256 v
     -- So qHat * val256 v ≥ val256 u + 1 (since 2^256 > val256 un)
     have hv_bound := val256_bound ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1
-    have hv_pos := val256_pos_of_or_ne_zero b0 b1 b2 b3 hbnz
+    have hv_pos := val256_pos_of_or_ne_zero hbnz
     have hq_mul_gt : (signExtend12 (4095 : BitVec 12) : Word).toNat * val256 b0 b1 b2 b3 >
         val256 a0 a1 a2 a3 := by nlinarith
     rw [hq_hat_toNat] at hq_mul_gt
@@ -226,7 +226,7 @@ theorem mulsubN4_c3_le_one (q v0 v1 v2 v3 u0 u1 u2 u3 : Word)
   have hu_bound := val256_bound u0 u1 u2 u3
   have hun_bound := val256_bound ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1
   have hv_bound := val256_bound v0 v1 v2 v3
-  have hv_pos := val256_pos_of_or_ne_zero v0 v1 v2 v3 hbnz
+  have hv_pos := val256_pos_of_or_ne_zero hbnz
   -- From hq_over: q * val256(v) ≤ (⌊u/v⌋ + 1) * val256(v)
   --            = ⌊u/v⌋ * val256(v) + val256(v) ≤ val256(u) + val256(v)
   have hdiv_mul_le : val256 u0 u1 u2 u3 / val256 v0 v1 v2 v3 *
@@ -315,8 +315,7 @@ theorem mulsubN4_c3_eq_one_v3_zero (q v0 v1 v2 u0 u1 u2 u3 : Word)
   have h := mulsubN4_c3_le_one_v3_zero q v0 v1 v2 u0 u1 u2 u3
   have hc3_pos : 0 < (mulsubN4 q v0 v1 v2 0 u0 u1 u2 u3).2.2.2.2.toNat := by
     exact Nat.pos_of_ne_zero (by intro h0; exact hc3_nz (BitVec.eq_of_toNat_eq h0))
-  have h1 := word_toNat_1
-  exact BitVec.eq_of_toNat_eq (by omega)
+  exact BitVec.eq_of_toNat_eq (by have := word_toNat_1; omega)
 
 -- ============================================================================
 -- Double addback: second carry is 1 when first carry was 0
@@ -362,7 +361,7 @@ theorem addbackN4_second_carry_one (q v0 v1 v2 v3 u0 u1 u2 u3 : Word)
   have hab' := addbackN4_val256_eq ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 0 v0 v1 v2 v3
   simp only [] at hab'
   -- Bounds
-  have hv_pos := val256_pos_of_or_ne_zero v0 v1 v2 v3 hbnz
+  have hv_pos := val256_pos_of_or_ne_zero hbnz
   have hun_bound := val256_bound ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1
   have hab1_bound := val256_bound ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1
   have hab'_result_bound := val256_bound
@@ -504,7 +503,7 @@ theorem addbackN4_first_carry_one (q v0 v1 v2 v3 u0 u1 u2 u3 : Word)
   have hv_bound := val256_bound v0 v1 v2 v3
   have hu_bound := val256_bound u0 u1 u2 u3
   have hab_bound := val256_bound ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1
-  have hv_pos : 0 < val256 v0 v1 v2 v3 := val256_pos_of_or_ne_zero v0 v1 v2 v3 hbnz
+  have hv_pos : 0 < val256 v0 v1 v2 v3 := val256_pos_of_or_ne_zero hbnz
   -- q * val256(v) > val256(u) (from c3 = 1, i.e., borrow)
   have hqv_gt_u : q.toNat * val256 v0 v1 v2 v3 > val256 u0 u1 u2 u3 := by nlinarith
   -- q ≥ 1
@@ -585,14 +584,14 @@ theorem n4_max_skip_div_mod_limbs (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
   intro ms a b
   have ⟨hq, hr⟩ := n4_max_skip_correct a0 a1 a2 a3 b0 b1 b2 b3 hb3nz hc3_zero
   refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · rw [← hq]; exact getLimbN_fromLimbs_0 _ _ _ _
-  · rw [← hq]; exact getLimbN_fromLimbs_1 _ _ _ _
-  · rw [← hq]; exact getLimbN_fromLimbs_2 _ _ _ _
-  · rw [← hq]; exact getLimbN_fromLimbs_3 _ _ _ _
-  · rw [← hr]; exact getLimbN_fromLimbs_0 _ _ _ _
-  · rw [← hr]; exact getLimbN_fromLimbs_1 _ _ _ _
-  · rw [← hr]; exact getLimbN_fromLimbs_2 _ _ _ _
-  · rw [← hr]; exact getLimbN_fromLimbs_3 _ _ _ _
+  · rw [← hq]; exact getLimbN_fromLimbs_0
+  · rw [← hq]; exact getLimbN_fromLimbs_1
+  · rw [← hq]; exact getLimbN_fromLimbs_2
+  · rw [← hq]; exact getLimbN_fromLimbs_3
+  · rw [← hr]; exact getLimbN_fromLimbs_0
+  · rw [← hr]; exact getLimbN_fromLimbs_1
+  · rw [← hr]; exact getLimbN_fromLimbs_2
+  · rw [← hr]; exact getLimbN_fromLimbs_3
 
 /-- n=4 max+addback path: per-limb quotient/remainder equalities. Direct
     consumer-facing form of `n4_max_addback_correct` — the corrected quotient
@@ -624,14 +623,14 @@ theorem n4_max_addback_div_mod_limbs (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
   intro ms ab qHat' a b
   have ⟨hq, hr⟩ := n4_max_addback_correct a0 a1 a2 a3 b0 b1 b2 b3 hb3nz hc3_one hcarry_one
   refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · rw [← hq]; exact getLimbN_fromLimbs_0 _ _ _ _
-  · rw [← hq]; exact getLimbN_fromLimbs_1 _ _ _ _
-  · rw [← hq]; exact getLimbN_fromLimbs_2 _ _ _ _
-  · rw [← hq]; exact getLimbN_fromLimbs_3 _ _ _ _
-  · rw [← hr]; exact getLimbN_fromLimbs_0 _ _ _ _
-  · rw [← hr]; exact getLimbN_fromLimbs_1 _ _ _ _
-  · rw [← hr]; exact getLimbN_fromLimbs_2 _ _ _ _
-  · rw [← hr]; exact getLimbN_fromLimbs_3 _ _ _ _
+  · rw [← hq]; exact getLimbN_fromLimbs_0
+  · rw [← hq]; exact getLimbN_fromLimbs_1
+  · rw [← hq]; exact getLimbN_fromLimbs_2
+  · rw [← hq]; exact getLimbN_fromLimbs_3
+  · rw [← hr]; exact getLimbN_fromLimbs_0
+  · rw [← hr]; exact getLimbN_fromLimbs_1
+  · rw [← hr]; exact getLimbN_fromLimbs_2
+  · rw [← hr]; exact getLimbN_fromLimbs_3
 
 -- ============================================================================
 -- EvmWord-level n=4 max bridges: state the skip/addback correctness directly

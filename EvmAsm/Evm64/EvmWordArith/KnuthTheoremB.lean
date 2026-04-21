@@ -36,10 +36,44 @@
   - `knuth_theorem_b_val256` — val256-level corollary of Knuth B, assembling the
     abstract theorem with the Word→Nat bridges against provided normalization
     hypotheses. Concludes `(u4 * B + un3) / b3' ≤ val256(a) / val256(b) + 2`.
+  - `b3_prime_val256_eq_scaled` — discharges `hnorm_v` for concrete CLZ shift:
+    `val256(b0', b1', b2', b3') = val256(b) * 2^clz(b3)`.
+  - `u_val256_eq_scaled_with_overflow` — discharges `hnorm_u` for concrete CLZ
+    shift: 4-limb normalized value + overflow = `val256(a) * 2^clz(b3)`.
+  - `knuth_theorem_b_from_clz` — **full Word-level Knuth B corollary** from raw
+    (a, b, hb3nz, hshift_nz, hcall). No normalization hypotheses needed.
+  - `div128Quot_dHi_ge_pow31` — under `vTop ≥ 2^63`, the algorithm's `dHi =
+    vTop >>> 32` satisfies `dHi ≥ 2^31` (first Piece B building block).
+  - `div128Quot_q1_lt_pow33` — under `dHi ≥ 2^31`, the first-round trial
+    quotient `q1 = rv64_divu uHi dHi` is strictly less than `2^33`.
+  - `div128Quot_first_round_euclidean` — for nonzero `dHi`, the Word-level
+    Euclidean equation `q1.toNat * dHi.toNat + rhat.toNat = uHi.toNat` holds
+    where `rhat = uHi - q1 * dHi` (BitVec sub).
+  - `div128Quot_first_round_correction` — under `hi1 ≠ 0` and `dHi < 2^32`, the
+    corrected `q1c = q1 - 1`, `rhatc = rhat + dHi` preserve the Euclidean
+    equation: `q1c.toNat * dHi.toNat + rhatc.toNat = uHi.toNat`.
+  - `div128Quot_first_round_post` — combines no-correction (#830) and
+    correction (#834) branches into a single first-round invariant via
+    case-split on `hi1`. The Euclidean equation holds for the algorithm's
+    actual `q1c` and `rhatc` regardless of which branch is taken.
+  - `div128Quot_q1c_lt_pow33` — `q1c < 2^33` after Phase 1a correction,
+    regardless of branch (Phase 1b prerequisite).
+  - `div128Quot_rhatc_lt_2dHi` — `rhatc.toNat < 2 * dHi.toNat` after Phase 1a,
+    regardless of branch (Phase 1b overflow-bound prerequisite).
+  - `div128Quot_phase1b_check_implies_q1c_pos` — when Phase 1b's BitVec.ult
+    check fires, `q1c.toNat ≥ 1` (proof: q1c = 0 ⟹ qDlo = 0 ⟹ check fails).
+  - `div128Quot_phase1b_correction_eucl` — when Phase 1b's check fires and
+    correction triggers (q1' = q1c - 1, rhat' = rhatc + dHi), the
+    Euclidean equation `q1' * dHi + rhat' = uHi` is preserved.
+  - `div128Quot_phase1b_post` — combined Phase 1b invariant covering both
+    branches via case-split on the BitVec.ult check.
+  - `div128Quot_rhat_prime_lt_3dHi` — `rhat'.toNat < 3 * dHi.toNat` after
+    Phase 1b, regardless of branch (input bound for Round 2).
 -/
 
 import EvmAsm.Evm64.EvmWordArith.DivN4Overestimate
 import EvmAsm.Evm64.EvmWordArith.MaxTrialVacuity
+import EvmAsm.Evm64.EvmWordArith.DenormLemmas
 
 namespace EvmAsm.Evm64
 
@@ -378,5 +412,526 @@ theorem knuth_theorem_b_val256
   -- Rewrite u_nat / v_nat via scale invariance
   rw [hu_nat_def, hv_nat_def, val256_div_scale_invariant] at h_abs
   exact h_abs
+
+/-- Discharge of `hnorm_v` from `knuth_theorem_b_val256` using a concrete
+    CLZ-based shift: the algorithm's normalized divisor limbs compute to
+    `val256(b) * 2^shift`.
+
+    Combines:
+    - `Nat.mod_eq_of_lt` to simplify `shift.toNat % 64 = shift.toNat`.
+    - `antiShift_toNat_mod_eq` to convert antiShift's `% 64` form to `64 - s`.
+    - `clzResult_fst_top_bound` for the `b3 < 2^(64-s)` bound.
+    - `val256_normalize` (overflow-free variant, since normalization ensures
+      `b3 < 2^(64-s)` with `s = clz(b3)`). -/
+theorem b3_prime_val256_eq_scaled
+    (b0 b1 b2 b3 : Word)
+    (hshift_nz : (clzResult b3).1 ≠ 0) :
+    val256
+      (b0 <<< ((clzResult b3).1.toNat % 64))
+      ((b1 <<< ((clzResult b3).1.toNat % 64)) |||
+         (b0 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64)))
+      ((b2 <<< ((clzResult b3).1.toNat % 64)) |||
+         (b1 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64)))
+      ((b3 <<< ((clzResult b3).1.toNat % 64)) |||
+         (b2 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64)))
+      = val256 b0 b1 b2 b3 * 2^(clzResult b3).1.toNat := by
+  have h_shift_le := clzResult_fst_toNat_le b3
+  have h_shift_pos : 1 ≤ (clzResult b3).1.toNat := by
+    rcases Nat.eq_zero_or_pos (clzResult b3).1.toNat with h | h
+    · exfalso; apply hshift_nz
+      exact BitVec.eq_of_toNat_eq (by simp [h])
+    · exact h
+  have hsmod : (clzResult b3).1.toNat % 64 = (clzResult b3).1.toNat :=
+    Nat.mod_eq_of_lt (by omega)
+  rw [hsmod, antiShift_toNat_mod_eq _ h_shift_pos h_shift_le]
+  have hb3_bound := clzResult_fst_top_bound b3
+  exact val256_normalize h_shift_pos (by omega) b0 b1 b2 b3 hb3_bound
+
+/-- Discharge of `hnorm_u` from `knuth_theorem_b_val256` using a concrete
+    CLZ-based shift: the algorithm's normalized dividend limbs plus the
+    overflow `a3 >>> antiShift` (scaled to `2^256`) equal `val256(a) * 2^shift`.
+
+    Parallel of `b3_prime_val256_eq_scaled`, but uses `val256_normalize_general`
+    (the overflow-including variant) since the dividend may overshoot 2^256. -/
+theorem u_val256_eq_scaled_with_overflow
+    (a0 a1 a2 a3 b3 : Word)
+    (hshift_nz : (clzResult b3).1 ≠ 0) :
+    val256
+      (a0 <<< ((clzResult b3).1.toNat % 64))
+      ((a1 <<< ((clzResult b3).1.toNat % 64)) |||
+         (a0 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64)))
+      ((a2 <<< ((clzResult b3).1.toNat % 64)) |||
+         (a1 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64)))
+      ((a3 <<< ((clzResult b3).1.toNat % 64)) |||
+         (a2 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64)))
+    + (a3 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64)).toNat
+      * 2^256
+      = val256 a0 a1 a2 a3 * 2^(clzResult b3).1.toNat := by
+  have h_shift_le := clzResult_fst_toNat_le b3
+  have h_shift_pos : 1 ≤ (clzResult b3).1.toNat := by
+    rcases Nat.eq_zero_or_pos (clzResult b3).1.toNat with h | h
+    · exfalso; apply hshift_nz
+      exact BitVec.eq_of_toNat_eq (by simp [h])
+    · exact h
+  have hsmod : (clzResult b3).1.toNat % 64 = (clzResult b3).1.toNat :=
+    Nat.mod_eq_of_lt (by omega)
+  rw [hsmod, antiShift_toNat_mod_eq _ h_shift_pos h_shift_le]
+  exact val256_normalize_general h_shift_pos (by omega) a0 a1 a2 a3
+
+/-- **Knuth's Theorem B at the Word level — full CLZ-driven corollary.**
+
+    Under call-trial + CLZ-normalization hypotheses, the raw 2-limb trial
+    quotient `(u4 * 2^64 + un3) / b3'` overestimates the true quotient
+    `val256(a) / val256(b)` by at most 2:
+
+    ```
+      (u4.toNat * 2^64 + un3.toNat) / b3'.toNat ≤
+        val256(a) / val256(b) + 2
+    ```
+
+    Composes the discharge bridges (`u_val256_eq_scaled_with_overflow`,
+    `b3_prime_val256_eq_scaled`, `b3_prime_ge_pow63`, `isCallTrialN4_toNat_lt`)
+    with `knuth_theorem_b_val256`. This is the algorithm-facing conclusion
+    that downstream stack-spec reasoning consumes. -/
+theorem knuth_theorem_b_from_clz
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hb3nz : b3 ≠ 0)
+    (hshift_nz : (clzResult b3).1 ≠ 0)
+    (hcall : isCallTrialN4 a3 b2 b3) :
+    ((a3 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64)).toNat * 2^64 +
+       ((a3 <<< ((clzResult b3).1.toNat % 64)) |||
+          (a2 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64))).toNat) /
+      ((b3 <<< ((clzResult b3).1.toNat % 64)) |||
+        (b2 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64))).toNat ≤
+    val256 a0 a1 a2 a3 / val256 b0 b1 b2 b3 + 2 := by
+  have hnorm_u := u_val256_eq_scaled_with_overflow a0 a1 a2 a3 b3 hshift_nz
+  have hnorm_v := b3_prime_val256_eq_scaled b0 b1 b2 b3 hshift_nz
+  have hb3prime := b3_prime_ge_pow63 b3 b2 hb3nz
+    (signExtend12 (0 : BitVec 12) - (clzResult b3).1)
+  have hu4_lt := isCallTrialN4_toNat_lt a3 b2 b3 hcall
+  exact knuth_theorem_b_val256 a0 a1 a2 a3 b0 b1 b2 b3
+    (a3 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64))
+    (a0 <<< ((clzResult b3).1.toNat % 64))
+    ((a1 <<< ((clzResult b3).1.toNat % 64)) |||
+       (a0 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64)))
+    ((a2 <<< ((clzResult b3).1.toNat % 64)) |||
+       (a1 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64)))
+    ((a3 <<< ((clzResult b3).1.toNat % 64)) |||
+       (a2 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64)))
+    (b0 <<< ((clzResult b3).1.toNat % 64))
+    ((b1 <<< ((clzResult b3).1.toNat % 64)) |||
+       (b0 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64)))
+    ((b2 <<< ((clzResult b3).1.toNat % 64)) |||
+       (b1 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64)))
+    ((b3 <<< ((clzResult b3).1.toNat % 64)) |||
+       (b2 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64)))
+    (clzResult b3).1.toNat
+    (by linarith [hnorm_u])
+    hnorm_v hb3prime hu4_lt
+
+/-- **Piece B entry — first building block for `div128Quot` correctness.**
+
+    Under the normalization precondition `vTop ≥ 2^63`, the `div128Quot`
+    algorithm's `dHi = vTop >>> 32` satisfies `dHi.toNat ≥ 2^31`.
+
+    Feeds subsequent Piece B proofs that bound the first-round quotient
+    `q1 = rv64_divu uHi dHi` (in particular `q1 < 2^33` when `uHi < 2^64`). -/
+theorem div128Quot_dHi_ge_pow31 (vTop : Word) (h : vTop.toNat ≥ 2^63) :
+    (vTop >>> (32 : BitVec 6).toNat).toNat ≥ 2^31 := by
+  rw [BitVec.toNat_ushiftRight]
+  have h32 : (32 : BitVec 6).toNat = 32 := by decide
+  rw [h32, Nat.shiftRight_eq_div_pow]
+  have h1 : (2:Nat)^63 / 2^32 ≤ vTop.toNat / 2^32 := Nat.div_le_div_right h
+  have h2 : (2:Nat)^63 / 2^32 = 2^31 := by decide
+  omega
+
+/-- **Second Piece B building block.** Under `dHi.toNat ≥ 2^31`, the
+    first-round trial quotient `q1 = rv64_divu uHi dHi` is strictly less
+    than `2^33`.
+
+    Proof: `q1.toNat * dHi.toNat ≤ uHi.toNat < 2^64 = 2^33 * 2^31`, and
+    `dHi.toNat ≥ 2^31`, so `q1.toNat * 2^31 ≤ q1.toNat * dHi.toNat <
+    2^33 * 2^31`, giving `q1.toNat < 2^33` after cancelling. -/
+theorem div128Quot_q1_lt_pow33 (uHi dHi : Word)
+    (hdHi_ge : dHi.toNat ≥ 2^31) :
+    (rv64_divu uHi dHi).toNat < 2^33 := by
+  have hdHi_ne : dHi ≠ 0 := by
+    intro heq; rw [heq] at hdHi_ge; simp at hdHi_ge
+  rw [rv64_divu_toNat uHi dHi hdHi_ne]
+  have huHi_lt : uHi.toNat < 2^64 := uHi.isLt
+  have h_pow : (2:Nat)^33 * 2^31 = 2^64 := by rw [← pow_add]
+  set q1 := uHi.toNat / dHi.toNat with hq1_def
+  have hq_mul : q1 * dHi.toNat ≤ uHi.toNat := Nat.div_mul_le_self _ _
+  have hq_lower : q1 * 2^31 ≤ q1 * dHi.toNat := Nat.mul_le_mul_left q1 hdHi_ge
+  have hq_lt_mul : q1 * 2^31 < 2^33 * 2^31 := by omega
+  exact Nat.lt_of_mul_lt_mul_right hq_lt_mul
+
+/-- **Third Piece B building block — first-round Euclidean equation.**
+
+    For nonzero `dHi`, the algorithm's first-round invariant
+    `q1.toNat * dHi.toNat + rhat.toNat = uHi.toNat` holds at the Word level,
+    where `q1 = rv64_divu uHi dHi` and `rhat = uHi - q1 * dHi` (BitVec sub).
+
+    The key facts:
+    - `q1.toNat = uHi.toNat / dHi.toNat` (`rv64_divu_toNat`).
+    - `q1.toNat * dHi.toNat ≤ uHi.toNat < 2^64` ensures `q1 * dHi` doesn't
+      wrap as a Word multiplication.
+    - The same bound makes the BitVec subtraction `uHi - q1 * dHi` reduce to
+      `uHi.toNat - q1.toNat * dHi.toNat` at the Nat level. -/
+theorem div128Quot_first_round_euclidean (uHi dHi : Word) (hdHi_ne : dHi ≠ 0) :
+    (rv64_divu uHi dHi).toNat * dHi.toNat +
+      (uHi - rv64_divu uHi dHi * dHi).toNat = uHi.toNat := by
+  set q1 := rv64_divu uHi dHi with hq1_def
+  have hq1_eq : q1.toNat = uHi.toNat / dHi.toNat := rv64_divu_toNat uHi dHi hdHi_ne
+  have h_q1_mul_le : q1.toNat * dHi.toNat ≤ uHi.toNat := by
+    rw [hq1_eq]; exact Nat.div_mul_le_self _ _
+  have huHi_lt := uHi.isLt
+  have h_q1_mul_lt : q1.toNat * dHi.toNat < 2^64 := by omega
+  have hmul_toNat : (q1 * dHi).toNat = q1.toNat * dHi.toNat := by
+    rw [BitVec.toNat_mul]; exact Nat.mod_eq_of_lt h_q1_mul_lt
+  have hrhat_toNat : (uHi - q1 * dHi).toNat = uHi.toNat - q1.toNat * dHi.toNat := by
+    rw [BitVec.toNat_sub, hmul_toNat]
+    omega
+  omega
+
+/-- **Fourth Piece B building block — first-round correction.**
+
+    When `hi1 = q1 >>> 32 ≠ 0`, the algorithm corrects via
+    `q1c := q1 + signExtend12 4095` (= `q1 - 1`) and `rhatc := rhat + dHi`.
+    Under `dHi.toNat < 2^32` (always true since `dHi = vTop >>> 32`), the
+    corrected pair preserves the Euclidean invariant:
+
+    ```
+      q1c.toNat * dHi.toNat + rhatc.toNat = uHi.toNat
+    ```
+
+    Proof relies on:
+    - `hi1 ≠ 0` ⟹ `q1.toNat ≥ 2^32` ≥ 1, so `q1 - 1` doesn't underflow.
+    - `rhat.toNat = uHi mod dHi < dHi`, so `rhat + dHi < 2 * dHi < 2^33`,
+      no Word overflow.
+    - Algebraic identity at Nat: `(q1 - 1) * dHi + (rhat + dHi) = q1 * dHi + rhat`. -/
+theorem div128Quot_first_round_correction (uHi dHi : Word)
+    (hdHi_ne : dHi ≠ 0) (hdHi_lt : dHi.toNat < 2^32)
+    (hhi1_nz : (rv64_divu uHi dHi) >>> (32 : BitVec 6).toNat ≠ 0) :
+    (rv64_divu uHi dHi + signExtend12 4095).toNat * dHi.toNat +
+      (uHi - rv64_divu uHi dHi * dHi + dHi).toNat = uHi.toNat := by
+  set q1 := rv64_divu uHi dHi with hq1_def
+  set rhat := uHi - q1 * dHi with hrhat_def
+  -- Nat-level facts
+  have hq1_eq : q1.toNat = uHi.toNat / dHi.toNat := rv64_divu_toNat uHi dHi hdHi_ne
+  have h_eucl : q1.toNat * dHi.toNat + rhat.toNat = uHi.toNat := by
+    have := div128Quot_first_round_euclidean uHi dHi hdHi_ne
+    convert this using 2
+  have hdHi_pos : 0 < dHi.toNat := by
+    rcases Nat.eq_zero_or_pos dHi.toNat with h | h
+    · exfalso; apply hdHi_ne; exact BitVec.eq_of_toNat_eq (by simp [h])
+    · exact h
+  -- rhat.toNat < dHi.toNat
+  have hrhat_lt_dHi : rhat.toNat < dHi.toNat := by
+    have h_dam : dHi.toNat * (uHi.toNat / dHi.toNat) + uHi.toNat % dHi.toNat = uHi.toNat :=
+      Nat.div_add_mod _ _
+    have h_eucl_div :
+        (uHi.toNat / dHi.toNat) * dHi.toNat + rhat.toNat = uHi.toNat := by
+      rw [← hq1_eq]; exact h_eucl
+    have h_comm :
+        dHi.toNat * (uHi.toNat / dHi.toNat) = (uHi.toNat / dHi.toNat) * dHi.toNat :=
+      Nat.mul_comm _ _
+    have h_mod_lt : uHi.toNat % dHi.toNat < dHi.toNat := Nat.mod_lt _ hdHi_pos
+    omega
+  -- hi1 ≠ 0 ⟹ q1.toNat ≥ 2^32
+  have hq1_ge : q1.toNat ≥ 2^32 := by
+    by_contra h
+    push Not at h
+    apply hhi1_nz
+    apply BitVec.eq_of_toNat_eq
+    have h32 : (32 : BitVec 6).toNat = 32 := by decide
+    rw [BitVec.toNat_ushiftRight, h32, Nat.shiftRight_eq_div_pow]
+    show q1.toNat / 2^32 = (0 : Word).toNat
+    rw [Nat.div_eq_of_lt h]
+    rfl
+  -- q1c.toNat = q1.toNat - 1
+  have h_se_neg1 : (signExtend12 (4095 : BitVec 12) : Word).toNat = 2^64 - 1 := by decide
+  have hq1c_toNat : (q1 + signExtend12 4095).toNat = q1.toNat - 1 := by
+    rw [BitVec.toNat_add, h_se_neg1]
+    have : q1.toNat + (2^64 - 1) = (q1.toNat - 1) + 2^64 := by omega
+    rw [this, Nat.add_mod_right]
+    exact Nat.mod_eq_of_lt (by have := q1.isLt; omega)
+  -- rhatc.toNat = rhat.toNat + dHi.toNat (no overflow)
+  have hrhatc_toNat : (rhat + dHi).toNat = rhat.toNat + dHi.toNat := by
+    rw [BitVec.toNat_add]
+    apply Nat.mod_eq_of_lt
+    have : rhat.toNat + dHi.toNat < 2 * 2^32 := by omega
+    omega
+  rw [hq1c_toNat, hrhatc_toNat]
+  -- (q1 - 1) * dHi + (rhat + dHi) = q1 * dHi + rhat = uHi
+  have h_q1_ge_one : q1.toNat ≥ 1 := by omega
+  have key : (q1.toNat - 1) * dHi.toNat + (rhat.toNat + dHi.toNat) =
+             q1.toNat * dHi.toNat + rhat.toNat := by
+    have h1 : (q1.toNat - 1 + 1) * dHi.toNat =
+              (q1.toNat - 1) * dHi.toNat + dHi.toNat := by
+      rw [Nat.add_mul, Nat.one_mul]
+    have h_eq : q1.toNat - 1 + 1 = q1.toNat := by omega
+    have h2 : (q1.toNat - 1 + 1) * dHi.toNat = q1.toNat * dHi.toNat := by
+      rw [h_eq]
+    omega
+  rw [key]; exact h_eucl
+
+/-- **Combined first-round invariant.** Whichever branch the algorithm
+    takes (`hi1 = 0` or `hi1 ≠ 0`), the post-correction `q1c, rhatc` pair
+    satisfies the Word-level Euclidean equation:
+
+    ```
+      q1c.toNat * dHi.toNat + rhatc.toNat = uHi.toNat
+    ```
+
+    Proof is a case-split on `hi1 = 0` dispatching to
+    `div128Quot_first_round_euclidean` or `div128Quot_first_round_correction`.
+
+    Together with the algorithm's choice
+    `q1c := if hi1 = 0 then q1 else q1 + (-1)` and similarly for `rhatc`,
+    this is the input to the analogous second-round analysis (yet to come). -/
+theorem div128Quot_first_round_post
+    (uHi dHi : Word) (hdHi_ne : dHi ≠ 0) (hdHi_lt : dHi.toNat < 2^32) :
+    let q1 := rv64_divu uHi dHi
+    let rhat := uHi - q1 * dHi
+    let hi1 := q1 >>> (32 : BitVec 6).toNat
+    let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+    let rhatc := if hi1 = 0 then rhat else rhat + dHi
+    q1c.toNat * dHi.toNat + rhatc.toNat = uHi.toNat := by
+  intro q1 rhat hi1 q1c rhatc
+  by_cases h_hi1 : hi1 = 0
+  · -- No-correction branch: q1c = q1, rhatc = rhat
+    simp only [q1c, rhatc, h_hi1, ↓reduceIte]
+    exact div128Quot_first_round_euclidean uHi dHi hdHi_ne
+  · -- Correction branch: q1c = q1 + (-1), rhatc = rhat + dHi
+    simp only [q1c, rhatc, h_hi1, ↓reduceIte]
+    exact div128Quot_first_round_correction uHi dHi hdHi_ne hdHi_lt h_hi1
+
+/-- **Phase 1b prerequisite — `q1c.toNat < 2^33` regardless of branch.**
+
+    After Phase 1a's hi1-correction, the post-correction quotient `q1c`
+    is bounded by `2^33`, regardless of whether the correction branch was
+    taken. This is the bound the second correction (Phase 1b — Knuth's
+    multiplication check) needs as input.
+
+    - No-correction case (`hi1 = 0`): `q1c = q1 < 2^32 < 2^33`
+      (from `hi1 = 0` ⟹ `q1 / 2^32 = 0` ⟹ `q1 < 2^32`).
+    - Correction case (`hi1 ≠ 0`): `q1c = q1 - 1 < q1 ≤ 2^33 - 1`
+      (using `div128Quot_q1_lt_pow33`).
+
+    Both bounds give `q1c < 2^33`. -/
+theorem div128Quot_q1c_lt_pow33 (uHi dHi : Word) (hdHi_ge : dHi.toNat ≥ 2^31) :
+    let q1 := rv64_divu uHi dHi
+    let hi1 := q1 >>> (32 : BitVec 6).toNat
+    let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+    q1c.toNat < 2^33 := by
+  intro q1 hi1 q1c
+  have hq1_lt : q1.toNat < 2^33 := div128Quot_q1_lt_pow33 uHi dHi hdHi_ge
+  by_cases h_hi1 : hi1 = 0
+  · -- q1c = q1 < 2^33
+    simp only [q1c, h_hi1, ↓reduceIte]
+    exact hq1_lt
+  · -- q1c = q1 + (-1). q1 ≥ 1, so q1c.toNat = q1.toNat - 1 < q1.toNat < 2^33.
+    simp only [q1c, h_hi1, ↓reduceIte]
+    have h_se_neg1 : (signExtend12 (4095 : BitVec 12) : Word).toNat = 2^64 - 1 := by decide
+    -- q1.toNat ≥ 2^32 (from hi1 ≠ 0)
+    have hq1_ge : q1.toNat ≥ 2^32 := by
+      by_contra h
+      push Not at h
+      apply h_hi1
+      apply BitVec.eq_of_toNat_eq
+      have h32 : (32 : BitVec 6).toNat = 32 := by decide
+      rw [BitVec.toNat_ushiftRight, h32, Nat.shiftRight_eq_div_pow]
+      show q1.toNat / 2^32 = (0 : Word).toNat
+      rw [Nat.div_eq_of_lt h]
+      rfl
+    rw [BitVec.toNat_add, h_se_neg1]
+    have h_eq : q1.toNat + (2^64 - 1) = (q1.toNat - 1) + 2^64 := by omega
+    rw [h_eq, Nat.add_mod_right]
+    have hq1_lt_word : q1.toNat - 1 < 2^64 := by have := q1.isLt; omega
+    rw [Nat.mod_eq_of_lt hq1_lt_word]
+    omega
+
+/-- **Phase 1b overflow-bound prerequisite — `rhatc.toNat < 2 * dHi.toNat`.**
+
+    After Phase 1a's hi1-correction, the post-correction remainder `rhatc`
+    is bounded by `2 * dHi`, regardless of which branch was taken. This
+    bounds Phase 1b's analysis (where `rhat' = rhatc + dHi` could have
+    overflowed without it).
+
+    - No-correction case (`hi1 = 0`): `rhatc = rhat = uHi mod dHi < dHi`
+      (using the Euclidean equation + `Nat.mod_lt`).
+    - Correction case (`hi1 ≠ 0`): `rhatc = rhat + dHi < 2 * dHi` (since
+      `rhat < dHi`, and the Word addition doesn't overflow because
+      `dHi < 2^32` ⟹ `rhat + dHi < 2^33 < 2^64`). -/
+theorem div128Quot_rhatc_lt_2dHi (uHi dHi : Word)
+    (hdHi_ne : dHi ≠ 0) (hdHi_lt : dHi.toNat < 2^32) :
+    let q1 := rv64_divu uHi dHi
+    let rhat := uHi - q1 * dHi
+    let hi1 := q1 >>> (32 : BitVec 6).toNat
+    let rhatc := if hi1 = 0 then rhat else rhat + dHi
+    rhatc.toNat < 2 * dHi.toNat := by
+  intro q1 rhat hi1 rhatc
+  -- rhat.toNat < dHi.toNat (Phase 1a output: rhat = uHi mod dHi)
+  have hq1_eq : q1.toNat = uHi.toNat / dHi.toNat := rv64_divu_toNat uHi dHi hdHi_ne
+  have h_eucl : q1.toNat * dHi.toNat + rhat.toNat = uHi.toNat :=
+    div128Quot_first_round_euclidean uHi dHi hdHi_ne
+  have hdHi_pos : 0 < dHi.toNat := by
+    rcases Nat.eq_zero_or_pos dHi.toNat with h | h
+    · exfalso; apply hdHi_ne; exact BitVec.eq_of_toNat_eq (by simp [h])
+    · exact h
+  have hrhat_lt_dHi : rhat.toNat < dHi.toNat := by
+    have h_dam : dHi.toNat * (uHi.toNat / dHi.toNat) + uHi.toNat % dHi.toNat = uHi.toNat :=
+      Nat.div_add_mod _ _
+    have h_eucl_div :
+        (uHi.toNat / dHi.toNat) * dHi.toNat + rhat.toNat = uHi.toNat := by
+      rw [← hq1_eq]; exact h_eucl
+    have h_comm :
+        dHi.toNat * (uHi.toNat / dHi.toNat) = (uHi.toNat / dHi.toNat) * dHi.toNat :=
+      Nat.mul_comm _ _
+    have h_mod_lt : uHi.toNat % dHi.toNat < dHi.toNat := Nat.mod_lt _ hdHi_pos
+    omega
+  by_cases h_hi1 : hi1 = 0
+  · -- rhatc = rhat < dHi < 2 * dHi
+    simp only [rhatc, h_hi1, ↓reduceIte]
+    omega
+  · -- rhatc = rhat + dHi (Word add). Word add doesn't overflow (rhat + dHi < 2^33).
+    simp only [rhatc, h_hi1, ↓reduceIte]
+    rw [BitVec.toNat_add]
+    have h_sum_lt : rhat.toNat + dHi.toNat < 2^64 := by omega
+    rw [Nat.mod_eq_of_lt h_sum_lt]
+    omega
+
+/-- **Phase 1b sub-step.** When Phase 1b's `BitVec.ult rhatUn1 qDlo` check
+    fires (the Knuth multiplication check), the post-Phase-1a quotient
+    `q1c` must be at least 1.
+
+    Proof by contradiction: if `q1c = 0`, then `qDlo = 0 * dLo = 0` and
+    `rhatUn1 < 0` is impossible at the Nat level. So `q1c ≥ 1`, which
+    means the upcoming `q1' = q1c + signExtend12 4095` (= `q1c - 1`)
+    decrement is safe (no underflow). -/
+theorem div128Quot_phase1b_check_implies_q1c_pos
+    (q1c dLo rhatUn1 : Word)
+    (h_check : BitVec.ult rhatUn1 (q1c * dLo)) :
+    q1c.toNat ≥ 1 := by
+  by_contra h
+  push Not at h
+  have hq1c_zero : q1c.toNat = 0 := by omega
+  have hq1c_eq : q1c = 0 := BitVec.eq_of_toNat_eq (by simp [hq1c_zero])
+  rw [hq1c_eq] at h_check
+  have h_lt : rhatUn1.toNat < ((0 : Word) * dLo).toNat :=
+    (EvmWord.ult_iff _ _).mp h_check
+  have hmul_zero : ((0 : Word) * dLo).toNat = 0 := by
+    rw [BitVec.toNat_mul]; simp
+  rw [hmul_zero] at h_lt
+  exact Nat.not_lt_zero _ h_lt
+
+/-- **Phase 1b correction case — Euclidean preservation (factored form).**
+
+    Takes the prerequisites as explicit hypotheses (rather than computing them
+    via the let-bound algorithm chain) for cleaner type-checking. Callers
+    discharge them via:
+    - `h_post` from `div128Quot_first_round_post` (#837).
+    - `h_q1c_pos` from `div128Quot_phase1b_check_implies_q1c_pos` (#849).
+    - `h_rhatc_lt` from `div128Quot_rhatc_lt_2dHi` (#845).
+
+    Conclusion: `q1' = q1c - 1` and `rhat' = rhatc + dHi` (Phase 1b correction)
+    preserve the Word-level Euclidean equation
+    `q1'.toNat * dHi.toNat + rhat'.toNat = uHi.toNat`.
+
+    Algebra: `(q1c - 1) * dHi + (rhatc + dHi) = q1c * dHi + rhatc = uHi`. -/
+theorem div128Quot_phase1b_correction_eucl
+    (uHi dHi q1c rhatc : Word)
+    (hdHi_lt : dHi.toNat < 2^32)
+    (h_post : q1c.toNat * dHi.toNat + rhatc.toNat = uHi.toNat)
+    (h_q1c_pos : q1c.toNat ≥ 1)
+    (h_rhatc_lt : rhatc.toNat < 2 * dHi.toNat) :
+    (q1c + signExtend12 4095).toNat * dHi.toNat +
+      (rhatc + dHi).toNat = uHi.toNat := by
+  -- q1' = q1c - 1
+  have h_se_neg1 : (signExtend12 (4095 : BitVec 12) : Word).toNat = 2^64 - 1 := by decide
+  have hq1'_toNat : (q1c + signExtend12 4095).toNat = q1c.toNat - 1 := by
+    rw [BitVec.toNat_add, h_se_neg1]
+    have h_eq : q1c.toNat + (2^64 - 1) = (q1c.toNat - 1) + 2^64 := by omega
+    rw [h_eq, Nat.add_mod_right]
+    have hq1c_lt_word : q1c.toNat - 1 < 2^64 := by have := q1c.isLt; omega
+    rw [Nat.mod_eq_of_lt hq1c_lt_word]
+  -- rhat' = rhatc + dHi (no overflow: rhatc < 2*dHi, dHi < 2^32 → rhatc + dHi < 3*2^32 < 2^64)
+  have hrhat'_toNat : (rhatc + dHi).toNat = rhatc.toNat + dHi.toNat := by
+    rw [BitVec.toNat_add]
+    apply Nat.mod_eq_of_lt
+    omega
+  rw [hq1'_toNat, hrhat'_toNat]
+  -- (q1c - 1) * dHi + (rhatc + dHi) = q1c * dHi + rhatc = uHi (h_post)
+  have h_expand : (q1c.toNat - 1 + 1) * dHi.toNat =
+                  (q1c.toNat - 1) * dHi.toNat + dHi.toNat := by
+    rw [Nat.add_mul, Nat.one_mul]
+  have h_eq : q1c.toNat - 1 + 1 = q1c.toNat := by omega
+  rw [h_eq] at h_expand
+  omega
+
+/-- **Combined Phase 1b invariant.** Whichever branch the algorithm takes
+    (Knuth multiplication-check fires or doesn't), the post-Phase-1b
+    `q1'`, `rhat'` pair satisfies the Word-level Euclidean equation:
+
+    ```
+      q1'.toNat * dHi.toNat + rhat'.toNat = uHi.toNat
+    ```
+
+    Case-split on the `BitVec.ult rhatUn1 (q1c * dLo)` check:
+    - Check doesn't fire: `q1' = q1c`, `rhat' = rhatc`. Invariant unchanged
+      from Phase 1a (= the supplied `h_post` hypothesis).
+    - Check fires: `q1' = q1c - 1`, `rhat' = rhatc + dHi`. Apply
+      `div128Quot_phase1b_correction_eucl` (which itself uses
+      `div128Quot_phase1b_check_implies_q1c_pos` for safety). -/
+theorem div128Quot_phase1b_post
+    (uHi dHi q1c rhatc dLo rhatUn1 : Word)
+    (hdHi_lt : dHi.toNat < 2^32)
+    (h_post : q1c.toNat * dHi.toNat + rhatc.toNat = uHi.toNat)
+    (h_rhatc_lt : rhatc.toNat < 2 * dHi.toNat) :
+    let q1' := if BitVec.ult rhatUn1 (q1c * dLo) then q1c + signExtend12 4095
+               else q1c
+    let rhat' := if BitVec.ult rhatUn1 (q1c * dLo) then rhatc + dHi else rhatc
+    q1'.toNat * dHi.toNat + rhat'.toNat = uHi.toNat := by
+  intro q1' rhat'
+  by_cases h_check : BitVec.ult rhatUn1 (q1c * dLo)
+  · -- Check fires: apply correction case
+    simp only [q1', rhat', h_check]
+    have h_q1c_pos := div128Quot_phase1b_check_implies_q1c_pos q1c dLo rhatUn1 h_check
+    exact div128Quot_phase1b_correction_eucl uHi dHi q1c rhatc hdHi_lt
+      h_post h_q1c_pos h_rhatc_lt
+  · -- Check doesn't fire: q1' = q1c, rhat' = rhatc, invariant is h_post
+    simp only [q1', rhat', h_check]
+    exact h_post
+
+/-- **Post-Phase-1b output bound on `rhat'`.** After Phase 1b, the
+    corrected remainder `rhat'` is bounded by `3 * dHi`:
+
+    - No-correction case: `rhat' = rhatc < 2 * dHi` (from
+      `div128Quot_rhatc_lt_2dHi`) `< 3 * dHi`.
+    - Correction case: `rhat' = rhatc + dHi`. Word addition doesn't
+      overflow because `rhatc < 2 * dHi`, `dHi < 2^32`, so
+      `rhatc + dHi < 3 * 2^32 < 2^64`.
+
+    Used by the Round 2 entry analysis: `cu_rhat_un1 = (rhat' << 32) | div_un1`
+    needs `rhat' < 2^32` to avoid OR-shift bit overlap, but the weaker
+    `rhat' < 3 * dHi < 3 * 2^32` is sufficient for `un21` overflow analysis. -/
+theorem div128Quot_rhat_prime_lt_3dHi (dHi rhatc : Word)
+    (hdHi_lt : dHi.toNat < 2^32)
+    (h_rhatc_lt : rhatc.toNat < 2 * dHi.toNat) (rhatUn1 qDlo : Word) :
+    let rhat' := if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc
+    rhat'.toNat < 3 * dHi.toNat := by
+  intro rhat'
+  by_cases h_check : BitVec.ult rhatUn1 qDlo
+  · -- Correction: rhat' = rhatc + dHi
+    show (if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc).toNat < _
+    rw [if_pos h_check, BitVec.toNat_add]
+    have h_sum_lt : rhatc.toNat + dHi.toNat < 2^64 := by omega
+    rw [Nat.mod_eq_of_lt h_sum_lt]
+    omega
+  · -- No correction: rhat' = rhatc < 2 * dHi < 3 * dHi
+    show (if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc).toNat < _
+    rw [if_neg h_check]
+    omega
 
 end EvmAsm.Evm64

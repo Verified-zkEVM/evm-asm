@@ -90,7 +90,7 @@ theorem rlp_phase2_long_acc_spec (len byte : Word) (base : Word) :
   have hd : CodeReq.Disjoint
       (CodeReq.singleton base (.SLLI .x11 .x11 8))
       (CodeReq.singleton (base + 4) (.ADD .x11 .x11 .x12)) :=
-    CodeReq.Disjoint.singleton (by bv_omega) _ _
+    CodeReq.Disjoint.singleton (by bv_omega)
   -- Step 1: SLLI x11, x11, 8 — use `slli_spec_gen_same` (rd = rs1),
   -- then frame with x12 to bring it into scope.
   have s1Base := slli_spec_gen_same .x11 len 8 base (by nofun)
