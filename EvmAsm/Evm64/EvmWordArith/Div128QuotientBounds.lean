@@ -359,5 +359,44 @@ theorem div128Quot_q1_prime_dLo_no_wrap (uHi dHi dLo rhatUn1 : Word)
     omega
   rw [BitVec.toNat_mul, Nat.mod_eq_of_lt h_mul_lt]
 
+/-- **KB-3g: Generalized halfword combine.** Without an upper bound on
+    `a`, the shift-left-by-32 + OR construction still has a clean Nat
+    formula, truncating `a` modulo `2^32`:
+
+    ```
+    (a <<< 32 ||| b).toNat = (a.toNat % 2^32) * 2^32 + b.toNat
+    ```
+
+    Generalizes `halfword_combine` (which requires `a.toNat < 2^32`) by
+    dropping the upper bound on `a`.  Useful for the Phase 2 `cu_rhat_un1`
+    construction, where `rhat'` may exceed `2^32` (current bound:
+    `< 3 * dHi`), so the top bits of `rhat'` get truncated by the shift
+    and we need a Nat formula that captures this. -/
+theorem halfword_combine_mod (a b : Word) (hb : b.toNat < 2^32) :
+    (a <<< 32 ||| b).toNat = (a.toNat % 2^32) * 2^32 + b.toNat := by
+  -- The shifted `a <<< 32` has its low 32 bits zero, and `b` has its
+  -- high 32 bits zero, so their bitwise AND is zero and OR = ADD.
+  have h_disjoint : a <<< 32 &&& b = 0 := by
+    ext i
+    simp only [BitVec.getElem_and, BitVec.getElem_shiftLeft]
+    by_cases hi : (i : Nat) < 32
+    · simp [hi]
+    · simp only [hi, decide_false, Bool.not_false, Bool.true_and]
+      have hbi : b[i] = false := by
+        simp only [BitVec.getElem_eq_testBit_toNat]
+        apply Nat.testBit_lt_two_pow
+        calc b.toNat < 2 ^ 32 := hb
+          _ ≤ 2 ^ (i : Nat) := Nat.pow_le_pow_right (by omega) (by omega)
+      simp [hbi]
+  rw [(BitVec.add_eq_or_of_and_eq_zero (a <<< 32) b h_disjoint).symm,
+      BitVec.toNat_add_of_and_eq_zero h_disjoint,
+      BitVec.toNat_shiftLeft]
+  simp only [Nat.shiftLeft_eq]
+  -- Goal: (a.toNat * 2^32) % 2^64 + b.toNat = (a.toNat % 2^32) * 2^32 + b.toNat
+  -- Use (a.toNat * 2^32) % 2^64 = (a.toNat % 2^32) * 2^32.
+  have h_mod : (a.toNat * 2^32) % 2^64 = (a.toNat % 2^32) * 2^32 := by
+    rw [show (2^64 : Nat) = 2^32 * 2^32 from by decide,
+        Nat.mul_mod_mul_right]
+  rw [h_mod]
 
 end EvmAsm.Evm64
