@@ -54,7 +54,7 @@ private theorem prodLo_le_one_of_mulhu_max {q v_i : Word}
     When prodHi ≤ 2^64 - 3: carry ≤ 1 + (2^64 - 3) + 1 = 2^64 - 1 < 2^64.
     When prodHi = 2^64 - 2: prodLo ≤ 1, and borrowAdd = 1 forces
     fullSub.toNat = 0 (modular wrap leaves 0), making borrowSub = 0. -/
-theorem mulsub_limb_carry_strict_lt (q v_i u_i carryIn : Word) :
+theorem mulsub_limb_carry_strict_lt {q v_i u_i carryIn : Word} :
     let prodLo := q * v_i
     let prodHi := rv64_mulhu q v_i
     let fullSub := prodLo + carryIn
@@ -122,7 +122,7 @@ theorem mulsub_limb_carry_strict_lt (q v_i u_i carryIn : Word) :
 
     This follows from `mulsub_limb_carry_strict_lt` (carry < 2^64 means
     the Word additions don't overflow) and `mulsub_carry_word_eq`. -/
-theorem mulsub_limb_word_carry_eq (q v_i u_i carryIn : Word) :
+theorem mulsub_limb_word_carry_eq {q v_i u_i carryIn : Word} :
     let prodLo := q * v_i
     let prodHi := rv64_mulhu q v_i
     let fullSub := prodLo + carryIn
@@ -132,7 +132,7 @@ theorem mulsub_limb_word_carry_eq (q v_i u_i carryIn : Word) :
       borrowAdd.toNat + prodHi.toNat + borrowSub.toNat := by
   intro prodLo prodHi fullSub borrowAdd borrowSub
   exact mulsub_carry_word_eq borrowAdd prodHi borrowSub
-    (mulsub_limb_carry_strict_lt q v_i u_i carryIn)
+    mulsub_limb_carry_strict_lt
 
 -- ============================================================================
 -- Per-limb equation using Word carry directly
@@ -153,8 +153,8 @@ theorem mulsub_limb_nat_word_eq (q v_i u_i carryIn : Word) :
       uNew.toNat + q.toNat * v_i.toNat + carryIn.toNat := by
   intro prodLo prodHi fullSub borrowAdd uNew borrowSub carryOut
   rw [show carryOut = (borrowAdd + prodHi) + borrowSub from rfl,
-      mulsub_limb_word_carry_eq q v_i u_i carryIn]
-  exact mulsub_limb_nat_eq q v_i u_i carryIn
+      mulsub_limb_word_carry_eq]
+  exact mulsub_limb_nat_eq
 
 -- ============================================================================
 -- 4-limb composition: register ops → val256 equation

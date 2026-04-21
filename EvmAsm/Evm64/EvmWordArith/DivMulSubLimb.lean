@@ -56,7 +56,7 @@ theorem mulhu_toNat_le (a b : Word) : (rv64_mulhu a b).toNat ≤ 2^64 - 2 := by
     where C = borrowAdd + prodHi + borrowSub (Nat sum).
 
     This is exactly the per-limb equation needed by `mulsub_chain_nat`. -/
-theorem mulsub_limb_nat_eq (q v_i u_i carryIn : Word) :
+theorem mulsub_limb_nat_eq {q v_i u_i carryIn : Word} :
     let prodLo := q * v_i
     let prodHi := rv64_mulhu q v_i
     let fullSub := prodLo + carryIn
