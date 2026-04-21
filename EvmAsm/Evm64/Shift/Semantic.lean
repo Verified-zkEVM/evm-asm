@@ -169,7 +169,7 @@ theorem evm_shr_stack_spec (sp base : Word)
     have hresult : result = value >>> shift.toNat := by simp [result, show ¬(shift.toNat ≥ 256) from hge]
     -- High limbs must be 0 when shift < 256
     have hhigh_zero : shift.getLimb 1 ||| shift.getLimb 2 ||| shift.getLimb 3 = 0 :=
-      EvmWord.high_limbs_zero_of_toNat_lt shift (by omega)
+      EvmWord.high_limbs_zero_of_toNat_lt (by omega)
     -- s0 < 256
     have hlt_s0 : BitVec.ult (shift.getLimb 0) (signExtend12 (256 : BitVec 12)) = true := by
       have h_toNat := EvmWord.toNat_eq_getLimb0_of_high_zero shift hhigh_zero

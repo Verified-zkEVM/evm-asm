@@ -426,7 +426,7 @@ theorem getLimb_ushiftRight (v : EvmWord) (n : Nat) (i : Fin 4) :
   rw [h1, h2]
 
 /-- When `v.toNat < 2^64`, the upper three limbs are zero. -/
-theorem high_limbs_zero_of_toNat_lt (v : EvmWord) (h : v.toNat < 2^64) :
+theorem high_limbs_zero_of_toNat_lt {v : EvmWord} (h : v.toNat < 2^64) :
     v.getLimb 1 ||| v.getLimb 2 ||| v.getLimb 3 = 0 := by
   -- Each upper limb extracts bits [k*64, k*64+64) which are all zero when v < 2^64
   have hlimb : ∀ k : Fin 4, k.val ≥ 1 → v.getLimb k = 0 := by

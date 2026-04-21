@@ -96,7 +96,7 @@ theorem evm_signextend_stack_spec (sp base : Word)
   · -- b < 31: body path
     push Not at hge
     have hhigh : b.getLimbN 1 ||| b.getLimbN 2 ||| b.getLimbN 3 = 0 :=
-      EvmWord.high_limbs_zero_of_toNat_lt b (by omega)
+      EvmWord.high_limbs_zero_of_toNat_lt (by omega)
     have hsmall : BitVec.ult (b.getLimbN 0) (signExtend12 (31 : BitVec 12)) = true := by
       have hb_toNat := EvmWord.toNat_eq_getLimb0_of_high_zero b hhigh
       simp only [EvmWord.getLimb_as_getLimbN_0] at hb_toNat
