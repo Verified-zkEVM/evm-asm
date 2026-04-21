@@ -194,17 +194,17 @@ private theorem beq_sub_shrCode (base : Word) :
 -- Section 3: Address normalization lemmas
 -- ============================================================================
 
-private theorem shr_off_4 (base : Word) : (base + 4 : Word) + 8 = base + 12 := by bv_omega
-private theorem shr_off_12 (base : Word) : (base + 12 : Word) + 8 = base + 20 := by bv_omega
-private theorem shr_off_20 (base : Word) : (base + 20 : Word) + 4 = base + 24 := by bv_omega
-private theorem shr_off_24 (base : Word) : (base + 24 : Word) + 4 = base + 28 := by bv_omega
-private theorem shr_off_28 (base : Word) : (base + 28 : Word) + 4 = base + 32 := by bv_omega
-private theorem shr_off_32 (base : Word) : (base + 32 : Word) + 4 = base + 36 := by bv_omega
-private theorem shr_off_36_28 (base : Word) : (base + 36 : Word) + 28 = base + 64 := by bv_omega
-private theorem shr_off_340_20 (base : Word) : (base + 340 : Word) + 20 = base + 360 := by bv_omega
-private theorem shr_bne_target (base : Word) : (base + 20 : Word) + signExtend13 320 = base + 340 := by
+private theorem shr_off_4 {base : Word} : (base + 4 : Word) + 8 = base + 12 := by bv_omega
+private theorem shr_off_12 {base : Word} : (base + 12 : Word) + 8 = base + 20 := by bv_omega
+private theorem shr_off_20 {base : Word} : (base + 20 : Word) + 4 = base + 24 := by bv_omega
+private theorem shr_off_24 {base : Word} : (base + 24 : Word) + 4 = base + 28 := by bv_omega
+private theorem shr_off_28 {base : Word} : (base + 28 : Word) + 4 = base + 32 := by bv_omega
+private theorem shr_off_32 {base : Word} : (base + 32 : Word) + 4 = base + 36 := by bv_omega
+private theorem shr_off_36_28 {base : Word} : (base + 36 : Word) + 28 = base + 64 := by bv_omega
+private theorem shr_off_340_20 {base : Word} : (base + 340 : Word) + 20 = base + 360 := by bv_omega
+private theorem shr_bne_target {base : Word} : (base + 20 : Word) + signExtend13 320 = base + 340 := by
   rv64_addr
-private theorem shr_beq_target (base : Word) : (base + 32 : Word) + signExtend13 308 = base + 340 := by
+private theorem shr_beq_target {base : Word} : (base + 32 : Word) + signExtend13 308 = base + 340 := by
   rv64_addr
 -- Phase C exit addresses
 private theorem shr_c_e0 (base : Word) : (base + 64 : Word) + signExtend13 176 = base + 240 := by

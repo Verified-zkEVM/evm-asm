@@ -157,15 +157,15 @@ private theorem beq_sub_signextCode (base : Word) :
 -- Section 3: Address normalization lemmas
 -- ============================================================================
 
-private theorem se_off_4 (base : Word) : (base + 4 : Word) + 8 = base + 12 := by bv_omega
-private theorem se_off_12 (base : Word) : (base + 12 : Word) + 8 = base + 20 := by bv_omega
-private theorem se_off_20 (base : Word) : (base + 20 : Word) + 4 = base + 24 := by bv_omega
-private theorem se_off_24 (base : Word) : (base + 24 : Word) + 4 = base + 28 := by bv_omega
-private theorem se_off_28 (base : Word) : (base + 28 : Word) + 4 = base + 32 := by bv_omega
-private theorem se_off_32 (base : Word) : (base + 32 : Word) + 4 = base + 36 := by bv_omega
-private theorem se_bne_target (base : Word) : (base + 20 : Word) + signExtend13 168 = base + 188 := by
+private theorem se_off_4 {base : Word} : (base + 4 : Word) + 8 = base + 12 := by bv_omega
+private theorem se_off_12 {base : Word} : (base + 12 : Word) + 8 = base + 20 := by bv_omega
+private theorem se_off_20 {base : Word} : (base + 20 : Word) + 4 = base + 24 := by bv_omega
+private theorem se_off_24 {base : Word} : (base + 24 : Word) + 4 = base + 28 := by bv_omega
+private theorem se_off_28 {base : Word} : (base + 28 : Word) + 4 = base + 32 := by bv_omega
+private theorem se_off_32 {base : Word} : (base + 32 : Word) + 4 = base + 36 := by bv_omega
+private theorem se_bne_target {base : Word} : (base + 20 : Word) + signExtend13 168 = base + 188 := by
   rv64_addr
-private theorem se_beq_target (base : Word) : (base + 32 : Word) + signExtend13 156 = base + 188 := by
+private theorem se_beq_target {base : Word} : (base + 32 : Word) + signExtend13 156 = base + 188 := by
   rv64_addr
 -- Phase C exit addresses
 private theorem se_c_e0 (base : Word) : (base + 56 : Word) + signExtend13 100 = base + 156 := by
@@ -182,7 +182,7 @@ private theorem se_body2_exit (base : Word) : ((base + 96 : Word) + 24) + signEx
   rv64_addr
 private theorem se_body1_exit (base : Word) : ((base + 124 : Word) + 28) + signExtend21 36 = base + 188 := by
   rv64_addr
-private theorem se_done_exit (base : Word) : (base + 188 : Word) + 4 = base + 192 := by bv_omega
+private theorem se_done_exit {base : Word} : (base + 188 : Word) + 4 = base + 192 := by bv_omega
 
 -- ============================================================================
 -- Section 4: No-change path 1 — high limbs nonzero

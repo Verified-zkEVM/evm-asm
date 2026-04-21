@@ -236,17 +236,17 @@ private theorem sign_fill_sub_sarCode (base : Word) :
 -- Section 3: Address normalization lemmas
 -- ============================================================================
 
-private theorem sar_off_4 (base : Word) : (base + 4 : Word) + 8 = base + 12 := by bv_omega
-private theorem sar_off_12 (base : Word) : (base + 12 : Word) + 8 = base + 20 := by bv_omega
-private theorem sar_off_20 (base : Word) : (base + 20 : Word) + 4 = base + 24 := by bv_omega
-private theorem sar_off_24 (base : Word) : (base + 24 : Word) + 4 = base + 28 := by bv_omega
-private theorem sar_off_28 (base : Word) : (base + 28 : Word) + 4 = base + 32 := by bv_omega
-private theorem sar_off_32 (base : Word) : (base + 32 : Word) + 4 = base + 36 := by bv_omega
-private theorem sar_off_36_28 (base : Word) : (base + 36 : Word) + 28 = base + 64 := by bv_omega
-private theorem sar_off_352_28 (base : Word) : (base + 352 : Word) + 28 = base + 380 := by bv_omega
-private theorem sar_bne_target (base : Word) : (base + 20 : Word) + signExtend13 332 = base + 352 := by
+private theorem sar_off_4 {base : Word} : (base + 4 : Word) + 8 = base + 12 := by bv_omega
+private theorem sar_off_12 {base : Word} : (base + 12 : Word) + 8 = base + 20 := by bv_omega
+private theorem sar_off_20 {base : Word} : (base + 20 : Word) + 4 = base + 24 := by bv_omega
+private theorem sar_off_24 {base : Word} : (base + 24 : Word) + 4 = base + 28 := by bv_omega
+private theorem sar_off_28 {base : Word} : (base + 28 : Word) + 4 = base + 32 := by bv_omega
+private theorem sar_off_32 {base : Word} : (base + 32 : Word) + 4 = base + 36 := by bv_omega
+private theorem sar_off_36_28 {base : Word} : (base + 36 : Word) + 28 = base + 64 := by bv_omega
+private theorem sar_off_352_28 {base : Word} : (base + 352 : Word) + 28 = base + 380 := by bv_omega
+private theorem sar_bne_target {base : Word} : (base + 20 : Word) + signExtend13 332 = base + 352 := by
   rv64_addr
-private theorem sar_beq_target (base : Word) : (base + 32 : Word) + signExtend13 320 = base + 352 := by
+private theorem sar_beq_target {base : Word} : (base + 32 : Word) + signExtend13 320 = base + 352 := by
   rv64_addr
 -- Phase C exit addresses
 private theorem sar_c_e0 (base : Word) : (base + 64 : Word) + signExtend13 188 = base + 252 := by

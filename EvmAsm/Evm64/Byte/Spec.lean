@@ -153,17 +153,17 @@ private theorem byte_beq_sub (base : Word) :
 -- ============================================================================
 
 -- Phase A offsets
-private theorem byte_off_20 (base : Word) : (base + 20 : Word) + 4 = base + 24 := by bv_omega
-private theorem byte_off_24 (base : Word) : (base + 24 : Word) + 4 = base + 28 := by bv_omega
-private theorem byte_off_28 (base : Word) : (base + 28 : Word) + 4 = base + 32 := by bv_omega
-private theorem byte_off_32 (base : Word) : (base + 32 : Word) + 4 = base + 36 := by bv_omega
-private theorem byte_off_36_20 (base : Word) : (base + 36 : Word) + 20 = base + 56 := by bv_omega
-private theorem byte_off_160_20 (base : Word) : (base + 160 : Word) + 20 = base + 180 := by bv_omega
+private theorem byte_off_20 {base : Word} : (base + 20 : Word) + 4 = base + 24 := by bv_omega
+private theorem byte_off_24 {base : Word} : (base + 24 : Word) + 4 = base + 28 := by bv_omega
+private theorem byte_off_28 {base : Word} : (base + 28 : Word) + 4 = base + 32 := by bv_omega
+private theorem byte_off_32 {base : Word} : (base + 32 : Word) + 4 = base + 36 := by bv_omega
+private theorem byte_off_36_20 {base : Word} : (base + 36 : Word) + 20 = base + 56 := by bv_omega
+private theorem byte_off_160_20 {base : Word} : (base + 160 : Word) + 20 = base + 180 := by bv_omega
 
 -- BNE/BEQ branch targets
-private theorem byte_bne_target (base : Word) : (base + 20 : Word) + signExtend13 140 = base + 160 := by
+private theorem byte_bne_target {base : Word} : (base + 20 : Word) + signExtend13 140 = base + 160 := by
   rv64_addr
-private theorem byte_beq_target (base : Word) : (base + 32 : Word) + signExtend13 128 = base + 160 := by
+private theorem byte_beq_target {base : Word} : (base + 32 : Word) + signExtend13 128 = base + 160 := by
   rv64_addr
 
 -- Phase C exit addresses
