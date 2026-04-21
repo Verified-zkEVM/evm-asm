@@ -96,7 +96,7 @@ theorem divK_loop_body_n2_max_unified_j2_spec
     exact cpsTriple_weaken
       (fun h hp => hp)
       (fun h hp => by
-        rw [← loopIterPostN2Max_addback _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
+        rw [← loopIterPostN2Max_addback hb]; exact hp)
       (J2 hborrow)
   · -- skip path: use existing skip spec (unchanged)
     have hborrow : (if BitVec.ult uTop (mulsubN4_c3 (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3)
@@ -107,7 +107,7 @@ theorem divK_loop_body_n2_max_unified_j2_spec
     exact cpsTriple_weaken
       (fun h hp => hp)
       (fun h hp => by
-        rw [← loopIterPostN2Max_skip _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
+        rw [← loopIterPostN2Max_skip hb]; exact hp)
       (J2 hborrow)
 
 /-- Unified  j=1 max-path spec: handles both skip and addback internally.
@@ -145,7 +145,7 @@ theorem divK_loop_body_n2_max_unified_j1_spec
     exact cpsTriple_weaken
       (fun h hp => hp)
       (fun h hp => by
-        rw [← loopIterPostN2Max_addback _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
+        rw [← loopIterPostN2Max_addback hb]; exact hp)
       (J1 hborrow)
   · -- skip path: use existing skip spec (unchanged)
     have hborrow : (if BitVec.ult uTop (mulsubN4_c3 (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3)
@@ -157,7 +157,7 @@ theorem divK_loop_body_n2_max_unified_j1_spec
     exact cpsTriple_weaken
       (fun h hp => hp)
       (fun h hp => by
-        rw [← loopIterPostN2Max_skip _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
+        rw [← loopIterPostN2Max_skip hb]; exact hp)
       (J1 hborrow)
 
 /-- Unified  j=0 max-path spec: handles both skip and addback internally.
@@ -196,7 +196,7 @@ theorem divK_loop_body_n2_max_unified_j0_spec
     exact cpsTriple_weaken
       (fun h hp => hp)
       (fun h hp => by
-        rw [← loopIterPostN2Max_addback _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
+        rw [← loopIterPostN2Max_addback hb]; exact hp)
       (J0 hborrow)
   · -- skip path: use existing skip spec (unchanged)
     have hborrow : (if BitVec.ult uTop (mulsubN4_c3 (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3)
@@ -208,7 +208,7 @@ theorem divK_loop_body_n2_max_unified_j0_spec
     exact cpsTriple_weaken
       (fun h hp => hp)
       (fun h hp => by
-        rw [← loopIterPostN2Max_skip _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
+        rw [← loopIterPostN2Max_skip hb]; exact hp)
       (J0 hborrow)
 
 -- ============================================================================
@@ -258,7 +258,7 @@ theorem divK_loop_body_n2_call_unified_j2_spec
     exact cpsTriple_weaken
       (fun h hp => hp)
       (fun h hp => by
-        rw [← loopIterPostN2Call_addback _ _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
+        rw [← loopIterPostN2Call_addback hb]; exact hp)
       J2
   · -- skip path: use existing skip spec (unchanged)
     have hborrow : isSkipBorrowN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop := if_neg hb
@@ -270,7 +270,7 @@ theorem divK_loop_body_n2_call_unified_j2_spec
     exact cpsTriple_weaken
       (fun h hp => hp)
       (fun h hp => by
-        rw [← loopIterPostN2Call_skip _ _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
+        rw [← loopIterPostN2Call_skip hb]; exact hp)
       J2
 
 /-- Unified  j=1 call-path spec: handles both skip and addback internally. -/
@@ -315,7 +315,7 @@ theorem divK_loop_body_n2_call_unified_j1_spec
     exact cpsTriple_weaken
       (fun h hp => hp)
       (fun h hp => by
-        rw [← loopIterPostN2Call_addback _ _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
+        rw [← loopIterPostN2Call_addback hb]; exact hp)
       J1
   · -- skip path: use existing skip spec (unchanged)
     have hborrow : isSkipBorrowN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop := if_neg hb
@@ -327,7 +327,7 @@ theorem divK_loop_body_n2_call_unified_j1_spec
     exact cpsTriple_weaken
       (fun h hp => hp)
       (fun h hp => by
-        rw [← loopIterPostN2Call_skip _ _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
+        rw [← loopIterPostN2Call_skip hb]; exact hp)
       J1
 
 /-- Unified  j=0 call-path spec: handles both skip and addback internally.
@@ -372,7 +372,7 @@ theorem divK_loop_body_n2_call_unified_j0_spec
     exact cpsTriple_weaken
       (fun h hp => hp)
       (fun h hp => by
-        rw [← loopIterPostN2Call_addback _ _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
+        rw [← loopIterPostN2Call_addback hb]; exact hp)
       J0
   · -- skip path: use existing skip spec (unchanged)
     have hborrow : isSkipBorrowN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop := if_neg hb
@@ -384,7 +384,7 @@ theorem divK_loop_body_n2_call_unified_j0_spec
     exact cpsTriple_weaken
       (fun h hp => hp)
       (fun h hp => by
-        rw [← loopIterPostN2Call_skip _ _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
+        rw [← loopIterPostN2Call_skip hb]; exact hp)
       J0
 
 -- ============================================================================

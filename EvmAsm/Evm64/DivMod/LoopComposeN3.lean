@@ -158,7 +158,7 @@ theorem divK_loop_body_n3_max_unified_j1_spec
     intro_lets at J1
     exact cpsTriple_weaken
       (fun h hp => hp)
-      (fun h hp => by rw [← loopIterPostN3Max_addback _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
+      (fun h hp => by rw [← loopIterPostN3Max_addback hb]; exact hp)
       (J1 hborrow)
   · -- skip path
     have hborrow : (if BitVec.ult uTop (mulsubN4_c3 (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3)
@@ -169,7 +169,7 @@ theorem divK_loop_body_n3_max_unified_j1_spec
     intro_lets at J1
     exact cpsTriple_weaken
       (fun h hp => hp)
-      (fun h hp => by rw [← loopIterPostN3Max_skip _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
+      (fun h hp => by rw [← loopIterPostN3Max_skip hb]; exact hp)
       (J1 hborrow)
 
 -- ============================================================================
@@ -209,7 +209,7 @@ theorem divK_loop_body_n3_max_unified_j0_spec
     intro_lets at J0
     exact cpsTriple_weaken
       (fun h hp => hp)
-      (fun h hp => by rw [← loopIterPostN3Max_addback _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
+      (fun h hp => by rw [← loopIterPostN3Max_addback hb]; exact hp)
       (J0 hborrow)
   · -- skip path
     have hborrow : (if BitVec.ult uTop (mulsubN4_c3 (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3)
@@ -220,7 +220,7 @@ theorem divK_loop_body_n3_max_unified_j0_spec
     intro_lets at J0
     exact cpsTriple_weaken
       (fun h hp => hp)
-      (fun h hp => by rw [← loopIterPostN3Max_skip _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
+      (fun h hp => by rw [← loopIterPostN3Max_skip hb]; exact hp)
       (J0 hborrow)
 
 -- ============================================================================
@@ -267,7 +267,7 @@ theorem divK_loop_body_n3_call_unified_j1_spec
     intro_lets at J1
     exact cpsTriple_weaken
       (fun h hp => hp)
-      (fun h hp => by rw [← loopIterPostN3Call_addback _ _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
+      (fun h hp => by rw [← loopIterPostN3Call_addback hb]; exact hp)
       J1
   · -- skip path
     have hborrow : isSkipBorrowN3Call v0 v1 v2 v3 u0 u1 u2 u3 uTop := if_neg hb
@@ -278,7 +278,7 @@ theorem divK_loop_body_n3_call_unified_j1_spec
     intro_lets at J1
     exact cpsTriple_weaken
       (fun h hp => hp)
-      (fun h hp => by rw [← loopIterPostN3Call_skip _ _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
+      (fun h hp => by rw [← loopIterPostN3Call_skip hb]; exact hp)
       J1
 
 -- ============================================================================
@@ -327,7 +327,7 @@ theorem divK_loop_body_n3_call_unified_j0_spec
       (fun h hp => hp)
       (fun h hp => by
         rw [loopBodyN3CallAddbackBeqPost_eq_J] at hp
-        rw [← loopIterPostN3Call_addback _ _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
+        rw [← loopIterPostN3Call_addback hb]; exact hp)
       J0
   · -- skip path
     have hborrow : isSkipBorrowN3Call v0 v1 v2 v3 u0 u1 u2 u3 uTop := if_neg hb
