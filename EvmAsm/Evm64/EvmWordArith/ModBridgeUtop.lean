@@ -91,7 +91,7 @@ theorem val256_normalized_mulsub_eq
 /-- Under the CLZ top-limb bound `b3 < 2^(64 - s)`, the full 256-bit value
     satisfies `val256(b) < 2^(256 - s)`, which is what bounds `val256(b) * 2^s`
     within 2^256. Elementary expansion + `nlinarith`. -/
-theorem val256_lt_of_b3_bound (b0 b1 b2 b3 : Word) (s : Nat) (hs : s ≤ 64)
+theorem val256_lt_of_b3_bound (b0 b1 b2 b3 : Word) {s : Nat} (hs : s ≤ 64)
     (hb3_bound : b3.toNat < 2 ^ (64 - s)) :
     val256 b0 b1 b2 b3 < 2 ^ (256 - s) := by
   unfold val256
@@ -209,7 +209,7 @@ theorem u_top_eq_c3_n_max_skip
   have h_ms_un_lt_b :=
     val256_ms_un_lt_val256_b_max_skip hbnz hb3nz hc3_un_zero
   simp only [] at h_ms_un_lt_b
-  have h_b_lt_pow := val256_lt_of_b3_bound b0 b1 b2 b3 s (by omega) hb3_bound
+  have h_b_lt_pow := val256_lt_of_b3_bound b0 b1 b2 b3 (by omega) hb3_bound
   have hs_pos : 0 < 2 ^ s := by positivity
   exact u_top_eq_c3_nat_form (Q := (signExtend12 (4095 : BitVec 12)).toNat) s
     h_un_raw h_norm_u h_norm_b h_n_raw h_ms_un_lt_b h_b_lt_pow (by omega) hs_pos
