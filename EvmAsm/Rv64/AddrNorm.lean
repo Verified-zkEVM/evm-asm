@@ -37,10 +37,10 @@ open EvmAsm.Rv64
 -- ============================================================================
 
 @[rv64_addr, grind =]
-theorem word_zero_add (x : Word) : (0 : Word) + x = x := BitVec.zero_add x
+theorem word_zero_add {x : Word} : (0 : Word) + x = x := BitVec.zero_add x
 
 @[rv64_addr, grind =]
-theorem word_add_zero (x : Word) : x + (0 : Word) = x := BitVec.add_zero x
+theorem word_add_zero {x : Word} : x + (0 : Word) = x := BitVec.add_zero x
 
 -- ============================================================================
 -- Atomic `signExtend13` evaluations
