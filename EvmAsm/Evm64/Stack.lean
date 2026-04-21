@@ -380,7 +380,7 @@ theorem evmWordIs_sp64_limbs_eq_right (sp : Word) (v : EvmWord) (w0 w1 w2 w3 : W
     specialized to `v = 0` — saves callers from inlining four
     `(0 : EvmWord).getLimbN k = 0` facts on every zero-path spec. Applies at
     arbitrary `addr`, so it covers both the `sp` and `sp+32` positions uniformly. -/
-theorem evmWordIs_zero (addr : Word) :
+theorem evmWordIs_zero {addr : Word} :
     evmWordIs addr (0 : EvmWord) =
     ((addr ↦ₘ (0 : Word)) ** ((addr + 8) ↦ₘ (0 : Word)) **
      ((addr + 16) ↦ₘ (0 : Word)) ** ((addr + 24) ↦ₘ (0 : Word))) := by
@@ -393,7 +393,7 @@ theorem evmWordIs_zero (addr : Word) :
     Thin wrapper around the definitional unfold specialized to `v = 1` —
     saves callers from inlining four `(1 : EvmWord).getLimbN k` facts
     on every IsZero-path spec. Applies at arbitrary `addr`. -/
-theorem evmWordIs_one (addr : Word) :
+theorem evmWordIs_one {addr : Word} :
     evmWordIs addr (1 : EvmWord) =
     ((addr ↦ₘ (1 : Word)) ** ((addr + 8) ↦ₘ (0 : Word)) **
      ((addr + 16) ↦ₘ (0 : Word)) ** ((addr + 24) ↦ₘ (0 : Word))) := by
@@ -406,7 +406,7 @@ theorem evmWordIs_one (addr : Word) :
     `evmWordIs_sp_limbs_eq` to the uniform-limb constant case; covers
     both the all-zero (`evmWordIs_zero`) and all-ones (e.g. `-1` in
     two's complement) patterns uniformly. -/
-theorem evmWordIs_fromLimbs_const (addr : Word) (w : Word) :
+theorem evmWordIs_fromLimbs_const {addr : Word} (w : Word) :
     evmWordIs addr (EvmWord.fromLimbs (fun _ => w)) =
     ((addr ↦ₘ w) ** ((addr + 8) ↦ₘ w) **
      ((addr + 16) ↦ₘ w) ** ((addr + 24) ↦ₘ w)) := by
@@ -418,7 +418,7 @@ theorem evmWordIs_fromLimbs_const (addr : Word) (w : Word) :
     `Q` so `rw ←` can fold four identical-valued memIs atoms back into
     `evmWordIs addr (fromLimbs (fun _ => w))` even when they sit in the
     middle of a longer sepConj chain. -/
-theorem evmWordIs_fromLimbs_const_right (addr : Word) (w : Word) (Q : Assertion) :
+theorem evmWordIs_fromLimbs_const_right {addr : Word} (w : Word) (Q : Assertion) :
     ((addr ↦ₘ w) ** ((addr + 8) ↦ₘ w) **
      ((addr + 16) ↦ₘ w) ** ((addr + 24) ↦ₘ w) ** Q) =
     (evmWordIs addr (EvmWord.fromLimbs (fun _ => w)) ** Q) := by
@@ -428,7 +428,7 @@ theorem evmWordIs_fromLimbs_const_right (addr : Word) (w : Word) (Q : Assertion)
 /-- Mid-tree variant of `evmWordIs_zero`: threads a remainder `Q` so
     `rw ←` can fold four zero memIs atoms back into `evmWordIs addr 0`
     even when they sit in the middle of a longer sepConj chain. -/
-theorem evmWordIs_zero_right (addr : Word) (Q : Assertion) :
+theorem evmWordIs_zero_right {addr : Word} (Q : Assertion) :
     ((addr ↦ₘ (0 : Word)) ** ((addr + 8) ↦ₘ (0 : Word)) **
      ((addr + 16) ↦ₘ (0 : Word)) ** ((addr + 24) ↦ₘ (0 : Word)) ** Q) =
     (evmWordIs addr (0 : EvmWord) ** Q) := by
@@ -438,7 +438,7 @@ theorem evmWordIs_zero_right (addr : Word) (Q : Assertion) :
 /-- Mid-tree variant of `evmWordIs_one`: threads a remainder `Q` so
     `rw ←` can fold `(addr ↦ₘ 1) ** (addr+8 ↦ₘ 0) ** (addr+16 ↦ₘ 0) **
     (addr+24 ↦ₘ 0)` back into `evmWordIs addr 1` mid-chain. -/
-theorem evmWordIs_one_right (addr : Word) (Q : Assertion) :
+theorem evmWordIs_one_right {addr : Word} (Q : Assertion) :
     ((addr ↦ₘ (1 : Word)) ** ((addr + 8) ↦ₘ (0 : Word)) **
      ((addr + 16) ↦ₘ (0 : Word)) ** ((addr + 24) ↦ₘ (0 : Word)) ** Q) =
     (evmWordIs addr (1 : EvmWord) ** Q) := by
