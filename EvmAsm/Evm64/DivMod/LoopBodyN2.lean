@@ -30,19 +30,19 @@ open EvmAsm.Rv64
 -- ============================================================================
 
 /-- For n=2: uAddr = uBase + signExtend12 4080 -/
-theorem u_addr_eq_n2 (sp j : Word) :
+theorem u_addr_eq_n2 {sp j : Word} :
     sp + signExtend12 4056 - (j + (2 : Word)) <<< (3 : BitVec 6).toNat =
     (sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 4080 := by
   divmod_addr
 
 /-- For n=2: (uBase + signExtend12 4080) + 8 = uBase + signExtend12 4088 -/
-theorem u_addr8_eq_n2 (sp j : Word) :
+theorem u_addr8_eq_n2 {sp j : Word} :
     ((sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 4080) + 8 =
     (sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat) + signExtend12 4088 := by
   divmod_addr
 
 /-- For n=2: vtopBase + signExtend12 32 = sp + signExtend12 40 -/
-theorem vtop_eq_v1_n2 (sp : Word) :
+theorem vtop_eq_v1_n2 {sp : Word} :
     (sp + ((2 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat) + signExtend12 32 =
     sp + signExtend12 40 := by
   divmod_addr
@@ -116,10 +116,10 @@ theorem divK_loop_body_n2_max_skip_spec
   -- Expand let-bindings in TF to expose raw address expressions
   dsimp only [] at TF
   -- Rewrite uAddr → uBase + signExtend12 4080, and (uAddr+8) → uBase + signExtend12 4088
-  rw [u_addr_eq_n2 sp j] at TF
-  rw [u_addr8_eq_n2 sp j] at TF
+  rw [u_addr_eq_n2] at TF
+  rw [u_addr8_eq_n2] at TF
   -- Rewrite vtopBase + signExtend12 32 → sp + signExtend12 40
-  rw [vtop_eq_v1_n2 sp] at TF
+  rw [vtop_eq_v1_n2] at TF
   -- 2. Mulsub + correction skip (base+516 → base+880)
   have MCS := divK_mulsub_correction_skip_spec sp qHat j v0 v1 v2 v3 u0 u1 u2 u3 uTop
     j u1 vtopBase u2 v1 v2Old base
@@ -215,9 +215,9 @@ theorem divK_loop_body_n2_max_addback_spec
   have TF := divK_trial_max_full_spec sp j (2 : Word) jOld v5Old v6Old v7Old v10Old v11Old
     u2 u1 v1 base hbltu
   dsimp only [] at TF
-  rw [u_addr_eq_n2 sp j] at TF
-  rw [u_addr8_eq_n2 sp j] at TF
-  rw [vtop_eq_v1_n2 sp] at TF
+  rw [u_addr_eq_n2] at TF
+  rw [u_addr8_eq_n2] at TF
+  rw [vtop_eq_v1_n2] at TF
   -- 2. Mulsub + correction addback + BEQ (base+516 → base+884)
   have MCA := divK_mulsub_correction_addback_beq_spec sp qHat j v0 v1 v2 v3 u0 u1 u2 u3 uTop
     j u1 vtopBase u2 v1 v2Old base
@@ -365,9 +365,9 @@ theorem divK_loop_body_n2_call_skip_spec
     u2 u1 v1 retMem dMem dloMem scratch_un0 base
     halign hbltu
   dsimp only [] at TF
-  rw [u_addr_eq_n2 sp j] at TF
-  rw [u_addr8_eq_n2 sp j] at TF
-  rw [vtop_eq_v1_n2 sp] at TF
+  rw [u_addr_eq_n2] at TF
+  rw [u_addr8_eq_n2] at TF
+  rw [vtop_eq_v1_n2] at TF
   -- 2. Mulsub + correction skip (base+516 → base+880)
   have MCS := divK_mulsub_correction_skip_spec sp qHat j v0 v1 v2 v3 u0 u1 u2 u3 uTop
     rhat2Un0 q0' dHi q0Dlo q1' (base + 516) base
@@ -511,9 +511,9 @@ theorem divK_loop_body_n2_call_addback_spec
     u2 u1 v1 retMem dMem dloMem scratch_un0 base
     halign hbltu
   dsimp only [] at TF
-  rw [u_addr_eq_n2 sp j] at TF
-  rw [u_addr8_eq_n2 sp j] at TF
-  rw [vtop_eq_v1_n2 sp] at TF
+  rw [u_addr_eq_n2] at TF
+  rw [u_addr8_eq_n2] at TF
+  rw [vtop_eq_v1_n2] at TF
   -- 2. Mulsub + correction addback + BEQ (base+516 → base+884)
   have MCA := divK_mulsub_correction_addback_beq_spec sp qHat j v0 v1 v2 v3 u0 u1 u2 u3 uTop
     rhat2Un0 q0' dHi q0Dlo q1' (base + 516) base
