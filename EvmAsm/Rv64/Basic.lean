@@ -527,7 +527,7 @@ termination_by l => l.length
   | nil => rfl
   | cons w ws ih => simp [writeWords, ih]
 
-@[simp] theorem getReg_setPC (s : MachineState) (v : Word) (r : Reg) :
+@[simp] theorem getReg_setPC {s : MachineState} {v : Word} {r : Reg} :
     (s.setPC v).getReg r = s.getReg r := by cases r <;> rfl
 
 theorem getReg_setReg_ne (s : MachineState) (r r' : Reg) (v : Word)
@@ -538,18 +538,18 @@ theorem getReg_setReg_eq (s : MachineState) (r : Reg) (v : Word)
     (h : r ≠ .x0) : (s.setReg r v).getReg r = v := by
   cases r <;> first | exact absurd rfl h | rfl
 
-@[simp] theorem getMem_setMem_eq (s : MachineState) (a : Word) (v : Word) :
+@[simp] theorem getMem_setMem_eq {s : MachineState} {a : Word} {v : Word} :
     (s.setMem a v).getMem a = v := by simp [getMem, setMem]
 
-@[simp] theorem getMem_setMem_ne (s : MachineState) (a a' : Word) (v : Word)
+@[simp] theorem getMem_setMem_ne {s : MachineState} {a a' : Word} {v : Word}
     (h : a' ≠ a) : (s.setMem a v).getMem a' = s.getMem a' := by
   simp [getMem, setMem, h]
 
-@[simp] theorem getMem_setReg (s : MachineState) (r : Reg) (v : Word) (a : Word) :
+@[simp] theorem getMem_setReg {s : MachineState} {r : Reg} {v : Word} {a : Word} :
     (s.setReg r v).getMem a = s.getMem a := by
   cases r <;> simp [getMem, setReg]
 
-@[simp] theorem getMem_setPC (s : MachineState) (v : Word) (a : Word) :
+@[simp] theorem getMem_setPC {s : MachineState} {v : Word} {a : Word} :
     (s.setPC v).getMem a = s.getMem a := by simp [getMem, setPC]
 
 @[simp] theorem committed_setReg (s : MachineState) (r : Reg) (v : Word) :
@@ -608,21 +608,21 @@ theorem getReg_setReg_eq (s : MachineState) (r : Reg) (v : Word)
 
 -- appendCommit preservation lemmas
 
-@[simp] theorem getReg_appendCommit (s : MachineState) (a0 a1 : Word) (r : Reg) :
+@[simp] theorem getReg_appendCommit {s : MachineState} {a0 a1 : Word} {r : Reg} :
     (s.appendCommit a0 a1).getReg r = s.getReg r := by cases r <;> rfl
 
-@[simp] theorem getMem_appendCommit (s : MachineState) (a0 a1 : Word) (a : Word) :
+@[simp] theorem getMem_appendCommit {s : MachineState} {a0 a1 : Word} {a : Word} :
     (s.appendCommit a0 a1).getMem a = s.getMem a := by simp [appendCommit, getMem]
 
-@[simp] theorem pc_appendCommit (s : MachineState) (a0 a1 : Word) :
+@[simp] theorem pc_appendCommit {s : MachineState} {a0 a1 : Word} :
     (s.appendCommit a0 a1).pc = s.pc := by simp [appendCommit]
 
-@[simp] theorem committed_appendCommit (s : MachineState) (a0 a1 : Word) :
+@[simp] theorem committed_appendCommit {s : MachineState} {a0 a1 : Word} :
     (s.appendCommit a0 a1).committed = s.committed ++ [(a0, a1)] := by simp [appendCommit]
 
 -- appendPublicValues preservation lemmas
 
-@[simp] theorem getReg_appendPublicValues (s : MachineState) (bytes : List (BitVec 8)) (r : Reg) :
+@[simp] theorem getReg_appendPublicValues {s : MachineState} {bytes : List (BitVec 8)} {r : Reg} :
     (s.appendPublicValues bytes).getReg r = s.getReg r := by cases r <;> rfl
 
 @[simp] theorem getMem_appendPublicValues (s : MachineState) (bytes : List (BitVec 8)) (a : Word) :
@@ -631,10 +631,10 @@ theorem getReg_setReg_eq (s : MachineState) (r : Reg) (v : Word)
 @[simp] theorem pc_appendPublicValues (s : MachineState) (bytes : List (BitVec 8)) :
     (s.appendPublicValues bytes).pc = s.pc := by simp [appendPublicValues]
 
-@[simp] theorem committed_appendPublicValues (s : MachineState) (bytes : List (BitVec 8)) :
+@[simp] theorem committed_appendPublicValues {s : MachineState} {bytes : List (BitVec 8)} :
     (s.appendPublicValues bytes).committed = s.committed := by simp [appendPublicValues]
 
-@[simp] theorem publicValues_appendPublicValues (s : MachineState) (bytes : List (BitVec 8)) :
+@[simp] theorem publicValues_appendPublicValues {s : MachineState} {bytes : List (BitVec 8)} :
     (s.appendPublicValues bytes).publicValues = s.publicValues ++ bytes := by
   simp [appendPublicValues]
 

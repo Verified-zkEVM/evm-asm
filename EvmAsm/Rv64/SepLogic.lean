@@ -1240,7 +1240,7 @@ theorem CompatibleWith_setMem {h : PartialState} {s : MachineState} {a : Word} {
     rw [this]; exact hr r' v' hv
   · by_cases heq : a' = a
     · subst heq; rw [hnone] at hv; exact absurd hv (by simp)
-    · rw [MachineState.getMem_setMem_ne s a a' v heq]; exact hm a' v' hv
+    · rw [MachineState.getMem_setMem_ne heq]; exact hm a' v' hv
 
 /-- If a partial state doesn't own the PC, then modifying PC preserves compatibility. -/
 theorem CompatibleWith_setPC {h : PartialState} {s : MachineState}
