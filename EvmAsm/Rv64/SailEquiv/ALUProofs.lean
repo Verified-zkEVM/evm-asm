@@ -633,7 +633,7 @@ theorem auipc_sail_equiv (sRv : MachineState) (sSail : SailState)
         = some (RETIRE_SUCCESS, sSail') ∧
       StateRel (execInstrBr sRv (.AUIPC rd imm)) sSail' := by
   unfold execute_UTYPE
-  simp only [runSail_bind, runSail_pure, runSail_get_arch_pc sSail sRv.pc h_pc, lui_equiv]
+  simp only [runSail_bind, runSail_pure, runSail_get_arch_pc h_pc, lui_equiv]
   cases rd <;>
     simp only [regToRegidx,
       runSail_wX_bits_x0, runSail_wX_bits_x1, runSail_wX_bits_x2,
