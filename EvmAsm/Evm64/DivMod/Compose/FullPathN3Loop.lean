@@ -30,34 +30,34 @@ theorem x1_val_n3 : signExtend12 (4 : BitVec 12) - (3 : Word) = (1 : Word) := by
 -- Address normalization: signExtend12/<<</>> → concrete values via simp, then bv_omega.
 -- bv_addr only handles (a+k1)+k2=a+k3; these involve subtraction and shifts.
 -- Pattern matches LoopComposeN3.lean.
-theorem n3_ub1_off0 (sp : Word) :
+theorem n3_ub1_off0 {sp : Word} :
     (sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 (0 : BitVec 12) =
     sp + signExtend12 4048 := by
   divmod_addr
-theorem n3_ub1_off4088 (sp : Word) :
+theorem n3_ub1_off4088 {sp : Word} :
     (sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4088 =
     sp + signExtend12 4040 := by
   divmod_addr
-theorem n3_ub1_off4080 (sp : Word) :
+theorem n3_ub1_off4080 {sp : Word} :
     (sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4080 =
     sp + signExtend12 4032 := by
   divmod_addr
-theorem n3_ub1_off4072 (sp : Word) :
+theorem n3_ub1_off4072 {sp : Word} :
     (sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4072 =
     sp + signExtend12 4024 := by
   divmod_addr
-theorem n3_ub1_off4064 (sp : Word) :
+theorem n3_ub1_off4064 {sp : Word} :
     (sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4064 =
     sp + signExtend12 4016 := by
   divmod_addr
-theorem n3_ub0_off0 (sp : Word) :
+theorem n3_ub0_off0 {sp : Word} :
     (sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 (0 : BitVec 12) =
     sp + signExtend12 4056 := by
   divmod_addr
-theorem n3_qa1 (sp : Word) :
+theorem n3_qa1 {sp : Word} :
     sp + signExtend12 4088 - (1 : Word) <<< (3 : BitVec 6).toNat = sp + signExtend12 4080 := by
   divmod_addr
-theorem n3_qa0 (sp : Word) :
+theorem n3_qa0 {sp : Word} :
     sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat = sp + signExtend12 4088 := by
   divmod_addr
 -- ============================================================================

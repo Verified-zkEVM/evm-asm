@@ -38,23 +38,23 @@ theorem x1_val_n2 : signExtend12 (4 : BitVec 12) - (2 : Word) = (2 : Word) := by
 -- uBase(2)-24    = sp+se(4016)  [u3]
 -- uBase(2)-32    = sp+se(4008)  [uTop]
 
-theorem n2_ub2_off0 (sp : Word) :
+theorem n2_ub2_off0 {sp : Word} :
     (sp + signExtend12 4056 - (2 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 (0 : BitVec 12) =
     sp + signExtend12 4040 := by
   divmod_addr
-theorem n2_ub2_off4088 (sp : Word) :
+theorem n2_ub2_off4088 {sp : Word} :
     (sp + signExtend12 4056 - (2 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4088 =
     sp + signExtend12 4032 := by
   divmod_addr
-theorem n2_ub2_off4080 (sp : Word) :
+theorem n2_ub2_off4080 {sp : Word} :
     (sp + signExtend12 4056 - (2 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4080 =
     sp + signExtend12 4024 := by
   divmod_addr
-theorem n2_ub2_off4072 (sp : Word) :
+theorem n2_ub2_off4072 {sp : Word} :
     (sp + signExtend12 4056 - (2 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4072 =
     sp + signExtend12 4016 := by
   divmod_addr
-theorem n2_ub2_off4064 (sp : Word) :
+theorem n2_ub2_off4064 {sp : Word} :
     (sp + signExtend12 4056 - (2 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4064 =
     sp + signExtend12 4008 := by
   divmod_addr
@@ -63,7 +63,7 @@ theorem n2_ub2_off4064 (sp : Word) :
 -- uBase(0)+0 = sp+se(4056), already covered by n3_ub0_off0
 
 -- qAddr(j) = sp + se(4088) - j<<<3
-theorem n2_qa2 (sp : Word) :
+theorem n2_qa2 {sp : Word} :
     sp + signExtend12 4088 - (2 : Word) <<< (3 : BitVec 6).toNat = sp + signExtend12 4072 := by
   divmod_addr
 -- n2_qa1 = n3_qa1 (same: sp + se(4088) - 8 = sp + se(4080))

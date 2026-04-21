@@ -201,9 +201,9 @@ theorem evm_div_n3_preloop_loop_unified_spec (bltu_1 bltu_0 : Bool) (sp base : W
       simp only [x1_val_n3] at hp
       delta loopN3PreWithScratch loopN3Pre
       simp only []
-      simp only [n3_ub1_off0 sp, n3_ub1_off4088 sp, n3_ub1_off4080 sp,
-                  n3_ub1_off4072 sp, n3_ub1_off4064 sp, n3_ub0_off0 sp,
-                  n3_qa1 sp, n3_qa0 sp, se12_32, se12_40, se12_48, se12_56]
+      simp only [n3_ub1_off0, n3_ub1_off4088, n3_ub1_off4080,
+                  n3_ub1_off4072, n3_ub1_off4064, n3_ub0_off0,
+                  n3_qa1, n3_qa0, se12_32, se12_40, se12_48, se12_56]
       xperm_hyp hp) hPreF hLoopF
   exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)

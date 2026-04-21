@@ -236,11 +236,11 @@ theorem evm_div_n2_preloop_loop_unified_spec
       simp only [x1_val_n2] at hp
       delta loopN2PreWithScratch loopN2Pre
       simp only []
-      simp only [n2_ub2_off0 sp, n2_ub2_off4088 sp, n2_ub2_off4080 sp,
-                  n2_ub2_off4072 sp, n2_ub2_off4064 sp,
-                  n3_ub1_off0 sp,
-                  n3_ub0_off0 sp,
-                  n2_qa2 sp, n3_qa1 sp, n3_qa0 sp,
+      simp only [n2_ub2_off0, n2_ub2_off4088, n2_ub2_off4080,
+                  n2_ub2_off4072, n2_ub2_off4064,
+                  n3_ub1_off0,
+                  n3_ub0_off0,
+                  n2_qa2, n3_qa1, n3_qa0,
                   se12_32, se12_40, se12_48, se12_56]
       xperm_hyp hp) hPreF hLoopF
   exact cpsTriple_weaken
