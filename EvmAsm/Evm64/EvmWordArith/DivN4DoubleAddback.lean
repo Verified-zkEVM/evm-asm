@@ -41,7 +41,7 @@ private theorem fromLimbs_match_getLimbN_id_local (v : EvmWord) :
     Converse to `addbackN4_second_carry_one` — that theorem assumes
     `hq_over` and proves `carry2 = 1`; this one uses `carry2 = 1` to
     conclude `hq_over`. -/
-theorem hq_over_from_second_carry_one (q v0 v1 v2 v3 u0 u1 u2 u3 : Word)
+theorem hq_over_from_second_carry_one (q : Word) {v0 v1 v2 v3 u0 u1 u2 u3 : Word}
     (hbnz : v0 ||| v1 ||| v2 ||| v3 ≠ 0)
     (hc3_one : (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2 = 1)
     (hcarry_zero : (addbackN4_carry
@@ -169,7 +169,7 @@ theorem n4_max_double_addback_correct (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
     rw [← hab_eq1, ← hab_eq21, ← hab_eq221, ← hab_eq2221]
     exact this
   -- Derive hq_over from carry2 = 1.
-  have hq_over := hq_over_from_second_carry_one (signExtend12 4095) b0 b1 b2 b3 a0 a1 a2 a3
+  have hq_over := hq_over_from_second_carry_one (signExtend12 4095)
     hbnz hc3_one hcarry1_zero hcarry2_lem
   -- qHat ≥ 2: trivial.
   have hq_hat_toNat : (signExtend12 (4095 : BitVec 12) : Word).toNat = 2 ^ 64 - 1 := by decide
