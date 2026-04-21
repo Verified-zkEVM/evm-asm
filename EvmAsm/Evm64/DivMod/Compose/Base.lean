@@ -344,7 +344,7 @@ def divScratchOwn (sp : Word) : Assertion :=
 /-- Named unfold for `divScratchOwn`. Restores access to the underlying
     definition once the `@[irreducible]` attribute has made `delta` the only
     way in at call sites. Parallel to `divScratchValues_unfold`. -/
-theorem divScratchOwn_unfold (sp : Word) :
+theorem divScratchOwn_unfold {sp : Word} :
     divScratchOwn sp =
     (memOwn (sp + signExtend12 4088) ** memOwn (sp + signExtend12 4080) **
      memOwn (sp + signExtend12 4072) ** memOwn (sp + signExtend12 4064) **
@@ -406,7 +406,7 @@ def divScratchOwnCall (sp : Word) : Assertion :=
 
 /-- Named unfold for `divScratchOwnCall`. Parallel to `divScratchOwn_unfold`
     and `divScratchValuesCall_unfold`. -/
-theorem divScratchOwnCall_unfold (sp : Word) :
+theorem divScratchOwnCall_unfold {sp : Word} :
     divScratchOwnCall sp =
     (divScratchOwn sp **
      memOwn (sp + signExtend12 3968) **
