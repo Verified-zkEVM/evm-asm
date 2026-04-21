@@ -41,7 +41,7 @@ theorem divK_modEpilogue_len : (divK_mod_epilogue 24).length = 10 := by decide
     Closes the disjointness goal using block length lemmas + bv_omega. -/
 macro "skipBlock" : tactic =>
   `(tactic| apply CodeReq.mono_union_right
-      (CodeReq.ofProg_disjoint_range _ _ _ _ (fun k1 k2 hk1 hk2 => by
+      (CodeReq.ofProg_disjoint_range (fun k1 k2 hk1 hk2 => by
         simp only [divK_phaseA_len, divK_phaseB_len, divK_clz_len, divK_phaseC2_len,
           divK_normB_len, divK_normA_len, divK_copyAU_len, divK_loopSetup_len,
           divK_loopBody_len, divK_denorm_len, divK_divEpilogue_len,

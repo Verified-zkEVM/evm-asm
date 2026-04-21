@@ -2403,8 +2403,8 @@ theorem CodeReq.ofProg_some_range (base : Word) (prog : List Instr) (a : Word) (
 
 /-- Two ofProg blocks at non-overlapping address ranges are disjoint.
     Only requires the address-inequality predicate, not list expansion. -/
-theorem CodeReq.ofProg_disjoint_range (base1 : Word) (prog1 : List Instr)
-    (base2 : Word) (prog2 : List Instr)
+theorem CodeReq.ofProg_disjoint_range {base1 : Word} {prog1 : List Instr}
+    {base2 : Word} {prog2 : List Instr}
     (h : ∀ k1 k2, k1 < prog1.length → k2 < prog2.length →
       base1 + BitVec.ofNat 64 (4 * k1) ≠ base2 + BitVec.ofNat 64 (4 * k2)) :
     CodeReq.Disjoint (CodeReq.ofProg base1 prog1) (CodeReq.ofProg base2 prog2) := by
@@ -2429,7 +2429,7 @@ theorem CodeReq.ofProg_disjoint_range_len (base1 : Word) (prog1 : List Instr) (n
     (h : ∀ k1 k2, k1 < n1 → k2 < n2 →
       base1 + BitVec.ofNat 64 (4 * k1) ≠ base2 + BitVec.ofNat 64 (4 * k2)) :
     CodeReq.Disjoint (CodeReq.ofProg base1 prog1) (CodeReq.ofProg base2 prog2) :=
-  CodeReq.ofProg_disjoint_range base1 prog1 base2 prog2
+  CodeReq.ofProg_disjoint_range
     (fun k1 k2 hk1 hk2 => h k1 k2 (hlen1 ▸ hk1) (hlen2 ▸ hk2))
 
 -- ---------------------------------------------------------------------------

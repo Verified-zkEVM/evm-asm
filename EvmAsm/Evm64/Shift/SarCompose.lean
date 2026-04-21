@@ -39,7 +39,7 @@ private theorem sar_sign_fill_path_len : sar_sign_fill_path.length = 7 := by dec
 /-- Skip one ofProg block in a right-nested union via range disjointness. -/
 local macro "skipBlock" : tactic =>
   `(tactic| apply CodeReq.mono_union_right
-      (CodeReq.ofProg_disjoint_range _ _ _ _ (fun k1 k2 hk1 hk2 => by
+      (CodeReq.ofProg_disjoint_range (fun k1 k2 hk1 hk2 => by
         simp only [sar_phase_a_len, shr_phase_b_len, sar_phase_c_len,
           sar_body_3_prog_len, sar_body_2_prog_len, sar_body_1_prog_len,
           sar_body_0_prog_len, sar_sign_fill_path_len] at hk1 hk2
