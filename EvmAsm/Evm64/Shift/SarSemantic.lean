@@ -165,7 +165,7 @@ theorem evm_sar_stack_spec (sp base : Word)
         Classical.byContradiction (fun h => hhigh h)
       -- High limbs = 0 but shift ≥ 256 → s0 ≥ 256
       have hlarge : BitVec.ult (shift.getLimb 0) (signExtend12 (256 : BitVec 12)) = false := by
-        have h_toNat := EvmWord.toNat_eq_getLimb0_of_high_zero shift hhigh'
+        have h_toNat := EvmWord.toNat_eq_getLimb0_of_high_zero hhigh'
         rw [h_toNat] at hge
         have h256 : (signExtend12 (256 : BitVec 12)).toNat = 256 := by decide
         simp only [BitVec.ult, h256]
@@ -182,7 +182,7 @@ theorem evm_sar_stack_spec (sp base : Word)
       EvmWord.high_limbs_zero_of_toNat_lt (by omega)
     -- s0 < 256
     have hlt_s0 : BitVec.ult (shift.getLimb 0) (signExtend12 (256 : BitVec 12)) = true := by
-      have h_toNat := EvmWord.toNat_eq_getLimb0_of_high_zero shift hhigh_zero
+      have h_toNat := EvmWord.toNat_eq_getLimb0_of_high_zero hhigh_zero
       rw [h_toNat] at hlt
       have h256 : (signExtend12 (256 : BitVec 12)).toNat = 256 := by decide
       simp only [BitVec.ult, h256]

@@ -774,7 +774,7 @@ theorem evm_shl_body_evmWord_spec (sp base : Word)
     (fun h hp => hp) (fun h hq => body_post_weaken _ _ _ _ _ _ _ _ _ h (by xperm_hyp hq)) hbody3_f
   -- Bitvector bridge: common facts
   have hshift_toNat : shift.toNat = s0.toNat :=
-    EvmWord.toNat_eq_getLimb0_of_high_zero shift hhigh_zero
+    EvmWord.toNat_eq_getLimb0_of_high_zero hhigh_zero
   -- Body bridge specs: use cpsTriple_strip_pure_and_convert to thread pure dispatch fact
   let resultPost :=
     (.x12 ↦ᵣ (sp + 32)) ** (regOwn .x5) ** (.x0 ↦ᵣ (0 : Word)) ** (regOwn .x10) **

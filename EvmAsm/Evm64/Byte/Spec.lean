@@ -592,7 +592,7 @@ theorem evm_byte_body_evmWord_spec (sp base : Word)
   -- Due to the different x10 values per Phase C exit and the complex memory layouts,
   -- the composition is done inline in the merge callback.
   have hidx_toNat : idx.toNat = i0.toNat :=
-    EvmWord.toNat_eq_getLimb0_of_high_zero idx hhigh_zero
+    EvmWord.toNat_eq_getLimb0_of_high_zero hhigh_zero
   have hresult_high1 : getLimb result 1 = 0 :=
     byte_getLimb_high idx value (1 : Fin 4) (by decide)
   have hresult_high2 : getLimb result 2 = 0 :=
@@ -911,7 +911,7 @@ theorem evm_byte_stack_spec (sp base : Word)
         simp only [BitVec.ult, signExtend12_32,
                    word_toNat_32]
         have hidx_toNat : idx.toNat = i0.toNat :=
-          EvmWord.toNat_eq_getLimb0_of_high_zero idx hhigh
+          EvmWord.toNat_eq_getLimb0_of_high_zero hhigh
         rw [decide_eq_true_eq]; omega
       exact evm_byte_body_evmWord_spec sp base idx val v5 v6 v10 hhigh hlt_i0 hlt
     · -- Case 2: idx.toNat >= 32, high limbs zero → zero result
@@ -922,7 +922,7 @@ theorem evm_byte_stack_spec (sp base : Word)
         simp only [BitVec.ult, signExtend12_32,
                    word_toNat_32]
         have hidx_toNat : idx.toNat = i0.toNat :=
-          EvmWord.toNat_eq_getLimb0_of_high_zero idx hhigh
+          EvmWord.toNat_eq_getLimb0_of_high_zero hhigh
         rw [decide_eq_false_iff_not]; omega
       have h_raw := evm_byte_zero_geq32_spec sp base i0 i1 i2 i3 v0 v1 v2 v3 v5 v10 hhigh hlarge
       have h_framed := cpsTriple_frameR

@@ -144,7 +144,7 @@ private theorem or3_eq_zero_right (a b c : BitVec 64) (h : a ||| b ||| c = 0) : 
   bv_decide
 
 /-- When the upper three limbs OR to zero, `v.toNat` equals `(v.getLimb 0).toNat`. -/
-theorem toNat_eq_getLimb0_of_high_zero (v : EvmWord)
+theorem toNat_eq_getLimb0_of_high_zero {v : EvmWord}
     (h : v.getLimb 1 ||| v.getLimb 2 ||| v.getLimb 3 = 0) :
     v.toNat = (v.getLimb 0).toNat := by
   have h1 := or3_eq_zero_left _ _ _ h

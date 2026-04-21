@@ -800,7 +800,7 @@ theorem evm_shr_body_evmWord_spec (sp base : Word)
     (fun h hp => hp) (fun h hq => body_post_weaken _ _ _ _ _ _ _ _ _ h (by xperm_hyp hq)) hbody3_f
   -- Bitvector bridge: common facts
   have hshift_toNat : shift.toNat = s0.toNat :=
-    EvmWord.toNat_eq_getLimb0_of_high_zero shift hhigh_zero
+    EvmWord.toNat_eq_getLimb0_of_high_zero hhigh_zero
   -- Body bridge specs: use cpsTriple_strip_pure_and_convert to thread pure dispatch fact
   -- from Phase C postcondition into body postcondition conversion.
   -- Each hbodyL_ev has precondition (P ** ⌜dispatch_fact⌝) and postcondition (getLimb result).
