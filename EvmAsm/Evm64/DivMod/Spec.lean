@@ -152,6 +152,18 @@ theorem isAddbackBorrowN4CallEvm_def (a b : EvmWord) :
     isAddbackBorrowN4Call (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
                           (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) := rfl
 
+/-- Carry-2-non-zero condition at n=4 call path in EvmWord form: the
+    double-addback branch indicator used by the BEQ variant. Wraps the
+    raw-limb form `isAddbackCarry2NzN4CallAb`. -/
+def isAddbackCarry2NzN4CallEvm (a b : EvmWord) : Prop :=
+  isAddbackCarry2NzN4CallAb (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+                            (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+
+theorem isAddbackCarry2NzN4CallEvm_def (a b : EvmWord) :
+    isAddbackCarry2NzN4CallEvm a b =
+    isAddbackCarry2NzN4CallAb (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+                              (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) := rfl
+
 /-- Addback-needed condition at n=4 max path in EvmWord form: the runtime
     borrow check fires (mulsub underflowed), so the algorithm decrements
     the max trial quotient and adds back `b'` to the partial remainder
