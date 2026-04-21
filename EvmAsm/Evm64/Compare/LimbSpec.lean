@@ -92,7 +92,7 @@ theorem beq_eq_spec (rs1 rs2 : Reg) (offset : BitVec 13)
   · show (step s).bind (stepN 0) = some _
     rw [hstep', hexec']; rfl
   · exact holdsFor_pcFree_setPC
-      (pcFree_sepConj (pcFree_sepConj (pcFree_regIs _ _) (pcFree_regIs _ _)) hR) _ _ hPR
+      (pcFree_sepConj (pcFree_sepConj pcFree_regIs pcFree_regIs) hR) _ _ hPR
 
 /-- BEQ when values are not equal: never taken (fall through to PC + 4).
     BEQ only modifies PC; all pcFree assertions are preserved. -/
@@ -117,7 +117,7 @@ theorem beq_ne_spec (rs1 rs2 : Reg) (offset : BitVec 13)
   · show (step s).bind (stepN 0) = some _
     rw [hstep', hexec']; rfl
   · exact holdsFor_pcFree_setPC
-      (pcFree_sepConj (pcFree_sepConj (pcFree_regIs _ _) (pcFree_regIs _ _)) hR) _ _ hPR
+      (pcFree_sepConj (pcFree_sepConj pcFree_regIs pcFree_regIs) hR) _ _ hPR
 
 -- ============================================================================
 -- Per-limb Specs: SLT (MSB load + signed comparison)

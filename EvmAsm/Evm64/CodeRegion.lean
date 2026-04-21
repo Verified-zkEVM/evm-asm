@@ -128,7 +128,7 @@ theorem pcFree_evmCodeIsAux (base : Word) (n : Nat) (bytes : List (BitVec 8)) :
     (evmCodeIsAux base n bytes).pcFree := by
   induction n generalizing base bytes with
   | zero => exact pcFree_emp
-  | succ n ih => exact pcFree_sepConj (pcFree_memIs _ _) (ih _ _)
+  | succ n ih => exact pcFree_sepConj pcFree_memIs (ih _ _)
 
 theorem pcFree_evmCodeIs (base : Word) (bytes : List (BitVec 8)) :
     (evmCodeIs base bytes).pcFree :=

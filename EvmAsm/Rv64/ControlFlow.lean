@@ -307,7 +307,7 @@ theorem if_eq_branch_step (rs1 rs2 : Reg) (v1 v2 : Word)
   -- The entire precondition (P ** R form from cpsBranch) is pcFree
   have hpcfree : (((s.pc ↦ᵢ Instr.BNE rs1 rs2 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4))) **
       (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2))) ** R).pcFree :=
-    pcFree_sepConj (pcFree_sepConj (pcFree_instrAt _ _) (pcFree_aAnd hP (pcFree_aAnd (pcFree_regIs _ _) (pcFree_regIs _ _)))) hR
+    pcFree_sepConj (pcFree_sepConj pcFree_instrAt (pcFree_aAnd hP (pcFree_aAnd pcFree_regIs pcFree_regIs))) hR
   -- Case split on v1 = v2
   by_cases heq : v1 = v2
   · -- Not taken: v1 = v2 → PC = s.pc + 4 = thenEntry (exit_t)
@@ -393,13 +393,13 @@ theorem if_eq_spec (rs1 rs2 : Reg) (v1 v2 : Word)
   have hpcfree_all : (((s.pc ↦ᵢ Instr.BNE rs1 rs2 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4))) **
       ((s.pc + 4 + BitVec.ofNat 64 (4 * then_body.length)) ↦ᵢ Instr.JAL Reg.x0 (BitVec.ofNat 21 (4 * else_body.length + 4))) **
       (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2))) ** R).pcFree :=
-    pcFree_sepConj (pcFree_sepConj (pcFree_instrAt _ _)
-      (pcFree_sepConj (pcFree_instrAt _ _)
-        (pcFree_aAnd hP (pcFree_aAnd (pcFree_regIs _ _) (pcFree_regIs _ _))))) hR
+    pcFree_sepConj (pcFree_sepConj pcFree_instrAt
+      (pcFree_sepConj pcFree_instrAt
+        (pcFree_aAnd hP (pcFree_aAnd pcFree_regIs pcFree_regIs)))) hR
   -- Body-triple frame: bne ** jal ** R (pcFree)
   have hframe_pcfree : ((s.pc ↦ᵢ Instr.BNE rs1 rs2 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4))) **
       ((s.pc + 4 + BitVec.ofNat 64 (4 * then_body.length)) ↦ᵢ Instr.JAL Reg.x0 (BitVec.ofNat 21 (4 * else_body.length + 4))) ** R).pcFree :=
-    pcFree_sepConj (pcFree_instrAt _ _) (pcFree_sepConj (pcFree_instrAt _ _) hR)
+    pcFree_sepConj pcFree_instrAt (pcFree_sepConj pcFree_instrAt hR)
   -- Helper: rearranging ** chains
   -- (bne ** (jal ** aand)) ** R = (aand ** (bne ** (jal ** R))) as assertions
   have hassert_perm : (((s.pc ↦ᵢ Instr.BNE rs1 rs2 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4))) **
@@ -445,7 +445,7 @@ theorem if_eq_spec (rs1 rs2 : Reg) (v1 v2 : Word)
     -- Frame for jal_x0_spec_gen: the full (jal ** bne ** Q ** R) conjunction
     have hjal_pcfree : (((s.pc + 4 + BitVec.ofNat 64 (4 * then_body.length)) ↦ᵢ Instr.JAL Reg.x0 (BitVec.ofNat 21 (4 * else_body.length + 4))) **
         ((s.pc ↦ᵢ Instr.BNE rs1 rs2 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4))) ** Q ** R)).pcFree :=
-      pcFree_sepConj (pcFree_instrAt _ _) (pcFree_sepConj (pcFree_instrAt _ _) (pcFree_sepConj hQ hR))
+      pcFree_sepConj pcFree_instrAt (pcFree_sepConj pcFree_instrAt (pcFree_sepConj hQ hR))
     have hjal_cr : (CodeReq.singleton (s.pc + 4 + BitVec.ofNat 64 (4 * then_body.length))
         (Instr.JAL Reg.x0 (BitVec.ofNat 21 (4 * else_body.length + 4)))).SatisfiedBy s2 :=
       instrAt_singleton_satisfiedBy _ _ _ (holdsFor_sepConj_elim_left hQR2')
