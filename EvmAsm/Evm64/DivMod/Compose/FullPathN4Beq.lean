@@ -101,6 +101,59 @@ theorem divK_loop_body_n4_call_addback_j0_beq_norm (sp base : Word)
              u_base_off4072_j0, u_base_off4064_j0, q_addr_j0] at raw'
   exact raw'
 
+/-- Loop body n=4, call+addback (BEQ double-addback), j=0 against modCode
+    with sp-relative addresses. Mirror of `divK_loop_body_n4_call_addback_j0_beq_norm`
+    with `divCode → modCode`. Internally bridges the bundled
+    `loopBodyN4CallSkipJ0Pre` / `loopBodyN4CallAddbackBeqJ0Post` to the
+    sp-relative surface layout via `cpsTriple_weaken`. -/
+theorem divK_loop_body_n4_call_addback_j0_beq_norm_modCode (sp base : Word)
+    (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
+    (retMem dMem dloMem scratch_un0 : Word)
+    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (hbltu : BitVec.ult uTop v3)
+    (hcarry2_nz : isAddbackCarry2NzN4Call v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
+    let qHat := div128Quot uTop u3 v3
+    let dLo := (v3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+    let div_un0 := (u3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+    (if BitVec.ult uTop (mulsubN4_c3 qHat v0 v1 v2 v3 u0 u1 u2 u3)
+     then (1 : Word) else 0) ≠ (0 : Word) →
+    cpsTriple (base + loopBodyOff) (base + denormOff) (modCode base)
+      ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (0 : Word)) **
+       (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
+       (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
+       (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
+       (sp + signExtend12 3976 ↦ₘ jOld) ** (sp + signExtend12 3984 ↦ₘ (4 : Word)) **
+       ((sp + 32) ↦ₘ v0) ** ((sp + signExtend12 4056) ↦ₘ u0) **
+       ((sp + 40) ↦ₘ v1) ** ((sp + signExtend12 4048) ↦ₘ u1) **
+       ((sp + 48) ↦ₘ v2) ** ((sp + signExtend12 4040) ↦ₘ u2) **
+       ((sp + 56) ↦ₘ v3) ** ((sp + signExtend12 4032) ↦ₘ u3) **
+       ((sp + signExtend12 4024) ↦ₘ uTop) **
+       ((sp + signExtend12 4088) ↦ₘ qOld) **
+       (sp + signExtend12 3968 ↦ₘ retMem) **
+       (sp + signExtend12 3960 ↦ₘ dMem) **
+       (sp + signExtend12 3952 ↦ₘ dloMem) **
+       (sp + signExtend12 3944 ↦ₘ scratch_un0))
+      (loopBodyN4AddbackBeqPost sp (0 : Word) qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop **
+       (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+       (sp + signExtend12 3960 ↦ₘ v3) **
+       (sp + signExtend12 3952 ↦ₘ dLo) **
+       (sp + signExtend12 3944 ↦ₘ div_un0)) := by
+  intro qHat dLo div_un0 hborrow
+  have raw := divK_loop_body_n4_call_addback_j0_beq_modCode sp jOld v5Old v6Old v7Old
+    v10Old v11Old v2Old v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld
+    retMem dMem dloMem scratch_un0 base halign hbltu hcarry2_nz hborrow
+  refine cpsTriple_weaken ?_ ?_ raw
+  · intro _ hp
+    rw [loopBodyN4CallSkipJ0Pre_unfold]
+    simp only [se12_32, se12_40, se12_48, se12_56,
+               u_base_off0_j0, u_base_off4088_j0, u_base_off4080_j0,
+               u_base_off4072_j0, u_base_off4064_j0, q_addr_j0]
+    exact hp
+  · intro _ hq
+    rw [loopBodyN4CallAddbackBeqJ0Post_unfold] at hq
+    exact hq
+
 -- ============================================================================
 -- Preloop + loop body n=4 max+addback BEQ: base → base+908
 -- ============================================================================

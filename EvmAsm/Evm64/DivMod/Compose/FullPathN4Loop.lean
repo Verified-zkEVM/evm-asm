@@ -558,4 +558,75 @@ theorem divK_loop_body_n4_call_skip_j0_norm_modCode (sp base : Word)
     rw [loopBodyN4CallSkipJ0Post_unfold] at hq
     exact hq
 
+-- ============================================================================
+-- Call-addback path (BEQ double-addback): Loop body j=0 extended to modCode
+-- ============================================================================
+
+/-- Bundled postcondition for the call_addback (BEQ) j=0 loop body extended to
+    modCode. Combines `loopBodyN4AddbackBeqPost` (the addback branch output
+    with qHat = `div128Quot uTop u3 v3`) and the 4 scratch cells written by
+    the call-trial `div128` subroutine. Parallels `loopBodyN4CallSkipJ0Post`
+    for the skip branch. The precondition is shared with the call_skip branch
+    (`loopBodyN4CallSkipJ0Pre`) since the input layouts are identical. -/
+@[irreducible]
+def loopBodyN4CallAddbackBeqJ0Post
+    (sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) : Assertion :=
+  let qHat := div128Quot uTop u3 v3
+  let dLo := (v3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+  let div_un0 := (u3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+  loopBodyN4AddbackBeqPost sp (0 : Word) qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop **
+  (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+  (sp + signExtend12 3960 ↦ₘ v3) **
+  (sp + signExtend12 3952 ↦ₘ dLo) **
+  (sp + signExtend12 3944 ↦ₘ div_un0)
+
+/-- Named unfold for `loopBodyN4CallAddbackBeqJ0Post`. -/
+theorem loopBodyN4CallAddbackBeqJ0Post_unfold
+    (sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) :
+    loopBodyN4CallAddbackBeqJ0Post sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop =
+    (let qHat := div128Quot uTop u3 v3
+     let dLo := (v3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+     let div_un0 := (u3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+     loopBodyN4AddbackBeqPost sp (0 : Word) qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop **
+     (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+     (sp + signExtend12 3960 ↦ₘ v3) **
+     (sp + signExtend12 3952 ↦ₘ dLo) **
+     (sp + signExtend12 3944 ↦ₘ div_un0)) := by
+  delta loopBodyN4CallAddbackBeqJ0Post; rfl
+
+/-- Extend call_addback (BEQ double-addback) j=0 loop body from
+    sharedDivModCode to modCode. Mirror of
+    `divK_loop_body_n4_call_addback_j0_beq_divCode` with
+    `divCode → modCode` (uses `sharedDivModCode_sub_modCode` instead).
+
+    Pre is shared with the call_skip branch (`loopBodyN4CallSkipJ0Pre`);
+    post is bundled as `loopBodyN4CallAddbackBeqJ0Post` so the algorithm's
+    27-step div128 let-chain doesn't pollute the statement. -/
+theorem divK_loop_body_n4_call_addback_j0_beq_modCode
+    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+     v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
+    (retMem dMem dloMem scratch_un0 : Word)
+    (base : Word)
+    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (hbltu : BitVec.ult uTop v3)
+    (hcarry2_nz : isAddbackCarry2NzN4Call v0 v1 v2 v3 u0 u1 u2 u3 uTop)
+    (hborrow : (if BitVec.ult uTop
+                  (mulsubN4_c3 (div128Quot uTop u3 v3) v0 v1 v2 v3 u0 u1 u2 u3)
+                then (1 : Word) else 0) ≠ (0 : Word)) :
+    cpsTriple (base + loopBodyOff) (base + denormOff) (modCode base)
+      (loopBodyN4CallSkipJ0Pre sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0)
+      (loopBodyN4CallAddbackBeqJ0Post sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop) := by
+  have h := cpsTriple_extend_code (hmono := sharedDivModCode_sub_modCode base)
+    (divK_loop_body_n4_call_addback_j0_beq_spec sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0 base
+      halign hbltu hcarry2_nz hborrow)
+  refine cpsTriple_weaken ?_ ?_ h
+  · intro _ hp
+    rw [loopBodyN4CallSkipJ0Pre_unfold] at hp
+    exact hp
+  · intro _ hq
+    rw [loopBodyN4CallAddbackBeqJ0Post_unfold]
+    exact hq
+
 end EvmAsm.Evm64
