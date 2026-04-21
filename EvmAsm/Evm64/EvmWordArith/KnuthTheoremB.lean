@@ -934,4 +934,48 @@ theorem div128Quot_rhat_prime_lt_3dHi (dHi rhatc : Word)
     rw [if_neg h_check]
     omega
 
+-- ============================================================================
+-- Piece B: Phase 1a quotient bound (KB-1)
+-- ============================================================================
+
+/-- **KB-1: Phase 1a quotient bound.** The post-correction quotient `q1c`
+    is within 1 below the true 64/32 quotient `uHi / dHi`:
+
+    ```
+    uHi.toNat / dHi.toNat - 1 ≤ q1c.toNat ≤ uHi.toNat / dHi.toNat
+    ```
+
+    Derived from the Euclidean equation `q1c * dHi + rhatc = uHi` (given by
+    `div128Quot_first_round_post`) plus `rhatc < 2 * dHi` (given by
+    `div128Quot_rhatc_lt_2dHi`). Together they give
+    `uHi / dHi ∈ {q1c, q1c + 1}`.
+
+    First concrete lemma of the top-down Knuth-B Piece B attack. Subsequent
+    lemmas KB-2..KB-6 tighten the bound through Phase 1b, Phase 2a/2b, and
+    final assembly. See `memory/project_knuth_theorem_b_plan.md`. -/
+theorem div128Quot_phase1a_quotient_bound (uHi dHi : Word)
+    (hdHi_ne : dHi ≠ 0) (hdHi_lt : dHi.toNat < 2^32) :
+    let q1 := rv64_divu uHi dHi
+    let rhat := uHi - q1 * dHi
+    let hi1 := q1 >>> (32 : BitVec 6).toNat
+    let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+    let rhatc := if hi1 = 0 then rhat else rhat + dHi
+    q1c.toNat ≤ uHi.toNat / dHi.toNat ∧
+    uHi.toNat / dHi.toNat ≤ q1c.toNat + 1 := by
+  intro q1 rhat hi1 q1c rhatc
+  -- These match our local let-chain by zeta, so omega below sees matching atoms.
+  have h_eucl : q1c.toNat * dHi.toNat + rhatc.toNat = uHi.toNat :=
+    div128Quot_first_round_post uHi dHi hdHi_ne hdHi_lt
+  have h_rhatc_lt : rhatc.toNat < 2 * dHi.toNat :=
+    div128Quot_rhatc_lt_2dHi uHi dHi hdHi_ne hdHi_lt
+  have hdHi_pos : 0 < dHi.toNat :=
+    Nat.pos_of_ne_zero (fun h => hdHi_ne (BitVec.eq_of_toNat_eq h))
+  refine ⟨?_, ?_⟩
+  · -- q1c.toNat ≤ uHi.toNat / dHi.toNat: from q1c * dHi ≤ uHi via Euclidean.
+    exact (Nat.le_div_iff_mul_le hdHi_pos).mpr (by nlinarith)
+  · -- uHi.toNat / dHi.toNat ≤ q1c.toNat + 1: from uHi < (q1c+2)*dHi.
+    have h_lt : uHi.toNat < (q1c.toNat + 2) * dHi.toNat := by nlinarith
+    have h_div_lt := (Nat.div_lt_iff_lt_mul hdHi_pos).mpr h_lt
+    omega
+
 end EvmAsm.Evm64
