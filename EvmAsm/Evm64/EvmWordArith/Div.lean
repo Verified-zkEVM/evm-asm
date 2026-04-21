@@ -104,7 +104,7 @@ theorem eq_zero_iff_limbs_or (b : EvmWord) :
 
 /-- BitVec Euclidean division property: `y * (x / y) + x % y = x`.
     Derived from `Nat.div_add_mod` via `toNat` conversion. -/
-theorem bv_udiv_add_umod {n : Nat} (x y : BitVec n) :
+theorem bv_udiv_add_umod {n : Nat} {x y : BitVec n} :
     y * (x / y) + x % y = x := by
   apply BitVec.eq_of_toNat_eq
   simp only [BitVec.toNat_add, BitVec.toNat_mul, BitVec.toNat_udiv, BitVec.toNat_umod]
@@ -116,7 +116,7 @@ theorem bv_udiv_add_umod {n : Nat} (x y : BitVec n) :
 
 /-- Uniqueness of BitVec unsigned division: if `a = b * q + r` with `r < b`
     and no overflow in `b * q + r`, then `q = a / b` and `r = a % b`. -/
-theorem bv_udiv_umod_unique {n : Nat} (a b q r : BitVec n)
+theorem bv_udiv_umod_unique {n : Nat} {a b q r : BitVec n}
     (hr : r < b)
     (hno : b.toNat * q.toNat + r.toNat < 2 ^ n)
     (h : a = b * q + r) :
@@ -143,7 +143,7 @@ theorem bv_udiv_umod_unique {n : Nat} (a b q r : BitVec n)
 theorem div_mod_add_eq (a b : EvmWord) (hbnz : b ≠ 0) :
     b * (div a b) + mod a b = a := by
   simp only [div, mod, if_neg hbnz]
-  exact bv_udiv_add_umod a b
+  exact bv_udiv_add_umod
 
 /-- EvmWord division uniqueness: if `a = b * q + r` with `r < b` and no overflow,
     then `q = div a b` and `r = mod a b`. -/
@@ -152,7 +152,7 @@ theorem div_mod_unique {a b q r : EvmWord} (hbnz : b ≠ 0)
     (hno : b.toNat * q.toNat + r.toNat < 2 ^ 256)
     (h : a = b * q + r) :
     q = div a b ∧ r = mod a b := by
-  have ⟨hq, hrem⟩ := bv_udiv_umod_unique a b q r hr hno h
+  have ⟨hq, hrem⟩ := bv_udiv_umod_unique hr hno h
   constructor
   · rw [hq]; unfold div; rw [if_neg hbnz]; rfl
   · rw [hrem]; unfold mod; rw [if_neg hbnz]; rfl
