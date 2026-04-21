@@ -999,7 +999,7 @@ def publicValuesIs (vals : List (BitVec 8)) : Assertion :=
 
 namespace PartialState
 
-theorem CompatibleWith_singletonPublicValues (vals : List (BitVec 8)) (s : MachineState) :
+theorem CompatibleWith_singletonPublicValues {vals : List (BitVec 8)} {s : MachineState} :
     (singletonPublicValues vals).CompatibleWith s ↔ s.publicValues = vals := by
   constructor
   · intro ⟨_, _, _, _, hpv, _⟩
@@ -1020,9 +1020,9 @@ theorem holdsFor_publicValuesIs (vals : List (BitVec 8)) (s : MachineState) :
   simp only [Assertion.holdsFor, publicValuesIs]
   constructor
   · rintro ⟨h, hcompat, rfl⟩
-    exact (PartialState.CompatibleWith_singletonPublicValues vals s).mp hcompat
+    exact (PartialState.CompatibleWith_singletonPublicValues).mp hcompat
   · intro heq
-    exact ⟨_, (PartialState.CompatibleWith_singletonPublicValues vals s).mpr heq, rfl⟩
+    exact ⟨_, (PartialState.CompatibleWith_singletonPublicValues).mpr heq, rfl⟩
 
 -- ============================================================================
 -- pcFree for publicValuesIs
@@ -1056,12 +1056,12 @@ theorem holdsFor_sepConj_regIs_publicValuesIs {r : Reg} {v : Word}
     rw [← hunion] at hcompat
     rw [PartialState.CompatibleWith_union hd] at hcompat
     exact ⟨(PartialState.CompatibleWith_singletonReg r v s).mp hcompat.1,
-           (PartialState.CompatibleWith_singletonPublicValues vals s).mp hcompat.2⟩
+           (PartialState.CompatibleWith_singletonPublicValues).mp hcompat.2⟩
   · intro ⟨h1, h2⟩
     have hd := singletonReg_disjoint_singletonPublicValues r v vals
     exact ⟨_, (PartialState.CompatibleWith_union hd).mpr
       ⟨(PartialState.CompatibleWith_singletonReg r v s).mpr h1,
-       (PartialState.CompatibleWith_singletonPublicValues vals s).mpr h2⟩,
+       (PartialState.CompatibleWith_singletonPublicValues).mpr h2⟩,
       _, _, hd, rfl, rfl, rfl⟩
 
 -- ============================================================================
@@ -1078,7 +1078,7 @@ def privateInputIs (vals : List (BitVec 8)) : Assertion :=
 
 namespace PartialState
 
-theorem CompatibleWith_singletonPrivateInput (vals : List (BitVec 8)) (s : MachineState) :
+theorem CompatibleWith_singletonPrivateInput {vals : List (BitVec 8)} {s : MachineState} :
     (singletonPrivateInput vals).CompatibleWith s ↔ s.privateInput = vals := by
   constructor
   · intro ⟨_, _, _, _, _, hpi⟩
@@ -1099,9 +1099,9 @@ theorem holdsFor_privateInputIs (vals : List (BitVec 8)) (s : MachineState) :
   simp only [Assertion.holdsFor, privateInputIs]
   constructor
   · rintro ⟨h, hcompat, rfl⟩
-    exact (PartialState.CompatibleWith_singletonPrivateInput vals s).mp hcompat
+    exact (PartialState.CompatibleWith_singletonPrivateInput).mp hcompat
   · intro heq
-    exact ⟨_, (PartialState.CompatibleWith_singletonPrivateInput vals s).mpr heq, rfl⟩
+    exact ⟨_, (PartialState.CompatibleWith_singletonPrivateInput).mpr heq, rfl⟩
 
 -- ============================================================================
 -- pcFree for privateInputIs
@@ -1135,12 +1135,12 @@ theorem holdsFor_sepConj_regIs_privateInputIs {r : Reg} {v : Word}
     rw [← hunion] at hcompat
     rw [PartialState.CompatibleWith_union hd] at hcompat
     exact ⟨(PartialState.CompatibleWith_singletonReg r v s).mp hcompat.1,
-           (PartialState.CompatibleWith_singletonPrivateInput vals s).mp hcompat.2⟩
+           (PartialState.CompatibleWith_singletonPrivateInput).mp hcompat.2⟩
   · intro ⟨h1, h2⟩
     have hd := singletonReg_disjoint_singletonPrivateInput r v vals
     exact ⟨_, (PartialState.CompatibleWith_union hd).mpr
       ⟨(PartialState.CompatibleWith_singletonReg r v s).mpr h1,
-       (PartialState.CompatibleWith_singletonPrivateInput vals s).mpr h2⟩,
+       (PartialState.CompatibleWith_singletonPrivateInput).mpr h2⟩,
       _, _, hd, rfl, rfl, rfl⟩
 
 -- ============================================================================
