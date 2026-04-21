@@ -1093,4 +1093,42 @@ theorem div128Quot_q1_prime_lt_pow33 (uHi dHi : Word)
       rw [if_neg h_check]
     omega
 
+/-- **KB-3c: Tighter q1 bound under `uHi < vTop`.** With the call-trial
+    precondition (normalized dividend strictly less than the divisor at
+    the 64-bit level), the first-round trial quotient satisfies
+
+    ```
+    (rv64_divu uHi dHi).toNat ≤ 2^32 + 1
+    ```
+
+    Derived as follows.  `uHi < vTop = dHi * 2^32 + dLo < dHi * 2^32 + 2^32 =
+    (dHi + 1) * 2^32`.  Hence `uHi / dHi ≤ (uHi) / dHi ≤ (dHi + 1) * 2^32 / dHi
+    = 2^32 + 2^32 / dHi ≤ 2^32 + 2` (using `dHi ≥ 2^31`), i.e.
+    `≤ 2^32 + 1` in integer arithmetic.
+
+    Tightens the landed `div128Quot_q1_lt_pow33` (`< 2^33`) bound. This is
+    a step toward Knuth's invariant `q̂ ≤ 2^32 - 1` which Phase 1a's
+    `hi1` correction enforces. -/
+theorem div128Quot_q1_le_pow32_plus_one (uHi dHi dLo : Word)
+    (hdHi_ge : dHi.toNat ≥ 2^31)
+    (hdLo_lt : dLo.toNat < 2^32)
+    (huHi_lt_vTop : uHi.toNat < dHi.toNat * 2^32 + dLo.toNat) :
+    (rv64_divu uHi dHi).toNat ≤ 2^32 + 1 := by
+  have hdHi_ne : dHi ≠ 0 := by
+    intro heq; rw [heq] at hdHi_ge; simp at hdHi_ge
+  have hdHi_pos : 0 < dHi.toNat := by omega
+  rw [rv64_divu_toNat uHi dHi hdHi_ne]
+  -- From huHi_lt_vTop: uHi < dHi * 2^32 + 2^32.
+  have h_uHi_lt : uHi.toNat < dHi.toNat * 2^32 + 2^32 := by omega
+  -- Use Nat.div_lt_iff_lt_mul: uHi / dHi < k ↔ uHi < k * dHi.
+  -- We want uHi / dHi ≤ 2^32 + 1, i.e. uHi / dHi < 2^32 + 2, i.e. uHi < (2^32 + 2) * dHi.
+  suffices h : uHi.toNat / dHi.toNat < 2^32 + 2 by omega
+  apply (Nat.div_lt_iff_lt_mul hdHi_pos).mpr
+  -- Goal: uHi.toNat < (2^32 + 2) * dHi.toNat
+  -- We have uHi.toNat < dHi.toNat * 2^32 + 2^32, and dHi.toNat ≥ 2^31, so
+  -- 2 * dHi.toNat ≥ 2 * 2^31 = 2^32, hence 2^32 ≤ 2 * dHi.toNat.
+  -- Thus uHi.toNat < dHi.toNat * 2^32 + 2^32 ≤ dHi.toNat * 2^32 + 2 * dHi.toNat = (2^32 + 2) * dHi.toNat.
+  have h_expand : (2^32 + 2) * dHi.toNat = dHi.toNat * 2^32 + 2 * dHi.toNat := by ring
+  omega
+
 end EvmAsm.Evm64
