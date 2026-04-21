@@ -166,13 +166,13 @@ theorem div_mod_unique (a b q r : EvmWord) (hbnz : b ≠ 0)
     - `fromLimbs r_limbs < fromLimbs b_limbs`
     - `(fromLimbs b_limbs).toNat * (fromLimbs q_limbs).toNat + (fromLimbs r_limbs).toNat < 2^256`
     Then this theorem gives `fromLimbs q_limbs = div a b`. -/
-theorem div_eq_of_euclidean (a b : EvmWord) (q r : EvmWord) (hbnz : b ≠ 0)
+theorem div_eq_of_euclidean {a b : EvmWord} {q r : EvmWord} (hbnz : b ≠ 0)
     (h_eq : a = b * q + r) (h_rem_lt : r < b)
     (h_no_overflow : b.toNat * q.toNat + r.toNat < 2 ^ 256) :
     q = div a b :=
   (div_mod_unique a b q r hbnz h_rem_lt h_no_overflow h_eq).1
 
-theorem mod_eq_of_euclidean (a b : EvmWord) (q r : EvmWord) (hbnz : b ≠ 0)
+theorem mod_eq_of_euclidean {a b : EvmWord} {q r : EvmWord} (hbnz : b ≠ 0)
     (h_eq : a = b * q + r) (h_rem_lt : r < b)
     (h_no_overflow : b.toNat * q.toNat + r.toNat < 2 ^ 256) :
     r = mod a b :=

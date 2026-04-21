@@ -53,7 +53,7 @@ theorem div_of_nat_euclidean (a b q r : EvmWord) (hbnz : b ≠ 0)
     (h_nat_eq : a.toNat = b.toNat * q.toNat + r.toNat)
     (h_nat_lt : r.toNat < b.toNat) :
     q = EvmWord.div a b :=
-  div_eq_of_euclidean a b q r hbnz
+  div_eq_of_euclidean hbnz
     (bv_eq_of_nat_eq a b q r h_nat_eq)
     (bv_lt_of_nat_lt r b h_nat_lt)
     (by have := a.isLt; omega)
@@ -64,7 +64,7 @@ theorem mod_of_nat_euclidean (a b q r : EvmWord) (hbnz : b ≠ 0)
     (h_nat_eq : a.toNat = b.toNat * q.toNat + r.toNat)
     (h_nat_lt : r.toNat < b.toNat) :
     r = EvmWord.mod a b :=
-  mod_eq_of_euclidean a b q r hbnz
+  mod_eq_of_euclidean hbnz
     (bv_eq_of_nat_eq a b q r h_nat_eq)
     (bv_lt_of_nat_lt r b h_nat_lt)
     (by have := a.isLt; omega)
