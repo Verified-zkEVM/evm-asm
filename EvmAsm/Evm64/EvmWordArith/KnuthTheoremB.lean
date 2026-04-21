@@ -33,6 +33,9 @@
     to the Nat comparison needed by abstract Knuth B's `hu_top_lt`.
   - `antiShift_toNat_mod_eq` — `(signExtend12 0 - shift).toNat % 64 = 64 - shift.toNat`
     for `1 ≤ shift.toNat ≤ 63` (the antiShift arithmetic helper).
+  - `knuth_theorem_b_val256` — val256-level corollary of Knuth B, assembling the
+    abstract theorem with the Word→Nat bridges against provided normalization
+    hypotheses. Concludes `(u4 * B + un3) / b3' ≤ val256(a) / val256(b) + 2`.
 -/
 
 import EvmAsm.Evm64.EvmWordArith.DivN4Overestimate
@@ -325,5 +328,55 @@ theorem antiShift_toNat_mod_eq (shift : Word)
   rw [hmod64]
   simp
   omega
+
+/-- Knuth B at the val256 level — assembles the abstract Nat theorem with
+    the Word→Nat bridges, yielding the algorithm-facing conclusion.
+
+    Given pre-normalized 5-limb dividend `(u4, un0..un3)` and 4-limb
+    divisor `(b0', b1', b2', b3')` related to `(a, b)` by scale factor
+    `2^shift`, and the call-trial hypothesis `u4 < b3'`, the raw 2-limb
+    trial quotient overestimates the true quotient by at most 2:
+
+    ```
+      (u4 * 2^64 + un3) / b3'.toNat ≤ val256(a) / val256(b) + 2
+    ```
+
+    The normalization facts `hnorm_u`, `hnorm_v`, `hb3prime_ge_pow63`,
+    `hu4_lt_b3prime` are hypotheses here; concrete CLZ-based callers
+    discharge them via the existing helpers (`val256_normalize_general`,
+    `val256_normalize`, `b3_prime_ge_pow63`, `isCallTrialN4_toNat_lt`). -/
+theorem knuth_theorem_b_val256
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (u4 un0 un1 un2 un3 : Word)
+    (b0' b1' b2' b3' : Word)
+    (shift : Nat)
+    (hnorm_u : u4.toNat * 2^256 + val256 un0 un1 un2 un3 =
+               val256 a0 a1 a2 a3 * 2^shift)
+    (hnorm_v : val256 b0' b1' b2' b3' = val256 b0 b1 b2 b3 * 2^shift)
+    (hb3prime_ge_pow63 : b3'.toNat ≥ 2^63)
+    (hu4_lt_b3prime : u4.toNat < b3'.toNat) :
+    (u4.toNat * 2^64 + un3.toNat) / b3'.toNat ≤
+      val256 a0 a1 a2 a3 / val256 b0 b1 b2 b3 + 2 := by
+  -- Extract Nat-form splits from val256_split_top_limb
+  obtain ⟨u_rest, hu_rest_lt, hu_split_val⟩ := val256_split_top_limb un0 un1 un2 un3
+  obtain ⟨v_rest, hv_rest_lt, hv_split_val⟩ := val256_split_top_limb b0' b1' b2' b3'
+  -- u_nat := val256(a) * 2^shift, v_nat := val256(b) * 2^shift
+  set u_nat := val256 a0 a1 a2 a3 * 2^shift with hu_nat_def
+  set v_nat := val256 b0 b1 b2 b3 * 2^shift with hv_nat_def
+  -- u_nat = u4 * 2^256 + un3 * 2^192 + u_rest
+  have h_u_split : u4.toNat * 2^256 + un3.toNat * 2^192 + u_rest = u_nat := by
+    rw [← hnorm_u, hu_split_val]; ring
+  -- v_nat = b3' * 2^192 + v_rest
+  have h_v_split : v_nat = b3'.toNat * 2^192 + v_rest := by
+    rw [← hnorm_v, hv_split_val]
+  -- un3.toNat < 2^64 (Word limb)
+  have hu_next_lt : un3.toNat < 2^64 := un3.isLt
+  -- Apply abstract Knuth B
+  have h_abs :=
+    knuth_theorem_b_abstract u_nat v_nat u4.toNat un3.toNat u_rest b3'.toNat v_rest
+      h_u_split h_v_split hv_rest_lt hb3prime_ge_pow63 hu4_lt_b3prime hu_next_lt
+  -- Rewrite u_nat / v_nat via scale invariance
+  rw [hu_nat_def, hv_nat_def, val256_div_scale_invariant] at h_abs
+  exact h_abs
 
 end EvmAsm.Evm64
