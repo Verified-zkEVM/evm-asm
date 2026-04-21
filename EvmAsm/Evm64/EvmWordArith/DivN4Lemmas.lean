@@ -45,24 +45,24 @@ theorem div_nat_le_one_of_msb (uLo d : Word) (hd : d.toNat ≥ 2^63) :
 -- n=4 shift=0 correctness: q=0 case (a < b)
 -- ============================================================================
 
-private theorem bnz_of_lt (a b : EvmWord) (h : a.toNat < b.toNat) : b ≠ 0 := by
+private theorem bnz_of_lt {a b : EvmWord} (h : a.toNat < b.toNat) : b ≠ 0 := by
   intro heq; subst heq; simp at h
 
 /-- When a < b, the quotient is 0. -/
 theorem div_zero_of_lt (a b : EvmWord) (h_lt : a.toNat < b.toNat) :
     EvmWord.div a b = 0 :=
-  (div_of_nat_euclidean a b 0 a (bnz_of_lt a b h_lt) (by simp) h_lt).symm
+  (div_of_nat_euclidean a b 0 a (bnz_of_lt h_lt) (by simp) h_lt).symm
 
 /-- When a < b, the remainder is a itself. -/
 theorem mod_self_of_lt (a b : EvmWord) (h_lt : a.toNat < b.toNat) :
     EvmWord.mod a b = a :=
-  (mod_of_nat_euclidean a b 0 a (bnz_of_lt a b h_lt) (by simp) h_lt).symm
+  (mod_of_nat_euclidean a b 0 a (bnz_of_lt h_lt) (by simp) h_lt).symm
 
 -- ============================================================================
 -- n=4 shift=0 correctness: q=1 case (b ≤ a < 2*b)
 -- ============================================================================
 
-private theorem bnz_of_lt2 (a b : EvmWord) (h : a.toNat < 2 * b.toNat) : b ≠ 0 := by
+private theorem bnz_of_lt2 {a b : EvmWord} (h : a.toNat < 2 * b.toNat) : b ≠ 0 := by
   intro heq; subst heq; simp at h
 
 /-- When b ≤ a < 2b, the quotient is 1. -/
@@ -70,7 +70,7 @@ theorem div_one_of_ge_lt (a b : EvmWord)
     (h_ge : b.toNat ≤ a.toNat) (h_lt2 : a.toNat < 2 * b.toNat) :
     EvmWord.div a b = 1 := by
   have h1 : (1 : EvmWord).toNat = 1 := by decide
-  exact (div_of_nat_euclidean a b 1 (a - b) (bnz_of_lt2 a b h_lt2)
+  exact (div_of_nat_euclidean a b 1 (a - b) (bnz_of_lt2 h_lt2)
     (by rw [h1, BitVec.toNat_sub_of_le (BitVec.le_def.mpr h_ge)]; omega)
     (by rw [BitVec.toNat_sub_of_le (BitVec.le_def.mpr h_ge)]; omega)).symm
 
@@ -79,7 +79,7 @@ theorem mod_sub_of_ge_lt (a b : EvmWord)
     (h_ge : b.toNat ≤ a.toNat) (h_lt2 : a.toNat < 2 * b.toNat) :
     EvmWord.mod a b = a - b := by
   have h1 : (1 : EvmWord).toNat = 1 := by decide
-  exact (mod_of_nat_euclidean a b 1 (a - b) (bnz_of_lt2 a b h_lt2)
+  exact (mod_of_nat_euclidean a b 1 (a - b) (bnz_of_lt2 h_lt2)
     (by rw [h1, BitVec.toNat_sub_of_le (BitVec.le_def.mpr h_ge)]; omega)
     (by rw [BitVec.toNat_sub_of_le (BitVec.le_def.mpr h_ge)]; omega)).symm
 
