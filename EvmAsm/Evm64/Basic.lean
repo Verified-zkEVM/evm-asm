@@ -448,12 +448,12 @@ theorem high_limbs_zero_of_toNat_lt (v : EvmWord) (h : v.toNat < 2^64) :
   have h3 := hlimb 3 (by omega)
   simp [h1, h2, h3]
 
-@[simp] theorem getLimb_one (i : Fin 4) :
+@[simp] theorem getLimb_one {i : Fin 4} :
     (1 : EvmWord).getLimb i = if i = 0 then 1 else 0 := by
   have h : ∀ j : Fin 4, (1 : EvmWord).getLimb j = if j = 0 then 1 else 0 := by decide
   exact h i
 
-@[simp] theorem getLimb_ite (c : Prop) [Decidable c] (x y : EvmWord) (i : Fin 4) :
+@[simp] theorem getLimb_ite {c : Prop} [Decidable c] {x y : EvmWord} {i : Fin 4} :
     (if c then x else y).getLimb i = if c then x.getLimb i else y.getLimb i := by
   split <;> rfl
 

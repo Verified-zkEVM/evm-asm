@@ -107,7 +107,7 @@ def evmCodeIs (base : Word) (bytes : List (BitVec 8)) : Assertion :=
 -- Basic properties
 -- ============================================================================
 
-@[simp] theorem evmCodeIs_nil (base : Word) :
+@[simp] theorem evmCodeIs_nil {base : Word} :
     evmCodeIs base [] = empAssertion := rfl
 
 /-- evmCodeIs of a non-empty list decomposes into a chunk and the rest. -/
