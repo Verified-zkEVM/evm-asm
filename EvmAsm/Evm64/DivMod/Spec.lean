@@ -653,8 +653,8 @@ theorem modN4MaxSkipStackPost_unfold_atoms {sp : Word} {a b : EvmWord} :
 
 /-- Mid-tree variant of `modN4MaxSkipStackPost_unfold_atoms`. Mirror of
     `divN4MaxSkipStackPost_unfold_atoms_right`. -/
-theorem modN4MaxSkipStackPost_unfold_atoms_right (sp : Word) (a b : EvmWord)
-    (Q : Assertion) :
+theorem modN4MaxSkipStackPost_unfold_atoms_right {sp : Word} {a b : EvmWord}
+    {Q : Assertion} :
     (((.x12 ↦ᵣ (sp + 32)) ** regOwn .x1 ** regOwn .x2 **
       regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
       regOwn .x10 ** regOwn .x11 ** (.x0 ↦ᵣ (0 : Word)) **
@@ -679,10 +679,10 @@ theorem modN4MaxSkipStackPost_unfold_atoms_right (sp : Word) (a b : EvmWord)
     `Q` through the equality so `rw ←` can fold atoms back into the MOD stack
     pre bundle even when they sit mid-chain. Mirror of
     `divN4StackPre_unfold_atoms_right`. -/
-theorem modN4StackPre_unfold_atoms_right (sp : Word) (a b : EvmWord)
-    (v5 v6 v7 v10 v11 : Word)
-    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem : Word)
-    (Q : Assertion) :
+theorem modN4StackPre_unfold_atoms_right {sp : Word} {a b : EvmWord}
+    {v5 v6 v7 v10 v11 : Word}
+    {q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem : Word}
+    {Q : Assertion} :
     (((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
       (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
       (.x2 ↦ᵣ (clzResult (b.getLimbN 3)).2 >>> (63 : Nat)) **
@@ -709,10 +709,10 @@ theorem modN4StackPre_unfold_atoms_right (sp : Word) (a b : EvmWord)
     `Q` through the equality so `rw ←` can fold atoms back into the stack
     pre bundle even when they sit mid-chain. Parallel to the other `_right`
     fold variants. -/
-theorem divN4StackPre_unfold_atoms_right (sp : Word) (a b : EvmWord)
-    (v5 v6 v7 v10 v11 : Word)
-    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem : Word)
-    (Q : Assertion) :
+theorem divN4StackPre_unfold_atoms_right {sp : Word} {a b : EvmWord}
+    {v5 v6 v7 v10 v11 : Word}
+    {q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem : Word}
+    {Q : Assertion} :
     (((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
       (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
       (.x2 ↦ᵣ (clzResult (b.getLimbN 3)).2 >>> (63 : Nat)) **
@@ -739,8 +739,8 @@ theorem divN4StackPre_unfold_atoms_right (sp : Word) (a b : EvmWord)
     threads a remainder `Q` through the equality so `rw ←` can fold the
     atoms back into the stack post bundle **even when they sit mid-chain**.
     Parallel to `evmWordIs_sp_limbs_eq_right` / `divScratchValues_unfold_right`. -/
-theorem divN4MaxSkipStackPost_unfold_atoms_right (sp : Word) (a b : EvmWord)
-    (Q : Assertion) :
+theorem divN4MaxSkipStackPost_unfold_atoms_right {sp : Word} {a b : EvmWord}
+    {Q : Assertion} :
     (((.x12 ↦ᵣ (sp + 32)) ** regOwn .x1 ** regOwn .x2 **
       regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
       regOwn .x10 ** regOwn .x11 ** (.x0 ↦ᵣ (0 : Word)) **
