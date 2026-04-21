@@ -263,7 +263,7 @@ theorem signext_cascade_step_spec (v5 v10 : Word)
   have hd : CodeReq.Disjoint
       (CodeReq.singleton base (.ADDI .x10 .x0 k))
       (CodeReq.singleton (base + 4) (.BEQ .x5 .x10 offset)) :=
-    CodeReq.Disjoint.singleton (by bv_omega) _ _
+    CodeReq.Disjoint.singleton (by bv_omega)
   have s1 := addi_spec_gen .x10 .x0 v10 0 k base (by nofun)
   have s1' : cpsTriple base (base + 4) (CodeReq.singleton base (.ADDI .x10 .x0 k))
       ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10))
@@ -360,8 +360,8 @@ theorem signext_phase_a_spec (sp r5 r10 : Word)
   rw [ha48] at lor2
   have hd_ld1_lor2 : crLd1.Disjoint crLor2 :=
     CodeReq.Disjoint.union_right
-      (CodeReq.Disjoint.singleton (by bv_omega) _ _)
-      (CodeReq.Disjoint.singleton (by bv_omega) _ _)
+      (CodeReq.Disjoint.singleton (by bv_omega))
+      (CodeReq.Disjoint.singleton (by bv_omega))
   have lw1f := cpsTriple_frameR ((.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ r10) ** (sp ↦ₘ b0) ** ((sp + 16) ↦ₘ b2) ** ((sp + 24) ↦ₘ b3)) (by pcFree) lw1
   have lor2f := cpsTriple_frameR ((.x0 ↦ᵣ (0 : Word)) ** (sp ↦ₘ b0) ** ((sp + 8) ↦ₘ b1) ** ((sp + 24) ↦ₘ b3)) (by pcFree) lor2
   have c12 := cpsTriple_seq_with_perm hd_ld1_lor2
@@ -373,15 +373,15 @@ theorem signext_phase_a_spec (sp r5 r10 : Word)
   have hd_12_lor3 : (crLd1.union crLor2).Disjoint crLor3 :=
     CodeReq.Disjoint.union_left
       (CodeReq.Disjoint.union_right
-        (CodeReq.Disjoint.singleton (by bv_omega) _ _)
-        (CodeReq.Disjoint.singleton (by bv_omega) _ _))
+        (CodeReq.Disjoint.singleton (by bv_omega))
+        (CodeReq.Disjoint.singleton (by bv_omega)))
       (CodeReq.Disjoint.union_left
         (CodeReq.Disjoint.union_right
-          (CodeReq.Disjoint.singleton (by bv_omega) _ _)
-          (CodeReq.Disjoint.singleton (by bv_omega) _ _))
+          (CodeReq.Disjoint.singleton (by bv_omega))
+          (CodeReq.Disjoint.singleton (by bv_omega)))
         (CodeReq.Disjoint.union_right
-          (CodeReq.Disjoint.singleton (by bv_omega) _ _)
-          (CodeReq.Disjoint.singleton (by bv_omega) _ _)))
+          (CodeReq.Disjoint.singleton (by bv_omega))
+          (CodeReq.Disjoint.singleton (by bv_omega))))
   have c13 := cpsTriple_seq_with_perm hd_12_lor3
     (fun h hp => by xperm_hyp hp) c12 lor3f
   let crLinear := (crLd1.union crLor2).union crLor3
@@ -405,13 +405,13 @@ theorem signext_phase_a_spec (sp r5 r10 : Word)
   have hd_lin_bne : crLinear.Disjoint crBne :=
     CodeReq.Disjoint.union_left
       (CodeReq.Disjoint.union_left
-        (CodeReq.Disjoint.singleton (by bv_omega) _ _)
+        (CodeReq.Disjoint.singleton (by bv_omega))
         (CodeReq.Disjoint.union_left
-          (CodeReq.Disjoint.singleton (by bv_omega) _ _)
-          (CodeReq.Disjoint.singleton (by bv_omega) _ _)))
+          (CodeReq.Disjoint.singleton (by bv_omega))
+          (CodeReq.Disjoint.singleton (by bv_omega))))
       (CodeReq.Disjoint.union_left
-        (CodeReq.Disjoint.singleton (by bv_omega) _ _)
-        (CodeReq.Disjoint.singleton (by bv_omega) _ _))
+        (CodeReq.Disjoint.singleton (by bv_omega))
+        (CodeReq.Disjoint.singleton (by bv_omega)))
   have br1 := cpsTriple_seq_cpsBranch_with_perm hd_lin_bne
     (fun h hp => by xperm_hyp hp) c13 bne1f
   -- ── Part 3: Fall-through path (base+24..base+32): LD + SLTIU + BEQ ──
@@ -424,7 +424,7 @@ theorem signext_phase_a_spec (sp r5 r10 : Word)
   rw [ha28] at sltiu_raw
   let sltiuVal := (if BitVec.ult b0 (signExtend12 (31 : BitVec 12)) then (1 : Word) else (0 : Word))
   have hd_ld5_sltiu : crLd5.Disjoint crSltiu :=
-    CodeReq.Disjoint.singleton (by bv_omega) _ _
+    CodeReq.Disjoint.singleton (by bv_omega)
   have lw5f := cpsTriple_frameR ((.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ b3) ** ((sp + 8) ↦ₘ b1) ** ((sp + 16) ↦ₘ b2) ** ((sp + 24) ↦ₘ b3)) (by pcFree) lw5
   have sltiuf := cpsTriple_frameR ((.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) ** (sp ↦ₘ b0) ** ((sp + 8) ↦ₘ b1) ** ((sp + 16) ↦ₘ b2) ** ((sp + 24) ↦ₘ b3)) (by pcFree) sltiu_raw
   have c56 := cpsTriple_seq_with_perm hd_ld5_sltiu
@@ -447,8 +447,8 @@ theorem signext_phase_a_spec (sp r5 r10 : Word)
     (by pcFree) beq1
   have hd_56_beq : (crLd5.union crSltiu).Disjoint crBeq :=
     CodeReq.Disjoint.union_left
-      (CodeReq.Disjoint.singleton (by bv_omega) _ _)
-      (CodeReq.Disjoint.singleton (by bv_omega) _ _)
+      (CodeReq.Disjoint.singleton (by bv_omega))
+      (CodeReq.Disjoint.singleton (by bv_omega))
   have br2 := cpsTriple_seq_cpsBranch_with_perm hd_56_beq
     (fun h hp => by xperm_hyp hp) c56 beq1f
   let crTail := (crLd5.union crSltiu).union crBeq
@@ -458,9 +458,9 @@ theorem signext_phase_a_spec (sp r5 r10 : Word)
       (CodeReq.singleton a i).Disjoint crTail :=
     CodeReq.Disjoint.union_right
       (CodeReq.Disjoint.union_right
-        (CodeReq.Disjoint.singleton h24 _ _)
-        (CodeReq.Disjoint.singleton h28 _ _))
-      (CodeReq.Disjoint.singleton h32 _ _)
+        (CodeReq.Disjoint.singleton h24)
+        (CodeReq.Disjoint.singleton h28))
+      (CodeReq.Disjoint.singleton h32)
   have hd_lor2_tail : crLor2.Disjoint crTail :=
     CodeReq.Disjoint.union_left
       (sd_tail (base + 4) _ (by bv_omega) (by bv_omega) (by bv_omega))
@@ -587,20 +587,20 @@ theorem signext_phase_c_spec (v5 v10 : Word) (base : Word)
   -- Disjointness proofs
   have hd_beq0_cs1 : cr_beq0.Disjoint cr_cs1 :=
     CodeReq.Disjoint.union_right
-      (CodeReq.Disjoint.singleton (by bv_omega) _ _)
-      (CodeReq.Disjoint.singleton (by bv_omega) _ _)
+      (CodeReq.Disjoint.singleton (by bv_omega))
+      (CodeReq.Disjoint.singleton (by bv_omega))
   have hd_beq0_cs2 : cr_beq0.Disjoint cr_cs2 :=
     CodeReq.Disjoint.union_right
-      (CodeReq.Disjoint.singleton (by bv_omega) _ _)
-      (CodeReq.Disjoint.singleton (by bv_omega) _ _)
+      (CodeReq.Disjoint.singleton (by bv_omega))
+      (CodeReq.Disjoint.singleton (by bv_omega))
   have hd_cs1_cs2 : cr_cs1.Disjoint cr_cs2 :=
     CodeReq.Disjoint.union_left
       (CodeReq.Disjoint.union_right
-        (CodeReq.Disjoint.singleton (by bv_omega) _ _)
-        (CodeReq.Disjoint.singleton (by bv_omega) _ _))
+        (CodeReq.Disjoint.singleton (by bv_omega))
+        (CodeReq.Disjoint.singleton (by bv_omega)))
       (CodeReq.Disjoint.union_right
-        (CodeReq.Disjoint.singleton (by bv_omega) _ _)
-        (CodeReq.Disjoint.singleton (by bv_omega) _ _))
+        (CodeReq.Disjoint.singleton (by bv_omega))
+        (CodeReq.Disjoint.singleton (by bv_omega)))
   -- Step 0: BEQ x5 x0 100 at base
   have beq0_raw := beq_spec_gen .x5 .x0 100 v5 (0 : Word) base
   rw [he0] at beq0_raw
@@ -673,7 +673,7 @@ theorem signext_cascade_step_spec_pure (v5 v10 : Word)
   have hd : CodeReq.Disjoint
       (CodeReq.singleton base (.ADDI .x10 .x0 k))
       (CodeReq.singleton (base + 4) (.BEQ .x5 .x10 offset)) :=
-    CodeReq.Disjoint.singleton (by bv_omega) _ _
+    CodeReq.Disjoint.singleton (by bv_omega)
   have s1 := addi_spec_gen .x10 .x0 v10 0 k base (by nofun)
   have s1' : cpsTriple base (base + 4) (CodeReq.singleton base (.ADDI .x10 .x0 k))
       ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10))
@@ -724,20 +724,20 @@ theorem signext_phase_c_spec_pure (v5 v10 : Word) (base : Word)
   let cr_cs2 := signext_cascade_step_code 2 24 (base + 12)
   have hd_beq0_cs1 : cr_beq0.Disjoint cr_cs1 :=
     CodeReq.Disjoint.union_right
-      (CodeReq.Disjoint.singleton (by bv_omega) _ _)
-      (CodeReq.Disjoint.singleton (by bv_omega) _ _)
+      (CodeReq.Disjoint.singleton (by bv_omega))
+      (CodeReq.Disjoint.singleton (by bv_omega))
   have hd_beq0_cs2 : cr_beq0.Disjoint cr_cs2 :=
     CodeReq.Disjoint.union_right
-      (CodeReq.Disjoint.singleton (by bv_omega) _ _)
-      (CodeReq.Disjoint.singleton (by bv_omega) _ _)
+      (CodeReq.Disjoint.singleton (by bv_omega))
+      (CodeReq.Disjoint.singleton (by bv_omega))
   have hd_cs1_cs2 : cr_cs1.Disjoint cr_cs2 :=
     CodeReq.Disjoint.union_left
       (CodeReq.Disjoint.union_right
-        (CodeReq.Disjoint.singleton (by bv_omega) _ _)
-        (CodeReq.Disjoint.singleton (by bv_omega) _ _))
+        (CodeReq.Disjoint.singleton (by bv_omega))
+        (CodeReq.Disjoint.singleton (by bv_omega)))
       (CodeReq.Disjoint.union_right
-        (CodeReq.Disjoint.singleton (by bv_omega) _ _)
-        (CodeReq.Disjoint.singleton (by bv_omega) _ _))
+        (CodeReq.Disjoint.singleton (by bv_omega))
+        (CodeReq.Disjoint.singleton (by bv_omega)))
   -- Step 0: BEQ x5 x0 100
   have beq0_raw := beq_spec_gen .x5 .x0 100 v5 (0 : Word) base
   rw [he0] at beq0_raw
@@ -753,7 +753,7 @@ theorem signext_phase_c_spec_pure (v5 v10 : Word) (base : Word)
   -- Step 1: cascade step at base+4
   have cs1_raw := signext_cascade_step_spec_pure v5 v10 1 60 (base + 4) e1 hc1
   rw [show (base + 4 : Word) + 8 = base + 12 from by bv_addr] at cs1_raw
-  have cs1f := cpsBranch_frameR (⌜v5 ≠ (0 : Word)⌝) (pcFree_pure _) cs1_raw
+  have cs1f := cpsBranch_frameR (⌜v5 ≠ (0 : Word)⌝) pcFree_pure cs1_raw
   have cs1_clean : cpsBranch (base + 4) cr_cs1
       ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10) ** ⌜v5 ≠ (0 : Word)⌝)
       e1 ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ ((0 : Word) + signExtend12 1)) ** ⌜v5 = (0 : Word) + signExtend12 1⌝)
@@ -772,7 +772,7 @@ theorem signext_phase_c_spec_pure (v5 v10 : Word) (base : Word)
   have cs2_raw := signext_cascade_step_spec_pure v5 ((0 : Word) + signExtend12 1) 2 24 (base + 12) e2 hc2
   rw [show (base + 12 : Word) + 8 = base + 20 from by bv_addr] at cs2_raw
   have cs2f := cpsBranch_frameR
-    (⌜v5 ≠ 0 ∧ v5 ≠ (0 : Word) + signExtend12 1⌝) (pcFree_pure _) cs2_raw
+    (⌜v5 ≠ 0 ∧ v5 ≠ (0 : Word) + signExtend12 1⌝) pcFree_pure cs2_raw
   have cs2_clean : cpsBranch (base + 12) cr_cs2
       ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ ((0 : Word) + signExtend12 1)) ** ⌜v5 ≠ 0 ∧ v5 ≠ (0 : Word) + signExtend12 1⌝)
       e2 ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ ((0 : Word) + signExtend12 2)) ** ⌜v5 = (0 : Word) + signExtend12 2⌝)

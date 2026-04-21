@@ -223,10 +223,10 @@ theorem denorm_limbN_eq_mod_max_skip
     hbnz hb3nz s hs0 hs hb3_bound hc3_un_zero hc3_n_le_u_top
   simp only [] at hr
   refine ⟨?_, ?_, ?_, ?_⟩
-  · rw [← hr]; exact getLimbN_fromLimbs_0 _ _ _ _
-  · rw [← hr]; exact getLimbN_fromLimbs_1 _ _ _ _
-  · rw [← hr]; exact getLimbN_fromLimbs_2 _ _ _ _
-  · rw [← hr]; exact getLimbN_fromLimbs_3 _ _ _ _
+  · rw [← hr]; exact getLimbN_fromLimbs_0
+  · rw [← hr]; exact getLimbN_fromLimbs_1
+  · rw [← hr]; exact getLimbN_fromLimbs_2
+  · rw [← hr]; exact getLimbN_fromLimbs_3
 
 /-- EvmWord-level form of `denorm_limbN_eq_mod_max_skip`. Mirrors the
     structure of `n4_max_skip_div_mod_getLimbN`: applies the Word-level

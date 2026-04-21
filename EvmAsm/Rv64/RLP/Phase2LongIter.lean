@@ -235,7 +235,7 @@ theorem rlp_phase2_long_iter_spec
       ((CodeReq.singleton (base + 16) (.ADDI .x14 .x14 (-1))).union
         CodeReq.empty) :=
     CodeReq.Disjoint.union_right
-      (CodeReq.Disjoint.singleton h34 _ _)
+      (CodeReq.Disjoint.singleton h34)
       (CodeReq.Disjoint.empty_right _)
   have hd3 : CodeReq.Disjoint
       (CodeReq.singleton (base + 8) (.ADD .x11 .x11 .x12))
@@ -243,9 +243,9 @@ theorem rlp_phase2_long_iter_spec
         ((CodeReq.singleton (base + 16) (.ADDI .x14 .x14 (-1))).union
           CodeReq.empty)) :=
     CodeReq.Disjoint.union_right
-      (CodeReq.Disjoint.singleton h23 _ _)
+      (CodeReq.Disjoint.singleton h23)
       (CodeReq.Disjoint.union_right
-        (CodeReq.Disjoint.singleton h24 _ _)
+        (CodeReq.Disjoint.singleton h24)
         (CodeReq.Disjoint.empty_right _))
   have hd2 : CodeReq.Disjoint
       (CodeReq.singleton (base + 4) (.SLLI .x11 .x11 8))
@@ -254,11 +254,11 @@ theorem rlp_phase2_long_iter_spec
           ((CodeReq.singleton (base + 16) (.ADDI .x14 .x14 (-1))).union
             CodeReq.empty))) :=
     CodeReq.Disjoint.union_right
-      (CodeReq.Disjoint.singleton h12 _ _)
+      (CodeReq.Disjoint.singleton h12)
       (CodeReq.Disjoint.union_right
-        (CodeReq.Disjoint.singleton h13 _ _)
+        (CodeReq.Disjoint.singleton h13)
         (CodeReq.Disjoint.union_right
-          (CodeReq.Disjoint.singleton h14 _ _)
+          (CodeReq.Disjoint.singleton h14)
           (CodeReq.Disjoint.empty_right _)))
   have hd1 : CodeReq.Disjoint
       (CodeReq.singleton base (.LBU .x12 .x13 0))
@@ -268,13 +268,13 @@ theorem rlp_phase2_long_iter_spec
             ((CodeReq.singleton (base + 16) (.ADDI .x14 .x14 (-1))).union
               CodeReq.empty)))) :=
     CodeReq.Disjoint.union_right
-      (CodeReq.Disjoint.singleton h01 _ _)
+      (CodeReq.Disjoint.singleton h01)
       (CodeReq.Disjoint.union_right
-        (CodeReq.Disjoint.singleton h02 _ _)
+        (CodeReq.Disjoint.singleton h02)
         (CodeReq.Disjoint.union_right
-          (CodeReq.Disjoint.singleton h03 _ _)
+          (CodeReq.Disjoint.singleton h03)
           (CodeReq.Disjoint.union_right
-            (CodeReq.Disjoint.singleton h04 _ _)
+            (CodeReq.Disjoint.singleton h04)
             (CodeReq.Disjoint.empty_right _))))
   -- Extend s5's CR with a trailing empty.
   have s5_ext : cpsTriple (base + 16) (base + 20)

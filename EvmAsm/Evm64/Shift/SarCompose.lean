@@ -39,7 +39,7 @@ private theorem sar_sign_fill_path_len : sar_sign_fill_path.length = 7 := by dec
 /-- Skip one ofProg block in a right-nested union via range disjointness. -/
 local macro "skipBlock" : tactic =>
   `(tactic| apply CodeReq.mono_union_right
-      (CodeReq.ofProg_disjoint_range _ _ _ _ (fun k1 k2 hk1 hk2 => by
+      (CodeReq.ofProg_disjoint_range (fun k1 k2 hk1 hk2 => by
         simp only [sar_phase_a_len, shr_phase_b_len, sar_phase_c_len,
           sar_body_3_prog_len, sar_body_2_prog_len, sar_body_1_prog_len,
           sar_body_0_prog_len, sar_sign_fill_path_len] at hk1 hk2
@@ -530,20 +530,20 @@ theorem sar_phase_c_spec_pure (v5 v10 : Word) (base : Word)
   let cr_cs2 := shr_cascade_step_code 2 36 (base + 12)
   have hd_beq0_cs1 : cr_beq0.Disjoint cr_cs1 :=
     CodeReq.Disjoint.union_right
-      (CodeReq.Disjoint.singleton (by bv_omega) _ _)
-      (CodeReq.Disjoint.singleton (by bv_omega) _ _)
+      (CodeReq.Disjoint.singleton (by bv_omega))
+      (CodeReq.Disjoint.singleton (by bv_omega))
   have hd_beq0_cs2 : cr_beq0.Disjoint cr_cs2 :=
     CodeReq.Disjoint.union_right
-      (CodeReq.Disjoint.singleton (by bv_omega) _ _)
-      (CodeReq.Disjoint.singleton (by bv_omega) _ _)
+      (CodeReq.Disjoint.singleton (by bv_omega))
+      (CodeReq.Disjoint.singleton (by bv_omega))
   have hd_cs1_cs2 : cr_cs1.Disjoint cr_cs2 :=
     CodeReq.Disjoint.union_left
       (CodeReq.Disjoint.union_right
-        (CodeReq.Disjoint.singleton (by bv_omega) _ _)
-        (CodeReq.Disjoint.singleton (by bv_omega) _ _))
+        (CodeReq.Disjoint.singleton (by bv_omega))
+        (CodeReq.Disjoint.singleton (by bv_omega)))
       (CodeReq.Disjoint.union_right
-        (CodeReq.Disjoint.singleton (by bv_omega) _ _)
-        (CodeReq.Disjoint.singleton (by bv_omega) _ _))
+        (CodeReq.Disjoint.singleton (by bv_omega))
+        (CodeReq.Disjoint.singleton (by bv_omega)))
   -- Step 0: BEQ x5 x0 188
   have beq0_raw := beq_spec_gen .x5 .x0 188 v5 (0 : Word) base
   rw [he0] at beq0_raw
@@ -559,7 +559,7 @@ theorem sar_phase_c_spec_pure (v5 v10 : Word) (base : Word)
   -- Step 1: cascade step at base+4
   have cs1_raw := shr_cascade_step_spec_pure v5 v10 1 100 (base + 4) e1 hc1
   rw [show (base + 4 : Word) + 8 = base + 12 from by bv_addr] at cs1_raw
-  have cs1f := cpsBranch_frameR (⌜v5 ≠ (0 : Word)⌝) (pcFree_pure _) cs1_raw
+  have cs1f := cpsBranch_frameR (⌜v5 ≠ (0 : Word)⌝) pcFree_pure cs1_raw
   have cs1_clean : cpsBranch (base + 4) cr_cs1
       ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10) ** ⌜v5 ≠ (0 : Word)⌝)
       e1 ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ ((0 : Word) + signExtend12 1)) ** ⌜v5 = (0 : Word) + signExtend12 1⌝)
@@ -578,7 +578,7 @@ theorem sar_phase_c_spec_pure (v5 v10 : Word) (base : Word)
   have cs2_raw := shr_cascade_step_spec_pure v5 ((0 : Word) + signExtend12 1) 2 36 (base + 12) e2 hc2
   rw [show (base + 12 : Word) + 8 = base + 20 from by bv_addr] at cs2_raw
   have cs2f := cpsBranch_frameR
-    (⌜v5 ≠ 0 ∧ v5 ≠ (0 : Word) + signExtend12 1⌝) (pcFree_pure _) cs2_raw
+    (⌜v5 ≠ 0 ∧ v5 ≠ (0 : Word) + signExtend12 1⌝) pcFree_pure cs2_raw
   have cs2_clean : cpsBranch (base + 12) cr_cs2
       ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ ((0 : Word) + signExtend12 1)) ** ⌜v5 ≠ 0 ∧ v5 ≠ (0 : Word) + signExtend12 1⌝)
       e2 ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ ((0 : Word) + signExtend12 2)) ** ⌜v5 = (0 : Word) + signExtend12 2⌝)

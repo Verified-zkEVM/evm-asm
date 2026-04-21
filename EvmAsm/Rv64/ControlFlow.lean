@@ -223,7 +223,7 @@ theorem execInstrBr_jal_x0 (s : MachineState) (off : BitVec 21) :
       empAssertion :=
   generic_nop_spec (.JAL .x0 offset) addr (addr + signExtend21 offset)
     (by intro s hpc; simp [execInstrBr, MachineState.setReg, hpc])
-    (by intro s hfetch; exact step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl))
+    (by intro s hfetch; exact step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl))
 
 /-- JALR x0 executes as a pure PC update (x0 write is dropped). -/
 theorem execInstrBr_jalr_x0 (s : MachineState) (rs1 : Reg) (off : BitVec 12) :
@@ -241,11 +241,11 @@ theorem execInstrBr_jalr_x0 (s : MachineState) (rs1 : Reg) (off : BitVec 12) :
   have hfetch : s.code s.pc = some (.JALR .x0 rs1 offset) :=
     (CodeReq.singleton_satisfiedBy s.pc (.JALR .x0 rs1 offset) s).mp hcr
   have hrs1 : s.getReg rs1 = v :=
-    (holdsFor_regIs _ _ s).mp (holdsFor_sepConj_elim_left hPR)
+    holdsFor_regIs.mp (holdsFor_sepConj_elim_left hPR)
   have hexec : execInstrBr s (.JALR .x0 rs1 offset) = s.setPC ((v + signExtend12 offset) &&& ~~~1) := by
     rw [execInstrBr_jalr_x0, hrs1]
   have hstep : step s = some (execInstrBr s (.JALR .x0 rs1 offset)) :=
-    step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl)
+    step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl)
   refine ⟨1, s.setPC ((v + signExtend12 offset) &&& ~~~1), ?_, rfl, ?_⟩
   · show (step s).bind (stepN 0) = some _
     rw [hstep, hexec]; rfl
@@ -266,7 +266,7 @@ private theorem aAnd_pure_right_of_true {P : Assertion} {prop : Prop}
     fun _ _ _ h2 => by simp [PartialState.empty] at h2,
     fun _ _ _ h2 => by simp [PartialState.empty] at h2,
     fun _ _ _ h2 => by simp [PartialState.empty] at h2⟩,
-    PartialState.union_empty_right h, hp, rfl, hprop⟩
+    PartialState.union_empty_right, hp, rfl, hprop⟩
 
 /-- The if_eq macro satisfies a cpsBranch spec: it either goes to
     the then-body entry (base+4) with equality, or to the else-body
@@ -294,20 +294,20 @@ theorem if_eq_branch_step (rs1 rs2 : Reg) (v1 v2 : Word)
   intro R hR s _hcr hPR hpc; subst hpc
   -- Extract instrAt from the precondition
   have hfetch : s.code s.pc = some (Instr.BNE rs1 rs2 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4))) :=
-    (holdsFor_instrAt _ _ s).mp (holdsFor_sepConj_elim_left (holdsFor_sepConj_elim_left hPR))
+    holdsFor_instrAt.mp (holdsFor_sepConj_elim_left (holdsFor_sepConj_elim_left hPR))
   -- Extract register values from the aAnd part
   have haAnd := holdsFor_sepConj_elim_right (holdsFor_sepConj_elim_left hPR)
   have hrs1 : s.getReg rs1 = v1 :=
-    (holdsFor_regIs _ _ s).mp (aAnd_holdsFor_elim (aAnd_holdsFor_elim haAnd).2).1
+    holdsFor_regIs.mp (aAnd_holdsFor_elim (aAnd_holdsFor_elim haAnd).2).1
   have hrs2 : s.getReg rs2 = v2 :=
-    (holdsFor_regIs _ _ s).mp (aAnd_holdsFor_elim (aAnd_holdsFor_elim haAnd).2).2
+    holdsFor_regIs.mp (aAnd_holdsFor_elim (aAnd_holdsFor_elim haAnd).2).2
   -- Execute the BNE instruction
   have hstep' : step s = some (execInstrBr s (Instr.BNE rs1 rs2 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4)))) :=
-    step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl)
+    step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl)
   -- The entire precondition (P ** R form from cpsBranch) is pcFree
   have hpcfree : (((s.pc ↦ᵢ Instr.BNE rs1 rs2 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4))) **
       (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2))) ** R).pcFree :=
-    pcFree_sepConj (pcFree_sepConj (pcFree_instrAt _ _) (pcFree_aAnd hP (pcFree_aAnd (pcFree_regIs _ _) (pcFree_regIs _ _)))) hR
+    pcFree_sepConj (pcFree_sepConj pcFree_instrAt (pcFree_aAnd hP (pcFree_aAnd pcFree_regIs pcFree_regIs))) hR
   -- Case split on v1 = v2
   by_cases heq : v1 = v2
   · -- Not taken: v1 = v2 → PC = s.pc + 4 = thenEntry (exit_t)
@@ -379,27 +379,27 @@ theorem if_eq_spec (rs1 rs2 : Reg) (v1 v2 : Word)
   -- hPR : ((bne ** (jal ** aAnd)) ** R).holdsFor s
   -- Extract instrAt facts
   have hfetch_bne : s.code s.pc = some (Instr.BNE rs1 rs2 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4))) :=
-    (holdsFor_instrAt _ _ s).mp (holdsFor_sepConj_elim_left (holdsFor_sepConj_elim_left hPR))
+    holdsFor_instrAt.mp (holdsFor_sepConj_elim_left (holdsFor_sepConj_elim_left hPR))
   -- Extract register values from the aAnd part
   have haAnd := holdsFor_sepConj_elim_right (holdsFor_sepConj_elim_right (holdsFor_sepConj_elim_left hPR))
   have hrs1 : s.getReg rs1 = v1 :=
-    (holdsFor_regIs _ _ s).mp (aAnd_holdsFor_elim (aAnd_holdsFor_elim haAnd).2).1
+    holdsFor_regIs.mp (aAnd_holdsFor_elim (aAnd_holdsFor_elim haAnd).2).1
   have hrs2 : s.getReg rs2 = v2 :=
-    (holdsFor_regIs _ _ s).mp (aAnd_holdsFor_elim (aAnd_holdsFor_elim haAnd).2).2
+    holdsFor_regIs.mp (aAnd_holdsFor_elim (aAnd_holdsFor_elim haAnd).2).2
   -- Execute BNE
   have hstep' : step s = some (execInstrBr s (Instr.BNE rs1 rs2 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4)))) :=
-    step_non_ecall_non_mem s _ hfetch_bne (by nofun) (by nofun) (by rfl)
+    step_non_ecall_non_mem s hfetch_bne (by nofun) (by nofun) (by rfl)
   -- pcFree for the full precondition with frame
   have hpcfree_all : (((s.pc ↦ᵢ Instr.BNE rs1 rs2 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4))) **
       ((s.pc + 4 + BitVec.ofNat 64 (4 * then_body.length)) ↦ᵢ Instr.JAL Reg.x0 (BitVec.ofNat 21 (4 * else_body.length + 4))) **
       (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2))) ** R).pcFree :=
-    pcFree_sepConj (pcFree_sepConj (pcFree_instrAt _ _)
-      (pcFree_sepConj (pcFree_instrAt _ _)
-        (pcFree_aAnd hP (pcFree_aAnd (pcFree_regIs _ _) (pcFree_regIs _ _))))) hR
+    pcFree_sepConj (pcFree_sepConj pcFree_instrAt
+      (pcFree_sepConj pcFree_instrAt
+        (pcFree_aAnd hP (pcFree_aAnd pcFree_regIs pcFree_regIs)))) hR
   -- Body-triple frame: bne ** jal ** R (pcFree)
   have hframe_pcfree : ((s.pc ↦ᵢ Instr.BNE rs1 rs2 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4))) **
       ((s.pc + 4 + BitVec.ofNat 64 (4 * then_body.length)) ↦ᵢ Instr.JAL Reg.x0 (BitVec.ofNat 21 (4 * else_body.length + 4))) ** R).pcFree :=
-    pcFree_sepConj (pcFree_instrAt _ _) (pcFree_sepConj (pcFree_instrAt _ _) hR)
+    pcFree_sepConj pcFree_instrAt (pcFree_sepConj pcFree_instrAt hR)
   -- Helper: rearranging ** chains
   -- (bne ** (jal ** aand)) ** R = (aand ** (bne ** (jal ** R))) as assertions
   have hassert_perm : (((s.pc ↦ᵢ Instr.BNE rs1 rs2 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4))) **
@@ -445,7 +445,7 @@ theorem if_eq_spec (rs1 rs2 : Reg) (v1 v2 : Word)
     -- Frame for jal_x0_spec_gen: the full (jal ** bne ** Q ** R) conjunction
     have hjal_pcfree : (((s.pc + 4 + BitVec.ofNat 64 (4 * then_body.length)) ↦ᵢ Instr.JAL Reg.x0 (BitVec.ofNat 21 (4 * else_body.length + 4))) **
         ((s.pc ↦ᵢ Instr.BNE rs1 rs2 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4))) ** Q ** R)).pcFree :=
-      pcFree_sepConj (pcFree_instrAt _ _) (pcFree_sepConj (pcFree_instrAt _ _) (pcFree_sepConj hQ hR))
+      pcFree_sepConj pcFree_instrAt (pcFree_sepConj pcFree_instrAt (pcFree_sepConj hQ hR))
     have hjal_cr : (CodeReq.singleton (s.pc + 4 + BitVec.ofNat 64 (4 * then_body.length))
         (Instr.JAL Reg.x0 (BitVec.ofNat 21 (4 * else_body.length + 4)))).SatisfiedBy s2 :=
       instrAt_singleton_satisfiedBy _ _ _ (holdsFor_sepConj_elim_left hQR2')
