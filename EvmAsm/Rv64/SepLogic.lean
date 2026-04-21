@@ -2055,11 +2055,11 @@ theorem ofIndexed_cons (p : Word × Instr) (ps : List (Word × Instr)) :
   simp only [ofIndexed, List.foldl, union_empty_left]
   exact ofIndexed_foldl_acc (singleton p.1 p.2) ps
 
-theorem ofProg_cons (base : Word) (i : Instr) (rest : List Instr) :
+theorem ofProg_cons {base : Word} {i : Instr} {rest : List Instr} :
     ofProg base (i :: rest) = (singleton base i).union (ofProg (base + 4) rest) := by
   simp only [ofProg, progIndexed]; exact ofIndexed_cons (base, i) (progIndexed (base + 4) rest)
 
-theorem ofProg_nil (base : Word) : ofProg base [] = empty := rfl
+theorem ofProg_nil {base : Word} : ofProg base [] = empty := rfl
 
 /-- If an address doesn't match any instruction position in a program block,
     the ofProg CodeReq returns none at that address. -/
@@ -2084,7 +2084,7 @@ theorem ofIndexed_append (xs ys : List (Word × Instr)) :
   simp only [ofIndexed, List.foldl_append]
   exact ofIndexed_foldl_acc _ ys
 
-theorem ofProg_append (base : Word) (p1 p2 : List Instr) :
+theorem ofProg_append {base : Word} {p1 p2 : List Instr} :
     ofProg base (p1 ++ p2) =
       (ofProg base p1).union (ofProg (base + BitVec.ofNat 64 (4 * p1.length)) p2) := by
   simp only [ofProg, progIndexed_append]
