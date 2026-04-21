@@ -92,7 +92,7 @@ theorem beq_sail_equiv (sRv : MachineState) (sSail : SailState)
   simp only [runSail_bind, runSail_rX_bits_of_stateRel hrel, runSail_pure]
   by_cases h : sRv.getReg rs1 == sRv.getReg rs2
   · simp only [h, ite_true, runSail_bind,
-      runSail_readReg_PC sSail sRv.pc h_pc, runSail_pure, sign_extend_13_eq]
+      runSail_readReg_PC h_pc, runSail_pure, sign_extend_13_eq]
     rw [runSail_jump_to _ _ misa_val h_align h_misa]
     exact ⟨_, rfl, stateRel_nextPC
       ⟨fun r => by simp [execInstrBr, h]; exact hrel.reg_agree r,
@@ -117,7 +117,7 @@ theorem bne_sail_equiv (sRv : MachineState) (sSail : SailState)
   simp only [runSail_bind, runSail_rX_bits_of_stateRel hrel, runSail_pure]
   by_cases h : sRv.getReg rs1 != sRv.getReg rs2
   · simp only [h, ite_true, runSail_bind,
-      runSail_readReg_PC sSail sRv.pc h_pc, runSail_pure, sign_extend_13_eq]
+      runSail_readReg_PC h_pc, runSail_pure, sign_extend_13_eq]
     rw [runSail_jump_to _ _ misa_val h_align h_misa]
     exact ⟨_, rfl, stateRel_nextPC
       ⟨fun r => by simp [execInstrBr, h]; exact hrel.reg_agree r,
@@ -142,7 +142,7 @@ theorem blt_sail_equiv (sRv : MachineState) (sSail : SailState)
   simp only [runSail_bind, runSail_rX_bits_of_stateRel hrel, runSail_pure, slt_equiv]
   by_cases h : BitVec.slt (sRv.getReg rs1) (sRv.getReg rs2)
   · simp only [h, ite_true, runSail_bind,
-      runSail_readReg_PC sSail sRv.pc h_pc, runSail_pure, sign_extend_13_eq]
+      runSail_readReg_PC h_pc, runSail_pure, sign_extend_13_eq]
     rw [runSail_jump_to _ _ misa_val h_align h_misa]
     exact ⟨_, rfl, stateRel_nextPC
       ⟨fun r => by simp [execInstrBr, h]; exact hrel.reg_agree r,
@@ -175,7 +175,7 @@ theorem bge_sail_equiv (sRv : MachineState) (sSail : SailState)
   · -- slt = false, so !slt = true → taken
     simp only [show BitVec.slt (sRv.getReg rs1) (sRv.getReg rs2) = false from by simp [h],
       Bool.not_false, ite_true, runSail_bind,
-      runSail_readReg_PC sSail sRv.pc h_pc, runSail_pure, sign_extend_13_eq]
+      runSail_readReg_PC h_pc, runSail_pure, sign_extend_13_eq]
     rw [runSail_jump_to _ _ misa_val h_align h_misa]
     exact ⟨_, rfl, stateRel_nextPC
       ⟨fun r => by simp [execInstrBr, h]; exact hrel.reg_agree r,
@@ -196,7 +196,7 @@ theorem bltu_sail_equiv (sRv : MachineState) (sSail : SailState)
   simp only [runSail_bind, runSail_rX_bits_of_stateRel hrel, runSail_pure, ult_equiv]
   by_cases h : BitVec.ult (sRv.getReg rs1) (sRv.getReg rs2)
   · simp only [h, ite_true, runSail_bind,
-      runSail_readReg_PC sSail sRv.pc h_pc, runSail_pure, sign_extend_13_eq]
+      runSail_readReg_PC h_pc, runSail_pure, sign_extend_13_eq]
     rw [runSail_jump_to _ _ misa_val h_align h_misa]
     exact ⟨_, rfl, stateRel_nextPC
       ⟨fun r => by simp [execInstrBr, h]; exact hrel.reg_agree r,
@@ -229,7 +229,7 @@ theorem bgeu_sail_equiv (sRv : MachineState) (sSail : SailState)
   · -- ult = false, so !ult = true → taken
     simp only [show BitVec.ult (sRv.getReg rs1) (sRv.getReg rs2) = false from by simp [h],
       Bool.not_false, ite_true, runSail_bind,
-      runSail_readReg_PC sSail sRv.pc h_pc, runSail_pure, sign_extend_13_eq]
+      runSail_readReg_PC h_pc, runSail_pure, sign_extend_13_eq]
     rw [runSail_jump_to _ _ misa_val h_align h_misa]
     exact ⟨_, rfl, stateRel_nextPC
       ⟨fun r => by simp [execInstrBr, h]; exact hrel.reg_agree r,
@@ -257,8 +257,8 @@ theorem jal_sail_equiv (sRv : MachineState) (sSail : SailState)
   obtain ⟨misa_val, h_misa⟩ := h_misa
   unfold execute_JAL
   simp only [runSail_bind,
-    runSail_get_next_pc sSail (sRv.pc + 4) h_nextpc,
-    runSail_readReg_PC sSail sRv.pc h_pc,
+    runSail_get_next_pc h_nextpc,
+    runSail_readReg_PC h_pc,
     sign_extend_21_eq]
   rw [runSail_jump_to _ _ misa_val h_align h_misa]
   simp only [RETIRE_SUCCESS, runSail_bind, runSail_pure]
@@ -325,7 +325,7 @@ theorem jalr_sail_equiv (sRv : MachineState) (sSail : SailState)
   unfold execute_JALR
   rw [runSail_ok_bind _ sSail s_mid _ h_elp_ok]
   simp only [runSail_bind, runSail_pure,
-    runSail_get_next_pc s_mid (sRv.pc + 4) h_nextpc_mid,
+    runSail_get_next_pc h_nextpc_mid,
     runSail_rX_bits_of_stateRel hrel_mid,
     sign_extend_12_eq]
   -- Rewrite BitVec.update to &&& ~~~1 before applying jump_to
