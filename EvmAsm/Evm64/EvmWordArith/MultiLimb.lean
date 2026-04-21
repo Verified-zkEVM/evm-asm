@@ -26,13 +26,13 @@ def hi32 (x : Word) : Word := x >>> 32
 def lo32 (x : Word) : Word := (x <<< 32) >>> 32
 
 /-- `hi32 x` is bounded by 2^32. -/
-theorem hi32_toNat_lt (x : Word) : (hi32 x).toNat < 2 ^ 32 := by
+theorem hi32_toNat_lt {x : Word} : (hi32 x).toNat < 2 ^ 32 := by
   unfold hi32
   rw [BitVec.toNat_ushiftRight, Nat.shiftRight_eq_div_pow]
   exact Nat.div_lt_of_lt_mul (show x.toNat < 2 ^ 32 * 2 ^ 32 by have := x.isLt; omega)
 
 /-- `lo32 x` is bounded by 2^32. -/
-theorem lo32_toNat_lt (x : Word) : (lo32 x).toNat < 2 ^ 32 := by
+theorem lo32_toNat_lt {x : Word} : (lo32 x).toNat < 2 ^ 32 := by
   unfold lo32
   rw [BitVec.toNat_ushiftRight, BitVec.toNat_shiftLeft, Nat.shiftRight_eq_div_pow]
   simp only [Nat.shiftLeft_eq]
@@ -42,7 +42,7 @@ theorem lo32_toNat_lt (x : Word) : (lo32 x).toNat < 2 ^ 32 := by
     _ = 2 ^ 32 * 2 ^ 32 := by ring
 
 /-- Half-word decomposition: `x = hi32(x) * 2^32 + lo32(x)` at the Nat level. -/
-theorem halfword_decompose (x : Word) :
+theorem halfword_decompose {x : Word} :
     x.toNat = (hi32 x).toNat * 2 ^ 32 + (lo32 x).toNat := by
   unfold hi32 lo32
   rw [BitVec.toNat_ushiftRight, BitVec.toNat_ushiftRight, BitVec.toNat_shiftLeft,

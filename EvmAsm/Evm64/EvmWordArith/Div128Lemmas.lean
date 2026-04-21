@@ -47,8 +47,8 @@ theorem halfword_combine (a b : Word) (ha : a.toNat < 2^32) (hb : b.toNat < 2^32
 /-- Corollary: combining hi32 and lo32 of a word reconstructs it at the Nat level. -/
 theorem halfword_combine_hi_lo (x : Word) :
     (hi32 x <<< 32 ||| lo32 x).toNat = x.toNat := by
-  rw [halfword_combine _ _ (hi32_toNat_lt x) (lo32_toNat_lt x)]
-  exact (halfword_decompose x).symm
+  rw [halfword_combine _ _ hi32_toNat_lt lo32_toNat_lt]
+  exact halfword_decompose.symm
 
 -- ============================================================================
 -- 128-bit Euclidean uniqueness (Nat level)
