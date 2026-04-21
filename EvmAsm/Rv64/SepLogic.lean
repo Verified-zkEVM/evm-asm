@@ -2096,7 +2096,7 @@ def unionAll : List CodeReq → CodeReq
   | cr :: rest => cr.union (unionAll rest)
 
 @[simp] theorem unionAll_nil : unionAll [] = empty := rfl
-@[simp] theorem unionAll_cons (cr : CodeReq) (rest : List CodeReq) :
+@[simp] theorem unionAll_cons {cr : CodeReq} {rest : List CodeReq} :
     unionAll (cr :: rest) = cr.union (unionAll rest) := rfl
 
 end CodeReq
@@ -2688,7 +2688,7 @@ def seps : List Assertion → Assertion
   | x :: xs => x ** seps xs
 
 @[simp] theorem seps_nil : seps ([] : List Assertion) = empAssertion := rfl
-@[simp] theorem seps_cons (x : Assertion) (xs : List Assertion) :
+@[simp] theorem seps_cons {x : Assertion} {xs : List Assertion} :
     seps (x :: xs) = (x ** seps xs) := rfl
 
 /-- Pick the n-th element to the front of a seps chain.
