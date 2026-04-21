@@ -110,7 +110,7 @@ theorem rlp_phase2_long_loop_four_byte_spec
         refine sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
           (sepConj_mono_right (sepConj_mono_right ?_)))) h hp
         intro h' hp'
-        exact ((sepConj_pure_right _ _ _).1 hp').1)
+        exact ((sepConj_pure_right _).1 hp').1)
       tri1
   -- Iters 2-4: three-byte closure at base with (ptr+1, cnt=3).
   have three_byte := rlp_phase2_long_loop_three_byte_spec ((len <<< 8) + byte1)

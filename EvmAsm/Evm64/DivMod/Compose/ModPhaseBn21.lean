@@ -86,7 +86,7 @@ theorem evm_mod_phaseB_n2_spec (sp base : Word)
   have hbne0_clean := cpsBranch_ntakenStripPure2 hbne0_raw
     (fun hp hQt => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQt
-      exact absurd hb3z ((sepConj_pure_right _ _ _).mp h_rest).2)
+      exact absurd hb3z ((sepConj_pure_right _).mp h_rest).2)
   have hbne0 := cpsTriple_extend_code (bne_x10_singleton_sub_modCode base) hbne0_clean
   have hbne0f := cpsTriple_frameR
     ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ (4 : Word)) ** (.x6 ↦ᵣ b1) ** (.x7 ↦ᵣ b2) **
@@ -121,7 +121,7 @@ theorem evm_mod_phaseB_n2_spec (sp base : Word)
   have hbne1_clean := cpsBranch_ntakenStripPure2 hbne1_raw
     (fun hp hQt => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQt
-      exact absurd hb2z ((sepConj_pure_right _ _ _).mp h_rest).2)
+      exact absurd hb2z ((sepConj_pure_right _).mp h_rest).2)
   have hbne1 := cpsTriple_extend_code (bne_x7_16_sub_modCode base) hbne1_clean
   have hbne1f := cpsTriple_frameR
     ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ (3 : Word)) ** (.x10 ↦ᵣ b3) ** (.x6 ↦ᵣ b1) **
@@ -156,7 +156,7 @@ theorem evm_mod_phaseB_n2_spec (sp base : Word)
   have hbne2_clean := cpsBranch_takenStripPure2 hbne2_raw
     (fun hp hQf => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQf
-      exact absurd ((sepConj_pure_right _ _ _).mp h_rest).2 hb1nz)
+      exact absurd ((sepConj_pure_right _).mp h_rest).2 hb1nz)
   have hbne2 := cpsTriple_extend_code (bne_x6_8_sub_modCode base) hbne2_clean
   have hbne2f := cpsTriple_frameR
     ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ (2 : Word)) ** (.x10 ↦ᵣ b3) ** (.x7 ↦ᵣ b2) **
@@ -267,7 +267,7 @@ theorem evm_mod_phaseB_n1_spec (sp base : Word)
   have hbne0_clean := cpsBranch_ntakenStripPure2 hbne0_raw
     (fun hp hQt => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQt
-      exact absurd hb3z ((sepConj_pure_right _ _ _).mp h_rest).2)
+      exact absurd hb3z ((sepConj_pure_right _).mp h_rest).2)
   have hbne0 := cpsTriple_extend_code (bne_x10_singleton_sub_modCode base) hbne0_clean
   have hbne0f := cpsTriple_frameR
     ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ (4 : Word)) ** (.x6 ↦ᵣ b1) ** (.x7 ↦ᵣ b2) **
@@ -302,7 +302,7 @@ theorem evm_mod_phaseB_n1_spec (sp base : Word)
   have hbne1_clean := cpsBranch_ntakenStripPure2 hbne1_raw
     (fun hp hQt => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQt
-      exact absurd hb2z ((sepConj_pure_right _ _ _).mp h_rest).2)
+      exact absurd hb2z ((sepConj_pure_right _).mp h_rest).2)
   have hbne1 := cpsTriple_extend_code (bne_x7_16_sub_modCode base) hbne1_clean
   have hbne1f := cpsTriple_frameR
     ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ (3 : Word)) ** (.x10 ↦ᵣ b3) ** (.x6 ↦ᵣ b1) **
@@ -337,7 +337,7 @@ theorem evm_mod_phaseB_n1_spec (sp base : Word)
   have hbne2_clean := cpsBranch_ntakenStripPure2 hbne2_raw
     (fun hp hQt => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQt
-      exact absurd hb1z ((sepConj_pure_right _ _ _).mp h_rest).2)
+      exact absurd hb1z ((sepConj_pure_right _).mp h_rest).2)
   have hbne2 := cpsTriple_extend_code (bne_x6_8_sub_modCode base) hbne2_clean
   have hbne2f := cpsTriple_frameR
     ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ (2 : Word)) ** (.x10 ↦ᵣ b3) ** (.x7 ↦ᵣ b2) **

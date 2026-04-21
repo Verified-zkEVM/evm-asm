@@ -67,9 +67,9 @@ theorem divK_phaseB_cascade_step_spec (nVal : BitVec 12) (rx : Reg) (check v5 : 
     cpsBranch_weaken
       (fun _ hp => hp)
       (fun h hp => sepConj_mono_right
-        (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1) h hp)
+        (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp)
       (fun h hp => sepConj_mono_right
-        (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1) h hp)
+        (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp)
       hbne_raw
   -- 3. Frame BNE with x5
   have hbne_framed := cpsBranch_frameR

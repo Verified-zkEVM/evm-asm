@@ -81,16 +81,16 @@ theorem divK_loop_control_spec (j : Word) (loop_back_off : BitVec 13)
     cpsBranch_weaken
       (fun _ hp => hp)
       (fun h hp => sepConj_mono_right
-        (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1) h hp)
+        (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp)
       (fun h hp => sepConj_mono_right
-        (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1) h hp)
+        (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp)
       hbge_raw
   have hbge_ext : cpsBranch (base + 4) cr
       ((.x1 ↦ᵣ j') ** (.x0 ↦ᵣ 0))
       ((base + 4) + signExtend13 loop_back_off) ((.x1 ↦ᵣ j') ** (.x0 ↦ᵣ 0))
       (base + 8) ((.x1 ↦ᵣ j') ** (.x0 ↦ᵣ 0)) :=
     fun R hR s hcr hPR hpc =>
-      hbge R hR s ((CodeReq.singleton_satisfiedBy _ _ s).mpr (hcr _ _ (by
+      hbge R hR s (CodeReq.singleton_satisfiedBy.mpr (hcr _ _ (by
         show CodeReq.union (CodeReq.singleton base (.ADDI .x1 .x1 4095))
           (CodeReq.singleton (base + 4) (.BGE .x1 .x0 loop_back_off)) (base + 4) = _
         simp only [CodeReq.union, CodeReq.singleton]

@@ -350,7 +350,7 @@ def loopN3MaxSkipSkipPost (sp v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig : Word) : Asse
   let c3 := (mulsubN4 (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2
   loopExitPostN1 sp j r.1 c3 r.2.1 r.2.2.1 r.2.2.2.1 r.2.2.2.2.1 r.2.2.2.2.2 v0 v1 v2 v3
 
-theorem loopIterPostN1Max_addback (sp j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
+theorem loopIterPostN1Max_addback {sp j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word}
     (hb : BitVec.ult uTop (mulsubN4_c3 (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3)) :
     loopBodyN1AddbackBeqPost sp j (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3 uTop =
     loopIterPostN1Max sp j v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
@@ -358,7 +358,7 @@ theorem loopIterPostN1Max_addback (sp j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
         loopBodyN1AddbackBeqPost loopBodyAddbackBeqPost loopExitPostN1 loopExitPost
   unfold mulsubN4_c3 at hb; simp only [if_pos hb]; split <;> rfl
 
-theorem loopIterPostN1Max_skip (sp j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
+theorem loopIterPostN1Max_skip {sp j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word}
     (hb : ¬BitVec.ult uTop (mulsubN4_c3 (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3)) :
     loopBodyN1SkipPost sp j (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3 uTop =
     loopIterPostN1Max sp j v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
@@ -376,7 +376,7 @@ theorem loopIterPostN1Max_skip (sp j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
   (sp + signExtend12 3952 ↦ₘ div128DLo v0) **
   (sp + signExtend12 3944 ↦ₘ div128Un0 u0)
 
-theorem loopIterPostN1Call_addback (sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
+theorem loopIterPostN1Call_addback {sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word}
     (hb : BitVec.ult uTop (mulsubN4_c3 (div128Quot u1 u0 v0) v0 v1 v2 v3 u0 u1 u2 u3)) :
     loopBodyN1CallAddbackBeqPostJ sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop =
     loopIterPostN1Call sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
@@ -384,7 +384,7 @@ theorem loopIterPostN1Call_addback (sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Wor
         loopBodyN1CallAddbackBeqPostJ loopBodyN1AddbackBeqPost loopBodyAddbackBeqPost loopExitPostN1 loopExitPost
   unfold mulsubN4_c3 at hb; simp only [if_pos hb]; split <;> rfl
 
-theorem loopIterPostN1Call_skip (sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
+theorem loopIterPostN1Call_skip {sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word}
     (hb : ¬BitVec.ult uTop (mulsubN4_c3 (div128Quot u1 u0 v0) v0 v1 v2 v3 u0 u1 u2 u3)) :
     loopBodyN1CallSkipPostJ sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop =
     loopIterPostN1Call sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
@@ -402,7 +402,7 @@ def loopIterPostN1 (bltu : Bool) (sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
   let c3 := (mulsubN4 (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2
   loopExitPostN2 sp j r.1 c3 r.2.1 r.2.2.1 r.2.2.2.1 r.2.2.2.2.1 r.2.2.2.2.2 v0 v1 v2 v3
 
-theorem loopIterPostN2Max_addback (sp j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
+theorem loopIterPostN2Max_addback {sp j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word}
     (hb : BitVec.ult uTop (mulsubN4_c3 (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3)) :
     loopBodyN2AddbackBeqPost sp j (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3 uTop =
     loopIterPostN2Max sp j v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
@@ -410,7 +410,7 @@ theorem loopIterPostN2Max_addback (sp j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
         loopBodyN2AddbackBeqPost loopBodyAddbackBeqPost loopExitPostN2 loopExitPost
   unfold mulsubN4_c3 at hb; simp only [if_pos hb]; split <;> rfl
 
-theorem loopIterPostN2Max_skip (sp j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
+theorem loopIterPostN2Max_skip {sp j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word}
     (hb : ¬BitVec.ult uTop (mulsubN4_c3 (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3)) :
     loopBodyN2SkipPost sp j (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3 uTop =
     loopIterPostN2Max sp j v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
@@ -428,7 +428,7 @@ theorem loopIterPostN2Max_skip (sp j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
   (sp + signExtend12 3952 ↦ₘ div128DLo v1) **
   (sp + signExtend12 3944 ↦ₘ div128Un0 u1)
 
-theorem loopIterPostN2Call_addback (sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
+theorem loopIterPostN2Call_addback {sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word}
     (hb : BitVec.ult uTop (mulsubN4_c3 (div128Quot u2 u1 v1) v0 v1 v2 v3 u0 u1 u2 u3)) :
     loopBodyN2CallAddbackBeqPostJ sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop =
     loopIterPostN2Call sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
@@ -436,7 +436,7 @@ theorem loopIterPostN2Call_addback (sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Wor
         loopBodyN2CallAddbackBeqPostJ loopBodyN2AddbackBeqPost loopBodyAddbackBeqPost loopExitPostN2 loopExitPost
   unfold mulsubN4_c3 at hb; simp only [if_pos hb]; split <;> rfl
 
-theorem loopIterPostN2Call_skip (sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
+theorem loopIterPostN2Call_skip {sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word}
     (hb : ¬BitVec.ult uTop (mulsubN4_c3 (div128Quot u2 u1 v1) v0 v1 v2 v3 u0 u1 u2 u3)) :
     loopBodyN2CallSkipPostJ sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop =
     loopIterPostN2Call sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
@@ -455,7 +455,7 @@ def loopIterPostN2 (bltu : Bool) (sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
   loopExitPostN3 sp j r.1 c3 r.2.1 r.2.2.1 r.2.2.2.1 r.2.2.2.2.1 r.2.2.2.2.2 v0 v1 v2 v3
 
 /-- Producer equation: addback beq postcondition equals loopIterPostN3Max when borrow holds. -/
-theorem loopIterPostN3Max_addback (sp j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
+theorem loopIterPostN3Max_addback {sp j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word}
     (hb : BitVec.ult uTop (mulsubN4_c3 (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3)) :
     loopBodyN3AddbackBeqPost sp j (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3 uTop =
     loopIterPostN3Max sp j v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
@@ -464,7 +464,7 @@ theorem loopIterPostN3Max_addback (sp j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
   unfold mulsubN4_c3 at hb; simp only [if_pos hb]; split <;> rfl
 
 /-- Producer equation: skip postcondition equals loopIterPostN3Max when ¬borrow. -/
-theorem loopIterPostN3Max_skip (sp j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
+theorem loopIterPostN3Max_skip {sp j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word}
     (hb : ¬BitVec.ult uTop (mulsubN4_c3 (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3)) :
     loopBodyN3SkipPost sp j (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3 uTop =
     loopIterPostN3Max sp j v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
@@ -483,7 +483,7 @@ theorem loopIterPostN3Max_skip (sp j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
   (sp + signExtend12 3944 ↦ₘ div128Un0 u2)
 
 /-- Producer equation: call addback beq postcondition equals loopIterPostN3Call when borrow holds. -/
-theorem loopIterPostN3Call_addback (sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
+theorem loopIterPostN3Call_addback {sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word}
     (hb : BitVec.ult uTop (mulsubN4_c3 (div128Quot u3 u2 v2) v0 v1 v2 v3 u0 u1 u2 u3)) :
     loopBodyN3CallAddbackBeqPostJ sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop =
     loopIterPostN3Call sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
@@ -492,7 +492,7 @@ theorem loopIterPostN3Call_addback (sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Wor
   unfold mulsubN4_c3 at hb; simp only [if_pos hb]; split <;> rfl
 
 /-- Producer equation: call skip postcondition equals loopIterPostN3Call when ¬borrow. -/
-theorem loopIterPostN3Call_skip (sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
+theorem loopIterPostN3Call_skip {sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word}
     (hb : ¬BitVec.ult uTop (mulsubN4_c3 (div128Quot u3 u2 v2) v0 v1 v2 v3 u0 u1 u2 u3)) :
     loopBodyN3CallSkipPostJ sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop =
     loopIterPostN3Call sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop := by

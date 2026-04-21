@@ -43,7 +43,7 @@ theorem denorm_mod_eq (a b s : Nat) :
 /-- If we prove the Euclidean property for normalized values `a' = a * 2^s`,
     `b' = b * 2^s`, the quotient is the same as for the original values,
     and the remainder can be recovered by dividing by 2^s. -/
-theorem norm_euclidean_bridge (a b q r s : Nat)
+theorem norm_euclidean_bridge {a b q r s : Nat}
     (h_eq : a * 2^s = b * 2^s * q + r)
     (h_rem : r < b * 2^s) :
     q = a / b ∧ r / 2^s = a % b := by

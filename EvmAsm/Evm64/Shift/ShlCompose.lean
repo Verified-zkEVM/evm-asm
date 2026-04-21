@@ -271,7 +271,7 @@ theorem evm_shl_zero_high_spec (sp base : Word)
   have hbne_taken := cpsBranch_takenStripPure2 hbne
     (fun hp hQf => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQf
-      exact absurd ((sepConj_pure_right _ _ _).mp h_rest).2 hhigh)
+      exact absurd ((sepConj_pure_right _).mp h_rest).2 hhigh)
   -- Frame BNE with remaining state
   have hbne_framed := cpsTriple_frameR
     ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ s3) **
@@ -369,7 +369,7 @@ theorem evm_shl_zero_large_spec (sp base : Word)
   have hbne_ntaken := cpsBranch_ntakenStripPure2 hbne
     (fun hp hQt => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQt
-      exact ((sepConj_pure_right _ _ _).mp h_rest).2 hlow)
+      exact ((sepConj_pure_right _).mp h_rest).2 hlow)
   -- Frame BNE(ntaken) with remaining state
   have hbne_framed := cpsTriple_frameR
     ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ s3) **
@@ -413,7 +413,7 @@ theorem evm_shl_zero_large_spec (sp base : Word)
   have hbeq_taken := cpsBranch_takenStripPure2 hbeq
     (fun hp hQf => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQf
-      exact ((sepConj_pure_right _ _ _).mp h_rest).2 hsltiu_eq)
+      exact ((sepConj_pure_right _).mp h_rest).2 hsltiu_eq)
   -- Frame BEQ(taken) with remaining state
   have hbeq_framed := cpsTriple_frameR
     ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ s0) **
@@ -650,7 +650,7 @@ theorem evm_shl_body_evmWord_spec (sp base : Word)
   have hbne_ntaken := cpsBranch_ntakenStripPure2 hbne
     (fun hp hQt => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQt
-      exact ((sepConj_pure_right _ _ _).mp h_rest).2 hhigh_zero)
+      exact ((sepConj_pure_right _).mp h_rest).2 hhigh_zero)
   have hbne_framed := cpsTriple_frameR
     ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ s3) ** (.x6 ↦ᵣ r6) ** (.x7 ↦ᵣ r7) ** (.x11 ↦ᵣ r11) **
      (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3) **
@@ -687,7 +687,7 @@ theorem evm_shl_body_evmWord_spec (sp base : Word)
   have hbeq_ntaken := cpsBranch_ntakenStripPure2 hbeq
     (fun hp hQt => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQt
-      have heq := ((sepConj_pure_right _ _ _).mp h_rest).2
+      have heq := ((sepConj_pure_right _).mp h_rest).2
       simp [hsltiu_eq] at heq)
   have hbeq_framed := cpsTriple_frameR
     ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ s0) ** (.x6 ↦ᵣ r6) ** (.x7 ↦ᵣ r7) ** (.x11 ↦ᵣ r11) **

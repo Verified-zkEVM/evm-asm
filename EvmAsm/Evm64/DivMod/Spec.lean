@@ -1017,6 +1017,9 @@ theorem evm_div_bzero_stack_spec (sp base : Word)
         from by xperm) h).mp w1)
     h_raw
 
+-- DIV n=4 call+skip full-path stack-pre wrappers live in `DivMod/SpecCall.lean`
+-- to stay under the Spec.lean file-size guardrail.
+
 -- ============================================================================
 -- MOD: Zero divisor stack spec (b = 0 → result = 0)
 -- ============================================================================

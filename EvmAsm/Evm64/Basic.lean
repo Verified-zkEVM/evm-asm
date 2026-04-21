@@ -55,10 +55,9 @@ theorem getLimb_xor (x y : EvmWord) (i : Fin 4) :
 theorem getLimb_not (x : EvmWord) (i : Fin 4) :
     (~~~x).getLimb i = ~~~(x.getLimb i) := by
   simp only [getLimb]
-  have hi := i.isLt
   ext j
   simp only [BitVec.getElem_extractLsb', BitVec.getElem_not, BitVec.getLsbD_not]
-  have hbound : i.val * 64 + j < 256 := by omega
+  have hbound : i.val * 64 + j < 256 := by have := i.isLt; omega
   simp [hbound]
 
 /-- Round-trip: fromLimbs ∘ getLimb = id. -/
@@ -158,7 +157,7 @@ theorem toNat_eq_getLimb0_of_high_zero (v : EvmWord)
   have hn3 : (v.extractLsb' (3 * 64) 64).toNat = 0 := by rw [h3]; rfl
   simp [BitVec.extractLsb'_toNat] at hn1 hn2 hn3
   simp [BitVec.extractLsb'_toNat]
-  have hv := v.isLt
+  have := v.isLt
   omega
 
 /-- Extract the k-th 64-bit limb, returning 0 when k ≥ 4 (out of range). -/
@@ -235,7 +234,7 @@ theorem getLimbN_one_two : (1 : EvmWord).getLimbN 2 = 0 :=
 theorem getLimbN_one_three : (1 : EvmWord).getLimbN 3 = 0 :=
   getLimbN_one_of_ne_zero 3 (by decide)
 
-theorem getLimbN_ite (c : Prop) [Decidable c] (x y : EvmWord) (k : Nat) :
+theorem getLimbN_ite {c : Prop} [Decidable c] {x y : EvmWord} {k : Nat} :
     (if c then x else y).getLimbN k = if c then x.getLimbN k else y.getLimbN k := by
   split <;> rfl
 

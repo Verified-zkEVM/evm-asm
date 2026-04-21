@@ -162,7 +162,7 @@ theorem divK_loop_body_n1_max_unified_j3_spec
     exact cpsTriple_weaken
       (fun h hp => hp)
       (fun h hp => by
-        rw [← loopIterPostN1Max_addback _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
+        rw [← loopIterPostN1Max_addback hb]; exact hp)
       (J3 hborrow)
   · -- skip path
     have hborrow : (if BitVec.ult uTop (mulsubN4_c3 (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3)
@@ -173,7 +173,7 @@ theorem divK_loop_body_n1_max_unified_j3_spec
     exact cpsTriple_weaken
       (fun h hp => hp)
       (fun h hp => by
-        rw [← loopIterPostN1Max_skip _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
+        rw [← loopIterPostN1Max_skip hb]; exact hp)
       (J3 hborrow)
 
 /-- Unified j=2 max-path  spec: uses _beq spec for addback, _skip for skip. -/
@@ -210,7 +210,7 @@ theorem divK_loop_body_n1_max_unified_j2_spec
     exact cpsTriple_weaken
       (fun h hp => hp)
       (fun h hp => by
-        rw [← loopIterPostN1Max_addback _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
+        rw [← loopIterPostN1Max_addback hb]; exact hp)
       (J2 hborrow)
   · -- skip path
     have hborrow : (if BitVec.ult uTop (mulsubN4_c3 (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3)
@@ -221,7 +221,7 @@ theorem divK_loop_body_n1_max_unified_j2_spec
     exact cpsTriple_weaken
       (fun h hp => hp)
       (fun h hp => by
-        rw [← loopIterPostN1Max_skip _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
+        rw [← loopIterPostN1Max_skip hb]; exact hp)
       (J2 hborrow)
 
 /-- Unified j=1 max-path  spec: uses _beq spec for addback, _skip for skip. -/
@@ -259,7 +259,7 @@ theorem divK_loop_body_n1_max_unified_j1_spec
     exact cpsTriple_weaken
       (fun h hp => hp)
       (fun h hp => by
-        rw [← loopIterPostN1Max_addback _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
+        rw [← loopIterPostN1Max_addback hb]; exact hp)
       (J1 hborrow)
   · -- skip path
     have hborrow : (if BitVec.ult uTop (mulsubN4_c3 (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3)
@@ -271,7 +271,7 @@ theorem divK_loop_body_n1_max_unified_j1_spec
     exact cpsTriple_weaken
       (fun h hp => hp)
       (fun h hp => by
-        rw [← loopIterPostN1Max_skip _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
+        rw [← loopIterPostN1Max_skip hb]; exact hp)
       (J1 hborrow)
 
 /-- Unified j=0 max-path  spec: uses _beq spec for addback, _skip for skip.
@@ -310,7 +310,7 @@ theorem divK_loop_body_n1_max_unified_j0_spec
     exact cpsTriple_weaken
       (fun h hp => hp)
       (fun h hp => by
-        rw [← loopIterPostN1Max_addback _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
+        rw [← loopIterPostN1Max_addback hb]; exact hp)
       (J0 hborrow)
   · -- skip path
     have hborrow : (if BitVec.ult uTop (mulsubN4_c3 (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3)
@@ -322,7 +322,7 @@ theorem divK_loop_body_n1_max_unified_j0_spec
     exact cpsTriple_weaken
       (fun h hp => hp)
       (fun h hp => by
-        rw [← loopIterPostN1Max_skip _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
+        rw [← loopIterPostN1Max_skip hb]; exact hp)
       (J0 hborrow)
 
 -- ============================================================================
@@ -371,7 +371,7 @@ theorem divK_loop_body_n1_call_unified_j3_spec
     exact cpsTriple_weaken
       (fun h hp => hp)
       (fun h hp => by
-        rw [← loopIterPostN1Call_addback _ _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
+        rw [← loopIterPostN1Call_addback hb]; exact hp)
       J3
   · -- skip path
     have hborrow : isSkipBorrowN1Call v0 v1 v2 v3 u0 u1 u2 u3 uTop := if_neg hb
@@ -383,7 +383,7 @@ theorem divK_loop_body_n1_call_unified_j3_spec
     exact cpsTriple_weaken
       (fun h hp => hp)
       (fun h hp => by
-        rw [← loopIterPostN1Call_skip _ _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
+        rw [← loopIterPostN1Call_skip hb]; exact hp)
       J3
 
 /-- Unified j=2 call-path  spec: uses _beq spec for addback, _skip for skip. -/
@@ -428,7 +428,7 @@ theorem divK_loop_body_n1_call_unified_j2_spec
     exact cpsTriple_weaken
       (fun h hp => hp)
       (fun h hp => by
-        rw [← loopIterPostN1Call_addback _ _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
+        rw [← loopIterPostN1Call_addback hb]; exact hp)
       J2
   · -- skip path
     have hborrow : isSkipBorrowN1Call v0 v1 v2 v3 u0 u1 u2 u3 uTop := if_neg hb
@@ -440,7 +440,7 @@ theorem divK_loop_body_n1_call_unified_j2_spec
     exact cpsTriple_weaken
       (fun h hp => hp)
       (fun h hp => by
-        rw [← loopIterPostN1Call_skip _ _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
+        rw [← loopIterPostN1Call_skip hb]; exact hp)
       J2
 
 /-- Unified j=1 call-path  spec: uses _beq spec for addback, _skip for skip. -/
@@ -485,7 +485,7 @@ theorem divK_loop_body_n1_call_unified_j1_spec
     exact cpsTriple_weaken
       (fun h hp => hp)
       (fun h hp => by
-        rw [← loopIterPostN1Call_addback _ _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
+        rw [← loopIterPostN1Call_addback hb]; exact hp)
       J1
   · -- skip path
     have hborrow : isSkipBorrowN1Call v0 v1 v2 v3 u0 u1 u2 u3 uTop := if_neg hb
@@ -497,7 +497,7 @@ theorem divK_loop_body_n1_call_unified_j1_spec
     exact cpsTriple_weaken
       (fun h hp => hp)
       (fun h hp => by
-        rw [← loopIterPostN1Call_skip _ _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
+        rw [← loopIterPostN1Call_skip hb]; exact hp)
       J1
 
 /-- Unified j=0 call-path  spec: uses _beq spec for addback, _skip for skip.
@@ -543,7 +543,7 @@ theorem divK_loop_body_n1_call_unified_j0_spec
     exact cpsTriple_weaken
       (fun h hp => hp)
       (fun h hp => by
-        rw [← loopIterPostN1Call_addback _ _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
+        rw [← loopIterPostN1Call_addback hb]; exact hp)
       J0
   · -- skip path
     have hborrow : isSkipBorrowN1Call v0 v1 v2 v3 u0 u1 u2 u3 uTop := if_neg hb
@@ -555,7 +555,7 @@ theorem divK_loop_body_n1_call_unified_j0_spec
     exact cpsTriple_weaken
       (fun h hp => hp)
       (fun h hp => by
-        rw [← loopIterPostN1Call_skip _ _ _ _ _ _ _ _ _ _ _ _ hb]; exact hp)
+        rw [← loopIterPostN1Call_skip hb]; exact hp)
       J0
 
 -- ============================================================================
