@@ -955,7 +955,7 @@ instance (P : Prop) : Assertion.PCFree (⌜P⌝) := ⟨pcFree_pure⟩
 theorem pure_true_eq_emp : ⌜True⌝ = empAssertion := by
   funext h; simp [pure, empAssertion]
 
-theorem sepConj_pure_left (P : Prop) (Q : Assertion) :
+theorem sepConj_pure_left {P : Prop} {Q : Assertion} :
     ∀ h, (⌜P⌝ ** Q) h ↔ P ∧ Q h := by
   intro h
   constructor
@@ -1296,7 +1296,7 @@ theorem sepConj_strip_pure_end3 {A B C : Assertion} {P : Prop} :
 theorem sepConj_strip_pure_depth3 {A B C D : Assertion} {P : Prop} :
     ∀ h, (A ** B ** C ** ⌜P⌝ ** D) h → (A ** B ** C ** D) h :=
   fun h hp => sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
-    (fun hd hpd => ((sepConj_pure_left P D hd).1 hpd).2))) h hp
+    (fun hd hpd => ((sepConj_pure_left hd).1 hpd).2))) h hp
 
 /-- Extract the pure fact at depth 3: A ** B ** C ** ⌜P⌝ → P -/
 theorem sepConj_extract_pure_end3 {A B C : Assertion} {P : Prop} :
