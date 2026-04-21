@@ -693,7 +693,7 @@ theorem signext_body_spec (sp base : Word)
   -- getLimbN = getLimb for in-range indices
   have hlimbIdx_lt4 : limbIdx.toNat < 4 := by rw [hlimbIdx_eq]; omega
   have hLN_eq : x.getLimbN (b.toNat / 8) = x.getLimb ⟨b.toNat / 8, by omega⟩ :=
-    EvmWord.getLimbN_lt x (b.toNat / 8) (by omega)
+    EvmWord.getLimbN_lt (by omega)
   -- signextLimb and signextFill in terms of body output
   -- signextLimb (x.getLimbN (b.toNat/8)) (BitVec.ofNat 64 (56-(b.toNat%8)*8))
   --   = sshiftRight (getLimbN <<< sa_mod) sa_mod
