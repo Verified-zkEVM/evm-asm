@@ -49,17 +49,17 @@ def execProgram (s : MachineState) : Program → MachineState
 @[simp] theorem execProgram_cons {s : MachineState} {i : Instr} {is : List Instr} :
     execProgram s (i :: is) = execProgram (execInstr s i) is := rfl
 
-theorem execProgram_append (s : MachineState) (p1 p2 : Program) :
+theorem execProgram_append {s : MachineState} {p1 p2 : Program} :
     execProgram s (p1 ++ p2) = execProgram (execProgram s p1) p2 := by
   induction p1 generalizing s with
   | nil => rfl
   | cons i is ih =>
     simp only [execProgram]
-    exact ih (execInstr s i)
+    exact ih
 
-theorem execProgram_seq (s : MachineState) (p1 p2 : Program) :
+theorem execProgram_seq {s : MachineState} {p1 p2 : Program} :
     execProgram s (p1 ;; p2) = execProgram (execProgram s p1) p2 :=
-  execProgram_append s p1 p2
+  execProgram_append
 
 -- ============================================================================
 -- Convenience constructors (macro-assembler style)
