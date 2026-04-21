@@ -123,7 +123,7 @@ theorem evmStackIs_triple {sp : Word} (a b c : EvmWord) :
     `sp + 64` instead of `sp + 32 + 32`. Those are *not* definitionally equal
     for `Word = BitVec 64` (the addition associates around `sp`), so call
     sites that want the flat `sp + 64` form reach for this variant. -/
-theorem evmStackIs_triple_flat (sp : Word) (a b c : EvmWord) :
+theorem evmStackIs_triple_flat {sp : Word} {a b c : EvmWord} :
     evmStackIs sp [a, b, c] =
     (evmWordIs sp a ** evmWordIs (sp + 32) b ** evmWordIs (sp + 64) c) := by
   rw [evmStackIs_triple]
@@ -133,7 +133,7 @@ theorem evmStackIs_triple_flat (sp : Word) (a b c : EvmWord) :
     `rw ←` can fold two `evmWordIs` atoms into an `evmStackIs [a, b]`
     bundle **even when they sit in the middle of a longer sepConj chain**.
     Parallels the `_right` family on `evmWordIs_sp*_limbs_eq`. -/
-theorem evmStackIs_pair_right (sp : Word) (a b : EvmWord) (Q : Assertion) :
+theorem evmStackIs_pair_right {sp : Word} {a b : EvmWord} {Q : Assertion} :
     ((evmWordIs sp a ** evmWordIs (sp + 32) b) ** Q) =
     (evmStackIs sp [a, b] ** Q) := by
   rw [evmStackIs_pair]
@@ -141,7 +141,7 @@ theorem evmStackIs_pair_right (sp : Word) (a b : EvmWord) (Q : Assertion) :
 /-- Mid-tree variant of `evmStackIs_single`: threads a remainder `Q` so
     `rw ←` can fold a single `evmWordIs` atom into an `evmStackIs [v]`
     bundle mid-chain. Parallel to `evmStackIs_pair_right`. -/
-theorem evmStackIs_single_right (sp : Word) (v : EvmWord) (Q : Assertion) :
+theorem evmStackIs_single_right {sp : Word} {v : EvmWord} {Q : Assertion} :
     (evmWordIs sp v ** Q) = (evmStackIs sp [v] ** Q) := by
   rw [evmStackIs_single]
 
@@ -149,7 +149,7 @@ theorem evmStackIs_single_right (sp : Word) (v : EvmWord) (Q : Assertion) :
     `rw ←` can fold three `evmWordIs` atoms into an `evmStackIs [a, b, c]`
     bundle mid-chain. Third address is in the non-flat `sp + 32 + 32`
     form — use `evmStackIs_triple_flat_right` for the `sp + 64` form. -/
-theorem evmStackIs_triple_right (sp : Word) (a b c : EvmWord) (Q : Assertion) :
+theorem evmStackIs_triple_right {sp : Word} {a b c : EvmWord} {Q : Assertion} :
     ((evmWordIs sp a ** evmWordIs (sp + 32) b **
       evmWordIs (sp + 32 + 32) c) ** Q) =
     (evmStackIs sp [a, b, c] ** Q) := by
@@ -158,8 +158,8 @@ theorem evmStackIs_triple_right (sp : Word) (a b c : EvmWord) (Q : Assertion) :
 /-- Mid-tree variant of `evmStackIs_triple_flat`: same as
     `evmStackIs_triple_right` but with the flat `sp + 64` offset for the
     third address. -/
-theorem evmStackIs_triple_flat_right (sp : Word) (a b c : EvmWord)
-    (Q : Assertion) :
+theorem evmStackIs_triple_flat_right {sp : Word} {a b c : EvmWord}
+    {Q : Assertion} :
     ((evmWordIs sp a ** evmWordIs (sp + 32) b **
       evmWordIs (sp + 64) c) ** Q) =
     (evmStackIs sp [a, b, c] ** Q) := by
