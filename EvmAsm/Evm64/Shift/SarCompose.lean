@@ -600,22 +600,16 @@ theorem sar_phase_c_spec_pure (v5 v10 : Word) (base : Word)
   have hunion_empty : ∀ (cr : CodeReq), cr.union CodeReq.empty = cr := by
     intro cr; funext a; simp only [CodeReq.union, CodeReq.empty]; cases cr a <;> rfl
   -- Chain cs2_clean + ft
-  have n3 := cpsBranch_cons_cpsNBranch (base + 12) cr_cs2 CodeReq.empty
-    (CodeReq.Disjoint.empty_right cr_cs2)
-    _ e2 _ (base + 20) _ _ cs2_clean ft
+  have n3 := cpsBranch_cons_cpsNBranch (CodeReq.Disjoint.empty_right cr_cs2) cs2_clean ft
   -- Chain cs1_clean + n3
   have hd_cs1_rest : cr_cs1.Disjoint (cr_cs2.union CodeReq.empty) := by
     rw [hunion_empty]; exact hd_cs1_cs2
-  have n2 := cpsBranch_cons_cpsNBranch_with_perm (base + 4) cr_cs1 (cr_cs2.union CodeReq.empty)
-    hd_cs1_rest
-    _ e1 _ (base + 12) _ _ _
+  have n2 := cpsBranch_cons_cpsNBranch_with_perm hd_cs1_rest
     (fun h hp => by xperm_hyp hp) cs1_clean n3
   -- Chain beq0f + n2
   have hd_beq0_rest : cr_beq0.Disjoint (cr_cs1.union (cr_cs2.union CodeReq.empty)) := by
     rw [hunion_empty]; exact CodeReq.Disjoint.union_right hd_beq0_cs1 hd_beq0_cs2
-  have n1 := cpsBranch_cons_cpsNBranch_with_perm base cr_beq0 (cr_cs1.union (cr_cs2.union CodeReq.empty))
-    hd_beq0_rest
-    _ e0 _ (base + 4) _ _ _
+  have n1 := cpsBranch_cons_cpsNBranch_with_perm hd_beq0_rest
     (fun h hp => by xperm_hyp hp) beq0f n2
   -- Simplify CR and match goal
   have hcr_eq : cr_beq0.union (cr_cs1.union (cr_cs2.union CodeReq.empty)) = sar_phase_c_code base := by

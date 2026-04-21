@@ -312,30 +312,22 @@ theorem rlp_phase1_classifier_spec (v5 v10 : Word) (base : Word)
             (.x10 ↦ᵣ ((0 : Word) + signExtend12 0xF8)))] :=
     cpsNBranch_refl e5 _ _ (fun _ hp => hp)
   -- Chain step 4 + fallthrough → cpsNBranch at base+24 with [e4, e5].
-  have n4 := cpsBranch_cons_cpsNBranch (base + 24) cr4 CodeReq.empty
-    (CodeReq.Disjoint.empty_right cr4)
-    _ e4 _ e5 _ _ cs4 ft
+  have n4 := cpsBranch_cons_cpsNBranch (CodeReq.Disjoint.empty_right cr4) cs4 ft
   -- Chain step 3 + n4 → cpsNBranch at base+16 with [e3, e4, e5].
   have hunion_empty : ∀ (cr : CodeReq), cr.union CodeReq.empty = cr := by
     intro cr; funext a; simp only [CodeReq.union, CodeReq.empty]; cases cr a <;> rfl
   have hd3_rest : cr3.Disjoint (cr4.union CodeReq.empty) := by
     rw [hunion_empty]; exact hd34
-  have n3 := cpsBranch_cons_cpsNBranch (base + 16) cr3 (cr4.union CodeReq.empty)
-    hd3_rest
-    _ e3 _ (base + 24) _ _ cs3 n4
+  have n3 := cpsBranch_cons_cpsNBranch hd3_rest cs3 n4
   -- Chain step 2 + n3 → cpsNBranch at base+8 with [e2, e3, e4, e5].
   have hd2_rest : cr2.Disjoint (cr3.union (cr4.union CodeReq.empty)) := by
     rw [hunion_empty]; exact CodeReq.Disjoint.union_right hd23 hd24
-  have n2 := cpsBranch_cons_cpsNBranch (base + 8) cr2
-    (cr3.union (cr4.union CodeReq.empty)) hd2_rest
-    _ e2 _ (base + 16) _ _ cs2 n3
+  have n2 := cpsBranch_cons_cpsNBranch hd2_rest cs2 n3
   -- Chain step 1 + n2 → cpsNBranch at base with [e1, e2, e3, e4, e5].
   have hd1_rest : cr1.Disjoint (cr2.union (cr3.union (cr4.union CodeReq.empty))) := by
     rw [hunion_empty]
     exact CodeReq.Disjoint.union_right hd12 (CodeReq.Disjoint.union_right hd13 hd14)
-  have n1 := cpsBranch_cons_cpsNBranch base cr1
-    (cr2.union (cr3.union (cr4.union CodeReq.empty))) hd1_rest
-    _ e1 _ (base + 8) _ _ cs1 n2
+  have n1 := cpsBranch_cons_cpsNBranch hd1_rest cs1 n2
   -- The CR now is: cr1.union (cr2.union (cr3.union (cr4.union empty))).
   -- Simplify the trailing `empty` and match the goal's classifier_code.
   have hcr_eq : cr1.union (cr2.union (cr3.union (cr4.union CodeReq.empty))) =
@@ -443,32 +435,24 @@ theorem rlp_phase1_classifier_spec_pure (v5 v10 : Word) (base : Word)
             ⌜¬ BitVec.ult v5 ((0 : Word) + signExtend12 0xF8)⌝)] :=
     cpsNBranch_refl e5 _ _ (fun _ hp => hp)
   -- Chain step 4 + fallthrough (no perm: step4.fall = ft.pre).
-  have n4 := cpsBranch_cons_cpsNBranch (base + 24) cr4 CodeReq.empty
-    (CodeReq.Disjoint.empty_right cr4)
-    _ e4 _ e5 _ _ cs4 ft
+  have n4 := cpsBranch_cons_cpsNBranch (CodeReq.Disjoint.empty_right cr4) cs4 ft
   have hunion_empty : ∀ (cr : CodeReq), cr.union CodeReq.empty = cr := by
     intro cr; funext a; simp only [CodeReq.union, CodeReq.empty]; cases cr a <;> rfl
   -- Chain step 3 + n4: strip `⌜¬ult v5 k3⌝` from step3.fall to match n4.pre.
   have hd3_rest : cr3.Disjoint (cr4.union CodeReq.empty) := by
     rw [hunion_empty]; exact hd34
-  have n3 := cpsBranch_cons_cpsNBranch_with_perm (base + 16) cr3
-    (cr4.union CodeReq.empty) hd3_rest
-    _ e3 _ (base + 24) _ _ _
+  have n3 := cpsBranch_cons_cpsNBranch_with_perm hd3_rest
     (sepConj_strip_pure_end3 _ _ _ _) cs3 n4
   -- Chain step 2 + n3.
   have hd2_rest : cr2.Disjoint (cr3.union (cr4.union CodeReq.empty)) := by
     rw [hunion_empty]; exact CodeReq.Disjoint.union_right hd23 hd24
-  have n2 := cpsBranch_cons_cpsNBranch_with_perm (base + 8) cr2
-    (cr3.union (cr4.union CodeReq.empty)) hd2_rest
-    _ e2 _ (base + 16) _ _ _
+  have n2 := cpsBranch_cons_cpsNBranch_with_perm hd2_rest
     (sepConj_strip_pure_end3 _ _ _ _) cs2 n3
   -- Chain step 1 + n2.
   have hd1_rest : cr1.Disjoint (cr2.union (cr3.union (cr4.union CodeReq.empty))) := by
     rw [hunion_empty]
     exact CodeReq.Disjoint.union_right hd12 (CodeReq.Disjoint.union_right hd13 hd14)
-  have n1 := cpsBranch_cons_cpsNBranch_with_perm base cr1
-    (cr2.union (cr3.union (cr4.union CodeReq.empty))) hd1_rest
-    _ e1 _ (base + 8) _ _ _
+  have n1 := cpsBranch_cons_cpsNBranch_with_perm hd1_rest
     (sepConj_strip_pure_end3 _ _ _ _) cs1 n2
   -- Collapse the trailing `empty` and match the goal's classifier_code.
   have hcr_eq : cr1.union (cr2.union (cr3.union (cr4.union CodeReq.empty))) =
@@ -632,27 +616,20 @@ theorem rlp_phase1_classifier_spec_acc (v5 v10 : Word) (base : Word)
                ¬ BitVec.ult v5 ((0 : Word) + signExtend12 0xF8)⌝)] :=
     cpsNBranch_refl e5 _ _ (fun _ hp => hp)
   -- Chain step 4 + ft (no perm needed: cs4.fall matches ft.pre).
-  have n4 := cpsBranch_cons_cpsNBranch (base + 24) cr4 CodeReq.empty
-    (CodeReq.Disjoint.empty_right cr4)
-    _ e4 _ e5 _ _ cs4 ft
+  have n4 := cpsBranch_cons_cpsNBranch (CodeReq.Disjoint.empty_right cr4) cs4 ft
   have hunion_empty : ∀ (cr : CodeReq), cr.union CodeReq.empty = cr := by
     intro cr; funext a; simp only [CodeReq.union, CodeReq.empty]; cases cr a <;> rfl
   -- Chain remaining steps (no perm needed: each cs_i's fall matches cs_{i+1}'s pre).
   have hd3_rest : cr3.Disjoint (cr4.union CodeReq.empty) := by
     rw [hunion_empty]; exact hd34
-  have n3 := cpsBranch_cons_cpsNBranch (base + 16) cr3 (cr4.union CodeReq.empty)
-    hd3_rest _ e3 _ (base + 24) _ _ cs3 n4
+  have n3 := cpsBranch_cons_cpsNBranch hd3_rest cs3 n4
   have hd2_rest : cr2.Disjoint (cr3.union (cr4.union CodeReq.empty)) := by
     rw [hunion_empty]; exact CodeReq.Disjoint.union_right hd23 hd24
-  have n2 := cpsBranch_cons_cpsNBranch (base + 8) cr2
-    (cr3.union (cr4.union CodeReq.empty)) hd2_rest
-    _ e2 _ (base + 16) _ _ cs2 n3
+  have n2 := cpsBranch_cons_cpsNBranch hd2_rest cs2 n3
   have hd1_rest : cr1.Disjoint (cr2.union (cr3.union (cr4.union CodeReq.empty))) := by
     rw [hunion_empty]
     exact CodeReq.Disjoint.union_right hd12 (CodeReq.Disjoint.union_right hd13 hd14)
-  have n1 := cpsBranch_cons_cpsNBranch base cr1
-    (cr2.union (cr3.union (cr4.union CodeReq.empty))) hd1_rest
-    _ e1 _ (base + 8) _ _ cs1 n2
+  have n1 := cpsBranch_cons_cpsNBranch hd1_rest cs1 n2
   have hcr_eq : cr1.union (cr2.union (cr3.union (cr4.union CodeReq.empty))) =
       rlp_phase1_classifier_code off1 off2 off3 off4 base := by
     simp only [hunion_empty]; rfl

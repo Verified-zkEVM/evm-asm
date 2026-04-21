@@ -748,11 +748,11 @@ theorem cpsTriple_seq_cpsBranch_with_perm {entry mid : Word} {cr1 cr2 : CodeReq}
 
 /-- Compose a cpsBranch with a cpsNBranch on the not-taken (false) path.
     The taken path becomes a new exit prepended to the cpsNBranch exits. -/
-theorem cpsBranch_cons_cpsNBranch (entry : Word) (cr1 cr2 : CodeReq)
+theorem cpsBranch_cons_cpsNBranch {entry : Word} {cr1 cr2 : CodeReq}
     (hd : cr1.Disjoint cr2)
-    (P : Assertion) (exit_t : Word) (Q_t : Assertion)
-    (exit_f : Word) (Q_f : Assertion)
-    (exits : List (Word × Assertion))
+    {P : Assertion} {exit_t : Word} {Q_t : Assertion}
+    {exit_f : Word} {Q_f : Assertion}
+    {exits : List (Word × Assertion)}
     (hbr : cpsBranch entry cr1 P exit_t Q_t exit_f Q_f)
     (h_rest : cpsNBranch exit_f cr2 Q_f exits) :
     cpsNBranch entry (cr1.union cr2) P ((exit_t, Q_t) :: exits) := by
@@ -768,11 +768,11 @@ theorem cpsBranch_cons_cpsNBranch (entry : Word) (cr1 cr2 : CodeReq)
            ex, List.Mem.tail _ hmem, hpc2, hER⟩
 
 /-- Compose a cpsBranch with a cpsNBranch, with permutation on the not-taken path. -/
-theorem cpsBranch_cons_cpsNBranch_with_perm (entry : Word) (cr1 cr2 : CodeReq)
+theorem cpsBranch_cons_cpsNBranch_with_perm {entry : Word} {cr1 cr2 : CodeReq}
     (hd : cr1.Disjoint cr2)
-    (P : Assertion) (exit_t : Word) (Q_t : Assertion)
-    (exit_f : Word) (Q_f Q_f' : Assertion)
-    (exits : List (Word × Assertion))
+    {P : Assertion} {exit_t : Word} {Q_t : Assertion}
+    {exit_f : Word} {Q_f Q_f' : Assertion}
+    {exits : List (Word × Assertion)}
     (hperm : ∀ h, Q_f h → Q_f' h)
     (hbr : cpsBranch entry cr1 P exit_t Q_t exit_f Q_f)
     (h_rest : cpsNBranch exit_f cr2 Q_f' exits) :
