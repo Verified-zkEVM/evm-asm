@@ -30,7 +30,7 @@ theorem bv_eq_of_nat_eq (a b q r : EvmWord)
     a = b * q + r := by
   apply BitVec.eq_of_toNat_eq
   rw [BitVec.toNat_add, BitVec.toNat_mul]
-  have ha := a.isLt
+  have := a.isLt
   rw [Nat.mod_eq_of_lt (show b.toNat * q.toNat < 2^256 by omega),
       Nat.mod_eq_of_lt (show b.toNat * q.toNat + r.toNat < 2^256 by omega)]
   exact h_nat

@@ -343,7 +343,7 @@ theorem byte_phase_c_spec (v5 v10 : Word) (base : Word)
       cs1_composed
   -- Frame cs1 with ⌜v5 ≠ 0⌝, clean up postconditions
   have cs1_framed := cpsBranch_frameR
-    (⌜v5 ≠ (0 : Word)⌝) (pcFree_pure _) cs1_clean
+    (⌜v5 ≠ (0 : Word)⌝) pcFree_pure cs1_clean
   have cs1_final : cpsBranch (base + 4) cr
       ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10) ** ⌜v5 ≠ (0 : Word)⌝)
       e1 ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ ((0 : Word) + signExtend12 1)) ** ⌜v5 = (0 : Word) + signExtend12 1⌝)
@@ -391,7 +391,7 @@ theorem byte_phase_c_spec (v5 v10 : Word) (base : Word)
       cs2_composed
   -- Frame cs2 with ⌜v5 ≠ 0 ∧ v5 ≠ 1⌝, clean up postconditions
   have cs2_framed := cpsBranch_frameR
-    (⌜v5 ≠ 0 ∧ v5 ≠ (0 : Word) + signExtend12 1⌝) (pcFree_pure _) cs2_clean
+    (⌜v5 ≠ 0 ∧ v5 ≠ (0 : Word) + signExtend12 1⌝) pcFree_pure cs2_clean
   have cs2_final : cpsBranch (base + 12) cr
       ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ ((0 : Word) + signExtend12 1)) ** ⌜v5 ≠ 0 ∧ v5 ≠ (0 : Word) + signExtend12 1⌝)
       e2 ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ ((0 : Word) + signExtend12 2)) ** ⌜v5 = (0 : Word) + signExtend12 2⌝)

@@ -309,14 +309,14 @@ theorem n4_max_double_addback_div_mod_limbs (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
   have ⟨hq, hr⟩ := n4_max_double_addback_correct a0 a1 a2 a3 b0 b1 b2 b3
     hb3nz hc3_one hcarry1_zero hcarry2_one
   refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · rw [← hq]; exact getLimbN_fromLimbs_0 _ _ _ _
-  · rw [← hq]; exact getLimbN_fromLimbs_1 _ _ _ _
-  · rw [← hq]; exact getLimbN_fromLimbs_2 _ _ _ _
-  · rw [← hq]; exact getLimbN_fromLimbs_3 _ _ _ _
-  · rw [← hr]; exact getLimbN_fromLimbs_0 _ _ _ _
-  · rw [← hr]; exact getLimbN_fromLimbs_1 _ _ _ _
-  · rw [← hr]; exact getLimbN_fromLimbs_2 _ _ _ _
-  · rw [← hr]; exact getLimbN_fromLimbs_3 _ _ _ _
+  · rw [← hq]; exact getLimbN_fromLimbs_0
+  · rw [← hq]; exact getLimbN_fromLimbs_1
+  · rw [← hq]; exact getLimbN_fromLimbs_2
+  · rw [← hq]; exact getLimbN_fromLimbs_3
+  · rw [← hr]; exact getLimbN_fromLimbs_0
+  · rw [← hr]; exact getLimbN_fromLimbs_1
+  · rw [← hr]; exact getLimbN_fromLimbs_2
+  · rw [← hr]; exact getLimbN_fromLimbs_3
 
 /-- n=4 max+double-addback path, EvmWord-level statement. Consumer form for
     stack specs: takes `a b : EvmWord`, works off `getLimbN`. Parallels

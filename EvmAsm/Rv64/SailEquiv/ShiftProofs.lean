@@ -60,7 +60,7 @@ theorem slli_sail_equiv (sRv : MachineState) (sSail : SailState)
         = some (RETIRE_SUCCESS, sSail') ∧
       StateRel (execInstrBr sRv (.SLLI rd rs1 shamt)) sSail' := by
   unfold execute_SHIFTIOP
-  simp only [runSail_bind, runSail_rX_bits_of_stateRel sRv sSail hrel, runSail_pure,
+  simp only [runSail_bind, runSail_rX_bits_of_stateRel hrel, runSail_pure,
     sll_extractLsb_bv6]
   cases rd <;>
     simp only [regToRegidx,
@@ -94,7 +94,7 @@ theorem srli_sail_equiv (sRv : MachineState) (sSail : SailState)
         = some (RETIRE_SUCCESS, sSail') ∧
       StateRel (execInstrBr sRv (.SRLI rd rs1 shamt)) sSail' := by
   unfold execute_SHIFTIOP
-  simp only [runSail_bind, runSail_rX_bits_of_stateRel sRv sSail hrel, runSail_pure,
+  simp only [runSail_bind, runSail_rX_bits_of_stateRel hrel, runSail_pure,
     srl_extractLsb_bv6]
   cases rd <;>
     simp only [regToRegidx,
@@ -128,7 +128,7 @@ theorem srai_sail_equiv (sRv : MachineState) (sSail : SailState)
         = some (RETIRE_SUCCESS, sSail') ∧
       StateRel (execInstrBr sRv (.SRAI rd rs1 shamt)) sSail' := by
   unfold execute_SHIFTIOP
-  simp only [runSail_bind, runSail_rX_bits_of_stateRel sRv sSail hrel, runSail_pure,
+  simp only [runSail_bind, runSail_rX_bits_of_stateRel hrel, runSail_pure,
     sra_extractLsb_bv6]
   cases rd <;>
     simp only [regToRegidx,

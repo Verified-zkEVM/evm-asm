@@ -41,7 +41,7 @@ theorem divK_modEpilogue_len : (divK_mod_epilogue 24).length = 10 := by decide
     Closes the disjointness goal using block length lemmas + bv_omega. -/
 macro "skipBlock" : tactic =>
   `(tactic| apply CodeReq.mono_union_right
-      (CodeReq.ofProg_disjoint_range _ _ _ _ (fun k1 k2 hk1 hk2 => by
+      (CodeReq.ofProg_disjoint_range (fun k1 k2 hk1 hk2 => by
         simp only [divK_phaseA_len, divK_phaseB_len, divK_clz_len, divK_phaseC2_len,
           divK_normB_len, divK_normA_len, divK_copyAU_len, divK_loopSetup_len,
           divK_loopBody_len, divK_denorm_len, divK_divEpilogue_len,
@@ -374,8 +374,8 @@ theorem divScratchOwn_unfold_right (sp : Word) (Q : Assertion) :
     (divScratchOwn sp ** Q) := by
   rw [divScratchOwn_unfold]
 
-theorem pcFree_divScratchValues (sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-    shiftMem nMem jMem : Word) :
+theorem pcFree_divScratchValues {sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+    shiftMem nMem jMem : Word} :
     (divScratchValues sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
       shiftMem nMem jMem).pcFree := by
   unfold divScratchValues; pcFree
@@ -383,12 +383,11 @@ theorem pcFree_divScratchValues (sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
 instance (sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem : Word) :
     Assertion.PCFree (divScratchValues sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
         shiftMem nMem jMem) :=
-  ⟨pcFree_divScratchValues sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-    shiftMem nMem jMem⟩
+  ⟨pcFree_divScratchValues⟩
 
 /-- `divScratchOwn` is pc-free: all its 15 atoms are `memOwn`. Proof goes
     through the `_unfold` rewrite since the bundle is `@[irreducible]`. -/
-theorem pcFree_divScratchOwn (sp : Word) : (divScratchOwn sp).pcFree := by
+theorem pcFree_divScratchOwn {sp : Word} : (divScratchOwn sp).pcFree := by
   rw [divScratchOwn_unfold]; pcFree
 
 /-- Value-agnostic counterpart to `divScratchValuesCall`: the same 19 cells
@@ -418,12 +417,12 @@ theorem divScratchOwnCall_unfold (sp : Word) :
 
 /-- `divScratchOwnCall` is pc-free: all atoms are `memOwn` (chained from
     `divScratchOwn` + 4 new `memOwn`). -/
-theorem pcFree_divScratchOwnCall (sp : Word) : (divScratchOwnCall sp).pcFree := by
+theorem pcFree_divScratchOwnCall {sp : Word} : (divScratchOwnCall sp).pcFree := by
   rw [divScratchOwnCall_unfold, divScratchOwn_unfold]; pcFree
 
 instance pcFreeInst_divScratchOwn (sp : Word) :
     Assertion.PCFree (divScratchOwn sp) :=
-  ⟨pcFree_divScratchOwn sp⟩
+  ⟨pcFree_divScratchOwn⟩
 
 /-- Weakening: any concrete scratch state implies ownership of the same 15
     cells. This lets a stack spec hide the scratch values on exit. -/
@@ -501,14 +500,14 @@ theorem loopSetupPost_unfold (sp nVal shift a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
   delta loopSetupPost; rfl
 
 /-- `loopSetupPost` is pc-free: all its atoms are `regIs` / `memIs`. -/
-theorem pcFree_loopSetupPost (sp nVal shift a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
+theorem pcFree_loopSetupPost {sp nVal shift a0 a1 a2 a3 b0 b1 b2 b3 : Word} :
     (loopSetupPost sp nVal shift a0 a1 a2 a3 b0 b1 b2 b3).pcFree := by
   rw [loopSetupPost_unfold]; pcFree
 
 instance pcFreeInst_loopSetupPost
     (sp nVal shift a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
     Assertion.PCFree (loopSetupPost sp nVal shift a0 a1 a2 a3 b0 b1 b2 b3) :=
-  ⟨pcFree_loopSetupPost sp nVal shift a0 a1 a2 a3 b0 b1 b2 b3⟩
+  ⟨pcFree_loopSetupPost⟩
 
 -- ============================================================================
 -- Postcondition bundles for denorm + epilogue paths
@@ -550,13 +549,13 @@ theorem denormDivPost_unfold (sp shift u0 u1 u2 u3 q0 q1 q2 q3 : Word) :
   delta denormDivPost; rfl
 
 /-- `denormDivPost` is pc-free: all its atoms are `regIs` / `memIs`. -/
-theorem pcFree_denormDivPost (sp shift u0 u1 u2 u3 q0 q1 q2 q3 : Word) :
+theorem pcFree_denormDivPost {sp shift u0 u1 u2 u3 q0 q1 q2 q3 : Word} :
     (denormDivPost sp shift u0 u1 u2 u3 q0 q1 q2 q3).pcFree := by
   rw [denormDivPost_unfold]; pcFree
 
 instance pcFreeInst_denormDivPost (sp shift u0 u1 u2 u3 q0 q1 q2 q3 : Word) :
     Assertion.PCFree (denormDivPost sp shift u0 u1 u2 u3 q0 q1 q2 q3) :=
-  ⟨pcFree_denormDivPost sp shift u0 u1 u2 u3 q0 q1 q2 q3⟩
+  ⟨pcFree_denormDivPost⟩
 
 /-- Postcondition for MOD denorm + epilogue (shift ≠ 0).
     Encapsulates antiShift and denormalized u'[0..3]. -/
@@ -590,13 +589,13 @@ theorem denormModPost_unfold (sp shift u0 u1 u2 u3 : Word) :
   delta denormModPost; rfl
 
 /-- `denormModPost` is pc-free: all its atoms are `regIs` / `memIs`. -/
-theorem pcFree_denormModPost (sp shift u0 u1 u2 u3 : Word) :
+theorem pcFree_denormModPost {sp shift u0 u1 u2 u3 : Word} :
     (denormModPost sp shift u0 u1 u2 u3).pcFree := by
   rw [denormModPost_unfold]; pcFree
 
 instance pcFreeInst_denormModPost (sp shift u0 u1 u2 u3 : Word) :
     Assertion.PCFree (denormModPost sp shift u0 u1 u2 u3) :=
-  ⟨pcFree_denormModPost sp shift u0 u1 u2 u3⟩
+  ⟨pcFree_denormModPost⟩
 
 -- ============================================================================
 -- Postcondition bundle for normB (PhaseAB + CLZ + PhaseC2 + NormB)
@@ -642,13 +641,13 @@ theorem normBPost_unfold (sp nVal shift b0 b1 b2 b3 : Word) :
   delta normBPost; rfl
 
 /-- `normBPost` is pc-free: all its atoms are `regIs` / `memIs`. -/
-theorem pcFree_normBPost (sp nVal shift b0 b1 b2 b3 : Word) :
+theorem pcFree_normBPost {sp nVal shift b0 b1 b2 b3 : Word} :
     (normBPost sp nVal shift b0 b1 b2 b3).pcFree := by
   rw [normBPost_unfold]; pcFree
 
 instance pcFreeInst_normBPost (sp nVal shift b0 b1 b2 b3 : Word) :
     Assertion.PCFree (normBPost sp nVal shift b0 b1 b2 b3) :=
-  ⟨pcFree_normBPost sp nVal shift b0 b1 b2 b3⟩
+  ⟨pcFree_normBPost⟩
 
 -- ============================================================================
 -- `se12_32`/`se12_40`/`se12_48`/`se12_56` were deleted by issue #493 / #494:
