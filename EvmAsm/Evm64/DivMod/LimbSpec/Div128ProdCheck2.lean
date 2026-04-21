@@ -88,7 +88,7 @@ theorem divK_div128_prodcheck2_merged_spec
          ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ un0) **
           (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0))) :=
     fun R hR s hcr hPR hpc =>
-      hbltu_framed R hR s ((CodeReq.singleton_satisfiedBy _ _ s).mpr (hcr _ _ (by
+      hbltu_framed R hR s (CodeReq.singleton_satisfiedBy.mpr (hcr _ _ (by
         show cr (base + 20) = _
         simp only [cr, CodeReq.union, CodeReq.singleton]
         have h0 : ¬(base + 20 = base) := by bv_omega

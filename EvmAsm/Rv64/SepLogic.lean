@@ -2588,7 +2588,7 @@ theorem CodeReq.empty_satisfiedBy (s : MachineState) : CodeReq.empty.SatisfiedBy
   fun _ _ h => by simp [CodeReq.empty] at h
 
 /-- A singleton CodeReq is satisfied iff the state has the instruction at that address. -/
-theorem CodeReq.singleton_satisfiedBy (a : Word) (i : Instr) (s : MachineState) :
+theorem CodeReq.singleton_satisfiedBy {a : Word} {i : Instr} {s : MachineState} :
     (CodeReq.singleton a i).SatisfiedBy s ↔ s.code a = some i := by
   constructor
   · intro h; exact h a i (by simp [CodeReq.singleton])
@@ -2605,7 +2605,7 @@ theorem CodeReq.singleton_satisfiedBy (a : Word) (i : Instr) (s : MachineState) 
 /-- An instrAt fact gives CodeReq.singleton satisfaction. -/
 theorem instrAt_singleton_satisfiedBy (a : Word) (i : Instr) (s : MachineState)
     (h : (instrAt a i).holdsFor s) : (CodeReq.singleton a i).SatisfiedBy s :=
-  (CodeReq.singleton_satisfiedBy a i s).mpr ((holdsFor_instrAt a i s).mp h)
+  CodeReq.singleton_satisfiedBy.mpr ((holdsFor_instrAt a i s).mp h)
 
 /-- Step preserves code (single step). -/
 theorem step_code_preserved (s s' : MachineState) (h : step s = some s') :

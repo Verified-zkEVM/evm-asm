@@ -44,7 +44,7 @@ theorem generic_1reg_spec (instr : Instr) (rd : Reg) (v result : Word) (base : W
   intro R hR s hcr hPR hpc; subst hpc
   -- Extract code fetch from CodeReq
   have hfetch : s.code s.pc = some instr :=
-    (CodeReq.singleton_satisfiedBy s.pc instr s).mp hcr
+    CodeReq.singleton_satisfiedBy.mp hcr
   have hrd : s.getReg rd = v :=
     (holdsFor_regIs _ _ s).mp (holdsFor_sepConj_elim_left hPR)
   -- Compute next state
@@ -78,7 +78,7 @@ theorem generic_2reg_spec (instr : Instr) (rs rd : Reg)
       ((rs ↦ᵣ v_src) ** (rd ↦ᵣ result)) := by
   intro R hR s hcr hPR hpc; subst hpc
   have hfetch : s.code s.pc = some instr :=
-    (CodeReq.singleton_satisfiedBy s.pc instr s).mp hcr
+    CodeReq.singleton_satisfiedBy.mp hcr
   have hrs : s.getReg rs = v_src :=
     (holdsFor_regIs _ _ s).mp (holdsFor_sepConj_elim_left
       (holdsFor_sepConj_elim_left hPR))
@@ -116,7 +116,7 @@ theorem generic_2reg_rd_eq_rs1_spec (instr : Instr) (rd rs2 : Reg)
       ((rd ↦ᵣ result) ** (rs2 ↦ᵣ v2)) := by
   intro R hR s hcr hPR hpc; subst hpc
   have hfetch : s.code s.pc = some instr :=
-    (CodeReq.singleton_satisfiedBy s.pc instr s).mp hcr
+    CodeReq.singleton_satisfiedBy.mp hcr
   have hrd : s.getReg rd = v1 :=
     (holdsFor_regIs _ _ s).mp (holdsFor_sepConj_elim_left
       (holdsFor_sepConj_elim_left hPR))
@@ -155,7 +155,7 @@ theorem generic_3reg_spec (instr : Instr) (rs1 rs2 rd : Reg)
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** (rd ↦ᵣ result)) := by
   intro R hR s hcr hPR hpc; subst hpc
   have hfetch : s.code s.pc = some instr :=
-    (CodeReq.singleton_satisfiedBy s.pc instr s).mp hcr
+    CodeReq.singleton_satisfiedBy.mp hcr
   have hrs1 : s.getReg rs1 = v1 :=
     (holdsFor_regIs _ _ s).mp (holdsFor_sepConj_elim_left
       (holdsFor_sepConj_elim_left hPR))
@@ -191,7 +191,7 @@ theorem generic_nop_spec (instr : Instr) (base exit_ : Word)
       empAssertion := by
   intro R hR s hcr hPR hpc; subst hpc
   have hfetch : s.code s.pc = some instr :=
-    (CodeReq.singleton_satisfiedBy s.pc instr s).mp hcr
+    CodeReq.singleton_satisfiedBy.mp hcr
   have hexec' := hexec s rfl
   have hstep' := hstep s hfetch
   refine ⟨1, s.setPC exit_, ?_, rfl, ?_⟩
@@ -221,7 +221,7 @@ theorem generic_bne_spec (rs1 rs2 : Reg) (offset : BitVec 13) (v1 v2 : Word) (ba
         ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** ⌜v1 = v2⌝) := by
   intro R hR s hcr hPR hpc; subst hpc
   have hfetch : s.code s.pc = some (.BNE rs1 rs2 offset) :=
-    (CodeReq.singleton_satisfiedBy s.pc (.BNE rs1 rs2 offset) s).mp hcr
+    CodeReq.singleton_satisfiedBy.mp hcr
   have hrs1 : s.getReg rs1 = v1 :=
     (holdsFor_regIs _ _ s).mp (holdsFor_sepConj_elim_left
       (holdsFor_sepConj_elim_left hPR))
@@ -272,7 +272,7 @@ theorem generic_beq_spec (rs1 rs2 : Reg) (offset : BitVec 13) (v1 v2 : Word) (ba
         ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** ⌜v1 ≠ v2⌝) := by
   intro R hR s hcr hPR hpc; subst hpc
   have hfetch : s.code s.pc = some (.BEQ rs1 rs2 offset) :=
-    (CodeReq.singleton_satisfiedBy s.pc (.BEQ rs1 rs2 offset) s).mp hcr
+    CodeReq.singleton_satisfiedBy.mp hcr
   have hrs1 : s.getReg rs1 = v1 :=
     (holdsFor_regIs _ _ s).mp (holdsFor_sepConj_elim_left
       (holdsFor_sepConj_elim_left hPR))
@@ -327,7 +327,7 @@ theorem generic_bltu_spec (rs1 rs2 : Reg) (offset : BitVec 13) (v1 v2 : Word) (b
         ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** ⌜¬BitVec.ult v1 v2⌝) := by
   intro R hR s hcr hPR hpc; subst hpc
   have hfetch : s.code s.pc = some (.BLTU rs1 rs2 offset) :=
-    (CodeReq.singleton_satisfiedBy s.pc (.BLTU rs1 rs2 offset) s).mp hcr
+    CodeReq.singleton_satisfiedBy.mp hcr
   have hrs1 : s.getReg rs1 = v1 :=
     (holdsFor_regIs _ _ s).mp (holdsFor_sepConj_elim_left
       (holdsFor_sepConj_elim_left hPR))
@@ -382,7 +382,7 @@ theorem generic_bge_spec (rs1 rs2 : Reg) (offset : BitVec 13) (v1 v2 : Word) (ba
         ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** ⌜BitVec.slt v1 v2⌝) := by
   intro R hR s hcr hPR hpc; subst hpc
   have hfetch : s.code s.pc = some (.BGE rs1 rs2 offset) :=
-    (CodeReq.singleton_satisfiedBy s.pc (.BGE rs1 rs2 offset) s).mp hcr
+    CodeReq.singleton_satisfiedBy.mp hcr
   have hrs1 : s.getReg rs1 = v1 :=
     (holdsFor_regIs _ _ s).mp (holdsFor_sepConj_elim_left
       (holdsFor_sepConj_elim_left hPR))
@@ -437,7 +437,7 @@ theorem generic_blt_spec (rs1 rs2 : Reg) (offset : BitVec 13) (v1 v2 : Word) (ba
         ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** ⌜¬BitVec.slt v1 v2⌝) := by
   intro R hR s hcr hPR hpc; subst hpc
   have hfetch : s.code s.pc = some (.BLT rs1 rs2 offset) :=
-    (CodeReq.singleton_satisfiedBy s.pc (.BLT rs1 rs2 offset) s).mp hcr
+    CodeReq.singleton_satisfiedBy.mp hcr
   have hrs1 : s.getReg rs1 = v1 :=
     (holdsFor_regIs _ _ s).mp (holdsFor_sepConj_elim_left
       (holdsFor_sepConj_elim_left hPR))
@@ -492,7 +492,7 @@ theorem generic_bgeu_spec (rs1 rs2 : Reg) (offset : BitVec 13) (v1 v2 : Word) (b
         ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** ⌜BitVec.ult v1 v2⌝) := by
   intro R hR s hcr hPR hpc; subst hpc
   have hfetch : s.code s.pc = some (.BGEU rs1 rs2 offset) :=
-    (CodeReq.singleton_satisfiedBy s.pc (.BGEU rs1 rs2 offset) s).mp hcr
+    CodeReq.singleton_satisfiedBy.mp hcr
   have hrs1 : s.getReg rs1 = v1 :=
     (holdsFor_regIs _ _ s).mp (holdsFor_sepConj_elim_left
       (holdsFor_sepConj_elim_left hPR))
@@ -545,7 +545,7 @@ theorem generic_jal_spec (rd : Reg) (vOld : Word) (offset : BitVec 21) (base : W
       (rd ↦ᵣ (base + 4)) := by
   intro R hR s hcr hPR hpc; subst hpc
   have hfetch : s.code s.pc = some (.JAL rd offset) :=
-    (CodeReq.singleton_satisfiedBy s.pc (.JAL rd offset) s).mp hcr
+    CodeReq.singleton_satisfiedBy.mp hcr
   have hstep' : step s = some (execInstrBr s (.JAL rd offset)) :=
     step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl)
   -- execInstrBr s (.JAL rd offset) = (s.setReg rd (s.pc + 4)).setPC (s.pc + signExtend21 offset)
@@ -565,7 +565,7 @@ theorem generic_jalr_spec (rd rs1 : Reg) (v1 vOld : Word) (offset : BitVec 12) (
       ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ (base + 4))) := by
   intro R hR s hcr hPR hpc; subst hpc
   have hfetch : s.code s.pc = some (.JALR rd rs1 offset) :=
-    (CodeReq.singleton_satisfiedBy s.pc (.JALR rd rs1 offset) s).mp hcr
+    CodeReq.singleton_satisfiedBy.mp hcr
   have hrs1 : s.getReg rs1 = v1 :=
     (holdsFor_regIs _ _ s).mp (holdsFor_sepConj_elim_left
       (holdsFor_sepConj_elim_left hPR))
@@ -600,7 +600,7 @@ theorem generic_ld_spec (rd rs1 : Reg) (v_addr vOld memVal : Word)
       ((rs1 ↦ᵣ v_addr) ** (rd ↦ᵣ memVal) ** ((v_addr + signExtend12 offset) ↦ₘ memVal)) := by
   intro R hR s hcr hPR hpc; subst hpc
   have hfetch : s.code s.pc = some (.LD rd rs1 offset) :=
-    (CodeReq.singleton_satisfiedBy s.pc (.LD rd rs1 offset) s).mp hcr
+    CodeReq.singleton_satisfiedBy.mp hcr
   have hrs1 : s.getReg rs1 = v_addr :=
     (holdsFor_regIs _ _ s).mp (holdsFor_sepConj_elim_left
       (holdsFor_sepConj_elim_left hPR))
@@ -645,7 +645,7 @@ theorem generic_sd_spec (rs1 rs2 : Reg) (v_addr v_data memOld : Word)
       ((rs1 ↦ᵣ v_addr) ** (rs2 ↦ᵣ v_data) ** ((v_addr + signExtend12 offset) ↦ₘ v_data)) := by
   intro R hR s hcr hPR hpc; subst hpc
   have hfetch : s.code s.pc = some (.SD rs1 rs2 offset) :=
-    (CodeReq.singleton_satisfiedBy s.pc (.SD rs1 rs2 offset) s).mp hcr
+    CodeReq.singleton_satisfiedBy.mp hcr
   have hrs1 : s.getReg rs1 = v_addr :=
     (holdsFor_regIs _ _ s).mp (holdsFor_sepConj_elim_left
       (holdsFor_sepConj_elim_left hPR))
@@ -688,7 +688,7 @@ theorem generic_sd_x0_spec (rs1 : Reg) (v_addr memOld : Word)
       ((rs1 ↦ᵣ v_addr) ** ((v_addr + signExtend12 offset) ↦ₘ (0 : Word))) := by
   intro R hR s hcr hPR hpc; subst hpc
   have hfetch : s.code s.pc = some (.SD rs1 .x0 offset) :=
-    (CodeReq.singleton_satisfiedBy s.pc (.SD rs1 .x0 offset) s).mp hcr
+    CodeReq.singleton_satisfiedBy.mp hcr
   have hrs1 : s.getReg rs1 = v_addr :=
     (holdsFor_regIs _ _ s).mp (holdsFor_sepConj_elim_left
       (holdsFor_sepConj_elim_left hPR))

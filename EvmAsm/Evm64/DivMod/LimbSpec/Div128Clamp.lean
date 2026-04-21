@@ -69,7 +69,7 @@ theorem divK_div128_clamp_q1_merged_spec (q1 rhat dHi v5Old : Word) (base : Word
         (((.x5 ↦ᵣ hi) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜hi ≠ 0⌝) **
          ((.x10 ↦ᵣ q1) ** (.x7 ↦ᵣ rhat) ** (.x6 ↦ᵣ dHi))) :=
     fun R hR s hcr hPR hpc =>
-      hbeq_framed R hR s ((CodeReq.singleton_satisfiedBy _ _ s).mpr (hcr _ _ (by
+      hbeq_framed R hR s (CodeReq.singleton_satisfiedBy.mpr (hcr _ _ (by
         show cr (base + 4) = _
         simp only [cr, CodeReq.union, CodeReq.singleton]
         have h0 : ¬(base + 4 = base) := by bv_omega
@@ -154,7 +154,7 @@ theorem divK_div128_clamp_q0_merged_spec (q0 rhat2 dHi v1Old : Word) (base : Wor
         (((.x1 ↦ᵣ hi) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜hi ≠ 0⌝) **
          ((.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ rhat2) ** (.x6 ↦ᵣ dHi))) :=
     fun R hR s hcr hPR hpc =>
-      hbeq_framed R hR s ((CodeReq.singleton_satisfiedBy _ _ s).mpr (hcr _ _ (by
+      hbeq_framed R hR s (CodeReq.singleton_satisfiedBy.mpr (hcr _ _ (by
         show cr (base + 4) = _
         simp only [cr, CodeReq.union, CodeReq.singleton]
         have h0 : ¬(base + 4 = base) := by bv_omega
