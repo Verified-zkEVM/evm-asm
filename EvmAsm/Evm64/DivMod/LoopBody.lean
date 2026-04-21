@@ -55,10 +55,10 @@ private theorem lb_sub (base : Word) (k : Nat) (addr : Word) (instr : Instr)
 -- ============================================================================
 
 -- Mulsub limb base addresses (instrs [22]-[65])
-private theorem lb_ms1 (base : Word) : (base + 536 : Word) + 44 = base + 580 := by bv_addr
-private theorem lb_ms2 (base : Word) : (base + 580 : Word) + 44 = base + 624 := by bv_addr
-private theorem lb_ms3 (base : Word) : (base + 624 : Word) + 44 = base + 668 := by bv_addr
-private theorem lb_ms_end (base : Word) : (base + 668 : Word) + 44 = base + 712 := by bv_addr
+private theorem lb_ms1 {base : Word} : (base + 536 : Word) + 44 = base + 580 := by bv_addr
+private theorem lb_ms2 {base : Word} : (base + 580 : Word) + 44 = base + 624 := by bv_addr
+private theorem lb_ms3 {base : Word} : (base + 624 : Word) + 44 = base + 668 := by bv_addr
+private theorem lb_ms_end {base : Word} : (base + 668 : Word) + 44 = base + 712 := by bv_addr
 
 -- ============================================================================
 -- Section 3: Mulsub 4-limbs composition
@@ -226,12 +226,12 @@ theorem divK_mulsub_4limbs_spec
 -- ============================================================================
 
 -- Addback base addresses (instrs [71]-[107])
-private theorem lb_ab0 (base : Word) : (base + 732 : Word) + 4 = base + 736 := by bv_addr
-private theorem lb_ab0_end (base : Word) : (base + 736 : Word) + 32 = base + 768 := by bv_addr
-private theorem lb_ab1_end (base : Word) : (base + 768 : Word) + 32 = base + 800 := by bv_addr
-private theorem lb_ab2_end (base : Word) : (base + 800 : Word) + 32 = base + 832 := by bv_addr
-private theorem lb_ab3_end (base : Word) : (base + 832 : Word) + 32 = base + 864 := by bv_addr
-private theorem lb_abf_end (base : Word) : (base + 864 : Word) + 16 = base + 880 := by bv_addr
+private theorem lb_ab0 {base : Word} : (base + 732 : Word) + 4 = base + 736 := by bv_addr
+private theorem lb_ab0_end {base : Word} : (base + 736 : Word) + 32 = base + 768 := by bv_addr
+private theorem lb_ab1_end {base : Word} : (base + 768 : Word) + 32 = base + 800 := by bv_addr
+private theorem lb_ab2_end {base : Word} : (base + 800 : Word) + 32 = base + 832 := by bv_addr
+private theorem lb_ab3_end {base : Word} : (base + 832 : Word) + 32 = base + 864 := by bv_addr
+private theorem lb_abf_end {base : Word} : (base + 864 : Word) + 16 = base + 880 := by bv_addr
 
 set_option maxRecDepth 4096 in
 /-- Full add-back correction: init carry + 4 limb corrections + final u[j+4] adjust + qHat--.
@@ -386,10 +386,10 @@ theorem divK_addback_full_spec
 -- ============================================================================
 
 -- Address normalization for mulsub_setup
-private theorem lb_ms_setup (base : Word) : (base + 516 : Word) + 20 = base + 536 := by bv_addr
+private theorem lb_ms_setup {base : Word} : (base + 516 : Word) + 20 = base + 536 := by bv_addr
 
 -- Address normalization for sub_carry
-private theorem lb_sc (base : Word) : (base + 712 : Word) + 16 = base + 728 := by bv_addr
+private theorem lb_sc {base : Word} : (base + 712 : Word) + 16 = base + 728 := by bv_addr
 
 set_option maxRecDepth 4096 in
 /-- Mulsub full: setup + 4-limb multiply-subtract + carry subtraction from u[j+4].
@@ -508,10 +508,10 @@ theorem divK_mulsub_full_spec
 -- BEQ at instr [70] (base+728): taken → base+884, not-taken → base+732.
 -- ============================================================================
 
-private theorem lb_beq_taken (base : Word) : (base + 728 : Word) + signExtend13 (156 : BitVec 13) = base + 884 := by
+private theorem lb_beq_taken {base : Word} : (base + 728 : Word) + signExtend13 (156 : BitVec 13) = base + 884 := by
   rv64_addr
 
-private theorem lb_beq_ntaken (base : Word) : (base + 728 : Word) + 4 = base + 732 := by bv_addr
+private theorem lb_beq_ntaken {base : Word} : (base + 728 : Word) + 4 = base + 732 := by bv_addr
 
 -- ============================================================================
 -- Section 6a: Correction skip spec (borrow = 0)
@@ -692,8 +692,8 @@ theorem divK_correction_addback_named_spec
 -- Instrs [0]-[12] at base+448 → base+500.
 -- ============================================================================
 
-private theorem lb_save_j (base : Word) : (base + loopBodyOff : Word) + 4 = base + 452 := by bv_addr
-private theorem lb_trial_load (base : Word) : (base + 452 : Word) + 48 = base + 500 := by bv_addr
+private theorem lb_save_j {base : Word} : (base + loopBodyOff : Word) + 4 = base + 452 := by bv_addr
+private theorem lb_trial_load {base : Word} : (base + 452 : Word) + 48 = base + 500 := by bv_addr
 
 /-- Save j + trial load: save j to memory, then load uHi, uLo, vTop for trial quotient.
     13 instructions, loop body indices [0]-[12].
@@ -767,13 +767,13 @@ theorem divK_save_trial_load_spec
 -- ============================================================================
 
 -- Address normalization for trial quotient
-private theorem lb_bltu_taken (base : Word) : (base + 500 : Word) + signExtend13 (12 : BitVec 13) = base + 512 := by
+private theorem lb_bltu_taken {base : Word} : (base + 500 : Word) + signExtend13 (12 : BitVec 13) = base + 512 := by
   rv64_addr
-private theorem lb_bltu_ntaken (base : Word) : (base + 500 : Word) + 4 = base + 504 := by bv_addr
-private theorem lb_trial_max_end (base : Word) : (base + 504 : Word) + 12 = base + 516 := by bv_addr
-private theorem lb_jal_target (base : Word) : (base + 512 : Word) + signExtend21 (560 : BitVec 21) = base + div128Off := by
+private theorem lb_bltu_ntaken {base : Word} : (base + 500 : Word) + 4 = base + 504 := by bv_addr
+private theorem lb_trial_max_end {base : Word} : (base + 504 : Word) + 12 = base + 516 := by bv_addr
+private theorem lb_jal_target {base : Word} : (base + 512 : Word) + signExtend21 (560 : BitVec 21) = base + div128Off := by
   rv64_addr
-private theorem lb_jal_ret (base : Word) : (base + 512 : Word) + 4 = base + 516 := by bv_addr
+private theorem lb_jal_ret {base : Word} : (base + 512 : Word) + 4 = base + 516 := by bv_addr
 
 -- ============================================================================
 -- Section 8a: Trial quotient NOT-TAKEN path (uHi >= vTop)
@@ -888,13 +888,13 @@ theorem divK_trial_call_path_spec
 -- ============================================================================
 
 -- Address normalization for store_qj and loop control
-private theorem lb_sqj (base : Word) : (base + 884 : Word) + 16 = base + 900 := by bv_addr
-private theorem lb_lc_taken (base : Word) :
+private theorem lb_sqj {base : Word} : (base + 884 : Word) + 16 = base + 900 := by bv_addr
+private theorem lb_lc_taken {base : Word} :
     (base + 900 : Word) + 4 + signExtend13 (7736 : BitVec 13) = base + loopBodyOff := by
   rv64_addr
-private theorem lb_lc_exit (base : Word) : (base + 900 : Word) + 8 = base + denormOff := by bv_addr
+private theorem lb_lc_exit {base : Word} : (base + 900 : Word) + 8 = base + denormOff := by bv_addr
 
-private theorem lb_beq_back_ntaken (base : Word) : (base + 880 : Word) + 4 = base + 884 := by bv_addr
+private theorem lb_beq_back_ntaken {base : Word} : (base + 880 : Word) + 4 = base + 884 := by bv_addr
 
 /-- BEQ passthrough at [108]: when carry (x7) ≠ 0, BEQ falls through from base+880 to base+884.
     Used to bridge addback exit (base+880) to store_loop entry (base+884). -/
@@ -916,7 +916,7 @@ theorem divK_beq_passthrough {carry : Word} (base : Word) (hne : carry ≠ 0) :
     ntaken
 
 -- Address normalization for BEQ taken (double-addback backward branch)
-private theorem lb_beq_back_taken (base : Word) :
+private theorem lb_beq_back_taken {base : Word} :
     (base + 880 : Word) + signExtend13 (8044 : BitVec 13) = base + 732 := by
   rv64_addr
 
