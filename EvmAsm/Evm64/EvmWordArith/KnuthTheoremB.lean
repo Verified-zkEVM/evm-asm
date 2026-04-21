@@ -1026,4 +1026,32 @@ theorem div128Quot_phase1b_quotient_bound (uHi dHi : Word)
       rw [if_neg h_check]
     exact ⟨by omega, by omega⟩
 
+/-- **KB-3a: Post-Phase-1b no-underflow bound.** The post-corrected
+    quotient `q1'` times `dHi` doesn't exceed `uHi` at the Nat level:
+
+    ```
+    q1'.toNat * dHi.toNat ≤ uHi.toNat
+    ```
+
+    Direct consequence of the Phase 1b Euclidean equation
+    `q1'.toNat * dHi.toNat + rhat'.toNat = uHi.toNat` (from
+    `div128Quot_phase1b_post`) and `rhat'.toNat ≥ 0`.
+
+    Useful corollary for Phase 2 analysis: it justifies that
+    `uHi - q1' * dHi` doesn't underflow at the Nat level (the subtraction
+    is well-defined as a Nat subtraction). -/
+theorem div128Quot_phase1b_no_underflow (uHi dHi : Word)
+    (hdHi_lt : dHi.toNat < 2^32) (q1c rhatc dLo rhatUn1 : Word)
+    (h_post : q1c.toNat * dHi.toNat + rhatc.toNat = uHi.toNat)
+    (h_rhatc_lt : rhatc.toNat < 2 * dHi.toNat) :
+    let q1' := if BitVec.ult rhatUn1 (q1c * dLo) then q1c + signExtend12 4095
+               else q1c
+    let rhat' := if BitVec.ult rhatUn1 (q1c * dLo) then rhatc + dHi else rhatc
+    q1'.toNat * dHi.toNat ≤ uHi.toNat := by
+  intro q1' rhat'
+  -- Extract Phase 1b Euclidean at the right types (matching our local lets).
+  have h_eucl : q1'.toNat * dHi.toNat + rhat'.toNat = uHi.toNat :=
+    div128Quot_phase1b_post uHi dHi q1c rhatc dLo rhatUn1 hdHi_lt h_post h_rhatc_lt
+  omega
+
 end EvmAsm.Evm64
