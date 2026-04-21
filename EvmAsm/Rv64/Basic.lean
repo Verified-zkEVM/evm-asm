@@ -482,19 +482,19 @@ termination_by l => l.length
 -- Simp lemmas
 -- ============================================================================
 
-@[simp] theorem pc_setReg (s : MachineState) (r : Reg) (v : Word) :
+@[simp] theorem pc_setReg {s : MachineState} {r : Reg} {v : Word} :
     (s.setReg r v).pc = s.pc := by cases r <;> rfl
 
-@[simp] theorem pc_setMem (s : MachineState) (a : Word) (v : Word) :
+@[simp] theorem pc_setMem {s : MachineState} {a : Word} {v : Word} :
     (s.setMem a v).pc = s.pc := by simp [setMem]
 
-@[simp] theorem pc_setByte (s : MachineState) (addr : Word) (b : BitVec 8) :
+@[simp] theorem pc_setByte {s : MachineState} {addr : Word} {b : BitVec 8} :
     (s.setByte addr b).pc = s.pc := by simp [setByte]
 
-@[simp] theorem pc_setHalfword (s : MachineState) (addr : Word) (h : BitVec 16) :
+@[simp] theorem pc_setHalfword {s : MachineState} {addr : Word} {h : BitVec 16} :
     (s.setHalfword addr h).pc = s.pc := by simp [setHalfword]
 
-@[simp] theorem pc_setWord32 (s : MachineState) (addr : Word) (v : BitVec 32) :
+@[simp] theorem pc_setWord32 {s : MachineState} {addr : Word} {v : BitVec 32} :
     (s.setWord32 addr v).pc = s.pc := by simp [setWord32]
 
 @[simp] theorem code_setReg (s : MachineState) (r : Reg) (v : Word) :
