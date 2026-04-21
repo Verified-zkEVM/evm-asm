@@ -1093,4 +1093,71 @@ theorem div128Quot_q1_prime_lt_pow33 (uHi dHi : Word)
       rw [if_neg h_check]
     omega
 
+/-- **KB-3d1: Phase 1a monotonicity.** The post-correction quotient `q1c`
+    is never larger than the pre-correction `q1`:
+
+    ```
+    q1c.toNat ≤ q1.toNat
+    ```
+
+    - No-correction branch (`hi1 = 0`): `q1c = q1`, equality.
+    - Correction branch (`hi1 ≠ 0`): `q1c = q1 - 1 < q1` at Nat, using
+      `hi1 ≠ 0 → q1 ≥ 2^32 ≥ 1`. -/
+theorem div128Quot_q1c_le_q1 (uHi dHi : Word) :
+    let q1 := rv64_divu uHi dHi
+    let hi1 := q1 >>> (32 : BitVec 6).toNat
+    let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+    q1c.toNat ≤ q1.toNat := by
+  intro q1 hi1 q1c
+  by_cases h_hi1 : hi1 = 0
+  · show (if hi1 = 0 then q1 else q1 + signExtend12 4095).toNat ≤ _
+    rw [if_pos h_hi1]
+  · have hq1_ge : q1.toNat ≥ 2^32 := by
+      by_contra h
+      push_neg at h
+      apply h_hi1
+      apply BitVec.eq_of_toNat_eq
+      have h32 : (32 : BitVec 6).toNat = 32 := by decide
+      rw [BitVec.toNat_ushiftRight, h32, Nat.shiftRight_eq_div_pow]
+      show q1.toNat / 2^32 = (0 : Word).toNat
+      rw [Nat.div_eq_of_lt h]
+      rfl
+    show (if hi1 = 0 then q1 else q1 + signExtend12 4095).toNat ≤ _
+    rw [if_neg h_hi1]
+    have h_se_neg1 : (signExtend12 (4095 : BitVec 12) : Word).toNat = 2^64 - 1 := by decide
+    rw [BitVec.toNat_add, h_se_neg1]
+    have hq1_lt_word : q1.toNat - 1 < 2^64 := by have := q1.isLt; omega
+    rw [show q1.toNat + (2^64 - 1) = (q1.toNat - 1) + 2^64 from by omega,
+        Nat.add_mod_right, Nat.mod_eq_of_lt hq1_lt_word]
+    omega
+
+/-- **KB-3d2: Phase 1b monotonicity.** The post-Phase-1b quotient `q1'`
+    is never larger than the pre-Phase-1b `q1c`:
+
+    ```
+    q1'.toNat ≤ q1c.toNat
+    ```
+
+    - Check doesn't fire: `q1' = q1c`.
+    - Check fires: `q1' = q1c - 1 < q1c` (using
+      `div128Quot_phase1b_check_implies_q1c_pos` for the no-underflow
+      justification). -/
+theorem div128Quot_q1_prime_le_q1c (q1c dLo rhatUn1 : Word) :
+    let q1' := if BitVec.ult rhatUn1 (q1c * dLo) then q1c + signExtend12 4095
+               else q1c
+    q1'.toNat ≤ q1c.toNat := by
+  intro q1'
+  by_cases h_check : BitVec.ult rhatUn1 (q1c * dLo)
+  · have h_q1c_pos := div128Quot_phase1b_check_implies_q1c_pos q1c dLo rhatUn1 h_check
+    show (if BitVec.ult rhatUn1 (q1c * dLo) then q1c + signExtend12 4095 else q1c).toNat ≤ _
+    rw [if_pos h_check]
+    have h_se_neg1 : (signExtend12 (4095 : BitVec 12) : Word).toNat = 2^64 - 1 := by decide
+    rw [BitVec.toNat_add, h_se_neg1]
+    have h_q1c_lt : q1c.toNat - 1 < 2^64 := by have := q1c.isLt; omega
+    rw [show q1c.toNat + (2^64 - 1) = (q1c.toNat - 1) + 2^64 from by omega,
+        Nat.add_mod_right, Nat.mod_eq_of_lt h_q1c_lt]
+    omega
+  · show (if BitVec.ult rhatUn1 (q1c * dLo) then q1c + signExtend12 4095 else q1c).toNat ≤ _
+    rw [if_neg h_check]
+
 end EvmAsm.Evm64
