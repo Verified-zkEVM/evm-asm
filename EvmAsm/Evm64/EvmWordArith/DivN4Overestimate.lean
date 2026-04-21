@@ -94,7 +94,7 @@ theorem n4_max_skip_correct {a0 a1 a2 a3 b0 b1 b2 b3 : Word}
 /-- When mulsub borrow c3 = 1 and addback carry = 1, the 2^256 terms cancel,
     giving a clean Euclidean equation: val256(u) = (q-1) * val256(v) + val256(aun).
     This is the combined equation needed by mulsub_addback_correct. -/
-theorem mulsub_addback_val256_combined (q v0 v1 v2 v3 u0 u1 u2 u3 u4_new : Word)
+theorem mulsub_addback_val256_combined (q : Word) {v0 v1 v2 v3 u0 u1 u2 u3 : Word} (u4_new : Word)
     (hc3_one : (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2 = 1)
     (hcarry_one : addbackN4_carry
       (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).1
@@ -171,7 +171,7 @@ theorem n4_max_addback_correct {a0 a1 a2 a3 b0 b1 b2 b3 : Word}
   -- Combined Euclidean equation from mulsub(c3=1) + addback(carry=1)
   -- Pass u4_new = 0 - ms.2.2.2.2 so addbackN4 matches ab's definition
   have hcombined := mulsub_addback_val256_combined
-    (signExtend12 4095) b0 b1 b2 b3 a0 a1 a2 a3 ((0 : Word) - ms.2.2.2.2)
+    (signExtend12 4095) ((0 : Word) - ms.2.2.2.2)
     hc3_one hcarry_one (by rw [hq_hat_toNat]; omega)
   simp only [] at hcombined
   -- hcombined now mentions addbackN4 ... (0 - ms.2.2.2.2) ... which matches ab

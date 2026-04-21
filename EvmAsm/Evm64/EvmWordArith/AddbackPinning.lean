@@ -49,7 +49,7 @@ theorem n4_max_addback_un_val256_euclidean
       val256 ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 := by
   intro ms ab
   have hq_pos : (signExtend12 (4095 : BitVec 12) : Word).toNat ≥ 1 := by decide
-  have h := mulsub_addback_val256_combined (signExtend12 4095) b0 b1 b2 b3 a0 a1 a2 a3 u4_new
+  have h := mulsub_addback_val256_combined (signExtend12 4095) u4_new
     hc3 hcarry hq_pos
   simp only [] at h
   have hq_toNat : (signExtend12 (4095 : BitVec 12) : Word).toNat = 2 ^ 64 - 1 := by decide
