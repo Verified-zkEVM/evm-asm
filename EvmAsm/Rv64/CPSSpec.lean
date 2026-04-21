@@ -407,8 +407,8 @@ theorem cpsNBranch_nil_false {entry : Word} {cr : CodeReq} {P : Assertion}
   -- Use empAssertion as the frame
   have hPemp : (P ** empAssertion).holdsFor s := by
     obtain ⟨hp, hcompat, hph⟩ := hP
-    exact ⟨hp, hcompat, hp, PartialState.empty, PartialState.Disjoint_empty_right hp,
-           PartialState.union_empty_right hp, hph, rfl⟩
+    exact ⟨hp, hcompat, hp, PartialState.empty, PartialState.Disjoint_empty_right,
+           PartialState.union_empty_right, hph, rfl⟩
   obtain ⟨k, s', _, ex, hmem, _, _⟩ := h empAssertion pcFree_emp s hcr hPemp hpc
   exact List.not_mem_nil hmem
 

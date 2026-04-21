@@ -81,18 +81,18 @@ theorem beq_eq_spec (rs1 rs2 : Reg) (offset : BitVec 13)
   have hfetch : s.code s.pc = some (.BEQ rs1 rs2 offset) :=
     hcr s.pc (.BEQ rs1 rs2 offset) (CodeReq.singleton_get s.pc (.BEQ rs1 rs2 offset))
   have hrs1 : s.getReg rs1 = v :=
-    (holdsFor_regIs _ _ s).mp (holdsFor_sepConj_elim_left (holdsFor_sepConj_elim_left hPR))
+    holdsFor_regIs.mp (holdsFor_sepConj_elim_left (holdsFor_sepConj_elim_left hPR))
   have hrs2 : s.getReg rs2 = v :=
-    (holdsFor_regIs _ _ s).mp (holdsFor_sepConj_elim_right (holdsFor_sepConj_elim_left hPR))
+    holdsFor_regIs.mp (holdsFor_sepConj_elim_right (holdsFor_sepConj_elim_left hPR))
   have hstep' : step s = some (execInstrBr s (.BEQ rs1 rs2 offset)) :=
-    step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl)
+    step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl)
   have hexec' : execInstrBr s (.BEQ rs1 rs2 offset) = s.setPC (s.pc + signExtend13 offset) := by
     simp [execInstrBr, hrs1, hrs2]
   refine ⟨1, s.setPC (s.pc + signExtend13 offset), ?_, by simp [MachineState.setPC], ?_⟩
   · show (step s).bind (stepN 0) = some _
     rw [hstep', hexec']; rfl
   · exact holdsFor_pcFree_setPC
-      (pcFree_sepConj (pcFree_sepConj (pcFree_regIs _ _) (pcFree_regIs _ _)) hR) _ _ hPR
+      (pcFree_sepConj (pcFree_sepConj pcFree_regIs pcFree_regIs) hR) _ _ hPR
 
 /-- BEQ when values are not equal: never taken (fall through to PC + 4).
     BEQ only modifies PC; all pcFree assertions are preserved. -/
@@ -106,18 +106,18 @@ theorem beq_ne_spec (rs1 rs2 : Reg) (offset : BitVec 13)
   have hfetch : s.code s.pc = some (.BEQ rs1 rs2 offset) :=
     hcr s.pc (.BEQ rs1 rs2 offset) (CodeReq.singleton_get s.pc (.BEQ rs1 rs2 offset))
   have hrs1 : s.getReg rs1 = v1 :=
-    (holdsFor_regIs _ _ s).mp (holdsFor_sepConj_elim_left (holdsFor_sepConj_elim_left hPR))
+    holdsFor_regIs.mp (holdsFor_sepConj_elim_left (holdsFor_sepConj_elim_left hPR))
   have hrs2 : s.getReg rs2 = v2 :=
-    (holdsFor_regIs _ _ s).mp (holdsFor_sepConj_elim_right (holdsFor_sepConj_elim_left hPR))
+    holdsFor_regIs.mp (holdsFor_sepConj_elim_right (holdsFor_sepConj_elim_left hPR))
   have hstep' : step s = some (execInstrBr s (.BEQ rs1 rs2 offset)) :=
-    step_non_ecall_non_mem s _ hfetch (by nofun) (by nofun) (by rfl)
+    step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl)
   have hexec' : execInstrBr s (.BEQ rs1 rs2 offset) = s.setPC (s.pc + 4) := by
     simp [execInstrBr, hrs1, hrs2, hne]
   refine ⟨1, s.setPC (s.pc + 4), ?_, by simp [MachineState.setPC], ?_⟩
   · show (step s).bind (stepN 0) = some _
     rw [hstep', hexec']; rfl
   · exact holdsFor_pcFree_setPC
-      (pcFree_sepConj (pcFree_sepConj (pcFree_regIs _ _) (pcFree_regIs _ _)) hR) _ _ hPR
+      (pcFree_sepConj (pcFree_sepConj pcFree_regIs pcFree_regIs) hR) _ _ hPR
 
 -- ============================================================================
 -- Per-limb Specs: SLT (MSB load + signed comparison)

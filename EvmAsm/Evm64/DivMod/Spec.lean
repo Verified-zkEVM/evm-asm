@@ -310,9 +310,9 @@ def divN4StackPre (sp : Word) (a b : EvmWord)
   divScratchValues sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
     shiftMem nMem jMem
 
-theorem pcFree_divN4StackPre (sp : Word) (a b : EvmWord)
-    (v5 v6 v7 v10 v11 : Word)
-    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem : Word) :
+theorem pcFree_divN4StackPre {sp : Word} {a b : EvmWord}
+    {v5 v6 v7 v10 v11 : Word}
+    {q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem : Word} :
     (divN4StackPre sp a b v5 v6 v7 v10 v11
       q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem).pcFree := by
   delta divN4StackPre; pcFree
@@ -321,8 +321,7 @@ instance (sp : Word) (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
     (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem : Word) :
     Assertion.PCFree (divN4StackPre sp a b v5 v6 v7 v10 v11
       q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem) :=
-  ⟨pcFree_divN4StackPre sp a b v5 v6 v7 v10 v11
-    q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem⟩
+  ⟨pcFree_divN4StackPre⟩
 
 /-- Named unfold for `divN4StackPre`. Restores access to the atomic
     components once `@[irreducible]` has made `delta` the only path in. -/
@@ -374,6 +373,64 @@ theorem divN4StackPre_unfold_atoms (sp : Word) (a b : EvmWord)
   rw [divN4StackPre_unfold, evmWordIs_sp_unfold, evmWordIs_sp32_unfold,
       divScratchValues_unfold]
 
+/-- Call-trial counterpart to `divN4StackPre`. Identical to `divN4StackPre`
+    except for the scratch bundle: uses `divScratchValuesCall` (19 cells —
+    15 from `divScratchValues` plus 4 extra for the `div128`-subroutine
+    call path) instead of `divScratchValues` (15 cells).
+
+    Used as the precondition of the forthcoming
+    `evm_div_n4_full_call_{skip,addback}_stack_pre_spec` theorems. -/
+@[irreducible]
+def divN4StackPreCall (sp : Word) (a b : EvmWord)
+    (v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     shiftMem nMem jMem retMem dMem dloMem scratch_un0 : Word) : Assertion :=
+  (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
+  (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+  (.x2 ↦ᵣ (clzResult (b.getLimbN 3)).2 >>> (63 : Nat)) **
+  (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+  (.x11 ↦ᵣ v11) **
+  evmWordIs sp a ** evmWordIs (sp + 32) b **
+  divScratchValuesCall sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+    shiftMem nMem jMem retMem dMem dloMem scratch_un0
+
+theorem pcFree_divN4StackPreCall (sp : Word) (a b : EvmWord)
+    (v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     shiftMem nMem jMem retMem dMem dloMem scratch_un0 : Word) :
+    (divN4StackPreCall sp a b v5 v6 v7 v10 v11
+      q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+      shiftMem nMem jMem retMem dMem dloMem scratch_un0).pcFree := by
+  delta divN4StackPreCall divScratchValuesCall; pcFree
+
+instance (sp : Word) (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     shiftMem nMem jMem retMem dMem dloMem scratch_un0 : Word) :
+    Assertion.PCFree (divN4StackPreCall sp a b v5 v6 v7 v10 v11
+      q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+      shiftMem nMem jMem retMem dMem dloMem scratch_un0) :=
+  ⟨pcFree_divN4StackPreCall sp a b v5 v6 v7 v10 v11
+    q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+    shiftMem nMem jMem retMem dMem dloMem scratch_un0⟩
+
+/-- Named unfold for `divN4StackPreCall`. -/
+theorem divN4StackPreCall_unfold (sp : Word) (a b : EvmWord)
+    (v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     shiftMem nMem jMem retMem dMem dloMem scratch_un0 : Word) :
+    divN4StackPreCall sp a b v5 v6 v7 v10 v11
+        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratch_un0 =
+    ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
+     (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+     (.x2 ↦ᵣ (clzResult (b.getLimbN 3)).2 >>> (63 : Nat)) **
+     (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+     (.x11 ↦ᵣ v11) **
+     evmWordIs sp a ** evmWordIs (sp + 32) b **
+     divScratchValuesCall sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+       shiftMem nMem jMem retMem dMem dloMem scratch_un0) := by
+  delta divN4StackPreCall; rfl
+
 /-- MOD-side parallel of `divN4StackPre`. Identical content — same registers,
     same operands, same scratch bundle. The name is kept distinct so the
     forthcoming MOD stack spec reads symmetrically with its DIV counterpart.
@@ -392,9 +449,9 @@ def modN4StackPre (sp : Word) (a b : EvmWord)
   divScratchValues sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
     shiftMem nMem jMem
 
-theorem pcFree_modN4StackPre (sp : Word) (a b : EvmWord)
-    (v5 v6 v7 v10 v11 : Word)
-    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem : Word) :
+theorem pcFree_modN4StackPre {sp : Word} {a b : EvmWord}
+    {v5 v6 v7 v10 v11 : Word}
+    {q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem : Word} :
     (modN4StackPre sp a b v5 v6 v7 v10 v11
       q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem).pcFree := by
   delta modN4StackPre; pcFree
@@ -403,8 +460,10 @@ instance (sp : Word) (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
     (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem : Word) :
     Assertion.PCFree (modN4StackPre sp a b v5 v6 v7 v10 v11
       q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem) :=
-  ⟨pcFree_modN4StackPre sp a b v5 v6 v7 v10 v11
-    q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem⟩
+  ⟨pcFree_modN4StackPre⟩
+
+-- `modN4StackPreCall` (MOD-side call-trial pre-bundle) lives in
+-- `DivMod/SpecCall.lean` to stay under the Spec.lean file-size guardrail.
 
 /-- Named unfold for `modN4StackPre`. Mirror of `divN4StackPre_unfold`. -/
 theorem modN4StackPre_unfold (sp : Word) (a b : EvmWord)
@@ -493,13 +552,13 @@ theorem divN4MaxSkipStackPost_unfold_atoms (sp : Word) (a b : EvmWord) :
   rw [divN4MaxSkipStackPost_unfold, evmWordIs_sp_unfold, evmWordIs_sp32_unfold,
       divScratchOwn_unfold]
 
-theorem pcFree_divN4MaxSkipStackPost (sp : Word) (a b : EvmWord) :
+theorem pcFree_divN4MaxSkipStackPost {sp : Word} {a b : EvmWord} :
     (divN4MaxSkipStackPost sp a b).pcFree := by
   rw [divN4MaxSkipStackPost_unfold]; pcFree
 
 instance (sp : Word) (a b : EvmWord) :
     Assertion.PCFree (divN4MaxSkipStackPost sp a b) :=
-  ⟨pcFree_divN4MaxSkipStackPost sp a b⟩
+  ⟨pcFree_divN4MaxSkipStackPost⟩
 
 /-- Weakening bridge from a concrete post state (specific register values +
     concrete scratch cells via `divScratchValues`) to `divN4MaxSkipStackPost`.
@@ -690,13 +749,13 @@ theorem divN4MaxSkipStackPost_unfold_atoms_right (sp : Word) (a b : EvmWord)
     (divN4MaxSkipStackPost sp a b ** Q) := by
   rw [divN4MaxSkipStackPost_unfold_atoms]
 
-theorem pcFree_modN4MaxSkipStackPost (sp : Word) (a b : EvmWord) :
+theorem pcFree_modN4MaxSkipStackPost {sp : Word} {a b : EvmWord} :
     (modN4MaxSkipStackPost sp a b).pcFree := by
   rw [modN4MaxSkipStackPost_unfold]; pcFree
 
 instance (sp : Word) (a b : EvmWord) :
     Assertion.PCFree (modN4MaxSkipStackPost sp a b) :=
-  ⟨pcFree_modN4MaxSkipStackPost sp a b⟩
+  ⟨pcFree_modN4MaxSkipStackPost⟩
 
 -- ============================================================================
 -- pcFree for DivMod post bundles
@@ -957,6 +1016,9 @@ theorem evm_div_bzero_stack_spec (sp base : Word)
          ((sp + 48) ↦ₘ (0 : Word)) ** ((sp + 56) ↦ₘ (0 : Word)))
         from by xperm) h).mp w1)
     h_raw
+
+-- DIV n=4 call+skip full-path stack-pre wrappers live in `DivMod/SpecCall.lean`
+-- to stay under the Spec.lean file-size guardrail.
 
 -- ============================================================================
 -- MOD: Zero divisor stack spec (b = 0 → result = 0)

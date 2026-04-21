@@ -36,7 +36,7 @@ private theorem shl_body_0_prog_len : (shl_body_0_prog 24).length = 25 := by dec
 /-- Skip one ofProg block in a right-nested union via range disjointness. -/
 local macro "skipBlock" : tactic =>
   `(tactic| apply CodeReq.mono_union_right
-      (CodeReq.ofProg_disjoint_range _ _ _ _ (fun k1 k2 hk1 hk2 => by
+      (CodeReq.ofProg_disjoint_range (fun k1 k2 hk1 hk2 => by
         simp only [shr_phase_a_len, shr_phase_b_len, shr_phase_c_len,
           shl_body_3_prog_len, shl_body_2_prog_len, shl_body_1_prog_len,
           shl_body_0_prog_len, shr_zero_path_len] at hk1 hk2

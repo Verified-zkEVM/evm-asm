@@ -123,7 +123,7 @@ theorem runSail_rX_bits_x12 (s : SailState) (v : BitVec 64)
 
 /-- If StateRel holds, reading any Rv64 register from the SAIL state via rX_bits
     returns the same value as getReg, without modifying state. -/
-theorem runSail_rX_bits_of_stateRel (sRv : MachineState) (sSail : SailState)
+theorem runSail_rX_bits_of_stateRel {sRv : MachineState} {sSail : SailState}
     (hrel : StateRel sRv sSail) (r : Reg) :
     runSail (rX_bits (regToRegidx r)) sSail = some (sRv.getReg r, sSail) := by
   have ha := hrel.reg_agree r

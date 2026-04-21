@@ -315,8 +315,7 @@ theorem mulsubN4_c3_eq_one_v3_zero (q v0 v1 v2 u0 u1 u2 u3 : Word)
   have h := mulsubN4_c3_le_one_v3_zero q v0 v1 v2 u0 u1 u2 u3
   have hc3_pos : 0 < (mulsubN4 q v0 v1 v2 0 u0 u1 u2 u3).2.2.2.2.toNat := by
     exact Nat.pos_of_ne_zero (by intro h0; exact hc3_nz (BitVec.eq_of_toNat_eq h0))
-  have h1 := word_toNat_1
-  exact BitVec.eq_of_toNat_eq (by omega)
+  exact BitVec.eq_of_toNat_eq (by have := word_toNat_1; omega)
 
 -- ============================================================================
 -- Double addback: second carry is 1 when first carry was 0
@@ -585,14 +584,14 @@ theorem n4_max_skip_div_mod_limbs (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
   intro ms a b
   have ⟨hq, hr⟩ := n4_max_skip_correct a0 a1 a2 a3 b0 b1 b2 b3 hb3nz hc3_zero
   refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · rw [← hq]; exact getLimbN_fromLimbs_0 _ _ _ _
-  · rw [← hq]; exact getLimbN_fromLimbs_1 _ _ _ _
-  · rw [← hq]; exact getLimbN_fromLimbs_2 _ _ _ _
-  · rw [← hq]; exact getLimbN_fromLimbs_3 _ _ _ _
-  · rw [← hr]; exact getLimbN_fromLimbs_0 _ _ _ _
-  · rw [← hr]; exact getLimbN_fromLimbs_1 _ _ _ _
-  · rw [← hr]; exact getLimbN_fromLimbs_2 _ _ _ _
-  · rw [← hr]; exact getLimbN_fromLimbs_3 _ _ _ _
+  · rw [← hq]; exact getLimbN_fromLimbs_0
+  · rw [← hq]; exact getLimbN_fromLimbs_1
+  · rw [← hq]; exact getLimbN_fromLimbs_2
+  · rw [← hq]; exact getLimbN_fromLimbs_3
+  · rw [← hr]; exact getLimbN_fromLimbs_0
+  · rw [← hr]; exact getLimbN_fromLimbs_1
+  · rw [← hr]; exact getLimbN_fromLimbs_2
+  · rw [← hr]; exact getLimbN_fromLimbs_3
 
 /-- n=4 max+addback path: per-limb quotient/remainder equalities. Direct
     consumer-facing form of `n4_max_addback_correct` — the corrected quotient
@@ -624,14 +623,14 @@ theorem n4_max_addback_div_mod_limbs (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
   intro ms ab qHat' a b
   have ⟨hq, hr⟩ := n4_max_addback_correct a0 a1 a2 a3 b0 b1 b2 b3 hb3nz hc3_one hcarry_one
   refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · rw [← hq]; exact getLimbN_fromLimbs_0 _ _ _ _
-  · rw [← hq]; exact getLimbN_fromLimbs_1 _ _ _ _
-  · rw [← hq]; exact getLimbN_fromLimbs_2 _ _ _ _
-  · rw [← hq]; exact getLimbN_fromLimbs_3 _ _ _ _
-  · rw [← hr]; exact getLimbN_fromLimbs_0 _ _ _ _
-  · rw [← hr]; exact getLimbN_fromLimbs_1 _ _ _ _
-  · rw [← hr]; exact getLimbN_fromLimbs_2 _ _ _ _
-  · rw [← hr]; exact getLimbN_fromLimbs_3 _ _ _ _
+  · rw [← hq]; exact getLimbN_fromLimbs_0
+  · rw [← hq]; exact getLimbN_fromLimbs_1
+  · rw [← hq]; exact getLimbN_fromLimbs_2
+  · rw [← hq]; exact getLimbN_fromLimbs_3
+  · rw [← hr]; exact getLimbN_fromLimbs_0
+  · rw [← hr]; exact getLimbN_fromLimbs_1
+  · rw [← hr]; exact getLimbN_fromLimbs_2
+  · rw [← hr]; exact getLimbN_fromLimbs_3
 
 -- ============================================================================
 -- EvmWord-level n=4 max bridges: state the skip/addback correctness directly

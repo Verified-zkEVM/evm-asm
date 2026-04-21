@@ -104,7 +104,7 @@ theorem rlp_phase1_step_spec (v5 v10 : Word)
   have hd : CodeReq.Disjoint
       (CodeReq.singleton base (.ADDI .x10 .x0 k))
       (CodeReq.singleton (base + 4) (.BLTU .x5 .x10 offset)) :=
-    CodeReq.Disjoint.singleton (by bv_omega) _ _
+    CodeReq.Disjoint.singleton (by bv_omega)
   -- Step 1: ADDI x10, x0, k at base
   have s1 := addi_spec_gen .x10 .x0 v10 0 k base (by nofun)
   have s1' : cpsTriple base (base + 4) (CodeReq.singleton base (.ADDI .x10 .x0 k))
@@ -185,11 +185,11 @@ private theorem step_code_Disjoint_8 (k1 k2 : BitVec 12) (off1 off2 : BitVec 13)
       (rlp_phase1_step_code k2 off2 (base + 8)) :=
   CodeReq.Disjoint.union_left
     (CodeReq.Disjoint.union_right
-      (CodeReq.Disjoint.singleton (by bv_omega) _ _)
-      (CodeReq.Disjoint.singleton (by bv_omega) _ _))
+      (CodeReq.Disjoint.singleton (by bv_omega))
+      (CodeReq.Disjoint.singleton (by bv_omega)))
     (CodeReq.Disjoint.union_right
-      (CodeReq.Disjoint.singleton (by bv_omega) _ _)
-      (CodeReq.Disjoint.singleton (by bv_omega) _ _))
+      (CodeReq.Disjoint.singleton (by bv_omega))
+      (CodeReq.Disjoint.singleton (by bv_omega)))
 
 /-- Cascade-step at `base` is disjoint from step at `base + 16`. -/
 private theorem step_code_Disjoint_16 (k1 k2 : BitVec 12) (off1 off2 : BitVec 13)
@@ -198,11 +198,11 @@ private theorem step_code_Disjoint_16 (k1 k2 : BitVec 12) (off1 off2 : BitVec 13
       (rlp_phase1_step_code k2 off2 (base + 16)) :=
   CodeReq.Disjoint.union_left
     (CodeReq.Disjoint.union_right
-      (CodeReq.Disjoint.singleton (by bv_omega) _ _)
-      (CodeReq.Disjoint.singleton (by bv_omega) _ _))
+      (CodeReq.Disjoint.singleton (by bv_omega))
+      (CodeReq.Disjoint.singleton (by bv_omega)))
     (CodeReq.Disjoint.union_right
-      (CodeReq.Disjoint.singleton (by bv_omega) _ _)
-      (CodeReq.Disjoint.singleton (by bv_omega) _ _))
+      (CodeReq.Disjoint.singleton (by bv_omega))
+      (CodeReq.Disjoint.singleton (by bv_omega)))
 
 /-- Cascade-step at `base` is disjoint from step at `base + 24`. -/
 private theorem step_code_Disjoint_24 (k1 k2 : BitVec 12) (off1 off2 : BitVec 13)
@@ -211,11 +211,11 @@ private theorem step_code_Disjoint_24 (k1 k2 : BitVec 12) (off1 off2 : BitVec 13
       (rlp_phase1_step_code k2 off2 (base + 24)) :=
   CodeReq.Disjoint.union_left
     (CodeReq.Disjoint.union_right
-      (CodeReq.Disjoint.singleton (by bv_omega) _ _)
-      (CodeReq.Disjoint.singleton (by bv_omega) _ _))
+      (CodeReq.Disjoint.singleton (by bv_omega))
+      (CodeReq.Disjoint.singleton (by bv_omega)))
     (CodeReq.Disjoint.union_right
-      (CodeReq.Disjoint.singleton (by bv_omega) _ _)
-      (CodeReq.Disjoint.singleton (by bv_omega) _ _))
+      (CodeReq.Disjoint.singleton (by bv_omega))
+      (CodeReq.Disjoint.singleton (by bv_omega)))
 
 /-- Bundled exit postcondition for the Phase 1 classifier: the register-
     ownership triple with `x10` holding the threshold constant `k`.
@@ -487,7 +487,7 @@ theorem rlp_phase1_step_spec_acc (Acc : Prop) (v5 v10 : Word)
          ⌜Acc ∧ ¬ BitVec.ult v5 kVal⌝) := by
   have h := rlp_phase1_step_spec v5 v10 k offset base target htarget
   -- Frame `rlp_phase1_step_spec` with `⌜Acc⌝` on the right.
-  have hf := cpsBranch_frameR ⌜Acc⌝ (pcFree_pure Acc) h
+  have hf := cpsBranch_frameR ⌜Acc⌝ pcFree_pure h
   -- hf has pre `(regs_3chain) ** ⌜Acc⌝`; target theorem has the 4-chain
   -- `regs ** ⌜Acc⌝`. Reshape via the associativity helper.
   exact cpsBranch_weaken
