@@ -304,7 +304,7 @@ theorem isCallTrialN4_toNat_lt (a3 b2 b3 : Word)
       ((b3 <<< ((clzResult b3).1.toNat % 64)) |||
         (b2 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64))).toNat := by
   unfold isCallTrialN4 at h
-  exact (EvmWord.ult_iff _ _).mp h
+  exact (EvmWord.ult_iff).mp h
 
 /-- Antishift arithmetic: under `1 ≤ shift.toNat ≤ 63`, the algorithm's
     `antiShift = signExtend12 0 - shift` satisfies `antiShift.toNat % 64 =

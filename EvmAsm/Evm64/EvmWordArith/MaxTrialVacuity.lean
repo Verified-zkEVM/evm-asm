@@ -188,6 +188,6 @@ theorem isMaxTrialN4_false_of_shift_nz (a3 b2 b3 : Word)
               (b3 <<< ((clzResult b3).1.toNat % 64) |||
                 b2 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64)).toNat :=
     Nat.lt_of_lt_of_le h_u4 (le_trans h_b3_shifted h_or_ge)
-  exact (EvmWord.ult_iff _ _).mpr h_lt
+  exact (EvmWord.ult_iff).mpr h_lt
 
 end EvmAsm.Evm64

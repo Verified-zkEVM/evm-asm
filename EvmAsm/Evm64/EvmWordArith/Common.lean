@@ -55,7 +55,7 @@ theorem toNat_eq_limb_sum (v : EvmWord) :
   omega
 
 -- BitVec.ult ↔ toNat comparison
-theorem ult_iff {n : Nat} (x y : BitVec n) : BitVec.ult x y ↔ x.toNat < y.toNat :=
+theorem ult_iff {n : Nat} {x y : BitVec n} : BitVec.ult x y ↔ x.toNat < y.toNat :=
   ⟨fun h => BitVec.lt_def.mp (of_decide_eq_true h),
    fun h => decide_eq_true (BitVec.lt_def.mpr h)⟩
 

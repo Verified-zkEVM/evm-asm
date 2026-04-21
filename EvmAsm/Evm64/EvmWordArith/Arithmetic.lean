@@ -23,9 +23,9 @@ theorem carry_toNat (x y : Word) :
   have hx := x.isLt; have hy := y.isLt
   have hsum : (x + y).toNat = (x.toNat + y.toNat) % 2^64 := BitVec.toNat_add x y
   split
-  · rename_i h; have := (ult_iff _ _).mp h; rw [hsum] at this
+  · rename_i h; have := (ult_iff).mp h; rw [hsum] at this
     simp [BitVec.toNat_ofNat]; omega
-  · rename_i h; have := mt (ult_iff _ _).mpr h; rw [hsum] at this; push Not at this
+  · rename_i h; have := mt (ult_iff).mpr h; rw [hsum] at this; push Not at this
     simp [BitVec.toNat_ofNat]; omega
 
 -- OR of two {0,1}-valued Words
@@ -267,8 +267,8 @@ theorem sub_borrow_chain_correct (a b : EvmWord) :
   -- Borrow flag toNat values
   have hb0_nat : borrow0.toNat = if a0.toNat < b0.toNat then 1 else 0 := by
     simp only [borrow0]; split
-    · rename_i h; rw [if_pos ((ult_iff _ _).mp h)]; rfl
-    · rename_i h; rw [if_neg (fun hlt => h ((ult_iff _ _).mpr hlt))]; rfl
+    · rename_i h; rw [if_pos ((ult_iff).mp h)]; rfl
+    · rename_i h; rw [if_neg (fun hlt => h ((ult_iff).mpr hlt))]; rfl
   -- borrow0 is 0 or 1
   have hb0_01 : borrow0.toNat = 0 ∨ borrow0.toNat = 1 := by
     rw [hb0_nat]; split <;> simp
@@ -279,8 +279,8 @@ theorem sub_borrow_chain_correct (a b : EvmWord) :
     simp only [temp1, BitVec.toNat_sub]; congr 1; omega
   have hb1_cond : (BitVec.ult a1 b1 ∨ BitVec.ult temp1 borrow0) ↔
       (a0.toNat + a1.toNat * 2^64 < b0.toNat + b1.toNat * 2^64) := by
-    rw [show BitVec.ult a1 b1 ↔ a1.toNat < b1.toNat from ult_iff _ _,
-        show BitVec.ult temp1 borrow0 ↔ temp1.toNat < borrow0.toNat from ult_iff _ _,
+    rw [show BitVec.ult a1 b1 ↔ a1.toNat < b1.toNat from ult_iff,
+        show BitVec.ult temp1 borrow0 ↔ temp1.toNat < borrow0.toNat from ult_iff,
         htemp1_nat, hb0_nat]
     exact borrow_step_iff (2^64) a1.isLt b1.isLt a0.isLt b0.isLt
   have hb1_nat : borrow1.toNat = if (a0.toNat + a1.toNat * 2^64 <
@@ -298,8 +298,8 @@ theorem sub_borrow_chain_correct (a b : EvmWord) :
   have hb2_cond : (BitVec.ult a2 b2 ∨ BitVec.ult temp2 borrow1) ↔
       (a0.toNat + a1.toNat * 2^64 + a2.toNat * 2^128 <
        b0.toNat + b1.toNat * 2^64 + b2.toNat * 2^128) := by
-    rw [show BitVec.ult a2 b2 ↔ a2.toNat < b2.toNat from ult_iff _ _,
-        show BitVec.ult temp2 borrow1 ↔ temp2.toNat < borrow1.toNat from ult_iff _ _,
+    rw [show BitVec.ult a2 b2 ↔ a2.toNat < b2.toNat from ult_iff,
+        show BitVec.ult temp2 borrow1 ↔ temp2.toNat < borrow1.toNat from ult_iff,
         htemp2_nat, hb1_nat]
     have ha_bound : a0.toNat + a1.toNat * 2^64 < 2^128 := by
       have := a0.isLt; have := a1.isLt; nlinarith
