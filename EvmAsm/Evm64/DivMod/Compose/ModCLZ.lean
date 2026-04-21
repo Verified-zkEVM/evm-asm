@@ -63,13 +63,13 @@ private theorem clz_init_sub_mod (base : Word) :
         base + clzOff + BitVec.ofNat 64 (4 * 0) from by bv_addr] at h))
 
 -- Address lemmas for CLZ stages (reused from CLZ.lean, but those are private so we redefine)
-private theorem mod_clz_addr0 (base : Word) : (base + clzOff : Word) + 4 = base + 120 := by bv_addr
-private theorem mod_clz_addr1 (base : Word) : (base + 120 : Word) + 16 = base + 136 := by bv_addr
-private theorem mod_clz_addr2 (base : Word) : (base + 136 : Word) + 16 = base + 152 := by bv_addr
-private theorem mod_clz_addr3 (base : Word) : (base + 152 : Word) + 16 = base + 168 := by bv_addr
-private theorem mod_clz_addr4 (base : Word) : (base + 168 : Word) + 16 = base + 184 := by bv_addr
-private theorem mod_clz_addr5 (base : Word) : (base + 184 : Word) + 16 = base + 200 := by bv_addr
-private theorem mod_clz_addr6 (base : Word) : (base + 200 : Word) + 12 = base + phaseC2Off := by bv_addr
+private theorem mod_clz_addr0 {base : Word} : (base + clzOff : Word) + 4 = base + 120 := by bv_addr
+private theorem mod_clz_addr1 {base : Word} : (base + 120 : Word) + 16 = base + 136 := by bv_addr
+private theorem mod_clz_addr2 {base : Word} : (base + 136 : Word) + 16 = base + 152 := by bv_addr
+private theorem mod_clz_addr3 {base : Word} : (base + 152 : Word) + 16 = base + 168 := by bv_addr
+private theorem mod_clz_addr4 {base : Word} : (base + 168 : Word) + 16 = base + 184 := by bv_addr
+private theorem mod_clz_addr5 {base : Word} : (base + 184 : Word) + 16 = base + 200 := by bv_addr
+private theorem mod_clz_addr6 {base : Word} : (base + 200 : Word) + 12 = base + phaseC2Off := by bv_addr
 
 /-- Combined CLZ stage: handles both taken and ntaken with conditional postcondition.
     (Reused from CLZ.lean — the stage specs are code-generic, only subsumption differs.) -/
