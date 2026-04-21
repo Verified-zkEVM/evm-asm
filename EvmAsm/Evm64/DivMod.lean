@@ -2,6 +2,7 @@ import EvmAsm.Evm64.DivMod.Program
 import EvmAsm.Evm64.DivMod.LimbSpec
 import EvmAsm.Evm64.DivMod.Compose
 import EvmAsm.Evm64.DivMod.Spec
+import EvmAsm.Evm64.DivMod.SpecCall
 import EvmAsm.Evm64.DivMod.LoopBody
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4Shift0
 import EvmAsm.Evm64.EvmWordArith.DivN4Overestimate

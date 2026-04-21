@@ -89,7 +89,7 @@ theorem beq_sail_equiv (sRv : MachineState) (sSail : SailState)
       StateRel (execInstrBr sRv (.BEQ rs1 rs2 offset)) sSail' := by
   obtain ⟨misa_val, h_misa⟩ := h_misa
   unfold execute_BTYPE
-  simp only [runSail_bind, runSail_rX_bits_of_stateRel sRv sSail hrel, runSail_pure]
+  simp only [runSail_bind, runSail_rX_bits_of_stateRel hrel, runSail_pure]
   by_cases h : sRv.getReg rs1 == sRv.getReg rs2
   · simp only [h, ite_true, runSail_bind,
       runSail_readReg_PC sSail sRv.pc h_pc, runSail_pure, sign_extend_13_eq]
@@ -114,7 +114,7 @@ theorem bne_sail_equiv (sRv : MachineState) (sSail : SailState)
       StateRel (execInstrBr sRv (.BNE rs1 rs2 offset)) sSail' := by
   obtain ⟨misa_val, h_misa⟩ := h_misa
   unfold execute_BTYPE
-  simp only [runSail_bind, runSail_rX_bits_of_stateRel sRv sSail hrel, runSail_pure]
+  simp only [runSail_bind, runSail_rX_bits_of_stateRel hrel, runSail_pure]
   by_cases h : sRv.getReg rs1 != sRv.getReg rs2
   · simp only [h, ite_true, runSail_bind,
       runSail_readReg_PC sSail sRv.pc h_pc, runSail_pure, sign_extend_13_eq]
@@ -139,7 +139,7 @@ theorem blt_sail_equiv (sRv : MachineState) (sSail : SailState)
       StateRel (execInstrBr sRv (.BLT rs1 rs2 offset)) sSail' := by
   obtain ⟨misa_val, h_misa⟩ := h_misa
   unfold execute_BTYPE
-  simp only [runSail_bind, runSail_rX_bits_of_stateRel sRv sSail hrel, runSail_pure, slt_equiv]
+  simp only [runSail_bind, runSail_rX_bits_of_stateRel hrel, runSail_pure, slt_equiv]
   by_cases h : BitVec.slt (sRv.getReg rs1) (sRv.getReg rs2)
   · simp only [h, ite_true, runSail_bind,
       runSail_readReg_PC sSail sRv.pc h_pc, runSail_pure, sign_extend_13_eq]
@@ -164,7 +164,7 @@ theorem bge_sail_equiv (sRv : MachineState) (sSail : SailState)
       StateRel (execInstrBr sRv (.BGE rs1 rs2 offset)) sSail' := by
   obtain ⟨misa_val, h_misa⟩ := h_misa
   unfold execute_BTYPE
-  simp only [runSail_bind, runSail_rX_bits_of_stateRel sRv sSail hrel, runSail_pure,
+  simp only [runSail_bind, runSail_rX_bits_of_stateRel hrel, runSail_pure,
     sge_equiv, slt_equiv]
   by_cases h : BitVec.slt (sRv.getReg rs1) (sRv.getReg rs2)
   · -- slt = true, so !slt = false → not taken
@@ -193,7 +193,7 @@ theorem bltu_sail_equiv (sRv : MachineState) (sSail : SailState)
       StateRel (execInstrBr sRv (.BLTU rs1 rs2 offset)) sSail' := by
   obtain ⟨misa_val, h_misa⟩ := h_misa
   unfold execute_BTYPE
-  simp only [runSail_bind, runSail_rX_bits_of_stateRel sRv sSail hrel, runSail_pure, ult_equiv]
+  simp only [runSail_bind, runSail_rX_bits_of_stateRel hrel, runSail_pure, ult_equiv]
   by_cases h : BitVec.ult (sRv.getReg rs1) (sRv.getReg rs2)
   · simp only [h, ite_true, runSail_bind,
       runSail_readReg_PC sSail sRv.pc h_pc, runSail_pure, sign_extend_13_eq]
@@ -218,7 +218,7 @@ theorem bgeu_sail_equiv (sRv : MachineState) (sSail : SailState)
       StateRel (execInstrBr sRv (.BGEU rs1 rs2 offset)) sSail' := by
   obtain ⟨misa_val, h_misa⟩ := h_misa
   unfold execute_BTYPE
-  simp only [runSail_bind, runSail_rX_bits_of_stateRel sRv sSail hrel, runSail_pure,
+  simp only [runSail_bind, runSail_rX_bits_of_stateRel hrel, runSail_pure,
     uge_equiv, ult_equiv]
   by_cases h : BitVec.ult (sRv.getReg rs1) (sRv.getReg rs2)
   · -- ult = true, so !ult = false → not taken
@@ -326,7 +326,7 @@ theorem jalr_sail_equiv (sRv : MachineState) (sSail : SailState)
   rw [runSail_ok_bind _ sSail s_mid _ h_elp_ok]
   simp only [runSail_bind, runSail_pure,
     runSail_get_next_pc s_mid (sRv.pc + 4) h_nextpc_mid,
-    runSail_rX_bits_of_stateRel sRv s_mid hrel_mid,
+    runSail_rX_bits_of_stateRel hrel_mid,
     sign_extend_12_eq]
   -- Rewrite BitVec.update to &&& ~~~1 before applying jump_to
   simp only [show @Sail.BitVec.update (m := 64) (sRv.getReg rs1 + signExtend12 offset) 0 0#1 =

@@ -33,7 +33,7 @@ private theorem sub_divCode_of_phaseB_left (base : Word) (rest : CodeReq) :
       ((CodeReq.ofProg base (divK_phaseA 1020)).union
         ((CodeReq.ofProg (base + phaseBOff) divK_phaseB).union rest)) a = some i :=
   CodeReq.mono_union_right
-    (CodeReq.ofProg_disjoint_range _ _ _ _
+    (CodeReq.ofProg_disjoint_range
       (fun k1 k2 hk1 hk2 => by
         simp only [divK_phaseA_len, divK_phaseB_len] at hk1 hk2; bv_omega))
     (CodeReq.union_mono_left _ _)

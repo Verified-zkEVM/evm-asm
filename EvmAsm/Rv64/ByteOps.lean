@@ -88,13 +88,13 @@ theorem generic_lbu_spec (rd rs1 : Reg) (v_addr vOld : Word)
   have hfetch : s.code s.pc = some (.LBU rd rs1 offset) :=
     (CodeReq.singleton_satisfiedBy s.pc (.LBU rd rs1 offset) s).mp hcr
   have hrs1 : s.getReg rs1 = v_addr :=
-    (holdsFor_regIs _ _ s).mp (holdsFor_sepConj_elim_left
+    holdsFor_regIs.mp (holdsFor_sepConj_elim_left
       (holdsFor_sepConj_elim_left hPR))
   have hmem : s.getMem dwordAddr = wordVal :=
     holdsFor_memIs_getMem (holdsFor_sepConj_elim_right (holdsFor_sepConj_elim_right
       (holdsFor_sepConj_elim_left hPR)))
   have hstep' : step s = some (execInstrBr s (.LBU rd rs1 offset)) :=
-    step_lbu s rd rs1 offset hfetch (hrs1 ▸ hvalid)
+    step_lbu s hfetch (hrs1 ▸ hvalid)
   have hexec' : execInstrBr s (.LBU rd rs1 offset) =
       (s.setReg rd ((extractByte wordVal (byteOffset (v_addr + signExtend12 offset))).zeroExtend 64)).setPC (s.pc + 4) := by
     simp only [execInstrBr, hrs1, getByte_eq]; rw [halign, hmem]
@@ -133,13 +133,13 @@ theorem generic_lb_spec (rd rs1 : Reg) (v_addr vOld : Word)
   have hfetch : s.code s.pc = some (.LB rd rs1 offset) :=
     (CodeReq.singleton_satisfiedBy s.pc (.LB rd rs1 offset) s).mp hcr
   have hrs1 : s.getReg rs1 = v_addr :=
-    (holdsFor_regIs _ _ s).mp (holdsFor_sepConj_elim_left
+    holdsFor_regIs.mp (holdsFor_sepConj_elim_left
       (holdsFor_sepConj_elim_left hPR))
   have hmem : s.getMem dwordAddr = wordVal :=
     holdsFor_memIs_getMem (holdsFor_sepConj_elim_right (holdsFor_sepConj_elim_right
       (holdsFor_sepConj_elim_left hPR)))
   have hstep' : step s = some (execInstrBr s (.LB rd rs1 offset)) :=
-    step_lb s rd rs1 offset hfetch (hrs1 ▸ hvalid)
+    step_lb s hfetch (hrs1 ▸ hvalid)
   have hexec' : execInstrBr s (.LB rd rs1 offset) =
       (s.setReg rd ((extractByte wordVal (byteOffset (v_addr + signExtend12 offset))).signExtend 64)).setPC (s.pc + 4) := by
     simp only [execInstrBr, hrs1, getByte_eq]; rw [halign, hmem]
@@ -175,16 +175,16 @@ theorem generic_sb_spec (rs1 rs2 : Reg) (v_addr v_data : Word)
   have hfetch : s.code s.pc = some (.SB rs1 rs2 offset) :=
     (CodeReq.singleton_satisfiedBy s.pc (.SB rs1 rs2 offset) s).mp hcr
   have hrs1 : s.getReg rs1 = v_addr :=
-    (holdsFor_regIs _ _ s).mp (holdsFor_sepConj_elim_left
+    holdsFor_regIs.mp (holdsFor_sepConj_elim_left
       (holdsFor_sepConj_elim_left hPR))
   have hrs2 : s.getReg rs2 = v_data :=
-    (holdsFor_regIs _ _ s).mp (holdsFor_sepConj_elim_left (holdsFor_sepConj_elim_right
+    holdsFor_regIs.mp (holdsFor_sepConj_elim_left (holdsFor_sepConj_elim_right
       (holdsFor_sepConj_elim_left hPR)))
   have hmem : s.getMem dwordAddr = wordOld :=
     holdsFor_memIs_getMem (holdsFor_sepConj_elim_right (holdsFor_sepConj_elim_right
       (holdsFor_sepConj_elim_left hPR)))
   have hstep' : step s = some (execInstrBr s (.SB rs1 rs2 offset)) :=
-    step_sb s rs1 rs2 offset hfetch (hrs1 ▸ hvalid)
+    step_sb s hfetch (hrs1 ▸ hvalid)
   have hexec' : execInstrBr s (.SB rs1 rs2 offset) =
       (s.setMem dwordAddr (replaceByte wordOld (byteOffset (v_addr + signExtend12 offset)) (v_data.truncate 8))).setPC (s.pc + 4) := by
     simp only [execInstrBr, hrs1, hrs2, setByte_eq]; rw [halign, hmem]
