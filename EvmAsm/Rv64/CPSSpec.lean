@@ -285,7 +285,7 @@ theorem cpsBranch_takenStripPure2
     cpsTriple entry l_t cr P (A ** B) :=
   cpsTriple_weaken
     (fun _ hp => hp)
-    (sepConj_strip_pure_end2 A B Prop_t)
+    sepConj_strip_pure_end2
     (cpsBranch_takenPath hbr h_absurd)
 
 /-- Eliminate the not-taken path from a cpsBranch AND strip the trailing pure fact
@@ -298,7 +298,7 @@ theorem cpsBranch_takenStripPure3
     cpsTriple entry l_t cr P (A ** B ** C) :=
   cpsTriple_weaken
     (fun _ hp => hp)
-    (sepConj_strip_pure_end3 A B C Prop_t)
+    sepConj_strip_pure_end3
     (cpsBranch_takenPath hbr h_absurd)
 
 /-- Eliminate the taken path from a cpsBranch AND strip the trailing pure fact
@@ -311,7 +311,7 @@ theorem cpsBranch_ntakenStripPure2
     cpsTriple entry l_f cr P (A ** B) :=
   cpsTriple_weaken
     (fun _ hp => hp)
-    (sepConj_strip_pure_end2 A B Prop_f)
+    sepConj_strip_pure_end2
     (cpsBranch_ntakenPath hbr h_absurd)
 
 /-- Eliminate the taken path from a cpsBranch AND strip the trailing pure fact
@@ -324,7 +324,7 @@ theorem cpsBranch_ntakenStripPure3
     cpsTriple entry l_f cr P (A ** B ** C) :=
   cpsTriple_weaken
     (fun _ hp => hp)
-    (sepConj_strip_pure_end3 A B C Prop_f)
+    sepConj_strip_pure_end3
     (cpsBranch_ntakenPath hbr h_absurd)
 
 /-- A cpsTriple with zero steps: if entry = exit and P implies Q, trivially holds.

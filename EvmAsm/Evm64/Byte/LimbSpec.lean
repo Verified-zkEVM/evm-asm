@@ -355,8 +355,8 @@ theorem byte_phase_c_spec (v5 v10 : Word) (base : Word)
       -- ntaken: combine ⌜v5 ≠ 0⌝ ∧ ⌜v5 ≠ 1⌝
       (fun h hp => by
         have ⟨hinner, hne0⟩ := (sepConj_pure_right _ _ h).1 hp
-        have hne1 := sepConj_extract_pure_end3 _ _ _ _ h hinner
-        have hregs := sepConj_strip_pure_end3 _ _ _ _ h hinner
+        have hne1 := sepConj_extract_pure_end3 h hinner
+        have hregs := sepConj_strip_pure_end3 h hinner
         exact (congrFun (show _ = _ from by xperm) h).mp
           ((sepConj_pure_right _ _ h).2 (And.intro hregs (And.intro hne0 hne1))))
       cs1_framed
@@ -403,8 +403,8 @@ theorem byte_phase_c_spec (v5 v10 : Word) (base : Word)
       -- ntaken: combine ⌜v5≠0 ∧ v5≠1⌝ ∧ ⌜v5≠2⌝
       (fun h hp => by
         have ⟨hinner, ⟨hne0, hne1⟩⟩ := (sepConj_pure_right _ _ h).1 hp
-        have hne2 := sepConj_extract_pure_end3 _ _ _ _ h hinner
-        have hregs := sepConj_strip_pure_end3 _ _ _ _ h hinner
+        have hne2 := sepConj_extract_pure_end3 h hinner
+        have hregs := sepConj_strip_pure_end3 h hinner
         exact (congrFun (show _ = _ from by xperm) h).mp
           ((sepConj_pure_right _ _ h).2 (And.intro hregs (And.intro hne0 (And.intro hne1 hne2)))))
       cs2_framed
