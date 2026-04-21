@@ -70,7 +70,7 @@ theorem cpsTriple_seq {l1 l2 l3 : Word} {cr1 cr2 : CodeReq}
     (h2 : cpsTriple l2 l3 cr2 Q R) :
     cpsTriple l1 l3 (cr1.union cr2) P R := by
   intro F hF s hcr hPF hpc
-  rw [CodeReq.union_satisfiedBy _ _ _ hd] at hcr
+  rw [CodeReq.union_satisfiedBy hd] at hcr
   obtain ⟨hcr1, hcr2⟩ := hcr
   obtain ⟨k1, s1, hstep1, hpc1, hQF⟩ := h1 F hF s hcr1 hPF hpc
   have hcr2' := CodeReq.SatisfiedBy_preserved cr2 k1 s s1 hstep1 hcr2
@@ -213,9 +213,9 @@ theorem cpsBranch_merge {entry l_t l_f exit_ : Word} {cr1 cr_t cr_f : CodeReq}
     (h_f   : cpsTriple l_f exit_ cr_f Q_f R) :
     cpsTriple entry exit_ (cr1.union (cr_t.union cr_f)) P R := by
   intro F hF s hcr hPF hpc
-  rw [CodeReq.union_satisfiedBy _ _ _ hd1] at hcr
+  rw [CodeReq.union_satisfiedBy hd1] at hcr
   obtain ⟨hcr1, hcr_tf⟩ := hcr
-  rw [CodeReq.union_satisfiedBy _ _ _ hd2] at hcr_tf
+  rw [CodeReq.union_satisfiedBy hd2] at hcr_tf
   obtain ⟨hcrt, hcrf⟩ := hcr_tf
   obtain ⟨k1, s1, hstep1, hbranch⟩ := hbr F hF s hcr1 hPF hpc
   rcases hbranch with ⟨hpc_t, hQ_t⟩ | ⟨hpc_f, hQ_f⟩
@@ -636,7 +636,7 @@ theorem cpsTriple_seq_halt {entry mid : Word} {cr1 cr2 : CodeReq}
     (h2 : cpsHaltTriple mid cr2 Q R) :
     cpsHaltTriple entry (cr1.union cr2) P R := by
   intro F hF s hcr hPF hpc
-  rw [CodeReq.union_satisfiedBy _ _ _ hd] at hcr
+  rw [CodeReq.union_satisfiedBy hd] at hcr
   obtain ⟨hcr1, hcr2⟩ := hcr
   obtain ⟨k1, s1, hstep1, hpc1, hQF⟩ := h1 F hF s hcr1 hPF hpc
   have hcr2' := CodeReq.SatisfiedBy_preserved cr2 k1 s s1 hstep1 hcr2
@@ -697,7 +697,7 @@ theorem cpsTriple_seq_cpsNBranch {entry mid : Word} {cr1 cr2 : CodeReq}
     (h2 : cpsNBranch mid cr2 Q exits) :
     cpsNBranch entry (cr1.union cr2) P exits := by
   intro R hR s hcr hPR hpc
-  rw [CodeReq.union_satisfiedBy _ _ _ hd] at hcr
+  rw [CodeReq.union_satisfiedBy hd] at hcr
   obtain ⟨hcr1, hcr2⟩ := hcr
   obtain ⟨k1, s1, hstep1, hpc1, hQR⟩ := h1 R hR s hcr1 hPR hpc
   have hcr2' := CodeReq.SatisfiedBy_preserved cr2 k1 s s1 hstep1 hcr2
@@ -728,7 +728,7 @@ theorem cpsTriple_seq_cpsBranch {entry mid : Word} {cr1 cr2 : CodeReq}
     (h2 : cpsBranch mid cr2 Q exit_t Q_t exit_f Q_f) :
     cpsBranch entry (cr1.union cr2) P exit_t Q_t exit_f Q_f := by
   intro R hR s hcr hPR hpc
-  rw [CodeReq.union_satisfiedBy _ _ _ hd] at hcr
+  rw [CodeReq.union_satisfiedBy hd] at hcr
   obtain ⟨hcr1, hcr2⟩ := hcr
   obtain ⟨k1, s1, hstep1, hpc1, hQR⟩ := h1 R hR s hcr1 hPR hpc
   have hcr2' := CodeReq.SatisfiedBy_preserved cr2 k1 s s1 hstep1 hcr2
@@ -757,7 +757,7 @@ theorem cpsBranch_cons_cpsNBranch {entry : Word} {cr1 cr2 : CodeReq}
     (h_rest : cpsNBranch exit_f cr2 Q_f exits) :
     cpsNBranch entry (cr1.union cr2) P ((exit_t, Q_t) :: exits) := by
   intro R hR s hcr hPR hpc
-  rw [CodeReq.union_satisfiedBy _ _ _ hd] at hcr
+  rw [CodeReq.union_satisfiedBy hd] at hcr
   obtain ⟨hcr1, hcr2⟩ := hcr
   obtain ⟨k1, s1, hstep1, hbranch⟩ := hbr R hR s hcr1 hPR hpc
   rcases hbranch with ⟨hpc_t, hQ_t⟩ | ⟨hpc_f, hQ_f⟩
@@ -778,7 +778,7 @@ theorem cpsBranch_cons_cpsNBranch_with_perm {entry : Word} {cr1 cr2 : CodeReq}
     (h_rest : cpsNBranch exit_f cr2 Q_f' exits) :
     cpsNBranch entry (cr1.union cr2) P ((exit_t, Q_t) :: exits) := by
   intro R hR s hcr hPR hpc
-  rw [CodeReq.union_satisfiedBy _ _ _ hd] at hcr
+  rw [CodeReq.union_satisfiedBy hd] at hcr
   obtain ⟨hcr1, hcr2⟩ := hcr
   obtain ⟨k1, s1, hstep1, hbranch⟩ := hbr R hR s hcr1 hPR hpc
   rcases hbranch with ⟨hpc_t, hQ_t⟩ | ⟨hpc_f, hQ_f⟩
@@ -803,7 +803,7 @@ theorem cpsBranch_seq_cpsBranch {entry mid target exit_f : Word} {cr1 cr2 : Code
     (ht2 : ∀ h, Q_t2 h → Q_t h) :
     cpsBranch entry (cr1.union cr2) P target Q_t exit_f Q_f2 := by
   intro R hR s hcr hPR hpc
-  rw [CodeReq.union_satisfiedBy _ _ _ hd] at hcr
+  rw [CodeReq.union_satisfiedBy hd] at hcr
   obtain ⟨hcr1, hcr2⟩ := hcr
   obtain ⟨k1, s1, hstep1, hbranch1⟩ := h1 R hR s hcr1 hPR hpc
   rcases hbranch1 with ⟨hpc_t1, hQ_t1R⟩ | ⟨hpc_f1, hQ_f1R⟩

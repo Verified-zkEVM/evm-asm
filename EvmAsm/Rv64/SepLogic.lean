@@ -2562,7 +2562,7 @@ theorem CodeReq.mono_sub_unionAll (sub_cr : CodeReq) (crs : List CodeReq)
             have := h_disj (j + 1) (by omega)
             simp only [List.get] at this; exact this))
 
-theorem CodeReq.union_satisfiedBy (cr1 cr2 : CodeReq) (s : MachineState)
+theorem CodeReq.union_satisfiedBy {cr1 cr2 : CodeReq} {s : MachineState}
     (hd : cr1.Disjoint cr2) :
     (cr1.union cr2).SatisfiedBy s ↔ cr1.SatisfiedBy s ∧ cr2.SatisfiedBy s := by
   simp only [CodeReq.SatisfiedBy, CodeReq.union]
