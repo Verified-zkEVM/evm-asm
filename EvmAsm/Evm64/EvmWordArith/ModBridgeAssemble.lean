@@ -125,10 +125,10 @@ theorem val256_denorm_eq_val256_mod_max_skip
     linarith [h_scaled, h_un_scaled, (show (Vms_un + Q * Vb) * 2 ^ s = Vms_un * 2^s + Q * Vb * 2^s from by ring)]
   -- Apply Lemma A's result to get val256(u') = val256(ms_un) * 2^s / 2^s = val256(ms_un).
   have h_ms_un_lt_b :=
-    val256_ms_un_lt_val256_b_max_skip a0 a1 a2 a3 b0 b1 b2 b3 hbnz hb3nz hc3_un_zero
+    val256_ms_un_lt_val256_b_max_skip hbnz hb3nz hc3_un_zero
   simp only [] at h_ms_un_lt_b
   have h_ms_un_eq_mod :=
-    val256_ms_un_eq_val256_mod_max_skip a0 a1 a2 a3 b0 b1 b2 b3 hbnz hb3nz hc3_un_zero
+    val256_ms_un_eq_val256_mod_max_skip hbnz hb3nz hc3_un_zero
   simp only [] at h_ms_un_eq_mod
   -- Chain: val256(u') = val256(msN)/2^s = val256(ms_un)*2^s/2^s = val256(ms_un) = val256(a)%val256(b).
   rw [h_denorm, h_ms_n_scaled, Nat.mul_div_cancel _ (by positivity : 0 < 2^s)]

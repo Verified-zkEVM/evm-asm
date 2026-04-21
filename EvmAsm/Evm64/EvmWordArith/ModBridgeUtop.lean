@@ -207,7 +207,7 @@ theorem u_top_eq_c3_n_max_skip
   have h_norm_u := val256_normalize_general hs0 hs a0 a1 a2 a3
   have h_norm_b := val256_normalize hs0 hs b0 b1 b2 b3 hb3_bound
   have h_ms_un_lt_b :=
-    val256_ms_un_lt_val256_b_max_skip a0 a1 a2 a3 b0 b1 b2 b3 hbnz hb3nz hc3_un_zero
+    val256_ms_un_lt_val256_b_max_skip hbnz hb3nz hc3_un_zero
   simp only [] at h_ms_un_lt_b
   have h_b_lt_pow := val256_lt_of_b3_bound b0 b1 b2 b3 s (by omega) hb3_bound
   have hs_pos : 0 < 2 ^ s := by positivity

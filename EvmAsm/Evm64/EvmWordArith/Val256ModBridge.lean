@@ -28,7 +28,7 @@ namespace EvmWord
     uniqueness argument (`remainder_lt_of_ge_floor`) rather than going through
     the `EvmWord.mod` / `fromLimbs` encoding of `n4_max_skip_correct`. -/
 theorem val256_ms_un_eq_val256_mod_max_skip
-    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    {a0 a1 a2 a3 b0 b1 b2 b3 : Word}
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
     (hb3nz : b3 ≠ 0)
     (hc3_zero : (mulsubN4 (signExtend12 4095) b0 b1 b2 b3 a0 a1 a2 a3).2.2.2.2 = 0) :
@@ -63,14 +63,14 @@ theorem val256_ms_un_eq_val256_mod_max_skip
     with `c3 = 0`). Follows from `val256_ms_un_eq_val256_mod_max_skip` +
     `Nat.mod_lt`. -/
 theorem val256_ms_un_lt_val256_b_max_skip
-    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    {a0 a1 a2 a3 b0 b1 b2 b3 : Word}
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
     (hb3nz : b3 ≠ 0)
     (hc3_zero : (mulsubN4 (signExtend12 4095) b0 b1 b2 b3 a0 a1 a2 a3).2.2.2.2 = 0) :
     let ms := mulsubN4 (signExtend12 4095) b0 b1 b2 b3 a0 a1 a2 a3
     val256 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 < val256 b0 b1 b2 b3 := by
   intro ms
-  rw [val256_ms_un_eq_val256_mod_max_skip a0 a1 a2 a3 b0 b1 b2 b3 hbnz hb3nz hc3_zero]
+  rw [val256_ms_un_eq_val256_mod_max_skip hbnz hb3nz hc3_zero]
   exact Nat.mod_lt _ (val256_pos_of_or_ne_zero hbnz)
 
 end EvmWord
