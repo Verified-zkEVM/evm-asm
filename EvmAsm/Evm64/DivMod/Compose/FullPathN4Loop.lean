@@ -20,31 +20,31 @@ open EvmAsm.Rv64.AddrNorm (se12_32 se12_40 se12_48 se12_56)
 -- Address normalization lemmas for j=0
 -- ============================================================================
 
-theorem u_base_j0 (sp : Word) :
+theorem u_base_j0 {sp : Word} :
     sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat = sp + signExtend12 4056 := by
   divmod_addr
 
-theorem u_base_off0_j0 (sp : Word) :
+theorem u_base_off0_j0 {sp : Word} :
     (sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 0 =
     sp + signExtend12 4056 := by divmod_addr
 
-theorem u_base_off4088_j0 (sp : Word) :
+theorem u_base_off4088_j0 {sp : Word} :
     (sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4088 =
     sp + signExtend12 4048 := by divmod_addr
 
-theorem u_base_off4080_j0 (sp : Word) :
+theorem u_base_off4080_j0 {sp : Word} :
     (sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4080 =
     sp + signExtend12 4040 := by divmod_addr
 
-theorem u_base_off4072_j0 (sp : Word) :
+theorem u_base_off4072_j0 {sp : Word} :
     (sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4072 =
     sp + signExtend12 4032 := by divmod_addr
 
-theorem u_base_off4064_j0 (sp : Word) :
+theorem u_base_off4064_j0 {sp : Word} :
     (sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) + signExtend12 4064 =
     sp + signExtend12 4024 := by divmod_addr
 
-theorem q_addr_j0 (sp : Word) :
+theorem q_addr_j0 {sp : Word} :
     sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat = sp + signExtend12 4088 := by
   divmod_addr
 
