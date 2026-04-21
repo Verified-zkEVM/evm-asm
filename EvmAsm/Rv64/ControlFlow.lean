@@ -134,27 +134,27 @@ theorem pcIndep_and {P Q : MachineState → Prop} (hP : pcIndep P) (hQ : pcIndep
   intro s v ⟨hp, hq⟩
   exact ⟨hP s v hp, hQ s v hq⟩
 
-theorem pcIndep_holdsFor_regIs (r : Reg) (val : Word) :
+theorem pcIndep_holdsFor_regIs {r : Reg} {val : Word} :
     pcIndep (regIs r val).holdsFor := by
   intro s v h
   simp only [holdsFor_regIs, MachineState.getReg_setPC] at *; exact h
 
-theorem pcIndep_holdsFor_memIs (a : Word) (val : Word) :
+theorem pcIndep_holdsFor_memIs {a : Word} {val : Word} :
     pcIndep (memIs a val).holdsFor := by
   intro s v h
   simp only [holdsFor_memIs, MachineState.getMem, MachineState.setPC] at *; exact h
 
-theorem pcIndep_committedIs (vals : List (Word × Word)) :
+theorem pcIndep_committedIs {vals : List (Word × Word)} :
     pcIndep (MachineState.committedIs vals) := by
   intro s v h
   simp only [MachineState.committedIs, MachineState.committed_setPC] at *; exact h
 
-theorem pcIndep_publicValuesIs (vals : List (BitVec 8)) :
+theorem pcIndep_publicValuesIs {vals : List (BitVec 8)} :
     pcIndep (MachineState.publicValuesIs vals) := by
   intro s v h
   simp only [MachineState.publicValuesIs, MachineState.publicValues_setPC] at *; exact h
 
-theorem pcIndep_privateInputIs (vals : List (BitVec 8)) :
+theorem pcIndep_privateInputIs {vals : List (BitVec 8)} :
     pcIndep (MachineState.privateInputIs vals) := by
   intro s v h
   simp only [MachineState.privateInputIs, MachineState.privateInput_setPC] at *; exact h
@@ -174,7 +174,7 @@ theorem pcIndep_holdsFor_sepConj {P Q : Assertion} (hP : P.pcFree) (hQ : Q.pcFre
          fun v' hv => by simp [MachineState.setPC] at *; exact hpi v' hv⟩
 
 /-- Sign-extend a small 13-bit value (MSB clear) to 64 bits. -/
-theorem signExtend13_ofNat_small (n : Nat) (h : n < 2^12) :
+theorem signExtend13_ofNat_small {n : Nat} (h : n < 2^12) :
     signExtend13 (BitVec.ofNat 13 n) = BitVec.ofNat 64 n := by
   unfold signExtend13
   rw [BitVec.signExtend_eq_setWidth_of_msb_false]
@@ -182,7 +182,7 @@ theorem signExtend13_ofNat_small (n : Nat) (h : n < 2^12) :
   · rw [BitVec.msb_eq_false_iff_two_mul_lt]; simp [BitVec.toNat_ofNat]; omega
 
 /-- Sign-extend a small 21-bit value (MSB clear) to 64 bits. -/
-theorem signExtend21_ofNat_small (n : Nat) (h : n < 2^20) :
+theorem signExtend21_ofNat_small {n : Nat} (h : n < 2^20) :
     signExtend21 (BitVec.ofNat 21 n) = BitVec.ofNat 64 n := by
   unfold signExtend21
   rw [BitVec.signExtend_eq_setWidth_of_msb_false]
@@ -329,7 +329,7 @@ theorem if_eq_branch_step (rs1 rs2 : Reg) (v1 v2 : Word)
     -- Show that signExtend13(else_off) = 4*(t+1)+4
     have hse : signExtend13 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4)) =
         BitVec.ofNat 64 (4 * (then_body.length + 1) + 4) :=
-      signExtend13_ofNat_small _ ht_small
+      signExtend13_ofNat_small ht_small
     -- Show that s.pc + 4*(t+1)+4 = s.pc + 4 + 4*t + 4
     have haddr : s.pc + signExtend13 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4)) =
         s.pc + 4 + BitVec.ofNat 64 (4 * then_body.length) + 4 := by
@@ -468,15 +468,15 @@ theorem if_eq_spec (rs1 rs2 : Reg) (v1 v2 : Word)
     -- The exit address: thenExit + signExtend21(end_off) = exit_
     have hexit : (s.pc + 4 + BitVec.ofNat 64 (4 * then_body.length)) + signExtend21 (BitVec.ofNat 21 (4 * else_body.length + 4)) =
         s.pc + BitVec.ofNat 64 (4 * (if_eq rs1 rs2 then_body else_body).length) := by
-      rw [signExtend21_ofNat_small _ he_small]
+      rw [signExtend21_ofNat_small he_small]
       simp only [if_eq_length]; bv_omega
     rw [hexit] at hpc3
     have hstep1 : stepN 1 s = some (s.setPC (s.pc + 4)) := by
       show (step s).bind (stepN 0) = some _
       rw [hstep', hexec']; rfl
     exact ⟨1 + (k2 + k3), s3,
-      stepN_add_eq 1 (k2 + k3) s _ s3 hstep1
-        (stepN_add_eq k2 k3 _ s2 s3 hstep2 hstep3),
+      stepN_add_eq hstep1
+        (stepN_add_eq hstep2 hstep3),
       hpc3, hQR3'⟩
   · -- BNE taken: v1 /= v2, PC -> elseEntry
     have hexec' : execInstrBr s (Instr.BNE rs1 rs2 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4))) =
@@ -484,7 +484,7 @@ theorem if_eq_spec (rs1 rs2 : Reg) (v1 v2 : Word)
       simp only [execInstrBr, hrs1, hrs2, bne_iff_ne, ne_eq, heq, not_false_eq_true, ite_true]
     have hse : signExtend13 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4)) =
         BitVec.ofNat 64 (4 * (then_body.length + 1) + 4) :=
-      signExtend13_ofNat_small _ ht_small
+      signExtend13_ofNat_small ht_small
     have haddr : s.pc + signExtend13 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4)) =
         s.pc + 4 + BitVec.ofNat 64 (4 * then_body.length) + 4 := by
       rw [hse]; bv_omega
@@ -520,7 +520,7 @@ theorem if_eq_spec (rs1 rs2 : Reg) (v1 v2 : Word)
       show (step s).bind (stepN 0) = some _
       rw [hstep', hexec']; rfl
     exact ⟨1 + k2, s2,
-      stepN_add_eq 1 k2 s _ s2 hstep1 hstep2,
+      stepN_add_eq hstep1 hstep2,
       hpc2, hQR2'⟩
 
 -- ============================================================================

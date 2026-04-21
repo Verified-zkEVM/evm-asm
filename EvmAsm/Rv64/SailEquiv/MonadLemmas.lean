@@ -61,56 +61,56 @@ theorem runSail_rX_bits_x0 (s : SailState) :
   simp [runSail, rX_bits, rX, BitVec.toNatInt, zero_reg, zeros, regval_from_reg,
     pure, EStateM.pure, bind, EStateM.bind]
 
-theorem runSail_rX_bits_x1 (s : SailState) (v : BitVec 64)
+theorem runSail_rX_bits_x1 {s : SailState} {v : BitVec 64}
     (h : s.regs.get? Register.x1 = some v) :
     runSail (rX_bits (regidx.Regidx 1)) s = some (v, s) := by
   simp [runSail, rX_bits, rX, BitVec.toNatInt, regval_from_reg,
     PreSail.readReg, h, pure, EStateM.pure, bind, EStateM.bind, EStateM.get,
     get, MonadState.get, getThe, MonadStateOf.get, EStateM.modifyGet]
 
-theorem runSail_rX_bits_x2 (s : SailState) (v : BitVec 64)
+theorem runSail_rX_bits_x2 {s : SailState} {v : BitVec 64}
     (h : s.regs.get? Register.x2 = some v) :
     runSail (rX_bits (regidx.Regidx 2)) s = some (v, s) := by
   simp [runSail, rX_bits, rX, BitVec.toNatInt, regval_from_reg,
     PreSail.readReg, h, pure, EStateM.pure, bind, EStateM.bind, EStateM.get,
     get, MonadState.get, getThe, MonadStateOf.get]
 
-theorem runSail_rX_bits_x5 (s : SailState) (v : BitVec 64)
+theorem runSail_rX_bits_x5 {s : SailState} {v : BitVec 64}
     (h : s.regs.get? Register.x5 = some v) :
     runSail (rX_bits (regidx.Regidx 5)) s = some (v, s) := by
   simp [runSail, rX_bits, rX, BitVec.toNatInt, regval_from_reg,
     PreSail.readReg, h, pure, EStateM.pure, bind, EStateM.bind, EStateM.get,
     get, MonadState.get, getThe, MonadStateOf.get]
 
-theorem runSail_rX_bits_x6 (s : SailState) (v : BitVec 64)
+theorem runSail_rX_bits_x6 {s : SailState} {v : BitVec 64}
     (h : s.regs.get? Register.x6 = some v) :
     runSail (rX_bits (regidx.Regidx 6)) s = some (v, s) := by
   simp [runSail, rX_bits, rX, BitVec.toNatInt, regval_from_reg,
     PreSail.readReg, h, pure, EStateM.pure, bind, EStateM.bind, EStateM.get,
     get, MonadState.get, getThe, MonadStateOf.get]
 
-theorem runSail_rX_bits_x7 (s : SailState) (v : BitVec 64)
+theorem runSail_rX_bits_x7 {s : SailState} {v : BitVec 64}
     (h : s.regs.get? Register.x7 = some v) :
     runSail (rX_bits (regidx.Regidx 7)) s = some (v, s) := by
   simp [runSail, rX_bits, rX, BitVec.toNatInt, regval_from_reg,
     PreSail.readReg, h, pure, EStateM.pure, bind, EStateM.bind, EStateM.get,
     get, MonadState.get, getThe, MonadStateOf.get]
 
-theorem runSail_rX_bits_x10 (s : SailState) (v : BitVec 64)
+theorem runSail_rX_bits_x10 {s : SailState} {v : BitVec 64}
     (h : s.regs.get? Register.x10 = some v) :
     runSail (rX_bits (regidx.Regidx 10)) s = some (v, s) := by
   simp [runSail, rX_bits, rX, BitVec.toNatInt, regval_from_reg,
     PreSail.readReg, h, pure, EStateM.pure, bind, EStateM.bind, EStateM.get,
     get, MonadState.get, getThe, MonadStateOf.get]
 
-theorem runSail_rX_bits_x11 (s : SailState) (v : BitVec 64)
+theorem runSail_rX_bits_x11 {s : SailState} {v : BitVec 64}
     (h : s.regs.get? Register.x11 = some v) :
     runSail (rX_bits (regidx.Regidx 11)) s = some (v, s) := by
   simp [runSail, rX_bits, rX, BitVec.toNatInt, regval_from_reg,
     PreSail.readReg, h, pure, EStateM.pure, bind, EStateM.bind, EStateM.get,
     get, MonadState.get, getThe, MonadStateOf.get]
 
-theorem runSail_rX_bits_x12 (s : SailState) (v : BitVec 64)
+theorem runSail_rX_bits_x12 {s : SailState} {v : BitVec 64}
     (h : s.regs.get? Register.x12 = some v) :
     runSail (rX_bits (regidx.Regidx 12)) s = some (v, s) := by
   simp [runSail, rX_bits, rX, BitVec.toNatInt, regval_from_reg,
@@ -130,14 +130,14 @@ theorem runSail_rX_bits_of_stateRel {sRv : MachineState} {sSail : SailState}
   cases r <;> simp [regToRegidx, sailRegVal, MachineState.getReg] at ha ⊢ <;>
   · first
       | exact runSail_rX_bits_x0 sSail
-      | exact runSail_rX_bits_x1 sSail _ ha
-      | exact runSail_rX_bits_x2 sSail _ ha
-      | exact runSail_rX_bits_x5 sSail _ ha
-      | exact runSail_rX_bits_x6 sSail _ ha
-      | exact runSail_rX_bits_x7 sSail _ ha
-      | exact runSail_rX_bits_x10 sSail _ ha
-      | exact runSail_rX_bits_x11 sSail _ ha
-      | exact runSail_rX_bits_x12 sSail _ ha
+      | exact runSail_rX_bits_x1 ha
+      | exact runSail_rX_bits_x2 ha
+      | exact runSail_rX_bits_x5 ha
+      | exact runSail_rX_bits_x6 ha
+      | exact runSail_rX_bits_x7 ha
+      | exact runSail_rX_bits_x10 ha
+      | exact runSail_rX_bits_x11 ha
+      | exact runSail_rX_bits_x12 ha
 
 -- ============================================================================
 -- wX_bits — register write

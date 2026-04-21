@@ -75,7 +75,7 @@ theorem cpsTriple_seq {l1 l2 l3 : Word} {cr1 cr2 : CodeReq}
   obtain ⟨k1, s1, hstep1, hpc1, hQF⟩ := h1 F hF s hcr1 hPF hpc
   have hcr2' := CodeReq.SatisfiedBy_preserved cr2 k1 s s1 hstep1 hcr2
   obtain ⟨k2, s2, hstep2, hpc2, hRF⟩ := h2 F hF s1 hcr2' hQF hpc1
-  exact ⟨k1 + k2, s2, stepN_add_eq k1 k2 s s1 s2 hstep1 hstep2, hpc2, hRF⟩
+  exact ⟨k1 + k2, s2, stepN_add_eq hstep1 hstep2, hpc2, hRF⟩
 
 /-- Consequence: strengthen precondition and weaken postcondition.
     Note: implications are at the assertion (PartialState) level, not holdsFor level,
@@ -221,10 +221,10 @@ theorem cpsBranch_merge {entry l_t l_f exit_ : Word} {cr1 cr_t cr_f : CodeReq}
   rcases hbranch with ⟨hpc_t, hQ_t⟩ | ⟨hpc_f, hQ_f⟩
   · have hcrt' := CodeReq.SatisfiedBy_preserved cr_t k1 s s1 hstep1 hcrt
     obtain ⟨k2, s2, hstep2, hpc2, hR⟩ := h_t F hF s1 hcrt' hQ_t hpc_t
-    exact ⟨k1 + k2, s2, stepN_add_eq k1 k2 s s1 s2 hstep1 hstep2, hpc2, hR⟩
+    exact ⟨k1 + k2, s2, stepN_add_eq hstep1 hstep2, hpc2, hR⟩
   · have hcrf' := CodeReq.SatisfiedBy_preserved cr_f k1 s s1 hstep1 hcrf
     obtain ⟨k2, s2, hstep2, hpc2, hR⟩ := h_f F hF s1 hcrf' hQ_f hpc_f
-    exact ⟨k1 + k2, s2, stepN_add_eq k1 k2 s s1 s2 hstep1 hstep2, hpc2, hR⟩
+    exact ⟨k1 + k2, s2, stepN_add_eq hstep1 hstep2, hpc2, hR⟩
 
 /-- Like cpsBranch_merge but with the same CodeReq for all three specs.
     No disjointness needed since code requirements are shared.
@@ -240,10 +240,10 @@ theorem cpsBranch_merge_same_cr {entry l_t l_f exit_ : Word} {cr : CodeReq}
   rcases hbranch with ⟨hpc_t, hQ_t⟩ | ⟨hpc_f, hQ_f⟩
   · have hcr' := CodeReq.SatisfiedBy_preserved cr k1 s s1 hstep1 hcr
     obtain ⟨k2, s2, hstep2, hpc2, hR⟩ := h_t F hF s1 hcr' hQ_t hpc_t
-    exact ⟨k1 + k2, s2, stepN_add_eq k1 k2 s s1 s2 hstep1 hstep2, hpc2, hR⟩
+    exact ⟨k1 + k2, s2, stepN_add_eq hstep1 hstep2, hpc2, hR⟩
   · have hcr' := CodeReq.SatisfiedBy_preserved cr k1 s s1 hstep1 hcr
     obtain ⟨k2, s2, hstep2, hpc2, hR⟩ := h_f F hF s1 hcr' hQ_f hpc_f
-    exact ⟨k1 + k2, s2, stepN_add_eq k1 k2 s s1 s2 hstep1 hstep2, hpc2, hR⟩
+    exact ⟨k1 + k2, s2, stepN_add_eq hstep1 hstep2, hpc2, hR⟩
 
 /-- Extract the taken path from a cpsBranch when the not-taken postcondition
     is unsatisfiable (e.g., contains a contradictory pure fact).
@@ -366,7 +366,7 @@ theorem cpsTriple_seq_cpsBranch_same_cr {entry mid : Word} {cr : CodeReq}
   obtain ⟨k1, s1, hstep1, hpc1, hQR⟩ := h1 R hR s hcr hPR hpc
   have hcr' := CodeReq.SatisfiedBy_preserved cr k1 s s1 hstep1 hcr
   obtain ⟨k2, s2, hstep2, hbranch⟩ := h2 R hR s1 hcr' hQR hpc1
-  exact ⟨k1 + k2, s2, stepN_add_eq k1 k2 s s1 s2 hstep1 hstep2, hbranch⟩
+  exact ⟨k1 + k2, s2, stepN_add_eq hstep1 hstep2, hbranch⟩
 
 /-- Sequential composition with permutation: cpsTriple followed by cpsBranch, same CodeReq.
     All position/code/pre/post args implicit — \`entry\`/\`mid\`/\`cr\`/\`P\`/\`Q1\` unify
@@ -501,7 +501,7 @@ theorem cpsNBranch_merge {entry exit_ : Word} {cr : CodeReq}
   obtain ⟨k1, s1, hstep1, ex, hmem, hpc1, hQF⟩ := hbr F hF s hcr hPF hpc
   have hcr1 := CodeReq.SatisfiedBy_preserved cr k1 s s1 hstep1 hcr
   obtain ⟨k2, s2, hstep2, hpc2, hRF⟩ := hall ex hmem F hF s1 hcr1 hQF hpc1
-  exact ⟨k1 + k2, s2, stepN_add_eq k1 k2 s s1 s2 hstep1 hstep2, hpc2, hRF⟩
+  exact ⟨k1 + k2, s2, stepN_add_eq hstep1 hstep2, hpc2, hRF⟩
 
 /-- Consequence: strengthen the precondition of an N-branch.
     All position/code/assertion arguments are implicit — inferred from `h`/`hpre`/goal type. -/
@@ -571,7 +571,7 @@ theorem cpsNBranch_extend_head {entry l l' : Word} {cr : CodeReq}
     -- ex = (l, Q), compose with hseq
     have hcr1 := CodeReq.SatisfiedBy_preserved cr k1 s s1 hstep1 hcr
     obtain ⟨k2, s2, hstep2, hpc2, hRF⟩ := hseq F hF s1 hcr1 hQF hpc1
-    exact ⟨k1 + k2, s2, stepN_add_eq k1 k2 s s1 s2 hstep1 hstep2,
+    exact ⟨k1 + k2, s2, stepN_add_eq hstep1 hstep2,
            (l', R), List.Mem.head _, hpc2, hRF⟩
   | tail _ htail =>
     -- ex ∈ others, pass through
@@ -641,7 +641,7 @@ theorem cpsTriple_seq_halt {entry mid : Word} {cr1 cr2 : CodeReq}
   obtain ⟨k1, s1, hstep1, hpc1, hQF⟩ := h1 F hF s hcr1 hPF hpc
   have hcr2' := CodeReq.SatisfiedBy_preserved cr2 k1 s s1 hstep1 hcr2
   obtain ⟨k2, s2, hstep2, hhalt, hRF⟩ := h2 F hF s1 hcr2' hQF hpc1
-  exact ⟨k1 + k2, s2, stepN_add_eq k1 k2 s s1 s2 hstep1 hstep2, hhalt, hRF⟩
+  exact ⟨k1 + k2, s2, stepN_add_eq hstep1 hstep2, hhalt, hRF⟩
 
 /-- Sequential composition with midpoint permutation:
     compose h1 : cpsTriple s m cr1 P Q1 with h2 : cpsTriple m e cr2 Q2 R
@@ -668,7 +668,7 @@ theorem cpsTriple_seq_same_cr {l1 l2 l3 : Word} {cr : CodeReq}
   obtain ⟨k1, s1, hstep1, hpc1, hQF⟩ := h1 F hF s hcr hPF hpc
   have hcr' := CodeReq.SatisfiedBy_preserved cr k1 s s1 hstep1 hcr
   obtain ⟨k2, s2, hstep2, hpc2, hRF⟩ := h2 F hF s1 hcr' hQF hpc1
-  exact ⟨k1 + k2, s2, stepN_add_eq k1 k2 s s1 s2 hstep1 hstep2, hpc2, hRF⟩
+  exact ⟨k1 + k2, s2, stepN_add_eq hstep1 hstep2, hpc2, hRF⟩
 
 /-- Sequential composition with midpoint permutation (same CodeReq).
     Like `cpsTriple_seq_with_perm` but for same-CR (no disjointness required).
@@ -702,7 +702,7 @@ theorem cpsTriple_seq_cpsNBranch {entry mid : Word} {cr1 cr2 : CodeReq}
   obtain ⟨k1, s1, hstep1, hpc1, hQR⟩ := h1 R hR s hcr1 hPR hpc
   have hcr2' := CodeReq.SatisfiedBy_preserved cr2 k1 s s1 hstep1 hcr2
   obtain ⟨k2, s2, hstep2, ex, hmem, hpc2, hER⟩ := h2 R hR s1 hcr2' hQR hpc1
-  exact ⟨k1 + k2, s2, stepN_add_eq k1 k2 s s1 s2 hstep1 hstep2, ex, hmem, hpc2, hER⟩
+  exact ⟨k1 + k2, s2, stepN_add_eq hstep1 hstep2, ex, hmem, hpc2, hER⟩
 
 /-- Sequential composition with permutation: cpsTriple followed by cpsNBranch
     when the intermediate assertions are permutations.
@@ -733,7 +733,7 @@ theorem cpsTriple_seq_cpsBranch {entry mid : Word} {cr1 cr2 : CodeReq}
   obtain ⟨k1, s1, hstep1, hpc1, hQR⟩ := h1 R hR s hcr1 hPR hpc
   have hcr2' := CodeReq.SatisfiedBy_preserved cr2 k1 s s1 hstep1 hcr2
   obtain ⟨k2, s2, hstep2, hbranch⟩ := h2 R hR s1 hcr2' hQR hpc1
-  exact ⟨k1 + k2, s2, stepN_add_eq k1 k2 s s1 s2 hstep1 hstep2, hbranch⟩
+  exact ⟨k1 + k2, s2, stepN_add_eq hstep1 hstep2, hbranch⟩
 
 /-- Sequential composition with permutation: cpsTriple followed by cpsBranch. -/
 theorem cpsTriple_seq_cpsBranch_with_perm {entry mid : Word} {cr1 cr2 : CodeReq}
@@ -764,7 +764,7 @@ theorem cpsBranch_cons_cpsNBranch {entry : Word} {cr1 cr2 : CodeReq}
   · exact ⟨k1, s1, hstep1, (exit_t, Q_t), List.Mem.head _, hpc_t, hQ_t⟩
   · have hcr2' := CodeReq.SatisfiedBy_preserved cr2 k1 s s1 hstep1 hcr2
     obtain ⟨k2, s2, hstep2, ex, hmem, hpc2, hER⟩ := h_rest R hR s1 hcr2' hQ_f hpc_f
-    exact ⟨k1 + k2, s2, stepN_add_eq k1 k2 s s1 s2 hstep1 hstep2,
+    exact ⟨k1 + k2, s2, stepN_add_eq hstep1 hstep2,
            ex, List.Mem.tail _ hmem, hpc2, hER⟩
 
 /-- Compose a cpsBranch with a cpsNBranch, with permutation on the not-taken path. -/
@@ -788,7 +788,7 @@ theorem cpsBranch_cons_cpsNBranch_with_perm {entry : Word} {cr1 cr2 : CodeReq}
       exact ⟨hp, hcompat, sepConj_mono_left hperm hp hpq⟩
     have hcr2' := CodeReq.SatisfiedBy_preserved cr2 k1 s s1 hstep1 hcr2
     obtain ⟨k2, s2, hstep2, ex, hmem, hpc2, hER⟩ := h_rest R hR s1 hcr2' hQ_f' hpc_f
-    exact ⟨k1 + k2, s2, stepN_add_eq k1 k2 s s1 s2 hstep1 hstep2,
+    exact ⟨k1 + k2, s2, stepN_add_eq hstep1 hstep2,
            ex, List.Mem.tail _ hmem, hpc2, hER⟩
 
 /-- Compose two sequential cpsBranch specs where the first's not-taken path leads
@@ -816,12 +816,12 @@ theorem cpsBranch_seq_cpsBranch {entry mid target exit_f : Word} {cr1 cr2 : Code
     obtain ⟨k2, s2, hstep2, hbranch2⟩ := h2 R hR s1 hcr2' hQ_f1R hpc_f1
     rcases hbranch2 with ⟨hpc_t2, hQ_t2R⟩ | ⟨hpc_f2, hQ_f2R⟩
     · -- Second branch taken → target
-      exact ⟨k1 + k2, s2, stepN_add_eq k1 k2 s s1 s2 hstep1 hstep2,
+      exact ⟨k1 + k2, s2, stepN_add_eq hstep1 hstep2,
              Or.inl ⟨hpc_t2, by
                obtain ⟨hp, hcompat, hpq⟩ := hQ_t2R
                exact ⟨hp, hcompat, sepConj_mono_left ht2 hp hpq⟩⟩⟩
     · -- Second branch not taken → exit_f
-      exact ⟨k1 + k2, s2, stepN_add_eq k1 k2 s s1 s2 hstep1 hstep2,
+      exact ⟨k1 + k2, s2, stepN_add_eq hstep1 hstep2,
              Or.inr ⟨hpc_f2, hQ_f2R⟩⟩
 
 /-- Like `cpsBranch_seq_cpsBranch` but with a permutation between Q_f1 and R.
@@ -935,7 +935,7 @@ theorem cpsTriple_loop
     · exact ⟨k1, s1, hstep1, hpc_t, hQ_t⟩
     · have hcr1 := CodeReq.SatisfiedBy_preserved cr k1 s s1 hstep1 hcr
       obtain ⟨k2, s2, hstep2, hpc2, hRF⟩ := ih R hR s1 hcr1 hQ_f hpc_f
-      exact ⟨k1 + k2, s2, stepN_add_eq k1 k2 s s1 s2 hstep1 hstep2, hpc2, hRF⟩
+      exact ⟨k1 + k2, s2, stepN_add_eq hstep1 hstep2, hpc2, hRF⟩
 
 /-- Simplified loop rule where the step spec has the same cr. -/
 theorem cpsTriple_loop_simple
@@ -990,11 +990,11 @@ theorem cpsBranch_seq_cpsBranch_same_cr {entry mid target exit_f : Word} {cr : C
   · have hcr' := CodeReq.SatisfiedBy_preserved cr k1 s s1 hstep1 hcr
     obtain ⟨k2, s2, hstep2, hbranch2⟩ := h2 R hR s1 hcr' hQ_f1R hpc_f1
     rcases hbranch2 with ⟨hpc_t2, hQ_t2R⟩ | ⟨hpc_f2, hQ_f2R⟩
-    · exact ⟨k1 + k2, s2, stepN_add_eq k1 k2 s s1 s2 hstep1 hstep2,
+    · exact ⟨k1 + k2, s2, stepN_add_eq hstep1 hstep2,
              Or.inl ⟨hpc_t2, by
                obtain ⟨hp, hcompat, hpq⟩ := hQ_t2R
                exact ⟨hp, hcompat, sepConj_mono_left ht2 hp hpq⟩⟩⟩
-    · exact ⟨k1 + k2, s2, stepN_add_eq k1 k2 s s1 s2 hstep1 hstep2,
+    · exact ⟨k1 + k2, s2, stepN_add_eq hstep1 hstep2,
              Or.inr ⟨hpc_f2, hQ_f2R⟩⟩
 
 /-- Like cpsBranch_seq_cpsBranch_with_perm but with same CodeReq.
@@ -1028,7 +1028,7 @@ theorem cpsBranch_seq_cpsTriple_same_cr {entry mid target exit_f : Word} {cr : C
       exact ⟨hp, hcompat, sepConj_mono_left ht1 hp hpq⟩⟩⟩
   · have hcr' := CodeReq.SatisfiedBy_preserved cr k1 s s1 hstep1 hcr
     obtain ⟨k2, s2, hstep2, hpc2, hQ_f2R⟩ := h2 R hR s1 hcr' hQ_f1R hpc_f1
-    exact ⟨k1 + k2, s2, stepN_add_eq k1 k2 s s1 s2 hstep1 hstep2,
+    exact ⟨k1 + k2, s2, stepN_add_eq hstep1 hstep2,
            Or.inr ⟨hpc2, hQ_f2R⟩⟩
 
 /-- Like cpsBranch_seq_cpsTriple_same_cr but with a permutation between Q_f1 and the
@@ -1058,7 +1058,7 @@ theorem cpsBranch_cons_cpsNBranch_same_cr {entry : Word} {cr : CodeReq}
   · exact ⟨k1, s1, hstep1, (exit_t, Q_t), List.Mem.head _, hpc_t, hQ_t⟩
   · have hcr' := CodeReq.SatisfiedBy_preserved cr k1 s s1 hstep1 hcr
     obtain ⟨k2, s2, hstep2, ex, hmem, hpc2, hER⟩ := h_rest R hR s1 hcr' hQ_f hpc_f
-    exact ⟨k1 + k2, s2, stepN_add_eq k1 k2 s s1 s2 hstep1 hstep2,
+    exact ⟨k1 + k2, s2, stepN_add_eq hstep1 hstep2,
            ex, List.Mem.tail _ hmem, hpc2, hER⟩
 
 /-- Compose a cpsBranch with a cpsNBranch, with permutation on the not-taken path, same CodeReq. -/
@@ -1079,7 +1079,7 @@ theorem cpsBranch_cons_cpsNBranch_with_perm_same_cr {entry : Word} {cr : CodeReq
       exact ⟨hp, hcompat, sepConj_mono_left hperm hp hpq⟩
     have hcr' := CodeReq.SatisfiedBy_preserved cr k1 s s1 hstep1 hcr
     obtain ⟨k2, s2, hstep2, ex, hmem, hpc2, hER⟩ := h_rest R hR s1 hcr' hQ_f' hpc_f
-    exact ⟨k1 + k2, s2, stepN_add_eq k1 k2 s s1 s2 hstep1 hstep2,
+    exact ⟨k1 + k2, s2, stepN_add_eq hstep1 hstep2,
            ex, List.Mem.tail _ hmem, hpc2, hER⟩
 
 end EvmAsm.Rv64
