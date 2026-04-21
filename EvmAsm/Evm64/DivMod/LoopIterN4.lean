@@ -79,9 +79,9 @@ theorem divK_loop_body_n4_max_skip_j0_spec
   have TF := divK_trial_max_full_spec sp (0 : Word) (4 : Word) jOld v5Old v6Old v7Old v10Old v11Old
     uTop u3 v3 base hbltu
   dsimp only [] at TF
-  rw [u_addr_eq_n4 sp (0 : Word)] at TF
-  rw [u_addr8_eq_n4 sp (0 : Word)] at TF
-  rw [vtop_eq_v3_n4 sp] at TF
+  rw [u_addr_eq_n4] at TF
+  rw [u_addr8_eq_n4] at TF
+  rw [vtop_eq_v3_n4] at TF
   -- 2. Mulsub + correction skip (base+516 → base+880)
   have MCS := divK_mulsub_correction_skip_spec sp qHat (0 : Word) v0 v1 v2 v3 u0 u1 u2 u3 uTop
     (0 : Word) u3 vtopBase uTop v3 v2Old base
@@ -216,9 +216,9 @@ theorem divK_loop_body_n4_call_skip_j0_spec
     uTop u3 v3 retMem dMem dloMem scratch_un0 base
     halign hbltu
   dsimp only [] at TF
-  rw [u_addr_eq_n4 sp (0 : Word)] at TF
-  rw [u_addr8_eq_n4 sp (0 : Word)] at TF
-  rw [vtop_eq_v3_n4 sp] at TF
+  rw [u_addr_eq_n4] at TF
+  rw [u_addr8_eq_n4] at TF
+  rw [vtop_eq_v3_n4] at TF
   -- 2. Mulsub + correction skip (base+516 → base+880)
   have MCS := divK_mulsub_correction_skip_spec sp qHat (0 : Word) v0 v1 v2 v3 u0 u1 u2 u3 uTop
     rhat2Un0 q0' dHi q0Dlo q1' (base + 516) base
@@ -315,9 +315,9 @@ theorem divK_loop_body_n4_max_addback_j0_beq_spec
   have TF := divK_trial_max_full_spec sp (0 : Word) (4 : Word) jOld v5Old v6Old v7Old v10Old v11Old
     uTop u3 v3 base hbltu
   dsimp only [] at TF
-  rw [u_addr_eq_n4 sp (0 : Word)] at TF
-  rw [u_addr8_eq_n4 sp (0 : Word)] at TF
-  rw [vtop_eq_v3_n4 sp] at TF
+  rw [u_addr_eq_n4] at TF
+  rw [u_addr8_eq_n4] at TF
+  rw [vtop_eq_v3_n4] at TF
   -- 2. Use beq_spec instead of old spec (NO sorry!)
   have MCA := divK_mulsub_correction_addback_beq_spec sp qHat (0 : Word) v0 v1 v2 v3 u0 u1 u2 u3 uTop
     (0 : Word) u3 vtopBase uTop v3 v2Old base
@@ -452,9 +452,9 @@ theorem divK_loop_body_n4_call_addback_j0_beq_spec
     uTop u3 v3 retMem dMem dloMem scratch_un0 base
     halign hbltu
   dsimp only [] at TF
-  rw [u_addr_eq_n4 sp (0 : Word)] at TF
-  rw [u_addr8_eq_n4 sp (0 : Word)] at TF
-  rw [vtop_eq_v3_n4 sp] at TF
+  rw [u_addr_eq_n4] at TF
+  rw [u_addr8_eq_n4] at TF
+  rw [vtop_eq_v3_n4] at TF
   -- 2. Use beq_spec instead of old spec (NO sorry!)
   have MCA := divK_mulsub_correction_addback_beq_spec sp qHat (0 : Word) v0 v1 v2 v3 u0 u1 u2 u3 uTop
     rhat2Un0 q0' dHi q0Dlo q1' (base + 516) base
