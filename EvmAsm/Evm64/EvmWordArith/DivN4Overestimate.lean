@@ -213,7 +213,7 @@ theorem n4_max_addback_correct (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
     Proof: from mulsubN4_val256_eq, c3 * 2^256 = val256(un) + q*val256(v) - val256(u).
     Since q*val256(v) ≤ val256(u) + val256(v), we get
     c3 * 2^256 ≤ val256(un) + val256(v) < 2 * 2^256, hence c3 ≤ 1. -/
-theorem mulsubN4_c3_le_one (q v0 v1 v2 v3 u0 u1 u2 u3 : Word)
+theorem mulsubN4_c3_le_one {q v0 v1 v2 v3 u0 u1 u2 u3 : Word}
     (hbnz : v0 ||| v1 ||| v2 ||| v3 ≠ 0)
     (hq_over : q.toNat ≤ val256 u0 u1 u2 u3 / val256 v0 v1 v2 v3 + 1) :
     (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2.toNat ≤ 1 := by
@@ -257,24 +257,24 @@ theorem mulsubN4_c3_le_one (q v0 v1 v2 v3 u0 u1 u2 u3 : Word)
   omega
 
 /-- When c3 ≤ 1, it's either 0 or 1 (as a Word). -/
-theorem mulsubN4_c3_eq_zero_or_one (q v0 v1 v2 v3 u0 u1 u2 u3 : Word)
+theorem mulsubN4_c3_eq_zero_or_one {q v0 v1 v2 v3 u0 u1 u2 u3 : Word}
     (hbnz : v0 ||| v1 ||| v2 ||| v3 ≠ 0)
     (hq_over : q.toNat ≤ val256 u0 u1 u2 u3 / val256 v0 v1 v2 v3 + 1) :
     (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2 = 0 ∨
     (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2 = 1 := by
-  have hle := mulsubN4_c3_le_one q v0 v1 v2 v3 u0 u1 u2 u3 hbnz hq_over
+  have hle := mulsubN4_c3_le_one hbnz hq_over
   rcases Nat.eq_zero_or_pos (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2.toNat with h | h
   · left; bv_omega
   · right; bv_omega
 
 /-- When c3 ≤ 1 and c3 ≠ 0, then c3 = 1. This is the key link between
     the algorithm's borrow check (c3 ≠ 0) and the addback hypothesis (c3 = 1). -/
-theorem mulsubN4_c3_ne_zero_imp_one (q v0 v1 v2 v3 u0 u1 u2 u3 : Word)
+theorem mulsubN4_c3_ne_zero_imp_one {q v0 v1 v2 v3 u0 u1 u2 u3 : Word}
     (hbnz : v0 ||| v1 ||| v2 ||| v3 ≠ 0)
     (hq_over : q.toNat ≤ val256 u0 u1 u2 u3 / val256 v0 v1 v2 v3 + 1)
     (hc3_nz : (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2 ≠ 0) :
     (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2 = 1 :=
-  (mulsubN4_c3_eq_zero_or_one q v0 v1 v2 v3 u0 u1 u2 u3 hbnz hq_over |>.resolve_left hc3_nz)
+  (mulsubN4_c3_eq_zero_or_one hbnz hq_over |>.resolve_left hc3_nz)
 
 -- ============================================================================
 -- Mulsub borrow bound for n ≤ 3 (v3 = 0): c3 ≤ 1 unconditionally
