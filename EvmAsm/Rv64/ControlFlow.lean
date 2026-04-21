@@ -239,7 +239,7 @@ theorem execInstrBr_jalr_x0 (s : MachineState) (rs1 : Reg) (off : BitVec 12) :
       (rs1 ↦ᵣ v) := by
   intro R hR s hcr hPR hpc; subst hpc
   have hfetch : s.code s.pc = some (.JALR .x0 rs1 offset) :=
-    (CodeReq.singleton_satisfiedBy s.pc (.JALR .x0 rs1 offset) s).mp hcr
+    CodeReq.singleton_satisfiedBy.mp hcr
   have hrs1 : s.getReg rs1 = v :=
     holdsFor_regIs.mp (holdsFor_sepConj_elim_left hPR)
   have hexec : execInstrBr s (.JALR .x0 rs1 offset) = s.setPC ((v + signExtend12 offset) &&& ~~~1) := by

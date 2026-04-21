@@ -81,7 +81,7 @@ theorem divK_clz_stage_taken_spec (K M_s : BitVec 6) (M_a : BitVec 12) (val coun
         (((.x7 ↦ᵣ (val >>> K.toNat)) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜val >>> K.toNat = 0⌝) **
          ((.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count))) :=
     fun R hR s hcr hPR hpc =>
-      hbne_framed R hR s ((CodeReq.singleton_satisfiedBy _ _ s).mpr (hcr _ _ (by
+      hbne_framed R hR s (CodeReq.singleton_satisfiedBy.mpr (hcr _ _ (by
         show divK_clz_stage_code K M_s M_a base (base + 4) = _
         simp only [divK_clz_stage_code, divK_clz_stage_prog,
           CodeReq.ofProg_cons, CodeReq.ofProg_nil,
@@ -134,7 +134,7 @@ theorem divK_clz_stage_ntaken_spec (K M_s : BitVec 6) (M_a : BitVec 12) (val cou
         (((.x7 ↦ᵣ (val >>> K.toNat)) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜val >>> K.toNat = 0⌝) **
          ((.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count))) :=
     fun R hR s hcr hPR hpc =>
-      hbne_framed R hR s ((CodeReq.singleton_satisfiedBy _ _ s).mpr (hcr _ _ (by
+      hbne_framed R hR s (CodeReq.singleton_satisfiedBy.mpr (hcr _ _ (by
         show divK_clz_stage_code K M_s M_a base (base + 4) = _
         simp only [divK_clz_stage_code, divK_clz_stage_prog,
           CodeReq.ofProg_cons, CodeReq.ofProg_nil,
@@ -204,7 +204,7 @@ theorem divK_clz_last_taken_spec (val count v7 : Word) (base : Word)
         (((.x7 ↦ᵣ (val >>> 63)) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜val >>> 63 = 0⌝) **
          ((.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count))) :=
     fun R hR s hcr hPR hpc =>
-      hbne_framed R hR s ((CodeReq.singleton_satisfiedBy _ _ s).mpr (hcr _ _ (by
+      hbne_framed R hR s (CodeReq.singleton_satisfiedBy.mpr (hcr _ _ (by
         show divK_clz_last_code base (base + 4) = _
         simp only [divK_clz_last_code, divK_clz_last_prog,
           CodeReq.ofProg_cons, CodeReq.ofProg_nil,
@@ -257,7 +257,7 @@ theorem divK_clz_last_ntaken_spec (val count v7 : Word) (base : Word)
         (((.x7 ↦ᵣ (val >>> 63)) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜val >>> 63 = 0⌝) **
          ((.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count))) :=
     fun R hR s hcr hPR hpc =>
-      hbne_framed R hR s ((CodeReq.singleton_satisfiedBy _ _ s).mpr (hcr _ _ (by
+      hbne_framed R hR s (CodeReq.singleton_satisfiedBy.mpr (hcr _ _ (by
         show divK_clz_last_code base (base + 4) = _
         simp only [divK_clz_last_code, divK_clz_last_prog,
           CodeReq.ofProg_cons, CodeReq.ofProg_nil,

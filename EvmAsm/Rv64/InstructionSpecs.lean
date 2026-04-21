@@ -239,7 +239,7 @@ theorem ld_spec_same (rd : Reg) (v_addr memVal : Word) (offset : BitVec 12) (bas
       ((rd ↦ᵣ memVal) ** ((v_addr + signExtend12 offset) ↦ₘ memVal)) := by
   intro R hR s hcr hPR hpc; subst hpc
   have hfetch : s.code s.pc = some (.LD rd rd offset) :=
-    (CodeReq.singleton_satisfiedBy s.pc (.LD rd rd offset) s).mp hcr
+    CodeReq.singleton_satisfiedBy.mp hcr
   have hrd : s.getReg rd = v_addr :=
     holdsFor_regIs.mp (holdsFor_sepConj_elim_left (holdsFor_sepConj_elim_left hPR))
   have hmem_piece := holdsFor_sepConj_elim_right (holdsFor_sepConj_elim_left hPR)
@@ -276,7 +276,7 @@ theorem sd_spec_same (rs : Reg) (v : Word) (memOld : Word) (offset : BitVec 12) 
       ((rs ↦ᵣ v) ** ((v + signExtend12 offset) ↦ₘ v)) := by
   intro R hR s hcr hPR hpc; subst hpc
   have hfetch : s.code s.pc = some (.SD rs rs offset) :=
-    (CodeReq.singleton_satisfiedBy s.pc (.SD rs rs offset) s).mp hcr
+    CodeReq.singleton_satisfiedBy.mp hcr
   have hrs : s.getReg rs = v :=
     holdsFor_regIs.mp (holdsFor_sepConj_elim_left (holdsFor_sepConj_elim_left hPR))
   have hvalid : isValidDwordAccess (v + signExtend12 offset) = true :=
@@ -315,7 +315,7 @@ theorem beq_spec_same (rs : Reg) (offset : BitVec 13) (v : Word) (base : Word) :
       (base + 4) (rs ↦ᵣ v) := by
   intro R hR s hcr hPR hpc; subst hpc
   have hfetch : s.code s.pc = some (.BEQ rs rs offset) :=
-    (CodeReq.singleton_satisfiedBy s.pc (.BEQ rs rs offset) s).mp hcr
+    CodeReq.singleton_satisfiedBy.mp hcr
   have hrs : s.getReg rs = v :=
     holdsFor_regIs.mp (holdsFor_sepConj_elim_left hPR)
   have hstep' : step s = some (execInstrBr s (.BEQ rs rs offset)) :=
@@ -343,7 +343,7 @@ theorem bne_spec_same (rs : Reg) (offset : BitVec 13) (v : Word) (base : Word) :
       (base + 4) (rs ↦ᵣ v) := by
   intro R hR s hcr hPR hpc; subst hpc
   have hfetch : s.code s.pc = some (.BNE rs rs offset) :=
-    (CodeReq.singleton_satisfiedBy s.pc (.BNE rs rs offset) s).mp hcr
+    CodeReq.singleton_satisfiedBy.mp hcr
   have hrs : s.getReg rs = v :=
     holdsFor_regIs.mp (holdsFor_sepConj_elim_left hPR)
   have hstep' : step s = some (execInstrBr s (.BNE rs rs offset)) :=
@@ -395,7 +395,7 @@ theorem jalr_spec_same (rd : Reg) (v : Word) (offset : BitVec 12) (base : Word)
       (rd ↦ᵣ (base + 4)) := by
   intro R hR s hcr hPR hpc; subst hpc
   have hfetch : s.code s.pc = some (.JALR rd rd offset) :=
-    (CodeReq.singleton_satisfiedBy s.pc (.JALR rd rd offset) s).mp hcr
+    CodeReq.singleton_satisfiedBy.mp hcr
   have hrd : s.getReg rd = v :=
     holdsFor_regIs.mp (holdsFor_sepConj_elim_left hPR)
   have hstep' : step s = some (execInstrBr s (.JALR rd rd offset)) :=
