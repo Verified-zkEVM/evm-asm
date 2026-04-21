@@ -264,14 +264,14 @@ theorem div_correct_n1_no_shift
 
     This handles all n-cases and both shift=0 and shift≠0. For shift=0,
     use s=0 (2^0 = 1, so the equation simplifies to val256(a) = q_val * val256(b) + r). -/
-theorem div_quotient_of_normalized {aVal bVal q_val r_norm : Nat} (s : Nat)
+theorem div_quotient_of_normalized {aVal bVal q_val r_norm : Nat} {s : Nat}
     (hmulsub : aVal * 2^s = q_val * (bVal * 2^s) + r_norm)
     (hlt : r_norm < bVal * 2^s) :
     q_val = aVal / bVal :=
   (norm_euclidean_correct s hmulsub hlt).1
 
 /-- Normalization also recovers the remainder: r_norm / 2^s = a % b. -/
-theorem mod_remainder_of_normalized {aVal bVal q_val r_norm : Nat} (s : Nat)
+theorem mod_remainder_of_normalized {aVal bVal q_val r_norm : Nat} {s : Nat}
     (hmulsub : aVal * 2^s = q_val * (bVal * 2^s) + r_norm)
     (hlt : r_norm < bVal * 2^s) :
     r_norm / 2^s = aVal % bVal :=
@@ -369,7 +369,7 @@ theorem div_correct_normalized
     let q := fromLimbs fun i : Fin 4 =>
       match i with | 0 => q0 | 1 => q1 | 2 => q2 | 3 => q3
     q = EvmWord.div a b :=
-  div_of_val256_eq_div hbnz (div_quotient_of_normalized s hmulsub hlt)
+  div_of_val256_eq_div hbnz (div_quotient_of_normalized hmulsub hlt)
 
 /-- Combined normalization bridge for MOD: from normalized Euclidean equation
     and denormalized remainder → EvmWord.mod. -/
@@ -388,7 +388,7 @@ theorem mod_correct_normalized
     let r := fromLimbs fun i : Fin 4 =>
       match i with | 0 => r0 | 1 => r1 | 2 => r2 | 3 => r3
     r = EvmWord.mod a b :=
-  mod_of_denormalized_remainder hbnz s hr_denorm (mod_remainder_of_normalized s hmulsub hlt)
+  mod_of_denormalized_remainder hbnz s hr_denorm (mod_remainder_of_normalized hmulsub hlt)
 
 end EvmWord
 
