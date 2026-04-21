@@ -898,7 +898,7 @@ private theorem lb_beq_back_ntaken (base : Word) : (base + 880 : Word) + 4 = bas
 
 /-- BEQ passthrough at [108]: when carry (x7) ≠ 0, BEQ falls through from base+880 to base+884.
     Used to bridge addback exit (base+880) to store_loop entry (base+884). -/
-theorem divK_beq_passthrough (carry : Word) (base : Word) (hne : carry ≠ 0) :
+theorem divK_beq_passthrough {carry : Word} (base : Word) (hne : carry ≠ 0) :
     cpsTriple (base + 880) (base + 884) (sharedDivModCode base)
       ((.x7 ↦ᵣ carry) ** (.x0 ↦ᵣ (0 : Word)))
       ((.x7 ↦ᵣ carry) ** (.x0 ↦ᵣ (0 : Word))) := by
@@ -994,7 +994,7 @@ theorem divK_double_addback_beq_spec
     unfold addbackN4_carry at hcarry2_nz
     simp only [] at hcarry2_nz
     exact hcarry2_nz
-  have BPT := divK_beq_passthrough aco3' base haco3_nz
+  have BPT := divK_beq_passthrough base haco3_nz
   -- 4. Compose: BEQ taken (→732) + addback2 (732→880) + BEQ ntaken (880→884)
   -- Frame BEQ with addback atoms
   have beq_f := cpsTriple_frameR
@@ -1635,7 +1635,7 @@ theorem divK_mulsub_correction_addback_spec
 
   dsimp only [] at CA
   -- 3. BEQ passthrough (base+880 → base+884) with carry ≠ 0
-  have BEQ := divK_beq_passthrough aco3 base hcarry
+  have BEQ := divK_beq_passthrough base hcarry
   -- 4. Compose mulsub + correction_addback (→880)
   seqFrame MS CA
   -- 5. Frame BEQ with remaining atoms and compose (880→884)
