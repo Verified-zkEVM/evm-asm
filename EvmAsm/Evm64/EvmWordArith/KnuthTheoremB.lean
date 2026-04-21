@@ -62,6 +62,9 @@
     regardless of branch (Phase 1b overflow-bound prerequisite).
   - `div128Quot_phase1b_check_implies_q1c_pos` — when Phase 1b's BitVec.ult
     check fires, `q1c.toNat ≥ 1` (proof: q1c = 0 ⟹ qDlo = 0 ⟹ check fails).
+  - `div128Quot_phase1b_correction_eucl` — when Phase 1b's check fires and
+    correction triggers (q1' = q1c - 1, rhat' = rhatc + dHi), the
+    Euclidean equation `q1' * dHi + rhat' = uHi` is preserved.
 -/
 
 import EvmAsm.Evm64.EvmWordArith.DivN4Overestimate
@@ -818,5 +821,49 @@ theorem div128Quot_phase1b_check_implies_q1c_pos
     rw [BitVec.toNat_mul]; simp
   rw [hmul_zero] at h_lt
   exact Nat.not_lt_zero _ h_lt
+
+/-- **Phase 1b correction case — Euclidean preservation (factored form).**
+
+    Takes the prerequisites as explicit hypotheses (rather than computing them
+    via the let-bound algorithm chain) for cleaner type-checking. Callers
+    discharge them via:
+    - `h_post` from `div128Quot_first_round_post` (#837).
+    - `h_q1c_pos` from `div128Quot_phase1b_check_implies_q1c_pos` (#849).
+    - `h_rhatc_lt` from `div128Quot_rhatc_lt_2dHi` (#845).
+
+    Conclusion: `q1' = q1c - 1` and `rhat' = rhatc + dHi` (Phase 1b correction)
+    preserve the Word-level Euclidean equation
+    `q1'.toNat * dHi.toNat + rhat'.toNat = uHi.toNat`.
+
+    Algebra: `(q1c - 1) * dHi + (rhatc + dHi) = q1c * dHi + rhatc = uHi`. -/
+theorem div128Quot_phase1b_correction_eucl
+    (uHi dHi q1c rhatc : Word)
+    (hdHi_lt : dHi.toNat < 2^32)
+    (h_post : q1c.toNat * dHi.toNat + rhatc.toNat = uHi.toNat)
+    (h_q1c_pos : q1c.toNat ≥ 1)
+    (h_rhatc_lt : rhatc.toNat < 2 * dHi.toNat) :
+    (q1c + signExtend12 4095).toNat * dHi.toNat +
+      (rhatc + dHi).toNat = uHi.toNat := by
+  -- q1' = q1c - 1
+  have h_se_neg1 : (signExtend12 (4095 : BitVec 12) : Word).toNat = 2^64 - 1 := by decide
+  have hq1'_toNat : (q1c + signExtend12 4095).toNat = q1c.toNat - 1 := by
+    rw [BitVec.toNat_add, h_se_neg1]
+    have h_eq : q1c.toNat + (2^64 - 1) = (q1c.toNat - 1) + 2^64 := by omega
+    rw [h_eq, Nat.add_mod_right]
+    have hq1c_lt_word : q1c.toNat - 1 < 2^64 := by have := q1c.isLt; omega
+    rw [Nat.mod_eq_of_lt hq1c_lt_word]
+  -- rhat' = rhatc + dHi (no overflow: rhatc < 2*dHi, dHi < 2^32 → rhatc + dHi < 3*2^32 < 2^64)
+  have hrhat'_toNat : (rhatc + dHi).toNat = rhatc.toNat + dHi.toNat := by
+    rw [BitVec.toNat_add]
+    apply Nat.mod_eq_of_lt
+    omega
+  rw [hq1'_toNat, hrhat'_toNat]
+  -- (q1c - 1) * dHi + (rhatc + dHi) = q1c * dHi + rhatc = uHi (h_post)
+  have h_expand : (q1c.toNat - 1 + 1) * dHi.toNat =
+                  (q1c.toNat - 1) * dHi.toNat + dHi.toNat := by
+    rw [Nat.add_mul, Nat.one_mul]
+  have h_eq : q1c.toNat - 1 + 1 = q1c.toNat := by omega
+  rw [h_eq] at h_expand
+  omega
 
 end EvmAsm.Evm64
