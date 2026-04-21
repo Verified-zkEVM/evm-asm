@@ -2033,21 +2033,21 @@ theorem union_assoc (cr1 cr2 cr3 : CodeReq) :
     (cr1.union cr2).union cr3 = cr1.union (cr2.union cr3) := by
   funext a; simp only [union]; cases cr1 a <;> rfl
 
-theorem union_empty_left (cr : CodeReq) : empty.union cr = cr := by
+theorem union_empty_left {cr : CodeReq} : empty.union cr = cr := by
   funext a; simp [union, empty]
 
-theorem union_empty_right (cr : CodeReq) : cr.union empty = cr := by
+theorem union_empty_right {cr : CodeReq} : cr.union empty = cr := by
   funext a; simp only [union, empty]; cases cr a <;> rfl
 
 private theorem ofIndexed_foldl_acc (acc : CodeReq) (ps : List (Word × Instr)) :
     ps.foldl (fun cr (ai : Word × Instr) => cr.union (singleton ai.1 ai.2)) acc =
     acc.union (ps.foldl (fun cr (ai : Word × Instr) => cr.union (singleton ai.1 ai.2)) empty) := by
   induction ps generalizing acc with
-  | nil => exact (union_empty_right acc).symm
+  | nil => exact union_empty_right.symm
   | cons p ps ih =>
     simp only [List.foldl]
     rw [ih, union_assoc]; congr 1
-    rw [show empty.union (singleton p.1 p.2) = singleton p.1 p.2 from union_empty_left _]
+    rw [show empty.union (singleton p.1 p.2) = singleton p.1 p.2 from union_empty_left]
     exact (ih (singleton p.1 p.2)).symm
 
 theorem ofIndexed_cons (p : Word × Instr) (ps : List (Word × Instr)) :
