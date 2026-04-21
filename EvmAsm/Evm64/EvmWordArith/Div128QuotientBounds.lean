@@ -399,4 +399,42 @@ theorem halfword_combine_mod (a b : Word) (hb : b.toNat < 2^32) :
         Nat.mul_mod_mul_right]
   rw [h_mod]
 
+/-- Utility: right-shifting a 64-bit Word by 32 produces a value bounded
+    by `2^32`. -/
+theorem Word_ushiftRight_32_lt_pow32 (x : Word) :
+    (x >>> (32 : BitVec 6).toNat).toNat < 2^32 := by
+  rw [BitVec.toNat_ushiftRight]
+  have h32 : (32 : BitVec 6).toNat = 32 := by decide
+  rw [h32, Nat.shiftRight_eq_div_pow]
+  have : x.toNat < 2^64 := x.isLt
+  have : x.toNat / 2^32 < 2^32 := by
+    apply Nat.div_lt_of_lt_mul
+    have : (2^32 : Nat) * 2^32 = 2^64 := by decide
+    omega
+  exact this
+
+/-- **KB-3h: cu_rhat_un1.toNat formula.** For Phase 2's
+    `cu_rhat_un1 := (rhat' <<< 32) ||| div_un1` where `div_un1 := uLo >>> 32`,
+    the Nat representation is:
+
+    ```
+    cu_rhat_un1.toNat = (rhat'.toNat % 2^32) * 2^32 + div_un1.toNat
+    ```
+
+    Direct application of `halfword_combine_mod` (KB-3g) with
+    `div_un1 < 2^32` discharged via `Word_ushiftRight_32_lt_pow32`.
+
+    Key step of the Phase 2 un21 identity.  Note that if `rhat' ≥ 2^32`
+    (possible under the current `rhat' < 3 * dHi` bound), the formula
+    truncates `rhat'` modulo `2^32` — Phase 2 "sees" only the low 32
+    bits of rhat'. -/
+theorem div128Quot_cu_rhat_un1_toNat (rhat' uLo : Word) :
+    ((rhat' <<< (32 : BitVec 6).toNat) ||| (uLo >>> (32 : BitVec 6).toNat)).toNat =
+    (rhat'.toNat % 2^32) * 2^32 + (uLo >>> (32 : BitVec 6).toNat).toNat := by
+  have h32 : (32 : BitVec 6).toNat = 32 := by decide
+  rw [h32]
+  apply halfword_combine_mod
+  rw [← h32]
+  exact Word_ushiftRight_32_lt_pow32 uLo
+
 end EvmAsm.Evm64
