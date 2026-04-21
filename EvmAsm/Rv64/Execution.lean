@@ -195,7 +195,7 @@ def execInstrBr (s : MachineState) (i : Instr) : MachineState :=
 
 /-- For non-branch instructions, execInstrBr agrees with execInstr
     (both advance PC by 4 and compute the same state update). -/
-theorem execInstrBr_eq_execInstr (s : MachineState) (i : Instr)
+theorem execInstrBr_eq_execInstr {s : MachineState} {i : Instr}
     (h : i.isBranch = false) : execInstrBr s i = execInstr s i := by
   cases i <;> simp_all [execInstrBr, execInstr, Instr.isBranch,
     MachineState.pc_setReg, MachineState.pc_setMem,
