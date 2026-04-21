@@ -310,9 +310,9 @@ def divN4StackPre (sp : Word) (a b : EvmWord)
   divScratchValues sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
     shiftMem nMem jMem
 
-theorem pcFree_divN4StackPre (sp : Word) (a b : EvmWord)
-    (v5 v6 v7 v10 v11 : Word)
-    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem : Word) :
+theorem pcFree_divN4StackPre {sp : Word} {a b : EvmWord}
+    {v5 v6 v7 v10 v11 : Word}
+    {q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem : Word} :
     (divN4StackPre sp a b v5 v6 v7 v10 v11
       q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem).pcFree := by
   delta divN4StackPre; pcFree
@@ -321,8 +321,7 @@ instance (sp : Word) (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
     (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem : Word) :
     Assertion.PCFree (divN4StackPre sp a b v5 v6 v7 v10 v11
       q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem) :=
-  ⟨pcFree_divN4StackPre sp a b v5 v6 v7 v10 v11
-    q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem⟩
+  ⟨pcFree_divN4StackPre⟩
 
 /-- Named unfold for `divN4StackPre`. Restores access to the atomic
     components once `@[irreducible]` has made `delta` the only path in. -/
@@ -450,9 +449,9 @@ def modN4StackPre (sp : Word) (a b : EvmWord)
   divScratchValues sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
     shiftMem nMem jMem
 
-theorem pcFree_modN4StackPre (sp : Word) (a b : EvmWord)
-    (v5 v6 v7 v10 v11 : Word)
-    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem : Word) :
+theorem pcFree_modN4StackPre {sp : Word} {a b : EvmWord}
+    {v5 v6 v7 v10 v11 : Word}
+    {q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem : Word} :
     (modN4StackPre sp a b v5 v6 v7 v10 v11
       q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem).pcFree := by
   delta modN4StackPre; pcFree
@@ -461,8 +460,7 @@ instance (sp : Word) (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
     (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem : Word) :
     Assertion.PCFree (modN4StackPre sp a b v5 v6 v7 v10 v11
       q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem) :=
-  ⟨pcFree_modN4StackPre sp a b v5 v6 v7 v10 v11
-    q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem⟩
+  ⟨pcFree_modN4StackPre⟩
 
 -- `modN4StackPreCall` (MOD-side call-trial pre-bundle) lives in
 -- `DivMod/SpecCall.lean` to stay under the Spec.lean file-size guardrail.
@@ -554,13 +552,13 @@ theorem divN4MaxSkipStackPost_unfold_atoms (sp : Word) (a b : EvmWord) :
   rw [divN4MaxSkipStackPost_unfold, evmWordIs_sp_unfold, evmWordIs_sp32_unfold,
       divScratchOwn_unfold]
 
-theorem pcFree_divN4MaxSkipStackPost (sp : Word) (a b : EvmWord) :
+theorem pcFree_divN4MaxSkipStackPost {sp : Word} {a b : EvmWord} :
     (divN4MaxSkipStackPost sp a b).pcFree := by
   rw [divN4MaxSkipStackPost_unfold]; pcFree
 
 instance (sp : Word) (a b : EvmWord) :
     Assertion.PCFree (divN4MaxSkipStackPost sp a b) :=
-  ⟨pcFree_divN4MaxSkipStackPost sp a b⟩
+  ⟨pcFree_divN4MaxSkipStackPost⟩
 
 /-- Weakening bridge from a concrete post state (specific register values +
     concrete scratch cells via `divScratchValues`) to `divN4MaxSkipStackPost`.
@@ -751,13 +749,13 @@ theorem divN4MaxSkipStackPost_unfold_atoms_right (sp : Word) (a b : EvmWord)
     (divN4MaxSkipStackPost sp a b ** Q) := by
   rw [divN4MaxSkipStackPost_unfold_atoms]
 
-theorem pcFree_modN4MaxSkipStackPost (sp : Word) (a b : EvmWord) :
+theorem pcFree_modN4MaxSkipStackPost {sp : Word} {a b : EvmWord} :
     (modN4MaxSkipStackPost sp a b).pcFree := by
   rw [modN4MaxSkipStackPost_unfold]; pcFree
 
 instance (sp : Word) (a b : EvmWord) :
     Assertion.PCFree (modN4MaxSkipStackPost sp a b) :=
-  ⟨pcFree_modN4MaxSkipStackPost sp a b⟩
+  ⟨pcFree_modN4MaxSkipStackPost⟩
 
 -- ============================================================================
 -- pcFree for DivMod post bundles

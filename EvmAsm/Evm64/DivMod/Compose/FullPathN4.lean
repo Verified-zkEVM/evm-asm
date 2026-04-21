@@ -310,7 +310,7 @@ theorem fullDivN4MaxSkipPost_unfold (sp a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
     `regIs` / `memIs`. Proof goes through `delta` since the bundle is
     `@[irreducible]`; the inner `denormDivPost` is handled by its
     own `Assertion.PCFree` instance. -/
-theorem pcFree_fullDivN4MaxSkipPost (sp a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
+theorem pcFree_fullDivN4MaxSkipPost {sp a0 a1 a2 a3 b0 b1 b2 b3 : Word} :
     (fullDivN4MaxSkipPost sp a0 a1 a2 a3 b0 b1 b2 b3).pcFree := by
   delta fullDivN4MaxSkipPost
   pcFree
@@ -318,7 +318,7 @@ theorem pcFree_fullDivN4MaxSkipPost (sp a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
 instance pcFreeInst_fullDivN4MaxSkipPost
     (sp a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
     Assertion.PCFree (fullDivN4MaxSkipPost sp a0 a1 a2 a3 b0 b1 b2 b3) :=
-  ⟨pcFree_fullDivN4MaxSkipPost sp a0 a1 a2 a3 b0 b1 b2 b3⟩
+  ⟨pcFree_fullDivN4MaxSkipPost⟩
 
 -- ============================================================================
 -- Full n=4 MOD path postcondition (max+skip, shift≠0)
@@ -396,7 +396,7 @@ theorem fullModN4MaxSkipPost_unfold (sp a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
 
 /-- `fullModN4MaxSkipPost` is pc-free. Mirror of
     `pcFree_fullDivN4MaxSkipPost`. -/
-theorem pcFree_fullModN4MaxSkipPost (sp a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
+theorem pcFree_fullModN4MaxSkipPost {sp a0 a1 a2 a3 b0 b1 b2 b3 : Word} :
     (fullModN4MaxSkipPost sp a0 a1 a2 a3 b0 b1 b2 b3).pcFree := by
   delta fullModN4MaxSkipPost
   pcFree
@@ -404,7 +404,7 @@ theorem pcFree_fullModN4MaxSkipPost (sp a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
 instance pcFreeInst_fullModN4MaxSkipPost
     (sp a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
     Assertion.PCFree (fullModN4MaxSkipPost sp a0 a1 a2 a3 b0 b1 b2 b3) :=
-  ⟨pcFree_fullModN4MaxSkipPost sp a0 a1 a2 a3 b0 b1 b2 b3⟩
+  ⟨pcFree_fullModN4MaxSkipPost⟩
 
 /-- Full n=4 DIV path: base → base+1068 (shift ≠ 0, max+skip).
     Composes pre-loop + loop body + denorm + epilogue. -/
