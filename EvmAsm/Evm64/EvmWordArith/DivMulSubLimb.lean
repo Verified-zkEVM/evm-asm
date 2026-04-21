@@ -176,7 +176,7 @@ theorem mulsub_limb_carry_lt_of_sum_le_one (q v_i : Word)
 /-- When the carry is < 2^64, the Word-level carry equals the Nat-level carry.
     This ensures the register-level carryOut correctly tracks the Nat-level
     carry for use as the next limb's carryIn. -/
-theorem mulsub_carry_word_eq (borrowAdd prodHi borrowSub : Word)
+theorem mulsub_carry_word_eq {borrowAdd prodHi borrowSub : Word}
     (h : borrowAdd.toNat + prodHi.toNat + borrowSub.toNat < 2^64) :
     ((borrowAdd + prodHi) + borrowSub).toNat =
     borrowAdd.toNat + prodHi.toNat + borrowSub.toNat := by

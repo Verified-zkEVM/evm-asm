@@ -131,8 +131,7 @@ theorem mulsub_limb_word_carry_eq {q v_i u_i carryIn : Word} :
     ((borrowAdd + prodHi) + borrowSub).toNat =
       borrowAdd.toNat + prodHi.toNat + borrowSub.toNat := by
   intro prodLo prodHi fullSub borrowAdd borrowSub
-  exact mulsub_carry_word_eq borrowAdd prodHi borrowSub
-    mulsub_limb_carry_strict_lt
+  exact mulsub_carry_word_eq mulsub_limb_carry_strict_lt
 
 -- ============================================================================
 -- Per-limb equation using Word carry directly
