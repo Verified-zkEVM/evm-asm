@@ -38,6 +38,8 @@
     hypotheses. Concludes `(u4 * B + un3) / b3' ≤ val256(a) / val256(b) + 2`.
   - `b3_prime_val256_eq_scaled` — discharges `hnorm_v` for concrete CLZ shift:
     `val256(b0', b1', b2', b3') = val256(b) * 2^clz(b3)`.
+  - `u_val256_eq_scaled_with_overflow` — discharges `hnorm_u` for concrete CLZ
+    shift: 4-limb normalized value + overflow = `val256(a) * 2^clz(b3)`.
 -/
 
 import EvmAsm.Evm64.EvmWordArith.DivN4Overestimate
@@ -415,5 +417,36 @@ theorem b3_prime_val256_eq_scaled
   rw [hsmod, antiShift_toNat_mod_eq _ h_shift_pos h_shift_le]
   have hb3_bound := clzResult_fst_top_bound b3
   exact val256_normalize h_shift_pos (by omega) b0 b1 b2 b3 hb3_bound
+
+/-- Discharge of `hnorm_u` from `knuth_theorem_b_val256` using a concrete
+    CLZ-based shift: the algorithm's normalized dividend limbs plus the
+    overflow `a3 >>> antiShift` (scaled to `2^256`) equal `val256(a) * 2^shift`.
+
+    Parallel of `b3_prime_val256_eq_scaled`, but uses `val256_normalize_general`
+    (the overflow-including variant) since the dividend may overshoot 2^256. -/
+theorem u_val256_eq_scaled_with_overflow
+    (a0 a1 a2 a3 b3 : Word)
+    (hshift_nz : (clzResult b3).1 ≠ 0) :
+    val256
+      (a0 <<< ((clzResult b3).1.toNat % 64))
+      ((a1 <<< ((clzResult b3).1.toNat % 64)) |||
+         (a0 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64)))
+      ((a2 <<< ((clzResult b3).1.toNat % 64)) |||
+         (a1 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64)))
+      ((a3 <<< ((clzResult b3).1.toNat % 64)) |||
+         (a2 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64)))
+    + (a3 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64)).toNat
+      * 2^256
+      = val256 a0 a1 a2 a3 * 2^(clzResult b3).1.toNat := by
+  have h_shift_le := clzResult_fst_toNat_le b3
+  have h_shift_pos : 1 ≤ (clzResult b3).1.toNat := by
+    rcases Nat.eq_zero_or_pos (clzResult b3).1.toNat with h | h
+    · exfalso; apply hshift_nz
+      exact BitVec.eq_of_toNat_eq (by simp [h])
+    · exact h
+  have hsmod : (clzResult b3).1.toNat % 64 = (clzResult b3).1.toNat :=
+    Nat.mod_eq_of_lt (by omega)
+  rw [hsmod, antiShift_toNat_mod_eq _ h_shift_pos h_shift_le]
+  exact val256_normalize_general h_shift_pos (by omega) a0 a1 a2 a3
 
 end EvmAsm.Evm64
