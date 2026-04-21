@@ -40,6 +40,8 @@
     `val256(b0', b1', b2', b3') = val256(b) * 2^clz(b3)`.
   - `u_val256_eq_scaled_with_overflow` — discharges `hnorm_u` for concrete CLZ
     shift: 4-limb normalized value + overflow = `val256(a) * 2^clz(b3)`.
+  - `knuth_theorem_b_from_clz` — **full Word-level Knuth B corollary** from raw
+    (a, b, hb3nz, hshift_nz, hcall). No normalization hypotheses needed.
 -/
 
 import EvmAsm.Evm64.EvmWordArith.DivN4Overestimate
@@ -448,5 +450,56 @@ theorem u_val256_eq_scaled_with_overflow
     Nat.mod_eq_of_lt (by omega)
   rw [hsmod, antiShift_toNat_mod_eq _ h_shift_pos h_shift_le]
   exact val256_normalize_general h_shift_pos (by omega) a0 a1 a2 a3
+
+/-- **Knuth's Theorem B at the Word level — full CLZ-driven corollary.**
+
+    Under call-trial + CLZ-normalization hypotheses, the raw 2-limb trial
+    quotient `(u4 * 2^64 + un3) / b3'` overestimates the true quotient
+    `val256(a) / val256(b)` by at most 2:
+
+    ```
+      (u4.toNat * 2^64 + un3.toNat) / b3'.toNat ≤
+        val256(a) / val256(b) + 2
+    ```
+
+    Composes the discharge bridges (`u_val256_eq_scaled_with_overflow`,
+    `b3_prime_val256_eq_scaled`, `b3_prime_ge_pow63`, `isCallTrialN4_toNat_lt`)
+    with `knuth_theorem_b_val256`. This is the algorithm-facing conclusion
+    that downstream stack-spec reasoning consumes. -/
+theorem knuth_theorem_b_from_clz
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hb3nz : b3 ≠ 0)
+    (hshift_nz : (clzResult b3).1 ≠ 0)
+    (hcall : isCallTrialN4 a3 b2 b3) :
+    ((a3 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64)).toNat * 2^64 +
+       ((a3 <<< ((clzResult b3).1.toNat % 64)) |||
+          (a2 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64))).toNat) /
+      ((b3 <<< ((clzResult b3).1.toNat % 64)) |||
+        (b2 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64))).toNat ≤
+    val256 a0 a1 a2 a3 / val256 b0 b1 b2 b3 + 2 := by
+  have hnorm_u := u_val256_eq_scaled_with_overflow a0 a1 a2 a3 b3 hshift_nz
+  have hnorm_v := b3_prime_val256_eq_scaled b0 b1 b2 b3 hshift_nz
+  have hb3prime := b3_prime_ge_pow63 b3 b2 hb3nz
+    (signExtend12 (0 : BitVec 12) - (clzResult b3).1)
+  have hu4_lt := isCallTrialN4_toNat_lt a3 b2 b3 hcall
+  exact knuth_theorem_b_val256 a0 a1 a2 a3 b0 b1 b2 b3
+    (a3 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64))
+    (a0 <<< ((clzResult b3).1.toNat % 64))
+    ((a1 <<< ((clzResult b3).1.toNat % 64)) |||
+       (a0 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64)))
+    ((a2 <<< ((clzResult b3).1.toNat % 64)) |||
+       (a1 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64)))
+    ((a3 <<< ((clzResult b3).1.toNat % 64)) |||
+       (a2 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64)))
+    (b0 <<< ((clzResult b3).1.toNat % 64))
+    ((b1 <<< ((clzResult b3).1.toNat % 64)) |||
+       (b0 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64)))
+    ((b2 <<< ((clzResult b3).1.toNat % 64)) |||
+       (b1 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64)))
+    ((b3 <<< ((clzResult b3).1.toNat % 64)) |||
+       (b2 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64)))
+    (clzResult b3).1.toNat
+    (by linarith [hnorm_u])
+    hnorm_v hb3prime hu4_lt
 
 end EvmAsm.Evm64
