@@ -565,17 +565,17 @@ theorem holdsFor_sepConj_elim_right {P Q : Assertion} {s : MachineState}
 -- pcFree lemmas
 -- ============================================================================
 
-theorem pcFree_regIs (r : Reg) (v : Word) : (regIs r v).pcFree := by
+theorem pcFree_regIs {r : Reg} {v : Word} : (regIs r v).pcFree := by
   intro h hp; rw [regIs] at hp; subst hp; rfl
 
-theorem pcFree_memIs (a : Word) (v : Word) : (memIs a v).pcFree := by
+theorem pcFree_memIs {a : Word} {v : Word} : (memIs a v).pcFree := by
   intro h ⟨hp, _⟩; subst hp; rfl
 
-theorem pcFree_regOwn (r : Reg) : (regOwn r).pcFree := by
-  intro h ⟨v, hv⟩; exact pcFree_regIs r v h hv
+theorem pcFree_regOwn {r : Reg} : (regOwn r).pcFree := by
+  intro h ⟨v, hv⟩; exact pcFree_regIs h hv
 
-theorem pcFree_memOwn (a : Word) : (memOwn a).pcFree := by
-  intro h ⟨v, hv⟩; exact pcFree_memIs a v h hv
+theorem pcFree_memOwn {a : Word} : (memOwn a).pcFree := by
+  intro h ⟨v, hv⟩; exact pcFree_memIs h hv
 
 theorem pcFree_emp : empAssertion.pcFree := by
   intro h hp; rw [empAssertion] at hp; subst hp; rfl
@@ -593,10 +593,10 @@ class Assertion.PCFree (P : Assertion) : Prop where
   proof : P.pcFree
 
 instance : Assertion.PCFree empAssertion             := ⟨pcFree_emp⟩
-instance : Assertion.PCFree (r ↦ᵣ v)                := ⟨pcFree_regIs r v⟩
-instance : Assertion.PCFree (a ↦ₘ v)                := ⟨pcFree_memIs a v⟩
-instance : Assertion.PCFree (regOwn r)               := ⟨pcFree_regOwn r⟩
-instance : Assertion.PCFree (memOwn a)               := ⟨pcFree_memOwn a⟩
+instance : Assertion.PCFree (r ↦ᵣ v)                := ⟨pcFree_regIs⟩
+instance : Assertion.PCFree (a ↦ₘ v)                := ⟨pcFree_memIs⟩
+instance : Assertion.PCFree (regOwn r)               := ⟨pcFree_regOwn⟩
+instance : Assertion.PCFree (memOwn a)               := ⟨pcFree_memOwn⟩
 @[reducible, instance] def instPCFreeSepConj [hP : Assertion.PCFree P] [hQ : Assertion.PCFree Q] :
     Assertion.PCFree (P ** Q)                        := ⟨pcFree_sepConj hP.proof hQ.proof⟩
 
@@ -1974,22 +1974,22 @@ theorem holdsFor_instrAt (a : Word) (i : Instr) (s : MachineState) :
 -- pcFree for code assertions
 -- ============================================================================
 
-theorem pcFree_instrAt (a : Word) (i : Instr) : (instrAt a i).pcFree := by
+theorem pcFree_instrAt {a : Word} {i : Instr} : (instrAt a i).pcFree := by
   intro h hp; rw [instrAt] at hp; subst hp; rfl
 
 theorem pcFree_programAt : ∀ prog, (programAt prog).pcFree
   | [] => pcFree_emp
-  | (a, i) :: rest =>
-    pcFree_sepConj (pcFree_instrAt a i) (pcFree_programAt rest)
+  | (_, _) :: rest =>
+    pcFree_sepConj pcFree_instrAt (pcFree_programAt rest)
 
-instance : Assertion.PCFree (instrAt a i) := ⟨pcFree_instrAt a i⟩
+instance : Assertion.PCFree (instrAt a i) := ⟨pcFree_instrAt⟩
 
 instance : Assertion.PCFree (programAt prog) := ⟨pcFree_programAt prog⟩
 
-theorem pcFree_progAt (base : Word) (prog : List Instr) : (progAt base prog).pcFree :=
+theorem pcFree_progAt {base : Word} {prog : List Instr} : (progAt base prog).pcFree :=
   pcFree_programAt (progIndexed base prog)
 
-instance : Assertion.PCFree (progAt base prog) := ⟨pcFree_progAt base prog⟩
+instance : Assertion.PCFree (progAt base prog) := ⟨pcFree_progAt⟩
 
 -- ============================================================================
 -- CodeReq: persistent code side-condition (for issue #35)
@@ -2733,11 +2733,11 @@ macro_rules
     | exact (inferInstance : Assertion.PCFree _).proof
     | repeat (first
       | apply pcFree_sepConj
-      | exact pcFree_instrAt _ _
-      | exact pcFree_regIs _ _
-      | exact pcFree_memIs _ _
-      | exact pcFree_regOwn _
-      | exact pcFree_memOwn _
+      | exact pcFree_instrAt
+      | exact pcFree_regIs
+      | exact pcFree_memIs
+      | exact pcFree_regOwn
+      | exact pcFree_memOwn
       | exact pcFree_emp
       | exact pcFree_pure
       | exact pcFree_programAt _))
