@@ -24,7 +24,7 @@ namespace EvmWord
 -- ============================================================================
 
 /-- If the 4-way OR of limbs is nonzero, at least one limb is nonzero. -/
-theorem limbs_or_ne_zero_imp (b0 b1 b2 b3 : Word)
+theorem limbs_or_ne_zero_imp {b0 b1 b2 b3 : Word}
     (h : b0 ||| b1 ||| b2 ||| b3 ≠ 0) :
     b0 ≠ 0 ∨ b1 ≠ 0 ∨ b2 ≠ 0 ∨ b3 ≠ 0 := by
   by_contra hall
@@ -70,17 +70,17 @@ theorem val256_ge_pow192_of_limb3 (b0 b1 b2 b3 : Word) (h : b3 ≠ 0) :
 -- ============================================================================
 
 /-- OR-reduce nonzero implies val256 > 0. -/
-theorem val256_pos_of_or_ne_zero (b0 b1 b2 b3 : Word)
+theorem val256_pos_of_or_ne_zero {b0 b1 b2 b3 : Word}
     (h : b0 ||| b1 ||| b2 ||| b3 ≠ 0) :
     val256 b0 b1 b2 b3 > 0 := by
-  rcases limbs_or_ne_zero_imp b0 b1 b2 b3 h with h0 | h1 | h2 | h3
+  rcases limbs_or_ne_zero_imp h with h0 | h1 | h2 | h3
   · linarith [val256_pos_of_limb0 b0 b1 b2 b3 h0]
   · linarith [val256_ge_pow64_of_limb1 b0 b1 b2 b3 h1]
   · linarith [val256_ge_pow128_of_limb2 b0 b1 b2 b3 h2]
   · linarith [val256_ge_pow192_of_limb3 b0 b1 b2 b3 h3]
 
 /-- OR-reduce nonzero implies the fromLimbs word is nonzero. -/
-theorem fromLimbs_ne_zero_of_or (b0 b1 b2 b3 : Word)
+theorem fromLimbs_ne_zero_of_or {b0 b1 b2 b3 : Word}
     (h : b0 ||| b1 ||| b2 ||| b3 ≠ 0) :
     (fromLimbs fun i : Fin 4 =>
       match i with | 0 => b0 | 1 => b1 | 2 => b2 | 3 => b3) ≠ 0 := by
@@ -88,7 +88,7 @@ theorem fromLimbs_ne_zero_of_or (b0 b1 b2 b3 : Word)
   have h0 : val256 b0 b1 b2 b3 = 0 := by
     rw [val256_eq_fromLimbs_toNat]
     have := congr_arg BitVec.toNat heq; simpa using this
-  linarith [val256_pos_of_or_ne_zero b0 b1 b2 b3 h]
+  linarith [val256_pos_of_or_ne_zero h]
 
 -- ============================================================================
 -- EvmWord nonzero ↔ getLimbN OR nonzero

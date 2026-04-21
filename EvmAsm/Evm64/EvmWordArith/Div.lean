@@ -147,7 +147,7 @@ theorem div_mod_add_eq (a b : EvmWord) (hbnz : b ≠ 0) :
 
 /-- EvmWord division uniqueness: if `a = b * q + r` with `r < b` and no overflow,
     then `q = div a b` and `r = mod a b`. -/
-theorem div_mod_unique (a b q r : EvmWord) (hbnz : b ≠ 0)
+theorem div_mod_unique {a b q r : EvmWord} (hbnz : b ≠ 0)
     (hr : r < b)
     (hno : b.toNat * q.toNat + r.toNat < 2 ^ 256)
     (h : a = b * q + r) :
@@ -170,13 +170,13 @@ theorem div_eq_of_euclidean (a b : EvmWord) (q r : EvmWord) (hbnz : b ≠ 0)
     (h_eq : a = b * q + r) (h_rem_lt : r < b)
     (h_no_overflow : b.toNat * q.toNat + r.toNat < 2 ^ 256) :
     q = div a b :=
-  (div_mod_unique a b q r hbnz h_rem_lt h_no_overflow h_eq).1
+  (div_mod_unique hbnz h_rem_lt h_no_overflow h_eq).1
 
 theorem mod_eq_of_euclidean (a b : EvmWord) (q r : EvmWord) (hbnz : b ≠ 0)
     (h_eq : a = b * q + r) (h_rem_lt : r < b)
     (h_no_overflow : b.toNat * q.toNat + r.toNat < 2 ^ 256) :
     r = mod a b :=
-  (div_mod_unique a b q r hbnz h_rem_lt h_no_overflow h_eq).2
+  (div_mod_unique hbnz h_rem_lt h_no_overflow h_eq).2
 
 end EvmWord
 

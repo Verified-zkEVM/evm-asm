@@ -554,7 +554,7 @@ theorem divK_correction_skip_spec
     cpsTriple_weaken
       (fun h hp => hp)
       (fun h hp => sepConj_mono_right
-        (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1) h hp)
+        (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp)
       skip
   -- Frame with all other state and permute
   have skip_framed := cpsTriple_frameR
@@ -638,7 +638,7 @@ theorem divK_correction_addback_spec
     cpsTriple_weaken
       (fun h hp => hp)
       (fun h hp => sepConj_mono_right
-        (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1) h hp)
+        (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp)
       ntaken
   -- Frame ntaken with all addback state
   have ntaken_framed := cpsTriple_frameR
@@ -912,7 +912,7 @@ theorem divK_beq_passthrough (carry : Word) (base : Word) (hne : carry ≠ 0) :
   exact cpsTriple_weaken
     (fun h hp => hp)
     (fun h hp => sepConj_mono_right
-      (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1) h hp)
+      (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp)
     ntaken
 
 -- Address normalization for BEQ taken (double-addback backward branch)
@@ -982,7 +982,7 @@ theorem divK_double_addback_beq_spec
   have beq_taken' := cpsTriple_weaken
     (fun h hp => hp)
     (fun h hp => sepConj_mono_right
-      (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1) h hp)
+      (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp)
     beq_taken
   -- 2. Second addback (base+732 → base+880)
   have AB2 := divK_addback_full_spec sp uBase qHat' v0 v1 v2 v3 aun0 aun1 aun2 aun3 aun4
@@ -1181,7 +1181,7 @@ theorem divK_store_loop_j0_spec
   have hbge_exit := cpsTriple_weaken
     (fun h hp => hp)
     (fun h hp => sepConj_mono_right
-      (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1) h hp)
+      (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp)
     hbge_exit_raw
   -- 5. Build store_qj + x0 frame → base+900
   have SQx0 : cpsTriple (base + 884) (base + 900) (sharedDivModCode base)
@@ -1265,7 +1265,7 @@ theorem divK_store_loop_jgt0_spec
   have hbge_exit := cpsTriple_weaken
     (fun h hp => hp)
     (fun h hp => sepConj_mono_right
-      (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1) h hp)
+      (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp)
     hbge_exit_raw
   -- 5. Build store_qj + x0 frame → base+900
   have SQx0 : cpsTriple (base + 884) (base + 900) (sharedDivModCode base)
@@ -1706,7 +1706,7 @@ theorem divK_trial_max_full_spec
   have ntaken_clean := cpsTriple_weaken
     (fun h hp => hp)
     (fun h hp => sepConj_mono_right
-      (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1) h hp) ntaken
+      (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp) ntaken
   -- 3. Trial max (base+504 → base+516)
   have TM := divK_trial_max_extended v11Old base
   -- 4. Frame save_trial_load with x11 + x0, compose with BLTU ntaken
@@ -1808,7 +1808,7 @@ theorem divK_trial_call_full_spec
   have taken_clean := cpsTriple_weaken
     (fun h hp => hp)
     (fun h hp => sepConj_mono_right
-      (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1) h hp) taken
+      (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp) taken
   -- 3. Trial call path (base+512 → base+516)
   have TCP := divK_trial_call_path_spec sp j uLo uHi vTop vtopBase base
     v2Old v11Old retMem dMem dloMem un0Mem

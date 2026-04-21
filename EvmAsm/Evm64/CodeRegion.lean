@@ -124,19 +124,19 @@ theorem evmCodeIs_nonempty (base : Word) (bytes : List (BitVec 8)) (h : bytes �
     simp [numChunks]; omega
   rw [hstep]; rfl
 
-theorem pcFree_evmCodeIsAux (base : Word) (n : Nat) (bytes : List (BitVec 8)) :
+theorem pcFree_evmCodeIsAux {base : Word} {n : Nat} {bytes : List (BitVec 8)} :
     (evmCodeIsAux base n bytes).pcFree := by
   induction n generalizing base bytes with
   | zero => exact pcFree_emp
-  | succ n ih => exact pcFree_sepConj pcFree_memIs (ih _ _)
+  | succ _ ih => exact pcFree_sepConj pcFree_memIs ih
 
-theorem pcFree_evmCodeIs (base : Word) (bytes : List (BitVec 8)) :
+theorem pcFree_evmCodeIs {base : Word} {bytes : List (BitVec 8)} :
     (evmCodeIs base bytes).pcFree :=
-  pcFree_evmCodeIsAux base _ bytes
+  pcFree_evmCodeIsAux
 
 instance (base : Word) (bytes : List (BitVec 8)) :
     Assertion.PCFree (evmCodeIs base bytes) :=
-  ⟨pcFree_evmCodeIs base bytes⟩
+  ⟨pcFree_evmCodeIs⟩
 
 -- ============================================================================
 -- evmCodeIs_split_at: extract the doubleword containing byte k

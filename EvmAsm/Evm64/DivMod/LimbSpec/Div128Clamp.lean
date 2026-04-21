@@ -69,7 +69,7 @@ theorem divK_div128_clamp_q1_merged_spec (q1 rhat dHi v5Old : Word) (base : Word
         (((.x5 ↦ᵣ hi) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜hi ≠ 0⌝) **
          ((.x10 ↦ᵣ q1) ** (.x7 ↦ᵣ rhat) ** (.x6 ↦ᵣ dHi))) :=
     fun R hR s hcr hPR hpc =>
-      hbeq_framed R hR s ((CodeReq.singleton_satisfiedBy _ _ s).mpr (hcr _ _ (by
+      hbeq_framed R hR s (CodeReq.singleton_satisfiedBy.mpr (hcr _ _ (by
         show cr (base + 4) = _
         simp only [cr, CodeReq.union, CodeReq.singleton]
         have h0 : ¬(base + 4 = base) := by bv_omega
@@ -82,19 +82,19 @@ theorem divK_div128_clamp_q1_merged_spec (q1 rhat dHi v5Old : Word) (base : Word
     rw [hq, hr]
     have taken := cpsBranch_takenPath composed (fun hp hQf => by
       obtain ⟨_, _, _, _, ⟨_, _, _, _, _, h_x0p⟩, _⟩ := hQf
-      exact ((sepConj_pure_right _ _ _).1 h_x0p).2 hcond)
+      exact ((sepConj_pure_right _).1 h_x0p).2 hcond)
     exact cpsTriple_weaken
       (fun h hp => hp)
       (fun h hp => by
         have hp' := sepConj_mono_left (sepConj_mono_right
-          (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1)) h hp
+          (fun h' hp' => ((sepConj_pure_right h').1 hp').1)) h hp
         xperm_hyp hp') taken
   · have hq : q1' = q1 + signExtend12 4095 := if_neg hcond
     have hr : rhat' = rhat + dHi := if_neg hcond
     rw [hq, hr]
     have ntaken := cpsBranch_ntakenPath composed (fun hp hQt => by
       obtain ⟨_, _, _, _, ⟨_, _, _, _, _, h_x0p⟩, _⟩ := hQt
-      exact hcond ((sepConj_pure_right _ _ _).1 h_x0p).2)
+      exact hcond ((sepConj_pure_right _).1 h_x0p).2)
     have I1 := addi_spec_gen_same .x10 q1 4095 (base + 8) (by nofun)
     have I2 := add_spec_gen_rd_eq_rs1 .x7 .x6 rhat dHi (base + 12) (by nofun)
     have hcorr : cpsTriple (base + 8) (base + 16) cr
@@ -107,7 +107,7 @@ theorem divK_div128_clamp_q1_merged_spec (q1 rhat dHi v5Old : Word) (base : Word
     have full := cpsTriple_seq_perm_same_cr
       (fun h hp => by
         have hp' := sepConj_mono_left (sepConj_mono_right
-          (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1)) h hp
+          (fun h' hp' => ((sepConj_pure_right h').1 hp').1)) h hp
         xperm_hyp hp') ntaken hcorr_framed
     exact cpsTriple_weaken
       (fun h hp => hp)
@@ -154,7 +154,7 @@ theorem divK_div128_clamp_q0_merged_spec (q0 rhat2 dHi v1Old : Word) (base : Wor
         (((.x1 ↦ᵣ hi) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜hi ≠ 0⌝) **
          ((.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ rhat2) ** (.x6 ↦ᵣ dHi))) :=
     fun R hR s hcr hPR hpc =>
-      hbeq_framed R hR s ((CodeReq.singleton_satisfiedBy _ _ s).mpr (hcr _ _ (by
+      hbeq_framed R hR s (CodeReq.singleton_satisfiedBy.mpr (hcr _ _ (by
         show cr (base + 4) = _
         simp only [cr, CodeReq.union, CodeReq.singleton]
         have h0 : ¬(base + 4 = base) := by bv_omega
@@ -167,19 +167,19 @@ theorem divK_div128_clamp_q0_merged_spec (q0 rhat2 dHi v1Old : Word) (base : Wor
     rw [hq, hr]
     have taken := cpsBranch_takenPath composed (fun hp hQf => by
       obtain ⟨_, _, _, _, ⟨_, _, _, _, _, h_x0p⟩, _⟩ := hQf
-      exact ((sepConj_pure_right _ _ _).1 h_x0p).2 hcond)
+      exact ((sepConj_pure_right _).1 h_x0p).2 hcond)
     exact cpsTriple_weaken
       (fun h hp => hp)
       (fun h hp => by
         have hp' := sepConj_mono_left (sepConj_mono_right
-          (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1)) h hp
+          (fun h' hp' => ((sepConj_pure_right h').1 hp').1)) h hp
         xperm_hyp hp') taken
   · have hq : q0' = q0 + signExtend12 4095 := if_neg hcond
     have hr : rhat2' = rhat2 + dHi := if_neg hcond
     rw [hq, hr]
     have ntaken := cpsBranch_ntakenPath composed (fun hp hQt => by
       obtain ⟨_, _, _, _, ⟨_, _, _, _, _, h_x0p⟩, _⟩ := hQt
-      exact hcond ((sepConj_pure_right _ _ _).1 h_x0p).2)
+      exact hcond ((sepConj_pure_right _).1 h_x0p).2)
     have I1 := addi_spec_gen_same .x5 q0 4095 (base + 8) (by nofun)
     have I2 := add_spec_gen_rd_eq_rs1 .x11 .x6 rhat2 dHi (base + 12) (by nofun)
     have hcorr : cpsTriple (base + 8) (base + 16) cr
@@ -192,7 +192,7 @@ theorem divK_div128_clamp_q0_merged_spec (q0 rhat2 dHi v1Old : Word) (base : Wor
     have full := cpsTriple_seq_perm_same_cr
       (fun h hp => by
         have hp' := sepConj_mono_left (sepConj_mono_right
-          (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1)) h hp
+          (fun h' hp' => ((sepConj_pure_right h').1 hp').1)) h hp
         xperm_hyp hp') ntaken hcorr_framed
     exact cpsTriple_weaken
       (fun h hp => hp)

@@ -386,9 +386,9 @@ theorem shr_cascade_step_spec (v5 v10 : Word)
         (cpsBranch_weaken
           (fun _ hp => hp)
           (fun h hp => sepConj_mono_right
-            (fun h' hp' => ((sepConj_pure_right _ (v5 = (0 : Word) + signExtend12 k) h').1 hp').1) h hp)
+            (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp)
           (fun h hp => sepConj_mono_right
-            (fun h' hp' => ((sepConj_pure_right _ (v5 ≠ (0 : Word) + signExtend12 k) h').1 hp').1) h hp)
+            (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp)
           s2_raw))
   -- Compose with disjoint CRs
   exact cpsTriple_seq_cpsBranch_with_perm hd
@@ -495,9 +495,9 @@ theorem shr_phase_c_spec (v5 v10 : Word) (base : Word)
     cpsBranch_weaken
       (fun _ hp => hp)
       (fun h hp => sepConj_mono_right
-        (fun h' hp' => ((sepConj_pure_right _ (v5 = (0 : Word)) h').1 hp').1) h hp)
+        (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp)
       (fun h hp => sepConj_mono_right
-        (fun h' hp' => ((sepConj_pure_right _ (v5 ≠ (0 : Word)) h').1 hp').1) h hp)
+        (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp)
       beq0_raw
   -- Frame BEQ with x10
   have beq0f := cpsBranch_frameR
@@ -608,17 +608,17 @@ theorem shr_phase_c_spec_pure (v5 v10 : Word) (base : Word)
     cpsBranch_weaken
       (fun h hp => (congrFun (show _ = _ from by xperm) h).mp hp)
       -- taken: strip ⌜v5 ≠ 0⌝ frame
-      (fun h hp => (sepConj_pure_right _ _ h).1 hp |>.1)
+      (fun h hp => (sepConj_pure_right h).1 hp |>.1)
       -- ntaken: (regs ** ⌜v5 ≠ 1⌝) ** ⌜v5 ≠ 0⌝ → regs ** ⌜v5 ≠ 0 ∧ v5 ≠ 1⌝
       (fun h hp => by
         -- hp : ((x5 ** x0 ** x10 ** ⌜v5 ≠ 1⌝) ** ⌜v5 ≠ 0⌝) h
-        have ⟨hinner, hne0⟩ := (sepConj_pure_right _ _ h).1 hp
+        have ⟨hinner, hne0⟩ := (sepConj_pure_right h).1 hp
         -- hinner : (x5 ** x0 ** x10 ** ⌜v5 ≠ 1⌝) h
         have hne1 := sepConj_extract_pure_end3 h hinner
         have hregs := sepConj_strip_pure_end3 h hinner
         -- Reconstruct: regs ** ⌜v5 ≠ 0 ∧ v5 ≠ 1⌝
         exact (congrFun (show _ = _ from by xperm) h).mp
-          ((sepConj_pure_right _ _ h).2 (And.intro hregs (And.intro hne0 hne1))))
+          ((sepConj_pure_right h).2 (And.intro hregs (And.intro hne0 hne1))))
       cs1f
   -- Step 2: cascade step at base+12, framed with ⌜v5 ≠ 0 ∧ v5 ≠ 1⌝
   have cs2_raw := shr_cascade_step_spec_pure v5 ((0 : Word) + signExtend12 1) 2 32 (base + 12) e2 hc2
@@ -638,15 +638,15 @@ theorem shr_phase_c_spec_pure (v5 v10 : Word) (base : Word)
       -- pre: right-assoc ↔ left-nested
       (fun h hp => (congrFun (show _ = _ from by xperm) h).mp hp)
       -- taken: (regs ** ⌜v5=2⌝) ** ⌜conj⌝ → regs ** ⌜v5=2⌝
-      (fun h hp => (sepConj_pure_right _ _ h).1 hp |>.1)
+      (fun h hp => (sepConj_pure_right h).1 hp |>.1)
       -- ntaken: (regs ** ⌜v5≠2⌝) ** ⌜v5≠0 ∧ v5≠1⌝ → regs ** ⌜v5≠0 ∧ v5≠1 ∧ v5≠2⌝
       (fun h hp => by
         -- hp : ((x5 ** x0 ** x10 ** ⌜v5 ≠ 2⌝) ** ⌜v5 ≠ 0 ∧ v5 ≠ 1⌝) h
-        have ⟨hinner, ⟨hne0, hne1⟩⟩ := (sepConj_pure_right _ _ h).1 hp
+        have ⟨hinner, ⟨hne0, hne1⟩⟩ := (sepConj_pure_right h).1 hp
         have hne2 := sepConj_extract_pure_end3 h hinner
         have hregs := sepConj_strip_pure_end3 h hinner
         exact (congrFun (show _ = _ from by xperm) h).mp
-          ((sepConj_pure_right _ _ h).2 (And.intro hregs (And.intro hne0 (And.intro hne1 hne2)))))
+          ((sepConj_pure_right h).2 (And.intro hregs (And.intro hne0 (And.intro hne1 hne2)))))
       cs2f
   -- Fallthrough at base+20: trivial cpsNBranch
   have ft := cpsNBranch_refl (base + 20)
@@ -790,9 +790,9 @@ theorem shr_phase_a_spec (sp r5 r10 : Word)
     cpsBranch_weaken
       (fun _ hp => hp)
       (fun h hp => sepConj_mono_right
-        (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1) h hp)
+        (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp)
       (fun h hp => sepConj_mono_right
-        (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1) h hp)
+        (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp)
       bne_raw
   -- Frame BNE with remaining state
   have bne1f := cpsBranch_frameR
@@ -842,9 +842,9 @@ theorem shr_phase_a_spec (sp r5 r10 : Word)
     cpsBranch_weaken
       (fun _ hp => hp)
       (fun h hp => sepConj_mono_right
-        (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1) h hp)
+        (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp)
       (fun h hp => sepConj_mono_right
-        (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1) h hp)
+        (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp)
       beq_raw
   -- Frame BEQ with remaining state
   have beq1f := cpsBranch_frameR

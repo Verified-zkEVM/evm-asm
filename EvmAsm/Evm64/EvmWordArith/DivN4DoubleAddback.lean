@@ -74,7 +74,7 @@ theorem hq_over_from_second_carry_one (q v0 v1 v2 v3 u0 u1 u2 u3 : Word)
   simp only [] at hab'
   rw [hcarry2_one] at hab'
   -- Bounds
-  have hv_pos : 0 < val256 v0 v1 v2 v3 := val256_pos_of_or_ne_zero v0 v1 v2 v3 hbnz
+  have hv_pos : 0 < val256 v0 v1 v2 v3 := val256_pos_of_or_ne_zero hbnz
   have hab'_bound := val256_bound
     (addbackN4 ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 0 v0 v1 v2 v3).1
     (addbackN4 ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 0 v0 v1 v2 v3).2.1

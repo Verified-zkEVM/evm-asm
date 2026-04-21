@@ -63,7 +63,7 @@ theorem divK_denorm_preamble_spec (sp shift v5 v6 v7 v2 v10 : Word) (base : Word
   have hbeq_clean := cpsTriple_weaken
     (fun h hp => hp)
     (fun h hp => sepConj_mono_right
-      (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1) h hp)
+      (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp)
     hbeq_exit
   -- 4. Frame LD with x0, x5, x7, x2, x10
   have hldf := cpsTriple_frameR
@@ -321,7 +321,7 @@ theorem evm_mod_bzero_spec (sp base : Word)
   have hbeq_clean := cpsBranch_takenStripPure2 hbeq_raw
     (fun hp hQf => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQf
-      exact absurd hbz ((sepConj_pure_right _ _ _).mp h_rest).2)
+      exact absurd hbz ((sepConj_pure_right _).mp h_rest).2)
   have hbeq := cpsTriple_extend_code (beq_singleton_sub_modCode base) hbeq_clean
   -- Step 3: Frame BEQ with regs + mem
   have hbeq_framed := cpsTriple_frameR
@@ -375,7 +375,7 @@ theorem evm_mod_phaseA_ntaken_spec (sp base : Word)
   have hbeq_clean := cpsBranch_ntakenStripPure2 hbeq_raw
     (fun hp hQt => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQt
-      exact absurd ((sepConj_pure_right _ _ _).mp h_rest).2 hbnz)
+      exact absurd ((sepConj_pure_right _).mp h_rest).2 hbnz)
   have hbeq := cpsTriple_extend_code (beq_singleton_sub_modCode base) hbeq_clean
   -- Step 3: Frame BEQ with regs + mem
   have hbeq_framed := cpsTriple_frameR

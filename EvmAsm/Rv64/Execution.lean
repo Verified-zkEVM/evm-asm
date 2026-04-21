@@ -195,14 +195,14 @@ def execInstrBr (s : MachineState) (i : Instr) : MachineState :=
 
 /-- For non-branch instructions, execInstrBr agrees with execInstr
     (both advance PC by 4 and compute the same state update). -/
-theorem execInstrBr_eq_execInstr (s : MachineState) (i : Instr)
+theorem execInstrBr_eq_execInstr {s : MachineState} {i : Instr}
     (h : i.isBranch = false) : execInstrBr s i = execInstr s i := by
   cases i <;> simp_all [execInstrBr, execInstr, Instr.isBranch,
     MachineState.pc_setReg, MachineState.pc_setMem,
     MachineState.pc_setByte, MachineState.pc_setHalfword,
     MachineState.pc_setWord32]
 
-@[simp] theorem committed_execInstrBr (s : MachineState) (i : Instr) :
+@[simp] theorem committed_execInstrBr {s : MachineState} {i : Instr} :
     (execInstrBr s i).committed = s.committed := by
   cases i <;> simp [execInstrBr, MachineState.committed_setPC,
     MachineState.committed_setReg, MachineState.committed_setMem,
@@ -210,7 +210,7 @@ theorem execInstrBr_eq_execInstr (s : MachineState) (i : Instr)
     MachineState.setWord32]
   all_goals split <;> simp [MachineState.committed_setPC]
 
-@[simp] theorem publicValues_execInstrBr (s : MachineState) (i : Instr) :
+@[simp] theorem publicValues_execInstrBr {s : MachineState} {i : Instr} :
     (execInstrBr s i).publicValues = s.publicValues := by
   cases i <;> simp [execInstrBr, MachineState.publicValues_setPC,
     MachineState.publicValues_setReg, MachineState.publicValues_setMem,
@@ -218,7 +218,7 @@ theorem execInstrBr_eq_execInstr (s : MachineState) (i : Instr)
     MachineState.setWord32]
   all_goals split <;> simp [MachineState.publicValues_setPC]
 
-@[simp] theorem privateInput_execInstrBr (s : MachineState) (i : Instr) :
+@[simp] theorem privateInput_execInstrBr {s : MachineState} {i : Instr} :
     (execInstrBr s i).privateInput = s.privateInput := by
   cases i <;> simp [execInstrBr, MachineState.privateInput_setPC,
     MachineState.privateInput_setReg, MachineState.privateInput_setMem,
@@ -226,7 +226,7 @@ theorem execInstrBr_eq_execInstr (s : MachineState) (i : Instr)
     MachineState.setWord32]
   all_goals split <;> simp [MachineState.privateInput_setPC]
 
-@[simp] theorem code_execInstrBr (s : MachineState) (i : Instr) :
+@[simp] theorem code_execInstrBr {s : MachineState} {i : Instr} :
     (execInstrBr s i).code = s.code := by
   cases i <;> simp [execInstrBr, MachineState.code_setPC,
     MachineState.code_setReg, MachineState.code_setMem,
@@ -422,14 +422,14 @@ def step (s : MachineState) : Option MachineState :=
   | some i => some (execInstrBr s i)
 
 /-- step for non-ECALL, non-EBREAK, non-memory instructions. -/
-@[simp] theorem step_non_ecall_non_mem (s : MachineState) (i : Instr)
+@[simp] theorem step_non_ecall_non_mem (s : MachineState) {i : Instr}
     (hfetch : s.code s.pc = some i) (hne : i ≠ .ECALL) (hnb : i ≠ .EBREAK)
     (hnm : i.isMemAccess = false) :
     step s = some (execInstrBr s i) := by
   unfold step; rw [hfetch]; cases i <;> simp_all [Instr.isMemAccess]
 
 /-- step for LD with valid dword memory access. -/
-theorem step_ld (s : MachineState) (rd rs1 : Reg) (offset : BitVec 12)
+theorem step_ld {s : MachineState} {rd rs1 : Reg} {offset : BitVec 12}
     (hfetch : s.code s.pc = some (.LD rd rs1 offset))
     (hvalid : isValidDwordAccess (s.getReg rs1 + signExtend12 offset) = true) :
     step s = some (execInstrBr s (.LD rd rs1 offset)) := by
@@ -437,7 +437,7 @@ theorem step_ld (s : MachineState) (rd rs1 : Reg) (offset : BitVec 12)
   omega
 
 /-- step for SD with valid dword memory access. -/
-theorem step_sd (s : MachineState) (rs1 rs2 : Reg) (offset : BitVec 12)
+theorem step_sd {s : MachineState} {rs1 rs2 : Reg} {offset : BitVec 12}
     (hfetch : s.code s.pc = some (.SD rs1 rs2 offset))
     (hvalid : isValidDwordAccess (s.getReg rs1 + signExtend12 offset) = true) :
     step s = some (execInstrBr s (.SD rs1 rs2 offset)) := by
@@ -445,7 +445,7 @@ theorem step_sd (s : MachineState) (rs1 rs2 : Reg) (offset : BitVec 12)
   omega
 
 /-- step for LD with invalid dword memory access (trap). -/
-theorem step_ld_trap (s : MachineState) (rd rs1 : Reg) (offset : BitVec 12)
+theorem step_ld_trap {s : MachineState} {rd rs1 : Reg} {offset : BitVec 12}
     (hfetch : s.code s.pc = some (.LD rd rs1 offset))
     (hinvalid : isValidDwordAccess (s.getReg rs1 + signExtend12 offset) = false) :
     step s = none := by
@@ -453,7 +453,7 @@ theorem step_ld_trap (s : MachineState) (rd rs1 : Reg) (offset : BitVec 12)
   omega
 
 /-- step for SD with invalid dword memory access (trap). -/
-theorem step_sd_trap (s : MachineState) (rs1 rs2 : Reg) (offset : BitVec 12)
+theorem step_sd_trap {s : MachineState} {rs1 rs2 : Reg} {offset : BitVec 12}
     (hfetch : s.code s.pc = some (.SD rs1 rs2 offset))
     (hinvalid : isValidDwordAccess (s.getReg rs1 + signExtend12 offset) = false) :
     step s = none := by
@@ -461,7 +461,7 @@ theorem step_sd_trap (s : MachineState) (rs1 rs2 : Reg) (offset : BitVec 12)
   omega
 
 /-- step for LW with valid memory access. -/
-theorem step_lw (s : MachineState) (rd rs1 : Reg) (offset : BitVec 12)
+theorem step_lw {s : MachineState} {rd rs1 : Reg} {offset : BitVec 12}
     (hfetch : s.code s.pc = some (.LW rd rs1 offset))
     (hvalid : isValidMemAccess (s.getReg rs1 + signExtend12 offset) = true) :
     step s = some (execInstrBr s (.LW rd rs1 offset)) := by
@@ -469,7 +469,7 @@ theorem step_lw (s : MachineState) (rd rs1 : Reg) (offset : BitVec 12)
   omega
 
 /-- step for SW with valid memory access. -/
-theorem step_sw (s : MachineState) (rs1 rs2 : Reg) (offset : BitVec 12)
+theorem step_sw {s : MachineState} {rs1 rs2 : Reg} {offset : BitVec 12}
     (hfetch : s.code s.pc = some (.SW rs1 rs2 offset))
     (hvalid : isValidMemAccess (s.getReg rs1 + signExtend12 offset) = true) :
     step s = some (execInstrBr s (.SW rs1 rs2 offset)) := by
@@ -477,7 +477,7 @@ theorem step_sw (s : MachineState) (rs1 rs2 : Reg) (offset : BitVec 12)
   omega
 
 /-- step for LW with invalid memory access (trap). -/
-theorem step_lw_trap (s : MachineState) (rd rs1 : Reg) (offset : BitVec 12)
+theorem step_lw_trap {s : MachineState} {rd rs1 : Reg} {offset : BitVec 12}
     (hfetch : s.code s.pc = some (.LW rd rs1 offset))
     (hinvalid : isValidMemAccess (s.getReg rs1 + signExtend12 offset) = false) :
     step s = none := by
@@ -485,7 +485,7 @@ theorem step_lw_trap (s : MachineState) (rd rs1 : Reg) (offset : BitVec 12)
   omega
 
 /-- step for SW with invalid memory access (trap). -/
-theorem step_sw_trap (s : MachineState) (rs1 rs2 : Reg) (offset : BitVec 12)
+theorem step_sw_trap {s : MachineState} {rs1 rs2 : Reg} {offset : BitVec 12}
     (hfetch : s.code s.pc = some (.SW rs1 rs2 offset))
     (hinvalid : isValidMemAccess (s.getReg rs1 + signExtend12 offset) = false) :
     step s = none := by
@@ -493,7 +493,7 @@ theorem step_sw_trap (s : MachineState) (rs1 rs2 : Reg) (offset : BitVec 12)
   omega
 
 /-- step for LWU with valid memory access. -/
-theorem step_lwu (s : MachineState) (rd rs1 : Reg) (offset : BitVec 12)
+theorem step_lwu {s : MachineState} {rd rs1 : Reg} {offset : BitVec 12}
     (hfetch : s.code s.pc = some (.LWU rd rs1 offset))
     (hvalid : isValidMemAccess (s.getReg rs1 + signExtend12 offset) = true) :
     step s = some (execInstrBr s (.LWU rd rs1 offset)) := by
@@ -501,7 +501,7 @@ theorem step_lwu (s : MachineState) (rd rs1 : Reg) (offset : BitVec 12)
   omega
 
 /-- step for LWU with invalid memory access (trap). -/
-theorem step_lwu_trap (s : MachineState) (rd rs1 : Reg) (offset : BitVec 12)
+theorem step_lwu_trap {s : MachineState} {rd rs1 : Reg} {offset : BitVec 12}
     (hfetch : s.code s.pc = some (.LWU rd rs1 offset))
     (hinvalid : isValidMemAccess (s.getReg rs1 + signExtend12 offset) = false) :
     step s = none := by
@@ -509,7 +509,7 @@ theorem step_lwu_trap (s : MachineState) (rd rs1 : Reg) (offset : BitVec 12)
   omega
 
 /-- step for LB with valid byte access. -/
-theorem step_lb (s : MachineState) (rd rs1 : Reg) (offset : BitVec 12)
+theorem step_lb {s : MachineState} {rd rs1 : Reg} {offset : BitVec 12}
     (hfetch : s.code s.pc = some (.LB rd rs1 offset))
     (hvalid : isValidByteAccess (s.getReg rs1 + signExtend12 offset) = true) :
     step s = some (execInstrBr s (.LB rd rs1 offset)) := by
@@ -517,7 +517,7 @@ theorem step_lb (s : MachineState) (rd rs1 : Reg) (offset : BitVec 12)
   omega
 
 /-- step for LB with invalid byte access (trap). -/
-theorem step_lb_trap (s : MachineState) (rd rs1 : Reg) (offset : BitVec 12)
+theorem step_lb_trap {s : MachineState} {rd rs1 : Reg} {offset : BitVec 12}
     (hfetch : s.code s.pc = some (.LB rd rs1 offset))
     (hinvalid : isValidByteAccess (s.getReg rs1 + signExtend12 offset) = false) :
     step s = none := by
@@ -525,7 +525,7 @@ theorem step_lb_trap (s : MachineState) (rd rs1 : Reg) (offset : BitVec 12)
   omega
 
 /-- step for LBU with valid byte access. -/
-theorem step_lbu (s : MachineState) (rd rs1 : Reg) (offset : BitVec 12)
+theorem step_lbu {s : MachineState} {rd rs1 : Reg} {offset : BitVec 12}
     (hfetch : s.code s.pc = some (.LBU rd rs1 offset))
     (hvalid : isValidByteAccess (s.getReg rs1 + signExtend12 offset) = true) :
     step s = some (execInstrBr s (.LBU rd rs1 offset)) := by
@@ -533,7 +533,7 @@ theorem step_lbu (s : MachineState) (rd rs1 : Reg) (offset : BitVec 12)
   omega
 
 /-- step for LBU with invalid byte access (trap). -/
-theorem step_lbu_trap (s : MachineState) (rd rs1 : Reg) (offset : BitVec 12)
+theorem step_lbu_trap {s : MachineState} {rd rs1 : Reg} {offset : BitVec 12}
     (hfetch : s.code s.pc = some (.LBU rd rs1 offset))
     (hinvalid : isValidByteAccess (s.getReg rs1 + signExtend12 offset) = false) :
     step s = none := by
@@ -541,7 +541,7 @@ theorem step_lbu_trap (s : MachineState) (rd rs1 : Reg) (offset : BitVec 12)
   omega
 
 /-- step for LH with valid halfword access. -/
-theorem step_lh (s : MachineState) (rd rs1 : Reg) (offset : BitVec 12)
+theorem step_lh {s : MachineState} {rd rs1 : Reg} {offset : BitVec 12}
     (hfetch : s.code s.pc = some (.LH rd rs1 offset))
     (hvalid : isValidHalfwordAccess (s.getReg rs1 + signExtend12 offset) = true) :
     step s = some (execInstrBr s (.LH rd rs1 offset)) := by
@@ -549,7 +549,7 @@ theorem step_lh (s : MachineState) (rd rs1 : Reg) (offset : BitVec 12)
   omega
 
 /-- step for LH with invalid halfword access (trap). -/
-theorem step_lh_trap (s : MachineState) (rd rs1 : Reg) (offset : BitVec 12)
+theorem step_lh_trap {s : MachineState} {rd rs1 : Reg} {offset : BitVec 12}
     (hfetch : s.code s.pc = some (.LH rd rs1 offset))
     (hinvalid : isValidHalfwordAccess (s.getReg rs1 + signExtend12 offset) = false) :
     step s = none := by
@@ -557,7 +557,7 @@ theorem step_lh_trap (s : MachineState) (rd rs1 : Reg) (offset : BitVec 12)
   omega
 
 /-- step for LHU with valid halfword access. -/
-theorem step_lhu (s : MachineState) (rd rs1 : Reg) (offset : BitVec 12)
+theorem step_lhu {s : MachineState} {rd rs1 : Reg} {offset : BitVec 12}
     (hfetch : s.code s.pc = some (.LHU rd rs1 offset))
     (hvalid : isValidHalfwordAccess (s.getReg rs1 + signExtend12 offset) = true) :
     step s = some (execInstrBr s (.LHU rd rs1 offset)) := by
@@ -565,7 +565,7 @@ theorem step_lhu (s : MachineState) (rd rs1 : Reg) (offset : BitVec 12)
   omega
 
 /-- step for LHU with invalid halfword access (trap). -/
-theorem step_lhu_trap (s : MachineState) (rd rs1 : Reg) (offset : BitVec 12)
+theorem step_lhu_trap {s : MachineState} {rd rs1 : Reg} {offset : BitVec 12}
     (hfetch : s.code s.pc = some (.LHU rd rs1 offset))
     (hinvalid : isValidHalfwordAccess (s.getReg rs1 + signExtend12 offset) = false) :
     step s = none := by
@@ -573,7 +573,7 @@ theorem step_lhu_trap (s : MachineState) (rd rs1 : Reg) (offset : BitVec 12)
   omega
 
 /-- step for SB with valid byte access. -/
-theorem step_sb (s : MachineState) (rs1 rs2 : Reg) (offset : BitVec 12)
+theorem step_sb {s : MachineState} {rs1 rs2 : Reg} {offset : BitVec 12}
     (hfetch : s.code s.pc = some (.SB rs1 rs2 offset))
     (hvalid : isValidByteAccess (s.getReg rs1 + signExtend12 offset) = true) :
     step s = some (execInstrBr s (.SB rs1 rs2 offset)) := by
@@ -581,7 +581,7 @@ theorem step_sb (s : MachineState) (rs1 rs2 : Reg) (offset : BitVec 12)
   omega
 
 /-- step for SB with invalid byte access (trap). -/
-theorem step_sb_trap (s : MachineState) (rs1 rs2 : Reg) (offset : BitVec 12)
+theorem step_sb_trap {s : MachineState} {rs1 rs2 : Reg} {offset : BitVec 12}
     (hfetch : s.code s.pc = some (.SB rs1 rs2 offset))
     (hinvalid : isValidByteAccess (s.getReg rs1 + signExtend12 offset) = false) :
     step s = none := by
@@ -589,7 +589,7 @@ theorem step_sb_trap (s : MachineState) (rs1 rs2 : Reg) (offset : BitVec 12)
   omega
 
 /-- step for SH with valid halfword access. -/
-theorem step_sh (s : MachineState) (rs1 rs2 : Reg) (offset : BitVec 12)
+theorem step_sh {s : MachineState} {rs1 rs2 : Reg} {offset : BitVec 12}
     (hfetch : s.code s.pc = some (.SH rs1 rs2 offset))
     (hvalid : isValidHalfwordAccess (s.getReg rs1 + signExtend12 offset) = true) :
     step s = some (execInstrBr s (.SH rs1 rs2 offset)) := by
@@ -597,7 +597,7 @@ theorem step_sh (s : MachineState) (rs1 rs2 : Reg) (offset : BitVec 12)
   omega
 
 /-- step for SH with invalid halfword access (trap). -/
-theorem step_sh_trap (s : MachineState) (rs1 rs2 : Reg) (offset : BitVec 12)
+theorem step_sh_trap {s : MachineState} {rs1 rs2 : Reg} {offset : BitVec 12}
     (hfetch : s.code s.pc = some (.SH rs1 rs2 offset))
     (hinvalid : isValidHalfwordAccess (s.getReg rs1 + signExtend12 offset) = false) :
     step s = none := by
@@ -605,17 +605,17 @@ theorem step_sh_trap (s : MachineState) (rs1 rs2 : Reg) (offset : BitVec 12)
   omega
 
 /-- step for EBREAK (always traps). -/
-theorem step_ebreak (s : MachineState)
+theorem step_ebreak {s : MachineState}
     (hfetch : s.code s.pc = some .EBREAK) :
     step s = none := by
   simp [step, hfetch]
 
-theorem step_ecall_halt (s : MachineState)
+theorem step_ecall_halt {s : MachineState}
     (hfetch : s.code s.pc = some .ECALL) (ht0 : s.getReg .x5 = 0) :
     step s = none := by
   simp [step, hfetch, ht0]
 
-theorem step_ecall_continue (s : MachineState)
+theorem step_ecall_continue {s : MachineState}
     (hfetch : s.code s.pc = some .ECALL)
     (ht0 : s.getReg .x5 ≠ 0)
     (ht0_nw : s.getReg .x5 ≠ (0x02 : Word))
@@ -626,7 +626,7 @@ theorem step_ecall_continue (s : MachineState)
   simp only [step, hfetch, beq_iff_eq, ht0, ht0_nw, ht0_nc, ht0_nhl, ht0_nhr, ↓reduceIte]
 
 /-- COMMIT syscall (SP1 convention: t0 = 0x10) appends (a0, a1) to committed outputs. -/
-theorem step_ecall_commit (s : MachineState)
+theorem step_ecall_commit {s : MachineState}
     (hfetch : s.code s.pc = some .ECALL)
     (ht0 : s.getReg .x5 = BitVec.ofNat 64 0x10) :
     step s =
@@ -634,7 +634,7 @@ theorem step_ecall_commit (s : MachineState)
   simp [step, hfetch, ht0]
 
 /-- WRITE syscall to FD_PUBLIC_VALUES (t0 = 0x02, fd = 13) appends bytes from memory. -/
-theorem step_ecall_write_public (s : MachineState)
+theorem step_ecall_write_public {s : MachineState}
     (hfetch : s.code s.pc = some .ECALL)
     (ht0 : s.getReg .x5 = BitVec.ofNat 64 0x02)
     (hfd : s.getReg .x10 = 13) :
@@ -643,7 +643,7 @@ theorem step_ecall_write_public (s : MachineState)
   simp [step, hfetch, ht0, hfd]
 
 /-- WRITE syscall to non-public-values fd (t0 = 0x02, fd ≠ 13) just advances PC. -/
-theorem step_ecall_write_other (s : MachineState)
+theorem step_ecall_write_other {s : MachineState}
     (hfetch : s.code s.pc = some .ECALL)
     (ht0 : s.getReg .x5 = BitVec.ofNat 64 0x02)
     (hfd : s.getReg .x10 ≠ (13 : Word)) :
@@ -652,7 +652,7 @@ theorem step_ecall_write_other (s : MachineState)
   simp (config := { decide := true })
 
 /-- HINT_LEN syscall (SP1 convention: t0 = 0xF0) returns privateInput.length in a0. -/
-theorem step_ecall_hint_len (s : MachineState)
+theorem step_ecall_hint_len {s : MachineState}
     (hfetch : s.code s.pc = some .ECALL)
     (ht0 : s.getReg .x5 = BitVec.ofNat 64 0xF0) :
     step s =
@@ -660,7 +660,7 @@ theorem step_ecall_hint_len (s : MachineState)
   simp [step, hfetch, ht0]
 
 /-- HINT_READ syscall (SP1 convention: t0 = 0xF1) reads bytes from privateInput into memory as LE dwords. -/
-theorem step_ecall_hint_read (s : MachineState)
+theorem step_ecall_hint_read {s : MachineState}
     (hfetch : s.code s.pc = some .ECALL)
     (ht0 : s.getReg .x5 = BitVec.ofNat 64 0xF1)
     (hsuff : (s.getReg .x11).toNat ≤ s.privateInput.length) :
@@ -672,7 +672,7 @@ theorem step_ecall_hint_read (s : MachineState)
   simp [step, hfetch, ht0, hsuff]
 
 /-- HINT_READ syscall traps when not enough input is available. -/
-theorem step_ecall_hint_read_trap (s : MachineState)
+theorem step_ecall_hint_read_trap {s : MachineState}
     (hfetch : s.code s.pc = some .ECALL)
     (ht0 : s.getReg .x5 = BitVec.ofNat 64 0xF1)
     (hinsuff : ¬ ((s.getReg .x11).toNat ≤ s.privateInput.length)) :

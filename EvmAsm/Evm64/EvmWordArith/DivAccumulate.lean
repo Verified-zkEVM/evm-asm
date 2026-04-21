@@ -155,7 +155,7 @@ theorem div_correct_n4_no_shift
       match i with | 0 => r0 | 1 => r1 | 2 => r2 | 3 => r3
     q = EvmWord.div a b ∧ r = EvmWord.mod a b := by
   intro a b q r
-  have hv := val256_pos_of_or_ne_zero b0 b1 b2 b3 hbnz
+  have hv := val256_pos_of_or_ne_zero hbnz
   have ⟨_, hr_lt⟩ := remainder_lt_of_ge_floor hv hmulsub hge
   -- val256(q0, 0, 0, 0) = q0.toNat
   have hq_val : val256 q0 0 0 0 = q0.toNat := val256_zero_upper_3 q0
@@ -185,7 +185,7 @@ theorem div_correct_n3_no_shift
       match i with | 0 => r0 | 1 => r1 | 2 => r2 | 3 => r3
     q = EvmWord.div a b ∧ r = EvmWord.mod a b := by
   intro a b q r
-  have hv := val256_pos_of_or_ne_zero b0 b1 b2 b3 hbnz
+  have hv := val256_pos_of_or_ne_zero hbnz
   have ⟨_, hr_lt⟩ := remainder_lt_of_ge_floor hv hmulsub hge
   have hq_val : val256 q0 q1 0 0 = q1.toNat * 2^64 + q0.toNat :=
     (accumulated_eq_val256_n3 q0 q1).symm
@@ -213,7 +213,7 @@ theorem div_correct_n2_no_shift
       match i with | 0 => r0 | 1 => r1 | 2 => r2 | 3 => r3
     q = EvmWord.div a b ∧ r = EvmWord.mod a b := by
   intro a b q r
-  have hv := val256_pos_of_or_ne_zero b0 b1 b2 b3 hbnz
+  have hv := val256_pos_of_or_ne_zero hbnz
   have ⟨_, hr_lt⟩ := remainder_lt_of_ge_floor hv hmulsub hge
   have hq_val : val256 q0 q1 q2 0 = q2.toNat * 2^128 + q1.toNat * 2^64 + q0.toNat :=
     (accumulated_eq_val256_n2 q0 q1 q2).symm
@@ -241,7 +241,7 @@ theorem div_correct_n1_no_shift
       match i with | 0 => r0 | 1 => r1 | 2 => r2 | 3 => r3
     q = EvmWord.div a b ∧ r = EvmWord.mod a b := by
   intro a b q r
-  have hv := val256_pos_of_or_ne_zero b0 b1 b2 b3 hbnz
+  have hv := val256_pos_of_or_ne_zero hbnz
   have ⟨_, hr_lt⟩ := remainder_lt_of_ge_floor hv hmulsub hge
   have hq_val : val256 q0 q1 q2 q3 =
       q3.toNat * 2^192 + q2.toNat * 2^128 + q1.toNat * 2^64 + q0.toNat :=
@@ -295,7 +295,7 @@ theorem div_of_val256_eq_div
   have ha : a.toNat = val256 a0 a1 a2 a3 := (val256_eq_fromLimbs_toNat a0 a1 a2 a3).symm
   have hb : b.toNat = val256 b0 b1 b2 b3 := (val256_eq_fromLimbs_toNat b0 b1 b2 b3).symm
   have hq_val : q.toNat = val256 q0 q1 q2 q3 := (val256_eq_fromLimbs_toNat q0 q1 q2 q3).symm
-  have hbnz' : b ≠ 0 := fromLimbs_ne_zero_of_or b0 b1 b2 b3 hbnz
+  have hbnz' : b ≠ 0 := fromLimbs_ne_zero_of_or hbnz
   -- q.toNat = a.toNat / b.toNat
   have hq_nat : q.toNat = a.toNat / b.toNat := by rw [hq_val, ha, hb]; exact hq
   -- (EvmWord.div a b).toNat = a.toNat / b.toNat
@@ -321,7 +321,7 @@ theorem mod_of_val256_eq_mod
   have ha : a.toNat = val256 a0 a1 a2 a3 := (val256_eq_fromLimbs_toNat a0 a1 a2 a3).symm
   have hb : b.toNat = val256 b0 b1 b2 b3 := (val256_eq_fromLimbs_toNat b0 b1 b2 b3).symm
   have hr_val : r.toNat = val256 r0 r1 r2 r3 := (val256_eq_fromLimbs_toNat r0 r1 r2 r3).symm
-  have hbnz' : b ≠ 0 := fromLimbs_ne_zero_of_or b0 b1 b2 b3 hbnz
+  have hbnz' : b ≠ 0 := fromLimbs_ne_zero_of_or hbnz
   have hr_nat : r.toNat = a.toNat % b.toNat := by rw [hr_val, ha, hb]; exact hr
   have hmod : (EvmWord.mod a b).toNat = a.toNat % b.toNat := by
     unfold EvmWord.mod; rw [if_neg hbnz']; exact BitVec.toNat_umod

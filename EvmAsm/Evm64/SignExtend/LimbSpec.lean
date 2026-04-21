@@ -286,9 +286,9 @@ theorem signext_cascade_step_spec (v5 v10 : Word)
         (cpsBranch_weaken
           (fun _ hp => hp)
           (fun h hp => sepConj_mono_right
-            (fun h' hp' => ((sepConj_pure_right _ (v5 = (0 : Word) + signExtend12 k) h').1 hp').1) h hp)
+            (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp)
           (fun h hp => sepConj_mono_right
-            (fun h' hp' => ((sepConj_pure_right _ (v5 ≠ (0 : Word) + signExtend12 k) h').1 hp').1) h hp)
+            (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp)
           s2_raw))
   exact cpsTriple_seq_cpsBranch_with_perm hd
     (fun _ hp => hp) s1' s2'
@@ -395,9 +395,9 @@ theorem signext_phase_a_spec (sp r5 r10 : Word)
     cpsBranch_weaken
       (fun _ hp => hp)
       (fun h hp => sepConj_mono_right
-        (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1) h hp)
+        (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp)
       (fun h hp => sepConj_mono_right
-        (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1) h hp)
+        (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp)
       bne_raw
   have bne1f := cpsBranch_frameR
     ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ b3) ** (sp ↦ₘ b0) ** ((sp + 8) ↦ₘ b1) ** ((sp + 16) ↦ₘ b2) ** ((sp + 24) ↦ₘ b3))
@@ -438,9 +438,9 @@ theorem signext_phase_a_spec (sp r5 r10 : Word)
     cpsBranch_weaken
       (fun _ hp => hp)
       (fun h hp => sepConj_mono_right
-        (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1) h hp)
+        (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp)
       (fun h hp => sepConj_mono_right
-        (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1) h hp)
+        (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp)
       beq_raw
   have beq1f := cpsBranch_frameR
     ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ b0) ** (sp ↦ₘ b0) ** ((sp + 8) ↦ₘ b1) ** ((sp + 16) ↦ₘ b2) ** ((sp + 24) ↦ₘ b3))
@@ -611,9 +611,9 @@ theorem signext_phase_c_spec (v5 v10 : Word) (base : Word)
     cpsBranch_weaken
       (fun _ hp => hp)
       (fun h hp => sepConj_mono_right
-        (fun h' hp' => ((sepConj_pure_right _ (v5 = (0 : Word)) h').1 hp').1) h hp)
+        (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp)
       (fun h hp => sepConj_mono_right
-        (fun h' hp' => ((sepConj_pure_right _ (v5 ≠ (0 : Word)) h').1 hp').1) h hp)
+        (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp)
       beq0_raw
   have beq0f := cpsBranch_frameR
     (.x10 ↦ᵣ v10) (by pcFree) beq0
@@ -760,13 +760,13 @@ theorem signext_phase_c_spec_pure (v5 v10 : Word) (base : Word)
       (base + 12) ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ ((0 : Word) + signExtend12 1)) ** ⌜v5 ≠ 0 ∧ v5 ≠ (0 : Word) + signExtend12 1⌝) :=
     cpsBranch_weaken
       (fun h hp => (congrFun (show _ = _ from by xperm) h).mp hp)
-      (fun h hp => (sepConj_pure_right _ _ h).1 hp |>.1)
+      (fun h hp => (sepConj_pure_right h).1 hp |>.1)
       (fun h hp => by
-        have ⟨hinner, hne0⟩ := (sepConj_pure_right _ _ h).1 hp
+        have ⟨hinner, hne0⟩ := (sepConj_pure_right h).1 hp
         have hne1 := sepConj_extract_pure_end3 h hinner
         have hregs := sepConj_strip_pure_end3 h hinner
         exact (congrFun (show _ = _ from by xperm) h).mp
-          ((sepConj_pure_right _ _ h).2 (And.intro hregs (And.intro hne0 hne1))))
+          ((sepConj_pure_right h).2 (And.intro hregs (And.intro hne0 hne1))))
       cs1f
   -- Step 2: cascade step at base+12
   have cs2_raw := signext_cascade_step_spec_pure v5 ((0 : Word) + signExtend12 1) 2 24 (base + 12) e2 hc2
@@ -779,13 +779,13 @@ theorem signext_phase_c_spec_pure (v5 v10 : Word) (base : Word)
       (base + 20) ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ ((0 : Word) + signExtend12 2)) ** ⌜v5 ≠ 0 ∧ v5 ≠ (0 : Word) + signExtend12 1 ∧ v5 ≠ (0 : Word) + signExtend12 2⌝) :=
     cpsBranch_weaken
       (fun h hp => (congrFun (show _ = _ from by xperm) h).mp hp)
-      (fun h hp => (sepConj_pure_right _ _ h).1 hp |>.1)
+      (fun h hp => (sepConj_pure_right h).1 hp |>.1)
       (fun h hp => by
-        have ⟨hinner, ⟨hne0, hne1⟩⟩ := (sepConj_pure_right _ _ h).1 hp
+        have ⟨hinner, ⟨hne0, hne1⟩⟩ := (sepConj_pure_right h).1 hp
         have hne2 := sepConj_extract_pure_end3 h hinner
         have hregs := sepConj_strip_pure_end3 h hinner
         exact (congrFun (show _ = _ from by xperm) h).mp
-          ((sepConj_pure_right _ _ h).2 (And.intro hregs (And.intro hne0 (And.intro hne1 hne2)))))
+          ((sepConj_pure_right h).2 (And.intro hregs (And.intro hne0 (And.intro hne1 hne2)))))
       cs2f
   -- Fallthrough at base+20
   have ft := cpsNBranch_refl (base + 20)

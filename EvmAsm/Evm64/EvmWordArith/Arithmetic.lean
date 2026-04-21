@@ -274,7 +274,7 @@ theorem sub_borrow_chain_correct (a b : EvmWord) :
     rw [hb0_nat]; split <;> simp
   -- borrow1 tracks 2-limb comparison (reuse from LT proof pattern)
   have hb1_or : borrow1 = if (BitVec.ult a1 b1 ∨ BitVec.ult temp1 borrow0)
-      then (1 : Word) else 0 := borrow_or_iff _ _
+      then (1 : Word) else 0 := borrow_or_iff
   have htemp1_nat : temp1.toNat = (a1.toNat + 2^64 - b1.toNat) % 2^64 := by
     simp only [temp1, BitVec.toNat_sub]; congr 1; omega
   have hb1_cond : (BitVec.ult a1 b1 ∨ BitVec.ult temp1 borrow0) ↔
@@ -292,7 +292,7 @@ theorem sub_borrow_chain_correct (a b : EvmWord) :
     rw [hb1_nat]; split <;> simp
   -- borrow2 tracks 3-limb comparison
   have hb2_or : borrow2 = if (BitVec.ult a2 b2 ∨ BitVec.ult temp2 borrow1)
-      then (1 : Word) else 0 := borrow_or_iff _ _
+      then (1 : Word) else 0 := borrow_or_iff
   have htemp2_nat : temp2.toNat = (a2.toNat + 2^64 - b2.toNat) % 2^64 := by
     simp only [temp2, BitVec.toNat_sub]; congr 1; omega
   have hb2_cond : (BitVec.ult a2 b2 ∨ BitVec.ult temp2 borrow1) ↔

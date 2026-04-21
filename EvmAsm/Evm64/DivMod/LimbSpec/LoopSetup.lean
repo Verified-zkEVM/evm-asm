@@ -81,9 +81,9 @@ theorem divK_loopSetup_spec (sp n v1 v5 : Word)
     cpsBranch_weaken
       (fun _ hp => hp)
       (fun h hp => sepConj_mono_right
-        (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1) h hp)
+        (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp)
       (fun h hp => sepConj_mono_right
-        (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1) h hp)
+        (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp)
       hblt_raw
   have hblt_framed := cpsBranch_frameR
     ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ n) **

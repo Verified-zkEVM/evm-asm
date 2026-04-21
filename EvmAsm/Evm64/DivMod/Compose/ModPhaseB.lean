@@ -159,7 +159,7 @@ theorem evm_mod_phaseB_n4_spec (sp base : Word)
   have hbne_clean := cpsBranch_takenStripPure2 hbne_raw
     (fun hp hQf => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQf
-      exact absurd ((sepConj_pure_right _ _ _).mp h_rest).2 hb3nz)
+      exact absurd ((sepConj_pure_right _).mp h_rest).2 hb3nz)
   have hbne := cpsTriple_extend_code (bne_x10_singleton_sub_modCode base) hbne_clean
   seqFrame hinit1fhinit2haddi hbne
   -- ---- Step 5: Tail (base+96 → base+116) — store n=4, load leading limb b[3]

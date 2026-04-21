@@ -47,9 +47,9 @@ theorem divK_correction_branch_spec (borrow : Word) (skip_off : BitVec 13) (base
   exact cpsBranch_weaken
     (fun _ hp => hp)
     (fun h hp => sepConj_mono_right
-      (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1) h hp)
+      (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp)
     (fun h hp => sepConj_mono_right
-      (fun h' hp' => ((sepConj_pure_right _ _ h').1 hp').1) h hp)
+      (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp)
     hbeq
 
 /-- Load uHi = u[j+n] and uLo = u[j+n-1] for trial quotient estimation.

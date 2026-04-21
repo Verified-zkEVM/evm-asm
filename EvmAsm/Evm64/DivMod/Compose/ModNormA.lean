@@ -255,7 +255,7 @@ theorem mod_loopSetup_ntaken_spec (sp n v1 v5 : Word) (base : Word)
   have hblt_clean := cpsBranch_ntakenStripPure2 hblt_raw
     (fun hp hQt => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQt
-      exact absurd ((sepConj_pure_right _ _ _).mp h_rest).2 hm_ge)
+      exact absurd ((sepConj_pure_right _).mp h_rest).2 hm_ge)
   have hblte := cpsTriple_extend_code (blt_loopSetup_sub_modCode base) hblt_clean
   have hbltef := cpsTriple_frameR
     ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ n) ** ((sp + signExtend12 3984) ↦ₘ n))
@@ -287,7 +287,7 @@ theorem mod_loopSetup_taken_spec (sp n v1 v5 : Word) (base : Word)
   have hblt_clean := cpsBranch_takenStripPure2 hblt_raw
     (fun hp hQf => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQf
-      exact absurd hm_lt ((sepConj_pure_right _ _ _).mp h_rest).2)
+      exact absurd hm_lt ((sepConj_pure_right _).mp h_rest).2)
   have hblte := cpsTriple_extend_code (blt_loopSetup_sub_modCode base) hblt_clean
   have hbltef := cpsTriple_frameR
     ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ n) ** ((sp + signExtend12 3984) ↦ₘ n))
