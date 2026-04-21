@@ -53,12 +53,12 @@ theorem evmStackIs_cons (sp : Word) (v : EvmWord) (vs : List EvmWord) :
     back into `evmStackIs sp (v :: vs)` even when those atoms sit in the
     middle of a longer sepConj chain. Parallels the `_right` family on
     `evmStackIs_{single,pair,triple,append}`. -/
-theorem evmStackIs_cons_right (sp : Word) (v : EvmWord) (vs : List EvmWord)
+theorem evmStackIs_cons_right {sp : Word} (v : EvmWord) (vs : List EvmWord)
     (Q : Assertion) :
     ((evmWordIs sp v ** evmStackIs (sp + 32) vs) ** Q) =
     (evmStackIs sp (v :: vs) ** Q) := rfl
 
-theorem evmStackIs_nil (sp : Word) :
+theorem evmStackIs_nil {sp : Word} :
     evmStackIs sp [] = empAssertion := rfl
 
 /-- Mid-tree variant of `evmStackIs_nil`: threads a remainder `Q` so
@@ -66,7 +66,7 @@ theorem evmStackIs_nil (sp : Word) :
     even when it sits in the middle of a longer sepConj chain. Useful
     when a stack spec's post has a dangling empty-stack residual that
     the stack-level consumer wants expressed as `evmStackIs sp []`. -/
-theorem evmStackIs_nil_right (sp : Word) (Q : Assertion) :
+theorem evmStackIs_nil_right {sp : Word} (Q : Assertion) :
     (empAssertion ** Q) = (evmStackIs sp [] ** Q) := rfl
 
 /-- Two-element stack: `evmStackIs sp [a, b]` unfolds to
@@ -75,19 +75,19 @@ theorem evmStackIs_nil_right (sp : Word) (Q : Assertion) :
     hitting `evmStackIs_nil` — `sepConj_empAssertion_right` eliminates it
     at call sites. Provided as a named rewrite since the 2-element case
     is what DIV/MOD/MUL/ADD/etc. stack specs all consume. -/
-theorem evmStackIs_cons_cons_nil (sp : Word) (a b : EvmWord) :
+theorem evmStackIs_cons_cons_nil {sp : Word} (a b : EvmWord) :
     evmStackIs sp [a, b] =
     (evmWordIs sp a ** evmWordIs (sp + 32) b ** empAssertion) := rfl
 
 /-- Singleton stack: `evmStackIs sp [v]` unfolds to
     `evmWordIs sp v ** empAssertion`. Useful for post-pop states. -/
-theorem evmStackIs_cons_nil (sp : Word) (v : EvmWord) :
+theorem evmStackIs_cons_nil {sp : Word} (v : EvmWord) :
     evmStackIs sp [v] = (evmWordIs sp v ** empAssertion) := rfl
 
 /-- Three-element stack: `evmStackIs sp [a, b, c]` unfolds to nested
     `evmWordIs` atoms at `sp`, `sp+32`, `sp+64` plus `empAssertion`.
     Useful for trinary ops like ADDMOD / MULMOD. -/
-theorem evmStackIs_cons_cons_cons_nil (sp : Word) (a b c : EvmWord) :
+theorem evmStackIs_cons_cons_cons_nil {sp : Word} (a b c : EvmWord) :
     evmStackIs sp [a, b, c] =
     (evmWordIs sp a ** evmWordIs (sp + 32) b **
      evmWordIs (sp + 32 + 32) c ** empAssertion) := rfl
@@ -97,13 +97,13 @@ theorem evmStackIs_cons_cons_cons_nil (sp : Word) (a b c : EvmWord) :
     Derived from `evmStackIs_cons_cons_nil` by applying
     `sepConj_emp_right'`. Most binary-op stack specs want this cleaner
     2-atom form rather than the raw definition. -/
-theorem evmStackIs_pair (sp : Word) (a b : EvmWord) :
+theorem evmStackIs_pair {sp : Word} (a b : EvmWord) :
     evmStackIs sp [a, b] = (evmWordIs sp a ** evmWordIs (sp + 32) b) := by
   rw [evmStackIs_cons_cons_nil, sepConj_emp_right']
 
 /-- Symmetric companion of `evmStackIs_pair`: singleton stack collapses to a
     single `evmWordIs`. -/
-theorem evmStackIs_single (sp : Word) (v : EvmWord) :
+theorem evmStackIs_single {sp : Word} (v : EvmWord) :
     evmStackIs sp [v] = evmWordIs sp v := by
   rw [evmStackIs_cons_nil, sepConj_emp_right']
 
@@ -113,7 +113,7 @@ theorem evmStackIs_single (sp : Word) (v : EvmWord) :
     applying `sepConj_emp_right'`. Ternary-op stack specs (ADDMOD /
     MULMOD) want this cleaner 3-atom form rather than the raw definition.
     Parallels `evmStackIs_pair` / `evmStackIs_single`. -/
-theorem evmStackIs_triple (sp : Word) (a b c : EvmWord) :
+theorem evmStackIs_triple {sp : Word} (a b c : EvmWord) :
     evmStackIs sp [a, b, c] =
     (evmWordIs sp a ** evmWordIs (sp + 32) b **
      evmWordIs (sp + 32 + 32) c) := by
