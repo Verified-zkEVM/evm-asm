@@ -39,7 +39,7 @@ private theorem ite_word_01 (c : Prop) [Decidable c] :
   split <;> simp
 
 -- Combined carry: (carry_a ||| carry_b).toNat = (a + b + cin) / 2^64
-private theorem combined_carry_toNat (x y cin : Word) (hcin : cin.toNat ≤ 1) :
+private theorem combined_carry_toNat {x y cin : Word} (hcin : cin.toNat ≤ 1) :
     let psum := x + y
     let ca := if BitVec.ult psum y then (1 : Word) else 0
     let res := psum + cin
@@ -84,11 +84,11 @@ theorem add_carry_chain_correct (a b : EvmWord) :
   have hc0_le : carry0.toNat ≤ 1 := by
     have := a0.isLt; have := b0.isLt; rw [hc0]; omega
   have hc1 : carry1.toNat = (a1.toNat + b1.toNat + carry0.toNat) / 2^64 :=
-    combined_carry_toNat a1 b1 carry0 hc0_le
+    combined_carry_toNat hc0_le
   have hc1_le : carry1.toNat ≤ 1 := by
     have := a1.isLt; have := b1.isLt; rw [hc1]; omega
   have hc2 : carry2.toNat = (a2.toNat + b2.toNat + carry1.toNat) / 2^64 :=
-    combined_carry_toNat a2 b2 carry1 hc1_le
+    combined_carry_toNat hc1_le
   have hc2_le : carry2.toNat ≤ 1 := by
     have := a2.isLt; have := b2.isLt; rw [hc2]; omega
   -- toNat decomposition using local def names (a0, a1, ... not a.getLimb i)

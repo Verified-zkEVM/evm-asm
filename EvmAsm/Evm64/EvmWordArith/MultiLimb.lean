@@ -58,7 +58,7 @@ theorem halfword_decompose (x : Word) :
 -- rv64_divu Nat-level correctness
 -- ============================================================================
 
-private theorem beq_zero_false (b : Word) (hb : b ≠ 0) : (b == 0#64) = false := by
+private theorem beq_zero_false {b : Word} (hb : b ≠ 0) : (b == 0#64) = false := by
   cases h : b == 0#64
   · rfl
   · exfalso; apply hb; exact eq_of_beq h
@@ -66,7 +66,7 @@ private theorem beq_zero_false (b : Word) (hb : b ≠ 0) : (b == 0#64) = false :
 /-- rv64_divu computes Nat-level division when divisor is nonzero. -/
 theorem rv64_divu_toNat (a b : Word) (hb : b ≠ 0) :
     (rv64_divu a b).toNat = a.toNat / b.toNat := by
-  unfold rv64_divu; rw [beq_zero_false b hb]; exact BitVec.toNat_udiv
+  unfold rv64_divu; rw [beq_zero_false hb]; exact BitVec.toNat_udiv
 
 /-- rv64_divu quotient times divisor doesn't exceed dividend. -/
 theorem rv64_divu_mul_le (a b : Word) (hb : b ≠ 0) :
