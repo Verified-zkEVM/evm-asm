@@ -85,7 +85,7 @@ theorem beq_eq_spec (rs1 rs2 : Reg) (offset : BitVec 13)
   have hrs2 : s.getReg rs2 = v :=
     holdsFor_regIs.mp (holdsFor_sepConj_elim_right (holdsFor_sepConj_elim_left hPR))
   have hstep' : step s = some (execInstrBr s (.BEQ rs1 rs2 offset)) :=
-    step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl)
+    step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl)
   have hexec' : execInstrBr s (.BEQ rs1 rs2 offset) = s.setPC (s.pc + signExtend13 offset) := by
     simp [execInstrBr, hrs1, hrs2]
   refine ⟨1, s.setPC (s.pc + signExtend13 offset), ?_, by simp [MachineState.setPC], ?_⟩
@@ -110,7 +110,7 @@ theorem beq_ne_spec (rs1 rs2 : Reg) (offset : BitVec 13)
   have hrs2 : s.getReg rs2 = v2 :=
     holdsFor_regIs.mp (holdsFor_sepConj_elim_right (holdsFor_sepConj_elim_left hPR))
   have hstep' : step s = some (execInstrBr s (.BEQ rs1 rs2 offset)) :=
-    step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl)
+    step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl)
   have hexec' : execInstrBr s (.BEQ rs1 rs2 offset) = s.setPC (s.pc + 4) := by
     simp [execInstrBr, hrs1, hrs2, hne]
   refine ⟨1, s.setPC (s.pc + 4), ?_, by simp [MachineState.setPC], ?_⟩

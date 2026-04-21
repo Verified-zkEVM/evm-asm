@@ -229,7 +229,7 @@ theorem generic_bne_spec (rs1 rs2 : Reg) (offset : BitVec 13) (v1 v2 : Word) (ba
     holdsFor_regIs.mp (holdsFor_sepConj_elim_right
       (holdsFor_sepConj_elim_left hPR))
   have hstep' : step s = some (execInstrBr s (.BNE rs1 rs2 offset)) :=
-    step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl)
+    step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl)
   -- Case split on v1 = v2
   by_cases heq : v1 = v2
   · -- Not taken: v1 = v2
@@ -280,7 +280,7 @@ theorem generic_beq_spec (rs1 rs2 : Reg) (offset : BitVec 13) (v1 v2 : Word) (ba
     holdsFor_regIs.mp (holdsFor_sepConj_elim_right
       (holdsFor_sepConj_elim_left hPR))
   have hstep' : step s = some (execInstrBr s (.BEQ rs1 rs2 offset)) :=
-    step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl)
+    step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl)
   by_cases heq : v1 = v2
   · -- Taken: v1 = v2
     have hexec' : execInstrBr s (.BEQ rs1 rs2 offset) = s.setPC (s.pc + signExtend13 offset) := by
@@ -335,7 +335,7 @@ theorem generic_bltu_spec (rs1 rs2 : Reg) (offset : BitVec 13) (v1 v2 : Word) (b
     holdsFor_regIs.mp (holdsFor_sepConj_elim_right
       (holdsFor_sepConj_elim_left hPR))
   have hstep' : step s = some (execInstrBr s (.BLTU rs1 rs2 offset)) :=
-    step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl)
+    step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl)
   by_cases hlt : BitVec.ult v1 v2
   · -- Taken: v1 <u v2
     have hexec' : execInstrBr s (.BLTU rs1 rs2 offset) = s.setPC (s.pc + signExtend13 offset) := by
@@ -390,7 +390,7 @@ theorem generic_bge_spec (rs1 rs2 : Reg) (offset : BitVec 13) (v1 v2 : Word) (ba
     holdsFor_regIs.mp (holdsFor_sepConj_elim_right
       (holdsFor_sepConj_elim_left hPR))
   have hstep' : step s = some (execInstrBr s (.BGE rs1 rs2 offset)) :=
-    step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl)
+    step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl)
   by_cases hlt : BitVec.slt v1 v2
   · -- Not taken: slt v1 v2 → ¬(¬slt), so BGE falls through
     have hexec' : execInstrBr s (.BGE rs1 rs2 offset) = s.setPC (s.pc + 4) := by
@@ -445,7 +445,7 @@ theorem generic_blt_spec (rs1 rs2 : Reg) (offset : BitVec 13) (v1 v2 : Word) (ba
     holdsFor_regIs.mp (holdsFor_sepConj_elim_right
       (holdsFor_sepConj_elim_left hPR))
   have hstep' : step s = some (execInstrBr s (.BLT rs1 rs2 offset)) :=
-    step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl)
+    step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl)
   by_cases hlt : BitVec.slt v1 v2
   · -- Taken: slt v1 v2
     have hexec' : execInstrBr s (.BLT rs1 rs2 offset) = s.setPC (s.pc + signExtend13 offset) := by
@@ -500,7 +500,7 @@ theorem generic_bgeu_spec (rs1 rs2 : Reg) (offset : BitVec 13) (v1 v2 : Word) (b
     holdsFor_regIs.mp (holdsFor_sepConj_elim_right
       (holdsFor_sepConj_elim_left hPR))
   have hstep' : step s = some (execInstrBr s (.BGEU rs1 rs2 offset)) :=
-    step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl)
+    step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl)
   by_cases hlt : BitVec.ult v1 v2
   · -- Not taken: ult v1 v2 → ¬(¬ult), so BGEU falls through
     have hexec' : execInstrBr s (.BGEU rs1 rs2 offset) = s.setPC (s.pc + 4) := by
@@ -547,7 +547,7 @@ theorem generic_jal_spec (rd : Reg) (vOld : Word) (offset : BitVec 21) (base : W
   have hfetch : s.code s.pc = some (.JAL rd offset) :=
     CodeReq.singleton_satisfiedBy.mp hcr
   have hstep' : step s = some (execInstrBr s (.JAL rd offset)) :=
-    step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl)
+    step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl)
   -- execInstrBr s (.JAL rd offset) = (s.setReg rd (s.pc + 4)).setPC (s.pc + signExtend21 offset)
   refine ⟨1, (s.setReg rd (s.pc + 4)).setPC (s.pc + signExtend21 offset), ?_, rfl, ?_⟩
   · show (step s).bind (stepN 0) = some _
@@ -570,7 +570,7 @@ theorem generic_jalr_spec (rd rs1 : Reg) (v1 vOld : Word) (offset : BitVec 12) (
     holdsFor_regIs.mp (holdsFor_sepConj_elim_left
       (holdsFor_sepConj_elim_left hPR))
   have hstep' : step s = some (execInstrBr s (.JALR rd rs1 offset)) :=
-    step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl)
+    step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl)
   have hexec' : execInstrBr s (.JALR rd rs1 offset) =
       (s.setReg rd (s.pc + 4)).setPC ((v1 + signExtend12 offset) &&& ~~~1) := by
     simp only [execInstrBr, hrs1]; rfl

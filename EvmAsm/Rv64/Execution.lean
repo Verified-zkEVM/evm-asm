@@ -422,7 +422,7 @@ def step (s : MachineState) : Option MachineState :=
   | some i => some (execInstrBr s i)
 
 /-- step for non-ECALL, non-EBREAK, non-memory instructions. -/
-@[simp] theorem step_non_ecall_non_mem (s : MachineState) {i : Instr}
+@[simp] theorem step_non_ecall_non_mem {s : MachineState} {i : Instr}
     (hfetch : s.code s.pc = some i) (hne : i ≠ .ECALL) (hnb : i ≠ .EBREAK)
     (hnm : i.isMemAccess = false) :
     step s = some (execInstrBr s i) := by

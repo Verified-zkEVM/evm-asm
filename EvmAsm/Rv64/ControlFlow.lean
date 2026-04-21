@@ -223,7 +223,7 @@ theorem execInstrBr_jal_x0 (s : MachineState) (off : BitVec 21) :
       empAssertion :=
   generic_nop_spec (.JAL .x0 offset) addr (addr + signExtend21 offset)
     (by intro s hpc; simp [execInstrBr, MachineState.setReg, hpc])
-    (by intro s hfetch; exact step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl))
+    (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
 
 /-- JALR x0 executes as a pure PC update (x0 write is dropped). -/
 theorem execInstrBr_jalr_x0 (s : MachineState) (rs1 : Reg) (off : BitVec 12) :
@@ -245,7 +245,7 @@ theorem execInstrBr_jalr_x0 (s : MachineState) (rs1 : Reg) (off : BitVec 12) :
   have hexec : execInstrBr s (.JALR .x0 rs1 offset) = s.setPC ((v + signExtend12 offset) &&& ~~~1) := by
     rw [execInstrBr_jalr_x0, hrs1]
   have hstep : step s = some (execInstrBr s (.JALR .x0 rs1 offset)) :=
-    step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl)
+    step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl)
   refine ⟨1, s.setPC ((v + signExtend12 offset) &&& ~~~1), ?_, rfl, ?_⟩
   · show (step s).bind (stepN 0) = some _
     rw [hstep, hexec]; rfl
@@ -303,7 +303,7 @@ theorem if_eq_branch_step (rs1 rs2 : Reg) (v1 v2 : Word)
     holdsFor_regIs.mp (aAnd_holdsFor_elim (aAnd_holdsFor_elim haAnd).2).2
   -- Execute the BNE instruction
   have hstep' : step s = some (execInstrBr s (Instr.BNE rs1 rs2 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4)))) :=
-    step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl)
+    step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl)
   -- The entire precondition (P ** R form from cpsBranch) is pcFree
   have hpcfree : (((s.pc ↦ᵢ Instr.BNE rs1 rs2 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4))) **
       (P ⋒ (rs1 ↦ᵣ v1) ⋒ (rs2 ↦ᵣ v2))) ** R).pcFree :=
@@ -388,7 +388,7 @@ theorem if_eq_spec (rs1 rs2 : Reg) (v1 v2 : Word)
     holdsFor_regIs.mp (aAnd_holdsFor_elim (aAnd_holdsFor_elim haAnd).2).2
   -- Execute BNE
   have hstep' : step s = some (execInstrBr s (Instr.BNE rs1 rs2 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4)))) :=
-    step_non_ecall_non_mem s hfetch_bne (by nofun) (by nofun) (by rfl)
+    step_non_ecall_non_mem hfetch_bne (by nofun) (by nofun) (by rfl)
   -- pcFree for the full precondition with frame
   have hpcfree_all : (((s.pc ↦ᵢ Instr.BNE rs1 rs2 (BitVec.ofNat 13 (4 * (then_body.length + 1) + 4))) **
       ((s.pc + 4 + BitVec.ofNat 64 (4 * then_body.length)) ↦ᵢ Instr.JAL Reg.x0 (BitVec.ofNat 21 (4 * else_body.length + 4))) **

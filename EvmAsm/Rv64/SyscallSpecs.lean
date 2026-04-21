@@ -68,7 +68,7 @@ namespace EvmAsm.Rv64
       ((rd ↦ᵣ (v1 + v2)) ** (rs2 ↦ᵣ v2)) :=
   generic_2reg_rd_eq_rs1_spec (.ADD rd rd rs2) rd rs2 v1 v2 _ addr hrd_ne_x0
     (by intro s _ hrd hrs2; simp [execInstrBr, hrd, hrs2])
-    (by intro s hfetch; exact step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl))
+    (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem sub_spec_gen_rd_eq_rs1 (rd rs2 : Reg) (v1 v2 : Word)
     (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
@@ -77,7 +77,7 @@ namespace EvmAsm.Rv64
       ((rd ↦ᵣ (v1 - v2)) ** (rs2 ↦ᵣ v2)) :=
   generic_2reg_rd_eq_rs1_spec (.SUB rd rd rs2) rd rs2 v1 v2 _ addr hrd_ne_x0
     (by intro s _ hrd hrs2; simp [execInstrBr, hrd, hrs2])
-    (by intro s hfetch; exact step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl))
+    (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem and_spec_gen_rd_eq_rs1 (rd rs2 : Reg) (v1 v2 : Word)
     (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
@@ -86,7 +86,7 @@ namespace EvmAsm.Rv64
       ((rd ↦ᵣ (v1 &&& v2)) ** (rs2 ↦ᵣ v2)) :=
   generic_2reg_rd_eq_rs1_spec (.AND rd rd rs2) rd rs2 v1 v2 _ addr hrd_ne_x0
     (by intro s _ hrd hrs2; simp [execInstrBr, hrd, hrs2])
-    (by intro s hfetch; exact step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl))
+    (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem or_spec_gen_rd_eq_rs1 (rd rs2 : Reg) (v1 v2 : Word)
     (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
@@ -95,7 +95,7 @@ namespace EvmAsm.Rv64
       ((rd ↦ᵣ (v1 ||| v2)) ** (rs2 ↦ᵣ v2)) :=
   generic_2reg_rd_eq_rs1_spec (.OR rd rd rs2) rd rs2 v1 v2 _ addr hrd_ne_x0
     (by intro s _ hrd hrs2; simp [execInstrBr, hrd, hrs2])
-    (by intro s hfetch; exact step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl))
+    (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem xor_spec_gen_rd_eq_rs1 (rd rs2 : Reg) (v1 v2 : Word)
     (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
@@ -104,7 +104,7 @@ namespace EvmAsm.Rv64
       ((rd ↦ᵣ (v1 ^^^ v2)) ** (rs2 ↦ᵣ v2)) :=
   generic_2reg_rd_eq_rs1_spec (.XOR rd rd rs2) rd rs2 v1 v2 _ addr hrd_ne_x0
     (by intro s _ hrd hrs2; simp [execInstrBr, hrd, hrs2])
-    (by intro s hfetch; exact step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl))
+    (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem sltu_spec_gen_rd_eq_rs1 (rd rs2 : Reg) (v1 v2 : Word)
     (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
@@ -113,7 +113,7 @@ namespace EvmAsm.Rv64
       ((rd ↦ᵣ (if BitVec.ult v1 v2 then (1 : Word) else 0)) ** (rs2 ↦ᵣ v2)) :=
   generic_2reg_rd_eq_rs1_spec (.SLTU rd rd rs2) rd rs2 v1 v2 _ addr hrd_ne_x0
     (by intro s _ hrd hrs2; simp [execInstrBr, hrd, hrs2])
-    (by intro s hfetch; exact step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl))
+    (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem srl_spec_gen_rd_eq_rs1 (rd rs2 : Reg) (v1 v2 : Word)
     (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
@@ -122,7 +122,7 @@ namespace EvmAsm.Rv64
       ((rd ↦ᵣ (v1 >>> (v2.toNat % 64))) ** (rs2 ↦ᵣ v2)) :=
   generic_2reg_rd_eq_rs1_spec (.SRL rd rd rs2) rd rs2 v1 v2 _ addr hrd_ne_x0
     (by intro s _ hrd hrs2; simp [execInstrBr, hrd, hrs2])
-    (by intro s hfetch; exact step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl))
+    (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem sll_spec_gen_rd_eq_rs1 (rd rs2 : Reg) (v1 v2 : Word)
     (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
@@ -131,7 +131,7 @@ namespace EvmAsm.Rv64
       ((rd ↦ᵣ (v1 <<< (v2.toNat % 64))) ** (rs2 ↦ᵣ v2)) :=
   generic_2reg_rd_eq_rs1_spec (.SLL rd rd rs2) rd rs2 v1 v2 _ addr hrd_ne_x0
     (by intro s _ hrd hrs2; simp [execInstrBr, hrd, hrs2])
-    (by intro s hfetch; exact step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl))
+    (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem sra_spec_gen_rd_eq_rs1 (rd rs2 : Reg) (v1 v2 : Word)
     (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
@@ -140,7 +140,7 @@ namespace EvmAsm.Rv64
       ((rd ↦ᵣ (BitVec.sshiftRight v1 (v2.toNat % 64))) ** (rs2 ↦ᵣ v2)) :=
   generic_2reg_rd_eq_rs1_spec (.SRA rd rd rs2) rd rs2 v1 v2 _ addr hrd_ne_x0
     (by intro s _ hrd hrs2; simp [execInstrBr, hrd, hrs2])
-    (by intro s hfetch; exact step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl))
+    (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
 
 -- ============================================================================
 -- Immediate specs
@@ -153,7 +153,7 @@ namespace EvmAsm.Rv64
       (rd ↦ᵣ (v + signExtend12 imm)) :=
   generic_1reg_spec (.ADDI rd rd imm) rd v _ addr hrd_ne_x0
     (by intro s _ hrd; simp [execInstrBr, hrd])
-    (by intro s hfetch; exact step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl))
+    (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem addi_spec_gen (rd rs1 : Reg) (vOld v1 : Word) (imm : BitVec 12)
     (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
@@ -162,7 +162,7 @@ namespace EvmAsm.Rv64
       ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ (v1 + signExtend12 imm))) :=
   generic_2reg_spec (.ADDI rd rs1 imm) rs1 rd v1 vOld (v1 + signExtend12 imm) addr hrd_ne_x0
     (by intro s _ hrs1 _; simp [execInstrBr, hrs1])
-    (by intro s hfetch; exact step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl))
+    (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem xori_spec_gen_same (rd : Reg) (v : Word) (imm : BitVec 12)
     (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
@@ -171,7 +171,7 @@ namespace EvmAsm.Rv64
       (rd ↦ᵣ (v ^^^ signExtend12 imm)) :=
   generic_1reg_spec (.XORI rd rd imm) rd v _ addr hrd_ne_x0
     (by intro s _ hrd; simp [execInstrBr, hrd])
-    (by intro s hfetch; exact step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl))
+    (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem andi_spec_gen (rd rs1 : Reg) (vOld v1 : Word) (imm : BitVec 12)
     (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
@@ -180,7 +180,7 @@ namespace EvmAsm.Rv64
       ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ (v1 &&& signExtend12 imm))) :=
   generic_2reg_spec (.ANDI rd rs1 imm) rs1 rd v1 vOld (v1 &&& signExtend12 imm) addr hrd_ne_x0
     (by intro s _ hrs1 _; simp [execInstrBr, hrs1])
-    (by intro s hfetch; exact step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl))
+    (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem andi_spec_gen_same (rd : Reg) (v : Word) (imm : BitVec 12)
     (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
@@ -189,7 +189,7 @@ namespace EvmAsm.Rv64
       (rd ↦ᵣ (v &&& signExtend12 imm)) :=
   generic_1reg_spec (.ANDI rd rd imm) rd v _ addr hrd_ne_x0
     (by intro s _ hrd; simp [execInstrBr, hrd])
-    (by intro s hfetch; exact step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl))
+    (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem sltiu_spec_gen_same (rd : Reg) (v : Word) (imm : BitVec 12)
     (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
@@ -198,7 +198,7 @@ namespace EvmAsm.Rv64
       (rd ↦ᵣ (if BitVec.ult v (signExtend12 imm) then (1 : Word) else (0 : Word))) :=
   generic_1reg_spec (.SLTIU rd rd imm) rd v _ addr hrd_ne_x0
     (by intro s _ hrd; simp [execInstrBr, hrd])
-    (by intro s hfetch; exact step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl))
+    (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem slli_spec_gen_same (rd : Reg) (v : Word) (shamt : BitVec 6)
     (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
@@ -207,7 +207,7 @@ namespace EvmAsm.Rv64
       (rd ↦ᵣ (v <<< shamt.toNat)) :=
   generic_1reg_spec (.SLLI rd rd shamt) rd v _ addr hrd_ne_x0
     (by intro s _ hrd; simp [execInstrBr, hrd])
-    (by intro s hfetch; exact step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl))
+    (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem slli_spec_gen (rd rs1 : Reg) (vOld v1 : Word) (shamt : BitVec 6)
     (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
@@ -216,7 +216,7 @@ namespace EvmAsm.Rv64
       ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ (v1 <<< shamt.toNat))) :=
   generic_2reg_spec (.SLLI rd rs1 shamt) rs1 rd v1 vOld _ addr hrd_ne_x0
     (by intro s _ hrs1 _; simp [execInstrBr, hrs1])
-    (by intro s hfetch; exact step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl))
+    (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem srli_spec_gen_same (rd : Reg) (v : Word) (shamt : BitVec 6)
     (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
@@ -225,7 +225,7 @@ namespace EvmAsm.Rv64
       (rd ↦ᵣ (v >>> shamt.toNat)) :=
   generic_1reg_spec (.SRLI rd rd shamt) rd v _ addr hrd_ne_x0
     (by intro s _ hrd; simp [execInstrBr, hrd])
-    (by intro s hfetch; exact step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl))
+    (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem srli_spec_gen (rd rs1 : Reg) (vOld v1 : Word) (shamt : BitVec 6)
     (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
@@ -234,7 +234,7 @@ namespace EvmAsm.Rv64
       ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ (v1 >>> shamt.toNat))) :=
   generic_2reg_spec (.SRLI rd rs1 shamt) rs1 rd v1 vOld _ addr hrd_ne_x0
     (by intro s _ hrs1 _; simp [execInstrBr, hrs1])
-    (by intro s hfetch; exact step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl))
+    (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem srai_spec_gen_same (rd : Reg) (v : Word) (shamt : BitVec 6)
     (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
@@ -243,7 +243,7 @@ namespace EvmAsm.Rv64
       (rd ↦ᵣ (BitVec.sshiftRight v shamt.toNat)) :=
   generic_1reg_spec (.SRAI rd rd shamt) rd v _ addr hrd_ne_x0
     (by intro s _ hrd; simp [execInstrBr, hrd])
-    (by intro s hfetch; exact step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl))
+    (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem srai_spec_gen (rd rs1 : Reg) (vOld v1 : Word) (shamt : BitVec 6)
     (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
@@ -252,7 +252,7 @@ namespace EvmAsm.Rv64
       ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ (BitVec.sshiftRight v1 shamt.toNat))) :=
   generic_2reg_spec (.SRAI rd rs1 shamt) rs1 rd v1 vOld (BitVec.sshiftRight v1 shamt.toNat) addr hrd_ne_x0
     (by intro s _ hrs1 _; simp [execInstrBr, hrs1])
-    (by intro s hfetch; exact step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl))
+    (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
 
 -- ============================================================================
 -- Pseudo instructions
@@ -265,7 +265,7 @@ namespace EvmAsm.Rv64
       (rd ↦ᵣ imm) :=
   generic_1reg_spec (.LI rd imm) rd vOld _ addr hrd_ne_x0
     (by intro s _ _; simp [execInstrBr])
-    (by intro s hfetch; exact step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl))
+    (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem li_spec_gen_own (rd : Reg) (imm : Word) (addr : Word)
     (hrd_ne_x0 : rd ≠ .x0) :
@@ -286,7 +286,7 @@ namespace EvmAsm.Rv64
       ((rs ↦ᵣ v) ** (rd ↦ᵣ v)) :=
   generic_2reg_spec (.MV rd rs) rs rd v vOld v addr hrd_ne_x0
     (by intro s _ hrs _; simp [execInstrBr, hrs])
-    (by intro s hfetch; exact step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl))
+    (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
 
 -- ============================================================================
 -- Branch/Jump specs
@@ -370,7 +370,7 @@ namespace EvmAsm.Rv64
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** (rd ↦ᵣ (if BitVec.slt v1 v2 then (1 : Word) else 0))) :=
   generic_3reg_spec (.SLT rd rs1 rs2) rs1 rs2 rd v1 v2 vOld _ addr hrd_ne_x0
     (by intro s _ hrs1 hrs2; simp [execInstrBr, hrs1, hrs2])
-    (by intro s hfetch; exact step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl))
+    (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem sltu_spec_gen (rd rs1 rs2 : Reg) (vOld v1 v2 : Word)
     (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
@@ -379,7 +379,7 @@ namespace EvmAsm.Rv64
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** (rd ↦ᵣ (if BitVec.ult v1 v2 then (1 : Word) else 0))) :=
   generic_3reg_spec (.SLTU rd rs1 rs2) rs1 rs2 rd v1 v2 vOld _ addr hrd_ne_x0
     (by intro s _ hrs1 hrs2; simp [execInstrBr, hrs1, hrs2])
-    (by intro s hfetch; exact step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl))
+    (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem sltu_spec_gen_rd_eq_rs2 (rd rs1 : Reg) (v1 v2 : Word)
     (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
@@ -388,7 +388,7 @@ namespace EvmAsm.Rv64
       ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ (if BitVec.ult v1 v2 then (1 : Word) else 0))) :=
   generic_2reg_spec (.SLTU rd rs1 rd) rs1 rd v1 v2 _ addr hrd_ne_x0
     (by intro s _ hrs1 hrd; simp [execInstrBr, hrs1, hrd])
-    (by intro s hfetch; exact step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl))
+    (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem or_spec_gen (rd rs1 rs2 : Reg) (vOld v1 v2 : Word)
     (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
@@ -397,7 +397,7 @@ namespace EvmAsm.Rv64
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** (rd ↦ᵣ (v1 ||| v2))) :=
   generic_3reg_spec (.OR rd rs1 rs2) rs1 rs2 rd v1 v2 vOld _ addr hrd_ne_x0
     (by intro s _ hrs1 hrs2; simp [execInstrBr, hrs1, hrs2])
-    (by intro s hfetch; exact step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl))
+    (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
 
 -- ============================================================================
 -- M extension: multiply specs
@@ -410,7 +410,7 @@ namespace EvmAsm.Rv64
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** (rd ↦ᵣ (v1 * v2))) :=
   generic_3reg_spec (.MUL rd rs1 rs2) rs1 rs2 rd v1 v2 vOld _ addr hrd_ne_x0
     (by intro s _ hrs1 hrs2; simp [execInstrBr, hrs1, hrs2])
-    (by intro s hfetch; exact step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl))
+    (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem mul_spec_gen_rd_eq_rs1 (rd rs2 : Reg) (v1 v2 : Word)
     (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
@@ -419,7 +419,7 @@ namespace EvmAsm.Rv64
       ((rd ↦ᵣ (v1 * v2)) ** (rs2 ↦ᵣ v2)) :=
   generic_2reg_rd_eq_rs1_spec (.MUL rd rd rs2) rd rs2 v1 v2 _ addr hrd_ne_x0
     (by intro s _ hrd hrs2; simp [execInstrBr, hrd, hrs2])
-    (by intro s hfetch; exact step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl))
+    (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem mulhu_spec_gen (rd rs1 rs2 : Reg) (vOld v1 v2 : Word)
     (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
@@ -428,7 +428,7 @@ namespace EvmAsm.Rv64
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** (rd ↦ᵣ rv64_mulhu v1 v2)) :=
   generic_3reg_spec (.MULHU rd rs1 rs2) rs1 rs2 rd v1 v2 vOld _ addr hrd_ne_x0
     (by intro s _ hrs1 hrs2; simp [execInstrBr, hrs1, hrs2])
-    (by intro s hfetch; exact step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl))
+    (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem mulhu_spec_gen_rd_eq_rs1 (rd rs2 : Reg) (v1 v2 : Word)
     (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
@@ -437,7 +437,7 @@ namespace EvmAsm.Rv64
       ((rd ↦ᵣ rv64_mulhu v1 v2) ** (rs2 ↦ᵣ v2)) :=
   generic_2reg_rd_eq_rs1_spec (.MULHU rd rd rs2) rd rs2 v1 v2 _ addr hrd_ne_x0
     (by intro s _ hrd hrs2; simp [execInstrBr, hrd, hrs2])
-    (by intro s hfetch; exact step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl))
+    (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem mulhu_spec_gen_rd_eq_rs2 (rd rs1 : Reg) (v1 v2 : Word)
     (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
@@ -446,7 +446,7 @@ namespace EvmAsm.Rv64
       ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ rv64_mulhu v1 v2)) :=
   generic_2reg_spec (.MULHU rd rs1 rd) rs1 rd v1 v2 _ addr hrd_ne_x0
     (by intro s _ hrs1 hrd; simp [execInstrBr, hrs1, hrd])
-    (by intro s hfetch; exact step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl))
+    (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem mul_spec_gen_rd_eq_rs2 (rd rs1 : Reg) (v1 v2 : Word)
     (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
@@ -455,7 +455,7 @@ namespace EvmAsm.Rv64
       ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ (v1 * v2))) :=
   generic_2reg_spec (.MUL rd rs1 rd) rs1 rd v1 v2 _ addr hrd_ne_x0
     (by intro s _ hrs1 hrd; simp [execInstrBr, hrs1, hrd])
-    (by intro s hfetch; exact step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl))
+    (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
 
 -- ============================================================================
 -- M extension: division specs
@@ -468,7 +468,7 @@ namespace EvmAsm.Rv64
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** (rd ↦ᵣ rv64_divu v1 v2)) :=
   generic_3reg_spec (.DIVU rd rs1 rs2) rs1 rs2 rd v1 v2 vOld _ addr hrd_ne_x0
     (by intro s _ hrs1 hrs2; simp [execInstrBr, hrs1, hrs2])
-    (by intro s hfetch; exact step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl))
+    (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem divu_spec_gen_rd_eq_rs1 (rd rs2 : Reg) (v1 v2 : Word)
     (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
@@ -477,7 +477,7 @@ namespace EvmAsm.Rv64
       ((rd ↦ᵣ rv64_divu v1 v2) ** (rs2 ↦ᵣ v2)) :=
   generic_2reg_rd_eq_rs1_spec (.DIVU rd rd rs2) rd rs2 v1 v2 _ addr hrd_ne_x0
     (by intro s _ hrd hrs2; simp [execInstrBr, hrd, hrs2])
-    (by intro s hfetch; exact step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl))
+    (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem remu_spec_gen (rd rs1 rs2 : Reg) (vOld v1 v2 : Word)
     (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
@@ -486,7 +486,7 @@ namespace EvmAsm.Rv64
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** (rd ↦ᵣ rv64_remu v1 v2)) :=
   generic_3reg_spec (.REMU rd rs1 rs2) rs1 rs2 rd v1 v2 vOld _ addr hrd_ne_x0
     (by intro s _ hrs1 hrs2; simp [execInstrBr, hrs1, hrs2])
-    (by intro s hfetch; exact step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl))
+    (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem remu_spec_gen_rd_eq_rs1 (rd rs2 : Reg) (v1 v2 : Word)
     (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
@@ -495,7 +495,7 @@ namespace EvmAsm.Rv64
       ((rd ↦ᵣ rv64_remu v1 v2) ** (rs2 ↦ᵣ v2)) :=
   generic_2reg_rd_eq_rs1_spec (.REMU rd rd rs2) rd rs2 v1 v2 _ addr hrd_ne_x0
     (by intro s _ hrd hrs2; simp [execInstrBr, hrd, hrs2])
-    (by intro s hfetch; exact step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl))
+    (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem sub_spec_gen_rd_eq_rs2 (rd rs1 : Reg) (v1 v2 : Word)
     (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
@@ -504,7 +504,7 @@ namespace EvmAsm.Rv64
       ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ (v1 - v2))) :=
   generic_2reg_spec (.SUB rd rs1 rd) rs1 rd v1 v2 (v1 - v2) addr hrd_ne_x0
     (by intro s _ hrs1 hrd; simp [execInstrBr, hrs1, hrd])
-    (by intro s hfetch; exact step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl))
+    (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem sub_spec_gen (rd rs1 rs2 : Reg) (v1 v2 vOld : Word)
     (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
@@ -513,7 +513,7 @@ namespace EvmAsm.Rv64
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** (rd ↦ᵣ (v1 - v2))) :=
   generic_3reg_spec (.SUB rd rs1 rs2) rs1 rs2 rd v1 v2 vOld _ addr hrd_ne_x0
     (by intro s _ hrs1 hrs2; simp [execInstrBr, hrs1, hrs2])
-    (by intro s hfetch; exact step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl))
+    (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem sltiu_spec_gen (rd rs1 : Reg) (vOld v1 : Word) (imm : BitVec 12)
     (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
@@ -522,7 +522,7 @@ namespace EvmAsm.Rv64
       ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ (if BitVec.ult v1 (signExtend12 imm) then (1 : Word) else (0 : Word)))) :=
   generic_2reg_spec (.SLTIU rd rs1 imm) rs1 rd v1 vOld _ addr hrd_ne_x0
     (by intro s _ hrs1 _; simp [execInstrBr, hrs1])
-    (by intro s hfetch; exact step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl))
+    (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
 
 /-- SD rs1 x0 offset: mem[rs1 + sext(offset)] := 0.
     Specialized version of sd_spec_gen for x0 (always reads as 0).
@@ -545,7 +545,7 @@ namespace EvmAsm.Rv64
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** (rd ↦ᵣ (v1 >>> (v2.toNat % 64)))) :=
   generic_3reg_spec (.SRL rd rs1 rs2) rs1 rs2 rd v1 v2 vOld _ addr hrd_ne_x0
     (by intro s _ hrs1 hrs2; simp [execInstrBr, hrs1, hrs2])
-    (by intro s hfetch; exact step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl))
+    (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem sll_spec_gen (rd rs1 rs2 : Reg) (vOld v1 v2 : Word)
     (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
@@ -554,7 +554,7 @@ namespace EvmAsm.Rv64
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** (rd ↦ᵣ (v1 <<< (v2.toNat % 64)))) :=
   generic_3reg_spec (.SLL rd rs1 rs2) rs1 rs2 rd v1 v2 vOld _ addr hrd_ne_x0
     (by intro s _ hrs1 hrs2; simp [execInstrBr, hrs1, hrs2])
-    (by intro s hfetch; exact step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl))
+    (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem add_spec_gen_rd_eq_rs2 (rd rs1 : Reg) (v1 v2 : Word)
     (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
@@ -563,7 +563,7 @@ namespace EvmAsm.Rv64
       ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ (v1 + v2))) :=
   generic_2reg_spec (.ADD rd rs1 rd) rs1 rd v1 v2 (v1 + v2) addr hrd_ne_x0
     (by intro s _ hrs1 hrd; simp [execInstrBr, hrs1, hrd])
-    (by intro s hfetch; exact step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl))
+    (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem add_spec_gen (rd rs1 rs2 : Reg) (v1 v2 vOld : Word)
     (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
@@ -572,7 +572,7 @@ namespace EvmAsm.Rv64
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** (rd ↦ᵣ (v1 + v2))) :=
   generic_3reg_spec (.ADD rd rs1 rs2) rs1 rs2 rd v1 v2 vOld _ addr hrd_ne_x0
     (by intro s _ hrs1 hrs2; simp [execInstrBr, hrs1, hrs2])
-    (by intro s hfetch; exact step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl))
+    (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
 
 -- ============================================================================
 -- ADDI rd x0 imm: load immediate (clean postcondition using signExtend12 imm)
@@ -741,7 +741,7 @@ namespace EvmAsm.Rv64
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** (rd ↦ᵣ rv64_mulh v1 v2)) :=
   generic_3reg_spec (.MULH rd rs1 rs2) rs1 rs2 rd v1 v2 vOld _ addr hrd_ne_x0
     (by intro s _ hrs1 hrs2; simp [execInstrBr, hrs1, hrs2])
-    (by intro s hfetch; exact step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl))
+    (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem mulh_spec_gen_rd_eq_rs1 (rd rs2 : Reg) (v1 v2 : Word)
     (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
@@ -750,7 +750,7 @@ namespace EvmAsm.Rv64
       ((rd ↦ᵣ rv64_mulh v1 v2) ** (rs2 ↦ᵣ v2)) :=
   generic_2reg_rd_eq_rs1_spec (.MULH rd rd rs2) rd rs2 v1 v2 _ addr hrd_ne_x0
     (by intro s _ hrd hrs2; simp [execInstrBr, hrd, hrs2])
-    (by intro s hfetch; exact step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl))
+    (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem mulhsu_spec_gen (rd rs1 rs2 : Reg) (vOld v1 v2 : Word)
     (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
@@ -759,7 +759,7 @@ namespace EvmAsm.Rv64
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** (rd ↦ᵣ rv64_mulhsu v1 v2)) :=
   generic_3reg_spec (.MULHSU rd rs1 rs2) rs1 rs2 rd v1 v2 vOld _ addr hrd_ne_x0
     (by intro s _ hrs1 hrs2; simp [execInstrBr, hrs1, hrs2])
-    (by intro s hfetch; exact step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl))
+    (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem mulhsu_spec_gen_rd_eq_rs1 (rd rs2 : Reg) (v1 v2 : Word)
     (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
@@ -768,7 +768,7 @@ namespace EvmAsm.Rv64
       ((rd ↦ᵣ rv64_mulhsu v1 v2) ** (rs2 ↦ᵣ v2)) :=
   generic_2reg_rd_eq_rs1_spec (.MULHSU rd rd rs2) rd rs2 v1 v2 _ addr hrd_ne_x0
     (by intro s _ hrd hrs2; simp [execInstrBr, hrd, hrs2])
-    (by intro s hfetch; exact step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl))
+    (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem div_spec_gen (rd rs1 rs2 : Reg) (vOld v1 v2 : Word)
     (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
@@ -777,7 +777,7 @@ namespace EvmAsm.Rv64
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** (rd ↦ᵣ rv64_div v1 v2)) :=
   generic_3reg_spec (.DIV rd rs1 rs2) rs1 rs2 rd v1 v2 vOld _ addr hrd_ne_x0
     (by intro s _ hrs1 hrs2; simp [execInstrBr, hrs1, hrs2])
-    (by intro s hfetch; exact step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl))
+    (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem div_spec_gen_rd_eq_rs1 (rd rs2 : Reg) (v1 v2 : Word)
     (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
@@ -786,7 +786,7 @@ namespace EvmAsm.Rv64
       ((rd ↦ᵣ rv64_div v1 v2) ** (rs2 ↦ᵣ v2)) :=
   generic_2reg_rd_eq_rs1_spec (.DIV rd rd rs2) rd rs2 v1 v2 _ addr hrd_ne_x0
     (by intro s _ hrd hrs2; simp [execInstrBr, hrd, hrs2])
-    (by intro s hfetch; exact step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl))
+    (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem rem_spec_gen (rd rs1 rs2 : Reg) (vOld v1 v2 : Word)
     (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
@@ -795,7 +795,7 @@ namespace EvmAsm.Rv64
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** (rd ↦ᵣ rv64_rem v1 v2)) :=
   generic_3reg_spec (.REM rd rs1 rs2) rs1 rs2 rd v1 v2 vOld _ addr hrd_ne_x0
     (by intro s _ hrs1 hrs2; simp [execInstrBr, hrs1, hrs2])
-    (by intro s hfetch; exact step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl))
+    (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem rem_spec_gen_rd_eq_rs1 (rd rs2 : Reg) (v1 v2 : Word)
     (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
@@ -804,7 +804,7 @@ namespace EvmAsm.Rv64
       ((rd ↦ᵣ rv64_rem v1 v2) ** (rs2 ↦ᵣ v2)) :=
   generic_2reg_rd_eq_rs1_spec (.REM rd rd rs2) rd rs2 v1 v2 _ addr hrd_ne_x0
     (by intro s _ hrd hrs2; simp [execInstrBr, hrd, hrs2])
-    (by intro s hfetch; exact step_non_ecall_non_mem s hfetch (by nofun) (by nofun) (by rfl))
+    (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
 
 -- ============================================================================
 -- Phase 5: Halfword memory specs (LH, LHU, SH)
