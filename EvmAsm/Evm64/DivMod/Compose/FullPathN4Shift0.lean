@@ -435,4 +435,213 @@ theorem evm_div_n4_preloop_shift0_call_addback_beq_spec (sp base : Word)
       xperm_hyp hq)
     hFull
 
+-- ============================================================================
+-- Unfold lemma for preloopShift0CallAddbackBeqPostN4
+-- ============================================================================
+
+/-- Unfold `preloopShift0CallAddbackBeqPostN4` to expanded sp-relative form.
+    Mirror of `preloopCallAddbackBeqPostN4_unfold` for the shift=0 case
+    (raw a/b/u, uTop=0). -/
+theorem preloopShift0CallAddbackBeqPostN4_unfold
+    (sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
+    preloopShift0CallAddbackBeqPostN4 sp base a0 a1 a2 a3 b0 b1 b2 b3 =
+    let qHat := div128Quot (0 : Word) a3 b3
+    let dLo := (b3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+    let div_un0 := (a3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+    let ms := mulsubN4 qHat b0 b1 b2 b3 a0 a1 a2 a3
+    let c3 := ms.2.2.2.2
+    let u4_new := (0 : Word) - c3
+    let ab := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 u4_new b0 b1 b2 b3
+    let ab' := addbackN4 ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 ab.2.2.2.2 b0 b1 b2 b3
+    let carry := addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 b0 b1 b2 b3
+    let q_out := if carry = 0 then qHat + signExtend12 4095 + signExtend12 4095
+                 else qHat + signExtend12 4095
+    let un0Out := if carry = 0 then ab'.1 else ab.1
+    let un1Out := if carry = 0 then ab'.2.1 else ab.2.1
+    let un2Out := if carry = 0 then ab'.2.2.1 else ab.2.2.1
+    let un3Out := if carry = 0 then ab'.2.2.2.1 else ab.2.2.2.1
+    let u4_out  := if carry = 0 then ab'.2.2.2.2 else ab.2.2.2.2
+    ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ signExtend12 4095) **
+     (.x5 ↦ᵣ (0 : Word)) ** (.x6 ↦ᵣ sp + signExtend12 4056) **
+     (.x7 ↦ᵣ sp + signExtend12 4088) ** (.x10 ↦ᵣ c3) ** (.x11 ↦ᵣ q_out) **
+     (.x2 ↦ᵣ un3Out) ** (.x0 ↦ᵣ (0 : Word)) **
+     (sp + signExtend12 3976 ↦ₘ (0 : Word)) ** (sp + signExtend12 3984 ↦ₘ (4 : Word)) **
+     ((sp + 32) ↦ₘ b0) ** ((sp + signExtend12 4056) ↦ₘ un0Out) **
+     ((sp + 40) ↦ₘ b1) ** ((sp + signExtend12 4048) ↦ₘ un1Out) **
+     ((sp + 48) ↦ₘ b2) ** ((sp + signExtend12 4040) ↦ₘ un2Out) **
+     ((sp + 56) ↦ₘ b3) ** ((sp + signExtend12 4032) ↦ₘ un3Out) **
+     ((sp + signExtend12 4024) ↦ₘ u4_out) **
+     ((sp + signExtend12 4088) ↦ₘ q_out)) **
+    (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+    (sp + signExtend12 3960 ↦ₘ b3) **
+    (sp + signExtend12 3952 ↦ₘ dLo) **
+    (sp + signExtend12 3944 ↦ₘ div_un0) **
+    ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
+    ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+    ((sp + signExtend12 4080) ↦ₘ (0 : Word)) **
+    ((sp + signExtend12 4072) ↦ₘ (0 : Word)) **
+    ((sp + signExtend12 4064) ↦ₘ (0 : Word)) **
+    ((sp + signExtend12 4016) ↦ₘ (0 : Word)) **
+    ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
+    ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
+    ((sp + signExtend12 3992) ↦ₘ (0 : Word)) := by
+  delta preloopShift0CallAddbackBeqPostN4 loopBodyN4AddbackBeqPost loopBodyAddbackBeqPost
+  simp only [loopExitPostN4_j0_eq, se12_32, se12_40, se12_48, se12_56]
+
+-- ============================================================================
+-- Full path postcondition for n=4 DIV (shift=0, call+addback BEQ)
+-- ============================================================================
+
+/-- Full path postcondition for n=4 DIV (shift=0, call+addback BEQ).
+    Mirror of `fullDivN4CallAddbackBeqPost` specialized to shift=0 (no
+    denormalization step; raw a/b/u limbs, uTop=0). -/
+@[irreducible]
+def fullDivN4Shift0CallAddbackBeqPost
+    (sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Assertion :=
+  let qHat := div128Quot (0 : Word) a3 b3
+  let ms := mulsubN4 qHat b0 b1 b2 b3 a0 a1 a2 a3
+  let c3 := ms.2.2.2.2
+  let u4_new := (0 : Word) - c3
+  let ab := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 u4_new b0 b1 b2 b3
+  let ab' := addbackN4 ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 ab.2.2.2.2 b0 b1 b2 b3
+  let carry := addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 b0 b1 b2 b3
+  let q_out := if carry = 0 then qHat + signExtend12 4095 + signExtend12 4095
+               else qHat + signExtend12 4095
+  let un0Out := if carry = 0 then ab'.1 else ab.1
+  let un1Out := if carry = 0 then ab'.2.1 else ab.2.1
+  let un2Out := if carry = 0 then ab'.2.2.1 else ab.2.2.1
+  let un3Out := if carry = 0 then ab'.2.2.2.1 else ab.2.2.2.1
+  let u4_out  := if carry = 0 then ab'.2.2.2.2 else ab.2.2.2.2
+  (.x12 ↦ᵣ (sp + 32)) ** (.x5 ↦ᵣ q_out) **
+  (.x6 ↦ᵣ (0 : Word)) ** (.x7 ↦ᵣ (0 : Word)) **
+  (.x2 ↦ᵣ un3Out) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ (0 : Word)) **
+  ((sp + signExtend12 3992) ↦ₘ (0 : Word)) **
+  ((sp + signExtend12 4088) ↦ₘ q_out) ** ((sp + signExtend12 4080) ↦ₘ (0 : Word)) **
+  ((sp + signExtend12 4072) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4064) ↦ₘ (0 : Word)) **
+  ((sp + 32) ↦ₘ q_out) ** ((sp + 40) ↦ₘ (0 : Word)) **
+  ((sp + 48) ↦ₘ (0 : Word)) ** ((sp + 56) ↦ₘ (0 : Word)) **
+  ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
+  ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+  ((sp + signExtend12 4056) ↦ₘ un0Out) **
+  ((sp + signExtend12 4048) ↦ₘ un1Out) **
+  ((sp + signExtend12 4040) ↦ₘ un2Out) **
+  ((sp + signExtend12 4032) ↦ₘ un3Out) **
+  ((sp + signExtend12 4024) ↦ₘ u4_out) **
+  ((sp + signExtend12 4016) ↦ₘ (0 : Word)) **
+  ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
+  ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
+  (sp + signExtend12 3984 ↦ₘ (4 : Word)) **
+  (sp + signExtend12 3976 ↦ₘ (0 : Word)) **
+  (.x1 ↦ᵣ signExtend12 4095) ** (.x11 ↦ᵣ q_out) **
+  (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+  (sp + signExtend12 3960 ↦ₘ b3) **
+  (sp + signExtend12 3952 ↦ₘ (b3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat) **
+  (sp + signExtend12 3944 ↦ₘ (a3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat)
+
+/-- `fullDivN4Shift0CallAddbackBeqPost` is pc-free. -/
+theorem pcFree_fullDivN4Shift0CallAddbackBeqPost
+    {sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word} :
+    (fullDivN4Shift0CallAddbackBeqPost sp base a0 a1 a2 a3 b0 b1 b2 b3).pcFree := by
+  delta fullDivN4Shift0CallAddbackBeqPost
+  pcFree
+
+instance pcFreeInst_fullDivN4Shift0CallAddbackBeqPost
+    (sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
+    Assertion.PCFree (fullDivN4Shift0CallAddbackBeqPost sp base a0 a1 a2 a3 b0 b1 b2 b3) :=
+  ⟨pcFree_fullDivN4Shift0CallAddbackBeqPost⟩
+
+-- ============================================================================
+-- Full n=4 DIV path (shift=0, call+addback BEQ): base → base+nopOff
+-- ============================================================================
+
+/-- Full n=4 DIV path: base → base+nopOff (shift=0, call+addback BEQ).
+    Composes pre-loop + call+addback BEQ loop body + shift=0 DIV epilogue.
+    Mirror of `evm_div_n4_full_shift0_call_skip_spec` for the addback
+    branch, and of `evm_div_n4_full_call_addback_beq_spec` for the
+    shift=0 specialization. -/
+theorem evm_div_n4_full_shift0_call_addback_beq_spec (sp base : Word)
+    (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old : Word)
+    (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem : Word)
+    (retMem dMem dloMem scratch_un0 : Word)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb3nz : b3 ≠ 0)
+    (hshift_z : (clzResult b3).1 = 0)
+    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (hcarry2_nz : isAddbackCarry2NzN4Shift0 a0 a1 a2 a3 b0 b1 b2 b3)
+    (hborrow : isAddbackBorrowN4Shift0 a0 a1 a2 a3 b0 b1 b2 b3) :
+    cpsTriple base (base + nopOff) (divCode base)
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
+       (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b3).2 >>> (63 : Nat)) **
+       (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) ** (.x11 ↦ᵣ v11Old) **
+       ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+       ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) ** ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3) **
+       ((sp + signExtend12 4088) ↦ₘ q0) ** ((sp + signExtend12 4080) ↦ₘ q1) **
+       ((sp + signExtend12 4072) ↦ₘ q2) ** ((sp + signExtend12 4064) ↦ₘ q3) **
+       ((sp + signExtend12 4056) ↦ₘ u0Old) ** ((sp + signExtend12 4048) ↦ₘ u1Old) **
+       ((sp + signExtend12 4040) ↦ₘ u2Old) ** ((sp + signExtend12 4032) ↦ₘ u3Old) **
+       ((sp + signExtend12 4024) ↦ₘ u4Old) **
+       ((sp + signExtend12 4016) ↦ₘ u5) ** ((sp + signExtend12 4008) ↦ₘ u6) **
+       ((sp + signExtend12 4000) ↦ₘ u7) ** ((sp + signExtend12 3984) ↦ₘ nMem) **
+       ((sp + signExtend12 3992) ↦ₘ shiftMem) ** ((sp + signExtend12 3976) ↦ₘ jMem) **
+       (sp + signExtend12 3968 ↦ₘ retMem) ** (sp + signExtend12 3960 ↦ₘ dMem) **
+       (sp + signExtend12 3952 ↦ₘ dloMem) ** (sp + signExtend12 3944 ↦ₘ scratch_un0))
+      (fullDivN4Shift0CallAddbackBeqPost sp base a0 a1 a2 a3 b0 b1 b2 b3) := by
+  let qHat := div128Quot (0 : Word) a3 b3
+  let ms := mulsubN4 qHat b0 b1 b2 b3 a0 a1 a2 a3
+  let c3 := ms.2.2.2.2
+  let u4_new := (0 : Word) - c3
+  let ab := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 u4_new b0 b1 b2 b3
+  let ab' := addbackN4 ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 ab.2.2.2.2 b0 b1 b2 b3
+  let carry := addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 b0 b1 b2 b3
+  let q_out := if carry = 0 then qHat + signExtend12 4095 + signExtend12 4095
+               else qHat + signExtend12 4095
+  let un0Out := if carry = 0 then ab'.1 else ab.1
+  let un1Out := if carry = 0 then ab'.2.1 else ab.2.1
+  let un2Out := if carry = 0 then ab'.2.2.1 else ab.2.2.1
+  let un3Out := if carry = 0 then ab'.2.2.2.1 else ab.2.2.2.1
+  let u4_out  := if carry = 0 then ab'.2.2.2.2 else ab.2.2.2.2
+  -- 1. Pre-loop + loop body: base → base+denormOff
+  have hA := evm_div_n4_preloop_shift0_call_addback_beq_spec sp base
+    a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old
+    q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem
+    retMem dMem dloMem scratch_un0
+    hbnz hb3nz hshift_z halign hcarry2_nz hborrow
+  -- 2. Post-loop: base+denormOff → base+nopOff (shift=0 DIV epilogue)
+  have hB := evm_div_shift0_epilogue_spec sp base
+    un0Out un1Out un2Out un3Out (0 : Word)
+    un3Out (0 : Word) (sp + signExtend12 4056) (sp + signExtend12 4088)
+    c3 q_out 0 0 0
+    b0 b1 b2 b3
+    rfl
+  -- Frame post-loop with remaining atoms (u0..u3 slots are NOT in the
+  -- epilogue's pre since shift=0 skips the denorm step; they stay in the frame)
+  have hBF := cpsTriple_frameR
+    (((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
+     ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+     ((sp + signExtend12 4056) ↦ₘ un0Out) **
+     ((sp + signExtend12 4048) ↦ₘ un1Out) **
+     ((sp + signExtend12 4040) ↦ₘ un2Out) **
+     ((sp + signExtend12 4032) ↦ₘ un3Out) **
+     ((sp + signExtend12 4024) ↦ₘ u4_out) **
+     ((sp + signExtend12 4016) ↦ₘ (0 : Word)) **
+     ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
+     ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
+     (sp + signExtend12 3984 ↦ₘ (4 : Word)) **
+     (sp + signExtend12 3976 ↦ₘ (0 : Word)) **
+     (.x1 ↦ᵣ signExtend12 4095) ** (.x11 ↦ᵣ q_out) **
+     (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+     (sp + signExtend12 3960 ↦ₘ b3) **
+     (sp + signExtend12 3952 ↦ₘ (b3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat) **
+     (sp + signExtend12 3944 ↦ₘ (a3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat))
+    (by pcFree) hB
+  -- 3. Compose A + B
+  have hFull := cpsTriple_seq_perm_same_cr
+    (fun h hp => by
+      simp only [preloopShift0CallAddbackBeqPostN4_unfold] at hp
+      xperm_hyp hp) hA hBF
+  exact cpsTriple_weaken
+    (fun h hp => by xperm_hyp hp)
+    (fun h hq => by delta fullDivN4Shift0CallAddbackBeqPost; rw [sepConj_assoc'] at hq; xperm_hyp hq)
+    hFull
+
 end EvmAsm.Evm64
