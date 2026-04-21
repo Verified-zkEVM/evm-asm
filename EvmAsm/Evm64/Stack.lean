@@ -29,21 +29,21 @@ def evmStackIs (sp : Word) (values : List EvmWord) : Assertion :=
   | [] => empAssertion
   | v :: vs => evmWordIs sp v ** evmStackIs (sp + 32) vs
 
-theorem pcFree_evmWordIs (addr : Word) (v : EvmWord) :
+theorem pcFree_evmWordIs {addr : Word} {v : EvmWord} :
     (evmWordIs addr v).pcFree := by
   unfold evmWordIs; pcFree
 
-theorem pcFree_evmStackIs (sp : Word) (values : List EvmWord) :
+theorem pcFree_evmStackIs {sp : Word} {values : List EvmWord} :
     (evmStackIs sp values).pcFree := by
   induction values generalizing sp with
   | nil => exact pcFree_emp
-  | cons v vs ih => exact pcFree_sepConj (pcFree_evmWordIs sp v) (ih (sp + 32))
+  | cons v vs ih => exact pcFree_sepConj pcFree_evmWordIs (ih (sp := sp + 32))
 
 instance (addr : Word) (v : EvmWord) : Assertion.PCFree (evmWordIs addr v) :=
-  ⟨pcFree_evmWordIs addr v⟩
+  ⟨pcFree_evmWordIs⟩
 
 instance (sp : Word) (values : List EvmWord) : Assertion.PCFree (evmStackIs sp values) :=
-  ⟨pcFree_evmStackIs sp values⟩
+  ⟨pcFree_evmStackIs⟩
 
 theorem evmStackIs_cons (sp : Word) (v : EvmWord) (vs : List EvmWord) :
     evmStackIs sp (v :: vs) = (evmWordIs sp v ** evmStackIs (sp + 32) vs) := rfl

@@ -32,7 +32,7 @@ theorem evm_pop_stack_spec (sp base : Word)
       ((.x12 ↦ᵣ (sp + 32)) ** evmWordIs sp a ** evmStackIs (sp + 32) rest) :=
   cpsTriple_frameR
     (evmWordIs sp a ** evmStackIs (sp + 32) rest)
-    (pcFree_sepConj (pcFree_evmWordIs sp a) (pcFree_evmStackIs (sp + 32) rest))
+    (pcFree_sepConj pcFree_evmWordIs pcFree_evmStackIs)
     (evm_pop_spec sp base)
 
 end EvmAsm.Evm64
