@@ -61,22 +61,22 @@ theorem evm_swap_spec (sp base : Word)
        ((sp + BitVec.ofNat 64 (n*32+24)) ↦ₘ a3)) := by
   -- signExtend12 normalizations for n-dependent source offsets
   have hse_s0 : signExtend12 (BitVec.ofNat 12 (n*32)) = BitVec.ofNat 64 (n*32) :=
-    signExtend12_ofNat_small _ (by omega)
+    signExtend12_ofNat_small (by omega)
   have hse_s1 : signExtend12 (BitVec.ofNat 12 (n*32+8)) = BitVec.ofNat 64 (n*32+8) :=
-    signExtend12_ofNat_small _ (by omega)
+    signExtend12_ofNat_small (by omega)
   have hse_s2 : signExtend12 (BitVec.ofNat 12 (n*32+16)) = BitVec.ofNat 64 (n*32+16) :=
-    signExtend12_ofNat_small _ (by omega)
+    signExtend12_ofNat_small (by omega)
   have hse_s3 : signExtend12 (BitVec.ofNat 12 (n*32+24)) = BitVec.ofNat 64 (n*32+24) :=
-    signExtend12_ofNat_small _ (by omega)
+    signExtend12_ofNat_small (by omega)
   -- signExtend12 normalizations for destination offsets (0,8,16,24)
   have hm0  : sp + signExtend12 (BitVec.ofNat 12 0)  = sp      := by
-    rw [signExtend12_ofNat_small _ (by omega)]; bv_omega
+    rw [signExtend12_ofNat_small (by omega)]; bv_omega
   have hm8  : sp + signExtend12 (BitVec.ofNat 12 8)  = sp + 8  := by
-    rw [signExtend12_ofNat_small _ (by omega)]; bv_omega
+    rw [signExtend12_ofNat_small (by omega)]; bv_omega
   have hm16 : sp + signExtend12 (BitVec.ofNat 12 16) = sp + 16 := by
-    rw [signExtend12_ofNat_small _ (by omega)]; bv_omega
+    rw [signExtend12_ofNat_small (by omega)]; bv_omega
   have hm24 : sp + signExtend12 (BitVec.ofNat 12 24) = sp + 24 := by
-    rw [signExtend12_ofNat_small _ (by omega)]; bv_omega
+    rw [signExtend12_ofNat_small (by omega)]; bv_omega
   -- Limb 0 swap
   have L0 := swap_limb_spec sp
     (BitVec.ofNat 12 0) (BitVec.ofNat 12 (n*32))

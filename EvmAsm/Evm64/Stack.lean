@@ -458,7 +458,7 @@ theorem evmWordIs_one_right (addr : Word) (Q : Assertion) :
 
 /-- Sign-extend a small non-negative 12-bit value to 64 bits.
     The MSB is clear when m < 2^11 = 2048, so signExtend = zeroExtend = identity. -/
-theorem signExtend12_ofNat_small (m : Nat) (hm : m < 2048) :
+theorem signExtend12_ofNat_small {m : Nat} (hm : m < 2048) :
     signExtend12 (BitVec.ofNat 12 m) = BitVec.ofNat 64 m := by
   unfold signExtend12
   rw [BitVec.signExtend_eq_setWidth_of_msb_false]
