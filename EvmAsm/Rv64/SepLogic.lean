@@ -613,7 +613,7 @@ theorem sepConj_comm {P Q : Assertion} :
   · intro ⟨h1, h2, hd, hunion, hp1, hp2⟩
     exact ⟨h2, h1, hd.symm, by rw [PartialState.union_comm_of_disjoint hd.symm, hunion], hp2, hp1⟩
 
-theorem sepConj_emp_left (P : Assertion) :
+theorem sepConj_emp_left {P : Assertion} :
     ∀ h, (empAssertion ** P) h ↔ P h := by
   intro h
   constructor
@@ -625,11 +625,11 @@ theorem sepConj_emp_left (P : Assertion) :
     exact ⟨PartialState.empty, h, PartialState.Disjoint_empty_left,
            PartialState.union_empty_left, rfl, hp⟩
 
-theorem sepConj_emp_right (P : Assertion) :
+theorem sepConj_emp_right {P : Assertion} :
     ∀ h, (P ** empAssertion) h ↔ P h := by
   intro h
   rw [sepConj_comm]
-  exact sepConj_emp_left P h
+  exact sepConj_emp_left h
 
 /-- Helper: union is associative. -/
 private theorem union_assoc (h1 h2 h3 : PartialState) :
@@ -1918,7 +1918,7 @@ theorem programAt_append (l1 l2 : List (Word × Instr)) :
   induction l1 with
   | nil =>
     simp [programAt]
-    funext h; exact propext (sepConj_emp_left (programAt l2) h).symm
+    funext h; exact propext (sepConj_emp_left h).symm
   | cons p rest ih =>
     simp only [List.cons_append, programAt]
     rw [ih]
@@ -2667,10 +2667,10 @@ theorem sepConj_left_comm' (P Q R : Assertion) : (P ** (Q ** R)) = (Q ** (P ** R
   rw [← sepConj_assoc', ← sepConj_assoc', sepConj_comm' P Q]
 
 theorem sepConj_emp_right' (P : Assertion) : (P ** empAssertion) = P :=
-  funext fun h => propext (sepConj_emp_right P h)
+  funext fun h => propext (sepConj_emp_right h)
 
 theorem sepConj_emp_left' (P : Assertion) : (empAssertion ** P) = P :=
-  funext fun h => propext (sepConj_emp_left P h)
+  funext fun h => propext (sepConj_emp_left h)
 
 instance : Std.Associative (α := Assertion) sepConj := ⟨sepConj_assoc'⟩
 instance : Std.Commutative (α := Assertion) sepConj := ⟨sepConj_comm'⟩
