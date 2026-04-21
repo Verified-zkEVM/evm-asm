@@ -36,10 +36,13 @@
   - `knuth_theorem_b_val256` — val256-level corollary of Knuth B, assembling the
     abstract theorem with the Word→Nat bridges against provided normalization
     hypotheses. Concludes `(u4 * B + un3) / b3' ≤ val256(a) / val256(b) + 2`.
+  - `b3_prime_val256_eq_scaled` — discharges `hnorm_v` for concrete CLZ shift:
+    `val256(b0', b1', b2', b3') = val256(b) * 2^clz(b3)`.
 -/
 
 import EvmAsm.Evm64.EvmWordArith.DivN4Overestimate
 import EvmAsm.Evm64.EvmWordArith.MaxTrialVacuity
+import EvmAsm.Evm64.EvmWordArith.DenormLemmas
 
 namespace EvmAsm.Evm64
 
@@ -378,5 +381,39 @@ theorem knuth_theorem_b_val256
   -- Rewrite u_nat / v_nat via scale invariance
   rw [hu_nat_def, hv_nat_def, val256_div_scale_invariant] at h_abs
   exact h_abs
+
+/-- Discharge of `hnorm_v` from `knuth_theorem_b_val256` using a concrete
+    CLZ-based shift: the algorithm's normalized divisor limbs compute to
+    `val256(b) * 2^shift`.
+
+    Combines:
+    - `Nat.mod_eq_of_lt` to simplify `shift.toNat % 64 = shift.toNat`.
+    - `antiShift_toNat_mod_eq` to convert antiShift's `% 64` form to `64 - s`.
+    - `clzResult_fst_top_bound` for the `b3 < 2^(64-s)` bound.
+    - `val256_normalize` (overflow-free variant, since normalization ensures
+      `b3 < 2^(64-s)` with `s = clz(b3)`). -/
+theorem b3_prime_val256_eq_scaled
+    (b0 b1 b2 b3 : Word)
+    (hshift_nz : (clzResult b3).1 ≠ 0) :
+    val256
+      (b0 <<< ((clzResult b3).1.toNat % 64))
+      ((b1 <<< ((clzResult b3).1.toNat % 64)) |||
+         (b0 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64)))
+      ((b2 <<< ((clzResult b3).1.toNat % 64)) |||
+         (b1 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64)))
+      ((b3 <<< ((clzResult b3).1.toNat % 64)) |||
+         (b2 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64)))
+      = val256 b0 b1 b2 b3 * 2^(clzResult b3).1.toNat := by
+  have h_shift_le := clzResult_fst_toNat_le b3
+  have h_shift_pos : 1 ≤ (clzResult b3).1.toNat := by
+    rcases Nat.eq_zero_or_pos (clzResult b3).1.toNat with h | h
+    · exfalso; apply hshift_nz
+      exact BitVec.eq_of_toNat_eq (by simp [h])
+    · exact h
+  have hsmod : (clzResult b3).1.toNat % 64 = (clzResult b3).1.toNat :=
+    Nat.mod_eq_of_lt (by omega)
+  rw [hsmod, antiShift_toNat_mod_eq _ h_shift_pos h_shift_le]
+  have hb3_bound := clzResult_fst_top_bound b3
+  exact val256_normalize h_shift_pos (by omega) b0 b1 b2 b3 hb3_bound
 
 end EvmAsm.Evm64
