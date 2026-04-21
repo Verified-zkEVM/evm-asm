@@ -264,13 +264,13 @@ def isValidDwordAccess (addr : Word) : Bool :=
 def isValidMemAccess (addr : Word) : Bool :=
   isValidMemAddr addr && isAligned4 addr
 
-@[simp] theorem isValidDwordAccess_eq (addr : Word) :
+@[simp] theorem isValidDwordAccess_eq {addr : Word} :
     isValidDwordAccess addr = (isValidMemAddr addr && isAligned8 addr) := rfl
 
-@[simp] theorem isValidMemAccess_eq (addr : Word) :
+@[simp] theorem isValidMemAccess_eq {addr : Word} :
     isValidMemAccess addr = (isValidMemAddr addr && isAligned4 addr) := rfl
 
-@[simp] theorem isValidMemAddr_eq (addr : Word) :
+@[simp] theorem isValidMemAddr_eq {addr : Word} :
     isValidMemAddr addr = (decide (MEM_START ≤ addr.toNat) && decide (addr.toNat ≤ MEM_END)) := rfl
 
 @[simp] theorem isAligned8_eq (addr : Word) :
@@ -293,10 +293,10 @@ def isValidByteAccess (addr : Word) : Bool :=
 @[simp] theorem isAligned2_eq (addr : Word) :
     isAligned2 addr = (addr.toNat % 2 == 0) := rfl
 
-@[simp] theorem isValidHalfwordAccess_eq (addr : Word) :
+@[simp] theorem isValidHalfwordAccess_eq {addr : Word} :
     isValidHalfwordAccess addr = (isValidMemAddr addr && isAligned2 addr) := rfl
 
-@[simp] theorem isValidByteAccess_eq (addr : Word) :
+@[simp] theorem isValidByteAccess_eq {addr : Word} :
     isValidByteAccess addr = isValidMemAddr addr := rfl
 
 /-- ValidMemRange addr n holds when n consecutive doubleword-aligned memory accesses

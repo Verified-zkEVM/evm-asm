@@ -60,10 +60,10 @@ theorem extractByte_replaceByte_same (w : Word) (pos : Fin 8) (b : BitVec 8) :
 
 /-! ## getByte / setByte in terms of extractByte / replaceByte -/
 
-theorem getByte_eq (s : MachineState) (addr : Word) :
+theorem getByte_eq {s : MachineState} {addr : Word} :
     s.getByte addr = extractByte (s.getMem (alignToDword addr)) (byteOffset addr) := rfl
 
-theorem setByte_eq (s : MachineState) (addr : Word) (b : BitVec 8) :
+theorem setByte_eq {s : MachineState} {addr : Word} {b : BitVec 8} :
     s.setByte addr b = s.setMem (alignToDword addr)
       (replaceByte (s.getMem (alignToDword addr)) (byteOffset addr) b) := rfl
 

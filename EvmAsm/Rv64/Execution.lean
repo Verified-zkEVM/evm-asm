@@ -713,7 +713,7 @@ theorem stepN_add (n m : Nat) (s : MachineState) :
     | some s' => simp [Option.bind, ih]
 
 /-- If stepN n succeeds and then stepN m succeeds, stepN (n+m) gives the same result. -/
-theorem stepN_add_eq (n m : Nat) (s s' s'' : MachineState)
+theorem stepN_add_eq {n m : Nat} {s s' s'' : MachineState}
     (h1 : stepN n s = some s')
     (h2 : stepN m s' = some s'') :
     stepN (n + m) s = some s'' := by

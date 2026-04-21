@@ -148,7 +148,7 @@ theorem getLimbN_fromLimbs_match {w0 w1 w2 w3 : Word} :
                show (1 : Nat) < 4 from by omega,
                show (2 : Nat) < 4 from by omega,
                show (3 : Nat) < 4 from by omega, dite_true]
-    exact getLimb_fromLimbs _ _
+    exact getLimb_fromLimbs
 
 /-- Variant: the getLimbN of fromLimbs equals the corresponding input word.
     Useful for rewriting individual limb assertions. -/

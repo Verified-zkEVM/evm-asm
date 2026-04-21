@@ -498,7 +498,7 @@ private theorem shl_bridge_merge (value : EvmWord) (s0 : Word)
   have hL_div : s0.toNat / 64 = L := by
     rw [← hL, bv6_toNat_6]; simp [BitVec.toNat_ushiftRight]; omega
   -- Use getLimb_shiftLeft: i*64 >= s0.toNat since i >= L+1 and s0.toNat = L*64 + bs < (L+1)*64
-  rw [getLimb_shiftLeft value s0.toNat i (by omega), hL_div,
+  rw [getLimb_shiftLeft (by omega), hL_div,
       getLimbN_lt value (i.val - L) hiLsub,
       getLimbN_lt value (i.val - L - 1) hiLsub1]
   -- Now match the masks and shift amounts
@@ -536,7 +536,7 @@ private theorem shl_bridge_first (value : EvmWord) (s0 : Word)
   have hL_div : s0.toNat / 64 = L := by
     rw [← hL, bv6_toNat_6]; simp [BitVec.toNat_ushiftRight]; omega
   -- Use getLimb_shiftLeft_eq_div: i.val = n / 64
-  rw [getLimb_shiftLeft_eq_div value s0.toNat i (by omega)]
+  rw [getLimb_shiftLeft_eq_div (by omega)]
   -- getLimbN v 0 = getLimb v ⟨0, _⟩
   rw [getLimbN_lt value 0 (by omega)]
   -- Shift amounts match: bs.toNat % 64 = s0.toNat % 64
@@ -554,7 +554,7 @@ private theorem shl_bridge_zero (value : EvmWord) (s0 : Word)
   have hL_div : s0.toNat / 64 = L := by
     rw [← hL, bv6_toNat_6]; simp [BitVec.toNat_ushiftRight]; omega
   -- Use getLimb_shiftLeft_low: (i+1)*64 <= s0.toNat since i < L and s0.toNat >= L*64
-  exact getLimb_shiftLeft_low value s0.toNat i (by omega)
+  exact getLimb_shiftLeft_low (by omega)
 
 -- ============================================================================
 -- Section 6: Body path composition with evmWordIs postcondition

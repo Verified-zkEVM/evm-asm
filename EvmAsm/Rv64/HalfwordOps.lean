@@ -39,10 +39,10 @@ theorem extractHalfword_replaceHalfword_same (w : Word) (pos : Fin 4) (h : BitVe
 
 /-! ## getHalfword / setHalfword in terms of extractHalfword / replaceHalfword -/
 
-theorem getHalfword_eq (s : MachineState) (addr : Word) :
+theorem getHalfword_eq {s : MachineState} {addr : Word} :
     s.getHalfword addr = extractHalfword (s.getMem (alignToDword addr)) ((byteOffset addr) / 2) := rfl
 
-theorem setHalfword_eq (s : MachineState) (addr : Word) (h : BitVec 16) :
+theorem setHalfword_eq {s : MachineState} {addr : Word} {h : BitVec 16} :
     s.setHalfword addr h = s.setMem (alignToDword addr)
       (replaceHalfword (s.getMem (alignToDword addr)) ((byteOffset addr) / 2) h) := rfl
 

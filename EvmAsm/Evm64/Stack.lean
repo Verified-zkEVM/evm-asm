@@ -449,7 +449,7 @@ theorem evmWordIs_one_right (addr : Word) (Q : Assertion) :
 -- Shared infrastructure for stack operation specs
 -- ============================================================================
 
-@[simp] theorem EvmWord.getLimb_zero (i : Fin 4) : (0 : EvmWord).getLimb i = 0 := by
+@[simp] theorem EvmWord.getLimb_zero {i : Fin 4} : (0 : EvmWord).getLimb i = 0 := by
   have h : ∀ j : Fin 4, (0 : EvmWord).getLimb j = 0 := by decide
   exact h i
 

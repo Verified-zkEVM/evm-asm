@@ -660,7 +660,7 @@ private theorem sar_bridge_merge (value : EvmWord) (s0 : Word)
   have hL_div : s0.toNat / 64 = L := by
     rw [← hL, bv6_toNat_6]; simp [BitVec.toNat_ushiftRight]; omega
   -- sshiftRight agrees with ushiftRight for merge limbs
-  rw [getLimb_sshiftRight_eq_ushiftRight value s0.toNat i (by omega)]
+  rw [getLimb_sshiftRight_eq_ushiftRight (by omega)]
   rw [getLimb_ushiftRight value s0.toNat i, hL_div,
       getLimbN_lt value (i.val + L) (by omega),
       getLimbN_lt value (i.val + L + 1) hiL1]
@@ -695,7 +695,7 @@ private theorem sar_bridge_last (value : EvmWord) (s0 : Word)
     exact Nat.and_two_pow_sub_one_eq_mod s0.toNat 6
   have hL_div : s0.toNat / 64 = L := by
     rw [← hL, bv6_toNat_6]; simp [BitVec.toNat_ushiftRight]; omega
-  rw [getLimb_sshiftRight_last value s0.toNat i (by omega)]
+  rw [getLimb_sshiftRight_last (by omega)]
   congr 1; omega
 
 -- Sign limb bridge: for limbs beyond the shift (i+L >= 4, sign extension).
@@ -712,7 +712,7 @@ private theorem sar_bridge_sign (value : EvmWord) (s0 : Word)
   have hL_div : s0.toNat / 64 = L := by
     rw [← hL, bv6_toNat_6]; simp [BitVec.toNat_ushiftRight]; omega
   -- getLimb (sshiftRight value n) i = sshiftRight (getLimb value 3) 63 for sign limbs
-  rw [getLimb_sshiftRight_sign' value s0.toNat i (by omega)]
+  rw [getLimb_sshiftRight_sign' (by omega)]
   -- sshiftRight (sshiftRight x bs) 63 = sshiftRight x 63 when bs < 64
   -- Both give sign extension (all bits = MSB of x)
   have hbs_val : bs.toNat = s0.toNat % 64 := by
