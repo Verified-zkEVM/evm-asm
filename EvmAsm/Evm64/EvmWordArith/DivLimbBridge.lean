@@ -103,7 +103,7 @@ private theorem or_eq_zero_imp_right {a b : Word} (h : a ||| b = 0) : b = 0 := b
 /-- An EvmWord is nonzero iff the OR of its four limbs is nonzero.
     Forward direction: needed to bridge `b ≠ 0` (EvmWord-level) to the
     limb-level `b0 ||| b1 ||| b2 ||| b3 ≠ 0` required by combined specs. -/
-theorem ne_zero_iff_getLimbN_or (v : EvmWord) :
+theorem ne_zero_iff_getLimbN_or {v : EvmWord} :
     v ≠ 0 ↔ v.getLimbN 0 ||| v.getLimbN 1 ||| v.getLimbN 2 ||| v.getLimbN 3 ≠ 0 := by
   constructor
   · -- → : v ≠ 0 implies OR of limbs ≠ 0 (contrapositive: OR = 0 → v = 0)

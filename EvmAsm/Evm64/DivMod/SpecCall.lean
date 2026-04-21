@@ -190,7 +190,7 @@ theorem evm_div_n4_full_call_skip_stack_pre_spec (sp base : Word)
         (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
         (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) := by
   have hbnz' : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 ||| b.getLimbN 3 ≠ 0 :=
-    (EvmWord.ne_zero_iff_getLimbN_or b).mp hbnz
+    (EvmWord.ne_zero_iff_getLimbN_or).mp hbnz
   have hraw := evm_div_n4_full_call_skip_spec sp base
     (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
     (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
@@ -265,7 +265,7 @@ theorem evm_mod_n4_full_call_skip_stack_pre_spec (sp base : Word)
         (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
         (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) := by
   have hbnz' : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 ||| b.getLimbN 3 ≠ 0 :=
-    (EvmWord.ne_zero_iff_getLimbN_or b).mp hbnz
+    (EvmWord.ne_zero_iff_getLimbN_or).mp hbnz
   have hraw := evm_mod_n4_full_call_skip_spec sp base
     (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
     (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
@@ -351,7 +351,7 @@ theorem evm_div_n4_full_call_addback_beq_stack_pre_spec (sp base : Word)
         (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
         (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) := by
   have hbnz' : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 ||| b.getLimbN 3 ≠ 0 :=
-    (EvmWord.ne_zero_iff_getLimbN_or b).mp hbnz
+    (EvmWord.ne_zero_iff_getLimbN_or).mp hbnz
   have hraw := evm_div_n4_full_call_addback_beq_spec sp base
     (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
     (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
