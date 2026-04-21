@@ -612,7 +612,7 @@ theorem generic_ld_spec (rd rs1 : Reg) (v_addr vOld memVal : Word)
     holdsFor_memIs_isValidDwordAccess hmem_piece
   -- Step proof using step_ld
   have hstep' : step s = some (execInstrBr s (.LD rd rs1 offset)) :=
-    step_ld s rd rs1 offset hfetch (hrs1 ▸ hvalid)
+    step_ld s hfetch (hrs1 ▸ hvalid)
   -- execInstrBr s (.LD rd rs1 offset) = (s.setReg rd (s.getMem (s.getReg rs1 + signExtend12 offset))).setPC (s.pc + 4)
   have hexec' : execInstrBr s (.LD rd rs1 offset) = (s.setReg rd memVal).setPC (s.pc + 4) := by
     simp only [execInstrBr, hrs1, hmem]
@@ -657,7 +657,7 @@ theorem generic_sd_spec (rs1 rs2 : Reg) (v_addr v_data memOld : Word)
       (holdsFor_sepConj_elim_right (holdsFor_sepConj_elim_left hPR)))
   -- Step proof using step_sd
   have hstep' : step s = some (execInstrBr s (.SD rs1 rs2 offset)) :=
-    step_sd s rs1 rs2 offset hfetch (hrs1 ▸ hvalid)
+    step_sd s hfetch (hrs1 ▸ hvalid)
   -- execInstrBr: setMem then setPC
   have hexec' : execInstrBr s (.SD rs1 rs2 offset) =
       (s.setMem (v_addr + signExtend12 offset) v_data).setPC (s.pc + 4) := by
@@ -696,7 +696,7 @@ theorem generic_sd_x0_spec (rs1 : Reg) (v_addr memOld : Word)
     holdsFor_memIs_isValidDwordAccess (holdsFor_sepConj_elim_right
       (holdsFor_sepConj_elim_left hPR))
   have hstep' : step s = some (execInstrBr s (.SD rs1 .x0 offset)) :=
-    step_sd s rs1 .x0 offset hfetch (hrs1 ▸ hvalid)
+    step_sd s hfetch (hrs1 ▸ hvalid)
   have hexec' : execInstrBr s (.SD rs1 .x0 offset) =
       (s.setMem (v_addr + signExtend12 offset) 0).setPC (s.pc + 4) := by
     simp only [execInstrBr, hrs1]; rfl

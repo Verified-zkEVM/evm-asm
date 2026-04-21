@@ -248,7 +248,7 @@ theorem ld_spec_same (rd : Reg) (v_addr memVal : Word) (offset : BitVec 12) (bas
   have hvalid : isValidDwordAccess (v_addr + signExtend12 offset) = true :=
     holdsFor_memIs_isValidDwordAccess hmem_piece
   have hstep' : step s = some (execInstrBr s (.LD rd rd offset)) :=
-    step_ld s rd rd offset hfetch (hrd ▸ hvalid)
+    step_ld s hfetch (hrd ▸ hvalid)
   have hexec' : execInstrBr s (.LD rd rd offset) = (s.setReg rd memVal).setPC (s.pc + 4) := by
     simp only [execInstrBr, hrd, hmem]
   refine ⟨1, (s.setReg rd memVal).setPC (s.pc + 4), ?_, rfl, ?_⟩
@@ -283,7 +283,7 @@ theorem sd_spec_same (rs : Reg) (v : Word) (memOld : Word) (offset : BitVec 12) 
     holdsFor_memIs_isValidDwordAccess (holdsFor_sepConj_elim_right
       (holdsFor_sepConj_elim_left hPR))
   have hstep' : step s = some (execInstrBr s (.SD rs rs offset)) :=
-    step_sd s rs rs offset hfetch (hrs ▸ hvalid)
+    step_sd s hfetch (hrs ▸ hvalid)
   have hexec' : execInstrBr s (.SD rs rs offset) =
       (s.setMem (v + signExtend12 offset) v).setPC (s.pc + 4) := by
     simp only [execInstrBr, hrs]

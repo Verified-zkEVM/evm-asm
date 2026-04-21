@@ -66,7 +66,7 @@ theorem generic_lwu_spec (rd rs1 : Reg) (v_addr vOld : Word)
     holdsFor_memIs_getMem (holdsFor_sepConj_elim_right (holdsFor_sepConj_elim_right
       (holdsFor_sepConj_elim_left hPR)))
   have hstep' : step s = some (execInstrBr s (.LWU rd rs1 offset)) :=
-    step_lwu s rd rs1 offset hfetch (hrs1 ▸ hvalid)
+    step_lwu s hfetch (hrs1 ▸ hvalid)
   have hexec' : execInstrBr s (.LWU rd rs1 offset) =
       (s.setReg rd ((extractWord32 wordVal ((byteOffset (v_addr + signExtend12 offset)) / 4)).zeroExtend 64)).setPC (s.pc + 4) := by
     simp only [execInstrBr, hrs1, getWord32_eq]; rw [halign, hmem]
@@ -110,7 +110,7 @@ theorem generic_lw_spec (rd rs1 : Reg) (v_addr vOld : Word)
     holdsFor_memIs_getMem (holdsFor_sepConj_elim_right (holdsFor_sepConj_elim_right
       (holdsFor_sepConj_elim_left hPR)))
   have hstep' : step s = some (execInstrBr s (.LW rd rs1 offset)) :=
-    step_lw s rd rs1 offset hfetch (hrs1 ▸ hvalid)
+    step_lw s hfetch (hrs1 ▸ hvalid)
   have hexec' : execInstrBr s (.LW rd rs1 offset) =
       (s.setReg rd ((extractWord32 wordVal ((byteOffset (v_addr + signExtend12 offset)) / 4)).signExtend 64)).setPC (s.pc + 4) := by
     simp only [execInstrBr, hrs1, getWord32_eq]; rw [halign, hmem]
@@ -155,7 +155,7 @@ theorem generic_sw_spec (rs1 rs2 : Reg) (v_addr v_data : Word)
     holdsFor_memIs_getMem (holdsFor_sepConj_elim_right (holdsFor_sepConj_elim_right
       (holdsFor_sepConj_elim_left hPR)))
   have hstep' : step s = some (execInstrBr s (.SW rs1 rs2 offset)) :=
-    step_sw s rs1 rs2 offset hfetch (hrs1 ▸ hvalid)
+    step_sw s hfetch (hrs1 ▸ hvalid)
   have hexec' : execInstrBr s (.SW rs1 rs2 offset) =
       (s.setMem dwordAddr (replaceWord32 wordOld ((byteOffset (v_addr + signExtend12 offset)) / 4) (v_data.truncate 32))).setPC (s.pc + 4) := by
     simp only [execInstrBr, hrs1, hrs2, setWord32_eq]; rw [halign, hmem]
