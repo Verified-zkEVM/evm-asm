@@ -426,10 +426,10 @@ instance (sp : Word) (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
     shiftMem nMem jMem retMem dMem dloMem scratch_un0⟩
 
 /-- Named unfold for `divN4StackPreCall`. -/
-theorem divN4StackPreCall_unfold (sp : Word) (a b : EvmWord)
-    (v5 v6 v7 v10 v11 : Word)
-    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-     shiftMem nMem jMem retMem dMem dloMem scratch_un0 : Word) :
+theorem divN4StackPreCall_unfold {sp : Word} {a b : EvmWord}
+    {v5 v6 v7 v10 v11 : Word}
+    {q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     shiftMem nMem jMem retMem dMem dloMem scratch_un0 : Word} :
     divN4StackPreCall sp a b v5 v6 v7 v10 v11
         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
         shiftMem nMem jMem retMem dMem dloMem scratch_un0 =

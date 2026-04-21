@@ -66,10 +66,10 @@ instance (sp : Word) (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
     shiftMem nMem jMem retMem dMem dloMem scratch_un0⟩
 
 /-- Named unfold for `modN4StackPreCall`. Mirror of `divN4StackPreCall_unfold`. -/
-theorem modN4StackPreCall_unfold (sp : Word) (a b : EvmWord)
-    (v5 v6 v7 v10 v11 : Word)
-    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-     shiftMem nMem jMem retMem dMem dloMem scratch_un0 : Word) :
+theorem modN4StackPreCall_unfold {sp : Word} {a b : EvmWord}
+    {v5 v6 v7 v10 v11 : Word}
+    {q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     shiftMem nMem jMem retMem dMem dloMem scratch_un0 : Word} :
     modN4StackPreCall sp a b v5 v6 v7 v10 v11
         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
         shiftMem nMem jMem retMem dMem dloMem scratch_un0 =
@@ -100,7 +100,7 @@ def divN4CallSkipStackPost (sp : Word) (a b : EvmWord) : Assertion :=
 
 /-- Named unfold for `divN4CallSkipStackPost`. Mirror of
     `divN4MaxSkipStackPost_unfold` but with `divScratchOwnCall`. -/
-theorem divN4CallSkipStackPost_unfold (sp : Word) (a b : EvmWord) :
+theorem divN4CallSkipStackPost_unfold {sp : Word} {a b : EvmWord} :
     divN4CallSkipStackPost sp a b =
     ((.x12 ↦ᵣ (sp + 32)) ** regOwn .x1 ** regOwn .x2 **
      regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
@@ -132,7 +132,7 @@ def modN4CallSkipStackPost (sp : Word) (a b : EvmWord) : Assertion :=
   divScratchOwnCall sp
 
 /-- Named unfold for `modN4CallSkipStackPost`. -/
-theorem modN4CallSkipStackPost_unfold (sp : Word) (a b : EvmWord) :
+theorem modN4CallSkipStackPost_unfold {sp : Word} {a b : EvmWord} :
     modN4CallSkipStackPost sp a b =
     ((.x12 ↦ᵣ (sp + 32)) ** regOwn .x1 ** regOwn .x2 **
      regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
