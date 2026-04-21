@@ -585,14 +585,14 @@ theorem n4_max_skip_div_mod_limbs (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
   intro ms a b
   have ⟨hq, hr⟩ := n4_max_skip_correct a0 a1 a2 a3 b0 b1 b2 b3 hb3nz hc3_zero
   refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · rw [← hq]; exact getLimbN_fromLimbs_0 _ _ _ _
-  · rw [← hq]; exact getLimbN_fromLimbs_1 _ _ _ _
-  · rw [← hq]; exact getLimbN_fromLimbs_2 _ _ _ _
-  · rw [← hq]; exact getLimbN_fromLimbs_3 _ _ _ _
-  · rw [← hr]; exact getLimbN_fromLimbs_0 _ _ _ _
-  · rw [← hr]; exact getLimbN_fromLimbs_1 _ _ _ _
-  · rw [← hr]; exact getLimbN_fromLimbs_2 _ _ _ _
-  · rw [← hr]; exact getLimbN_fromLimbs_3 _ _ _ _
+  · rw [← hq]; exact getLimbN_fromLimbs_0
+  · rw [← hq]; exact getLimbN_fromLimbs_1
+  · rw [← hq]; exact getLimbN_fromLimbs_2
+  · rw [← hq]; exact getLimbN_fromLimbs_3
+  · rw [← hr]; exact getLimbN_fromLimbs_0
+  · rw [← hr]; exact getLimbN_fromLimbs_1
+  · rw [← hr]; exact getLimbN_fromLimbs_2
+  · rw [← hr]; exact getLimbN_fromLimbs_3
 
 /-- n=4 max+addback path: per-limb quotient/remainder equalities. Direct
     consumer-facing form of `n4_max_addback_correct` — the corrected quotient
@@ -624,14 +624,14 @@ theorem n4_max_addback_div_mod_limbs (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
   intro ms ab qHat' a b
   have ⟨hq, hr⟩ := n4_max_addback_correct a0 a1 a2 a3 b0 b1 b2 b3 hb3nz hc3_one hcarry_one
   refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · rw [← hq]; exact getLimbN_fromLimbs_0 _ _ _ _
-  · rw [← hq]; exact getLimbN_fromLimbs_1 _ _ _ _
-  · rw [← hq]; exact getLimbN_fromLimbs_2 _ _ _ _
-  · rw [← hq]; exact getLimbN_fromLimbs_3 _ _ _ _
-  · rw [← hr]; exact getLimbN_fromLimbs_0 _ _ _ _
-  · rw [← hr]; exact getLimbN_fromLimbs_1 _ _ _ _
-  · rw [← hr]; exact getLimbN_fromLimbs_2 _ _ _ _
-  · rw [← hr]; exact getLimbN_fromLimbs_3 _ _ _ _
+  · rw [← hq]; exact getLimbN_fromLimbs_0
+  · rw [← hq]; exact getLimbN_fromLimbs_1
+  · rw [← hq]; exact getLimbN_fromLimbs_2
+  · rw [← hq]; exact getLimbN_fromLimbs_3
+  · rw [← hr]; exact getLimbN_fromLimbs_0
+  · rw [← hr]; exact getLimbN_fromLimbs_1
+  · rw [← hr]; exact getLimbN_fromLimbs_2
+  · rw [← hr]; exact getLimbN_fromLimbs_3
 
 -- ============================================================================
 -- EvmWord-level n=4 max bridges: state the skip/addback correctness directly

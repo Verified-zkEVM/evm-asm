@@ -137,7 +137,7 @@ theorem ne_zero_iff_getLimbN_or (v : EvmWord) :
 /-- Construct an EvmWord from 4 Words via fromLimbs, with getLimbN round-trip.
     This is the key bridge for folding individual `↦ₘ` assertions back into
     `evmWordIs` in stack-level spec postconditions. -/
-theorem getLimbN_fromLimbs_match (w0 w1 w2 w3 : Word) :
+theorem getLimbN_fromLimbs_match {w0 w1 w2 w3 : Word} :
     let result := fromLimbs fun i : Fin 4 =>
       match i with | 0 => w0 | 1 => w1 | 2 => w2 | 3 => w3
     result.getLimbN 0 = w0 ∧ result.getLimbN 1 = w1 ∧
@@ -152,25 +152,25 @@ theorem getLimbN_fromLimbs_match (w0 w1 w2 w3 : Word) :
 
 /-- Variant: the getLimbN of fromLimbs equals the corresponding input word.
     Useful for rewriting individual limb assertions. -/
-theorem getLimbN_fromLimbs_0 (w0 w1 w2 w3 : Word) :
+theorem getLimbN_fromLimbs_0 {w0 w1 w2 w3 : Word} :
     (fromLimbs fun i : Fin 4 =>
       match i with | 0 => w0 | 1 => w1 | 2 => w2 | 3 => w3).getLimbN 0 = w0 :=
-  (getLimbN_fromLimbs_match w0 w1 w2 w3).1
+  getLimbN_fromLimbs_match.1
 
-theorem getLimbN_fromLimbs_1 (w0 w1 w2 w3 : Word) :
+theorem getLimbN_fromLimbs_1 {w0 w1 w2 w3 : Word} :
     (fromLimbs fun i : Fin 4 =>
       match i with | 0 => w0 | 1 => w1 | 2 => w2 | 3 => w3).getLimbN 1 = w1 :=
-  (getLimbN_fromLimbs_match w0 w1 w2 w3).2.1
+  getLimbN_fromLimbs_match.2.1
 
-theorem getLimbN_fromLimbs_2 (w0 w1 w2 w3 : Word) :
+theorem getLimbN_fromLimbs_2 {w0 w1 w2 w3 : Word} :
     (fromLimbs fun i : Fin 4 =>
       match i with | 0 => w0 | 1 => w1 | 2 => w2 | 3 => w3).getLimbN 2 = w2 :=
-  (getLimbN_fromLimbs_match w0 w1 w2 w3).2.2.1
+  getLimbN_fromLimbs_match.2.2.1
 
-theorem getLimbN_fromLimbs_3 (w0 w1 w2 w3 : Word) :
+theorem getLimbN_fromLimbs_3 {w0 w1 w2 w3 : Word} :
     (fromLimbs fun i : Fin 4 =>
       match i with | 0 => w0 | 1 => w1 | 2 => w2 | 3 => w3).getLimbN 3 = w3 :=
-  (getLimbN_fromLimbs_match w0 w1 w2 w3).2.2.2
+  getLimbN_fromLimbs_match.2.2.2
 
 end EvmWord
 
