@@ -190,7 +190,7 @@ theorem addback_limb_nat_word_eq (u_i v_i carryIn : Word) (hci : carryIn.toNat â
     OR carry) to the val256 addition needed by `addback_correction_euclidean`.
     The let-bindings match the addback path in the loop body. -/
 theorem addback_register_4limb_val256
-    (v0 v1 v2 v3 un0 un1 un2 un3 : Word) :
+    {v0 v1 v2 v3 un0 un1 un2 un3 : Word} :
     -- Limb 0 (carryIn = 0)
     let upc0 := un0 + (0 : Word)
     let aun0 := upc0 + v0

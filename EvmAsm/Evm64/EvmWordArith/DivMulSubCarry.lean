@@ -168,7 +168,7 @@ theorem mulsub_limb_nat_word_eq (q v_i u_i carryIn : Word) :
 
     The initial carry is 0 (first limb). Each subsequent limb uses the
     Word carry from the previous limb. -/
-theorem mulsub_register_4limb_val256 (q v0 v1 v2 v3 u0 u1 u2 u3 : Word) :
+theorem mulsub_register_4limb_val256 {q v0 v1 v2 v3 u0 u1 u2 u3 : Word} :
     -- Limb 0 (carryIn = 0)
     let fs0 := q * v0 + (0 : Word)
     let ba0 := if BitVec.ult fs0 (0 : Word) then (1 : Word) else 0

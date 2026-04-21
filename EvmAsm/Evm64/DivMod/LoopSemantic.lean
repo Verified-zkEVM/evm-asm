@@ -31,7 +31,7 @@ theorem mulsubN4_val256_eq (q v0 v1 v2 v3 u0 u1 u2 u3 : Word) :
     val256 u0 u1 u2 u3 + ms.2.2.2.2.toNat * 2^256 =
       val256 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 + q.toNat * val256 v0 v1 v2 v3 := by
   simp only [mulsubN4, se12_0]
-  exact mulsub_register_4limb_val256 q v0 v1 v2 v3 u0 u1 u2 u3
+  exact mulsub_register_4limb_val256
 
 -- ============================================================================
 -- Addback: addbackN4 satisfies the 4-limb val256 addition equation
@@ -50,7 +50,7 @@ theorem addbackN4_val256_eq (un0 un1 un2 un3 u4_new v0 v1 v2 v3 : Word) :
       val256 ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 + carry.toNat * 2^256 := by
   simp only [addbackN4_carry, se12_0]
   simp only [addbackN4, se12_0]
-  exact addback_register_4limb_val256 v0 v1 v2 v3 un0 un1 un2 un3
+  exact addback_register_4limb_val256
 
 /-- The 5th component of addbackN4 is u4_new + carry. -/
 theorem addbackN4_top_eq (un0 un1 un2 un3 u4_new v0 v1 v2 v3 : Word) :
