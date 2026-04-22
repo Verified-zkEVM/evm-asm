@@ -318,7 +318,7 @@ theorem b3_prime_ge_pow63 (b3 b2 : Word) (hb3nz : b3 ≠ 0)
     (antiShift : Word) :
     ((b3 <<< ((clzResult b3).1.toNat % 64)) |||
       (b2 >>> (antiShift.toNat % 64))).toNat ≥ 2^63 := by
-  have h_b3_shifted := b3_shifted_ge_pow63 b3 hb3nz
+  have h_b3_shifted := b3_shifted_ge_pow63 hb3nz
   have h_or_ge :
       ((b3 <<< ((clzResult b3).1.toNat % 64)) |||
         (b2 >>> (antiShift.toNat % 64))).toNat ≥

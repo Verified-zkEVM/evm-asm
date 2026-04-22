@@ -64,7 +64,7 @@ theorem clzStep_snd_ge (K M_s : Nat) (m : Word) (p : Word × Word)
 
 /-- After all 5 pipeline stages, the value is ≥ 2^62. Threads `clzStep_snd_ge`
     through the K-chain 32 → 48 → 56 → 60 → 62. -/
-theorem clzPipeline_snd_ge_pow62 (val : Word) (hval : val ≠ 0) :
+theorem clzPipeline_snd_ge_pow62 {val : Word} (hval : val ≠ 0) :
     (clzPipeline val).2.toNat ≥ 2^62 := by
   unfold clzPipeline
   have h_init : ((0 : Word), val).2.toNat ≥ 2^0 := by
@@ -127,10 +127,10 @@ theorem u_top_lt_pow63_of_shift_nz (a3 shift : Word)
       (from the pass condition `pipeline.2 >>> 63 ≠ 0`).
     * Fail: clzResult.1 = pipeline.1 + 1, and b3 << (pipeline.1 + 1) = 2 * pipeline.2
       ≥ 2 * 2^62 = 2^63 (by Step 1). -/
-theorem b3_shifted_ge_pow63 (b3 : Word) (hb3nz : b3 ≠ 0) :
+theorem b3_shifted_ge_pow63 {b3 : Word} (hb3nz : b3 ≠ 0) :
     (b3 <<< ((clzResult b3).1.toNat % 64)).toNat ≥ 2^63 := by
   obtain ⟨hinv, hcount⟩ := clzPipeline_invariant b3
-  have hsnd_ge := clzPipeline_snd_ge_pow62 b3 hb3nz
+  have hsnd_ge := clzPipeline_snd_ge_pow62 hb3nz
   have hsnd_lt : (clzPipeline b3).2.toNat < 2^64 := (clzPipeline b3).2.isLt
   rw [clzResult_fst_eq]
   by_cases h5 : (clzPipeline b3).2 >>> 63 ≠ 0
@@ -177,7 +177,7 @@ theorem isMaxTrialN4_false_of_shift_nz (a3 b2 b3 : Word)
       exact BitVec.eq_of_toNat_eq (by simp [h])
     · exact h
   have h_u4 := u_top_lt_pow63_of_shift_nz a3 (clzResult b3).1 h_shift_pos h_shift_le
-  have h_b3_shifted := b3_shifted_ge_pow63 b3 hb3nz
+  have h_b3_shifted := b3_shifted_ge_pow63 hb3nz
   have h_or_ge : (((b3 <<< ((clzResult b3).1.toNat % 64))) |||
                    (b2 >>> ((signExtend12 (0 : BitVec 12) -
                      (clzResult b3).1).toNat % 64))).toNat ≥
