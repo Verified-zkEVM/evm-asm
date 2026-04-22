@@ -435,6 +435,25 @@ theorem divScratchValues_implies_divScratchOwn
   iterate 14 apply sepConj_mono (memIs_implies_memOwn _ _)
   exact memIs_implies_memOwn _ _
 
+/-- Call-path weakening: the 19-cell `divScratchValuesCall` implies the
+    value-agnostic `divScratchOwnCall`. Used by the forthcoming
+    `div_n4_call_skip_stack_weaken` and friends to hide the call-trial
+    scratch state (including the 4 `div128`-subroutine cells at
+    `sp + 3968/3960/3952/3944`) on stack-spec exit. -/
+theorem divScratchValuesCall_implies_divScratchOwnCall
+    (sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem
+     retMem dMem dloMem scratch_un0 : Word) :
+    ∀ h, divScratchValuesCall sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratch_un0 h →
+      divScratchOwnCall sp h := by
+  unfold divScratchValuesCall divScratchOwnCall
+  -- Head: divScratchValues → divScratchOwn via the 15-cell weakener.
+  apply sepConj_mono (divScratchValues_implies_divScratchOwn
+    sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem)
+  -- Tail: 4 memIs → memOwn, same pattern as the 15-cell weakener.
+  iterate 3 apply sepConj_mono (memIs_implies_memOwn _ _)
+  exact memIs_implies_memOwn _ _
+
 /-- Postcondition for the shift≠0 path from entry to loop setup.
     Encapsulates the shift/antiShift computation, normalized b'[0..3],
     and normalized u[0..4] as internal let bindings.
