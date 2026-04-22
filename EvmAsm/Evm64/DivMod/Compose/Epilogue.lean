@@ -20,7 +20,7 @@ open EvmAsm.Rv64.AddrNorm (bv64_4mul_3)
 -- ============================================================================
 
 /-- Denorm code (block 9) is subsumed by divCode. -/
-private theorem divK_denorm_code_sub_divCode (base : Word) :
+private theorem divK_denorm_code_sub_divCode {base : Word} :
     ∀ a i, (CodeReq.ofProg (base + denormOff) divK_denorm) a = some i → (divCode base) a = some i := by
   unfold divCode; simp only [CodeReq.unionAll_cons]
   skipBlock; skipBlock; skipBlock; skipBlock; skipBlock
@@ -43,7 +43,7 @@ theorem divK_denorm_preamble_spec (sp shift v5 v6 v7 v2 v10 : Word) (base : Word
   rw [show (base + denormOff : Word) + 4 = base + 912 from by bv_addr] at hld
   have hlde := cpsTriple_extend_code (hmono := by
     intro a i h
-    exact divK_denorm_code_sub_divCode base a i
+    exact divK_denorm_code_sub_divCode a i
       (CodeReq.ofProg_mono_sub (base + denormOff) (base + denormOff) divK_denorm
         [.LD .x6 .x12 3992] 0 (by bv_addr) (by decide) (by decide) (by decide) a i h)) hld
   -- 2. BEQ x6 x0 96 at base+912 (denorm instr [1])
@@ -52,7 +52,7 @@ theorem divK_denorm_preamble_spec (sp shift v5 v6 v7 v2 v10 : Word) (base : Word
       show (base + 912 : Word) + 4 = base + 916 from by bv_addr] at hbeq
   have hbeqe := cpsBranch_extend_code (hmono := by
     intro a i h
-    exact divK_denorm_code_sub_divCode base a i
+    exact divK_denorm_code_sub_divCode a i
       (CodeReq.ofProg_mono_sub (base + denormOff) (base + 912) divK_denorm
         [.BEQ .x6 .x0 96] 1 (by bv_addr) (by decide) (by decide) (by decide) a i h)) hbeq
   -- 3. Eliminate taken branch: shift ≠ 0 means BEQ not taken
@@ -105,7 +105,7 @@ theorem divK_denorm_body_spec (sp u0 u1 u2 u3 v2 v5 v7 shift : Word) (base : Wor
   have haddi := addi_x0_spec_gen .x2 v2 0 (base + 916) (by nofun)
   rw [show (base + 916 : Word) + 4 = base + 920 from by bv_addr] at haddi
   have haddie := cpsTriple_extend_code (hmono := fun a i h =>
-    divK_denorm_code_sub_divCode base a i
+    divK_denorm_code_sub_divCode a i
       (CodeReq.ofProg_mono_sub (base + denormOff) (base + 916) divK_denorm
         [.ADDI .x2 .x0 0] 2
         (by bv_addr) (by decide) (by decide) (by decide) a i h)) haddi
@@ -119,7 +119,7 @@ theorem divK_denorm_body_spec (sp u0 u1 u2 u3 v2 v5 v7 shift : Word) (base : Wor
     (signExtend12 (0 : BitVec 12)) shift (base + 920) (by nofun)
   rw [show (base + 920 : Word) + 4 = base + 924 from by bv_addr] at hsub
   have hsube := cpsTriple_extend_code (hmono := fun a i h =>
-    divK_denorm_code_sub_divCode base a i
+    divK_denorm_code_sub_divCode a i
       (CodeReq.singleton_mono (by
         have hlookup := CodeReq.ofProg_lookup (base + denormOff) divK_denorm 3
           (by decide) (by decide)
@@ -138,7 +138,7 @@ theorem divK_denorm_body_spec (sp u0 u1 u2 u3 v2 v5 v7 shift : Word) (base : Wor
   have hm0 := divK_denorm_merge_spec 4056 4048 sp u0 u1 v5 v7 shift antiShift (base + 924)
   rw [show (base + 924 : Word) + 24 = base + 948 from by bv_addr] at hm0
   have hm0e := cpsTriple_extend_code (hmono := fun a i h =>
-    divK_denorm_code_sub_divCode base a i
+    divK_denorm_code_sub_divCode a i
       (CodeReq.ofProg_mono_sub (base + denormOff) (base + 924) divK_denorm
         (divK_denorm_merge_prog 4056 4048) 4
         (by bv_addr) (by decide) (by decide) (by decide) a i h)) hm0
@@ -153,7 +153,7 @@ theorem divK_denorm_body_spec (sp u0 u1 u2 u3 v2 v5 v7 shift : Word) (base : Wor
     u0' (u1 <<< (antiShift.toNat % 64)) shift antiShift (base + 948)
   rw [show (base + 948 : Word) + 24 = base + 972 from by bv_addr] at hm1
   have hm1e := cpsTriple_extend_code (hmono := fun a i h =>
-    divK_denorm_code_sub_divCode base a i
+    divK_denorm_code_sub_divCode a i
       (CodeReq.ofProg_mono_sub (base + denormOff) (base + 948) divK_denorm
         (divK_denorm_merge_prog 4048 4040) 10
         (by bv_addr) (by decide) (by decide) (by decide) a i h)) hm1
@@ -168,7 +168,7 @@ theorem divK_denorm_body_spec (sp u0 u1 u2 u3 v2 v5 v7 shift : Word) (base : Wor
     u1' (u2 <<< (antiShift.toNat % 64)) shift antiShift (base + 972)
   rw [show (base + 972 : Word) + 24 = base + 996 from by bv_addr] at hm2
   have hm2e := cpsTriple_extend_code (hmono := fun a i h =>
-    divK_denorm_code_sub_divCode base a i
+    divK_denorm_code_sub_divCode a i
       (CodeReq.ofProg_mono_sub (base + denormOff) (base + 972) divK_denorm
         (divK_denorm_merge_prog 4040 4032) 16
         (by bv_addr) (by decide) (by decide) (by decide) a i h)) hm2
@@ -182,7 +182,7 @@ theorem divK_denorm_body_spec (sp u0 u1 u2 u3 v2 v5 v7 shift : Word) (base : Wor
   have hl := divK_denorm_last_spec 4032 sp u3 u2' shift (base + 996)
   rw [show (base + 996 : Word) + 12 = base + epilogueOff from by bv_addr] at hl
   have hle := cpsTriple_extend_code (hmono := fun a i h =>
-    divK_denorm_code_sub_divCode base a i
+    divK_denorm_code_sub_divCode a i
       (CodeReq.ofProg_mono_sub (base + denormOff) (base + 996) divK_denorm
         (divK_denorm_last_prog 4032) 22
         (by bv_addr) (by decide) (by decide) (by decide) a i h)) hl
@@ -204,7 +204,7 @@ theorem divK_denorm_body_spec (sp u0 u1 u2 u3 v2 v5 v7 shift : Word) (base : Wor
 -- ============================================================================
 
 /-- DIV epilogue code (block 10) is subsumed by divCode. -/
-private theorem divK_divEpilogue_code_sub_divCode (base : Word) :
+private theorem divK_divEpilogue_code_sub_divCode {base : Word} :
     ∀ a i, (CodeReq.ofProg (base + epilogueOff) (divK_div_epilogue 24)) a = some i →
       (divCode base) a = some i := by
   unfold divCode; simp only [CodeReq.unionAll_cons]
@@ -232,7 +232,7 @@ theorem divK_div_epilogue_spec (sp : Word) (base : Word)
     (base + epilogueOff)
   rw [show (base + epilogueOff : Word) + 16 = base + 1024 from by bv_addr] at hload
   have hloade := cpsTriple_extend_code (hmono := fun a i h =>
-    divK_divEpilogue_code_sub_divCode base a i
+    divK_divEpilogue_code_sub_divCode a i
       (CodeReq.ofProg_mono_sub (base + epilogueOff) (base + epilogueOff) (divK_div_epilogue 24)
         (divK_epilogue_load_prog 4088 4080 4072 4064) 0
         (by bv_addr) (by decide) (by decide) (by decide) a i h)) hload
@@ -241,7 +241,7 @@ theorem divK_div_epilogue_spec (sp : Word) (base : Word)
   rw [show (base + 1024 : Word) + 20 + signExtend21 24 = base + nopOff from by rv64_addr]
     at hstore
   have hstoree := cpsTriple_extend_code (hmono := fun a i h =>
-    divK_divEpilogue_code_sub_divCode base a i
+    divK_divEpilogue_code_sub_divCode a i
       (CodeReq.ofProg_mono_sub (base + epilogueOff) (base + 1024) (divK_div_epilogue 24)
         (divK_epilogue_store_prog 24) 4
         (by bv_addr) (by decide) (by decide) (by decide) a i h)) hstore
@@ -271,19 +271,19 @@ theorem divK_div_epilogue_spec (sp : Word) (base : Word)
 -- Section 12: MOD CodeReq subsumption lemmas (via mono_unionAll)
 -- ============================================================================
 
-private theorem divK_phaseA_code_sub_modCode (base : Word) :
+private theorem divK_phaseA_code_sub_modCode {base : Word} :
     ∀ a i, (divK_phaseA_code base) a = some i → (modCode base) a = some i := by
   unfold modCode divK_phaseA_code; simp only [CodeReq.unionAll_cons]
   exact CodeReq.union_mono_left _ _
 
-private theorem divK_zeroPath_code_sub_modCode (base : Word) :
+private theorem divK_zeroPath_code_sub_modCode {base : Word} :
     ∀ a i, (divK_zeroPath_code (base + zeroPathOff)) a = some i → (modCode base) a = some i := by
   unfold modCode divK_zeroPath_code; simp only [CodeReq.unionAll_cons]
   skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock
   skipBlock; skipBlock; skipBlock; skipBlock; skipBlock
   exact CodeReq.union_mono_left _ _
 
-private theorem beq_singleton_sub_modCode (base : Word) :
+private theorem beq_singleton_sub_modCode {base : Word} :
     ∀ a i, (CodeReq.singleton (base + 28) (.BEQ .x5 .x0 1020)) a = some i →
       (modCode base) a = some i := by
   unfold modCode; simp only [CodeReq.unionAll_cons]
@@ -312,7 +312,7 @@ theorem evm_mod_bzero_spec (sp base : Word)
        ((sp + 32) ↦ₘ (0 : Word)) ** ((sp + 40) ↦ₘ (0 : Word)) **
        ((sp + 48) ↦ₘ (0 : Word)) ** ((sp + 56) ↦ₘ (0 : Word))) := by
   -- Step 1: Phase A body (base → base+28, 7 straight-line instructions)
-  have hbody := cpsTriple_extend_code (divK_phaseA_code_sub_modCode base)
+  have hbody := cpsTriple_extend_code divK_phaseA_code_sub_modCode
     (divK_phaseA_body_spec sp base b0 b1 b2 b3 v5 v10)
   -- Step 2: BEQ at base+28, eliminate ntaken via hbz
   have hbeq_raw := beq_spec_gen .x5 .x0 1020 (b0 ||| b1 ||| b2 ||| b3) (0 : Word) (base + 28)
@@ -322,7 +322,7 @@ theorem evm_mod_bzero_spec (sp base : Word)
     (fun hp hQf => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQf
       exact absurd hbz ((sepConj_pure_right _).mp h_rest).2)
-  have hbeq := cpsTriple_extend_code (beq_singleton_sub_modCode base) hbeq_clean
+  have hbeq := cpsTriple_extend_code beq_singleton_sub_modCode hbeq_clean
   -- Step 3: Frame BEQ with regs + mem
   have hbeq_framed := cpsTriple_frameR
     ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ b3) **
@@ -333,7 +333,7 @@ theorem evm_mod_bzero_spec (sp base : Word)
   have hAB := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hbody hbeq_framed
   -- Step 5: ZeroPath (base+1048 → base+1068)
-  have hzp := cpsTriple_extend_code (divK_zeroPath_code_sub_modCode base)
+  have hzp := cpsTriple_extend_code divK_zeroPath_code_sub_modCode
     (divK_zeroPath_spec sp (base + zeroPathOff) b0 b1 b2 b3)
   rw [show (base + zeroPathOff : Word) + 20 = base + nopOff from by bv_addr] at hzp
   -- Frame ZP with x5 + x10 + x0
@@ -366,7 +366,7 @@ theorem evm_mod_phaseA_ntaken_spec (sp base : Word)
        ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
        ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3)) := by
   -- Step 1: Phase A body (base → base+28, 7 straight-line instructions)
-  have hbody := cpsTriple_extend_code (divK_phaseA_code_sub_modCode base)
+  have hbody := cpsTriple_extend_code divK_phaseA_code_sub_modCode
     (divK_phaseA_body_spec sp base b0 b1 b2 b3 v5 v10)
   -- Step 2: BEQ at base+28, eliminate taken path (b=0 absurd since hbnz)
   have hbeq_raw := beq_spec_gen .x5 .x0 1020 (b0 ||| b1 ||| b2 ||| b3) (0 : Word) (base + 28)
@@ -376,7 +376,7 @@ theorem evm_mod_phaseA_ntaken_spec (sp base : Word)
     (fun hp hQt => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQt
       exact absurd ((sepConj_pure_right _).mp h_rest).2 hbnz)
-  have hbeq := cpsTriple_extend_code (beq_singleton_sub_modCode base) hbeq_clean
+  have hbeq := cpsTriple_extend_code beq_singleton_sub_modCode hbeq_clean
   -- Step 3: Frame BEQ with regs + mem
   have hbeq_framed := cpsTriple_frameR
     ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ b3) **
@@ -397,7 +397,7 @@ theorem evm_mod_phaseA_ntaken_spec (sp base : Word)
 -- Mirrors DIV epilogue but reads from u[] offsets (4056/4048/4040/4032).
 -- ============================================================================
 
-private theorem divK_modEpilogue_code_sub_modCode (base : Word) :
+private theorem divK_modEpilogue_code_sub_modCode {base : Word} :
     ∀ a i, (CodeReq.ofProg (base + epilogueOff) (divK_mod_epilogue 24)) a = some i →
       (modCode base) a = some i := by
   unfold modCode; simp only [CodeReq.unionAll_cons]
@@ -425,7 +425,7 @@ theorem divK_mod_epilogue_spec (sp : Word) (base : Word)
     (base + epilogueOff)
   rw [show (base + epilogueOff : Word) + 16 = base + 1024 from by bv_addr] at hload
   have hloade := cpsTriple_extend_code (hmono := fun a i h =>
-    divK_modEpilogue_code_sub_modCode base a i
+    divK_modEpilogue_code_sub_modCode a i
       (CodeReq.ofProg_mono_sub (base + epilogueOff) (base + epilogueOff) (divK_mod_epilogue 24)
         (divK_epilogue_load_prog 4056 4048 4040 4032) 0
         (by bv_addr) (by decide) (by decide) (by decide) a i h)) hload
@@ -434,7 +434,7 @@ theorem divK_mod_epilogue_spec (sp : Word) (base : Word)
   rw [show (base + 1024 : Word) + 20 + signExtend21 24 = base + nopOff from by rv64_addr]
     at hstore
   have hstoree := cpsTriple_extend_code (hmono := fun a i h =>
-    divK_modEpilogue_code_sub_modCode base a i
+    divK_modEpilogue_code_sub_modCode a i
       (CodeReq.ofProg_mono_sub (base + epilogueOff) (base + 1024) (divK_mod_epilogue 24)
         (divK_epilogue_store_prog 24) 4
         (by bv_addr) (by decide) (by decide) (by decide) a i h)) hstore
