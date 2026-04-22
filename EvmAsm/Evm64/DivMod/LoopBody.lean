@@ -25,7 +25,7 @@ open EvmAsm.Rv64.AddrNorm (se13_7736)
 -- ============================================================================
 
 /-- The loopBody ofProg (block 8) is subsumed by sharedDivModCode. -/
-private theorem divK_loopBody_ofProg_sub_sharedCode (base : Word) :
+private theorem divK_loopBody_ofProg_sub_sharedCode {base : Word} :
     ∀ a i, (CodeReq.ofProg (base + loopBodyOff) (divK_loopBody 560 7736)) a = some i →
       (sharedDivModCode base) a = some i := by
   unfold sharedDivModCode; simp only [CodeReq.unionAll_cons]
@@ -34,14 +34,14 @@ private theorem divK_loopBody_ofProg_sub_sharedCode (base : Word) :
   exact CodeReq.union_mono_left _ _
 
 /-- Helper: singleton at index k of divK_loopBody ⊆ sharedDivModCode base. -/
-private theorem lb_sub (base : Word) (k : Nat) (addr : Word) (instr : Instr)
+private theorem lb_sub {base : Word} (k : Nat) (addr : Word) (instr : Instr)
     (hk : k < (divK_loopBody 560 7736).length)
     (h_addr : addr = (base + loopBodyOff) + BitVec.ofNat 64 (4 * k))
     (h_instr : (divK_loopBody 560 7736).get ⟨k, hk⟩ = instr) :
     ∀ a i, CodeReq.singleton addr instr a = some i →
       (sharedDivModCode base) a = some i := by
   subst h_addr; subst h_instr
-  exact fun a i h => divK_loopBody_ofProg_sub_sharedCode base a i
+  exact fun a i h => divK_loopBody_ofProg_sub_sharedCode a i
     (CodeReq.singleton_mono
       (CodeReq.ofProg_lookup (base + loopBodyOff) (divK_loopBody 560 7736) k hk (by decide)) a i h)
 
@@ -134,17 +134,17 @@ theorem divK_mulsub_4limbs_spec
 
   rw [lb_ms1] at L0
   have L0e := cpsTriple_extend_code (hmono := by
-    exact CodeReq.union_sub (lb_sub base 22 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 23 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 24 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 25 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 26 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 27 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 28 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 29 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 30 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 31 _ _ (by decide) (by bv_addr) (by decide))
-      (lb_sub base 32 _ _ (by decide) (by bv_addr) (by decide))))))))))))
+    exact CodeReq.union_sub (lb_sub 22 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 23 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 24 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 25 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 26 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 27 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 28 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 29 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 30 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 31 _ _ (by decide) (by bv_addr) (by decide))
+      (lb_sub 32 _ _ (by decide) (by bv_addr) (by decide))))))))))))
     L0
   -- Limb 1: instrs [33]-[43] at base+580
   have L1 := divK_mulsub_limb_spec sp uBase qHat c0
@@ -152,17 +152,17 @@ theorem divK_mulsub_4limbs_spec
 
   rw [lb_ms2] at L1
   have L1e := cpsTriple_extend_code (hmono := by
-    exact CodeReq.union_sub (lb_sub base 33 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 34 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 35 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 36 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 37 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 38 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 39 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 40 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 41 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 42 _ _ (by decide) (by bv_addr) (by decide))
-      (lb_sub base 43 _ _ (by decide) (by bv_addr) (by decide))))))))))))
+    exact CodeReq.union_sub (lb_sub 33 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 34 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 35 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 36 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 37 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 38 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 39 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 40 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 41 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 42 _ _ (by decide) (by bv_addr) (by decide))
+      (lb_sub 43 _ _ (by decide) (by bv_addr) (by decide))))))))))))
     L1
   -- Frame L0 with memory for limbs 1-3 (so seqFrame can find L1's precondition atoms)
   have L0f := cpsTriple_frameR
@@ -178,17 +178,17 @@ theorem divK_mulsub_4limbs_spec
 
   rw [lb_ms3] at L2
   have L2e := cpsTriple_extend_code (hmono := by
-    exact CodeReq.union_sub (lb_sub base 44 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 45 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 46 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 47 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 48 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 49 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 50 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 51 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 52 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 53 _ _ (by decide) (by bv_addr) (by decide))
-      (lb_sub base 54 _ _ (by decide) (by bv_addr) (by decide))))))))))))
+    exact CodeReq.union_sub (lb_sub 44 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 45 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 46 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 47 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 48 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 49 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 50 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 51 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 52 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 53 _ _ (by decide) (by bv_addr) (by decide))
+      (lb_sub 54 _ _ (by decide) (by bv_addr) (by decide))))))))))))
     L2
   -- Compose (L0+L1) + L2
   seqFrame L0fL1e L2e
@@ -198,17 +198,17 @@ theorem divK_mulsub_4limbs_spec
 
   rw [lb_ms_end] at L3
   have L3e := cpsTriple_extend_code (hmono := by
-    exact CodeReq.union_sub (lb_sub base 55 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 56 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 57 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 58 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 59 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 60 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 61 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 62 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 63 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 64 _ _ (by decide) (by bv_addr) (by decide))
-      (lb_sub base 65 _ _ (by decide) (by bv_addr) (by decide))))))))))))
+    exact CodeReq.union_sub (lb_sub 55 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 56 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 57 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 58 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 59 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 60 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 61 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 62 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 63 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 64 _ _ (by decide) (by bv_addr) (by decide))
+      (lb_sub 65 _ _ (by decide) (by bv_addr) (by decide))))))))))))
     L3
   -- Compose (L0+L1+L2) + L3
   seqFrame L0fL1eL2e L3e
@@ -292,7 +292,7 @@ theorem divK_addback_full_spec
   have I := divK_addback_init_spec v7_init (base + 732)
   rw [lb_ab0] at I
   have Ie := cpsTriple_extend_code (hmono := by
-    exact lb_sub base 71 _ _ (by decide) (by bv_addr) (by decide)) I
+    exact lb_sub 71 _ _ (by decide) (by bv_addr) (by decide)) I
   -- Frame init with all addback state
   have If := cpsTriple_frameR
     ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ uBase) ** (.x11 ↦ᵣ qHat) **
@@ -308,14 +308,14 @@ theorem divK_addback_full_spec
     v5_init v2_init v0 u0 32 0 (base + 736)
   rw [lb_ab0_end] at A0
   have A0e := cpsTriple_extend_code (hmono := by
-    exact CodeReq.union_sub (lb_sub base 72 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 73 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 74 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 75 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 76 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 77 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 78 _ _ (by decide) (by bv_addr) (by decide))
-      (lb_sub base 79 _ _ (by decide) (by bv_addr) (by decide)))))))))
+    exact CodeReq.union_sub (lb_sub 72 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 73 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 74 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 75 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 76 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 77 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 78 _ _ (by decide) (by bv_addr) (by decide))
+      (lb_sub 79 _ _ (by decide) (by bv_addr) (by decide)))))))))
     A0
   -- Compose init + limb 0
   seqFrame If A0e
@@ -324,14 +324,14 @@ theorem divK_addback_full_spec
     ac2_0 aun0 v1 u1 40 4088 (base + 768)
   rw [lb_ab1_end] at A1
   have A1e := cpsTriple_extend_code (hmono := by
-    exact CodeReq.union_sub (lb_sub base 80 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 81 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 82 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 83 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 84 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 85 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 86 _ _ (by decide) (by bv_addr) (by decide))
-      (lb_sub base 87 _ _ (by decide) (by bv_addr) (by decide)))))))))
+    exact CodeReq.union_sub (lb_sub 80 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 81 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 82 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 83 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 84 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 85 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 86 _ _ (by decide) (by bv_addr) (by decide))
+      (lb_sub 87 _ _ (by decide) (by bv_addr) (by decide)))))))))
     A1
   seqFrame IfA0e A1e
   -- Limb 2: instrs [88]-[95] at base+800
@@ -339,14 +339,14 @@ theorem divK_addback_full_spec
     ac2_1 aun1 v2 u2 48 4080 (base + 800)
   rw [lb_ab2_end] at A2
   have A2e := cpsTriple_extend_code (hmono := by
-    exact CodeReq.union_sub (lb_sub base 88 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 89 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 90 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 91 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 92 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 93 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 94 _ _ (by decide) (by bv_addr) (by decide))
-      (lb_sub base 95 _ _ (by decide) (by bv_addr) (by decide)))))))))
+    exact CodeReq.union_sub (lb_sub 88 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 89 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 90 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 91 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 92 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 93 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 94 _ _ (by decide) (by bv_addr) (by decide))
+      (lb_sub 95 _ _ (by decide) (by bv_addr) (by decide)))))))))
     A2
   seqFrame IfA0eA1e A2e
   -- Limb 3: instrs [96]-[103] at base+832
@@ -354,24 +354,24 @@ theorem divK_addback_full_spec
     ac2_2 aun2 v3 u3 56 4072 (base + 832)
   rw [lb_ab3_end] at A3
   have A3e := cpsTriple_extend_code (hmono := by
-    exact CodeReq.union_sub (lb_sub base 96 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 97 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 98 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 99 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 100 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 101 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 102 _ _ (by decide) (by bv_addr) (by decide))
-      (lb_sub base 103 _ _ (by decide) (by bv_addr) (by decide)))))))))
+    exact CodeReq.union_sub (lb_sub 96 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 97 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 98 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 99 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 100 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 101 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 102 _ _ (by decide) (by bv_addr) (by decide))
+      (lb_sub 103 _ _ (by decide) (by bv_addr) (by decide)))))))))
     A3
   seqFrame IfA0eA1eA2e A3e
   -- Final: instrs [104]-[107] at base+864
   have AF := divK_addback_final_spec uBase aco3 qHat ac2_3 u4 4064 (base + 864)
   rw [lb_abf_end] at AF
   have AFe := cpsTriple_extend_code (hmono := by
-    exact CodeReq.union_sub (lb_sub base 104 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 105 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 106 _ _ (by decide) (by bv_addr) (by decide))
-      (lb_sub base 107 _ _ (by decide) (by bv_addr) (by decide)))))
+    exact CodeReq.union_sub (lb_sub 104 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 105 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 106 _ _ (by decide) (by bv_addr) (by decide))
+      (lb_sub 107 _ _ (by decide) (by bv_addr) (by decide)))))
     AF
   seqFrame IfA0eA1eA2eA3e AFe
   -- Final permutation
@@ -467,11 +467,11 @@ theorem divK_mulsub_full_spec
   have S := divK_mulsub_setup_spec sp qHat j v1Old v5Old v6Old v10Old (base + 516)
   rw [lb_ms_setup] at S
   have Se := cpsTriple_extend_code (hmono := by
-    exact CodeReq.union_sub (lb_sub base 17 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 18 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 19 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 20 _ _ (by decide) (by bv_addr) (by decide))
-      (lb_sub base 21 _ _ (by decide) (by bv_addr) (by decide)))))) S
+    exact CodeReq.union_sub (lb_sub 17 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 18 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 19 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 20 _ _ (by decide) (by bv_addr) (by decide))
+      (lb_sub 21 _ _ (by decide) (by bv_addr) (by decide)))))) S
   -- Frame setup with all memory + x7/x2 for mulsub
   have Sf := cpsTriple_frameR
     ((.x7 ↦ᵣ v7Old) ** (.x2 ↦ᵣ v2Old) **
@@ -491,10 +491,10 @@ theorem divK_mulsub_full_spec
   have SC := divK_sub_carry_spec uBase c3 bs3 fs3 uTop 4064 (base + 712)
   rw [lb_sc] at SC
   have SCe := cpsTriple_extend_code (hmono := by
-    exact CodeReq.union_sub (lb_sub base 66 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 67 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 68 _ _ (by decide) (by bv_addr) (by decide))
-      (lb_sub base 69 _ _ (by decide) (by bv_addr) (by decide))))) SC
+    exact CodeReq.union_sub (lb_sub 66 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 67 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 68 _ _ (by decide) (by bv_addr) (by decide))
+      (lb_sub 69 _ _ (by decide) (by bv_addr) (by decide))))) SC
   -- Compose (setup+mulsub) + sub_carry
   seqFrame SfM SCe
   -- Final permutation
@@ -542,7 +542,7 @@ theorem divK_correction_skip_spec
   have hbeq := beq_spec_gen .x7 .x0 (156 : BitVec 13) (0 : Word) 0 (base + 728)
   rw [lb_beq_taken, lb_beq_ntaken] at hbeq
   have hbeq_ext := cpsBranch_extend_code (hmono :=
-    lb_sub base 70 _ _ (by decide) (by bv_addr) (by decide)) hbeq
+    lb_sub 70 _ _ (by decide) (by bv_addr) (by decide)) hbeq
   -- Eliminate not-taken path (⌜0 ≠ 0⌝ is False)
   have skip := cpsBranch_takenPath hbeq_ext (fun hp hQf => by
     obtain ⟨_, _, _, _, _, ⟨_, _, _, _, _, ⟨_, hpure⟩⟩⟩ := hQf
@@ -626,7 +626,7 @@ theorem divK_correction_addback_spec
   have hbeq := beq_spec_gen .x7 .x0 (156 : BitVec 13) borrow 0 (base + 728)
   rw [lb_beq_taken, lb_beq_ntaken] at hbeq
   have hbeq_ext := cpsBranch_extend_code (hmono :=
-    lb_sub base 70 _ _ (by decide) (by bv_addr) (by decide)) hbeq
+    lb_sub 70 _ _ (by decide) (by bv_addr) (by decide)) hbeq
   -- Eliminate taken path (⌜borrow = 0⌝ contradicts hb)
   have ntaken := cpsBranch_ntakenPath hbeq_ext (fun hp hQt => by
     obtain ⟨_, _, _, _, _, ⟨_, _, _, _, _, ⟨_, hpure⟩⟩⟩ := hQt
@@ -723,7 +723,7 @@ theorem divK_save_trial_load_spec
   have SJ := divK_save_j_spec sp j jOld (base + loopBodyOff)
   rw [lb_save_j] at SJ
   have SJe := cpsTriple_extend_code (hmono :=
-    lb_sub base 0 _ _ (by decide) (by bv_addr) (by decide)) SJ
+    lb_sub 0 _ _ (by decide) (by bv_addr) (by decide)) SJ
   -- Frame save_j with trial_load state
   have SJf := cpsTriple_frameR
     ((.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
@@ -738,18 +738,18 @@ theorem divK_save_trial_load_spec
   dsimp only [] at TL
   rw [lb_trial_load] at TL
   have TLe := cpsTriple_extend_code (hmono := by
-    exact CodeReq.union_sub (lb_sub base 1 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 2 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 3 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 4 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 5 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 6 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 7 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 8 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 9 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 10 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 11 _ _ (by decide) (by bv_addr) (by decide))
-      (lb_sub base 12 _ _ (by decide) (by bv_addr) (by decide))))))))))))) TL
+    exact CodeReq.union_sub (lb_sub 1 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 2 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 3 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 4 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 5 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 6 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 7 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 8 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 9 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 10 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 11 _ _ (by decide) (by bv_addr) (by decide))
+      (lb_sub 12 _ _ (by decide) (by bv_addr) (by decide))))))))))))) TL
   -- 3. Compose save_j + trial_load
   seqFrame SJf TLe
   -- Final permutation
@@ -790,8 +790,8 @@ private theorem divK_trial_max_extended (v11Old : Word) (base : Word) :
   dsimp only [] at TM
   rw [lb_trial_max_end] at TM
   exact cpsTriple_extend_code (hmono := by
-    exact CodeReq.union_sub (lb_sub base 14 _ _ (by decide) (by bv_addr) (by decide))
-      (lb_sub base 15 _ _ (by decide) (by bv_addr) (by decide))) TM
+    exact CodeReq.union_sub (lb_sub 14 _ _ (by decide) (by bv_addr) (by decide))
+      (lb_sub 15 _ _ (by decide) (by bv_addr) (by decide))) TM
 
 -- ============================================================================
 -- Section 8b: Trial quotient TAKEN path (uHi < vTop)
@@ -855,7 +855,7 @@ theorem divK_trial_call_path_spec
   have J := jal_spec .x2 v2Old (560 : BitVec 21) (base + 512) (by nofun)
   rw [lb_jal_target, lb_jal_ret] at J
   have Je := cpsTriple_extend_code (hmono :=
-    lb_sub base 16 _ _ (by decide) (by bv_addr) (by decide)) J
+    lb_sub 16 _ _ (by decide) (by bv_addr) (by decide)) J
   -- 2. div128 subroutine: base+1072 → base+516
   have D := div128_spec sp (base + 516) vTop uLo uHi base
     j vtopBase v11Old retMem dMem dloMem un0Mem
@@ -905,7 +905,7 @@ theorem divK_beq_passthrough {carry : Word} (base : Word) (hne : carry ≠ 0) :
   have hbeq := beq_spec_gen .x7 .x0 (8044 : BitVec 13) carry 0 (base + 880)
   rw [lb_beq_back_ntaken] at hbeq
   have hbeq_ext := cpsBranch_extend_code (hmono :=
-    lb_sub base 108 _ _ (by decide) (by bv_addr) (by decide)) hbeq
+    lb_sub 108 _ _ (by decide) (by bv_addr) (by decide)) hbeq
   have ntaken := cpsBranch_ntakenPath hbeq_ext (fun hp hQt => by
     obtain ⟨_, _, _, _, _, ⟨_, _, _, _, _, ⟨_, hpure⟩⟩⟩ := hQt
     exact hne hpure)
@@ -973,7 +973,7 @@ theorem divK_double_addback_beq_spec
   have hbeq := beq_spec_gen .x7 .x0 (8044 : BitVec 13) (0 : Word) 0 (base + 880)
   rw [lb_beq_back_taken, lb_beq_back_ntaken] at hbeq
   have hbeq_ext := cpsBranch_extend_code (hmono :=
-    lb_sub base 108 _ _ (by decide) (by bv_addr) (by decide)) hbeq
+    lb_sub 108 _ _ (by decide) (by bv_addr) (by decide)) hbeq
   -- Eliminate not-taken path (⌜0 ≠ 0⌝ is absurd)
   have beq_taken := cpsBranch_takenPath hbeq_ext (fun hp hQf => by
     obtain ⟨_, _, _, _, _, ⟨_, _, _, _, _, ⟨_, hpure⟩⟩⟩ := hQf
@@ -1084,17 +1084,17 @@ theorem divK_store_loop_spec
   dsimp only [] at SQ
   rw [lb_sqj] at SQ
   have SQe := cpsTriple_extend_code (hmono := by
-    exact CodeReq.union_sub (lb_sub base 109 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 110 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 111 _ _ (by decide) (by bv_addr) (by decide))
-      (lb_sub base 112 _ _ (by decide) (by bv_addr) (by decide))))) SQ
+    exact CodeReq.union_sub (lb_sub 109 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 110 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 111 _ _ (by decide) (by bv_addr) (by decide))
+      (lb_sub 112 _ _ (by decide) (by bv_addr) (by decide))))) SQ
   -- 2. Loop control: instrs [113]-[114] at base+900
   have LC := divK_loop_control_spec j (7736 : BitVec 13) (base + 900)
   dsimp only [] at LC
   rw [lb_lc_taken, lb_lc_exit] at LC
   have LCe := cpsBranch_extend_code (hmono := by
-    exact CodeReq.union_sub (lb_sub base 113 _ _ (by decide) (by bv_addr) (by decide))
-      (lb_sub base 114 _ _ (by decide) (by bv_addr) (by decide))) LC
+    exact CodeReq.union_sub (lb_sub 113 _ _ (by decide) (by bv_addr) (by decide))
+      (lb_sub 114 _ _ (by decide) (by bv_addr) (by decide))) LC
   -- 3. Add x0 to store_qj via frame, then reshape via consequence
   have SQx0 : cpsTriple (base + 884) (base + 900) (sharedDivModCode base)
       ((.x1 ↦ᵣ j) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
@@ -1157,21 +1157,21 @@ theorem divK_store_loop_j0_spec
   dsimp only [] at SQ
   rw [lb_sqj] at SQ
   have SQe := cpsTriple_extend_code (hmono := by
-    exact CodeReq.union_sub (lb_sub base 109 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 110 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 111 _ _ (by decide) (by bv_addr) (by decide))
-      (lb_sub base 112 _ _ (by decide) (by bv_addr) (by decide))))) SQ
+    exact CodeReq.union_sub (lb_sub 109 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 110 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 111 _ _ (by decide) (by bv_addr) (by decide))
+      (lb_sub 112 _ _ (by decide) (by bv_addr) (by decide))))) SQ
   -- 2. ADDI x1 x1 4095 at base+900 (instr [113])
   have haddi := addi_spec_gen_same .x1 (0 : Word) 4095 (base + 900) (by nofun)
   rw [show (base + 900 : Word) + 4 = base + 904 from by bv_addr] at haddi
   have haddi_e := cpsTriple_extend_code (hmono := by
-    exact lb_sub base 113 _ _ (by decide) (by bv_addr) (by decide)) haddi
+    exact lb_sub 113 _ _ (by decide) (by bv_addr) (by decide)) haddi
   -- 3. BGE x1 x0 7736 at base+904 (instr [114])
   have hbge_raw := bge_spec_gen .x1 .x0 (7736 : BitVec 13) j' (0 : Word) (base + 904)
   rw [show (base + 904 : Word) + signExtend13 (7736 : BitVec 13) = base + loopBodyOff from by rv64_addr,
       show (base + 904 : Word) + 4 = base + denormOff from by bv_addr] at hbge_raw
   have hbge_ext := cpsBranch_extend_code (hmono := by
-    exact lb_sub base 114 _ _ (by decide) (by bv_addr) (by decide)) hbge_raw
+    exact lb_sub 114 _ _ (by decide) (by bv_addr) (by decide)) hbge_raw
   -- 4. Eliminate taken branch: j' = -1 < 0, so BGE is not taken
   have hbge_exit_raw := cpsBranch_ntakenPath hbge_ext
     (fun hp hQt => by
@@ -1241,21 +1241,21 @@ theorem divK_store_loop_jgt0_spec
   dsimp only [] at SQ
   rw [lb_sqj] at SQ
   have SQe := cpsTriple_extend_code (hmono := by
-    exact CodeReq.union_sub (lb_sub base 109 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 110 _ _ (by decide) (by bv_addr) (by decide))
-     (CodeReq.union_sub (lb_sub base 111 _ _ (by decide) (by bv_addr) (by decide))
-      (lb_sub base 112 _ _ (by decide) (by bv_addr) (by decide))))) SQ
+    exact CodeReq.union_sub (lb_sub 109 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 110 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub 111 _ _ (by decide) (by bv_addr) (by decide))
+      (lb_sub 112 _ _ (by decide) (by bv_addr) (by decide))))) SQ
   -- 2. ADDI x1 x1 4095 at base+900 (instr [113])
   have haddi := addi_spec_gen_same .x1 j 4095 (base + 900) (by nofun)
   rw [show (base + 900 : Word) + 4 = base + 904 from by bv_addr] at haddi
   have haddi_e := cpsTriple_extend_code (hmono := by
-    exact lb_sub base 113 _ _ (by decide) (by bv_addr) (by decide)) haddi
+    exact lb_sub 113 _ _ (by decide) (by bv_addr) (by decide)) haddi
   -- 3. BGE x1 x0 7736 at base+904 (instr [114])
   have hbge_raw := bge_spec_gen .x1 .x0 (7736 : BitVec 13) j' (0 : Word) (base + 904)
   rw [show (base + 904 : Word) + signExtend13 (7736 : BitVec 13) = base + loopBodyOff from by rv64_addr,
       show (base + 904 : Word) + 4 = base + denormOff from by bv_addr] at hbge_raw
   have hbge_ext := cpsBranch_extend_code (hmono := by
-    exact lb_sub base 114 _ _ (by decide) (by bv_addr) (by decide)) hbge_raw
+    exact lb_sub 114 _ _ (by decide) (by bv_addr) (by decide)) hbge_raw
   -- 4. Eliminate not-taken branch: j' = j-1 ≥ 0, so BGE is taken
   have hbge_exit_raw := cpsBranch_takenPath hbge_ext
     (fun hp hQf => by
@@ -1697,7 +1697,7 @@ theorem divK_trial_max_full_spec
   have hbltu_raw := bltu_spec_gen .x7 .x10 (12 : BitVec 13) uHi vTop (base + 500)
   rw [lb_bltu_taken, lb_bltu_ntaken] at hbltu_raw
   have hbltu_ext := cpsBranch_extend_code (hmono :=
-    lb_sub base 13 _ _ (by decide) (by bv_addr) (by decide)) hbltu_raw
+    lb_sub 13 _ _ (by decide) (by bv_addr) (by decide)) hbltu_raw
   -- Eliminate taken path (⌜BitVec.ult uHi vTop⌝ contradicts hbltu)
   have ntaken := cpsBranch_ntakenPath hbltu_ext (fun hp hQt => by
     obtain ⟨_, _, _, _, _, ⟨_, _, _, _, _, ⟨_, hpure⟩⟩⟩ := hQt
@@ -1799,7 +1799,7 @@ theorem divK_trial_call_full_spec
   have hbltu_raw := bltu_spec_gen .x7 .x10 (12 : BitVec 13) uHi vTop (base + 500)
   rw [lb_bltu_taken, lb_bltu_ntaken] at hbltu_raw
   have hbltu_ext := cpsBranch_extend_code (hmono :=
-    lb_sub base 13 _ _ (by decide) (by bv_addr) (by decide)) hbltu_raw
+    lb_sub 13 _ _ (by decide) (by bv_addr) (by decide)) hbltu_raw
   -- Eliminate ntaken path (⌜¬BitVec.ult uHi vTop⌝ contradicts hbltu)
   have taken := cpsBranch_takenPath hbltu_ext (fun hp hQf => by
     obtain ⟨_, _, _, _, _, ⟨_, _, _, _, _, ⟨_, hpure⟩⟩⟩ := hQf
