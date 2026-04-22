@@ -15,20 +15,6 @@ jobs:
       - uses: actions/checkout@v4
       - name: File-size guardrail
         run: scripts/check-file-size.sh
-      # Cache evm-asm's own olean artifacts under .lake/build between runs.
-      # `leanprover/lean-action` already pulls mathlib's prebuilt cache via
-      # `use-mathlib-cache: true`, but our own ~3540 oleans were rebuilt cold
-      # on every PR. Keying on source + toolchain + manifest hashes lets
-      # `lake build` do its normal incremental rebuild (only touched modules
-      # + their downstream dependents) when restoring a near-miss.
-      - name: Cache evm-asm build artifacts
-        uses: actions/cache@v4
-        with:
-          path: .lake/build
-          key: evm-asm-build-${{ runner.os }}-${{ hashFiles('lean-toolchain', 'lake-manifest.json') }}-${{ hashFiles('EvmAsm/**/*.lean') }}
-          restore-keys: |
-            evm-asm-build-${{ runner.os }}-${{ hashFiles('lean-toolchain', 'lake-manifest.json') }}-
-            evm-asm-build-${{ runner.os }}-
       - uses: leanprover/lean-action@v1
         with:
           use-mathlib-cache: true
