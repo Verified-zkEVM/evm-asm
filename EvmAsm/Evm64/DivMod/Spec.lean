@@ -263,7 +263,7 @@ def n4MaxDoubleAddbackSemanticHolds (a b : EvmWord) : Prop :=
   (addbackN4_carry ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1
     (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).toNat = 1
 
-theorem n4MaxDoubleAddbackSemanticHolds_def (a b : EvmWord) :
+theorem n4MaxDoubleAddbackSemanticHolds_def {a b : EvmWord} :
     n4MaxDoubleAddbackSemanticHolds a b =
     (let ms := mulsubN4 (signExtend12 4095)
         (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
