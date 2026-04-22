@@ -117,7 +117,7 @@ theorem evm_lt_stack_spec (sp base : Word)
                  EvmWord.getLimbN_one_zero, EvmWord.getLimbN_one_one,
                  EvmWord.getLimbN_one_two, EvmWord.getLimbN_one_three,
                  ite_self,
-                 ← EvmWord.lt_borrow_chain_correct a b]
+                 ← EvmWord.lt_borrow_chain_correct]
       simp only [EvmWord.getLimb_as_getLimbN_0, EvmWord.getLimb_as_getLimbN_1,
                  EvmWord.getLimb_as_getLimbN_2, EvmWord.getLimb_as_getLimbN_3]
       rw [spAddr32_8, spAddr32_16, spAddr32_24]
