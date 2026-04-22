@@ -187,7 +187,7 @@ def iterWithDoubleAddback (qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) :
 -- Equation lemmas for iterWithDoubleAddback in each branch.
 -- These avoid expanding the full definition inline; producers `rw` with them.
 
-theorem iterWithDoubleAddback_borrow (qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
+theorem iterWithDoubleAddback_borrow {qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word}
     (hb : BitVec.ult uTop (mulsubN4 qHat v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2) :
     let ms := mulsubN4 qHat v0 v1 v2 v3 u0 u1 u2 u3
     let carry := addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 v0 v1 v2 v3
@@ -201,7 +201,7 @@ theorem iterWithDoubleAddback_borrow (qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
       (qHat + signExtend12 4095, ab.1, ab.2.1, ab.2.2.1, ab.2.2.2.1, ab.2.2.2.2) := by
   simp only [iterWithDoubleAddback, if_pos hb]
 
-theorem iterWithDoubleAddback_no_borrow (qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
+theorem iterWithDoubleAddback_no_borrow {qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word}
     (hb : ¬BitVec.ult uTop (mulsubN4 qHat v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2) :
     let ms := mulsubN4 qHat v0 v1 v2 v3 u0 u1 u2 u3
     iterWithDoubleAddback qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop =
