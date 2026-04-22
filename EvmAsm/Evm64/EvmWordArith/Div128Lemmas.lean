@@ -45,7 +45,7 @@ theorem halfword_combine (a b : Word) (ha : a.toNat < 2^32) (hb : b.toNat < 2^32
   rw [Nat.mod_eq_of_lt (show a.toNat * 2 ^ 32 < 2 ^ 64 by nlinarith)]
 
 /-- Corollary: combining hi32 and lo32 of a word reconstructs it at the Nat level. -/
-theorem halfword_combine_hi_lo (x : Word) :
+theorem halfword_combine_hi_lo {x : Word} :
     (hi32 x <<< 32 ||| lo32 x).toNat = x.toNat := by
   rw [halfword_combine _ _ hi32_toNat_lt lo32_toNat_lt]
   exact halfword_decompose.symm

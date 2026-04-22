@@ -150,14 +150,14 @@ private theorem clzInit_no_overflow (val : Word) :
 -- Connection: clzResult = pipeline + stage 5
 -- ============================================================================
 
-theorem clzResult_fst_eq (val : Word) :
+theorem clzResult_fst_eq {val : Word} :
     (clzResult val).1 =
       if (clzPipeline val).2 >>> 63 ≠ 0
       then (clzPipeline val).1
       else (clzPipeline val).1 + signExtend12 1 := by
   unfold clzResult clzPipeline clzStep; rfl
 
-theorem clzResult_snd_eq (val : Word) :
+theorem clzResult_snd_eq {val : Word} :
     (clzResult val).2 = (clzPipeline val).2 := by
   unfold clzResult clzPipeline clzStep; rfl
 
@@ -328,7 +328,7 @@ theorem msb_imp_clz_zero {val : Word} (hmsb : val >>> (63 : Nat) ≠ 0) :
 -- ============================================================================
 
 /-- CLZ shift=0 iff the MSB is set: `(clzResult val).1 = 0 ↔ val >>> 63 ≠ 0`. -/
-theorem clzResult_fst_eq_zero_iff (val : Word) :
+theorem clzResult_fst_eq_zero_iff {val : Word} :
     (clzResult val).1 = 0 ↔ val >>> (63 : Nat) ≠ 0 := by
   constructor
   · intro h
