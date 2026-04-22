@@ -471,4 +471,89 @@ theorem div128Quot_call_skip_le_val256_div
   simp only [] at h_mul
   exact (Nat.le_div_iff_mul_le hv_pos).mpr h_mul
 
+-- ============================================================================
+-- Pure-Nat digit-tightness utilities (used downstream by Phase 1/2 tight)
+-- ============================================================================
+
+/-- **Digit-decomposition tightness (pure Nat).** When a 2-digit value
+    `q1 * 2^32 + q0` is upper-bounded by `q_true_1 * 2^32 + q_true_0`
+    (with `q_true_0 < 2^32`), and the top digit is lower-bounded by
+    `q_true_1`, the top digit is exactly `q_true_1`.
+
+    Insight: if `q1 ≥ q_true_1 + 1`, then `q1 * 2^32 ≥ (q_true_1 + 1) * 2^32
+    = q_true_1 * 2^32 + 2^32 > q_true_1 * 2^32 + q_true_0`, contradicting
+    the upper bound. Hence `q1 = q_true_1`, and `q0 ≤ q_true_0` follows.
+
+    **Usage**: this is the key step showing Phase 1 tight (q1' = q_true_1)
+    is a free consequence of T3's `qHat ≤ q_true_full` combined with
+    KB-LB7's `q1' ≥ q_true_1`. Obsoletes the originally-planned Task 4
+    (Phase 1 tight via Knuth Theorem C Word-level, ~150 lines). -/
+theorem digit_tight_of_le_and_ge {q1 q0 q_true_1 q_true_0 : Nat}
+    (h_q_true_0_lt : q_true_0 < 2^32)
+    (h_le : q1 * 2^32 + q0 ≤ q_true_1 * 2^32 + q_true_0)
+    (h_ge : q_true_1 ≤ q1) :
+    q1 = q_true_1 ∧ q0 ≤ q_true_0 := by
+  have h_q1_le : q1 ≤ q_true_1 := by
+    by_contra h
+    push Not at h
+    have h_mul : (q_true_1 + 1) * 2^32 ≤ q1 * 2^32 :=
+      Nat.mul_le_mul_right _ h
+    have h_rearr : (q_true_1 + 1) * 2^32 = q_true_1 * 2^32 + 2^32 := by ring
+    omega
+  have h_q1_eq : q1 = q_true_1 := Nat.le_antisymm h_q1_le h_ge
+  refine ⟨h_q1_eq, ?_⟩
+  rw [h_q1_eq] at h_le
+  omega
+
+/-- **q_true_full digit lower bound (pure Nat).** The full 2-digit true
+    quotient is at least `q_true_1 * 2^32`, where `q_true_1` is the Phase 1
+    abstract first digit. Proof: multiply Phase 1 Euclidean by `2^32`,
+    bound `div_un0 ≥ 0`. -/
+theorem q_true_full_ge_q_true_1_mul_pow32_nat
+    {uHi div_un1 div_un0 dHi dLo : Nat}
+    (hvTop_pos : 0 < dHi * 2^32 + dLo) :
+    (uHi * 2^32 + div_un1) / (dHi * 2^32 + dLo) * 2^32 ≤
+      (uHi * 2^64 + div_un1 * 2^32 + div_un0) / (dHi * 2^32 + dLo) := by
+  set vTop_nat := dHi * 2^32 + dLo with h_vTop_def
+  set q_true_1 := (uHi * 2^32 + div_un1) / vTop_nat with h_q_true_1_def
+  have h_euc : q_true_1 * vTop_nat ≤ uHi * 2^32 + div_un1 :=
+    Nat.div_mul_le_self _ _
+  have h_le : q_true_1 * 2^32 * vTop_nat ≤
+      uHi * 2^64 + div_un1 * 2^32 + div_un0 := by
+    have h_rearr : q_true_1 * 2^32 * vTop_nat = q_true_1 * vTop_nat * 2^32 := by ring
+    have h_mul : q_true_1 * vTop_nat * 2^32 ≤ (uHi * 2^32 + div_un1) * 2^32 :=
+      Nat.mul_le_mul_right _ h_euc
+    have h_expand : (uHi * 2^32 + div_un1) * 2^32 =
+        uHi * 2^64 + div_un1 * 2^32 := by ring
+    linarith
+  exact (Nat.le_div_iff_mul_le hvTop_pos).mpr h_le
+
+/-- **q_true_full digit upper bound (pure Nat).** The full 2-digit true
+    quotient is strictly less than `(q_true_1 + 1) * 2^32`. Proof: from
+    `Nat.lt_mul_div_succ`, `vTop * (q_true_1 + 1) > uHi * 2^32 + div_un1`;
+    multiply by `2^32` and bound `div_un0 < 2^32`. -/
+theorem q_true_full_lt_q_true_1_succ_mul_pow32_nat
+    {uHi div_un1 div_un0 dHi dLo : Nat}
+    (hvTop_pos : 0 < dHi * 2^32 + dLo)
+    (hdiv_un0_lt : div_un0 < 2^32) :
+    (uHi * 2^64 + div_un1 * 2^32 + div_un0) / (dHi * 2^32 + dLo) <
+      ((uHi * 2^32 + div_un1) / (dHi * 2^32 + dLo) + 1) * 2^32 := by
+  set vTop_nat := dHi * 2^32 + dLo with h_vTop_def
+  set q_true_1 := (uHi * 2^32 + div_un1) / vTop_nat with h_q_true_1_def
+  have h_lt : uHi * 2^32 + div_un1 < vTop_nat * (q_true_1 + 1) :=
+    Nat.lt_mul_div_succ _ hvTop_pos
+  have h_num_lt : uHi * 2^64 + div_un1 * 2^32 + div_un0 <
+      vTop_nat * (q_true_1 + 1) * 2^32 := by
+    have h_plus_one : uHi * 2^32 + div_un1 + 1 ≤ vTop_nat * (q_true_1 + 1) := h_lt
+    have h_mul_1 : (uHi * 2^32 + div_un1 + 1) * 2^32 ≤
+        vTop_nat * (q_true_1 + 1) * 2^32 :=
+      Nat.mul_le_mul_right _ h_plus_one
+    have h_expand_lhs : (uHi * 2^32 + div_un1 + 1) * 2^32 =
+        uHi * 2^64 + div_un1 * 2^32 + 2^32 := by ring
+    linarith
+  have h_eq_rearr : vTop_nat * (q_true_1 + 1) * 2^32 =
+      ((q_true_1 + 1) * 2^32) * vTop_nat := by ring
+  rw [h_eq_rearr] at h_num_lt
+  exact (Nat.div_lt_iff_lt_mul hvTop_pos).mpr h_num_lt
+
 end EvmAsm.Evm64
