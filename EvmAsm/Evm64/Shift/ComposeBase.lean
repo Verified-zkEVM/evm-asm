@@ -64,7 +64,7 @@ theorem shr_zero_path_len : shr_zero_path.length = 5 := by decide
 -- ============================================================================
 
 /-- Bridge: `shr_phase_a_code` (union chain, 9 instrs) ⊆ `ofProg shr_phase_a`. -/
-theorem shr_phase_a_code_sub_ofProg (base : Word) :
+theorem shr_phase_a_code_sub_ofProg {base : Word} :
     ∀ a i, shr_phase_a_code base a = some i →
       (CodeReq.ofProg base shr_phase_a) a = some i := by
   unfold shr_phase_a_code shr_ld_or_acc_code
@@ -90,7 +90,7 @@ theorem shr_phase_a_code_sub_ofProg (base : Word) :
                 (by decide) (by decide) (by bv_omega) (by decide)
 
 /-- Bridge: `shr_phase_c_code` (union chain, 5 instrs) ⊆ `ofProg shr_phase_c`. -/
-theorem shr_phase_c_code_sub_ofProg (base : Word) :
+theorem shr_phase_c_code_sub_ofProg {base : Word} :
     ∀ a i, shr_phase_c_code base a = some i →
       (CodeReq.ofProg base shr_phase_c) a = some i := by
   unfold shr_phase_c_code shr_cascade_step_code

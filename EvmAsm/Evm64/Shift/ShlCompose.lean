@@ -85,7 +85,7 @@ private theorem ofProg_phase_c_sub_shlCode (base : Word) :
 private theorem phase_c_sub_shlCode (base : Word) :
     ∀ a i, shr_phase_c_code (base + 64) a = some i → shlCode base a = some i := by
   intro a i h
-  exact ofProg_phase_c_sub_shlCode base a i (shr_phase_c_code_sub_ofProg (base + 64) a i h)
+  exact ofProg_phase_c_sub_shlCode base a i (shr_phase_c_code_sub_ofProg a i h)
 
 /-- SHL Body 3 code (7 instrs at +84) is subsumed by shlCode (block 3). -/
 private theorem shl_body_3_sub_shlCode (base : Word) :
