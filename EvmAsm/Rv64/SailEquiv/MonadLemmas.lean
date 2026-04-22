@@ -143,14 +143,14 @@ theorem runSail_rX_bits_of_stateRel {sRv : MachineState} {sSail : SailState}
 -- wX_bits — register write
 -- ============================================================================
 
-theorem runSail_wX_bits_x0 (v : BitVec 64) (s : SailState) :
+theorem runSail_wX_bits_x0 {v : BitVec 64} {s : SailState} :
     runSail (wX_bits (regidx.Regidx 0) v) s = some (⟨⟩, s) := by
   simp [runSail, wX_bits, wX, BitVec.toNatInt,
     pure, EStateM.pure, bind, EStateM.bind]
 
 /-- wX_bits on a non-x0 register: writes the value and calls the (no-op) callback.
     The final state has the register updated and everything else unchanged. -/
-theorem runSail_wX_bits_x1 (v : BitVec 64) (s : SailState) :
+theorem runSail_wX_bits_x1 {v : BitVec 64} {s : SailState} :
     runSail (wX_bits (regidx.Regidx 1) v) s =
       some (⟨⟩, { s with regs := s.regs.insert Register.x1 v }) := by
   simp [runSail, wX_bits, wX, BitVec.toNatInt, regval_into_reg,
@@ -162,7 +162,7 @@ theorem runSail_wX_bits_x1 (v : BitVec 64) (s : SailState) :
     bind, EStateM.bind, pure, EStateM.pure,
     get, MonadState.get, getThe, MonadStateOf.get]
 
-theorem runSail_wX_bits_x2 (v : BitVec 64) (s : SailState) :
+theorem runSail_wX_bits_x2 {v : BitVec 64} {s : SailState} :
     runSail (wX_bits (regidx.Regidx 2) v) s =
       some (⟨⟩, { s with regs := s.regs.insert Register.x2 v }) := by
   simp [runSail, wX_bits, wX, BitVec.toNatInt, regval_into_reg,
@@ -174,7 +174,7 @@ theorem runSail_wX_bits_x2 (v : BitVec 64) (s : SailState) :
     bind, EStateM.bind, pure, EStateM.pure,
     get, MonadState.get, getThe, MonadStateOf.get]
 
-theorem runSail_wX_bits_x5 (v : BitVec 64) (s : SailState) :
+theorem runSail_wX_bits_x5 {v : BitVec 64} {s : SailState} :
     runSail (wX_bits (regidx.Regidx 5) v) s =
       some (⟨⟩, { s with regs := s.regs.insert Register.x5 v }) := by
   simp [runSail, wX_bits, wX, BitVec.toNatInt, regval_into_reg,
@@ -186,7 +186,7 @@ theorem runSail_wX_bits_x5 (v : BitVec 64) (s : SailState) :
     bind, EStateM.bind, pure, EStateM.pure,
     get, MonadState.get, getThe, MonadStateOf.get]
 
-theorem runSail_wX_bits_x6 (v : BitVec 64) (s : SailState) :
+theorem runSail_wX_bits_x6 {v : BitVec 64} {s : SailState} :
     runSail (wX_bits (regidx.Regidx 6) v) s =
       some (⟨⟩, { s with regs := s.regs.insert Register.x6 v }) := by
   simp [runSail, wX_bits, wX, BitVec.toNatInt, regval_into_reg,
@@ -198,7 +198,7 @@ theorem runSail_wX_bits_x6 (v : BitVec 64) (s : SailState) :
     bind, EStateM.bind, pure, EStateM.pure,
     get, MonadState.get, getThe, MonadStateOf.get]
 
-theorem runSail_wX_bits_x7 (v : BitVec 64) (s : SailState) :
+theorem runSail_wX_bits_x7 {v : BitVec 64} {s : SailState} :
     runSail (wX_bits (regidx.Regidx 7) v) s =
       some (⟨⟩, { s with regs := s.regs.insert Register.x7 v }) := by
   simp [runSail, wX_bits, wX, BitVec.toNatInt, regval_into_reg,
@@ -210,7 +210,7 @@ theorem runSail_wX_bits_x7 (v : BitVec 64) (s : SailState) :
     bind, EStateM.bind, pure, EStateM.pure,
     get, MonadState.get, getThe, MonadStateOf.get]
 
-theorem runSail_wX_bits_x10 (v : BitVec 64) (s : SailState) :
+theorem runSail_wX_bits_x10 {v : BitVec 64} {s : SailState} :
     runSail (wX_bits (regidx.Regidx 10) v) s =
       some (⟨⟩, { s with regs := s.regs.insert Register.x10 v }) := by
   simp [runSail, wX_bits, wX, BitVec.toNatInt, regval_into_reg,
@@ -222,7 +222,7 @@ theorem runSail_wX_bits_x10 (v : BitVec 64) (s : SailState) :
     bind, EStateM.bind, pure, EStateM.pure,
     get, MonadState.get, getThe, MonadStateOf.get]
 
-theorem runSail_wX_bits_x11 (v : BitVec 64) (s : SailState) :
+theorem runSail_wX_bits_x11 {v : BitVec 64} {s : SailState} :
     runSail (wX_bits (regidx.Regidx 11) v) s =
       some (⟨⟩, { s with regs := s.regs.insert Register.x11 v }) := by
   simp [runSail, wX_bits, wX, BitVec.toNatInt, regval_into_reg,
@@ -234,7 +234,7 @@ theorem runSail_wX_bits_x11 (v : BitVec 64) (s : SailState) :
     bind, EStateM.bind, pure, EStateM.pure,
     get, MonadState.get, getThe, MonadStateOf.get]
 
-theorem runSail_wX_bits_x12 (v : BitVec 64) (s : SailState) :
+theorem runSail_wX_bits_x12 {v : BitVec 64} {s : SailState} :
     runSail (wX_bits (regidx.Regidx 12) v) s =
       some (⟨⟩, { s with regs := s.regs.insert Register.x12 v }) := by
   simp [runSail, wX_bits, wX, BitVec.toNatInt, regval_into_reg,
