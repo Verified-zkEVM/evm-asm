@@ -140,7 +140,7 @@ theorem bv_udiv_umod_unique {n : Nat} {a b q r : BitVec n}
 -- ============================================================================
 
 /-- EvmWord Euclidean division property: `b * (div a b) + mod a b = a` when b ≠ 0. -/
-theorem div_mod_add_eq (a b : EvmWord) (hbnz : b ≠ 0) :
+theorem div_mod_add_eq {a b : EvmWord} (hbnz : b ≠ 0) :
     b * (div a b) + mod a b = a := by
   simp only [div, mod, if_neg hbnz]
   exact bv_udiv_add_umod
