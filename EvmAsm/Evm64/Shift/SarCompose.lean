@@ -139,7 +139,7 @@ abbrev sar_phase_c_code (base : Word) : CodeReq :=
   (shr_cascade_step_code 2 36 (base + 12)))
 
 -- Bridge: sar_phase_c_code (union chain) ⊆ ofProg sar_phase_c (5-element list)
-private theorem sar_phase_c_code_sub_ofProg (base : Word) :
+private theorem sar_phase_c_code_sub_ofProg {base : Word} :
     ∀ a i, sar_phase_c_code base a = some i →
       (CodeReq.ofProg base sar_phase_c) a = some i := by
   unfold sar_phase_c_code shr_cascade_step_code
@@ -162,7 +162,7 @@ private theorem ofProg_phase_c_sub_sarCode {base : Word} :
 private theorem sar_phase_c_sub_sarCode {base : Word} :
     ∀ a i, sar_phase_c_code (base + 64) a = some i → sarCode base a = some i := by
   intro a i h
-  exact ofProg_phase_c_sub_sarCode a i (sar_phase_c_code_sub_ofProg (base + 64) a i h)
+  exact ofProg_phase_c_sub_sarCode a i (sar_phase_c_code_sub_ofProg a i h)
 
 -- Body subsumption lemmas
 
@@ -195,7 +195,7 @@ private theorem sar_body_0_sub_sarCode {base : Word} :
   exact CodeReq.union_mono_left _ _
 
 -- Bridge: sar_sign_fill_path_code (union chain) ⊆ ofProg sar_sign_fill_path (7-element list)
-private theorem sign_fill_code_sub_ofProg (base : Word) :
+private theorem sign_fill_code_sub_ofProg {base : Word} :
     ∀ a i, sar_sign_fill_path_code base a = some i →
       (CodeReq.ofProg base sar_sign_fill_path) a = some i := by
   unfold sar_sign_fill_path_code
@@ -230,7 +230,7 @@ private theorem ofProg_sign_fill_sub_sarCode {base : Word} :
 private theorem sign_fill_sub_sarCode {base : Word} :
     ∀ a i, sar_sign_fill_path_code (base + 352) a = some i → sarCode base a = some i := by
   intro a i h
-  exact ofProg_sign_fill_sub_sarCode a i (sign_fill_code_sub_ofProg (base + 352) a i h)
+  exact ofProg_sign_fill_sub_sarCode a i (sign_fill_code_sub_ofProg a i h)
 
 -- ============================================================================
 -- Section 3: Address normalization lemmas
