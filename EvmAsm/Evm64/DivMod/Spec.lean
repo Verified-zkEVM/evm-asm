@@ -596,7 +596,7 @@ theorem div_n4_max_skip_stack_weaken
   intro h hp
   delta divN4MaxSkipStackPost
   refine sepConj_mono_right ?_ h hp
-  iterate 7 apply sepConj_mono (regIs_implies_regOwn _ _)
+  iterate 7 apply sepConj_mono (regIs_implies_regOwn _)
   apply sepConj_mono_right
   apply sepConj_mono_right
   apply sepConj_mono_right
@@ -794,7 +794,7 @@ theorem mod_n4_max_skip_stack_weaken
   intro h hp
   delta modN4MaxSkipStackPost
   refine sepConj_mono_right ?_ h hp
-  iterate 7 apply sepConj_mono (regIs_implies_regOwn _ _)
+  iterate 7 apply sepConj_mono (regIs_implies_regOwn _)
   apply sepConj_mono_right
   apply sepConj_mono_right
   apply sepConj_mono_right
@@ -1014,14 +1014,14 @@ theorem evm_div_bzero_stack_spec (sp base : Word)
       xperm_hyp hp)
     (fun h hq => by
       rw [evmWordIs_sp32_limbs_eq sp _ 0 0 0 0 hr0 hr1 hr2 hr3]
-      have w0 := sepConj_mono_left (regIs_implies_regOwn .x5 _) h
+      have w0 := sepConj_mono_left (regIs_implies_regOwn .x5) h
         ((congrFun (show _ =
           ((.x5 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ (0 : Word)) **
            (.x12 ↦ᵣ (sp + 32)) ** (.x0 ↦ᵣ (0 : Word)) **
            ((sp + 32) ↦ₘ (0 : Word)) ** ((sp + 40) ↦ₘ (0 : Word)) **
            ((sp + 48) ↦ₘ (0 : Word)) ** ((sp + 56) ↦ₘ (0 : Word)))
           from by xperm) h).mp hq)
-      have w1 := sepConj_mono_right (sepConj_mono_left (regIs_implies_regOwn .x10 _)) h w0
+      have w1 := sepConj_mono_right (sepConj_mono_left (regIs_implies_regOwn .x10)) h w0
       exact (congrFun (show _ =
         ((.x12 ↦ᵣ (sp + 32)) ** (regOwn .x5) ** (regOwn .x10) ** (.x0 ↦ᵣ (0 : Word)) **
          ((sp + 32) ↦ₘ (0 : Word)) ** ((sp + 40) ↦ₘ (0 : Word)) **
@@ -1068,14 +1068,14 @@ theorem evm_mod_bzero_stack_spec (sp base : Word)
       xperm_hyp hp)
     (fun h hq => by
       rw [evmWordIs_sp32_limbs_eq sp _ 0 0 0 0 hr0 hr1 hr2 hr3]
-      have w0 := sepConj_mono_left (regIs_implies_regOwn .x5 _) h
+      have w0 := sepConj_mono_left (regIs_implies_regOwn .x5) h
         ((congrFun (show _ =
           ((.x5 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ (0 : Word)) **
            (.x12 ↦ᵣ (sp + 32)) ** (.x0 ↦ᵣ (0 : Word)) **
            ((sp + 32) ↦ₘ (0 : Word)) ** ((sp + 40) ↦ₘ (0 : Word)) **
            ((sp + 48) ↦ₘ (0 : Word)) ** ((sp + 56) ↦ₘ (0 : Word)))
           from by xperm) h).mp hq)
-      have w1 := sepConj_mono_right (sepConj_mono_left (regIs_implies_regOwn .x10 _)) h w0
+      have w1 := sepConj_mono_right (sepConj_mono_left (regIs_implies_regOwn .x10)) h w0
       exact (congrFun (show _ =
         ((.x12 ↦ᵣ (sp + 32)) ** (regOwn .x5) ** (regOwn .x10) ** (.x0 ↦ᵣ (0 : Word)) **
          ((sp + 32) ↦ₘ (0 : Word)) ** ((sp + 40) ↦ₘ (0 : Word)) **

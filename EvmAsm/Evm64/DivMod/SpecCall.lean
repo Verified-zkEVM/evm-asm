@@ -179,7 +179,7 @@ theorem div_n4_call_skip_stack_weaken
   intro h hp
   delta divN4CallSkipStackPost
   refine sepConj_mono_right ?_ h hp
-  iterate 7 apply sepConj_mono (regIs_implies_regOwn _ _)
+  iterate 7 apply sepConj_mono (regIs_implies_regOwn _)
   apply sepConj_mono_right
   apply sepConj_mono_right
   apply sepConj_mono_right
@@ -208,7 +208,7 @@ theorem mod_n4_call_skip_stack_weaken
   intro h hp
   delta modN4CallSkipStackPost
   refine sepConj_mono_right ?_ h hp
-  iterate 7 apply sepConj_mono (regIs_implies_regOwn _ _)
+  iterate 7 apply sepConj_mono (regIs_implies_regOwn _)
   apply sepConj_mono_right
   apply sepConj_mono_right
   apply sepConj_mono_right
