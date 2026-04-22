@@ -142,15 +142,15 @@ def loopBodyUnifiedPost (borrow_zero : Bool) (n : Word)
   else loopBodyAddbackBeqPost n sp j qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop
 
 @[simp]
-theorem loopBodyUnifiedPost_true (n : Word)
-    (sp j qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) :
+theorem loopBodyUnifiedPost_true {n : Word}
+    {sp j qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word} :
     loopBodyUnifiedPost true n sp j qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop =
     loopBodySkipPost n sp j qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
   simp [loopBodyUnifiedPost]
 
 @[simp]
-theorem loopBodyUnifiedPost_false (n : Word)
-    (sp j qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) :
+theorem loopBodyUnifiedPost_false {n : Word}
+    {sp j qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word} :
     loopBodyUnifiedPost false n sp j qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop =
     loopBodyAddbackBeqPost n sp j qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
   simp [loopBodyUnifiedPost]
