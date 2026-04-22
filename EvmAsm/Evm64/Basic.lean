@@ -276,7 +276,7 @@ private theorem extractLsb'_split_64 (v : BitVec 256) (base bs : Nat) (hbs : bs 
       congr 1; omega
 
 /-- Shifting a 256-bit word right by `≥ 256` yields zero. -/
-theorem ushiftRight_geq_256 (v : EvmWord) (n : Nat) (h : n ≥ 256) :
+theorem ushiftRight_geq_256 {v : EvmWord} {n : Nat} (h : n ≥ 256) :
     v >>> n = (0 : EvmWord) := by
   ext j
   simp only [BitVec.getElem_ushiftRight]
@@ -285,7 +285,7 @@ theorem ushiftRight_geq_256 (v : EvmWord) (n : Nat) (h : n ≥ 256) :
   calc v.toNat < 2 ^ 256 := v.isLt
     _ ≤ 2 ^ (n + ↑j) := Nat.pow_le_pow_right (by omega) (by omega)
 
-theorem shiftLeft_geq_256 (v : EvmWord) (n : Nat) (h : n ≥ 256) :
+theorem shiftLeft_geq_256 {v : EvmWord} {n : Nat} (h : n ≥ 256) :
     v <<< n = (0 : EvmWord) := by
   ext j
   simp only [BitVec.getElem_shiftLeft]
@@ -553,7 +553,7 @@ theorem getLimb_sshiftRight_sign' {v : EvmWord} {n : Nat} {i : Fin 4}
                show (64 : Nat) - 1 - 0 < 64 from by omega, decide_true, Bool.true_and]
 
 /-- Shifting a 256-bit word arithmetically right by `≥ 256` yields sign extension on each limb. -/
-theorem getLimb_sshiftRight_geq_256 (v : EvmWord) (n : Nat) (h : n ≥ 256) (i : Fin 4) :
+theorem getLimb_sshiftRight_geq_256 {v : EvmWord} {n : Nat} (h : n ≥ 256) {i : Fin 4} :
     getLimb (BitVec.sshiftRight v n) i =
     BitVec.sshiftRight (v.getLimb ⟨3, by omega⟩) 63 :=
   getLimb_sshiftRight_sign' (by omega)
