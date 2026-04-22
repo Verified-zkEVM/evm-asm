@@ -2306,19 +2306,19 @@ theorem CodeReq.singleton_get (a : Word) (i : Instr) :
 -- ---------------------------------------------------------------------------
 
 /-- Auxiliary: `base + BitVec.ofNat 64 0 = base`. -/
-private theorem ofProg_addr_zero (base : Word) : base + BitVec.ofNat 64 0 = base := by
+private theorem ofProg_addr_zero {base : Word} : base + BitVec.ofNat 64 0 = base := by
   bv_omega
 
 /-- Auxiliary: address step for ofProg induction.
     `base + ofNat(4*(k+1)) = (base + 4) + ofNat(4*k)`. -/
-private theorem ofProg_addr_succ (base : Word) (k : Nat) :
+private theorem ofProg_addr_succ {base : Word} (k : Nat) :
     base + BitVec.ofNat 64 (4 * (k + 1)) = (base + 4) + BitVec.ofNat 64 (4 * k) := by
   apply BitVec.eq_of_toNat_eq
   simp [BitVec.toNat_add, BitVec.toNat_ofNat]
   omega
 
 /-- Auxiliary: `base + ofNat(4*(k+1)) ≠ base` when `4*(k+1) < 2^64`. -/
-private theorem ofProg_addr_ne (base : Word) (k : Nat) (hk : 4 * (k + 1) < 2 ^ 64) :
+private theorem ofProg_addr_ne {base : Word} (k : Nat) (hk : 4 * (k + 1) < 2 ^ 64) :
     base + BitVec.ofNat 64 (4 * (k + 1)) ≠ base := by
   intro h
   have := congrArg BitVec.toNat h
@@ -2347,7 +2347,7 @@ theorem CodeReq.ofProg_lookup (base : Word) (prog : List Instr) (k : Nat)
       simp only [List.get]
       have hk'_bound : 4 * (k' + 1) < 2 ^ 64 := by omega
       have hmiss : (CodeReq.singleton base i) (base + BitVec.ofNat 64 (4 * (k' + 1))) = none :=
-        CodeReq.singleton_miss (ofProg_addr_ne base k' hk'_bound)
+        CodeReq.singleton_miss (ofProg_addr_ne k' hk'_bound)
       simp only [CodeReq.union, hmiss]
       rw [ofProg_addr_succ]
       exact ih (base + 4) k' (by simp [List.length] at hk; omega) (by simp [List.length] at hbound; omega)
@@ -2399,7 +2399,7 @@ theorem CodeReq.ofProg_some_range (base : Word) (prog : List Instr) (a : Word) (
       exact ⟨0, by simp, by simp [hb, BitVec.ofNat]⟩
     · simp [hb] at h
       obtain ⟨k, hk, haddr⟩ := ih (base + 4) h
-      exact ⟨k + 1, by simp [List.length]; omega, by rw [haddr]; exact (ofProg_addr_succ base k).symm⟩
+      exact ⟨k + 1, by simp [List.length]; omega, by rw [haddr]; exact (ofProg_addr_succ k).symm⟩
 
 /-- Two ofProg blocks at non-overlapping address ranges are disjoint.
     Only requires the address-inequality predicate, not list expansion. -/
