@@ -95,7 +95,7 @@ private def clzS2 (val : Word) :=
 private def clzS3 (val : Word) :=
   clzStep 60 4  (signExtend12  4) (clzS2 val)
 
-private theorem clzPipeline_unfold (val : Word) :
+private theorem clzPipeline_unfold {val : Word} :
     clzPipeline val = clzStep 62 2 (signExtend12 2) (clzS3 val) := by
   unfold clzPipeline clzS3 clzS2 clzS1 clzS0; rfl
 
