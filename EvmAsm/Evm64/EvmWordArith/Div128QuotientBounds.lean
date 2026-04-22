@@ -750,4 +750,52 @@ theorem div128Quot_un21_additive_identity
   rw [h_q1_vtop]
   omega
 
+-- ============================================================================
+-- Piece B: Phase 2a bounds via Phase 1a reuse (KB-4)
+-- ============================================================================
+
+/-- **KB-4a: Phase 2a Euclidean.** Direct instantiation of
+    `div128Quot_first_round_post` with `uHi := un21`: the Phase 2a
+    post-correction quotient `q0c` and remainder `rhat2c` satisfy the
+    Euclidean equation against `un21`:
+
+    ```
+    q0c.toNat * dHi.toNat + rhat2c.toNat = un21.toNat
+    ```
+
+    Phase 1a lemmas are generic over the dividend — they take any Word
+    as `uHi`.  This is the observation documented in the Knuth-B plan
+    memo: Phase 2 bounds require no new code beyond thin instantiation
+    wrappers. -/
+theorem div128Quot_phase2a_euclidean (un21 dHi : Word)
+    (hdHi_ne : dHi ≠ 0) (hdHi_lt : dHi.toNat < 2^32) :
+    let q0 := rv64_divu un21 dHi
+    let rhat2 := un21 - q0 * dHi
+    let hi2 := q0 >>> (32 : BitVec 6).toNat
+    let q0c := if hi2 = 0 then q0 else q0 + signExtend12 4095
+    let rhat2c := if hi2 = 0 then rhat2 else rhat2 + dHi
+    q0c.toNat * dHi.toNat + rhat2c.toNat = un21.toNat :=
+  div128Quot_first_round_post un21 dHi hdHi_ne hdHi_lt
+
+/-- **KB-4b: Phase 2a remainder bound.** Instantiation of
+    `div128Quot_rhatc_lt_2dHi`: `rhat2c < 2 * dHi`. -/
+theorem div128Quot_phase2a_rhat2c_lt_2dHi (un21 dHi : Word)
+    (hdHi_ne : dHi ≠ 0) (hdHi_lt : dHi.toNat < 2^32) :
+    let q0 := rv64_divu un21 dHi
+    let rhat2 := un21 - q0 * dHi
+    let hi2 := q0 >>> (32 : BitVec 6).toNat
+    let rhat2c := if hi2 = 0 then rhat2 else rhat2 + dHi
+    rhat2c.toNat < 2 * dHi.toNat :=
+  div128Quot_rhatc_lt_2dHi un21 dHi hdHi_ne hdHi_lt
+
+/-- **KB-4c: Phase 2a quotient bound.** Instantiation of
+    `div128Quot_q1c_lt_pow33`: `q0c < 2^33`. -/
+theorem div128Quot_phase2a_q0c_lt_pow33 (un21 dHi : Word)
+    (hdHi_ge : dHi.toNat ≥ 2^31) :
+    let q0 := rv64_divu un21 dHi
+    let hi2 := q0 >>> (32 : BitVec 6).toNat
+    let q0c := if hi2 = 0 then q0 else q0 + signExtend12 4095
+    q0c.toNat < 2^33 :=
+  div128Quot_q1c_lt_pow33 un21 dHi hdHi_ge
+
 end EvmAsm.Evm64
