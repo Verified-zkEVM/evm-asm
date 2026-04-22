@@ -34,13 +34,13 @@ theorem to_bits_truncate_neg1 :
   simp [to_bits_truncate, get_slice_int, BitVec.allOnes]
 
 /-- to_bits_truncate roundtrips through toNatInt (unsigned interpretation). -/
-theorem to_bits_truncate_toNatInt (a : BitVec 64) :
+theorem to_bits_truncate_toNatInt {a : BitVec 64} :
     to_bits_truncate (l := 64) (BitVec.toNatInt a) = a := by
   simp [BitVec.toNatInt, to_bits_truncate, get_slice_int]
   apply BitVec.eq_of_toNat_eq; simp; omega
 
 /-- BEq bridge: Int.ofNat b.toNat == 0 ↔ b == 0#64. -/
-theorem int_ofNat_beq_zero (b : BitVec 64) :
+theorem int_ofNat_beq_zero {b : BitVec 64} :
     (Int.ofNat b.toNat == (0 : Int)) = (b == 0#64) := by
   simp [BEq.beq, decide_eq_decide]
   constructor
@@ -90,12 +90,12 @@ theorem signed_rem_equiv (a b : BitVec 64) :
   exact BitVec.ofInt_toInt
 
 /-- to_bits_truncate roundtrips through toInt (signed interpretation). -/
-theorem to_bits_truncate_toInt (a : BitVec 64) :
+theorem to_bits_truncate_toInt {a : BitVec 64} :
     to_bits_truncate (l := 64) a.toInt = a := by
   rw [to_bits_truncate_eq_ofInt]; exact BitVec.ofInt_toInt
 
 /-- BEq bridge for signed zero check: b.toInt == 0 ↔ b == 0#64. -/
-theorem int_toInt_beq_zero (b : BitVec 64) :
+theorem int_toInt_beq_zero {b : BitVec 64} :
     (b.toInt == (0 : Int)) = (b == 0#64) := by
   simp [BEq.beq, decide_eq_decide, BitVec.toInt]
   constructor
