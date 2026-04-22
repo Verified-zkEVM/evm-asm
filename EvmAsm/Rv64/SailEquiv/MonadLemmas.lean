@@ -56,7 +56,7 @@ private theorem bv5_toNat_12 : BitVec.toNat (12 : BitVec 5) = 12 := by decide
 -- rX_bits — per-register read lemmas
 -- ============================================================================
 
-theorem runSail_rX_bits_x0 (s : SailState) :
+theorem runSail_rX_bits_x0 {s : SailState} :
     runSail (rX_bits (regidx.Regidx 0)) s = some (0#64, s) := by
   simp [runSail, rX_bits, rX, BitVec.toNatInt, zero_reg, zeros, regval_from_reg,
     pure, EStateM.pure, bind, EStateM.bind]
