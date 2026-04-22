@@ -662,8 +662,8 @@ private theorem sar_bridge_merge (value : EvmWord) (s0 : Word)
   -- sshiftRight agrees with ushiftRight for merge limbs
   rw [getLimb_sshiftRight_eq_ushiftRight (by omega)]
   rw [getLimb_ushiftRight, hL_div,
-      getLimbN_lt value (i.val + L) (by omega),
-      getLimbN_lt value (i.val + L + 1) hiL1]
+      getLimbN_lt (by omega : i.val + L < 4),
+      getLimbN_lt hiL1]
   by_cases hmod0 : s0.toNat % 64 = 0
   · have hmask : mask = 0 := by
       simp only [mask]; have : BitVec.ult (0 : Word) bs = false := by simp [BitVec.ult]; omega

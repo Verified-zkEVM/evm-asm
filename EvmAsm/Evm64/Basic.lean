@@ -164,11 +164,11 @@ theorem toNat_eq_getLimb0_of_high_zero {v : EvmWord}
 def getLimbN (v : EvmWord) (k : Nat) : Word :=
   if h : k < 4 then v.getLimb ⟨k, h⟩ else 0
 
-theorem getLimbN_lt (v : EvmWord) (k : Nat) (h : k < 4) :
+theorem getLimbN_lt {v : EvmWord} {k : Nat} (h : k < 4) :
     v.getLimbN k = v.getLimb ⟨k, h⟩ := by
   simp [getLimbN, h]
 
-theorem getLimbN_ge (v : EvmWord) (k : Nat) (h : k ≥ 4) :
+theorem getLimbN_ge {v : EvmWord} {k : Nat} (h : k ≥ 4) :
     v.getLimbN k = 0 := by
   simp [getLimbN, show ¬(k < 4) from by omega]
 

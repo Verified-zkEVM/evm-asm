@@ -532,8 +532,8 @@ private theorem shr_bridge_merge (value : EvmWord) (s0 : Word)
   have hL_div : s0.toNat / 64 = L := by
     rw [← hL, bv6_toNat_6]; simp [BitVec.toNat_ushiftRight]; omega
   rw [getLimb_ushiftRight, hL_div,
-      getLimbN_lt value (i.val + L) hiL,
-      getLimbN_lt value (i.val + L + 1) hiL1]
+      getLimbN_lt hiL,
+      getLimbN_lt hiL1]
   by_cases hmod0 : s0.toNat % 64 = 0
   · have hmask : mask = 0 := by
       simp only [mask]; have : BitVec.ult (0 : Word) bs = false := by simp [BitVec.ult]; omega
@@ -566,7 +566,7 @@ private theorem shr_bridge_last (value : EvmWord) (s0 : Word)
   have hL_div : s0.toNat / 64 = L := by
     rw [← hL, bv6_toNat_6]; simp [BitVec.toNat_ushiftRight]; omega
   rw [getLimb_ushiftRight, hL_div, hiL,
-      getLimbN_lt value 3 (by omega), getLimbN_ge value 4 (by omega)]
+      getLimbN_lt (by omega : 3 < 4), getLimbN_ge (by omega : 4 ≥ 4)]
   simp [show bs.toNat % 64 = s0.toNat % 64 from by omega]
 
 -- Zero limb bridge: for limbs beyond the shift (i+L >= 4, result is 0).
@@ -581,8 +581,8 @@ private theorem shr_bridge_zero (value : EvmWord) (s0 : Word)
   have hL_div : s0.toNat / 64 = L := by
     rw [← hL, bv6_toNat_6]; simp [BitVec.toNat_ushiftRight]; omega
   rw [getLimb_ushiftRight, hL_div,
-      getLimbN_ge value (i.val + L) (by omega),
-      getLimbN_ge value (i.val + L + 1) (by omega)]
+      getLimbN_ge (by omega),
+      getLimbN_ge (by omega)]
   simp
 
 open EvmWord in

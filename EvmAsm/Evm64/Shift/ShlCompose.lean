@@ -499,8 +499,8 @@ private theorem shl_bridge_merge (value : EvmWord) (s0 : Word)
     rw [← hL, bv6_toNat_6]; simp [BitVec.toNat_ushiftRight]; omega
   -- Use getLimb_shiftLeft: i*64 >= s0.toNat since i >= L+1 and s0.toNat = L*64 + bs < (L+1)*64
   rw [getLimb_shiftLeft (by omega), hL_div,
-      getLimbN_lt value (i.val - L) hiLsub,
-      getLimbN_lt value (i.val - L - 1) hiLsub1]
+      getLimbN_lt hiLsub,
+      getLimbN_lt hiLsub1]
   -- Now match the masks and shift amounts
   by_cases hmod0 : s0.toNat % 64 = 0
   · -- bs = 0 case: mask = 0, helper mask = 0
@@ -538,7 +538,7 @@ private theorem shl_bridge_first (value : EvmWord) (s0 : Word)
   -- Use getLimb_shiftLeft_eq_div: i.val = n / 64
   rw [getLimb_shiftLeft_eq_div (by omega)]
   -- getLimbN v 0 = getLimb v ⟨0, _⟩
-  rw [getLimbN_lt value 0 (by omega)]
+  rw [getLimbN_lt (by omega : 0 < 4)]
   -- Shift amounts match: bs.toNat % 64 = s0.toNat % 64
   congr 1; omega
 
