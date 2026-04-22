@@ -61,7 +61,7 @@ private theorem epd_core (b0 b1 b2 b3 b4 b5 b6 b7 : BitVec 8) (k : Fin 8) :
                   | 4 => b4 | 5 => b5 | 6 => b6 | 7 => b7) := by
   fin_cases k <;> simp only [] <;> bv_decide
 
-theorem extractByte_packDword (f : Fin 8 → BitVec 8) (i : Fin 8) :
+theorem extractByte_packDword {f : Fin 8 → BitVec 8} {i : Fin 8} :
     extractByte (packDword f) i.val = f i := by
   show (packDword f >>> (i.val * 8)).truncate 8 = f i
   unfold packDword
