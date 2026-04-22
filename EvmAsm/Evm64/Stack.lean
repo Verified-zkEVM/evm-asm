@@ -45,7 +45,7 @@ instance (addr : Word) (v : EvmWord) : Assertion.PCFree (evmWordIs addr v) :=
 instance (sp : Word) (values : List EvmWord) : Assertion.PCFree (evmStackIs sp values) :=
   ⟨pcFree_evmStackIs⟩
 
-theorem evmStackIs_cons (sp : Word) (v : EvmWord) (vs : List EvmWord) :
+theorem evmStackIs_cons {sp : Word} {v : EvmWord} {vs : List EvmWord} :
     evmStackIs sp (v :: vs) = (evmWordIs sp v ** evmStackIs (sp + 32) vs) := rfl
 
 /-- Mid-tree variant of `evmStackIs_cons`: threads a remainder `Q` through
