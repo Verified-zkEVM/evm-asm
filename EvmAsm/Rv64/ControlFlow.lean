@@ -190,12 +190,12 @@ theorem signExtend21_ofNat_small {n : Nat} (h : n < 2^20) :
   · rw [BitVec.msb_eq_false_iff_two_mul_lt]; simp [BitVec.toNat_ofNat]; omega
 
 /-- Load the first instruction from a program at its base address. -/
-theorem loadProgram_at_base (base : Word) (instr : Instr) (rest : List Instr) :
+theorem loadProgram_at_base {base : Word} {instr : Instr} {rest : List Instr} :
     loadProgram base (instr :: rest) base = some instr := by
   simp [loadProgram, BitVec.sub_self]
 
 /-- Load instruction k from a program at address base + 4*k. -/
-theorem loadProgram_at_index (base : Word) (prog : List Instr) (k : Nat)
+theorem loadProgram_at_index {base : Word} {prog : List Instr} {k : Nat}
     (hk : k < prog.length) (h4k : 4 * k < 2^64) :
     loadProgram base prog (base + BitVec.ofNat 64 (4 * k)) = prog[k]? := by
   simp [loadProgram]
