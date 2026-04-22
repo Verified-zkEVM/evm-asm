@@ -14,7 +14,7 @@ namespace EvmAsm.Rv64
 
 /-! ## byteOffset bound -/
 
-theorem byteOffset_lt_8 (addr : Word) : byteOffset addr < 8 := by
+theorem byteOffset_lt_8 {addr : Word} : byteOffset addr < 8 := by
   unfold byteOffset; rw [BitVec.toNat_and]
   exact Nat.lt_of_le_of_lt Nat.and_le_right (by decide)
 
