@@ -22,10 +22,13 @@
 
 import EvmAsm.Evm64.EvmWordArith.Div128KnuthLower
 import EvmAsm.Evm64.EvmWordArith.Div128FinalAssembly
+import EvmAsm.Evm64.DivMod.Compose.FullPathN4
+import EvmAsm.Evm64.DivMod.LoopSemantic
 
 namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64 EvmWord
+open EvmAsm.Rv64.AddrNorm (word_toNat_0 word_toNat_1)
 
 /-- **KB-Compose V2: accommodates `rhat' ≥ 2^32`.** Algebraic variant of
     `knuth_compose_qHat_vTop_le_nat` using `rhat' % 2^32` in the un21
@@ -321,5 +324,151 @@ theorem div128Quot_le_val256_div_plus_two
   calc (div128Quot u4 un3 b3').toNat
       ≤ (u4.toNat * 2^64 + un3.toNat) / b3'.toNat := h_div_le
     _ ≤ val256 a0 a1 a2 a3 / val256 b0 b1 b2 b3 + 2 := h_piece_a
+
+-- ============================================================================
+-- Task 3: Outer mulsub + skip-borrow upper bound
+-- ============================================================================
+
+/-- **T3-A: Extract `c3 ≤ u4` from `isSkipBorrowN4Call`.** Mirror of
+    `c3_le_u_top_of_skip_borrow` (which handles `isSkipBorrowN4Max`) for
+    the call-trial path, where `qHat = div128Quot u4 u3 b3'` rather than
+    the max trial `2^64 - 1`. -/
+theorem c3_le_u4_of_skip_borrow_call
+    {a0 a1 a2 a3 b0 b1 b2 b3 : Word}
+    (h : isSkipBorrowN4Call a0 a1 a2 a3 b0 b1 b2 b3) :
+    let shift := (clzResult b3).1.toNat % 64
+    let antiShift := (signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64
+    let b3' := (b3 <<< shift) ||| (b2 >>> antiShift)
+    let b2' := (b2 <<< shift) ||| (b1 >>> antiShift)
+    let b1' := (b1 <<< shift) ||| (b0 >>> antiShift)
+    let b0' := b0 <<< shift
+    let u4 := a3 >>> antiShift
+    let u3 := (a3 <<< shift) ||| (a2 >>> antiShift)
+    let u2 := (a2 <<< shift) ||| (a1 >>> antiShift)
+    let u1 := (a1 <<< shift) ||| (a0 >>> antiShift)
+    let u0 := a0 <<< shift
+    let qHat := div128Quot u4 u3 b3'
+    (mulsubN4 qHat b0' b1' b2' b3' u0 u1 u2 u3).2.2.2.2.toNat ≤ u4.toNat := by
+  intro shift antiShift b3' b2' b1' b0' u4 u3 u2 u1 u0 qHat
+  unfold isSkipBorrowN4Call at h
+  simp only [] at h
+  by_cases hlt : BitVec.ult u4 (mulsubN4_c3 qHat b0' b1' b2' b3' u0 u1 u2 u3)
+  · rw [if_pos hlt] at h
+    exact absurd h (by decide)
+  · rw [ult_iff] at hlt
+    unfold mulsubN4_c3 at hlt
+    omega
+
+/-- **T3-B: `qHat * val256(b) ≤ val256(a)` under call + skip + norm.**
+
+    Combines:
+    - `mulsubN4_val256_eq`: val256(u) + c3 * 2^256 = val256(un) + qHat * val256(v').
+    - `c3_le_u4_of_skip_borrow_call` (T3-A): c3 ≤ u4.
+    - `u_val256_eq_scaled_with_overflow` (hnorm_u): val256(u) + u4 * 2^256 = val256(a) * 2^shift.
+    - `b3_prime_val256_eq_scaled` (hnorm_v): val256(v') = val256(b) * 2^shift.
+    - `val256_pos_of_or_ne_zero`: val256(b) > 0 when b ≠ 0, so can cancel 2^shift > 0.
+
+    Conclusion: `qHat.toNat * val256(b) ≤ val256(a)` (unscaled). -/
+theorem div128Quot_call_skip_mul_val256_b_le_val256_a
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hshift_nz : (clzResult b3).1 ≠ 0)
+    (hskip : isSkipBorrowN4Call a0 a1 a2 a3 b0 b1 b2 b3) :
+    let shift := (clzResult b3).1.toNat % 64
+    let antiShift := (signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64
+    let b3' := (b3 <<< shift) ||| (b2 >>> antiShift)
+    let u4 := a3 >>> antiShift
+    let u3 := (a3 <<< shift) ||| (a2 >>> antiShift)
+    (div128Quot u4 u3 b3').toNat * val256 b0 b1 b2 b3 ≤ val256 a0 a1 a2 a3 := by
+  intro shift antiShift b3' u4 u3
+  -- Unfold all the normalized quantities.
+  set b2' := (b2 <<< shift) ||| (b1 >>> antiShift)
+  set b1' := (b1 <<< shift) ||| (b0 >>> antiShift)
+  set b0' := b0 <<< shift
+  set u2 := (a2 <<< shift) ||| (a1 >>> antiShift)
+  set u1 := (a1 <<< shift) ||| (a0 >>> antiShift)
+  set u0 := a0 <<< shift
+  set qHat := div128Quot u4 u3 b3'
+  -- Extract c3 ≤ u4 from skip-borrow.
+  have h_c3_le := c3_le_u4_of_skip_borrow_call hskip
+  -- mulsubN4 Euclidean: val256(u) + c3 * 2^256 = val256(un) + qHat * val256(v')
+  have h_mulsub := mulsubN4_val256_eq qHat b0' b1' b2' b3' u0 u1 u2 u3
+  simp only [] at h_mulsub
+  set ms := mulsubN4 qHat b0' b1' b2' b3' u0 u1 u2 u3 with hms
+  -- Normalization: val256(u) + u4 * 2^256 = val256(a) * 2^shift.
+  have h_norm_u := u_val256_eq_scaled_with_overflow a0 a1 a2 a3 b3 hshift_nz
+  have h_norm_v := b3_prime_val256_eq_scaled b0 b1 b2 b3 hshift_nz
+  -- Extract val256(v') = val256(b) * 2^shift from h_norm_v.
+  -- Its argument names match b0', b1', b2', b3' after unfolding.
+  have h_un_bound : val256 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 < 2^256 :=
+    val256_bound _ _ _ _
+  -- From h_mulsub: qHat * val256(v') = val256(u) + c3 * 2^256 - val256(un)
+  --              ≤ val256(u) + c3 * 2^256
+  --              ≤ val256(u) + u4 * 2^256
+  --              = val256(a) * 2^shift   (from h_norm_u)
+  have h_qHat_mul_v' : qHat.toNat * val256 b0' b1' b2' b3' ≤
+      val256 a0 a1 a2 a3 * 2^(clzResult b3).1.toNat := by
+    -- h_mulsub: val256 u0..u3 + ms.2.2.2.2.toNat * 2^256 = val256 un + qHat * val256 v'
+    -- So qHat * val256 v' = val256 u + c3 * 2^256 - val256 un.
+    have hv_bound : val256 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 < 2^256 := h_un_bound
+    -- Combine: qHat * val256 v' ≤ val256 u + c3 * 2^256.
+    have h1 : qHat.toNat * val256 b0' b1' b2' b3' ≤
+        val256 u0 u1 u2 u3 + ms.2.2.2.2.toNat * 2^256 := by omega
+    -- Use c3 ≤ u4.
+    have h2 : val256 u0 u1 u2 u3 + ms.2.2.2.2.toNat * 2^256 ≤
+        val256 u0 u1 u2 u3 + u4.toNat * 2^256 := by
+      apply Nat.add_le_add_left
+      exact Nat.mul_le_mul_right _ h_c3_le
+    -- Use h_norm_u.
+    have h3 : val256 u0 u1 u2 u3 + u4.toNat * 2^256 =
+        val256 a0 a1 a2 a3 * 2^(clzResult b3).1.toNat := h_norm_u
+    omega
+  -- Now use h_norm_v to rewrite val256(v') = val256(b) * 2^shift.
+  rw [h_norm_v] at h_qHat_mul_v'
+  -- Extract scale: qHat * val256(b) * 2^shift ≤ val256(a) * 2^shift, so divide.
+  have hpow_pos : 0 < (2 : Nat)^(clzResult b3).1.toNat := by positivity
+  have h_mul_rearr : qHat.toNat * (val256 b0 b1 b2 b3 * 2^(clzResult b3).1.toNat) =
+      qHat.toNat * val256 b0 b1 b2 b3 * 2^(clzResult b3).1.toNat := by ring
+  rw [h_mul_rearr] at h_qHat_mul_v'
+  exact Nat.le_of_mul_le_mul_right h_qHat_mul_v' hpow_pos
+
+/-- **T3: Outer mulsub + skip-borrow upper bound on div128Quot.**
+
+    Under the call-path preconditions (`isCallTrialN4`), normalization
+    (`hshift_nz`), the runtime skip-borrow check (`isSkipBorrowN4Call`),
+    and `b3 ≠ 0`, the algorithm's trial quotient is bounded by the true
+    quotient:
+
+    ```
+    (div128Quot u4 u3 b3').toNat ≤ val256(a) / val256(b)
+    ```
+
+    This bypasses the no-wrap hypotheses of Tasks 1/2 (which were needed
+    for the Knuth-B upper chain `qHat ≤ val256(a)/val256(b) + 2`) by
+    using the outer mulsub borrow directly. The skip branch's correctness
+    relies on `c3 ≤ u4`, which converts the mulsub Euclidean into the
+    exact upper bound.
+
+    Composed with a Task 5 lower bound, this will close the exact equality
+    `qHat = val256(a) / val256(b)` for the DIV call+skip stack spec. -/
+theorem div128Quot_call_skip_le_val256_div
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hb3nz : b3 ≠ 0)
+    (hshift_nz : (clzResult b3).1 ≠ 0)
+    (hskip : isSkipBorrowN4Call a0 a1 a2 a3 b0 b1 b2 b3) :
+    let shift := (clzResult b3).1.toNat % 64
+    let antiShift := (signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64
+    let b3' := (b3 <<< shift) ||| (b2 >>> antiShift)
+    let u4 := a3 >>> antiShift
+    let u3 := (a3 <<< shift) ||| (a2 >>> antiShift)
+    (div128Quot u4 u3 b3').toNat ≤
+      val256 a0 a1 a2 a3 / val256 b0 b1 b2 b3 := by
+  intro shift antiShift b3' u4 u3
+  have h_bnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0 := by
+    intro h; exact hb3nz (BitVec.or_eq_zero_iff.mp h).2
+  have hv_pos : 0 < val256 b0 b1 b2 b3 := val256_pos_of_or_ne_zero h_bnz
+  have h_mul := div128Quot_call_skip_mul_val256_b_le_val256_a
+    a0 a1 a2 a3 b0 b1 b2 b3 hshift_nz hskip
+  simp only [] at h_mul
+  exact (Nat.le_div_iff_mul_le hv_pos).mpr h_mul
 
 end EvmAsm.Evm64
