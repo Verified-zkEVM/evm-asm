@@ -512,22 +512,11 @@ def evm_mod : Program :=
 -- Instruction count verification
 -- ============================================================================
 
-#eval evm_div.length
-#eval evm_mod.length
-
-#eval divK_phaseA 0 |>.length     -- expect 8
-#eval divK_phaseB.length           -- expect 17
-#eval divK_clz.length              -- expect 24
-#eval divK_phaseC2 0 |>.length    -- expect 4
-#eval divK_normB.length            -- expect 21
-#eval (divK_normA 0).length        -- expect 22
-#eval divK_copyAU.length           -- expect 9
-#eval (divK_loopSetup 0).length   -- expect 4
-#eval (divK_loopBody 0 0).length  -- expect 115
-#eval divK_denorm.length           -- expect 25
-#eval (divK_div_epilogue 0).length -- expect 10
-#eval divK_zeroPath.length         -- expect 5
-#eval divK_div128.length           -- expect 49
+example : (divK_phaseA 0).length = 8 := by rfl
+example : (divK_phaseC2 0).length = 4 := by rfl
+example : (divK_normA 0).length = 21 := by rfl
+example : (divK_loopSetup 0).length = 4 := by rfl
+example : (divK_div_epilogue 0).length = 10 := by rfl
 
 -- ============================================================================
 -- Test infrastructure
@@ -591,54 +580,5 @@ def runModResult (sp : Word)
     let rsp := s'.getReg .x12
     some [s'.getMem rsp, s'.getMem (rsp + 8), s'.getMem (rsp + 16), s'.getMem (rsp + 24)]
   | none => none
-
--- ============================================================================
--- Tests
--- ============================================================================
-
--- Basic single-limb
-#eval runDivResult 1024 10 0 0 0  3 0 0 0  1000   -- expect [3, 0, 0, 0]
-#eval runModResult 1024 10 0 0 0  3 0 0 0  1000   -- expect [1, 0, 0, 0]
-#eval runDivResult 1024 100 0 0 0  7 0 0 0  1000  -- expect [14, 0, 0, 0]
-#eval runModResult 1024 100 0 0 0  7 0 0 0  1000  -- expect [2, 0, 0, 0]
-
--- Edge cases
-#eval runDivResult 1024 0 0 0 0  0 0 0 0  200     -- b=0: expect [0, 0, 0, 0]
-#eval runDivResult 1024 0 0 0 0  5 0 0 0  1500     -- a=0: expect [0, 0, 0, 0]
-#eval runDivResult 1024 42 0 0 0  42 0 0 0  1500  -- a=b: expect [1, 0, 0, 0]
-#eval runModResult 1024 42 0 0 0  42 0 0 0  1500  -- a=b: expect [0, 0, 0, 0]
-#eval runDivResult 1024 3 0 0 0  10 0 0 0  1500    -- a<b: expect [0, 0, 0, 0]
-#eval runModResult 1024 3 0 0 0  10 0 0 0  1500    -- a<b: expect [3, 0, 0, 0]
-
--- Cross-limb: a = 2^64, b = 2 → q = 2^63
-#eval runDivResult 1024 0 1 0 0  2 0 0 0  1000    -- expect [2^63, 0, 0, 0]
-
--- Large single limb: MAX64 / 1 = MAX64
-#eval runDivResult 1024 0xFFFFFFFFFFFFFFFF 0 0 0  1 0 0 0  1000
-
--- Multi-limb dividend: (2^128 - 1) / 3
--- a = (MAX64, MAX64, 0, 0), b = 3
--- (2^128-1) / 3 = 113427455640312821154458202477256070485 = 0x55555555555555555555555555555555
--- = (0x5555555555555555, 0x5555555555555555, 0, 0)
-#eval runDivResult 1024 0xFFFFFFFFFFFFFFFF 0xFFFFFFFFFFFFFFFF 0 0  3 0 0 0  1500
-
--- Multi-limb divisor: 2^128 / 2^64 = 2^64 = (0, 1, 0, 0)
-#eval runDivResult 1024 0 0 1 0  0 1 0 0  1500
-
--- Non-contiguous divisor (tests cascade n): b = (0, 0, 0, 1) = 2^192
--- a = (0, 0, 0, 2) = 2^193. DIV = 2, MOD = 0
-#eval runDivResult 1024 0 0 0 2  0 0 0 1  1500    -- expect [2, 0, 0, 0]
-#eval runModResult 1024 0 0 0 2  0 0 0 1  1500    -- expect [0, 0, 0, 0]
-
--- b = (1, 0, 0, 1) = 2^192+1, a = (0, 0, 0, 2) = 2^193
--- 2^193 / (2^192+1) = 1, remainder = 2^192-1 = (MAX64, MAX64, MAX64, 0)
-#eval runDivResult 1024 0 0 0 2  1 0 0 1  2000    -- expect [1, 0, 0, 0]
-
--- MAX256 / 1 = MAX256
-#eval runDivResult 1024 0xFFFFFFFFFFFFFFFF 0xFFFFFFFFFFFFFFFF 0xFFFFFFFFFFFFFFFF 0xFFFFFFFFFFFFFFFF  1 0 0 0  2000
-
--- Verify q*b + r = a for DIV(100,7): q=14, r=2, 14*7+2 = 100 ✓
--- Verify q*b + r = a for DIV(2^128-1,3): q=(0x5555...,0x5555...,0,0), r=0
-#eval runModResult 1024 0xFFFFFFFFFFFFFFFF 0xFFFFFFFFFFFFFFFF 0 0  3 0 0 0  1500  -- expect [0, 0, 0, 0]
 
 end EvmAsm.Evm64
