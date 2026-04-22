@@ -229,7 +229,7 @@ def rlp_phase1_exit_post (v5 : Word) (k : BitVec 12) : Assertion :=
 
 /-- Unfold lemma for `rlp_phase1_exit_post`. Use when a consumer needs the
     explicit register-ownership form. -/
-theorem rlp_phase1_exit_post_unfold (v5 : Word) (k : BitVec 12) :
+theorem rlp_phase1_exit_post_unfold {v5 : Word} {k : BitVec 12} :
     rlp_phase1_exit_post v5 k =
     ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) **
      (.x10 ↦ᵣ ((0 : Word) + signExtend12 k))) := by

@@ -69,7 +69,7 @@ def rlp_phase2_short_length_post
   let length := v5 + signExtend12 (-k)
   (.x5 ↦ᵣ v5) ** (.x11 ↦ᵣ length)
 
-theorem rlp_phase2_short_length_post_unfold (v5 : Word) (k : BitVec 12) :
+theorem rlp_phase2_short_length_post_unfold {v5 : Word} {k : BitVec 12} :
     rlp_phase2_short_length_post v5 k =
     ((.x5 ↦ᵣ v5) ** (.x11 ↦ᵣ (v5 + signExtend12 (-k)))) := by
   delta rlp_phase2_short_length_post; rfl
