@@ -52,7 +52,7 @@ private theorem byteOffset_lt_8' (addr : Word) : byteOffset addr < 8 := by
   unfold byteOffset; rw [BitVec.toNat_and]
   exact Nat.lt_of_le_of_lt Nat.and_le_right (by decide)
 
-theorem halfwordOffset_lt_4 (addr : Word) : (byteOffset addr) / 2 < 4 := by
+theorem halfwordOffset_lt_4 {addr : Word} : (byteOffset addr) / 2 < 4 := by
   have := byteOffset_lt_8' addr; omega
 
 /-! ## LHU generic spec
