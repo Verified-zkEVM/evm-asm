@@ -1026,4 +1026,42 @@ theorem div128Quot_q1_prime_ge_q_true_1_of_uHi_lt_pow63
   exact div128Quot_q1_prime_ge_q_true_1_small_rhatc uHi dHi dLo uLo
     hdHi_ge hdHi_lt hdLo_lt huHi_lt_vTop h_rhatc_lt
 
+/-- **KB-LB8: Phase 2 Knuth lower bound under `un21 < 2^63` (easy case).**
+    Phase 2 mirror of KB-LB7, applying the same Phase-1 machinery with
+    `uHi := un21` and `uLo := uLo <<< 32` so that
+    `(uLo <<< 32) >>> 32 = uLo mod 2^32 = div_un0`. Conclusion:
+
+    ```
+    (un21 * 2^32 + div_un0) / vTop ≤ q0'.toNat
+    ```
+
+    The hypothesis `un21.toNat < 2^63` rules out Phase 2a's `hi2`
+    correction (same argument as KB-LB7 for Phase 1). The complementary
+    case `un21 ≥ 2^63` is genuinely harder — it triggers Phase 2a's
+    correction and can reach `rhat2c ≥ 2^32`, where Phase 2b's Word
+    check may false-positive. That case requires separate analysis;
+    see `memory/project_un21_lt_vTop_plan.md`. -/
+theorem div128Quot_q0_prime_ge_q_true_0_of_un21_lt_pow63
+    (un21 dHi dLo uLo : Word)
+    (hdHi_ge : dHi.toNat ≥ 2^31)
+    (hdHi_lt : dHi.toNat < 2^32)
+    (hdLo_lt : dLo.toNat < 2^32)
+    (h_un21_lt : un21.toNat < 2^63)
+    (hun21_lt_vTop : un21.toNat < dHi.toNat * 2^32 + dLo.toNat) :
+    let q0 := rv64_divu un21 dHi
+    let rhat2 := un21 - q0 * dHi
+    let hi2 := q0 >>> (32 : BitVec 6).toNat
+    let q0c := if hi2 = 0 then q0 else q0 + signExtend12 4095
+    let rhat2c := if hi2 = 0 then rhat2 else rhat2 + dHi
+    let div_un0 := (uLo <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+    let rhat2Un0 := (rhat2c <<< (32 : BitVec 6).toNat) ||| div_un0
+    let q0' := if BitVec.ult rhat2Un0 (q0c * dLo) then q0c + signExtend12 4095
+               else q0c
+    (un21.toNat * 2^32 + div_un0.toNat) /
+      (dHi.toNat * 2^32 + dLo.toNat) ≤ q0'.toNat := by
+  intro q0 rhat2 hi2 q0c rhat2c div_un0 rhat2Un0 q0'
+  exact div128Quot_q1_prime_ge_q_true_1_of_uHi_lt_pow63 un21 dHi dLo
+    (uLo <<< (32 : BitVec 6).toNat)
+    hdHi_ge hdHi_lt hdLo_lt h_un21_lt hun21_lt_vTop
+
 end EvmAsm.Evm64
