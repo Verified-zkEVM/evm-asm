@@ -110,7 +110,7 @@ theorem halfword_combine_mod (a b : Word) (hb : b.toNat < 2^32) :
 
 /-- Utility: right-shifting a 64-bit Word by 32 produces a value bounded
     by `2^32`. -/
-theorem Word_ushiftRight_32_lt_pow32 (x : Word) :
+theorem Word_ushiftRight_32_lt_pow32 {x : Word} :
     (x >>> (32 : BitVec 6).toNat).toNat < 2^32 := by
   rw [BitVec.toNat_ushiftRight]
   have h32 : (32 : BitVec 6).toNat = 32 := by decide
@@ -144,7 +144,7 @@ theorem div128Quot_cu_rhat_un1_toNat (rhat' uLo : Word) :
   rw [h32]
   apply halfword_combine_mod
   rw [← h32]
-  exact Word_ushiftRight_32_lt_pow32 uLo
+  exact Word_ushiftRight_32_lt_pow32
 
 /-- **KB-3i: un21.toNat Nat formula.** Composes KB-3f (q1' * dLo no-wrap
     under hcall) + KB-3h (cu_rhat_un1 formula) + `BitVec.toNat_sub` to
@@ -235,7 +235,7 @@ theorem div128Quot_un21_toNat_case (uHi dHi dLo uLo rhatUn1 : Word)
   have h_A_lt : A < 2^64 := by
     show (rhat'.toNat % 2^32) * 2^32 + div_un1.toNat < 2^64
     have h_rhat_mod : rhat'.toNat % 2^32 < 2^32 := Nat.mod_lt _ (by decide)
-    have h_divun1_lt : div_un1.toNat < 2^32 := Word_ushiftRight_32_lt_pow32 uLo
+    have h_divun1_lt : div_un1.toNat < 2^32 := Word_ushiftRight_32_lt_pow32
     nlinarith
   have h_B_lt : B < 2^64 := by
     show q1'.toNat * dLo.toNat < 2^64
@@ -345,7 +345,7 @@ theorem div128Quot_un21_abstract_dividend
   have hdHi_ne : dHi ≠ 0 := by
     intro heq; rw [heq] at hdHi_ge; simp at hdHi_ge
   have hdHi_lt : dHi.toNat < 2^32 := by
-    rw [h_dHi_eq]; exact Word_ushiftRight_32_lt_pow32 vTop
+    rw [h_dHi_eq]; exact Word_ushiftRight_32_lt_pow32
   have h_post := div128Quot_first_round_post uHi dHi hdHi_ne hdHi_lt
   have h_rhatc_lt := div128Quot_rhatc_lt_2dHi uHi dHi hdHi_ne hdHi_lt
   have h_eucl : q1'.toNat * dHi.toNat + rhat'.toNat = uHi.toNat :=
@@ -431,7 +431,7 @@ theorem div128Quot_un21_additive_identity
   have hdHi_ne : dHi ≠ 0 := by
     intro heq; rw [heq] at hdHi_ge; simp at hdHi_ge
   have hdHi_lt : dHi.toNat < 2^32 := by
-    rw [h_dHi_eq]; exact Word_ushiftRight_32_lt_pow32 vTop
+    rw [h_dHi_eq]; exact Word_ushiftRight_32_lt_pow32
   have h_post := div128Quot_first_round_post uHi dHi hdHi_ne hdHi_lt
   have h_rhatc_lt := div128Quot_rhatc_lt_2dHi uHi dHi hdHi_ne hdHi_lt
   have h_eucl : q1'.toNat * dHi.toNat + rhat'.toNat = uHi.toNat :=
