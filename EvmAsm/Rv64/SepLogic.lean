@@ -465,7 +465,7 @@ theorem holdsFor_memOwn {a : Word} {s : MachineState} :
     exact ⟨_, (PartialState.CompatibleWith_singletonMem).mpr rfl,
            s.getMem a, rfl, hvalid⟩
 
-theorem regIs_implies_regOwn (r : Reg) (v : Word) :
+theorem regIs_implies_regOwn (r : Reg) {v : Word} :
     ∀ h, regIs r v h → regOwn r h := fun _ hp => ⟨v, hp⟩
 
 theorem memIs_implies_memOwn {a : Word} {v : Word} :
