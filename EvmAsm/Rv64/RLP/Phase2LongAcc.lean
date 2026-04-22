@@ -57,7 +57,7 @@ def rlp_phase2_long_acc_post (len byte : Word) : Assertion :=
   let length' := (len <<< 8) + byte
   (.x11 ↦ᵣ length') ** (.x12 ↦ᵣ byte)
 
-theorem rlp_phase2_long_acc_post_unfold (len byte : Word) :
+theorem rlp_phase2_long_acc_post_unfold {len byte : Word} :
     rlp_phase2_long_acc_post len byte =
     ((.x11 ↦ᵣ ((len <<< 8) + byte)) ** (.x12 ↦ᵣ byte)) := by
   delta rlp_phase2_long_acc_post; rfl

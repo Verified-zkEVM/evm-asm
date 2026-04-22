@@ -64,7 +64,7 @@ def rlp_phase2_long_iter_post
     (.x12 ↦ᵣ byteZext) ** (dwordAddr ↦ₘ wordVal)
 
 theorem rlp_phase2_long_iter_post_unfold
-    (len ptr cnt byteZext wordVal dwordAddr : Word) :
+    {len ptr cnt byteZext wordVal dwordAddr : Word} :
     rlp_phase2_long_iter_post len ptr cnt byteZext wordVal dwordAddr =
     ((.x11 ↦ᵣ ((len <<< 8) + byteZext)) **
      (.x13 ↦ᵣ (ptr + 1)) **
