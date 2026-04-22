@@ -68,7 +68,7 @@ theorem unsigned_rem_equiv (a b : BitVec 64) (hb : b ≠ 0#64) :
 -- ============================================================================
 
 /-- to_bits_truncate is equivalent to BitVec.ofInt. -/
-theorem to_bits_truncate_eq_ofInt (x : Int) :
+theorem to_bits_truncate_eq_ofInt {x : Int} :
     to_bits_truncate (l := 64) x = BitVec.ofInt 64 x := by
   simp [to_bits_truncate, get_slice_int]
   apply BitVec.eq_of_toNat_eq; simp [BitVec.toNat_ofInt]; omega
