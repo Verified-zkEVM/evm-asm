@@ -1064,4 +1064,51 @@ theorem div128Quot_q0_prime_ge_q_true_0_of_un21_lt_pow63
     (uLo <<< (32 : BitVec 6).toNat)
     hdHi_ge hdHi_lt hdLo_lt h_un21_lt hun21_lt_vTop
 
+/-- **KB-Compose: Knuth 2-digit composition identity (pure Nat algebra).**
+    Under the Phase 1b Euclidean, un21 identity, Phase 2b Euclidean, and
+    the two no-wrap conditions, the composed quotient satisfies:
+
+    ```
+    (q1' * 2^32 + q0') * (dHi * 2^32 + dLo) ≤ uHi * 2^64 + div_un1 * 2^32 + div_un0
+    ```
+
+    Derivation: multiply the Phase-2b Euclidean (rewritten without Nat
+    subtraction) by `2^32`, combine with Phase 1b Euclidean ×2^64, and
+    expand via `ring`. The final inequality reduces to the Phase-2
+    no-wrap hypothesis.
+
+    Key step: combined with `div_un1 * 2^32 + div_un0 = uLo`, gives
+    `qHat * vTop ≤ uHi * 2^64 + uLo`, i.e., `qHat ≤ abstract_trial`. -/
+theorem knuth_compose_qHat_vTop_le_nat
+    (q1' q0' rhat' rhat2' dHi dLo div_un1 div_un0 uHi : Nat)
+    (h_ph1_eucl : q1' * dHi + rhat' = uHi)
+    (h_ph1_no_wrap : q1' * dLo ≤ rhat' * 2^32 + div_un1)
+    (h_un21_ph2 : q0' * dHi + rhat2' = rhat' * 2^32 + div_un1 - q1' * dLo)
+    (h_ph2_no_wrap : q0' * dLo ≤ rhat2' * 2^32 + div_un0) :
+    (q1' * 2^32 + q0') * (dHi * 2^32 + dLo) ≤
+    uHi * 2^64 + div_un1 * 2^32 + div_un0 := by
+  have h_un21_plus : q0' * dHi + rhat2' + q1' * dLo = rhat' * 2^32 + div_un1 := by
+    omega
+  have h_mul : q0' * dHi * 2^32 + rhat2' * 2^32 + q1' * dLo * 2^32 =
+               rhat' * 2^64 + div_un1 * 2^32 := by
+    have h := congr_arg (· * 2^32) h_un21_plus
+    simp only at h
+    have h_expand_lhs :
+        (q0' * dHi + rhat2' + q1' * dLo) * 2^32 =
+        q0' * dHi * 2^32 + rhat2' * 2^32 + q1' * dLo * 2^32 := by ring
+    have h_expand_rhs :
+        (rhat' * 2^32 + div_un1) * 2^32 = rhat' * 2^64 + div_un1 * 2^32 := by ring
+    linarith
+  have h_uHi_mul : uHi * 2^64 = q1' * dHi * 2^64 + rhat' * 2^64 := by
+    have h_expand : (q1' * dHi + rhat') * 2^64 = q1' * dHi * 2^64 + rhat' * 2^64 := by
+      ring
+    have := congr_arg (· * 2^64) h_ph1_eucl
+    simp only at this
+    linarith
+  have h_lhs : (q1' * 2^32 + q0') * (dHi * 2^32 + dLo) =
+               q1' * dHi * 2^64 + q1' * dLo * 2^32 + q0' * dHi * 2^32 + q0' * dLo := by
+    ring
+  rw [h_lhs]
+  linarith
+
 end EvmAsm.Evm64
