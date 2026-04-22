@@ -107,7 +107,7 @@ theorem int_toInt_beq_zero {b : BitVec 64} :
 -- ============================================================================
 
 /-- DIVU value equivalence: SAIL unsigned division computation = rv64_divu. -/
-theorem divu_full_equiv (a b : BitVec 64) :
+theorem divu_full_equiv {a b : BitVec 64} :
     to_bits_truncate (l := 64)
       (if ((BitVec.toNatInt b == (0 : Int)) : Bool) then (-1 : Int)
        else (BitVec.toNatInt a).tdiv (BitVec.toNatInt b)) =
@@ -119,7 +119,7 @@ theorem divu_full_equiv (a b : BitVec 64) :
     exact unsigned_div_equiv a b hb
 
 /-- REMU value equivalence: SAIL unsigned remainder computation = rv64_remu. -/
-theorem remu_full_equiv (a b : BitVec 64) :
+theorem remu_full_equiv {a b : BitVec 64} :
     to_bits_truncate (l := 64)
       (if ((BitVec.toNatInt b == (0 : Int)) : Bool) then (BitVec.toNatInt a)
        else (BitVec.toNatInt a).tmod (BitVec.toNatInt b)) =
@@ -131,7 +131,7 @@ theorem remu_full_equiv (a b : BitVec 64) :
     exact unsigned_rem_equiv a b hb
 
 /-- Full REM (signed) value equivalence. -/
-theorem rem_full_equiv (a b : BitVec 64) :
+theorem rem_full_equiv {a b : BitVec 64} :
     to_bits_truncate (l := 64)
       (if ((b.toInt == (0 : Int)) : Bool) then a.toInt
        else a.toInt.tmod b.toInt) =
@@ -170,7 +170,7 @@ private theorem overflow_guard_div (a b : BitVec 64) (hb : b ≠ 0#64) :
 
 /-- Full DIV (signed) value equivalence, including b=0 and overflow cases.
     Matches the exact post-simp form of execute_DIV with is_unsigned=false. -/
-theorem div_full_equiv_applied (a b : BitVec 64) :
+theorem div_full_equiv_applied {a b : BitVec 64} :
     to_bits_truncate (l := 64)
       (if (((if ((b.toInt == (0 : Int)) : Bool) then (-1 : Int)
            else a.toInt.tdiv b.toInt) ≥b ((2 : Int) ^ ((LeanRV64D.Functions.xlen : Int) - 1))) : Bool)
@@ -206,14 +206,14 @@ private theorem zeroExtend_128_toInt (b : BitVec 64) :
   simp [BitVec.zeroExtend, BitVec.toInt_setWidth, Int.bmod]; have := b.isLt; omega
 
 /-- Signed × signed: Int-level product = BitVec product of sign-extensions (mod 2^128). -/
-theorem to_bits_truncate_signed_mul (a b : BitVec 64) :
+theorem to_bits_truncate_signed_mul {a b : BitVec 64} :
     to_bits_truncate (l := 128) (a.toInt * b.toInt) = a.signExtend 128 * b.signExtend 128 := by
   rw [to_bits_truncate_eq_ofInt_128]; apply BitVec.eq_of_toInt_eq
   simp only [BitVec.toInt_ofInt, BitVec.toInt_mul, BitVec.toInt_signExtend,
     show min 128 64 = 64 from by omega, toInt_bmod_64]
 
 /-- Signed × unsigned: Int-level product = BitVec product of sign/zero-extensions. -/
-theorem to_bits_truncate_mixed_mul (a b : BitVec 64) :
+theorem to_bits_truncate_mixed_mul {a b : BitVec 64} :
     to_bits_truncate (l := 128) (a.toInt * BitVec.toNatInt b) =
     a.signExtend 128 * b.zeroExtend 128 := by
   rw [to_bits_truncate_eq_ofInt_128]; apply BitVec.eq_of_toInt_eq
