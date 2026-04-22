@@ -16,7 +16,7 @@ namespace EvmWord
 -- LT correctness: borrow chain = unsigned less-than
 -- ============================================================================
 
-theorem lt_borrow_chain_correct (a b : EvmWord) :
+theorem lt_borrow_chain_correct {a b : EvmWord} :
     let a0 := a.getLimb 0; let b0 := b.getLimb 0
     let a1 := a.getLimb 1; let b1 := b.getLimb 1
     let a2 := a.getLimb 2; let b2 := b.getLimb 2
@@ -108,7 +108,7 @@ theorem lt_borrow_chain_correct (a b : EvmWord) :
 -- ============================================================================
 
 /-- The SLT result equals `if BitVec.slt a b then 1 else 0`. -/
-theorem slt_result_correct (a b : EvmWord) :
+theorem slt_result_correct {a b : EvmWord} :
     let a0 := a.getLimb 0; let b0 := b.getLimb 0
     let a1 := a.getLimb 1; let b1 := b.getLimb 1
     let a2 := a.getLimb 2; let b2 := b.getLimb 2
