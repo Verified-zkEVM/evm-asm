@@ -750,4 +750,104 @@ theorem div128Quot_un21_additive_identity
   rw [h_q1_vtop]
   omega
 
+-- ============================================================================
+-- Piece B: Phase 2a bounds via Phase 1a reuse (KB-4)
+-- ============================================================================
+
+/-- **KB-4a: Phase 2a Euclidean.** Direct instantiation of
+    `div128Quot_first_round_post` with `uHi := un21`: the Phase 2a
+    post-correction quotient `q0c` and remainder `rhat2c` satisfy the
+    Euclidean equation against `un21`:
+
+    ```
+    q0c.toNat * dHi.toNat + rhat2c.toNat = un21.toNat
+    ```
+
+    Phase 1a lemmas are generic over the dividend — they take any Word
+    as `uHi`.  This is the observation documented in the Knuth-B plan
+    memo: Phase 2 bounds require no new code beyond thin instantiation
+    wrappers. -/
+theorem div128Quot_phase2a_euclidean (un21 dHi : Word)
+    (hdHi_ne : dHi ≠ 0) (hdHi_lt : dHi.toNat < 2^32) :
+    let q0 := rv64_divu un21 dHi
+    let rhat2 := un21 - q0 * dHi
+    let hi2 := q0 >>> (32 : BitVec 6).toNat
+    let q0c := if hi2 = 0 then q0 else q0 + signExtend12 4095
+    let rhat2c := if hi2 = 0 then rhat2 else rhat2 + dHi
+    q0c.toNat * dHi.toNat + rhat2c.toNat = un21.toNat :=
+  div128Quot_first_round_post un21 dHi hdHi_ne hdHi_lt
+
+/-- **KB-4b: Phase 2a remainder bound.** Instantiation of
+    `div128Quot_rhatc_lt_2dHi`: `rhat2c < 2 * dHi`. -/
+theorem div128Quot_phase2a_rhat2c_lt_2dHi (un21 dHi : Word)
+    (hdHi_ne : dHi ≠ 0) (hdHi_lt : dHi.toNat < 2^32) :
+    let q0 := rv64_divu un21 dHi
+    let rhat2 := un21 - q0 * dHi
+    let hi2 := q0 >>> (32 : BitVec 6).toNat
+    let rhat2c := if hi2 = 0 then rhat2 else rhat2 + dHi
+    rhat2c.toNat < 2 * dHi.toNat :=
+  div128Quot_rhatc_lt_2dHi un21 dHi hdHi_ne hdHi_lt
+
+/-- **KB-4c: Phase 2a quotient bound.** Instantiation of
+    `div128Quot_q1c_lt_pow33`: `q0c < 2^33`. -/
+theorem div128Quot_phase2a_q0c_lt_pow33 (un21 dHi : Word)
+    (hdHi_ge : dHi.toNat ≥ 2^31) :
+    let q0 := rv64_divu un21 dHi
+    let hi2 := q0 >>> (32 : BitVec 6).toNat
+    let q0c := if hi2 = 0 then q0 else q0 + signExtend12 4095
+    q0c.toNat < 2^33 :=
+  div128Quot_q1c_lt_pow33 un21 dHi hdHi_ge
+
+-- ============================================================================
+-- Piece B: Phase 2b bounds via Phase 1b reuse (KB-5)
+-- ============================================================================
+
+/-- **KB-5a: Phase 2b Euclidean.** Instantiation of
+    `div128Quot_phase1b_post` with `uHi := un21`, `q1c := q0c`,
+    `rhatc := rhat2c`: post-Phase-2b (Phase 2b's multiplication-check
+    correction), the corrected quotient `q0'` and remainder `rhat2'`
+    still satisfy the Euclidean equation against `un21`. -/
+theorem div128Quot_phase2b_post (un21 dHi : Word)
+    (hdHi_lt : dHi.toNat < 2^32) (q0c rhat2c dLo rhat2Un0 : Word)
+    (h_post : q0c.toNat * dHi.toNat + rhat2c.toNat = un21.toNat)
+    (h_rhat2c_lt : rhat2c.toNat < 2 * dHi.toNat) :
+    let q0' := if BitVec.ult rhat2Un0 (q0c * dLo) then q0c + signExtend12 4095
+               else q0c
+    let rhat2' := if BitVec.ult rhat2Un0 (q0c * dLo) then rhat2c + dHi else rhat2c
+    q0'.toNat * dHi.toNat + rhat2'.toNat = un21.toNat :=
+  div128Quot_phase1b_post un21 dHi q0c rhat2c dLo rhat2Un0 hdHi_lt h_post h_rhat2c_lt
+
+/-- **KB-5b: Phase 2b check implies q0c ≥ 1.** Instantiation of
+    `div128Quot_phase1b_check_implies_q1c_pos`. -/
+theorem div128Quot_phase2b_check_implies_q0c_pos (q0c dLo rhat2Un0 : Word)
+    (h_check : BitVec.ult rhat2Un0 (q0c * dLo)) :
+    q0c.toNat ≥ 1 :=
+  div128Quot_phase1b_check_implies_q1c_pos q0c dLo rhat2Un0 h_check
+
+/-- **KB-5c: Phase 2b quotient bound.** Instantiation of
+    `div128Quot_phase1b_quotient_bound` with `uHi := un21`. -/
+theorem div128Quot_phase2b_quotient_bound (un21 dHi : Word)
+    (hdHi_ne : dHi ≠ 0) (hdHi_lt : dHi.toNat < 2^32)
+    (dLo rhat2Un0 : Word) :
+    let q0 := rv64_divu un21 dHi
+    let hi2 := q0 >>> (32 : BitVec 6).toNat
+    let q0c := if hi2 = 0 then q0 else q0 + signExtend12 4095
+    let q0' := if BitVec.ult rhat2Un0 (q0c * dLo) then q0c + signExtend12 4095
+               else q0c
+    q0'.toNat + 2 ≥ un21.toNat / dHi.toNat ∧
+    q0'.toNat ≤ un21.toNat / dHi.toNat :=
+  div128Quot_phase1b_quotient_bound un21 dHi hdHi_ne hdHi_lt dLo rhat2Un0
+
+/-- **KB-5d: Phase 2b output bound.** Instantiation of
+    `div128Quot_q1_prime_lt_pow33` with `uHi := un21`: `q0' < 2^33`. -/
+theorem div128Quot_phase2b_q0_prime_lt_pow33 (un21 dHi : Word)
+    (hdHi_ge : dHi.toNat ≥ 2^31) (dLo rhat2Un0 : Word) :
+    let q0 := rv64_divu un21 dHi
+    let hi2 := q0 >>> (32 : BitVec 6).toNat
+    let q0c := if hi2 = 0 then q0 else q0 + signExtend12 4095
+    let q0' := if BitVec.ult rhat2Un0 (q0c * dLo) then q0c + signExtend12 4095
+               else q0c
+    q0'.toNat < 2^33 :=
+  div128Quot_q1_prime_lt_pow33 un21 dHi hdHi_ge dLo rhat2Un0
+
 end EvmAsm.Evm64
