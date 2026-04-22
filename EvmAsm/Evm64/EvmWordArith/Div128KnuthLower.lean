@@ -574,4 +574,47 @@ theorem knuth_compose_qHat_vTop_le_nat
   rw [h_lhs]
   linarith
 
+/-- **KB-ComposeLower: composed weak lower bound on qHat (pure Nat).**
+    Under Phase 1 tight (q1' = exact abstract Phase 1 digit, expressed
+    as the Euclidean identity `q1' * vTop + un21 = uHi * 2^32 + uLo_hi`
+    with `un21 < vTop`), and Phase 2 weak lower (KB-LB9-style
+    `q0' + 2 ≥ (un21 * 2^32 + uLo_lo) / vTop`), the composed quotient
+    satisfies:
+
+    ```
+    (q1' * 2^32 + q0') + 2 ≥ (uHi * 2^64 + uLo_hi * 2^32 + uLo_lo) / vTop
+    ```
+
+    This is the key composition showing that the algorithm is at most
+    2 below the abstract 128/64 quotient, **given Phase 1 is tight**.
+    The tight Phase 1 hypothesis is currently unproven (requires Knuth
+    Theorem C Word-level); this lemma makes the remaining gap explicit. -/
+theorem knuth_compose_weak_lower_nat
+    (q1' q0' un21 uHi uLo_hi uLo_lo vTop : Nat)
+    (hvTop_pos : 0 < vTop)
+    (h_ph1_tight : q1' * vTop + un21 = uHi * 2^32 + uLo_hi)
+    (h_un21_lt : un21 < vTop)
+    (h_ph2_weak : q0' + 2 ≥ (un21 * 2^32 + uLo_lo) / vTop) :
+    (q1' * 2^32 + q0') + 2 ≥ (uHi * 2^64 + uLo_hi * 2^32 + uLo_lo) / vTop := by
+  -- From Phase 1 tight: full dividend = q1' * vTop * 2^32 + un21 * 2^32 + uLo_lo.
+  have h_full_eq : uHi * 2^64 + uLo_hi * 2^32 + uLo_lo =
+      q1' * vTop * 2^32 + (un21 * 2^32 + uLo_lo) := by
+    have h_mul : (q1' * vTop + un21) * 2^32 = (uHi * 2^32 + uLo_hi) * 2^32 := by
+      rw [h_ph1_tight]
+    have h_expand_lhs : (q1' * vTop + un21) * 2^32 =
+        q1' * vTop * 2^32 + un21 * 2^32 := by ring
+    have h_expand_rhs : (uHi * 2^32 + uLo_hi) * 2^32 =
+        uHi * 2^64 + uLo_hi * 2^32 := by ring
+    linarith
+  rw [h_full_eq]
+  -- Divide by vTop and use Nat.add_mul_div_right.
+  have h_div_eq : (q1' * vTop * 2^32 + (un21 * 2^32 + uLo_lo)) / vTop =
+      q1' * 2^32 + (un21 * 2^32 + uLo_lo) / vTop := by
+    have h_rearrange : q1' * vTop * 2^32 + (un21 * 2^32 + uLo_lo) =
+        (un21 * 2^32 + uLo_lo) + (q1' * 2^32) * vTop := by ring
+    rw [h_rearrange, Nat.add_mul_div_right _ _ hvTop_pos]
+    ring
+  rw [h_div_eq]
+  omega
+
 end EvmAsm.Evm64
