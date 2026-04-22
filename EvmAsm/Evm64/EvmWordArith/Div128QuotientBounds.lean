@@ -578,4 +578,104 @@ theorem div128Quot_vTop_decomp (vTop : Word) :
   have := Nat.div_add_mod vTop.toNat (2^32)
   omega
 
+/-- Utility: multiplying a Nat by `2^32` decomposes via Nat.div_add_mod. -/
+theorem Nat_mul_pow32_split (x : Nat) :
+    x * 2^32 = (x / 2^32) * 2^64 + (x % 2^32) * 2^32 := by
+  have hdiv : x = (x / 2^32) * 2^32 + x % 2^32 := by
+    have := Nat.div_add_mod x (2^32); linarith
+  calc x * 2^32
+      = ((x / 2^32) * 2^32 + x % 2^32) * 2^32 := by rw [← hdiv]
+    _ = (x / 2^32) * (2^32 * 2^32) + (x % 2^32) * 2^32 := by ring
+    _ = (x / 2^32) * 2^64 + (x % 2^32) * 2^32 := by
+        rw [show (2^32 * 2^32 : Nat) = 2^64 from by decide]
+
+/-- **KB-3l: un21 connects to the abstract dividend (no-wrap case).**
+    Under call-trial preconditions, Phase 1b Euclidean, and no-wrap
+    (B ≤ A in KB-3j's notation), plus the semantic ordering
+    `q1' * vTop ≤ uHi * 2^32 + div_un1`:
+
+    ```
+    un21.toNat + (rhat'.toNat / 2^32) * 2^64 =
+      uHi.toNat * 2^32 + (uLo >>> 32).toNat - q1'.toNat * vTop.toNat
+    ```
+
+    The `(rhat' / 2^32) * 2^64` correction captures the "lost high bits"
+    of `rhat'` truncated by the shift in `cu_rhat_un1`. When `rhat' <
+    2^32` (Knuth's tight invariant, currently unproven here), this
+    correction is zero and `un21` equals the abstract dividend directly. -/
+theorem div128Quot_un21_abstract_dividend
+    (uHi dHi dLo uLo vTop rhatUn1 : Word)
+    (hdHi_ge : dHi.toNat ≥ 2^31)
+    (hdLo_lt : dLo.toNat < 2^32)
+    (huHi_lt_vTop : uHi.toNat < dHi.toNat * 2^32 + dLo.toNat)
+    (h_dHi_eq : dHi = vTop >>> (32 : BitVec 6).toNat)
+    (h_dLo_eq : dLo = (vTop <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat) :
+    let q1 := rv64_divu uHi dHi
+    let rhat := uHi - q1 * dHi
+    let hi1 := q1 >>> (32 : BitVec 6).toNat
+    let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+    let rhatc := if hi1 = 0 then rhat else rhat + dHi
+    let q1' := if BitVec.ult rhatUn1 (q1c * dLo) then q1c + signExtend12 4095
+               else q1c
+    let rhat' := if BitVec.ult rhatUn1 (q1c * dLo) then rhatc + dHi else rhatc
+    let div_un1 := uLo >>> (32 : BitVec 6).toNat
+    let cu_rhat_un1 := (rhat' <<< (32 : BitVec 6).toNat) ||| div_un1
+    let cu_q1_dlo := q1' * dLo
+    let un21 := cu_rhat_un1 - cu_q1_dlo
+    let A := (rhat'.toNat % 2^32) * 2^32 + div_un1.toNat
+    let B := q1'.toNat * dLo.toNat
+    B ≤ A →
+    q1'.toNat * vTop.toNat ≤ uHi.toNat * 2^32 + div_un1.toNat →
+    un21.toNat + (rhat'.toNat / 2^32) * 2^64 =
+      uHi.toNat * 2^32 + div_un1.toNat - q1'.toNat * vTop.toNat := by
+  intro q1 rhat hi1 q1c rhatc q1' rhat' div_un1 cu_rhat_un1 cu_q1_dlo un21 A B
+    hBA habs_ge
+  have h_case := div128Quot_un21_toNat_case uHi dHi dLo uLo rhatUn1
+    hdHi_ge hdLo_lt huHi_lt_vTop
+  have h_un21 : un21.toNat = A - B := h_case.1 hBA
+  have hdHi_ne : dHi ≠ 0 := by
+    intro heq; rw [heq] at hdHi_ge; simp at hdHi_ge
+  have hdHi_lt : dHi.toNat < 2^32 := by
+    rw [h_dHi_eq]; exact Word_ushiftRight_32_lt_pow32 vTop
+  have h_post := div128Quot_first_round_post uHi dHi hdHi_ne hdHi_lt
+  have h_rhatc_lt := div128Quot_rhatc_lt_2dHi uHi dHi hdHi_ne hdHi_lt
+  have h_eucl : q1'.toNat * dHi.toNat + rhat'.toNat = uHi.toNat :=
+    div128Quot_phase1b_post uHi dHi q1c rhatc dLo rhatUn1 hdHi_lt h_post h_rhatc_lt
+  have h_vtop := div128Quot_vTop_decomp vTop
+  rw [← h_dHi_eq, ← h_dLo_eq] at h_vtop
+  -- Sub-lemma 1: rhat' * 2^32 decomposes.
+  have h_rhat_split : rhat'.toNat * 2^32 =
+      (rhat'.toNat / 2^32) * 2^64 + (rhat'.toNat % 2^32) * 2^32 :=
+    Nat_mul_pow32_split rhat'.toNat
+  -- Sub-lemma 2: rhat' = uHi - q1' * dHi at Nat (from h_eucl).
+  have h_rhat_eq : rhat'.toNat = uHi.toNat - q1'.toNat * dHi.toNat := by omega
+  -- Sub-lemma 3: q1' * vTop expanded.
+  have h_q1_vtop : q1'.toNat * vTop.toNat =
+      q1'.toNat * dHi.toNat * 2^32 + q1'.toNat * dLo.toNat := by
+    rw [h_vtop]; ring
+  -- Sub-lemma 4: q1' * dHi * 2^32 ≤ uHi * 2^32.
+  have h_le : q1'.toNat * dHi.toNat * 2^32 ≤ uHi.toNat * 2^32 := by
+    apply Nat.mul_le_mul_right; omega
+  -- Sub-lemma 5: rhat' * 2^32 = uHi * 2^32 - q1' * dHi * 2^32.
+  have h_rhat_mul : rhat'.toNat * 2^32 =
+      uHi.toNat * 2^32 - q1'.toNat * dHi.toNat * 2^32 := by
+    rw [h_rhat_eq, Nat.sub_mul]
+  -- Final assembly.
+  show un21.toNat + (rhat'.toNat / 2^32) * 2^64 = _
+  rw [h_un21]
+  show (rhat'.toNat % 2^32) * 2^32 + div_un1.toNat - q1'.toNat * dLo.toNat
+    + (rhat'.toNat / 2^32) * 2^64 = _
+  -- Key facts for omega:
+  -- h_rhat_split: rhat' * 2^32 = (rhat'/2^32) * 2^64 + (rhat'%2^32) * 2^32.
+  -- h_rhat_mul: rhat' * 2^32 = uHi * 2^32 - q1' * dHi * 2^32.
+  -- h_q1_vtop: q1' * vTop = q1' * dHi * 2^32 + q1' * dLo.
+  -- h_le: q1' * dHi * 2^32 ≤ uHi * 2^32.
+  -- habs_ge: q1' * vTop ≤ uHi * 2^32 + div_un1.
+  -- Goal: (rhat'%2^32) * 2^32 + div_un1 - q1' * dLo + (rhat'/2^32) * 2^64
+  --     = uHi * 2^32 + div_un1 - q1' * vTop.
+  -- Use hBA to unfold A, B.
+  have h_BA_num : q1'.toNat * dLo.toNat ≤
+      (rhat'.toNat % 2^32) * 2^32 + div_un1.toNat := hBA
+  omega
+
 end EvmAsm.Evm64
