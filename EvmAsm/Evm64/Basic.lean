@@ -122,7 +122,7 @@ theorem toNat_getLimb_decompose (v : EvmWord) :
   rw [h0, h1, h2, h3]; omega
 
 /-- The toNat of fromLimbs expressed as a weighted sum of individual limb values. -/
-theorem fromLimbs_toNat (f : Fin 4 → Word) :
+theorem fromLimbs_toNat {f : Fin 4 → Word} :
     (fromLimbs f).toNat = (f 0).toNat + (f 1).toNat * 2^64 +
                            (f 2).toNat * 2^128 + (f 3).toNat * 2^192 := by
   have h := toNat_getLimb_decompose (fromLimbs f)
