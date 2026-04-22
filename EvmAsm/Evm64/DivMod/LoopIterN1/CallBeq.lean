@@ -131,7 +131,7 @@ theorem divK_loop_body_n1_call_addback_j0_beq_spec
   exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hp => by
-      delta loopBodyN1CallAddbackBeqPostJ div128Quot div128DLo div128Un0
+      delta loopBodyN1CallAddbackBeqPostJ div128Quot div128Quot_phase2b_q0' div128DLo div128Un0
             loopBodyN1AddbackBeqPost loopBodyAddbackBeqPost loopExitPostN1 loopExitPost
       rw [sepConj_assoc'] at hp; xperm_hyp hp)
     full
@@ -249,7 +249,7 @@ theorem divK_loop_body_n1_call_addback_j1_beq_spec
   exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hp => by
-      delta loopBodyN1CallAddbackBeqPostJ div128Quot div128DLo div128Un0
+      delta loopBodyN1CallAddbackBeqPostJ div128Quot div128Quot_phase2b_q0' div128DLo div128Un0
             loopBodyN1AddbackBeqPost loopBodyAddbackBeqPost loopExitPostN1 loopExitPost
       rw [sepConj_assoc'] at hp; xperm_hyp hp)
     full
@@ -367,7 +367,7 @@ theorem divK_loop_body_n1_call_addback_j2_beq_spec
   exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hp => by
-      delta loopBodyN1CallAddbackBeqPostJ div128Quot div128DLo div128Un0
+      delta loopBodyN1CallAddbackBeqPostJ div128Quot div128Quot_phase2b_q0' div128DLo div128Un0
             loopBodyN1AddbackBeqPost loopBodyAddbackBeqPost loopExitPostN1 loopExitPost
       rw [sepConj_assoc'] at hp; xperm_hyp hp)
     full
@@ -485,7 +485,7 @@ theorem divK_loop_body_n1_call_addback_j3_beq_spec
   exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hp => by
-      delta loopBodyN1CallAddbackBeqPostJ div128Quot div128DLo div128Un0
+      delta loopBodyN1CallAddbackBeqPostJ div128Quot div128Quot_phase2b_q0' div128DLo div128Un0
             loopBodyN1AddbackBeqPost loopBodyAddbackBeqPost loopExitPostN1 loopExitPost
       rw [sepConj_assoc'] at hp; xperm_hyp hp)
     full

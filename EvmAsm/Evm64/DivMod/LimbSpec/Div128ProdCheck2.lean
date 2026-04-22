@@ -30,6 +30,23 @@ namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
 
+/-- Phase 2b refined quotient digit in `div128Quot`.
+
+    Factored standalone so the Knuth TAOCP §4.3.1 Step D3 guard
+    (`rhat2c < 2^32`) can be added in a follow-up iteration without
+    rewriting the entire `div128Quot` body. **Currently matches legacy
+    (buggy) semantics**; the bug is documented at
+    `/home/zksecurity/.claude/plans/dynamic-strolling-riddle.md`.
+
+    Lives in `Div128ProdCheck2.lean` (the lowest-level file that
+    naturally talks about Phase 2b's mul-check). Visible from
+    `LimbSpec.Div128Step2`, `Compose/Base` (transitively via `LimbSpec`),
+    and `LoopDefs.Iter` (where `div128Quot` calls it). -/
+def div128Quot_phase2b_q0' (q0c rhat2c dLo div_un0 : Word) : Word :=
+  let q0Dlo := q0c * dLo
+  let rhat2Un0 := (rhat2c <<< (32 : BitVec 6).toNat) ||| div_un0
+  if BitVec.ult rhat2Un0 q0Dlo then q0c + signExtend12 4095 else q0c
+
 /-- div128 product check 2: compute q0*dLo vs rhat2*2^32+un0, conditionally correct q0.
     Instrs [37]-[44]. Both BLTU paths merge at base+32. -/
 theorem divK_div128_prodcheck2_merged_spec

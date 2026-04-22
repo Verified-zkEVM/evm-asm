@@ -149,9 +149,7 @@ def div128Quot (uHi uLo vTop : Word) : Word :=
   let hi2 := q0 >>> (32 : BitVec 6).toNat
   let q0c := if hi2 = 0 then q0 else q0 + signExtend12 4095
   let rhat2c := if hi2 = 0 then rhat2 else rhat2 + dHi
-  let q0Dlo := q0c * dLo
-  let rhat2Un0 := (rhat2c <<< (32 : BitVec 6).toNat) ||| div_un0
-  let q0' := if BitVec.ult rhat2Un0 q0Dlo then q0c + signExtend12 4095 else q0c
+  let q0' := div128Quot_phase2b_q0' q0c rhat2c dLo div_un0
   (q1' <<< (32 : BitVec 6).toNat) ||| q0'
 
 /-- Low 32 bits of vTop, stored to scratch during div128 call path. -/

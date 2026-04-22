@@ -132,7 +132,7 @@ theorem divK_loop_body_n1_call_skip_j0_spec
   exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hp => by
-      delta loopBodyN1CallSkipPostJ div128Quot div128DLo div128Un0
+      delta loopBodyN1CallSkipPostJ div128Quot div128Quot_phase2b_q0' div128DLo div128Un0
             loopBodyN1SkipPost loopBodySkipPost mulsubN4 loopExitPostN1 loopExitPost
       rw [sepConj_assoc'] at hp; xperm_hyp hp)
     full
@@ -255,7 +255,7 @@ theorem divK_loop_body_n1_call_skip_j1_spec
   exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hp => by
-      delta loopBodyN1CallSkipPostJ div128Quot div128DLo div128Un0
+      delta loopBodyN1CallSkipPostJ div128Quot div128Quot_phase2b_q0' div128DLo div128Un0
             loopBodyN1SkipPost loopBodySkipPost mulsubN4 loopExitPostN1 loopExitPost
       rw [sepConj_assoc'] at hp; xperm_hyp hp)
     full
@@ -378,7 +378,7 @@ theorem divK_loop_body_n1_call_skip_j2_spec
   exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hp => by
-      delta loopBodyN1CallSkipPostJ div128Quot div128DLo div128Un0
+      delta loopBodyN1CallSkipPostJ div128Quot div128Quot_phase2b_q0' div128DLo div128Un0
             loopBodyN1SkipPost loopBodySkipPost mulsubN4 loopExitPostN1 loopExitPost
       rw [sepConj_assoc'] at hp; xperm_hyp hp)
     full
@@ -501,7 +501,7 @@ theorem divK_loop_body_n1_call_skip_j3_spec
   exact cpsTriple_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hp => by
-      delta loopBodyN1CallSkipPostJ div128Quot div128DLo div128Un0
+      delta loopBodyN1CallSkipPostJ div128Quot div128Quot_phase2b_q0' div128DLo div128Un0
             loopBodyN1SkipPost loopBodySkipPost mulsubN4 loopExitPostN1 loopExitPost
       rw [sepConj_assoc'] at hp; xperm_hyp hp)
     full
