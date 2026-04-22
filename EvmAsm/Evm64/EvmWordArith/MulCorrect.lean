@@ -107,7 +107,7 @@ theorem mul_correct_limb1 (a b : EvmWord) :
     norm_num [ Nat.shiftRight_eq_div_pow ];
   · rw [ toNat_eq_limb_sum a, toNat_eq_limb_sum b ];
     norm_num [ BitVec.toNat_add, BitVec.toNat_mul, rv64_mulhu_toNat, mul_toNat ];
-    ring;
+    ring_nf;
     omega
 
 -- ============================================================================
@@ -139,7 +139,7 @@ theorem mul_correct_limb2 (a b : EvmWord) :
   · unfold EvmWord.getLimb;
     norm_num [ Nat.shiftRight_eq_div_pow ];
   · rw [ toNat_eq_limb_sum a, toNat_eq_limb_sum b ];
-    norm_num [ BitVec.toNat_add, BitVec.toNat_mul, rv64_mulhu_toNat, mul_toNat, carry_toNat ] ; ring; omega;
+    norm_num [ BitVec.toNat_add, BitVec.toNat_mul, rv64_mulhu_toNat, mul_toNat, carry_toNat ] ; ring_nf; omega;
 
 -- ============================================================================
 -- Limb 3 helpers
