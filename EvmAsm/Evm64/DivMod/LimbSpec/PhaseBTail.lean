@@ -41,7 +41,7 @@ def divK_phaseB_tail_pre (sp n nMem leading_limb : Word) : Assertion :=
 
 /-- Unfold lemma for `divK_phaseB_tail_pre`. Callers rewrite with this
     before normalizing the concrete `n` into an sp-relative offset. -/
-theorem divK_phaseB_tail_pre_unfold (sp n nMem leading_limb : Word) :
+theorem divK_phaseB_tail_pre_unfold {sp n nMem leading_limb : Word} :
     divK_phaseB_tail_pre sp n nMem leading_limb =
     ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ n) **
      ((sp + signExtend12 3984) ↦ₘ nMem) **
@@ -58,7 +58,7 @@ def divK_phaseB_tail_post (sp n leading_limb : Word) : Assertion :=
   ((sp + (n + signExtend12 4095) <<< (3 : BitVec 6).toNat + signExtend12 32) ↦ₘ leading_limb)
 
 /-- Unfold lemma for `divK_phaseB_tail_post`. -/
-theorem divK_phaseB_tail_post_unfold (sp n leading_limb : Word) :
+theorem divK_phaseB_tail_post_unfold {sp n leading_limb : Word} :
     divK_phaseB_tail_post sp n leading_limb =
     ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ leading_limb) **
      ((sp + signExtend12 3984) ↦ₘ n) **
