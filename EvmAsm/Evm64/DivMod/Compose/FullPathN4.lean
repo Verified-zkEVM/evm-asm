@@ -1,4 +1,3 @@
--- file-size-exception: tracked by issue #312 (Compose subtree split). Pre-loop / loop-body / post-loop composition lives together; grandfathered pending split.
 /-
   EvmAsm.Evm64.DivMod.Compose.FullPathN4
 
