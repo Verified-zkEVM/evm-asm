@@ -231,13 +231,13 @@ def iterN2 (bltu : Bool) (v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) :
   else iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop
 
 @[simp]
-theorem iterN2_true (v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) :
+theorem iterN2_true {v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word} :
     iterN2 true v0 v1 v2 v3 u0 u1 u2 u3 uTop =
     iterN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
   simp [iterN2]
 
 @[simp]
-theorem iterN2_false (v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) :
+theorem iterN2_false {v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word} :
     iterN2 false v0 v1 v2 v3 u0 u1 u2 u3 uTop =
     iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
   simp [iterN2]
@@ -257,13 +257,13 @@ def iterN3 (bltu : Bool) (v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) :
   else iterN3Max v0 v1 v2 v3 u0 u1 u2 u3 uTop
 
 @[simp]
-theorem iterN3_true (v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) :
+theorem iterN3_true {v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word} :
     iterN3 true v0 v1 v2 v3 u0 u1 u2 u3 uTop =
     iterN3Call v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
   simp [iterN3]
 
 @[simp]
-theorem iterN3_false (v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) :
+theorem iterN3_false {v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word} :
     iterN3 false v0 v1 v2 v3 u0 u1 u2 u3 uTop =
     iterN3Max v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
   simp [iterN3]
@@ -278,13 +278,13 @@ def iterN1 (bltu : Bool) (v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) :
   else iterN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop
 
 @[simp]
-theorem iterN1_true (v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) :
+theorem iterN1_true {v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word} :
     iterN1 true v0 v1 v2 v3 u0 u1 u2 u3 uTop =
     iterN1Call v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
   simp [iterN1]
 
 @[simp]
-theorem iterN1_false (v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) :
+theorem iterN1_false {v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word} :
     iterN1 false v0 v1 v2 v3 u0 u1 u2 u3 uTop =
     iterN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
   simp [iterN1]
