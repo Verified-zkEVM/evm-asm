@@ -546,4 +546,59 @@ theorem div128Quot_un21_toNat_case (uHi dHi dLo uLo rhatUn1 : Word)
     show (A + 2^64 - B) % 2^64 = A + 2^64 - B
     exact Nat.mod_eq_of_lt (by omega)
 
+/-- **KB-6a: div128Quot output Nat formula.** Unfolds `div128Quot` and
+    applies `halfword_combine_mod` to yield the output's Nat value:
+
+    ```
+    (div128Quot uHi uLo vTop).toNat = (q1'.toNat % 2^32) * 2^32 + q0'.toNat
+    ```
+
+    when `q0'.toNat < 2^32`.
+
+    The `% 2^32` on `q1'` captures the top bits truncated by the final
+    `<<< 32` shift — Phase 1b's `q1'` may exceed `2^32` (current bound
+    `≤ 2^32 + 1` under hcall from KB-3e), so those high bits are lost
+    in the output assembly. That loss is benign because the Knuth-B
+    quotient bound only cares about the value modulo `2^64`, and
+    `q_true * vTop ≤ uHi * 2^64 + uLo < 2^64 * vTop` guarantees
+    `q_true < 2^64`.
+
+    First step of the final-assembly chain (KB-6). Uses only
+    `halfword_combine_mod` (KB-3g) and no Phase 2 infrastructure, so
+    lives on the main path of the call-trial bounds. -/
+theorem div128Quot_toNat_eq (uHi uLo vTop : Word) :
+    let dHi := vTop >>> (32 : BitVec 6).toNat
+    let dLo := (vTop <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+    let div_un1 := uLo >>> (32 : BitVec 6).toNat
+    let div_un0 := (uLo <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+    let q1 := rv64_divu uHi dHi
+    let rhat := uHi - q1 * dHi
+    let hi1 := q1 >>> (32 : BitVec 6).toNat
+    let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+    let rhatc := if hi1 = 0 then rhat else rhat + dHi
+    let qDlo := q1c * dLo
+    let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
+    let q1' := if BitVec.ult rhatUn1 qDlo then q1c + signExtend12 4095 else q1c
+    let rhat' := if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc
+    let cu_rhat_un1 := (rhat' <<< (32 : BitVec 6).toNat) ||| div_un1
+    let cu_q1_dlo := q1' * dLo
+    let un21 := cu_rhat_un1 - cu_q1_dlo
+    let q0 := rv64_divu un21 dHi
+    let rhat2 := un21 - q0 * dHi
+    let hi2 := q0 >>> (32 : BitVec 6).toNat
+    let q0c := if hi2 = 0 then q0 else q0 + signExtend12 4095
+    let rhat2c := if hi2 = 0 then rhat2 else rhat2 + dHi
+    let q0Dlo := q0c * dLo
+    let rhat2Un0 := (rhat2c <<< (32 : BitVec 6).toNat) ||| div_un0
+    let q0' := if BitVec.ult rhat2Un0 q0Dlo then q0c + signExtend12 4095 else q0c
+    q0'.toNat < 2^32 →
+    (div128Quot uHi uLo vTop).toNat = (q1'.toNat % 2^32) * 2^32 + q0'.toNat := by
+  intro dHi dLo div_un1 div_un0 q1 rhat hi1 q1c rhatc qDlo rhatUn1 q1' rhat'
+        cu_rhat_un1 cu_q1_dlo un21 q0 rhat2 hi2 q0c rhat2c q0Dlo rhat2Un0 q0' hq0
+  show ((q1' <<< (32 : BitVec 6).toNat) ||| q0').toNat =
+    (q1'.toNat % 2^32) * 2^32 + q0'.toNat
+  have h32 : (32 : BitVec 6).toNat = 32 := by decide
+  rw [h32]
+  exact halfword_combine_mod q1' q0' hq0
+
 end EvmAsm.Evm64
