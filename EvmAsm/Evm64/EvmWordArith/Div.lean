@@ -38,11 +38,11 @@ theorem mod_zero_right {a : EvmWord} : mod a 0 = 0 := by
 private theorem getLimb_zero (i : Fin 4) : (0 : EvmWord).getLimb i = 0 := by
   simp [getLimb]
 
-theorem div_getLimb_zero_right (a : EvmWord) (i : Fin 4) :
+theorem div_getLimb_zero_right {a : EvmWord} {i : Fin 4} :
     (div a 0).getLimb i = 0 := by
   rw [div_zero_right]; exact getLimb_zero i
 
-theorem mod_getLimb_zero_right (a : EvmWord) (i : Fin 4) :
+theorem mod_getLimb_zero_right {a : EvmWord} {i : Fin 4} :
     (mod a 0).getLimb i = 0 := by
   rw [mod_zero_right]; exact getLimb_zero i
 
