@@ -652,4 +652,94 @@ theorem div128Quot_q1_ge_q_true_1
   exact EvmWord.trial_quotient_ge_general uHi.toNat div_un1.toNat
     dHi.toNat dLo.toNat (2^32) hdHi_pos h_div_un1_lt
 
+/-- **KB-LB2: True first digit is bounded by 2^32 under hcall.** Under
+    the call-trial precondition `uHi < vTop`, the abstract Knuth first
+    digit `q_true_1 = (uHi * 2^32 + div_un1) / vTop` is strictly less
+    than 2^32:
+
+    ```
+    (uHi * 2^32 + div_un1) / (dHi * 2^32 + dLo) < 2^32
+    ```
+
+    Proof: `uHi < vTop ⇒ uHi * 2^32 + div_un1 < uHi * 2^32 + 2^32 =
+    (uHi + 1) * 2^32 ≤ vTop * 2^32`. Hence the ratio is `< 2^32`.
+
+    Used in KB-LB3 to bound the Phase 1a-correction branch: when
+    `q1 ≥ 2^32`, the corrected `q1c = q1 - 1 ≥ 2^32 - 1 ≥ q_true_1`. -/
+theorem div128Quot_q_true_1_lt_pow32
+    (uHi dHi dLo div_un1 : Word)
+    (h_div_un1_lt : div_un1.toNat < 2^32)
+    (huHi_lt_vTop : uHi.toNat < dHi.toNat * 2^32 + dLo.toNat) :
+    (uHi.toNat * 2^32 + div_un1.toNat) / (dHi.toNat * 2^32 + dLo.toNat) < 2^32 := by
+  set vTop_nat := dHi.toNat * 2^32 + dLo.toNat with h_vTop_def
+  have h_vTop_pos : 0 < vTop_nat :=
+    Nat.lt_of_le_of_lt (Nat.zero_le _) huHi_lt_vTop
+  have h_num_lt : uHi.toNat * 2^32 + div_un1.toNat < vTop_nat * 2^32 := by
+    calc uHi.toNat * 2^32 + div_un1.toNat
+        < uHi.toNat * 2^32 + 2^32 := by omega
+      _ = (uHi.toNat + 1) * 2^32 := by ring
+      _ ≤ vTop_nat * 2^32 := by
+          apply Nat.mul_le_mul_right
+          omega
+  have h_num_lt' : uHi.toNat * 2^32 + div_un1.toNat < 2^32 * vTop_nat := by
+    linarith
+  exact (Nat.div_lt_iff_lt_mul h_vTop_pos).mpr h_num_lt'
+
+/-- **KB-LB3: Phase 1a preserves Knuth lower bound.** After Phase 1a's
+    `hi1` correction, the corrected trial `q1c` is still ≥ the true
+    first digit:
+
+    ```
+    (uHi * 2^32 + div_un1) / vTop ≤ q1c.toNat
+    ```
+
+    Case analysis on `hi1`:
+    - `hi1 = 0` (q1 < 2^32): q1c = q1 ≥ q_true_1 by KB-LB1.
+    - `hi1 ≠ 0` (q1 ≥ 2^32): q1c = q1 − 1 ≥ 2^32 − 1 ≥ q_true_1 via KB-LB2.
+
+    Second step of the Knuth lower-bound chain toward `div128Quot ≥
+    q_true`. Phase 1b's lower-bound preservation (when the check fires,
+    q1' = q1c − 1 must still ≥ q_true_1) requires Knuth's multiplication-
+    check correctness (~100 lines, future iteration). -/
+theorem div128Quot_q1c_ge_q_true_1
+    (uHi dHi dLo div_un1 : Word)
+    (hdHi_ne : dHi ≠ 0)
+    (h_div_un1_lt : div_un1.toNat < 2^32)
+    (huHi_lt_vTop : uHi.toNat < dHi.toNat * 2^32 + dLo.toNat) :
+    let q1 := rv64_divu uHi dHi
+    let hi1 := q1 >>> (32 : BitVec 6).toNat
+    let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+    (uHi.toNat * 2^32 + div_un1.toNat) / (dHi.toNat * 2^32 + dLo.toNat) ≤
+    q1c.toNat := by
+  intro q1 hi1 q1c
+  have h_q1_ge : (uHi.toNat * 2^32 + div_un1.toNat) /
+      (dHi.toNat * 2^32 + dLo.toNat) ≤ q1.toNat :=
+    div128Quot_q1_ge_q_true_1 uHi dHi dLo div_un1 hdHi_ne h_div_un1_lt
+  have h_q_true_lt : (uHi.toNat * 2^32 + div_un1.toNat) /
+      (dHi.toNat * 2^32 + dLo.toNat) < 2^32 :=
+    div128Quot_q_true_1_lt_pow32 uHi dHi dLo div_un1 h_div_un1_lt huHi_lt_vTop
+  by_cases h_hi1 : hi1 = 0
+  · show (if hi1 = 0 then q1 else q1 + signExtend12 4095).toNat ≥ _
+    rw [if_pos h_hi1]
+    exact h_q1_ge
+  · -- hi1 ≠ 0 ⟹ q1 ≥ 2^32. q1c = q1 - 1 ≥ 2^32 - 1 ≥ q_true_1.
+    have hq1_ge : q1.toNat ≥ 2^32 := by
+      by_contra h
+      push_neg at h
+      apply h_hi1
+      apply BitVec.eq_of_toNat_eq
+      have h32 : (32 : BitVec 6).toNat = 32 := by decide
+      rw [BitVec.toNat_ushiftRight, h32, Nat.shiftRight_eq_div_pow]
+      show q1.toNat / 2^32 = (0 : Word).toNat
+      rw [Nat.div_eq_of_lt h]
+      rfl
+    show (if hi1 = 0 then q1 else q1 + signExtend12 4095).toNat ≥ _
+    rw [if_neg h_hi1]
+    have h_se_neg1 : (signExtend12 (4095 : BitVec 12) : Word).toNat = 2^64 - 1 := by decide
+    rw [BitVec.toNat_add, h_se_neg1]
+    have hq1_lt_word : q1.toNat - 1 < 2^64 := by have := q1.isLt; omega
+    rw [show q1.toNat + (2^64 - 1) = (q1.toNat - 1) + 2^64 from by omega,
+        Nat.add_mod_right, Nat.mod_eq_of_lt hq1_lt_word]
+    omega
+
 end EvmAsm.Evm64
