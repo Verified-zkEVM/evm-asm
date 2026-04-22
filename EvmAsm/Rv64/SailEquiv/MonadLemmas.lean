@@ -18,12 +18,12 @@ namespace EvmAsm.Rv64.SailEquiv
 -- ============================================================================
 
 @[simp]
-theorem runSail_pure (a : α) (s : SailState) :
+theorem runSail_pure {a : α} {s : SailState} :
     runSail (pure a : SailM α) s = some (a, s) := by
   simp [runSail, pure, EStateM.pure]
 
 @[simp]
-theorem runSail_bind (m : SailM α) (f : α → SailM β) (s : SailState) :
+theorem runSail_bind {m : SailM α} {f : α → SailM β} {s : SailState} :
     runSail (m >>= f) s =
       match runSail m s with
       | some (a, s') => runSail (f a) s'
