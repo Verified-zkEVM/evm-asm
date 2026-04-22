@@ -561,7 +561,7 @@ def isSkipBorrowN4Shift0Evm (a b : EvmWord) : Prop :=
   isSkipBorrowN4Shift0 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
                        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
 
-theorem isSkipBorrowN4Shift0Evm_def (a b : EvmWord) :
+theorem isSkipBorrowN4Shift0Evm_def {a b : EvmWord} :
     isSkipBorrowN4Shift0Evm a b =
     isSkipBorrowN4Shift0 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
                          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) := rfl
@@ -723,7 +723,7 @@ def isAddbackBorrowN4Shift0Evm (a b : EvmWord) : Prop :=
   isAddbackBorrowN4Shift0 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
                           (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
 
-theorem isAddbackBorrowN4Shift0Evm_def (a b : EvmWord) :
+theorem isAddbackBorrowN4Shift0Evm_def {a b : EvmWord} :
     isAddbackBorrowN4Shift0Evm a b =
     isAddbackBorrowN4Shift0 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
                             (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) := rfl
@@ -733,7 +733,7 @@ def isAddbackCarry2NzN4Shift0Evm (a b : EvmWord) : Prop :=
   isAddbackCarry2NzN4Shift0 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
                             (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
 
-theorem isAddbackCarry2NzN4Shift0Evm_def (a b : EvmWord) :
+theorem isAddbackCarry2NzN4Shift0Evm_def {a b : EvmWord} :
     isAddbackCarry2NzN4Shift0Evm a b =
     isAddbackCarry2NzN4Shift0 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
                               (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) := rfl
