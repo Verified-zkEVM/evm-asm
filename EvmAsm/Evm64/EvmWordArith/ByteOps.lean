@@ -61,7 +61,7 @@ private theorem mod_pow64_div_mod256_eq (a B : Nat) (hB : B + 8 ≤ 64) :
     equals the direct 256-bit extraction: `(x >>> ((31-i)*8)) % 256`.
     This connects the RISC-V limb-level BYTE implementation to the
     EVM-level BYTE semantics. -/
-theorem byte_extract_correct (x : EvmWord) (i : Nat) (hi : i < 32) :
+theorem byte_extract_correct {x : EvmWord} {i : Nat} (hi : i < 32) :
     let limbIdx : Fin 4 := ⟨3 - i / 8, by omega⟩
     let bitShift := 56 - (i % 8) * 8
     ((x.getLimb limbIdx).toNat / 2 ^ bitShift) % 256 =
@@ -132,7 +132,7 @@ theorem byte_correct (idx x : EvmWord) (hi : idx.toNat < 32) :
       2 ^ (56 - (idx.toNat % 8) * 8)) % 256) := by
   rw [byte_getLimb_0 _ _ hi]
   congr 1
-  exact (byte_extract_correct x idx.toNat hi).symm
+  exact (byte_extract_correct hi).symm
 
 theorem byte_zero (idx x : EvmWord) (hi : ¬ (idx.toNat < 32)) :
     byte idx x = 0 := by
