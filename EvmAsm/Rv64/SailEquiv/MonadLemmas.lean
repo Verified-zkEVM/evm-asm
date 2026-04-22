@@ -250,7 +250,7 @@ theorem runSail_wX_bits_x12 {v : BitVec 64} {s : SailState} :
 -- xreg_write_callback — no-op on state
 -- ============================================================================
 
-theorem runSail_xreg_write_callback (reg : regidx) (v : BitVec 64) (s : SailState) :
+theorem runSail_xreg_write_callback {reg : regidx} {v : BitVec 64} {s : SailState} :
     runSail (xreg_write_callback reg v) s = some (⟨⟩, s) := by
   simp [runSail, xreg_write_callback, reg_name_forwards,
     get_config_use_abi_names, encdec_reg_forwards_matches, encdec_reg_forwards,
@@ -282,7 +282,7 @@ theorem runSail_readReg_PC {s : SailState} {pc : BitVec 64}
     get, MonadState.get, getThe, MonadStateOf.get]
 
 /-- set_next_pc writes the nextPC register (+ two no-op callbacks). -/
-theorem runSail_set_next_pc (target : BitVec 64) (s : SailState) :
+theorem runSail_set_next_pc {target : BitVec 64} {s : SailState} :
     runSail (set_next_pc target) s =
       some (⟨⟩, { s with regs := s.regs.insert Register.nextPC target }) := by
   simp [runSail, set_next_pc, sail_branch_announce, redirect_callback,
