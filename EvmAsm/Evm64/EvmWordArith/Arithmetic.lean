@@ -17,7 +17,7 @@ namespace EvmWord
 -- ============================================================================
 
 -- Carry from 64-bit addition: (if ult (a+b) b then 1 else 0).toNat = (a.toNat + b.toNat) / 2^64
-theorem carry_toNat (x y : Word) :
+theorem carry_toNat {x y : Word} :
     (if BitVec.ult (x + y) y then (1 : Word) else 0).toNat =
     (x.toNat + y.toNat) / 2^64 := by
   have hx := x.isLt; have hy := y.isLt
@@ -47,9 +47,9 @@ private theorem combined_carry_toNat {x y cin : Word} (hcin : cin.toNat ≤ 1) :
     (ca ||| cb).toNat = (x.toNat + y.toNat + cin.toNat) / 2^64 := by
   intro psum ca res cb
   have hx := x.isLt; have hy := y.isLt
-  have hca : ca.toNat = (x.toNat + y.toNat) / 2^64 := carry_toNat x y
+  have hca : ca.toNat = (x.toNat + y.toNat) / 2^64 := carry_toNat
   have hpsum : psum.toNat = (x.toNat + y.toNat) % 2^64 := BitVec.toNat_add x y
-  have hcb : cb.toNat = (psum.toNat + cin.toNat) / 2^64 := carry_toNat psum cin
+  have hcb : cb.toNat = (psum.toNat + cin.toNat) / 2^64 := carry_toNat
   rw [or_01_toNat ca cb (ite_word_01 _) (ite_word_01 _), hca, hcb, hpsum]
   have : (x.toNat + y.toNat) % 2^64 < 2^64 := Nat.mod_lt _ (by omega)
   omega
@@ -80,7 +80,7 @@ theorem add_carry_chain_correct (a b : EvmWord) :
     (a + b).getLimb 3 = result3 := by
   intro a0 b0 a1 b1 a2 b2 a3 b3 sum0 carry0 psum1 carry1a result1 carry1b carry1 psum2 carry2a result2 carry2b carry2 psum3 result3
   -- toNat of carry chain
-  have hc0 : carry0.toNat = (a0.toNat + b0.toNat) / 2^64 := carry_toNat a0 b0
+  have hc0 : carry0.toNat = (a0.toNat + b0.toNat) / 2^64 := carry_toNat
   have hc0_le : carry0.toNat ≤ 1 := by
     have := a0.isLt; have := b0.isLt; rw [hc0]; omega
   have hc1 : carry1.toNat = (a1.toNat + b1.toNat + carry0.toNat) / 2^64 :=

@@ -91,7 +91,7 @@ theorem rv64_divu_euclidean (a b : Word) (hb : b ≠ 0) :
 -- ============================================================================
 
 /-- rv64_mulhu gives the high 64 bits of the full 128-bit product. -/
-theorem rv64_mulhu_toNat (a b : Word) :
+theorem rv64_mulhu_toNat {a b : Word} :
     (rv64_mulhu a b).toNat = (a.toNat * b.toNat) / 2 ^ 64 := by
   unfold rv64_mulhu
   simp only [BitVec.toNat_setWidth, BitVec.toNat_ushiftRight,
@@ -104,7 +104,7 @@ theorem rv64_mulhu_toNat (a b : Word) :
   exact Nat.div_lt_of_lt_mul (by linarith)
 
 /-- MUL gives the low 64 bits of the product (mod 2^64). -/
-theorem mul_toNat (a b : Word) : (a * b).toNat = (a.toNat * b.toNat) % 2 ^ 64 :=
+theorem mul_toNat {a b : Word} : (a * b).toNat = (a.toNat * b.toNat) % 2 ^ 64 :=
   BitVec.toNat_mul a b
 
 /-- MULHU * 2^64 + MUL = full product (Nat level). -/
@@ -164,7 +164,7 @@ theorem val256_eq_toNat (v : EvmWord) :
 -- ============================================================================
 
 /-- Word subtraction wraps mod 2^64. -/
-theorem word_sub_toNat (a b : Word) :
+theorem word_sub_toNat {a b : Word} :
     (a - b).toNat = (a.toNat + 2 ^ 64 - b.toNat) % 2 ^ 64 := by
   rw [BitVec.toNat_sub]; have hb := b.isLt; omega
 
