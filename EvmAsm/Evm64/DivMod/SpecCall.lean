@@ -151,6 +151,71 @@ instance (sp : Word) (a b : EvmWord) :
     Assertion.PCFree (modN4CallSkipStackPost sp a b) :=
   ⟨pcFree_modN4CallSkipStackPost sp a b⟩
 
+/-- Call-path counterpart to `div_n4_max_skip_stack_weaken`. Weakens a
+    concrete post state (19-cell `divScratchValuesCall` + 7 register
+    values) to `divN4CallSkipStackPost`. Structural mirror of the
+    max-path weakener, with `divScratchValuesCall_implies_divScratchOwnCall`
+    handling the 19-cell scratch weakening (4 extra cells beyond the 15
+    of `divScratchValues`).
+
+    Used by the forthcoming `evm_div_n4_call_skip_stack_spec` — the
+    remaining semantic bridge (connecting `div128Quot`'s output to
+    `(EvmWord.div a b).getLimbN 0..3`) depends on Knuth B.  -/
+theorem div_n4_call_skip_stack_weaken
+    (sp : Word) (a b : EvmWord)
+    (v1_p v2_p v5_p v6_p v7_p v10_p v11_p : Word)
+    (q0P q1P q2_p q3_p u0P u1P u2P u3P u4_p u5_p u6_p u7_p
+     shift_p n_p j_p retMem_p dMem_p dloMem_p scratch_un0_p : Word) :
+    ∀ h,
+      ((.x12 ↦ᵣ (sp + 32)) **
+       (.x1 ↦ᵣ v1_p) ** (.x2 ↦ᵣ v2_p) **
+       (.x5 ↦ᵣ v5_p) ** (.x6 ↦ᵣ v6_p) ** (.x7 ↦ᵣ v7_p) **
+       (.x10 ↦ᵣ v10_p) ** (.x11 ↦ᵣ v11_p) **
+       (.x0 ↦ᵣ (0 : Word)) **
+       evmWordIs sp a ** evmWordIs (sp + 32) (EvmWord.div a b) **
+       divScratchValuesCall sp q0P q1P q2_p q3_p u0P u1P u2P u3P u4_p
+         u5_p u6_p u7_p shift_p n_p j_p retMem_p dMem_p dloMem_p scratch_un0_p) h →
+      divN4CallSkipStackPost sp a b h := by
+  intro h hp
+  delta divN4CallSkipStackPost
+  refine sepConj_mono_right ?_ h hp
+  iterate 7 apply sepConj_mono (regIs_implies_regOwn _ _)
+  apply sepConj_mono_right
+  apply sepConj_mono_right
+  apply sepConj_mono_right
+  exact divScratchValuesCall_implies_divScratchOwnCall
+    sp q0P q1P q2_p q3_p u0P u1P u2P u3P u4_p u5_p u6_p u7_p
+    shift_p n_p j_p retMem_p dMem_p dloMem_p scratch_un0_p
+
+/-- MOD counterpart of `div_n4_call_skip_stack_weaken`. Same structural
+    weakening; only the second operand slot holds `EvmWord.mod a b`
+    instead of `EvmWord.div a b`. -/
+theorem mod_n4_call_skip_stack_weaken
+    (sp : Word) (a b : EvmWord)
+    (v1_p v2_p v5_p v6_p v7_p v10_p v11_p : Word)
+    (q0P q1P q2_p q3_p u0P u1P u2P u3P u4_p u5_p u6_p u7_p
+     shift_p n_p j_p retMem_p dMem_p dloMem_p scratch_un0_p : Word) :
+    ∀ h,
+      ((.x12 ↦ᵣ (sp + 32)) **
+       (.x1 ↦ᵣ v1_p) ** (.x2 ↦ᵣ v2_p) **
+       (.x5 ↦ᵣ v5_p) ** (.x6 ↦ᵣ v6_p) ** (.x7 ↦ᵣ v7_p) **
+       (.x10 ↦ᵣ v10_p) ** (.x11 ↦ᵣ v11_p) **
+       (.x0 ↦ᵣ (0 : Word)) **
+       evmWordIs sp a ** evmWordIs (sp + 32) (EvmWord.mod a b) **
+       divScratchValuesCall sp q0P q1P q2_p q3_p u0P u1P u2P u3P u4_p
+         u5_p u6_p u7_p shift_p n_p j_p retMem_p dMem_p dloMem_p scratch_un0_p) h →
+      modN4CallSkipStackPost sp a b h := by
+  intro h hp
+  delta modN4CallSkipStackPost
+  refine sepConj_mono_right ?_ h hp
+  iterate 7 apply sepConj_mono (regIs_implies_regOwn _ _)
+  apply sepConj_mono_right
+  apply sepConj_mono_right
+  apply sepConj_mono_right
+  exact divScratchValuesCall_implies_divScratchOwnCall
+    sp q0P q1P q2_p q3_p u0P u1P u2P u3P u4_p u5_p u6_p u7_p
+    shift_p n_p j_p retMem_p dMem_p dloMem_p scratch_un0_p
+
 -- ============================================================================
 -- DIV n=4 call+skip full-path stack-pre wrappers
 -- ============================================================================
