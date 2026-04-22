@@ -67,7 +67,7 @@ abbrev shrCode (base : Word) : CodeReq :=
 -- and lives in `ComposeBase`.
 
 /-- Phase B code (ofProg, 7 instrs at +36) is subsumed by shrCode (block 1). -/
-private theorem phase_b_sub_shrCode (base : Word) :
+private theorem phase_b_sub_shrCode {base : Word} :
     ∀ a i, shr_phase_b_code (base + 36) a = some i → shrCode base a = some i := by
   unfold shr_phase_b_code shrCode; simp only [CodeReq.unionAll_cons]
   skipBlock
@@ -77,48 +77,48 @@ private theorem phase_b_sub_shrCode (base : Word) :
 -- and lives in `ComposeBase`.
 
 /-- ofProg shr_phase_c (block 2) is subsumed by shrCode. -/
-private theorem ofProg_phase_c_sub_shrCode (base : Word) :
+private theorem ofProg_phase_c_sub_shrCode {base : Word} :
     ∀ a i, (CodeReq.ofProg (base + 64) shr_phase_c) a = some i → shrCode base a = some i := by
   unfold shrCode; simp only [CodeReq.unionAll_cons]
   skipBlock; skipBlock
   exact CodeReq.union_mono_left _ _
 
 /-- Phase C code (union chain, 5 instrs at +64) is subsumed by shrCode (block 2). -/
-private theorem phase_c_sub_shrCode (base : Word) :
+private theorem phase_c_sub_shrCode {base : Word} :
     ∀ a i, shr_phase_c_code (base + 64) a = some i → shrCode base a = some i := by
   intro a i h
-  exact ofProg_phase_c_sub_shrCode base a i (shr_phase_c_code_sub_ofProg a i h)
+  exact ofProg_phase_c_sub_shrCode a i (shr_phase_c_code_sub_ofProg a i h)
 
 /-- Body 3 code (ofProg, 7 instrs at +84) is subsumed by shrCode (block 3). -/
-private theorem body_3_sub_shrCode (base : Word) :
+private theorem body_3_sub_shrCode {base : Word} :
     ∀ a i, shr_body_3_code 252 (base + 84) a = some i → shrCode base a = some i := by
   unfold shr_body_3_code shrCode; simp only [CodeReq.unionAll_cons]
   skipBlock; skipBlock; skipBlock
   exact CodeReq.union_mono_left _ _
 
 /-- Body 2 code (ofProg, 13 instrs at +112) is subsumed by shrCode (block 4). -/
-private theorem body_2_sub_shrCode (base : Word) :
+private theorem body_2_sub_shrCode {base : Word} :
     ∀ a i, shr_body_2_code 200 (base + 112) a = some i → shrCode base a = some i := by
   unfold shr_body_2_code shrCode; simp only [CodeReq.unionAll_cons]
   skipBlock; skipBlock; skipBlock; skipBlock
   exact CodeReq.union_mono_left _ _
 
 /-- Body 1 code (ofProg, 19 instrs at +164) is subsumed by shrCode (block 5). -/
-private theorem body_1_sub_shrCode (base : Word) :
+private theorem body_1_sub_shrCode {base : Word} :
     ∀ a i, shr_body_1_code 124 (base + 164) a = some i → shrCode base a = some i := by
   unfold shr_body_1_code shrCode; simp only [CodeReq.unionAll_cons]
   skipBlock; skipBlock; skipBlock; skipBlock; skipBlock
   exact CodeReq.union_mono_left _ _
 
 /-- Body 0 code (ofProg, 25 instrs at +240) is subsumed by shrCode (block 6). -/
-private theorem body_0_sub_shrCode (base : Word) :
+private theorem body_0_sub_shrCode {base : Word} :
     ∀ a i, shr_body_0_code 24 (base + 240) a = some i → shrCode base a = some i := by
   unfold shr_body_0_code shrCode; simp only [CodeReq.unionAll_cons]
   skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock
   exact CodeReq.union_mono_left _ _
 
 /-- Zero path code (ofProg, 5 instrs at +340) is subsumed by shrCode (block 7). -/
-private theorem zero_path_sub_shrCode (base : Word) :
+private theorem zero_path_sub_shrCode {base : Word} :
     ∀ a i, shr_zero_path_code (base + 340) a = some i → shrCode base a = some i := by
   unfold shr_zero_path_code shrCode; simp only [CodeReq.unionAll_cons]
   skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock
@@ -128,7 +128,7 @@ private theorem zero_path_sub_shrCode (base : Word) :
 -- Each bridges singleton → ofProg shr_phase_a (9-element) → shrCode block 0
 
 /-- LD x5 x12 8 singleton at base is subsumed by shrCode. -/
-private theorem ld_s1_sub_shrCode (base : Word) :
+private theorem ld_s1_sub_shrCode {base : Word} :
     ∀ a i, CodeReq.singleton base (.LD .x5 .x12 8) a = some i → shrCode base a = some i := by
   intro a i h
   have h1 := singleton_sub_ofProg base base shr_phase_a (.LD .x5 .x12 8) 0
@@ -137,7 +137,7 @@ private theorem ld_s1_sub_shrCode (base : Word) :
   exact CodeReq.union_mono_left _ _ a i h1
 
 /-- LD/OR acc at base+4 (2 instrs) is subsumed by shrCode. -/
-private theorem ld_or_16_sub_shrCode (base : Word) :
+private theorem ld_or_16_sub_shrCode {base : Word} :
     ∀ a i, shr_ld_or_acc_code 16 (base + 4) a = some i → shrCode base a = some i := by
   intro a i h; unfold shr_ld_or_acc_code at h
   have h1 := CodeReq.ofProg_mono_sub base (base + 4) shr_phase_a (shr_ld_or_acc_prog 16) 1
@@ -146,7 +146,7 @@ private theorem ld_or_16_sub_shrCode (base : Word) :
   exact CodeReq.union_mono_left _ _ a i h1
 
 /-- LD/OR acc at base+12 (2 instrs) is subsumed by shrCode. -/
-private theorem ld_or_24_sub_shrCode (base : Word) :
+private theorem ld_or_24_sub_shrCode {base : Word} :
     ∀ a i, shr_ld_or_acc_code 24 (base + 12) a = some i → shrCode base a = some i := by
   intro a i h; unfold shr_ld_or_acc_code at h
   have h1 := CodeReq.ofProg_mono_sub base (base + 12) shr_phase_a (shr_ld_or_acc_prog 24) 3
@@ -155,7 +155,7 @@ private theorem ld_or_24_sub_shrCode (base : Word) :
   exact CodeReq.union_mono_left _ _ a i h1
 
 /-- BNE singleton at base+20 is subsumed by shrCode. -/
-private theorem bne_sub_shrCode (base : Word) :
+private theorem bne_sub_shrCode {base : Word} :
     ∀ a i, CodeReq.singleton (base + 20) (.BNE .x5 .x0 320) a = some i → shrCode base a = some i := by
   intro a i h
   have h1 := singleton_sub_ofProg base (base + 20) shr_phase_a (.BNE .x5 .x0 320) 5
@@ -164,7 +164,7 @@ private theorem bne_sub_shrCode (base : Word) :
   exact CodeReq.union_mono_left _ _ a i h1
 
 /-- LD x5 x12 0 singleton at base+24 is subsumed by shrCode. -/
-private theorem ld_s0_sub_shrCode (base : Word) :
+private theorem ld_s0_sub_shrCode {base : Word} :
     ∀ a i, CodeReq.singleton (base + 24) (.LD .x5 .x12 0) a = some i → shrCode base a = some i := by
   intro a i h
   have h1 := singleton_sub_ofProg base (base + 24) shr_phase_a (.LD .x5 .x12 0) 6
@@ -173,7 +173,7 @@ private theorem ld_s0_sub_shrCode (base : Word) :
   exact CodeReq.union_mono_left _ _ a i h1
 
 /-- SLTIU singleton at base+28 is subsumed by shrCode. -/
-private theorem sltiu_sub_shrCode (base : Word) :
+private theorem sltiu_sub_shrCode {base : Word} :
     ∀ a i, CodeReq.singleton (base + 28) (.SLTIU .x10 .x5 256) a = some i → shrCode base a = some i := by
   intro a i h
   have h1 := singleton_sub_ofProg base (base + 28) shr_phase_a (.SLTIU .x10 .x5 256) 7
@@ -182,7 +182,7 @@ private theorem sltiu_sub_shrCode (base : Word) :
   exact CodeReq.union_mono_left _ _ a i h1
 
 /-- BEQ singleton at base+32 is subsumed by shrCode. -/
-private theorem beq_sub_shrCode (base : Word) :
+private theorem beq_sub_shrCode {base : Word} :
     ∀ a i, CodeReq.singleton (base + 32) (.BEQ .x10 .x0 308) a = some i → shrCode base a = some i := by
   intro a i h
   have h1 := singleton_sub_ofProg base (base + 32) shr_phase_a (.BEQ .x10 .x0 308) 8
@@ -241,16 +241,16 @@ theorem evm_shr_zero_high_spec (sp base : Word)
        (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3) **
        ((sp + 32) ↦ₘ (0 : Word)) ** ((sp + 40) ↦ₘ (0 : Word)) ** ((sp + 48) ↦ₘ (0 : Word)) ** ((sp + 56) ↦ₘ (0 : Word))) := by
   -- Step 1: LD x5 x12 8 at base → extend to shrCode
-  have h1 := cpsTriple_extend_code (ld_s1_sub_shrCode base)
+  have h1 := cpsTriple_extend_code ld_s1_sub_shrCode
     (ld_spec_gen .x5 .x12 sp r5 s1 8 base (by nofun))
   simp only [signExtend12_8] at h1
   -- Step 2: LD/OR at base+4 → extend to shrCode
-  have h2 := cpsTriple_extend_code (ld_or_16_sub_shrCode base)
+  have h2 := cpsTriple_extend_code ld_or_16_sub_shrCode
     (shr_ld_or_acc_spec sp s1 r10 s2 16 (base + 4))
   simp only [signExtend12_16] at h2
   rw [shr_off_4] at h2
   -- Step 3: LD/OR at base+12 → extend to shrCode
-  have h3 := cpsTriple_extend_code (ld_or_24_sub_shrCode base)
+  have h3 := cpsTriple_extend_code ld_or_24_sub_shrCode
     (shr_ld_or_acc_spec sp (s1 ||| s2) s2 s3 24 (base + 12))
   simp only [signExtend12_24] at h3
   rw [shr_off_12] at h3
@@ -277,7 +277,7 @@ theorem evm_shr_zero_high_spec (sp base : Word)
   -- Step 4: BNE at base+20 → extend to shrCode, eliminate ntaken
   have hbne_raw := bne_spec_gen .x5 .x0 320 (s1 ||| s2 ||| s3) (0 : Word) (base + 20)
   rw [shr_bne_target, shr_off_20] at hbne_raw
-  have hbne := cpsBranch_extend_code (bne_sub_shrCode base) hbne_raw
+  have hbne := cpsBranch_extend_code bne_sub_shrCode hbne_raw
   -- Eliminate ntaken path (s1|||s2|||s3 = 0 contradicts hhigh)
   have hbne_taken := cpsBranch_takenStripPure2 hbne
     (fun hp hQf => by
@@ -293,7 +293,7 @@ theorem evm_shr_zero_high_spec (sp base : Word)
   have hAB := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h123 hbne_framed
   -- Step 5: Zero path (base+340 → base+360) → extend to shrCode
-  have hzp := cpsTriple_extend_code (zero_path_sub_shrCode base)
+  have hzp := cpsTriple_extend_code zero_path_sub_shrCode
     (shr_zero_path_spec sp v0 v1 v2 v3 (base + 340))
   rw [shr_off_340_20] at hzp
   -- Frame zero path with remaining state
@@ -347,13 +347,13 @@ theorem evm_shr_zero_large_spec (sp base : Word)
        (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3) **
        ((sp + 32) ↦ₘ (0 : Word)) ** ((sp + 40) ↦ₘ (0 : Word)) ** ((sp + 48) ↦ₘ (0 : Word)) ** ((sp + 56) ↦ₘ (0 : Word))) := by
   -- Steps 1-3: Same linear chain as zero_high
-  have h1 := cpsTriple_extend_code (ld_s1_sub_shrCode base)
+  have h1 := cpsTriple_extend_code ld_s1_sub_shrCode
     (ld_spec_gen .x5 .x12 sp r5 s1 8 base (by nofun))
   simp only [signExtend12_8] at h1
-  have h2 := cpsTriple_extend_code (ld_or_16_sub_shrCode base)
+  have h2 := cpsTriple_extend_code ld_or_16_sub_shrCode
     (shr_ld_or_acc_spec sp s1 r10 s2 16 (base + 4))
   simp only [signExtend12_16] at h2; rw [shr_off_4] at h2
-  have h3 := cpsTriple_extend_code (ld_or_24_sub_shrCode base)
+  have h3 := cpsTriple_extend_code ld_or_24_sub_shrCode
     (shr_ld_or_acc_spec sp (s1 ||| s2) s2 s3 24 (base + 12))
   simp only [signExtend12_24] at h3; rw [shr_off_12] at h3
   -- Frame + compose linear chain
@@ -377,7 +377,7 @@ theorem evm_shr_zero_large_spec (sp base : Word)
   -- Step 4: BNE at base+20 → eliminate TAKEN (s1|||s2|||s3 = 0 contradicts ≠ 0)
   have hbne_raw := bne_spec_gen .x5 .x0 320 (s1 ||| s2 ||| s3) (0 : Word) (base + 20)
   rw [shr_bne_target, shr_off_20] at hbne_raw
-  have hbne := cpsBranch_extend_code (bne_sub_shrCode base) hbne_raw
+  have hbne := cpsBranch_extend_code bne_sub_shrCode hbne_raw
   have hbne_ntaken := cpsBranch_ntakenStripPure2 hbne
     (fun hp hQt => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQt
@@ -394,11 +394,11 @@ theorem evm_shr_zero_large_spec (sp base : Word)
   have hld_raw := ld_spec_gen .x5 .x12 sp (s1 ||| s2 ||| s3) s0 0 (base + 24) (by nofun)
   simp only [signExtend12_0] at hld_raw
   rw [word_add_zero, shr_off_24] at hld_raw
-  have hld := cpsTriple_extend_code (ld_s0_sub_shrCode base) hld_raw
+  have hld := cpsTriple_extend_code ld_s0_sub_shrCode hld_raw
   -- Step 6: SLTIU at base+28 → extend to shrCode
   have hsltiu_raw := sltiu_spec_gen .x10 .x5 s3 s0 256 (base + 28) (by nofun)
   rw [shr_off_28] at hsltiu_raw
-  have hsltiu := cpsTriple_extend_code (sltiu_sub_shrCode base) hsltiu_raw
+  have hsltiu := cpsTriple_extend_code sltiu_sub_shrCode hsltiu_raw
   -- Frame + compose LD → SLTIU
   have hld_f := cpsTriple_frameR
     ((.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ s3) **
@@ -417,7 +417,7 @@ theorem evm_shr_zero_large_spec (sp base : Word)
   let sltiuVal := (if BitVec.ult s0 (signExtend12 (256 : BitVec 12)) then (1 : Word) else (0 : Word))
   have hbeq_raw := beq_spec_gen .x10 .x0 308 sltiuVal (0 : Word) (base + 32)
   rw [shr_beq_target, shr_off_32] at hbeq_raw
-  have hbeq := cpsBranch_extend_code (beq_sub_shrCode base) hbeq_raw
+  have hbeq := cpsBranch_extend_code beq_sub_shrCode hbeq_raw
   -- sltiuVal = 0 (since s0 ≥ 256 → ult is false)
   have hsltiu_eq : sltiuVal = (0 : Word) := by
     simp only [sltiuVal, hlarge]; decide
@@ -435,7 +435,7 @@ theorem evm_shr_zero_large_spec (sp base : Word)
   -- Compose h123456 → BEQ(taken)
   have h1234567 := cpsTriple_seq_perm_same_cr (fun h hp => by xperm_hyp hp) h123456 hbeq_framed
   -- Step 8: Zero path (base+340 → base+360)
-  have hzp := cpsTriple_extend_code (zero_path_sub_shrCode base)
+  have hzp := cpsTriple_extend_code zero_path_sub_shrCode
     (shr_zero_path_spec sp v0 v1 v2 v3 (base + 340))
   rw [shr_off_340_20] at hzp
   have hzp_framed := cpsTriple_frameR
@@ -642,13 +642,13 @@ theorem evm_shr_body_evmWord_spec (sp base : Word)
   have ha48 : sp + 48 = (sp + 32 : Word) + 16 := by bv_omega
   have ha56 : sp + 56 = (sp + 32 : Word) + 24 := by bv_omega
   -- Phase A: linear chain base -> base+36
-  have h1 := cpsTriple_extend_code (ld_s1_sub_shrCode base)
+  have h1 := cpsTriple_extend_code ld_s1_sub_shrCode
     (ld_spec_gen .x5 .x12 sp r5 s1 8 base (by nofun))
   simp only [signExtend12_8] at h1
-  have h2 := cpsTriple_extend_code (ld_or_16_sub_shrCode base)
+  have h2 := cpsTriple_extend_code ld_or_16_sub_shrCode
     (shr_ld_or_acc_spec sp s1 r10 s2 16 (base + 4))
   simp only [signExtend12_16] at h2; rw [shr_off_4] at h2
-  have h3 := cpsTriple_extend_code (ld_or_24_sub_shrCode base)
+  have h3 := cpsTriple_extend_code ld_or_24_sub_shrCode
     (shr_ld_or_acc_spec sp (s1 ||| s2) s2 s3 24 (base + 12))
   simp only [signExtend12_24] at h3; rw [shr_off_12] at h3
   have h1f := cpsTriple_frameR
@@ -671,7 +671,7 @@ theorem evm_shr_body_evmWord_spec (sp base : Word)
   -- BNE at base+20: eliminate TAKEN (s1|||s2|||s3=0 contradicts ne 0)
   have hbne_raw := bne_spec_gen .x5 .x0 320 (s1 ||| s2 ||| s3) (0 : Word) (base + 20)
   rw [shr_bne_target, shr_off_20] at hbne_raw
-  have hbne := cpsBranch_extend_code (bne_sub_shrCode base) hbne_raw
+  have hbne := cpsBranch_extend_code bne_sub_shrCode hbne_raw
   have hbne_ntaken := cpsBranch_ntakenStripPure2 hbne
     (fun hp hQt => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQt
@@ -686,11 +686,11 @@ theorem evm_shr_body_evmWord_spec (sp base : Word)
   have hld_raw := ld_spec_gen .x5 .x12 sp (s1 ||| s2 ||| s3) s0 0 (base + 24) (by nofun)
   simp only [signExtend12_0] at hld_raw
   rw [word_add_zero, shr_off_24] at hld_raw
-  have hld := cpsTriple_extend_code (ld_s0_sub_shrCode base) hld_raw
+  have hld := cpsTriple_extend_code ld_s0_sub_shrCode hld_raw
   -- SLTIU at base+28
   have hsltiu_raw := sltiu_spec_gen .x10 .x5 s3 s0 256 (base + 28) (by nofun)
   rw [shr_off_28] at hsltiu_raw
-  have hsltiu := cpsTriple_extend_code (sltiu_sub_shrCode base) hsltiu_raw
+  have hsltiu := cpsTriple_extend_code sltiu_sub_shrCode hsltiu_raw
   have hld_f := cpsTriple_frameR
     ((.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ s3) ** (.x6 ↦ᵣ r6) ** (.x7 ↦ᵣ r7) ** (.x11 ↦ᵣ r11) **
      ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3) **
@@ -708,7 +708,7 @@ theorem evm_shr_body_evmWord_spec (sp base : Word)
   have hsltiu_eq : sltiuVal = (1 : Word) := by simp only [sltiuVal, hlt_s0]; decide
   have hbeq_raw := beq_spec_gen .x10 .x0 308 sltiuVal (0 : Word) (base + 32)
   rw [shr_beq_target, shr_off_32] at hbeq_raw
-  have hbeq := cpsBranch_extend_code (beq_sub_shrCode base) hbeq_raw
+  have hbeq := cpsBranch_extend_code beq_sub_shrCode hbeq_raw
   have hbeq_ntaken := cpsBranch_ntakenStripPure2 hbeq
     (fun hp hQt => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQt
@@ -727,7 +727,7 @@ theorem evm_shr_body_evmWord_spec (sp base : Word)
   let mask := (0 : Word) - cond
   let antiShift := (64 : Word) - bitShift
   have hphaseB_raw := shr_phase_b_spec s0 sp r6 r7 r11 (base + 36)
-  have hphaseB := cpsTriple_extend_code (phase_b_sub_shrCode base) hphaseB_raw
+  have hphaseB := cpsTriple_extend_code phase_b_sub_shrCode hphaseB_raw
   rw [shr_off_36_28] at hphaseB
   simp only [signExtend12_32] at hphaseB
   have hphaseB_f := cpsTriple_frameR
@@ -740,18 +740,18 @@ theorem evm_shr_body_evmWord_spec (sp base : Word)
   have hphaseC_raw := shr_phase_c_spec_pure limbShift sltiuVal (base + 64)
     (base + 240) (base + 164) (base + 112) (base + 84)
     (shr_c_e0 base) (shr_c_e1 base) (shr_c_e2 base) (shr_c_e3 base)
-  have hphaseC := cpsNBranch_extend_code (phase_c_sub_shrCode base) hphaseC_raw
+  have hphaseC := cpsNBranch_extend_code phase_c_sub_shrCode hphaseC_raw
   -- Body specs extended to shrCode
-  have hbody3 := cpsTriple_extend_code (body_3_sub_shrCode base)
+  have hbody3 := cpsTriple_extend_code body_3_sub_shrCode
     (shr_body_3_spec (sp + 32) limbShift ((0 : Word) + signExtend12 2) bitShift antiShift mask
       v0 v1 v2 v3 (base + 84) (base + 360) 252 (shr_body3_exit base))
-  have hbody2 := cpsTriple_extend_code (body_2_sub_shrCode base)
+  have hbody2 := cpsTriple_extend_code body_2_sub_shrCode
     (shr_body_2_spec (sp + 32) limbShift ((0 : Word) + signExtend12 2) bitShift antiShift mask
       v0 v1 v2 v3 (base + 112) (base + 360) 200 (shr_body2_exit base))
-  have hbody1 := cpsTriple_extend_code (body_1_sub_shrCode base)
+  have hbody1 := cpsTriple_extend_code body_1_sub_shrCode
     (shr_body_1_spec (sp + 32) limbShift ((0 : Word) + signExtend12 1) bitShift antiShift mask
       v0 v1 v2 v3 (base + 164) (base + 360) 124 (shr_body1_exit base))
-  have hbody0 := cpsTriple_extend_code (body_0_sub_shrCode base)
+  have hbody0 := cpsTriple_extend_code body_0_sub_shrCode
     (shr_body_0_spec (sp + 32) limbShift sltiuVal bitShift antiShift mask
       v0 v1 v2 v3 (base + 240) (base + 360) 24 (shr_body0_exit base))
   -- Frame each body with (x0=0 ** shiftMem)
