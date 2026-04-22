@@ -83,7 +83,7 @@ theorem limbs_or_eq_zero_imp (b0 b1 b2 b3 : Word) (h : b0 ||| b1 ||| b2 ||| b3 =
   exact ⟨h0, h1, h2, h3⟩
 
 /-- A 256-bit word is zero iff the OR of all its limbs is zero. -/
-theorem eq_zero_iff_limbs_or (b : EvmWord) :
+theorem eq_zero_iff_limbs_or {b : EvmWord} :
     b = 0 ↔ b.getLimb 0 ||| b.getLimb 1 ||| b.getLimb 2 ||| b.getLimb 3 = 0 := by
   constructor
   · intro h; subst h
