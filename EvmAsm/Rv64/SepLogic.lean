@@ -2063,7 +2063,7 @@ theorem ofProg_nil {base : Word} : ofProg base [] = empty := rfl
 
 /-- If an address doesn't match any instruction position in a program block,
     the ofProg CodeReq returns none at that address. -/
-theorem ofProg_none_range (base : Word) (prog : List Instr) (a : Word)
+theorem ofProg_none_range (base : Word) (prog : List Instr) {a : Word}
     (h : ∀ k : Nat, k < prog.length → a ≠ base + BitVec.ofNat 64 (4 * k)) :
     ofProg base prog a = none := by
   induction prog generalizing base with
@@ -2366,7 +2366,7 @@ theorem CodeReq.ofProg_none_range_len (base : Word) (prog : List Instr) (n : Nat
     (hlen : prog.length = n)
     (h : ∀ k : Nat, k < n → a ≠ base + BitVec.ofNat 64 (4 * k)) :
     CodeReq.ofProg base prog a = none :=
-  CodeReq.ofProg_none_range base prog a (fun k hk => h k (hlen ▸ hk))
+  CodeReq.ofProg_none_range base prog (fun k hk => h k (hlen ▸ hk))
 
 /-- Singleton is disjoint from ofProg if the singleton's address is not in the program range. -/
 theorem CodeReq.Disjoint.singleton_ofProg {a : Word} {i : Instr} {base : Word} {prog : List Instr}
