@@ -27,7 +27,7 @@ open EvmAsm.Rv64.AddrNorm
     the phaseB block (left of the remaining union) lifts to membership in
     `phaseA ∪ (phaseB ∪ rest)`. Used by the ten `*_sub_divCode` theorems below
     that would otherwise repeat the disjoint-range incantation verbatim. -/
-private theorem sub_divCode_of_phaseB_left (base : Word) {rest : CodeReq} :
+private theorem sub_divCode_of_phaseB_left {base : Word} {rest : CodeReq} :
     ∀ a i,
       CodeReq.ofProg (base + phaseBOff) divK_phaseB a = some i →
       ((CodeReq.ofProg base (divK_phaseA 1020)).union
@@ -73,7 +73,7 @@ private theorem divK_phaseB_init1_code_sub_divCode {base : Word} :
     (divK_phaseB.take 7) 0
     (by bv_addr) (by decide) (by decide) (by decide) a i h
   -- Skip block 0 (phaseA disjoint from phaseB), match block 1
-  exact sub_divCode_of_phaseB_left base a i h1
+  exact sub_divCode_of_phaseB_left a i h1
 
 /-- Phase B init2 code (ofProg sub-range of block 1) is subsumed by divCode. -/
 private theorem divK_phaseB_init2_code_sub_divCode {base : Word} :
@@ -83,7 +83,7 @@ private theorem divK_phaseB_init2_code_sub_divCode {base : Word} :
   have h1 := CodeReq.ofProg_mono_sub (base + phaseBOff) (base + 60) divK_phaseB
     (divK_phaseB.drop 7 |>.take 2) 7
     (by bv_addr) (by decide) (by decide) (by decide) a i h
-  exact sub_divCode_of_phaseB_left base a i h1
+  exact sub_divCode_of_phaseB_left a i h1
 
 /-- ADDI x5 x0 4 singleton at base+68 (part of block 1: phaseB) is subsumed by divCode. -/
 private theorem addi_x5_singleton_sub_divCode {base : Word} :
@@ -96,7 +96,7 @@ private theorem addi_x5_singleton_sub_divCode {base : Word} :
   rw [bv64_4mul_9,
       show (base + phaseBOff : Word) + 36 = base + 68 from by bv_addr] at hlookup
   have h1 := CodeReq.singleton_mono hlookup a i h
-  exact sub_divCode_of_phaseB_left base a i h1
+  exact sub_divCode_of_phaseB_left a i h1
 
 /-- BNE x10 x0 24 singleton at base+72 (part of block 1: phaseB) is subsumed by divCode. -/
 private theorem bne_x10_singleton_sub_divCode {base : Word} :
@@ -109,7 +109,7 @@ private theorem bne_x10_singleton_sub_divCode {base : Word} :
   rw [bv64_4mul_10,
       show (base + phaseBOff : Word) + 40 = base + 72 from by bv_addr] at hlookup
   have h1 := CodeReq.singleton_mono hlookup a i h
-  exact sub_divCode_of_phaseB_left base a i h1
+  exact sub_divCode_of_phaseB_left a i h1
 
 /-- Phase B tail code (ofProg sub-range of block 1) is subsumed by divCode. -/
 private theorem divK_phaseB_tail_code_sub_divCode {base : Word} :
@@ -119,7 +119,7 @@ private theorem divK_phaseB_tail_code_sub_divCode {base : Word} :
   have h1 := CodeReq.ofProg_mono_sub (base + phaseBOff) (base + 96) divK_phaseB
     (divK_phaseB.drop 16) 16
     (by bv_addr) (by decide) (by decide) (by decide) a i h
-  exact sub_divCode_of_phaseB_left base a i h1
+  exact sub_divCode_of_phaseB_left a i h1
 
 -- ============================================================================
 -- Section 6: signExtend13 normalization
@@ -389,7 +389,7 @@ private theorem addi_x5_3_sub_divCode {base : Word} :
   rw [bv64_4mul_11,
       show (base + phaseBOff : Word) + 44 = base + 76 from by bv_addr] at hlookup
   have h1 := CodeReq.singleton_mono hlookup a i h
-  exact sub_divCode_of_phaseB_left base a i h1
+  exact sub_divCode_of_phaseB_left a i h1
 
 -- BNE x7 x0 16 at base+80 (index 12 of phaseB)
 private theorem bne_x7_16_sub_divCode {base : Word} :
@@ -402,7 +402,7 @@ private theorem bne_x7_16_sub_divCode {base : Word} :
   rw [bv64_4mul_12,
       show (base + phaseBOff : Word) + 48 = base + 80 from by bv_addr] at hlookup
   have h1 := CodeReq.singleton_mono hlookup a i h
-  exact sub_divCode_of_phaseB_left base a i h1
+  exact sub_divCode_of_phaseB_left a i h1
 
 -- ADDI x5 x0 2 at base+84 (index 13 of phaseB)
 private theorem addi_x5_2_sub_divCode {base : Word} :
@@ -415,7 +415,7 @@ private theorem addi_x5_2_sub_divCode {base : Word} :
   rw [bv64_4mul_13,
       show (base + phaseBOff : Word) + 52 = base + 84 from by bv_addr] at hlookup
   have h1 := CodeReq.singleton_mono hlookup a i h
-  exact sub_divCode_of_phaseB_left base a i h1
+  exact sub_divCode_of_phaseB_left a i h1
 
 -- BNE x6 x0 8 at base+88 (index 14 of phaseB)
 private theorem bne_x6_8_sub_divCode {base : Word} :
@@ -428,7 +428,7 @@ private theorem bne_x6_8_sub_divCode {base : Word} :
   rw [bv64_4mul_14,
       show (base + phaseBOff : Word) + 56 = base + 88 from by bv_addr] at hlookup
   have h1 := CodeReq.singleton_mono hlookup a i h
-  exact sub_divCode_of_phaseB_left base a i h1
+  exact sub_divCode_of_phaseB_left a i h1
 
 -- ADDI x5 x0 1 at base+92 (index 15 of phaseB)
 private theorem addi_x5_1_sub_divCode {base : Word} :
@@ -441,7 +441,7 @@ private theorem addi_x5_1_sub_divCode {base : Word} :
   rw [bv64_4mul_15,
       show (base + phaseBOff : Word) + 60 = base + 92 from by bv_addr] at hlookup
   have h1 := CodeReq.singleton_mono hlookup a i h
-  exact sub_divCode_of_phaseB_left base a i h1
+  exact sub_divCode_of_phaseB_left a i h1
 
 -- ============================================================================
 -- Section 10c: Phase B cascade constants and address lemmas
