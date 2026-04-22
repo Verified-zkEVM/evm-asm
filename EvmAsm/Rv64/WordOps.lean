@@ -35,10 +35,10 @@ theorem extractWord32_replaceWord32_same (w : Word) (pos : Fin 2) (v : BitVec 32
 
 /-! ## getWord32 / setWord32 in terms of extractWord32 / replaceWord32 -/
 
-theorem getWord32_eq (s : MachineState) (addr : Word) :
+theorem getWord32_eq {s : MachineState} {addr : Word} :
     s.getWord32 addr = extractWord32 (s.getMem (alignToDword addr)) ((byteOffset addr) / 4) := rfl
 
-theorem setWord32_eq (s : MachineState) (addr : Word) (v : BitVec 32) :
+theorem setWord32_eq {s : MachineState} {addr : Word} {v : BitVec 32} :
     s.setWord32 addr v = s.setMem (alignToDword addr)
       (replaceWord32 (s.getMem (alignToDword addr)) ((byteOffset addr) / 4) v) := rfl
 
