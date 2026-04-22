@@ -41,56 +41,56 @@ abbrev evm_byte_code (base : Word) : CodeReq :=
 -- ============================================================================
 
 /-- Phase A code (9 instrs at offset 0) is subsumed by evm_byte_code. -/
-private theorem byte_phase_a_sub (base : Word) :
+private theorem byte_phase_a_sub {base : Word} :
     ∀ a i, (byte_phase_a_code base) a = some i → (evm_byte_code base) a = some i := by
   unfold evm_byte_code byte_phase_a_code
   exact CodeReq.ofProg_mono_sub base base evm_byte byte_phase_a 0
     (by bv_omega) (by decide) (by decide) (by decide)
 
 /-- Phase B code (5 instrs at offset 36) is subsumed by evm_byte_code. -/
-private theorem byte_phase_b_sub (base : Word) :
+private theorem byte_phase_b_sub {base : Word} :
     ∀ a i, (byte_phase_b_code (base + 36)) a = some i → (evm_byte_code base) a = some i := by
   unfold evm_byte_code byte_phase_b_code
   exact CodeReq.ofProg_mono_sub base (base + 36) evm_byte byte_phase_b 9
     (by bv_omega) (by decide) (by decide) (by decide)
 
 /-- body_3 code (4 instrs at offset 76) is subsumed by evm_byte_code. -/
-private theorem byte_body_3_sub (base : Word) :
+private theorem byte_body_3_sub {base : Word} :
     ∀ a i, (byte_body_3_code (base + 76)) a = some i → (evm_byte_code base) a = some i := by
   unfold evm_byte_code byte_body_3_code
   exact CodeReq.ofProg_mono_sub base (base + 76) evm_byte byte_body_3 19
     (by bv_omega) (by decide) (by decide) (by decide)
 
 /-- body_2 code (4 instrs at offset 92) is subsumed by evm_byte_code. -/
-private theorem byte_body_2_sub (base : Word) :
+private theorem byte_body_2_sub {base : Word} :
     ∀ a i, (byte_body_2_code (base + 92)) a = some i → (evm_byte_code base) a = some i := by
   unfold evm_byte_code byte_body_2_code
   exact CodeReq.ofProg_mono_sub base (base + 92) evm_byte byte_body_2 23
     (by bv_omega) (by decide) (by decide) (by decide)
 
 /-- body_1 code (4 instrs at offset 108) is subsumed by evm_byte_code. -/
-private theorem byte_body_1_sub (base : Word) :
+private theorem byte_body_1_sub {base : Word} :
     ∀ a i, (byte_body_1_code (base + 108)) a = some i → (evm_byte_code base) a = some i := by
   unfold evm_byte_code byte_body_1_code
   exact CodeReq.ofProg_mono_sub base (base + 108) evm_byte byte_body_1 27
     (by bv_omega) (by decide) (by decide) (by decide)
 
 /-- body_0 code (3 instrs at offset 124) is subsumed by evm_byte_code. -/
-private theorem byte_body_0_sub (base : Word) :
+private theorem byte_body_0_sub {base : Word} :
     ∀ a i, (byte_body_0_code (base + 124)) a = some i → (evm_byte_code base) a = some i := by
   unfold evm_byte_code byte_body_0_code
   exact CodeReq.ofProg_mono_sub base (base + 124) evm_byte byte_body_0 31
     (by bv_omega) (by decide) (by decide) (by decide)
 
 /-- Store code (6 instrs at offset 136) is subsumed by evm_byte_code. -/
-private theorem byte_store_sub (base : Word) :
+private theorem byte_store_sub {base : Word} :
     ∀ a i, (byte_store_code (base + 136)) a = some i → (evm_byte_code base) a = some i := by
   unfold evm_byte_code byte_store_code
   exact CodeReq.ofProg_mono_sub base (base + 136) evm_byte byte_store 34
     (by bv_omega) (by decide) (by decide) (by decide)
 
 /-- Zero path code (5 instrs at offset 160) is subsumed by evm_byte_code. -/
-private theorem byte_zero_path_sub (base : Word) :
+private theorem byte_zero_path_sub {base : Word} :
     ∀ a i, (byte_zero_path_code (base + 160)) a = some i → (evm_byte_code base) a = some i := by
   unfold evm_byte_code byte_zero_path_code
   exact CodeReq.ofProg_mono_sub base (base + 160) evm_byte byte_zero_path 40
@@ -101,7 +101,7 @@ private theorem byte_zero_path_sub (base : Word) :
 -- ============================================================================
 
 /-- Phase C code (5 instrs at offset 56) is subsumed by evm_byte_code. -/
-private theorem byte_phase_c_sub (base : Word) :
+private theorem byte_phase_c_sub {base : Word} :
     ∀ a i, (byte_phase_c_code (base + 56)) a = some i → (evm_byte_code base) a = some i := by
   unfold evm_byte_code byte_phase_c_code
   exact CodeReq.ofProg_mono_sub base (base + 56) evm_byte byte_phase_c 14
@@ -121,28 +121,28 @@ private theorem singleton_sub_evm_byte (base addr : Word) (instr : Instr) (k : N
     (by decide) h_addr)
 
 /-- BNE x5 x0 140 singleton at base+20 is subsumed by evm_byte_code. -/
-private theorem byte_bne_sub (base : Word) :
+private theorem byte_bne_sub {base : Word} :
     ∀ a i, CodeReq.singleton (base + 20) (.BNE .x5 .x0 140) a = some i →
       (evm_byte_code base) a = some i :=
   singleton_sub_evm_byte base (base + 20) (.BNE .x5 .x0 140) 5
     (by decide) (by bv_omega) (by decide)
 
 /-- LD x5 x12 0 singleton at base+24 is subsumed by evm_byte_code. -/
-private theorem byte_ld0_sub (base : Word) :
+private theorem byte_ld0_sub {base : Word} :
     ∀ a i, CodeReq.singleton (base + 24) (.LD .x5 .x12 0) a = some i →
       (evm_byte_code base) a = some i :=
   singleton_sub_evm_byte base (base + 24) (.LD .x5 .x12 0) 6
     (by decide) (by bv_omega) (by decide)
 
 /-- SLTIU x10 x5 32 singleton at base+28 is subsumed by evm_byte_code. -/
-private theorem byte_sltiu_sub (base : Word) :
+private theorem byte_sltiu_sub {base : Word} :
     ∀ a i, CodeReq.singleton (base + 28) (.SLTIU .x10 .x5 32) a = some i →
       (evm_byte_code base) a = some i :=
   singleton_sub_evm_byte base (base + 28) (.SLTIU .x10 .x5 32) 7
     (by decide) (by bv_omega) (by decide)
 
 /-- BEQ x10 x0 128 singleton at base+32 is subsumed by evm_byte_code. -/
-private theorem byte_beq_sub (base : Word) :
+private theorem byte_beq_sub {base : Word} :
     ∀ a i, CodeReq.singleton (base + 32) (.BEQ .x10 .x0 128) a = some i →
       (evm_byte_code base) a = some i :=
   singleton_sub_evm_byte base (base + 32) (.BEQ .x10 .x0 128) 8
@@ -240,7 +240,7 @@ theorem evm_byte_zero_high_spec (sp base : Word)
        (sp ↦ₘ i0) ** ((sp + 8) ↦ₘ i1) ** ((sp + 16) ↦ₘ i2) ** ((sp + 24) ↦ₘ i3) **
        ((sp + 32) ↦ₘ (0 : Word)) ** ((sp + 40) ↦ₘ (0 : Word)) ** ((sp + 48) ↦ₘ (0 : Word)) ** ((sp + 56) ↦ₘ (0 : Word))) := by
   -- Step 1: OR-reduce (base → base+20) → extend to evm_byte_code
-  have hOR := cpsTriple_extend_code (byte_phase_a_sub base)
+  have hOR := cpsTriple_extend_code byte_phase_a_sub
     (byte_phase_a_or_reduce_spec sp r5 r10 i1 i2 i3 base)
   simp only [signExtend12_8, signExtend12_16, signExtend12_24] at hOR
   -- Frame OR-reduce with remaining state
@@ -251,7 +251,7 @@ theorem evm_byte_zero_high_spec (sp base : Word)
   -- Step 2: BNE at base+20 → extend to evm_byte_code, eliminate ntaken
   have hbne_raw := bne_spec_gen .x5 .x0 140 (i1 ||| i2 ||| i3) (0 : Word) (base + 20)
   rw [byte_bne_target, byte_off_20] at hbne_raw
-  have hbne := cpsBranch_extend_code (byte_bne_sub base) hbne_raw
+  have hbne := cpsBranch_extend_code byte_bne_sub hbne_raw
   -- Eliminate ntaken path (i1|||i2|||i3 = 0 contradicts hhigh)
   have hbne_taken := cpsBranch_takenStripPure2 hbne
     (fun hp hQf => by
@@ -267,7 +267,7 @@ theorem evm_byte_zero_high_spec (sp base : Word)
   have hAB := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hOR_f hbne_framed
   -- Step 3: Zero path (base+160 → base+180) → extend to evm_byte_code
-  have hzp := cpsTriple_extend_code (byte_zero_path_sub base)
+  have hzp := cpsTriple_extend_code byte_zero_path_sub
     (byte_zero_path_spec sp v0 v1 v2 v3 (base + 160))
   simp only [signExtend12_32] at hzp
   rw [byte_off_160_20] at hzp
@@ -316,7 +316,7 @@ theorem evm_byte_zero_geq32_spec (sp base : Word)
        (sp ↦ₘ i0) ** ((sp + 8) ↦ₘ i1) ** ((sp + 16) ↦ₘ i2) ** ((sp + 24) ↦ₘ i3) **
        ((sp + 32) ↦ₘ (0 : Word)) ** ((sp + 40) ↦ₘ (0 : Word)) ** ((sp + 48) ↦ₘ (0 : Word)) ** ((sp + 56) ↦ₘ (0 : Word))) := by
   -- Step 1: OR-reduce (base → base+20) → extend to evm_byte_code
-  have hOR := cpsTriple_extend_code (byte_phase_a_sub base)
+  have hOR := cpsTriple_extend_code byte_phase_a_sub
     (byte_phase_a_or_reduce_spec sp r5 r10 i1 i2 i3 base)
   simp only [signExtend12_8, signExtend12_16, signExtend12_24] at hOR
   -- Frame OR-reduce with remaining state
@@ -327,7 +327,7 @@ theorem evm_byte_zero_geq32_spec (sp base : Word)
   -- Step 2: BNE at base+20 → eliminate TAKEN (i1|||i2|||i3 = 0)
   have hbne_raw := bne_spec_gen .x5 .x0 140 (i1 ||| i2 ||| i3) (0 : Word) (base + 20)
   rw [byte_bne_target, byte_off_20] at hbne_raw
-  have hbne := cpsBranch_extend_code (byte_bne_sub base) hbne_raw
+  have hbne := cpsBranch_extend_code byte_bne_sub hbne_raw
   have hbne_ntaken := cpsBranch_ntakenStripPure2 hbne
     (fun hp hQt => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQt
@@ -345,11 +345,11 @@ theorem evm_byte_zero_geq32_spec (sp base : Word)
   have hld_raw := ld_spec_gen .x5 .x12 sp (i1 ||| i2 ||| i3) i0 0 (base + 24) (by nofun)
   simp only [signExtend12_0] at hld_raw
   rw [word_add_zero, byte_off_24] at hld_raw
-  have hld := cpsTriple_extend_code (byte_ld0_sub base) hld_raw
+  have hld := cpsTriple_extend_code byte_ld0_sub hld_raw
   -- Step 4: SLTIU at base+28
   have hsltiu_raw := sltiu_spec_gen .x10 .x5 i3 i0 32 (base + 28) (by nofun)
   rw [byte_off_28] at hsltiu_raw
-  have hsltiu := cpsTriple_extend_code (byte_sltiu_sub base) hsltiu_raw
+  have hsltiu := cpsTriple_extend_code byte_sltiu_sub hsltiu_raw
   -- Frame + compose LD → SLTIU
   have hld_f := cpsTriple_frameR
     ((.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ i3) **
@@ -368,7 +368,7 @@ theorem evm_byte_zero_geq32_spec (sp base : Word)
   let sltiuVal := (if BitVec.ult i0 (signExtend12 (32 : BitVec 12)) then (1 : Word) else (0 : Word))
   have hbeq_raw := beq_spec_gen .x10 .x0 128 sltiuVal (0 : Word) (base + 32)
   rw [byte_beq_target, byte_off_32] at hbeq_raw
-  have hbeq := cpsBranch_extend_code (byte_beq_sub base) hbeq_raw
+  have hbeq := cpsBranch_extend_code byte_beq_sub hbeq_raw
   -- sltiuVal = 0 (since i0 ≥ 32 → ult is false)
   have hsltiu_eq : sltiuVal = (0 : Word) := by
     simp only [sltiuVal, hlarge]; decide
@@ -386,7 +386,7 @@ theorem evm_byte_zero_geq32_spec (sp base : Word)
   -- Compose h1234 → BEQ(taken)
   have h12345 := cpsTriple_seq_perm_same_cr (fun h hp => by xperm_hyp hp) h1234 hbeq_framed
   -- Step 6: Zero path (base+160 → base+180)
-  have hzp := cpsTriple_extend_code (byte_zero_path_sub base)
+  have hzp := cpsTriple_extend_code byte_zero_path_sub
     (byte_zero_path_spec sp v0 v1 v2 v3 (base + 160))
   simp only [signExtend12_32] at hzp
   rw [byte_off_160_20] at hzp
@@ -478,7 +478,7 @@ theorem evm_byte_body_evmWord_spec (sp base : Word)
   have ha48' : (sp + 32 : Word) + 16 = sp + 48 := by bv_omega
   have ha56' : (sp + 32 : Word) + 24 = sp + 56 := by bv_omega
   -- Phase A: OR-reduce (base → base+20)
-  have hOR := cpsTriple_extend_code (byte_phase_a_sub base)
+  have hOR := cpsTriple_extend_code byte_phase_a_sub
     (byte_phase_a_or_reduce_spec sp r5 r10 i1 i2 i3 base)
   simp only [signExtend12_8, signExtend12_16, signExtend12_24] at hOR
   have hOR_f := cpsTriple_frameR
@@ -488,7 +488,7 @@ theorem evm_byte_body_evmWord_spec (sp base : Word)
   -- BNE at base+20: eliminate TAKEN (i1|||i2|||i3=0 contradicts ne 0)
   have hbne_raw := bne_spec_gen .x5 .x0 140 (i1 ||| i2 ||| i3) (0 : Word) (base + 20)
   rw [byte_bne_target, byte_off_20] at hbne_raw
-  have hbne := cpsBranch_extend_code (byte_bne_sub base) hbne_raw
+  have hbne := cpsBranch_extend_code byte_bne_sub hbne_raw
   have hbne_ntaken := cpsBranch_ntakenStripPure2 hbne
     (fun hp hQt => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQt
@@ -503,11 +503,11 @@ theorem evm_byte_body_evmWord_spec (sp base : Word)
   have hld_raw := ld_spec_gen .x5 .x12 sp (i1 ||| i2 ||| i3) i0 0 (base + 24) (by nofun)
   simp only [signExtend12_0] at hld_raw
   rw [word_add_zero, byte_off_24] at hld_raw
-  have hld := cpsTriple_extend_code (byte_ld0_sub base) hld_raw
+  have hld := cpsTriple_extend_code byte_ld0_sub hld_raw
   -- SLTIU at base+28
   have hsltiu_raw := sltiu_spec_gen .x10 .x5 i3 i0 32 (base + 28) (by nofun)
   rw [byte_off_28] at hsltiu_raw
-  have hsltiu := cpsTriple_extend_code (byte_sltiu_sub base) hsltiu_raw
+  have hsltiu := cpsTriple_extend_code byte_sltiu_sub hsltiu_raw
   have hld_f := cpsTriple_frameR
     ((.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ i3) ** (.x6 ↦ᵣ r6) **
      ((sp + 8) ↦ₘ i1) ** ((sp + 16) ↦ₘ i2) ** ((sp + 24) ↦ₘ i3) **
@@ -525,7 +525,7 @@ theorem evm_byte_body_evmWord_spec (sp base : Word)
   have hsltiu_eq : sltiuVal = (1 : Word) := by simp only [sltiuVal, hlt_i0]; decide
   have hbeq_raw := beq_spec_gen .x10 .x0 128 sltiuVal (0 : Word) (base + 32)
   rw [byte_beq_target, byte_off_32] at hbeq_raw
-  have hbeq := cpsBranch_extend_code (byte_beq_sub base) hbeq_raw
+  have hbeq := cpsBranch_extend_code byte_beq_sub hbeq_raw
   have hbeq_ntaken := cpsBranch_ntakenStripPure2 hbeq
     (fun hp hQt => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQt
@@ -543,7 +543,7 @@ theorem evm_byte_body_evmWord_spec (sp base : Word)
   let shiftAmount := (56 : Word) - byteShift
   let limbFromMsb := i0 >>> (3 : BitVec 6).toNat
   have hphaseB_raw := byte_phase_b_spec i0 r6 sltiuVal (base + 36)
-  have hphaseB := cpsTriple_extend_code (byte_phase_b_sub base) hphaseB_raw
+  have hphaseB := cpsTriple_extend_code byte_phase_b_sub hphaseB_raw
   rw [byte_off_36_20] at hphaseB
   have hphaseB_f := cpsTriple_frameR
     ((.x12 ↦ᵣ sp) **
@@ -555,30 +555,30 @@ theorem evm_byte_body_evmWord_spec (sp base : Word)
   have hphaseC_raw := byte_phase_c_spec limbFromMsb byteShift (base + 56)
     (base + 124) (base + 108) (base + 92) (base + 76)
     (byte_c_e0 base) (byte_c_e1 base) (byte_c_e2 base) (byte_c_e3 base)
-  have hphaseC := cpsNBranch_extend_code (byte_phase_c_sub base) hphaseC_raw
+  have hphaseC := cpsNBranch_extend_code byte_phase_c_sub hphaseC_raw
   -- Body specs extended to evm_byte_code, then composed with store
   -- body_3: base+76 → base+136 (via JAL 48), then store: base+136 → base+180
   -- Body 3 spec (load from sp+32, i.e. limb 0 = v0)
   have hbody3_raw := byte_body_3_spec sp limbFromMsb shiftAmount v0 (base + 76)
   rw [byte_body_3_exit_eq] at hbody3_raw
   simp only [signExtend12_32] at hbody3_raw
-  have hbody3 := cpsTriple_extend_code (byte_body_3_sub base) hbody3_raw
+  have hbody3 := cpsTriple_extend_code byte_body_3_sub hbody3_raw
   -- Body 2 spec (load from sp+40, i.e. limb 1 = v1)
   have hbody2_raw := byte_body_2_spec sp limbFromMsb shiftAmount v1 (base + 92)
   rw [byte_body_2_exit_eq] at hbody2_raw
   simp only [signExtend12_40] at hbody2_raw
-  have hbody2 := cpsTriple_extend_code (byte_body_2_sub base) hbody2_raw
+  have hbody2 := cpsTriple_extend_code byte_body_2_sub hbody2_raw
   -- Body 1 spec (load from sp+48, i.e. limb 2 = v2)
   have hbody1_raw := byte_body_1_spec sp limbFromMsb shiftAmount v2 (base + 108)
   rw [byte_body_1_exit_eq] at hbody1_raw
   simp only [signExtend12_48] at hbody1_raw
-  have hbody1 := cpsTriple_extend_code (byte_body_1_sub base) hbody1_raw
+  have hbody1 := cpsTriple_extend_code byte_body_1_sub hbody1_raw
   -- Body 0 spec (load from sp+56, i.e. limb 3 = v3)
   have hbody0_raw := byte_body_0_spec sp limbFromMsb shiftAmount v3 (base + 124)
   simp only [signExtend12_56] at hbody0_raw
   have hbody0_exit : (base + 124 : Word) + 12 = base + 136 := by bv_omega
   rw [hbody0_exit] at hbody0_raw
-  have hbody0 := cpsTriple_extend_code (byte_body_0_sub base) hbody0_raw
+  have hbody0 := cpsTriple_extend_code byte_body_0_sub hbody0_raw
   -- Body+store composition, bridge, Phase C merge, and final composition
   -- are deferred to evm_byte_body_compose_spec (Byte/BodyCompose.lean)
   -- which builds on the infrastructure established above.
@@ -747,7 +747,7 @@ theorem evm_byte_body_evmWord_spec (sp base : Word)
       (by pcFree) hbodyRaw
     have hstore_raw := byte_store_spec sp resV v0 v1 v2 v3 (base + 136)
     rw [byte_store_exit_eq] at hstore_raw; simp only [signExtend12_32] at hstore_raw
-    have hstore := cpsTriple_extend_code (byte_store_sub base) hstore_raw
+    have hstore := cpsTriple_extend_code byte_store_sub hstore_raw
     have hstore_f := cpsTriple_frameR
       ((.x6 ↦ᵣ shiftAmount) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ x10v) **
        (sp ↦ₘ i0) ** ((sp + 8) ↦ₘ i1) ** ((sp + 16) ↦ₘ i2) ** ((sp + 24) ↦ₘ i3))
