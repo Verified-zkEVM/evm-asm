@@ -617,4 +617,28 @@ theorem knuth_compose_weak_lower_nat
   rw [h_div_eq]
   omega
 
+/-- **KB-ComposeUpper: qHat ≤ abstract_trial_full (pure Nat).** Direct
+    corollary of KB-Compose (`knuth_compose_qHat_vTop_le_nat`): dividing
+    both sides of `qHat * vTop ≤ top128` by `vTop` gives:
+
+    ```
+    qHat ≤ (uHi * 2^64 + div_un1 * 2^32 + div_un0) / vTop
+    ```
+
+    i.e., `qHat ≤ abstract_trial_full`. Combined with skip-borrow-derived
+    `qHat ≤ val256(a) / val256(b)` (future outer-mulsub lemma), gives the
+    upper direction for call+skip DIV spec. -/
+theorem knuth_compose_qHat_le_abstract_trial_nat
+    (q1' q0' rhat' rhat2' dHi dLo div_un1 div_un0 uHi : Nat)
+    (hvTop_pos : 0 < dHi * 2^32 + dLo)
+    (h_ph1_eucl : q1' * dHi + rhat' = uHi)
+    (h_ph1_no_wrap : q1' * dLo ≤ rhat' * 2^32 + div_un1)
+    (h_un21_ph2 : q0' * dHi + rhat2' = rhat' * 2^32 + div_un1 - q1' * dLo)
+    (h_ph2_no_wrap : q0' * dLo ≤ rhat2' * 2^32 + div_un0) :
+    q1' * 2^32 + q0' ≤
+    (uHi * 2^64 + div_un1 * 2^32 + div_un0) / (dHi * 2^32 + dLo) := by
+  have h := knuth_compose_qHat_vTop_le_nat q1' q0' rhat' rhat2' dHi dLo
+    div_un1 div_un0 uHi h_ph1_eucl h_ph1_no_wrap h_un21_ph2 h_ph2_no_wrap
+  exact (Nat.le_div_iff_mul_le hvTop_pos).mpr h
+
 end EvmAsm.Evm64
