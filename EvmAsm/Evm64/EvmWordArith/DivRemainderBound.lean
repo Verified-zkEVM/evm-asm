@@ -127,7 +127,7 @@ theorem single_iteration_correct {uVal vVal q_digit r_val : Nat}
     q_digit = uVal / vVal ∧ r_val = uVal % vVal ∧ r_val < vVal := by
   have ⟨hq, hr_lt⟩ := remainder_lt_of_ge_floor hv heuclidean hge
   subst hq
-  have h_mod := Nat.div_add_mod uVal vVal
+  have := Nat.div_add_mod uVal vVal
   refine ⟨rfl, ?_, hr_lt⟩
   nlinarith [Nat.mul_comm vVal (uVal / vVal)]
 

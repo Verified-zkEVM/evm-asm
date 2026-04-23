@@ -70,7 +70,7 @@ theorem val128_mod_unique (uHi uLo : Word) (d q r : Nat)
     (heq : val128 uHi uLo = d * q + r) :
     r = val128 uHi uLo % d := by
   have hq := val128_div_unique uHi uLo d q r hr heq
-  have hdm := Nat.div_add_mod (val128 uHi uLo) d
+  have := Nat.div_add_mod (val128 uHi uLo) d
   subst hq; nlinarith [Nat.mul_comm d (val128 uHi uLo / d)]
 
 -- ============================================================================

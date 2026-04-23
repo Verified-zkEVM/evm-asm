@@ -83,7 +83,7 @@ theorem word_mod_lt (a b : Word) (hb : b ≠ 0) :
 theorem rv64_divu_euclidean (a b : Word) (hb : b ≠ 0) :
     a.toNat = (rv64_divu a b).toNat * b.toNat + a.toNat % b.toNat := by
   rw [rv64_divu_toNat a b hb]
-  have h := Nat.div_add_mod a.toNat b.toNat
+  have := Nat.div_add_mod a.toNat b.toNat
   linarith [Nat.mul_comm b.toNat (a.toNat / b.toNat)]
 
 -- ============================================================================

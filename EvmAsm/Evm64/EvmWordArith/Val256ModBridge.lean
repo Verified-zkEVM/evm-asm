@@ -54,7 +54,7 @@ theorem val256_ms_un_eq_val256_mod_max_skip
   -- Substitute `qHat = val256(a)/val256(b)` into the mulsub equation, then
   -- compare with `Nat.div_add_mod` to conclude.
   rw [hq] at hmulsub
-  have hdam := Nat.div_add_mod (val256 a0 a1 a2 a3) (val256 b0 b1 b2 b3)
+  have := Nat.div_add_mod (val256 a0 a1 a2 a3) (val256 b0 b1 b2 b3)
   have hmulcomm : val256 b0 b1 b2 b3 * (val256 a0 a1 a2 a3 / val256 b0 b1 b2 b3) =
       (val256 a0 a1 a2 a3 / val256 b0 b1 b2 b3) * val256 b0 b1 b2 b3 := Nat.mul_comm _ _
   omega
