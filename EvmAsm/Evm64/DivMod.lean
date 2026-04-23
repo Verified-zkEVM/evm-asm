@@ -1,3 +1,4 @@
+import EvmAsm.Evm64.DivMod.NormDefs
 import EvmAsm.Evm64.DivMod.Program
 import EvmAsm.Evm64.DivMod.LimbSpec
 import EvmAsm.Evm64.DivMod.Compose
