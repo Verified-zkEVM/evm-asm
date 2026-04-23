@@ -198,9 +198,9 @@ theorem knuth_core_ineq (x y z : Nat) (hz : 0 < z)
   by_contra hgt
   push Not at hgt
   have h3 : y / z + 3 ≤ x := hgt
-  have h4 : (y / z + 3) * z ≤ x * z := Nat.mul_le_mul_right z h3
-  have hd : z * (y / z) + y % z = y := Nat.div_add_mod y z
-  have hm : y % z < z := Nat.mod_lt y hz
+  have : (y / z + 3) * z ≤ x * z := Nat.mul_le_mul_right z h3
+  have : z * (y / z) + y % z = y := Nat.div_add_mod y z
+  have : y % z < z := Nat.mod_lt y hz
   nlinarith
 
 /-- Knuth B — trial-remainder bookkeeping (Nat-abstract call-trial bound).

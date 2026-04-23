@@ -89,7 +89,7 @@ theorem add_carry_chain_correct (a b : EvmWord) :
     have := a1.isLt; have := b1.isLt; rw [hc1]; omega
   have hc2 : carry2.toNat = (a2.toNat + b2.toNat + carry1.toNat) / 2^64 :=
     combined_carry_toNat hc1_le
-  have hc2_le : carry2.toNat ≤ 1 := by
+  have : carry2.toNat ≤ 1 := by
     have := a2.isLt; have := b2.isLt; rw [hc2]; omega
   -- toNat decomposition using local def names (a0, a1, ... not a.getLimb i)
   have hab : (a + b).toNat = (a.toNat + b.toNat) % 2^256 := BitVec.toNat_add a b
@@ -322,7 +322,7 @@ theorem sub_borrow_chain_correct (a b : EvmWord) :
   have ha_sum := toNat_eq_limb_sum a
   have hb_sum := toNat_eq_limb_sum b
   have := b.isLt
-  have hab_le : b.toNat ≤ a.toNat + 2^256 := by omega
+  have : b.toNat ≤ a.toNat + 2^256 := by omega
   -- diff0 toNat
   have hdiff0_nat : diff0.toNat = (a0.toNat + 2^64 - b0.toNat) % 2^64 := by
     simp only [diff0, BitVec.toNat_sub]; congr 1; omega
