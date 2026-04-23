@@ -165,6 +165,64 @@ def reconstructDword (mem : Std.ExtHashMap Nat (BitVec 8)) (addr : Nat) : BitVec
   (b4 <<< 32) ||| (b5 <<< 40) ||| (b6 <<< 48) ||| (b7 <<< 56)
 
 -- ============================================================================
+-- Post-write SAIL state
+-- ============================================================================
+
+/-- The SAIL state after a `wX_bits`-style write to register `rd`.  For `x0`
+    the state is unchanged (writes to x0 are no-ops); for any other register
+    the corresponding entry is replaced via `insert`.  Concrete per-case so
+    Lean can reduce `sailStateWithReg sSail .xN v` to the specific shape
+    without further unfolding. -/
+def sailStateWithReg (sSail : SailState) (rd : Reg) (v : BitVec 64) : SailState :=
+  match rd with
+  | .x0  => sSail
+  | .x1  => { sSail with regs := sSail.regs.insert Register.x1  v }
+  | .x2  => { sSail with regs := sSail.regs.insert Register.x2  v }
+  | .x3  => { sSail with regs := sSail.regs.insert Register.x3  v }
+  | .x4  => { sSail with regs := sSail.regs.insert Register.x4  v }
+  | .x5  => { sSail with regs := sSail.regs.insert Register.x5  v }
+  | .x6  => { sSail with regs := sSail.regs.insert Register.x6  v }
+  | .x7  => { sSail with regs := sSail.regs.insert Register.x7  v }
+  | .x8  => { sSail with regs := sSail.regs.insert Register.x8  v }
+  | .x9  => { sSail with regs := sSail.regs.insert Register.x9  v }
+  | .x10 => { sSail with regs := sSail.regs.insert Register.x10 v }
+  | .x11 => { sSail with regs := sSail.regs.insert Register.x11 v }
+  | .x12 => { sSail with regs := sSail.regs.insert Register.x12 v }
+  | .x13 => { sSail with regs := sSail.regs.insert Register.x13 v }
+  | .x14 => { sSail with regs := sSail.regs.insert Register.x14 v }
+  | .x15 => { sSail with regs := sSail.regs.insert Register.x15 v }
+  | .x16 => { sSail with regs := sSail.regs.insert Register.x16 v }
+  | .x17 => { sSail with regs := sSail.regs.insert Register.x17 v }
+  | .x18 => { sSail with regs := sSail.regs.insert Register.x18 v }
+  | .x19 => { sSail with regs := sSail.regs.insert Register.x19 v }
+  | .x20 => { sSail with regs := sSail.regs.insert Register.x20 v }
+  | .x21 => { sSail with regs := sSail.regs.insert Register.x21 v }
+  | .x22 => { sSail with regs := sSail.regs.insert Register.x22 v }
+  | .x23 => { sSail with regs := sSail.regs.insert Register.x23 v }
+  | .x24 => { sSail with regs := sSail.regs.insert Register.x24 v }
+  | .x25 => { sSail with regs := sSail.regs.insert Register.x25 v }
+  | .x26 => { sSail with regs := sSail.regs.insert Register.x26 v }
+  | .x27 => { sSail with regs := sSail.regs.insert Register.x27 v }
+  | .x28 => { sSail with regs := sSail.regs.insert Register.x28 v }
+  | .x29 => { sSail with regs := sSail.regs.insert Register.x29 v }
+  | .x30 => { sSail with regs := sSail.regs.insert Register.x30 v }
+  | .x31 => { sSail with regs := sSail.regs.insert Register.x31 v }
+
+/-- Writes don't touch memory. -/
+@[simp] theorem sailStateWithReg_mem (sSail : SailState) (rd : Reg) (v : BitVec 64) :
+    (sailStateWithReg sSail rd v).mem = sSail.mem := by
+  cases rd <;> rfl
+
+/-- A non-x0 write doesn't touch memory on the Rv64 side either. -/
+@[simp] theorem MachineState_setReg_getMem (sRv : MachineState) (rd : Reg) (v : Word) (a : Word) :
+    (sRv.setReg rd v).getMem a = sRv.getMem a := by
+  cases rd <;> rfl
+
+@[simp] theorem MachineState_setReg_mem (sRv : MachineState) (rd : Reg) (v : Word) :
+    (sRv.setReg rd v).mem = sRv.mem := by
+  cases rd <;> rfl
+
+-- ============================================================================
 -- State abstraction relation (no PC — proved separately at step level)
 -- ============================================================================
 
