@@ -410,7 +410,7 @@ theorem addbackN4_second_carry_one (q v0 v1 v2 v3 u0 u1 u2 u3 : Word)
   -- Lower bound: carry2 ≥ 1
   -- If carry2 = 0 then hab' gives val256(ab)+val256(v) = val256(ab'_result) < 2^256,
   -- contradicting h_ab1_v_ge.
-  have hc2_ge : carry2 ≥ 1 := by
+  have : carry2 ≥ 1 := by
     by_contra h; push Not at h
     have hc2_zero : carry2 = 0 := by omega
     rw [hc2_zero] at hab'

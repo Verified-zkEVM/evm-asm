@@ -53,14 +53,14 @@ theorem norm_euclidean_bridge {a b q r s : Nat}
     have : r = a * 2^s - b * 2^s * q := by omega
     rw [this]; exact Nat.dvd_sub ⟨a, by ring⟩ ⟨b * q, by ring⟩
   obtain ⟨r', hr'⟩ := h_dvd; subst hr'
-  have ha : a = b * q + r' := by nlinarith [Nat.mul_comm (2^s) r']
+  have : a = b * q + r' := by nlinarith [Nat.mul_comm (2^s) r']
   have hr'_lt : r' < b := by nlinarith [Nat.mul_comm (2^s) r']
   constructor
   · have h4 : q * b ≤ a := by nlinarith
     have h5 : a < (q + 1) * b := by nlinarith
     exact (Nat.div_eq_of_lt_le h4 h5).symm
   · rw [Nat.mul_div_cancel_left _ hs]
-    have hq : q = a / b := by
+    have : q = a / b := by
       have h4 : q * b ≤ a := by nlinarith
       have h5 : a < (q + 1) * b := by nlinarith
       exact (Nat.div_eq_of_lt_le h4 h5).symm
