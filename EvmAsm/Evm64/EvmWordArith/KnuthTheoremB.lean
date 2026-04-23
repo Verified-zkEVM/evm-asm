@@ -78,6 +78,7 @@ import EvmAsm.Evm64.EvmWordArith.DenormLemmas
 namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64 EvmWord
+open EvmAsm.Rv64.AddrNorm (bv6_toNat_32)
 
 /-- Scale invariance of integer division on val256: multiplying both operands
     by `2^s` doesn't change the quotient. Entry point for lifting normalized
@@ -221,7 +222,7 @@ theorem knuth_q_r_v_nat_bound
     (hu_next_lt : u_next < 2^64) :
     (u_top * 2^64 + u_next) / v_top * v_nat < u_nat + 2 * v_nat := by
   set u_hat := u_top * 2^64 + u_next with hu_hat_def
-  set q_r := u_hat / v_top with hq_r_def
+  set q_r := u_hat / v_top
   -- Basic facts
   have hv_top_pos : 0 < v_top := by
     have : (0:Nat) < 2^63 := by positivity
@@ -539,8 +540,7 @@ theorem knuth_theorem_b_from_clz
 theorem div128Quot_dHi_ge_pow31 (vTop : Word) (h : vTop.toNat ≥ 2^63) :
     (vTop >>> (32 : BitVec 6).toNat).toNat ≥ 2^31 := by
   rw [BitVec.toNat_ushiftRight]
-  have h32 : (32 : BitVec 6).toNat = 32 := by decide
-  rw [h32, Nat.shiftRight_eq_div_pow]
+  rw [bv6_toNat_32, Nat.shiftRight_eq_div_pow]
   have h1 : (2:Nat)^63 / 2^32 ≤ vTop.toNat / 2^32 := Nat.div_le_div_right h
   have h2 : (2:Nat)^63 / 2^32 = 2^31 := by decide
   omega
@@ -616,7 +616,7 @@ theorem div128Quot_first_round_correction (uHi dHi : Word)
     (rv64_divu uHi dHi + signExtend12 4095).toNat * dHi.toNat +
       (uHi - rv64_divu uHi dHi * dHi + dHi).toNat = uHi.toNat := by
   set q1 := rv64_divu uHi dHi with hq1_def
-  set rhat := uHi - q1 * dHi with hrhat_def
+  set rhat := uHi - q1 * dHi
   -- Nat-level facts
   have hq1_eq : q1.toNat = uHi.toNat / dHi.toNat := rv64_divu_toNat uHi dHi hdHi_ne
   have h_eucl : q1.toNat * dHi.toNat + rhat.toNat = uHi.toNat := by
@@ -644,15 +644,13 @@ theorem div128Quot_first_round_correction (uHi dHi : Word)
     push Not at h
     apply hhi1_nz
     apply BitVec.eq_of_toNat_eq
-    have h32 : (32 : BitVec 6).toNat = 32 := by decide
-    rw [BitVec.toNat_ushiftRight, h32, Nat.shiftRight_eq_div_pow]
+    rw [BitVec.toNat_ushiftRight, bv6_toNat_32, Nat.shiftRight_eq_div_pow]
     show q1.toNat / 2^32 = (0 : Word).toNat
     rw [Nat.div_eq_of_lt h]
     rfl
   -- q1c.toNat = q1.toNat - 1
-  have h_se_neg1 : (signExtend12 (4095 : BitVec 12) : Word).toNat = 2^64 - 1 := by decide
   have hq1c_toNat : (q1 + signExtend12 4095).toNat = q1.toNat - 1 := by
-    rw [BitVec.toNat_add, h_se_neg1]
+    rw [BitVec.toNat_add, signExtend12_4095_toNat]
     have : q1.toNat + (2^64 - 1) = (q1.toNat - 1) + 2^64 := by omega
     rw [this, Nat.add_mod_right]
     exact Nat.mod_eq_of_lt (by have := q1.isLt; omega)
@@ -733,19 +731,17 @@ theorem div128Quot_q1c_lt_pow33 (uHi dHi : Word) (hdHi_ge : dHi.toNat ≥ 2^31) 
     exact hq1_lt
   · -- q1c = q1 + (-1). q1 ≥ 1, so q1c.toNat = q1.toNat - 1 < q1.toNat < 2^33.
     simp only [q1c, h_hi1, ↓reduceIte]
-    have h_se_neg1 : (signExtend12 (4095 : BitVec 12) : Word).toNat = 2^64 - 1 := by decide
     -- q1.toNat ≥ 2^32 (from hi1 ≠ 0)
     have hq1_ge : q1.toNat ≥ 2^32 := by
       by_contra h
       push Not at h
       apply h_hi1
       apply BitVec.eq_of_toNat_eq
-      have h32 : (32 : BitVec 6).toNat = 32 := by decide
-      rw [BitVec.toNat_ushiftRight, h32, Nat.shiftRight_eq_div_pow]
+      rw [BitVec.toNat_ushiftRight, bv6_toNat_32, Nat.shiftRight_eq_div_pow]
       show q1.toNat / 2^32 = (0 : Word).toNat
       rw [Nat.div_eq_of_lt h]
       rfl
-    rw [BitVec.toNat_add, h_se_neg1]
+    rw [BitVec.toNat_add, signExtend12_4095_toNat]
     have h_eq : q1.toNat + (2^64 - 1) = (q1.toNat - 1) + 2^64 := by omega
     rw [h_eq, Nat.add_mod_right]
     have hq1_lt_word : q1.toNat - 1 < 2^64 := by have := q1.isLt; omega
@@ -849,9 +845,8 @@ theorem div128Quot_phase1b_correction_eucl
     (q1c + signExtend12 4095).toNat * dHi.toNat +
       (rhatc + dHi).toNat = uHi.toNat := by
   -- q1' = q1c - 1
-  have h_se_neg1 : (signExtend12 (4095 : BitVec 12) : Word).toNat = 2^64 - 1 := by decide
   have hq1'_toNat : (q1c + signExtend12 4095).toNat = q1c.toNat - 1 := by
-    rw [BitVec.toNat_add, h_se_neg1]
+    rw [BitVec.toNat_add, signExtend12_4095_toNat]
     have h_eq : q1c.toNat + (2^64 - 1) = (q1c.toNat - 1) + 2^64 := by omega
     rw [h_eq, Nat.add_mod_right]
     have hq1c_lt_word : q1c.toNat - 1 < 2^64 := by have := q1c.isLt; omega

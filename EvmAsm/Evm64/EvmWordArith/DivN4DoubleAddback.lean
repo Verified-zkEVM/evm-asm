@@ -62,14 +62,14 @@ theorem hq_over_from_second_carry_one (q : Word) {v0 v1 v2 v3 u0 u1 u2 u3 : Word
   rw [show (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2 = (1 : Word) from hc3_one] at hmulsub
   rw [word_toNat_1] at hmulsub
   -- First addback: val256(un) + val256(v) = val256(ab1) + 0 * 2^256 = val256(ab1)
-  set ms := mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3 with hms_def
+  set ms := mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3
   have hab1 := addbackN4_val256_eq ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 0 v0 v1 v2 v3
   simp only [] at hab1
   have hc1_val : (addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 v0 v1 v2 v3).toNat = 0 := by
     rw [hcarry_zero]; decide
   rw [hc1_val] at hab1
   -- Second addback: val256(ab1) + val256(v) = val256(ab') + 1 * 2^256
-  set ab := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 0 v0 v1 v2 v3 with hab_def
+  set ab := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 0 v0 v1 v2 v3
   have hab' := addbackN4_val256_eq ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 0 v0 v1 v2 v3
   simp only [] at hab'
   rw [hcarry2_one] at hab'
