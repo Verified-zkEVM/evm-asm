@@ -30,7 +30,7 @@ theorem add_carry_nat (a b : Word) :
 /-- The carry from addition is 0 or 1. -/
 theorem add_carry_01 (a b : Word) :
     (a.toNat + b.toNat) / 2^64 = 0 ∨ (a.toNat + b.toNat) / 2^64 = 1 := by
-  have ha := a.isLt; have hb := b.isLt
+  have := a.isLt; have := b.isLt
   have : a.toNat + b.toNat < 2 * 2^64 := by omega
   have : (a.toNat + b.toNat) / 2^64 < 2 := Nat.div_lt_of_lt_mul this
   omega
@@ -42,7 +42,7 @@ theorem sub_borrow_nat (a b : Word) :
     let borrow := if a.toNat < b.toNat then 1 else 0
     a.toNat + borrow * 2^64 = (a - b).toNat + b.toNat := by
   intro borrow
-  have ha := a.isLt; have hb := b.isLt
+  have := a.isLt; have := b.isLt
   rw [BitVec.toNat_sub]
   by_cases h : a.toNat < b.toNat
   · simp only [borrow, h, ite_true]; omega

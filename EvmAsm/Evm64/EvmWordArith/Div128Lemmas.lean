@@ -331,7 +331,7 @@ theorem trial_quotient_ge_256 (u0 u1 u2 u3 v0 v1 v2 : Word) (hv2 : v2 ≠ 0) :
 theorem val256_lt_pow192 (l0 l1 l2 : Word) :
     val256 l0 l1 l2 0 < 2 ^ 192 := by
   unfold val256; simp
-  have h0 := l0.isLt; have h1 := l1.isLt; have h2 := l2.isLt
+  have := l0.isLt; have := l1.isLt; have := l2.isLt
   nlinarith
 
 end EvmWord

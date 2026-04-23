@@ -49,7 +49,7 @@ theorem halfword_decompose {x : Word} :
       Nat.shiftRight_eq_div_pow, Nat.shiftRight_eq_div_pow]
   simp only [Nat.shiftLeft_eq]
   have h_lo : x.toNat * 2 ^ 32 % 2 ^ 64 / 2 ^ 32 = x.toNat % 2 ^ 32 := by
-    have hx := x.isLt; omega
+    have := x.isLt; omega
   rw [h_lo]
   have := Nat.div_add_mod x.toNat (2 ^ 32)
   omega
@@ -96,7 +96,7 @@ theorem rv64_mulhu_toNat {a b : Word} :
   unfold rv64_mulhu
   simp only [BitVec.toNat_setWidth, BitVec.toNat_ushiftRight,
              BitVec.toNat_mul (n := 128), Nat.shiftRight_eq_div_pow]
-  have ha := a.isLt; have hb := b.isLt
+  have := a.isLt; have := b.isLt
   have hprod : a.toNat * b.toNat < 2 ^ 128 := by nlinarith
   rw [Nat.mod_eq_of_lt (show a.toNat < 2 ^ 128 by omega),
       Nat.mod_eq_of_lt (show b.toNat < 2 ^ 128 by omega),
@@ -128,12 +128,12 @@ theorem partial_product_decompose (q vi : Word) :
 def val128 (hi lo : Word) : Nat := hi.toNat * 2 ^ 64 + lo.toNat
 
 theorem val128_bound {hi lo : Word} : val128 hi lo < 2 ^ 128 := by
-  unfold val128; have hhi := hi.isLt; have hlo := lo.isLt; nlinarith
+  unfold val128; have := hi.isLt; have := lo.isLt; nlinarith
 
 /-- If the high half is less than d, the 128-bit value is less than d * 2^64. -/
 theorem val128_lt_of_hi_lt (hi lo : Word) (d : Nat) (hhi : hi.toNat < d) :
     val128 hi lo < d * 2 ^ 64 := by
-  unfold val128; have hlo := lo.isLt; nlinarith
+  unfold val128; have := lo.isLt; nlinarith
 
 -- ============================================================================
 -- Multi-limb (256-bit) value representation
@@ -150,8 +150,8 @@ theorem val256_eq_fromLimbs_toNat {l0 l1 l2 l3 : Word} :
 
 theorem val256_bound (l0 l1 l2 l3 : Word) : val256 l0 l1 l2 l3 < 2 ^ 256 := by
   unfold val256
-  have h0 := l0.isLt; have h1 := l1.isLt
-  have h2 := l2.isLt; have h3 := l3.isLt
+  have := l0.isLt; have := l1.isLt
+  have := l2.isLt; have := l3.isLt
   nlinarith
 
 /-- Connecting val256 to EvmWord.toNat via getLimb decomposition. -/
