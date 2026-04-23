@@ -463,11 +463,10 @@ theorem div128Quot_q0_prime_ge_q_true_0_of_un21_lt_pow63
     let q0c := if hi2 = 0 then q0 else q0 + signExtend12 4095
     let rhat2c := if hi2 = 0 then rhat2 else rhat2 + dHi
     let div_un0 := (uLo <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
-    let rhat2Un0 := (rhat2c <<< (32 : BitVec 6).toNat) ||| div_un0
     let q0' := div128Quot_phase2b_q0' q0c rhat2c dLo div_un0
     (un21.toNat * 2^32 + div_un0.toNat) /
       (dHi.toNat * 2^32 + dLo.toNat) ≤ q0'.toNat := by
-  intro q0 rhat2 hi2 q0c rhat2c div_un0 rhat2Un0 q0'
+  intro q0 rhat2 hi2 q0c rhat2c div_un0 q0'
   -- div_un0 < 2^32 (from `uLo << 32 >> 32`).
   have h_div_un0_lt : div_un0.toNat < 2^32 := by
     show ((uLo <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat).toNat < 2^32
@@ -519,11 +518,11 @@ theorem div128Quot_q0_prime_plus_2_ge_q_true_0_abstract
     let q0c := if hi2 = 0 then q0 else q0 + signExtend12 4095
     let rhat2c := if hi2 = 0 then rhat2 else rhat2 + dHi
     let div_un0 := (uLo <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
-    let rhat2Un0 := (rhat2c <<< (32 : BitVec 6).toNat) ||| div_un0
     let q0' := div128Quot_phase2b_q0' q0c rhat2c dLo div_un0
     q0'.toNat + 2 ≥ (un21.toNat * 2^32 + div_un0.toNat) /
                      (dHi.toNat * 2^32 + dLo.toNat) := by
-  intro q0 rhat2 hi2 q0c rhat2c div_un0 rhat2Un0 q0'
+  intro q0 rhat2 hi2 q0c rhat2c div_un0 q0'
+  let rhat2Un0 := (rhat2c <<< (32 : BitVec 6).toNat) ||| div_un0
   -- Case-split on helper's guard: rhat2cHi = 0.
   -- Guard fires: q0' = q0c, and q0c + 2 ≥ un21/dHi via KB-1 (Phase 1a bound).
   -- Guard doesn't fire: q0' = phase1b's un-guarded q1' at Phase 2, which
@@ -784,11 +783,10 @@ theorem div128Quot_q0_prime_ge_q_true_0_of_un21_lt_dHi_mul_pow32
     let q0c := if hi2 = 0 then q0 else q0 + signExtend12 4095
     let rhat2c := if hi2 = 0 then rhat2 else rhat2 + dHi
     let div_un0 := (uLo <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
-    let rhat2Un0 := (rhat2c <<< (32 : BitVec 6).toNat) ||| div_un0
     let q0' := div128Quot_phase2b_q0' q0c rhat2c dLo div_un0
     (un21.toNat * 2^32 + div_un0.toNat) /
       (dHi.toNat * 2^32 + dLo.toNat) ≤ q0'.toNat := by
-  intro q0 rhat2 hi2 q0c rhat2c div_un0 rhat2Un0 q0'
+  intro q0 rhat2 hi2 q0c rhat2c div_un0 q0'
   -- div_un0 < 2^32 (from `uLo << 32 >> 32`).
   have h_div_un0_lt : div_un0.toNat < 2^32 := by
     show ((uLo <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat).toNat < 2^32

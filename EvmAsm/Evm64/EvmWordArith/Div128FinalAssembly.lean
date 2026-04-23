@@ -575,7 +575,7 @@ theorem div128Quot_phase2b_check_implies_q0c_pos (q0c dLo rhat2Un0 : Word)
     `div128Quot_phase1b_quotient_bound` with `uHi := un21`. -/
 theorem div128Quot_phase2b_quotient_bound (un21 dHi : Word)
     (hdHi_ne : dHi ≠ 0) (hdHi_lt : dHi.toNat < 2^32)
-    (dLo rhat2Un0 : Word) :
+    (dLo : Word) :
     let q0 := rv64_divu un21 dHi
     let hi2 := q0 >>> (32 : BitVec 6).toNat
     let q0c := if hi2 = 0 then q0 else q0 + signExtend12 4095
@@ -600,7 +600,7 @@ theorem div128Quot_phase2b_quotient_bound (un21 dHi : Word)
 /-- **KB-5d: Phase 2b output bound.** Instantiation of
     `div128Quot_q1_prime_lt_pow33` with `uHi := un21`: `q0' < 2^33`. -/
 theorem div128Quot_phase2b_q0_prime_lt_pow33 (un21 dHi : Word)
-    (hdHi_ge : dHi.toNat ≥ 2^31) (dLo rhat2Un0 : Word) :
+    (hdHi_ge : dHi.toNat ≥ 2^31) (dLo : Word) :
     let q0 := rv64_divu un21 dHi
     let hi2 := q0 >>> (32 : BitVec 6).toNat
     let q0c := if hi2 = 0 then q0 else q0 + signExtend12 4095
