@@ -864,7 +864,7 @@ theorem divK_trial_call_path_spec
   have D := div128_spec sp (base + 516) vTop uLo uHi base
     j vtopBase v11Old retMem dMem dloMem un0Mem
     halign
-  dsimp only [] at D
+  unfold div128SpecPost at D
   -- 3. Frame JAL with all registers/memory for div128
   have Jf := cpsTriple_frameR
     ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
