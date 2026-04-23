@@ -301,22 +301,17 @@ private theorem clzStep_of_pass {K M_s : Nat} {m : Word} {p : Word × Word}
 /-- When MSB is set, the entire pipeline is the identity (all stages pass). -/
 private theorem clzPipeline_of_msb {val : Word} (hmsb : val >>> (63 : Nat) ≠ 0) :
     clzPipeline val = ((0 : Word), val) := by
-  have h32 := ushiftRight_ne_zero_of_msb (K := 32) (by omega) hmsb
-  have h48 := ushiftRight_ne_zero_of_msb (K := 48) (by omega) hmsb
-  have h56 := ushiftRight_ne_zero_of_msb (K := 56) (by omega) hmsb
-  have h60 := ushiftRight_ne_zero_of_msb (K := 60) (by omega) hmsb
-  have h62 := ushiftRight_ne_zero_of_msb (K := 62) (by omega) hmsb
   -- Each stage is identity: unfold and rewrite step by step
   unfold clzPipeline; dsimp only []
   rw [show clzStep 32 32 (signExtend12 32) ((0 : Word), val) = ((0 : Word), val)
-    from clzStep_of_pass h32]
+    from clzStep_of_pass (ushiftRight_ne_zero_of_msb (K := 32) (by omega) hmsb)]
   rw [show clzStep 48 16 (signExtend12 16) ((0 : Word), val) = ((0 : Word), val)
-    from clzStep_of_pass h48]
+    from clzStep_of_pass (ushiftRight_ne_zero_of_msb (K := 48) (by omega) hmsb)]
   rw [show clzStep 56 8 (signExtend12 8) ((0 : Word), val) = ((0 : Word), val)
-    from clzStep_of_pass h56]
+    from clzStep_of_pass (ushiftRight_ne_zero_of_msb (K := 56) (by omega) hmsb)]
   rw [show clzStep 60 4 (signExtend12 4) ((0 : Word), val) = ((0 : Word), val)
-    from clzStep_of_pass h60]
-  exact clzStep_of_pass h62
+    from clzStep_of_pass (ushiftRight_ne_zero_of_msb (K := 60) (by omega) hmsb)]
+  exact clzStep_of_pass (ushiftRight_ne_zero_of_msb (K := 62) (by omega) hmsb)
 
 /-- When the MSB is set (val ≥ 2^63), CLZ reports shift=0. -/
 theorem msb_imp_clz_zero {val : Word} (hmsb : val >>> (63 : Nat) ≠ 0) :
@@ -424,9 +419,8 @@ theorem clzPipeline_invariant (val : Word) :
   have h4 := clzStep_invariant_and_bound 60 4 (signExtend12 4) val _ 56 60
     h3.1 h3.2 (by norm_num) se_4 (by norm_num) (by norm_num)
   -- Stage 4 (final pipeline stage): K=62, M_s=2.
-  have h5 := clzStep_invariant_and_bound 62 2 (signExtend12 2) val _ 60 62
+  exact clzStep_invariant_and_bound 62 2 (signExtend12 2) val _ 60 62
     h4.1 h4.2 (by norm_num) se_2 (by norm_num) (by norm_num)
-  exact h5
 
 /-- CLZ top-limb bound: when `val ≠ 0`, `val.toNat < 2^(64 - clz)`. This is
     the main consumer-facing bound that the MOD stack spec's `hb3_bound`
