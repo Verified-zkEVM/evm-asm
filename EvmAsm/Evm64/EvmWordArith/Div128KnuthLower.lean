@@ -205,11 +205,11 @@ theorem div128Quot_q1_lt_pow32_of_uHi_lt_pow63
   have hdHi_pos : 0 < dHi.toNat :=
     Nat.pos_of_ne_zero (fun h => hdHi_ne (BitVec.eq_of_toNat_eq h))
   -- uHi / dHi ≤ uHi / 2^31 (since dHi ≥ 2^31).
-  have h_div_le : uHi.toNat / dHi.toNat ≤ uHi.toNat / 2^31 :=
+  have : uHi.toNat / dHi.toNat ≤ uHi.toNat / 2^31 :=
     Nat.div_le_div_left hdHi_ge (by decide : 0 < 2^31)
   -- uHi / 2^31 < 2^63 / 2^31 = 2^32 (under uHi < 2^63).
   have h_pow : (2^63 : Nat) = 2^32 * 2^31 := by decide
-  have h_div_lt : uHi.toNat / 2^31 < 2^32 := by
+  have : uHi.toNat / 2^31 < 2^32 := by
     apply Nat.div_lt_of_lt_mul
     omega
   omega
@@ -324,7 +324,7 @@ theorem div128Quot_q1_prime_ge_q_true_1_small_rhatc
     rw [BitVec.toNat_ushiftRight]
     rw [bv6_toNat_32, Nat.shiftRight_eq_div_pow]
     have : uLo.toNat < 2^64 := uLo.isLt
-    have h_eq : (2^64 : Nat) = 2^32 * 2^32 := by decide
+    have : (2^64 : Nat) = 2^32 * 2^32 := by decide
     exact Nat.div_lt_of_lt_mul (by omega)
   -- KB-LB3: q_true_1 ≤ q1c (instantiated at our div_un1 value).
   have h_q1c_ge : (uHi.toNat * 2^32 + div_un1.toNat) /
@@ -369,7 +369,7 @@ theorem div128Quot_q1_prime_ge_q_true_1_small_rhatc
       have h_pow : (2^31 : Nat) * 2^32 = 2^63 := by decide
       show 0 < vTop_nat
       simp [vTop_nat]; omega
-    have h_abstract_comm : uHi.toNat * 2^32 + div_un1.toNat <
+    have : uHi.toNat * 2^32 + div_un1.toNat <
         q1c.toNat * vTop_nat := h_abstract
     have h_q_true_lt_q1c :
         (uHi.toNat * 2^32 + div_un1.toNat) / vTop_nat < q1c.toNat :=
@@ -378,7 +378,7 @@ theorem div128Quot_q1_prime_ge_q_true_1_small_rhatc
     show (if BitVec.ult rhatUn1 (q1c * dLo) then q1c + signExtend12 4095
           else q1c).toNat ≥ _
     rw [if_pos h_check]
-    have h_q1c_pos : q1c.toNat ≥ 1 :=
+    have : q1c.toNat ≥ 1 :=
       div128Quot_phase1b_check_implies_q1c_pos q1c dLo rhatUn1 h_check
     rw [BitVec.toNat_add, signExtend12_4095_toNat]
     have h_q1c_lt_word : q1c.toNat - 1 < 2^64 := by have := q1c.isLt; omega
@@ -521,7 +521,7 @@ theorem div128Quot_q0_prime_plus_2_ge_q_true_0_abstract
   -- Guard fires: q0' = q0c, and q0c + 2 ≥ un21/dHi via KB-1 (Phase 1a bound).
   -- Guard doesn't fire: q0' = phase1b's un-guarded q1' at Phase 2, which
   -- satisfies the bound via div128Quot_phase1b_quotient_bound.
-  have h_q0_bound : q0'.toNat + 2 ≥ un21.toNat / dHi.toNat := by
+  have : q0'.toNat + 2 ≥ un21.toNat / dHi.toNat := by
     show (div128Quot_phase2b_q0' q0c rhat2c dLo div_un0).toNat + 2 ≥
       un21.toNat / dHi.toNat
     unfold div128Quot_phase2b_q0'
@@ -531,7 +531,7 @@ theorem div128Quot_q0_prime_plus_2_ge_q_true_0_abstract
         rhat2Un0).1
     · -- Guard fires (rhat2cHi ≠ 0): helper yields q0c. Use KB-1 at Phase 2.
       have h_kb1 := div128Quot_phase1a_quotient_bound un21 dHi hdHi_ne hdHi_lt
-      have h_lower_q0c : un21.toNat / dHi.toNat ≤ q0c.toNat + 1 := h_kb1.2
+      have : un21.toNat / dHi.toNat ≤ q0c.toNat + 1 := h_kb1.2
       omega
   -- div_un0 < 2^32.
   have h_div_un0_lt : div_un0.toNat < 2^32 := by
@@ -542,7 +542,7 @@ theorem div128Quot_q0_prime_plus_2_ge_q_true_0_abstract
       (uLo <<< (32 : BitVec 6).toNat : Word).isLt
     exact Nat.div_lt_of_lt_mul (by omega)
   -- trial_quotient_ge_general: (un21*2^32+div_un0)/vTop ≤ un21/dHi.
-  have h_trial : (un21.toNat * 2^32 + div_un0.toNat) /
+  have : (un21.toNat * 2^32 + div_un0.toNat) /
                  (dHi.toNat * 2^32 + dLo.toNat) ≤ un21.toNat / dHi.toNat := by
     have hdHi_pos : 0 < dHi.toNat :=
       Nat.pos_of_ne_zero (fun h => hdHi_ne (BitVec.eq_of_toNat_eq h))
@@ -585,7 +585,7 @@ theorem knuth_compose_qHat_vTop_le_nat
     have h_expand_rhs :
         (rhat' * 2^32 + div_un1) * 2^32 = rhat' * 2^64 + div_un1 * 2^32 := by ring
     linarith
-  have h_uHi_mul : uHi * 2^64 = q1' * dHi * 2^64 + rhat' * 2^64 := by
+  have : uHi * 2^64 = q1' * dHi * 2^64 + rhat' * 2^64 := by
     have h_expand : (q1' * dHi + rhat') * 2^64 = q1' * dHi * 2^64 + rhat' * 2^64 := by
       ring
     have := congr_arg (· * 2^64) h_ph1_eucl
