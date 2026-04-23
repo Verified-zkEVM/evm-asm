@@ -929,7 +929,7 @@ theorem evm_sar_body_evmWord_spec (sp base : Word)
   have ha56' : (sp + 32 : Word) + 24 = sp + 56 := by bv_omega
   simp only [ha40', ha48', ha56'] at hbody3_f hbody2_f hbody1_f hbody0_f
   -- Helper: weaken regs to regOwn while keeping concrete mem values
-  have body_post_weaken : ∀ (r5v r6v r7v r10v r11v m32 m40 m48 m56 : Word),
+  have body_post_weaken : ∀ {r5v r6v r7v r10v r11v m32 m40 m48 m56 : Word},
       ∀ h, ((.x12 ↦ᵣ (sp + 32)) ** (.x5 ↦ᵣ r5v) ** (.x6 ↦ᵣ r6v) ** (.x7 ↦ᵣ r7v) **
             (.x10 ↦ᵣ r10v) ** (.x11 ↦ᵣ r11v) **
             ((sp + 32) ↦ₘ m32) ** ((sp + 40) ↦ₘ m40) ** ((sp + 48) ↦ₘ m48) ** ((sp + 56) ↦ₘ m56) **
@@ -947,13 +947,13 @@ theorem evm_sar_body_evmWord_spec (sp base : Word)
     exact (congrFun (show _ = _ from by xperm) h).mp w5
   -- Apply weakening to each body (keep concrete mem values)
   have hbody0_w := cpsTriple_weaken
-    (fun h hp => hp) (fun h hq => body_post_weaken _ _ _ _ _ _ _ _ _ h (by xperm_hyp hq)) hbody0_f
+    (fun h hp => hp) (fun h hq => body_post_weaken h (by xperm_hyp hq)) hbody0_f
   have hbody1_w := cpsTriple_weaken
-    (fun h hp => hp) (fun h hq => body_post_weaken _ _ _ _ _ _ _ _ _ h (by xperm_hyp hq)) hbody1_f
+    (fun h hp => hp) (fun h hq => body_post_weaken h (by xperm_hyp hq)) hbody1_f
   have hbody2_w := cpsTriple_weaken
-    (fun h hp => hp) (fun h hq => body_post_weaken _ _ _ _ _ _ _ _ _ h (by xperm_hyp hq)) hbody2_f
+    (fun h hp => hp) (fun h hq => body_post_weaken h (by xperm_hyp hq)) hbody2_f
   have hbody3_w := cpsTriple_weaken
-    (fun h hp => hp) (fun h hq => body_post_weaken _ _ _ _ _ _ _ _ _ h (by xperm_hyp hq)) hbody3_f
+    (fun h hp => hp) (fun h hq => body_post_weaken h (by xperm_hyp hq)) hbody3_f
   -- Bitvector bridge: common facts
   have hshift_toNat : shift.toNat = s0.toNat :=
     EvmWord.toNat_eq_getLimb0_of_high_zero hhigh_zero

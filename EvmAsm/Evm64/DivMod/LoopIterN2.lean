@@ -195,6 +195,7 @@ theorem divK_loop_body_n2_call_skip_j0_spec
   have TF := divK_trial_call_full_spec sp (0 : Word) (2 : Word) jOld v5Old v6Old v7Old v10Old v11Old v2Old
     u2 u1 v1 retMem dMem dloMem scratch_un0 base
     halign hbltu
+  unfold divKTrialCallFullPost at TF
   dsimp only [] at TF
   rw [u_addr_eq_n2] at TF
   rw [u_addr8_eq_n2] at TF
@@ -416,6 +417,7 @@ theorem divK_loop_body_n2_call_skip_j1_spec
   have TF := divK_trial_call_full_spec sp (1 : Word) (2 : Word) jOld v5Old v6Old v7Old v10Old v11Old v2Old
     u2 u1 v1 retMem dMem dloMem scratch_un0 base
     halign hbltu
+  unfold divKTrialCallFullPost at TF
   dsimp only [] at TF
   rw [u_addr_eq_n2] at TF
   rw [u_addr8_eq_n2] at TF
@@ -632,6 +634,7 @@ theorem divK_loop_body_n2_call_skip_j2_spec
   have TF := divK_trial_call_full_spec sp (2 : Word) (2 : Word) jOld v5Old v6Old v7Old v10Old v11Old v2Old
     u2 u1 v1 retMem dMem dloMem scratch_un0 base
     halign hbltu
+  unfold divKTrialCallFullPost at TF
   dsimp only [] at TF
   rw [u_addr_eq_n2] at TF
   rw [u_addr8_eq_n2] at TF
@@ -865,6 +868,7 @@ theorem divK_loop_body_n2_call_addback_j0_beq_spec
   have TF := divK_trial_call_full_spec sp (0 : Word) (2 : Word) jOld v5Old v6Old v7Old v10Old v11Old v2Old
     u2 u1 v1 retMem dMem dloMem scratch_un0 base
     halign hbltu
+  unfold divKTrialCallFullPost at TF
   dsimp only [] at TF
   rw [u_addr_eq_n2] at TF
   rw [u_addr8_eq_n2] at TF
@@ -1078,6 +1082,7 @@ theorem divK_loop_body_n2_call_addback_j1_beq_spec
   have TF := divK_trial_call_full_spec sp (1 : Word) (2 : Word) jOld v5Old v6Old v7Old v10Old v11Old v2Old
     u2 u1 v1 retMem dMem dloMem scratch_un0 base
     halign hbltu
+  unfold divKTrialCallFullPost at TF
   dsimp only [] at TF
   rw [u_addr_eq_n2] at TF
   rw [u_addr8_eq_n2] at TF
@@ -1285,6 +1290,7 @@ theorem divK_loop_body_n2_call_addback_j2_beq_spec
   have TF := divK_trial_call_full_spec sp (2 : Word) (2 : Word) jOld v5Old v6Old v7Old v10Old v11Old v2Old
     u2 u1 v1 retMem dMem dloMem scratch_un0 base
     halign hbltu
+  unfold divKTrialCallFullPost at TF
   dsimp only [] at TF
   rw [u_addr_eq_n2] at TF
   rw [u_addr8_eq_n2] at TF

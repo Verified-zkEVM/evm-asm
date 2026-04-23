@@ -585,7 +585,7 @@ theorem signext_body_spec (sp base : Word)
   have hse32 : sp + signExtend12 (32 : BitVec 12) = sp + 32 := by rw [signExtend12_32]
   -- Helper: weaken body+done postconditions to regOwn + concrete mem values
   -- For bodies 0,1,2 (which have x10 in postcondition):
-  have body_post_weaken : ∀ (r5v r6v r10v m32 m40 m48 m56 : Word),
+  have body_post_weaken : ∀ {r5v r6v r10v m32 m40 m48 m56 : Word},
       ∀ h, ((.x12 ↦ᵣ (sp + signExtend12 32)) ** (.x5 ↦ᵣ r5v) ** (.x6 ↦ᵣ r6v) **
             (.x10 ↦ᵣ r10v) **
             (.x0 ↦ᵣ (0 : Word)) ** bmem **
@@ -602,11 +602,11 @@ theorem signext_body_spec (sp base : Word)
     xperm_hyp w3
   -- Apply weakening to each body+done
   have hbd0_w := cpsTriple_weaken
-    (fun h hp => hp) (fun h hq => body_post_weaken _ _ _ _ _ _ _ h (by xperm_hyp hq)) hbd0
+    (fun h hp => hp) (fun h hq => body_post_weaken h (by xperm_hyp hq)) hbd0
   have hbd1_w := cpsTriple_weaken
-    (fun h hp => hp) (fun h hq => body_post_weaken _ _ _ _ _ _ _ h (by xperm_hyp hq)) hbd1
+    (fun h hp => hp) (fun h hq => body_post_weaken h (by xperm_hyp hq)) hbd1
   have hbd2_w := cpsTriple_weaken
-    (fun h hp => hp) (fun h hq => body_post_weaken _ _ _ _ _ _ _ h (by xperm_hyp hq)) hbd2
+    (fun h hp => hp) (fun h hq => body_post_weaken h (by xperm_hyp hq)) hbd2
   -- Body 3 has no x10 — need to introduce regOwn .x10 from x10 in Phase C frame
   -- After merge, the precondition will include (.x10 ↦ᵣ _) from Phase C exit post.
   -- So we use cpsTriple_of_forall_regIs_to_regOwn to absorb x10 in precondition

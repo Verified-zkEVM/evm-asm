@@ -81,6 +81,7 @@ theorem divK_loop_body_n1_call_addback_j0_beq_spec
   have TF := divK_trial_call_full_spec sp (0 : Word) (1 : Word) jOld v5Old v6Old v7Old v10Old v11Old v2Old
     u1 u0 v0 retMem dMem dloMem scratch_un0 base
     halign hbltu
+  unfold divKTrialCallFullPost at TF
   dsimp only [] at TF
   rw [u_addr_eq_n1] at TF
   rw [u_addr8_eq_n1] at TF
@@ -202,6 +203,7 @@ theorem divK_loop_body_n1_call_addback_j1_beq_spec
   have TF := divK_trial_call_full_spec sp (1 : Word) (1 : Word) jOld v5Old v6Old v7Old v10Old v11Old v2Old
     u1 u0 v0 retMem dMem dloMem scratch_un0 base
     halign hbltu
+  unfold divKTrialCallFullPost at TF
   dsimp only [] at TF
   rw [u_addr_eq_n1] at TF
   rw [u_addr8_eq_n1] at TF
@@ -323,6 +325,7 @@ theorem divK_loop_body_n1_call_addback_j2_beq_spec
   have TF := divK_trial_call_full_spec sp (2 : Word) (1 : Word) jOld v5Old v6Old v7Old v10Old v11Old v2Old
     u1 u0 v0 retMem dMem dloMem scratch_un0 base
     halign hbltu
+  unfold divKTrialCallFullPost at TF
   dsimp only [] at TF
   rw [u_addr_eq_n1] at TF
   rw [u_addr8_eq_n1] at TF
@@ -444,6 +447,7 @@ theorem divK_loop_body_n1_call_addback_j3_beq_spec
   have TF := divK_trial_call_full_spec sp (3 : Word) (1 : Word) jOld v5Old v6Old v7Old v10Old v11Old v2Old
     u1 u0 v0 retMem dMem dloMem scratch_un0 base
     halign hbltu
+  unfold divKTrialCallFullPost at TF
   dsimp only [] at TF
   rw [u_addr_eq_n1] at TF
   rw [u_addr8_eq_n1] at TF
