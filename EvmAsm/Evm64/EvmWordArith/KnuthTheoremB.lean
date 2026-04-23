@@ -224,7 +224,7 @@ theorem knuth_q_r_v_nat_bound
   set u_hat := u_top * 2^64 + u_next with hu_hat_def
   set q_r := u_hat / v_top
   -- Basic facts
-  have hv_top_pos : 0 < v_top := by
+  have : 0 < v_top := by
     have : (0:Nat) < 2^63 := by positivity
     omega
   -- u_hat < v_top * 2^64 (call-trial: u_top < v_top, u_next < 2^64)
@@ -239,7 +239,7 @@ theorem knuth_q_r_v_nat_bound
   have hu_hat_mul_le : u_hat * 2^192 ≤ u_nat :=
     knuth_u_hat_mul_pow192_le u_nat u_top u_next u_rest h_u_split
   -- So q_r * v_top * 2^192 ≤ u_nat
-  have hqr_vt_pow : q_r * v_top * 2^192 ≤ u_nat :=
+  have : q_r * v_top * 2^192 ≤ u_nat :=
     le_trans (Nat.mul_le_mul_right _ hqr_vt_le) hu_hat_mul_le
   -- v_nat ≥ 2^255
   have hv_nat_ge : v_nat ≥ 2^255 :=
@@ -249,15 +249,15 @@ theorem knuth_q_r_v_nat_bound
     rw [h_v_split]; ring
   -- Bound q_r * v_rest < 2 * v_nat
   have h_pow : (2:Nat)^64 * 2^192 = 2^256 := by rw [← pow_add]
-  have h_pow_split : (2:Nat)^256 = 2 * 2^255 := by
+  have : (2:Nat)^256 = 2 * 2^255 := by
     rw [show (256:Nat) = 1 + 255 from rfl, pow_add, pow_one]
-  have hqr_vrest_le : q_r * v_rest ≤ q_r * 2^192 :=
+  have : q_r * v_rest ≤ q_r * 2^192 :=
     Nat.mul_le_mul_left _ (by omega)
-  have hqr1_pow_le : (q_r + 1) * 2^192 ≤ 2^64 * 2^192 :=
+  have : (q_r + 1) * 2^192 ≤ 2^64 * 2^192 :=
     Nat.mul_le_mul_right _ hqr_lt
   have h_expand : (q_r + 1) * 2^192 = q_r * 2^192 + 2^192 := by ring
-  have h_pos192 : (0:Nat) < 2^192 := by positivity
-  have h_2vnat : 2 * v_nat ≥ 2 * 2^255 := Nat.mul_le_mul_left 2 hv_nat_ge
+  have : (0:Nat) < 2^192 := by positivity
+  have : 2 * v_nat ≥ 2 * 2^255 := Nat.mul_le_mul_left 2 hv_nat_ge
   omega
 
 /-- Knuth's TAOCP Vol 2 §4.3.1 Theorem B — Nat-abstract form (call-trial regime).
@@ -561,8 +561,8 @@ theorem div128Quot_q1_lt_pow33 (uHi dHi : Word)
   have : uHi.toNat < 2^64 := uHi.isLt
   have h_pow : (2:Nat)^33 * 2^31 = 2^64 := by rw [← pow_add]
   set q1 := uHi.toNat / dHi.toNat with hq1_def
-  have hq_mul : q1 * dHi.toNat ≤ uHi.toNat := Nat.div_mul_le_self _ _
-  have hq_lower : q1 * 2^31 ≤ q1 * dHi.toNat := Nat.mul_le_mul_left q1 hdHi_ge
+  have : q1 * dHi.toNat ≤ uHi.toNat := Nat.div_mul_le_self _ _
+  have : q1 * 2^31 ≤ q1 * dHi.toNat := Nat.mul_le_mul_left q1 hdHi_ge
   have hq_lt_mul : q1 * 2^31 < 2^33 * 2^31 := by omega
   exact Nat.lt_of_mul_lt_mul_right hq_lt_mul
 
@@ -583,13 +583,13 @@ theorem div128Quot_first_round_euclidean (uHi dHi : Word) (hdHi_ne : dHi ≠ 0) 
       (uHi - rv64_divu uHi dHi * dHi).toNat = uHi.toNat := by
   set q1 := rv64_divu uHi dHi with hq1_def
   have hq1_eq : q1.toNat = uHi.toNat / dHi.toNat := rv64_divu_toNat uHi dHi hdHi_ne
-  have h_q1_mul_le : q1.toNat * dHi.toNat ≤ uHi.toNat := by
+  have : q1.toNat * dHi.toNat ≤ uHi.toNat := by
     rw [hq1_eq]; exact Nat.div_mul_le_self _ _
   have := uHi.isLt
   have h_q1_mul_lt : q1.toNat * dHi.toNat < 2^64 := by omega
   have hmul_toNat : (q1 * dHi).toNat = q1.toNat * dHi.toNat := by
     rw [BitVec.toNat_mul]; exact Nat.mod_eq_of_lt h_q1_mul_lt
-  have hrhat_toNat : (uHi - q1 * dHi).toNat = uHi.toNat - q1.toNat * dHi.toNat := by
+  have : (uHi - q1 * dHi).toNat = uHi.toNat - q1.toNat * dHi.toNat := by
     rw [BitVec.toNat_sub, hmul_toNat]
     omega
   omega
@@ -662,7 +662,7 @@ theorem div128Quot_first_round_correction (uHi dHi : Word)
     omega
   rw [hq1c_toNat, hrhatc_toNat]
   -- (q1 - 1) * dHi + (rhat + dHi) = q1 * dHi + rhat = uHi
-  have h_q1_ge_one : q1.toNat ≥ 1 := by omega
+  have : q1.toNat ≥ 1 := by omega
   have key : (q1.toNat - 1) * dHi.toNat + (rhat.toNat + dHi.toNat) =
              q1.toNat * dHi.toNat + rhat.toNat := by
     have h1 : (q1.toNat - 1 + 1) * dHi.toNat =
