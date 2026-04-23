@@ -183,6 +183,9 @@ theorem divK_loop_body_n2_call_skip_j0_spec
   let rhat2c := if hi2 = 0 then rhat2 else rhat2 + dHi
   let q0Dlo := q0c * dLo
   let rhat2Un0 := (rhat2c <<< (32 : BitVec 6).toNat) ||| div_un0
+  let rhat2cHi := rhat2c >>> (32 : BitVec 6).toNat
+  let x7Exit := if rhat2cHi = 0 then q0Dlo else un21
+  let x1Exit := if rhat2cHi = 0 then rhat2Un0 else rhat2cHi
   let q0' := div128Quot_phase2b_q0' q0c rhat2c dLo div_un0
   let qHat := (q1' <<< (32 : BitVec 6).toNat) ||| q0'
   -- Unfold borrow condition
@@ -198,7 +201,7 @@ theorem divK_loop_body_n2_call_skip_j0_spec
   rw [vtop_eq_v1_n2] at TF
   -- 2. Mulsub + correction skip (base+516 → base+880)
   have MCS := divK_mulsub_correction_skip_spec sp qHat (0 : Word) v0 v1 v2 v3 u0 u1 u2 u3 uTop
-    rhat2Un0 q0' dHi q0Dlo q1' (base + 516) base
+    x1Exit q0' dHi x7Exit q1' (base + 516) base
 
   intro_lets at MCS
   have MCS0 := MCS hborrow
@@ -403,6 +406,9 @@ theorem divK_loop_body_n2_call_skip_j1_spec
   let rhat2c := if hi2 = 0 then rhat2 else rhat2 + dHi
   let q0Dlo := q0c * dLo
   let rhat2Un0 := (rhat2c <<< (32 : BitVec 6).toNat) ||| div_un0
+  let rhat2cHi := rhat2c >>> (32 : BitVec 6).toNat
+  let x7Exit := if rhat2cHi = 0 then q0Dlo else un21
+  let x1Exit := if rhat2cHi = 0 then rhat2Un0 else rhat2cHi
   let q0' := div128Quot_phase2b_q0' q0c rhat2c dLo div_un0
   let qHat := (q1' <<< (32 : BitVec 6).toNat) ||| q0'
   unfold isSkipBorrowN2Call div128Quot at hborrow
@@ -415,7 +421,7 @@ theorem divK_loop_body_n2_call_skip_j1_spec
   rw [u_addr8_eq_n2] at TF
   rw [vtop_eq_v1_n2] at TF
   have MCS := divK_mulsub_correction_skip_spec sp qHat (1 : Word) v0 v1 v2 v3 u0 u1 u2 u3 uTop
-    rhat2Un0 q0' dHi q0Dlo q1' (base + 516) base
+    x1Exit q0' dHi x7Exit q1' (base + 516) base
 
   intro_lets at MCS
   have MCS0 := MCS hborrow
@@ -616,6 +622,9 @@ theorem divK_loop_body_n2_call_skip_j2_spec
   let rhat2c := if hi2 = 0 then rhat2 else rhat2 + dHi
   let q0Dlo := q0c * dLo
   let rhat2Un0 := (rhat2c <<< (32 : BitVec 6).toNat) ||| div_un0
+  let rhat2cHi := rhat2c >>> (32 : BitVec 6).toNat
+  let x7Exit := if rhat2cHi = 0 then q0Dlo else un21
+  let x1Exit := if rhat2cHi = 0 then rhat2Un0 else rhat2cHi
   let q0' := div128Quot_phase2b_q0' q0c rhat2c dLo div_un0
   let qHat := (q1' <<< (32 : BitVec 6).toNat) ||| q0'
   unfold isSkipBorrowN2Call div128Quot at hborrow
@@ -628,7 +637,7 @@ theorem divK_loop_body_n2_call_skip_j2_spec
   rw [u_addr8_eq_n2] at TF
   rw [vtop_eq_v1_n2] at TF
   have MCS := divK_mulsub_correction_skip_spec sp qHat (2 : Word) v0 v1 v2 v3 u0 u1 u2 u3 uTop
-    rhat2Un0 q0' dHi q0Dlo q1' (base + 516) base
+    x1Exit q0' dHi x7Exit q1' (base + 516) base
 
   intro_lets at MCS
   have MCS0 := MCS hborrow
@@ -829,6 +838,9 @@ theorem divK_loop_body_n2_call_addback_j0_beq_spec
   let rhat2c := if hi2 = 0 then rhat2 else rhat2 + dHi
   let q0Dlo := q0c * dLo
   let rhat2Un0 := (rhat2c <<< (32 : BitVec 6).toNat) ||| div_un0
+  let rhat2cHi := rhat2c >>> (32 : BitVec 6).toNat
+  let x7Exit := if rhat2cHi = 0 then q0Dlo else un21
+  let x1Exit := if rhat2cHi = 0 then rhat2Un0 else rhat2cHi
   let q0' := div128Quot_phase2b_q0' q0c rhat2c dLo div_un0
   let qHat := (q1' <<< (32 : BitVec 6).toNat) ||| q0'
   -- Unfold borrow condition
@@ -859,7 +871,7 @@ theorem divK_loop_body_n2_call_addback_j0_beq_spec
   rw [vtop_eq_v1_n2] at TF
   -- 2. Mulsub + correction addback + BEQ (base+516 → base+884)
   have MCA := divK_mulsub_correction_addback_beq_spec sp qHat (0 : Word) v0 v1 v2 v3 u0 u1 u2 u3 uTop
-    rhat2Un0 q0' dHi q0Dlo q1' (base + 516) base
+    x1Exit q0' dHi x7Exit q1' (base + 516) base
 
   intro_lets at MCA
   unfold isAddbackCarry2NzN2Call isAddbackCarry2Nz div128Quot at hcarry2_nz
@@ -1041,6 +1053,9 @@ theorem divK_loop_body_n2_call_addback_j1_beq_spec
   let rhat2c := if hi2 = 0 then rhat2 else rhat2 + dHi
   let q0Dlo := q0c * dLo
   let rhat2Un0 := (rhat2c <<< (32 : BitVec 6).toNat) ||| div_un0
+  let rhat2cHi := rhat2c >>> (32 : BitVec 6).toNat
+  let x7Exit := if rhat2cHi = 0 then q0Dlo else un21
+  let x1Exit := if rhat2cHi = 0 then rhat2Un0 else rhat2cHi
   let q0' := div128Quot_phase2b_q0' q0c rhat2c dLo div_un0
   let qHat := (q1' <<< (32 : BitVec 6).toNat) ||| q0'
   unfold isAddbackBorrowN2Call div128Quot at hborrow
@@ -1068,7 +1083,7 @@ theorem divK_loop_body_n2_call_addback_j1_beq_spec
   rw [u_addr8_eq_n2] at TF
   rw [vtop_eq_v1_n2] at TF
   have MCA := divK_mulsub_correction_addback_beq_spec sp qHat (1 : Word) v0 v1 v2 v3 u0 u1 u2 u3 uTop
-    rhat2Un0 q0' dHi q0Dlo q1' (base + 516) base
+    x1Exit q0' dHi x7Exit q1' (base + 516) base
 
   intro_lets at MCA
   unfold isAddbackCarry2NzN2Call isAddbackCarry2Nz div128Quot at hcarry2_nz
@@ -1245,6 +1260,9 @@ theorem divK_loop_body_n2_call_addback_j2_beq_spec
   let rhat2c := if hi2 = 0 then rhat2 else rhat2 + dHi
   let q0Dlo := q0c * dLo
   let rhat2Un0 := (rhat2c <<< (32 : BitVec 6).toNat) ||| div_un0
+  let rhat2cHi := rhat2c >>> (32 : BitVec 6).toNat
+  let x7Exit := if rhat2cHi = 0 then q0Dlo else un21
+  let x1Exit := if rhat2cHi = 0 then rhat2Un0 else rhat2cHi
   let q0' := div128Quot_phase2b_q0' q0c rhat2c dLo div_un0
   let qHat := (q1' <<< (32 : BitVec 6).toNat) ||| q0'
   unfold isAddbackBorrowN2Call div128Quot at hborrow
@@ -1272,7 +1290,7 @@ theorem divK_loop_body_n2_call_addback_j2_beq_spec
   rw [u_addr8_eq_n2] at TF
   rw [vtop_eq_v1_n2] at TF
   have MCA := divK_mulsub_correction_addback_beq_spec sp qHat (2 : Word) v0 v1 v2 v3 u0 u1 u2 u3 uTop
-    rhat2Un0 q0' dHi q0Dlo q1' (base + 516) base
+    x1Exit q0' dHi x7Exit q1' (base + 516) base
 
   intro_lets at MCA
   unfold isAddbackCarry2NzN2Call isAddbackCarry2Nz div128Quot at hcarry2_nz

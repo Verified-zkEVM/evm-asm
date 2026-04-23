@@ -464,14 +464,33 @@ theorem div128Quot_q0_prime_ge_q_true_0_of_un21_lt_pow63
     let rhat2c := if hi2 = 0 then rhat2 else rhat2 + dHi
     let div_un0 := (uLo <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
     let rhat2Un0 := (rhat2c <<< (32 : BitVec 6).toNat) ||| div_un0
-    let q0' := if BitVec.ult rhat2Un0 (q0c * dLo) then q0c + signExtend12 4095
-               else q0c
+    let q0' := div128Quot_phase2b_q0' q0c rhat2c dLo div_un0
     (un21.toNat * 2^32 + div_un0.toNat) /
       (dHi.toNat * 2^32 + dLo.toNat) ≤ q0'.toNat := by
   intro q0 rhat2 hi2 q0c rhat2c div_un0 rhat2Un0 q0'
-  exact div128Quot_q1_prime_ge_q_true_1_of_uHi_lt_pow63 un21 dHi dLo
-    (uLo <<< (32 : BitVec 6).toNat)
-    hdHi_ge hdHi_lt hdLo_lt h_un21_lt hun21_lt_vTop
+  -- div_un0 < 2^32 (from `uLo << 32 >> 32`).
+  have h_div_un0_lt : div_un0.toNat < 2^32 := by
+    show ((uLo <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat).toNat < 2^32
+    rw [BitVec.toNat_ushiftRight]
+    have h32 : (32 : BitVec 6).toNat = 32 := by decide
+    rw [h32, Nat.shiftRight_eq_div_pow]
+    have h_shl : (uLo <<< (32 : BitVec 6).toNat : Word).toNat < 2^64 :=
+      (uLo <<< (32 : BitVec 6).toNat : Word).isLt
+    exact Nat.div_lt_of_lt_mul (by omega)
+  show (un21.toNat * 2^32 + div_un0.toNat) /
+         (dHi.toNat * 2^32 + dLo.toNat) ≤
+       (div128Quot_phase2b_q0' q0c rhat2c dLo div_un0).toNat
+  unfold div128Quot_phase2b_q0'
+  split
+  · -- Guard doesn't fire: helper yields unguarded check.
+    exact div128Quot_q1_prime_ge_q_true_1_of_uHi_lt_pow63 un21 dHi dLo
+      (uLo <<< (32 : BitVec 6).toNat)
+      hdHi_ge hdHi_lt hdLo_lt h_un21_lt hun21_lt_vTop
+  · -- Guard fires: helper = q0c. Use KB-LB3 at Phase 2 (uHi := un21).
+    have hdHi_ne : dHi ≠ 0 := by
+      intro heq; rw [heq] at hdHi_ge; simp at hdHi_ge
+    exact div128Quot_q1c_ge_q_true_1 un21 dHi dLo div_un0 hdHi_ne
+      h_div_un0_lt hun21_lt_vTop
 
 /-- **KB-LB9: Weak Phase 2 lower bound, unconditional.** Phase 2's output
     `q0'` satisfies the abstract Knuth trial bound off by 2:
@@ -501,14 +520,26 @@ theorem div128Quot_q0_prime_plus_2_ge_q_true_0_abstract
     let rhat2c := if hi2 = 0 then rhat2 else rhat2 + dHi
     let div_un0 := (uLo <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
     let rhat2Un0 := (rhat2c <<< (32 : BitVec 6).toNat) ||| div_un0
-    let q0' := if BitVec.ult rhat2Un0 (q0c * dLo) then q0c + signExtend12 4095
-               else q0c
+    let q0' := div128Quot_phase2b_q0' q0c rhat2c dLo div_un0
     q0'.toNat + 2 ≥ (un21.toNat * 2^32 + div_un0.toNat) /
                      (dHi.toNat * 2^32 + dLo.toNat) := by
   intro q0 rhat2 hi2 q0c rhat2c div_un0 rhat2Un0 q0'
-  -- KB-2 at Phase 2 (uHi := un21, rhatUn1 := rhat2Un0).
-  have h_q0_bound : q0'.toNat + 2 ≥ un21.toNat / dHi.toNat :=
-    (div128Quot_phase1b_quotient_bound un21 dHi hdHi_ne hdHi_lt dLo rhat2Un0).1
+  -- Case-split on helper's guard: rhat2cHi = 0.
+  -- Guard fires: q0' = q0c, and q0c + 2 ≥ un21/dHi via KB-1 (Phase 1a bound).
+  -- Guard doesn't fire: q0' = phase1b's un-guarded q1' at Phase 2, which
+  -- satisfies the bound via div128Quot_phase1b_quotient_bound.
+  have h_q0_bound : q0'.toNat + 2 ≥ un21.toNat / dHi.toNat := by
+    show (div128Quot_phase2b_q0' q0c rhat2c dLo div_un0).toNat + 2 ≥
+      un21.toNat / dHi.toNat
+    unfold div128Quot_phase2b_q0'
+    split
+    · -- Guard doesn't fire (rhat2cHi = 0): helper yields the un-guarded check.
+      exact (div128Quot_phase1b_quotient_bound un21 dHi hdHi_ne hdHi_lt dLo
+        rhat2Un0).1
+    · -- Guard fires (rhat2cHi ≠ 0): helper yields q0c. Use KB-1 at Phase 2.
+      have h_kb1 := div128Quot_phase1a_quotient_bound un21 dHi hdHi_ne hdHi_lt
+      have h_lower_q0c : un21.toNat / dHi.toNat ≤ q0c.toNat + 1 := h_kb1.2
+      omega
   -- div_un0 < 2^32.
   have h_div_un0_lt : div_un0.toNat < 2^32 := by
     show ((uLo <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat).toNat < 2^32
@@ -754,13 +785,32 @@ theorem div128Quot_q0_prime_ge_q_true_0_of_un21_lt_dHi_mul_pow32
     let rhat2c := if hi2 = 0 then rhat2 else rhat2 + dHi
     let div_un0 := (uLo <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
     let rhat2Un0 := (rhat2c <<< (32 : BitVec 6).toNat) ||| div_un0
-    let q0' := if BitVec.ult rhat2Un0 (q0c * dLo) then q0c + signExtend12 4095
-               else q0c
+    let q0' := div128Quot_phase2b_q0' q0c rhat2c dLo div_un0
     (un21.toNat * 2^32 + div_un0.toNat) /
       (dHi.toNat * 2^32 + dLo.toNat) ≤ q0'.toNat := by
   intro q0 rhat2 hi2 q0c rhat2c div_un0 rhat2Un0 q0'
-  exact div128Quot_q1_prime_ge_q_true_1_of_uHi_lt_dHi_mul_pow32 un21 dHi dLo
-    (uLo <<< (32 : BitVec 6).toNat)
-    hdHi_ge hdHi_lt hdLo_lt h_un21_lt hun21_lt_vTop
+  -- div_un0 < 2^32 (from `uLo << 32 >> 32`).
+  have h_div_un0_lt : div_un0.toNat < 2^32 := by
+    show ((uLo <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat).toNat < 2^32
+    rw [BitVec.toNat_ushiftRight]
+    have h32 : (32 : BitVec 6).toNat = 32 := by decide
+    rw [h32, Nat.shiftRight_eq_div_pow]
+    have h_shl : (uLo <<< (32 : BitVec 6).toNat : Word).toNat < 2^64 :=
+      (uLo <<< (32 : BitVec 6).toNat : Word).isLt
+    exact Nat.div_lt_of_lt_mul (by omega)
+  show (un21.toNat * 2^32 + div_un0.toNat) /
+         (dHi.toNat * 2^32 + dLo.toNat) ≤
+       (div128Quot_phase2b_q0' q0c rhat2c dLo div_un0).toNat
+  unfold div128Quot_phase2b_q0'
+  split
+  · -- Guard doesn't fire: helper yields unguarded check.
+    exact div128Quot_q1_prime_ge_q_true_1_of_uHi_lt_dHi_mul_pow32 un21 dHi dLo
+      (uLo <<< (32 : BitVec 6).toNat)
+      hdHi_ge hdHi_lt hdLo_lt h_un21_lt hun21_lt_vTop
+  · -- Guard fires: helper = q0c. Use KB-LB3 at Phase 2.
+    have hdHi_ne : dHi ≠ 0 := by
+      intro heq; rw [heq] at hdHi_ge; simp at hdHi_ge
+    exact div128Quot_q1c_ge_q_true_1 un21 dHi dLo div_un0 hdHi_ne
+      h_div_un0_lt hun21_lt_vTop
 
 end EvmAsm.Evm64

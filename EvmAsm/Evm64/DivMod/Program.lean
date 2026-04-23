@@ -101,22 +101,28 @@ def divK_div128 : Program :=
   single (.BEQ .x1 .x0 12) ;;                -- [34] skip if q0 < 2^32 → [37]
   ADDI .x5 .x5 4095 ;;                        -- [35] q0--
   single (.ADD .x11 .x11 .x6) ;;             -- [36] rhat2 += dHi
-  -- [37] Product check for q0
-  LD .x1 .x12 3952 ;;                         -- [37] dLo
-  single (.MUL .x7 .x5 .x1) ;;               -- [38] x7 = q0 * dLo
-  SLLI .x1 .x11 32 ;;                         -- [39] rhat2 << 32
-  LD .x11 .x12 3944 ;;                        -- [40] un0
-  single (.OR .x1 .x1 .x11) ;;               -- [41] x1 = rhat2*2^32 + un0
-  single (.BLTU .x1 .x7 8) ;;                -- [42] if rhs < lhs → correct [44]
-  JAL .x0 8 ;;                                 -- [43] skip → [45]
-  ADDI .x5 .x5 4095 ;;                        -- [44] q0--
+  -- [37] Phase 2b guard (Knuth TAOCP §4.3.1 Step D3): skip mul-check
+  --      when rhat2c ≥ 2^32 to avoid Word `<< 32` truncation causing
+  --      the BLTU to false-positive fire. See counterexample at
+  --      `/home/zksecurity/.claude/plans/dynamic-strolling-riddle.md`.
+  SRLI .x1 .x11 32 ;;                         -- [37] x1 = rhat2c >> 32
+  single (.BNE .x1 .x0 36) ;;                -- [38] if nonzero → skip to [47]
+  -- [39] Product check for q0 (only reached when rhat2c < 2^32)
+  LD .x1 .x12 3952 ;;                         -- [39] dLo
+  single (.MUL .x7 .x5 .x1) ;;               -- [40] x7 = q0 * dLo
+  SLLI .x1 .x11 32 ;;                         -- [41] rhat2 << 32
+  LD .x11 .x12 3944 ;;                        -- [42] un0
+  single (.OR .x1 .x1 .x11) ;;               -- [43] x1 = rhat2*2^32 + un0
+  single (.BLTU .x1 .x7 8) ;;                -- [44] if rhs < lhs → correct [46]
+  JAL .x0 8 ;;                                 -- [45] skip → [47]
+  ADDI .x5 .x5 4095 ;;                        -- [46] q0--
   -- Combine: q = q1*2^32 + q0
-  SLLI .x11 .x10 32 ;;                        -- [45] q1 << 32
-  single (.OR .x11 .x11 .x5) ;;              -- [46] x11 = q
+  SLLI .x11 .x10 32 ;;                        -- [47] q1 << 32
+  single (.OR .x11 .x11 .x5) ;;              -- [48] x11 = q
   -- Restore and return
-  LD .x2 .x12 3968 ;;                         -- [47] restore return addr
-  JALR .x0 .x2 0                              -- [48] return
-  -- Total: 49 instructions
+  LD .x2 .x12 3968 ;;                         -- [49] restore return addr
+  JALR .x0 .x2 0                              -- [50] return
+  -- Total: 51 instructions
 
 -- ============================================================================
 -- Main division program phases

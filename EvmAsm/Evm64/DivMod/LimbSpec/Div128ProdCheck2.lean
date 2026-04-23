@@ -32,10 +32,16 @@ open EvmAsm.Rv64
 
 /-- Phase 2b refined quotient digit in `div128Quot`.
 
-    Factored standalone so the Knuth TAOCP §4.3.1 Step D3 guard
-    (`rhat2c < 2^32`) can be added in a follow-up iteration without
-    rewriting the entire `div128Quot` body. **Currently matches legacy
-    (buggy) semantics**; the bug is documented at
+    Guards the multiplication-check decrement with `rhat2c < 2^32` per
+    Knuth TAOCP §4.3.1 Step D3 ("repeat this test if r̂ < b"). When
+    `rhat2c ≥ 2^32`, the 64-bit `<< 32` in `rhat2Un0` truncates, and
+    the Word `BLTU rhat2Un0 q0Dlo` comparison can false-positively fire
+    (since the abstract quantity `rhat2c * 2^32 + div_un0` is actually
+    ≥ 2^64 > q0Dlo in that regime). The guard skips the decrement in
+    that case.
+
+    Matches the assembly's `SRLI .x1 .x11 32 ;; BNE .x1 .x0 36` guard
+    that precedes the Phase 2b mul-check. See counterexample at
     `/home/zksecurity/.claude/plans/dynamic-strolling-riddle.md`.
 
     Lives in `Div128ProdCheck2.lean` (the lowest-level file that
@@ -43,9 +49,11 @@ open EvmAsm.Rv64
     `LimbSpec.Div128Step2`, `Compose/Base` (transitively via `LimbSpec`),
     and `LoopDefs.Iter` (where `div128Quot` calls it). -/
 def div128Quot_phase2b_q0' (q0c rhat2c dLo div_un0 : Word) : Word :=
-  let q0Dlo := q0c * dLo
-  let rhat2Un0 := (rhat2c <<< (32 : BitVec 6).toNat) ||| div_un0
-  if BitVec.ult rhat2Un0 q0Dlo then q0c + signExtend12 4095 else q0c
+  if rhat2c >>> (32 : BitVec 6).toNat = 0 then
+    let q0Dlo := q0c * dLo
+    let rhat2Un0 := (rhat2c <<< (32 : BitVec 6).toNat) ||| div_un0
+    if BitVec.ult rhat2Un0 q0Dlo then q0c + signExtend12 4095 else q0c
+  else q0c
 
 /-- Phase 2b guard: 2-instruction cpsBranch that skips the Phase 2b mul-check
     when `rhat2c ≥ 2^32`. Per Knuth TAOCP §4.3.1 Step D3 ("repeat this test
@@ -60,28 +68,28 @@ def div128Quot_phase2b_q0' (q0c rhat2c dLo div_un0 : Word) : Word :=
     ```
 
     Branches:
-    - **Taken** (rhat2c_hi ≠ 0, guard fires): branches to `(base+4) +
+    - **Taken** (rhat2cHi ≠ 0, guard fires): branches to `(base+4) +
       signExtend13 guard_off`. Mul-check skipped.
-    - **Fall-through** (rhat2c_hi = 0): continues to `base + 8`, Phase 2b
+    - **Fall-through** (rhat2cHi = 0): continues to `base + 8`, Phase 2b
       mul-check runs normally.
 
     Used by `divK_div128_step2_guarded_spec` (future) to compose
     clamp_q0 + guard + prodcheck2 into a 17-instruction step2 block. -/
 theorem divK_div128_phase2b_guard_spec
     (sp rhat2c v1Old : Word) (base : Word) (guard_off : BitVec 13) :
-    let rhat2c_hi := rhat2c >>> (32 : BitVec 6).toNat
+    let rhat2cHi := rhat2c >>> (32 : BitVec 6).toNat
     let cr :=
       CodeReq.union (CodeReq.singleton base (.SRLI .x1 .x11 32))
         (CodeReq.singleton (base + 4) (.BNE .x1 .x0 guard_off))
     cpsBranch base cr
       ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ rhat2c) ** (.x1 ↦ᵣ v1Old) ** (.x0 ↦ᵣ 0))
       ((base + 4) + signExtend13 guard_off)
-        ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ rhat2c) ** (.x1 ↦ᵣ rhat2c_hi) **
-         (.x0 ↦ᵣ 0) ** ⌜rhat2c_hi ≠ 0⌝)
+        ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ rhat2c) ** (.x1 ↦ᵣ rhat2cHi) **
+         (.x0 ↦ᵣ 0) ** ⌜rhat2cHi ≠ 0⌝)
       (base + 8)
-        ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ rhat2c) ** (.x1 ↦ᵣ rhat2c_hi) **
-         (.x0 ↦ᵣ 0) ** ⌜rhat2c_hi = 0⌝) := by
-  intro rhat2c_hi cr
+        ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ rhat2c) ** (.x1 ↦ᵣ rhat2cHi) **
+         (.x0 ↦ᵣ 0) ** ⌜rhat2cHi = 0⌝) := by
+  intro rhat2cHi cr
   -- Step 1: SRLI .x1 .x11 32  (cpsTriple base → base+4)
   have hsrli_raw := srli_spec_gen .x1 .x11 v1Old rhat2c 32 base (by nofun)
   -- Extend to the full cr (which includes the BNE).
@@ -97,7 +105,7 @@ theorem divK_div128_phase2b_guard_spec
     ((.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0))
     (by pcFree) hsrli
   -- Step 2: BNE .x1 .x0 guard_off  (cpsBranch base+4 → ...)
-  have hbne_raw := bne_spec_gen .x1 .x0 guard_off rhat2c_hi (0 : Word) (base + 4)
+  have hbne_raw := bne_spec_gen .x1 .x0 guard_off rhat2cHi (0 : Word) (base + 4)
   have hcr_bne : ∀ a i,
       CodeReq.singleton (base + 4) (.BNE .x1 .x0 guard_off) a = some i → cr a = some i := by
     intro a i h
@@ -129,7 +137,11 @@ theorem divK_div128_prodcheck2_merged_spec
     (sp q0 rhat2 v1Old v7Old dlo un0 : Word) (base : Word) :
     let q0Dlo := q0 * dlo
     let rhat2Un0 := (rhat2 <<< (32 : BitVec 6).toNat) ||| un0
-    let q0' := div128Quot_phase2b_q0' q0 rhat2 dlo un0
+    -- NOTE: describes the UNGUARDED 8-instruction Phase 2b mul-check.
+    -- The `div128Quot_phase2b_q0'` helper (guarded form) is used at
+    -- the step2 level, where the upstream `phase2b_guard_spec` cpsBranch
+    -- gates this mul-check.
+    let q0' := if BitVec.ult rhat2Un0 q0Dlo then q0 + signExtend12 4095 else q0
     let cr :=
       CodeReq.union (CodeReq.singleton base (.LD .x1 .x12 3952))
       (CodeReq.union (CodeReq.singleton (base + 4) (.MUL .x7 .x5 .x1))
