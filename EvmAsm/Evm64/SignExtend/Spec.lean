@@ -77,7 +77,7 @@ theorem evm_signextend_stack_spec (sp base : Word)
     have hresult : result = x := by simp [result, EvmWord.signextend_ge31 b x hge]
     by_cases hhigh : b.getLimbN 1 ||| b.getLimbN 2 ||| b.getLimbN 3 ≠ 0
     · exact signext_nochange_lift sp base b x r5 r6 r10
-        (signext_nochange_high_spec sp base _ _ _ _ _ _ _ _ r5 r10 hhigh)
+        (signext_nochange_high_spec sp base r5 r10 hhigh)
         result hresult
     · have hhigh' : b.getLimbN 1 ||| b.getLimbN 2 ||| b.getLimbN 3 = 0 :=
         Classical.byContradiction (fun h => hhigh h)
@@ -91,7 +91,7 @@ theorem evm_signextend_stack_spec (sp base : Word)
         · rfl
         · simp at h; omega
       exact signext_nochange_lift sp base b x r5 r6 r10
-        (signext_nochange_geq31_spec sp base _ _ _ _ _ _ _ _ r5 r10 hhigh' hlarge)
+        (signext_nochange_geq31_spec sp base r5 r10 hhigh' hlarge)
         result hresult
   · -- b < 31: body path
     push Not at hge

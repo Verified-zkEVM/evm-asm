@@ -145,7 +145,7 @@ theorem evm_shr_stack_spec (sp base : Word)
     -- Sub-case: high limbs nonzero or s0 ≥ 256
     by_cases hhigh : shift.getLimb 1 ||| shift.getLimb 2 ||| shift.getLimb 3 ≠ 0
     · exact shr_zero_lift sp base shift value r5 r6 r7 r10 r11
-        (evm_shr_zero_high_spec sp base _ _ _ _ _ _ _ _ r5 r10 hhigh)
+        (evm_shr_zero_high_spec sp base r5 r10 hhigh)
         result hresult
     · have hhigh' : shift.getLimb 1 ||| shift.getLimb 2 ||| shift.getLimb 3 = 0 :=
         Classical.byContradiction (fun h => hhigh h)
@@ -162,7 +162,7 @@ theorem evm_shr_stack_spec (sp base : Word)
         · rfl
         · simp at h; omega
       exact shr_zero_lift sp base shift value r5 r6 r7 r10 r11
-        (evm_shr_zero_large_spec sp base _ _ _ _ _ _ _ _ r5 r10 hhigh' hlarge)
+        (evm_shr_zero_large_spec sp base r5 r10 hhigh' hlarge)
         result hresult
   · -- shift < 256: result = value >>> shift.toNat
     have hlt : shift.toNat < 256 := Nat.lt_of_not_le hge

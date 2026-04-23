@@ -273,7 +273,7 @@ private theorem sar_body0_exit {base : Word} : ((base + 252 : Word) + 96) + sign
 /-- Sign-fill via BNE taken: high shift limbs are nonzero → shift ≥ 256 → result is sign extension.
     Execution: LD s1 → LD/OR s2 → LD/OR s3 → BNE(taken) → sign_fill_path. -/
 theorem evm_sar_sign_fill_high_spec (sp base : Word)
-    (s0 s1 s2 s3 v0 v1 v2 v3 r5 r10 : Word)
+    {s0 s1 s2 s3 v0 v1 v2 v3 : Word} (r5 r10 : Word)
     (hhigh : s1 ||| s2 ||| s3 ≠ 0) :
     let sign_ext := BitVec.sshiftRight v3 63
     cpsTriple base (base + 380) (sarCode base)
@@ -370,7 +370,7 @@ theorem evm_sar_sign_fill_high_spec (sp base : Word)
 
 /-- Sign-fill via BEQ taken: s1=s2=s3=0 but s0 ≥ 256 → result is sign extension. -/
 theorem evm_sar_sign_fill_large_spec (sp base : Word)
-    (s0 s1 s2 s3 v0 v1 v2 v3 r5 r10 : Word)
+    {s0 s1 s2 s3 v0 v1 v2 v3 : Word} (r5 r10 : Word)
     (hlow : s1 ||| s2 ||| s3 = 0)
     (hlarge : BitVec.ult s0 (signExtend12 (256 : BitVec 12)) = false) :
     let sign_ext := BitVec.sshiftRight v3 63

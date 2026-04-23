@@ -191,7 +191,7 @@ private theorem se_done_exit {base : Word} : (base + 188 : Word) + 4 = base + 19
 /-- No-change path via BNE taken: high b limbs are nonzero → b >= 31 → x unchanged.
     Execution: LD b1 → LD/OR b2 → LD/OR b3 → BNE(taken) → done. -/
 theorem signext_nochange_high_spec (sp base : Word)
-    (b0 b1 b2 b3 v0 v1 v2 v3 r5 r10 : Word)
+    {b0 b1 b2 b3 v0 v1 v2 v3 : Word} (r5 r10 : Word)
     (hhigh : b1 ||| b2 ||| b3 ≠ 0) :
     cpsTriple base (base + 192) (signextCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ r5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ r10) **
@@ -285,7 +285,7 @@ theorem signext_nochange_high_spec (sp base : Word)
 /-- No-change path via BEQ taken: b1=b2=b3=0 but b[0] >= 31 → x unchanged.
     Execution: LD b1 → LD/OR b2 → LD/OR b3 → BNE(ntaken) → LD b0 → SLTIU → BEQ(taken) → done. -/
 theorem signext_nochange_geq31_spec (sp base : Word)
-    (b0 b1 b2 b3 v0 v1 v2 v3 r5 r10 : Word)
+    {b0 b1 b2 b3 v0 v1 v2 v3 : Word} (r5 r10 : Word)
     (hlow : b1 ||| b2 ||| b3 = 0)
     (hlarge : BitVec.ult b0 (signExtend12 (31 : BitVec 12)) = false) :
     cpsTriple base (base + 192) (signextCode base)
