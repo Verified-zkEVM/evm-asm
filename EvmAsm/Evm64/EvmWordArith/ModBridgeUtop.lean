@@ -36,7 +36,7 @@ theorem nat_top_eq_of_lt_pow256 {vPow vN u c : Nat}
     (heq : vPow = vN + (u - c) * 2 ^ 256)
     (h_vPow_lt : vPow < 2 ^ 256) :
     u = c := by
-  have hpow_pos : 0 < 2 ^ 256 := Nat.pos_of_ne_zero (by positivity)
+  have : 0 < 2 ^ 256 := Nat.pos_of_ne_zero (by positivity)
   have : (u - c) * 2 ^ 256 < 2 ^ 256 := by omega
   have : u - c = 0 := by
     by_contra h
@@ -75,7 +75,7 @@ theorem val256_normalized_mulsub_eq
         uTop.toNat * 2 ^ 256 := by
   intro b3' b2' b1' b0' u3 u2 u1 u0 uTop qHat ms
   -- Normalize the dividend limbs.
-  have h_norm_a : val256 u0 u1 u2 u3 + uTop.toNat * 2 ^ 256 =
+  have : val256 u0 u1 u2 u3 + uTop.toNat * 2 ^ 256 =
       val256 a0 a1 a2 a3 * 2^s :=
     val256_normalize_general hs0 hs a0 a1 a2 a3
   -- Normalize the divisor limbs (needs the CLZ bound on b3).
@@ -133,7 +133,7 @@ theorem u_top_eq_c3_nat_form
   have h_n_combined : Vu + c3_n * 2 ^ 256 = Vms_n + Q * (Vb * 2 ^ s) := by
     rw [h_norm_b] at h_Vn; exact h_Vn
   -- Va * 2^s + c3_n * 2^256 = Vms_n + Q * Vb * 2^s + uTop * 2^256
-  have h_shifted : Va * 2 ^ s + c3_n * 2 ^ 256 =
+  have : Va * 2 ^ s + c3_n * 2 ^ 256 =
       Vms_n + Q * Vb * 2 ^ s + uTop * 2 ^ 256 := by
     have hqa : Q * (Vb * 2 ^ s) = Q * Vb * 2 ^ s := by ring
     linarith [h_norm_u, h_n_combined, hqa]
