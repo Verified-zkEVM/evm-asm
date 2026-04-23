@@ -20,7 +20,7 @@ namespace EvmWord
 theorem carry_toNat {x y : Word} :
     (if BitVec.ult (x + y) y then (1 : Word) else 0).toNat =
     (x.toNat + y.toNat) / 2^64 := by
-  have hx := x.isLt; have hy := y.isLt
+  have := x.isLt; have := y.isLt
   have hsum : (x + y).toNat = (x.toNat + y.toNat) % 2^64 := BitVec.toNat_add x y
   split
   · rename_i h; have := (ult_iff).mp h; rw [hsum] at this
@@ -46,7 +46,7 @@ private theorem combined_carry_toNat {x y cin : Word} (hcin : cin.toNat ≤ 1) :
     let cb := if BitVec.ult res cin then (1 : Word) else 0
     (ca ||| cb).toNat = (x.toNat + y.toNat + cin.toNat) / 2^64 := by
   intro psum ca res cb
-  have hx := x.isLt; have hy := y.isLt
+  have := x.isLt; have := y.isLt
   have hca : ca.toNat = (x.toNat + y.toNat) / 2^64 := carry_toNat
   have hpsum : psum.toNat = (x.toNat + y.toNat) % 2^64 := BitVec.toNat_add x y
   have hcb : cb.toNat = (psum.toNat + cin.toNat) / 2^64 := carry_toNat
@@ -103,10 +103,10 @@ theorem add_carry_chain_correct (a b : EvmWord) :
            (b0.toNat + b1.toNat * 2^64 + b2.toNat * 2^128 + b3.toNat * 2^192)
   have hS : (a + b).toNat = S % 2^256 := by rw [hab, ha, hb]
   -- limb bounds
-  have ha0 := a0.isLt; have hb0 := b0.isLt
-  have ha1 := a1.isLt; have hb1 := b1.isLt
-  have ha2 := a2.isLt; have hb2 := b2.isLt
-  have ha3 := a3.isLt; have hb3 := b3.isLt
+  have := a0.isLt; have := b0.isLt
+  have := a1.isLt; have := b1.isLt
+  have := a2.isLt; have := b2.isLt
+  have := a3.isLt; have := b3.isLt
   -- getLimb toNat for (a+b) at each index
   have key0 : ((a + b).getLimb 0).toNat = S % 2^256 % 2^64 := by
     simp only [getLimb, BitVec.extractLsb'_toNat, Nat.shiftRight_eq_div_pow]; rw [hS]; norm_num
@@ -315,10 +315,10 @@ theorem sub_borrow_chain_correct (a b : EvmWord) :
     rw [hb2_nat]; split <;> simp
   -- Now prove each limb
   -- Useful bounds
-  have ha0 := a0.isLt; have hb0' := b0.isLt
-  have ha1 := a1.isLt; have hb1' := b1.isLt
-  have ha2 := a2.isLt; have hb2' := b2.isLt
-  have ha3 := a3.isLt; have hb3' := b3.isLt
+  have := a0.isLt; have := b0.isLt
+  have := a1.isLt; have := b1.isLt
+  have := a2.isLt; have := b2.isLt
+  have := a3.isLt; have := b3.isLt
   have ha_sum := toNat_eq_limb_sum a
   have hb_sum := toNat_eq_limb_sum b
   have hab_lt : b.toNat < 2^256 := b.isLt

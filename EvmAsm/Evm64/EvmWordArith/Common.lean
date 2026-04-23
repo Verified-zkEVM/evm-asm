@@ -51,7 +51,7 @@ theorem toNat_eq_limb_sum (v : EvmWord) :
   simp only [getLimb, BitVec.extractLsb'_toNat,
     fin4_val_0, fin4_val_1, fin4_val_2, fin4_val_3,
     Nat.zero_mul, Nat.shiftRight_zero]
-  have hv := v.isLt  -- v.toNat < 2^256
+  have := v.isLt  -- v.toNat < 2^256
   omega
 
 -- BitVec.ult ↔ toNat comparison

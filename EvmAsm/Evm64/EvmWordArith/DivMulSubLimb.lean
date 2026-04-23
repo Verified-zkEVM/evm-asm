@@ -73,7 +73,7 @@ theorem mulsub_limb_nat_eq {q v_i u_i carryIn : Word} :
     BitVec.toNat_add prodLo carryIn
   -- borrowAdd = (prodLo + carryIn) / 2^64 (is 0 or 1)
   have h_ba : borrowAdd.toNat = (prodLo.toNat + carryIn.toNat) / 2^64 := by
-    have hpl := prodLo.isLt; have hci := carryIn.isLt
+    have := prodLo.isLt; have := carryIn.isLt
     by_cases hov : prodLo.toNat + carryIn.toNat < 2^64
     · -- no overflow
       have hge : fullSub.toNat ≥ carryIn.toNat := by rw [h_fs, Nat.mod_eq_of_lt hov]; omega

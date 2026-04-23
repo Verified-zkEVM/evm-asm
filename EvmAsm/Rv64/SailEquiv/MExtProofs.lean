@@ -310,7 +310,7 @@ theorem mulhu_high_equiv (a b : BitVec 64) :
   simp only [to_bits_truncate, get_slice_int, Sail.BitVec.extractLsb, rv64_mulhu, BitVec.toNatInt]
   apply BitVec.eq_of_toNat_eq
   simp
-  have ha := a.isLt; have hb := b.isLt
+  have := a.isLt; have := b.isLt
   omega
 
 theorem mulhu_sail_equiv (sRv : MachineState) (sSail : SailState)
