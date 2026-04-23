@@ -34,26 +34,12 @@ theorem runSail_bind {m : SailM α} {f : α → SailM β} {s : SailState} :
   | error e s' => simp
 
 -- ============================================================================
--- BitVec.toNat reduction for register indices
--- ============================================================================
-
-private theorem bv5_toNat_1 : BitVec.toNat (1 : BitVec 5) = 1 := by decide
-private theorem bv5_toNat_2 : BitVec.toNat (2 : BitVec 5) = 2 := by decide
-private theorem bv5_toNat_5 : BitVec.toNat (5 : BitVec 5) = 5 := by decide
-private theorem bv5_toNat_6 : BitVec.toNat (6 : BitVec 5) = 6 := by decide
-private theorem bv5_toNat_7 : BitVec.toNat (7 : BitVec 5) = 7 := by decide
-private theorem bv5_toNat_10 : BitVec.toNat (10 : BitVec 5) = 10 := by decide
-private theorem bv5_toNat_11 : BitVec.toNat (11 : BitVec 5) = 11 := by decide
-private theorem bv5_toNat_12 : BitVec.toNat (12 : BitVec 5) = 12 := by decide
-
--- Common simp arguments for rX_bits proofs
--- We unfold: runSail, rX_bits, rX, BitVec.toNatInt, regval_from_reg
--- We reduce: Int.toNat, bv5_toNat_N (to get concrete Nat for match)
--- We unfold: PreSail.readReg, EStateM.get (to expose the Option match on regs.get?)
--- We use: h (the hypothesis that the register is present)
-
--- ============================================================================
 -- rX_bits — per-register read lemmas
+--
+-- Common simp arguments: runSail, rX_bits, rX, BitVec.toNatInt, regval_from_reg,
+-- PreSail.readReg, EStateM.get, plus the hypothesis `h` witnessing the register
+-- has a value. The `Int.toNat` and `BitVec.toNat`-on-numeric-literal reductions
+-- fire via `decide` inside simp; we no longer maintain a per-index table.
 -- ============================================================================
 
 theorem runSail_rX_bits_x0 {s : SailState} :
