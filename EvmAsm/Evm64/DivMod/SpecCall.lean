@@ -1435,13 +1435,39 @@ theorem output_slot_to_evmWordIs_mod_n4_call_skip_denorm
      ((sp + 48) ↦ₘ ((ms.2.2.1 >>> shift) ||| (ms.2.2.2.1 <<< (64 - shift)))) **
      ((sp + 56) ↦ₘ (ms.2.2.2.1 >>> shift))) =
     evmWordIs (sp + 32) (EvmWord.mod a b) := by
-  -- TODO(#66 follow-up): fill in via a call-skip denorm bridge analogous to
-  -- `denorm_limbN_eq_mod_max_skip_getLimbN`. Needs:
-  -- 1. T3 + hsem → `qHat.toNat = a.toNat / b.toNat` (we already have this
-  --    via `n4_call_skip_div_mod_getLimbN`).
-  -- 2. From tight equality → `(ms.1, ms.2.1, ms.2.2.1, ms.2.2.2.1)` at the
-  --    Nat level equals `a.toNat % b.toNat * 2^shift` (i.e. normalized mod).
-  -- 3. Denormalization (right-shift by `shift`) gives the actual mod limbs.
+  intro shift antiShift b3' b2' b1' b0' u3 u2 u1 u0 u4 qHat ms
+  -- Shift bounds.
+  have hshift_le_63 := clzResult_fst_toNat_le (b.getLimbN 3)
+  have hshift_pos : 0 < (clzResult (b.getLimbN 3)).1.toNat := by
+    by_contra h
+    push Not at h
+    apply hshift_nz
+    apply BitVec.eq_of_toNat_eq
+    rw [show (0 : Word).toNat = 0 from rfl]
+    omega
+  have hshift_lt_64 : (clzResult (b.getLimbN 3)).1.toNat < 64 := by omega
+  have hmod_eq : (clzResult (b.getLimbN 3)).1.toNat % 64 =
+      (clzResult (b.getLimbN 3)).1.toNat := by omega
+  have h0se12 : signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1 =
+      -((clzResult (b.getLimbN 3)).1) := by
+    rw [signExtend12_0]; simp
+  have hanti_toNat_mod :
+      (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64 =
+      64 - (clzResult (b.getLimbN 3)).1.toNat := by
+    rw [h0se12, BitVec.toNat_neg]
+    have : ((clzResult (b.getLimbN 3)).1).toNat ≤ 2^64 := by
+      have := ((clzResult (b.getLimbN 3)).1).isLt; omega
+    omega
+  -- b3 CLZ bound.
+  have hb3_bound : (b.getLimbN 3).toNat <
+      2 ^ (64 - (clzResult (b.getLimbN 3)).1.toNat) :=
+    clzResult_fst_top_bound (b.getLimbN 3)
+  -- Deferred: closing the full adapter requires extensive shift-normalization
+  -- plumbing to reconcile the adapter's `Word`-arithmetic `antiShift` form
+  -- with the helper's `64 - s` Nat form. All the math is in place via
+  -- `denorm_limbN_eq_mod_of_overestimate_getLimbN` + the T3 + hsem + c3_le_u4
+  -- chain — just requires careful alignment of the `let`-bound shifts across
+  -- a whnf-heavy goal.
   sorry
 
 /-- **EVM-stack-level MOD spec on the n=4 call+skip sub-path.**
