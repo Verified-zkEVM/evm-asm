@@ -279,10 +279,6 @@ private theorem runSail_ok_bind (f : Unit → SailM β) (s s' : SailState)
   simp [runSail, bind, EStateM.bind, hm]
 
 theorem jalr_sail_equiv (sRv : MachineState) (sSail : SailState)
-    (hrel : StateRel sRv sSail)
-    (h_pc : sSail.regs.get? Register.PC = some sRv.pc)
-    (h_nextpc : sSail.regs.get? Register.nextPC = some (sRv.pc + 4))
-    (h_misa : ∃ v, sSail.regs.get? Register.misa = some v)
     (rd rs1 : Reg) (offset : BitVec 12)
     -- update_elp_state succeeds and preserves StateRel + relevant state
     (h_elp : ∃ s_mid, update_elp_state (regToRegidx rs1) sSail = .ok () s_mid ∧

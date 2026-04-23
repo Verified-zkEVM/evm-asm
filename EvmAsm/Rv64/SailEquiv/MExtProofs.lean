@@ -48,7 +48,7 @@ theorem int_ofNat_beq_zero {b : BitVec 64} :
   · intro h; subst h; simp
 
 /-- Unsigned division: SAIL's Int.tdiv on non-negative = BitVec udiv. -/
-theorem unsigned_div_equiv (a b : BitVec 64) (hb : b ≠ 0#64) :
+theorem unsigned_div_equiv (a b : BitVec 64) :
     to_bits_truncate (l := 64) ((↑a.toNat : Int).tdiv (↑b.toNat : Int)) = a / b := by
   rw [(Int.ofNat_tdiv a.toNat b.toNat).symm, to_bits_truncate_natCast]
   apply BitVec.eq_of_toNat_eq; simp [BitVec.toNat_udiv]
@@ -116,7 +116,7 @@ theorem divu_full_equiv {a b : BitVec 64} :
   by_cases hb : b = 0#64
   · subst hb; simp [to_bits_truncate_neg1]
   · simp only [show (b == 0#64) = false from by simp [hb], ite_false, Bool.false_eq_true]
-    exact unsigned_div_equiv a b hb
+    exact unsigned_div_equiv a b
 
 /-- REMU value equivalence: SAIL unsigned remainder computation = rv64_remu. -/
 theorem remu_full_equiv {a b : BitVec 64} :
@@ -151,7 +151,7 @@ private theorem to_bits_truncate_neg_pow63 :
 
 /-- For 64-bit signed values, Int.tdiv can only reach 2^63 in the overflow case,
     so the SAIL overflow guard (clamping to -(2^63)) produces the same to_bits_truncate. -/
-private theorem overflow_guard_div (a b : BitVec 64) (hb : b ≠ 0#64) :
+private theorem overflow_guard_div (a b : BitVec 64) :
     let q := a.toInt.tdiv b.toInt
     to_bits_truncate (l := 64)
       (if ((q ≥b ((2 : Int) ^ 63)) : Bool) then (-((2 : Int) ^ 63)) else q) =
@@ -185,7 +185,7 @@ theorem div_full_equiv_applied {a b : BitVec 64} :
     simp (config := { decide := true }) [to_bits_truncate_neg1]
   · simp only [show (b == 0#64) = false from by simp [hb], ite_false, Bool.false_eq_true]
     -- Apply overflow guard then signed_div_equiv
-    exact (overflow_guard_div a b hb).symm ▸ signed_div_equiv a b
+    exact (overflow_guard_div a b).symm ▸ signed_div_equiv a b
 
 -- ============================================================================
 -- Instruction proofs

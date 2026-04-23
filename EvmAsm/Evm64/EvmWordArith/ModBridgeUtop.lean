@@ -95,14 +95,11 @@ theorem val256_lt_of_b3_bound (b0 b1 b2 b3 : Word) {s : Nat} (hs : s ≤ 64)
     (hb3_bound : b3.toNat < 2 ^ (64 - s)) :
     val256 b0 b1 b2 b3 < 2 ^ (256 - s) := by
   unfold val256
-  have h0 := b0.isLt
-  have h1 := b1.isLt
-  have h2 := b2.isLt
   -- val256 b ≤ (2^64 - 1)(1 + 2^64 + 2^128) + (2^(64-s) - 1) * 2^192 = 2^(256-s) - 1.
   have hpow : (2 : Nat) ^ (256 - s) = 2 ^ (64 - s) * 2 ^ 192 := by
     rw [← pow_add, show (64 - s) + 192 = 256 - s from by omega]
   rw [hpow]
-  nlinarith [h0, h1, h2, hb3_bound,
+  nlinarith [b0.isLt, b1.isLt, b2.isLt, hb3_bound,
              (show 0 < 2 ^ (64 - s) from by positivity)]
 
 /-- Fully abstract Nat-level `uTop = c3_n` lemma. Takes all relevant
