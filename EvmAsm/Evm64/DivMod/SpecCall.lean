@@ -1064,4 +1064,93 @@ theorem evm_div_n4_call_skip_stack_spec (sp base : Word)
   rw [word_add_zero] at hq
   xperm_hyp hq
 
+/-- **Call+skip n=4 MOD denorm adapter (SORRY).** Stack-level adapter folding
+    the four denormalized remainder slots at `sp+32..sp+56` into
+    `evmWordIs (sp+32) (EvmWord.mod a b)`. Mirror of
+    `EvmWord.output_slot_to_evmWordIs_mod_n4_max_skip_denorm` for the
+    call-trial path, where `qHat = div128Quot u4 u3 b3'` rather than
+    the max trial `signExtend12 4095`.
+
+    The math proof requires a call-skip analog of
+    `val256_denorm_eq_val256_mod_max_skip` (ModBridgeAssemble.lean:39).
+    Key pieces reusable from max-skip:
+    - `val256_denormalize` (Lemma A) — generic denormalization, qHat-free.
+    - `val256_normalize_general`, `val256_normalize` — generic, qHat-free.
+    - `mulsubN4_val256_eq` — Euclidean equation for any qHat.
+
+    Call-skip-specific replacement for max-skip's `u_top_eq_c3_n_max_skip`:
+    use `n4CallSkipSemanticHolds + T3` (or `c3_le_u4_of_skip_borrow_call`
+    from Div128CallSkipClose.lean:344) to derive `c3 ≤ u4` and c3_un = 0.
+
+    **TODO (#66 follow-up):** prove this adapter, then eliminate the
+    `sorry` in `evm_mod_n4_call_skip_stack_spec` below. -/
+theorem output_slot_to_evmWordIs_mod_n4_call_skip_denorm
+    (sp : Word) (a b : EvmWord)
+    (hbnz : b ≠ 0)
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hborrow : isSkipBorrowN4CallEvm a b)
+    (hsem : n4CallSkipSemanticHolds a b) :
+    let shift := (clzResult (b.getLimbN 3)).1.toNat % 64
+    let antiShift :=
+      (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64
+    let b3' := ((b.getLimbN 3) <<< shift) ||| ((b.getLimbN 2) >>> antiShift)
+    let b2' := ((b.getLimbN 2) <<< shift) ||| ((b.getLimbN 1) >>> antiShift)
+    let b1' := ((b.getLimbN 1) <<< shift) ||| ((b.getLimbN 0) >>> antiShift)
+    let b0' := (b.getLimbN 0) <<< shift
+    let u3 := ((a.getLimbN 3) <<< shift) ||| ((a.getLimbN 2) >>> antiShift)
+    let u2 := ((a.getLimbN 2) <<< shift) ||| ((a.getLimbN 1) >>> antiShift)
+    let u1 := ((a.getLimbN 1) <<< shift) ||| ((a.getLimbN 0) >>> antiShift)
+    let u0 := (a.getLimbN 0) <<< shift
+    let u4 := (a.getLimbN 3) >>> antiShift
+    let qHat := div128Quot u4 u3 b3'
+    let ms := mulsubN4 qHat b0' b1' b2' b3' u0 u1 u2 u3
+    (((sp + 32) ↦ₘ ((ms.1 >>> shift) ||| (ms.2.1 <<< (64 - shift)))) **
+     ((sp + 40) ↦ₘ ((ms.2.1 >>> shift) ||| (ms.2.2.1 <<< (64 - shift)))) **
+     ((sp + 48) ↦ₘ ((ms.2.2.1 >>> shift) ||| (ms.2.2.2.1 <<< (64 - shift)))) **
+     ((sp + 56) ↦ₘ (ms.2.2.2.1 >>> shift))) =
+    evmWordIs (sp + 32) (EvmWord.mod a b) := by
+  -- TODO(#66 follow-up): fill in via a call-skip denorm bridge analogous to
+  -- `denorm_limbN_eq_mod_max_skip_getLimbN`. Needs:
+  -- 1. T3 + hsem → `qHat.toNat = a.toNat / b.toNat` (we already have this
+  --    via `n4_call_skip_div_mod_getLimbN`).
+  -- 2. From tight equality → `(ms.1, ms.2.1, ms.2.2.1, ms.2.2.2.1)` at the
+  --    Nat level equals `a.toNat % b.toNat * 2^shift` (i.e. normalized mod).
+  -- 3. Denormalization (right-shift by `shift`) gives the actual mod limbs.
+  sorry
+
+/-- **EVM-stack-level MOD spec on the n=4 call+skip sub-path.**
+
+    Mirror of `evm_mod_n4_max_skip_stack_spec` (Spec.lean:1370) for the
+    call-trial path. Takes the same six runtime + semantic conditions as
+    `evm_div_n4_call_skip_stack_spec`.
+
+    Reduces to `evm_mod_n4_full_call_skip_stack_pre_spec_bundled` + a
+    postcondition reshape via `output_slot_to_evmWordIs_mod_n4_call_skip_denorm`
+    and `mod_n4_call_skip_stack_weaken`. Currently depends on one sorry
+    inside the denorm adapter (see above). -/
+theorem evm_mod_n4_call_skip_stack_spec (sp base : Word)
+    (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratch_un0 : Word)
+    (hbnz : b ≠ 0)
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (hbltu : isCallTrialN4Evm a b)
+    (hborrow : isSkipBorrowN4CallEvm a b)
+    (hsem : n4CallSkipSemanticHolds a b) :
+    cpsTriple base (base + nopOff) (modCode base)
+      (modN4StackPreCall sp a b v5 v6 v7 v10 v11
+         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+         shiftMem nMem jMem retMem dMem dloMem scratch_un0)
+      (modN4CallSkipStackPost sp a b) := by
+  -- TODO(#66 follow-up): the scaffolded reshape below requires aligning
+  -- `shift` as `Word` (from `fullModN4CallSkipPost_unfold`) with `Nat`
+  -- (from `output_slot_to_evmWordIs_mod_n4_call_skip_denorm`) via
+  -- `hmod_eq`/`hanti_toNat_mod` normalizations — see the max-skip MOD
+  -- stack spec proof (Spec.lean:1442) for the template. Deferred until
+  -- the denorm adapter sorry above is filled in.
+  sorry
+
 end EvmAsm.Evm64
