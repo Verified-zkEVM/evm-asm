@@ -89,7 +89,9 @@ theorem divK_loop_body_n2_max_unified_j2_spec
   · -- addback path: use _beq spec
     have hborrow : (if BitVec.ult uTop (mulsubN4_c3 (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3)
                     then (1 : Word) else 0) ≠ (0 : Word) := by rw [if_pos hb]; decide
-    have J2 := divK_loop_body_n2_max_addback_j2_beq_spec sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+    have J2 := divK_loop_body_n2_max_addback_jgt0_beq_spec (2 : Word)
+      EvmAsm.Evm64.DivMod.AddrNorm.slt_jpos_2
+      sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
       v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base hbltu
       hcarry2_nz
     intro_lets at J2
@@ -101,7 +103,9 @@ theorem divK_loop_body_n2_max_unified_j2_spec
   · -- skip path: use existing skip spec (unchanged)
     have hborrow : (if BitVec.ult uTop (mulsubN4_c3 (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3)
                     then (1 : Word) else 0) = (0 : Word) := if_neg hb
-    have J2 := divK_loop_body_n2_max_skip_j2_spec sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+    have J2 := divK_loop_body_n2_max_skip_jgt0_spec (2 : Word)
+      EvmAsm.Evm64.DivMod.AddrNorm.slt_jpos_2
+      sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
       v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base hbltu
     intro_lets at J2
     exact cpsTriple_weaken
@@ -138,7 +142,9 @@ theorem divK_loop_body_n2_max_unified_j1_spec
   · -- addback path: use _beq spec
     have hborrow : (if BitVec.ult uTop (mulsubN4_c3 (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3)
                     then (1 : Word) else 0) ≠ (0 : Word) := by rw [if_pos hb]; decide
-    have J1 := divK_loop_body_n2_max_addback_j1_beq_spec sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+    have J1 := divK_loop_body_n2_max_addback_jgt0_beq_spec (1 : Word)
+      EvmAsm.Evm64.DivMod.AddrNorm.slt_jpos_1
+      sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
       v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base hbltu
       hcarry2_nz
     intro_lets at J1
@@ -150,7 +156,9 @@ theorem divK_loop_body_n2_max_unified_j1_spec
   · -- skip path: use existing skip spec (unchanged)
     have hborrow : (if BitVec.ult uTop (mulsubN4_c3 (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3)
                     then (1 : Word) else 0) = (0 : Word) := if_neg hb
-    have J1 := divK_loop_body_n2_max_skip_j1_spec sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+    have J1 := divK_loop_body_n2_max_skip_jgt0_spec (1 : Word)
+      EvmAsm.Evm64.DivMod.AddrNorm.slt_jpos_1
+      sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
       v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base
       hbltu
     intro_lets at J1
@@ -249,7 +257,9 @@ theorem divK_loop_body_n2_call_unified_j2_spec
   · -- addback path: use _beq spec
     have hborrow : isAddbackBorrowN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
       delta isAddbackBorrowN2Call; simp only []; rw [if_pos hb]; decide
-    have J2 := divK_loop_body_n2_call_addback_j2_beq_spec sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+    have J2 := divK_loop_body_n2_call_addback_jgt0_beq_spec (2 : Word)
+      EvmAsm.Evm64.DivMod.AddrNorm.slt_jpos_2
+      sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
       v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0 base
       halign
       hbltu hborrow
@@ -262,7 +272,9 @@ theorem divK_loop_body_n2_call_unified_j2_spec
       J2
   · -- skip path: use existing skip spec (unchanged)
     have hborrow : isSkipBorrowN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop := if_neg hb
-    have J2 := divK_loop_body_n2_call_skip_j2_spec sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+    have J2 := divK_loop_body_n2_call_skip_jgt0_spec (2 : Word)
+      EvmAsm.Evm64.DivMod.AddrNorm.slt_jpos_2
+      sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
       v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0 base
       halign
       hbltu hborrow
@@ -306,7 +318,9 @@ theorem divK_loop_body_n2_call_unified_j1_spec
   · -- addback path: use _beq spec
     have hborrow : isAddbackBorrowN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
       delta isAddbackBorrowN2Call; simp only []; rw [if_pos hb]; decide
-    have J1 := divK_loop_body_n2_call_addback_j1_beq_spec sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+    have J1 := divK_loop_body_n2_call_addback_jgt0_beq_spec (1 : Word)
+      EvmAsm.Evm64.DivMod.AddrNorm.slt_jpos_1
+      sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
       v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0 base
       halign
       hbltu hborrow
@@ -319,7 +333,9 @@ theorem divK_loop_body_n2_call_unified_j1_spec
       J1
   · -- skip path: use existing skip spec (unchanged)
     have hborrow : isSkipBorrowN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop := if_neg hb
-    have J1 := divK_loop_body_n2_call_skip_j1_spec sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+    have J1 := divK_loop_body_n2_call_skip_jgt0_spec (1 : Word)
+      EvmAsm.Evm64.DivMod.AddrNorm.slt_jpos_1
+      sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
       v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0 base
       halign
       hbltu hborrow
