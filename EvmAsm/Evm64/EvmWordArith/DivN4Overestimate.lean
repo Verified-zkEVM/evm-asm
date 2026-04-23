@@ -31,7 +31,7 @@ theorem val256_div_lt_pow64 (a0 a1 a2 a3 b0 b1 b2 b3 : Word) (hb3nz : b3 ≠ 0) 
   have := val256_bound a0 a1 a2 a3
   -- val256(a) < 2^256 = 2^64 * 2^192 ≤ 2^64 * val256(b)
   -- So val256(a) / val256(b) < 2^64
-  have hb_pos : 0 < val256 b0 b1 b2 b3 := by omega
+  have : 0 < val256 b0 b1 b2 b3 := by omega
   calc val256 a0 a1 a2 a3 / val256 b0 b1 b2 b3
       ≤ (2^256 - 1) / val256 b0 b1 b2 b3 := Nat.div_le_div_right (by omega)
     _ ≤ (2^256 - 1) / 2^192 := Nat.div_le_div_left hb_ge (by omega)
@@ -124,7 +124,7 @@ theorem mulsub_addback_val256_combined (q : Word) {v0 v1 v2 v3 u0 u1 u2 u3 : Wor
   -- hmulsub: val256(u) + 2^256 = val256(un) + q * val256(v)
   -- haddback: val256(un) + val256(v) = val256(aun) + 2^256
   -- So: val256(u) + val256(v) = q * val256(v) + val256(aun)
-  have hsum : val256 u0 u1 u2 u3 + val256 v0 v1 v2 v3 =
+  have : val256 u0 u1 u2 u3 + val256 v0 v1 v2 v3 =
       q.toNat * val256 v0 v1 v2 v3 + val256 ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 := by linarith
   -- From A + V = Q*V + R with Q ≥ 1: A = (Q-1)*V + R
   -- Rewrite as: A = Q*V + R - V = Q*V - V + R = (Q-1)*V + R
@@ -198,7 +198,7 @@ theorem n4_max_addback_correct {a0 a1 a2 a3 b0 b1 b2 b3 : Word}
     rw [hq_hat_toNat] at hq_mul_gt
     -- From q * v > u and v > 0: u / v < q, hence u / v ≤ q - 1
     -- val256(a) < (2^64-1) * val256(b) implies val256(a) / val256(b) < 2^64-1
-    have hdiv_lt : val256 a0 a1 a2 a3 / val256 b0 b1 b2 b3 < 2^64 - 1 :=
+    have : val256 a0 a1 a2 a3 / val256 b0 b1 b2 b3 < 2^64 - 1 :=
       Nat.div_lt_iff_lt_mul hv_pos |>.mpr hq_mul_gt
     omega
   exact div_correct_n4_no_shift hbnz hcombined hge
@@ -299,7 +299,7 @@ theorem mulsubN4_c3_le_one_v3_zero (q v0 v1 v2 u0 u1 u2 u3 : Word) :
   have hun_bound := val256_bound ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1
   have hv_bound := val256_lt_pow192 v0 v1 v2
   have := q.isLt
-  have hqv_bound : q.toNat * val256 v0 v1 v2 0 < 2 ^ 256 := by nlinarith
+  have : q.toNat * val256 v0 v1 v2 0 < 2 ^ 256 := by nlinarith
   have hc3_bound : c3.toNat * 2 ^ 256 < 2 * 2 ^ 256 := by
     show ms.2.2.2.2.toNat * 2 ^ 256 < 2 * 2 ^ 256; nlinarith
   show c3.toNat ≤ 1
@@ -313,7 +313,7 @@ theorem mulsubN4_c3_eq_one_v3_zero (q v0 v1 v2 u0 u1 u2 u3 : Word)
     (hc3_nz : (mulsubN4 q v0 v1 v2 0 u0 u1 u2 u3).2.2.2.2 ≠ 0) :
     (mulsubN4 q v0 v1 v2 0 u0 u1 u2 u3).2.2.2.2 = 1 := by
   have h := mulsubN4_c3_le_one_v3_zero q v0 v1 v2 u0 u1 u2 u3
-  have hc3_pos : 0 < (mulsubN4 q v0 v1 v2 0 u0 u1 u2 u3).2.2.2.2.toNat := by
+  have : 0 < (mulsubN4 q v0 v1 v2 0 u0 u1 u2 u3).2.2.2.2.toNat := by
     exact Nat.pos_of_ne_zero (by intro h0; exact hc3_nz (BitVec.eq_of_toNat_eq h0))
   exact BitVec.eq_of_toNat_eq (by have := word_toNat_1; omega)
 
