@@ -358,6 +358,30 @@ theorem runSail_wX_bits_x2 {v : BitVec 64} {s : SailState} :
     bind, EStateM.bind, pure, EStateM.pure,
     get, MonadState.get, getThe, MonadStateOf.get]
 
+theorem runSail_wX_bits_x3 {v : BitVec 64} {s : SailState} :
+    runSail (wX_bits (regidx.Regidx 3) v) s =
+      some (⟨⟩, { s with regs := s.regs.insert Register.x3 v }) := by
+  simp [runSail, wX_bits, wX, BitVec.toNatInt, regval_into_reg,
+    PreSail.writeReg, EStateM.modifyGet, modify, MonadState.modifyGet,
+    modifyGet, MonadStateOf.modifyGet,
+    xreg_write_callback, reg_name_forwards,
+    get_config_use_abi_names, encdec_reg_forwards_matches, encdec_reg_forwards,
+    xreg_full_write_callback, LeanRV64D.Functions.not, to_bits, get_slice_int,
+    bind, EStateM.bind, pure, EStateM.pure,
+    get, MonadState.get, getThe, MonadStateOf.get]
+
+theorem runSail_wX_bits_x4 {v : BitVec 64} {s : SailState} :
+    runSail (wX_bits (regidx.Regidx 4) v) s =
+      some (⟨⟩, { s with regs := s.regs.insert Register.x4 v }) := by
+  simp [runSail, wX_bits, wX, BitVec.toNatInt, regval_into_reg,
+    PreSail.writeReg, EStateM.modifyGet, modify, MonadState.modifyGet,
+    modifyGet, MonadStateOf.modifyGet,
+    xreg_write_callback, reg_name_forwards,
+    get_config_use_abi_names, encdec_reg_forwards_matches, encdec_reg_forwards,
+    xreg_full_write_callback, LeanRV64D.Functions.not, to_bits, get_slice_int,
+    bind, EStateM.bind, pure, EStateM.pure,
+    get, MonadState.get, getThe, MonadStateOf.get]
+
 theorem runSail_wX_bits_x5 {v : BitVec 64} {s : SailState} :
     runSail (wX_bits (regidx.Regidx 5) v) s =
       some (⟨⟩, { s with regs := s.regs.insert Register.x5 v }) := by
@@ -394,6 +418,30 @@ theorem runSail_wX_bits_x7 {v : BitVec 64} {s : SailState} :
     bind, EStateM.bind, pure, EStateM.pure,
     get, MonadState.get, getThe, MonadStateOf.get]
 
+theorem runSail_wX_bits_x8 {v : BitVec 64} {s : SailState} :
+    runSail (wX_bits (regidx.Regidx 8) v) s =
+      some (⟨⟩, { s with regs := s.regs.insert Register.x8 v }) := by
+  simp [runSail, wX_bits, wX, BitVec.toNatInt, regval_into_reg,
+    PreSail.writeReg, EStateM.modifyGet, modify, MonadState.modifyGet,
+    modifyGet, MonadStateOf.modifyGet,
+    xreg_write_callback, reg_name_forwards,
+    get_config_use_abi_names, encdec_reg_forwards_matches, encdec_reg_forwards,
+    xreg_full_write_callback, LeanRV64D.Functions.not, to_bits, get_slice_int,
+    bind, EStateM.bind, pure, EStateM.pure,
+    get, MonadState.get, getThe, MonadStateOf.get]
+
+theorem runSail_wX_bits_x9 {v : BitVec 64} {s : SailState} :
+    runSail (wX_bits (regidx.Regidx 9) v) s =
+      some (⟨⟩, { s with regs := s.regs.insert Register.x9 v }) := by
+  simp [runSail, wX_bits, wX, BitVec.toNatInt, regval_into_reg,
+    PreSail.writeReg, EStateM.modifyGet, modify, MonadState.modifyGet,
+    modifyGet, MonadStateOf.modifyGet,
+    xreg_write_callback, reg_name_forwards,
+    get_config_use_abi_names, encdec_reg_forwards_matches, encdec_reg_forwards,
+    xreg_full_write_callback, LeanRV64D.Functions.not, to_bits, get_slice_int,
+    bind, EStateM.bind, pure, EStateM.pure,
+    get, MonadState.get, getThe, MonadStateOf.get]
+
 theorem runSail_wX_bits_x10 {v : BitVec 64} {s : SailState} :
     runSail (wX_bits (regidx.Regidx 10) v) s =
       some (⟨⟩, { s with regs := s.regs.insert Register.x10 v }) := by
@@ -421,6 +469,234 @@ theorem runSail_wX_bits_x11 {v : BitVec 64} {s : SailState} :
 theorem runSail_wX_bits_x12 {v : BitVec 64} {s : SailState} :
     runSail (wX_bits (regidx.Regidx 12) v) s =
       some (⟨⟩, { s with regs := s.regs.insert Register.x12 v }) := by
+  simp [runSail, wX_bits, wX, BitVec.toNatInt, regval_into_reg,
+    PreSail.writeReg, EStateM.modifyGet, modify, MonadState.modifyGet,
+    modifyGet, MonadStateOf.modifyGet,
+    xreg_write_callback, reg_name_forwards,
+    get_config_use_abi_names, encdec_reg_forwards_matches, encdec_reg_forwards,
+    xreg_full_write_callback, LeanRV64D.Functions.not, to_bits, get_slice_int,
+    bind, EStateM.bind, pure, EStateM.pure,
+    get, MonadState.get, getThe, MonadStateOf.get]
+
+theorem runSail_wX_bits_x13 {v : BitVec 64} {s : SailState} :
+    runSail (wX_bits (regidx.Regidx 13) v) s =
+      some (⟨⟩, { s with regs := s.regs.insert Register.x13 v }) := by
+  simp [runSail, wX_bits, wX, BitVec.toNatInt, regval_into_reg,
+    PreSail.writeReg, EStateM.modifyGet, modify, MonadState.modifyGet,
+    modifyGet, MonadStateOf.modifyGet,
+    xreg_write_callback, reg_name_forwards,
+    get_config_use_abi_names, encdec_reg_forwards_matches, encdec_reg_forwards,
+    xreg_full_write_callback, LeanRV64D.Functions.not, to_bits, get_slice_int,
+    bind, EStateM.bind, pure, EStateM.pure,
+    get, MonadState.get, getThe, MonadStateOf.get]
+
+theorem runSail_wX_bits_x14 {v : BitVec 64} {s : SailState} :
+    runSail (wX_bits (regidx.Regidx 14) v) s =
+      some (⟨⟩, { s with regs := s.regs.insert Register.x14 v }) := by
+  simp [runSail, wX_bits, wX, BitVec.toNatInt, regval_into_reg,
+    PreSail.writeReg, EStateM.modifyGet, modify, MonadState.modifyGet,
+    modifyGet, MonadStateOf.modifyGet,
+    xreg_write_callback, reg_name_forwards,
+    get_config_use_abi_names, encdec_reg_forwards_matches, encdec_reg_forwards,
+    xreg_full_write_callback, LeanRV64D.Functions.not, to_bits, get_slice_int,
+    bind, EStateM.bind, pure, EStateM.pure,
+    get, MonadState.get, getThe, MonadStateOf.get]
+
+theorem runSail_wX_bits_x15 {v : BitVec 64} {s : SailState} :
+    runSail (wX_bits (regidx.Regidx 15) v) s =
+      some (⟨⟩, { s with regs := s.regs.insert Register.x15 v }) := by
+  simp [runSail, wX_bits, wX, BitVec.toNatInt, regval_into_reg,
+    PreSail.writeReg, EStateM.modifyGet, modify, MonadState.modifyGet,
+    modifyGet, MonadStateOf.modifyGet,
+    xreg_write_callback, reg_name_forwards,
+    get_config_use_abi_names, encdec_reg_forwards_matches, encdec_reg_forwards,
+    xreg_full_write_callback, LeanRV64D.Functions.not, to_bits, get_slice_int,
+    bind, EStateM.bind, pure, EStateM.pure,
+    get, MonadState.get, getThe, MonadStateOf.get]
+
+theorem runSail_wX_bits_x16 {v : BitVec 64} {s : SailState} :
+    runSail (wX_bits (regidx.Regidx 16) v) s =
+      some (⟨⟩, { s with regs := s.regs.insert Register.x16 v }) := by
+  simp [runSail, wX_bits, wX, BitVec.toNatInt, regval_into_reg,
+    PreSail.writeReg, EStateM.modifyGet, modify, MonadState.modifyGet,
+    modifyGet, MonadStateOf.modifyGet,
+    xreg_write_callback, reg_name_forwards,
+    get_config_use_abi_names, encdec_reg_forwards_matches, encdec_reg_forwards,
+    xreg_full_write_callback, LeanRV64D.Functions.not, to_bits, get_slice_int,
+    bind, EStateM.bind, pure, EStateM.pure,
+    get, MonadState.get, getThe, MonadStateOf.get]
+
+theorem runSail_wX_bits_x17 {v : BitVec 64} {s : SailState} :
+    runSail (wX_bits (regidx.Regidx 17) v) s =
+      some (⟨⟩, { s with regs := s.regs.insert Register.x17 v }) := by
+  simp [runSail, wX_bits, wX, BitVec.toNatInt, regval_into_reg,
+    PreSail.writeReg, EStateM.modifyGet, modify, MonadState.modifyGet,
+    modifyGet, MonadStateOf.modifyGet,
+    xreg_write_callback, reg_name_forwards,
+    get_config_use_abi_names, encdec_reg_forwards_matches, encdec_reg_forwards,
+    xreg_full_write_callback, LeanRV64D.Functions.not, to_bits, get_slice_int,
+    bind, EStateM.bind, pure, EStateM.pure,
+    get, MonadState.get, getThe, MonadStateOf.get]
+
+theorem runSail_wX_bits_x18 {v : BitVec 64} {s : SailState} :
+    runSail (wX_bits (regidx.Regidx 18) v) s =
+      some (⟨⟩, { s with regs := s.regs.insert Register.x18 v }) := by
+  simp [runSail, wX_bits, wX, BitVec.toNatInt, regval_into_reg,
+    PreSail.writeReg, EStateM.modifyGet, modify, MonadState.modifyGet,
+    modifyGet, MonadStateOf.modifyGet,
+    xreg_write_callback, reg_name_forwards,
+    get_config_use_abi_names, encdec_reg_forwards_matches, encdec_reg_forwards,
+    xreg_full_write_callback, LeanRV64D.Functions.not, to_bits, get_slice_int,
+    bind, EStateM.bind, pure, EStateM.pure,
+    get, MonadState.get, getThe, MonadStateOf.get]
+
+theorem runSail_wX_bits_x19 {v : BitVec 64} {s : SailState} :
+    runSail (wX_bits (regidx.Regidx 19) v) s =
+      some (⟨⟩, { s with regs := s.regs.insert Register.x19 v }) := by
+  simp [runSail, wX_bits, wX, BitVec.toNatInt, regval_into_reg,
+    PreSail.writeReg, EStateM.modifyGet, modify, MonadState.modifyGet,
+    modifyGet, MonadStateOf.modifyGet,
+    xreg_write_callback, reg_name_forwards,
+    get_config_use_abi_names, encdec_reg_forwards_matches, encdec_reg_forwards,
+    xreg_full_write_callback, LeanRV64D.Functions.not, to_bits, get_slice_int,
+    bind, EStateM.bind, pure, EStateM.pure,
+    get, MonadState.get, getThe, MonadStateOf.get]
+
+theorem runSail_wX_bits_x20 {v : BitVec 64} {s : SailState} :
+    runSail (wX_bits (regidx.Regidx 20) v) s =
+      some (⟨⟩, { s with regs := s.regs.insert Register.x20 v }) := by
+  simp [runSail, wX_bits, wX, BitVec.toNatInt, regval_into_reg,
+    PreSail.writeReg, EStateM.modifyGet, modify, MonadState.modifyGet,
+    modifyGet, MonadStateOf.modifyGet,
+    xreg_write_callback, reg_name_forwards,
+    get_config_use_abi_names, encdec_reg_forwards_matches, encdec_reg_forwards,
+    xreg_full_write_callback, LeanRV64D.Functions.not, to_bits, get_slice_int,
+    bind, EStateM.bind, pure, EStateM.pure,
+    get, MonadState.get, getThe, MonadStateOf.get]
+
+theorem runSail_wX_bits_x21 {v : BitVec 64} {s : SailState} :
+    runSail (wX_bits (regidx.Regidx 21) v) s =
+      some (⟨⟩, { s with regs := s.regs.insert Register.x21 v }) := by
+  simp [runSail, wX_bits, wX, BitVec.toNatInt, regval_into_reg,
+    PreSail.writeReg, EStateM.modifyGet, modify, MonadState.modifyGet,
+    modifyGet, MonadStateOf.modifyGet,
+    xreg_write_callback, reg_name_forwards,
+    get_config_use_abi_names, encdec_reg_forwards_matches, encdec_reg_forwards,
+    xreg_full_write_callback, LeanRV64D.Functions.not, to_bits, get_slice_int,
+    bind, EStateM.bind, pure, EStateM.pure,
+    get, MonadState.get, getThe, MonadStateOf.get]
+
+theorem runSail_wX_bits_x22 {v : BitVec 64} {s : SailState} :
+    runSail (wX_bits (regidx.Regidx 22) v) s =
+      some (⟨⟩, { s with regs := s.regs.insert Register.x22 v }) := by
+  simp [runSail, wX_bits, wX, BitVec.toNatInt, regval_into_reg,
+    PreSail.writeReg, EStateM.modifyGet, modify, MonadState.modifyGet,
+    modifyGet, MonadStateOf.modifyGet,
+    xreg_write_callback, reg_name_forwards,
+    get_config_use_abi_names, encdec_reg_forwards_matches, encdec_reg_forwards,
+    xreg_full_write_callback, LeanRV64D.Functions.not, to_bits, get_slice_int,
+    bind, EStateM.bind, pure, EStateM.pure,
+    get, MonadState.get, getThe, MonadStateOf.get]
+
+theorem runSail_wX_bits_x23 {v : BitVec 64} {s : SailState} :
+    runSail (wX_bits (regidx.Regidx 23) v) s =
+      some (⟨⟩, { s with regs := s.regs.insert Register.x23 v }) := by
+  simp [runSail, wX_bits, wX, BitVec.toNatInt, regval_into_reg,
+    PreSail.writeReg, EStateM.modifyGet, modify, MonadState.modifyGet,
+    modifyGet, MonadStateOf.modifyGet,
+    xreg_write_callback, reg_name_forwards,
+    get_config_use_abi_names, encdec_reg_forwards_matches, encdec_reg_forwards,
+    xreg_full_write_callback, LeanRV64D.Functions.not, to_bits, get_slice_int,
+    bind, EStateM.bind, pure, EStateM.pure,
+    get, MonadState.get, getThe, MonadStateOf.get]
+
+theorem runSail_wX_bits_x24 {v : BitVec 64} {s : SailState} :
+    runSail (wX_bits (regidx.Regidx 24) v) s =
+      some (⟨⟩, { s with regs := s.regs.insert Register.x24 v }) := by
+  simp [runSail, wX_bits, wX, BitVec.toNatInt, regval_into_reg,
+    PreSail.writeReg, EStateM.modifyGet, modify, MonadState.modifyGet,
+    modifyGet, MonadStateOf.modifyGet,
+    xreg_write_callback, reg_name_forwards,
+    get_config_use_abi_names, encdec_reg_forwards_matches, encdec_reg_forwards,
+    xreg_full_write_callback, LeanRV64D.Functions.not, to_bits, get_slice_int,
+    bind, EStateM.bind, pure, EStateM.pure,
+    get, MonadState.get, getThe, MonadStateOf.get]
+
+theorem runSail_wX_bits_x25 {v : BitVec 64} {s : SailState} :
+    runSail (wX_bits (regidx.Regidx 25) v) s =
+      some (⟨⟩, { s with regs := s.regs.insert Register.x25 v }) := by
+  simp [runSail, wX_bits, wX, BitVec.toNatInt, regval_into_reg,
+    PreSail.writeReg, EStateM.modifyGet, modify, MonadState.modifyGet,
+    modifyGet, MonadStateOf.modifyGet,
+    xreg_write_callback, reg_name_forwards,
+    get_config_use_abi_names, encdec_reg_forwards_matches, encdec_reg_forwards,
+    xreg_full_write_callback, LeanRV64D.Functions.not, to_bits, get_slice_int,
+    bind, EStateM.bind, pure, EStateM.pure,
+    get, MonadState.get, getThe, MonadStateOf.get]
+
+theorem runSail_wX_bits_x26 {v : BitVec 64} {s : SailState} :
+    runSail (wX_bits (regidx.Regidx 26) v) s =
+      some (⟨⟩, { s with regs := s.regs.insert Register.x26 v }) := by
+  simp [runSail, wX_bits, wX, BitVec.toNatInt, regval_into_reg,
+    PreSail.writeReg, EStateM.modifyGet, modify, MonadState.modifyGet,
+    modifyGet, MonadStateOf.modifyGet,
+    xreg_write_callback, reg_name_forwards,
+    get_config_use_abi_names, encdec_reg_forwards_matches, encdec_reg_forwards,
+    xreg_full_write_callback, LeanRV64D.Functions.not, to_bits, get_slice_int,
+    bind, EStateM.bind, pure, EStateM.pure,
+    get, MonadState.get, getThe, MonadStateOf.get]
+
+theorem runSail_wX_bits_x27 {v : BitVec 64} {s : SailState} :
+    runSail (wX_bits (regidx.Regidx 27) v) s =
+      some (⟨⟩, { s with regs := s.regs.insert Register.x27 v }) := by
+  simp [runSail, wX_bits, wX, BitVec.toNatInt, regval_into_reg,
+    PreSail.writeReg, EStateM.modifyGet, modify, MonadState.modifyGet,
+    modifyGet, MonadStateOf.modifyGet,
+    xreg_write_callback, reg_name_forwards,
+    get_config_use_abi_names, encdec_reg_forwards_matches, encdec_reg_forwards,
+    xreg_full_write_callback, LeanRV64D.Functions.not, to_bits, get_slice_int,
+    bind, EStateM.bind, pure, EStateM.pure,
+    get, MonadState.get, getThe, MonadStateOf.get]
+
+theorem runSail_wX_bits_x28 {v : BitVec 64} {s : SailState} :
+    runSail (wX_bits (regidx.Regidx 28) v) s =
+      some (⟨⟩, { s with regs := s.regs.insert Register.x28 v }) := by
+  simp [runSail, wX_bits, wX, BitVec.toNatInt, regval_into_reg,
+    PreSail.writeReg, EStateM.modifyGet, modify, MonadState.modifyGet,
+    modifyGet, MonadStateOf.modifyGet,
+    xreg_write_callback, reg_name_forwards,
+    get_config_use_abi_names, encdec_reg_forwards_matches, encdec_reg_forwards,
+    xreg_full_write_callback, LeanRV64D.Functions.not, to_bits, get_slice_int,
+    bind, EStateM.bind, pure, EStateM.pure,
+    get, MonadState.get, getThe, MonadStateOf.get]
+
+theorem runSail_wX_bits_x29 {v : BitVec 64} {s : SailState} :
+    runSail (wX_bits (regidx.Regidx 29) v) s =
+      some (⟨⟩, { s with regs := s.regs.insert Register.x29 v }) := by
+  simp [runSail, wX_bits, wX, BitVec.toNatInt, regval_into_reg,
+    PreSail.writeReg, EStateM.modifyGet, modify, MonadState.modifyGet,
+    modifyGet, MonadStateOf.modifyGet,
+    xreg_write_callback, reg_name_forwards,
+    get_config_use_abi_names, encdec_reg_forwards_matches, encdec_reg_forwards,
+    xreg_full_write_callback, LeanRV64D.Functions.not, to_bits, get_slice_int,
+    bind, EStateM.bind, pure, EStateM.pure,
+    get, MonadState.get, getThe, MonadStateOf.get]
+
+theorem runSail_wX_bits_x30 {v : BitVec 64} {s : SailState} :
+    runSail (wX_bits (regidx.Regidx 30) v) s =
+      some (⟨⟩, { s with regs := s.regs.insert Register.x30 v }) := by
+  simp [runSail, wX_bits, wX, BitVec.toNatInt, regval_into_reg,
+    PreSail.writeReg, EStateM.modifyGet, modify, MonadState.modifyGet,
+    modifyGet, MonadStateOf.modifyGet,
+    xreg_write_callback, reg_name_forwards,
+    get_config_use_abi_names, encdec_reg_forwards_matches, encdec_reg_forwards,
+    xreg_full_write_callback, LeanRV64D.Functions.not, to_bits, get_slice_int,
+    bind, EStateM.bind, pure, EStateM.pure,
+    get, MonadState.get, getThe, MonadStateOf.get]
+
+theorem runSail_wX_bits_x31 {v : BitVec 64} {s : SailState} :
+    runSail (wX_bits (regidx.Regidx 31) v) s =
+      some (⟨⟩, { s with regs := s.regs.insert Register.x31 v }) := by
   simp [runSail, wX_bits, wX, BitVec.toNatInt, regval_into_reg,
     PreSail.writeReg, EStateM.modifyGet, modify, MonadState.modifyGet,
     modifyGet, MonadStateOf.modifyGet,
