@@ -117,7 +117,7 @@ theorem reg_agree_after_insert (sSail : SailState) (sRv : MachineState)
       | (cases r <;>
           simp only [sailRegVal, Std.ExtDHashMap.get?_insert_self,
             Std.ExtDHashMap.get?_insert, MachineState.getReg,
-            beq_self_eq_true, ite_true, decide_true, decide_false, ite_false,
+            beq_self_eq_true, ite_true,
             show (Register.x0 == Register.x0) = true from rfl] <;>
           (first
             | rfl
@@ -309,7 +309,7 @@ theorem sra_sail_equiv (sRv : MachineState) (sSail : SailState)
       StateRel (execInstrBr sRv (.SRA rd rs1 rs2)) sSail' := by
   unfold execute_RTYPE
   simp only [runSail_bind, runSail_rX_bits_of_stateRel hrel, runSail_pure,
-    shift_bits_right_arith, Sail.BitVec.extractLsb, BitVec.toNatInt, Int.toNat_emod]
+    shift_bits_right_arith, Sail.BitVec.extractLsb, BitVec.toNatInt]
   simp only [runSail_wX_bits_of_reg]
   exact ⟨_, rfl, ⟨
     fun r => by simpa [execInstrBr, MachineState.setPC]
@@ -339,7 +339,7 @@ theorem lui_sail_equiv (sRv : MachineState) (sSail : SailState)
         = some (RETIRE_SUCCESS, sSail') ∧
       StateRel (execInstrBr sRv (.LUI rd imm)) sSail' := by
   unfold execute_UTYPE
-  simp only [runSail_bind, runSail_pure, lui_equiv]
+  simp only [runSail_bind, runSail_pure]
   simp only [runSail_wX_bits_of_reg]
   exact ⟨_, rfl, ⟨
     fun r => by simpa [execInstrBr, MachineState.setPC, ← lui_equiv]
@@ -366,8 +366,7 @@ theorem addiw_sail_equiv (sRv : MachineState) (sSail : SailState)
         = some (RETIRE_SUCCESS, sSail') ∧
       StateRel (execInstrBr sRv (.ADDIW rd rs1 imm)) sSail' := by
   unfold execute_ADDIW
-  simp only [runSail_bind, runSail_rX_bits_of_stateRel hrel, runSail_pure,
-    addiw_equiv]
+  simp only [runSail_bind, runSail_rX_bits_of_stateRel hrel, runSail_pure]
   simp only [runSail_wX_bits_of_reg]
   exact ⟨_, rfl, ⟨
     fun r => by simpa [execInstrBr, MachineState.setPC, signExtend12, ← addiw_equiv]
@@ -392,7 +391,7 @@ theorem auipc_sail_equiv (sRv : MachineState) (sSail : SailState)
         = some (RETIRE_SUCCESS, sSail') ∧
       StateRel (execInstrBr sRv (.AUIPC rd imm)) sSail' := by
   unfold execute_UTYPE
-  simp only [runSail_bind, runSail_pure, runSail_get_arch_pc h_pc, lui_equiv]
+  simp only [runSail_bind, runSail_pure, runSail_get_arch_pc h_pc]
   simp only [runSail_wX_bits_of_reg]
   exact ⟨_, rfl, ⟨
     fun r => by simpa [execInstrBr, MachineState.setPC, ← lui_equiv]

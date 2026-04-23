@@ -49,7 +49,7 @@ private theorem sge_equiv (a b : BitVec 64) : zopz0zKzJ_s a b = !zopz0zI_s a b :
     simp [h, show ¬(a.toInt < b.toInt) → a.toInt ≥ b.toInt from by omega]
 private theorem ult_equiv (a b : BitVec 64) : zopz0zI_u a b = BitVec.ult a b := by
   unfold zopz0zI_u BitVec.ult BitVec.toNatInt
-  simp [BEq.beq, decide_eq_decide, Int.ofNat_lt]
+  simp [Int.ofNat_lt]
 private theorem uge_equiv (a b : BitVec 64) : zopz0zKzJ_u a b = !zopz0zI_u a b := by
   unfold zopz0zKzJ_u zopz0zI_u BitVec.toNatInt
   by_cases h : (↑a.toNat : Int) < (↑b.toNat : Int) <;> (simp [h]; omega)
@@ -83,12 +83,12 @@ theorem beq_sail_equiv (sRv : MachineState) (sSail : SailState)
   simp only [runSail_bind, runSail_rX_bits_of_stateRel hrel, runSail_pure]
   by_cases h : sRv.getReg rs1 == sRv.getReg rs2
   · simp only [h, ite_true, runSail_bind,
-      runSail_readReg_PC h_pc, runSail_pure, sign_extend_13_eq]
+      runSail_readReg_PC h_pc, sign_extend_13_eq]
     rw [runSail_jump_to misa_val h_align h_misa]
     exact ⟨_, rfl, stateRel_nextPC
       ⟨fun r => by simp [execInstrBr, h]; exact hrel.reg_agree r,
        fun a => by simp [execInstrBr, h]; exact hrel.mem_agree a⟩ _⟩
-  · simp only [h, ite_false]
+  · simp only [h]
     exact ⟨_, rfl,
       ⟨fun r => by simp [execInstrBr, h]; exact hrel.reg_agree r,
        fun a => by simp [execInstrBr, h]; exact hrel.mem_agree a⟩⟩
@@ -108,12 +108,12 @@ theorem bne_sail_equiv (sRv : MachineState) (sSail : SailState)
   simp only [runSail_bind, runSail_rX_bits_of_stateRel hrel, runSail_pure]
   by_cases h : sRv.getReg rs1 != sRv.getReg rs2
   · simp only [h, ite_true, runSail_bind,
-      runSail_readReg_PC h_pc, runSail_pure, sign_extend_13_eq]
+      runSail_readReg_PC h_pc, sign_extend_13_eq]
     rw [runSail_jump_to misa_val h_align h_misa]
     exact ⟨_, rfl, stateRel_nextPC
       ⟨fun r => by simp [execInstrBr, h]; exact hrel.reg_agree r,
        fun a => by simp [execInstrBr, h]; exact hrel.mem_agree a⟩ _⟩
-  · simp only [h, ite_false]
+  · simp only [h]
     exact ⟨_, rfl,
       ⟨fun r => by simp [execInstrBr, h]; exact hrel.reg_agree r,
        fun a => by simp [execInstrBr, h]; exact hrel.mem_agree a⟩⟩
@@ -133,12 +133,12 @@ theorem blt_sail_equiv (sRv : MachineState) (sSail : SailState)
   simp only [runSail_bind, runSail_rX_bits_of_stateRel hrel, runSail_pure, slt_equiv]
   by_cases h : BitVec.slt (sRv.getReg rs1) (sRv.getReg rs2)
   · simp only [h, ite_true, runSail_bind,
-      runSail_readReg_PC h_pc, runSail_pure, sign_extend_13_eq]
+      runSail_readReg_PC h_pc, sign_extend_13_eq]
     rw [runSail_jump_to misa_val h_align h_misa]
     exact ⟨_, rfl, stateRel_nextPC
       ⟨fun r => by simp [execInstrBr, h]; exact hrel.reg_agree r,
        fun a => by simp [execInstrBr, h]; exact hrel.mem_agree a⟩ _⟩
-  · simp only [h, ite_false]
+  · simp only [h]
     exact ⟨_, rfl,
       ⟨fun r => by simp [execInstrBr, h]; exact hrel.reg_agree r,
        fun a => by simp [execInstrBr, h]; exact hrel.mem_agree a⟩⟩
@@ -159,14 +159,14 @@ theorem bge_sail_equiv (sRv : MachineState) (sSail : SailState)
     sge_equiv, slt_equiv]
   by_cases h : BitVec.slt (sRv.getReg rs1) (sRv.getReg rs2)
   · -- slt = true, so !slt = false → not taken
-    simp only [h, Bool.not_true, ite_false]
+    simp only [h, Bool.not_true]
     exact ⟨_, rfl,
       ⟨fun r => by simp [execInstrBr, show ¬¬BitVec.slt _ _ from fun h' => absurd h h']; exact hrel.reg_agree r,
        fun a => by simp [execInstrBr, show ¬¬BitVec.slt _ _ from fun h' => absurd h h']; exact hrel.mem_agree a⟩⟩
   · -- slt = false, so !slt = true → taken
     simp only [show BitVec.slt (sRv.getReg rs1) (sRv.getReg rs2) = false from by simp [h],
       Bool.not_false, ite_true, runSail_bind,
-      runSail_readReg_PC h_pc, runSail_pure, sign_extend_13_eq]
+      runSail_readReg_PC h_pc, sign_extend_13_eq]
     rw [runSail_jump_to misa_val h_align h_misa]
     exact ⟨_, rfl, stateRel_nextPC
       ⟨fun r => by simp [execInstrBr, h]; exact hrel.reg_agree r,
@@ -187,12 +187,12 @@ theorem bltu_sail_equiv (sRv : MachineState) (sSail : SailState)
   simp only [runSail_bind, runSail_rX_bits_of_stateRel hrel, runSail_pure, ult_equiv]
   by_cases h : BitVec.ult (sRv.getReg rs1) (sRv.getReg rs2)
   · simp only [h, ite_true, runSail_bind,
-      runSail_readReg_PC h_pc, runSail_pure, sign_extend_13_eq]
+      runSail_readReg_PC h_pc, sign_extend_13_eq]
     rw [runSail_jump_to misa_val h_align h_misa]
     exact ⟨_, rfl, stateRel_nextPC
       ⟨fun r => by simp [execInstrBr, h]; exact hrel.reg_agree r,
        fun a => by simp [execInstrBr, h]; exact hrel.mem_agree a⟩ _⟩
-  · simp only [h, ite_false]
+  · simp only [h]
     exact ⟨_, rfl,
       ⟨fun r => by simp [execInstrBr, h]; exact hrel.reg_agree r,
        fun a => by simp [execInstrBr, h]; exact hrel.mem_agree a⟩⟩
@@ -213,14 +213,14 @@ theorem bgeu_sail_equiv (sRv : MachineState) (sSail : SailState)
     uge_equiv, ult_equiv]
   by_cases h : BitVec.ult (sRv.getReg rs1) (sRv.getReg rs2)
   · -- ult = true, so !ult = false → not taken
-    simp only [h, Bool.not_true, ite_false]
+    simp only [h, Bool.not_true]
     exact ⟨_, rfl,
       ⟨fun r => by simp [execInstrBr, show ¬¬BitVec.ult _ _ from fun h' => absurd h h']; exact hrel.reg_agree r,
        fun a => by simp [execInstrBr, show ¬¬BitVec.ult _ _ from fun h' => absurd h h']; exact hrel.mem_agree a⟩⟩
   · -- ult = false, so !ult = true → taken
     simp only [show BitVec.ult (sRv.getReg rs1) (sRv.getReg rs2) = false from by simp [h],
       Bool.not_false, ite_true, runSail_bind,
-      runSail_readReg_PC h_pc, runSail_pure, sign_extend_13_eq]
+      runSail_readReg_PC h_pc, sign_extend_13_eq]
     rw [runSail_jump_to misa_val h_align h_misa]
     exact ⟨_, rfl, stateRel_nextPC
       ⟨fun r => by simp [execInstrBr, h]; exact hrel.reg_agree r,

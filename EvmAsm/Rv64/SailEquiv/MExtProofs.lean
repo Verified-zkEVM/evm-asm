@@ -147,7 +147,7 @@ private theorem to_bits_truncate_neg_pow63 :
     to_bits_truncate (l := 64) (-(((2 : Int) ^ 63))) =
     to_bits_truncate (l := 64) (((2 : Int) ^ 63)) := by
   rw [to_bits_truncate_eq_ofInt, to_bits_truncate_eq_ofInt]
-  apply BitVec.eq_of_toNat_eq; simp [BitVec.toNat_ofInt]
+  apply BitVec.eq_of_toNat_eq; simp
 
 /-- For 64-bit signed values, Int.tdiv can only reach 2^63 in the overflow case,
     so the SAIL overflow guard (clamping to -(2^63)) produces the same to_bits_truncate. -/
@@ -324,7 +324,7 @@ theorem div_sail_equiv (sRv : MachineState) (sSail : SailState)
   unfold execute_DIV
   simp only [runSail_bind, runSail_rX_bits_of_stateRel hrel, runSail_pure,
     LeanRV64D.Functions.not,
-    Bool.not_false, Bool.true_and, ite_true, ite_false, Bool.false_eq_true]
+    Bool.not_false, Bool.true_and, ite_false, Bool.false_eq_true]
   conv in to_bits_truncate _ => rw [div_full_equiv_applied]
   simp only [runSail_wX_bits_of_reg]
   exact ⟨_, rfl, ⟨
