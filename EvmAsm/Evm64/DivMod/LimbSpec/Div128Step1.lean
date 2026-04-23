@@ -147,7 +147,7 @@ theorem divK_div128_step1_spec
                     · next hab => rw [beq_iff_eq] at hab; subst hab; simp_all [CodeReq.beq_offset_self_left, CodeReq.beq_base_offset]
                     · simp at h)
   have h3f := cpsTriple_frameR
-    ((.x0 ↦ᵣ 0))
+    (.x0 ↦ᵣ 0)
     (by pcFree) h3
   have h123 := cpsTriple_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h12 h3f

@@ -189,8 +189,8 @@ theorem signext_done_spec (sp : Word) (base : Word) :
     let nsp := sp + signExtend12 (32 : BitVec 12)
     let code := CodeReq.singleton base (.ADDI .x12 .x12 32)
     cpsTriple base (base + 4) code
-      ((.x12 ↦ᵣ sp))
-      ((.x12 ↦ᵣ nsp)) := by
+      (.x12 ↦ᵣ sp)
+      (.x12 ↦ᵣ nsp) := by
   exact addi_spec_gen_same .x12 sp 32 base (by nofun)
 
 -- ============================================================================
