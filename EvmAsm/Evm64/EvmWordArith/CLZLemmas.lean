@@ -231,7 +231,7 @@ private theorem clzPipeline_zero {val : Word} (h : (clzPipeline val).1 = 0) :
 theorem clz_zero_imp_msb {val : Word} (h : (clzResult val).1 = 0) :
     val.toNat ≥ 2^63 := by
   rw [clzResult_fst_eq] at h
-  have hbnd := clzPipeline_fst_le val
+  have := clzPipeline_fst_le val
   split at h
   · -- Stage 5 passed: pipeline count = 0
     rename_i h5_pass
@@ -252,7 +252,7 @@ theorem clz_zero_imp_msb {val : Word} (h : (clzResult val).1 = 0) :
 theorem clz_zero_imp_snd {val : Word} (h : (clzResult val).1 = 0) :
     (clzResult val).2 = val := by
   rw [clzResult_fst_eq] at h
-  have hbnd := clzPipeline_fst_le val
+  have := clzPipeline_fst_le val
   split at h
   · rw [clzResult_snd_eq]; exact clzPipeline_zero h
   · exfalso
@@ -268,7 +268,7 @@ theorem clz_zero_imp_snd {val : Word} (h : (clzResult val).1 = 0) :
 theorem clzResult_fst_toNat_le (val : Word) :
     (clzResult val).1.toNat ≤ 63 := by
   rw [clzResult_fst_eq]
-  have hbnd := clzPipeline_fst_le val
+  have := clzPipeline_fst_le val
   split
   · omega
   · rw [BitVec.toNat_add, Nat.mod_eq_of_lt (by have := se_1; omega)]
