@@ -236,7 +236,7 @@ theorem div128Quot_un21_toNat_case (uHi dHi dLo uLo rhatUn1 : Word)
     have : rhat'.toNat % 2^32 < 2^32 := Nat.mod_lt _ (by decide)
     have : div_un1.toNat < 2^32 := Word_ushiftRight_32_lt_pow32
     nlinarith
-  have h_B_lt : B < 2^64 := by
+  have : B < 2^64 := by
     show q1'.toNat * dLo.toNat < 2^64
     have : cu_q1_dlo.toNat = q1'.toNat * dLo.toNat :=
       div128Quot_q1_prime_dLo_no_wrap uHi dHi dLo rhatUn1
