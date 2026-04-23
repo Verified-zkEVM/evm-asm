@@ -166,7 +166,7 @@ theorem val256_eq_toNat (v : EvmWord) :
 /-- Word subtraction wraps mod 2^64. -/
 theorem word_sub_toNat {a b : Word} :
     (a - b).toNat = (a.toNat + 2 ^ 64 - b.toNat) % 2 ^ 64 := by
-  rw [BitVec.toNat_sub]; have hb := b.isLt; omega
+  rw [BitVec.toNat_sub]; have := b.isLt; omega
 
 /-- When a ≥ b at Nat level, subtraction is exact. -/
 theorem word_sub_toNat_of_le (a b : Word) (h : b.toNat ≤ a.toNat) :
@@ -192,7 +192,7 @@ theorem word_sub_cases (a b : Word) :
   · left; exact ⟨BitVec.toNat_sub_of_le (BitVec.le_def.mpr h), h⟩
   · right
     constructor
-    · rw [word_sub_toNat]; have ha := a.isLt; have hb := b.isLt; omega
+    · rw [word_sub_toNat]; have := a.isLt; have := b.isLt; omega
     · omega
 
 -- ============================================================================

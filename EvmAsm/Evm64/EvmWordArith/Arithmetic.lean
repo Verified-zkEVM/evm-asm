@@ -321,7 +321,7 @@ theorem sub_borrow_chain_correct (a b : EvmWord) :
   have := a3.isLt; have := b3.isLt
   have ha_sum := toNat_eq_limb_sum a
   have hb_sum := toNat_eq_limb_sum b
-  have hab_lt : b.toNat < 2^256 := b.isLt
+  have := b.isLt
   have hab_le : b.toNat ≤ a.toNat + 2^256 := by omega
   -- diff0 toNat
   have hdiff0_nat : diff0.toNat = (a0.toNat + 2^64 - b0.toNat) % 2^64 := by
