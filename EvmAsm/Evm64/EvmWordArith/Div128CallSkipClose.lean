@@ -401,7 +401,7 @@ theorem div128Quot_call_skip_mul_val256_b_le_val256_a
   -- mulsubN4 Euclidean: val256(u) + c3 * 2^256 = val256(un) + qHat * val256(v')
   have h_mulsub := mulsubN4_val256_eq qHat b0' b1' b2' b3' u0 u1 u2 u3
   simp only [] at h_mulsub
-  set ms := mulsubN4 qHat b0' b1' b2' b3' u0 u1 u2 u3 with hms
+  set ms := mulsubN4 qHat b0' b1' b2' b3' u0 u1 u2 u3
   -- Normalization: val256(u) + u4 * 2^256 = val256(a) * 2^shift.
   have h_norm_u := u_val256_eq_scaled_with_overflow a0 a1 a2 a3 b3 hshift_nz
   have h_norm_v := b3_prime_val256_eq_scaled b0 b1 b2 b3 hshift_nz
