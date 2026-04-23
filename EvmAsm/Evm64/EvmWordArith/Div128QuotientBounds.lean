@@ -78,7 +78,7 @@ theorem div128Quot_phase1a_quotient_bound (uHi dHi : Word)
     exact (Nat.le_div_iff_mul_le hdHi_pos).mpr (by nlinarith)
   · -- uHi.toNat / dHi.toNat ≤ q1c.toNat + 1: from uHi < (q1c+2)*dHi.
     have h_lt : uHi.toNat < (q1c.toNat + 2) * dHi.toNat := by nlinarith
-    have h_div_lt := (Nat.div_lt_iff_lt_mul hdHi_pos).mpr h_lt
+    have := (Nat.div_lt_iff_lt_mul hdHi_pos).mpr h_lt
     omega
 
 /-- **KB-2: Phase 1b quotient bound.** After Phase 1b's multiplication-check

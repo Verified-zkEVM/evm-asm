@@ -363,7 +363,7 @@ theorem addbackN4_second_carry_one (q v0 v1 v2 v3 u0 u1 u2 u3 : Word)
   -- Bounds
   have hv_pos := val256_pos_of_or_ne_zero hbnz
   have hun_bound := val256_bound ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1
-  have hab1_bound := val256_bound ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1
+  have := val256_bound ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1
   have hab'_result_bound := val256_bound
     (addbackN4 ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 0 v0 v1 v2 v3).1
     (addbackN4 ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 0 v0 v1 v2 v3).2.1
@@ -502,7 +502,7 @@ theorem addbackN4_first_carry_one (q v0 v1 v2 v3 u0 u1 u2 u3 : Word)
   have hun_bound := val256_bound ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1
   have hv_bound := val256_bound v0 v1 v2 v3
   have hu_bound := val256_bound u0 u1 u2 u3
-  have hab_bound := val256_bound ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1
+  have := val256_bound ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1
   have hv_pos : 0 < val256 v0 v1 v2 v3 := val256_pos_of_or_ne_zero hbnz
   -- q * val256(v) > val256(u) (from c3 = 1, i.e., borrow)
   have hqv_gt_u : q.toNat * val256 v0 v1 v2 v3 > val256 u0 u1 u2 u3 := by nlinarith

@@ -248,7 +248,7 @@ theorem n4_max_double_addback_correct {a0 a1 a2 a3 b0 b1 b2 b3 : Word}
       0 b0 b1 b2 b3
     simp only [] at hab'_eq
     rw [hcarry2_lem] at hab'_eq
-    have hab_lem_bound := val256_bound
+    have := val256_bound
       (addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 0 b0 b1 b2 b3).1
       (addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 0 b0 b1 b2 b3).2.1
       (addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 0 b0 b1 b2 b3).2.2.1

@@ -130,7 +130,7 @@ theorem u_top_lt_pow63_of_shift_nz (a3 shift : Word)
 theorem b3_shifted_ge_pow63 {b3 : Word} (hb3nz : b3 ≠ 0) :
     (b3 <<< ((clzResult b3).1.toNat % 64)).toNat ≥ 2^63 := by
   obtain ⟨hinv, hcount⟩ := clzPipeline_invariant b3
-  have hsnd_ge := clzPipeline_snd_ge_pow62 hb3nz
+  have := clzPipeline_snd_ge_pow62 hb3nz
   have hsnd_lt : (clzPipeline b3).2.toNat < 2^64 := (clzPipeline b3).2.isLt
   rw [clzResult_fst_eq]
   by_cases h5 : (clzPipeline b3).2 >>> 63 ≠ 0

@@ -228,7 +228,7 @@ theorem mulsub_4limb_euclidean_div (qNat : Nat)
       match i with | 0 => r0 | 1 => r1 | 2 => r2 | 3 => r3
     q = EvmWord.div a b ∧ r = EvmWord.mod a b := by
   intro a b q r
-  have h_chain := mulsub_chain_no_underflow qNat u0 u1 u2 u3 v0 v1 v2 v3
+  have := mulsub_chain_no_underflow qNat u0 u1 u2 u3 v0 v1 v2 v3
     r0 r1 r2 r3 cb0 cb1 cb2 h0 h1 h2 h3
   -- Connect fromLimbs.toNat to val256
   have ha : a.toNat = val256 u0 u1 u2 u3 := by
