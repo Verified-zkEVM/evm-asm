@@ -218,7 +218,7 @@ private theorem bv_srl_mask_eq (x : Word) (n : Nat) (hn : n < 64) :
              word_toNat_255,
              BitVec.toNat_ofNat]
   rw [Nat.and_two_pow_sub_one_eq_mod _ 8]
-  have hmod_lt : (x.toNat / 2 ^ n) % 256 < 2 ^ 64 := by
+  have : (x.toNat / 2 ^ n) % 256 < 2 ^ 64 := by
     have := Nat.mod_lt (x.toNat / 2^n) (by norm_num : 0 < 256)
     linarith [show (256 : Nat) ≤ 2^64 from by norm_num]
   omega
@@ -599,10 +599,10 @@ theorem evm_byte_body_evmWord_spec (sp base : Word)
     byte_getLimb_high idx value (2 : Fin 4) (by decide)
   have hresult_high3 : getLimb result 3 = 0 :=
     byte_getLimb_high idx value (3 : Fin 4) (by decide)
-  have hlimb_val : limbFromMsb.toNat = i0.toNat / 8 := by
+  have : limbFromMsb.toNat = i0.toNat / 8 := by
     show (i0 >>> (3 : BitVec 6).toNat).toNat = i0.toNat / 8
     rw [bv6_toNat_3]; simp [BitVec.toNat_ushiftRight]; omega
-  have hbyte_shift_val : byteShift.toNat = (i0.toNat % 8) * 8 := by
+  have : byteShift.toNat = (i0.toNat % 8) * 8 := by
     show (byteInLimb <<< (3 : BitVec 6).toNat).toNat = (i0.toNat % 8) * 8
     rw [bv6_toNat_3]
     simp only [byteInLimb, BitVec.toNat_shiftLeft, BitVec.toNat_and, se12_7,
@@ -613,7 +613,7 @@ theorem evm_byte_body_evmWord_spec (sp base : Word)
     omega
   have hshift_val : shiftAmount.toNat = 56 - (i0.toNat % 8) * 8 := by
     show ((56 : Word) - byteShift).toNat = _
-    have hbs_lt : byteShift.toNat ≤ 56 := by omega
+    have : byteShift.toNat ≤ 56 := by omega
     bv_omega
   have hshift_lt64 : shiftAmount.toNat < 64 := by omega
   -- Bridge helper: connect body result to getLimb result 0
@@ -706,17 +706,17 @@ theorem evm_byte_body_evmWord_spec (sp base : Word)
   have derive_K_3 (hd : limbFromMsb ≠ 0 ∧ limbFromMsb ≠ (0 : Word) + signExtend12 1 ∧
       limbFromMsb ≠ (0 : Word) + signExtend12 2) : 3 = i0.toNat / 8 := by
     obtain ⟨h0, h1, h2⟩ := hd
-    have hn0 : limbFromMsb.toNat ≠ 0 :=
+    have : limbFromMsb.toNat ≠ 0 :=
       fun hc => h0 (BitVec.eq_of_toNat_eq (by simpa using hc))
-    have hn1 : limbFromMsb.toNat ≠ 1 :=
+    have : limbFromMsb.toNat ≠ 1 :=
       fun hc => h1 (BitVec.eq_of_toNat_eq (by
         show limbFromMsb.toNat = ((0 : Word) + signExtend12 1).toNat
         simp only [zero_add_se12_1_toNat]; exact hc))
-    have hn2 : limbFromMsb.toNat ≠ 2 :=
+    have : limbFromMsb.toNat ≠ 2 :=
       fun hc => h2 (BitVec.eq_of_toNat_eq (by
         show limbFromMsb.toNat = ((0 : Word) + signExtend12 2).toNat
         simp only [zero_add_se12_2_toNat]; exact hc))
-    have hlt4 : limbFromMsb.toNat < 4 := by omega
+    have : limbFromMsb.toNat < 4 := by omega
     omega
   -- Build body+store specs WITHOUT the dispatch fact (just compose and weaken regs)
   -- Then use cpsTriple_strip_pure_and_convert to accept the dispatch fact from Phase C
@@ -869,7 +869,7 @@ theorem evm_byte_stack_spec (sp base : Word)
       intro hlt32
       -- If idx.toNat < 32 < 2^64, all high limbs must be zero, contradicting hhigh
       apply hhigh
-      have hlt64 : idx.toNat < 2^64 := by omega
+      have : idx.toNat < 2^64 := by omega
       -- getLimb k = (idx.toNat / 2^(k*64)) % 2^64
       -- For k >= 1, idx.toNat < 2^64 ⇒ idx.toNat / 2^(k*64) = 0
       have h1 : i1 = 0 := by
