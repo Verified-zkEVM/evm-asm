@@ -620,10 +620,38 @@ theorem div128Quot_call_skip_ge_val256_div
   have h_u4_lt : u4.toNat < 2^63 := by
     show (a3 >>> antiShift).toNat < 2^63
     exact u_top_lt_pow63_of_shift_nz a3 (clzResult b3).1 h_shift_pos h_shift_le
-  -- Step 2: Apply KB-LB7 to get q1' ≥ q_true_1 for the top-digit division.
-  -- TODO(#65): this needs dHi' = b3' >> 32 bounds, dLo' bounds, and
-  -- the huHi hypothesis (u4 < dHi'*2^32 + dLo' = b3'). From hcall.
+  -- Step 2a: b3' ≥ 2^63 (shift normalization bound).
+  have h_b3'_ge : b3'.toNat ≥ 2^63 :=
+    b3_prime_ge_pow63 b3 b2 hb3nz _
+  -- Step 2b: dHi' = b3' >> 32 ≥ 2^31.
+  have h_dHi'_ge : (b3' >>> (32 : BitVec 6).toNat).toNat ≥ 2^31 :=
+    div128Quot_dHi_ge_pow31 b3' h_b3'_ge
+  have h_dHi'_lt : (b3' >>> (32 : BitVec 6).toNat).toNat < 2^32 :=
+    Word_ushiftRight_32_lt_pow32
+  have h_dLo'_lt :
+      ((b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat).toNat < 2^32 :=
+    Word_ushiftRight_32_lt_pow32
+  -- Step 2c: u4 < b3' (from hcall) + b3' Nat decomposition.
+  have h_u4_lt_b3' : u4.toNat < b3'.toNat :=
+    isCallTrialN4_toNat_lt a3 b2 b3 hcall
+  have h_vtop : b3'.toNat =
+      (b3' >>> (32 : BitVec 6).toNat).toNat * 2^32 +
+      ((b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat).toNat :=
+    div128Quot_vTop_decomp b3'
+  have h_u4_lt_vTop : u4.toNat <
+      (b3' >>> (32 : BitVec 6).toNat).toNat * 2^32 +
+      ((b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat).toNat := by
+    rw [← h_vtop]; exact h_u4_lt_b3'
+  -- Step 2d: Apply KB-LB7 for Phase 1 tight lower bound.
+  have h_q1'_ge := div128Quot_q1_prime_ge_q_true_1_of_uHi_lt_pow63
+    u4 (b3' >>> (32 : BitVec 6).toNat)
+    ((b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat)
+    u3
+    h_dHi'_ge h_dHi'_lt h_dLo'_lt h_u4_lt h_u4_lt_vTop
+  simp only [] at h_q1'_ge
   -- Step 3: Apply KB-LB8 (or KB-LB8') for Phase 2 tight q0' ≥ q_true_0.
+  -- TODO(#65): need un21 bound — either un21 < 2^63 (KB-LB8) or
+  -- un21 < dHi'*2^32 (KB-LB8'). Under shift_nz + hcall, need case analysis.
   -- Step 4: Compose via digit_tight_of_le_and_ge and q_true_full bounds.
   -- Step 5: Bridge q_true_full in normalized domain to val256(a)/val256(b).
   sorry
