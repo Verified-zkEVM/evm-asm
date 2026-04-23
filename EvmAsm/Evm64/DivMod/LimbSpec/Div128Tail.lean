@@ -109,8 +109,8 @@ theorem divK_div128_correct_q0_single_spec (q0 : Word) (base : Word) :
     let q0' := q0 + signExtend12 4095
     let cr := CodeReq.singleton base (.ADDI .x5 .x5 4095)
     cpsTriple base (base + 4) cr
-      ((.x5 ↦ᵣ q0))
-      ((.x5 ↦ᵣ q0')) := by
+      (.x5 ↦ᵣ q0)
+      (.x5 ↦ᵣ q0') := by
   intro q0' cr
   have I0 := addi_spec_gen_same .x5 q0 4095 base (by nofun)
   runBlock I0
