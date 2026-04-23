@@ -656,7 +656,7 @@ private theorem sar_bridge_merge (value : EvmWord) (s0 : Word)
     simp only [bs, signExtend12_63]
     rw [BitVec.toNat_and, bv64_toNat_63]
     exact Nat.and_two_pow_sub_one_eq_mod s0.toNat 6
-  have hbs_lt : bs.toNat < 64 := by omega
+  have : bs.toNat < 64 := by omega
   have hL_div : s0.toNat / 64 = L := by
     rw [← hL, bv6_toNat_6]; simp [BitVec.toNat_ushiftRight]; omega
   -- sshiftRight agrees with ushiftRight for merge limbs
@@ -1026,17 +1026,17 @@ theorem evm_sar_body_evmWord_spec (sp base : Word)
         show BitVec.sshiftRight value shift.toNat = BitVec.sshiftRight value s0.toNat; congr 1
       have hL : (s0 >>> (6 : BitVec 6).toNat).toNat = 3 := by
         obtain ⟨h0, h1, h2⟩ := hls
-        have hlt4 : limbShift.toNat < 4 := by
+        have : limbShift.toNat < 4 := by
           show (s0 >>> (6 : BitVec 6).toNat).toNat < 4
           rw [bv6_toNat_6]; simp [BitVec.toNat_ushiftRight]; omega
-        have hn0 : limbShift.toNat ≠ 0 :=
+        have : limbShift.toNat ≠ 0 :=
           fun hc => h0 (BitVec.eq_of_toNat_eq (by simpa using hc))
-        have hn1 : limbShift.toNat ≠ 1 :=
+        have : limbShift.toNat ≠ 1 :=
           fun hc => h1 (BitVec.eq_of_toNat_eq (by
             show limbShift.toNat = ((0 : Word) + signExtend12 1).toNat
             simp only [zero_add_se12_1_toNat]
             exact hc))
-        have hn2 : limbShift.toNat ≠ 2 :=
+        have : limbShift.toNat ≠ 2 :=
           fun hc => h2 (BitVec.eq_of_toNat_eq (by
             show limbShift.toNat = ((0 : Word) + signExtend12 2).toNat
             simp only [zero_add_se12_2_toNat]
