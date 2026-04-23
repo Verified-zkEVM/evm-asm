@@ -109,7 +109,7 @@ theorem mulsub_limb_nat_eq {q v_i u_i carryIn : Word} :
   -- Combine: normalize 2^64 to the literal everywhere
   have hB : (2:Nat)^64 = 18446744073709551616 := by norm_num
   -- Use B as shorthand for 2^64 literal
-  set B := (18446744073709551616 : Nat) with hBdef
+  set B := (18446744073709551616 : Nat)
   rw [show (2:Nat)^64 = B from by omega] at h_ba h_fs h_prod hdm hu hfs h_un ⊢
   -- Key: from hdm, (prodLo + carryIn) / B * B + fullSub = prodLo + carryIn
   have hkey : (prodLo.toNat + carryIn.toNat) / B * B =
