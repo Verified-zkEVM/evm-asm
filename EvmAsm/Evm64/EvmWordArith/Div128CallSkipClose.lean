@@ -174,15 +174,20 @@ theorem div128Quot_qHat_vTop_le
     let q0c := if hi2 = 0 then q0 else q0 + signExtend12 4095
     let rhat2c := if hi2 = 0 then rhat2 else rhat2 + dHi
     let rhat2Un0 := (rhat2c <<< (32 : BitVec 6).toNat) ||| div_un0
+    let rhat2c_hi := rhat2c >>> (32 : BitVec 6).toNat
     let q0' := div128Quot_phase2b_q0' q0c rhat2c dLo div_un0
-    let rhat2' := if BitVec.ult rhat2Un0 (q0c * dLo) then rhat2c + dHi else rhat2c
+    -- rhat2' mirrors the Phase 2b guard: fires → no check adjustment
+    -- (rhat2c); fall-through → the Phase 1b check may have added dHi.
+    let rhat2' := if rhat2c_hi = 0 then
+                    (if BitVec.ult rhat2Un0 (q0c * dLo) then rhat2c + dHi else rhat2c)
+                  else rhat2c
     q1'.toNat * dLo.toNat ≤ (rhat'.toNat % 2^32) * 2^32 + div_un1.toNat →
     q0'.toNat * dLo.toNat ≤ rhat2'.toNat * 2^32 + div_un0.toNat →
     q0'.toNat < 2^32 →
     (div128Quot uHi uLo vTop).toNat * vTop.toNat ≤
       uHi.toNat * 2^64 + uLo.toNat := by
   intro dHi dLo div_un1 div_un0 q1 rhat hi1 q1c rhatc rhatUn1 q1' rhat'
-    cu_rhat_un1 cu_q1_dlo un21 q0 rhat2 hi2 q0c rhat2c rhat2Un0 q0' rhat2'
+    cu_rhat_un1 cu_q1_dlo un21 q0 rhat2 hi2 q0c rhat2c rhat2Un0 rhat2c_hi q0' rhat2'
     h_ph1_no_wrap_lo h_ph2_no_wrap hq0_lt
   -- Algorithm-level setup.
   have hdHi_ne : dHi ≠ 0 := by
@@ -206,11 +211,11 @@ theorem div128Quot_qHat_vTop_le
   -- Phase 2a invariants (instantiate Phase 1a on un21).
   have h_post2a := div128Quot_first_round_post un21 dHi hdHi_ne hdHi_lt
   have h_rhat2c_lt := div128Quot_rhatc_lt_2dHi un21 dHi hdHi_ne hdHi_lt
-  -- Phase 2b Euclidean against un21: q0' * dHi + rhat2' = un21.
-  -- TODO(#61 Phase 2b coordinated fix): q0' is the guarded helper —
-  -- Phase 1b post applies to the unguarded form. Need case-split on
-  -- rhat2c_hi = 0 to align.
-  have h_ph2b : q0'.toNat * dHi.toNat + rhat2'.toNat = un21.toNat := by sorry
+  -- Phase 2b Euclidean against un21: q0' * dHi + rhat2' = un21. Uses
+  -- div128Quot_phase2b_post (KB-5a), which accommodates the guard via the
+  -- guarded rhat2' definition.
+  have h_ph2b : q0'.toNat * dHi.toNat + rhat2'.toNat = un21.toNat :=
+    div128Quot_phase2b_post un21 dHi hdHi_lt q0c rhat2c dLo h_post2a h_rhat2c_lt
   -- Combine h_ph2b + h_un21 to feed KB-Compose V2.
   have h_un21_ph2 : q0'.toNat * dHi.toNat + rhat2'.toNat =
       (rhat'.toNat % 2^32) * 2^32 + div_un1.toNat - q1'.toNat * dLo.toNat := by
@@ -290,8 +295,11 @@ theorem div128Quot_le_val256_div_plus_two
     let q0c := if hi2 = 0 then q0 else q0 + signExtend12 4095
     let rhat2c := if hi2 = 0 then rhat2 else rhat2 + dHi
     let rhat2Un0 := (rhat2c <<< (32 : BitVec 6).toNat) ||| div_un0
+    let rhat2c_hi := rhat2c >>> (32 : BitVec 6).toNat
     let q0' := div128Quot_phase2b_q0' q0c rhat2c dLo div_un0
-    let rhat2' := if BitVec.ult rhat2Un0 (q0c * dLo) then rhat2c + dHi else rhat2c
+    let rhat2' := if rhat2c_hi = 0 then
+                    (if BitVec.ult rhat2Un0 (q0c * dLo) then rhat2c + dHi else rhat2c)
+                  else rhat2c
     q1'.toNat * dLo.toNat ≤ (rhat'.toNat % 2^32) * 2^32 + div_un1.toNat →
     q0'.toNat * dLo.toNat ≤ rhat2'.toNat * 2^32 + div_un0.toNat →
     q0'.toNat < 2^32 →
@@ -299,7 +307,7 @@ theorem div128Quot_le_val256_div_plus_two
       val256 a0 a1 a2 a3 / val256 b0 b1 b2 b3 + 2 := by
   intro shift antiShift u4 un3 b3' dHi dLo div_un1 div_un0 q1 rhat hi1 q1c rhatc
     rhatUn1 q1' rhat' cu_rhat_un1 cu_q1_dlo un21 q0 rhat2 hi2 q0c rhat2c rhat2Un0
-    q0' rhat2' h_ph1_no_wrap h_ph2_no_wrap hq0_lt
+    rhat2c_hi q0' rhat2' h_ph1_no_wrap h_ph2_no_wrap hq0_lt
   -- Discharge Task 1 preconditions.
   have hb3prime_ge_pow63 : b3'.toNat ≥ 2^63 := b3_prime_ge_pow63 b3 b2 hb3nz _
   have hdHi_ge : dHi.toNat ≥ 2^31 := div128Quot_dHi_ge_pow31 b3' hb3prime_ge_pow63
