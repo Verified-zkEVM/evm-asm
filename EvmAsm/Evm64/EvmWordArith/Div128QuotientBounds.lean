@@ -111,8 +111,8 @@ theorem div128Quot_phase1b_quotient_bound (uHi dHi : Word)
   intro q1 hi1 q1c q1'
   -- Extract KB-1 bounds at the right types (matching our local let-chain).
   have h_kb1 := div128Quot_phase1a_quotient_bound uHi dHi hdHi_ne hdHi_lt
-  have h_upper_q1c : q1c.toNat ≤ uHi.toNat / dHi.toNat := h_kb1.1
-  have h_lower_q1c : uHi.toNat / dHi.toNat ≤ q1c.toNat + 1 := h_kb1.2
+  have : q1c.toNat ≤ uHi.toNat / dHi.toNat := h_kb1.1
+  have : uHi.toNat / dHi.toNat ≤ q1c.toNat + 1 := h_kb1.2
   by_cases h_check : BitVec.ult rhatUn1 (q1c * dLo)
   · have h_q1c_pos := div128Quot_phase1b_check_implies_q1c_pos q1c dLo rhatUn1 h_check
     have h_q1'_eq : q1'.toNat = q1c.toNat - 1 := by
@@ -220,7 +220,7 @@ theorem div128Quot_q1_le_pow32_plus_one (uHi dHi dLo : Word)
   have hdHi_pos : 0 < dHi.toNat := by omega
   rw [rv64_divu_toNat uHi dHi hdHi_ne]
   -- From huHi_lt_vTop: uHi < dHi * 2^32 + 2^32.
-  have h_uHi_lt : uHi.toNat < dHi.toNat * 2^32 + 2^32 := by omega
+  have : uHi.toNat < dHi.toNat * 2^32 + 2^32 := by omega
   -- Use Nat.div_lt_iff_lt_mul: uHi / dHi < k ↔ uHi < k * dHi.
   -- We want uHi / dHi ≤ 2^32 + 1, i.e. uHi / dHi < 2^32 + 2, i.e. uHi < (2^32 + 2) * dHi.
   suffices h : uHi.toNat / dHi.toNat < 2^32 + 2 by omega
@@ -229,7 +229,7 @@ theorem div128Quot_q1_le_pow32_plus_one (uHi dHi dLo : Word)
   -- We have uHi.toNat < dHi.toNat * 2^32 + 2^32, and dHi.toNat ≥ 2^31, so
   -- 2 * dHi.toNat ≥ 2 * 2^31 = 2^32, hence 2^32 ≤ 2 * dHi.toNat.
   -- Thus uHi.toNat < dHi.toNat * 2^32 + 2^32 ≤ dHi.toNat * 2^32 + 2 * dHi.toNat = (2^32 + 2) * dHi.toNat.
-  have h_expand : (2^32 + 2) * dHi.toNat = dHi.toNat * 2^32 + 2 * dHi.toNat := by ring
+  have : (2^32 + 2) * dHi.toNat = dHi.toNat * 2^32 + 2 * dHi.toNat := by ring
   omega
 
 /-- **KB-3d1: Phase 1a monotonicity.** The post-correction quotient `q1c`
@@ -323,7 +323,7 @@ theorem div128Quot_q1_prime_le_pow32_plus_one (uHi dHi dLo rhatUn1 : Word)
   intro q1 hi1 q1c q1'
   have h_q1_le : q1.toNat ≤ 2^32 + 1 :=
     div128Quot_q1_le_pow32_plus_one uHi dHi dLo hdHi_ge hdLo_lt huHi_lt_vTop
-  have h_q1c_le_q1 : q1c.toNat ≤ q1.toNat := div128Quot_q1c_le_q1 uHi dHi
+  have : q1c.toNat ≤ q1.toNat := div128Quot_q1c_le_q1 uHi dHi
   have h_q1'_le_q1c : q1'.toNat ≤ q1c.toNat := div128Quot_q1_prime_le_q1c q1c dLo rhatUn1
   omega
 
@@ -354,12 +354,12 @@ theorem div128Quot_q1c_le_pow32 (uHi dHi dLo : Word)
     div128Quot_q1_le_pow32_plus_one uHi dHi dLo hdHi_ge hdLo_lt huHi_lt_vTop
   by_cases h_hi1 : hi1 = 0
   · -- hi1 = 0 ⟹ q1 < 2^32 ⟹ q1c = q1 < 2^32.
-    have h_hi1_toNat : hi1.toNat = 0 := by rw [h_hi1]; rfl
+    have : hi1.toNat = 0 := by rw [h_hi1]; rfl
     have h_q1_div : q1.toNat / 2^32 = 0 := by
       have : hi1.toNat = q1.toNat / 2^32 := by
         rw [BitVec.toNat_ushiftRight, bv6_toNat_32, Nat.shiftRight_eq_div_pow]
       omega
-    have hq1_lt : q1.toNat < 2^32 := by
+    have : q1.toNat < 2^32 := by
       have h_pos : (0 : Nat) < 2^32 := by decide
       exact Nat.lt_of_div_eq_zero h_pos h_q1_div
     show (if hi1 = 0 then q1 else q1 + signExtend12 4095).toNat ≤ _
@@ -461,7 +461,7 @@ theorem div128Quot_q1_prime_lt_pow32 (uHi dHi dLo uLo : Word)
       intro heq; rw [heq] at hdHi_ge; simp at hdHi_ge
     have h_post : q1c.toNat * dHi.toNat + rhatc.toNat = uHi.toNat :=
       div128Quot_first_round_post uHi dHi hdHi_ne hdHi_lt
-    have h_rhatc_lt_dLo : rhatc.toNat < dLo.toNat := by
+    have : rhatc.toNat < dLo.toNat := by
       rw [h_eq] at h_post
       omega
     have h_rhatc_lt_pow32 : rhatc.toNat < 2^32 := by omega
@@ -553,7 +553,7 @@ theorem div128Quot_q0_prime_lt_pow32 (un21 dHi dLo uLo : Word)
   intro q0 rhat2 hi2 q0c rhat2c div_un0 q0'
   let rhat2Un0 := (rhat2c <<< (32 : BitVec 6).toNat) ||| div_un0
   -- Reuse Phase 1 lemma with uHi := un21.
-  have h_q0c_le : q0c.toNat ≤ 2^32 :=
+  have : q0c.toNat ≤ 2^32 :=
     div128Quot_q1c_le_pow32 un21 dHi dLo hdHi_ge hdLo_lt hun21_lt_vTop
   by_cases h_eq : q0c.toNat = 2^32
   · -- q0c = 2^32: Phase 2b check fires.
@@ -561,7 +561,7 @@ theorem div128Quot_q0_prime_lt_pow32 (un21 dHi dLo uLo : Word)
       intro heq; rw [heq] at hdHi_ge; simp at hdHi_ge
     have h_post : q0c.toNat * dHi.toNat + rhat2c.toNat = un21.toNat :=
       div128Quot_first_round_post un21 dHi hdHi_ne hdHi_lt
-    have h_rhat2c_lt_dLo : rhat2c.toNat < dLo.toNat := by
+    have : rhat2c.toNat < dLo.toNat := by
       rw [h_eq] at h_post
       omega
     have h_rhat2c_lt_pow32 : rhat2c.toNat < 2^32 := by omega
@@ -569,9 +569,9 @@ theorem div128Quot_q0_prime_lt_pow32 (un21 dHi dLo uLo : Word)
       show ((uLo <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat).toNat < 2^32
       rw [BitVec.toNat_ushiftRight]
       rw [bv6_toNat_32, Nat.shiftRight_eq_div_pow]
-      have h_shl_isLt : (uLo <<< (32 : BitVec 6).toNat : Word).toNat < 2^64 :=
+      have : (uLo <<< (32 : BitVec 6).toNat : Word).toNat < 2^64 :=
         (uLo <<< (32 : BitVec 6).toNat : Word).isLt
-      have h_eq_64 : (2^64 : Nat) = 2^32 * 2^32 := by decide
+      have : (2^64 : Nat) = 2^32 * 2^32 := by decide
       exact Nat.div_lt_of_lt_mul (by omega)
     -- rhat2Un0.toNat = rhat2c.toNat * 2^32 + div_un0.toNat.
     have h_rhat2Un0_eq : rhat2Un0.toNat =
@@ -613,7 +613,7 @@ theorem div128Quot_q0_prime_lt_pow32 (un21 dHi dLo uLo : Word)
         Nat.add_mod_right, Nat.mod_eq_of_lt h_q0c_lt_word]
     omega
   · -- q0c < 2^32 case: q0' ≤ q0c < 2^32.
-    have h_q0c_lt : q0c.toNat < 2^32 := by omega
+    have : q0c.toNat < 2^32 := by omega
     -- The helper's q0' is either the unguarded check result (≤ q0c) or q0c
     -- itself — both paths bound by q0c.
     have h_q0'_le_q0c : q0'.toNat ≤ q0c.toNat := by
