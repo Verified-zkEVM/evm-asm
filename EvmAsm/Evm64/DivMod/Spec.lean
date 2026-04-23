@@ -580,9 +580,9 @@ instance (sp : Word) (a b : EvmWord) :
     pass through unchanged. -/
 theorem div_n4_max_skip_stack_weaken
     (sp : Word) (a b : EvmWord)
-    (v1_p v2_p v5_p v6_p v7_p v10_p v11_p : Word)
-    (q0P q1P q2_p q3_p u0P u1P u2P u3P u4_p u5_p u6_p u7_p
-     shift_p n_p j_p : Word) :
+    {v1_p v2_p v5_p v6_p v7_p v10_p v11_p : Word}
+    {q0P q1P q2_p q3_p u0P u1P u2P u3P u4_p u5_p u6_p u7_p
+     shift_p n_p j_p : Word} :
     ∀ h,
       ((.x12 ↦ᵣ (sp + 32)) **
        (.x1 ↦ᵣ v1_p) ** (.x2 ↦ᵣ v2_p) **
@@ -778,9 +778,9 @@ instance (sp : Word) (a b : EvmWord) :
     `EvmWord.mod a b` instead of `EvmWord.div a b`. -/
 theorem mod_n4_max_skip_stack_weaken
     (sp : Word) (a b : EvmWord)
-    (v1_p v2_p v5_p v6_p v7_p v10_p v11_p : Word)
-    (q0P q1P q2_p q3_p u0P u1P u2P u3P u4_p u5_p u6_p u7_p
-     shift_p n_p j_p : Word) :
+    {v1_p v2_p v5_p v6_p v7_p v10_p v11_p : Word}
+    {q0P q1P q2_p q3_p u0P u1P u2P u3P u4_p u5_p u6_p u7_p
+     shift_p n_p j_p : Word} :
     ∀ h,
       ((.x12 ↦ᵣ (sp + 32)) **
        (.x1 ↦ᵣ v1_p) ** (.x2 ↦ᵣ v2_p) **
@@ -1332,8 +1332,7 @@ theorem evm_div_n4_max_skip_stack_spec (sp base : Word)
   -- (unlike `rw`, which gets blocked by them).
   simp only [fullDivN4MaxSkipPost_unfold, denormDivPost_unfold] at hq
   -- Apply the weakener — its input takes a specific explicit atom shape.
-  apply div_n4_max_skip_stack_weaken sp a b _ _ _ _ _ _ _
-    _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ h
+  apply div_n4_max_skip_stack_weaken sp a b h
   -- Unfold the `evmWordIs` / `divScratchValues` bundles on the goal side
   -- to expose matching atoms, then normalize addresses and use the
   -- semantic bridge to rewrite the four output-slot atoms.
@@ -1429,8 +1428,7 @@ theorem evm_mod_n4_max_skip_stack_spec (sp base : Word)
   refine cpsTriple_weaken (fun _ hp => hp) ?_ h_pre
   intro h hq
   simp only [fullModN4MaxSkipPost_unfold, denormModPost_unfold] at hq
-  apply mod_n4_max_skip_stack_weaken sp a b _ _ _ _ _ _ _
-    _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ h
+  apply mod_n4_max_skip_stack_weaken sp a b h
   -- Expose address atoms on the goal side via unfolds.
   rw [show evmWordIs sp a =
       ((sp ↦ₘ a.getLimbN 0) ** ((sp + 8) ↦ₘ a.getLimbN 1) **

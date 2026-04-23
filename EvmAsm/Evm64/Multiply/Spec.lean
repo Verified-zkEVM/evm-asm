@@ -61,7 +61,7 @@ def evmMulStackPost (sp : Word) (a b : EvmWord) : Assertion :=
 
     Proved once, invoked from `evm_mul_stack_spec`'s consequence callback. -/
 private theorem mul_stack_weaken (sp : Word) (a b : EvmWord)
-    (v5 v6 v7 v10 v11 sp_v sp8_v sp16_v sp24_v : Word) :
+    {v5 v6 v7 v10 v11 sp_v sp8_v sp16_v sp24_v : Word} :
     ∀ h,
       ((.x12 ↦ᵣ (sp + 32)) **
        (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
@@ -119,7 +119,7 @@ theorem evm_mul_stack_spec (sp base : Word)
       -- `evmWordIs (sp+32) (a*b)` via the mul_correct bridge equalities,
       -- then weaken the 5 scratch registers + 4 below-sp cells to *Own.
       rw [← evmWordIs_sp32_limbs_eq sp (a * b) _ _ _ _ h0 h1 h2 h3] at hq
-      exact mul_stack_weaken sp a b _ _ _ _ _ _ _ _ _ h (by xperm_hyp hq))
+      exact mul_stack_weaken sp a b h (by xperm_hyp hq))
     h_main
 
 end EvmAsm.Evm64
