@@ -176,6 +176,22 @@ theorem div128Quot_shift0_ge_a3_div_b3 (a3 b3 : Word)
   -- sub-lemmas in subsequent iterations.
   sorry
 
+/-- Under b3 ≥ 2^63, dHi = b3 >> 32 has toNat ≥ 2^31. -/
+theorem div128Quot_shift0_dHi_ge (b3 : Word) (hb3_ge : b3.toNat ≥ 2^63) :
+    (b3 >>> (32 : BitVec 6).toNat).toNat ≥ 2^31 := by
+  rw [show (32 : BitVec 6).toNat = 32 from by decide]
+  rw [BitVec.toNat_ushiftRight, Nat.shiftRight_eq_div_pow]
+  have h : (2^31 : Nat) * 2^32 = 2^63 := by decide
+  exact Nat.le_div_iff_mul_le (by decide : 0 < (2:Nat)^32) |>.mpr (by omega)
+
+/-- Under b3 ≥ 2^63, dHi = b3 >> 32 is nonzero. -/
+theorem div128Quot_shift0_dHi_ne (b3 : Word) (hb3_ge : b3.toNat ≥ 2^63) :
+    b3 >>> (32 : BitVec 6).toNat ≠ 0 := by
+  intro h
+  have h_ge := div128Quot_shift0_dHi_ge b3 hb3_ge
+  have h_toNat : (b3 >>> (32 : BitVec 6).toNat).toNat = 0 := by rw [h]; rfl
+  omega
+
 /-- Upper bound: under shift=0 (b3 ≥ 2^63), `div128Quot 0 a3 b3` is at most 1.
 
     Proof sketch:
@@ -188,7 +204,16 @@ theorem div128Quot_shift0_le_one (a3 b3 : Word)
     (hb3_ge : b3.toNat ≥ 2^63)
     (hb3_nz : b3 ≠ 0) :
     (div128Quot (0 : Word) a3 b3).toNat ≤ 1 := by
-  -- TODO(#67): fill in via Phase 1 trivialization + Phase 2 bound.
+  -- TODO(#67): Direct unfold of `div128Quot` yields an enormous expression
+  -- because each `let`-bound intermediate gets zeta-expanded, and `simp`
+  -- doesn't aggressively reduce nested `if hi1 = 0 then X else Y` branches
+  -- where `hi1 = 0` is only established via Nat-level reasoning on `dHi ≥ 2^31`.
+  --
+  -- Better approach for next iteration: prove a characterization lemma
+  -- `div128Quot (0:Word) a3 b3 = div128Quot_phase2b_q0' q0 rhat2 dLo div_un0`
+  -- (where q0 = rv64_divu (a3>>32) dHi, etc.) via careful unfolding + step-by-step
+  -- `show` rewrites that match the Phase 1 trivialization helpers. Then bound
+  -- the simpler expression.
   sorry
 
 /-- If `div128Quot 0 a3 b3 = 0` under shift=0, then a3 < b3. -/
