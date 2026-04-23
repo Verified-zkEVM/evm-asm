@@ -35,7 +35,7 @@ theorem val128_zero_hi (uLo : Word) : val128 0 uLo = uLo.toNat := by
     produces a trial quotient q̂ ∈ {0, 1}. -/
 theorem div_nat_le_one_of_msb (uLo d : Word) (hd : d.toNat ≥ 2^63) :
     uLo.toNat / d.toNat ≤ 1 := by
-  have hulo := uLo.isLt
+  have := uLo.isLt
   have : uLo.toNat / d.toNat < 2 := by
     rw [Nat.div_lt_iff_lt_mul (by omega : 0 < d.toNat)]
     nlinarith
@@ -93,7 +93,7 @@ theorem msb_imp_hi32_ge (b3 : Word) (hmsb : b3.toNat ≥ 2^63) :
     (hi32 b3).toNat ≥ 2^31 := by
   unfold hi32
   rw [BitVec.toNat_ushiftRight, Nat.shiftRight_eq_div_pow]
-  have hb3 := b3.isLt
+  have := b3.isLt
   exact Nat.le_div_iff_mul_le (by positivity) |>.mpr (by omega)
 
 /-- If b3 ≥ 2^63, the full 256-bit divisor b satisfies b ≥ 2^63 * 2^192. -/

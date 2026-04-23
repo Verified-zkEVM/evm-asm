@@ -230,8 +230,8 @@ private theorem sub_limb_toNat {aLimb bLimb borrow : Word}
     (aLimb - bLimb - borrow).toNat =
     (aLimb.toNat + 2^64 - bLimb.toNat + 2^64 - borrow.toNat) % 2^64 := by
   simp only [BitVec.toNat_sub]
-  have ha := aLimb.isLt
-  have hb := bLimb.isLt
+  have := aLimb.isLt
+  have := bLimb.isLt
   rcases hborrow with h | h <;> simp only [h] <;> omega
 
 /-- Each limb of a - b equals the borrow-chain result at that limb position. -/

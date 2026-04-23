@@ -199,7 +199,7 @@ theorem loadProgram_at_index {base : Word} {prog : List Instr} {k : Nat}
     (hk : k < prog.length) (h4k : 4 * k < 2^64) :
     loadProgram base prog (base + BitVec.ofNat 64 (4 * k)) = prog[k]? := by
   simp [loadProgram]
-  have hbase := base.isLt
+  have := base.isLt
   have : (18446744073709551616 - BitVec.toNat base + (BitVec.toNat base + 4 * k)) % 18446744073709551616
        = 4 * k := by omega
   rw [this]; simp [hk]; omega

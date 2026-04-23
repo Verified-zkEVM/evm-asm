@@ -309,7 +309,7 @@ theorem loadProgram_programAt {base : Word} {prog : List Instr}
     ProgramAt (loadProgram base prog) base prog := by
   intro i hi
   simp [loadProgram]
-  have hbase := base.isLt
+  have := base.isLt
   have : (18446744073709551616 - BitVec.toNat base + (BitVec.toNat base + 4 * i)) % 18446744073709551616
        = 4 * i := by omega
   rw [this]; simp [hi]; omega

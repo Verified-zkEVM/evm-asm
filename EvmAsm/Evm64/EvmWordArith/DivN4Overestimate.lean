@@ -298,7 +298,7 @@ theorem mulsubN4_c3_le_one_v3_zero (q v0 v1 v2 u0 u1 u2 u3 : Word) :
   let c3 := ms.2.2.2.2
   have hun_bound := val256_bound ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1
   have hv_bound := val256_lt_pow192 v0 v1 v2
-  have hq_bound := q.isLt
+  have := q.isLt
   have hqv_bound : q.toNat * val256 v0 v1 v2 0 < 2 ^ 256 := by nlinarith
   have hc3_bound : c3.toNat * 2 ^ 256 < 2 * 2 ^ 256 := by
     show ms.2.2.2.2.toNat * 2 ^ 256 < 2 * 2 ^ 256; nlinarith

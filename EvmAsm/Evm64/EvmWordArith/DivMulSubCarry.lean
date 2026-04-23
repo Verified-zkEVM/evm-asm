@@ -91,7 +91,7 @@ theorem mulsub_limb_carry_strict_lt {q v_i u_i carryIn : Word} :
   suffices ba_n + bs_n ≤ 1 by omega
   have h_fs_val : fullSub.toNat = ((q * v_i).toNat + carryIn.toNat) % 2^64 :=
     BitVec.toNat_add (q * v_i) carryIn
-  have h_ci := carryIn.isLt
+  have := carryIn.isLt
   -- Case: ba_n = 0 → immediate
   by_cases h_ba_0 : ba_n = 0
   · omega

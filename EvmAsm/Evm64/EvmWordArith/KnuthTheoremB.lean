@@ -302,9 +302,9 @@ theorem val256_split_top_limb (b0 b1 b2 b3 : Word) :
     ∃ v_rest, v_rest < 2^192 ∧
       val256 b0 b1 b2 b3 = b3.toNat * 2^192 + v_rest := by
   refine ⟨b0.toNat + b1.toNat * 2^64 + b2.toNat * 2^128, ?_, ?_⟩
-  · have h0 := b0.isLt
-    have h1 := b1.isLt
-    have h2 := b2.isLt
+  · have := b0.isLt
+    have := b1.isLt
+    have := b2.isLt
     -- b_i < 2^64, so b0 + b1*2^64 + b2*2^128 ≤ 2^192 - 1 < 2^192
     nlinarith
   · unfold val256; ring
@@ -585,7 +585,7 @@ theorem div128Quot_first_round_euclidean (uHi dHi : Word) (hdHi_ne : dHi ≠ 0) 
   have hq1_eq : q1.toNat = uHi.toNat / dHi.toNat := rv64_divu_toNat uHi dHi hdHi_ne
   have h_q1_mul_le : q1.toNat * dHi.toNat ≤ uHi.toNat := by
     rw [hq1_eq]; exact Nat.div_mul_le_self _ _
-  have huHi_lt := uHi.isLt
+  have := uHi.isLt
   have h_q1_mul_lt : q1.toNat * dHi.toNat < 2^64 := by omega
   have hmul_toNat : (q1 * dHi).toNat = q1.toNat * dHi.toNat := by
     rw [BitVec.toNat_mul]; exact Nat.mod_eq_of_lt h_q1_mul_lt
