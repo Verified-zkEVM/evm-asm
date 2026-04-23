@@ -559,8 +559,7 @@ theorem div128Quot_q0_prime_lt_pow32 (un21 dHi dLo uLo : Word)
     let rhat2c := if hi2 = 0 then rhat2 else rhat2 + dHi
     let div_un0 := (uLo <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
     let rhat2Un0 := (rhat2c <<< (32 : BitVec 6).toNat) ||| div_un0
-    let q0' := if BitVec.ult rhat2Un0 (q0c * dLo) then q0c + signExtend12 4095
-               else q0c
+    let q0' := div128Quot_phase2b_q0' q0c rhat2c dLo div_un0
     q0'.toNat < 2^32 := by
   intro q0 rhat2 hi2 q0c rhat2c div_un0 rhat2Un0 q0'
   -- Reuse Phase 1 lemma with uHi := un21.
@@ -610,8 +609,16 @@ theorem div128Quot_q0_prime_lt_pow32 (un21 dHi dLo uLo : Word)
     have h_check : BitVec.ult rhat2Un0 (q0c * dLo) := by
       show decide (rhat2Un0.toNat < (q0c * dLo).toNat) = true
       exact decide_eq_true h_ult
-    show (if BitVec.ult rhat2Un0 (q0c * dLo) then q0c + signExtend12 4095
-          else q0c).toNat < 2^32
+    -- Guard `rhat2cHi = 0` holds since rhat2c < 2^32.
+    have h_rhat2c_hi_zero : rhat2c >>> (32 : BitVec 6).toNat = 0 := by
+      have h32 : (32 : BitVec 6).toNat = 32 := by decide
+      apply BitVec.eq_of_toNat_eq
+      rw [BitVec.toNat_ushiftRight, h32, Nat.shiftRight_eq_div_pow]
+      show rhat2c.toNat / 2^32 = 0
+      exact Nat.div_eq_of_lt h_rhat2c_lt_pow32
+    show (div128Quot_phase2b_q0' q0c rhat2c dLo div_un0).toNat < 2^32
+    unfold div128Quot_phase2b_q0'
+    rw [if_pos h_rhat2c_hi_zero]
     rw [if_pos h_check]
     have h_se_neg1 : (signExtend12 (4095 : BitVec 12) : Word).toNat = 2^64 - 1 := by decide
     rw [BitVec.toNat_add, h_se_neg1]
@@ -621,8 +628,14 @@ theorem div128Quot_q0_prime_lt_pow32 (un21 dHi dLo uLo : Word)
     omega
   · -- q0c < 2^32 case: q0' ≤ q0c < 2^32.
     have h_q0c_lt : q0c.toNat < 2^32 := by omega
-    have h_q0'_le_q0c : q0'.toNat ≤ q0c.toNat :=
-      div128Quot_q1_prime_le_q1c q0c dLo rhat2Un0
+    -- The helper's q0' is either the unguarded check result (≤ q0c) or q0c
+    -- itself — both paths bound by q0c.
+    have h_q0'_le_q0c : q0'.toNat ≤ q0c.toNat := by
+      show (div128Quot_phase2b_q0' q0c rhat2c dLo div_un0).toNat ≤ q0c.toNat
+      unfold div128Quot_phase2b_q0'
+      split
+      · exact div128Quot_q1_prime_le_q1c q0c dLo rhat2Un0
+      · exact Nat.le_refl _
     omega
 
 

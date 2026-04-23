@@ -830,7 +830,10 @@ theorem divK_trial_call_path_spec
     let rhat2c := if hi2 = 0 then rhat2 else rhat2 + dHi
     let q0Dlo := q0c * dLo
     let rhat2Un0 := (rhat2c <<< (32 : BitVec 6).toNat) ||| un0
+    let rhat2cHi := rhat2c >>> (32 : BitVec 6).toNat
     let q0' := div128Quot_phase2b_q0' q0c rhat2c dLo un0
+    let x7Exit := if rhat2cHi = 0 then q0Dlo else un21
+    let x1Exit := if rhat2cHi = 0 then rhat2Un0 else rhat2cHi
     let q := (q1' <<< (32 : BitVec 6).toNat) ||| q0'
     cpsTriple (base + 512) (base + 516) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
@@ -841,16 +844,17 @@ theorem divK_trial_call_path_spec
        (sp + signExtend12 3960 ↦ₘ dMem) **
        (sp + signExtend12 3952 ↦ₘ dloMem) **
        (sp + signExtend12 3944 ↦ₘ un0Mem))
-      ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ rhat2Un0) **
+      ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ x1Exit) **
        (.x5 ↦ᵣ q0') ** (.x6 ↦ᵣ dHi) **
-       (.x7 ↦ᵣ q0Dlo) ** (.x10 ↦ᵣ q1') **
+       (.x7 ↦ᵣ x7Exit) ** (.x10 ↦ᵣ q1') **
        (.x2 ↦ᵣ (base + 516)) ** (.x11 ↦ᵣ q) ** (.x0 ↦ᵣ (0 : Word)) **
        (sp + signExtend12 3968 ↦ₘ (base + 516)) **
        (sp + signExtend12 3960 ↦ₘ vTop) **
        (sp + signExtend12 3952 ↦ₘ dLo) **
        (sp + signExtend12 3944 ↦ₘ un0)) := by
   intro dHi dLo un1 un0 q1 rhat hi1 q1c rhatc qDlo rhatUn1 q1' rhat'
-        cu_rhat_un1 cu_q1_dlo un21 q0 rhat2 hi2 q0c rhat2c q0Dlo rhat2Un0 q0' q
+        cu_rhat_un1 cu_q1_dlo un21 q0 rhat2 hi2 q0c rhat2c q0Dlo rhat2Un0
+        rhat2cHi q0' x7Exit x1Exit q
   -- 1. JAL x2 560 at base+512: x2 ← base+516, PC → base+1072
   have J := jal_spec .x2 v2Old (560 : BitVec 21) (base + 512) (by nofun)
   rw [lb_jal_target, lb_jal_ret] at J
@@ -1763,7 +1767,10 @@ theorem divK_trial_call_full_spec
     let rhat2c := if hi2 = 0 then rhat2 else rhat2 + dHi
     let q0Dlo := q0c * dLo
     let rhat2Un0 := (rhat2c <<< (32 : BitVec 6).toNat) ||| un0Div
+    let rhat2cHi := rhat2c >>> (32 : BitVec 6).toNat
     let q0' := div128Quot_phase2b_q0' q0c rhat2c dLo un0Div
+    let x7Exit := if rhat2cHi = 0 then q0Dlo else un21
+    let x1Exit := if rhat2cHi = 0 then rhat2Un0 else rhat2cHi
     let q := (q1' <<< (32 : BitVec 6).toNat) ||| q0'
     cpsTriple (base + loopBodyOff) (base + 516) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
@@ -1777,9 +1784,9 @@ theorem divK_trial_call_full_spec
        (sp + signExtend12 3960 ↦ₘ dMem) **
        (sp + signExtend12 3952 ↦ₘ dloMem) **
        (sp + signExtend12 3944 ↦ₘ un0Mem))
-      ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ rhat2Un0) **
+      ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ x1Exit) **
        (.x5 ↦ᵣ q0') ** (.x6 ↦ᵣ dHi) **
-       (.x7 ↦ᵣ q0Dlo) ** (.x10 ↦ᵣ q1') ** (.x11 ↦ᵣ q) **
+       (.x7 ↦ᵣ x7Exit) ** (.x10 ↦ᵣ q1') ** (.x11 ↦ᵣ q) **
        (.x2 ↦ᵣ (base + 516)) ** (.x0 ↦ᵣ (0 : Word)) **
        (sp + signExtend12 3976 ↦ₘ j) ** (sp + signExtend12 3984 ↦ₘ n) **
        (uAddr ↦ₘ uHi) ** ((uAddr + 8) ↦ₘ uLo) **
@@ -1790,7 +1797,8 @@ theorem divK_trial_call_full_spec
        (sp + signExtend12 3944 ↦ₘ un0Div)) := by
   intro uAddr vtopBase
         dHi dLo un1 un0Div q1 rhat hi1 q1c rhatc qDlo rhatUn1 q1' rhat'
-        cu_rhat_un1 cu_q1_dlo un21 q0 rhat2 hi2 q0c rhat2c q0Dlo rhat2Un0 q0' q
+        cu_rhat_un1 cu_q1_dlo un21 q0 rhat2 hi2 q0c rhat2c q0Dlo rhat2Un0
+        rhat2cHi q0' x7Exit x1Exit q
   -- 1. Save j + trial load (base+448 → base+500)
   have STL := divK_save_trial_load_spec sp j n jOld v5Old v6Old v7Old v10Old uHi uLo vTop
     base

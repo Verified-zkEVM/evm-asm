@@ -337,6 +337,9 @@ theorem divK_loop_body_n4_call_skip_spec
         qAddr hborrow
   let q0Dlo := q0c * dLo
   let rhat2Un0 := (rhat2c <<< (32 : BitVec 6).toNat) ||| div_un0
+  let rhat2cHi := rhat2c >>> (32 : BitVec 6).toNat
+  let x7Exit := if rhat2cHi = 0 then q0Dlo else un21
+  let x1Exit := if rhat2cHi = 0 then rhat2Un0 else rhat2cHi
   -- Expand mulsub computation locally for intermediate steps
   let ms := mulsubN4 qHat v0 v1 v2 v3 u0 u1 u2 u3
   let p0_lo := qHat * v0; let p0_hi := rv64_mulhu qHat v0
@@ -376,7 +379,7 @@ theorem divK_loop_body_n4_call_skip_spec
   rw [vtop_eq_v3_n4] at TF
   -- 2. Mulsub + correction skip (base+516 → base+880)
   have MCS := divK_mulsub_correction_skip_spec sp qHat j v0 v1 v2 v3 u0 u1 u2 u3 uTop
-    rhat2Un0 q0' dHi q0Dlo q1' (base + 516) base
+    x1Exit q0' dHi x7Exit q1' (base + 516) base
 
   intro_lets at MCS
   have MCS0 := MCS hborrow
@@ -497,6 +500,9 @@ theorem divK_loop_body_n4_call_addback_spec
         qAddr ms ab hcarry2_nz hborrow
   let q0Dlo := q0c * dLo
   let rhat2Un0 := (rhat2c <<< (32 : BitVec 6).toNat) ||| div_un0
+  let rhat2cHi := rhat2c >>> (32 : BitVec 6).toNat
+  let x7Exit := if rhat2cHi = 0 then q0Dlo else un21
+  let x1Exit := if rhat2cHi = 0 then rhat2Un0 else rhat2cHi
   -- Local lets matching beq_spec structure
   let c3 := ms.2.2.2.2
   let carry := addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 v0 v1 v2 v3
@@ -522,7 +528,7 @@ theorem divK_loop_body_n4_call_addback_spec
   rw [vtop_eq_v3_n4] at TF
   -- 2. Mulsub + correction addback + BEQ (base+516 → base+884)
   have MCA := divK_mulsub_correction_addback_beq_spec sp qHat j v0 v1 v2 v3 u0 u1 u2 u3 uTop
-    rhat2Un0 q0' dHi q0Dlo q1' (base + 516) base
+    x1Exit q0' dHi x7Exit q1' (base + 516) base
 
   intro_lets at MCA
   have MCA0 := MCA hcarry2_nz hborrow
