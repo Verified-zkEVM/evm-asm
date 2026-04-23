@@ -558,7 +558,7 @@ theorem div128Quot_q1_lt_pow33 (uHi dHi : Word)
   have hdHi_ne : dHi ≠ 0 := by
     intro heq; rw [heq] at hdHi_ge; simp at hdHi_ge
   rw [rv64_divu_toNat uHi dHi hdHi_ne]
-  have huHi_lt : uHi.toNat < 2^64 := uHi.isLt
+  have : uHi.toNat < 2^64 := uHi.isLt
   have h_pow : (2:Nat)^33 * 2^31 = 2^64 := by rw [← pow_add]
   set q1 := uHi.toNat / dHi.toNat with hq1_def
   have hq_mul : q1 * dHi.toNat ≤ uHi.toNat := Nat.div_mul_le_self _ _

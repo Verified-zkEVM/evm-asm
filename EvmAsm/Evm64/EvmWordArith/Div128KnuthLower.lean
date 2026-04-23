@@ -326,7 +326,7 @@ theorem div128Quot_q1_prime_ge_q_true_1_small_rhatc
     rw [BitVec.toNat_ushiftRight]
     have h32 : (32 : BitVec 6).toNat = 32 := by decide
     rw [h32, Nat.shiftRight_eq_div_pow]
-    have h_ulo : uLo.toNat < 2^64 := uLo.isLt
+    have : uLo.toNat < 2^64 := uLo.isLt
     have h_eq : (2^64 : Nat) = 2^32 * 2^32 := by decide
     exact Nat.div_lt_of_lt_mul (by omega)
   -- KB-LB3: q_true_1 ≤ q1c (instantiated at our div_un1 value).

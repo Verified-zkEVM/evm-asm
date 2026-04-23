@@ -477,7 +477,7 @@ theorem div128Quot_q1_prime_lt_pow32 (uHi dHi dLo uLo : Word)
       rw [BitVec.toNat_ushiftRight]
       have h32 : (32 : BitVec 6).toNat = 32 := by decide
       rw [h32, Nat.shiftRight_eq_div_pow]
-      have h_ulo_isLt : uLo.toNat < 2^64 := uLo.isLt
+      have : uLo.toNat < 2^64 := uLo.isLt
       have h_eq : (2^64 : Nat) = 2^32 * 2^32 := by decide
       exact Nat.div_lt_of_lt_mul (by omega)
     -- rhatUn1.toNat = rhatc.toNat * 2^32 + div_un1.toNat.
