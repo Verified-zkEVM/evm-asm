@@ -125,7 +125,7 @@ theorem div128Quot_q1c_ge_q_true_1
   have h_q1_ge : (uHi.toNat * 2^32 + div_un1.toNat) /
       (dHi.toNat * 2^32 + dLo.toNat) ≤ q1.toNat :=
     div128Quot_q1_ge_q_true_1 uHi dHi dLo div_un1 hdHi_ne h_div_un1_lt
-  have h_q_true_lt : (uHi.toNat * 2^32 + div_un1.toNat) /
+  have : (uHi.toNat * 2^32 + div_un1.toNat) /
       (dHi.toNat * 2^32 + dLo.toNat) < 2^32 :=
     div128Quot_q_true_1_lt_pow32 uHi dHi dLo div_un1 h_div_un1_lt huHi_lt_vTop
   by_cases h_hi1 : hi1 = 0
@@ -133,7 +133,7 @@ theorem div128Quot_q1c_ge_q_true_1
     rw [if_pos h_hi1]
     exact h_q1_ge
   · -- hi1 ≠ 0 ⟹ q1 ≥ 2^32. q1c = q1 - 1 ≥ 2^32 - 1 ≥ q_true_1.
-    have hq1_ge : q1.toNat ≥ 2^32 := by
+    have : q1.toNat ≥ 2^32 := by
       by_contra h
       push Not at h
       apply h_hi1
@@ -169,7 +169,7 @@ theorem knuth_theorem_c_abstract
     uHi.toNat * 2^32 + div_un1.toNat <
     q1c.toNat * (dHi.toNat * 2^32 + dLo.toNat) := by
   -- Multiply Euclidean by 2^32: q1c * dHi * 2^32 + rhatc * 2^32 = uHi * 2^32.
-  have h_eucl_mul : q1c.toNat * dHi.toNat * 2^32 + rhatc.toNat * 2^32 =
+  have : q1c.toNat * dHi.toNat * 2^32 + rhatc.toNat * 2^32 =
       uHi.toNat * 2^32 := by
     have := congr_arg (· * 2^32) h_eucl
     simp only [Nat.add_mul] at this
