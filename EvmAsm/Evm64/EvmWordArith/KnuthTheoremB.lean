@@ -78,6 +78,7 @@ import EvmAsm.Evm64.EvmWordArith.DenormLemmas
 namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64 EvmWord
+open EvmAsm.Rv64.AddrNorm (bv6_toNat_32)
 
 /-- Scale invariance of integer division on val256: multiplying both operands
     by `2^s` doesn't change the quotient. Entry point for lifting normalized
@@ -539,8 +540,7 @@ theorem knuth_theorem_b_from_clz
 theorem div128Quot_dHi_ge_pow31 (vTop : Word) (h : vTop.toNat ≥ 2^63) :
     (vTop >>> (32 : BitVec 6).toNat).toNat ≥ 2^31 := by
   rw [BitVec.toNat_ushiftRight]
-  have h32 : (32 : BitVec 6).toNat = 32 := by decide
-  rw [h32, Nat.shiftRight_eq_div_pow]
+  rw [bv6_toNat_32, Nat.shiftRight_eq_div_pow]
   have h1 : (2:Nat)^63 / 2^32 ≤ vTop.toNat / 2^32 := Nat.div_le_div_right h
   have h2 : (2:Nat)^63 / 2^32 = 2^31 := by decide
   omega
@@ -644,8 +644,7 @@ theorem div128Quot_first_round_correction (uHi dHi : Word)
     push Not at h
     apply hhi1_nz
     apply BitVec.eq_of_toNat_eq
-    have h32 : (32 : BitVec 6).toNat = 32 := by decide
-    rw [BitVec.toNat_ushiftRight, h32, Nat.shiftRight_eq_div_pow]
+    rw [BitVec.toNat_ushiftRight, bv6_toNat_32, Nat.shiftRight_eq_div_pow]
     show q1.toNat / 2^32 = (0 : Word).toNat
     rw [Nat.div_eq_of_lt h]
     rfl
@@ -740,8 +739,7 @@ theorem div128Quot_q1c_lt_pow33 (uHi dHi : Word) (hdHi_ge : dHi.toNat ≥ 2^31) 
       push Not at h
       apply h_hi1
       apply BitVec.eq_of_toNat_eq
-      have h32 : (32 : BitVec 6).toNat = 32 := by decide
-      rw [BitVec.toNat_ushiftRight, h32, Nat.shiftRight_eq_div_pow]
+      rw [BitVec.toNat_ushiftRight, bv6_toNat_32, Nat.shiftRight_eq_div_pow]
       show q1.toNat / 2^32 = (0 : Word).toNat
       rw [Nat.div_eq_of_lt h]
       rfl

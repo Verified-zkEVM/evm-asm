@@ -30,6 +30,7 @@ import EvmAsm.Evm64.EvmWordArith.Div128QuotientBounds
 namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
+open EvmAsm.Rv64.AddrNorm (bv6_toNat_32)
 
 /-- **KB-3f: No-wraparound for `q1' * dLo`.** Under the call-trial
     precondition, the Word-level product equals the Nat-level product:
@@ -113,8 +114,7 @@ theorem halfword_combine_mod (a b : Word) (hb : b.toNat < 2^32) :
 theorem Word_ushiftRight_32_lt_pow32 {x : Word} :
     (x >>> (32 : BitVec 6).toNat).toNat < 2^32 := by
   rw [BitVec.toNat_ushiftRight]
-  have h32 : (32 : BitVec 6).toNat = 32 := by decide
-  rw [h32, Nat.shiftRight_eq_div_pow]
+  rw [bv6_toNat_32, Nat.shiftRight_eq_div_pow]
   have : x.toNat < 2^64 := x.isLt
   have : x.toNat / 2^32 < 2^32 := by
     apply Nat.div_lt_of_lt_mul
@@ -140,10 +140,9 @@ theorem Word_ushiftRight_32_lt_pow32 {x : Word} :
 theorem div128Quot_cu_rhat_un1_toNat (rhat' uLo : Word) :
     ((rhat' <<< (32 : BitVec 6).toNat) ||| (uLo >>> (32 : BitVec 6).toNat)).toNat =
     (rhat'.toNat % 2^32) * 2^32 + (uLo >>> (32 : BitVec 6).toNat).toNat := by
-  have h32 : (32 : BitVec 6).toNat = 32 := by decide
-  rw [h32]
+  rw [bv6_toNat_32]
   apply halfword_combine_mod
-  rw [← h32]
+  rw [← bv6_toNat_32]
   exact Word_ushiftRight_32_lt_pow32
 
 /-- **KB-3i: un21.toNat Nat formula.** Composes KB-3f (q1' * dLo no-wrap
@@ -272,13 +271,12 @@ theorem div128Quot_vTop_decomp (vTop : Word) :
     let dLo := (vTop <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
     vTop.toNat = dHi.toNat * 2^32 + dLo.toNat := by
   intro dHi dLo
-  have h32 : (32 : BitVec 6).toNat = 32 := by decide
   have h_dHi : dHi.toNat = vTop.toNat / 2^32 := by
     show (vTop >>> (32 : BitVec 6).toNat).toNat = _
-    rw [BitVec.toNat_ushiftRight, h32, Nat.shiftRight_eq_div_pow]
+    rw [BitVec.toNat_ushiftRight, bv6_toNat_32, Nat.shiftRight_eq_div_pow]
   have h_dLo : dLo.toNat = vTop.toNat % 2^32 := by
     show ((vTop <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat).toNat = _
-    rw [BitVec.toNat_ushiftRight, h32, Nat.shiftRight_eq_div_pow,
+    rw [BitVec.toNat_ushiftRight, bv6_toNat_32, Nat.shiftRight_eq_div_pow,
         BitVec.toNat_shiftLeft]
     simp only [Nat.shiftLeft_eq]
     rw [show (2^64 : Nat) = 2^32 * 2^32 from by decide,
@@ -669,8 +667,7 @@ theorem div128Quot_toNat_eq (uHi uLo vTop : Word) :
         cu_rhat_un1 cu_q1_dlo un21 q0 rhat2 hi2 q0c rhat2c q0' hq0
   show ((q1' <<< (32 : BitVec 6).toNat) ||| q0').toNat =
     (q1'.toNat % 2^32) * 2^32 + q0'.toNat
-  have h32 : (32 : BitVec 6).toNat = 32 := by decide
-  rw [h32]
+  rw [bv6_toNat_32]
   exact halfword_combine_mod q1' q0' hq0
 
 /-- **KB-6a strict: div128Quot output Nat formula without mod.** Composes

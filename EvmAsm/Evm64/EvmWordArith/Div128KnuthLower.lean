@@ -31,6 +31,7 @@ import EvmAsm.Evm64.EvmWordArith.Div128QuotientBounds
 namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
+open EvmAsm.Rv64.AddrNorm (bv6_toNat_32)
 
 /-- **KB-LB1: Knuth Phase 1 lower bound.** The raw Phase 1 trial
     `rv64_divu uHi dHi` never under-estimates the true first-digit
@@ -137,8 +138,7 @@ theorem div128Quot_q1c_ge_q_true_1
       push Not at h
       apply h_hi1
       apply BitVec.eq_of_toNat_eq
-      have h32 : (32 : BitVec 6).toNat = 32 := by decide
-      rw [BitVec.toNat_ushiftRight, h32, Nat.shiftRight_eq_div_pow]
+      rw [BitVec.toNat_ushiftRight, bv6_toNat_32, Nat.shiftRight_eq_div_pow]
       show q1.toNat / 2^32 = (0 : Word).toNat
       rw [Nat.div_eq_of_lt h]
       rfl
@@ -243,9 +243,8 @@ theorem div128Quot_rhatc_lt_pow32_of_uHi_lt_pow63
     div128Quot_q1_lt_pow32_of_uHi_lt_pow63 uHi dHi hdHi_ne h_uHi_lt hdHi_ge
   have h_hi1 : hi1 = 0 := by
     apply BitVec.eq_of_toNat_eq
-    have h32 : (32 : BitVec 6).toNat = 32 := by decide
     show (q1 >>> (32 : BitVec 6).toNat).toNat = (0 : Word).toNat
-    rw [BitVec.toNat_ushiftRight, h32, Nat.shiftRight_eq_div_pow]
+    rw [BitVec.toNat_ushiftRight, bv6_toNat_32, Nat.shiftRight_eq_div_pow]
     rw [Nat.div_eq_of_lt h_q1_lt]
     rfl
   -- rhat = uHi mod dHi < dHi.
@@ -324,8 +323,7 @@ theorem div128Quot_q1_prime_ge_q_true_1_small_rhatc
   have h_div_un1_lt : div_un1.toNat < 2^32 := by
     show (uLo >>> (32 : BitVec 6).toNat).toNat < 2^32
     rw [BitVec.toNat_ushiftRight]
-    have h32 : (32 : BitVec 6).toNat = 32 := by decide
-    rw [h32, Nat.shiftRight_eq_div_pow]
+    rw [bv6_toNat_32, Nat.shiftRight_eq_div_pow]
     have : uLo.toNat < 2^64 := uLo.isLt
     have h_eq : (2^64 : Nat) = 2^32 * 2^32 := by decide
     exact Nat.div_lt_of_lt_mul (by omega)
@@ -345,8 +343,7 @@ theorem div128Quot_q1_prime_ge_q_true_1_small_rhatc
     -- Step 1: Word check ⟺ Nat check (rhatc * 2^32 + div_un1 < q1c * dLo).
     have h_rhatUn1_eq : rhatUn1.toNat = rhatc.toNat * 2^32 + div_un1.toNat := by
       show ((rhatc <<< (32 : BitVec 6).toNat) ||| div_un1).toNat = _
-      have h32 : (32 : BitVec 6).toNat = 32 := by decide
-      rw [h32]
+      rw [bv6_toNat_32]
       exact EvmWord.halfword_combine rhatc div_un1 h_rhatc_lt h_div_un1_lt
     have h_qDlo_eq : (q1c * dLo).toNat = q1c.toNat * dLo.toNat := by
       rw [BitVec.toNat_mul]
@@ -471,8 +468,7 @@ theorem div128Quot_q0_prime_ge_q_true_0_of_un21_lt_pow63
   have h_div_un0_lt : div_un0.toNat < 2^32 := by
     show ((uLo <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat).toNat < 2^32
     rw [BitVec.toNat_ushiftRight]
-    have h32 : (32 : BitVec 6).toNat = 32 := by decide
-    rw [h32, Nat.shiftRight_eq_div_pow]
+    rw [bv6_toNat_32, Nat.shiftRight_eq_div_pow]
     have h_shl : (uLo <<< (32 : BitVec 6).toNat : Word).toNat < 2^64 :=
       (uLo <<< (32 : BitVec 6).toNat : Word).isLt
     exact Nat.div_lt_of_lt_mul (by omega)
@@ -543,8 +539,7 @@ theorem div128Quot_q0_prime_plus_2_ge_q_true_0_abstract
   have h_div_un0_lt : div_un0.toNat < 2^32 := by
     show ((uLo <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat).toNat < 2^32
     rw [BitVec.toNat_ushiftRight]
-    have h32 : (32 : BitVec 6).toNat = 32 := by decide
-    rw [h32, Nat.shiftRight_eq_div_pow]
+    rw [bv6_toNat_32, Nat.shiftRight_eq_div_pow]
     have h_shl : (uLo <<< (32 : BitVec 6).toNat : Word).toNat < 2^64 :=
       (uLo <<< (32 : BitVec 6).toNat : Word).isLt
     exact Nat.div_lt_of_lt_mul (by omega)
@@ -707,9 +702,8 @@ theorem div128Quot_rhatc_lt_pow32_of_uHi_lt_dHi_mul_pow32
     div128Quot_q1_lt_pow32_of_uHi_lt_dHi_mul_pow32 uHi dHi hdHi_ne h_uHi_lt
   have h_hi1 : hi1 = 0 := by
     apply BitVec.eq_of_toNat_eq
-    have h32 : (32 : BitVec 6).toNat = 32 := by decide
     show (q1 >>> (32 : BitVec 6).toNat).toNat = (0 : Word).toNat
-    rw [BitVec.toNat_ushiftRight, h32, Nat.shiftRight_eq_div_pow]
+    rw [BitVec.toNat_ushiftRight, bv6_toNat_32, Nat.shiftRight_eq_div_pow]
     rw [Nat.div_eq_of_lt h_q1_lt]
     rfl
   have hdHi_pos : 0 < dHi.toNat :=
@@ -791,8 +785,7 @@ theorem div128Quot_q0_prime_ge_q_true_0_of_un21_lt_dHi_mul_pow32
   have h_div_un0_lt : div_un0.toNat < 2^32 := by
     show ((uLo <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat).toNat < 2^32
     rw [BitVec.toNat_ushiftRight]
-    have h32 : (32 : BitVec 6).toNat = 32 := by decide
-    rw [h32, Nat.shiftRight_eq_div_pow]
+    rw [bv6_toNat_32, Nat.shiftRight_eq_div_pow]
     have h_shl : (uLo <<< (32 : BitVec 6).toNat : Word).toNat < 2^64 :=
       (uLo <<< (32 : BitVec 6).toNat : Word).isLt
     exact Nat.div_lt_of_lt_mul (by omega)
