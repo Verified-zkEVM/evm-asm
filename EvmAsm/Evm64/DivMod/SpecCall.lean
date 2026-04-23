@@ -164,9 +164,9 @@ instance (sp : Word) (a b : EvmWord) :
     `(EvmWord.div a b).getLimbN 0..3`) depends on Knuth B.  -/
 theorem div_n4_call_skip_stack_weaken
     (sp : Word) (a b : EvmWord)
-    (v1_p v2_p v5_p v6_p v7_p v10_p v11_p : Word)
-    (q0P q1P q2_p q3_p u0P u1P u2P u3P u4_p u5_p u6_p u7_p
-     shift_p n_p j_p retMem_p dMem_p dloMem_p scratch_un0_p : Word) :
+    {v1_p v2_p v5_p v6_p v7_p v10_p v11_p : Word}
+    {q0P q1P q2_p q3_p u0P u1P u2P u3P u4_p u5_p u6_p u7_p
+     shift_p n_p j_p retMem_p dMem_p dloMem_p scratch_un0_p : Word} :
     ∀ h,
       ((.x12 ↦ᵣ (sp + 32)) **
        (.x1 ↦ᵣ v1_p) ** (.x2 ↦ᵣ v2_p) **
@@ -193,9 +193,9 @@ theorem div_n4_call_skip_stack_weaken
     instead of `EvmWord.div a b`. -/
 theorem mod_n4_call_skip_stack_weaken
     (sp : Word) (a b : EvmWord)
-    (v1_p v2_p v5_p v6_p v7_p v10_p v11_p : Word)
-    (q0P q1P q2_p q3_p u0P u1P u2P u3P u4_p u5_p u6_p u7_p
-     shift_p n_p j_p retMem_p dMem_p dloMem_p scratch_un0_p : Word) :
+    {v1_p v2_p v5_p v6_p v7_p v10_p v11_p : Word}
+    {q0P q1P q2_p q3_p u0P u1P u2P u3P u4_p u5_p u6_p u7_p
+     shift_p n_p j_p retMem_p dMem_p dloMem_p scratch_un0_p : Word} :
     ∀ h,
       ((.x12 ↦ᵣ (sp + 32)) **
        (.x1 ↦ᵣ v1_p) ** (.x2 ↦ᵣ v2_p) **
@@ -1032,22 +1032,36 @@ theorem evm_div_n4_call_skip_stack_spec (sp base : Word)
          q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
          shiftMem nMem jMem retMem dMem dloMem scratch_un0)
       (divN4CallSkipStackPost sp a b) := by
-  -- Obtain the pre-spec result (concrete full post).
   have h_pre := evm_div_n4_full_call_skip_stack_pre_spec_bundled sp base a b
     v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
     nMem shiftMem jMem retMem dMem dloMem scratch_un0
     hbnz hb3nz hshift_nz halign hbltu hborrow
-  -- Extract the qHat = (EvmWord.div a b).getLimbN 0 etc. from the semantic
-  -- hypothesis + T3 via the bridge theorem.
   obtain ⟨hdiv0, hdiv1, hdiv2, hdiv3⟩ :=
     n4_call_skip_div_mod_getLimbN a b hbnz hshift_nz hborrow hsem
-  -- Post reshape: analogous to max-skip's flattening via
-  -- `fullDivN4MaxSkipPost_unfold + denormDivPost_unfold + xperm_hyp`.
-  -- Call-skip version will need a `fullDivN4CallSkipPost_unfold` helper
-  -- (to be added) or a direct `delta + simp` approach tracking the 19-cell
-  -- scratch vs the max-skip's 15-cell scratch.
-  -- TODO(#66 follow-up): finish the reshape proof. Depends on finishing the
-  -- bridge theorem above.
-  sorry
+  refine cpsTriple_weaken (fun _ hp => hp) ?_ h_pre
+  intro h hq
+  simp only [fullDivN4CallSkipPost_unfold, denormDivPost_unfold] at hq
+  apply div_n4_call_skip_stack_weaken sp a b h
+  rw [show evmWordIs sp a =
+      ((sp ↦ₘ a.getLimbN 0) ** ((sp + 8) ↦ₘ a.getLimbN 1) **
+       ((sp + 16) ↦ₘ a.getLimbN 2) ** ((sp + 24) ↦ₘ a.getLimbN 3))
+      from evmWordIs_sp_unfold]
+  rw [show evmWordIs (sp + 32) (EvmWord.div a b) =
+      (((sp + 32) ↦ₘ (div128Quot ((a.getLimbN 3) >>> ((signExtend12 (0 : BitVec 12) -
+          (clzResult (b.getLimbN 3)).1).toNat % 64))
+          (((a.getLimbN 3) <<< ((clzResult (b.getLimbN 3)).1.toNat % 64)) |||
+            ((a.getLimbN 2) >>> ((signExtend12 (0 : BitVec 12) -
+              (clzResult (b.getLimbN 3)).1).toNat % 64)))
+          (((b.getLimbN 3) <<< ((clzResult (b.getLimbN 3)).1.toNat % 64)) |||
+            ((b.getLimbN 2) >>> ((signExtend12 (0 : BitVec 12) -
+              (clzResult (b.getLimbN 3)).1).toNat % 64))))) **
+       ((sp + 40) ↦ₘ (0 : Word)) **
+       ((sp + 48) ↦ₘ (0 : Word)) **
+       ((sp + 56) ↦ₘ (0 : Word)))
+      from by rw [evmWordIs_sp32_limbs_eq sp (EvmWord.div a b) _ _ _ _
+                  hdiv0 hdiv1 hdiv2 hdiv3]]
+  rw [divScratchValuesCall_unfold, divScratchValues_unfold]
+  rw [word_add_zero] at hq
+  xperm_hyp hq
 
 end EvmAsm.Evm64
