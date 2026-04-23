@@ -605,6 +605,27 @@ theorem div128Quot_call_skip_ge_val256_div
     let u3 := (a3 <<< shift) ||| (a2 >>> antiShift)
     val256 a0 a1 a2 a3 / val256 b0 b1 b2 b3 ≤
       (div128Quot u4 u3 b3').toNat := by
+  intro shift antiShift b3' u4 u3
+  -- Step 0: basic shift bounds.
+  have h_shift_pos : 1 ≤ (clzResult b3).1.toNat := by
+    by_contra h
+    push Not at h
+    have h_zero : (clzResult b3).1.toNat = 0 := by omega
+    apply hshift_nz
+    apply BitVec.eq_of_toNat_eq
+    rw [h_zero]; rfl
+  have h_shift_le : (clzResult b3).1.toNat ≤ 63 :=
+    clzResult_fst_toNat_le b3
+  -- Step 1: u4 < 2^63 (from `u_top_lt_pow63_of_shift_nz`).
+  have h_u4_lt : u4.toNat < 2^63 := by
+    show (a3 >>> antiShift).toNat < 2^63
+    exact u_top_lt_pow63_of_shift_nz a3 (clzResult b3).1 h_shift_pos h_shift_le
+  -- Step 2: Apply KB-LB7 to get q1' ≥ q_true_1 for the top-digit division.
+  -- TODO(#65): this needs dHi' = b3' >> 32 bounds, dLo' bounds, and
+  -- the huHi hypothesis (u4 < dHi'*2^32 + dLo' = b3'). From hcall.
+  -- Step 3: Apply KB-LB8 (or KB-LB8') for Phase 2 tight q0' ≥ q_true_0.
+  -- Step 4: Compose via digit_tight_of_le_and_ge and q_true_full bounds.
+  -- Step 5: Bridge q_true_full in normalized domain to val256(a)/val256(b).
   sorry
 
 /-- **Call-skip exact equality**: combines the upper and lower bounds to
