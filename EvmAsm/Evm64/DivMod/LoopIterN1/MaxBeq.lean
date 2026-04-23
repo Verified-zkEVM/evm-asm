@@ -12,7 +12,6 @@ open EvmAsm.Rv64.Tactics
 namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
-open EvmAsm.Evm64.DivMod.AddrNorm (slt_jpos_1 slt_jpos_2 slt_jpos_3)
 
 -- ============================================================================
 -- BEQ variants: max path addback with double-addback handling (no sorry)

@@ -12,7 +12,6 @@ open EvmAsm.Rv64.Tactics
 namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
-open EvmAsm.Evm64.DivMod.AddrNorm (slt_jpos_1 slt_jpos_2 slt_jpos_3)
 
 -- ============================================================================
 -- n=1, BLTU not-taken (max path) + BEQ skip, j=0 → cpsTriple to base+904
