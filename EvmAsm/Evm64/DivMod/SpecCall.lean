@@ -1463,12 +1463,34 @@ theorem output_slot_to_evmWordIs_mod_n4_call_skip_denorm
   have hb3_bound : (b.getLimbN 3).toNat <
       2 ^ (64 - (clzResult (b.getLimbN 3)).1.toNat) :=
     clzResult_fst_top_bound (b.getLimbN 3)
-  -- Deferred: closing the full adapter requires extensive shift-normalization
-  -- plumbing to reconcile the adapter's `Word`-arithmetic `antiShift` form
-  -- with the helper's `64 - s` Nat form. All the math is in place via
-  -- `denorm_limbN_eq_mod_of_overestimate_getLimbN` + the T3 + hsem + c3_le_u4
-  -- chain — just requires careful alignment of the `let`-bound shifts across
-  -- a whnf-heavy goal.
+  -- T3 bound + hsem.
+  rw [isSkipBorrowN4CallEvm_def] at hborrow
+  have hT3 := div128Quot_call_skip_mul_val256_b_le_val256_a
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+      hshift_nz hborrow
+  rw [n4CallSkipSemanticHolds_def] at hsem
+  have hc3_le := c3_le_u4_of_skip_borrow_call hborrow
+  simp only [hmod_eq, hanti_toNat_mod] at hT3 hsem hc3_le
+  -- Apply the per-limb bridge. Instantiate with `s = clz.1.toNat`.
+  have h_limbs := denorm_limbN_eq_mod_of_overestimate_getLimbN (a := a) (b := b)
+    (qHat := div128Quot
+      ((a.getLimbN 3) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+      (((a.getLimbN 3) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+       ((a.getLimbN 2) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat)))
+      (((b.getLimbN 3) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+       ((b.getLimbN 2) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))))
+    hshift_pos hshift_lt_64 hb3_bound hT3 hsem hb3nz hc3_le
+  -- Setup is complete: `hT3` gives `qHat.toNat * val256(b) ≤ val256(a)`,
+  -- `hsem` gives `val256(a) / val256(b) ≤ qHat.toNat`, `hc3_le` gives
+  -- `c3_n ≤ u4 = a.getLimbN 3 >>> (64 - shift)`. `h_limbs` then gives
+  -- the four per-limb equalities `(EvmWord.mod a b).getLimbN k = denorm_slot_k`.
+  -- The remaining gap: the adapter's goal uses let-bound `ms` (which is
+  -- `mulsubN4 qHat b0' b1' ...` where b0'..b3', u0..u3 are themselves
+  -- let-bound using `shift`/`antiShift`). After `rw [shift = s]`, only
+  -- `shift` unfolds; `ms`'s internals stay fvar-bound. Matching `ms.1`
+  -- against `h_limbs.1`'s explicit `mulsubN4 qHat (b0 <<< s) ...` form
+  -- requires full zeta through the intro'd let-chain. Defer to next iter.
   sorry
 
 /-- **EVM-stack-level MOD spec on the n=4 call+skip sub-path.**
