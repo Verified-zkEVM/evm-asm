@@ -220,7 +220,7 @@ private theorem shl_body0_exit {base : Word} : ((base + 240 : Word) + 96) + sign
 
 /-- Zero path via BNE taken: high shift limbs are nonzero → shift ≥ 256 → result is zero. -/
 theorem evm_shl_zero_high_spec (sp base : Word)
-    (s0 s1 s2 s3 v0 v1 v2 v3 r5 r10 : Word)
+    {s0 s1 s2 s3 v0 v1 v2 v3 : Word} (r5 r10 : Word)
     (hhigh : s1 ||| s2 ||| s3 ≠ 0) :
     cpsTriple base (base + 360) (shlCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ r5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ r10) **
@@ -324,7 +324,7 @@ theorem evm_shl_zero_high_spec (sp base : Word)
 
 /-- Zero path via BEQ taken: s1=s2=s3=0 but s0 ≥ 256 → result is zero. -/
 theorem evm_shl_zero_large_spec (sp base : Word)
-    (s0 s1 s2 s3 v0 v1 v2 v3 r5 r10 : Word)
+    {s0 s1 s2 s3 v0 v1 v2 v3 : Word} (r5 r10 : Word)
     (hlow : s1 ||| s2 ||| s3 = 0)
     (hlarge : BitVec.ult s0 (signExtend12 (256 : BitVec 12)) = false) :
     cpsTriple base (base + 360) (shlCode base)
