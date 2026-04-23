@@ -107,12 +107,12 @@ theorem mulsub_limb_nat_eq {q v_i u_i carryIn : Word} :
   -- div_add_mod for the add carry
   have hdm := Nat.div_add_mod (prodLo.toNat + carryIn.toNat) (2^64)
   -- Combine: normalize 2^64 to the literal everywhere
-  have hB : (2:Nat)^64 = 18446744073709551616 := by norm_num
+  have : (2:Nat)^64 = 18446744073709551616 := by norm_num
   -- Use B as shorthand for 2^64 literal
   set B := (18446744073709551616 : Nat)
   rw [show (2:Nat)^64 = B from by omega] at h_ba h_fs h_prod hdm hu hfs h_un ⊢
   -- Key: from hdm, (prodLo + carryIn) / B * B + fullSub = prodLo + carryIn
-  have hkey : (prodLo.toNat + carryIn.toNat) / B * B =
+  have : (prodLo.toNat + carryIn.toNat) / B * B =
       prodLo.toNat + carryIn.toNat - fullSub.toNat := by
     rw [h_fs]; omega
   -- Key: prodHi * B + prodLo = q * v_i
@@ -120,9 +120,9 @@ theorem mulsub_limb_nat_eq {q v_i u_i carryIn : Word} :
   have h_prod' : prodHi.toNat * B + prodLo.toNat = q.toNat * v_i.toNat := by
     show (rv64_mulhu q v_i).toNat * B + (q * v_i).toNat = _; linarith
   -- Expand the compound carry multiplication
-  have hfs_le : fullSub.toNat ≤ prodLo.toNat + carryIn.toNat := by
+  have : fullSub.toNat ≤ prodLo.toNat + carryIn.toNat := by
     rw [h_fs]; exact Nat.mod_le _ _
-  have hpl_le : prodLo.toNat ≤ prodHi.toNat * B + prodLo.toNat := Nat.le_add_left _ _
+  have : prodLo.toNat ≤ prodHi.toNat * B + prodLo.toNat := Nat.le_add_left _ _
   rw [h_ba, h_bs, h_un]
   -- Eliminate the nonlinear q*v_i term by replacing with prodHi*B + prodLo (linear!)
   rw [show q.toNat * v_i.toNat = prodHi.toNat * B + prodLo.toNat from h_prod'.symm]

@@ -101,13 +101,13 @@ theorem mulsub_limb_carry_strict_lt {q v_i u_i carryIn : Word} :
   have h_ov : fullSub.toNat < carryIn.toNat := by
     simp only [h_ba_def] at h_ba_1; split at h_ba_1 <;> [assumption; omega]
   -- overflow: (q * v_i).toNat + carryIn.toNat ≥ 2^64
-  have h_overflow : (q * v_i).toNat + carryIn.toNat ≥ 2^64 := by
+  have : (q * v_i).toNat + carryIn.toNat ≥ 2^64 := by
     by_contra h_no; push Not at h_no
     rw [h_fs_val, Nat.mod_eq_of_lt h_no] at h_ov; omega
   -- (q * v_i).toNat = 1 and carryIn = 2^64 - 1
-  have h_plo_1 : (q * v_i).toNat = 1 := by omega
+  have : (q * v_i).toNat = 1 := by omega
   -- fullSub = 0
-  have h_fs_0 : fullSub.toNat = 0 := by rw [h_fs_val]; omega
+  have : fullSub.toNat = 0 := by rw [h_fs_val]; omega
   -- bs_n = 0 (nothing is < 0)
   have : bs_n = 0 := by
     simp only [h_bs_def, show ¬(u_i.toNat < fullSub.toNat) from by omega, ite_false]
