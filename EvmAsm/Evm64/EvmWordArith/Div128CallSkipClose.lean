@@ -522,8 +522,8 @@ theorem q_true_full_ge_q_true_1_mul_pow32_nat
     (hvTop_pos : 0 < dHi * 2^32 + dLo) :
     (uHi * 2^32 + div_un1) / (dHi * 2^32 + dLo) * 2^32 ≤
       (uHi * 2^64 + div_un1 * 2^32 + div_un0) / (dHi * 2^32 + dLo) := by
-  set vTop_nat := dHi * 2^32 + dLo with h_vTop_def
-  set q_true_1 := (uHi * 2^32 + div_un1) / vTop_nat with h_q_true_1_def
+  set vTop_nat := dHi * 2^32 + dLo
+  set q_true_1 := (uHi * 2^32 + div_un1) / vTop_nat
   have h_euc : q_true_1 * vTop_nat ≤ uHi * 2^32 + div_un1 :=
     Nat.div_mul_le_self _ _
   have h_le : q_true_1 * 2^32 * vTop_nat ≤
@@ -546,8 +546,8 @@ theorem q_true_full_lt_q_true_1_succ_mul_pow32_nat
     (hdiv_un0_lt : div_un0 < 2^32) :
     (uHi * 2^64 + div_un1 * 2^32 + div_un0) / (dHi * 2^32 + dLo) <
       ((uHi * 2^32 + div_un1) / (dHi * 2^32 + dLo) + 1) * 2^32 := by
-  set vTop_nat := dHi * 2^32 + dLo with h_vTop_def
-  set q_true_1 := (uHi * 2^32 + div_un1) / vTop_nat with h_q_true_1_def
+  set vTop_nat := dHi * 2^32 + dLo
+  set q_true_1 := (uHi * 2^32 + div_un1) / vTop_nat
   have h_lt : uHi * 2^32 + div_un1 < vTop_nat * (q_true_1 + 1) :=
     Nat.lt_mul_div_succ _ hvTop_pos
   have h_num_lt : uHi * 2^64 + div_un1 * 2^32 + div_un0 <
