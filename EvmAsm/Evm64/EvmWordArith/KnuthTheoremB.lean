@@ -222,7 +222,7 @@ theorem knuth_q_r_v_nat_bound
     (hu_next_lt : u_next < 2^64) :
     (u_top * 2^64 + u_next) / v_top * v_nat < u_nat + 2 * v_nat := by
   set u_hat := u_top * 2^64 + u_next with hu_hat_def
-  set q_r := u_hat / v_top with hq_r_def
+  set q_r := u_hat / v_top
   -- Basic facts
   have hv_top_pos : 0 < v_top := by
     have : (0:Nat) < 2^63 := by positivity
@@ -616,7 +616,7 @@ theorem div128Quot_first_round_correction (uHi dHi : Word)
     (rv64_divu uHi dHi + signExtend12 4095).toNat * dHi.toNat +
       (uHi - rv64_divu uHi dHi * dHi + dHi).toNat = uHi.toNat := by
   set q1 := rv64_divu uHi dHi with hq1_def
-  set rhat := uHi - q1 * dHi with hrhat_def
+  set rhat := uHi - q1 * dHi
   -- Nat-level facts
   have hq1_eq : q1.toNat = uHi.toNat / dHi.toNat := rv64_divu_toNat uHi dHi hdHi_ne
   have h_eucl : q1.toNat * dHi.toNat + rhat.toNat = uHi.toNat := by

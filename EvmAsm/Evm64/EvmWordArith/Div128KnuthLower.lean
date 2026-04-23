@@ -81,7 +81,7 @@ theorem div128Quot_q_true_1_lt_pow32
     (h_div_un1_lt : div_un1.toNat < 2^32)
     (huHi_lt_vTop : uHi.toNat < dHi.toNat * 2^32 + dLo.toNat) :
     (uHi.toNat * 2^32 + div_un1.toNat) / (dHi.toNat * 2^32 + dLo.toNat) < 2^32 := by
-  set vTop_nat := dHi.toNat * 2^32 + dLo.toNat with h_vTop_def
+  set vTop_nat := dHi.toNat * 2^32 + dLo.toNat
   have h_vTop_pos : 0 < vTop_nat :=
     Nat.lt_of_le_of_lt (Nat.zero_le _) huHi_lt_vTop
   have h_num_lt : uHi.toNat * 2^32 + div_un1.toNat < vTop_nat * 2^32 := by
