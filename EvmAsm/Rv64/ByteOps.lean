@@ -4,9 +4,7 @@
   Byte-level infrastructure: extractByte/replaceByte algebra and
   generic CPS specs for LBU (load byte unsigned) and SB (store byte).
 -/
-import EvmAsm.Rv64.Basic
-import EvmAsm.Rv64.Execution
-import EvmAsm.Rv64.SepLogic
+-- `CPSSpec` transitively imports `Basic`, `SepLogic`, and `Execution`.
 import EvmAsm.Rv64.CPSSpec
 import Mathlib.Tactic
 

@@ -5,9 +5,7 @@
   generic CPS specs for LW (load word signed), LWU (load word unsigned),
   and SW (store word).
 -/
-import EvmAsm.Rv64.Basic
-import EvmAsm.Rv64.Execution
-import EvmAsm.Rv64.SepLogic
+-- `CPSSpec` transitively imports `Basic`, `SepLogic`, and `Execution`.
 import EvmAsm.Rv64.CPSSpec
 import Mathlib.Tactic.IntervalCases
 import Mathlib.Tactic.FinCases

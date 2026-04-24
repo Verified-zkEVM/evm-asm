@@ -14,10 +14,8 @@
   are one-line applications of these generic lemmas.
 -/
 
-import EvmAsm.Rv64.Basic
-import EvmAsm.Rv64.Instructions
-import EvmAsm.Rv64.SepLogic
-import EvmAsm.Rv64.Execution
+-- `CPSSpec` transitively imports `Basic`, `SepLogic`, `Execution`, and
+-- (via `Execution`) `Instructions`.
 import EvmAsm.Rv64.CPSSpec
 
 namespace EvmAsm.Rv64
