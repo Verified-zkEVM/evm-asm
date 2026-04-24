@@ -472,10 +472,52 @@ theorem algorithmQ1Prime_step5_ult_bridge
     (BitVec.ult rhatUn1 (q1c * dLo) = true) ↔
       (q1c.toNat * dLo.toNat >
        rhatc.toNat * 2^32 + div_un1.toNat) := by
-  -- TODO (deferred): attempted proof via ult_iff + halfword_combine +
-  -- q1c*dLo no-wrap (from q1c ≤ 2^32+1) hit type mismatches. ~30 lines
-  -- via more careful lemma specializations.
-  sorry
+  intro dHi dLo div_un1 q1 rhat hi1 q1c rhatc rhatUn1
+  have h_dHi_lt : dHi.toNat < 2^32 := by
+    show (b3' >>> (32 : BitVec 6).toNat).toNat < 2^32
+    rw [BitVec.toNat_ushiftRight, AddrNorm.bv6_toNat_32, Nat.shiftRight_eq_div_pow]
+    have : b3'.toNat < 2^64 := b3'.isLt
+    exact Nat.div_lt_of_lt_mul (by omega)
+  have h_dHi_ge : dHi.toNat ≥ 2^31 := by
+    show (b3' >>> (32 : BitVec 6).toNat).toNat ≥ 2^31
+    rw [BitVec.toNat_ushiftRight, AddrNorm.bv6_toNat_32, Nat.shiftRight_eq_div_pow]
+    have : b3'.toNat ≥ 2^63 := hb3'_ge
+    omega
+  have h_dLo_lt : dLo.toNat < 2^32 := by
+    show ((b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat).toNat < 2^32
+    rw [BitVec.toNat_ushiftRight, AddrNorm.bv6_toNat_32, Nat.shiftRight_eq_div_pow]
+    have : (b3' <<< (32 : BitVec 6).toNat : Word).toNat < 2^64 :=
+      (b3' <<< (32 : BitVec 6).toNat : Word).isLt
+    exact Nat.div_lt_of_lt_mul (by omega)
+  have h_div_un1_lt : div_un1.toNat < 2^32 := by
+    show (u3 >>> (32 : BitVec 6).toNat).toNat < 2^32
+    rw [BitVec.toNat_ushiftRight, AddrNorm.bv6_toNat_32, Nat.shiftRight_eq_div_pow]
+    have : u3.toNat < 2^64 := u3.isLt
+    exact Nat.div_lt_of_lt_mul (by omega)
+  have h_v_eq : b3'.toNat = dHi.toNat * 2^32 + dLo.toNat :=
+    div128Quot_vTop_decomp b3'
+  have h_u4_lt_vTop : u4.toNat < dHi.toNat * 2^32 + dLo.toNat := h_v_eq ▸ hu4_lt_b3'
+  -- q1c ≤ 2^32 (Phase 1a bound).
+  have h_q1c_le : q1c.toNat ≤ 2^32 :=
+    div128Quot_q1c_le_pow32 u4 dHi dLo h_dHi_ge h_dLo_lt h_u4_lt_vTop
+  -- rhatc < 2^32 (step4).
+  have h_rhatc_lt : rhatc.toNat < 2^32 :=
+    algorithmQ1Prime_step4_rhatc_lt_pow32 u4 u3 b3' hb3'_ge hu4_lt_dHi_pow32
+  -- q1c * dLo no-wrap.
+  have h_q1c_dLo_lt : q1c.toNat * dLo.toNat < 2^64 := by
+    have : q1c.toNat * dLo.toNat ≤ 2^32 * (2^32 - 1) := by
+      have h : dLo.toNat ≤ 2^32 - 1 := by omega
+      exact Nat.mul_le_mul h_q1c_le h
+    have : (2^32 : Nat) * (2^32 - 1) = 2^64 - 2^32 := by decide
+    omega
+  -- rhatUn1.toNat via halfword_combine.
+  have h_rhatUn1_eq : rhatUn1.toNat = rhatc.toNat * 2^32 + div_un1.toNat := by
+    show ((rhatc <<< (32 : BitVec 6).toNat) ||| div_un1).toNat = _
+    rw [show ((32 : BitVec 6).toNat : Nat) = 32 from by rfl]
+    exact EvmWord.halfword_combine _ _ h_rhatc_lt h_div_un1_lt
+  -- Apply ult_iff and chain the equalities.
+  rw [EvmWord.ult_iff, BitVec.toNat_mul, Nat.mod_eq_of_lt h_q1c_dLo_lt,
+      h_rhatUn1_eq]
 
 /-- **Bridge sub-A** (Knuth-B upper at Phase 1b): under standard hcall,
     `algorithmQ1Prime.toNat ≤ (u4*2^32 + div_un1) / b3' + 1`.
