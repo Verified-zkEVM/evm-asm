@@ -364,6 +364,9 @@ theorem lo32_toNat_lt_pow32 (a : Word) :
   rw [Nat.mul_div_cancel _ (by positivity : 0 < (2:Nat)^32)]
   exact Nat.mod_lt _ (by positivity)
 
+-- TODO: composed q0_le_one (uses dHi_ne/dHi_ge at lines 429/421) will be
+-- added after dHi_ne in the file layout.
+
 -- ============================================================================
 -- The main composite lemma — scaffolded with sorrys for Phase 1 tracing
 -- and Phase 2b reasoning. Filled incrementally per feedback_commit_sorry_intermediate.
@@ -405,6 +408,35 @@ theorem div128Quot_shift0_dHi_ne (b3 : Word) (hb3_ge : b3.toNat ≥ 2^63) :
   have h_ge := div128Quot_shift0_dHi_ge b3 hb3_ge
   have h_toNat : (b3 >>> (32 : BitVec 6).toNat).toNat = 0 := by rw [h]; rfl
   omega
+
+/-- Under uHi=0 + b3 ≥ 2^63: `q0.toNat ≤ 1` in the div128Quot shift=0 chain.
+    Composes `div128Quot_shift0_q0_eq` + `rv64_divu_lo32_hi32_le_one` +
+    `lo32_toNat_lt_pow32` + `div128Quot_shift0_dHi_ge` + `_dHi_ne`. -/
+theorem div128Quot_shift0_q0_le_one (a3 b3 : Word)
+    (hb3_ge : b3.toNat ≥ 2^63) :
+    (let dHi := b3 >>> (32 : BitVec 6).toNat
+     let dLo := (b3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+     let div_un1 := (a3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+     let q1 := rv64_divu (0 : Word) dHi
+     let rhat := (0 : Word) - q1 * dHi
+     let hi1 := q1 >>> (32 : BitVec 6).toNat
+     let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+     let rhatc := if hi1 = 0 then rhat else rhat + dHi
+     let qDlo := q1c * dLo
+     let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
+     let q1' := if BitVec.ult rhatUn1 qDlo then q1c + signExtend12 4095 else q1c
+     let rhat' := if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc
+     let cu_rhat_un1 := (rhat' <<< (32 : BitVec 6).toNat) ||| div_un1
+     let cu_q1_dlo := q1' * dLo
+     let un21 := cu_rhat_un1 - cu_q1_dlo
+     (rv64_divu un21 dHi).toNat) ≤ 1 := by
+  simp only []
+  rw [div128Quot_shift0_q0_eq (b3 >>> (32 : BitVec 6).toNat)
+        ((b3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat)
+        ((a3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat)
+        (div128Quot_shift0_dHi_ne b3 hb3_ge)]
+  exact rv64_divu_lo32_hi32_le_one _ _ (lo32_toNat_lt_pow32 a3)
+    (div128Quot_shift0_dHi_ge b3 hb3_ge)
 
 /-- Upper bound: under shift=0 (b3 ≥ 2^63), `div128Quot 0 a3 b3` is at most 1.
 
