@@ -50,7 +50,6 @@ import EvmAsm.Evm64.EvmWordArith.DivLimbBridge
 import EvmAsm.Evm64.EvmWordArith.SkipBorrowExtract
 import EvmAsm.Evm64.EvmWordArith.ModBridgeAssemble
 import EvmAsm.Evm64.EvmWordArith.DivN4DoubleAddback
-import EvmAsm.Evm64.EvmWordArith.CLZLemmas
 import EvmAsm.Evm64.EvmWordArith.MaxTrialVacuity
 
 open EvmAsm.Rv64.Tactics
