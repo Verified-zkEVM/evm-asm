@@ -19,6 +19,7 @@ import EvmAsm.Evm64.DivMod.Spec
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4Shift0
 import EvmAsm.Evm64.DivMod.Compose.ModFullPathN4Shift0
 import EvmAsm.Evm64.EvmWordArith.Div128CallSkipClose
+import EvmAsm.Evm64.EvmWordArith.Div128Shift0
 
 open EvmAsm.Rv64.Tactics
 
@@ -1853,6 +1854,302 @@ theorem evm_mod_n4_call_addback_beq_stack_spec (sp base : Word)
   rw [divScratchValuesCall_unfold, divScratchValues_unfold]
   rw [word_add_zero] at hq
   simp only [hmod_eq, hanti_toNat_mod] at hq ⊢
+  xperm_hyp hq
+
+-- ============================================================================
+-- Shift=0 call+skip DIV stack spec (unblocked by PR #1155's Div128Shift0)
+-- ============================================================================
+
+/-- **Shift=0 call+skip n=4 div getLimbN bridge.** Under shift=0 (b3 already
+    normalized), `isSkipBorrowN4Shift0Evm`, and b ≠ 0: the algorithm's trial
+    qHat = `div128Quot 0 a3 b3` equals `(EvmWord.div a b).getLimbN 0`, and
+    the upper three limbs of the quotient are zero.
+
+    Simpler than the shift-nz case: `Div128Shift0` gives both bounds
+    (`_ge_val256_div` and `_le_one`), and skip-borrow + c3=0 from mulsub's
+    Euclidean gives the upper bound `qHat * val256(b) ≤ val256(a)`. -/
+theorem n4_shift0_call_skip_div_mod_getLimbN (a b : EvmWord)
+    (hbnz : b ≠ 0)
+    (hshift_z : (clzResult (b.getLimbN 3)).1 = 0)
+    (hborrow : isSkipBorrowN4Shift0Evm a b) :
+    let qHat := div128Quot (0 : Word)
+      (a.getLimbN 3) (b.getLimbN 3)
+    (EvmWord.div a b).getLimbN 0 = qHat ∧
+    (EvmWord.div a b).getLimbN 1 = 0 ∧
+    (EvmWord.div a b).getLimbN 2 = 0 ∧
+    (EvmWord.div a b).getLimbN 3 = 0 := by
+  simp only []
+  set qHat := div128Quot (0 : Word) (a.getLimbN 3) (b.getLimbN 3) with hqHat_def
+  rw [isSkipBorrowN4Shift0Evm_def] at hborrow
+  -- Extract c3 = 0 from the skip-borrow predicate.
+  have hc3_zero : mulsubN4_c3 qHat
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) = 0 := by
+    unfold isSkipBorrowN4Shift0 at hborrow
+    simp only [] at hborrow
+    by_contra hne
+    have h_lt : BitVec.ult (0 : Word)
+        (mulsubN4_c3 qHat
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)) = true := by
+      rw [EvmWord.ult_iff]
+      rw [show (0 : Word).toNat = 0 from rfl]
+      exact Nat.pos_of_ne_zero (fun h => hne (BitVec.eq_of_toNat_eq (by simp [h])))
+    rw [h_lt] at hborrow
+    simp at hborrow
+  -- b3 has top bit set (shift=0 normalization), so b3 ≥ 2^63.
+  have hb3_ge : (b.getLimbN 3).toNat ≥ 2^63 :=
+    clz_zero_imp_msb hshift_z
+  -- Lower bound from Div128Shift0.
+  have h_ge := div128Quot_shift0_ge_a3_div_b3 (a.getLimbN 3) (b.getLimbN 3) hb3_ge
+  -- Bridge to val256: use `a3_div_b3_ge_val256_div` to lift from a3/b3 to val256.
+  have hb_nz_or : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 ||| b.getLimbN 3 ≠ 0 :=
+    (EvmWord.ne_zero_iff_getLimbN_or).mp hbnz
+  have hb_pos_val : val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) > 0 :=
+    EvmWord.val256_pos_of_or_ne_zero hb_nz_or
+  have h_algo_ge := div128Quot_shift0_ge_val256_div
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) hb3_ge hb_pos_val
+  simp only [] at h_algo_ge
+  -- Upper bound from c3 = 0: mulsubN4_val256_eq gives val256(u) + 0 = val256(un) + qHat * val256(v).
+  have h_mulsub := mulsubN4_val256_eq qHat
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+  simp only [] at h_mulsub
+  rw [show (mulsubN4 qHat
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)).2.2.2.2 =
+      (0 : Word) from hc3_zero] at h_mulsub
+  rw [show (0 : Word).toNat = 0 from rfl, Nat.zero_mul, Nat.add_zero] at h_mulsub
+  have h_un_bound :
+      val256 (mulsubN4 qHat
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)).1
+        (mulsubN4 qHat
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)).2.1
+        (mulsubN4 qHat
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)).2.2.1
+        (mulsubN4 qHat
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)).2.2.2.1 ≥ 0 :=
+    Nat.zero_le _
+  have h_qHat_mul_le : qHat.toNat *
+      val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ≤
+      val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) := by
+    linarith
+  -- Now combine: qHat = val256(a)/val256(b).
+  have ha_val : val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      = a.toNat := by
+    simp only [← EvmWord.getLimb_as_getLimbN_0, ← EvmWord.getLimb_as_getLimbN_1,
+               ← EvmWord.getLimb_as_getLimbN_2, ← EvmWord.getLimb_as_getLimbN_3]
+    exact EvmWord.val256_eq_toNat a
+  have hb_val : val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+      = b.toNat := by
+    simp only [← EvmWord.getLimb_as_getLimbN_0, ← EvmWord.getLimb_as_getLimbN_1,
+               ← EvmWord.getLimb_as_getLimbN_2, ← EvmWord.getLimb_as_getLimbN_3]
+    exact EvmWord.val256_eq_toNat b
+  have hb_pos : 0 < b.toNat := by
+    rcases Nat.eq_zero_or_pos b.toNat with h | h
+    · exfalso; apply hbnz; exact BitVec.eq_of_toNat_eq (by simp [h])
+    · exact h
+  rw [ha_val, hb_val] at h_qHat_mul_le h_algo_ge
+  have hq_eq : qHat.toNat = a.toNat / b.toNat := by
+    have hle : qHat.toNat ≤ a.toNat / b.toNat :=
+      (Nat.le_div_iff_mul_le hb_pos).mpr h_qHat_mul_le
+    have hqHat_toNat :
+        qHat.toNat = (div128Quot (0 : Word) (a.getLimbN 3) (b.getLimbN 3)).toNat := by
+      rw [hqHat_def]
+    omega
+  have hdiv_toNat : (EvmWord.div a b).toNat = a.toNat / b.toNat := by
+    unfold EvmWord.div
+    rw [if_neg hbnz]
+    exact BitVec.toNat_udiv
+  set q_target : EvmWord := EvmWord.fromLimbs fun i : Fin 4 =>
+    match i with | 0 => qHat | 1 => 0 | 2 => 0 | 3 => 0 with hq_target
+  have hq_target_toNat : q_target.toNat = qHat.toNat := by
+    simp [q_target, EvmWord.fromLimbs_toNat]
+  have hq_eq_div : q_target = EvmWord.div a b :=
+    BitVec.eq_of_toNat_eq (by omega)
+  refine ⟨?_, ?_, ?_, ?_⟩
+  · rw [← hq_eq_div]; exact EvmWord.getLimbN_fromLimbs_0
+  · rw [← hq_eq_div]; exact EvmWord.getLimbN_fromLimbs_1
+  · rw [← hq_eq_div]; exact EvmWord.getLimbN_fromLimbs_2
+  · rw [← hq_eq_div]; exact EvmWord.getLimbN_fromLimbs_3
+
+/-- **EVM-stack-level DIV spec on the n=4 shift=0 call+skip sub-path.**
+
+    Simpler counterpart to `evm_div_n4_call_skip_stack_spec` — under shift=0
+    no normalization is applied, so no `n4CallSkipSemanticHolds` hypothesis
+    is needed. The semantic correctness follows directly from the
+    `Div128Shift0` lemmas merged in PR #1155 (`div128Quot_shift0_ge_val256_div`)
+    plus the skip-borrow condition giving c3 = 0.
+
+    Reduces to `evm_div_n4_full_shift0_call_skip_stack_pre_spec_bundled` +
+    `n4_shift0_call_skip_div_mod_getLimbN` + postcondition reshape. -/
+theorem evm_div_n4_shift0_call_skip_stack_spec (sp base : Word)
+    (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratch_un0 : Word)
+    (hbnz : b ≠ 0)
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_z : (clzResult (b.getLimbN 3)).1 = 0)
+    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (hborrow : isSkipBorrowN4Shift0Evm a b) :
+    cpsTriple base (base + nopOff) (divCode base)
+      (divN4StackPreCall sp a b v5 v6 v7 v10 v11
+         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+         shiftMem nMem jMem retMem dMem dloMem scratch_un0)
+      (divN4CallSkipStackPost sp a b) := by
+  have h_pre := evm_div_n4_full_shift0_call_skip_stack_pre_spec_bundled sp base a b
+    v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+    nMem shiftMem jMem retMem dMem dloMem scratch_un0
+    hbnz hb3nz hshift_z halign hborrow
+  obtain ⟨hdiv0, hdiv1, hdiv2, hdiv3⟩ :=
+    n4_shift0_call_skip_div_mod_getLimbN a b hbnz hshift_z hborrow
+  refine cpsTriple_weaken (fun _ hp => hp) ?_ h_pre
+  intro h hq
+  -- Reshape the concrete `fullDivN4Shift0CallSkipPost` into
+  -- `divN4CallSkipStackPost` using the limb bridge.
+  unfold fullDivN4Shift0CallSkipPost at hq
+  apply div_n4_call_skip_stack_weaken sp a b h
+  rw [show evmWordIs sp a =
+      ((sp ↦ₘ a.getLimbN 0) ** ((sp + 8) ↦ₘ a.getLimbN 1) **
+       ((sp + 16) ↦ₘ a.getLimbN 2) ** ((sp + 24) ↦ₘ a.getLimbN 3))
+      from evmWordIs_sp_unfold]
+  rw [show evmWordIs (sp + 32) (EvmWord.div a b) =
+      (((sp + 32) ↦ₘ (div128Quot (0 : Word) (a.getLimbN 3) (b.getLimbN 3))) **
+       ((sp + 40) ↦ₘ (0 : Word)) **
+       ((sp + 48) ↦ₘ (0 : Word)) **
+       ((sp + 56) ↦ₘ (0 : Word)))
+      from by rw [evmWordIs_sp32_limbs_eq sp (EvmWord.div a b) _ _ _ _
+                  hdiv0 hdiv1 hdiv2 hdiv3]]
+  rw [divScratchValuesCall_unfold, divScratchValues_unfold]
+  rw [word_add_zero] at hq
+  xperm_hyp hq
+
+/-- **Shift=0 call+skip n=4 mod getLimbN bridge.** Under the same shift=0
+    call-skip conditions, the four mulsubN4 low-limb outputs at sp+32..sp+56
+    fold into `evmWordIs (sp+32) (EvmWord.mod a b)`.
+
+    Proof: same shape as `n4_shift0_call_skip_div_mod_getLimbN`, but extracts
+    the MOD equalities via `val256_ms_un_eq_val256_mod_of_overestimate`
+    (which gives `val256(ms) = val256(a) % val256(b)`). -/
+theorem n4_shift0_call_skip_mod_getLimbN (a b : EvmWord)
+    (hbnz : b ≠ 0)
+    (hshift_z : (clzResult (b.getLimbN 3)).1 = 0)
+    (hborrow : isSkipBorrowN4Shift0Evm a b) :
+    let qHat := div128Quot (0 : Word) (a.getLimbN 3) (b.getLimbN 3)
+    let ms := mulsubN4 qHat
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    (EvmWord.mod a b).getLimbN 0 = ms.1 ∧
+    (EvmWord.mod a b).getLimbN 1 = ms.2.1 ∧
+    (EvmWord.mod a b).getLimbN 2 = ms.2.2.1 ∧
+    (EvmWord.mod a b).getLimbN 3 = ms.2.2.2.1 := by
+  simp only []
+  set qHat := div128Quot (0 : Word) (a.getLimbN 3) (b.getLimbN 3) with hqHat_def
+  rw [isSkipBorrowN4Shift0Evm_def] at hborrow
+  have hc3_zero : mulsubN4_c3 qHat
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) = 0 := by
+    unfold isSkipBorrowN4Shift0 at hborrow
+    simp only [] at hborrow
+    by_contra hne
+    have h_lt : BitVec.ult (0 : Word)
+        (mulsubN4_c3 qHat
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)) = true := by
+      rw [EvmWord.ult_iff]
+      rw [show (0 : Word).toNat = 0 from rfl]
+      exact Nat.pos_of_ne_zero (fun h => hne (BitVec.eq_of_toNat_eq (by simp [h])))
+    rw [h_lt] at hborrow
+    simp at hborrow
+  have hb3_ge : (b.getLimbN 3).toNat ≥ 2^63 := clz_zero_imp_msb hshift_z
+  have hb_nz_or : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 ||| b.getLimbN 3 ≠ 0 :=
+    (EvmWord.ne_zero_iff_getLimbN_or).mp hbnz
+  have hb_pos_val : val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) > 0 :=
+    EvmWord.val256_pos_of_or_ne_zero hb_nz_or
+  -- Lower bound qHat ≥ val256(a)/val256(b) (from Div128Shift0).
+  have h_algo_ge := div128Quot_shift0_ge_val256_div
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) hb3_ge hb_pos_val
+  simp only [] at h_algo_ge
+  -- Apply val256_ms_un_eq_val256_mod_of_overestimate to get val256(ms) = val256(a) % val256(b).
+  have h_ms_eq_mod := val256_ms_un_eq_val256_mod_of_overestimate
+    hb_nz_or h_algo_ge hc3_zero
+  simp only [] at h_ms_eq_mod
+  -- Bridge to toNat.
+  have ha_val : val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      = a.toNat := by
+    simp only [← EvmWord.getLimb_as_getLimbN_0, ← EvmWord.getLimb_as_getLimbN_1,
+               ← EvmWord.getLimb_as_getLimbN_2, ← EvmWord.getLimb_as_getLimbN_3]
+    exact EvmWord.val256_eq_toNat a
+  have hb_val : val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+      = b.toNat := by
+    simp only [← EvmWord.getLimb_as_getLimbN_0, ← EvmWord.getLimb_as_getLimbN_1,
+               ← EvmWord.getLimb_as_getLimbN_2, ← EvmWord.getLimb_as_getLimbN_3]
+    exact EvmWord.val256_eq_toNat b
+  rw [ha_val, hb_val] at h_ms_eq_mod
+  have hmod_toNat : (EvmWord.mod a b).toNat = a.toNat % b.toNat := by
+    unfold EvmWord.mod
+    rw [if_neg hbnz]
+    exact BitVec.toNat_umod
+  set ms := mulsubN4 qHat
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) with hms_def
+  set mod_target : EvmWord := EvmWord.fromLimbs fun i : Fin 4 =>
+    match i with | 0 => ms.1 | 1 => ms.2.1 | 2 => ms.2.2.1 | 3 => ms.2.2.2.1
+    with hmod_target
+  have hmod_target_toNat : mod_target.toNat = val256 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 := by
+    simp [mod_target, EvmWord.fromLimbs_toNat, val256]
+  have hmod_eq_ev : mod_target = EvmWord.mod a b :=
+    BitVec.eq_of_toNat_eq (by rw [hmod_target_toNat, h_ms_eq_mod, hmod_toNat])
+  refine ⟨?_, ?_, ?_, ?_⟩
+  · rw [← hmod_eq_ev]; exact EvmWord.getLimbN_fromLimbs_0
+  · rw [← hmod_eq_ev]; exact EvmWord.getLimbN_fromLimbs_1
+  · rw [← hmod_eq_ev]; exact EvmWord.getLimbN_fromLimbs_2
+  · rw [← hmod_eq_ev]; exact EvmWord.getLimbN_fromLimbs_3
+
+/-- **EVM-stack-level MOD spec on the n=4 shift=0 call+skip sub-path.**
+
+    MOD counterpart of `evm_div_n4_shift0_call_skip_stack_spec`. Under shift=0
+    no normalization is applied, so the mulsub low-4 limbs directly hold the
+    MOD result. Semantic correctness follows from `Div128Shift0` + skip-borrow
+    giving c3 = 0 + `val256_ms_un_eq_val256_mod_of_overestimate`. -/
+theorem evm_mod_n4_shift0_call_skip_stack_spec (sp base : Word)
+    (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratch_un0 : Word)
+    (hbnz : b ≠ 0)
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_z : (clzResult (b.getLimbN 3)).1 = 0)
+    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (hborrow : isSkipBorrowN4Shift0Evm a b) :
+    cpsTriple base (base + nopOff) (modCode base)
+      (modN4StackPreCall sp a b v5 v6 v7 v10 v11
+         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+         shiftMem nMem jMem retMem dMem dloMem scratch_un0)
+      (modN4CallSkipStackPost sp a b) := by
+  have h_pre := evm_mod_n4_full_shift0_call_skip_stack_pre_spec_bundled sp base a b
+    v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+    nMem shiftMem jMem retMem dMem dloMem scratch_un0
+    hbnz hb3nz hshift_z halign hborrow
+  obtain ⟨hmod0, hmod1, hmod2, hmod3⟩ :=
+    n4_shift0_call_skip_mod_getLimbN a b hbnz hshift_z hborrow
+  refine cpsTriple_weaken (fun _ hp => hp) ?_ h_pre
+  intro h hq
+  unfold fullModN4Shift0CallSkipPost at hq
+  apply mod_n4_call_skip_stack_weaken sp a b h
+  rw [show evmWordIs sp a =
+      ((sp ↦ₘ a.getLimbN 0) ** ((sp + 8) ↦ₘ a.getLimbN 1) **
+       ((sp + 16) ↦ₘ a.getLimbN 2) ** ((sp + 24) ↦ₘ a.getLimbN 3))
+      from evmWordIs_sp_unfold]
+  rw [evmWordIs_sp32_limbs_eq sp (EvmWord.mod a b) _ _ _ _
+      hmod0 hmod1 hmod2 hmod3]
+  rw [divScratchValuesCall_unfold, divScratchValues_unfold]
+  rw [word_add_zero] at hq
   xperm_hyp hq
 
 end EvmAsm.Evm64
