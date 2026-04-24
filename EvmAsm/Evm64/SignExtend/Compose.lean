@@ -659,9 +659,8 @@ theorem signext_body_spec (sp base : Word)
   have hb3_zero : b3 = 0 := hb12_b3.2
   -- b.toNat = b0.toNat (since high limbs are zero)
   have hb0_eq_b : b0.toNat = b.toNat := by
-    have hdecomp := EvmWord.toNat_eq_limb_sum b
     change b0.toNat = b.toNat
-    rw [hdecomp]
+    rw [EvmWord.toNat_eq_limb_sum b]
     simp only [b1, b2, b3] at hb1_zero hb2_zero hb3_zero
     simp [b0, hb1_zero, hb2_zero, hb3_zero]
   have hnotge : ¬ b.toNat ≥ 31 := by omega
