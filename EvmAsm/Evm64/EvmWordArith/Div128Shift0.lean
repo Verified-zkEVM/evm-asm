@@ -248,6 +248,52 @@ theorem div128Quot_shift0_rhat_prime_eq_zero (dHi dLo div_un1 : Word) (hdHi_ne :
   simp only [Bool.false_eq_true, if_false]
   exact div128Quot_shift0_rhatc_eq_zero dHi hdHi_ne
 
+/-- Under uHi=0 + hdHi_ne, Phase 2b's cu_rhat_un1 = (rhat' << 32) ||| div_un1 = div_un1. -/
+theorem div128Quot_shift0_cu_rhat_un1_eq_div_un1 (dHi dLo div_un1 : Word) (hdHi_ne : dHi ≠ 0) :
+    (let q1 := rv64_divu (0 : Word) dHi
+     let rhat := (0 : Word) - q1 * dHi
+     let hi1 := q1 >>> (32 : BitVec 6).toNat
+     let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+     let rhatc := if hi1 = 0 then rhat else rhat + dHi
+     let qDlo := q1c * dLo
+     let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
+     let rhat' := if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc
+     (rhat' <<< (32 : BitVec 6).toNat) ||| div_un1) = div_un1 := by
+  simp only []
+  rw [show (let q1 := rv64_divu (0 : Word) dHi
+            let rhat := (0 : Word) - q1 * dHi
+            let hi1 := q1 >>> (32 : BitVec 6).toNat
+            let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+            let rhatc := if hi1 = 0 then rhat else rhat + dHi
+            let qDlo := q1c * dLo
+            let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
+            if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc) = 0 from
+    div128Quot_shift0_rhat_prime_eq_zero dHi dLo div_un1 hdHi_ne]
+  simp
+
+/-- Under uHi=0 + hdHi_ne, Phase 2b's cu_q1_dlo = q1' * dLo = 0 (since q1' = 0). -/
+theorem div128Quot_shift0_cu_q1_dlo_eq_zero (dHi dLo div_un1 : Word) (hdHi_ne : dHi ≠ 0) :
+    (let q1 := rv64_divu (0 : Word) dHi
+     let rhat := (0 : Word) - q1 * dHi
+     let hi1 := q1 >>> (32 : BitVec 6).toNat
+     let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+     let rhatc := if hi1 = 0 then rhat else rhat + dHi
+     let qDlo := q1c * dLo
+     let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
+     let q1' := if BitVec.ult rhatUn1 qDlo then q1c + signExtend12 4095 else q1c
+     q1' * dLo) = 0 := by
+  simp only []
+  rw [show (let q1 := rv64_divu (0 : Word) dHi
+            let rhat := (0 : Word) - q1 * dHi
+            let hi1 := q1 >>> (32 : BitVec 6).toNat
+            let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+            let rhatc := if hi1 = 0 then rhat else rhat + dHi
+            let qDlo := q1c * dLo
+            let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
+            if BitVec.ult rhatUn1 qDlo then q1c + signExtend12 4095 else q1c) = 0 from
+    div128Quot_shift0_q1_prime_eq_zero dHi dLo div_un1 hdHi_ne]
+  simp
+
 -- ============================================================================
 -- The main composite lemma — scaffolded with sorrys for Phase 1 tracing
 -- and Phase 2b reasoning. Filled incrementally per feedback_commit_sorry_intermediate.
