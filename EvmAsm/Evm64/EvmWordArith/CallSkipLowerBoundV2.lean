@@ -250,17 +250,33 @@ theorem algorithmQ0Prime_ge_q_true_0
       u3
       hdHi_ge hdHi_lt hdLo_lt h_un21_lt_dHi_pow32 h_un21_lt_vTop
 
+/-- **Bridge sub-case TIGHT**: under Phase 1b tightness (algorithm un21 ≥ 0 in
+    ℤ), the algorithm's un21 equals the mathematical remainder `r1_math`. -/
+theorem algorithmUn21_eq_r1_math_of_tight
+    (u4 u3 b3' : Word)
+    (hb3'_ge : b3'.toNat ≥ 2^63)
+    (hu4_lt_b3' : u4.toNat < b3'.toNat)
+    (hu4_lt_dHi_pow32 : u4.toNat < (b3' >>> (32 : BitVec 6).toNat).toNat * 2^32)
+    (h_un21_lt_dHi_pow32 :
+      (algorithmUn21 u4 u3 b3').toNat <
+      (b3' >>> (32 : BitVec 6).toNat).toNat * 2^32)
+    (h_tight :
+      (algorithmUn21 u4 u3 b3').toNat <
+      (u4.toNat * 2^32 + (u3 >>> (32 : BitVec 6).toNat).toNat) % b3'.toNat) :
+    False := by
+  sorry
+
 /-- **Bridge**: under standard hcall + `un21 < dHi*2^32`, the algorithm's un21
     is at least the mathematical remainder `(u4*2^32 + div_un1) % b3'`.
 
-    **Why**: Phase 1b's ult-check correction guarantees q1' ≤ q_true_1 + 1.
-    When q1' = q_true_1, un21 = r1_math. When q1' = q_true_1 + 1, un21 wraps
-    to `r1_math + (2^64 - b3')`. Since `2^64 - b3' ≥ 0`, un21 ≥ r1_math in
-    both cases. The Phase 1b correction is DESIGNED to rule out `q1' ≥
-    q_true_1 + 2`, so no higher-wrap cases arise.
+    Composes via `by_contra` + the `algorithmUn21_eq_r1_math_of_tight`
+    structural impossibility of un21 < r1_math (under hcall + un21 < dHi*2^32,
+    Phase 1b's ult correction guarantees un21 ≥ r1_math — if
+    un21 < r1_math held, Phase 1b would have undercorrected, contradicting
+    its design).
 
-    **TODO** (~100 lines): formalize via KB-3j (un21 wrap case split) +
-    Phase 1b ult-check semantics. -/
+    **TODO** (~80 lines in the sub-lemma): formalize via KB-3j (un21 wrap
+    case split) + Phase 1b ult-check semantics. -/
 theorem algorithmUn21_ge_r1_math
     (u4 u3 b3' : Word)
     (hb3'_ge : b3'.toNat ≥ 2^63)
@@ -271,7 +287,10 @@ theorem algorithmUn21_ge_r1_math
       (b3' >>> (32 : BitVec 6).toNat).toNat * 2^32) :
     (algorithmUn21 u4 u3 b3').toNat ≥
       (u4.toNat * 2^32 + (u3 >>> (32 : BitVec 6).toNat).toNat) % b3'.toNat := by
-  sorry
+  by_contra h_lt
+  push_neg at h_lt
+  exact algorithmUn21_eq_r1_math_of_tight u4 u3 b3' hb3'_ge hu4_lt_b3'
+    hu4_lt_dHi_pow32 h_un21_lt_dHi_pow32 h_lt
 
 -- =============================================================================
 -- §A — Core Knuth-B lower bound (128/64 level)
