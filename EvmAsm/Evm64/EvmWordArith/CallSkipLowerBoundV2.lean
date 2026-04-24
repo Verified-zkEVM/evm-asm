@@ -203,10 +203,22 @@ theorem div128Quot_toNat_eq_algorithmQ1_Q0
     (div128Quot u4 u3 b3').toNat =
       (algorithmQ1Prime u4 u3 b3').toNat * 2^32 +
       (algorithmQ0Prime u4 u3 b3').toNat := by
-  -- TODO: the `rw [algorithmQ*_unfold]` approach fails because the
-  -- let-chain shapes in `div128Quot_toNat_eq_strict`'s conclusion and
-  -- the rewritten wrappers don't align. Need a different tactic.
-  sorry
+  -- Step 1: rewrite div128Quot as halfword_combine of our wrappers.
+  rw [show div128Quot u4 u3 b3' =
+    ((algorithmQ1Prime u4 u3 b3') <<< (32 : BitVec 6).toNat) |||
+    (algorithmQ0Prime u4 u3 b3') from by
+      unfold div128Quot
+      rw [algorithmQ1Prime_unfold, algorithmQ0Prime_unfold]
+      simp only [algorithmUn21_unfold]]
+  -- Step 2: halfword_combine.toNat = q1'.toNat * 2^32 + q0'.toNat.
+  have hq1_lt : (algorithmQ1Prime u4 u3 b3').toNat < 2^32 := by
+    rw [algorithmQ1Prime_unfold]
+    exact
+      div128Quot_q1_prime_lt_pow32 u4 (b3' >>> (32 : BitVec 6).toNat)
+        ((b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat) u3
+        hdHi_ge hdHi_lt hdLo_lt hu4_lt_vTop
+  rw [show ((32 : BitVec 6).toNat : Nat) = 32 from by rfl]
+  exact EvmWord.halfword_combine _ _ hq1_lt hq0_lt
 
 /-- **Phase 2 tight, wrapped**: Phase 2 tight specialized to our inputs
     and folded into the `algorithmQ0Prime` wrapper. Removes the q0'
