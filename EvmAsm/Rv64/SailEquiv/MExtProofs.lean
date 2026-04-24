@@ -7,7 +7,6 @@
   MUL (low 64 bits) is already proved in ALUProofs.lean.
 -/
 
-import EvmAsm.Rv64.Execution
 import EvmAsm.Rv64.SailEquiv.StateRel
 import EvmAsm.Rv64.SailEquiv.MonadLemmas
 import EvmAsm.Rv64.SailEquiv.ALUProofs
