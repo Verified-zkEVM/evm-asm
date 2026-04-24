@@ -350,6 +350,20 @@ theorem rv64_divu_lo32_hi32_le_one (div_un1 dHi : Word)
     omega
   omega
 
+/-- Structural bound: `((a << 32) >> 32).toNat < 2^32` (low 32 bits of a). -/
+theorem lo32_toNat_lt_pow32 (a : Word) :
+    ((a <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat).toNat < 2^32 := by
+  rw [show (32 : BitVec 6).toNat = 32 from by decide]
+  rw [BitVec.toNat_ushiftRight, Nat.shiftRight_eq_div_pow]
+  rw [BitVec.toNat_shiftLeft, Nat.shiftLeft_eq]
+  have hpow : (2:Nat)^64 = 2^32 * 2^32 := by decide
+  rw [hpow]
+  have h1 : a.toNat * 2^32 % (2^32 * 2^32) = (a.toNat % 2^32) * 2^32 := by
+    rw [Nat.mul_mod_mul_right]
+  rw [h1]
+  rw [Nat.mul_div_cancel _ (by positivity : 0 < (2:Nat)^32)]
+  exact Nat.mod_lt _ (by positivity)
+
 -- ============================================================================
 -- The main composite lemma — scaffolded with sorrys for Phase 1 tracing
 -- and Phase 2b reasoning. Filled incrementally per feedback_commit_sorry_intermediate.
