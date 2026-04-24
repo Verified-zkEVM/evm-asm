@@ -1915,18 +1915,15 @@ theorem output_slot_to_evmWordIs_mod_n4_call_addback_beq_denorm
     have := addbackN4_val256_eq ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 0 b0' b1' b2' b3'
     simp only [] at this
     exact this
-  -- Strategy: prove `val256(un_out) = (val256(a) mod val256(b)) * 2^s` via
-  -- case split on `carry`, then apply `val256_denormalize` +
-  -- `mod_of_val256_eq_mod` + `evmWordIs_sp32_limbs_eq`.
+  -- Normalize hsem via the _def rewrite to expose the q_out.toNat = val256(a)/val256(b)
+  -- equality. After this, hsem is in a form we can case-split on carry.
+  -- (Already done earlier via `rw [n4CallAddbackBeqSemanticHolds_def] at hsem`.)
   --
-  -- For each carry case (0 or 1), we need:
-  --   * `c3 = 1` (from runtime conditions + Knuth bound)
-  --   * Combined addback Euclidean equation at the normalized level
-  --   * Bridge via val256_normalize_general + val256_normalize
-  --   * u4 = 0 via val256_mod_mul_pow_lt_pow256_of_b3_bound
-  --
-  -- The `c3 = 1` derivation is deferred to Piece D (Knuth Theorem A)
-  -- for the double-addback case. Left as sorry — will close in follow-ups.
+  -- REMAINING: case split on `carry = 0` vs `carry ≠ 0`, apply the combined
+  -- addback Euclidean (single vs double), derive val256(un_out) = (a mod b) * 2^s,
+  -- apply val256_denormalize + mod_of_val256_eq_mod + evmWordIs_sp32_limbs_eq.
+  -- Blocked on deriving c3 = 1 from runtime conditions (needs Knuth bound for
+  -- double-addback case). See project_mod_call_addback_beq_plan.md.
   sorry
 
 /-- **EVM-stack-level MOD spec on the n=4 call+addback BEQ sub-path (SORRY).**
