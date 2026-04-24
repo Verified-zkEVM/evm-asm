@@ -8,7 +8,7 @@
   is vacuously true and doesn't need to be supplied at this level.
 -/
 
-import EvmAsm.Evm64.DivMod.SpecCall
+-- `Shift0AddbackMod` transitively imports `SpecCall`.
 import EvmAsm.Evm64.DivMod.Shift0AddbackMod
 
 namespace EvmAsm.Evm64
