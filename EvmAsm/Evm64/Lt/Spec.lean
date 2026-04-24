@@ -7,7 +7,7 @@
 
 import EvmAsm.Evm64.Lt.Program
 import EvmAsm.Evm64.Compare.LimbSpec
-import EvmAsm.Evm64.EvmWordArith
+import EvmAsm.Evm64.EvmWordArith.Comparison
 import EvmAsm.Evm64.SpAddr
 
 open EvmAsm.Rv64.Tactics

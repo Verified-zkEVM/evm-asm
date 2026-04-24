@@ -6,7 +6,7 @@
 -/
 
 import EvmAsm.Evm64.Add.LimbSpec
-import EvmAsm.Evm64.EvmWordArith
+import EvmAsm.Evm64.EvmWordArith.Arithmetic
 import EvmAsm.Evm64.SpAddr
 
 open EvmAsm.Rv64.Tactics

@@ -9,7 +9,7 @@
 -/
 
 import EvmAsm.Evm64.SignExtend.LimbSpec
-import EvmAsm.Evm64.EvmWordArith
+import EvmAsm.Evm64.EvmWordArith.SignExtend
 import EvmAsm.Rv64.AddrNorm
 
 open EvmAsm.Rv64.Tactics

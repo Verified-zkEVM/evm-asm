@@ -11,7 +11,7 @@
 
 import EvmAsm.Evm64.Sgt.Program
 import EvmAsm.Evm64.Compare.LimbSpec
-import EvmAsm.Evm64.EvmWordArith
+import EvmAsm.Evm64.EvmWordArith.Comparison
 import EvmAsm.Evm64.SpAddr
 import EvmAsm.Rv64.AddrNorm
 import EvmAsm.Rv64.ControlFlow

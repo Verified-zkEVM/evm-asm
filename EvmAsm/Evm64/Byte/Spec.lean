@@ -14,7 +14,7 @@
 -/
 
 import EvmAsm.Evm64.Byte.LimbSpec
-import EvmAsm.Evm64.EvmWordArith
+import EvmAsm.Evm64.EvmWordArith.ByteOps
 import EvmAsm.Evm64.SpAddr
 import EvmAsm.Rv64.AddrNorm
 import Mathlib.Tactic.Set
