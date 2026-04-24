@@ -613,17 +613,24 @@ theorem div128Quot_shift0_q0_prime_toNat_le_one (a3 b3 : Word)
        Phase 2a doesn't correct (hi2 = 0), q0c = q0 ≤ 1. Phase 2b either
        keeps q0c or decrements to q0c - 1 ≤ 0 ≤ 1. -/
 theorem div128Quot_shift0_le_one (a3 b3 : Word)
-    (hb3_ge : b3.toNat ≥ 2^63)
-    (hb3_nz : b3 ≠ 0) :
+    (hb3_ge : b3.toNat ≥ 2^63) :
     (div128Quot (0 : Word) a3 b3).toNat ≤ 1 := by
-  -- Refactored composites now use `div_un1 := a3 >>> 32` (matching div128Quot).
-  -- After `unfold div128Quot` + `rw [h_q1'_zero]` + zero_or cleanup, the goal
-  -- reduces to `q0'.toNat ≤ 1`, which should match `h_q0'_le_one` verbatim —
-  -- but unification still reports a type mismatch (pretty printer times out,
-  -- can't see the exact shape diff). Next iteration: inspect goal state via
-  -- `show`-based normalization or extract matching lemma with explicit
-  -- identifier re-binding.
-  sorry
+  have hdHi_ne := div128Quot_shift0_dHi_ne b3 hb3_ge
+  have h_q0'_le_one := div128Quot_shift0_q0_prime_toNat_le_one a3 b3 hb3_ge
+  have h_q1'_zero := div128Quot_shift0_q1_prime_eq_zero
+    (b3 >>> (32 : BitVec 6).toNat)
+    ((b3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat)
+    (a3 >>> (32 : BitVec 6).toNat) hdHi_ne
+  unfold div128Quot
+  dsimp only at h_q0'_le_one h_q1'_zero ⊢
+  rw [h_q1'_zero] at h_q0'_le_one ⊢
+  have h_zero_shift : ((0 : Word) <<< (32 : BitVec 6).toNat) = 0 := by decide
+  rw [h_zero_shift]
+  have h_zero_or : ∀ x : Word, (0 ||| x) = x := fun x => by
+    apply BitVec.eq_of_toNat_eq
+    simp
+  rw [h_zero_or]
+  exact h_q0'_le_one
 
 /-- If `div128Quot 0 a3 b3 = 0` under shift=0, then a3 < b3. -/
 theorem div128Quot_shift0_eq_zero_implies_a3_lt_b3 (a3 b3 : Word)
