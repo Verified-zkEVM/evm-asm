@@ -198,10 +198,10 @@ theorem div128Quot_qHat_vTop_le
   have hdHi_lt : dHi.toNat < 2^32 := Word_ushiftRight_32_lt_pow32
   -- Phase 1a invariants.
   have h_post1a := div128Quot_first_round_post uHi dHi hdHi_ne hdHi_lt
-  have h_rhatc_lt := div128Quot_rhatc_lt_2dHi uHi dHi hdHi_ne hdHi_lt
   -- Phase 1b Euclidean: q1' * dHi + rhat' = uHi.
   have h_ph1_eucl : q1'.toNat * dHi.toNat + rhat'.toNat = uHi.toNat :=
-    div128Quot_phase1b_post uHi dHi q1c rhatc dLo rhatUn1 hdHi_lt h_post1a h_rhatc_lt
+    div128Quot_phase1b_post uHi dHi q1c rhatc dLo rhatUn1 hdHi_lt h_post1a
+      (div128Quot_rhatc_lt_2dHi uHi dHi hdHi_ne hdHi_lt)
   -- un21 value (no-wrap case = A - B).
   have h_un21_case := div128Quot_un21_toNat_case uHi dHi dLo uLo rhatUn1
     hdHi_ge hdLo_lt huHi_lt_vTop
