@@ -1436,7 +1436,7 @@ theorem output_slot_to_evmWordIs_mod_n4_call_skip_denorm
      ((sp + 56) ↦ₘ (ms.2.2.2.1 >>> shift))) =
     evmWordIs (sp + 32) (EvmWord.mod a b) := by
   -- Shift bounds.
-  have hshift_le_63 := clzResult_fst_toNat_le (b.getLimbN 3)
+  have := clzResult_fst_toNat_le (b.getLimbN 3)
   have hshift_pos : 0 < (clzResult (b.getLimbN 3)).1.toNat := by
     by_contra h
     push Not at h
@@ -1516,7 +1516,7 @@ theorem evm_mod_n4_call_skip_stack_spec (sp base : Word)
     nMem shiftMem jMem retMem dMem dloMem scratch_un0
     hbnz hb3nz hshift_nz halign hbltu hborrow
   -- Shift bound normalizations (mirror max-skip pattern).
-  have hshift_le_63 := clzResult_fst_toNat_le (b.getLimbN 3)
+  have := clzResult_fst_toNat_le (b.getLimbN 3)
   have hshift_pos : 0 < (clzResult (b.getLimbN 3)).1.toNat := by
     by_contra h
     push Not at h
