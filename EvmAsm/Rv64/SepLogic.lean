@@ -12,7 +12,7 @@
   machine state when there exists a compatible partial state satisfying it.
 -/
 
-import EvmAsm.Rv64.Basic
+-- `Execution` transitively imports `Basic`.
 import EvmAsm.Rv64.Execution
 
 namespace EvmAsm.Rv64
