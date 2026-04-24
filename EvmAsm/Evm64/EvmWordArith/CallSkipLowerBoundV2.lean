@@ -587,7 +587,60 @@ theorem algorithmQ1Prime_le_q_true_1_plus_one
     (hu4_lt_dHi_pow32 : u4.toNat < (b3' >>> (32 : BitVec 6).toNat).toNat * 2^32) :
     (algorithmQ1Prime u4 u3 b3').toNat ≤
       (u4.toNat * 2^32 + (u3 >>> (32 : BitVec 6).toNat).toNat) / b3'.toNat + 1 := by
-  sorry
+  have h_v_eq : b3'.toNat =
+      (b3' >>> (32 : BitVec 6).toNat).toNat * 2^32 +
+      ((b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat).toNat :=
+    div128Quot_vTop_decomp b3'
+  have h_eucl := algorithmQ1Prime_step1_phase1a_euclidean u4 u3 b3'
+    hb3'_ge hu4_lt_b3' hu4_lt_dHi_pow32
+  have h_q1c_le := algorithmQ1Prime_step3_q1c_le_q_true_1_plus_two u4 u3 b3'
+    hb3'_ge hu4_lt_b3' hu4_lt_dHi_pow32
+  have h_if_bridge := algorithmQ1Prime_step6_word_nat_if_bridge u4 u3 b3'
+    hb3'_ge hu4_lt_b3' hu4_lt_dHi_pow32
+  simp only [] at h_eucl h_q1c_le h_if_bridge
+  rw [h_v_eq] at h_q1c_le
+  -- Rewrite goal using step6 (algorithmQ1Prime.toNat = Nat-if).
+  rw [h_if_bridge]
+  -- Rewrite divisor using h_v_eq.
+  conv_rhs => rw [h_v_eq]
+  have h_vTop_pos :
+      0 < (b3' >>> (32 : BitVec 6).toNat).toNat * 2^32 +
+          ((b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat).toNat := by
+    rw [← h_v_eq]; have : b3'.toNat ≥ 2^63 := hb3'_ge; omega
+  have h_q1c_mul_le :
+      (if (rv64_divu u4 (b3' >>> (32 : BitVec 6).toNat)) >>>
+           (32 : BitVec 6).toNat = 0 then
+        rv64_divu u4 (b3' >>> (32 : BitVec 6).toNat)
+      else rv64_divu u4 (b3' >>> (32 : BitVec 6).toNat) + signExtend12 4095).toNat *
+      (b3' >>> (32 : BitVec 6).toNat).toNat ≤ u4.toNat := by omega
+  have h_rhatc_eq :
+      (if (rv64_divu u4 (b3' >>> (32 : BitVec 6).toNat)) >>>
+           (32 : BitVec 6).toNat = 0 then
+        u4 - rv64_divu u4 (b3' >>> (32 : BitVec 6).toNat) *
+          (b3' >>> (32 : BitVec 6).toNat)
+      else u4 - rv64_divu u4 (b3' >>> (32 : BitVec 6).toNat) *
+          (b3' >>> (32 : BitVec 6).toNat) + (b3' >>> (32 : BitVec 6).toNat)).toNat =
+      u4.toNat -
+      (if (rv64_divu u4 (b3' >>> (32 : BitVec 6).toNat)) >>>
+           (32 : BitVec 6).toNat = 0 then
+        rv64_divu u4 (b3' >>> (32 : BitVec 6).toNat)
+      else rv64_divu u4 (b3' >>> (32 : BitVec 6).toNat) + signExtend12 4095).toNat *
+      (b3' >>> (32 : BitVec 6).toNat).toNat := by omega
+  exact EvmWord.correction_step_overestimate_le_one u4.toNat
+    (u3 >>> (32 : BitVec 6).toNat).toNat
+    (b3' >>> (32 : BitVec 6).toNat).toNat
+    ((b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat).toNat
+    ((if (rv64_divu u4 (b3' >>> (32 : BitVec 6).toNat)) >>>
+           (32 : BitVec 6).toNat = 0 then
+        rv64_divu u4 (b3' >>> (32 : BitVec 6).toNat)
+      else rv64_divu u4 (b3' >>> (32 : BitVec 6).toNat) + signExtend12 4095).toNat)
+    ((if (rv64_divu u4 (b3' >>> (32 : BitVec 6).toNat)) >>>
+           (32 : BitVec 6).toNat = 0 then
+        u4 - rv64_divu u4 (b3' >>> (32 : BitVec 6).toNat) *
+          (b3' >>> (32 : BitVec 6).toNat)
+      else u4 - rv64_divu u4 (b3' >>> (32 : BitVec 6).toNat) *
+          (b3' >>> (32 : BitVec 6).toNat) + (b3' >>> (32 : BitVec 6).toNat)).toNat)
+    (B := 2^32) h_vTop_pos h_rhatc_eq h_q1c_mul_le h_q1c_le
 
 /-- **Bridge sub-B** (algebraic consequence): given `q1' ≤ q_true_1 + 1` and
     `un21 < dHi*2^32`, the algorithm's un21 cannot be less than `r1_math`. -/
