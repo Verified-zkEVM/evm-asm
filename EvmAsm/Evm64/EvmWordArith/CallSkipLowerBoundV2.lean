@@ -43,6 +43,54 @@ open EvmAsm.Rv64
 open EvmWord (val256)
 
 -- =============================================================================
+-- Irreducible bundles for the div128Quot algorithm's intermediate Word values.
+-- Used to prevent `maximum recursion depth` when composing Phase 1/Phase 2
+-- tight lemmas with A2.S1's deeply nested let-chain hypothesis.
+-- (Matches `feedback_bundle_pre_post_no_lets` guidance.)
+-- =============================================================================
+
+/-- The algorithm's `un21` output as a function of `(u4, u3, b3')`.
+    Full 17-step let-chain: Phase 1a (q1, rhat, hi1 correction), Phase 1b
+    (q1c, rhatc, ult correction → q1', rhat'), halfword combine + subtraction. -/
+@[irreducible]
+def algorithmUn21 (u4 u3 b3' : Word) : Word :=
+  let dHi := b3' >>> (32 : BitVec 6).toNat
+  let dLo := (b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+  let div_un1 := u3 >>> (32 : BitVec 6).toNat
+  let q1 := rv64_divu u4 dHi
+  let rhat := u4 - q1 * dHi
+  let hi1 := q1 >>> (32 : BitVec 6).toNat
+  let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+  let rhatc := if hi1 = 0 then rhat else rhat + dHi
+  let qDlo := q1c * dLo
+  let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
+  let q1' := if BitVec.ult rhatUn1 qDlo then q1c + signExtend12 4095 else q1c
+  let rhat' := if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc
+  let cu_rhat_un1 := (rhat' <<< (32 : BitVec 6).toNat) ||| div_un1
+  let cu_q1_dlo := q1' * dLo
+  cu_rhat_un1 - cu_q1_dlo
+
+/-- Named unfold for `algorithmUn21`. -/
+theorem algorithmUn21_unfold (u4 u3 b3' : Word) :
+    algorithmUn21 u4 u3 b3' =
+      (let dHi := b3' >>> (32 : BitVec 6).toNat
+       let dLo := (b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+       let div_un1 := u3 >>> (32 : BitVec 6).toNat
+       let q1 := rv64_divu u4 dHi
+       let rhat := u4 - q1 * dHi
+       let hi1 := q1 >>> (32 : BitVec 6).toNat
+       let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+       let rhatc := if hi1 = 0 then rhat else rhat + dHi
+       let qDlo := q1c * dLo
+       let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
+       let q1' := if BitVec.ult rhatUn1 qDlo then q1c + signExtend12 4095 else q1c
+       let rhat' := if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc
+       let cu_rhat_un1 := (rhat' <<< (32 : BitVec 6).toNat) ||| div_un1
+       let cu_q1_dlo := q1' * dLo
+       cu_rhat_un1 - cu_q1_dlo) := by
+  delta algorithmUn21; rfl
+
+-- =============================================================================
 -- §A — Core Knuth-B lower bound (128/64 level)
 --
 -- The main theorem uses `div128Quot_ge_q_true_normalized` (A4), which in
@@ -148,22 +196,8 @@ theorem div128Quot_qHat_plus_one_times_b3_gt_u_normal
     (hb3'_ge : b3'.toNat ≥ 2^63)
     (hu4_lt_b3' : u4.toNat < b3'.toNat)
     (h_un21_lt_dHi_pow32 :
-      (let dHi := b3' >>> (32 : BitVec 6).toNat
-       let dLo := (b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
-       let div_un1 := u3 >>> (32 : BitVec 6).toNat
-       let q1 := rv64_divu u4 dHi
-       let rhat := u4 - q1 * dHi
-       let hi1 := q1 >>> (32 : BitVec 6).toNat
-       let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
-       let rhatc := if hi1 = 0 then rhat else rhat + dHi
-       let qDlo := q1c * dLo
-       let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
-       let q1' := if BitVec.ult rhatUn1 qDlo then q1c + signExtend12 4095 else q1c
-       let rhat' := if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc
-       let cu_rhat_un1 := (rhat' <<< (32 : BitVec 6).toNat) ||| div_un1
-       let cu_q1_dlo := q1' * dLo
-       let un21 := cu_rhat_un1 - cu_q1_dlo
-       un21.toNat < dHi.toNat * 2^32)) :
+      (algorithmUn21 u4 u3 b3').toNat <
+      (b3' >>> (32 : BitVec 6).toNat).toNat * 2^32) :
     ((div128Quot u4 u3 b3').toNat + 1) * b3'.toNat >
       u4.toNat * 2^64 + u3.toNat := by
   -- Standard precondition derivations.
@@ -227,22 +261,8 @@ theorem div128Quot_qHat_plus_one_times_b3_gt_u_compensation
     (hb3'_ge : b3'.toNat ≥ 2^63)
     (hu4_lt_b3' : u4.toNat < b3'.toNat)
     (h_un21_ge_dHi_pow32 :
-      (let dHi := b3' >>> (32 : BitVec 6).toNat
-       let dLo := (b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
-       let div_un1 := u3 >>> (32 : BitVec 6).toNat
-       let q1 := rv64_divu u4 dHi
-       let rhat := u4 - q1 * dHi
-       let hi1 := q1 >>> (32 : BitVec 6).toNat
-       let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
-       let rhatc := if hi1 = 0 then rhat else rhat + dHi
-       let qDlo := q1c * dLo
-       let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
-       let q1' := if BitVec.ult rhatUn1 qDlo then q1c + signExtend12 4095 else q1c
-       let rhat' := if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc
-       let cu_rhat_un1 := (rhat' <<< (32 : BitVec 6).toNat) ||| div_un1
-       let cu_q1_dlo := q1' * dLo
-       let un21 := cu_rhat_un1 - cu_q1_dlo
-       un21.toNat ≥ dHi.toNat * 2^32)) :
+      (algorithmUn21 u4 u3 b3').toNat ≥
+      (b3' >>> (32 : BitVec 6).toNat).toNat * 2^32) :
     ((div128Quot u4 u3 b3').toNat + 1) * b3'.toNat >
       u4.toNat * 2^64 + u3.toNat := by
   sorry
@@ -257,25 +277,10 @@ theorem div128Quot_qHat_plus_one_times_b3_gt_u
     ((div128Quot u4 u3 b3').toNat + 1) * b3'.toNat >
       u4.toNat * 2^64 + u3.toNat := by
   by_cases h_un21 :
-    (let dHi := b3' >>> (32 : BitVec 6).toNat
-     let dLo := (b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
-     let div_un1 := u3 >>> (32 : BitVec 6).toNat
-     let q1 := rv64_divu u4 dHi
-     let rhat := u4 - q1 * dHi
-     let hi1 := q1 >>> (32 : BitVec 6).toNat
-     let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
-     let rhatc := if hi1 = 0 then rhat else rhat + dHi
-     let qDlo := q1c * dLo
-     let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
-     let q1' := if BitVec.ult rhatUn1 qDlo then q1c + signExtend12 4095 else q1c
-     let rhat' := if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc
-     let cu_rhat_un1 := (rhat' <<< (32 : BitVec 6).toNat) ||| div_un1
-     let cu_q1_dlo := q1' * dLo
-     let un21 := cu_rhat_un1 - cu_q1_dlo
-     un21.toNat < dHi.toNat * 2^32)
+    (algorithmUn21 u4 u3 b3').toNat <
+    (b3' >>> (32 : BitVec 6).toNat).toNat * 2^32
   · exact div128Quot_qHat_plus_one_times_b3_gt_u_normal u4 u3 b3' hb3'_ge hu4_lt_b3' h_un21
   · apply div128Quot_qHat_plus_one_times_b3_gt_u_compensation u4 u3 b3' hb3'_ge hu4_lt_b3'
-    simp only [] at h_un21 ⊢
     omega
 
 /-- **A4** (the §A target, derived from A2). -/
