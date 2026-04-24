@@ -99,7 +99,7 @@ theorem divK_phaseC2_spec (sp shift v2 shiftMem : Word)
       rw [beq_iff_eq] at heq; subst heq
       simp only [Option.some.injEq] at h; subst h
       show divK_phaseC2_code shift0_off base (base + 12) = _
-      have hlen : (divK_phaseC2 shift0_off).length = 4 := by
+      have : (divK_phaseC2 shift0_off).length = 4 := by
         unfold divK_phaseC2 SD ADDI single seq; rfl
       exact CodeReq.ofProg_lookup base (divK_phaseC2 shift0_off) 3
         (by omega) (by omega)

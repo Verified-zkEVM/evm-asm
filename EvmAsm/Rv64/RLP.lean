@@ -13,14 +13,9 @@
     Phase 6 — Top-level pipeline (planned)
 -/
 
+-- Phase2LongLoopFive transitively covers Four → Three → Two → One →
+-- Body → Iter. Phase2LongLoad covers Phase2LongAcc.
 import EvmAsm.Rv64.RLP.Phase1
 import EvmAsm.Rv64.RLP.Phase2Short
-import EvmAsm.Rv64.RLP.Phase2LongAcc
 import EvmAsm.Rv64.RLP.Phase2LongLoad
-import EvmAsm.Rv64.RLP.Phase2LongIter
-import EvmAsm.Rv64.RLP.Phase2LongLoopBody
-import EvmAsm.Rv64.RLP.Phase2LongLoopOne
-import EvmAsm.Rv64.RLP.Phase2LongLoopTwo
-import EvmAsm.Rv64.RLP.Phase2LongLoopThree
-import EvmAsm.Rv64.RLP.Phase2LongLoopFour
 import EvmAsm.Rv64.RLP.Phase2LongLoopFive

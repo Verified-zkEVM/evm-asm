@@ -473,11 +473,6 @@ theorem signext_phase_a_spec (sp r5 r10 : Word)
     sd_tail base _ (by bv_omega) (by bv_omega) (by bv_omega)
   have hd_bne_tail : crBne.Disjoint crTail :=
     sd_tail (base + 20) _ (by bv_omega) (by bv_omega) (by bv_omega)
-  have hd_lin_bne_tail : (crLinear.union crBne).Disjoint crTail :=
-    CodeReq.Disjoint.union_left
-      (CodeReq.Disjoint.union_left
-        (CodeReq.Disjoint.union_left hd_ld1_tail hd_lor2_tail) hd_lor3_tail)
-      hd_bne_tail
   have hd_br1_br2 : (crLinear.union crBne).Disjoint crTail :=
     CodeReq.Disjoint.union_left
       (CodeReq.Disjoint.union_left

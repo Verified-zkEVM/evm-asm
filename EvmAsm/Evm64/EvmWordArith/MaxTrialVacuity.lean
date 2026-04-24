@@ -130,15 +130,14 @@ theorem u_top_lt_pow63_of_shift_nz (a3 shift : Word)
 theorem b3_shifted_ge_pow63 {b3 : Word} (hb3nz : b3 ≠ 0) :
     (b3 <<< ((clzResult b3).1.toNat % 64)).toNat ≥ 2^63 := by
   obtain ⟨hinv, hcount⟩ := clzPipeline_invariant b3
-  have hsnd_ge := clzPipeline_snd_ge_pow62 hb3nz
-  have hsnd_lt : (clzPipeline b3).2.toNat < 2^64 := (clzPipeline b3).2.isLt
+  have := clzPipeline_snd_ge_pow62 hb3nz
   rw [clzResult_fst_eq]
   by_cases h5 : (clzPipeline b3).2 >>> 63 ≠ 0
   · rw [if_pos h5]
     have hmod : (clzPipeline b3).1.toNat % 64 = (clzPipeline b3).1.toNat := by omega
     rw [hmod]
     rw [BitVec.toNat_shiftLeft, Nat.shiftLeft_eq, hinv]
-    rw [Nat.mod_eq_of_lt hsnd_lt]
+    rw [Nat.mod_eq_of_lt (clzPipeline b3).2.isLt]
     exact toNat_ge_of_ushiftRight_63 h5
   · simp only [h5, if_false]
     push Not at h5
@@ -170,13 +169,13 @@ theorem isMaxTrialN4_false_of_shift_nz (a3 b2 b3 : Word)
     ¬ isMaxTrialN4 a3 b2 b3 := by
   unfold isMaxTrialN4
   simp only [not_not]
-  have h_shift_le := clzResult_fst_toNat_le b3
   have h_shift_pos : 1 ≤ (clzResult b3).1.toNat := by
     rcases Nat.eq_zero_or_pos (clzResult b3).1.toNat with h | h
     · exfalso; apply hshift_nz
       exact BitVec.eq_of_toNat_eq (by simp [h])
     · exact h
-  have h_u4 := u_top_lt_pow63_of_shift_nz a3 (clzResult b3).1 h_shift_pos h_shift_le
+  have h_u4 := u_top_lt_pow63_of_shift_nz a3 (clzResult b3).1 h_shift_pos
+    (clzResult_fst_toNat_le b3)
   have h_b3_shifted := b3_shifted_ge_pow63 hb3nz
   have h_or_ge : (((b3 <<< ((clzResult b3).1.toNat % 64))) |||
                    (b2 >>> ((signExtend12 (0 : BitVec 12) -

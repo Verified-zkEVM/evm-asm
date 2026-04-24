@@ -93,7 +93,7 @@ private theorem addback_carries_exclusive (u_i v_i carryIn : Word)
   rw [h_ac1, h_ac2]
   -- Total: u_i + v_i + carryIn < 2 * 2^64 (since each < 2^64 and carryIn ≤ 1)
   have := u_i.isLt; have := v_i.isLt
-  have htot : u_i.toNat + v_i.toNat + carryIn.toNat < 2 * 2^64 := by omega
+  have : u_i.toNat + v_i.toNat + carryIn.toNat < 2 * 2^64 := by omega
   -- c1 + c2 = (u_i + ci) / B + (upc + v) / B where upc = (u_i + ci) % B
   have hupc : uPlusCarry.toNat = (u_i.toNat + carryIn.toNat) % 2^64 :=
     BitVec.toNat_add u_i carryIn

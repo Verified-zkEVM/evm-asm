@@ -48,14 +48,14 @@ theorem val256_ms_un_eq_val256_mod_max_skip
       (signExtend12 (4095 : BitVec 12) : Word).toNat * val256 b0 b1 b2 b3 +
       val256 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 := by linarith
   -- Overestimate: val256(a)/val256(b) ≤ qHat.
-  have hge := max_trial_overestimate_n4 a0 a1 a2 a3 b0 b1 b2 b3 hb3nz
-  have hv := val256_pos_of_or_ne_zero hbnz
-  have ⟨hq, hr_lt⟩ := remainder_lt_of_ge_floor hv hmulsub hge
+  have ⟨hq, _⟩ := remainder_lt_of_ge_floor
+    (val256_pos_of_or_ne_zero hbnz) hmulsub
+    (max_trial_overestimate_n4 a0 a1 a2 a3 b0 b1 b2 b3 hb3nz)
   -- Substitute `qHat = val256(a)/val256(b)` into the mulsub equation, then
   -- compare with `Nat.div_add_mod` to conclude.
   rw [hq] at hmulsub
-  have hdam := Nat.div_add_mod (val256 a0 a1 a2 a3) (val256 b0 b1 b2 b3)
-  have hmulcomm : val256 b0 b1 b2 b3 * (val256 a0 a1 a2 a3 / val256 b0 b1 b2 b3) =
+  have := Nat.div_add_mod (val256 a0 a1 a2 a3) (val256 b0 b1 b2 b3)
+  have : val256 b0 b1 b2 b3 * (val256 a0 a1 a2 a3 / val256 b0 b1 b2 b3) =
       (val256 a0 a1 a2 a3 / val256 b0 b1 b2 b3) * val256 b0 b1 b2 b3 := Nat.mul_comm _ _
   omega
 

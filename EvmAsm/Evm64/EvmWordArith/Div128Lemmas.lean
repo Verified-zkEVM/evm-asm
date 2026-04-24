@@ -70,7 +70,7 @@ theorem val128_mod_unique (uHi uLo : Word) (d q r : Nat)
     (heq : val128 uHi uLo = d * q + r) :
     r = val128 uHi uLo % d := by
   have hq := val128_div_unique uHi uLo d q r hr heq
-  have hdm := Nat.div_add_mod (val128 uHi uLo) d
+  have := Nat.div_add_mod (val128 uHi uLo) d
   subst hq; nlinarith [Nat.mul_comm d (val128 uHi uLo / d)]
 
 -- ============================================================================
@@ -123,11 +123,11 @@ theorem trial_quotient_le (uHi un1 dHi dLo : Nat)
     have h2 : 2 * dHi ≤ dLo := by omega
     omega
   -- q̂ * dLo < B² ≤ 2d
-  have hq_dlo_bound : qHat * dLo < 2^64 := by
+  have : qHat * dLo < 2^64 := by
     have : dLo ≤ 2^32 - 1 := by omega
     have : qHat * dLo ≤ (2^32 + 1) * (2^32 - 1) := Nat.mul_le_mul hq_bound this
     norm_num at this ⊢; omega
-  have h2d_ge : 2 * d ≥ 2^64 := by
+  have : 2 * d ≥ 2^64 := by
     show 2 * (dHi * 2^32 + dLo) ≥ _; omega
   have hq_d_eq : qHat * d = qHat * dHi * 2^32 + qHat * dLo := by
     show qHat * (dHi * 2^32 + dLo) = _; ring
@@ -140,7 +140,7 @@ theorem trial_quotient_le (uHi un1 dHi dLo : Nat)
       _ ≤ uHi * 2^32 + 2 * d := by omega
       _ ≤ X + 2 * d := by omega
   -- Convert: q̂ * d ≤ X + 2d < (X/d + 3) * d → q̂ < X/d + 3 → q̂ ≤ X/d + 2
-  have hXmod : X < (X / d + 1) * d := by
+  have : X < (X / d + 1) * d := by
     have := Nat.div_add_mod X d; have := Nat.mod_lt X hd_pos; nlinarith
   have hlt : qHat * d < (X / d + 3) * d := by nlinarith
   have : qHat < X / d + 3 := by
@@ -282,7 +282,7 @@ theorem half_round_overestimate_le_one (uHi un1 dHi dLo q r : Nat)
 theorem trial_quotient_ge_general (uHi u_rest dHi d_rest Bk : Nat)
     (hd_hi : 0 < dHi) (hu_rest : u_rest < Bk) :
     (uHi * Bk + u_rest) / (dHi * Bk + d_rest) ≤ uHi / dHi := by
-  have hBk : 0 < Bk := by omega
+  have : 0 < Bk := by omega
   have hd_pos : 0 < dHi * Bk + d_rest := by positivity
   have : (uHi * Bk + u_rest) / (dHi * Bk + d_rest) < uHi / dHi + 1 :=
     (Nat.div_lt_iff_lt_mul hd_pos).mpr (by

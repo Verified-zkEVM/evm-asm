@@ -4,43 +4,40 @@
   Mathematical correctness lemmas connecting limb-level computations
   to 256-bit EvmWord operations. Used by stack-level specs.
 
-  Re-exports all sub-modules for backwards compatibility.
+  Re-exports all sub-modules for backwards compatibility. Many of the
+  listed leaves transitively cover their Arithmetic / MultiLimb /
+  Common prefix chain; see per-module comments below for the routing.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.Common
+-- Opcode-specific leaves that nothing else here imports:
 import EvmAsm.Evm64.EvmWordArith.IsZero
 import EvmAsm.Evm64.EvmWordArith.Eq
 import EvmAsm.Evm64.EvmWordArith.Comparison
-import EvmAsm.Evm64.EvmWordArith.Arithmetic
 import EvmAsm.Evm64.EvmWordArith.ByteOps
 import EvmAsm.Evm64.EvmWordArith.SignExtend
-import EvmAsm.Evm64.EvmWordArith.Div
-import EvmAsm.Evm64.EvmWordArith.MultiLimb
+
+-- MulCorrect covers Arithmetic → MultiLimb → Common.
 import EvmAsm.Evm64.EvmWordArith.MulCorrect
-import EvmAsm.Evm64.EvmWordArith.Div128Lemmas
-import EvmAsm.Evm64.EvmWordArith.MulSubChain
-import EvmAsm.Evm64.EvmWordArith.Normalization
-import EvmAsm.Evm64.EvmWordArith.DivBridge
-import EvmAsm.Evm64.EvmWordArith.DivN4Lemmas
-import EvmAsm.Evm64.EvmWordArith.CLZLemmas
-import EvmAsm.Evm64.EvmWordArith.DivLimbBridge
-import EvmAsm.Evm64.EvmWordArith.DivMulSubLimb
-import EvmAsm.Evm64.EvmWordArith.DivAddbackLimb
-import EvmAsm.Evm64.EvmWordArith.DivRemainderBound
+
+-- DivAccumulate covers DivRemainderBound → DivAddbackLimb →
+-- DivMulSubLimb → DivLimbBridge → DivBridge → Normalization →
+-- MulSubChain → Div128Lemmas → MultiLimb → Div → Common.
 import EvmAsm.Evm64.EvmWordArith.DivAccumulate
+
+-- Carry extensions of the Limb variants.
 import EvmAsm.Evm64.EvmWordArith.DivMulSubCarry
 import EvmAsm.Evm64.EvmWordArith.DivAddbackCarry
-import EvmAsm.Evm64.EvmWordArith.DenormLemmas
-import EvmAsm.Evm64.EvmWordArith.Val256ModBridge
-import EvmAsm.Evm64.EvmWordArith.ModBridgeUtop
+
+-- Div128CallSkipClose covers Div128FinalAssembly + Div128KnuthLower +
+-- Div128QuotientBounds → KnuthTheoremB → {DivN4Overestimate,
+-- MaxTrialVacuity → CLZLemmas → DivN4Lemmas, DenormLemmas}.
+import EvmAsm.Evm64.EvmWordArith.Div128CallSkipClose
+
+-- ModBridgeAssemble covers ModBridgeUtop → Val256ModBridge.
 import EvmAsm.Evm64.EvmWordArith.ModBridgeAssemble
+
+-- Standalone leaves:
 import EvmAsm.Evm64.EvmWordArith.SkipBorrowExtract
 import EvmAsm.Evm64.EvmWordArith.DivN4DoubleAddback
 import EvmAsm.Evm64.EvmWordArith.AddbackBorrowExtract
 import EvmAsm.Evm64.EvmWordArith.AddbackPinning
-import EvmAsm.Evm64.EvmWordArith.MaxTrialVacuity
-import EvmAsm.Evm64.EvmWordArith.KnuthTheoremB
-import EvmAsm.Evm64.EvmWordArith.Div128QuotientBounds
-import EvmAsm.Evm64.EvmWordArith.Div128FinalAssembly
-import EvmAsm.Evm64.EvmWordArith.Div128KnuthLower
-import EvmAsm.Evm64.EvmWordArith.Div128CallSkipClose

@@ -65,7 +65,7 @@ theorem div128Quot_q1_prime_dLo_no_wrap (uHi dHi dLo rhatUn1 : Word)
     have : q1'.toNat * dLo.toNat ≤ (2^32 + 1) * (2^32 - 1) := by
       have hdLo_le : dLo.toNat ≤ 2^32 - 1 := by omega
       exact Nat.mul_le_mul h_q1'_le hdLo_le
-    have h_eq : (2^32 + 1) * (2^32 - 1) = 2^64 - 1 := by decide
+    have : (2^32 + 1) * (2^32 - 1) = 2^64 - 1 := by decide
     omega
   rw [BitVec.toNat_mul, Nat.mod_eq_of_lt h_mul_lt]
 
@@ -231,14 +231,14 @@ theorem div128Quot_un21_toNat_case (uHi dHi dLo uLo rhatUn1 : Word)
   have h_formula : un21.toNat = (A + 2^64 - B) % 2^64 :=
     div128Quot_un21_toNat uHi dHi dLo uLo rhatUn1
       hdHi_ge hdLo_lt huHi_lt_vTop
-  have h_A_lt : A < 2^64 := by
+  have : A < 2^64 := by
     show (rhat'.toNat % 2^32) * 2^32 + div_un1.toNat < 2^64
-    have h_rhat_mod : rhat'.toNat % 2^32 < 2^32 := Nat.mod_lt _ (by decide)
-    have h_divun1_lt : div_un1.toNat < 2^32 := Word_ushiftRight_32_lt_pow32
+    have : rhat'.toNat % 2^32 < 2^32 := Nat.mod_lt _ (by decide)
+    have : div_un1.toNat < 2^32 := Word_ushiftRight_32_lt_pow32
     nlinarith
-  have h_B_lt : B < 2^64 := by
+  have : B < 2^64 := by
     show q1'.toNat * dLo.toNat < 2^64
-    have h_cu : cu_q1_dlo.toNat = q1'.toNat * dLo.toNat :=
+    have : cu_q1_dlo.toNat = q1'.toNat * dLo.toNat :=
       div128Quot_q1_prime_dLo_no_wrap uHi dHi dLo rhatUn1
         hdHi_ge hdLo_lt huHi_lt_vTop
     have := cu_q1_dlo.isLt

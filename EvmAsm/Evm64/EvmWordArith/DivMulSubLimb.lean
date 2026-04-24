@@ -107,12 +107,12 @@ theorem mulsub_limb_nat_eq {q v_i u_i carryIn : Word} :
   -- div_add_mod for the add carry
   have hdm := Nat.div_add_mod (prodLo.toNat + carryIn.toNat) (2^64)
   -- Combine: normalize 2^64 to the literal everywhere
-  have hB : (2:Nat)^64 = 18446744073709551616 := by norm_num
+  have : (2:Nat)^64 = 18446744073709551616 := by norm_num
   -- Use B as shorthand for 2^64 literal
-  set B := (18446744073709551616 : Nat) with hBdef
+  set B := (18446744073709551616 : Nat)
   rw [show (2:Nat)^64 = B from by omega] at h_ba h_fs h_prod hdm hu hfs h_un ⊢
   -- Key: from hdm, (prodLo + carryIn) / B * B + fullSub = prodLo + carryIn
-  have hkey : (prodLo.toNat + carryIn.toNat) / B * B =
+  have : (prodLo.toNat + carryIn.toNat) / B * B =
       prodLo.toNat + carryIn.toNat - fullSub.toNat := by
     rw [h_fs]; omega
   -- Key: prodHi * B + prodLo = q * v_i
@@ -120,9 +120,9 @@ theorem mulsub_limb_nat_eq {q v_i u_i carryIn : Word} :
   have h_prod' : prodHi.toNat * B + prodLo.toNat = q.toNat * v_i.toNat := by
     show (rv64_mulhu q v_i).toNat * B + (q * v_i).toNat = _; linarith
   -- Expand the compound carry multiplication
-  have hfs_le : fullSub.toNat ≤ prodLo.toNat + carryIn.toNat := by
+  have : fullSub.toNat ≤ prodLo.toNat + carryIn.toNat := by
     rw [h_fs]; exact Nat.mod_le _ _
-  have hpl_le : prodLo.toNat ≤ prodHi.toNat * B + prodLo.toNat := Nat.le_add_left _ _
+  have : prodLo.toNat ≤ prodHi.toNat * B + prodLo.toNat := Nat.le_add_left _ _
   rw [h_ba, h_bs, h_un]
   -- Eliminate the nonlinear q*v_i term by replacing with prodHi*B + prodLo (linear!)
   rw [show q.toNat * v_i.toNat = prodHi.toNat * B + prodLo.toNat from h_prod'.symm]
@@ -228,7 +228,7 @@ theorem mulsub_4limb_euclidean_div (qNat : Nat)
       match i with | 0 => r0 | 1 => r1 | 2 => r2 | 3 => r3
     q = EvmWord.div a b ∧ r = EvmWord.mod a b := by
   intro a b q r
-  have h_chain := mulsub_chain_no_underflow qNat u0 u1 u2 u3 v0 v1 v2 v3
+  have := mulsub_chain_no_underflow qNat u0 u1 u2 u3 v0 v1 v2 v3
     r0 r1 r2 r3 cb0 cb1 cb2 h0 h1 h2 h3
   -- Connect fromLimbs.toNat to val256
   have ha : a.toNat = val256 u0 u1 u2 u3 := by

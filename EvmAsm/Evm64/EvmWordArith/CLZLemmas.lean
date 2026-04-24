@@ -231,7 +231,7 @@ private theorem clzPipeline_zero {val : Word} (h : (clzPipeline val).1 = 0) :
 theorem clz_zero_imp_msb {val : Word} (h : (clzResult val).1 = 0) :
     val.toNat ≥ 2^63 := by
   rw [clzResult_fst_eq] at h
-  have hbnd := clzPipeline_fst_le val
+  have := clzPipeline_fst_le val
   split at h
   · -- Stage 5 passed: pipeline count = 0
     rename_i h5_pass
@@ -252,7 +252,7 @@ theorem clz_zero_imp_msb {val : Word} (h : (clzResult val).1 = 0) :
 theorem clz_zero_imp_snd {val : Word} (h : (clzResult val).1 = 0) :
     (clzResult val).2 = val := by
   rw [clzResult_fst_eq] at h
-  have hbnd := clzPipeline_fst_le val
+  have := clzPipeline_fst_le val
   split at h
   · rw [clzResult_snd_eq]; exact clzPipeline_zero h
   · exfalso
@@ -268,7 +268,7 @@ theorem clz_zero_imp_snd {val : Word} (h : (clzResult val).1 = 0) :
 theorem clzResult_fst_toNat_le (val : Word) :
     (clzResult val).1.toNat ≤ 63 := by
   rw [clzResult_fst_eq]
-  have hbnd := clzPipeline_fst_le val
+  have := clzPipeline_fst_le val
   split
   · omega
   · rw [BitVec.toNat_add, Nat.mod_eq_of_lt (by have := se_1; omega)]
@@ -301,22 +301,17 @@ private theorem clzStep_of_pass {K M_s : Nat} {m : Word} {p : Word × Word}
 /-- When MSB is set, the entire pipeline is the identity (all stages pass). -/
 private theorem clzPipeline_of_msb {val : Word} (hmsb : val >>> (63 : Nat) ≠ 0) :
     clzPipeline val = ((0 : Word), val) := by
-  have h32 := ushiftRight_ne_zero_of_msb (K := 32) (by omega) hmsb
-  have h48 := ushiftRight_ne_zero_of_msb (K := 48) (by omega) hmsb
-  have h56 := ushiftRight_ne_zero_of_msb (K := 56) (by omega) hmsb
-  have h60 := ushiftRight_ne_zero_of_msb (K := 60) (by omega) hmsb
-  have h62 := ushiftRight_ne_zero_of_msb (K := 62) (by omega) hmsb
   -- Each stage is identity: unfold and rewrite step by step
   unfold clzPipeline; dsimp only []
   rw [show clzStep 32 32 (signExtend12 32) ((0 : Word), val) = ((0 : Word), val)
-    from clzStep_of_pass h32]
+    from clzStep_of_pass (ushiftRight_ne_zero_of_msb (K := 32) (by omega) hmsb)]
   rw [show clzStep 48 16 (signExtend12 16) ((0 : Word), val) = ((0 : Word), val)
-    from clzStep_of_pass h48]
+    from clzStep_of_pass (ushiftRight_ne_zero_of_msb (K := 48) (by omega) hmsb)]
   rw [show clzStep 56 8 (signExtend12 8) ((0 : Word), val) = ((0 : Word), val)
-    from clzStep_of_pass h56]
+    from clzStep_of_pass (ushiftRight_ne_zero_of_msb (K := 56) (by omega) hmsb)]
   rw [show clzStep 60 4 (signExtend12 4) ((0 : Word), val) = ((0 : Word), val)
-    from clzStep_of_pass h60]
-  exact clzStep_of_pass h62
+    from clzStep_of_pass (ushiftRight_ne_zero_of_msb (K := 60) (by omega) hmsb)]
+  exact clzStep_of_pass (ushiftRight_ne_zero_of_msb (K := 62) (by omega) hmsb)
 
 /-- When the MSB is set (val ≥ 2^63), CLZ reports shift=0. -/
 theorem msb_imp_clz_zero {val : Word} (hmsb : val >>> (63 : Nat) ≠ 0) :
@@ -332,7 +327,7 @@ theorem clzResult_fst_eq_zero_iff {val : Word} :
     (clzResult val).1 = 0 ↔ val >>> (63 : Nat) ≠ 0 := by
   constructor
   · intro h
-    have hge := clz_zero_imp_msb h
+    have := clz_zero_imp_msb h
     intro heq
     have : (val >>> (63 : Nat)).toNat = 0 := by rw [heq]; rfl
     rw [BitVec.toNat_ushiftRight, Nat.shiftRight_eq_div_pow] at this
@@ -424,9 +419,8 @@ theorem clzPipeline_invariant (val : Word) :
   have h4 := clzStep_invariant_and_bound 60 4 (signExtend12 4) val _ 56 60
     h3.1 h3.2 (by norm_num) se_4 (by norm_num) (by norm_num)
   -- Stage 4 (final pipeline stage): K=62, M_s=2.
-  have h5 := clzStep_invariant_and_bound 62 2 (signExtend12 2) val _ 60 62
+  exact clzStep_invariant_and_bound 62 2 (signExtend12 2) val _ 60 62
     h4.1 h4.2 (by norm_num) se_2 (by norm_num) (by norm_num)
-  exact h5
 
 /-- CLZ top-limb bound: when `val ≠ 0`, `val.toNat < 2^(64 - clz)`. This is
     the main consumer-facing bound that the MOD stack spec's `hb3_bound`

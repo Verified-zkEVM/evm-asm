@@ -14,19 +14,11 @@
   - Epilogue: Denorm, DIV/MOD epilogue
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.PhaseAB
-import EvmAsm.Evm64.DivMod.Compose.CLZ
-import EvmAsm.Evm64.DivMod.Compose.Norm
-import EvmAsm.Evm64.DivMod.Compose.NormA
-import EvmAsm.Evm64.DivMod.Compose.Div128
-import EvmAsm.Evm64.DivMod.Compose.Epilogue
-import EvmAsm.Evm64.DivMod.Compose.ModPhaseB
-import EvmAsm.Evm64.DivMod.Compose.ModPhaseBn3
-import EvmAsm.Evm64.DivMod.Compose.ModPhaseBn21
-import EvmAsm.Evm64.DivMod.Compose.ModCLZ
-import EvmAsm.Evm64.DivMod.Compose.ModNorm
-import EvmAsm.Evm64.DivMod.Compose.ModNormA
-import EvmAsm.Evm64.DivMod.Compose.ModEpilogue
+-- FullPath transitively covers PhaseAB, CLZ, Norm, NormA, Epilogue, Base.
+-- ModFullPath covers ModPhaseB, ModCLZ, ModNorm, ModNormA, ModEpilogue, Epilogue.
+-- ModFullPathN3 covers ModPhaseBn3 (plus ModFullPath's chain).
+-- ModFullPathN{2,1} cover ModPhaseBn21.
+-- ModDiv128 covers Div128.
 import EvmAsm.Evm64.DivMod.Compose.ModDiv128
 import EvmAsm.Evm64.DivMod.Compose.FullPath
 import EvmAsm.Evm64.DivMod.Compose.FullPathN3

@@ -32,3 +32,9 @@ import EvmAsm.Rv64.AddrNormAttr
 import EvmAsm.Rv64.AddrNorm
 import EvmAsm.Rv64.ByteAlgAttr
 import EvmAsm.Rv64.ByteAlg
+-- SailEquiv leaves (each transitively imports ALUProofs → MonadLemmas → StateRel).
+import EvmAsm.Rv64.SailEquiv.ShiftProofs
+import EvmAsm.Rv64.SailEquiv.ImmProofs
+import EvmAsm.Rv64.SailEquiv.BranchProofs
+import EvmAsm.Rv64.SailEquiv.MemProofs
+import EvmAsm.Rv64.SailEquiv.MExtProofs

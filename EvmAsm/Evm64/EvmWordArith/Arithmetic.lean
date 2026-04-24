@@ -89,7 +89,7 @@ theorem add_carry_chain_correct (a b : EvmWord) :
     have := a1.isLt; have := b1.isLt; rw [hc1]; omega
   have hc2 : carry2.toNat = (a2.toNat + b2.toNat + carry1.toNat) / 2^64 :=
     combined_carry_toNat hc1_le
-  have hc2_le : carry2.toNat ≤ 1 := by
+  have : carry2.toNat ≤ 1 := by
     have := a2.isLt; have := b2.isLt; rw [hc2]; omega
   -- toNat decomposition using local def names (a0, a1, ... not a.getLimb i)
   have hab : (a + b).toNat = (a.toNat + b.toNat) % 2^256 := BitVec.toNat_add a b
@@ -319,10 +319,8 @@ theorem sub_borrow_chain_correct (a b : EvmWord) :
   have := a1.isLt; have := b1.isLt
   have := a2.isLt; have := b2.isLt
   have := a3.isLt; have := b3.isLt
-  have ha_sum := toNat_eq_limb_sum a
-  have hb_sum := toNat_eq_limb_sum b
   have := b.isLt
-  have hab_le : b.toNat ≤ a.toNat + 2^256 := by omega
+  have : b.toNat ≤ a.toNat + 2^256 := by omega
   -- diff0 toNat
   have hdiff0_nat : diff0.toNat = (a0.toNat + 2^64 - b0.toNat) % 2^64 := by
     simp only [diff0, BitVec.toNat_sub]; congr 1; omega
@@ -347,7 +345,8 @@ theorem sub_borrow_chain_correct (a b : EvmWord) :
   -- Set D = a.toNat + 2^256 - b.toNat (the raw difference before mod)
   set D := a0.toNat + a1.toNat * 2^64 + a2.toNat * 2^128 + a3.toNat * 2^192 +
            2^256 - (b0.toNat + b1.toNat * 2^64 + b2.toNat * 2^128 + b3.toNat * 2^192)
-  have hD : (a - b).toNat = D % 2^256 := by rw [hS, ha_sum, hb_sum]
+  have hD : (a - b).toNat = D % 2^256 := by
+    rw [hS, toNat_eq_limb_sum a, toNat_eq_limb_sum b]
   -- Factor D at each boundary (like hS0..hS2 in ADD but for subtraction)
   -- D = (a0 + W - b0) + ((a1 + W - b1) + ((a2 + W - b2) + (a3 + W - b3) * W) * W) * W - 3*W
   -- This is more complex than ADD because of the borrows. Instead, just use

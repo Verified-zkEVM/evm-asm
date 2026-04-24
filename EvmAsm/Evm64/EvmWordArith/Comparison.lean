@@ -192,7 +192,7 @@ theorem slt_result_correct {a b : EvmWord} :
         (a0.toNat + a1.toNat * 2^64 + a2.toNat * 2^128 <
          b0.toNat + b1.toNat * 2^64 + b2.toNat * 2^128) := by
       rw [ult_iff, toNat_eq_limb_sum a, toNat_eq_limb_sum b]
-      have ha3b3 : a3.toNat = b3.toNat := congrArg BitVec.toNat h
+      have : a3.toNat = b3.toNat := congrArg BitVec.toNat h
       constructor <;> intro hlt <;> nlinarith
     -- borrow2 = if ult a b then 1 else 0
     rcases Decidable.em (BitVec.ult a b) with h | h
@@ -208,7 +208,7 @@ theorem slt_result_correct {a b : EvmWord} :
   · -- MSB limbs differ
     simp only [result, h, ite_false]
     -- slt a b ↔ slt a3 b3
-    have hmsb_neq : a.msb ≠ b.msb ↔ a3.msb ≠ b3.msb := by rw [hmsb_a, hmsb_b]
+    have : a.msb ≠ b.msb ↔ a3.msb ≠ b3.msb := by rw [hmsb_a, hmsb_b]
     -- slt = msb_xor ⊕ ult for both 256-bit and 64-bit
     simp only [sltMsb]
     rw [BitVec.slt_eq_ult (x := a) (y := b), BitVec.slt_eq_ult (x := a3) (y := b3)]
@@ -222,7 +222,7 @@ theorem slt_result_correct {a b : EvmWord} :
     · intro h3; nlinarith [a0.isLt, b0.isLt, a1.isLt, b1.isLt, a2.isLt, b2.isLt]
     · intro hab
       by_contra h3; push Not at h3
-      have hge : b3.toNat ≤ a3.toNat := h3
+      have : b3.toNat ≤ a3.toNat := h3
       have hne : a3.toNat ≠ b3.toNat := fun heq => h (BitVec.eq_of_toNat_eq heq)
       have hgt : a3.toNat ≥ b3.toNat + 1 := by omega
       -- a3*2^192 ≥ (b3+1)*2^192 = b3*2^192 + 2^192

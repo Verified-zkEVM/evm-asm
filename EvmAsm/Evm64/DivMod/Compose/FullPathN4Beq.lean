@@ -864,6 +864,55 @@ theorem evm_div_n4_full_call_addback_beq_spec (sp base : Word)
     (fun h hq => by delta fullDivN4CallAddbackBeqPost; rw [sepConj_assoc'] at hq; xperm_hyp hq)
     hFull
 
+/-- Named unfold for `fullDivN4CallAddbackBeqPost`. Mirror of
+    `fullDivN4CallSkipPost_unfold` for the addback BEQ variant. Used by
+    the forthcoming `evm_div_n4_call_addback_beq_stack_spec` post reshape. -/
+theorem fullDivN4CallAddbackBeqPost_unfold {sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word} :
+    fullDivN4CallAddbackBeqPost sp base a0 a1 a2 a3 b0 b1 b2 b3 =
+    (let shift := (clzResult b3).1
+     let antiShift := signExtend12 (0 : BitVec 12) - shift
+     let b3' := (b3 <<< (shift.toNat % 64)) ||| (b2 >>> (antiShift.toNat % 64))
+     let b2' := (b2 <<< (shift.toNat % 64)) ||| (b1 >>> (antiShift.toNat % 64))
+     let b1' := (b1 <<< (shift.toNat % 64)) ||| (b0 >>> (antiShift.toNat % 64))
+     let b0' := b0 <<< (shift.toNat % 64)
+     let u4 := a3 >>> (antiShift.toNat % 64)
+     let u3 := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (antiShift.toNat % 64))
+     let u2 := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (antiShift.toNat % 64))
+     let u1 := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (antiShift.toNat % 64))
+     let u0 := a0 <<< (shift.toNat % 64)
+     let qHat := div128Quot u4 u3 b3'
+     let dLo := (b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+     let div_un0 := (u3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+     let ms := mulsubN4 qHat b0' b1' b2' b3' u0 u1 u2 u3
+     let c3 := ms.2.2.2.2
+     let u4_new := u4 - c3
+     let ab := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 u4_new b0' b1' b2' b3'
+     let ab' := addbackN4 ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 ab.2.2.2.2 b0' b1' b2' b3'
+     let carry := addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 b0' b1' b2' b3'
+     let q_out := if carry = 0 then qHat + signExtend12 4095 + signExtend12 4095
+                  else qHat + signExtend12 4095
+     let un0Out := if carry = 0 then ab'.1 else ab.1
+     let un1Out := if carry = 0 then ab'.2.1 else ab.2.1
+     let un2Out := if carry = 0 then ab'.2.2.1 else ab.2.2.1
+     let un3Out := if carry = 0 then ab'.2.2.2.1 else ab.2.2.2.1
+     let u4_out  := if carry = 0 then ab'.2.2.2.2 else ab.2.2.2.2
+     denormDivPost sp shift un0Out un1Out un2Out un3Out q_out 0 0 0 **
+     ((sp + signExtend12 3992) ↦ₘ shift) **
+     ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
+     ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+     ((sp + signExtend12 4024) ↦ₘ u4_out) **
+     ((sp + signExtend12 4016) ↦ₘ (0 : Word)) **
+     ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
+     ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
+     (sp + signExtend12 3984 ↦ₘ (4 : Word)) **
+     (sp + signExtend12 3976 ↦ₘ (0 : Word)) **
+     (.x1 ↦ᵣ signExtend12 4095) ** (.x11 ↦ᵣ q_out) **
+     (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+     (sp + signExtend12 3960 ↦ₘ b3') **
+     (sp + signExtend12 3952 ↦ₘ dLo) **
+     (sp + signExtend12 3944 ↦ₘ div_un0)) := by
+  delta fullDivN4CallAddbackBeqPost; rfl
+
 /-- Full path postcondition for n=4 MOD (shift ≠ 0, call+addback BEQ).
     Mirror of `fullDivN4CallAddbackBeqPost` with `denormDivPost →
     denormModPost`: the slots at sp+32..sp+56 get the denormalized
@@ -920,6 +969,61 @@ def fullModN4CallAddbackBeqPost (sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Asser
   (sp + signExtend12 3960 ↦ₘ b3') **
   (sp + signExtend12 3952 ↦ₘ dLo) **
   (sp + signExtend12 3944 ↦ₘ div_un0)
+
+/-- Named unfold for `fullModN4CallAddbackBeqPost`. Restores access to
+    the underlying sepConj structure once the `@[irreducible]` attribute
+    on the def makes `delta` the only way in. Mirror of
+    `fullModN4CallSkipPost_unfold` for the addback BEQ variant. Used by
+    the forthcoming `evm_mod_n4_call_addback_beq_stack_spec` post reshape. -/
+theorem fullModN4CallAddbackBeqPost_unfold {sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word} :
+    fullModN4CallAddbackBeqPost sp base a0 a1 a2 a3 b0 b1 b2 b3 =
+    (let shift := (clzResult b3).1
+     let antiShift := signExtend12 (0 : BitVec 12) - shift
+     let b3' := (b3 <<< (shift.toNat % 64)) ||| (b2 >>> (antiShift.toNat % 64))
+     let b2' := (b2 <<< (shift.toNat % 64)) ||| (b1 >>> (antiShift.toNat % 64))
+     let b1' := (b1 <<< (shift.toNat % 64)) ||| (b0 >>> (antiShift.toNat % 64))
+     let b0' := b0 <<< (shift.toNat % 64)
+     let u4 := a3 >>> (antiShift.toNat % 64)
+     let u3 := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (antiShift.toNat % 64))
+     let u2 := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (antiShift.toNat % 64))
+     let u1 := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (antiShift.toNat % 64))
+     let u0 := a0 <<< (shift.toNat % 64)
+     let qHat := div128Quot u4 u3 b3'
+     let dLo := (b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+     let div_un0 := (u3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+     let ms := mulsubN4 qHat b0' b1' b2' b3' u0 u1 u2 u3
+     let c3 := ms.2.2.2.2
+     let u4_new := u4 - c3
+     let ab := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 u4_new b0' b1' b2' b3'
+     let ab' := addbackN4 ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 ab.2.2.2.2 b0' b1' b2' b3'
+     let carry := addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 b0' b1' b2' b3'
+     let q_out := if carry = 0 then qHat + signExtend12 4095 + signExtend12 4095
+                  else qHat + signExtend12 4095
+     let un0Out := if carry = 0 then ab'.1 else ab.1
+     let un1Out := if carry = 0 then ab'.2.1 else ab.2.1
+     let un2Out := if carry = 0 then ab'.2.2.1 else ab.2.2.1
+     let un3Out := if carry = 0 then ab'.2.2.2.1 else ab.2.2.2.1
+     let u4_out  := if carry = 0 then ab'.2.2.2.2 else ab.2.2.2.2
+     denormModPost sp shift un0Out un1Out un2Out un3Out **
+     ((sp + signExtend12 4088) ↦ₘ q_out) **
+     ((sp + signExtend12 4080) ↦ₘ (0 : Word)) **
+     ((sp + signExtend12 4072) ↦ₘ (0 : Word)) **
+     ((sp + signExtend12 4064) ↦ₘ (0 : Word)) **
+     ((sp + signExtend12 3992) ↦ₘ shift) **
+     ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
+     ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+     ((sp + signExtend12 4024) ↦ₘ u4_out) **
+     ((sp + signExtend12 4016) ↦ₘ (0 : Word)) **
+     ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
+     ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
+     (sp + signExtend12 3984 ↦ₘ (4 : Word)) **
+     (sp + signExtend12 3976 ↦ₘ (0 : Word)) **
+     (.x1 ↦ᵣ signExtend12 4095) ** (.x11 ↦ᵣ q_out) **
+     (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+     (sp + signExtend12 3960 ↦ₘ b3') **
+     (sp + signExtend12 3952 ↦ₘ dLo) **
+     (sp + signExtend12 3944 ↦ₘ div_un0)) := by
+  delta fullModN4CallAddbackBeqPost; rfl
 
 /-- `fullModN4CallAddbackBeqPost` is pc-free. Mirror of
     `pcFree_fullDivN4CallAddbackBeqPost`. -/

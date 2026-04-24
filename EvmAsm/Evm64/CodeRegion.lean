@@ -161,7 +161,7 @@ theorem evmCodeIs_split_at (base : Word) (bytes : List (BitVec 8)) (dw : Nat)
       have heq : (bytes.drop 8).length = bytes.length - 8 := by simp
       rw [heq]
       have h8 : 8 ≤ bytes.length := by omega
-      have hcancel : bytes.length - 8 + 8 = bytes.length := Nat.sub_add_cancel h8
+      have : bytes.length - 8 + 8 = bytes.length := Nat.sub_add_cancel h8
       omega
     rw [ih (base + 8) (bytes.drop 8) hdw']; clear hdw'
     -- Normalize addresses

@@ -227,7 +227,7 @@ theorem rlp_phase2_long_iter_spec
          (.x12 ↦ᵣ byteZext) ** (dwordAddr ↦ₘ wordVal))
         (by pcFree) addi_cnt_raw)
   -- Disjointness builders for the union chain produced by `cpsTriple_seq`.
-  have hd5 : CodeReq.Disjoint
+  have : CodeReq.Disjoint
       (CodeReq.singleton (base + 16) (.ADDI .x14 .x14 (-1)))
       CodeReq.empty := CodeReq.Disjoint.empty_right _
   have hd4 : CodeReq.Disjoint

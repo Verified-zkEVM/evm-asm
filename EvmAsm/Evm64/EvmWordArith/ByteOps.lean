@@ -31,7 +31,7 @@ private theorem mod_pow64_div_mod256_eq (a B : Nat) (hB : B + 8 ≤ 64) :
   -- the q * 2^(64-B) term vanishes under % 256.
   set q := a / 2 ^ 64
   set r := a % 2 ^ 64
-  have hr : r < 2 ^ 64 := Nat.mod_lt _ (by positivity)
+  have : r < 2 ^ 64 := Nat.mod_lt _ (by positivity)
   have ha : a = q * 2 ^ 64 + r := by omega
   have h64 : (2 : Nat) ^ 64 = 2 ^ B * 2 ^ (64 - B) := by
     rw [← Nat.pow_add]; congr 1; omega
@@ -97,8 +97,8 @@ private theorem getLimb_high_ofNat_small (n : Nat) (hn : n < 2 ^ 64)
   simp only [getLimb]
   apply BitVec.eq_of_toNat_eq
   simp only [BitVec.extractLsb'_toNat, BitVec.toNat_ofNat, Nat.shiftRight_eq_div_pow]
-  have hi_pos : 0 < i.val := Nat.pos_of_ne_zero hi
-  have h_shift : 2 ^ 64 ≤ 2 ^ (i.val * 64) := Nat.pow_le_pow_right (by norm_num) (by omega)
+  have : 0 < i.val := Nat.pos_of_ne_zero hi
+  have : 2 ^ 64 ≤ 2 ^ (i.val * 64) := Nat.pow_le_pow_right (by norm_num) (by omega)
   have : n % 2 ^ 256 = n := Nat.mod_eq_of_lt (by linarith [show 2 ^ 64 ≤ 2 ^ 256 from by norm_num])
   rw [this]
   have : n / 2 ^ (i.val * 64) = 0 := Nat.div_eq_of_lt (by linarith)

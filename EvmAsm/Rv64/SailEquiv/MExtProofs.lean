@@ -7,11 +7,9 @@
   MUL (low 64 bits) is already proved in ALUProofs.lean.
 -/
 
-import EvmAsm.Rv64.Execution
 import EvmAsm.Rv64.SailEquiv.StateRel
 import EvmAsm.Rv64.SailEquiv.MonadLemmas
 import EvmAsm.Rv64.SailEquiv.ALUProofs
-import LeanRV64D
 
 open LeanRV64D.Functions
 open Sail
@@ -48,7 +46,7 @@ theorem int_ofNat_beq_zero {b : BitVec 64} :
   · intro h; subst h; simp
 
 /-- Unsigned division: SAIL's Int.tdiv on non-negative = BitVec udiv. -/
-theorem unsigned_div_equiv (a b : BitVec 64) (hb : b ≠ 0#64) :
+theorem unsigned_div_equiv (a b : BitVec 64) :
     to_bits_truncate (l := 64) ((↑a.toNat : Int).tdiv (↑b.toNat : Int)) = a / b := by
   rw [(Int.ofNat_tdiv a.toNat b.toNat).symm, to_bits_truncate_natCast]
   apply BitVec.eq_of_toNat_eq; simp [BitVec.toNat_udiv]
@@ -57,7 +55,7 @@ theorem unsigned_div_equiv (a b : BitVec 64) (hb : b ≠ 0#64) :
 /-- Unsigned remainder: SAIL's Int.tmod on non-negative = BitVec umod. -/
 theorem unsigned_rem_equiv (a b : BitVec 64) (hb : b ≠ 0#64) :
     to_bits_truncate (l := 64) ((↑a.toNat : Int).tmod (↑b.toNat : Int)) = a % b := by
-  have hbn : b.toNat ≠ 0 := by intro h; exact hb (BitVec.eq_of_toNat_eq (by simp [h]))
+  have : b.toNat ≠ 0 := by intro h; exact hb (BitVec.eq_of_toNat_eq (by simp [h]))
   rw [(Int.ofNat_tmod a.toNat b.toNat).symm, to_bits_truncate_natCast]
   apply BitVec.eq_of_toNat_eq; simp [BitVec.toNat_umod]
   have : a.toNat % b.toNat < b.toNat := Nat.mod_lt _ (by omega)
@@ -116,7 +114,7 @@ theorem divu_full_equiv {a b : BitVec 64} :
   by_cases hb : b = 0#64
   · subst hb; simp [to_bits_truncate_neg1]
   · simp only [show (b == 0#64) = false from by simp [hb], ite_false, Bool.false_eq_true]
-    exact unsigned_div_equiv a b hb
+    exact unsigned_div_equiv a b
 
 /-- REMU value equivalence: SAIL unsigned remainder computation = rv64_remu. -/
 theorem remu_full_equiv {a b : BitVec 64} :
@@ -147,11 +145,11 @@ private theorem to_bits_truncate_neg_pow63 :
     to_bits_truncate (l := 64) (-(((2 : Int) ^ 63))) =
     to_bits_truncate (l := 64) (((2 : Int) ^ 63)) := by
   rw [to_bits_truncate_eq_ofInt, to_bits_truncate_eq_ofInt]
-  apply BitVec.eq_of_toNat_eq; simp [BitVec.toNat_ofInt]
+  apply BitVec.eq_of_toNat_eq; simp
 
 /-- For 64-bit signed values, Int.tdiv can only reach 2^63 in the overflow case,
     so the SAIL overflow guard (clamping to -(2^63)) produces the same to_bits_truncate. -/
-private theorem overflow_guard_div (a b : BitVec 64) (hb : b ≠ 0#64) :
+private theorem overflow_guard_div (a b : BitVec 64) :
     let q := a.toInt.tdiv b.toInt
     to_bits_truncate (l := 64)
       (if ((q ≥b ((2 : Int) ^ 63)) : Bool) then (-((2 : Int) ^ 63)) else q) =
@@ -185,7 +183,7 @@ theorem div_full_equiv_applied {a b : BitVec 64} :
     simp (config := { decide := true }) [to_bits_truncate_neg1]
   · simp only [show (b == 0#64) = false from by simp [hb], ite_false, Bool.false_eq_true]
     -- Apply overflow guard then signed_div_equiv
-    exact (overflow_guard_div a b hb).symm ▸ signed_div_equiv a b
+    exact (overflow_guard_div a b).symm ▸ signed_div_equiv a b
 
 -- ============================================================================
 -- Instruction proofs
@@ -257,21 +255,12 @@ theorem mulh_sail_equiv (sRv : MachineState) (sSail : SailState)
     show ∀ x y : Word, mult_to_bits_half (l := LeanRV64D.Functions.xlen)
       Signedness.Signed Signedness.Signed x y VectorHalf.High = rv64_mulh x y
     from mulh_high_equiv]
-  cases rd <;>
-    simp only [regToRegidx,
-      runSail_wX_bits_x0, runSail_wX_bits_x1, runSail_wX_bits_x2,
-      runSail_wX_bits_x5, runSail_wX_bits_x6, runSail_wX_bits_x7,
-      runSail_wX_bits_x10, runSail_wX_bits_x11, runSail_wX_bits_x12]
-  all_goals first
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert sSail sRv hrel .x0 _ r, fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert sSail sRv hrel .x1 _ r, fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert sSail sRv hrel .x2 _ r, fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert sSail sRv hrel .x5 _ r, fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert sSail sRv hrel .x6 _ r, fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert sSail sRv hrel .x7 _ r, fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert sSail sRv hrel .x10 _ r, fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert sSail sRv hrel .x11 _ r, fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert sSail sRv hrel .x12 _ r, fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
+  simp only [runSail_wX_bits_of_reg]
+  exact ⟨_, rfl, ⟨
+    fun r => by simpa [execInstrBr, MachineState.setPC]
+                 using reg_agree_after_insert sSail sRv hrel rd _ r,
+    fun a => by simpa [execInstrBr, MachineState.setPC, MachineState.getMem]
+                 using hrel.mem_agree a⟩⟩
 
 theorem mulhsu_sail_equiv (sRv : MachineState) (sSail : SailState)
     (hrel : StateRel sRv sSail) (rd rs1 rs2 : Reg) :
@@ -286,21 +275,12 @@ theorem mulhsu_sail_equiv (sRv : MachineState) (sSail : SailState)
     show ∀ x y : Word, mult_to_bits_half (l := LeanRV64D.Functions.xlen)
       Signedness.Signed Signedness.Unsigned x y VectorHalf.High = rv64_mulhsu x y
     from mulhsu_high_equiv]
-  cases rd <;>
-    simp only [regToRegidx,
-      runSail_wX_bits_x0, runSail_wX_bits_x1, runSail_wX_bits_x2,
-      runSail_wX_bits_x5, runSail_wX_bits_x6, runSail_wX_bits_x7,
-      runSail_wX_bits_x10, runSail_wX_bits_x11, runSail_wX_bits_x12]
-  all_goals first
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert sSail sRv hrel .x0 _ r, fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert sSail sRv hrel .x1 _ r, fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert sSail sRv hrel .x2 _ r, fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert sSail sRv hrel .x5 _ r, fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert sSail sRv hrel .x6 _ r, fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert sSail sRv hrel .x7 _ r, fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert sSail sRv hrel .x10 _ r, fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert sSail sRv hrel .x11 _ r, fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert sSail sRv hrel .x12 _ r, fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
+  simp only [runSail_wX_bits_of_reg]
+  exact ⟨_, rfl, ⟨
+    fun r => by simpa [execInstrBr, MachineState.setPC]
+                 using reg_agree_after_insert sSail sRv hrel rd _ r,
+    fun a => by simpa [execInstrBr, MachineState.setPC, MachineState.getMem]
+                 using hrel.mem_agree a⟩⟩
 
 /-- MULHU value: SAIL's mult_to_bits_half Unsigned Unsigned High = rv64_mulhu. -/
 theorem mulhu_high_equiv (a b : BitVec 64) :
@@ -326,30 +306,12 @@ theorem mulhu_sail_equiv (sRv : MachineState) (sSail : SailState)
     show ∀ x y : Word, mult_to_bits_half (l := LeanRV64D.Functions.xlen)
       Signedness.Unsigned Signedness.Unsigned x y VectorHalf.High = rv64_mulhu x y
     from mulhu_high_equiv]
-  cases rd <;>
-    simp only [regToRegidx,
-      runSail_wX_bits_x0, runSail_wX_bits_x1, runSail_wX_bits_x2,
-      runSail_wX_bits_x5, runSail_wX_bits_x6, runSail_wX_bits_x7,
-      runSail_wX_bits_x10, runSail_wX_bits_x11, runSail_wX_bits_x12]
-  all_goals first
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert sSail sRv hrel .x0 _ r,
-        fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert sSail sRv hrel .x1 _ r,
-        fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert sSail sRv hrel .x2 _ r,
-        fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert sSail sRv hrel .x5 _ r,
-        fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert sSail sRv hrel .x6 _ r,
-        fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert sSail sRv hrel .x7 _ r,
-        fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert sSail sRv hrel .x10 _ r,
-        fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert sSail sRv hrel .x11 _ r,
-        fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert sSail sRv hrel .x12 _ r,
-        fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
+  simp only [runSail_wX_bits_of_reg]
+  exact ⟨_, rfl, ⟨
+    fun r => by simpa [execInstrBr, MachineState.setPC]
+                 using reg_agree_after_insert sSail sRv hrel rd _ r,
+    fun a => by simpa [execInstrBr, MachineState.setPC, MachineState.getMem]
+                 using hrel.mem_agree a⟩⟩
 
 theorem div_sail_equiv (sRv : MachineState) (sSail : SailState)
     (hrel : StateRel sRv sSail) (rd rs1 rs2 : Reg) :
@@ -360,32 +322,14 @@ theorem div_sail_equiv (sRv : MachineState) (sSail : SailState)
   unfold execute_DIV
   simp only [runSail_bind, runSail_rX_bits_of_stateRel hrel, runSail_pure,
     LeanRV64D.Functions.not,
-    Bool.not_false, Bool.true_and, ite_true, ite_false, Bool.false_eq_true]
+    Bool.not_false, Bool.true_and, ite_false, Bool.false_eq_true]
   conv in to_bits_truncate _ => rw [div_full_equiv_applied]
-  cases rd <;>
-    simp only [regToRegidx,
-      runSail_wX_bits_x0, runSail_wX_bits_x1, runSail_wX_bits_x2,
-      runSail_wX_bits_x5, runSail_wX_bits_x6, runSail_wX_bits_x7,
-      runSail_wX_bits_x10, runSail_wX_bits_x11, runSail_wX_bits_x12]
-  all_goals first
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert sSail sRv hrel .x0 _ r,
-        fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert sSail sRv hrel .x1 _ r,
-        fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert sSail sRv hrel .x2 _ r,
-        fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert sSail sRv hrel .x5 _ r,
-        fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert sSail sRv hrel .x6 _ r,
-        fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert sSail sRv hrel .x7 _ r,
-        fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert sSail sRv hrel .x10 _ r,
-        fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert sSail sRv hrel .x11 _ r,
-        fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert sSail sRv hrel .x12 _ r,
-        fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
+  simp only [runSail_wX_bits_of_reg]
+  exact ⟨_, rfl, ⟨
+    fun r => by simpa [execInstrBr, MachineState.setPC]
+                 using reg_agree_after_insert sSail sRv hrel rd _ r,
+    fun a => by simpa [execInstrBr, MachineState.setPC, MachineState.getMem]
+                 using hrel.mem_agree a⟩⟩
 
 theorem divu_sail_equiv (sRv : MachineState) (sSail : SailState)
     (hrel : StateRel sRv sSail) (rd rs1 rs2 : Reg) :
@@ -398,30 +342,12 @@ theorem divu_sail_equiv (sRv : MachineState) (sSail : SailState)
     LeanRV64D.Functions.xlen, LeanRV64D.Functions.not,
     Bool.not_true, Bool.false_and, ite_true, ite_false, Bool.false_eq_true]
   conv in to_bits_truncate _ => rw [divu_full_equiv]
-  cases rd <;>
-    simp only [regToRegidx,
-      runSail_wX_bits_x0, runSail_wX_bits_x1, runSail_wX_bits_x2,
-      runSail_wX_bits_x5, runSail_wX_bits_x6, runSail_wX_bits_x7,
-      runSail_wX_bits_x10, runSail_wX_bits_x11, runSail_wX_bits_x12]
-  all_goals first
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert sSail sRv hrel .x0 _ r,
-        fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert sSail sRv hrel .x1 _ r,
-        fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert sSail sRv hrel .x2 _ r,
-        fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert sSail sRv hrel .x5 _ r,
-        fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert sSail sRv hrel .x6 _ r,
-        fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert sSail sRv hrel .x7 _ r,
-        fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert sSail sRv hrel .x10 _ r,
-        fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert sSail sRv hrel .x11 _ r,
-        fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert sSail sRv hrel .x12 _ r,
-        fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
+  simp only [runSail_wX_bits_of_reg]
+  exact ⟨_, rfl, ⟨
+    fun r => by simpa [execInstrBr, MachineState.setPC]
+                 using reg_agree_after_insert sSail sRv hrel rd _ r,
+    fun a => by simpa [execInstrBr, MachineState.setPC, MachineState.getMem]
+                 using hrel.mem_agree a⟩⟩
 
 theorem rem_sail_equiv (sRv : MachineState) (sSail : SailState)
     (hrel : StateRel sRv sSail) (rd rs1 rs2 : Reg) :
@@ -433,30 +359,12 @@ theorem rem_sail_equiv (sRv : MachineState) (sSail : SailState)
   simp only [runSail_bind, runSail_rX_bits_of_stateRel hrel, runSail_pure,
     Bool.false_eq_true, ite_false]
   conv in to_bits_truncate _ => rw [rem_full_equiv]
-  cases rd <;>
-    simp only [regToRegidx,
-      runSail_wX_bits_x0, runSail_wX_bits_x1, runSail_wX_bits_x2,
-      runSail_wX_bits_x5, runSail_wX_bits_x6, runSail_wX_bits_x7,
-      runSail_wX_bits_x10, runSail_wX_bits_x11, runSail_wX_bits_x12]
-  all_goals first
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert sSail sRv hrel .x0 _ r,
-        fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert sSail sRv hrel .x1 _ r,
-        fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert sSail sRv hrel .x2 _ r,
-        fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert sSail sRv hrel .x5 _ r,
-        fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert sSail sRv hrel .x6 _ r,
-        fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert sSail sRv hrel .x7 _ r,
-        fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert sSail sRv hrel .x10 _ r,
-        fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert sSail sRv hrel .x11 _ r,
-        fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert sSail sRv hrel .x12 _ r,
-        fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
+  simp only [runSail_wX_bits_of_reg]
+  exact ⟨_, rfl, ⟨
+    fun r => by simpa [execInstrBr, MachineState.setPC]
+                 using reg_agree_after_insert sSail sRv hrel rd _ r,
+    fun a => by simpa [execInstrBr, MachineState.setPC, MachineState.getMem]
+                 using hrel.mem_agree a⟩⟩
 
 theorem remu_sail_equiv (sRv : MachineState) (sSail : SailState)
     (hrel : StateRel sRv sSail) (rd rs1 rs2 : Reg) :
@@ -467,29 +375,11 @@ theorem remu_sail_equiv (sRv : MachineState) (sSail : SailState)
   unfold execute_REM
   simp only [runSail_bind, runSail_rX_bits_of_stateRel hrel, runSail_pure, ite_true]
   conv in to_bits_truncate _ => rw [remu_full_equiv]
-  cases rd <;>
-    simp only [regToRegidx,
-      runSail_wX_bits_x0, runSail_wX_bits_x1, runSail_wX_bits_x2,
-      runSail_wX_bits_x5, runSail_wX_bits_x6, runSail_wX_bits_x7,
-      runSail_wX_bits_x10, runSail_wX_bits_x11, runSail_wX_bits_x12]
-  all_goals first
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert sSail sRv hrel .x0 _ r,
-        fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert sSail sRv hrel .x1 _ r,
-        fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert sSail sRv hrel .x2 _ r,
-        fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert sSail sRv hrel .x5 _ r,
-        fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert sSail sRv hrel .x6 _ r,
-        fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert sSail sRv hrel .x7 _ r,
-        fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert sSail sRv hrel .x10 _ r,
-        fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert sSail sRv hrel .x11 _ r,
-        fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
-    | exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using reg_agree_after_insert sSail sRv hrel .x12 _ r,
-        fun a => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a⟩⟩
+  simp only [runSail_wX_bits_of_reg]
+  exact ⟨_, rfl, ⟨
+    fun r => by simpa [execInstrBr, MachineState.setPC]
+                 using reg_agree_after_insert sSail sRv hrel rd _ r,
+    fun a => by simpa [execInstrBr, MachineState.setPC, MachineState.getMem]
+                 using hrel.mem_agree a⟩⟩
 
 end EvmAsm.Rv64.SailEquiv

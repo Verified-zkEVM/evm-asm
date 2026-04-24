@@ -28,10 +28,10 @@ open EvmAsm.Rv64.AddrNorm (word_toNat_0 word_toNat_1)
 theorem val256_div_lt_pow64 (a0 a1 a2 a3 b0 b1 b2 b3 : Word) (hb3nz : b3 ≠ 0) :
     val256 a0 a1 a2 a3 / val256 b0 b1 b2 b3 ≤ 2^64 - 1 := by
   have hb_ge := val256_ge_pow192_of_limb3 b0 b1 b2 b3 hb3nz
-  have ha_lt := val256_bound a0 a1 a2 a3
+  have := val256_bound a0 a1 a2 a3
   -- val256(a) < 2^256 = 2^64 * 2^192 ≤ 2^64 * val256(b)
   -- So val256(a) / val256(b) < 2^64
-  have hb_pos : 0 < val256 b0 b1 b2 b3 := by omega
+  have : 0 < val256 b0 b1 b2 b3 := by omega
   calc val256 a0 a1 a2 a3 / val256 b0 b1 b2 b3
       ≤ (2^256 - 1) / val256 b0 b1 b2 b3 := Nat.div_le_div_right (by omega)
     _ ≤ (2^256 - 1) / 2^192 := Nat.div_le_div_left hb_ge (by omega)
@@ -124,7 +124,7 @@ theorem mulsub_addback_val256_combined (q : Word) {v0 v1 v2 v3 u0 u1 u2 u3 : Wor
   -- hmulsub: val256(u) + 2^256 = val256(un) + q * val256(v)
   -- haddback: val256(un) + val256(v) = val256(aun) + 2^256
   -- So: val256(u) + val256(v) = q * val256(v) + val256(aun)
-  have hsum : val256 u0 u1 u2 u3 + val256 v0 v1 v2 v3 =
+  have : val256 u0 u1 u2 u3 + val256 v0 v1 v2 v3 =
       q.toNat * val256 v0 v1 v2 v3 + val256 ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 := by linarith
   -- From A + V = Q*V + R with Q ≥ 1: A = (Q-1)*V + R
   -- Rewrite as: A = Q*V + R - V = Q*V - V + R = (Q-1)*V + R
@@ -191,14 +191,14 @@ theorem n4_max_addback_correct {a0 a1 a2 a3 b0 b1 b2 b3 : Word}
     rw [word_toNat_1] at hmulsub_raw
     -- hmulsub_raw: val256 u + 1 * 2^256 = val256 un + qHat * val256 v
     -- So qHat * val256 v ≥ val256 u + 1 (since 2^256 > val256 un)
-    have hv_bound := val256_bound ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1
+    have := val256_bound ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1
     have hv_pos := val256_pos_of_or_ne_zero hbnz
     have hq_mul_gt : (signExtend12 (4095 : BitVec 12) : Word).toNat * val256 b0 b1 b2 b3 >
         val256 a0 a1 a2 a3 := by nlinarith
     rw [hq_hat_toNat] at hq_mul_gt
     -- From q * v > u and v > 0: u / v < q, hence u / v ≤ q - 1
     -- val256(a) < (2^64-1) * val256(b) implies val256(a) / val256(b) < 2^64-1
-    have hdiv_lt : val256 a0 a1 a2 a3 / val256 b0 b1 b2 b3 < 2^64 - 1 :=
+    have : val256 a0 a1 a2 a3 / val256 b0 b1 b2 b3 < 2^64 - 1 :=
       Nat.div_lt_iff_lt_mul hv_pos |>.mpr hq_mul_gt
     omega
   exact div_correct_n4_no_shift hbnz hcombined hge
@@ -223,10 +223,10 @@ theorem mulsubN4_c3_le_one {q v0 v1 v2 v3 u0 u1 u2 u3 : Word}
   have hmulsub := mulsubN4_val256_eq q v0 v1 v2 v3 u0 u1 u2 u3
   simp only [] at hmulsub
   -- Bounds
-  have hu_bound := val256_bound u0 u1 u2 u3
-  have hun_bound := val256_bound ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1
-  have hv_bound := val256_bound v0 v1 v2 v3
-  have hv_pos := val256_pos_of_or_ne_zero hbnz
+  have := val256_bound u0 u1 u2 u3
+  have := val256_bound ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1
+  have := val256_bound v0 v1 v2 v3
+  have := val256_pos_of_or_ne_zero hbnz
   -- From hq_over: q * val256(v) ≤ (⌊u/v⌋ + 1) * val256(v)
   --            = ⌊u/v⌋ * val256(v) + val256(v) ≤ val256(u) + val256(v)
   have hdiv_mul_le : val256 u0 u1 u2 u3 / val256 v0 v1 v2 v3 *
@@ -262,7 +262,7 @@ theorem mulsubN4_c3_eq_zero_or_one {q v0 v1 v2 v3 u0 u1 u2 u3 : Word}
     (hq_over : q.toNat ≤ val256 u0 u1 u2 u3 / val256 v0 v1 v2 v3 + 1) :
     (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2 = 0 ∨
     (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2 = 1 := by
-  have hle := mulsubN4_c3_le_one hbnz hq_over
+  have := mulsubN4_c3_le_one hbnz hq_over
   rcases Nat.eq_zero_or_pos (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2.toNat with h | h
   · left; bv_omega
   · right; bv_omega
@@ -296,10 +296,10 @@ theorem mulsubN4_c3_le_one_v3_zero (q v0 v1 v2 u0 u1 u2 u3 : Word) :
   simp only [] at hmulsub
   let ms := mulsubN4 q v0 v1 v2 0 u0 u1 u2 u3
   let c3 := ms.2.2.2.2
-  have hun_bound := val256_bound ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1
+  have := val256_bound ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1
   have hv_bound := val256_lt_pow192 v0 v1 v2
   have := q.isLt
-  have hqv_bound : q.toNat * val256 v0 v1 v2 0 < 2 ^ 256 := by nlinarith
+  have : q.toNat * val256 v0 v1 v2 0 < 2 ^ 256 := by nlinarith
   have hc3_bound : c3.toNat * 2 ^ 256 < 2 * 2 ^ 256 := by
     show ms.2.2.2.2.toNat * 2 ^ 256 < 2 * 2 ^ 256; nlinarith
   show c3.toNat ≤ 1
@@ -313,7 +313,7 @@ theorem mulsubN4_c3_eq_one_v3_zero (q v0 v1 v2 u0 u1 u2 u3 : Word)
     (hc3_nz : (mulsubN4 q v0 v1 v2 0 u0 u1 u2 u3).2.2.2.2 ≠ 0) :
     (mulsubN4 q v0 v1 v2 0 u0 u1 u2 u3).2.2.2.2 = 1 := by
   have h := mulsubN4_c3_le_one_v3_zero q v0 v1 v2 u0 u1 u2 u3
-  have hc3_pos : 0 < (mulsubN4 q v0 v1 v2 0 u0 u1 u2 u3).2.2.2.2.toNat := by
+  have : 0 < (mulsubN4 q v0 v1 v2 0 u0 u1 u2 u3).2.2.2.2.toNat := by
     exact Nat.pos_of_ne_zero (by intro h0; exact hc3_nz (BitVec.eq_of_toNat_eq h0))
   exact BitVec.eq_of_toNat_eq (by have := word_toNat_1; omega)
 
@@ -361,9 +361,9 @@ theorem addbackN4_second_carry_one (q v0 v1 v2 v3 u0 u1 u2 u3 : Word)
   have hab' := addbackN4_val256_eq ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 0 v0 v1 v2 v3
   simp only [] at hab'
   -- Bounds
-  have hv_pos := val256_pos_of_or_ne_zero hbnz
-  have hun_bound := val256_bound ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1
-  have hab1_bound := val256_bound ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1
+  have := val256_pos_of_or_ne_zero hbnz
+  have := val256_bound ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1
+  have := val256_bound ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1
   have hab'_result_bound := val256_bound
     (addbackN4 ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 0 v0 v1 v2 v3).1
     (addbackN4 ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 0 v0 v1 v2 v3).2.1
@@ -373,25 +373,25 @@ theorem addbackN4_second_carry_one (q v0 v1 v2 v3 u0 u1 u2 u3 : Word)
       val256 v0 v1 v2 v3 ≤ val256 u0 u1 u2 u3 := Nat.div_mul_le_self _ _
   -- q ≥ 2: from c3=1 and carry1=0, q*v > u+v, so q ≥ 2
   have hqv_gt_u : q.toNat * val256 v0 v1 v2 v3 > val256 u0 u1 u2 u3 := by nlinarith
-  have hun_v_lt : val256 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 +
+  have : val256 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 +
       val256 v0 v1 v2 v3 < 2 ^ 256 := by nlinarith
-  have hu_v_lt_qv : val256 u0 u1 u2 u3 + val256 v0 v1 v2 v3 <
+  have : val256 u0 u1 u2 u3 + val256 v0 v1 v2 v3 <
       q.toNat * val256 v0 v1 v2 v3 := by nlinarith
   have hq_ge_2 : q.toNat ≥ 2 := by
     by_contra h; push Not at h
     have : q.toNat * val256 v0 v1 v2 v3 ≤ 1 * val256 v0 v1 v2 v3 :=
       Nat.mul_le_mul_right _ (by omega)
     linarith
-  have hqm2_le : (q.toNat - 2) * val256 v0 v1 v2 v3 ≤ val256 u0 u1 u2 u3 := by
+  have : (q.toNat - 2) * val256 v0 v1 v2 v3 ≤ val256 u0 u1 u2 u3 := by
     calc (q.toNat - 2) * val256 v0 v1 v2 v3
         ≤ (val256 u0 u1 u2 u3 / val256 v0 v1 v2 v3) * val256 v0 v1 v2 v3 := by
           apply Nat.mul_le_mul_right; omega
       _ ≤ val256 u0 u1 u2 u3 := hdiv_mul_le
   -- val256(un) + 2*val256(v) ≥ 2^256
   have h_ge : val256 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 + 2 * val256 v0 v1 v2 v3 ≥ 2 ^ 256 := by
-    have hq_split : q.toNat * val256 v0 v1 v2 v3 =
+    have : q.toNat * val256 v0 v1 v2 v3 =
         (q.toNat - 2) * val256 v0 v1 v2 v3 + 2 * val256 v0 v1 v2 v3 := by
-      have hq2 : q.toNat = (q.toNat - 2) + 2 := by omega
+      have : q.toNat = (q.toNat - 2) + 2 := by omega
       nlinarith
     nlinarith
   -- val256(ab1) + val256(v) ≥ 2^256
@@ -410,7 +410,7 @@ theorem addbackN4_second_carry_one (q v0 v1 v2 v3 u0 u1 u2 u3 : Word)
   -- Lower bound: carry2 ≥ 1
   -- If carry2 = 0 then hab' gives val256(ab)+val256(v) = val256(ab'_result) < 2^256,
   -- contradicting h_ab1_v_ge.
-  have hc2_ge : carry2 ≥ 1 := by
+  have : carry2 ≥ 1 := by
     by_contra h; push Not at h
     have hc2_zero : carry2 = 0 := by omega
     rw [hc2_zero] at hab'
@@ -499,25 +499,25 @@ theorem addbackN4_first_carry_one (q v0 v1 v2 v3 u0 u1 u2 u3 : Word)
   set carry := (addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 v0 v1 v2 v3).toNat
   set ab := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 0 v0 v1 v2 v3
   -- Bounds
-  have hun_bound := val256_bound ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1
-  have hv_bound := val256_bound v0 v1 v2 v3
-  have hu_bound := val256_bound u0 u1 u2 u3
-  have hab_bound := val256_bound ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1
+  have := val256_bound ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1
+  have := val256_bound v0 v1 v2 v3
+  have := val256_bound u0 u1 u2 u3
+  have := val256_bound ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1
   have hv_pos : 0 < val256 v0 v1 v2 v3 := val256_pos_of_or_ne_zero hbnz
   -- q * val256(v) > val256(u) (from c3 = 1, i.e., borrow)
   have hqv_gt_u : q.toNat * val256 v0 v1 v2 v3 > val256 u0 u1 u2 u3 := by nlinarith
   -- q ≥ 1
-  have hq_ge_1 : q.toNat ≥ 1 := by
+  have : q.toNat ≥ 1 := by
     by_contra h
     have : q.toNat = 0 := by omega
     simp [this] at hqv_gt_u
   -- (q-1) * val256(v) ≤ val256(u) (from hq_over: q ≤ ⌊u/v⌋ + 1)
-  have hqm1_le : (q.toNat - 1) * val256 v0 v1 v2 v3 ≤ val256 u0 u1 u2 u3 := by
-    have hdiv := Nat.div_mul_le_self (val256 u0 u1 u2 u3) (val256 v0 v1 v2 v3)
+  have hqm1_le : (q.toNat - 1) * val256 v0 v1 v2 v3 ≤ val256 u0 u1 u2 u3 :=
     calc (q.toNat - 1) * val256 v0 v1 v2 v3
         ≤ (val256 u0 u1 u2 u3 / val256 v0 v1 v2 v3) * val256 v0 v1 v2 v3 := by
           apply Nat.mul_le_mul_right; omega
-      _ ≤ val256 u0 u1 u2 u3 := hdiv
+      _ ≤ val256 u0 u1 u2 u3 :=
+          Nat.div_mul_le_self (val256 u0 u1 u2 u3) (val256 v0 v1 v2 v3)
   -- q * val256(v) ≤ val256(u) + val256(v) (from hqm1_le)
   have hqv_le : q.toNat * val256 v0 v1 v2 v3 ≤
       val256 u0 u1 u2 u3 + val256 v0 v1 v2 v3 := by
@@ -533,7 +533,7 @@ theorem addbackN4_first_carry_one (q v0 v1 v2 v3 u0 u1 u2 u3 : Word)
   -- Since val256(un) + val256(v) ≥ 2^256 and val256(ab) < 2^256:
   -- carry * 2^256 ≥ 1, so carry ≥ 1
   -- Also val256(un) + val256(v) < 2 * 2^256, so carry < 2
-  have hc_ge : carry ≥ 1 := by
+  have : carry ≥ 1 := by
     by_contra h
     have : carry = 0 := by omega
     rw [this] at hab

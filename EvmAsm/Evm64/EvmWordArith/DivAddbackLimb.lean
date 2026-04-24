@@ -57,7 +57,7 @@ theorem addback_limb_nat_eq (u_i v_i carryIn : Word) (hci : carryIn.toNat ≤ 1)
   -- Total: u_i + v_i + carryIn = (c1 + c2) * 2^64 + uNew
   -- But c1 + c2 ≤ 1 (the two carries are exclusive)
   have := u_i.isLt; have := v_i.isLt
-  have htot : u_i.toNat + v_i.toNat + carryIn.toNat < 2 * 2^64 := by omega
+  have : u_i.toNat + v_i.toNat + carryIn.toNat < 2 * 2^64 := by omega
   have hupc : uPlusCarry.toNat = (u_i.toNat + carryIn.toNat) % 2^64 :=
     BitVec.toNat_add u_i carryIn
   -- If c1 = 1 then uPlusCarry is small, so c2 = 0

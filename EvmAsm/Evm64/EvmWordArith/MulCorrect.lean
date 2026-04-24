@@ -371,14 +371,7 @@ private theorem carry_chain_limb3 (a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
         c1_lo c1_hi c1_r1 c1_c1 c1_rc c1_r2a c1_cr1 c1_lo2 c1_hi2 c1_r2 c1_cr2 c1_rc2 c1_r3p
         c2_lo c2_hi c2_r2 c2_c c2_rc c2_r3 r3_final
         D0 D1 D2 D3 C1 C2 C3
-  -- Phase 1: leaf mulhu/mul → Nat
-  have h_mu00 : (rv64_mulhu a0 b0).toNat = a0.toNat * b0.toNat / 2^64 := rv64_mulhu_toNat
-  have h_lo10 : (a1 * b0).toNat = a1.toNat * b0.toNat % 2^64 := mul_toNat
-  have h_mu10 : (rv64_mulhu a1 b0).toNat = a1.toNat * b0.toNat / 2^64 := rv64_mulhu_toNat
-  have h_lo20 : (a2 * b0).toNat = a2.toNat * b0.toNat % 2^64 := mul_toNat
-  have h_mu20 : (rv64_mulhu a2 b0).toNat = a2.toNat * b0.toNat / 2^64 := rv64_mulhu_toNat
   -- Phase 2: col0 carry chain
-  have h_lo30 : (a3 * b0).toNat = a3.toNat * b0.toNat % 2^64 := mul_toNat
   have h_c0_r1 : c0_r1.toNat = ((rv64_mulhu a0 b0).toNat + (a1 * b0).toNat) % 2^64 :=
     BitVec.toNat_add (rv64_mulhu a0 b0) (a1 * b0)
   have h_c0_c1 : c0_c1.toNat = ((rv64_mulhu a0 b0).toNat + (a1 * b0).toNat) / 2^64 :=
@@ -397,11 +390,7 @@ private theorem carry_chain_limb3 (a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
     BitVec.toNat_add (rv64_mulhu a2 b0) c0_c2
   have h_c0_r3p : c0_r3p.toNat = ((rv64_mulhu a2 b0 + c0_c2).toNat + (a3 * b0).toNat) % 2^64 :=
     BitVec.toNat_add (rv64_mulhu a2 b0 + c0_c2) (a3 * b0)
-  -- Phase 3: col1 leaf + r1/c1 carries
-  have h_lo01 : (a0 * b1).toNat = a0.toNat * b1.toNat % 2^64 := mul_toNat
-  have h_mu01 : (rv64_mulhu a0 b1).toNat = a0.toNat * b1.toNat / 2^64 := rv64_mulhu_toNat
-  have h_c1_r1 : c1_r1.toNat = (c0_r1.toNat + (a0 * b1).toNat) % 2^64 :=
-    BitVec.toNat_add c0_r1 (a0 * b1)
+  -- Phase 3: col1 r1/c1 carries
   have h_c1_c1 : c1_c1.toNat = (c0_r1.toNat + (a0 * b1).toNat) / 2^64 :=
     carry_toNat
   -- c1_rc = c1_hi + c1_c1 = rv64_mulhu a0 b1 + c1_c1
@@ -412,9 +401,6 @@ private theorem carry_chain_limb3 (a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
     BitVec.toNat_add c0_r2 c1_rc
   have h_c1_cr1 : c1_cr1.toNat = (c0_r2.toNat + c1_rc.toNat) / 2^64 :=
     carry_toNat
-  -- col1 b1×a1 leaf values
-  have h_lo11 : (a1 * b1).toNat = a1.toNat * b1.toNat % 2^64 := mul_toNat
-  have h_mu11 : (rv64_mulhu a1 b1).toNat = a1.toNat * b1.toNat / 2^64 := rv64_mulhu_toNat
   -- c1_r2 = c1_r2a + c1_lo2 = c1_r2a + a1 * b1
   have h_c1_r2 : c1_r2.toNat = (c1_r2a.toNat + (a1 * b1).toNat) % 2^64 :=
     BitVec.toNat_add c1_r2a (a1 * b1)
@@ -423,8 +409,7 @@ private theorem carry_chain_limb3 (a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
   -- c1_rc2 = c1_hi2 + c1_cr2 = rv64_mulhu a1 b1 + c1_cr2
   have h_c1_rc2 : c1_rc2.toNat = ((rv64_mulhu a1 b1).toNat + c1_cr2.toNat) % 2^64 :=
     BitVec.toNat_add (rv64_mulhu a1 b1) c1_cr2
-  -- a2 * b1 leaf; c1_r3p outer split
-  have h_lo21 : (a2 * b1).toNat = a2.toNat * b1.toNat % 2^64 := mul_toNat
+  -- c1_r3p outer split
   have h_c1_r3p : c1_r3p.toNat = ((c1_cr1 + c1_rc2 + a2 * b1).toNat + c0_r3p.toNat) % 2^64 :=
     BitVec.toNat_add (c1_cr1 + c1_rc2 + a2 * b1) c0_r3p
   -- expand the inner 3-way sum
@@ -433,13 +418,7 @@ private theorem carry_chain_limb3 (a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
     BitVec.toNat_add (c1_cr1 + c1_rc2) (a2 * b1)
   have h_c1_cr1rc2 : (c1_cr1 + c1_rc2).toNat = (c1_cr1.toNat + c1_rc2.toNat) % 2^64 :=
     BitVec.toNat_add c1_cr1 c1_rc2
-  -- col2 leaf values
-  have h_lo02 : (a0 * b2).toNat = a0.toNat * b2.toNat % 2^64 := mul_toNat
-  have h_mu02 : (rv64_mulhu a0 b2).toNat = a0.toNat * b2.toNat / 2^64 := rv64_mulhu_toNat
-  have h_lo12 : (a1 * b2).toNat = a1.toNat * b2.toNat % 2^64 := mul_toNat
   -- col2 carry chain
-  have h_c2_r2 : c2_r2.toNat = (c1_r2.toNat + (a0 * b2).toNat) % 2^64 :=
-    BitVec.toNat_add c1_r2 (a0 * b2)
   have h_c2_c : c2_c.toNat = (c1_r2.toNat + (a0 * b2).toNat) / 2^64 :=
     carry_toNat
   have h_c2_rc_inner : (rv64_mulhu a0 b2 + c2_c).toNat = ((rv64_mulhu a0 b2).toNat + c2_c.toNat) % 2^64 :=
@@ -449,7 +428,6 @@ private theorem carry_chain_limb3 (a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
   have h_c2_r3 : c2_r3.toNat = (c1_r3p.toNat + c2_rc.toNat) % 2^64 :=
     BitVec.toNat_add c1_r3p c2_rc
   -- col3: r3_final = c2_r3 + a0 * b3
-  have h_lo03 : (a0 * b3).toNat = a0.toNat * b3.toNat % 2^64 := mul_toNat
   have h_r3 : r3_final.toNat = (c2_r3.toNat + (a0 * b3).toNat) % 2^64 :=
     BitVec.toNat_add c2_r3 (a0 * b3)
   -- Euclidean approach: convert every div/mod pair into carry*W + result = inputs
@@ -465,33 +443,6 @@ private theorem carry_chain_limb3 (a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
   have fp21 := mul_full_product a2 b1
   have fp12 := mul_full_product a1 b2
   have fp03 := mul_full_product a0 b3
-  -- Col0 Euclidean carry chain (carry*W + result = inputs, no nested div/mod)
-  have euc_c0_r1 := div_mod_eq (2^64) h_c0_c1 h_c0_r1
-  -- euc_c0_r1 : c0_c1.toNat * 2^64 + c0_r1.toNat = mu00 + lo10
-  have euc_sum10_c1 := div_mod_eq (2^64) rfl h_sum10_c1
-  -- lost carry: q * W + (mu10 + c0_c1).toNat = mu10 + c0_c1.toNat
-  have euc_c0_r2 := div_mod_eq (2^64) h_c0_c2 h_c0_r2
-  -- c0_c2 * W + c0_r2 = (mu10+c0_c1).toNat + lo20
-  have euc_sum20_c2 := div_mod_eq (2^64) rfl h_sum20_c2
-  -- lost carry: q * W + (mu20 + c0_c2).toNat = mu20 + c0_c2.toNat
-  have euc_c0_r3p := div_mod_eq (2^64) rfl h_c0_r3p
-  -- lost carry: q * W + c0_r3p.toNat = (mu20+c0_c2).toNat + lo30
-  -- Col1 Euclidean carry chain
-  have euc_c1_r1 := div_mod_eq (2^64) h_c1_c1 h_c1_r1
-  have euc_c1_rc := div_mod_eq (2^64) rfl h_c1_rc
-  have euc_c1_r2a := div_mod_eq (2^64) h_c1_cr1 h_c1_r2a
-  have euc_c1_r2 := div_mod_eq (2^64) h_c1_cr2 h_c1_r2
-  have euc_c1_rc2 := div_mod_eq (2^64) rfl h_c1_rc2
-  have euc_c1_cr1rc2 := div_mod_eq (2^64) rfl h_c1_cr1rc2
-  have euc_c1_inner := div_mod_eq (2^64) rfl h_c1_inner
-  have euc_c1_r3p := div_mod_eq (2^64) rfl h_c1_r3p
-  -- Col2 Euclidean carry chain
-  have euc_c2_r2 := div_mod_eq (2^64) h_c2_c h_c2_r2
-  have euc_c2_rc_inner := div_mod_eq (2^64) rfl h_c2_rc_inner
-  have euc_c2_rc := div_mod_eq (2^64) rfl h_c2_rc
-  have euc_c2_r3 := div_mod_eq (2^64) rfl h_c2_r3
-  -- Col3 final
-  have euc_r3 := div_mod_eq (2^64) rfl h_r3
   -- RHS: express D_k in terms of full products (eliminates nonlinear a_i*b_j)
   have hD0 : D0 = (rv64_mulhu a0 b0).toNat * 2^64 + (a0 * b0).toNat := fp00.symm
   have hD1 : D1 = (rv64_mulhu a0 b1).toNat * 2^64 + (a0 * b1).toNat +
@@ -506,11 +457,6 @@ private theorem carry_chain_limb3 (a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
       ((rv64_mulhu a2 b1).toNat * 2^64 + (a2 * b1).toNat) +
       ((rv64_mulhu a3 b0).toNat * 2^64 + (a3 * b0).toNat) :=
     congrArg₂ (· + ·) (congrArg₂ (· + ·) (congrArg₂ (· + ·) fp03.symm fp12.symm) fp21.symm) fp30.symm
-  -- RHS Euclidean: C_k * W + remainder = D_k + C_{k-1} (linearizes the nested div/mod)
-  have euc_C1 := div_mod_eq (x := D0) (q := C1) (r := D0 % 2^64) (2^64) rfl rfl
-  have euc_C2 := div_mod_eq (x := D1 + C1) (q := C2) (r := (D1 + C1) % 2^64) (2^64) rfl rfl
-  have euc_C3 := div_mod_eq (x := D2 + C2) (q := C3) (r := (D2 + C2) % 2^64) (2^64) rfl rfl
-  have euc_rhs := div_mod_eq (x := D3 + C3) (2^64) rfl rfl
   -- All equations are now linear. Reduce to mod-congruence, then extract to private lemma.
   -- Step 1: r3_final.toNat = (sum) % W, so suffices to show (sum) % W = (D3+C3) % W
   have h_suffices : (c2_r3.toNat + (a0 * b3).toNat) % 2^64 = (D3 + C3) % 2^64 := by

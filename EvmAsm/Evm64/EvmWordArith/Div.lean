@@ -108,11 +108,10 @@ theorem bv_udiv_add_umod {n : Nat} {x y : BitVec n} :
     y * (x / y) + x % y = x := by
   apply BitVec.eq_of_toNat_eq
   simp only [BitVec.toNat_add, BitVec.toNat_mul, BitVec.toNat_udiv, BitVec.toNat_umod]
-  have hdiv := Nat.div_add_mod x.toNat y.toNat
-  have hx := x.isLt
-  have hmul_le : y.toNat * (x.toNat / y.toNat) ≤ x.toNat := by omega
+  have := Nat.div_add_mod x.toNat y.toNat
+  have : y.toNat * (x.toNat / y.toNat) ≤ x.toNat := by omega
   rw [Nat.mod_eq_of_lt (by omega : y.toNat * (x.toNat / y.toNat) < 2 ^ n),
-      hdiv, Nat.mod_eq_of_lt hx]
+      Nat.div_add_mod, Nat.mod_eq_of_lt x.isLt]
 
 /-- Uniqueness of BitVec unsigned division: if `a = b * q + r` with `r < b`
     and no overflow in `b * q + r`, then `q = a / b` and `r = a % b`. -/
@@ -121,7 +120,7 @@ theorem bv_udiv_umod_unique {n : Nat} {a b q r : BitVec n}
     (hno : b.toNat * q.toNat + r.toNat < 2 ^ n)
     (h : a = b * q + r) :
     q = a / b ∧ r = a % b := by
-  have hr_nat : r.toNat < b.toNat := BitVec.lt_def.mp hr
+  have : r.toNat < b.toNat := BitVec.lt_def.mp hr
   have h_eq := congrArg BitVec.toNat h
   simp only [BitVec.toNat_add, BitVec.toNat_mul] at h_eq
   rw [Nat.mod_eq_of_lt (by omega : b.toNat * q.toNat < 2 ^ n),

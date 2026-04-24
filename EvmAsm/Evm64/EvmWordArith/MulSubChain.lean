@@ -97,7 +97,7 @@ theorem mulsub_correction_eq (u_nat v_nat r_nat qNat : Nat)
     (hchain : u_nat + 2^256 = r_nat + qNat * v_nat)
     (hq : 0 < qNat) :
     u_nat + 2^256 = (r_nat + v_nat) + (qNat - 1) * v_nat := by
-  have hq1 : qNat = 1 + (qNat - 1) := by omega
+  have : qNat = 1 + (qNat - 1) := by omega
   nlinarith [show qNat * v_nat = v_nat + (qNat - 1) * v_nat by nlinarith]
 
 end EvmWord

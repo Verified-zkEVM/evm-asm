@@ -30,8 +30,8 @@ theorem ult_one_eq_zero {x : Word} : BitVec.ult x 1 ↔ x = 0 := by
     have h1 := of_decide_eq_true h
     change x.toNat < (1 : Word).toNat at h1
     apply BitVec.eq_of_toNat_eq
-    have h1eq : (1 : Word).toNat = 1 := by decide
-    have h0eq : (0 : Word).toNat = 0 := by decide
+    have : (1 : Word).toNat = 1 := by decide
+    have : (0 : Word).toNat = 0 := by decide
     omega
   · intro h; subst h; decide
 

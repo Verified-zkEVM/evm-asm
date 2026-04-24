@@ -648,7 +648,7 @@ theorem signext_body_spec (sp base : Word)
   -- signextend bridge: connect body outputs to (EvmWord.signextend b x).getLimb i
   -- Key facts
   -- Key arithmetic facts
-  have hb0_lt31 : b0.toNat < 31 := by
+  have : b0.toNat < 31 := by
     rw [signExtend12_31] at hsmall
     exact BitVec.lt_def.mp (of_decide_eq_true hsmall)
   -- High limbs of b are zero
@@ -659,9 +659,8 @@ theorem signext_body_spec (sp base : Word)
   have hb3_zero : b3 = 0 := hb12_b3.2
   -- b.toNat = b0.toNat (since high limbs are zero)
   have hb0_eq_b : b0.toNat = b.toNat := by
-    have hdecomp := EvmWord.toNat_eq_limb_sum b
     change b0.toNat = b.toNat
-    rw [hdecomp]
+    rw [EvmWord.toNat_eq_limb_sum b]
     simp only [b1, b2, b3] at hb1_zero hb2_zero hb3_zero
     simp [b0, hb1_zero, hb2_zero, hb3_zero]
   have hnotge : ¬ b.toNat ≥ 31 := by omega
@@ -678,11 +677,11 @@ theorem signext_body_spec (sp base : Word)
     rw [bv6_toNat_3] at hbs
     -- b0.toNat < 31 → we can compute everything via bv_omega style
     -- (b0 &&& 7).toNat = b0.toNat % 8
-    have hand : (b0 &&& (7 : Word)).toNat = b0.toNat % 8 := by
+    have : (b0 &&& (7 : Word)).toNat = b0.toNat % 8 := by
       rw [BitVec.toNat_and]; exact Nat.and_two_pow_sub_one_eq_mod b0.toNat 3
     -- ((b0 &&& 7) <<< 3).toNat = (b0.toNat % 8) * 8
     have hm8 : b0.toNat % 8 < 8 := Nat.mod_lt _ (by omega)
-    have hshift_val : byteShift.toNat = (b0.toNat % 8) * 8 := by
+    have : byteShift.toNat = (b0.toNat % 8) * 8 := by
       rw [hbs, se12_7]; bv_omega
     -- 56 - byteShift fits in Word and the mod 64 is identity
     have h56_sub : ((56 : Word) - byteShift).toNat = 56 - (b0.toNat % 8) * 8 := by
@@ -691,8 +690,8 @@ theorem signext_body_spec (sp base : Word)
     have hm8 : b.toNat % 8 < 8 := Nat.mod_lt _ (by omega)
     omega
   -- getLimbN = getLimb for in-range indices
-  have hlimbIdx_lt4 : limbIdx.toNat < 4 := by rw [hlimbIdx_eq]; omega
-  have hLN_eq : x.getLimbN (b.toNat / 8) = x.getLimb ⟨b.toNat / 8, by omega⟩ :=
+  have : limbIdx.toNat < 4 := by rw [hlimbIdx_eq]; omega
+  have : x.getLimbN (b.toNat / 8) = x.getLimb ⟨b.toNat / 8, by omega⟩ :=
     EvmWord.getLimbN_lt x (b.toNat / 8) (by omega)
   -- signextLimb and signextFill in terms of body output
   -- signextLimb (x.getLimbN (b.toNat/8)) (BitVec.ofNat 64 (56-(b.toNat%8)*8))
@@ -774,13 +773,13 @@ theorem signext_body_spec (sp base : Word)
     hbd3_w (fun (hli : limbIdx ≠ 0 ∧ limbIdx ≠ (0 : Word) + signExtend12 1 ∧ limbIdx ≠ (0 : Word) + signExtend12 2) h hq => by
       have hL : b.toNat / 8 = 3 := by
         obtain ⟨h0, h1, h2⟩ := hli
-        have hn0 : limbIdx.toNat ≠ 0 :=
+        have : limbIdx.toNat ≠ 0 :=
           fun hc => h0 (BitVec.eq_of_toNat_eq (by simpa using hc))
-        have hn1 : limbIdx.toNat ≠ 1 :=
+        have : limbIdx.toNat ≠ 1 :=
           fun hc => h1 (BitVec.eq_of_toNat_eq (by
             show limbIdx.toNat = ((0 : Word) + signExtend12 1).toNat
             simp only [zero_add_se12_1_toNat]; exact hc))
-        have hn2 : limbIdx.toNat ≠ 2 :=
+        have : limbIdx.toNat ≠ 2 :=
           fun hc => h2 (BitVec.eq_of_toNat_eq (by
             show limbIdx.toNat = ((0 : Word) + signExtend12 2).toNat
             simp only [zero_add_se12_2_toNat]; exact hc))

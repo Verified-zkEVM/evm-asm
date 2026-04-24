@@ -96,7 +96,7 @@ theorem divK_loopSetup_spec (sp n v1 v5 : Word)
       rw [beq_iff_eq] at heq; subst heq
       simp only [Option.some.injEq] at h; subst h
       show divK_loopSetup_code bltOff base (base + 12) = _
-      have hlen : (divK_loopSetup bltOff).length = 4 := by
+      have : (divK_loopSetup bltOff).length = 4 := by
         unfold divK_loopSetup LD ADDI single seq; rfl
       exact CodeReq.ofProg_lookup base (divK_loopSetup bltOff) 3
         (by omega) (by omega)

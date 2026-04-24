@@ -536,7 +536,7 @@ theorem getLimb_sshiftRight_sign' {v : EvmWord} {n : Nat} {i : Fin 4}
   rw [BitVec.getLsbD_sshiftRight]
   have h1 : ¬(256 ≤ i.val * 64 + j) := by omega
   simp only [h1, decide_false, Bool.not_false, Bool.true_and]
-  have hnd : n / 64 * 64 ≤ n := Nat.div_mul_le_self n 64
+  have : n / 64 * 64 ≤ n := Nat.div_mul_le_self n 64
   have hge : ¬(n + (i.val * 64 + j) < 256) := by omega
   simp only [hge, ↓reduceIte]
   simp only [BitVec.getElem_sshiftRight, BitVec.getElem_extractLsb']
