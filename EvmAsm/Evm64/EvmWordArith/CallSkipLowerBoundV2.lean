@@ -306,24 +306,98 @@ theorem algorithmQ1Prime_le_q_true_1_plus_two
   rw [h_vTop_decomp]
   exact Nat.le_trans h_q1'_le (by omega)
 
-/-- **Bridge sub-A** (Knuth-B upper at Phase 1b): under standard hcall,
-    `algorithmQ1Prime.toNat ≤ (u4*2^32 + div_un1) / b3' + 1`. The
-    "off by at most 1" Knuth-B upper bound in wrapped form.
+/-- **_plus_one sub-step 1**: Phase 1a Euclidean at Nat level. Under
+    hcall, `q1c.toNat * dHi.toNat + rhatc.toNat = u4.toNat`. -/
+theorem algorithmQ1Prime_step1_phase1a_euclidean
+    (u4 u3 b3' : Word)
+    (hb3'_ge : b3'.toNat ≥ 2^63)
+    (hu4_lt_b3' : u4.toNat < b3'.toNat)
+    (hu4_lt_dHi_pow32 : u4.toNat < (b3' >>> (32 : BitVec 6).toNat).toNat * 2^32) :
+    let dHi := b3' >>> (32 : BitVec 6).toNat
+    let q1 := rv64_divu u4 dHi
+    let rhat := u4 - q1 * dHi
+    let hi1 := q1 >>> (32 : BitVec 6).toNat
+    let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+    let rhatc := if hi1 = 0 then rhat else rhat + dHi
+    q1c.toNat * dHi.toNat + rhatc.toNat = u4.toNat := by
+  sorry
 
-    **Proof plan** (not yet filled):
-    1. Apply `div128Quot_first_round_post` → `q1c*dHi + rhatc = u4`.
-    2. Apply `div128Quot_q1c_ge_q_true_1` → `q_true_1 ≤ q1c`.
-    3. Use `_plus_two` result transported to q1c (via q1c ≤ q1' or
-       via trial_quotient_le + q1c ≤ q1) → q1c ≤ q_true_1 + 2.
-    4. Apply `half_round_overestimate_le_one` with q := q1c.toNat,
-       r := rhatc.toNat → q' := (if q*dLo > r*2^32+un1 then q-1 else q)
-       satisfies q' ≤ q_true_1 + 1.
-    5. Bridge Word-level ult `BitVec.ult rhatUn1 (q1c*dLo)` to Nat-level
-       `q1c.toNat * dLo.toNat > rhatUn1.toNat = rhatc.toNat * 2^32
-       + div_un1.toNat` (requires `rhatc < 2^32` via
-       `div128Quot_rhatc_lt_pow32_of_uHi_lt_dHi_mul_pow32` under
-       `u4 < dHi*2^32`, and no-wrap for `q1c*dLo` via
-       `div128Quot_q1c_dLo_no_wrap`). -/
+/-- **_plus_one sub-step 2**: KB-LB3 wrapped. `q_true_1 ≤ q1c.toNat`. -/
+theorem algorithmQ1Prime_step2_q1c_ge_q_true_1
+    (u4 u3 b3' : Word)
+    (hb3'_ge : b3'.toNat ≥ 2^63)
+    (hu4_lt_b3' : u4.toNat < b3'.toNat)
+    (hu4_lt_dHi_pow32 : u4.toNat < (b3' >>> (32 : BitVec 6).toNat).toNat * 2^32) :
+    let dHi := b3' >>> (32 : BitVec 6).toNat
+    let q1 := rv64_divu u4 dHi
+    let hi1 := q1 >>> (32 : BitVec 6).toNat
+    let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+    (u4.toNat * 2^32 + (u3 >>> (32 : BitVec 6).toNat).toNat) / b3'.toNat
+      ≤ q1c.toNat := by
+  sorry
+
+/-- **_plus_one sub-step 3**: `q1c ≤ q_true_1 + 2` via trial_quotient_le
+    + Phase 1a monotonicity. -/
+theorem algorithmQ1Prime_step3_q1c_le_q_true_1_plus_two
+    (u4 u3 b3' : Word)
+    (hb3'_ge : b3'.toNat ≥ 2^63)
+    (hu4_lt_b3' : u4.toNat < b3'.toNat)
+    (hu4_lt_dHi_pow32 : u4.toNat < (b3' >>> (32 : BitVec 6).toNat).toNat * 2^32) :
+    let dHi := b3' >>> (32 : BitVec 6).toNat
+    let q1 := rv64_divu u4 dHi
+    let hi1 := q1 >>> (32 : BitVec 6).toNat
+    let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+    q1c.toNat ≤
+      (u4.toNat * 2^32 + (u3 >>> (32 : BitVec 6).toNat).toNat) / b3'.toNat + 2 := by
+  sorry
+
+/-- **_plus_one sub-step 4**: `rhatc.toNat < 2^32` under `u4 < dHi*2^32`.
+    Direct wrapping of `div128Quot_rhatc_lt_pow32_of_uHi_lt_dHi_mul_pow32`. -/
+theorem algorithmQ1Prime_step4_rhatc_lt_pow32
+    (u4 u3 b3' : Word)
+    (hb3'_ge : b3'.toNat ≥ 2^63)
+    (hu4_lt_dHi_pow32 : u4.toNat < (b3' >>> (32 : BitVec 6).toNat).toNat * 2^32) :
+    let dHi := b3' >>> (32 : BitVec 6).toNat
+    let q1 := rv64_divu u4 dHi
+    let rhat := u4 - q1 * dHi
+    let hi1 := q1 >>> (32 : BitVec 6).toNat
+    let rhatc := if hi1 = 0 then rhat else rhat + dHi
+    rhatc.toNat < 2^32 := by
+  sorry
+
+/-- **_plus_one sub-step 5**: Word↔Nat ult bridge. Under hcall,
+    `BitVec.ult rhatUn1 (q1c*dLo) ↔ q1c.toNat * dLo.toNat
+     > rhatc.toNat * 2^32 + div_un1.toNat`. -/
+theorem algorithmQ1Prime_step5_ult_bridge
+    (u4 u3 b3' : Word)
+    (hb3'_ge : b3'.toNat ≥ 2^63)
+    (hu4_lt_b3' : u4.toNat < b3'.toNat)
+    (hu4_lt_dHi_pow32 : u4.toNat < (b3' >>> (32 : BitVec 6).toNat).toNat * 2^32) :
+    let dHi := b3' >>> (32 : BitVec 6).toNat
+    let dLo := (b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+    let div_un1 := u3 >>> (32 : BitVec 6).toNat
+    let q1 := rv64_divu u4 dHi
+    let rhat := u4 - q1 * dHi
+    let hi1 := q1 >>> (32 : BitVec 6).toNat
+    let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+    let rhatc := if hi1 = 0 then rhat else rhat + dHi
+    let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
+    (BitVec.ult rhatUn1 (q1c * dLo) = true) ↔
+      (q1c.toNat * dLo.toNat >
+       rhatc.toNat * 2^32 + div_un1.toNat) := by
+  sorry
+
+/-- **Bridge sub-A** (Knuth-B upper at Phase 1b): under standard hcall,
+    `algorithmQ1Prime.toNat ≤ (u4*2^32 + div_un1) / b3' + 1`.
+
+    **Composition** (once all 5 sub-steps are filled):
+    1. `algorithmQ1Prime_step1_phase1a_euclidean` — q1c*dHi + rhatc = u4.
+    2. `algorithmQ1Prime_step2_q1c_ge_q_true_1` — q_true_1 ≤ q1c.
+    3. `algorithmQ1Prime_step3_q1c_le_q_true_1_plus_two` — q1c ≤ q_true_1 + 2.
+    4. `half_round_overestimate_le_one` — q' ≤ q_true_1 + 1 where q' is
+       the Nat-level if-then-else (branches on Nat comparison).
+    5. `algorithmQ1Prime_step5_ult_bridge` — connect q' to algorithmQ1Prime
+       via the Word-level ult ↔ Nat-level comparison. -/
 theorem algorithmQ1Prime_le_q_true_1_plus_one
     (u4 u3 b3' : Word)
     (hb3'_ge : b3'.toNat ≥ 2^63)
