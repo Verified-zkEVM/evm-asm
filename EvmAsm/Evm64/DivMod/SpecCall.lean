@@ -1551,4 +1551,84 @@ theorem evm_mod_n4_call_skip_stack_spec (sp base : Word)
   simp only [hmod_eq, hanti_toNat_mod] at hq ⊢
   xperm_hyp hq
 
+-- ============================================================================
+-- Call+addback BEQ semantic predicates and stack specs (n=4, shift ≠ 0)
+-- ============================================================================
+
+/-- Semantic-correctness precondition for the n=4 call+addback-BEQ sub-path:
+    the final `q_out` (= `qHat - 1` single-addback or `qHat - 2` double-addback)
+    equals `⌊val256(a)/val256(b)⌋`.
+
+    Unlike `n4CallSkipSemanticHolds` which states a lower-bound on the raw
+    `div128Quot`, this predicate directly states that the post-addback
+    corrected quotient is the true quotient. Proving it from first
+    principles requires the Knuth TAOCP Theorem A overestimate bound
+    (`q̂ ≤ q_true + 2`) plus the algorithm's addback-correction semantics,
+    which combine to ensure q_out is exactly correct. Deferred to a future
+    task; the stack spec delegates the proof to callers.
+
+    Mirror of `n4CallSkipSemanticHolds` for the call+addback branch. -/
+def n4CallAddbackBeqSemanticHolds (a b : EvmWord) : Prop :=
+  let shift := (clzResult (b.getLimbN 3)).1.toNat % 64
+  let antiShift := (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64
+  let b3' := ((b.getLimbN 3) <<< shift) ||| ((b.getLimbN 2) >>> antiShift)
+  let b2' := ((b.getLimbN 2) <<< shift) ||| ((b.getLimbN 1) >>> antiShift)
+  let b1' := ((b.getLimbN 1) <<< shift) ||| ((b.getLimbN 0) >>> antiShift)
+  let b0' := (b.getLimbN 0) <<< shift
+  let u4 := (a.getLimbN 3) >>> antiShift
+  let u3 := ((a.getLimbN 3) <<< shift) ||| ((a.getLimbN 2) >>> antiShift)
+  let u2 := ((a.getLimbN 2) <<< shift) ||| ((a.getLimbN 1) >>> antiShift)
+  let u1 := ((a.getLimbN 1) <<< shift) ||| ((a.getLimbN 0) >>> antiShift)
+  let u0 := (a.getLimbN 0) <<< shift
+  let qHat := div128Quot u4 u3 b3'
+  let ms := mulsubN4 qHat b0' b1' b2' b3' u0 u1 u2 u3
+  let carry := addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 b0' b1' b2' b3'
+  let q_out : Word :=
+    if carry = 0 then qHat + signExtend12 4095 + signExtend12 4095
+    else qHat + signExtend12 4095
+  q_out.toNat =
+    val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) /
+      val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+
+/-- **EVM-stack-level DIV spec on the n=4 call+addback BEQ sub-path (SORRY).**
+
+    Mirror of `evm_div_n4_call_skip_stack_spec` for the addback BEQ branch.
+    Consumes runtime conditions (`isCallTrialN4Evm`, `isAddbackCarry2NzN4CallEvm`,
+    `isAddbackBorrowN4CallEvm`), shift non-zero, alignment, validity, and the
+    semantic-correctness fact `n4CallAddbackBeqSemanticHolds`.
+
+    Reduces to `evm_div_n4_full_call_addback_beq_stack_pre_spec_bundled` + a
+    postcondition reshape. The reshape pattern will mirror the call-skip version
+    (simp with `fullDivN4CallAddbackBeqPost_unfold` + `denormDivPost_unfold`,
+    `div_n4_call_skip_stack_weaken`, `evmWordIs_sp32_limbs_eq` with a new bridge
+    theorem, etc.). The main math gap is the bridge theorem:
+    `n4_call_addback_beq_div_mod_getLimbN` (TODO) — given hsem + runtime
+    conditions, the post-addback `q_out.toNat = val256(a)/val256(b)` pins
+    `(EvmWord.div a b).getLimbN 0 = q_out` + upper limbs = 0 analogously to
+    the call-skip bridge. -/
+theorem evm_div_n4_call_addback_beq_stack_spec (sp base : Word)
+    (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratch_un0 : Word)
+    (hbnz : b ≠ 0)
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hvalid : ValidMemRange sp 8)
+    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (hbltu : isCallTrialN4Evm a b)
+    (hcarry2_nz : isAddbackCarry2NzN4CallEvm a b)
+    (hborrow : isAddbackBorrowN4CallEvm a b)
+    (hsem : n4CallAddbackBeqSemanticHolds a b) :
+    cpsTriple base (base + nopOff) (divCode base)
+      (divN4StackPreCall sp a b v5 v6 v7 v10 v11
+         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+         shiftMem nMem jMem retMem dMem dloMem scratch_un0)
+      (divN4CallSkipStackPost sp a b) := by
+  -- TODO(#66 follow-up): close using `evm_div_n4_full_call_addback_beq_stack_pre_spec_bundled`
+  -- + `n4_call_addback_beq_div_mod_getLimbN` bridge (to be added) +
+  -- `fullDivN4CallAddbackBeqPost_unfold` (in this PR) + the call-skip
+  -- weakener (output shape is the same as call-skip — `divN4CallSkipStackPost`
+  -- since both paths produce the same stack layout on success).
+  sorry
+
 end EvmAsm.Evm64
