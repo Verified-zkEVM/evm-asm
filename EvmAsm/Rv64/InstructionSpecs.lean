@@ -14,11 +14,8 @@
   - LD/SD specs added using generic_ld_spec/generic_sd_spec
 -/
 
-import EvmAsm.Rv64.Basic
-import EvmAsm.Rv64.Instructions
-import EvmAsm.Rv64.SepLogic
-import EvmAsm.Rv64.Execution
-import EvmAsm.Rv64.CPSSpec
+-- `GenericSpecs` transitively imports `Basic`, `Instructions`, `SepLogic`,
+-- `Execution`, and `CPSSpec`.
 import EvmAsm.Rv64.GenericSpecs
 
 namespace EvmAsm.Rv64
