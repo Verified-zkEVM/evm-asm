@@ -33,7 +33,6 @@
 -/
 
 import EvmAsm.Evm64.Stack
-import EvmAsm.Rv64.CPSSpec
 
 namespace EvmAsm.Evm64
 
