@@ -17,7 +17,6 @@
 -/
 
 import EvmAsm.Evm64.DivMod.LoopBody
-import EvmAsm.Evm64.DivMod.LoopDefs
 
 open EvmAsm.Rv64.Tactics
 
