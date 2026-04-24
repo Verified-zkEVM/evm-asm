@@ -1,4 +1,3 @@
-import EvmAsm.Evm64.DivMod.Compose.Base
 import EvmAsm.Evm64.DivMod.Compose.Div128
 
 /-!
