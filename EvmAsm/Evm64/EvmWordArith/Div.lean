@@ -108,10 +108,10 @@ theorem bv_udiv_add_umod {n : Nat} {x y : BitVec n} :
     y * (x / y) + x % y = x := by
   apply BitVec.eq_of_toNat_eq
   simp only [BitVec.toNat_add, BitVec.toNat_mul, BitVec.toNat_udiv, BitVec.toNat_umod]
-  have hdiv := Nat.div_add_mod x.toNat y.toNat
+  have := Nat.div_add_mod x.toNat y.toNat
   have : y.toNat * (x.toNat / y.toNat) ≤ x.toNat := by omega
   rw [Nat.mod_eq_of_lt (by omega : y.toNat * (x.toNat / y.toNat) < 2 ^ n),
-      hdiv, Nat.mod_eq_of_lt x.isLt]
+      Nat.div_add_mod, Nat.mod_eq_of_lt x.isLt]
 
 /-- Uniqueness of BitVec unsigned division: if `a = b * q + r` with `r < b`
     and no overflow in `b * q + r`, then `q = a / b` and `r = a % b`. -/
