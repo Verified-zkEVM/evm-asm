@@ -20,8 +20,6 @@
 -/
 
 import EvmAsm.Rv64.SyscallSpecs
-import EvmAsm.Rv64.CPSSpec
-import EvmAsm.Rv64.Program
 
 namespace EvmAsm.Rv64.RLP
 
