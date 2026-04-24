@@ -1782,6 +1782,18 @@ theorem output_slot_to_evmWordIs_mod_n4_call_addback_beq_denorm
      ((sp + 48) ↦ₘ ((un2Out >>> shift) ||| (un3Out <<< (64 - shift)))) **
      ((sp + 56) ↦ₘ (un3Out >>> shift))) =
     evmWordIs (sp + 32) (EvmWord.mod a b) := by
+  -- Abbreviations to keep the proof readable.
+  set s : Nat := (clzResult (b.getLimbN 3)).1.toNat with hs_def
+  set b0' : Word := (b.getLimbN 0) <<< s
+  set b1' : Word := ((b.getLimbN 1) <<< s) ||| ((b.getLimbN 0) >>> (64 - s))
+  set b2' : Word := ((b.getLimbN 2) <<< s) ||| ((b.getLimbN 1) >>> (64 - s))
+  set b3' : Word := ((b.getLimbN 3) <<< s) ||| ((b.getLimbN 2) >>> (64 - s))
+  set u0 : Word := (a.getLimbN 0) <<< s
+  set u1 : Word := ((a.getLimbN 1) <<< s) ||| ((a.getLimbN 0) >>> (64 - s))
+  set u2 : Word := ((a.getLimbN 2) <<< s) ||| ((a.getLimbN 1) >>> (64 - s))
+  set u3 : Word := ((a.getLimbN 3) <<< s) ||| ((a.getLimbN 2) >>> (64 - s))
+  set uTop : Word := (a.getLimbN 3) >>> (64 - s)
+  set qHat : Word := div128Quot uTop u3 b3'
   -- Setup: shift bounds + CLZ top-limb bound.
   have hshift_pos : 0 < (clzResult (b.getLimbN 3)).1.toNat := by
     by_contra h
