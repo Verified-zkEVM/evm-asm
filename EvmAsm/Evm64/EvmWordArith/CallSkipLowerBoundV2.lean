@@ -514,17 +514,37 @@ theorem div128Quot_qHat_plus_one_times_b3_gt_u_normal
   apply qHat_plus_one_gt_u_via_tight_phases _ _ _ _ _ _ hb3'_pos h_two_step h_ph1_tight
   exact h_q_true_0_le
 
-/-- **A2.S2**: Case "compensation" — when `un21 ≥ dHi*2^32`. Includes
-    BOTH the Phase 1 false-alarm regime (`un21 ≥ vTop`) AND the Phase 2
-    narrow-range false-alarm regime (`un21 ∈ [dHi*2^32, vTop)`).
+/-- **A2.S2.narrow_u4**: compensation case when `u4 ≥ dHi*2^32`.
+    Phase 1a's trial quotient q1 ≥ 2^32 triggers Phase 1a correction
+    (q1c = q1 - 1). Analysis of the resulting q1'/un21 is needed.
+    **TODO**: ~120 lines. -/
+theorem div128Quot_qHat_plus_one_times_b3_gt_u_narrow_u4
+    (u4 u3 b3' : Word)
+    (hb3'_ge : b3'.toNat ≥ 2^63)
+    (hu4_lt_b3' : u4.toNat < b3'.toNat)
+    (hu4_ge : u4.toNat ≥ (b3' >>> (32 : BitVec 6).toNat).toNat * 2^32) :
+    ((div128Quot u4 u3 b3').toNat + 1) * b3'.toNat >
+      u4.toNat * 2^64 + u3.toNat := by
+  sorry
 
-    Phase 1 or Phase 2 may false-alarm, but the final `halfword_combine`
-    composes outputs in a way that matches `q_true` (possibly exactly,
-    possibly via Phase 1+2 compensation).
+/-- **A2.S2.wide_un21**: compensation case when `u4 < dHi*2^32` but
+    `un21 ≥ dHi*2^32`. Phase 1 is bounded but Phase 2 may false-alarm
+    in the narrow un21 range [dHi*2^32, vTop), or Phase 1 false-alarmed
+    and un21 wraps to large values.
+    **TODO**: ~130 lines. -/
+theorem div128Quot_qHat_plus_one_times_b3_gt_u_wide_un21
+    (u4 u3 b3' : Word)
+    (hb3'_ge : b3'.toNat ≥ 2^63)
+    (hu4_lt_b3' : u4.toNat < b3'.toNat)
+    (hu4_lt : u4.toNat < (b3' >>> (32 : BitVec 6).toNat).toNat * 2^32)
+    (h_un21_ge : (algorithmUn21 u4 u3 b3').toNat ≥
+      (b3' >>> (32 : BitVec 6).toNat).toNat * 2^32) :
+    ((div128Quot u4 u3 b3').toNat + 1) * b3'.toNat >
+      u4.toNat * 2^64 + u3.toNat := by
+  sorry
 
-    **TODO**: the hardest sub-lemma, ~250 lines. Requires Phase 1 false-alarm
-    analysis + Phase 2 narrow-range false-alarm analysis + halfword combine
-    truncation tracking. -/
+/-- **A2.S2**: Case "compensation" — when `u4 ≥ dHi*2^32 ∨ un21 ≥ dHi*2^32`.
+    Dispatches to `_narrow_u4` or `_wide_un21` sub-cases. -/
 theorem div128Quot_qHat_plus_one_times_b3_gt_u_compensation
     (u4 u3 b3' : Word)
     (hb3'_ge : b3'.toNat ≥ 2^63)
@@ -534,7 +554,17 @@ theorem div128Quot_qHat_plus_one_times_b3_gt_u_compensation
       (b3' >>> (32 : BitVec 6).toNat).toNat * 2^32) :
     ((div128Quot u4 u3 b3').toNat + 1) * b3'.toNat >
       u4.toNat * 2^64 + u3.toNat := by
-  sorry
+  by_cases hu4 : u4.toNat ≥ (b3' >>> (32 : BitVec 6).toNat).toNat * 2^32
+  · exact div128Quot_qHat_plus_one_times_b3_gt_u_narrow_u4 u4 u3 b3' hb3'_ge
+      hu4_lt_b3' hu4
+  · push_neg at hu4
+    have h_un21 : (algorithmUn21 u4 u3 b3').toNat ≥
+        (b3' >>> (32 : BitVec 6).toNat).toNat * 2^32 := by
+      rcases h_compensation with h | h
+      · omega
+      · exact h
+    exact div128Quot_qHat_plus_one_times_b3_gt_u_wide_un21 u4 u3 b3' hb3'_ge
+      hu4_lt_b3' hu4 h_un21
 
 /-- **A2**: Knuth-B lower form (divisibility). `(qHat + 1) * b3' > u`.
     Composed via case split on `un21 < dHi*2^32` (normal) vs
