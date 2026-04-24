@@ -15,8 +15,7 @@
   - step / stepN: single-step and multi-step execution over code memory
 -/
 
-import EvmAsm.Rv64.Basic
-import EvmAsm.Rv64.Instructions
+-- `Program` transitively imports `Instructions` and (via `Instructions`) `Basic`.
 import EvmAsm.Rv64.Program
 
 namespace EvmAsm.Rv64

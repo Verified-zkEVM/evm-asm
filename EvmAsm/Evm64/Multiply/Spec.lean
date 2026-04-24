@@ -13,9 +13,9 @@
   the consumer-facing contract.
 -/
 
+-- `Multiply.LimbSpec → Multiply.Program → Stack`.
 import EvmAsm.Evm64.Multiply.LimbSpec
 import EvmAsm.Evm64.EvmWordArith.MulCorrect
-import EvmAsm.Evm64.Stack
 
 open EvmAsm.Rv64.Tactics
 

@@ -5,10 +5,10 @@
   26 instructions total (3 + 3×6 + 5 store).
 -/
 
+-- `Lt.Program → Stack → SpAddr`.
 import EvmAsm.Evm64.Lt.Program
 import EvmAsm.Evm64.Compare.LimbSpec
 import EvmAsm.Evm64.EvmWordArith.Comparison
-import EvmAsm.Evm64.SpAddr
 
 open EvmAsm.Rv64.Tactics
 

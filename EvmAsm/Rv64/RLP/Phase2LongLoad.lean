@@ -21,7 +21,7 @@
     x13 — byte pointer (preserved; the caller advances it separately)
 -/
 
-import EvmAsm.Rv64.ByteOps
+-- `Phase2LongAcc → SyscallSpecs → ByteOps`.
 import EvmAsm.Rv64.RLP.Phase2LongAcc
 
 namespace EvmAsm.Rv64.RLP

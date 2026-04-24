@@ -25,9 +25,8 @@
   MachineState via `holdsFor`.
 -/
 
-import EvmAsm.Rv64.Basic
+-- `SepLogic` transitively imports `Basic` and `Execution`.
 import EvmAsm.Rv64.SepLogic
-import EvmAsm.Rv64.Execution
 
 namespace EvmAsm.Rv64
 

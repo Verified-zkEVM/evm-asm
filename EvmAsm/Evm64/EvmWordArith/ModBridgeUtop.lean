@@ -17,9 +17,9 @@
   - `hsem`    : un-normalized mulsub carry is 0 (semantic skip).
 -/
 
+-- `Val256ModBridge → DivN4Overestimate → LoopSemantic`.
 import EvmAsm.Evm64.EvmWordArith.DenormLemmas
 import EvmAsm.Evm64.EvmWordArith.Val256ModBridge
-import EvmAsm.Evm64.DivMod.LoopSemantic
 
 namespace EvmAsm.Evm64
 
