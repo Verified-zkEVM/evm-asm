@@ -1825,6 +1825,11 @@ theorem output_slot_to_evmWordIs_mod_n4_call_addback_beq_denorm
     simp only [← EvmWord.getLimb_as_getLimbN_0, ← EvmWord.getLimb_as_getLimbN_1,
                ← EvmWord.getLimb_as_getLimbN_2, ← EvmWord.getLimb_as_getLimbN_3]
     exact EvmWord.val256_eq_toNat b
+  -- b3 ≠ 0 ⟹ val256(b_limbs) > 0.
+  have hbnz' : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 ||| b.getLimbN 3 ≠ 0 := by
+    intro h; exact hb3nz (BitVec.or_eq_zero_iff.mp h).2
+  have hvb_pos : val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) > 0 :=
+    EvmWord.val256_pos_of_or_ne_zero hbnz'
   -- Strategy: prove `val256(un_out) = (val256(a) mod val256(b)) * 2^s` via
   -- case split on `carry`, then apply `val256_denormalize` +
   -- `mod_of_val256_eq_mod` + `evmWordIs_sp32_limbs_eq`.
