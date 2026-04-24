@@ -642,11 +642,52 @@ theorem algorithmQ1Prime_le_q_true_1_plus_one
           (b3' >>> (32 : BitVec 6).toNat) + (b3' >>> (32 : BitVec 6).toNat)).toNat)
     (B := 2^32) h_vTop_pos h_rhatc_eq h_q1c_mul_le h_q1c_le
 
+/-- **_of_tight sub-case "exact" L1.a**: cu_rhat_un1.toNat formula via
+    halfword_combine_mod. ~10 lines. -/
+theorem algorithmUn21_L1a_cu_rhat_un1_toNat
+    (u4 u3 b3' : Word) :
+    let dHi := b3' >>> (32 : BitVec 6).toNat
+    let div_un1 := u3 >>> (32 : BitVec 6).toNat
+    let q1 := rv64_divu u4 dHi
+    let rhat := u4 - q1 * dHi
+    let hi1 := q1 >>> (32 : BitVec 6).toNat
+    let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+    let rhatc := if hi1 = 0 then rhat else rhat + dHi
+    let dLo := (b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+    let qDlo := q1c * dLo
+    let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
+    let q1' := if BitVec.ult rhatUn1 qDlo then q1c + signExtend12 4095 else q1c
+    let rhat' := if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc
+    ((rhat' <<< (32 : BitVec 6).toNat) ||| div_un1).toNat =
+      (rhat'.toNat % 2^32) * 2^32 + div_un1.toNat := by
+  sorry
+
+/-- **_of_tight sub-case "exact" L1.b**: q1' * dLo no-wrap. Wraps
+    `div128Quot_q1_prime_dLo_no_wrap`. ~10 lines. -/
+theorem algorithmUn21_L1b_q1_prime_dLo_no_wrap
+    (u4 u3 b3' : Word)
+    (hb3'_ge : b3'.toNat ≥ 2^63)
+    (hu4_lt_b3' : u4.toNat < b3'.toNat) :
+    let dHi := b3' >>> (32 : BitVec 6).toNat
+    let dLo := (b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+    let div_un1 := u3 >>> (32 : BitVec 6).toNat
+    let q1 := rv64_divu u4 dHi
+    let rhat := u4 - q1 * dHi
+    let hi1 := q1 >>> (32 : BitVec 6).toNat
+    let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+    let rhatc := if hi1 = 0 then rhat else rhat + dHi
+    let qDlo := q1c * dLo
+    let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
+    let q1' := if BitVec.ult rhatUn1 qDlo then q1c + signExtend12 4095 else q1c
+    (q1' * dLo).toNat = q1'.toNat * dLo.toNat := by
+  sorry
+
 /-- **_of_tight sub-case "exact"**: when `q1' = q_true_1` (Phase 1b exactly
     tight), the algorithm's un21 equals the mathematical remainder r1_math.
 
-    **TODO** (~40 lines): from Phase 1b Euclidean + KB-3m (un21 additive
-    identity under no-wrap, which holds when q1' = q_true_1). -/
+    **Decomposition** (per `project_of_tight_decomp_plan.md`): 5 layers
+    L1 (Word-Nat formulas), L2 (Phase 1b invariants), L3 (quotient
+    relationships), L4 (no-wrap), L5 (compose). Layer 1 stubs above. -/
 theorem algorithmUn21_eq_r1_math_of_q1_prime_eq_q_true_1
     (u4 u3 b3' : Word)
     (hb3'_ge : b3'.toNat ≥ 2^63)
