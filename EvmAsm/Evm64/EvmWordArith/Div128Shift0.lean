@@ -474,6 +474,41 @@ theorem div128Quot_shift0_hi2_eq_zero (a3 b3 : Word)
   rw [show (0 : Word).toNat = 0 from rfl]
   exact hi32_eq_zero_of_toNat_le_one _ (div128Quot_shift0_q0_le_one a3 b3 hb3_ge)
 
+/-- Generic: if `q0c.toNat ≤ 1`, then the Phase 2b output also has
+    `div128Quot_phase2b_q0'.toNat ≤ 1`.
+
+    The tricky sub-case is when `q0c = 0` and the decrement fires:
+    `q0c + signExtend12 4095 = 0 + (2^64 - 1) = 2^64 - 1`, which is NOT ≤ 1.
+    But when `q0c = 0`, `q0Dlo = 0 * dLo = 0`, and `BitVec.ult _ 0 = false`,
+    so the decrement guard can't fire — ruling out this case. -/
+theorem div128Quot_phase2b_q0'_toNat_le_one
+    (q0c rhat2c dLo div_un0 : Word) (hq0c : q0c.toNat ≤ 1) :
+    (div128Quot_phase2b_q0' q0c rhat2c dLo div_un0).toNat ≤ 1 := by
+  unfold div128Quot_phase2b_q0'
+  simp only []
+  split
+  · -- rhat2cHi = 0
+    split
+    · -- BitVec.ult (rhat2c <<< 32 ||| div_un0) (q0c * dLo) = true
+      rename_i h_ult
+      by_cases hq0c_zero : q0c.toNat = 0
+      · -- q0c.toNat = 0 ⟹ q0c = 0 ⟹ q0c * dLo = 0 ⟹ ult is false: contradiction
+        have hq0c_eq : q0c = 0 := BitVec.eq_of_toNat_eq (by rw [hq0c_zero]; rfl)
+        rw [hq0c_eq] at h_ult
+        rw [ult_iff] at h_ult
+        have h0 : ((0 : Word) * dLo).toNat = 0 := by simp
+        omega
+      · -- q0c.toNat = 1 ⟹ q0c + signExtend12 4095 = 0
+        have hq0c_one : q0c.toNat = 1 := by omega
+        rw [BitVec.toNat_add]
+        have h_sext : (signExtend12 4095 : Word).toNat = 2^64 - 1 := by decide
+        rw [hq0c_one, h_sext]
+        have h_mod : (1 + (2^64 - 1)) % 2^64 = 0 := by decide
+        rw [h_mod]
+        omega
+    · exact hq0c
+  · exact hq0c
+
 /-- Under uHi=0 + b3 ≥ 2^63: in the div128Quot shift=0 chain, Phase 2a correction
     doesn't fire: `q0c = q0`. Follows from `div128Quot_shift0_hi2_eq_zero`. -/
 theorem div128Quot_shift0_q0c_eq_q0 (a3 b3 : Word)
