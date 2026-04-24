@@ -150,6 +150,27 @@ theorem div128Quot_shift0_rhat_eq_zero (dHi : Word) (hdHi_ne : dHi ≠ 0) :
   rw [div128Quot_shift0_q1_eq_zero dHi hdHi_ne]
   simp
 
+/-- Under uHi=0 + hdHi_ne, Phase 1's qDlo = q1c * dLo = 0. -/
+theorem div128Quot_shift0_qDlo_eq_zero (dHi dLo : Word) (hdHi_ne : dHi ≠ 0) :
+    (let q1 := rv64_divu (0 : Word) dHi
+     let hi1 := q1 >>> (32 : BitVec 6).toNat
+     let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+     q1c * dLo) = 0 := by
+  simp only []
+  rw [div128Quot_shift0_q1c_eq_zero dHi hdHi_ne]
+  simp
+
+/-- Under uHi=0 + hdHi_ne, Phase 1's rhatc = 0 (since rhat = 0 and hi1 = 0 so rhatc = rhat). -/
+theorem div128Quot_shift0_rhatc_eq_zero (dHi : Word) (hdHi_ne : dHi ≠ 0) :
+    (let q1 := rv64_divu (0 : Word) dHi
+     let rhat := (0 : Word) - q1 * dHi
+     let hi1 := q1 >>> (32 : BitVec 6).toNat
+     if hi1 = 0 then rhat else rhat + dHi) = 0 := by
+  simp only []
+  rw [div128Quot_shift0_hi1_eq_zero dHi hdHi_ne]
+  rw [if_pos rfl]
+  exact div128Quot_shift0_rhat_eq_zero dHi hdHi_ne
+
 -- ============================================================================
 -- The main composite lemma — scaffolded with sorrys for Phase 1 tracing
 -- and Phase 2b reasoning. Filled incrementally per feedback_commit_sorry_intermediate.
