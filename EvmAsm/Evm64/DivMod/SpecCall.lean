@@ -1900,6 +1900,21 @@ theorem output_slot_to_evmWordIs_mod_n4_call_addback_beq_denorm
     (((a.getLimbN 3) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
      ((a.getLimbN 2) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat)))
   simp only [] at h_mulsub_euclidean
+  -- `ms` is the mulsub result using normalized limbs (and raw qHat).
+  set ms := mulsubN4 qHat b0' b1' b2' b3' u0 u1 u2 u3 with hms_def
+  -- First addback's val256 Euclidean:
+  -- val256(u_post1_low4) + val256(b_norm) = val256(ab_low4) + carry * 2^256
+  -- where ab_low4 are the low 4 outputs of addbackN4.
+  have h_ab_euclidean :
+      val256 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 + val256 b0' b1' b2' b3' =
+      val256 (addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 0 b0' b1' b2' b3').1
+             (addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 0 b0' b1' b2' b3').2.1
+             (addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 0 b0' b1' b2' b3').2.2.1
+             (addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 0 b0' b1' b2' b3').2.2.2.1
+      + (addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 b0' b1' b2' b3').toNat * 2 ^ 256 := by
+    have := addbackN4_val256_eq ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 0 b0' b1' b2' b3'
+    simp only [] at this
+    exact this
   -- Strategy: prove `val256(un_out) = (val256(a) mod val256(b)) * 2^s` via
   -- case split on `carry`, then apply `val256_denormalize` +
   -- `mod_of_val256_eq_mod` + `evmWordIs_sp32_limbs_eq`.
