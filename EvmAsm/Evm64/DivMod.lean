@@ -8,8 +8,7 @@ import EvmAsm.Evm64.DivMod.LimbSpec
 -- which pull in LoopUnifiedN{1,2,3} + LoopComposeN3 + FullPathN{1,2,3}
 -- + FullPathN4Loop. FullPathN2Full covers FullPathN2LoopUnified +
 -- FullPathN2Cases + FullPath.
-import EvmAsm.Evm64.DivMod.SpecCall
-import EvmAsm.Evm64.DivMod.Shift0AddbackMod
+-- Shift0Dispatcher → Shift0AddbackMod → SpecCall transitively.
 import EvmAsm.Evm64.DivMod.Shift0Dispatcher
 import EvmAsm.Evm64.DivMod.LoopBody
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1LoopUnified
