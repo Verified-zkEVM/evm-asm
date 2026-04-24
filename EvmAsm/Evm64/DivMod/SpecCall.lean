@@ -2176,8 +2176,7 @@ theorem evm_mod_n4_shift0_call_skip_stack_spec (sp base : Word)
 theorem n4_shift0_call_addback_beq_div_getLimbN (a b : EvmWord)
     (hbnz : b ≠ 0)
     (hshift_z : (clzResult (b.getLimbN 3)).1 = 0)
-    (hborrow : isAddbackBorrowN4Shift0Evm a b)
-    (hcarry2_nz : isAddbackCarry2NzN4Shift0Evm a b) :
+    (hborrow : isAddbackBorrowN4Shift0Evm a b) :
     let qHat := div128Quot (0 : Word) (a.getLimbN 3) (b.getLimbN 3)
     let ms := mulsubN4 qHat
       (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
@@ -2313,10 +2312,22 @@ theorem n4_shift0_call_addback_beq_div_getLimbN (a b : EvmWord)
     apply BitVec.eq_of_toNat_eq
     rw [BitVec.toNat_add, hqHat_eq_one, signExtend12_4095_toNat]
     decide
-  -- TODO: final step — derive (EvmWord.div a b) = 0 (all limbs zero) from
-  -- `a.toNat < b.toNat`, then combine with `hq_out_eq` for the limb 0 case.
-  -- Ran into minor `BitVec.udiv` vs `/` and `EvmWord.getLimbN 0` parsing
-  -- issues; to be resolved in next iteration.
-  sorry
+  -- Final step: (EvmWord.div a b) = 0 since a.toNat < b.toNat.
+  have hdiv_eq_zero : EvmWord.div a b = 0 := by
+    apply BitVec.eq_of_toNat_eq
+    unfold EvmWord.div
+    rw [if_neg hbnz]
+    show (BitVec.udiv a b).toNat = (0 : EvmWord).toNat
+    have h_udiv : (BitVec.udiv a b).toNat = a.toNat / b.toNat := by
+      show (a / b).toNat = _
+      exact BitVec.toNat_udiv
+    rw [h_udiv]
+    rw [show (0 : EvmWord).toNat = 0 from rfl]
+    exact Nat.div_eq_of_lt h_a_lt_b
+  refine ⟨?_, ?_, ?_, ?_⟩
+  · rw [hdiv_eq_zero, EvmWord.getLimbN_zero, hq_out_eq]
+  · rw [hdiv_eq_zero]; exact EvmWord.getLimbN_zero _
+  · rw [hdiv_eq_zero]; exact EvmWord.getLimbN_zero _
+  · rw [hdiv_eq_zero]; exact EvmWord.getLimbN_zero _
 
 end EvmAsm.Evm64
