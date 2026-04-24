@@ -1,5 +1,5 @@
 import EvmAsm.Evm64.DivMod.NormDefs
-import EvmAsm.Evm64.DivMod.Program
+-- LimbSpec transitively imports Program.
 import EvmAsm.Evm64.DivMod.LimbSpec
 -- SpecCall covers Spec → Compose + FullPathN4 + FullPathN4Beq + ModFullPathN4
 -- + EvmWordArith + ModFullPathN4Shift0 + FullPathN4Shift0.
