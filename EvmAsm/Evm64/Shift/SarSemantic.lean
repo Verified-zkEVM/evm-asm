@@ -9,8 +9,8 @@
    else sshiftRight value shift.toNat`.
 -/
 
+-- `Shift.SarCompose` transitively imports `Evm64.SpAddr`.
 import EvmAsm.Evm64.Shift.SarCompose
-import EvmAsm.Evm64.SpAddr
 
 open EvmAsm.Rv64.Tactics
 

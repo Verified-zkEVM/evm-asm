@@ -6,7 +6,7 @@
   preloop+loop specs (base → base+904).
 -/
 
-import EvmAsm.Evm64.DivMod.LoopComposeN3
+-- `LoopUnifiedN3` transitively imports `LoopComposeN3`.
 import EvmAsm.Evm64.DivMod.LoopUnifiedN3
 import EvmAsm.Evm64.DivMod.Compose.FullPathN3
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4Loop

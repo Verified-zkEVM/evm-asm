@@ -8,9 +8,9 @@
   - Body L (L=0..3, b < 31): Phase A ntaken → B → C(exit L) → body_L → done → exit
 -/
 
+-- `SignExtend.LimbSpec` transitively imports `Rv64.AddrNorm`.
 import EvmAsm.Evm64.SignExtend.LimbSpec
 import EvmAsm.Evm64.EvmWordArith.SignExtend
-import EvmAsm.Rv64.AddrNorm
 
 open EvmAsm.Rv64.Tactics
 

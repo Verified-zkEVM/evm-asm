@@ -6,9 +6,9 @@
 -/
 
 import EvmAsm.Evm64.DivMod.LimbSpec
+-- `Evm64.DivMod.AddrNorm` transitively imports `Rv64.AddrNorm`.
 import EvmAsm.Evm64.DivMod.AddrNorm
 import EvmAsm.Evm64.DivMod.Compose.Offsets
-import EvmAsm.Rv64.AddrNorm
 
 open EvmAsm.Rv64.Tactics
 

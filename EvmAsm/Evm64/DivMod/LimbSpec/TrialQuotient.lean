@@ -19,8 +19,8 @@
 -/
 
 import EvmAsm.Evm64.DivMod.Program
+-- `Evm64.DivMod.AddrNorm` transitively imports `Rv64.AddrNorm`.
 import EvmAsm.Evm64.DivMod.AddrNorm
-import EvmAsm.Rv64.AddrNorm
 import EvmAsm.Rv64.SyscallSpecs
 import EvmAsm.Rv64.ControlFlow
 import EvmAsm.Rv64.Tactics.XSimp

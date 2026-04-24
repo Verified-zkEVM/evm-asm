@@ -8,8 +8,8 @@
   `if shift.toNat ≥ 256 then 0 else value >>> shift.toNat`.
 -/
 
+-- `Shift.Compose` transitively imports `Evm64.SpAddr`.
 import EvmAsm.Evm64.Shift.Compose
-import EvmAsm.Evm64.SpAddr
 
 open EvmAsm.Rv64.Tactics
 

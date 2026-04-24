@@ -3,6 +3,5 @@
 
   Root import file for the RLP (Recursive Length Prefix) module.
 -/
-import EvmAsm.EL.RLP.Basic
-import EvmAsm.EL.RLP.Decode
+-- `Properties` transitively imports `Decode`, which transitively imports `Basic`.
 import EvmAsm.EL.RLP.Properties

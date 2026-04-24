@@ -15,8 +15,8 @@
     keeps its bridges locally.
 -/
 
+-- `Shift.LimbSpec` transitively imports `Rv64.AddrNorm`.
 import EvmAsm.Evm64.Shift.LimbSpec
-import EvmAsm.Rv64.AddrNorm
 
 namespace EvmAsm.Evm64
 

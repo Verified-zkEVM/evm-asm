@@ -11,6 +11,6 @@
   editor responsiveness (issue #312).
 -/
 
-import EvmAsm.Evm64.DivMod.LoopDefs.Iter
+-- `Post` transitively imports `Iter`.
 import EvmAsm.Evm64.DivMod.LoopDefs.Post
 import EvmAsm.Evm64.DivMod.LoopDefs.Bundle

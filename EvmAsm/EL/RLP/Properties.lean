@@ -3,7 +3,7 @@
 
   Round-trip correctness: `decode (encode item) = some (item, [])`.
 -/
-import EvmAsm.EL.RLP.Basic
+-- `Decode` transitively imports `Basic`.
 import EvmAsm.EL.RLP.Decode
 import Mathlib.Tactic
 

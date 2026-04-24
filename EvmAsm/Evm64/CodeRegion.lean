@@ -11,7 +11,7 @@
 -/
 
 import EvmAsm.Evm64.Basic
-import EvmAsm.Rv64.SepLogic
+-- `ByteOps` transitively imports `Rv64.SepLogic`.
 import EvmAsm.Rv64.ByteOps
 
 namespace EvmAsm.Evm64
