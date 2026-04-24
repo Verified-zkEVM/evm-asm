@@ -1806,7 +1806,6 @@ theorem evm_mod_n4_call_addback_beq_stack_spec (sp base : Word)
     (hbnz : b ≠ 0)
     (hb3nz : b.getLimbN 3 ≠ 0)
     (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
-    (hvalid : ValidMemRange sp 8)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
     (hbltu : isCallTrialN4Evm a b)
     (hcarry2_nz : isAddbackCarry2NzN4CallEvm a b)
@@ -1817,10 +1816,42 @@ theorem evm_mod_n4_call_addback_beq_stack_spec (sp base : Word)
          q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
          shiftMem nMem jMem retMem dMem dloMem scratch_un0)
       (modN4CallSkipStackPost sp a b) := by
-  -- TODO(#66 follow-up): close via the `evm_mod_n4_full_call_addback_beq_stack_pre_spec_bundled`
-  -- pre-spec + `output_slot_to_evmWordIs_mod_n4_call_addback_beq_denorm` adapter (still
-  -- sorry above) + `mod_n4_call_skip_stack_weaken` (output shape matches). Deferred
-  -- until the adapter is real.
-  sorry
+  have h_pre := evm_mod_n4_full_call_addback_beq_stack_pre_spec_bundled sp base a b
+    v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+    nMem shiftMem jMem retMem dMem dloMem scratch_un0
+    hbnz hb3nz hshift_nz halign hbltu hcarry2_nz hborrow
+  have hshift_le_63 := clzResult_fst_toNat_le (b.getLimbN 3)
+  have hshift_pos : 0 < (clzResult (b.getLimbN 3)).1.toNat := by
+    by_contra h
+    push Not at h
+    apply hshift_nz
+    apply BitVec.eq_of_toNat_eq
+    rw [show (0 : Word).toNat = 0 from rfl]; omega
+  have hmod_eq : (clzResult (b.getLimbN 3)).1.toNat % 64 =
+      (clzResult (b.getLimbN 3)).1.toNat := by omega
+  have h0se12 : signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1 =
+      -((clzResult (b.getLimbN 3)).1) := by rw [signExtend12_0]; simp
+  have hanti_toNat_mod :
+      (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64 =
+      64 - (clzResult (b.getLimbN 3)).1.toNat := by
+    rw [h0se12, BitVec.toNat_neg]
+    have : ((clzResult (b.getLimbN 3)).1).toNat ≤ 2^64 := by
+      have := ((clzResult (b.getLimbN 3)).1).isLt; omega
+    omega
+  have h_slot := output_slot_to_evmWordIs_mod_n4_call_addback_beq_denorm sp a b
+    hb3nz hshift_nz hcarry2_nz hborrow hsem
+  refine cpsTriple_weaken (fun _ hp => hp) ?_ h_pre
+  intro h hq
+  simp only [fullModN4CallAddbackBeqPost_unfold, denormModPost_unfold] at hq
+  apply mod_n4_call_skip_stack_weaken sp a b h
+  rw [show evmWordIs sp a =
+      ((sp ↦ₘ a.getLimbN 0) ** ((sp + 8) ↦ₘ a.getLimbN 1) **
+       ((sp + 16) ↦ₘ a.getLimbN 2) ** ((sp + 24) ↦ₘ a.getLimbN 3))
+      from evmWordIs_sp_unfold]
+  rw [show evmWordIs (sp + 32) (EvmWord.mod a b) = _ from h_slot.symm]
+  rw [divScratchValuesCall_unfold, divScratchValues_unfold]
+  rw [word_add_zero] at hq
+  simp only [hmod_eq, hanti_toNat_mod] at hq ⊢
+  xperm_hyp hq
 
 end EvmAsm.Evm64
