@@ -44,7 +44,6 @@
 -/
 
 import EvmAsm.Evm64.DivMod.Compose
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4Beq
 import EvmAsm.Evm64.DivMod.Compose.ModFullPathN4
 import EvmAsm.Evm64.EvmWordArith.Div
 import EvmAsm.Evm64.EvmWordArith.DivLimbBridge
