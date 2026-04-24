@@ -128,6 +128,99 @@ theorem qHat_plus_one_gt_u_via_tight_phases
     exact halfword_combine_ge_of_tight q1' q0' q_true_1 q_true_0 h_ph1 h_ph2
   exact nat_succ_mul_gt_of_div_le (q1' * 2^32 + q0') u V hV_pos h_ge
 
+/-- **A2.S1.q1_eq_true_1**: under `un21 < vTop`, Phase 1b is tight:
+    `q1'.toNat = q_true_1` where `q_true_1 = (u4*2^32+div_un1)/V`.
+
+    **Proof sketch**: KB-5 (Phase 1b quotient bound) gives `q1' ≤ q_true_1+2`.
+    Combined with `q1' ≥ q_true_1` (Phase 1 tight, when e.g. rhatc<2^32) and
+    the fact that q1' > q_true_1 would force un21 ≥ V (contradicting hyp),
+    we get q1' = q_true_1 exactly.
+
+    **TODO**: ~50 lines via KB-5 + Phase 1 tight + un21 case analysis. -/
+theorem div128Quot_q1_prime_eq_q_true_1_under_un21_lt_vTop
+    (u4 u3 b3' : Word)
+    (hb3'_ge : b3'.toNat ≥ 2^63)
+    (hu4_lt_b3' : u4.toNat < b3'.toNat)
+    (h_un21_lt_vTop :
+      (let dHi := b3' >>> (32 : BitVec 6).toNat
+       let dLo := (b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+       let div_un1 := u3 >>> (32 : BitVec 6).toNat
+       let q1 := rv64_divu u4 dHi
+       let rhat := u4 - q1 * dHi
+       let hi1 := q1 >>> (32 : BitVec 6).toNat
+       let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+       let rhatc := if hi1 = 0 then rhat else rhat + dHi
+       let qDlo := q1c * dLo
+       let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
+       let q1' := if BitVec.ult rhatUn1 qDlo then q1c + signExtend12 4095 else q1c
+       let rhat' := if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc
+       let cu_rhat_un1 := (rhat' <<< (32 : BitVec 6).toNat) ||| div_un1
+       let cu_q1_dlo := q1' * dLo
+       let un21 := cu_rhat_un1 - cu_q1_dlo
+       un21.toNat < b3'.toNat)) :
+    let dHi := b3' >>> (32 : BitVec 6).toNat
+    let dLo := (b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+    let div_un1 := u3 >>> (32 : BitVec 6).toNat
+    let q1 := rv64_divu u4 dHi
+    let rhat := u4 - q1 * dHi
+    let hi1 := q1 >>> (32 : BitVec 6).toNat
+    let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+    let rhatc := if hi1 = 0 then rhat else rhat + dHi
+    let qDlo := q1c * dLo
+    let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
+    let q1' := if BitVec.ult rhatUn1 qDlo then q1c + signExtend12 4095 else q1c
+    q1'.toNat = (u4.toNat * 2^32 + div_un1.toNat) / b3'.toNat := by
+  sorry
+
+/-- **A2.S1.un21_eq_true_rem**: under `un21 < vTop` (and Phase 1b tight),
+    the algorithm's `un21.toNat` equals the mathematical remainder
+    `(u4*2^32 + div_un1) % V`.
+
+    **Proof sketch**: Phase 1b tight (from `_q1_prime_eq_q_true_1`) means
+    `u4*2^32 + div_un1 = q1'*V + un21_math` with `un21_math < V`. The
+    algorithm computes un21 via Word subtraction; under un21 < V (hyp),
+    no wraparound occurred, so `un21.toNat = un21_math = (u4*2^32+div_un1) % V`.
+
+    **TODO**: ~30 lines via KB-3j (un21_toNat case) + no-wrap case. -/
+theorem div128Quot_un21_toNat_eq_true_rem_under_un21_lt_vTop
+    (u4 u3 b3' : Word)
+    (hb3'_ge : b3'.toNat ≥ 2^63)
+    (hu4_lt_b3' : u4.toNat < b3'.toNat)
+    (h_un21_lt_vTop :
+      (let dHi := b3' >>> (32 : BitVec 6).toNat
+       let dLo := (b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+       let div_un1 := u3 >>> (32 : BitVec 6).toNat
+       let q1 := rv64_divu u4 dHi
+       let rhat := u4 - q1 * dHi
+       let hi1 := q1 >>> (32 : BitVec 6).toNat
+       let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+       let rhatc := if hi1 = 0 then rhat else rhat + dHi
+       let qDlo := q1c * dLo
+       let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
+       let q1' := if BitVec.ult rhatUn1 qDlo then q1c + signExtend12 4095 else q1c
+       let rhat' := if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc
+       let cu_rhat_un1 := (rhat' <<< (32 : BitVec 6).toNat) ||| div_un1
+       let cu_q1_dlo := q1' * dLo
+       let un21 := cu_rhat_un1 - cu_q1_dlo
+       un21.toNat < b3'.toNat)) :
+    let dHi := b3' >>> (32 : BitVec 6).toNat
+    let dLo := (b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+    let div_un1 := u3 >>> (32 : BitVec 6).toNat
+    let q1 := rv64_divu u4 dHi
+    let rhat := u4 - q1 * dHi
+    let hi1 := q1 >>> (32 : BitVec 6).toNat
+    let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+    let rhatc := if hi1 = 0 then rhat else rhat + dHi
+    let qDlo := q1c * dLo
+    let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
+    let q1' := if BitVec.ult rhatUn1 qDlo then q1c + signExtend12 4095 else q1c
+    let rhat' := if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc
+    let cu_rhat_un1 := (rhat' <<< (32 : BitVec 6).toNat) ||| div_un1
+    let cu_q1_dlo := q1' * dLo
+    let un21 := cu_rhat_un1 - cu_q1_dlo
+    un21.toNat = (u4.toNat * 2^32 + div_un1.toNat) % b3'.toNat := by
+  sorry
+
 /-- **A2.S1**: Case "normal" — when Phase 2's `un21 < vTop` holds, the
     per-phase tight bound gives the result.
 
@@ -135,11 +228,13 @@ theorem qHat_plus_one_gt_u_via_tight_phases
     is tight). This is the easier case of A2.
 
     **Sub-decomposition**: closes via:
-    1. A2.S1.ph1: `q1' ≥ q_true_1` (Phase 1 tight, TODO).
-    2. A2.S1.ph2: `q0' ≥ q_true_0` (Phase 2 tight in range [0, vTop), TODO).
-    3. A2.S1.alg + A2.S1.comp + `div128Quot_toNat_eq_strict` to combine.
+    1. A2.S1.q1_eq_true_1: `q1'.toNat = q_true_1` (Phase 1 tight).
+    2. A2.S1.un21_eq_true_rem: algorithm un21 = mathematical remainder.
+    3. Phase 2 tight lemma `_of_un21_lt_dHi_mul_pow32` (Case A) — BUT
+       covers only un21 < dHi*2^32; narrow range [dHi*2^32, vTop) open.
+    4. `two_step_div_identity` + `qHat_plus_one_gt_u_via_tight_phases`.
 
-    **TODO**: ~100 lines via Phase 1b + Phase 2b tight + halfword_combine. -/
+    **TODO**: ~100 lines. Narrow range needs additional Phase 2 analysis. -/
 theorem div128Quot_qHat_plus_one_times_b3_gt_u_normal
     (u4 u3 b3' : Word)
     (hb3'_ge : b3'.toNat ≥ 2^63)
