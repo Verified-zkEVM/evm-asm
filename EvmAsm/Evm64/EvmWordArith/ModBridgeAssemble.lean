@@ -24,7 +24,6 @@
 -/
 
 import EvmAsm.Evm64.EvmWordArith.ModBridgeUtop
-import EvmAsm.Evm64.EvmWordArith.Val256ModBridge
 
 namespace EvmAsm.Evm64
 
