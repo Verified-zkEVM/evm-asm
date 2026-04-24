@@ -176,6 +176,16 @@ theorem div128Quot_qHat_plus_one_times_b3_gt_u_normal
     rw [BitVec.toNat_ushiftRight, AddrNorm.bv6_toNat_32, Nat.shiftRight_eq_div_pow]
     have : b3'.toNat < 2^64 := b3'.isLt
     exact Nat.div_lt_of_lt_mul (by omega)
+  have h_dLo_lt :
+      ((b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat).toNat < 2^32 := by
+    rw [BitVec.toNat_ushiftRight, AddrNorm.bv6_toNat_32, Nat.shiftRight_eq_div_pow]
+    have : (b3' <<< (32 : BitVec 6).toNat : Word).toNat < 2^64 :=
+      (b3' <<< (32 : BitVec 6).toNat : Word).isLt
+    exact Nat.div_lt_of_lt_mul (by omega)
+  have h_vTop_decomp : b3'.toNat =
+      (b3' >>> (32 : BitVec 6).toNat).toNat * 2^32 +
+      ((b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat).toNat :=
+    div128Quot_vTop_decomp b3'
   sorry
 
 /-- **A2.S2**: Case "compensation" — when `un21 ≥ dHi*2^32`. Includes
