@@ -2405,6 +2405,140 @@ theorem n4_shift0_call_addback_beq_mod_getLimbN (a b : EvmWord)
     (EvmWord.mod a b).getLimbN 1 = un1Out ∧
     (EvmWord.mod a b).getLimbN 2 = un2Out ∧
     (EvmWord.mod a b).getLimbN 3 = un3Out := by
+  simp only []
+  set qHat := div128Quot (0 : Word) (a.getLimbN 3) (b.getLimbN 3) with hqHat_def
+  rw [isAddbackBorrowN4Shift0Evm_def] at hborrow
+  unfold isAddbackBorrowN4Shift0 at hborrow
+  simp only [] at hborrow
+  have hc3_nz : mulsubN4_c3 qHat
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) ≠ 0 := by
+    intro h; apply hborrow; rw [h]; decide
+  have hb3_ge : (b.getLimbN 3).toNat ≥ 2^63 := clz_zero_imp_msb hshift_z
+  have hqHat_le_one : qHat.toNat ≤ 1 := by
+    rw [hqHat_def]; exact div128Quot_shift0_le_one _ _ hb3_ge
+  have hqHat_nz : qHat ≠ 0 := by
+    intro h_qHat_zero
+    apply hc3_nz
+    show (mulsubN4 qHat
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)).2.2.2.2 = 0
+    apply c3_un_zero_of_qHat_mul_le
+    rw [h_qHat_zero]
+    show (0 : Word).toNat * _ ≤ _
+    rw [show (0 : Word).toNat = 0 from rfl, Nat.zero_mul]
+    exact Nat.zero_le _
+  have hqHat_eq_one : qHat.toNat = 1 := by
+    have : qHat.toNat ≠ 0 := by
+      intro h; apply hqHat_nz; apply BitVec.eq_of_toNat_eq; rw [h]; rfl
+    omega
+  have h_mulsub := mulsubN4_val256_eq qHat
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+  simp only [] at h_mulsub
+  set ms := mulsubN4 qHat
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) with hms_def
+  have hc3_pos : ms.2.2.2.2.toNat ≥ 1 := by
+    rcases Nat.eq_zero_or_pos ms.2.2.2.2.toNat with h | h
+    · exfalso; apply hc3_nz
+      show ms.2.2.2.2 = 0
+      apply BitVec.eq_of_toNat_eq; rw [h]; rfl
+    · exact h
+  have h_val_ms_bound : val256 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 < 2^256 :=
+    EvmWord.val256_bound _ _ _ _
+  have h_val_b_bound :
+      val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) < 2^256 :=
+    EvmWord.val256_bound _ _ _ _
+  have h_val_a_lt_b :
+      val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) <
+      val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) := by
+    nlinarith
+  have hb_nz_or :
+      b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 ||| b.getLimbN 3 ≠ 0 :=
+    (EvmWord.ne_zero_iff_getLimbN_or).mp hbnz
+  have hc3_le_one : ms.2.2.2.2.toNat ≤ 1 := by
+    have h_q_over : qHat.toNat ≤
+        val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) /
+        val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) + 1 := by
+      have h_div_zero :
+          val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) /
+          val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) = 0 :=
+        Nat.div_eq_of_lt h_val_a_lt_b
+      rw [h_div_zero]; omega
+    exact mulsubN4_c3_le_one hb_nz_or h_q_over
+  have hc3_eq_one : ms.2.2.2.2.toNat = 1 := by omega
+  have h_addback := addbackN4_val256_eq ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 0
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+  simp only [] at h_addback
+  set ab := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 0
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) with hab_def
+  set carry := addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) with hcarry_def
+  have h_val_ab_bound : val256 ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 < 2^256 :=
+    EvmWord.val256_bound _ _ _ _
+  have hcarry_le_one : carry.toNat ≤ 1 := by
+    have h_pow_pos : (0 : Nat) < 2^256 := by positivity
+    nlinarith
+  have hcarry_nz : carry ≠ 0 := by
+    intro h_carry_zero
+    have h_carry_toNat : carry.toNat = 0 := by rw [h_carry_zero]; rfl
+    have h_ab := h_addback
+    rw [h_carry_toNat, Nat.zero_mul, Nat.add_zero] at h_ab
+    have h_pow : (2 : Nat) ^ 256 > 0 := by positivity
+    nlinarith
+  have hcarry_pos : carry.toNat ≥ 1 := by
+    rcases Nat.eq_zero_or_pos carry.toNat with h | h
+    · exfalso; apply hcarry_nz
+      apply BitVec.eq_of_toNat_eq; rw [h]; rfl
+    · exact h
+  have hcarry_eq_one : carry.toNat = 1 := by omega
+  -- val256(ab) = val256(a)
+  have hq_mul : qHat.toNat * val256 (b.getLimbN 0) (b.getLimbN 1)
+      (b.getLimbN 2) (b.getLimbN 3) =
+      val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) := by
+    rw [hqHat_eq_one, Nat.one_mul]
+  have h_val_ab_eq_a :
+      val256 ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 =
+      val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) := by
+    have h1 := h_mulsub
+    have h2 := h_addback
+    rw [hq_mul] at h1
+    omega
+  -- Build mod_target and show mod_target = a.
+  have ha_val : val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      = a.toNat := by
+    simp only [← EvmWord.getLimb_as_getLimbN_0, ← EvmWord.getLimb_as_getLimbN_1,
+               ← EvmWord.getLimb_as_getLimbN_2, ← EvmWord.getLimb_as_getLimbN_3]
+    exact EvmWord.val256_eq_toNat a
+  have hb_val : val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+      = b.toNat := by
+    simp only [← EvmWord.getLimb_as_getLimbN_0, ← EvmWord.getLimb_as_getLimbN_1,
+               ← EvmWord.getLimb_as_getLimbN_2, ← EvmWord.getLimb_as_getLimbN_3]
+    exact EvmWord.val256_eq_toNat b
+  have h_a_lt_b : a.toNat < b.toNat := by
+    have := h_val_a_lt_b; rw [ha_val, hb_val] at this; exact this
+  have hmod_eq_a : EvmWord.mod a b = a := by
+    apply BitVec.eq_of_toNat_eq
+    unfold EvmWord.mod
+    rw [if_neg hbnz]
+    show (BitVec.umod a b).toNat = a.toNat
+    have h_umod : (BitVec.umod a b).toNat = a.toNat % b.toNat := by
+      show (a % b).toNat = _; exact BitVec.toNat_umod
+    rw [h_umod]
+    exact Nat.mod_eq_of_lt h_a_lt_b
+  set mod_target : EvmWord := EvmWord.fromLimbs fun i : Fin 4 =>
+    match i with | 0 => ab.1 | 1 => ab.2.1 | 2 => ab.2.2.1 | 3 => ab.2.2.2.1
+    with hmod_target
+  have hmod_target_toNat : mod_target.toNat =
+      val256 ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 := by
+    simp [mod_target, EvmWord.fromLimbs_toNat, val256]
+  have hmod_target_eq_a : mod_target = a :=
+    BitVec.eq_of_toNat_eq (by rw [hmod_target_toNat, h_val_ab_eq_a, ha_val])
+  -- TODO: final refine — the chained rw triggers whnf timeout on the
+  -- `if carry = 0 then ab'.i else ab.i` resolution. Likely fix: apply
+  -- if_neg to the goal separately before rewriting, or prove a dedicated
+  -- `un_iOut = ab.i` helper first.
   sorry
 
 /-- **EVM-stack-level MOD spec on the n=4 shift=0 call+addback-BEQ sub-path.**
