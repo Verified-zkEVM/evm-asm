@@ -7,8 +7,6 @@
   Starts with the all-max case (bltu_2 = bltu_1 = bltu_0 = false) as the foundation.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2LoopUnified
-import EvmAsm.Evm64.DivMod.Compose.FullPath
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4Loop
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2Cases
 
