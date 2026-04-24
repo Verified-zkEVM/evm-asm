@@ -5,8 +5,8 @@
   Isolated to minimize whnf pressure.
 -/
 
+-- `SpecCall` transitively imports `EvmWordArith.Div128Shift0`.
 import EvmAsm.Evm64.DivMod.SpecCall
-import EvmAsm.Evm64.EvmWordArith.Div128Shift0
 
 namespace EvmAsm.Evm64
 
