@@ -947,6 +947,49 @@ def fullModN4CallSkipPost (sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Assertion :
   (sp + signExtend12 3952 ↦ₘ dLo) **
   (sp + signExtend12 3944 ↦ₘ div_un0)
 
+/-- Named unfold for `fullModN4CallSkipPost`. Restores access to the
+    underlying sepConj structure once the `@[irreducible]` attribute on
+    the def makes `delta` the only way in. Parallel to
+    `fullModN4MaxSkipPost_unfold` and `fullDivN4CallSkipPost_unfold`.
+    Used by the n=4 call+skip MOD stack-spec post reshape. -/
+theorem fullModN4CallSkipPost_unfold {sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word} :
+    fullModN4CallSkipPost sp base a0 a1 a2 a3 b0 b1 b2 b3 =
+    (let shift := (clzResult b3).1
+     let antiShift := signExtend12 (0 : BitVec 12) - shift
+     let b3' := (b3 <<< (shift.toNat % 64)) ||| (b2 >>> (antiShift.toNat % 64))
+     let b2' := (b2 <<< (shift.toNat % 64)) ||| (b1 >>> (antiShift.toNat % 64))
+     let b1' := (b1 <<< (shift.toNat % 64)) ||| (b0 >>> (antiShift.toNat % 64))
+     let b0' := b0 <<< (shift.toNat % 64)
+     let u4 := a3 >>> (antiShift.toNat % 64)
+     let u3 := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (antiShift.toNat % 64))
+     let u2 := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (antiShift.toNat % 64))
+     let u1 := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (antiShift.toNat % 64))
+     let u0 := a0 <<< (shift.toNat % 64)
+     let qHat := div128Quot u4 u3 b3'
+     let dLo := (b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+     let div_un0 := (u3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+     let ms := mulsubN4 qHat b0' b1' b2' b3' u0 u1 u2 u3
+     denormModPost sp shift ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 **
+     ((sp + signExtend12 4088) ↦ₘ qHat) **
+     ((sp + signExtend12 4080) ↦ₘ (0 : Word)) **
+     ((sp + signExtend12 4072) ↦ₘ (0 : Word)) **
+     ((sp + signExtend12 4064) ↦ₘ (0 : Word)) **
+     ((sp + signExtend12 3992) ↦ₘ shift) **
+     ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
+     ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+     ((sp + signExtend12 4024) ↦ₘ u4 - ms.2.2.2.2) **
+     ((sp + signExtend12 4016) ↦ₘ (0 : Word)) **
+     ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
+     ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
+     (sp + signExtend12 3984 ↦ₘ (4 : Word)) **
+     (sp + signExtend12 3976 ↦ₘ (0 : Word)) **
+     (.x1 ↦ᵣ signExtend12 4095) ** (.x11 ↦ᵣ qHat) **
+     (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+     (sp + signExtend12 3960 ↦ₘ b3') **
+     (sp + signExtend12 3952 ↦ₘ dLo) **
+     (sp + signExtend12 3944 ↦ₘ div_un0)) := by
+  delta fullModN4CallSkipPost; rfl
+
 /-- `fullModN4CallSkipPost` is pc-free. Mirror of `pcFree_fullDivN4CallSkipPost`. -/
 theorem pcFree_fullModN4CallSkipPost {sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word} :
     (fullModN4CallSkipPost sp base a0 a1 a2 a3 b0 b1 b2 b3).pcFree := by
