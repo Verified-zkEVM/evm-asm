@@ -512,12 +512,12 @@ theorem addbackN4_first_carry_one (q v0 v1 v2 v3 u0 u1 u2 u3 : Word)
     have : q.toNat = 0 := by omega
     simp [this] at hqv_gt_u
   -- (q-1) * val256(v) ≤ val256(u) (from hq_over: q ≤ ⌊u/v⌋ + 1)
-  have hqm1_le : (q.toNat - 1) * val256 v0 v1 v2 v3 ≤ val256 u0 u1 u2 u3 := by
-    have hdiv := Nat.div_mul_le_self (val256 u0 u1 u2 u3) (val256 v0 v1 v2 v3)
+  have hqm1_le : (q.toNat - 1) * val256 v0 v1 v2 v3 ≤ val256 u0 u1 u2 u3 :=
     calc (q.toNat - 1) * val256 v0 v1 v2 v3
         ≤ (val256 u0 u1 u2 u3 / val256 v0 v1 v2 v3) * val256 v0 v1 v2 v3 := by
           apply Nat.mul_le_mul_right; omega
-      _ ≤ val256 u0 u1 u2 u3 := hdiv
+      _ ≤ val256 u0 u1 u2 u3 :=
+          Nat.div_mul_le_self (val256 u0 u1 u2 u3) (val256 v0 v1 v2 v3)
   -- q * val256(v) ≤ val256(u) + val256(v) (from hqm1_le)
   have hqv_le : q.toNat * val256 v0 v1 v2 v3 ≤
       val256 u0 u1 u2 u3 + val256 v0 v1 v2 v3 := by
