@@ -4,9 +4,8 @@
   Root import file for the 64-bit EVM opcode implementations (RV64IM).
 -/
 
--- Foundations
-import EvmAsm.Evm64.Basic
-import EvmAsm.Evm64.Stack
+-- Foundations (Basic and Stack are transitively imported by every
+-- opcode Program file via Stack → Basic).
 import EvmAsm.Evm64.CodeRegion
 
 -- Stack operations
