@@ -619,23 +619,27 @@ theorem div128Quot_shift_nz_un21_lt_dHi_mul_pow32
     for closing the exact equality `qHat = val256(a)/val256(b)` needed by
     `evm_div_n4_call_skip_stack_spec` (task #66).
 
-    Proof sketch (incremental per `feedback_loop_attack_blockers`):
-    1. Decompose qHat.toNat via `div128Quot_toNat_eq_strict`:
-         qHat.toNat = q1'.toNat * 2^32 + q0'.toNat.
-    2. Apply KB-LB7 (`div128Quot_q1_prime_ge_q_true_1_of_uHi_lt_pow63`)
-       with uHi := u4. u4 < 2^63 follows from hshift_nz (u4 has only
-       `shift` bits < 64 bits of a3).
-    3. Apply KB-LB8 or KB-LB8' for q0' ≥ q_true_0. Under shift_nz +
-       hcall, un21 bounds need careful analysis. Case A: un21 < dHi*2^32
-       (covered by KB-LB8'). Case B: un21 ≥ dHi*2^32 — post-#1138 the
-       Phase 2b guard handles this correctly.
-    4. Combine via q_true_full_ge_q_true_1_mul_pow32_nat +
-       digit_tight_of_le_and_ge.
-    5. Bridge q_true_full to val256(a)/val256(b) via normalization
-       invariants (the 2^shift scaling cancels in the division).
+    ⚠️ **BLOCKER DISCOVERY (2026-04-24)**: this lemma is the "qHat ≥ q_real"
+    direction of Knuth Theorem B. Piece A (`knuth_theorem_b_from_clz`, #817)
+    gives only the UPPER direction (qHat ≤ q_real + 2). The LOWER direction
+    requires separately analyzing Phase 1b's check correctness: q1' is
+    allowed to undershoot uHi/dHi by up to 2 (per KB-2), so q1' ≥ q_true_1
+    is NOT automatic — the call-skip precondition `isSkipBorrowN4Call` gives
+    the wrong direction (qHat * val256(b) ≤ val256(a), i.e., qHat ≤ q_real).
 
-    TODO(#65): fill in the proof steps. Each is bounded; combined ~100-200
-    lines. -/
+    The path to closing this likely requires a new Piece D formalizing
+    Knuth Theorem B's lower direction independently, OR a combinatorial
+    argument using the Phase 2b guard (#1138) to pin the exact digit under
+    skip-borrow. Either way this is 200-500 lines of new math.
+
+    Original proof sketch (now inoperative):
+    1. qHat.toNat = q1'*2^32 + q0' via `div128Quot_toNat_eq_strict`.
+    2. Apply KB-LB7 for q1' ≥ q_true_1 — BLOCKED: KB-LB7 exists but requires
+       `un21 < 2^63` which isn't invariant (see `un21_lt_vTop_plan.md`).
+    3. Apply KB-LB8 or KB-LB8' for q0' ≥ q_true_0 — BLOCKED similarly.
+    4. Combine + bridge q_true_full to val256(a)/val256(b).
+
+    TODO(#65): re-architect via Piece D or Phase 2b-guard combinatorial. -/
 theorem div128Quot_call_skip_ge_val256_div
     (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
     (hb3nz : b3 ≠ 0)
