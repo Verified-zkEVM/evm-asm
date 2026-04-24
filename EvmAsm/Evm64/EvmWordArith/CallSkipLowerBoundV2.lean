@@ -346,7 +346,28 @@ theorem algorithmQ1Prime_step2_q1c_ge_q_true_1
     let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
     (u4.toNat * 2^32 + (u3 >>> (32 : BitVec 6).toNat).toNat) / b3'.toNat
       ≤ q1c.toNat := by
-  sorry
+  have h_dHi_ne : (b3' >>> (32 : BitVec 6).toNat) ≠ 0 := by
+    intro heq
+    have h : (b3' >>> (32 : BitVec 6).toNat).toNat = 0 := by rw [heq]; rfl
+    rw [BitVec.toNat_ushiftRight, AddrNorm.bv6_toNat_32, Nat.shiftRight_eq_div_pow] at h
+    have : b3'.toNat ≥ 2^63 := hb3'_ge
+    omega
+  have h_div_un1_lt : (u3 >>> (32 : BitVec 6).toNat).toNat < 2^32 := by
+    rw [BitVec.toNat_ushiftRight, AddrNorm.bv6_toNat_32, Nat.shiftRight_eq_div_pow]
+    have : u3.toNat < 2^64 := u3.isLt
+    exact Nat.div_lt_of_lt_mul (by omega)
+  have h_v_eq : b3'.toNat =
+      (b3' >>> (32 : BitVec 6).toNat).toNat * 2^32 +
+      ((b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat).toNat :=
+    div128Quot_vTop_decomp b3'
+  have h_u4_lt_vTop : u4.toNat <
+      (b3' >>> (32 : BitVec 6).toNat).toNat * 2^32 +
+      ((b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat).toNat :=
+    h_v_eq ▸ hu4_lt_b3'
+  rw [h_v_eq]
+  exact div128Quot_q1c_ge_q_true_1 u4 (b3' >>> (32 : BitVec 6).toNat)
+    ((b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat)
+    (u3 >>> (32 : BitVec 6).toNat) h_dHi_ne h_div_un1_lt h_u4_lt_vTop
 
 /-- **_plus_one sub-step 3**: `q1c ≤ q_true_1 + 2` via trial_quotient_le
     + Phase 1a monotonicity. -/
