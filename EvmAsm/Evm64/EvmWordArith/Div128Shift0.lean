@@ -187,6 +187,9 @@ theorem div128Quot_shift0_rhatUn1_eq_div_un1 (dHi div_un1 : Word) (hdHi_ne : dHi
     div128Quot_shift0_rhatc_eq_zero dHi hdHi_ne]
   simp
 
+-- TODO: ult_false + q1_prime_eq_zero helpers — deferred due to BitVec.ult
+-- simplification depth issue. Will retry with a cleaner formulation.
+
 -- ============================================================================
 -- The main composite lemma — scaffolded with sorrys for Phase 1 tracing
 -- and Phase 2b reasoning. Filled incrementally per feedback_commit_sorry_intermediate.
