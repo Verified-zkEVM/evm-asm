@@ -9,7 +9,8 @@
   Follows the pattern of FullPathN3Loop.lean but for n=2.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2
+-- `FullPathN4Loop` (5-hop) transitively reaches `FullPathN2` via
+-- `LoopIterN4 → LoopBodyN4 → LoopBody → Compose → FullPathN2`.
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4Loop
 import EvmAsm.Evm64.DivMod.LoopUnifiedN2
 
