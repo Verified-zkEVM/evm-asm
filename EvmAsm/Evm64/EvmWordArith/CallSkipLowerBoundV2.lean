@@ -311,6 +311,12 @@ theorem div128Quot_qHat_plus_one_times_b3_gt_u_normal
       ((b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat)
       u3
       h_dHi_ge h_dHi_lt h_dLo_lt h_un21_lt_vTop
+  -- Unfold algorithmUn21 so the q0' shape matches div128Quot_toNat_eq_strict.
+  rw [algorithmUn21_unfold] at h_q0'_lt_pow32
+  -- Halfword decomposition of qHat: `qHat.toNat = q1'.toNat * 2^32 + q0'.toNat`.
+  have h_qHat_decomp :=
+    div128Quot_toNat_eq_strict u4 u3 b3' h_dHi_ge h_dHi_lt h_dLo_lt
+      (by rw [h_vTop_decomp] at hu4_lt_b3'; exact hu4_lt_b3') h_q0'_lt_pow32
   -- The remaining gap:
   -- (a) Phase 1 tight: `q1' ≥ q_true_1` via `_of_uHi_lt_dHi_mul_pow32`.
   --     Requires `u4 < dHi*2^32`; narrow range [dHi*2^32, vTop) still open.
