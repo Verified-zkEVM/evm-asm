@@ -18,7 +18,6 @@
 -/
 
 import EvmAsm.Evm64.EvmWordArith.DenormLemmas
-import EvmAsm.Evm64.EvmWordArith.DivN4Overestimate
 import EvmAsm.Evm64.EvmWordArith.Val256ModBridge
 import EvmAsm.Evm64.DivMod.LoopSemantic
 
