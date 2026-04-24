@@ -384,26 +384,7 @@ theorem hi32_toNat_lt_pow32 (a : Word) :
 -- and Phase 2b reasoning. Filled incrementally per feedback_commit_sorry_intermediate.
 -- ============================================================================
 
-/-- Under shift=0 (b3 ≥ 2^63) + b3 ≠ 0:
-    `(div128Quot 0 a3 b3).toNat ≥ a3.toNat / b3.toNat`.
-
-    Proof sketch (TODO: fill in sorrys):
-    1. Apply `div128Quot_toNat_eq` to get qHat.toNat = (q1' % 2^32) * 2^32 + q0'.toNat.
-    2. Show q1' = 0 under uHi=0 via Phase 1 trivialization.
-    3. Apply KB-LB8 (`div128Quot_q0_prime_ge_q_true_0_of_un21_lt_pow63`) to get
-       q0'.toNat ≥ (un21*2^32 + div_un0) / vTop.
-    4. Show un21 = a3 >> 32 under uHi=0 (Phase 1 trivialization).
-    5. Simplify: un21*2^32 + div_un0 = (a3>>32)*2^32 + (a3 mod 2^32) = a3.toNat
-       (via `word_hi32_lo32_decomp`).
-    6. Combine: qHat.toNat = q0'.toNat ≥ a3.toNat / b3.toNat. -/
-theorem div128Quot_shift0_ge_a3_div_b3 (a3 b3 : Word)
-    (hb3_ge : b3.toNat ≥ 2^63)
-    (hb3_nz : b3 ≠ 0) :
-    (div128Quot (0 : Word) a3 b3).toNat ≥ a3.toNat / b3.toNat := by
-  -- TODO(#67): the full 5-step proof outlined above. Requires careful
-  -- algorithm tracing through div128Quot's 15+ let bindings. Split into
-  -- sub-lemmas in subsequent iterations.
-  sorry
+-- `div128Quot_shift0_ge_a3_div_b3` is defined below (after dHi_ne et al).
 
 /-- Under b3 ≥ 2^63, dHi = b3 >> 32 has toNat ≥ 2^31. -/
 theorem div128Quot_shift0_dHi_ge (b3 : Word) (hb3_ge : b3.toNat ≥ 2^63) :
@@ -631,6 +612,49 @@ theorem div128Quot_shift0_le_one (a3 b3 : Word)
     simp
   rw [h_zero_or]
   exact h_q0'_le_one
+
+/-- **Lower bound (composite)**: under shift=0 (b3 ≥ 2^63) + b3 ≠ 0:
+    `(div128Quot 0 a3 b3).toNat ≥ a3.toNat / b3.toNat`.
+
+    Proof outline:
+    1. Apply KB-LB8 specialized with `un21 := a3 >>> 32, uLo := a3`:
+       gives q0'.toNat ≥ (un21*2^32 + div_un0) / (dHi*2^32 + dLo)
+       which simplifies to `a3.toNat / b3.toNat` via `word_hi32_lo32_decomp`.
+    2. Use `div128Quot_toNat_eq` + `q1'_eq_zero` to show
+       `(div128Quot 0 a3 b3).toNat = q0'.toNat`.
+    3. Combine. -/
+theorem div128Quot_shift0_ge_a3_div_b3 (a3 b3 : Word)
+    (hb3_ge : b3.toNat ≥ 2^63)
+    (hb3_nz : b3 ≠ 0) :
+    (div128Quot (0 : Word) a3 b3).toNat ≥ a3.toNat / b3.toNat := by
+  -- Setup: standard arithmetic facts under shift=0.
+  have hdHi_ne := div128Quot_shift0_dHi_ne b3 hb3_ge
+  have hdHi_ge := div128Quot_shift0_dHi_ge b3 hb3_ge
+  have hdHi_lt : (b3 >>> (32 : BitVec 6).toNat).toNat < 2^32 := hi32_toNat_lt_pow32 b3
+  have hdLo_lt : ((b3 <<< (32 : BitVec 6).toNat) >>>
+                  (32 : BitVec 6).toNat).toNat < 2^32 := lo32_toNat_lt_pow32 b3
+  have h_un21_lt : (a3 >>> (32 : BitVec 6).toNat : Word).toNat < 2^63 := by
+    have := hi32_toNat_lt_pow32 a3
+    have : (2 : Nat) ^ 63 > 2^32 := by decide
+    omega
+  have h_un21_lt_vTop : (a3 >>> (32 : BitVec 6).toNat : Word).toNat <
+      (b3 >>> (32 : BitVec 6).toNat).toNat * 2^32 +
+      ((b3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat).toNat := by
+    have h_b3_decomp := word_hi32_lo32_decomp b3
+    have := hi32_toNat_lt_pow32 a3
+    omega
+  -- Apply KB-LB8 with un21 := a3 >>> 32, uLo := a3.
+  have h_lb8 := div128Quot_q0_prime_ge_q_true_0_of_un21_lt_pow63
+    (a3 >>> (32 : BitVec 6).toNat)
+    (b3 >>> (32 : BitVec 6).toNat)
+    ((b3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat)
+    a3 hdHi_ge hdHi_lt hdLo_lt h_un21_lt h_un21_lt_vTop
+  -- Simplify KB-LB8's LHS to a3.toNat / b3.toNat.
+  have h_a3 := word_hi32_lo32_decomp a3
+  have h_b3 := word_hi32_lo32_decomp b3
+  -- TODO: continue — chain KB-LB8's q0' through div128Quot's q0' via
+  -- div128Quot_toNat_eq + q1'_eq_zero + un21_eq_div_un1.
+  sorry
 
 /-- If `div128Quot 0 a3 b3 = 0` under shift=0, then a3 < b3. -/
 theorem div128Quot_shift0_eq_zero_implies_a3_lt_b3 (a3 b3 : Word)
