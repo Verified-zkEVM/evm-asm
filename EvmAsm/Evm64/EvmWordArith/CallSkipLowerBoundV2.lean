@@ -707,6 +707,30 @@ theorem algorithmUn21_L3b_q_true_1_V_le_u
     (u / V) * V ≤ u := by
   exact Nat.div_mul_le_self u V
 
+/-- **_of_tight sub-case "exact" L1.c**: word-level subtraction unfolds via
+    `BitVec.toNat_sub`. `algorithmUn21 = cu_rhat_un1 - cu_q1_dlo` directly,
+    so `un21.toNat = (2^64 - cu_q1_dlo.toNat + cu_rhat_un1.toNat) % 2^64`. -/
+theorem algorithmUn21_L1c_un21_toNat_case_simple (u4 u3 b3' : Word) :
+    let dHi := b3' >>> (32 : BitVec 6).toNat
+    let dLo := (b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+    let div_un1 := u3 >>> (32 : BitVec 6).toNat
+    let q1 := rv64_divu u4 dHi
+    let rhat := u4 - q1 * dHi
+    let hi1 := q1 >>> (32 : BitVec 6).toNat
+    let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+    let rhatc := if hi1 = 0 then rhat else rhat + dHi
+    let qDlo := q1c * dLo
+    let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
+    let q1' := if BitVec.ult rhatUn1 qDlo then q1c + signExtend12 4095 else q1c
+    let rhat' := if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc
+    let cu_rhat_un1 := (rhat' <<< (32 : BitVec 6).toNat) ||| div_un1
+    let cu_q1_dlo := q1' * dLo
+    (algorithmUn21 u4 u3 b3').toNat =
+      (2^64 - cu_q1_dlo.toNat + cu_rhat_un1.toNat) % 2^64 := by
+  intro dHi dLo div_un1 q1 rhat hi1 q1c rhatc qDlo rhatUn1 q1' rhat' cu_rhat_un1 cu_q1_dlo
+  rw [algorithmUn21_unfold]
+  exact BitVec.toNat_sub _ _
+
 /-- **_of_tight sub-case "exact"**: when `q1' = q_true_1` (Phase 1b exactly
     tight), the algorithm's un21 equals the mathematical remainder r1_math.
 
