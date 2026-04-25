@@ -1480,7 +1480,8 @@ theorem div128Quot_qHat_plus_one_times_b3_gt_u_of_q1_prime_not_overshoot
 theorem div128Quot_qHat_plus_one_times_b3_gt_u_narrow_u4_tight_un21
     (u4 u3 b3' : Word)
     (hb3'_ge : b3'.toNat ≥ 2^63)
-    (hu4_lt_b3' : u4.toNat < b3'.toNat) :
+    (hu4_lt_b3' : u4.toNat < b3'.toNat)
+    (hu4_lt_pow63 : u4.toNat < 2^63) :
     ((div128Quot u4 u3 b3').toNat + 1) * b3'.toNat >
       u4.toNat * 2^64 + u3.toNat := by
   -- Upper bound q1' ≤ q_true_1 + 2 (now applies to narrow_u4 regime).
@@ -1493,7 +1494,7 @@ theorem div128Quot_qHat_plus_one_times_b3_gt_u_narrow_u4_tight_un21
       hb3'_ge hu4_lt_b3' h_overshoot
   · -- q1' ≤ q_true_1. Delegate to the shared not-overshoot helper.
     exact div128Quot_qHat_plus_one_times_b3_gt_u_of_q1_prime_not_overshoot u4 u3 b3'
-      hb3'_ge hu4_lt_b3' (by sorry) (by omega)
+      hb3'_ge hu4_lt_b3' hu4_lt_pow63 (by omega)
 
 /-- **A2.S2.narrow_u4_wide_un21**: hu4_ge regime AND un21 ≥ dHi*2^32.
 
@@ -1508,7 +1509,8 @@ theorem div128Quot_qHat_plus_one_times_b3_gt_u_narrow_u4_tight_un21
 theorem div128Quot_qHat_plus_one_times_b3_gt_u_narrow_u4_wide_un21
     (u4 u3 b3' : Word)
     (hb3'_ge : b3'.toNat ≥ 2^63)
-    (hu4_lt_b3' : u4.toNat < b3'.toNat) :
+    (hu4_lt_b3' : u4.toNat < b3'.toNat)
+    (hu4_lt_pow63 : u4.toNat < 2^63) :
     ((div128Quot u4 u3 b3').toNat + 1) * b3'.toNat >
       u4.toNat * 2^64 + u3.toNat := by
   set q_true_1 := (u4.toNat * 2^32 + (u3 >>> (32 : BitVec 6).toNat).toNat) / b3'.toNat
@@ -1518,7 +1520,7 @@ theorem div128Quot_qHat_plus_one_times_b3_gt_u_narrow_u4_wide_un21
       hb3'_ge hu4_lt_b3' h_overshoot
   · -- q1' ≤ q_true_1. Delegate to the shared not-overshoot helper.
     exact div128Quot_qHat_plus_one_times_b3_gt_u_of_q1_prime_not_overshoot u4 u3 b3'
-      hb3'_ge hu4_lt_b3' (by sorry) (by omega)
+      hb3'_ge hu4_lt_b3' hu4_lt_pow63 (by omega)
 
 /-- **A2.S2.narrow_u4**: compensation case when `u4 ≥ dHi*2^32`.
     Dispatches to tight-un21 / wide-un21 sub-cases.
@@ -1530,15 +1532,16 @@ theorem div128Quot_qHat_plus_one_times_b3_gt_u_narrow_u4_wide_un21
 theorem div128Quot_qHat_plus_one_times_b3_gt_u_narrow_u4
     (u4 u3 b3' : Word)
     (hb3'_ge : b3'.toNat ≥ 2^63)
-    (hu4_lt_b3' : u4.toNat < b3'.toNat) :
+    (hu4_lt_b3' : u4.toNat < b3'.toNat)
+    (hu4_lt_pow63 : u4.toNat < 2^63) :
     ((div128Quot u4 u3 b3').toNat + 1) * b3'.toNat >
       u4.toNat * 2^64 + u3.toNat := by
   by_cases h : (algorithmUn21 u4 u3 b3').toNat <
       (b3' >>> (32 : BitVec 6).toNat).toNat * 2^32
   · exact div128Quot_qHat_plus_one_times_b3_gt_u_narrow_u4_tight_un21
-      u4 u3 b3' hb3'_ge hu4_lt_b3'
+      u4 u3 b3' hb3'_ge hu4_lt_b3' hu4_lt_pow63
   · exact div128Quot_qHat_plus_one_times_b3_gt_u_narrow_u4_wide_un21
-      u4 u3 b3' hb3'_ge hu4_lt_b3'
+      u4 u3 b3' hb3'_ge hu4_lt_b3' hu4_lt_pow63
 
 /-- **A2.S2.wide_un21_narrow**: Phase 1 narrow-u4 (no Phase 1a correction) AND
     un21 ∈ [dHi*2^32, vTop) (Phase 2 wide range, before Phase 1 false-alarm).
@@ -1554,7 +1557,8 @@ theorem div128Quot_qHat_plus_one_times_b3_gt_u_wide_un21_narrow
     (u4 u3 b3' : Word)
     (hb3'_ge : b3'.toNat ≥ 2^63)
     (hu4_lt_b3' : u4.toNat < b3'.toNat)
-    (hu4_lt : u4.toNat < (b3' >>> (32 : BitVec 6).toNat).toNat * 2^32) :
+    (hu4_lt : u4.toNat < (b3' >>> (32 : BitVec 6).toNat).toNat * 2^32)
+    (hu4_lt_pow63 : u4.toNat < 2^63) :
     ((div128Quot u4 u3 b3').toNat + 1) * b3'.toNat >
       u4.toNat * 2^64 + u3.toNat := by
   -- Phase 1 q1' ∈ {q_true_1, q_true_1 + 1} (always, under standard hyps).
@@ -1590,7 +1594,7 @@ theorem div128Quot_qHat_plus_one_times_b3_gt_u_wide_un21_narrow
   · -- Sub-case A: exact q1' = q_true_1. Delegate to the shared
     -- not-overshoot helper.
     exact div128Quot_qHat_plus_one_times_b3_gt_u_of_q1_prime_not_overshoot u4 u3 b3'
-      hb3'_ge hu4_lt_b3' (by sorry) (by omega)
+      hb3'_ge hu4_lt_b3' hu4_lt_pow63 (by omega)
   · -- Sub-case B: off-by-one q1' = q_true_1 + 1. Use the OR-shift helper.
     exact div128Quot_qHat_plus_one_times_b3_gt_u_of_q1_prime_overshoot u4 u3 b3'
       hb3'_ge hu4_lt_b3' (by omega)
@@ -1624,12 +1628,13 @@ theorem div128Quot_qHat_plus_one_times_b3_gt_u_wide_un21
     (u4 u3 b3' : Word)
     (hb3'_ge : b3'.toNat ≥ 2^63)
     (hu4_lt_b3' : u4.toNat < b3'.toNat)
-    (hu4_lt : u4.toNat < (b3' >>> (32 : BitVec 6).toNat).toNat * 2^32) :
+    (hu4_lt : u4.toNat < (b3' >>> (32 : BitVec 6).toNat).toNat * 2^32)
+    (hu4_lt_pow63 : u4.toNat < 2^63) :
     ((div128Quot u4 u3 b3').toNat + 1) * b3'.toNat >
       u4.toNat * 2^64 + u3.toNat := by
   by_cases h : (algorithmUn21 u4 u3 b3').toNat < b3'.toNat
   · exact div128Quot_qHat_plus_one_times_b3_gt_u_wide_un21_narrow
-      u4 u3 b3' hb3'_ge hu4_lt_b3' hu4_lt
+      u4 u3 b3' hb3'_ge hu4_lt_b3' hu4_lt hu4_lt_pow63
   · exact div128Quot_qHat_plus_one_times_b3_gt_u_wide_un21_wide
       u4 u3 b3' hb3'_ge hu4_lt_b3' hu4_lt (by omega)
 
@@ -1651,15 +1656,16 @@ theorem div128Quot_qHat_plus_one_times_b3_gt_u_wide_un21
 theorem div128Quot_qHat_plus_one_times_b3_gt_u_compensation
     (u4 u3 b3' : Word)
     (hb3'_ge : b3'.toNat ≥ 2^63)
-    (hu4_lt_b3' : u4.toNat < b3'.toNat) :
+    (hu4_lt_b3' : u4.toNat < b3'.toNat)
+    (hu4_lt_pow63 : u4.toNat < 2^63) :
     ((div128Quot u4 u3 b3').toNat + 1) * b3'.toNat >
       u4.toNat * 2^64 + u3.toNat := by
   by_cases hu4 : u4.toNat ≥ (b3' >>> (32 : BitVec 6).toNat).toNat * 2^32
   · exact div128Quot_qHat_plus_one_times_b3_gt_u_narrow_u4 u4 u3 b3' hb3'_ge
-      hu4_lt_b3'
+      hu4_lt_b3' hu4_lt_pow63
   · push Not at hu4
     exact div128Quot_qHat_plus_one_times_b3_gt_u_wide_un21 u4 u3 b3' hb3'_ge
-      hu4_lt_b3' hu4
+      hu4_lt_b3' hu4 hu4_lt_pow63
 
 /-- **A2**: Knuth-B lower form (divisibility). `(qHat + 1) * b3' > u`.
     Composed via case split on `un21 < dHi*2^32` (normal) vs
@@ -1667,7 +1673,8 @@ theorem div128Quot_qHat_plus_one_times_b3_gt_u_compensation
 theorem div128Quot_qHat_plus_one_times_b3_gt_u
     (u4 u3 b3' : Word)
     (hb3'_ge : b3'.toNat ≥ 2^63)
-    (hu4_lt_b3' : u4.toNat < b3'.toNat) :
+    (hu4_lt_b3' : u4.toNat < b3'.toNat)
+    (hu4_lt_pow63 : u4.toNat < 2^63) :
     ((div128Quot u4 u3 b3').toNat + 1) * b3'.toNat >
       u4.toNat * 2^64 + u3.toNat := by
   by_cases h_u4 :
@@ -1677,20 +1684,21 @@ theorem div128Quot_qHat_plus_one_times_b3_gt_u
       (b3' >>> (32 : BitVec 6).toNat).toNat * 2^32
     · exact div128Quot_qHat_plus_one_times_b3_gt_u_normal u4 u3 b3' hb3'_ge
         hu4_lt_b3' h_u4 h_un21
-    · exact div128Quot_qHat_plus_one_times_b3_gt_u_compensation u4 u3 b3' hb3'_ge hu4_lt_b3'
-  · exact div128Quot_qHat_plus_one_times_b3_gt_u_compensation u4 u3 b3' hb3'_ge hu4_lt_b3'
+    · exact div128Quot_qHat_plus_one_times_b3_gt_u_compensation u4 u3 b3' hb3'_ge hu4_lt_b3' hu4_lt_pow63
+  · exact div128Quot_qHat_plus_one_times_b3_gt_u_compensation u4 u3 b3' hb3'_ge hu4_lt_b3' hu4_lt_pow63
 
 /-- **A4** (the §A target, derived from A2). -/
 theorem div128Quot_ge_q_true_normalized
     (u4 u3 b3' : Word)
     (hb3'_ge : b3'.toNat ≥ 2^63)
-    (hu4_lt_b3' : u4.toNat < b3'.toNat) :
+    (hu4_lt_b3' : u4.toNat < b3'.toNat)
+    (hu4_lt_pow63 : u4.toNat < 2^63) :
     (u4.toNat * 2^64 + u3.toNat) / b3'.toNat ≤
       (div128Quot u4 u3 b3').toNat := by
   have hb3'_pos : 0 < b3'.toNat := by
     have : b3'.toNat ≥ 2^63 := hb3'_ge
     omega
-  have h_core := div128Quot_qHat_plus_one_times_b3_gt_u u4 u3 b3' hb3'_ge hu4_lt_b3'
+  have h_core := div128Quot_qHat_plus_one_times_b3_gt_u u4 u3 b3' hb3'_ge hu4_lt_b3' hu4_lt_pow63
   exact Nat.lt_succ_iff.mp ((Nat.div_lt_iff_lt_mul hb3'_pos).mpr h_core)
 
 end EvmAsm.Evm64

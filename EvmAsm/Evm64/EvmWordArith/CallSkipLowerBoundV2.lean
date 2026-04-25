@@ -55,6 +55,7 @@
 -/
 
 import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV2.CompensationCases
+import EvmAsm.Evm64.EvmWordArith.MaxTrialVacuity
 
 namespace EvmAsm.Evm64
 
@@ -266,7 +267,14 @@ theorem div128Quot_call_skip_ge_val256_div_v2
     b3_prime_ge_pow63 b3 b2 hb3nz _
   have h_u4_lt_b3' : u4.toNat < b3'.toNat :=
     isCallTrialN4_toNat_lt a3 b2 b3 hcall
-  have h_core := div128Quot_ge_q_true_normalized u4 u3 b3' h_b3'_ge h_u4_lt_b3'
+  -- u4 < 2^63 derived from u4 = a3 >> antiShift with antiShift ≥ 1 (shift ≠ 0).
+  -- Direct application of `u_top_lt_pow63_of_shift_nz` (MaxTrialVacuity.lean)
+  -- once we extract `1 ≤ shift.toNat ≤ 63` from `hshift_nz`. TODO: the
+  -- conversion from `shift ≠ 0` (Word) to `shift.toNat ∈ [1, 63]` requires
+  -- a small Word arithmetic lemma; stubbed for now while the overall
+  -- hypothesis-threading lands.
+  have h_u4_lt_pow63 : u4.toNat < 2^63 := by sorry
+  have h_core := div128Quot_ge_q_true_normalized u4 u3 b3' h_b3'_ge h_u4_lt_b3' h_u4_lt_pow63
   exact Nat.le_trans h_bridge h_core
 
 end EvmAsm.Evm64
