@@ -2035,8 +2035,27 @@ theorem c3_n_eq_u4_plus_one_of_single_addback (a b : EvmWord)
   let post1 := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 0 b0' b1' b2' b3'
   have h_post1_lt : val256 post1.1 post1.2.1 post1.2.2.1 post1.2.2.2.1 < 2^256 :=
     EvmWord.val256_bound _ _ _ _
+  -- Step 3: h_amod_pow_lt — val256(a) % val256(b) * 2^s < 2^256.
+  have h_clz_le : (clzResult (b.getLimbN 3)).1.toNat ≤ 64 := by
+    have := clzResult_fst_toNat_le (b.getLimbN 3); omega
+  have hbnz_or : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 ||| b.getLimbN 3 ≠ 0 := by
+    intro h; exact hb3nz (BitVec.or_eq_zero_iff.mp h).2
+  have hvb_pos : val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) > 0 :=
+    EvmWord.val256_pos_of_or_ne_zero hbnz_or
+  have hb3_bound : (b.getLimbN 3).toNat <
+      2 ^ (64 - (clzResult (b.getLimbN 3)).1.toNat) :=
+    clzResult_fst_top_bound (b.getLimbN 3)
+  have h_amod_pow_lt :
+      val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) %
+        val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) *
+        2 ^ (clzResult (b.getLimbN 3)).1.toNat < 2 ^ 256 :=
+    EvmWord.val256_mod_mul_pow_lt_pow256_of_b3_bound
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+      h_clz_le hvb_pos hb3_bound
   let _ := h_u4_lt_c3
   let _ := h_post1_lt
+  let _ := h_amod_pow_lt
   let _ := hbnz; let _ := hb3nz; let _ := hshift_nz
   let _ := hsem; let _ := hcarry_nz
   sorry
