@@ -1832,10 +1832,14 @@ theorem qHat_eq_div_plus_one_of_single_addback (a b : EvmWord)
         (((a.getLimbN 2) <<< shift) ||| ((a.getLimbN 1) >>> (64 - shift)))
         (((a.getLimbN 3) <<< shift) ||| ((a.getLimbN 2) >>> (64 - shift)))).2.2.2.2.toNat = 0 := by
       rw [h_c3_zero]; rfl
-    -- The shifts and inner expressions need to align between h_u4_lt_c3 and h_c3_toNat_zero
-    -- — both use clzResult (b.getLimbN 3)).1.toNat for shift. The `_call` lemma uses
-    -- shift.toNat % 64, while our local shift is (clzResult ...).1.toNat % 64.
-    -- These are syntactically equal once we expand. Defer the alignment.
+    -- TODO: bridge h_c3_toNat_zero (uses Nat `64 - shift`) with h_u4_lt_c3
+    -- (uses Word `(signExtend12 0 - (clzResult b3).1).toNat % 64`).
+    -- Both refer to the same antiShift, but in different forms:
+    --   - Nat form: 64 - ((clzResult b3).1.toNat % 64)
+    --   - Word form: ((signExtend12 0 - (clzResult b3).1).toNat) % 64
+    -- These coincide modulo (clzResult b3).1.toNat ∈ [0, 64]. Need a
+    -- dedicated alignment lemma `antiShift_nat_eq_word` (or `convert` with
+    -- a manual congruence step). Closable as a small follow-up.
     sorry
   -- (qHat.toNat + 2^64 - 1) % 2^64 = qHat.toNat - 1 when qHat ≥ 1.
   have h_qHat_lt : qHat.toNat < 2^64 := qHat.isLt
