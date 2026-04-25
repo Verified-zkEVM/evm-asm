@@ -2091,6 +2091,45 @@ theorem algCallAddbackBeqPost1Val_unfold {a b : EvmWord} :
   unfold algCallAddbackBeqPost1Val
   rfl
 
+/-- **Bridge: `algCallAddbackBeqPost1Val` in parent-friendly `(64 - s)` form** (CLOSED).
+
+    Parallel to `algCallAddbackBeqCarry_eq_parent_64ms_form`. Equates the
+    irreducible def's antiShift-form body with the parent's local
+    `64 - s` form, so the parent can rewrite its local val256 of the
+    addback post1 limbs to `algCallAddbackBeqPost1Val a b`. -/
+theorem algCallAddbackBeqPost1Val_eq_parent_64ms_form
+    (a b : EvmWord) (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0) :
+    algCallAddbackBeqPost1Val a b =
+    (let s := (clzResult (b.getLimbN 3)).1.toNat % 64
+     let b0' := (b.getLimbN 0) <<< s
+     let b1' := ((b.getLimbN 1) <<< s) ||| ((b.getLimbN 0) >>> (64 - s))
+     let b2' := ((b.getLimbN 2) <<< s) ||| ((b.getLimbN 1) >>> (64 - s))
+     let b3' := ((b.getLimbN 3) <<< s) ||| ((b.getLimbN 2) >>> (64 - s))
+     let u0 := (a.getLimbN 0) <<< s
+     let u1 := ((a.getLimbN 1) <<< s) ||| ((a.getLimbN 0) >>> (64 - s))
+     let u2 := ((a.getLimbN 2) <<< s) ||| ((a.getLimbN 1) >>> (64 - s))
+     let u3 := ((a.getLimbN 3) <<< s) ||| ((a.getLimbN 2) >>> (64 - s))
+     let u4 := (a.getLimbN 3) >>> (64 - s)
+     let qHat := div128Quot u4 u3 b3'
+     let ms := mulsubN4 qHat b0' b1' b2' b3' u0 u1 u2 u3
+     let post1 := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 0 b0' b1' b2' b3'
+     val256 post1.1 post1.2.1 post1.2.2.1 post1.2.2.2.1) := by
+  rw [algCallAddbackBeqPost1Val_unfold]
+  have h_clz_pos : 1 ≤ (clzResult (b.getLimbN 3)).1.toNat := by
+    rcases Nat.eq_zero_or_pos (clzResult (b.getLimbN 3)).1.toNat with h0 | h0
+    · exfalso; apply hshift_nz
+      exact BitVec.eq_of_toNat_eq (by simp [h0])
+    · exact h0
+  have h_clz_le_63 : (clzResult (b.getLimbN 3)).1.toNat ≤ 63 :=
+    clzResult_fst_toNat_le _
+  have h_anti_eq : (signExtend12 (0 : BitVec 12) -
+      (clzResult (b.getLimbN 3)).1).toNat % 64 =
+      64 - (clzResult (b.getLimbN 3)).1.toNat :=
+    antiShift_toNat_mod_eq h_clz_pos h_clz_le_63
+  have h_s_eq : (clzResult (b.getLimbN 3)).1.toNat % 64 =
+      (clzResult (b.getLimbN 3)).1.toNat := by omega
+  simp only [h_anti_eq, h_s_eq]
+
 /-- **Bridge: `algCallAddbackBeqCarry` in parent-friendly `(64 - s)` form** (CLOSED).
 
     The irreducible def's body uses antiShift form `(signExtend12 0 -
@@ -2175,6 +2214,43 @@ theorem algCallAddbackBeqMsLowVal_unfold {a b : EvmWord} :
   show algCallAddbackBeqMsLowVal a b = _
   unfold algCallAddbackBeqMsLowVal
   rfl
+
+/-- **Bridge: `algCallAddbackBeqMsLowVal` in parent-friendly `(64 - s)` form** (CLOSED).
+
+    Parallel to the carry/post1Val bridges. Equates the irreducible def's
+    antiShift-form body with the parent's local `64 - s` form for the
+    val256 of mulsub low 4 outputs. -/
+theorem algCallAddbackBeqMsLowVal_eq_parent_64ms_form
+    (a b : EvmWord) (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0) :
+    algCallAddbackBeqMsLowVal a b =
+    (let s := (clzResult (b.getLimbN 3)).1.toNat % 64
+     let b0' := (b.getLimbN 0) <<< s
+     let b1' := ((b.getLimbN 1) <<< s) ||| ((b.getLimbN 0) >>> (64 - s))
+     let b2' := ((b.getLimbN 2) <<< s) ||| ((b.getLimbN 1) >>> (64 - s))
+     let b3' := ((b.getLimbN 3) <<< s) ||| ((b.getLimbN 2) >>> (64 - s))
+     let u0 := (a.getLimbN 0) <<< s
+     let u1 := ((a.getLimbN 1) <<< s) ||| ((a.getLimbN 0) >>> (64 - s))
+     let u2 := ((a.getLimbN 2) <<< s) ||| ((a.getLimbN 1) >>> (64 - s))
+     let u3 := ((a.getLimbN 3) <<< s) ||| ((a.getLimbN 2) >>> (64 - s))
+     let u4 := (a.getLimbN 3) >>> (64 - s)
+     let qHat := div128Quot u4 u3 b3'
+     let ms := mulsubN4 qHat b0' b1' b2' b3' u0 u1 u2 u3
+     val256 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1) := by
+  rw [algCallAddbackBeqMsLowVal_unfold]
+  have h_clz_pos : 1 ≤ (clzResult (b.getLimbN 3)).1.toNat := by
+    rcases Nat.eq_zero_or_pos (clzResult (b.getLimbN 3)).1.toNat with h0 | h0
+    · exfalso; apply hshift_nz
+      exact BitVec.eq_of_toNat_eq (by simp [h0])
+    · exact h0
+  have h_clz_le_63 : (clzResult (b.getLimbN 3)).1.toNat ≤ 63 :=
+    clzResult_fst_toNat_le _
+  have h_anti_eq : (signExtend12 (0 : BitVec 12) -
+      (clzResult (b.getLimbN 3)).1).toNat % 64 =
+      64 - (clzResult (b.getLimbN 3)).1.toNat :=
+    antiShift_toNat_mod_eq h_clz_pos h_clz_le_63
+  have h_s_eq : (clzResult (b.getLimbN 3)).1.toNat % 64 =
+      (clzResult (b.getLimbN 3)).1.toNat := by omega
+  simp only [h_anti_eq, h_s_eq]
 
 /-- **Bound: `algCallAddbackBeqPost1Val a b < 2^256`** (CLOSED).
 
