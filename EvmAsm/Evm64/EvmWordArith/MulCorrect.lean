@@ -276,11 +276,7 @@ private theorem carry_chain_mod_eq
     (mu00 lo00 lo10 mu10 lo20 mu20 lo30
      lo01 mu01 lo11 mu11
      lo02 mu02 lo21 lo12 lo03 mu03 mu12 mu21 mu30 : Nat)
-    -- Leaf bounds actually needed by omega (others are derivable)
-    (hb_mu00 : mu00 < 2 ^ 64) (hb_lo00 : lo00 < 2 ^ 64)
-    (hb_lo10 : lo10 < 2 ^ 64) (hb_mu10 : mu10 < 2 ^ 64)
-    (hb_lo01 : lo01 < 2 ^ 64) (hb_mu01 : mu01 < 2 ^ 64)
-    -- Product-consistency bounds (only the ones omega needs for the carry chain)
+    (hb_lo00 : lo00 < 2 ^ 64) (hb_lo01 : lo01 < 2 ^ 64)
     (hp00 : mu00 * 2 ^ 64 + lo00 ≤ (2 ^ 64 - 1) * (2 ^ 64 - 1))
     (hp10 : mu10 * 2 ^ 64 + lo10 ≤ (2 ^ 64 - 1) * (2 ^ 64 - 1))
     (hp01 : mu01 * 2 ^ 64 + lo01 ≤ (2 ^ 64 - 1) * (2 ^ 64 - 1)) :
@@ -467,8 +463,7 @@ private theorem carry_chain_limb3 (a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
       (a0 * b2).toNat (rv64_mulhu a0 b2).toNat (a2 * b1).toNat (a1 * b2).toNat
       (a0 * b3).toNat (rv64_mulhu a0 b3).toNat (rv64_mulhu a1 b2).toNat
       (rv64_mulhu a2 b1).toNat (rv64_mulhu a3 b0).toNat
-      (rv64_mulhu a0 b0).isLt (a0 * b0).isLt (a1 * b0).isLt (rv64_mulhu a1 b0).isLt
-      (a0 * b1).isLt (rv64_mulhu a0 b1).isLt
+      (a0 * b0).isLt (a0 * b1).isLt
       (prod_bound a0 b0) (prod_bound a1 b0) (prod_bound a0 b1)
   exact h_r3.trans h_suffices
 
