@@ -2091,6 +2091,18 @@ theorem algCallAddbackBeqPost1Val_unfold {a b : EvmWord} :
   unfold algCallAddbackBeqPost1Val
   rfl
 
+/-- **Bound: `algCallAddbackBeqPost1Val a b < 2^256`** (CLOSED).
+
+    Trivial: the addback's low 4 outputs are 4 `Word`s, so their `val256` is
+    bounded by `2^256` regardless of inputs. Useful as the `h_post1_lt`
+    precondition of `post1_val_eq_amod_pow_s_pure_nat` when closing the
+    `algCallAddbackBeqPost1Val_eq_amod_pow_s_of_single_addback` wrapper. -/
+theorem algCallAddbackBeqPost1Val_lt_pow256 (a b : EvmWord) :
+    algCallAddbackBeqPost1Val a b < 2 ^ 256 := by
+  rw [algCallAddbackBeqPost1Val_unfold]
+  simp only []
+  exact EvmWord.val256_bound _ _ _ _
+
 /-- **Sub-stub: c3_n = u4 + 1 in single-addback** (CLOSED).
 
     The key algebraic identity for the call-addback BEQ MOD adapter, mirroring
