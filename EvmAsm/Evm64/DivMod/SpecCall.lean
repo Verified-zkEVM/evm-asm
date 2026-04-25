@@ -2118,9 +2118,19 @@ theorem c3_n_eq_u4_plus_one_of_single_addback (a b : EvmWord)
   simp only [] at h_addback_eq
   -- Step 5b: carry.toNat = 1 from hcarry_nz + addbackN4_carry_le_one.
   have h_carry_le := addbackN4_carry_le_one ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 b0' b1' b2' b3'
+  have h_carry_eq_one : (addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 b0' b1' b2' b3').toNat = 1 := by
+    -- carry is a Word that's ≠ 0 (hcarry_nz) and ≤ 1 (h_carry_le); so carry.toNat = 1.
+    have h_pos : (addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 b0' b1' b2' b3').toNat ≠ 0 := by
+      intro h_zero
+      apply hcarry_nz
+      change addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 b0' b1' b2' b3' = (0 : Word)
+      apply BitVec.eq_of_toNat_eq
+      rw [h_zero]; rfl
+    omega
   -- Step 5c (TODO): val256(b_norm) = val256(b) * 2^s via val256_normalize.
   -- Step 5d (TODO): combine 5a + 5b + 5c → h_addback in the form expected by Nat lemma.
   let _ := h_carry_le
+  let _ := h_carry_eq_one
   let _ := h_u4_lt_c3
   let _ := h_post1_lt
   let _ := h_amod_pow_lt
