@@ -8,7 +8,7 @@
   import `RegOps.lean` (which imports this file) — not this file directly.
 -/
 
-import Mathlib.Tactic.Attr.Register
+import Lean.Meta.Tactic.Simp.RegisterCommand
 
 /-- Simp/grind set for `MachineState` register, PC, memory, code, committed,
     publicValues, and privateInput projection lemmas. Collects the shape
