@@ -712,25 +712,6 @@ theorem divK_save_trial_load_spec
 theorem lb_bltu_taken {base : Word} : (base + 500 : Word) + signExtend13 (12 : BitVec 13) = base + 512 := by
   rv64_addr
 theorem lb_bltu_ntaken {base : Word} : (base + 500 : Word) + 4 = base + 504 := by bv_addr
-private theorem lb_trial_max_end {base : Word} : (base + 504 : Word) + 12 = base + 516 := by bv_addr
-
--- ============================================================================
--- Section 8a: Trial quotient NOT-TAKEN path (uHi >= vTop)
--- Instrs [14]-[15] at base+504: ADDI x11 x0 4095 + JAL x0 8 → base+516.
--- ============================================================================
-
-/-- Trial quotient MAX path: qHat = MAX64, skip div128 call.
-    2 instructions at base+504. Entry: base+504, Exit: base+516. -/
-private theorem divK_trial_max_extended (v11Old : Word) (base : Word) :
-    cpsTriple (base + 504) (base + 516) (sharedDivModCode base)
-      ((.x11 ↦ᵣ v11Old) ** (.x0 ↦ᵣ 0))
-      ((.x11 ↦ᵣ signExtend12 4095) ** (.x0 ↦ᵣ 0)) := by
-  have TM := divK_trial_max_spec v11Old (base + 504)
-  dsimp only [] at TM
-  rw [lb_trial_max_end] at TM
-  exact cpsTriple_extend_code (hmono := by
-    exact CodeReq.union_sub (lb_sub 14 _ _ (by decide) (by bv_addr) (by decide))
-      (lb_sub 15 _ _ (by decide) (by bv_addr) (by decide))) TM
 
 -- ============================================================================
 -- Section 9: Store q[j] + loop control
