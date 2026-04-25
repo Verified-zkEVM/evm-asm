@@ -2210,6 +2210,95 @@ theorem algCallAddbackBeqU4_mul_pow256_le_val256_mul_pow_s
     _ ≤ val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) * 2 ^ s :=
         Nat.mul_le_mul_right _ h_a3_val_ge
 
+/-- **Addback Euclidean (carry = 1) for the call+addback BEQ algorithm** (CLOSED).
+
+    In the single-addback branch (`algCallAddbackBeqCarry a b ≠ 0`),
+    the val256 of the post1 limbs satisfies:
+
+      `algCallAddbackBeqPost1Val a b + 2^256 =
+         algCallAddbackBeqMsLowVal a b + val256(b_limbs) * 2^s`
+
+    where s = clz % 64. Combines `addbackN4_val256_eq` (carry-form) with
+    `addbackN4_carry_le_one` to pin carry.toNat = 1, plus `val256_normalize`
+    to fold the normalized b into `val256(b) * 2^s`.
+
+    Useful as the `h_addback` precondition of
+    `post1_val_eq_amod_pow_s_pure_nat` when closing the wrapper. -/
+theorem algCallAddbackBeq_addback_euclidean_carry_one
+    (a b : EvmWord)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hcarry_nz : algCallAddbackBeqCarry a b ≠ 0) :
+    algCallAddbackBeqPost1Val a b + 2 ^ 256 =
+      algCallAddbackBeqMsLowVal a b +
+        val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) *
+          2 ^ ((clzResult (b.getLimbN 3)).1.toNat % 64) := by
+  -- Setup: clz bounds.
+  have h_clz_pos : 1 ≤ (clzResult (b.getLimbN 3)).1.toNat := by
+    rcases Nat.eq_zero_or_pos (clzResult (b.getLimbN 3)).1.toNat with h0 | h0
+    · exfalso; apply hshift_nz
+      exact BitVec.eq_of_toNat_eq (by simp [h0])
+    · exact h0
+  have h_clz_le_63 : (clzResult (b.getLimbN 3)).1.toNat ≤ 63 :=
+    clzResult_fst_toNat_le _
+  have h_clz_lt_64 : (clzResult (b.getLimbN 3)).1.toNat < 64 := by omega
+  have h_anti_eq : (signExtend12 (0 : BitVec 12) -
+      (clzResult (b.getLimbN 3)).1).toNat % 64 = 64 - (clzResult (b.getLimbN 3)).1.toNat :=
+    antiShift_toNat_mod_eq h_clz_pos h_clz_le_63
+  have h_s_eq : (clzResult (b.getLimbN 3)).1.toNat % 64 =
+      (clzResult (b.getLimbN 3)).1.toNat := by omega
+  have hb3_bound : (b.getLimbN 3).toNat <
+      2 ^ (64 - (clzResult (b.getLimbN 3)).1.toNat) :=
+    clzResult_fst_top_bound (b.getLimbN 3)
+  -- Unfold both irreducibles.
+  rw [algCallAddbackBeqPost1Val_unfold, algCallAddbackBeqMsLowVal_unfold]
+  simp only []
+  -- Define ms in let-chain form.
+  set shift := (clzResult (b.getLimbN 3)).1.toNat % 64 with hshift_def
+  set antiShift :=
+    (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64 with hanti_def
+  set b3' := ((b.getLimbN 3) <<< shift) ||| ((b.getLimbN 2) >>> antiShift)
+  set b2' := ((b.getLimbN 2) <<< shift) ||| ((b.getLimbN 1) >>> antiShift)
+  set b1' := ((b.getLimbN 1) <<< shift) ||| ((b.getLimbN 0) >>> antiShift)
+  set b0' := (b.getLimbN 0) <<< shift
+  set u3 := ((a.getLimbN 3) <<< shift) ||| ((a.getLimbN 2) >>> antiShift)
+  set u2 := ((a.getLimbN 2) <<< shift) ||| ((a.getLimbN 1) >>> antiShift)
+  set u1 := ((a.getLimbN 1) <<< shift) ||| ((a.getLimbN 0) >>> antiShift)
+  set u0 := (a.getLimbN 0) <<< shift
+  set u4 := (a.getLimbN 3) >>> antiShift
+  set qHat := div128Quot u4 u3 b3'
+  set ms := mulsubN4 qHat b0' b1' b2' b3' u0 u1 u2 u3
+  -- Addback Euclidean at val256 level.
+  have h_addback_eq := addbackN4_val256_eq ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 0 b0' b1' b2' b3'
+  simp only [] at h_addback_eq
+  -- carry.toNat = 1: from hcarry_nz (≠ 0) + addbackN4_carry_le_one (≤ 1).
+  have h_carry_le := addbackN4_carry_le_one ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 b0' b1' b2' b3'
+  rw [algCallAddbackBeqCarry_unfold] at hcarry_nz
+  simp only [] at hcarry_nz
+  have h_carry_eq_one :
+      (addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 b0' b1' b2' b3').toNat = 1 := by
+    have h_pos : (addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 b0' b1' b2' b3').toNat ≠ 0 := by
+      intro h_zero
+      apply hcarry_nz
+      apply BitVec.eq_of_toNat_eq
+      rw [h_zero]; rfl
+    omega
+  rw [h_carry_eq_one] at h_addback_eq
+  -- val256(b_norm) = val256(b) * 2^s.
+  have h_norm_b : val256 b0' b1' b2' b3' =
+      val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) *
+        2 ^ shift := by
+    show val256 ((b.getLimbN 0) <<< shift)
+                (((b.getLimbN 1) <<< shift) ||| ((b.getLimbN 0) >>> antiShift))
+                (((b.getLimbN 2) <<< shift) ||| ((b.getLimbN 1) >>> antiShift))
+                (((b.getLimbN 3) <<< shift) ||| ((b.getLimbN 2) >>> antiShift)) = _
+    rw [show shift = (clzResult (b.getLimbN 3)).1.toNat from h_s_eq,
+        show antiShift = 64 - (clzResult (b.getLimbN 3)).1.toNat from h_anti_eq]
+    exact EvmWord.val256_normalize h_clz_pos h_clz_lt_64
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) hb3_bound
+  -- Combine.
+  rw [h_norm_b] at h_addback_eq
+  omega
+
 /-- **Bound: `algCallAddbackBeqU4 < algCallAddbackBeqMsC3`** (CLOSED).
 
     Wraps `EvmWord.u_top_lt_c3_of_addback_borrow_call` in the irreducible-
