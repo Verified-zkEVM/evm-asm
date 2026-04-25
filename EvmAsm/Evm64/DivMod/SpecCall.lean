@@ -2598,6 +2598,13 @@ theorem output_slot_to_evmWordIs_mod_n4_call_addback_beq_denorm
     -- Step 4 (TODO): `val256_denormalize` + `evmWordIs_sp32_limbs_eq` fold.
     -- This step needs val256(post1_low4) = a%b * 2^s (= step 3) and
     -- denorms it back to the un-normalized 4 EvmWord limbs.
+    --
+    -- **Workaround (b) PARTIAL ATTEMPT** (commits 4bce77e4, ae920163):
+    -- added `algCallAddbackBeqCarry` (irreducible Word) and
+    -- `algCallAddbackBeqMsC3_eq_u4_plus_one_of_single_addback` wrapper.
+    -- However, the bridge from parent's `carry_word` (let-bound) to the
+    -- irreducible form still requires unfolding the let-chain, which faces
+    -- the same elaboration cost. Need a deeper restructuring.
     sorry
 
 /-- **EVM-stack-level MOD spec on the n=4 call+addback BEQ sub-path (SORRY).**
