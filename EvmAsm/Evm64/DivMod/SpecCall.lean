@@ -3279,23 +3279,14 @@ theorem output_slot_to_evmWordIs_mod_n4_call_addback_beq_denorm
   · -- Double-addback branch. Still sorry — needs Knuth bound for c3 = 1.
     sorry
   · -- Single-addback branch (carry_word = 1).
-    -- The wrapper `algCallAddbackBeqPost1Val_eq_amod_pow_s_of_single_addback`
-    -- (CLOSED) gives val256(post1_low4) = a%b * 2^s in irreducible-bundle
-    -- form. The remaining work here is:
-    --
-    -- **Wiring step (1)**: bridge parent's `carry_word` to `algCallAddbackBeqCarry a b`
-    -- so that the wrapper's `hcarry_nz` precondition can be discharged from
-    -- the local `hcarry`. Either refactor parent's `set b1' := ... ||| (b0 >>> (64 - s))`
-    -- to `... ||| (b0 >>> antiShift)` (matching irreducibles), OR establish a
-    -- propositional bridge via `algCallAddbackBeqCarry_unfold` + `hanti_toNat_mod`.
-    --
-    -- **Wiring step (2)**: bridge parent's val256 of the addback post1 limbs
-    -- to `algCallAddbackBeqPost1Val a b`, similarly via
-    -- `algCallAddbackBeqPost1Val_unfold` + `hanti_toNat_mod`.
-    --
-    -- **Step 4** (val256_denormalize fold): once we have val256(post1_low4) =
-    -- a%b * 2^s, apply `EvmWord.val256_denormalize` and `evmWordIs_sp32_limbs_eq`
-    -- to fold to `evmWordIs (sp+32) (EvmWord.mod a b)`.
+    -- Apply the unified lemma to get val256(post1_low4) = a%b * 2^s
+    -- in the parent's local (64-s) form.
+    rw [hcarry_def] at hcarry
+    have h_post1_eq := parent_post1Val_eq_amod_pow_s_of_single_addback
+      a b hb3nz hshift_nz hborrow hsem_orig hcarry
+    simp only [] at h_post1_eq
+    -- TODO step 4 (val256_denormalize fold): convert val256-level equation
+    -- via `EvmWord.val256_denormalize` to per-limb evmWordIs equation.
     sorry
 
 /-- **EVM-stack-level MOD spec on the n=4 call+addback BEQ sub-path (SORRY).**
