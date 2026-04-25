@@ -2103,6 +2103,69 @@ theorem algCallAddbackBeqPost1Val_lt_pow256 (a b : EvmWord) :
   simp only []
   exact EvmWord.val256_bound _ _ _ _
 
+/-- **Bound: `algCallAddbackBeqU4 * 2^256 ≤ val256(a) * 2^s`** (CLOSED).
+
+    Uses `u4 = a3 >>> antiShift = a3 / 2^(64-s)` so `u4 * 2^(64-s) ≤ a3`,
+    then multiplies by `2^(192+s)` and uses `val256(a) ≥ a3 * 2^192` to
+    yield `u4 * 2^256 ≤ val256(a) * 2^s`.
+
+    Useful as the `h_u4_le` precondition of `post1_val_eq_amod_pow_s_pure_nat`
+    when closing the `algCallAddbackBeqPost1Val_eq_amod_pow_s_of_single_addback`
+    wrapper. -/
+theorem algCallAddbackBeqU4_mul_pow256_le_val256_mul_pow_s
+    (a b : EvmWord) (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0) :
+    (algCallAddbackBeqU4 a b).toNat * 2 ^ 256 ≤
+      val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) *
+        2 ^ ((clzResult (b.getLimbN 3)).1.toNat % 64) := by
+  -- Unfold the irreducible u4 to expose `(a.getLimbN 3) >>> antiShift`.
+  rw [show (algCallAddbackBeqU4 a b).toNat = _ from by
+        unfold algCallAddbackBeqU4; rfl]
+  -- Setup: clz bounds and antiShift conversion.
+  have h_clz_pos : 1 ≤ (clzResult (b.getLimbN 3)).1.toNat := by
+    rcases Nat.eq_zero_or_pos (clzResult (b.getLimbN 3)).1.toNat with h0 | h0
+    · exfalso; apply hshift_nz
+      exact BitVec.eq_of_toNat_eq (by simp [h0])
+    · exact h0
+  have h_clz_le_63 : (clzResult (b.getLimbN 3)).1.toNat ≤ 63 :=
+    clzResult_fst_toNat_le _
+  have h_anti_eq : (signExtend12 (0 : BitVec 12) -
+      (clzResult (b.getLimbN 3)).1).toNat % 64 = 64 - (clzResult (b.getLimbN 3)).1.toNat :=
+    antiShift_toNat_mod_eq h_clz_pos h_clz_le_63
+  have h_s_eq : (clzResult (b.getLimbN 3)).1.toNat % 64 =
+      (clzResult (b.getLimbN 3)).1.toNat := by omega
+  -- u4 toNat = a3 / 2^(64-s).
+  have h_u4_toNat : ((a.getLimbN 3) >>> ((signExtend12 (0 : BitVec 12) -
+      (clzResult (b.getLimbN 3)).1).toNat % 64)).toNat =
+      (a.getLimbN 3).toNat / 2 ^ ((signExtend12 (0 : BitVec 12) -
+        (clzResult (b.getLimbN 3)).1).toNat % 64) := by
+    rw [BitVec.toNat_ushiftRight, Nat.shiftRight_eq_div_pow]
+  -- val256(a) ≥ a3 * 2^192.
+  have h_a3_val_ge :
+      (a.getLimbN 3).toNat * 2 ^ 192 ≤
+        val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) := by
+    unfold val256; nlinarith [(a.getLimbN 0).isLt, (a.getLimbN 1).isLt, (a.getLimbN 2).isLt]
+  -- u4 * 2^(64-s) ≤ a3 via Nat.div_mul_le_self.
+  rw [h_u4_toNat, h_anti_eq]
+  set s := (clzResult (b.getLimbN 3)).1.toNat
+  have h_u4_mul : (a.getLimbN 3).toNat / 2 ^ (64 - s) * 2 ^ (64 - s)
+      ≤ (a.getLimbN 3).toNat :=
+    Nat.div_mul_le_self _ _
+  -- Split 2^256 = 2^(64-s) * (2^192 * 2^s).
+  rw [h_s_eq]
+  have h_pow_split : (2 : Nat) ^ 256 = 2 ^ (64 - s) * (2 ^ 192 * 2 ^ s) := by
+    rw [show (2 : Nat) ^ 192 * 2 ^ s = 2 ^ (192 + s) from by rw [pow_add],
+        show (2 : Nat) ^ (64 - s) * 2 ^ (192 + s) = 2 ^ ((64 - s) + (192 + s)) from
+          (pow_add 2 (64-s) (192+s)).symm,
+        show (64 - s) + (192 + s) = 256 from by omega]
+  rw [h_pow_split]
+  calc (a.getLimbN 3).toNat / 2 ^ (64 - s) * (2 ^ (64 - s) * (2 ^ 192 * 2 ^ s))
+      = ((a.getLimbN 3).toNat / 2 ^ (64 - s) * 2 ^ (64 - s)) * (2 ^ 192 * 2 ^ s) := by ring
+    _ ≤ (a.getLimbN 3).toNat * (2 ^ 192 * 2 ^ s) :=
+        Nat.mul_le_mul_right _ h_u4_mul
+    _ = (a.getLimbN 3).toNat * 2 ^ 192 * 2 ^ s := by ring
+    _ ≤ val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) * 2 ^ s :=
+        Nat.mul_le_mul_right _ h_a3_val_ge
+
 /-- **Bound: `algCallAddbackBeqU4 < algCallAddbackBeqMsC3`** (CLOSED).
 
     Wraps `EvmWord.u_top_lt_c3_of_addback_borrow_call` in the irreducible-
