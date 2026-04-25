@@ -687,10 +687,21 @@ theorem algorithmUn21_L1b_q1_prime_dLo_no_wrap
     let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
     let q1' := if BitVec.ult rhatUn1 qDlo then q1c + signExtend12 4095 else q1c
     (q1' * dLo).toNat = q1'.toNat * dLo.toNat := by
-  -- TODO: q1' depends on the rhatUn1 (post-Phase 1a-correction rhatc shifted),
-  -- which makes lemma specialization tricky. The whnf timeout suggests
-  -- another approach is needed (perhaps inline via algorithmQ1Prime_unfold).
-  sorry
+  intro dHi dLo div_un1 q1 rhat hi1 q1c rhatc qDlo rhatUn1 q1'
+  have h_dHi_ge : dHi.toNat ≥ 2^31 := by
+    show (b3' >>> (32 : BitVec 6).toNat).toNat ≥ 2^31
+    rw [BitVec.toNat_ushiftRight, AddrNorm.bv6_toNat_32, Nat.shiftRight_eq_div_pow]
+    have : b3'.toNat ≥ 2^63 := hb3'_ge; omega
+  have h_dLo_lt : dLo.toNat < 2^32 := by
+    show ((b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat).toNat < 2^32
+    rw [BitVec.toNat_ushiftRight, AddrNorm.bv6_toNat_32, Nat.shiftRight_eq_div_pow]
+    have : (b3' <<< (32 : BitVec 6).toNat : Word).toNat < 2^64 :=
+      (b3' <<< (32 : BitVec 6).toNat : Word).isLt
+    exact Nat.div_lt_of_lt_mul (by omega)
+  have h_v_eq : b3'.toNat = dHi.toNat * 2^32 + dLo.toNat :=
+    div128Quot_vTop_decomp b3'
+  have h_uHi_lt_vTop : u4.toNat < dHi.toNat * 2^32 + dLo.toNat := h_v_eq ▸ hu4_lt_b3'
+  exact div128Quot_q1_prime_dLo_no_wrap u4 dHi dLo rhatUn1 h_dHi_ge h_dLo_lt h_uHi_lt_vTop
 
 /-- **_of_tight sub-case "exact" L3.a**: pure-Nat Euclidean decomposition for
     `u4*2^32 + div_un1` divided by `V` (= `b3'.toNat`). Direct from
