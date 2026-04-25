@@ -1378,13 +1378,37 @@ theorem denorm_4limb_eq_mod_of_val256_eq_amod_pow_s
     rw [h_val_eq, Nat.mul_div_cancel _ hspos]
   rw [h_div] at h_denorm
   -- h_denorm: val256(denorm of X1..X4) = val256(a) % val256(b)
-  -- TODO: Bridge `EvmWord.mod a b` to the `fromLimbs ⟨denorm⟩` form via
-  -- `mod_of_val256_eq_mod` + `EvmWord.fromLimbs_match_getLimbN_id`.
-  -- The issue: `mod_of_val256_eq_mod`'s conclusion is wrapped in a let-chain
-  -- and `simp only [] at hr` unfolds without `Fin 4` annotation, defeating
-  -- direct rewriting. Closure path: construct an explicit `EvmWord.mod a b
-  -- = EvmWord.fromLimbs ⟨denorm⟩` equation, then use `getLimbN_fromLimbs_*`.
-  sorry
+  -- Provide an explicit type for `hr` so Lean unifies `mod_of_val256_eq_mod`'s
+  -- let-chain output with the explicit `EvmWord.fromLimbs` form, avoiding the
+  -- annotation-stripping issue from `simp only [] at ...`.
+  have hr : EvmWord.fromLimbs (fun i : Fin 4 => match i with
+      | 0 => (X1 >>> s) ||| (X2 <<< (64 - s))
+      | 1 => (X2 >>> s) ||| (X3 <<< (64 - s))
+      | 2 => (X3 >>> s) ||| (X4 <<< (64 - s))
+      | 3 => X4 >>> s) =
+      EvmWord.mod
+        (EvmWord.fromLimbs (fun i : Fin 4 => match i with
+          | 0 => a.getLimbN 0 | 1 => a.getLimbN 1
+          | 2 => a.getLimbN 2 | 3 => a.getLimbN 3))
+        (EvmWord.fromLimbs (fun i : Fin 4 => match i with
+          | 0 => b.getLimbN 0 | 1 => b.getLimbN 1
+          | 2 => b.getLimbN 2 | 3 => b.getLimbN 3)) :=
+    EvmWord.mod_of_val256_eq_mod hbnz' h_denorm
+  -- Fold fromLimbs(... a.getLimbN ...) = a (and similarly for b) inside hr.
+  have ha_fold : (EvmWord.fromLimbs (fun i : Fin 4 => match i with
+        | 0 => a.getLimbN 0 | 1 => a.getLimbN 1
+        | 2 => a.getLimbN 2 | 3 => a.getLimbN 3)) = a :=
+    EvmWord.fromLimbs_match_getLimbN_id a
+  have hb_fold : (EvmWord.fromLimbs (fun i : Fin 4 => match i with
+        | 0 => b.getLimbN 0 | 1 => b.getLimbN 1
+        | 2 => b.getLimbN 2 | 3 => b.getLimbN 3)) = b :=
+    EvmWord.fromLimbs_match_getLimbN_id b
+  rw [ha_fold, hb_fold] at hr
+  refine ⟨?_, ?_, ?_, ?_⟩
+  · rw [← hr]; exact EvmWord.getLimbN_fromLimbs_0
+  · rw [← hr]; exact EvmWord.getLimbN_fromLimbs_1
+  · rw [← hr]; exact EvmWord.getLimbN_fromLimbs_2
+  · rw [← hr]; exact EvmWord.getLimbN_fromLimbs_3
 
 /-- **Generic per-limb denorm→mod bridge at EvmWord level.**
 
