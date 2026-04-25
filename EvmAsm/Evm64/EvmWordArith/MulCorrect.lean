@@ -150,6 +150,15 @@ theorem mul_correct_limb2 (a b : EvmWord) :
 private theorem div_mod_eq (W : Nat) {x q r : Nat} (hq : q = x / W) (hr : r = x % W) :
     q * W + r = x := by subst hq; subst hr; rw [Nat.mul_comm]; exact Nat.div_add_mod x W
 
+/-- `(a % W + b) % W = (a + b) % W`. Used by the limb-3 simp set so the
+    nested mod/add chains flatten before the final omega. -/
+private theorem mod_add_cancel_left (a b : Nat) :
+    (a % 2^64 + b) % 2^64 = (a + b) % 2^64 := by omega
+
+/-- `(a + b % W) % W = (a + b) % W`. Mirror of `mod_add_cancel_left`. -/
+private theorem mod_add_cancel_right (a b : Nat) :
+    (a + b % 2^64) % 2^64 = (a + b) % 2^64 := by omega
+
 /-- 4×4 schoolbook product expansion into digit columns. Extracted so `ring`
     runs in its own heartbeat budget. -/
 private theorem product_expansion (a0 a1 a2 a3 b0 b1 b2 b3 W : Nat) :
@@ -158,19 +167,13 @@ private theorem product_expansion (a0 a1 a2 a3 b0 b1 b2 b3 W : Nat) :
     (a0*b3 + a1*b2 + a2*b1 + a3*b0) * W^3 +
     (a1*b3 + a2*b2 + a3*b1) * W^4 + (a2*b3 + a3*b2) * W^5 + a3*b3 * W^6 := by ring
 
-/-- Geometric series: (W-1)(1+W+W²) + 1 = W³. Avoids Nat subtraction issues
-    by using `1 + (W-1) = W` rewrites. -/
+/-- Geometric series: (W-1)(1+W+W²) + 1 = W³. Substitute `W = n + 1` to
+    sidestep Nat subtraction, then `ring` closes the polynomial identity. -/
 private theorem geo_series_identity (W : Nat) (hW : 0 < W) :
     (W - 1) + (W - 1) * W + (W - 1) * W ^ 2 + 1 = W ^ 3 := by
-  have h1 : 1 + (W - 1) = W := by omega
-  calc (W - 1) + (W - 1) * W + (W - 1) * W ^ 2 + 1
-      = ((W - 1) + 1) + (W - 1) * W + (W - 1) * W ^ 2 := by ring
-    _ = W + (W - 1) * W + (W - 1) * W ^ 2 := by rw [show (W - 1) + 1 = W from by omega]
-    _ = W * (1 + (W - 1)) + (W - 1) * W ^ 2 := by ring
-    _ = W * W + (W - 1) * W ^ 2 := by rw [h1]
-    _ = W ^ 2 * (1 + (W - 1)) := by ring
-    _ = W ^ 2 * W := by rw [h1]
-    _ = W ^ 3 := by ring
+  obtain ⟨n, rfl⟩ : ∃ n, W = n + 1 := ⟨W - 1, by omega⟩
+  simp only [Nat.add_sub_cancel]
+  ring
 
 /-- Carry telescoping: D0 + D1·W + D2·W² = (residues) + C3·W³.
     Extracted so `ring` sees plain parameters, not `set` definitions. -/
@@ -340,63 +343,24 @@ private theorem carry_chain_limb3 (a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
         c1_lo c1_hi c1_r1 c1_c1 c1_rc c1_r2a c1_cr1 c1_lo2 c1_hi2 c1_r2 c1_cr2 c1_rc2 c1_r3p
         c2_lo c2_hi c2_r2 c2_c c2_rc c2_r3 r3_final
         D0 D1 D2 D3 C1 C2 C3
-  -- Phase 2: col0 carry chain
-  have h_c0_r1 : c0_r1.toNat = ((rv64_mulhu a0 b0).toNat + (a1 * b0).toNat) % 2^64 :=
-    BitVec.toNat_add (rv64_mulhu a0 b0) (a1 * b0)
-  have h_c0_c1 : c0_c1.toNat = ((rv64_mulhu a0 b0).toNat + (a1 * b0).toNat) / 2^64 :=
-    carry_toNat
-  -- expand inner sums so omega sees them, not opaque atoms
-  have h_sum10_c1 : (rv64_mulhu a1 b0 + c0_c1).toNat =
-      ((rv64_mulhu a1 b0).toNat + c0_c1.toNat) % 2^64 :=
-    BitVec.toNat_add (rv64_mulhu a1 b0) c0_c1
-  have h_c0_r2 : c0_r2.toNat = ((rv64_mulhu a1 b0 + c0_c1).toNat + (a2 * b0).toNat) % 2^64 :=
-    BitVec.toNat_add (rv64_mulhu a1 b0 + c0_c1) (a2 * b0)
-  have h_c0_c2 : c0_c2.toNat = ((rv64_mulhu a1 b0 + c0_c1).toNat + (a2 * b0).toNat) / 2^64 :=
-    carry_toNat
-  -- c0_r3p = c0_hi_a2b0 + c0_c2 + a3 * b0
-  have h_sum20_c2 : (rv64_mulhu a2 b0 + c0_c2).toNat =
-      ((rv64_mulhu a2 b0).toNat + c0_c2.toNat) % 2^64 :=
-    BitVec.toNat_add (rv64_mulhu a2 b0) c0_c2
-  have h_c0_r3p : c0_r3p.toNat = ((rv64_mulhu a2 b0 + c0_c2).toNat + (a3 * b0).toNat) % 2^64 :=
-    BitVec.toNat_add (rv64_mulhu a2 b0 + c0_c2) (a3 * b0)
-  -- Phase 3: col1 r1/c1 carries
-  have h_c1_c1 : c1_c1.toNat = (c0_r1.toNat + (a0 * b1).toNat) / 2^64 :=
-    carry_toNat
-  -- c1_rc = c1_hi + c1_c1 = rv64_mulhu a0 b1 + c1_c1
-  have h_c1_rc : c1_rc.toNat = ((rv64_mulhu a0 b1).toNat + c1_c1.toNat) % 2^64 :=
-    BitVec.toNat_add (rv64_mulhu a0 b1) c1_c1
-  -- c1_r2a = c0_r2 + c1_rc
-  have h_c1_r2a : c1_r2a.toNat = (c0_r2.toNat + c1_rc.toNat) % 2^64 :=
-    BitVec.toNat_add c0_r2 c1_rc
-  have h_c1_cr1 : c1_cr1.toNat = (c0_r2.toNat + c1_rc.toNat) / 2^64 :=
-    carry_toNat
-  -- c1_r2 = c1_r2a + c1_lo2 = c1_r2a + a1 * b1
-  have h_c1_r2 : c1_r2.toNat = (c1_r2a.toNat + (a1 * b1).toNat) % 2^64 :=
-    BitVec.toNat_add c1_r2a (a1 * b1)
-  have h_c1_cr2 : c1_cr2.toNat = (c1_r2a.toNat + (a1 * b1).toNat) / 2^64 :=
-    carry_toNat
-  -- c1_rc2 = c1_hi2 + c1_cr2 = rv64_mulhu a1 b1 + c1_cr2
-  have h_c1_rc2 : c1_rc2.toNat = ((rv64_mulhu a1 b1).toNat + c1_cr2.toNat) % 2^64 :=
-    BitVec.toNat_add (rv64_mulhu a1 b1) c1_cr2
-  -- c1_r3p outer split
-  have h_c1_r3p : c1_r3p.toNat = ((c1_cr1 + c1_rc2 + a2 * b1).toNat + c0_r3p.toNat) % 2^64 :=
-    BitVec.toNat_add (c1_cr1 + c1_rc2 + a2 * b1) c0_r3p
-  -- expand the inner 3-way sum
-  have h_c1_inner : (c1_cr1 + c1_rc2 + a2 * b1).toNat =
-      ((c1_cr1 + c1_rc2).toNat + (a2 * b1).toNat) % 2^64 :=
-    BitVec.toNat_add (c1_cr1 + c1_rc2) (a2 * b1)
-  have h_c1_cr1rc2 : (c1_cr1 + c1_rc2).toNat = (c1_cr1.toNat + c1_rc2.toNat) % 2^64 :=
-    BitVec.toNat_add c1_cr1 c1_rc2
-  -- col2 carry chain
-  have h_c2_c : c2_c.toNat = (c1_r2.toNat + (a0 * b2).toNat) / 2^64 :=
-    carry_toNat
-  have h_c2_rc_inner : (rv64_mulhu a0 b2 + c2_c).toNat = ((rv64_mulhu a0 b2).toNat + c2_c.toNat) % 2^64 :=
-    BitVec.toNat_add (rv64_mulhu a0 b2) c2_c
-  have h_c2_rc : c2_rc.toNat = ((rv64_mulhu a0 b2 + c2_c).toNat + (a1 * b2).toNat) % 2^64 :=
-    BitVec.toNat_add (rv64_mulhu a0 b2 + c2_c) (a1 * b2)
-  have h_c2_r3 : c2_r3.toNat = (c1_r3p.toNat + c2_rc.toNat) % 2^64 :=
-    BitVec.toNat_add c1_r3p c2_rc
-  -- col3: r3_final = c2_r3 + a0 * b3
+  -- Let-binding unfolds (rfl) — let `BitVec.toNat_add`/`carry_toNat` do the rest.
+  have e_c0_r1 : c0_r1 = rv64_mulhu a0 b0 + a1 * b0 := rfl
+  have e_c0_c1 : c0_c1 = if BitVec.ult (rv64_mulhu a0 b0 + a1 * b0) (a1 * b0) then 1 else 0 := rfl
+  have e_c0_r2 : c0_r2 = rv64_mulhu a1 b0 + c0_c1 + a2 * b0 := rfl
+  have e_c0_c2 : c0_c2 = if BitVec.ult c0_r2 (a2 * b0) then 1 else 0 := rfl
+  have e_c0_r3p : c0_r3p = rv64_mulhu a2 b0 + c0_c2 + a3 * b0 := rfl
+  have e_c1_c1 : c1_c1 = if BitVec.ult (c0_r1 + a0 * b1) (a0 * b1) then 1 else 0 := rfl
+  have e_c1_rc : c1_rc = rv64_mulhu a0 b1 + c1_c1 := rfl
+  have e_c1_r2a : c1_r2a = c0_r2 + c1_rc := rfl
+  have e_c1_cr1 : c1_cr1 = if BitVec.ult c1_r2a c1_rc then 1 else 0 := rfl
+  have e_c1_r2 : c1_r2 = c1_r2a + a1 * b1 := rfl
+  have e_c1_cr2 : c1_cr2 = if BitVec.ult c1_r2 (a1 * b1) then 1 else 0 := rfl
+  have e_c1_rc2 : c1_rc2 = rv64_mulhu a1 b1 + c1_cr2 := rfl
+  have e_c1_r3p : c1_r3p = c1_cr1 + c1_rc2 + a2 * b1 + c0_r3p := rfl
+  have e_c2_c : c2_c = if BitVec.ult (c1_r2 + a0 * b2) (a0 * b2) then 1 else 0 := rfl
+  have e_c2_rc : c2_rc = rv64_mulhu a0 b2 + c2_c + a1 * b2 := rfl
+  have e_c2_r3 : c2_r3 = c1_r3p + c2_rc := rfl
+  -- col3 outer split (used at the end via .trans)
   have h_r3 : r3_final.toNat = (c2_r3.toNat + (a0 * b3).toNat) % 2^64 :=
     BitVec.toNat_add c2_r3 (a0 * b3)
   -- Euclidean approach: convert every div/mod pair into carry*W + result = inputs
@@ -433,13 +397,14 @@ private theorem carry_chain_limb3 (a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
     have hC3_def : C3 = (D2 + C2) / 2^64 := rfl
     have hC2_def : C2 = (D1 + C1) / 2^64 := rfl
     have hC1_def : C1 = D0 / 2^64 := rfl
-    -- simp only on goal: expand all .toNat, flatten nested %, expand RHS
+    -- simp only on goal: rewrite let-bindings via rfl, then BitVec.toNat_add
+    -- (@[simp]) and carry_toNat flatten everything automatically.
     simp only [
-      h_c2_r3, h_c2_rc, h_c2_rc_inner, h_c1_r3p, h_c1_inner, h_c1_cr1rc2,
-      h_c1_rc2, h_c0_r3p, h_sum20_c2, h_c1_cr1, h_c1_cr2, h_c2_c, h_c0_c2,
-      h_c0_r2, h_c1_r2a, h_c1_r2, h_sum10_c1, h_c1_rc, h_c1_c1,
-      h_c0_r1, h_c0_c1,
-      Nat.mod_add_mod, Nat.add_mod_mod,
+      e_c2_r3, e_c2_rc, e_c2_c, e_c1_r3p, e_c1_rc2, e_c1_cr2, e_c1_r2,
+      e_c1_cr1, e_c1_r2a, e_c1_rc, e_c1_c1, e_c0_r3p, e_c0_c2, e_c0_r2,
+      e_c0_c1, e_c0_r1,
+      BitVec.toNat_add, carry_toNat,
+      mod_add_cancel_left, mod_add_cancel_right,
       hC3_def, hC2_def, hC1_def, hD3, hD2, hD1, hD0]
     -- Apply private theorem directly with .toNat values; bounds from BitVec.isLt
     -- Product bounds: each full product = a.toNat * b.toNat ≤ (2^64-1)*(2^64-1)
