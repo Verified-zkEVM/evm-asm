@@ -2091,6 +2091,50 @@ theorem algCallAddbackBeqPost1Val_unfold {a b : EvmWord} :
   unfold algCallAddbackBeqPost1Val
   rfl
 
+/-- **Irreducible bundle: val256 of ms low 4 outputs at normalized inputs.**
+
+    Captures `val256 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1` where `ms = mulsubN4
+    qHat b0' b1' b2' b3' u0 u1 u2 u3` at the algorithm's normalized limbs.
+    Used as `ms_val` in `post1_val_eq_amod_pow_s_pure_nat` and the addback
+    Euclidean (h_addback) and mulsub Euclidean (h_mulsub) preconditions. -/
+@[irreducible]
+noncomputable def algCallAddbackBeqMsLowVal (a b : EvmWord) : Nat :=
+  let shift := (clzResult (b.getLimbN 3)).1.toNat % 64
+  let antiShift := (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64
+  let b3' := ((b.getLimbN 3) <<< shift) ||| ((b.getLimbN 2) >>> antiShift)
+  let b2' := ((b.getLimbN 2) <<< shift) ||| ((b.getLimbN 1) >>> antiShift)
+  let b1' := ((b.getLimbN 1) <<< shift) ||| ((b.getLimbN 0) >>> antiShift)
+  let b0' := (b.getLimbN 0) <<< shift
+  let u3 := ((a.getLimbN 3) <<< shift) ||| ((a.getLimbN 2) >>> antiShift)
+  let u2 := ((a.getLimbN 2) <<< shift) ||| ((a.getLimbN 1) >>> antiShift)
+  let u1 := ((a.getLimbN 1) <<< shift) ||| ((a.getLimbN 0) >>> antiShift)
+  let u0 := (a.getLimbN 0) <<< shift
+  let u4 := (a.getLimbN 3) >>> antiShift
+  let qHat := div128Quot u4 u3 b3'
+  let ms := mulsubN4 qHat b0' b1' b2' b3' u0 u1 u2 u3
+  val256 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1
+
+/-- Unfolding lemma for `algCallAddbackBeqMsLowVal`. -/
+theorem algCallAddbackBeqMsLowVal_unfold {a b : EvmWord} :
+    algCallAddbackBeqMsLowVal a b =
+    (let shift := (clzResult (b.getLimbN 3)).1.toNat % 64
+     let antiShift := (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64
+     let b3' := ((b.getLimbN 3) <<< shift) ||| ((b.getLimbN 2) >>> antiShift)
+     let b2' := ((b.getLimbN 2) <<< shift) ||| ((b.getLimbN 1) >>> antiShift)
+     let b1' := ((b.getLimbN 1) <<< shift) ||| ((b.getLimbN 0) >>> antiShift)
+     let b0' := (b.getLimbN 0) <<< shift
+     let u3 := ((a.getLimbN 3) <<< shift) ||| ((a.getLimbN 2) >>> antiShift)
+     let u2 := ((a.getLimbN 2) <<< shift) ||| ((a.getLimbN 1) >>> antiShift)
+     let u1 := ((a.getLimbN 1) <<< shift) ||| ((a.getLimbN 0) >>> antiShift)
+     let u0 := (a.getLimbN 0) <<< shift
+     let u4 := (a.getLimbN 3) >>> antiShift
+     let qHat := div128Quot u4 u3 b3'
+     let ms := mulsubN4 qHat b0' b1' b2' b3' u0 u1 u2 u3
+     val256 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1) := by
+  show algCallAddbackBeqMsLowVal a b = _
+  unfold algCallAddbackBeqMsLowVal
+  rfl
+
 /-- **Bound: `algCallAddbackBeqPost1Val a b < 2^256`** (CLOSED).
 
     Trivial: the addback's low 4 outputs are 4 `Word`s, so their `val256` is
