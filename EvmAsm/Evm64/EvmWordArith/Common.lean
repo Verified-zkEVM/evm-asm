@@ -6,9 +6,6 @@
 
 import EvmAsm.Evm64.Basic
 import Mathlib.Tactic.Linarith
-import Mathlib.Tactic.NormNum
-import Mathlib.Tactic.Ring
-import Mathlib.Tactic.Positivity
 
 namespace EvmAsm.Evm64
 

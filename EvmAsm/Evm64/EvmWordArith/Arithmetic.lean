@@ -5,6 +5,9 @@
 -/
 
 import EvmAsm.Evm64.EvmWordArith.Common
+import Mathlib.Tactic.NormNum
+import Mathlib.Tactic.Ring
+import Mathlib.Tactic.Positivity
 
 namespace EvmAsm.Evm64
 
