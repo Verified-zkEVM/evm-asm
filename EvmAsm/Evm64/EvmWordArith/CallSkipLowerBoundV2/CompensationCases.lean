@@ -427,8 +427,22 @@ theorem div128Quot_qHat_plus_one_times_b3_gt_u_narrow_u4_tight_un21
   · -- Overshoot: directly apply the helper.
     exact div128Quot_qHat_plus_one_times_b3_gt_u_of_q1_prime_overshoot u4 u3 b3'
       hb3'_ge hu4_lt_b3' h_overshoot
-  · -- q1' ≤ q_true_1. Exact (q1' = q_true_1) or undershoot (q1' < q_true_1).
-    -- Genuinely hard regime under hu4_ge. Not yet attempted.
+  · -- q1' ≤ q_true_1. Includes EXACT (q1' = q_true_1) and UNDERSHOOT
+    -- (q1' = q_true_1 - 1, possible per
+    -- `memory/project_a2s2_per_phase_tightness_fails.md`).
+    --
+    -- Per-phase tightness FAILS in narrow_u4 (Word truncation under
+    -- rhatc ≥ 2^32 causes spurious Phase 1b corrections, allowing
+    -- q1' = q_true_1 - 1).
+    --
+    -- Need GLOBAL Phase 1+2 compensation: bound qHat directly, not via
+    -- per-phase q1' ≥ q_true_1 + Phase 2 tight.
+    --
+    -- Sketch: in undershoot, q1' = q_true_1 - 1, so the algorithm's
+    -- effective "input" to Phase 2 is shifted by V (one whole quotient
+    -- digit), which Phase 2 absorbs via the Knuth-B compensation
+    -- argument. Closure requires extending KnuthTheoremB.lean to handle
+    -- this directly.
     sorry
 
 /-- **A2.S2.narrow_u4_wide_un21**: hu4_ge regime AND un21 ≥ dHi*2^32.
@@ -438,8 +452,9 @@ theorem div128Quot_qHat_plus_one_times_b3_gt_u_narrow_u4_tight_un21
     - q1' ≤ q_true_1 + 2 (from generalized weak upper bound).
     - Sub-case q1' ≥ q_true_1 + 1 (overshoot): closed via
       `_of_q1_prime_overshoot`.
-    - Sub-case q1' ≤ q_true_1 (exact/undershoot): genuinely hard,
-      requires Phase 2 tight under hu4_ge AND un21_ge regime. -/
+    - Sub-case q1' ≤ q_true_1: per-phase tightness FAILS under narrow_u4
+      (see `memory/project_a2s2_per_phase_tightness_fails.md`). Needs
+      global Phase 1+2 compensation. -/
 theorem div128Quot_qHat_plus_one_times_b3_gt_u_narrow_u4_wide_un21
     (u4 u3 b3' : Word)
     (hb3'_ge : b3'.toNat ≥ 2^63)
@@ -454,8 +469,9 @@ theorem div128Quot_qHat_plus_one_times_b3_gt_u_narrow_u4_wide_un21
   · -- Overshoot: directly apply the helper.
     exact div128Quot_qHat_plus_one_times_b3_gt_u_of_q1_prime_overshoot u4 u3 b3'
       hb3'_ge hu4_lt_b3' h_overshoot
-  · -- q1' ≤ q_true_1. Genuinely hard regime; Phase 2 tight under hu4_ge and
-    -- un21_ge requires new wrappers. Not yet attempted.
+  · -- q1' ≤ q_true_1. Per-phase tightness FAILS in narrow_u4 (see
+    -- `memory/project_a2s2_per_phase_tightness_fails.md`). Need global
+    -- Phase 1+2 compensation; closure requires extending KnuthTheoremB.lean.
     sorry
 
 /-- **A2.S2.narrow_u4**: compensation case when `u4 ≥ dHi*2^32`.
@@ -524,7 +540,16 @@ theorem div128Quot_qHat_plus_one_times_b3_gt_u_wide_un21_narrow
   have h_q1_or : (algorithmQ1Prime u4 u3 b3').toNat = q_true_1 ∨
                  (algorithmQ1Prime u4 u3 b3').toNat = q_true_1 + 1 := by omega
   rcases h_q1_or with h_eq | h_eq_plus_one
-  · -- Sub-case A: exact q1' = q_true_1. Hard Phase 2 regime; not yet attempted.
+  · -- Sub-case A: exact q1' = q_true_1, so un21 = r1_math ∈ [dHi*2^32, V).
+    -- Phase 2 has un21 ≥ dHi*2^32 → hi2 ≠ 0 → Phase 2a corrects.
+    -- Phase 2b's ult check operates on `(rhat2c << 32) | div_un0` with
+    -- rhat2c potentially ≥ 2^32, causing the SAME Word-truncation issue
+    -- as Phase 1 in narrow_u4.
+    --
+    -- Per-phase Phase 2 tightness FAILS for the same reason
+    -- (see `memory/project_a2s2_per_phase_tightness_fails.md`).
+    -- Need global Phase 1+2 compensation: bound qHat directly via
+    -- the un21_ge_r1_math bridge + the global Knuth-B argument.
     sorry
   · -- Sub-case B: off-by-one q1' = q_true_1 + 1. Use the OR-shift helper.
     exact div128Quot_qHat_plus_one_times_b3_gt_u_of_q1_prime_overshoot u4 u3 b3'
