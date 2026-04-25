@@ -82,46 +82,58 @@ theorem algorithmQ1Prime_ge_q_true_1_under_narrow_u4
     div128Quot_q1c_ge_q_true_1 u4 (b3' >>> (32 : BitVec 6).toNat)
       ((b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat)
       (u3 >>> (32 : BitVec 6).toNat) h_dHi_ne h_div_un1_lt h_u4_lt_vTop
+  have h_dHi_ge : (b3' >>> (32 : BitVec 6).toNat).toNat ≥ 2^31 := by
+    rw [BitVec.toNat_ushiftRight, AddrNorm.bv6_toNat_32, Nat.shiftRight_eq_div_pow]
+    have : b3'.toNat ≥ 2^63 := hb3'_ge; omega
+  have h_dHi_lt : (b3' >>> (32 : BitVec 6).toNat).toNat < 2^32 := by
+    rw [BitVec.toNat_ushiftRight, AddrNorm.bv6_toNat_32, Nat.shiftRight_eq_div_pow]
+    have : b3'.toNat < 2^64 := b3'.isLt
+    exact Nat.div_lt_of_lt_mul (by omega)
+  have h_dLo_lt :
+      ((b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat).toNat < 2^32 := by
+    rw [BitVec.toNat_ushiftRight, AddrNorm.bv6_toNat_32, Nat.shiftRight_eq_div_pow]
+    have : (b3' <<< (32 : BitVec 6).toNat : Word).toNat < 2^64 :=
+      (b3' <<< (32 : BitVec 6).toNat : Word).isLt
+    exact Nat.div_lt_of_lt_mul (by omega)
   rw [h_v_eq]
-  -- Phase 1b case-split.
-  rw [algorithmQ1Prime_unfold]
-  simp only []
-  -- Goal: q_true_1 ≤ if BitVec.ult ... then q1c + signExtend12 4095 else q1c.
-  by_cases h_check : BitVec.ult
-      (((if (rv64_divu u4 (b3' >>> (32 : BitVec 6).toNat)) >>>
+  -- Sub-case-split on rhatc < 2^32 (the easy regime via KB-LB5).
+  set q1 := rv64_divu u4 (b3' >>> (32 : BitVec 6).toNat) with hq1_def
+  set rhat := u4 - q1 * (b3' >>> (32 : BitVec 6).toNat) with hrhat_def
+  set hi1 := q1 >>> (32 : BitVec 6).toNat with hhi1_def
+  set rhatc := if hi1 = 0 then rhat else rhat + (b3' >>> (32 : BitVec 6).toNat)
+    with hrhatc_def
+  by_cases h_rhatc_lt : rhatc.toNat < 2^32
+  · -- rhatc < 2^32: KB-LB5 gives the full lower bound directly.
+    rw [algorithmQ1Prime_unfold]
+    exact div128Quot_q1_prime_ge_q_true_1_small_rhatc u4
+      (b3' >>> (32 : BitVec 6).toNat)
+      ((b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat) u3
+      h_dHi_ge h_dHi_lt h_dLo_lt h_u4_lt_vTop h_rhatc_lt
+  · -- rhatc ≥ 2^32 (only when dHi > 2^31): genuine hard regime.
+    -- Phase 1b case-split:
+    -- - No correction (q1' = q1c): KB-LB3 directly closes.
+    -- - Correction (q1' = q1c - 1): needs new analysis (truncation false-positive).
+    rw [algorithmQ1Prime_unfold]
+    simp only []
+    by_cases h_check : BitVec.ult
+        (((if (rv64_divu u4 (b3' >>> (32 : BitVec 6).toNat)) >>>
+                (32 : BitVec 6).toNat = 0 then
+              u4 - rv64_divu u4 (b3' >>> (32 : BitVec 6).toNat) *
+                (b3' >>> (32 : BitVec 6).toNat)
+            else u4 - rv64_divu u4 (b3' >>> (32 : BitVec 6).toNat) *
+                (b3' >>> (32 : BitVec 6).toNat) + (b3' >>> (32 : BitVec 6).toNat)) <<<
+            (32 : BitVec 6).toNat) ||| u3 >>> (32 : BitVec 6).toNat)
+        ((if (rv64_divu u4 (b3' >>> (32 : BitVec 6).toNat)) >>>
               (32 : BitVec 6).toNat = 0 then
-            u4 - rv64_divu u4 (b3' >>> (32 : BitVec 6).toNat) *
-              (b3' >>> (32 : BitVec 6).toNat)
-          else u4 - rv64_divu u4 (b3' >>> (32 : BitVec 6).toNat) *
-              (b3' >>> (32 : BitVec 6).toNat) + (b3' >>> (32 : BitVec 6).toNat)) <<<
-          (32 : BitVec 6).toNat) ||| u3 >>> (32 : BitVec 6).toNat)
-      ((if (rv64_divu u4 (b3' >>> (32 : BitVec 6).toNat)) >>>
-            (32 : BitVec 6).toNat = 0 then
-          rv64_divu u4 (b3' >>> (32 : BitVec 6).toNat)
-        else rv64_divu u4 (b3' >>> (32 : BitVec 6).toNat) + signExtend12 4095) *
-        ((b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat))
-  · -- Phase 1b correction fires. q1' = q1c - 1.
-    -- Need: q_true_1 ≤ q1c.toNat - 1 (i.e., q1c.toNat ≥ q_true_1 + 1).
-    -- We have q1c.toNat ≥ q_true_1 (h_q1c_ge from KB-LB3). Need strict +1.
-    --
-    -- Math: Phase 1b's ult check firing means rhatUn1 < q1c * dLo (Word).
-    -- - Under rhatc < 2^32: KB-LB5 gives q1c > q_true_1 directly.
-    -- - Under rhatc ≥ 2^32 (only when dHi > 2^31): the Word truncation
-    --   `(rhatc << 32) | div_un1` discards rhatc's high bits. The truncated
-    --   rhatUn1 = (rhatc % 2^32) * 2^32 + div_un1 may be small enough that
-    --   the ult check fires SPURIOUSLY (i.e., q1c isn't actually too large).
-    --   In this case, q1' = q1c - 1 might undershoot q_true_1.
-    --
-    -- Knuth-B safeguards: under hb3'_ge (b3' ≥ 2^63), there's a precise
-    -- bound on how much rhatc can exceed 2^32, and the corresponding
-    -- effect on q1c * dLo. The full analysis closes this regime.
-    --
-    -- Stub for now; the full proof needs ~80 lines of Word arithmetic.
-    rw [if_pos h_check]
-    sorry
-  · -- No Phase 1b correction. q1' = q1c, KB-LB3 closes.
-    rw [if_neg h_check]
-    exact h_q1c_ge
+            rv64_divu u4 (b3' >>> (32 : BitVec 6).toNat)
+          else rv64_divu u4 (b3' >>> (32 : BitVec 6).toNat) + signExtend12 4095) *
+          ((b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat))
+    · -- Phase 1b correction fires under rhatc ≥ 2^32. Genuine hard regime.
+      rw [if_pos h_check]
+      sorry
+    · -- No Phase 1b correction. q1' = q1c, KB-LB3 closes.
+      rw [if_neg h_check]
+      exact h_q1c_ge
 
 /-- **Phase 1 tight, wrapped**: Phase 1 tight specialized and folded into
     `algorithmQ1Prime`. Parallel to `algorithmQ0Prime_ge_q_true_0`. -/
