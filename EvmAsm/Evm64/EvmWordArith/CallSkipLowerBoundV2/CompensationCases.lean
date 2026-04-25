@@ -321,19 +321,20 @@ theorem div128Quot_qHat_plus_one_times_b3_gt_u_narrow_u4
       u4 u3 b3' hb3'_ge hu4_lt_b3' hu4_ge (by omega)
 
 /-- **A2.S2.wide_un21_narrow**: Phase 1 narrow-u4 (no Phase 1a correction) AND
-    un21 ∈ [dHi*2^32, vTop) (Phase 2 false-alarm range).
+    un21 ∈ [dHi*2^32, vTop) (Phase 2 wide range, before Phase 1 false-alarm).
 
-    **Proof structure** (likely via algorithmUn21_ge_r1_math + tight Phase 2):
-    - Phase 1 tight (algorithmQ1Prime_ge_q_true_1) applies with hu4_lt.
-    - Phase 2 needs the "un21 ≥ dHi*2^32" variant. The hi2 = q0/dHi >= 2^32
-      so Phase 2a corrects (q0c = q0 - 1). Phase 2b's ult check may further refine.
-    - Key insight: even with un21 in [dHi*2^32, vTop), we still have un21 < vTop,
-      so the Phase 2 tight bound DOES extend to this range using a slightly
-      generalized wrapper.
-    - Use algorithmUn21_ge_r1_math (which we proved) to compute Phase 2's
-      effective lower bound based on r1_math, not un21 directly.
+    **Proof strategy via case-split on un21 < 2^63 vs ≥ 2^63**:
+    - **Case un21 < 2^63**: directly apply
+      `div128Quot_q0_prime_ge_q_true_0_of_un21_lt_pow63` (KB-LB8) which only
+      needs `un21 < 2^63` + `un21 < V`. This is the same pattern as _normal,
+      but with the un21 < 2^63 path instead of un21 < dHi*2^32.
+    - **Case un21 ≥ 2^63**: genuinely hard. Phase 2a's hi2 ≠ 0 correction
+      fires, and Phase 2b's Word check may false-positive. This is the
+      Knuth-B "false-alarm-on-q0'" regime that needs separate analysis.
+      For now, see `memory/project_un21_lt_vTop_plan.md`.
 
-    ~130 lines. -/
+    The case-split decomposition turns one sorry into two, but exposes the
+    really-hard sub-case clearly. -/
 theorem div128Quot_qHat_plus_one_times_b3_gt_u_wide_un21_narrow
     (u4 u3 b3' : Word)
     (hb3'_ge : b3'.toNat ≥ 2^63)
@@ -344,7 +345,12 @@ theorem div128Quot_qHat_plus_one_times_b3_gt_u_wide_un21_narrow
     (h_un21_lt_vTop : (algorithmUn21 u4 u3 b3').toNat < b3'.toNat) :
     ((div128Quot u4 u3 b3').toNat + 1) * b3'.toNat >
       u4.toNat * 2^64 + u3.toNat := by
-  sorry
+  by_cases h_un21_lt_pow63 : (algorithmUn21 u4 u3 b3').toNat < 2^63
+  · -- Sub-case A: un21 < 2^63 — KB-LB8 applies via the existing infrastructure.
+    sorry
+  · -- Sub-case B: un21 ≥ 2^63 — genuinely hard, Phase 2a correction + Phase 2b
+    -- false-positive analysis. Not yet attempted.
+    sorry
 
 /-- **A2.S2.wide_un21_wide**: Phase 1 narrow-u4 AND un21 ≥ vTop (= b3'.toNat).
 
