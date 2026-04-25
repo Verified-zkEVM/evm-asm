@@ -323,18 +323,12 @@ theorem div128Quot_qHat_plus_one_times_b3_gt_u_narrow_u4
 /-- **A2.S2.wide_un21_narrow**: Phase 1 narrow-u4 (no Phase 1a correction) AND
     un21 ∈ [dHi*2^32, vTop) (Phase 2 wide range, before Phase 1 false-alarm).
 
-    **Proof strategy via case-split on un21 < 2^63 vs ≥ 2^63**:
-    - **Case un21 < 2^63**: directly apply
-      `div128Quot_q0_prime_ge_q_true_0_of_un21_lt_pow63` (KB-LB8) which only
-      needs `un21 < 2^63` + `un21 < V`. This is the same pattern as _normal,
-      but with the un21 < 2^63 path instead of un21 < dHi*2^32.
-    - **Case un21 ≥ 2^63**: genuinely hard. Phase 2a's hi2 ≠ 0 correction
-      fires, and Phase 2b's Word check may false-positive. This is the
-      Knuth-B "false-alarm-on-q0'" regime that needs separate analysis.
-      For now, see `memory/project_un21_lt_vTop_plan.md`.
+    **Discovery**: the un21 < 2^63 sub-case is VACUOUSLY FALSE under our
+    standard preconditions (b3' ≥ 2^63 → dHi ≥ 2^31 → dHi*2^32 ≥ 2^63). So
+    `un21 ≥ dHi*2^32 ≥ 2^63` automatically — there's no un21 < 2^63 escape.
 
-    The case-split decomposition turns one sorry into two, but exposes the
-    really-hard sub-case clearly. -/
+    The proof reduces to the un21 ≥ 2^63 case, which IS the genuinely hard
+    Phase 2a-correction + Phase 2b-false-positive regime. -/
 theorem div128Quot_qHat_plus_one_times_b3_gt_u_wide_un21_narrow
     (u4 u3 b3' : Word)
     (hb3'_ge : b3'.toNat ≥ 2^63)
@@ -345,12 +339,22 @@ theorem div128Quot_qHat_plus_one_times_b3_gt_u_wide_un21_narrow
     (h_un21_lt_vTop : (algorithmUn21 u4 u3 b3').toNat < b3'.toNat) :
     ((div128Quot u4 u3 b3').toNat + 1) * b3'.toNat >
       u4.toNat * 2^64 + u3.toNat := by
-  by_cases h_un21_lt_pow63 : (algorithmUn21 u4 u3 b3').toNat < 2^63
-  · -- Sub-case A: un21 < 2^63 — KB-LB8 applies via the existing infrastructure.
-    sorry
-  · -- Sub-case B: un21 ≥ 2^63 — genuinely hard, Phase 2a correction + Phase 2b
-    -- false-positive analysis. Not yet attempted.
-    sorry
+  -- Under hb3'_ge, dHi ≥ 2^31. Combined with h_un21_ge_dHi_pow32 (un21 ≥ dHi*2^32),
+  -- un21 ≥ 2^31 * 2^32 = 2^63. So the un21 < 2^63 sub-case is vacuous.
+  have h_dHi_ge : (b3' >>> (32 : BitVec 6).toNat).toNat ≥ 2^31 := by
+    rw [BitVec.toNat_ushiftRight, AddrNorm.bv6_toNat_32, Nat.shiftRight_eq_div_pow]
+    have : b3'.toNat ≥ 2^63 := hb3'_ge
+    omega
+  have h_un21_ge_pow63 : (algorithmUn21 u4 u3 b3').toNat ≥ 2^63 := by
+    have h_lower : (b3' >>> (32 : BitVec 6).toNat).toNat * 2^32 ≥ 2^63 := by
+      have : 2^31 * 2^32 ≤ (b3' >>> (32 : BitVec 6).toNat).toNat * 2^32 :=
+        Nat.mul_le_mul_right _ h_dHi_ge
+      have h_eq : (2^31 : Nat) * 2^32 = 2^63 := by decide
+      omega
+    omega
+  -- The un21 ≥ 2^63 case: genuinely hard, Phase 2a correction + Phase 2b
+  -- false-positive analysis. Not yet attempted.
+  sorry
 
 /-- **A2.S2.wide_un21_wide**: Phase 1 narrow-u4 AND un21 ≥ vTop (= b3'.toNat).
 
