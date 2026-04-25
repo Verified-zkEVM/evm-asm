@@ -31,7 +31,7 @@
       Same skeleton as limb 1 plus `carry_toNat` for the col0→col1 carry
       passing through this column.
 
-    Limb 3 (`mul_correct_limb3`) — the main event (~450 lines):
+    Limb 3 (`mul_correct_limb3`) — the main event:
       Euclidean linearization: every `x.toNat = (a+b) % 2^64` /
       `carry = (a+b) / 2^64` pair is combined into `carry*W + x = a+b`
       via `div_mod_eq`, producing only LINEAR equations for omega.
@@ -40,10 +40,10 @@
           the carry chain using `carry_telescoping` + `low_part_bound` to
           get `P / 2^192 % 2^64 = (D3 + C3) % 2^64`.
         * `carry_chain_limb3` — runs the implementation's actual carry
-          chain (22 toNat unfoldings for col0+col1+col2+col3) and reduces
+          chain (toNat unfoldings for col0+col1+col2+col3) and reduces
           the final equation to `carry_chain_mod_eq` (pure Nat identity).
-        * `carry_chain_mod_eq` — closed by omega after flattening the
-          nested div/mods via `qC{1,2,3}_simp_helper`.
+        * `carry_chain_mod_eq` — closed by a single `omega` call (modern
+          `omega` handles the cascading nested div/mod chain directly).
 -/
 
 import EvmAsm.Evm64.EvmWordArith.MultiLimb
