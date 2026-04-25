@@ -108,6 +108,16 @@ theorem algorithmUn21_L3b_q_true_1_V_le_u
     (u / V) * V ≤ u := by
   exact Nat.div_mul_le_self u V
 
+/-- **L5_plus_one helper**: pure-Nat — for q := u/V with V > 0, we have
+    `(q+1) * V > u`. Used to discharge the L4_plus_one h_q_V_gt hypothesis in
+    the off-by-one composition (omega alone can't see this distributivity). -/
+theorem algorithmUn21_L5_succ_mul_div_gt (u V : Nat) (hV_pos : 0 < V) :
+    (u / V + 1) * V > u := by
+  have h_dam := Nat.div_add_mod u V
+  have h_mod_lt := Nat.mod_lt u hV_pos
+  have h_expand : (u / V + 1) * V = V * (u / V) + V := by ring
+  linarith
+
 /-- **L4 helper**: pure-Nat algebraic identity for halfword decomposition.
     `(rhat % 2^32) * 2^32 + (rhat / 2^32) * 2^64 = rhat * 2^32`. -/
 theorem algorithmUn21_L4_halfword_combine (rhat : Nat) :
