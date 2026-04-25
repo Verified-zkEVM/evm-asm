@@ -2167,17 +2167,23 @@ theorem output_slot_to_evmWordIs_mod_n4_call_addback_beq_denorm
   · -- Double-addback branch. Still sorry — needs Knuth bound for c3 = 1.
     sorry
   · -- Single-addback branch (carry_word = 1).
-    -- Step 1: qHat = a/b + 1 from `qHat_eq_div_plus_one_of_single_addback`
-    -- (closed sub-stub). Note: hsem still has original predicate form here.
-    -- Step 2: lift to qHat ≤ val256(u_norm)/val256(b_norm) + 1 via val256
-    -- normalization (val256(u_norm) = val256(a) * 2^s, similarly b_norm).
-    -- Step 3: apply `mulsubN4_c3_le_one` to get c3 ≤ 1.
-    -- Step 4: combine with `c3_un_zero_of_qHat_mul_le` contrapositive +
-    -- u4_lt_c3 to pin c3 = 1.
-    -- Step 5: combine with `h_ab_euclidean` + carry = 1 to pin the
-    -- post-addback val256 = val256(a_norm) - q_out * val256(b_norm).
-    -- Step 6: denormalize via `val256_denormalize` and fold into evmWordIs.
-    -- TODO: each step ~10-30 lines; close iteratively.
+    -- ALGEBRAIC FINDING: the val256(post1_low4) formula reduces to
+    -- (val256(a) % val256(b)) * 2^s + (c3 - 1 - u4) * 2^256. For
+    -- val256_denormalize to give exactly val256(a) % val256(b), we need
+    -- c3 = u4 + 1 (not just c3 ≤ 1 + c3 ≥ 1).
+    --
+    -- Mirror of call-skip's `u_top_eq_c3_n_of_overestimate` (which gives
+    -- c3_n = u4 in the skip case via qHat = a/b). Adapted to addback:
+    -- with qHat = a/b + 1, the algebraic counterpart should give c3_n = u4 + 1.
+    --
+    -- Concrete plan:
+    -- 1. Apply `qHat_eq_div_plus_one_of_single_addback` for qHat = a/b + 1.
+    -- 2. Derive c3 = u4 + 1 via mulsub Euclidean + addback Euclidean +
+    --    carry = 1, all at the val256 normalized level (analog of
+    --    `u_top_eq_c3_n_of_overestimate` for the addback path).
+    -- 3. Substitute into val256(post1_low4) formula to get
+    --    val256(post1_low4) = val256(a) % val256(b) * 2^s.
+    -- 4. Apply `val256_denormalize` and fold into evmWordIs.
     sorry
 
 /-- **EVM-stack-level MOD spec on the n=4 call+addback BEQ sub-path (SORRY).**
