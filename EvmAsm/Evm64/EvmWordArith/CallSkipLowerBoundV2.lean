@@ -22,12 +22,12 @@
   composition. The Phase 2 tightness umbrella now dispatches via 2x2
   case-split on (u4 regime × un21 regime).
 
-  - `algorithmQ0Prime_ge_q_true_0_of_q1_prime_eq_q_true_1_narrow_wide` —
-    Phase 2 tightness in narrow-u4 + un21 ∈ [dHi*2^32, vTop) sub-case.
-    Needs `_of_un21_lt_pow63` and r1_math < 2^63 (not always given).
-  - `algorithmQ0Prime_ge_q_true_0_of_q1_prime_eq_q_true_1_wide_wide` —
-    Phase 2 tightness in wide-u4 + wide-un21. Same blocker as narrow_wide.
-    (The wide-u4 + narrow-un21 sub-case is now closed via composition.)
+  - `..._narrow_wide_ge_pow63` and `..._wide_wide_ge_pow63` — Phase 2
+    tightness in the narrow/wide-u4 + un21 ≥ 2^63 sub-cases. Both share
+    the same genuinely-hard blocker (Phase 2b ult check Word truncation
+    in [max(dHi*2^32, 2^63), vTop) range — see
+    `memory/project_un21_lt_vTop_plan.md`). The corresponding lt_pow63
+    sub-cases are now CLOSED via KB-LB8.
   - `algorithmQ1Prime_ge_q_true_1_in_wide_u4` — KEY structural claim
     that wide-u4 Phase 1 never undershoots q_true_1.
   - `algorithmUn21_eq_r1_math_in_wide_u4_exact` — wide-u4 variant of
