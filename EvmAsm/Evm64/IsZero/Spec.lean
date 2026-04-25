@@ -7,6 +7,7 @@
 
 import EvmAsm.Evm64.IsZero.LimbSpec
 import EvmAsm.Evm64.EvmWordArith.IsZero
+import EvmAsm.Rv64.Tactics.XSimp
 
 open EvmAsm.Rv64.Tactics
 

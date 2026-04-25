@@ -14,7 +14,6 @@
 
 import EvmAsm.Evm64.Multiply.Program
 import EvmAsm.Rv64.SyscallSpecs
-import EvmAsm.Rv64.Tactics.XSimp
 import EvmAsm.Rv64.Tactics.RunBlock
 
 open EvmAsm.Rv64.Tactics

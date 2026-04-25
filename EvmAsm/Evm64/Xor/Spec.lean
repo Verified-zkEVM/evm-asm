@@ -6,6 +6,7 @@
 
 -- `Xor.LimbSpec → Xor.Program → Stack → SpAddr`.
 import EvmAsm.Evm64.Xor.LimbSpec
+import EvmAsm.Rv64.Tactics.XSimp
 
 namespace EvmAsm.Evm64
 

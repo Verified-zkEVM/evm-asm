@@ -8,6 +8,7 @@
 -- `Add.LimbSpec → Add.Program → Stack → SpAddr`.
 import EvmAsm.Evm64.Add.LimbSpec
 import EvmAsm.Evm64.EvmWordArith.Arithmetic
+import EvmAsm.Rv64.Tactics.XSimp
 
 open EvmAsm.Rv64.Tactics
 
