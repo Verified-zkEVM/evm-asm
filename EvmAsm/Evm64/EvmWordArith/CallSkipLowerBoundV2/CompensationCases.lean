@@ -535,18 +535,59 @@ theorem algorithmQ1Prime_ge_q_true_1_in_wide_u4_q1_large
   have h_q1' := algorithmQ1Prime_ge_q1_dHi_minus_two u4 u3 b3' hb3'_ge
   omega
 
-/-- **Wide-u4 no-undershoot, sub-case B** (TODO — boundary regime).
+/-- **Wide-u4 no-undershoot, sub-case B.1** — closed via wrapped KB-2.
 
-    Under `u4 ∈ [dHi*2^32, dHi*2^32 + dHi)` (i.e., q1.toNat = 2^32 exactly):
-    - q1c.toNat = q1 - 1 = 2^32 - 1.
-    - rhat = u4 - q1*dHi = u4 - dHi*2^32 ∈ [0, dHi).
-    - rhatc = rhat + dHi ∈ [dHi, 2*dHi).
-    - Sub-case B.1 (q_true_1 ≤ 2^32 - 2): q1c > q_true_1, easy.
-    - Sub-case B.2 (q_true_1 = 2^32 - 1 boundary): need Phase 1b doesn't
-      fire to keep q1' = q1c = q_true_1. Hard.
+    Under Case B (u4 ∈ [dHi*2^32, dHi*2^32 + dHi)) AND q_true_1 ≤ 2^32 - 2,
+    KB-2 gives q1' + 2 ≥ u4/dHi = 2^32, so q1' ≥ 2^32 - 2 ≥ q_true_1. -/
+theorem algorithmQ1Prime_ge_q_true_1_in_wide_u4_q1_eq_pow32_loose
+    (u4 u3 b3' : Word)
+    (hb3'_ge : b3'.toNat ≥ 2^63)
+    (hu4_ge : u4.toNat ≥ (b3' >>> (32 : BitVec 6).toNat).toNat * 2^32)
+    (h_q_true_1_loose :
+      (u4.toNat * 2^32 + (u3 >>> (32 : BitVec 6).toNat).toNat) / b3'.toNat ≤
+        2^32 - 2) :
+    (u4.toNat * 2^32 + (u3 >>> (32 : BitVec 6).toNat).toNat) / b3'.toNat ≤
+      (algorithmQ1Prime u4 u3 b3').toNat := by
+  have h_dHi_pos : 0 < (b3' >>> (32 : BitVec 6).toNat).toNat := by
+    have h : (b3' >>> (32 : BitVec 6).toNat).toNat ≥ 2^31 := by
+      rw [BitVec.toNat_ushiftRight, AddrNorm.bv6_toNat_32, Nat.shiftRight_eq_div_pow]
+      have : b3'.toNat ≥ 2^63 := hb3'_ge; omega
+    omega
+  have h_u4_div : u4.toNat / (b3' >>> (32 : BitVec 6).toNat).toNat ≥ 2^32 := by
+    apply Nat.le_div_iff_mul_le h_dHi_pos |>.mpr
+    have : (b3' >>> (32 : BitVec 6).toNat).toNat * 2^32 =
+        2^32 * (b3' >>> (32 : BitVec 6).toNat).toNat := by ring
+    omega
+  have h_q1' := algorithmQ1Prime_ge_q1_dHi_minus_two u4 u3 b3' hb3'_ge
+  omega
 
-    The harder B.2 sub-case is where the Word arithmetic on Phase 1b's
-    ult check matters. Stubbed for now. -/
+/-- **Wide-u4 no-undershoot, sub-case B.2** (TODO — genuine boundary).
+
+    Under Case B AND q_true_1 = 2^32 - 1 exactly: q1c = q_true_1 = 2^32 - 1,
+    so Phase 1b firing would give q1' = 2^32 - 2 = q_true_1 - 1 (undershoot).
+    Need to show Phase 1b's ult check does NOT fire in this configuration. -/
+theorem algorithmQ1Prime_ge_q_true_1_in_wide_u4_q1_eq_pow32_tight
+    (u4 u3 b3' : Word)
+    (hb3'_ge : b3'.toNat ≥ 2^63)
+    (hu4_lt_b3' : u4.toNat < b3'.toNat)
+    (hu4_ge : u4.toNat ≥ (b3' >>> (32 : BitVec 6).toNat).toNat * 2^32)
+    (hu4_lt_q1_pow32_plus_one : u4.toNat <
+      (b3' >>> (32 : BitVec 6).toNat).toNat * 2^32 +
+      (b3' >>> (32 : BitVec 6).toNat).toNat)
+    (h_q_true_1_tight :
+      (u4.toNat * 2^32 + (u3 >>> (32 : BitVec 6).toNat).toNat) / b3'.toNat =
+        2^32 - 1) :
+    (u4.toNat * 2^32 + (u3 >>> (32 : BitVec 6).toNat).toNat) / b3'.toNat ≤
+      (algorithmQ1Prime u4 u3 b3').toNat := by
+  let _ := hb3'_ge
+  let _ := hu4_lt_b3'
+  let _ := hu4_ge
+  let _ := hu4_lt_q1_pow32_plus_one
+  let _ := h_q_true_1_tight
+  sorry
+
+/-- **Wide-u4 no-undershoot, sub-case B** — closed via dispatch on
+    q_true_1 = 2^32 - 1 (boundary) vs ≤ 2^32 - 2 (loose). -/
 theorem algorithmQ1Prime_ge_q_true_1_in_wide_u4_q1_eq_pow32
     (u4 u3 b3' : Word)
     (hb3'_ge : b3'.toNat ≥ 2^63)
@@ -557,11 +598,20 @@ theorem algorithmQ1Prime_ge_q_true_1_in_wide_u4_q1_eq_pow32
       (b3' >>> (32 : BitVec 6).toNat).toNat) :
     (u4.toNat * 2^32 + (u3 >>> (32 : BitVec 6).toNat).toNat) / b3'.toNat ≤
       (algorithmQ1Prime u4 u3 b3').toNat := by
-  let _ := hb3'_ge
-  let _ := hu4_lt_b3'
-  let _ := hu4_ge
-  let _ := hu4_lt_q1_pow32_plus_one
-  sorry
+  -- q_true_1 < 2^32 (general bound).
+  have h_div_un1_lt : (u3 >>> (32 : BitVec 6).toNat).toNat < 2^32 := by
+    rw [BitVec.toNat_ushiftRight, AddrNorm.bv6_toNat_32, Nat.shiftRight_eq_div_pow]
+    have : u3.toNat < 2^64 := u3.isLt
+    exact Nat.div_lt_of_lt_mul (by omega)
+  have h_q_true_lt : (u4.toNat * 2^32 + (u3 >>> (32 : BitVec 6).toNat).toNat) / b3'.toNat < 2^32 :=
+    q_true_1_lt_pow32 u4.toNat (u3 >>> (32 : BitVec 6).toNat).toNat b3'.toNat
+      hu4_lt_b3' h_div_un1_lt
+  -- Dispatch on q_true_1 = 2^32 - 1 (boundary) vs ≤ 2^32 - 2 (loose).
+  by_cases h_eq : (u4.toNat * 2^32 + (u3 >>> (32 : BitVec 6).toNat).toNat) / b3'.toNat = 2^32 - 1
+  · exact algorithmQ1Prime_ge_q_true_1_in_wide_u4_q1_eq_pow32_tight u4 u3 b3'
+      hb3'_ge hu4_lt_b3' hu4_ge hu4_lt_q1_pow32_plus_one h_eq
+  · exact algorithmQ1Prime_ge_q_true_1_in_wide_u4_q1_eq_pow32_loose u4 u3 b3'
+      hb3'_ge hu4_ge (by omega)
 
 /-- **A2.S2 wide-u4 no-undershoot claim** (TODO — KEY STRUCTURAL CLAIM).
 
