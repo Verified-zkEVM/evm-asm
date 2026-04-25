@@ -1739,6 +1739,8 @@ theorem evm_div_n4_call_addback_beq_stack_spec (sp base : Word)
     MOD adapter's single-addback closure. -/
 theorem qHat_eq_div_plus_one_of_single_addback (a b : EvmWord)
     (hbnz : b ≠ 0)
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
     (hborrow : isAddbackBorrowN4CallEvm a b)
     (hsem : n4CallAddbackBeqSemanticHolds a b)
     (hcarry_nz : let shift := (clzResult (b.getLimbN 3)).1.toNat % 64
@@ -1832,14 +1834,38 @@ theorem qHat_eq_div_plus_one_of_single_addback (a b : EvmWord)
         (((a.getLimbN 2) <<< shift) ||| ((a.getLimbN 1) >>> (64 - shift)))
         (((a.getLimbN 3) <<< shift) ||| ((a.getLimbN 2) >>> (64 - shift)))).2.2.2.2.toNat = 0 := by
       rw [h_c3_zero]; rfl
-    -- TODO: bridge h_c3_toNat_zero (uses Nat `64 - shift`) with h_u4_lt_c3
-    -- (uses Word `(signExtend12 0 - (clzResult b3).1).toNat % 64`).
-    -- Both refer to the same antiShift, but in different forms:
-    --   - Nat form: 64 - ((clzResult b3).1.toNat % 64)
-    --   - Word form: ((signExtend12 0 - (clzResult b3).1).toNat) % 64
-    -- These coincide modulo (clzResult b3).1.toNat ∈ [0, 64]. Need a
-    -- dedicated alignment lemma `antiShift_nat_eq_word` (or `convert` with
-    -- a manual congruence step). Closable as a small follow-up.
+    -- Bridge: convert h_u4_lt_c3's Word form to match h_c3_toNat_zero's Nat form.
+    -- Use `antiShift_toNat_mod_eq` to rewrite `(signExtend12 0 - clz).toNat % 64`
+    -- to `64 - clz.toNat`. Then `(64 - clz.toNat) = (64 - shift)` via
+    -- `shift = clz.toNat % 64 = clz.toNat` when clz.toNat ≤ 63.
+    have h_clz_le : (clzResult (b.getLimbN 3)).1.toNat ≤ 63 :=
+      clzResult_fst_toNat_le _
+    have h_clz_pos : 1 ≤ (clzResult (b.getLimbN 3)).1.toNat := by
+      rcases Nat.eq_zero_or_pos (clzResult (b.getLimbN 3)).1.toNat with h0 | h0
+      · exfalso; apply hshift_nz
+        exact BitVec.eq_of_toNat_eq (by simp [h0])
+      · exact h0
+    have h_anti_eq : (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64
+        = 64 - (clzResult (b.getLimbN 3)).1.toNat :=
+      antiShift_toNat_mod_eq h_clz_pos h_clz_le
+    have h_shift_eq : shift = (clzResult (b.getLimbN 3)).1.toNat := by
+      show (clzResult (b.getLimbN 3)).1.toNat % 64 = (clzResult (b.getLimbN 3)).1.toNat
+      omega
+    -- Now h_u4_lt_c3 has antiShift in Word form, but h_anti_eq + h_shift_eq give
+    -- it equals our local `64 - shift`. After rewriting, the mulsubN4 invocations
+    -- in h_u4_lt_c3 and h_c3_toNat_zero have identical arguments, contradiction.
+    rw [h_anti_eq] at h_u4_lt_c3
+    rw [show (clzResult (b.getLimbN 3)).1.toNat % 64 = (clzResult (b.getLimbN 3)).1.toNat
+        from by omega] at h_u4_lt_c3
+    -- TODO: complete the syntactic alignment. After the rewrites above,
+    -- h_u4_lt_c3 has the inline form `mulsubN4 (div128Quot (a.getLimbN 3 >>>
+    -- (64 - clz)) ...)`, while h_c3_toNat_zero has the let-bound form
+    -- `mulsubN4 qHat ...` (where qHat unfolds to `div128Quot u4 u3 b3'`,
+    -- and u4, u3, b3' unfold to inline forms with `shift`/`antiShift`).
+    -- Need to fully unfold qHat, u4, u3, b3' (definitionally equal under
+    -- shift = clz, antiShift = 64 - clz). Three-step `simp only [hqHat_def,
+    -- show u4 = a3 >>> antiShift from rfl, ...]` plus rewriting antiShift
+    -- = 64 - clz aligns them. Closable as a small follow-up.
     sorry
   -- (qHat.toNat + 2^64 - 1) % 2^64 = qHat.toNat - 1 when qHat ≥ 1.
   have h_qHat_lt : qHat.toNat < 2^64 := qHat.isLt
