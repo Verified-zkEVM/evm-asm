@@ -688,6 +688,44 @@ theorem algorithmQ0Prime_ge_q_true_0_of_q1_prime_eq_q_true_1_narrow_wide_lt_pow6
   rw [h_un21_eq] at h_ph2
   exact h_ph2
 
+/-- **Un21-level Phase 2 tightness for rhat2c < 2^32** (TODO).
+
+    Parallel to the existing `div128Quot_q0_prime_ge_q_true_0_of_un21_lt_pow63`
+    in `Div128KnuthLower.lean`, but takes `rhat2c < 2^32` directly as the
+    no-truncation precondition (instead of un21 < 2^63 → rhat2c < 2^32).
+    Used by `_rhat2c_lt_pow32`'s wrap form to skip the un21 < 2^63
+    detour when un21 ≥ 2^63.
+
+    Closure path: mirror `_of_un21_lt_pow63`'s body — case-split on
+    `div128Quot_phase2b_q0'`'s guard, route the no-guard case through
+    `div128Quot_q1_prime_ge_q_true_1_small_rhatc` directly (using our
+    rhat2c < 2^32 hypothesis), and the guard-fires case through KB-LB3. -/
+theorem div128Quot_q0_prime_ge_q_true_0_of_rhat2c_lt_pow32_un21_level
+    (un21 dHi dLo uLo : Word)
+    (hdHi_ge : dHi.toNat ≥ 2^31)
+    (hdHi_lt : dHi.toNat < 2^32)
+    (hdLo_lt : dLo.toNat < 2^32)
+    (h_un21_ge_pow63 : un21.toNat ≥ 2^63)
+    (h_un21_lt_vTop : un21.toNat < dHi.toNat * 2^32 + dLo.toNat)
+    (h_rhat2c_lt : un21.toNat % dHi.toNat + dHi.toNat < 2^32) :
+    let q0 := rv64_divu un21 dHi
+    let rhat2 := un21 - q0 * dHi
+    let hi2 := q0 >>> (32 : BitVec 6).toNat
+    let q0c := if hi2 = 0 then q0 else q0 + signExtend12 4095
+    let rhat2c := if hi2 = 0 then rhat2 else rhat2 + dHi
+    let div_un0 := (uLo <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+    let q0' := div128Quot_phase2b_q0' q0c rhat2c dLo div_un0
+    (un21.toNat * 2^32 + div_un0.toNat) /
+      (dHi.toNat * 2^32 + dLo.toNat) ≤ q0'.toNat := by
+  intro q0 rhat2 hi2 q0c rhat2c div_un0 q0'
+  let _ := hdHi_ge
+  let _ := hdHi_lt
+  let _ := hdLo_lt
+  let _ := h_un21_ge_pow63
+  let _ := h_un21_lt_vTop
+  let _ := h_rhat2c_lt
+  sorry
+
 /-- **The single remaining sorry — Phase 2 tightness for un21 ≥ 2^63** (TODO).
 
     Genuinely-hard regime: un21 ∈ [max(dHi*2^32, 2^63), vTop). Neither
@@ -749,32 +787,16 @@ theorem algorithmQ0Prime_ge_q_true_0_of_un21_ge_pow63_rhat2c_lt_pow32
       ((b3' >>> (32 : BitVec 6).toNat).toNat * 2^32 +
       ((b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat).toNat) ≤
     (algorithmQ0Prime u4 u3 b3').toNat := by
-  -- **Direct closure path identified** (2026-04-25):
-  --
-  -- The existing `div128Quot_q1_prime_ge_q_true_1_small_rhatc` (in
-  -- `Div128KnuthLower.lean`) takes `rhatc < 2^32` DIRECTLY as a sufficient
-  -- condition (no need for un21 < 2^63). At Phase 2, this corresponds to
-  -- our `rhat2c < 2^32` hypothesis (with uHi := un21, uLo := uLo<<32 so
-  -- div_un1 = div_un0).
-  --
-  -- KB-LB8's existing proof of the no-guard case uses
-  -- `_of_uHi_lt_pow63` which internally derives `rhatc < 2^32` from
-  -- `un21 < 2^63`. By substituting our rhat2c < 2^32 hypothesis directly,
-  -- we can apply `_small_rhatc` without the un21 < 2^63 detour.
-  --
-  -- The guard-fires case uses KB-LB3 which doesn't need un21 < 2^63.
-  --
-  -- Pending work: formalize the substitution, mirroring KB-LB8's body
-  -- (case-split on `div128Quot_phase2b_q0'`'s guard) but routing the
-  -- no-guard case through `_small_rhatc` instead of `_of_uHi_lt_pow63`.
-  -- ~30-50 lines of algorithm-level Word arithmetic.
-  let _ := hdHi_ge
-  let _ := hdHi_lt
-  let _ := hdLo_lt
-  let _ := h_un21_ge_pow63
-  let _ := h_un21_lt_vTop
-  let _ := h_rhat2c_lt
-  sorry
+  -- Compose the un21-level helper (sorry stub above) with
+  -- `algorithmQ0Prime_unfold`, parallel to
+  -- `algorithmQ0Prime_ge_q_true_0_of_un21_lt_pow63`'s wrap pattern.
+  rw [algorithmQ0Prime_unfold]
+  exact div128Quot_q0_prime_ge_q_true_0_of_rhat2c_lt_pow32_un21_level
+    (algorithmUn21 u4 u3 b3')
+    (b3' >>> (32 : BitVec 6).toNat)
+    ((b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat)
+    u3
+    hdHi_ge hdHi_lt hdLo_lt h_un21_ge_pow63 h_un21_lt_vTop h_rhat2c_lt
 
 /-- **Phase 2 tightness for un21 ≥ 2^63 + rhat2c ≥ 2^32 sub-case** (TODO —
     GENUINELY HARD).
