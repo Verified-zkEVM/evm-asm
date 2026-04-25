@@ -45,8 +45,12 @@ open EvmAsm.Rv64
           (rhatc % 2^32) * 2^32 + div_un1. The comparison q1c * dLo > rhatUn1
           may fire spuriously due to truncation.
 
-    This stub is the genuine hard piece — requires new KB-LB lemmas for the
-    rhatc ≥ 2^32 regime or a direct algorithm-level argument. -/
+    Decomposition into:
+    - `algorithmQ1Prime_ge_q_true_1_under_narrow_u4_no_correction`: Phase 1b
+      check doesn't fire, q1' = q1c, KB-LB3 directly applies.
+    - `algorithmQ1Prime_ge_q_true_1_under_narrow_u4_with_correction`: Phase 1b
+      check fires. Genuine hard regime; stubbed.
+    -/
 theorem algorithmQ1Prime_ge_q_true_1_under_narrow_u4
     (u4 u3 b3' : Word)
     (hb3'_ge : b3'.toNat ≥ 2^63)
@@ -54,7 +58,54 @@ theorem algorithmQ1Prime_ge_q_true_1_under_narrow_u4
     (hu4_ge : u4.toNat ≥ (b3' >>> (32 : BitVec 6).toNat).toNat * 2^32) :
     (u4.toNat * 2^32 + (u3 >>> (32 : BitVec 6).toNat).toNat) / b3'.toNat ≤
       (algorithmQ1Prime u4 u3 b3').toNat := by
-  sorry
+  -- KB-LB3 applies in narrow_u4 (it doesn't need hu4_lt_dHi_pow32).
+  -- Gives q_true_1 ≤ q1c.toNat (the post-Phase-1a lower bound).
+  have h_dHi_ne : (b3' >>> (32 : BitVec 6).toNat) ≠ 0 := by
+    intro heq
+    have h : (b3' >>> (32 : BitVec 6).toNat).toNat = 0 := by rw [heq]; rfl
+    rw [BitVec.toNat_ushiftRight, AddrNorm.bv6_toNat_32, Nat.shiftRight_eq_div_pow] at h
+    have : b3'.toNat ≥ 2^63 := hb3'_ge
+    omega
+  have h_div_un1_lt : (u3 >>> (32 : BitVec 6).toNat).toNat < 2^32 := by
+    rw [BitVec.toNat_ushiftRight, AddrNorm.bv6_toNat_32, Nat.shiftRight_eq_div_pow]
+    have : u3.toNat < 2^64 := u3.isLt
+    exact Nat.div_lt_of_lt_mul (by omega)
+  have h_v_eq : b3'.toNat =
+      (b3' >>> (32 : BitVec 6).toNat).toNat * 2^32 +
+      ((b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat).toNat :=
+    div128Quot_vTop_decomp b3'
+  have h_u4_lt_vTop : u4.toNat <
+      (b3' >>> (32 : BitVec 6).toNat).toNat * 2^32 +
+      ((b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat).toNat := by
+    rw [← h_v_eq]; exact hu4_lt_b3'
+  have h_q1c_ge :=
+    div128Quot_q1c_ge_q_true_1 u4 (b3' >>> (32 : BitVec 6).toNat)
+      ((b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat)
+      (u3 >>> (32 : BitVec 6).toNat) h_dHi_ne h_div_un1_lt h_u4_lt_vTop
+  rw [h_v_eq]
+  -- Phase 1b case-split.
+  rw [algorithmQ1Prime_unfold]
+  simp only []
+  -- Goal: q_true_1 ≤ if BitVec.ult ... then q1c + signExtend12 4095 else q1c.
+  by_cases h_check : BitVec.ult
+      (((if (rv64_divu u4 (b3' >>> (32 : BitVec 6).toNat)) >>>
+              (32 : BitVec 6).toNat = 0 then
+            u4 - rv64_divu u4 (b3' >>> (32 : BitVec 6).toNat) *
+              (b3' >>> (32 : BitVec 6).toNat)
+          else u4 - rv64_divu u4 (b3' >>> (32 : BitVec 6).toNat) *
+              (b3' >>> (32 : BitVec 6).toNat) + (b3' >>> (32 : BitVec 6).toNat)) <<<
+          (32 : BitVec 6).toNat) ||| u3 >>> (32 : BitVec 6).toNat)
+      ((if (rv64_divu u4 (b3' >>> (32 : BitVec 6).toNat)) >>>
+            (32 : BitVec 6).toNat = 0 then
+          rv64_divu u4 (b3' >>> (32 : BitVec 6).toNat)
+        else rv64_divu u4 (b3' >>> (32 : BitVec 6).toNat) + signExtend12 4095) *
+        ((b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat))
+  · -- Phase 1b correction fires. Genuine hard regime under rhatc ≥ 2^32.
+    rw [if_pos h_check]
+    sorry
+  · -- No Phase 1b correction. q1' = q1c, KB-LB3 closes.
+    rw [if_neg h_check]
+    exact h_q1c_ge
 
 /-- **Phase 1 tight, wrapped**: Phase 1 tight specialized and folded into
     `algorithmQ1Prime`. Parallel to `algorithmQ0Prime_ge_q_true_0`. -/
