@@ -461,7 +461,7 @@ theorem algorithmQ1Prime_step3_q1c_le_q_true_1_plus_two
 /-- **_plus_one sub-step 4**: `rhatc.toNat < 2^32` under `u4 < dHi*2^32`.
     Direct wrapping of `div128Quot_rhatc_lt_pow32_of_uHi_lt_dHi_mul_pow32`. -/
 theorem algorithmQ1Prime_step4_rhatc_lt_pow32
-    (u4 u3 b3' : Word)
+    (u4 b3' : Word)
     (hb3'_ge : b3'.toNat ≥ 2^63)
     (hu4_lt_dHi_pow32 : u4.toNat < (b3' >>> (32 : BitVec 6).toNat).toNat * 2^32) :
     let dHi := b3' >>> (32 : BitVec 6).toNat
@@ -533,7 +533,7 @@ theorem algorithmQ1Prime_step5_ult_bridge
     div128Quot_q1c_le_pow32 u4 dHi dLo h_dHi_ge h_dLo_lt h_u4_lt_vTop
   -- rhatc < 2^32 (step4).
   have h_rhatc_lt : rhatc.toNat < 2^32 :=
-    algorithmQ1Prime_step4_rhatc_lt_pow32 u4 u3 b3' hb3'_ge hu4_lt_dHi_pow32
+    algorithmQ1Prime_step4_rhatc_lt_pow32 u4 b3' hb3'_ge hu4_lt_dHi_pow32
   -- q1c * dLo no-wrap.
   have h_q1c_dLo_lt : q1c.toNat * dLo.toNat < 2^64 := by
     have : q1c.toNat * dLo.toNat ≤ 2^32 * (2^32 - 1) := by

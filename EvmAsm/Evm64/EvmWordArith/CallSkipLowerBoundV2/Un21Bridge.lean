@@ -475,7 +475,7 @@ theorem algorithmUn21_L2b_rhat_prime_lt_pow33
     rhat'.toNat < 2^33 := by
   intro dHi dLo div_un1 q1 rhat hi1 q1c rhatc qDlo rhatUn1 rhat'
   have h_rhatc_lt : rhatc.toNat < 2^32 :=
-    algorithmQ1Prime_step4_rhatc_lt_pow32 u4 u3 b3' hb3'_ge hu4_lt_dHi_pow32
+    algorithmQ1Prime_step4_rhatc_lt_pow32 u4 b3' hb3'_ge hu4_lt_dHi_pow32
   have h_dHi_lt : dHi.toNat < 2^32 := by
     show (b3' >>> (32 : BitVec 6).toNat).toNat < 2^32
     rw [BitVec.toNat_ushiftRight, AddrNorm.bv6_toNat_32, Nat.shiftRight_eq_div_pow]
