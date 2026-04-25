@@ -19,9 +19,12 @@
   - **A2.S2 q1' helpers** (closed via OR-shift / contrapositive):
       - `_of_q1_prime_overshoot` (closed) — q1' ≥ q_true_1 + 1 case.
   - **A2.S2 q1' helpers** (q1' ≤ q_true_1 case, decomposed):
+      - `algorithmQ0Prime_ge_q_true_0_of_q1_prime_eq_q_true_1_narrow_narrow`
+        (closed): the fully-provable sub-case (narrow-u4 + narrow-un21);
+        composes existing un21 = r1_math + Phase 2 tightness helpers.
       - `algorithmQ0Prime_ge_q_true_0_of_q1_prime_eq_q_true_1` (sorry) —
-        Phase 2 tightness under exact Phase 1; wraps the existing Phase 2
-        tightness with appropriate un21 bounds.
+        the umbrella; refactor to dispatch to narrow_narrow + remaining
+        sub-cases is the next step.
       - `algorithmQ0Prime_compensates_phase1_deficit` (closed via
         composition) — Phase 2 deficit: q0' ≥ q_true_full - q1'*2^32.
         Composes no-undershoot (existing for narrow-u4 + new stub for
@@ -429,6 +432,66 @@ theorem div128Quot_qHat_plus_one_times_b3_gt_u_of_q1_prime_overshoot
       ((u4.toNat * 2^64 + u3.toNat) / b3'.toNat + 2) * b3'.toNat :=
     Nat.mul_le_mul_right _ h_div128_succ
   linarith [h_step1, h_qhat_plus_one]
+
+/-- **Phase 2 tightness under Phase 1 exact, narrow-u4 + narrow-un21 sub-case** —
+    closed via existing helpers.
+
+    Specializes `algorithmQ0Prime_ge_q_true_0_of_q1_prime_eq_q_true_1` to the
+    fully-provable sub-case where both u4 < dHi*2^32 (narrow-u4) and
+    un21 < dHi*2^32 (narrow-un21) hold.
+
+    Closes via `algorithmUn21_eq_r1_math_of_q1_prime_eq_q_true_1` (un21 =
+    r1_math under narrow-u4) + `algorithmQ0Prime_ge_q_true_0` (Phase 2
+    tightness under narrow-un21). -/
+theorem algorithmQ0Prime_ge_q_true_0_of_q1_prime_eq_q_true_1_narrow_narrow
+    (u4 u3 b3' : Word)
+    (hb3'_ge : b3'.toNat ≥ 2^63)
+    (hu4_lt_b3' : u4.toNat < b3'.toNat)
+    (hu4_lt_dHi_pow32 : u4.toNat < (b3' >>> (32 : BitVec 6).toNat).toNat * 2^32)
+    (h_un21_lt_dHi : (algorithmUn21 u4 u3 b3').toNat <
+      (b3' >>> (32 : BitVec 6).toNat).toNat * 2^32)
+    (h_q1_eq : (algorithmQ1Prime u4 u3 b3').toNat =
+      (u4.toNat * 2^32 + (u3 >>> (32 : BitVec 6).toNat).toNat) / b3'.toNat) :
+    (((u4.toNat * 2^32 + (u3 >>> (32 : BitVec 6).toNat).toNat) % b3'.toNat * 2^32 +
+      ((u3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat).toNat) / b3'.toNat) ≤
+    (algorithmQ0Prime u4 u3 b3').toNat := by
+  -- un21 = r1_math under narrow-u4 + q1' = q_true_1.
+  have h_un21_eq := algorithmUn21_eq_r1_math_of_q1_prime_eq_q_true_1 u4 u3 b3'
+    hb3'_ge hu4_lt_b3' hu4_lt_dHi_pow32 h_q1_eq
+  -- Standard b3' halves derivations.
+  have h_dHi_ge : (b3' >>> (32 : BitVec 6).toNat).toNat ≥ 2^31 := by
+    rw [BitVec.toNat_ushiftRight, AddrNorm.bv6_toNat_32, Nat.shiftRight_eq_div_pow]
+    have : b3'.toNat ≥ 2^63 := hb3'_ge; omega
+  have h_dHi_lt : (b3' >>> (32 : BitVec 6).toNat).toNat < 2^32 := by
+    rw [BitVec.toNat_ushiftRight, AddrNorm.bv6_toNat_32, Nat.shiftRight_eq_div_pow]
+    have : b3'.toNat < 2^64 := b3'.isLt
+    exact Nat.div_lt_of_lt_mul (by omega)
+  have h_dLo_lt :
+      ((b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat).toNat < 2^32 := by
+    rw [BitVec.toNat_ushiftRight, AddrNorm.bv6_toNat_32, Nat.shiftRight_eq_div_pow]
+    have : (b3' <<< (32 : BitVec 6).toNat : Word).toNat < 2^64 :=
+      (b3' <<< (32 : BitVec 6).toNat : Word).isLt
+    exact Nat.div_lt_of_lt_mul (by omega)
+  have h_v_eq : b3'.toNat =
+      (b3' >>> (32 : BitVec 6).toNat).toNat * 2^32 +
+      ((b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat).toNat :=
+    div128Quot_vTop_decomp b3'
+  have h_un21_lt_vTop : (algorithmUn21 u4 u3 b3').toNat <
+      (b3' >>> (32 : BitVec 6).toNat).toNat * 2^32 +
+      ((b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat).toNat := by
+    rw [← h_v_eq]
+    have : (algorithmUn21 u4 u3 b3').toNat <
+        (b3' >>> (32 : BitVec 6).toNat).toNat * 2^32 := h_un21_lt_dHi
+    omega
+  -- Apply existing Phase 2 tightness.
+  have h_ph2 := algorithmQ0Prime_ge_q_true_0 u4 u3 b3'
+    h_dHi_ge h_dHi_lt h_dLo_lt h_un21_lt_dHi h_un21_lt_vTop
+  -- h_ph2 has divisor in decomposed form (dHi*2^32 + dLo); rewrite back
+  -- to b3'.toNat to match the goal.
+  rw [← h_v_eq] at h_ph2
+  -- h_ph2 has un21.toNat as the numerator's first term; rewrite to r1_math.
+  rw [h_un21_eq] at h_ph2
+  exact h_ph2
 
 /-- **A2.S2 Phase 2 tightness under Phase 1 exact** (TODO — focused stub).
 
