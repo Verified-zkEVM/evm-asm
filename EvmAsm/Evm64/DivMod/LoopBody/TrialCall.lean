@@ -18,7 +18,6 @@
   - `divK_save_trial_load_spec`, `divK_trial_call_path_spec`.
 -/
 
-import EvmAsm.Evm64.DivMod.LoopBody
 import EvmAsm.Evm64.DivMod.LoopBody.TrialCallPath
 
 open EvmAsm.Rv64.Tactics
