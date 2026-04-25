@@ -16,8 +16,10 @@
   - Composing without cell duplication in any separating conjunction
 -/
 
+import EvmAsm.Evm64.DivMod.LoopBody.TrialCall
 import EvmAsm.Evm64.DivMod.LoopBody.TrialMax
 import EvmAsm.Evm64.DivMod.LoopBody.CorrectionAddbackBeq
+import EvmAsm.Evm64.DivMod.LoopBody.MulsubCorrectionSkip
 
 open EvmAsm.Rv64.Tactics
 

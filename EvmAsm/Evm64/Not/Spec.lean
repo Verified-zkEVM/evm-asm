@@ -5,6 +5,7 @@
 -/
 
 import EvmAsm.Evm64.Not.LimbSpec
+import EvmAsm.Rv64.Tactics.XSimp
 
 open EvmAsm.Rv64.Tactics
 
