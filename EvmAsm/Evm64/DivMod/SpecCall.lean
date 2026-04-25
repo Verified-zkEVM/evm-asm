@@ -3341,14 +3341,22 @@ theorem output_slot_to_evmWordIs_mod_n4_call_addback_beq_denorm
   · -- Double-addback branch. Still sorry — needs Knuth bound for c3 = 1.
     sorry
   · -- Single-addback branch (carry_word = 1).
-    -- Apply the unified lemma to get val256(post1_low4) = a%b * 2^s
+    -- Step 1-3: Apply the unified lemma to get val256(post1_low4) = a%b * 2^s
     -- in the parent's local (64-s) form.
     rw [hcarry_def] at hcarry
     have h_post1_eq := parent_post1Val_eq_amod_pow_s_of_single_addback
       a b hb3nz hshift_nz hborrow hsem_orig hcarry
     simp only [] at h_post1_eq
-    -- TODO step 4 (val256_denormalize fold): convert val256-level equation
-    -- via `EvmWord.val256_denormalize` to per-limb evmWordIs equation.
+    -- Step 4: val256_denormalize fold via the closed
+    -- `denorm_4limb_eq_mod_of_val256_eq_amod_pow_s` helper.
+    have h_s_pos : 0 < s := by rw [hs_def]; omega
+    have h_s_lt_64 : s < 64 := by rw [hs_def]; omega
+    have h_denorm := denorm_4limb_eq_mod_of_val256_eq_amod_pow_s
+      (a := a) (b := b) (s := s) h_s_pos h_s_lt_64 hb3nz h_post1_eq
+    -- The goal's `un{i}Out := if carry = 0 then ab'.{i} else ab.{i}` reduces
+    -- to `ab.{i}` in single-addback (carry ≠ 0). And `ab.{i}` (low 4) equals
+    -- `post1.{i}` since addbackN4's low 4 outputs don't depend on u4_new.
+    -- TODO: Memory-equation collapse — `if_neg` + addbackN4 rfl + evmWordIs_sp32_limbs_eq.
     sorry
 
 /-- **EVM-stack-level MOD spec on the n=4 call+addback BEQ sub-path (SORRY).**
