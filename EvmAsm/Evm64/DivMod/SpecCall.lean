@@ -2374,6 +2374,35 @@ theorem post1_eq_mod_times_pow_s_of_c3_eq_u4_plus_one
   rw [h_c3_eq] at h_id
   omega
 
+/-- **Pure-Nat: post1_val = a%b * 2^s from mulsub+addback Euclidean + bounds.**
+
+    Packaged single-shot sub-stub for the call+addback BEQ MOD adapter's
+    single-addback branch (PR #1253). Combines:
+    - `c3_eq_u4_plus_one_from_mulsub_addback_bounds` (yields c3 = u4 + 1).
+    - `post1_eq_mod_times_pow_s_of_c3_eq_u4_plus_one` (val256-level result).
+
+    Avoids exposing the intermediate `c3 = u4 + 1` step at the call site.
+    Once the Word-level bridge to the parent's let-chain is figured out, the
+    parent can apply this directly to skip an entire chained `c3` derivation.
+
+    The hypotheses are exactly the 6 preconditions for the c3-pinning lemma:
+    `h_mulsub` already encodes `qHat = a/b + 1` via the `(a_val / b_val + 1)`
+    factor on its RHS. -/
+theorem post1_val_eq_amod_pow_s_pure_nat
+    (post1_val ms_val a_val b_val s u4 c3 : Nat)
+    (h_mulsub : c3 * 2^256 + (a_val * 2^s - u4 * 2^256) = ms_val + (a_val / b_val + 1) * (b_val * 2^s))
+    (h_addback : post1_val + 2^256 = ms_val + b_val * 2^s)
+    (h_u4_le : u4 * 2^256 ≤ a_val * 2^s)
+    (h_post1_lt : post1_val < 2^256)
+    (h_amod_pow_lt : a_val % b_val * 2^s < 2^256)
+    (h_u4_lt_c3 : u4 < c3) :
+    post1_val = a_val % b_val * 2^s := by
+  have h_c3_eq := c3_eq_u4_plus_one_from_mulsub_addback_bounds
+    post1_val ms_val a_val b_val s u4 c3
+    h_mulsub h_addback h_u4_le h_post1_lt h_amod_pow_lt h_u4_lt_c3
+  exact post1_eq_mod_times_pow_s_of_c3_eq_u4_plus_one
+    post1_val ms_val a_val b_val s u4 c3 h_mulsub h_addback h_u4_le h_c3_eq
+
 /-- **Call+addback BEQ n=4 MOD denorm adapter (SORRY).** Stack-level adapter
     folding the four denormalized remainder slots at `sp+32..sp+56` into
     `evmWordIs (sp+32) (EvmWord.mod a b)` for the call+addback BEQ path.
