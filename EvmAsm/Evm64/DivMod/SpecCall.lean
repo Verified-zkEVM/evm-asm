@@ -1880,17 +1880,19 @@ theorem qHat_eq_div_plus_one_of_single_addback (a b : EvmWord)
     + 1, the precondition for `mulsubN4_c3_le_one` at the normalized-limb level
     (giving c3 ≤ 1 in this branch).
 
-    Closure complication: `qHat_eq_div_plus_one_of_single_addback` gives
-    qHat = val256(a)/val256(b) + 1 (un-normalized). When u4 = 0 (no 5th-limb
-    overflow), val256(u_norm_low4)/val256(b_norm) = val256(a)/val256(b) and
-    the bound holds with equality. When u4 ≠ 0, val256(u_norm_low4) =
-    val256(a)*2^s - u4*2^256 < val256(a)*2^s, so the ratio is smaller and the
-    direct bound fails — but the call-trial regime ensures the FINAL quotient
-    q_out fits in 64 bits, which constrains u4. Likely need to combine with
-    `val256_normalize_general` + an arithmetic step relating qHat to u4.
+    Closure path (concrete): `qHat_eq_div_plus_one_of_single_addback` gives
+    qHat = val256(a)/val256(b) + 1. Combining with `mulsubN4_val256_eq` at
+    the normalized-limb level:
+    - `val256(u_norm_low4) + c3*2^256 = val256(ms_low4) + qHat * val256(b_norm)`
+    - val256(u_norm_low4) = val256(a)*2^s - u4*2^256 (from `val256_normalize_general`)
+    - val256(b_norm) = val256(b)*2^s (from `val256_normalize`)
 
-    Alternative: use `mulsubN4_c3_le_one` against val256(a) + u4*2^256 form
-    (the full normalized dividend), instead of just val256(u_norm_low4). -/
+    For c3 ≤ 1 we need `qHat * val256(b_norm) ≤ val256(u_norm_low4) + val256(b_norm)`,
+    which simplifies to `val256(a) % val256(b) * 2^s ≥ u4 * 2^256`. This is a
+    nontrivial bound — it says u4 is NOT TOO LARGE relative to the remainder.
+    The call-trial precondition `u4 < b3'` is the key here: combined with
+    val256(b_norm) ≥ b3' * 2^192, we should be able to derive the needed
+    inequality. -/
 theorem qHat_le_normalized_floor_plus_one_of_single_addback (a b : EvmWord)
     (hbnz : b ≠ 0)
     (hb3nz : b.getLimbN 3 ≠ 0)
