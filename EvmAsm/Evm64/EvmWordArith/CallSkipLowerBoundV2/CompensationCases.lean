@@ -218,6 +218,21 @@ theorem q0_le_pow32_plus_one (un21 dHi dLo : Nat)
     (Nat.div_lt_iff_lt_mul h_dHi_pos).mpr (by linarith [h_un21_lt_mul])
   omega
 
+/-- **q0c_mul_dLo_lt_pow64**: pure Nat helper. Under `q0c ≤ 2^32` and
+    `dLo < 2^32`, `q0c * dLo < 2^64`. Used by `_rhat2c_lt_pow32` to
+    show that Phase 2b's `q0c * dLo` Word product doesn't overflow,
+    so the ult check is honest. -/
+theorem q0c_mul_dLo_lt_pow64 (q0c dLo : Nat)
+    (hq0c : q0c ≤ 2^32) (hdLo : dLo < 2^32) :
+    q0c * dLo < 2^64 := by
+  have h_pow : (2^32 : Nat) * 2^32 = 2^64 := by decide
+  have h_mul_le : q0c * dLo ≤ 2^32 * (2^32 - 1) := by
+    have h1 : q0c * dLo ≤ 2^32 * dLo := Nat.mul_le_mul_right _ hq0c
+    have h2 : (2^32 : Nat) * dLo ≤ 2^32 * (2^32 - 1) :=
+      Nat.mul_le_mul_left _ (by omega)
+    omega
+  omega
+
 /-- **A2.S1.body** (pure Nat + abstract phase hypotheses): if the algorithm's
     qHat decomposes as `q1'*2^32 + q0'` (halfword combine output) AND the
     phase-wise tight bounds `q_true_1 ≤ q1'` and `q_true_0 ≤ q0'` hold AND
