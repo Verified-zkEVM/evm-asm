@@ -2053,9 +2053,29 @@ theorem c3_n_eq_u4_plus_one_of_single_addback (a b : EvmWord)
       (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
       (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
       h_clz_le hvb_pos hb3_bound
+  -- Step 4: h_u4_le — u4 * 2^256 ≤ val256(a) * 2^s.
+  -- u4 = a3 >>> antiShift = a3 / 2^(64-s), so u4 * 2^(64-s) ≤ a3.
+  -- val256(a) ≥ a3 * 2^192. Hence u4 * 2^256 = u4 * 2^(64-s) * 2^(192+s)
+  --   ≤ a3 * 2^(192+s) ≤ val256(a) * 2^s.
+  have h_a3_val_ge :
+      (a.getLimbN 3).toNat * 2^192 ≤
+        val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) := by
+    unfold val256; nlinarith [(a.getLimbN 0).isLt, (a.getLimbN 1).isLt, (a.getLimbN 2).isLt]
+  have h_u4_toNat : u4.toNat =
+      (a.getLimbN 3).toNat / 2 ^ ((signExtend12 (0 : BitVec 12) -
+        (clzResult (b.getLimbN 3)).1).toNat % 64) := by
+    show ((a.getLimbN 3) >>> antiShift).toNat = _
+    rw [BitVec.toNat_ushiftRight, Nat.shiftRight_eq_div_pow]
+  have h_u4_le : u4.toNat * 2^256 ≤
+      val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) *
+        2 ^ ((clzResult (b.getLimbN 3)).1.toNat % 64) := by
+    let _ := h_a3_val_ge
+    let _ := h_u4_toNat
+    sorry
   let _ := h_u4_lt_c3
   let _ := h_post1_lt
   let _ := h_amod_pow_lt
+  let _ := h_u4_le
   let _ := hbnz; let _ := hb3nz; let _ := hshift_nz
   let _ := hsem; let _ := hcarry_nz
   sorry
