@@ -2091,6 +2091,47 @@ theorem algCallAddbackBeqPost1Val_unfold {a b : EvmWord} :
   unfold algCallAddbackBeqPost1Val
   rfl
 
+/-- **Bridge: `algCallAddbackBeqCarry` in parent-friendly `(64 - s)` form** (CLOSED).
+
+    The irreducible def's body uses antiShift form `(signExtend12 0 -
+    clz).toNat % 64`. The parent adapter's local `set` lines use the
+    Nat-subtraction form `64 - s` (matching what the runtime emits via
+    bit-shift instructions). This bridge equates the two forms under
+    `hshift_nz`, so the parent can use `algCallAddbackBeqCarry a b ≠ 0`
+    directly from its local `carry_word ≠ 0` hypothesis. -/
+theorem algCallAddbackBeqCarry_eq_parent_64ms_form
+    (a b : EvmWord) (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0) :
+    algCallAddbackBeqCarry a b =
+    (let s := (clzResult (b.getLimbN 3)).1.toNat % 64
+     let b0' := (b.getLimbN 0) <<< s
+     let b1' := ((b.getLimbN 1) <<< s) ||| ((b.getLimbN 0) >>> (64 - s))
+     let b2' := ((b.getLimbN 2) <<< s) ||| ((b.getLimbN 1) >>> (64 - s))
+     let b3' := ((b.getLimbN 3) <<< s) ||| ((b.getLimbN 2) >>> (64 - s))
+     let u0 := (a.getLimbN 0) <<< s
+     let u1 := ((a.getLimbN 1) <<< s) ||| ((a.getLimbN 0) >>> (64 - s))
+     let u2 := ((a.getLimbN 2) <<< s) ||| ((a.getLimbN 1) >>> (64 - s))
+     let u3 := ((a.getLimbN 3) <<< s) ||| ((a.getLimbN 2) >>> (64 - s))
+     let u4 := (a.getLimbN 3) >>> (64 - s)
+     let qHat := div128Quot u4 u3 b3'
+     let ms := mulsubN4 qHat b0' b1' b2' b3' u0 u1 u2 u3
+     addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 b0' b1' b2' b3') := by
+  rw [algCallAddbackBeqCarry_unfold]
+  -- Convert antiShift form to (64 - s) form via hanti_toNat_mod.
+  have h_clz_pos : 1 ≤ (clzResult (b.getLimbN 3)).1.toNat := by
+    rcases Nat.eq_zero_or_pos (clzResult (b.getLimbN 3)).1.toNat with h0 | h0
+    · exfalso; apply hshift_nz
+      exact BitVec.eq_of_toNat_eq (by simp [h0])
+    · exact h0
+  have h_clz_le_63 : (clzResult (b.getLimbN 3)).1.toNat ≤ 63 :=
+    clzResult_fst_toNat_le _
+  have h_anti_eq : (signExtend12 (0 : BitVec 12) -
+      (clzResult (b.getLimbN 3)).1).toNat % 64 =
+      64 - (clzResult (b.getLimbN 3)).1.toNat :=
+    antiShift_toNat_mod_eq h_clz_pos h_clz_le_63
+  have h_s_eq : (clzResult (b.getLimbN 3)).1.toNat % 64 =
+      (clzResult (b.getLimbN 3)).1.toNat := by omega
+  simp only [h_anti_eq, h_s_eq]
+
 /-- **Irreducible bundle: val256 of ms low 4 outputs at normalized inputs.**
 
     Captures `val256 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1` where `ms = mulsubN4
