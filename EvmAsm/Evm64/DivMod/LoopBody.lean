@@ -1,4 +1,3 @@
--- file-size-exception: tracked by issues #283/#266 (skip/addback unification + DIV/MOD loop factoring). Grandfathered pending consolidation.
 /-
   EvmAsm.Evm64.DivMod.LoopBody
 
