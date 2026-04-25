@@ -1932,6 +1932,30 @@ theorem c3_le_u4_plus_one_from_identity
   have h_split : (u4 + 2) * 2^256 = (u4 + 1) * 2^256 + 2^256 := by ring
   omega
 
+/-- **Pure-Nat: c3 = u4 + 1 from mulsub Euclidean + addback Euclidean + bounds.**
+
+    Combined sub-stub: takes the val256-level Euclidean equations, normalization
+    bounds, and `u4 < c3`, and outputs c3 = u4 + 1 directly. This is the
+    pure-Nat composition of the algebraic identity, the c3 ≤ u4 + 1 bound,
+    and the u4 < c3 hypothesis.
+
+    Once the Word-level wrapper at `c3_n_eq_u4_plus_one_of_single_addback`
+    is plumbed up, it just calls this. -/
+theorem c3_eq_u4_plus_one_from_mulsub_addback_bounds
+    (post1_val ms_val a_val b_val s u4 c3 : Nat)
+    (h_mulsub : c3 * 2^256 + (a_val * 2^s - u4 * 2^256) = ms_val + (a_val / b_val + 1) * (b_val * 2^s))
+    (h_addback : post1_val + 2^256 = ms_val + b_val * 2^s)
+    (h_u4_le : u4 * 2^256 ≤ a_val * 2^s)
+    (h_post1_lt : post1_val < 2^256)
+    (h_amod_pow_lt : a_val % b_val * 2^s < 2^256)
+    (h_u4_lt_c3 : u4 < c3) :
+    c3 = u4 + 1 := by
+  have h_id := val256_post1_low4_eq_mod_times_pow_s_plus_c3_minus_one_minus_u4
+    post1_val ms_val a_val b_val s u4 c3 h_mulsub h_addback h_u4_le
+  have h_le := c3_le_u4_plus_one_from_identity
+    post1_val a_val b_val s u4 c3 h_id h_post1_lt h_amod_pow_lt
+  omega
+
 /-- **Sub-stub: c3_n = u4 + 1 in single-addback.**
 
     The key algebraic identity for the call-addback BEQ MOD adapter, mirroring
