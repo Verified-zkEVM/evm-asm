@@ -1874,16 +1874,23 @@ theorem qHat_eq_div_plus_one_of_single_addback (a b : EvmWord)
   -- hsem : qHat.toNat - 1 = a.toNat / b.toNat
   omega
 
-/-- **Sub-stub (single-addback): qHat ≤ val256(u_norm)/val256(b_norm) + 1.**
+/-- **Sub-stub (single-addback): qHat ≤ val256(u_norm_low4)/val256(b_norm) + 1.**
     Under the single-addback condition (`carry ≠ 0`), the trial quotient
-    `qHat = div128Quot u4 u3 b3'` overestimates the normalized quotient by
-    at most 1. This is the precondition for `mulsubN4_c3_le_one` at the
-    normalized-limb level (giving c3 ≤ 1 in this branch).
+    `qHat = div128Quot u4 u3 b3'` is bounded by val256(u_norm_low4)/val256(b_norm)
+    + 1, the precondition for `mulsubN4_c3_le_one` at the normalized-limb level
+    (giving c3 ≤ 1 in this branch).
 
-    Closure path: combine `qHat_eq_div_plus_one_of_single_addback`
-    (gives qHat = a.toNat / b.toNat + 1) with the val256-normalization
-    preserves-quotient identity (val256(u_norm)/val256(b_norm) = a/b
-    since both numerator and denominator scale by 2^s). -/
+    Closure complication: `qHat_eq_div_plus_one_of_single_addback` gives
+    qHat = val256(a)/val256(b) + 1 (un-normalized). When u4 = 0 (no 5th-limb
+    overflow), val256(u_norm_low4)/val256(b_norm) = val256(a)/val256(b) and
+    the bound holds with equality. When u4 ≠ 0, val256(u_norm_low4) =
+    val256(a)*2^s - u4*2^256 < val256(a)*2^s, so the ratio is smaller and the
+    direct bound fails — but the call-trial regime ensures the FINAL quotient
+    q_out fits in 64 bits, which constrains u4. Likely need to combine with
+    `val256_normalize_general` + an arithmetic step relating qHat to u4.
+
+    Alternative: use `mulsubN4_c3_le_one` against val256(a) + u4*2^256 form
+    (the full normalized dividend), instead of just val256(u_norm_low4). -/
 theorem qHat_le_normalized_floor_plus_one_of_single_addback (a b : EvmWord)
     (hbnz : b ≠ 0)
     (hb3nz : b.getLimbN 3 ≠ 0)
