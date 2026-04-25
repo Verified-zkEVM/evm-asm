@@ -2009,23 +2009,22 @@ theorem c3_n_eq_u4_plus_one_of_single_addback (a b : EvmWord)
     let ms := mulsubN4 qHat b0' b1' b2' b3' u0 u1 u2 u3
     ms.2.2.2.2.toNat = u4.toNat + 1 := by
   intro shift antiShift b3' b2' b1' b0' u3 u2 u1 u0 u4 qHat ms
-  -- Concrete proof skeleton (TODO: each step ~5-15 lines):
-  -- (a) `qHat.toNat = a/b + 1` via the closed `qHat_eq_div_plus_one_of_single_addback`.
-  --     CAUTION: direct application currently times out (200k heartbeats) due to
-  --     deep let-chain elaboration in hcarry_nz; may need irreducible bundles.
-  -- (b) Mulsub Euclidean: ms.toNat * 2^256 + val256(u_norm) =
-  --       val256(ms_low4) + qHat.toNat * val256(b_norm).
-  -- (c) val256(u_norm) = val256(a)*2^s - u4*2^256 (via val256_normalize_general).
-  --     val256(b_norm) = val256(b)*2^s (via val256_normalize, needs hb3_bound).
-  -- (d) Substitute (a) + (c) into (b):
-  --       ms.c3.toNat * 2^256 = val256(ms_low4) + (val256(b)-val256(a)%val256(b))*2^s + u4*2^256.
-  -- (e) Addback Euclidean (carry=1): val256(post1_low4) + 2^256 =
-  --       val256(ms_low4) + val256(b_norm).
-  -- (f) Combine (d)+(e): val256(post1_low4) = val256(a)%val256(b)*2^s +
-  --                       (ms.c3.toNat - 1 - u4.toNat) * 2^256.
-  -- (g) Bounds: 0 ≤ val256(post1_low4) < 2^256 forces ms.c3.toNat ≤ u4.toNat + 1.
-  -- (h) hborrow gives u4 < ms.c3.toNat, i.e. ms.c3.toNat ≥ u4.toNat + 1.
-  -- (i) (g) + (h) → ms.c3.toNat = u4.toNat + 1.
+  -- Concrete proof: apply the closed pure-Nat sub-stub
+  -- `c3_eq_u4_plus_one_from_mulsub_addback_bounds` after deriving its 6
+  -- preconditions:
+  -- - h_mulsub: from `mulsubN4_val256_eq` at normalized limbs +
+  --   `qHat_eq_div_plus_one_of_single_addback` (hsem is in scope).
+  -- - h_addback: from `addbackN4_val256_eq` at normalized limbs (carry = 1
+  --   from hcarry_nz).
+  -- - h_u4_le: u4*2^256 ≤ val256(a)*2^s. Follows from u4 = a3 >>> antiShift
+  --   (top-s bits of a3) plus val256(a) ≥ a3 * 2^192.
+  -- - h_post1_lt: val256(post1_low4) < 2^256 (always, val256 of 4 limbs).
+  -- - h_amod_pow_lt: val256(a) % val256(b) * 2^s < 2^256. Follows from
+  --   val256(a) % val256(b) < val256(b) ≤ 2^256 / 2^s ⟹ a%b * 2^s < 2^256.
+  --   This is the val256_mod_mul_pow bound, available as
+  --   `val256_mod_mul_pow_lt_pow256_of_b3_bound`.
+  -- - h_u4_lt_c3: directly from hborrow via `u_top_lt_c3_of_addback_borrow_call`.
+  -- TODO: each precondition is a small focused derivation (~5-15 lines).
   let _ := hbnz; let _ := hb3nz; let _ := hshift_nz
   let _ := hborrow; let _ := hsem; let _ := hcarry_nz
   sorry
