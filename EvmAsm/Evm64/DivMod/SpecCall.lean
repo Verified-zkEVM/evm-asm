@@ -1956,6 +1956,16 @@ theorem c3_eq_u4_plus_one_from_mulsub_addback_bounds
     post1_val a_val b_val s u4 c3 h_id h_post1_lt h_amod_pow_lt
   omega
 
+/-- **Sub-stub: addbackN4_carry returns 0 or 1.** Pure structural fact about
+    `addbackN4_carry` — the output is `aco3 = ac1_3 ||| ac2_3` where each
+    is 0 or 1, so `aco3 ∈ {0, 1}`. -/
+theorem addbackN4_carry_le_one (un0 un1 un2 un3 v0 v1 v2 v3 : Word) :
+    (addbackN4_carry un0 un1 un2 un3 v0 v1 v2 v3).toNat ≤ 1 := by
+  unfold addbackN4_carry
+  -- Each ac1_i, ac2_i is `if ... then (1 : Word) else 0`, so OR-ing two such
+  -- yields 0 or 1.
+  sorry
+
 /-- **Sub-stub: c3_n = u4 + 1 in single-addback.**
 
     The key algebraic identity for the call-addback BEQ MOD adapter, mirroring
@@ -2107,10 +2117,11 @@ theorem c3_n_eq_u4_plus_one_of_single_addback (a b : EvmWord)
   -- Step 5a: addback Euclidean (val256-level, with carry term) — direct application.
   have h_addback_eq := addbackN4_val256_eq ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 0 b0' b1' b2' b3'
   simp only [] at h_addback_eq
-  -- Step 5b (TODO): carry.toNat = 1. Needs `addbackN4_carry_le_one`-style helper
-  --   which doesn't exist yet. Word version: carry ∈ {0, 1} from the structure.
+  -- Step 5b: carry.toNat = 1 from hcarry_nz + addbackN4_carry_le_one.
+  have h_carry_le := addbackN4_carry_le_one ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 b0' b1' b2' b3'
   -- Step 5c (TODO): val256(b_norm) = val256(b) * 2^s via val256_normalize.
   -- Step 5d (TODO): combine 5a + 5b + 5c → h_addback in the form expected by Nat lemma.
+  let _ := h_carry_le
   let _ := h_u4_lt_c3
   let _ := h_post1_lt
   let _ := h_amod_pow_lt
