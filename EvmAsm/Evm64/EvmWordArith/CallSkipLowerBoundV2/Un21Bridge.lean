@@ -243,6 +243,39 @@ theorem algorithmUn21_L4_modular_identity
   rw [Nat.add_mod_right]
   exact Nat.mod_eq_of_lt h_r_lt_pow
 
+/-- **_plus_one case L4** (pure-Nat, off-by-one variant): when `q = q_true + 1`
+    (so q*V > u), the algorithmUn21-style modular subtraction wraps around
+    and yields `2^64 + r - V` instead of `r`.
+
+    Concretely: under the same shape preconditions as L4 except
+    - `q*V > u4*2^32 + div_un1` (overshoot, NOT the standard `q*V ≤ u`),
+    - `(q-1)*V ≤ u4*2^32 + div_un1` (so `q-1` is the true quotient),
+
+    we have:
+    `(2^64 - q*dLo + (rhat%2^32)*2^32 + div_un1) % 2^64 = 2^64 + r - V`
+    where `r := (u4*2^32 + div_un1) % V` and `V := dHi*2^32 + dLo`.
+
+    From this, `algorithmUn21.toNat = 2^64 + r - V ≥ r` (since 2^64 ≥ V),
+    which is what `_ge_r1_math_of_q1_prime_eq_q_true_1_plus_one` needs.
+
+    Stubbed for now; the proof structure parallels L4 but with sign-flipped
+    case analysis (cu_rhat_un1 < cu_q1_dlo, Word-wrap occurs). -/
+theorem algorithmUn21_L4_modular_identity_plus_one
+    (u4 div_un1 dHi dLo q rhat : Nat)
+    (hdiv_un1_lt : div_un1 < 2^32)
+    (hdLo_lt : dLo < 2^32)
+    (hrhat_lt : rhat < 2^33)
+    (hV_lt : dHi * 2^32 + dLo < 2^64)
+    (hq_pos : q ≥ 1)
+    (hV_pos : dHi * 2^32 + dLo ≥ 1)
+    (h_eucl : q * dHi + rhat = u4)
+    (h_q_dLo_no_wrap : q * dLo < 2^64)
+    (h_q_V_gt : q * (dHi * 2^32 + dLo) > u4 * 2^32 + div_un1)
+    (h_qm1_V_le : (q - 1) * (dHi * 2^32 + dLo) ≤ u4 * 2^32 + div_un1) :
+    (2^64 - q * dLo + (rhat % 2^32) * 2^32 + div_un1) % 2^64 =
+      2^64 + (u4 * 2^32 + div_un1) % (dHi * 2^32 + dLo) - (dHi * 2^32 + dLo) := by
+  sorry
+
 /-- **_of_tight sub-case "exact" L2.a**: Phase 1b Euclidean invariant at u4.
     Wraps `div128Quot_phase1b_post`. After Phase 1b, the corrected pair
     `(q1', rhat')` satisfies `q1'.toNat * dHi.toNat + rhat'.toNat = u4.toNat`. -/
