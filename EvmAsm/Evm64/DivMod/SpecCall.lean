@@ -2025,8 +2025,15 @@ theorem c3_n_eq_u4_plus_one_of_single_addback (a b : EvmWord)
   --   `val256_mod_mul_pow_lt_pow256_of_b3_bound`.
   -- - h_u4_lt_c3: directly from hborrow via `u_top_lt_c3_of_addback_borrow_call`.
   -- TODO: each precondition is a small focused derivation (~5-15 lines).
+  -- Step 1 (precondition derivation): h_u4_lt_c3 from hborrow.
+  rw [isAddbackBorrowN4CallEvm_def] at hborrow
+  have h_u4_lt_c3 := EvmWord.u_top_lt_c3_of_addback_borrow_call
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+      hborrow
+  let _ := h_u4_lt_c3
   let _ := hbnz; let _ := hb3nz; let _ := hshift_nz
-  let _ := hborrow; let _ := hsem; let _ := hcarry_nz
+  let _ := hsem; let _ := hcarry_nz
   sorry
 
 /-- **Call+addback BEQ n=4 MOD denorm adapter (SORRY).** Stack-level adapter
