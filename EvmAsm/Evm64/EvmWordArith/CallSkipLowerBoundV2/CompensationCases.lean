@@ -18,11 +18,13 @@
   - **A2.S1 normal**: `_normal` (closed) — both un21 < dHi*2^32 and u4 < dHi*2^32.
   - **A2.S2 q1' helpers** (closed via OR-shift / contrapositive):
       - `_of_q1_prime_overshoot` (closed) — q1' ≥ q_true_1 + 1 case.
-  - **A2.S2 q1' helpers** (currently sorry — global Phase 1+2 compensation):
-      - `_of_q1_prime_not_overshoot` (sorry) — q1' ≤ q_true_1 case.
-        Shared by all 3 deep exact-case sub-cases below; closure requires
-        extending `KnuthTheoremB.lean` (per-phase tightness fails — see
+  - **A2.S2 q1' helpers** (q1' ≤ q_true_1 case, decomposed):
+      - `div128Quot_ge_q_true_full_of_q1_prime_not_overshoot` (sorry) —
+        the focused math: combined q1'*2^32 + q0' ≥ q_true_full. Needs
+        `KnuthTheoremB.lean` extension (per-phase fails — see
         `memory/project_a2s2_per_phase_tightness_fails.md`).
+      - `_of_q1_prime_not_overshoot` (closed) — 3-line composition:
+        the math lemma + `nat_succ_mul_gt_of_div_le`.
   - **A2.S2 sub-cases** (each delegating to the q1' helpers above):
       - `_narrow_u4_tight_un21`, `_narrow_u4_wide_un21`, `_narrow_u4`
       - `_wide_un21_narrow`, `_wide_un21_wide`, `_wide_un21`
@@ -407,13 +409,11 @@ theorem div128Quot_qHat_plus_one_times_b3_gt_u_of_q1_prime_overshoot
     Nat.mul_le_mul_right _ h_div128_succ
   linarith [h_step1, h_qhat_plus_one]
 
-/-- **A2.S2 shared not-overshoot helper** (TODO).
+/-- **A2.S2 global Phase 1+2 compensation lemma** (TODO).
 
-    All 3 remaining A2.S2 exact-case sorries (`_narrow_u4_tight_un21`,
-    `_narrow_u4_wide_un21`, `_wide_un21_narrow`) reduce to *this single
-    statement*: under standard hypotheses + `q1' ≤ q_true_1` (i.e., the
-    NOT-overshoot branch of the case-split on `q1' ≥ q_true_1 + 1`),
-    `(qHat + 1) * b3' > u`.
+    The mathematical core of all 3 deep A2.S2 exact-case sub-cases. Under
+    no-overshoot at Phase 1 (`q1' ≤ q_true_1`), Phase 2's `q0'` compensates
+    so the combined `div128Quot.toNat` is at least the true quotient.
 
     Per-phase tightness (`q1' ≥ q_true_1 ∧ Phase-2-tight`) genuinely FAILS
     in this regime: when `rhatc ≥ 2^32` and the Phase 1b correction fires,
@@ -428,6 +428,21 @@ theorem div128Quot_qHat_plus_one_times_b3_gt_u_of_q1_prime_overshoot
     Phase 2 absorbs via Knuth-B's compensation argument. Closure requires
     a `KnuthTheoremB`-style two-phase argument that quantifies over the
     combined `(q1', q0')` pair rather than each phase separately. -/
+theorem div128Quot_ge_q_true_full_of_q1_prime_not_overshoot
+    (u4 u3 b3' : Word)
+    (hb3'_ge : b3'.toNat ≥ 2^63)
+    (hu4_lt_b3' : u4.toNat < b3'.toNat)
+    (h_q1_le : (algorithmQ1Prime u4 u3 b3').toNat ≤
+      (u4.toNat * 2^32 + (u3 >>> (32 : BitVec 6).toNat).toNat) / b3'.toNat) :
+    (u4.toNat * 2^64 + u3.toNat) / b3'.toNat ≤ (div128Quot u4 u3 b3').toNat := by
+  -- Suppress unused-variable warnings for the placeholder.
+  let _ := hb3'_ge
+  let _ := hu4_lt_b3'
+  let _ := h_q1_le
+  sorry
+
+/-- **A2.S2 shared not-overshoot helper** — 3-line composition of the
+    global Phase 1+2 compensation lemma + `nat_succ_mul_gt_of_div_le`. -/
 theorem div128Quot_qHat_plus_one_times_b3_gt_u_of_q1_prime_not_overshoot
     (u4 u3 b3' : Word)
     (hb3'_ge : b3'.toNat ≥ 2^63)
@@ -436,11 +451,10 @@ theorem div128Quot_qHat_plus_one_times_b3_gt_u_of_q1_prime_not_overshoot
       (u4.toNat * 2^32 + (u3 >>> (32 : BitVec 6).toNat).toNat) / b3'.toNat) :
     ((div128Quot u4 u3 b3').toNat + 1) * b3'.toNat >
       u4.toNat * 2^64 + u3.toNat := by
-  -- Suppress unused-variable warnings for the placeholder.
-  let _ := hb3'_ge
-  let _ := hu4_lt_b3'
-  let _ := h_q1_le
-  sorry
+  have hb3'_pos : 0 < b3'.toNat := by have : b3'.toNat ≥ 2^63 := hb3'_ge; omega
+  have h_div_ge := div128Quot_ge_q_true_full_of_q1_prime_not_overshoot
+    u4 u3 b3' hb3'_ge hu4_lt_b3' h_q1_le
+  exact nat_succ_mul_gt_of_div_le _ _ _ hb3'_pos h_div_ge
 
 /-- **A2.S2.narrow_u4_tight_un21**: hu4_ge regime (Phase 1a corrects, hi1 ≠ 0)
     AND un21 < dHi*2^32 (Phase 2 narrow path).
