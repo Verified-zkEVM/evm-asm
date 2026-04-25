@@ -12,41 +12,34 @@
   `qHat ≥ q_true_full` holds only because Phase 2 compensates Phase 1
   undershoots — a global, not per-phase, property.
 
-  ## Status (2026-04-25)
+  ## Status (2026-04-25 — SORRY-FREE)
 
-  **Top-level theorem `div128Quot_call_skip_ge_val256_div_v2` proven**
-  via wrapper composition (assuming the single remaining sorry closes).
+  **Top-level theorem `div128Quot_call_skip_ge_val256_div_v2` proven.**
+  All sorries in CallSkipLowerBoundV2 are now closed.
 
-  **2 sorries remain** (decomposed from 1 to surface the truncation
-  boundary), both in `CompensationCases.lean`:
+  Phase 2 tightness for un21 ≥ 2^63 closes via the unconditional
+  un21-level helper `div128Quot_q0_prime_ge_q_true_0_un21_level` in
+  `CompensationCases.lean`, which uses the algorithm's own Phase 2b
+  truncation guard to dispatch between `_small_rhatc` (when rhat2c <
+  2^32) and KB-LB3 (when rhat2c ≥ 2^32).
 
-  - `..._of_un21_ge_pow63_rhat2c_lt_pow32` — no Word truncation;
-    closable in a future iteration via standard Knuth-B Phase 2 tightness
-    with un21 ≥ 2^63 adjustments.
-  - `..._of_un21_ge_pow63_rhat2c_ge_pow32` — GENUINELY HARD; truncation
-    regime requiring Knuth-B extension. See
-    `memory/project_un21_lt_vTop_plan.md`.
-
-  The shared umbrella `algorithmQ0Prime_ge_q_true_0_of_un21_ge_pow63`
-  is closed via dispatch on `un21 mod dHi + dHi < 2^32` (= rhat2c bound).
-
-  All wide-u4 sub-cases are now CLOSED VACUOUSLY via the `hu4_lt_pow63`
+  All wide-u4 sub-cases are CLOSED VACUOUSLY via the `hu4_lt_pow63`
   hypothesis (u4 < 2^63), threaded through from the top-level theorem
   where it's derived via `u_top_lt_pow63_of_shift_nz` +
   `clzResult_fst_toNat_le`. The "wide-u4 no-undershoot was FALSE"
   finding from `memory/project_wide_u4_no_undershoot_false_in_b2.md` is
   RESOLVED — the failing example is unreachable from the top-level call.
 
-  ## File structure (5 modules, ~2000 lines total)
+  ## File structure (5 modules)
 
   - `CallSkipLowerBoundV2/Algorithm.lean` — irreducible algorithm bundles
     (algorithmUn21, algorithmQ1Prime, algorithmQ0Prime).
   - `CallSkipLowerBoundV2/QuotientBounds.lean` — Q1Prime / Q0Prime bounds,
-    `_plus_one` 6-step decomposition. SORRY-FREE.
+    `_plus_one` 6-step decomposition.
   - `CallSkipLowerBoundV2/Un21Bridge.lean` — Layer 1/2/3 helpers, _of_tight
-    cases, algorithmUn21_ge_r1_math wrapper. SORRY-FREE.
+    cases, algorithmUn21_ge_r1_math wrapper.
   - `CallSkipLowerBoundV2/CompensationCases.lean` — A2 normal +
-    compensation cases + A4 normalized (1 global compensation sorry).
+    compensation cases + A4 normalized.
   - This file: §B (val256 bridge) and final composition.
 -/
 
