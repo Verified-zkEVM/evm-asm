@@ -8,7 +8,7 @@
   import `AddrNorm.lean` (which imports this file) — not this file directly.
 -/
 
-import Mathlib.Tactic.Attr.Register
+import Lean.Meta.Tactic.Simp.RegisterCommand
 
 /-- Simp/grind set for Rv64 address arithmetic. Collects `BitVec.add_assoc`
     rewrites plus atomic `signExtend13` / `signExtend21` evaluations on the
