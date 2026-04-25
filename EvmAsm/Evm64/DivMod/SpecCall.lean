@@ -2600,12 +2600,17 @@ theorem output_slot_to_evmWordIs_mod_n4_call_addback_beq_denorm
     -- denorms it back to the un-normalized 4 EvmWord limbs.
     --
     -- **TIMEOUT FINDING**: even after aligning the parent's `set s` with the
-    -- sub-stub's `% 64` form, applying c3_n_eq_u4_plus_one_of_single_addback
-    -- still hits the 200k-heartbeat elaboration timeout. The issue is
-    -- structural — the deep let-chain (~13 bindings) makes whnf/isDefEq
-    -- exponential during unification of the hcarry_nz parameter against
-    -- parent's hcarry. The `% 64` alignment was necessary but not sufficient.
-    -- Need workaround (a) inline (~260 lines duplication) for closure.
+    -- sub-stub's `% 64` form AND introducing irreducible bundles
+    -- (algCallAddbackBeqCarry / algCallAddbackBeqMsC3), the bridge from
+    -- parent's `carry_word` (let-bound) to the irreducible form ALSO times
+    -- out — the rfl/unfold step hits 200k heartbeats.
+    --
+    -- Conclusion: the deep let-chain in parent's local context is the root
+    -- bottleneck for whnf/isDefEq. No syntactic alignment fixes it; the only
+    -- robust closure path is to inline the c3_n proof body (~260 lines) into
+    -- the parent, OR fundamentally restructure the parent so it never builds
+    -- up the let-chain (e.g., expose all algorithm internals as @[irreducible]
+    -- defs from the algorithm scaffold).
     sorry
 
 /-- **EVM-stack-level MOD spec on the n=4 call+addback BEQ sub-path (SORRY).**
