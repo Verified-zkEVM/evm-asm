@@ -19,6 +19,7 @@
 -/
 
 import EvmAsm.Evm64.DivMod.LoopBody
+import EvmAsm.Evm64.DivMod.LoopBody.TrialCallPath
 
 open EvmAsm.Rv64.Tactics
 
