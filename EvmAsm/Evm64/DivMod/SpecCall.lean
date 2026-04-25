@@ -2104,6 +2104,10 @@ theorem c3_n_eq_u4_plus_one_of_single_addback (a b : EvmWord)
       _ = (a.getLimbN 3).toNat * 2 ^ 192 * 2 ^ s := by ring
       _ ≤ val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) * 2 ^ s :=
           Nat.mul_le_mul_right _ h_a3_val_ge
+  -- Step 5: h_addback — val256(post1_low4) + 2^256 = val256(ms.1234) + val256(b)*2^s.
+  -- TODO: derive via `addbackN4_val256_eq` + carry.toNat = 1 (from hcarry_nz)
+  -- + `val256_normalize` for b. Each step is small but the composition requires
+  -- careful let-chain alignment. (~20 lines.)
   let _ := h_u4_lt_c3
   let _ := h_post1_lt
   let _ := h_amod_pow_lt
