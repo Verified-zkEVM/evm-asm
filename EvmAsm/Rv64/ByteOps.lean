@@ -6,7 +6,9 @@
 -/
 -- `CPSSpec` transitively imports `Basic`, `SepLogic`, and `Execution`.
 import EvmAsm.Rv64.CPSSpec
-import Mathlib.Tactic
+import Mathlib.Tactic.IntervalCases
+import Mathlib.Tactic.FinCases
+import Mathlib.Data.Fintype.Basic
 
 namespace EvmAsm.Rv64
 
