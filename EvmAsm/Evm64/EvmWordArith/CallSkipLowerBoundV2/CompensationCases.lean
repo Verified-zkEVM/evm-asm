@@ -759,27 +759,24 @@ theorem div128Quot_rhat2c_lt_pow32_of_un21_mod_dHi_plus_dHi_lt_pow32
     rw [Nat.mod_eq_of_lt (by omega)]
     exact h
 
-/-- **Un21-level Phase 2 tightness for rhat2c < 2^32** (TODO).
+/-- **Un21-level Phase 2 tightness — UNCONDITIONAL on un21 magnitude.**
 
-    Parallel to the existing `div128Quot_q0_prime_ge_q_true_0_of_un21_lt_pow63`
-    in `Div128KnuthLower.lean`, but takes `rhat2c < 2^32` directly as the
-    no-truncation precondition (instead of un21 < 2^63 → rhat2c < 2^32).
-    Used by `_rhat2c_lt_pow32`'s wrap form to skip the un21 < 2^63
-    detour when un21 ≥ 2^63.
+    Parallel to `div128Quot_q0_prime_ge_q_true_0_of_un21_lt_pow63` in
+    `Div128KnuthLower.lean`, but DOES NOT require `un21 < 2^63`. Uses
+    `_small_rhatc` in the no-truncation case (where rhat2c < 2^32 is
+    derived from the outer truncation guard) and KB-LB3 in the truncation
+    case (where the outer guard fires and q0' = q0c).
 
-    Closure path: mirror `_of_un21_lt_pow63`'s body — case-split on
-    `div128Quot_phase2b_q0'`'s guard, route the no-guard case through
-    `div128Quot_q1_prime_ge_q_true_1_small_rhatc` directly (using our
-    rhat2c < 2^32 hypothesis derived via the sub-lemma above), and the
-    guard-fires case through KB-LB3. -/
-theorem div128Quot_q0_prime_ge_q_true_0_of_rhat2c_lt_pow32_un21_level
+    This single un21-level helper is sufficient for BOTH the
+    `un21 ≥ 2^63 ∧ rhat2c < 2^32` and `un21 ≥ 2^63 ∧ rhat2c ≥ 2^32`
+    sub-cases, since the algorithm's Phase 2b truncation guard
+    automatically routes to the right closure path. -/
+theorem div128Quot_q0_prime_ge_q_true_0_un21_level
     (un21 dHi dLo uLo : Word)
     (hdHi_ge : dHi.toNat ≥ 2^31)
     (hdHi_lt : dHi.toNat < 2^32)
     (hdLo_lt : dLo.toNat < 2^32)
-    (h_un21_ge_pow63 : un21.toNat ≥ 2^63)
-    (h_un21_lt_vTop : un21.toNat < dHi.toNat * 2^32 + dLo.toNat)
-    (h_rhat2c_lt : un21.toNat % dHi.toNat + dHi.toNat < 2^32) :
+    (h_un21_lt_vTop : un21.toNat < dHi.toNat * 2^32 + dLo.toNat) :
     let q0 := rv64_divu un21 dHi
     let rhat2 := un21 - q0 * dHi
     let hi2 := q0 >>> (32 : BitVec 6).toNat
@@ -797,26 +794,26 @@ theorem div128Quot_q0_prime_ge_q_true_0_of_rhat2c_lt_pow32_un21_level
     have h_shl : (uLo <<< (32 : BitVec 6).toNat : Word).toNat < 2^64 :=
       (uLo <<< (32 : BitVec 6).toNat : Word).isLt
     exact Nat.div_lt_of_lt_mul (by omega)
+  have hdHi_ne : dHi ≠ 0 := by
+    intro heq; rw [heq] at hdHi_ge; simp at hdHi_ge
   show (un21.toNat * 2^32 + div_un0.toNat) /
          (dHi.toNat * 2^32 + dLo.toNat) ≤
        (div128Quot_phase2b_q0' q0c rhat2c dLo div_un0).toNat
   unfold div128Quot_phase2b_q0'
   split
-  · -- Guard doesn't fire: helper yields the no-guard check.
-    -- Apply `_small_rhatc` at Phase 2 (uHi := un21).
-    have hdHi_ne : dHi ≠ 0 := by
-      intro heq; rw [heq] at hdHi_ge; simp at hdHi_ge
-    have h_rhat2c_lt_word : rhat2c.toNat < 2^32 :=
-      div128Quot_rhat2c_lt_pow32_of_un21_mod_dHi_plus_dHi_lt_pow32
-        un21 dHi hdHi_ne h_rhat2c_lt
-    let _ := h_un21_ge_pow63
+  · -- Guard doesn't fire (rhat2c >>> 32 = 0): helper yields no-guard check.
+    -- Derive rhat2c.toNat < 2^32 from the case hypothesis directly.
+    rename_i h_shift
+    have h_rhat2c_lt_word : rhat2c.toNat < 2^32 := by
+      have h_div : rhat2c.toNat / 2^32 = 0 := by
+        have : (rhat2c >>> (32 : BitVec 6).toNat).toNat = 0 := by rw [h_shift]; rfl
+        rwa [BitVec.toNat_ushiftRight, AddrNorm.bv6_toNat_32,
+             Nat.shiftRight_eq_div_pow] at this
+      exact (Nat.div_eq_zero_iff.mp h_div).resolve_left (by decide)
     exact div128Quot_q1_prime_ge_q_true_1_small_rhatc un21 dHi dLo
       (uLo <<< (32 : BitVec 6).toNat)
       hdHi_ge hdHi_lt hdLo_lt h_un21_lt_vTop h_rhat2c_lt_word
-  · -- Guard fires: helper = q0c. Use KB-LB3 at Phase 2 (uHi := un21).
-    -- Same as `_of_un21_lt_pow63`'s guard-fires branch.
-    have hdHi_ne : dHi ≠ 0 := by
-      intro heq; rw [heq] at hdHi_ge; simp at hdHi_ge
+  · -- Guard fires (rhat2c ≥ 2^32): helper = q0c. KB-LB3 at Phase 2.
     exact div128Quot_q1c_ge_q_true_1 un21 dHi dLo div_un0 hdHi_ne
       h_div_un0_lt h_un21_lt_vTop
 
@@ -881,16 +878,16 @@ theorem algorithmQ0Prime_ge_q_true_0_of_un21_ge_pow63_rhat2c_lt_pow32
       ((b3' >>> (32 : BitVec 6).toNat).toNat * 2^32 +
       ((b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat).toNat) ≤
     (algorithmQ0Prime u4 u3 b3').toNat := by
-  -- Compose the un21-level helper (sorry stub above) with
-  -- `algorithmQ0Prime_unfold`, parallel to
-  -- `algorithmQ0Prime_ge_q_true_0_of_un21_lt_pow63`'s wrap pattern.
+  -- Compose the unconditional un21-level helper with `algorithmQ0Prime_unfold`.
+  let _ := h_un21_ge_pow63
+  let _ := h_rhat2c_lt
   rw [algorithmQ0Prime_unfold]
-  exact div128Quot_q0_prime_ge_q_true_0_of_rhat2c_lt_pow32_un21_level
+  exact div128Quot_q0_prime_ge_q_true_0_un21_level
     (algorithmUn21 u4 u3 b3')
     (b3' >>> (32 : BitVec 6).toNat)
     ((b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat)
     u3
-    hdHi_ge hdHi_lt hdLo_lt h_un21_ge_pow63 h_un21_lt_vTop h_rhat2c_lt
+    hdHi_ge hdHi_lt hdLo_lt h_un21_lt_vTop
 
 /-- **Phase 2 tightness for un21 ≥ 2^63 + rhat2c ≥ 2^32 sub-case** (TODO —
     GENUINELY HARD).
@@ -919,13 +916,17 @@ theorem algorithmQ0Prime_ge_q_true_0_of_un21_ge_pow63_rhat2c_ge_pow32
       ((b3' >>> (32 : BitVec 6).toNat).toNat * 2^32 +
       ((b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat).toNat) ≤
     (algorithmQ0Prime u4 u3 b3').toNat := by
-  let _ := hdHi_ge
-  let _ := hdHi_lt
-  let _ := hdLo_lt
+  -- The unconditional un21-level helper closes both rhat2c regimes
+  -- automatically via the truncation-guard dispatch.
   let _ := h_un21_ge_pow63
-  let _ := h_un21_lt_vTop
   let _ := h_rhat2c_ge
-  sorry
+  rw [algorithmQ0Prime_unfold]
+  exact div128Quot_q0_prime_ge_q_true_0_un21_level
+    (algorithmUn21 u4 u3 b3')
+    (b3' >>> (32 : BitVec 6).toNat)
+    ((b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat)
+    u3
+    hdHi_ge hdHi_lt hdLo_lt h_un21_lt_vTop
 
 /-- **The shared blocker — Phase 2 tightness for un21 ≥ 2^63** —
     closed via dispatch on rhat2c ≥ 2^32. -/
