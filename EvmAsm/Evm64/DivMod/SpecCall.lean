@@ -2282,16 +2282,22 @@ theorem post1_eq_mod_times_pow_s_of_c3_eq_u4_plus_one
     `val256(a_norm) - q_out * val256(b_norm)` (where q_out is the corrected
     quotient, matching `n4CallAddbackBeqSemanticHolds`).
 
-    Proof approach (to fill in):
-    1. Use `hsem` to derive `q_out * val256(b) ≤ val256(a)` (bound needed for
-       the parameterized `val256_denorm_eq_val256_mod_of_overestimate`).
-    2. Show the post-addback partial remainder equals `mulsubN4 q_out b_norm
-       a_norm`'s output limbs (via addback correctness theorems combined with
-       Euclidean equations).
-    3. Apply `val256_denorm_eq_val256_mod_of_overestimate` with qHat = q_out
-       (the parameterized chain from the landed call-skip MOD PR).
-    4. Use `mod_of_val256_eq_mod` + `evmWordIs_sp32_limbs_eq` to fold into
-       `evmWordIs`. -/
+    **Closure status (2026-04-25)**: math is fully proven UPSTREAM in this
+    file via 4 closed sub-stubs:
+    - `qHat_eq_div_plus_one_of_single_addback` — qHat = a/b + 1.
+    - `c3_n_eq_u4_plus_one_of_single_addback` — c3 = u4 + 1.
+    - `post1_eq_mod_times_pow_s_of_c3_eq_u4_plus_one` — val256(post1) = a%b*2^s.
+    - Plus pure-Nat building blocks for each step.
+
+    Direct sub-stub application here hits a 200k-heartbeat elaboration
+    timeout (parent's `set s := clz.1.toNat` no-`%64` form vs sub-stubs'
+    `% 64` form). Inline-or-refactor needed to bridge the let-chains.
+
+    See in-line single-addback-branch comment for the 4-step plan:
+    1. apply qHat_eq_div_plus_one (step 1, blocked by elab timeout).
+    2. apply c3_n_eq_u4_plus_one (step 2, same blocker).
+    3. apply post1_eq_mod_times_pow_s_of_c3_eq_u4_plus_one (step 3).
+    4. val256_denormalize + evmWordIs_sp32_limbs_eq fold (step 4, TODO). -/
 theorem output_slot_to_evmWordIs_mod_n4_call_addback_beq_denorm
     (sp : Word) (a b : EvmWord)
     (hb3nz : b.getLimbN 3 ≠ 0)
