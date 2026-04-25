@@ -108,6 +108,20 @@ theorem algorithmUn21_L3b_q_true_1_V_le_u
     (u / V) * V ≤ u := by
   exact Nat.div_mul_le_self u V
 
+/-- **L4 helper**: pure-Nat algebraic identity for halfword decomposition.
+    `(rhat % 2^32) * 2^32 + (rhat / 2^32) * 2^64 = rhat * 2^32`. -/
+theorem algorithmUn21_L4_halfword_combine (rhat : Nat) :
+    (rhat % 2^32) * 2^32 + (rhat / 2^32) * 2^64 = rhat * 2^32 := by
+  have h_decomp : (rhat / 2^32) * 2^32 + rhat % 2^32 = rhat := by
+    have := Nat.div_add_mod rhat (2^32); omega
+  have h_pow_eq : (rhat / 2^32) * 2^64 = (rhat / 2^32) * 2^32 * 2^32 := by
+    have h64 : (2^64 : Nat) = 2^32 * 2^32 := by decide
+    rw [h64]; ring
+  rw [h_pow_eq]
+  rw [show (rhat % 2^32) * 2^32 + (rhat / 2^32) * 2^32 * 2^32 =
+      ((rhat / 2^32) * 2^32 + rhat % 2^32) * 2^32 from by ring]
+  rw [h_decomp]
+
 /-- **_of_tight sub-case "exact" L4** (pure-Nat modular identity): the core
     arithmetic claim used by L5. Given the standard preconditions
     (u = u4*2^32 + div_un1, V = dHi*2^32 + dLo, q*dHi + rhat = u4, etc.),
@@ -147,6 +161,9 @@ theorem algorithmUn21_L4_modular_identity
     (h_r_lt_V : (u4 * 2^32 + div_un1) - q * (dHi * 2^32 + dLo) < dHi * 2^32 + dLo) :
     (2^64 - q * dLo + (rhat % 2^32) * 2^32 + div_un1) % 2^64 =
       (u4 * 2^32 + div_un1) % (dHi * 2^32 + dLo) := by
+  -- Proof attempt encountered maxRecDepth on omega/linarith with large constants
+  -- (2^32, 2^64). Need to decompose into smaller helper lemmas with `set` aliases
+  -- for the powers to keep terms small. See PR #1289 commit history.
   sorry
 
 /-- **_of_tight sub-case "exact" L2.a**: Phase 1b Euclidean invariant at u4.
