@@ -15,36 +15,31 @@
   ## Status (2026-04-25)
 
   **Top-level theorem `div128Quot_call_skip_ge_val256_div_v2` proven**
-  via wrapper composition (assuming dependent sorries close).
+  via wrapper composition (assuming the single remaining sorry closes).
 
-  **2 sorries remain** in deep sub-cases of the A2 compensation proof
-  (down from 4 — the 3 deep A2.S2 exact-case sorries were consolidated
-  into a single shared helper):
-  - 1 in `CompensationCases.lean` —
-    `_of_q1_prime_not_overshoot` (the shared helper covering all 3 deep
-    A2.S2 exact-case sub-cases under `u4 ≥ dHi*2^32` or
-    `un21 ≥ dHi*2^32`).
-  - 1 in `QuotientBounds.lean` — Phase 1 lower bound under narrow_u4 +
-    rhatc ≥ 2^32 + Phase 1b correction.
+  **1 sorry remains** (down from 4 → 2 → 1 over recent iterations):
+  - `div128Quot_ge_q_true_full_of_q1_prime_not_overshoot` in
+    `CompensationCases.lean` — the global Phase 1+2 compensation
+    lemma. Captures all the math content needed for the 3 deep A2.S2
+    exact-case sub-cases under `u4 ≥ dHi*2^32` or `un21 ≥ dHi*2^32`.
 
-  Both regimes' per-phase tightness is genuinely false; closure
-  requires extending `KnuthTheoremB.lean` with a *global* qHat ≥
-  q_true_full lemma (handling the carry compensation between Phase 1
-  and Phase 2 directly). See `memory/project_a2s2_per_phase_tightness_fails.md`.
-
-  Each remaining sorry has detailed docstring documenting the math and
-  pointing to memory entries for the proof strategy.
+  Closure requires extending `KnuthTheoremB.lean` with a *global* qHat
+  ≥ q_true_full lemma (handling the carry compensation between Phase 1
+  and Phase 2 directly). The previously-stubbed per-phase Phase 1
+  lower bound under narrow_u4 was orphan-deleted from
+  `QuotientBounds.lean` since the new global path no longer needs it.
+  See `memory/project_a2s2_per_phase_tightness_fails.md`.
 
   ## File structure (5 modules, ~2000 lines total)
 
   - `CallSkipLowerBoundV2/Algorithm.lean` — irreducible algorithm bundles
     (algorithmUn21, algorithmQ1Prime, algorithmQ0Prime).
   - `CallSkipLowerBoundV2/QuotientBounds.lean` — Q1Prime / Q0Prime bounds,
-    `_plus_one` 6-step decomposition, narrow_u4 lower bound (1 sorry).
+    `_plus_one` 6-step decomposition. SORRY-FREE.
   - `CallSkipLowerBoundV2/Un21Bridge.lean` — Layer 1/2/3 helpers, _of_tight
     cases, algorithmUn21_ge_r1_math wrapper. SORRY-FREE.
   - `CallSkipLowerBoundV2/CompensationCases.lean` — A2 normal +
-    compensation cases + A4 normalized (1 shared helper sorry).
+    compensation cases + A4 normalized (1 global compensation sorry).
   - This file: §B (val256 bridge) and final composition.
 -/
 

@@ -20,9 +20,6 @@
     `correction_step_overestimate_le_one` for the tight `+1` bound.
     Requires u4 < dHi*2^32 (Phase 1b uses rhatc < 2^32 which fails in
     narrow_u4 when dHi > 2^31).
-  - `algorithmQ1Prime_ge_q_true_1_under_narrow_u4` — Phase 1 LOWER bound
-    in the narrow_u4 regime. PARTIALLY UNPROVABLE per-phase (see
-    docstring on the lemma + memory).
 -/
 
 import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV2.Algorithm
@@ -31,134 +28,14 @@ namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
 
-/-- **Phase 1 lower bound under narrow_u4** (PARTIALLY UNPROVABLE AS STATED):
-    in the regime u4 ≥ dHi*2^32, Phase 1's q1' is NOT always ≥ q_true_1.
-
-    **Critical discovery** (see `memory/project_a2s2_per_phase_tightness_fails.md`):
-    Under `rhatc ≥ 2^32 + Phase 1b correction fires` (only when `dHi > 2^31`),
-    the Word truncation `(rhatc << 32) | div_un1` causes Phase 1b's ult check
-    to fire SPURIOUSLY. In this regime, `q1' = q1c - 1 = q_true_1 - 1`
-    (genuine undershoot).
-
-    Per-phase tightness DOES NOT hold in this regime. The lemma's statement
-    is FALSE in this sub-case. The proof closes 3 of 4 sub-cases:
-    - rhatc < 2^32: closed via KB-LB5.
-    - rhatc ≥ 2^32 + no correction: closed via KB-LB3.
-    - rhatc ≥ 2^32 + correction: GENUINELY UNPROVABLE per-phase. Need
-      different proof structure (global qHat ≥ q_true_full, not per-phase).
-
-    Kept as a stub (with internal sorry on the unprovable sub-case) to
-    document the discovery. The 3 A2.S2 exact-case sorries that depend on
-    this lemma will need to be re-architected to use global Phase 1+2
-    compensation instead. -/
-theorem algorithmQ1Prime_ge_q_true_1_under_narrow_u4
-    (u4 u3 b3' : Word)
-    (hb3'_ge : b3'.toNat ≥ 2^63)
-    (hu4_lt_b3' : u4.toNat < b3'.toNat)
-    (hu4_ge : u4.toNat ≥ (b3' >>> (32 : BitVec 6).toNat).toNat * 2^32) :
-    (u4.toNat * 2^32 + (u3 >>> (32 : BitVec 6).toNat).toNat) / b3'.toNat ≤
-      (algorithmQ1Prime u4 u3 b3').toNat := by
-  -- KB-LB3 applies in narrow_u4 (it doesn't need hu4_lt_dHi_pow32).
-  -- Gives q_true_1 ≤ q1c.toNat (the post-Phase-1a lower bound).
-  have h_dHi_ne : (b3' >>> (32 : BitVec 6).toNat) ≠ 0 := by
-    intro heq
-    have h : (b3' >>> (32 : BitVec 6).toNat).toNat = 0 := by rw [heq]; rfl
-    rw [BitVec.toNat_ushiftRight, AddrNorm.bv6_toNat_32, Nat.shiftRight_eq_div_pow] at h
-    have : b3'.toNat ≥ 2^63 := hb3'_ge
-    omega
-  have h_div_un1_lt : (u3 >>> (32 : BitVec 6).toNat).toNat < 2^32 := by
-    rw [BitVec.toNat_ushiftRight, AddrNorm.bv6_toNat_32, Nat.shiftRight_eq_div_pow]
-    have : u3.toNat < 2^64 := u3.isLt
-    exact Nat.div_lt_of_lt_mul (by omega)
-  have h_v_eq : b3'.toNat =
-      (b3' >>> (32 : BitVec 6).toNat).toNat * 2^32 +
-      ((b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat).toNat :=
-    div128Quot_vTop_decomp b3'
-  have h_u4_lt_vTop : u4.toNat <
-      (b3' >>> (32 : BitVec 6).toNat).toNat * 2^32 +
-      ((b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat).toNat := by
-    rw [← h_v_eq]; exact hu4_lt_b3'
-  have h_q1c_ge :=
-    div128Quot_q1c_ge_q_true_1 u4 (b3' >>> (32 : BitVec 6).toNat)
-      ((b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat)
-      (u3 >>> (32 : BitVec 6).toNat) h_dHi_ne h_div_un1_lt h_u4_lt_vTop
-  have h_dHi_ge : (b3' >>> (32 : BitVec 6).toNat).toNat ≥ 2^31 := by
-    rw [BitVec.toNat_ushiftRight, AddrNorm.bv6_toNat_32, Nat.shiftRight_eq_div_pow]
-    have : b3'.toNat ≥ 2^63 := hb3'_ge; omega
-  have h_dHi_lt : (b3' >>> (32 : BitVec 6).toNat).toNat < 2^32 := by
-    rw [BitVec.toNat_ushiftRight, AddrNorm.bv6_toNat_32, Nat.shiftRight_eq_div_pow]
-    have : b3'.toNat < 2^64 := b3'.isLt
-    exact Nat.div_lt_of_lt_mul (by omega)
-  have h_dLo_lt :
-      ((b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat).toNat < 2^32 := by
-    rw [BitVec.toNat_ushiftRight, AddrNorm.bv6_toNat_32, Nat.shiftRight_eq_div_pow]
-    have : (b3' <<< (32 : BitVec 6).toNat : Word).toNat < 2^64 :=
-      (b3' <<< (32 : BitVec 6).toNat : Word).isLt
-    exact Nat.div_lt_of_lt_mul (by omega)
-  rw [h_v_eq]
-  -- Sub-case-split on rhatc < 2^32 (the easy regime via KB-LB5).
-  set q1 := rv64_divu u4 (b3' >>> (32 : BitVec 6).toNat) with hq1_def
-  set rhat := u4 - q1 * (b3' >>> (32 : BitVec 6).toNat) with hrhat_def
-  set hi1 := q1 >>> (32 : BitVec 6).toNat with hhi1_def
-  set rhatc := if hi1 = 0 then rhat else rhat + (b3' >>> (32 : BitVec 6).toNat)
-    with hrhatc_def
-  by_cases h_rhatc_lt : rhatc.toNat < 2^32
-  · -- rhatc < 2^32: KB-LB5 gives the full lower bound directly.
-    rw [algorithmQ1Prime_unfold]
-    exact div128Quot_q1_prime_ge_q_true_1_small_rhatc u4
-      (b3' >>> (32 : BitVec 6).toNat)
-      ((b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat) u3
-      h_dHi_ge h_dHi_lt h_dLo_lt h_u4_lt_vTop h_rhatc_lt
-  · -- rhatc ≥ 2^32 (only when dHi > 2^31): genuine hard regime.
-    -- Phase 1b case-split:
-    -- - No correction (q1' = q1c): KB-LB3 directly closes.
-    -- - Correction (q1' = q1c - 1): needs new analysis (truncation false-positive).
-    rw [algorithmQ1Prime_unfold]
-    simp only []
-    by_cases h_check : BitVec.ult
-        (((if (rv64_divu u4 (b3' >>> (32 : BitVec 6).toNat)) >>>
-                (32 : BitVec 6).toNat = 0 then
-              u4 - rv64_divu u4 (b3' >>> (32 : BitVec 6).toNat) *
-                (b3' >>> (32 : BitVec 6).toNat)
-            else u4 - rv64_divu u4 (b3' >>> (32 : BitVec 6).toNat) *
-                (b3' >>> (32 : BitVec 6).toNat) + (b3' >>> (32 : BitVec 6).toNat)) <<<
-            (32 : BitVec 6).toNat) ||| u3 >>> (32 : BitVec 6).toNat)
-        ((if (rv64_divu u4 (b3' >>> (32 : BitVec 6).toNat)) >>>
-              (32 : BitVec 6).toNat = 0 then
-            rv64_divu u4 (b3' >>> (32 : BitVec 6).toNat)
-          else rv64_divu u4 (b3' >>> (32 : BitVec 6).toNat) + signExtend12 4095) *
-          ((b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat))
-    · -- Phase 1b correction fires under rhatc ≥ 2^32. CRITICAL ANALYSIS:
-      --
-      -- Under rhatc ≥ 2^32, the Word `(rhatc << 32) | div_un1` truncates
-      -- rhatc's high bit. The Phase 1b ult check fires iff
-      --   (rhatc % 2^32) * 2^32 + div_un1 < q1c * dLo
-      -- But the "real" comparison (untruncated) would be:
-      --   rhatc * 2^32 + div_un1 < q1c * dLo
-      -- which is FALSE since rhatc ≥ 2^32 makes LHS ≥ 2^64 > q1c * dLo
-      -- (the latter being < 2^64 by `div128Quot_q1_prime_dLo_no_wrap`).
-      -- So the truncated check fires SPURIOUSLY.
-      --
-      -- In this spurious-fire regime, q1' = q1c - 1, but q1c might equal
-      -- q_true_1 exactly, making q1' = q_true_1 - 1 (UNDERSHOOT).
-      --
-      -- **Per-phase tightness FAILS in this regime.** The `q1' ≥ q_true_1`
-      -- invariant we're trying to prove is actually FALSE here.
-      --
-      -- This matches `memory/project_knuth_b_lower_large_rhatc.md`: per-phase
-      -- tight bounds don't hold; Knuth-B's lower bound on the FULL
-      -- qHat = q1' * 2^32 + q0' relies on Phase 2 COMPENSATION absorbing
-      -- the Phase 1 undershoot.
-      --
-      -- **Conclusion**: this lemma's per-phase formulation cannot be
-      -- closed in the rhatc ≥ 2^32 + correction regime. The `_narrow_u4_*`
-      -- exact cases need a different proof strategy — global Phase 1+2
-      -- compensation via the qHat-level argument, NOT per-phase tightness.
-      rw [if_pos h_check]
-      sorry
-    · -- No Phase 1b correction. q1' = q1c, KB-LB3 closes.
-      rw [if_neg h_check]
-      exact h_q1c_ge
+-- Note (2026-04-25): the previous lemma `algorithmQ1Prime_ge_q_true_1_under_narrow_u4`
+-- was deleted as an orphan. It attempted a per-phase Phase-1 lower bound under
+-- the narrow_u4 regime but the statement is FALSE in the rhatc ≥ 2^32 + Phase 1b
+-- correction sub-case (Word truncation causes spurious Phase 1b correction;
+-- q1' = q_true_1 - 1 is achievable). Migration to a global Phase 1+2 compensation
+-- argument (`div128Quot_ge_q_true_full_of_q1_prime_not_overshoot` in
+-- `CompensationCases.lean`) means this lemma is no longer needed. See
+-- `memory/project_a2s2_per_phase_tightness_fails.md` for details.
 
 /-- **Phase 1 tight, wrapped**: Phase 1 tight specialized and folded into
     `algorithmQ1Prime`. Parallel to `algorithmQ0Prime_ge_q_true_0`. -/
