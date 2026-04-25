@@ -489,7 +489,23 @@ theorem algorithmQ1Prime_ge_q_true_1_in_wide_u4
     Wide-u4 variant of the existing
     `algorithmUn21_eq_r1_math_of_q1_prime_eq_q_true_1` (which requires
     narrow-u4). Used by both the un21 < vTop invariant in wide-u4 and
-    the Phase 2 tightness sub-stubs. -/
+    the Phase 2 tightness sub-stubs.
+
+    **Math sketch**: under q1' = q_true_1 (Phase 1 exact), un21 represents
+    the true Phase 1 remainder. The algorithm computes:
+    - q1c = q1.toNat - 1 (Phase 1a corrects since q1 ≥ 2^32 in wide-u4).
+    - rhatc = u4 - q1c * dHi (Phase 1a-corrected remainder of u4 div dHi).
+    - un21 = (rhatc << 32 | div_un1) - q1' * dLo (Phase 1b adjustment).
+
+    Modulo Word truncation: un21 = u_top - q1' * b3' where u_top =
+    u4*2^32 + a1. Under q1' = q_true_1, this equals r1_math = u_top mod b3'.
+
+    **Sub-cases mirror `algorithmQ1Prime_ge_q_true_1_in_wide_u4`**:
+    - Sub-case A (q1 ≥ 2^32 + 1): rhatc < 2^32, no Word truncation in
+      Phase 1b's input. The standard un21 = u_top - q1' * b3' identity holds.
+    - Sub-case B (q1 = 2^32 exactly): rhatc = rhat + dHi ∈ [dHi, 2*dHi).
+      Could exceed 2^32 if dHi close to 2^32; needs careful Word
+      arithmetic on the high bit of (rhatc << 32). -/
 theorem algorithmUn21_eq_r1_math_in_wide_u4_exact
     (u4 u3 b3' : Word)
     (hb3'_ge : b3'.toNat ≥ 2^63)
