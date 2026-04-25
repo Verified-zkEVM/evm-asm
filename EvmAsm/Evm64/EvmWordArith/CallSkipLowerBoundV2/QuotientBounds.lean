@@ -128,7 +128,32 @@ theorem algorithmQ1Prime_ge_q_true_1_under_narrow_u4
             rv64_divu u4 (b3' >>> (32 : BitVec 6).toNat)
           else rv64_divu u4 (b3' >>> (32 : BitVec 6).toNat) + signExtend12 4095) *
           ((b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat))
-    · -- Phase 1b correction fires under rhatc ≥ 2^32. Genuine hard regime.
+    · -- Phase 1b correction fires under rhatc ≥ 2^32. CRITICAL ANALYSIS:
+      --
+      -- Under rhatc ≥ 2^32, the Word `(rhatc << 32) | div_un1` truncates
+      -- rhatc's high bit. The Phase 1b ult check fires iff
+      --   (rhatc % 2^32) * 2^32 + div_un1 < q1c * dLo
+      -- But the "real" comparison (untruncated) would be:
+      --   rhatc * 2^32 + div_un1 < q1c * dLo
+      -- which is FALSE since rhatc ≥ 2^32 makes LHS ≥ 2^64 > q1c * dLo
+      -- (the latter being < 2^64 by `div128Quot_q1_prime_dLo_no_wrap`).
+      -- So the truncated check fires SPURIOUSLY.
+      --
+      -- In this spurious-fire regime, q1' = q1c - 1, but q1c might equal
+      -- q_true_1 exactly, making q1' = q_true_1 - 1 (UNDERSHOOT).
+      --
+      -- **Per-phase tightness FAILS in this regime.** The `q1' ≥ q_true_1`
+      -- invariant we're trying to prove is actually FALSE here.
+      --
+      -- This matches `memory/project_knuth_b_lower_large_rhatc.md`: per-phase
+      -- tight bounds don't hold; Knuth-B's lower bound on the FULL
+      -- qHat = q1' * 2^32 + q0' relies on Phase 2 COMPENSATION absorbing
+      -- the Phase 1 undershoot.
+      --
+      -- **Conclusion**: this lemma's per-phase formulation cannot be
+      -- closed in the rhatc ≥ 2^32 + correction regime. The `_narrow_u4_*`
+      -- exact cases need a different proof strategy — global Phase 1+2
+      -- compensation via the qHat-level argument, NOT per-phase tightness.
       rw [if_pos h_check]
       sorry
     · -- No Phase 1b correction. q1' = q1c, KB-LB3 closes.
