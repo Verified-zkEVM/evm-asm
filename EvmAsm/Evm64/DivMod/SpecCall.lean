@@ -3013,6 +3013,65 @@ theorem algCallAddbackBeqPost1Val_eq_amod_pow_s_of_single_addback
     (algCallAddbackBeq_amod_pow_s_lt_pow256 a b hb3nz)
     (algCallAddbackBeqU4_toNat_lt_algCallAddbackBeqMsC3_toNat a b hborrow)
 
+/-- **Unified parent-form: post1Val = a%b * 2^s in single-addback** (CLOSED).
+
+    Drop-in replacement for the parent adapter's single-addback branch:
+    takes the parent's local `(64-s)`-form `addbackN4_carry … ≠ 0`
+    hypothesis directly, and returns the val256 equation in the parent's
+    `(64-s)`-form too. Internally chains the carry/post1Val bridges with
+    the closed wrapper. -/
+theorem parent_post1Val_eq_amod_pow_s_of_single_addback
+    (a b : EvmWord)
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hborrow : isAddbackBorrowN4CallEvm a b)
+    (hsem : n4CallAddbackBeqSemanticHolds a b)
+    (hcarry_nz :
+      let s := (clzResult (b.getLimbN 3)).1.toNat % 64
+      let b0' := (b.getLimbN 0) <<< s
+      let b1' := ((b.getLimbN 1) <<< s) ||| ((b.getLimbN 0) >>> (64 - s))
+      let b2' := ((b.getLimbN 2) <<< s) ||| ((b.getLimbN 1) >>> (64 - s))
+      let b3' := ((b.getLimbN 3) <<< s) ||| ((b.getLimbN 2) >>> (64 - s))
+      let u0 := (a.getLimbN 0) <<< s
+      let u1 := ((a.getLimbN 1) <<< s) ||| ((a.getLimbN 0) >>> (64 - s))
+      let u2 := ((a.getLimbN 2) <<< s) ||| ((a.getLimbN 1) >>> (64 - s))
+      let u3 := ((a.getLimbN 3) <<< s) ||| ((a.getLimbN 2) >>> (64 - s))
+      let u4 := (a.getLimbN 3) >>> (64 - s)
+      let qHat := div128Quot u4 u3 b3'
+      let ms := mulsubN4 qHat b0' b1' b2' b3' u0 u1 u2 u3
+      addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 b0' b1' b2' b3' ≠ 0) :
+    let s := (clzResult (b.getLimbN 3)).1.toNat % 64
+    let b0' := (b.getLimbN 0) <<< s
+    let b1' := ((b.getLimbN 1) <<< s) ||| ((b.getLimbN 0) >>> (64 - s))
+    let b2' := ((b.getLimbN 2) <<< s) ||| ((b.getLimbN 1) >>> (64 - s))
+    let b3' := ((b.getLimbN 3) <<< s) ||| ((b.getLimbN 2) >>> (64 - s))
+    let u0 := (a.getLimbN 0) <<< s
+    let u1 := ((a.getLimbN 1) <<< s) ||| ((a.getLimbN 0) >>> (64 - s))
+    let u2 := ((a.getLimbN 2) <<< s) ||| ((a.getLimbN 1) >>> (64 - s))
+    let u3 := ((a.getLimbN 3) <<< s) ||| ((a.getLimbN 2) >>> (64 - s))
+    let u4 := (a.getLimbN 3) >>> (64 - s)
+    let qHat := div128Quot u4 u3 b3'
+    let ms := mulsubN4 qHat b0' b1' b2' b3' u0 u1 u2 u3
+    let post1 := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 0 b0' b1' b2' b3'
+    val256 post1.1 post1.2.1 post1.2.2.1 post1.2.2.2.1 =
+      val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) %
+        val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) *
+        2 ^ s := by
+  intro s b0' b1' b2' b3' u0 u1 u2 u3 u4 qHat ms post1
+  -- Bridge hcarry_nz: parent's (64-s) carry → algCallAddbackBeqCarry a b ≠ 0.
+  have h_carry_bridge := algCallAddbackBeqCarry_eq_parent_64ms_form a b hshift_nz
+  simp only [] at h_carry_bridge
+  have hcarry_irreducible : algCallAddbackBeqCarry a b ≠ 0 := by
+    rw [h_carry_bridge]; exact hcarry_nz
+  -- Apply the closed wrapper.
+  have h_wrapper := algCallAddbackBeqPost1Val_eq_amod_pow_s_of_single_addback
+    a b hb3nz hshift_nz hborrow hsem hcarry_irreducible
+  -- Bridge the wrapper's irreducible-form post1Val to parent's (64-s)-form post1.
+  have h_post1_bridge := algCallAddbackBeqPost1Val_eq_parent_64ms_form a b hshift_nz
+  simp only [] at h_post1_bridge
+  rw [h_post1_bridge] at h_wrapper
+  exact h_wrapper
+
 /-- **Call+addback BEQ n=4 MOD denorm adapter (SORRY).** Stack-level adapter
     folding the four denormalized remainder slots at `sp+32..sp+56` into
     `evmWordIs (sp+32) (EvmWord.mod a b)` for the call+addback BEQ path.
