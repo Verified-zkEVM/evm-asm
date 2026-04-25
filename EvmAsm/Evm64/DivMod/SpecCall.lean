@@ -1874,6 +1874,60 @@ theorem qHat_eq_div_plus_one_of_single_addback (a b : EvmWord)
   -- hsem : qHat.toNat - 1 = a.toNat / b.toNat
   omega
 
+/-- **Sub-stub (single-addback): qHat ≤ val256(u_norm)/val256(b_norm) + 1.**
+    Under the single-addback condition (`carry ≠ 0`), the trial quotient
+    `qHat = div128Quot u4 u3 b3'` overestimates the normalized quotient by
+    at most 1. This is the precondition for `mulsubN4_c3_le_one` at the
+    normalized-limb level (giving c3 ≤ 1 in this branch).
+
+    Closure path: combine `qHat_eq_div_plus_one_of_single_addback`
+    (gives qHat = a.toNat / b.toNat + 1) with the val256-normalization
+    preserves-quotient identity (val256(u_norm)/val256(b_norm) = a/b
+    since both numerator and denominator scale by 2^s). -/
+theorem qHat_le_normalized_floor_plus_one_of_single_addback (a b : EvmWord)
+    (hbnz : b ≠ 0)
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hborrow : isAddbackBorrowN4CallEvm a b)
+    (hsem : n4CallAddbackBeqSemanticHolds a b)
+    (hcarry_nz : let shift := (clzResult (b.getLimbN 3)).1.toNat % 64
+                 let antiShift :=
+                   (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64
+                 let b3' := ((b.getLimbN 3) <<< shift) ||| ((b.getLimbN 2) >>> antiShift)
+                 let b2' := ((b.getLimbN 2) <<< shift) ||| ((b.getLimbN 1) >>> antiShift)
+                 let b1' := ((b.getLimbN 1) <<< shift) ||| ((b.getLimbN 0) >>> antiShift)
+                 let b0' := (b.getLimbN 0) <<< shift
+                 let u3 := ((a.getLimbN 3) <<< shift) ||| ((a.getLimbN 2) >>> antiShift)
+                 let u2 := ((a.getLimbN 2) <<< shift) ||| ((a.getLimbN 1) >>> antiShift)
+                 let u1 := ((a.getLimbN 1) <<< shift) ||| ((a.getLimbN 0) >>> antiShift)
+                 let u0 := (a.getLimbN 0) <<< shift
+                 let u4 := (a.getLimbN 3) >>> antiShift
+                 let qHat := div128Quot u4 u3 b3'
+                 let ms := mulsubN4 qHat b0' b1' b2' b3' u0 u1 u2 u3
+                 addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 b0' b1' b2' b3' ≠ 0) :
+    let shift := (clzResult (b.getLimbN 3)).1.toNat % 64
+    let antiShift :=
+      (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64
+    let b3' := ((b.getLimbN 3) <<< shift) ||| ((b.getLimbN 2) >>> antiShift)
+    let b2' := ((b.getLimbN 2) <<< shift) ||| ((b.getLimbN 1) >>> antiShift)
+    let b1' := ((b.getLimbN 1) <<< shift) ||| ((b.getLimbN 0) >>> antiShift)
+    let b0' := (b.getLimbN 0) <<< shift
+    let u3 := ((a.getLimbN 3) <<< shift) ||| ((a.getLimbN 2) >>> antiShift)
+    let u4 := (a.getLimbN 3) >>> antiShift
+    (div128Quot u4 u3 b3').toNat ≤
+      val256 ((a.getLimbN 0) <<< shift)
+            (((a.getLimbN 1) <<< shift) ||| ((a.getLimbN 0) >>> antiShift))
+            (((a.getLimbN 2) <<< shift) ||| ((a.getLimbN 1) >>> antiShift))
+            (((a.getLimbN 3) <<< shift) ||| ((a.getLimbN 2) >>> antiShift))
+        / val256 b0' b1' b2' b3' + 1 := by
+  let _ := hbnz
+  let _ := hb3nz
+  let _ := hshift_nz
+  let _ := hborrow
+  let _ := hsem
+  let _ := hcarry_nz
+  sorry
+
 /-- **Call+addback BEQ n=4 MOD denorm adapter (SORRY).** Stack-level adapter
     folding the four denormalized remainder slots at `sp+32..sp+56` into
     `evmWordIs (sp+32) (EvmWord.mod a b)` for the call+addback BEQ path.
