@@ -686,6 +686,74 @@ theorem algorithmQ0Prime_ge_q_true_0_of_q1_prime_eq_q_true_1_narrow_wide_lt_pow6
 
     With this one sorry closed, PR #1289 (call-skip lower bound) is
     fully proven. -/
+theorem algorithmQ0Prime_ge_q_true_0_of_un21_ge_pow63_rhat2c_lt_pow32
+    (u4 u3 b3' : Word)
+    (hdHi_ge : (b3' >>> (32 : BitVec 6).toNat).toNat ≥ 2^31)
+    (hdHi_lt : (b3' >>> (32 : BitVec 6).toNat).toNat < 2^32)
+    (hdLo_lt :
+      ((b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat).toNat < 2^32)
+    (h_un21_ge_pow63 : (algorithmUn21 u4 u3 b3').toNat ≥ 2^63)
+    (h_un21_lt_vTop :
+      (algorithmUn21 u4 u3 b3').toNat <
+      (b3' >>> (32 : BitVec 6).toNat).toNat * 2^32 +
+      ((b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat).toNat)
+    (h_rhat2c_lt : (algorithmUn21 u4 u3 b3').toNat %
+      (b3' >>> (32 : BitVec 6).toNat).toNat +
+      (b3' >>> (32 : BitVec 6).toNat).toNat < 2^32) :
+    ((algorithmUn21 u4 u3 b3').toNat * 2^32 +
+      ((u3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat).toNat) /
+      ((b3' >>> (32 : BitVec 6).toNat).toNat * 2^32 +
+      ((b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat).toNat) ≤
+    (algorithmQ0Prime u4 u3 b3').toNat := by
+  -- Sub-case rhat2c < 2^32: Phase 2b's ult check is honest (no Word
+  -- truncation), so standard Knuth-B Phase 2 tightness reasoning closes
+  -- this sub-case. Stubbed pending the explicit composition with
+  -- existing helpers.
+  let _ := hdHi_ge
+  let _ := hdHi_lt
+  let _ := hdLo_lt
+  let _ := h_un21_ge_pow63
+  let _ := h_un21_lt_vTop
+  let _ := h_rhat2c_lt
+  sorry
+
+/-- **Phase 2 tightness for un21 ≥ 2^63 + rhat2c ≥ 2^32 sub-case** (TODO —
+    GENUINELY HARD).
+
+    The truncation regime: rhat2c ≥ 2^32 causes `(rhat2c << 32)` to wrap,
+    Phase 2b's truncated ult check may differ from un-truncated. Need to
+    verify Knuth-B's compensation still produces q0' ≥ q_true_0.
+    Analogous to Phase 1b's narrow-u4 + rhatc ≥ 2^32 issue documented in
+    `project_a2s2_per_phase_tightness_fails.md`. -/
+theorem algorithmQ0Prime_ge_q_true_0_of_un21_ge_pow63_rhat2c_ge_pow32
+    (u4 u3 b3' : Word)
+    (hdHi_ge : (b3' >>> (32 : BitVec 6).toNat).toNat ≥ 2^31)
+    (hdHi_lt : (b3' >>> (32 : BitVec 6).toNat).toNat < 2^32)
+    (hdLo_lt :
+      ((b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat).toNat < 2^32)
+    (h_un21_ge_pow63 : (algorithmUn21 u4 u3 b3').toNat ≥ 2^63)
+    (h_un21_lt_vTop :
+      (algorithmUn21 u4 u3 b3').toNat <
+      (b3' >>> (32 : BitVec 6).toNat).toNat * 2^32 +
+      ((b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat).toNat)
+    (h_rhat2c_ge : (algorithmUn21 u4 u3 b3').toNat %
+      (b3' >>> (32 : BitVec 6).toNat).toNat +
+      (b3' >>> (32 : BitVec 6).toNat).toNat ≥ 2^32) :
+    ((algorithmUn21 u4 u3 b3').toNat * 2^32 +
+      ((u3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat).toNat) /
+      ((b3' >>> (32 : BitVec 6).toNat).toNat * 2^32 +
+      ((b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat).toNat) ≤
+    (algorithmQ0Prime u4 u3 b3').toNat := by
+  let _ := hdHi_ge
+  let _ := hdHi_lt
+  let _ := hdLo_lt
+  let _ := h_un21_ge_pow63
+  let _ := h_un21_lt_vTop
+  let _ := h_rhat2c_ge
+  sorry
+
+/-- **The shared blocker — Phase 2 tightness for un21 ≥ 2^63** —
+    closed via dispatch on rhat2c ≥ 2^32. -/
 theorem algorithmQ0Prime_ge_q_true_0_of_un21_ge_pow63
     (u4 u3 b3' : Word)
     (hdHi_ge : (b3' >>> (32 : BitVec 6).toNat).toNat ≥ 2^31)
@@ -702,12 +770,14 @@ theorem algorithmQ0Prime_ge_q_true_0_of_un21_ge_pow63
       ((b3' >>> (32 : BitVec 6).toNat).toNat * 2^32 +
       ((b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat).toNat) ≤
     (algorithmQ0Prime u4 u3 b3').toNat := by
-  let _ := hdHi_ge
-  let _ := hdHi_lt
-  let _ := hdLo_lt
-  let _ := h_un21_ge_pow63
-  let _ := h_un21_lt_vTop
-  sorry
+  by_cases h : (algorithmUn21 u4 u3 b3').toNat %
+      (b3' >>> (32 : BitVec 6).toNat).toNat +
+      (b3' >>> (32 : BitVec 6).toNat).toNat < 2^32
+  · exact algorithmQ0Prime_ge_q_true_0_of_un21_ge_pow63_rhat2c_lt_pow32
+      u4 u3 b3' hdHi_ge hdHi_lt hdLo_lt h_un21_ge_pow63 h_un21_lt_vTop h
+  · push Not at h
+    exact algorithmQ0Prime_ge_q_true_0_of_un21_ge_pow63_rhat2c_ge_pow32
+      u4 u3 b3' hdHi_ge hdHi_lt hdLo_lt h_un21_ge_pow63 h_un21_lt_vTop h
 
 /-- **Phase 2 tightness, narrow-u4 + wide-un21 + un21 ≥ 2^63 sub-case** —
     closed via composition of the shared `_of_un21_ge_pow63` stub with the
