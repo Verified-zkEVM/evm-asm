@@ -17,12 +17,20 @@
   **Top-level theorem `div128Quot_call_skip_ge_val256_div_v2` proven**
   via wrapper composition (assuming dependent sorries close).
 
-  **4 sorries remain** in deep sub-cases of the A2 compensation proof:
-  - 3 in `CompensationCases.lean` (A2.S2 exact-case sub-cases under
-    `u4 ≥ dHi*2^32` or `un21 ≥ dHi*2^32`).
-  - 1 in `QuotientBounds.lean` (Phase 1 lower bound under narrow_u4 +
-    rhatc ≥ 2^32 + Phase 1b correction — this regime's per-phase
-    tightness is genuinely false; need global compensation).
+  **2 sorries remain** in deep sub-cases of the A2 compensation proof
+  (down from 4 — the 3 deep A2.S2 exact-case sorries were consolidated
+  into a single shared helper):
+  - 1 in `CompensationCases.lean` —
+    `_of_q1_prime_not_overshoot` (the shared helper covering all 3 deep
+    A2.S2 exact-case sub-cases under `u4 ≥ dHi*2^32` or
+    `un21 ≥ dHi*2^32`).
+  - 1 in `QuotientBounds.lean` — Phase 1 lower bound under narrow_u4 +
+    rhatc ≥ 2^32 + Phase 1b correction.
+
+  Both regimes' per-phase tightness is genuinely false; closure
+  requires extending `KnuthTheoremB.lean` with a *global* qHat ≥
+  q_true_full lemma (handling the carry compensation between Phase 1
+  and Phase 2 directly). See `memory/project_a2s2_per_phase_tightness_fails.md`.
 
   Each remaining sorry has detailed docstring documenting the math and
   pointing to memory entries for the proof strategy.
@@ -36,7 +44,7 @@
   - `CallSkipLowerBoundV2/Un21Bridge.lean` — Layer 1/2/3 helpers, _of_tight
     cases, algorithmUn21_ge_r1_math wrapper. SORRY-FREE.
   - `CallSkipLowerBoundV2/CompensationCases.lean` — A2 normal +
-    compensation cases + A4 normalized (3 sorries in exact sub-cases).
+    compensation cases + A4 normalized (1 shared helper sorry).
   - This file: §B (val256 bridge) and final composition.
 -/
 
