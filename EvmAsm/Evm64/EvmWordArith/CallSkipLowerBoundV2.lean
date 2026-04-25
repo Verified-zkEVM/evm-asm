@@ -231,8 +231,7 @@ theorem div128Quot_call_skip_ge_val256_div_v2
     (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
     (hb3nz : b3 ≠ 0)
     (hshift_nz : (clzResult b3).1 ≠ 0)
-    (hcall : isCallTrialN4 a3 b2 b3)
-    (_hskip : isSkipBorrowN4Call a0 a1 a2 a3 b0 b1 b2 b3) :
+    (hcall : isCallTrialN4 a3 b2 b3) :
     let shift := (clzResult b3).1.toNat % 64
     let antiShift := (signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64
     let b3' := (b3 <<< shift) ||| (b2 >>> antiShift)
