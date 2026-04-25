@@ -2034,6 +2034,9 @@ theorem c3_n_eq_u4_plus_one_of_single_addback (a b : EvmWord)
   --   `val256_mod_mul_pow_lt_pow256_of_b3_bound`.
   -- - h_u4_lt_c3: directly from hborrow via `u_top_lt_c3_of_addback_borrow_call`.
   -- TODO: each precondition is a small focused derivation (~5-15 lines).
+  -- Save folded forms for sub-stub applications, before unfolding.
+  have hsem_orig := hsem
+  have hborrow_orig := hborrow
   -- Step 1: h_u4_lt_c3 from hborrow.
   rw [isAddbackBorrowN4CallEvm_def] at hborrow
   have h_u4_lt_c3 := EvmWord.u_top_lt_c3_of_addback_borrow_call
@@ -2156,6 +2159,12 @@ theorem c3_n_eq_u4_plus_one_of_single_addback (a b : EvmWord)
     have h := h_addback_eq
     rw [h_carry_eq_one] at h
     omega
+  -- Step 6: h_qHat_eq — qHat.toNat = a/b + 1 from the closed sub-stub.
+  have h_qHat_eq : qHat.toNat = a.toNat / b.toNat + 1 :=
+    qHat_eq_div_plus_one_of_single_addback a b hshift_nz hborrow_orig hsem_orig hcarry_nz
+  let _ := h_qHat_eq
+  -- Step 7 (TODO): h_mulsub — derive from mulsubN4_val256_eq + h_qHat_eq +
+  -- h_norm_u + h_norm_b.
   let _ := h_carry_le
   let _ := h_carry_eq_one
   let _ := h_norm_b
