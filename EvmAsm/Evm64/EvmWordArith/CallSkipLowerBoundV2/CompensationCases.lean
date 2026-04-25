@@ -561,11 +561,37 @@ theorem algorithmQ1Prime_ge_q_true_1_in_wide_u4_q1_eq_pow32_loose
   have h_q1' := algorithmQ1Prime_ge_q1_dHi_minus_two u4 u3 b3' hb3'_ge
   omega
 
-/-- **Wide-u4 no-undershoot, sub-case B.2** (TODO — genuine boundary).
+/-- **Wide-u4 no-undershoot, sub-case B.2** (TODO — genuine boundary +
+    Word truncation analysis).
 
-    Under Case B AND q_true_1 = 2^32 - 1 exactly: q1c = q_true_1 = 2^32 - 1,
-    so Phase 1b firing would give q1' = 2^32 - 2 = q_true_1 - 1 (undershoot).
-    Need to show Phase 1b's ult check does NOT fire in this configuration. -/
+    Under Case B AND q_true_1 = 2^32 - 1 exactly: q1c = q_true_1 = 2^32 - 1.
+    Phase 1b's ult check `(rhatc << 32 | div_un1) < q1c * dLo` determines
+    whether q1' = q1c (no undershoot) or q1' = q1c - 1 (undershoot).
+
+    **Math analysis (un-truncated)**: From q_true_1 = 2^32 - 1, we have
+    `u_top ≥ (2^32 - 1) * b3'`. Expanding `u_top = u4*2^32 + a1` and
+    `b3' = dHi*2^32 + dLo` and `u4 = dHi*2^32 + r` (Case B), we get:
+        rhatc * 2^32 + a1 ≥ (2^32 - 1) * dLo = q1c * dLo
+    where `rhatc = r + dHi`. So un-truncated, the ult check is FALSE
+    (Phase 1b doesn't fire) and q1' = q_true_1.
+
+    **Word truncation issue**: rhatc ∈ [dHi, 2*dHi). When dHi > 2^31,
+    rhatc can exceed 2^32, causing `(rhatc << 32)` to wrap and the
+    truncated ult check may fire SPURIOUSLY. In that case
+    q1' = q_true_1 - 1 (undershoot), and the wide-u4 no-undershoot
+    claim is FALSE in this regime.
+
+    **Two paths to closure**:
+    - Path 1: prove rhatc < 2^32 in this regime (would require deeper
+      analysis showing the q_true_1 = 2^32 - 1 boundary forces rhatc <
+      2^32). Then ult check is honest and Phase 1b doesn't fire.
+    - Path 2: accept that B.2 + truncation can give undershoot, and
+      handle this specific case via a different mechanism (e.g., showing
+      Phase 2 compensates for this exact 1-step undershoot).
+
+    Path 1 looks more tractable: the constraint q_true_1 = 2^32 - 1 is
+    very tight and may indeed force specific bounds on rhatc. Stubbed
+    pending detailed Word arithmetic analysis. -/
 theorem algorithmQ1Prime_ge_q_true_1_in_wide_u4_q1_eq_pow32_tight
     (u4 u3 b3' : Word)
     (hb3'_ge : b3'.toNat ≥ 2^63)
