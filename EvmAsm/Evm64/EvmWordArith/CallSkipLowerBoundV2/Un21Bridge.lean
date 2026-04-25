@@ -263,9 +263,6 @@ theorem algorithmUn21_L4_quotient_remainder
     -/
 theorem algorithmUn21_L4_modular_identity
     (u4 div_un1 dHi dLo q rhat : Nat)
-    (hdiv_un1_lt : div_un1 < 2^32)
-    (hdLo_lt : dLo < 2^32)
-    (hrhat_lt : rhat < 2^33)
     (hV_lt : dHi * 2^32 + dLo < 2^64)
     (h_eucl : q * dHi + rhat = u4)
     (h_q_dLo_no_wrap : q * dLo < 2^64)
@@ -325,9 +322,6 @@ theorem algorithmUn21_L4_modular_identity
     case analysis (cu_rhat_un1 < cu_q1_dlo, Word-wrap occurs). -/
 theorem algorithmUn21_L4_modular_identity_plus_one
     (u4 div_un1 dHi dLo q rhat : Nat)
-    (hdiv_un1_lt : div_un1 < 2^32)
-    (hdLo_lt : dLo < 2^32)
-    (hrhat_lt : rhat < 2^33)
     (hV_lt : dHi * 2^32 + dLo < 2^64)
     (hq_pos : q ≥ 1)
     (hV_pos : dHi * 2^32 + dLo ≥ 1)
@@ -602,7 +596,7 @@ theorem algorithmUn21_eq_r1_math_of_q1_prime_eq_q_true_1
   exact algorithmUn21_L4_modular_identity u4.toNat (u3 >>> (32 : BitVec 6).toNat).toNat
     (b3' >>> (32 : BitVec 6).toNat).toNat
     ((b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat).toNat q _
-    h_div_un1_lt h_dLo_lt h_l2b h_V_lt h_l2a_w h_qdLo_no_wrap h_q_V_le h_r_lt_V
+    h_V_lt h_l2a_w h_qdLo_no_wrap h_q_V_le h_r_lt_V
 
 /-- **_of_tight sub-case "off-by-one"**: when `q1' = q_true_1 + 1` (Phase 1b
     false-alarms once), the algorithm's un21 = r1_math + (2^64 - V), which is
@@ -693,7 +687,7 @@ theorem algorithmUn21_ge_r1_math_of_q1_prime_eq_q_true_1_plus_one
     (u3 >>> (32 : BitVec 6).toNat).toNat
     (b3' >>> (32 : BitVec 6).toNat).toNat
     ((b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat).toNat (q + 1) _
-    h_div_un1_lt h_dLo_lt h_l2b h_V_lt h_qp1_pos h_V_pos h_l2a_w h_qp1_dLo_no_wrap
+    h_V_lt h_qp1_pos h_V_pos h_l2a_w h_qp1_dLo_no_wrap
     h_qp1_V_gt h_qp1m1_V_le]
   -- Goal: 2^64 + r - V ≥ r. Since V ≤ 2^64 (h_V_lt), this holds.
   have h_r_lt_V : (u4.toNat * 2^32 + (u3 >>> (32 : BitVec 6).toNat).toNat) %
