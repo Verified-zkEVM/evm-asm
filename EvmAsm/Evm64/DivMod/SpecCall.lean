@@ -1909,6 +1909,29 @@ theorem val256_post1_low4_eq_mod_times_pow_s_plus_c3_minus_one_minus_u4
   -- Combine with h_addback.
   omega
 
+/-- **Pure-Nat: c3 ≤ u4 + 1 from the closed identity + bounds.**
+
+    Direct corollary: from `post1_val + (u4 + 1)*2^256 = a%b*2^s + c3*2^256`
+    plus `post1_val < 2^256` (val256 bound) and `a%b*2^s < 2^256` (a%b < b
+    and b * 2^s ≤ 2^256), it follows that `c3 ≤ u4 + 1` — otherwise
+    post1_val would exceed 2^256. -/
+theorem c3_le_u4_plus_one_from_identity
+    (post1_val a_val b_val s u4 c3 : Nat)
+    (h_id : post1_val + (u4 + 1) * 2^256 = a_val % b_val * 2^s + c3 * 2^256)
+    (h_post1_lt : post1_val < 2^256)
+    (h_amod_pow_lt : a_val % b_val * 2^s < 2^256) :
+    c3 ≤ u4 + 1 := by
+  -- Suppose c3 ≥ u4 + 2. Then RHS ≥ (u4 + 2)*2^256 = (u4 + 1)*2^256 + 2^256.
+  -- LHS = post1_val + (u4 + 1)*2^256 < 2^256 + (u4 + 1)*2^256.
+  -- a%b*2^s ≥ 0 and a%b*2^s < 2^256, so RHS could be in
+  -- [(u4 + 2)*2^256, (u4 + 2)*2^256 + 2^256). LHS bound contradicts.
+  by_contra h_gt
+  push Not at h_gt
+  have h_c3_ge : c3 ≥ u4 + 2 := h_gt
+  have h_c3_mul : c3 * 2^256 ≥ (u4 + 2) * 2^256 := Nat.mul_le_mul_right _ h_c3_ge
+  have h_split : (u4 + 2) * 2^256 = (u4 + 1) * 2^256 + 2^256 := by ring
+  omega
+
 /-- **Sub-stub: c3_n = u4 + 1 in single-addback.**
 
     The key algebraic identity for the call-addback BEQ MOD adapter, mirroring
