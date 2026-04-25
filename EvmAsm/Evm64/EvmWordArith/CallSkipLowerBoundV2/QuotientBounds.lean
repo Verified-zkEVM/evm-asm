@@ -24,6 +24,29 @@ namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
 
+/-- **Phase 1 lower bound under narrow_u4** (STUB): in the regime u4 ≥ dHi*2^32,
+    Phase 1's q1' is still at least q_true_1 (Knuth-B's design rules out
+    undershoot). This is needed to convert `q1' ≤ q_true_1` (negative branch
+    of the case-split in A2.S2 sub-cases) into `q1' = q_true_1` exactly,
+    enabling the Phase 2 tight argument.
+
+    The existing `algorithmQ1Prime_ge_q_true_1` requires u4 < dHi*2^32, which
+    fails here. The KB-LB7 lemma (`_of_uHi_lt_pow63`) requires uHi < 2^63,
+    which also fails when u4 ≥ dHi*2^32 ≥ 2^63 (under hb3'_ge).
+
+    This stub captures the missing piece. Closure requires either:
+    - A new KB-LB7 variant for the wide-u4 regime, OR
+    - A direct algorithm-level argument using the q1c = q1 - 1 correction.
+    Stubbed for now. -/
+theorem algorithmQ1Prime_ge_q_true_1_under_narrow_u4
+    (u4 u3 b3' : Word)
+    (hb3'_ge : b3'.toNat ≥ 2^63)
+    (hu4_lt_b3' : u4.toNat < b3'.toNat)
+    (hu4_ge : u4.toNat ≥ (b3' >>> (32 : BitVec 6).toNat).toNat * 2^32) :
+    (u4.toNat * 2^32 + (u3 >>> (32 : BitVec 6).toNat).toNat) / b3'.toNat ≤
+      (algorithmQ1Prime u4 u3 b3').toNat := by
+  sorry
+
 /-- **Phase 1 tight, wrapped**: Phase 1 tight specialized and folded into
     `algorithmQ1Prime`. Parallel to `algorithmQ0Prime_ge_q_true_0`. -/
 theorem algorithmQ1Prime_ge_q_true_1
