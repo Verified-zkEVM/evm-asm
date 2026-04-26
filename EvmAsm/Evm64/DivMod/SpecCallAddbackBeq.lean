@@ -1977,7 +1977,65 @@ theorem algCallAddbackBeq_mulsub_eucl_irreducible_form
         (val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) *
           2 ^ ((clzResult (b.getLimbN 3)).1.toNat % 64)) +
       (algCallAddbackBeqU4 a b).toNat * 2 ^ 256 := by
-  sorry
+  intro shift antiShift b3' u3 u4 qHat
+  have h_clz_pos : 1 ≤ (clzResult (b.getLimbN 3)).1.toNat := by
+    rcases Nat.eq_zero_or_pos (clzResult (b.getLimbN 3)).1.toNat with h0 | h0
+    · exfalso; apply hshift_nz; exact BitVec.eq_of_toNat_eq (by simp [h0])
+    · exact h0
+  have h_clz_le_63 : (clzResult (b.getLimbN 3)).1.toNat ≤ 63 :=
+    clzResult_fst_toNat_le _
+  have h_clz_lt_64 : (clzResult (b.getLimbN 3)).1.toNat < 64 := by omega
+  have h_anti_eq : (signExtend12 (0 : BitVec 12) -
+      (clzResult (b.getLimbN 3)).1).toNat % 64 = 64 - (clzResult (b.getLimbN 3)).1.toNat :=
+    antiShift_toNat_mod_eq h_clz_pos h_clz_le_63
+  have h_s_eq : (clzResult (b.getLimbN 3)).1.toNat % 64 =
+      (clzResult (b.getLimbN 3)).1.toNat := by omega
+  have hb3_bound : (b.getLimbN 3).toNat <
+      2 ^ (64 - (clzResult (b.getLimbN 3)).1.toNat) :=
+    clzResult_fst_top_bound (b.getLimbN 3)
+  rw [show (algCallAddbackBeqMsC3 a b).toNat = _ from by
+        unfold algCallAddbackBeqMsC3; rfl,
+      show (algCallAddbackBeqU4 a b).toNat = _ from by
+        unfold algCallAddbackBeqU4; rfl,
+      algCallAddbackBeqMsLowVal_unfold]
+  simp only []
+  set b2' := ((b.getLimbN 2) <<< shift) ||| ((b.getLimbN 1) >>> antiShift)
+  set b1' := ((b.getLimbN 1) <<< shift) ||| ((b.getLimbN 0) >>> antiShift)
+  set b0' := (b.getLimbN 0) <<< shift
+  set u2 := ((a.getLimbN 2) <<< shift) ||| ((a.getLimbN 1) >>> antiShift)
+  set u1 := ((a.getLimbN 1) <<< shift) ||| ((a.getLimbN 0) >>> antiShift)
+  set u0 := (a.getLimbN 0) <<< shift
+  set ms := mulsubN4 qHat b0' b1' b2' b3' u0 u1 u2 u3
+  -- Mulsub Euclidean.
+  have h_mulsub_eq := mulsubN4_val256_eq qHat b0' b1' b2' b3' u0 u1 u2 u3
+  simp only [] at h_mulsub_eq
+  -- val256(b_norm) = val256(b) * 2^s.
+  have h_norm_b : val256 b0' b1' b2' b3' =
+      val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) *
+        2 ^ shift := by
+    show val256 ((b.getLimbN 0) <<< shift)
+                (((b.getLimbN 1) <<< shift) ||| ((b.getLimbN 0) >>> antiShift))
+                (((b.getLimbN 2) <<< shift) ||| ((b.getLimbN 1) >>> antiShift))
+                (((b.getLimbN 3) <<< shift) ||| ((b.getLimbN 2) >>> antiShift)) = _
+    rw [show shift = (clzResult (b.getLimbN 3)).1.toNat from h_s_eq,
+        show antiShift = 64 - (clzResult (b.getLimbN 3)).1.toNat from h_anti_eq]
+    exact EvmWord.val256_normalize h_clz_pos h_clz_lt_64
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) hb3_bound
+  -- val256(u_norm low4) + u4 * 2^256 = val256(a) * 2^s.
+  have h_norm_u : val256 u0 u1 u2 u3 + u4.toNat * 2 ^ 256 =
+      val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) *
+        2 ^ shift := by
+    show val256 ((a.getLimbN 0) <<< shift)
+                (((a.getLimbN 1) <<< shift) ||| ((a.getLimbN 0) >>> antiShift))
+                (((a.getLimbN 2) <<< shift) ||| ((a.getLimbN 1) >>> antiShift))
+                (((a.getLimbN 3) <<< shift) ||| ((a.getLimbN 2) >>> antiShift)) +
+            ((a.getLimbN 3) >>> antiShift).toNat * 2 ^ 256 = _
+    rw [show shift = (clzResult (b.getLimbN 3)).1.toNat from h_s_eq,
+        show antiShift = 64 - (clzResult (b.getLimbN 3)).1.toNat from h_anti_eq]
+    exact EvmWord.val256_normalize_general h_clz_pos h_clz_lt_64
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+  rw [h_norm_b] at h_mulsub_eq
+  linarith
 
 /-- **Bound: `algCallAddbackBeqU4 < algCallAddbackBeqMsC3`** (CLOSED).
 
@@ -2063,10 +2121,10 @@ theorem qHat_ge_two_abstract
 
     Estimated remaining: ~80 LOC. Issue #1338 Phase B.1a. -/
 theorem qHat_ge_two_of_double_addback (a b : EvmWord)
-    (_hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
-    (_hborrow : isAddbackBorrowN4CallEvm a b)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hborrow : isAddbackBorrowN4CallEvm a b)
     (_hcarry2_nz : isAddbackCarry2NzN4CallEvm a b)
-    (_hcarry_zero : algCallAddbackBeqCarry a b = 0) :
+    (hcarry_zero : algCallAddbackBeqCarry a b = 0) :
     let shift := (clzResult (b.getLimbN 3)).1.toNat % 64
     let antiShift :=
       (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64
@@ -2094,12 +2152,50 @@ theorem qHat_ge_two_of_double_addback (a b : EvmWord)
   --   ⟹ `algCallAddbackBeqMsLowVal a b + val256(b_norm) < 2^256`.
   -- Both are statements about irreducibles only, no deep let-chain in proof.
   --
-  -- Note: existing `algCallAddbackBeqPost1Val` is val256 of addbackN4 with
-  -- u4_new = 0. By `addbackN4_low_limbs_indep_u4_new`, low 4 outputs don't
-  -- depend on u4_new. So Post1Val == AbLowValDouble (as Nats). May be able
-  -- to reuse `algCallAddbackBeqPost1Val` directly + that low_limbs_indep
-  -- lemma to avoid adding a new def. Estimated +20 LOC.
-  sorry
+  intro shift antiShift b3' u3 u4
+  -- Apply qHat_ge_two_abstract with irreducibles + closed preconditions.
+  -- Note: u_norm = val256(a) * 2^s - u4 * 2^256 (Nat sub via h_u4_le).
+  apply qHat_ge_two_abstract
+    (div128Quot u4 u3 b3').toNat
+    (algCallAddbackBeqMsLowVal a b)
+    (val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) *
+      2 ^ ((clzResult (b.getLimbN 3)).1.toNat % 64) -
+      (algCallAddbackBeqU4 a b).toNat * 2 ^ 256)
+    (val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) *
+      2 ^ ((clzResult (b.getLimbN 3)).1.toNat % 64))
+    (algCallAddbackBeqMsC3 a b).toNat
+  · -- h_mulsub: c3 * 2^256 + u_norm = ms + qHat * b_norm.
+    have h_eucl := algCallAddbackBeq_mulsub_eucl_irreducible_form a b hshift_nz
+    simp only [] at h_eucl
+    have h_u4_le := algCallAddbackBeqU4_mul_pow256_le_val256_mul_pow_s a b hshift_nz
+    -- Bridge the let-fvars `u4 u3 b3'` (in the goal) to the explicit forms
+    -- in h_eucl. Both are defeq via zeta but omega can't see lets.
+    have h_qHat_eq : (div128Quot u4 u3 b3').toNat =
+        (div128Quot ((a.getLimbN 3) >>>
+            ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64))
+          (((a.getLimbN 3) <<< ((clzResult (b.getLimbN 3)).1.toNat % 64)) |||
+           ((a.getLimbN 2) >>>
+              ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64)))
+          (((b.getLimbN 3) <<< ((clzResult (b.getLimbN 3)).1.toNat % 64)) |||
+           ((b.getLimbN 2) >>>
+              ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat
+                % 64)))).toNat := rfl
+    rw [h_qHat_eq]
+    -- Substitute val256(a)*2^s = u_norm + u4*2^256 (Nat sub bridge via h_u4_le).
+    have h_a_eq :
+        val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) *
+            2 ^ ((clzResult (b.getLimbN 3)).1.toNat % 64) =
+        (val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) *
+          2 ^ ((clzResult (b.getLimbN 3)).1.toNat % 64) -
+          (algCallAddbackBeqU4 a b).toNat * 2 ^ 256) +
+          (algCallAddbackBeqU4 a b).toNat * 2 ^ 256 := by omega
+    rw [h_a_eq] at h_eucl
+    omega
+  · -- h_no_overflow: ms + b_norm < 2^256.
+    exact algCallAddbackBeqMsLowVal_plus_b_norm_lt_pow256 a b hshift_nz hcarry_zero
+  · -- h_c3_pos: c3 ≥ 1, from u4 < c3 (hborrow).
+    have h := algCallAddbackBeqU4_toNat_lt_algCallAddbackBeqMsC3_toNat a b hborrow
+    have := (algCallAddbackBeqU4 a b).isLt; omega
 
 /-- **B.1 (#1338, NOT Knuth-B blocked):** qHat.toNat = a/b + 2
     in double-addback case.
