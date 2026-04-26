@@ -33,6 +33,19 @@ theorem takeBytes_length_ge {bs : List Byte} {n : Nat} (h : n ≤ bs.length) :
     takeBytes bs n = some (bs.take n, bs.drop n) := by
   simp [takeBytes, h]
 
+/-! ## readLength properties -/
+
+/-- Reading zero length-bytes always succeeds with length 0 and the input
+    list unchanged. -/
+theorem readLength_zero (bs : List Byte) :
+    readLength bs 0 = some (0, bs) := by
+  simp [readLength, takeBytes]
+
+/-- Reading more length-bytes than the input contains returns `none`. -/
+theorem readLength_length_lt {bs : List Byte} {n : Nat} (h : bs.length < n) :
+    readLength bs n = none := by
+  simp [readLength, takeBytes, Nat.not_le_of_lt h]
+
 /-! ## decodeAux trivial cases -/
 
 /-- `decodeAux 0` always returns `none` (no fuel). -/
@@ -51,6 +64,12 @@ theorem decodeAux_single_byte (fuel : Nat) (pfx : Byte) (rest : List Byte)
     (h : pfx.toNat < 0x80) :
     decodeAux (fuel + 1) (pfx :: rest) = some (.bytes [pfx], rest) := by
   simp [decodeAux, h]
+
+/-- Empty short byte string (prefix `0x80`): `decodeAux` returns `(.bytes [], rest)`
+    consuming only the prefix byte. -/
+theorem decodeAux_empty_string (fuel : Nat) (rest : List Byte) :
+    decodeAux (fuel + 1) ((0x80 : Byte) :: rest) = some (.bytes [], rest) := by
+  simp [decodeAux, takeBytes]
 
 /-! ## Encoding produces non-empty output -/
 
