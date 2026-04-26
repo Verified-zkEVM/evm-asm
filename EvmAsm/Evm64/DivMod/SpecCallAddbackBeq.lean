@@ -1821,6 +1821,35 @@ theorem algCallAddbackBeq_addback_euclidean_carry_one
   rw [h_norm_b] at h_addback_eq
   omega
 
+/-- **B.5 building block: MsLowVal + val256(b_norm)*2^s no-overflow,
+    carry-zero variant** (STUB).
+
+    Direct combination of `algCallAddbackBeq_addback_euclidean_carry_zero`
+    + `algCallAddbackBeqPost1Val_lt_pow256` would give:
+
+      `algCallAddbackBeqMsLowVal a b
+         + val256(b_limbs) * 2^s < 2^256`
+
+    Useful as the `h_no_overflow` precondition of `qHat_ge_two_abstract`
+    for B.1a's call-addback-side closure.
+
+    **NOTE (2026-04-26):** Currently blocked on the kernel deep-recursion
+    pattern documented in `project_kernel_deep_recursion_pattern.md`.
+    Both the underlying `algCallAddbackBeq_addback_euclidean_carry_zero`
+    Euclidean and the direct combined form trigger 100s+ build that
+    fails kernel verification. Working baselines (e.g.
+    `algCallAddbackBeq_addback_euclidean_carry_one`) succeed only because
+    of a `+ 2^256` term that gives omega's certificate a cancellation
+    point absent from the carry-zero form.
+
+    Recommended path: introduce a NEW irreducible def for the addback's
+    val256 to keep the kernel at opaque-Nat level throughout. -/
+theorem algCallAddbackBeqMsLowVal_plus_b_norm_lt_pow256_of_carry_zero
+    (_a _b : EvmWord)
+    (_hshift_nz : (clzResult (_b.getLimbN 3)).1 ≠ 0)
+    (_hcarry_zero : algCallAddbackBeqCarry _a _b = 0) :
+    True := trivial
+
 /-- **Bound: `algCallAddbackBeqU4 < algCallAddbackBeqMsC3`** (CLOSED).
 
     Wraps `EvmWord.u_top_lt_c3_of_addback_borrow_call` in the irreducible-
