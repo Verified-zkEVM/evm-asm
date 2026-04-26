@@ -676,7 +676,15 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
     (initial attempt hit Lean-level issues around
     `BitVec.ofNat 64 n` arithmetic and associativity normalization;
     unrolling is catching up in the meantime).
-- Phase 3: Single-item flat decode (byte strings only)
+- Phase 3: Single-item flat decode (byte strings only) — ⏳ scaffolding
+  - `rlp_phase3_single_byte_spec` (`EvmAsm/Rv64/RLP/Phase3SingleByte.lean`):
+    one-instruction `ADDI x11, x0, 1` that materializes `length = 1` for
+    Phase 1's `e1` exit (prefix byte `< 0x80`, single-byte string —
+    the prefix IS the data). The data pointer in `x13` rides through
+    as a frame atom; no pointer advance is needed.
+  - Remaining: short-string exit (`e2`: data_ptr += 1, length = p − 0x80),
+    long-string exit (`e3`: needs Phase 2 long output), short/long-list
+    error exits (`e4`/`e5`).
 - Phase 4: HINT_READ integration (load RLP input into memory buffer)
 - Phase 5: Recursive list decode (iterative with explicit stack)
 - Phase 6: Top-level pipeline (HINT_READ → decode → output)

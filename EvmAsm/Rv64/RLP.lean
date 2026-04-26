@@ -7,7 +7,7 @@
   RV64IM execution:
     Phase 1 — Prefix classifier  (5-way cascade on the first byte)
     Phase 2 — Length extraction  (planned)
-    Phase 3 — Single-item decode (planned)
+    Phase 3 — Single-item decode (in progress: single-byte exit landed)
     Phase 4 — HINT_READ pipeline (planned)
     Phase 5 — Recursive list decode with explicit stack (planned)
     Phase 6 — Top-level pipeline (planned)
@@ -19,3 +19,4 @@ import EvmAsm.Rv64.RLP.Phase1
 import EvmAsm.Rv64.RLP.Phase2Short
 import EvmAsm.Rv64.RLP.Phase2LongLoad
 import EvmAsm.Rv64.RLP.Phase2LongLoopFive
+import EvmAsm.Rv64.RLP.Phase3SingleByte
