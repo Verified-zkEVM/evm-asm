@@ -2229,29 +2229,35 @@ theorem algCallAddbackBeqCarry_unfold {a b : EvmWord} :
   unfold algCallAddbackBeqCarry
   rfl
 
-/-- **B.1 STUB (#1338, partly Knuth-B blocked):** qHat.toNat = a/b + 2
+/-- **B.1 STUB (#1338, NOT Knuth-B blocked):** qHat.toNat = a/b + 2
     in double-addback case.
 
     Mirror of `qHat_eq_div_plus_one_of_single_addback` for the
     double-addback branch (`algCallAddbackBeqCarry a b = 0`).
 
-    **Proof outline** (per analysis, 2026-04-26):
-    - hsem unfolded with `if_pos hcarry_zero` gives
-      `(qHat + signExtend12 4095 + signExtend12 4095).toNat = a/b`.
-    - Word arithmetic: this is `(qHat.toNat + 2^64 - 2) % 2^64 = a/b`.
-    - With qHat ≥ 2, this gives `qHat.toNat - 2 = a/b`, hence `qHat = a/b + 2`.
-    - With qHat < 2 (qHat = 0 or 1): edge case where `a/b = 2^64 - 2 + qHat`.
-      qHat = 0 ruled out by hborrow (would force c3 = 0 < u4 + 1).
-      qHat = 1 + u4 = 0 + c3 = 1 is technically a "wide-a" edge case.
+    **REFINED ANALYSIS (2026-04-26):** This lemma does NOT actually need
+    Knuth-B (#1337). The lower bound qHat ≥ a/b + 2 is **derivable
+    directly** from hborrow + hcarry_zero via mulsub algebra:
 
-    **Knuth-B dependency**: To rule out `qHat ≥ a/b + 3` (which would also
-    satisfy `qHat - 2 ≡ a/b (mod 2^64)` if a/b is small enough that
-    qHat doesn't wrap), need Knuth Theorem B's `qHat ≤ a/b + 2`.
-    Pending #1337's `div128Quot_le_q_true_plus_two`.
+    1. From hborrow: u4 < c3 (so c3 - u4 ≥ 1).
+    2. From mulsub Euclidean (instantiated):
+       val256(ms) + qHat * b * 2^s = a * 2^s + (c3 - u4) * 2^256.
+    3. carry₁ = 0 means val256(ms) + b * 2^s < 2^256 (no overflow in
+       first addback). Substituting (2):
+       a * 2^s + (c3 - u4) * 2^256 - (qHat - 1) * b * 2^s < 2^256.
+    4. With c3 - u4 ≥ 1: (qHat - 1) * b * 2^s > a * 2^s, hence
+       (qHat - 1) * b > a, hence qHat - 1 > a/b, hence qHat ≥ a/b + 2.
 
-    Once Knuth-B lands:
-    1. Use `div128Quot_le_q_true_plus_two` to bound qHat ≤ a/b + 2.
-    2. Combine with hsem (qHat ≡ a/b + 2 mod 2^64) and qHat < 2^64 to conclude.
+    **Proof outline**:
+    - hsem with `if_pos hcarry_zero`: `qHat - 2 ≡ a/b (mod 2^64)`.
+    - From step (4): qHat ≥ a/b + 2 ≥ 2 (since a/b ≥ 0).
+    - Word arithmetic with qHat ≥ 2: `(qHat.toNat - 2 + 2^64) mod 2^64
+      = qHat.toNat - 2` (no wrap), so `qHat.toNat - 2 = a/b`.
+    - Conclude `qHat = a/b + 2`.
+
+    **Estimated proof size**: ~110 lines (mirrors single-addback's
+    proof but with the additional algebraic step (4) replacing the
+    `c3_un_zero_of_qHat_mul_le` argument).
 
     Issue #1338 Phase B.1. -/
 theorem qHat_eq_div_plus_two_of_double_addback (a b : EvmWord)
@@ -2267,6 +2273,32 @@ theorem qHat_eq_div_plus_two_of_double_addback (a b : EvmWord)
     let u3 := ((a.getLimbN 3) <<< shift) ||| ((a.getLimbN 2) >>> antiShift)
     let u4 := (a.getLimbN 3) >>> antiShift
     (div128Quot u4 u3 b3').toNat = a.toNat / b.toNat + 2 := by
+  sorry
+
+/-- **B.1a STUB (sub-lemma, sorry):** `qHat ≥ 2` under double-addback hypotheses.
+
+    The algorithm-invariant lower-bound piece. Derivable from:
+    - `algCallAddbackBeq_mulsub_euclidean` (existing, val256-level
+      mulsub Euclidean).
+    - addbackN4_carry = 0 implies val256 sum no-overflow (~30 LOC needed
+      to lift to the algorithm's let-chain).
+    - hborrow gives c3 ≥ u4 + 1, propagating qHat ≥ a/b + 2.
+
+    Once filled, B.1's main lemma's proof is straightforward Word
+    arithmetic on hsem (~50 LOC). Estimated B.1a: ~80 LOC. Independent
+    of Knuth-B (#1337). -/
+theorem qHat_ge_two_of_double_addback (a b : EvmWord)
+    (_hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (_hborrow : isAddbackBorrowN4CallEvm a b)
+    (_hcarry2_nz : isAddbackCarry2NzN4CallEvm a b)
+    (_hcarry_zero : algCallAddbackBeqCarry a b = 0) :
+    let shift := (clzResult (b.getLimbN 3)).1.toNat % 64
+    let antiShift :=
+      (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64
+    let b3' := ((b.getLimbN 3) <<< shift) ||| ((b.getLimbN 2) >>> antiShift)
+    let u3 := ((a.getLimbN 3) <<< shift) ||| ((a.getLimbN 2) >>> antiShift)
+    let u4 := (a.getLimbN 3) >>> antiShift
+    (div128Quot u4 u3 b3').toNat ≥ 2 := by
   sorry
 
 /-- **Irreducible bundle: val256 of post1 limbs at normalized inputs.**
