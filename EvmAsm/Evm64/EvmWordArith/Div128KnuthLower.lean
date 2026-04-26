@@ -908,6 +908,19 @@ theorem div128Quot_phase1_no_wrap (uHi dHi dLo uLo : Word)
     -- project_un21_lt_vTop_plan.md) and is a hard math gap requiring
     -- either Word-level Knuth-C-tight analysis (~150 LOC) or a different
     -- composition path (e.g., via Piece A's abstract Knuth-B bound).
+    --
+    -- **CRITICAL (2026-04-26):** This Sub-case A goal is **NOT
+    -- PROVABLE** under just `uHi < 2^63`. Concrete counterexample:
+    -- dHi = 2^31, dLo = 2^32 - 1, uHi = 2^62 + 2^32, div_un1 = 0.
+    -- Then q1c = q_true_1 + 2 = 2^31 + 2 (KB-LB11 saturated), check
+    -- fires, rhat' = 2^31 < 2^32 (Sub-case A), and the goal fails by
+    -- 2^31 - 1. See `project_u3_unprovable_counterexample.md`.
+    --
+    -- U3 has ZERO callers — it is currently isolated. To make it
+    -- closeable, **strengthen the hypotheses** (e.g., assume the
+    -- algorithm's mulsub-then-addback path didn't trigger addback,
+    -- i.e., un21 didn't wrap). Alternative: redesign the chain to
+    -- handle the wrap case directly.
     sorry
   · -- Check doesn't fire: q1' = q1c, rhat' = rhatc.
     have h_q1' : q1' = q1c := by
