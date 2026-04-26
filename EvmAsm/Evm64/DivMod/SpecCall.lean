@@ -3366,12 +3366,13 @@ theorem output_slot_to_evmWordIs_mod_n4_call_addback_beq_denorm
     simp only [hms_def, hqHat_def, huTop_def, hb0_def, hb1_def, hb2_def, hb3_def,
                hu0_def, hu1_def, hu2_def, hu3_def, hs_def, hmod_eq] at hab
     rw [hab.1, hab.2.1, hab.2.2.1, hab.2.2.2]
-    -- Final fold remaining. Tested approaches:
-    --   * `(evmWordIs_sp32_limbs_eq ...).symm` — Type mismatch on witnesses.
-    --   * `convert (evmWordIs_sp32_limbs_eq ...).symm` — 200k-heartbeat timeout
-    --     in whnf during defeq slack check.
-    -- The witnesses h_denorm.{i} are nearly aligned but Lean can't reconcile.
-    -- Continue closure attempts in next iteration with alternative tactics.
+    -- Final fold attempted with `simp only [evmWordIs_sp32_unfold, ←
+    -- h_denorm.{i}]` — simp says all 4 ←-rules are UNUSED (only the
+    -- evmWordIs_sp32_unfold fires). So h_denorm's RHS form doesn't match
+    -- the goal's post1 atom form, even after both have been simp-aligned
+    -- with [hmod_eq, hs_def]. The structural difference is real and
+    -- unreconcilable via simp/rw — closure may need an irreducible
+    -- bundle for the post1 limbs to opaque-ify the comparison.
     sorry
 
 /-- **EVM-stack-level MOD spec on the n=4 call+addback BEQ sub-path (SORRY).**
