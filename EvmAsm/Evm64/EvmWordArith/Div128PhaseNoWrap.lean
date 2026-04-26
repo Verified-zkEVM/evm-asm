@@ -7,9 +7,13 @@
   Contents:
   - `phase1_no_wrap_lo_subcase_a_iff_q1_prime_le_q_true_1` — Sub-case A
     algebraic reduction.
-  - `div128Quot_phase1_no_wrap` — original U3 lemma (sorry; counterexample
-    confirms unprovable as-stated, see `project_u3_unprovable_counterexample.md`).
   - `div128Quot_phase1_no_wrap_skip` — call-skip variant (CLOSED).
+
+  Note: an earlier `div128Quot_phase1_no_wrap` lemma (with weaker
+  hypothesis `uHi < 2^63`) was deleted because its Sub-case A is
+  provably false — see `project_u3_unprovable_counterexample.md` for
+  the concrete counterexample. The call-skip variant uses strengthened
+  preconditions to dodge the counterexample.
 
   See `project_un21_lt_vTop_plan.md` for the full plan.
 -/
@@ -89,120 +93,6 @@ theorem phase1_no_wrap_lo_subcase_a_iff_q1_prime_le_q_true_1
     have h_rhat_pow : rhat' * 2^32 ≤ uHi * 2^32 :=
       Nat.mul_le_mul_right _ h_rhat'_le
     omega
-
-/-- **U3: Phase 1 no-wrap (SORRY).** The Phase 1b no-wrap precondition that
-    feeds T1 (`div128Quot_qHat_vTop_le`):
-
-    ```
-    q1'.toNat * dLo.toNat ≤ (rhat'.toNat % 2^32) * 2^32 + div_un1.toNat
-    ```
-
-    Under `dHi ≥ 2^31` (normalization), `dLo < 2^32` (uniform halfword
-    bound), `uHi < 2^63` (auto under hshift_nz, gives KB-LB6b's
-    `rhatc < 2^32`).
-
-    **Closure path** (case-split on Phase 1b check):
-
-    - **Check doesn't fire** (¬ult rhatUn1 (q1c * dLo)):
-      - q1' = q1c, rhat' = rhatc.
-      - `(q1c * dLo).toNat = q1c * dLo` (no overflow: q1c < 2^32, dLo < 2^32).
-      - `rhatUn1.toNat = rhatc * 2^32 + div_un1` (halfword_combine, since
-        rhatc < 2^32 by KB-LB6b).
-      - Negation of ult gives `rhatUn1.toNat ≥ q1c * dLo`, i.e.,
-        `q1c * dLo ≤ rhatc * 2^32 + div_un1`. ✓
-
-    - **Check fires** (ult rhatUn1 (q1c * dLo)):
-      - q1' = q1c - 1, rhat' = rhatc + dHi (Phase 1b correction).
-      - Need `(q1c - 1) * dLo ≤ ((rhatc + dHi) % 2^32) * 2^32 + div_un1`.
-      - Knuth's correction restores the no-wrap invariant: from check firing
-        plus the new rhat' = rhatc + dHi, the new (rhat' % 2^32) * 2^32 +
-        div_un1 ≥ (q1c - 1) * dLo. Algebraic argument requires careful
-        tracking of (rhatc + dHi) overflow into 2^32 boundary.
-
-    Tracked in #1337 as part of the un21 < vTop plan. -/
-theorem div128Quot_phase1_no_wrap (uHi dHi dLo uLo : Word)
-    (hdHi_ne : dHi ≠ 0)
-    (hdHi_ge : dHi.toNat ≥ 2^31)
-    (hdHi_lt : dHi.toNat < 2^32)
-    (hdLo_lt : dLo.toNat < 2^32)
-    (huHi_lt_pow63 : uHi.toNat < 2^63) :
-    let div_un1 := uLo >>> (32 : BitVec 6).toNat
-    let q1 := rv64_divu uHi dHi
-    let rhat := uHi - q1 * dHi
-    let hi1 := q1 >>> (32 : BitVec 6).toNat
-    let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
-    let rhatc := if hi1 = 0 then rhat else rhat + dHi
-    let qDlo := q1c * dLo
-    let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
-    let q1' := if BitVec.ult rhatUn1 qDlo then q1c + signExtend12 4095 else q1c
-    let rhat' := if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc
-    q1'.toNat * dLo.toNat ≤ (rhat'.toNat % 2^32) * 2^32 + div_un1.toNat := by
-  intro div_un1 q1 rhat hi1 q1c rhatc qDlo rhatUn1 q1' rhat'
-  -- KB-LB6a: q1 < 2^32 under uHi < 2^63.
-  have h_q1_lt : q1.toNat < 2^32 :=
-    div128Quot_q1_lt_pow32_of_uHi_lt_pow63 uHi dHi hdHi_ne huHi_lt_pow63 hdHi_ge
-  -- KB-LB6b: rhatc < 2^32 under uHi < 2^63.
-  have h_rhatc_lt : rhatc.toNat < 2^32 :=
-    div128Quot_rhatc_lt_pow32_of_uHi_lt_pow63 uHi dHi hdHi_ne huHi_lt_pow63 hdHi_ge hdHi_lt
-  -- Hence hi1 = 0 (since q1 < 2^32 means q1 >>> 32 = 0), so q1c = q1.
-  have h_hi1 : hi1 = 0 := by
-    apply BitVec.eq_of_toNat_eq
-    show (q1 >>> (32 : BitVec 6).toNat).toNat = (0 : Word).toNat
-    rw [BitVec.toNat_ushiftRight, bv6_toNat_32, Nat.shiftRight_eq_div_pow]
-    rw [Nat.div_eq_of_lt h_q1_lt]
-    rfl
-  have h_q1c_eq_q1 : q1c = q1 := by
-    show (if hi1 = 0 then q1 else q1 + signExtend12 4095) = q1
-    rw [if_pos h_hi1]
-  have h_rhatc_eq_rhat : rhatc = rhat := by
-    show (if hi1 = 0 then rhat else rhat + dHi) = rhat
-    rw [if_pos h_hi1]
-  have h_q1c_lt : q1c.toNat < 2^32 := h_q1c_eq_q1 ▸ h_q1_lt
-  -- div_un1 < 2^32 (high half of uLo).
-  have h_div_un1_lt : div_un1.toNat < 2^32 := by
-    show (uLo >>> (32 : BitVec 6).toNat).toNat < 2^32
-    rw [BitVec.toNat_ushiftRight, bv6_toNat_32, Nat.shiftRight_eq_div_pow]
-    have : uLo.toNat < 2^64 := uLo.isLt
-    have : (2^64 : Nat) = 2^32 * 2^32 := by decide
-    omega
-  -- qDlo doesn't overflow Word: q1c * dLo < 2^32 * 2^32 = 2^64.
-  have h_qDlo_eq : qDlo.toNat = q1c.toNat * dLo.toNat := by
-    show (q1c * dLo).toNat = _
-    rw [BitVec.toNat_mul]
-    apply Nat.mod_eq_of_lt
-    have : q1c.toNat * dLo.toNat < 2^32 * 2^32 :=
-      Nat.mul_lt_mul'' h_q1c_lt hdLo_lt
-    have : (2^32 * 2^32 : Nat) = 2^64 := by decide
-    omega
-  -- rhatUn1.toNat = rhatc.toNat * 2^32 + div_un1.toNat (halfword_combine).
-  have h_rhatUn1_eq : rhatUn1.toNat = rhatc.toNat * 2^32 + div_un1.toNat := by
-    show ((rhatc <<< (32 : BitVec 6).toNat) ||| div_un1).toNat = _
-    rw [bv6_toNat_32]
-    exact EvmWord.halfword_combine rhatc div_un1 h_rhatc_lt h_div_un1_lt
-  by_cases h_check : BitVec.ult rhatUn1 qDlo
-  · -- Check fires: q1' = q1c - 1, rhat' = rhatc + dHi.
-    -- See `project_u3_unprovable_counterexample.md` — this Sub-case A
-    -- goal is **NOT PROVABLE** under just `uHi < 2^63`. Use
-    -- `div128Quot_phase1_no_wrap_skip` (call-skip variant) for the
-    -- closeable form with strengthened hypotheses.
-    sorry
-  · -- Check doesn't fire: q1' = q1c, rhat' = rhatc.
-    have h_q1' : q1' = q1c := by
-      show (if BitVec.ult rhatUn1 qDlo then q1c + signExtend12 4095 else q1c) = q1c
-      rw [if_neg h_check]
-    have h_rhat' : rhat' = rhatc := by
-      show (if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc) = rhatc
-      rw [if_neg h_check]
-    -- ¬ult rhatUn1 qDlo gives qDlo.toNat ≤ rhatUn1.toNat.
-    have h_ge : qDlo.toNat ≤ rhatUn1.toNat := by
-      have h := h_check
-      rw [EvmWord.ult_iff] at h
-      omega
-    -- rhatc < 2^32 ⟹ rhatc % 2^32 = rhatc.
-    have h_mod : rhatc.toNat % 2^32 = rhatc.toNat := Nat.mod_eq_of_lt h_rhatc_lt
-    rw [h_q1', h_rhat', h_mod]
-    rw [h_qDlo_eq, h_rhatUn1_eq] at h_ge
-    exact h_ge
 
 /-- **U3 call-skip variant (CLOSED for Sub-case A)**: under the
     additional hypothesis that q1' is bounded above by the abstract
