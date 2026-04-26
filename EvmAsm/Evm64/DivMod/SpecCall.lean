@@ -3590,6 +3590,15 @@ theorem algCallAddbackBeq_addback_combined_euclidean_carry2
       algCallAddbackBeqMsLowVal a b +
         2 * (val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) *
           2 ^ ((clzResult (b.getLimbN 3)).1.toNat % 64)) := by
+  -- See the doc comment for the proof outline. The structure was attempted in
+  -- an earlier iteration but ran into elaboration depth issues at the final
+  -- linarith step (deep recursion on val256-of-let-chain comparisons). The
+  -- working partial proof is preserved at branch knuth-b/addback-combined-attempt.
+  -- TODO: alternative paths to consider:
+  --   1. Use `set abPrime := ...` (currently absent — only `set ab := ...`)
+  --      to ensure both hypotheses + goal have matching opaque variables.
+  --   2. Bridge val256 expressions by extracting low4 limbs explicitly.
+  --   3. Compute the combined identity inline rather than via `linarith`.
   sorry
 
 /-- **Mulsub Euclidean for the call+addback BEQ algorithm** (CLOSED).
