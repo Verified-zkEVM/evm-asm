@@ -19,3 +19,9 @@ jobs:
         with:
           use-mathlib-cache: true
           lake-package-directory: .
+      - name: Import-coverage report (#1209)
+        # `--report` is non-failing: it lists orphans without blocking the
+        # build. Switch to enforce mode (drop `--report`) once the
+        # CallSkipLowerBoundV2 family is wired into the umbrella by the
+        # MOD-adapter consolidation work (#1253).
+        run: bash scripts/check-imported.sh --report
