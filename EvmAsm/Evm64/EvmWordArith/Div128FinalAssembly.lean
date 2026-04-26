@@ -768,6 +768,49 @@ theorem div128Quot_un21_lt_vTop (uHi uLo vTop : Word)
     un21.toNat < dHi.toNat * 2^32 + dLo.toNat := by
   sorry
 
+/-- **KB-6c-aux1: pure-Nat assembly identity for Phase 2b + KB-3m.**
+
+    Pure Nat algebra. Composes Phase 2b post
+    `q0'*dHi + rhat2' = un21` with KB-3m additive identity
+    `un21 + r1*2^64 + q1'*vTop = uHi*2^32 + div_un1` and the
+    decompositions `vTop = dHi*2^32 + dLo`, `uLo = div_un1*2^32 + div_un0`.
+
+    Multiplying KB-3m by 2^32 and substituting Phase 2b post yields:
+    ```
+    (q1'*2^32 + q0')*vTop + rhat2'*2^32 + r1*2^96 + div_un0
+      = uHi*2^64 + uLo + q0'*dLo
+    ```
+
+    Used in KB-6c to relate `(q1'*2^32 + q0')*vTop` to `(uHi*2^64 + uLo)`
+    modulo a bounded correction. Note: Phase 1b post (`q1'*dHi + rhat' = uHi`)
+    is NOT needed here since `rhat'` cancels out via the identity — `r1`
+    plays the role of the wrap-around `rhat'/2^32` directly. -/
+theorem div128Quot_kb6c_assembly_identity
+    (q1' q0' rhat2' un21 uHi uLo vTop dHi dLo div_un1 div_un0 r1 : Nat)
+    (h_phase2b : q0' * dHi + rhat2' = un21)
+    (h_kb3m : un21 + r1 * 2^64 + q1' * vTop = uHi * 2^32 + div_un1)
+    (h_vTop : vTop = dHi * 2^32 + dLo)
+    (h_uLo : uLo = div_un1 * 2^32 + div_un0) :
+    (q1' * 2^32 + q0') * vTop + rhat2' * 2^32 + r1 * 2^96 + div_un0 =
+      uHi * 2^64 + uLo + q0' * dLo := by
+  subst h_vTop h_uLo
+  -- Substitute h_phase2b: un21 = q0'*dHi + rhat2'.
+  rw [show un21 = q0' * dHi + rhat2' from h_phase2b.symm] at h_kb3m
+  -- h_kb3m: q0'*dHi + rhat2' + r1*2^64 + q1'*(dHi*2^32+dLo) = uHi*2^32 + div_un1.
+  -- Multiply by 2^32 and rearrange.
+  have h_kb3m_scaled :
+      (q0' * dHi + rhat2' + r1 * 2^64 + q1' * (dHi * 2^32 + dLo)) * 2^32 =
+      (uHi * 2^32 + div_un1) * 2^32 := by
+    rw [h_kb3m]
+  -- Pure ring arithmetic from here; the LHS_goal - RHS_goal = 2^32 * (h_kb3m_scaled).
+  have h_pow : (2^32 : Nat) * 2^32 = 2^64 := by decide
+  have h_pow2 : (2^32 : Nat) * 2^64 = 2^96 := by decide
+  have h_pow3 : (2^32 : Nat) * 2^32 * 2^32 = 2^96 := by decide
+  -- Expand both sides via ring lemmas, then linarith for cancellation.
+  nlinarith [h_kb3m_scaled, sq_nonneg (q1' : Nat), sq_nonneg (q0' : Nat),
+             Nat.zero_le rhat2', Nat.zero_le r1, Nat.zero_le div_un0,
+             Nat.zero_le dHi, Nat.zero_le dLo, Nat.zero_le div_un1]
+
 /-- **KB-6c: Quotient assembly upper bound (STUB).**
 
     The Nat-level composition of Phase 1b and Phase 2b quotient bounds:
@@ -777,15 +820,15 @@ theorem div128Quot_un21_lt_vTop (uHi uLo vTop : Word)
       (uHi.toNat * 2^64 + uLo.toNat) / vTop.toNat + 2
     ```
 
-    **Proof outline** (~80-150 lines):
-    - From KB-2 (`div128Quot_phase1b_quotient_bound`): `q1' ≤ uHi/dHi`.
-    - From KB-5c (`div128Quot_phase2b_quotient_bound`): `q0' ≤ un21/dHi`.
-    - Use `div128Quot_un21_additive_identity` (KB-3m): connects `un21` to
-      `uHi * 2^32 + div_un1 - q1' * vTop` modulo `(rhat'/2^32) * 2^64`.
-    - Nat-division algebra: relate `(q1' * 2^32 + q0') * vTop` to
-      `(uHi * 2^64 + uLo)` via the algorithm's invariants.
-    - Use `q_true ≥ q_true_1 * 2^32 + q_true_2 - 2^33` style bound from
-      Knuth's two-digit-quotient analysis to pin down the +2 slack.
+    **Proof outline** (sub-decomposition):
+    - **`div128Quot_kb6c_assembly_identity`** (CLOSED, pure Nat): the
+      algebraic identity `(q1'*2^32 + q0')*vTop + correction =
+      uHi*2^64 + uLo + q0'*dLo` from the three Euclideans + decomps.
+    - From this, derive `(q1'*2^32 + q0')*vTop ≤ uHi*2^64 + uLo + q0'*dLo`
+      (drop non-negative correction terms).
+    - Bound `q0'*dLo ≤ 2*vTop` via Knuth-B: q0' ≤ 2^32 (KB-6b), dLo < 2^32,
+      so q0'*dLo < 2^64 ≤ 2*vTop (under vTop ≥ 2^63).
+    - Use Nat-division: from `X*vTop ≤ Y + 2*vTop`, get `X ≤ Y/vTop + 2`.
 
     Equivalent to **Knuth Theorem B for the assembled 64-bit quotient**,
     instantiated to our algorithm's specific control flow. Tracked in
