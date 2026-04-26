@@ -752,6 +752,15 @@ theorem div128Quot_toNat_eq_strict (uHi uLo vTop : Word)
     `project_un21_lt_vTop_plan.md` for the detailed sub-lemma decomposition
     (Lemmas U1, U2, U3 — ~300-400 lines).
 
+    **Why Piece A composition doesn't shortcut this**:
+    `knuth_theorem_b_from_clz` (Piece A, on main) gives
+    `(uHi*2^64 + uLo)/vTop ≤ val256(a)/val256(b) + 2`. To close KB-6d
+    via this requires `div128Quot ≤ (uHi*2^64+uLo)/vTop` (no overshoot
+    at the 64-bit digit level). But Knuth-B at the digit level allows
+    `div128Quot ≤ (uHi*2^64+uLo)/vTop + 2`, which composes to
+    `div128Quot ≤ val256/val256 + 4` — too loose by 2. The tight bound
+    requires the same Knuth-C tightness that blocks U3 / un21 < vTop.
+
     Tracked in issue #1337. -/
 theorem div128Quot_le_q_true_plus_two (uHi uLo vTop : Word)
     (_hvTop_norm : vTop.toNat ≥ 2^63)
