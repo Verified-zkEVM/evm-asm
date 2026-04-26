@@ -3372,6 +3372,20 @@ theorem algCallAddbackBeqPost1Val_lt_pow256 (a b : EvmWord) :
   simp only []
   exact EvmWord.val256_bound _ _ _ _
 
+/-- **AbPrimeVal val256 bound** (Phase B.4 mechanical, CLOSED).
+
+    Mirror of `algCallAddbackBeqPost1Val_lt_pow256` for the
+    double-addback's second-addback val256. Used as the
+    `h_abPrime_lt` precondition of `abPrime_val_eq_amod_pow_s_pure_nat`
+    (B.3) when closing B.5.
+
+    Issue #1338. -/
+theorem algCallAddbackBeqAbPrimeVal_lt_pow256 (a b : EvmWord) :
+    algCallAddbackBeqAbPrimeVal a b < 2 ^ 256 := by
+  rw [algCallAddbackBeqAbPrimeVal_unfold]
+  simp only []
+  exact EvmWord.val256_bound _ _ _ _
+
 /-- **Bound: `algCallAddbackBeqU4 * 2^256 ≤ val256(a) * 2^s`** (CLOSED).
 
     Uses `u4 = a3 >>> antiShift = a3 / 2^(64-s)` so `u4 * 2^(64-s) ≤ a3`,
