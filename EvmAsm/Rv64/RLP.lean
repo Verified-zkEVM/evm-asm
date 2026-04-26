@@ -19,6 +19,7 @@ import EvmAsm.Rv64.RLP.Phase1
 import EvmAsm.Rv64.RLP.Phase2Short
 import EvmAsm.Rv64.RLP.Phase2LongLoad
 import EvmAsm.Rv64.RLP.Phase2LongLoopFive
+import EvmAsm.Rv64.RLP.Phase2LongLoopSeven
 import EvmAsm.Rv64.RLP.Phase2LongLoopSix
 import EvmAsm.Rv64.RLP.Phase3LongString
 import EvmAsm.Rv64.RLP.Phase3ShortString
