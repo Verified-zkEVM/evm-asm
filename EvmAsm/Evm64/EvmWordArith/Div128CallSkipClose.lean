@@ -613,6 +613,52 @@ theorem div128Quot_le_val256_div_plus_two_with_inv
   -- Compose via transitivity.
   exact Nat.le_trans h_kb6d h_piece_a
 
+/-- **q1' < 2^32 in call-trial CLZ-normalized form** (CLOSED).
+
+    Wrapper around `div128Quot_q1_prime_lt_pow32` (KB-3e''') that takes
+    the CLZ-normalized inputs `u4`, `un3`, `b3'` directly. Building
+    block for the discharge bridge — gives the unconditional
+    `q1' < 2^32` fact that's needed downstream to:
+    1. Apply `div128Quot_toNat_eq_strict` (drops the `% 2^32` from
+       KB-6a's output formula).
+    2. Get `(q1' << 32) | q0' = q1' * 2^32 + q0'` (no OR-overlap on
+       q1' side, under the additional `q0' < 2^32`).
+
+    Pure consequence of hcall + the CLZ normalization (b3' ≥ 2^63);
+    no skip-borrow needed. -/
+theorem div128Quot_q1_prime_lt_pow32_call
+    (a2 a3 b2 b3 : Word)
+    (hb3nz : b3 ≠ 0)
+    (hcall : isCallTrialN4 a3 b2 b3) :
+    let shift := (clzResult b3).1.toNat % 64
+    let antiShift := (signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64
+    let u4 := a3 >>> antiShift
+    let un3 := (a3 <<< shift) ||| (a2 >>> antiShift)
+    let b3' := (b3 <<< shift) ||| (b2 >>> antiShift)
+    let dHi := b3' >>> (32 : BitVec 6).toNat
+    let dLo := (b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+    let div_un1 := un3 >>> (32 : BitVec 6).toNat
+    let q1 := rv64_divu u4 dHi
+    let rhat := u4 - q1 * dHi
+    let hi1 := q1 >>> (32 : BitVec 6).toNat
+    let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+    let rhatc := if hi1 = 0 then rhat else rhat + dHi
+    let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
+    let q1' := if BitVec.ult rhatUn1 (q1c * dLo) then q1c + signExtend12 4095
+               else q1c
+    q1'.toNat < 2^32 := by
+  intro shift antiShift u4 un3 b3' dHi dLo div_un1 q1 rhat hi1 q1c rhatc rhatUn1 q1'
+  have hb3prime_ge_pow63 : b3'.toNat ≥ 2^63 := b3_prime_ge_pow63 b3 b2 hb3nz _
+  have hdHi_ge : dHi.toNat ≥ 2^31 := div128Quot_dHi_ge_pow31 b3' hb3prime_ge_pow63
+  have hdHi_lt : dHi.toNat < 2^32 := Word_ushiftRight_32_lt_pow32
+  have hdLo_lt : dLo.toNat < 2^32 := Word_ushiftRight_32_lt_pow32
+  have hu4_lt_b3prime : u4.toNat < b3'.toNat := isCallTrialN4_toNat_lt a3 b2 b3 hcall
+  have h_vtop : b3'.toNat = dHi.toNat * 2^32 + dLo.toNat :=
+    div128Quot_vTop_decomp b3'
+  have hu4_lt_vTop : u4.toNat < dHi.toNat * 2^32 + dLo.toNat := by
+    rw [← h_vtop]; exact hu4_lt_b3prime
+  exact div128Quot_q1_prime_lt_pow32 u4 dHi dLo un3 hdHi_ge hdHi_lt hdLo_lt hu4_lt_vTop
+
 /-- **Discharge bridge (STUB)**: `isSkipBorrowN4Call` implies
     `Div128AllPhasesNoWrapInv` for the call-trial CLZ-normalized case.
 
