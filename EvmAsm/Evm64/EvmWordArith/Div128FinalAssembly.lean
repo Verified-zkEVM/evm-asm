@@ -812,30 +812,34 @@ theorem div128Quot_toNat_eq_strict (uHi uLo vTop : Word)
       hdHi_ge hdHi_lt hdLo_lt huHi_lt_vTop
   rw [h_kb6a, Nat.mod_eq_of_lt h_q1'_lt]
 
-/-- **KB-6c-pre: `un21 < vTop` is the Phase 2 Knuth-C invariant (STUB).**
+/-- **KB-6c-pre: Phase 2 Knuth-C invariant `un21 < vTop ∧ no-wrap` (STUB).**
 
     After Phase 1b, the running remainder
-    `un21 = (cu_rhat_un1 - cu_q1_dlo)` is strictly less than `vTop`.
-    This is **Knuth TAOCP Vol 2 §4.3.1 Theorem C** in our setting — the
-    Phase 2 Knuth-C tightness invariant.
+    `un21 = (cu_rhat_un1 - cu_q1_dlo)` is strictly less than `vTop` AND
+    no BitVec subtraction wrap occurred (i.e., `B ≤ A` for KB-3j/m).
+    Both conjuncts follow from the **same Knuth-C tightening** (Knuth
+    TAOCP Vol 2 §4.3.1 Theorem C):
 
-    **Why it's needed**: KB-6b (`div128Quot_q0_prime_lt_pow32`) takes
-    `un21 < vTop` (encoded as `un21.toNat < dHi.toNat * 2^32 + dLo.toNat`)
-    as its precondition. KB-6d's Knuth-B closure ultimately needs KB-6b
-    to fire, which means we must establish `un21 < vTop` from KB-6d's
-    preconditions (`vTop ≥ 2^63` + hcall).
+    1. `un21.toNat < vTop.toNat`  — running remainder bound.
+    2. `q1'.toNat * dLo.toNat ≤ (rhat'.toNat % 2^32) * 2^32 + div_un1.toNat`
+       — no-wrap (B ≤ A) form.
+
+    **Why both**: KB-6b (`div128Quot_q0_prime_lt_pow32`, CLOSED) takes
+    `un21 < vTop` as its precondition. KB-3m
+    (`div128Quot_un21_additive_identity`, CLOSED) takes no-wrap (`B ≤ A`)
+    as its precondition. Pure-Nat KB-6c
+    (`div128Quot_kb6c_pure_nat`, CLOSED) needs BOTH preconditions
+    discharged. Concentrating both in this stub means closing this
+    single Knuth-C statement immediately closes KB-6c and KB-6d.
 
     **Proof outline** (project_un21_lt_vTop_plan.md, ~300-400 lines, hard):
     - **U1**: `q1' ≤ q_true_1 + 1` (Knuth Theorem C at Phase 1) — Phase 1b
-      multiplication-check correctness, where
-      `q_true_1 := (uHi * 2^32 + div_un1) / vTop`.
+      multiplication-check correctness.
     - **U2**: `q1' ≥ q_true_1` (Knuth Theorem B lower under `dHi ≥ 2^31`).
-    - **U3**: no-wrap case (`B ≤ A` in KB-3j/m) — known to have a
-      counterexample under `uHi < 2^63`, so requires careful conditional
-      handling. See `project_u3_unprovable_counterexample.md`.
-    - **Compose**: KB-3m's additive identity
-      `un21 + (rhat'/2^32) * 2^64 = uHi * 2^32 + div_un1 - q1' * vTop`
-      with U1 + U2 gives `un21 ≤ vTop - 1` modulo the wrap term.
+    - **Compose**: U1 + U2 + KB-3m wrap-aware identity
+      (`div128Quot_un21_additive_identity_uncond`, CLOSED) yields the
+      conjunction. The no-wrap conjunct comes from `un21_abstract ≥ 0`,
+      the un21<vTop conjunct from `un21_abstract < vTop`.
 
     Tracked in issue #1337. -/
 theorem div128Quot_un21_lt_vTop (uHi uLo vTop : Word)
@@ -856,7 +860,8 @@ theorem div128Quot_un21_lt_vTop (uHi uLo vTop : Word)
     let cu_rhat_un1 := (rhat' <<< (32 : BitVec 6).toNat) ||| div_un1
     let cu_q1_dlo := q1' * dLo
     let un21 := cu_rhat_un1 - cu_q1_dlo
-    un21.toNat < dHi.toNat * 2^32 + dLo.toNat := by
+    un21.toNat < dHi.toNat * 2^32 + dLo.toNat ∧
+    q1'.toNat * dLo.toNat ≤ (rhat'.toNat % 2^32) * 2^32 + div_un1.toNat := by
   sorry
 
 /-- **KB-6c-aux1: pure-Nat assembly identity for Phase 2b + KB-3m.**
@@ -1128,10 +1133,11 @@ theorem div128Quot_le_q_true_plus_two (uHi uLo vTop : Word)
       (vTop >>> (32 : BitVec 6).toNat).toNat * 2^32 +
       ((vTop <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat).toNat := by
     rw [← h_vtop]; exact h_uHi_lt_vTop_raw
-  -- Step 1: un21 < vTop  (Knuth-C invariant, STUB).
-  have h_un21_lt :=
+  -- Step 1: un21 < vTop ∧ no-wrap  (Knuth-C invariant, STUB).
+  have h_knuth_c :=
     div128Quot_un21_lt_vTop uHi uLo vTop hvTop_norm hcall
-  simp only [] at h_un21_lt
+  simp only [] at h_knuth_c
+  have h_un21_lt := h_knuth_c.1
   -- Step 2: q0' < 2^32  (KB-6b, CLOSED, requires un21 < vTop).
   have h_q0'_lt :=
     div128Quot_q0_prime_lt_pow32 _ _ _ uLo hdHi_ge hdHi_lt hdLo_lt h_un21_lt
