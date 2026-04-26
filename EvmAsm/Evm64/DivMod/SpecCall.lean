@@ -3352,17 +3352,20 @@ theorem output_slot_to_evmWordIs_mod_n4_call_addback_beq_denorm
     have h_s_lt_64 : s < 64 := by rw [hs_def]; omega
     have h_denorm := denorm_4limb_eq_mod_of_val256_eq_amod_pow_s
       (a := a) (b := b) (s := s) h_s_pos h_s_lt_64 hb3nz h_post1_eq
-    -- TODO memory-equation collapse. Multi-iteration analysis (commit f7a3d24a):
-    --   `split_ifs` triggers 200k-heartbeat timeout in `whnf`.
-    --   `subst hcarry_def` fails since `carry_word` isn't a free variable
-    --   (it's a `set` binding, not an `intro`'d local).
-    -- The goal has signature-bound `un{i}Out := if carry = 0 then ab'.{i}
-    -- else ab.{i}` lets that don't simp-unfold without expensive whnf.
-    -- Cleanest closure path: refactor the parent's local setup to use
-    -- `intro shift antiShift b3' b2' b1' b0' u3 u2 u1 u0 u4 qHat ms c3
-    -- u4_new ab ab' carry un0Out un1Out un2Out un3Out` upfront. The
-    -- signature's let-chain becomes transparent, set-bindings align with
-    -- it naturally, and `if_neg hcarry` can fire syntactically.
+    -- Concrete iteration progress (commit bea6db9a + this): the goal can be
+    -- normalized via `dsimp only []` + `simp only [hanti_toNat_mod]` which
+    -- zeta-reduces all signature lets and aligns antiShift form.
+    -- However, the if-condition then references the FULLY INLINE form
+    -- `addbackN4_carry (mulsubN4 ...) (b.getLimbN 0 <<< s) ...`, while
+    -- `hcarry` references parent's `set`-bound names `ms`, `b0'..b3'`.
+    -- These are zeta-equal but not syntactically equal, so `if_neg hcarry`
+    -- still fails to match.
+    -- Closure: also unfold the `set`-bindings in `hcarry` before applying
+    -- if_neg. `simp only [hms_def, hb0_def, hb1_def, hb2_def, hb3_def]` at
+    -- `hcarry` is the path — but most `set`s lack the `with hX_def` clause,
+    -- requiring a parent-side refactor to add them all.
+    dsimp only []
+    simp only [hanti_toNat_mod]
     sorry
 
 /-- **EVM-stack-level MOD spec on the n=4 call+addback BEQ sub-path (SORRY).**
