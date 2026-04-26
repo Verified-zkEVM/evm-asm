@@ -10,7 +10,6 @@
   - `div128Quot_phase1_no_wrap` — original U3 lemma (sorry; counterexample
     confirms unprovable as-stated, see `project_u3_unprovable_counterexample.md`).
   - `div128Quot_phase1_no_wrap_skip` — call-skip variant (CLOSED).
-  - `div128Quot_phase1_no_wrap_addback` — call-addback variant (STUB).
 
   See `project_un21_lt_vTop_plan.md` for the full plan.
 -/
@@ -280,25 +279,5 @@ theorem div128Quot_phase1_no_wrap_skip (uHi dHi dLo uLo : Word)
   exact (phase1_no_wrap_lo_subcase_a_iff_q1_prime_le_q_true_1
     q1'.toNat dHi.toNat dLo.toNat rhat'.toNat uHi.toNat div_un1.toNat
     h_eucl hrhat'_lt h_vTop_pos).mpr hq1_prime_le_q_true_1
-
-/-- **U3 call-addback variant (STUB)**: looser bound `un21 < 2 * vTop`
-    (or equivalent) for the call-addback path where the outer mulsub
-    DOES borrow.
-
-    The exact form of the "looser bound" depends on what downstream
-    consumers actually need. The plan in `project_un21_lt_vTop_plan.md`
-    pivots from `un21 < vTop` to `un21 < 2 * vTop` once the strong
-    invariant is shown unprovable (per `project_u3_unprovable_counterexample.md`).
-
-    Pending: figure out the exact statement that's both (a) provable
-    under just `huHi_lt_pow63` (no extra hypotheses), and (b) sufficient
-    for the call-addback BEQ stack spec's algorithm-correctness chain. -/
-theorem div128Quot_phase1_no_wrap_addback (_uHi _dHi _dLo _uLo : Word)
-    (_hdHi_ne : _dHi ≠ 0)
-    (_hdHi_ge : _dHi.toNat ≥ 2^31)
-    (_hdHi_lt : _dHi.toNat < 2^32)
-    (_hdLo_lt : _dLo.toNat < 2^32)
-    (_huHi_lt_pow63 : _uHi.toNat < 2^63) :
-    True := by trivial
 
 end EvmAsm.Evm64
