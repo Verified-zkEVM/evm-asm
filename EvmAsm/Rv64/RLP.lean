@@ -27,6 +27,7 @@ import EvmAsm.Rv64.RLP.Phase3ShortString
 import EvmAsm.Rv64.RLP.Phase3SingleByte
 import EvmAsm.Rv64.RLP.Phase1CascadePrefixE2
 import EvmAsm.Rv64.RLP.Phase1CascadePrefixE3
+import EvmAsm.Rv64.RLP.Phase1E2FullPath
 import EvmAsm.Rv64.RLP.Phase1StepToPhase3LongString
 import EvmAsm.Rv64.RLP.Phase1ToPhase3SingleByte
 import EvmAsm.Rv64.RLP.Phase1StepToPhase3ShortString
