@@ -3396,16 +3396,13 @@ theorem output_slot_to_evmWordIs_mod_n4_call_addback_beq_denorm
     simp only [hms_def, hqHat_def, huTop_def, hb0_def, hb1_def, hb2_def, hb3_def,
                hu0_def, hu1_def, hu2_def, hu3_def, hs_def, hmod_eq] at hab
     rw [hab.1, hab.2.1, hab.2.2.1, hab.2.2.2]
-    -- ============== CLOSURE STATUS SUMMARY ==============
-    -- The PR's full upstream stack is closed (commits 2bf014dc → 84c9d869).
-    -- Final fold blocked. Tested approaches (all fail):
-    --   * exact/convert (evmWordIs_sp32_limbs_eq).symm — Type mismatch/timeout
-    --   * convert ... using 5 + all_goals rfl — whnf timeout
-    --   * simp only [← h_denorm.{i}, evmWordIs_sp32_unfold] — all unused
-    --   * set post1_full := addbackN4 ... 0 ... — set doesn't fold inline
-    --   * Helper denorm_4limb_to_evmWordIs_eq — whnf timeout on h_post1_eq
-    --     unification (even with explicit X1..X4 placeholders)
-    -- =========== END CLOSURE STATUS SUMMARY ===========
+    -- Discovered (this iteration via diff of error message): the actual
+    -- Eq.symm output and the expected goal differ in how `addbackN4 ...
+    -- 0 ...`'s args are nested. The actual term has the goal's RHS atoms
+    -- with different projection-index spacing — likely caused by the
+    -- hab rewrites injecting a different shape than expected.
+    -- Closure path: rebuild the rewrites without dsimp earlier in proof,
+    -- so the goal's post1 form matches h_denorm's atom shape exactly.
     sorry
 
 /-- **EVM-stack-level MOD spec on the n=4 call+addback BEQ sub-path (SORRY).**
