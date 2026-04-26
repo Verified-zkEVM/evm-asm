@@ -3454,8 +3454,7 @@ theorem algCallAddbackBeqU4_toNat_lt_algCallAddbackBeqMsC3_toNat
     hborrow
 
 /-- **Abstract Nat-level sub-lemma for B.1a**: under mulsub Euclidean +
-    first-addback no-overflow + c3 ≥ 1 + standard val256 bounds,
-    `qHat ≥ 2`.
+    first-addback no-overflow + c3 ≥ 1, `qHat ≥ 2`.
 
     Pure Nat algebra. Used to factor B.1a's proof, avoiding the kernel
     deep-recursion that arises when `rfl`-bridging through deeply-nested
@@ -3463,34 +3462,31 @@ theorem algCallAddbackBeqU4_toNat_lt_algCallAddbackBeqMsC3_toNat
 
     Hypotheses encode:
     - h_mulsub: `c3 · 2^256 + u_norm = ms + qHat · b_norm` (mulsubN4_val256_eq).
-    - h_addback: `ms + b_norm = ab` (first-addback Euclidean with carry₁ = 0).
-    - h_ab_lt: `ab < 2^256` (val256 bound on a 4-limb output).
+    - h_no_overflow: `ms + b_norm < 2^256` (first-addback Euclidean with carry₁ = 0
+      directly gives this — `val256(ab) = ms + b_norm` and `val256(ab) < 2^256`).
     - h_c3_pos: `c3 ≥ 1` (from hborrow's u4 < c3).
+
+    **Key simplification** (vs. earlier 6-arg version): folding the addback
+    Euclidean + val256 bound into a single `h_no_overflow` parameter eliminates
+    the explicit `ab` parameter, so callers don't need to supply the deep
+    `addbackN4 (mulsubN4 ...) ...` expression — sidesteps the kernel
+    deep-recursion at instantiation.
 
     Issue #1338 Phase B.1a. -/
 theorem qHat_ge_two_abstract
-    (qHat ms u_norm b_norm ab c3 : Nat)
+    (qHat ms u_norm b_norm c3 : Nat)
     (h_mulsub : c3 * 2^256 + u_norm = ms + qHat * b_norm)
-    (h_addback : ms + b_norm = ab)
-    (h_ab_lt : ab < 2^256)
+    (h_no_overflow : ms + b_norm < 2^256)
     (h_c3_pos : c3 ≥ 1) :
     qHat ≥ 2 := by
-  -- By contradiction.
   by_contra h_lt
   push Not at h_lt
-  -- h_lt : qHat < 2.
-  -- Case-split.
   have h_case : qHat = 0 ∨ qHat = 1 := by omega
   rcases h_case with h_qHat_zero | h_qHat_one
-  · -- qHat = 0: c3 * 2^256 + u_norm = ms. But ms + b_norm = ab < 2^256.
-    -- So ms < 2^256. With c3 ≥ 1: c3 * 2^256 ≥ 2^256, plus u_norm ≥ 0,
-    -- LHS ≥ 2^256. So ms ≥ 2^256. Contradicts ms < 2^256.
-    rw [h_qHat_zero] at h_mulsub
+  · rw [h_qHat_zero] at h_mulsub
     simp only [Nat.zero_mul, Nat.add_zero] at h_mulsub
     omega
-  · -- qHat = 1: c3 * 2^256 + u_norm = ms + b_norm = ab < 2^256.
-    -- With c3 ≥ 1: 2^256 ≤ c3 * 2^256 + u_norm < 2^256. Contradiction.
-    rw [h_qHat_one] at h_mulsub
+  · rw [h_qHat_one] at h_mulsub
     simp only [Nat.one_mul] at h_mulsub
     omega
 
@@ -3533,32 +3529,27 @@ theorem qHat_ge_two_of_double_addback (a b : EvmWord)
     let u3 := ((a.getLimbN 3) <<< shift) ||| ((a.getLimbN 2) >>> antiShift)
     let u4 := (a.getLimbN 3) >>> antiShift
     (div128Quot u4 u3 b3').toNat ≥ 2 := by
-  -- **Two attempts blocked by kernel deep-recursion**:
+  -- **THIRD attempt failed (kernel deep-recursion at 100 sec build)**:
+  -- Even with the simplified `qHat_ge_two_abstract` (no `ab` parameter),
+  -- passing `val256 (mulsubN4 ...).1 ...` and `(mulsubN4 ...).2.2.2.2.toNat`
+  -- as Nat arguments triggers kernel deep-recursion at the `apply` step.
   --
-  -- 1. **Direct proof** with `set ms := mulsubN4 ...` + `rfl`-bridges:
-  --    Elaborator passes; kernel rejects with deep recursion when reducing
-  --    `ms.2.2.2.2.toNat = (mulsubN4 ...).2.2.2.2.toNat := rfl`.
+  -- The fundamental issue: `mulsubN4` (in `LoopDefs/Iter.lean`) has a deep
+  -- internal let-chain that the kernel reduces eagerly. Wrapping its
+  -- outputs in `Nat`-valued explicit args still forces this reduction.
   --
-  -- 2. **Abstract sub-lemma `qHat_ge_two_abstract`** (committed this iteration):
-  --    The pure-Nat algebra works in isolation. Wiring it up here, however,
-  --    requires passing the deep `addbackN4 (mulsubN4 ...).1 ... b0' b1' b2' b3'`
-  --    expression as the `ab` parameter, which **also triggers kernel
-  --    deep-recursion** (102 sec build, then fails) because the kernel tries
-  --    to fully reduce both sides of the unification at instantiation time.
+  -- **Path forward (option a)**: route through the existing irreducibles
+  -- `algCallAddbackBeqMsLowVal` and `algCallAddbackBeqMsC3`. These wrap
+  -- the val256/c3 outputs as `@[irreducible]` defs. Passing them to
+  -- `qHat_ge_two_abstract` would keep the kernel at opaque-Nat level.
   --
-  -- **Next iteration paths**:
-  --   - **(a)** Add a named `noncomputable def` in `LoopDefs/Iter.lean` for
-  --     `(mulsubN4 ...).low4` and `(addbackN4 ...).low4` so the kernel sees
-  --     them as opaque. ~30 LOC for the def + 1 unfold lemma.
-  --   - **(b)** Prove an algorithm-specific sub-lemma in
-  --     `EvmWordArith/MultiLimb.lean` that takes the algorithm's let-chain
-  --     directly and outputs `qHat ≥ 2`, avoiding any cross-namespace
-  --     unification at the SpecCall level.
-  --   - **(c)** Use `Decidable` reflection for the qHat ∈ {0, 1} case-split,
-  --     avoiding the explicit val256 expressions.
+  -- This requires a small bridge: `algCallAddbackBeqMsLowVal a b =
+  -- val256(ms.low4)` (closed by `_unfold` lemma) + analogous c3 bridge.
+  -- Estimated +30 LOC. Defer to next iteration.
   --
-  -- The `qHat_ge_two_abstract` sub-lemma (lines ~3460+) is now in place
-  -- and ready to be wired up via path (a) or (b).
+  -- **Alternative path (option b)**: refactor `mulsubN4`'s definition in
+  -- `LoopDefs/Iter.lean` to use `@[irreducible]` (or split into smaller
+  -- defs). This is bigger scope but benefits multiple downstream proofs.
   sorry
 
 /-- **B.1 (#1338, NOT Knuth-B blocked):** qHat.toNat = a/b + 2
