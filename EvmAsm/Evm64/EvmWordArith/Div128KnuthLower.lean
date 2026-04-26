@@ -1190,4 +1190,140 @@ theorem knuth_theorem_c_strong_contrapositive
       h_eucl h_vTop_pos h_overshoot
   omega
 
+/-- **KB-LB12: Phase 1b Knuth Theorem C tight upper bound.** Under the
+    `uHi < 2^63` regime (gives KB-LB6a/6b: q1 < 2^32, rhatc < 2^32), the
+    post-Phase-1b corrected trial `q1'` overshoots `q_true_1` by at most 1:
+
+    ```
+    q1'.toNat ≤ (uHi * 2^32 + div_un1) /
+                (dHi * 2^32 + dLo) + 1
+    ```
+
+    This is **Knuth Theorem C** in its tight Word-level form, restricted
+    to our specific algorithmic setup.
+
+    Proof: case analysis on Phase 1b's check.
+    - **Check fires** (q1' = q1c - 1): KB-LB11 gives q1c ≤ q_true_1 + 2,
+      so q1' = q1c - 1 ≤ q_true_1 + 1. ✓
+    - **Check doesn't fire** (q1' = q1c): the negation of the BitVec.ult
+      check unfolds via `halfword_combine` + Word non-wrap of `q1c * dLo`
+      to the Nat-level no-check inequality
+      `q1c * dLo ≤ rhatc * 2^32 + div_un1`. The strong Knuth-C
+      contrapositive then gives `q1c ≤ q_true_1 + 1`. ✓
+
+    Note: This bound is necessary but **not sufficient** to close U3's
+    hard case (which requires `q1' ≤ q_true_1` exactly when check fires
+    AND rhat' < 2^32). See U3's roadmap comment. -/
+theorem div128Quot_q1_prime_le_q_true_1_plus_one
+    (uHi dHi dLo uLo : Word)
+    (hdHi_ne : dHi ≠ 0)
+    (hdHi_ge : dHi.toNat ≥ 2^31)
+    (hdHi_lt : dHi.toNat < 2^32)
+    (hdLo_lt : dLo.toNat < 2^32)
+    (huHi_lt_vTop : uHi.toNat < dHi.toNat * 2^32 + dLo.toNat)
+    (huHi_lt_pow63 : uHi.toNat < 2^63) :
+    let div_un1 := uLo >>> (32 : BitVec 6).toNat
+    let q1 := rv64_divu uHi dHi
+    let rhat := uHi - q1 * dHi
+    let hi1 := q1 >>> (32 : BitVec 6).toNat
+    let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+    let rhatc := if hi1 = 0 then rhat else rhat + dHi
+    let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
+    let q1' := if BitVec.ult rhatUn1 (q1c * dLo) then q1c + signExtend12 4095
+               else q1c
+    q1'.toNat ≤
+      (uHi.toNat * 2^32 + div_un1.toNat) /
+        (dHi.toNat * 2^32 + dLo.toNat) + 1 := by
+  intro div_un1 q1 rhat hi1 q1c rhatc rhatUn1 q1'
+  -- KB-LB6a: q1 < 2^32 under uHi < 2^63.
+  have h_q1_lt : q1.toNat < 2^32 :=
+    div128Quot_q1_lt_pow32_of_uHi_lt_pow63 uHi dHi hdHi_ne huHi_lt_pow63 hdHi_ge
+  -- hi1 = 0 from q1 < 2^32, so q1c = q1 and rhatc = rhat.
+  have h_hi1 : hi1 = 0 := by
+    apply BitVec.eq_of_toNat_eq
+    show (q1 >>> (32 : BitVec 6).toNat).toNat = (0 : Word).toNat
+    rw [BitVec.toNat_ushiftRight, bv6_toNat_32, Nat.shiftRight_eq_div_pow]
+    rw [Nat.div_eq_of_lt h_q1_lt]; rfl
+  have h_q1c_eq_q1 : q1c = q1 := by
+    show (if hi1 = 0 then q1 else q1 + signExtend12 4095) = q1
+    rw [if_pos h_hi1]
+  have h_rhatc_eq_rhat : rhatc = rhat := by
+    show (if hi1 = 0 then rhat else rhat + dHi) = rhat
+    rw [if_pos h_hi1]
+  have h_q1c_lt : q1c.toNat < 2^32 := h_q1c_eq_q1 ▸ h_q1_lt
+  -- KB-LB6b: rhatc < 2^32 under uHi < 2^63.
+  have h_rhatc_lt : rhatc.toNat < 2^32 :=
+    div128Quot_rhatc_lt_pow32_of_uHi_lt_pow63 uHi dHi hdHi_ne huHi_lt_pow63
+      hdHi_ge hdHi_lt
+  -- div_un1 < 2^32.
+  have h_div_un1_lt : div_un1.toNat < 2^32 := by
+    show (uLo >>> (32 : BitVec 6).toNat).toNat < 2^32
+    rw [BitVec.toNat_ushiftRight, bv6_toNat_32, Nat.shiftRight_eq_div_pow]
+    have : uLo.toNat < 2^64 := uLo.isLt
+    have heq64 : (2^64 : Nat) = 2^32 * 2^32 := by decide
+    omega
+  -- (q1c * dLo).toNat = q1c.toNat * dLo.toNat (Word non-wrap).
+  have h_qDlo_eq : (q1c * dLo).toNat = q1c.toNat * dLo.toNat := by
+    rw [BitVec.toNat_mul]
+    apply Nat.mod_eq_of_lt
+    have h1 : q1c.toNat * dLo.toNat < 2^32 * 2^32 :=
+      Nat.mul_lt_mul'' h_q1c_lt hdLo_lt
+    have h2 : (2^32 * 2^32 : Nat) = 2^64 := by decide
+    omega
+  -- rhatUn1.toNat = rhatc.toNat * 2^32 + div_un1.toNat.
+  have h_rhatUn1_eq : rhatUn1.toNat = rhatc.toNat * 2^32 + div_un1.toNat := by
+    show ((rhatc <<< (32 : BitVec 6).toNat) ||| div_un1).toNat = _
+    rw [bv6_toNat_32]
+    exact EvmWord.halfword_combine rhatc div_un1 h_rhatc_lt h_div_un1_lt
+  -- Phase 1a Euclidean: q1c * dHi + rhatc = uHi.
+  have h_eucl : q1c.toNat * dHi.toNat + rhatc.toNat = uHi.toNat :=
+    div128Quot_first_round_post uHi dHi hdHi_ne hdHi_lt
+  -- vTop > 0.
+  have h_vTop_pos : 0 < dHi.toNat * 2^32 + dLo.toNat := by
+    have h_dHi_pos : 0 < dHi.toNat := by omega
+    have h_pow_pos : (0 : Nat) < 2^32 := by decide
+    have : 0 < dHi.toNat * 2^32 := Nat.mul_pos h_dHi_pos h_pow_pos
+    exact Nat.lt_of_lt_of_le this (Nat.le_add_right _ _)
+  -- KB-LB11 gives q1c ≤ q_true_1 + 2 (need it for both branches).
+  have h_q1c_le_plus_two : q1c.toNat ≤
+      (uHi.toNat * 2^32 + div_un1.toNat) /
+        (dHi.toNat * 2^32 + dLo.toNat) + 2 := by
+    have := div128Quot_q1c_le_q_true_1_plus_two uHi dHi dLo div_un1
+      hdHi_ne hdHi_ge hdLo_lt h_div_un1_lt huHi_lt_vTop
+    -- this gives the same bound but for `if hi1 = 0 then q1 else q1 + ...`.
+    -- which is q1c.
+    exact this
+  -- Case analysis on Phase 1b check.
+  by_cases h_check : BitVec.ult rhatUn1 (q1c * dLo)
+  · -- Check fires: q1' = q1c - 1.
+    have h_q1c_pos := div128Quot_phase1b_check_implies_q1c_pos q1c dLo rhatUn1 h_check
+    have h_q1' : q1'.toNat = q1c.toNat - 1 := by
+      show (if BitVec.ult rhatUn1 (q1c * dLo) then q1c + signExtend12 4095
+            else q1c).toNat = _
+      rw [if_pos h_check]
+      rw [BitVec.toNat_add, signExtend12_4095_toNat]
+      have h_q1c_lt_word : q1c.toNat - 1 < 2^64 := by have := q1c.isLt; omega
+      rw [show q1c.toNat + (2^64 - 1) = (q1c.toNat - 1) + 2^64 from by omega,
+          Nat.add_mod_right, Nat.mod_eq_of_lt h_q1c_lt_word]
+    omega
+  · -- Check doesn't fire: q1' = q1c. Use strong Knuth-C contrapositive.
+    have h_q1' : q1'.toNat = q1c.toNat := by
+      show (if BitVec.ult rhatUn1 (q1c * dLo) then q1c + signExtend12 4095
+            else q1c).toNat = _
+      rw [if_neg h_check]
+    -- ¬BitVec.ult ⟹ rhatUn1.toNat ≥ (q1c * dLo).toNat.
+    have h_no_check_word : (q1c * dLo).toNat ≤ rhatUn1.toNat := by
+      have := h_check
+      rw [EvmWord.ult_iff] at this
+      omega
+    -- Bridge to Nat: q1c.toNat * dLo.toNat ≤ rhatc.toNat * 2^32 + div_un1.toNat.
+    have h_no_check_nat :
+        q1c.toNat * dLo.toNat ≤ rhatc.toNat * 2^32 + div_un1.toNat := by
+      rw [← h_qDlo_eq, ← h_rhatUn1_eq]; exact h_no_check_word
+    -- Apply strong Knuth-C contrapositive.
+    have h_contra :=
+      knuth_theorem_c_strong_contrapositive uHi dHi dLo div_un1 rhatc q1c
+        h_eucl h_vTop_pos h_no_check_nat
+    omega
+
 end EvmAsm.Evm64
