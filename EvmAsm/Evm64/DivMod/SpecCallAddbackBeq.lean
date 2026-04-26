@@ -1917,6 +1917,31 @@ theorem algCallAddbackBeq_addback_euclidean_carry_zero_v2
   rw [h_norm_b] at h_addback_eq
   omega
 
+/-- **MsLowVal + val256(b_norm) * 2^s no-overflow** (CLOSED, derived via v2).
+
+    `algCallAddbackBeqMsLowVal a b + val256(b_limbs) * 2^s < 2^256`
+
+    when `algCallAddbackBeqCarry a b = 0` (double-addback's first
+    addback has no overflow). This is the `h_no_overflow` precondition
+    of `qHat_ge_two_abstract` for B.1a's call-addback-side closure.
+
+    Derives via:
+    - `algCallAddbackBeq_addback_euclidean_carry_zero_v2`: Post1Val + 0*2^256
+      = MsLowVal + val256(b_limbs) * 2^s.
+    - `algCallAddbackBeqPost1Val_lt_pow256`: Post1Val < 2^256.
+    - `linarith` to combine (avoiding `omega`'s deterministic-timeout
+      issue when chained through `algCallAddbackBeq_addback_euclidean_carry_zero_v2`). -/
+theorem algCallAddbackBeqMsLowVal_plus_b_norm_lt_pow256
+    (a b : EvmWord)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hcarry_zero : algCallAddbackBeqCarry a b = 0) :
+    algCallAddbackBeqMsLowVal a b +
+      val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) *
+        2 ^ ((clzResult (b.getLimbN 3)).1.toNat % 64) < 2 ^ 256 := by
+  have h_eq := algCallAddbackBeq_addback_euclidean_carry_zero_v2 a b hshift_nz hcarry_zero
+  have h_lt := algCallAddbackBeqPost1Val_lt_pow256 a b
+  linarith
+
 /-- **Bound: `algCallAddbackBeqU4 < algCallAddbackBeqMsC3`** (CLOSED).
 
     Wraps `EvmWord.u_top_lt_c3_of_addback_borrow_call` in the irreducible-
