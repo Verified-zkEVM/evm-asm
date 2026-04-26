@@ -134,6 +134,13 @@ theorem encodeBytes_single_large (b : Byte) (h : ¬ b.toNat < 0x80) :
     encodeBytes [b] = [BitVec.ofNat 8 0x81, b] := by
   simp [encodeBytes, h]
 
+/-- Two-byte short string: `encodeBytes [a, b] = [0x82, a, b]`.
+    No canonical-form branching applies; `data.length = 2 > 1` skips
+    the single-byte path, and `2 ≤ 55` selects the short-string form. -/
+theorem encodeBytes_pair (a b : Byte) :
+    encodeBytes [a, b] = [BitVec.ofNat 8 0x82, a, b] := by
+  simp [encodeBytes]
+
 /-! ## Encoding produces non-empty output -/
 
 theorem encodeBytes_nonempty (data : List Byte) :
