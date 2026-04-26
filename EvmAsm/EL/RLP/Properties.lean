@@ -16,6 +16,42 @@ theorem Nat.toBytesBE_zero : Nat.toBytesBE 0 = [] := by
 theorem Nat.fromBytesBE_nil : Nat.fromBytesBE [] = 0 := by
   simp [Nat.fromBytesBE]
 
+/-! ## takeBytes properties -/
+
+/-- Taking 0 bytes always succeeds with an empty prefix and the original list. -/
+theorem takeBytes_zero (bs : List Byte) :
+    takeBytes bs 0 = some ([], bs) := by
+  simp [takeBytes]
+
+/-- Taking more bytes than the list contains returns `none`. -/
+theorem takeBytes_length_lt {bs : List Byte} {n : Nat} (h : bs.length < n) :
+    takeBytes bs n = none := by
+  simp [takeBytes, Nat.not_le_of_lt h]
+
+/-- When the list is at least `n` bytes long, `takeBytes` returns the obvious split. -/
+theorem takeBytes_length_ge {bs : List Byte} {n : Nat} (h : n ≤ bs.length) :
+    takeBytes bs n = some (bs.take n, bs.drop n) := by
+  simp [takeBytes, h]
+
+/-! ## decodeAux trivial cases -/
+
+/-- `decodeAux 0` always returns `none` (no fuel). -/
+theorem decodeAux_zero_fuel (bs : List Byte) :
+    decodeAux 0 bs = none := by
+  simp [decodeAux]
+
+/-- `decodeAux` on an empty stream returns `none` regardless of fuel. -/
+theorem decodeAux_nil (fuel : Nat) :
+    decodeAux fuel [] = none := by
+  cases fuel <;> simp [decodeAux]
+
+/-- Single-byte items: when the prefix `p` satisfies `p < 0x80`, `decodeAux`
+    succeeds and returns `(.bytes [p], rest)` consuming one byte. -/
+theorem decodeAux_single_byte (fuel : Nat) (pfx : Byte) (rest : List Byte)
+    (h : pfx.toNat < 0x80) :
+    decodeAux (fuel + 1) (pfx :: rest) = some (.bytes [pfx], rest) := by
+  simp [decodeAux, h]
+
 /-! ## Encoding produces non-empty output -/
 
 theorem encodeBytes_nonempty (data : List Byte) :
