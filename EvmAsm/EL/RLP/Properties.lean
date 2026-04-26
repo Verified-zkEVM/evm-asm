@@ -52,6 +52,15 @@ theorem decodeAux_single_byte (fuel : Nat) (pfx : Byte) (rest : List Byte)
     decodeAux (fuel + 1) (pfx :: rest) = some (.bytes [pfx], rest) := by
   simp [decodeAux, h]
 
+/-- Empty list (prefix `0xC0`): `decodeAux` returns `(.list [], rest)`
+    consuming exactly the prefix byte. The short-list branch fires with
+    `len = 0`, so `takeBytes rest 0 = some ([], rest)` and the recursive
+    `decodeItems fuel []` returns `some ([], [])` which has empty
+    leftover. -/
+theorem decodeAux_empty_list (fuel : Nat) (rest : List Byte) :
+    decodeAux (fuel + 1) ((0xC0 : Byte) :: rest) = some (.list [], rest) := by
+  simp [decodeAux, takeBytes, decodeItems]
+
 /-! ## Encoding produces non-empty output -/
 
 theorem encodeBytes_nonempty (data : List Byte) :
