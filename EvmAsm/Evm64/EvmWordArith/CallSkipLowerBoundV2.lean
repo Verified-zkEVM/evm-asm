@@ -45,6 +45,8 @@
 
 import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV2.CompensationCases
 import EvmAsm.Evm64.EvmWordArith.MaxTrialVacuity
+import EvmAsm.Evm64.EvmWordArith.DivLimbBridge
+import EvmAsm.Evm64.EvmWordArith.MultiLimb
 
 namespace EvmAsm.Evm64
 
@@ -308,5 +310,34 @@ theorem div128Quot_call_skip_eq_val256_div
     hb3nz hshift_nz hcall
   simp only [] at h_le h_ge
   exact Nat.le_antisymm h_le h_ge
+
+/-- **Bound `val256(a)/val256(b) < 2^64` under `b3 ≠ 0`** (CLOSED).
+
+    The 256-bit true quotient fits in a Word. From `val256(a) < 2^256`
+    and `val256(b) ≥ 2^192`, we get `val256(a)/val256(b) < 2^64`.
+
+    Used downstream to:
+    1. Show `div128Quot.toNat < 2^64` directly (always true, but here
+       linked to q_true_full).
+    2. Conclude `q_true_1 < 2^32` (high digit) for digit decomposition. -/
+theorem val256_div_val256_lt_pow64 (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hb3nz : b3 ≠ 0) :
+    val256 a0 a1 a2 a3 / val256 b0 b1 b2 b3 < 2^64 := by
+  have h_a_lt : val256 a0 a1 a2 a3 < 2^256 := EvmWord.val256_bound _ _ _ _
+  have h_b_ge : val256 b0 b1 b2 b3 ≥ 2^192 := EvmWord.val256_ge_pow192_of_limb3 _ _ _ _ hb3nz
+  have h_b_pos : val256 b0 b1 b2 b3 > 0 := by
+    have : (2^192 : Nat) > 0 := by decide
+    omega
+  have h192_pos : (0 : Nat) < 2^192 := by decide
+  have h_div_le : val256 a0 a1 a2 a3 / val256 b0 b1 b2 b3 ≤
+      val256 a0 a1 a2 a3 / 2^192 :=
+    Nat.div_le_div_left h_b_ge h192_pos
+  have h_a_div : val256 a0 a1 a2 a3 / 2^192 < 2^64 := by
+    have h_pow : (2^256 : Nat) = 2^192 * 2^64 := by decide
+    have h192_pos : (2^192 : Nat) > 0 := by decide
+    rw [Nat.div_lt_iff_lt_mul h192_pos]
+    have : (2 ^ 192 * 2 ^ 64 : Nat) = 2 ^ 256 := by decide
+    omega
+  omega
 
 end EvmAsm.Evm64
