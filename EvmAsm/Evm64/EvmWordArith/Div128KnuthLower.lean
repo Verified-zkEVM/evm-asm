@@ -927,4 +927,112 @@ theorem div128Quot_phase1_no_wrap (uHi dHi dLo uLo : Word)
     rw [h_qDlo_eq, h_rhatUn1_eq] at h_ge
     exact h_ge
 
+/-- **KB-LB10 (Knuth Theorem B, raw form): Phase 1 partial-quotient ≤
+    true first digit + 2.** The raw RISC-V single-digit divide
+    `q1 = uHi / dHi` overshoots the abstract Knuth first digit
+    `q_true_1 = (uHi * 2^32 + div_un1) / vTop` by at most 2:
+
+    ```
+    (rv64_divu uHi dHi).toNat ≤
+      (uHi * 2^32 + div_un1) / (dHi * 2^32 + dLo) + 2
+    ```
+
+    This is **Knuth's Theorem B** specialized to our two-digit-by-one-digit
+    setting. The proof is a contradiction-based Nat algebra argument:
+    assume `q1 ≥ q_true_1 + 3`. The Phase-1 Euclidean
+    `q1 * dHi ≤ uHi` and the floor inequality
+    `(q_true_1 + 1) * vTop > uHi * 2^32 + div_un1`
+    combine to force `(q_true_1 + 1) * dLo > 2 * dHi * 2^32`. Under
+    `dHi ≥ 2^31`, the RHS is `≥ 2^64`, so `q_true_1 + 1 > 2^32` (since
+    `dLo < 2^32`), contradicting `q_true_1 < 2^32` from KB-LB2.
+
+    Used as input to KB-LB11 (Phase 1a-corrected `≤ q_true_1 + 2`) and
+    eventually KB-LB12 (Phase 1b-corrected `≤ q_true_1 + 1`, Knuth
+    Theorem C tight). The latter closes U3's hard case. -/
+theorem div128Quot_q1_le_q_true_1_plus_two
+    (uHi dHi dLo div_un1 : Word)
+    (hdHi_ne : dHi ≠ 0)
+    (hdHi_ge : dHi.toNat ≥ 2^31)
+    (hdLo_lt : dLo.toNat < 2^32)
+    (h_div_un1_lt : div_un1.toNat < 2^32)
+    (huHi_lt_vTop : uHi.toNat < dHi.toNat * 2^32 + dLo.toNat) :
+    (rv64_divu uHi dHi).toNat ≤
+      (uHi.toNat * 2^32 + div_un1.toNat) /
+        (dHi.toNat * 2^32 + dLo.toNat) + 2 := by
+  set vTop := dHi.toNat * 2^32 + dLo.toNat with h_vTop_def
+  set q_true_1 := (uHi.toNat * 2^32 + div_un1.toNat) / vTop with h_q_true_1_def
+  set q1 := (rv64_divu uHi dHi).toNat with h_q1_def
+  -- Phase 1 Euclidean: q1 * dHi ≤ uHi.
+  have h_q1_eucl : q1 * dHi.toNat ≤ uHi.toNat :=
+    EvmWord.rv64_divu_mul_le uHi dHi hdHi_ne
+  -- vTop > 0.
+  have h_vTop_pos : 0 < vTop := by
+    have h_dHi_pos : 0 < dHi.toNat := by omega
+    have h_pow_pos : (0 : Nat) < 2^32 := by decide
+    have h1 : 0 < dHi.toNat * 2^32 := Nat.mul_pos h_dHi_pos h_pow_pos
+    show 0 < dHi.toNat * 2^32 + dLo.toNat
+    exact Nat.lt_of_lt_of_le h1 (Nat.le_add_right _ _)
+  -- q_true_1 < 2^32 (KB-LB2).
+  have h_q_true_1_lt : q_true_1 < 2^32 := by
+    show (uHi.toNat * 2^32 + div_un1.toNat) /
+      (dHi.toNat * 2^32 + dLo.toNat) < 2^32
+    exact div128Quot_q_true_1_lt_pow32 uHi dHi dLo div_un1
+      h_div_un1_lt huHi_lt_vTop
+  -- Floor: q_true_1 * vTop ≤ uHi*B + div_un1 < (q_true_1 + 1) * vTop.
+  set r := (uHi.toNat * 2^32 + div_un1.toNat) % vTop with h_r_def
+  have h_dvm : vTop * q_true_1 + r = uHi.toNat * 2^32 + div_un1.toNat :=
+    Nat.div_add_mod (uHi.toNat * 2^32 + div_un1.toNat) vTop
+  have h_mod_lt : r < vTop :=
+    Nat.mod_lt (uHi.toNat * 2^32 + div_un1.toNat) h_vTop_pos
+  have h_floor_lt : uHi.toNat * 2^32 + div_un1.toNat < (q_true_1 + 1) * vTop := by
+    have h_eq : (q_true_1 + 1) * vTop = vTop * q_true_1 + vTop := by ring
+    rw [h_eq]; omega
+  -- By contradiction: assume q1 > q_true_1 + 2, i.e. q1 ≥ q_true_1 + 3.
+  by_contra h_assume
+  push Not at h_assume
+  have h_q1_ge : q1 ≥ q_true_1 + 3 := by omega
+  -- (q_true_1 + 3) * dHi * 2^32 ≤ q1 * dHi * 2^32 ≤ uHi * 2^32.
+  have h_mul_low : (q_true_1 + 3) * dHi.toNat * 2^32 ≤ uHi.toNat * 2^32 := by
+    have h1 : (q_true_1 + 3) * dHi.toNat ≤ q1 * dHi.toNat :=
+      Nat.mul_le_mul_right _ h_q1_ge
+    have h2 : q1 * dHi.toNat ≤ uHi.toNat := h_q1_eucl
+    have h3 : (q_true_1 + 3) * dHi.toNat ≤ uHi.toNat := Nat.le_trans h1 h2
+    exact Nat.mul_le_mul_right _ h3
+  -- Expand floor inequality: (q_true_1 + 1) * dHi * 2^32 + (q_true_1 + 1) * dLo
+  --                          > uHi * 2^32 + div_un1.
+  have h_ceil_expand :
+      (q_true_1 + 1) * dHi.toNat * 2^32 + (q_true_1 + 1) * dLo.toNat
+        > uHi.toNat * 2^32 + div_un1.toNat := by
+    have h_eq : (q_true_1 + 1) * vTop =
+        (q_true_1 + 1) * dHi.toNat * 2^32 + (q_true_1 + 1) * dLo.toNat := by
+      rw [h_vTop_def]; ring
+    linarith
+  -- Subtract h_mul_low from h_ceil_expand:
+  --   (q_true_1 + 1) * dLo > 2 * dHi * 2^32 + div_un1.
+  have h_dLo_lower :
+      (q_true_1 + 1) * dLo.toNat > 2 * dHi.toNat * 2^32 + div_un1.toNat := by
+    have h_split : (q_true_1 + 3) * dHi.toNat * 2^32 =
+        (q_true_1 + 1) * dHi.toNat * 2^32 + 2 * dHi.toNat * 2^32 := by ring
+    linarith
+  -- Under dHi ≥ 2^31: 2 * dHi * 2^32 ≥ 2^64.
+  have h_dHi_2_lower : 2 * dHi.toNat * 2^32 ≥ 2^64 := by
+    have h1 : 2 * dHi.toNat ≥ 2^32 := by omega
+    have h2 : 2 * dHi.toNat * 2^32 ≥ 2^32 * 2^32 := Nat.mul_le_mul_right _ h1
+    have h3 : (2^32 * 2^32 : Nat) = 2^64 := by decide
+    linarith
+  -- So (q_true_1 + 1) * dLo > 2^64.
+  have h_big : (q_true_1 + 1) * dLo.toNat > 2^64 := by linarith
+  -- But dLo < 2^32, so (q_true_1 + 1) > 2^32 (otherwise product < 2^64).
+  have h_qtrue_big : q_true_1 + 1 > 2^32 := by
+    by_contra h
+    push Not at h
+    have h1 : (q_true_1 + 1) * dLo.toNat ≤ 2^32 * dLo.toNat :=
+      Nat.mul_le_mul_right _ h
+    have h2 : 2^32 * dLo.toNat < 2^32 * 2^32 :=
+      Nat.mul_lt_mul_of_pos_left hdLo_lt (by decide)
+    have h3 : (2^32 * 2^32 : Nat) = 2^64 := by decide
+    linarith
+  -- But q_true_1 < 2^32 contradicts q_true_1 ≥ 2^32.
+  omega
+
 end EvmAsm.Evm64
