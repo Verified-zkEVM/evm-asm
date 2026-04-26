@@ -437,6 +437,167 @@ Apply this pattern when a theorem's postcondition has **3+ `let` bindings**
 that compute derived values used in the assertion chain. The canonical example
 is `loopSetupPost` in `Compose/Base.lean` (11 let bindings, used by 8 theorems).
 
+## Adapter Signatures with Deep Let-Chains (Algorithm Intermediates)
+
+For **stack-level adapters** that expose runtime-computed intermediate
+values via `let` chains (e.g., `let ms := mulsubN4 ...; let ab := addbackN4
+...; let un{i}Out := if carry = 0 then ab'.{i_low} else ab.{i_low}`),
+keep the goal small by wrapping each natural intermediate as a separate
+`@[irreducible] noncomputable def` rather than letting the proof state
+materialize the entire chain inline.
+
+The DivMod call+addback BEQ adapter is the canonical example
+(`output_slot_to_evmWordIs_mod_n4_call_addback_beq_denorm`). A first
+attempt with the inline let-chain in the signature yielded a 246-line
+proof that fought 200k-heartbeat `whnf` timeouts in the final fold; a
+restart with per-intermediate irreducibles cut it to ~50 lines and
+closed the single-addback case cleanly.
+
+### Pattern (3 components per intermediate)
+
+For each algorithm intermediate value `X`:
+
+1. **Irreducible def** capturing the computation as an opaque term:
+
+   ```lean
+   @[irreducible]
+   noncomputable def algCallAddbackBeqUn0Out (a b : EvmWord) : Word :=
+     let shift := (clzResult (b.getLimbN 3)).1.toNat % 64
+     ... -- full let-chain
+     if carry = 0 then ab'.1 else ab.1
+   ```
+
+2. **Unfolding lemma** for consumers that need the inline form:
+
+   ```lean
+   theorem algCallAddbackBeqUn0Out_unfold {a b : EvmWord} :
+       algCallAddbackBeqUn0Out a b = (let shift := ...; ... if-then-else) := by
+     show algCallAddbackBeqUn0Out a b = _
+     unfold algCallAddbackBeqUn0Out
+     rfl
+   ```
+
+3. **Bridge lemma** connecting the irreducible to a derived form (e.g.,
+   the `single-addback` case where `un{i}Out = post1Limb{i}` because
+   `addbackN4`'s low 4 outputs are independent of the `u4_new` parameter):
+
+   ```lean
+   theorem algCallAddbackBeqUn0Out_eq_post1Limb0_of_single_addback
+       (a b : EvmWord) (hcarry : algCallAddbackBeqCarry a b ≠ 0) :
+       algCallAddbackBeqUn0Out a b = algCallAddbackBeqPost1Limb0 a b := by
+     rw [algCallAddbackBeqCarry_unfold] at hcarry
+     unfold algCallAddbackBeqUn0Out algCallAddbackBeqPost1Limb0
+     simp only []; rw [if_neg hcarry]; rfl
+   ```
+
+### Adapter signature pattern
+
+The adapter's conclusion uses `let` to alias the irreducibles, keeping
+the printed type compact while letting consumers refer to them:
+
+```lean
+theorem output_slot_to_evmWordIs_mod_n4_call_addback_beq_denorm
+    (sp : Word) (a b : EvmWord) (...) :
+    let shift := (clzResult (b.getLimbN 3)).1.toNat % 64
+    let un0Out := algCallAddbackBeqUn0Out a b
+    let un1Out := algCallAddbackBeqUn1Out a b
+    ...
+    (((sp + 32) ↦ₘ ((un0Out >>> shift) ||| (un1Out <<< (64 - shift)))) **
+     ...) =
+    evmWordIs (sp + 32) (EvmWord.mod a b) := by
+  intro shift un0Out un1Out un2Out un3Out
+  by_cases hcarry : algCallAddbackBeqCarry a b = 0
+  · sorry  -- alternative branch
+  · rw [show un0Out = algCallAddbackBeqPost1Limb0 a b from ...,
+        show un1Out = algCallAddbackBeqPost1Limb1 a b from ...,
+        ...]
+    exact (evmWordIs_sp32_limbs_eq sp ...).symm
+```
+
+### Caller adaptation
+
+When an adapter's signature changes from inline `let un{i}Out := if-then-else`
+to irreducible-bundled `let un{i}Out := algCallAddbackBeqUn{i}Out a b`,
+**callers must fold their inline forms back to the irreducibles**. Without
+this fold, `xperm_hyp` (which compares atoms syntactically) fails to match
+the inline-form atoms in the hypothesis with the irreducible-form atoms
+introduced by `rw [adapter.symm]`.
+
+```lean
+intro h hq
+simp only [fullModN4CallAddbackBeqPost_unfold, denormModPost_unfold] at hq
+-- Fold hq's inline un{i}Out forms to the irreducible Un{i}Out names
+-- so they match the adapter's new signature.
+simp only [← algCallAddbackBeqUn0Out_unfold, ← algCallAddbackBeqUn1Out_unfold,
+           ← algCallAddbackBeqUn2Out_unfold, ← algCallAddbackBeqUn3Out_unfold] at hq
+...
+rw [show evmWordIs (sp + 32) (EvmWord.mod a b) = _ from h_slot.symm]
+...
+xperm_hyp hq
+```
+
+### Symptoms that warrant the irreducible-bundle restructure
+
+If a stack-level adapter's proof exhibits any of these, the let-chain
+is too deep and the proof state needs irreducible bundling:
+
+- `rw [← unfold_lemma]` and `simp only [← unfold_lemma]` **silently no-op**
+  (succeed without firing) — the rewriter can't match the let-chain RHS
+  against the goal's zeta-reduced form.
+- `exact (some_helper).symm` produces a `Type mismatch` where the actual
+  and expected types **look identical** in the printed output but differ
+  in projection-index spacing or implicit args.
+- `convert (some_helper).symm using N` (any `N`) hits a 200k-heartbeat
+  timeout in `whnf` during defeq slack.
+- Diagnostic by `diff` of the error's "actual" and "expected" terms
+  reveals the structures are the same up to subtle nested-shape
+  differences that no `simp`/`rw` reconciles.
+
+### Why irreducibles work where `set` doesn't
+
+`set X := body with hX_def` creates a let-bound local + the equation
+`hX_def : X = body`, but it only matches occurrences of `body` in the
+goal **syntactically**. After `dsimp only []` zeta-reduces the goal,
+`set` against parent-shaped expressions silently fails (no occurrences
+to bind). Irreducible defs sidestep this: their term is opaque from
+the outside, so subsequent `rw`/`simp`/`xperm` see one atom rather
+than navigating the let-chain.
+
+### Sub-lemma split
+
+Pair the irreducible bundling with **sub-lemma extraction**. A focused
+sub-lemma takes the irreducibles as inputs and produces a small
+4-tuple of per-limb facts (e.g.,
+`mod_n4_call_addback_beq_single_addback_post1_limbs_close`):
+
+```lean
+theorem mod_n4_..._post1_limbs_close (a b : EvmWord) (...)
+    (hcarry_nz : algCallAddbackBeqCarry a b ≠ 0) :
+    let s := (clzResult (b.getLimbN 3)).1.toNat % 64
+    (EvmWord.mod a b).getLimbN 0 =
+      ((algCallAddbackBeqPost1Limb0 a b) >>> s) |||
+        ((algCallAddbackBeqPost1Limb1 a b) <<< (64 - s)) ∧
+    ... := by
+  intro s
+  have h_wrapper := parent_post1Val_eq_amod_pow_s_of_single_addback ...
+  rw [algCallAddbackBeqPost1Val_eq_val256_limbs] at h_wrapper
+  ...
+  exact denorm_4limb_eq_mod_of_val256_eq_amod_pow_s ...
+```
+
+The adapter's proof body then collapses to a single `rw` of the
+bridges plus an `exact` of `evmWordIs_sp32_limbs_eq.symm` applied to
+the sub-lemma's output.
+
+### When to apply
+
+Apply this pattern when an adapter's conclusion has **deep let-chains
+mixing if-then-else and recursive function calls** (e.g., `mulsubN4`
+inside `addbackN4` inside `if`), and a first attempt at the proof body
+hits any of the symptoms listed above. Spending the iteration on
+irreducible bundles + sub-lemmas pays for itself by avoiding the
+"refactoring tax" of multiple failed `simp`/`rw`/`exact` attempts.
+
 ## End-to-End Composition with Existential Intermediates
 
 When composing specs where an intermediate postcondition has existentials (e.g., `loopBodyPostN4` which wraps computed values in `∃`), standard `cpsTriple_seq_perm_same_cr` doesn't work because the second spec's precondition depends on the existential witnesses.

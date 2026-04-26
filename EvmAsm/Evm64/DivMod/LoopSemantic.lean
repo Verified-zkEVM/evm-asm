@@ -52,6 +52,23 @@ theorem addbackN4_val256_eq (un0 un1 un2 un3 u4_new v0 v1 v2 v3 : Word) :
   simp only [addbackN4, se12_0]
   exact addback_register_4limb_val256
 
+/-- The low 4 components of addbackN4 are independent of the `u4_new`
+    (carry-input) parameter. Useful when bridging a `addbackN4 ... 0 ...` form
+    (carry-input-zero, used in the algorithm's pre-addback validation) to
+    `addbackN4 ... u4_new ...` form (carry-input-from-mulsub, used in the
+    runtime program's actual computation). -/
+theorem addbackN4_low_limbs_indep_u4_new
+    (un0 un1 un2 un3 u4_new v0 v1 v2 v3 : Word) :
+    (addbackN4 un0 un1 un2 un3 u4_new v0 v1 v2 v3).1 =
+      (addbackN4 un0 un1 un2 un3 0 v0 v1 v2 v3).1 ∧
+    (addbackN4 un0 un1 un2 un3 u4_new v0 v1 v2 v3).2.1 =
+      (addbackN4 un0 un1 un2 un3 0 v0 v1 v2 v3).2.1 ∧
+    (addbackN4 un0 un1 un2 un3 u4_new v0 v1 v2 v3).2.2.1 =
+      (addbackN4 un0 un1 un2 un3 0 v0 v1 v2 v3).2.2.1 ∧
+    (addbackN4 un0 un1 un2 un3 u4_new v0 v1 v2 v3).2.2.2.1 =
+      (addbackN4 un0 un1 un2 un3 0 v0 v1 v2 v3).2.2.2.1 := by
+  refine ⟨rfl, rfl, rfl, rfl⟩
+
 /-- The 5th component of addbackN4 is u4_new + carry. -/
 theorem addbackN4_top_eq (un0 un1 un2 un3 u4_new v0 v1 v2 v3 : Word) :
     let ab := addbackN4 un0 un1 un2 un3 u4_new v0 v1 v2 v3
