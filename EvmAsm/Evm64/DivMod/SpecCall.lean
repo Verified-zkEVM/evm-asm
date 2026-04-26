@@ -3360,12 +3360,16 @@ theorem output_slot_to_evmWordIs_mod_n4_call_addback_beq_denorm
                hb0_def, hb1_def, hb2_def, hb3_def,
                hu0_def, hu1_def, hu2_def, hu3_def, hs_def, hmod_eq, hanti_toNat_mod] at hcarry
     rw [if_neg hcarry]
-    -- Final fold attempt: explicit args to addbackN4_low_limbs_indep_u4_new
-    -- + simp align partially work (rw with hab succeeds), but the subsequent
-    -- `rw [← h_denorm.{i}]` fails because h_denorm's pattern shape doesn't
-    -- exactly match the goal's after the hab rewrites. The mismatch is
-    -- subtle — both forms use `s` and `(clzResult ...).1.toNat` mixed across
-    -- different positions, requiring more careful normalization.
+    -- Bridge ab.{i} to post1.{i} via low-4-output independence of u4_new.
+    have hab := addbackN4_low_limbs_indep_u4_new
+      ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 (uTop - ms.2.2.2.2) b0' b1' b2' b3'
+    simp only [hms_def, hqHat_def, huTop_def, hb0_def, hb1_def, hb2_def, hb3_def,
+               hu0_def, hu1_def, hu2_def, hu3_def, hs_def, hmod_eq] at hab
+    rw [hab.1, hab.2.1, hab.2.2.1, hab.2.2.2]
+    -- Final step: rw with h_denorm + evmWordIs_sp32 — partial-progress closure
+    -- approach. The forward h_denorm rw + evmWordIs_sp32_unfold pattern leaves
+    -- residual sub-goals due to subtle form differences between the parent's
+    -- shift-positions and h_denorm's. Continue in next iteration.
     sorry
 
 /-- **EVM-stack-level MOD spec on the n=4 call+addback BEQ sub-path (SORRY).**
