@@ -3544,13 +3544,14 @@ theorem output_slot_to_evmWordIs_mod_n4_call_addback_beq_denorm
     simp only [hms_def, hqHat_def, huTop_def, hb0_def, hb1_def, hb2_def, hb3_def,
                hu0_def, hu1_def, hu2_def, hu3_def, hs_def, hmod_eq] at hab
     rw [hab.1, hab.2.1, hab.2.2.1, hab.2.2.2]
-    -- Discovered (this iteration via diff of error message): the actual
-    -- Eq.symm output and the expected goal differ in how `addbackN4 ...
-    -- 0 ...`'s args are nested. The actual term has the goal's RHS atoms
-    -- with different projection-index spacing — likely caused by the
-    -- hab rewrites injecting a different shape than expected.
-    -- Closure path: rebuild the rewrites without dsimp earlier in proof,
-    -- so the goal's post1 form matches h_denorm's atom shape exactly.
+    -- The closed sub-lemma `mod_n4_call_addback_beq_single_addback_post1_
+    -- limbs_close` produces per-limb mod equations using irreducible
+    -- `algCallAddbackBeqPost1Limb{0..3}` bundles. Bridging each Limb{i}
+    -- back to the parent's inline form to apply the sub-lemma still hits
+    -- whnf timeout (the unfold of an irreducible def has same exponential
+    -- defeq cost). Closure pending: needs a parent-friendly bridge for
+    -- the Limb{i} bundles, parallel to algCallAddbackBeqCarry_eq_parent_
+    -- 64ms_form.
     sorry
 
 /-- **EVM-stack-level MOD spec on the n=4 call+addback BEQ sub-path (SORRY).**
