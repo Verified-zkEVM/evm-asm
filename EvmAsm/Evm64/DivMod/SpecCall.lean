@@ -3360,15 +3360,12 @@ theorem output_slot_to_evmWordIs_mod_n4_call_addback_beq_denorm
                hb0_def, hb1_def, hb2_def, hb3_def,
                hu0_def, hu1_def, hu2_def, hu3_def, hs_def, hmod_eq, hanti_toNat_mod] at hcarry
     rw [if_neg hcarry]
-    -- Final fold: in scope are `h_denorm` (4-tuple of per-limb equations
-    -- relating EvmWord.mod's limbs to the post1 form denorm pattern) and the
-    -- residual goal involves `addbackN4 ms.1 ... u4_new ...` (with u4_new = uTop - c3).
-    -- Bridging to `addbackN4 ms.1 ... 0 ...` form (used by post1 in h_denorm)
-    -- via `addbackN4_low_limbs_indep_u4_new` triggers a 200k-heartbeat
-    -- timeout — Lean's whnf can't infer the universally-quantified args
-    -- against the deep mulsubN4 inline form. Closure path: provide all 9
-    -- args to addbackN4_low_limbs_indep_u4_new explicitly, OR refactor to
-    -- expose ms/b0'..b3' as @[irreducible] bundle to opaque-ify defeq.
+    -- Final fold attempt: explicit args to addbackN4_low_limbs_indep_u4_new
+    -- + simp align partially work (rw with hab succeeds), but the subsequent
+    -- `rw [← h_denorm.{i}]` fails because h_denorm's pattern shape doesn't
+    -- exactly match the goal's after the hab rewrites. The mismatch is
+    -- subtle — both forms use `s` and `(clzResult ...).1.toNat` mixed across
+    -- different positions, requiring more careful normalization.
     sorry
 
 /-- **EVM-stack-level MOD spec on the n=4 call+addback BEQ sub-path (SORRY).**
