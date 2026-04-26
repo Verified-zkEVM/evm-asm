@@ -457,6 +457,97 @@ theorem div128Quot_un21_additive_identity
   rw [h_q1_vtop]
   omega
 
+/-- **KB-3m-uncond: wrap-aware additive identity (NEW, CLOSED).**
+
+    Unconditional form of KB-3m. Where KB-3m requires `B ≤ A` (no-wrap),
+    this version handles both wrap and no-wrap via an explicit
+    boolean indicator `w ∈ {0, 1}`:
+
+    ```
+    un21.toNat + (rhat'.toNat / 2^32) * 2^64 + q1'.toNat * vTop.toNat
+      = uHi.toNat * 2^32 + div_un1.toNat + w * 2^64
+    ```
+
+    where `w = 0` in the no-wrap case (`B ≤ A`) and `w = 1` in the
+    wrap case (`A < B`). Composes KB-3j (un21 case-split) with the
+    same Phase 1b Euclidean + vTop decomposition algebra as KB-3m.
+
+    Useful when the no-wrap precondition cannot be discharged
+    locally — pushes the case-split deeper into the user. -/
+theorem div128Quot_un21_additive_identity_uncond
+    (uHi dHi dLo uLo vTop rhatUn1 : Word)
+    (hdHi_ge : dHi.toNat ≥ 2^31)
+    (hdLo_lt : dLo.toNat < 2^32)
+    (huHi_lt_vTop : uHi.toNat < dHi.toNat * 2^32 + dLo.toNat)
+    (h_dHi_eq : dHi = vTop >>> (32 : BitVec 6).toNat)
+    (h_dLo_eq : dLo = (vTop <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat) :
+    let q1 := rv64_divu uHi dHi
+    let rhat := uHi - q1 * dHi
+    let hi1 := q1 >>> (32 : BitVec 6).toNat
+    let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+    let rhatc := if hi1 = 0 then rhat else rhat + dHi
+    let q1' := if BitVec.ult rhatUn1 (q1c * dLo) then q1c + signExtend12 4095
+               else q1c
+    let rhat' := if BitVec.ult rhatUn1 (q1c * dLo) then rhatc + dHi else rhatc
+    let div_un1 := uLo >>> (32 : BitVec 6).toNat
+    let cu_rhat_un1 := (rhat' <<< (32 : BitVec 6).toNat) ||| div_un1
+    let cu_q1_dlo := q1' * dLo
+    let un21 := cu_rhat_un1 - cu_q1_dlo
+    ∃ w : Nat, w ≤ 1 ∧
+      un21.toNat + (rhat'.toNat / 2^32) * 2^64 + q1'.toNat * vTop.toNat =
+        uHi.toNat * 2^32 + div_un1.toNat + w * 2^64 := by
+  intro q1 rhat hi1 q1c rhatc q1' rhat' div_un1 cu_rhat_un1 cu_q1_dlo un21
+  have h_case := div128Quot_un21_toNat_case uHi dHi dLo uLo rhatUn1
+    hdHi_ge hdLo_lt huHi_lt_vTop
+  simp only [] at h_case
+  -- h_case : (B ≤ A → un21 = A - B) ∧ (A < B → un21 = A + 2^64 - B)
+  -- where A = (rhat' % 2^32) * 2^32 + div_un1, B = q1' * dLo.
+  have hdHi_ne : dHi ≠ 0 := by
+    intro heq; rw [heq] at hdHi_ge; simp at hdHi_ge
+  have hdHi_lt : dHi.toNat < 2^32 := by
+    rw [h_dHi_eq]; exact Word_ushiftRight_32_lt_pow32
+  have h_post := div128Quot_first_round_post uHi dHi hdHi_ne hdHi_lt
+  have h_rhatc_lt := div128Quot_rhatc_lt_2dHi uHi dHi hdHi_ne hdHi_lt
+  have h_eucl : q1'.toNat * dHi.toNat + rhat'.toNat = uHi.toNat :=
+    div128Quot_phase1b_post uHi dHi q1c rhatc dLo rhatUn1 hdHi_lt h_post h_rhatc_lt
+  have h_vtop := div128Quot_vTop_decomp vTop
+  rw [← h_dHi_eq, ← h_dLo_eq] at h_vtop
+  have h_rhat_split : rhat'.toNat * 2^32 =
+      (rhat'.toNat / 2^32) * 2^64 + (rhat'.toNat % 2^32) * 2^32 :=
+    Nat_mul_pow32_split
+  have h_rhat_eq : rhat'.toNat = uHi.toNat - q1'.toNat * dHi.toNat := by omega
+  have h_rhat_mul : rhat'.toNat * 2^32 =
+      uHi.toNat * 2^32 - q1'.toNat * dHi.toNat * 2^32 := by
+    rw [h_rhat_eq, Nat.sub_mul]
+  have h_q1_vtop : q1'.toNat * vTop.toNat =
+      q1'.toNat * dHi.toNat * 2^32 + q1'.toNat * dLo.toNat := by
+    rw [h_vtop]; ring
+  have h_le : q1'.toNat * dHi.toNat * 2^32 ≤ uHi.toNat * 2^32 := by
+    apply Nat.mul_le_mul_right; omega
+  -- B := q1' * dLo. From cu_q1_dlo's bound, B < 2^64.
+  have h_B_lt : q1'.toNat * dLo.toNat < 2^64 := by
+    have h_no_wrap : cu_q1_dlo.toNat = q1'.toNat * dLo.toNat :=
+      div128Quot_q1_prime_dLo_no_wrap uHi dHi dLo rhatUn1
+        hdHi_ge hdLo_lt huHi_lt_vTop
+    have := cu_q1_dlo.isLt; omega
+  -- Case-split on B ≤ A vs A < B.
+  by_cases hBA : q1'.toNat * dLo.toNat ≤
+      (rhat'.toNat % 2^32) * 2^32 + div_un1.toNat
+  · -- No-wrap: w = 0.
+    refine ⟨0, by omega, ?_⟩
+    have h_un21 : un21.toNat =
+        (rhat'.toNat % 2^32) * 2^32 + div_un1.toNat - q1'.toNat * dLo.toNat :=
+      h_case.1 hBA
+    rw [h_un21, h_q1_vtop]; omega
+  · -- Wrap: w = 1.
+    push Not at hBA
+    refine ⟨1, by omega, ?_⟩
+    have h_un21 : un21.toNat =
+        (rhat'.toNat % 2^32) * 2^32 + div_un1.toNat + 2^64 -
+          q1'.toNat * dLo.toNat :=
+      h_case.2 hBA
+    rw [h_un21, h_q1_vtop]; omega
+
 -- ============================================================================
 -- Piece B: Phase 2a bounds via Phase 1a reuse (KB-4)
 -- ============================================================================
