@@ -80,6 +80,15 @@ theorem decodeAux_empty_list (fuel : Nat) (rest : List Byte) :
     decodeAux (fuel + 1) ((0xC0 : Byte) :: rest) = some (.list [], rest) := by
   simp [decodeAux, takeBytes, decodeItems]
 
+/-- Two-byte short string (prefix `0x82`): `decodeAux` returns
+    `(.bytes [b1, b2], rest)` consuming three bytes (prefix + 2 payload).
+    The two-byte payload is multi-byte, so the canonical-form check
+    (which only fires for single-byte strings) is bypassed. -/
+theorem decodeAux_two_byte_string (fuel : Nat) (b1 b2 : Byte) (rest : List Byte) :
+    decodeAux (fuel + 1) ((0x82 : Byte) :: b1 :: b2 :: rest) =
+      some (.bytes [b1, b2], rest) := by
+  simp [decodeAux, takeBytes]
+
 /-! ## decode (top-level wrapper) trivial cases -/
 
 /-- `decode []` returns `none` because `decodeAux 0 []` returns `none`. -/
@@ -101,6 +110,13 @@ theorem decode_empty_string : decode [(0x80 : Byte)] = some (.bytes [], []) := b
     encoding. Specializes `decodeAux_empty_list` at the top-level fuel. -/
 theorem decode_empty_list : decode [(0xC0 : Byte)] = some (.list [], []) := by
   simp [decode, decodeAux, takeBytes, decodeItems]
+
+/-- `decode [0x82, b1, b2] = some (.bytes [b1, b2], [])` — the canonical
+    two-byte short-string encoding. Specializes `decodeAux_two_byte_string`
+    at the top-level fuel. -/
+theorem decode_two_byte_string (b1 b2 : Byte) :
+    decode [(0x82 : Byte), b1, b2] = some (.bytes [b1, b2], []) := by
+  simp [decode, decodeAux, takeBytes]
 
 /-! ## Encoding produces non-empty output -/
 

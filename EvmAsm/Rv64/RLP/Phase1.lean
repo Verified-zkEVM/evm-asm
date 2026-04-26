@@ -156,6 +156,34 @@ theorem rlp_phase1_step_spec_plain (v5 v10 : Word)
     sepConj_strip_pure_end3
     (rlp_phase1_step_spec v5 v10 k offset base target htarget)
 
+/-- Taken-path-only variant of `rlp_phase1_step_spec`: assumes the BLTU
+    will take its branch (`v5 <u kVal`) and produces a plain `cpsTriple`
+    landing at `target`, with the register-ownership post (no
+    `⌜…⌝` dispatch fact remaining).
+
+    Useful for downstream consumers that already know which Phase 1 exit
+    they are heading toward — typically because they are composing the
+    cascade with a specific Phase 3 entry program — and just need the
+    "from base to e_i" cpsTriple to chain. -/
+theorem rlp_phase1_step_taken_spec (v5 v10 : Word)
+    (k : BitVec 12) (offset : BitVec 13) (base target : Word)
+    (htarget : (base + 4) + signExtend13 offset = target)
+    (hv5 : BitVec.ult v5 ((0 : Word) + signExtend12 k)) :
+    let kVal := (0 : Word) + signExtend12 k
+    let code := rlp_phase1_step_code k offset base
+    cpsTriple base target code
+      ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10))
+      ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ kVal)) :=
+  cpsBranch_takenStripPure3
+    (rlp_phase1_step_spec v5 v10 k offset base target htarget)
+    (fun _ hpost => by
+      -- The not-taken post carries `⌜¬ BitVec.ult v5 kVal⌝`; the
+      -- assumption `hv5` contradicts it.
+      obtain ⟨_, _, _, _, _, hpost⟩ := hpost  -- peel x5
+      obtain ⟨_, _, _, _, _, hpost⟩ := hpost  -- peel x0
+      obtain ⟨_, _, _, _, _, hpost⟩ := hpost  -- peel x10
+      exact hpost.2 hv5)
+
 -- ============================================================================
 -- Full classifier code: union of four cascade-step CodeReqs
 -- ============================================================================
