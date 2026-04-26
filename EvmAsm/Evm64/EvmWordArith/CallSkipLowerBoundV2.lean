@@ -360,4 +360,28 @@ theorem val256_div_q_true_digits_lt_pow32
   · -- q_true_full % 2^32 < 2^32: standard.
     exact Nat.mod_lt _ (by decide)
 
+/-- **OR-left lower bound**: `((q1' << 32) ||| q0').toNat ≥ q1'.toNat * 2^32`
+    when `q1' < 2^32`.
+
+    Pure BitVec property: `a OR b ≥ a` (bitwise), and the shift preserves
+    the lower bits. Useful primitive for the digit-decomposition
+    argument: combined with `qHat = q_true_full = q_true_1 * 2^32 + q_true_0`
+    (under skip-borrow tight equality), gives `q1' * 2^32 ≤ qHat
+    ≤ (q_true_1 + 1) * 2^32 - 1`, hence `q1' ≤ q_true_1`. -/
+theorem div128Quot_or_left_ge_q1_prime_shift
+    (q1' q0' : Word) (h_q1'_lt : q1'.toNat < 2^32) :
+    q1'.toNat * 2^32 ≤ ((q1' <<< (32 : BitVec 6).toNat) ||| q0').toNat := by
+  have h_or_ge : (q1' <<< (32 : BitVec 6).toNat).toNat ≤
+      ((q1' <<< (32 : BitVec 6).toNat) ||| q0').toNat := by
+    rw [BitVec.toNat_or]
+    exact Nat.left_le_or
+  have h_shift_eq : (q1' <<< (32 : BitVec 6).toNat).toNat = q1'.toNat * 2^32 := by
+    rw [BitVec.toNat_shiftLeft]
+    simp only [Nat.shiftLeft_eq, EvmAsm.Rv64.AddrNorm.bv6_toNat_32]
+    have : q1'.toNat * 2^32 < 2^64 := by
+      have : (2^64 : Nat) = 2^32 * 2^32 := by decide
+      nlinarith
+    rw [Nat.mod_eq_of_lt this]
+  omega
+
 end EvmAsm.Evm64
