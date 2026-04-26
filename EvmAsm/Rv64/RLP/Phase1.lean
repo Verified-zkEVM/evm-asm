@@ -184,6 +184,34 @@ theorem rlp_phase1_step_taken_spec (v5 v10 : Word)
       obtain ⟨_, _, _, _, _, hpost⟩ := hpost  -- peel x10
       exact hpost.2 hv5)
 
+/-- Not-taken-path-only variant of `rlp_phase1_step_spec`: assumes the
+    BLTU does *not* take its branch (`¬ v5 <u kVal`) and produces a
+    plain `cpsTriple` landing at `base + 8` (the fall-through PC),
+    with the register-ownership post (no `⌜…⌝` dispatch fact remaining).
+
+    Sibling to `rlp_phase1_step_taken_spec`. Useful for downstream
+    consumers stitching together multiple cascade steps along the
+    e2 / e3 / e4 / e5 paths, where each non-final step is a fall-through
+    leading into the next cascade step. -/
+theorem rlp_phase1_step_ntaken_spec (v5 v10 : Word)
+    (k : BitVec 12) (offset : BitVec 13) (base target : Word)
+    (htarget : (base + 4) + signExtend13 offset = target)
+    (hv5 : ¬ BitVec.ult v5 ((0 : Word) + signExtend12 k)) :
+    let kVal := (0 : Word) + signExtend12 k
+    let code := rlp_phase1_step_code k offset base
+    cpsTriple base (base + 8) code
+      ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10))
+      ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ kVal)) :=
+  cpsBranch_ntakenStripPure3
+    (rlp_phase1_step_spec v5 v10 k offset base target htarget)
+    (fun _ hpost => by
+      -- The taken post carries `⌜BitVec.ult v5 kVal⌝`; the assumption
+      -- `hv5` (its negation) contradicts it.
+      obtain ⟨_, _, _, _, _, hpost⟩ := hpost  -- peel x5
+      obtain ⟨_, _, _, _, _, hpost⟩ := hpost  -- peel x0
+      obtain ⟨_, _, _, _, _, hpost⟩ := hpost  -- peel x10
+      exact hv5 hpost.2)
+
 -- ============================================================================
 -- Full classifier code: union of four cascade-step CodeReqs
 -- ============================================================================
