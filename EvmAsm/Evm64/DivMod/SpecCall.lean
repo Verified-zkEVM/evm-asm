@@ -3366,10 +3366,12 @@ theorem output_slot_to_evmWordIs_mod_n4_call_addback_beq_denorm
     simp only [hms_def, hqHat_def, huTop_def, hb0_def, hb1_def, hb2_def, hb3_def,
                hu0_def, hu1_def, hu2_def, hu3_def, hs_def, hmod_eq] at hab
     rw [hab.1, hab.2.1, hab.2.2.1, hab.2.2.2]
-    -- Final fold remaining: h_denorm + evmWordIs_sp32_limbs_eq.symm produces
-    -- a Type mismatch that suggests subtle structural differences between
-    -- the witnesses and the goal's expected form (e.g., projection indices,
-    -- spacing of mulsubN4 ms.{1, 2.1, 2.2.1, 2.2.2.1}). Continue next iteration.
+    -- Final fold remaining. Tested approaches:
+    --   * `(evmWordIs_sp32_limbs_eq ...).symm` — Type mismatch on witnesses.
+    --   * `convert (evmWordIs_sp32_limbs_eq ...).symm` — 200k-heartbeat timeout
+    --     in whnf during defeq slack check.
+    -- The witnesses h_denorm.{i} are nearly aligned but Lean can't reconcile.
+    -- Continue closure attempts in next iteration with alternative tactics.
     sorry
 
 /-- **EVM-stack-level MOD spec on the n=4 call+addback BEQ sub-path (SORRY).**
