@@ -3396,12 +3396,24 @@ theorem output_slot_to_evmWordIs_mod_n4_call_addback_beq_denorm
     simp only [hms_def, hqHat_def, huTop_def, hb0_def, hb1_def, hb2_def, hb3_def,
                hu0_def, hu1_def, hu2_def, hu3_def, hs_def, hmod_eq] at hab
     rw [hab.1, hab.2.1, hab.2.2.1, hab.2.2.2]
-    -- Helper `denorm_4limb_to_evmWordIs_eq` is closed upstream and provides
-    -- the right shape, but its application (whether via `exact` with implicit
-    -- X1..X4 or with `(X1 := _)`) hits whnf timeout — Lean can't unify
-    -- h_post1_eq's deep inline val256 against the helper's `val256 X1 X2 X3 X4`.
-    -- Closure pending: needs unification-free path, e.g., explicit X1..X4
-    -- as concrete addbackN4 terms.
+    -- ============== CLOSURE STATUS SUMMARY ==============
+    -- The PR's full upstream stack is closed (commits 2bf014dc → 84c9d869):
+    --   1. Wrapper algCallAddbackBeqPost1Val_eq_amod_pow_s_of_single_addback
+    --   2. 6 closed Word-level preconditions (post1_lt, amod_pow_s_lt, u4_lt_c3,
+    --      u4_le, addback_euclidean, mulsub_euclidean)
+    --   3. 3 form-bridges (Carry/Post1Val/MsLowVal eq parent_64ms_form)
+    --   4. Unified parent_post1Val_eq_amod_pow_s_of_single_addback
+    --   5. Pure-Nat post1_val_eq_amod_pow_s_pure_nat
+    --   6. denorm_4limb_eq_mod_of_val256_eq_amod_pow_s
+    --   7. addbackN4_low_limbs_indep_u4_new
+    --   8. denorm_4limb_to_evmWordIs_eq (drop-in fold helper)
+    -- Parent's wiring works:
+    --   - if-then-else collapsed via dsimp+simp+if_neg (commit f9c8d75a)
+    --   - hab rewrites land cleanly (commit 9e8364eb)
+    -- Final fold blocked: any application of the upstream helpers triggers
+    -- whnf timeout on h_post1_eq's deep inline val256 unification (200k
+    -- heartbeats). All standard tactics fail (exact/convert/rw/simp).
+    -- =========== END CLOSURE STATUS SUMMARY ===========
     sorry
 
 /-- **EVM-stack-level MOD spec on the n=4 call+addback BEQ sub-path (SORRY).**
