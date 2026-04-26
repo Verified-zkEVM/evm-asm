@@ -682,6 +682,13 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
     closure (lenLen = 7, prefixes `0xBE` / `0xFE`). Composes body
     spec (iter 1) with six-byte closure (iters 2–7). All seven bytes
     assumed in same doubleword (`byteOffset ptr ≤ 1`).
+  - `rlp_phase2_long_loop_eight_byte_spec`
+    (`EvmAsm/Rv64/RLP/Phase2LongLoopEight.lean`): eight-iteration
+    closure (lenLen = 8, prefixes `0xBF` / `0xFF` — the maximum
+    permitted by RLP). Composes body spec (iter 1) with seven-byte
+    closure (iters 2–8). All eight bytes assumed in same doubleword
+    (`byteOffset ptr = 0`, i.e., `ptr` is doubleword-aligned).
+    Single-doubleword unrolling track now complete.
   - General `n`-iteration closure (induction over `cnt`) still pending
     (initial attempt hit Lean-level issues around
     `BitVec.ofNat 64 n` arithmetic and associativity normalization;
