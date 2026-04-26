@@ -833,13 +833,28 @@ theorem div128Quot_toNat_eq_strict (uHi uLo vTop : Word)
     single Knuth-C statement immediately closes KB-6c and KB-6d.
 
     **Proof outline** (project_un21_lt_vTop_plan.md, ~300-400 lines, hard):
-    - **U1**: `q1' ≤ q_true_1 + 1` (Knuth Theorem C at Phase 1) — Phase 1b
-      multiplication-check correctness.
+    - **U1-strict**: `q1' ≤ q_true_1` (STRICT — stronger than Knuth-C's
+      `≤ q_true_1 + 1`). Excludes the wrap case directly; gives
+      `un21_abstract ≥ 0` (no-wrap) AND `un21_abstract < vTop` (running
+      remainder bound).
     - **U2**: `q1' ≥ q_true_1` (Knuth Theorem B lower under `dHi ≥ 2^31`).
-    - **Compose**: U1 + U2 + KB-3m wrap-aware identity
-      (`div128Quot_un21_additive_identity_uncond`, CLOSED) yields the
-      conjunction. The no-wrap conjunct comes from `un21_abstract ≥ 0`,
-      the un21<vTop conjunct from `un21_abstract < vTop`.
+
+    **Note on Knuth-C tightness**: Textbook Knuth Theorem C only gives
+    `q1' ≤ q_true_1 + 1`. The case `q1' = q_true_1 + 1` produces
+    `un21_abstract ∈ [-vTop, 0)`, i.e., the BitVec-level wrap CAN occur.
+    Whether our specific algorithm achieves the STRICT bound
+    `q1' ≤ q_true_1` (excluding the wrap case) under
+    `vTop ≥ 2^63` + hcall is the genuine open math question.
+
+    **Alternative paths if U1-strict turns out false**:
+    1. Reformulate KB-6d to allow Phase 1 wrap (case-split on wrap
+       indicator, prove the +2 overshoot bound holds in BOTH cases).
+    2. Use Piece A's `knuth_theorem_b_from_clz` (val256-level) and
+       accept the +4 looseness (`div128Quot ≤ q_true + 4`), revising
+       downstream addback-count expectations.
+    3. Add Knuth's algorithm step D6 (final addback after mulsub)
+       semantically and prove correctness inclusive of D6, which
+       restores the running-remainder invariant.
 
     Tracked in issue #1337. -/
 theorem div128Quot_un21_lt_vTop (uHi uLo vTop : Word)
