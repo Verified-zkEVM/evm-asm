@@ -89,6 +89,15 @@ theorem decodeAux_two_byte_string (fuel : Nat) (b1 b2 : Byte) (rest : List Byte)
       some (.bytes [b1, b2], rest) := by
   simp [decodeAux, takeBytes]
 
+/-- Three-byte short string (prefix `0x83`): `decodeAux` returns
+    `(.bytes [b1, b2, b3], rest)` consuming four bytes (prefix + 3
+    payload). Multi-byte payload bypasses the canonical-form check. -/
+theorem decodeAux_three_byte_string
+    (fuel : Nat) (b1 b2 b3 : Byte) (rest : List Byte) :
+    decodeAux (fuel + 1) ((0x83 : Byte) :: b1 :: b2 :: b3 :: rest) =
+      some (.bytes [b1, b2, b3], rest) := by
+  simp [decodeAux, takeBytes]
+
 /-! ## decode (top-level wrapper) trivial cases -/
 
 /-- `decode []` returns `none` because `decodeAux 0 []` returns `none`. -/
@@ -116,6 +125,13 @@ theorem decode_empty_list : decode [(0xC0 : Byte)] = some (.list [], []) := by
     at the top-level fuel. -/
 theorem decode_two_byte_string (b1 b2 : Byte) :
     decode [(0x82 : Byte), b1, b2] = some (.bytes [b1, b2], []) := by
+  simp [decode, decodeAux, takeBytes]
+
+/-- `decode [0x83, b1, b2, b3] = some (.bytes [b1, b2, b3], [])` — the
+    canonical three-byte short-string encoding. Specializes
+    `decodeAux_three_byte_string` at the top-level fuel. -/
+theorem decode_three_byte_string (b1 b2 b3 : Byte) :
+    decode [(0x83 : Byte), b1, b2, b3] = some (.bytes [b1, b2, b3], []) := by
   simp [decode, decodeAux, takeBytes]
 
 /-! ## encodeBytes characterizations -/
