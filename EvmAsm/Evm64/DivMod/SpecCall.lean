@@ -2183,6 +2183,99 @@ theorem algCallAddbackBeqPost1Val_unfold {a b : EvmWord} :
   unfold algCallAddbackBeqPost1Val
   rfl
 
+/-- **Irreducible bundles: per-limb post1 outputs at normalized inputs.**
+
+    4 individual Word-valued bundles capturing the low 4 outputs of
+    `addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 0 b0' b1' b2' b3'` — same
+    expression as `algCallAddbackBeqPost1Val`'s underlying val256. Used
+    to keep the goal manageable when reasoning per-limb (avoids huge
+    inline `mulsubN4 ...` expressions). -/
+@[irreducible]
+noncomputable def algCallAddbackBeqPost1Limb0 (a b : EvmWord) : Word :=
+  let shift := (clzResult (b.getLimbN 3)).1.toNat % 64
+  let antiShift := (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64
+  let b3' := ((b.getLimbN 3) <<< shift) ||| ((b.getLimbN 2) >>> antiShift)
+  let b2' := ((b.getLimbN 2) <<< shift) ||| ((b.getLimbN 1) >>> antiShift)
+  let b1' := ((b.getLimbN 1) <<< shift) ||| ((b.getLimbN 0) >>> antiShift)
+  let b0' := (b.getLimbN 0) <<< shift
+  let u3 := ((a.getLimbN 3) <<< shift) ||| ((a.getLimbN 2) >>> antiShift)
+  let u2 := ((a.getLimbN 2) <<< shift) ||| ((a.getLimbN 1) >>> antiShift)
+  let u1 := ((a.getLimbN 1) <<< shift) ||| ((a.getLimbN 0) >>> antiShift)
+  let u0 := (a.getLimbN 0) <<< shift
+  let u4 := (a.getLimbN 3) >>> antiShift
+  let qHat := div128Quot u4 u3 b3'
+  let ms := mulsubN4 qHat b0' b1' b2' b3' u0 u1 u2 u3
+  (addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 0 b0' b1' b2' b3').1
+
+@[irreducible]
+noncomputable def algCallAddbackBeqPost1Limb1 (a b : EvmWord) : Word :=
+  let shift := (clzResult (b.getLimbN 3)).1.toNat % 64
+  let antiShift := (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64
+  let b3' := ((b.getLimbN 3) <<< shift) ||| ((b.getLimbN 2) >>> antiShift)
+  let b2' := ((b.getLimbN 2) <<< shift) ||| ((b.getLimbN 1) >>> antiShift)
+  let b1' := ((b.getLimbN 1) <<< shift) ||| ((b.getLimbN 0) >>> antiShift)
+  let b0' := (b.getLimbN 0) <<< shift
+  let u3 := ((a.getLimbN 3) <<< shift) ||| ((a.getLimbN 2) >>> antiShift)
+  let u2 := ((a.getLimbN 2) <<< shift) ||| ((a.getLimbN 1) >>> antiShift)
+  let u1 := ((a.getLimbN 1) <<< shift) ||| ((a.getLimbN 0) >>> antiShift)
+  let u0 := (a.getLimbN 0) <<< shift
+  let u4 := (a.getLimbN 3) >>> antiShift
+  let qHat := div128Quot u4 u3 b3'
+  let ms := mulsubN4 qHat b0' b1' b2' b3' u0 u1 u2 u3
+  (addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 0 b0' b1' b2' b3').2.1
+
+@[irreducible]
+noncomputable def algCallAddbackBeqPost1Limb2 (a b : EvmWord) : Word :=
+  let shift := (clzResult (b.getLimbN 3)).1.toNat % 64
+  let antiShift := (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64
+  let b3' := ((b.getLimbN 3) <<< shift) ||| ((b.getLimbN 2) >>> antiShift)
+  let b2' := ((b.getLimbN 2) <<< shift) ||| ((b.getLimbN 1) >>> antiShift)
+  let b1' := ((b.getLimbN 1) <<< shift) ||| ((b.getLimbN 0) >>> antiShift)
+  let b0' := (b.getLimbN 0) <<< shift
+  let u3 := ((a.getLimbN 3) <<< shift) ||| ((a.getLimbN 2) >>> antiShift)
+  let u2 := ((a.getLimbN 2) <<< shift) ||| ((a.getLimbN 1) >>> antiShift)
+  let u1 := ((a.getLimbN 1) <<< shift) ||| ((a.getLimbN 0) >>> antiShift)
+  let u0 := (a.getLimbN 0) <<< shift
+  let u4 := (a.getLimbN 3) >>> antiShift
+  let qHat := div128Quot u4 u3 b3'
+  let ms := mulsubN4 qHat b0' b1' b2' b3' u0 u1 u2 u3
+  (addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 0 b0' b1' b2' b3').2.2.1
+
+@[irreducible]
+noncomputable def algCallAddbackBeqPost1Limb3 (a b : EvmWord) : Word :=
+  let shift := (clzResult (b.getLimbN 3)).1.toNat % 64
+  let antiShift := (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64
+  let b3' := ((b.getLimbN 3) <<< shift) ||| ((b.getLimbN 2) >>> antiShift)
+  let b2' := ((b.getLimbN 2) <<< shift) ||| ((b.getLimbN 1) >>> antiShift)
+  let b1' := ((b.getLimbN 1) <<< shift) ||| ((b.getLimbN 0) >>> antiShift)
+  let b0' := (b.getLimbN 0) <<< shift
+  let u3 := ((a.getLimbN 3) <<< shift) ||| ((a.getLimbN 2) >>> antiShift)
+  let u2 := ((a.getLimbN 2) <<< shift) ||| ((a.getLimbN 1) >>> antiShift)
+  let u1 := ((a.getLimbN 1) <<< shift) ||| ((a.getLimbN 0) >>> antiShift)
+  let u0 := (a.getLimbN 0) <<< shift
+  let u4 := (a.getLimbN 3) >>> antiShift
+  let qHat := div128Quot u4 u3 b3'
+  let ms := mulsubN4 qHat b0' b1' b2' b3' u0 u1 u2 u3
+  (addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 0 b0' b1' b2' b3').2.2.2.1
+
+/-- **Packaging: `algCallAddbackBeqPost1Val = val256 of irreducible limbs`** (CLOSED).
+
+    Bridges the val256-level `algCallAddbackBeqPost1Val` to the per-limb
+    irreducible bundles. By definition both unfold to the same thing —
+    proof is rfl after unfolding both sides. Useful when applying
+    `denorm_4limb_eq_mod_of_val256_eq_amod_pow_s` with the irreducible
+    Limb0..Limb3 as X1..X4: the goal stays small. -/
+theorem algCallAddbackBeqPost1Val_eq_val256_limbs (a b : EvmWord) :
+    algCallAddbackBeqPost1Val a b =
+    val256 (algCallAddbackBeqPost1Limb0 a b)
+           (algCallAddbackBeqPost1Limb1 a b)
+           (algCallAddbackBeqPost1Limb2 a b)
+           (algCallAddbackBeqPost1Limb3 a b) := by
+  unfold algCallAddbackBeqPost1Val
+    algCallAddbackBeqPost1Limb0 algCallAddbackBeqPost1Limb1
+    algCallAddbackBeqPost1Limb2 algCallAddbackBeqPost1Limb3
+  rfl
+
 /-- **Bridge: `algCallAddbackBeqPost1Val` in parent-friendly `(64 - s)` form** (CLOSED).
 
     Parallel to `algCallAddbackBeqCarry_eq_parent_64ms_form`. Equates the
