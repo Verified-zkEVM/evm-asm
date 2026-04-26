@@ -3529,27 +3529,31 @@ theorem qHat_ge_two_of_double_addback (a b : EvmWord)
     let u3 := ((a.getLimbN 3) <<< shift) ||| ((a.getLimbN 2) >>> antiShift)
     let u4 := (a.getLimbN 3) >>> antiShift
     (div128Quot u4 u3 b3').toNat ≥ 2 := by
-  -- **THIRD attempt failed (kernel deep-recursion at 100 sec build)**:
-  -- Even with the simplified `qHat_ge_two_abstract` (no `ab` parameter),
-  -- passing `val256 (mulsubN4 ...).1 ...` and `(mulsubN4 ...).2.2.2.2.toNat`
-  -- as Nat arguments triggers kernel deep-recursion at the `apply` step.
+  -- **4th attempt with `algCallAddbackBeqMsLowVal` / `algCallAddbackBeqMsC3`
+  -- irreducibles still hits kernel deep-recursion (101 sec build)**.
+  -- Per pirapira PR review (#1339 line 3543): "Use irreducible definitions".
   --
-  -- The fundamental issue: `mulsubN4` (in `LoopDefs/Iter.lean`) has a deep
-  -- internal let-chain that the kernel reduces eagerly. Wrapping its
-  -- outputs in `Nat`-valued explicit args still forces this reduction.
+  -- The existing irreducibles work as opaque Nats at the abstract-lemma
+  -- application level. The kernel-recursion happens at proof-CHECKING time:
+  -- when verifying the `apply` step, Lean reduces the proof obligations
+  -- (e.g., the `addbackN4 (mulsubN4 ...) ...` inside `h_addback`'s proof),
+  -- which still triggers the deep let-chain reduction.
   --
-  -- **Path forward (option a)**: route through the existing irreducibles
-  -- `algCallAddbackBeqMsLowVal` and `algCallAddbackBeqMsC3`. These wrap
-  -- the val256/c3 outputs as `@[irreducible]` defs. Passing them to
-  -- `qHat_ge_two_abstract` would keep the kernel at opaque-Nat level.
+  -- **Recommended path forward** (next iteration): add a NEW irreducible
+  -- `algCallAddbackBeqAbLowValDouble a b : Nat` for the val256 of the
+  -- first-addback's low 4 outputs in the double-addback path. Then
+  -- `h_no_overflow` becomes:
+  --   `algCallAddbackBeqMsLowVal a b + val256(b_norm)
+  --     = algCallAddbackBeqAbLowValDouble a b   (carry = 0 case)
+  --     ∧ algCallAddbackBeqAbLowValDouble a b < 2^256` (val256 bound)
+  --   ⟹ `algCallAddbackBeqMsLowVal a b + val256(b_norm) < 2^256`.
+  -- Both are statements about irreducibles only, no deep let-chain in proof.
   --
-  -- This requires a small bridge: `algCallAddbackBeqMsLowVal a b =
-  -- val256(ms.low4)` (closed by `_unfold` lemma) + analogous c3 bridge.
-  -- Estimated +30 LOC. Defer to next iteration.
-  --
-  -- **Alternative path (option b)**: refactor `mulsubN4`'s definition in
-  -- `LoopDefs/Iter.lean` to use `@[irreducible]` (or split into smaller
-  -- defs). This is bigger scope but benefits multiple downstream proofs.
+  -- Note: existing `algCallAddbackBeqPost1Val` is val256 of addbackN4 with
+  -- u4_new = 0. By `addbackN4_low_limbs_indep_u4_new`, low 4 outputs don't
+  -- depend on u4_new. So Post1Val == AbLowValDouble (as Nats). May be able
+  -- to reuse `algCallAddbackBeqPost1Val` directly + that low_limbs_indep
+  -- lemma to avoid adding a new def. Estimated +20 LOC.
   sorry
 
 /-- **B.1 (#1338, NOT Knuth-B blocked):** qHat.toNat = a/b + 2
