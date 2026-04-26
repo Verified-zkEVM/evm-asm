@@ -340,4 +340,24 @@ theorem val256_div_val256_lt_pow64 (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
     omega
   omega
 
+/-- **Combined: q_true_1 < 2^32 and q_true_0 < 2^32** for the
+    256-bit true quotient digit decomposition.
+
+    Pure Nat consequence of `val256_div_val256_lt_pow64` and the
+    standard mod-2^32 bound. Used to apply `digit_tight_of_le_and_ge`. -/
+theorem val256_div_q_true_digits_lt_pow32
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word) (hb3nz : b3 ≠ 0) :
+    let q_true_full := val256 a0 a1 a2 a3 / val256 b0 b1 b2 b3
+    q_true_full / 2^32 < 2^32 ∧ q_true_full % 2^32 < 2^32 := by
+  intro q_true_full
+  have h_full_lt : q_true_full < 2^64 :=
+    val256_div_val256_lt_pow64 a0 a1 a2 a3 b0 b1 b2 b3 hb3nz
+  refine ⟨?_, ?_⟩
+  · -- q_true_full / 2^32 < 2^32: from q_true_full < 2^64.
+    have h_pow : (2^64 : Nat) = 2^32 * 2^32 := by decide
+    rw [Nat.div_lt_iff_lt_mul (by decide : (0:Nat) < 2^32)]
+    omega
+  · -- q_true_full % 2^32 < 2^32: standard.
+    exact Nat.mod_lt _ (by decide)
+
 end EvmAsm.Evm64
