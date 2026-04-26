@@ -565,4 +565,52 @@ theorem q_true_full_lt_q_true_1_succ_mul_pow32_nat
   rw [h_eq_rearr] at h_num_lt
   exact (Nat.div_lt_iff_lt_mul hvTop_pos).mpr h_num_lt
 
+/-- **CLZ-normalized strict KB-6d**: `div128Quot ≤ val256(a)/val256(b) + 2`
+    in the call-trial CLZ-normalized form, under the all-phases no-wrap
+    invariant.
+
+    Composes `div128Quot_le_q_true` (strict KB-6d from
+    `Div128FinalAssembly`) with Piece A (`knuth_theorem_b_from_clz`):
+    - `div128Quot u4 un3 b3' ≤ (u4*2^64 + un3)/b3'`         (strict KB-6d)
+    - `(u4*2^64 + un3)/b3' ≤ val256(a)/val256(b) + 2`       (Piece A)
+
+    Result: `div128Quot u4 un3 b3' ≤ val256(a)/val256(b) + 2`.
+
+    Mirror of `div128Quot_le_val256_div_plus_two` (which takes
+    unbundled `h_ph1_no_wrap_lo`, `h_ph2_no_wrap`, `hq0_lt`), but uses
+    the bundled `Div128AllPhasesNoWrapInv` predicate. Cleaner API for
+    downstream stack-spec consumers. -/
+theorem div128Quot_le_val256_div_plus_two_with_inv
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hb3nz : b3 ≠ 0)
+    (hshift_nz : (clzResult b3).1 ≠ 0)
+    (hcall : isCallTrialN4 a3 b2 b3) :
+    let shift := (clzResult b3).1.toNat % 64
+    let antiShift := (signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64
+    let u4 := a3 >>> antiShift
+    let un3 := (a3 <<< shift) ||| (a2 >>> antiShift)
+    let b3' := (b3 <<< shift) ||| (b2 >>> antiShift)
+    Div128AllPhasesNoWrapInv u4 un3 b3' →
+    (div128Quot u4 un3 b3').toNat ≤
+      val256 a0 a1 a2 a3 / val256 b0 b1 b2 b3 + 2 := by
+  intro shift antiShift u4 un3 b3' h_inv
+  -- Discharge strict KB-6d preconditions.
+  have hb3prime_ge_pow63 : b3'.toNat ≥ 2^63 := b3_prime_ge_pow63 b3 b2 hb3nz _
+  have hu4_lt_b3prime : u4.toNat < b3'.toNat := isCallTrialN4_toNat_lt a3 b2 b3 hcall
+  have hcall_strict : u4.toNat * 2^64 + un3.toNat < b3'.toNat * 2^64 := by
+    have hun3 : un3.toNat < 2^64 := un3.isLt
+    have : u4.toNat * 2^64 + 2^64 ≤ b3'.toNat * 2^64 := by
+      have : u4.toNat + 1 ≤ b3'.toNat := hu4_lt_b3prime
+      calc u4.toNat * 2^64 + 2^64
+          = (u4.toNat + 1) * 2^64 := by ring
+        _ ≤ b3'.toNat * 2^64 := Nat.mul_le_mul_right _ this
+    omega
+  -- Strict KB-6d: div128Quot u4 un3 b3' ≤ (u4*2^64 + un3)/b3'.
+  have h_kb6d := div128Quot_le_q_true u4 un3 b3' hb3prime_ge_pow63 hcall_strict h_inv
+  -- Piece A: (u4*2^64 + un3)/b3' ≤ val256(a)/val256(b) + 2.
+  have h_piece_a := knuth_theorem_b_from_clz a0 a1 a2 a3 b0 b1 b2 b3
+    hb3nz hshift_nz hcall
+  -- Compose via transitivity.
+  exact Nat.le_trans h_kb6d h_piece_a
+
 end EvmAsm.Evm64
