@@ -3257,6 +3257,61 @@ theorem parent_post1Val_eq_amod_pow_s_of_single_addback
   rw [h_post1_bridge] at h_wrapper
   exact h_wrapper
 
+/-- **Sub-lemma: per-limb mod equations using irreducible Post1Limb bundles** (CLOSED).
+
+    Drop-in for the parent adapter's single-addback branch: produces per-limb
+    equations `(EvmWord.mod a b).getLimbN i = (Limb{i} >>> s) ||| (Limb{i+1} <<< (64-s))`
+    using the irreducible `algCallAddbackBeqPost1Limb{0..3}` bundles, keeping
+    the goal small.
+
+    Composes:
+      * `parent_post1Val_eq_amod_pow_s_of_single_addback` (val256 fact, parent shape)
+      * `algCallAddbackBeqPost1Val_eq_val256_limbs` (val256 ↔ per-limb irreducibles)
+      * `denorm_4limb_eq_mod_of_val256_eq_amod_pow_s` (val256 → per-limb evmWordIs) -/
+theorem mod_n4_call_addback_beq_single_addback_post1_limbs_close
+    (a b : EvmWord)
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hborrow : isAddbackBorrowN4CallEvm a b)
+    (hsem : n4CallAddbackBeqSemanticHolds a b)
+    (hcarry_nz : algCallAddbackBeqCarry a b ≠ 0) :
+    let s := (clzResult (b.getLimbN 3)).1.toNat % 64
+    (EvmWord.mod a b).getLimbN 0 =
+      ((algCallAddbackBeqPost1Limb0 a b) >>> s) |||
+        ((algCallAddbackBeqPost1Limb1 a b) <<< (64 - s)) ∧
+    (EvmWord.mod a b).getLimbN 1 =
+      ((algCallAddbackBeqPost1Limb1 a b) >>> s) |||
+        ((algCallAddbackBeqPost1Limb2 a b) <<< (64 - s)) ∧
+    (EvmWord.mod a b).getLimbN 2 =
+      ((algCallAddbackBeqPost1Limb2 a b) >>> s) |||
+        ((algCallAddbackBeqPost1Limb3 a b) <<< (64 - s)) ∧
+    (EvmWord.mod a b).getLimbN 3 =
+      (algCallAddbackBeqPost1Limb3 a b) >>> s := by
+  intro s
+  -- Step 1: get the val256 fact.
+  have h_wrapper := algCallAddbackBeqPost1Val_eq_amod_pow_s_of_single_addback
+    a b hb3nz hshift_nz hborrow hsem hcarry_nz
+  -- Step 2: rewrite val256 in terms of irreducible per-limb bundles.
+  rw [algCallAddbackBeqPost1Val_eq_val256_limbs] at h_wrapper
+  -- Step 3: derive bounds on s.
+  have h_clz_pos : 0 < (clzResult (b.getLimbN 3)).1.toNat := by
+    rcases Nat.eq_zero_or_pos (clzResult (b.getLimbN 3)).1.toNat with h0 | h0
+    · exfalso; apply hshift_nz
+      exact BitVec.eq_of_toNat_eq (by simp [h0])
+    · exact h0
+  have h_clz_le_63 : (clzResult (b.getLimbN 3)).1.toNat ≤ 63 :=
+    clzResult_fst_toNat_le _
+  have h_s_pos : 0 < s := by show 0 < _; omega
+  have h_s_lt_64 : s < 64 := by show _ < 64; omega
+  -- Step 4: apply denorm_4limb to get per-limb equations.
+  exact denorm_4limb_eq_mod_of_val256_eq_amod_pow_s
+    (a := a) (b := b)
+    (X1 := algCallAddbackBeqPost1Limb0 a b)
+    (X2 := algCallAddbackBeqPost1Limb1 a b)
+    (X3 := algCallAddbackBeqPost1Limb2 a b)
+    (X4 := algCallAddbackBeqPost1Limb3 a b)
+    h_s_pos h_s_lt_64 hb3nz h_wrapper
+
 /-- **Call+addback BEQ n=4 MOD denorm adapter (SORRY).** Stack-level adapter
     folding the four denormalized remainder slots at `sp+32..sp+56` into
     `evmWordIs (sp+32) (EvmWord.mod a b)` for the call+addback BEQ path.
