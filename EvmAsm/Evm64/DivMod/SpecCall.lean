@@ -4330,33 +4330,51 @@ theorem mod_n4_call_addback_beq_single_addback_post1_limbs_close
     (X4 := algCallAddbackBeqPost1Limb3 a b)
     h_s_pos h_s_lt_64 hb3nz h_wrapper
 
-/-- **B.5 STUB (Knuth-B blocked, #1337):** val256 of double-addback's
-    second-addback equals `val256(a) % val256(b) * 2^s`.
+/-- **B.5: val256 of double-addback's second-addback equals
+    `val256(a) % val256(b) * 2^s`** (CLOSED modulo 2 stubs).
 
     Mirrors `algCallAddbackBeqPost1Val_eq_amod_pow_s_of_single_addback`
-    for the **double-addback** branch (carry = 0). Where the single-
-    addback derivation closes via `c3 = u4 + 1` (deduced from
-    `qHat = a/b + 1`), the double-addback derivation requires the
-    Knuth bound `qHat ≤ a/b + 2` (#1337) plus a parallel `c3 = u4 + 1`
-    derivation (B.2 in #1338's plan).
+    for the **double-addback** branch (carry = 0).
 
-    Issue #1338 Phase B.5. Pending Knuth Theorem B closure (#1337).
-    Once #1337's `div128Quot_le_q_true_plus_two` lands, B.1/B.2/B.3
-    can be filled in and this stub becomes a `post1_val_eq_amod_pow_s_pure_nat`
-    composition like single-addback's wrapper. -/
+    **Proof structure** (matches single-addback's): direct application
+    of `abPrime_val_eq_amod_pow_s_pure_nat` (B.3, CLOSED) with the 6
+    closed/sorry'd Word-level preconditions:
+    - `algCallAddbackBeqAbPrimeVal_lt_pow256`                      (h_abPrime_lt, CLOSED)
+    - `algCallAddbackBeq_amod_pow_s_lt_pow256`                     (h_amod_pow_lt, CLOSED, reused)
+    - `algCallAddbackBeqU4_toNat_lt_algCallAddbackBeqMsC3_toNat`   (h_u4_lt_c3, CLOSED, reused)
+    - `algCallAddbackBeqU4_mul_pow256_le_val256_mul_pow_s`         (h_u4_le, CLOSED, reused)
+    - `algCallAddbackBeq_addback_combined_euclidean_carry2`         (h_addback_combined, sorry)
+    - `algCallAddbackBeq_mulsub_euclidean_double`                  (h_mulsub, sorry)
+
+    Issue #1338 Phase B.5. -/
 theorem algCallAddbackBeqAbPrimeVal_eq_amod_pow_s_of_double_addback
     (a b : EvmWord)
-    (_hb3nz : b.getLimbN 3 ≠ 0)
-    (_hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
-    (_hcarry2_nz : isAddbackCarry2NzN4CallEvm a b)
-    (_hborrow : isAddbackBorrowN4CallEvm a b)
-    (_hsem : n4CallAddbackBeqSemanticHolds a b)
-    (_hcarry_zero : algCallAddbackBeqCarry a b = 0) :
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hcarry2_nz : isAddbackCarry2NzN4CallEvm a b)
+    (hborrow : isAddbackBorrowN4CallEvm a b)
+    (hsem : n4CallAddbackBeqSemanticHolds a b)
+    (hcarry_zero : algCallAddbackBeqCarry a b = 0) :
     algCallAddbackBeqAbPrimeVal a b =
       val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) %
         val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) *
         2 ^ ((clzResult (b.getLimbN 3)).1.toNat % 64) := by
-  sorry
+  exact abPrime_val_eq_amod_pow_s_pure_nat
+    (algCallAddbackBeqAbPrimeVal a b)
+    (algCallAddbackBeqMsLowVal a b)
+    (val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3))
+    (val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3))
+    ((clzResult (b.getLimbN 3)).1.toNat % 64)
+    (algCallAddbackBeqU4 a b).toNat
+    (algCallAddbackBeqMsC3 a b).toNat
+    (algCallAddbackBeq_mulsub_euclidean_double a b hshift_nz hborrow hcarry2_nz
+      hsem hcarry_zero)
+    (algCallAddbackBeq_addback_combined_euclidean_carry2 a b hshift_nz
+      hcarry2_nz hcarry_zero)
+    (algCallAddbackBeqU4_mul_pow256_le_val256_mul_pow_s a b hshift_nz)
+    (algCallAddbackBeqAbPrimeVal_lt_pow256 a b)
+    (algCallAddbackBeq_amod_pow_s_lt_pow256 a b hb3nz)
+    (algCallAddbackBeqU4_toNat_lt_algCallAddbackBeqMsC3_toNat a b hborrow)
 
 /-- **B.7: per-limb mod equations for double-addback** (CLOSED modulo B.5).
 
