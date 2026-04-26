@@ -2229,128 +2229,6 @@ theorem algCallAddbackBeqCarry_unfold {a b : EvmWord} :
   unfold algCallAddbackBeqCarry
   rfl
 
-/-- **B.1a STUB (sub-lemma, sorry):** `qHat ≥ 2` under double-addback hypotheses.
-
-    The algorithm-invariant lower-bound piece. Derivable from:
-    - `algCallAddbackBeq_mulsub_euclidean` (existing, val256-level
-      mulsub Euclidean).
-    - addbackN4_carry = 0 implies val256 sum no-overflow (~30 LOC needed
-      to lift to the algorithm's let-chain).
-    - hborrow gives c3 ≥ u4 + 1, propagating qHat ≥ a/b + 2.
-
-    Once filled, B.1's main lemma's proof is straightforward Word
-    arithmetic on hsem (~50 LOC). Estimated B.1a: ~80 LOC. Independent
-    of Knuth-B (#1337). -/
-theorem qHat_ge_two_of_double_addback (a b : EvmWord)
-    (_hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
-    (_hborrow : isAddbackBorrowN4CallEvm a b)
-    (_hcarry2_nz : isAddbackCarry2NzN4CallEvm a b)
-    (_hcarry_zero : algCallAddbackBeqCarry a b = 0) :
-    let shift := (clzResult (b.getLimbN 3)).1.toNat % 64
-    let antiShift :=
-      (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64
-    let b3' := ((b.getLimbN 3) <<< shift) ||| ((b.getLimbN 2) >>> antiShift)
-    let u3 := ((a.getLimbN 3) <<< shift) ||| ((a.getLimbN 2) >>> antiShift)
-    let u4 := (a.getLimbN 3) >>> antiShift
-    (div128Quot u4 u3 b3').toNat ≥ 2 := by
-  -- Detailed proof attempt failed at 3 technicalities (2026-04-26):
-  -- 1. omega in `h_c3_pos` couldn't bridge `(a3 >>> (64-clz)).toNat = u4.toNat`
-  --    even though `u4` is `set` to that expression — needs an explicit
-  --    `show u4.toNat = (a3 >>> (64-clz)).toNat from rfl` step.
-  -- 2. After `interval_cases qHat.toNat`, the substituted `qHat.toNat = 0`
-  --    isn't a definitional equality with the original `qHat = div128Quot ...`,
-  --    so `rfl` fails for `have h_qHat_eq_zero : qHat.toNat = 0 := rfl`.
-  --    Need to thread the case-introduced hypothesis instead.
-  -- 3. The mulsub Euclidean's val256(ms) form needs an extra `set ms := ...`
-  --    abstraction to align with `c3_un_zero_of_qHat_mul_le`'s output type.
-  --
-  -- Working proof structure (qHat = 0 + qHat = 1 cases) is correct in
-  -- principle. The implementation needs ~30 LOC of additional `show`/`rfl`
-  -- bridges + `set ms` introduction. Estimated total: ~120 LOC.
-  --
-  -- Alternative (cleaner): move B.1a after
-  -- `algCallAddbackBeqU4_toNat_lt_algCallAddbackBeqMsC3_toNat` (line 3548)
-  -- to use that wrapper instead of the inline `EvmWord.u_top_lt_c3_of_addback_borrow_call`.
-  sorry
-
-/-- **B.1 (#1338, NOT Knuth-B blocked):** qHat.toNat = a/b + 2
-    in double-addback case.
-
-    Mirror of `qHat_eq_div_plus_one_of_single_addback` for the
-    double-addback branch (`algCallAddbackBeqCarry a b = 0`).
-
-    **REFINED ANALYSIS (2026-04-26):** This lemma does NOT actually need
-    Knuth-B (#1337). The lower bound qHat ≥ a/b + 2 is **derivable
-    directly** from hborrow + hcarry_zero via mulsub algebra:
-
-    1. From hborrow: u4 < c3 (so c3 - u4 ≥ 1).
-    2. From mulsub Euclidean (instantiated):
-       val256(ms) + qHat * b * 2^s = a * 2^s + (c3 - u4) * 2^256.
-    3. carry₁ = 0 means val256(ms) + b * 2^s < 2^256 (no overflow in
-       first addback). Substituting (2):
-       a * 2^s + (c3 - u4) * 2^256 - (qHat - 1) * b * 2^s < 2^256.
-    4. With c3 - u4 ≥ 1: (qHat - 1) * b * 2^s > a * 2^s, hence
-       (qHat - 1) * b > a, hence qHat - 1 > a/b, hence qHat ≥ a/b + 2.
-
-    **Proof structure**: composes B.1a (qHat ≥ 2, sorry above) with
-    Word arithmetic on hsem (this proof, ~50 LOC, fully closed).
-
-    Issue #1338 Phase B.1. -/
-theorem qHat_eq_div_plus_two_of_double_addback (a b : EvmWord)
-    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
-    (hborrow : isAddbackBorrowN4CallEvm a b)
-    (hcarry2_nz : isAddbackCarry2NzN4CallEvm a b)
-    (hsem : n4CallAddbackBeqSemanticHolds a b)
-    (hcarry_zero : algCallAddbackBeqCarry a b = 0) :
-    let shift := (clzResult (b.getLimbN 3)).1.toNat % 64
-    let antiShift :=
-      (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64
-    let b3' := ((b.getLimbN 3) <<< shift) ||| ((b.getLimbN 2) >>> antiShift)
-    let u3 := ((a.getLimbN 3) <<< shift) ||| ((a.getLimbN 2) >>> antiShift)
-    let u4 := (a.getLimbN 3) >>> antiShift
-    (div128Quot u4 u3 b3').toNat = a.toNat / b.toNat + 2 := by
-  intro shift antiShift b3' u3 u4
-  -- B.1a (algorithm-side): qHat ≥ 2.
-  have hqHat_ge_two : (div128Quot u4 u3 b3').toNat ≥ 2 :=
-    qHat_ge_two_of_double_addback a b hshift_nz hborrow hcarry2_nz hcarry_zero
-  -- Bridge hcarry_zero to the parent's let-chain form via algCallAddbackBeqCarry_unfold.
-  rw [algCallAddbackBeqCarry_unfold] at hcarry_zero
-  -- Unfold hsem with the carry-equals-0 case.
-  rw [n4CallAddbackBeqSemanticHolds_def] at hsem
-  simp only [if_pos hcarry_zero] at hsem
-  -- val256(a_limbs) = a.toNat, val256(b_limbs) = b.toNat.
-  have ha_val : val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-      = a.toNat := by
-    simp only [← EvmWord.getLimb_as_getLimbN_0, ← EvmWord.getLimb_as_getLimbN_1,
-               ← EvmWord.getLimb_as_getLimbN_2, ← EvmWord.getLimb_as_getLimbN_3]
-    exact EvmWord.val256_eq_toNat a
-  have hb_val : val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
-      = b.toNat := by
-    simp only [← EvmWord.getLimb_as_getLimbN_0, ← EvmWord.getLimb_as_getLimbN_1,
-               ← EvmWord.getLimb_as_getLimbN_2, ← EvmWord.getLimb_as_getLimbN_3]
-    exact EvmWord.val256_eq_toNat b
-  rw [ha_val, hb_val] at hsem
-  -- hsem: (qHat + signExtend12 4095 + signExtend12 4095).toNat = a/b.
-  -- Each signExtend12 4095 = 2^64 - 1; combined adds 2^64 - 2 mod 2^64.
-  set qHat := div128Quot u4 u3 b3' with hqHat_def
-  rw [BitVec.toNat_add, BitVec.toNat_add, signExtend12_4095_toNat] at hsem
-  -- Inner add: (qHat.toNat + (2^64 - 1)) % 2^64 = qHat.toNat - 1 (since qHat ≥ 2 ≥ 1).
-  have h_inner_eq : (qHat.toNat + (2^64 - 1)) % 2^64 = qHat.toNat - 1 := by
-    have h_qHat_lt : qHat.toNat < 2^64 := qHat.isLt
-    rw [show qHat.toNat + (2^64 - 1) = (qHat.toNat - 1) + 2^64 from by omega]
-    rw [Nat.add_mod_right]
-    apply Nat.mod_eq_of_lt; omega
-  rw [h_inner_eq] at hsem
-  -- Outer add: ((qHat.toNat - 1) + (2^64 - 1)) % 2^64 = qHat.toNat - 2 (since qHat ≥ 2).
-  have h_outer_eq : ((qHat.toNat - 1) + (2^64 - 1)) % 2^64 = qHat.toNat - 2 := by
-    rw [show (qHat.toNat - 1) + (2^64 - 1) = (qHat.toNat - 2) + 2^64 from by omega]
-    rw [Nat.add_mod_right]
-    apply Nat.mod_eq_of_lt
-    have := qHat.isLt; omega
-  rw [h_outer_eq] at hsem
-  -- hsem: qHat.toNat - 2 = a/b. With qHat ≥ 2: qHat.toNat = a/b + 2.
-  omega
-
 /-- **Irreducible bundle: val256 of post1 limbs at normalized inputs.**
 
     Captures the val256 of the 4 low outputs of `addbackN4 ms.1 ms.2.1
@@ -3574,6 +3452,141 @@ theorem algCallAddbackBeqU4_toNat_lt_algCallAddbackBeqMsC3_toNat
     (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
     (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
     hborrow
+
+/-- **B.1a (sub-lemma, sorry — pending bridges):** `qHat ≥ 2` under
+    double-addback hypotheses.
+
+    Moved here (from before line 2244) to use the
+    `algCallAddbackBeqU4_toNat_lt_algCallAddbackBeqMsC3_toNat` wrapper
+    directly instead of the inline `EvmWord.u_top_lt_c3_of_addback_borrow_call`
+    + antiShift dance. Eliminates the previous forward-reference issue.
+
+    **Proof outline** (still pending closure due to set/rfl bridges):
+    - by_contra h_lt: qHat.toNat < 2.
+    - From hborrow + wrapper: u4 < c3 (Word level via irreducibles).
+    - interval_cases qHat.toNat:
+      - qHat = 0: c3_un_zero_of_qHat_mul_le gives c3 = 0. Contradiction
+        with c3 > u4 ≥ 0.
+      - qHat = 1: mulsub gives val256(u_norm) + c3*2^256 = val256(ms) +
+        val256(b_norm). hcarry_zero with first-addback Euclidean gives
+        val256(ms) + val256(b_norm) < 2^256. Combined with c3 ≥ 1:
+        val256(u_norm) + 2^256 < 2^256 = contradiction.
+
+    **Pending technicalities** for next iteration:
+    - Bridge `(algCallAddbackBeqU4 a b).toNat = u4.toNat` via the
+      irreducible's unfold (1-line `show`/`rfl`).
+    - Handle `interval_cases qHat.toNat` substitution (use case
+      hypothesis directly instead of `rfl`).
+    - `set ms := ...` to align `c3_un_zero_of_qHat_mul_le`'s output.
+
+    Estimated remaining: ~80 LOC. Issue #1338 Phase B.1a. -/
+theorem qHat_ge_two_of_double_addback (a b : EvmWord)
+    (_hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (_hborrow : isAddbackBorrowN4CallEvm a b)
+    (_hcarry2_nz : isAddbackCarry2NzN4CallEvm a b)
+    (_hcarry_zero : algCallAddbackBeqCarry a b = 0) :
+    let shift := (clzResult (b.getLimbN 3)).1.toNat % 64
+    let antiShift :=
+      (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64
+    let b3' := ((b.getLimbN 3) <<< shift) ||| ((b.getLimbN 2) >>> antiShift)
+    let u3 := ((a.getLimbN 3) <<< shift) ||| ((a.getLimbN 2) >>> antiShift)
+    let u4 := (a.getLimbN 3) >>> antiShift
+    (div128Quot u4 u3 b3').toNat ≥ 2 := by
+  -- Closer attempt this iteration: full proof structure compiles past the
+  -- elaborator (no errors), but **fails kernel deep-recursion** when reducing
+  -- `rfl` bridges through deeply-nested `mulsubN4` let-chains. Same family
+  -- of issue as the earlier B.5 combined Euclidean attempt before its `set`
+  -- + `rfl`-bridge fix.
+  --
+  -- **Working proof outline** (algorithmic correctness, modulo kernel limit):
+  -- - by_contra: qHat.toNat < 2.
+  -- - Wrapper bridge: u4 < c3 via algCallAddbackBeqU4_toNat_lt_algCallAddbackBeqMsC3_toNat.
+  -- - Case-split via `qHat.toNat = 0 ∨ qHat.toNat = 1` from h_lt + omega.
+  -- - qHat = 0: c3_un_zero_of_qHat_mul_le ⟹ c3 = 0, contradicts c3 ≥ 1.
+  -- - qHat = 1: mulsub Euclidean + first-addback Euclidean ⟹ val256(u_norm) +
+  --   c3*2^256 = val256(ab) < 2^256. With c3 ≥ 1: contradiction.
+  --
+  -- **Next iteration** should restructure to avoid the kernel recursion:
+  --   - Replace `set ms := ...` + `rfl`-bridges with named `def` for the
+  --     algorithm's mulsub low4 + carry. (Bigger refactor.)
+  --   - Or precompute the contradiction at val256-of-mulsubN4 level
+  --     directly without going through `ms.2.2.2.2`.
+  --   - Or split into a sub-lemma that phrases the contradiction abstractly.
+  sorry
+
+/-- **B.1 (#1338, NOT Knuth-B blocked):** qHat.toNat = a/b + 2
+    in double-addback case.
+
+    Mirror of `qHat_eq_div_plus_one_of_single_addback` for the
+    double-addback branch (`algCallAddbackBeqCarry a b = 0`).
+
+    **REFINED ANALYSIS (2026-04-26):** This lemma does NOT actually need
+    Knuth-B (#1337). The lower bound qHat ≥ a/b + 2 is **derivable
+    directly** from hborrow + hcarry_zero via mulsub algebra:
+
+    1. From hborrow: u4 < c3 (so c3 - u4 ≥ 1).
+    2. From mulsub Euclidean (instantiated):
+       val256(ms) + qHat * b * 2^s = a * 2^s + (c3 - u4) * 2^256.
+    3. carry₁ = 0 means val256(ms) + b * 2^s < 2^256 (no overflow in
+       first addback). Substituting (2):
+       a * 2^s + (c3 - u4) * 2^256 - (qHat - 1) * b * 2^s < 2^256.
+    4. With c3 - u4 ≥ 1: (qHat - 1) * b * 2^s > a * 2^s, hence
+       (qHat - 1) * b > a, hence qHat - 1 > a/b, hence qHat ≥ a/b + 2.
+
+    **Proof structure**: composes B.1a (qHat ≥ 2, sorry above) with
+    Word arithmetic on hsem (this proof, ~50 LOC, fully closed).
+
+    Issue #1338 Phase B.1. -/
+theorem qHat_eq_div_plus_two_of_double_addback (a b : EvmWord)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hborrow : isAddbackBorrowN4CallEvm a b)
+    (hcarry2_nz : isAddbackCarry2NzN4CallEvm a b)
+    (hsem : n4CallAddbackBeqSemanticHolds a b)
+    (hcarry_zero : algCallAddbackBeqCarry a b = 0) :
+    let shift := (clzResult (b.getLimbN 3)).1.toNat % 64
+    let antiShift :=
+      (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64
+    let b3' := ((b.getLimbN 3) <<< shift) ||| ((b.getLimbN 2) >>> antiShift)
+    let u3 := ((a.getLimbN 3) <<< shift) ||| ((a.getLimbN 2) >>> antiShift)
+    let u4 := (a.getLimbN 3) >>> antiShift
+    (div128Quot u4 u3 b3').toNat = a.toNat / b.toNat + 2 := by
+  intro shift antiShift b3' u3 u4
+  -- B.1a (algorithm-side): qHat ≥ 2.
+  have hqHat_ge_two : (div128Quot u4 u3 b3').toNat ≥ 2 :=
+    qHat_ge_two_of_double_addback a b hshift_nz hborrow hcarry2_nz hcarry_zero
+  -- Bridge hcarry_zero to the parent's let-chain form via algCallAddbackBeqCarry_unfold.
+  rw [algCallAddbackBeqCarry_unfold] at hcarry_zero
+  -- Unfold hsem with the carry-equals-0 case.
+  rw [n4CallAddbackBeqSemanticHolds_def] at hsem
+  simp only [if_pos hcarry_zero] at hsem
+  -- val256(a_limbs) = a.toNat, val256(b_limbs) = b.toNat.
+  have ha_val : val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      = a.toNat := by
+    simp only [← EvmWord.getLimb_as_getLimbN_0, ← EvmWord.getLimb_as_getLimbN_1,
+               ← EvmWord.getLimb_as_getLimbN_2, ← EvmWord.getLimb_as_getLimbN_3]
+    exact EvmWord.val256_eq_toNat a
+  have hb_val : val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+      = b.toNat := by
+    simp only [← EvmWord.getLimb_as_getLimbN_0, ← EvmWord.getLimb_as_getLimbN_1,
+               ← EvmWord.getLimb_as_getLimbN_2, ← EvmWord.getLimb_as_getLimbN_3]
+    exact EvmWord.val256_eq_toNat b
+  rw [ha_val, hb_val] at hsem
+  -- hsem: (qHat + signExtend12 4095 + signExtend12 4095).toNat = a/b.
+  set qHat := div128Quot u4 u3 b3' with hqHat_def
+  rw [BitVec.toNat_add, BitVec.toNat_add, signExtend12_4095_toNat] at hsem
+  have h_inner_eq : (qHat.toNat + (2^64 - 1)) % 2^64 = qHat.toNat - 1 := by
+    have h_qHat_lt : qHat.toNat < 2^64 := qHat.isLt
+    rw [show qHat.toNat + (2^64 - 1) = (qHat.toNat - 1) + 2^64 from by omega]
+    rw [Nat.add_mod_right]
+    apply Nat.mod_eq_of_lt; omega
+  rw [h_inner_eq] at hsem
+  have h_outer_eq : ((qHat.toNat - 1) + (2^64 - 1)) % 2^64 = qHat.toNat - 2 := by
+    rw [show (qHat.toNat - 1) + (2^64 - 1) = (qHat.toNat - 2) + 2^64 from by omega]
+    rw [Nat.add_mod_right]
+    apply Nat.mod_eq_of_lt
+    have := qHat.isLt; omega
+  rw [h_outer_eq] at hsem
+  omega
 
 /-- **B.5 building block STUB: combined two-addback Euclidean** (#1338).
 
