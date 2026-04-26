@@ -721,5 +721,52 @@ theorem div128Quot_toNat_eq_strict (uHi uLo vTop : Word)
       hdHi_ge hdHi_lt hdLo_lt huHi_lt_vTop
   rw [h_kb6a, Nat.mod_eq_of_lt h_q1'_lt]
 
+/-- **KB-6d: `div128Quot` upper bound (Knuth Theorem B at div128Quot level).**
+
+    The user-facing closing theorem of Knuth Theorem B for `div128Quot`:
+
+    ```
+    (div128Quot uHi uLo vTop).toNat ≤ (uHi.toNat * 2^64 + uLo.toNat) / vTop.toNat + 2
+    ```
+
+    under standard preconditions:
+    - `vTop.toNat ≥ 2^63` (normalized divisor — top bit set).
+    - `uHi.toNat * 2^64 + uLo.toNat < vTop.toNat * 2^64` (no-overflow / call-path:
+      the dividend fits in a single 64-bit quotient digit's range times `2^64`).
+
+    This is the bound that downstream call-trial DIV/MOD stack specs need
+    to reason about the at-most-2-addback correction chain.
+
+    **Closure path** (planned, currently STUB):
+    1. **KB-6c — Nat assembly**: Show `q1'.toNat * 2^32 + q0'.toNat ≤
+       (uHi*2^64 + uLo)/vTop + 2`, by composing KB-2 (Phase 1b q1' bounds)
+       with KB-5c (Phase 2b q0' bounds) at the Nat level.
+    2. **KB-6a strict** (already closed): under `q0' < 2^32` and `q1' < 2^32`,
+       `div128Quot.toNat = q1' * 2^32 + q0'`. Combined with KB-6c, gives the
+       upper bound.
+
+    **Discharging KB-6a strict's `q0' < 2^32` precondition**:
+    KB-6b (already in `Div128QuotientBounds.lean`) gives `q0' < 2^32` under
+    `un21 < vTop`. The remaining work is establishing the `un21 < vTop` Phase-2
+    Knuth invariant (Theorem C of Knuth TAOCP). See
+    `project_un21_lt_vTop_plan.md` for the detailed sub-lemma decomposition
+    (Lemmas U1, U2, U3 — ~300-400 lines).
+
+    **Why Piece A composition doesn't shortcut this**:
+    `knuth_theorem_b_from_clz` (Piece A, on main) gives
+    `(uHi*2^64 + uLo)/vTop ≤ val256(a)/val256(b) + 2`. To close KB-6d
+    via this requires `div128Quot ≤ (uHi*2^64+uLo)/vTop` (no overshoot
+    at the 64-bit digit level). But Knuth-B at the digit level allows
+    `div128Quot ≤ (uHi*2^64+uLo)/vTop + 2`, which composes to
+    `div128Quot ≤ val256/val256 + 4` — too loose by 2. The tight bound
+    requires the same Knuth-C tightness that blocks U3 / un21 < vTop.
+
+    Tracked in issue #1337. -/
+theorem div128Quot_le_q_true_plus_two (uHi uLo vTop : Word)
+    (_hvTop_norm : vTop.toNat ≥ 2^63)
+    (_hcall : uHi.toNat * 2^64 + uLo.toNat < vTop.toNat * 2^64) :
+    (div128Quot uHi uLo vTop).toNat ≤
+      (uHi.toNat * 2^64 + uLo.toNat) / vTop.toNat + 2 := by
+  sorry
 
 end EvmAsm.Evm64

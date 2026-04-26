@@ -802,4 +802,405 @@ theorem div128Quot_q0_prime_ge_q_true_0_of_un21_lt_dHi_mul_pow32
     exact div128Quot_q1c_ge_q_true_1 un21 dHi dLo div_un0 hdHi_ne
       h_div_un0_lt hun21_lt_vTop
 
+
+/-- **KB-LB10 (Knuth Theorem B, raw form): Phase 1 partial-quotient ≤
+    true first digit + 2.** The raw RISC-V single-digit divide
+    `q1 = uHi / dHi` overshoots the abstract Knuth first digit
+    `q_true_1 = (uHi * 2^32 + div_un1) / vTop` by at most 2:
+
+    ```
+    (rv64_divu uHi dHi).toNat ≤
+      (uHi * 2^32 + div_un1) / (dHi * 2^32 + dLo) + 2
+    ```
+
+    This is **Knuth's Theorem B** specialized to our two-digit-by-one-digit
+    setting. The proof is a contradiction-based Nat algebra argument:
+    assume `q1 ≥ q_true_1 + 3`. The Phase-1 Euclidean
+    `q1 * dHi ≤ uHi` and the floor inequality
+    `(q_true_1 + 1) * vTop > uHi * 2^32 + div_un1`
+    combine to force `(q_true_1 + 1) * dLo > 2 * dHi * 2^32`. Under
+    `dHi ≥ 2^31`, the RHS is `≥ 2^64`, so `q_true_1 + 1 > 2^32` (since
+    `dLo < 2^32`), contradicting `q_true_1 < 2^32` from KB-LB2.
+
+    Used as input to KB-LB11 (Phase 1a-corrected `≤ q_true_1 + 2`) and
+    eventually KB-LB12 (Phase 1b-corrected `≤ q_true_1 + 1`, Knuth
+    Theorem C tight). The latter closes U3's hard case. -/
+theorem div128Quot_q1_le_q_true_1_plus_two
+    (uHi dHi dLo div_un1 : Word)
+    (hdHi_ne : dHi ≠ 0)
+    (hdHi_ge : dHi.toNat ≥ 2^31)
+    (hdLo_lt : dLo.toNat < 2^32)
+    (h_div_un1_lt : div_un1.toNat < 2^32)
+    (huHi_lt_vTop : uHi.toNat < dHi.toNat * 2^32 + dLo.toNat) :
+    (rv64_divu uHi dHi).toNat ≤
+      (uHi.toNat * 2^32 + div_un1.toNat) /
+        (dHi.toNat * 2^32 + dLo.toNat) + 2 := by
+  set vTop := dHi.toNat * 2^32 + dLo.toNat with h_vTop_def
+  set q_true_1 := (uHi.toNat * 2^32 + div_un1.toNat) / vTop with h_q_true_1_def
+  set q1 := (rv64_divu uHi dHi).toNat with h_q1_def
+  -- Phase 1 Euclidean: q1 * dHi ≤ uHi.
+  have h_q1_eucl : q1 * dHi.toNat ≤ uHi.toNat :=
+    EvmWord.rv64_divu_mul_le uHi dHi hdHi_ne
+  -- vTop > 0.
+  have h_vTop_pos : 0 < vTop := by
+    have h_dHi_pos : 0 < dHi.toNat := by omega
+    have h_pow_pos : (0 : Nat) < 2^32 := by decide
+    have h1 : 0 < dHi.toNat * 2^32 := Nat.mul_pos h_dHi_pos h_pow_pos
+    show 0 < dHi.toNat * 2^32 + dLo.toNat
+    exact Nat.lt_of_lt_of_le h1 (Nat.le_add_right _ _)
+  -- q_true_1 < 2^32 (KB-LB2).
+  have h_q_true_1_lt : q_true_1 < 2^32 := by
+    show (uHi.toNat * 2^32 + div_un1.toNat) /
+      (dHi.toNat * 2^32 + dLo.toNat) < 2^32
+    exact div128Quot_q_true_1_lt_pow32 uHi dHi dLo div_un1
+      h_div_un1_lt huHi_lt_vTop
+  -- Floor: q_true_1 * vTop ≤ uHi*B + div_un1 < (q_true_1 + 1) * vTop.
+  set r := (uHi.toNat * 2^32 + div_un1.toNat) % vTop with h_r_def
+  have h_dvm : vTop * q_true_1 + r = uHi.toNat * 2^32 + div_un1.toNat :=
+    Nat.div_add_mod (uHi.toNat * 2^32 + div_un1.toNat) vTop
+  have h_mod_lt : r < vTop :=
+    Nat.mod_lt (uHi.toNat * 2^32 + div_un1.toNat) h_vTop_pos
+  have h_floor_lt : uHi.toNat * 2^32 + div_un1.toNat < (q_true_1 + 1) * vTop := by
+    have h_eq : (q_true_1 + 1) * vTop = vTop * q_true_1 + vTop := by ring
+    rw [h_eq]; omega
+  -- By contradiction: assume q1 > q_true_1 + 2, i.e. q1 ≥ q_true_1 + 3.
+  by_contra h_assume
+  push Not at h_assume
+  have h_q1_ge : q1 ≥ q_true_1 + 3 := by omega
+  -- (q_true_1 + 3) * dHi * 2^32 ≤ q1 * dHi * 2^32 ≤ uHi * 2^32.
+  have h_mul_low : (q_true_1 + 3) * dHi.toNat * 2^32 ≤ uHi.toNat * 2^32 := by
+    have h1 : (q_true_1 + 3) * dHi.toNat ≤ q1 * dHi.toNat :=
+      Nat.mul_le_mul_right _ h_q1_ge
+    have h2 : q1 * dHi.toNat ≤ uHi.toNat := h_q1_eucl
+    have h3 : (q_true_1 + 3) * dHi.toNat ≤ uHi.toNat := Nat.le_trans h1 h2
+    exact Nat.mul_le_mul_right _ h3
+  -- Expand floor inequality: (q_true_1 + 1) * dHi * 2^32 + (q_true_1 + 1) * dLo
+  --                          > uHi * 2^32 + div_un1.
+  have h_ceil_expand :
+      (q_true_1 + 1) * dHi.toNat * 2^32 + (q_true_1 + 1) * dLo.toNat
+        > uHi.toNat * 2^32 + div_un1.toNat := by
+    have h_eq : (q_true_1 + 1) * vTop =
+        (q_true_1 + 1) * dHi.toNat * 2^32 + (q_true_1 + 1) * dLo.toNat := by
+      rw [h_vTop_def]; ring
+    linarith
+  -- Subtract h_mul_low from h_ceil_expand:
+  --   (q_true_1 + 1) * dLo > 2 * dHi * 2^32 + div_un1.
+  have h_dLo_lower :
+      (q_true_1 + 1) * dLo.toNat > 2 * dHi.toNat * 2^32 + div_un1.toNat := by
+    have h_split : (q_true_1 + 3) * dHi.toNat * 2^32 =
+        (q_true_1 + 1) * dHi.toNat * 2^32 + 2 * dHi.toNat * 2^32 := by ring
+    linarith
+  -- Under dHi ≥ 2^31: 2 * dHi * 2^32 ≥ 2^64.
+  have h_dHi_2_lower : 2 * dHi.toNat * 2^32 ≥ 2^64 := by
+    have h1 : 2 * dHi.toNat ≥ 2^32 := by omega
+    have h2 : 2 * dHi.toNat * 2^32 ≥ 2^32 * 2^32 := Nat.mul_le_mul_right _ h1
+    have h3 : (2^32 * 2^32 : Nat) = 2^64 := by decide
+    linarith
+  -- So (q_true_1 + 1) * dLo > 2^64.
+  have h_big : (q_true_1 + 1) * dLo.toNat > 2^64 := by linarith
+  -- But dLo < 2^32, so (q_true_1 + 1) > 2^32 (otherwise product < 2^64).
+  have h_qtrue_big : q_true_1 + 1 > 2^32 := by
+    by_contra h
+    push Not at h
+    have h1 : (q_true_1 + 1) * dLo.toNat ≤ 2^32 * dLo.toNat :=
+      Nat.mul_le_mul_right _ h
+    have h2 : 2^32 * dLo.toNat < 2^32 * 2^32 :=
+      Nat.mul_lt_mul_of_pos_left hdLo_lt (by decide)
+    have h3 : (2^32 * 2^32 : Nat) = 2^64 := by decide
+    linarith
+  -- But q_true_1 < 2^32 contradicts q_true_1 ≥ 2^32.
+  omega
+
+/-- **KB-LB11: Phase 1a preserves the Knuth Theorem B upper bound.**
+    After the `hi1` correction, the corrected trial `q1c` is still
+    bounded by `q_true_1 + 2`:
+
+    ```
+    q1c.toNat ≤ (uHi * 2^32 + div_un1) / vTop + 2
+    ```
+
+    Case analysis on `hi1`:
+    - `hi1 = 0` (q1 < 2^32): `q1c = q1`, KB-LB10 closes directly.
+    - `hi1 ≠ 0` (q1 ≥ 2^32): `q1c = q1 - 1`. From KB-LB10
+      `q1 ≤ q_true_1 + 2`, so `q1c = q1 - 1 ≤ q_true_1 + 1 ≤ q_true_1 + 2`.
+
+    Phase 1a-corrected upper bound on the way to KB-LB12 (Phase 1b
+    Knuth Theorem C tight bound, which is the missing piece for U3). -/
+theorem div128Quot_q1c_le_q_true_1_plus_two
+    (uHi dHi dLo div_un1 : Word)
+    (hdHi_ne : dHi ≠ 0)
+    (hdHi_ge : dHi.toNat ≥ 2^31)
+    (hdLo_lt : dLo.toNat < 2^32)
+    (h_div_un1_lt : div_un1.toNat < 2^32)
+    (huHi_lt_vTop : uHi.toNat < dHi.toNat * 2^32 + dLo.toNat) :
+    let q1 := rv64_divu uHi dHi
+    let hi1 := q1 >>> (32 : BitVec 6).toNat
+    let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+    q1c.toNat ≤
+      (uHi.toNat * 2^32 + div_un1.toNat) /
+        (dHi.toNat * 2^32 + dLo.toNat) + 2 := by
+  intro q1 hi1 q1c
+  have h_q1_le : q1.toNat ≤
+      (uHi.toNat * 2^32 + div_un1.toNat) /
+        (dHi.toNat * 2^32 + dLo.toNat) + 2 :=
+    div128Quot_q1_le_q_true_1_plus_two uHi dHi dLo div_un1
+      hdHi_ne hdHi_ge hdLo_lt h_div_un1_lt huHi_lt_vTop
+  by_cases h_hi1 : hi1 = 0
+  · -- q1c = q1.
+    show (if hi1 = 0 then q1 else q1 + signExtend12 4095).toNat ≤ _
+    rw [if_pos h_hi1]
+    exact h_q1_le
+  · -- q1c = q1 - 1 (mod 2^64). Use q1 ≥ 2^32 from hi1 ≠ 0.
+    have h_q1_ge_pow32 : q1.toNat ≥ 2^32 := by
+      by_contra h
+      push Not at h
+      apply h_hi1
+      apply BitVec.eq_of_toNat_eq
+      rw [BitVec.toNat_ushiftRight, bv6_toNat_32, Nat.shiftRight_eq_div_pow]
+      show q1.toNat / 2^32 = (0 : Word).toNat
+      rw [Nat.div_eq_of_lt h]; rfl
+    show (if hi1 = 0 then q1 else q1 + signExtend12 4095).toNat ≤ _
+    rw [if_neg h_hi1]
+    rw [BitVec.toNat_add, signExtend12_4095_toNat]
+    have h_q1_lt : q1.toNat < 2^64 := q1.isLt
+    have h_q1_sub_lt : q1.toNat - 1 < 2^64 := by omega
+    rw [show q1.toNat + (2^64 - 1) = (q1.toNat - 1) + 2^64 from by omega,
+        Nat.add_mod_right, Nat.mod_eq_of_lt h_q1_sub_lt]
+    omega
+
+/-- **Strong Knuth Theorem C (abstract algebra form): trial overshoot
+    forces the multiplication check.** Given the Phase 1a Euclidean
+    `q1c * dHi + rhatc = uHi` and a 2-overshoot of the trial, the
+    Knuth multiplication-check inequality holds:
+
+    ```
+    q1c ≥ q_true_1 + 2  →  rhatc * 2^32 + div_un1 < q1c * dLo
+    ```
+
+    This is the **contrapositive** form needed to close Phase 1b's
+    upper bound: if the check doesn't fire (so `q1' = q1c`) but q1c
+    were ≥ q_true_1 + 2, this lemma would force the check to fire,
+    contradicting the assumption.
+
+    Proof: from overshoot `q1c ≥ q_true_1 + 2`, we have
+    `q1c * vTop ≥ (q_true_1 + 2) * vTop = (q_true_1 + 1) * vTop + vTop
+                 > (uHi * 2^32 + div_un1) + vTop`.
+    Use Phase 1a Euclidean to expand `q1c * vTop = uHi * 2^32 -
+    rhatc * 2^32 + q1c * dLo`. Combining: `q1c * dLo > rhatc * 2^32 +
+    div_un1 + vTop > rhatc * 2^32 + div_un1`. -/
+theorem knuth_theorem_c_strong_abstract
+    (uHi dHi dLo div_un1 rhatc q1c : Word)
+    (h_eucl : q1c.toNat * dHi.toNat + rhatc.toNat = uHi.toNat)
+    (h_vTop_pos : 0 < dHi.toNat * 2^32 + dLo.toNat)
+    (h_q1c_overshoot :
+        q1c.toNat ≥ (uHi.toNat * 2^32 + div_un1.toNat) /
+                      (dHi.toNat * 2^32 + dLo.toNat) + 2) :
+    rhatc.toNat * 2^32 + div_un1.toNat < q1c.toNat * dLo.toNat := by
+  set vTop := dHi.toNat * 2^32 + dLo.toNat with h_vTop_def
+  set q_true_1 := (uHi.toNat * 2^32 + div_un1.toNat) / vTop with h_q_true_1_def
+  -- Floor inequality: uHi * 2^32 + div_un1 < (q_true_1 + 1) * vTop.
+  set r := (uHi.toNat * 2^32 + div_un1.toNat) % vTop with h_r_def
+  have h_dvm : vTop * q_true_1 + r = uHi.toNat * 2^32 + div_un1.toNat :=
+    Nat.div_add_mod _ _
+  have h_mod_lt : r < vTop :=
+    Nat.mod_lt _ h_vTop_pos
+  have h_floor_lt : uHi.toNat * 2^32 + div_un1.toNat < (q_true_1 + 1) * vTop := by
+    have h_eq : (q_true_1 + 1) * vTop = vTop * q_true_1 + vTop := by ring
+    rw [h_eq]; omega
+  -- q1c * vTop ≥ (q_true_1 + 2) * vTop (monotonicity of overshoot).
+  have h_q1c_vTop_ge : q1c.toNat * vTop ≥ (q_true_1 + 2) * vTop :=
+    Nat.mul_le_mul_right _ h_q1c_overshoot
+  -- (q_true_1 + 2) * vTop = (q_true_1 + 1) * vTop + vTop.
+  have h_chain : q1c.toNat * vTop > uHi.toNat * 2^32 + div_un1.toNat + vTop := by
+    have h_split : (q_true_1 + 2) * vTop = (q_true_1 + 1) * vTop + vTop := by ring
+    linarith
+  -- Multiply Phase 1a Euclidean by 2^32:
+  --   uHi * 2^32 = q1c * dHi * 2^32 + rhatc * 2^32.
+  have h_eucl_mul :
+      uHi.toNat * 2^32 = q1c.toNat * dHi.toNat * 2^32 + rhatc.toNat * 2^32 := by
+    have hh : (q1c.toNat * dHi.toNat + rhatc.toNat) * 2^32 = uHi.toNat * 2^32 :=
+      congr_arg (· * 2^32) h_eucl
+    have : (q1c.toNat * dHi.toNat + rhatc.toNat) * 2^32 =
+        q1c.toNat * dHi.toNat * 2^32 + rhatc.toNat * 2^32 := by ring
+    linarith
+  -- Expand q1c * vTop = q1c * dHi * 2^32 + q1c * dLo.
+  have h_expand_vTop :
+      q1c.toNat * vTop = q1c.toNat * dHi.toNat * 2^32 + q1c.toNat * dLo.toNat := by
+    show q1c.toNat * (dHi.toNat * 2^32 + dLo.toNat) = _
+    ring
+  -- vTop ≥ 1 (positivity).
+  have h_vTop_ge_1 : 1 ≤ vTop := h_vTop_pos
+  -- Now linarith should combine h_chain, h_expand_vTop, h_eucl_mul, h_vTop_ge_1.
+  linarith
+
+/-- **Strong Knuth-C contrapositive (abstract algebra form):
+    no-check ⟹ q1c ≤ q_true_1 + 1.** The contrapositive of
+    `knuth_theorem_c_strong_abstract`: when the multiplication check
+    inequality fails (i.e., `q1c * dLo ≤ rhatc * 2^32 + div_un1`),
+    the Phase 1a-corrected trial is at most `q_true_1 + 1`:
+
+    ```
+    q1c * dLo ≤ rhatc * 2^32 + div_un1
+      → q1c ≤ q_true_1 + 1
+    ```
+
+    This is the form ready to use in Phase 1b's "check doesn't fire"
+    branch: q1' = q1c there, so q1' ≤ q_true_1 + 1 directly.
+
+    Direct contrapositive of `knuth_theorem_c_strong_abstract`. -/
+theorem knuth_theorem_c_strong_contrapositive
+    (uHi dHi dLo div_un1 rhatc q1c : Word)
+    (h_eucl : q1c.toNat * dHi.toNat + rhatc.toNat = uHi.toNat)
+    (h_vTop_pos : 0 < dHi.toNat * 2^32 + dLo.toNat)
+    (h_no_check : q1c.toNat * dLo.toNat ≤ rhatc.toNat * 2^32 + div_un1.toNat) :
+    q1c.toNat ≤
+      (uHi.toNat * 2^32 + div_un1.toNat) /
+        (dHi.toNat * 2^32 + dLo.toNat) + 1 := by
+  by_contra h
+  push Not at h
+  have h_overshoot : q1c.toNat ≥
+      (uHi.toNat * 2^32 + div_un1.toNat) /
+        (dHi.toNat * 2^32 + dLo.toNat) + 2 := by omega
+  have h_check :=
+    knuth_theorem_c_strong_abstract uHi dHi dLo div_un1 rhatc q1c
+      h_eucl h_vTop_pos h_overshoot
+  omega
+
+/-- **KB-LB12: Phase 1b Knuth Theorem C tight upper bound.** Under the
+    `uHi < 2^63` regime (gives KB-LB6a/6b: q1 < 2^32, rhatc < 2^32), the
+    post-Phase-1b corrected trial `q1'` overshoots `q_true_1` by at most 1:
+
+    ```
+    q1'.toNat ≤ (uHi * 2^32 + div_un1) /
+                (dHi * 2^32 + dLo) + 1
+    ```
+
+    This is **Knuth Theorem C** in its tight Word-level form, restricted
+    to our specific algorithmic setup.
+
+    Proof: case analysis on Phase 1b's check.
+    - **Check fires** (q1' = q1c - 1): KB-LB11 gives q1c ≤ q_true_1 + 2,
+      so q1' = q1c - 1 ≤ q_true_1 + 1. ✓
+    - **Check doesn't fire** (q1' = q1c): the negation of the BitVec.ult
+      check unfolds via `halfword_combine` + Word non-wrap of `q1c * dLo`
+      to the Nat-level no-check inequality
+      `q1c * dLo ≤ rhatc * 2^32 + div_un1`. The strong Knuth-C
+      contrapositive then gives `q1c ≤ q_true_1 + 1`. ✓
+
+    Note: This bound is necessary but **not sufficient** to close U3's
+    hard case (which requires `q1' ≤ q_true_1` exactly when check fires
+    AND rhat' < 2^32). See U3's roadmap comment. -/
+theorem div128Quot_q1_prime_le_q_true_1_plus_one
+    (uHi dHi dLo uLo : Word)
+    (hdHi_ne : dHi ≠ 0)
+    (hdHi_ge : dHi.toNat ≥ 2^31)
+    (hdHi_lt : dHi.toNat < 2^32)
+    (hdLo_lt : dLo.toNat < 2^32)
+    (huHi_lt_vTop : uHi.toNat < dHi.toNat * 2^32 + dLo.toNat)
+    (huHi_lt_pow63 : uHi.toNat < 2^63) :
+    let div_un1 := uLo >>> (32 : BitVec 6).toNat
+    let q1 := rv64_divu uHi dHi
+    let rhat := uHi - q1 * dHi
+    let hi1 := q1 >>> (32 : BitVec 6).toNat
+    let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+    let rhatc := if hi1 = 0 then rhat else rhat + dHi
+    let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
+    let q1' := if BitVec.ult rhatUn1 (q1c * dLo) then q1c + signExtend12 4095
+               else q1c
+    q1'.toNat ≤
+      (uHi.toNat * 2^32 + div_un1.toNat) /
+        (dHi.toNat * 2^32 + dLo.toNat) + 1 := by
+  intro div_un1 q1 rhat hi1 q1c rhatc rhatUn1 q1'
+  -- KB-LB6a: q1 < 2^32 under uHi < 2^63.
+  have h_q1_lt : q1.toNat < 2^32 :=
+    div128Quot_q1_lt_pow32_of_uHi_lt_pow63 uHi dHi hdHi_ne huHi_lt_pow63 hdHi_ge
+  -- hi1 = 0 from q1 < 2^32, so q1c = q1 and rhatc = rhat.
+  have h_hi1 : hi1 = 0 := by
+    apply BitVec.eq_of_toNat_eq
+    show (q1 >>> (32 : BitVec 6).toNat).toNat = (0 : Word).toNat
+    rw [BitVec.toNat_ushiftRight, bv6_toNat_32, Nat.shiftRight_eq_div_pow]
+    rw [Nat.div_eq_of_lt h_q1_lt]; rfl
+  have h_q1c_eq_q1 : q1c = q1 := by
+    show (if hi1 = 0 then q1 else q1 + signExtend12 4095) = q1
+    rw [if_pos h_hi1]
+  have h_rhatc_eq_rhat : rhatc = rhat := by
+    show (if hi1 = 0 then rhat else rhat + dHi) = rhat
+    rw [if_pos h_hi1]
+  have h_q1c_lt : q1c.toNat < 2^32 := h_q1c_eq_q1 ▸ h_q1_lt
+  -- KB-LB6b: rhatc < 2^32 under uHi < 2^63.
+  have h_rhatc_lt : rhatc.toNat < 2^32 :=
+    div128Quot_rhatc_lt_pow32_of_uHi_lt_pow63 uHi dHi hdHi_ne huHi_lt_pow63
+      hdHi_ge hdHi_lt
+  -- div_un1 < 2^32.
+  have h_div_un1_lt : div_un1.toNat < 2^32 := by
+    show (uLo >>> (32 : BitVec 6).toNat).toNat < 2^32
+    rw [BitVec.toNat_ushiftRight, bv6_toNat_32, Nat.shiftRight_eq_div_pow]
+    have : uLo.toNat < 2^64 := uLo.isLt
+    have heq64 : (2^64 : Nat) = 2^32 * 2^32 := by decide
+    omega
+  -- (q1c * dLo).toNat = q1c.toNat * dLo.toNat (Word non-wrap).
+  have h_qDlo_eq : (q1c * dLo).toNat = q1c.toNat * dLo.toNat := by
+    rw [BitVec.toNat_mul]
+    apply Nat.mod_eq_of_lt
+    have h1 : q1c.toNat * dLo.toNat < 2^32 * 2^32 :=
+      Nat.mul_lt_mul'' h_q1c_lt hdLo_lt
+    have h2 : (2^32 * 2^32 : Nat) = 2^64 := by decide
+    omega
+  -- rhatUn1.toNat = rhatc.toNat * 2^32 + div_un1.toNat.
+  have h_rhatUn1_eq : rhatUn1.toNat = rhatc.toNat * 2^32 + div_un1.toNat := by
+    show ((rhatc <<< (32 : BitVec 6).toNat) ||| div_un1).toNat = _
+    rw [bv6_toNat_32]
+    exact EvmWord.halfword_combine rhatc div_un1 h_rhatc_lt h_div_un1_lt
+  -- Phase 1a Euclidean: q1c * dHi + rhatc = uHi.
+  have h_eucl : q1c.toNat * dHi.toNat + rhatc.toNat = uHi.toNat :=
+    div128Quot_first_round_post uHi dHi hdHi_ne hdHi_lt
+  -- vTop > 0.
+  have h_vTop_pos : 0 < dHi.toNat * 2^32 + dLo.toNat := by
+    have h_dHi_pos : 0 < dHi.toNat := by omega
+    have h_pow_pos : (0 : Nat) < 2^32 := by decide
+    have : 0 < dHi.toNat * 2^32 := Nat.mul_pos h_dHi_pos h_pow_pos
+    exact Nat.lt_of_lt_of_le this (Nat.le_add_right _ _)
+  -- KB-LB11 gives q1c ≤ q_true_1 + 2 (need it for both branches).
+  have h_q1c_le_plus_two : q1c.toNat ≤
+      (uHi.toNat * 2^32 + div_un1.toNat) /
+        (dHi.toNat * 2^32 + dLo.toNat) + 2 := by
+    have := div128Quot_q1c_le_q_true_1_plus_two uHi dHi dLo div_un1
+      hdHi_ne hdHi_ge hdLo_lt h_div_un1_lt huHi_lt_vTop
+    -- this gives the same bound but for `if hi1 = 0 then q1 else q1 + ...`.
+    -- which is q1c.
+    exact this
+  -- Case analysis on Phase 1b check.
+  by_cases h_check : BitVec.ult rhatUn1 (q1c * dLo)
+  · -- Check fires: q1' = q1c - 1.
+    have h_q1c_pos := div128Quot_phase1b_check_implies_q1c_pos q1c dLo rhatUn1 h_check
+    have h_q1' : q1'.toNat = q1c.toNat - 1 := by
+      show (if BitVec.ult rhatUn1 (q1c * dLo) then q1c + signExtend12 4095
+            else q1c).toNat = _
+      rw [if_pos h_check]
+      rw [BitVec.toNat_add, signExtend12_4095_toNat]
+      have h_q1c_lt_word : q1c.toNat - 1 < 2^64 := by have := q1c.isLt; omega
+      rw [show q1c.toNat + (2^64 - 1) = (q1c.toNat - 1) + 2^64 from by omega,
+          Nat.add_mod_right, Nat.mod_eq_of_lt h_q1c_lt_word]
+    omega
+  · -- Check doesn't fire: q1' = q1c. Use strong Knuth-C contrapositive.
+    have h_q1' : q1'.toNat = q1c.toNat := by
+      show (if BitVec.ult rhatUn1 (q1c * dLo) then q1c + signExtend12 4095
+            else q1c).toNat = _
+      rw [if_neg h_check]
+    -- ¬BitVec.ult ⟹ rhatUn1.toNat ≥ (q1c * dLo).toNat.
+    have h_no_check_word : (q1c * dLo).toNat ≤ rhatUn1.toNat := by
+      have := h_check
+      rw [EvmWord.ult_iff] at this
+      omega
+    -- Bridge to Nat: q1c.toNat * dLo.toNat ≤ rhatc.toNat * 2^32 + div_un1.toNat.
+    have h_no_check_nat :
+        q1c.toNat * dLo.toNat ≤ rhatc.toNat * 2^32 + div_un1.toNat := by
+      rw [← h_qDlo_eq, ← h_rhatUn1_eq]; exact h_no_check_word
+    -- Apply strong Knuth-C contrapositive.
+    have h_contra :=
+      knuth_theorem_c_strong_contrapositive uHi dHi dLo div_un1 rhatc q1c
+        h_eucl h_vTop_pos h_no_check_nat
+    omega
+
+
 end EvmAsm.Evm64
