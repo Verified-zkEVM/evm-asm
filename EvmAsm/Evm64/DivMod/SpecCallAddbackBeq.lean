@@ -1187,21 +1187,54 @@ theorem n4CallAddbackBeq_q_out_eq_q_true_v2 (a b : EvmWord)
     (hcarry2_nz : isAddbackCarry2NzN4CallEvm a b)
     (hborrow : isAddbackBorrowN4CallEvm a b) :
     n4CallAddbackBeqSemanticHolds_v2 a b := by
-  -- Unfold the predicate to expose the let-chain + carry case-split.
   unfold n4CallAddbackBeqSemanticHolds_v2
-  -- Introduce the let-chain.
-  -- Case-split on carry = 0 vs ≠ 0.
-  -- - carry = 0: use qHat_eq_div_plus_two_of_double_addback_v2; q_out = qHat - 2 = q_true.
-  -- - carry ≠ 0: use qHat_eq_div_plus_one_of_single_addback_v2; q_out = qHat - 1 = q_true.
-  -- Either case: q_out.toNat = val256(a) / val256(b) ✓.
-  sorry  -- The closure proof follows by case analysis on the let-bound
-         -- `carry` — using the two newly-added v2 sub-stubs:
-         -- `qHat_eq_div_plus_one_of_single_addback_v2` (carry ≠ 0)
-         -- `qHat_eq_div_plus_two_of_double_addback_v2` (carry = 0)
-         -- + Word arithmetic: q_out.toNat = qHat.toNat - k where k ∈ {1,2}.
-         -- The Word-level (qHat + signExtend12 4095).toNat = qHat.toNat - 1
-         -- (under qHat.toNat ≥ 1) needs careful handling — see v1's
-         -- `qHat_eq_div_plus_one_of_single_addback` proof for the pattern.
+  -- Introduce all let-bindings.
+  set shift := (clzResult (b.getLimbN 3)).1.toNat % 64 with hshift_def
+  set antiShift := (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64
+    with hantiShift_def
+  set b3' := ((b.getLimbN 3) <<< shift) ||| ((b.getLimbN 2) >>> antiShift) with hb3'_def
+  set u4 := (a.getLimbN 3) >>> antiShift with hu4_def
+  set u3 := ((a.getLimbN 3) <<< shift) ||| ((a.getLimbN 2) >>> antiShift) with hu3_def
+  set qHat := div128Quot_v2 u4 u3 b3' with hqHat_def
+  -- Let q_true denote val256(a) / val256(b).
+  set q_true := val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) /
+                val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+    with hq_true_def
+  -- Case-split on carry = 0.
+  by_cases h_carry :
+      addbackN4_carry
+        (mulsubN4 qHat ((b.getLimbN 0) <<< shift)
+          (((b.getLimbN 1) <<< shift) ||| ((b.getLimbN 0) >>> antiShift))
+          (((b.getLimbN 2) <<< shift) ||| ((b.getLimbN 1) >>> antiShift))
+          b3' ((a.getLimbN 0) <<< shift)
+          (((a.getLimbN 1) <<< shift) ||| ((a.getLimbN 0) >>> antiShift))
+          (((a.getLimbN 2) <<< shift) ||| ((a.getLimbN 1) >>> antiShift)) u3).1
+        (mulsubN4 qHat ((b.getLimbN 0) <<< shift)
+          (((b.getLimbN 1) <<< shift) ||| ((b.getLimbN 0) >>> antiShift))
+          (((b.getLimbN 2) <<< shift) ||| ((b.getLimbN 1) >>> antiShift))
+          b3' ((a.getLimbN 0) <<< shift)
+          (((a.getLimbN 1) <<< shift) ||| ((a.getLimbN 0) >>> antiShift))
+          (((a.getLimbN 2) <<< shift) ||| ((a.getLimbN 1) >>> antiShift)) u3).2.1
+        (mulsubN4 qHat ((b.getLimbN 0) <<< shift)
+          (((b.getLimbN 1) <<< shift) ||| ((b.getLimbN 0) >>> antiShift))
+          (((b.getLimbN 2) <<< shift) ||| ((b.getLimbN 1) >>> antiShift))
+          b3' ((a.getLimbN 0) <<< shift)
+          (((a.getLimbN 1) <<< shift) ||| ((a.getLimbN 0) >>> antiShift))
+          (((a.getLimbN 2) <<< shift) ||| ((a.getLimbN 1) >>> antiShift)) u3).2.2.1
+        (mulsubN4 qHat ((b.getLimbN 0) <<< shift)
+          (((b.getLimbN 1) <<< shift) ||| ((b.getLimbN 0) >>> antiShift))
+          (((b.getLimbN 2) <<< shift) ||| ((b.getLimbN 1) >>> antiShift))
+          b3' ((a.getLimbN 0) <<< shift)
+          (((a.getLimbN 1) <<< shift) ||| ((a.getLimbN 0) >>> antiShift))
+          (((a.getLimbN 2) <<< shift) ||| ((a.getLimbN 1) >>> antiShift)) u3).2.2.2.1
+        ((b.getLimbN 0) <<< shift)
+        (((b.getLimbN 1) <<< shift) ||| ((b.getLimbN 0) >>> antiShift))
+        (((b.getLimbN 2) <<< shift) ||| ((b.getLimbN 1) >>> antiShift))
+        b3' = 0
+  · -- carry = 0: double-addback case.
+    sorry  -- Apply qHat_eq_div_plus_two_of_double_addback_v2; arithmetic.
+  · -- carry ≠ 0: single-addback case.
+    sorry  -- Apply qHat_eq_div_plus_one_of_single_addback_v2; arithmetic.
 
 /-- **Closure of `n4CallAddbackBeqSemanticHolds_v2` from runtime conditions.**
 
