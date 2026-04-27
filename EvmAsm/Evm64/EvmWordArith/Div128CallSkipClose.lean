@@ -25,6 +25,7 @@
 -- (→ `Compose.FullPathN4`) and `DivN4Overestimate` (→ `DivMod.LoopSemantic`).
 import EvmAsm.Evm64.EvmWordArith.Div128KnuthLower
 import EvmAsm.Evm64.EvmWordArith.Div128FinalAssembly
+import EvmAsm.Evm64.EvmWordArith.Div128KB6Composition
 
 namespace EvmAsm.Evm64
 
