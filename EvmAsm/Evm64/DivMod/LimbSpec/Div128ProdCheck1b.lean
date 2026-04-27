@@ -131,33 +131,36 @@ theorem divK_div128_prodcheck1b_body_spec
     Instrs [25]-[34] of `divK_div128_v2`. Both guard branches and both
     BLTU paths merge at `base + 40`.
 
+    **Shape**: `cpsBranch` — mirrors `divK_div128_step2_branch_merged_spec`'s
+    pattern of "two paths converging at the same merge address but with
+    different register postconditions". The taken leg (rhatHi ≠ 0) skips
+    the body, leaving `.x5 = v5Old` and `.x1 = rhatHi` (the SRLI result).
+    The fall-through leg (rhatHi = 0) executes the body, producing
+    `.x5 = qDlo` and `.x1 = rhatUn1'`. Both legs end at `base + 40`.
+
     Composes:
     - Sub-stub A (`divK_div128_prodcheck1b_guard_spec`): [25..26] guard.
     - Sub-stub B (`divK_div128_prodcheck1b_body_spec`): [27..34] body.
-    - Identity for the guard-taken path (rhatHi ≠ 0 ⟹ skip body, q1 / rhat unchanged).
 
-    **Output spec**: matches the Lean abstraction `div128Quot_v2`'s
-    2nd D3 step:
+    **Output for `.x10` (q1) / `.x7` (rhat)** matches the Lean abstraction
+    `div128Quot_v2`'s 2nd D3 step:
     ```
     let q1' := if rhatc < 2^32 ∧ rhatUn1' < q1c * dLo
                then q1c - 1 else q1c
     let rhat' := if rhatc < 2^32 ∧ rhatUn1' < q1c * dLo
                  then rhatc + dHi else rhatc
     ```
+    (taken leg gives the `else q1c` / `else rhatc` directly via `rhatHi ≠ 0`.)
 
     Issue #1337 algorithm fix migration. -/
 theorem divK_div128_prodcheck1b_merged_spec
     (sp q1c rhatc dHi un1 v1Old v5Old dlo : Word) (base : Word) :
     let qDlo := q1c * dlo
     let rhatUn1' := (rhatc <<< (32 : BitVec 6).toNat) ||| un1
-    -- Guard: 2nd D3 fires only if rhatc < 2^32.
-    let guard_pass : Bool := (rhatc >>> (32 : BitVec 6).toNat) = (0 : Word)
-    let q1' :=
-      if guard_pass && BitVec.ult rhatUn1' qDlo
-      then q1c + signExtend12 4095 else q1c
-    let rhat' :=
-      if guard_pass && BitVec.ult rhatUn1' qDlo
-      then rhatc + dHi else rhatc
+    let rhatHi := rhatc >>> (32 : BitVec 6).toNat
+    -- Fall-through leg only — the guard-taken leg keeps q1c / rhatc.
+    let q1'FT := if BitVec.ult rhatUn1' qDlo then q1c + signExtend12 4095 else q1c
+    let rhat'FT := if BitVec.ult rhatUn1' qDlo then rhatc + dHi else rhatc
     let cr :=
       CodeReq.union (CodeReq.singleton base (.SRLI .x1 .x7 32))
       (CodeReq.union (CodeReq.singleton (base + 4) (.BNE .x1 .x0 36))
@@ -169,13 +172,20 @@ theorem divK_div128_prodcheck1b_merged_spec
       (CodeReq.union (CodeReq.singleton (base + 28) (.JAL .x0 12))
       (CodeReq.union (CodeReq.singleton (base + 32) (.ADDI .x10 .x10 4095))
        (CodeReq.singleton (base + 36) (.ADD .x7 .x7 .x6))))))))))
-    cpsTriple base (base + 40) cr
+    cpsBranch base cr
       ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ q1c) ** (.x7 ↦ᵣ rhatc) ** (.x11 ↦ᵣ un1) **
-       (.x5 ↦ᵣ v5Old) ** (.x1 ↦ᵣ v1Old) ** (.x6 ↦ᵣ dHi) **
+       (.x5 ↦ᵣ v5Old) ** (.x1 ↦ᵣ v1Old) ** (.x6 ↦ᵣ dHi) ** (.x0 ↦ᵣ 0) **
        (sp + signExtend12 3952 ↦ₘ dlo))
-      ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ q1') ** (.x7 ↦ᵣ rhat') ** (.x11 ↦ᵣ un1) **
-       (.x5 ↦ᵣ qDlo) ** (.x1 ↦ᵣ rhatUn1') ** (.x6 ↦ᵣ dHi) **
-       (sp + signExtend12 3952 ↦ₘ dlo)) := by
-  sorry  -- Composition of guard + body via cpsBranch dispatching, ~80 LOC.
+      (base + 40)  -- guard-fires path (rhatHi ≠ 0): body is skipped
+        ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ q1c) ** (.x7 ↦ᵣ rhatc) ** (.x11 ↦ᵣ un1) **
+         (.x5 ↦ᵣ v5Old) ** (.x1 ↦ᵣ rhatHi) ** (.x6 ↦ᵣ dHi) ** (.x0 ↦ᵣ 0) **
+         ⌜rhatHi ≠ 0⌝ **
+         (sp + signExtend12 3952 ↦ₘ dlo))
+      (base + 40)  -- guard-doesn't-fire + body (rhatHi = 0): runs the mul-check
+        ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ q1'FT) ** (.x7 ↦ᵣ rhat'FT) ** (.x11 ↦ᵣ un1) **
+         (.x5 ↦ᵣ qDlo) ** (.x1 ↦ᵣ rhatUn1') ** (.x6 ↦ᵣ dHi) ** (.x0 ↦ᵣ 0) **
+         ⌜rhatHi = 0⌝ **
+         (sp + signExtend12 3952 ↦ₘ dlo)) := by
+  sorry  -- Composition of guard cpsBranch + body cpsTriple via cpsBranch_seq pattern.
 
 end EvmAsm.Evm64
