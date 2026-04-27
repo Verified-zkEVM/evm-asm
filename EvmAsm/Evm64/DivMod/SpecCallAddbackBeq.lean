@@ -331,9 +331,9 @@ theorem div128Quot_v2_qHat_vTop_le
     Issue #1337 algorithm fix migration. -/
 theorem div128Quot_v2_phase1b_2nd_post
     (uHi dHi q1' rhat' dLo div_un1 : Word)
+    (hdHi_ge : dHi.toNat ≥ 2^31)
     (hdHi_lt : dHi.toNat < 2^32)
-    (h_post_1st : q1'.toNat * dHi.toNat + rhat'.toNat = uHi.toNat)
-    (h_rhat'_lt : rhat'.toNat < 2 * dHi.toNat) :
+    (h_post_1st : q1'.toNat * dHi.toNat + rhat'.toNat = uHi.toNat) :
     let q1'' := div128Quot_phase2b_q0' q1' rhat' dLo div_un1
     let rhat'' :=
       if rhat' >>> (32 : BitVec 6).toNat = 0 then
@@ -359,6 +359,15 @@ theorem div128Quot_v2_phase1b_2nd_post
       have h_q1'_pos : q1'.toNat ≥ 1 :=
         div128Quot_phase1b_check_implies_q1c_pos q1' dLo
           ((rhat' <<< (32 : BitVec 6).toNat) ||| div_un1) h_check
+      -- Derive `rhat' < 2 * dHi` inline from h_guard + hdHi_ge.
+      have h_rhat'_lt : rhat'.toNat < 2 * dHi.toNat := by
+        have h_rhat'_lt_pow32 : rhat'.toNat < 2^32 := by
+          have h := congrArg BitVec.toNat h_guard
+          simp [BitVec.toNat_ushiftRight, EvmAsm.Rv64.AddrNorm.bv6_toNat_32,
+                Nat.shiftRight_eq_div_pow] at h
+          have h_word : rhat'.toNat < 2^64 := rhat'.isLt
+          omega
+        omega
       exact div128Quot_phase1b_correction_eucl uHi dHi q1' rhat'
         hdHi_lt h_post_1st h_q1'_pos h_rhat'_lt
     · -- Check doesn't fire: q1'' = q1', rhat'' = rhat'.
