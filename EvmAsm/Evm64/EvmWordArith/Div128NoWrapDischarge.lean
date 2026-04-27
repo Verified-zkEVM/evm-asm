@@ -576,20 +576,93 @@ theorem div128Quot_phase1_no_wrap_of_q1_prime_eq_q_top_phase1
 -- D2b: un21 < vTop from tight Phase 1
 -- ============================================================================
 
-/-- **D2b-A (STUB)**: Phase 1b Euclidean identity at bundle level.
+/-- **D2b-A (CLOSED)**: Phase 1b Euclidean identity at bundle level.
     `q1' * dHi + rhat' = u4` (toNat). Wraps `div128Quot_phase1b_post`
     over our irreducible bundles. -/
 theorem n4_phase1b_eucl
     (a2 a3 b2 b3 : Word)
-    (_hb3nz : b3 ≠ 0)
+    (hb3nz : b3 ≠ 0)
     (_hshift_nz : (clzResult b3).1 ≠ 0)
     (_hcall : isCallTrialN4 a3 b2 b3) :
     (n4Q1Prime a2 a3 b2 b3).toNat * (n4DHi b2 b3).toNat +
       (n4RhatPrime a2 a3 b2 b3).toNat = (n4U4 a3 b3).toNat := by
-  sorry
+  -- dHi bounds.
+  have h_b3'_ge : (n4B3Prime b2 b3).toNat ≥ 2^63 := by
+    rw [n4B3Prime_unfold, n4ClzShift_unfold, n4ClzAntiShift_unfold]
+    exact b3_prime_ge_pow63 b3 b2 hb3nz _
+  have h_dHi_ge : (n4DHi b2 b3).toNat ≥ 2^31 := by
+    rw [n4DHi_unfold]; exact div128Quot_dHi_ge_pow31 _ h_b3'_ge
+  have h_dHi_ne : n4DHi b2 b3 ≠ 0 := by
+    intro hzero
+    have h0 : (n4DHi b2 b3).toNat = 0 := by rw [hzero]; rfl
+    omega
+  have h_dHi_lt : (n4DHi b2 b3).toNat < 2^32 := by
+    rw [n4DHi_unfold, BitVec.toNat_ushiftRight,
+        EvmAsm.Rv64.AddrNorm.bv6_toNat_32, Nat.shiftRight_eq_div_pow]
+    have : (n4B3Prime b2 b3).toNat < 2^64 := (n4B3Prime b2 b3).isLt
+    exact Nat.div_lt_of_lt_mul (by omega)
+  -- Phase 1a Euclidean and rhatc bound.
+  -- Bridge to n4DHi-based form: rewrite n4Q1Prime, n4RhatPrime to algorithm bodies.
+  rw [n4Q1Prime_unfold, n4RhatPrime_unfold, algorithmQ1Prime_unfold,
+      algorithmRhatPrime_unfold]
+  -- Substitute dHi := b3' >>> 32 to match the let-form's dHi.
+  rw [show (n4DHi b2 b3) = (n4B3Prime b2 b3) >>> (32 : BitVec 6).toNat
+        from n4DHi_unfold b2 b3]
+  -- Now the goal is in let-form. Apply the existing lemma.
+  -- Construct the q1c, rhatc, dLo, rhatUn1 args needed.
+  set b3' := n4B3Prime b2 b3 with hb3'_def
+  set u4 := n4U4 a3 b3 with hu4_def
+  set u3 := n4Un3 a2 a3 b3 with hu3_def
+  -- Replicate the structure that algorithmQ1Prime_unfold leaves.
+  -- After unfolding, the goal references b3' >>> 32, etc.
+  -- Use h_post and h_rhatc_lt with dHi := b3' >>> 32.
+  have h_dHi_ne' : (b3' >>> (32 : BitVec 6).toNat) ≠ 0 := by
+    rw [hb3'_def, ← n4DHi_unfold]; exact h_dHi_ne
+  have h_dHi_lt' : (b3' >>> (32 : BitVec 6).toNat).toNat < 2^32 := by
+    rw [hb3'_def, ← n4DHi_unfold]; exact h_dHi_lt
+  exact div128Quot_phase1b_post u4 (b3' >>> (32 : BitVec 6).toNat)
+    (if rv64_divu u4 (b3' >>> (32 : BitVec 6).toNat) >>>
+        (32 : BitVec 6).toNat = 0
+     then rv64_divu u4 (b3' >>> (32 : BitVec 6).toNat)
+     else rv64_divu u4 (b3' >>> (32 : BitVec 6).toNat) + signExtend12 4095)
+    (if rv64_divu u4 (b3' >>> (32 : BitVec 6).toNat) >>>
+        (32 : BitVec 6).toNat = 0
+     then u4 - rv64_divu u4 (b3' >>> (32 : BitVec 6).toNat) *
+              (b3' >>> (32 : BitVec 6).toNat)
+     else u4 - rv64_divu u4 (b3' >>> (32 : BitVec 6).toNat) *
+              (b3' >>> (32 : BitVec 6).toNat) + (b3' >>> (32 : BitVec 6).toNat))
+    ((b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat)
+    (((if rv64_divu u4 (b3' >>> (32 : BitVec 6).toNat) >>>
+          (32 : BitVec 6).toNat = 0
+       then u4 - rv64_divu u4 (b3' >>> (32 : BitVec 6).toNat) *
+              (b3' >>> (32 : BitVec 6).toNat)
+       else u4 - rv64_divu u4 (b3' >>> (32 : BitVec 6).toNat) *
+              (b3' >>> (32 : BitVec 6).toNat) +
+              (b3' >>> (32 : BitVec 6).toNat)) <<< (32 : BitVec 6).toNat) |||
+       (u3 >>> (32 : BitVec 6).toNat))
+    h_dHi_lt'
+    (div128Quot_first_round_post u4 (b3' >>> (32 : BitVec 6).toNat)
+      h_dHi_ne' h_dHi_lt')
+    (div128Quot_rhatc_lt_2dHi u4 (b3' >>> (32 : BitVec 6).toNat)
+      h_dHi_ne' h_dHi_lt')
 
 /-- **D2b-B (STUB)**: BitVec un21 to Nat decomposition under no-wrap.
-    `un21.toNat = (rhat'%2^32)*2^32 + div_un1 - q1'*dLo` when no-wrap. -/
+    `un21.toNat = (rhat'%2^32)*2^32 + div_un1 - q1'*dLo` when no-wrap.
+
+    **Proof sketch**: `n4Un21 = ((rhat' << 32) ||| div_un1) - (q1' * dLo)`
+    (BitVec). Under no-wrap (h_no_wrap_phase1), the BitVec subtraction is
+    no-wrap, so `un21.toNat = cu_rhat_un1.toNat - cu_q1_dlo.toNat`.
+    `cu_rhat_un1.toNat = (rhat'%2^32)*2^32 + div_un1` via
+    `halfword_combine_mod`. `cu_q1_dlo.toNat = q1'*dLo` (no Word overflow,
+    since q1' < 2^32 and dLo < 2^32 so product < 2^64).
+
+    **Blocker (2026-04-27 iteration)**: the structural identity
+    `n4Un21 = (n4RhatPrime << 32 ||| n4DivUn1) - (n4Q1Prime * n4DLo)`
+    triggers `whnf` heartbeat blow-up when proven via combined `_unfold`
+    rewrites, due to algorithm let-bindings duplicating large
+    if-then-else terms across bundle boundaries. Likely needs a more
+    delicate proof structure or restatement of `algorithmUn21` in
+    terms of `algorithmQ1Prime` / `algorithmRhatPrime` explicitly. -/
 theorem n4Un21_toNat_of_no_wrap
     (a2 a3 b2 b3 : Word)
     (_hb3nz : b3 ≠ 0)
