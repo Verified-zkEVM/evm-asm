@@ -180,7 +180,15 @@ theorem n4CallAddbackBeqSemanticHolds_def {a b : EvmWord} :
     Simpler than the call-skip bridge: hsem directly gives the tight equality
     `q_out.toNat = val256(a)/val256(b)`, so we don't need to combine with T3.
     From that, `(EvmWord.div a b).toNat = q_out.toNat` via `BitVec.toNat_udiv`,
-    and `q_out : Word` bounds pin the limbs. -/
+    and `q_out : Word` bounds pin the limbs.
+
+    **VACUITY note (2026-04-27)**: per
+    `n4CallAddbackBeqSemanticHolds_counterexample` (below), the `hsem`
+    hypothesis is FALSE on a class of runtime-reachable inputs — the
+    algorithm overshoots q_true by ~2^32 in those cases. So this bridge
+    cannot be applied to derive correctness on the full input space;
+    callers must restrict to inputs where `hsem` is independently
+    discharged (currently impossible without algorithm fix). -/
 theorem n4_call_addback_beq_div_mod_getLimbN (a b : EvmWord)
     (hbnz : b ≠ 0)
     (hsem : n4CallAddbackBeqSemanticHolds a b) :
