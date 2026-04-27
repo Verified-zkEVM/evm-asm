@@ -2193,6 +2193,25 @@ theorem isAddbackBorrowN4Call_v1_v2_agree_on_counterexample :
          isAddbackBorrowN4Call isAddbackBorrowN4Call_v2
   decide
 
+/-- **Sanity check 9**: v1/v2 borrow agreement on a SECOND input —
+    a "small" case where both v1 and v2 algorithms compute the same
+    qHat (no overshoot beyond +2). Kernel-checked via `decide`.
+
+    Together with `isAddbackBorrowN4Call_v1_v2_agree_on_counterexample`
+    (the worst-known case), this gives evidence that v1 ↔ v2 borrow
+    equivalence holds broadly. A general theorem would unblock using
+    v1's lemmas (like `u_top_lt_c3_of_addback_borrow_call`) directly
+    in v2 closure proofs. -/
+theorem isAddbackBorrowN4Call_v1_v2_agree_on_small :
+    let a : EvmWord := EvmWord.fromLimbs (fun i => match i with
+      | 0 => 0 | 1 => 0 | 2 => BitVec.ofNat 64 5 | 3 => BitVec.ofNat 64 (2^60))
+    let b : EvmWord := EvmWord.fromLimbs (fun i => match i with
+      | 0 => 0 | 1 => 0 | 2 => 0 | 3 => BitVec.ofNat 64 (2^32 + 7))
+    isAddbackBorrowN4CallEvm a b ↔ isAddbackBorrowN4CallEvm_v2 a b := by
+  unfold isAddbackBorrowN4CallEvm isAddbackBorrowN4CallEvm_v2
+         isAddbackBorrowN4Call isAddbackBorrowN4Call_v2
+  decide
+
 /-- **Sanity check 4**: NOTE — `n4CallAddbackBeqSemanticHolds_v2` requires
     the input to actually be in the call+addback BEQ runtime regime (i.e.
     the runtime preconditions of the closure stub: `hbltu`, `hcarry2_nz`,
