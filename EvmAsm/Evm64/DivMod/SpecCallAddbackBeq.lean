@@ -291,14 +291,25 @@ theorem div128Quot_v2_qHat_vTop_le
     (_huHi_lt_vTop : uHi.toNat <
       (vTop >>> (32 : BitVec 6).toNat).toNat * 2^32 +
       ((vTop <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat).toNat) :
+    -- NOTE: like v1's `div128Quot_qHat_vTop_le`, this likely needs
+    -- additional no_wrap hypotheses (see
+    -- `div128Quot_v2_phase1_no_wrap_lo_FALSE_counterexample`). The v2
+    -- algorithm fix improves qHat-overshoot but doesn't eliminate the
+    -- no-wrap conditions for the val256-level interpretation. The
+    -- detailed signature with implications mirrors v1; future iterations
+    -- will refine.
     (div128Quot_v2 uHi uLo vTop).toNat * vTop.toNat ≤
       uHi.toNat * 2^64 + uLo.toNat := by
-  sorry  -- See proof plan in docstring. Sub-lemmas needed:
-         -- 1. Phase 1a invariants (reuse from v1 — algorithm shares Phase 1a).
-         -- 2. Phase 1b 1st D3 invariants (reuse from v1).
-         -- 3. Phase 1b 2nd D3 invariants (NEW): div128Quot_v2_phase1b_2nd_post.
-         -- 4. Phase 2 invariants (mirror v1 with q1''/rhat'').
-         -- 5. KB-Compose V2 (reuse pattern from v1).
+  sorry  -- Body needs the v1-style no_wrap hypotheses. The compose
+         -- structure is laid out via 5 proven sub-lemmas
+         -- (div128Quot_v2_phase1b_2nd_post,
+         --  div128Quot_v2_q1_prime_prime_le_q1_prime,
+         --  div128Quot_v2_q1_prime_prime_dLo_no_wrap,
+         --  div128Quot_v2_un21_toNat,
+         --  div128Quot_v2_un21_toNat_case)
+         -- + reusable v1 infrastructure. The remaining substantive piece
+         -- is `div128Quot_v2_toNat_eq_strict` (output formula via halfword
+         -- combine). See proof plan in docstring.
 
 /-- **Phase 1b 2nd D3 Euclidean invariant** for `div128Quot_v2`.
 
