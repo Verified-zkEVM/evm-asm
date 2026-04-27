@@ -256,6 +256,44 @@ theorem n4CallAddbackBeqSemanticHolds_v2_holds_on_counterexample :
   unfold n4CallAddbackBeqSemanticHolds_v2
   decide
 
+/-- **Closure of `n4CallAddbackBeqSemanticHolds_v2` from runtime conditions.**
+
+    Mirrors `n4CallSkipSemanticHolds_of_call_trial` for the call+addback
+    BEQ branch. The proof structure is:
+
+    1. **Knuth Theorem B for `div128Quot_v2`**: with normalized divisor
+       (`b3' ≥ 2^63` from `hshift_nz`), the v2 algorithm satisfies
+       `qHat ≤ q_true + 2` (where `q_true` is the per-digit ideal
+       quotient `(u4 * 2^64 + u3) / b3'`). This is the new fact unlocked
+       by `div128_v2_spec` (PR #1392).
+
+    2. **Carry-2 / borrow conditions partition the overshoot**:
+       - `hcarry2_nz` (carry from outer addback ≠ 0) ⟹ `qHat = q_true + 1`
+         (single addback corrects).
+       - `hcarry2_nz` AND `hborrow` (BEQ branch fires) ⟹ `qHat = q_true + 2`
+         (double addback would correct, but with v2 the BEQ branch's
+         post-addback `q_out` matches `q_true`).
+
+    3. **Combine with `hbltu` (call-trial range)** to derive `q_out =
+       q_true = a/b`.
+
+    Sub-lemmas needed (provable with v2):
+    - `div128Quot_v2_knuth_B`: qHat ≤ q_true + 2 (the Knuth-B bound).
+    - `n4CallAddbackBeq_q_out_eq_q_true_v2`: under the runtime
+      preconditions and Knuth-B bound, q_out = q_true.
+
+    Issue #1337 algorithm fix migration. -/
+theorem n4CallAddbackBeqSemanticHolds_v2_of_call_addback_beq (a b : EvmWord)
+    (_hb3nz : b.getLimbN 3 ≠ 0)
+    (_hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (_hbltu : isCallTrialN4Evm a b)
+    (_hcarry2_nz : isAddbackCarry2NzN4CallEvm a b)
+    (_hborrow : isAddbackBorrowN4CallEvm a b) :
+    n4CallAddbackBeqSemanticHolds_v2 a b := by
+  sorry  -- See proof plan in docstring above. Sub-lemmas:
+         -- 1. div128Quot_v2_knuth_B (qHat ≤ q_true + 2 under hshift_nz).
+         -- 2. q_out arithmetic (carry partition + addback correctness).
+
 theorem n4CallAddbackBeqSemanticHolds_def {a b : EvmWord} :
     n4CallAddbackBeqSemanticHolds a b =
     (let shift := (clzResult (b.getLimbN 3)).1.toNat % 64
