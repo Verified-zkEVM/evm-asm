@@ -199,6 +199,20 @@ theorem encode_nonempty (item : RLPItem) : (encode item).length > 0 := by
     simp [encode]
     split <;> simp [List.length_append]
 
+/-! ## Round-trip correctness (parametric cases)
+
+These lemmas prove `decode (encode (.bytes [b])) = some (.bytes [b], [])`
+mechanically (not via `decide`) by chaining the existing `encodeBytes_*`
+and `decode_*` characterizations. They cover the single-byte cases
+across all values of `b` — useful as building blocks for an eventual
+fully parametric round-trip theorem. -/
+
+/-- Single-byte round-trip for small bytes (`b < 0x80`): the byte is
+    its own encoding, and the decoder maps it back to `.bytes [b]`. -/
+theorem decode_encode_bytes_single_small (b : Byte) (h : b.toNat < 0x80) :
+    decode (encode (.bytes [b])) = some (.bytes [b], []) := by
+  simp only [encode, encodeBytes_single_small _ h, decode_single_byte _ h]
+
 /-! ## Round-trip correctness (concrete cases)
 
 The round-trip property `decode (encode item) = some (item, [])` is verified
