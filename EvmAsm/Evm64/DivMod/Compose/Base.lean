@@ -121,6 +121,34 @@ abbrev sharedDivModCode (base : Word) : CodeReq :=
     CodeReq.ofProg (base + div128Off)     divK_div128             -- block 12 (was 13)
   ]
 
+/-- v2 mirror of `sharedDivModCode` — same blocks 0-11 but block 12 (the
+    div128 subroutine) uses `divK_div128_v2` (Knuth's classical 2nd D3
+    correction iteration) instead of the buggy `divK_div128`.
+
+    Used as the code requirement for loop-body and div128 specs in the
+    v2 migration path (issue #1337). The block 8 `divK_loopBody` retains
+    the v1 offset constants for now; once the LoopBody migration is
+    complete, this `divK_loopBody` will need updating too (since v2's
+    larger div128 changes the JAL target offset).
+
+    Issue #1337 algorithm fix migration. -/
+abbrev sharedDivModCode_v2 (base : Word) : CodeReq :=
+  CodeReq.unionAll [
+    CodeReq.ofProg  base                  (divK_phaseA 1020),     -- block 0
+    CodeReq.ofProg (base + phaseBOff)     divK_phaseB,            -- block 1
+    CodeReq.ofProg (base + clzOff)        divK_clz,               -- block 2
+    CodeReq.ofProg (base + phaseC2Off)    (divK_phaseC2 172),     -- block 3
+    CodeReq.ofProg (base + normBOff)      divK_normB,             -- block 4
+    CodeReq.ofProg (base + normAOff)      (divK_normA 40),        -- block 5
+    CodeReq.ofProg (base + copyAUOff)     divK_copyAU,            -- block 6
+    CodeReq.ofProg (base + loopSetupOff)  (divK_loopSetup 464),   -- block 7
+    CodeReq.ofProg (base + loopBodyOff)   (divK_loopBody 560 7736),-- block 8
+    CodeReq.ofProg (base + denormOff)     divK_denorm,            -- block 9
+    CodeReq.ofProg (base + zeroPathOff)   divK_zeroPath,          -- block 10
+    CodeReq.ofProg (base + nopOff)        (ADDI .x0 .x0 0),       -- block 11
+    CodeReq.ofProg (base + div128Off)     divK_div128_v2          -- block 12 (v2)
+  ]
+
 -- Per-block subsumption: each shared block ⊆ divCode.
 -- Blocks 0-9 are at the same union positions; blocks 10-12 (shared) = blocks 11-13 (divCode).
 private theorem shared_b0_div {b : Word} : ∀ a i, (CodeReq.ofProg b (divK_phaseA 1020)) a = some i → (divCode b) a = some i := by
