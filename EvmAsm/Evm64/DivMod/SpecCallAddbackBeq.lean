@@ -351,9 +351,9 @@ theorem div128Quot_v2_qHat_vTop_le_test_counterexample :
     Issue #1337 algorithm fix migration. -/
 theorem div128Quot_v2_le_val256_div_plus_two
     (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
-    (_hb3nz : b3 ≠ 0)
-    (_hshift_nz : (clzResult b3).1 ≠ 0)
-    (_hcall : isCallTrialN4 a3 b2 b3) :
+    (hb3nz : b3 ≠ 0)
+    (hshift_nz : (clzResult b3).1 ≠ 0)
+    (hcall : isCallTrialN4 a3 b2 b3) :
     let shift := (clzResult b3).1.toNat % 64
     let antiShift := (signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64
     let u4 := a3 >>> antiShift
@@ -362,13 +362,33 @@ theorem div128Quot_v2_le_val256_div_plus_two
     (div128Quot_v2 u4 un3 b3').toNat ≤
       val256 a0 a1 a2 a3 / val256 b0 b1 b2 b3 + 2 := by
   intro shift antiShift u4 un3 b3'
-  sorry  -- Sub-stub structure:
-         -- Step 1 (NEW): div128Quot_v2_qHat_vTop_le — multiplication form
-         --   qHat * vTop ≤ uHi * 2^64 + uLo (post-2-D3 correction).
-         --   Provable WITHOUT the no_wrap hypotheses required by v1.
-         -- Step 2 (EXISTING): compose with knuth_theorem_b_from_clz via
-         --   Nat.le_div_iff_mul_le. Pattern from v1's
-         --   div128Quot_le_val256_div_plus_two (Div128CallSkipClose.lean:267).
+  -- Discharge Step 1's preconditions (same as v1's pattern in
+  -- div128Quot_le_val256_div_plus_two from Div128CallSkipClose.lean:267).
+  have hb3prime_ge_pow63 : b3'.toNat ≥ 2^63 := b3_prime_ge_pow63 b3 b2 hb3nz _
+  let dHi := b3' >>> (32 : BitVec 6).toNat
+  let dLo := (b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+  have hdHi_ge : dHi.toNat ≥ 2^31 := div128Quot_dHi_ge_pow31 b3' hb3prime_ge_pow63
+  have hdLo_lt : dLo.toNat < 2^32 := Word_ushiftRight_32_lt_pow32
+  have hu4_lt_b3prime : u4.toNat < b3'.toNat := isCallTrialN4_toNat_lt a3 b2 b3 hcall
+  have h_vtop : b3'.toNat = dHi.toNat * 2^32 + dLo.toNat :=
+    div128Quot_vTop_decomp b3'
+  have hu4_lt_vTop : u4.toNat < dHi.toNat * 2^32 + dLo.toNat := by
+    rw [← h_vtop]; exact hu4_lt_b3prime
+  -- Step 1 (sorry-stubbed; proof plan in div128Quot_v2_qHat_vTop_le's docstring):
+  -- multiplication form qHat * vTop ≤ uHi * 2^64 + uLo for div128Quot_v2.
+  have h_step1 := div128Quot_v2_qHat_vTop_le u4 un3 b3' hdHi_ge hdLo_lt hu4_lt_vTop
+  -- Convert multiplication bound to division bound.
+  have hb3prime_pos : 0 < b3'.toNat := by omega
+  have h_div_le : (div128Quot_v2 u4 un3 b3').toNat ≤
+      (u4.toNat * 2^64 + un3.toNat) / b3'.toNat :=
+    (Nat.le_div_iff_mul_le hb3prime_pos).mpr h_step1
+  -- Step 2 (existing): Knuth-B abstract bound from CLZ.
+  have h_step2 := knuth_theorem_b_from_clz a0 a1 a2 a3 b0 b1 b2 b3
+    hb3nz hshift_nz hcall
+  -- Transitivity.
+  calc (div128Quot_v2 u4 un3 b3').toNat
+      ≤ (u4.toNat * 2^64 + un3.toNat) / b3'.toNat := h_div_le
+    _ ≤ val256 a0 a1 a2 a3 / val256 b0 b1 b2 b3 + 2 := h_step2
 
 /-- **Closure of `n4CallAddbackBeqSemanticHolds_v2` from runtime conditions.**
 
