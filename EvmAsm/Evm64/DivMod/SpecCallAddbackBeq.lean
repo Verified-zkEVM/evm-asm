@@ -372,6 +372,61 @@ theorem div128Quot_v2_phase1b_2nd_post
       rw [if_neg h_guard]
     rw [h_q1'', h_rhat'']; exact h_post_1st
 
+/-- **`un21` computation case-analysis for `div128Quot_v2`** (v2 analog
+    of `div128Quot_un21_toNat_case` from `Div128FinalAssembly.lean:213`).
+
+    The structure of the un21 computation is identical between v1 and v2 —
+    `un21 = (rhat << 32) | div_un1 - q1 * dLo` — but uses `q1''/rhat''`
+    (post-2nd-D3) instead of `q1'/rhat'` (post-1st-D3) as inputs.
+
+    For v2, when `rhat'' < 2^32` (the "no-wrap" case), `un21 = A - B`
+    where `A = rhat'' * 2^32 + div_un1` and `B = q1'' * dLo`. Otherwise
+    Word arithmetic wraps and `un21 = A + 2^64 - B`.
+
+    **Why simpler for v2**: under v2's call-trial preconditions, the
+    no-wrap case `rhat'' < 2^32` should hold automatically (since the
+    2nd D3 correction targets exactly the rhat ≥ 2^32 case). The wrap
+    case is impossible/rare for v2 inputs in the call-trial regime.
+
+    Issue #1337 algorithm fix migration. -/
+theorem div128Quot_v2_un21_toNat_case
+    (uHi uLo vTop : Word)
+    (_hdHi_ge : (vTop >>> (32 : BitVec 6).toNat).toNat ≥ 2^31)
+    (_hdLo_lt : ((vTop <<< (32 : BitVec 6).toNat) >>>
+                 (32 : BitVec 6).toNat).toNat < 2^32)
+    (_huHi_lt_vTop : uHi.toNat <
+      (vTop >>> (32 : BitVec 6).toNat).toNat * 2^32 +
+      ((vTop <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat).toNat) :
+    let dHi := vTop >>> (32 : BitVec 6).toNat
+    let dLo := (vTop <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+    let div_un1 := uLo >>> (32 : BitVec 6).toNat
+    let q1 := rv64_divu uHi dHi
+    let rhat := uHi - q1 * dHi
+    let hi1 := q1 >>> (32 : BitVec 6).toNat
+    let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+    let rhatc := if hi1 = 0 then rhat else rhat + dHi
+    let qDlo := q1c * dLo
+    let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
+    let q1' := if BitVec.ult rhatUn1 qDlo then q1c + signExtend12 4095 else q1c
+    let rhat' := if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc
+    -- v2-specific 2nd D3 step:
+    let q1'' := div128Quot_phase2b_q0' q1' rhat' dLo div_un1
+    let rhat'' :=
+      if rhat' >>> (32 : BitVec 6).toNat = 0 then
+        let qDlo2 := q1' * dLo
+        let rhatUn1' := (rhat' <<< (32 : BitVec 6).toNat) ||| div_un1
+        if BitVec.ult rhatUn1' qDlo2 then rhat' + dHi else rhat'
+      else rhat'
+    let cu_rhat_un1 := (rhat'' <<< (32 : BitVec 6).toNat) ||| div_un1
+    let cu_q1_dlo := q1'' * dLo
+    let un21 := cu_rhat_un1 - cu_q1_dlo
+    let A := (rhat''.toNat % 2^32) * 2^32 + div_un1.toNat
+    let B := q1''.toNat * dLo.toNat
+    (B ≤ A → un21.toNat = A - B) ∧
+    (A < B → un21.toNat = A + 2^64 - B) := by
+  sorry  -- Mirrors v1's div128Quot_un21_toNat_case proof; just with
+         -- q1''/rhat'' substituted for q1'/rhat'.
+
 /-- **Numerical sanity check** for `div128Quot_v2_qHat_vTop_le` on the
     counterexample input. Verifies the multiplication bound is at least
     consistent with the v2 algorithm. Kernel-checked via `decide`. -/
