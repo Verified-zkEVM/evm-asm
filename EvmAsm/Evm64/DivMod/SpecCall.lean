@@ -1042,7 +1042,12 @@ theorem n4_call_skip_div_mod_getLimbN (a b : EvmWord)
     postcondition reshape via `n4_call_skip_div_mod_getLimbN` and
     `div_n4_call_skip_stack_weaken`. The post reshape is analogous to the
     max-skip path (Spec.lean:1309) but walks through `fullDivN4CallSkipPost`
-    and `denormDivPost` (no dedicated `_unfold` lemma yet — to be added). -/
+    and `denormDivPost` (no dedicated `_unfold` lemma yet — to be added).
+
+    **Tip**: callers without an externally-supplied
+    `n4CallSkipSemanticHolds` should use
+    `evm_div_n4_call_skip_stack_spec_unconditional`, which discharges
+    that hypothesis automatically (CLOSED via Knuth-A lower bound). -/
 theorem evm_div_n4_call_skip_stack_spec (sp base : Word)
     (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
     (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
@@ -1612,7 +1617,11 @@ theorem output_slot_to_evmWordIs_mod_n4_call_skip_denorm
 
     Reduces to `evm_mod_n4_full_call_skip_stack_pre_spec_bundled` + a
     postcondition reshape via `output_slot_to_evmWordIs_mod_n4_call_skip_denorm`
-    and `mod_n4_call_skip_stack_weaken`. -/
+    and `mod_n4_call_skip_stack_weaken`.
+
+    **Tip**: callers without an externally-supplied
+    `n4CallSkipSemanticHolds` should use
+    `evm_mod_n4_call_skip_stack_spec_unconditional`. -/
 theorem evm_mod_n4_call_skip_stack_spec (sp base : Word)
     (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
     (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
