@@ -25,6 +25,7 @@
 -- (→ `Compose.FullPathN4`) and `DivN4Overestimate` (→ `DivMod.LoopSemantic`).
 import EvmAsm.Evm64.EvmWordArith.Div128KnuthLower
 import EvmAsm.Evm64.EvmWordArith.Div128FinalAssembly
+import EvmAsm.Evm64.EvmWordArith.Div128KB6Composition
 
 namespace EvmAsm.Evm64
 
@@ -564,5 +565,127 @@ theorem q_true_full_lt_q_true_1_succ_mul_pow32_nat
       ((q_true_1 + 1) * 2^32) * vTop_nat := by ring
   rw [h_eq_rearr] at h_num_lt
   exact (Nat.div_lt_iff_lt_mul hvTop_pos).mpr h_num_lt
+
+/-- **CLZ-normalized strict KB-6d**: `div128Quot ≤ val256(a)/val256(b) + 2`
+    in the call-trial CLZ-normalized form, under the all-phases no-wrap
+    invariant.
+
+    Composes `div128Quot_le_q_true` (strict KB-6d from
+    `Div128FinalAssembly`) with Piece A (`knuth_theorem_b_from_clz`):
+    - `div128Quot u4 un3 b3' ≤ (u4*2^64 + un3)/b3'`         (strict KB-6d)
+    - `(u4*2^64 + un3)/b3' ≤ val256(a)/val256(b) + 2`       (Piece A)
+
+    Result: `div128Quot u4 un3 b3' ≤ val256(a)/val256(b) + 2`.
+
+    Mirror of `div128Quot_le_val256_div_plus_two` (which takes
+    unbundled `h_ph1_no_wrap_lo`, `h_ph2_no_wrap`, `hq0_lt`), but uses
+    the bundled `Div128AllPhasesNoWrapInv` predicate. Cleaner API for
+    downstream stack-spec consumers. -/
+theorem div128Quot_le_val256_div_plus_two_with_inv
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hb3nz : b3 ≠ 0)
+    (hshift_nz : (clzResult b3).1 ≠ 0)
+    (hcall : isCallTrialN4 a3 b2 b3) :
+    let shift := (clzResult b3).1.toNat % 64
+    let antiShift := (signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64
+    let u4 := a3 >>> antiShift
+    let un3 := (a3 <<< shift) ||| (a2 >>> antiShift)
+    let b3' := (b3 <<< shift) ||| (b2 >>> antiShift)
+    Div128AllPhasesNoWrapInv u4 un3 b3' →
+    (div128Quot u4 un3 b3').toNat ≤
+      val256 a0 a1 a2 a3 / val256 b0 b1 b2 b3 + 2 := by
+  intro shift antiShift u4 un3 b3' h_inv
+  -- Discharge strict KB-6d preconditions.
+  have hb3prime_ge_pow63 : b3'.toNat ≥ 2^63 := b3_prime_ge_pow63 b3 b2 hb3nz _
+  have hu4_lt_b3prime : u4.toNat < b3'.toNat := isCallTrialN4_toNat_lt a3 b2 b3 hcall
+  have hcall_strict : u4.toNat * 2^64 + un3.toNat < b3'.toNat * 2^64 := by
+    have hun3 : un3.toNat < 2^64 := un3.isLt
+    have : u4.toNat * 2^64 + 2^64 ≤ b3'.toNat * 2^64 := by
+      have : u4.toNat + 1 ≤ b3'.toNat := hu4_lt_b3prime
+      calc u4.toNat * 2^64 + 2^64
+          = (u4.toNat + 1) * 2^64 := by ring
+        _ ≤ b3'.toNat * 2^64 := Nat.mul_le_mul_right _ this
+    omega
+  -- Strict KB-6d: div128Quot u4 un3 b3' ≤ (u4*2^64 + un3)/b3'.
+  have h_kb6d := div128Quot_le_q_true u4 un3 b3' hb3prime_ge_pow63 hcall_strict h_inv
+  -- Piece A: (u4*2^64 + un3)/b3' ≤ val256(a)/val256(b) + 2.
+  have h_piece_a := knuth_theorem_b_from_clz a0 a1 a2 a3 b0 b1 b2 b3
+    hb3nz hshift_nz hcall
+  -- Compose via transitivity.
+  exact Nat.le_trans h_kb6d h_piece_a
+
+/-- **q1' < 2^32 in call-trial CLZ-normalized form** (CLOSED).
+
+    Wrapper around `div128Quot_q1_prime_lt_pow32` (KB-3e''') that takes
+    the CLZ-normalized inputs `u4`, `un3`, `b3'` directly. Building
+    block for the discharge bridge — gives the unconditional
+    `q1' < 2^32` fact that's needed downstream to:
+    1. Apply `div128Quot_toNat_eq_strict` (drops the `% 2^32` from
+       KB-6a's output formula).
+    2. Get `(q1' << 32) | q0' = q1' * 2^32 + q0'` (no OR-overlap on
+       q1' side, under the additional `q0' < 2^32`).
+
+    Pure consequence of hcall + the CLZ normalization (b3' ≥ 2^63);
+    no skip-borrow needed. -/
+theorem div128Quot_q1_prime_lt_pow32_call
+    (a2 a3 b2 b3 : Word)
+    (hb3nz : b3 ≠ 0)
+    (hcall : isCallTrialN4 a3 b2 b3) :
+    let shift := (clzResult b3).1.toNat % 64
+    let antiShift := (signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64
+    let u4 := a3 >>> antiShift
+    let un3 := (a3 <<< shift) ||| (a2 >>> antiShift)
+    let b3' := (b3 <<< shift) ||| (b2 >>> antiShift)
+    let dHi := b3' >>> (32 : BitVec 6).toNat
+    let dLo := (b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+    let div_un1 := un3 >>> (32 : BitVec 6).toNat
+    let q1 := rv64_divu u4 dHi
+    let rhat := u4 - q1 * dHi
+    let hi1 := q1 >>> (32 : BitVec 6).toNat
+    let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+    let rhatc := if hi1 = 0 then rhat else rhat + dHi
+    let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
+    let q1' := if BitVec.ult rhatUn1 (q1c * dLo) then q1c + signExtend12 4095
+               else q1c
+    q1'.toNat < 2^32 := by
+  intro shift antiShift u4 un3 b3' dHi dLo div_un1 q1 rhat hi1 q1c rhatc rhatUn1 q1'
+  have hb3prime_ge_pow63 : b3'.toNat ≥ 2^63 := b3_prime_ge_pow63 b3 b2 hb3nz _
+  have hdHi_ge : dHi.toNat ≥ 2^31 := div128Quot_dHi_ge_pow31 b3' hb3prime_ge_pow63
+  have hdHi_lt : dHi.toNat < 2^32 := Word_ushiftRight_32_lt_pow32
+  have hdLo_lt : dLo.toNat < 2^32 := Word_ushiftRight_32_lt_pow32
+  have hu4_lt_b3prime : u4.toNat < b3'.toNat := isCallTrialN4_toNat_lt a3 b2 b3 hcall
+  have h_vtop : b3'.toNat = dHi.toNat * 2^32 + dLo.toNat :=
+    div128Quot_vTop_decomp b3'
+  have hu4_lt_vTop : u4.toNat < dHi.toNat * 2^32 + dLo.toNat := by
+    rw [← h_vtop]; exact hu4_lt_b3prime
+  exact div128Quot_q1_prime_lt_pow32 u4 dHi dLo un3 hdHi_ge hdHi_lt hdLo_lt hu4_lt_vTop
+
+/- **Discharge bridge** (REMOVED): a `div128_all_phases_no_wrap_of_skip_borrow`
+   stub was previously here, claiming `isSkipBorrowN4Call` implies
+   `Div128AllPhasesNoWrapInv`. It was sorry'd because the bridge from
+   Phase-1-level `q_top_phase1 := (u4*2^32 + un3>>32)/b3'` to
+   val256-level `q_true_top := val256(a)/val256(b)/2^32` is genuinely
+   hard — these quantities differ at the multi-precision level by up to
+   Knuth's overshoot bound (Theorem B says `+2`).
+
+   Closed building blocks toward the discharge are still available in
+   this file and `CallSkipLowerBoundV2.lean`:
+   - `div128Quot_call_skip_eq_val256_div` (tight equality).
+   - `val256_div_val256_lt_pow64`, `val256_div_q_true_digits_lt_pow32`.
+   - `div128Quot_q1_prime_lt_pow32_call`.
+   - `div128Quot_or_left_ge_q1_prime_shift{,_existential}`.
+   - `div128Quot_q1_prime_le_q_true_top_call_skip` (Phase 1 upper).
+
+   Estimated remaining work: ~300–500 LOC of Knuth-style algebra
+   (3–7 days) for the Phase-1-level ↔ val256-level bridge plus Phase 2
+   mirrors plus wrap conjunct derivations. There's also a real risk
+   that the `un21 < vTop` or Phase 2 no-wrap conjunct turns out subtly
+   false (the predecessor `Div128PhaseNoWrapInv` strong form was shown
+   FALSE in `project_kb6d_false_counterexample.md`).
+
+   The conditional theorems (`div128Quot_le_q_true`,
+   `div128Quot_le_val256_div_plus_two_with_inv`, etc.) remain available
+   for callers willing to construct `Div128AllPhasesNoWrapInv` by some
+   other means. -/
 
 end EvmAsm.Evm64
