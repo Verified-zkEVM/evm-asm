@@ -187,6 +187,26 @@ each long-string prefix. They are clean glue lemmas matching the
 preconditions of the corresponding `rlp_phase2_long_loop_*_byte_spec`
 family (one-byte, two-byte, ..., eight-byte). -/
 
+/-- Specialization at `v5 = 0xB8` (the smallest long-string prefix,
+    `lenLen = 1`). The post replaces the abstract
+    `v5 + signExtend12 (-0xB7)` form in `x14` with the concrete
+    `(1 : Word)`. -/
+theorem rlp_phase3_long_string_spec_at_0xB8
+    (v11Old v13 v14Old : Word) (base : Word) :
+    cpsTriple base (base + 12)
+      (CodeReq.ofProg base rlp_phase3_long_string_prog)
+      ((.x0 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ (0xB8 : Word)) **
+       (.x11 ↦ᵣ v11Old) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14Old))
+      ((.x0 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ (0xB8 : Word)) **
+       (.x11 ↦ᵣ (0 : Word)) **
+       (.x13 ↦ᵣ (v13 + signExtend12 (1 : BitVec 12))) **
+       (.x14 ↦ᵣ (1 : Word))) := by
+  have h := rlp_phase3_long_string_spec (0xB8 : Word) v11Old v13 v14Old base
+  have hsig : (0xB8 : Word) + signExtend12 (-(0xB7 : BitVec 12)) = (1 : Word) := by
+    decide
+  rw [hsig] at h
+  exact h
+
 /-- Specialization at `v5 = 0xB9` (`lenLen = 2`). -/
 theorem rlp_phase3_long_string_spec_at_0xB9
     (v11Old v13 v14Old : Word) (base : Word) :
