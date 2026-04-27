@@ -514,10 +514,21 @@ theorem div128Quot_v2_toNat_eq_strict (uHi uLo vTop : Word)
     let q0' := div128Quot_phase2b_q0' q0c rhat2c dLo div_un0
     q0'.toNat < 2^32 →
     (div128Quot_v2 uHi uLo vTop).toNat = q1''.toNat * 2^32 + q0'.toNat := by
-  sorry  -- Mirror v1's div128Quot_toNat_eq_strict proof. The output is
-         -- (q1'' << 32) ||| q0' under q0' < 2^32. Word arithmetic on the
-         -- OR-shift combine. Most of v1's proof structure works; just
-         -- substitute q1'' for q1'.
+  intro dHi dLo div_un1 div_un0 q1 rhat hi1 q1c rhatc qDlo rhatUn1 q1' rhat'
+        q1'' rhat'' cu_rhat_un1 cu_q1_dlo un21 q0 rhat2 hi2 q0c rhat2c q0' hq0
+  -- Output is (q1'' << 32) ||| q0' (per div128Quot_v2 def).
+  show ((q1'' <<< (32 : BitVec 6).toNat) ||| q0').toNat = q1''.toNat * 2^32 + q0'.toNat
+  -- Use halfword_combine_mod to get the modular form, then drop the mod
+  -- via q1''.toNat < 2^32.
+  have h_q1''_le_q1' : q1''.toNat ≤ q1'.toNat :=
+    div128Quot_v2_q1_prime_prime_le_q1_prime q1' rhat' dLo div_un1
+  have h_q1'_lt : q1'.toNat < 2^32 :=
+    div128Quot_q1_prime_lt_pow32 uHi dHi dLo uLo
+      (by simpa using _hdHi_ge) (by simpa using _hdHi_lt)
+      (by simpa using _hdLo_lt) (by simpa using _huHi_lt_vTop)
+  have h_q1''_lt : q1''.toNat < 2^32 := lt_of_le_of_lt h_q1''_le_q1' h_q1'_lt
+  rw [EvmAsm.Rv64.AddrNorm.bv6_toNat_32]
+  rw [halfword_combine_mod q1'' q0' hq0, Nat.mod_eq_of_lt h_q1''_lt]
 
 /-- **Numerical sanity check** for `div128Quot_v2_toNat_eq_strict` on the
     counterexample input. Verifies the halfword combine formula holds.
