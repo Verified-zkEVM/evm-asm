@@ -1545,13 +1545,34 @@ theorem div128Quot_v2_no_wrap_under_call_addback_beq_untruncated (a b : EvmWord)
     q0'.toNat < 2^32 := by
   sorry  -- Discharge from runtime preconditions. The UNTRUNCATED phase-1
          -- invariants are TRUE (in contrast to the truncated FALSE one).
-         -- Argument: Phase 1b's 2-correction loop ensures rhat'' ≤ 2*dHi-1
-         -- and q1'' is closely related to a/b. The two-bound invariant is
-         -- a corollary of Knuth's classical Algorithm D analysis applied
-         -- to the v2 algorithm. Filling this requires:
-         --  (a) bound rhat''.toNat (post-2nd-D3) in terms of dHi.
-         --  (b) bound q1''.toNat * dLo from the algorithm's structure.
-         --  (c) the upper bound A_un - B < 2^64 follows from (a) + (b).
+         --
+         -- **KEY ALGEBRAIC INSIGHT (commit a8c6aee1+):** un21_math is
+         -- exactly the remainder of `(uHi * 2^32 + div_un1) / vTop`.
+         -- Let x := uHi * 2^32 + div_un1. From Phase 1b Euclidean
+         -- (q1'' * dHi + rhat'' = uHi), we have:
+         --    rhat'' * 2^32 + div_un1 - q1'' * dLo
+         --  = uHi * 2^32 + div_un1 - q1'' * vTop  (where vTop = dHi * 2^32 + dLo)
+         --  = x - q1'' * vTop
+         -- Conjunct 1 (q1'' * vTop ≤ x) is equivalent to q1'' ≤ x / vTop.
+         -- Knuth-A (post-2-correction) gives q1'' ≥ x / vTop.
+         -- Combine: q1'' = x / vTop, hence un21_math = x mod vTop < vTop < 2^64.
+         -- So conjunct 2 follows from conjunct 1 + Knuth-A.
+         --
+         -- **CONCRETE proof plan:**
+         --  1. Conjunct 1 (untruncated lower): the substantive Knuth-D
+         --     2-correction invariant. After 2 corrections in v2, q1''
+         --     should satisfy q1'' * vTop ≤ uHi * 2^32 + div_un1 (the
+         --     rationale for the 2nd correction). Discharge from the
+         --     algorithm's structure + Phase 1b 2nd D3 trigger condition.
+         --  2. Conjunct 2 (untruncated upper): follows from 1 + Knuth-A
+         --     (`knuth_theorem_a` or equivalent — q1'' ≥ floor(x/vTop)).
+         --  3. Conjunct 3 (phase-2 untruncated): mirror argument for
+         --     Phase 2 (q0' computation on un21). Symmetric to 1.
+         --  4. Conjunct 4 (q0' < 2^32): standard halfword bound.
+         --
+         -- Sub-lemmas to add:
+         --  - `q1''_eq_floor_under_correction_v2`: post-2-correction Knuth-A.
+         --  - `un21_math_lt_vTop`: conjunct 2 from conjunct 1 + Knuth-A.
 
 /-- **Carry partition for the BEQ branch (sub-lemma, conjunctive form).**
     Under runtime preconditions (`hbltu, hcarry2_nz, hborrow`), the
