@@ -114,6 +114,15 @@ theorem decodeAux_five_byte_string
       some (.bytes [b1, b2, b3, b4, b5], rest) := by
   simp [decodeAux, takeBytes]
 
+/-- Six-byte short string (prefix `0x86`). Multi-byte payload
+    bypasses the canonical-form check. -/
+theorem decodeAux_six_byte_string
+    (fuel : Nat) (b1 b2 b3 b4 b5 b6 : Byte) (rest : List Byte) :
+    decodeAux (fuel + 1)
+        ((0x86 : Byte) :: b1 :: b2 :: b3 :: b4 :: b5 :: b6 :: rest) =
+      some (.bytes [b1, b2, b3, b4, b5, b6], rest) := by
+  simp [decodeAux, takeBytes]
+
 /-! ## decode (top-level wrapper) trivial cases -/
 
 /-- `decode []` returns `none` because `decodeAux 0 []` returns `none`. -/
@@ -163,6 +172,13 @@ theorem decode_four_byte_string (b1 b2 b3 b4 : Byte) :
 theorem decode_five_byte_string (b1 b2 b3 b4 b5 : Byte) :
     decode [(0x85 : Byte), b1, b2, b3, b4, b5] =
       some (.bytes [b1, b2, b3, b4, b5], []) := by
+  simp [decode, decodeAux, takeBytes]
+
+/-- `decode [0x86, b1..b6] = some (.bytes [b1..b6], [])` — the
+    canonical six-byte short-string encoding. -/
+theorem decode_six_byte_string (b1 b2 b3 b4 b5 b6 : Byte) :
+    decode [(0x86 : Byte), b1, b2, b3, b4, b5, b6] =
+      some (.bytes [b1, b2, b3, b4, b5, b6], []) := by
   simp [decode, decodeAux, takeBytes]
 
 /-! ## encodeBytes characterizations -/
@@ -235,6 +251,16 @@ theorem decode_encode_bytes_empty :
     decode (encode (.bytes [])) = some (.bytes [], []) := by
   simp only [encode, encodeBytes_nil]
   exact decode_empty_string
+
+/-- Single-byte round-trip for large bytes (`b ≥ 0x80`): encoded as the
+    two-byte sequence `[0x81, b]`, then the decoder reads the prefix
+    as a one-byte short string, applies the canonical-form check
+    (which passes because `b ≥ 0x80`), and returns `.bytes [b]`. -/
+theorem decode_encode_bytes_single_large (b : Byte) (h : ¬ b.toNat < 0x80) :
+    decode (encode (.bytes [b])) = some (.bytes [b], []) := by
+  rw [show encode (.bytes [b]) = [BitVec.ofNat 8 0x81, b] from
+    encodeBytes_single_large b h]
+  simp [decode, decodeAux, takeBytes, h]
 
 /-! ## Round-trip correctness (concrete cases)
 
