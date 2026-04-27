@@ -130,6 +130,15 @@ def n4CallAddbackBeqSemanticHolds (a b : EvmWord) : Prop :=
     predicate — Lean evaluates the Prop directly on the concrete
     Word inputs.
 
+    **Precise bug class**: the algorithm is correct iff `q1' = q_true_1`
+    (high digit exact), which holds iff Knuth's D3 correction loop
+    finishes within 1 iteration. The bug fires precisely on inputs
+    where Knuth's D3 needs the 2nd correction iteration — initial
+    `q̂ = q_true_1 + 2` AND both 1st and 2nd D3 checks fire. Our
+    1-correction `div128Quot` only does the 1st. In our counterexample,
+    `q̂ = 2^31 + 2`, after 1 correction `q1' = 2^31 + 1`, but
+    `q_true_1 = 2^31` (Knuth's full loop would do 2 corrections).
+
     **Implication**: this theorem proves that
     `n4CallAddbackBeqSemanticHolds_of_*` (any closure from runtime
     conditions) cannot exist — the predicate is genuinely false on
