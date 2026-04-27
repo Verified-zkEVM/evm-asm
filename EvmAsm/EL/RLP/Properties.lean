@@ -123,6 +123,15 @@ theorem decodeAux_six_byte_string
       some (.bytes [b1, b2, b3, b4, b5, b6], rest) := by
   simp [decodeAux, takeBytes]
 
+/-- Canonical-form rejection: prefix `0x81` followed by a byte `b`
+    with `b.toNat < 0x80` is non-canonical (the byte should have
+    been encoded as itself, not under prefix `0x81`), so `decodeAux`
+    returns `none`. -/
+theorem decodeAux_canonical_rejection_single
+    (fuel : Nat) (b : Byte) (rest : List Byte) (h : b.toNat < 0x80) :
+    decodeAux (fuel + 1) ((0x81 : Byte) :: b :: rest) = none := by
+  simp [decodeAux, takeBytes, h]
+
 /-! ## decode (top-level wrapper) trivial cases -/
 
 /-- `decode []` returns `none` because `decodeAux 0 []` returns `none`. -/
@@ -212,6 +221,19 @@ theorem encodeBytes_triple (a b c : Byte) :
 /-- Four-byte short string: `encodeBytes [a, b, c, d] = [0x84, a, b, c, d]`. -/
 theorem encodeBytes_quad (a b c d : Byte) :
     encodeBytes [a, b, c, d] = [BitVec.ofNat 8 0x84, a, b, c, d] := by
+  simp [encodeBytes]
+
+/-- Five-byte short string:
+    `encodeBytes [a, b, c, d, e] = [0x85, a, b, c, d, e]`. -/
+theorem encodeBytes_quint (a b c d e : Byte) :
+    encodeBytes [a, b, c, d, e] = [BitVec.ofNat 8 0x85, a, b, c, d, e] := by
+  simp [encodeBytes]
+
+/-- Six-byte short string:
+    `encodeBytes [a, b, c, d, e, f] = [0x86, a, b, c, d, e, f]`. -/
+theorem encodeBytes_sext (a b c d e f : Byte) :
+    encodeBytes [a, b, c, d, e, f] =
+      [BitVec.ofNat 8 0x86, a, b, c, d, e, f] := by
   simp [encodeBytes]
 
 /-! ## Encoding produces non-empty output -/
