@@ -162,10 +162,36 @@ def div128Un0 (uLo : Word) : Word :=
 
 -- ============================================================================
 -- Double-addback iter variants (model the FIXED algorithm with double addback)
+--
+-- 🚨 Correctness note (2026-04-27): This iter assumes that `qHat` overshoots
+-- the true quotient by AT MOST 2 (Knuth Theorem B). That assumption holds
+-- when the trial digit is computed by Knuth's classical Phase 1b
+-- (2-iteration D3 correction loop). Our `div128Quot` (in the same file)
+-- does only 1 Phase 1b correction, which under hshift_nz allows val256-level
+-- qHat overshoot up to ~2^33 (combining per-digit Knuth-B applied to q1' and
+-- q0' independently). On such inputs `iterWithDoubleAddback` exits with the
+-- wrong q_out (off by ~2^32 from q_true), making
+-- `n4CallAddbackBeqSemanticHolds` provably FALSE.
+--
+-- See `memory/project_n4callbeq_addback_overshoot_2pow32.md` for the
+-- counterexample (a3 = 2^63+2^33, b3 = 1, b2 = 2^33-1) and
+-- `memory/project_knuth_d_one_correction_design.md` for the literature
+-- analysis.
+--
+-- Remediation: either modify `div128Quot` to do 2 Phase 1b corrections
+-- (matches Knuth classical, simplest fix) or harden the loop's exit
+-- condition. The actual RISC-V program at `Program.lean:386` has a
+-- BEQ-based addback loop matching this Lean abstraction's at-most-2
+-- iterations — so the bug is in the algorithm itself, not in the
+-- abstraction.
 -- ============================================================================
 
 /-- Helper: single iteration with double addback, parameterized by qHat.
-    Used by all iter* variants. -/
+    Used by all iter* variants.
+
+    **Correctness assumption**: qHat overshoots q_true by ≤ 2. Holds for
+    Knuth-classical 2-correction Phase 1b; FAILS for our 1-correction
+    `div128Quot` on certain inputs. -/
 def iterWithDoubleAddback (qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) :
     Word × Word × Word × Word × Word × Word :=
   let ms := mulsubN4 qHat v0 v1 v2 v3 u0 u1 u2 u3
