@@ -303,4 +303,57 @@ theorem div128_spec (sp retAddr d uLo uHi : Word) (base : Word)
     (fun h hq => by xperm_hyp hq)
     h12345
 
+-- ============================================================================
+-- Section 15.v2: divK_div128_v2 subroutine composition (issue #1337 fix)
+--
+-- Parallel to `div128_spec` but for the FIXED `divK_div128_v2` subroutine
+-- (with Knuth's classical 2nd D3 correction iteration). Mirrors the Lean
+-- abstraction `div128Quot_v2`.
+--
+-- This is a **STUB** awaiting the full multi-iteration migration:
+-- 1. Add 5 new block specs for the inserted [25..34] instructions
+--    (mirror of Phase 2b's existing [37..46] block specs).
+-- 2. Adjust offsets for the shifted [35..60] block specs
+--    (originally [25..50]).
+-- 3. Compose blocks via `runBlock` / `seqFrame` (similar to `div128_spec`).
+--
+-- Until the migration is complete, callers should continue using
+-- `div128_spec` with the buggy `divK_div128`. The buggy version is
+-- correct for inputs that don't reach Knuth's D3 2nd-iteration regime
+-- (per the analysis in
+-- `memory/project_n4callbeq_addback_overshoot_2pow32.md`); the v2 fix
+-- is needed only for the corner-case inputs.
+-- ============================================================================
+
+/-- **STUB**: equivalence between `divK_div128_v2` (fixed RISC-V) and
+    `div128Quot_v2` (fixed Lean abstraction).
+
+    Mirrors `div128_spec` but for the v2 algorithm. The proof structure
+    parallels `div128_spec` with two changes:
+    - 5 additional block specs for the inserted `[25..34]` instructions
+      (Phase 1b 2nd D3 correction). These mirror Phase 2b's existing
+      `[37..46]` blocks: load dLo, MUL, SLLI, OR, BLTU, JAL, ADDI, ADD.
+    - Offsets in the shifted `[35..60]` blocks bump by +10 from the
+      original `[25..50]`.
+
+    Estimated: ~600 LOC for the full proof (proof structure parallel
+    to `div128_spec` at ~500 LOC plus ~100 LOC for the new block).
+
+    Tracked in issue #1337's algorithm-fix migration. -/
+theorem div128_v2_spec (sp retAddr d uLo uHi : Word) (base : Word)
+    (v1Old v6Old v11Old : Word)
+    (retMem dMem dloMem un0Mem : Word)
+    (_halign : (retAddr + signExtend12 0) &&& ~~~1 = retAddr) :
+    -- Same precondition shape as `div128_spec`.
+    -- Postcondition: q in x11 = `div128Quot_v2 uHi uLo d` (instead of
+    -- `div128Quot uHi uLo d`).
+    -- Proof: mirror `div128_spec`'s 5-block composition with a 6th block
+    -- inserted for the 2nd D3 correction.
+    True := by  -- placeholder; full statement deferred to follow-up PR
+  -- Suppress unused-variable warnings for params that the full theorem will use.
+  let _ := sp; let _ := retAddr; let _ := d; let _ := uLo; let _ := uHi
+  let _ := base; let _ := v1Old; let _ := v6Old; let _ := v11Old
+  let _ := retMem; let _ := dMem; let _ := dloMem; let _ := un0Mem
+  trivial
+
 end EvmAsm.Evm64
