@@ -1565,14 +1565,21 @@ theorem div128Quot_v2_no_wrap_under_call_addback_beq_untruncated (a b : EvmWord)
          --     rationale for the 2nd correction). Discharge from the
          --     algorithm's structure + Phase 1b 2nd D3 trigger condition.
          --  2. Conjunct 2 (untruncated upper): follows from 1 + Knuth-A
-         --     (`knuth_theorem_a` or equivalent — q1'' ≥ floor(x/vTop)).
+         --     (q1'' ≥ floor(x/vTop)).
          --  3. Conjunct 3 (phase-2 untruncated): mirror argument for
          --     Phase 2 (q0' computation on un21). Symmetric to 1.
          --  4. Conjunct 4 (q0' < 2^32): standard halfword bound.
          --
-         -- Sub-lemmas to add:
-         --  - `q1''_eq_floor_under_correction_v2`: post-2-correction Knuth-A.
-         --  - `un21_math_lt_vTop`: conjunct 2 from conjunct 1 + Knuth-A.
+         -- **CONNECTION TO v1'S OPEN PROBLEM (Div128KnuthLower.lean:615):**
+         -- `knuth_compose_weak_lower_nat` requires a "Phase 1 tight"
+         -- hypothesis `q1' * vTop + un21 = uHi * 2^32 + uLo_hi` with
+         -- `un21 < vTop`. That hypothesis is exactly conjunct 1 + 2 of
+         -- this stub (per the algebraic identity un21_math = x - q1'' * vTop).
+         -- v1's comment: "tight Phase 1 hypothesis is currently unproven
+         -- (requires Knuth Theorem C Word-level)". So conjunct 2 = the
+         -- tight Phase 1 statement, equivalent to the v1 open problem.
+         -- Closing it for v2 (where 2 corrections give better bounds)
+         -- may be tractable via the 2nd D3 correction's trigger condition.
 
 /-- **Carry partition for the BEQ branch (sub-lemma, conjunctive form).**
     Under runtime preconditions (`hbltu, hcarry2_nz, hborrow`), the
