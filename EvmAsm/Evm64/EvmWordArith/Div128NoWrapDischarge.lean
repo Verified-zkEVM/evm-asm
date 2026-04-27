@@ -456,14 +456,121 @@ theorem n4RhatPrime_lt_pow32_of_q1_prime_eq_q_top_phase1
     Estimated: ~30-50 LOC for the bridging once D2/D3-A is closed. -/
 theorem div128Quot_phase1_no_wrap_of_q1_prime_eq_q_top_phase1
     (a2 a3 b2 b3 : Word)
-    (_hb3nz : b3 ≠ 0)
-    (_hshift_nz : (clzResult b3).1 ≠ 0)
-    (_hcall : isCallTrialN4 a3 b2 b3)
-    (_h_q1_eq : (n4Q1Prime a2 a3 b2 b3).toNat = n4QTopPhase1 a2 a3 b2 b3) :
+    (hb3nz : b3 ≠ 0)
+    (hshift_nz : (clzResult b3).1 ≠ 0)
+    (hcall : isCallTrialN4 a3 b2 b3)
+    (h_q1_eq : (n4Q1Prime a2 a3 b2 b3).toNat = n4QTopPhase1 a2 a3 b2 b3) :
     (n4Q1Prime a2 a3 b2 b3).toNat * (n4DLo b2 b3).toNat ≤
       ((n4RhatPrime a2 a3 b2 b3).toNat % 2^32) * 2^32 +
         (n4DivUn1 a2 a3 b3).toNat := by
-  sorry
+  -- Derive dHi bounds from b3' ≥ 2^63.
+  have h_b3'_ge : (n4B3Prime b2 b3).toNat ≥ 2^63 := by
+    rw [n4B3Prime_unfold, n4ClzShift_unfold, n4ClzAntiShift_unfold]
+    exact b3_prime_ge_pow63 b3 b2 hb3nz _
+  have h_dHi_ge : (n4DHi b2 b3).toNat ≥ 2^31 := by
+    rw [n4DHi_unfold]
+    exact div128Quot_dHi_ge_pow31 (n4B3Prime b2 b3) h_b3'_ge
+  have h_dHi_ne : n4DHi b2 b3 ≠ 0 := by
+    intro hzero
+    have h0 : (n4DHi b2 b3).toNat = 0 := by rw [hzero]; rfl
+    omega
+  have h_dHi_lt : (n4DHi b2 b3).toNat < 2^32 := by
+    rw [n4DHi_unfold, BitVec.toNat_ushiftRight,
+        EvmAsm.Rv64.AddrNorm.bv6_toNat_32, Nat.shiftRight_eq_div_pow]
+    have : (n4B3Prime b2 b3).toNat < 2^64 := (n4B3Prime b2 b3).isLt
+    exact Nat.div_lt_of_lt_mul (by omega)
+  have h_dLo_lt : (n4DLo b2 b3).toNat < 2^32 := by
+    rw [n4DLo_unfold, BitVec.toNat_ushiftRight,
+        EvmAsm.Rv64.AddrNorm.bv6_toNat_32, Nat.shiftRight_eq_div_pow]
+    have : ((n4B3Prime b2 b3) <<< (32 : BitVec 6).toNat : Word).toNat < 2^64 :=
+      ((n4B3Prime b2 b3) <<< (32 : BitVec 6).toNat : Word).isLt
+    exact Nat.div_lt_of_lt_mul (by omega)
+  have h_v_eq : (n4B3Prime b2 b3).toNat =
+      (n4DHi b2 b3).toNat * 2^32 + (n4DLo b2 b3).toNat := by
+    rw [n4DHi_unfold, n4DLo_unfold]
+    exact div128Quot_vTop_decomp _
+  -- Discharge rhat' < 2^32 via D2/D3-A.
+  have h_rhat'_lt : (n4RhatPrime a2 a3 b2 b3).toNat < 2^32 :=
+    n4RhatPrime_lt_pow32_of_q1_prime_eq_q_top_phase1 a2 a3 b2 b3
+      hb3nz hshift_nz hcall h_q1_eq
+  -- The let-form q1' inside `div128Quot_phase1_no_wrap_skip` matches
+  -- algorithmQ1Prime's body when we use dHi = n4DHi, dLo = n4DLo.
+  -- And rhat' similarly matches algorithmRhatPrime's body.
+  have h_app := div128Quot_phase1_no_wrap_skip
+    (n4U4 a3 b3) (n4DHi b2 b3) (n4DLo b2 b3) (n4Un3 a2 a3 b3)
+    h_dHi_ne h_dHi_ge h_dHi_lt
+    (by
+      -- hq1_prime_le_q_true_1: in let-form, q1'.toNat ≤
+      -- (uHi*2^32+div_un1)/(dHi*2^32+dLo).
+      simp only []
+      have h_le : (n4Q1Prime a2 a3 b2 b3).toNat ≤
+          ((n4U4 a3 b3).toNat * 2^32 +
+            ((n4Un3 a2 a3 b3) >>> (32 : BitVec 6).toNat).toNat) /
+            ((n4DHi b2 b3).toNat * 2^32 + (n4DLo b2 b3).toNat) := by
+        rw [h_q1_eq, n4QTopPhase1_unfold, n4DivUn1_unfold, ← h_v_eq]
+      -- The let-form q1' in lemma = body computed with our dHi, dLo.
+      -- This should equal n4Q1Prime by unfolding algorithmQ1Prime.
+      have h_q1_eq_letform :
+          (n4Q1Prime a2 a3 b2 b3).toNat =
+          (let q1 := rv64_divu (n4U4 a3 b3) (n4DHi b2 b3)
+           let rhat := (n4U4 a3 b3) - q1 * (n4DHi b2 b3)
+           let hi1 := q1 >>> (32 : BitVec 6).toNat
+           let q1c : Word := if hi1 = 0 then q1 else q1 + signExtend12 4095
+           let rhatc : Word := if hi1 = 0 then rhat else rhat + (n4DHi b2 b3)
+           let qDlo := q1c * (n4DLo b2 b3)
+           let div_un1 := (n4Un3 a2 a3 b3) >>> (32 : BitVec 6).toNat
+           let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
+           if BitVec.ult rhatUn1 qDlo then q1c + signExtend12 4095 else q1c).toNat := by
+        rw [n4Q1Prime_unfold, algorithmQ1Prime_unfold, n4DHi_unfold, n4DLo_unfold]
+      rw [← h_q1_eq_letform]
+      exact h_le)
+    (by
+      -- hrhat'_lt: in let-form rhat'.toNat < 2^32.
+      simp only []
+      have h_rhat_eq_letform :
+          (n4RhatPrime a2 a3 b2 b3).toNat =
+          (let q1 := rv64_divu (n4U4 a3 b3) (n4DHi b2 b3)
+           let rhat := (n4U4 a3 b3) - q1 * (n4DHi b2 b3)
+           let hi1 := q1 >>> (32 : BitVec 6).toNat
+           let q1c : Word := if hi1 = 0 then q1 else q1 + signExtend12 4095
+           let rhatc : Word := if hi1 = 0 then rhat else rhat + (n4DHi b2 b3)
+           let qDlo := q1c * (n4DLo b2 b3)
+           let div_un1 := (n4Un3 a2 a3 b3) >>> (32 : BitVec 6).toNat
+           let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
+           if BitVec.ult rhatUn1 qDlo then rhatc + (n4DHi b2 b3) else rhatc).toNat := by
+        rw [n4RhatPrime_unfold, algorithmRhatPrime_unfold, n4DHi_unfold, n4DLo_unfold]
+      rw [← h_rhat_eq_letform]
+      exact h_rhat'_lt)
+  -- h_app's conclusion uses let-form q1', dLo, rhat', div_un1.
+  -- Bridge back to bundles.
+  simp only [] at h_app
+  have h_q1_letform :
+      (let q1 := rv64_divu (n4U4 a3 b3) (n4DHi b2 b3)
+       let rhat := (n4U4 a3 b3) - q1 * (n4DHi b2 b3)
+       let hi1 := q1 >>> (32 : BitVec 6).toNat
+       let q1c : Word := if hi1 = 0 then q1 else q1 + signExtend12 4095
+       let rhatc : Word := if hi1 = 0 then rhat else rhat + (n4DHi b2 b3)
+       let qDlo := q1c * (n4DLo b2 b3)
+       let div_un1 := (n4Un3 a2 a3 b3) >>> (32 : BitVec 6).toNat
+       let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
+       if BitVec.ult rhatUn1 qDlo then q1c + signExtend12 4095 else q1c) =
+      n4Q1Prime a2 a3 b2 b3 := by
+    rw [n4Q1Prime_unfold, algorithmQ1Prime_unfold, n4DHi_unfold, n4DLo_unfold]
+  have h_rhat_letform :
+      (let q1 := rv64_divu (n4U4 a3 b3) (n4DHi b2 b3)
+       let rhat := (n4U4 a3 b3) - q1 * (n4DHi b2 b3)
+       let hi1 := q1 >>> (32 : BitVec 6).toNat
+       let q1c : Word := if hi1 = 0 then q1 else q1 + signExtend12 4095
+       let rhatc : Word := if hi1 = 0 then rhat else rhat + (n4DHi b2 b3)
+       let qDlo := q1c * (n4DLo b2 b3)
+       let div_un1 := (n4Un3 a2 a3 b3) >>> (32 : BitVec 6).toNat
+       let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
+       if BitVec.ult rhatUn1 qDlo then rhatc + (n4DHi b2 b3) else rhatc) =
+      n4RhatPrime a2 a3 b2 b3 := by
+    rw [n4RhatPrime_unfold, algorithmRhatPrime_unfold, n4DHi_unfold, n4DLo_unfold]
+  rw [h_q1_letform, h_rhat_letform] at h_app
+  rw [n4DivUn1_unfold]
+  exact h_app
 
 -- ============================================================================
 -- D2b: un21 < vTop from tight Phase 1
