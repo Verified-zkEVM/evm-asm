@@ -179,4 +179,28 @@ theorem rlp_phase3_long_string_spec
     exact CodeReq.Disjoint.ofProg_nil_right _ _
   exact cpsTriple_seq hd1_23 s1 s23_raw
 
+/-! ## Concrete specializations for individual lenLen values -/
+
+/-- Specialization of `rlp_phase3_long_string_spec` at `v5 = 0xB8`
+    (the smallest long-string prefix, `lenLen = 1`). The post replaces
+    the abstract `v5 + signExtend12 (-0xB7)` form in `x14` with the
+    concrete `(1 : Word)`. Useful as a clean glue lemma when chaining
+    Phase 3 long-string entry with `rlp_phase2_long_loop_one_byte_spec`,
+    which expects `x14 = 1`. -/
+theorem rlp_phase3_long_string_spec_at_0xB8
+    (v11Old v13 v14Old : Word) (base : Word) :
+    cpsTriple base (base + 12)
+      (CodeReq.ofProg base rlp_phase3_long_string_prog)
+      ((.x0 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ (0xB8 : Word)) **
+       (.x11 ↦ᵣ v11Old) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14Old))
+      ((.x0 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ (0xB8 : Word)) **
+       (.x11 ↦ᵣ (0 : Word)) **
+       (.x13 ↦ᵣ (v13 + signExtend12 (1 : BitVec 12))) **
+       (.x14 ↦ᵣ (1 : Word))) := by
+  have h := rlp_phase3_long_string_spec (0xB8 : Word) v11Old v13 v14Old base
+  have hsig : (0xB8 : Word) + signExtend12 (-(0xB7 : BitVec 12)) = (1 : Word) := by
+    decide
+  rw [hsig] at h
+  exact h
+
 end EvmAsm.Rv64.RLP
