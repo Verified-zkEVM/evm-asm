@@ -93,6 +93,39 @@ theorem divK_div128_prodcheck1b_guard_spec
     (fun h hp => by xperm_hyp hp)
     composed
 
+/-- Bundled CodeReq for `divK_div128_prodcheck1b_body_spec` (8 singletons,
+    instrs [27..34]). `@[irreducible]` to keep let-bindings out of the
+    theorem signature. -/
+@[irreducible]
+def divKDiv128Prodcheck1bBodyCode (base : Word) : CodeReq :=
+  CodeReq.union (CodeReq.singleton base (.LD .x1 .x12 3952))
+  (CodeReq.union (CodeReq.singleton (base + 4) (.MUL .x5 .x10 .x1))
+  (CodeReq.union (CodeReq.singleton (base + 8) (.SLLI .x1 .x7 32))
+  (CodeReq.union (CodeReq.singleton (base + 12) (.OR .x1 .x1 .x11))
+  (CodeReq.union (CodeReq.singleton (base + 16) (.BLTU .x1 .x5 8))
+  (CodeReq.union (CodeReq.singleton (base + 20) (.JAL .x0 12))
+  (CodeReq.union (CodeReq.singleton (base + 24) (.ADDI .x10 .x10 4095))
+   (CodeReq.singleton (base + 28) (.ADD .x7 .x7 .x6))))))))
+
+/-- Bundled precondition for `divK_div128_prodcheck1b_body_spec`. -/
+@[irreducible]
+def divKDiv128Prodcheck1bBodyPre (sp q1c rhatc dHi un1 v1Old v5Old dlo : Word) :
+    Assertion :=
+  (.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ q1c) ** (.x7 ↦ᵣ rhatc) ** (.x11 ↦ᵣ un1) **
+  (.x5 ↦ᵣ v5Old) ** (.x1 ↦ᵣ v1Old) ** (.x6 ↦ᵣ dHi) **
+  (sp + signExtend12 3952 ↦ₘ dlo)
+
+/-- Bundled postcondition for `divK_div128_prodcheck1b_body_spec`. -/
+@[irreducible]
+def divKDiv128Prodcheck1bBodyPost (sp q1c rhatc dHi un1 dlo : Word) : Assertion :=
+  let qDlo := q1c * dlo
+  let rhatUn1' := (rhatc <<< (32 : BitVec 6).toNat) ||| un1
+  let q1' := if BitVec.ult rhatUn1' qDlo then q1c + signExtend12 4095 else q1c
+  let rhat' := if BitVec.ult rhatUn1' qDlo then rhatc + dHi else rhatc
+  (.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ q1') ** (.x7 ↦ᵣ rhat') ** (.x11 ↦ᵣ un1) **
+  (.x5 ↦ᵣ qDlo) ** (.x1 ↦ᵣ rhatUn1') ** (.x6 ↦ᵣ dHi) **
+  (sp + signExtend12 3952 ↦ₘ dlo)
+
 /-- **Sub-stub B — body portion**: `[27..34]` LD/MUL/SLLI/OR/BLTU/JAL/ADDI/ADD.
     Identical structure to `divK_div128_prodcheck1_merged_spec` (the 1st
     D3 block); just at a different offset within `divK_div128_v2`.
@@ -100,29 +133,64 @@ theorem divK_div128_prodcheck1b_guard_spec
     Reachable only when the guard at [25..26] falls through (rhatc < 2^32). -/
 theorem divK_div128_prodcheck1b_body_spec
     (sp q1c rhatc dHi un1 v1Old v5Old dlo : Word) (base : Word) :
-    let qDlo := q1c * dlo
-    let rhatUn1' := (rhatc <<< (32 : BitVec 6).toNat) ||| un1
-    let q1' := if BitVec.ult rhatUn1' qDlo then q1c + signExtend12 4095 else q1c
-    let rhat' := if BitVec.ult rhatUn1' qDlo then rhatc + dHi else rhatc
-    let cr :=
-      CodeReq.union (CodeReq.singleton base (.LD .x1 .x12 3952))
-      (CodeReq.union (CodeReq.singleton (base + 4) (.MUL .x5 .x10 .x1))
-      (CodeReq.union (CodeReq.singleton (base + 8) (.SLLI .x1 .x7 32))
-      (CodeReq.union (CodeReq.singleton (base + 12) (.OR .x1 .x1 .x11))
-      (CodeReq.union (CodeReq.singleton (base + 16) (.BLTU .x1 .x5 8))
-      (CodeReq.union (CodeReq.singleton (base + 20) (.JAL .x0 12))
-      (CodeReq.union (CodeReq.singleton (base + 24) (.ADDI .x10 .x10 4095))
-       (CodeReq.singleton (base + 28) (.ADD .x7 .x7 .x6))))))))
-    cpsTriple base (base + 32) cr
-      ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ q1c) ** (.x7 ↦ᵣ rhatc) ** (.x11 ↦ᵣ un1) **
-       (.x5 ↦ᵣ v5Old) ** (.x1 ↦ᵣ v1Old) ** (.x6 ↦ᵣ dHi) **
-       (sp + signExtend12 3952 ↦ₘ dlo))
-      ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ q1') ** (.x7 ↦ᵣ rhat') ** (.x11 ↦ᵣ un1) **
-       (.x5 ↦ᵣ qDlo) ** (.x1 ↦ᵣ rhatUn1') ** (.x6 ↦ᵣ dHi) **
-       (sp + signExtend12 3952 ↦ₘ dlo)) := by
+    cpsTriple base (base + 32) (divKDiv128Prodcheck1bBodyCode base)
+      (divKDiv128Prodcheck1bBodyPre sp q1c rhatc dHi un1 v1Old v5Old dlo)
+      (divKDiv128Prodcheck1bBodyPost sp q1c rhatc dHi un1 dlo) := by
+  unfold divKDiv128Prodcheck1bBodyCode divKDiv128Prodcheck1bBodyPre
+    divKDiv128Prodcheck1bBodyPost
   -- Direct delegation: this body is structurally identical to the 1st D3 block's
   -- merged spec — same 8 instructions at the same relative offsets.
   exact divK_div128_prodcheck1_merged_spec sp q1c rhatc dHi un1 v1Old v5Old dlo base
+
+/-- Bundled CodeReq for `divK_div128_prodcheck1b_merged_spec` (10 singletons,
+    instrs [25..34]). `@[irreducible]` to keep let-bindings out of the
+    theorem signature. -/
+@[irreducible]
+def divKDiv128Prodcheck1bMergedCode (base : Word) : CodeReq :=
+  CodeReq.union (CodeReq.singleton base (.SRLI .x1 .x7 32))
+  (CodeReq.union (CodeReq.singleton (base + 4) (.BNE .x1 .x0 36))
+  (CodeReq.union (CodeReq.singleton (base + 8) (.LD .x1 .x12 3952))
+  (CodeReq.union (CodeReq.singleton (base + 12) (.MUL .x5 .x10 .x1))
+  (CodeReq.union (CodeReq.singleton (base + 16) (.SLLI .x1 .x7 32))
+  (CodeReq.union (CodeReq.singleton (base + 20) (.OR .x1 .x1 .x11))
+  (CodeReq.union (CodeReq.singleton (base + 24) (.BLTU .x1 .x5 8))
+  (CodeReq.union (CodeReq.singleton (base + 28) (.JAL .x0 12))
+  (CodeReq.union (CodeReq.singleton (base + 32) (.ADDI .x10 .x10 4095))
+   (CodeReq.singleton (base + 36) (.ADD .x7 .x7 .x6))))))))))
+
+/-- Bundled precondition for `divK_div128_prodcheck1b_merged_spec`. -/
+@[irreducible]
+def divKDiv128Prodcheck1bMergedPre (sp q1c rhatc dHi un1 v1Old v5Old dlo : Word) :
+    Assertion :=
+  (.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ q1c) ** (.x7 ↦ᵣ rhatc) ** (.x11 ↦ᵣ un1) **
+  (.x5 ↦ᵣ v5Old) ** (.x1 ↦ᵣ v1Old) ** (.x6 ↦ᵣ dHi) ** (.x0 ↦ᵣ 0) **
+  (sp + signExtend12 3952 ↦ₘ dlo)
+
+/-- Bundled taken-leg postcondition for `divK_div128_prodcheck1b_merged_spec`
+    (rhatHi ≠ 0: guard fires, body is skipped). -/
+@[irreducible]
+def divKDiv128Prodcheck1bMergedTakenPost
+    (sp q1c rhatc dHi un1 v5Old dlo : Word) : Assertion :=
+  let rhatHi := rhatc >>> (32 : BitVec 6).toNat
+  (.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ q1c) ** (.x7 ↦ᵣ rhatc) ** (.x11 ↦ᵣ un1) **
+  (.x5 ↦ᵣ v5Old) ** (.x1 ↦ᵣ rhatHi) ** (.x6 ↦ᵣ dHi) ** (.x0 ↦ᵣ 0) **
+  ⌜rhatHi ≠ 0⌝ **
+  (sp + signExtend12 3952 ↦ₘ dlo)
+
+/-- Bundled fall-through-leg postcondition for `divK_div128_prodcheck1b_merged_spec`
+    (rhatHi = 0: guard falls through, body runs the 2nd D3 mul-check). -/
+@[irreducible]
+def divKDiv128Prodcheck1bMergedFTPost (sp q1c rhatc dHi un1 dlo : Word) :
+    Assertion :=
+  let qDlo := q1c * dlo
+  let rhatUn1' := (rhatc <<< (32 : BitVec 6).toNat) ||| un1
+  let rhatHi := rhatc >>> (32 : BitVec 6).toNat
+  let q1'FT := if BitVec.ult rhatUn1' qDlo then q1c + signExtend12 4095 else q1c
+  let rhat'FT := if BitVec.ult rhatUn1' qDlo then rhatc + dHi else rhatc
+  (.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ q1'FT) ** (.x7 ↦ᵣ rhat'FT) ** (.x11 ↦ᵣ un1) **
+  (.x5 ↦ᵣ qDlo) ** (.x1 ↦ᵣ rhatUn1') ** (.x6 ↦ᵣ dHi) ** (.x0 ↦ᵣ 0) **
+  ⌜rhatHi = 0⌝ **
+  (sp + signExtend12 3952 ↦ₘ dlo)
 
 /-- div128 product check 1b (Knuth classical 2nd D3 correction).
     Instrs [25]-[34] of `divK_div128_v2`. Both guard branches and both
@@ -152,38 +220,31 @@ theorem divK_div128_prodcheck1b_body_spec
     Issue #1337 algorithm fix migration. -/
 theorem divK_div128_prodcheck1b_merged_spec
     (sp q1c rhatc dHi un1 v1Old v5Old dlo : Word) (base : Word) :
-    let qDlo := q1c * dlo
-    let rhatUn1' := (rhatc <<< (32 : BitVec 6).toNat) ||| un1
-    let rhatHi := rhatc >>> (32 : BitVec 6).toNat
-    -- Fall-through leg only — the guard-taken leg keeps q1c / rhatc.
-    let q1'FT := if BitVec.ult rhatUn1' qDlo then q1c + signExtend12 4095 else q1c
-    let rhat'FT := if BitVec.ult rhatUn1' qDlo then rhatc + dHi else rhatc
-    let cr :=
-      CodeReq.union (CodeReq.singleton base (.SRLI .x1 .x7 32))
-      (CodeReq.union (CodeReq.singleton (base + 4) (.BNE .x1 .x0 36))
-      (CodeReq.union (CodeReq.singleton (base + 8) (.LD .x1 .x12 3952))
-      (CodeReq.union (CodeReq.singleton (base + 12) (.MUL .x5 .x10 .x1))
-      (CodeReq.union (CodeReq.singleton (base + 16) (.SLLI .x1 .x7 32))
-      (CodeReq.union (CodeReq.singleton (base + 20) (.OR .x1 .x1 .x11))
-      (CodeReq.union (CodeReq.singleton (base + 24) (.BLTU .x1 .x5 8))
-      (CodeReq.union (CodeReq.singleton (base + 28) (.JAL .x0 12))
-      (CodeReq.union (CodeReq.singleton (base + 32) (.ADDI .x10 .x10 4095))
-       (CodeReq.singleton (base + 36) (.ADD .x7 .x7 .x6))))))))))
-    cpsBranch base cr
-      ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ q1c) ** (.x7 ↦ᵣ rhatc) ** (.x11 ↦ᵣ un1) **
-       (.x5 ↦ᵣ v5Old) ** (.x1 ↦ᵣ v1Old) ** (.x6 ↦ᵣ dHi) ** (.x0 ↦ᵣ 0) **
-       (sp + signExtend12 3952 ↦ₘ dlo))
-      (base + 40)  -- guard-fires path (rhatHi ≠ 0): body is skipped
-        ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ q1c) ** (.x7 ↦ᵣ rhatc) ** (.x11 ↦ᵣ un1) **
-         (.x5 ↦ᵣ v5Old) ** (.x1 ↦ᵣ rhatHi) ** (.x6 ↦ᵣ dHi) ** (.x0 ↦ᵣ 0) **
-         ⌜rhatHi ≠ 0⌝ **
-         (sp + signExtend12 3952 ↦ₘ dlo))
-      (base + 40)  -- guard-doesn't-fire + body (rhatHi = 0): runs the mul-check
-        ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ q1'FT) ** (.x7 ↦ᵣ rhat'FT) ** (.x11 ↦ᵣ un1) **
-         (.x5 ↦ᵣ qDlo) ** (.x1 ↦ᵣ rhatUn1') ** (.x6 ↦ᵣ dHi) ** (.x0 ↦ᵣ 0) **
-         ⌜rhatHi = 0⌝ **
-         (sp + signExtend12 3952 ↦ₘ dlo)) := by
-  intro qDlo rhatUn1' rhatHi q1'FT rhat'FT cr
+    cpsBranch base (divKDiv128Prodcheck1bMergedCode base)
+      (divKDiv128Prodcheck1bMergedPre sp q1c rhatc dHi un1 v1Old v5Old dlo)
+      (base + 40)
+        (divKDiv128Prodcheck1bMergedTakenPost sp q1c rhatc dHi un1 v5Old dlo)
+      (base + 40)
+        (divKDiv128Prodcheck1bMergedFTPost sp q1c rhatc dHi un1 dlo) := by
+  unfold divKDiv128Prodcheck1bMergedCode divKDiv128Prodcheck1bMergedPre
+    divKDiv128Prodcheck1bMergedTakenPost divKDiv128Prodcheck1bMergedFTPost
+  -- Reintroduce the locals the proof body uses (formerly let-bound in the
+  -- statement). With bundled defs in the signature, these locals are private
+  -- to the proof.
+  let qDlo := q1c * dlo
+  let rhatUn1' := (rhatc <<< (32 : BitVec 6).toNat) ||| un1
+  let rhatHi := rhatc >>> (32 : BitVec 6).toNat
+  let cr :=
+    CodeReq.union (CodeReq.singleton base (.SRLI .x1 .x7 32))
+    (CodeReq.union (CodeReq.singleton (base + 4) (.BNE .x1 .x0 36))
+    (CodeReq.union (CodeReq.singleton (base + 8) (.LD .x1 .x12 3952))
+    (CodeReq.union (CodeReq.singleton (base + 12) (.MUL .x5 .x10 .x1))
+    (CodeReq.union (CodeReq.singleton (base + 16) (.SLLI .x1 .x7 32))
+    (CodeReq.union (CodeReq.singleton (base + 20) (.OR .x1 .x1 .x11))
+    (CodeReq.union (CodeReq.singleton (base + 24) (.BLTU .x1 .x5 8))
+    (CodeReq.union (CodeReq.singleton (base + 28) (.JAL .x0 12))
+    (CodeReq.union (CodeReq.singleton (base + 32) (.ADDI .x10 .x10 4095))
+     (CodeReq.singleton (base + 36) (.ADD .x7 .x7 .x6))))))))))
   have hcr_eq : cr =
       CodeReq.union (CodeReq.singleton base (.SRLI .x1 .x7 32))
       (CodeReq.union (CodeReq.singleton (base + 4) (.BNE .x1 .x0 36))
@@ -217,6 +278,10 @@ theorem divK_div128_prodcheck1b_merged_spec
   -- h2 = body_spec at base+8 — body's v1Old becomes the SRLI result rhatHi
   have h2_raw := divK_div128_prodcheck1b_body_spec sp q1c rhatc dHi un1 rhatHi v5Old dlo
     (base + 8)
+  -- Unfold the body's bundled forms so the rest of the proof works with the
+  -- explicit cr / pre / post structure.
+  unfold divKDiv128Prodcheck1bBodyCode divKDiv128Prodcheck1bBodyPre
+    divKDiv128Prodcheck1bBodyPost at h2_raw
   have hb4 : (base + 8 : Word) + 4 = base + 12 := by bv_addr
   have hb8 : (base + 8 : Word) + 8 = base + 16 := by bv_addr
   have hb12 : (base + 8 : Word) + 12 = base + 20 := by bv_addr
