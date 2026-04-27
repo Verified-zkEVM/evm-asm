@@ -1061,31 +1061,51 @@ theorem div128Quot_v2_no_wrap_under_call_addback_beq (a b : EvmWord)
          -- and q0' < 2^32). Mirror v1's discharge pattern (where it
          -- exists in Div128NoWrapDischarge.lean) but for v2's q1''/rhat''.
 
-/-- **Closure of `n4CallAddbackBeqSemanticHolds_v2` from runtime conditions.**
+/-- **Carry partition for the BEQ branch**: under runtime preconditions
+    `hcarry2_nz ∧ hborrow` (the double-addback indicators), and given the
+    Knuth-B bound `qHat ≤ q_true + 2`, the algorithm's carry from the outer
+    addback is 0 iff `qHat = q_true + 2`.
 
-    Mirrors `n4CallSkipSemanticHolds_of_call_trial` for the call+addback
-    BEQ branch. The proof composes:
+    Combined with the post-addback formula `q_out = qHat - 2` when carry = 0,
+    this gives `q_out = q_true`. When carry ≠ 0, `q_out = qHat - 1` and
+    `qHat = q_true + 1`, so still `q_out = q_true`.
 
-    1. **`div128Quot_v2_no_wrap_under_call_addback_beq`** (above): discharge
-       the 3 v1-style no_wrap conditions from runtime preconditions.
-
-    2. **`div128Quot_v2_le_val256_div_plus_two`** (proven): qHat ≤ q_true + 2
-       under the no_wrap conditions.
-
-    3. **Carry-2 / borrow partition**: `hcarry2_nz ∧ hborrow` ⟹
-       `qHat = q_true + 2` (so q_out = qHat - 2 = q_true).
+    This is the Knuth-style D6 addback step's correctness for v2:
+    - Single-addback (carry ≠ 0): qHat overshoots by exactly 1.
+    - Double-addback (carry = 0): qHat overshoots by exactly 2.
+    - In both cases, q_out = q_true after the addback correction.
 
     Issue #1337 algorithm fix migration. -/
-theorem n4CallAddbackBeqSemanticHolds_v2_of_call_addback_beq (a b : EvmWord)
+theorem n4CallAddbackBeq_q_out_eq_q_true_v2 (a b : EvmWord)
     (_hb3nz : b.getLimbN 3 ≠ 0)
     (_hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
     (_hbltu : isCallTrialN4Evm a b)
     (_hcarry2_nz : isAddbackCarry2NzN4CallEvm a b)
     (_hborrow : isAddbackBorrowN4CallEvm a b) :
     n4CallAddbackBeqSemanticHolds_v2 a b := by
-  sorry  -- See proof plan in docstring above. Sub-lemmas:
-         -- 1. div128Quot_v2_knuth_B (qHat ≤ q_true + 2 under hshift_nz).
-         -- 2. q_out arithmetic (carry partition + addback correctness).
+  sorry  -- Combines:
+         -- 1. div128Quot_v2_no_wrap_under_call_addback_beq (discharge no_wrap)
+         -- 2. div128Quot_v2_le_val256_div_plus_two (qHat ≤ q_true + 2)
+         -- 3. Carry-2 partition: hcarry2_nz ∧ hborrow ⟹ qHat = q_true + 2
+         --    (BEQ branch fires only when single-addback insufficient).
+         -- 4. q_out arithmetic: q_out = qHat - 2 (carry = 0) or qHat - 1
+         --    (carry ≠ 0); under (3) both give q_out = q_true.
+
+/-- **Closure of `n4CallAddbackBeqSemanticHolds_v2` from runtime conditions.**
+
+    Direct alias for `n4CallAddbackBeq_q_out_eq_q_true_v2` — the user-facing
+    form mirroring `n4CallSkipSemanticHolds_of_call_trial` for the
+    call+addback BEQ branch.
+
+    Issue #1337 algorithm fix migration. -/
+theorem n4CallAddbackBeqSemanticHolds_v2_of_call_addback_beq (a b : EvmWord)
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hbltu : isCallTrialN4Evm a b)
+    (hcarry2_nz : isAddbackCarry2NzN4CallEvm a b)
+    (hborrow : isAddbackBorrowN4CallEvm a b) :
+    n4CallAddbackBeqSemanticHolds_v2 a b :=
+  n4CallAddbackBeq_q_out_eq_q_true_v2 a b hb3nz hshift_nz hbltu hcarry2_nz hborrow
 
 -- ============================================================================
 -- Numerical sanity checks on the v2 stubs (counterexample + variants).
