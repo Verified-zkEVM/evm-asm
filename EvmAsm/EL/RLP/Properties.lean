@@ -132,6 +132,14 @@ theorem decodeAux_canonical_rejection_single
     decodeAux (fuel + 1) ((0x81 : Byte) :: b :: rest) = none := by
   simp [decodeAux, takeBytes, h]
 
+/-- Singleton list containing one small byte: top-level `decode` of
+    `[0xC1, b]` with `b < 0x80` returns `.list [.bytes [b]]`. The
+    short-list branch fires with payload length 1, the inner byte is
+    recognized as a single-byte item, and the list closes cleanly. -/
+theorem decode_singleton_list_small_byte (b : Byte) (h : b.toNat < 0x80) :
+    decode [(0xC1 : Byte), b] = some (.list [.bytes [b]], []) := by
+  simp [decode, decodeAux, takeBytes, decodeItems, h]
+
 /-! ## decode (top-level wrapper) trivial cases -/
 
 /-- `decode []` returns `none` because `decodeAux 0 []` returns `none`. -/
