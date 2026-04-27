@@ -576,32 +576,111 @@ theorem div128Quot_phase1_no_wrap_of_q1_prime_eq_q_top_phase1
 -- D2b: un21 < vTop from tight Phase 1
 -- ============================================================================
 
-/-- **D2b (STUB)**: Under `q1' = q_top_phase1` AND Phase 1 no-wrap,
-    derive `un21.toNat < vTop.toNat` (= `dHi.toNat * 2^32 + dLo.toNat`).
+/-- **D2b-A (STUB)**: Phase 1b Euclidean identity at bundle level.
+    `q1' * dHi + rhat' = u4` (toNat). Wraps `div128Quot_phase1b_post`
+    over our irreducible bundles. -/
+theorem n4_phase1b_eucl
+    (a2 a3 b2 b3 : Word)
+    (_hb3nz : b3 ≠ 0)
+    (_hshift_nz : (clzResult b3).1 ≠ 0)
+    (_hcall : isCallTrialN4 a3 b2 b3) :
+    (n4Q1Prime a2 a3 b2 b3).toNat * (n4DHi b2 b3).toNat +
+      (n4RhatPrime a2 a3 b2 b3).toNat = (n4U4 a3 b3).toNat := by
+  sorry
 
-    **Proof sketch**: From the no-wrap form (D2/D3), the BitVec
-    subtraction doesn't wrap, so
-    `un21.toNat = (rhat'%2^32)*2^32 + div_un1 - q1'*dLo`. Combined with
-    KB-3m's additive identity (which holds under no-wrap), gives
-    `un21 + r1*2^64 + q1'*vTop = uHi*2^32 + div_un1`. Under
-    `q1' = q_top_phase1 = (uHi*2^32 + div_un1)/vTop`:
-    `q1' * vTop ≤ uHi*2^32 + div_un1 < (q1'+1)*vTop`,
-    so `un21 + r1*2^64 < vTop`, hence `un21 < vTop` (with r1 ≥ 0).
-
-    Estimated: ~40 LOC. -/
-theorem div128Quot_un21_lt_vTop_from_phase1_tight
+/-- **D2b-B (STUB)**: BitVec un21 to Nat decomposition under no-wrap.
+    `un21.toNat = (rhat'%2^32)*2^32 + div_un1 - q1'*dLo` when no-wrap. -/
+theorem n4Un21_toNat_of_no_wrap
     (a2 a3 b2 b3 : Word)
     (_hb3nz : b3 ≠ 0)
     (_hshift_nz : (clzResult b3).1 ≠ 0)
     (_hcall : isCallTrialN4 a3 b2 b3)
-    (_h_q1_eq : (n4Q1Prime a2 a3 b2 b3).toNat = n4QTopPhase1 a2 a3 b2 b3)
     (_h_no_wrap_phase1 :
+      (n4Q1Prime a2 a3 b2 b3).toNat * (n4DLo b2 b3).toNat ≤
+        ((n4RhatPrime a2 a3 b2 b3).toNat % 2^32) * 2^32 +
+          (n4DivUn1 a2 a3 b3).toNat) :
+    (n4Un21 a2 a3 b2 b3).toNat =
+      ((n4RhatPrime a2 a3 b2 b3).toNat % 2^32) * 2^32 +
+        (n4DivUn1 a2 a3 b3).toNat -
+      (n4Q1Prime a2 a3 b2 b3).toNat * (n4DLo b2 b3).toNat := by
+  sorry
+
+/-- **D2b (CLOSED via composition mod sub-stubs)**: Under
+    `q1' = q_top_phase1` AND Phase 1 no-wrap, derive `un21 < vTop`.
+
+    Composes:
+    - **D2b-A** (`n4_phase1b_eucl`): Phase 1b Euclidean.
+    - **D2b-B** (`n4Un21_toNat_of_no_wrap`): BitVec un21 in Nat.
+    - h_q1_eq + Nat.lt_div_iff_mul_lt: q_top_phase1 strict upper bound.
+    - Final arithmetic. -/
+theorem div128Quot_un21_lt_vTop_from_phase1_tight
+    (a2 a3 b2 b3 : Word)
+    (hb3nz : b3 ≠ 0)
+    (hshift_nz : (clzResult b3).1 ≠ 0)
+    (hcall : isCallTrialN4 a3 b2 b3)
+    (h_q1_eq : (n4Q1Prime a2 a3 b2 b3).toNat = n4QTopPhase1 a2 a3 b2 b3)
+    (h_no_wrap_phase1 :
       (n4Q1Prime a2 a3 b2 b3).toNat * (n4DLo b2 b3).toNat ≤
         ((n4RhatPrime a2 a3 b2 b3).toNat % 2^32) * 2^32 +
           (n4DivUn1 a2 a3 b3).toNat) :
     (n4Un21 a2 a3 b2 b3).toNat <
       (n4DHi b2 b3).toNat * 2^32 + (n4DLo b2 b3).toNat := by
-  sorry
+  -- b3' = dHi*2^32 + dLo, b3' ≥ 2^63 (so > 0).
+  have h_b3'_ge : (n4B3Prime b2 b3).toNat ≥ 2^63 := by
+    rw [n4B3Prime_unfold, n4ClzShift_unfold, n4ClzAntiShift_unfold]
+    exact b3_prime_ge_pow63 b3 b2 hb3nz _
+  have h_v_eq : (n4B3Prime b2 b3).toNat =
+      (n4DHi b2 b3).toNat * 2^32 + (n4DLo b2 b3).toNat := by
+    rw [n4DHi_unfold, n4DLo_unfold]; exact div128Quot_vTop_decomp _
+  -- D2b-A: Phase 1b Euclidean.
+  have h_eucl := n4_phase1b_eucl a2 a3 b2 b3 hb3nz hshift_nz hcall
+  -- D2b-B: un21.toNat formula.
+  have h_un21_eq := n4Un21_toNat_of_no_wrap a2 a3 b2 b3
+    hb3nz hshift_nz hcall h_no_wrap_phase1
+  -- q_top_phase1 strict upper: u4*2^32+div_un1 < (q1'+1)*vTop.
+  have h_b3'_pos : 0 < (n4B3Prime b2 b3).toNat := by
+    have : (n4B3Prime b2 b3).toNat ≥ 2^63 := h_b3'_ge; omega
+  have h_q1_eq' :
+      (n4Q1Prime a2 a3 b2 b3).toNat =
+      ((n4U4 a3 b3).toNat * 2^32 + (n4DivUn1 a2 a3 b3).toNat) /
+        (n4B3Prime b2 b3).toNat := by
+    rw [h_q1_eq, n4QTopPhase1_unfold]
+  have h_q_top_upper :
+      (n4U4 a3 b3).toNat * 2^32 + (n4DivUn1 a2 a3 b3).toNat <
+      ((n4Q1Prime a2 a3 b2 b3).toNat + 1) * (n4B3Prime b2 b3).toNat := by
+    rw [h_q1_eq']
+    have h := Nat.lt_mul_div_succ
+      ((n4U4 a3 b3).toNat * 2^32 + (n4DivUn1 a2 a3 b3).toNat) h_b3'_pos
+    -- h : a < b * (a / b + 1) — commute multiplication.
+    linarith
+  -- Final arithmetic.
+  rw [h_un21_eq]
+  -- Goal: (rhat'%2^32)*2^32 + div_un1 - q1'*dLo < dHi*2^32 + dLo
+  have h_mod_le : (n4RhatPrime a2 a3 b2 b3).toNat % 2^32 ≤
+      (n4RhatPrime a2 a3 b2 b3).toNat := Nat.mod_le _ _
+  have h_mod_pow32_le : (n4RhatPrime a2 a3 b2 b3).toNat % 2^32 * 2^32 ≤
+      (n4RhatPrime a2 a3 b2 b3).toNat * 2^32 :=
+    Nat.mul_le_mul_right _ h_mod_le
+  -- From h_eucl: q1' * dHi + rhat' = u4. Multiply by 2^32:
+  -- q1'*dHi*2^32 + rhat'*2^32 = u4*2^32.
+  have h_eucl_pow32 :
+      (n4Q1Prime a2 a3 b2 b3).toNat * (n4DHi b2 b3).toNat * 2^32 +
+        (n4RhatPrime a2 a3 b2 b3).toNat * 2^32 =
+      (n4U4 a3 b3).toNat * 2^32 := by
+    have h := congrArg (· * 2^32) h_eucl
+    simp only at h
+    linarith
+  -- h_q_top_upper expanded: u4*2^32 + div_un1
+  --   < (q1'+1)*(dHi*2^32 + dLo) = q1'*dHi*2^32 + q1'*dLo + dHi*2^32 + dLo
+  rw [h_v_eq] at h_q_top_upper
+  have h_expand : ((n4Q1Prime a2 a3 b2 b3).toNat + 1) *
+      ((n4DHi b2 b3).toNat * 2^32 + (n4DLo b2 b3).toNat) =
+      (n4Q1Prime a2 a3 b2 b3).toNat * (n4DHi b2 b3).toNat * 2^32 +
+      (n4Q1Prime a2 a3 b2 b3).toNat * (n4DLo b2 b3).toNat +
+      (n4DHi b2 b3).toNat * 2^32 + (n4DLo b2 b3).toNat := by ring
+  rw [h_expand] at h_q_top_upper
+  -- Conclude via omega.
+  omega
 
 -- ============================================================================
 -- D5: Compose into Div128PhaseNoWrapInv
