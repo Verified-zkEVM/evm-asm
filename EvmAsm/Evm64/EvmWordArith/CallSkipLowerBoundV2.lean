@@ -478,4 +478,42 @@ theorem div128Quot_q1_prime_le_q_true_top_call_skip
     h_or_ge.trans (le_of_eq h_eq)
   exact q1_le_q_true_top_of_mul_pow32_le _ _ h_mul_le
 
+/-- **Multiplicative form** of `div128Quot_q1_prime_le_q_true_top_call_skip`:
+    `q1' * 2^32 ≤ val256(a)/val256(b)` under skip-borrow.
+
+    Direct restatement using `Nat.le_div_iff_mul_le.mpr`'s converse —
+    avoids the `_ / 2^32` form when callers want the multiplicative
+    inequality directly. -/
+theorem div128Quot_q1_prime_mul_pow32_le_val256_div_call_skip
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hb3nz : b3 ≠ 0)
+    (hshift_nz : (clzResult b3).1 ≠ 0)
+    (hcall : isCallTrialN4 a3 b2 b3)
+    (hborrow : isSkipBorrowN4Call a0 a1 a2 a3 b0 b1 b2 b3) :
+    let shift := (clzResult b3).1.toNat % 64
+    let antiShift := (signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64
+    let u4 := a3 >>> antiShift
+    let un3 := (a3 <<< shift) ||| (a2 >>> antiShift)
+    let b3' := (b3 <<< shift) ||| (b2 >>> antiShift)
+    let dHi := b3' >>> (32 : BitVec 6).toNat
+    let dLo := (b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+    let div_un1 := un3 >>> (32 : BitVec 6).toNat
+    let q1 := rv64_divu u4 dHi
+    let rhat := u4 - q1 * dHi
+    let hi1 := q1 >>> (32 : BitVec 6).toNat
+    let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+    let rhatc := if hi1 = 0 then rhat else rhat + dHi
+    let qDlo := q1c * dLo
+    let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
+    let q1' := if BitVec.ult rhatUn1 qDlo then q1c + signExtend12 4095 else q1c
+    q1'.toNat * 2^32 ≤ val256 a0 a1 a2 a3 / val256 b0 b1 b2 b3 := by
+  intro shift antiShift u4 un3 b3' dHi dLo div_un1 q1 rhat hi1 q1c rhatc qDlo
+        rhatUn1 q1'
+  have h_div := div128Quot_q1_prime_le_q_true_top_call_skip a0 a1 a2 a3 b0 b1 b2 b3
+    hb3nz hshift_nz hcall hborrow
+  simp only [] at h_div
+  -- h_div: q1'.toNat ≤ (val256 a / val256 b) / 2^32.
+  -- Apply Nat.le_div_iff_mul_le.mp to get q1' * 2^32 ≤ val256/val256.
+  exact (Nat.le_div_iff_mul_le (by decide : (0:Nat) < 2^32)).mp h_div
+
 end EvmAsm.Evm64
