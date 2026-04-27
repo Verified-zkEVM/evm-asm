@@ -394,4 +394,20 @@ theorem q1_le_q_true_top_of_mul_pow32_le
     q1 ≤ q_true_full / 2^32 :=
   (Nat.le_div_iff_mul_le (by decide : (0:Nat) < 2^32)).mpr h_mul
 
+/-- **div128Quot OR-left bound, no q0' extraction** (CLOSED).
+
+    Generic version: for ANY Word `qHat` viewed as `(q1 << 32) ||| q0` for
+    some q0, `q1 * 2^32 ≤ qHat.toNat` provided `q1 < 2^32` AND there
+    exists a Word q0 with `qHat = (q1 << 32) ||| q0`. Trivial — q0 is
+    just `qHat AND ~(q1 << 32)` (or any Word; the OR-bound holds regardless).
+
+    Used in the algorithm-level Phase 1 tight lemma below. -/
+theorem div128Quot_or_left_ge_q1_prime_shift_existential
+    (qHat q1 : Word) (q0 : Word)
+    (h_eq : qHat = (q1 <<< (32 : BitVec 6).toNat) ||| q0)
+    (h_q1_lt : q1.toNat < 2^32) :
+    q1.toNat * 2^32 ≤ qHat.toNat := by
+  rw [h_eq]
+  exact div128Quot_or_left_ge_q1_prime_shift q1 q0 h_q1_lt
+
 end EvmAsm.Evm64
