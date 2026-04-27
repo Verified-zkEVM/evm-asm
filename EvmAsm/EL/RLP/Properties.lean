@@ -157,6 +157,16 @@ theorem decode_singleton_list_empty_list :
     decode [(0xC1 : Byte), (0xC0 : Byte)] = some (.list [.list []], []) := by
   simp [decode, decodeAux, takeBytes, decodeItems]
 
+/-- Singleton list containing a single large byte: `decode [0xC2, 0x81, b]`
+    with `b ≥ 0x80` returns `.list [.bytes [b]]`. The outer short-list
+    branch fires with payload length 2, the inner `[0x81, b]` decodes
+    as a single-byte short string (canonical form, since `b ≥ 0x80`),
+    and the outer list closes. -/
+theorem decode_singleton_list_large_byte (b : Byte) (h : ¬ b.toNat < 0x80) :
+    decode [(0xC2 : Byte), (0x81 : Byte), b] =
+      some (.list [.bytes [b]], []) := by
+  simp [decode, decodeAux, takeBytes, decodeItems, h]
+
 /-- Two-element list of small bytes:
     `decode [0xC2, b1, b2] = some (.list [.bytes [b1], .bytes [b2]], [])`
     when both `b1, b2 < 0x80`. Short-list branch fires with payload
