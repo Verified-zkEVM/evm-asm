@@ -252,6 +252,16 @@ theorem decode_encode_bytes_empty :
   simp only [encode, encodeBytes_nil]
   exact decode_empty_string
 
+/-- Single-byte round-trip for large bytes (`b ≥ 0x80`): encoded as the
+    two-byte sequence `[0x81, b]`, then the decoder reads the prefix
+    as a one-byte short string, applies the canonical-form check
+    (which passes because `b ≥ 0x80`), and returns `.bytes [b]`. -/
+theorem decode_encode_bytes_single_large (b : Byte) (h : ¬ b.toNat < 0x80) :
+    decode (encode (.bytes [b])) = some (.bytes [b], []) := by
+  rw [show encode (.bytes [b]) = [BitVec.ofNat 8 0x81, b] from
+    encodeBytes_single_large b h]
+  simp [decode, decodeAux, takeBytes, h]
+
 /-! ## Round-trip correctness (concrete cases)
 
 The round-trip property `decode (encode item) = some (item, [])` is verified
