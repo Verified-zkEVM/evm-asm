@@ -214,6 +214,19 @@ theorem encodeBytes_quad (a b c d : Byte) :
     encodeBytes [a, b, c, d] = [BitVec.ofNat 8 0x84, a, b, c, d] := by
   simp [encodeBytes]
 
+/-- Five-byte short string:
+    `encodeBytes [a, b, c, d, e] = [0x85, a, b, c, d, e]`. -/
+theorem encodeBytes_quint (a b c d e : Byte) :
+    encodeBytes [a, b, c, d, e] = [BitVec.ofNat 8 0x85, a, b, c, d, e] := by
+  simp [encodeBytes]
+
+/-- Six-byte short string:
+    `encodeBytes [a, b, c, d, e, f] = [0x86, a, b, c, d, e, f]`. -/
+theorem encodeBytes_sext (a b c d e f : Byte) :
+    encodeBytes [a, b, c, d, e, f] =
+      [BitVec.ofNat 8 0x86, a, b, c, d, e, f] := by
+  simp [encodeBytes]
+
 /-! ## Encoding produces non-empty output -/
 
 theorem encodeBytes_nonempty (data : List Byte) :
