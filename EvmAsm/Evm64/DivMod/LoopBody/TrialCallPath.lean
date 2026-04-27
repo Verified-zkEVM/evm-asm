@@ -120,4 +120,55 @@ theorem divK_trial_call_path_spec
     (fun h hq => by xperm_hyp hq)
     full
 
+/-- v2 mirror of `divK_trial_call_path_spec` — same structure but uses
+    `sharedDivModCode_v2 base` and `div128_v2_spec_shared`. Computes
+    qHat via the v2 algorithm (with Knuth's classical 2nd D3 correction).
+
+    Issue #1337 algorithm fix migration. -/
+theorem divK_trial_call_path_v2_spec
+    (sp j uLo uHi vTop vtopBase : Word) (base : Word)
+    (v2Old v11Old : Word)
+    (retMem dMem dloMem un0Mem : Word)
+    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516) :
+    cpsTriple (base + 512) (base + 516) (sharedDivModCode_v2 base)
+      ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
+       (.x5 ↦ᵣ uLo) ** (.x6 ↦ᵣ vtopBase) **
+       (.x7 ↦ᵣ uHi) ** (.x10 ↦ᵣ vTop) **
+       (.x2 ↦ᵣ v2Old) ** (.x11 ↦ᵣ v11Old) ** (.x0 ↦ᵣ (0 : Word)) **
+       (sp + signExtend12 3968 ↦ₘ retMem) **
+       (sp + signExtend12 3960 ↦ₘ dMem) **
+       (sp + signExtend12 3952 ↦ₘ dloMem) **
+       (sp + signExtend12 3944 ↦ₘ un0Mem))
+      (div128V2SpecPost sp (base + 516) vTop uLo uHi) := by
+  unfold div128V2SpecPost
+  -- 1. JAL x2 560 at base+512.
+  have J := jal_spec .x2 v2Old (560 : BitVec 21) (base + 512) (by nofun)
+  rw [lb_jal_target, lb_jal_ret] at J
+  have Je := cpsTriple_extend_code (hmono :=
+    lb_sub_v2 16 _ _ (by decide) (by bv_addr) (by decide)) J
+  -- 2. div128_v2 subroutine: base+1072 → base+516.
+  have D := div128_v2_spec_shared sp (base + 516) vTop uLo uHi base
+    j vtopBase v11Old retMem dMem dloMem un0Mem
+    halign
+  unfold div128V2SpecPost at D
+  -- 3. Frame JAL with all registers/memory for div128.
+  have Jf := cpsTriple_frameR
+    ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
+     (.x5 ↦ᵣ uLo) ** (.x6 ↦ᵣ vtopBase) **
+     (.x7 ↦ᵣ uHi) ** (.x10 ↦ᵣ vTop) **
+     (.x11 ↦ᵣ v11Old) ** (.x0 ↦ᵣ (0 : Word)) **
+     (sp + signExtend12 3968 ↦ₘ retMem) **
+     (sp + signExtend12 3960 ↦ₘ dMem) **
+     (sp + signExtend12 3952 ↦ₘ dloMem) **
+     (sp + signExtend12 3944 ↦ₘ un0Mem))
+    (by pcFree) Je
+  -- 4. Compose JAL + div128_v2.
+  have full := cpsTriple_seq_perm_same_cr
+    (fun h hp => by xperm_hyp hp) Jf D
+  -- 5. Final permutation.
+  exact cpsTriple_weaken
+    (fun h hp => by xperm_hyp hp)
+    (fun h hq => by xperm_hyp hq)
+    full
+
 end EvmAsm.Evm64
