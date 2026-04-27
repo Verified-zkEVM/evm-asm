@@ -1,10 +1,8 @@
 /-
   EvmAsm.Evm64.DivMod.LimbSpec.Div128ProdCheck1b
 
-  **STUB FILE** for issue #1337 algorithm fix migration.
-
-  Provides the block spec for the **2nd D3 correction iteration** added
-  by `divK_div128_v2` (in `EvmAsm/Evm64/DivMod/Program.lean`). This is
+  Block spec for the **2nd D3 correction iteration** added by
+  `divK_div128_v2` (in `EvmAsm/Evm64/DivMod/Program.lean`). This is
   the Phase 1b 2nd correction block — instructions [25..34] of the
   fixed `divK_div128_v2` subroutine (10 instructions: SRLI guard +
   BNE skip + 8-instruction D3 step mirroring `Div128ProdCheck1`).
@@ -17,11 +15,10 @@
     then q1' := q1c - 1, rhat' := rhatc + dHi.
   - otherwise q1' := q1c, rhat' := rhatc.
 
-  **Status (2026-04-27)**: theorem signature only; proof is a sorry
-  pending the multi-iteration migration. Mirrors the structure of
-  `Div128ProdCheck1.divK_div128_prodcheck1_merged_spec` (the 1st D3
-  block) and `Div128ProdCheck2.div128Quot_phase2b_q0'`
-  (Phase 2b's guarded D3, structurally identical).
+  The merged spec is shaped as a `cpsBranch` (mirroring
+  `divK_div128_step2_branch_merged_spec`) where both legs converge at
+  `base + 40` but carry different register postconditions for `.x5`
+  and `.x1` (the body's mul-check temporaries).
 
   Issue #1337's algorithm fix migration. Tracked in PR #1389.
 -/
@@ -186,6 +183,85 @@ theorem divK_div128_prodcheck1b_merged_spec
          (.x5 ↦ᵣ qDlo) ** (.x1 ↦ᵣ rhatUn1') ** (.x6 ↦ᵣ dHi) ** (.x0 ↦ᵣ 0) **
          ⌜rhatHi = 0⌝ **
          (sp + signExtend12 3952 ↦ₘ dlo)) := by
-  sorry  -- Composition of guard cpsBranch + body cpsTriple via cpsBranch_seq pattern.
+  intro qDlo rhatUn1' rhatHi q1'FT rhat'FT cr
+  have hcr_eq : cr =
+      CodeReq.union (CodeReq.singleton base (.SRLI .x1 .x7 32))
+      (CodeReq.union (CodeReq.singleton (base + 4) (.BNE .x1 .x0 36))
+      (CodeReq.union (CodeReq.singleton (base + 8) (.LD .x1 .x12 3952))
+      (CodeReq.union (CodeReq.singleton (base + 12) (.MUL .x5 .x10 .x1))
+      (CodeReq.union (CodeReq.singleton (base + 16) (.SLLI .x1 .x7 32))
+      (CodeReq.union (CodeReq.singleton (base + 20) (.OR .x1 .x1 .x11))
+      (CodeReq.union (CodeReq.singleton (base + 24) (.BLTU .x1 .x5 8))
+      (CodeReq.union (CodeReq.singleton (base + 28) (.JAL .x0 12))
+      (CodeReq.union (CodeReq.singleton (base + 32) (.ADDI .x10 .x10 4095))
+       (CodeReq.singleton (base + 36) (.ADD .x7 .x7 .x6)))))))))) := rfl
+  -- h1 = guard_spec sp rhatc v1Old base 36 (cpsBranch base..base+40|base+8)
+  have h1_raw := divK_div128_prodcheck1b_guard_spec sp rhatc v1Old base (36 : BitVec 13)
+  have ha_t : (base + 4 : Word) + signExtend13 (36 : BitVec 13) = base + 40 := by rv64_addr
+  rw [ha_t] at h1_raw
+  -- Extend guard's 2-singleton cr to merged's 10-singleton cr
+  have h1 : cpsBranch base cr _ _ _ _ _ :=
+    cpsBranch_extend_code (h := h1_raw) (hmono := by
+      rw [hcr_eq]; intro a i
+      simp only [CodeReq.union_singleton_apply, CodeReq.singleton]; intro h
+      split at h
+      · next hab => rw [beq_iff_eq] at hab; subst hab; simp_all [CodeReq.beq_offset_self_left, CodeReq.beq_base_offset]
+      · split at h
+        · next hab => rw [beq_iff_eq] at hab; subst hab; simp_all [CodeReq.beq_offset_self_left, CodeReq.beq_base_offset]
+        · simp at h)
+  -- Frame guard with the unchanged-through-guard atoms
+  have h1f := cpsBranch_frameR
+    ((.x10 ↦ᵣ q1c) ** (.x11 ↦ᵣ un1) ** (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ dHi) **
+     (sp + signExtend12 3952 ↦ₘ dlo))
+    (by pcFree) h1
+  -- h2 = body_spec at base+8 — body's v1Old becomes the SRLI result rhatHi
+  have h2_raw := divK_div128_prodcheck1b_body_spec sp q1c rhatc dHi un1 rhatHi v5Old dlo
+    (base + 8)
+  have hb4 : (base + 8 : Word) + 4 = base + 12 := by bv_addr
+  have hb8 : (base + 8 : Word) + 8 = base + 16 := by bv_addr
+  have hb12 : (base + 8 : Word) + 12 = base + 20 := by bv_addr
+  have hb16 : (base + 8 : Word) + 16 = base + 24 := by bv_addr
+  have hb20 : (base + 8 : Word) + 20 = base + 28 := by bv_addr
+  have hb24 : (base + 8 : Word) + 24 = base + 32 := by bv_addr
+  have hb28 : (base + 8 : Word) + 28 = base + 36 := by bv_addr
+  have hb32 : (base + 8 : Word) + 32 = base + 40 := by bv_addr
+  simp only [hb4, hb8, hb12, hb16, hb20, hb24, hb28, hb32] at h2_raw
+  have h2 : cpsTriple (base + 8) (base + 40) cr _ _ :=
+    cpsTriple_extend_code (h := h2_raw) (hmono := by
+      rw [hcr_eq]; intro a i
+      simp only [CodeReq.union_singleton_apply, CodeReq.singleton]; intro h
+      split at h
+      · next hab => rw [beq_iff_eq] at hab; subst hab; simp_all [CodeReq.beq_offset_self_left, CodeReq.beq_base_offset]
+      · split at h
+        · next hab => rw [beq_iff_eq] at hab; subst hab; simp_all [CodeReq.beq_offset_self_left, CodeReq.beq_base_offset]
+        · split at h
+          · next hab => rw [beq_iff_eq] at hab; subst hab; simp_all [CodeReq.beq_offset_self_left, CodeReq.beq_base_offset]
+          · split at h
+            · next hab => rw [beq_iff_eq] at hab; subst hab; simp_all [CodeReq.beq_offset_self_left, CodeReq.beq_base_offset]
+            · split at h
+              · next hab => rw [beq_iff_eq] at hab; subst hab; simp_all [CodeReq.beq_offset_self_left, CodeReq.beq_base_offset]
+              · split at h
+                · next hab => rw [beq_iff_eq] at hab; subst hab; simp_all [CodeReq.beq_offset_self_left, CodeReq.beq_base_offset]
+                · split at h
+                  · next hab => rw [beq_iff_eq] at hab; subst hab; simp_all [CodeReq.beq_offset_self_left, CodeReq.beq_base_offset]
+                  · split at h
+                    · next hab => rw [beq_iff_eq] at hab; subst hab; simp_all [CodeReq.beq_offset_self_left, CodeReq.beq_base_offset]
+                    · simp at h)
+  -- Frame body with (.x0 ↦ᵣ 0) ** ⌜rhatHi = 0⌝ — both pass through unchanged
+  have h2f := cpsTriple_frameR
+    ((.x0 ↦ᵣ 0) ** ⌜rhatHi = 0⌝)
+    (by pcFree) h2
+  -- Compose: guard fall-through ⨾ body, with permutation matching guard's Q_f → body's pre
+  have composed := cpsBranch_seq_cpsTriple_with_perm_same_cr
+    (h1 := h1f)
+    (hperm := fun h hp => by xperm_hyp hp)
+    (h2 := h2f)
+    (ht1 := fun h hp => hp)
+  -- Weaken final post to merged_spec's right-associated shape
+  exact cpsBranch_weaken
+    (fun h hp => by xperm_hyp hp)
+    (fun h hp => by xperm_hyp hp)
+    (fun h hp => by xperm_hyp hp)
+    composed
 
 end EvmAsm.Evm64
