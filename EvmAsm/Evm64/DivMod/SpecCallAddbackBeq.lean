@@ -409,6 +409,44 @@ theorem div128Quot_v2_q1_prime_prime_le_q1_prime
     · rw [if_neg h_check]
   · rw [if_neg h_guard]
 
+/-- **`q1'' * dLo` no-wrap for `div128Quot_v2`** — v2 analog of v1's
+    `div128Quot_q1_prime_dLo_no_wrap` from `Div128FinalAssembly.lean:52`.
+
+    Combines `div128Quot_v2_q1_prime_prime_le_q1_prime` (q1'' ≤ q1')
+    with v1's `div128Quot_q1_prime_le_pow32_plus_one` (q1' ≤ 2^32 + 1)
+    to derive q1''.toNat ≤ 2^32 + 1, hence q1'' * dLo doesn't overflow.
+
+    Issue #1337 algorithm fix migration. -/
+theorem div128Quot_v2_q1_prime_prime_dLo_no_wrap
+    (uHi dHi dLo rhatUn1 div_un1 : Word)
+    (hdHi_ge : dHi.toNat ≥ 2^31)
+    (hdLo_lt : dLo.toNat < 2^32)
+    (huHi_lt_vTop : uHi.toNat < dHi.toNat * 2^32 + dLo.toNat) :
+    let q1 := rv64_divu uHi dHi
+    let rhat := uHi - q1 * dHi
+    let hi1 := q1 >>> (32 : BitVec 6).toNat
+    let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+    let rhatc := if hi1 = 0 then rhat else rhat + dHi
+    let q1' := if BitVec.ult rhatUn1 (q1c * dLo) then q1c + signExtend12 4095 else q1c
+    let rhat' := if BitVec.ult rhatUn1 (q1c * dLo) then rhatc + dHi else rhatc
+    let q1'' := div128Quot_phase2b_q0' q1' rhat' dLo div_un1
+    (q1'' * dLo).toNat = q1''.toNat * dLo.toNat := by
+  intro q1 rhat hi1 q1c rhatc q1' rhat' q1''
+  have h_q1'_le : q1'.toNat ≤ 2^32 + 1 :=
+    div128Quot_q1_prime_le_pow32_plus_one uHi dHi dLo rhatUn1
+      hdHi_ge hdLo_lt huHi_lt_vTop
+  have h_q1''_le_q1' : q1''.toNat ≤ q1'.toNat :=
+    div128Quot_v2_q1_prime_prime_le_q1_prime q1' rhat' dLo div_un1
+  have h_q1''_le : q1''.toNat ≤ 2^32 + 1 := le_trans h_q1''_le_q1' h_q1'_le
+  -- q1''.toNat * dLo.toNat < 2^64.
+  have h_mul_lt : q1''.toNat * dLo.toNat < 2^64 := by
+    have h1 : q1''.toNat * dLo.toNat ≤ (2^32 + 1) * (2^32 - 1) := by
+      have hdLo_le : dLo.toNat ≤ 2^32 - 1 := by omega
+      exact Nat.mul_le_mul h_q1''_le hdLo_le
+    have h2 : (2^32 + 1) * (2^32 - 1) = 2^64 - 1 := by decide
+    omega
+  rw [BitVec.toNat_mul, Nat.mod_eq_of_lt h_mul_lt]
+
 /-- **`un21` computation case-analysis for `div128Quot_v2`** (v2 analog
     of `div128Quot_un21_toNat_case` from `Div128FinalAssembly.lean:213`).
 
