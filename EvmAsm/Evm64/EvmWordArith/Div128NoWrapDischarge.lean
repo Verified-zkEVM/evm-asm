@@ -176,11 +176,15 @@ theorem div128Quot_phase1_no_wrap_of_q1_prime_eq_q_top_phase1
 
     **Proof sketch**: From the no-wrap form (D3), the BitVec subtraction
     `un21 = cu_rhat_un1 - cu_q1_dlo` doesn't wrap. Hence
-    `un21.toNat = cu_rhat_un1.toNat - cu_q1_dlo.toNat`. Combined with
-    KB-3m (additive identity), this gives `un21.toNat = uHi*2^32 +
-    div_un1 - q1'*vTop`. Under q1' = q_top_phase1 = (uHi*2^32 +
-    div_un1)/vTop, the RHS is `(uHi*2^32 + div_un1) mod vTop`, which is
-    `< vTop` by `Nat.mod_lt`.
+    `un21.toNat = (rhat'%2^32)*2^32 + div_un1 - q1'*dLo`. Combined with
+    KB-3m's additive identity (which holds under no-wrap), we get
+    `un21 + r1*2^64 + q1'*vTop = uHi*2^32 + div_un1` where
+    `r1 := rhat'/2^32`. Rearranging:
+    `un21 = uHi*2^32 + div_un1 - q1'*vTop - r1*2^64`.
+    Under `q1' = q_top_phase1 = (uHi*2^32 + div_un1)/vTop`:
+    `q1'*vTop ≤ uHi*2^32 + div_un1 < (q1'+1)*vTop`, so
+    `0 ≤ uHi*2^32 + div_un1 - q1'*vTop < vTop`.
+    Combined with `r1 ≥ 0`: `un21 ≤ uHi*2^32 + div_un1 - q1'*vTop < vTop`.
 
     Estimated: ~40 LOC. -/
 theorem div128Quot_un21_lt_vTop_from_phase1_tight
@@ -188,8 +192,64 @@ theorem div128Quot_un21_lt_vTop_from_phase1_tight
     (_hb3nz : b3 ≠ 0)
     (_hshift_nz : (clzResult b3).1 ≠ 0)
     (_hcall : isCallTrialN4 a3 b2 b3)
-    (_h_no_wrap_phase1 : True) :  -- placeholder; real signature comes from D3
-    True := by
+    (_h_q1_eq :  -- q1' = q_top_phase1 (from D1c)
+      let shift := (clzResult b3).1.toNat % 64
+      let antiShift := (signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64
+      let u4 := a3 >>> antiShift
+      let un3 := (a3 <<< shift) ||| (a2 >>> antiShift)
+      let b3' := (b3 <<< shift) ||| (b2 >>> antiShift)
+      let dHi := b3' >>> (32 : BitVec 6).toNat
+      let dLo := (b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+      let div_un1 := un3 >>> (32 : BitVec 6).toNat
+      let q1 := rv64_divu u4 dHi
+      let rhat := u4 - q1 * dHi
+      let hi1 := q1 >>> (32 : BitVec 6).toNat
+      let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+      let rhatc := if hi1 = 0 then rhat else rhat + dHi
+      let qDlo := q1c * dLo
+      let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
+      let q1' := if BitVec.ult rhatUn1 qDlo then q1c + signExtend12 4095 else q1c
+      q1'.toNat = (u4.toNat * 2^32 + div_un1.toNat) / dHi.toNat)
+    (_h_no_wrap_phase1 :  -- Phase 1 no-wrap (from D3)
+      let shift := (clzResult b3).1.toNat % 64
+      let antiShift := (signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64
+      let u4 := a3 >>> antiShift
+      let un3 := (a3 <<< shift) ||| (a2 >>> antiShift)
+      let b3' := (b3 <<< shift) ||| (b2 >>> antiShift)
+      let dHi := b3' >>> (32 : BitVec 6).toNat
+      let dLo := (b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+      let div_un1 := un3 >>> (32 : BitVec 6).toNat
+      let q1 := rv64_divu u4 dHi
+      let rhat := u4 - q1 * dHi
+      let hi1 := q1 >>> (32 : BitVec 6).toNat
+      let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+      let rhatc := if hi1 = 0 then rhat else rhat + dHi
+      let qDlo := q1c * dLo
+      let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
+      let q1' := if BitVec.ult rhatUn1 qDlo then q1c + signExtend12 4095 else q1c
+      let rhat' := if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc
+      q1'.toNat * dLo.toNat ≤ (rhat'.toNat % 2^32) * 2^32 + div_un1.toNat) :
+    let shift := (clzResult b3).1.toNat % 64
+    let antiShift := (signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64
+    let u4 := a3 >>> antiShift
+    let un3 := (a3 <<< shift) ||| (a2 >>> antiShift)
+    let b3' := (b3 <<< shift) ||| (b2 >>> antiShift)
+    let dHi := b3' >>> (32 : BitVec 6).toNat
+    let dLo := (b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+    let div_un1 := un3 >>> (32 : BitVec 6).toNat
+    let q1 := rv64_divu u4 dHi
+    let rhat := u4 - q1 * dHi
+    let hi1 := q1 >>> (32 : BitVec 6).toNat
+    let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+    let rhatc := if hi1 = 0 then rhat else rhat + dHi
+    let qDlo := q1c * dLo
+    let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
+    let q1' := if BitVec.ult rhatUn1 qDlo then q1c + signExtend12 4095 else q1c
+    let rhat' := if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc
+    let cu_rhat_un1 := (rhat' <<< (32 : BitVec 6).toNat) ||| div_un1
+    let cu_q1_dlo := q1' * dLo
+    let un21 := cu_rhat_un1 - cu_q1_dlo
+    un21.toNat < dHi.toNat * 2^32 + dLo.toNat := by
   sorry
 
 -- ============================================================================
