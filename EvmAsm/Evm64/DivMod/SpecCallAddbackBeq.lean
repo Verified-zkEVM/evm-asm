@@ -1675,14 +1675,28 @@ theorem qHat_gt_q_true_under_runtime_v2 (a b : EvmWord)
   simp only [] at h_u4_lt_c3
   -- The remaining steps:
   -- Step 2: by_contra qHat ≤ q_true; derive qHat * val256(b_shifted) ≤
-  --   val256(a_shifted) using shift propagation (when both fit in 256 bits).
+  --   val256(a_shifted) using shift propagation.
   -- Step 3: apply `c3_un_zero_of_qHat_mul_le` to get c3 = 0.
   -- Step 4: combine c3 = 0 with h_u4_lt_c3 to get u4 < 0 contradiction.
   --
-  -- Step 2 is the substantive piece — relating the SHIFTED val256s to the
-  -- ORIGINAL val256s used in q_true's definition. This requires that the
-  -- shift `(clzResult b3).1.toNat % 64` doesn't lose information for either
-  -- a or b — which holds under `hb3nz` (b3 ≠ 0 ⟹ shift = clzResult ≤ 63).
+  -- **DEEPER CHALLENGE (2026-04-28):** Step 2 is harder than initially
+  -- thought. The shift `(clzResult b3).1.toNat` can be up to 63. After
+  -- shifting all limbs by 63 bits, val256(a_shifted) = val256(a) * 2^63
+  -- mod 2^256 — and val256(a) * 2^63 may exceed 2^256, causing truncation.
+  -- Concretely, on the canonical counterexample (a = (2^63 + 2^33) * 2^192,
+  -- shift = 63), val256(a) * 2^shift ≈ 2^318 ≫ 2^256, so a's shifted form
+  -- truncates significantly. The shift propagation `qHat * val256(b) ≤
+  -- val256(a) ⟹ qHat * val256(b_shifted) ≤ val256(a_shifted)` is therefore
+  -- NOT direct.
+  --
+  -- However, there is still a sound path: under hbltu (a3 < b3'), Knuth's
+  -- normalization ensures the shifted forms preserve the quotient
+  -- relationship in a per-iteration sense. The val256 of shifted (a, b) at
+  -- the limb level matches the trial-quotient input that the algorithm
+  -- consumes — c3_un_zero_of_qHat_mul_le's hypothesis is on the SHIFTED
+  -- inputs, not the original. So we need a slightly different framing:
+  -- `qHat ≤ floor(val256(a_shifted) / val256(b_shifted))` rather than
+  -- `qHat ≤ q_true`. This is the formulation Knuth uses.
   sorry
 
 /-- **Carry partition for the BEQ branch (sub-lemma, conjunctive form).**
