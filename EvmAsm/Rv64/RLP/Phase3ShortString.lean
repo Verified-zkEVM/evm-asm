@@ -123,4 +123,36 @@ theorem rlp_phase3_short_string_spec (v5 v11Old v13 : Word) (base : Word) :
       framed
   exact cpsTriple_seq hd s1 s2
 
+/-! ## Concrete specializations for individual short-string prefixes -/
+
+/-- Specialization at `v5 = 0x80` (empty short-string prefix, length = 0). -/
+theorem rlp_phase3_short_string_spec_at_0x80
+    (v11Old v13 : Word) (base : Word) :
+    cpsTriple base (base + 8)
+      (CodeReq.ofProg base rlp_phase3_short_string_prog)
+      ((.x5 ↦ᵣ (0x80 : Word)) ** (.x11 ↦ᵣ v11Old) ** (.x13 ↦ᵣ v13))
+      ((.x5 ↦ᵣ (0x80 : Word)) ** (.x11 ↦ᵣ (0 : Word)) **
+       (.x13 ↦ᵣ (v13 + signExtend12 (1 : BitVec 12)))) := by
+  have h := rlp_phase3_short_string_spec (0x80 : Word) v11Old v13 base
+  have hsig : (0x80 : Word) + signExtend12 (-(0x80 : BitVec 12)) = (0 : Word) := by
+    decide
+  rw [hsig] at h
+  exact h
+
+/-- Specialization at `v5 = 0x81` (length = 1). Note that under the
+    canonical-form rules a single payload byte `≥ 0x80` requires this
+    prefix; the caller is responsible for the data semantics. -/
+theorem rlp_phase3_short_string_spec_at_0x81
+    (v11Old v13 : Word) (base : Word) :
+    cpsTriple base (base + 8)
+      (CodeReq.ofProg base rlp_phase3_short_string_prog)
+      ((.x5 ↦ᵣ (0x81 : Word)) ** (.x11 ↦ᵣ v11Old) ** (.x13 ↦ᵣ v13))
+      ((.x5 ↦ᵣ (0x81 : Word)) ** (.x11 ↦ᵣ (1 : Word)) **
+       (.x13 ↦ᵣ (v13 + signExtend12 (1 : BitVec 12)))) := by
+  have h := rlp_phase3_short_string_spec (0x81 : Word) v11Old v13 base
+  have hsig : (0x81 : Word) + signExtend12 (-(0x80 : BitVec 12)) = (1 : Word) := by
+    decide
+  rw [hsig] at h
+  exact h
+
 end EvmAsm.Rv64.RLP
