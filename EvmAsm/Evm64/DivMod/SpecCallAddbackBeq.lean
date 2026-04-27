@@ -1749,8 +1749,16 @@ theorem qHat_mul_b_shifted_gt_a_shifted_under_runtime_v2 (a b : EvmWord)
   -- but the syntactic forms differ (h_c3_zero uses local `qHat, b', u'`;
   -- h_u4_lt_c3 uses unfolded BitVec arithmetic). The substitution requires
   -- `change` or `simp only [show ... = ...]` to fold the unfolded form back
-  -- to the local lets, which is non-trivial. Mark as sorry — the argument
-  -- IS sound, just needs definitional-eq massaging.
+  -- to the local lets, which is non-trivial.
+  --
+  -- **Closing pattern (mirror v1 line 2421+):** write
+  -- `h_c3_toNat_zero : (mulsubN4 qHat <unfolded b'> <unfolded u'>).2.2.2.2.toNat = 0`
+  -- where the args are spelled out exactly as they appear in h_u4_lt_c3
+  -- (i.e., using `64 - shift` instead of `antiShift`, etc.). Then
+  -- `omega` closes from h_u4_lt_c3 + h_c3_toNat_zero. v1's proof at
+  -- `qHat_eq_div_plus_one_of_single_addback` (line 2336+) does this for
+  -- v1; the v2 mirror is a verbatim copy with `div128Quot → div128Quot_v2`
+  -- and `u_top_lt_c3_of_addback_borrow_call → ...v2`.
   sorry
 
 /-- **Carry partition for the BEQ branch (sub-lemma, conjunctive form).**
