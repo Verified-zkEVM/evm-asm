@@ -213,6 +213,14 @@ theorem decode_encode_bytes_single_small (b : Byte) (h : b.toNat < 0x80) :
     decode (encode (.bytes [b])) = some (.bytes [b], []) := by
   simp only [encode, encodeBytes_single_small _ h, decode_single_byte _ h]
 
+/-- Empty byte string round-trip:
+    `decode (encode (.bytes [])) = some (.bytes [], [])`. Chains
+    `encodeBytes_nil` with `decode_empty_string`. -/
+theorem decode_encode_bytes_empty :
+    decode (encode (.bytes [])) = some (.bytes [], []) := by
+  simp only [encode, encodeBytes_nil]
+  exact decode_empty_string
+
 /-- Single-byte round-trip for large bytes (`b ≥ 0x80`): encoded as the
     two-byte sequence `[0x81, b]`, then the decoder reads the prefix
     as a one-byte short string, applies the canonical-form check
