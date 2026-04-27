@@ -123,6 +123,108 @@ def divK_div128 : Program :=
   JALR .x0 .x2 0                              -- [50] return
   -- Total: 51 instructions
 
+/-- **FIXED** 128/64-bit unsigned division subroutine — same as `divK_div128`
+    but with Knuth's classical 2nd D3 correction iteration added (TAOCP
+    4.3.1). The 2nd correction has the `rhat < B` guard, mirroring the
+    existing Phase 2b guard at lines 107-108.
+
+    This fixes the algorithm correctness bug — see
+    `n4CallAddbackBeqSemanticHolds_counterexample` (in
+    `EvmAsm/Evm64/DivMod/SpecCallAddbackBeq.lean`) and the matching
+    Lean abstraction `div128Quot_v2` (in `LoopDefs/Iter.lean`).
+
+    **Layout**:
+    - [0..24]: same as `divK_div128` (initial split + Phase 1a + 1st D3).
+    - **[25..34]: NEW — Phase 1b 2nd D3 correction (10 instructions)**.
+      Mirrors Phase 2b's guarded D3 at [37..46] in `divK_div128`.
+    - [35..60]: original [25..50] shifted by 10 (Phase 2 + finish).
+
+    Total: 61 instructions (vs 51 in the buggy version).
+
+    **Migration**: callers of `divK_div128` should be updated to call
+    `divK_div128_v2` (this requires updating offsets in the main loop
+    at `divK_loopBody`, since the subroutine moved). Once all use-sites
+    migrate, the buggy `divK_div128` should be removed. -/
+def divK_div128_v2 : Program :=
+  -- Save return addr and d
+  SD .x12 .x2 3968 ;;                         -- [0]  save return addr
+  SD .x12 .x10 3960 ;;                        -- [1]  save d
+  -- Split d: dHi = d >> 32, dLo = (d << 32) >> 32
+  SRLI .x6 .x10 32 ;;                         -- [2]  x6 = dHi (>= 2^31)
+  SLLI .x1 .x10 32 ;; SRLI .x1 .x1 32 ;;     -- [3,4] x1 = dLo
+  SD .x12 .x1 3952 ;;                         -- [5]  save dLo
+  -- Split uLo: un1 = uLo >> 32, un0 = (uLo << 32) >> 32
+  SRLI .x11 .x5 32 ;;                         -- [6]  x11 = un1
+  SLLI .x5 .x5 32 ;; SRLI .x5 .x5 32 ;;      -- [7,8] x5 = un0
+  SD .x12 .x5 3944 ;;                         -- [9]  save un0
+  -- Step 1: q1 = DIVU(uHi, dHi), rhat = uHi - q1*dHi
+  single (.DIVU .x10 .x7 .x6) ;;             -- [10] x10 = q1
+  single (.MUL .x5 .x10 .x6) ;;              -- [11] x5 = q1 * dHi
+  single (.SUB .x7 .x7 .x5) ;;               -- [12] x7 = rhat
+  -- Refine q1: clamp to < 2^32
+  SRLI .x5 .x10 32 ;;                         -- [13] test q1 >= 2^32
+  single (.BEQ .x5 .x0 12) ;;                -- [14] skip if q1 < 2^32 → [17]
+  ADDI .x10 .x10 4095 ;;                      -- [15] q1--
+  single (.ADD .x7 .x7 .x6) ;;               -- [16] rhat += dHi
+  -- [17] Phase 1b 1st D3 correction: q1*dLo > rhat*2^32 + un1?
+  LD .x1 .x12 3952 ;;                         -- [17] x1 = dLo
+  single (.MUL .x5 .x10 .x1) ;;              -- [18] x5 = q1 * dLo
+  SLLI .x1 .x7 32 ;;                          -- [19] x1 = rhat << 32
+  single (.OR .x1 .x1 .x11) ;;               -- [20] x1 = rhat*2^32 + un1
+  single (.BLTU .x1 .x5 8) ;;                -- [21] if rhs < lhs → correct [23]
+  JAL .x0 12 ;;                                -- [22] skip → [25]
+  ADDI .x10 .x10 4095 ;;                      -- [23] q1--
+  single (.ADD .x7 .x7 .x6) ;;               -- [24] rhat += dHi
+  -- [25] Phase 1b 2nd D3 correction (Knuth TAOCP §4.3.1 D3 loop, full).
+  --      Guard: skip mul-check when rhat ≥ 2^32 (matches Phase 2b's guard
+  --      at [47..48] below). Without this, BLTU would false-positive fire
+  --      due to `<< 32` truncation. Mirrors Phase 2b structure.
+  SRLI .x1 .x7 32 ;;                          -- [25] x1 = rhat >> 32
+  single (.BNE .x1 .x0 36) ;;                -- [26] if nonzero → skip to [35]
+  -- [27] 2nd D3 product check (only when rhat < 2^32)
+  LD .x1 .x12 3952 ;;                         -- [27] dLo
+  single (.MUL .x5 .x10 .x1) ;;              -- [28] x5 = q1 * dLo
+  SLLI .x1 .x7 32 ;;                          -- [29] x1 = rhat << 32
+  single (.OR .x1 .x1 .x11) ;;               -- [30] x1 = rhat*2^32 + un1
+  single (.BLTU .x1 .x5 8) ;;                -- [31] if rhs < lhs → correct [33]
+  JAL .x0 12 ;;                                -- [32] skip → [35]
+  ADDI .x10 .x10 4095 ;;                      -- [33] q1--
+  single (.ADD .x7 .x7 .x6) ;;               -- [34] rhat += dHi
+  -- [35] Compute un21 = rhat*2^32 + un1 - q1*dLo
+  LD .x1 .x12 3952 ;;                         -- [35] dLo
+  SLLI .x5 .x7 32 ;;                          -- [36] rhat << 32
+  single (.OR .x5 .x5 .x11) ;;               -- [37] x5 = rhat*2^32 + un1
+  single (.MUL .x1 .x10 .x1) ;;              -- [38] x1 = q1 * dLo
+  single (.SUB .x7 .x5 .x1) ;;               -- [39] x7 = un21
+  -- Step 2: q0 = DIVU(un21, dHi), rhat2 = un21 - q0*dHi
+  single (.DIVU .x5 .x7 .x6) ;;              -- [40] x5 = q0
+  single (.MUL .x1 .x5 .x6) ;;               -- [41]
+  single (.SUB .x11 .x7 .x1) ;;              -- [42] x11 = rhat2
+  -- Refine q0: clamp
+  SRLI .x1 .x5 32 ;;                          -- [43]
+  single (.BEQ .x1 .x0 12) ;;                -- [44] skip if q0 < 2^32 → [47]
+  ADDI .x5 .x5 4095 ;;                        -- [45] q0--
+  single (.ADD .x11 .x11 .x6) ;;             -- [46] rhat2 += dHi
+  -- [47] Phase 2b guard (rhat2c ≥ 2^32 ⟹ skip mul-check)
+  SRLI .x1 .x11 32 ;;                         -- [47] x1 = rhat2c >> 32
+  single (.BNE .x1 .x0 36) ;;                -- [48] if nonzero → skip to [57]
+  -- [49] Product check for q0
+  LD .x1 .x12 3952 ;;                         -- [49] dLo
+  single (.MUL .x7 .x5 .x1) ;;               -- [50] x7 = q0 * dLo
+  SLLI .x1 .x11 32 ;;                         -- [51] rhat2 << 32
+  LD .x11 .x12 3944 ;;                        -- [52] un0
+  single (.OR .x1 .x1 .x11) ;;               -- [53] x1 = rhat2*2^32 + un0
+  single (.BLTU .x1 .x7 8) ;;                -- [54] if rhs < lhs → correct [56]
+  JAL .x0 8 ;;                                 -- [55] skip → [57]
+  ADDI .x5 .x5 4095 ;;                        -- [56] q0--
+  -- Combine: q = q1*2^32 + q0
+  SLLI .x11 .x10 32 ;;                        -- [57] q1 << 32
+  single (.OR .x11 .x11 .x5) ;;              -- [58] x11 = q
+  -- Restore and return
+  LD .x2 .x12 3968 ;;                         -- [59] restore return addr
+  JALR .x0 .x2 0                              -- [60] return
+  -- Total: 61 instructions (51 + 10 for 2nd D3 correction)
+
 -- ============================================================================
 -- Main division program phases
 -- ============================================================================

@@ -130,6 +130,15 @@ def n4CallAddbackBeqSemanticHolds (a b : EvmWord) : Prop :=
     predicate — Lean evaluates the Prop directly on the concrete
     Word inputs.
 
+    **Precise bug class**: the algorithm is correct iff `q1' = q_true_1`
+    (high digit exact), which holds iff Knuth's D3 correction loop
+    finishes within 1 iteration. The bug fires precisely on inputs
+    where Knuth's D3 needs the 2nd correction iteration — initial
+    `q̂ = q_true_1 + 2` AND both 1st and 2nd D3 checks fire. Our
+    1-correction `div128Quot` only does the 1st. In our counterexample,
+    `q̂ = 2^31 + 2`, after 1 correction `q1' = 2^31 + 1`, but
+    `q_true_1 = 2^31` (Knuth's full loop would do 2 corrections).
+
     **Implication**: this theorem proves that
     `n4CallAddbackBeqSemanticHolds_of_*` (any closure from runtime
     conditions) cannot exist — the predicate is genuinely false on
@@ -145,6 +154,56 @@ theorem n4CallAddbackBeqSemanticHolds_counterexample :
         (EvmWord.fromLimbs (fun i => match i with
           | 0 => 0 | 1 => 0 | 2 => BitVec.ofNat 64 (2^33 - 1) | 3 => 1))) := by
   unfold n4CallAddbackBeqSemanticHolds
+  decide
+
+/-- **Fix verification**: `div128Quot_v2` (the FIXED version with 2 D3
+    iterations, in `LoopDefs/Iter.lean`) produces the CORRECT quotient
+    on the counterexample input where the original buggy `div128Quot`
+    fails. Kernel-checked via `decide`.
+
+    This proves the migration target works (qHat overshoot drops from
+    2^32-1 to just 1, within Knuth-B bound). The remaining work is to
+    update the actual RISC-V program at `Program.lean:divK_div128` to
+    add the corresponding 2nd D3 correction (~6 instructions after the
+    existing one at lines 80-87), then migrate use-sites from
+    `div128Quot` to `div128Quot_v2`.
+
+    On the counterexample input, `div128Quot_v2 = q_true + 1 =
+    9223372041149743103`, which is within Knuth-B bound (≤ q_true + 2).
+    The outer addback BEQ branch's single-addback path then corrects
+    by 1, giving the correct final `q_out = q_true`. -/
+theorem div128Quot_v2_fixes_counterexample :
+    let a3 : Word := BitVec.ofNat 64 (2^63 + 2^33)
+    let b2 : Word := BitVec.ofNat 64 (2^33 - 1)
+    let b3 : Word := 1
+    let shift := (clzResult b3).1
+    let antiShift := signExtend12 (0 : BitVec 12) - shift
+    let b3' := (b3 <<< (shift.toNat % 64)) ||| (b2 >>> (antiShift.toNat % 64))
+    let u4 := a3 >>> (antiShift.toNat % 64)
+    let u3 := (a3 <<< (shift.toNat % 64)) ||| ((0:Word) >>> (antiShift.toNat % 64))
+    -- q_true = 9223372041149743102 (val256(a) / val256(b))
+    -- div128Quot_v2 produces q_true + 1 = 9223372041149743103
+    -- which is within Knuth-B bound (≤ q_true + 2), so outer addback BEQ
+    -- single-addback path corrects to q_true.
+    (div128Quot_v2 u4 u3 b3').toNat = 9223372041149743103 := by
+  decide
+
+/-- **Bug confirmation**: `div128Quot` (the current/buggy version)
+    produces the WRONG quotient on the counterexample input. The
+    discrepancy is `2^32 - 2`. Pairs with `div128Quot_v2_fixes_counterexample`
+    to demonstrate the fix is necessary. -/
+theorem div128Quot_buggy_on_counterexample :
+    let a3 : Word := BitVec.ofNat 64 (2^63 + 2^33)
+    let b2 : Word := BitVec.ofNat 64 (2^33 - 1)
+    let b3 : Word := 1
+    let shift := (clzResult b3).1
+    let antiShift := signExtend12 (0 : BitVec 12) - shift
+    let b3' := (b3 <<< (shift.toNat % 64)) ||| (b2 >>> (antiShift.toNat % 64))
+    let u4 := a3 >>> (antiShift.toNat % 64)
+    let u3 := (a3 <<< (shift.toNat % 64)) ||| ((0:Word) >>> (antiShift.toNat % 64))
+    -- Buggy version produces 9223372045444710397 (overshoots true quotient
+    -- 9223372041149743102 by 2^32 - 1 = 4294967295).
+    (div128Quot u4 u3 b3').toNat = 9223372045444710397 := by
   decide
 
 theorem n4CallAddbackBeqSemanticHolds_def {a b : EvmWord} :
