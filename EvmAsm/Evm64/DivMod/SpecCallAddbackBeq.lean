@@ -447,35 +447,44 @@ theorem div128Quot_v2_q1_prime_prime_dLo_no_wrap
     omega
   rw [BitVec.toNat_mul, Nat.mod_eq_of_lt h_mul_lt]
 
-/-- **Phase 1b post-2nd-D3 BLTU no-wrap (q1'' side)** for `div128Quot_v2`.
+/-- **DISCOVERY (numerical, kernel-checked)**: the conjectured v2
+    no-wrap bound `q1''.toNat * dLo.toNat ≤ (rhat''.toNat % 2^32) * 2^32
+    + div_un1.toNat` is **FALSE** in general — fails on the counterexample
+    input. See `div128Quot_v2_phase1_no_wrap_lo_FALSE_counterexample` below
+    for the kernel-checked refutation.
 
-    The key tightness sub-lemma for the v2 no-wrap-free `qHat_vTop_le`
-    proof: after both D3 corrections, the `q1'' * dLo ≤ (rhat'' % 2^32)*2^32
-    + div_un1` inequality holds automatically.
+    **Why**: under v2, when both D3 corrections fire, rhat'' = rhat' + dHi
+    can land on/just past `2^32`. Then `rhat'' % 2^32` drops to 0 (or
+    near zero), making the RHS small while LHS = q1'' * dLo remains large.
 
-    **Why automatic for v2 (not for v1)**: in v2, when `rhat' < 2^32`,
-    the 2nd D3 correction fires iff `rhatUn1' = rhat'*2^32 ||| div_un1
-    < q1' * dLo`. After firing, q1'' = q1' - 1, so `q1'' * dLo ≤ q1' * dLo
-    - dLo`. Combined with `rhat'' = rhat' + dHi`, the inequality should
-    follow. When the guard is taken (rhat' ≥ 2^32), rhat'' = rhat' but
-    rhat'' % 2^32 may differ — needs a separate argument.
+    This means the v2 algorithm fix does NOT eliminate the no-wrap
+    hypotheses needed for the val256-level Knuth-B bound. Both v1 and v2
+    require these hypotheses to be passed in (or discharged via other
+    invariants from the Knuth Algorithm D analysis).
 
-    **Status**: stubbed. The full proof requires algebraic case analysis
-    on the guard + BLTU outcome + Word arithmetic.
-
-    Issue #1337 algorithm fix migration. -/
-theorem div128Quot_v2_phase1_no_wrap_lo
-    (uHi dHi dLo rhatUn1 div_un1 : Word)
-    (_hdHi_ge : dHi.toNat ≥ 2^31)
-    (_hdLo_lt : dLo.toNat < 2^32)
-    (_huHi_lt_vTop : uHi.toNat < dHi.toNat * 2^32 + dLo.toNat) :
-    let q1 := rv64_divu uHi dHi
-    let rhat := uHi - q1 * dHi
+    **Implication**: `div128Quot_v2_qHat_vTop_le` should take no_wrap
+    hypotheses (mirroring v1 exactly), not derive them automatically. -/
+theorem div128Quot_v2_phase1_no_wrap_lo_FALSE_counterexample :
+    let a3 : Word := BitVec.ofNat 64 (2^63 + 2^33)
+    let b2 : Word := BitVec.ofNat 64 (2^33 - 1)
+    let b3 : Word := 1
+    let shift := (clzResult b3).1
+    let antiShift := signExtend12 (0 : BitVec 12) - shift
+    let b3' := (b3 <<< (shift.toNat % 64)) ||| (b2 >>> (antiShift.toNat % 64))
+    let u4 := a3 >>> (antiShift.toNat % 64)
+    let u3 := (a3 <<< (shift.toNat % 64)) ||| ((0:Word) >>> (antiShift.toNat % 64))
+    let dHi := b3' >>> (32 : BitVec 6).toNat
+    let dLo := (b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+    let div_un1 := u3 >>> (32 : BitVec 6).toNat
+    let q1 := rv64_divu u4 dHi
+    let rhat := u4 - q1 * dHi
     let hi1 := q1 >>> (32 : BitVec 6).toNat
     let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
     let rhatc := if hi1 = 0 then rhat else rhat + dHi
-    let q1' := if BitVec.ult rhatUn1 (q1c * dLo) then q1c + signExtend12 4095 else q1c
-    let rhat' := if BitVec.ult rhatUn1 (q1c * dLo) then rhatc + dHi else rhatc
+    let qDlo := q1c * dLo
+    let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
+    let q1' := if BitVec.ult rhatUn1 qDlo then q1c + signExtend12 4095 else q1c
+    let rhat' := if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc
     let q1'' := div128Quot_phase2b_q0' q1' rhat' dLo div_un1
     let rhat'' :=
       if rhat' >>> (32 : BitVec 6).toNat = 0 then
@@ -483,11 +492,9 @@ theorem div128Quot_v2_phase1_no_wrap_lo
         let rhatUn1' := (rhat' <<< (32 : BitVec 6).toNat) ||| div_un1
         if BitVec.ult rhatUn1' qDlo2 then rhat' + dHi else rhat'
       else rhat'
-    q1''.toNat * dLo.toNat ≤ (rhat''.toNat % 2^32) * 2^32 + div_un1.toNat := by
-  sorry  -- Algebraic case analysis: guard taken (rhat' ≥ 2^32) vs
-         -- guard fall-through (rhat' < 2^32) × BLTU check fires/doesn't.
-         -- Each case follows from properties of the 2nd D3 correction
-         -- (q1'' = q1' - 1 when correction fires, etc.).
+    -- The no-wrap bound FAILS: LHS = 2^63 - 2^31 ≫ RHS = 0.
+    ¬ (q1''.toNat * dLo.toNat ≤ (rhat''.toNat % 2^32) * 2^32 + div_un1.toNat) := by
+  decide
 
 /-- **Modular form of un21 for `div128Quot_v2`** — v2 analog of v1's
     `div128Quot_un21_toNat` from `Div128FinalAssembly.lean:167`.
