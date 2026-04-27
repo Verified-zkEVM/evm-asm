@@ -1850,15 +1850,17 @@ theorem qHat_gt_q_true_shifted_under_runtime_v2 (a b : EvmWord)
     let qHat := div128Quot_v2 u4 u3 b3'
     qHat.toNat > val256 u0 u1 u2 u3 / val256 b0' b1' b2' b3' := by
   intro shift antiShift b3' b2' b1' b0' u4 u3 u2 u1 u0 qHat
-  -- From the proven shifted-domain lemma:
   have h_mul := qHat_mul_b_shifted_gt_a_shifted_under_runtime_v2 a b hb3nz hborrow_v2
   simp only [] at h_mul
   -- h_mul : qHat.toNat * val256 b0' b1' b2' b3' > val256 u0 u1 u2 u3.
-  -- Goal: qHat.toNat > val256 u0 u1 u2 u3 / val256 b0' b1' b2' b3'.
-  -- This requires `Nat.div_lt_iff_lt_mul` or equivalent. The key is val256 b' > 0.
-  -- Sub-lemma stub: val256 positivity proof deferred. The proof structure is:
-  --   from val256 b' > 0 + h_mul, omega gives the goal via Nat.div_lt_iff.
-  sorry
+  -- Need val256 b' > 0 to use Nat.div_lt_iff.
+  have h_b3'_ge : b3'.toNat ≥ 2^63 := b3_prime_ge_pow63 (b.getLimbN 3) (b.getLimbN 2)
+    hb3nz (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1)
+  have h_v_pos : val256 b0' b1' b2' b3' > 0 := by
+    show b0'.toNat + b1'.toNat * 2^64 + b2'.toNat * 2^128 + b3'.toNat * 2^192 > 0
+    have : b3'.toNat * 2^192 > 0 := by positivity
+    omega
+  exact (Nat.div_lt_iff_lt_mul h_v_pos).mpr h_mul
 
 /-- **Single-addback case for v2**: under v2's Knuth-B + runtime BEQ
     preconditions + carry ≠ 0 (= single-addback), `qHat = q_true + 1`.
