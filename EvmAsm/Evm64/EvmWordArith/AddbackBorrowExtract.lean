@@ -81,6 +81,37 @@ theorem u_top_lt_c3_of_addback_borrow_call (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
   · rw [if_neg hlt] at h
     exact absurd rfl h
 
+/-- v2 mirror of `u_top_lt_c3_of_addback_borrow_call` — extracts the same
+    Nat-level strict inequality but with `qHat = div128Quot_v2 u4 u3 b3'`
+    (the v2 fix).
+
+    Issue #1337 algorithm fix migration. -/
+theorem u_top_lt_c3_of_addback_borrow_call_v2 (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (h : isAddbackBorrowN4Call_v2 a0 a1 a2 a3 b0 b1 b2 b3) :
+    let shift := (clzResult b3).1
+    let antiShift := signExtend12 (0 : BitVec 12) - shift
+    let b3' := (b3 <<< (shift.toNat % 64)) ||| (b2 >>> (antiShift.toNat % 64))
+    let b2' := (b2 <<< (shift.toNat % 64)) ||| (b1 >>> (antiShift.toNat % 64))
+    let b1' := (b1 <<< (shift.toNat % 64)) ||| (b0 >>> (antiShift.toNat % 64))
+    let b0' := b0 <<< (shift.toNat % 64)
+    let u4 := a3 >>> (antiShift.toNat % 64)
+    let u3 := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (antiShift.toNat % 64))
+    let u2 := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (antiShift.toNat % 64))
+    let u1 := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (antiShift.toNat % 64))
+    let u0 := a0 <<< (shift.toNat % 64)
+    let qHat := div128Quot_v2 u4 u3 b3'
+    u4.toNat <
+    (mulsubN4 qHat b0' b1' b2' b3' u0 u1 u2 u3).2.2.2.2.toNat := by
+  intro shift antiShift b3' b2' b1' b0' u4 u3 u2 u1 u0 qHat
+  unfold isAddbackBorrowN4Call_v2 at h
+  simp only [] at h
+  by_cases hlt : BitVec.ult u4 (mulsubN4_c3 qHat b0' b1' b2' b3' u0 u1 u2 u3)
+  · rw [ult_iff] at hlt
+    unfold mulsubN4_c3 at hlt
+    exact hlt
+  · rw [if_neg hlt] at h
+    exact absurd rfl h
+
 end EvmWord
 
 end EvmAsm.Evm64
