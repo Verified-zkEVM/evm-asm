@@ -1775,6 +1775,17 @@ theorem qHat_eq_div_plus_one_of_single_addback_v2 (a b : EvmWord)
     exist because v1's qHat could overshoot by 2^32-2 (per
     `n4CallAddbackBeqSemanticHolds_counterexample`).
 
+    **Migration TODO (post-path-3 closure):** the runtime hypotheses
+    here use v1 predicates (`isAddbackBorrowN4CallEvm`,
+    `isAddbackCarry2NzN4CallEvm`) but inside the predicate, v2's
+    `div128Quot_v2` is used. For full architectural soundness, switch
+    the v2 chain theorems' hypotheses to v2-style:
+    - `isAddbackBorrowN4CallEvm_v2`
+    - `isAddbackCarry2NzN4CallEvm_v2`
+    These were added in commits 82d668e8..5f1e2001. The
+    `u_top_lt_c3_of_addback_borrow_call_v2` lemma (cdcc8a95) is the
+    bridge from `hborrow_v2` to the c3 ≠ 0 fact needed in the closure.
+
     Issue #1337 algorithm fix migration. -/
 theorem qHat_eq_div_plus_two_of_double_addback_v2 (a b : EvmWord)
     (hb3nz : b.getLimbN 3 ≠ 0)
