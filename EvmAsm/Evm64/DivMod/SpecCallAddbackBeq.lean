@@ -619,6 +619,57 @@ theorem div128Quot_v2_phase1_no_wrap_lo_FALSE_counterexample :
     ¬ (q1''.toNat * dLo.toNat ≤ (rhat''.toNat % 2^32) * 2^32 + div_un1.toNat) := by
   decide
 
+/-- **Untruncated phase-1 no-wrap invariant HOLDS on the same counterexample.**
+
+    The truncated `(rhat''.toNat % 2^32) * 2^32` is too small here because
+    `rhat'' = 2^32` truncates to 0. Without the truncation,
+    `rhat''.toNat * 2^32 = 2^64` is large enough to dominate
+    `q1''.toNat * dLo.toNat = 2^63 - 2^31`.
+
+    This kernel-checked proof is the supporting evidence for **alternative
+    path 3** in `div128Quot_v2_no_wrap_under_call_addback_beq`'s docstring:
+    use the untruncated form `q1''.toNat * dLo.toNat ≤ rhat''.toNat * 2^32
+    + div_un1.toNat` as the discharge target.
+
+    The mathematical un21 = `(rhat''.toNat * 2^32 + div_un1.toNat) -
+    q1''.toNat * dLo.toNat` then matches the algorithm's Word `un21.toNat`
+    when in [0, 2^64) (since `cu_rhat_un1.toNat = rhat''.toNat * 2^32 +
+    div_un1.toNat mod 2^64`). On this counterexample, math un21 = 2^63 +
+    2^31 ∈ [0, 2^64), so they coincide.
+
+    Issue #1337 algorithm fix migration. -/
+theorem div128Quot_v2_phase1_no_wrap_lo_untruncated_HOLDS_on_counterexample :
+    let a3 : Word := BitVec.ofNat 64 (2^63 + 2^33)
+    let b2 : Word := BitVec.ofNat 64 (2^33 - 1)
+    let b3 : Word := 1
+    let shift := (clzResult b3).1
+    let antiShift := signExtend12 (0 : BitVec 12) - shift
+    let b3' := (b3 <<< (shift.toNat % 64)) ||| (b2 >>> (antiShift.toNat % 64))
+    let u4 := a3 >>> (antiShift.toNat % 64)
+    let u3 := (a3 <<< (shift.toNat % 64)) ||| ((0:Word) >>> (antiShift.toNat % 64))
+    let dHi := b3' >>> (32 : BitVec 6).toNat
+    let dLo := (b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+    let div_un1 := u3 >>> (32 : BitVec 6).toNat
+    let q1 := rv64_divu u4 dHi
+    let rhat := u4 - q1 * dHi
+    let hi1 := q1 >>> (32 : BitVec 6).toNat
+    let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+    let rhatc := if hi1 = 0 then rhat else rhat + dHi
+    let qDlo := q1c * dLo
+    let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
+    let q1' := if BitVec.ult rhatUn1 qDlo then q1c + signExtend12 4095 else q1c
+    let rhat' := if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc
+    let q1'' := div128Quot_phase2b_q0' q1' rhat' dLo div_un1
+    let rhat'' :=
+      if rhat' >>> (32 : BitVec 6).toNat = 0 then
+        let qDlo2 := q1' * dLo
+        let rhatUn1' := (rhat' <<< (32 : BitVec 6).toNat) ||| div_un1
+        if BitVec.ult rhatUn1' qDlo2 then rhat' + dHi else rhat'
+      else rhat'
+    -- The untruncated bound HOLDS: LHS = 2^63 - 2^31 ≤ 2^64 = RHS.
+    q1''.toNat * dLo.toNat ≤ rhat''.toNat * 2^32 + div_un1.toNat := by
+  decide
+
 /-- **Modular form of un21 for `div128Quot_v2`** — v2 analog of v1's
     `div128Quot_un21_toNat` from `Div128FinalAssembly.lean:167`.
 
