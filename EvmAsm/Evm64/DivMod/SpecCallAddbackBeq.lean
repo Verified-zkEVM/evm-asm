@@ -1879,6 +1879,35 @@ theorem qHat_gt_q_true_shifted_under_runtime_v2 (a b : EvmWord)
     omega
   exact (Nat.div_lt_iff_lt_mul h_v_pos).mpr h_mul
 
+/-- **qHat lower bound shifted-domain (ALONE)** — extracted from
+    `qHat_in_range_under_runtime_v2` for direct use with the proven
+    `qHat_gt_q_true_shifted_under_runtime_v2`. Just the lower-bound half.
+
+    Issue #1337 algorithm fix migration. -/
+theorem qHat_lower_shifted_under_runtime_v2 (a b : EvmWord)
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hborrow_v2 : isAddbackBorrowN4CallEvm_v2 a b) :
+    let shift := (clzResult (b.getLimbN 3)).1.toNat % 64
+    let antiShift :=
+      (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64
+    let b3' := ((b.getLimbN 3) <<< shift) ||| ((b.getLimbN 2) >>> antiShift)
+    let b2' := ((b.getLimbN 2) <<< shift) ||| ((b.getLimbN 1) >>> antiShift)
+    let b1' := ((b.getLimbN 1) <<< shift) ||| ((b.getLimbN 0) >>> antiShift)
+    let b0' := (b.getLimbN 0) <<< shift
+    let u4 := (a.getLimbN 3) >>> antiShift
+    let u3 := ((a.getLimbN 3) <<< shift) ||| ((a.getLimbN 2) >>> antiShift)
+    let u2 := ((a.getLimbN 2) <<< shift) ||| ((a.getLimbN 1) >>> antiShift)
+    let u1 := ((a.getLimbN 1) <<< shift) ||| ((a.getLimbN 0) >>> antiShift)
+    let u0 := (a.getLimbN 0) <<< shift
+    let qHat := div128Quot_v2 u4 u3 b3'
+    val256 u0 u1 u2 u3 / val256 b0' b1' b2' b3' + 1 ≤ qHat.toNat := by
+  intro shift antiShift b3' b2' b1' b0' u4 u3 u2 u1 u0 qHat
+  have h := qHat_gt_q_true_shifted_under_runtime_v2 a b hb3nz hborrow_v2
+  simp only [] at h
+  -- Convert h's unfolded form to use local lets for omega.
+  change qHat.toNat > val256 u0 u1 u2 u3 / val256 b0' b1' b2' b3' at h
+  omega
+
 /-- **Single-addback case for v2**: under v2's Knuth-B + runtime BEQ
     preconditions + carry ≠ 0 (= single-addback), `qHat = q_true + 1`.
 
