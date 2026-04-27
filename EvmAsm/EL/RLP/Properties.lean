@@ -167,6 +167,15 @@ theorem decode_pair_list_small_bytes
       some (.list [.bytes [b1], .bytes [b2]], []) := by
   simp [decode, decodeAux, takeBytes, decodeItems, h1, h2]
 
+/-- Two-element list of empty lists:
+    `decode [0xC2, 0xC0, 0xC0] = some (.list [.list [], .list []], [])`.
+    The outer short-list branch fires with payload length 2, two empty
+    inner lists are decoded in sequence, then the outer closes. -/
+theorem decode_pair_list_empty_lists :
+    decode [(0xC2 : Byte), (0xC0 : Byte), (0xC0 : Byte)] =
+      some (.list [.list [], .list []], []) := by
+  simp [decode, decodeAux, takeBytes, decodeItems]
+
 /-! ## decode (top-level wrapper) trivial cases -/
 
 /-- `decode []` returns `none` because `decodeAux 0 []` returns `none`. -/
