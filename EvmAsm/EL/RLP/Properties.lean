@@ -98,6 +98,14 @@ theorem decodeAux_three_byte_string
       some (.bytes [b1, b2, b3], rest) := by
   simp [decodeAux, takeBytes]
 
+/-- Four-byte short string (prefix `0x84`). Multi-byte payload
+    bypasses the canonical-form check. -/
+theorem decodeAux_four_byte_string
+    (fuel : Nat) (b1 b2 b3 b4 : Byte) (rest : List Byte) :
+    decodeAux (fuel + 1) ((0x84 : Byte) :: b1 :: b2 :: b3 :: b4 :: rest) =
+      some (.bytes [b1, b2, b3, b4], rest) := by
+  simp [decodeAux, takeBytes]
+
 /-! ## decode (top-level wrapper) trivial cases -/
 
 /-- `decode []` returns `none` because `decodeAux 0 []` returns `none`. -/
@@ -134,6 +142,14 @@ theorem decode_three_byte_string (b1 b2 b3 : Byte) :
     decode [(0x83 : Byte), b1, b2, b3] = some (.bytes [b1, b2, b3], []) := by
   simp [decode, decodeAux, takeBytes]
 
+/-- `decode [0x84, b1, b2, b3, b4] = some (.bytes [b1, b2, b3, b4], [])`
+    — the canonical four-byte short-string encoding. Specializes
+    `decodeAux_four_byte_string` at the top-level fuel. -/
+theorem decode_four_byte_string (b1 b2 b3 b4 : Byte) :
+    decode [(0x84 : Byte), b1, b2, b3, b4] =
+      some (.bytes [b1, b2, b3, b4], []) := by
+  simp [decode, decodeAux, takeBytes]
+
 /-! ## encodeBytes characterizations -/
 
 /-- Empty byte string encodes to the single prefix `[0x80]`. -/
@@ -157,6 +173,16 @@ theorem encodeBytes_pair (a b : Byte) :
     encodeBytes [a, b] = [BitVec.ofNat 8 0x82, a, b] := by
   simp [encodeBytes]
 
+/-- Three-byte short string: `encodeBytes [a, b, c] = [0x83, a, b, c]`. -/
+theorem encodeBytes_triple (a b c : Byte) :
+    encodeBytes [a, b, c] = [BitVec.ofNat 8 0x83, a, b, c] := by
+  simp [encodeBytes]
+
+/-- Four-byte short string: `encodeBytes [a, b, c, d] = [0x84, a, b, c, d]`. -/
+theorem encodeBytes_quad (a b c d : Byte) :
+    encodeBytes [a, b, c, d] = [BitVec.ofNat 8 0x84, a, b, c, d] := by
+  simp [encodeBytes]
+
 /-! ## Encoding produces non-empty output -/
 
 theorem encodeBytes_nonempty (data : List Byte) :
@@ -173,14 +199,24 @@ theorem encode_nonempty (item : RLPItem) : (encode item).length > 0 := by
     simp [encode]
     split <;> simp [List.length_append]
 
-/-! ## Round-trip correctness (parametric — large single byte)
+/-! ## Round-trip correctness (parametric cases)
 
-Mechanically-proved (not via `decide`) round-trip for the
-single-large-byte case (`b ≥ 0x80`): the byte is encoded as the
-two-byte sequence `[0x81, b]`, then the decoder reads the prefix as
-a one-byte short string, applies the canonical-form check (which
-passes because `b ≥ 0x80`), and returns `.bytes [b]`. -/
+These lemmas prove `decode (encode (.bytes [b])) = some (.bytes [b], [])`
+mechanically (not via `decide`) by chaining the existing `encodeBytes_*`
+and `decode_*` characterizations. They cover the single-byte cases
+across all values of `b` — useful as building blocks for an eventual
+fully parametric round-trip theorem. -/
 
+/-- Single-byte round-trip for small bytes (`b < 0x80`): the byte is
+    its own encoding, and the decoder maps it back to `.bytes [b]`. -/
+theorem decode_encode_bytes_single_small (b : Byte) (h : b.toNat < 0x80) :
+    decode (encode (.bytes [b])) = some (.bytes [b], []) := by
+  simp only [encode, encodeBytes_single_small _ h, decode_single_byte _ h]
+
+/-- Single-byte round-trip for large bytes (`b ≥ 0x80`): encoded as the
+    two-byte sequence `[0x81, b]`, then the decoder reads the prefix
+    as a one-byte short string, applies the canonical-form check
+    (which passes because `b ≥ 0x80`), and returns `.bytes [b]`. -/
 theorem decode_encode_bytes_single_large (b : Byte) (h : ¬ b.toNat < 0x80) :
     decode (encode (.bytes [b])) = some (.bytes [b], []) := by
   rw [show encode (.bytes [b]) = [BitVec.ofNat 8 0x81, b] from

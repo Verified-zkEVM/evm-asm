@@ -45,6 +45,8 @@
 
 import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV2.CompensationCases
 import EvmAsm.Evm64.EvmWordArith.MaxTrialVacuity
+import EvmAsm.Evm64.EvmWordArith.DivLimbBridge
+import EvmAsm.Evm64.EvmWordArith.MultiLimb
 
 namespace EvmAsm.Evm64
 
@@ -268,5 +270,250 @@ theorem div128Quot_call_skip_ge_val256_div_v2
       (clzResult_fst_toNat_le b3)
   have h_core := div128Quot_ge_q_true_normalized u4 u3 b3' h_b3'_ge h_u4_lt_b3' h_u4_lt_pow63
   exact Nat.le_trans h_bridge h_core
+
+/-- **Tight equality `qHat = val256(a)/val256(b)` under skip-borrow** (CLOSED).
+
+    Composes the upper bound (`div128Quot_call_skip_le_val256_div`
+    from `Div128CallSkipClose`, needs `isSkipBorrowN4Call`) with the
+    lower bound (`div128Quot_call_skip_ge_val256_div_v2`, this file,
+    needs only the call-trial preconditions). Yields the EXACT
+    equality:
+
+    ```
+    (div128Quot u4 un3 b3').toNat = val256(a)/val256(b)
+    ```
+
+    This is the "Knuth-D ideal" — the bare-trial `div128Quot`
+    matches the true 256-bit quotient exactly when the outer mulsub
+    doesn't borrow. All Knuth-B/C overshoot cases are excluded by
+    skip-borrow.
+
+    Building block for the discharge bridge: from this tight equality
+    we derive q1' = q_true_1 (Phase 1 tight) and q0' < 2^32
+    (Phase 2 sane), which together imply `Div128AllPhasesNoWrapInv`. -/
+theorem div128Quot_call_skip_eq_val256_div
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hb3nz : b3 ≠ 0)
+    (hshift_nz : (clzResult b3).1 ≠ 0)
+    (hcall : isCallTrialN4 a3 b2 b3)
+    (hborrow : isSkipBorrowN4Call a0 a1 a2 a3 b0 b1 b2 b3) :
+    let shift := (clzResult b3).1.toNat % 64
+    let antiShift := (signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64
+    let u4 := a3 >>> antiShift
+    let un3 := (a3 <<< shift) ||| (a2 >>> antiShift)
+    let b3' := (b3 <<< shift) ||| (b2 >>> antiShift)
+    (div128Quot u4 un3 b3').toNat = val256 a0 a1 a2 a3 / val256 b0 b1 b2 b3 := by
+  intro shift antiShift u4 un3 b3'
+  have h_le := div128Quot_call_skip_le_val256_div a0 a1 a2 a3 b0 b1 b2 b3
+    hb3nz hshift_nz hborrow
+  have h_ge := div128Quot_call_skip_ge_val256_div_v2 a0 a1 a2 a3 b0 b1 b2 b3
+    hb3nz hshift_nz hcall
+  simp only [] at h_le h_ge
+  exact Nat.le_antisymm h_le h_ge
+
+/-- **Bound `val256(a)/val256(b) < 2^64` under `b3 ≠ 0`** (CLOSED).
+
+    The 256-bit true quotient fits in a Word. From `val256(a) < 2^256`
+    and `val256(b) ≥ 2^192`, we get `val256(a)/val256(b) < 2^64`.
+
+    Used downstream to:
+    1. Show `div128Quot.toNat < 2^64` directly (always true, but here
+       linked to q_true_full).
+    2. Conclude `q_true_1 < 2^32` (high digit) for digit decomposition. -/
+theorem val256_div_val256_lt_pow64 (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hb3nz : b3 ≠ 0) :
+    val256 a0 a1 a2 a3 / val256 b0 b1 b2 b3 < 2^64 := by
+  have h_a_lt : val256 a0 a1 a2 a3 < 2^256 := EvmWord.val256_bound _ _ _ _
+  have h_b_ge : val256 b0 b1 b2 b3 ≥ 2^192 := EvmWord.val256_ge_pow192_of_limb3 _ _ _ _ hb3nz
+  have h_b_pos : val256 b0 b1 b2 b3 > 0 := by
+    have : (2^192 : Nat) > 0 := by decide
+    omega
+  have h192_pos : (0 : Nat) < 2^192 := by decide
+  have h_div_le : val256 a0 a1 a2 a3 / val256 b0 b1 b2 b3 ≤
+      val256 a0 a1 a2 a3 / 2^192 :=
+    Nat.div_le_div_left h_b_ge h192_pos
+  have h_a_div : val256 a0 a1 a2 a3 / 2^192 < 2^64 := by
+    have h_pow : (2^256 : Nat) = 2^192 * 2^64 := by decide
+    have h192_pos : (2^192 : Nat) > 0 := by decide
+    rw [Nat.div_lt_iff_lt_mul h192_pos]
+    have : (2 ^ 192 * 2 ^ 64 : Nat) = 2 ^ 256 := by decide
+    omega
+  omega
+
+/-- **Combined: q_true_1 < 2^32 and q_true_0 < 2^32** for the
+    256-bit true quotient digit decomposition.
+
+    Pure Nat consequence of `val256_div_val256_lt_pow64` and the
+    standard mod-2^32 bound. Used to apply `digit_tight_of_le_and_ge`. -/
+theorem val256_div_q_true_digits_lt_pow32
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word) (hb3nz : b3 ≠ 0) :
+    let q_true_full := val256 a0 a1 a2 a3 / val256 b0 b1 b2 b3
+    q_true_full / 2^32 < 2^32 ∧ q_true_full % 2^32 < 2^32 := by
+  intro q_true_full
+  have h_full_lt : q_true_full < 2^64 :=
+    val256_div_val256_lt_pow64 a0 a1 a2 a3 b0 b1 b2 b3 hb3nz
+  refine ⟨?_, ?_⟩
+  · -- q_true_full / 2^32 < 2^32: from q_true_full < 2^64.
+    have h_pow : (2^64 : Nat) = 2^32 * 2^32 := by decide
+    rw [Nat.div_lt_iff_lt_mul (by decide : (0:Nat) < 2^32)]
+    omega
+  · -- q_true_full % 2^32 < 2^32: standard.
+    exact Nat.mod_lt _ (by decide)
+
+/-- **OR-left lower bound**: `((q1' << 32) ||| q0').toNat ≥ q1'.toNat * 2^32`
+    when `q1' < 2^32`.
+
+    Pure BitVec property: `a OR b ≥ a` (bitwise), and the shift preserves
+    the lower bits. Useful primitive for the digit-decomposition
+    argument: combined with `qHat = q_true_full = q_true_1 * 2^32 + q_true_0`
+    (under skip-borrow tight equality), gives `q1' * 2^32 ≤ qHat
+    ≤ (q_true_1 + 1) * 2^32 - 1`, hence `q1' ≤ q_true_1`. -/
+theorem div128Quot_or_left_ge_q1_prime_shift
+    (q1' q0' : Word) (h_q1'_lt : q1'.toNat < 2^32) :
+    q1'.toNat * 2^32 ≤ ((q1' <<< (32 : BitVec 6).toNat) ||| q0').toNat := by
+  have h_or_ge : (q1' <<< (32 : BitVec 6).toNat).toNat ≤
+      ((q1' <<< (32 : BitVec 6).toNat) ||| q0').toNat := by
+    rw [BitVec.toNat_or]
+    exact Nat.left_le_or
+  have h_shift_eq : (q1' <<< (32 : BitVec 6).toNat).toNat = q1'.toNat * 2^32 := by
+    rw [BitVec.toNat_shiftLeft]
+    simp only [Nat.shiftLeft_eq, EvmAsm.Rv64.AddrNorm.bv6_toNat_32]
+    have : q1'.toNat * 2^32 < 2^64 := by
+      have : (2^64 : Nat) = 2^32 * 2^32 := by decide
+      nlinarith
+    rw [Nat.mod_eq_of_lt this]
+  omega
+
+/-- **Pure-Nat: from `q1 * 2^32 ≤ q_true_full`, derive `q1 ≤ q_true_full / 2^32`.**
+
+    Stepping stone toward q1' ≤ q_true_top_at_val256_level. Pure Nat
+    consequence of `Nat.le_div_iff_mul_le` (basically `q ≤ Y/v ⟺ q*v ≤ Y`). -/
+theorem q1_le_q_true_top_of_mul_pow32_le
+    (q1 q_true_full : Nat)
+    (h_mul : q1 * 2^32 ≤ q_true_full) :
+    q1 ≤ q_true_full / 2^32 :=
+  (Nat.le_div_iff_mul_le (by decide : (0:Nat) < 2^32)).mpr h_mul
+
+/-- **div128Quot OR-left bound, no q0' extraction** (CLOSED).
+
+    Generic version: for ANY Word `qHat` viewed as `(q1 << 32) ||| q0` for
+    some q0, `q1 * 2^32 ≤ qHat.toNat` provided `q1 < 2^32` AND there
+    exists a Word q0 with `qHat = (q1 << 32) ||| q0`. Trivial — q0 is
+    just `qHat AND ~(q1 << 32)` (or any Word; the OR-bound holds regardless).
+
+    Used in the algorithm-level Phase 1 tight lemma below. -/
+theorem div128Quot_or_left_ge_q1_prime_shift_existential
+    (qHat q1 : Word) (q0 : Word)
+    (h_eq : qHat = (q1 <<< (32 : BitVec 6).toNat) ||| q0)
+    (h_q1_lt : q1.toNat < 2^32) :
+    q1.toNat * 2^32 ≤ qHat.toNat := by
+  rw [h_eq]
+  exact div128Quot_or_left_ge_q1_prime_shift q1 q0 h_q1_lt
+
+/-- **Algorithm-level Phase 1 tight upper bound under skip-borrow** (CLOSED).
+
+    `q1' ≤ val256(a)/val256(b) / 2^32` — the algorithm's high-digit
+    trial is at most the true 256-bit quotient's high digit, when
+    skip-borrow holds.
+
+    Composes:
+    1. `div128Quot_call_skip_eq_val256_div`: tight equality
+       `qHat.toNat = val256(a)/val256(b)`.
+    2. `div128Quot_q1_prime_lt_pow32_call`: q1' < 2^32.
+    3. `div128Quot_or_left_ge_q1_prime_shift_existential`: applied to
+       div128Quot's OR-decomposition (by `rfl`).
+    4. `q1_le_q_true_top_of_mul_pow32_le`: pure-Nat division step. -/
+theorem div128Quot_q1_prime_le_q_true_top_call_skip
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hb3nz : b3 ≠ 0)
+    (hshift_nz : (clzResult b3).1 ≠ 0)
+    (hcall : isCallTrialN4 a3 b2 b3)
+    (hborrow : isSkipBorrowN4Call a0 a1 a2 a3 b0 b1 b2 b3) :
+    let shift := (clzResult b3).1.toNat % 64
+    let antiShift := (signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64
+    let u4 := a3 >>> antiShift
+    let un3 := (a3 <<< shift) ||| (a2 >>> antiShift)
+    let b3' := (b3 <<< shift) ||| (b2 >>> antiShift)
+    let dHi := b3' >>> (32 : BitVec 6).toNat
+    let dLo := (b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+    let div_un1 := un3 >>> (32 : BitVec 6).toNat
+    let q1 := rv64_divu u4 dHi
+    let rhat := u4 - q1 * dHi
+    let hi1 := q1 >>> (32 : BitVec 6).toNat
+    let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+    let rhatc := if hi1 = 0 then rhat else rhat + dHi
+    let qDlo := q1c * dLo
+    let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
+    let q1' := if BitVec.ult rhatUn1 qDlo then q1c + signExtend12 4095 else q1c
+    q1'.toNat ≤ (val256 a0 a1 a2 a3 / val256 b0 b1 b2 b3) / 2^32 := by
+  intro shift antiShift u4 un3 b3' dHi dLo div_un1 q1 rhat hi1 q1c rhatc qDlo
+        rhatUn1 q1'
+  have h_eq := div128Quot_call_skip_eq_val256_div a0 a1 a2 a3 b0 b1 b2 b3
+    hb3nz hshift_nz hcall hborrow
+  simp only [] at h_eq
+  have h_q1'_lt := div128Quot_q1_prime_lt_pow32_call a2 a3 b2 b3 hb3nz hcall
+  simp only [] at h_q1'_lt
+  -- The OR-decomposition: div128Quot u4 un3 b3' = (q1' << 32) ||| q0'
+  -- where q0' is whatever div128Quot's body computes. By definition.
+  set q0_word : Word :=
+    let div_un0 := (un3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+    let cu_rhat_un1 :=
+      ((if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc) <<<
+        (32 : BitVec 6).toNat) ||| div_un1
+    let cu_q1_dlo := q1' * dLo
+    let un21 := cu_rhat_un1 - cu_q1_dlo
+    let q0 := rv64_divu un21 dHi
+    let rhat2 := un21 - q0 * dHi
+    let hi2 := q0 >>> (32 : BitVec 6).toNat
+    let q0c := if hi2 = 0 then q0 else q0 + signExtend12 4095
+    let rhat2c := if hi2 = 0 then rhat2 else rhat2 + dHi
+    div128Quot_phase2b_q0' q0c rhat2c dLo div_un0 with hq0_def
+  have h_div_eq : div128Quot u4 un3 b3' =
+      (q1' <<< (32 : BitVec 6).toNat) ||| q0_word := by
+    rfl
+  have h_or_ge : q1'.toNat * 2^32 ≤ (div128Quot u4 un3 b3').toNat :=
+    div128Quot_or_left_ge_q1_prime_shift_existential
+      (div128Quot u4 un3 b3') q1' q0_word h_div_eq h_q1'_lt
+  have h_mul_le : q1'.toNat * 2^32 ≤ val256 a0 a1 a2 a3 / val256 b0 b1 b2 b3 :=
+    h_or_ge.trans (le_of_eq h_eq)
+  exact q1_le_q_true_top_of_mul_pow32_le _ _ h_mul_le
+
+/-- **Multiplicative form** of `div128Quot_q1_prime_le_q_true_top_call_skip`:
+    `q1' * 2^32 ≤ val256(a)/val256(b)` under skip-borrow.
+
+    Direct restatement using `Nat.le_div_iff_mul_le.mpr`'s converse —
+    avoids the `_ / 2^32` form when callers want the multiplicative
+    inequality directly. -/
+theorem div128Quot_q1_prime_mul_pow32_le_val256_div_call_skip
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hb3nz : b3 ≠ 0)
+    (hshift_nz : (clzResult b3).1 ≠ 0)
+    (hcall : isCallTrialN4 a3 b2 b3)
+    (hborrow : isSkipBorrowN4Call a0 a1 a2 a3 b0 b1 b2 b3) :
+    let shift := (clzResult b3).1.toNat % 64
+    let antiShift := (signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64
+    let u4 := a3 >>> antiShift
+    let un3 := (a3 <<< shift) ||| (a2 >>> antiShift)
+    let b3' := (b3 <<< shift) ||| (b2 >>> antiShift)
+    let dHi := b3' >>> (32 : BitVec 6).toNat
+    let dLo := (b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+    let div_un1 := un3 >>> (32 : BitVec 6).toNat
+    let q1 := rv64_divu u4 dHi
+    let rhat := u4 - q1 * dHi
+    let hi1 := q1 >>> (32 : BitVec 6).toNat
+    let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+    let rhatc := if hi1 = 0 then rhat else rhat + dHi
+    let qDlo := q1c * dLo
+    let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
+    let q1' := if BitVec.ult rhatUn1 qDlo then q1c + signExtend12 4095 else q1c
+    q1'.toNat * 2^32 ≤ val256 a0 a1 a2 a3 / val256 b0 b1 b2 b3 := by
+  intro shift antiShift u4 un3 b3' dHi dLo div_un1 q1 rhat hi1 q1c rhatc qDlo
+        rhatUn1 q1'
+  have h_div := div128Quot_q1_prime_le_q_true_top_call_skip a0 a1 a2 a3 b0 b1 b2 b3
+    hb3nz hshift_nz hcall hborrow
+  simp only [] at h_div
+  -- h_div: q1'.toNat ≤ (val256 a / val256 b) / 2^32.
+  -- Apply Nat.le_div_iff_mul_le.mp to get q1' * 2^32 ≤ val256/val256.
+  exact (Nat.le_div_iff_mul_le (by decide : (0:Nat) < 2^32)).mp h_div
 
 end EvmAsm.Evm64

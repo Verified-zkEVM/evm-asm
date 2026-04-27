@@ -19,6 +19,7 @@ import EvmAsm.Evm64.DivMod.Spec
 import EvmAsm.Evm64.DivMod.Compose.ModFullPathN4Shift0
 import EvmAsm.Evm64.EvmWordArith.Div128Shift0
 import EvmAsm.Evm64.EvmWordArith.AddbackBorrowExtract
+import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV2
 
 open EvmAsm.Rv64.Tactics
 
@@ -923,6 +924,30 @@ theorem n4CallSkipSemanticHolds_def {a b : EvmWord} :
        (div128Quot u4 u3 b3').toNat) :=
   rfl
 
+/-- **`n4CallSkipSemanticHolds` holds unconditionally** under the standard
+    call-trial preconditions (CLOSED).
+
+    The semantic-correctness predicate `val256(a)/val256(b) ≤ qHat`
+    is exactly Knuth Theorem A (lower bound) at the val256 level —
+    formerly issue #65, deferred to "future task". Now closed via
+    the existing `div128Quot_call_skip_ge_val256_div_v2` (PR #1154 / V2)
+    in `EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV2`.
+
+    Removes the need for callers of `evm_div_n4_call_skip_stack_spec`
+    and `evm_mod_n4_call_skip_stack_spec` to construct the
+    `n4CallSkipSemanticHolds` hypothesis externally. -/
+theorem n4CallSkipSemanticHolds_of_call_trial (a b : EvmWord)
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hcall : isCallTrialN4Evm a b) :
+    n4CallSkipSemanticHolds a b := by
+  rw [n4CallSkipSemanticHolds_def]
+  rw [isCallTrialN4Evm_def] at hcall
+  exact div128Quot_call_skip_ge_val256_div_v2
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+    hb3nz hshift_nz hcall
+
 /-- **Call+skip n=4 div/mod getLimbN bridge.** Under the runtime call-path
     conditions + skip-borrow + the semantic-correctness hypothesis
     `n4CallSkipSemanticHolds`, the algorithm's trial quotient
@@ -1017,7 +1042,12 @@ theorem n4_call_skip_div_mod_getLimbN (a b : EvmWord)
     postcondition reshape via `n4_call_skip_div_mod_getLimbN` and
     `div_n4_call_skip_stack_weaken`. The post reshape is analogous to the
     max-skip path (Spec.lean:1309) but walks through `fullDivN4CallSkipPost`
-    and `denormDivPost` (no dedicated `_unfold` lemma yet — to be added). -/
+    and `denormDivPost` (no dedicated `_unfold` lemma yet — to be added).
+
+    **Tip**: callers without an externally-supplied
+    `n4CallSkipSemanticHolds` should use
+    `evm_div_n4_call_skip_stack_spec_unconditional`, which discharges
+    that hypothesis automatically (CLOSED via Knuth-A lower bound). -/
 theorem evm_div_n4_call_skip_stack_spec (sp base : Word)
     (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
     (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
@@ -1587,7 +1617,11 @@ theorem output_slot_to_evmWordIs_mod_n4_call_skip_denorm
 
     Reduces to `evm_mod_n4_full_call_skip_stack_pre_spec_bundled` + a
     postcondition reshape via `output_slot_to_evmWordIs_mod_n4_call_skip_denorm`
-    and `mod_n4_call_skip_stack_weaken`. -/
+    and `mod_n4_call_skip_stack_weaken`.
+
+    **Tip**: callers without an externally-supplied
+    `n4CallSkipSemanticHolds` should use
+    `evm_mod_n4_call_skip_stack_spec_unconditional`. -/
 theorem evm_mod_n4_call_skip_stack_spec (sp base : Word)
     (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
     (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
@@ -1643,6 +1677,102 @@ theorem evm_mod_n4_call_skip_stack_spec (sp base : Word)
   rw [word_add_zero] at hq
   simp only [hmod_eq, hanti_toNat_mod] at hq ⊢
   xperm_hyp hq
+
+/-- **`isSkipBorrowN4CallEvm` and `isAddbackBorrowN4CallEvm` are
+    complementary** (CLOSED).
+
+    The two predicates differ only in `=` vs `≠ 0` at the bottom level
+    (an `if-then-1-else-0` indicator), so exactly one holds for any
+    inputs. Useful for shift_nz top-level dispatchers that route to
+    skip vs. addback paths. -/
+theorem isSkipBorrowN4CallEvm_or_isAddbackBorrowN4CallEvm (a b : EvmWord) :
+    isSkipBorrowN4CallEvm a b ∨ isAddbackBorrowN4CallEvm a b := by
+  rw [isSkipBorrowN4CallEvm_def, isAddbackBorrowN4CallEvm_def]
+  unfold isSkipBorrowN4Call isAddbackBorrowN4Call
+  simp only []
+  by_cases h : (if BitVec.ult ((a.getLimbN 3) >>>
+        ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64))
+        (mulsubN4_c3 (div128Quot ((a.getLimbN 3) >>>
+            ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64))
+          (((a.getLimbN 3) <<< ((clzResult (b.getLimbN 3)).1.toNat % 64)) |||
+            ((a.getLimbN 2) >>>
+              ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64)))
+          (((b.getLimbN 3) <<< ((clzResult (b.getLimbN 3)).1.toNat % 64)) |||
+            ((b.getLimbN 2) >>>
+              ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64))))
+          ((b.getLimbN 0) <<< ((clzResult (b.getLimbN 3)).1.toNat % 64))
+          (((b.getLimbN 1) <<< ((clzResult (b.getLimbN 3)).1.toNat % 64)) |||
+            ((b.getLimbN 0) >>>
+              ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64)))
+          (((b.getLimbN 2) <<< ((clzResult (b.getLimbN 3)).1.toNat % 64)) |||
+            ((b.getLimbN 1) >>>
+              ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64)))
+          (((b.getLimbN 3) <<< ((clzResult (b.getLimbN 3)).1.toNat % 64)) |||
+            ((b.getLimbN 2) >>>
+              ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64)))
+          ((a.getLimbN 0) <<< ((clzResult (b.getLimbN 3)).1.toNat % 64))
+          (((a.getLimbN 1) <<< ((clzResult (b.getLimbN 3)).1.toNat % 64)) |||
+            ((a.getLimbN 0) >>>
+              ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64)))
+          (((a.getLimbN 2) <<< ((clzResult (b.getLimbN 3)).1.toNat % 64)) |||
+            ((a.getLimbN 1) >>>
+              ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64)))
+          (((a.getLimbN 3) <<< ((clzResult (b.getLimbN 3)).1.toNat % 64)) |||
+            ((a.getLimbN 2) >>>
+              ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64))))
+        then (1 : Word) else 0) = (0 : Word)
+  · exact Or.inl h
+  · exact Or.inr h
+
+/-- **`evm_div_n4_call_skip_stack_spec` without `hsem`** — discharges the
+    semantic hypothesis from the call-trial preconditions (CLOSED).
+
+    Wrapper that calls `evm_div_n4_call_skip_stack_spec` with
+    `hsem := n4CallSkipSemanticHolds_of_call_trial _ _ hb3nz hshift_nz hbltu`,
+    eliminating the externally-supplied semantic predicate from the API. -/
+theorem evm_div_n4_call_skip_stack_spec_unconditional (sp base : Word)
+    (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratch_un0 : Word)
+    (hbnz : b ≠ 0)
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (hbltu : isCallTrialN4Evm a b)
+    (hborrow : isSkipBorrowN4CallEvm a b) :
+    cpsTriple base (base + nopOff) (divCode base)
+      (divN4StackPreCall sp a b v5 v6 v7 v10 v11
+         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+         shiftMem nMem jMem retMem dMem dloMem scratch_un0)
+      (divN4CallSkipStackPost sp a b) :=
+  evm_div_n4_call_skip_stack_spec sp base a b v5 v6 v7 v10 v11
+    q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+    nMem shiftMem jMem retMem dMem dloMem scratch_un0
+    hbnz hb3nz hshift_nz halign hbltu hborrow
+    (n4CallSkipSemanticHolds_of_call_trial a b hb3nz hshift_nz hbltu)
+
+/-- **`evm_mod_n4_call_skip_stack_spec` without `hsem`** — same idea
+    for MOD. -/
+theorem evm_mod_n4_call_skip_stack_spec_unconditional (sp base : Word)
+    (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratch_un0 : Word)
+    (hbnz : b ≠ 0)
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (hbltu : isCallTrialN4Evm a b)
+    (hborrow : isSkipBorrowN4CallEvm a b) :
+    cpsTriple base (base + nopOff) (modCode base)
+      (modN4StackPreCall sp a b v5 v6 v7 v10 v11
+         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+         shiftMem nMem jMem retMem dMem dloMem scratch_un0)
+      (modN4CallSkipStackPost sp a b) :=
+  evm_mod_n4_call_skip_stack_spec sp base a b v5 v6 v7 v10 v11
+    q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+    nMem shiftMem jMem retMem dMem dloMem scratch_un0
+    hbnz hb3nz hshift_nz halign hbltu hborrow
+    (n4CallSkipSemanticHolds_of_call_trial a b hb3nz hshift_nz hbltu)
 
 
 end EvmAsm.Evm64

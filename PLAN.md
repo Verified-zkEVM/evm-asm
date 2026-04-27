@@ -919,7 +919,15 @@ This is the heart of the STF — the inner loop that executes EVM bytecode.
 4. ~~Recreate `ByteSpec.lean`~~ — ✅ Done (Byte/Spec.lean + Byte/LimbSpec.lean, stack-level spec)
 
 **Short-term (enables simple contracts):**
-5. Phase 4.2: DIV, MOD — near complete (full path compositions proved for all n-cases × shift variants × DIV/MOD, stack-level b=0 and b≠0 specs with evmWordIs; remaining: semantic correctness bridge + combined stack spec)
+5. Phase 4.2: DIV, MOD — near complete. Full-path compositions proved
+   for all n-cases × shift variants × DIV/MOD; stack-level b=0 and b≠0
+   specs with evmWordIs. **Recent (PR #1353)**: closed
+   `n4CallSkipSemanticHolds_of_call_trial` (formerly issue #65 / Knuth-A
+   lower bound), so call-skip stack specs are now unconditional. Added
+   `evm_{div,mod}_n4_call_stack_spec_full` top-level dispatchers
+   (shift0+shift_nz, skip+addback). Remaining: close
+   `n4CallAddbackBeqSemanticHolds` (Knuth-B + addback correctness, gated
+   behind PR #1353's bridge stub).
 6. Phase 5: MLOAD, MSTORE, EVM memory model
 7. Phase 5.1: EVM code region (needed for PUSHn and interpreter)
 

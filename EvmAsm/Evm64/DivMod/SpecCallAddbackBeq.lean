@@ -23,6 +23,7 @@
 -/
 
 import EvmAsm.Evm64.DivMod.SpecCall
+import EvmAsm.Evm64.DivMod.Shift0Dispatcher
 
 namespace EvmAsm.Evm64
 
@@ -3443,6 +3444,165 @@ theorem evm_mod_n4_call_addback_beq_stack_spec (sp base : Word)
   rw [word_add_zero] at hq
   simp only [hmod_eq, hanti_toNat_mod] at hq ⊢
   xperm_hyp hq
+
+/-- **n=4 shift_nz DIV top-level dispatcher** — routes between
+    call+skip (unconditional, hsem auto-discharged) and call+addback
+    BEQ paths via the borrow-check disjunction.
+
+    Mirror of `evm_div_n4_shift0_stack_spec` (Shift0Dispatcher.lean) but
+    for the shift_nz path. Uses
+    `isSkipBorrowN4CallEvm_or_isAddbackBorrowN4CallEvm` as the case-split
+    and `evm_div_n4_call_skip_stack_spec_unconditional` (which
+    auto-discharges `n4CallSkipSemanticHolds`) for the skip path.
+
+    The addback-BEQ path still requires its own `hsem`
+    (`n4CallAddbackBeqSemanticHolds`) and `hcarry2_nz` — these encode
+    Knuth-B + addback correctness which haven't been closed yet
+    (parked behind PR #1339's bridge stub). -/
+theorem evm_div_n4_call_stack_spec (sp base : Word)
+    (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratch_un0 : Word)
+    (hbnz : b ≠ 0)
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hvalid : ValidMemRange sp 8)
+    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (hbltu : isCallTrialN4Evm a b)
+    (hcarry2_nz_addback :
+      isAddbackBorrowN4CallEvm a b → isAddbackCarry2NzN4CallEvm a b)
+    (hsem_addback :
+      isAddbackBorrowN4CallEvm a b → n4CallAddbackBeqSemanticHolds a b) :
+    cpsTriple base (base + nopOff) (divCode base)
+      (divN4StackPreCall sp a b v5 v6 v7 v10 v11
+         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+         shiftMem nMem jMem retMem dMem dloMem scratch_un0)
+      (divN4CallSkipStackPost sp a b) := by
+  rcases isSkipBorrowN4CallEvm_or_isAddbackBorrowN4CallEvm a b with hskip | haddback
+  · exact evm_div_n4_call_skip_stack_spec_unconditional sp base a b
+      v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+      nMem shiftMem jMem retMem dMem dloMem scratch_un0
+      hbnz hb3nz hshift_nz halign hbltu hskip
+  · exact evm_div_n4_call_addback_beq_stack_spec sp base a b
+      v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+      nMem shiftMem jMem retMem dMem dloMem scratch_un0
+      hbnz hb3nz hshift_nz hvalid halign hbltu
+      (hcarry2_nz_addback haddback) haddback (hsem_addback haddback)
+
+/-- **n=4 shift_nz MOD top-level dispatcher** — mirror of
+    `evm_div_n4_call_stack_spec` for MOD. Routes between
+    call+skip (auto-discharged) and call+addback BEQ paths.
+
+    Note: MOD's call-addback-beq spec doesn't take `hvalid` (unlike
+    DIV's), so the MOD dispatcher's signature is one parameter shorter. -/
+theorem evm_mod_n4_call_stack_spec (sp base : Word)
+    (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratch_un0 : Word)
+    (hbnz : b ≠ 0)
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (hbltu : isCallTrialN4Evm a b)
+    (hcarry2_nz_addback :
+      isAddbackBorrowN4CallEvm a b → isAddbackCarry2NzN4CallEvm a b)
+    (hsem_addback :
+      isAddbackBorrowN4CallEvm a b → n4CallAddbackBeqSemanticHolds a b) :
+    cpsTriple base (base + nopOff) (modCode base)
+      (modN4StackPreCall sp a b v5 v6 v7 v10 v11
+         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+         shiftMem nMem jMem retMem dMem dloMem scratch_un0)
+      (modN4CallSkipStackPost sp a b) := by
+  rcases isSkipBorrowN4CallEvm_or_isAddbackBorrowN4CallEvm a b with hskip | haddback
+  · exact evm_mod_n4_call_skip_stack_spec_unconditional sp base a b
+      v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+      nMem shiftMem jMem retMem dMem dloMem scratch_un0
+      hbnz hb3nz hshift_nz halign hbltu hskip
+  · exact evm_mod_n4_call_addback_beq_stack_spec sp base a b
+      v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+      nMem shiftMem jMem retMem dMem dloMem scratch_un0
+      hbnz hb3nz hshift_nz halign hbltu
+      (hcarry2_nz_addback haddback) haddback (hsem_addback haddback)
+
+/-- **n=4 top-level DIV stack spec — fully shift-agnostic** (CLOSED for
+    skip path; addback hypotheses gated on `isAddbackBorrowN4CallEvm`).
+
+    Top-level dispatcher that case-splits on whether `b3` is already
+    normalized (shift = 0) vs. needs CLZ shift (shift ≠ 0):
+    - `(clzResult b3).1 = 0` → routes to `evm_div_n4_shift0_stack_spec`
+      (fully unconditional under runtime conditions).
+    - `(clzResult b3).1 ≠ 0` → routes to `evm_div_n4_call_stack_spec`
+      (shift_nz dispatcher; skip path unconditional, addback path
+      requires its own hsem/hcarry2_nz under `isAddbackBorrowN4CallEvm`).
+
+    The shift0 path is fully closed; only the shift_nz call-addback
+    case retains the Knuth-B-gated hypotheses. -/
+theorem evm_div_n4_call_stack_spec_full (sp base : Word)
+    (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratch_un0 : Word)
+    (hbnz : b ≠ 0)
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hvalid : ValidMemRange sp 8)
+    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (hbltu : (clzResult (b.getLimbN 3)).1 ≠ 0 → isCallTrialN4Evm a b)
+    (hcarry2_nz_addback :
+      (clzResult (b.getLimbN 3)).1 ≠ 0 →
+      isAddbackBorrowN4CallEvm a b → isAddbackCarry2NzN4CallEvm a b)
+    (hsem_addback :
+      (clzResult (b.getLimbN 3)).1 ≠ 0 →
+      isAddbackBorrowN4CallEvm a b → n4CallAddbackBeqSemanticHolds a b) :
+    cpsTriple base (base + nopOff) (divCode base)
+      (divN4StackPreCall sp a b v5 v6 v7 v10 v11
+         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+         shiftMem nMem jMem retMem dMem dloMem scratch_un0)
+      (divN4CallSkipStackPost sp a b) := by
+  by_cases hshift_z : (clzResult (b.getLimbN 3)).1 = 0
+  · exact evm_div_n4_shift0_stack_spec sp base a b
+      v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+      nMem shiftMem jMem retMem dMem dloMem scratch_un0
+      hbnz hb3nz hshift_z halign
+  · exact evm_div_n4_call_stack_spec sp base a b
+      v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+      nMem shiftMem jMem retMem dMem dloMem scratch_un0
+      hbnz hb3nz hshift_z hvalid halign (hbltu hshift_z)
+      (hcarry2_nz_addback hshift_z) (hsem_addback hshift_z)
+
+/-- **n=4 top-level MOD stack spec — fully shift-agnostic** (CLOSED for
+    skip path; addback hypotheses gated). Mirror of
+    `evm_div_n4_call_stack_spec_full` for MOD.
+
+    Note: MOD's call-addback-beq spec doesn't take `hvalid`, so the
+    MOD top-level dispatcher's signature is one parameter shorter. -/
+theorem evm_mod_n4_call_stack_spec_full (sp base : Word)
+    (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratch_un0 : Word)
+    (hbnz : b ≠ 0)
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (hbltu : (clzResult (b.getLimbN 3)).1 ≠ 0 → isCallTrialN4Evm a b)
+    (hcarry2_nz_addback :
+      (clzResult (b.getLimbN 3)).1 ≠ 0 →
+      isAddbackBorrowN4CallEvm a b → isAddbackCarry2NzN4CallEvm a b)
+    (hsem_addback :
+      (clzResult (b.getLimbN 3)).1 ≠ 0 →
+      isAddbackBorrowN4CallEvm a b → n4CallAddbackBeqSemanticHolds a b) :
+    cpsTriple base (base + nopOff) (modCode base)
+      (modN4StackPreCall sp a b v5 v6 v7 v10 v11
+         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+         shiftMem nMem jMem retMem dMem dloMem scratch_un0)
+      (modN4CallSkipStackPost sp a b) := by
+  by_cases hshift_z : (clzResult (b.getLimbN 3)).1 = 0
+  · exact evm_mod_n4_shift0_stack_spec sp base a b
+      v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+      nMem shiftMem jMem retMem dMem dloMem scratch_un0
+      hbnz hb3nz hshift_z halign
+  · exact evm_mod_n4_call_stack_spec sp base a b
+      v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+      nMem shiftMem jMem retMem dMem dloMem scratch_un0
+      hbnz hb3nz hshift_z halign (hbltu hshift_z)
+      (hcarry2_nz_addback hshift_z) (hsem_addback hshift_z)
 
 
 end EvmAsm.Evm64

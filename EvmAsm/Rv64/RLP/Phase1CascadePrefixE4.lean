@@ -26,6 +26,7 @@
 -/
 
 import EvmAsm.Rv64.RLP.Phase1
+import EvmAsm.Rv64.RLP.Phase1Disjoint
 
 namespace EvmAsm.Rv64.RLP
 
@@ -102,5 +103,40 @@ theorem rlp_phase1_cascade_prefix_e4_spec (v5 v10 : Word)
     CodeReq.Disjoint.union_right hd12
       (CodeReq.Disjoint.union_right hd13 hd14)
   exact cpsTriple_seq hd1_234 step1 step234
+
+/-- Convenience variant of `rlp_phase1_cascade_prefix_e4_spec` that
+    discharges all six pairwise cascade-step disjointness obligations
+    internally via the `rlp_phase1_step_code_disjoint_*` helpers
+    (#1364). The user only supplies the dispatch hypotheses on `v5`
+    and the `htarget` PC equation. -/
+theorem rlp_phase1_cascade_prefix_e4_spec' (v5 v10 : Word)
+    (off1 off2 off3 off4 : BitVec 13) (base e4_target : Word)
+    (htarget : (base + 24 + 4) + signExtend13 off4 = e4_target)
+    (hv5_lo  : ¬ BitVec.ult v5 ((0 : Word) + signExtend12 (0x80 : BitVec 12)))
+    (hv5_mid : ¬ BitVec.ult v5 ((0 : Word) + signExtend12 (0xB8 : BitVec 12)))
+    (hv5_3   : ¬ BitVec.ult v5 ((0 : Word) + signExtend12 (0xC0 : BitVec 12)))
+    (hv5_hi  : BitVec.ult v5 ((0 : Word) + signExtend12 (0xF8 : BitVec 12))) :
+    let kVal4 := (0 : Word) + signExtend12 (0xF8 : BitVec 12)
+    cpsTriple base e4_target
+      ((rlp_phase1_step_code 0x80 off1 base).union
+        ((rlp_phase1_step_code 0xB8 off2 (base + 8)).union
+          ((rlp_phase1_step_code 0xC0 off3 (base + 16)).union
+            (rlp_phase1_step_code 0xF8 off4 (base + 24)))))
+      ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10))
+      ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ kVal4)) :=
+  rlp_phase1_cascade_prefix_e4_spec v5 v10 off1 off2 off3 off4 base e4_target
+    htarget hv5_lo hv5_mid hv5_3 hv5_hi
+    (rlp_phase1_step_code_disjoint_8 0x80 0xB8 off1 off2 base)
+    (rlp_phase1_step_code_disjoint_16 0x80 0xC0 off1 off3 base)
+    (rlp_phase1_step_code_disjoint_24 0x80 0xF8 off1 off4 base)
+    (by
+      have h := rlp_phase1_step_code_disjoint_8 0xB8 0xC0 off2 off3 (base + 8)
+      rw [show (base + 8 : Word) + 8 = base + 16 from by bv_omega] at h; exact h)
+    (by
+      have h := rlp_phase1_step_code_disjoint_16 0xB8 0xF8 off2 off4 (base + 8)
+      rw [show (base + 8 : Word) + 16 = base + 24 from by bv_omega] at h; exact h)
+    (by
+      have h := rlp_phase1_step_code_disjoint_8 0xC0 0xF8 off3 off4 (base + 16)
+      rw [show (base + 16 : Word) + 8 = base + 24 from by bv_omega] at h; exact h)
 
 end EvmAsm.Rv64.RLP
