@@ -1678,6 +1678,52 @@ theorem evm_mod_n4_call_skip_stack_spec (sp base : Word)
   simp only [hmod_eq, hanti_toNat_mod] at hq ⊢
   xperm_hyp hq
 
+/-- **`isSkipBorrowN4CallEvm` and `isAddbackBorrowN4CallEvm` are
+    complementary** (CLOSED).
+
+    The two predicates differ only in `=` vs `≠ 0` at the bottom level
+    (an `if-then-1-else-0` indicator), so exactly one holds for any
+    inputs. Useful for shift_nz top-level dispatchers that route to
+    skip vs. addback paths. -/
+theorem isSkipBorrowN4CallEvm_or_isAddbackBorrowN4CallEvm (a b : EvmWord) :
+    isSkipBorrowN4CallEvm a b ∨ isAddbackBorrowN4CallEvm a b := by
+  rw [isSkipBorrowN4CallEvm_def, isAddbackBorrowN4CallEvm_def]
+  unfold isSkipBorrowN4Call isAddbackBorrowN4Call
+  simp only []
+  by_cases h : (if BitVec.ult ((a.getLimbN 3) >>>
+        ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64))
+        (mulsubN4_c3 (div128Quot ((a.getLimbN 3) >>>
+            ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64))
+          (((a.getLimbN 3) <<< ((clzResult (b.getLimbN 3)).1.toNat % 64)) |||
+            ((a.getLimbN 2) >>>
+              ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64)))
+          (((b.getLimbN 3) <<< ((clzResult (b.getLimbN 3)).1.toNat % 64)) |||
+            ((b.getLimbN 2) >>>
+              ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64))))
+          ((b.getLimbN 0) <<< ((clzResult (b.getLimbN 3)).1.toNat % 64))
+          (((b.getLimbN 1) <<< ((clzResult (b.getLimbN 3)).1.toNat % 64)) |||
+            ((b.getLimbN 0) >>>
+              ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64)))
+          (((b.getLimbN 2) <<< ((clzResult (b.getLimbN 3)).1.toNat % 64)) |||
+            ((b.getLimbN 1) >>>
+              ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64)))
+          (((b.getLimbN 3) <<< ((clzResult (b.getLimbN 3)).1.toNat % 64)) |||
+            ((b.getLimbN 2) >>>
+              ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64)))
+          ((a.getLimbN 0) <<< ((clzResult (b.getLimbN 3)).1.toNat % 64))
+          (((a.getLimbN 1) <<< ((clzResult (b.getLimbN 3)).1.toNat % 64)) |||
+            ((a.getLimbN 0) >>>
+              ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64)))
+          (((a.getLimbN 2) <<< ((clzResult (b.getLimbN 3)).1.toNat % 64)) |||
+            ((a.getLimbN 1) >>>
+              ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64)))
+          (((a.getLimbN 3) <<< ((clzResult (b.getLimbN 3)).1.toNat % 64)) |||
+            ((a.getLimbN 2) >>>
+              ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64))))
+        then (1 : Word) else 0) = (0 : Word)
+  · exact Or.inl h
+  · exact Or.inr h
+
 /-- **`evm_div_n4_call_skip_stack_spec` without `hsem`** — discharges the
     semantic hypothesis from the call-trial preconditions (CLOSED).
 
