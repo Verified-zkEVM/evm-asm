@@ -415,51 +415,52 @@ theorem div128Quot_q1_prime_eq_q_top_phase1_of_skip_borrow
 -- (composition wrapping `div128Quot_phase1_no_wrap_skip`).
 -- ============================================================================
 
-/-- **D2/D3-A (STUB)**: Under `q1' = q_top_phase1`, the algorithm's Phase 1b
-    output `rhat'` satisfies `rhat'.toNat < 2^32` — i.e., the Phase 1b
-    correction stays within a single limb.
+/-- **D2/D3-A (STUB, REFORMULATED 2026-04-27)**: Under `isSkipBorrowN4Call`,
+    the algorithm's Phase 1b output `rhat'` satisfies `rhat'.toNat < 2^32`.
 
-    **Proof sketch (algorithmic)**: rhat' is either rhatc or rhatc + dHi
-    after Phase 1b correction. Under tight q1' = q_top_phase1, Phase 1b
-    correction either doesn't fire (rhatc < dHi < 2^32 from Knuth Phase 1)
-    or fires and rhat' = rhatc + dHi but our specific case excludes the
-    rhatc + dHi ≥ 2^32 sub-case via the q1' = q_top_phase1 invariant.
+    **Counterexample to earlier formulation** (which used only hcall +
+    `q1' = q_top_phase1` as preconditions): see
+    `memory/project_d2d3_a_counterexample.md`. With
+    `a3 = 2^64 - 2, a2 = 0, b3 = 1, b2 = 2^64 - 2`, Phase 1 is tight
+    (q1' = q_top_phase1 = 2^31 - 1) but rhat' = 2^32 + 2^31 - 2 ≥ 2^32.
+    The same input violates skip-borrow (the BitVec un21 wraps,
+    yielding qHat * val256(b) > val256(a)). So skip-borrow is genuinely
+    needed.
 
-    This is the genuinely hard sub-piece: the relationship between the
-    algorithm's BitVec arithmetic and the abstract Knuth invariant.
+    **Proof sketch (under skip-borrow)**: skip-borrow ⟹ no-addback
+    invariant on the outer mulsub ⟹ Knuth's Phase 1 remainder
+    invariant `rhat' < 2^32` (this is the
+    "Phase 1 remainder fits in a limb" invariant from Knuth TAOCP 4.3.1).
 
-    Estimated: ~60-80 LOC (case-split on hi1 = 0 / hi1 ≠ 0 and Phase 1b
-    fired / not fired, with arithmetic in each branch). -/
-theorem n4RhatPrime_lt_pow32_of_q1_prime_eq_q_top_phase1
-    (a2 a3 b2 b3 : Word)
+    Estimated: ~80-150 LOC. -/
+theorem n4RhatPrime_lt_pow32_of_skip_borrow
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
     (_hb3nz : b3 ≠ 0)
     (_hshift_nz : (clzResult b3).1 ≠ 0)
     (_hcall : isCallTrialN4 a3 b2 b3)
-    (_h_q1_eq : (n4Q1Prime a2 a3 b2 b3).toNat = n4QTopPhase1 a2 a3 b2 b3) :
+    (_hborrow : isSkipBorrowN4Call a0 a1 a2 a3 b0 b1 b2 b3) :
     (n4RhatPrime a2 a3 b2 b3).toNat < 2^32 := by
   sorry
 
-/-- **D2/D3 (STUB, with sub-stub D2/D3-A used)**: From `q1' = q_top_phase1`,
-    derive Phase 1 no-wrap `q1' * dLo ≤ (rhat'%2^32)*2^32 + div_un1`.
+/-- **D2/D3 (CLOSED, with `h_rhat'_lt` as hypothesis)**: From
+    `q1' = q_top_phase1` AND `rhat' < 2^32`, derive Phase 1 no-wrap
+    `q1' * dLo ≤ (rhat'%2^32)*2^32 + div_un1`.
 
-    **Plan**: Compose
-    - `div128Quot_phase1_no_wrap_skip` (existing, in `Div128PhaseNoWrap`,
-      takes `hq1_prime_le_q_true_1` and `hrhat'_lt` as hypotheses)
-    - `n4RhatPrime_lt_pow32_of_q1_prime_eq_q_top_phase1` (D2/D3-A sub-stub)
-    - The ≤ side of h_q1_eq (an equality trivially gives ≤)
-    - Bundle ↔ let-form bridging via the unfold lemmas.
+    The `h_rhat'_lt` hypothesis is essential — see
+    `memory/project_d2d3_a_counterexample.md` for a counterexample
+    showing rhat' can exceed 2^32 under hcall + tight alone, in which
+    case the no-wrap form fails. Skip-borrow rules out this regime
+    (via `n4RhatPrime_lt_pow32_of_skip_borrow` in D5).
 
-    The unwrapping/bridging is mechanical (~30 LOC) once the `Div128PhaseNoWrap`
-    import is added (current file imports `Div128CallSkipClose`; need to also
-    import `Div128PhaseNoWrap`). Deferred to next iteration.
-
-    Estimated: ~30-50 LOC for the bridging once D2/D3-A is closed. -/
+    Composes: `div128Quot_phase1_no_wrap_skip` + ≤ side of h_q1_eq +
+    bundle/let-form bridging. -/
 theorem div128Quot_phase1_no_wrap_of_q1_prime_eq_q_top_phase1
     (a2 a3 b2 b3 : Word)
     (hb3nz : b3 ≠ 0)
-    (hshift_nz : (clzResult b3).1 ≠ 0)
-    (hcall : isCallTrialN4 a3 b2 b3)
-    (h_q1_eq : (n4Q1Prime a2 a3 b2 b3).toNat = n4QTopPhase1 a2 a3 b2 b3) :
+    (_hshift_nz : (clzResult b3).1 ≠ 0)
+    (_hcall : isCallTrialN4 a3 b2 b3)
+    (h_q1_eq : (n4Q1Prime a2 a3 b2 b3).toNat = n4QTopPhase1 a2 a3 b2 b3)
+    (h_rhat'_lt : (n4RhatPrime a2 a3 b2 b3).toNat < 2^32) :
     (n4Q1Prime a2 a3 b2 b3).toNat * (n4DLo b2 b3).toNat ≤
       ((n4RhatPrime a2 a3 b2 b3).toNat % 2^32) * 2^32 +
         (n4DivUn1 a2 a3 b3).toNat := by
@@ -489,10 +490,8 @@ theorem div128Quot_phase1_no_wrap_of_q1_prime_eq_q_top_phase1
       (n4DHi b2 b3).toNat * 2^32 + (n4DLo b2 b3).toNat := by
     rw [n4DHi_unfold, n4DLo_unfold]
     exact div128Quot_vTop_decomp _
-  -- Discharge rhat' < 2^32 via D2/D3-A.
-  have h_rhat'_lt : (n4RhatPrime a2 a3 b2 b3).toNat < 2^32 :=
-    n4RhatPrime_lt_pow32_of_q1_prime_eq_q_top_phase1 a2 a3 b2 b3
-      hb3nz hshift_nz hcall h_q1_eq
+  -- h_rhat'_lt now comes as an explicit hypothesis from the caller (typically D5
+  -- via `n4RhatPrime_lt_pow32_of_skip_borrow`).
   -- The let-form q1' inside `div128Quot_phase1_no_wrap_skip` matches
   -- algorithmQ1Prime's body when we use dHi = n4DHi, dLo = n4DLo.
   -- And rhat' similarly matches algorithmRhatPrime's body.
@@ -852,9 +851,12 @@ theorem div128_phase_no_wrap_of_skip_borrow
   -- Phase 1 tight from D1c.
   have h_q1_eq := div128Quot_q1_prime_eq_q_top_phase1_of_skip_borrow
     a0 a1 a2 a3 b0 b1 b2 b3 hb3nz hshift_nz hcall hborrow
-  -- Phase 1 no-wrap from D2/D3.
+  -- rhat' < 2^32 from D2/D3-A (skip-borrow ⟹ Knuth Phase 1 invariant).
+  have h_rhat'_lt := n4RhatPrime_lt_pow32_of_skip_borrow
+    a0 a1 a2 a3 b0 b1 b2 b3 hb3nz hshift_nz hcall hborrow
+  -- Phase 1 no-wrap from D2/D3 (using h_rhat'_lt as additional precondition).
   have h_no_wrap := div128Quot_phase1_no_wrap_of_q1_prime_eq_q_top_phase1
-    a2 a3 b2 b3 hb3nz hshift_nz hcall h_q1_eq
+    a2 a3 b2 b3 hb3nz hshift_nz hcall h_q1_eq h_rhat'_lt
   -- un21 < vTop from D2b.
   have h_un21_lt := div128Quot_un21_lt_vTop_from_phase1_tight
     a2 a3 b2 b3 hb3nz hshift_nz hcall h_q1_eq h_no_wrap
