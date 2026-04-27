@@ -210,28 +210,159 @@ theorem n4RhatPrime_unfold (a2 a3 b2 b3 : Word) :
 
 -- ============================================================================
 -- D1c: Phase 1 tight under skip-borrow (the key structural lemma)
+--
+-- Decomposed into three sub-stubs (A, B, C) and a composition.
 -- ============================================================================
 
-/-- **D1c (STUB)**: Under `isSkipBorrowN4Call`, Phase 1 trial is tight:
-    `q1' = q_top_phase1` (= `(u4 * 2^32 + div_un1) / dHi`).
+/-- **D1c-A (STUB)**: Phase 1 upper bound under skip-borrow, wrapped on
+    bundles. Repackages `div128Quot_q1_prime_le_q_true_top_call_skip` so
+    the LHS is `(n4Q1Prime …).toNat` (matching our irreducible bundles).
 
-    **Proof sketch**: skip-borrow ⟹ outer mulsub `qHat * val256(b)
-    ≤ val256(a)` ⟹ `qHat ≤ q_true`. Combined with Knuth-A lower
-    `qHat ≥ q_true` gives `qHat = q_true` (already in
-    `div128Quot_call_skip_eq_val256_div`). From `qHat = q_true < 2^64`
-    and `q1' < 2^32` (KB-3e'''), the OR decomposition gives unique
-    digits. Combined with `q1' ≥ q_top_phase1` (`algorithmQ1Prime_ge_q_true_1`)
-    pins `q1' = q_top_phase1`.
+    **Proof sketch**: apply
+    `div128Quot_q1_prime_le_q_true_top_call_skip`, then bridge the
+    let-form `q1'` in the conclusion to `algorithmQ1Prime` via
+    `algorithmQ1Prime_unfold` and finally to `n4Q1Prime` via
+    `n4Q1Prime_unfold`.
 
-    Estimated: ~80 LOC. -/
-theorem div128Quot_q1_prime_eq_q_top_phase1_of_skip_borrow
+    Estimated: ~15 LOC. -/
+theorem n4Q1Prime_le_q_true_top_of_skip_borrow
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hb3nz : b3 ≠ 0)
+    (hshift_nz : (clzResult b3).1 ≠ 0)
+    (hcall : isCallTrialN4 a3 b2 b3)
+    (hborrow : isSkipBorrowN4Call a0 a1 a2 a3 b0 b1 b2 b3) :
+    (n4Q1Prime a2 a3 b2 b3).toNat ≤
+      (val256 a0 a1 a2 a3 / val256 b0 b1 b2 b3) / 2^32 := by
+  have h := div128Quot_q1_prime_le_q_true_top_call_skip a0 a1 a2 a3 b0 b1 b2 b3
+    hb3nz hshift_nz hcall hborrow
+  simp only [] at h
+  rw [n4Q1Prime_unfold, n4U4_unfold, n4Un3_unfold, n4B3Prime_unfold,
+      n4ClzShift_unfold, n4ClzAntiShift_unfold, algorithmQ1Prime_unfold]
+  exact h
+
+/-- **D1c-B (STUB)**: Knuth Theorem A at the val256 level — the
+    *trial digit* using truncated dividend (u4*2^32 + div_un1) and
+    full divisor b3' is at least the true high digit q_true_1.
+
+    Statement: `(val256(a) / val256(b)) / 2^32 ≤ q_top_phase1`
+    where `q_top_phase1 = (u4*2^32 + div_un1) / b3'` and
+    `(u4, div_un1, b3')` are the CLZ-normalized top portions.
+
+    **Proof sketch**: standard Nat-division monotonicity argument
+    bridging val256-level to limb-level. Under CLZ shift, the
+    quotient is preserved (shift is a multiplication of both
+    numerator and denominator by `2^antiShift`). Then:
+    `q_true_full = N / D ≤ (N / 2^128) / b3'` where N/2^128 = u4*2^32
+    + div_un1 (the top 96 bits) + 1 (slop). This requires careful
+    bounds and the b3' ≥ 2^63 hypothesis from CLZ normalization.
+
+    This is the genuinely new content of D1c — no existing lemma
+    captures it.
+
+    Estimated: ~80-100 LOC. -/
+theorem q_true_top_le_n4QTopPhase1
     (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
     (_hb3nz : b3 ≠ 0)
-    (_hshift_nz : (clzResult b3).1 ≠ 0)
-    (_hcall : isCallTrialN4 a3 b2 b3)
-    (_hborrow : isSkipBorrowN4Call a0 a1 a2 a3 b0 b1 b2 b3) :
-    (n4Q1Prime a2 a3 b2 b3).toNat = n4QTopPhase1 a2 a3 b2 b3 := by
+    (_hshift_nz : (clzResult b3).1 ≠ 0) :
+    (val256 a0 a1 a2 a3 / val256 b0 b1 b2 b3) / 2^32 ≤
+      n4QTopPhase1 a2 a3 b2 b3 := by
   sorry
+
+/-- **D1c-C (STUB)**: Phase 1 lower bound, wrapped on bundles.
+    Repackages `algorithmQ1Prime_ge_q_true_1` so the inequality is
+    expressed in our bundle vocabulary.
+
+    The original lemma's hypotheses are dHi-domain bounds and
+    `u4 < dHi*2^32` (narrow_u4). For the call+skip path under
+    `hcall = isCallTrialN4`, narrow_u4 holds because hcall implies
+    u4 < b3' ≤ dHi*2^32 + dLo, but the dHi-only form requires
+    additional refinement via Phase 1b reasoning. We may need to
+    use the CompensationCases-flavored variant instead.
+
+    Estimated: ~15 LOC (mostly bundle bridging). -/
+theorem n4Q1Prime_ge_n4QTopPhase1_of_call
+    (a2 a3 b2 b3 : Word)
+    (hb3nz : b3 ≠ 0)
+    (hshift_nz : (clzResult b3).1 ≠ 0)
+    (hcall : isCallTrialN4 a3 b2 b3) :
+    n4QTopPhase1 a2 a3 b2 b3 ≤ (n4Q1Prime a2 a3 b2 b3).toNat := by
+  rw [n4QTopPhase1_unfold, n4Q1Prime_unfold, n4DivUn1_unfold]
+  -- Preconditions for the case-split.
+  have h_b3'_ge : (n4B3Prime b2 b3).toNat ≥ 2^63 := by
+    rw [n4B3Prime_unfold, n4ClzShift_unfold, n4ClzAntiShift_unfold]
+    exact b3_prime_ge_pow63 b3 b2 hb3nz _
+  have h_u4_lt_b3' : (n4U4 a3 b3).toNat < (n4B3Prime b2 b3).toNat := by
+    rw [n4U4_unfold, n4B3Prime_unfold, n4ClzShift_unfold, n4ClzAntiShift_unfold]
+    exact isCallTrialN4_toNat_lt a3 b2 b3 hcall
+  have h_shift_pos : 1 ≤ (clzResult b3).1.toNat := by
+    rcases Nat.eq_zero_or_pos (clzResult b3).1.toNat with h | h
+    · exfalso; apply hshift_nz
+      exact BitVec.eq_of_toNat_eq (by simp [h])
+    · exact h
+  have h_u4_lt_pow63 : (n4U4 a3 b3).toNat < 2^63 := by
+    rw [n4U4_unfold, n4ClzAntiShift_unfold]
+    exact u_top_lt_pow63_of_shift_nz a3 (clzResult b3).1 h_shift_pos
+      (clzResult_fst_toNat_le b3)
+  -- dHi / dLo decomposition of b3'.
+  have h_dHi_ge : ((n4B3Prime b2 b3) >>> (32 : BitVec 6).toNat).toNat ≥ 2^31 := by
+    rw [BitVec.toNat_ushiftRight, EvmAsm.Rv64.AddrNorm.bv6_toNat_32,
+        Nat.shiftRight_eq_div_pow]
+    have : (n4B3Prime b2 b3).toNat ≥ 2^63 := h_b3'_ge; omega
+  have h_dHi_lt : ((n4B3Prime b2 b3) >>> (32 : BitVec 6).toNat).toNat < 2^32 := by
+    rw [BitVec.toNat_ushiftRight, EvmAsm.Rv64.AddrNorm.bv6_toNat_32,
+        Nat.shiftRight_eq_div_pow]
+    have : (n4B3Prime b2 b3).toNat < 2^64 := (n4B3Prime b2 b3).isLt
+    exact Nat.div_lt_of_lt_mul (by omega)
+  have h_dLo_lt :
+      (((n4B3Prime b2 b3) <<< (32 : BitVec 6).toNat) >>>
+        (32 : BitVec 6).toNat).toNat < 2^32 := by
+    rw [BitVec.toNat_ushiftRight, EvmAsm.Rv64.AddrNorm.bv6_toNat_32,
+        Nat.shiftRight_eq_div_pow]
+    have : ((n4B3Prime b2 b3) <<< (32 : BitVec 6).toNat : Word).toNat < 2^64 :=
+      ((n4B3Prime b2 b3) <<< (32 : BitVec 6).toNat : Word).isLt
+    exact Nat.div_lt_of_lt_mul (by omega)
+  have h_v_eq : (n4B3Prime b2 b3).toNat =
+      ((n4B3Prime b2 b3) >>> (32 : BitVec 6).toNat).toNat * 2^32 +
+      (((n4B3Prime b2 b3) <<< (32 : BitVec 6).toNat) >>>
+        (32 : BitVec 6).toNat).toNat :=
+    div128Quot_vTop_decomp _
+  have h_u4_lt_vTop : (n4U4 a3 b3).toNat <
+      ((n4B3Prime b2 b3) >>> (32 : BitVec 6).toNat).toNat * 2^32 +
+      (((n4B3Prime b2 b3) <<< (32 : BitVec 6).toNat) >>>
+        (32 : BitVec 6).toNat).toNat := by
+    rw [← h_v_eq]; exact h_u4_lt_b3'
+  -- Case-split on u4 < dHi*2^32.
+  by_cases hu4_lt :
+      (n4U4 a3 b3).toNat < ((n4B3Prime b2 b3) >>> (32 : BitVec 6).toNat).toNat * 2^32
+  · have h := algorithmQ1Prime_ge_q_true_1 (n4U4 a3 b3) (n4Un3 a2 a3 b3)
+      (n4B3Prime b2 b3)
+      h_dHi_ge h_dHi_lt h_dLo_lt hu4_lt h_u4_lt_vTop
+    rw [← h_v_eq] at h; exact h
+  · exact algorithmQ1Prime_ge_q_true_1_in_wide_u4 (n4U4 a3 b3) (n4Un3 a2 a3 b3)
+      (n4B3Prime b2 b3) h_b3'_ge h_u4_lt_b3' (by omega) h_u4_lt_pow63
+
+/-- **D1c (COMPOSED)**: Under `isSkipBorrowN4Call`, Phase 1 trial is
+    tight: `q1' = q_top_phase1` (= `(u4 * 2^32 + div_un1) / b3'`).
+
+    **Composition**: D1c-A (q1' ≤ q_true_top) + D1c-B
+    (q_true_top ≤ q_top_phase1) gives q1' ≤ q_top_phase1. Combined
+    with D1c-C (q_top_phase1 ≤ q1') and `Nat.le_antisymm`. -/
+theorem div128Quot_q1_prime_eq_q_top_phase1_of_skip_borrow
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hb3nz : b3 ≠ 0)
+    (hshift_nz : (clzResult b3).1 ≠ 0)
+    (hcall : isCallTrialN4 a3 b2 b3)
+    (hborrow : isSkipBorrowN4Call a0 a1 a2 a3 b0 b1 b2 b3) :
+    (n4Q1Prime a2 a3 b2 b3).toNat = n4QTopPhase1 a2 a3 b2 b3 := by
+  have h_le_top := n4Q1Prime_le_q_true_top_of_skip_borrow a0 a1 a2 a3 b0 b1 b2 b3
+    hb3nz hshift_nz hcall hborrow
+  have h_top_le := q_true_top_le_n4QTopPhase1 a0 a1 a2 a3 b0 b1 b2 b3
+    hb3nz hshift_nz
+  have h_le : (n4Q1Prime a2 a3 b2 b3).toNat ≤ n4QTopPhase1 a2 a3 b2 b3 :=
+    h_le_top.trans h_top_le
+  have h_ge := n4Q1Prime_ge_n4QTopPhase1_of_call a2 a3 b2 b3
+    hb3nz hshift_nz hcall
+  exact Nat.le_antisymm h_le h_ge
 
 -- ============================================================================
 -- D2/D3: Phase 1 no-wrap from tight Phase 1
