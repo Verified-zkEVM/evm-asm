@@ -36,6 +36,7 @@ theorem divK_divEpilogue_len : (divK_div_epilogue 24).length = 10 := by decide
 theorem divK_zeroPath_len : divK_zeroPath.length = 5 := by decide
 theorem divK_nop_len : (ADDI .x0 .x0 0 : Program).length = 1 := by decide
 theorem divK_div128_len : divK_div128.length = 51 := by decide
+theorem divK_div128_v2_len : divK_div128_v2.length = 61 := by decide
 theorem divK_modEpilogue_len : (divK_mod_epilogue 24).length = 10 := by decide
 
 /-- Skip one ofProg block in a right-nested union via range disjointness.
@@ -46,7 +47,7 @@ macro "skipBlock" : tactic =>
         simp only [divK_phaseA_len, divK_phaseB_len, divK_clz_len, divK_phaseC2_len,
           divK_normB_len, divK_normA_len, divK_copyAU_len, divK_loopSetup_len,
           divK_loopBody_len, divK_denorm_len, divK_divEpilogue_len,
-          divK_zeroPath_len, divK_nop_len, divK_div128_len,
+          divK_zeroPath_len, divK_nop_len, divK_div128_len, divK_div128_v2_len,
           divK_modEpilogue_len] at hk1 hk2
         bv_omega)))
 
@@ -245,6 +246,17 @@ theorem sharedDivModCode_sub_modCode {base : Word} :
     (CodeReq.union_split_mono (shared_b11_mod)
     (CodeReq.union_split_mono (shared_b12_mod)
     (fun _ _ h => by simp [CodeReq.unionAll_nil, CodeReq.empty] at h)))))))))))))
+
+/-- v2 per-block subsumption: block 12 (`divK_div128_v2`) is included
+    in `sharedDivModCode_v2 base`. Mirrors the v1 pattern (`shared_b12_div`)
+    but targets the v2 shared cr. -/
+theorem shared_b12_div128_v2_sub {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + div128Off) divK_div128_v2) a = some i →
+           (sharedDivModCode_v2 b) a = some i := by
+  unfold sharedDivModCode_v2; simp only [CodeReq.unionAll_cons]
+  skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock
+  skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock
+  exact CodeReq.union_mono_left _ _
 
 -- ============================================================================
 -- Postcondition bundle for loopSetup (shift ≠ 0) path
