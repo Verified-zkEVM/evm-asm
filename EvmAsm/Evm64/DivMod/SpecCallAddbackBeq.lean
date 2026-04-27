@@ -296,10 +296,81 @@ theorem div128Quot_v2_qHat_vTop_le
   sorry  -- See proof plan in docstring. Sub-lemmas needed:
          -- 1. Phase 1a invariants (reuse from v1 — algorithm shares Phase 1a).
          -- 2. Phase 1b 1st D3 invariants (reuse from v1).
-         -- 3. Phase 1b 2nd D3 invariants (NEW): q1'' * dHi + rhat'' = uHi
-         --    AND rhat'' < dHi (after both corrections).
+         -- 3. Phase 1b 2nd D3 invariants (NEW): div128Quot_v2_phase1b_2nd_post.
          -- 4. Phase 2 invariants (mirror v1 with q1''/rhat'').
          -- 5. KB-Compose V2 (reuse pattern from v1).
+
+/-- **Phase 1b 2nd D3 Euclidean invariant** for `div128Quot_v2`.
+
+    The new substantive sub-lemma for v2: after the 2nd D3 correction
+    iteration (gated by `rhat' >> 32 = 0`), the Euclidean invariant
+    `q1'' * dHi + rhat'' = uHi` is preserved.
+
+    Mirrors `div128Quot_phase1b_post` (KnuthTheoremB.lean:880) but for
+    the 2nd correction iteration. The proof structure:
+    - Guard taken (rhat' >> 32 ≠ 0): q1'' = q1', rhat'' = rhat',
+      invariant carries through unchanged from `div128Quot_phase1b_post`.
+    - Guard fall-through (rhat' >> 32 = 0):
+      * Check fires (rhatUn1' < qDlo2): q1'' = q1' - 1, rhat'' = rhat' + dHi.
+        Same algebra as 1st D3 correction (use `div128Quot_phase1b_correction_eucl`).
+      * Check doesn't fire: q1'' = q1', rhat'' = rhat'.
+
+    This sub-lemma plus the corresponding tightness `rhat'' < dHi` (under
+    additional preconditions) lets us mirror v1's qHat_vTop_le proof
+    without the no_wrap hypotheses (since the 2nd correction handles
+    the truncation case that breaks v1).
+
+    Issue #1337 algorithm fix migration. -/
+theorem div128Quot_v2_phase1b_2nd_post
+    (uHi dHi q1' rhat' dLo div_un1 : Word)
+    (hdHi_lt : dHi.toNat < 2^32)
+    (h_post_1st : q1'.toNat * dHi.toNat + rhat'.toNat = uHi.toNat)
+    (h_rhat'_lt : rhat'.toNat < 2 * dHi.toNat) :
+    let q1'' := div128Quot_phase2b_q0' q1' rhat' dLo div_un1
+    let rhat'' :=
+      if rhat' >>> (32 : BitVec 6).toNat = 0 then
+        let qDlo2 := q1' * dLo
+        let rhatUn1' := (rhat' <<< (32 : BitVec 6).toNat) ||| div_un1
+        if BitVec.ult rhatUn1' qDlo2 then rhat' + dHi else rhat'
+      else rhat'
+    q1''.toNat * dHi.toNat + rhat''.toNat = uHi.toNat := by
+  intro q1'' rhat''
+  by_cases h_guard : rhat' >>> (32 : BitVec 6).toNat = 0
+  · -- Guard fall-through: case-split on the BLTU check.
+    by_cases h_check : BitVec.ult ((rhat' <<< (32 : BitVec 6).toNat) ||| div_un1)
+                                    (q1' * dLo)
+    · -- Check fires: q1'' = q1' - 1, rhat'' = rhat' + dHi.
+      have h_q1'' : q1'' = q1' + signExtend12 4095 := by
+        show div128Quot_phase2b_q0' q1' rhat' dLo div_un1 = _
+        unfold div128Quot_phase2b_q0'
+        rw [if_pos h_guard, if_pos h_check]
+      have h_rhat'' : rhat'' = rhat' + dHi := by
+        show (if rhat' >>> (32 : BitVec 6).toNat = 0 then _ else rhat') = _
+        rw [if_pos h_guard, if_pos h_check]
+      rw [h_q1'', h_rhat'']
+      have h_q1'_pos : q1'.toNat ≥ 1 :=
+        div128Quot_phase1b_check_implies_q1c_pos q1' dLo
+          ((rhat' <<< (32 : BitVec 6).toNat) ||| div_un1) h_check
+      exact div128Quot_phase1b_correction_eucl uHi dHi q1' rhat'
+        hdHi_lt h_post_1st h_q1'_pos h_rhat'_lt
+    · -- Check doesn't fire: q1'' = q1', rhat'' = rhat'.
+      have h_q1'' : q1'' = q1' := by
+        show div128Quot_phase2b_q0' q1' rhat' dLo div_un1 = _
+        unfold div128Quot_phase2b_q0'
+        rw [if_pos h_guard, if_neg h_check]
+      have h_rhat'' : rhat'' = rhat' := by
+        show (if rhat' >>> (32 : BitVec 6).toNat = 0 then _ else rhat') = _
+        rw [if_pos h_guard, if_neg h_check]
+      rw [h_q1'', h_rhat''];  exact h_post_1st
+  · -- Guard taken (rhat' >> 32 ≠ 0): q1'' = q1', rhat'' = rhat'.
+    have h_q1'' : q1'' = q1' := by
+      show div128Quot_phase2b_q0' q1' rhat' dLo div_un1 = _
+      unfold div128Quot_phase2b_q0'
+      rw [if_neg h_guard]
+    have h_rhat'' : rhat'' = rhat' := by
+      show (if rhat' >>> (32 : BitVec 6).toNat = 0 then _ else rhat') = _
+      rw [if_neg h_guard]
+    rw [h_q1'', h_rhat'']; exact h_post_1st
 
 /-- **Numerical sanity check** for `div128Quot_v2_qHat_vTop_le` on the
     counterexample input. Verifies the multiplication bound is at least
