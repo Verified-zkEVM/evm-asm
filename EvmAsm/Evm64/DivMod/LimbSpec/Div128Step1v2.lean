@@ -1,8 +1,6 @@
 /-
   EvmAsm.Evm64.DivMod.LimbSpec.Div128Step1v2
 
-  **STUB FILE** for issue #1337 algorithm fix migration.
-
   Full-step composition for instructions [10]-[34] of the
   `divK_div128_v2` subroutine — the v2 fix that adds a 2nd Phase 1b
   D3 correction iteration (Knuth TAOCP §4.3.1 classical D3 step,
@@ -18,9 +16,7 @@
   abstraction `div128Quot_v2`'s Phase 1 output (q1 = q1c after BOTH
   D3 iterations, rhat = rhatc after BOTH D3 iterations).
 
-  **Status (2026-04-27)**: theorem signature only; proof is a sorry.
-
-  Issue #1337's algorithm fix migration. Tracked in PR #1390.
+  Issue #1337's algorithm fix migration.
 -/
 
 import EvmAsm.Evm64.DivMod.LimbSpec.Div128Step1
@@ -31,6 +27,76 @@ open EvmAsm.Rv64.Tactics
 namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
+
+/-- Helper: prodcheck1b's 10-singleton cr at offset (base+60) is included in
+    step1_v2's 25-singleton merged cr.
+
+    Defined outside `divK_div128_step1_v2_branch_merged_spec` so the heartbeat
+    budget for this inclusion check is independent of the surrounding proof
+    (which itself instantiates a 5-let prodcheck1b spec). -/
+private theorem step1_v2_pc1b_cr_subsumed (base : Word) :
+    let pc1b_cr :=
+      CodeReq.union (CodeReq.singleton (base + 60) (.SRLI .x1 .x7 32))
+      (CodeReq.union (CodeReq.singleton (base + 64) (.BNE .x1 .x0 36))
+      (CodeReq.union (CodeReq.singleton (base + 68) (.LD .x1 .x12 3952))
+      (CodeReq.union (CodeReq.singleton (base + 72) (.MUL .x5 .x10 .x1))
+      (CodeReq.union (CodeReq.singleton (base + 76) (.SLLI .x1 .x7 32))
+      (CodeReq.union (CodeReq.singleton (base + 80) (.OR .x1 .x1 .x11))
+      (CodeReq.union (CodeReq.singleton (base + 84) (.BLTU .x1 .x5 8))
+      (CodeReq.union (CodeReq.singleton (base + 88) (.JAL .x0 12))
+      (CodeReq.union (CodeReq.singleton (base + 92) (.ADDI .x10 .x10 4095))
+       (CodeReq.singleton (base + 96) (.ADD .x7 .x7 .x6))))))))))
+    let merged_cr :=
+      CodeReq.union (CodeReq.singleton base (.DIVU .x10 .x7 .x6))
+      (CodeReq.union (CodeReq.singleton (base + 4) (.MUL .x5 .x10 .x6))
+      (CodeReq.union (CodeReq.singleton (base + 8) (.SUB .x7 .x7 .x5))
+      (CodeReq.union (CodeReq.singleton (base + 12) (.SRLI .x5 .x10 32))
+      (CodeReq.union (CodeReq.singleton (base + 16) (.BEQ .x5 .x0 12))
+      (CodeReq.union (CodeReq.singleton (base + 20) (.ADDI .x10 .x10 4095))
+      (CodeReq.union (CodeReq.singleton (base + 24) (.ADD .x7 .x7 .x6))
+      (CodeReq.union (CodeReq.singleton (base + 28) (.LD .x1 .x12 3952))
+      (CodeReq.union (CodeReq.singleton (base + 32) (.MUL .x5 .x10 .x1))
+      (CodeReq.union (CodeReq.singleton (base + 36) (.SLLI .x1 .x7 32))
+      (CodeReq.union (CodeReq.singleton (base + 40) (.OR .x1 .x1 .x11))
+      (CodeReq.union (CodeReq.singleton (base + 44) (.BLTU .x1 .x5 8))
+      (CodeReq.union (CodeReq.singleton (base + 48) (.JAL .x0 12))
+      (CodeReq.union (CodeReq.singleton (base + 52) (.ADDI .x10 .x10 4095))
+      (CodeReq.union (CodeReq.singleton (base + 56) (.ADD .x7 .x7 .x6))
+      (CodeReq.union (CodeReq.singleton (base + 60) (.SRLI .x1 .x7 32))
+      (CodeReq.union (CodeReq.singleton (base + 64) (.BNE .x1 .x0 36))
+      (CodeReq.union (CodeReq.singleton (base + 68) (.LD .x1 .x12 3952))
+      (CodeReq.union (CodeReq.singleton (base + 72) (.MUL .x5 .x10 .x1))
+      (CodeReq.union (CodeReq.singleton (base + 76) (.SLLI .x1 .x7 32))
+      (CodeReq.union (CodeReq.singleton (base + 80) (.OR .x1 .x1 .x11))
+      (CodeReq.union (CodeReq.singleton (base + 84) (.BLTU .x1 .x5 8))
+      (CodeReq.union (CodeReq.singleton (base + 88) (.JAL .x0 12))
+      (CodeReq.union (CodeReq.singleton (base + 92) (.ADDI .x10 .x10 4095))
+       (CodeReq.singleton (base + 96) (.ADD .x7 .x7 .x6)))))))))))))))))))))))))
+    ∀ a i, pc1b_cr a = some i → merged_cr a = some i := by
+  intro pc1b_cr merged_cr a i
+  simp only [pc1b_cr, merged_cr, CodeReq.union_singleton_apply, CodeReq.singleton]
+  intro h
+  split at h
+  · next hab => rw [beq_iff_eq] at hab; subst hab; simp_all [CodeReq.beq_offset_self_left, CodeReq.beq_base_offset]
+  · split at h
+    · next hab => rw [beq_iff_eq] at hab; subst hab; simp_all [CodeReq.beq_offset_self_left, CodeReq.beq_base_offset]
+    · split at h
+      · next hab => rw [beq_iff_eq] at hab; subst hab; simp_all [CodeReq.beq_offset_self_left, CodeReq.beq_base_offset]
+      · split at h
+        · next hab => rw [beq_iff_eq] at hab; subst hab; simp_all [CodeReq.beq_offset_self_left, CodeReq.beq_base_offset]
+        · split at h
+          · next hab => rw [beq_iff_eq] at hab; subst hab; simp_all [CodeReq.beq_offset_self_left, CodeReq.beq_base_offset]
+          · split at h
+            · next hab => rw [beq_iff_eq] at hab; subst hab; simp_all [CodeReq.beq_offset_self_left, CodeReq.beq_base_offset]
+            · split at h
+              · next hab => rw [beq_iff_eq] at hab; subst hab; simp_all [CodeReq.beq_offset_self_left, CodeReq.beq_base_offset]
+              · split at h
+                · next hab => rw [beq_iff_eq] at hab; subst hab; simp_all [CodeReq.beq_offset_self_left, CodeReq.beq_base_offset]
+                · split at h
+                  · next hab => rw [beq_iff_eq] at hab; subst hab; simp_all [CodeReq.beq_offset_self_left, CodeReq.beq_base_offset]
+                  · split at h
+                    · next hab => rw [beq_iff_eq] at hab; subst hab; simp_all [CodeReq.beq_offset_self_left, CodeReq.beq_base_offset]
+                    · simp at h
 
 /-- div128 step 1 v2 branch-merged: composes step1_spec + prodcheck1b_merged_spec
     into a cpsBranch where BOTH legs end at base+100. Instrs [10]-[34].
@@ -97,23 +163,69 @@ theorem divK_div128_step1_v2_branch_merged_spec
          (.x5 ↦ᵣ qDlo2) ** (.x11 ↦ᵣ un1) ** (.x1 ↦ᵣ rhatUn1') **
          (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) ** ⌜rhatHi2 = 0⌝ **
          (sp + signExtend12 3952 ↦ₘ dlo)) := by
-  -- ATTEMPTED full proof — h1 (step1_spec ⊆ merged) closes via 14×union_mono_tail
-  -- + 1×union_mono_left, but the h2 inclusion (prodcheck1b ⊆ merged via 10-deep
-  -- split+simp_all pattern) hits 200k heartbeats due to:
-  --   1. prodcheck1b spec instantiates 5 internal lets (qDlo, rhatUn1', rhatHi,
-  --      q1'FT, rhat'FT), making whnf in cpsBranch_extend_code expensive.
-  --   2. simp_all walking 25 if-branches × 10 levels = ~250 evaluations per
-  --      simp call, hitting limits.
-  --
-  -- Approaches to try next iteration:
-  --   - Bundle the merged cr as @[irreducible] def (avoids whnf through 25-cr).
-  --     See divKDiv128Step2Code as template (Div128Step2.lean line 360).
-  --   - Use rw [hb4, ..., hb40] instead of simp only (faster, more controlled).
-  --   - Replace simp_all with explicit `decide` for the residual address eq's
-  --     (needs concrete base; might not work with symbolic base).
-  --   - Decompose prodcheck1b inclusion into halves: use union_mono_tail to peel
-  --     15 outer singletons, then the inner 10 ≡ pc1b_cr by rfl.
-  sorry  -- See ATTEMPTED notes above. Branch_merged composition.
+  intro q1 rhat hi q1c rhatc qDlo1 rhatUn1 q1' rhat' rhatHi2 qDlo2 rhatUn1'
+        q1'FT rhat'FT cr
+  have hcr_eq : cr =
+      CodeReq.union (CodeReq.singleton base (.DIVU .x10 .x7 .x6))
+      (CodeReq.union (CodeReq.singleton (base + 4) (.MUL .x5 .x10 .x6))
+      (CodeReq.union (CodeReq.singleton (base + 8) (.SUB .x7 .x7 .x5))
+      (CodeReq.union (CodeReq.singleton (base + 12) (.SRLI .x5 .x10 32))
+      (CodeReq.union (CodeReq.singleton (base + 16) (.BEQ .x5 .x0 12))
+      (CodeReq.union (CodeReq.singleton (base + 20) (.ADDI .x10 .x10 4095))
+      (CodeReq.union (CodeReq.singleton (base + 24) (.ADD .x7 .x7 .x6))
+      (CodeReq.union (CodeReq.singleton (base + 28) (.LD .x1 .x12 3952))
+      (CodeReq.union (CodeReq.singleton (base + 32) (.MUL .x5 .x10 .x1))
+      (CodeReq.union (CodeReq.singleton (base + 36) (.SLLI .x1 .x7 32))
+      (CodeReq.union (CodeReq.singleton (base + 40) (.OR .x1 .x1 .x11))
+      (CodeReq.union (CodeReq.singleton (base + 44) (.BLTU .x1 .x5 8))
+      (CodeReq.union (CodeReq.singleton (base + 48) (.JAL .x0 12))
+      (CodeReq.union (CodeReq.singleton (base + 52) (.ADDI .x10 .x10 4095))
+      (CodeReq.union (CodeReq.singleton (base + 56) (.ADD .x7 .x7 .x6))
+      (CodeReq.union (CodeReq.singleton (base + 60) (.SRLI .x1 .x7 32))
+      (CodeReq.union (CodeReq.singleton (base + 64) (.BNE .x1 .x0 36))
+      (CodeReq.union (CodeReq.singleton (base + 68) (.LD .x1 .x12 3952))
+      (CodeReq.union (CodeReq.singleton (base + 72) (.MUL .x5 .x10 .x1))
+      (CodeReq.union (CodeReq.singleton (base + 76) (.SLLI .x1 .x7 32))
+      (CodeReq.union (CodeReq.singleton (base + 80) (.OR .x1 .x1 .x11))
+      (CodeReq.union (CodeReq.singleton (base + 84) (.BLTU .x1 .x5 8))
+      (CodeReq.union (CodeReq.singleton (base + 88) (.JAL .x0 12))
+      (CodeReq.union (CodeReq.singleton (base + 92) (.ADDI .x10 .x10 4095))
+       (CodeReq.singleton (base + 96) (.ADD .x7 .x7 .x6))))))))))))))))))))))))) := rfl
+  -- h1: step1_spec's cr is the 15-prefix of merged_cr.
+  have h1_raw := divK_div128_step1_spec sp uHi dHi un1 v1Old v5Old v10Old dlo base
+  have h1 : cpsTriple base (base + 60) cr _ _ :=
+    cpsTriple_extend_code (h := h1_raw) (hmono := by
+      rw [hcr_eq]
+      exact CodeReq.union_mono_tail (CodeReq.union_mono_tail (CodeReq.union_mono_tail
+        (CodeReq.union_mono_tail (CodeReq.union_mono_tail (CodeReq.union_mono_tail
+        (CodeReq.union_mono_tail (CodeReq.union_mono_tail (CodeReq.union_mono_tail
+        (CodeReq.union_mono_tail (CodeReq.union_mono_tail (CodeReq.union_mono_tail
+        (CodeReq.union_mono_tail (CodeReq.union_mono_tail
+        (CodeReq.union_mono_left _ _)))))))))))))))
+  -- h2: prodcheck1b_merged_spec's cr is the 10-suffix of merged_cr.
+  have h2_raw := divK_div128_prodcheck1b_merged_spec sp q1' rhat' dHi un1
+    rhatUn1 qDlo1 dlo (base + 60)
+  have hb4 : (base + 60 : Word) + 4 = base + 64 := by bv_addr
+  have hb8 : (base + 60 : Word) + 8 = base + 68 := by bv_addr
+  have hb12 : (base + 60 : Word) + 12 = base + 72 := by bv_addr
+  have hb16 : (base + 60 : Word) + 16 = base + 76 := by bv_addr
+  have hb20 : (base + 60 : Word) + 20 = base + 80 := by bv_addr
+  have hb24 : (base + 60 : Word) + 24 = base + 84 := by bv_addr
+  have hb28 : (base + 60 : Word) + 28 = base + 88 := by bv_addr
+  have hb32 : (base + 60 : Word) + 32 = base + 92 := by bv_addr
+  have hb36 : (base + 60 : Word) + 36 = base + 96 := by bv_addr
+  have hb40 : (base + 60 : Word) + 40 = base + 100 := by bv_addr
+  simp only [hb4, hb8, hb12, hb16, hb20, hb24, hb28, hb32, hb36, hb40] at h2_raw
+  have h2 : cpsBranch (base + 60) cr _ _ _ _ _ :=
+    cpsBranch_extend_code (h := h2_raw) (hmono := by
+      rw [hcr_eq]; exact step1_v2_pc1b_cr_subsumed base)
+  have composed := cpsTriple_seq_cpsBranch_perm_same_cr
+    (fun h hp => by xperm_hyp hp) h1 h2
+  exact cpsBranch_weaken
+    (fun h hp => hp)
+    (fun h hp => by xperm_hyp hp)
+    (fun h hp => by xperm_hyp hp)
+    composed
 
 /-- div128 step 1 v2: trial division q1, clamp, FIRST product check + correction,
     SECOND product check + correction (gated by `rhatc < 2^32` guard).
