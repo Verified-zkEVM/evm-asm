@@ -1673,30 +1673,19 @@ theorem qHat_gt_q_true_under_runtime_v2 (a b : EvmWord)
     (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
     hborrow_v2
   simp only [] at h_u4_lt_c3
-  -- The remaining steps:
-  -- Step 2: by_contra qHat ≤ q_true; derive qHat * val256(b_shifted) ≤
-  --   val256(a_shifted) using shift propagation.
-  -- Step 3: apply `c3_un_zero_of_qHat_mul_le` to get c3 = 0.
-  -- Step 4: combine c3 = 0 with h_u4_lt_c3 to get u4 < 0 contradiction.
+  -- **STATUS (2026-04-28, commit 1423349d):** the SHIFTED-DOMAIN version
+  -- `qHat_mul_b_shifted_gt_a_shifted_under_runtime_v2` is now PROVEN (zero
+  -- sorries). It directly gives `qHat * val256(b_shifted) > val256(a_shifted)`.
   --
-  -- **DEEPER CHALLENGE (2026-04-28):** Step 2 is harder than initially
-  -- thought. The shift `(clzResult b3).1.toNat` can be up to 63. After
-  -- shifting all limbs by 63 bits, val256(a_shifted) = val256(a) * 2^63
-  -- mod 2^256 — and val256(a) * 2^63 may exceed 2^256, causing truncation.
-  -- Concretely, on the canonical counterexample (a = (2^63 + 2^33) * 2^192,
-  -- shift = 63), val256(a) * 2^shift ≈ 2^318 ≫ 2^256, so a's shifted form
-  -- truncates significantly. The shift propagation `qHat * val256(b) ≤
-  -- val256(a) ⟹ qHat * val256(b_shifted) ≤ val256(a_shifted)` is therefore
-  -- NOT direct.
-  --
-  -- However, there is still a sound path: under hbltu (a3 < b3'), Knuth's
-  -- normalization ensures the shifted forms preserve the quotient
-  -- relationship in a per-iteration sense. The val256 of shifted (a, b) at
-  -- the limb level matches the trial-quotient input that the algorithm
-  -- consumes — c3_un_zero_of_qHat_mul_le's hypothesis is on the SHIFTED
-  -- inputs, not the original. So we need a slightly different framing:
-  -- `qHat ≤ floor(val256(a_shifted) / val256(b_shifted))` rather than
-  -- `qHat ≤ q_true`. This is the formulation Knuth uses.
+  -- The remaining gap to close THIS lemma (qHat > q_true in original-domain):
+  -- - Translate the shifted-domain inequality back to original q_true via
+  --   val256-level identity bridging the shift.
+  -- - This is non-trivial because `val256(a_shifted) = val256(a) * 2^shift
+  --   mod 2^256` truncates when val256(a) * 2^shift ≥ 2^256.
+  -- - v1's `qHat_eq_div_plus_one_of_single_addback` (line 2336+) does this
+  --   bridging via val256 algebraic equations + Nat division properties.
+  -- - For our purposes, the SHIFTED-DOMAIN version may suffice — the
+  --   carry partition could be reformulated entirely in shifted-domain.
   sorry
 
 /-- **qHat * val256(b_shifted) > val256(a_shifted) under v2 borrow** —
