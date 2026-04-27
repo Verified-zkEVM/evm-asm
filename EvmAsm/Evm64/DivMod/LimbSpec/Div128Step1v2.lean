@@ -205,6 +205,10 @@ theorem divK_div128_step1_v2_branch_merged_spec
   -- h2: prodcheck1b_merged_spec's cr is the 10-suffix of merged_cr.
   have h2_raw := divK_div128_prodcheck1b_merged_spec sp q1' rhat' dHi un1
     rhatUn1 qDlo1 dlo (base + 60)
+  -- Unfold prodcheck1b's bundled defs so we can frame/permute against the
+  -- explicit pre/post structure.
+  unfold divKDiv128Prodcheck1bMergedCode divKDiv128Prodcheck1bMergedPre
+    divKDiv128Prodcheck1bMergedTakenPost divKDiv128Prodcheck1bMergedFTPost at h2_raw
   have hb4 : (base + 60 : Word) + 4 = base + 64 := by bv_addr
   have hb8 : (base + 60 : Word) + 8 = base + 68 := by bv_addr
   have hb12 : (base + 60 : Word) + 12 = base + 72 := by bv_addr
