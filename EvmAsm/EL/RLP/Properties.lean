@@ -106,6 +106,14 @@ theorem decodeAux_four_byte_string
       some (.bytes [b1, b2, b3, b4], rest) := by
   simp [decodeAux, takeBytes]
 
+/-- Five-byte short string (prefix `0x85`). Multi-byte payload
+    bypasses the canonical-form check. -/
+theorem decodeAux_five_byte_string
+    (fuel : Nat) (b1 b2 b3 b4 b5 : Byte) (rest : List Byte) :
+    decodeAux (fuel + 1) ((0x85 : Byte) :: b1 :: b2 :: b3 :: b4 :: b5 :: rest) =
+      some (.bytes [b1, b2, b3, b4, b5], rest) := by
+  simp [decodeAux, takeBytes]
+
 /-! ## decode (top-level wrapper) trivial cases -/
 
 /-- `decode []` returns `none` because `decodeAux 0 []` returns `none`. -/
@@ -148,6 +156,13 @@ theorem decode_three_byte_string (b1 b2 b3 : Byte) :
 theorem decode_four_byte_string (b1 b2 b3 b4 : Byte) :
     decode [(0x84 : Byte), b1, b2, b3, b4] =
       some (.bytes [b1, b2, b3, b4], []) := by
+  simp [decode, decodeAux, takeBytes]
+
+/-- `decode [0x85, b1, b2, b3, b4, b5] = some (.bytes [b1..b5], [])`
+    — the canonical five-byte short-string encoding. -/
+theorem decode_five_byte_string (b1 b2 b3 b4 b5 : Byte) :
+    decode [(0x85 : Byte), b1, b2, b3, b4, b5] =
+      some (.bytes [b1, b2, b3, b4, b5], []) := by
   simp [decode, decodeAux, takeBytes]
 
 /-! ## encodeBytes characterizations -/
