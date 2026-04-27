@@ -1181,19 +1181,27 @@ theorem qHat_eq_div_plus_two_of_double_addback_v2 (a b : EvmWord)
 
     Issue #1337 algorithm fix migration. -/
 theorem n4CallAddbackBeq_q_out_eq_q_true_v2 (a b : EvmWord)
-    (_hb3nz : b.getLimbN 3 ≠ 0)
-    (_hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
-    (_hbltu : isCallTrialN4Evm a b)
-    (_hcarry2_nz : isAddbackCarry2NzN4CallEvm a b)
-    (_hborrow : isAddbackBorrowN4CallEvm a b) :
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hbltu : isCallTrialN4Evm a b)
+    (hcarry2_nz : isAddbackCarry2NzN4CallEvm a b)
+    (hborrow : isAddbackBorrowN4CallEvm a b) :
     n4CallAddbackBeqSemanticHolds_v2 a b := by
-  sorry  -- Combines:
-         -- 1. div128Quot_v2_no_wrap_under_call_addback_beq (discharge no_wrap)
-         -- 2. div128Quot_v2_le_val256_div_plus_two (qHat ≤ q_true + 2)
-         -- 3. Carry-2 partition: hcarry2_nz ∧ hborrow ⟹ qHat = q_true + 2
-         --    (BEQ branch fires only when single-addback insufficient).
-         -- 4. q_out arithmetic: q_out = qHat - 2 (carry = 0) or qHat - 1
-         --    (carry ≠ 0); under (3) both give q_out = q_true.
+  -- Unfold the predicate to expose the let-chain + carry case-split.
+  unfold n4CallAddbackBeqSemanticHolds_v2
+  -- Introduce the let-chain.
+  -- Case-split on carry = 0 vs ≠ 0.
+  -- - carry = 0: use qHat_eq_div_plus_two_of_double_addback_v2; q_out = qHat - 2 = q_true.
+  -- - carry ≠ 0: use qHat_eq_div_plus_one_of_single_addback_v2; q_out = qHat - 1 = q_true.
+  -- Either case: q_out.toNat = val256(a) / val256(b) ✓.
+  sorry  -- The closure proof follows by case analysis on the let-bound
+         -- `carry` — using the two newly-added v2 sub-stubs:
+         -- `qHat_eq_div_plus_one_of_single_addback_v2` (carry ≠ 0)
+         -- `qHat_eq_div_plus_two_of_double_addback_v2` (carry = 0)
+         -- + Word arithmetic: q_out.toNat = qHat.toNat - k where k ∈ {1,2}.
+         -- The Word-level (qHat + signExtend12 4095).toNat = qHat.toNat - 1
+         -- (under qHat.toNat ≥ 1) needs careful handling — see v1's
+         -- `qHat_eq_div_plus_one_of_single_addback` proof for the pattern.
 
 /-- **Closure of `n4CallAddbackBeqSemanticHolds_v2` from runtime conditions.**
 
