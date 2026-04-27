@@ -48,7 +48,7 @@ open EvmAsm.Rv64.Tactics
     which combine to ensure q_out is exactly correct. Deferred to a future
     task; the stack spec delegates the proof to callers.
 
-    **🚨 STATUS (2026-04-27): counterexample to predicate found**.
+    **🚨 STATUS (2026-04-27, updated): real correctness bug in algorithm**.
 
     Verified via `lean_run_code`: with
     `a3 = 2^63 + 2^33, a2 = a1 = a0 = 0, b3 = 1, b2 = 2^33 - 1,
@@ -59,19 +59,35 @@ open EvmAsm.Rv64.Tactics
     `q_true = val256(a) / val256(b) = 2^63 + 2^32 - 2 = 9223372041149743102`.
     The discrepancy is `2^32 - 2` ≈ 4.3 × 10⁹.
 
-    **Root cause (per `memory/project_knuth_d_one_correction_design.md`
-    + `memory/project_n4callbeq_addback_overshoot_2pow32.md`)**: our
-    `div128Quot` does only 1 Phase 1b correction (vs Knuth classical
-    2-correction loop). Per-digit Knuth Theorem B gives overshoot ≤ 2,
-    which combined at val256 level gives qHat overshoot up to ~2^33.
-    The BEQ branch's at-most-2 outer addbacks can only correct
-    overshoots of 0/1/2 — not 2^32-scale.
+    **Root cause**: our `div128Quot` does only 1 Phase 1b correction
+    (vs Knuth classical 2-correction loop), so qHat can overshoot at
+    val256 level by up to ~2^33. The actual RISC-V program at
+    `Program.lean:386` has an addback LOOP (`BEQ x7 x0` jumps back if
+    x7 = 0), but the loop-exit heuristic "limb-3 carry of addback ≠ 0"
+    fires after 1 addback in this case — leaving q_out = qHat - 1,
+    still ~2^32 too large.
 
-    **Implication**: either (a) the Lean abstraction
-    `fullDivN4CallAddbackBeqPost` doesn't match the actual RISC-V
-    program (the program may have additional correction logic), or (b)
-    the actual algorithm is genuinely buggy on this input class. Cross-
-    reference urgently needed before any closure attempt.
+    **Implication**: the algorithm is genuinely buggy on this input
+    class. The `n4CallAddbackBeqSemanticHolds` predicate is provably
+    FALSE on runtime-reachable inputs. Closure
+    (`n4CallAddbackBeqSemanticHolds_of_*`) cannot be proven; the
+    user-facing `evm_div_n4_full_call_addback_beq_stack_pre_spec` and
+    its relatives are vacuous on this input class.
+
+    See `memory/project_n4callbeq_addback_overshoot_2pow32.md` and
+    `memory/project_knuth_d_one_correction_design.md` for the full
+    analysis.
+
+    **Remediation options**:
+    1. Modify `div128Quot` to do 2 Phase 1b corrections (matching Knuth
+       classical D3 loop). Restores Knuth Theorem B's per-digit ≤ 2
+       overshoot bound. Requires changing both Lean abstraction and
+       RISC-V code.
+    2. Modify the addback loop's exit condition to detect 2^32-scale
+       overshoots (e.g., bound iteration count by some explicit limit
+       and re-check). Non-trivial.
+    3. Document the input class as out-of-scope and gate it externally.
+       Pragmatically blocks complete EVM-level verification.
 
     Mirror of `n4CallSkipSemanticHolds` for the call+addback branch. -/
 def n4CallAddbackBeqSemanticHolds (a b : EvmWord) : Prop :=
