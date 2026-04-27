@@ -149,6 +149,14 @@ theorem decode_singleton_list_empty_string :
     decode [(0xC1 : Byte), (0x80 : Byte)] = some (.list [.bytes []], []) := by
   simp [decode, decodeAux, takeBytes, decodeItems]
 
+/-- Singleton list containing the empty list:
+    `decode [0xC1, 0xC0] = some (.list [.list []], [])`. The
+    short-list branch fires with payload length 1, the inner `0xC0`
+    is recognized as the empty list, and the outer list closes. -/
+theorem decode_singleton_list_empty_list :
+    decode [(0xC1 : Byte), (0xC0 : Byte)] = some (.list [.list []], []) := by
+  simp [decode, decodeAux, takeBytes, decodeItems]
+
 /-! ## decode (top-level wrapper) trivial cases -/
 
 /-- `decode []` returns `none` because `decodeAux 0 []` returns `none`. -/
