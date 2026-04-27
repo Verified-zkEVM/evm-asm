@@ -1666,21 +1666,23 @@ theorem qHat_gt_q_true_under_runtime_v2 (a b : EvmWord)
                   val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
     qHat.toNat > q_true := by
   intro shift antiShift b3' u4 u3 qHat q_true
-  -- We need val256(b) > 0 to use Nat division properties; this comes from hbnz
-  -- via the standard val256_pos_of_or_nz lemma.
-  -- For the contradiction path: assume qHat.toNat ≤ q_true.
-  -- Then qHat * val256(b) ≤ q_true * val256(b) ≤ val256(a) (definition of Nat div).
-  -- By c3_un_zero_of_qHat_mul_le applied to shifted limbs, c3 = 0.
-  -- But hborrow_v2 + u_top_lt_c3_of_addback_borrow_call_v2 gives u4 < c3. ⊥.
+  -- Step 1: from hborrow_v2, get u4.toNat < c3.toNat.
+  rw [isAddbackBorrowN4CallEvm_v2_def] at hborrow_v2
+  have h_u4_lt_c3 := EvmWord.u_top_lt_c3_of_addback_borrow_call_v2
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+    hborrow_v2
+  simp only [] at h_u4_lt_c3
+  -- The remaining steps:
+  -- Step 2: by_contra qHat ≤ q_true; derive qHat * val256(b_shifted) ≤
+  --   val256(a_shifted) using shift propagation (when both fit in 256 bits).
+  -- Step 3: apply `c3_un_zero_of_qHat_mul_le` to get c3 = 0.
+  -- Step 4: combine c3 = 0 with h_u4_lt_c3 to get u4 < 0 contradiction.
   --
-  -- Note: the `c3_un_zero_of_qHat_mul_le` lemma uses raw limbs; for our setting
-  -- with normalized (shifted) limbs, we need to apply it to b0', b1', b2', b3'
-  -- (the shifted b limbs) and similar for a. The shifted limbs are the actual
-  -- inputs to the v2 algorithm's mulsubN4.
-  --
-  -- Full proof requires careful instantiation matching the v2's let-bound
-  -- intermediates with `c3_un_zero_of_qHat_mul_le`'s hypothesis form. Mark
-  -- as sorry — proof is mechanical but sizeable (~30-40 lines).
+  -- Step 2 is the substantive piece — relating the SHIFTED val256s to the
+  -- ORIGINAL val256s used in q_true's definition. This requires that the
+  -- shift `(clzResult b3).1.toNat % 64` doesn't lose information for either
+  -- a or b — which holds under `hb3nz` (b3 ≠ 0 ⟹ shift = clzResult ≤ 63).
   sorry
 
 /-- **Carry partition for the BEQ branch (sub-lemma, conjunctive form).**
