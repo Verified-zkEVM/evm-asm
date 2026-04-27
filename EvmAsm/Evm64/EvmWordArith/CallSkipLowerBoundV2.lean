@@ -384,4 +384,14 @@ theorem div128Quot_or_left_ge_q1_prime_shift
     rw [Nat.mod_eq_of_lt this]
   omega
 
+/-- **Pure-Nat: from `q1 * 2^32 ≤ q_true_full`, derive `q1 ≤ q_true_full / 2^32`.**
+
+    Stepping stone toward q1' ≤ q_true_top_at_val256_level. Pure Nat
+    consequence of `Nat.le_div_iff_mul_le` (basically `q ≤ Y/v ⟺ q*v ≤ Y`). -/
+theorem q1_le_q_true_top_of_mul_pow32_le
+    (q1 q_true_full : Nat)
+    (h_mul : q1 * 2^32 ≤ q_true_full) :
+    q1 ≤ q_true_full / 2^32 :=
+  (Nat.le_div_iff_mul_le (by decide : (0:Nat) < 2^32)).mpr h_mul
+
 end EvmAsm.Evm64
