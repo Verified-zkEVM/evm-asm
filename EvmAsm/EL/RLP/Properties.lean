@@ -173,6 +173,16 @@ theorem encodeBytes_pair (a b : Byte) :
     encodeBytes [a, b] = [BitVec.ofNat 8 0x82, a, b] := by
   simp [encodeBytes]
 
+/-- Three-byte short string: `encodeBytes [a, b, c] = [0x83, a, b, c]`. -/
+theorem encodeBytes_triple (a b c : Byte) :
+    encodeBytes [a, b, c] = [BitVec.ofNat 8 0x83, a, b, c] := by
+  simp [encodeBytes]
+
+/-- Four-byte short string: `encodeBytes [a, b, c, d] = [0x84, a, b, c, d]`. -/
+theorem encodeBytes_quad (a b c d : Byte) :
+    encodeBytes [a, b, c, d] = [BitVec.ofNat 8 0x84, a, b, c, d] := by
+  simp [encodeBytes]
+
 /-! ## Encoding produces non-empty output -/
 
 theorem encodeBytes_nonempty (data : List Byte) :
