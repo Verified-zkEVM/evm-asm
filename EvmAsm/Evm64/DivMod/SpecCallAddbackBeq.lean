@@ -627,9 +627,10 @@ theorem div128Quot_v2_phase1_no_wrap_lo_FALSE_counterexample :
     `q1''.toNat * dLo.toNat = 2^63 - 2^31`.
 
     This kernel-checked proof is the supporting evidence for **alternative
-    path 3** in `div128Quot_v2_no_wrap_under_call_addback_beq`'s docstring:
-    use the untruncated form `q1''.toNat * dLo.toNat ≤ rhat''.toNat * 2^32
-    + div_un1.toNat` as the discharge target.
+    path 3**: use the untruncated form `q1''.toNat * dLo.toNat ≤
+    rhat''.toNat * 2^32 + div_un1.toNat` (with an additional upper-bound
+    conjunct) as the discharge target. See
+    `div128Quot_v2_no_wrap_under_call_addback_beq_untruncated`.
 
     The mathematical un21 = `(rhat''.toNat * 2^32 + div_un1.toNat) -
     q1''.toNat * dLo.toNat` then matches the algorithm's Word `un21.toNat`
@@ -856,8 +857,8 @@ private theorem un21_toNat_untruncated_arith (A_trunc B k : ℕ)
     (A_trunc + 2^64 - B) % 2^64 = A_trunc + k * 2^64 - B := by
   have hk_lt_2 : k < 2 := by
     by_contra hk_ge_2
-    push_neg at hk_ge_2
-    have h1 : k * 2^64 ≥ 2 * 2^64 := Nat.mul_le_mul_right _ hk_ge_2
+    have hk_ge_2' : k ≥ 2 := Nat.not_lt.mp hk_ge_2
+    have h1 : k * 2^64 ≥ 2 * 2^64 := Nat.mul_le_mul_right _ hk_ge_2'
     omega
   obtain hk0 | hk1 : k = 0 ∨ k = 1 := by omega
   · rw [hk0]
@@ -1405,107 +1406,19 @@ theorem div128Quot_v2_le_val256_div_plus_two_untruncated
       ≤ (u4.toNat * 2^64 + un3.toNat) / b3'.toNat := h_div_le
     _ ≤ val256 a0 a1 a2 a3 / val256 b0 b1 b2 b3 + 2 := h_step2
 
-/-- **No-wrap discharge for `qHat_vTop_le_full` under runtime preconditions.**
-
-    The closure proof needs to invoke `qHat_vTop_le_full` (which takes 3
-    no_wrap implications). The original plan was to discharge them from
-    the call+addback BEQ runtime regime (`hbltu, hcarry2_nz, hborrow`).
-
-    **ARCHITECTURAL BLOCKER (2026-04-27):** the first conjunct
-    `q1''.toNat * dLo.toNat ≤ (rhat''.toNat % 2^32) * 2^32 + div_un1.toNat`
-    is provably FALSE on input (a3=2^63+2^33, a2=a1=a0=0, b3=1,
-    b2=2^33-1, b1=b0=0) — see
-    `div128Quot_v2_phase1_no_wrap_lo_FALSE_counterexample` (kernel-checked
-    via `decide`). On THIS input:
-    - All three runtime preconditions hold (per memory
-      `project_n4callbeq_addback_overshoot_2pow32`).
-    - The v2 algorithm STILL produces correct `q_out` (per
-      `n4CallAddbackBeqSemanticHolds_v2_holds_on_counterexample`).
-    - But `rhat''.toNat = 2^32` exactly, so `rhat''.toNat % 2^32 = 0`,
-      making the no-wrap RHS small while LHS = `q1''.toNat * dLo.toNat`
-      remains large.
-
-    **Therefore this entire stub statement is FALSE — cannot be proven
-    as stated.** The closure of `n4CallAddbackBeqSemanticHolds_v2` cannot
-    flow through the Knuth-B `qHat ≤ q_true + 2` route via this
-    discharge.
-
-    **Alternative paths to consider:**
-    1. **Direct algorithm correctness**: prove `q_out = q_true` directly
-       via case-analysis on the truncation behavior, without going
-       through Knuth-B. Hard but theoretically possible.
-    2. **Stronger Knuth-B variant**: replace `qHat_vTop_le_full` with a
-       variant that handles the `rhat'' ≥ 2^32` case directly. Requires
-       reformulating the multiplication-form bound.
-    3. **Untruncated invariant**: use
-       `q1''.toNat * dLo.toNat ≤ rhat''.toNat * 2^32 + div_un1.toNat`
-       (without `% 2^32`). This may be provable from runtime conditions,
-       and may be enough for downstream Knuth-B if the un21 computation
-       is done in extended precision.
-
-    Issue #1337 algorithm fix migration. -/
-theorem div128Quot_v2_no_wrap_under_call_addback_beq (a b : EvmWord)
-    (_hb3nz : b.getLimbN 3 ≠ 0)
-    (_hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
-    (_hbltu : isCallTrialN4Evm a b)
-    (_hcarry2_nz : isAddbackCarry2NzN4CallEvm a b)
-    (_hborrow : isAddbackBorrowN4CallEvm a b) :
-    let shift := (clzResult (b.getLimbN 3)).1.toNat % 64
-    let antiShift :=
-      (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64
-    let u4 := (a.getLimbN 3) >>> antiShift
-    let un3 := ((a.getLimbN 3) <<< shift) ||| ((a.getLimbN 2) >>> antiShift)
-    let b3' := ((b.getLimbN 3) <<< shift) ||| ((b.getLimbN 2) >>> antiShift)
-    let dHi := b3' >>> (32 : BitVec 6).toNat
-    let dLo := (b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
-    let div_un1 := un3 >>> (32 : BitVec 6).toNat
-    let div_un0 := (un3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
-    let q1 := rv64_divu u4 dHi
-    let rhat := u4 - q1 * dHi
-    let hi1 := q1 >>> (32 : BitVec 6).toNat
-    let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
-    let rhatc := if hi1 = 0 then rhat else rhat + dHi
-    let qDlo := q1c * dLo
-    let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
-    let q1' := if BitVec.ult rhatUn1 qDlo then q1c + signExtend12 4095 else q1c
-    let rhat' := if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc
-    let q1'' := div128Quot_phase2b_q0' q1' rhat' dLo div_un1
-    let rhat'' :=
-      if rhat' >>> (32 : BitVec 6).toNat = 0 then
-        let qDlo2 := q1' * dLo
-        let rhatUn1' := (rhat' <<< (32 : BitVec 6).toNat) ||| div_un1
-        if BitVec.ult rhatUn1' qDlo2 then rhat' + dHi else rhat'
-      else rhat'
-    let cu_rhat_un1 := (rhat'' <<< (32 : BitVec 6).toNat) ||| div_un1
-    let cu_q1_dlo := q1'' * dLo
-    let un21 := cu_rhat_un1 - cu_q1_dlo
-    let q0 := rv64_divu un21 dHi
-    let rhat2 := un21 - q0 * dHi
-    let hi2 := q0 >>> (32 : BitVec 6).toNat
-    let q0c := if hi2 = 0 then q0 else q0 + signExtend12 4095
-    let rhat2c := if hi2 = 0 then rhat2 else rhat2 + dHi
-    let q0' := div128Quot_phase2b_q0' q0c rhat2c dLo div_un0
-    let rhat2' := if rhat2c >>> (32 : BitVec 6).toNat = 0 then
-                    (if BitVec.ult ((rhat2c <<< (32 : BitVec 6).toNat) ||| div_un0)
-                                    (q0c * dLo) then rhat2c + dHi else rhat2c)
-                  else rhat2c
-    q1''.toNat * dLo.toNat ≤ (rhat''.toNat % 2^32) * 2^32 + div_un1.toNat ∧
-    q0'.toNat * dLo.toNat ≤ rhat2'.toNat * 2^32 + div_un0.toNat ∧
-    q0'.toNat < 2^32 := by
-  sorry  -- Discharge from runtime preconditions: hbltu (BLTU check at
-         -- the algorithm level enforces ph1_no_wrap_lo), hcarry2_nz +
-         -- hborrow (algorithm's addback machinery enforces ph2_no_wrap
-         -- and q0' < 2^32). Mirror v1's discharge pattern (where it
-         -- exists in Div128NoWrapDischarge.lean) but for v2's q1''/rhat''.
-
 /-- **Untruncated runtime discharge** — alternative path 3 stub.
 
-    Same shape as `div128Quot_v2_no_wrap_under_call_addback_beq` but using
-    the **untruncated** form of the phase-1 invariant. Replaces the
-    truncated `(rhat''.toNat % 2^32) * 2^32 + div_un1.toNat` (provably
-    FALSE under runtime preconditions) with `rhat''.toNat * 2^32 +
-    div_un1.toNat`, plus the additional upper-bound conjunct `A_un - B
-    < 2^64` needed by `div128Quot_v2_un21_toNat_untruncated`.
+    **Note (2026-04-27):** the truncated counterpart of this discharge
+    (with `(rhat''.toNat % 2^32) * 2^32` instead of `rhat''.toNat * 2^32`)
+    was previously stubbed but is provably FALSE — see
+    `div128Quot_v2_phase1_no_wrap_lo_FALSE_counterexample`. The
+    architectural pivot to the untruncated form (this stub) was made in
+    commits 1f9fcddd–5a14680b. Path 3 closes the closure proof via the
+    untruncated chain.
+
+    Uses the **untruncated** form of the phase-1 invariant — `rhat''.toNat
+    * 2^32 + div_un1.toNat` — plus an additional upper-bound conjunct
+    `A_un - B < 2^64` needed by `div128Quot_v2_un21_toNat_untruncated`.
 
     On the counterexample (a3=2^63+2^33, a2=a1=a0=0, b3=1, b2=2^33-1,
     b1=b0=0):
