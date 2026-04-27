@@ -1,41 +1,62 @@
 /-
   EvmAsm.Evm64.EvmWordArith.Div128NoWrapDischarge
 
-  Discharge bridge: prove `Div128AllPhasesNoWrapInv` (or its weaker
-  `Div128PhaseNoWrapInv` cousin) from algorithmic runtime conditions
-  (`isSkipBorrowN4Call`, `isAddbackBorrowN4Call`, etc.).
+  ## STATUS (2026-04-27): D5 is BROKEN; standalone lemmas remain useful
 
-  This is approach (a) from the n4CallAddbackBeq closure plan: prove
-  the no-wrap invariant via Phase-1-level reasoning, which then makes
-  KB-6d unconditional and unblocks the addback-BEQ semantic predicate.
+  Original goal: discharge `Div128PhaseNoWrapInv` from `isSkipBorrowN4Call`,
+  to unblock KB-6d → `n4CallAddbackBeqSemanticHolds`.
 
-  **Background**: a numerical counterexample
-  (`memory/project_n4calladdbackbeq_counterexample.md`) shows that
-  approach (b) — direct val256-level Knuth-B without Phase-1 reasoning —
-  is impossible. Phase-1 reasoning is the only viable path.
+  **Discovery**: D5's claim "skip-borrow ⟹ Div128PhaseNoWrapInv" is
+  PROVABLY FALSE (counterexample: `a3 = 2^64-2, b3 = 1, b2 = 2^64-2`,
+  verified via lean_run_code). See:
+  - `memory/project_d2d3_a_counterexample.md` — counterexample analysis
+  - `memory/project_knuth_d_one_correction_design.md` — literature study
+    confirming our `div128Quot` uses 1 Phase 1b correction (vs Knuth's
+    classical 2-correction loop), so `rhat' < B` is NOT preserved by
+    design.
 
-  **Irreducible bundles** (per `feedback_bundle_pre_post_no_lets`):
-  the CLZ-shifted Word inputs and Phase 1b output `rhat'` are bundled
-  into `@[irreducible]` defs so the lemma signatures don't expose deep
-  let-chains.
+  **Architectural implication**: `Div128PhaseNoWrapInv`'s conjunct 2
+  (Phase 1 no-wrap form) is OVER-STRONG for our 1-correction algorithm.
+  The right approach is to BYPASS Div128PhaseNoWrapInv entirely.
 
-  - **`n4ClzShift`**, **`n4ClzAntiShift`**: shift / antiShift Nats.
-  - **`n4U4`**, **`n4Un3`**, **`n4B3Prime`**: CLZ-normalized top limbs
-    of a, b (computed from a2, a3, b2, b3).
-  - **`algorithmRhatPrime`**: Phase 1b's corrected remainder.
+  ## Path forward (NOT in this file)
 
-  These compose with the existing `algorithmUn21`, `algorithmQ1Prime`,
-  `algorithmQ0Prime` (in `CallSkipLowerBoundV2/Algorithm.lean`).
+  - **Call-skip target** (`evm_div_n4_call_skip_stack_spec`): already
+    closed via `n4CallSkipSemanticHolds_of_call_trial` using
+    `div128Quot_call_skip_ge_val256_div_v2`. No need for
+    Div128PhaseNoWrapInv.
+  - **Call-addback-BEQ target** (`n4CallAddbackBeqSemanticHolds`):
+    requires Knuth Theorem B (`qHat ≤ q_true + 2`) plus addback
+    correction semantics. KB-6d's existing chain has its own issues
+    (see `memory/project_kb6d_false_counterexample.md`); reformulation
+    needed.
 
-  **Decomposition** (planned):
-  - **D1c**: Phase 1 tight (`q1' = q_top_phase1`) under skip-borrow.
-  - **D2/D3**: From q1' = q_top_phase1, derive Phase 1 no-wrap
-    inequality.
-  - **D2b**: From Phase 1 no-wrap + tight q1', derive un21 < vTop.
-  - **D5** (parent): compose into `Div128PhaseNoWrapInv`.
+  ## What's still useful in this file
 
-  Each sub-stub is a `sorry`'d theorem with a proof sketch in its
-  docstring. Estimated ~300-500 LOC total over multiple iterations.
+  - `n4U4`, `n4Un3`, `n4B3Prime`, `n4DHi`, `n4DLo`, `n4DivUn1`,
+    `n4Q1Prime`, `n4Un21`, `n4RhatPrime`, `n4QTopPhase1` — irreducible
+    bundles for CLZ-normalized inputs. Reusable across files.
+  - `algorithmRhatPrime` — Phase 1b corrected rhat'.
+  - **D1c chain** (CLOSED): `n4Q1Prime_le_q_true_top_of_skip_borrow`,
+    `q_true_top_le_n4QTopPhase1`, `n4Q1Prime_ge_n4QTopPhase1_of_call`,
+    `div128Quot_q1_prime_eq_q_top_phase1_of_skip_borrow`. Phase 1
+    tight (q1' = q_top_phase1) under skip-borrow.
+  - **D2b-A, D2b-B** (CLOSED): Phase 1b Euclidean wrapper,
+    `n4Un21_toNat_of_no_wrap`. Reusable.
+  - **D2b composed** (CLOSED, as a conditional): under hypothesis
+    h_q1_eq + h_no_wrap_phase1, derives un21 < vTop.
+  - **D2/D3 composed** (CLOSED, as a conditional): under hypothesis
+    h_q1_eq + h_rhat'_lt, derives Phase 1 no-wrap. The h_rhat'_lt
+    hypothesis can NEVER be discharged from skip-borrow (counterexample),
+    but as a conditional theorem it's still useful.
+
+  ## What's broken
+
+  - **D2/D3-A** (`n4RhatPrime_lt_pow32_of_skip_borrow`, SORRY):
+    provably false on the counterexample. Should not be used.
+  - **D5** (`div128_phase_no_wrap_of_skip_borrow`, transitively SORRY
+    via D2/D3-A): the parent claim is also false on the counterexample.
+    Should not be used.
 -/
 
 import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV2
