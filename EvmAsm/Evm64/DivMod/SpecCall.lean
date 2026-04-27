@@ -1669,5 +1669,55 @@ theorem evm_mod_n4_call_skip_stack_spec (sp base : Word)
   simp only [hmod_eq, hanti_toNat_mod] at hq ⊢
   xperm_hyp hq
 
+/-- **`evm_div_n4_call_skip_stack_spec` without `hsem`** — discharges the
+    semantic hypothesis from the call-trial preconditions (CLOSED).
+
+    Wrapper that calls `evm_div_n4_call_skip_stack_spec` with
+    `hsem := n4CallSkipSemanticHolds_of_call_trial _ _ hb3nz hshift_nz hbltu`,
+    eliminating the externally-supplied semantic predicate from the API. -/
+theorem evm_div_n4_call_skip_stack_spec_unconditional (sp base : Word)
+    (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratch_un0 : Word)
+    (hbnz : b ≠ 0)
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (hbltu : isCallTrialN4Evm a b)
+    (hborrow : isSkipBorrowN4CallEvm a b) :
+    cpsTriple base (base + nopOff) (divCode base)
+      (divN4StackPreCall sp a b v5 v6 v7 v10 v11
+         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+         shiftMem nMem jMem retMem dMem dloMem scratch_un0)
+      (divN4CallSkipStackPost sp a b) :=
+  evm_div_n4_call_skip_stack_spec sp base a b v5 v6 v7 v10 v11
+    q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+    nMem shiftMem jMem retMem dMem dloMem scratch_un0
+    hbnz hb3nz hshift_nz halign hbltu hborrow
+    (n4CallSkipSemanticHolds_of_call_trial a b hb3nz hshift_nz hbltu)
+
+/-- **`evm_mod_n4_call_skip_stack_spec` without `hsem`** — same idea
+    for MOD. -/
+theorem evm_mod_n4_call_skip_stack_spec_unconditional (sp base : Word)
+    (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratch_un0 : Word)
+    (hbnz : b ≠ 0)
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (hbltu : isCallTrialN4Evm a b)
+    (hborrow : isSkipBorrowN4CallEvm a b) :
+    cpsTriple base (base + nopOff) (modCode base)
+      (modN4StackPreCall sp a b v5 v6 v7 v10 v11
+         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+         shiftMem nMem jMem retMem dMem dloMem scratch_un0)
+      (modN4CallSkipStackPost sp a b) :=
+  evm_mod_n4_call_skip_stack_spec sp base a b v5 v6 v7 v10 v11
+    q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+    nMem shiftMem jMem retMem dMem dloMem scratch_un0
+    hbnz hb3nz hshift_nz halign hbltu hborrow
+    (n4CallSkipSemanticHolds_of_call_trial a b hb3nz hshift_nz hbltu)
+
 
 end EvmAsm.Evm64
