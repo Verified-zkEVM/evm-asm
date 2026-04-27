@@ -154,6 +154,13 @@ theorem decode_empty_string : decode [(0x80 : Byte)] = some (.bytes [], []) := b
 theorem decode_empty_list : decode [(0xC0 : Byte)] = some (.list [], []) := by
   simp [decode, decodeAux, takeBytes, decodeItems]
 
+/-- Canonical-form rejection at the top level: `decode [0x81, b]`
+    returns `none` whenever `b.toNat < 0x80`. Specializes
+    `decodeAux_canonical_rejection_single`. -/
+theorem decode_canonical_rejection_single (b : Byte) (h : b.toNat < 0x80) :
+    decode [(0x81 : Byte), b] = none := by
+  simp [decode, decodeAux, takeBytes, h]
+
 /-- `decode [0x82, b1, b2] = some (.bytes [b1, b2], [])` — the canonical
     two-byte short-string encoding. Specializes `decodeAux_two_byte_string`
     at the top-level fuel. -/
