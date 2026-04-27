@@ -447,6 +447,48 @@ theorem div128Quot_v2_q1_prime_prime_dLo_no_wrap
     omega
   rw [BitVec.toNat_mul, Nat.mod_eq_of_lt h_mul_lt]
 
+/-- **Phase 1b post-2nd-D3 BLTU no-wrap (q1'' side)** for `div128Quot_v2`.
+
+    The key tightness sub-lemma for the v2 no-wrap-free `qHat_vTop_le`
+    proof: after both D3 corrections, the `q1'' * dLo ≤ (rhat'' % 2^32)*2^32
+    + div_un1` inequality holds automatically.
+
+    **Why automatic for v2 (not for v1)**: in v2, when `rhat' < 2^32`,
+    the 2nd D3 correction fires iff `rhatUn1' = rhat'*2^32 ||| div_un1
+    < q1' * dLo`. After firing, q1'' = q1' - 1, so `q1'' * dLo ≤ q1' * dLo
+    - dLo`. Combined with `rhat'' = rhat' + dHi`, the inequality should
+    follow. When the guard is taken (rhat' ≥ 2^32), rhat'' = rhat' but
+    rhat'' % 2^32 may differ — needs a separate argument.
+
+    **Status**: stubbed. The full proof requires algebraic case analysis
+    on the guard + BLTU outcome + Word arithmetic.
+
+    Issue #1337 algorithm fix migration. -/
+theorem div128Quot_v2_phase1_no_wrap_lo
+    (uHi dHi dLo rhatUn1 div_un1 : Word)
+    (_hdHi_ge : dHi.toNat ≥ 2^31)
+    (_hdLo_lt : dLo.toNat < 2^32)
+    (_huHi_lt_vTop : uHi.toNat < dHi.toNat * 2^32 + dLo.toNat) :
+    let q1 := rv64_divu uHi dHi
+    let rhat := uHi - q1 * dHi
+    let hi1 := q1 >>> (32 : BitVec 6).toNat
+    let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+    let rhatc := if hi1 = 0 then rhat else rhat + dHi
+    let q1' := if BitVec.ult rhatUn1 (q1c * dLo) then q1c + signExtend12 4095 else q1c
+    let rhat' := if BitVec.ult rhatUn1 (q1c * dLo) then rhatc + dHi else rhatc
+    let q1'' := div128Quot_phase2b_q0' q1' rhat' dLo div_un1
+    let rhat'' :=
+      if rhat' >>> (32 : BitVec 6).toNat = 0 then
+        let qDlo2 := q1' * dLo
+        let rhatUn1' := (rhat' <<< (32 : BitVec 6).toNat) ||| div_un1
+        if BitVec.ult rhatUn1' qDlo2 then rhat' + dHi else rhat'
+      else rhat'
+    q1''.toNat * dLo.toNat ≤ (rhat''.toNat % 2^32) * 2^32 + div_un1.toNat := by
+  sorry  -- Algebraic case analysis: guard taken (rhat' ≥ 2^32) vs
+         -- guard fall-through (rhat' < 2^32) × BLTU check fires/doesn't.
+         -- Each case follows from properties of the 2nd D3 correction
+         -- (q1'' = q1' - 1 when correction fires, etc.).
+
 /-- **Modular form of un21 for `div128Quot_v2`** — v2 analog of v1's
     `div128Quot_un21_toNat` from `Div128FinalAssembly.lean:167`.
 
