@@ -48,18 +48,30 @@ open EvmAsm.Rv64.Tactics
     which combine to ensure q_out is exactly correct. Deferred to a future
     task; the stack spec delegates the proof to callers.
 
-    **Status (2026-04-27, post PR #1384)**: the original closure approach
-    via `Div128PhaseNoWrapInv` is broken — the predicate's conjunct 2
-    (Phase 1 no-wrap) is provably FALSE under skip-borrow because our
-    `div128Quot` does only 1 Phase 1b correction (vs Knuth classical 2),
-    so `rhat' < B` is not preserved by design. See
-    `memory/project_d2d3_a_counterexample.md` and
-    `memory/project_knuth_d_one_correction_design.md`. The revised
-    closure plan is in `memory/project_addback_beq_closure_plan_v2.md`:
-    direct val256-level Knuth-B + carry-driven case-split. KB-6d
-    (Knuth-B at Word level) has its own Word-level counterexample
-    (`memory/project_kb6d_false_counterexample.md`); needs
-    re-investigation at val256 level under hshift_nz constraints.
+    **🚨 STATUS (2026-04-27): counterexample to predicate found**.
+
+    Verified via `lean_run_code`: with
+    `a3 = 2^63 + 2^33, a2 = a1 = a0 = 0, b3 = 1, b2 = 2^33 - 1,
+    b1 = b0 = 0`, the input satisfies ALL runtime preconditions for
+    the call-addback-BEQ branch (hbnz, hb3nz, hshift_nz, hbltu,
+    hborrow, hcarry2_nz), but the algorithm computes
+    `q_out = qHat - 1 = 2^63 + 2^33 - 4 = 9223372045444710396` while
+    `q_true = val256(a) / val256(b) = 2^63 + 2^32 - 2 = 9223372041149743102`.
+    The discrepancy is `2^32 - 2` ≈ 4.3 × 10⁹.
+
+    **Root cause (per `memory/project_knuth_d_one_correction_design.md`
+    + `memory/project_n4callbeq_addback_overshoot_2pow32.md`)**: our
+    `div128Quot` does only 1 Phase 1b correction (vs Knuth classical
+    2-correction loop). Per-digit Knuth Theorem B gives overshoot ≤ 2,
+    which combined at val256 level gives qHat overshoot up to ~2^33.
+    The BEQ branch's at-most-2 outer addbacks can only correct
+    overshoots of 0/1/2 — not 2^32-scale.
+
+    **Implication**: either (a) the Lean abstraction
+    `fullDivN4CallAddbackBeqPost` doesn't match the actual RISC-V
+    program (the program may have additional correction logic), or (b)
+    the actual algorithm is genuinely buggy on this input class. Cross-
+    reference urgently needed before any closure attempt.
 
     Mirror of `n4CallSkipSemanticHolds` for the call+addback branch. -/
 def n4CallAddbackBeqSemanticHolds (a b : EvmWord) : Prop :=
