@@ -173,6 +173,20 @@ theorem encode_nonempty (item : RLPItem) : (encode item).length > 0 := by
     simp [encode]
     split <;> simp [List.length_append]
 
+/-! ## Round-trip correctness (parametric cases)
+
+These lemmas prove `decode (encode (.bytes [b])) = some (.bytes [b], [])`
+mechanically (not via `decide`) by chaining the existing `encodeBytes_*`
+and `decode_*` characterizations. -/
+
+/-- Empty byte string round-trip:
+    `decode (encode (.bytes [])) = some (.bytes [], [])`. Chains
+    `encodeBytes_nil` with `decode_empty_string`. -/
+theorem decode_encode_bytes_empty :
+    decode (encode (.bytes [])) = some (.bytes [], []) := by
+  simp only [encode, encodeBytes_nil]
+  exact decode_empty_string
+
 /-! ## Round-trip correctness (concrete cases)
 
 The round-trip property `decode (encode item) = some (item, [])` is verified
