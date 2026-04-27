@@ -1824,6 +1824,42 @@ theorem addback_carry_partition_v2 (a b : EvmWord)
          --   - Addback correctness: each addback adds b back, so 2
          --     addbacks recover the true remainder iff qHat overshot by 2.
 
+/-- **qHat > val256(a_shifted) / val256(b_shifted) under v2 borrow** —
+    direct corollary of `qHat_mul_b_shifted_gt_a_shifted_under_runtime_v2`.
+
+    Converts the multiplicative form `qHat * val256(b') > val256(a')` to
+    the divisor form `qHat > val256(a') / val256(b')` via Nat division.
+    Useful for the shifted-domain carry partition.
+
+    Issue #1337 algorithm fix migration. -/
+theorem qHat_gt_q_true_shifted_under_runtime_v2 (a b : EvmWord)
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hborrow_v2 : isAddbackBorrowN4CallEvm_v2 a b) :
+    let shift := (clzResult (b.getLimbN 3)).1.toNat % 64
+    let antiShift :=
+      (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64
+    let b3' := ((b.getLimbN 3) <<< shift) ||| ((b.getLimbN 2) >>> antiShift)
+    let b2' := ((b.getLimbN 2) <<< shift) ||| ((b.getLimbN 1) >>> antiShift)
+    let b1' := ((b.getLimbN 1) <<< shift) ||| ((b.getLimbN 0) >>> antiShift)
+    let b0' := (b.getLimbN 0) <<< shift
+    let u4 := (a.getLimbN 3) >>> antiShift
+    let u3 := ((a.getLimbN 3) <<< shift) ||| ((a.getLimbN 2) >>> antiShift)
+    let u2 := ((a.getLimbN 2) <<< shift) ||| ((a.getLimbN 1) >>> antiShift)
+    let u1 := ((a.getLimbN 1) <<< shift) ||| ((a.getLimbN 0) >>> antiShift)
+    let u0 := (a.getLimbN 0) <<< shift
+    let qHat := div128Quot_v2 u4 u3 b3'
+    qHat.toNat > val256 u0 u1 u2 u3 / val256 b0' b1' b2' b3' := by
+  intro shift antiShift b3' b2' b1' b0' u4 u3 u2 u1 u0 qHat
+  -- From the proven shifted-domain lemma:
+  have h_mul := qHat_mul_b_shifted_gt_a_shifted_under_runtime_v2 a b hb3nz hborrow_v2
+  simp only [] at h_mul
+  -- h_mul : qHat.toNat * val256 b0' b1' b2' b3' > val256 u0 u1 u2 u3.
+  -- Goal: qHat.toNat > val256 u0 u1 u2 u3 / val256 b0' b1' b2' b3'.
+  -- This requires `Nat.div_lt_iff_lt_mul` or equivalent. The key is val256 b' > 0.
+  -- Sub-lemma stub: val256 positivity proof deferred. The proof structure is:
+  --   from val256 b' > 0 + h_mul, omega gives the goal via Nat.div_lt_iff.
+  sorry
+
 /-- **Single-addback case for v2**: under v2's Knuth-B + runtime BEQ
     preconditions + carry ≠ 0 (= single-addback), `qHat = q_true + 1`.
 
