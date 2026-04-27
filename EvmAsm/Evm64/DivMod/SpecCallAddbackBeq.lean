@@ -141,12 +141,17 @@ def n4CallAddbackBeqSemanticHolds (a b : EvmWord) : Prop :=
 
     **Implication**: this theorem proves that
     `n4CallAddbackBeqSemanticHolds_of_*` (any closure from runtime
-    conditions) cannot exist — the predicate is genuinely false on
-    runtime-reachable inputs. The user-facing
-    `evm_div_n4_full_call_addback_beq_stack_pre_spec` and its
-    relatives have a vacuous semantic correctness bridge for this
-    input class, until the algorithm is fixed (see
-    `memory/project_knuth_d_one_correction_design.md`). -/
+    conditions) cannot exist FOR V1 — the v1 predicate is genuinely false
+    on runtime-reachable inputs.
+
+    **STATUS (2026-04-27):** the algorithm IS fixed via `div128Quot_v2`
+    (Lean) and `divK_div128_v2` (RISC-V, PR #1389 merged). The v2
+    predicate `n4CallAddbackBeqSemanticHolds_v2` HOLDS on this same
+    counterexample input (see `n4CallAddbackBeqSemanticHolds_v2_holds_on_counterexample`
+    below). After full v2 migration (path 3 closure: PR #1393), the v2
+    user-facing theorem will subsume this; this v1 counterexample becomes
+    a now-vacuous reminder of why the migration was needed and can be
+    deleted. -/
 theorem n4CallAddbackBeqSemanticHolds_counterexample :
     ¬ (n4CallAddbackBeqSemanticHolds
         (EvmWord.fromLimbs (fun i => match i with
