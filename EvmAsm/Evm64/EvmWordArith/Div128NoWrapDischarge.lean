@@ -262,11 +262,54 @@ theorem n4Q1Prime_le_q_true_top_of_skip_borrow
     Estimated: ~80-100 LOC. -/
 theorem q_true_top_le_n4QTopPhase1
     (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
-    (_hb3nz : b3 ≠ 0)
-    (_hshift_nz : (clzResult b3).1 ≠ 0) :
+    (hb3nz : b3 ≠ 0)
+    (hshift_nz : (clzResult b3).1 ≠ 0) :
     (val256 a0 a1 a2 a3 / val256 b0 b1 b2 b3) / 2^32 ≤
       n4QTopPhase1 a2 a3 b2 b3 := by
-  sorry
+  -- Apply existing val256-level ratio bound:
+  --   val256(a)/val256(b) ≤ (u4*2^64 + u3) / b3'.
+  have h := val256_ratio_le_u_total_div_b3_prime a0 a1 a2 a3 b0 b1 b2 b3
+    hshift_nz hb3nz
+  simp only [] at h
+  -- Set up Nat shorthand: u4n = u4.toNat, u3n = u3.toNat, b3'n = b3'.toNat.
+  set u4n :=
+    (a3 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64)).toNat
+    with hu4n_def
+  set u3n :=
+    ((a3 <<< ((clzResult b3).1.toNat % 64)) |||
+      (a2 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64))).toNat
+    with hu3n_def
+  set b3'n :=
+    ((b3 <<< ((clzResult b3).1.toNat % 64)) |||
+      (b2 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64))).toNat
+    with hb3'n_def
+  -- Divide both sides of h by 2^32.
+  have h_div : (val256 a0 a1 a2 a3 / val256 b0 b1 b2 b3) / 2^32 ≤
+      (u4n * 2^64 + u3n) / b3'n / 2^32 := Nat.div_le_div_right h
+  -- Algebraic bridge: (u4n*2^64 + u3n) / b3'n / 2^32 = (u4n*2^32 + u3n/2^32) / b3'n.
+  have h_alg : (u4n * 2^64 + u3n) / b3'n / 2^32 =
+      (u4n * 2^32 + u3n / 2^32) / b3'n := by
+    rw [Nat.div_div_eq_div_mul, Nat.mul_comm b3'n (2^32),
+        ← Nat.div_div_eq_div_mul]
+    congr 1
+    -- Goal: (u4n * 2^64 + u3n) / 2^32 = u4n * 2^32 + u3n / 2^32.
+    have h_rearr : u4n * 2^64 + u3n = u3n + u4n * 2^32 * 2^32 := by ring
+    rw [h_rearr, Nat.add_mul_div_right _ _ (by decide : (0:Nat) < 2^32)]
+    omega
+  rw [h_alg] at h_div
+  -- Now goal RHS uses bundles; unfold them and compare.
+  rw [n4QTopPhase1_unfold, n4U4_unfold, n4DivUn1_unfold, n4Un3_unfold,
+      n4B3Prime_unfold, n4ClzShift_unfold, n4ClzAntiShift_unfold]
+  -- Convert (un3 >>> 32).toNat to u3n / 2^32 via BitVec lemmas.
+  have h_u3_shift :
+      (((a3 <<< ((clzResult b3).1.toNat % 64)) |||
+        (a2 >>>
+          ((signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64))) >>>
+          (32 : BitVec 6).toNat).toNat = u3n / 2^32 := by
+    rw [BitVec.toNat_ushiftRight, EvmAsm.Rv64.AddrNorm.bv6_toNat_32,
+        Nat.shiftRight_eq_div_pow]
+  rw [h_u3_shift]
+  exact h_div
 
 /-- **D1c-C (STUB)**: Phase 1 lower bound, wrapped on bundles.
     Repackages `algorithmQ1Prime_ge_q_true_1` so the inequality is
