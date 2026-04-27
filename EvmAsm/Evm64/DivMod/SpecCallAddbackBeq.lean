@@ -968,14 +968,51 @@ theorem div128Quot_v2_le_val256_div_plus_two
     let u4 := a3 >>> antiShift
     let un3 := (a3 <<< shift) ||| (a2 >>> antiShift)
     let b3' := (b3 <<< shift) ||| (b2 >>> antiShift)
+    let dHi := b3' >>> (32 : BitVec 6).toNat
+    let dLo := (b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+    let div_un1 := un3 >>> (32 : BitVec 6).toNat
+    let div_un0 := (un3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+    let q1 := rv64_divu u4 dHi
+    let rhat := u4 - q1 * dHi
+    let hi1 := q1 >>> (32 : BitVec 6).toNat
+    let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+    let rhatc := if hi1 = 0 then rhat else rhat + dHi
+    let qDlo := q1c * dLo
+    let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
+    let q1' := if BitVec.ult rhatUn1 qDlo then q1c + signExtend12 4095 else q1c
+    let rhat' := if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc
+    let q1'' := div128Quot_phase2b_q0' q1' rhat' dLo div_un1
+    let rhat'' :=
+      if rhat' >>> (32 : BitVec 6).toNat = 0 then
+        let qDlo2 := q1' * dLo
+        let rhatUn1' := (rhat' <<< (32 : BitVec 6).toNat) ||| div_un1
+        if BitVec.ult rhatUn1' qDlo2 then rhat' + dHi else rhat'
+      else rhat'
+    let cu_rhat_un1 := (rhat'' <<< (32 : BitVec 6).toNat) ||| div_un1
+    let cu_q1_dlo := q1'' * dLo
+    let un21 := cu_rhat_un1 - cu_q1_dlo
+    let q0 := rv64_divu un21 dHi
+    let rhat2 := un21 - q0 * dHi
+    let hi2 := q0 >>> (32 : BitVec 6).toNat
+    let q0c := if hi2 = 0 then q0 else q0 + signExtend12 4095
+    let rhat2c := if hi2 = 0 then rhat2 else rhat2 + dHi
+    let q0' := div128Quot_phase2b_q0' q0c rhat2c dLo div_un0
+    let rhat2' := if rhat2c >>> (32 : BitVec 6).toNat = 0 then
+                    (if BitVec.ult ((rhat2c <<< (32 : BitVec 6).toNat) ||| div_un0)
+                                    (q0c * dLo) then rhat2c + dHi else rhat2c)
+                  else rhat2c
+    -- v1-style no-wrap implications (mirror v1's `div128Quot_le_val256_div_plus_two`).
+    q1''.toNat * dLo.toNat ≤ (rhat''.toNat % 2^32) * 2^32 + div_un1.toNat →
+    q0'.toNat * dLo.toNat ≤ rhat2'.toNat * 2^32 + div_un0.toNat →
+    q0'.toNat < 2^32 →
     (div128Quot_v2 u4 un3 b3').toNat ≤
       val256 a0 a1 a2 a3 / val256 b0 b1 b2 b3 + 2 := by
-  intro shift antiShift u4 un3 b3'
+  intro shift antiShift u4 un3 b3' dHi dLo div_un1 div_un0 q1 rhat hi1 q1c rhatc
+        qDlo rhatUn1 q1' rhat' q1'' rhat'' cu_rhat_un1 cu_q1_dlo un21 q0 rhat2
+        hi2 q0c rhat2c q0' rhat2' h_ph1_no_wrap_lo h_ph2_no_wrap hq0_lt
   -- Discharge Step 1's preconditions (same as v1's pattern in
   -- div128Quot_le_val256_div_plus_two from Div128CallSkipClose.lean:267).
   have hb3prime_ge_pow63 : b3'.toNat ≥ 2^63 := b3_prime_ge_pow63 b3 b2 hb3nz _
-  let dHi := b3' >>> (32 : BitVec 6).toNat
-  let dLo := (b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
   have hdHi_ge : dHi.toNat ≥ 2^31 := div128Quot_dHi_ge_pow31 b3' hb3prime_ge_pow63
   have hdLo_lt : dLo.toNat < 2^32 := Word_ushiftRight_32_lt_pow32
   have hu4_lt_b3prime : u4.toNat < b3'.toNat := isCallTrialN4_toNat_lt a3 b2 b3 hcall
@@ -983,9 +1020,9 @@ theorem div128Quot_v2_le_val256_div_plus_two
     div128Quot_vTop_decomp b3'
   have hu4_lt_vTop : u4.toNat < dHi.toNat * 2^32 + dLo.toNat := by
     rw [← h_vtop]; exact hu4_lt_b3prime
-  -- Step 1 (sorry-stubbed; proof plan in div128Quot_v2_qHat_vTop_le's docstring):
-  -- multiplication form qHat * vTop ≤ uHi * 2^64 + uLo for div128Quot_v2.
-  have h_step1 := div128Quot_v2_qHat_vTop_le u4 un3 b3' hdHi_ge hdLo_lt hu4_lt_vTop
+  -- Step 1 (NOW PROVEN via div128Quot_v2_qHat_vTop_le_full): multiplication form.
+  have h_step1 := div128Quot_v2_qHat_vTop_le_full u4 un3 b3' hdHi_ge hdLo_lt
+    hu4_lt_vTop h_ph1_no_wrap_lo h_ph2_no_wrap hq0_lt
   -- Convert multiplication bound to division bound.
   have hb3prime_pos : 0 < b3'.toNat := by omega
   have h_div_le : (div128Quot_v2 u4 un3 b3').toNat ≤
