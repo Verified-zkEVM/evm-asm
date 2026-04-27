@@ -806,6 +806,44 @@ theorem div128Quot_v2_un21_toNat_case
     show (A + 2^64 - B) % 2^64 = A + 2^64 - B
     exact Nat.mod_eq_of_lt (by omega : A + 2^64 - B < 2^64)
 
+/-- **Untruncated KB-Compose V2** — pure-Nat version of
+    `knuth_compose_qHat_vTop_le_nat_v2` using the untruncated `rhat'`
+    instead of `rhat' % 2^32`. The proof is actually CLEANER than the
+    truncated original because we don't need the
+    `rhat' = (rhat' / 2^32) * 2^32 + rhat' % 2^32` split — `rhat' * 2^64`
+    appears directly.
+
+    Issue #1337 algorithm fix migration. Alternative path 3 supporting lemma. -/
+theorem knuth_compose_qHat_vTop_le_nat_v2_untruncated
+    (q1' q0' rhat' rhat2' dHi dLo div_un1 div_un0 uHi : Nat)
+    (h_ph1_eucl : q1' * dHi + rhat' = uHi)
+    (h_ph1_no_wrap_lo : q1' * dLo ≤ rhat' * 2^32 + div_un1)
+    (h_un21_ph2 : q0' * dHi + rhat2' = rhat' * 2^32 + div_un1 - q1' * dLo)
+    (h_ph2_no_wrap : q0' * dLo ≤ rhat2' * 2^32 + div_un0) :
+    (q1' * 2^32 + q0') * (dHi * 2^32 + dLo) ≤
+    uHi * 2^64 + div_un1 * 2^32 + div_un0 := by
+  have h_un21_plus :
+      q0' * dHi + rhat2' + q1' * dLo = rhat' * 2^32 + div_un1 := by omega
+  have h_mul : q0' * dHi * 2^32 + rhat2' * 2^32 + q1' * dLo * 2^32 =
+               rhat' * 2^64 + div_un1 * 2^32 := by
+    have h := congr_arg (· * 2^32) h_un21_plus
+    simp only at h
+    have h_expand_lhs : (q0' * dHi + rhat2' + q1' * dLo) * 2^32 =
+                        q0' * dHi * 2^32 + rhat2' * 2^32 + q1' * dLo * 2^32 := by ring
+    have h_expand_rhs : (rhat' * 2^32 + div_un1) * 2^32 =
+                        rhat' * 2^64 + div_un1 * 2^32 := by ring
+    linarith
+  have h_uHi_64 : uHi * 2^64 = q1' * dHi * 2^64 + rhat' * 2^64 := by
+    have h := congr_arg (· * 2^64) h_ph1_eucl
+    simp only at h
+    have : (q1' * dHi + rhat') * 2^64 = q1' * dHi * 2^64 + rhat' * 2^64 := by ring
+    linarith
+  have h_lhs : (q1' * 2^32 + q0') * (dHi * 2^32 + dLo) =
+               q1' * dHi * 2^64 + q1' * dLo * 2^32 +
+               q0' * dHi * 2^32 + q0' * dLo := by ring
+  rw [h_lhs]
+  linarith
+
 /-- Pure-Nat helper for the untruncated bridge: under the two-bound
     invariant `B ≤ A_trunc + k * 2^64` and `A_trunc + k * 2^64 - B < 2^64`,
     plus `A_trunc < 2^64` and `B < 2^64`, `(A_trunc + 2^64 - B) % 2^64 =
