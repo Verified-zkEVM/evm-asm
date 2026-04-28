@@ -234,6 +234,19 @@ theorem decode_pair_list_byte_then_empty_list
       some (.list [.bytes [b], .list []], []) := by
   simp [decode, decodeAux, takeBytes, decodeItems, h]
 
+/-- Two-element list with one large byte and one small byte:
+    `decode [0xC3, 0x81, b_large, b_small] = some (.list [.bytes [b_large], .bytes [b_small]], [])`
+    when `b_large ≥ 0x80` and `b_small < 0x80`. The outer short-list
+    branch fires with payload length 3, the inner large-byte string is
+    decoded under canonical form (0x81 prefix), then the small-byte
+    item, then the outer closes. -/
+theorem decode_pair_list_large_then_small_byte
+    (b_large b_small : Byte)
+    (h_l : ¬ b_large.toNat < 0x80) (h_s : b_small.toNat < 0x80) :
+    decode [(0xC3 : Byte), (0x81 : Byte), b_large, b_small] =
+      some (.list [.bytes [b_large], .bytes [b_small]], []) := by
+  simp [decode, decodeAux, takeBytes, decodeItems, h_l, h_s]
+
 /-- Singleton list containing a two-byte short string:
     `decode [0xC3, 0x82, b1, b2] = some (.list [.bytes [b1, b2]], [])`.
     The outer short-list branch fires with payload length 3, the inner
