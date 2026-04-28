@@ -1935,20 +1935,43 @@ theorem div128Quot_v4_un21_lt_vTop (uHi uLo vTop : Word)
     let cu_q1_dlo := q1'' * dLo
     let un21 := cu_rhat_un1 - cu_q1_dlo
     un21.toNat < vTop.toNat := by
-  -- ⚠ INCOMPLETE: the previous proof used `_phase1_final_eucl_bridge`'s
-  -- third claim `rhat''.toNat < 2^32`, which we have now dropped because
-  -- it's empirically FALSE in some shift-normalized inputs.
+  -- DEFERRED: full closure needs Word↔Nat truncation absorption.
   --
-  -- v4's algorithm is still correct (verified empirically): the Phase-2
-  -- setup `(rhat'' << 32) | div_un1` truncates rhat'' to its low 32
-  -- bits, but the downstream Word arithmetic absorbs the truncation
-  -- correctly (the resulting un21 still equals the abstract Phase-1
-  -- remainder mod 2^64, and that's < vTop).
+  -- Mathematical argument (∀ inputs, including rhat'' ≥ 2^32):
   --
-  -- A sound proof needs to argue:
-  --   un21.toNat = (uHi*2^32 + div_un1) mod vTop = Phase-1 remainder.
-  -- via Word↔Nat reasoning that handles `(rhat'' mod 2^32) * 2^32` and
-  -- the underflow of the Word subtract correctly.
+  -- Step 1 (proven via `_phase1_perfect`): q1''.toNat = q_true_phase1
+  --   = (uHi*2^32 + div_un1) / vTop.
+  --
+  -- Step 2 (proven via `_phase1_final_eucl_bridge`): Phase-1a Eucl
+  --   q1''.toNat * dHi.toNat ≤ uHi.toNat AND
+  --   rhat''.toNat = uHi.toNat - q1''.toNat * dHi.toNat.
+  --
+  -- Step 3 (proven via `_phase1_no_wrap_lo`):
+  --   q1''.toNat * dLo.toNat ≤ rhat''.toNat * 2^32 + div_un1.toNat.
+  --
+  -- Step 4 (Word↔Nat with truncation absorption):
+  --   cu_rhat_un1.toNat = (rhat''.toNat * 2^32 + div_un1.toNat) mod 2^64
+  --     (via `halfword_combine_mod` — works for ANY rhat'', not just rhat'' < 2^32).
+  --   cu_q1_dlo.toNat = q1''.toNat * dLo.toNat (no overflow since q1'' ≤ 2^32, dLo < 2^32).
+  --   un21.toNat = (cu_rhat_un1.toNat + 2^64 - cu_q1_dlo.toNat) mod 2^64
+  --     (Word subtraction at toNat).
+  --
+  -- Step 5 (algebra): un21.toNat = (rhat''.toNat * 2^32 + div_un1.toNat
+  --   - q1''.toNat * dLo.toNat) mod 2^64.
+  --
+  -- Step 6 (un21 = Phase-1 remainder): substituting Phase-1a Eucl:
+  --   rhat''*2^32 + div_un1 - q1''*dLo
+  --   = (uHi - q1''*dHi)*2^32 + div_un1 - q1''*dLo
+  --   = uHi*2^32 + div_un1 - q1''*(dHi*2^32 + dLo)
+  --   = uHi*2^32 + div_un1 - q1''*vTop
+  --   = (uHi*2^32 + div_un1) mod vTop  (since q1'' = q_true).
+  --
+  -- Step 7 (mod 2^64 absorption): Phase-1 remainder < vTop ≤ 2^64 - 1.
+  --   So mod 2^64 is identity. un21.toNat = Phase-1 remainder < vTop.
+  --
+  -- The truncation in step 4 is ABSORBED by the modular arithmetic in
+  -- step 5 — even when (rhat'' << 32 | div_un1) truncates, the Word
+  -- subtraction with the underflow gives the correct abstract value.
   --
   -- See `project_phase1_rhat_can_exceed_pow32.md` in memory.
   sorry
