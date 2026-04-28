@@ -1546,15 +1546,15 @@ private theorem div128Quot_v4_phase1_final_eucl_bridge
         if BitVec.ult rhatUn1' qDlo2 then rhat' + dHi else rhat'
       else rhat'
     q1''.toNat * dHi.toNat ≤ uHi.toNat ∧
-    rhat''.toNat = uHi.toNat - q1''.toNat * dHi.toNat ∧
-    rhat''.toNat < 2 ^ 32 := by
+    rhat''.toNat = uHi.toNat - q1''.toNat * dHi.toNat := by
   sorry  -- Extension of `_phase1_rhatc_bridge` through 2 corrections.
-         -- Each correction maintains the Phase-1a Euclidean. The
-         -- rhat'' < 2^32 bound comes from Knuth's classical Phase-1
-         -- bound: rhat'' ≤ rhatc + 2*dHi ≤ 3*dHi < 2^32 + 2*2^32 < 2^34
-         -- — needs tighter argument that under shift-norm rhat'' ≤ dHi - 1
-         -- (the Phase-1a remainder bound), which is preserved by the
-         -- 2-correction loop terminating with the exact quotient.
+         -- Each correction maintains the Phase-1a Euclidean.
+         -- The previously-claimed `rhat''.toNat < 2^32` was DROPPED:
+         -- empirical search found cases where rhat'' ≥ 2^32 (with
+         -- rhat'' up to ~2^32 + 2^30). v4's algorithm still correct
+         -- because Phase-2 setup truncates via `(rhat'' << 32) | div_un1`
+         -- and downstream Phase-2 div absorbs the truncation.
+         -- See `project_phase1_rhat_can_exceed_pow32.md` in memory.
 
 /-- **Phase-1 no-wrap (v4)**: after v4's 2-correction Phase-1b, the
     quotient `q1''` doesn't overshoot the Phase-1 sub-divisor's remainder
@@ -1600,7 +1600,7 @@ theorem div128Quot_v4_phase1_no_wrap_lo (uHi uLo vTop : Word)
   -- Phase-1 final Euclidean bridge: q1''*dHi + rhat'' = uHi at toNat.
   have h_bridge := div128Quot_v4_phase1_final_eucl_bridge uHi uLo vTop
     h_vTop_ge_pow63 h_uHi_lt_vTop
-  obtain ⟨h_q1''_dHi_le, h_rhat''_eq, _h_rhat''_lt⟩ := h_bridge
+  obtain ⟨h_q1''_dHi_le, h_rhat''_eq⟩ := h_bridge
   -- Apply pure-Nat helper: q1'' ≤ q_true gives the no-wrap inequality.
   have h_q1''_le : q1''.toNat ≤ (uHi.toNat * 2 ^ 32 + div_un1.toNat) / vTop.toNat := by
     rw [h_perfect]
@@ -1648,70 +1648,23 @@ theorem div128Quot_v4_un21_lt_vTop (uHi uLo vTop : Word)
     let cu_q1_dlo := q1'' * dLo
     let un21 := cu_rhat_un1 - cu_q1_dlo
     un21.toNat < vTop.toNat := by
-  intro dHi dLo div_un1 q1 rhat hi1 q1c rhatc q1' rhat' q1'' rhat''
-        cu_rhat_un1 cu_q1_dlo un21
-  -- Standard Word-level facts.
-  have hdHi_lt : dHi.toNat < 2 ^ 32 := Word_ushiftRight_32_lt_pow32
-  have hdLo_lt : dLo.toNat < 2 ^ 32 := Word_ushiftRight_32_lt_pow32
-  have h_div_un1_lt : div_un1.toNat < 2 ^ 32 := Word_ushiftRight_32_lt_pow32
-  have h_decomp : vTop.toNat = dHi.toNat * 2 ^ 32 + dLo.toNat :=
-    div128Quot_vTop_decomp vTop
-  -- `_phase1_perfect` gives q1''.toNat = q_true.
-  have h_perfect := div128Quot_v4_phase1_perfect uHi uLo vTop
-    h_vTop_ge_pow63 h_uHi_lt_vTop
-  -- Phase-1 final Euclidean: q1''*dHi + rhat'' = uHi at toNat, rhat'' < 2^32.
-  have h_eucl := div128Quot_v4_phase1_final_eucl_bridge uHi uLo vTop
-    h_vTop_ge_pow63 h_uHi_lt_vTop
-  obtain ⟨h_q1''_dHi_le, h_rhat''_eq, h_rhat''_lt⟩ := h_eucl
-  -- Phase-1 no-wrap: q1''*dLo ≤ rhat''*2^32 + div_un1.
-  have h_no_wrap := div128Quot_v4_phase1_no_wrap_lo uHi uLo vTop
-    h_vTop_ge_pow63 h_uHi_lt_vTop
-  -- q1''.toNat ≤ 2^32 (Knuth bound).
-  have h_q1''_lt : q1''.toNat ≤ 2 ^ 32 := by
-    have h_q_true_lt : (uHi.toNat * 2^32 + div_un1.toNat) /
-                       (dHi.toNat * 2^32 + dLo.toNat) < 2^32 :=
-      div128Quot_q_true_1_lt_pow32 uHi dHi dLo div_un1 h_div_un1_lt
-        (h_decomp ▸ h_uHi_lt_vTop)
-    linarith [h_perfect]
-  -- Word↔Nat bridges.
-  have h_q_dLo_eq : (q1'' * dLo).toNat = q1''.toNat * dLo.toNat := by
-    rw [BitVec.toNat_mul]
-    apply Nat.mod_eq_of_lt
-    calc q1''.toNat * dLo.toNat
-        ≤ 2^32 * dLo.toNat := Nat.mul_le_mul_right _ h_q1''_lt
-      _ < 2^32 * 2^32 := (Nat.mul_lt_mul_left (by decide : 0 < 2^32)).mpr hdLo_lt
-      _ = 2^64 := by decide
-  have h_rhatUn1_eq : ((rhat'' <<< (32 : BitVec 6).toNat) ||| div_un1).toNat =
-                       rhat''.toNat * 2^32 + div_un1.toNat := by
-    rw [EvmAsm.Rv64.AddrNorm.bv6_toNat_32]
-    exact EvmWord.halfword_combine rhat'' div_un1 h_rhat''_lt h_div_un1_lt
-  -- un21.toNat = rhat''*2^32 + div_un1 - q1''*dLo (Word subtract, no underflow).
-  have h_un21_toNat : un21.toNat = rhat''.toNat * 2^32 + div_un1.toNat -
-                                   q1''.toNat * dLo.toNat := by
-    show (cu_rhat_un1 - cu_q1_dlo).toNat = _
-    rw [BitVec.toNat_sub, h_rhatUn1_eq, h_q_dLo_eq]
-    have h_le : q1''.toNat * dLo.toNat ≤ rhat''.toNat * 2^32 + div_un1.toNat :=
-      h_no_wrap
-    have h_pow : (0 : Nat) < 2^64 := by decide
-    omega
-  -- Phase-1 strict upper: (q1'' + 1) * vTop > uHi*2^32 + div_un1.
-  have h_vTop_pos : 0 < dHi.toNat * 2^32 + dLo.toNat := by
-    have h_dHi_ge : 2^31 ≤ dHi.toNat := div128Quot_dHi_ge_pow31 vTop h_vTop_ge_pow63
-    have h_dHi_pos : 0 < dHi.toNat := lt_of_lt_of_le (by decide : (0:Nat) < 2^31) h_dHi_ge
-    exact Nat.add_pos_left (Nat.mul_pos h_dHi_pos (by decide)) _
-  have h_succ_gt : (q1''.toNat + 1) * vTop.toNat > uHi.toNat * 2^32 + div_un1.toNat := by
-    rw [h_perfect, h_decomp]
-    -- (a/b + 1) * b > a, derived from `a/b < a/b + 1` via div_lt_iff_lt_mul.
-    have h_lt_self : (uHi.toNat * 2^32 + div_un1.toNat) /
-                       (dHi.toNat * 2^32 + dLo.toNat) <
-                     (uHi.toNat * 2^32 + div_un1.toNat) /
-                       (dHi.toNat * 2^32 + dLo.toNat) + 1 := Nat.lt_succ_self _
-    rwa [Nat.div_lt_iff_lt_mul h_vTop_pos] at h_lt_self
-  -- Apply pure-Nat helper.
-  rw [h_un21_toNat]
-  exact div128Quot_v4_un21_lt_vTop_arith uHi.toNat vTop.toNat dHi.toNat dLo.toNat
-    div_un1.toNat q1''.toNat rhat''.toNat
-    h_decomp h_succ_gt h_rhat''_eq h_q1''_dHi_le h_no_wrap
+  -- ⚠ INCOMPLETE: the previous proof used `_phase1_final_eucl_bridge`'s
+  -- third claim `rhat''.toNat < 2^32`, which we have now dropped because
+  -- it's empirically FALSE in some shift-normalized inputs.
+  --
+  -- v4's algorithm is still correct (verified empirically): the Phase-2
+  -- setup `(rhat'' << 32) | div_un1` truncates rhat'' to its low 32
+  -- bits, but the downstream Word arithmetic absorbs the truncation
+  -- correctly (the resulting un21 still equals the abstract Phase-1
+  -- remainder mod 2^64, and that's < vTop).
+  --
+  -- A sound proof needs to argue:
+  --   un21.toNat = (uHi*2^32 + div_un1) mod vTop = Phase-1 remainder.
+  -- via Word↔Nat reasoning that handles `(rhat'' mod 2^32) * 2^32` and
+  -- the underflow of the Word subtract correctly.
+  --
+  -- See `project_phase1_rhat_can_exceed_pow32.md` in memory.
+  sorry
 
 /-- **Phase-2 Euclidean for q0'' (v4).** Combines Phase-2 perfection with
     the classical Euclidean to give the closure step for
