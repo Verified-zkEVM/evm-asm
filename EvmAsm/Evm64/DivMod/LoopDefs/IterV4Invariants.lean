@@ -527,8 +527,8 @@ theorem div128Quot_v4_un21_lt_vTop (uHi uLo vTop : Word)
     the classical Euclidean to give the closure step for
     `div128Quot_v4_phase2_no_wrap_lo`. -/
 theorem div128Quot_v4_phase2_euclidean (uHi uLo vTop : Word)
-    (_h_vTop_ge_pow63 : vTop.toNat ≥ 2^63)
-    (_h_uHi_lt_vTop : uHi.toNat < vTop.toNat) :
+    (h_vTop_ge_pow63 : vTop.toNat ≥ 2^63)
+    (h_uHi_lt_vTop : uHi.toNat < vTop.toNat) :
     let dHi := vTop >>> (32 : BitVec 6).toNat
     let dLo := (vTop <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
     let div_un0 := (uLo <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
@@ -570,7 +570,14 @@ theorem div128Quot_v4_phase2_euclidean (uHi uLo vTop : Word)
     let q0'' := div128Quot_phase2b_q0' q0' rhat2' dLo div_un0
     q0''.toNat * (dHi.toNat * 2^32 + dLo.toNat) ≤
       un21.toNat * 2^32 + div_un0.toNat := by
-  sorry  -- Direct from `_phase2_perfect` (q0'' = q*_phase2) plus
-         -- `Nat.div_mul_le_self`.
+  intro dHi dLo div_un0 div_un1 q1 rhat hi1 q1c rhatc q1' rhat' q1'' rhat''
+        cu_rhat_un1 cu_q1_dlo un21 q0 rhat2 hi2 q0c rhat2c q0' rhat2' q0''
+  -- `_phase2_perfect` gives q0''.toNat = (un21*2^32 + div_un0) / vTop.
+  have h_perfect := div128Quot_v4_phase2_perfect uHi uLo vTop
+    h_vTop_ge_pow63 h_uHi_lt_vTop
+  rw [show q0''.toNat = (un21.toNat * 2^32 + div_un0.toNat) /
+                        (dHi.toNat * 2^32 + dLo.toNat) from h_perfect]
+  -- Standard `q * vTop ≤ un21*2^32 + div_un0` floor inequality.
+  exact Nat.div_mul_le_self _ _
 
 end EvmAsm.Evm64
