@@ -275,14 +275,35 @@ theorem div128Quot_v4_phase1_perfect (uHi uLo vTop : Word)
     let q1'' := div128Quot_phase2b_q0' q1' rhat' dLo div_un1
     q1''.toNat = (uHi.toNat * 2^32 + div_un1.toNat) /
                  (dHi.toNat * 2^32 + dLo.toNat) := by
-  -- Dispatcher proof outline:
-  --   have h_range := div128Quot_v4_phase1c_in_knuth_range ...
-  --   case-split via Nat.lt_or_ge on q1c.toNat - q_true ∈ {0, 1, 2}.
-  --   In each case, apply the appropriate `_phase1_overshoot_k_sub`.
-  -- Direct attempt failed on omega's let-vs-unfolded q_true unification.
-  -- Likely fix: introduce an abbreviation for q_true via `set`, fold
-  -- both h_range and the goal under the same name.
-  sorry
+  intro dHi dLo div_un1 q1 rhat hi1 q1c rhatc q1' rhat' q1''
+  -- Knuth range gives q_true ≤ q1c.toNat ≤ q_true + 2.
+  have h_range := div128Quot_v4_phase1c_in_knuth_range uHi uLo vTop
+    h_vTop_ge_pow63 h_uHi_lt_vTop
+  obtain ⟨h_lower, h_upper⟩ := h_range
+  -- linarith handles let-bindings more gracefully than omega: it matches
+  -- on syntactic form and lets `change`/definitional reduction unify the
+  -- q_true unfoldings between h_range and the goal.
+  rcases Nat.lt_or_ge q1c.toNat
+      ((uHi.toNat * 2^32 + div_un1.toNat) /
+       (dHi.toNat * 2^32 + dLo.toNat) + 1) with h1 | h1
+  · -- q1c.toNat = q_true (overshoot 0).
+    have h_eq : q1c.toNat = (uHi.toNat * 2^32 + div_un1.toNat) /
+                            (dHi.toNat * 2^32 + dLo.toNat) := by linarith
+    exact div128Quot_v4_phase1_overshoot_0_sub uHi uLo vTop
+      h_vTop_ge_pow63 h_uHi_lt_vTop h_eq
+  · rcases Nat.lt_or_ge q1c.toNat
+        ((uHi.toNat * 2^32 + div_un1.toNat) /
+         (dHi.toNat * 2^32 + dLo.toNat) + 2) with h2 | h2
+    · -- q1c.toNat = q_true + 1 (overshoot 1).
+      have h_eq : q1c.toNat = (uHi.toNat * 2^32 + div_un1.toNat) /
+                              (dHi.toNat * 2^32 + dLo.toNat) + 1 := by linarith
+      exact div128Quot_v4_phase1_overshoot_1_sub uHi uLo vTop
+        h_vTop_ge_pow63 h_uHi_lt_vTop h_eq
+    · -- q1c.toNat = q_true + 2 (overshoot 2).
+      have h_eq : q1c.toNat = (uHi.toNat * 2^32 + div_un1.toNat) /
+                              (dHi.toNat * 2^32 + dLo.toNat) + 2 := by linarith
+      exact div128Quot_v4_phase1_overshoot_2_sub uHi uLo vTop
+        h_vTop_ge_pow63 h_uHi_lt_vTop h_eq
 
 /-- **Phase-2 2-correction perfection (v4).** After v4's symmetric
     Phase-2 2-correction loop, `q0''` equals the abstract Phase-2
