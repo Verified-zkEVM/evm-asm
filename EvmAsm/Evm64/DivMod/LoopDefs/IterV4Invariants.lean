@@ -1504,7 +1504,6 @@ private theorem div128Quot_v4_phase1_one_correction_eucl
     (h_q_dHi_le : q.toNat * dHi.toNat ≤ uHi.toNat)
     (h_rhat_eq : rhat.toNat = uHi.toNat - q.toNat * dHi.toNat)
     (_h_q_le_pow32 : q.toNat ≤ 2 ^ 32)
-    (h_q_ge_1 : q.toNat ≥ 1)
     (h_rhat_dHi_no_overflow : rhat.toNat + dHi.toNat < 2 ^ 64) :
     let q' := div128Quot_phase2b_q0' q rhat dLo div_un1
     let rhat' :=
@@ -1520,6 +1519,16 @@ private theorem div128Quot_v4_phase1_one_correction_eucl
   · -- Guard passes.
     by_cases h_bltu : BitVec.ult ((rhat <<< (32 : BitVec 6).toNat) ||| div_un1) (q * dLo)
     · -- BLTU fires: q' = q - 1 (Word: q + signExtend12 4095), rhat' = rhat + dHi.
+      -- From BLTU firing, derive q.toNat ≥ 1 (else q*dLo = 0, so x < 0 false).
+      have h_q_ge_1 : q.toNat ≥ 1 := by
+        by_contra h
+        push Not at h
+        have h_q_zero : q.toNat = 0 := by omega
+        have h_q_dLo_zero : (q * dLo).toNat = 0 := by
+          rw [BitVec.toNat_mul, h_q_zero, Nat.zero_mul, Nat.zero_mod]
+        have := BitVec.ult_iff_toNat_lt.mp h_bltu
+        rw [h_q_dLo_zero] at this
+        exact Nat.not_lt_zero _ this
       have h_q'_word : q' = q + signExtend12 4095 := by
         show div128Quot_phase2b_q0' q rhat dLo div_un1 = _
         unfold div128Quot_phase2b_q0'
@@ -1624,8 +1633,8 @@ private theorem div128Quot_v4_phase1_one_correction_eucl
     Stub kept for now to expose the gap. Sorry intentional. -/
 private theorem div128Quot_v4_phase1_final_eucl_bridge
     (uHi uLo vTop : Word)
-    (_h_vTop_ge_pow63 : vTop.toNat ≥ 2^63)
-    (_h_uHi_lt_vTop : uHi.toNat < vTop.toNat) :
+    (h_vTop_ge_pow63 : vTop.toNat ≥ 2^63)
+    (h_uHi_lt_vTop : uHi.toNat < vTop.toNat) :
     let dHi := vTop >>> (32 : BitVec 6).toNat
     let dLo := (vTop <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
     let div_un1 := uLo >>> (32 : BitVec 6).toNat
@@ -1650,14 +1659,19 @@ private theorem div128Quot_v4_phase1_final_eucl_bridge
       else rhat'
     q1''.toNat * dHi.toNat ≤ uHi.toNat ∧
     rhat''.toNat = uHi.toNat - q1''.toNat * dHi.toNat := by
-  sorry  -- Extension of `_phase1_rhatc_bridge` through 2 corrections.
-         -- Each correction maintains the Phase-1a Euclidean.
-         -- The previously-claimed `rhat''.toNat < 2^32` was DROPPED:
-         -- empirical search found cases where rhat'' ≥ 2^32 (with
-         -- rhat'' up to ~2^32 + 2^30). v4's algorithm still correct
-         -- because Phase-2 setup truncates via `(rhat'' << 32) | div_un1`
-         -- and downstream Phase-2 div absorbs the truncation.
-         -- See `project_phase1_rhat_can_exceed_pow32.md` in memory.
+  -- Proof outline (deferred — chains 2 calls of `_phase1_one_correction_eucl`):
+  -- 1. Get Eucl on (q1c, rhatc) from `_phase1_rhatc_bridge` (proven).
+  -- 2. Discharge 1st call's hypotheses:
+  --    - q1c.toNat ≤ 2^32: from `div128Quot_q1c_le_pow32` (existing).
+  --    - rhatc.toNat + dHi.toNat < 2^64: from rhatc < 2*dHi (case analysis on
+  --      hi1 — needs separate sub-lemma) and dHi < 2^32 ⟹ 3*dHi < 2^64.
+  -- 3. Apply 1-step helper → Eucl on (q1', rhat').
+  -- 4. Discharge 2nd call's hypotheses:
+  --    - q1'.toNat ≤ 2^32: q1' is q1c or q1c - 1, both ≤ q1c ≤ 2^32.
+  --    - rhat'.toNat + dHi.toNat < 2^64: rhat' is rhatc or rhatc + dHi,
+  --      so + dHi gives 2*dHi or 3*dHi < 2^64 when paired with the above.
+  -- 5. Apply 1-step helper → Eucl on (q1'', rhat''). Conclusion.
+  sorry
 
 /-- **Phase-1 no-wrap (v4)**: after v4's 2-correction Phase-1b, the
     quotient `q1''` doesn't overshoot the Phase-1 sub-divisor's remainder
