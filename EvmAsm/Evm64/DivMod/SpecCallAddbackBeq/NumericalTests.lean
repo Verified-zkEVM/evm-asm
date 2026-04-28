@@ -455,8 +455,9 @@ theorem div128Quot_v2_phase1b_2nd_guard_on_counterexample :
     True quotient: `((2^64-2^32+1) * 2^64) / (2^64-1) = 2^64-2^32+1`.
     Algorithm output: `2^64-2^33+1` (undershoot = 2^33 - 2^32 = 2^32).
 
-    See `div128Quot_v3` (in `LoopDefs/IterV3.lean`) for the FIXED algorithm
-    that adds the `rhatc >> 32 = 0` guard to the 1st correction. -/
+    See `div128Quot_v4` (in `LoopDefs/IterV4.lean`) for the FIXED algorithm
+    with the `rhatc >> 32 = 0` guard on the 1st correction (and full
+    2-correction in both phases). -/
 theorem div128Quot_v2_buggy_at_unreachable_uHi :
     let uHi : Word := BitVec.ofNat 64 (2^64 - 2^32 + 1)
     let uLo : Word := 0
