@@ -197,6 +197,15 @@ theorem decode_pair_list_empty_lists :
       some (.list [.list [], .list []], []) := by
   simp [decode, decodeAux, takeBytes, decodeItems]
 
+/-- Two-element list of empty byte strings:
+    `decode [0xC2, 0x80, 0x80] = some (.list [.bytes [], .bytes []], [])`.
+    The outer short-list branch fires with payload length 2, two empty
+    inner byte strings are decoded in sequence, then the outer closes. -/
+theorem decode_pair_list_empty_strings :
+    decode [(0xC2 : Byte), (0x80 : Byte), (0x80 : Byte)] =
+      some (.list [.bytes [], .bytes []], []) := by
+  simp [decode, decodeAux, takeBytes, decodeItems]
+
 /-- Three-element list of empty lists:
     `decode [0xC3, 0xC0, 0xC0, 0xC0] = some (.list [.list [], .list [], .list []], [])`.
     The outer short-list branch fires with payload length 3, three empty
