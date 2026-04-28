@@ -1723,15 +1723,25 @@ theorem div128Quot_v2_phase1c_in_knuth_range_under_runtime (a b : EvmWord)
     q_true ≤ q1c.toNat ∧ q1c.toNat ≤ q_true + 2 := by
   sorry  -- Knuth Theorem A + B at the initial trial level.
 
-/-- **Phase-1b 1st BLTU check semantics**: the BLTU check
-    `(rhatc << 32) ||| div_un1 < q1c * dLo` fires iff `q1c * vTop > x`
-    (i.e., q1c overshoots q*).
+/-- **Phase-1b 1st BLTU check semantics under no-truncation precondition**:
+    the BLTU check `(rhatc << 32) ||| div_un1 < q1c * dLo` is equivalent to
+    `q1c * vTop > x` (i.e., q1c overshoots q*) UNDER `rhatc < 2^32`.
 
-    PROVEN STUB. Algebraic equivalence via the Phase-1a Euclidean
-    `q1c * dHi + rhatc = u4` (proven). Under `rhatc < 2^32` (which
-    requires showing the truncation in `<<< 32` doesn't lose
-    information; subtle), the BLTU compares the untruncated
-    `rhatc * 2^32 + div_un1` against `q1c * dLo`.
+    The `rhatc < 2^32` precondition is essential: without it, the
+    `rhatc << 32` operation truncates the high bits of rhatc, breaking
+    the equivalence. Phase-1a's `div128Quot_rhatc_lt_2dHi` only gives
+    `rhatc < 2 * dHi < 2^33`, so the precondition isn't automatic.
+
+    Pure-Nat algebraic equivalence under the precondition:
+    1. `rhatUn1.toNat = rhatc.toNat * 2^32 + div_un1.toNat` (no truncation
+       since rhatc < 2^32 and div_un1 < 2^32).
+    2. `qDlo.toNat = q1c.toNat * dLo.toNat` (no Word multiplication
+       overflow since q1c < 2^32 and dLo < 2^32).
+    3. BLTU ⟺ rhatc * 2^32 + div_un1 < q1c * dLo.
+    4. Substitute Phase-1a Euclidean (rhatc = u4 - q1c * dHi):
+       (u4 - q1c * dHi) * 2^32 + div_un1 < q1c * dLo
+       ⟺ u4 * 2^32 + div_un1 < q1c * (dHi * 2^32 + dLo) = q1c * vTop.
+       ⟺ q1c * vTop > x.
 
     **Issue #1337 algorithm fix migration. Decomposition sub-stub.** -/
 theorem div128Quot_v2_phase1b_check_iff_overshoot_under_runtime (a b : EvmWord)
@@ -1756,9 +1766,57 @@ theorem div128Quot_v2_phase1b_check_iff_overshoot_under_runtime (a b : EvmWord)
     let rhatc := if hi1 = 0 then rhat else rhat + dHi
     let qDlo := q1c * dLo
     let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
-    BitVec.ult rhatUn1 qDlo ↔
-      q1c.toNat * (dHi.toNat * 2^32 + dLo.toNat) > u4.toNat * 2^32 + div_un1.toNat := by
-  sorry  -- BLTU check ⟺ q1c overshoots q*.
+    -- Hypothesis: rhatc fits in 32 bits (essential for the algebraic equivalence).
+    rhatc.toNat < 2^32 → q1c.toNat < 2^32 →
+    (BitVec.ult rhatUn1 qDlo ↔
+      q1c.toNat * (dHi.toNat * 2^32 + dLo.toNat) > u4.toNat * 2^32 + div_un1.toNat) := by
+  intro shift antiShift u4 un3 b3' dHi dLo div_un1 q1 rhat hi1 q1c rhatc qDlo rhatUn1
+        h_rhatc_lt h_q1c_lt
+  have hdHi_lt : dHi.toNat < 2^32 := Word_ushiftRight_32_lt_pow32
+  have hdLo_lt : dLo.toNat < 2^32 := Word_ushiftRight_32_lt_pow32
+  have h_div_un1_lt : div_un1.toNat < 2^32 := Word_ushiftRight_32_lt_pow32
+  have hdHi_ne : dHi ≠ 0 := by
+    intro heq
+    have h_b3'_ge_pow63 : b3'.toNat ≥ 2^63 :=
+      b3_prime_ge_pow63 (b.getLimbN 3) (b.getLimbN 2) _hb3nz _
+    have hdHi_ge : dHi.toNat ≥ 2^31 :=
+      div128Quot_dHi_ge_pow31 b3' h_b3'_ge_pow63
+    rw [heq] at hdHi_ge; simp at hdHi_ge
+  -- Phase-1a Euclidean: q1c * dHi + rhatc = u4 (as Nats).
+  have h_post1a : q1c.toNat * dHi.toNat + rhatc.toNat = u4.toNat :=
+    div128Quot_first_round_post u4 dHi hdHi_ne hdHi_lt
+  -- Bridge: rhatUn1.toNat = rhatc.toNat * 2^32 + div_un1.toNat.
+  have h_rhatUn1_eq : rhatUn1.toNat = rhatc.toNat * 2^32 + div_un1.toNat := by
+    show ((rhatc <<< (32 : BitVec 6).toNat) ||| div_un1).toNat =
+         rhatc.toNat * 2^32 + div_un1.toNat
+    rw [EvmAsm.Rv64.AddrNorm.bv6_toNat_32]
+    exact EvmWord.halfword_combine rhatc div_un1 h_rhatc_lt h_div_un1_lt
+  -- Bridge: qDlo.toNat = q1c.toNat * dLo.toNat.
+  have h_qDlo_eq : qDlo.toNat = q1c.toNat * dLo.toNat := by
+    show (q1c * dLo).toNat = q1c.toNat * dLo.toNat
+    rw [BitVec.toNat_mul]
+    apply Nat.mod_eq_of_lt
+    have h_mul_lt : q1c.toNat * dLo.toNat < 2^32 * 2^32 :=
+      Nat.mul_lt_mul_of_lt_of_lt h_q1c_lt hdLo_lt
+    have h_pow : (2^32 * 2^32 : Nat) = 2^64 := by decide
+    omega
+  -- Main equivalence — convert ult to <.
+  rw [EvmWord.ult_iff, h_rhatUn1_eq, h_qDlo_eq]
+  -- Goal: rhatc * 2^32 + div_un1 < q1c * dLo ↔
+  --       q1c * (dHi * 2^32 + dLo) > u4 * 2^32 + div_un1
+  -- Pure-Nat algebra under h_post1a.
+  have h_vTop_eq : q1c.toNat * (dHi.toNat * 2^32 + dLo.toNat) =
+      q1c.toNat * dHi.toNat * 2^32 + q1c.toNat * dLo.toNat := by ring
+  rw [h_vTop_eq]
+  -- From h_post1a: rhatc.toNat = u4.toNat - q1c.toNat * dHi.toNat.
+  have h_q1c_dHi_le : q1c.toNat * dHi.toNat ≤ u4.toNat := by omega
+  have h_rhatc_2pow32 :
+      rhatc.toNat * 2^32 = u4.toNat * 2^32 - q1c.toNat * dHi.toNat * 2^32 := by
+    have h_rhatc_eq : rhatc.toNat = u4.toNat - q1c.toNat * dHi.toNat := by omega
+    rw [h_rhatc_eq, Nat.sub_mul]
+  have h_q1c_dHi_2pow32_le : q1c.toNat * dHi.toNat * 2^32 ≤ u4.toNat * 2^32 :=
+    Nat.mul_le_mul_right _ h_q1c_dHi_le
+  omega
 
 /-- **Phase-1b 2nd guard fires when needed**: if the 1st correction fired
     (q1c was overshooting by ≥ 1), then the 2nd correction's guard
