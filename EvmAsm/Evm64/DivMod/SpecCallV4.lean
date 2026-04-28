@@ -234,17 +234,64 @@ private theorem div128Quot_v4_combined_arith
   have : r2 / vTop = 0 := Nat.div_eq_of_lt h_mod2_lt
   omega
 
+/-- **un21 equals the Phase-1 remainder** at toNat level. Sub-stub
+    used by `div128Quot_v4_eq_q_true_normalized`. The proof requires
+    careful Word↔Nat reasoning around the truncation absorption
+    machinery already proven in `IterV4Invariants` (esp.
+    `_un21_lt_vTop_truncation_arith`).
+
+    Math (for reference):
+    - From `_phase1_final_eucl_bridge`: `rhat''.toNat = uHi - q1''*dHi`.
+    - un21 = ((rhat'' << 32) | div_un1) - q1''*dLo (Word).
+    - At toNat (with truncation): un21.toNat =
+      (rhat'' * 2^32 + div_un1) - q1'' * dLo
+      = (uHi - q1''*dHi)*2^32 + div_un1 - q1''*dLo
+      = uHi*2^32 + div_un1 - q1''*(dHi*2^32 + dLo)
+      = uHi*2^32 + div_un1 - q1''*vTop. -/
+theorem div128Quot_v4_un21_eq_phase1_remainder
+    (uHi uLo vTop : Word)
+    (_h_vTop_ge_pow63 : vTop.toNat ≥ 2^63)
+    (_h_uHi_lt_vTop : uHi.toNat < vTop.toNat) :
+    let dHi := vTop >>> (32 : BitVec 6).toNat
+    let dLo := (vTop <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+    let div_un1 := uLo >>> (32 : BitVec 6).toNat
+    let q1 := rv64_divu uHi dHi
+    let rhat := uHi - q1 * dHi
+    let hi1 := q1 >>> (32 : BitVec 6).toNat
+    let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+    let rhatc := if hi1 = 0 then rhat else rhat + dHi
+    let q1' := div128Quot_phase2b_q0' q1c rhatc dLo div_un1
+    let rhat' :=
+      if rhatc >>> (32 : BitVec 6).toNat = 0 then
+        let qDlo := q1c * dLo
+        let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
+        if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc
+      else rhatc
+    let q1'' := div128Quot_phase2b_q0' q1' rhat' dLo div_un1
+    let rhat'' :=
+      if rhat' >>> (32 : BitVec 6).toNat = 0 then
+        let qDlo2 := q1' * dLo
+        let rhatUn1' := (rhat' <<< (32 : BitVec 6).toNat) ||| div_un1
+        if BitVec.ult rhatUn1' qDlo2 then rhat' + dHi else rhat'
+      else rhat'
+    let cu_rhat_un1 := (rhat'' <<< (32 : BitVec 6).toNat) ||| div_un1
+    let cu_q1_dlo := q1'' * dLo
+    let un21 := cu_rhat_un1 - cu_q1_dlo
+    un21.toNat = uHi.toNat * 2^32 + div_un1.toNat - q1''.toNat * vTop.toNat := by
+  sorry  -- Word↔Nat truncation reasoning. Mirrors the proof of
+         -- `_un21_lt_vTop` but extracts the explicit value (not just <).
+
 /-- **v4's exact-quotient property**: under standard Knuth-A
     preconditions (shift-norm + `u4 < b3'` + `u4 < 2^63`), the v4
     algorithm produces the exact 128/64 quotient.
 
-    Proof composes three pieces:
+    Proof composes:
     - `_phase1_perfect` + `_phase2_perfect` (proven in IterV4Invariants*).
-    - Sub-stubs `_phase{1,2}_quot_lt_pow32` (no-truncation in OR-shift).
-    - The pure-Nat `_combined_arith` helper above.
-
-    Bridges between the per-phase invariants in `IterV4Invariants*` and
-    the val256-level closure for the call-trial chain. -/
+    - `_phase{1,2}_quot_lt_pow32` (proven; no-truncation in OR-shift).
+    - `_un21_eq_phase1_remainder` (sub-stub above; the un21 value
+      identity).
+    - `_combined_arith` (proven; pure-Nat composition).
+    - `halfword_combine` (existing lemma; OR-shift to add at toNat). -/
 theorem div128Quot_v4_eq_q_true_normalized
     (u4 u3 b3' : Word)
     (_hb3'_ge : b3'.toNat ≥ 2^63)
@@ -252,8 +299,9 @@ theorem div128Quot_v4_eq_q_true_normalized
     (_hu4_lt_pow63 : u4.toNat < 2^63) :
     (div128Quot_v4 u4 u3 b3').toNat =
       (u4.toNat * 2^64 + u3.toNat) / b3'.toNat := by
-  sorry  -- Final composition: see docstring. Wire-up pending; depends
-         -- on the two _quot_lt_pow32 sub-stubs above.
+  sorry  -- Wire-up: combine `_phase{1,2}_perfect`, `_phase{1,2}_quot_lt_pow32`,
+         -- `_un21_eq_phase1_remainder`, `_combined_arith`, and `halfword_combine`.
+         -- All sub-pieces in place; just needs let-binding alignment.
 
 /-- **`n4CallSkipSemanticHolds_v4` holds unconditionally** under the
     standard call-trial preconditions.
