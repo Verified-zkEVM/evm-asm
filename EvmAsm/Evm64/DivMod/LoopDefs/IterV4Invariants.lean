@@ -480,7 +480,33 @@ theorem div128Quot_v4_phase1_overshoot_0_sub (uHi uLo vTop : Word)
   exact h_q1c_eq_q_true
 
 /-- **Phase-1 overshoot 1 case (v4).** Under `q1c.toNat = q_true + 1`,
-    the 1st D3 correction decrements to q_true, the 2nd is a no-op. -/
+    the 1st D3 correction decrements to q_true, the 2nd is a no-op.
+
+    Proof structure (case-split on the rhatc guard):
+
+    - **Guard passes (rhatc < 2^32):**
+      1st BLTU fires (via `_phase1_bltu_fires_arith` proven above):
+      `rhatc * 2^32 + div_un1 < q1c * dLo` from
+      `q1c * vTop > uHi*2^32 + div_un1` (Knuth strict, since q1c > q_true).
+      So q1' = q1c - 1 = q_true. rhat' = rhatc + dHi.
+      2nd BLTU doesn't fire (q1' is exact, applies
+      `_phase1_inner_bltu_fails_when_q1c_le_q_true` to q1' / rhat').
+      Thus q1'' = q1' = q_true.
+
+    - **Guard fails (rhatc ≥ 2^32):**
+      Under hi1 ≠ 0 (which forces rhatc = rhat + dHi, possibly ≥ 2^32),
+      the 1st BLTU is skipped → q1' = q1c = q_true + 1.
+      Then 2nd BLTU faces same input → also skipped → q1'' = q1c.
+      For overshoot_1's claim to hold here, we'd need to show that this
+      regime is unreachable under the runtime preconditions
+      (`vTop_ge_pow63 ∧ uHi_lt_vTop ∧ q1c overshoots`).
+
+      Under shift-norm + hi1 ≠ 0: q_true ∈ [2^32 - 2, 2^32 - 1],
+      q1c ∈ [q_true, q_true + 1]. If q1c = q_true + 1 = 2^32, then
+      uHi ≈ q_true * vTop + (sum). Need to verify whether this regime
+      is always reachable or excluded by Knuth.
+
+      Sub-case may need additional precondition refinement. -/
 theorem div128Quot_v4_phase1_overshoot_1_sub (uHi uLo vTop : Word)
     (_h_vTop_ge_pow63 : vTop.toNat ≥ 2^63)
     (_h_uHi_lt_vTop : uHi.toNat < vTop.toNat)
