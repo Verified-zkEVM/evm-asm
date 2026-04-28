@@ -2297,6 +2297,58 @@ private theorem div128Quot_v2_case_0_rhatc_lt_pow32_under_runtime
   rw [if_pos h_hi1_zero]
   omega
 
+/-- Pure-Nat helper: `u < V → div < 2^32 → V ≥ 1 → u*2^32 + div < V*2^32`. -/
+private theorem q_true_x_lt_vTop_pow32_arith
+    (u V div : Nat) (h_u : u < V) (h_div : div < 2^32) :
+    u * 2^32 + div < V * 2^32 := by
+  set X := V * 2^32 with hX
+  set Y := u * 2^32 with hY
+  have h_Y_le : Y + 2^32 ≤ X := by
+    rw [hX, hY]
+    have h1 : u + 1 ≤ V := h_u
+    have h2 : (u + 1) * 2^32 ≤ V * 2^32 := Nat.mul_le_mul_right _ h1
+    have h3 : (u + 1) * 2^32 = u * 2^32 + 2^32 := by ring
+    omega
+  omega
+
+/-- **q_true < 2^32 under runtime preconditions**.
+
+    From the call-trial precondition `u4 < vTop` (i.e. uHi-half < vTop),
+    plus `div_un1 < 2^32` (structural — div_un1 is a top-32-bits ushr),
+    we have `x = u4*2^32 + div_un1 < vTop*2^32`. Hence `q_true = x/vTop < 2^32`.
+
+    Used as the `q1c < 2^32` precondition of Stub 2 in case 0/1/2 sub-stubs. -/
+private theorem div128Quot_v2_q_true_lt_pow32_under_runtime
+    (a b : EvmWord)
+    (_hb3nz : b.getLimbN 3 ≠ 0)
+    (_hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (_hbltu : isCallTrialN4Evm a b) :
+    let shift := (clzResult (b.getLimbN 3)).1.toNat % 64
+    let antiShift :=
+      (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64
+    let u4 := (a.getLimbN 3) >>> antiShift
+    let un3 := ((a.getLimbN 3) <<< shift) ||| ((a.getLimbN 2) >>> antiShift)
+    let b3' := ((b.getLimbN 3) <<< shift) ||| ((b.getLimbN 2) >>> antiShift)
+    let dHi := b3' >>> (32 : BitVec 6).toNat
+    let dLo := (b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+    let div_un1 := un3 >>> (32 : BitVec 6).toNat
+    (u4.toNat * 2^32 + div_un1.toNat) /
+      (dHi.toNat * 2^32 + dLo.toNat) < 2^32 := by
+  intro shift antiShift u4 un3 b3' dHi dLo div_un1
+  have h_b3'_decomp : b3'.toNat = dHi.toNat * 2^32 + dLo.toNat :=
+    div128Quot_vTop_decomp b3'
+  have h_div_un1_lt : div_un1.toNat < 2^32 := Word_ushiftRight_32_lt_pow32
+  have h_u4_lt_b3prime : u4.toNat < b3'.toNat :=
+    isCallTrialN4_toNat_lt (a.getLimbN 3) (b.getLimbN 2) (b.getLimbN 3)
+      (isCallTrialN4Evm_def ▸ _hbltu)
+  have h_u4_lt_vTop : u4.toNat < dHi.toNat * 2^32 + dLo.toNat := by
+    rw [← h_b3'_decomp]; exact h_u4_lt_b3prime
+  have h_x_lt : u4.toNat * 2^32 + div_un1.toNat <
+      (dHi.toNat * 2^32 + dLo.toNat) * 2^32 :=
+    q_true_x_lt_vTop_pow32_arith u4.toNat (dHi.toNat * 2^32 + dLo.toNat)
+      div_un1.toNat h_u4_lt_vTop h_div_un1_lt
+  exact Nat.div_lt_of_lt_mul h_x_lt
+
 /-- **Phase-1 division invariant — overshoot=1 case** (q1c = q_true + 1).
 
     1st BLTU check fires (Stub 2 forward) → q1' = q1c - 1 = q_true,
