@@ -3391,6 +3391,23 @@ theorem div128Quot_v2_un21_lt_vTop_under_runtime (a b : EvmWord)
     "2nd correction" needed in Phase 2 because the q0' trial only
     consumes 32 bits of remainder.
 
+    **CHAIN STATUS (2026-04-28)**: this lemma feeds the chain
+    `_no_wrap_under_call_addback_beq_untruncated` →
+    `_qHat_vTop_le_full_untruncated` →
+    `_le_5limb_shifted_div_plus_two_untruncated` →
+    `qHat_upper_5limb_shifted_under_runtime_v2` →
+    `qHat_in_range_shifted_under_runtime_v2`. NONE of these are actual
+    proof-consumers in the codebase — they appear only in docstring
+    cross-references. The remaining sub-case b sorry is therefore
+    HARMLESS for the current closure goals: no other theorem's
+    closure depends on this chain.
+
+    Path forward: defer sub-case b indefinitely until a real consumer
+    of the qHat range chain materializes. If/when needed, sub-case b
+    requires Phase-2-overshoot reasoning (whether q0' = q*_phase2 + 1
+    is reachable under runtime preconditions); see the inline TODO at
+    the sub-case b sorry for the algebraic analysis.
+
     **Closure plan (deferrable to a future iteration):**
 
     The claim `q0' * dLo ≤ rhat2' * 2^32 + div_un0` is algebraically
