@@ -1501,11 +1501,11 @@ private theorem div128Quot_v4_un21_lt_vTop_arith
 private theorem div128Quot_v4_phase1_one_correction_eucl
     (uHi q rhat dHi dLo div_un1 : Word)
     (_h_dHi_lt : dHi.toNat < 2 ^ 32)
-    (_h_q_dHi_le : q.toNat * dHi.toNat ≤ uHi.toNat)
-    (_h_rhat_eq : rhat.toNat = uHi.toNat - q.toNat * dHi.toNat)
+    (h_q_dHi_le : q.toNat * dHi.toNat ≤ uHi.toNat)
+    (h_rhat_eq : rhat.toNat = uHi.toNat - q.toNat * dHi.toNat)
     (_h_q_le_pow32 : q.toNat ≤ 2 ^ 32)
-    (_h_q_ge_1 : q.toNat ≥ 1)
-    (_h_rhat_dHi_no_overflow : rhat.toNat + dHi.toNat < 2 ^ 64) :
+    (h_q_ge_1 : q.toNat ≥ 1)
+    (h_rhat_dHi_no_overflow : rhat.toNat + dHi.toNat < 2 ^ 64) :
     let q' := div128Quot_phase2b_q0' q rhat dLo div_un1
     let rhat' :=
       if rhat >>> (32 : BitVec 6).toNat = 0 then
@@ -1515,9 +1515,78 @@ private theorem div128Quot_v4_phase1_one_correction_eucl
       else rhat
     q'.toNat * dHi.toNat ≤ uHi.toNat ∧
     rhat'.toNat = uHi.toNat - q'.toNat * dHi.toNat := by
-  sorry  -- Case analysis on (guard, BLTU). Each case follows from
-         -- `_post_correction_eucl_arith` (proven) for the BLTU-fires
-         -- case, or trivially for the BLTU-fails / guard-fails cases.
+  intro q' rhat'
+  by_cases h_guard : rhat >>> (32 : BitVec 6).toNat = 0
+  · -- Guard passes.
+    by_cases h_bltu : BitVec.ult ((rhat <<< (32 : BitVec 6).toNat) ||| div_un1) (q * dLo)
+    · -- BLTU fires: q' = q - 1 (Word: q + signExtend12 4095), rhat' = rhat + dHi.
+      have h_q'_word : q' = q + signExtend12 4095 := by
+        show div128Quot_phase2b_q0' q rhat dLo div_un1 = _
+        unfold div128Quot_phase2b_q0'
+        simp only [h_guard, if_true]
+        rw [if_pos h_bltu]
+      have h_q'_toNat : q'.toNat = q.toNat - 1 := by
+        rw [h_q'_word, BitVec.toNat_add, signExtend12_4095_toNat]
+        have hq_lt_word : q.toNat - 1 < 2^64 := by have := q.isLt; omega
+        rw [show q.toNat + (2^64 - 1) = (q.toNat - 1) + 2^64 from by omega,
+            Nat.add_mod_right, Nat.mod_eq_of_lt hq_lt_word]
+      have h_rhat'_word : rhat' = rhat + dHi := by
+        show (if rhat >>> (32 : BitVec 6).toNat = 0 then
+                (if BitVec.ult ((rhat <<< (32 : BitVec 6).toNat) ||| div_un1)
+                                (q * dLo)
+                 then rhat + dHi else rhat)
+              else rhat) = rhat + dHi
+        simp only [h_guard, if_true]
+        rw [if_pos h_bltu]
+      have h_rhat'_toNat : rhat'.toNat = rhat.toNat + dHi.toNat := by
+        rw [h_rhat'_word, BitVec.toNat_add]
+        exact Nat.mod_eq_of_lt h_rhat_dHi_no_overflow
+      -- Apply `_phase1_post_correction_eucl_arith`.
+      obtain ⟨h1, h2⟩ :=
+        div128Quot_v4_phase1_post_correction_eucl_arith
+          uHi.toNat q.toNat dHi.toNat rhat.toNat
+          h_q_ge_1 h_q_dHi_le h_rhat_eq
+      refine ⟨?_, ?_⟩
+      · rw [h_q'_toNat]; exact h1
+      · rw [h_q'_toNat, h_rhat'_toNat]; exact h2
+    · -- BLTU doesn't fire: q' = q, rhat' = rhat. Eucl preserved trivially.
+      have h_q'_word : q' = q := by
+        show div128Quot_phase2b_q0' q rhat dLo div_un1 = q
+        unfold div128Quot_phase2b_q0'
+        simp only [h_guard, if_true]
+        simp only [Bool.not_eq_true] at h_bltu
+        rw [h_bltu]; rfl
+      have h_rhat'_word : rhat' = rhat := by
+        show (if rhat >>> (32 : BitVec 6).toNat = 0 then
+                (if BitVec.ult ((rhat <<< (32 : BitVec 6).toNat) ||| div_un1)
+                                (q * dLo)
+                 then rhat + dHi else rhat)
+              else rhat) = rhat
+        simp only [h_guard, if_true]
+        simp only [Bool.not_eq_true] at h_bltu
+        rw [h_bltu]; rfl
+      refine ⟨?_, ?_⟩
+      · rw [show q'.toNat = q.toNat from by rw [h_q'_word]]; exact h_q_dHi_le
+      · rw [show q'.toNat = q.toNat from by rw [h_q'_word],
+            show rhat'.toNat = rhat.toNat from by rw [h_rhat'_word]]
+        exact h_rhat_eq
+  · -- Guard fails: q' = q, rhat' = rhat.
+    have h_q'_word : q' = q := by
+      show div128Quot_phase2b_q0' q rhat dLo div_un1 = q
+      unfold div128Quot_phase2b_q0'
+      simp only [h_guard, if_false]
+    have h_rhat'_word : rhat' = rhat := by
+      show (if rhat >>> (32 : BitVec 6).toNat = 0 then
+              (if BitVec.ult ((rhat <<< (32 : BitVec 6).toNat) ||| div_un1)
+                              (q * dLo)
+               then rhat + dHi else rhat)
+            else rhat) = rhat
+      simp only [h_guard, if_false]
+    refine ⟨?_, ?_⟩
+    · rw [show q'.toNat = q.toNat from by rw [h_q'_word]]; exact h_q_dHi_le
+    · rw [show q'.toNat = q.toNat from by rw [h_q'_word],
+          show rhat'.toNat = rhat.toNat from by rw [h_rhat'_word]]
+      exact h_rhat_eq
 
 /-- **Phase-1 final Euclidean bridge (v4)**: after v4's 2-correction
     Phase-1b, the post-correction `q1''` and `rhat''` satisfy the
