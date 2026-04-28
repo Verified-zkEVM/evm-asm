@@ -2096,34 +2096,29 @@ theorem qHat_lower_shifted_under_runtime_v2 (a b : EvmWord)
   change qHat.toNat > val256 u0 u1 u2 u3 / val256 b0' b1' b2' b3' at h
   omega
 
-/-- **qHat upper bound shifted-domain (ALONE)** — the upper-bound half
-    of `qHat_in_range_shifted_under_runtime_v2`. Stubbed.
+/-- **qHat upper bound 5-limb shifted-domain** — the upper-bound half of
+    `qHat_in_range_shifted_under_runtime_v2`, in the GENUINE 5-limb form.
 
-    **Architectural note (2026-04-28):** the 4-limb-only shifted form
-    `qHat ≤ val256(un) / val256(b') + 2` stated below is **GENERALLY FALSE**
-    when `u4 > 0`. The contribution `u4 * 2^256 / val256(b')` (which the
-    4-limb val256 truncates) can be much larger than 2 — e.g. with
-    `b3' = 2^63` and `val256(b') ≈ 2^255`, the gap is ≈ `u4 * 2`.
+    **Architectural note (2026-04-28):** an earlier 4-limb-only formulation
+    `qHat ≤ val256(un) / val256(b') + 2` is **GENERALLY FALSE** when
+    `u4 > 0`. The contribution `u4 * 2^256 / val256(b')` (which the 4-limb
+    val256 truncates) can be much larger than 2 — e.g. with `b3' = 2^63`
+    and `val256(b') ≈ 2^255`, the gap is ≈ `u4 * 2`.
 
-    The genuine shifted-domain Knuth-B is the **5-limb** form
-    `qHat ≤ (u4 * 2^256 + val256(un)) / val256(b') + 2`, available now as
-    `div128Quot_v2_le_5limb_shifted_div_plus_two_untruncated` (proven from
-    the same untruncated invariants that the original-domain variant
-    consumes). By scale invariance the 5-limb shifted quotient equals
-    `val256(a) / val256(b)`, so it's the genuine `q_true` bound.
+    The genuine shifted-domain Knuth-B is the 5-limb form below. By scale
+    invariance `(u4 * 2^256 + val256(un)) / val256(b') = val256(a) /
+    val256(b) = q_true_orig`, so this is logically the same bound stated
+    in algorithm-facing terms.
 
-    Consumers (e.g. `addback_carry_partition_v2`) should switch to the
-    5-limb form — keeping the lower bound in 4-limb shifted-domain (proven
-    via `qHat_lower_shifted_under_runtime_v2`) is fine since the lower
-    bound DOES hold in the 4-limb shifted-domain (the carry-borrow chain
-    only constrains the multi-limb mulsub residue, not the truncated u4).
+    Composes (once closed):
+    - `_no_wrap_under_call_addback_beq_untruncated` (STUB, sorry-driven)
+      — bridges runtime preconditions to the 4 untruncated invariants.
+    - `div128Quot_v2_le_5limb_shifted_div_plus_two_untruncated` (PROVEN,
+      from commit 32ae444d) — once the 4 invariants are in scope, gives
+      the 5-limb upper bound directly.
 
-    This stub is retained as a PROOF-PLAN MARKER to guide consumer
-    migration; it should NOT be invoked, and any closure attempt of its
-    body will fail on a counterexample.
-
-    Issue #1337 algorithm fix migration. -/
-theorem qHat_upper_shifted_under_runtime_v2 (_a _b : EvmWord)
+    Issue #1337 algorithm fix migration. Path-3 + 5-limb shifted form. -/
+theorem qHat_upper_5limb_shifted_under_runtime_v2 (_a _b : EvmWord)
     (_hb3nz : _b.getLimbN 3 ≠ 0)
     (_hshift_nz : (clzResult (_b.getLimbN 3)).1 ≠ 0)
     (_hbltu : isCallTrialN4Evm _a _b)
@@ -2142,15 +2137,29 @@ theorem qHat_upper_shifted_under_runtime_v2 (_a _b : EvmWord)
     let u1 := ((_a.getLimbN 1) <<< shift) ||| ((_a.getLimbN 0) >>> antiShift)
     let u0 := (_a.getLimbN 0) <<< shift
     let qHat := div128Quot_v2 u4 u3 b3'
-    qHat.toNat ≤ val256 u0 u1 u2 u3 / val256 b0' b1' b2' b3' + 2 := by
-  sorry  -- Needs `_le_val256_div_plus_two_untruncated` + shift-bridging
-         -- via val256 algebra. See plan in docstring.
+    qHat.toNat ≤
+      (u4.toNat * 2^256 + val256 u0 u1 u2 u3) / val256 b0' b1' b2' b3' + 2 := by
+  sorry  -- Composes `_no_wrap_under_call_addback_beq_untruncated` (stub)
+         -- with `_le_5limb_shifted_div_plus_two_untruncated` (PROVEN). The
+         -- only sorry hidden here is the no_wrap discharge; once that's
+         -- closed, this stub becomes mechanical destructure + apply.
 
-/-- **qHat range in shifted-domain** — combines lower bound (PROVEN
-    via `qHat_lower_shifted_under_runtime_v2`) with an upper bound stub.
-    Once the upper bound is proven, this gives the full carry-partition
-    range bound in shifted-domain — a candidate for replacing the
-    original-domain `qHat_in_range_under_runtime_v2`.
+/-- **qHat range in shifted-domain** — hybrid 4-limb lower + 5-limb upper.
+
+    The lower bound `qHat ≥ val256(un) / val256(b') + 1` is the 4-limb
+    shifted form (PROVEN via `qHat_lower_shifted_under_runtime_v2`); the
+    upper bound `qHat ≤ (u4 * 2^256 + val256(un)) / val256(b') + 2` is the
+    GENUINE 5-limb form (per the architectural correction in commit
+    32ae444d — the 4-limb upper bound is generally false).
+
+    The two forms aren't symmetric, but both are correct: the lower bound
+    holds in the 4-limb domain (carry-borrow only constrains the multi-limb
+    mulsub residue, not u4); the upper bound requires the 5-limb form to
+    account for the `u4 * 2^256` truncation.
+
+    Once both stubs are closed, this gives the full carry-partition range
+    bound in shifted-domain — usable for `addback_carry_partition_v2` once
+    that consumer is migrated.
 
     Issue #1337 algorithm fix migration. -/
 theorem qHat_in_range_shifted_under_runtime_v2 (a b : EvmWord)
@@ -2172,9 +2181,11 @@ theorem qHat_in_range_shifted_under_runtime_v2 (a b : EvmWord)
     let u1 := ((a.getLimbN 1) <<< shift) ||| ((a.getLimbN 0) >>> antiShift)
     let u0 := (a.getLimbN 0) <<< shift
     let qHat := div128Quot_v2 u4 u3 b3'
-    let q_true_shifted := val256 u0 u1 u2 u3 / val256 b0' b1' b2' b3'
-    q_true_shifted + 1 ≤ qHat.toNat ∧ qHat.toNat ≤ q_true_shifted + 2 := by
-  intro shift antiShift b3' b2' b1' b0' u4 u3 u2 u1 u0 qHat q_true_shifted
+    let q_true_4limb := val256 u0 u1 u2 u3 / val256 b0' b1' b2' b3'
+    let q_true_5limb :=
+      (u4.toNat * 2^256 + val256 u0 u1 u2 u3) / val256 b0' b1' b2' b3'
+    q_true_4limb + 1 ≤ qHat.toNat ∧ qHat.toNat ≤ q_true_5limb + 2 := by
+  intro shift antiShift b3' b2' b1' b0' u4 u3 u2 u1 u0 qHat q_true_4limb q_true_5limb
   refine ⟨?lower, ?upper⟩
   case lower =>
     have h := qHat_lower_shifted_under_runtime_v2 a b hb3nz hborrow_v2
@@ -2182,12 +2193,12 @@ theorem qHat_in_range_shifted_under_runtime_v2 (a b : EvmWord)
     change val256 u0 u1 u2 u3 / val256 b0' b1' b2' b3' + 1 ≤ qHat.toNat at h
     exact h
   case upper =>
-    -- Upper bound: qHat ≤ q_true_shifted + 2.
-    -- Delegate to `qHat_upper_shifted_under_runtime_v2` (stub).
-    have h := qHat_upper_shifted_under_runtime_v2 a b hb3nz _hshift_nz _hbltu
+    -- Upper bound: 5-limb shifted form (GENUINE Knuth-B).
+    have h := qHat_upper_5limb_shifted_under_runtime_v2 a b hb3nz _hshift_nz _hbltu
       _hcarry2_nz hborrow_v2
     simp only [] at h
-    change qHat.toNat ≤ val256 u0 u1 u2 u3 / val256 b0' b1' b2' b3' + 2 at h
+    change qHat.toNat ≤
+      (u4.toNat * 2^256 + val256 u0 u1 u2 u3) / val256 b0' b1' b2' b3' + 2 at h
     exact h
 
 /-- **Single-addback case for v2**: under v2's Knuth-B + runtime BEQ
