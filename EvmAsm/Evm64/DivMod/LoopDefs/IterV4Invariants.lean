@@ -2255,8 +2255,57 @@ private theorem div128Quot_v4_phase2_overshoot_0_sub (uHi uLo vTop : Word)
     let q0'' := div128Quot_phase2b_q0' q0' rhat2' dLo div_un0
     q0''.toNat = (un21.toNat * 2^32 + div_un0.toNat) /
                  (dHi.toNat * 2^32 + dLo.toNat) := by
-  sorry  -- Mirror of `_phase1_overshoot_0_sub`. Both phase2b_q0' calls
-         -- are no-ops because q0c = q*_phase2 saturates Knuth-A.
+  intro dHi dLo div_un0 div_un1 q1 rhat hi1 q1c rhatc q1' rhat' q1'' rhat''
+        cu_rhat_un1 cu_q1_dlo un21 q0 rhat2 hi2 q0c rhat2c q0' rhat2' q0''
+  -- Standard Word-level facts.
+  have hdLo_lt : dLo.toNat < 2^32 := Word_ushiftRight_32_lt_pow32
+  have h_div_un0_lt : div_un0.toNat < 2^32 := Word_ushiftRight_32_lt_pow32
+  have hdHi_ge : dHi.toNat ≥ 2^31 :=
+    div128Quot_dHi_ge_pow31 vTop h_vTop_ge_pow63
+  have hdHi_lt : dHi.toNat < 2^32 := Word_ushiftRight_32_lt_pow32
+  have h_vTop_decomp : vTop.toNat = dHi.toNat * 2^32 + dLo.toNat :=
+    div128Quot_vTop_decomp vTop
+  -- un21 < vTop (Phase-2 Knuth invariant).
+  have h_un21_lt_vTop : un21.toNat < vTop.toNat :=
+    div128Quot_v4_un21_lt_vTop uHi uLo vTop h_vTop_ge_pow63 h_uHi_lt_vTop
+  have h_un21_lt_decomp : un21.toNat < dHi.toNat * 2^32 + dLo.toNat := by
+    rw [← h_vTop_decomp]; exact h_un21_lt_vTop
+  -- Phase-2a Eucl on (q0c, rhat2c).
+  obtain ⟨h_q0c_dHi_le, h_rhat2c_eq⟩ :=
+    div128Quot_v4_hi_fix_eucl_generic un21 dHi hdHi_ge hdHi_lt
+  -- q0c ≤ 2^32.
+  have h_q0c_lt_pow32 : q0c.toNat ≤ 2^32 :=
+    div128Quot_q1c_le_pow32 un21 dHi dLo hdHi_ge hdLo_lt h_un21_lt_decomp
+  -- q0c.toNat ≤ q*_phase2 (from h_q0c_eq_q_true_phase2).
+  have h_q0c_le : q0c.toNat ≤ (un21.toNat * 2^32 + div_un0.toNat) /
+                              (dHi.toNat * 2^32 + dLo.toNat) := by
+    rw [h_q0c_eq_q_true_phase2]
+  -- 1st correction: BLTU doesn't fire (no-op).
+  have h_no_bltu :=
+    div128Quot_v4_phase1_inner_bltu_fails_generic un21 q0c rhat2c dHi dLo div_un0
+      hdLo_lt h_div_un0_lt h_q0c_dHi_le h_rhat2c_eq h_q0c_lt_pow32 h_q0c_le
+  -- q0' = q0c.
+  have h_q0'_eq : q0' = q0c :=
+    div128Quot_phase2b_q0'_eq_self_of_no_bltu q0c rhat2c dLo div_un0 h_no_bltu
+  -- rhat2' = rhat2c.
+  have h_rhat2'_eq : rhat2' = rhat2c := by
+    show (if rhat2c >>> (32 : BitVec 6).toNat = 0 then
+            (if BitVec.ult ((rhat2c <<< (32 : BitVec 6).toNat) ||| div_un0)
+                            (q0c * dLo)
+             then rhat2c + dHi else rhat2c)
+          else rhat2c) = rhat2c
+    by_cases h_guard : rhat2c >>> (32 : BitVec 6).toNat = 0
+    · rw [if_pos h_guard]
+      have h_inner : ¬ BitVec.ult ((rhat2c <<< (32 : BitVec 6).toNat) ||| div_un0)
+                                   (q0c * dLo) :=
+        fun hb => h_no_bltu ⟨h_guard, hb⟩
+      rw [if_neg h_inner]
+    · rw [if_neg h_guard]
+  -- 2nd correction: q0'' = q0c (same no-op via the same helper).
+  show (div128Quot_phase2b_q0' q0' rhat2' dLo div_un0).toNat = _
+  rw [h_q0'_eq, h_rhat2'_eq,
+      div128Quot_phase2b_q0'_eq_self_of_no_bltu q0c rhat2c dLo div_un0 h_no_bltu]
+  exact h_q0c_eq_q_true_phase2
 
 /-- **Phase-2 overshoot 1 case (v4).** Mirror of
     `_phase1_overshoot_1_sub`: under `q0c.toNat = q*_phase2 + 1`,
