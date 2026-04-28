@@ -165,6 +165,26 @@ theorem div128Quot_v4_phase1c_in_knuth_range (uHi uLo vTop : Word)
         omega
     linarith
 
+/-- **Pure-Nat algebraic core for the inner-BLTU-fires claim.**
+
+    Symmetric to `_phase1_no_bltu_arith` but for the case where `q1c`
+    overshoots: under `q1c * vTop > uHi*2^32 + div_un1` (Knuth strict
+    upper, equivalent to q1c > q_true) plus the Phase-1a Euclidean,
+    derives the BLTU-firing inequality `rhatc * 2^32 + div_un1 <
+    q1c * dLo`. -/
+private theorem div128Quot_v4_phase1_bltu_fires_arith
+    (uHi vTop dHi dLo div_un1 q1c rhatc : Nat)
+    (h_vTop : vTop = dHi * 2^32 + dLo)
+    (h_q1c_dHi_le : q1c * dHi ≤ uHi)
+    (h_rhatc_eq : rhatc = uHi - q1c * dHi)
+    (h_q1c_vTop_gt : q1c * vTop > uHi * 2^32 + div_un1) :
+    rhatc * 2^32 + div_un1 < q1c * dLo := by
+  rw [h_vTop, Nat.mul_add, ← Nat.mul_assoc] at h_q1c_vTop_gt
+  rw [h_rhatc_eq, Nat.sub_mul]
+  have h_mul_le : q1c * dHi * 2^32 ≤ uHi * 2^32 :=
+    Nat.mul_le_mul_right _ h_q1c_dHi_le
+  omega
+
 /-- **Pure-Nat algebraic core for the inner-BLTU-fails claim.**
 
     Given the Knuth-A bound `q1c ≤ q_true` and the Phase-1a Euclidean
