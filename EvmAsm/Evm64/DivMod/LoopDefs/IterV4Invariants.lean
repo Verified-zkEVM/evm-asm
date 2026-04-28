@@ -664,6 +664,79 @@ theorem div128Quot_v4_phase2_perfect (uHi uLo vTop : Word)
   sorry  -- Mirrors `_phase1_perfect`'s case-split-on-overshoot proof,
          -- with q0c replacing q1c as the post-1st-correction trial digit.
 
+/-- **Pure-Nat algebraic core for un21 < vTop.**
+
+    Given Phase-1 perfect (`(q1'' + 1) * vTop > uHi*2^32 + div_un1`)
+    plus Phase-1 Euclidean (`rhat'' = uHi - q1''*dHi`,
+    `q1'' * dHi ≤ uHi`) and the Phase-1 no-wrap bound, derives
+    `rhat'' * 2^32 + div_un1 - q1'' * dLo < vTop`.
+
+    Proof: substitute rhat'' and simplify. Final step is an omega
+    inequality once products are expanded. -/
+private theorem div128Quot_v4_un21_lt_vTop_arith
+    (uHi vTop dHi dLo div_un1 q1'' rhat'' : Nat)
+    (h_vTop : vTop = dHi * 2^32 + dLo)
+    (h_q1''_succ_gt : (q1'' + 1) * vTop > uHi * 2^32 + div_un1)
+    (h_rhat''_eq : rhat'' = uHi - q1'' * dHi)
+    (h_q1''_dHi_le : q1'' * dHi ≤ uHi)
+    (h_no_wrap : q1'' * dLo ≤ rhat'' * 2^32 + div_un1) :
+    rhat'' * 2^32 + div_un1 - q1'' * dLo < vTop := by
+  -- Linearize products via `set`.
+  set A := q1'' * dHi * 2 ^ 32 with hA
+  set B := q1'' * dLo with hB
+  -- Expand rhat'' * 2^32 = (uHi - q1''*dHi) * 2^32 = uHi*2^32 - A.
+  have h_rhat_mul : rhat'' * 2 ^ 32 = uHi * 2 ^ 32 - A := by
+    rw [h_rhat''_eq, Nat.sub_mul]
+  have h_A_le : A ≤ uHi * 2 ^ 32 :=
+    Nat.mul_le_mul_right _ h_q1''_dHi_le
+  -- Expand (q1''+1)*vTop = A + B + dHi*2^32 + dLo.
+  have h_succ_eq : (q1'' + 1) * vTop = A + B + (dHi * 2 ^ 32 + dLo) := by
+    rw [h_vTop, Nat.add_mul, Nat.one_mul, Nat.mul_add, ← Nat.mul_assoc]
+  rw [h_succ_eq] at h_q1''_succ_gt
+  rw [h_rhat_mul, h_vTop]
+  omega
+
+/-- **Phase-1 no-wrap (v4)**: after v4's 2-correction Phase-1b, the
+    quotient `q1''` doesn't overshoot the Phase-1 sub-divisor's remainder
+    word, so the Phase-2 setup `un21 = (rhat'' << 32 | div_un1) -
+    q1'' * dLo` doesn't underflow.
+
+    Symmetric to the top-level `_phase2_no_wrap_lo` (Phase-2 version):
+    just swap the indices (q1''→q0'', rhat''→rhat2'', div_un1→div_un0).
+    Both are corollaries of the corresponding `_perfect` lemma plus
+    Knuth's classical D3 invariant.
+
+    Pure-Word stub for now; depends on `_phase1_perfect`. -/
+theorem div128Quot_v4_phase1_no_wrap_lo (uHi uLo vTop : Word)
+    (_h_vTop_ge_pow63 : vTop.toNat ≥ 2^63)
+    (_h_uHi_lt_vTop : uHi.toNat < vTop.toNat) :
+    let dHi := vTop >>> (32 : BitVec 6).toNat
+    let dLo := (vTop <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+    let div_un1 := uLo >>> (32 : BitVec 6).toNat
+    let q1 := rv64_divu uHi dHi
+    let rhat := uHi - q1 * dHi
+    let hi1 := q1 >>> (32 : BitVec 6).toNat
+    let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+    let rhatc := if hi1 = 0 then rhat else rhat + dHi
+    let q1' := div128Quot_phase2b_q0' q1c rhatc dLo div_un1
+    let rhat' :=
+      if rhatc >>> (32 : BitVec 6).toNat = 0 then
+        let qDlo := q1c * dLo
+        let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
+        if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc
+      else rhatc
+    let q1'' := div128Quot_phase2b_q0' q1' rhat' dLo div_un1
+    let rhat'' :=
+      if rhat' >>> (32 : BitVec 6).toNat = 0 then
+        let qDlo2 := q1' * dLo
+        let rhatUn1' := (rhat' <<< (32 : BitVec 6).toNat) ||| div_un1
+        if BitVec.ult rhatUn1' qDlo2 then rhat' + dHi else rhat'
+      else rhat'
+    q1''.toNat * dLo.toNat ≤ rhat''.toNat * 2^32 + div_un1.toNat := by
+  sorry  -- Closes via `_phase1_perfect` (q1'' = q*_phase1) plus the
+         -- inner-BLTU-fails math at the 2nd correction. Mirrors the
+         -- pattern in `_phase1_overshoot_0_sub` for the no-fire case.
+
 /-- **un21 < vTop under v4** (Phase-2 Knuth invariant).
 
     Per `project_un21_lt_vTop_plan.md`, this was a hard invariant under
