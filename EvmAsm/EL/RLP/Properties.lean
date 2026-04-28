@@ -244,6 +244,15 @@ theorem decode_singleton_list_two_byte_string (b1 b2 : Byte) :
       some (.list [.bytes [b1, b2]], []) := by
   simp [decode, decodeAux, takeBytes, decodeItems]
 
+/-- Singleton list containing a three-byte short string:
+    `decode [0xC4, 0x83, b1, b2, b3] = some (.list [.bytes [b1, b2, b3]], [])`.
+    The outer short-list branch fires with payload length 4, the inner
+    `[0x83, b1, b2, b3]` decodes as a three-byte short string. -/
+theorem decode_singleton_list_three_byte_string (b1 b2 b3 : Byte) :
+    decode [(0xC4 : Byte), (0x83 : Byte), b1, b2, b3] =
+      some (.list [.bytes [b1, b2, b3]], []) := by
+  simp [decode, decodeAux, takeBytes, decodeItems]
+
 /-! ## decode (top-level wrapper) trivial cases -/
 
 /-- `decode []` returns `none` because `decodeAux 0 []` returns `none`. -/
