@@ -590,6 +590,55 @@ private theorem div128Quot_v4_phase1_no_overshoot_when_rhatc_ge_pow32
     linarith
   exact Nat.le_div_iff_mul_le h_vTop_pos |>.mpr h_q1c_vTop_le
 
+/-- **Generic Word-level no-overshoot under rhat ≥ 2^32**:
+    parameterized version of `_phase1_no_overshoot_when_rhatc_ge_pow32`.
+    Takes (q, rhat) as Word params. Reusable for the post-correction
+    state (q1', rhat') in overshoot_2 boundary proof. -/
+private theorem div128Quot_v4_phase1_no_overshoot_when_rhat_ge_pow32_generic
+    (uHi q rhat dHi dLo div_un1 : Word)
+    (h_dHi_ge : dHi.toNat ≥ 2 ^ 31)
+    (h_dLo_lt : dLo.toNat < 2 ^ 32)
+    (h_q_dHi_le : q.toNat * dHi.toNat ≤ uHi.toNat)
+    (h_rhat_eq : rhat.toNat = uHi.toNat - q.toNat * dHi.toNat)
+    (h_q_le_pow32 : q.toNat ≤ 2 ^ 32)
+    (h_rhat_ge : rhat.toNat ≥ 2 ^ 32) :
+    q.toNat ≤ (uHi.toNat * 2 ^ 32 + div_un1.toNat) /
+              (dHi.toNat * 2 ^ 32 + dLo.toNat) := by
+  have h_vTop_pos : 0 < dHi.toNat * 2 ^ 32 + dLo.toNat := by
+    have h_dHi_pos : 0 < dHi.toNat :=
+      lt_of_lt_of_le (by decide : (0:Nat) < 2 ^ 31) h_dHi_ge
+    exact Nat.add_pos_left (Nat.mul_pos h_dHi_pos (by decide)) _
+  -- Bound: q * dLo < 2^64.
+  have h_q_dLo : q.toNat * dLo.toNat < 2^64 := by
+    calc q.toNat * dLo.toNat
+        ≤ 2^32 * dLo.toNat := Nat.mul_le_mul_right _ h_q_le_pow32
+      _ < 2^32 * 2^32 :=
+          (Nat.mul_lt_mul_left (by decide : 0 < 2^32)).mpr h_dLo_lt
+      _ = 2^64 := by decide
+  -- Bound: rhat * 2^32 ≥ 2^64.
+  have h_rhat_mul : rhat.toNat * 2^32 ≥ 2^64 := by
+    calc rhat.toNat * 2^32
+        ≥ 2^32 * 2^32 := Nat.mul_le_mul_right _ h_rhat_ge
+      _ = 2^64 := by decide
+  -- Combine: q * dLo ≤ rhat * 2^32 + div_un1.
+  have h_le : q.toNat * dLo.toNat ≤ rhat.toNat * 2^32 + div_un1.toNat := by omega
+  -- Apply pure-Nat helper: q * vTop ≤ uHi*2^32 + div_un1.
+  have h_q_vTop_le : q.toNat * (dHi.toNat * 2^32 + dLo.toNat) ≤
+                      uHi.toNat * 2^32 + div_un1.toNat := by
+    set A := q.toNat * dHi.toNat with hA
+    set B := q.toNat * dLo.toNat with hB
+    have h_A_le_uHi : A ≤ uHi.toNat := h_q_dHi_le
+    have h_A_2_32_le : A * 2^32 ≤ uHi.toNat * 2^32 :=
+      Nat.mul_le_mul_right _ h_A_le_uHi
+    have h_rhat_eq' : rhat.toNat = uHi.toNat - A := h_rhat_eq
+    have h_rhat_2_32 : rhat.toNat * 2^32 = uHi.toNat * 2^32 - A * 2^32 := by
+      rw [h_rhat_eq', Nat.sub_mul]
+    have h_sum_eq : rhat.toNat * 2^32 + A * 2^32 = uHi.toNat * 2^32 := by
+      rw [h_rhat_2_32]; omega
+    rw [Nat.mul_add, ← Nat.mul_assoc]
+    linarith
+  exact Nat.le_div_iff_mul_le h_vTop_pos |>.mpr h_q_vTop_le
+
 /-- **Generic Word-level BLTU-fails helper**: if `q ≤ q_true_phase1`
     plus the standard Phase-1a Euclidean (`q*dHi ≤ uHi`, `rhat = uHi -
     q*dHi`), then the BLTU on `(rhat << 32) | div_un1` vs `q * dLo`
@@ -1072,9 +1121,9 @@ theorem div128Quot_v4_phase1_overshoot_1_sub (uHi uLo vTop : Word)
     2-correction loop is required. -/
 private theorem div128Quot_v4_phase1_overshoot_2_rhatc_lt_pow32_sub
     (uHi uLo vTop : Word)
-    (_h_vTop_ge_pow63 : vTop.toNat ≥ 2^63)
-    (_h_uHi_lt_vTop : uHi.toNat < vTop.toNat)
-    (_h_q1c_eq_q_true_plus_2 :
+    (h_vTop_ge_pow63 : vTop.toNat ≥ 2^63)
+    (h_uHi_lt_vTop : uHi.toNat < vTop.toNat)
+    (h_q1c_eq_q_true_plus_2 :
       let dHi := vTop >>> (32 : BitVec 6).toNat
       let dLo := (vTop <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
       let div_un1 := uLo >>> (32 : BitVec 6).toNat
@@ -1083,7 +1132,7 @@ private theorem div128Quot_v4_phase1_overshoot_2_rhatc_lt_pow32_sub
       let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
       q1c.toNat = (uHi.toNat * 2^32 + div_un1.toNat) /
                   (dHi.toNat * 2^32 + dLo.toNat) + 2)
-    (_h_rhatc_lt :
+    (h_rhatc_lt :
       let dHi := vTop >>> (32 : BitVec 6).toNat
       let q1 := rv64_divu uHi dHi
       let rhat := uHi - q1 * dHi
@@ -1108,12 +1157,130 @@ private theorem div128Quot_v4_phase1_overshoot_2_rhatc_lt_pow32_sub
     let q1'' := div128Quot_phase2b_q0' q1' rhat' dLo div_un1
     q1''.toNat = (uHi.toNat * 2^32 + div_un1.toNat) /
                  (dHi.toNat * 2^32 + dLo.toNat) := by
-  sorry  -- Boundary case proof: 1st BLTU fires (q1c overshoots by 2),
-         -- q1' = q1c - 1 = q_true + 1. rhat' = rhatc + dHi.
-         -- 2nd BLTU also fires (q1' STILL overshoots by 1).
-         -- q1'' = q1' - 1 = q_true. The crucial v4 case where v2's
-         -- pre-fix 2nd correction mishandled the truncation; v4's
-         -- symmetric guard correctly enables both corrections.
+  intro dHi dLo div_un1 q1 rhat hi1 q1c rhatc q1' rhat' q1''
+  -- Unfold let-prefixed hypotheses.
+  have h_rhatc_lt' : rhatc.toNat < 2^32 := h_rhatc_lt
+  -- Set q_true_phase1 alias to bridge let-form mismatches.
+  set q_true_phase1 := (uHi.toNat * 2^32 + div_un1.toNat) /
+                       (dHi.toNat * 2^32 + dLo.toNat) with h_q_true_def
+  -- Standard Word-level facts.
+  have hdHi_lt : dHi.toNat < 2^32 := Word_ushiftRight_32_lt_pow32
+  have hdLo_lt : dLo.toNat < 2^32 := Word_ushiftRight_32_lt_pow32
+  have h_div_un1_lt : div_un1.toNat < 2^32 := Word_ushiftRight_32_lt_pow32
+  have hdHi_ge : dHi.toNat ≥ 2^31 :=
+    div128Quot_dHi_ge_pow31 vTop h_vTop_ge_pow63
+  have h_vTop_decomp : vTop.toNat = dHi.toNat * 2^32 + dLo.toNat :=
+    div128Quot_vTop_decomp vTop
+  have h_uHi_lt_decomp : uHi.toNat < dHi.toNat * 2^32 + dLo.toNat := by
+    rw [← h_vTop_decomp]; exact h_uHi_lt_vTop
+  -- Phase-1a Euclidean for q1c/rhatc.
+  obtain ⟨h_q1c_dHi_le, h_rhatc_eq⟩ :=
+    div128Quot_v4_phase1_rhatc_bridge uHi vTop h_vTop_ge_pow63 h_uHi_lt_vTop
+  -- q1c.toNat ≤ 2^32.
+  have h_q1c_lt_pow32 : q1c.toNat ≤ 2^32 :=
+    div128Quot_q1c_le_pow32 uHi dHi dLo hdHi_ge hdLo_lt h_uHi_lt_decomp
+  -- Convert hypothesis to q_true_phase1 form.
+  have h_q1c_eq_q_true_plus_2' : q1c.toNat = q_true_phase1 + 2 :=
+    h_q1c_eq_q_true_plus_2
+  -- 1st BLTU fires.
+  have h_overshoot_1st : q1c.toNat ≥ q_true_phase1 + 1 := by linarith
+  have h_overshoot_1st' : q1c.toNat ≥ (uHi.toNat * 2^32 + div_un1.toNat) /
+                                       (dHi.toNat * 2^32 + dLo.toNat) + 1 :=
+    h_overshoot_1st
+  have h_bltu_fires := div128Quot_v4_phase1_inner_bltu_fires_when_q1c_overshoots
+    uHi uLo vTop h_vTop_ge_pow63 h_uHi_lt_vTop h_overshoot_1st' h_rhatc_lt
+  -- Outer guard passes.
+  have h_guard : rhatc >>> (32 : BitVec 6).toNat = 0 :=
+    div128Quot_v4_word_ushiftRight_32_zero_of_lt_pow32 rhatc h_rhatc_lt'
+  -- q1' = q1c + signExtend12 4095 (Word).
+  have h_q1'_word : q1' = q1c + signExtend12 4095 := by
+    show div128Quot_phase2b_q0' q1c rhatc dLo div_un1 = _
+    unfold div128Quot_phase2b_q0'
+    simp only [h_guard, if_true]
+    rw [if_pos h_bltu_fires]
+  -- q1c.toNat ≥ 2 (since q1c = q_true + 2).
+  have h_q1c_ge_2 : q1c.toNat ≥ 2 := by linarith
+  have h_q1c_pos : q1c.toNat ≥ 1 := by linarith
+  -- q1'.toNat = q1c.toNat - 1.
+  have h_q1'_toNat : q1'.toNat = q1c.toNat - 1 := by
+    rw [h_q1'_word, BitVec.toNat_add, signExtend12_4095_toNat]
+    have hq1c_lt_word : q1c.toNat - 1 < 2^64 := by have := q1c.isLt; omega
+    rw [show q1c.toNat + (2^64 - 1) = (q1c.toNat - 1) + 2^64 from by omega,
+        Nat.add_mod_right, Nat.mod_eq_of_lt hq1c_lt_word]
+  -- rhat' = rhatc + dHi (Word).
+  have h_rhat'_word : rhat' = rhatc + dHi := by
+    show (if rhatc >>> (32 : BitVec 6).toNat = 0 then
+            (if BitVec.ult ((rhatc <<< (32 : BitVec 6).toNat) ||| div_un1)
+                            (q1c * dLo)
+             then rhatc + dHi else rhatc)
+          else rhatc) = rhatc + dHi
+    simp only [h_guard, if_true]
+    rw [if_pos h_bltu_fires]
+  -- rhat'.toNat = rhatc.toNat + dHi.toNat (no overflow).
+  have h_rhat'_toNat : rhat'.toNat = rhatc.toNat + dHi.toNat := by
+    rw [h_rhat'_word, BitVec.toNat_add]
+    apply Nat.mod_eq_of_lt
+    have h_sum_lt : rhatc.toNat + dHi.toNat < 2^32 + 2^32 := by linarith
+    linarith [show (2:Nat)^32 + 2^32 < 2^64 from by decide]
+  -- New Phase-1a Eucl via the proven helper.
+  obtain ⟨h_q1c_minus_one_dHi_le, h_rhatc_plus_dHi_eq⟩ :=
+    div128Quot_v4_phase1_post_correction_eucl_arith
+      uHi.toNat q1c.toNat dHi.toNat rhatc.toNat
+      h_q1c_pos h_q1c_dHi_le h_rhatc_eq
+  -- Translate to q1', rhat'.
+  have h_q1'_dHi_le : q1'.toNat * dHi.toNat ≤ uHi.toNat := by
+    rw [h_q1'_toNat]; exact h_q1c_minus_one_dHi_le
+  have h_rhat'_eq : rhat'.toNat = uHi.toNat - q1'.toNat * dHi.toNat := by
+    rw [h_q1'_toNat, h_rhat'_toNat]; exact h_rhatc_plus_dHi_eq
+  -- q1'.toNat = q_true_phase1 + 1 (still overshoots by 1).
+  have h_q1'_eq : q1'.toNat = q_true_phase1 + 1 := by
+    have h1 : q1'.toNat = q1c.toNat - 1 := h_q1'_toNat
+    have h2 : q1c.toNat = q_true_phase1 + 2 := h_q1c_eq_q_true_plus_2'
+    omega
+  -- q1'.toNat ≤ 2^32.
+  have h_q1'_lt_pow32 : q1'.toNat ≤ 2^32 := by linarith
+  -- rhat'.toNat < 2^32: derive via the no_overshoot_generic helper.
+  --   If rhat' ≥ 2^32, then q1' ≤ q_true_phase1, but q1' = q_true + 1.
+  --   Contradiction.
+  have h_rhat'_lt : rhat'.toNat < 2^32 := by
+    by_contra h
+    push Not at h
+    have h_no_over := div128Quot_v4_phase1_no_overshoot_when_rhat_ge_pow32_generic
+      uHi q1' rhat' dHi dLo div_un1
+      hdHi_ge hdLo_lt h_q1'_dHi_le h_rhat'_eq h_q1'_lt_pow32 h
+    -- h_no_over : q1'.toNat ≤ q_true_phase1. But h_q1'_eq : q1'.toNat = q_true + 1.
+    omega
+  -- 2nd BLTU fires (apply fires_generic for q1', rhat').
+  have h_q1'_overshoot : q1'.toNat ≥ (uHi.toNat * 2^32 + div_un1.toNat) /
+                                      (dHi.toNat * 2^32 + dLo.toNat) + 1 := by
+    rw [h_q1'_eq]
+  have h_bltu_fires_2 :=
+    div128Quot_v4_phase1_inner_bltu_fires_generic
+      uHi q1' rhat' dHi dLo div_un1
+      hdHi_ge hdLo_lt h_div_un1_lt h_q1'_dHi_le h_rhat'_eq
+      h_rhat'_lt h_q1'_lt_pow32 h_q1'_overshoot
+  -- Outer guard passes for the 2nd correction (rhat' < 2^32).
+  have h_guard_2 : rhat' >>> (32 : BitVec 6).toNat = 0 :=
+    div128Quot_v4_word_ushiftRight_32_zero_of_lt_pow32 rhat' h_rhat'_lt
+  -- q1'' = q1' + signExtend12 4095 = q1' - 1 (Word).
+  have h_q1''_word : q1'' = q1' + signExtend12 4095 := by
+    show div128Quot_phase2b_q0' q1' rhat' dLo div_un1 = _
+    unfold div128Quot_phase2b_q0'
+    simp only [h_guard_2, if_true]
+    rw [if_pos h_bltu_fires_2]
+  -- q1''.toNat = q1'.toNat - 1.
+  have h_q1''_toNat : q1''.toNat = q1'.toNat - 1 := by
+    rw [h_q1''_word, BitVec.toNat_add, signExtend12_4095_toNat]
+    have hq1'_lt_word : q1'.toNat - 1 < 2^64 := by have := q1'.isLt; omega
+    have h_q1'_pos : q1'.toNat ≥ 1 := by linarith
+    rw [show q1'.toNat + (2^64 - 1) = (q1'.toNat - 1) + 2^64 from by omega,
+        Nat.add_mod_right, Nat.mod_eq_of_lt hq1'_lt_word]
+  -- Conclude q1''.toNat = q_true_phase1.
+  have h_q1''_eq : q1''.toNat = q_true_phase1 := by
+    have h1 : q1''.toNat = q1'.toNat - 1 := h_q1''_toNat
+    have h2 : q1'.toNat = q_true_phase1 + 1 := h_q1'_eq
+    omega
+  rw [h_q1''_eq, h_q_true_def]
 
 /-- **Phase-1 overshoot 2 case (v4).** Under `q1c.toNat = q_true + 2`,
     the 1st D3 correction decrements to q_true + 1, the 2nd to q_true. -/
