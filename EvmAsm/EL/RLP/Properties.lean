@@ -188,6 +188,19 @@ theorem decode_triple_list_small_bytes
       some (.list [.bytes [b1], .bytes [b2], .bytes [b3]], []) := by
   simp [decode, decodeAux, takeBytes, decodeItems, h1, h2, h3]
 
+/-- Four-element list of small bytes:
+    `decode [0xC4, b1, b2, b3, b4] = some (.list [.bytes [b1], .bytes [b2], .bytes [b3], .bytes [b4]], [])`
+    when all `b1, b2, b3, b4 < 0x80`. Short-list branch fires with
+    payload length 4, four single-byte items decoded in sequence, then
+    closes. -/
+theorem decode_quad_list_small_bytes
+    (b1 b2 b3 b4 : Byte)
+    (h1 : b1.toNat < 0x80) (h2 : b2.toNat < 0x80)
+    (h3 : b3.toNat < 0x80) (h4 : b4.toNat < 0x80) :
+    decode [(0xC4 : Byte), b1, b2, b3, b4] =
+      some (.list [.bytes [b1], .bytes [b2], .bytes [b3], .bytes [b4]], []) := by
+  simp [decode, decodeAux, takeBytes, decodeItems, h1, h2, h3, h4]
+
 /-- Two-element list of empty lists:
     `decode [0xC2, 0xC0, 0xC0] = some (.list [.list [], .list []], [])`.
     The outer short-list branch fires with payload length 2, two empty
