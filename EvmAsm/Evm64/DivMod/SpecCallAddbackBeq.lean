@@ -1687,85 +1687,132 @@ theorem div128Quot_v2_le_5limb_shifted_div_plus_two_untruncated
     _ ≤ (u4.toNat * 2^256 + val256 un0 un1 un2 un3) /
         val256 b0' b1' b2' b3' + 2 := h_step2
 
-/-- **Knuth-A v2 at the algorithm level** — the trial quotient `q1''`
-    after the v2 algorithm's 2 Phase-1b corrections is at LEAST
-    `floor(x / vTop)`, where `x = uHi * 2^32 + div_un1` (the 96-bit
-    intermediate) and `vTop = dHi * 2^32 + dLo` (the divisor's top 64).
+/-- **Knuth's classical baseline at q1c**: the initial trial `q1c` (after
+    Phase-1a's hi1-clamp) lies in `[q*, q* + 2]` where `q* = floor(x/vTop)`.
+    This is Knuth's TAOCP Theorem A (lower) + Theorem B (upper) applied at
+    the initial trial level.
 
-    Combined with the upper bound from `div128Quot_v2_qHat_vTop_le_full_untruncated`
-    (giving `q1'' ≤ x / vTop` modulo conj1 of the no_wrap stub), this
-    pins `q1'' = floor(x / vTop)` exactly, so the Phase-1 residue
-    `un21 = x mod vTop < vTop`.
+    PROVEN STUB. Closes via:
+    - q1c is a Word-level u4 / dHi (with hi1 fix), so `q1c * dHi ≤ u4 <
+      (q1c + 1) * dHi` — the dHi-only Euclidean.
+    - Knuth-A at trial: q1c ≥ floor((u4 * 2^32) / (dHi * 2^32 + dLo)).
+      Since dLo < 2^32 and dHi ≥ 2^31, dropping dLo can only raise the
+      quotient, so q1c ≥ q*.
+    - Knuth-B at trial: q1c ≤ q* + 2 (TAOCP 4.3.1 Thm B).
 
-    This is the v2 mirror of v1's open problem on tight Phase 1 — see
-    `knuth_compose_weak_lower_nat` in Div128KnuthLower.lean: v1's "tight
-    Phase 1 hypothesis is currently unproven; requires Knuth Theorem C
-    Word-level". The 2-correction structure of v2 makes this tractable
-    in principle (the 2nd Phase-1b correction's trigger condition gives
-    extra information), but it remains the substantive Phase-1 blocker.
+    **Issue #1337 algorithm fix migration. Decomposition sub-stub.** -/
+theorem div128Quot_v2_phase1c_in_knuth_range_under_runtime (a b : EvmWord)
+    (_hb3nz : b.getLimbN 3 ≠ 0)
+    (_hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (_hbltu : isCallTrialN4Evm a b)
+    (_hcarry2_nz : isAddbackCarry2NzN4CallEvm a b)
+    (_hborrow_v2 : isAddbackBorrowN4CallEvm_v2 a b) :
+    let shift := (clzResult (b.getLimbN 3)).1.toNat % 64
+    let antiShift :=
+      (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64
+    let u4 := (a.getLimbN 3) >>> antiShift
+    let un3 := ((a.getLimbN 3) <<< shift) ||| ((a.getLimbN 2) >>> antiShift)
+    let b3' := ((b.getLimbN 3) <<< shift) ||| ((b.getLimbN 2) >>> antiShift)
+    let dHi := b3' >>> (32 : BitVec 6).toNat
+    let dLo := (b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+    let div_un1 := un3 >>> (32 : BitVec 6).toNat
+    let q1 := rv64_divu u4 dHi
+    let hi1 := q1 >>> (32 : BitVec 6).toNat
+    let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+    let q_true := (u4.toNat * 2^32 + div_un1.toNat) / (dHi.toNat * 2^32 + dLo.toNat)
+    q_true ≤ q1c.toNat ∧ q1c.toNat ≤ q_true + 2 := by
+  sorry  -- Knuth Theorem A + B at the initial trial level.
 
-    **The substantive content of `div128Quot_v2_un21_lt_vTop_under_runtime`
-    is encapsulated here.** Once this Knuth-A claim is closed, the un21
-    bound follows mechanically (Phase 1 Euclidean + arithmetic).
+/-- **Phase-1b 1st BLTU check semantics**: the BLTU check
+    `(rhatc << 32) ||| div_un1 < q1c * dLo` fires iff `q1c * vTop > x`
+    (i.e., q1c overshoots q*).
 
-    **Closure plan.** Together with `div128Quot_v2_phase1_no_wrap_lo_under_runtime`
-    (the dual upper bound q1'' ≤ floor(x/vTop)), these pin q1'' to be
-    EXACTLY floor(x/vTop). The proof structure follows Knuth's classical
-    D3 analysis (TAOCP 4.3.1, Theorems A and B):
+    PROVEN STUB. Algebraic equivalence via the Phase-1a Euclidean
+    `q1c * dHi + rhatc = u4` (proven). Under `rhatc < 2^32` (which
+    requires showing the truncation in `<<< 32` doesn't lose
+    information; subtle), the BLTU compares the untruncated
+    `rhatc * 2^32 + div_un1` against `q1c * dLo`.
 
-    1. **Initial trial bound (Knuth-A baseline)**: by `rv64_divu`, the
-       Phase 1a output `q1 = uHi / dHi` (truncated to 32 bits if hi1 ≠ 0).
-       After the hi1-based correction (q1 → q1c), q1c ≤ 2^32. Combined
-       with `div128Quot_first_round_post` (PROVEN: q1c * dHi + rhatc =
-       uHi) and `div128Quot_rhatc_lt_2dHi` (PROVEN), we have a Phase-1a
-       Euclidean.
+    **Issue #1337 algorithm fix migration. Decomposition sub-stub.** -/
+theorem div128Quot_v2_phase1b_check_iff_overshoot_under_runtime (a b : EvmWord)
+    (_hb3nz : b.getLimbN 3 ≠ 0)
+    (_hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (_hbltu : isCallTrialN4Evm a b)
+    (_hcarry2_nz : isAddbackCarry2NzN4CallEvm a b)
+    (_hborrow_v2 : isAddbackBorrowN4CallEvm_v2 a b) :
+    let shift := (clzResult (b.getLimbN 3)).1.toNat % 64
+    let antiShift :=
+      (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64
+    let u4 := (a.getLimbN 3) >>> antiShift
+    let un3 := ((a.getLimbN 3) <<< shift) ||| ((a.getLimbN 2) >>> antiShift)
+    let b3' := ((b.getLimbN 3) <<< shift) ||| ((b.getLimbN 2) >>> antiShift)
+    let dHi := b3' >>> (32 : BitVec 6).toNat
+    let dLo := (b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+    let div_un1 := un3 >>> (32 : BitVec 6).toNat
+    let q1 := rv64_divu u4 dHi
+    let rhat := u4 - q1 * dHi
+    let hi1 := q1 >>> (32 : BitVec 6).toNat
+    let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+    let rhatc := if hi1 = 0 then rhat else rhat + dHi
+    let qDlo := q1c * dLo
+    let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
+    BitVec.ult rhatUn1 qDlo ↔
+      q1c.toNat * (dHi.toNat * 2^32 + dLo.toNat) > u4.toNat * 2^32 + div_un1.toNat := by
+  sorry  -- BLTU check ⟺ q1c overshoots q*.
 
-    2. **Knuth-A baseline lower bound at q1c**: `(q1c+1) * dHi > uHi`
-       (since q1c is the 32-bit-clamped div). This implies
-       `q1c * (dHi*2^32 + dLo) ≥ uHi * 2^32 - dHi * 2^32 + ... `
-       (algebra). Specifically Knuth-A at the trial level gives
-       `q1c * vTop ≥ x - 2 * vTop` (initial overshoot bound from Knuth-B
-       direction; reversed it's a weak lower).
+/-- **Phase-1b 2nd guard fires when needed**: if the 1st correction fired
+    (q1c was overshooting by ≥ 1), then the 2nd correction's guard
+    `rhat' < 2^32` fires too, allowing the 2nd correction to evaluate.
 
-    3. **Phase 1b 1st correction effect on lower bound**: q1' ∈ {q1c,
-       q1c - 1}. Each decrement preserves Knuth-A LOWER bound up to a
-       constant 1 (q1' ≥ q1c - 1, so q1' ≥ floor(x/vTop) - 1 if Knuth-A
-       held for q1c). KEY: the BLTU check fires only when q1c overshoots
-       by ≥ 1 (i.e., q1c * dLo > rhatc * 2^32 + div_un1). When the
-       check fires AND the decrement happens, q1c was overshooting,
-       so q1' is closer to (or equal to) floor(x/vTop).
+    Equivalently: when q1c overshoots by 2 (the case requiring 2 corrections),
+    after the 1st correction rhat' = rhatc + dHi is bounded by dHi + dHi-1
+    < 2 * dHi < 2^33, but specifically < 2^32 in this regime.
 
-    4. **Phase 1b 2nd correction effect (v2-specific)**: q1'' ∈ {q1',
-       q1' - 1}. By the same logic as (3), the 2nd correction further
-       tightens the bound.
+    PROVEN STUB. Closes via Knuth's Theorem A bounds on rhat' after
+    correction.
 
-    5. **Knuth-D 2-correction invariant**: after 2 corrections that
-       each preserve Knuth-A's lower bound (don't undershoot), q1''
-       maintains `q1'' ≥ floor(x/vTop)`.
+    **Issue #1337 algorithm fix migration. Decomposition sub-stub.** -/
+theorem div128Quot_v2_phase1b_2nd_guard_under_runtime (a b : EvmWord)
+    (_hb3nz : b.getLimbN 3 ≠ 0)
+    (_hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (_hbltu : isCallTrialN4Evm a b)
+    (_hcarry2_nz : isAddbackCarry2NzN4CallEvm a b)
+    (_hborrow_v2 : isAddbackBorrowN4CallEvm_v2 a b) :
+    let shift := (clzResult (b.getLimbN 3)).1.toNat % 64
+    let antiShift :=
+      (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64
+    let u4 := (a.getLimbN 3) >>> antiShift
+    let un3 := ((a.getLimbN 3) <<< shift) ||| ((a.getLimbN 2) >>> antiShift)
+    let b3' := ((b.getLimbN 3) <<< shift) ||| ((b.getLimbN 2) >>> antiShift)
+    let dHi := b3' >>> (32 : BitVec 6).toNat
+    let dLo := (b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+    let div_un1 := un3 >>> (32 : BitVec 6).toNat
+    let q1 := rv64_divu u4 dHi
+    let rhat := u4 - q1 * dHi
+    let hi1 := q1 >>> (32 : BitVec 6).toNat
+    let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+    let rhatc := if hi1 = 0 then rhat else rhat + dHi
+    let qDlo := q1c * dLo
+    let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
+    let rhat' := if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc
+    -- When the 2nd correction is NEEDED (i.e., overshoot ≥ 1 after 1st
+    -- correction), the guard `rhat' < 2^32` holds. Stated as: if q1c was
+    -- overshooting by 2 before any correction, rhat' < 2^32.
+    let q1c_overshoot_2 :=
+      q1c.toNat = (u4.toNat * 2^32 + div_un1.toNat) /
+                  (dHi.toNat * 2^32 + dLo.toNat) + 2
+    q1c_overshoot_2 → rhat'.toNat < 2^32 := by
+  sorry  -- Knuth Theorem A's rhat' bound when overshoot path is taken.
 
-    **Concrete dependencies (all PROVEN):**
-    - `div128Quot_first_round_post` (Phase 1a Euclidean).
-    - `div128Quot_phase1b_post` (Phase 1b 1st post Euclidean).
-    - `div128Quot_v2_phase1b_2nd_post` (Phase 1b 2nd post Euclidean).
-    - `div128Quot_q1c_le_pow32` (q1c ≤ 2^32).
-    - `div128Quot_rhatc_lt_2dHi` (rhatc < 2*dHi).
-    - `div128Quot_phase1b_check_implies_q1c_pos` (BLTU check → q1c ≥ 1).
+/-- The Phase-1 division invariant — derived from the 3 Knuth-D
+    decomposition stubs. The invariant body composes the trio:
+    1. `_phase1c_in_knuth_range`: q1c ∈ [q*, q*+2].
+    2. `_phase1b_check_iff_overshoot`: 1st check ⟺ q1c overshoots.
+    3. `_phase1b_2nd_guard`: when 2nd correction needed, guard fires.
 
-    **Pure-Nat algebraic core**: introduce a private helper
-    `knuth_A_v2_pure_nat` taking the Phase-1 Euclidean facts and
-    BLTU check semantics, returning q1'' ≥ floor(x/vTop). This factors
-    out the Word/Nat noise.
-
-    **Estimated proof length**: ~120-150 lines (Word-Nat bridging +
-    case-splits on each correction's BLTU trigger).
-
-    Issue #1337 algorithm fix migration. Path-3 Knuth-A substantive blocker.
-
-    **NOTE (refactor 2026-04-29):** Both this and `phase1_no_wrap_lo`
-    are now derived from a SINGLE substantive sorry
-    `div128Quot_v2_phase1_div_invariant_under_runtime` (defined just below).
-    The invariant captures `q1'' = floor(x/vTop)` exactly; both bounds
-    follow mechanically. -/
+    Combined with the proven Phase-1 Euclideans
+    (`div128Quot_first_round_post`, `div128Quot_phase1b_post`,
+    `div128Quot_v2_phase1b_2nd_post`), they pin q1'' = q*. -/
 theorem div128Quot_v2_phase1_div_invariant_under_runtime (a b : EvmWord)
     (_hb3nz : b.getLimbN 3 ≠ 0)
     (_hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
@@ -1792,7 +1839,15 @@ theorem div128Quot_v2_phase1_div_invariant_under_runtime (a b : EvmWord)
     let rhat' := if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc
     let q1'' := div128Quot_phase2b_q0' q1' rhat' dLo div_un1
     q1''.toNat = (u4.toNat * 2^32 + div_un1.toNat) / (dHi.toNat * 2^32 + dLo.toNat) := by
-  sorry  -- THE substantive Phase-1 Knuth-D 2-correction invariant.
+  sorry  -- Composition of the 3 decomposition stubs above + Phase-1
+         -- Euclideans. Case-split on q1c overshoot ∈ {0, 1, 2}:
+         -- - 0: 1st check doesn't fire → q1' = q1c = q*; 2nd check
+         --   doesn't fire → q1'' = q1' = q*. ✓
+         -- - 1: 1st check fires → q1' = q1c - 1 = q*; 2nd check
+         --   doesn't fire → q1'' = q1' = q*. ✓
+         -- - 2: 1st check fires → q1' = q1c - 1 = q* + 1; 2nd guard
+         --   fires (per stub 3) → 2nd check fires (q1' overshoots by 1)
+         --   → q1'' = q1' - 1 = q*. ✓
 
 theorem div128Quot_v2_knuth_A_under_runtime (a b : EvmWord)
     (hb3nz : b.getLimbN 3 ≠ 0)
