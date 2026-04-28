@@ -598,6 +598,103 @@ hits any of the symptoms listed above. Spending the iteration on
 irreducible bundles + sub-lemmas pays for itself by avoiding the
 "refactoring tax" of multiple failed `simp`/`rw`/`exact` attempts.
 
+## Pure-Nat Sub-Lemmas for omega/maxRecDepth Avoidance
+
+When a proof in a theorem with **deep let-chains and many opaque
+non-linear products** (e.g., `(q + 1) * dHi`, `(q + 2) * dLo`) hits
+`omega`'s `maxRecDepth` limit, factor the algebraic core into a
+**private pure-Nat sub-lemma** with explicit `set` aliases for the
+non-linear products.
+
+### Symptoms
+
+- `omega` produces "maximum recursion depth has been reached" inside a
+  `have` block, even after splitting the proof.
+- The constraint set in `omega`'s error message contains many
+  independent product variables (e.g., `g := (q_true + 1) * dHi.toNat`,
+  `i := (q_true + 2) * dHi.toNat`) that omega treats as opaque.
+- The ambient theorem has **20+ let-bound variables** (full algorithm
+  state introduced via `intro`).
+
+### Why omega struggles
+
+`omega` is a decision procedure for **linear** integer arithmetic. When
+the ambient context has many non-linear products as terms (`a * b` where
+both factors involve variables), omega treats each product as a fresh
+variable and tries to discover linear relationships between them. With
+many products and many constraints, this exploration can hit elaboration
+limits.
+
+### Pattern
+
+For each algebraic deduction that hits `maxRecDepth`, extract a private
+helper that takes **only the relevant Nat variables** and uses `set`
+aliases inside to keep the constraints linear:
+
+```lean
+private theorem my_arith_helper (u4 A B div_un1 : Nat)
+    (h_x_lt : u4 * 2^32 + div_un1 < A * 2^32 + B)
+    (h_A_le_u4 : A ≤ u4)
+    (h_B_bound : B + 2^32 ≤ 2^64) :
+    u4 - A < 2^32 := by
+  set X := u4 * 2^32 with hX
+  set Y := A * 2^32 with hY
+  have h_sub_mul : (u4 - A) * 2^32 = X - Y := by
+    rw [hX, hY, Nat.sub_mul]
+  have h_Y_le_X : Y ≤ X := Nat.mul_le_mul_right _ h_A_le_u4
+  have h_step : (u4 - A) * 2^32 < B + 2^32 := by
+    rw [h_sub_mul]; omega
+  set Z := (u4 - A) * 2^32 with hZ
+  by_contra h_ge
+  push Not at h_ge
+  have h_mul : 2^32 * 2^32 ≤ Z := by
+    rw [hZ]; exact Nat.mul_le_mul_right _ h_ge
+  have h_pow_eq : (2^32 * 2^32 : Nat) = 2^64 := by decide
+  omega
+```
+
+### Why this works
+
+- The sub-lemma's **isolated context** has only the few hypotheses it
+  needs, so omega's search space is bounded.
+- `set X := ...` with `with hX` introduces a local fvar plus an equation;
+  omega sees `X` as a single variable and `X = ...` as one linear
+  constraint, sidestepping the non-linear product entirely.
+- Pre-computing `Nat.mul_le_mul_right _ h_A_le_u4` as `Y ≤ X` (linear
+  fact between aliases) gives omega exactly the linear hypothesis it
+  needs.
+- The main theorem invokes `my_arith_helper u4.toNat A B div_un1.toNat ...`,
+  passing concrete Nat values rather than wading through let-zeta.
+
+### When to apply
+
+When a proof body:
+1. Has 20+ let-bound variables (typical for algorithm-state-heavy proofs
+   like `div128Quot_v2` Phase-1).
+2. Contains an algebraic deduction that's **mathematically simple but
+   non-linear** (e.g., `(u4 - A) * 2^32 < 2^64` from inequalities
+   involving products).
+3. Hits `maxRecDepth` in `omega` despite being structurally correct.
+
+Following the Critical Rule "**don't add `set_option maxRecDepth`**" —
+extract a pure-Nat helper instead. The helper amortizes the algebraic
+work and keeps the main proof readable.
+
+### Canonical example
+
+`phase1b_2nd_guard_arith` in `Evm64/DivMod/SpecCallAddbackBeq.lean` is
+the canonical reference. It captures Knuth's TAOCP §4.3.1 rhat bound
+under overshoot=2 (`u4 - (q_true + 1) * dHi < 2^32`) as a pure-Nat
+statement, allowing the consumer
+`div128Quot_v2_phase1b_2nd_guard_under_runtime` to discharge the
+algebra in one line. The pattern was extracted after a first proof
+attempt repeatedly hit `maxRecDepth` despite restructuring (changing
+`set` calls, splitting `have` blocks) within the main theorem body.
+
+Sibling examples in the same file: `conj2_arith`,
+`un21_lt_vTop_arith`, `un21_toNat_untruncated_arith` — each isolates
+a focused pure-Nat algebraic claim invoked by a Word-level theorem.
+
 ## End-to-End Composition with Existential Intermediates
 
 When composing specs where an intermediate postcondition has existentials (e.g., `loopBodyPostN4` which wraps computed values in `∃`), standard `cpsTriple_seq_perm_same_cr` doesn't work because the second spec's precondition depends on the existential witnesses.
