@@ -186,6 +186,15 @@ theorem decode_pair_list_empty_lists :
       some (.list [.list [], .list []], []) := by
   simp [decode, decodeAux, takeBytes, decodeItems]
 
+/-- Three-element list of empty lists:
+    `decode [0xC3, 0xC0, 0xC0, 0xC0] = some (.list [.list [], .list [], .list []], [])`.
+    The outer short-list branch fires with payload length 3, three empty
+    inner lists are decoded in sequence, then the outer closes. -/
+theorem decode_triple_list_empty_lists :
+    decode [(0xC3 : Byte), (0xC0 : Byte), (0xC0 : Byte), (0xC0 : Byte)] =
+      some (.list [.list [], .list [], .list []], []) := by
+  simp [decode, decodeAux, takeBytes, decodeItems]
+
 /-- Mixed-content two-element list: a small byte followed by an empty
     string. `decode [0xC2, b, 0x80] = some (.list [.bytes [b], .bytes []], [])`
     when `b < 0x80`. -/
