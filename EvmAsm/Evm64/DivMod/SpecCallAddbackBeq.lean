@@ -2076,6 +2076,166 @@ theorem div128Quot_v2_phase1b_2nd_guard_under_runtime (a b : EvmWord)
     rw [h_rhat'_unfold, if_neg h_check]
     omega
 
+/-- **Phase-1 division invariant — overshoot=0 case** (q1c = q_true exactly).
+
+    When q1c lands at the true quotient, no corrections should fire and
+    `q1'' = q1' = q1c = q_true`. The first BLTU check should be FALSE
+    (since `q1c * vTop ≤ x`); the Phase-2b guard/check should also leave
+    q1' alone.
+
+    Closes via `div128Quot_v2_phase1b_check_iff_overshoot_under_runtime`
+    in reverse direction (no overshoot → BLTU false), with auxiliary
+    rhatc/q1c bounds derivations. -/
+private theorem div128Quot_v2_phase1_div_invariant_overshoot_0_sub
+    (a b : EvmWord)
+    (_hb3nz : b.getLimbN 3 ≠ 0)
+    (_hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (_hbltu : isCallTrialN4Evm a b)
+    (_hcarry2_nz : isAddbackCarry2NzN4CallEvm a b)
+    (_hborrow_v2 : isAddbackBorrowN4CallEvm_v2 a b)
+    (_h_overshoot :
+      let shift := (clzResult (b.getLimbN 3)).1.toNat % 64
+      let antiShift :=
+        (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64
+      let u4 := (a.getLimbN 3) >>> antiShift
+      let un3 := ((a.getLimbN 3) <<< shift) ||| ((a.getLimbN 2) >>> antiShift)
+      let b3' := ((b.getLimbN 3) <<< shift) ||| ((b.getLimbN 2) >>> antiShift)
+      let dHi := b3' >>> (32 : BitVec 6).toNat
+      let dLo := (b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+      let div_un1 := un3 >>> (32 : BitVec 6).toNat
+      let q1 := rv64_divu u4 dHi
+      let hi1 := q1 >>> (32 : BitVec 6).toNat
+      let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+      q1c.toNat = (u4.toNat * 2^32 + div_un1.toNat) /
+                  (dHi.toNat * 2^32 + dLo.toNat)) :
+    let shift := (clzResult (b.getLimbN 3)).1.toNat % 64
+    let antiShift :=
+      (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64
+    let u4 := (a.getLimbN 3) >>> antiShift
+    let un3 := ((a.getLimbN 3) <<< shift) ||| ((a.getLimbN 2) >>> antiShift)
+    let b3' := ((b.getLimbN 3) <<< shift) ||| ((b.getLimbN 2) >>> antiShift)
+    let dHi := b3' >>> (32 : BitVec 6).toNat
+    let dLo := (b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+    let div_un1 := un3 >>> (32 : BitVec 6).toNat
+    let q1 := rv64_divu u4 dHi
+    let rhat := u4 - q1 * dHi
+    let hi1 := q1 >>> (32 : BitVec 6).toNat
+    let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+    let rhatc := if hi1 = 0 then rhat else rhat + dHi
+    let qDlo := q1c * dLo
+    let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
+    let q1' := if BitVec.ult rhatUn1 qDlo then q1c + signExtend12 4095 else q1c
+    let rhat' := if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc
+    let q1'' := div128Quot_phase2b_q0' q1' rhat' dLo div_un1
+    q1''.toNat = (u4.toNat * 2^32 + div_un1.toNat) /
+                 (dHi.toNat * 2^32 + dLo.toNat) := by
+  sorry  -- Case 0 (no overshoot): 1st check false (Stub 2 reverse) →
+         -- q1' = q1c = q_true. Phase-2b: 2nd check false (q1' = q_true
+         -- doesn't overshoot) → q1'' = q1' = q_true.
+
+/-- **Phase-1 division invariant — overshoot=1 case** (q1c = q_true + 1).
+
+    1st BLTU check fires (Stub 2 forward) → q1' = q1c - 1 = q_true,
+    rhat' = rhatc + dHi. Phase-2b: q1' = q_true is correct, so 2nd
+    check should not fire → q1'' = q1' = q_true. -/
+private theorem div128Quot_v2_phase1_div_invariant_overshoot_1_sub
+    (a b : EvmWord)
+    (_hb3nz : b.getLimbN 3 ≠ 0)
+    (_hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (_hbltu : isCallTrialN4Evm a b)
+    (_hcarry2_nz : isAddbackCarry2NzN4CallEvm a b)
+    (_hborrow_v2 : isAddbackBorrowN4CallEvm_v2 a b)
+    (_h_overshoot :
+      let shift := (clzResult (b.getLimbN 3)).1.toNat % 64
+      let antiShift :=
+        (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64
+      let u4 := (a.getLimbN 3) >>> antiShift
+      let un3 := ((a.getLimbN 3) <<< shift) ||| ((a.getLimbN 2) >>> antiShift)
+      let b3' := ((b.getLimbN 3) <<< shift) ||| ((b.getLimbN 2) >>> antiShift)
+      let dHi := b3' >>> (32 : BitVec 6).toNat
+      let dLo := (b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+      let div_un1 := un3 >>> (32 : BitVec 6).toNat
+      let q1 := rv64_divu u4 dHi
+      let hi1 := q1 >>> (32 : BitVec 6).toNat
+      let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+      q1c.toNat = (u4.toNat * 2^32 + div_un1.toNat) /
+                  (dHi.toNat * 2^32 + dLo.toNat) + 1) :
+    let shift := (clzResult (b.getLimbN 3)).1.toNat % 64
+    let antiShift :=
+      (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64
+    let u4 := (a.getLimbN 3) >>> antiShift
+    let un3 := ((a.getLimbN 3) <<< shift) ||| ((a.getLimbN 2) >>> antiShift)
+    let b3' := ((b.getLimbN 3) <<< shift) ||| ((b.getLimbN 2) >>> antiShift)
+    let dHi := b3' >>> (32 : BitVec 6).toNat
+    let dLo := (b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+    let div_un1 := un3 >>> (32 : BitVec 6).toNat
+    let q1 := rv64_divu u4 dHi
+    let rhat := u4 - q1 * dHi
+    let hi1 := q1 >>> (32 : BitVec 6).toNat
+    let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+    let rhatc := if hi1 = 0 then rhat else rhat + dHi
+    let qDlo := q1c * dLo
+    let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
+    let q1' := if BitVec.ult rhatUn1 qDlo then q1c + signExtend12 4095 else q1c
+    let rhat' := if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc
+    let q1'' := div128Quot_phase2b_q0' q1' rhat' dLo div_un1
+    q1''.toNat = (u4.toNat * 2^32 + div_un1.toNat) /
+                 (dHi.toNat * 2^32 + dLo.toNat) := by
+  sorry  -- Case 1 (overshoot 1): 1st check fires → q1' = q_true.
+         -- Phase-2b: q_true * vTop ≤ x so 2nd check false → q1'' = q_true.
+
+/-- **Phase-1 division invariant — overshoot=2 case** (q1c = q_true + 2).
+
+    1st check fires → q1' = q1c - 1 = q_true + 1.
+    2nd guard fires (Stub 3) → 2nd check evaluates.
+    Since q1' still overshoots by 1, 2nd check fires →
+    q1'' = q1' - 1 = q_true. -/
+private theorem div128Quot_v2_phase1_div_invariant_overshoot_2_sub
+    (a b : EvmWord)
+    (_hb3nz : b.getLimbN 3 ≠ 0)
+    (_hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (_hbltu : isCallTrialN4Evm a b)
+    (_hcarry2_nz : isAddbackCarry2NzN4CallEvm a b)
+    (_hborrow_v2 : isAddbackBorrowN4CallEvm_v2 a b)
+    (_h_overshoot :
+      let shift := (clzResult (b.getLimbN 3)).1.toNat % 64
+      let antiShift :=
+        (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64
+      let u4 := (a.getLimbN 3) >>> antiShift
+      let un3 := ((a.getLimbN 3) <<< shift) ||| ((a.getLimbN 2) >>> antiShift)
+      let b3' := ((b.getLimbN 3) <<< shift) ||| ((b.getLimbN 2) >>> antiShift)
+      let dHi := b3' >>> (32 : BitVec 6).toNat
+      let dLo := (b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+      let div_un1 := un3 >>> (32 : BitVec 6).toNat
+      let q1 := rv64_divu u4 dHi
+      let hi1 := q1 >>> (32 : BitVec 6).toNat
+      let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+      q1c.toNat = (u4.toNat * 2^32 + div_un1.toNat) /
+                  (dHi.toNat * 2^32 + dLo.toNat) + 2) :
+    let shift := (clzResult (b.getLimbN 3)).1.toNat % 64
+    let antiShift :=
+      (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64
+    let u4 := (a.getLimbN 3) >>> antiShift
+    let un3 := ((a.getLimbN 3) <<< shift) ||| ((a.getLimbN 2) >>> antiShift)
+    let b3' := ((b.getLimbN 3) <<< shift) ||| ((b.getLimbN 2) >>> antiShift)
+    let dHi := b3' >>> (32 : BitVec 6).toNat
+    let dLo := (b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+    let div_un1 := un3 >>> (32 : BitVec 6).toNat
+    let q1 := rv64_divu u4 dHi
+    let rhat := u4 - q1 * dHi
+    let hi1 := q1 >>> (32 : BitVec 6).toNat
+    let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+    let rhatc := if hi1 = 0 then rhat else rhat + dHi
+    let qDlo := q1c * dLo
+    let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
+    let q1' := if BitVec.ult rhatUn1 qDlo then q1c + signExtend12 4095 else q1c
+    let rhat' := if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc
+    let q1'' := div128Quot_phase2b_q0' q1' rhat' dLo div_un1
+    q1''.toNat = (u4.toNat * 2^32 + div_un1.toNat) /
+                 (dHi.toNat * 2^32 + dLo.toNat) := by
+  sorry  -- Case 2 (overshoot 2): 1st check fires → q1' = q_true + 1.
+         -- Stub 3 → 2nd guard fires; 2nd check fires → q1'' = q_true.
+
 /-- The Phase-1 division invariant — derived from the 3 Knuth-D
     decomposition stubs. The invariant body composes the trio:
     1. `_phase1c_in_knuth_range`: q1c ∈ [q*, q*+2].
@@ -2084,7 +2244,12 @@ theorem div128Quot_v2_phase1b_2nd_guard_under_runtime (a b : EvmWord)
 
     Combined with the proven Phase-1 Euclideans
     (`div128Quot_first_round_post`, `div128Quot_phase1b_post`,
-    `div128Quot_v2_phase1b_2nd_post`), they pin q1'' = q*. -/
+    `div128Quot_v2_phase1b_2nd_post`), they pin q1'' = q*.
+
+    Composition strategy: `_phase1c_in_knuth_range_under_runtime` gives
+    `q_true ≤ q1c.toNat ≤ q_true + 2`, so the overshoot
+    `k = q1c.toNat - q_true ∈ {0, 1, 2}`. Dispatch via case-split to
+    `_overshoot_{0,1,2}_sub` sub-lemmas. -/
 theorem div128Quot_v2_phase1_div_invariant_under_runtime (a b : EvmWord)
     (_hb3nz : b.getLimbN 3 ≠ 0)
     (_hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
@@ -2110,16 +2275,47 @@ theorem div128Quot_v2_phase1_div_invariant_under_runtime (a b : EvmWord)
     let q1' := if BitVec.ult rhatUn1 qDlo then q1c + signExtend12 4095 else q1c
     let rhat' := if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc
     let q1'' := div128Quot_phase2b_q0' q1' rhat' dLo div_un1
-    q1''.toNat = (u4.toNat * 2^32 + div_un1.toNat) / (dHi.toNat * 2^32 + dLo.toNat) := by
-  sorry  -- Composition of the 3 decomposition stubs above + Phase-1
-         -- Euclideans. Case-split on q1c overshoot ∈ {0, 1, 2}:
-         -- - 0: 1st check doesn't fire → q1' = q1c = q*; 2nd check
-         --   doesn't fire → q1'' = q1' = q*. ✓
-         -- - 1: 1st check fires → q1' = q1c - 1 = q*; 2nd check
-         --   doesn't fire → q1'' = q1' = q*. ✓
-         -- - 2: 1st check fires → q1' = q1c - 1 = q* + 1; 2nd guard
-         --   fires (per stub 3) → 2nd check fires (q1' overshoots by 1)
-         --   → q1'' = q1' - 1 = q*. ✓
+    q1''.toNat = (u4.toNat * 2^32 + div_un1.toNat) /
+                 (dHi.toNat * 2^32 + dLo.toNat) := by
+  intro shift antiShift u4 un3 b3' dHi dLo div_un1 q1 rhat hi1 q1c rhatc qDlo
+        rhatUn1 q1' rhat' q1''
+  -- Stub 1 gives q_true ≤ q1c.toNat ≤ q_true + 2. Force the
+  -- types into local-let form via explicit type annotations
+  -- (definitional equality between Stub-1's full expression and our lets).
+  have h_q_true_le :
+      (u4.toNat * 2^32 + div_un1.toNat) / (dHi.toNat * 2^32 + dLo.toNat) ≤
+        q1c.toNat :=
+    (div128Quot_v2_phase1c_in_knuth_range_under_runtime a b _hb3nz _hshift_nz
+      _hbltu _hcarry2_nz _hborrow_v2).1
+  have h_q1c_le :
+      q1c.toNat ≤
+        (u4.toNat * 2^32 + div_un1.toNat) / (dHi.toNat * 2^32 + dLo.toNat) + 2 :=
+    (div128Quot_v2_phase1c_in_knuth_range_under_runtime a b _hb3nz _hshift_nz
+      _hbltu _hcarry2_nz _hborrow_v2).2
+  -- Case-split on overshoot k = q1c.toNat - q_true ∈ {0, 1, 2}, where
+  -- q_true = (u4 * 2^32 + div_un1) / (dHi * 2^32 + dLo). Use the
+  -- expression directly to avoid definitional unification issues.
+  rcases Nat.lt_or_ge q1c.toNat
+      ((u4.toNat * 2^32 + div_un1.toNat) /
+       (dHi.toNat * 2^32 + dLo.toNat) + 1) with h1 | h1
+  · -- q1c.toNat = q_true (overshoot 0).
+    have h_eq : q1c.toNat = (u4.toNat * 2^32 + div_un1.toNat) /
+                            (dHi.toNat * 2^32 + dLo.toNat) := by omega
+    exact div128Quot_v2_phase1_div_invariant_overshoot_0_sub a b
+      _hb3nz _hshift_nz _hbltu _hcarry2_nz _hborrow_v2 h_eq
+  · rcases Nat.lt_or_ge q1c.toNat
+        ((u4.toNat * 2^32 + div_un1.toNat) /
+         (dHi.toNat * 2^32 + dLo.toNat) + 2) with h2 | h2
+    · -- q1c.toNat = q_true + 1 (overshoot 1).
+      have h_eq : q1c.toNat = (u4.toNat * 2^32 + div_un1.toNat) /
+                              (dHi.toNat * 2^32 + dLo.toNat) + 1 := by omega
+      exact div128Quot_v2_phase1_div_invariant_overshoot_1_sub a b
+        _hb3nz _hshift_nz _hbltu _hcarry2_nz _hborrow_v2 h_eq
+    · -- q1c.toNat = q_true + 2 (overshoot 2).
+      have h_eq : q1c.toNat = (u4.toNat * 2^32 + div_un1.toNat) /
+                              (dHi.toNat * 2^32 + dLo.toNat) + 2 := by omega
+      exact div128Quot_v2_phase1_div_invariant_overshoot_2_sub a b
+        _hb3nz _hshift_nz _hbltu _hcarry2_nz _hborrow_v2 h_eq
 
 theorem div128Quot_v2_knuth_A_under_runtime (a b : EvmWord)
     (hb3nz : b.getLimbN 3 ≠ 0)
