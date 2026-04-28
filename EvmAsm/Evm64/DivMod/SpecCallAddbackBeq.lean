@@ -1752,7 +1752,67 @@ theorem div128Quot_v2_phase1c_in_knuth_range_under_runtime (a b : EvmWord)
     let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
     let q_true := (u4.toNat * 2^32 + div_un1.toNat) / (dHi.toNat * 2^32 + dLo.toNat)
     q_true ≤ q1c.toNat ∧ q1c.toNat ≤ q_true + 2 := by
-  sorry  -- Knuth Theorem A + B at the initial trial level.
+  -- Composes existing proven Knuth-A (`div128Quot_q1c_ge_q_true_1`) and
+  -- Knuth-B (`div128Quot_q1_le_q_true_1_plus_two`) with the hi1-fix bound
+  -- q1c ≤ q1.
+  intro shift antiShift u4 un3 b3' dHi dLo div_un1 q1 hi1 q1c q_true
+  -- Standard arithmetic facts.
+  have hdHi_lt : dHi.toNat < 2^32 := Word_ushiftRight_32_lt_pow32
+  have hdLo_lt : dLo.toNat < 2^32 := Word_ushiftRight_32_lt_pow32
+  have h_div_un1_lt : div_un1.toNat < 2^32 := Word_ushiftRight_32_lt_pow32
+  have h_b3'_ge_pow63 : b3'.toNat ≥ 2^63 :=
+    b3_prime_ge_pow63 (b.getLimbN 3) (b.getLimbN 2) _hb3nz _
+  have hdHi_ge : dHi.toNat ≥ 2^31 :=
+    div128Quot_dHi_ge_pow31 b3' h_b3'_ge_pow63
+  have hdHi_ne : dHi ≠ 0 := by
+    intro heq; rw [heq] at hdHi_ge; simp at hdHi_ge
+  have hu4_lt_b3prime : u4.toNat < b3'.toNat :=
+    isCallTrialN4_toNat_lt (a.getLimbN 3) (b.getLimbN 2) (b.getLimbN 3)
+      (isCallTrialN4Evm_def ▸ _hbltu)
+  have h_b3'_decomp : b3'.toNat = dHi.toNat * 2^32 + dLo.toNat :=
+    div128Quot_vTop_decomp b3'
+  have hu4_lt_vTop : u4.toNat < dHi.toNat * 2^32 + dLo.toNat := by
+    rw [← h_b3'_decomp]; exact hu4_lt_b3prime
+  refine ⟨?lower, ?upper⟩
+  case lower =>
+    -- Knuth-A: q_true ≤ q1c via `div128Quot_q1c_ge_q_true_1`.
+    have h := div128Quot_q1c_ge_q_true_1 u4 dHi dLo div_un1 hdHi_ne h_div_un1_lt
+      hu4_lt_vTop
+    simp only [] at h
+    exact h
+  case upper =>
+    -- Knuth-B: q1 ≤ q_true + 2 via `div128Quot_q1_le_q_true_1_plus_two`,
+    -- then q1c ≤ q1 via the hi1 fix.
+    have h_q1_le : q1.toNat ≤ q_true + 2 :=
+      div128Quot_q1_le_q_true_1_plus_two u4 dHi dLo div_un1 hdHi_ne hdHi_ge hdLo_lt
+        h_div_un1_lt hu4_lt_vTop
+    -- q1c ≤ q1 (hi1 fix only decrements, never increments).
+    have h_q1c_le_q1 : q1c.toNat ≤ q1.toNat := by
+      show (if hi1 = 0 then q1 else q1 + signExtend12 4095).toNat ≤ q1.toNat
+      by_cases h_hi1 : hi1 = 0
+      · rw [if_pos h_hi1]
+      · rw [if_neg h_hi1]
+        rw [BitVec.toNat_add, signExtend12_4095_toNat]
+        -- q1c = q1 + (2^64 - 1) mod 2^64. If q1 ≥ 1 (which hi1 ≠ 0 gives),
+        -- q1c = q1 - 1 ≤ q1.
+        have h_q1_ge_pow32 : q1.toNat ≥ 2^32 := by
+          by_contra hlt
+          push Not at hlt
+          apply h_hi1
+          apply BitVec.eq_of_toNat_eq
+          show (q1 >>> (32 : BitVec 6).toNat).toNat = (0 : Word).toNat
+          rw [BitVec.toNat_ushiftRight, EvmAsm.Rv64.AddrNorm.bv6_toNat_32,
+              Nat.shiftRight_eq_div_pow]
+          rw [Nat.div_eq_of_lt hlt]
+          rfl
+        have h_q1_ge_1 : q1.toNat ≥ 1 := by
+          have : (2^32 : Nat) ≥ 1 := by decide
+          omega
+        have hq1_lt_word : q1.toNat - 1 < 2^64 := by have := q1.isLt; omega
+        rw [show q1.toNat + (2^64 - 1) = (q1.toNat - 1) + 2^64 from by omega,
+            Nat.add_mod_right, Nat.mod_eq_of_lt hq1_lt_word]
+        omega
+    omega
 
 /-- **Phase-1b 1st BLTU check semantics under no-truncation precondition**:
     the BLTU check `(rhatc << 32) ||| div_un1 < q1c * dLo` is equivalent to
