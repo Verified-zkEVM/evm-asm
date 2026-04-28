@@ -234,6 +234,111 @@ private theorem div128Quot_v4_combined_arith
   have : r2 / vTop = 0 := Nat.div_eq_of_lt h_mod2_lt
   omega
 
+/-- **Pure-Nat truncation-absorbing un21 = phase1_remainder helper**.
+
+    Mirror of `_un21_lt_vTop_truncation_arith` (in IterV4Invariants)
+    but extracts the explicit value rather than just the < bound.
+
+    Same case-split on k = rhat''/2^32 ∈ {0, 1}:
+    - k = 0: rhat'' < 2^32, rhat'' % 2^32 = rhat'', so
+      ((rhat'' % 2^32)*2^32 + div_un1 + 2^64 - q1''*dLo) % 2^64
+      = (rhat''*2^32 + div_un1 - q1''*dLo) + 2^64 mod 2^64
+      = rhat''*2^32 + div_un1 - q1''*dLo (since this is < 2^64).
+    - k = 1: (rhat'' % 2^32)*2^32 + 2^64 = rhat''*2^32, so
+      ((rhat'' % 2^32)*2^32 + div_un1 + 2^64 - q1''*dLo) % 2^64
+      = rhat''*2^32 + div_un1 - q1''*dLo.
+
+    Then rhat''*2^32 + div_un1 - q1''*dLo = uHi*2^32 + div_un1 -
+    q1''*(dHi*2^32 + dLo) using rhat'' = uHi - q1''*dHi. -/
+private theorem div128Quot_v4_un21_eq_phase1_remainder_arith
+    (uHi vTop dHi dLo div_un1 q1'' rhat'' : Nat)
+    (h_vTop_eq : vTop = dHi * 2^32 + dLo)
+    (h_dLo_lt : dLo < 2^32)
+    (h_div_un1_lt : div_un1 < 2^32)
+    (h_vTop_le : vTop ≤ 2^64)
+    (h_q1''_succ_gt : (q1'' + 1) * vTop > uHi * 2^32 + div_un1)
+    (h_q1''_dHi_le : q1'' * dHi ≤ uHi)
+    (h_rhat''_eq : rhat'' = uHi - q1'' * dHi)
+    (h_no_wrap : q1'' * dLo ≤ rhat'' * 2^32 + div_un1)
+    (h_q1''_le : q1'' ≤ 2^32) :
+    ((rhat'' % 2^32) * 2^32 + div_un1 + 2^64 - q1'' * dLo) % 2^64 =
+      uHi * 2^32 + div_un1 - q1'' * vTop := by
+  -- Phase-1 remainder algebra: rhat'' * 2^32 + div_un1 - q1'' * dLo equals
+  -- the same expression as the rhs (uHi*2^32 + div_un1 - q1''*vTop), via
+  -- substitution of rhat'' = uHi - q1''*dHi and vTop = dHi*2^32 + dLo.
+  have h_rem_eq : rhat'' * 2^32 + div_un1 - q1'' * dLo =
+                  uHi * 2^32 + div_un1 - q1'' * vTop := by
+    rw [h_rhat''_eq, h_vTop_eq]
+    have h1 : (uHi - q1'' * dHi) * 2^32 = uHi * 2^32 - q1'' * dHi * 2^32 := by
+      rw [Nat.sub_mul]
+    have h2 : q1'' * dHi * 2^32 ≤ uHi * 2^32 :=
+      Nat.mul_le_mul_right _ h_q1''_dHi_le
+    have h3 : q1'' * (dHi * 2^32 + dLo) = q1'' * dHi * 2^32 + q1'' * dLo := by ring
+    omega
+  -- Bound: rem < vTop.
+  have h_rem_lt_vTop : rhat'' * 2^32 + div_un1 - q1'' * dLo < vTop := by
+    have h := div128Quot_v4_un21_lt_vTop_arith uHi vTop dHi dLo div_un1 q1'' rhat''
+      h_vTop_eq h_q1''_succ_gt h_rhat''_eq h_q1''_dHi_le h_no_wrap
+    exact h
+  have h_rem_lt_pow64 : rhat'' * 2^32 + div_un1 - q1'' * dLo < 2^64 :=
+    lt_of_lt_of_le h_rem_lt_vTop h_vTop_le
+  -- Now prove the lhs equals the same Phase-1 remainder.
+  have h_QdLo_lt : q1'' * dLo < 2^64 := by
+    calc q1'' * dLo
+        ≤ 2^32 * dLo := Nat.mul_le_mul_right _ h_q1''_le
+      _ < 2^32 * 2^32 := (Nat.mul_lt_mul_left (by decide : 0 < 2^32)).mpr h_dLo_lt
+      _ = 2^64 := by decide
+  -- rhat'' < 2^33 (same as the un21_lt_vTop proof).
+  have h_rhat_lt : rhat'' < 2^33 := by
+    by_contra h_not
+    have h_ge : 2^33 ≤ rhat'' := Nat.le_of_not_lt h_not
+    have h1 : 2^65 ≤ rhat'' * 2^32 := by
+      calc (2^65 : Nat) = 2^33 * 2^32 := by decide
+        _ ≤ rhat'' * 2^32 := Nat.mul_le_mul_right _ h_ge
+    omega
+  -- k = rhat'' / 2^32 ∈ {0, 1}.
+  have h_div_mod : (rhat'' / 2^32) * 2^32 + (rhat'' % 2^32) = rhat'' := by
+    have := Nat.div_add_mod rhat'' (2^32)
+    linarith
+  have h_mod_lt : rhat'' % 2^32 < 2^32 := Nat.mod_lt _ (by decide)
+  have h_k_le : rhat'' / 2^32 ≤ 1 := by
+    have h1 : rhat'' < 2 * 2^32 := by
+      have : (2 * 2^32 : Nat) = 2^33 := by decide
+      omega
+    omega
+  -- Linearize products via `set` to help omega.
+  set X := rhat'' * 2^32 with hX
+  set Y := q1'' * dLo with hY
+  set Z := (rhat'' % 2^32) * 2^32 with hZ
+  -- Bound: Y < 2^64.
+  have h_Y_lt : Y < 2^64 := h_QdLo_lt
+  -- Case-split on k = rhat'' / 2^32.
+  interval_cases (rhat'' / 2^32)
+  · -- k = 0: rhat'' = rhat'' % 2^32 < 2^32.
+    have h_rhat_lt32 : rhat'' < 2^32 := by omega
+    have h_mod_eq : rhat'' % 2^32 = rhat'' := Nat.mod_eq_of_lt h_rhat_lt32
+    have h_ZX : Z = X := by rw [hZ, hX, h_mod_eq]
+    rw [h_ZX]
+    have h_pow_eq : (2 : Nat)^64 = 2^64 := rfl
+    have hY_le : Y ≤ X + div_un1 := h_no_wrap
+    have h_eq2 : X + div_un1 + 2^64 - Y = (X + div_un1 - Y) + 2^64 := by
+      rw [Nat.add_comm (X + div_un1) (2^64), Nat.add_sub_assoc hY_le, Nat.add_comm]
+    rw [h_eq2, Nat.add_mod, Nat.mod_self, Nat.add_zero, Nat.mod_mod,
+        Nat.mod_eq_of_lt h_rem_lt_pow64]
+    exact h_rem_eq
+  · -- k = 1: rhat'' = rhat'' % 2^32 + 2^32 ∈ [2^32, 2^33).
+    have h_rhat_decomp : rhat'' = rhat'' % 2^32 + 2^32 := by omega
+    have h_ZX : Z + 2^64 = X := by
+      rw [hZ, hX]
+      conv_rhs => rw [h_rhat_decomp]
+      ring
+    have hY_le : Y ≤ X + div_un1 := h_no_wrap
+    have h_eq2 : Z + div_un1 + 2^64 - Y = X + div_un1 - Y := by
+      have : Z + div_un1 + 2^64 = X + div_un1 := by linarith [h_ZX]
+      rw [this]
+    rw [h_eq2, Nat.mod_eq_of_lt h_rem_lt_pow64]
+    exact h_rem_eq
+
 /-- **un21 equals the Phase-1 remainder** at toNat level. Sub-stub
     used by `div128Quot_v4_eq_q_true_normalized`. The proof requires
     careful Word↔Nat reasoning around the truncation absorption
