@@ -1911,6 +1911,40 @@ theorem qHat_lower_shifted_under_runtime_v2 (a b : EvmWord)
   change qHat.toNat > val256 u0 u1 u2 u3 / val256 b0' b1' b2' b3' at h
   omega
 
+/-- **qHat upper bound shifted-domain (ALONE)** — the upper-bound half
+    of `qHat_in_range_shifted_under_runtime_v2`. Stubbed: needs
+    `_le_val256_div_plus_two_untruncated` (proven, original-domain) +
+    shift-bridging via val256 algebra to get the shifted-domain form.
+
+    Concrete proof plan: from the proven Knuth-B
+    `qHat ≤ val256(a) / val256(b) + 2`, multiply both sides by 2^shift
+    (mod 2^256 considerations) to derive `qHat ≤ val256(a_shifted) /
+    val256(b_shifted) + 2`. Care needed for the mod 2^256 truncation.
+
+    Issue #1337 algorithm fix migration. -/
+theorem qHat_upper_shifted_under_runtime_v2 (_a _b : EvmWord)
+    (_hb3nz : _b.getLimbN 3 ≠ 0)
+    (_hshift_nz : (clzResult (_b.getLimbN 3)).1 ≠ 0)
+    (_hbltu : isCallTrialN4Evm _a _b)
+    (_hcarry2_nz : isAddbackCarry2NzN4CallEvm _a _b)
+    (_hborrow_v2 : isAddbackBorrowN4CallEvm_v2 _a _b) :
+    let shift := (clzResult (_b.getLimbN 3)).1.toNat % 64
+    let antiShift :=
+      (signExtend12 (0 : BitVec 12) - (clzResult (_b.getLimbN 3)).1).toNat % 64
+    let b3' := ((_b.getLimbN 3) <<< shift) ||| ((_b.getLimbN 2) >>> antiShift)
+    let b2' := ((_b.getLimbN 2) <<< shift) ||| ((_b.getLimbN 1) >>> antiShift)
+    let b1' := ((_b.getLimbN 1) <<< shift) ||| ((_b.getLimbN 0) >>> antiShift)
+    let b0' := (_b.getLimbN 0) <<< shift
+    let u4 := (_a.getLimbN 3) >>> antiShift
+    let u3 := ((_a.getLimbN 3) <<< shift) ||| ((_a.getLimbN 2) >>> antiShift)
+    let u2 := ((_a.getLimbN 2) <<< shift) ||| ((_a.getLimbN 1) >>> antiShift)
+    let u1 := ((_a.getLimbN 1) <<< shift) ||| ((_a.getLimbN 0) >>> antiShift)
+    let u0 := (_a.getLimbN 0) <<< shift
+    let qHat := div128Quot_v2 u4 u3 b3'
+    qHat.toNat ≤ val256 u0 u1 u2 u3 / val256 b0' b1' b2' b3' + 2 := by
+  sorry  -- Needs `_le_val256_div_plus_two_untruncated` + shift-bridging
+         -- via val256 algebra. See plan in docstring.
+
 /-- **qHat range in shifted-domain** — combines lower bound (PROVEN
     via `qHat_lower_shifted_under_runtime_v2`) with an upper bound stub.
     Once the upper bound is proven, this gives the full carry-partition
