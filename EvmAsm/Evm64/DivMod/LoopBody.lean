@@ -590,9 +590,99 @@ theorem divK_mulsub_4limbs_v2_spec
        ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4088) ↦ₘ un1) **
        ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4080) ↦ₘ un2) **
        ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ un3)) := by
-  sorry  -- Mechanical copy of `divK_mulsub_4limbs_spec` body (~150 lines)
-         -- with `lb_sub → lb_sub_v2`. Block 8 (`divK_loopBody`) is identical
-         -- between v1 and v2; only block 12 differs.
+  intro p0_lo p0_hi fs0 ba0 pc0 bs0 un0 c0
+        p1_lo p1_hi fs1 ba1 pc1 bs1 un1 c1
+        p2_lo p2_hi fs2 ba2 pc2 bs2 un2 c2
+        p3_lo p3_hi fs3 ba3 pc3 bs3 un3 c3
+  -- Limb 0: instrs [22]-[32] at base+536
+  have L0 := divK_mulsub_limb_spec sp uBase qHat (signExtend12 0 : Word)
+    v5_init v7_init v2_init v0 u0 32 0 (base + 536)
+
+  rw [lb_ms1] at L0
+  have L0e := cpsTriple_extend_code (hmono := by
+    exact CodeReq.union_sub (lb_sub_v2 22 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_v2 23 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_v2 24 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_v2 25 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_v2 26 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_v2 27 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_v2 28 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_v2 29 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_v2 30 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_v2 31 _ _ (by decide) (by bv_addr) (by decide))
+      (lb_sub_v2 32 _ _ (by decide) (by bv_addr) (by decide))))))))))))
+    L0
+  -- Limb 1: instrs [33]-[43] at base+580
+  have L1 := divK_mulsub_limb_spec sp uBase qHat c0
+    bs0 fs0 un0 v1 u1 40 4088 (base + 580)
+
+  rw [lb_ms2] at L1
+  have L1e := cpsTriple_extend_code (hmono := by
+    exact CodeReq.union_sub (lb_sub_v2 33 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_v2 34 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_v2 35 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_v2 36 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_v2 37 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_v2 38 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_v2 39 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_v2 40 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_v2 41 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_v2 42 _ _ (by decide) (by bv_addr) (by decide))
+      (lb_sub_v2 43 _ _ (by decide) (by bv_addr) (by decide))))))))))))
+    L1
+  -- Frame L0 with memory for limbs 1-3 (so seqFrame can find L1's precondition atoms)
+  have L0f := cpsTriple_frameR
+    (((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4088) ↦ₘ u1) **
+     ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4080) ↦ₘ u2) **
+     ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ u3))
+    (by pcFree) L0e
+  -- Compose L0 + L1
+  seqFrame L0f L1e
+  -- Limb 2: instrs [44]-[54] at base+624
+  have L2 := divK_mulsub_limb_spec sp uBase qHat c1
+    bs1 fs1 un1 v2 u2 48 4080 (base + 624)
+
+  rw [lb_ms3] at L2
+  have L2e := cpsTriple_extend_code (hmono := by
+    exact CodeReq.union_sub (lb_sub_v2 44 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_v2 45 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_v2 46 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_v2 47 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_v2 48 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_v2 49 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_v2 50 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_v2 51 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_v2 52 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_v2 53 _ _ (by decide) (by bv_addr) (by decide))
+      (lb_sub_v2 54 _ _ (by decide) (by bv_addr) (by decide))))))))))))
+    L2
+  -- Compose (L0+L1) + L2
+  seqFrame L0fL1e L2e
+  -- Limb 3: instrs [55]-[65] at base+668
+  have L3 := divK_mulsub_limb_spec sp uBase qHat c2
+    bs2 fs2 un2 v3 u3 56 4072 (base + 668)
+
+  rw [lb_ms_end] at L3
+  have L3e := cpsTriple_extend_code (hmono := by
+    exact CodeReq.union_sub (lb_sub_v2 55 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_v2 56 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_v2 57 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_v2 58 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_v2 59 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_v2 60 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_v2 61 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_v2 62 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_v2 63 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_v2 64 _ _ (by decide) (by bv_addr) (by decide))
+      (lb_sub_v2 65 _ _ (by decide) (by bv_addr) (by decide))))))))))))
+    L3
+  -- Compose (L0+L1+L2) + L3
+  seqFrame L0fL1eL2e L3e
+  -- Final permutation to match goal pre/postcondition order
+  exact cpsTriple_weaken
+    (fun h hp => by xperm_hyp hp)
+    (fun h hq => by xperm_hyp hq)
+    L0fL1eL2eL3e
 
 set_option maxRecDepth 4096 in
 /-- v2 mirror of `divK_mulsub_full_spec` — same body but targets
