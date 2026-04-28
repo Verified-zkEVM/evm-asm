@@ -165,6 +165,46 @@ def div128Quot (uHi uLo vTop : Word) : Word :=
     invariant; combined with the at-most-2 outer addbacks, qHat overshoot
     stays ≤ 2 and the BEQ branch recovers q_true correctly.
 
+    **KNOWN BUG (2026-04-28)**: the 1st D3 correction below is missing the
+    `rhatc >> 32 = 0` guard that the 2nd correction has. When `rhatc ≥ 2^32`,
+    the `(rhatc << 32) | div_un1` truncates rhatc's high bits and the BLTU
+    can falsely fire, producing `q1' = q_true - 1`. Numerically witnessed:
+    on `(uHi=2^64-2^32+1, uLo=0, vTop=2^64-1)`, `div128Quot_v2` returns
+    `2^64-2^33+1` but the true quotient is `2^64-2^32+1` (undershoot 2^32).
+    Verified by `div128Quot_v2_buggy_at_unreachable_uHi` (decide-checked)
+    in `SpecCallAddbackBeq/NumericalTests.lean`.
+
+    **Why this hasn't broken anything yet**: the buggy regime requires
+    `uHi ≥ 2^63`, which is unreachable through shift normalization
+    (`u4 = a3 >>> antiShift`, antiShift ∈ [1, 63] under runtime
+    `_hshift_nz`, so `u4 < 2^63`). So all valid call paths land at
+    `rhatc < 2^32` where the guard wouldn't fire anyway.
+
+    **Fix plan** (see `memory/project_div128_v2_phase1b_truncation_fix.md`):
+    refactor the 1st correction to reuse `div128Quot_phase2b_q0'` (which has
+    the guard built-in), mirroring the 2nd correction:
+    ```
+    let q1' := div128Quot_phase2b_q0' q1c rhatc dLo div_un1
+    let rhat' := if rhatc >>> 32 = 0 then
+      let qDlo := q1c * dLo
+      let rhatUn1 := (rhatc <<< 32) ||| div_un1
+      if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc
+    else rhatc
+    ```
+    The fix is no-op under runtime preconditions; only suppresses
+    truncation-induced spurious fires at unreachable Word-level inputs.
+    Verification chain:
+    1. Update this def + flip `div128Quot_v2_buggy_at_unreachable_uHi`'s
+       conclusion to assert correctness.
+    2. Drop `rhatc < 2^32` precondition from Stub 2
+       (`_phase1b_check_iff_overshoot_under_runtime`) since the guard
+       provides it automatically.
+    3. Strengthen Word-level Knuth-B claims (currently restricted to
+       inputs with rhatc < 2^32) to apply unconditionally.
+    4. Insert the matching 2-instruction guard in the RISC-V program
+       (`SRLI .x1 .rhatc 32 ; BNE .x1 .x0 1st_guard_off`) before the
+       1st BLTU.
+
     **Migration plan**: this is the target abstraction post-fix. The
     actual RISC-V program at `Program.lean:divK_div128` needs the
     corresponding 2nd D3 correction inserted (~6 instructions after
