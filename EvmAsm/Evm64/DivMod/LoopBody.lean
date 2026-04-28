@@ -948,6 +948,87 @@ theorem lb_beq_taken {base : Word} : (base + 728 : Word) + signExtend13 (156 : B
 
 theorem lb_beq_ntaken {base : Word} : (base + 728 : Word) + 4 = base + 732 := by bv_addr
 
+/-- v2 mirror of `divK_correction_addback_spec` — same body but targets
+    `sharedDivModCode_v2 base`. Uses `divK_addback_full_v2_spec` and
+    `lb_sub_v2` for the BEQ subsumption.
+
+    Issue #1337 algorithm fix migration. -/
+theorem divK_correction_addback_v2_spec
+    (sp uBase borrow qHat v0 v1 v2 v3 u0 u1 u2 u3 u4 : Word)
+    (v5Old v2Old : Word) (base : Word)
+    (hb : borrow ≠ (0 : Word)) :
+    let upc0 := u0 + (signExtend12 0 : Word)
+    let ac1_0 := if BitVec.ult upc0 (signExtend12 0 : Word) then (1 : Word) else 0
+    let aun0 := upc0 + v0
+    let ac2_0 := if BitVec.ult aun0 v0 then (1 : Word) else 0
+    let aco0 := ac1_0 ||| ac2_0
+    let upc1 := u1 + aco0
+    let ac1_1 := if BitVec.ult upc1 aco0 then (1 : Word) else 0
+    let aun1 := upc1 + v1
+    let ac2_1 := if BitVec.ult aun1 v1 then (1 : Word) else 0
+    let aco1 := ac1_1 ||| ac2_1
+    let upc2 := u2 + aco1
+    let ac1_2 := if BitVec.ult upc2 aco1 then (1 : Word) else 0
+    let aun2 := upc2 + v2
+    let ac2_2 := if BitVec.ult aun2 v2 then (1 : Word) else 0
+    let aco2 := ac1_2 ||| ac2_2
+    let upc3 := u3 + aco2
+    let ac1_3 := if BitVec.ult upc3 aco2 then (1 : Word) else 0
+    let aun3 := upc3 + v3
+    let ac2_3 := if BitVec.ult aun3 v3 then (1 : Word) else 0
+    let aco3 := ac1_3 ||| ac2_3
+    let aun4 := u4 + aco3
+    let qHat' := qHat + signExtend12 4095
+    cpsTriple (base + 728) (base + 880) (sharedDivModCode_v2 base)
+      ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ uBase) ** (.x7 ↦ᵣ borrow) **
+       (.x11 ↦ᵣ qHat) ** (.x5 ↦ᵣ v5Old) ** (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
+       ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
+       ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4088) ↦ₘ u1) **
+       ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4080) ↦ₘ u2) **
+       ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ u3) **
+       ((uBase + signExtend12 4064) ↦ₘ u4))
+      ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ uBase) ** (.x7 ↦ᵣ aco3) **
+       (.x11 ↦ᵣ qHat') ** (.x5 ↦ᵣ aun4) ** (.x2 ↦ᵣ aun3) ** (.x0 ↦ᵣ (0 : Word)) **
+       ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ aun0) **
+       ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4088) ↦ₘ aun1) **
+       ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4080) ↦ₘ aun2) **
+       ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ aun3) **
+       ((uBase + signExtend12 4064) ↦ₘ aun4)) := by
+  intro upc0 ac1_0 aun0 ac2_0 aco0 upc1 ac1_1 aun1 ac2_1 aco1
+        upc2 ac1_2 aun2 ac2_2 aco2 upc3 ac1_3 aun3 ac2_3 aco3 aun4 qHat'
+  have hbeq := beq_spec_gen .x7 .x0 (156 : BitVec 13) borrow 0 (base + 728)
+  rw [lb_beq_taken, lb_beq_ntaken] at hbeq
+  have hbeq_ext := cpsBranch_extend_code (hmono :=
+    lb_sub_v2 70 _ _ (by decide) (by bv_addr) (by decide)) hbeq
+  have ntaken := cpsBranch_ntakenPath hbeq_ext (fun hp hQt => by
+    obtain ⟨_, _, _, _, _, ⟨_, _, _, _, _, ⟨_, hpure⟩⟩⟩ := hQt
+    exact hb hpure)
+  have ntaken_clean : cpsTriple (base + 728) (base + 732) (sharedDivModCode_v2 base)
+      ((.x7 ↦ᵣ borrow) ** (.x0 ↦ᵣ (0 : Word)))
+      ((.x7 ↦ᵣ borrow) ** (.x0 ↦ᵣ (0 : Word))) :=
+    cpsTriple_weaken
+      (fun h hp => hp)
+      (fun h hp => sepConj_mono_right
+        (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp)
+      ntaken
+  have ntaken_framed := cpsTriple_frameR
+    ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ uBase) **
+     (.x11 ↦ᵣ qHat) ** (.x5 ↦ᵣ v5Old) ** (.x2 ↦ᵣ v2Old) **
+     ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
+     ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4088) ↦ₘ u1) **
+     ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4080) ↦ₘ u2) **
+     ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ u3) **
+     ((uBase + signExtend12 4064) ↦ₘ u4))
+    (by pcFree) ntaken_clean
+  have AB := divK_addback_full_v2_spec sp uBase qHat v0 v1 v2 v3 u0 u1 u2 u3 u4
+    borrow v5Old v2Old base
+  dsimp only [] at AB
+  seqFrame ntaken_framed AB
+  exact cpsTriple_weaken
+    (fun h hp => by xperm_hyp hp)
+    (fun h hq => by xperm_hyp hq)
+    ntaken_framedAB
+
 -- ============================================================================
 -- Section 6b: Correction addback spec (borrow ≠ 0)
 -- BEQ not-taken → run addback. 38 instrs at base+728 → base+880.
