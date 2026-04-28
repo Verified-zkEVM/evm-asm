@@ -117,6 +117,25 @@ theorem n4MaxSkipSemanticHolds_def {a b : EvmWord} :
         (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)).2.2.2.2 = 0) :=
   rfl
 
+/-- **EvmWord-form bridge to `isCallTrialN4_of_shift_nz`.**
+
+    Under shift ≠ 0 + b ≠ 0 (top limb), the runtime BLTU check ALWAYS picks
+    the call path. This is the EvmWord-form of
+    `EvmAsm.Evm64.isCallTrialN4_of_shift_nz` (in `MaxTrialVacuity.lean`).
+
+    Useful as the hbltu discharger when assembling
+    `evm_{div,mod}_n4_shift_nz_stack_spec` per
+    `memory/project_n4_shift_nz_dispatcher_plan.md` — the dispatcher
+    doesn't need to handle the max branch under shift ≠ 0 since
+    call-trial holds algebraically. -/
+theorem isCallTrialN4Evm_of_shift_nz (a b : EvmWord)
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0) :
+    isCallTrialN4Evm a b := by
+  rw [isCallTrialN4Evm_def]
+  exact isCallTrialN4_of_shift_nz (a.getLimbN 3) (b.getLimbN 2) (b.getLimbN 3)
+    hb3nz hshift_nz
+
 /-- Semantic-correctness precondition for the n=4 max+addback sub-path: on
     **un-normalized** `a`, `b` limbs with the maximum trial quotient, the
     mulsub carry is `1` *and* the addback carry is `1`. Together these two
