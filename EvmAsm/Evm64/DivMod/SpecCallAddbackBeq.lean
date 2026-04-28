@@ -3379,11 +3379,45 @@ theorem div128Quot_v2_phase2_no_wrap_lo_under_runtime (a b : EvmWord)
                                     (q0c * dLo) then rhat2c + dHi else rhat2c)
                   else rhat2c
     q0'.toNat * dLo.toNat ≤ rhat2'.toNat * 2^32 + div_un0.toNat := by
-  sorry  -- Phase-2 mirror of phase1_no_wrap_lo. Closes via Phase-2b's
-         -- 1-correction guarantee. The Phase-2 trial consumes only 32
-         -- bits of remainder so the simpler 1-correction suffices.
-         -- 2-correction guarantee + the 2nd D3 trigger condition. Mirrors
-         -- v1's open Knuth Theorem C tight Phase-1 problem.
+  intro shift antiShift u4 un3 b3' dHi dLo div_un1 div_un0 q1 rhat hi1 q1c rhatc qDlo
+        rhatUn1 q1' rhat' q1'' rhat'' cu_rhat_un1 cu_q1_dlo un21 q0 rhat2 hi2 q0c rhat2c
+        q0' rhat2'
+  -- Standard arithmetic facts.
+  have h_b3'_ge_pow63 : b3'.toNat ≥ 2^63 :=
+    b3_prime_ge_pow63 (b.getLimbN 3) (b.getLimbN 2) _hb3nz _
+  have hdHi_ge : dHi.toNat ≥ 2^31 :=
+    div128Quot_dHi_ge_pow31 b3' h_b3'_ge_pow63
+  have hdHi_lt : dHi.toNat < 2^32 := Word_ushiftRight_32_lt_pow32
+  have hdLo_lt : dLo.toNat < 2^32 := Word_ushiftRight_32_lt_pow32
+  have h_div_un0_lt : div_un0.toNat < 2^32 := Word_ushiftRight_32_lt_pow32
+  have hdHi_ne : dHi ≠ 0 := by
+    intro heq; rw [heq] at hdHi_ge; simp at hdHi_ge
+  -- Case-split on Phase 2b guard / BLTU (3 sub-cases mirroring docstring).
+  show (div128Quot_phase2b_q0' q0c rhat2c dLo div_un0).toNat * dLo.toNat ≤
+       (if rhat2c >>> (32 : BitVec 6).toNat = 0 then
+          if BitVec.ult ((rhat2c <<< (32 : BitVec 6).toNat) ||| div_un0)
+                          (q0c * dLo) then rhat2c + dHi else rhat2c
+        else rhat2c).toNat * 2^32 + div_un0.toNat
+  unfold div128Quot_phase2b_q0'
+  by_cases h_guard : rhat2c >>> (32 : BitVec 6).toNat = 0
+  · -- Guard fires (rhat2c < 2^32).
+    rw [if_pos h_guard, if_pos h_guard]
+    by_cases h_check : BitVec.ult ((rhat2c <<< (32 : BitVec 6).toNat) ||| div_un0)
+                                  (q0c * dLo)
+    · -- Sub-case b: guard fires, check fires. q0' = q0c - 1, rhat2' = rhat2c + dHi.
+      rw [if_pos h_check, if_pos h_check]
+      sorry  -- TODO: From check (rhat2c*2^32 + div_un0 < q0c*dLo) plus dHi ≥ 2^31,
+             -- prove (q0c - 1) * dLo ≤ (rhat2c + dHi) * 2^32 + div_un0.
+             -- Algebra: dHi * 2^32 ≥ 2^63 absorbs the dLo term.
+    · -- Sub-case c: guard fires, check doesn't. q0' = q0c, rhat2' = rhat2c.
+      rw [if_neg h_check, if_neg h_check]
+      sorry  -- TODO: From ¬check (rhat2c*2^32 + div_un0 ≥ q0c*dLo), goal
+             -- q0c * dLo ≤ rhat2c * 2^32 + div_un0 follows directly via
+             -- BLTU semantics (with rhat2c < 2^32 from h_guard for no truncation).
+  · -- Sub-case a: guard doesn't fire (rhat2c ≥ 2^32).
+    rw [if_neg h_guard, if_neg h_guard]
+    sorry  -- TODO: rhat2c ≥ 2^32 → rhat2c * 2^32 ≥ 2^64 ≥ q0c * dLo (when
+           -- q0c ≤ 2^32 and dLo < 2^32). Goal: q0c * dLo ≤ rhat2c * 2^32 + div_un0.
 
 /-- **un21 < vTop under runtime preconditions** — the strong Phase-1
     upper bound that Conj 2 of `div128Quot_v2_no_wrap_under_call_addback_beq_untruncated`
