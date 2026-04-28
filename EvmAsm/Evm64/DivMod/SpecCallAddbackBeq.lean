@@ -1982,9 +1982,12 @@ theorem qHat_in_range_shifted_under_runtime_v2 (a b : EvmWord)
     exact h
   case upper =>
     -- Upper bound: qHat ≤ q_true_shifted + 2.
-    -- Needs `_le_val256_div_plus_two_untruncated` (proven, shift-bridging) +
-    -- `_no_wrap_under_call_addback_beq_untruncated` (stub).
-    sorry
+    -- Delegate to `qHat_upper_shifted_under_runtime_v2` (stub).
+    have h := qHat_upper_shifted_under_runtime_v2 a b hb3nz _hshift_nz _hbltu
+      _hcarry2_nz hborrow_v2
+    simp only [] at h
+    change qHat.toNat ≤ val256 u0 u1 u2 u3 / val256 b0' b1' b2' b3' + 2 at h
+    exact h
 
 /-- **Single-addback case for v2**: under v2's Knuth-B + runtime BEQ
     preconditions + carry ≠ 0 (= single-addback), `qHat = q_true + 1`.
