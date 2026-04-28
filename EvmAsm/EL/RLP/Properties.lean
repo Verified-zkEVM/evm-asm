@@ -186,6 +186,15 @@ theorem decode_pair_list_empty_lists :
       some (.list [.list [], .list []], []) := by
   simp [decode, decodeAux, takeBytes, decodeItems]
 
+/-- Three-element list of empty lists:
+    `decode [0xC3, 0xC0, 0xC0, 0xC0] = some (.list [.list [], .list [], .list []], [])`.
+    The outer short-list branch fires with payload length 3, three empty
+    inner lists are decoded in sequence, then the outer closes. -/
+theorem decode_triple_list_empty_lists :
+    decode [(0xC3 : Byte), (0xC0 : Byte), (0xC0 : Byte), (0xC0 : Byte)] =
+      some (.list [.list [], .list [], .list []], []) := by
+  simp [decode, decodeAux, takeBytes, decodeItems]
+
 /-- Mixed-content two-element list: a small byte followed by an empty
     string. `decode [0xC2, b, 0x80] = some (.list [.bytes [b], .bytes []], [])`
     when `b < 0x80`. -/
@@ -202,6 +211,16 @@ theorem decode_pair_list_empty_list_then_byte
     (b : Byte) (h : b.toNat < 0x80) :
     decode [(0xC2 : Byte), (0xC0 : Byte), b] =
       some (.list [.list [], .bytes [b]], []) := by
+  simp [decode, decodeAux, takeBytes, decodeItems, h]
+
+/-- Mixed-content two-element list: a small byte followed by an empty
+    list. `decode [0xC2, b, 0xC0] = some (.list [.bytes [b], .list []], [])`
+    when `b < 0x80`. Companion to `decode_pair_list_empty_list_then_byte`
+    in the reverse order. -/
+theorem decode_pair_list_byte_then_empty_list
+    (b : Byte) (h : b.toNat < 0x80) :
+    decode [(0xC2 : Byte), b, (0xC0 : Byte)] =
+      some (.list [.bytes [b], .list []], []) := by
   simp [decode, decodeAux, takeBytes, decodeItems, h]
 
 /-- Singleton list containing a two-byte short string:
