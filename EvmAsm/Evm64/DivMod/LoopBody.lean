@@ -796,6 +796,148 @@ theorem divK_mulsub_full_v2_spec
     (fun h hq => by xperm_hyp hq)
     SfMSCe
 
+set_option maxRecDepth 4096 in
+/-- v2 mirror of `divK_addback_full_spec` — same body but targets
+    `sharedDivModCode_v2 base`. Mechanical copy of v1's body with
+    `lb_sub → lb_sub_v2` substitutions. Block 8 (`divK_loopBody`) is
+    identical between v1 and v2.
+
+    Issue #1337 algorithm fix migration. -/
+theorem divK_addback_full_v2_spec
+    (sp uBase qHat v0 v1 v2 v3 u0 u1 u2 u3 u4 : Word)
+    (v7_init v5_init v2_init : Word)
+    (base : Word) :
+    let upc0 := u0 + (signExtend12 0 : Word)
+    let ac1_0 := if BitVec.ult upc0 (signExtend12 0 : Word) then (1 : Word) else 0
+    let aun0 := upc0 + v0
+    let ac2_0 := if BitVec.ult aun0 v0 then (1 : Word) else 0
+    let aco0 := ac1_0 ||| ac2_0
+    let upc1 := u1 + aco0
+    let ac1_1 := if BitVec.ult upc1 aco0 then (1 : Word) else 0
+    let aun1 := upc1 + v1
+    let ac2_1 := if BitVec.ult aun1 v1 then (1 : Word) else 0
+    let aco1 := ac1_1 ||| ac2_1
+    let upc2 := u2 + aco1
+    let ac1_2 := if BitVec.ult upc2 aco1 then (1 : Word) else 0
+    let aun2 := upc2 + v2
+    let ac2_2 := if BitVec.ult aun2 v2 then (1 : Word) else 0
+    let aco2 := ac1_2 ||| ac2_2
+    let upc3 := u3 + aco2
+    let ac1_3 := if BitVec.ult upc3 aco2 then (1 : Word) else 0
+    let aun3 := upc3 + v3
+    let ac2_3 := if BitVec.ult aun3 v3 then (1 : Word) else 0
+    let aco3 := ac1_3 ||| ac2_3
+    let aun4 := u4 + aco3
+    let qHat' := qHat + signExtend12 4095
+    cpsTriple (base + 732) (base + 880) (sharedDivModCode_v2 base)
+      ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ uBase) ** (.x7 ↦ᵣ v7_init) **
+       (.x11 ↦ᵣ qHat) ** (.x5 ↦ᵣ v5_init) ** (.x2 ↦ᵣ v2_init) ** (.x0 ↦ᵣ (0 : Word)) **
+       ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
+       ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4088) ↦ₘ u1) **
+       ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4080) ↦ₘ u2) **
+       ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ u3) **
+       ((uBase + signExtend12 4064) ↦ₘ u4))
+      ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ uBase) ** (.x7 ↦ᵣ aco3) **
+       (.x11 ↦ᵣ qHat') ** (.x5 ↦ᵣ aun4) ** (.x2 ↦ᵣ aun3) ** (.x0 ↦ᵣ (0 : Word)) **
+       ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ aun0) **
+       ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4088) ↦ₘ aun1) **
+       ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4080) ↦ₘ aun2) **
+       ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ aun3) **
+       ((uBase + signExtend12 4064) ↦ₘ aun4)) := by
+  intro upc0 ac1_0 aun0 ac2_0 aco0
+        upc1 ac1_1 aun1 ac2_1 aco1
+        upc2 ac1_2 aun2 ac2_2 aco2
+        upc3 ac1_3 aun3 ac2_3 aco3
+        aun4 qHat'
+  -- Init: instr [71] at base+732
+  have I := divK_addback_init_spec v7_init (base + 732)
+  rw [lb_ab0] at I
+  have Ie := cpsTriple_extend_code (hmono := by
+    exact lb_sub_v2 71 _ _ (by decide) (by bv_addr) (by decide)) I
+  have If := cpsTriple_frameR
+    ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ uBase) ** (.x11 ↦ᵣ qHat) **
+     (.x5 ↦ᵣ v5_init) ** (.x2 ↦ᵣ v2_init) **
+     ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
+     ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4088) ↦ₘ u1) **
+     ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4080) ↦ₘ u2) **
+     ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ u3) **
+     ((uBase + signExtend12 4064) ↦ₘ u4))
+    (by pcFree) Ie
+  -- Limb 0: instrs [72]-[79] at base+736
+  have A0 := divK_addback_limb_spec sp uBase (signExtend12 0 : Word)
+    v5_init v2_init v0 u0 32 0 (base + 736)
+  rw [lb_ab0_end] at A0
+  have A0e := cpsTriple_extend_code (hmono := by
+    exact CodeReq.union_sub (lb_sub_v2 72 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_v2 73 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_v2 74 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_v2 75 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_v2 76 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_v2 77 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_v2 78 _ _ (by decide) (by bv_addr) (by decide))
+      (lb_sub_v2 79 _ _ (by decide) (by bv_addr) (by decide)))))))))
+    A0
+  seqFrame If A0e
+  -- Limb 1: instrs [80]-[87] at base+768
+  have A1 := divK_addback_limb_spec sp uBase aco0
+    ac2_0 aun0 v1 u1 40 4088 (base + 768)
+  rw [lb_ab1_end] at A1
+  have A1e := cpsTriple_extend_code (hmono := by
+    exact CodeReq.union_sub (lb_sub_v2 80 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_v2 81 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_v2 82 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_v2 83 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_v2 84 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_v2 85 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_v2 86 _ _ (by decide) (by bv_addr) (by decide))
+      (lb_sub_v2 87 _ _ (by decide) (by bv_addr) (by decide)))))))))
+    A1
+  seqFrame IfA0e A1e
+  -- Limb 2: instrs [88]-[95] at base+800
+  have A2 := divK_addback_limb_spec sp uBase aco1
+    ac2_1 aun1 v2 u2 48 4080 (base + 800)
+  rw [lb_ab2_end] at A2
+  have A2e := cpsTriple_extend_code (hmono := by
+    exact CodeReq.union_sub (lb_sub_v2 88 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_v2 89 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_v2 90 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_v2 91 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_v2 92 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_v2 93 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_v2 94 _ _ (by decide) (by bv_addr) (by decide))
+      (lb_sub_v2 95 _ _ (by decide) (by bv_addr) (by decide)))))))))
+    A2
+  seqFrame IfA0eA1e A2e
+  -- Limb 3: instrs [96]-[103] at base+832
+  have A3 := divK_addback_limb_spec sp uBase aco2
+    ac2_2 aun2 v3 u3 56 4072 (base + 832)
+  rw [lb_ab3_end] at A3
+  have A3e := cpsTriple_extend_code (hmono := by
+    exact CodeReq.union_sub (lb_sub_v2 96 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_v2 97 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_v2 98 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_v2 99 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_v2 100 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_v2 101 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_v2 102 _ _ (by decide) (by bv_addr) (by decide))
+      (lb_sub_v2 103 _ _ (by decide) (by bv_addr) (by decide)))))))))
+    A3
+  seqFrame IfA0eA1eA2e A3e
+  -- Final: instrs [104]-[107] at base+864
+  have AF := divK_addback_final_spec uBase aco3 qHat ac2_3 u4 4064 (base + 864)
+  rw [lb_abf_end] at AF
+  have AFe := cpsTriple_extend_code (hmono := by
+    exact CodeReq.union_sub (lb_sub_v2 104 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_v2 105 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_v2 106 _ _ (by decide) (by bv_addr) (by decide))
+      (lb_sub_v2 107 _ _ (by decide) (by bv_addr) (by decide)))))
+    AF
+  seqFrame IfA0eA1eA2eA3e AFe
+  exact cpsTriple_weaken
+    (fun h hp => by xperm_hyp hp)
+    (fun h hq => by xperm_hyp hq)
+    IfA0eA1eA2eA3eAFe
+
 -- ============================================================================
 -- Section 6: Correction branch address normalization
 -- BEQ at instr [70] (base+728): taken → base+884, not-taken → base+732.
