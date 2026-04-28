@@ -128,21 +128,45 @@ def div128Quot_v4 (uHi uLo vTop : Word) : Word :=
   let q0'' := div128Quot_phase2b_q0' q0' rhat2' dLo div_un0
   (q1'' <<< (32 : BitVec 6).toNat) ||| q0''
 
+/-- Idempotency of `div128Quot_phase2b_q0'` when its inner BLTU doesn't
+    fire on q's mul. If the outer guard `rhat2c >>> 32 = 0` fails OR the
+    inner BLTU `(rhat2c << 32) | div_un0 < q * dLo` fails, the helper
+    returns its input `q` unchanged.
+
+    Used by `div128Quot_v4_eq_v3_when_no_phase2_overshoot` (below) to
+    show that v4's Phase-2 2nd correction is a no-op when v3's Phase-2
+    1st correction was already a no-op. -/
+theorem div128Quot_phase2b_q0'_eq_self_of_no_bltu
+    (q rhat dLo divUn : Word)
+    (h : ¬ (rhat >>> (32 : BitVec 6).toNat = 0 ∧
+        BitVec.ult ((rhat <<< (32 : BitVec 6).toNat) ||| divUn) (q * dLo))) :
+    div128Quot_phase2b_q0' q rhat dLo divUn = q := by
+  unfold div128Quot_phase2b_q0'
+  by_cases h_guard : rhat >>> (32 : BitVec 6).toNat = 0
+  · simp only [h_guard, if_true]
+    have h_bltu : ¬ BitVec.ult ((rhat <<< (32 : BitVec 6).toNat) ||| divUn) (q * dLo) :=
+      fun hb => h ⟨h_guard, hb⟩
+    simp only [Bool.not_eq_true] at h_bltu
+    rw [h_bltu]
+    rfl
+  · simp only [h_guard, if_false]
+
 /-- **div128Quot_v4 agrees with div128Quot_v3 when Phase-2's 1st
     correction already produces the exact quotient.**
 
     The 2nd Phase-2 correction in v4 only differs from v3 when the 1st
-    correction left q0' = q*_phase2 + 1 (Phase-2 overshoot). When q0' =
-    q*_phase2 exactly (which is the common case), v4 = v3.
+    correction left q0' = q*_phase2 + 1 (Phase-2 overshoot). When the
+    1st correction was a no-op (rhat2c-guard or inner BLTU on q0c*dLo
+    didn't fire), v4 = v3.
 
-    Concrete condition for equivalence: the rhat2' computed from v3's q0'
-    fails the inner BLTU check (no further correction needed).
-
-    PROOF STRATEGY (deferred to migration phase): when the 2nd-correction
-    helper's BLTU doesn't fire, `phase2b_q0'` returns its input unchanged,
-    so q0'' = q0' and v4 = v3. -/
+    Concrete sufficient condition: `¬ (rhat2c >>> 32 = 0 ∧ BLTU(...))`.
+    Under this hypothesis:
+    - The Phase-2 2nd rhat-update is a no-op: `rhat2' = rhat2c`.
+    - The Phase-2 1st q-correction was a no-op: `q0' = q0c`.
+    - So phase2b_q0' applied to (q0', rhat2c) reproduces q0' (the same
+      outer-guard ∧ inner-BLTU disjunction fails on q0' = q0c). -/
 theorem div128Quot_v4_eq_v3_when_no_phase2_overshoot (uHi uLo vTop : Word)
-    (_h_no_overshoot :
+    (h_no_overshoot :
       let dHi := vTop >>> (32 : BitVec 6).toNat
       let dLo := (vTop <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
       let div_un0 := (uLo <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
@@ -174,13 +198,25 @@ theorem div128Quot_v4_eq_v3_when_no_phase2_overshoot (uHi uLo vTop : Word)
       let hi2 := q0 >>> (32 : BitVec 6).toNat
       let q0c := if hi2 = 0 then q0 else q0 + signExtend12 4095
       let rhat2c := if hi2 = 0 then rhat2 else rhat2 + dHi
-      -- The Phase-2 2nd-correction's "no fire" condition.
-      ∀ rhat2' : Word, rhat2' = rhat2c →
-        ¬ (rhat2c >>> (32 : BitVec 6).toNat = 0 ∧
-          BitVec.ult ((rhat2c <<< (32 : BitVec 6).toNat) ||| div_un0)
-                      (q0c * dLo))) :
+      -- "Phase-2 1st correction was a no-op" condition.
+      ¬ (rhat2c >>> (32 : BitVec 6).toNat = 0 ∧
+        BitVec.ult ((rhat2c <<< (32 : BitVec 6).toNat) ||| div_un0)
+                    (q0c * dLo))) :
     div128Quot_v4 uHi uLo vTop = div128Quot_v3 uHi uLo vTop := by
-  sorry  -- Migration helper. Closes by unfolding both defs and showing
-         -- the 2nd Phase-2 correction is a no-op under the hypothesis.
+  -- Strategy outline (proof body deferred):
+  -- 1. Unfold both `div128Quot_v4` and `div128Quot_v3`. Both share the
+  --    prefix up through `q0' := div128Quot_phase2b_q0' q0c rhat2c …`.
+  -- 2. v4 has additional `rhat2'` and `q0''` lines. Need: q0'' = q0'.
+  -- 3. Under `h_no_overshoot`:
+  --    a. The 1st rhat-update's inner BLTU on `q0c*dLo` doesn't fire,
+  --       so `rhat2' = rhat2c` (whether outer guard is true or false).
+  --    b. The 1st q-correction was a no-op, so `q0' = q0c` (apply the
+  --       helper lemma `div128Quot_phase2b_q0'_eq_self_of_no_bltu`).
+  --    c. Substitute (b) into v4's `q0'' = phase2b_q0' q0' rhat2c …`.
+  --       Since q0' = q0c, the inner BLTU on `q0' * dLo` matches the
+  --       hypothesis's BLTU on `q0c * dLo` and doesn't fire either.
+  --       So `q0'' = q0'` (helper applies again).
+  -- 4. Conclude: the final `(q1'' << 32) ||| q0''` equals `… ||| q0'`.
+  sorry
 
 end EvmAsm.Evm64
