@@ -3515,9 +3515,45 @@ theorem div128Quot_v2_phase2_no_wrap_lo_under_runtime (a b : EvmWord)
                                   (q0c * dLo)
     · -- Sub-case b: guard fires, check fires. q0' = q0c - 1, rhat2' = rhat2c + dHi.
       rw [if_pos h_check, if_pos h_check]
-      sorry  -- TODO: From check (rhat2c*2^32 + div_un0 < q0c*dLo) plus dHi ≥ 2^31,
-             -- prove (q0c - 1) * dLo ≤ (rhat2c + dHi) * 2^32 + div_un0.
-             -- Algebra: dHi * 2^32 ≥ 2^63 absorbs the dLo term.
+      sorry  -- HARDEST sub-case. Goal: (q0c - 1).toNat * dLo ≤
+             -- (rhat2c + dHi).toNat * 2^32 + div_un0.
+             --
+             -- ALGEBRAIC ANALYSIS (2026-04-28):
+             --
+             -- Via Phase-2 Euclidean (q0' * dHi + rhat2' = un21, proven by
+             -- div128Quot_phase2b_post), the goal reduces to
+             --     q0' * vTop ≤ un21 * 2^32 + div_un0
+             -- where q0' = q0c - 1 and vTop = dHi*2^32 + dLo. This is
+             -- equivalent to "q0' doesn't overshoot the true Phase-2 quotient
+             -- floor((un21*2^32 + div_un0)/vTop)".
+             --
+             -- Knuth's classical Algorithm D Phase-2 with 1 D3 correction
+             -- gives q0' ≤ q*_phase2 + 1 (Theorem B with +1, not +2 since
+             -- only 1 correction is applied). When q0' = q*_phase2 + 1
+             -- (overshoot 1), the goal fails: q0' * vTop > z.
+             --
+             -- Whether overshoot 1 is reachable under runtime preconditions
+             -- depends on the specific properties of un21 produced by
+             -- Phase-1's 2-correction algorithm. Phase-1 produces q1'' = q*
+             -- exactly (per phase1_div_invariant), so un21 has the structural
+             -- form `un21 = (un_full - q*_phase1 * vTop) / 2^32`.
+             --
+             -- CLOSURE PLAN (deferred to future iteration):
+             -- 1. Add sub-lemma `_phase2_q0c_le_q_star_plus_1_under_runtime`:
+             --    q0c.toNat ≤ floor(z/vTop) + 2 under runtime preconditions
+             --    (matches Knuth-B for Phase-2 with 0 corrections so far).
+             -- 2. Add sub-lemma `_phase2_BLTU_iff_overshoot`: similar to
+             --    Stub 2 but for Phase-2 (BLTU fires ⟺ q0c overshoots).
+             -- 3. Sub-case b: BLTU fires + Knuth-B → q0c ∈ {q*+1, q*+2}.
+             --    With q0' = q0c - 1: q0' ∈ {q*, q*+1}.
+             --    For q0' = q*: goal holds via q* * vTop ≤ z.
+             --    For q0' = q*+1: goal FAILS — algorithm produces wrong q0'.
+             --
+             -- STATUS: requires either (a) proving Phase-2's 1-correction
+             -- never produces q0' = q*+1 under runtime preconditions
+             -- (specific to call-trial path), OR (b) noting that the call
+             -- chain's outer addback correction handles q0' overshoot
+             -- (so phase2_no_wrap_lo isn't strictly needed for the chain).
     · -- Sub-case c: guard fires, check doesn't. q0' = q0c, rhat2' = rhat2c.
       rw [if_neg h_check, if_neg h_check]
       -- ¬check: ¬(rhat2c*2^32 + div_un0 < q0c*dLo) → rhat2c*2^32 + div_un0 ≥ q0c*dLo.
