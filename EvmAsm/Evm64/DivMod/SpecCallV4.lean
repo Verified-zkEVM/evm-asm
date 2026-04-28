@@ -58,6 +58,69 @@ theorem n4CallSkipSemanticHolds_v4_def {a b : EvmWord} :
        (div128Quot_v4 u4 u3 b3').toNat) :=
   rfl
 
+/-- **v4's exact-quotient property**: under standard Knuth-A
+    preconditions (shift-norm + `u4 < b3'` + `u4 < 2^63`), the v4
+    algorithm produces the exact 128/64 quotient.
+
+    Proof strategy (sub-stub — not yet closed):
+    - Phase-1 perfect: `q1''.toNat = (u4 * 2^32 + (u3 >> 32)) / b3'.toNat`.
+    - Phase-2 perfect: `q0''.toNat = (un21 * 2^32 + div_un0) / b3'.toNat`.
+    - Combine: `(q1'' << 32) | q0''` decomposes as `q1'' * 2^32 + q0''`
+      (no truncation since q1'' < 2^32 by Knuth-B at q*_phase1 = q_true).
+    - Standard 128/64 long-division identity gives the result.
+
+    Bridges between the per-phase invariants in `IterV4Invariants*` and
+    the val256-level closure for the call-trial chain. -/
+theorem div128Quot_v4_eq_q_true_normalized
+    (u4 u3 b3' : Word)
+    (_hb3'_ge : b3'.toNat ≥ 2^63)
+    (_hu4_lt_b3' : u4.toNat < b3'.toNat)
+    (_hu4_lt_pow63 : u4.toNat < 2^63) :
+    (div128Quot_v4 u4 u3 b3').toNat =
+      (u4.toNat * 2^64 + u3.toNat) / b3'.toNat := by
+  sorry  -- See docstring; combines Phase-1 + Phase-2 perfect.
+
+/-- **`n4CallSkipSemanticHolds_v4` holds unconditionally** under the
+    standard call-trial preconditions.
+
+    Mirror of `n4CallSkipSemanticHolds_of_call_trial` for v4. The v4
+    version is even stronger: v4 produces the EXACT q_true (not just
+    an over-estimate), so Knuth-A holds with equality on the rhs.
+
+    Proof: bridge val256/val256 → q_true_normalized → div128Quot_v4
+    via `q_true_triple_bridge_to_val256_norm` (val256-level part) and
+    `div128Quot_v4_eq_q_true_normalized` (algorithm part, sub-stub). -/
+theorem n4CallSkipSemanticHolds_v4_of_call_trial (a b : EvmWord)
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hcall : isCallTrialN4Evm a b) :
+    n4CallSkipSemanticHolds_v4 a b := by
+  rw [n4CallSkipSemanticHolds_v4_def]
+  rw [isCallTrialN4Evm_def] at hcall
+  intro shift antiShift b3' u4 u3
+  -- Bridge val256/val256 → (u4*2^64 + u3)/b3' (val256-level Knuth-A).
+  have h_bridge :=
+    q_true_triple_bridge_to_val256_norm
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) hshift_nz hb3nz
+  simp only [] at h_bridge
+  have h_b3'_ge : b3'.toNat ≥ 2^63 :=
+    b3_prime_ge_pow63 (b.getLimbN 3) (b.getLimbN 2) hb3nz _
+  have h_u4_lt_b3' : u4.toNat < b3'.toNat :=
+    isCallTrialN4_toNat_lt (a.getLimbN 3) (b.getLimbN 2) (b.getLimbN 3) hcall
+  have h_shift_pos : 1 ≤ (clzResult (b.getLimbN 3)).1.toNat := by
+    rcases Nat.eq_zero_or_pos (clzResult (b.getLimbN 3)).1.toNat with h | h
+    · exfalso; apply hshift_nz
+      exact BitVec.eq_of_toNat_eq (by simp [h])
+    · exact h
+  have h_u4_lt_pow63 : u4.toNat < 2^63 :=
+    u_top_lt_pow63_of_shift_nz (a.getLimbN 3) (clzResult (b.getLimbN 3)).1
+      h_shift_pos (clzResult_fst_toNat_le (b.getLimbN 3))
+  have h_eq := div128Quot_v4_eq_q_true_normalized u4 u3 b3'
+    h_b3'_ge h_u4_lt_b3' h_u4_lt_pow63
+  rw [h_eq]
+  exact h_bridge
+
 /-- **v4 version of `n4CallAddbackBeqSemanticHolds`**, using
     `div128Quot_v4` (full 2-correction Knuth D3 in BOTH phases).
 
