@@ -189,4 +189,29 @@ theorem isMaxTrialN4_false_of_shift_nz (a3 b2 b3 : Word)
     Nat.lt_of_lt_of_le h_u4 (le_trans h_b3_shifted h_or_ge)
   exact (EvmWord.ult_iff).mpr h_lt
 
+/-- **Call-trial holds automatically under `hshift_nz`** — corollary of
+    `isMaxTrialN4_false_of_shift_nz`.
+
+    Since `isMaxTrialN4 := ¬ BitVec.ult u4 b3'` and `isCallTrialN4 :=
+    BitVec.ult u4 b3'`, max-trial false ⟺ call-trial true.
+
+    This is the dispatcher trivializer for n=4 shift_nz: the runtime BLTU
+    check ALWAYS picks the call path under shift ≠ 0, so the dispatcher
+    never needs to handle the max branch. Useful for closing
+    `evm_{div,mod}_n4_shift_nz_stack_spec` (and ultimately
+    `evm_{div,mod}_n4_stack_spec`) per
+    `memory/project_n4_shift_nz_dispatcher_plan.md`. -/
+theorem isCallTrialN4_of_shift_nz (a3 b2 b3 : Word)
+    (hb3nz : b3 ≠ 0) (hshift_nz : (clzResult b3).1 ≠ 0) :
+    isCallTrialN4 a3 b2 b3 := by
+  have h_max_false := isMaxTrialN4_false_of_shift_nz a3 b2 b3 hb3nz hshift_nz
+  unfold isMaxTrialN4 at h_max_false
+  unfold isCallTrialN4
+  -- h_max_false : ¬¬(u4.ult b3' = true) (after `simp only [not_not]` in max proof)
+  -- We need: u4.ult b3' = true.
+  simp only [Bool.not_eq_true] at h_max_false
+  -- h_max_false : (u4.ult b3' = true) (after double-not elimination + Bool.not_eq_true).
+  -- Hmm, need to track the actual reduction.
+  exact (Bool.not_eq_false _).mp h_max_false
+
 end EvmAsm.Evm64
