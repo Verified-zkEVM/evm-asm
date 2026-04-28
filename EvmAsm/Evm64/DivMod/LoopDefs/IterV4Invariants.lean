@@ -590,6 +590,66 @@ private theorem div128Quot_v4_phase1_no_overshoot_when_rhatc_ge_pow32
     linarith
   exact Nat.le_div_iff_mul_le h_vTop_pos |>.mpr h_q1c_vTop_le
 
+/-- **Generic Word-level BLTU-fails helper**: if `q ≤ q_true_phase1`
+    plus the standard Phase-1a Euclidean (`q*dHi ≤ uHi`, `rhat = uHi -
+    q*dHi`), then the BLTU on `(rhat << 32) | div_un1` vs `q * dLo`
+    does NOT fire.
+
+    Generic over `(q, rhat)` so it can be applied with the canonical
+    `(q1c, rhatc)` form OR with a post-correction `(q1', rhat')` form
+    that doesn't unfold via the `if hi1 = 0` pattern. Composition core
+    used by the boundary-case overshoot proofs to discharge the 2nd
+    correction's BLTU. -/
+private theorem div128Quot_v4_phase1_inner_bltu_fails_generic
+    (uHi q rhat dHi dLo div_un1 : Word)
+    (h_dLo_lt : dLo.toNat < 2 ^ 32)
+    (h_div_un1_lt : div_un1.toNat < 2 ^ 32)
+    (h_q_dHi_le : q.toNat * dHi.toNat ≤ uHi.toNat)
+    (h_rhat_eq : rhat.toNat = uHi.toNat - q.toNat * dHi.toNat)
+    (h_q_le_pow32 : q.toNat ≤ 2 ^ 32)
+    (h_q_le_q_true : q.toNat ≤ (uHi.toNat * 2 ^ 32 + div_un1.toNat) /
+                                (dHi.toNat * 2 ^ 32 + dLo.toNat)) :
+    ¬ (rhat >>> (32 : BitVec 6).toNat = 0 ∧
+       BitVec.ult ((rhat <<< (32 : BitVec 6).toNat) ||| div_un1) (q * dLo)) := by
+  rintro ⟨h_guard, h_bltu⟩
+  -- rhat < 2^32 from h_guard.
+  have h_rhat_lt : rhat.toNat < 2 ^ 32 := by
+    have h_eq : (rhat >>> (32 : BitVec 6).toNat).toNat = (0 : Word).toNat := by
+      rw [h_guard]
+    rw [BitVec.toNat_ushiftRight, EvmAsm.Rv64.AddrNorm.bv6_toNat_32,
+        Nat.shiftRight_eq_div_pow] at h_eq
+    rw [show (0 : Word).toNat = 0 from rfl] at h_eq
+    have h_div_zero : rhat.toNat / 2 ^ 32 = 0 := h_eq
+    rcases (Nat.div_eq_zero_iff).mp h_div_zero with h | h
+    · simp at h
+    · exact h
+  -- (q * dLo).toNat = q.toNat * dLo.toNat (no overflow).
+  have h_qDlo_eq : (q * dLo).toNat = q.toNat * dLo.toNat := by
+    rw [BitVec.toNat_mul]
+    apply Nat.mod_eq_of_lt
+    calc q.toNat * dLo.toNat
+        ≤ 2 ^ 32 * dLo.toNat := Nat.mul_le_mul_right _ h_q_le_pow32
+      _ < 2 ^ 32 * 2 ^ 32 :=
+          (Nat.mul_lt_mul_left (by decide : 0 < 2 ^ 32)).mpr h_dLo_lt
+      _ = 2 ^ 64 := by decide
+  -- ((rhat << 32) | div_un1).toNat = rhat * 2^32 + div_un1.
+  have h_rhatUn_eq : ((rhat <<< (32 : BitVec 6).toNat) ||| div_un1).toNat =
+                     rhat.toNat * 2 ^ 32 + div_un1.toNat := by
+    rw [EvmAsm.Rv64.AddrNorm.bv6_toNat_32]
+    exact EvmWord.halfword_combine rhat div_un1 h_rhat_lt h_div_un1_lt
+  -- Contradiction via `_phase1_no_bltu_arith` (proven pure-Nat).
+  have h_decomp : (dHi.toNat * 2 ^ 32 + dLo.toNat) =
+                  dHi.toNat * 2 ^ 32 + dLo.toNat := rfl
+  have h_no_bltu_nat : q.toNat * dLo.toNat ≤
+                       rhat.toNat * 2 ^ 32 + div_un1.toNat :=
+    div128Quot_v4_phase1_no_bltu_arith uHi.toNat
+      (dHi.toNat * 2 ^ 32 + dLo.toNat) dHi.toNat dLo.toNat
+      div_un1.toNat q.toNat rhat.toNat
+      h_decomp h_q_dHi_le h_rhat_eq h_q_le_q_true
+  have h_bltu_nat := BitVec.ult_iff_toNat_lt.mp h_bltu
+  rw [h_rhatUn_eq, h_qDlo_eq] at h_bltu_nat
+  omega
+
 /-- **Phase-1 inner-BLTU FIRES when q1c overshoots q_true (v4).**
 
     Symmetric to `_phase1_inner_bltu_fails_when_q1c_le_q_true`. Under
