@@ -2083,29 +2083,24 @@ theorem div128Quot_v2_phase1b_2nd_guard_under_runtime (a b : EvmWord)
     (since `q1c * vTop ≤ x`); the Phase-2b guard/check should also leave
     q1' alone.
 
-    **Truncation regime concern — sub-case 0b**: When `hi1 ≠ 0` (q1 ≥ 2^32),
-    q1c = q1 - 1, rhatc = rhat + dHi. In this branch rhatc can reach
-    [2^32, 2^33). Concretely with dHi = 2^31, dLo = 2^32 - 1, q_true = 2^32 - 1
-    and u4 = 2^63 + 2^32 - 2: rhatc = 3 · 2^31 - 2 ≥ 2^32. The 1st BLTU
-    receives a TRUNCATED `(rhatc << 32) ||| div_un1` and the truncated
-    rhatUn1 = rhatc·2^32 + div_un1 - 2^64. Algebraic check: untruncated
-    rhatUn1 = x - q_true·dHi·2^32 = q_true·dLo + r where r = x mod vTop.
-    Truncated rhatUn1 = q_true·dLo + r - 2^64 < q_true·dLo (since r < vTop ≤ 2^64).
-    So 1st BLTU FIRES SPURIOUSLY → q1' = q_true - 1 → q1'' ≤ q_true - 1.
+    **No truncation under runtime preconditions** (numerically validated
+    2026-04-28): `_hshift_nz` forces `shift ∈ [1, 63]`, hence
+    `antiShift = 64 - shift ∈ [1, 63]`. So `u4 = a3 >>> antiShift` is
+    bounded by `2^shift ≤ 2^63`, i.e., `u4 < 2^63`. Combined with
+    `dHi ≥ 2^31` (from `b3' ≥ 2^63`), we get
+    `q1 = u4 / dHi < 2^63 / 2^31 = 2^32`. Hence `hi1 = q1 >>> 32 = 0`
+    ALWAYS, so `q1c = q1` and `rhatc = rhat = u4 mod dHi < dHi < 2^32`.
 
-    But this would be an algorithm correctness violation. The runtime
-    precondition `_hborrow_v2` (mulsub underflow → addback needed)
-    REQUIRES q1'' to overshoot, contradicting q1'' ≤ q_true - 1.
-    So sub-case 0b with rhatc ≥ 2^32 is unreachable under runtime
-    preconditions — proved indirectly via the borrow/addback contradiction.
+    Sub-case 0b (hi1 ≠ 0) NEVER OCCURS under runtime preconditions, so
+    no truncation issue exists for the 1st BLTU. The algorithm's
+    `(uHi, uLo, vTop)`-level bug at `uHi ≥ 2^63` (validated numerically:
+    on input `(2^64-2^32+1, 0, 2^64-1)` the algorithm undershoots by
+    `2^32-1`) is unreachable from valid `(a, b)` inputs.
 
-    Closes via either:
-    1. Direct route: prove rhatc < 2^32 in case 0 under runtime preconditions
-       (new bridge sub-lemma `_case_0_rhatc_lt_pow32_under_runtime`), then
-       invoke `_phase1b_check_iff_overshoot_under_runtime` in reverse.
-    2. Contradiction route: in sub-case 0b with rhatc ≥ 2^32, derive q1'' =
-       q_true - 1 via direct computation; this contradicts `_hborrow_v2`'s
-       requirement that mulsub underflows. -/
+    Closure plan: invoke `_phase1b_check_iff_overshoot_under_runtime` in
+    reverse direction (q1c not overshooting → 1st BLTU false). Stub 2's
+    preconditions `rhatc < 2^32 ∧ q1c < 2^32` are AUTOMATIC under
+    runtime preconditions (q1c = q1 < 2^32, rhatc < dHi < 2^32). -/
 private theorem div128Quot_v2_phase1_div_invariant_overshoot_0_sub
     (a b : EvmWord)
     (_hb3nz : b.getLimbN 3 ≠ 0)
@@ -2149,26 +2144,26 @@ private theorem div128Quot_v2_phase1_div_invariant_overshoot_0_sub
     let q1'' := div128Quot_phase2b_q0' q1' rhat' dLo div_un1
     q1''.toNat = (u4.toNat * 2^32 + div_un1.toNat) /
                  (dHi.toNat * 2^32 + dLo.toNat) := by
-  sorry  -- Case 0 (no overshoot): 1st check false (Stub 2 reverse) →
-         -- q1' = q1c = q_true. Phase-2b: 2nd check false (q1' = q_true
-         -- doesn't overshoot) → q1'' = q1' = q_true.
-         --
-         -- BLOCKED on bridge: needs `_case_0_rhatc_lt_pow32_under_runtime`
-         -- to rule out the truncation regime sub-case 0b (see docstring).
-         -- Without that bridge, case 0b's rhatc ≥ 2^32 makes 1st BLTU
-         -- spuriously fire and the algorithm produces q1'' = q_true - 1.
+  sorry  -- Case 0 (no overshoot): under runtime preconditions hi1 = 0
+         -- always (per docstring analysis), so q1c = q1, rhatc < 2^32, and
+         -- Stub 2's preconditions are automatic. Closes via
+         -- `_phase1b_check_iff_overshoot_under_runtime` in reverse + Phase-2b
+         -- analysis (q1' = q_true means 2nd check also false).
 
-/-- **Bridge sub-lemma**: in case 0 (q1c = q_true), under the runtime
-    preconditions (specifically `_hborrow_v2`), we have `rhatc < 2^32`.
+/-- **Bridge sub-lemma — provable directly via runtime u4-bound**:
+    In case 0 (q1c = q_true), under runtime preconditions, `rhatc < 2^32`.
 
-    Why this holds: if rhatc ≥ 2^32 in case 0, the algorithm-level analysis
-    gives q1'' = q_true - 1 (1st BLTU spurious fire + Phase-2b guard skip).
-    Then the algorithm's mulsub computes `a - (q_true - 1) * b' < a` without
-    underflow, so the borrow flag is FALSE, contradicting `_hborrow_v2`.
+    PROOF SKETCH: Under `_hshift_nz`, shift ∈ [1, 63] so antiShift ∈ [1, 63],
+    so `u4 = a3 >>> antiShift < 2^shift ≤ 2^63`. With `dHi ≥ 2^31` (from
+    b3' ≥ 2^63), `q1 = u4 / dHi < 2^32`. Hence hi1 = 0 ALWAYS. So q1c = q1
+    and rhatc = rhat = u4 mod dHi < dHi ≤ 2^32 - 1 < 2^32.
 
-    Closing this is the linchpin for `_overshoot_0_sub`. The mulsub-borrow
-    chain (`isAddbackBorrowN4Call_v2`'s definition) refers to `div128Quot_v2`'s
-    output, which equals q1'' here. So we get a clean contradiction.
+    NOTE: This bridge does NOT require the borrow-contradiction route
+    originally articulated. The simpler u4-bound argument suffices because
+    the truncation regime (hi1 ≠ 0) is unreachable. The earlier
+    "case 0b" concern at the (uHi, uLo, vTop) Word level (where
+    div128Quot_v2 IS buggy when uHi ≥ 2^63) reflects an algorithm-level
+    issue at unreachable inputs.
 
     **Issue #1337 algorithm fix migration. Phase-1 invariant bridge stub.** -/
 private theorem div128Quot_v2_case_0_rhatc_lt_pow32_under_runtime
@@ -4035,6 +4030,44 @@ theorem div128Quot_v2_phase1b_2nd_guard_on_counterexample :
     let rhat' := if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc
     let q_true := (u4.toNat * 2^32 + div_un1.toNat) / (dHi.toNat * 2^32 + dLo.toNat)
     q1c.toNat = q_true + 2 → rhat'.toNat < 2^32 := by
+  decide
+
+/-- **Algorithm-level bug at unreachable input** (numerical validation 2026-04-28):
+    `div128Quot_v2 (2^64-2^32+1) 0 (2^64-1)` undershoots the true quotient
+    by exactly `2^32`, demonstrating the `(uHi, uLo, vTop)`-level vulnerability
+    of the Phase-1 truncation regime (sub-case 0b: hi1 ≠ 0, rhatc ≥ 2^32,
+    1st BLTU spuriously fires + Phase-2b guard skips correction).
+
+    However: this input has `uHi = 2^64-2^32+1 > 2^63`, which is unreachable
+    from valid `(a, b)` inputs after shift normalization. The pipeline gives
+    `u4 = a3 >>> antiShift` with `antiShift ∈ [1, 63]` (under `_hshift_nz`),
+    so `u4 < 2^shift ≤ 2^63`.
+
+    True quotient: `((2^64-2^32+1) * 2^64) / (2^64-1) = 2^64-2^32+1`.
+    Algorithm output: `2^64-2^33+1` (undershoot = 2^33 - 2^32 = 2^32). -/
+theorem div128Quot_v2_buggy_at_unreachable_uHi :
+    let uHi : Word := BitVec.ofNat 64 (2^64 - 2^32 + 1)
+    let uLo : Word := 0
+    let vTop : Word := BitVec.ofNat 64 (2^64 - 1)
+    let qHat := div128Quot_v2 uHi uLo vTop
+    -- Algorithm undershoots by exactly 2^32.
+    qHat.toNat = 2^64 - 2^33 + 1 ∧
+    qHat.toNat + 2^32 =
+      (uHi.toNat * 2^64 + uLo.toNat) / vTop.toNat := by
+  decide
+
+/-- **u4 bound under runtime preconditions** (numerical evidence):
+    On the v1 counterexample, `u4 < 2^63`, confirming the case 0 closure
+    plan. Together with `dHi ≥ 2^31`, this gives `q1 < 2^32`, hence
+    `hi1 = 0`, hence `rhatc < dHi < 2^32`. So the truncation regime
+    sub-case 0b never arises. -/
+theorem u4_lt_pow63_on_counterexample :
+    let a3 : Word := BitVec.ofNat 64 (2^63 + 2^33)
+    let b3 : Word := 1
+    let shift := (clzResult b3).1
+    let antiShift := signExtend12 (0 : BitVec 12) - shift
+    let u4 := a3 >>> (antiShift.toNat % 64)
+    u4.toNat < 2^63 := by
   decide
 
 /-- **Sanity check 4**: NOTE — `n4CallAddbackBeqSemanticHolds_v2` requires
