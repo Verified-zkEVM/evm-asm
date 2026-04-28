@@ -1485,6 +1485,59 @@ private theorem div128Quot_v4_un21_lt_vTop_arith
   rw [h_rhat_mul, h_vTop]
   omega
 
+/-- **Phase-1a rhatc bound**: under shift-norm, `rhatc.toNat < 2 * dHi.toNat`.
+
+    Case analysis on `hi1`:
+    - `hi1 = 0`: rhatc = rhat = uHi mod dHi < dHi ≤ 2*dHi.
+    - `hi1 ≠ 0`: rhatc = rhat + dHi, rhat < dHi ⟹ rhatc < 2*dHi.
+
+    Used by `_phase1_final_eucl_bridge` to discharge the 1-correction
+    helper's `rhat + dHi < 2^64` no-overflow hypothesis. -/
+private theorem div128Quot_v4_phase1_rhatc_lt_2_dHi
+    (uHi vTop : Word)
+    (h_vTop_ge_pow63 : vTop.toNat ≥ 2^63)
+    (_h_uHi_lt_vTop : uHi.toNat < vTop.toNat) :
+    let dHi := vTop >>> (32 : BitVec 6).toNat
+    let q1 := rv64_divu uHi dHi
+    let rhat := uHi - q1 * dHi
+    let hi1 := q1 >>> (32 : BitVec 6).toNat
+    let rhatc := if hi1 = 0 then rhat else rhat + dHi
+    rhatc.toNat < 2 * dHi.toNat := by
+  intro dHi q1 rhat hi1 rhatc
+  have hdHi_ge : dHi.toNat ≥ 2^31 :=
+    div128Quot_dHi_ge_pow31 vTop h_vTop_ge_pow63
+  have hdHi_ne : dHi ≠ 0 := by
+    intro heq; rw [heq] at hdHi_ge; simp at hdHi_ge
+  -- rv64_divu Euclidean: uHi = q1 * dHi + uHi mod dHi.
+  have h_q1_eucl : uHi.toNat = q1.toNat * dHi.toNat + uHi.toNat % dHi.toNat :=
+    EvmWord.rv64_divu_euclidean uHi dHi hdHi_ne
+  -- q1 * dHi at Word: no overflow under rv64_divu_mul_le.
+  have h_q1_dHi_le : q1.toNat * dHi.toNat ≤ uHi.toNat :=
+    EvmWord.rv64_divu_mul_le uHi dHi hdHi_ne
+  have h_q1_dHi_toNat : (q1 * dHi).toNat = q1.toNat * dHi.toNat := by
+    rw [BitVec.toNat_mul]
+    exact Nat.mod_eq_of_lt (lt_of_le_of_lt h_q1_dHi_le uHi.isLt)
+  -- rhat.toNat = uHi mod dHi < dHi.
+  have h_rhat_toNat : rhat.toNat = uHi.toNat % dHi.toNat := by
+    show (uHi - q1 * dHi).toNat = _
+    rw [BitVec.toNat_sub, h_q1_dHi_toNat]
+    have h_pos : 0 < 2^64 := by decide
+    omega
+  have h_rhat_lt : rhat.toNat < dHi.toNat :=
+    h_rhat_toNat ▸ (Nat.mod_lt _ (Nat.pos_of_ne_zero (fun h => hdHi_ne (BitVec.eq_of_toNat_eq h))))
+  by_cases h_hi1 : hi1 = 0
+  · -- rhatc = rhat < dHi ≤ 2*dHi.
+    show (if hi1 = 0 then rhat else rhat + dHi).toNat < 2 * dHi.toNat
+    rw [if_pos h_hi1]; linarith
+  · -- rhatc = rhat + dHi (Word). At toNat: rhat + dHi (no overflow since rhat < dHi).
+    show (if hi1 = 0 then rhat else rhat + dHi).toNat < 2 * dHi.toNat
+    rw [if_neg h_hi1, BitVec.toNat_add]
+    have h_dHi_lt : dHi.toNat < 2^32 := Word_ushiftRight_32_lt_pow32
+    have h_no_ov : rhat.toNat + dHi.toNat < 2^64 := by
+      have : rhat.toNat + dHi.toNat < 2^32 + 2^32 := by linarith
+      linarith [show (2:Nat)^32 + 2^32 < 2^64 from by decide]
+    rw [Nat.mod_eq_of_lt h_no_ov]; linarith
+
 /-- **Phase-1b 1-correction Eucl preservation (v4 Word↔Nat)**: each
     `phase2b_q0'` correction preserves the Phase-1a Euclidean identity
     at the toNat level: q.toNat * dHi.toNat + rhat.toNat = uHi.toNat
