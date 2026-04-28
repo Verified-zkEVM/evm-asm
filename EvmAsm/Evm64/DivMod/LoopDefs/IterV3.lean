@@ -113,8 +113,25 @@ theorem div128Quot_v3_eq_v2_when_rhatc_lt_pow32 (uHi uLo vTop : Word)
       let rhatc := if hi1 = 0 then rhat else rhat + dHi
       rhatc >>> (32 : BitVec 6).toNat = 0) :
     div128Quot_v3 uHi uLo vTop = div128Quot_v2 uHi uLo vTop := by
-  sorry  -- Migration helper. Closes by unfolding both defs and using
-         -- the rhatc-guard hypothesis to align the 1st-correction
-         -- branch (where v3 has the `if rhatc >> 32 = 0` and v2 doesn't).
+  -- Extract the rhatc-guard hypothesis with lets unfolded.
+  have h_rhatc :
+      (if (rv64_divu uHi (vTop >>> (32 : BitVec 6).toNat)) >>>
+              (32 : BitVec 6).toNat = 0 then
+            uHi - rv64_divu uHi (vTop >>> (32 : BitVec 6).toNat) *
+                  (vTop >>> (32 : BitVec 6).toNat)
+          else
+            uHi - rv64_divu uHi (vTop >>> (32 : BitVec 6).toNat) *
+                  (vTop >>> (32 : BitVec 6).toNat) +
+                (vTop >>> (32 : BitVec 6).toNat)) >>>
+        (32 : BitVec 6).toNat = 0 := _h_rhatc
+  unfold div128Quot_v3 div128Quot_v2
+  -- The only difference between v2 and v3 is the 1st correction's q1'/rhat'.
+  -- v2: `q1' := if BitVec.ult rhatUn1 qDlo then q1c + signExtend12 4095 else q1c`
+  -- v3: `q1' := div128Quot_phase2b_q0' q1c rhatc dLo div_un1`
+  --     `rhat' := if rhatc >> 32 = 0 then (...same body as v2...) else rhatc`
+  -- Under h_rhatc (rhatc >> 32 = 0), v3's `phase2b_q0'` unfolds to v2's
+  -- inlined form, and v3's rhat' takes the if-positive branch matching v2.
+  unfold div128Quot_phase2b_q0'
+  simp only [h_rhatc, if_true]
 
 end EvmAsm.Evm64
