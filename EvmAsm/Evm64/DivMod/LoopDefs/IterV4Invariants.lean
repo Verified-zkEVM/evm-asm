@@ -650,6 +650,56 @@ private theorem div128Quot_v4_phase1_inner_bltu_fails_generic
   rw [h_rhatUn_eq, h_qDlo_eq] at h_bltu_nat
   omega
 
+/-- **Generic Word-level BLTU-fires helper**: parallels
+    `_phase1_inner_bltu_fails_generic` but for the firing case. Under
+    `q ≥ q_true_phase1 + 1` (overshoot ≥ 1) plus the standard Phase-1a
+    Euclidean and rhat < 2^32 (guard passes), the BLTU on
+    `(rhat << 32) | div_un1` vs `q * dLo` FIRES. -/
+private theorem div128Quot_v4_phase1_inner_bltu_fires_generic
+    (uHi q rhat dHi dLo div_un1 : Word)
+    (h_dHi_ge : dHi.toNat ≥ 2 ^ 31)
+    (h_dLo_lt : dLo.toNat < 2 ^ 32)
+    (h_div_un1_lt : div_un1.toNat < 2 ^ 32)
+    (h_q_dHi_le : q.toNat * dHi.toNat ≤ uHi.toNat)
+    (h_rhat_eq : rhat.toNat = uHi.toNat - q.toNat * dHi.toNat)
+    (h_rhat_lt : rhat.toNat < 2 ^ 32)
+    (h_q_le_pow32 : q.toNat ≤ 2 ^ 32)
+    (h_q_overshoot : q.toNat ≥ (uHi.toNat * 2 ^ 32 + div_un1.toNat) /
+                                (dHi.toNat * 2 ^ 32 + dLo.toNat) + 1) :
+    BitVec.ult ((rhat <<< (32 : BitVec 6).toNat) ||| div_un1) (q * dLo) := by
+  -- (q * dLo).toNat = q.toNat * dLo.toNat (no overflow).
+  have h_qDlo_eq : (q * dLo).toNat = q.toNat * dLo.toNat := by
+    rw [BitVec.toNat_mul]
+    apply Nat.mod_eq_of_lt
+    calc q.toNat * dLo.toNat
+        ≤ 2 ^ 32 * dLo.toNat := Nat.mul_le_mul_right _ h_q_le_pow32
+      _ < 2 ^ 32 * 2 ^ 32 :=
+          (Nat.mul_lt_mul_left (by decide : 0 < 2 ^ 32)).mpr h_dLo_lt
+      _ = 2 ^ 64 := by decide
+  -- ((rhat << 32) | div_un1).toNat = rhat * 2^32 + div_un1.
+  have h_rhatUn_eq : ((rhat <<< (32 : BitVec 6).toNat) ||| div_un1).toNat =
+                     rhat.toNat * 2 ^ 32 + div_un1.toNat := by
+    rw [EvmAsm.Rv64.AddrNorm.bv6_toNat_32]
+    exact EvmWord.halfword_combine rhat div_un1 h_rhat_lt h_div_un1_lt
+  -- Strict upper from overshoot.
+  have h_decomp : (dHi.toNat * 2 ^ 32 + dLo.toNat) =
+                  dHi.toNat * 2 ^ 32 + dLo.toNat := rfl
+  have h_strict_upper : q.toNat * (dHi.toNat * 2 ^ 32 + dLo.toNat) >
+                          uHi.toNat * 2 ^ 32 + div_un1.toNat :=
+    div128Quot_v4_phase1_q1c_strict_upper uHi.toNat
+      (dHi.toNat * 2 ^ 32 + dLo.toNat) dHi.toNat dLo.toNat
+      div_un1.toNat q.toNat h_decomp h_dHi_ge h_q_overshoot
+  -- Pure-Nat fires: q * dLo > rhat * 2^32 + div_un1.
+  have h_fires_nat : rhat.toNat * 2 ^ 32 + div_un1.toNat <
+                       q.toNat * dLo.toNat :=
+    div128Quot_v4_phase1_bltu_fires_arith uHi.toNat
+      (dHi.toNat * 2 ^ 32 + dLo.toNat) dHi.toNat dLo.toNat
+      div_un1.toNat q.toNat rhat.toNat
+      h_decomp h_q_dHi_le h_rhat_eq h_strict_upper
+  -- Bridge to Word-level BLTU.
+  rw [BitVec.ult_iff_toNat_lt, h_rhatUn_eq, h_qDlo_eq]
+  exact h_fires_nat
+
 /-- **Phase-1 inner-BLTU FIRES when q1c overshoots q_true (v4).**
 
     Symmetric to `_phase1_inner_bltu_fails_when_q1c_le_q_true`. Under
