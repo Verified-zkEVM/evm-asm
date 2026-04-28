@@ -528,6 +528,40 @@ theorem knuth_theorem_b_from_clz
     (by linarith [hnorm_u])
     hnorm_v hb3prime hu4_lt
 
+/-- **Knuth B in the 5-limb shifted domain — direct shifted-domain corollary.**
+
+    Same shape as `knuth_theorem_b_val256` but skips the original-domain
+    `val256(a)`. Bounds the 2-limb trial quotient `(u4 * 2^64 + un3) / b3'`
+    against the FULL shifted-domain dividend `u4 * 2^256 + val256(un)`:
+    `(u4 * 2^64 + un3) / b3' ≤ (u4 * 2^256 + val256(un)) / val256(b') + 2`.
+
+    The 5-limb form is the GENUINE shifted-domain Knuth-B. The 4-limb-only
+    form `(u4 * 2^64 + un3) / b3' ≤ val256(un) / val256(b') + 2` is generally
+    FALSE when `u4 > 0` (the `u4 * 2^256 / val256(b')` contribution can be
+    much larger than 2 — e.g. with `b3' = 2^63` and `val256(b') ≈ 2^255`,
+    the contribution is ≈ `u4 * 2`, unbounded by 2 when `u4 ≥ 2`).
+
+    Useful for the v2 carry-partition decomposition: under scale invariance,
+    `(u4 * 2^256 + val256 un) / val256 b' = val256(a) / val256(b) = q_true`,
+    so this directly yields `qHat ≤ q_true + 2` from the trial-quotient
+    side, sidestepping the original-domain val256 algebra entirely. -/
+theorem knuth_theorem_b_5limb_shifted_val256
+    (un0 un1 un2 un3 b0' b1' b2' b3' u4 : Word)
+    (hb3prime_ge_pow63 : b3'.toNat ≥ 2^63)
+    (hu4_lt_b3prime : u4.toNat < b3'.toNat) :
+    (u4.toNat * 2^64 + un3.toNat) / b3'.toNat ≤
+      (u4.toNat * 2^256 + val256 un0 un1 un2 un3) /
+        val256 b0' b1' b2' b3' + 2 := by
+  obtain ⟨v_rest, hv_rest_lt, hv_split_val⟩ := val256_split_top_limb b0' b1' b2' b3'
+  -- `u_nat = u4 * 2^256 + val256 un` splits cleanly along (u4, un3, lower3).
+  have h_u_split : u4.toNat * 2^256 + un3.toNat * 2^192 +
+      (un0.toNat + un1.toNat * 2^64 + un2.toNat * 2^128) =
+      u4.toNat * 2^256 + val256 un0 un1 un2 un3 := by
+    unfold val256; ring
+  exact knuth_theorem_b_abstract _ _ u4.toNat un3.toNat
+    (un0.toNat + un1.toNat * 2^64 + un2.toNat * 2^128) b3'.toNat v_rest
+    h_u_split hv_split_val hv_rest_lt hb3prime_ge_pow63 hu4_lt_b3prime un3.isLt
+
 /-- **Piece B entry — first building block for `div128Quot` correctness.**
 
     Under the normalization precondition `vTop ≥ 2^63`, the `div128Quot`

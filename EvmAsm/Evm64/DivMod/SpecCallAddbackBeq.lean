@@ -1467,6 +1467,113 @@ theorem div128Quot_v2_le_val256_div_plus_two_untruncated
       ≤ (u4.toNat * 2^64 + un3.toNat) / b3'.toNat := h_div_le
     _ ≤ val256 a0 a1 a2 a3 / val256 b0 b1 b2 b3 + 2 := h_step2
 
+/-- **5-limb shifted-domain Knuth-B for v2 — proven path-3 lift.**
+
+    Mirror of `div128Quot_v2_le_val256_div_plus_two_untruncated` but with
+    the conclusion in 5-limb shifted-domain form
+    `qHat ≤ (u4 * 2^256 + val256 un) / val256 b' + 2`.
+
+    Composes:
+    - `div128Quot_v2_qHat_vTop_le_full_untruncated` (existing, proven from
+      the four untruncated invariants).
+    - `knuth_theorem_b_5limb_shifted_val256` (new in `KnuthTheoremB.lean`).
+
+    Compared to the original-domain version:
+    - Sidesteps `val256(a)` algebra entirely (no `u_val256_eq_scaled_with_overflow`).
+    - The 5-limb shifted-domain quotient equals `val256(a) / val256(b)` by
+      scale invariance, so this is logically the same bound — but stated
+      directly in terms of the algorithm's normalized limbs, which is
+      what the v2 carry-partition decomposition wants to consume.
+
+    Note: the 4-limb-only analogue (using `val256(un)` in the divisor's
+    numerator instead of `u4 * 2^256 + val256(un)`) is generally FALSE
+    when `u4 > 0` — see the docstring on `knuth_theorem_b_5limb_shifted_val256`.
+
+    Issue #1337 algorithm fix migration. Alternative path 3, shifted form. -/
+theorem div128Quot_v2_le_5limb_shifted_div_plus_two_untruncated
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hb3nz : b3 ≠ 0)
+    (_hshift_nz : (clzResult b3).1 ≠ 0)
+    (hcall : isCallTrialN4 a3 b2 b3) :
+    let shift := (clzResult b3).1.toNat % 64
+    let antiShift := (signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64
+    let u4 := a3 >>> antiShift
+    let un3 := (a3 <<< shift) ||| (a2 >>> antiShift)
+    let un2 := (a2 <<< shift) ||| (a1 >>> antiShift)
+    let un1 := (a1 <<< shift) ||| (a0 >>> antiShift)
+    let un0 := a0 <<< shift
+    let b3' := (b3 <<< shift) ||| (b2 >>> antiShift)
+    let b2' := (b2 <<< shift) ||| (b1 >>> antiShift)
+    let b1' := (b1 <<< shift) ||| (b0 >>> antiShift)
+    let b0' := b0 <<< shift
+    let dHi := b3' >>> (32 : BitVec 6).toNat
+    let dLo := (b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+    let div_un1 := un3 >>> (32 : BitVec 6).toNat
+    let div_un0 := (un3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+    let q1 := rv64_divu u4 dHi
+    let rhat := u4 - q1 * dHi
+    let hi1 := q1 >>> (32 : BitVec 6).toNat
+    let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+    let rhatc := if hi1 = 0 then rhat else rhat + dHi
+    let qDlo := q1c * dLo
+    let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
+    let q1' := if BitVec.ult rhatUn1 qDlo then q1c + signExtend12 4095 else q1c
+    let rhat' := if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc
+    let q1'' := div128Quot_phase2b_q0' q1' rhat' dLo div_un1
+    let rhat'' :=
+      if rhat' >>> (32 : BitVec 6).toNat = 0 then
+        let qDlo2 := q1' * dLo
+        let rhatUn1' := (rhat' <<< (32 : BitVec 6).toNat) ||| div_un1
+        if BitVec.ult rhatUn1' qDlo2 then rhat' + dHi else rhat'
+      else rhat'
+    let cu_rhat_un1 := (rhat'' <<< (32 : BitVec 6).toNat) ||| div_un1
+    let cu_q1_dlo := q1'' * dLo
+    let un21 := cu_rhat_un1 - cu_q1_dlo
+    let q0 := rv64_divu un21 dHi
+    let rhat2 := un21 - q0 * dHi
+    let hi2 := q0 >>> (32 : BitVec 6).toNat
+    let q0c := if hi2 = 0 then q0 else q0 + signExtend12 4095
+    let rhat2c := if hi2 = 0 then rhat2 else rhat2 + dHi
+    let q0' := div128Quot_phase2b_q0' q0c rhat2c dLo div_un0
+    let rhat2' := if rhat2c >>> (32 : BitVec 6).toNat = 0 then
+                    (if BitVec.ult ((rhat2c <<< (32 : BitVec 6).toNat) ||| div_un0)
+                                    (q0c * dLo) then rhat2c + dHi else rhat2c)
+                  else rhat2c
+    -- Untruncated phase-1 invariant (2 conjuncts) + phase-2 + q0' bound:
+    q1''.toNat * dLo.toNat ≤ rhat''.toNat * 2^32 + div_un1.toNat →
+    rhat''.toNat * 2^32 + div_un1.toNat - q1''.toNat * dLo.toNat < 2^64 →
+    q0'.toNat * dLo.toNat ≤ rhat2'.toNat * 2^32 + div_un0.toNat →
+    q0'.toNat < 2^32 →
+    (div128Quot_v2 u4 un3 b3').toNat ≤
+      (u4.toNat * 2^256 + val256 un0 un1 un2 un3) /
+        val256 b0' b1' b2' b3' + 2 := by
+  intro shift antiShift u4 un3 un2 un1 un0 b3' b2' b1' b0' dHi dLo div_un1 div_un0
+        q1 rhat hi1 q1c rhatc qDlo rhatUn1 q1' rhat' q1'' rhat'' cu_rhat_un1
+        cu_q1_dlo un21 q0 rhat2 hi2 q0c rhat2c q0' rhat2'
+        h_ph1_no_wrap_lo h_ph1_un21_lt h_ph2_no_wrap hq0_lt
+  -- Step 1: same untruncated lift used by the original-domain variant.
+  have hb3prime_ge_pow63 : b3'.toNat ≥ 2^63 := b3_prime_ge_pow63 b3 b2 hb3nz _
+  have hdHi_ge : dHi.toNat ≥ 2^31 := div128Quot_dHi_ge_pow31 b3' hb3prime_ge_pow63
+  have hdLo_lt : dLo.toNat < 2^32 := Word_ushiftRight_32_lt_pow32
+  have hu4_lt_b3prime : u4.toNat < b3'.toNat := isCallTrialN4_toNat_lt a3 b2 b3 hcall
+  have h_vtop : b3'.toNat = dHi.toNat * 2^32 + dLo.toNat :=
+    div128Quot_vTop_decomp b3'
+  have hu4_lt_vTop : u4.toNat < dHi.toNat * 2^32 + dLo.toNat := by
+    rw [← h_vtop]; exact hu4_lt_b3prime
+  have h_step1 := div128Quot_v2_qHat_vTop_le_full_untruncated u4 un3 b3' hdHi_ge
+    hdLo_lt hu4_lt_vTop h_ph1_no_wrap_lo h_ph1_un21_lt h_ph2_no_wrap hq0_lt
+  have hb3prime_pos : 0 < b3'.toNat := by omega
+  have h_div_le : (div128Quot_v2 u4 un3 b3').toNat ≤
+      (u4.toNat * 2^64 + un3.toNat) / b3'.toNat :=
+    (Nat.le_div_iff_mul_le hb3prime_pos).mpr h_step1
+  -- Step 2: 5-limb shifted Knuth-B (NEW), no original-domain bridging needed.
+  have h_step2 := knuth_theorem_b_5limb_shifted_val256
+    un0 un1 un2 un3 b0' b1' b2' b3' u4 hb3prime_ge_pow63 hu4_lt_b3prime
+  calc (div128Quot_v2 u4 un3 b3').toNat
+      ≤ (u4.toNat * 2^64 + un3.toNat) / b3'.toNat := h_div_le
+    _ ≤ (u4.toNat * 2^256 + val256 un0 un1 un2 un3) /
+        val256 b0' b1' b2' b3' + 2 := h_step2
+
 /-- **Untruncated runtime discharge** — alternative path 3 stub.
 
     **Note (2026-04-27):** the truncated counterpart of this discharge
@@ -1912,14 +2019,30 @@ theorem qHat_lower_shifted_under_runtime_v2 (a b : EvmWord)
   omega
 
 /-- **qHat upper bound shifted-domain (ALONE)** — the upper-bound half
-    of `qHat_in_range_shifted_under_runtime_v2`. Stubbed: needs
-    `_le_val256_div_plus_two_untruncated` (proven, original-domain) +
-    shift-bridging via val256 algebra to get the shifted-domain form.
+    of `qHat_in_range_shifted_under_runtime_v2`. Stubbed.
 
-    Concrete proof plan: from the proven Knuth-B
-    `qHat ≤ val256(a) / val256(b) + 2`, multiply both sides by 2^shift
-    (mod 2^256 considerations) to derive `qHat ≤ val256(a_shifted) /
-    val256(b_shifted) + 2`. Care needed for the mod 2^256 truncation.
+    **Architectural note (2026-04-28):** the 4-limb-only shifted form
+    `qHat ≤ val256(un) / val256(b') + 2` stated below is **GENERALLY FALSE**
+    when `u4 > 0`. The contribution `u4 * 2^256 / val256(b')` (which the
+    4-limb val256 truncates) can be much larger than 2 — e.g. with
+    `b3' = 2^63` and `val256(b') ≈ 2^255`, the gap is ≈ `u4 * 2`.
+
+    The genuine shifted-domain Knuth-B is the **5-limb** form
+    `qHat ≤ (u4 * 2^256 + val256(un)) / val256(b') + 2`, available now as
+    `div128Quot_v2_le_5limb_shifted_div_plus_two_untruncated` (proven from
+    the same untruncated invariants that the original-domain variant
+    consumes). By scale invariance the 5-limb shifted quotient equals
+    `val256(a) / val256(b)`, so it's the genuine `q_true` bound.
+
+    Consumers (e.g. `addback_carry_partition_v2`) should switch to the
+    5-limb form — keeping the lower bound in 4-limb shifted-domain (proven
+    via `qHat_lower_shifted_under_runtime_v2`) is fine since the lower
+    bound DOES hold in the 4-limb shifted-domain (the carry-borrow chain
+    only constrains the multi-limb mulsub residue, not the truncated u4).
+
+    This stub is retained as a PROOF-PLAN MARKER to guide consumer
+    migration; it should NOT be invoked, and any closure attempt of its
+    body will fail on a counterexample.
 
     Issue #1337 algorithm fix migration. -/
 theorem qHat_upper_shifted_under_runtime_v2 (_a _b : EvmWord)
