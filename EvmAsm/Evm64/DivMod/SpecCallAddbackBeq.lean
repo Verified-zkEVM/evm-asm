@@ -930,6 +930,66 @@ private theorem un21_toNat_untruncated_arith (A_trunc B k : ℕ)
     rw [Nat.mod_eq_of_lt (by omega : A_trunc + 2^64 - B < 2^64)]
     omega
 
+/-- **Pure-Nat helper for conj2 of `_no_wrap_under_call_addback_beq_untruncated`.**
+
+    Given the Phase-1 Euclidean (`q1'' * dHi + rhat'' = uHi`) and
+    Knuth-A v2 (`q1'' ≥ (uHi*2^32 + div_un1) / vTop`) at the Nat level,
+    derives the untruncated phase-1 upper-bound conjunct:
+    `rhat'' * 2^32 + div_un1 - q1'' * dLo < 2^64`.
+
+    No Word reasoning — this is the algebraic combiner that the parent
+    stub's conj2 case will invoke once Knuth-A is closed. -/
+private theorem conj2_arith
+    (uHi div_un1 q1pp rhat_pp dHi dLo : ℕ)
+    (h_eucl : q1pp * dHi + rhat_pp = uHi)
+    (h_dHi_lt : dHi < 2^32)
+    (h_dLo_lt : dLo < 2^32)
+    (h_dHi_ge : dHi ≥ 2^31)
+    (h_div_un1_lt : div_un1 < 2^32)
+    (h_knuthA : q1pp ≥ (uHi * 2^32 + div_un1) / (dHi * 2^32 + dLo)) :
+    rhat_pp * 2^32 + div_un1 - q1pp * dLo < 2^64 := by
+  have h_vTop_pos : 0 < dHi * 2^32 + dLo := by
+    have h1 : dHi * 2^32 ≥ 2^31 * 2^32 := Nat.mul_le_mul_right _ h_dHi_ge
+    have h_pow : (2 ^ 31 * 2 ^ 32 : ℕ) = 2 ^ 63 := by decide
+    omega
+  have h_vTop_lt_pow64 : dHi * 2^32 + dLo < 2^64 := by
+    have h1 : dHi * 2^32 ≤ (2^32 - 1) * 2^32 :=
+      Nat.mul_le_mul_right _ (by omega : dHi ≤ 2^32 - 1)
+    have h_pow : ((2^32 - 1) * 2^32 + (2^32 - 1) : ℕ) = 2^64 - 1 := by decide
+    omega
+  rcases Nat.lt_or_ge (rhat_pp * 2^32 + div_un1) (q1pp * dLo) with h_neg | h_nonneg
+  · have h_zero : rhat_pp * 2^32 + div_un1 - q1pp * dLo = 0 := by omega
+    rw [h_zero]; decide
+  · have h_q1pp_dHi_le : q1pp * dHi ≤ uHi := by linarith [h_eucl]
+    have h_q1pp_dHi_2pow32_le : q1pp * dHi * 2^32 ≤ uHi * 2^32 :=
+      Nat.mul_le_mul_right _ h_q1pp_dHi_le
+    have h_rhat_2pow32 : rhat_pp * 2^32 = uHi * 2^32 - q1pp * dHi * 2^32 := by
+      have h_rhat_eq : rhat_pp = uHi - q1pp * dHi := by omega
+      rw [h_rhat_eq, Nat.sub_mul]
+    have h_q1pp_vTop : q1pp * (dHi * 2^32 + dLo) = q1pp * dHi * 2^32 + q1pp * dLo := by
+      ring
+    have h_lhs_eq :
+        rhat_pp * 2^32 + div_un1 - q1pp * dLo =
+        uHi * 2^32 + div_un1 - q1pp * (dHi * 2^32 + dLo) := by omega
+    rw [h_lhs_eq]
+    have h_div_mul :
+        (uHi * 2^32 + div_un1) / (dHi * 2^32 + dLo) * (dHi * 2^32 + dLo) ≤
+        q1pp * (dHi * 2^32 + dLo) :=
+      Nat.mul_le_mul_right _ h_knuthA
+    have h_div_add_mod :
+        uHi * 2^32 + div_un1 =
+        (dHi * 2^32 + dLo) * ((uHi * 2^32 + div_un1) / (dHi * 2^32 + dLo)) +
+        (uHi * 2^32 + div_un1) % (dHi * 2^32 + dLo) :=
+      (Nat.div_add_mod _ _).symm
+    have h_mod_lt :
+        (uHi * 2^32 + div_un1) % (dHi * 2^32 + dLo) < dHi * 2^32 + dLo :=
+      Nat.mod_lt _ h_vTop_pos
+    have h_div_mul' :
+        (uHi * 2^32 + div_un1) / (dHi * 2^32 + dLo) * (dHi * 2^32 + dLo) =
+        (dHi * 2^32 + dLo) * ((uHi * 2^32 + div_un1) / (dHi * 2^32 + dLo)) :=
+      Nat.mul_comm _ _
+    omega
+
 /-- **Untruncated bridge for `un21.toNat`** — the alternative-path-3 helper.
 
     Under the two-bound untruncated invariant
@@ -1791,16 +1851,45 @@ theorem div128Quot_v2_no_wrap_under_call_addback_beq_untruncated (a b : EvmWord)
     sorry
   case conj2 =>
     -- **Conjunct 2 (untruncated phase-1 upper):**
-    -- `rhat'' * 2^32 + div_un1 - q1'' * dLo < 2^64`. The literal claim is
-    -- weaker than `un21 < vTop` — that stronger form is what Knuth-A v2
-    -- delivers (combined with Conj 1: q1'' = floor(x/vTop), so un21 =
-    -- x mod vTop < vTop ≤ 2^64).
+    -- `rhat'' * 2^32 + div_un1 - q1'' * dLo < 2^64`.
     --
-    -- Equivalent (via `un21 < vTop ≤ 2^64`) to v1's "tight Phase 1"
-    -- hypothesis (open in v1 — see `knuth_compose_weak_lower_nat` in
-    -- Div128KnuthLower.lean). The discharge structure is shared with
-    -- `div128Quot_v2_un21_lt_vTop_under_runtime` (the strong form).
-    sorry
+    -- Closure: Phase-1 Euclidean (PROVEN) + Knuth-A v2 (sorry-driven) +
+    -- the pure-Nat algebraic combiner `conj2_arith` (PROVEN above).
+    -- Conj2 holds REGARDLESS of conj1 (when subtraction truncates to 0,
+    -- 0 < 2^64 trivially; otherwise Knuth-A bounds the result by vTop < 2^64).
+    have hdHi_ne : dHi ≠ 0 := by
+      intro heq
+      rw [show dHi = b3' >>> (32 : BitVec 6).toNat from rfl] at heq
+      have h_b3'_ge_pow63 : b3'.toNat ≥ 2^63 :=
+        b3_prime_ge_pow63 (b.getLimbN 3) (b.getLimbN 2) hb3nz _
+      have hdHi_ge : (b3' >>> (32 : BitVec 6).toNat).toNat ≥ 2^31 :=
+        div128Quot_dHi_ge_pow31 b3' h_b3'_ge_pow63
+      rw [heq] at hdHi_ge
+      simp at hdHi_ge
+    have hdHi_lt : dHi.toNat < 2^32 := Word_ushiftRight_32_lt_pow32
+    have hdLo_lt : dLo.toNat < 2^32 := Word_ushiftRight_32_lt_pow32
+    have h_div_un1_lt : div_un1.toNat < 2^32 := Word_ushiftRight_32_lt_pow32
+    have h_b3'_ge_pow63 : b3'.toNat ≥ 2^63 :=
+      b3_prime_ge_pow63 (b.getLimbN 3) (b.getLimbN 2) hb3nz _
+    have hdHi_ge : dHi.toNat ≥ 2^31 :=
+      div128Quot_dHi_ge_pow31 b3' h_b3'_ge_pow63
+    -- Phase 1a Euclidean.
+    have h_post1a := div128Quot_first_round_post u4 dHi hdHi_ne hdHi_lt
+    -- Phase 1b 1st correction Euclidean.
+    have h_eucl_1st : q1'.toNat * dHi.toNat + rhat'.toNat = u4.toNat :=
+      div128Quot_phase1b_post u4 dHi q1c rhatc dLo rhatUn1 hdHi_lt h_post1a
+        (div128Quot_rhatc_lt_2dHi u4 dHi hdHi_ne hdHi_lt)
+    -- Phase 1b 2nd correction Euclidean (v2).
+    have h_eucl_2nd : q1''.toNat * dHi.toNat + rhat''.toNat = u4.toNat :=
+      div128Quot_v2_phase1b_2nd_post u4 dHi q1' rhat' dLo div_un1
+        hdHi_ge hdHi_lt h_eucl_1st
+    -- Knuth-A v2 (sorry-driven).
+    have h_knuthA := div128Quot_v2_knuth_A_under_runtime a b hb3nz _hshift_nz
+      hbltu hcarry2_nz hborrow_v2
+    simp only [] at h_knuthA
+    -- Apply pure-Nat algebraic combiner.
+    exact conj2_arith u4.toNat div_un1.toNat q1''.toNat rhat''.toNat
+      dHi.toNat dLo.toNat h_eucl_2nd hdHi_lt hdLo_lt hdHi_ge h_div_un1_lt h_knuthA
   case conj3 =>
     -- **Conjunct 3 (phase-2 lower):**
     -- `q0' * dLo ≤ rhat2' * 2^32 + div_un0`. Mirror of Conj 1 for Phase 2:
