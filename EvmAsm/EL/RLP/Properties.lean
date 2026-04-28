@@ -188,6 +188,19 @@ theorem decode_triple_list_small_bytes
       some (.list [.bytes [b1], .bytes [b2], .bytes [b3]], []) := by
   simp [decode, decodeAux, takeBytes, decodeItems, h1, h2, h3]
 
+/-- Four-element list of small bytes:
+    `decode [0xC4, b1, b2, b3, b4] = some (.list [.bytes [b1], .bytes [b2], .bytes [b3], .bytes [b4]], [])`
+    when all `b1, b2, b3, b4 < 0x80`. Short-list branch fires with
+    payload length 4, four single-byte items decoded in sequence, then
+    closes. -/
+theorem decode_quad_list_small_bytes
+    (b1 b2 b3 b4 : Byte)
+    (h1 : b1.toNat < 0x80) (h2 : b2.toNat < 0x80)
+    (h3 : b3.toNat < 0x80) (h4 : b4.toNat < 0x80) :
+    decode [(0xC4 : Byte), b1, b2, b3, b4] =
+      some (.list [.bytes [b1], .bytes [b2], .bytes [b3], .bytes [b4]], []) := by
+  simp [decode, decodeAux, takeBytes, decodeItems, h1, h2, h3, h4]
+
 /-- Two-element list of empty lists:
     `decode [0xC2, 0xC0, 0xC0] = some (.list [.list [], .list []], [])`.
     The outer short-list branch fires with payload length 2, two empty
@@ -197,6 +210,15 @@ theorem decode_pair_list_empty_lists :
       some (.list [.list [], .list []], []) := by
   simp [decode, decodeAux, takeBytes, decodeItems]
 
+/-- Two-element list of empty byte strings:
+    `decode [0xC2, 0x80, 0x80] = some (.list [.bytes [], .bytes []], [])`.
+    The outer short-list branch fires with payload length 2, two empty
+    inner byte strings are decoded in sequence, then the outer closes. -/
+theorem decode_pair_list_empty_strings :
+    decode [(0xC2 : Byte), (0x80 : Byte), (0x80 : Byte)] =
+      some (.list [.bytes [], .bytes []], []) := by
+  simp [decode, decodeAux, takeBytes, decodeItems]
+
 /-- Three-element list of empty lists:
     `decode [0xC3, 0xC0, 0xC0, 0xC0] = some (.list [.list [], .list [], .list []], [])`.
     The outer short-list branch fires with payload length 3, three empty
@@ -204,6 +226,24 @@ theorem decode_pair_list_empty_lists :
 theorem decode_triple_list_empty_lists :
     decode [(0xC3 : Byte), (0xC0 : Byte), (0xC0 : Byte), (0xC0 : Byte)] =
       some (.list [.list [], .list [], .list []], []) := by
+  simp [decode, decodeAux, takeBytes, decodeItems]
+
+/-- Three-element list of empty byte strings:
+    `decode [0xC3, 0x80, 0x80, 0x80] = some (.list [.bytes [], .bytes [], .bytes []], [])`.
+    The outer short-list branch fires with payload length 3, three empty
+    inner byte strings are decoded in sequence, then the outer closes. -/
+theorem decode_triple_list_empty_strings :
+    decode [(0xC3 : Byte), (0x80 : Byte), (0x80 : Byte), (0x80 : Byte)] =
+      some (.list [.bytes [], .bytes [], .bytes []], []) := by
+  simp [decode, decodeAux, takeBytes, decodeItems]
+
+/-- Four-element list of empty lists:
+    `decode [0xC4, 0xC0, 0xC0, 0xC0, 0xC0] = some (.list [.list [], .list [], .list [], .list []], [])`.
+    The outer short-list branch fires with payload length 4, four empty
+    inner lists are decoded in sequence, then the outer closes. -/
+theorem decode_quad_list_empty_lists :
+    decode [(0xC4 : Byte), (0xC0 : Byte), (0xC0 : Byte), (0xC0 : Byte), (0xC0 : Byte)] =
+      some (.list [.list [], .list [], .list [], .list []], []) := by
   simp [decode, decodeAux, takeBytes, decodeItems]
 
 /-- Mixed-content two-element list: a small byte followed by an empty
@@ -246,6 +286,20 @@ theorem decode_pair_list_large_then_small_byte
     decode [(0xC3 : Byte), (0x81 : Byte), b_large, b_small] =
       some (.list [.bytes [b_large], .bytes [b_small]], []) := by
   simp [decode, decodeAux, takeBytes, decodeItems, h_l, h_s]
+
+/-- Two-element list with one small byte and one large byte
+    (the mirror of `decode_pair_list_large_then_small_byte`):
+    `decode [0xC3, b_small, 0x81, b_large] = some (.list [.bytes [b_small], .bytes [b_large]], [])`
+    when `b_small < 0x80` and `b_large ≥ 0x80`. The outer short-list
+    branch fires with payload length 3, the small-byte item is decoded
+    first as a single-byte string, then the inner `[0x81, b_large]` is
+    decoded as a one-byte short string under canonical form. -/
+theorem decode_pair_list_small_then_large_byte
+    (b_small b_large : Byte)
+    (h_s : b_small.toNat < 0x80) (h_l : ¬ b_large.toNat < 0x80) :
+    decode [(0xC3 : Byte), b_small, (0x81 : Byte), b_large] =
+      some (.list [.bytes [b_small], .bytes [b_large]], []) := by
+  simp [decode, decodeAux, takeBytes, decodeItems, h_s, h_l]
 
 /-- Singleton list containing a two-byte short string:
     `decode [0xC3, 0x82, b1, b2] = some (.list [.bytes [b1, b2]], [])`.
@@ -296,22 +350,19 @@ theorem decode_canonical_rejection_single (b : Byte) (h : b.toNat < 0x80) :
   simp [decode, decodeAux, takeBytes, h]
 
 /-- `decode [0x82, b1, b2] = some (.bytes [b1, b2], [])` — the canonical
-    two-byte short-string encoding. Specializes `decodeAux_two_byte_string`
-    at the top-level fuel. -/
+    two-byte short-string encoding. -/
 theorem decode_two_byte_string (b1 b2 : Byte) :
     decode [(0x82 : Byte), b1, b2] = some (.bytes [b1, b2], []) := by
   simp [decode, decodeAux, takeBytes]
 
 /-- `decode [0x83, b1, b2, b3] = some (.bytes [b1, b2, b3], [])` — the
-    canonical three-byte short-string encoding. Specializes
-    `decodeAux_three_byte_string` at the top-level fuel. -/
+    canonical three-byte short-string encoding. -/
 theorem decode_three_byte_string (b1 b2 b3 : Byte) :
     decode [(0x83 : Byte), b1, b2, b3] = some (.bytes [b1, b2, b3], []) := by
   simp [decode, decodeAux, takeBytes]
 
 /-- `decode [0x84, b1, b2, b3, b4] = some (.bytes [b1, b2, b3, b4], [])`
-    — the canonical four-byte short-string encoding. Specializes
-    `decodeAux_four_byte_string` at the top-level fuel. -/
+    — the canonical four-byte short-string encoding. -/
 theorem decode_four_byte_string (b1 b2 b3 b4 : Byte) :
     decode [(0x84 : Byte), b1, b2, b3, b4] =
       some (.bytes [b1, b2, b3, b4], []) := by

@@ -89,4 +89,75 @@ theorem rlp_phase1_e1_then_single_byte_spec
         (by pcFree) ph3)
   exact cpsTriple_seq hd ph1' ph3'
 
+/-! ## Concrete-byte specializations of the e1 path -/
+
+/-- Specialization at `v5 = 0x42` (a representative single-byte payload
+    in the canonical e1 range `[0, 0x80)`). The dispatch hypothesis
+    `BitVec.ult 0x42 0x80` is discharged internally via `decide`, so the
+    caller need only supply the `htarget` PC equation and the code
+    disjointness `hd`. -/
+theorem rlp_phase1_e1_then_single_byte_spec_at_0x42
+    (v10 v11Old : Word)
+    (offset : BitVec 13)
+    (base target : Word)
+    (htarget : (base + 4) + signExtend13 offset = target)
+    (hd  : (rlp_phase1_step_code 0x80 offset base).Disjoint
+            (CodeReq.ofProg target rlp_phase3_single_byte_prog)) :
+    cpsTriple base (target + 4)
+      ((rlp_phase1_step_code 0x80 offset base).union
+         (CodeReq.ofProg target rlp_phase3_single_byte_prog))
+      ((.x5 ↦ᵣ (0x42 : Word)) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10) **
+        (.x11 ↦ᵣ v11Old))
+      ((.x5 ↦ᵣ (0x42 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x10 ↦ᵣ ((0 : Word) + signExtend12 (0x80 : BitVec 12))) **
+        (.x11 ↦ᵣ (1 : Word))) :=
+  rlp_phase1_e1_then_single_byte_spec
+    (0x42 : Word) v10 v11Old offset base target htarget
+    (by decide) hd
+
+/-- Specialization at `v5 = 0x00` (the smallest canonical single-byte
+    payload). The dispatch hypothesis `BitVec.ult 0 0x80` is discharged
+    internally via `decide`. -/
+theorem rlp_phase1_e1_then_single_byte_spec_at_0x00
+    (v10 v11Old : Word)
+    (offset : BitVec 13)
+    (base target : Word)
+    (htarget : (base + 4) + signExtend13 offset = target)
+    (hd  : (rlp_phase1_step_code 0x80 offset base).Disjoint
+            (CodeReq.ofProg target rlp_phase3_single_byte_prog)) :
+    cpsTriple base (target + 4)
+      ((rlp_phase1_step_code 0x80 offset base).union
+         (CodeReq.ofProg target rlp_phase3_single_byte_prog))
+      ((.x5 ↦ᵣ (0x00 : Word)) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10) **
+        (.x11 ↦ᵣ v11Old))
+      ((.x5 ↦ᵣ (0x00 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x10 ↦ᵣ ((0 : Word) + signExtend12 (0x80 : BitVec 12))) **
+        (.x11 ↦ᵣ (1 : Word))) :=
+  rlp_phase1_e1_then_single_byte_spec
+    (0x00 : Word) v10 v11Old offset base target htarget
+    (by decide) hd
+
+/-- Specialization at `v5 = 0x7F` (the largest canonical single-byte
+    payload, just below the short-string threshold). The dispatch
+    hypothesis `BitVec.ult 0x7F 0x80` is discharged internally via
+    `decide`. -/
+theorem rlp_phase1_e1_then_single_byte_spec_at_0x7F
+    (v10 v11Old : Word)
+    (offset : BitVec 13)
+    (base target : Word)
+    (htarget : (base + 4) + signExtend13 offset = target)
+    (hd  : (rlp_phase1_step_code 0x80 offset base).Disjoint
+            (CodeReq.ofProg target rlp_phase3_single_byte_prog)) :
+    cpsTriple base (target + 4)
+      ((rlp_phase1_step_code 0x80 offset base).union
+         (CodeReq.ofProg target rlp_phase3_single_byte_prog))
+      ((.x5 ↦ᵣ (0x7F : Word)) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10) **
+        (.x11 ↦ᵣ v11Old))
+      ((.x5 ↦ᵣ (0x7F : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x10 ↦ᵣ ((0 : Word) + signExtend12 (0x80 : BitVec 12))) **
+        (.x11 ↦ᵣ (1 : Word))) :=
+  rlp_phase1_e1_then_single_byte_spec
+    (0x7F : Word) v10 v11Old offset base target htarget
+    (by decide) hd
+
 end EvmAsm.Rv64.RLP
