@@ -26,6 +26,92 @@ namespace EvmAsm.Evm64
 open EvmAsm.Rv64
 open EvmWord (val256)
 
+/-! ### Irreducible component accessors for `div128Quot_v4`
+
+These extract `q1''` (Phase-1 trial digit), `q0''` (Phase-2 trial digit),
+and `un21` (Phase-1 remainder Word) as `@[irreducible]` defs so that
+sub-stubs and the wire-up can talk about them as opaque names rather
+than re-embedding the full let-chain.
+
+Per `feedback_irreducible_for_let_bindings`: when let-binding chains in
+sub-stub statements block tactics like `rw`/pattern unification, this
+is the canonical fix. -/
+
+/-- **q1''** = the Phase-1 trial digit after v4's 2-correction. -/
+@[irreducible] def div128Quot_v4_q1'' (uHi uLo vTop : Word) : Word :=
+  let dHi := vTop >>> (32 : BitVec 6).toNat
+  let dLo := (vTop <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+  let div_un1 := uLo >>> (32 : BitVec 6).toNat
+  let q1 := rv64_divu uHi dHi
+  let rhat := uHi - q1 * dHi
+  let hi1 := q1 >>> (32 : BitVec 6).toNat
+  let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+  let rhatc := if hi1 = 0 then rhat else rhat + dHi
+  let q1' := div128Quot_phase2b_q0' q1c rhatc dLo div_un1
+  let rhat' :=
+    if rhatc >>> (32 : BitVec 6).toNat = 0 then
+      let qDlo := q1c * dLo
+      let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
+      if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc
+    else rhatc
+  div128Quot_phase2b_q0' q1' rhat' dLo div_un1
+
+/-- **un21** = `(rhat'' << 32 | div_un1) - q1''*dLo` (Phase-1 remainder
+    in Word form, via truncation absorption). -/
+@[irreducible] def div128Quot_v4_un21 (uHi uLo vTop : Word) : Word :=
+  let dHi := vTop >>> (32 : BitVec 6).toNat
+  let dLo := (vTop <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+  let div_un1 := uLo >>> (32 : BitVec 6).toNat
+  let q1 := rv64_divu uHi dHi
+  let rhat := uHi - q1 * dHi
+  let hi1 := q1 >>> (32 : BitVec 6).toNat
+  let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+  let rhatc := if hi1 = 0 then rhat else rhat + dHi
+  let q1' := div128Quot_phase2b_q0' q1c rhatc dLo div_un1
+  let rhat' :=
+    if rhatc >>> (32 : BitVec 6).toNat = 0 then
+      let qDlo := q1c * dLo
+      let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
+      if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc
+    else rhatc
+  let q1'' := div128Quot_phase2b_q0' q1' rhat' dLo div_un1
+  let rhat'' :=
+    if rhat' >>> (32 : BitVec 6).toNat = 0 then
+      let qDlo2 := q1' * dLo
+      let rhatUn1' := (rhat' <<< (32 : BitVec 6).toNat) ||| div_un1
+      if BitVec.ult rhatUn1' qDlo2 then rhat' + dHi else rhat'
+    else rhat'
+  ((rhat'' <<< (32 : BitVec 6).toNat) ||| div_un1) - q1'' * dLo
+
+/-- **q0''** = the Phase-2 trial digit after v4's 2-correction. -/
+@[irreducible] def div128Quot_v4_q0'' (uHi uLo vTop : Word) : Word :=
+  let dHi := vTop >>> (32 : BitVec 6).toNat
+  let dLo := (vTop <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+  let div_un0 := (uLo <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+  let un21 := div128Quot_v4_un21 uHi uLo vTop
+  let q0 := rv64_divu un21 dHi
+  let rhat2 := un21 - q0 * dHi
+  let hi2 := q0 >>> (32 : BitVec 6).toNat
+  let q0c := if hi2 = 0 then q0 else q0 + signExtend12 4095
+  let rhat2c := if hi2 = 0 then rhat2 else rhat2 + dHi
+  let q0' := div128Quot_phase2b_q0' q0c rhat2c dLo div_un0
+  let rhat2' :=
+    if rhat2c >>> (32 : BitVec 6).toNat = 0 then
+      let qDlo2 := q0c * dLo
+      let rhatUn0 := (rhat2c <<< (32 : BitVec 6).toNat) ||| div_un0
+      if BitVec.ult rhatUn0 qDlo2 then rhat2c + dHi else rhat2c
+    else rhat2c
+  div128Quot_phase2b_q0' q0' rhat2' dLo div_un0
+
+/-- **div128Quot_v4 unfolds via the component accessors**: structural
+    bridge to compose the proven sub-stubs. -/
+theorem div128Quot_v4_eq_components (uHi uLo vTop : Word) :
+    div128Quot_v4 uHi uLo vTop =
+      ((div128Quot_v4_q1'' uHi uLo vTop) <<< (32 : BitVec 6).toNat) |||
+        (div128Quot_v4_q0'' uHi uLo vTop) := by
+  unfold div128Quot_v4 div128Quot_v4_q1'' div128Quot_v4_q0'' div128Quot_v4_un21
+  rfl
+
 /-- **v4 version of `n4CallSkipSemanticHolds`**, using `div128Quot_v4`
     (full 2-correction Knuth D3 in BOTH phases).
 
