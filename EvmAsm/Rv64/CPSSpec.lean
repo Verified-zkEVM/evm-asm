@@ -655,6 +655,56 @@ theorem cpsNBranchWithin_mono_nSteps {nSteps nSteps' : Nat} {entry : Word} {cr :
   obtain ⟨k, hk, s', hstep, ex, hmem, hpc', hQR⟩ := h R hR s hcr hPR hpc
   exact ⟨k, Nat.le_trans hk hle, s', hstep, ex, hmem, hpc', hQR⟩
 
+/-- Bounded N-branch reflexivity: zero steps, one exit at the same address. -/
+theorem cpsNBranchWithin_refl (addr : Word)
+    (P Q : Assertion)
+    (h : ∀ hp, P hp → Q hp) :
+    cpsNBranchWithin 0 addr CodeReq.empty P [(addr, Q)] := by
+  intro R hR s _hcr hPR hpc
+  exact ⟨0, Nat.le_refl 0, s, rfl, (addr, Q), List.Mem.head _, hpc, by
+    obtain ⟨hp, hcompat, hpq⟩ := hPR
+    exact ⟨hp, hcompat, sepConj_mono_left h hp hpq⟩⟩
+
+/-- Compose a bounded cpsBranch with a bounded cpsNBranch on the not-taken
+    path. Bounds add under sequential composition. -/
+theorem cpsBranchWithin_cons_cpsNBranchWithin {nSteps1 nSteps2 : Nat}
+    {entry : Word} {cr1 cr2 : CodeReq}
+    (hd : cr1.Disjoint cr2)
+    {P : Assertion} {exit_t : Word} {Q_t : Assertion}
+    {exit_f : Word} {Q_f : Assertion}
+    {exits : List (Word × Assertion)}
+    (hbr : cpsBranchWithin nSteps1 entry cr1 P exit_t Q_t exit_f Q_f)
+    (h_rest : cpsNBranchWithin nSteps2 exit_f cr2 Q_f exits) :
+    cpsNBranchWithin (nSteps1 + nSteps2) entry (cr1.union cr2) P ((exit_t, Q_t) :: exits) := by
+  intro R hR s hcr hPR hpc
+  rw [CodeReq.union_satisfiedBy hd] at hcr
+  obtain ⟨hcr1, hcr2⟩ := hcr
+  obtain ⟨k1, hk1, s1, hstep1, hbranch⟩ := hbr R hR s hcr1 hPR hpc
+  rcases hbranch with ⟨hpc_t, hQ_t⟩ | ⟨hpc_f, hQ_f⟩
+  · exact ⟨k1, Nat.le_trans hk1 (Nat.le_add_right nSteps1 nSteps2), s1, hstep1,
+      (exit_t, Q_t), List.Mem.head _, hpc_t, hQ_t⟩
+  · have hcr2' := CodeReq.SatisfiedBy_preserved hstep1 hcr2
+    obtain ⟨k2, hk2, s2, hstep2, ex, hmem, hpc2, hER⟩ :=
+      h_rest R hR s1 hcr2' hQ_f hpc_f
+    exact ⟨k1 + k2, Nat.add_le_add hk1 hk2, s2, stepN_add_eq hstep1 hstep2,
+      ex, List.Mem.tail _ hmem, hpc2, hER⟩
+
+/-- Compose a bounded cpsBranch with a bounded cpsNBranch, with permutation
+    on the not-taken path. Bounds add under sequential composition. -/
+theorem cpsBranchWithin_cons_cpsNBranchWithin_with_perm {nSteps1 nSteps2 : Nat}
+    {entry : Word} {cr1 cr2 : CodeReq}
+    (hd : cr1.Disjoint cr2)
+    {P : Assertion} {exit_t : Word} {Q_t : Assertion}
+    {exit_f : Word} {Q_f Q_f' : Assertion}
+    {exits : List (Word × Assertion)}
+    (hperm : ∀ h, Q_f h → Q_f' h)
+    (hbr : cpsBranchWithin nSteps1 entry cr1 P exit_t Q_t exit_f Q_f)
+    (h_rest : cpsNBranchWithin nSteps2 exit_f cr2 Q_f' exits) :
+    cpsNBranchWithin (nSteps1 + nSteps2) entry (cr1.union cr2) P ((exit_t, Q_t) :: exits) := by
+  exact cpsBranchWithin_cons_cpsNBranchWithin hd
+    (cpsBranchWithin_weaken (fun _ hp => hp) (fun _ hp => hp) hperm hbr)
+    h_rest
+
 -- ============================================================================
 -- Edge cases
 -- ============================================================================

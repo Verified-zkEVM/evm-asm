@@ -384,7 +384,7 @@ theorem rlp_phase1_exit_post_unfold {v5 : Word} {k : BitVec 12} :
     This plain variant drops the dispatch facts; downstream phases can
     recover them by re-reading the prefix byte or by using a pure-fact
     variant (`rlp_phase1_classifier_spec_pure`). -/
-theorem rlp_phase1_classifier_spec (v5 v10 : Word) (base : Word)
+theorem rlp_phase1_classifier_spec_within (v5 v10 : Word) (base : Word)
     (off1 off2 off3 off4 : BitVec 13)
     (e1 e2 e3 e4 e5 : Word)
     (he1 : (base + 4) + signExtend13 off1 = e1)
@@ -392,7 +392,7 @@ theorem rlp_phase1_classifier_spec (v5 v10 : Word) (base : Word)
     (he3 : (base + 20) + signExtend13 off3 = e3)
     (he4 : (base + 28) + signExtend13 off4 = e4)
     (he5 : base + 32 = e5) :
-    cpsNBranch base (rlp_phase1_classifier_code off1 off2 off3 off4 base)
+    cpsNBranchWithin 8 base (rlp_phase1_classifier_code off1 off2 off3 off4 base)
       ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10))
       [(e1, rlp_phase1_exit_post v5 0x80),
        (e2, rlp_phase1_exit_post v5 0xB8),
@@ -401,14 +401,14 @@ theorem rlp_phase1_classifier_spec (v5 v10 : Word) (base : Word)
        (e5, rlp_phase1_exit_post v5 0xF8)] := by
   -- Step specs (one per cascade step), with per-step target-address witnesses.
   -- rlp_phase1_step_spec_plain gives us `cpsBranch base_i (...) e_i (...) (base_i + 8) (...)`.
-  have cs1 := rlp_phase1_step_spec_plain v5 v10 0x80 off1 base e1 he1
-  have cs2 := rlp_phase1_step_spec_plain v5 ((0 : Word) + signExtend12 0x80)
+  have cs1 := rlp_phase1_step_spec_plain_within v5 v10 0x80 off1 base e1 he1
+  have cs2 := rlp_phase1_step_spec_plain_within v5 ((0 : Word) + signExtend12 0x80)
     0xB8 off2 (base + 8) e2 (by
       rw [show (base + 8 : Word) + 4 = base + 12 from by bv_omega]; exact he2)
-  have cs3 := rlp_phase1_step_spec_plain v5 ((0 : Word) + signExtend12 0xB8)
+  have cs3 := rlp_phase1_step_spec_plain_within v5 ((0 : Word) + signExtend12 0xB8)
     0xC0 off3 (base + 16) e3 (by
       rw [show (base + 16 : Word) + 4 = base + 20 from by bv_omega]; exact he3)
-  have cs4 := rlp_phase1_step_spec_plain v5 ((0 : Word) + signExtend12 0xC0)
+  have cs4 := rlp_phase1_step_spec_plain_within v5 ((0 : Word) + signExtend12 0xC0)
     0xF8 off4 (base + 24) e4 (by
       rw [show (base + 24 : Word) + 4 = base + 28 from by bv_omega]; exact he4)
   -- Fallthrough after step 4 lands at base + 32 = e5.
@@ -428,29 +428,29 @@ theorem rlp_phase1_classifier_spec (v5 v10 : Word) (base : Word)
   have hd24 : cr2.Disjoint cr4 := step_code_Disjoint_16_at_8 0xB8 0xF8 off2 off4 base
   have hd34 : cr3.Disjoint cr4 := step_code_Disjoint_8_at_16 0xC0 0xF8 off3 off4 base
   -- Fallthrough cpsNBranch at e5 (zero steps; refl).
-  have ft : cpsNBranch e5 CodeReq.empty
+  have ft : cpsNBranchWithin 0 e5 CodeReq.empty
       ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x10 ↦ᵣ ((0 : Word) + signExtend12 0xF8)))
       [(e5, (.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) **
             (.x10 ↦ᵣ ((0 : Word) + signExtend12 0xF8)))] :=
-    cpsNBranch_refl e5 _ _ (fun _ hp => hp)
+    cpsNBranchWithin_refl e5 _ _ (fun _ hp => hp)
   -- Chain step 4 + fallthrough → cpsNBranch at base+24 with [e4, e5].
-  have n4 := cpsBranch_cons_cpsNBranch (CodeReq.Disjoint.empty_right cr4) cs4 ft
+  have n4 := cpsBranchWithin_cons_cpsNBranchWithin (CodeReq.Disjoint.empty_right cr4) cs4 ft
   -- Chain step 3 + n4 → cpsNBranch at base+16 with [e3, e4, e5].
   have hunion_empty : ∀ (cr : CodeReq), cr.union CodeReq.empty = cr := by
     intro cr; funext a; simp only [CodeReq.union, CodeReq.empty]; cases cr a <;> rfl
   have hd3_rest : cr3.Disjoint (cr4.union CodeReq.empty) := by
     rw [hunion_empty]; exact hd34
-  have n3 := cpsBranch_cons_cpsNBranch hd3_rest cs3 n4
+  have n3 := cpsBranchWithin_cons_cpsNBranchWithin hd3_rest cs3 n4
   -- Chain step 2 + n3 → cpsNBranch at base+8 with [e2, e3, e4, e5].
   have hd2_rest : cr2.Disjoint (cr3.union (cr4.union CodeReq.empty)) := by
     rw [hunion_empty]; exact CodeReq.Disjoint.union_right hd23 hd24
-  have n2 := cpsBranch_cons_cpsNBranch hd2_rest cs2 n3
+  have n2 := cpsBranchWithin_cons_cpsNBranchWithin hd2_rest cs2 n3
   -- Chain step 1 + n2 → cpsNBranch at base with [e1, e2, e3, e4, e5].
   have hd1_rest : cr1.Disjoint (cr2.union (cr3.union (cr4.union CodeReq.empty))) := by
     rw [hunion_empty]
     exact CodeReq.Disjoint.union_right hd12 (CodeReq.Disjoint.union_right hd13 hd14)
-  have n1 := cpsBranch_cons_cpsNBranch hd1_rest cs1 n2
+  have n1 := cpsBranchWithin_cons_cpsNBranchWithin hd1_rest cs1 n2
   -- The CR now is: cr1.union (cr2.union (cr3.union (cr4.union empty))).
   -- Simplify the trailing `empty` and match the goal's classifier_code.
   have hcr_eq : cr1.union (cr2.union (cr3.union (cr4.union CodeReq.empty))) =
@@ -460,6 +460,24 @@ theorem rlp_phase1_classifier_spec (v5 v10 : Word) (base : Word)
   -- explicit register-ownership posts match.
   simp only [rlp_phase1_exit_post_unfold]
   exact hcr_eq ▸ n1
+
+theorem rlp_phase1_classifier_spec (v5 v10 : Word) (base : Word)
+    (off1 off2 off3 off4 : BitVec 13)
+    (e1 e2 e3 e4 e5 : Word)
+    (he1 : (base + 4) + signExtend13 off1 = e1)
+    (he2 : (base + 12) + signExtend13 off2 = e2)
+    (he3 : (base + 20) + signExtend13 off3 = e3)
+    (he4 : (base + 28) + signExtend13 off4 = e4)
+    (he5 : base + 32 = e5) :
+    cpsNBranch base (rlp_phase1_classifier_code off1 off2 off3 off4 base)
+      ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10))
+      [(e1, rlp_phase1_exit_post v5 0x80),
+       (e2, rlp_phase1_exit_post v5 0xB8),
+       (e3, rlp_phase1_exit_post v5 0xC0),
+       (e4, rlp_phase1_exit_post v5 0xF8),
+       (e5, rlp_phase1_exit_post v5 0xF8)] :=
+  (rlp_phase1_classifier_spec_within v5 v10 base off1 off2 off3 off4 e1 e2 e3 e4 e5
+    he1 he2 he3 he4 he5).to_cpsNBranch
 
 -- ============================================================================
 -- Spec: 5-exit classifier with per-step dispatch facts
@@ -493,6 +511,89 @@ theorem rlp_phase1_exit_post_pure_unfold
     identification (e.g., `0x80 ≤ p < 0xB8` at exit `e2`), a handler must
     either re-read the prefix byte or combine with a prior-negation chain
     that a future accumulated variant would provide. -/
+theorem rlp_phase1_classifier_spec_pure_within (v5 v10 : Word) (base : Word)
+    (off1 off2 off3 off4 : BitVec 13)
+    (e1 e2 e3 e4 e5 : Word)
+    (he1 : (base + 4) + signExtend13 off1 = e1)
+    (he2 : (base + 12) + signExtend13 off2 = e2)
+    (he3 : (base + 20) + signExtend13 off3 = e3)
+    (he4 : (base + 28) + signExtend13 off4 = e4)
+    (he5 : base + 32 = e5) :
+    cpsNBranchWithin 8 base (rlp_phase1_classifier_code off1 off2 off3 off4 base)
+      ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10))
+      [(e1, rlp_phase1_exit_post_pure v5 0x80
+              (BitVec.ult v5 ((0 : Word) + signExtend12 0x80))),
+       (e2, rlp_phase1_exit_post_pure v5 0xB8
+              (BitVec.ult v5 ((0 : Word) + signExtend12 0xB8))),
+       (e3, rlp_phase1_exit_post_pure v5 0xC0
+              (BitVec.ult v5 ((0 : Word) + signExtend12 0xC0))),
+       (e4, rlp_phase1_exit_post_pure v5 0xF8
+              (BitVec.ult v5 ((0 : Word) + signExtend12 0xF8))),
+       (e5, rlp_phase1_exit_post_pure v5 0xF8
+              (¬ BitVec.ult v5 ((0 : Word) + signExtend12 0xF8)))] := by
+  -- Step specs WITH pure facts preserved.
+  have cs1 := rlp_phase1_step_spec_within v5 v10 0x80 off1 base e1 he1
+  have cs2 := rlp_phase1_step_spec_within v5 ((0 : Word) + signExtend12 0x80)
+    0xB8 off2 (base + 8) e2 (by
+      rw [show (base + 8 : Word) + 4 = base + 12 from by bv_omega]; exact he2)
+  have cs3 := rlp_phase1_step_spec_within v5 ((0 : Word) + signExtend12 0xB8)
+    0xC0 off3 (base + 16) e3 (by
+      rw [show (base + 16 : Word) + 4 = base + 20 from by bv_omega]; exact he3)
+  have cs4 := rlp_phase1_step_spec_within v5 ((0 : Word) + signExtend12 0xC0)
+    0xF8 off4 (base + 24) e4 (by
+      rw [show (base + 24 : Word) + 4 = base + 28 from by bv_omega]; exact he4)
+  -- Align fall-through PCs.
+  rw [show (base + 24 : Word) + 8 = e5 from by rw [← he5]; bv_omega] at cs4
+  rw [show (base + 8 : Word) + 8 = base + 16 from by bv_omega] at cs2
+  rw [show (base + 16 : Word) + 8 = base + 24 from by bv_omega] at cs3
+  -- Disjointness (same shape as the plain classifier spec).
+  let cr1 := rlp_phase1_step_code 0x80 off1 base
+  let cr2 := rlp_phase1_step_code 0xB8 off2 (base + 8)
+  let cr3 := rlp_phase1_step_code 0xC0 off3 (base + 16)
+  let cr4 := rlp_phase1_step_code 0xF8 off4 (base + 24)
+  have hd12 : cr1.Disjoint cr2 := step_code_Disjoint_8 _ _ _ _ _
+  have hd13 : cr1.Disjoint cr3 := step_code_Disjoint_16 _ _ _ _ _
+  have hd14 : cr1.Disjoint cr4 := step_code_Disjoint_24 _ _ _ _ _
+  have hd23 : cr2.Disjoint cr3 := step_code_Disjoint_8_at_8 0xB8 0xC0 off2 off3 base
+  have hd24 : cr2.Disjoint cr4 := step_code_Disjoint_16_at_8 0xB8 0xF8 off2 off4 base
+  have hd34 : cr3.Disjoint cr4 := step_code_Disjoint_8_at_16 0xC0 0xF8 off3 off4 base
+  -- Fallthrough cpsNBranch preserving step 4's pure fact.
+  have ft : cpsNBranchWithin 0 e5 CodeReq.empty
+      ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) **
+       (.x10 ↦ᵣ ((0 : Word) + signExtend12 0xF8)) **
+       ⌜¬ BitVec.ult v5 ((0 : Word) + signExtend12 0xF8)⌝)
+      [(e5, (.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) **
+            (.x10 ↦ᵣ ((0 : Word) + signExtend12 0xF8)) **
+            ⌜¬ BitVec.ult v5 ((0 : Word) + signExtend12 0xF8)⌝)] :=
+    cpsNBranchWithin_refl e5 _ _ (fun _ hp => hp)
+  -- Chain step 4 + fallthrough (no perm: step4.fall = ft.pre).
+  have n4 := cpsBranchWithin_cons_cpsNBranchWithin (CodeReq.Disjoint.empty_right cr4) cs4 ft
+  have hunion_empty : ∀ (cr : CodeReq), cr.union CodeReq.empty = cr := by
+    intro cr; funext a; simp only [CodeReq.union, CodeReq.empty]; cases cr a <;> rfl
+  -- Chain step 3 + n4: strip `⌜¬ult v5 k3⌝` from step3.fall to match n4.pre.
+  have hd3_rest : cr3.Disjoint (cr4.union CodeReq.empty) := by
+    rw [hunion_empty]; exact hd34
+  have n3 := cpsBranchWithin_cons_cpsNBranchWithin_with_perm hd3_rest
+    sepConj_strip_pure_end3 cs3 n4
+  -- Chain step 2 + n3.
+  have hd2_rest : cr2.Disjoint (cr3.union (cr4.union CodeReq.empty)) := by
+    rw [hunion_empty]; exact CodeReq.Disjoint.union_right hd23 hd24
+  have n2 := cpsBranchWithin_cons_cpsNBranchWithin_with_perm hd2_rest
+    sepConj_strip_pure_end3 cs2 n3
+  -- Chain step 1 + n2.
+  have hd1_rest : cr1.Disjoint (cr2.union (cr3.union (cr4.union CodeReq.empty))) := by
+    rw [hunion_empty]
+    exact CodeReq.Disjoint.union_right hd12 (CodeReq.Disjoint.union_right hd13 hd14)
+  have n1 := cpsBranchWithin_cons_cpsNBranchWithin_with_perm hd1_rest
+    sepConj_strip_pure_end3 cs1 n2
+  -- Collapse the trailing `empty` and match the goal's classifier_code.
+  have hcr_eq : cr1.union (cr2.union (cr3.union (cr4.union CodeReq.empty))) =
+      rlp_phase1_classifier_code off1 off2 off3 off4 base := by
+    simp only [hunion_empty]; rfl
+  -- Unfold `rlp_phase1_exit_post_pure` so n1's explicit posts match.
+  simp only [rlp_phase1_exit_post_pure_unfold]
+  exact hcr_eq ▸ n1
+
 theorem rlp_phase1_classifier_spec_pure (v5 v10 : Word) (base : Word)
     (off1 off2 off3 off4 : BitVec 13)
     (e1 e2 e3 e4 e5 : Word)
@@ -512,69 +613,9 @@ theorem rlp_phase1_classifier_spec_pure (v5 v10 : Word) (base : Word)
        (e4, rlp_phase1_exit_post_pure v5 0xF8
               (BitVec.ult v5 ((0 : Word) + signExtend12 0xF8))),
        (e5, rlp_phase1_exit_post_pure v5 0xF8
-              (¬ BitVec.ult v5 ((0 : Word) + signExtend12 0xF8)))] := by
-  -- Step specs WITH pure facts preserved.
-  have cs1 := rlp_phase1_step_spec v5 v10 0x80 off1 base e1 he1
-  have cs2 := rlp_phase1_step_spec v5 ((0 : Word) + signExtend12 0x80)
-    0xB8 off2 (base + 8) e2 (by
-      rw [show (base + 8 : Word) + 4 = base + 12 from by bv_omega]; exact he2)
-  have cs3 := rlp_phase1_step_spec v5 ((0 : Word) + signExtend12 0xB8)
-    0xC0 off3 (base + 16) e3 (by
-      rw [show (base + 16 : Word) + 4 = base + 20 from by bv_omega]; exact he3)
-  have cs4 := rlp_phase1_step_spec v5 ((0 : Word) + signExtend12 0xC0)
-    0xF8 off4 (base + 24) e4 (by
-      rw [show (base + 24 : Word) + 4 = base + 28 from by bv_omega]; exact he4)
-  -- Align fall-through PCs.
-  rw [show (base + 24 : Word) + 8 = e5 from by rw [← he5]; bv_omega] at cs4
-  rw [show (base + 8 : Word) + 8 = base + 16 from by bv_omega] at cs2
-  rw [show (base + 16 : Word) + 8 = base + 24 from by bv_omega] at cs3
-  -- Disjointness (same shape as the plain classifier spec).
-  let cr1 := rlp_phase1_step_code 0x80 off1 base
-  let cr2 := rlp_phase1_step_code 0xB8 off2 (base + 8)
-  let cr3 := rlp_phase1_step_code 0xC0 off3 (base + 16)
-  let cr4 := rlp_phase1_step_code 0xF8 off4 (base + 24)
-  have hd12 : cr1.Disjoint cr2 := step_code_Disjoint_8 _ _ _ _ _
-  have hd13 : cr1.Disjoint cr3 := step_code_Disjoint_16 _ _ _ _ _
-  have hd14 : cr1.Disjoint cr4 := step_code_Disjoint_24 _ _ _ _ _
-  have hd23 : cr2.Disjoint cr3 := step_code_Disjoint_8_at_8 0xB8 0xC0 off2 off3 base
-  have hd24 : cr2.Disjoint cr4 := step_code_Disjoint_16_at_8 0xB8 0xF8 off2 off4 base
-  have hd34 : cr3.Disjoint cr4 := step_code_Disjoint_8_at_16 0xC0 0xF8 off3 off4 base
-  -- Fallthrough cpsNBranch preserving step 4's pure fact.
-  have ft : cpsNBranch e5 CodeReq.empty
-      ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) **
-       (.x10 ↦ᵣ ((0 : Word) + signExtend12 0xF8)) **
-       ⌜¬ BitVec.ult v5 ((0 : Word) + signExtend12 0xF8)⌝)
-      [(e5, (.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) **
-            (.x10 ↦ᵣ ((0 : Word) + signExtend12 0xF8)) **
-            ⌜¬ BitVec.ult v5 ((0 : Word) + signExtend12 0xF8)⌝)] :=
-    cpsNBranch_refl e5 _ _ (fun _ hp => hp)
-  -- Chain step 4 + fallthrough (no perm: step4.fall = ft.pre).
-  have n4 := cpsBranch_cons_cpsNBranch (CodeReq.Disjoint.empty_right cr4) cs4 ft
-  have hunion_empty : ∀ (cr : CodeReq), cr.union CodeReq.empty = cr := by
-    intro cr; funext a; simp only [CodeReq.union, CodeReq.empty]; cases cr a <;> rfl
-  -- Chain step 3 + n4: strip `⌜¬ult v5 k3⌝` from step3.fall to match n4.pre.
-  have hd3_rest : cr3.Disjoint (cr4.union CodeReq.empty) := by
-    rw [hunion_empty]; exact hd34
-  have n3 := cpsBranch_cons_cpsNBranch_with_perm hd3_rest
-    sepConj_strip_pure_end3 cs3 n4
-  -- Chain step 2 + n3.
-  have hd2_rest : cr2.Disjoint (cr3.union (cr4.union CodeReq.empty)) := by
-    rw [hunion_empty]; exact CodeReq.Disjoint.union_right hd23 hd24
-  have n2 := cpsBranch_cons_cpsNBranch_with_perm hd2_rest
-    sepConj_strip_pure_end3 cs2 n3
-  -- Chain step 1 + n2.
-  have hd1_rest : cr1.Disjoint (cr2.union (cr3.union (cr4.union CodeReq.empty))) := by
-    rw [hunion_empty]
-    exact CodeReq.Disjoint.union_right hd12 (CodeReq.Disjoint.union_right hd13 hd14)
-  have n1 := cpsBranch_cons_cpsNBranch_with_perm hd1_rest
-    sepConj_strip_pure_end3 cs1 n2
-  -- Collapse the trailing `empty` and match the goal's classifier_code.
-  have hcr_eq : cr1.union (cr2.union (cr3.union (cr4.union CodeReq.empty))) =
-      rlp_phase1_classifier_code off1 off2 off3 off4 base := by
-    simp only [hunion_empty]; rfl
-  -- Unfold `rlp_phase1_exit_post_pure` so n1's explicit posts match.
-  simp only [rlp_phase1_exit_post_pure_unfold]
-  exact hcr_eq ▸ n1
+              (¬ BitVec.ult v5 ((0 : Word) + signExtend12 0xF8)))] :=
+  (rlp_phase1_classifier_spec_pure_within v5 v10 base off1 off2 off3 off4
+    e1 e2 e3 e4 e5 he1 he2 he3 he4 he5).to_cpsNBranch
 
 -- ============================================================================
 -- Spec: 5-exit classifier with accumulated dispatch facts
@@ -586,6 +627,30 @@ theorem rlp_phase1_classifier_spec_pure (v5 v10 : Word) (base : Word)
 
     Chains cleanly: step `i`'s fall post becomes `regs ** ⌜Acc ∧ ¬ult_i⌝`,
     which is exactly step `i+1`'s pre shape with `Acc' := Acc ∧ ¬ult_i`. -/
+theorem rlp_phase1_step_spec_acc_within (Acc : Prop) (v5 v10 : Word)
+    (k : BitVec 12) (offset : BitVec 13) (base target : Word)
+    (htarget : (base + 4) + signExtend13 offset = target) :
+    let kVal := (0 : Word) + signExtend12 k
+    let code := rlp_phase1_step_code k offset base
+    cpsBranchWithin 2 base code
+      ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10) ** ⌜Acc⌝)
+      target
+        ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ kVal) **
+         ⌜Acc ∧ BitVec.ult v5 kVal⌝)
+      (base + 8)
+        ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ kVal) **
+         ⌜Acc ∧ ¬ BitVec.ult v5 kVal⌝) := by
+  have h := rlp_phase1_step_spec_within v5 v10 k offset base target htarget
+  -- Frame `rlp_phase1_step_spec` with `⌜Acc⌝` on the right.
+  have hf := cpsBranchWithin_frameR ⌜Acc⌝ pcFree_pure h
+  -- hf has pre `(regs_3chain) ** ⌜Acc⌝`; target theorem has the 4-chain
+  -- `regs ** ⌜Acc⌝`. Reshape via the associativity helper.
+  exact cpsBranchWithin_weaken
+    sepConj_chain_push_outer
+    sepConj_merge_pure_and_end3
+    sepConj_merge_pure_and_end3
+    hf
+
 theorem rlp_phase1_step_spec_acc (Acc : Prop) (v5 v10 : Word)
     (k : BitVec 12) (offset : BitVec 13) (base target : Word)
     (htarget : (base + 4) + signExtend13 offset = target) :
@@ -598,17 +663,8 @@ theorem rlp_phase1_step_spec_acc (Acc : Prop) (v5 v10 : Word)
          ⌜Acc ∧ BitVec.ult v5 kVal⌝)
       (base + 8)
         ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ kVal) **
-         ⌜Acc ∧ ¬ BitVec.ult v5 kVal⌝) := by
-  have h := rlp_phase1_step_spec v5 v10 k offset base target htarget
-  -- Frame `rlp_phase1_step_spec` with `⌜Acc⌝` on the right.
-  have hf := cpsBranch_frameR ⌜Acc⌝ pcFree_pure h
-  -- hf has pre `(regs_3chain) ** ⌜Acc⌝`; target theorem has the 4-chain
-  -- `regs ** ⌜Acc⌝`. Reshape via the associativity helper.
-  exact cpsBranch_weaken
-    sepConj_chain_push_outer
-    sepConj_merge_pure_and_end3
-    sepConj_merge_pure_and_end3
-    hf
+         ⌜Acc ∧ ¬ BitVec.ult v5 kVal⌝) :=
+  (rlp_phase1_step_spec_acc_within Acc v5 v10 k offset base target htarget).to_cpsBranch
 
 /-- Bundled exit postcondition with a single accumulated dispatch fact. -/
 @[irreducible]
@@ -639,6 +695,110 @@ theorem rlp_phase1_exit_post_acc_unfold
 
     The nested `And` shape reflects the left-to-right accumulator build-up
     via `rlp_phase1_step_spec_acc`; consumers may reassociate with `And.assoc`. -/
+theorem rlp_phase1_classifier_spec_acc_within (v5 v10 : Word) (base : Word)
+    (off1 off2 off3 off4 : BitVec 13)
+    (e1 e2 e3 e4 e5 : Word)
+    (he1 : (base + 4) + signExtend13 off1 = e1)
+    (he2 : (base + 12) + signExtend13 off2 = e2)
+    (he3 : (base + 20) + signExtend13 off3 = e3)
+    (he4 : (base + 28) + signExtend13 off4 = e4)
+    (he5 : base + 32 = e5) :
+    cpsNBranchWithin 8 base (rlp_phase1_classifier_code off1 off2 off3 off4 base)
+      ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10))
+      [(e1, rlp_phase1_exit_post_acc v5 0x80
+              (BitVec.ult v5 ((0 : Word) + signExtend12 0x80))),
+       (e2, rlp_phase1_exit_post_acc v5 0xB8
+              (¬ BitVec.ult v5 ((0 : Word) + signExtend12 0x80) ∧
+                 BitVec.ult v5 ((0 : Word) + signExtend12 0xB8))),
+       (e3, rlp_phase1_exit_post_acc v5 0xC0
+              ((¬ BitVec.ult v5 ((0 : Word) + signExtend12 0x80) ∧
+                ¬ BitVec.ult v5 ((0 : Word) + signExtend12 0xB8)) ∧
+                 BitVec.ult v5 ((0 : Word) + signExtend12 0xC0))),
+       (e4, rlp_phase1_exit_post_acc v5 0xF8
+              (((¬ BitVec.ult v5 ((0 : Word) + signExtend12 0x80) ∧
+                 ¬ BitVec.ult v5 ((0 : Word) + signExtend12 0xB8)) ∧
+                 ¬ BitVec.ult v5 ((0 : Word) + signExtend12 0xC0)) ∧
+                 BitVec.ult v5 ((0 : Word) + signExtend12 0xF8))),
+       (e5, rlp_phase1_exit_post_acc v5 0xF8
+              (((¬ BitVec.ult v5 ((0 : Word) + signExtend12 0x80) ∧
+                 ¬ BitVec.ult v5 ((0 : Word) + signExtend12 0xB8)) ∧
+                 ¬ BitVec.ult v5 ((0 : Word) + signExtend12 0xC0)) ∧
+                 ¬ BitVec.ult v5 ((0 : Word) + signExtend12 0xF8)))] := by
+  -- Step 1 has no prior accumulator, so use the plain step spec directly;
+  -- its pre is just `regs` (no ⌜True⌝ prefix) and taken/fall posts already
+  -- carry the dispatch fact as a single pure atom. Steps 2..4 then pick up
+  -- the accumulator chain via `rlp_phase1_step_spec_acc`.
+  have cs1 := rlp_phase1_step_spec_within v5 v10 0x80 off1 base e1 he1
+  have cs2 := rlp_phase1_step_spec_acc_within
+    (¬ BitVec.ult v5 ((0 : Word) + signExtend12 0x80))
+    v5 ((0 : Word) + signExtend12 0x80)
+    0xB8 off2 (base + 8) e2 (by
+      rw [show (base + 8 : Word) + 4 = base + 12 from by bv_omega]; exact he2)
+  have cs3 := rlp_phase1_step_spec_acc_within
+    (¬ BitVec.ult v5 ((0 : Word) + signExtend12 0x80) ∧
+      ¬ BitVec.ult v5 ((0 : Word) + signExtend12 0xB8))
+    v5 ((0 : Word) + signExtend12 0xB8)
+    0xC0 off3 (base + 16) e3 (by
+      rw [show (base + 16 : Word) + 4 = base + 20 from by bv_omega]; exact he3)
+  have cs4 := rlp_phase1_step_spec_acc_within
+    ((¬ BitVec.ult v5 ((0 : Word) + signExtend12 0x80) ∧
+       ¬ BitVec.ult v5 ((0 : Word) + signExtend12 0xB8)) ∧
+       ¬ BitVec.ult v5 ((0 : Word) + signExtend12 0xC0))
+    v5 ((0 : Word) + signExtend12 0xC0)
+    0xF8 off4 (base + 24) e4 (by
+      rw [show (base + 24 : Word) + 4 = base + 28 from by bv_omega]; exact he4)
+  rw [show (base + 24 : Word) + 8 = e5 from by rw [← he5]; bv_omega] at cs4
+  rw [show (base + 8 : Word) + 8 = base + 16 from by bv_omega] at cs2
+  rw [show (base + 16 : Word) + 8 = base + 24 from by bv_omega] at cs3
+  -- Disjointness (same as plain spec).
+  let cr1 := rlp_phase1_step_code 0x80 off1 base
+  let cr2 := rlp_phase1_step_code 0xB8 off2 (base + 8)
+  let cr3 := rlp_phase1_step_code 0xC0 off3 (base + 16)
+  let cr4 := rlp_phase1_step_code 0xF8 off4 (base + 24)
+  have hd12 : cr1.Disjoint cr2 := step_code_Disjoint_8 _ _ _ _ _
+  have hd13 : cr1.Disjoint cr3 := step_code_Disjoint_16 _ _ _ _ _
+  have hd14 : cr1.Disjoint cr4 := step_code_Disjoint_24 _ _ _ _ _
+  have hd23 : cr2.Disjoint cr3 := step_code_Disjoint_8_at_8 0xB8 0xC0 off2 off3 base
+  have hd24 : cr2.Disjoint cr4 := step_code_Disjoint_16_at_8 0xB8 0xF8 off2 off4 base
+  have hd34 : cr3.Disjoint cr4 := step_code_Disjoint_8_at_16 0xC0 0xF8 off3 off4 base
+  -- Fallthrough cpsNBranch at e5, carrying cs4's fall-post accumulator.
+  have ft : cpsNBranchWithin 0 e5 CodeReq.empty
+      ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) **
+       (.x10 ↦ᵣ ((0 : Word) + signExtend12 0xF8)) **
+       ⌜((¬ BitVec.ult v5 ((0 : Word) + signExtend12 0x80) ∧
+          ¬ BitVec.ult v5 ((0 : Word) + signExtend12 0xB8)) ∧
+          ¬ BitVec.ult v5 ((0 : Word) + signExtend12 0xC0)) ∧
+         ¬ BitVec.ult v5 ((0 : Word) + signExtend12 0xF8)⌝)
+      [(e5, (.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) **
+            (.x10 ↦ᵣ ((0 : Word) + signExtend12 0xF8)) **
+            ⌜((¬ BitVec.ult v5 ((0 : Word) + signExtend12 0x80) ∧
+                ¬ BitVec.ult v5 ((0 : Word) + signExtend12 0xB8)) ∧
+               ¬ BitVec.ult v5 ((0 : Word) + signExtend12 0xC0)) ∧
+               ¬ BitVec.ult v5 ((0 : Word) + signExtend12 0xF8)⌝)] :=
+    cpsNBranchWithin_refl e5 _ _ (fun _ hp => hp)
+  -- Chain step 4 + ft (no perm needed: cs4.fall matches ft.pre).
+  have n4 := cpsBranchWithin_cons_cpsNBranchWithin (CodeReq.Disjoint.empty_right cr4) cs4 ft
+  have hunion_empty : ∀ (cr : CodeReq), cr.union CodeReq.empty = cr := by
+    intro cr; funext a; simp only [CodeReq.union, CodeReq.empty]; cases cr a <;> rfl
+  -- Chain remaining steps (no perm needed: each cs_i's fall matches cs_{i+1}'s pre).
+  have hd3_rest : cr3.Disjoint (cr4.union CodeReq.empty) := by
+    rw [hunion_empty]; exact hd34
+  have n3 := cpsBranchWithin_cons_cpsNBranchWithin hd3_rest cs3 n4
+  have hd2_rest : cr2.Disjoint (cr3.union (cr4.union CodeReq.empty)) := by
+    rw [hunion_empty]; exact CodeReq.Disjoint.union_right hd23 hd24
+  have n2 := cpsBranchWithin_cons_cpsNBranchWithin hd2_rest cs2 n3
+  have hd1_rest : cr1.Disjoint (cr2.union (cr3.union (cr4.union CodeReq.empty))) := by
+    rw [hunion_empty]
+    exact CodeReq.Disjoint.union_right hd12 (CodeReq.Disjoint.union_right hd13 hd14)
+  have n1 := cpsBranchWithin_cons_cpsNBranchWithin hd1_rest cs1 n2
+  have hcr_eq : cr1.union (cr2.union (cr3.union (cr4.union CodeReq.empty))) =
+      rlp_phase1_classifier_code off1 off2 off3 off4 base := by
+    simp only [hunion_empty]; rfl
+  -- n1's exits already match the goal's exit list structurally; just unfold
+  -- the `@[irreducible]` exit-post def and rewrite the code requirement.
+  simp only [rlp_phase1_exit_post_acc_unfold]
+  exact hcr_eq ▸ n1
+
 theorem rlp_phase1_classifier_spec_acc (v5 v10 : Word) (base : Word)
     (off1 off2 off3 off4 : BitVec 13)
     (e1 e2 e3 e4 e5 : Word)
@@ -667,80 +827,8 @@ theorem rlp_phase1_classifier_spec_acc (v5 v10 : Word) (base : Word)
               (((¬ BitVec.ult v5 ((0 : Word) + signExtend12 0x80) ∧
                  ¬ BitVec.ult v5 ((0 : Word) + signExtend12 0xB8)) ∧
                  ¬ BitVec.ult v5 ((0 : Word) + signExtend12 0xC0)) ∧
-                 ¬ BitVec.ult v5 ((0 : Word) + signExtend12 0xF8)))] := by
-  -- Step 1 has no prior accumulator, so use the plain step spec directly;
-  -- its pre is just `regs` (no ⌜True⌝ prefix) and taken/fall posts already
-  -- carry the dispatch fact as a single pure atom. Steps 2..4 then pick up
-  -- the accumulator chain via `rlp_phase1_step_spec_acc`.
-  have cs1 := rlp_phase1_step_spec v5 v10 0x80 off1 base e1 he1
-  have cs2 := rlp_phase1_step_spec_acc
-    (¬ BitVec.ult v5 ((0 : Word) + signExtend12 0x80))
-    v5 ((0 : Word) + signExtend12 0x80)
-    0xB8 off2 (base + 8) e2 (by
-      rw [show (base + 8 : Word) + 4 = base + 12 from by bv_omega]; exact he2)
-  have cs3 := rlp_phase1_step_spec_acc
-    (¬ BitVec.ult v5 ((0 : Word) + signExtend12 0x80) ∧
-      ¬ BitVec.ult v5 ((0 : Word) + signExtend12 0xB8))
-    v5 ((0 : Word) + signExtend12 0xB8)
-    0xC0 off3 (base + 16) e3 (by
-      rw [show (base + 16 : Word) + 4 = base + 20 from by bv_omega]; exact he3)
-  have cs4 := rlp_phase1_step_spec_acc
-    ((¬ BitVec.ult v5 ((0 : Word) + signExtend12 0x80) ∧
-       ¬ BitVec.ult v5 ((0 : Word) + signExtend12 0xB8)) ∧
-       ¬ BitVec.ult v5 ((0 : Word) + signExtend12 0xC0))
-    v5 ((0 : Word) + signExtend12 0xC0)
-    0xF8 off4 (base + 24) e4 (by
-      rw [show (base + 24 : Word) + 4 = base + 28 from by bv_omega]; exact he4)
-  rw [show (base + 24 : Word) + 8 = e5 from by rw [← he5]; bv_omega] at cs4
-  rw [show (base + 8 : Word) + 8 = base + 16 from by bv_omega] at cs2
-  rw [show (base + 16 : Word) + 8 = base + 24 from by bv_omega] at cs3
-  -- Disjointness (same as plain spec).
-  let cr1 := rlp_phase1_step_code 0x80 off1 base
-  let cr2 := rlp_phase1_step_code 0xB8 off2 (base + 8)
-  let cr3 := rlp_phase1_step_code 0xC0 off3 (base + 16)
-  let cr4 := rlp_phase1_step_code 0xF8 off4 (base + 24)
-  have hd12 : cr1.Disjoint cr2 := step_code_Disjoint_8 _ _ _ _ _
-  have hd13 : cr1.Disjoint cr3 := step_code_Disjoint_16 _ _ _ _ _
-  have hd14 : cr1.Disjoint cr4 := step_code_Disjoint_24 _ _ _ _ _
-  have hd23 : cr2.Disjoint cr3 := step_code_Disjoint_8_at_8 0xB8 0xC0 off2 off3 base
-  have hd24 : cr2.Disjoint cr4 := step_code_Disjoint_16_at_8 0xB8 0xF8 off2 off4 base
-  have hd34 : cr3.Disjoint cr4 := step_code_Disjoint_8_at_16 0xC0 0xF8 off3 off4 base
-  -- Fallthrough cpsNBranch at e5, carrying cs4's fall-post accumulator.
-  have ft : cpsNBranch e5 CodeReq.empty
-      ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) **
-       (.x10 ↦ᵣ ((0 : Word) + signExtend12 0xF8)) **
-       ⌜((¬ BitVec.ult v5 ((0 : Word) + signExtend12 0x80) ∧
-          ¬ BitVec.ult v5 ((0 : Word) + signExtend12 0xB8)) ∧
-          ¬ BitVec.ult v5 ((0 : Word) + signExtend12 0xC0)) ∧
-         ¬ BitVec.ult v5 ((0 : Word) + signExtend12 0xF8)⌝)
-      [(e5, (.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) **
-            (.x10 ↦ᵣ ((0 : Word) + signExtend12 0xF8)) **
-            ⌜((¬ BitVec.ult v5 ((0 : Word) + signExtend12 0x80) ∧
-                ¬ BitVec.ult v5 ((0 : Word) + signExtend12 0xB8)) ∧
-                ¬ BitVec.ult v5 ((0 : Word) + signExtend12 0xC0)) ∧
-               ¬ BitVec.ult v5 ((0 : Word) + signExtend12 0xF8)⌝)] :=
-    cpsNBranch_refl e5 _ _ (fun _ hp => hp)
-  -- Chain step 4 + ft (no perm needed: cs4.fall matches ft.pre).
-  have n4 := cpsBranch_cons_cpsNBranch (CodeReq.Disjoint.empty_right cr4) cs4 ft
-  have hunion_empty : ∀ (cr : CodeReq), cr.union CodeReq.empty = cr := by
-    intro cr; funext a; simp only [CodeReq.union, CodeReq.empty]; cases cr a <;> rfl
-  -- Chain remaining steps (no perm needed: each cs_i's fall matches cs_{i+1}'s pre).
-  have hd3_rest : cr3.Disjoint (cr4.union CodeReq.empty) := by
-    rw [hunion_empty]; exact hd34
-  have n3 := cpsBranch_cons_cpsNBranch hd3_rest cs3 n4
-  have hd2_rest : cr2.Disjoint (cr3.union (cr4.union CodeReq.empty)) := by
-    rw [hunion_empty]; exact CodeReq.Disjoint.union_right hd23 hd24
-  have n2 := cpsBranch_cons_cpsNBranch hd2_rest cs2 n3
-  have hd1_rest : cr1.Disjoint (cr2.union (cr3.union (cr4.union CodeReq.empty))) := by
-    rw [hunion_empty]
-    exact CodeReq.Disjoint.union_right hd12 (CodeReq.Disjoint.union_right hd13 hd14)
-  have n1 := cpsBranch_cons_cpsNBranch hd1_rest cs1 n2
-  have hcr_eq : cr1.union (cr2.union (cr3.union (cr4.union CodeReq.empty))) =
-      rlp_phase1_classifier_code off1 off2 off3 off4 base := by
-    simp only [hunion_empty]; rfl
-  -- n1's exits already match the goal's exit list structurally; just unfold
-  -- the `@[irreducible]` exit-post def and rewrite the code requirement.
-  simp only [rlp_phase1_exit_post_acc_unfold]
-  exact hcr_eq ▸ n1
+                 ¬ BitVec.ult v5 ((0 : Word) + signExtend12 0xF8)))] :=
+  (rlp_phase1_classifier_spec_acc_within v5 v10 base off1 off2 off3 off4
+    e1 e2 e3 e4 e5 he1 he2 he3 he4 he5).to_cpsNBranch
 
 end EvmAsm.Rv64.RLP
