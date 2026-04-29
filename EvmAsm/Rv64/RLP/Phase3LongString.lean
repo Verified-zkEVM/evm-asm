@@ -98,10 +98,8 @@ theorem rlp_phase3_long_string_spec
   -- Sub-decompose the tail similarly: singleton ∪ singleton.
   have hcr_tail : CodeReq.ofProg (base + 4) [.ADDI .x11 .x0 0, .ADDI .x13 .x13 1] =
       (CodeReq.singleton (base + 4) (.ADDI .x11 .x0 0)).union
-      (CodeReq.singleton ((base + 4) + 4) (.ADDI .x13 .x13 1)) := by
-    funext a
-    simp only [CodeReq.ofProg_cons, CodeReq.ofProg_nil, CodeReq.union, CodeReq.empty]
-    cases (CodeReq.singleton ((base + 4) + 4) (.ADDI .x13 .x13 1)) a <;> rfl
+      (CodeReq.singleton ((base + 4) + 4) (.ADDI .x13 .x13 1)) :=
+    CodeReq.ofProg_pair
   -- Step 1: ADDI x14, x5, -0xB7 at base.
   have s1Base := addi_spec_gen .x14 .x5 v14Old v5 (-0xB7) base (by nofun)
   have s1 : cpsTriple base (base + 4)
