@@ -937,6 +937,73 @@ theorem n4CallAddback_v4_carry_zero_imp_overshoot_arith
   have h8 : Va / Vb < Q - 1 := (Nat.div_lt_iff_lt_mul h_Vb_pos).mpr h7
   omega
 
+/-- **Pure-Nat helper for Layer 2a-back**. Companion to
+    `n4CallAddback_v4_carry_zero_imp_overshoot_arith`. From the same
+    val256-level algebraic frame, plus the algorithmic facts
+    `Q = q_true + 2` (Knuth-B equality), `c3 = U4 + 1` (single-addback
+    closure), and `carry ≤ 1` (addbackN4_carry_le_one), derives
+    `carry = 0`.
+
+    Math: substitute c3 = U4+1 + Q = Va/Vb+2 into mulsub. With
+    `(Va/Vb)*Vb + r = Va` (r = Va mod Vb < Vb), derive
+    `Vms + 2*Vv = p256 + r*p_shift`. Since r*p_shift < Vv, get
+    `Vms + Vv < p256`. So addback's `Vab + carry*p256 = Vms + Vv < p256`,
+    forcing `carry = 0` (else carry = 1 → Vab + p256 ≥ p256 contradicts).
+
+    The `c3 = U4 + 1` precondition is the genuine algorithmic content
+    isolated as a separate sub-stub
+    (`n4CallAddback_v4_c3_eq_u4_plus_one_under_overshoot`). -/
+theorem n4CallAddback_v4_overshoot_ge_two_imp_carry_zero_arith
+    (Va Vb Vu Vv Vab Vms Q U4 c3 carry p_shift p256 : ℕ)
+    (h_p_shift_pos : 0 < p_shift)
+    (h_Vb_pos : 0 < Vb)
+    (h_norm_u : Vu + U4 * p256 = Va * p_shift)
+    (h_norm_v : Vv = Vb * p_shift)
+    (h_mulsub : Vu + c3 * p256 = Vms + Q * Vv)
+    (h_addback : Vms + Vv = Vab + carry * p256)
+    (h_carry_le : carry ≤ 1)
+    (h_Q_le : Q ≤ Va / Vb + 2)
+    (h_Q_ge : Q ≥ Va / Vb + 2)
+    (h_c3_eq : c3 = U4 + 1) :
+    carry = 0 := by
+  have h_Q_eq : Q = Va / Vb + 2 := by omega
+  set r := Va % Vb with hr_def
+  have h_r_lt_Vb : r < Vb := Nat.mod_lt _ h_Vb_pos
+  have h_Va_decomp : (Va / Vb) * Vb + r = Va := Nat.div_add_mod' Va Vb
+  -- Vms + Q * Vv = Va * p_shift + p256.
+  have hA : Vms + Q * Vv = Va * p_shift + p256 := by
+    have h1 : Vu + (U4 + 1) * p256 = Vms + Q * Vv := by rw [← h_c3_eq]; exact h_mulsub
+    have h2 : Vu + U4 * p256 + p256 = Vms + Q * Vv := by
+      linarith [h1, Nat.add_one_mul U4 p256]
+    linarith [h2, h_norm_u]
+  -- (Va / Vb) * Vb * p_shift + r * p_shift = Va * p_shift.
+  have hB : (Va / Vb) * Vb * p_shift + r * p_shift = Va * p_shift := by
+    have h1 : ((Va / Vb) * Vb + r) * p_shift = Va * p_shift := by rw [h_Va_decomp]
+    linarith [h1, Nat.add_mul ((Va / Vb) * Vb) r p_shift]
+  -- Q * Vv = (Va/Vb) * Vb * p_shift + 2 * (Vb * p_shift).
+  have hC : Q * Vv = (Va / Vb) * Vb * p_shift + 2 * (Vb * p_shift) := by
+    rw [h_Q_eq, h_norm_v, Nat.add_mul]; ring
+  -- Vms + (Va/Vb)*Vb*p_shift + 2*Vv = Va*p_shift + p256.
+  have hD : Vms + ((Va / Vb) * Vb * p_shift + 2 * Vv) = Va * p_shift + p256 := by
+    have hVv2 : 2 * Vv = 2 * (Vb * p_shift) := by rw [h_norm_v]
+    linarith [hA, hC, hVv2]
+  -- Vms + 2 * Vv = p256 + r * p_shift.
+  have hE : Vms + 2 * Vv = p256 + r * p_shift := by linarith [hD, hB]
+  -- r * p_shift < Vv.
+  have hF : r * p_shift < Vv := by
+    rw [h_norm_v]
+    exact Nat.mul_lt_mul_of_pos_right h_r_lt_Vb h_p_shift_pos
+  -- Vms + Vv < p256.
+  have hG : Vms + Vv < p256 := by
+    have hE2 : Vms + Vv + Vv = p256 + r * p_shift := by linarith [hE]
+    linarith [hE2, hF]
+  -- Vab + carry * p256 = Vms + Vv < p256, with carry ≤ 1, so carry = 0.
+  have hH : Vab + carry * p256 < p256 := by linarith [hG, h_addback]
+  rcases Nat.lt_or_ge carry 1 with h1 | h1
+  · omega
+  · have hc1 : carry = 1 := by omega
+    rw [hc1] at hH; omega
+
 /-- **Layer 2a-fwd: carry = 0 → qHat overshoots by ≥ 2.**
 
     Forward direction of the carry partition.
