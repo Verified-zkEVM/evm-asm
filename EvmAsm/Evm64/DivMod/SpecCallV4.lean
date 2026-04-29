@@ -1130,103 +1130,68 @@ theorem n4CallAddback_v4_carry_zero_imp_overshoot_ge_two (a b : EvmWord)
   · show Vab < 2^256
     exact h_Vab_lt
 
-/-- **Pure-Nat helper for the c3 sub-stub**: derives `c3 = U4 + 1` from
-    a CONCRETE algebraic bound on `Vms` (the val256 of mulsub low4).
+/-- **Pure-Nat helper for c3 = u4 + 1 via the 128/64 trial digit.**
 
-    The hypothesis `h_ms_lo_bound: Vms + 2*Vv ≤ p256 + r*p_shift`
-    is mathematically equivalent (under the val256 frame + qHat =
-    q_true + 2) to the conclusion `c3 ≤ U4 + 1`. The decomposition
-    isolates the algorithmic content into the bound on Vms — a single
-    Nat inequality that depends on the v4 algorithm's specific
-    structure. -/
-theorem c3_eq_u4_plus_one_from_ms_bound_arith
-    (Va Vb Vu Vv Vms Q U4 c3 p_shift p256 r : ℕ)
-    (h_p_shift_pos : 0 < p_shift)
-    (h_Vb_pos : 0 < Vb)
-    (h_norm_u : Vu + U4 * p256 = Va * p_shift)
-    (h_norm_v : Vv = Vb * p_shift)
-    (h_mulsub : Vu + c3 * p256 = Vms + Q * Vv)
-    (h_Q_eq : Q = Va / Vb + 2)
-    (h_r_eq : r = Va % Vb)
-    (h_u4_lt_c3 : U4 < c3)
-    (h_ms_lo_bound : Vms + 2 * Vv ≤ p256 + r * p_shift) :
+    The algorithmic CRUX: rules out `c3 - u4 = 2` by exploiting
+    `qHat < 2^64` (the 128/64 trial digit is bounded by the base) and
+    `Vv_lo < 2^192` (the lower three limbs of v_norm fit in 192 bits),
+    so `qHat * Vv_lo < 2^256`.
+
+    Key identity (provable from `mulsubN4_val256_eq` + 128/64 trial):
+
+      Vms + qHat * Vv_lo + U4 * 2^256 = Vu_lo + c3 * 2^256 + rhat * 2^192
+
+    With `qHat * Vv_lo < 2^256` and `Vms < 2^256`, the LHS < (U4+2)*2^256.
+    For c3 ≥ U4 + 2: RHS ≥ (U4+2)*2^256 + Vu_lo + rhat*2^192 > LHS,
+    contradiction. So c3 ≤ U4 + 1, and combined with U4 < c3, c3 = U4 + 1. -/
+theorem c3_eq_u4_plus_one_via_128_64_trial_arith
+    (Vu_lo Vv_lo Vms qHat U4 c3 rhat : ℕ)
+    (h_qHat_lt : qHat < 2^64)
+    (h_Vv_lo_lt : Vv_lo < 2^192)
+    (h_Vms_lt : Vms < 2^256)
+    (h_key : Vms + qHat * Vv_lo + U4 * 2^256 = Vu_lo + c3 * 2^256 + rhat * 2^192)
+    (h_u4_lt_c3 : U4 < c3) :
     c3 = U4 + 1 := by
-  have h_r_lt_Vb : r < Vb := by rw [h_r_eq]; exact Nat.mod_lt _ h_Vb_pos
-  have h_Va_decomp : (Va / Vb) * Vb + r = Va := by
-    rw [h_r_eq]; exact Nat.div_add_mod' Va Vb
-  have hMain : Vms + Q * Vv + U4 * p256 = c3 * p256 + Va * p_shift := by
-    linarith [h_mulsub, h_norm_u]
-  have h_QVv_split : Q * Vv + r * p_shift = Va * p_shift + 2 * Vv := by
-    rw [h_Q_eq, h_norm_v]
-    have h1 : ((Va / Vb + 2) * (Vb * p_shift)) =
-              (Va / Vb) * Vb * p_shift + 2 * (Vb * p_shift) := by ring
-    have h2 : ((Va / Vb) * Vb + r) * p_shift = Va * p_shift := by rw [h_Va_decomp]
-    have h3 : (Va / Vb) * Vb * p_shift + r * p_shift = Va * p_shift := by
-      linarith [h2, Nat.add_mul ((Va / Vb) * Vb) r p_shift]
-    linarith [h1, h3]
-  have h_key : Vms + 2 * Vv + U4 * p256 = c3 * p256 + r * p_shift := by
-    linarith [hMain, h_QVv_split]
-  have h_c3_le : c3 ≤ U4 + 1 := by
-    by_contra h_gt
-    push Not at h_gt
-    have h_c3_ge : c3 ≥ U4 + 2 := h_gt
-    have h_c3_mul : (U4 + 2) * p256 ≤ c3 * p256 := Nat.mul_le_mul_right _ h_c3_ge
-    have h_lhs : c3 * p256 + r * p_shift = Vms + 2 * Vv + U4 * p256 := by
-      linarith [h_key]
-    have h_lhs_le : Vms + 2 * Vv + U4 * p256 ≤ p256 + r * p_shift + U4 * p256 := by
-      linarith [h_ms_lo_bound]
-    nlinarith [h_c3_mul, h_lhs, h_lhs_le, Nat.add_one_mul (U4 + 1) p256]
-  omega
+  have h_qVv_lt : qHat * Vv_lo < 2^64 * 2^192 := by
+    apply Nat.mul_lt_mul_of_lt_of_le h_qHat_lt (le_of_lt h_Vv_lo_lt)
+    exact Nat.two_pow_pos 192
+  have h_qVv_lt' : qHat * Vv_lo < 2^256 := by
+    have : (2:Nat)^64 * 2^192 = 2^256 := by norm_num
+    omega
+  by_contra h_ne
+  have h_c3_ge : c3 ≥ U4 + 2 := by omega
+  have h_c3_mul : c3 * 2^256 ≥ (U4 + 2) * 2^256 := Nat.mul_le_mul_right _ h_c3_ge
+  have h_split : (U4 + 2) * 2^256 = U4 * 2^256 + 2 * 2^256 := by ring
+  nlinarith [h_qVv_lt', h_Vms_lt, h_c3_mul, h_split, h_key]
 
-/-- **Sub-stub: c3 = u4 + 1 under haddback + qHat = q_true + 2.**
+/-- **c3 = u4 + 1 under haddback + qHat = q_true + 2** (CLOSED).
 
-    Algorithmic invariant for v4's call+addback BEQ branch: when the
-    runtime addback-borrow check fires (`u4 < c3`) AND qHat overshoots
-    `q_true` by ≥ 2 (so by Layer 1 = q_true + 2 exactly), the mulsub
-    top borrow `c3` equals `u4 + 1` (single-addback closure).
+    Algorithmic invariant for v4's call+addback BEQ branch. The proof
+    combines the val256-level mulsub Euclidean with the v4-specific
+    128/64 trial digit structure (qHat = (u4*2^64 + u3) / b3'):
 
-    ## Algebraic decomposition (proven up to the open piece)
+    1. From the 128/64 division: u4*2^64 + u3 = qHat*b3' + rhat,
+       0 ≤ rhat < b3' < 2^64.
+    2. Multiplied by 2^192 and combined with `mulsubN4_val256_eq`,
+       yields the KEY identity (no Va/Vb/r involved):
 
-    Let `r := Va mod Vb`, `p_shift := 2^shift`, `p256 := 2^256`.
-    From `mulsubN4_val256_eq` + `h_norm_u` + `h_norm_v` + qHat = q_true + 2:
+         Vms + qHat * Vv_lo + u4 * 2^256
+           = Vu_lo + c3 * 2^256 + rhat * 2^192
 
-      (c3 - u4) * p256 = Vms + 2*Vv - r*p_shift   (*)
+       where Vu_lo, Vv_lo are the lower 192 bits of u_norm/v_norm.
+    3. Since qHat < 2^64 (BitVec 64 bound) and Vv_lo < 2^192,
+       qHat * Vv_lo < 2^256. So if c3 ≥ u4 + 2, the LHS would be
+       too small to equal the RHS — contradiction.
+    4. Combined with `u4 < c3` (haddback): c3 = u4 + 1.
 
-    where `Vms < p256` (val256_bound) and `Vv ≥ 2^255` (b3' normalization)
-    and `r*p_shift < Vv` (r < Vb, p_shift > 0).
-
-    From haddback: `c3 - u4 ≥ 1`. From (*) plus `Vms < p256` plus
-    `2*Vv - r*p_shift < 2*p256`: `c3 - u4 ≤ 2`.
-
-    So `c3 - u4 ∈ {1, 2}`. The two cases split on whether `Vms + 2*Vv -
-    r*p_shift ≤ p256` (case 1) or `> p256` (case 2). Equivalent: case 2
-    requires `r*p_shift < 2*Vv - p256` (only possible since Vv ≥ 2^255
-    makes the RHS positive in regions).
-
-    ## Open piece
-
-    Ruling out `c3 - u4 = 2` requires the v4-specific 128/64 trial digit
-    structure. qHat = (u4*2^64 + u3) / b3' (call-trial) gives the exact
-    Knuth-B saturation conditions for `qHat = q_true + 2`. Under those
-    saturation conditions, can we show `r*p_shift ≥ 2*Vv - p256`
-    (equivalently `Vms + 2*Vv - r*p_shift ≤ p256`)?
-
-    Numerical validation: PASSED on the v1 counterexample (where v4
-    produces `qHat = q_true`, so the implication is vacuous). A
-    constructed input with `qHat = q_true + 2` exactly is needed for
-    a non-vacuous test.
-
-    Per project memory `project_double_addback_closure_plan`: this
-    invariant should hold in BOTH single-and double-addback branches.
-    The closed v1/v2 helper `c3_eq_u4_plus_one_from_double_mulsub_addback_bounds`
-    requires `h_addback_combined: abPrime + p256 = ms + 2*Vv` (i.e.,
-    carry₁+carry₂ = 1), which is equivalent to `c3 - u4 = 1` — circular
-    reasoning if used directly. Need an INDEPENDENT algorithmic argument. -/
+    The hypothesis `qHat ≥ q_true + 2` is NOT used directly — the proof
+    works for any qHat coming from the 128/64 trial. (The hypothesis
+    is part of the parent Layer 2a-back theorem's signature.) -/
 theorem n4CallAddback_v4_c3_eq_u4_plus_one_under_overshoot (a b : EvmWord)
-    (_hb3nz : b.getLimbN 3 ≠ 0)
-    (_hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
-    (_hcall : isCallTrialN4Evm a b)
-    (_haddback : isAddbackBorrowN4CallEvm_v4 a b) :
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hcall : isCallTrialN4Evm a b)
+    (haddback : isAddbackBorrowN4CallEvm_v4 a b) :
     let shift := (clzResult (b.getLimbN 3)).1.toNat % 64
     let antiShift := (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64
     let b3' := ((b.getLimbN 3) <<< shift) ||| ((b.getLimbN 2) >>> antiShift)
@@ -1243,10 +1208,103 @@ theorem n4CallAddback_v4_c3_eq_u4_plus_one_under_overshoot (a b : EvmWord)
                     val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
     qHat.toNat ≥ q_true + 2 →
     (mulsubN4 qHat b0' b1' b2' b3' u0 u1 u2 u3).2.2.2.2.toNat = u4.toNat + 1 := by
-  sorry  -- Genuine algorithmic content. Algebraically: under the val256
-         -- frame, both c3 - u4 = 1 and c3 - u4 = 2 are consistent with
-         -- haddback + qHat = q_true + 2 alone; the v4-specific 128/64
-         -- trial digit structure is needed to rule out c3 - u4 = 2.
+  intro shift antiShift b3' b2' b1' b0' u4 u3 u2 u1 u0 qHat q_true _h_overshoot
+  -- 1. u4 < c3 from haddback.
+  rw [isAddbackBorrowN4CallEvm_v4_def] at haddback
+  have h_u4_lt_c3 := u_top_lt_c3_of_addback_borrow_call_v4
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) haddback
+  simp only [] at h_u4_lt_c3
+  change u4.toNat < (mulsubN4 qHat b0' b1' b2' b3' u0 u1 u2 u3).2.2.2.2.toNat
+    at h_u4_lt_c3
+  -- 2. mulsub Euclidean.
+  have h_mulsub := mulsubN4_val256_eq qHat b0' b1' b2' b3' u0 u1 u2 u3
+  simp only [] at h_mulsub
+  -- 3. v4 = 128/64 trial digit (the algorithmic fact).
+  rw [isCallTrialN4Evm_def] at hcall
+  have h_b3'_ge : b3'.toNat ≥ 2^63 :=
+    b3_prime_ge_pow63 (b.getLimbN 3) (b.getLimbN 2) hb3nz _
+  have h_u4_lt_b3' : u4.toNat < b3'.toNat :=
+    isCallTrialN4_toNat_lt (a.getLimbN 3) (b.getLimbN 2) (b.getLimbN 3) hcall
+  have h_clz_pos : 1 ≤ (clzResult (b.getLimbN 3)).1.toNat := by
+    rcases Nat.eq_zero_or_pos (clzResult (b.getLimbN 3)).1.toNat with h0 | h0
+    · exfalso; apply hshift_nz; exact BitVec.eq_of_toNat_eq (by simp [h0])
+    · exact h0
+  have h_clz_le_63 : (clzResult (b.getLimbN 3)).1.toNat ≤ 63 :=
+    clzResult_fst_toNat_le _
+  have h_u4_lt_pow63 : u4.toNat < 2^63 :=
+    u_top_lt_pow63_of_shift_nz (a.getLimbN 3) (clzResult (b.getLimbN 3)).1
+      h_clz_pos h_clz_le_63
+  have h_qHat_eq := div128Quot_v4_eq_q_true_normalized u4 u3 b3'
+    h_b3'_ge h_u4_lt_b3' h_u4_lt_pow63
+  -- 4. 128/64 division: u4*2^64 + u3 = qHat*b3' + rhat, rhat < b3'.
+  set rhat := (u4.toNat * 2^64 + u3.toNat) % b3'.toNat with hrhat_def
+  have h_b3'_pos : 0 < b3'.toNat := by
+    have : (0 : Nat) < 2^63 := by decide
+    omega
+  have h_div_mod : qHat.toNat * b3'.toNat + rhat = u4.toNat * 2^64 + u3.toNat := by
+    rw [h_qHat_eq, hrhat_def]
+    exact Nat.div_add_mod' (u4.toNat * 2^64 + u3.toNat) b3'.toNat
+  have h_rhat_lt : rhat < b3'.toNat := Nat.mod_lt _ h_b3'_pos
+  have h_rhat_lt_pow64 : rhat < 2^64 := by
+    have : b3'.toNat < 2^64 := b3'.isLt
+    omega
+  -- 5. Set up val256 aliases and split into low/high halves.
+  set Vu_lo := u0.toNat + u1.toNat * 2^64 + u2.toNat * 2^128 with hVu_lo_def
+  set Vv_lo := b0'.toNat + b1'.toNat * 2^64 + b2'.toNat * 2^128 with hVv_lo_def
+  set Vms := val256
+        (mulsubN4 qHat b0' b1' b2' b3' u0 u1 u2 u3).1
+        (mulsubN4 qHat b0' b1' b2' b3' u0 u1 u2 u3).2.1
+        (mulsubN4 qHat b0' b1' b2' b3' u0 u1 u2 u3).2.2.1
+        (mulsubN4 qHat b0' b1' b2' b3' u0 u1 u2 u3).2.2.2.1
+  set c3 := (mulsubN4 qHat b0' b1' b2' b3' u0 u1 u2 u3).2.2.2.2.toNat
+  have h_Vu_eq : val256 u0 u1 u2 u3 = Vu_lo + u3.toNat * 2^192 := by
+    show u0.toNat + u1.toNat * 2^64 + u2.toNat * 2^128 + u3.toNat * 2^192 =
+         (u0.toNat + u1.toNat * 2^64 + u2.toNat * 2^128) + u3.toNat * 2^192
+    ring
+  have h_Vv_eq : val256 b0' b1' b2' b3' = Vv_lo + b3'.toNat * 2^192 := by
+    show b0'.toNat + b1'.toNat * 2^64 + b2'.toNat * 2^128 + b3'.toNat * 2^192 =
+         (b0'.toNat + b1'.toNat * 2^64 + b2'.toNat * 2^128) + b3'.toNat * 2^192
+    ring
+  have h_mulsub' : Vu_lo + u3.toNat * 2^192 + c3 * 2^256 =
+                   Vms + qHat.toNat * (Vv_lo + b3'.toNat * 2^192) := by
+    rw [← h_Vu_eq, ← h_Vv_eq]; exact h_mulsub
+  -- 6. KEY identity via algebraic combination.
+  -- From h_mulsub' (after distributing): Vu_lo + u3*2^192 + c3*p256
+  --   = Vms + qHat*Vv_lo + qHat*b3'*2^192.
+  -- From h_div_mod (multiplied by 2^192):
+  --   qHat*b3'*2^192 + rhat*2^192 = u4*2^256 + u3*2^192.
+  have h_mulsub_distr : Vu_lo + u3.toNat * 2^192 + c3 * 2^256 =
+                        Vms + qHat.toNat * Vv_lo + qHat.toNat * b3'.toNat * 2^192 := by
+    have h_qVlo : qHat.toNat * (Vv_lo + b3'.toNat * 2^192) =
+                  qHat.toNat * Vv_lo + qHat.toNat * b3'.toNat * 2^192 := by ring
+    linarith [h_mulsub', h_qVlo]
+  have h_div_mod_192 : qHat.toNat * b3'.toNat * 2^192 + rhat * 2^192 =
+                       u4.toNat * 2^256 + u3.toNat * 2^192 := by
+    have h_lhs : (qHat.toNat * b3'.toNat + rhat) * 2^192 =
+                 qHat.toNat * b3'.toNat * 2^192 + rhat * 2^192 := by ring
+    have h_rhs : (u4.toNat * 2^64 + u3.toNat) * 2^192 =
+                 u4.toNat * 2^256 + u3.toNat * 2^192 := by ring
+    have h_eq : (qHat.toNat * b3'.toNat + rhat) * 2^192 =
+                (u4.toNat * 2^64 + u3.toNat) * 2^192 := by rw [h_div_mod]
+    linarith [h_lhs, h_rhs, h_eq]
+  have h_key : Vms + qHat.toNat * Vv_lo + u4.toNat * 2^256 =
+               Vu_lo + c3 * 2^256 + rhat * 2^192 := by
+    linarith [h_mulsub_distr, h_div_mod_192]
+  -- 7. Bounds.
+  have h_qHat_lt : qHat.toNat < 2^64 := qHat.isLt
+  have h_Vv_lo_lt : Vv_lo < 2^192 := by
+    have h0 : b0'.toNat < 2^64 := b0'.isLt
+    have h1 : b1'.toNat < 2^64 := b1'.isLt
+    have h2 : b2'.toNat < 2^64 := b2'.isLt
+    show b0'.toNat + b1'.toNat * 2^64 + b2'.toNat * 2^128 < 2^192
+    nlinarith [h0, h1, h2]
+  have h_Vms_lt : Vms < 2^256 := EvmWord.val256_bound _ _ _ _
+  -- 8. Apply the pure-Nat helper.
+  show c3 = u4.toNat + 1
+  exact c3_eq_u4_plus_one_via_128_64_trial_arith
+    Vu_lo Vv_lo Vms qHat.toNat u4.toNat c3 rhat
+    h_qHat_lt h_Vv_lo_lt h_Vms_lt h_key h_u4_lt_c3
 
 /-- **Layer 2a-back: qHat overshoots by ≥ 2 → carry = 0.**
 
