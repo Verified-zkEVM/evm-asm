@@ -131,8 +131,8 @@ theorem bv_udiv_umod_unique {n : Nat} {a b q r : BitVec n}
     · rw [Nat.add_mul, Nat.one_mul, Nat.mul_comm q.toNat b.toNat]; omega
   have hr_eq : r.toNat = a.toNat % b.toNat := by
     have := Nat.div_add_mod a.toNat b.toNat; rw [← hq_eq] at this; omega
-  exact ⟨BitVec.eq_of_toNat_eq (hq_eq ▸ (BitVec.toNat_udiv).symm),
-         BitVec.eq_of_toNat_eq (hr_eq ▸ (BitVec.toNat_umod).symm)⟩
+  exact ⟨BitVec.eq_of_toNat_eq (hq_eq ▸ BitVec.toNat_udiv.symm),
+         BitVec.eq_of_toNat_eq (hr_eq ▸ BitVec.toNat_umod.symm)⟩
 
 -- ============================================================================
 -- EvmWord-level division correctness framework

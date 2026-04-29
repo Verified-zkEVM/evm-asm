@@ -406,9 +406,9 @@ theorem holdsFor_regIs {r : Reg} {v : Word} {s : MachineState} :
   simp only [Assertion.holdsFor, regIs]
   constructor
   · rintro ⟨h, hcompat, rfl⟩
-    exact (PartialState.CompatibleWith_singletonReg).mp hcompat
+    exact PartialState.CompatibleWith_singletonReg.mp hcompat
   · intro heq
-    exact ⟨_, (PartialState.CompatibleWith_singletonReg).mpr heq, rfl⟩
+    exact ⟨_, PartialState.CompatibleWith_singletonReg.mpr heq, rfl⟩
 
 @[simp]
 theorem holdsFor_memIs {a : Word} {v : Word} {s : MachineState} :
@@ -416,9 +416,9 @@ theorem holdsFor_memIs {a : Word} {v : Word} {s : MachineState} :
   simp only [Assertion.holdsFor, memIs]
   constructor
   · rintro ⟨h, hcompat, rfl, hvalid⟩
-    exact ⟨(PartialState.CompatibleWith_singletonMem).mp hcompat, hvalid⟩
+    exact ⟨PartialState.CompatibleWith_singletonMem.mp hcompat, hvalid⟩
   · rintro ⟨heq, hvalid⟩
-    exact ⟨_, (PartialState.CompatibleWith_singletonMem).mpr heq, rfl, hvalid⟩
+    exact ⟨_, PartialState.CompatibleWith_singletonMem.mpr heq, rfl, hvalid⟩
 
 /-- The validity hypothesis that `memIs` now encodes: if `(a ↦ₘ v).holdsFor s`
     then `a` is a valid dword-aligned memory address. -/

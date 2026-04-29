@@ -179,7 +179,7 @@ theorem ushiftRight_eq_zero_iff {val : Word} (K : Nat) :
   · intro hz
     have h0 : (val >>> K).toNat = 0 := by rw [hz]; rfl
     rw [BitVec.toNat_ushiftRight, Nat.shiftRight_eq_div_pow] at h0
-    rcases (Nat.div_eq_zero_iff).mp h0 with hc | hc
+    rcases Nat.div_eq_zero_iff.mp h0 with hc | hc
     · exact absurd hc (by positivity)
     · exact hc
   · intro hlt
@@ -287,7 +287,7 @@ theorem ushiftRight_ne_zero_of_msb {val : Word} {K : Nat} (hK : K ≤ 63)
   have h0 : (val >>> K).toNat = 0 := by rw [h]; rfl
   rw [BitVec.toNat_ushiftRight, Nat.shiftRight_eq_div_pow] at h0 ⊢; simp
   have hlt : val.toNat < 2^K := by
-    rcases (Nat.div_eq_zero_iff).mp h0 with h | h
+    rcases Nat.div_eq_zero_iff.mp h0 with h | h
     · exact absurd h (by positivity)
     · exact h
   have : 2^K ≤ (2 : Nat)^63 := Nat.pow_le_pow_right (by omega) hK; omega
