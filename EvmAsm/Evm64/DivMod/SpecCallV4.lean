@@ -685,8 +685,56 @@ theorem n4CallAddback_v4_carry_partition (a b : EvmWord)
 theorem n4CallAddbackBeqSemanticHolds_v4_of_call_addback_beq (a b : EvmWord)
     (hb3nz : b.getLimbN 3 ≠ 0)
     (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
-    (_hcall : isCallTrialN4Evm a b) :
+    (hcall : isCallTrialN4Evm a b) :
     n4CallAddbackBeqSemanticHolds_v4 a b := by
-  sorry  -- Wire-up of Layer 1 + Layer 2 + Layer 3 (q_out arithmetic).
+  rw [n4CallAddbackBeqSemanticHolds_v4_def]
+  intro shift antiShift b3' b2' b1' b0' u4 u3 u2 u1 u0 qHat ms carry q_out
+  -- Layer 1: qHat ≤ q_true + 2.
+  have h_le := div128Quot_v4_qHat_le_q_true_plus_two a b hb3nz hshift_nz hcall
+  -- Layer 2: carry partition (refined: covers both branches).
+  have h_partition := n4CallAddback_v4_carry_partition a b hb3nz hshift_nz hcall
+  obtain ⟨h_carry_zero_iff, h_carry_nz_imp⟩ := h_partition
+  -- Notation aliases (q_true at val256 level).
+  set q_true := val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) /
+                  val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+    with h_q_true_def
+  -- q_out is defined as `if carry = 0 then qHat - 2 else qHat - 1` (Word).
+  -- Goal: q_out.toNat = q_true.
+  -- Case-split on carry.
+  by_cases h_carry : carry = 0
+  · -- carry = 0: qHat = q_true + 2.
+    have h_qHat_eq : qHat.toNat = q_true + 2 := h_carry_zero_iff.mp h_carry
+    -- q_out = qHat + signExtend12 4095 + signExtend12 4095.
+    show (if carry = 0 then qHat + signExtend12 4095 + signExtend12 4095
+          else qHat + signExtend12 4095).toNat = q_true
+    rw [if_pos h_carry]
+    -- Compute (qHat - 2).toNat.
+    rw [BitVec.toNat_add, BitVec.toNat_add, signExtend12_4095_toNat]
+    have h_qHat_ge_2 : qHat.toNat ≥ 2 := by linarith
+    have h_qHat_lt_word : qHat.toNat < 2^64 := qHat.isLt
+    -- (qHat + (2^64-1)) % 2^64 = qHat - 1.
+    have h_step1 : (qHat.toNat + (2^64 - 1)) % 2^64 = qHat.toNat - 1 := by
+      rw [show qHat.toNat + (2^64 - 1) = (qHat.toNat - 1) + 2^64 from by omega,
+          Nat.add_mod_right, Nat.mod_eq_of_lt (by omega : qHat.toNat - 1 < 2^64)]
+    rw [h_step1]
+    -- ((qHat - 1) + (2^64 - 1)) % 2^64 = qHat - 2.
+    have h_step2 : (qHat.toNat - 1 + (2^64 - 1)) % 2^64 = qHat.toNat - 2 := by
+      rw [show qHat.toNat - 1 + (2^64 - 1) = (qHat.toNat - 2) + 2^64 from by omega,
+          Nat.add_mod_right, Nat.mod_eq_of_lt (by omega : qHat.toNat - 2 < 2^64)]
+    rw [h_step2]
+    -- qHat.toNat - 2 = q_true.
+    omega
+  · -- carry ≠ 0: qHat = q_true + 1.
+    have h_qHat_eq : qHat.toNat = q_true + 1 := h_carry_nz_imp h_carry
+    show (if carry = 0 then qHat + signExtend12 4095 + signExtend12 4095
+          else qHat + signExtend12 4095).toNat = q_true
+    rw [if_neg h_carry]
+    rw [BitVec.toNat_add, signExtend12_4095_toNat]
+    have h_qHat_ge_1 : qHat.toNat ≥ 1 := by linarith
+    have h_step1 : (qHat.toNat + (2^64 - 1)) % 2^64 = qHat.toNat - 1 := by
+      rw [show qHat.toNat + (2^64 - 1) = (qHat.toNat - 1) + 2^64 from by omega,
+          Nat.add_mod_right, Nat.mod_eq_of_lt (by have := qHat.isLt; omega)]
+    rw [h_step1]
+    omega
 
 end EvmAsm.Evm64
