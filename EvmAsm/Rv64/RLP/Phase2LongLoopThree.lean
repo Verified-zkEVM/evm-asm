@@ -82,9 +82,7 @@ theorem rlp_phase2_long_loop_three_byte_spec
   -- Iter 1: body spec at cnt = 3. cnt' = 2.
   have body := rlp_phase2_long_loop_body_spec len ptr (3 : Word) v12Old
     wordVal dwordAddr base back halign1 hvalid1
-  have hcnt' : (3 : Word) + signExtend12 (-1 : BitVec 12) = (2 : Word) := by
-    decide
-  rw [hcnt'] at body
+  rw [cnt_dec_3] at body
   -- The fall-through carries `⌜(2 : Word) = 0⌝`, which is False.
   set byte1 := (extractByte wordVal (byteOffset ptr)).zeroExtend 64
   have h_absurd : ∀ hp,
