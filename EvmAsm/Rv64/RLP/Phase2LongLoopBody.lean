@@ -73,6 +73,24 @@ theorem rlp_phase2_long_loop_body_post_unfold
      (dwordAddr ↦ₘ wordVal) ** ⌜P⌝) := by
   delta rlp_phase2_long_loop_body_post; rfl
 
+/-! ## Concrete `cnt' = cnt + signExtend12 (-1)` evaluations
+
+Each per-iteration loop closure (`rlp_phase2_long_loop_*_byte_spec`)
+specializes the body spec at a specific counter value `N : Word` and
+needs the concrete decremented value `N - 1` to flow through the
+post. These eight lemmas package the recurring `(N : Word) +
+signExtend12 (-1 : BitVec 12) = (N - 1 : Word) := by decide` boiler.
+-/
+
+theorem cnt_dec_1 : (1 : Word) + signExtend12 (-1 : BitVec 12) = (0 : Word) := by decide
+theorem cnt_dec_2 : (2 : Word) + signExtend12 (-1 : BitVec 12) = (1 : Word) := by decide
+theorem cnt_dec_3 : (3 : Word) + signExtend12 (-1 : BitVec 12) = (2 : Word) := by decide
+theorem cnt_dec_4 : (4 : Word) + signExtend12 (-1 : BitVec 12) = (3 : Word) := by decide
+theorem cnt_dec_5 : (5 : Word) + signExtend12 (-1 : BitVec 12) = (4 : Word) := by decide
+theorem cnt_dec_6 : (6 : Word) + signExtend12 (-1 : BitVec 12) = (5 : Word) := by decide
+theorem cnt_dec_7 : (7 : Word) + signExtend12 (-1 : BitVec 12) = (6 : Word) := by decide
+theorem cnt_dec_8 : (8 : Word) + signExtend12 (-1 : BitVec 12) = (7 : Word) := by decide
+
 /-- Extract the pure proposition `P` carried by the loop-body post.
 
     Any caller that has built `rlp_phase2_long_loop_body_post len ptr cnt

@@ -77,9 +77,7 @@ theorem rlp_phase2_long_loop_one_byte_spec
   have body := rlp_phase2_long_loop_body_spec len ptr (1 : Word) v12Old
     wordVal dwordAddr base back halign hvalid
   -- For cnt = 1, `cnt' = (1 : Word) + signExtend12 (-1 : BitVec 12) = 0`.
-  have hcnt' : (1 : Word) + signExtend12 (-1 : BitVec 12) = (0 : Word) := by
-    decide
-  rw [hcnt'] at body
+  rw [cnt_dec_1] at body
   -- The taken post carries `⌜(0 : Word) ≠ 0⌝`, which is False. Extract it
   -- via six layers of destructuring and derive the contradiction.
   set byteZext := (extractByte wordVal (byteOffset ptr)).zeroExtend 64

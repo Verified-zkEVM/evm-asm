@@ -77,9 +77,7 @@ theorem rlp_phase2_long_loop_four_byte_spec
   -- Iter 1: body at cnt = 4. cnt' = 3.
   have body := rlp_phase2_long_loop_body_spec len ptr (4 : Word) v12Old
     wordVal dwordAddr base back halign1 hvalid1
-  have hcnt' : (4 : Word) + signExtend12 (-1 : BitVec 12) = (3 : Word) := by
-    decide
-  rw [hcnt'] at body
+  rw [cnt_dec_4] at body
   set byte1 := (extractByte wordVal (byteOffset ptr)).zeroExtend 64
   have h_absurd : ∀ hp,
       rlp_phase2_long_loop_body_post len ptr (4 : Word) byte1 wordVal

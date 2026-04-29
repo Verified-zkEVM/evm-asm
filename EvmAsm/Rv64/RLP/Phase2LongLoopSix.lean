@@ -83,9 +83,7 @@ theorem rlp_phase2_long_loop_six_byte_spec
   simp only [rlp_phase2_long_loop_six_byte_post_unfold]
   have body := rlp_phase2_long_loop_body_spec len ptr (6 : Word) v12Old
     wordVal dwordAddr base back halign1 hvalid1
-  have hcnt' : (6 : Word) + signExtend12 (-1 : BitVec 12) = (5 : Word) := by
-    decide
-  rw [hcnt'] at body
+  rw [cnt_dec_6] at body
   set byte1 := (extractByte wordVal (byteOffset ptr)).zeroExtend 64
   have h_absurd : ∀ hp,
       rlp_phase2_long_loop_body_post len ptr (6 : Word) byte1 wordVal
