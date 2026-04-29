@@ -57,6 +57,129 @@ def cpsBranch (entry : Word) (cr : CodeReq) (P : Assertion)
     ∃ k s', stepN k s = some s' ∧
       ((s'.pc = exit_t ∧ (Q_t ** R).holdsFor s') ∨ (s'.pc = exit_f ∧ (Q_f ** R).holdsFor s'))
 
+/-- Step-bounded single-exit CPS specification.
+    Unlike `cpsTriple`, this records a uniform upper bound on the number of
+    machine steps: every framed execution reaches the exit in strictly fewer
+    than `nSteps` steps. -/
+def cpsTripleWithin (nSteps : Nat) (entry exit_ : Word) (cr : CodeReq)
+    (P Q : Assertion) : Prop :=
+  ∀ (R : Assertion), R.pcFree → ∀ s, cr.SatisfiedBy s → (P ** R).holdsFor s → s.pc = entry →
+    ∃ k, k < nSteps ∧ ∃ s', stepN k s = some s' ∧ s'.pc = exit_ ∧ (Q ** R).holdsFor s'
+
+/-- Step-bounded two-exit CPS specification.
+    Every framed execution reaches one of the two exits in strictly fewer than
+    `nSteps` steps. -/
+def cpsBranchWithin (nSteps : Nat) (entry : Word) (cr : CodeReq) (P : Assertion)
+    (exit_t : Word) (Q_t : Assertion)
+    (exit_f : Word) (Q_f : Assertion) : Prop :=
+  ∀ (R : Assertion), R.pcFree → ∀ s, cr.SatisfiedBy s → (P ** R).holdsFor s → s.pc = entry →
+    ∃ k, k < nSteps ∧ ∃ s', stepN k s = some s' ∧
+      ((s'.pc = exit_t ∧ (Q_t ** R).holdsFor s') ∨ (s'.pc = exit_f ∧ (Q_f ** R).holdsFor s'))
+
+/-- Forget the explicit step bound from a bounded triple. -/
+theorem cpsTripleWithin.to_cpsTriple {nSteps : Nat} {entry exit_ : Word} {cr : CodeReq}
+    {P Q : Assertion}
+    (h : cpsTripleWithin nSteps entry exit_ cr P Q) :
+    cpsTriple entry exit_ cr P Q := by
+  intro R hR s hcr hPR hpc
+  obtain ⟨k, _, s', hstep, hpc', hQR⟩ := h R hR s hcr hPR hpc
+  exact ⟨k, s', hstep, hpc', hQR⟩
+
+/-- Forget the explicit step bound from a bounded branch. -/
+theorem cpsBranchWithin.to_cpsBranch {nSteps : Nat} {entry : Word} {cr : CodeReq}
+    {P : Assertion} {exit_t : Word} {Q_t : Assertion} {exit_f : Word} {Q_f : Assertion}
+    (h : cpsBranchWithin nSteps entry cr P exit_t Q_t exit_f Q_f) :
+    cpsBranch entry cr P exit_t Q_t exit_f Q_f := by
+  intro R hR s hcr hPR hpc
+  obtain ⟨k, _, s', hstep, hbranch⟩ := h R hR s hcr hPR hpc
+  exact ⟨k, s', hstep, hbranch⟩
+
+/-- Consequence for step-bounded triples. -/
+theorem cpsTripleWithin_weaken {nSteps : Nat} {entry exit_ : Word} {cr : CodeReq}
+    {P P' Q Q' : Assertion}
+    (hpre  : ∀ h, P' h → P h)
+    (hpost : ∀ h, Q h → Q' h)
+    (h : cpsTripleWithin nSteps entry exit_ cr P Q) :
+    cpsTripleWithin nSteps entry exit_ cr P' Q' := by
+  intro R hR s hcr hP'R hpc
+  have hPR : (P ** R).holdsFor s := by
+    obtain ⟨hp, hcompat, hpq⟩ := hP'R
+    exact ⟨hp, hcompat, sepConj_mono_left hpre hp hpq⟩
+  obtain ⟨k, hk, s', hstep, hpc', hQR⟩ := h R hR s hcr hPR hpc
+  exact ⟨k, hk, s', hstep, hpc', by
+    obtain ⟨hp, hcompat, hpq⟩ := hQR
+    exact ⟨hp, hcompat, sepConj_mono_left hpost hp hpq⟩⟩
+
+/-- Consequence for step-bounded branches. -/
+theorem cpsBranchWithin_weaken {nSteps : Nat} {entry : Word} {cr : CodeReq}
+    {P P' : Assertion} {exit_t : Word} {Q_t Q_t' : Assertion}
+    {exit_f : Word} {Q_f Q_f' : Assertion}
+    (hpre : ∀ h, P' h → P h)
+    (hpost_t : ∀ h, Q_t h → Q_t' h)
+    (hpost_f : ∀ h, Q_f h → Q_f' h)
+    (h : cpsBranchWithin nSteps entry cr P exit_t Q_t exit_f Q_f) :
+    cpsBranchWithin nSteps entry cr P' exit_t Q_t' exit_f Q_f' := by
+  intro R hR s hcr hP'R hpc
+  have hPR : (P ** R).holdsFor s := by
+    obtain ⟨hp, hcompat, hpq⟩ := hP'R
+    exact ⟨hp, hcompat, sepConj_mono_left hpre hp hpq⟩
+  obtain ⟨k, hk, s', hstep, hbranch⟩ := h R hR s hcr hPR hpc
+  refine ⟨k, hk, s', hstep, ?_⟩
+  rcases hbranch with ⟨hpc_t, hQ_t⟩ | ⟨hpc_f, hQ_f⟩
+  · left
+    exact ⟨hpc_t, by
+      obtain ⟨hp, hcompat, hpq⟩ := hQ_t
+      exact ⟨hp, hcompat, sepConj_mono_left hpost_t hp hpq⟩⟩
+  · right
+    exact ⟨hpc_f, by
+      obtain ⟨hp, hcompat, hpq⟩ := hQ_f
+      exact ⟨hp, hcompat, sepConj_mono_left hpost_f hp hpq⟩⟩
+
+/-- Bounded sequence: bounds add under sequential composition. -/
+theorem cpsTripleWithin_seq {nSteps1 nSteps2 : Nat} {l1 l2 l3 : Word} {cr1 cr2 : CodeReq}
+    (hd : cr1.Disjoint cr2)
+    {P Q R : Assertion}
+    (h1 : cpsTripleWithin nSteps1 l1 l2 cr1 P Q)
+    (h2 : cpsTripleWithin nSteps2 l2 l3 cr2 Q R) :
+    cpsTripleWithin (nSteps1 + nSteps2) l1 l3 (cr1.union cr2) P R := by
+  intro F hF s hcr hPF hpc
+  rw [CodeReq.union_satisfiedBy hd] at hcr
+  obtain ⟨hcr1, hcr2⟩ := hcr
+  obtain ⟨k1, hk1, s1, hstep1, hpc1, hQF⟩ := h1 F hF s hcr1 hPF hpc
+  have hcr2' := CodeReq.SatisfiedBy_preserved hstep1 hcr2
+  obtain ⟨k2, hk2, s2, hstep2, hpc2, hRF⟩ := h2 F hF s1 hcr2' hQF hpc1
+  exact ⟨k1 + k2, Nat.add_lt_add hk1 hk2, s2, stepN_add_eq hstep1 hstep2, hpc2, hRF⟩
+
+/-- Zero-step bounded triple. The bound is `1` because the post is reached in
+    `0 < 1` steps. -/
+theorem cpsTripleWithin_refl {addr : Word} {P Q : Assertion}
+    (h : ∀ hp, P hp → Q hp) :
+    cpsTripleWithin 1 addr addr CodeReq.empty P Q := by
+  intro R hR s _hcr hPR hpc
+  exact ⟨0, Nat.zero_lt_one, s, rfl, hpc, by
+    obtain ⟨hp, hcompat, hpq⟩ := hPR
+    exact ⟨hp, hcompat, sepConj_mono_left h hp hpq⟩⟩
+
+/-- Monotonicity in the step bound. -/
+theorem cpsTripleWithin_mono_nSteps {nSteps nSteps' : Nat} {entry exit_ : Word} {cr : CodeReq}
+    {P Q : Assertion}
+    (hle : nSteps ≤ nSteps')
+    (h : cpsTripleWithin nSteps entry exit_ cr P Q) :
+    cpsTripleWithin nSteps' entry exit_ cr P Q := by
+  intro R hR s hcr hPR hpc
+  obtain ⟨k, hk, s', hstep, hpc', hQR⟩ := h R hR s hcr hPR hpc
+  exact ⟨k, Nat.lt_of_lt_of_le hk hle, s', hstep, hpc', hQR⟩
+
+/-- Monotonicity in the step bound for branches. -/
+theorem cpsBranchWithin_mono_nSteps {nSteps nSteps' : Nat} {entry : Word} {cr : CodeReq}
+    {P : Assertion} {exit_t : Word} {Q_t : Assertion} {exit_f : Word} {Q_f : Assertion}
+    (hle : nSteps ≤ nSteps')
+    (h : cpsBranchWithin nSteps entry cr P exit_t Q_t exit_f Q_f) :
+    cpsBranchWithin nSteps' entry cr P exit_t Q_t exit_f Q_f := by
+  intro R hR s hcr hPR hpc
+  obtain ⟨k, hk, s', hstep, hbranch⟩ := h R hR s hcr hPR hpc
+  exact ⟨k, Nat.lt_of_lt_of_le hk hle, s', hstep, hbranch⟩
+
 -- ============================================================================
 -- Structural rules
 -- ============================================================================
@@ -394,6 +517,85 @@ def cpsNBranch (entry : Word) (cr : CodeReq) (P : Assertion)
     ∃ k s', stepN k s = some s' ∧
       ∃ exit ∈ exits, s'.pc = exit.1 ∧ (exit.2 ** R).holdsFor s'
 
+/-- Step-bounded N-exit CPS specification. Every framed execution reaches
+    some exit in strictly fewer than `nSteps` machine steps. -/
+def cpsNBranchWithin (nSteps : Nat) (entry : Word) (cr : CodeReq) (P : Assertion)
+    (exits : List (Word × Assertion)) : Prop :=
+  ∀ (R : Assertion), R.pcFree → ∀ s, cr.SatisfiedBy s → (P ** R).holdsFor s → s.pc = entry →
+    ∃ k, k < nSteps ∧ ∃ s', stepN k s = some s' ∧
+      ∃ exit ∈ exits, s'.pc = exit.1 ∧ (exit.2 ** R).holdsFor s'
+
+/-- Forget the explicit step bound from a bounded N-branch. -/
+theorem cpsNBranchWithin.to_cpsNBranch {nSteps : Nat} {entry : Word} {cr : CodeReq}
+    {P : Assertion} {exits : List (Word × Assertion)}
+    (h : cpsNBranchWithin nSteps entry cr P exits) :
+    cpsNBranch entry cr P exits := by
+  intro R hR s hcr hPR hpc
+  obtain ⟨k, _, s', hstep, ex, hmem, hpc', hQR⟩ := h R hR s hcr hPR hpc
+  exact ⟨k, s', hstep, ex, hmem, hpc', hQR⟩
+
+/-- A bounded single-exit cpsTriple can be viewed as a bounded cpsNBranch with
+    one exit and the same step bound. -/
+theorem cpsTripleWithin_to_cpsNBranchWithin {nSteps : Nat} {entry exit_ : Word} {cr : CodeReq}
+    {P Q : Assertion} (h : cpsTripleWithin nSteps entry exit_ cr P Q) :
+    cpsNBranchWithin nSteps entry cr P [(exit_, Q)] := by
+  intro R hR s hcr hPR hpc
+  obtain ⟨k, hk, s', hstep, hpc', hQR⟩ := h R hR s hcr hPR hpc
+  exact ⟨k, hk, s', hstep, (exit_, Q), List.Mem.head _, hpc', hQR⟩
+
+/-- A bounded singleton cpsNBranch gives back a bounded cpsTriple with the same
+    step bound. -/
+theorem cpsNBranchWithin_to_cpsTripleWithin {nSteps : Nat} {entry exit_ : Word} {cr : CodeReq}
+    {P Q : Assertion} (h : cpsNBranchWithin nSteps entry cr P [(exit_, Q)]) :
+    cpsTripleWithin nSteps entry exit_ cr P Q := by
+  intro R hR s hcr hPR hpc
+  obtain ⟨k, hk, s', hstep, ex, hmem, hpc', hQR⟩ := h R hR s hcr hPR hpc
+  cases hmem with
+  | head => exact ⟨k, hk, s', hstep, hpc', hQR⟩
+  | tail _ h => exact absurd h List.not_mem_nil
+
+/-- A bounded 2-exit cpsBranch can be viewed as a bounded cpsNBranch with the
+    same step bound. -/
+theorem cpsBranchWithin_to_cpsNBranchWithin {nSteps : Nat} {entry : Word} {cr : CodeReq}
+    {P : Assertion}
+    {exit_t : Word} {Q_t : Assertion}
+    {exit_f : Word} {Q_f : Assertion}
+    (h : cpsBranchWithin nSteps entry cr P exit_t Q_t exit_f Q_f) :
+    cpsNBranchWithin nSteps entry cr P [(exit_t, Q_t), (exit_f, Q_f)] := by
+  intro R hR s hcr hPR hpc
+  obtain ⟨k, hk, s', hstep, hbranch⟩ := h R hR s hcr hPR hpc
+  rcases hbranch with ⟨hpc_t, hQ_t⟩ | ⟨hpc_f, hQ_f⟩
+  · exact ⟨k, hk, s', hstep, (exit_t, Q_t), List.Mem.head _, hpc_t, hQ_t⟩
+  · exact ⟨k, hk, s', hstep, (exit_f, Q_f), List.Mem.tail _ (List.Mem.head _), hpc_f, hQ_f⟩
+
+/-- A bounded 2-element cpsNBranch gives back a bounded cpsBranch with the same
+    step bound. -/
+theorem cpsNBranchWithin_to_cpsBranchWithin {nSteps : Nat} {entry : Word} {cr : CodeReq}
+    {P : Assertion}
+    {exit_t : Word} {Q_t : Assertion}
+    {exit_f : Word} {Q_f : Assertion}
+    (h : cpsNBranchWithin nSteps entry cr P [(exit_t, Q_t), (exit_f, Q_f)]) :
+    cpsBranchWithin nSteps entry cr P exit_t Q_t exit_f Q_f := by
+  intro R hR s hcr hPR hpc
+  obtain ⟨k, hk, s', hstep, ex, hmem, hpc', hQR⟩ := h R hR s hcr hPR hpc
+  refine ⟨k, hk, s', hstep, ?_⟩
+  cases hmem with
+  | head => left; exact ⟨hpc', hQR⟩
+  | tail _ htail =>
+    cases htail with
+    | head => right; exact ⟨hpc', hQR⟩
+    | tail _ h => exact absurd h List.not_mem_nil
+
+/-- Monotonicity in the step bound for N-branches. -/
+theorem cpsNBranchWithin_mono_nSteps {nSteps nSteps' : Nat} {entry : Word} {cr : CodeReq}
+    {P : Assertion} {exits : List (Word × Assertion)}
+    (hle : nSteps ≤ nSteps')
+    (h : cpsNBranchWithin nSteps entry cr P exits) :
+    cpsNBranchWithin nSteps' entry cr P exits := by
+  intro R hR s hcr hPR hpc
+  obtain ⟨k, hk, s', hstep, ex, hmem, hpc', hQR⟩ := h R hR s hcr hPR hpc
+  exact ⟨k, Nat.lt_of_lt_of_le hk hle, s', hstep, ex, hmem, hpc', hQR⟩
+
 -- ============================================================================
 -- Edge cases
 -- ============================================================================
@@ -592,6 +794,61 @@ def cpsHaltTriple (entry : Word) (cr : CodeReq)
     (P Q : Assertion) : Prop :=
   ∀ (R : Assertion), R.pcFree → ∀ s, cr.SatisfiedBy s → (P ** R).holdsFor s → s.pc = entry →
     ∃ k s', stepN k s = some s' ∧ isHalted s' = true ∧ (Q ** R).holdsFor s'
+
+/-- Step-bounded halt specification.
+    Every framed execution reaches a halted state in strictly fewer than
+    `nSteps` machine steps. -/
+def cpsHaltTripleWithin (nSteps : Nat) (entry : Word) (cr : CodeReq)
+    (P Q : Assertion) : Prop :=
+  ∀ (R : Assertion), R.pcFree → ∀ s, cr.SatisfiedBy s → (P ** R).holdsFor s → s.pc = entry →
+    ∃ k, k < nSteps ∧ ∃ s', stepN k s = some s' ∧ isHalted s' = true ∧ (Q ** R).holdsFor s'
+
+/-- Forget the explicit step bound from a bounded halt triple. -/
+theorem cpsHaltTripleWithin.to_cpsHaltTriple {nSteps : Nat} {entry : Word} {cr : CodeReq}
+    {P Q : Assertion}
+    (h : cpsHaltTripleWithin nSteps entry cr P Q) :
+    cpsHaltTriple entry cr P Q := by
+  intro R hR s hcr hPR hpc
+  obtain ⟨k, _, s', hstep, hhalt, hQR⟩ := h R hR s hcr hPR hpc
+  exact ⟨k, s', hstep, hhalt, hQR⟩
+
+/-- Promote a bounded `cpsTripleWithin` to a bounded `cpsHaltTripleWithin`
+    when the exit address is halted. The step bound is unchanged. -/
+theorem cpsTripleWithin_to_cpsHaltTripleWithin {nSteps : Nat} {entry exit_ : Word} {cr : CodeReq}
+    {P Q : Assertion}
+    (h : cpsTripleWithin nSteps entry exit_ cr P Q)
+    (hhalt : ∀ (R : Assertion), R.pcFree → ∀ s, (Q ** R).holdsFor s → s.pc = exit_ →
+      isHalted s = true) :
+    cpsHaltTripleWithin nSteps entry cr P Q := by
+  intro R hR s hcr hPR hpc
+  obtain ⟨k, hk, s', hstep, hpc', hQR⟩ := h R hR s hcr hPR hpc
+  exact ⟨k, hk, s', hstep, hhalt R hR s' hQR hpc', hQR⟩
+
+/-- Weaken a bounded halt triple. -/
+theorem cpsHaltTripleWithin_weaken {nSteps : Nat} {entry : Word} {cr : CodeReq}
+    {P P' Q Q' : Assertion}
+    (hpre  : ∀ h, P' h → P h)
+    (hpost : ∀ h, Q h → Q' h)
+    (h : cpsHaltTripleWithin nSteps entry cr P Q) :
+    cpsHaltTripleWithin nSteps entry cr P' Q' := by
+  intro R hR s hcr hP'R hpc
+  have hPR : (P ** R).holdsFor s := by
+    obtain ⟨hp, hcompat, hpq⟩ := hP'R
+    exact ⟨hp, hcompat, sepConj_mono_left hpre hp hpq⟩
+  obtain ⟨k, hk, s', hstep, hhalt, hQR⟩ := h R hR s hcr hPR hpc
+  exact ⟨k, hk, s', hstep, hhalt, by
+    obtain ⟨hp, hcompat, hpq⟩ := hQR
+    exact ⟨hp, hcompat, sepConj_mono_left hpost hp hpq⟩⟩
+
+/-- Monotonicity in the step bound for halt triples. -/
+theorem cpsHaltTripleWithin_mono_nSteps {nSteps nSteps' : Nat} {entry : Word} {cr : CodeReq}
+    {P Q : Assertion}
+    (hle : nSteps ≤ nSteps')
+    (h : cpsHaltTripleWithin nSteps entry cr P Q) :
+    cpsHaltTripleWithin nSteps' entry cr P Q := by
+  intro R hR s hcr hPR hpc
+  obtain ⟨k, hk, s', hstep, hhalt, hQR⟩ := h R hR s hcr hPR hpc
+  exact ⟨k, Nat.lt_of_lt_of_le hk hle, s', hstep, hhalt, hQR⟩
 
 /-- Promote a `cpsTriple` to a `cpsHaltTriple` when the exit address is halted.
     If execution reaches exit_ with Q, and every state satisfying (Q ** R) at exit_ is halted,
