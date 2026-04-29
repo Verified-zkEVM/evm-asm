@@ -78,7 +78,7 @@ theorem generic_lbu_spec_within (rd rs1 : Reg) (v_addr vOld : Word)
     (hrd_ne_x0 : rd ≠ .x0)
     (halign : alignToDword (v_addr + signExtend12 offset) = dwordAddr)
     (hvalid : isValidByteAccess (v_addr + signExtend12 offset) = true) :
-    cpsTripleWithin 2 base (base + 4)
+    cpsTripleWithin 1 base (base + 4)
       (CodeReq.singleton base (.LBU rd rs1 offset))
       ((rs1 ↦ᵣ v_addr) ** (rd ↦ᵣ vOld) ** (dwordAddr ↦ₘ wordVal))
       ((rs1 ↦ᵣ v_addr) **
@@ -98,7 +98,7 @@ theorem generic_lbu_spec_within (rd rs1 : Reg) (v_addr vOld : Word)
   have hexec' : execInstrBr s (.LBU rd rs1 offset) =
       (s.setReg rd ((extractByte wordVal (byteOffset (v_addr + signExtend12 offset))).zeroExtend 64)).setPC (s.pc + 4) := by
     simp only [execInstrBr, hrs1, getByte_eq]; rw [halign, hmem]
-  refine ⟨1, Nat.lt_succ_self 1,
+  refine ⟨1, Nat.le_refl 1,
     (s.setReg rd ((extractByte wordVal (byteOffset (v_addr + signExtend12 offset))).zeroExtend 64)).setPC (s.pc + 4),
     ?_, rfl, ?_⟩
   · show (step s).bind (stepN 0) = some _
@@ -123,7 +123,7 @@ theorem generic_lb_spec_within (rd rs1 : Reg) (v_addr vOld : Word)
     (hrd_ne_x0 : rd ≠ .x0)
     (halign : alignToDword (v_addr + signExtend12 offset) = dwordAddr)
     (hvalid : isValidByteAccess (v_addr + signExtend12 offset) = true) :
-    cpsTripleWithin 2 base (base + 4)
+    cpsTripleWithin 1 base (base + 4)
       (CodeReq.singleton base (.LB rd rs1 offset))
       ((rs1 ↦ᵣ v_addr) ** (rd ↦ᵣ vOld) ** (dwordAddr ↦ₘ wordVal))
       ((rs1 ↦ᵣ v_addr) **
@@ -143,7 +143,7 @@ theorem generic_lb_spec_within (rd rs1 : Reg) (v_addr vOld : Word)
   have hexec' : execInstrBr s (.LB rd rs1 offset) =
       (s.setReg rd ((extractByte wordVal (byteOffset (v_addr + signExtend12 offset))).signExtend 64)).setPC (s.pc + 4) := by
     simp only [execInstrBr, hrs1, getByte_eq]; rw [halign, hmem]
-  refine ⟨1, Nat.lt_succ_self 1,
+  refine ⟨1, Nat.le_refl 1,
     (s.setReg rd ((extractByte wordVal (byteOffset (v_addr + signExtend12 offset))).signExtend 64)).setPC (s.pc + 4),
     ?_, rfl, ?_⟩
   · show (step s).bind (stepN 0) = some _
@@ -166,7 +166,7 @@ theorem generic_sb_spec_within (rs1 rs2 : Reg) (v_addr v_data : Word)
     (dwordAddr : Word) (wordOld : Word)
     (halign : alignToDword (v_addr + signExtend12 offset) = dwordAddr)
     (hvalid : isValidByteAccess (v_addr + signExtend12 offset) = true) :
-    cpsTripleWithin 2 base (base + 4)
+    cpsTripleWithin 1 base (base + 4)
       (CodeReq.singleton base (.SB rs1 rs2 offset))
       ((rs1 ↦ᵣ v_addr) ** (rs2 ↦ᵣ v_data) ** (dwordAddr ↦ₘ wordOld))
       ((rs1 ↦ᵣ v_addr) ** (rs2 ↦ᵣ v_data) **
@@ -188,7 +188,7 @@ theorem generic_sb_spec_within (rs1 rs2 : Reg) (v_addr v_data : Word)
   have hexec' : execInstrBr s (.SB rs1 rs2 offset) =
       (s.setMem dwordAddr (replaceByte wordOld (byteOffset (v_addr + signExtend12 offset)) (v_data.truncate 8))).setPC (s.pc + 4) := by
     simp only [execInstrBr, hrs1, hrs2, setByte_eq]; rw [halign, hmem]
-  refine ⟨1, Nat.lt_succ_self 1,
+  refine ⟨1, Nat.le_refl 1,
     (s.setMem dwordAddr (replaceByte wordOld (byteOffset (v_addr + signExtend12 offset)) (v_data.truncate 8))).setPC (s.pc + 4),
     ?_, rfl, ?_⟩
   · show (step s).bind (stepN 0) = some _

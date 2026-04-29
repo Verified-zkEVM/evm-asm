@@ -36,7 +36,7 @@ theorem generic_1reg_spec_within (instr : Instr) (rd : Reg) (v result : Word) (b
     (hexec : ∀ s, s.pc = base → s.getReg rd = v →
       execInstrBr s instr = (s.setReg rd result).setPC (s.pc + 4))
     (hstep : ∀ s, s.code s.pc = some instr → step s = some (execInstrBr s instr)) :
-    cpsTripleWithin 2 base (base + 4) (CodeReq.singleton base instr)
+    cpsTripleWithin 1 base (base + 4) (CodeReq.singleton base instr)
       (rd ↦ᵣ v)
       (rd ↦ᵣ result) := by
   intro R hR s hcr hPR hpc; subst hpc
@@ -49,7 +49,7 @@ theorem generic_1reg_spec_within (instr : Instr) (rd : Reg) (v result : Word) (b
   have hexec' := hexec s rfl hrd
   have hstep' := hstep s hfetch
   -- Witness: 1 step
-  refine ⟨1, Nat.lt_succ_self 1, (s.setReg rd result).setPC (s.pc + 4), ?_, rfl, ?_⟩
+  refine ⟨1, Nat.le_refl 1, (s.setReg rd result).setPC (s.pc + 4), ?_, rfl, ?_⟩
   · -- stepN 1 s = some nextState
     show (step s).bind (stepN 0) = some _
     rw [hstep', hexec']; rfl
@@ -71,7 +71,7 @@ theorem generic_2reg_spec_within (instr : Instr) (rs rd : Reg)
     (hexec : ∀ s, s.pc = base → s.getReg rs = v_src → s.getReg rd = vOld →
       execInstrBr s instr = (s.setReg rd result).setPC (s.pc + 4))
     (hstep : ∀ s, s.code s.pc = some instr → step s = some (execInstrBr s instr)) :
-    cpsTripleWithin 2 base (base + 4) (CodeReq.singleton base instr)
+    cpsTripleWithin 1 base (base + 4) (CodeReq.singleton base instr)
       ((rs ↦ᵣ v_src) ** (rd ↦ᵣ vOld))
       ((rs ↦ᵣ v_src) ** (rd ↦ᵣ result)) := by
   intro R hR s hcr hPR hpc; subst hpc
@@ -85,7 +85,7 @@ theorem generic_2reg_spec_within (instr : Instr) (rs rd : Reg)
       (holdsFor_sepConj_elim_left hPR))
   have hexec' := hexec s rfl hrs hrd
   have hstep' := hstep s hfetch
-  refine ⟨1, Nat.lt_succ_self 1, (s.setReg rd result).setPC (s.pc + 4), ?_, rfl, ?_⟩
+  refine ⟨1, Nat.le_refl 1, (s.setReg rd result).setPC (s.pc + 4), ?_, rfl, ?_⟩
   · show (step s).bind (stepN 0) = some _
     rw [hstep', hexec']; rfl
   · -- Pull rd (position 2) to front
@@ -109,7 +109,7 @@ theorem generic_2reg_rd_eq_rs1_spec_within (instr : Instr) (rd rs2 : Reg)
     (hexec : ∀ s, s.pc = base → s.getReg rd = v1 → s.getReg rs2 = v2 →
       execInstrBr s instr = (s.setReg rd result).setPC (s.pc + 4))
     (hstep : ∀ s, s.code s.pc = some instr → step s = some (execInstrBr s instr)) :
-    cpsTripleWithin 2 base (base + 4) (CodeReq.singleton base instr)
+    cpsTripleWithin 1 base (base + 4) (CodeReq.singleton base instr)
       ((rd ↦ᵣ v1) ** (rs2 ↦ᵣ v2))
       ((rd ↦ᵣ result) ** (rs2 ↦ᵣ v2)) := by
   intro R hR s hcr hPR hpc; subst hpc
@@ -123,7 +123,7 @@ theorem generic_2reg_rd_eq_rs1_spec_within (instr : Instr) (rd rs2 : Reg)
       (holdsFor_sepConj_elim_left hPR))
   have hexec' := hexec s rfl hrd hrs2
   have hstep' := hstep s hfetch
-  refine ⟨1, Nat.lt_succ_self 1, (s.setReg rd result).setPC (s.pc + 4), ?_, rfl, ?_⟩
+  refine ⟨1, Nat.le_refl 1, (s.setReg rd result).setPC (s.pc + 4), ?_, rfl, ?_⟩
   · show (step s).bind (stepN 0) = some _
     rw [hstep', hexec']; rfl
   · -- Pull rd (position 1) to front, assoc then update
@@ -148,7 +148,7 @@ theorem generic_3reg_spec_within (instr : Instr) (rs1 rs2 rd : Reg)
     (hexec : ∀ s, s.pc = base → s.getReg rs1 = v1 → s.getReg rs2 = v2 →
       execInstrBr s instr = (s.setReg rd result).setPC (s.pc + 4))
     (hstep : ∀ s, s.code s.pc = some instr → step s = some (execInstrBr s instr)) :
-    cpsTripleWithin 2 base (base + 4) (CodeReq.singleton base instr)
+    cpsTripleWithin 1 base (base + 4) (CodeReq.singleton base instr)
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** (rd ↦ᵣ vOld))
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** (rd ↦ᵣ result)) := by
   intro R hR s hcr hPR hpc; subst hpc
@@ -162,7 +162,7 @@ theorem generic_3reg_spec_within (instr : Instr) (rs1 rs2 rd : Reg)
       (holdsFor_sepConj_elim_left hPR)))
   have hexec' := hexec s rfl hrs1 hrs2
   have hstep' := hstep s hfetch
-  refine ⟨1, Nat.lt_succ_self 1, (s.setReg rd result).setPC (s.pc + 4), ?_, rfl, ?_⟩
+  refine ⟨1, Nat.le_refl 1, (s.setReg rd result).setPC (s.pc + 4), ?_, rfl, ?_⟩
   · show (step s).bind (stepN 0) = some _
     rw [hstep', hexec']; rfl
   · -- Pull rd (position 3 in inner) to front: 2 pull_seconds
@@ -184,7 +184,7 @@ theorem generic_3reg_spec_within (instr : Instr) (rs1 rs2 rd : Reg)
 theorem generic_nop_spec_within (instr : Instr) {base exit_ : Word}
     (hexec : ∀ s, s.pc = base → execInstrBr s instr = s.setPC exit_)
     (hstep : ∀ s, s.code s.pc = some instr → step s = some (execInstrBr s instr)) :
-    cpsTripleWithin 2 base exit_ (CodeReq.singleton base instr)
+    cpsTripleWithin 1 base exit_ (CodeReq.singleton base instr)
       empAssertion
       empAssertion := by
   intro R hR s hcr hPR hpc; subst hpc
@@ -192,7 +192,7 @@ theorem generic_nop_spec_within (instr : Instr) {base exit_ : Word}
     CodeReq.singleton_satisfiedBy.mp hcr
   have hexec' := hexec s rfl
   have hstep' := hstep s hfetch
-  refine ⟨1, Nat.lt_succ_self 1, s.setPC exit_, ?_, rfl, ?_⟩
+  refine ⟨1, Nat.le_refl 1, s.setPC exit_, ?_, rfl, ?_⟩
   · show (step s).bind (stepN 0) = some _
     rw [hstep', hexec']; rfl
   · exact holdsFor_pcFree_setPC (pcFree_sepConj pcFree_emp hR) hPR
@@ -211,7 +211,7 @@ theorem generic_nop_spec_within (instr : Instr) {base exit_ : Word}
     Taken (v1 ≠ v2): PC = base + signExtend13 offset, post includes ⌜v1 ≠ v2⌝
     Not taken (v1 = v2): PC = base + 4, post includes ⌜v1 = v2⌝ -/
 theorem generic_bne_spec_within (rs1 rs2 : Reg) (offset : BitVec 13) (v1 v2 : Word) (base : Word) :
-    cpsBranchWithin 2 base (CodeReq.singleton base (.BNE rs1 rs2 offset))
+    cpsBranchWithin 1 base (CodeReq.singleton base (.BNE rs1 rs2 offset))
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2))
       (base + signExtend13 offset)
         ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** ⌜v1 ≠ v2⌝)
@@ -233,7 +233,7 @@ theorem generic_bne_spec_within (rs1 rs2 : Reg) (offset : BitVec 13) (v1 v2 : Wo
   · -- Not taken: v1 = v2
     have hexec' : execInstrBr s (.BNE rs1 rs2 offset) = s.setPC (s.pc + 4) := by
       simp only [execInstrBr, hrs1, hrs2, heq, bne_iff_ne, ne_eq, not_true_eq_false, ite_false]
-    refine ⟨1, Nat.lt_succ_self 1, s.setPC (s.pc + 4), ?_, Or.inr ⟨rfl, ?_⟩⟩
+    refine ⟨1, Nat.le_refl 1, s.setPC (s.pc + 4), ?_, Or.inr ⟨rfl, ?_⟩⟩
     · show (step s).bind (stepN 0) = some _
       rw [hstep', hexec']; rfl
     · -- Add pure assertion ⌜v1 = v2⌝
@@ -248,7 +248,7 @@ theorem generic_bne_spec_within (rs1 rs2 : Reg) (offset : BitVec 13) (v1 v2 : Wo
   · -- Taken: v1 ≠ v2
     have hexec' : execInstrBr s (.BNE rs1 rs2 offset) = s.setPC (s.pc + signExtend13 offset) := by
       simp only [execInstrBr, hrs1, hrs2, bne_iff_ne, ne_eq, heq, not_false_eq_true, ite_true]
-    refine ⟨1, Nat.lt_succ_self 1, s.setPC (s.pc + signExtend13 offset), ?_, Or.inl ⟨rfl, ?_⟩⟩
+    refine ⟨1, Nat.le_refl 1, s.setPC (s.pc + signExtend13 offset), ?_, Or.inl ⟨rfl, ?_⟩⟩
     · show (step s).bind (stepN 0) = some _
       rw [hstep', hexec']; rfl
     · have hpc_free : (((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2)) ** R).pcFree :=
@@ -262,7 +262,7 @@ theorem generic_bne_spec_within (rs1 rs2 : Reg) (offset : BitVec 13) (v1 v2 : Wo
 
 /-- Generic spec for BEQ: branch if equal. -/
 theorem generic_beq_spec_within (rs1 rs2 : Reg) (offset : BitVec 13) (v1 v2 : Word) (base : Word) :
-    cpsBranchWithin 2 base (CodeReq.singleton base (.BEQ rs1 rs2 offset))
+    cpsBranchWithin 1 base (CodeReq.singleton base (.BEQ rs1 rs2 offset))
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2))
       (base + signExtend13 offset)
         ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** ⌜v1 = v2⌝)
@@ -283,7 +283,7 @@ theorem generic_beq_spec_within (rs1 rs2 : Reg) (offset : BitVec 13) (v1 v2 : Wo
   · -- Taken: v1 = v2
     have hexec' : execInstrBr s (.BEQ rs1 rs2 offset) = s.setPC (s.pc + signExtend13 offset) := by
       simp only [execInstrBr, hrs1, hrs2, heq, beq_self_eq_true, ite_true]
-    refine ⟨1, Nat.lt_succ_self 1, s.setPC (s.pc + signExtend13 offset), ?_, Or.inl ⟨rfl, ?_⟩⟩
+    refine ⟨1, Nat.le_refl 1, s.setPC (s.pc + signExtend13 offset), ?_, Or.inl ⟨rfl, ?_⟩⟩
     · show (step s).bind (stepN 0) = some _
       rw [hstep', hexec']; rfl
     · have hpc_free : (((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2)) ** R).pcFree :=
@@ -297,7 +297,7 @@ theorem generic_beq_spec_within (rs1 rs2 : Reg) (offset : BitVec 13) (v1 v2 : Wo
   · -- Not taken: v1 ≠ v2
     have hexec' : execInstrBr s (.BEQ rs1 rs2 offset) = s.setPC (s.pc + 4) := by
       simp only [execInstrBr, hrs1, hrs2, beq_iff_eq, heq, ite_false]
-    refine ⟨1, Nat.lt_succ_self 1, s.setPC (s.pc + 4), ?_, Or.inr ⟨rfl, ?_⟩⟩
+    refine ⟨1, Nat.le_refl 1, s.setPC (s.pc + 4), ?_, Or.inr ⟨rfl, ?_⟩⟩
     · show (step s).bind (stepN 0) = some _
       rw [hstep', hexec']; rfl
     · have hpc_free : (((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2)) ** R).pcFree :=
@@ -317,7 +317,7 @@ theorem generic_beq_spec_within (rs1 rs2 : Reg) (offset : BitVec 13) (v1 v2 : Wo
     Taken (ult v1 v2): PC = base + signExtend13 offset
     Not taken (¬ult v1 v2): PC = base + 4 -/
 theorem generic_bltu_spec_within (rs1 rs2 : Reg) (offset : BitVec 13) (v1 v2 : Word) (base : Word) :
-    cpsBranchWithin 2 base (CodeReq.singleton base (.BLTU rs1 rs2 offset))
+    cpsBranchWithin 1 base (CodeReq.singleton base (.BLTU rs1 rs2 offset))
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2))
       (base + signExtend13 offset)
         ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** ⌜BitVec.ult v1 v2⌝)
@@ -338,7 +338,7 @@ theorem generic_bltu_spec_within (rs1 rs2 : Reg) (offset : BitVec 13) (v1 v2 : W
   · -- Taken: v1 <u v2
     have hexec' : execInstrBr s (.BLTU rs1 rs2 offset) = s.setPC (s.pc + signExtend13 offset) := by
       simp [execInstrBr, hrs1, hrs2, hlt]
-    refine ⟨1, Nat.lt_succ_self 1, s.setPC (s.pc + signExtend13 offset), ?_, Or.inl ⟨rfl, ?_⟩⟩
+    refine ⟨1, Nat.le_refl 1, s.setPC (s.pc + signExtend13 offset), ?_, Or.inl ⟨rfl, ?_⟩⟩
     · show (step s).bind (stepN 0) = some _
       rw [hstep', hexec']; rfl
     · have hpc_free : (((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2)) ** R).pcFree :=
@@ -352,7 +352,7 @@ theorem generic_bltu_spec_within (rs1 rs2 : Reg) (offset : BitVec 13) (v1 v2 : W
   · -- Not taken: ¬(v1 <u v2)
     have hexec' : execInstrBr s (.BLTU rs1 rs2 offset) = s.setPC (s.pc + 4) := by
       simp [execInstrBr, hrs1, hrs2, hlt]
-    refine ⟨1, Nat.lt_succ_self 1, s.setPC (s.pc + 4), ?_, Or.inr ⟨rfl, ?_⟩⟩
+    refine ⟨1, Nat.le_refl 1, s.setPC (s.pc + 4), ?_, Or.inr ⟨rfl, ?_⟩⟩
     · show (step s).bind (stepN 0) = some _
       rw [hstep', hexec']; rfl
     · have hpc_free : (((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2)) ** R).pcFree :=
@@ -372,7 +372,7 @@ theorem generic_bltu_spec_within (rs1 rs2 : Reg) (offset : BitVec 13) (v1 v2 : W
     Taken (¬slt v1 v2): PC = base + signExtend13 offset
     Not taken (slt v1 v2): PC = base + 4 -/
 theorem generic_bge_spec_within (rs1 rs2 : Reg) (offset : BitVec 13) (v1 v2 : Word) (base : Word) :
-    cpsBranchWithin 2 base (CodeReq.singleton base (.BGE rs1 rs2 offset))
+    cpsBranchWithin 1 base (CodeReq.singleton base (.BGE rs1 rs2 offset))
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2))
       (base + signExtend13 offset)
         ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** ⌜¬BitVec.slt v1 v2⌝)
@@ -393,7 +393,7 @@ theorem generic_bge_spec_within (rs1 rs2 : Reg) (offset : BitVec 13) (v1 v2 : Wo
   · -- Not taken: slt v1 v2 → ¬(¬slt), so BGE falls through
     have hexec' : execInstrBr s (.BGE rs1 rs2 offset) = s.setPC (s.pc + 4) := by
       simp [execInstrBr, hrs1, hrs2, hlt]
-    refine ⟨1, Nat.lt_succ_self 1, s.setPC (s.pc + 4), ?_, Or.inr ⟨rfl, ?_⟩⟩
+    refine ⟨1, Nat.le_refl 1, s.setPC (s.pc + 4), ?_, Or.inr ⟨rfl, ?_⟩⟩
     · show (step s).bind (stepN 0) = some _
       rw [hstep', hexec']; rfl
     · have hpc_free : (((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2)) ** R).pcFree :=
@@ -407,7 +407,7 @@ theorem generic_bge_spec_within (rs1 rs2 : Reg) (offset : BitVec 13) (v1 v2 : Wo
   · -- Taken: ¬slt v1 v2 → BGE branches
     have hexec' : execInstrBr s (.BGE rs1 rs2 offset) = s.setPC (s.pc + signExtend13 offset) := by
       simp [execInstrBr, hrs1, hrs2, hlt]
-    refine ⟨1, Nat.lt_succ_self 1, s.setPC (s.pc + signExtend13 offset), ?_, Or.inl ⟨rfl, ?_⟩⟩
+    refine ⟨1, Nat.le_refl 1, s.setPC (s.pc + signExtend13 offset), ?_, Or.inl ⟨rfl, ?_⟩⟩
     · show (step s).bind (stepN 0) = some _
       rw [hstep', hexec']; rfl
     · have hpc_free : (((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2)) ** R).pcFree :=
@@ -427,7 +427,7 @@ theorem generic_bge_spec_within (rs1 rs2 : Reg) (offset : BitVec 13) (v1 v2 : Wo
     Taken (slt v1 v2): PC = base + signExtend13 offset
     Not taken (¬slt v1 v2): PC = base + 4 -/
 theorem generic_blt_spec_within (rs1 rs2 : Reg) (offset : BitVec 13) (v1 v2 : Word) (base : Word) :
-    cpsBranchWithin 2 base (CodeReq.singleton base (.BLT rs1 rs2 offset))
+    cpsBranchWithin 1 base (CodeReq.singleton base (.BLT rs1 rs2 offset))
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2))
       (base + signExtend13 offset)
         ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** ⌜BitVec.slt v1 v2⌝)
@@ -448,7 +448,7 @@ theorem generic_blt_spec_within (rs1 rs2 : Reg) (offset : BitVec 13) (v1 v2 : Wo
   · -- Taken: slt v1 v2
     have hexec' : execInstrBr s (.BLT rs1 rs2 offset) = s.setPC (s.pc + signExtend13 offset) := by
       simp [execInstrBr, hrs1, hrs2, hlt]
-    refine ⟨1, Nat.lt_succ_self 1, s.setPC (s.pc + signExtend13 offset), ?_, Or.inl ⟨rfl, ?_⟩⟩
+    refine ⟨1, Nat.le_refl 1, s.setPC (s.pc + signExtend13 offset), ?_, Or.inl ⟨rfl, ?_⟩⟩
     · show (step s).bind (stepN 0) = some _
       rw [hstep', hexec']; rfl
     · have hpc_free : (((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2)) ** R).pcFree :=
@@ -462,7 +462,7 @@ theorem generic_blt_spec_within (rs1 rs2 : Reg) (offset : BitVec 13) (v1 v2 : Wo
   · -- Not taken: ¬slt v1 v2
     have hexec' : execInstrBr s (.BLT rs1 rs2 offset) = s.setPC (s.pc + 4) := by
       simp [execInstrBr, hrs1, hrs2, hlt]
-    refine ⟨1, Nat.lt_succ_self 1, s.setPC (s.pc + 4), ?_, Or.inr ⟨rfl, ?_⟩⟩
+    refine ⟨1, Nat.le_refl 1, s.setPC (s.pc + 4), ?_, Or.inr ⟨rfl, ?_⟩⟩
     · show (step s).bind (stepN 0) = some _
       rw [hstep', hexec']; rfl
     · have hpc_free : (((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2)) ** R).pcFree :=
@@ -482,7 +482,7 @@ theorem generic_blt_spec_within (rs1 rs2 : Reg) (offset : BitVec 13) (v1 v2 : Wo
     Taken (¬ult v1 v2): PC = base + signExtend13 offset
     Not taken (ult v1 v2): PC = base + 4 -/
 theorem generic_bgeu_spec_within (rs1 rs2 : Reg) (offset : BitVec 13) (v1 v2 : Word) (base : Word) :
-    cpsBranchWithin 2 base (CodeReq.singleton base (.BGEU rs1 rs2 offset))
+    cpsBranchWithin 1 base (CodeReq.singleton base (.BGEU rs1 rs2 offset))
       ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2))
       (base + signExtend13 offset)
         ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** ⌜¬BitVec.ult v1 v2⌝)
@@ -503,7 +503,7 @@ theorem generic_bgeu_spec_within (rs1 rs2 : Reg) (offset : BitVec 13) (v1 v2 : W
   · -- Not taken: ult v1 v2 → ¬(¬ult), so BGEU falls through
     have hexec' : execInstrBr s (.BGEU rs1 rs2 offset) = s.setPC (s.pc + 4) := by
       simp [execInstrBr, hrs1, hrs2, hlt]
-    refine ⟨1, Nat.lt_succ_self 1, s.setPC (s.pc + 4), ?_, Or.inr ⟨rfl, ?_⟩⟩
+    refine ⟨1, Nat.le_refl 1, s.setPC (s.pc + 4), ?_, Or.inr ⟨rfl, ?_⟩⟩
     · show (step s).bind (stepN 0) = some _
       rw [hstep', hexec']; rfl
     · have hpc_free : (((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2)) ** R).pcFree :=
@@ -517,7 +517,7 @@ theorem generic_bgeu_spec_within (rs1 rs2 : Reg) (offset : BitVec 13) (v1 v2 : W
   · -- Taken: ¬ult v1 v2 → BGEU branches
     have hexec' : execInstrBr s (.BGEU rs1 rs2 offset) = s.setPC (s.pc + signExtend13 offset) := by
       simp [execInstrBr, hrs1, hrs2, hlt]
-    refine ⟨1, Nat.lt_succ_self 1, s.setPC (s.pc + signExtend13 offset), ?_, Or.inl ⟨rfl, ?_⟩⟩
+    refine ⟨1, Nat.le_refl 1, s.setPC (s.pc + signExtend13 offset), ?_, Or.inl ⟨rfl, ?_⟩⟩
     · show (step s).bind (stepN 0) = some _
       rw [hstep', hexec']; rfl
     · have hpc_free : (((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2)) ** R).pcFree :=
@@ -538,7 +538,7 @@ theorem generic_bgeu_spec_within (rs1 rs2 : Reg) (offset : BitVec 13) (v1 v2 : W
     Post: (rd ↦ᵣ (base + 4)) -/
 theorem generic_jal_spec_within (rd : Reg) (vOld : Word) (offset : BitVec 21) (base : Word)
     (hrd_ne_x0 : rd ≠ .x0) :
-    cpsTripleWithin 2 base (base + signExtend21 offset) (CodeReq.singleton base (.JAL rd offset))
+    cpsTripleWithin 1 base (base + signExtend21 offset) (CodeReq.singleton base (.JAL rd offset))
       (rd ↦ᵣ vOld)
       (rd ↦ᵣ (base + 4)) := by
   intro R hR s hcr hPR hpc; subst hpc
@@ -547,7 +547,7 @@ theorem generic_jal_spec_within (rd : Reg) (vOld : Word) (offset : BitVec 21) (b
   have hstep' : step s = some (execInstrBr s (.JAL rd offset)) :=
     step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl)
   -- execInstrBr s (.JAL rd offset) = (s.setReg rd (s.pc + 4)).setPC (s.pc + signExtend21 offset)
-  refine ⟨1, Nat.lt_succ_self 1, (s.setReg rd (s.pc + 4)).setPC (s.pc + signExtend21 offset), ?_, rfl, ?_⟩
+  refine ⟨1, Nat.le_refl 1, (s.setReg rd (s.pc + 4)).setPC (s.pc + signExtend21 offset), ?_, rfl, ?_⟩
   · show (step s).bind (stepN 0) = some _
     rw [hstep']; rfl
   · have h1 := holdsFor_sepConj_regIs_setReg (v' := s.pc + 4) hrd_ne_x0 hPR
@@ -558,7 +558,7 @@ theorem generic_jal_spec_within (rd : Reg) (vOld : Word) (offset : BitVec 21) (b
     Post: (rs1 ↦ᵣ v1) ** (rd ↦ᵣ (base + 4)) -/
 theorem generic_jalr_spec_within (rd rs1 : Reg) (v1 vOld : Word) (offset : BitVec 12) (base : Word)
     (hrd_ne_x0 : rd ≠ .x0) :
-    cpsTripleWithin 2 base ((v1 + signExtend12 offset) &&& ~~~1) (CodeReq.singleton base (.JALR rd rs1 offset))
+    cpsTripleWithin 1 base ((v1 + signExtend12 offset) &&& ~~~1) (CodeReq.singleton base (.JALR rd rs1 offset))
       ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ vOld))
       ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ (base + 4))) := by
   intro R hR s hcr hPR hpc; subst hpc
@@ -572,7 +572,7 @@ theorem generic_jalr_spec_within (rd rs1 : Reg) (v1 vOld : Word) (offset : BitVe
   have hexec' : execInstrBr s (.JALR rd rs1 offset) =
       (s.setReg rd (s.pc + 4)).setPC ((v1 + signExtend12 offset) &&& ~~~1) := by
     simp only [execInstrBr, hrs1]; rfl
-  refine ⟨1, Nat.lt_succ_self 1, (s.setReg rd (s.pc + 4)).setPC ((v1 + signExtend12 offset) &&& ~~~1), ?_, rfl, ?_⟩
+  refine ⟨1, Nat.le_refl 1, (s.setReg rd (s.pc + 4)).setPC ((v1 + signExtend12 offset) &&& ~~~1), ?_, rfl, ?_⟩
   · show (step s).bind (stepN 0) = some _
     rw [hstep', hexec']; rfl
   · -- Pull rd (position 2) to front
@@ -593,7 +593,7 @@ theorem generic_jalr_spec_within (rd rs1 : Reg) (v1 vOld : Word) (offset : BitVe
 theorem generic_ld_spec_within (rd rs1 : Reg) (v_addr vOld memVal : Word)
     (offset : BitVec 12) (base : Word)
     (hrd_ne_x0 : rd ≠ .x0) :
-    cpsTripleWithin 2 base (base + 4) (CodeReq.singleton base (.LD rd rs1 offset))
+    cpsTripleWithin 1 base (base + 4) (CodeReq.singleton base (.LD rd rs1 offset))
       ((rs1 ↦ᵣ v_addr) ** (rd ↦ᵣ vOld) ** ((v_addr + signExtend12 offset) ↦ₘ memVal))
       ((rs1 ↦ᵣ v_addr) ** (rd ↦ᵣ memVal) ** ((v_addr + signExtend12 offset) ↦ₘ memVal)) := by
   intro R hR s hcr hPR hpc; subst hpc
@@ -614,7 +614,7 @@ theorem generic_ld_spec_within (rd rs1 : Reg) (v_addr vOld memVal : Word)
   -- execInstrBr s (.LD rd rs1 offset) = (s.setReg rd (s.getMem (s.getReg rs1 + signExtend12 offset))).setPC (s.pc + 4)
   have hexec' : execInstrBr s (.LD rd rs1 offset) = (s.setReg rd memVal).setPC (s.pc + 4) := by
     simp only [execInstrBr, hrs1, hmem]
-  refine ⟨1, Nat.lt_succ_self 1, (s.setReg rd memVal).setPC (s.pc + 4), ?_, rfl, ?_⟩
+  refine ⟨1, Nat.le_refl 1, (s.setReg rd memVal).setPC (s.pc + 4), ?_, rfl, ?_⟩
   · show (step s).bind (stepN 0) = some _
     rw [hstep', hexec']; rfl
   · -- Pull rd (position 2) to front: 1 pull_second + assoc
@@ -638,7 +638,7 @@ theorem generic_ld_spec_within (rd rs1 : Reg) (v_addr vOld memVal : Word)
     where addr = v_addr + signExtend12 offset -/
 theorem generic_sd_spec_within (rs1 rs2 : Reg) (v_addr v_data memOld : Word)
     (offset : BitVec 12) (base : Word) :
-    cpsTripleWithin 2 base (base + 4) (CodeReq.singleton base (.SD rs1 rs2 offset))
+    cpsTripleWithin 1 base (base + 4) (CodeReq.singleton base (.SD rs1 rs2 offset))
       ((rs1 ↦ᵣ v_addr) ** (rs2 ↦ᵣ v_data) ** ((v_addr + signExtend12 offset) ↦ₘ memOld))
       ((rs1 ↦ᵣ v_addr) ** (rs2 ↦ᵣ v_data) ** ((v_addr + signExtend12 offset) ↦ₘ v_data)) := by
   intro R hR s hcr hPR hpc; subst hpc
@@ -660,7 +660,7 @@ theorem generic_sd_spec_within (rs1 rs2 : Reg) (v_addr v_data memOld : Word)
   have hexec' : execInstrBr s (.SD rs1 rs2 offset) =
       (s.setMem (v_addr + signExtend12 offset) v_data).setPC (s.pc + 4) := by
     simp only [execInstrBr, hrs1, hrs2]
-  refine ⟨1, Nat.lt_succ_self 1, (s.setMem (v_addr + signExtend12 offset) v_data).setPC (s.pc + 4), ?_, rfl, ?_⟩
+  refine ⟨1, Nat.le_refl 1, (s.setMem (v_addr + signExtend12 offset) v_data).setPC (s.pc + 4), ?_, rfl, ?_⟩
   · show (step s).bind (stepN 0) = some _
     rw [hstep', hexec']; rfl
   · -- Pull mem (position 3) to front: 2 pull_seconds
@@ -681,7 +681,7 @@ theorem generic_sd_spec_within (rs1 rs2 : Reg) (v_addr v_data memOld : Word)
     Post: (rs1 ↦ᵣ v_addr) ** (addr ↦ₘ 0) -/
 theorem generic_sd_x0_spec_within (rs1 : Reg) (v_addr memOld : Word)
     (offset : BitVec 12) (base : Word) :
-    cpsTripleWithin 2 base (base + 4) (CodeReq.singleton base (.SD rs1 .x0 offset))
+    cpsTripleWithin 1 base (base + 4) (CodeReq.singleton base (.SD rs1 .x0 offset))
       ((rs1 ↦ᵣ v_addr) ** ((v_addr + signExtend12 offset) ↦ₘ memOld))
       ((rs1 ↦ᵣ v_addr) ** ((v_addr + signExtend12 offset) ↦ₘ (0 : Word))) := by
   intro R hR s hcr hPR hpc; subst hpc
@@ -698,7 +698,7 @@ theorem generic_sd_x0_spec_within (rs1 : Reg) (v_addr memOld : Word)
   have hexec' : execInstrBr s (.SD rs1 .x0 offset) =
       (s.setMem (v_addr + signExtend12 offset) 0).setPC (s.pc + 4) := by
     simp only [execInstrBr, hrs1]; rfl
-  refine ⟨1, Nat.lt_succ_self 1, (s.setMem (v_addr + signExtend12 offset) 0).setPC (s.pc + 4), ?_, rfl, ?_⟩
+  refine ⟨1, Nat.le_refl 1, (s.setMem (v_addr + signExtend12 offset) 0).setPC (s.pc + 4), ?_, rfl, ?_⟩
   · show (step s).bind (stepN 0) = some _
     rw [hstep', hexec']; rfl
   · have h1 := holdsFor_sepConj_pull_second.mp hPR
