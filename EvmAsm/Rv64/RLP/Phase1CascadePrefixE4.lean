@@ -129,14 +129,8 @@ theorem rlp_phase1_cascade_prefix_e4_spec' (v5 v10 : Word)
     (rlp_phase1_step_code_disjoint_8 0x80 0xB8 off1 off2 base)
     (rlp_phase1_step_code_disjoint_16 0x80 0xC0 off1 off3 base)
     (rlp_phase1_step_code_disjoint_24 0x80 0xF8 off1 off4 base)
-    (by
-      have h := rlp_phase1_step_code_disjoint_8 0xB8 0xC0 off2 off3 (base + 8)
-      rw [show (base + 8 : Word) + 8 = base + 16 from by bv_omega] at h; exact h)
-    (by
-      have h := rlp_phase1_step_code_disjoint_16 0xB8 0xF8 off2 off4 (base + 8)
-      rw [show (base + 8 : Word) + 16 = base + 24 from by bv_omega] at h; exact h)
-    (by
-      have h := rlp_phase1_step_code_disjoint_8 0xC0 0xF8 off3 off4 (base + 16)
-      rw [show (base + 16 : Word) + 8 = base + 24 from by bv_omega] at h; exact h)
+    (rlp_phase1_step_code_disjoint_8_at_8 0xB8 0xC0 off2 off3 base)
+    (rlp_phase1_step_code_disjoint_16_at_8 0xB8 0xF8 off2 off4 base)
+    (rlp_phase1_step_code_disjoint_8_at_16 0xC0 0xF8 off3 off4 base)
 
 end EvmAsm.Rv64.RLP

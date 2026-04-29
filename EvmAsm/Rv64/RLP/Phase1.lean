@@ -233,7 +233,7 @@ abbrev rlp_phase1_classifier_code
 
 /-- Two cascade-step `CodeReq`s whose bases are 8 bytes apart are disjoint.
     Helper for the classifier composition. -/
-private theorem step_code_Disjoint_8 (k1 k2 : BitVec 12) (off1 off2 : BitVec 13)
+theorem step_code_Disjoint_8 (k1 k2 : BitVec 12) (off1 off2 : BitVec 13)
     (base : Word) :
     (rlp_phase1_step_code k1 off1 base).Disjoint
       (rlp_phase1_step_code k2 off2 (base + 8)) :=
@@ -246,7 +246,7 @@ private theorem step_code_Disjoint_8 (k1 k2 : BitVec 12) (off1 off2 : BitVec 13)
       (CodeReq.Disjoint.singleton (by bv_omega)))
 
 /-- Cascade-step at `base` is disjoint from step at `base + 16`. -/
-private theorem step_code_Disjoint_16 (k1 k2 : BitVec 12) (off1 off2 : BitVec 13)
+theorem step_code_Disjoint_16 (k1 k2 : BitVec 12) (off1 off2 : BitVec 13)
     (base : Word) :
     (rlp_phase1_step_code k1 off1 base).Disjoint
       (rlp_phase1_step_code k2 off2 (base + 16)) :=
@@ -259,7 +259,7 @@ private theorem step_code_Disjoint_16 (k1 k2 : BitVec 12) (off1 off2 : BitVec 13
       (CodeReq.Disjoint.singleton (by bv_omega)))
 
 /-- Cascade-step at `base` is disjoint from step at `base + 24`. -/
-private theorem step_code_Disjoint_24 (k1 k2 : BitVec 12) (off1 off2 : BitVec 13)
+theorem step_code_Disjoint_24 (k1 k2 : BitVec 12) (off1 off2 : BitVec 13)
     (base : Word) :
     (rlp_phase1_step_code k1 off1 base).Disjoint
       (rlp_phase1_step_code k2 off2 (base + 24)) :=
