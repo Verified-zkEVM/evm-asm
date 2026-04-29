@@ -1130,6 +1130,54 @@ theorem n4CallAddback_v4_carry_zero_imp_overshoot_ge_two (a b : EvmWord)
   · show Vab < 2^256
     exact h_Vab_lt
 
+/-- **Pure-Nat helper for the c3 sub-stub**: derives `c3 = U4 + 1` from
+    a CONCRETE algebraic bound on `Vms` (the val256 of mulsub low4).
+
+    The hypothesis `h_ms_lo_bound: Vms + 2*Vv ≤ p256 + r*p_shift`
+    is mathematically equivalent (under the val256 frame + qHat =
+    q_true + 2) to the conclusion `c3 ≤ U4 + 1`. The decomposition
+    isolates the algorithmic content into the bound on Vms — a single
+    Nat inequality that depends on the v4 algorithm's specific
+    structure. -/
+theorem c3_eq_u4_plus_one_from_ms_bound_arith
+    (Va Vb Vu Vv Vms Q U4 c3 p_shift p256 r : ℕ)
+    (h_p_shift_pos : 0 < p_shift)
+    (h_Vb_pos : 0 < Vb)
+    (h_norm_u : Vu + U4 * p256 = Va * p_shift)
+    (h_norm_v : Vv = Vb * p_shift)
+    (h_mulsub : Vu + c3 * p256 = Vms + Q * Vv)
+    (h_Q_eq : Q = Va / Vb + 2)
+    (h_r_eq : r = Va % Vb)
+    (h_u4_lt_c3 : U4 < c3)
+    (h_ms_lo_bound : Vms + 2 * Vv ≤ p256 + r * p_shift) :
+    c3 = U4 + 1 := by
+  have h_r_lt_Vb : r < Vb := by rw [h_r_eq]; exact Nat.mod_lt _ h_Vb_pos
+  have h_Va_decomp : (Va / Vb) * Vb + r = Va := by
+    rw [h_r_eq]; exact Nat.div_add_mod' Va Vb
+  have hMain : Vms + Q * Vv + U4 * p256 = c3 * p256 + Va * p_shift := by
+    linarith [h_mulsub, h_norm_u]
+  have h_QVv_split : Q * Vv + r * p_shift = Va * p_shift + 2 * Vv := by
+    rw [h_Q_eq, h_norm_v]
+    have h1 : ((Va / Vb + 2) * (Vb * p_shift)) =
+              (Va / Vb) * Vb * p_shift + 2 * (Vb * p_shift) := by ring
+    have h2 : ((Va / Vb) * Vb + r) * p_shift = Va * p_shift := by rw [h_Va_decomp]
+    have h3 : (Va / Vb) * Vb * p_shift + r * p_shift = Va * p_shift := by
+      linarith [h2, Nat.add_mul ((Va / Vb) * Vb) r p_shift]
+    linarith [h1, h3]
+  have h_key : Vms + 2 * Vv + U4 * p256 = c3 * p256 + r * p_shift := by
+    linarith [hMain, h_QVv_split]
+  have h_c3_le : c3 ≤ U4 + 1 := by
+    by_contra h_gt
+    push Not at h_gt
+    have h_c3_ge : c3 ≥ U4 + 2 := h_gt
+    have h_c3_mul : (U4 + 2) * p256 ≤ c3 * p256 := Nat.mul_le_mul_right _ h_c3_ge
+    have h_lhs : c3 * p256 + r * p_shift = Vms + 2 * Vv + U4 * p256 := by
+      linarith [h_key]
+    have h_lhs_le : Vms + 2 * Vv + U4 * p256 ≤ p256 + r * p_shift + U4 * p256 := by
+      linarith [h_ms_lo_bound]
+    nlinarith [h_c3_mul, h_lhs, h_lhs_le, Nat.add_one_mul (U4 + 1) p256]
+  omega
+
 /-- **Sub-stub: c3 = u4 + 1 under haddback + qHat = q_true + 2.**
 
     Algorithmic invariant for v4's call+addback BEQ branch: when the
@@ -1137,14 +1185,43 @@ theorem n4CallAddback_v4_carry_zero_imp_overshoot_ge_two (a b : EvmWord)
     `q_true` by ≥ 2 (so by Layer 1 = q_true + 2 exactly), the mulsub
     top borrow `c3` equals `u4 + 1` (single-addback closure).
 
-    Per project memory `project_double_addback_closure_plan`: this
-    invariant holds in BOTH single-and double-addback branches; only
-    `qHat` differs (a/b + 1 in single, a/b + 2 in double).
+    ## Algebraic decomposition (proven up to the open piece)
 
-    This is the key algorithmic content of Layer 2a-back. The proof
-    requires careful analysis of the v4 algorithm's 128/64 trial
-    digit structure (qHat = (u4*2^64 + u3) / b3') and the resulting
-    mulsub borrow bound. -/
+    Let `r := Va mod Vb`, `p_shift := 2^shift`, `p256 := 2^256`.
+    From `mulsubN4_val256_eq` + `h_norm_u` + `h_norm_v` + qHat = q_true + 2:
+
+      (c3 - u4) * p256 = Vms + 2*Vv - r*p_shift   (*)
+
+    where `Vms < p256` (val256_bound) and `Vv ≥ 2^255` (b3' normalization)
+    and `r*p_shift < Vv` (r < Vb, p_shift > 0).
+
+    From haddback: `c3 - u4 ≥ 1`. From (*) plus `Vms < p256` plus
+    `2*Vv - r*p_shift < 2*p256`: `c3 - u4 ≤ 2`.
+
+    So `c3 - u4 ∈ {1, 2}`. The two cases split on whether `Vms + 2*Vv -
+    r*p_shift ≤ p256` (case 1) or `> p256` (case 2). Equivalent: case 2
+    requires `r*p_shift < 2*Vv - p256` (only possible since Vv ≥ 2^255
+    makes the RHS positive in regions).
+
+    ## Open piece
+
+    Ruling out `c3 - u4 = 2` requires the v4-specific 128/64 trial digit
+    structure. qHat = (u4*2^64 + u3) / b3' (call-trial) gives the exact
+    Knuth-B saturation conditions for `qHat = q_true + 2`. Under those
+    saturation conditions, can we show `r*p_shift ≥ 2*Vv - p256`
+    (equivalently `Vms + 2*Vv - r*p_shift ≤ p256`)?
+
+    Numerical validation: PASSED on the v1 counterexample (where v4
+    produces `qHat = q_true`, so the implication is vacuous). A
+    constructed input with `qHat = q_true + 2` exactly is needed for
+    a non-vacuous test.
+
+    Per project memory `project_double_addback_closure_plan`: this
+    invariant should hold in BOTH single-and double-addback branches.
+    The closed v1/v2 helper `c3_eq_u4_plus_one_from_double_mulsub_addback_bounds`
+    requires `h_addback_combined: abPrime + p256 = ms + 2*Vv` (i.e.,
+    carry₁+carry₂ = 1), which is equivalent to `c3 - u4 = 1` — circular
+    reasoning if used directly. Need an INDEPENDENT algorithmic argument. -/
 theorem n4CallAddback_v4_c3_eq_u4_plus_one_under_overshoot (a b : EvmWord)
     (_hb3nz : b.getLimbN 3 ≠ 0)
     (_hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
