@@ -706,9 +706,14 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
     advances the data pointer `x13 += 1` to the first length byte —
     leaving the machine in the canonical pre-loop state expected by
     the `rlp_phase2_long_loop_*_byte_spec` family.
-  - Remaining: short-string exit (`e2`: data_ptr += 1, length = p − 0x80),
-    long-string composition with Phase 2 (`e3` continuation: thread the
-    Phase 2 loop output into a final `data_ptr += lenLen` step),
+  - `rlp_phase1_e3_0xB8_one_byte_length_spec`
+    (`EvmAsm/Rv64/RLP/Phase1E3LongStringOne.lean`): concrete full path
+    for the smallest long-string prefix (`0xB8`). Composes Phase 1 e3
+    classification, Phase 3 long-string entry, and the one-byte Phase 2
+    length loop. Postcondition gives the zero-copy output pair:
+    `x11 = payload_length_byte`, `x13 = payload_start`.
+  - Remaining: long-string composition with Phase 2 for lenLen 2-8 and the planned
+    general `n`-iteration closure,
     short/long-list error exits (`e4`/`e5`).
 - Phase 4: HINT_READ integration (load RLP input into memory buffer)
 - Phase 5: Recursive list decode (iterative with explicit stack)
