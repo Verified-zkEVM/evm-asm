@@ -150,6 +150,24 @@ theorem cpsTripleWithin_seq {nSteps1 nSteps2 : Nat} {l1 l2 l3 : Word} {cr1 cr2 :
   obtain ⟨k2, hk2, s2, hstep2, hpc2, hRF⟩ := h2 F hF s1 hcr2' hQF hpc1
   exact ⟨k1 + k2, Nat.add_le_add hk1 hk2, s2, stepN_add_eq hstep1 hstep2, hpc2, hRF⟩
 
+/-- Bounded sequence: a triple followed by a branch. Bounds add under
+    sequential composition. -/
+theorem cpsTripleWithin_seq_cpsBranchWithin {nSteps1 nSteps2 : Nat}
+    {entry mid : Word} {cr1 cr2 : CodeReq}
+    (hd : cr1.Disjoint cr2)
+    {P Q : Assertion} {exit_t : Word} {Q_t : Assertion} {exit_f : Word} {Q_f : Assertion}
+    (h1 : cpsTripleWithin nSteps1 entry mid cr1 P Q)
+    (h2 : cpsBranchWithin nSteps2 mid cr2 Q exit_t Q_t exit_f Q_f) :
+    cpsBranchWithin (nSteps1 + nSteps2) entry (cr1.union cr2) P exit_t Q_t exit_f Q_f := by
+  intro R hR s hcr hPR hpc
+  rw [CodeReq.union_satisfiedBy hd] at hcr
+  obtain ⟨hcr1, hcr2⟩ := hcr
+  obtain ⟨k1, hk1, s1, hstep1, hpc1, hQR⟩ := h1 R hR s hcr1 hPR hpc
+  have hcr2' := CodeReq.SatisfiedBy_preserved hstep1 hcr2
+  obtain ⟨k2, hk2, s2, hstep2, hcase⟩ := h2 R hR s1 hcr2' hQR hpc1
+  refine ⟨k1 + k2, Nat.add_le_add hk1 hk2, s2, stepN_add_eq hstep1 hstep2, ?_⟩
+  exact hcase
+
 /-- Zero-step bounded triple. The bound is `0` because the post is reached in
     `0 ≤ 0` steps. -/
 theorem cpsTripleWithin_refl {addr : Word} {P Q : Assertion}
@@ -460,6 +478,23 @@ theorem cpsTriple_refl {addr : Word} {P Q : Assertion}
     exact ⟨hp, hcompat, sepConj_mono_left h hp hpq⟩⟩
 
 /-- Monotonicity: if cr' subsumes cr (cr' ⊇ cr), extend a cpsTriple to require more code. -/
+theorem cpsTripleWithin_extend_code {nSteps : Nat} {entry exit_ : Word} {cr cr' : CodeReq}
+    {P Q : Assertion}
+    (hmono : ∀ a i, cr a = some i → cr' a = some i)
+    (h : cpsTripleWithin nSteps entry exit_ cr P Q) :
+    cpsTripleWithin nSteps entry exit_ cr' P Q := by
+  intro R hR s hcr' hPR hpc
+  exact h R hR s (CodeReq.SatisfiedBy_mono hmono hcr') hPR hpc
+
+/-- Monotonicity for bounded cpsBranch: extend to a larger CodeReq. -/
+theorem cpsBranchWithin_extend_code {nSteps : Nat} {entry : Word} {cr cr' : CodeReq}
+    {P : Assertion} {exit_t : Word} {Q_t : Assertion} {exit_f : Word} {Q_f : Assertion}
+    (hmono : ∀ a i, cr a = some i → cr' a = some i)
+    (h : cpsBranchWithin nSteps entry cr P exit_t Q_t exit_f Q_f) :
+    cpsBranchWithin nSteps entry cr' P exit_t Q_t exit_f Q_f := by
+  intro R hR s hcr' hPR hpc
+  exact h R hR s (CodeReq.SatisfiedBy_mono hmono hcr') hPR hpc
+
 theorem cpsTriple_extend_code {entry exit_ : Word} {cr cr' : CodeReq} {P Q : Assertion}
     (hmono : ∀ a i, cr a = some i → cr' a = some i)
     (h : cpsTriple entry exit_ cr P Q) :
