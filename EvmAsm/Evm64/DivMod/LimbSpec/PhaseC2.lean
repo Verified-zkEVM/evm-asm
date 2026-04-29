@@ -34,6 +34,27 @@ abbrev divK_phaseC2_code (shift0_off : BitVec 13) (base : Word) : CodeReq :=
     Preserves x6 and x0 for the subsequent BEQ.
     The postcondition uses `signExtend12 (0 : BitVec 12) - shift` (= 0 - shift)
     to match the syntactic form produced by addi_x0_spec_gen + sub_spec_gen. -/
+theorem divK_phaseC2_body_spec_within (sp shift v2 shiftMem : Word)
+    (shift0_off : BitVec 13) (base : Word) :
+    let cr := divK_phaseC2_code shift0_off base
+    cpsTripleWithin 3 base (base + 12) cr
+      (
+       (.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ v2) ** (.x0 ↦ᵣ (0 : Word)) **
+       ((sp + signExtend12 3992) ↦ₘ shiftMem))
+      (
+       (.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ (signExtend12 (0 : BitVec 12) - shift)) ** (.x0 ↦ᵣ (0 : Word)) **
+       ((sp + signExtend12 3992) ↦ₘ shift)) := by
+  intro cr
+  have I0 := sd_spec_gen_within .x12 .x6 sp shift shiftMem 3992 base
+  have I1 := addi_x0_spec_gen_within .x2 v2 0 (base + 4) (by nofun)
+  have I2 := sub_spec_gen_rd_eq_rs1_within .x2 .x6
+    (signExtend12 (0 : BitVec 12)) shift (base + 8) (by nofun)
+  runBlock I0 I1 I2
+
+/-- Phase C2 body: SD shift to scratch, ADDI x2 = 0, SUB x2 = -shift.
+    Preserves x6 and x0 for the subsequent BEQ.
+    The postcondition uses `signExtend12 (0 : BitVec 12) - shift` (= 0 - shift)
+    to match the syntactic form produced by addi_x0_spec_gen + sub_spec_gen. -/
 theorem divK_phaseC2_body_spec (sp shift v2 shiftMem : Word)
     (shift0_off : BitVec 13) (base : Word) :
     let cr := divK_phaseC2_code shift0_off base
@@ -43,13 +64,68 @@ theorem divK_phaseC2_body_spec (sp shift v2 shiftMem : Word)
        ((sp + signExtend12 3992) ↦ₘ shiftMem))
       (
        (.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ (signExtend12 (0 : BitVec 12) - shift)) ** (.x0 ↦ᵣ (0 : Word)) **
-       ((sp + signExtend12 3992) ↦ₘ shift)) := by
-  intro cr
-  have I0 := sd_spec_gen .x12 .x6 sp shift shiftMem 3992 base
-  have I1 := addi_x0_spec_gen .x2 v2 0 (base + 4) (by nofun)
-  have I2 := sub_spec_gen_rd_eq_rs1 .x2 .x6
-    (signExtend12 (0 : BitVec 12)) shift (base + 8) (by nofun)
-  runBlock I0 I1 I2
+       ((sp + signExtend12 3992) ↦ₘ shift)) :=
+  (divK_phaseC2_body_spec_within sp shift v2 shiftMem shift0_off base).to_cpsTriple
+
+/-- Phase C2: store shift, compute antiShift, BEQ if shift=0.
+    Taken: shift = 0, skip normalization.
+    Not taken: shift ≠ 0, proceed to normalize.
+    antiShift = signExtend12 0 - shift (= 0 - shift = negation of shift amount). -/
+theorem divK_phaseC2_spec_within (sp shift v2 shiftMem : Word)
+    (shift0_off : BitVec 13) (base : Word) :
+    let cr := divK_phaseC2_code shift0_off base
+    let post :=
+      (.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ shift) **
+      (.x2 ↦ᵣ (signExtend12 (0 : BitVec 12) - shift)) ** (.x0 ↦ᵣ (0 : Word)) **
+      ((sp + signExtend12 3992) ↦ₘ shift)
+    cpsBranchWithin 4 base cr
+      (
+       (.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ v2) ** (.x0 ↦ᵣ (0 : Word)) **
+       ((sp + signExtend12 3992) ↦ₘ shiftMem))
+      -- Taken: shift = 0
+      ((base + 12) + signExtend13 shift0_off) post
+      -- Not taken: shift ≠ 0
+      (base + 16) post := by
+  intro cr post
+  have hbody := divK_phaseC2_body_spec_within sp shift v2 shiftMem shift0_off base
+  have hbeq_raw := beq_spec_gen_within .x6 .x0 shift0_off shift (0 : Word) (base + 12)
+  have ha1 : (base + 12 : Word) + 4 = base + 16 := by bv_addr
+  rw [ha1] at hbeq_raw
+  have hbeq : cpsBranchWithin 1 (base + 12) _
+      ((.x6 ↦ᵣ shift) ** (.x0 ↦ᵣ (0 : Word)))
+      ((base + 12) + signExtend13 shift0_off)
+        ((.x6 ↦ᵣ shift) ** (.x0 ↦ᵣ (0 : Word)))
+      (base + 16)
+        ((.x6 ↦ᵣ shift) ** (.x0 ↦ᵣ (0 : Word))) :=
+    cpsBranchWithin_weaken
+      (fun _ hp => hp)
+      (fun h hp => sepConj_mono_right
+        (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp)
+      (fun h hp => sepConj_mono_right
+        (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp)
+      hbeq_raw
+  have hbeq_framed := cpsBranchWithin_frameR
+    ((.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ (signExtend12 (0 : BitVec 12) - shift)) **
+     ((sp + signExtend12 3992) ↦ₘ shift))
+    (by pcFree) hbeq
+  have hbeq_ext := cpsBranchWithin_extend_code (cr' := cr) (fun a i h => by
+    simp only [CodeReq.singleton] at h
+    split at h
+    · next heq =>
+      rw [beq_iff_eq] at heq; subst heq
+      simp only [Option.some.injEq] at h; subst h
+      show divK_phaseC2_code shift0_off base (base + 12) = _
+      have : (divK_phaseC2 shift0_off).length = 4 := by
+        unfold divK_phaseC2 SD ADDI single seq; rfl
+      exact CodeReq.ofProg_lookup base (divK_phaseC2 shift0_off) 3
+        (by omega) (by omega)
+    · simp at h) hbeq_framed
+  exact cpsBranchWithin_weaken
+    (fun h hp => by xperm_hyp hp)
+    (fun h hp => by xperm_hyp hp)
+    (fun h hp => by xperm_hyp hp)
+    (cpsTripleWithin_seq_cpsBranchWithin_perm_same_cr
+      (fun h hp => by xperm_hyp hp) hbody hbeq_ext)
 
 /-- Phase C2: store shift, compute antiShift, BEQ if shift=0.
     Taken: shift = 0, skip normalization.
@@ -69,46 +145,7 @@ theorem divK_phaseC2_spec (sp shift v2 shiftMem : Word)
       -- Taken: shift = 0
       ((base + 12) + signExtend13 shift0_off) post
       -- Not taken: shift ≠ 0
-      (base + 16) post := by
-  intro cr post
-  have hbody := divK_phaseC2_body_spec sp shift v2 shiftMem shift0_off base
-  have hbeq_raw := beq_spec_gen .x6 .x0 shift0_off shift (0 : Word) (base + 12)
-  have ha1 : (base + 12 : Word) + 4 = base + 16 := by bv_addr
-  rw [ha1] at hbeq_raw
-  have hbeq : cpsBranch (base + 12) _
-      ((.x6 ↦ᵣ shift) ** (.x0 ↦ᵣ (0 : Word)))
-      ((base + 12) + signExtend13 shift0_off)
-        ((.x6 ↦ᵣ shift) ** (.x0 ↦ᵣ (0 : Word)))
-      (base + 16)
-        ((.x6 ↦ᵣ shift) ** (.x0 ↦ᵣ (0 : Word))) :=
-    cpsBranch_weaken
-      (fun _ hp => hp)
-      (fun h hp => sepConj_mono_right
-        (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp)
-      (fun h hp => sepConj_mono_right
-        (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp)
-      hbeq_raw
-  have hbeq_framed := cpsBranch_frameR
-    ((.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ (signExtend12 (0 : BitVec 12) - shift)) **
-     ((sp + signExtend12 3992) ↦ₘ shift))
-    (by pcFree) hbeq
-  have hbeq_ext := cpsBranch_extend_code (cr' := cr) (fun a i h => by
-    simp only [CodeReq.singleton] at h
-    split at h
-    · next heq =>
-      rw [beq_iff_eq] at heq; subst heq
-      simp only [Option.some.injEq] at h; subst h
-      show divK_phaseC2_code shift0_off base (base + 12) = _
-      have : (divK_phaseC2 shift0_off).length = 4 := by
-        unfold divK_phaseC2 SD ADDI single seq; rfl
-      exact CodeReq.ofProg_lookup base (divK_phaseC2 shift0_off) 3
-        (by omega) (by omega)
-    · simp at h) hbeq_framed
-  exact cpsBranch_weaken
-    (fun h hp => by xperm_hyp hp)
-    (fun h hp => by xperm_hyp hp)
-    (fun h hp => by xperm_hyp hp)
-    (cpsTriple_seq_cpsBranch_perm_same_cr
-      (fun h hp => by xperm_hyp hp) hbody hbeq_ext)
+      (base + 16) post :=
+  (divK_phaseC2_spec_within sp shift v2 shiftMem shift0_off base).to_cpsBranch
 
 end EvmAsm.Evm64
