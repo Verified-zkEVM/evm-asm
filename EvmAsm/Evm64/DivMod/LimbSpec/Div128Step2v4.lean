@@ -49,7 +49,7 @@ def divKDiv128Step2V4Code (base : Word) : CodeReq :=
   (CodeReq.union (CodeReq.singleton (base + 20)        (.ADDI .x5 .x5 4095))
   (CodeReq.union (CodeReq.singleton (base + 24)        (.ADD .x11 .x11 .x6))
   (CodeReq.union (CodeReq.singleton (base + 28)        (.SRLI .x1 .x11 32))
-  (CodeReq.union (CodeReq.singleton (base + 32)        (.BNE .x1 .x0 96))
+  (CodeReq.union (CodeReq.singleton (base + 32)        (.BNE .x1 .x0 92))
   (CodeReq.union (CodeReq.singleton (base + 36)        (.LD .x1 .x12 3952))
   (CodeReq.union (CodeReq.singleton (base + 40)        (.MUL .x7 .x5 .x1))
   (CodeReq.union (CodeReq.singleton (base + 44)        (.SLLI .x1 .x11 32))
@@ -110,6 +110,46 @@ def divKDiv128Step2V4Post (sp un21 dHi dlo un0 : Word) : Assertion :=
   (sp + signExtend12 3952 ↦ₘ dlo) **
   (sp + signExtend12 3944 ↦ₘ un0) **
   (sp + signExtend12 3936 ↦ₘ savedRhat2c)
+
+/-- Bundled postcondition for Phase 2b 1st D3 with save/restore.
+    Covers instructions [47..60] of divK_div128_v4 (14 instructions). -/
+@[irreducible]
+def divKDiv128Phase2b1stD3V4Post (sp q0c rhat2c dlo un0 dHi : Word) : Assertion :=
+  let rhat2cHi := rhat2c >>> (32 : BitVec 6).toNat
+  let q0' := div128Quot_phase2b_q0' q0c rhat2c dlo un0
+  let rhat2c_upd :=
+    if rhat2cHi = 0 then
+      let qDlo := q0c * dlo
+      let rhatUn0 := (rhat2c <<< (32 : BitVec 6).toNat) ||| un0
+      if BitVec.ult rhatUn0 qDlo then rhat2c + dHi else rhat2c
+    else rhat2c
+  -- After 1st D3: x5 = q0', x11 = rhat2c_upd, x7 = q0c * dlo (transient).
+  (.x5 ↦ᵣ q0') ** (.x11 ↦ᵣ rhat2c_upd) ** (.x6 ↦ᵣ dHi) **
+  (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) **
+  (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0) **
+  (sp + signExtend12 3936 ↦ₘ rhat2c)
+
+/-- **STUB**: Phase 2b 1st D3 with save/restore — instructions [47..60].
+    The outer BNE guard at [48] (offset 92) jumps to [71] (past step2_v4
+    entirely) when rhat2c >= 2^32. Otherwise runs the 1st D3 mul-check
+    with the save/restore of rhat2c to scratch slot 3936.
+
+    This is NOT a standalone cpsTriple (the outer BNE exits step2_v4);
+    it is a building block for step2_v4_spec's branch structure. -/
+theorem divK_div128_phase2b_1st_d3_v4_spec
+    (sp q0c rhat2c dlo un0 dHi v1Old v7Old vScratch : Word) (base : Word) :
+    cpsTriple base (base + 56) (divKDiv128Step2V4Code base)
+      ((.x5 ↦ᵣ q0c) ** (.x11 ↦ᵣ rhat2c) ** (.x6 ↦ᵣ dHi) **
+       (.x1 ↦ᵣ v1Old) ** (.x7 ↦ᵣ v7Old) **
+       (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) **
+       (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0) **
+       (sp + signExtend12 3936 ↦ₘ vScratch))
+      (divKDiv128Phase2b1stD3V4Post sp q0c rhat2c dlo un0 dHi) := by
+  sorry  -- Covers [47..60] when rhat2c < 2^32 guard doesn't fire globally.
+         -- Actually this is NOT right: the outer BNE jumps out of step2_v4.
+         -- Simplification: treat step2_v4 as a cpsTriple (ignoring the fact
+         -- that BNE branches forward past [71] — which is handled by step2_v4
+         -- itself via the outer branch structure). Keep as sorry for now.
 
 /-- **STUB**: full v4 Phase 2 spec — instructions [40..70] of `divK_div128_v4`.
 

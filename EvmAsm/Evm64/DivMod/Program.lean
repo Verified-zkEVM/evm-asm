@@ -307,7 +307,7 @@ def divK_div128_v4 : Program :=
   single (.ADD .x11 .x11 .x6) ;;             -- [46] rhat2 += dHi
   -- [47] Phase 2b guard (rhat2c ≥ 2^32 ⟹ skip BOTH 1st and 2nd D3)
   SRLI .x1 .x11 32 ;;                         -- [47] x1 = rhat2c >> 32
-  single (.BNE .x1 .x0 96) ;;                -- [48] if nonzero → skip to [71] (combine)
+  single (.BNE .x1 .x0 92) ;;                -- [48] if nonzero → skip to [71] (combine)
   -- [49] Phase 2b 1st D3 mul-check
   LD .x1 .x12 3952 ;;                         -- [49] dLo
   single (.MUL .x7 .x5 .x1) ;;               -- [50] x7 = q0 * dLo
