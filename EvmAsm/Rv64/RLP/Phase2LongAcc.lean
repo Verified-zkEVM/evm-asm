@@ -67,8 +67,8 @@ theorem rlp_phase2_long_acc_post_unfold {len byte : Word} :
     constraint, so the post `(len <<< 8) + byte` is exact BitVec arithmetic
     even if the high bits are set — only the low 8 bits are "meaningful"
     for RLP length decoding. -/
-theorem rlp_phase2_long_acc_spec (len byte : Word) (base : Word) :
-    cpsTriple base (base + 8)
+theorem rlp_phase2_long_acc_spec_within (len byte : Word) (base : Word) :
+    cpsTripleWithin 2 base (base + 8)
       (CodeReq.ofProg base rlp_phase2_long_acc_prog)
       ((.x11 ↦ᵣ len) ** (.x12 ↦ᵣ byte))
       (rlp_phase2_long_acc_post len byte) := by
@@ -86,20 +86,27 @@ theorem rlp_phase2_long_acc_spec (len byte : Word) (base : Word) :
     CodeReq.Disjoint.singleton (by bv_omega)
   -- Step 1: SLLI x11, x11, 8 — use `slli_spec_gen_same` (rd = rs1),
   -- then frame with x12 to bring it into scope.
-  have s1Base := slli_spec_gen_same .x11 len 8 base (by nofun)
-  have s1 : cpsTriple base (base + 4)
+  have s1Base := slli_spec_gen_same_within .x11 len 8 base (by nofun)
+  have s1 : cpsTripleWithin 1 base (base + 4)
       (CodeReq.singleton base (.SLLI .x11 .x11 8))
       ((.x11 ↦ᵣ len) ** (.x12 ↦ᵣ byte))
       ((.x11 ↦ᵣ (len <<< (8 : BitVec 6).toNat)) ** (.x12 ↦ᵣ byte)) :=
-    cpsTriple_frameR (.x12 ↦ᵣ byte) (by pcFree) s1Base
+    cpsTripleWithin_frameR (.x12 ↦ᵣ byte) (by pcFree) s1Base
   -- Step 2: ADD x11, x11, x12 — `add_spec_gen_rd_eq_rs1` (rd = rs1 = x11,
   -- rs2 = x12). No framing needed.
-  have s2 := add_spec_gen_rd_eq_rs1 .x11 .x12
+  have s2 := add_spec_gen_rd_eq_rs1_within .x11 .x12
     (len <<< (8 : BitVec 6).toNat) byte (base + 4) (by nofun)
   rw [show (base + 4 : Word) + 4 = base + 8 from by bv_omega] at s2
   -- Compose. `(8 : BitVec 6).toNat = 8` so the result matches.
   rw [bv6_toNat_8] at s1
-  exact cpsTriple_seq hd s1 s2
+  exact cpsTripleWithin_seq hd s1 s2
+
+theorem rlp_phase2_long_acc_spec (len byte : Word) (base : Word) :
+    cpsTriple base (base + 8)
+      (CodeReq.ofProg base rlp_phase2_long_acc_prog)
+      ((.x11 ↦ᵣ len) ** (.x12 ↦ᵣ byte))
+      (rlp_phase2_long_acc_post len byte) :=
+  (rlp_phase2_long_acc_spec_within len byte base).to_cpsTriple
 
 /-! ## Concrete sanity checks -/
 

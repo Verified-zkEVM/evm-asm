@@ -79,9 +79,9 @@ example : ((0 : Word) + signExtend12 (0 : BitVec 12)) = (0 : Word) := by decide
     not interpret as a length-of-length. Downstream consumers compose
     this with the preceding Phase 1 `e3` exit so that `v5 ∈ [0xB8, 0xC0)`
     and the result lands in `[1, 8]`. -/
-theorem rlp_phase3_long_string_spec
+theorem rlp_phase3_long_string_spec_within
     (v5 v11Old v13 v14Old : Word) (base : Word) :
-    cpsTriple base (base + 12)
+    cpsTripleWithin 3 base (base + 12)
       (CodeReq.ofProg base rlp_phase3_long_string_prog)
       ((.x0 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ v5) **
        (.x11 ↦ᵣ v11Old) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14Old))
@@ -101,26 +101,26 @@ theorem rlp_phase3_long_string_spec
       (CodeReq.singleton ((base + 4) + 4) (.ADDI .x13 .x13 1)) :=
     CodeReq.ofProg_pair
   -- Step 1: ADDI x14, x5, -0xB7 at base.
-  have s1Base := addi_spec_gen .x14 .x5 v14Old v5 (-0xB7) base (by nofun)
-  have s1 : cpsTriple base (base + 4)
+  have s1Base := addi_spec_gen_within .x14 .x5 v14Old v5 (-0xB7) base (by nofun)
+  have s1 : cpsTripleWithin 1 base (base + 4)
       (CodeReq.singleton base (.ADDI .x14 .x5 (-0xB7)))
       ((.x0 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ v5) **
        (.x11 ↦ᵣ v11Old) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14Old))
       ((.x0 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ v5) **
        (.x11 ↦ᵣ v11Old) ** (.x13 ↦ᵣ v13) **
        (.x14 ↦ᵣ (v5 + signExtend12 (-(0xB7 : BitVec 12))))) := by
-    have framed := cpsTriple_frameR
+    have framed := cpsTripleWithin_frameR
       ((.x0 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ v11Old) ** (.x13 ↦ᵣ v13))
       (by pcFree) s1Base
-    exact cpsTriple_weaken
+    exact cpsTripleWithin_weaken
       (fun _ hp => by xperm_hyp hp)
       (fun _ hp => by xperm_hyp hp)
       framed
   -- Step 2: ADDI x11, x0, 0 at base + 4.
-  have s2Base := addi_spec_gen .x11 .x0 v11Old (0 : Word) 0 (base + 4) (by nofun)
+  have s2Base := addi_spec_gen_within .x11 .x0 v11Old (0 : Word) 0 (base + 4) (by nofun)
   have hsig0 : (0 : Word) + signExtend12 (0 : BitVec 12) = (0 : Word) := by decide
   rw [hsig0] at s2Base
-  have s2 : cpsTriple (base + 4) ((base + 4) + 4)
+  have s2 : cpsTripleWithin 1 (base + 4) ((base + 4) + 4)
       (CodeReq.singleton (base + 4) (.ADDI .x11 .x0 0))
       ((.x0 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ v5) **
        (.x11 ↦ᵣ v11Old) ** (.x13 ↦ᵣ v13) **
@@ -128,17 +128,17 @@ theorem rlp_phase3_long_string_spec
       ((.x0 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ v5) **
        (.x11 ↦ᵣ (0 : Word)) ** (.x13 ↦ᵣ v13) **
        (.x14 ↦ᵣ (v5 + signExtend12 (-(0xB7 : BitVec 12))))) := by
-    have framed := cpsTriple_frameR
+    have framed := cpsTripleWithin_frameR
       ((.x5 ↦ᵣ v5) ** (.x13 ↦ᵣ v13) **
        (.x14 ↦ᵣ (v5 + signExtend12 (-(0xB7 : BitVec 12)))))
       (by pcFree) s2Base
-    exact cpsTriple_weaken
+    exact cpsTripleWithin_weaken
       (fun _ hp => by xperm_hyp hp)
       (fun _ hp => by xperm_hyp hp)
       framed
   -- Step 3: ADDI x13, x13, 1 at (base + 4) + 4.
-  have s3Base := addi_spec_gen_same .x13 v13 1 ((base + 4) + 4) (by nofun)
-  have s3 : cpsTriple ((base + 4) + 4) (((base + 4) + 4) + 4)
+  have s3Base := addi_spec_gen_same_within .x13 v13 1 ((base + 4) + 4) (by nofun)
+  have s3 : cpsTripleWithin 1 ((base + 4) + 4) (((base + 4) + 4) + 4)
       (CodeReq.singleton ((base + 4) + 4) (.ADDI .x13 .x13 1))
       ((.x0 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ v5) **
        (.x11 ↦ᵣ (0 : Word)) ** (.x13 ↦ᵣ v13) **
@@ -147,12 +147,12 @@ theorem rlp_phase3_long_string_spec
        (.x11 ↦ᵣ (0 : Word)) **
        (.x13 ↦ᵣ (v13 + signExtend12 (1 : BitVec 12))) **
        (.x14 ↦ᵣ (v5 + signExtend12 (-(0xB7 : BitVec 12))))) := by
-    have framed := cpsTriple_frameR
+    have framed := cpsTripleWithin_frameR
       ((.x0 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ v5) **
        (.x11 ↦ᵣ (0 : Word)) **
        (.x14 ↦ᵣ (v5 + signExtend12 (-(0xB7 : BitVec 12)))))
       (by pcFree) s3Base
-    exact cpsTriple_weaken
+    exact cpsTripleWithin_weaken
       (fun _ hp => by xperm_hyp hp)
       (fun _ hp => by xperm_hyp hp)
       framed
@@ -161,7 +161,7 @@ theorem rlp_phase3_long_string_spec
       (CodeReq.singleton (base + 4) (.ADDI .x11 .x0 0))
       (CodeReq.singleton ((base + 4) + 4) (.ADDI .x13 .x13 1)) :=
     CodeReq.Disjoint.singleton (by bv_omega)
-  have s23_raw := cpsTriple_seq hd23 s2 s3
+  have s23_raw := cpsTripleWithin_seq hd23 s2 s3
   -- Re-express the composed code as `ofProg (base + 4) tail` and adjust
   -- the exit PC from `((base + 4) + 4) + 4` to `base + 12`.
   have hexit : (((base + 4) + 4) + 4 : Word) = base + 12 := by bv_omega
@@ -175,7 +175,19 @@ theorem rlp_phase3_long_string_spec
     apply CodeReq.Disjoint.ofProg_cons_right
     · exact CodeReq.Disjoint.singleton (by bv_omega)
     exact CodeReq.Disjoint.ofProg_nil_right _ _
-  exact cpsTriple_seq hd1_23 s1 s23_raw
+  exact cpsTripleWithin_seq hd1_23 s1 s23_raw
+
+theorem rlp_phase3_long_string_spec
+    (v5 v11Old v13 v14Old : Word) (base : Word) :
+    cpsTriple base (base + 12)
+      (CodeReq.ofProg base rlp_phase3_long_string_prog)
+      ((.x0 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ v5) **
+       (.x11 ↦ᵣ v11Old) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14Old))
+      ((.x0 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ v5) **
+       (.x11 ↦ᵣ (0 : Word)) **
+       (.x13 ↦ᵣ (v13 + signExtend12 (1 : BitVec 12))) **
+       (.x14 ↦ᵣ (v5 + signExtend12 (-(0xB7 : BitVec 12))))) :=
+  (rlp_phase3_long_string_spec_within v5 v11Old v13 v14Old base).to_cpsTriple
 
 /-! ## Concrete specializations for individual lenLen values
 

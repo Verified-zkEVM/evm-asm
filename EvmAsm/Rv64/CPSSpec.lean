@@ -1115,6 +1115,45 @@ theorem cpsNBranch_weaken_posts {entry : Word} {cr : CodeReq}
 -- Frame rules
 -- ============================================================================
 
+/-- Frame a pcFree assertion `F` on the right of a bounded cpsTriple. The step
+    bound is unchanged. -/
+theorem cpsTripleWithin_frameR {nSteps : Nat} {entry exit_ : Word} {cr : CodeReq}
+    {P Q : Assertion} (F : Assertion) (hF : F.pcFree)
+    (h : cpsTripleWithin nSteps entry exit_ cr P Q) :
+    cpsTripleWithin nSteps entry exit_ cr (P ** F) (Q ** F) := by
+  intro R hR s hcr hPFR hpc
+  have hPFR' := holdsFor_sepConj_assoc.mp hPFR
+  obtain ⟨k, hk, s', hstep, hpc', hpost⟩ :=
+    h (F ** R) (pcFree_sepConj hF hR) s hcr hPFR' hpc
+  exact ⟨k, hk, s', hstep, hpc', holdsFor_sepConj_assoc.mpr hpost⟩
+
+/-- Frame a pcFree assertion `F` on the left of a bounded cpsTriple. The step
+    bound is unchanged. -/
+theorem cpsTripleWithin_frameL {nSteps : Nat} {entry exit_ : Word} {cr : CodeReq}
+    {P Q : Assertion} (F : Assertion) (hF : F.pcFree)
+    (h : cpsTripleWithin nSteps entry exit_ cr P Q) :
+    cpsTripleWithin nSteps entry exit_ cr (F ** P) (F ** Q) := by
+  intro R hR s hcr hFPR hpc
+  have hPFR := holdsFor_sepConj_pull_second.mp hFPR
+  obtain ⟨k, hk, s', hstep, hpc', hpost⟩ :=
+    h (F ** R) (pcFree_sepConj hF hR) s hcr hPFR hpc
+  exact ⟨k, hk, s', hstep, hpc', holdsFor_sepConj_pull_second.mpr hpost⟩
+
+/-- Frame a pcFree assertion `F` on the right of a bounded cpsBranch. The step
+    bound is unchanged. -/
+theorem cpsBranchWithin_frameR {nSteps : Nat} {entry : Word} {cr : CodeReq}
+    {P : Assertion} {exit_t : Word} {Q_t : Assertion} {exit_f : Word} {Q_f : Assertion}
+    (F : Assertion) (hF : F.pcFree)
+    (h : cpsBranchWithin nSteps entry cr P exit_t Q_t exit_f Q_f) :
+    cpsBranchWithin nSteps entry cr (P ** F) exit_t (Q_t ** F) exit_f (Q_f ** F) := by
+  intro R hR s hcr hPFR hpc
+  have hPFR' := holdsFor_sepConj_assoc.mp hPFR
+  obtain ⟨k, hk, s', hstep, hcase⟩ :=
+    h (F ** R) (pcFree_sepConj hF hR) s hcr hPFR' hpc
+  exact ⟨k, hk, s', hstep, hcase.elim
+    (fun ⟨hpc', hpost⟩ => Or.inl ⟨hpc', holdsFor_sepConj_assoc.mpr hpost⟩)
+    (fun ⟨hpc', hpost⟩ => Or.inr ⟨hpc', holdsFor_sepConj_assoc.mpr hpost⟩)⟩
+
 /-- Frame a pcFree assertion `F` on the right of a cpsTriple: pre becomes
     `P ** F` and post becomes `Q ** F`. Position/code/pre/post args are all
     implicit. -/
