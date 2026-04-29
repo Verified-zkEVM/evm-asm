@@ -59,13 +59,8 @@ theorem rlp_phase3_single_byte_spec (v11Old : Word) (base : Word) :
       ((.x11 ↦ᵣ v11Old) ** (.x0 ↦ᵣ (0 : Word)))
       ((.x11 ↦ᵣ (1 : Word)) ** (.x0 ↦ᵣ (0 : Word))) := by
   -- The one-instruction `ofProg` reduces to a singleton CodeReq.
-  have hcr : CodeReq.ofProg base rlp_phase3_single_byte_prog =
-      CodeReq.singleton base (.ADDI .x11 .x0 1) := by
-    funext a
-    simp only [rlp_phase3_single_byte_prog, CodeReq.ofProg_cons, CodeReq.ofProg_nil,
-      CodeReq.union, CodeReq.empty]
-    cases (CodeReq.singleton base (.ADDI .x11 .x0 1)) a <;> rfl
-  rw [hcr]
+  rw [show CodeReq.ofProg base rlp_phase3_single_byte_prog =
+      CodeReq.singleton base (.ADDI .x11 .x0 1) from CodeReq.ofProg_singleton]
   -- ADDI x11, x0, 1: x11 ← 0 + signExtend12 1 = 1.
   have h := addi_spec_gen .x11 .x0 v11Old (0 : Word) 1 base (by nofun)
   -- Normalize the post: 0 + signExtend12 1 = 1.

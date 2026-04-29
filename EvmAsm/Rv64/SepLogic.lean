@@ -2061,6 +2061,18 @@ theorem ofProg_cons {base : Word} {i : Instr} {rest : List Instr} :
 
 theorem ofProg_nil {base : Word} : ofProg base [] = empty := rfl
 
+/-- A one-instruction program reshapes into a single `singleton`. -/
+theorem ofProg_singleton {base : Word} {i : Instr} :
+    ofProg base [i] = singleton base i := by
+  rw [ofProg_cons, ofProg_nil, union_empty_right]
+
+/-- A two-instruction program reshapes into the union of two `singleton`s
+    at the consecutive 4-byte-aligned addresses. -/
+theorem ofProg_pair {base : Word} {i1 i2 : Instr} :
+    ofProg base [i1, i2] =
+      (singleton base i1).union (singleton (base + 4) i2) := by
+  rw [ofProg_cons, ofProg_singleton]
+
 /-- If an address doesn't match any instruction position in a program block,
     the ofProg CodeReq returns none at that address. -/
 theorem ofProg_none_range (base : Word) (prog : List Instr) {a : Word}

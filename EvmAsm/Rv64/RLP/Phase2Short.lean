@@ -89,13 +89,8 @@ theorem rlp_phase2_short_length_spec (v5 v11Old : Word)
       (rlp_phase2_short_length_post v5 k) := by
   simp only [rlp_phase2_short_length_post_unfold]
   -- The one-instruction `ofProg` reduces to a singleton CodeReq.
-  have hcr : CodeReq.ofProg base (rlp_phase2_short_length_prog k) =
-      CodeReq.singleton base (.ADDI .x11 .x5 (-k)) := by
-    funext a
-    simp only [rlp_phase2_short_length_prog, CodeReq.ofProg_cons, CodeReq.ofProg_nil,
-      CodeReq.union, CodeReq.empty]
-    cases (CodeReq.singleton base (.ADDI .x11 .x5 (-k))) a <;> rfl
-  rw [hcr]
+  rw [show CodeReq.ofProg base (rlp_phase2_short_length_prog k) =
+      CodeReq.singleton base (.ADDI .x11 .x5 (-k)) from CodeReq.ofProg_singleton]
   exact addi_spec_gen .x11 .x5 v11Old v5 (-k) base (by nofun)
 
 end EvmAsm.Rv64.RLP

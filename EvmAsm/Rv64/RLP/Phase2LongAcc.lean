@@ -75,14 +75,10 @@ theorem rlp_phase2_long_acc_spec (len byte : Word) (base : Word) :
   simp only [rlp_phase2_long_acc_post_unfold]
   -- Reshape the code requirement: a 2-instruction `ofProg` is the disjoint
   -- union of two singletons.
-  have hcr_eq : CodeReq.ofProg base rlp_phase2_long_acc_prog =
+  rw [show CodeReq.ofProg base rlp_phase2_long_acc_prog =
       (CodeReq.singleton base (.SLLI .x11 .x11 8)).union
-      (CodeReq.singleton (base + 4) (.ADD .x11 .x11 .x12)) := by
-    funext a
-    simp only [rlp_phase2_long_acc_prog, CodeReq.ofProg_cons, CodeReq.ofProg_nil,
-      CodeReq.union, CodeReq.empty]
-    cases (CodeReq.singleton (base + 4) (.ADD .x11 .x11 .x12)) a <;> rfl
-  rw [hcr_eq]
+      (CodeReq.singleton (base + 4) (.ADD .x11 .x11 .x12)) from
+    CodeReq.ofProg_pair]
   -- Disjointness of the two singletons (distinct PCs).
   have hd : CodeReq.Disjoint
       (CodeReq.singleton base (.SLLI .x11 .x11 8))

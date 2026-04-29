@@ -77,14 +77,9 @@ theorem rlp_phase3_short_string_spec (v5 v11Old v13 : Word) (base : Word) :
        (.x11 ↦ᵣ (v5 + signExtend12 (-(0x80 : BitVec 12)))) **
        (.x13 ↦ᵣ (v13 + signExtend12 (1 : BitVec 12)))) := by
   -- Reshape the two-instruction `ofProg` into a singleton-union pair.
-  have hcr_eq : CodeReq.ofProg base rlp_phase3_short_string_prog =
+  rw [show CodeReq.ofProg base rlp_phase3_short_string_prog =
       (CodeReq.singleton base (.ADDI .x11 .x5 (-0x80))).union
-      (CodeReq.singleton (base + 4) (.ADDI .x13 .x13 1)) := by
-    funext a
-    simp only [rlp_phase3_short_string_prog, CodeReq.ofProg_cons, CodeReq.ofProg_nil,
-      CodeReq.union, CodeReq.empty]
-    cases (CodeReq.singleton (base + 4) (.ADDI .x13 .x13 1)) a <;> rfl
-  rw [hcr_eq]
+      (CodeReq.singleton (base + 4) (.ADDI .x13 .x13 1)) from CodeReq.ofProg_pair]
   -- Disjointness of the two singletons (distinct PCs).
   have hd : CodeReq.Disjoint
       (CodeReq.singleton base (.ADDI .x11 .x5 (-0x80)))
