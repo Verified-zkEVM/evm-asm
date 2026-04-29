@@ -871,6 +871,72 @@ theorem u_top_lt_c3_of_addback_borrow_call_v4
   · rw [if_neg hlt] at h
     exact absurd rfl h
 
+/-- **Pure-Nat helper for Layer 2a-fwd**: captures the val256-level math
+    chain (carry = 0 ∧ u4 < c3 → qHat overshoots by ≥ 2) with no Word /
+    BitVec / EvmWord machinery in the type. Used to avoid kernel deep
+    recursion when attempting to inline the chain at the Word level.
+
+    Hypotheses (all pure-Nat):
+    - `h_norm_u`: `Vu + U4 * p256 = Va * p_shift`
+      (val256(u_norm) + u4 * 2^256 = val256(a) * 2^shift, from
+      `u_val256_eq_scaled_with_overflow`).
+    - `h_norm_v`: `Vv = Vb * p_shift`
+      (val256(v_norm) = val256(b) * 2^shift, from
+      `b3_prime_val256_eq_scaled`).
+    - `h_combined`: `Q * Vv + Vab = Vu + c3 * p256 + Vv`
+      (combines `mulsubN4_val256_eq` + `addbackN4_val256_eq` under
+      carry = 0).
+    - `h_u4_lt_c3`: `U4 < c3` (from
+      `u_top_lt_c3_of_addback_borrow_call_v4`).
+    - `h_Vab_lt`: `Vab < p256` (from `val256_bound` with `p256 = 2^256`).
+    - `h_Vb_pos`: `0 < Vb` (from `b3 ≠ 0` via val256 lower bound).
+
+    Conclusion: `Q ≥ Va / Vb + 2`, i.e., qHat overshoots q_true by ≥ 2. -/
+theorem n4CallAddback_v4_carry_zero_imp_overshoot_arith
+    (Va Vb Vu Vv Vab Q U4 c3 p_shift p256 : ℕ)
+    (h_Vb_pos : 0 < Vb)
+    (h_norm_u : Vu + U4 * p256 = Va * p_shift)
+    (h_norm_v : Vv = Vb * p_shift)
+    (h_combined : Q * Vv + Vab = Vu + c3 * p256 + Vv)
+    (h_u4_lt_c3 : U4 < c3)
+    (h_Vab_lt : Vab < p256) :
+    Q ≥ Va / Vb + 2 := by
+  -- After substitution: Q * Vb * p_shift + Vab + U4 * p256 = (Va + Vb) * p_shift + c3 * p256
+  have h1 : Q * Vb * p_shift + Vab + U4 * p256 = (Va + Vb) * p_shift + c3 * p256 := by
+    have hQVv : Q * Vv = Q * Vb * p_shift := by rw [h_norm_v]; ring
+    have h_comb' : Q * Vb * p_shift + Vab = Vu + c3 * p256 + Vb * p_shift := by
+      rw [← hQVv, ← h_norm_v]; exact h_combined
+    have key : Q * Vb * p_shift + Vab + U4 * p256 =
+               (Vu + U4 * p256) + c3 * p256 + Vb * p_shift := by linarith
+    rw [h_norm_u] at key
+    linarith [key]
+  -- c3 ≥ U4 + 1, so c3 * p256 ≥ U4 * p256 + p256
+  have hc3_ge : c3 * p256 ≥ U4 * p256 + p256 := by
+    have hc3 : c3 ≥ U4 + 1 := h_u4_lt_c3
+    have hmul : (U4 + 1) * p256 ≤ c3 * p256 := Nat.mul_le_mul_right _ hc3
+    linarith [hmul, Nat.add_one_mul U4 p256]
+  -- Q * Vb * p_shift + Vab ≥ (Va + Vb) * p_shift + p256
+  have h2 : Q * Vb * p_shift + Vab ≥ (Va + Vb) * p_shift + p256 := by linarith
+  -- Vab < p256 → Q * Vb * p_shift > (Va + Vb) * p_shift
+  have h3 : Q * Vb * p_shift > (Va + Vb) * p_shift := by linarith
+  -- Cancel p_shift: Q * Vb > Va + Vb
+  have h4 : Q * Vb > Va + Vb := Nat.lt_of_mul_lt_mul_right h3
+  -- Q ≥ 1 (else Q * Vb = 0, contradicting Va + Vb < Q * Vb)
+  have hQ_pos : 1 ≤ Q := by
+    rcases Nat.eq_zero_or_pos Q with hQ0 | hQ_pos
+    · exfalso; rw [hQ0] at h4; simp at h4
+    · exact hQ_pos
+  -- (Q - 1) * Vb > Va
+  have h7 : Va < (Q - 1) * Vb := by
+    have hQVb : Q * Vb = (Q - 1) * Vb + Vb := by
+      have hQ_eq : (Q - 1) + 1 = Q := Nat.sub_add_cancel hQ_pos
+      conv_lhs => rw [← hQ_eq]
+      rw [Nat.add_mul, Nat.one_mul]
+    omega
+  -- Va / Vb < Q - 1
+  have h8 : Va / Vb < Q - 1 := (Nat.div_lt_iff_lt_mul h_Vb_pos).mpr h7
+  omega
+
 /-- **Layer 2a-fwd: carry = 0 → qHat overshoots by ≥ 2.**
 
     Forward direction of the carry partition.
