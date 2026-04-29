@@ -26,9 +26,9 @@ theorem carry_toNat {x y : Word} :
   have := x.isLt; have := y.isLt
   have hsum : (x + y).toNat = (x.toNat + y.toNat) % 2^64 := BitVec.toNat_add x y
   split
-  · rename_i h; have := (ult_iff).mp h; rw [hsum] at this
+  · rename_i h; have := ult_iff.mp h; rw [hsum] at this
     simp [BitVec.toNat_ofNat]; omega
-  · rename_i h; have := mt (ult_iff).mpr h; rw [hsum] at this; push Not at this
+  · rename_i h; have := mt ult_iff.mpr h; rw [hsum] at this; push Not at this
     simp [BitVec.toNat_ofNat]; omega
 
 -- OR of two {0,1}-valued Words
@@ -270,8 +270,8 @@ theorem sub_borrow_chain_correct (a b : EvmWord) :
   -- Borrow flag toNat values
   have hb0_nat : borrow0.toNat = if a0.toNat < b0.toNat then 1 else 0 := by
     simp only [borrow0]; split
-    · rename_i h; rw [if_pos ((ult_iff).mp h)]; rfl
-    · rename_i h; rw [if_neg (fun hlt => h ((ult_iff).mpr hlt))]; rfl
+    · rename_i h; rw [if_pos (ult_iff.mp h)]; rfl
+    · rename_i h; rw [if_neg (fun hlt => h (ult_iff.mpr hlt))]; rfl
   -- borrow0 is 0 or 1
   have hb0_01 : borrow0.toNat = 0 ∨ borrow0.toNat = 1 := by
     rw [hb0_nat]; split <;> simp

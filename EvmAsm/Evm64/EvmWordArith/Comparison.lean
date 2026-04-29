@@ -39,8 +39,8 @@ theorem lt_borrow_chain_correct {a b : EvmWord} :
   -- Step 1: borrow0 tracks 1-limb comparison
   have hb0_nat : borrow0.toNat = if a0.toNat < b0.toNat then 1 else 0 := by
     simp only [borrow0]; split
-    · rename_i h; rw [if_pos ((ult_iff).mp h)]; rfl
-    · rename_i h; rw [if_neg (fun hlt => h ((ult_iff).mpr hlt))]; rfl
+    · rename_i h; rw [if_pos (ult_iff.mp h)]; rfl
+    · rename_i h; rw [if_neg (fun hlt => h (ult_iff.mpr hlt))]; rfl
   -- Step 2: borrow1 tracks 2-limb comparison
   have hb1_or : borrow1 = if (BitVec.ult a1 b1 ∨ BitVec.ult temp1 borrow0)
       then (1 : Word) else 0 := borrow_or_iff
@@ -144,8 +144,8 @@ theorem slt_result_correct {a b : EvmWord} :
     -- Same structure as lt_borrow_chain_correct steps 1-3
     have hb0_nat : borrow0.toNat = if a0.toNat < b0.toNat then 1 else 0 := by
       simp only [borrow0]; split
-      · rename_i hh; rw [if_pos ((ult_iff).mp hh)]; rfl
-      · rename_i hh; rw [if_neg (fun hlt => hh ((ult_iff).mpr hlt))]; rfl
+      · rename_i hh; rw [if_pos (ult_iff.mp hh)]; rfl
+      · rename_i hh; rw [if_neg (fun hlt => hh (ult_iff.mpr hlt))]; rfl
     have hb1_cond : (BitVec.ult a1 b1 ∨ BitVec.ult temp1 borrow0) ↔
         (a0.toNat + a1.toNat * 2^64 < b0.toNat + b1.toNat * 2^64) := by
       rw [show BitVec.ult a1 b1 ↔ a1.toNat < b1.toNat from ult_iff,

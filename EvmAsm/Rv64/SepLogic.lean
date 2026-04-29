@@ -424,13 +424,13 @@ theorem holdsFor_memIs {a : Word} {v : Word} {s : MachineState} :
     then `a` is a valid dword-aligned memory address. -/
 theorem holdsFor_memIs_isValidDwordAccess {a : Word} {v : Word} {s : MachineState}
     (h : (memIs a v).holdsFor s) : isValidDwordAccess a = true :=
-  ((holdsFor_memIs).mp h).2
+  (holdsFor_memIs.mp h).2
 
 /-- The memory-content consequence of `memIs`: if `(a ↦ₘ v).holdsFor s`
     then `s.getMem a = v`. -/
 theorem holdsFor_memIs_getMem {a : Word} {v : Word} {s : MachineState}
     (h : (memIs a v).holdsFor s) : s.getMem a = v :=
-  ((holdsFor_memIs).mp h).1
+  (holdsFor_memIs.mp h).1
 
 @[simp]
 theorem holdsFor_pcIs {v : Word} {s : MachineState} :

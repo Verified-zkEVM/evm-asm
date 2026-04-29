@@ -186,7 +186,7 @@ theorem div_correct_n3_no_shift
   intro a b q r
   have ⟨_, hr_lt⟩ := remainder_lt_of_ge_floor (val256_pos_of_or_ne_zero hbnz) hmulsub hge
   have hq_val : val256 q0 q1 0 0 = q1.toNat * 2^64 + q0.toNat :=
-    (accumulated_eq_val256_n3).symm
+    accumulated_eq_val256_n3.symm
   have hmulsub' : val256 a0 a1 a2 a3 =
       val256 q0 q1 0 0 * val256 b0 b1 b2 b3 + val256 r0 r1 r2 r3 := by
     rw [hq_val]; exact hmulsub
@@ -213,7 +213,7 @@ theorem div_correct_n2_no_shift
   intro a b q r
   have ⟨_, hr_lt⟩ := remainder_lt_of_ge_floor (val256_pos_of_or_ne_zero hbnz) hmulsub hge
   have hq_val : val256 q0 q1 q2 0 = q2.toNat * 2^128 + q1.toNat * 2^64 + q0.toNat :=
-    (accumulated_eq_val256_n2).symm
+    accumulated_eq_val256_n2.symm
   have hmulsub' : val256 a0 a1 a2 a3 =
       val256 q0 q1 q2 0 * val256 b0 b1 b2 b3 + val256 r0 r1 r2 r3 := by
     rw [hq_val]; exact hmulsub
@@ -241,7 +241,7 @@ theorem div_correct_n1_no_shift
   have ⟨_, hr_lt⟩ := remainder_lt_of_ge_floor (val256_pos_of_or_ne_zero hbnz) hmulsub hge
   have hq_val : val256 q0 q1 q2 q3 =
       q3.toNat * 2^192 + q2.toNat * 2^128 + q1.toNat * 2^64 + q0.toNat :=
-    (accumulated_eq_val256_n1).symm
+    accumulated_eq_val256_n1.symm
   have hmulsub' : val256 a0 a1 a2 a3 =
       val256 q0 q1 q2 q3 * val256 b0 b1 b2 b3 + val256 r0 r1 r2 r3 := by
     rw [hq_val]; exact hmulsub
