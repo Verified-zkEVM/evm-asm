@@ -79,6 +79,71 @@ private theorem step2v4_sub {base : Word} (k : Nat) (addr : Word) (instr : Instr
     (CodeReq.ofProg_lookup base divKDiv128Step2V4Instrs k (by
         have := divKDiv128Step2V4Instrs_len; omega) (by decide)) a i h
 
+/-- The single BLTU dispatch at the start of Phase D, extended into the
+    step2-v4 code requirement. The semantic path bodies are proved separately. -/
+private theorem divK_div128_step2_v4_phase_D_bltu_spec
+    (rhat2Un0 q0Dlo1 : Word) (base : Word) :
+    cpsBranch (base + 60) (divKDiv128Step2V4Code base)
+      ((.x1 ↦ᵣ rhat2Un0) ** (.x7 ↦ᵣ q0Dlo1))
+      (base + 72)
+        ((.x1 ↦ᵣ rhat2Un0) ** (.x7 ↦ᵣ q0Dlo1) ** ⌜BitVec.ult rhat2Un0 q0Dlo1⌝)
+      (base + 64)
+        ((.x1 ↦ᵣ rhat2Un0) ** (.x7 ↦ᵣ q0Dlo1) ** ⌜¬BitVec.ult rhat2Un0 q0Dlo1⌝) := by
+  have hbltu_raw := bltu_spec_gen .x1 .x7 (12 : BitVec 13) rhat2Un0 q0Dlo1 (base + 60)
+  have ha_t : (base + 60) + signExtend13 (12 : BitVec 13) = base + 72 := by rv64_addr
+  have ha_f : (base + 60 : Word) + 4 = base + 64 := by bv_addr
+  rw [ha_t, ha_f] at hbltu_raw
+  exact cpsBranch_extend_code (h := hbltu_raw) (hmono := by
+    exact step2v4_sub 15 (base+60) (.BLTU .x1 .x7 12)
+      (by omega) (by bv_omega) (by decide))
+
+/-- The SRLI+BNE dispatch at the start of Phase E, extended into the step2-v4
+    code requirement and framed with the registers/memory live across it. -/
+private theorem divK_div128_step2_v4_phase_E_guard_spec
+    (sp dHi q0' rhat2' rhat2Un0 q0Dlo1 dlo un0 rhat2c : Word) (base : Word) :
+    let rhat2cHi := rhat2c >>> (32 : BitVec 6).toNat
+    let rhat2'Hi := rhat2' >>> (32 : BitVec 6).toNat
+    cpsBranch (base + 84) (divKDiv128Step2V4Code base)
+      ((.x7 ↦ᵣ q0Dlo1) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ q0') **
+       (.x11 ↦ᵣ rhat2') ** (.x1 ↦ᵣ rhat2Un0) **
+       (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) ** ⌜rhat2cHi = 0⌝ **
+       (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0) **
+       (sp + signExtend12 3936 ↦ₘ rhat2c))
+      (base + 124)
+        ((.x7 ↦ᵣ q0Dlo1) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ q0') **
+         (.x11 ↦ᵣ rhat2') ** (.x1 ↦ᵣ rhat2'Hi) **
+         (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) ** ⌜rhat2cHi = 0⌝ ** ⌜rhat2'Hi ≠ 0⌝ **
+         (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0) **
+         (sp + signExtend12 3936 ↦ₘ rhat2c))
+      (base + 92)
+        ((.x7 ↦ᵣ q0Dlo1) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ q0') **
+         (.x11 ↦ᵣ rhat2') ** (.x1 ↦ᵣ rhat2'Hi) **
+         (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) ** ⌜rhat2cHi = 0⌝ ** ⌜rhat2'Hi = 0⌝ **
+         (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0) **
+         (sp + signExtend12 3936 ↦ₘ rhat2c)) := by
+  intro rhat2cHi rhat2'Hi
+  have hraw := divK_div128_phase2b_guard_spec sp rhat2' rhat2Un0 (base + 84) (36 : BitVec 13)
+  simp only [show (base + 84 : Word) + 4 = base + 88 from by bv_addr,
+             show (base + 84 : Word) + 8 = base + 92 from by bv_addr,
+             show (base + 88 : Word) + signExtend13 (36 : BitVec 13) = base + 124 from by
+               rv64_addr] at hraw
+  have hguard : cpsBranch (base + 84) (divKDiv128Step2V4Code base) _ _ _ _ _ :=
+    cpsBranch_extend_code (h := hraw) (hmono := by
+      exact CodeReq.union_sub
+        (step2v4_sub 21 (base+84) (.SRLI .x1 .x11 32) (by omega) (by bv_omega) (by decide))
+        (step2v4_sub 22 (base+88) (.BNE .x1 .x0 36) (by omega) (by bv_omega) (by decide)))
+  have hframed := cpsBranch_frameR
+    ((.x7 ↦ᵣ q0Dlo1) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ q0') **
+     ⌜rhat2cHi = 0⌝ **
+     (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0) **
+     (sp + signExtend12 3936 ↦ₘ rhat2c))
+    (by pcFree) hguard
+  exact cpsBranch_weaken
+    (fun h hp => by xperm_hyp hp)
+    (fun h hp => by xperm_hyp hp)
+    (fun h hp => by xperm_hyp hp)
+    hframed
+
 /-- Bundled postcondition for `divK_div128_step2_v4_spec`. Hides the
     let-chain for Step 2 v4 trial-division intermediates + Phase 2b
     1st+2nd D3 outcomes.
@@ -133,46 +198,6 @@ def divKDiv128Step2V4Post (sp un21 dHi dlo un0 vScratchOld : Word) : Assertion :
   (sp + signExtend12 3944 ↦ₘ un0) **
   (sp + signExtend12 3936 ↦ₘ mem3936Exit)
 
-/-- Bundled postcondition for Phase 2b 1st D3 with save/restore.
-    Covers instructions [47..60] of divK_div128_v4 (14 instructions). -/
-@[irreducible]
-def divKDiv128Phase2b1stD3V4Post (sp q0c rhat2c dlo un0 dHi : Word) : Assertion :=
-  let rhat2cHi := rhat2c >>> (32 : BitVec 6).toNat
-  let q0' := div128Quot_phase2b_q0' q0c rhat2c dlo un0
-  let rhat2c_upd :=
-    if rhat2cHi = 0 then
-      let qDlo := q0c * dlo
-      let rhatUn0 := (rhat2c <<< (32 : BitVec 6).toNat) ||| un0
-      if BitVec.ult rhatUn0 qDlo then rhat2c + dHi else rhat2c
-    else rhat2c
-  -- After 1st D3: x5 = q0', x11 = rhat2c_upd, x7 = q0c * dlo (transient).
-  (.x5 ↦ᵣ q0') ** (.x11 ↦ᵣ rhat2c_upd) ** (.x6 ↦ᵣ dHi) **
-  (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) **
-  (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0) **
-  (sp + signExtend12 3936 ↦ₘ rhat2c)
-
-/-- **STUB**: Phase 2b 1st D3 with save/restore — instructions [47..60].
-    The outer BNE guard at [48] (offset 92) jumps to [71] (past step2_v4
-    entirely) when rhat2c >= 2^32. Otherwise runs the 1st D3 mul-check
-    with the save/restore of rhat2c to scratch slot 3936.
-
-    This is NOT a standalone cpsTriple (the outer BNE exits step2_v4);
-    it is a building block for step2_v4_spec's branch structure. -/
-theorem divK_div128_phase2b_1st_d3_v4_spec
-    (sp q0c rhat2c dlo un0 dHi v1Old v7Old vScratch : Word) (base : Word) :
-    cpsTriple base (base + 56) (divKDiv128Step2V4Code base)
-      ((.x5 ↦ᵣ q0c) ** (.x11 ↦ᵣ rhat2c) ** (.x6 ↦ᵣ dHi) **
-       (.x1 ↦ᵣ v1Old) ** (.x7 ↦ᵣ v7Old) **
-       (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) **
-       (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0) **
-       (sp + signExtend12 3936 ↦ₘ vScratch))
-      (divKDiv128Phase2b1stD3V4Post sp q0c rhat2c dlo un0 dHi) := by
-  sorry  -- Covers [47..60] when rhat2c < 2^32 guard doesn't fire globally.
-         -- Actually this is NOT right: the outer BNE jumps out of step2_v4.
-         -- Simplification: treat step2_v4 as a cpsTriple (ignoring the fact
-         -- that BNE branches forward past [71] — which is handled by step2_v4
-         -- itself via the outer branch structure). Keep as sorry for now.
-
 /-- Phase D sub-lemma: BLTU+paths [15..20] of step2_v4, merged post.
     Input = midC (= output of Phase C at base+60).
     Output = midD (post-BLTU merged state at base+84).
@@ -203,6 +228,13 @@ theorem divK_div128_step2_v4_phase_D_merged_spec
        (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) ** ⌜rhat2cHi = 0⌝ **
        (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0) **
        (sp + signExtend12 3936 ↦ₘ rhat2c)) := by
+  intro rhat2cHi q0Dlo1 rhat2Un0 q0' rhat2'
+  have hbltu := divK_div128_step2_v4_phase_D_bltu_spec rhat2Un0 q0Dlo1 base
+  -- Remaining proof split:
+  -- * taken path: [18..20] ADDI; LD; ADD with `add_spec_gen_rd_eq_rs1`
+  -- * fallthrough path: [16..17] LD; JAL
+  -- Both paths then rewrite `div128Quot_phase2b_q0'` under the carried
+  -- `rhat2cHi = 0` fact and strip the BLTU pure fact.
   sorry
 
 /-- Phase E sub-lemma: 2nd D3 guard+prodcheck [21..30] of step2_v4, merged post.
@@ -234,6 +266,14 @@ theorem divK_div128_step2_v4_phase_E_merged_spec
        (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) **
        (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0) **
        (sp + signExtend12 3936 ↦ₘ rhat2c)) := by
+  intro rhat2cHi rhat2'Hi q0Dlo2 rhat2'Un0 q0'' x7Exit x1Exit x11Exit
+  have hguard := divK_div128_step2_v4_phase_E_guard_spec
+    sp dHi q0' rhat2' rhat2Un0 q0Dlo1 dlo un0 rhat2c base
+  -- Remaining proof split:
+  -- * guard-taken path: zero-step bridge at base+124, using `rhat2'Hi ≠ 0`
+  -- * guard-fallthrough path: reuse `divK_div128_prodcheck2_merged_spec`
+  --   over [23..30], then bridge its unguarded quotient to `q0''` using
+  --   `rhat2'Hi = 0`.
   sorry
 
 /-- **STUB**: full v4 Phase 2 spec — instructions [40..70] of `divK_div128_v4`.
