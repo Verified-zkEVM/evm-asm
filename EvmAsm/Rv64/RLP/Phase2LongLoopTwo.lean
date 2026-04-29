@@ -90,16 +90,8 @@ theorem rlp_phase2_long_loop_two_byte_spec
   set byte1 := (extractByte wordVal (byteOffset ptr)).zeroExtend 64
   have h_absurd : ∀ hp,
       rlp_phase2_long_loop_body_post len ptr (2 : Word) byte1 wordVal
-         dwordAddr ((1 : Word) = 0) hp → False := by
-    intro hp hpost
-    simp only [rlp_phase2_long_loop_body_post_unfold] at hpost
-    obtain ⟨_, _, _, _, _, hpost⟩ := hpost -- peel x11
-    obtain ⟨_, _, _, _, _, hpost⟩ := hpost -- peel x13
-    obtain ⟨_, _, _, _, _, hpost⟩ := hpost -- peel x14
-    obtain ⟨_, _, _, _, _, hpost⟩ := hpost -- peel x12
-    obtain ⟨_, _, _, _, _, hpost⟩ := hpost -- peel x0
-    obtain ⟨_, _, _, _, _, hpost⟩ := hpost -- peel memory
-    exact absurd hpost.2 (by decide)
+         dwordAddr ((1 : Word) = 0) hp → False := fun hp hpost =>
+    absurd (rlp_phase2_long_loop_body_post_pure hp hpost) (by decide)
   -- `cpsBranch_takenPath` drops fall-through. Keeps taken exit (loops back).
   have tri1 := cpsBranch_takenPath body h_absurd
   -- Taken exit is `(base + 20) + signExtend13 back = base` by hback.

@@ -73,6 +73,29 @@ theorem rlp_phase2_long_loop_body_post_unfold
      (dwordAddr ↦ₘ wordVal) ** ⌜P⌝) := by
   delta rlp_phase2_long_loop_body_post; rfl
 
+/-- Extract the pure proposition `P` carried by the loop-body post.
+
+    Any caller that has built `rlp_phase2_long_loop_body_post len ptr cnt
+    byteZext wordVal dwordAddr P` for some witness `hp` can recover the
+    underlying `P` by traversing the six layers of `**` down to the
+    trailing `⌜P⌝`. The eight per-iteration loop closures
+    (`rlp_phase2_long_loop_*_byte_spec`) all use this to derive `False`
+    from the impossible BNE-taken or BNE-ntaken branch. -/
+theorem rlp_phase2_long_loop_body_post_pure
+    {len ptr cnt byteZext wordVal dwordAddr : Word} {P : Prop} :
+    ∀ hp,
+      rlp_phase2_long_loop_body_post len ptr cnt byteZext wordVal
+        dwordAddr P hp → P := by
+  intro hp hpost
+  simp only [rlp_phase2_long_loop_body_post_unfold] at hpost
+  obtain ⟨_, _, _, _, _, hpost⟩ := hpost
+  obtain ⟨_, _, _, _, _, hpost⟩ := hpost
+  obtain ⟨_, _, _, _, _, hpost⟩ := hpost
+  obtain ⟨_, _, _, _, _, hpost⟩ := hpost
+  obtain ⟨_, _, _, _, _, hpost⟩ := hpost
+  obtain ⟨_, _, _, _, _, hpost⟩ := hpost
+  exact hpost.2
+
 /-- `cpsBranch` spec for one pass through the long-form length-loop body.
 
     Composes `rlp_phase2_long_iter_spec` (the 5-instruction iteration

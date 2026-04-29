@@ -85,16 +85,8 @@ theorem rlp_phase2_long_loop_one_byte_spec
   set byteZext := (extractByte wordVal (byteOffset ptr)).zeroExtend 64
   have h_absurd : ∀ hp,
       rlp_phase2_long_loop_body_post len ptr (1 : Word) byteZext wordVal
-         dwordAddr ((0 : Word) ≠ 0) hp → False := by
-    intro hp hpost
-    simp only [rlp_phase2_long_loop_body_post_unfold] at hpost
-    obtain ⟨_, _, _, _, _, hpost⟩ := hpost -- peel x11
-    obtain ⟨_, _, _, _, _, hpost⟩ := hpost -- peel x13
-    obtain ⟨_, _, _, _, _, hpost⟩ := hpost -- peel x14
-    obtain ⟨_, _, _, _, _, hpost⟩ := hpost -- peel x12
-    obtain ⟨_, _, _, _, _, hpost⟩ := hpost -- peel x0
-    obtain ⟨_, _, _, _, _, hpost⟩ := hpost -- peel memory
-    exact hpost.2 rfl
+         dwordAddr ((0 : Word) ≠ 0) hp → False := fun hp hpost =>
+    rlp_phase2_long_loop_body_post_pure hp hpost rfl
   -- `cpsBranch_ntakenPath` drops the taken branch.
   have tri := cpsBranch_ntakenPath body h_absurd
   -- Weaken the post: unfold the `@[irreducible]` wrapper and strip the

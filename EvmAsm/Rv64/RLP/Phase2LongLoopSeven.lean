@@ -94,16 +94,8 @@ theorem rlp_phase2_long_loop_seven_byte_spec
   set byte1 := (extractByte wordVal (byteOffset ptr)).zeroExtend 64
   have h_absurd : ∀ hp,
       rlp_phase2_long_loop_body_post len ptr (7 : Word) byte1 wordVal
-         dwordAddr ((6 : Word) = 0) hp → False := by
-    intro hp hpost
-    simp only [rlp_phase2_long_loop_body_post_unfold] at hpost
-    obtain ⟨_, _, _, _, _, hpost⟩ := hpost
-    obtain ⟨_, _, _, _, _, hpost⟩ := hpost
-    obtain ⟨_, _, _, _, _, hpost⟩ := hpost
-    obtain ⟨_, _, _, _, _, hpost⟩ := hpost
-    obtain ⟨_, _, _, _, _, hpost⟩ := hpost
-    obtain ⟨_, _, _, _, _, hpost⟩ := hpost
-    exact absurd hpost.2 (by decide)
+         dwordAddr ((6 : Word) = 0) hp → False := fun hp hpost =>
+    absurd (rlp_phase2_long_loop_body_post_pure hp hpost) (by decide)
   have tri1 := cpsBranch_takenPath body h_absurd
   rw [hback] at tri1
   have tri1' : cpsTriple base base
