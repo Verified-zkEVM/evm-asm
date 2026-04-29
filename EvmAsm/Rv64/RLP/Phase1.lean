@@ -271,6 +271,30 @@ theorem step_code_Disjoint_24 (k1 k2 : BitVec 12) (off1 off2 : BitVec 13)
       (CodeReq.Disjoint.singleton (by bv_omega))
       (CodeReq.Disjoint.singleton (by bv_omega)))
 
+/-- Address-normalized variant: step at `base + 8` disjoint from step at `base + 16`. -/
+private theorem step_code_Disjoint_8_at_8
+    (k1 k2 : BitVec 12) (off1 off2 : BitVec 13) (base : Word) :
+    (rlp_phase1_step_code k1 off1 (base + 8)).Disjoint
+      (rlp_phase1_step_code k2 off2 (base + 16)) := by
+  have h := step_code_Disjoint_8 k1 k2 off1 off2 (base + 8)
+  rwa [show (base + 8 : Word) + 8 = base + 16 from by bv_omega] at h
+
+/-- Address-normalized variant: step at `base + 8` disjoint from step at `base + 24`. -/
+private theorem step_code_Disjoint_16_at_8
+    (k1 k2 : BitVec 12) (off1 off2 : BitVec 13) (base : Word) :
+    (rlp_phase1_step_code k1 off1 (base + 8)).Disjoint
+      (rlp_phase1_step_code k2 off2 (base + 24)) := by
+  have h := step_code_Disjoint_16 k1 k2 off1 off2 (base + 8)
+  rwa [show (base + 8 : Word) + 16 = base + 24 from by bv_omega] at h
+
+/-- Address-normalized variant: step at `base + 16` disjoint from step at `base + 24`. -/
+private theorem step_code_Disjoint_8_at_16
+    (k1 k2 : BitVec 12) (off1 off2 : BitVec 13) (base : Word) :
+    (rlp_phase1_step_code k1 off1 (base + 16)).Disjoint
+      (rlp_phase1_step_code k2 off2 (base + 24)) := by
+  have h := step_code_Disjoint_8 k1 k2 off1 off2 (base + 16)
+  rwa [show (base + 16 : Word) + 8 = base + 24 from by bv_omega] at h
+
 /-- Bundled exit postcondition for the Phase 1 classifier: the register-
     ownership triple with `x10` holding the threshold constant `k`.
     Wrapped in an `@[irreducible] def` to avoid leaking `let`-bound
@@ -346,18 +370,9 @@ theorem rlp_phase1_classifier_spec (v5 v10 : Word) (base : Word)
   have hd12 : cr1.Disjoint cr2 := step_code_Disjoint_8 _ _ _ _ _
   have hd13 : cr1.Disjoint cr3 := step_code_Disjoint_16 _ _ _ _ _
   have hd14 : cr1.Disjoint cr4 := step_code_Disjoint_24 _ _ _ _ _
-  have hd23 : cr2.Disjoint cr3 := by
-    have := step_code_Disjoint_8 0xB8 0xC0 off2 off3 (base + 8)
-    rw [show (base + 8 : Word) + 8 = base + 16 from by bv_omega] at this
-    exact this
-  have hd24 : cr2.Disjoint cr4 := by
-    have := step_code_Disjoint_16 0xB8 0xF8 off2 off4 (base + 8)
-    rw [show (base + 8 : Word) + 16 = base + 24 from by bv_omega] at this
-    exact this
-  have hd34 : cr3.Disjoint cr4 := by
-    have := step_code_Disjoint_8 0xC0 0xF8 off3 off4 (base + 16)
-    rw [show (base + 16 : Word) + 8 = base + 24 from by bv_omega] at this
-    exact this
+  have hd23 : cr2.Disjoint cr3 := step_code_Disjoint_8_at_8 0xB8 0xC0 off2 off3 base
+  have hd24 : cr2.Disjoint cr4 := step_code_Disjoint_16_at_8 0xB8 0xF8 off2 off4 base
+  have hd34 : cr3.Disjoint cr4 := step_code_Disjoint_8_at_16 0xC0 0xF8 off3 off4 base
   -- Fallthrough cpsNBranch at e5 (zero steps; refl).
   have ft : cpsNBranch e5 CodeReq.empty
       ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) **
@@ -467,18 +482,9 @@ theorem rlp_phase1_classifier_spec_pure (v5 v10 : Word) (base : Word)
   have hd12 : cr1.Disjoint cr2 := step_code_Disjoint_8 _ _ _ _ _
   have hd13 : cr1.Disjoint cr3 := step_code_Disjoint_16 _ _ _ _ _
   have hd14 : cr1.Disjoint cr4 := step_code_Disjoint_24 _ _ _ _ _
-  have hd23 : cr2.Disjoint cr3 := by
-    have := step_code_Disjoint_8 0xB8 0xC0 off2 off3 (base + 8)
-    rw [show (base + 8 : Word) + 8 = base + 16 from by bv_omega] at this
-    exact this
-  have hd24 : cr2.Disjoint cr4 := by
-    have := step_code_Disjoint_16 0xB8 0xF8 off2 off4 (base + 8)
-    rw [show (base + 8 : Word) + 16 = base + 24 from by bv_omega] at this
-    exact this
-  have hd34 : cr3.Disjoint cr4 := by
-    have := step_code_Disjoint_8 0xC0 0xF8 off3 off4 (base + 16)
-    rw [show (base + 16 : Word) + 8 = base + 24 from by bv_omega] at this
-    exact this
+  have hd23 : cr2.Disjoint cr3 := step_code_Disjoint_8_at_8 0xB8 0xC0 off2 off3 base
+  have hd24 : cr2.Disjoint cr4 := step_code_Disjoint_16_at_8 0xB8 0xF8 off2 off4 base
+  have hd34 : cr3.Disjoint cr4 := step_code_Disjoint_8_at_16 0xC0 0xF8 off3 off4 base
   -- Fallthrough cpsNBranch preserving step 4's pure fact.
   have ft : cpsNBranch e5 CodeReq.empty
       ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) **
@@ -642,18 +648,9 @@ theorem rlp_phase1_classifier_spec_acc (v5 v10 : Word) (base : Word)
   have hd12 : cr1.Disjoint cr2 := step_code_Disjoint_8 _ _ _ _ _
   have hd13 : cr1.Disjoint cr3 := step_code_Disjoint_16 _ _ _ _ _
   have hd14 : cr1.Disjoint cr4 := step_code_Disjoint_24 _ _ _ _ _
-  have hd23 : cr2.Disjoint cr3 := by
-    have := step_code_Disjoint_8 0xB8 0xC0 off2 off3 (base + 8)
-    rw [show (base + 8 : Word) + 8 = base + 16 from by bv_omega] at this
-    exact this
-  have hd24 : cr2.Disjoint cr4 := by
-    have := step_code_Disjoint_16 0xB8 0xF8 off2 off4 (base + 8)
-    rw [show (base + 8 : Word) + 16 = base + 24 from by bv_omega] at this
-    exact this
-  have hd34 : cr3.Disjoint cr4 := by
-    have := step_code_Disjoint_8 0xC0 0xF8 off3 off4 (base + 16)
-    rw [show (base + 16 : Word) + 8 = base + 24 from by bv_omega] at this
-    exact this
+  have hd23 : cr2.Disjoint cr3 := step_code_Disjoint_8_at_8 0xB8 0xC0 off2 off3 base
+  have hd24 : cr2.Disjoint cr4 := step_code_Disjoint_16_at_8 0xB8 0xF8 off2 off4 base
+  have hd34 : cr3.Disjoint cr4 := step_code_Disjoint_8_at_16 0xC0 0xF8 off3 off4 base
   -- Fallthrough cpsNBranch at e5, carrying cs4's fall-post accumulator.
   have ft : cpsNBranch e5 CodeReq.empty
       ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) **
