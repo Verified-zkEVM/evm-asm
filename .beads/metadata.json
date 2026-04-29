@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "evm_asm",
+  "project_id": "8a220e3c-e9dd-43b5-91ab-a096634fb095"
+}
