@@ -840,20 +840,19 @@ theorem div128Quot_v4_qHat_le_q_true_plus_two (a b : EvmWord)
     (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
     hb3nz hshift_nz hcall
 
-/-- **Layer 2a sub-stub: addback carry detects ≥-2 overshoot.**
+/-- **Layer 2a-fwd: carry = 0 → qHat overshoots by ≥ 2.**
 
-    Pure algorithmic content: under shift-norm preconditions, the
-    addback carry is 0 ⟺ qHat overshoots val256(a)/val256(b) by at
-    least 2. (Equivalently: mulsub_b + b stays below 2^256, i.e., the
-    addback didn't propagate past the top limb.)
-
-    This is the val256-level reading of `addbackN4_carry`. Distinct from
-    Layer 2 in that it doesn't yet combine with Knuth-B's qHat ≤ q_true+2
-    to derive qHat = q_true + 2 exactly. -/
-theorem n4CallAddback_v4_carry_zero_iff_overshoot_ge_two (a b : EvmWord)
+    Forward direction of the carry partition. Uses the contrapositive of
+    `addbackN4_first_carry_one`: if `q ≤ q*_norm + 1` and `c3 = 1` then
+    `carry = 1`. Negating: if `carry = 0` (and c3 = 1, derived from
+    `isAddbackBorrowN4CallEvm_v4`), then `q > q*_norm + 1`, hence
+    `q ≥ q*_norm + 2`. Bridge to val256(a)/val256(b) via the standard
+    norm/val256 relationship under shift normalization. -/
+theorem n4CallAddback_v4_carry_zero_imp_overshoot_ge_two (a b : EvmWord)
     (_hb3nz : b.getLimbN 3 ≠ 0)
     (_hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
-    (_hcall : isCallTrialN4Evm a b) :
+    (_hcall : isCallTrialN4Evm a b)
+    (_haddback : isAddbackBorrowN4CallEvm_v4 a b) :
     let shift := (clzResult (b.getLimbN 3)).1.toNat % 64
     let antiShift := (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64
     let b3' := ((b.getLimbN 3) <<< shift) ||| ((b.getLimbN 2) >>> antiShift)
@@ -870,10 +869,74 @@ theorem n4CallAddback_v4_carry_zero_iff_overshoot_ge_two (a b : EvmWord)
     let carry := addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 b0' b1' b2' b3'
     let q_true := val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) /
                     val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
-    (carry = 0 ↔ qHat.toNat ≥ q_true + 2) := by
-  sorry  -- Algorithmic content: mulsubN4 + addbackN4_carry analysis at
-         -- val256 level. References AlgEuclideans.lean for the existing
-         -- v1/v2 carry-classification chain (which v4 should mirror).
+    carry = 0 → qHat.toNat ≥ q_true + 2 := by
+  sorry  -- Forward direction: contrapositive of addbackN4_first_carry_one
+         -- + val256-norm bridge. Algorithmic.
+
+/-- **Layer 2a-back: qHat overshoots by ≥ 2 → carry = 0.**
+
+    Backward direction. Standard val256-level reasoning: if qHat ≥
+    q_true + 2 then val256(ms_un) + val256(b_norm) < 2^256 (the
+    first addback doesn't carry past the top limb). Combined with
+    `addbackN4_val256_eq` to derive carry = 0. -/
+theorem n4CallAddback_v4_overshoot_ge_two_imp_carry_zero (a b : EvmWord)
+    (_hb3nz : b.getLimbN 3 ≠ 0)
+    (_hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (_hcall : isCallTrialN4Evm a b)
+    (_haddback : isAddbackBorrowN4CallEvm_v4 a b) :
+    let shift := (clzResult (b.getLimbN 3)).1.toNat % 64
+    let antiShift := (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64
+    let b3' := ((b.getLimbN 3) <<< shift) ||| ((b.getLimbN 2) >>> antiShift)
+    let b2' := ((b.getLimbN 2) <<< shift) ||| ((b.getLimbN 1) >>> antiShift)
+    let b1' := ((b.getLimbN 1) <<< shift) ||| ((b.getLimbN 0) >>> antiShift)
+    let b0' := (b.getLimbN 0) <<< shift
+    let u4 := (a.getLimbN 3) >>> antiShift
+    let u3 := ((a.getLimbN 3) <<< shift) ||| ((a.getLimbN 2) >>> antiShift)
+    let u2 := ((a.getLimbN 2) <<< shift) ||| ((a.getLimbN 1) >>> antiShift)
+    let u1 := ((a.getLimbN 1) <<< shift) ||| ((a.getLimbN 0) >>> antiShift)
+    let u0 := (a.getLimbN 0) <<< shift
+    let qHat := div128Quot_v4 u4 u3 b3'
+    let ms := mulsubN4 qHat b0' b1' b2' b3' u0 u1 u2 u3
+    let carry := addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 b0' b1' b2' b3'
+    let q_true := val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) /
+                    val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+    qHat.toNat ≥ q_true + 2 → carry = 0 := by
+  sorry  -- Backward direction: val256-level computation. qHat overshoots
+         -- by ≥ 2 means mulsub yields a value such that adding b once
+         -- (first addback) doesn't reach 2^256, so carry = 0.
+
+/-- **Layer 2a sub-stub: addback carry detects ≥-2 overshoot.**
+
+    Pure algorithmic content: under shift-norm preconditions, the
+    addback carry is 0 ⟺ qHat overshoots val256(a)/val256(b) by at
+    least 2.
+
+    Wired via `_imp_overshoot_ge_two` (forward) and
+    `_overshoot_ge_two_imp_carry_zero` (backward). -/
+theorem n4CallAddback_v4_carry_zero_iff_overshoot_ge_two (a b : EvmWord)
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hcall : isCallTrialN4Evm a b)
+    (haddback : isAddbackBorrowN4CallEvm_v4 a b) :
+    let shift := (clzResult (b.getLimbN 3)).1.toNat % 64
+    let antiShift := (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64
+    let b3' := ((b.getLimbN 3) <<< shift) ||| ((b.getLimbN 2) >>> antiShift)
+    let b2' := ((b.getLimbN 2) <<< shift) ||| ((b.getLimbN 1) >>> antiShift)
+    let b1' := ((b.getLimbN 1) <<< shift) ||| ((b.getLimbN 0) >>> antiShift)
+    let b0' := (b.getLimbN 0) <<< shift
+    let u4 := (a.getLimbN 3) >>> antiShift
+    let u3 := ((a.getLimbN 3) <<< shift) ||| ((a.getLimbN 2) >>> antiShift)
+    let u2 := ((a.getLimbN 2) <<< shift) ||| ((a.getLimbN 1) >>> antiShift)
+    let u1 := ((a.getLimbN 1) <<< shift) ||| ((a.getLimbN 0) >>> antiShift)
+    let u0 := (a.getLimbN 0) <<< shift
+    let qHat := div128Quot_v4 u4 u3 b3'
+    let ms := mulsubN4 qHat b0' b1' b2' b3' u0 u1 u2 u3
+    let carry := addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 b0' b1' b2' b3'
+    let q_true := val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) /
+                    val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+    (carry = 0 ↔ qHat.toNat ≥ q_true + 2) :=
+  ⟨n4CallAddback_v4_carry_zero_imp_overshoot_ge_two a b hb3nz hshift_nz hcall haddback,
+   n4CallAddback_v4_overshoot_ge_two_imp_carry_zero a b hb3nz hshift_nz hcall haddback⟩
 
 /-- **v4 mirror of `u_top_lt_c3_of_addback_borrow_call`**: from
     `isAddbackBorrowN4Call_v4`, extract the Nat-level inequality
@@ -1089,7 +1152,7 @@ theorem n4CallAddback_v4_carry_partition (a b : EvmWord)
     div128Quot_v4_qHat_le_q_true_plus_two a b _hb3nz _hshift_nz _hcall
   -- Layer 2a: carry = 0 ↔ qHat ≥ q_true + 2.
   have h_2a : (carry = 0 ↔ qHat.toNat ≥ q_true + 2) :=
-    n4CallAddback_v4_carry_zero_iff_overshoot_ge_two a b _hb3nz _hshift_nz _hcall
+    n4CallAddback_v4_carry_zero_iff_overshoot_ge_two a b _hb3nz _hshift_nz _hcall _haddback
   -- Layer 2c: qHat ≥ q_true + 1 (runtime gating from call+addback+BEQ).
   have h_ge_one : qHat.toNat ≥ q_true + 1 :=
     n4CallAddbackBeq_v4_qHat_ge_q_true_plus_one a b _hb3nz _hshift_nz _hcall _haddback
