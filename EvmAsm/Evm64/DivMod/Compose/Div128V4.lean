@@ -150,19 +150,41 @@ theorem div128_v4_spec (sp retAddr d uLo uHi : Word) (base : Word)
        (sp + signExtend12 3944 ↦ₘ un0Mem) **
        (sp + signExtend12 3936 ↦ₘ scratchMem))
       (div128V4SpecPost sp retAddr d uLo uHi) := by
-  sorry  -- PR-A2 stub. Proof composes phase1 + step1_v2 + compute_un21 +
-         -- step2_v4 + end, similar to div128_v2_spec but with the v4
-         -- step2 block covering 31 instructions instead of 17, and with
-         -- the new scratch memory slot 3936 threaded through.
-         -- Block sequence:
-         --   [0..9]   phase1     (existing divK_div128_phase1_spec)
-         --   [10..34] step1_v2   (existing divK_div128_step1_v2_spec)
-         --   [35..39] compute_un21 (existing divK_div128_compute_un21_spec)
-         --   [40..70] step2_v4   (NEW divK_div128_step2_v4_spec — sorry'd)
-         --   [71..74] end        (existing divK_div128_end_spec)
-         -- Step2_v4 spans byte offsets [base+1232 .. base+1356], where
-         -- the v4 step2 covers 124 bytes vs v2's 68 bytes.
-         -- End spans [base+1356 .. base+1372]; v4 returns at base+1372.
+  sorry  -- PR-A2 stub. Proof composes 5 blocks via cpsTriple_seq_perm_same_cr,
+         -- mirroring `div128_v2_spec` (in `Compose/Div128.lean` line 419-629).
+         -- Translation table from v2 → v4:
+         --
+         --   Block 1: phase1    [base+1072..base+1112]  10 inst (same as v2)
+         --     Reuse `divK_div128_phase1_spec`. Code-extend with `d128_v4_sub`
+         --     for indices [0..9]. Frame x0.
+         --
+         --   Block 2: step1_v2  [base+1112..base+1212]  25 inst (same as v2)
+         --     Reuse `divK_div128_step1_v2_spec`. Code-extend with `d128_v4_sub`
+         --     for indices [10..34]. Frame ((x2 ↦ retAddr) ** mem3968 **
+         --     mem3960 ** mem3944 ** mem3936).
+         --
+         --   Block 3: compute_un21 [base+1212..base+1232]  5 inst (same as v2)
+         --     Reuse `divK_div128_compute_un21_spec`. Code-extend with
+         --     `d128_v4_sub` for indices [35..39]. Frame.
+         --
+         --   Block 4: step2_v4  [base+1232..base+1356]  31 inst (NEW for v4)
+         --     Use `divK_div128_step2_v4_spec` (still sorry'd). Code-extend
+         --     with `d128_v4_sub` for indices [40..70]. Frame ((x10 ↦ q1'') **
+         --     (x2 ↦ retAddr) ** mem3968 ** mem3960). NB: step2_v4 owns
+         --     mem3936 (saves rhat2c there).
+         --
+         --   Block 5: end       [base+1356..base+1372]  4 inst (same shape)
+         --     Reuse `divK_div128_end_spec` with q1 = q1'', q0 = q0''.
+         --     Code-extend with `d128_v4_sub` for indices [71..74]. Frame
+         --     ((x7 ↦ x7Exit_v4) ** (x6 ↦ dHi) ** (x1 ↦ x1Exit_v4) ** x0 **
+         --      mem3960 ** mem3952 ** mem3944 ** mem3936).
+         --
+         -- Final: cpsTriple_weaken with two xperm_hyp to reshape pre/post
+         -- to match `div128V4SpecPost` definition order.
+         --
+         -- The proof is ~600 LOC of mechanical block-composition; structurally
+         -- identical to v2 except Block 4 (step2_v4) extends 14 more
+         -- instructions and threads the new mem3936 cell.
 
 /-- Lifted `div128_v4_spec` over `sharedDivModCode_v4 base` — a thin
     wrapper that lifts the cr from singleton `ofProg`-form to the
