@@ -228,13 +228,29 @@ theorem sra_spec_gen_rd_eq_rs1_within (rd rs2 : Reg) (v1 v2 : Word)
 -- Immediate specs
 -- ============================================================================
 
+theorem addi_spec_gen_same_within (rd : Reg) (v : Word) (imm : BitVec 12)
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
+    cpsTripleWithin 1 addr (addr + 4) (CodeReq.singleton addr (.ADDI rd rd imm))
+      (rd ↦ᵣ v)
+      (rd ↦ᵣ (v + signExtend12 imm)) :=
+  generic_1reg_spec_within (.ADDI rd rd imm) rd v _ addr hrd_ne_x0
+    (by intro s _ hrd; simp [execInstrBr, hrd])
+    (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
+
 @[spec_gen_rv64] theorem addi_spec_gen_same (rd : Reg) (v : Word) (imm : BitVec 12)
     (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.ADDI rd rd imm))
       (rd ↦ᵣ v)
       (rd ↦ᵣ (v + signExtend12 imm)) :=
-  generic_1reg_spec (.ADDI rd rd imm) rd v _ addr hrd_ne_x0
-    (by intro s _ hrd; simp [execInstrBr, hrd])
+  (addi_spec_gen_same_within rd v imm addr hrd_ne_x0).to_cpsTriple
+
+theorem addi_spec_gen_within (rd rs1 : Reg) (vOld v1 : Word) (imm : BitVec 12)
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
+    cpsTripleWithin 1 addr (addr + 4) (CodeReq.singleton addr (.ADDI rd rs1 imm))
+      ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ vOld))
+      ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ (v1 + signExtend12 imm))) :=
+  generic_2reg_spec_within (.ADDI rd rs1 imm) rs1 rd v1 vOld (v1 + signExtend12 imm) addr hrd_ne_x0
+    (by intro s _ hrs1 _; simp [execInstrBr, hrs1])
     (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem addi_spec_gen (rd rs1 : Reg) (vOld v1 : Word) (imm : BitVec 12)
@@ -242,8 +258,15 @@ theorem sra_spec_gen_rd_eq_rs1_within (rd rs2 : Reg) (v1 v2 : Word)
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.ADDI rd rs1 imm))
       ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ vOld))
       ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ (v1 + signExtend12 imm))) :=
-  generic_2reg_spec (.ADDI rd rs1 imm) rs1 rd v1 vOld (v1 + signExtend12 imm) addr hrd_ne_x0
-    (by intro s _ hrs1 _; simp [execInstrBr, hrs1])
+  (addi_spec_gen_within rd rs1 vOld v1 imm addr hrd_ne_x0).to_cpsTriple
+
+theorem xori_spec_gen_same_within (rd : Reg) (v : Word) (imm : BitVec 12)
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
+    cpsTripleWithin 1 addr (addr + 4) (CodeReq.singleton addr (.XORI rd rd imm))
+      (rd ↦ᵣ v)
+      (rd ↦ᵣ (v ^^^ signExtend12 imm)) :=
+  generic_1reg_spec_within (.XORI rd rd imm) rd v _ addr hrd_ne_x0
+    (by intro s _ hrd; simp [execInstrBr, hrd])
     (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem xori_spec_gen_same (rd : Reg) (v : Word) (imm : BitVec 12)
@@ -251,8 +274,15 @@ theorem sra_spec_gen_rd_eq_rs1_within (rd rs2 : Reg) (v1 v2 : Word)
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.XORI rd rd imm))
       (rd ↦ᵣ v)
       (rd ↦ᵣ (v ^^^ signExtend12 imm)) :=
-  generic_1reg_spec (.XORI rd rd imm) rd v _ addr hrd_ne_x0
-    (by intro s _ hrd; simp [execInstrBr, hrd])
+  (xori_spec_gen_same_within rd v imm addr hrd_ne_x0).to_cpsTriple
+
+theorem andi_spec_gen_within (rd rs1 : Reg) (vOld v1 : Word) (imm : BitVec 12)
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
+    cpsTripleWithin 1 addr (addr + 4) (CodeReq.singleton addr (.ANDI rd rs1 imm))
+      ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ vOld))
+      ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ (v1 &&& signExtend12 imm))) :=
+  generic_2reg_spec_within (.ANDI rd rs1 imm) rs1 rd v1 vOld (v1 &&& signExtend12 imm) addr hrd_ne_x0
+    (by intro s _ hrs1 _; simp [execInstrBr, hrs1])
     (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem andi_spec_gen (rd rs1 : Reg) (vOld v1 : Word) (imm : BitVec 12)
@@ -260,8 +290,15 @@ theorem sra_spec_gen_rd_eq_rs1_within (rd rs2 : Reg) (v1 v2 : Word)
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.ANDI rd rs1 imm))
       ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ vOld))
       ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ (v1 &&& signExtend12 imm))) :=
-  generic_2reg_spec (.ANDI rd rs1 imm) rs1 rd v1 vOld (v1 &&& signExtend12 imm) addr hrd_ne_x0
-    (by intro s _ hrs1 _; simp [execInstrBr, hrs1])
+  (andi_spec_gen_within rd rs1 vOld v1 imm addr hrd_ne_x0).to_cpsTriple
+
+theorem andi_spec_gen_same_within (rd : Reg) (v : Word) (imm : BitVec 12)
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
+    cpsTripleWithin 1 addr (addr + 4) (CodeReq.singleton addr (.ANDI rd rd imm))
+      (rd ↦ᵣ v)
+      (rd ↦ᵣ (v &&& signExtend12 imm)) :=
+  generic_1reg_spec_within (.ANDI rd rd imm) rd v _ addr hrd_ne_x0
+    (by intro s _ hrd; simp [execInstrBr, hrd])
     (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem andi_spec_gen_same (rd : Reg) (v : Word) (imm : BitVec 12)
@@ -269,7 +306,14 @@ theorem sra_spec_gen_rd_eq_rs1_within (rd rs2 : Reg) (v1 v2 : Word)
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.ANDI rd rd imm))
       (rd ↦ᵣ v)
       (rd ↦ᵣ (v &&& signExtend12 imm)) :=
-  generic_1reg_spec (.ANDI rd rd imm) rd v _ addr hrd_ne_x0
+  (andi_spec_gen_same_within rd v imm addr hrd_ne_x0).to_cpsTriple
+
+theorem sltiu_spec_gen_same_within (rd : Reg) (v : Word) (imm : BitVec 12)
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
+    cpsTripleWithin 1 addr (addr + 4) (CodeReq.singleton addr (.SLTIU rd rd imm))
+      (rd ↦ᵣ v)
+      (rd ↦ᵣ (if BitVec.ult v (signExtend12 imm) then (1 : Word) else (0 : Word))) :=
+  generic_1reg_spec_within (.SLTIU rd rd imm) rd v _ addr hrd_ne_x0
     (by intro s _ hrd; simp [execInstrBr, hrd])
     (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
 
@@ -278,7 +322,14 @@ theorem sra_spec_gen_rd_eq_rs1_within (rd rs2 : Reg) (v1 v2 : Word)
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.SLTIU rd rd imm))
       (rd ↦ᵣ v)
       (rd ↦ᵣ (if BitVec.ult v (signExtend12 imm) then (1 : Word) else (0 : Word))) :=
-  generic_1reg_spec (.SLTIU rd rd imm) rd v _ addr hrd_ne_x0
+  (sltiu_spec_gen_same_within rd v imm addr hrd_ne_x0).to_cpsTriple
+
+theorem slli_spec_gen_same_within (rd : Reg) (v : Word) (shamt : BitVec 6)
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
+    cpsTripleWithin 1 addr (addr + 4) (CodeReq.singleton addr (.SLLI rd rd shamt))
+      (rd ↦ᵣ v)
+      (rd ↦ᵣ (v <<< shamt.toNat)) :=
+  generic_1reg_spec_within (.SLLI rd rd shamt) rd v _ addr hrd_ne_x0
     (by intro s _ hrd; simp [execInstrBr, hrd])
     (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
 
@@ -287,8 +338,15 @@ theorem sra_spec_gen_rd_eq_rs1_within (rd rs2 : Reg) (v1 v2 : Word)
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.SLLI rd rd shamt))
       (rd ↦ᵣ v)
       (rd ↦ᵣ (v <<< shamt.toNat)) :=
-  generic_1reg_spec (.SLLI rd rd shamt) rd v _ addr hrd_ne_x0
-    (by intro s _ hrd; simp [execInstrBr, hrd])
+  (slli_spec_gen_same_within rd v shamt addr hrd_ne_x0).to_cpsTriple
+
+theorem slli_spec_gen_within (rd rs1 : Reg) (vOld v1 : Word) (shamt : BitVec 6)
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
+    cpsTripleWithin 1 addr (addr + 4) (CodeReq.singleton addr (.SLLI rd rs1 shamt))
+      ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ vOld))
+      ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ (v1 <<< shamt.toNat))) :=
+  generic_2reg_spec_within (.SLLI rd rs1 shamt) rs1 rd v1 vOld _ addr hrd_ne_x0
+    (by intro s _ hrs1 _; simp [execInstrBr, hrs1])
     (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem slli_spec_gen (rd rs1 : Reg) (vOld v1 : Word) (shamt : BitVec 6)
@@ -296,8 +354,15 @@ theorem sra_spec_gen_rd_eq_rs1_within (rd rs2 : Reg) (v1 v2 : Word)
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.SLLI rd rs1 shamt))
       ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ vOld))
       ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ (v1 <<< shamt.toNat))) :=
-  generic_2reg_spec (.SLLI rd rs1 shamt) rs1 rd v1 vOld _ addr hrd_ne_x0
-    (by intro s _ hrs1 _; simp [execInstrBr, hrs1])
+  (slli_spec_gen_within rd rs1 vOld v1 shamt addr hrd_ne_x0).to_cpsTriple
+
+theorem srli_spec_gen_same_within (rd : Reg) (v : Word) (shamt : BitVec 6)
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
+    cpsTripleWithin 1 addr (addr + 4) (CodeReq.singleton addr (.SRLI rd rd shamt))
+      (rd ↦ᵣ v)
+      (rd ↦ᵣ (v >>> shamt.toNat)) :=
+  generic_1reg_spec_within (.SRLI rd rd shamt) rd v _ addr hrd_ne_x0
+    (by intro s _ hrd; simp [execInstrBr, hrd])
     (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem srli_spec_gen_same (rd : Reg) (v : Word) (shamt : BitVec 6)
@@ -305,8 +370,15 @@ theorem sra_spec_gen_rd_eq_rs1_within (rd rs2 : Reg) (v1 v2 : Word)
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.SRLI rd rd shamt))
       (rd ↦ᵣ v)
       (rd ↦ᵣ (v >>> shamt.toNat)) :=
-  generic_1reg_spec (.SRLI rd rd shamt) rd v _ addr hrd_ne_x0
-    (by intro s _ hrd; simp [execInstrBr, hrd])
+  (srli_spec_gen_same_within rd v shamt addr hrd_ne_x0).to_cpsTriple
+
+theorem srli_spec_gen_within (rd rs1 : Reg) (vOld v1 : Word) (shamt : BitVec 6)
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
+    cpsTripleWithin 1 addr (addr + 4) (CodeReq.singleton addr (.SRLI rd rs1 shamt))
+      ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ vOld))
+      ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ (v1 >>> shamt.toNat))) :=
+  generic_2reg_spec_within (.SRLI rd rs1 shamt) rs1 rd v1 vOld _ addr hrd_ne_x0
+    (by intro s _ hrs1 _; simp [execInstrBr, hrs1])
     (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem srli_spec_gen (rd rs1 : Reg) (vOld v1 : Word) (shamt : BitVec 6)
@@ -314,8 +386,15 @@ theorem sra_spec_gen_rd_eq_rs1_within (rd rs2 : Reg) (v1 v2 : Word)
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.SRLI rd rs1 shamt))
       ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ vOld))
       ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ (v1 >>> shamt.toNat))) :=
-  generic_2reg_spec (.SRLI rd rs1 shamt) rs1 rd v1 vOld _ addr hrd_ne_x0
-    (by intro s _ hrs1 _; simp [execInstrBr, hrs1])
+  (srli_spec_gen_within rd rs1 vOld v1 shamt addr hrd_ne_x0).to_cpsTriple
+
+theorem srai_spec_gen_same_within (rd : Reg) (v : Word) (shamt : BitVec 6)
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
+    cpsTripleWithin 1 addr (addr + 4) (CodeReq.singleton addr (.SRAI rd rd shamt))
+      (rd ↦ᵣ v)
+      (rd ↦ᵣ (BitVec.sshiftRight v shamt.toNat)) :=
+  generic_1reg_spec_within (.SRAI rd rd shamt) rd v _ addr hrd_ne_x0
+    (by intro s _ hrd; simp [execInstrBr, hrd])
     (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem srai_spec_gen_same (rd : Reg) (v : Word) (shamt : BitVec 6)
@@ -323,8 +402,15 @@ theorem sra_spec_gen_rd_eq_rs1_within (rd rs2 : Reg) (v1 v2 : Word)
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.SRAI rd rd shamt))
       (rd ↦ᵣ v)
       (rd ↦ᵣ (BitVec.sshiftRight v shamt.toNat)) :=
-  generic_1reg_spec (.SRAI rd rd shamt) rd v _ addr hrd_ne_x0
-    (by intro s _ hrd; simp [execInstrBr, hrd])
+  (srai_spec_gen_same_within rd v shamt addr hrd_ne_x0).to_cpsTriple
+
+theorem srai_spec_gen_within (rd rs1 : Reg) (vOld v1 : Word) (shamt : BitVec 6)
+    (addr : Word) (hrd_ne_x0 : rd ≠ .x0) :
+    cpsTripleWithin 1 addr (addr + 4) (CodeReq.singleton addr (.SRAI rd rs1 shamt))
+      ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ vOld))
+      ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ (BitVec.sshiftRight v1 shamt.toNat))) :=
+  generic_2reg_spec_within (.SRAI rd rs1 shamt) rs1 rd v1 vOld (BitVec.sshiftRight v1 shamt.toNat) addr hrd_ne_x0
+    (by intro s _ hrs1 _; simp [execInstrBr, hrs1])
     (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem srai_spec_gen (rd rs1 : Reg) (vOld v1 : Word) (shamt : BitVec 6)
@@ -332,26 +418,31 @@ theorem sra_spec_gen_rd_eq_rs1_within (rd rs2 : Reg) (v1 v2 : Word)
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.SRAI rd rs1 shamt))
       ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ vOld))
       ((rs1 ↦ᵣ v1) ** (rd ↦ᵣ (BitVec.sshiftRight v1 shamt.toNat))) :=
-  generic_2reg_spec (.SRAI rd rs1 shamt) rs1 rd v1 vOld (BitVec.sshiftRight v1 shamt.toNat) addr hrd_ne_x0
-    (by intro s _ hrs1 _; simp [execInstrBr, hrs1])
-    (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
+  (srai_spec_gen_within rd rs1 vOld v1 shamt addr hrd_ne_x0).to_cpsTriple
 
 -- ============================================================================
 -- Pseudo instructions
 -- ============================================================================
+
+theorem li_spec_gen_within (rd : Reg) (vOld imm : Word) (addr : Word)
+    (hrd_ne_x0 : rd ≠ .x0) :
+    cpsTripleWithin 1 addr (addr + 4) (CodeReq.singleton addr (.LI rd imm))
+      (rd ↦ᵣ vOld)
+      (rd ↦ᵣ imm) :=
+  generic_1reg_spec_within (.LI rd imm) rd vOld _ addr hrd_ne_x0
+    (by intro s _ _; simp [execInstrBr])
+    (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem li_spec_gen (rd : Reg) (vOld imm : Word) (addr : Word)
     (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.LI rd imm))
       (rd ↦ᵣ vOld)
       (rd ↦ᵣ imm) :=
-  generic_1reg_spec (.LI rd imm) rd vOld _ addr hrd_ne_x0
-    (by intro s _ _; simp [execInstrBr])
-    (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
+  (li_spec_gen_within rd vOld imm addr hrd_ne_x0).to_cpsTriple
 
-@[spec_gen_rv64] theorem li_spec_gen_own (rd : Reg) (imm : Word) (addr : Word)
+theorem li_spec_gen_own_within (rd : Reg) (imm : Word) (addr : Word)
     (hrd_ne_x0 : rd ≠ .x0) :
-    cpsTriple addr (addr + 4) (CodeReq.singleton addr (.LI rd imm))
+    cpsTripleWithin 1 addr (addr + 4) (CodeReq.singleton addr (.LI rd imm))
       (regOwn rd)
       (rd ↦ᵣ imm) := by
   intro R hR s hcr hPR hpc
@@ -359,16 +450,30 @@ theorem sra_spec_gen_rd_eq_rs1_within (rd rs2 : Reg) (v1 v2 : Word)
   obtain ⟨v, hv⟩ := hpq
   have hPR' : ((rd ↦ᵣ v) ** R).holdsFor s :=
     ⟨h, hcompat, hPQ, hR_ps, hdisj, hunion, hv, hrR⟩
-  exact li_spec_gen rd v imm addr hrd_ne_x0 R hR s hcr hPR' hpc
+  exact li_spec_gen_within rd v imm addr hrd_ne_x0 R hR s hcr hPR' hpc
+
+@[spec_gen_rv64] theorem li_spec_gen_own (rd : Reg) (imm : Word) (addr : Word)
+    (hrd_ne_x0 : rd ≠ .x0) :
+    cpsTriple addr (addr + 4) (CodeReq.singleton addr (.LI rd imm))
+      (regOwn rd)
+      (rd ↦ᵣ imm) :=
+  (li_spec_gen_own_within rd imm addr hrd_ne_x0).to_cpsTriple
+
+theorem mv_spec_gen_within (rd rs : Reg) (v vOld : Word) (addr : Word)
+    (hrd_ne_x0 : rd ≠ .x0) :
+    cpsTripleWithin 1 addr (addr + 4) (CodeReq.singleton addr (.MV rd rs))
+      ((rs ↦ᵣ v) ** (rd ↦ᵣ vOld))
+      ((rs ↦ᵣ v) ** (rd ↦ᵣ v)) :=
+  generic_2reg_spec_within (.MV rd rs) rs rd v vOld v addr hrd_ne_x0
+    (by intro s _ hrs _; simp [execInstrBr, hrs])
+    (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
 
 @[spec_gen_rv64] theorem mv_spec_gen (rd rs : Reg) (v vOld : Word) (addr : Word)
     (hrd_ne_x0 : rd ≠ .x0) :
     cpsTriple addr (addr + 4) (CodeReq.singleton addr (.MV rd rs))
       ((rs ↦ᵣ v) ** (rd ↦ᵣ vOld))
       ((rs ↦ᵣ v) ** (rd ↦ᵣ v)) :=
-  generic_2reg_spec (.MV rd rs) rs rd v vOld v addr hrd_ne_x0
-    (by intro s _ hrs _; simp [execInstrBr, hrs])
-    (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
+  (mv_spec_gen_within rd rs v vOld addr hrd_ne_x0).to_cpsTriple
 
 -- ============================================================================
 -- Branch/Jump specs
