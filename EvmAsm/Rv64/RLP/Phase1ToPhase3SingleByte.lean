@@ -40,6 +40,55 @@ open EvmAsm.Rv64.Tactics
     The two `htarget` and `hd` hypotheses tie the e1 target to the
     Phase 1 cascade step's BLTU offset and to the Phase 1 step code's
     disjointness with Phase 3 single-byte's code, respectively. -/
+theorem rlp_phase1_e1_then_single_byte_spec_within
+    (v5 v10 v11Old : Word)
+    (offset : BitVec 13)
+    (base target : Word)
+    (htarget : (base + 4) + signExtend13 offset = target)
+    (hv5 : BitVec.ult v5 ((0 : Word) + signExtend12 0x80))
+    (hd  : (rlp_phase1_step_code 0x80 offset base).Disjoint
+            (CodeReq.ofProg target rlp_phase3_single_byte_prog)) :
+    cpsTripleWithin 3 base (target + 4)
+      ((rlp_phase1_step_code 0x80 offset base).union
+         (CodeReq.ofProg target rlp_phase3_single_byte_prog))
+      ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10) **
+        (.x11 ↦ᵣ v11Old))
+      ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x10 ↦ᵣ ((0 : Word) + signExtend12 (0x80 : BitVec 12))) **
+        (.x11 ↦ᵣ (1 : Word))) := by
+  -- Step 1: Phase 1 cascade step at k = 0x80, taken path.
+  have ph1 := rlp_phase1_step_taken_spec_within v5 v10 0x80 offset base target htarget hv5
+  -- Frame Phase 1 with `x11`.
+  have ph1' : cpsTripleWithin 2 base target
+      (rlp_phase1_step_code 0x80 offset base)
+      ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10) **
+        (.x11 ↦ᵣ v11Old))
+      ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x10 ↦ᵣ ((0 : Word) + signExtend12 (0x80 : BitVec 12))) **
+        (.x11 ↦ᵣ v11Old)) :=
+    cpsTripleWithin_weaken
+      (fun _ hp => by xperm_hyp hp)
+      (fun _ hp => by xperm_hyp hp)
+      (cpsTripleWithin_frameR (.x11 ↦ᵣ v11Old) (by pcFree) ph1)
+  -- Step 2: Phase 3 single-byte length emitter at target.
+  have ph3 := rlp_phase3_single_byte_spec_within v11Old target
+  -- Frame Phase 3 with `x5` and `x10`.
+  have ph3' : cpsTripleWithin 1 target (target + 4)
+      (CodeReq.ofProg target rlp_phase3_single_byte_prog)
+      ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x10 ↦ᵣ ((0 : Word) + signExtend12 (0x80 : BitVec 12))) **
+        (.x11 ↦ᵣ v11Old))
+      ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x10 ↦ᵣ ((0 : Word) + signExtend12 (0x80 : BitVec 12))) **
+        (.x11 ↦ᵣ (1 : Word))) :=
+    cpsTripleWithin_weaken
+      (fun _ hp => by xperm_hyp hp)
+      (fun _ hp => by xperm_hyp hp)
+      (cpsTripleWithin_frameR
+        ((.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ ((0 : Word) + signExtend12 (0x80 : BitVec 12))))
+        (by pcFree) ph3)
+  exact cpsTripleWithin_seq hd ph1' ph3'
+
 theorem rlp_phase1_e1_then_single_byte_spec
     (v5 v10 v11Old : Word)
     (offset : BitVec 13)
@@ -55,39 +104,9 @@ theorem rlp_phase1_e1_then_single_byte_spec
         (.x11 ↦ᵣ v11Old))
       ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) **
         (.x10 ↦ᵣ ((0 : Word) + signExtend12 (0x80 : BitVec 12))) **
-        (.x11 ↦ᵣ (1 : Word))) := by
-  -- Step 1: Phase 1 cascade step at k = 0x80, taken path.
-  have ph1 := rlp_phase1_step_taken_spec v5 v10 0x80 offset base target htarget hv5
-  -- Frame Phase 1 with `x11`.
-  have ph1' : cpsTriple base target
-      (rlp_phase1_step_code 0x80 offset base)
-      ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10) **
-        (.x11 ↦ᵣ v11Old))
-      ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) **
-        (.x10 ↦ᵣ ((0 : Word) + signExtend12 (0x80 : BitVec 12))) **
-        (.x11 ↦ᵣ v11Old)) :=
-    cpsTriple_weaken
-      (fun _ hp => by xperm_hyp hp)
-      (fun _ hp => by xperm_hyp hp)
-      (cpsTriple_frameR (.x11 ↦ᵣ v11Old) (by pcFree) ph1)
-  -- Step 2: Phase 3 single-byte length emitter at target.
-  have ph3 := rlp_phase3_single_byte_spec v11Old target
-  -- Frame Phase 3 with `x5` and `x10`.
-  have ph3' : cpsTriple target (target + 4)
-      (CodeReq.ofProg target rlp_phase3_single_byte_prog)
-      ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) **
-        (.x10 ↦ᵣ ((0 : Word) + signExtend12 (0x80 : BitVec 12))) **
-        (.x11 ↦ᵣ v11Old))
-      ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) **
-        (.x10 ↦ᵣ ((0 : Word) + signExtend12 (0x80 : BitVec 12))) **
         (.x11 ↦ᵣ (1 : Word))) :=
-    cpsTriple_weaken
-      (fun _ hp => by xperm_hyp hp)
-      (fun _ hp => by xperm_hyp hp)
-      (cpsTriple_frameR
-        ((.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ ((0 : Word) + signExtend12 (0x80 : BitVec 12))))
-        (by pcFree) ph3)
-  exact cpsTriple_seq hd ph1' ph3'
+  (rlp_phase1_e1_then_single_byte_spec_within v5 v10 v11Old offset base target
+    htarget hv5 hd).to_cpsTriple
 
 /-! ## Concrete-byte specializations of the e1 path -/
 
