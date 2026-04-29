@@ -49,4 +49,41 @@ theorem div128Quot_v4_knuth_A_on_counterexample :
       (dHi.toNat * 2^32 + dLo.toNat) * 2^32 := by
   decide
 
+/-- **Layer 2a numerical validation**: on the v1 counterexample
+    (a3=2^63+2^33, b3=1, b2=2^33-1), check whether the carry partition
+    holds for v4. Specifically: we compute `carry` (post-mulsub addback
+    carry) and `qHat` (the v4 trial digit), and verify the relationship
+    against `q_true = val256(a)/val256(b)`.
+
+    On this input, v4's `qHat = q_true + ?` and `carry = ?` (validated by
+    `decide`). This data point informs whether Layer 2a-fwd's claim
+    `carry = 0 ↔ qHat ≥ q_true + 2` holds for v4 under
+    `isAddbackBorrowN4CallEvm_v4`. -/
+theorem layer_2a_partition_holds_on_v1_counterexample :
+    let a : EvmWord := EvmWord.fromLimbs (fun i => match i with
+      | 0 => 0 | 1 => 0 | 2 => 0 | 3 => BitVec.ofNat 64 (2^63 + 2^33))
+    let b : EvmWord := EvmWord.fromLimbs (fun i => match i with
+      | 0 => 0 | 1 => 0 | 2 => BitVec.ofNat 64 (2^33 - 1) | 3 => 1)
+    let shift := (clzResult (b.getLimbN 3)).1.toNat % 64
+    let antiShift :=
+      (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64
+    let b3' := ((b.getLimbN 3) <<< shift) ||| ((b.getLimbN 2) >>> antiShift)
+    let b2' := ((b.getLimbN 2) <<< shift) ||| ((b.getLimbN 1) >>> antiShift)
+    let b1' := ((b.getLimbN 1) <<< shift) ||| ((b.getLimbN 0) >>> antiShift)
+    let b0' := (b.getLimbN 0) <<< shift
+    let u4 := (a.getLimbN 3) >>> antiShift
+    let u3 := ((a.getLimbN 3) <<< shift) ||| ((a.getLimbN 2) >>> antiShift)
+    let u2 := ((a.getLimbN 2) <<< shift) ||| ((a.getLimbN 1) >>> antiShift)
+    let u1 := ((a.getLimbN 1) <<< shift) ||| ((a.getLimbN 0) >>> antiShift)
+    let u0 := (a.getLimbN 0) <<< shift
+    let qHat := div128Quot_v4 u4 u3 b3'
+    let ms := mulsubN4 qHat b0' b1' b2' b3' u0 u1 u2 u3
+    let carry := addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 b0' b1' b2' b3'
+    let q_true := val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) /
+                    val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+    -- Layer 2a forward direction: carry = 0 → qHat ≥ q_true + 2.
+    -- Layer 2a backward direction: qHat ≥ q_true + 2 → carry = 0.
+    (carry = 0 ↔ qHat.toNat ≥ q_true + 2) := by
+  decide
+
 end EvmAsm.Evm64
