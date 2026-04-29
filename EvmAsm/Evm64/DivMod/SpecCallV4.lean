@@ -16,6 +16,11 @@
   `SpecCallAddbackBeq.lean` (defines v1 + v2 versions).
 -/
 
+-- file-size-exception: bundles the v4 closure proofs (Layer 1, Layer 2a
+-- forward+backward, Layer 2c, Layer 3) along with their pure-Nat helpers
+-- and val256-norm bridges. Splitting risks fragmenting the call-addback
+-- BEQ closure chain across files.
+
 import EvmAsm.Evm64.DivMod.SpecCall
 import EvmAsm.Evm64.DivMod.SpecCallAddbackBeq
 import EvmAsm.Evm64.DivMod.LoopDefs.IterV4
