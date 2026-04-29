@@ -896,10 +896,10 @@ theorem u_top_lt_c3_of_addback_borrow_call_v4
     via `b3_prime_val256_eq_scaled` to get qHat * val256(b) > val256(a) +
     val256(b) (modulo carry adjustments), hence qHat ≥ q_true + 2. -/
 theorem n4CallAddback_v4_carry_zero_imp_overshoot_ge_two (a b : EvmWord)
-    (_hb3nz : b.getLimbN 3 ≠ 0)
-    (_hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
     (_hcall : isCallTrialN4Evm a b)
-    (_haddback : isAddbackBorrowN4CallEvm_v4 a b) :
+    (haddback : isAddbackBorrowN4CallEvm_v4 a b) :
     let shift := (clzResult (b.getLimbN 3)).1.toNat % 64
     let antiShift := (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64
     let b3' := ((b.getLimbN 3) <<< shift) ||| ((b.getLimbN 2) >>> antiShift)
@@ -917,24 +917,35 @@ theorem n4CallAddback_v4_carry_zero_imp_overshoot_ge_two (a b : EvmWord)
     let q_true := val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) /
                     val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
     carry = 0 → qHat.toNat ≥ q_true + 2 := by
-  sorry  -- Forward direction. Key insight (per project_layer2a_bridge_gap):
-         -- under haddback (`u4 < c3`), need to derive c3 ≤ 1 to collapse
-         -- to u4 = 0 ∧ c3 = 1. BUT mulsubN4_c3_le_one needs `qHat ≤ q*_norm + 1`,
-         -- which is NOT directly available since qHat ≤ q_true + 2 and
-         -- q*_norm ≤ q_true (so qHat ≤ q*_norm + 2 at best).
+  sorry  -- Forward direction.
          --
-         -- More careful analysis (post-2026-04-29): c3 ∈ {1, 2} is possible
-         -- under our bounds. The case c3 = 2 occurs when val256(b)*2^shift is
-         -- large compared to 2^256 — concretely, when shift ≥ 64 - log₂(val256(b)).
-         -- For c3 = 2 ∧ u4 = 1: carry = 0 may yield qHat = q_true + 1 only,
-         -- breaking the simple chain.
+         -- **PROVEN MATH CHAIN** (in ℕ, deferred to Lean — kernel deep recursion
+         -- when attempted inline; needs extracted pure-Nat helper):
          --
-         -- Path forward: NUMERICAL VALIDATION needed first. Use `decide` on
-         -- representative inputs (esp. v1 counterexample) to confirm the
-         -- partition holds for v4. If yes, the proof needs careful c3 case
-         -- analysis. If no, the closure precondition needs further strengthening.
+         -- 1. From haddback (`u4 < c3`): c3 ≥ u4 + 1.
+         -- 2. mulsubN4_val256_eq:
+         --      val256(u_norm) + c3*2^256 = val256(ms_un) + qHat * val256(v_norm).
+         -- 3. addbackN4_val256_eq + carry = 0:
+         --      val256(ms_un) + val256(v_norm) = val256(ab).
+         -- 4. val256(ab) < 2^256 (val256_bound).
+         -- 5. Combine: Q*Vb*p_shift + Vab = Vu + c3*p256 + Vv.
+         -- 6. h_norm_u, h_norm_v: Vu + U4*p256 = Va*p_shift, Vv = Vb*p_shift.
+         -- 7. (Va+Vb)*p_shift = Vu + U4*p256 + Vv.
+         -- 8. So Q*Vb*p_shift + Vab = (Va+Vb)*p_shift + (c3 - U4)*p256.
+         -- 9. With c3 - U4 ≥ 1: Q*Vb*p_shift + Vab ≥ (Va+Vb)*p_shift + p256.
+         -- 10. Vab < p256: Q*Vb*p_shift > (Va+Vb)*p_shift. Cancel p_shift:
+         --     Q*Vb > Va + Vb.
+         -- 11. Va < Q*Vb - Vb = (Q-1)*Vb. So Va/Vb ≤ Q - 2, i.e., Q ≥ q_true + 2.
          --
-         -- Estimated next iteration: numerical validation, ~5 cases via decide.
+         -- **Numerical validation**: PASSED on v1 counterexample (see
+         -- `layer_2a_partition_holds_on_v1_counterexample` in NumericalTestsV4).
+         --
+         -- **Implementation blocker**: kernel deep recursion on direct inline
+         -- proof (long val256 expressions + many `set` aliases). Path: extract
+         -- a pure-Nat helper `_carry_zero_imp_overshoot_arith` taking the
+         -- 6 input quantities (Vu, Vv, Va, Vb, c3, U4, Q) plus 5 hypotheses
+         -- (h_dam combined eq, h_norm_u, h_norm_v, h_u4_lt_c3, h_Vab_lt) as
+         -- pure-Nat propositions, then bridge from the Word level.
 
 /-- **Layer 2a-back: qHat overshoots by ≥ 2 → carry = 0.**
 
