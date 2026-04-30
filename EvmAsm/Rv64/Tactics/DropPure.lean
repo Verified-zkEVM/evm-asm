@@ -72,6 +72,42 @@ theorem sepConj_pure_right_swap {P : EvmAsm.Rv64.Assertion} {Q : Prop} :
   rw [EvmAsm.Rv64.sepConj_pure_right]
   exact And.comm
 
+/-! ### Assertion-level pure-bubble equality
+
+The `sepConj_pure_*` iff lemmas above are stated as
+`∀ s, (…) s ↔ (…) s`. `simp` can only fire those at the *outermost*
+assertion-applied-to-state position; once the chain is right-associated as
+`A₁ ** (A₂ ** (… ** (Aₖ₋₁ ** (⌜P⌝ ** Aₖ₊₁))))` and a pure sits at depth
+`k > 1`, those rules can no longer reach it because they would have to
+descend through opaque `sepConj` applications — none of the helper
+biconditionals are stated under the `**` head, so simp's congruence does
+not propagate them.
+
+The equality below is at `Assertion = Assertion` (no `s` applied), so
+simp's standard congruence on the binary `sepConj` operator *can* rewrite
+it at any depth in a right-associated chain. Repeated application bubbles
+a deep pure (`(R ** (⌜Q⌝ ** S))`) one step closer to the head per fire;
+once at the head, `sepConj_pure_left` (an iff at outermost `_ s`) peels
+it into a left `∧`.
+
+Why only this one Assertion-eq and not also a swap form
+(`(R ** ⌜Q⌝) = (⌜Q⌝ ** R)`): a swap form combined with `left_comm_eq`
+loops on adjacent pures (`R ** (⌜P⌝ ** ⌜Q⌝)` cycles forever in `simp`).
+With only `left_comm_eq`, no rewrite path exists from `R ** ⌜Q⌝` back to
+itself, so simp terminates. The price: trailing pures buried at depth
+≥ 2 (e.g. `R₁ ** (R₂ ** ⌜Q⌝)`) are not bubbled by this rule alone — they
+stay in place until a follow-up pass. The kvl Flavor-A reproducer
+(`⌜rhatHi2 ≠ 0⌝` mid-chain with a resource on its right) IS handled,
+which is the priority case for beads `evm-asm-22a` (#1435).
+
+Tail-deep pures need a separate strategy (custom tactic); see followup
+beads task. -/
+
+theorem sepConj_pure_left_comm_eq (P : EvmAsm.Rv64.Assertion) (Q : Prop)
+    (R : EvmAsm.Rv64.Assertion) :
+    (P ** (⌜Q⌝ ** R)) = (⌜Q⌝ ** (P ** R)) :=
+  EvmAsm.Rv64.sepConj_left_comm' P (⌜Q⌝) R
+
 /-- Repeatedly project off the leading `And` in `h`'s type, discarding
     the head conjunct and rebinding `h` to the tail. Stops as soon as
     the type is no longer of the form `_ ∧ _`. -/
@@ -104,17 +140,37 @@ syntax (name := dropPure) "drop_pure " ident : tactic
 def evalDropPure : Tactic := fun stx => do
   match stx with
   | `(tactic| drop_pure $h:ident) => withMainContext do
-      -- Step 1: bubble every pure leaf into a left `And`. Same simp
-      -- set as `extract_pure`, but with `sepConj_pure_right` swapped
-      -- for `sepConj_pure_right_swap` so trailing pures also land on
-      -- the LEFT of the resulting `And`. This makes the `.2` loop
-      -- below uniform regardless of where the pure originally sat.
+      -- Step 1: bubble every pure leaf to a left `And`.
+      --
+      -- Stage 1a: right-associate the chain via forward `sepConj_assoc'`.
+      -- All subsequent bubble lemmas assume the right-associative shape
+      -- `A₁ ** (A₂ ** (… ** Aₙ))`.
+      --
+      -- Stage 1b: bubble pures to the head of their enclosing subchain
+      -- via the Assertion-level eqs `sepConj_pure_swap_eq` (handles a
+      -- trailing `_ ** ⌜·⌝`) and `sepConj_pure_left_comm_eq` (handles a
+      -- mid-chain pure: `_ ** (⌜·⌝ ** _)`). Because these are stated as
+      -- `Assertion = Assertion`, simp's congruence rewrites them under
+      -- arbitrary `**` nesting — the iff helpers below cannot do that.
+      --
+      -- Stage 1c: once each pure sits at the head of its subchain,
+      -- `sepConj_pure_left` (an iff at outermost `_ s`) peels the head
+      -- pure into a left `∧`. Repeated application drains every pure
+      -- onto the outer `∧`-spine.
+      --
+      -- The remaining helpers (`sepConj_pure_right_swap`,
+      -- `sepConj_pure_mid_left/right`, `sepConj_pure_left`) are kept as
+      -- back-up matchers for short chains (≤ 4 atoms) where the chain
+      -- never gets right-associated and simp can still fire them at
+      -- outermost. For long chains (depth ≥ 5) the Assertion-eq rules
+      -- do the work — see beads `evm-asm-22a`.
+      --
       -- `try` so a bare-resource hypothesis (no pures, possibly no
       -- `**`) is left untouched.
       evalTactic (← `(tactic|
         try
           simp only
-            [ ← EvmAsm.Rv64.sepConj_assoc'
+            [ EvmAsm.Rv64.Tactics.sepConj_pure_left_comm_eq
             , EvmAsm.Rv64.Tactics.sepConj_pure_right_swap
             , EvmAsm.Rv64.sepConj_pure_left
             , EvmAsm.Rv64.Tactics.sepConj_pure_mid_left
@@ -175,6 +231,38 @@ example (s : PartialState) (P Q R : Prop) (A : Assertion)
 /-- Degenerate: no pures. `drop_pure` should be a no-op. -/
 example (s : PartialState) (R₁ R₂ R₃ : Assertion)
     (h : (R₁ ** R₂ ** R₃) s) : (R₃ ** R₁ ** R₂) s := by
+  drop_pure h
+  xperm_hyp h
+
+/-! ### Long-chain regression tests for beads `evm-asm-22a` (#1435).
+
+These pin down the contract that `drop_pure` works on chains where a
+mid-chain pure leaf sits 5+ atoms deep — the shape that motivated the
+bug report (Div128Step1v2.lean Flavor-A sites threaded a 10-atom
+right-assoc chain with `⌜rhatHi2 ≠ 0⌝` at depth 9 with a resource on
+its right). Before the `sepConj_pure_left_comm_eq` Assertion-level eq
+was added, the iff-only simp set could not rewrite below the outermost
+`_ s` and these tests would leave the pure in place, breaking the
+follow-up `xperm_hyp h`.
+
+Tail-deep pures (e.g. `R₁ ** … ** Rₙ ** ⌜P⌝` at depth ≥ 2) are
+deliberately *not* handled by this slice — adding a swap form to the
+simp set creates an infinite-rewrite loop on adjacent pures (see the
+file docstring on `sepConj_pure_left_comm_eq`). Followup work is
+tracked separately. -/
+
+/-- 6-atom chain, mid-pure at depth 3 with a resource on its right. -/
+example (s : PartialState) (P : Prop) (R₁ R₂ R₃ R₄ R₅ : Assertion)
+    (h : (R₁ ** R₂ ** ⌜P⌝ ** R₃ ** R₄ ** R₅) s) :
+    (R₅ ** R₄ ** R₃ ** R₂ ** R₁) s := by
+  drop_pure h
+  xperm_hyp h
+
+/-- 10-atom chain with mid-pure at depth 9 — the kvl Flavor-A reproducer. -/
+example (s : PartialState) (P : Prop)
+    (R₁ R₂ R₃ R₄ R₅ R₆ R₇ R₈ R₉ : Assertion)
+    (h : (R₁ ** R₂ ** R₃ ** R₄ ** R₅ ** R₆ ** R₇ ** R₈ ** ⌜P⌝ ** R₉) s) :
+    (R₉ ** R₈ ** R₇ ** R₆ ** R₅ ** R₄ ** R₃ ** R₂ ** R₁) s := by
   drop_pure h
   xperm_hyp h
 
