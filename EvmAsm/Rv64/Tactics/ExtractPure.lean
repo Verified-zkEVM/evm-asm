@@ -53,6 +53,40 @@ theorem sepConj_pure_mid_right {P R : Assertion} {Q : Prop} :
             sepConj_comm' P (⌜Q⌝), sepConj_assoc']]
   exact sepConj_pure_left s
 
+/-! ### Assertion-level (`=`) pure-bubbling rewrites
+
+The `sepConj_pure_mid_left` / `_mid_right` lemmas above are stated as
+`∀ s, … s ↔ …`, so `simp only` will only fire them at the *outermost*
+state-applied position. That's enough when the pure leaf sits at depth ≤ 1
+in a right-associated chain, but for chains of length ≥ 4 with a pure
+buried at depth ≥ 2 — e.g. `R₁ ** (R₂ ** (R₃ ** (⌜P⌝ ** R₅)))` — simp
+cannot descend past the outer `**` because the rewrite pattern requires
+a state argument.
+
+The `_eq` variants below state the bubbling rules as `Assertion = Assertion`
+equalities (no leading `∀ s`), so `simp` can apply them inside any nested
+`**` subterm. Repeated application bubbles every pure leaf to the leftmost
+position; once it lands at the top, the existing `sepConj_pure_left`
+fires at the outer `s` and converts it to a `∧`.
+
+Tracked under beads `evm-asm-22a` / GH #1435.
+-/
+
+/-- Bubble a pure leaf one step left through an associated chain
+    `P ** ⌜Q⌝ ** R = ⌜Q⌝ ** P ** R`. Stated as `Assertion = Assertion` so
+    `simp only` will apply it at any depth inside a nested `**` chain. -/
+theorem sepConj_pure_mid_left_eq {P : Assertion} {Q : Prop} {R : Assertion} :
+    (P ** ⌜Q⌝ ** R) = (⌜Q⌝ ** P ** R) := by
+  rw [← sepConj_assoc', ← sepConj_assoc', sepConj_comm' P (⌜Q⌝)]
+
+/-- Bubble a pure leaf at the right end of a chain leftward past one
+    resource: `P ** R ** ⌜Q⌝ = ⌜Q⌝ ** P ** R`. Sibling of
+    `sepConj_pure_mid_left_eq` for the trailing-pure case. -/
+theorem sepConj_pure_mid_right_eq {P R : Assertion} {Q : Prop} :
+    (P ** R ** ⌜Q⌝) = (⌜Q⌝ ** P ** R) := by
+  rw [sepConj_comm' R (⌜Q⌝), ← sepConj_assoc',
+      sepConj_comm' P (⌜Q⌝), sepConj_assoc']
+
 /-- `extract_pure h` rewrites a separation-logic hypothesis
     `h : (A₁ ** … ** Aₙ) s` into a `∧`-chain whose left conjuncts are
     the pure atoms (`⌜P⌝`) extracted from the chain and whose tail is

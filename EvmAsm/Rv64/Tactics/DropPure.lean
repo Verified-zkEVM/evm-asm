@@ -59,7 +59,7 @@ import EvmAsm.Rv64.Tactics.XSimp
 
 namespace EvmAsm.Rv64.Tactics
 
-open Lean Elab Tactic
+open Lean Elab Tactic Meta
 
 /-- Variant of `sepConj_pure_right` that places the pure atom on the
     *left* of the resulting `And`, matching the convention used by
@@ -86,8 +86,56 @@ partial def dropPureLoop (h : TSyntax `ident) : TacticM Unit :=
     else
       return
 
+/-- Walk the right-associated `**` chain rooted at `e` (an `Assertion`)
+    and split its leaves into (pure-leaves, resource-leaves). A leaf is
+    a `**`-free subterm; a pure leaf is one of the form `⌜P⌝`
+    (i.e. `EvmAsm.Rv64.pure P`).
+
+    `**` is right-associative, but we tolerate left-nests by recursing
+    on both sides. Order is preserved within each list so the rebuilt
+    chain matches the user's reading order. -/
+private partial def collectSepLeaves
+    (e : Expr) : MetaM (Array Expr × Array Expr) := do
+  let e ← instantiateMVars e
+  match e.getAppFnArgs with
+  | (``EvmAsm.Rv64.sepConj, #[l, r]) =>
+      let (lp, lr) ← collectSepLeaves l
+      let (rp, rr) ← collectSepLeaves r
+      return (lp ++ rp, lr ++ rr)
+  | _ =>
+      match e.getAppFnArgs with
+      | (``EvmAsm.Rv64.pure, _) => return (#[e], #[])
+      | _                       => return (#[], #[e])
+
+/-- Right-fold an array of `Assertion` expressions into a `**`-chain.
+    `[A]` ↦ `A`. `[A, B, C]` ↦ `A ** B ** C` (right-assoc). Empty
+    array becomes `empAssertion`. -/
+private def buildSepChain (xs : Array Expr) : MetaM Expr := do
+  if xs.isEmpty then
+    return mkConst ``EvmAsm.Rv64.empAssertion
+  let n := xs.size
+  let mut acc := xs[n - 1]!
+  for i in [0:n - 1] do
+    let j := n - 2 - i
+    acc ← mkAppM ``EvmAsm.Rv64.sepConj #[xs[j]!, acc]
+  return acc
+
 /-- `drop_pure h` strips every `⌜P⌝` leaf from the `**`-chain in `h`'s
     type and rebinds `h` to the bare resource tail.
+
+    Implementation (beads `evm-asm-22a`): we walk `h`'s assertion
+    expression, partition its leaves into pure (`⌜·⌝`) vs resource,
+    rebuild the chain with all pure atoms moved to the left, prove the
+    rearrangement equality with `ac_rfl` (which uses the
+    `Std.Associative`/`Std.Commutative` instances on `**`), rewrite
+    `h` through it, then peel pures via `sepConj_pure_left` /
+    `sepConj_pure_right_swap` and `.2`-projection.
+
+    Older versions of this tactic used a simp set of `↔`-style
+    bubble lemmas; those only fired at the outermost state-applied
+    position and so left pures untouched at depth ≥ 2 in long chains
+    (e.g. 10-atom hypotheses with the pure at depth 8). The
+    `ac_rfl`-based approach is depth-agnostic.
 
     Example:
     ```
@@ -104,25 +152,55 @@ syntax (name := dropPure) "drop_pure " ident : tactic
 def evalDropPure : Tactic := fun stx => do
   match stx with
   | `(tactic| drop_pure $h:ident) => withMainContext do
-      -- Step 1: bubble every pure leaf into a left `And`. Same simp
-      -- set as `extract_pure`, but with `sepConj_pure_right` swapped
-      -- for `sepConj_pure_right_swap` so trailing pures also land on
-      -- the LEFT of the resulting `And`. This makes the `.2` loop
-      -- below uniform regardless of where the pure originally sat.
-      -- `try` so a bare-resource hypothesis (no pures, possibly no
-      -- `**`) is left untouched.
+      -- Step 1: inspect h's type. Expect `(<chain>) s` for some
+      -- assertion chain. If it's not of that shape (or has no pures),
+      -- fall through to the `.2` peeling loop, which is a no-op on
+      -- non-`And` types.
+      let lctx ← getLCtx
+      let some hDecl := lctx.findFromUserName? h.getId | return
+      let hTy ← instantiateMVars hDecl.type
+      -- hTy has shape `assertion s`. Get the assertion expr.
+      let assertionExpr ← do
+        match hTy with
+        | .app a _ => Pure.pure a
+        | _        => return  -- not in the expected shape; bail.
+      let (pures, resources) ← collectSepLeaves assertionExpr
+      if pures.isEmpty then
+        -- Nothing to strip. Drop through to the .2 loop in case the
+        -- caller passed an already-`And` hypothesis.
+        dropPureLoop h
+        return
+      -- Step 2: build the rearranged chain `⌜P₁⌝ ** … ** ⌜Pₖ⌝ ** R₁ ** … ** Rₘ`.
+      -- If there are no resources, fall back to `empAssertion` on the
+      -- right (the `_emp_left'` rewrite in step 4 cleans it up).
+      let resourceChain ← buildSepChain resources
+      let allLeaves := pures ++ #[resourceChain]
+      let target ← buildSepChain allLeaves
+      -- Step 3: rewrite `h` through the AC equality. We construct the
+      -- equality term `assertionExpr = target` and prove it with
+      -- `ac_rfl` (which uses the registered `Std.Associative` /
+      -- `Std.Commutative` instances on `**`), then `rw` it into `h`.
+      let eqTy ← Meta.mkEq assertionExpr target
+      let lhsStx ← Lean.PrettyPrinter.delab assertionExpr
+      let rhsStx ← Lean.PrettyPrinter.delab target
+      let _ := eqTy
+      evalTactic (← `(tactic| (
+        have h_ac_rearrange : $lhsStx = $rhsStx := by ac_rfl
+        rw [h_ac_rearrange] at $h:ident
+        clear h_ac_rearrange)))
+      -- Step 4: peel pures off the left via simp (lifts `⌜P⌝ ** …` to
+      -- `P ∧ …` at the outermost s-position). For a single trailing
+      -- pure (rare, but possible if resources is empty after rearrange)
+      -- `sepConj_pure_right_swap` handles the closing case. The
+      -- `_emp_*'` rewrites tidy up the empty-resource degenerate.
       evalTactic (← `(tactic|
-        try
-          simp only
-            [ ← EvmAsm.Rv64.sepConj_assoc'
-            , EvmAsm.Rv64.Tactics.sepConj_pure_right_swap
-            , EvmAsm.Rv64.sepConj_pure_left
-            , EvmAsm.Rv64.Tactics.sepConj_pure_mid_left
-            , EvmAsm.Rv64.Tactics.sepConj_pure_mid_right
-            , EvmAsm.Rv64.sepConj_emp_left'
-            , EvmAsm.Rv64.sepConj_emp_right'
-            ] at $h:ident))
-      -- Step 2: peel `And`s off the front of `h` until none remain.
+        simp only
+          [ EvmAsm.Rv64.sepConj_pure_left
+          , EvmAsm.Rv64.Tactics.sepConj_pure_right_swap
+          , EvmAsm.Rv64.sepConj_emp_left'
+          , EvmAsm.Rv64.sepConj_emp_right'
+          ] at $h:ident))
+      -- Step 5: peel `And`s off the front of `h` until none remain.
       dropPureLoop h
   | _ => throwUnsupportedSyntax
 
@@ -175,6 +253,48 @@ example (s : PartialState) (P Q R : Prop) (A : Assertion)
 /-- Degenerate: no pures. `drop_pure` should be a no-op. -/
 example (s : PartialState) (R₁ R₂ R₃ : Assertion)
     (h : (R₁ ** R₂ ** R₃) s) : (R₃ ** R₁ ** R₂) s := by
+  drop_pure h
+  xperm_hyp h
+
+/- Long-chain regression tests for beads `evm-asm-22a` / GH #1435.
+
+The original DropPure simp set (built on `← sepConj_assoc'` plus the
+`∀ s, … ↔ …`-style mid lemmas) only stripped pures at depth ≤ 1 in a
+right-associated chain. The reproducer surfaced in beads `evm-asm-ui7`
+(Div128Step1v2.lean) where a 10-atom hypothesis with `⌜rhatHi2 ≠ 0⌝` at
+depth 9 caused `xperm_hyp` to fail with "LHS has 2 atoms but only 1
+remaining in RHS". The cases below lock the contract for chains of
+length 8–10 with the pure at varying depths. -/
+
+/-- 8-atom chain, pure at depth 4. -/
+example (s : PartialState) (P : Prop) (R₁ R₂ R₃ R₄ R₅ R₆ R₇ : Assertion)
+    (h : (R₁ ** R₂ ** R₃ ** R₄ ** ⌜P⌝ ** R₅ ** R₆ ** R₇) s) :
+    (R₇ ** R₁ ** R₂ ** R₃ ** R₄ ** R₅ ** R₆) s := by
+  drop_pure h
+  xperm_hyp h
+
+/-- 10-atom chain, pure at depth 8 (the kvl Flavor-A reproducer shape). -/
+example (s : PartialState) (P : Prop)
+    (R₁ R₂ R₃ R₄ R₅ R₆ R₇ R₈ R₉ : Assertion)
+    (h : (R₁ ** R₂ ** R₃ ** R₄ ** R₅ ** R₆ ** R₇ ** R₈ ** ⌜P⌝ ** R₉) s) :
+    (R₉ ** R₈ ** R₁ ** R₂ ** R₃ ** R₄ ** R₅ ** R₆ ** R₇) s := by
+  drop_pure h
+  xperm_hyp h
+
+/-- 10-atom chain, pure as the trailing leaf (depth 9). -/
+example (s : PartialState) (P : Prop)
+    (R₁ R₂ R₃ R₄ R₅ R₆ R₇ R₈ R₉ : Assertion)
+    (h : (R₁ ** R₂ ** R₃ ** R₄ ** R₅ ** R₆ ** R₇ ** R₈ ** R₉ ** ⌜P⌝) s) :
+    (R₉ ** R₁ ** R₂ ** R₃ ** R₄ ** R₅ ** R₆ ** R₇ ** R₈) s := by
+  drop_pure h
+  xperm_hyp h
+
+/-- 10-atom chain with three pures spread across early, middle, and
+    trailing positions. -/
+example (s : PartialState) (P Q R : Prop)
+    (A₁ A₂ A₃ A₄ A₅ A₆ A₇ : Assertion)
+    (h : (⌜P⌝ ** A₁ ** A₂ ** A₃ ** ⌜Q⌝ ** A₄ ** A₅ ** A₆ ** A₇ ** ⌜R⌝) s) :
+    (A₇ ** A₁ ** A₂ ** A₃ ** A₄ ** A₅ ** A₆) s := by
   drop_pure h
   xperm_hyp h
 
