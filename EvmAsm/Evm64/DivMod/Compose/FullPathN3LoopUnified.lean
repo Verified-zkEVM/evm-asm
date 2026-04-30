@@ -744,4 +744,76 @@ theorem fullDivN3UnifiedPost_weaken (bltu_1 bltu_0 : Bool)
   delta fullDivN3UnifiedPost fullDivN3DenormPost at hq ⊢
   xperm_hyp hq
 
+/-- Unified full n=3 DIV path (shift ≠ 0) with double addback,
+    covering all 4 path combinations. -/
+theorem evm_div_n3_full_unified_spec (bltu_1 bltu_0 : Bool) (sp base : Word)
+    (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old : Word)
+    (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem : Word)
+    (retMem dMem dloMem scratch_un0 : Word)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb3z : b3 = 0) (hb2nz : b2 ≠ 0)
+    (hshift_nz : (clzResult b2).1 ≠ 0)
+    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (hbltu_1 : isTrialN3_j1 bltu_1 a3 b1 b2)
+    (hbltu_0 : isTrialN3_j0 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3)
+    (hcarry2 : Carry2NzAll (b0 <<< (((clzResult b2).1).toNat % 64))
+      ((b1 <<< (((clzResult b2).1).toNat % 64)) ||| (b0 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b2).1).toNat % 64)))
+      ((b2 <<< (((clzResult b2).1).toNat % 64)) ||| (b1 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b2).1).toNat % 64)))
+      ((b3 <<< (((clzResult b2).1).toNat % 64)) ||| (b2 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b2).1).toNat % 64)))) :
+    cpsTripleWithin 542 base (base + nopOff) (divCode base)
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
+       (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b2).2 >>> (63 : Nat)) **
+       (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+       (.x11 ↦ᵣ v11Old) **
+       ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
+       ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+       ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
+       ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3) **
+       ((sp + signExtend12 4088) ↦ₘ q0) ** ((sp + signExtend12 4080) ↦ₘ q1) **
+       ((sp + signExtend12 4072) ↦ₘ q2) ** ((sp + signExtend12 4064) ↦ₘ q3) **
+       ((sp + signExtend12 4056) ↦ₘ u0Old) ** ((sp + signExtend12 4048) ↦ₘ u1Old) **
+       ((sp + signExtend12 4040) ↦ₘ u2Old) ** ((sp + signExtend12 4032) ↦ₘ u3Old) **
+       ((sp + signExtend12 4024) ↦ₘ u4Old) **
+       ((sp + signExtend12 4016) ↦ₘ u5) ** ((sp + signExtend12 4008) ↦ₘ u6) **
+       ((sp + signExtend12 4000) ↦ₘ u7) ** ((sp + signExtend12 3984) ↦ₘ nMem) **
+       ((sp + signExtend12 3992) ↦ₘ shiftMem) **
+       ((sp + signExtend12 3976) ↦ₘ jMem) **
+       ((sp + signExtend12 3968) ↦ₘ retMem) **
+       ((sp + signExtend12 3960) ↦ₘ dMem) **
+       ((sp + signExtend12 3952) ↦ₘ dloMem) **
+       ((sp + signExtend12 3944) ↦ₘ scratch_un0))
+      (fullDivN3UnifiedPost bltu_1 bltu_0 sp base a0 a1 a2 a3 b0 b1 b2 b3
+        retMem dMem dloMem scratch_un0) := by
+  have hshift_nz' : fullDivN3Shift b2 ≠ 0 := by
+    rw [fullDivN3Shift_unfold]
+    exact hshift_nz
+  have hA := evm_div_n3_preloop_loop_unified_spec bltu_1 bltu_0 sp base
+    a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old
+    q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem
+    retMem dMem dloMem scratch_un0
+    hbnz hb3z hb2nz hshift_nz halign hbltu_1 hbltu_0 hcarry2
+  have hB := evm_div_n3_denorm_epilogue_bundled_spec bltu_1 bltu_0
+    sp base a0 a1 a2 a3 b0 b1 b2 b3 hshift_nz'
+  have hBF := cpsTripleWithin_frameR
+    (fullDivN3Frame bltu_1 bltu_0 sp base a0 a1 a2 a3 b0 b1 b2 b3
+      retMem dMem dloMem scratch_un0)
+    (by delta fullDivN3Frame fullDivN3Scratch; pcFree) hB
+  have hFull := cpsTripleWithin_seq_perm_same_cr
+    (fun h hp => by
+      cases bltu_1 <;> cases bltu_0
+      · exact preloopN3UnifiedPost_to_fullDivN3DenormPre_frame_FF
+          sp base a0 a1 a2 a3 b0 b1 b2 b3 retMem dMem dloMem scratch_un0 h hp
+      · exact preloopN3UnifiedPost_to_fullDivN3DenormPre_frame_FT
+          sp base a0 a1 a2 a3 b0 b1 b2 b3 retMem dMem dloMem scratch_un0 h hp
+      · exact preloopN3UnifiedPost_to_fullDivN3DenormPre_frame_TF
+          sp base a0 a1 a2 a3 b0 b1 b2 b3 retMem dMem dloMem scratch_un0 h hp
+      · exact preloopN3UnifiedPost_to_fullDivN3DenormPre_frame_TT
+          sp base a0 a1 a2 a3 b0 b1 b2 b3 retMem dMem dloMem scratch_un0 h hp)
+    hA hBF
+  exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
+    (fun h hp => by xperm_hyp hp)
+    (fun h hq => fullDivN3UnifiedPost_weaken bltu_1 bltu_0
+      sp base a0 a1 a2 a3 b0 b1 b2 b3 retMem dMem dloMem scratch_un0 h hq)
+    hFull
+
 end EvmAsm.Evm64
