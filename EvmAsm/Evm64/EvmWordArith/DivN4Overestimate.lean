@@ -752,6 +752,82 @@ theorem iterDoubleAddbackBranch_val256_conservation
       simp only [] at hlow
       exact hlow)
 
+theorem iterWithDoubleAddback_val256_conservation_of_branch_bounds
+    (q v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
+    (hbnz : v0 ||| v1 ||| v2 ||| v3 ≠ 0)
+    (hq_over : q.toNat ≤ EvmWord.val256 u0 u1 u2 u3 / EvmWord.val256 v0 v1 v2 v3 + 2)
+    (hc3_one_of_borrow :
+      BitVec.ult uTop (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2 →
+        (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2 = 1)
+    (hq_pos_of_single :
+      BitVec.ult uTop (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2 →
+        addbackN4_carry
+          (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).1
+          (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.1
+          (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.1
+          (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.1
+          v0 v1 v2 v3 ≠ 0 →
+        1 ≤ q.toNat)
+    (hq_ge_two_of_double :
+      BitVec.ult uTop (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2 →
+        addbackN4_carry
+          (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).1
+          (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.1
+          (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.1
+          (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.1
+          v0 v1 v2 v3 = 0 →
+        2 ≤ q.toNat) :
+    let out := iterWithDoubleAddback q v0 v1 v2 v3 u0 u1 u2 u3 uTop
+    EvmWord.val256 u0 u1 u2 u3 + uTop.toNat * 2^256 =
+      out.1.toNat * EvmWord.val256 v0 v1 v2 v3 +
+        EvmWord.val256 out.2.1 out.2.2.1 out.2.2.2.1 out.2.2.2.2.1 +
+        out.2.2.2.2.2.toNat * 2^256 := by
+  intro out
+  subst out
+  by_cases hb : BitVec.ult uTop (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2
+  · have hout := iterWithDoubleAddback_borrow (qHat := q) (v0 := v0) (v1 := v1)
+      (v2 := v2) (v3 := v3) (u0 := u0) (u1 := u1) (u2 := u2) (u3 := u3)
+      (uTop := uTop) hb
+    simp only [] at hout
+    rw [hout]
+    let ms := mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3
+    let carry := addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 v0 v1 v2 v3
+    by_cases hcarry_zero : carry = 0
+    · rw [if_pos hcarry_zero]
+      have hbranch : iterDoubleAddbackBranch q v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
+        subst ms; subst carry
+        exact iterDoubleAddbackBranch_of q v0 v1 v2 v3 u0 u1 u2 u3 uTop
+          hb (hc3_one_of_borrow hb) hcarry_zero hbnz hq_over
+          (hq_ge_two_of_double hb hcarry_zero)
+      have h := iterDoubleAddbackBranch_val256_conservation
+        q v0 v1 v2 v3 u0 u1 u2 u3 uTop hbranch
+      simp only [] at h
+      exact h
+    · rw [if_neg hcarry_zero]
+      have hcarry_one : carry = 1 := by
+        subst ms; subst carry
+        exact addbackN4_carry_eq_one_of_ne_zero
+          (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).1
+          (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.1
+          (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.1
+          (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.1
+          v0 v1 v2 v3 hcarry_zero
+      have hbranch : iterSingleAddbackBranch q v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
+        subst ms; subst carry
+        exact iterSingleAddbackBranch_of q v0 v1 v2 v3 u0 u1 u2 u3 uTop
+          hb (hc3_one_of_borrow hb) hcarry_one (hq_pos_of_single hb hcarry_zero)
+      have h := iterSingleAddbackBranch_val256_conservation
+        q v0 v1 v2 v3 u0 u1 u2 u3 uTop hbranch
+      simp only [] at h
+      exact h
+  · have hout := iterWithDoubleAddback_no_borrow (qHat := q) (v0 := v0) (v1 := v1)
+      (v2 := v2) (v3 := v3) (u0 := u0) (u1 := u1) (u2 := u2) (u3 := u3)
+      (uTop := uTop) hb
+    simp only [] at hout
+    rw [hout]
+    exact iterWithDoubleAddback_no_borrow_val256_conservation
+      q v0 v1 v2 v3 u0 u1 u2 u3 uTop hb
+
 -- ============================================================================
 -- First addback carry is 1 when overestimate ≤ 1
 -- ============================================================================
