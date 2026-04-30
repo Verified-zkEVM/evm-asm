@@ -3,10 +3,10 @@
 
   Composed per-limb specs for the `mul-sub` and `add-back` inner loops
   of the Knuth Algorithm D step:
-    * `divK_mulsub_limb_spec` — 11-instruction straight-line composition
+    * `divK_mulsub_limb_spec_within` — 11-instruction straight-line composition
       of `partA` (6 instrs) + `partB` (5 instrs): `u -= qHat * v_i`
       with carry propagation.
-    * `divK_addback_limb_spec` — 8-instruction straight-line composition
+    * `divK_addback_limb_spec_within` — 8-instruction straight-line composition
       of add-back `partA` (5 instrs) + `partB` (3 instrs): `u += v_i`
       with carry propagation, used when `qHat` was over-shot.
 
@@ -31,7 +31,7 @@ open EvmAsm.Rv64
 /-- Mul-sub full limb: partA (6 instrs) + partB (5 instrs) = 11 instructions.
     Input: qHat (x11), carryIn (x10), v[i] and u[j+i] in memory.
     Output: carryOut (x10), uNew stored. -/
-theorem divK_mulsub_limb_spec
+theorem divK_mulsub_limb_spec_within
     (sp uBase qHat carryIn v5Old v7Old v2Old v_i u_i : Word)
     (v_off u_off : BitVec 12) (base : Word) :
     let prodLo := qHat * v_i
@@ -54,7 +54,7 @@ theorem divK_mulsub_limb_spec
       (CodeReq.union (CodeReq.singleton (base + 32) (.SUB .x2 .x2 .x7))
       (CodeReq.union (CodeReq.singleton (base + 36) (.ADD .x10 .x10 .x5))
        (CodeReq.singleton (base + 40) (.SD .x6 .x2 u_off)))))))))))
-    cpsTriple base (base + 44) cr
+    cpsTripleWithin 11 base (base + 44) cr
       ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) ** (.x10 ↦ᵣ carryIn) **
        (.x6 ↦ᵣ uBase) ** (.x5 ↦ᵣ v5Old) ** (.x7 ↦ᵣ v7Old) **
        (.x2 ↦ᵣ v2Old) **
@@ -66,23 +66,23 @@ theorem divK_mulsub_limb_spec
        ((sp + signExtend12 v_off) ↦ₘ v_i) **
        ((uBase + signExtend12 u_off) ↦ₘ uNew)) := by
   intro prodLo prodHi fullSub borrowAdd partialCarry borrowSub uNew carryOut cr
-  have I0 := ld_spec_gen .x5 .x12 sp v5Old v_i v_off base (by nofun)
-  have I1 := mul_spec_gen .x7 .x11 .x5 v7Old qHat v_i (base + 4) (by nofun)
-  have I2 := mulhu_spec_gen_rd_eq_rs2 .x5 .x11 qHat v_i (base + 8) (by nofun)
-  have I3 := add_spec_gen_rd_eq_rs1 .x7 .x10 prodLo carryIn (base + 12) (by nofun)
-  have I4 := sltu_spec_gen_rd_eq_rs2 .x10 .x7 fullSub carryIn (base + 16) (by nofun)
-  have I5 := add_spec_gen_rd_eq_rs1 .x10 .x5 borrowAdd prodHi (base + 20) (by nofun)
-  have I6 := ld_spec_gen .x2 .x6 uBase v2Old u_i u_off (base + 24) (by nofun)
-  have I7 := sltu_spec_gen .x5 .x2 .x7 prodHi u_i fullSub (base + 28) (by nofun)
-  have I8 := sub_spec_gen_rd_eq_rs1 .x2 .x7 u_i fullSub (base + 32) (by nofun)
-  have I9 := add_spec_gen_rd_eq_rs1 .x10 .x5 partialCarry borrowSub (base + 36) (by nofun)
-  have I10 := sd_spec_gen .x6 .x2 uBase uNew u_i u_off (base + 40)
+  have I0 := ld_spec_gen_within .x5 .x12 sp v5Old v_i v_off base (by nofun)
+  have I1 := mul_spec_gen_within .x7 .x11 .x5 v7Old qHat v_i (base + 4) (by nofun)
+  have I2 := mulhu_spec_gen_rd_eq_rs2_within .x5 .x11 qHat v_i (base + 8) (by nofun)
+  have I3 := add_spec_gen_rd_eq_rs1_within .x7 .x10 prodLo carryIn (base + 12) (by nofun)
+  have I4 := sltu_spec_gen_rd_eq_rs2_within .x10 .x7 fullSub carryIn (base + 16) (by nofun)
+  have I5 := add_spec_gen_rd_eq_rs1_within .x10 .x5 borrowAdd prodHi (base + 20) (by nofun)
+  have I6 := ld_spec_gen_within .x2 .x6 uBase v2Old u_i u_off (base + 24) (by nofun)
+  have I7 := sltu_spec_gen_within .x5 .x2 .x7 prodHi u_i fullSub (base + 28) (by nofun)
+  have I8 := sub_spec_gen_rd_eq_rs1_within .x2 .x7 u_i fullSub (base + 32) (by nofun)
+  have I9 := add_spec_gen_rd_eq_rs1_within .x10 .x5 partialCarry borrowSub (base + 36) (by nofun)
+  have I10 := sd_spec_gen_within .x6 .x2 uBase uNew u_i u_off (base + 40)
   runBlock I0 I1 I2 I3 I4 I5 I6 I7 I8 I9 I10
 
 /-- Add-back full limb: partA (5 instrs) + partB (3 instrs) = 8 instructions.
     Input: carryIn (x7), v[i] and u[j+i] in memory.
     Output: carryOut (x7), uNew stored. -/
-theorem divK_addback_limb_spec
+theorem divK_addback_limb_spec_within
     (sp uBase carryIn v5Old v2Old v_i u_i : Word)
     (v_off u_off : BitVec 12) (base : Word) :
     let uPlusCarry := u_i + carryIn
@@ -99,7 +99,7 @@ theorem divK_addback_limb_spec
       (CodeReq.union (CodeReq.singleton (base + 20) (.SLTU .x5 .x2 .x5))
       (CodeReq.union (CodeReq.singleton (base + 24) (.OR .x7 .x7 .x5))
        (CodeReq.singleton (base + 28) (.SD .x6 .x2 u_off))))))))
-    cpsTriple base (base + 32) cr
+    cpsTripleWithin 8 base (base + 32) cr
       ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ uBase) ** (.x7 ↦ᵣ carryIn) **
        (.x5 ↦ᵣ v5Old) ** (.x2 ↦ᵣ v2Old) **
        ((sp + signExtend12 v_off) ↦ₘ v_i) **
@@ -109,14 +109,14 @@ theorem divK_addback_limb_spec
        ((sp + signExtend12 v_off) ↦ₘ v_i) **
        ((uBase + signExtend12 u_off) ↦ₘ uNew)) := by
   intro uPlusCarry carry1 uNew carry2 carryOut cr
-  have I0 := ld_spec_gen .x5 .x12 sp v5Old v_i v_off base (by nofun)
-  have I1 := ld_spec_gen .x2 .x6 uBase v2Old u_i u_off (base + 4) (by nofun)
-  have I2 := add_spec_gen_rd_eq_rs1 .x2 .x7 u_i carryIn (base + 8) (by nofun)
-  have I3 := sltu_spec_gen_rd_eq_rs2 .x7 .x2 uPlusCarry carryIn (base + 12) (by nofun)
-  have I4 := add_spec_gen_rd_eq_rs1 .x2 .x5 uPlusCarry v_i (base + 16) (by nofun)
-  have I5 := sltu_spec_gen_rd_eq_rs2 .x5 .x2 uNew v_i (base + 20) (by nofun)
-  have I6 := or_spec_gen_rd_eq_rs1 .x7 .x5 carry1 carry2 (base + 24) (by nofun)
-  have I7 := sd_spec_gen .x6 .x2 uBase uNew u_i u_off (base + 28)
+  have I0 := ld_spec_gen_within .x5 .x12 sp v5Old v_i v_off base (by nofun)
+  have I1 := ld_spec_gen_within .x2 .x6 uBase v2Old u_i u_off (base + 4) (by nofun)
+  have I2 := add_spec_gen_rd_eq_rs1_within .x2 .x7 u_i carryIn (base + 8) (by nofun)
+  have I3 := sltu_spec_gen_rd_eq_rs2_within .x7 .x2 uPlusCarry carryIn (base + 12) (by nofun)
+  have I4 := add_spec_gen_rd_eq_rs1_within .x2 .x5 uPlusCarry v_i (base + 16) (by nofun)
+  have I5 := sltu_spec_gen_rd_eq_rs2_within .x5 .x2 uNew v_i (base + 20) (by nofun)
+  have I6 := or_spec_gen_rd_eq_rs1_within .x7 .x5 carry1 carry2 (base + 24) (by nofun)
+  have I7 := sd_spec_gen_within .x6 .x2 uBase uNew u_i u_off (base + 28)
   runBlock I0 I1 I2 I3 I4 I5 I6 I7
 
 end EvmAsm.Evm64

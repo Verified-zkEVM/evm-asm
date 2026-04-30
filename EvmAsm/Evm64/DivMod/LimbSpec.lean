@@ -121,25 +121,25 @@ open EvmAsm.Rv64
 -- Re-exported via the import at the top of this file, so downstream surface
 -- is unchanged.
 
--- Sub-carry + Store-qj specs (divK_sub_carry_spec, divK_store_qj_{addr,write}_spec)
+-- Sub-carry + Store-qj specs (divK_sub_carry_spec_within, divK_store_qj_{addr,write}_spec)
 -- moved to EvmAsm.Evm64.DivMod.LimbSpec.SubCarryStoreQj (sixteenth chunk of #312
 -- split). Re-exported via the import at the top of this file, so downstream
 -- surface is unchanged.
 
--- AddBack finalization + Loop control specs (divK_addback_final_spec,
--- divK_loop_control_spec) moved to
+-- AddBack finalization + Loop control specs (divK_addback_final_spec_within,
+-- divK_loop_control_spec_within) moved to
 -- EvmAsm.Evm64.DivMod.LimbSpec.AddBackFinalLoopControl (seventeenth chunk
 -- of #312 split). Re-exported via the import at the top of this file, so
 -- downstream surface is unchanged.
 
 -- Mul-sub setup + save_j + addback init specs
--- (divK_mulsub_setup_spec, divK_save_j_spec, divK_addback_init_spec) moved to
+-- (divK_mulsub_setup_spec_within, divK_save_j_spec_within, divK_addback_init_spec_within) moved to
 -- EvmAsm.Evm64.DivMod.LimbSpec.MulSubSetup (eighteenth chunk of #312 split).
 -- Re-exported via the import at the top of this file, so downstream surface
 -- is unchanged.
 
--- Trial quotient specs (divK_correction_branch_spec, divK_trial_load_u_spec,
--- divK_trial_load_vtop_spec, divK_trial_max_spec) moved to
+-- Trial quotient specs (divK_correction_branch_spec_within, divK_trial_load_u_spec_within,
+-- divK_trial_load_vtop_spec_within, divK_trial_max_spec_within) moved to
 -- EvmAsm.Evm64.DivMod.LimbSpec.TrialQuotient (nineteenth chunk of #312 split).
 -- Re-exported via the import at the top of this file, so downstream surface
 -- is unchanged.
@@ -161,40 +161,40 @@ open EvmAsm.Rv64
 -- Re-exported via the import at the top of this file, so downstream surface
 -- is unchanged.
 
--- div128 clamp q1 merged spec (divK_div128_clamp_q1_merged_spec) moved to
+-- div128 clamp q1 merged spec (divK_div128_clamp_q1_merged_spec_within) moved to
 -- EvmAsm.Evm64.DivMod.LimbSpec.Div128Clamp (twenty-third chunk of #312 split).
 -- Re-exported via the import at the top of this file, so downstream surface
 -- is unchanged.
--- div128 prodcheck1 merged spec (divK_div128_prodcheck1_merged_spec) moved to
+-- div128 prodcheck1 merged spec (divK_div128_prodcheck1_merged_spec_within) moved to
 -- EvmAsm.Evm64.DivMod.LimbSpec.Div128ProdCheck1 (twenty-fourth chunk of #312
 -- split). Re-exported via the import at the top of this file, so downstream
 -- surface is unchanged.
 
--- div128 clamp q0 merged spec (divK_div128_clamp_q0_merged_spec) moved to
+-- div128 clamp q0 merged spec (divK_div128_clamp_q0_merged_spec_within) moved to
 -- EvmAsm.Evm64.DivMod.LimbSpec.Div128Clamp (twenty-third chunk of #312 split).
 -- Re-exported via the import at the top of this file, so downstream surface
 -- is unchanged.
--- div128 prodcheck2 merged spec (divK_div128_prodcheck2_merged_spec) moved to
+-- div128 prodcheck2 merged spec (divK_div128_prodcheck2_merged_spec_within) moved to
 -- EvmAsm.Evm64.DivMod.LimbSpec.Div128ProdCheck2 (twenty-fifth chunk of #312
 -- split). Re-exported via the import at the top of this file, so downstream
 -- surface is unchanged.
 
--- div128 step 1 full composition spec (divK_div128_step1_spec) moved to
+-- div128 step 1 full composition spec (divK_div128_step1_spec_within) moved to
 -- EvmAsm.Evm64.DivMod.LimbSpec.Div128Step1 (twenty-ninth chunk of #312 split).
 -- Re-exported via the import at the top of this file, so downstream surface
 -- is unchanged.
 
--- div128 step 2 full composition spec (divK_div128_step2_spec) moved to
+-- div128 step 2 full composition spec (divK_div128_step2_spec_within) moved to
 -- EvmAsm.Evm64.DivMod.LimbSpec.Div128Step2 (thirtieth chunk of #312 split).
 -- Re-exported via the import at the top of this file, so downstream surface
 -- is unchanged.
 
--- Composed per-limb specs (divK_mulsub_limb_spec, divK_addback_limb_spec)
+-- Composed per-limb specs (divK_mulsub_limb_spec_within, divK_addback_limb_spec_within)
 -- moved to EvmAsm.Evm64.DivMod.LimbSpec.MulSubLimb (twenty-sixth chunk of
 -- #312 split). Re-exported via the import at the top of this file, so
 -- downstream surface is unchanged.
 -- ============================================================================
--- Trial load + Store qj composed specs (divK_trial_load_spec, divK_store_qj_spec)
+-- Trial load + Store qj composed specs (divK_trial_load_spec_within, divK_store_qj_spec_within)
 -- moved to EvmAsm.Evm64.DivMod.LimbSpec.TrialStoreComposed (twenty-eighth chunk
 -- of #312 split). Re-exported via the import at the top of this file, so
 -- downstream surface is unchanged.

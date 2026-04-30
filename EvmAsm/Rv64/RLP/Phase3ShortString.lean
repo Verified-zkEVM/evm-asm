@@ -58,7 +58,7 @@ example : ((0x80 : Word) + signExtend12 (-(0x80 : BitVec 12))) = (0 : Word) := b
 -- Spec
 -- ============================================================================
 
-/-- `cpsTriple` spec for the short-string flat-decode. After two
+/-- `cpsTripleWithin` spec for the short-string flat-decode. After two
     instructions, `x11` holds `prefix − 0x80` (the payload length) and
     `x13` has advanced by 1 to point at the first payload byte. `x5`
     is preserved.
@@ -69,8 +69,8 @@ example : ((0x80 : Word) + signExtend12 (-(0x80 : BitVec 12))) = (0 : Word) := b
     consumers typically compose this with a preceding Phase 1 exit post
     so that `v5 ∈ [0x80, 0xB8)` is available and the subtraction lands
     in `[0, 55]`. -/
-theorem rlp_phase3_short_string_spec (v5 v11Old v13 : Word) (base : Word) :
-    cpsTriple base (base + 8)
+theorem rlp_phase3_short_string_spec_within (v5 v11Old v13 : Word) (base : Word) :
+    cpsTripleWithin 2 base (base + 8)
       (CodeReq.ofProg base rlp_phase3_short_string_prog)
       ((.x5 ↦ᵣ v5) ** (.x11 ↦ᵣ v11Old) ** (.x13 ↦ᵣ v13))
       ((.x5 ↦ᵣ v5) **
@@ -86,21 +86,21 @@ theorem rlp_phase3_short_string_spec (v5 v11Old v13 : Word) (base : Word) :
       (CodeReq.singleton (base + 4) (.ADDI .x13 .x13 1)) :=
     CodeReq.Disjoint.singleton (by bv_omega)
   -- Step 1: ADDI x11, x5, -0x80 at base. Frame with `x13`.
-  have s1Base := addi_spec_gen .x11 .x5 v11Old v5 (-0x80) base (by nofun)
-  have s1 : cpsTriple base (base + 4)
+  have s1Base := addi_spec_gen_within .x11 .x5 v11Old v5 (-0x80) base (by nofun)
+  have s1 : cpsTripleWithin 1 base (base + 4)
       (CodeReq.singleton base (.ADDI .x11 .x5 (-0x80)))
       ((.x5 ↦ᵣ v5) ** (.x11 ↦ᵣ v11Old) ** (.x13 ↦ᵣ v13))
       ((.x5 ↦ᵣ v5) **
        (.x11 ↦ᵣ (v5 + signExtend12 (-(0x80 : BitVec 12)))) **
        (.x13 ↦ᵣ v13)) := by
-    have framed := cpsTriple_frameR (.x13 ↦ᵣ v13) (by pcFree) s1Base
-    exact cpsTriple_weaken
+    have framed := cpsTripleWithin_frameR (.x13 ↦ᵣ v13) (by pcFree) s1Base
+    exact cpsTripleWithin_weaken
       (fun _ hp => by xperm_hyp hp)
       (fun _ hp => by xperm_hyp hp)
       framed
   -- Step 2: ADDI x13, x13, 1 at base + 4. Frame with `x5` and `x11`.
-  have s2Base := addi_spec_gen_same .x13 v13 1 (base + 4) (by nofun)
-  have s2 : cpsTriple (base + 4) (base + 8)
+  have s2Base := addi_spec_gen_same_within .x13 v13 1 (base + 4) (by nofun)
+  have s2 : cpsTripleWithin 1 (base + 4) (base + 8)
       (CodeReq.singleton (base + 4) (.ADDI .x13 .x13 1))
       ((.x5 ↦ᵣ v5) **
        (.x11 ↦ᵣ (v5 + signExtend12 (-(0x80 : BitVec 12)))) **
@@ -108,85 +108,76 @@ theorem rlp_phase3_short_string_spec (v5 v11Old v13 : Word) (base : Word) :
       ((.x5 ↦ᵣ v5) **
        (.x11 ↦ᵣ (v5 + signExtend12 (-(0x80 : BitVec 12)))) **
        (.x13 ↦ᵣ (v13 + signExtend12 (1 : BitVec 12)))) := by
-    have framed := cpsTriple_frameR
+    have framed := cpsTripleWithin_frameR
       ((.x5 ↦ᵣ v5) ** (.x11 ↦ᵣ (v5 + signExtend12 (-(0x80 : BitVec 12)))))
       (by pcFree) s2Base
     rw [show (base + 4 : Word) + 4 = base + 8 from by bv_omega] at framed
-    exact cpsTriple_weaken
+    exact cpsTripleWithin_weaken
       (fun _ hp => by xperm_hyp hp)
       (fun _ hp => by xperm_hyp hp)
       framed
-  exact cpsTriple_seq hd s1 s2
+  exact cpsTripleWithin_seq hd s1 s2
 
-/-! ## Concrete specializations for individual short-string prefixes -/
-
-/-- Specialization at `v5 = 0x80` (empty short-string prefix, length = 0). -/
-theorem rlp_phase3_short_string_spec_at_0x80
+theorem rlp_phase3_short_string_spec_at_0x80_within
     (v11Old v13 : Word) (base : Word) :
-    cpsTriple base (base + 8)
+    cpsTripleWithin 2 base (base + 8)
       (CodeReq.ofProg base rlp_phase3_short_string_prog)
       ((.x5 ↦ᵣ (0x80 : Word)) ** (.x11 ↦ᵣ v11Old) ** (.x13 ↦ᵣ v13))
       ((.x5 ↦ᵣ (0x80 : Word)) ** (.x11 ↦ᵣ (0 : Word)) **
        (.x13 ↦ᵣ (v13 + signExtend12 (1 : BitVec 12)))) := by
-  have h := rlp_phase3_short_string_spec (0x80 : Word) v11Old v13 base
+  have h := rlp_phase3_short_string_spec_within (0x80 : Word) v11Old v13 base
   have hsig : (0x80 : Word) + signExtend12 (-(0x80 : BitVec 12)) = (0 : Word) := by
     decide
   rw [hsig] at h
   exact h
 
-/-- Specialization at `v5 = 0x81` (length = 1). Note that under the
-    canonical-form rules a single payload byte `≥ 0x80` requires this
-    prefix; the caller is responsible for the data semantics. -/
-theorem rlp_phase3_short_string_spec_at_0x81
+theorem rlp_phase3_short_string_spec_at_0x81_within
     (v11Old v13 : Word) (base : Word) :
-    cpsTriple base (base + 8)
+    cpsTripleWithin 2 base (base + 8)
       (CodeReq.ofProg base rlp_phase3_short_string_prog)
       ((.x5 ↦ᵣ (0x81 : Word)) ** (.x11 ↦ᵣ v11Old) ** (.x13 ↦ᵣ v13))
       ((.x5 ↦ᵣ (0x81 : Word)) ** (.x11 ↦ᵣ (1 : Word)) **
        (.x13 ↦ᵣ (v13 + signExtend12 (1 : BitVec 12)))) := by
-  have h := rlp_phase3_short_string_spec (0x81 : Word) v11Old v13 base
+  have h := rlp_phase3_short_string_spec_within (0x81 : Word) v11Old v13 base
   have hsig : (0x81 : Word) + signExtend12 (-(0x80 : BitVec 12)) = (1 : Word) := by
     decide
   rw [hsig] at h
   exact h
 
-/-- Specialization at `v5 = 0x82` (length = 2). -/
-theorem rlp_phase3_short_string_spec_at_0x82
+theorem rlp_phase3_short_string_spec_at_0x82_within
     (v11Old v13 : Word) (base : Word) :
-    cpsTriple base (base + 8)
+    cpsTripleWithin 2 base (base + 8)
       (CodeReq.ofProg base rlp_phase3_short_string_prog)
       ((.x5 ↦ᵣ (0x82 : Word)) ** (.x11 ↦ᵣ v11Old) ** (.x13 ↦ᵣ v13))
       ((.x5 ↦ᵣ (0x82 : Word)) ** (.x11 ↦ᵣ (2 : Word)) **
        (.x13 ↦ᵣ (v13 + signExtend12 (1 : BitVec 12)))) := by
-  have h := rlp_phase3_short_string_spec (0x82 : Word) v11Old v13 base
+  have h := rlp_phase3_short_string_spec_within (0x82 : Word) v11Old v13 base
   have hsig : (0x82 : Word) + signExtend12 (-(0x80 : BitVec 12)) = (2 : Word) := by
     decide
   rw [hsig] at h
   exact h
 
-/-- Specialization at `v5 = 0x83` (length = 3). -/
-theorem rlp_phase3_short_string_spec_at_0x83
+theorem rlp_phase3_short_string_spec_at_0x83_within
     (v11Old v13 : Word) (base : Word) :
-    cpsTriple base (base + 8)
+    cpsTripleWithin 2 base (base + 8)
       (CodeReq.ofProg base rlp_phase3_short_string_prog)
       ((.x5 ↦ᵣ (0x83 : Word)) ** (.x11 ↦ᵣ v11Old) ** (.x13 ↦ᵣ v13))
       ((.x5 ↦ᵣ (0x83 : Word)) ** (.x11 ↦ᵣ (3 : Word)) **
        (.x13 ↦ᵣ (v13 + signExtend12 (1 : BitVec 12)))) := by
-  have h := rlp_phase3_short_string_spec (0x83 : Word) v11Old v13 base
+  have h := rlp_phase3_short_string_spec_within (0x83 : Word) v11Old v13 base
   have hsig : (0x83 : Word) + signExtend12 (-(0x80 : BitVec 12)) = (3 : Word) := by
     decide
   rw [hsig] at h
   exact h
 
-/-- Specialization at `v5 = 0xB7` (maximum short-string length = 55). -/
-theorem rlp_phase3_short_string_spec_at_0xB7
+theorem rlp_phase3_short_string_spec_at_0xB7_within
     (v11Old v13 : Word) (base : Word) :
-    cpsTriple base (base + 8)
+    cpsTripleWithin 2 base (base + 8)
       (CodeReq.ofProg base rlp_phase3_short_string_prog)
       ((.x5 ↦ᵣ (0xB7 : Word)) ** (.x11 ↦ᵣ v11Old) ** (.x13 ↦ᵣ v13))
       ((.x5 ↦ᵣ (0xB7 : Word)) ** (.x11 ↦ᵣ (55 : Word)) **
        (.x13 ↦ᵣ (v13 + signExtend12 (1 : BitVec 12)))) := by
-  have h := rlp_phase3_short_string_spec (0xB7 : Word) v11Old v13 base
+  have h := rlp_phase3_short_string_spec_within (0xB7 : Word) v11Old v13 base
   have hsig : (0xB7 : Word) + signExtend12 (-(0x80 : BitVec 12)) = (55 : Word) := by
     decide
   rw [hsig] at h

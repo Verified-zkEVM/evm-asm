@@ -8,8 +8,8 @@
   parameter (not let-bound) to enable rw.
 
   Uses public helpers from `LoopBody.lean`:
-  - `divK_mulsub_full_spec`
-  - `divK_correction_skip_spec`
+  - `divK_mulsub_full_spec_within`
+  - `divK_correction_skip_spec_within`
 -/
 
 import EvmAsm.Evm64.DivMod.LoopBody.CorrectionSkip
@@ -23,7 +23,7 @@ open EvmAsm.Rv64
 /-- Mulsub + correction skip: when mulsub produces borrow=0, skip addback.
     Takes borrow as explicit parameter to avoid let-binding expansion issues.
     Entry: base+516, Exit: base+880, CodeReq: sharedDivModCode base. -/
-theorem divK_mulsub_correction_skip_spec
+theorem divK_mulsub_correction_skip_spec_within
     (sp qHat j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
     (v1Old v5Old v6Old v7Old v10Old v2Old : Word)
     (base : Word) :
@@ -56,7 +56,7 @@ theorem divK_mulsub_correction_skip_spec
     let u4_new := uTop - c3
     -- Hypothesis: mulsub borrow = 0
     (if BitVec.ult uTop c3 then (1 : Word) else 0) = (0 : Word) →
-    cpsTriple (base + 516) (base + 884) (sharedDivModCode base)
+    cpsTripleWithin 54 (base + 516) (base + 884) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
        (.x1 ↦ᵣ v1Old) ** (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
        (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x2 ↦ᵣ v2Old) **
@@ -84,28 +84,35 @@ theorem divK_mulsub_correction_skip_spec
         p3_lo p3_hi fs3 ba3 pc3 bs3 un3 c3 u4_new
         hborrow
   -- 1. Mulsub full (base+516 → base+728)
-  have MS := divK_mulsub_full_spec sp qHat j v0 v1 v2 v3 u0 u1 u2 u3 uTop
+  have MS := divK_mulsub_full_spec_within sp qHat j v0 v1 v2 v3 u0 u1 u2 u3 uTop
     v1Old v5Old v6Old v7Old v10Old v2Old base
 
   dsimp only [] at MS hborrow
   -- 2. Rewrite borrow to 0 in mulsub postcondition
   rw [hborrow] at MS
   -- 3. Correction skip (base+728 → base+884)
-  have CS := divK_correction_skip_spec sp uBase qHat v0 v1 v2 v3 un0 un1 un2 un3 u4_new
+  have CS := divK_correction_skip_spec_within sp uBase qHat v0 v1 v2 v3 un0 un1 un2 un3 u4_new
     u4_new un3 base
   -- 4. Compose mulsub(borrow=0) + correction_skip
   seqFrame MS CS
-  exact cpsTriple_weaken
+  exact cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq)
     MSCS
 
+def divK_mulsub_correction_skip_spec
+    (sp qHat j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
+    (v1Old v5Old v6Old v7Old v10Old v2Old : Word)
+    (base : Word) :=
+  divK_mulsub_correction_skip_spec_within sp qHat j v0 v1 v2 v3 u0 u1 u2 u3 uTop
+    v1Old v5Old v6Old v7Old v10Old v2Old base
+
 /-- v2 mirror of `divK_mulsub_correction_skip_spec` — same body but
     targets `sharedDivModCode_v2 base`.
 
-    **STUB:** the proof would use a `divK_mulsub_full_v2_spec` (not yet
+    **STUB:** the proof would use a `divK_mulsub_full_v2_spec_within` (not yet
     written, depends on v2 versions of `mulsub_setup`, `mulsub_4limbs`,
-    `sub_carry`) plus `divK_correction_skip_v2_spec` (just landed). The
+    `sub_carry`) plus `divK_correction_skip_v2_spec_within` (just landed). The
     deep dependency chain on the v1 LoopBody.lean sub-specs means a
     proper v2 mirror requires either copy-pasting the 100+ line proof or
     refactoring the v1 sub-specs to be cr-polymorphic. Either path is
@@ -114,7 +121,7 @@ theorem divK_mulsub_correction_skip_spec
     Marked as a sorry placeholder for the next migration iteration.
 
     Issue #1337 algorithm fix migration. -/
-theorem divK_mulsub_correction_skip_v2_spec
+theorem divK_mulsub_correction_skip_v2_spec_within
     (sp qHat j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
     (v1Old v5Old v6Old v7Old v10Old v2Old : Word)
     (base : Word) :
@@ -145,7 +152,7 @@ theorem divK_mulsub_correction_skip_v2_spec
     let un3 := u3 - fs3; let c3 := pc3 + bs3
     let u4_new := uTop - c3
     (if BitVec.ult uTop c3 then (1 : Word) else 0) = (0 : Word) →
-    cpsTriple (base + 516) (base + 884) (sharedDivModCode_v2 base)
+    cpsTripleWithin 54 (base + 516) (base + 884) (sharedDivModCode_v2 base)
       ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
        (.x1 ↦ᵣ v1Old) ** (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
        (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x2 ↦ᵣ v2Old) **
@@ -173,20 +180,27 @@ theorem divK_mulsub_correction_skip_v2_spec
         p3_lo p3_hi fs3 ba3 pc3 bs3 un3 c3 u4_new
         hborrow
   -- 1. Mulsub full v2 (base+516 → base+728)
-  have MS := divK_mulsub_full_v2_spec sp qHat j v0 v1 v2 v3 u0 u1 u2 u3 uTop
+  have MS := divK_mulsub_full_v2_spec_within sp qHat j v0 v1 v2 v3 u0 u1 u2 u3 uTop
     v1Old v5Old v6Old v7Old v10Old v2Old base
 
   dsimp only [] at MS hborrow
   -- 2. Rewrite borrow to 0 in mulsub postcondition
   rw [hborrow] at MS
   -- 3. Correction skip v2 (base+728 → base+884)
-  have CS := divK_correction_skip_v2_spec sp uBase qHat v0 v1 v2 v3 un0 un1 un2 un3 u4_new
+  have CS := divK_correction_skip_v2_spec_within sp uBase qHat v0 v1 v2 v3 un0 un1 un2 un3 u4_new
     u4_new un3 base
   -- 4. Compose mulsub(borrow=0) + correction_skip
   seqFrame MS CS
-  exact cpsTriple_weaken
+  exact cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq)
     MSCS
+
+def divK_mulsub_correction_skip_v2_spec
+    (sp qHat j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
+    (v1Old v5Old v6Old v7Old v10Old v2Old : Word)
+    (base : Word) :=
+  divK_mulsub_correction_skip_v2_spec_within sp qHat j v0 v1 v2 v3 u0 u1 u2 u3 uTop
+    v1Old v5Old v6Old v7Old v10Old v2Old base
 
 end EvmAsm.Evm64

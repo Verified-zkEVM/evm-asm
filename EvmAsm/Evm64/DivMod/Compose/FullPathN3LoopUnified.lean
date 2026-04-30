@@ -95,7 +95,7 @@ private theorem evm_div_n3_loop_unified_inst
     (hbltu_0 : bltu_0 = BitVec.ult
       (iterN3 bltu_1 b0' b1' b2' b3' u1 u2 u3 u4 (0 : Word)).2.2.2.1 b2')
     (hcarry2 : Carry2NzAll b0' b1' b2' b3') :
-    cpsTriple (base + loopBodyOff) (base + denormOff) (divCode base)
+    cpsTripleWithin 10000 (base + loopBodyOff) (base + denormOff) (divCode base)
       (loopN3PreWithScratch sp jMem (3 : Word) shift u0 v10Old v11Old antiShift
         b0' b1' b2' b3' u1 u2 u3 u4 (0 : Word) u0 (0 : Word) (0 : Word)
         retMem dMem dloMem scratch_un0)
@@ -130,7 +130,7 @@ theorem evm_div_n3_preloop_loop_unified_spec (bltu_1 bltu_0 : Bool) (sp base : W
       ((b1 <<< (((clzResult b2).1).toNat % 64)) ||| (b0 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b2).1).toNat % 64)))
       ((b2 <<< (((clzResult b2).1).toNat % 64)) ||| (b1 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b2).1).toNat % 64)))
       ((b3 <<< (((clzResult b2).1).toNat % 64)) ||| (b2 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b2).1).toNat % 64)))) :
-    cpsTriple base (base + denormOff) (divCode base)
+    cpsTripleWithin 10000 base (base + denormOff) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b2).2 >>> (63 : Nat)) **
        (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
@@ -155,12 +155,12 @@ theorem evm_div_n3_preloop_loop_unified_spec (bltu_1 bltu_0 : Bool) (sp base : W
       (preloopN3UnifiedPost bltu_1 bltu_0 sp base a0 a1 a2 a3 b0 b1 b2 b3
         retMem dMem dloMem scratch_un0) := by
   -- 1. Pre-loop: base → base+448
-  have hPre := evm_div_n3_to_loopSetup_spec sp base
+  have hPre := evm_div_n3_to_loopSetup_spec_within sp base
     a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10
     q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem
     hbnz hb3z hb2nz hshift_nz
   -- Frame preloop with .x11, jMem, scratch cells
-  have hPreF := cpsTriple_frameR
+  have hPreF := cpsTripleWithin_frameR
     ((.x11 ↦ᵣ v11Old) ** ((sp + signExtend12 3976) ↦ₘ jMem) **
      (sp + signExtend12 3968 ↦ₘ retMem) **
      (sp + signExtend12 3960 ↦ₘ dMem) **
@@ -185,7 +185,7 @@ theorem evm_div_n3_preloop_loop_unified_spec (bltu_1 bltu_0 : Bool) (sp base : W
     halign
     hbltu_1 hbltu_0 hcarry2
   -- Frame loop with a[], spare q[2..3], spare u[6..7], shiftMem
-  have hLoopF := cpsTriple_frameR
+  have hLoopF := cpsTripleWithin_frameR
     (((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
      ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
      ((sp + signExtend12 4072) ↦ₘ (0 : Word)) **
@@ -195,7 +195,7 @@ theorem evm_div_n3_preloop_loop_unified_spec (bltu_1 bltu_0 : Bool) (sp base : W
      ((sp + signExtend12 3992) ↦ₘ (clzResult b2).1))
     (by pcFree) hLoop
   -- 3. Compose preloop + loop
-  have hFull := cpsTriple_seq_perm_same_cr
+  have hFull := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by
       delta loopSetupPost at hp
       simp only [x1_val_n3] at hp
@@ -205,7 +205,7 @@ theorem evm_div_n3_preloop_loop_unified_spec (bltu_1 bltu_0 : Bool) (sp base : W
                   n3_ub1_off4072, n3_ub1_off4064, n3_ub0_off0,
                   n3_qa1, n3_qa0, se12_32, se12_40, se12_48, se12_56]
       xperm_hyp hp) hPreF hLoopF
-  exact cpsTriple_weaken
+  exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by delta preloopN3UnifiedPost; xperm_hyp hq)
     hFull

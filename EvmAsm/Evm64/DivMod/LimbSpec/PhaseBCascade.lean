@@ -6,7 +6,7 @@
   `n` (the index of the highest non-zero limb of the divisor):
     * `divK_phaseB_cascade_step_code` — a 2-instruction `CodeReq.union`
       of the ADDI and the BNE.
-    * `divK_phaseB_cascade_step_spec` — full `cpsBranch` spec: in either
+    * `divK_phaseB_cascade_step_spec_within` — full `cpsBranchWithin` spec: in either
       branch `x5 = nVal`; the taken branch jumps when `rx ≠ 0`.
 
   Eleventh chunk of the `LimbSpec.lean` split tracked by issue #312. The
@@ -35,13 +35,13 @@ abbrev divK_phaseB_cascade_step_code (nVal : BitVec 12) (rx : Reg) (bne_off : Bi
 /-- Single cascade step: load nVal into x5, then BNE on rx vs x0.
     Taken: rx ≠ 0 (limb is nonzero), branch to target with x5 = nVal.
     Not taken: rx = 0, fall through with x5 = nVal. -/
-theorem divK_phaseB_cascade_step_spec (nVal : BitVec 12) (rx : Reg) (check v5 : Word)
+theorem divK_phaseB_cascade_step_spec_within (nVal : BitVec 12) (rx : Reg) (check v5 : Word)
     (bne_off : BitVec 13) (base : Word) :
     let n := (0 : Word) + signExtend12 nVal
     let cr := divK_phaseB_cascade_step_code nVal rx bne_off base
     let post :=
       (.x5 ↦ᵣ n) ** (.x0 ↦ᵣ (0 : Word)) ** (rx ↦ᵣ check)
-    cpsBranch base cr
+    cpsBranchWithin 2 base cr
       ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (rx ↦ᵣ check))
       -- Taken: check ≠ 0
       ((base + 4) + signExtend13 bne_off) post
@@ -49,22 +49,22 @@ theorem divK_phaseB_cascade_step_spec (nVal : BitVec 12) (rx : Reg) (check v5 : 
       (base + 8) post := by
   intro n cr post
   -- 1. ADDI body
-  have hbody : cpsTriple base (base + 4) cr
+  have hbody : cpsTripleWithin 1 base (base + 4) cr
       ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (rx ↦ᵣ check))
       ((.x5 ↦ᵣ n) ** (.x0 ↦ᵣ (0 : Word)) ** (rx ↦ᵣ check)) := by
-    have I0 := addi_spec_gen .x5 .x0 v5 (0 : Word) nVal base (by nofun)
+    have I0 := addi_spec_gen_within .x5 .x0 v5 (0 : Word) nVal base (by nofun)
     runBlock I0
   -- 2. BNE at base + 4, drop pure facts
-  have hbne_raw := bne_spec_gen rx .x0 bne_off check (0 : Word) (base + 4)
+  have hbne_raw := bne_spec_gen_within rx .x0 bne_off check (0 : Word) (base + 4)
   have ha1 : (base + 4 : Word) + 4 = base + 8 := by bv_addr
   rw [ha1] at hbne_raw
-  have hbne : cpsBranch (base + 4) _
+  have hbne : cpsBranchWithin 1 (base + 4) _
       ((rx ↦ᵣ check) ** (.x0 ↦ᵣ (0 : Word)))
       ((base + 4) + signExtend13 bne_off)
         ((rx ↦ᵣ check) ** (.x0 ↦ᵣ (0 : Word)))
       (base + 8)
         ((rx ↦ᵣ check) ** (.x0 ↦ᵣ (0 : Word))) :=
-    cpsBranch_weaken
+    cpsBranchWithin_weaken
       (fun _ hp => hp)
       (fun h hp => sepConj_mono_right
         (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp)
@@ -72,11 +72,11 @@ theorem divK_phaseB_cascade_step_spec (nVal : BitVec 12) (rx : Reg) (check v5 : 
         (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp)
       hbne_raw
   -- 3. Frame BNE with x5
-  have hbne_framed := cpsBranch_frameR
+  have hbne_framed := cpsBranchWithin_frameR
     (.x5 ↦ᵣ n)
     (by pcFree) hbne
   -- 4. Extend to full cr
-  have hbne_ext := cpsBranch_extend_code (cr' := cr) (fun a i h => by
+  have hbne_ext := cpsBranchWithin_extend_code (cr' := cr) (fun a i h => by
     simp only [CodeReq.singleton] at h
     split at h
     · next heq =>
@@ -88,11 +88,11 @@ theorem divK_phaseB_cascade_step_spec (nVal : BitVec 12) (rx : Reg) (check v5 : 
       simp only [beq_iff_eq, h0, ↓reduceIte]
     · simp at h) hbne_framed
   -- 5. Compose and clean up postconditions
-  exact cpsBranch_weaken
+  exact cpsBranchWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hp => by xperm_hyp hp)
     (fun h hp => by xperm_hyp hp)
-    (cpsTriple_seq_cpsBranch_perm_same_cr
+    (cpsTripleWithin_seq_cpsBranchWithin_perm_same_cr
       (fun h hp => by xperm_hyp hp) hbody hbne_ext)
 
 end EvmAsm.Evm64

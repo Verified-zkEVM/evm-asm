@@ -64,18 +64,18 @@ theorem rlp_phase2_long_load_acc_post_unfold
      (.x12 ↦ᵣ byteZext) ** (dwordAddr ↦ₘ wordVal)) := by
   delta rlp_phase2_long_load_acc_post; rfl
 
-/-- `cpsTriple` spec for the load-and-accumulate step.
+/-- `cpsTripleWithin` spec for the load-and-accumulate step.
 
     The caller owns the doubleword at `dwordAddr` containing the byte at
     `ptr` (established via `halign`, `hvalid`). After execution, `x11`
     holds `len * 256 + byte` (as BitVec arithmetic) and `x12` holds the
     zero-extended byte. `x13` and memory are preserved. -/
-theorem rlp_phase2_long_load_acc_spec (len ptr v12Old wordVal dwordAddr : Word)
+theorem rlp_phase2_long_load_acc_spec_within (len ptr v12Old wordVal dwordAddr : Word)
     (base : Word)
     (halign : alignToDword ptr = dwordAddr)
     (hvalid : isValidByteAccess ptr = true) :
     let byteZext := (extractByte wordVal (byteOffset ptr)).zeroExtend 64
-    cpsTriple base (base + 12)
+    cpsTripleWithin 3 base (base + 12)
       (CodeReq.ofProg base rlp_phase2_long_load_acc_prog)
       ((.x11 ↦ᵣ len) ** (.x13 ↦ᵣ ptr) ** (.x12 ↦ᵣ v12Old) **
        (dwordAddr ↦ₘ wordVal))
@@ -105,36 +105,36 @@ theorem rlp_phase2_long_load_acc_spec (len ptr v12Old wordVal dwordAddr : Word)
     rw [hptr_eq]; exact halign
   have hvalid' : isValidByteAccess (ptr + signExtend12 (0 : BitVec 12)) = true := by
     rw [hptr_eq]; exact hvalid
-  have lbu := generic_lbu_spec .x12 .x13 ptr v12Old 0 base dwordAddr wordVal
+  have lbu := generic_lbu_spec_within .x12 .x13 ptr v12Old 0 base dwordAddr wordVal
     (by nofun) halign' hvalid'
   rw [hptr_eq] at lbu
   -- Frame LBU with `x11 ↦ᵣ len` and permute to match the sequence shape.
   let byteZext := (extractByte wordVal (byteOffset ptr)).zeroExtend 64
-  have lbu_framed : cpsTriple base (base + 4)
+  have lbu_framed : cpsTripleWithin 1 base (base + 4)
       (CodeReq.singleton base (.LBU .x12 .x13 0))
       ((.x11 ↦ᵣ len) ** (.x13 ↦ᵣ ptr) ** (.x12 ↦ᵣ v12Old) **
        (dwordAddr ↦ₘ wordVal))
       ((.x11 ↦ᵣ len) ** (.x13 ↦ᵣ ptr) ** (.x12 ↦ᵣ byteZext) **
        (dwordAddr ↦ₘ wordVal)) :=
-    cpsTriple_weaken
+    cpsTripleWithin_weaken
       (fun h hp => by xperm_hyp hp)
       (fun h hp => by xperm_hyp hp)
-      (cpsTriple_frameR (.x11 ↦ᵣ len) (by pcFree) lbu)
+      (cpsTripleWithin_frameR (.x11 ↦ᵣ len) (by pcFree) lbu)
   -- Step 2: accumulation step at `base + 4`. Frame with `x13` and memory.
-  have acc := rlp_phase2_long_acc_spec len byteZext (base + 4)
+  have acc := rlp_phase2_long_acc_spec_within len byteZext (base + 4)
   simp only [rlp_phase2_long_acc_post_unfold] at acc
   rw [show (base + 4 : Word) + 8 = base + 12 from by bv_omega] at acc
-  have acc_framed : cpsTriple (base + 4) (base + 12)
+  have acc_framed : cpsTripleWithin 2 (base + 4) (base + 12)
       (CodeReq.ofProg (base + 4) rlp_phase2_long_acc_prog)
       ((.x11 ↦ᵣ len) ** (.x13 ↦ᵣ ptr) ** (.x12 ↦ᵣ byteZext) **
        (dwordAddr ↦ₘ wordVal))
       ((.x11 ↦ᵣ ((len <<< 8) + byteZext)) ** (.x13 ↦ᵣ ptr) **
        (.x12 ↦ᵣ byteZext) ** (dwordAddr ↦ₘ wordVal)) :=
-    cpsTriple_weaken
+    cpsTripleWithin_weaken
       (fun h hp => by xperm_hyp hp)
       (fun h hp => by xperm_hyp hp)
-      (cpsTriple_frameR
+      (cpsTripleWithin_frameR
         ((.x13 ↦ᵣ ptr) ** (dwordAddr ↦ₘ wordVal)) (by pcFree) acc)
-  exact cpsTriple_seq hd lbu_framed acc_framed
+  exact cpsTripleWithin_seq hd lbu_framed acc_framed
 
 end EvmAsm.Rv64.RLP

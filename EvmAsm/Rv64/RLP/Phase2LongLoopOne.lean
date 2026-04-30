@@ -8,7 +8,7 @@
   decrements to `0`, the `BNE x14, x0, back` falls through, and control
   reaches the exit at `base + 24`. The "loop-back" branch is
   unreachable (its pure fact `cnt' ≠ 0` is `0 ≠ 0`, which is false),
-  so the resulting spec is a plain `cpsTriple`.
+  so the resulting spec is a plain `cpsTripleWithin`.
 
   This is the simplest concrete closure of the long-form loop: it
   corresponds to RLP long-form prefixes `0xB8` or `0xF8`, where
@@ -51,21 +51,21 @@ theorem rlp_phase2_long_loop_one_byte_post_unfold
      (dwordAddr ↦ₘ wordVal)) := by
   delta rlp_phase2_long_loop_one_byte_post; rfl
 
-/-- `cpsTriple` spec for the single-iteration (lenLen = 1) closure of
+/-- Step-bounded spec for the single-iteration (lenLen = 1) closure of
     the long-form length loop.
 
-    Derived from `rlp_phase2_long_loop_body_spec` by observing that when
+    Derived from `rlp_phase2_long_loop_body_spec_within` by observing that when
     `cnt = 1`, `cnt' = 1 + signExtend12 (-1) = 0`, so the taken-branch
     post `⌜cnt' ≠ 0⌝` collapses to `⌜(0 : Word) ≠ 0⌝ = False`. The
-    `cpsBranch_ntakenPath` rule then turns the two-exit branch into a
-    single-exit triple at the fall-through. -/
-theorem rlp_phase2_long_loop_one_byte_spec
+    `cpsBranchWithin_ntakenPath` rule then turns the two-exit branch
+    into a single-exit triple at the fall-through. -/
+theorem rlp_phase2_long_loop_one_byte_spec_within
     (len ptr v12Old wordVal dwordAddr : Word)
     (base : Word) (back : BitVec 13)
     (halign : alignToDword ptr = dwordAddr)
     (hvalid : isValidByteAccess ptr = true) :
     let byteZext := (extractByte wordVal (byteOffset ptr)).zeroExtend 64
-    cpsTriple base (base + 24)
+    cpsTripleWithin 6 base (base + 24)
       (CodeReq.ofProg base (rlp_phase2_long_loop_body_prog back))
       ((.x11 ↦ᵣ len) ** (.x13 ↦ᵣ ptr) ** (.x14 ↦ᵣ (1 : Word)) **
        (.x12 ↦ᵣ v12Old) ** (.x0 ↦ᵣ (0 : Word)) **
@@ -74,7 +74,7 @@ theorem rlp_phase2_long_loop_one_byte_spec
          dwordAddr) := by
   simp only [rlp_phase2_long_loop_one_byte_post_unfold]
   -- Body spec instantiated at cnt = 1.
-  have body := rlp_phase2_long_loop_body_spec len ptr (1 : Word) v12Old
+  have body := rlp_phase2_long_loop_body_spec_within len ptr (1 : Word) v12Old
     wordVal dwordAddr base back halign hvalid
   -- For cnt = 1, `cnt' = (1 : Word) + signExtend12 (-1 : BitVec 12) = 0`.
   rw [cnt_dec_1] at body
@@ -85,12 +85,12 @@ theorem rlp_phase2_long_loop_one_byte_spec
       rlp_phase2_long_loop_body_post len ptr (1 : Word) byteZext wordVal
          dwordAddr ((0 : Word) ≠ 0) hp → False := fun hp hpost =>
     rlp_phase2_long_loop_body_post_pure hp hpost rfl
-  -- `cpsBranch_ntakenPath` drops the taken branch.
-  have tri := cpsBranch_ntakenPath body h_absurd
+  -- `cpsBranchWithin_ntakenPath` drops the taken branch.
+  have tri := cpsBranchWithin_ntakenPath body h_absurd
   -- Weaken the post: unfold the `@[irreducible]` wrapper and strip the
   -- trailing `⌜(0 : Word) = 0⌝ = True` pure fact (via 5 `mono_right` wraps
   -- reaching the innermost `F ** ⌜P⌝`).
-  exact cpsTriple_weaken
+  exact cpsTripleWithin_weaken
     (fun _ hp => hp)
     (fun h hp => by
       simp only [rlp_phase2_long_loop_body_post_unfold] at hp

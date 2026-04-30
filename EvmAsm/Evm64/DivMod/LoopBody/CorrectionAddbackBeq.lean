@@ -9,7 +9,7 @@
   Uses public helpers from `LoopBody.lean`:
   - `divK_mulsub_correction_addback_spec`
   - `divK_mulsub_correction_addback_named_880_spec`
-  - `divK_double_addback_beq_named_spec`
+  - `divK_double_addback_beq_named_spec_within`
 -/
 
 import EvmAsm.Evm64.DivMod.LoopBody.MulsubCorrectionAddback
@@ -31,7 +31,7 @@ open EvmAsm.Rv64
     - carry ≠ 0 (single addback): BEQ falls through to base+884
     - carry = 0 (double addback): BEQ takes backward branch, second addback, then falls through
     Entry: base+516, Exit: base+884. -/
-theorem divK_mulsub_correction_addback_beq_spec
+theorem divK_mulsub_correction_addback_beq_spec_within
     (sp qHat j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
     (v1Old v5Old v6Old v7Old v10Old v2Old : Word)
     (base : Word) :
@@ -57,7 +57,7 @@ theorem divK_mulsub_correction_addback_beq_spec
     (carry = 0 → addbackN4_carry ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 v0 v1 v2 v3 ≠ 0) →
     -- Hypothesis: borrow ≠ 0
     (if BitVec.ult uTop c3 then (1 : Word) else 0) ≠ (0 : Word) →
-    cpsTriple (base + 516) (base + 884) (sharedDivModCode base)
+    cpsTripleWithin 130 (base + 516) (base + 884) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
        (.x1 ↦ᵣ v1Old) ** (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
        (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x2 ↦ᵣ v2Old) **
@@ -81,7 +81,7 @@ theorem divK_mulsub_correction_addback_beq_spec
   intro uBase ms c3 carry ab ab' q_out un0Out un1Out un2Out un3Out u4_out carryOut
         hcarry2_nz hborrow
   -- 1. Mulsub + first addback (base+516 → base+880)
-  have MCA := divK_mulsub_correction_addback_spec sp qHat j v0 v1 v2 v3 u0 u1 u2 u3 uTop
+  have MCA := divK_mulsub_correction_addback_spec_within sp qHat j v0 v1 v2 v3 u0 u1 u2 u3 uTop
     v1Old v5Old v6Old v7Old v10Old v2Old base
 
   intro_lets at MCA
@@ -98,26 +98,26 @@ theorem divK_mulsub_correction_addback_beq_spec
     have hc : carryOut = addbackN4_carry ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 v0 v1 v2 v3 := if_pos hcarry
     rw [hq, h0, h1, h2, h3, h4, hc]
     -- Use named 880 spec (→880 with addbackN4_carry in postcondition)
-    have MCA_N := (divK_mulsub_correction_addback_named_880_spec sp qHat j v0 v1 v2 v3 u0 u1 u2 u3 uTop
+    have MCA_N := (divK_mulsub_correction_addback_named_880_spec_within sp qHat j v0 v1 v2 v3 u0 u1 u2 u3 uTop
       v1Old v5Old v6Old v7Old v10Old v2Old base) hborrow
     -- Rewrite carry to 0
     rw [show addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 v0 v1 v2 v3 = (0 : Word) from hcarry] at MCA_N
     -- Use named DA spec (880→884 with addbackN4 projections in postcondition)
     have hcarry2 : addbackN4_carry ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 v0 v1 v2 v3 ≠ 0 :=
       hcarry2_nz hcarry
-    have DA := divK_double_addback_beq_named_spec sp uBase
+    have DA := divK_double_addback_beq_named_spec_within sp uBase
       (qHat + signExtend12 4095) v0 v1 v2 v3
       ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 ab.2.2.2.2
       base hcarry2
     -- Frame DA with extra atoms from MCA_N postcondition
-    have DAf := cpsTriple_frameR
+    have DAf := cpsTripleWithin_frameR
       ((.x1 ↦ᵣ j) ** (.x10 ↦ᵣ c3) **
        (sp + signExtend12 3976 ↦ₘ j))
       (by pcFree) DA
     -- Compose MCA_N(→880) with DAf(880→884)
-    have full := cpsTriple_seq_perm_same_cr
+    have full := cpsTripleWithin_seq_perm_same_cr
       (fun h hp => by xperm_hyp hp) MCA_N DAf
-    exact cpsTriple_weaken
+    exact cpsTripleWithin_weaken
       (fun h hp => by xperm_hyp hp)
       (fun h hp => by xperm_hyp hp)
       full
@@ -131,6 +131,6 @@ theorem divK_mulsub_correction_addback_beq_spec
     have hc : carryOut = carry := if_neg hcarry
     rw [hq, h0, h1, h2, h3, h4, hc]
     -- Use the existing MCA0 (which includes BEQ passthrough) with carry ≠ 0
-    exact MCA0 hcarry
+    exact cpsTripleWithin_mono_nSteps (by decide) (MCA0 hcarry)
 
 end EvmAsm.Evm64

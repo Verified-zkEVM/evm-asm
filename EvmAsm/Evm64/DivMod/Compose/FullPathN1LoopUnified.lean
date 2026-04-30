@@ -6,7 +6,7 @@
   preloop+loop level (base → base+904).
 
   Directly composes:
-  - Preloop: evm_div_n1_to_loopSetup_spec (base → base+448)
+  - Preloop: evm_div_n1_to_loopSetup_spec_within (base → base+448)
   - Loop: divK_loop_n1_unified_divCode (base+448 → base+904)
 
   Unlike n=3 (which dispatches to 4 existing per-path theorems),
@@ -161,7 +161,7 @@ private theorem evm_div_n1_loop_unified_inst
           (iterN1 bltu_3 v0' v1' v2' v3' u3S u4_s (0 : Word) (0 : Word) (0 : Word)).2.2.2.2.1).2.2.2.2.1).2.1
       v0')
     (hcarry2 : Carry2NzAll v0' v1' v2' v3') :
-    cpsTriple (base + loopBodyOff) (base + denormOff) (divCode base)
+    cpsTripleWithin 808 (base + loopBodyOff) (base + denormOff) (divCode base)
       (loopN1PreWithScratch sp jMem (1 : Word) shift u0S v10_val v11Old antiShift
         v0' v1' v2' v3' u3S u4_s (0 : Word) (0 : Word) (0 : Word)
         u2S u1S u0S (0 : Word) (0 : Word) (0 : Word) (0 : Word)
@@ -203,7 +203,7 @@ theorem evm_div_n1_preloop_loop_unified_spec
       ((b1 <<< (((clzResult b0).1).toNat % 64)) ||| (b0 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b0).1).toNat % 64)))
       ((b2 <<< (((clzResult b0).1).toNat % 64)) ||| (b1 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b0).1).toNat % 64)))
       ((b3 <<< (((clzResult b0).1).toNat % 64)) ||| (b2 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b0).1).toNat % 64)))) :
-    cpsTriple base (base + denormOff) (divCode base)
+    cpsTripleWithin (8 + 21 + 24 + 4 + 21 + 21 + 4 + 808) base (base + denormOff) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b0).2 >>> (63 : Nat)) **
        (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
@@ -228,14 +228,14 @@ theorem evm_div_n1_preloop_loop_unified_spec
       (preloopN1UnifiedPost bltu_3 bltu_2 bltu_1 bltu_0 sp base a0 a1 a2 a3 b0 b1 b2 b3
         retMem dMem dloMem scratch_un0) := by
   -- 1. Pre-loop: base → base+448
-  have hPre := evm_div_n1_to_loopSetup_spec sp base
+  have hPre := evm_div_n1_to_loopSetup_spec_within sp base
     a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10
     q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem
     hbnz hb3z hb2z hb1z hshift_nz
 
 
   -- Frame preloop with .x11, jMem, scratch cells
-  have hPreF := cpsTriple_frameR
+  have hPreF := cpsTripleWithin_frameR
     ((.x11 ↦ᵣ v11Old) ** ((sp + signExtend12 3976) ↦ₘ jMem) **
      (sp + signExtend12 3968 ↦ₘ retMem) **
      (sp + signExtend12 3960 ↦ₘ dMem) **
@@ -259,13 +259,13 @@ theorem evm_div_n1_preloop_loop_unified_spec
     retMem dMem dloMem scratch_un0 halign
     hbltu_3 hbltu_2 hbltu_1 hbltu_0 hcarry2
   -- Frame loop with a[], shiftMem (no spare q/u for n=1)
-  have hLoopF := cpsTriple_frameR
+  have hLoopF := cpsTripleWithin_frameR
     (((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
      ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
      ((sp + signExtend12 3992) ↦ₘ (clzResult b0).1))
     (by pcFree) hLoop
   -- 3. Compose preloop + loop
-  have hFull := cpsTriple_seq_perm_same_cr
+  have hFull := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by
       delta loopSetupPost at hp
       simp only [x1_val_n1] at hp
@@ -279,7 +279,7 @@ theorem evm_div_n1_preloop_loop_unified_spec
                   n1_qa3, n2_qa2, n3_qa1, n3_qa0,
                   se12_32, se12_40, se12_48, se12_56]
       xperm_hyp hp) hPreF hLoopF
-  exact cpsTriple_weaken
+  exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by delta preloopN1UnifiedPost; xperm_hyp hq)
     hFull

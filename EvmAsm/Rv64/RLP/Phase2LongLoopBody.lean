@@ -16,13 +16,13 @@
   The `back` offset is a parameter; the caller chooses it so the taken
   branch lands at the loop header.
 
-  The spec is a `cpsBranch` at the loop-body entry:
+  The spec is a `cpsBranchWithin` at the loop-body entry:
     * taken      → PC = `(base + 20) + signExtend13 back`,  ⌜cnt' ≠ 0⌝
     * not taken  → PC = `base + 24`,                        ⌜cnt' = 0⌝
   where `cnt' = cnt + signExtend12 (-1 : BitVec 12)`.
 
   Full loop closure (invariant over iterations) is a follow-up; this
-  file provides the per-iteration `cpsBranch` that that closure will
+  file provides the per-iteration `cpsBranchWithin` that that closure will
   unfold.
 -/
 
@@ -114,20 +114,20 @@ theorem rlp_phase2_long_loop_body_post_pure
   obtain ⟨_, _, _, _, _, hpost⟩ := hpost
   exact hpost.2
 
-/-- `cpsBranch` spec for one pass through the long-form length-loop body.
+/-- Step-bounded spec for one pass through the long-form length-loop body.
 
-    Composes `rlp_phase2_long_iter_spec` (the 5-instruction iteration
-    body) with `bne_spec_gen` at `base + 20`. The pure dispatch fact
+    Composes `rlp_phase2_long_iter_spec_within` (the 5-instruction iteration
+    body) with `bne_spec_gen_within` at `base + 20`. The pure dispatch fact
     (`cnt' ≠ 0` on taken, `cnt' = 0` on fall-through) flows directly from
     BNE's postcondition. -/
-theorem rlp_phase2_long_loop_body_spec
+theorem rlp_phase2_long_loop_body_spec_within
     (len ptr cnt v12Old wordVal dwordAddr : Word)
     (base : Word) (back : BitVec 13)
     (halign : alignToDword ptr = dwordAddr)
     (hvalid : isValidByteAccess ptr = true) :
     let byteZext := (extractByte wordVal (byteOffset ptr)).zeroExtend 64
     let cnt'      := cnt + signExtend12 (-1 : BitVec 12)
-    cpsBranch base (CodeReq.ofProg base (rlp_phase2_long_loop_body_prog back))
+    cpsBranchWithin 6 base (CodeReq.ofProg base (rlp_phase2_long_loop_body_prog back))
       ((.x11 ↦ᵣ len) ** (.x13 ↦ᵣ ptr) ** (.x14 ↦ᵣ cnt) **
        (.x12 ↦ᵣ v12Old) ** (.x0 ↦ᵣ (0 : Word)) **
        (dwordAddr ↦ₘ wordVal))
@@ -172,13 +172,13 @@ theorem rlp_phase2_long_loop_body_spec
   rw [hcr_eq]
   simp only [rlp_phase2_long_loop_body_post_unfold]
   -- Get iter_spec (5 instructions base → base+20).
-  have iter := rlp_phase2_long_iter_spec len ptr cnt v12Old wordVal dwordAddr
+  have iter := rlp_phase2_long_iter_spec_within len ptr cnt v12Old wordVal dwordAddr
     base halign hvalid
   simp only [rlp_phase2_long_iter_post_unfold] at iter
   set byteZext := (extractByte wordVal (byteOffset ptr)).zeroExtend 64
   set cnt' := cnt + signExtend12 (-1 : BitVec 12)
   -- Frame iter with (.x0 ↦ᵣ 0) so the composition state matches bne's.
-  have iter' : cpsTriple base (base + 20)
+  have iter' : cpsTripleWithin 5 base (base + 20)
       (CodeReq.ofProg base rlp_phase2_long_iter_prog)
       ((.x11 ↦ᵣ len) ** (.x13 ↦ᵣ ptr) ** (.x14 ↦ᵣ cnt) **
        (.x12 ↦ᵣ v12Old) ** (.x0 ↦ᵣ (0 : Word)) **
@@ -187,15 +187,15 @@ theorem rlp_phase2_long_loop_body_spec
        (.x13 ↦ᵣ (ptr + 1)) ** (.x14 ↦ᵣ cnt') **
        (.x12 ↦ᵣ byteZext) ** (.x0 ↦ᵣ (0 : Word)) **
        (dwordAddr ↦ₘ wordVal)) :=
-    cpsTriple_weaken
+    cpsTripleWithin_weaken
       (fun h hp => by xperm_hyp hp)
       (fun h hp => by xperm_hyp hp)
-      (cpsTriple_frameR (.x0 ↦ᵣ (0 : Word)) (by pcFree) iter)
+      (cpsTripleWithin_frameR (.x0 ↦ᵣ (0 : Word)) (by pcFree) iter)
   -- BNE x14, x0, back at (base + 20). Taken when x14 ≠ 0, not taken when x14 = 0.
-  have bne_raw := bne_spec_gen .x14 .x0 back cnt' (0 : Word) (base + 20)
+  have bne_raw := bne_spec_gen_within .x14 .x0 back cnt' (0 : Word) (base + 20)
   -- Frame BNE with all the other state (x11, x13, x12, dwordAddr) and
   -- permute to the shape produced by `iter'`'s post.
-  have bne_framed : cpsBranch (base + 20)
+  have bne_framed : cpsBranchWithin 1 (base + 20)
       (CodeReq.singleton (base + 20) (.BNE .x14 .x0 back))
       ((.x11 ↦ᵣ ((len <<< 8) + byteZext)) **
        (.x13 ↦ᵣ (ptr + 1)) ** (.x14 ↦ᵣ cnt') **
@@ -213,11 +213,11 @@ theorem rlp_phase2_long_loop_body_spec
          (dwordAddr ↦ₘ wordVal) ** ⌜cnt' = 0⌝) := by
     have h_eq_20_4 : (base + 20 : Word) + 4 = base + 24 := by bv_omega
     rw [h_eq_20_4] at bne_raw
-    exact cpsBranch_weaken
+    exact cpsBranchWithin_weaken
       (fun h hp => by xperm_hyp hp)
       (fun h hp => by xperm_hyp hp)
       (fun h hp => by xperm_hyp hp)
-      (cpsBranch_frameR
+      (cpsBranchWithin_frameR
         ((.x11 ↦ᵣ ((len <<< 8) + byteZext)) **
          (.x13 ↦ᵣ (ptr + 1)) ** (.x12 ↦ᵣ byteZext) **
          (dwordAddr ↦ₘ wordVal)) (by pcFree) bne_raw)
@@ -232,15 +232,15 @@ theorem rlp_phase2_long_loop_body_spec
     simp only [rlp_phase2_long_iter_prog, List.length_cons, List.length_nil] at hk
     interval_cases k <;> bv_omega
   -- Extend bne_framed's CR with trailing empty.
-  have bne_ext : cpsBranch (base + 20)
+  have bne_ext : cpsBranchWithin 1 (base + 20)
       ((CodeReq.singleton (base + 20) (.BNE .x14 .x0 back)).union CodeReq.empty)
       _ _ _ _ _ :=
-    cpsBranch_extend_code
+    cpsBranchWithin_extend_code
       (fun a _ hcr => by
         show (CodeReq.singleton (base + 20) (.BNE .x14 .x0 back)).union
             CodeReq.empty a = _
         simp only [CodeReq.union, hcr])
       bne_framed
-  exact cpsTriple_seq_cpsBranch hd_iter_bne iter' bne_ext
+  exact cpsTripleWithin_seq_cpsBranchWithin hd_iter_bne iter' bne_ext
 
 end EvmAsm.Rv64.RLP

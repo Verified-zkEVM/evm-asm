@@ -79,7 +79,7 @@ theorem evm_and_stack_spec (sp base : Addr)
     (a b : EvmWord) (v7 v6 : Word)
     (hvalid : ValidMemRange sp 8) :
     let code := evm_and_code base
-    cpsTriple base (base + 68) code
+    cpsTripleWithin 17 base (base + 68) code
       (-- precondition: stack pointer, scratch registers, two 256-bit words
        (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) **
        evmWordIs sp a ** evmWordIs (sp + 32) b)
@@ -89,15 +89,15 @@ theorem evm_and_stack_spec (sp base : Addr)
        evmWordIs sp a ** evmWordIs (sp + 32) (a &&& b))
 ```
 
-The statement is a Hoare triple (`cpsTriple`) with separation logic assertions.
+The statement is a bounded Hoare triple (`cpsTripleWithin`) with separation logic assertions.
 The precondition describes the machine state before: register `x12` holds the
 stack pointer, and two 256-bit words `a`, `b` sit at `sp` and `sp+32`. The
-postcondition says that after running 68 bytes of RISC-V code, the word at
+postcondition says that within 17 RISC-V steps, after running 68 bytes of code, the word at
 `sp+32` now holds `a &&& b` — the bitwise AND defined by Lean's `BitVec 256`.
 
 The proof composes four per-limb specs (one AND per 64-bit limb) using the
 `runBlock` tactic, then lifts to the `evmWordIs` abstraction via
-`cpsTriple_weaken`:
+`cpsTripleWithin_weaken`:
 
 ```lean
   -- 1. Compose 4 per-limb ANDs + stack pointer adjustment (limb-level proof)
@@ -105,11 +105,11 @@ The proof composes four per-limb specs (one AND per 64-bit limb) using the
   have L1 := and_limb_spec 8 40 sp a1 b1 ...
   have L2 := and_limb_spec 16 48 sp a2 b2 ...
   have L3 := and_limb_spec 24 56 sp a3 b3 ...
-  have LADDI := addi_spec_gen_same .x12 sp 32 ...
+  have LADDI := addi_spec_gen_same_within .x12 sp 32 ...
   runBlock L0 L1 L2 L3 LADDI
 
   -- 2. Lift to evmWordIs using EvmWord.getLimb_and semantic lemma
-  exact cpsTriple_weaken ...
+  exact cpsTripleWithin_weaken ...
     (fun h hp => by simp only [evmWordIs] at hp; ... ; xperm_hyp hp)
     (fun h hq => by simp only [evmWordIs, EvmWord.getLimb_and]; ... ; xperm_hyp hq)
     h_main
@@ -138,7 +138,7 @@ EvmAsm/
       XPerm.lean              --   xperm tactic: AC-permutation of sepConj chains
       XSimp.lean              --   xperm_hyp/xsimp tactics: assertion implication
       XCancel.lean            --   xcancel tactic: cancellation with frame extraction
-      SeqFrame.lean           --   seqFrame tactic: auto frame+compose cpsTriple specs
+      SeqFrame.lean           --   seqFrame tactic: auto frame+compose bounded CPS specs
       LiftSpec.lean           --   liftSpec tactic: lift instruction specs
       RunBlock.lean           --   runBlock tactic: block execution automation
       SpecDb.lean             --   @[spec_gen] attribute and spec database

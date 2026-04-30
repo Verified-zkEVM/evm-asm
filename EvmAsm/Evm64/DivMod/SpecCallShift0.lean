@@ -170,7 +170,8 @@ theorem evm_div_n4_shift0_call_skip_stack_spec (sp base : Word)
     (hshift_z : (clzResult (b.getLimbN 3)).1 = 0)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
     (hborrow : isSkipBorrowN4Shift0Evm a b) :
-    cpsTriple base (base + nopOff) (divCode base)
+    cpsTripleWithin (8 + 21 + 24 + 4 + 9 + 4 + 126 + 12)
+      base (base + nopOff) (divCode base)
       (divN4StackPreCall sp a b v5 v6 v7 v10 v11
          q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
          shiftMem nMem jMem retMem dMem dloMem scratch_un0)
@@ -181,7 +182,7 @@ theorem evm_div_n4_shift0_call_skip_stack_spec (sp base : Word)
     hbnz hb3nz hshift_z halign hborrow
   obtain ⟨hdiv0, hdiv1, hdiv2, hdiv3⟩ :=
     n4_shift0_call_skip_div_mod_getLimbN a b hbnz hshift_z hborrow
-  refine cpsTriple_weaken (fun _ hp => hp) ?_ h_pre
+  refine cpsTripleWithin_weaken (fun _ hp => hp) ?_ h_pre
   intro h hq
   -- Reshape the concrete `fullDivN4Shift0CallSkipPost` into
   -- `divN4CallSkipStackPost` using the limb bridge.
@@ -300,7 +301,8 @@ theorem evm_mod_n4_shift0_call_skip_stack_spec (sp base : Word)
     (hshift_z : (clzResult (b.getLimbN 3)).1 = 0)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
     (hborrow : isSkipBorrowN4Shift0Evm a b) :
-    cpsTriple base (base + nopOff) (modCode base)
+    cpsTripleWithin (8 + 21 + 24 + 4 + 9 + 4 + 126 + 12)
+      base (base + nopOff) (modCode base)
       (modN4StackPreCall sp a b v5 v6 v7 v10 v11
          q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
          shiftMem nMem jMem retMem dMem dloMem scratch_un0)
@@ -311,7 +313,7 @@ theorem evm_mod_n4_shift0_call_skip_stack_spec (sp base : Word)
     hbnz hb3nz hshift_z halign hborrow
   obtain ⟨hmod0, hmod1, hmod2, hmod3⟩ :=
     n4_shift0_call_skip_mod_getLimbN a b hbnz hshift_z hborrow
-  refine cpsTriple_weaken (fun _ hp => hp) ?_ h_pre
+  refine cpsTripleWithin_weaken (fun _ hp => hp) ?_ h_pre
   intro h hq
   unfold fullModN4Shift0CallSkipPost at hq
   apply mod_n4_call_skip_stack_weaken sp a b h
@@ -518,7 +520,8 @@ theorem evm_div_n4_shift0_call_addback_beq_stack_spec (sp base : Word)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
     (hcarry2_nz : isAddbackCarry2NzN4Shift0Evm a b)
     (hborrow : isAddbackBorrowN4Shift0Evm a b) :
-    cpsTriple base (base + nopOff) (divCode base)
+    cpsTripleWithin (8 + 21 + 24 + 4 + 9 + 4 + 202 + 12)
+      base (base + nopOff) (divCode base)
       (divN4StackPreCall sp a b v5 v6 v7 v10 v11
          q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
          shiftMem nMem jMem retMem dMem dloMem scratch_un0)
@@ -529,7 +532,7 @@ theorem evm_div_n4_shift0_call_addback_beq_stack_spec (sp base : Word)
     hbnz hb3nz hshift_z halign hcarry2_nz hborrow
   obtain ⟨hdiv0, hdiv1, hdiv2, hdiv3⟩ :=
     n4_shift0_call_addback_beq_div_getLimbN a b hbnz hshift_z hborrow
-  refine cpsTriple_weaken (fun _ hp => hp) ?_ h_pre
+  refine cpsTripleWithin_weaken (fun _ hp => hp) ?_ h_pre
   intro h hq
   unfold fullDivN4Shift0CallAddbackBeqPost at hq
   apply div_n4_call_skip_stack_weaken sp a b h

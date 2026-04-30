@@ -1,7 +1,7 @@
 /-
   EvmAsm.Evm64.DivMod.LoopIterN1.Max
 
-  Loop body cpsTriple specs for n=1, BLTU not-taken (max path).
+  Loop body cpsTripleWithin specs for n=1, BLTU not-taken (max path).
   Split from LoopIterN1.lean for faster builds.
 -/
 
@@ -14,13 +14,13 @@ namespace EvmAsm.Evm64
 open EvmAsm.Rv64
 
 -- ============================================================================
--- n=1, BLTU not-taken (max path) + BEQ skip, j=0 → cpsTriple to base+904
+-- n=1, BLTU not-taken (max path) + BEQ skip, j=0 → cpsTripleWithin to base+904
 -- ============================================================================
 
 set_option maxRecDepth 4096 in
-/-- Loop body cpsTriple for n=1, max+skip, j=0.
-    Since j=0, the BGE loop-back is not taken, giving a cpsTriple to base+904. -/
-theorem divK_loop_body_n1_max_skip_j0_spec
+/-- Loop body cpsTripleWithin for n=1, max+skip, j=0.
+    Since j=0, the BGE loop-back is not taken, giving a cpsTripleWithin to base+904. -/
+theorem divK_loop_body_n1_max_skip_j0_spec_within
     (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
     (base : Word)
@@ -29,7 +29,7 @@ theorem divK_loop_body_n1_max_skip_j0_spec
     let qHat : Word := signExtend12 4095
     let qAddr := sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat
     (if BitVec.ult uTop (mulsubN4_c3 qHat v0 v1 v2 v3 u0 u1 u2 u3) then (1 : Word) else 0) = (0 : Word) →
-    cpsTriple (base + loopBodyOff) (base + denormOff) (sharedDivModCode base)
+    cpsTripleWithin 76 (base + loopBodyOff) (base + denormOff) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (0 : Word)) **
        (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
        (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
@@ -71,23 +71,23 @@ theorem divK_loop_body_n1_max_skip_j0_spec
   let u4_new := uTop - c3
   let vtopBase := sp + ((1 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
   -- 1. Trial max full (base+448 → base+516)
-  have TF := divK_trial_max_full_spec sp (0 : Word) (1 : Word) jOld v5Old v6Old v7Old v10Old v11Old
+  have TF := divK_trial_max_full_spec_within sp (0 : Word) (1 : Word) jOld v5Old v6Old v7Old v10Old v11Old
     u1 u0 v0 base hbltu
   dsimp only [] at TF
   rw [u_addr_eq_n1] at TF
   rw [u_addr8_eq_n1] at TF
   rw [vtop_eq_v0_n1] at TF
   -- 2. Mulsub + correction skip (base+516 → base+880)
-  have MCS := divK_mulsub_correction_skip_spec sp qHat (0 : Word) v0 v1 v2 v3 u0 u1 u2 u3 uTop
+  have MCS := divK_mulsub_correction_skip_spec_within sp qHat (0 : Word) v0 v1 v2 v3 u0 u1 u2 u3 uTop
     (0 : Word) u0 vtopBase u1 v0 v2Old base
 
   intro_lets at MCS
   have MCS0 := MCS hborrow
-  -- 3. Store + loop exit j=0 (cpsTriple base+880 → base+904)
-  have SL := divK_store_loop_j0_spec sp qHat u4_new (0 : Word) qOld base
+  -- 3. Store + loop exit j=0 (cpsTripleWithin base+880 → base+904)
+  have SL := divK_store_loop_j0_spec_within sp qHat u4_new (0 : Word) qOld base
   intro_lets at SL
   -- 4. Frame TF with mulsub cells (n=1: u1,u0,v0 consumed by trial; v1,u2,v2,u3,v3,uTop in frame)
-  have TFf := cpsTriple_frameR
+  have TFf := cpsTripleWithin_frameR
     ((.x2 ↦ᵣ v2Old) **
      ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4080) ↦ₘ u2) **
      ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4072) ↦ₘ u3) **
@@ -97,7 +97,7 @@ theorem divK_loop_body_n1_max_skip_j0_spec
   -- 5. Compose TF + MCS0
   seqFrame TFf MCS0
   -- 6. Frame store_loop_j0 with remaining atoms
-  have SLf := cpsTriple_frameR
+  have SLf := cpsTripleWithin_frameR
     ((.x6 ↦ᵣ uBase) ** (.x10 ↦ᵣ c3) ** (.x2 ↦ᵣ un3) **
      (sp + signExtend12 3976 ↦ₘ (0 : Word)) **
      ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ un0) **
@@ -108,25 +108,15 @@ theorem divK_loop_body_n1_max_skip_j0_spec
      (sp + signExtend12 3984 ↦ₘ (1 : Word)))
     (by pcFree) SL
   -- 7. Compose pre_store + SLf
-  have full := cpsTriple_seq_perm_same_cr
+  have full := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by rw [sepConj_assoc'] at hp; xperm_hyp hp) TFfMCS0 SLf
-  -- 8. Permute final cpsTriple to match target
-  exact cpsTriple_weaken
+  -- 8. Permute final cpsTripleWithin to match target
+  exact cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hp => by delta loopBodyN1SkipPost loopBodySkipPost mulsubN4 loopExitPostN1 loopExitPost; rw [sepConj_assoc'] at hp; xperm_hyp hp)
     full
 
--- ============================================================================
--- n=1, BLTU not-taken (max path) + BEQ skip, j > 0 → cpsTriple to base+448
--- Single Word-parametric theorem: callers pass concrete j ∈ {1,2,3} and the
--- corresponding `slt_jpos_k` fact to discharge BLT-not-taken.
--- ============================================================================
-
-set_option maxRecDepth 4096 in
-/-- Loop body cpsTriple for n=1, max+skip, j > 0 (parametric on `j : Word`).
-    `hpos` discharges the BGE loop-back (j - 1 ≥ 0) via the caller's concrete j.
-    Callers pass `(k : Word)` with `slt_jpos_k` for k ∈ {1,2,3}; exits to base+448. -/
-theorem divK_loop_body_n1_max_skip_jgt0_spec (j : Word)
+theorem divK_loop_body_n1_max_skip_jgt0_spec_within (j : Word)
     (hpos : BitVec.slt (j + signExtend12 4095) 0 = false)
     (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
@@ -136,7 +126,7 @@ theorem divK_loop_body_n1_max_skip_jgt0_spec (j : Word)
     let qHat : Word := signExtend12 4095
     let qAddr := sp + signExtend12 4088 - j <<< (3 : BitVec 6).toNat
     (if BitVec.ult uTop (mulsubN4_c3 qHat v0 v1 v2 v3 u0 u1 u2 u3) then (1 : Word) else 0) = (0 : Word) →
-    cpsTriple (base + loopBodyOff) (base + loopBodyOff) (sharedDivModCode base)
+    cpsTripleWithin 76 (base + loopBodyOff) (base + loopBodyOff) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
        (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
        (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
@@ -170,20 +160,20 @@ theorem divK_loop_body_n1_max_skip_jgt0_spec (j : Word)
   let un3 := u3 - fs3; let c3 := pc3 + bs3
   let u4_new := uTop - c3
   let vtopBase := sp + ((1 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
-  have TF := divK_trial_max_full_spec sp j (1 : Word) jOld v5Old v6Old v7Old v10Old v11Old
+  have TF := divK_trial_max_full_spec_within sp j (1 : Word) jOld v5Old v6Old v7Old v10Old v11Old
     u1 u0 v0 base hbltu
   dsimp only [] at TF
   rw [u_addr_eq_n1] at TF
   rw [u_addr8_eq_n1] at TF
   rw [vtop_eq_v0_n1] at TF
-  have MCS := divK_mulsub_correction_skip_spec sp qHat j v0 v1 v2 v3 u0 u1 u2 u3 uTop
+  have MCS := divK_mulsub_correction_skip_spec_within sp qHat j v0 v1 v2 v3 u0 u1 u2 u3 uTop
     j u0 vtopBase u1 v0 v2Old base
 
   intro_lets at MCS
   have MCS0 := MCS hborrow
-  have SL := divK_store_loop_jgt0_spec sp j qHat u4_new (0 : Word) qOld base hpos
+  have SL := divK_store_loop_jgt0_spec_within sp j qHat u4_new (0 : Word) qOld base hpos
   intro_lets at SL
-  have TFf := cpsTriple_frameR
+  have TFf := cpsTripleWithin_frameR
     ((.x2 ↦ᵣ v2Old) **
      ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4080) ↦ₘ u2) **
      ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4072) ↦ₘ u3) **
@@ -191,7 +181,7 @@ theorem divK_loop_body_n1_max_skip_jgt0_spec (j : Word)
      (qAddr ↦ₘ qOld))
     (by pcFree) TF
   seqFrame TFf MCS0
-  have SLf := cpsTriple_frameR
+  have SLf := cpsTripleWithin_frameR
     ((.x6 ↦ᵣ uBase) ** (.x10 ↦ᵣ c3) ** (.x2 ↦ᵣ un3) **
      (sp + signExtend12 3976 ↦ₘ j) **
      ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ un0) **
@@ -201,9 +191,9 @@ theorem divK_loop_body_n1_max_skip_jgt0_spec (j : Word)
      ((uBase + signExtend12 4064) ↦ₘ u4_new) **
      (sp + signExtend12 3984 ↦ₘ (1 : Word)))
     (by pcFree) SL
-  have full := cpsTriple_seq_perm_same_cr
+  have full := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by rw [sepConj_assoc'] at hp; xperm_hyp hp) TFfMCS0 SLf
-  exact cpsTriple_weaken
+  exact cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hp => by delta loopBodyN1SkipPost loopBodySkipPost mulsubN4 loopExitPostN1 loopExitPost; rw [sepConj_assoc'] at hp; xperm_hyp hp)
     full

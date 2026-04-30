@@ -4,18 +4,18 @@
   CPS specs for the tail section of the `div128` trial-division
   subroutine — the SRLI clamp tests, step-2 init, product-check-2 body,
   single-ADDI correction, q1<<32|q0 combine, and LD+JALR return:
-    * `divK_div128_clamp_test_q1_spec` / `divK_div128_clamp_test_q0_spec`
+    * `divK_div128_clamp_test_q1_spec_within` / `divK_div128_clamp_test_q0_spec_within`
       — single SRLI writing `hi = q >>> 32` used by the BEQ in the
       clamp-merged wrappers.
-    * `divK_div128_step2_init_spec` — 3-instr DIVU/MUL/SUB computing
+    * `divK_div128_step2_init_spec_within` — 3-instr DIVU/MUL/SUB computing
       `q0 = un21 / dHi` and `rhat2 = un21 - q0 * dHi`.
-    * `divK_div128_prodcheck2_body_spec` — 5-instr LD/MUL/SLLI/LD/OR
+    * `divK_div128_prodcheck2_body_spec_within` — 5-instr LD/MUL/SLLI/LD/OR
       producing `q0*dLo` and `rhat2*2^32 + un0` for the BLTU.
-    * `divK_div128_correct_q0_single_spec` — single ADDI that just
+    * `divK_div128_correct_q0_single_spec_within` — single ADDI that just
       decrements q0 after the product-check-2 BLTU.
-    * `divK_div128_combine_q_spec` — 2-instr SLLI/OR producing
+    * `divK_div128_combine_q_spec_within` — 2-instr SLLI/OR producing
       `q = q1<<32 | q0`.
-    * `divK_div128_restore_return_spec` — 2-instr LD/JALR restoring the
+    * `divK_div128_restore_return_spec_within` — 2-instr LD/JALR restoring the
       saved return address and jumping back.
 
   Twenty-second chunk of the `LimbSpec.lean` split tracked by issue #312.
@@ -37,48 +37,48 @@ namespace EvmAsm.Evm64
 open EvmAsm.Rv64
 
 /-- div128 q1 clamp test: x5 = q1 >>> 32 (nonzero iff q1 >= 2^32). -/
-theorem divK_div128_clamp_test_q1_spec (q1 v5Old : Word) (base : Word) :
+theorem divK_div128_clamp_test_q1_spec_within (q1 v5Old : Word) (base : Word) :
     let hi := q1 >>> (32 : BitVec 6).toNat
     let cr := CodeReq.singleton base (.SRLI .x5 .x10 32)
-    cpsTriple base (base + 4) cr
+    cpsTripleWithin 1 base (base + 4) cr
       ((.x10 ↦ᵣ q1) ** (.x5 ↦ᵣ v5Old))
       ((.x10 ↦ᵣ q1) ** (.x5 ↦ᵣ hi)) := by
   intro hi cr
-  have I0 := srli_spec_gen .x5 .x10 v5Old q1 32 base (by nofun)
+  have I0 := srli_spec_gen_within .x5 .x10 v5Old q1 32 base (by nofun)
   runBlock I0
 
 /-- div128 q0 clamp test: x1 = q0 >>> 32. -/
-theorem divK_div128_clamp_test_q0_spec (q0 v1Old : Word) (base : Word) :
+theorem divK_div128_clamp_test_q0_spec_within (q0 v1Old : Word) (base : Word) :
     let hi := q0 >>> (32 : BitVec 6).toNat
     let cr := CodeReq.singleton base (.SRLI .x1 .x5 32)
-    cpsTriple base (base + 4) cr
+    cpsTripleWithin 1 base (base + 4) cr
       ((.x5 ↦ᵣ q0) ** (.x1 ↦ᵣ v1Old))
       ((.x5 ↦ᵣ q0) ** (.x1 ↦ᵣ hi)) := by
   intro hi cr
-  have I0 := srli_spec_gen .x1 .x5 v1Old q0 32 base (by nofun)
+  have I0 := srli_spec_gen_within .x1 .x5 v1Old q0 32 base (by nofun)
   runBlock I0
 
 /-- div128 Step 2: q0 = DIVU(un21, dHi), rhat2 = un21 - q0 * dHi. -/
-theorem divK_div128_step2_init_spec (un21 dHi v1Old v5Old v11Old : Word) (base : Word) :
+theorem divK_div128_step2_init_spec_within (un21 dHi v1Old v5Old v11Old : Word) (base : Word) :
     let q0 := rv64_divu un21 dHi
     let rhat2 := un21 - q0 * dHi
     let cr :=
       CodeReq.union (CodeReq.singleton base (.DIVU .x5 .x7 .x6))
       (CodeReq.union (CodeReq.singleton (base + 4) (.MUL .x1 .x5 .x6))
        (CodeReq.singleton (base + 8) (.SUB .x11 .x7 .x1)))
-    cpsTriple base (base + 12) cr
+    cpsTripleWithin 3 base (base + 12) cr
       ((.x7 ↦ᵣ un21) ** (.x6 ↦ᵣ dHi) **
        (.x5 ↦ᵣ v5Old) ** (.x1 ↦ᵣ v1Old) ** (.x11 ↦ᵣ v11Old))
       ((.x7 ↦ᵣ un21) ** (.x6 ↦ᵣ dHi) **
        (.x5 ↦ᵣ q0) ** (.x1 ↦ᵣ q0 * dHi) ** (.x11 ↦ᵣ rhat2)) := by
   intro q0 rhat2 cr
-  have I0 := divu_spec_gen .x5 .x7 .x6 v5Old un21 dHi base (by nofun)
-  have I1 := mul_spec_gen .x1 .x5 .x6 v1Old q0 dHi (base + 4) (by nofun)
-  have I2 := sub_spec_gen .x11 .x7 .x1 un21 (q0 * dHi) v11Old (base + 8) (by nofun)
+  have I0 := divu_spec_gen_within .x5 .x7 .x6 v5Old un21 dHi base (by nofun)
+  have I1 := mul_spec_gen_within .x1 .x5 .x6 v1Old q0 dHi (base + 4) (by nofun)
+  have I2 := sub_spec_gen_within .x11 .x7 .x1 un21 (q0 * dHi) v11Old (base + 8) (by nofun)
   runBlock I0 I1 I2
 
 /-- div128 product check 2: compute q0*dLo and rhat2*2^32+un0 for comparison. -/
-theorem divK_div128_prodcheck2_body_spec (sp q0 rhat2 v1Old v7Old dlo un0 : Word)
+theorem divK_div128_prodcheck2_body_spec_within (sp q0 rhat2 v1Old v7Old dlo un0 : Word)
     (base : Word) :
     let q0Dlo := q0 * dlo
     let rhat2_hi := rhat2 <<< (32 : BitVec 6).toNat
@@ -89,7 +89,7 @@ theorem divK_div128_prodcheck2_body_spec (sp q0 rhat2 v1Old v7Old dlo un0 : Word
       (CodeReq.union (CodeReq.singleton (base + 8) (.SLLI .x1 .x11 32))
       (CodeReq.union (CodeReq.singleton (base + 12) (.LD .x11 .x12 3944))
        (CodeReq.singleton (base + 16) (.OR .x1 .x1 .x11)))))
-    cpsTriple base (base + 20) cr
+    cpsTripleWithin 5 base (base + 20) cr
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ rhat2) **
        (.x7 ↦ᵣ v7Old) ** (.x1 ↦ᵣ v1Old) **
        (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0))
@@ -97,51 +97,51 @@ theorem divK_div128_prodcheck2_body_spec (sp q0 rhat2 v1Old v7Old dlo un0 : Word
        (.x7 ↦ᵣ q0Dlo) ** (.x1 ↦ᵣ rhat2Un0) **
        (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0)) := by
   intro q0Dlo rhat2_hi rhat2Un0 cr
-  have I0 := ld_spec_gen .x1 .x12 sp v1Old dlo 3952 base (by nofun)
-  have I1 := mul_spec_gen .x7 .x5 .x1 v7Old q0 dlo (base + 4) (by nofun)
-  have I2 := slli_spec_gen .x1 .x11 dlo rhat2 32 (base + 8) (by nofun)
-  have I3 := ld_spec_gen .x11 .x12 sp rhat2 un0 3944 (base + 12) (by nofun)
-  have I4 := or_spec_gen_rd_eq_rs1 .x1 .x11 rhat2_hi un0 (base + 16) (by nofun)
+  have I0 := ld_spec_gen_within .x1 .x12 sp v1Old dlo 3952 base (by nofun)
+  have I1 := mul_spec_gen_within .x7 .x5 .x1 v7Old q0 dlo (base + 4) (by nofun)
+  have I2 := slli_spec_gen_within .x1 .x11 dlo rhat2 32 (base + 8) (by nofun)
+  have I3 := ld_spec_gen_within .x11 .x12 sp rhat2 un0 3944 (base + 12) (by nofun)
+  have I4 := or_spec_gen_rd_eq_rs1_within .x1 .x11 rhat2_hi un0 (base + 16) (by nofun)
   runBlock I0 I1 I2 I3 I4
 
 /-- div128 product check 2 correction: q0--. -/
-theorem divK_div128_correct_q0_single_spec (q0 : Word) (base : Word) :
+theorem divK_div128_correct_q0_single_spec_within (q0 : Word) (base : Word) :
     let q0' := q0 + signExtend12 4095
     let cr := CodeReq.singleton base (.ADDI .x5 .x5 4095)
-    cpsTriple base (base + 4) cr
+    cpsTripleWithin 1 base (base + 4) cr
       (.x5 ↦ᵣ q0)
       (.x5 ↦ᵣ q0') := by
   intro q0' cr
-  have I0 := addi_spec_gen_same .x5 q0 4095 base (by nofun)
+  have I0 := addi_spec_gen_same_within .x5 q0 4095 base (by nofun)
   runBlock I0
 
 /-- div128 combine: x11 = q1<<32 | q0. -/
-theorem divK_div128_combine_q_spec (q1 q0 v11Old : Word) (base : Word) :
+theorem divK_div128_combine_q_spec_within (q1 q0 v11Old : Word) (base : Word) :
     let q1Hi := q1 <<< (32 : BitVec 6).toNat
     let q := q1Hi ||| q0
     let cr :=
       CodeReq.union (CodeReq.singleton base (.SLLI .x11 .x10 32))
        (CodeReq.singleton (base + 4) (.OR .x11 .x11 .x5))
-    cpsTriple base (base + 8) cr
+    cpsTripleWithin 2 base (base + 8) cr
       ((.x10 ↦ᵣ q1) ** (.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ v11Old))
       ((.x10 ↦ᵣ q1) ** (.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ q)) := by
   intro q1Hi q cr
-  have I0 := slli_spec_gen .x11 .x10 v11Old q1 32 base (by nofun)
-  have I1 := or_spec_gen_rd_eq_rs1 .x11 .x5 q1Hi q0 (base + 4) (by nofun)
+  have I0 := slli_spec_gen_within .x11 .x10 v11Old q1 32 base (by nofun)
+  have I1 := or_spec_gen_rd_eq_rs1_within .x11 .x5 q1Hi q0 (base + 4) (by nofun)
   runBlock I0 I1
 
 /-- div128 restore and return: load return addr, JALR x0 x2 0. -/
-theorem divK_div128_restore_return_spec (sp v2Old retAddr : Word) (base : Word)
+theorem divK_div128_restore_return_spec_within (sp v2Old retAddr : Word) (base : Word)
     (halign : (retAddr + signExtend12 0) &&& ~~~1 = retAddr) :
     let cr :=
       CodeReq.union (CodeReq.singleton base (.LD .x2 .x12 3968))
        (CodeReq.singleton (base + 4) (.JALR .x0 .x2 0))
-    cpsTriple base retAddr cr
+    cpsTripleWithin 2 base retAddr cr
       ((.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ v2Old) ** (sp + signExtend12 3968 ↦ₘ retAddr))
       ((.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ retAddr) ** (sp + signExtend12 3968 ↦ₘ retAddr)) := by
   intro cr
-  have I0 := ld_spec_gen .x2 .x12 sp v2Old retAddr 3968 base (by nofun)
-  have I1 := jalr_x0_spec_gen .x2 retAddr 0 (base + 4)
+  have I0 := ld_spec_gen_within .x2 .x12 sp v2Old retAddr 3968 base (by nofun)
+  have I1 := jalr_x0_spec_gen_within .x2 retAddr 0 (base + 4)
   rw [halign] at I1
   runBlock I0 I1
 

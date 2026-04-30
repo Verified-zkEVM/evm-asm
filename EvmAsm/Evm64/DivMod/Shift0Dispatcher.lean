@@ -51,13 +51,15 @@ theorem evm_div_n4_shift0_stack_spec (sp base : Word)
     (hb3nz : b.getLimbN 3 ≠ 0)
     (hshift_z : (clzResult (b.getLimbN 3)).1 = 0)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516) :
-    cpsTriple base (base + nopOff) (divCode base)
+    cpsTripleWithin (8 + 21 + 24 + 4 + 9 + 4 + 202 + 12)
+      base (base + nopOff) (divCode base)
       (divN4StackPreCall sp a b v5 v6 v7 v10 v11
          q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
          shiftMem nMem jMem retMem dMem dloMem scratch_un0)
       (divN4CallSkipStackPost sp a b) := by
   by_cases h_skip : isSkipBorrowN4Shift0Evm a b
-  · exact evm_div_n4_shift0_call_skip_stack_spec sp base a b
+  · exact cpsTripleWithin_mono_nSteps (by decide) <|
+      evm_div_n4_shift0_call_skip_stack_spec sp base a b
       v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
       nMem shiftMem jMem retMem dMem dloMem scratch_un0
       hbnz hb3nz hshift_z halign h_skip
@@ -84,13 +86,15 @@ theorem evm_mod_n4_shift0_stack_spec (sp base : Word)
     (hb3nz : b.getLimbN 3 ≠ 0)
     (hshift_z : (clzResult (b.getLimbN 3)).1 = 0)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516) :
-    cpsTriple base (base + nopOff) (modCode base)
+    cpsTripleWithin (8 + 21 + 24 + 4 + 9 + 4 + 202 + 12)
+      base (base + nopOff) (modCode base)
       (modN4StackPreCall sp a b v5 v6 v7 v10 v11
          q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
          shiftMem nMem jMem retMem dMem dloMem scratch_un0)
       (modN4CallSkipStackPost sp a b) := by
   by_cases h_skip : isSkipBorrowN4Shift0Evm a b
-  · exact evm_mod_n4_shift0_call_skip_stack_spec sp base a b
+  · exact cpsTripleWithin_mono_nSteps (by decide) <|
+      evm_mod_n4_shift0_call_skip_stack_spec sp base a b
       v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
       nMem shiftMem jMem retMem dMem dloMem scratch_un0
       hbnz hb3nz hshift_z halign h_skip

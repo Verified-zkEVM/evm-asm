@@ -28,7 +28,7 @@ abbrev evm_gt_code (base : Word) : CodeReq :=
     Pops 2 stack words (A at sp, B at sp+32),
     writes result to sp+32..sp+56, advances sp by 32.
     26 instructions = 104 bytes total. -/
-theorem evm_gt_spec (sp : Word) (base : Word)
+theorem evm_gt_spec_within (sp : Word) (base : Word)
     (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
     (v7 v6 v5 v11 : Word) :
     -- Borrow chain: b - a (GT direction)
@@ -46,7 +46,7 @@ theorem evm_gt_spec (sp : Word) (base : Word)
     let borrow3b := if BitVec.ult temp3 borrow2 then (1 : Word) else 0
     let borrow3 := borrow3a ||| borrow3b
     let code := evm_gt_code base
-    cpsTriple base (base + 104) code
+    cpsTripleWithin 26 base (base + 104) code
       (-- Registers + memory
        (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) ** (.x5 ↦ᵣ v5) ** (.x11 ↦ᵣ v11) **
        (sp ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
@@ -58,18 +58,19 @@ theorem evm_gt_spec (sp : Word) (base : Word)
        ((sp + 32) ↦ₘ borrow3) ** ((sp + 40) ↦ₘ 0) ** ((sp + 48) ↦ₘ 0) ** ((sp + 56) ↦ₘ 0)) := by
   intro borrow0 borrow1a temp1 borrow1b borrow1 borrow2a temp2 borrow2b borrow2 borrow3a temp3 borrow3b borrow3
   -- Per-limb borrow specs (GT swaps: b-limbs into x7, a-limbs into x6)
-  have L0 := lt_limb0_spec 32 0 sp b0 a0 v7 v6 v5 base
-  have L1 := lt_limb_carry_spec 40 8 sp b1 a1 b0 a0 borrow0 v11 (base + 12)
-  have L2 := lt_limb_carry_spec 48 16 sp b2 a2 temp1 borrow1b borrow1 borrow1a (base + 36)
-  have L3 := lt_limb_carry_spec 56 24 sp b3 a3 temp2 borrow2b borrow2 borrow2a (base + 60)
+  have L0 := lt_limb0_spec_within 32 0 sp b0 a0 v7 v6 v5 base
+  have L1 := lt_limb_carry_spec_within 40 8 sp b1 a1 b0 a0 borrow0 v11 (base + 12)
+  have L2 := lt_limb_carry_spec_within 48 16 sp b2 a2 temp1 borrow1b borrow1 borrow1a (base + 36)
+  have L3 := lt_limb_carry_spec_within 56 24 sp b3 a3 temp2 borrow2b borrow2 borrow2a (base + 60)
   -- Store phase
-  have A := addi_spec_gen_same .x12 sp 32 (base + 84) (by nofun)
+  have A := addi_spec_gen_same_within .x12 sp 32 (base + 84) (by nofun)
   simp only [signExtend12_32] at A
-  have S0 := sd_spec_gen .x12 .x5 (sp + 32) borrow3 b0 0 (base + 88)
-  have S1 := sd_x0_spec_gen .x12 (sp + 32) b1 8 (base + 92)
-  have S2 := sd_x0_spec_gen .x12 (sp + 32) b2 16 (base + 96)
-  have S3 := sd_x0_spec_gen .x12 (sp + 32) b3 24 (base + 100)
+  have S0 := sd_spec_gen_within .x12 .x5 (sp + 32) borrow3 b0 0 (base + 88)
+  have S1 := sd_x0_spec_gen_within .x12 (sp + 32) b1 8 (base + 92)
+  have S2 := sd_x0_spec_gen_within .x12 (sp + 32) b2 16 (base + 96)
+  have S3 := sd_x0_spec_gen_within .x12 (sp + 32) b3 24 (base + 100)
   runBlock L0 L1 L2 L3 A S0 S1 S2 S3
+
 
 -- ============================================================================
 -- Stack-level GT spec
@@ -77,7 +78,7 @@ theorem evm_gt_spec (sp : Word) (base : Word)
 
 /-- Stack-level 256-bit EVM GT: operates on two EvmWords via evmWordIs.
     GT(a, b) = LT(b, a), using the borrow chain in b-a direction. -/
-theorem evm_gt_stack_spec (sp base : Word)
+theorem evm_gt_stack_spec_within (sp base : Word)
     (a b : EvmWord) (v7 v6 v5 v11 : Word) :
     -- Borrow chain: b - a (GT direction)
     let borrow0 := if BitVec.ult (b.getLimbN 0) (a.getLimbN 0) then (1 : Word) else 0
@@ -94,7 +95,7 @@ theorem evm_gt_stack_spec (sp base : Word)
     let borrow3b := if BitVec.ult temp3 borrow2 then (1 : Word) else 0
     let borrow3 := borrow3a ||| borrow3b
     let code := evm_gt_code base
-    cpsTriple base (base + 104) code
+    cpsTripleWithin 26 base (base + 104) code
       (-- Registers + memory
        (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) ** (.x5 ↦ᵣ v5) ** (.x11 ↦ᵣ v11) **
        evmWordIs sp a ** evmWordIs (sp + 32) b)
@@ -103,11 +104,11 @@ theorem evm_gt_stack_spec (sp base : Word)
        (.x5 ↦ᵣ borrow3) ** (.x11 ↦ᵣ borrow3a) **
        evmWordIs sp a ** evmWordIs (sp + 32) (if BitVec.ult b a then 1 else 0)) := by
   intro borrow0 borrow1a temp1 borrow1b borrow1 borrow2a temp2 borrow2b borrow2 borrow3a temp3 borrow3b borrow3
-  have h_main := evm_gt_spec sp base
+  have h_main := evm_gt_spec_within sp base
     (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
     (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
     v7 v6 v5 v11
-  exact cpsTriple_weaken
+  exact cpsTripleWithin_weaken
     (fun h hp => by
       simp only [evmWordIs] at hp
       rw [spAddr32_8, spAddr32_16, spAddr32_24] at hp
@@ -124,5 +125,6 @@ theorem evm_gt_stack_spec (sp base : Word)
       rw [spAddr32_8, spAddr32_16, spAddr32_24]
       xperm_hyp hq)
     h_main
+
 
 end EvmAsm.Evm64

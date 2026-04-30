@@ -107,67 +107,64 @@ private theorem clz_addr6 {base : Word} : (base + 200 : Word) + 12 = base + phas
 /-- Combined CLZ stage: handles both taken and ntaken with conditional postcondition.
     After stage: val' = if (val>>>K≠0) then val else val<<<M_s,
     count' = if (val>>>K≠0) then count else count+M_a. -/
-private theorem divK_clz_stage_combined
+private theorem divK_clz_stage_combined_within
     (K M_s : BitVec 6) (M_a : BitVec 12) (val count v7 : Word) (base : Word) :
     let cr := divK_clz_stage_code K M_s M_a base
     let val' := if val >>> K.toNat ≠ 0 then val else val <<< M_s.toNat
     let count' := if val >>> K.toNat ≠ 0 then count else count + signExtend12 M_a
-    cpsTriple base (base + 16) cr
+    cpsTripleWithin 4 base (base + 16) cr
       ((.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count) ** (.x7 ↦ᵣ v7) ** (.x0 ↦ᵣ (0 : Word)))
       ((.x5 ↦ᵣ val') ** (.x6 ↦ᵣ count') **
        (.x7 ↦ᵣ (val >>> K.toNat)) ** (.x0 ↦ᵣ (0 : Word))) := by
   intro cr; dsimp only []
   by_cases h : val >>> K.toNat ≠ 0
   · simp only [if_pos h]
-    exact divK_clz_stage_taken_spec K M_s M_a val count v7 base h
+    exact cpsTripleWithin_mono_nSteps (by decide)
+      (divK_clz_stage_taken_spec_within K M_s M_a val count v7 base h)
   · push Not at h
     simp only [if_neg (show ¬(val >>> K.toNat ≠ 0) from not_not.mpr h)]
-    have hs := divK_clz_stage_ntaken_spec K M_s M_a val count v7 base h
-    exact cpsTriple_weaken
+    have hs := divK_clz_stage_ntaken_spec_within K M_s M_a val count v7 base h
+    exact cpsTripleWithin_weaken
       (fun _ hp => hp)
       (fun _ hp => by rw [show (val >>> K.toNat : Word) = 0 from h]; exact hp) hs
 
-/-- Combined CLZ last stage: handles both taken and ntaken. -/
-private theorem divK_clz_last_combined (val count v7 : Word) (base : Word) :
+private theorem divK_clz_last_combined_within (val count v7 : Word) (base : Word) :
     let cr := divK_clz_last_code base
     let count' := if val >>> (63 : Nat) ≠ 0 then count else count + signExtend12 (1 : BitVec 12)
-    cpsTriple base (base + 12) cr
+    cpsTripleWithin 3 base (base + 12) cr
       ((.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count) ** (.x7 ↦ᵣ v7) ** (.x0 ↦ᵣ (0 : Word)))
       ((.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count') **
        (.x7 ↦ᵣ (val >>> (63 : Nat))) ** (.x0 ↦ᵣ (0 : Word))) := by
   intro cr; dsimp only []
   by_cases h : val >>> (63 : Nat) ≠ 0
   · simp only [if_pos h]
-    exact divK_clz_last_taken_spec val count v7 base h
+    exact cpsTripleWithin_mono_nSteps (by decide)
+      (divK_clz_last_taken_spec_within val count v7 base h)
   · push Not at h
     simp only [if_neg (show ¬(val >>> (63 : Nat) ≠ 0) from not_not.mpr h)]
-    have hs := divK_clz_last_ntaken_spec val count v7 base h
-    exact cpsTriple_weaken
+    have hs := divK_clz_last_ntaken_spec_within val count v7 base h
+    exact cpsTripleWithin_weaken
       (fun _ hp => hp)
       (fun _ hp => by rw [show (val >>> (63 : Nat) : Word) = 0 from h]; exact hp) hs
 
-/-- Full CLZ composition: 24 instructions at base+116→base+212.
-    Computes count of leading zeros in x6, shifts x5 left by that count.
-    Entry: base+116 with x5=val, x6=v6Old, x7=v7Old, x0=0.
-    Exit: base+212 with x5=(clzResult val).2, x6=(clzResult val).1, x0=0. -/
-theorem divK_clz_spec (val v6Old v7Old : Word) (base : Word) :
-    cpsTriple (base + clzOff) (base + phaseC2Off) (divCode base)
+theorem divK_clz_spec_within (val v6Old v7Old : Word) (base : Word) :
+    cpsTripleWithin 24 (base + clzOff) (base + phaseC2Off) (divCode base)
       ((.x5 ↦ᵣ val) ** (.x6 ↦ᵣ v6Old) ** (.x7 ↦ᵣ v7Old) ** (.x0 ↦ᵣ (0 : Word)))
       ((.x5 ↦ᵣ (clzResult val).2) ** (.x6 ↦ᵣ (clzResult val).1) **
        (.x7 ↦ᵣ (clzResult val).2 >>> (63 : Nat)) ** (.x0 ↦ᵣ (0 : Word))) := by
   unfold clzResult
   -- 0. Init: ADDI x6 x0 0 (base+116 → base+120)
-  have I := divK_clz_init_spec v6Old (base + clzOff)
-  have Ie := cpsTriple_extend_code (hmono := clz_init_sub) I
+  have I := divK_clz_init_spec_within v6Old (base + clzOff)
+  have Ie := cpsTripleWithin_extend_code (hmono := clz_init_sub) I
   rw [clz_addr0] at Ie
   -- Frame init with x5, x7
-  have Ief := cpsTriple_frameR
+  have Ief := cpsTripleWithin_frameR
     ((.x5 ↦ᵣ val) ** (.x7 ↦ᵣ v7Old)) (by pcFree) Ie
   -- Stage 0: K=32, M_s=32, M_a=32 (base+120 → base+136)
-  have S0 := divK_clz_stage_combined 32 32 32 val (signExtend12 0) v7Old
+  have S0 := divK_clz_stage_combined_within 32 32 32 val (signExtend12 0) v7Old
     ((base + clzOff) + BitVec.ofNat 64 (4 * 1))
   dsimp only [] at S0
-  have S0e := cpsTriple_extend_code (hmono := clz_stage_sub 32 32 32 1
+  have S0e := cpsTripleWithin_extend_code (hmono := clz_stage_sub 32 32 32 1
     (by decide) (by decide) (by decide)) S0
   rw [show (base + clzOff : Word) + BitVec.ofNat 64 (4 * 1) = base + 120 from by bv_addr] at S0e
   rw [clz_addr1] at S0e
@@ -177,10 +174,10 @@ theorem divK_clz_spec (val v6Old v7Old : Word) (base : Word) :
   let c0 := if val >>> (32 : BitVec 6).toNat ≠ 0 then signExtend12 (0 : BitVec 12)
     else signExtend12 (0 : BitVec 12) + signExtend12 (32 : BitVec 12)
   -- Stage 1: K=48, M_s=16, M_a=16 (base+136 → base+152)
-  have S1 := divK_clz_stage_combined 48 16 16 v0 c0 (val >>> (32 : BitVec 6).toNat)
+  have S1 := divK_clz_stage_combined_within 48 16 16 v0 c0 (val >>> (32 : BitVec 6).toNat)
     ((base + clzOff) + BitVec.ofNat 64 (4 * 5))
   dsimp only [] at S1
-  have S1e := cpsTriple_extend_code (hmono := clz_stage_sub 48 16 16 5
+  have S1e := cpsTripleWithin_extend_code (hmono := clz_stage_sub 48 16 16 5
     (by decide) (by decide) (by decide)) S1
   rw [show (base + clzOff : Word) + BitVec.ofNat 64 (4 * 5) = base + 136 from by bv_addr] at S1e
   rw [clz_addr2] at S1e
@@ -188,10 +185,10 @@ theorem divK_clz_spec (val v6Old v7Old : Word) (base : Word) :
   -- Stage 2: K=56, M_s=8, M_a=8 (base+152 → base+168)
   let v1 := if v0 >>> (48 : BitVec 6).toNat ≠ 0 then v0 else v0 <<< (16 : BitVec 6).toNat
   let c1 := if v0 >>> (48 : BitVec 6).toNat ≠ 0 then c0 else c0 + signExtend12 (16 : BitVec 12)
-  have S2 := divK_clz_stage_combined 56 8 8 v1 c1 (v0 >>> (48 : BitVec 6).toNat)
+  have S2 := divK_clz_stage_combined_within 56 8 8 v1 c1 (v0 >>> (48 : BitVec 6).toNat)
     ((base + clzOff) + BitVec.ofNat 64 (4 * 9))
   dsimp only [] at S2
-  have S2e := cpsTriple_extend_code (hmono := clz_stage_sub 56 8 8 9
+  have S2e := cpsTripleWithin_extend_code (hmono := clz_stage_sub 56 8 8 9
     (by decide) (by decide) (by decide)) S2
   rw [show (base + clzOff : Word) + BitVec.ofNat 64 (4 * 9) = base + 152 from by bv_addr] at S2e
   rw [clz_addr3] at S2e
@@ -199,10 +196,10 @@ theorem divK_clz_spec (val v6Old v7Old : Word) (base : Word) :
   -- Stage 3: K=60, M_s=4, M_a=4 (base+168 → base+184)
   let v2 := if v1 >>> (56 : BitVec 6).toNat ≠ 0 then v1 else v1 <<< (8 : BitVec 6).toNat
   let c2 := if v1 >>> (56 : BitVec 6).toNat ≠ 0 then c1 else c1 + signExtend12 (8 : BitVec 12)
-  have S3 := divK_clz_stage_combined 60 4 4 v2 c2 (v1 >>> (56 : BitVec 6).toNat)
+  have S3 := divK_clz_stage_combined_within 60 4 4 v2 c2 (v1 >>> (56 : BitVec 6).toNat)
     ((base + clzOff) + BitVec.ofNat 64 (4 * 13))
   dsimp only [] at S3
-  have S3e := cpsTriple_extend_code (hmono := clz_stage_sub 60 4 4 13
+  have S3e := cpsTripleWithin_extend_code (hmono := clz_stage_sub 60 4 4 13
     (by decide) (by decide) (by decide)) S3
   rw [show (base + clzOff : Word) + BitVec.ofNat 64 (4 * 13) = base + 168 from by bv_addr] at S3e
   rw [clz_addr4] at S3e
@@ -210,10 +207,10 @@ theorem divK_clz_spec (val v6Old v7Old : Word) (base : Word) :
   -- Stage 4: K=62, M_s=2, M_a=2 (base+184 → base+200)
   let v3 := if v2 >>> (60 : BitVec 6).toNat ≠ 0 then v2 else v2 <<< (4 : BitVec 6).toNat
   let c3 := if v2 >>> (60 : BitVec 6).toNat ≠ 0 then c2 else c2 + signExtend12 (4 : BitVec 12)
-  have S4 := divK_clz_stage_combined 62 2 2 v3 c3 (v2 >>> (60 : BitVec 6).toNat)
+  have S4 := divK_clz_stage_combined_within 62 2 2 v3 c3 (v2 >>> (60 : BitVec 6).toNat)
     ((base + clzOff) + BitVec.ofNat 64 (4 * 17))
   dsimp only [] at S4
-  have S4e := cpsTriple_extend_code (hmono := clz_stage_sub 62 2 2 17
+  have S4e := cpsTripleWithin_extend_code (hmono := clz_stage_sub 62 2 2 17
     (by decide) (by decide) (by decide)) S4
   rw [show (base + clzOff : Word) + BitVec.ofNat 64 (4 * 17) = base + 184 from by bv_addr] at S4e
   rw [clz_addr5] at S4e
@@ -221,18 +218,17 @@ theorem divK_clz_spec (val v6Old v7Old : Word) (base : Word) :
   -- Stage 5 (last): K=63 (base+200 → base+212)
   let v4 := if v3 >>> (62 : BitVec 6).toNat ≠ 0 then v3 else v3 <<< (2 : BitVec 6).toNat
   let c4 := if v3 >>> (62 : BitVec 6).toNat ≠ 0 then c3 else c3 + signExtend12 (2 : BitVec 12)
-  have S5 := divK_clz_last_combined v4 c4 (v3 >>> (62 : BitVec 6).toNat)
+  have S5 := divK_clz_last_combined_within v4 c4 (v3 >>> (62 : BitVec 6).toNat)
     ((base + clzOff) + BitVec.ofNat 64 (4 * 21))
   dsimp only [] at S5
-  have S5e := cpsTriple_extend_code (hmono := clz_last_sub 21
+  have S5e := cpsTripleWithin_extend_code (hmono := clz_last_sub 21
     (by decide) (by decide) (by decide)) S5
   rw [show (base + clzOff : Word) + BitVec.ofNat 64 (4 * 21) = base + 200 from by bv_addr] at S5e
   rw [clz_addr6] at S5e
   seqFrame IefS0eS1eS2eS3eS4e S5e
   -- Final permutation
-  exact cpsTriple_weaken
+  exact cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq)
     IefS0eS1eS2eS3eS4eS5e
 
-end EvmAsm.Evm64
