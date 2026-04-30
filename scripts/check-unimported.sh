@@ -8,17 +8,20 @@
 # But downstream consumers cannot `import` declarations that aren't
 # wired into the module graph from the root, so these files quietly rot
 # (see AGENTS.md §"New `.lean` files must be imported by the umbrella
-# module"). Tracked in issue #1209.
+# module"). Tracked in issues #1209 / #1440.
 #
 # Usage:
-#   scripts/check-unimported.sh           # exit 1 on any new orphan
+#   scripts/check-unimported.sh           # exit 1 on any orphan
 #   scripts/check-unimported.sh --report  # always exit 0; print full list
 #
-# A grandfathered allow-list lives at scripts/unimported-allow.txt —
-# one fully-qualified module name per line, '#' comments allowed.
-# Trim that file as orphans are absorbed or deleted.
+# History: an allow-list at scripts/unimported-allow.txt used to
+# grandfather pre-existing orphans. It was drained to zero and removed
+# in #1440; the script now enforces strict reachability with no
+# escape hatch. If you genuinely need to land a temporary orphan, wire
+# it into the nearest umbrella behind a `section`/no-op stub or revert
+# this script — do NOT silently re-introduce an allow-list.
 #
-# POSIX/bash, no external deps beyond find/awk/sort/comm.
+# POSIX/bash, no external deps beyond find/awk/sort.
 
 set -euo pipefail
 
@@ -26,7 +29,6 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 ROOT_MOD="EvmAsm"
 LIB_DIR="EvmAsm"
 ROOT_FILE="EvmAsm.lean"
-ALLOW_FILE="$ROOT/scripts/unimported-allow.txt"
 
 mode="enforce"
 if [[ ${1:-} == "--report" ]]; then
@@ -93,80 +95,37 @@ while ((${#queue[@]})); do
   done < <(direct_imports "$f")
 done
 
-# Compute unreached = all_modules \ visited (excluding root).
-unreached=()
+# Compute orphans = all_modules \ visited (excluding root).
+orphans=()
 for m in "${all_modules[@]}"; do
   [[ "$m" == "$ROOT_MOD" ]] && continue
   if [[ -z "${visited[$m]:-}" ]]; then
-    unreached+=("$m")
-  fi
-done
-
-# Load allow-list.
-declare -A allowed
-if [[ -f "$ALLOW_FILE" ]]; then
-  while IFS= read -r line; do
-    line="${line%%#*}"
-    line="${line//[[:space:]]/}"
-    [[ -z "$line" ]] && continue
-    allowed["$line"]=1
-  done < "$ALLOW_FILE"
-fi
-
-# Partition unreached into known (allowed) and new (not allowed).
-new_orphans=()
-known_orphans=()
-for m in "${unreached[@]}"; do
-  if [[ -n "${allowed[$m]:-}" ]]; then
-    known_orphans+=("$m")
-  else
-    new_orphans+=("$m")
-  fi
-done
-
-# Detect stale allow-list entries (allowed but no longer orphaned, or file gone).
-stale_allow=()
-for m in "${!allowed[@]}"; do
-  if [[ -z "${exists[$m]:-}" ]]; then
-    stale_allow+=("$m  (file no longer exists)")
-  elif [[ -n "${visited[$m]:-}" ]]; then
-    stale_allow+=("$m  (now reachable)")
+    orphans+=("$m")
   fi
 done
 
 if [[ "$mode" == "report" ]]; then
   printf 'Total .lean modules: %d\n' "${#all_modules[@]}"
   printf 'Reachable from %s: %d\n' "$ROOT_MOD" "${#visited[@]}"
-  printf 'Unreached: %d (%d allow-listed, %d new)\n' \
-    "${#unreached[@]}" "${#known_orphans[@]}" "${#new_orphans[@]}"
-  if ((${#new_orphans[@]})); then
-    printf '\nNEW orphans (not in allow-list):\n'
-    printf '  %s\n' "${new_orphans[@]}"
-  fi
-  if ((${#known_orphans[@]})); then
-    printf '\nGrandfathered orphans:\n'
-    printf '  %s\n' "${known_orphans[@]}"
-  fi
-  if ((${#stale_allow[@]})); then
-    printf '\nStale allow-list entries:\n'
-    printf '  %s\n' "${stale_allow[@]}"
+  printf 'Orphans: %d\n' "${#orphans[@]}"
+  if ((${#orphans[@]})); then
+    printf '\nOrphan modules:\n'
+    printf '  %s\n' "${orphans[@]}"
   fi
   exit 0
 fi
 
-failed=0
-
-if ((${#new_orphans[@]})); then
+if ((${#orphans[@]})); then
   cat >&2 <<EOF
 
 ==================================================================
-Unimported-file check failed: ${#new_orphans[@]} new orphan(s).
+Unimported-file check failed: ${#orphans[@]} orphan(s).
 
 The following .lean file(s) exist under $LIB_DIR/ but are NOT
 transitively imported from $ROOT_FILE:
 
 EOF
-  printf '  %s\n' "${new_orphans[@]}" >&2
+  printf '  %s\n' "${orphans[@]}" >&2
   cat >&2 <<EOF
 
 Lake will still compile them because they live under the library
@@ -182,38 +141,14 @@ To fix, do ONE of:
 
   2. Delete the file if it is genuinely abandoned.
 
-  3. (Last resort, with reviewer sign-off) add the module name to
-     scripts/unimported-allow.txt with a \`#\` comment explaining
-     why it cannot yet be wired up. Trim the entry as soon as the
-     file is absorbed or removed.
+The historical allow-list (scripts/unimported-allow.txt) was
+removed in #1440; do not re-introduce it without reviewer sign-off.
 
-Tracked: issue #1209.
+Tracked: issues #1209, #1440.
 ==================================================================
 EOF
-  failed=1
-fi
-
-if ((${#stale_allow[@]})); then
-  cat >&2 <<EOF
-
-==================================================================
-Stale allow-list entries in scripts/unimported-allow.txt:
-
-EOF
-  printf '  %s\n' "${stale_allow[@]}" >&2
-  cat >&2 <<EOF
-
-Please remove these lines — the listed modules are no longer
-unimported orphans (either they were wired up, or the file was
-deleted).
-==================================================================
-EOF
-  failed=1
-fi
-
-if (( failed )); then
   exit 1
 fi
 
-printf 'unimported-file check: %d modules, %d reachable, %d grandfathered orphan(s).\n' \
-  "${#all_modules[@]}" "${#visited[@]}" "${#known_orphans[@]}"
+printf 'unimported-file check: %d modules, %d reachable, 0 orphans.\n' \
+  "${#all_modules[@]}" "${#visited[@]}"

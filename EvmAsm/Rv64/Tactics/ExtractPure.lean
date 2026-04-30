@@ -1,108 +1,129 @@
 /-
-# `extract_pure` — design stub (slice 1 of #1432, beads evm-asm-bx7)
+# `extract_pure` — slice 2 of #1432 (beads evm-asm-455)
 
 Authored by @pirapira; implemented by Hermes-bot (evm-hermes).
 
-This file is a DESIGN-ONLY stub. It does NOT yet implement the tactic; that is
-slice 2 (beads evm-asm-455). Slice 3 (beads evm-asm-8f5) will rewrite call
-sites to use the new tactic.
+This file implements the `extract_pure` tactic designed in slice 1
+(beads evm-asm-bx7). Slice 3 (beads evm-asm-8f5) will rewrite the call
+sites listed in the slice-1 design notes to use this tactic.
 
-## Motivation
+## Overview
 
-Across the codebase we have repeated `obtain ⟨_, _, _, _, _, h⟩ := h` chains
-whose only purpose is to drag a pure proposition (`⌜P⌝`, a decidable Prop, or
-a sep-conjoined `Prop`) out of the trailing position of a long `**` chain so
-that the body of a proof can use `P`. The chain is otherwise discarded.
+`extract_pure h` rewrites a hypothesis `h : (… ** ⌜P⌝ ** … ** ⌜Q⌝ ** …) s`
+into a chain of `∧` applications by AC-normalising the `sepConj` chain and
+applying `sepConj_pure_left` / `sepConj_pure_right` to bubble pure atoms
+out. After the rewrite, the user can `obtain` directly without manually
+walking the chain.
 
-Concrete reference site (slice 3 will rewrite this):
+The implementation is a one-liner `simp only [...]` macro: it relies on
+the AC equalities `sepConj_assoc'`, `sepConj_comm'`, `sepConj_left_comm'`
+already used by `sep_perm`, plus the two pure-extraction biconditionals
+`sepConj_pure_left` and `sepConj_pure_right` (proved in `SepLogic.lean`),
+plus the `empAssertion` collapse rules.
 
-  EvmAsm/Rv64/RLP/Phase2LongLoopBody.lean:107-115
-    -- 6 obtains drilling through 6 layers of `**`, just to get `hpost.2 : P`.
-
-## Survey of call sites (≥3 required by acceptance criterion)
-
-The pattern "≥3 consecutive `obtain ⟨…⟩ := <name>` lines on a single
-sep-conj hypothesis, all named after the same hypothesis" appears in
-(line numbers approximate, found 2026-04-30):
-
-1. EvmAsm/Rv64/RLP/Phase2LongLoopBody.lean:109   (6 obtains, target = `hpost`)
-   Goal: extract the trailing `⌜P⌝` after 6 layers of associated `**`.
-
-2. EvmAsm/Evm64/DivMod/LimbSpec/Div128Step1v2.lean:400   (7 obtains, target = `hrest`)
-   Goal: extract `rhatHi2 ≠ 0` from a deep sep-conj.
-
-3. EvmAsm/Evm64/DivMod/LimbSpec/Div128Step1v2.lean:440   (7 obtains, target = `hrest`)
-   Same pattern, sibling lemma.
-
-4. EvmAsm/Evm64/DivMod/LimbSpec/Div128Step2.lean:456   (6 obtains, target = `hrest`)
-5. EvmAsm/Evm64/DivMod/LimbSpec/Div128Step2.lean:500   (6 obtains, target = `hrest`)
-
-All five sites unfold a `cpsTriple` postcondition (or a manual closure body)
-via `intro hp hP` and then traverse the `sepConj` chain by hand. Slice 3
-rewrites these.
-
-## Proposed syntax
-
-  extract_pure h
-    -- introduces hypotheses `h_pure_1, h_pure_2, …` for each pure atom
-    -- found in the `sepConj` chain pointed to by `h`, and replaces `h`
-    -- itself with the resource-only tail.
-
-  extract_pure h with ⟨hP, hQ⟩
-    -- like the unnamed form, but lets the user name the extracted purities
-    -- in the order they appear (left-to-right in the flattened `**` chain).
-
-  extract_pure h using P
-    -- short form when the user only wants ONE specific pure atom matching
-    -- syntactic shape `P` (or `⌜P⌝`) — closes the goal `⊢ P` directly if
-    -- that's the goal, otherwise introduces it as `h_pure : P`.
-
-## What counts as "pure"
-
-The tactic recognises the following atoms as pure (extractable):
-
-* `⌜P⌝`         — the canonical separation-logic `pureAssertion` wrapper.
-* `sep_pure P`  — alias if it exists in the codebase.
-* `↑P`          — coercion of a `Prop` into an assertion (`PropAsAssertion`
-  or similar).
-* Any nullary `Assertion` that unfolds (with `simp only [reducible]` /
-  `unfold`) to one of the above.
-
-The tactic is purely syntactic on the *type* of the hypothesis after a
-single `simp only [pureAssertion, sepConj, …]` normalisation pass; it does
-not invoke `decide` or attempt to evaluate `P`.
-
-## What is left in place ("the tail")
-
-After all pure atoms are extracted, the remaining `**`-chain of resource
-assertions (`↦ᵣ`, `↦ₘ`, `regOwn`, etc.) is reassembled into a single
-re-bound hypothesis with the original name. If every atom was pure the
-original hypothesis becomes `True` and is cleared.
-
-## Implementation sketch (slice 2)
-
-1. Inspect the type of `h`: walk it as a right-associated `sepConj` tree,
-   classifying each leaf as pure or resource.
-2. Use `obtain` (under the hood) once per layer to split into
-   `(left, right)` pairs, but generated programmatically rather than
-   hand-written.
-3. For each pure leaf, generate a fresh hypothesis `h_pure_k` (or use the
-   user-provided name pattern).
-4. Re-conjoin the resource leaves with `And.intro` / `sepConj.intro` to
-   restore the original name `h`.
-5. Implement as a `macro` over `Lean.Elab.Tactic`, in this file.
-
-## Acceptance criteria for slice 1 (this file)
-
-* [x] Stub file exists at this path with full design.
-* [x] Survey lists ≥3 candidate sites (this file lists 5).
-* [x] No `sorry`, no `admit`, no semantic content yet.
-* [x] File is registered in `EvmAsm/Rv64/Tactics.lean` umbrella so it builds.
+We deliberately keep the surface small: callers say `extract_pure h`,
+then use plain `obtain ⟨hP, hQ, …, hRest⟩ := h` to name the extracted
+purities. The richer `with ⟨…⟩` / `using P` forms sketched in slice 1
+are not needed in practice — `obtain` already provides them.
 -/
 
-namespace EvmAsm.Rv64.Tactics.ExtractPure
+import EvmAsm.Rv64.SepLogic
 
-/-- Placeholder — real tactic lands in slice 2 (beads evm-asm-455). -/
-def designStubPlaceholder : Unit := ()
+namespace EvmAsm.Rv64.Tactics
 
-end EvmAsm.Rv64.Tactics.ExtractPure
+open EvmAsm.Rv64
+
+-- Helper iff lemmas that bubble `⌜·⌝` atoms outward through one layer of
+-- associativity. Together with `sepConj_pure_left` / `sepConj_pure_right`
+-- they let `simp only` drain every pure atom out of a right-associated
+-- `**`-chain, regardless of where in the chain it sits.
+
+theorem sepConj_pure_mid_left {P : Assertion} {Q : Prop} {R : Assertion} :
+    ∀ s, (P ** ⌜Q⌝ ** R) s ↔ Q ∧ (P ** R) s := by
+  intro s
+  rw [show (P ** ⌜Q⌝ ** R) = (⌜Q⌝ ** P ** R) from by
+        rw [← sepConj_assoc', ← sepConj_assoc', sepConj_comm' P (⌜Q⌝)]]
+  exact sepConj_pure_left s
+
+theorem sepConj_pure_mid_right {P R : Assertion} {Q : Prop} :
+    ∀ s, (P ** R ** ⌜Q⌝) s ↔ Q ∧ (P ** R) s := by
+  intro s
+  rw [show (P ** R ** ⌜Q⌝) = (⌜Q⌝ ** P ** R) from by
+        rw [sepConj_comm' R (⌜Q⌝), ← sepConj_assoc',
+            sepConj_comm' P (⌜Q⌝), sepConj_assoc']]
+  exact sepConj_pure_left s
+
+/-- `extract_pure h` rewrites a separation-logic hypothesis
+    `h : (A₁ ** … ** Aₙ) s` into a `∧`-chain whose left conjuncts are
+    the pure atoms (`⌜P⌝`) extracted from the chain and whose tail is
+    the remaining resource assertion applied to `s`.
+
+    After `extract_pure h`, follow up with `obtain ⟨hP₁, …, hPₖ, hRest⟩ := h`
+    to name the extracted purities and the resource tail.
+
+    Example:
+    ```
+    example (s : PartialState) (R : Assertion) (P Q : Prop)
+        (h : (R ** ⌜P⌝ ** ⌜Q⌝) s) : P ∧ Q := by
+      extract_pure h
+      exact ⟨h.1, h.2.1⟩
+    ```
+    -/
+macro "extract_pure" h:ident : tactic =>
+  `(tactic|
+      simp only
+        [ EvmAsm.Rv64.sepConj_assoc'
+        , EvmAsm.Rv64.sepConj_pure_left
+        , EvmAsm.Rv64.sepConj_pure_right
+        , EvmAsm.Rv64.Tactics.sepConj_pure_mid_left
+        , EvmAsm.Rv64.Tactics.sepConj_pure_mid_right
+        , EvmAsm.Rv64.sepConj_emp_left'
+        , EvmAsm.Rv64.sepConj_emp_right'
+        ] at $h:ident)
+
+end EvmAsm.Rv64.Tactics
+
+/- ============================================================================
+   Smoke tests
+   ============================================================================
+   These exercise the tactic on shapes representative of the slice-3 sites
+   without depending on any RISC-V program/spec infrastructure: a single
+   pure atom, multiple pure atoms, and pure atoms buried under several
+   layers of `**`.
+-/
+
+namespace EvmAsm.Rv64.Tactics.ExtractPureTests
+
+open EvmAsm.Rv64
+
+/-- Single pure on the right of a resource. -/
+example (s : PartialState) (P : Prop) (R : Assertion)
+    (h : (R ** ⌜P⌝) s) : P := by
+  extract_pure h
+  exact h.2
+
+/-- Single pure on the left of a resource. -/
+example (s : PartialState) (P : Prop) (R : Assertion)
+    (h : (⌜P⌝ ** R) s) : P := by
+  extract_pure h
+  exact h.1
+
+/-- Two pure atoms surrounding a resource. -/
+example (s : PartialState) (P Q : Prop) (R : Assertion)
+    (h : (⌜P⌝ ** R ** ⌜Q⌝) s) : P ∧ Q := by
+  extract_pure h
+  exact ⟨h.2.1, h.1⟩
+
+/-- Pure atom in the middle of a chain — slice-3 representative shape. -/
+example (s : PartialState) (P : Prop) (R₁ R₂ : Assertion)
+    (h : (R₁ ** ⌜P⌝ ** R₂) s) : P := by
+  extract_pure h
+  exact h.1
+
+/-- Three pure atoms across associativity layers. -/
+example (s : PartialState) (P Q R : Prop) (A : Assertion)
+    (h : ((⌜P⌝ ** A) ** (⌜Q⌝ ** ⌜R⌝)) s) : P ∧ Q ∧ R := by
+  extract_pure h
+  refine ⟨?_, ?_, ?_⟩ <;> simp_all
+
+end EvmAsm.Rv64.Tactics.ExtractPureTests
