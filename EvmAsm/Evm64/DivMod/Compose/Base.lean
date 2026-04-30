@@ -211,19 +211,19 @@ private theorem shared_b12_div {b : Word} : ∀ a i, (CodeReq.ofProg (b + div128
 theorem sharedDivModCode_sub_divCode {base : Word} :
     ∀ a i, (sharedDivModCode base) a = some i → (divCode base) a = some i := by
   unfold sharedDivModCode; simp only [CodeReq.unionAll_cons]
-  exact CodeReq.union_split_mono (shared_b0_div)
-    (CodeReq.union_split_mono (shared_b1_div)
-    (CodeReq.union_split_mono (shared_b2_div)
-    (CodeReq.union_split_mono (shared_b3_div)
-    (CodeReq.union_split_mono (shared_b4_div)
-    (CodeReq.union_split_mono (shared_b5_div)
-    (CodeReq.union_split_mono (shared_b6_div)
-    (CodeReq.union_split_mono (shared_b7_div)
-    (CodeReq.union_split_mono (shared_b8_div)
-    (CodeReq.union_split_mono (shared_b9_div)
-    (CodeReq.union_split_mono (shared_b10_div)
-    (CodeReq.union_split_mono (shared_b11_div)
-    (CodeReq.union_split_mono (shared_b12_div)
+  exact CodeReq.union_split_mono shared_b0_div
+    (CodeReq.union_split_mono shared_b1_div
+    (CodeReq.union_split_mono shared_b2_div
+    (CodeReq.union_split_mono shared_b3_div
+    (CodeReq.union_split_mono shared_b4_div
+    (CodeReq.union_split_mono shared_b5_div
+    (CodeReq.union_split_mono shared_b6_div
+    (CodeReq.union_split_mono shared_b7_div
+    (CodeReq.union_split_mono shared_b8_div
+    (CodeReq.union_split_mono shared_b9_div
+    (CodeReq.union_split_mono shared_b10_div
+    (CodeReq.union_split_mono shared_b11_div
+    (CodeReq.union_split_mono shared_b12_div
     (fun _ _ h => by simp [CodeReq.unionAll_nil, CodeReq.empty] at h)))))))))))))
 
 -- Per-block subsumption for modCode. Same pattern as shared_b*_div — the
@@ -260,19 +260,19 @@ private theorem shared_b12_mod {b : Word} : ∀ a i, (CodeReq.ofProg (b + div128
 theorem sharedDivModCode_sub_modCode {base : Word} :
     ∀ a i, (sharedDivModCode base) a = some i → (modCode base) a = some i := by
   unfold sharedDivModCode; simp only [CodeReq.unionAll_cons]
-  exact CodeReq.union_split_mono (shared_b0_mod)
-    (CodeReq.union_split_mono (shared_b1_mod)
-    (CodeReq.union_split_mono (shared_b2_mod)
-    (CodeReq.union_split_mono (shared_b3_mod)
-    (CodeReq.union_split_mono (shared_b4_mod)
-    (CodeReq.union_split_mono (shared_b5_mod)
-    (CodeReq.union_split_mono (shared_b6_mod)
-    (CodeReq.union_split_mono (shared_b7_mod)
-    (CodeReq.union_split_mono (shared_b8_mod)
-    (CodeReq.union_split_mono (shared_b9_mod)
-    (CodeReq.union_split_mono (shared_b10_mod)
-    (CodeReq.union_split_mono (shared_b11_mod)
-    (CodeReq.union_split_mono (shared_b12_mod)
+  exact CodeReq.union_split_mono shared_b0_mod
+    (CodeReq.union_split_mono shared_b1_mod
+    (CodeReq.union_split_mono shared_b2_mod
+    (CodeReq.union_split_mono shared_b3_mod
+    (CodeReq.union_split_mono shared_b4_mod
+    (CodeReq.union_split_mono shared_b5_mod
+    (CodeReq.union_split_mono shared_b6_mod
+    (CodeReq.union_split_mono shared_b7_mod
+    (CodeReq.union_split_mono shared_b8_mod
+    (CodeReq.union_split_mono shared_b9_mod
+    (CodeReq.union_split_mono shared_b10_mod
+    (CodeReq.union_split_mono shared_b11_mod
+    (CodeReq.union_split_mono shared_b12_mod
     (fun _ _ h => by simp [CodeReq.unionAll_nil, CodeReq.empty] at h)))))))))))))
 
 /-- v2 per-block subsumption: block 12 (`divK_div128_v2`) is included
@@ -512,7 +512,7 @@ theorem divScratchValues_implies_divScratchOwn
         shiftMem nMem jMem h → divScratchOwn sp h := by
   unfold divScratchValues divScratchOwn
   -- Weaken each of the 15 memIs cells to memOwn, left to right.
-  iterate 14 apply sepConj_mono (memIs_implies_memOwn)
+  iterate 14 apply sepConj_mono memIs_implies_memOwn
   exact memIs_implies_memOwn
 
 /-- Call-path weakening: the 19-cell `divScratchValuesCall` implies the
@@ -531,7 +531,7 @@ theorem divScratchValuesCall_implies_divScratchOwnCall
   apply sepConj_mono (divScratchValues_implies_divScratchOwn
     sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem)
   -- Tail: 4 memIs → memOwn, same pattern as the 15-cell weakener.
-  iterate 3 apply sepConj_mono (memIs_implies_memOwn)
+  iterate 3 apply sepConj_mono memIs_implies_memOwn
   exact memIs_implies_memOwn
 
 /-- Postcondition for the shift≠0 path from entry to loop setup.
