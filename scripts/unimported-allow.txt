@@ -26,8 +26,5 @@ EvmAsm.Evm64.DivMod.SpecCallAddbackBeq.NumericalTestsV4
 EvmAsm.Evm64.DivMod.SpecCallV4
 
 # EvmWordArith cluster — pure-arithmetic helpers used by DivMod V4.
-# Pending integration into Evm64.lean once V4 lands.
-EvmAsm.Evm64.EvmWordArith
-EvmAsm.Evm64.EvmWordArith.AddbackPinning
-EvmAsm.Evm64.EvmWordArith.Div128NoWrapDischarge
-EvmAsm.Evm64.EvmWordArith.Div128PhaseNoWrap
+# (Drained: umbrella EvmAsm.Evm64.EvmWordArith is now imported from
+# EvmAsm/Evm64.lean, transitively reaching all helpers.)
