@@ -16,6 +16,7 @@ namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
 open EvmAsm.Rv64.AddrNorm (se12_32 se12_40 se12_48 se12_56)
+open EvmAsm.Evm64.DivMod.AddrNorm (bv6_toNat_3 word_shl3_0)
 
 -- ============================================================================
 -- Double-addback () condition predicates for n=3 preloop+loop composition
@@ -209,5 +210,31 @@ theorem evm_div_n3_preloop_loop_unified_spec (bltu_1 bltu_0 : Bool) (sp base : W
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by delta preloopN3UnifiedPost; xperm_hyp hq)
     hFull
+
+-- ============================================================================
+-- loopExitPostN3 at j=0: concrete address specialization
+-- ============================================================================
+
+/-- Specialize `loopExitPostN3` at `j=0`: all uBase/qAddr offsets become
+    flat `sp + signExtend12 K` addresses. -/
+theorem loopExitPostN3_j0_eq (sp q_f c3 un0F un1F un2F un3F u4F
+    v0 v1 v2 v3 : Word) :
+    loopExitPostN3 sp (0 : Word) q_f c3 un0F un1F un2F un3F u4F v0 v1 v2 v3 =
+    ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ signExtend12 4095) **
+     (.x5 ↦ᵣ (0 : Word)) ** (.x6 ↦ᵣ sp + signExtend12 4056) **
+     (.x7 ↦ᵣ sp + signExtend12 4088) ** (.x10 ↦ᵣ c3) ** (.x11 ↦ᵣ q_f) **
+     (.x2 ↦ᵣ un3F) ** (.x0 ↦ᵣ (0 : Word)) **
+     (sp + signExtend12 3976 ↦ₘ (0 : Word)) ** (sp + signExtend12 3984 ↦ₘ (3 : Word)) **
+     ((sp + signExtend12 32) ↦ₘ v0) ** ((sp + signExtend12 4056) ↦ₘ un0F) **
+     ((sp + signExtend12 40) ↦ₘ v1) ** ((sp + signExtend12 4048) ↦ₘ un1F) **
+     ((sp + signExtend12 48) ↦ₘ v2) ** ((sp + signExtend12 4040) ↦ₘ un2F) **
+     ((sp + signExtend12 56) ↦ₘ v3) ** ((sp + signExtend12 4032) ↦ₘ un3F) **
+     ((sp + signExtend12 4024) ↦ₘ u4F) **
+     ((sp + signExtend12 4088) ↦ₘ q_f)) := by
+  simp only [loopExitPost_unfold]
+  rw [u_base_off0_j0, u_base_off4088_j0, u_base_off4080_j0,
+      u_base_off4072_j0, u_base_off4064_j0, u_base_j0, q_addr_j0]
+  simp only [bv6_toNat_3, word_shl3_0]
+  rw [show (0 : Word) + signExtend12 4095 = signExtend12 4095 from BitVec.zero_add _]
 
 end EvmAsm.Evm64
