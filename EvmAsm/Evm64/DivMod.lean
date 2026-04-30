@@ -15,6 +15,7 @@ import EvmAsm.Evm64.DivMod.Spec
 -- unimported-file check (#1209/#1440) sees them reachable from the umbrella.
 import EvmAsm.Evm64.DivMod.Shift0Dispatcher
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1LoopUnified
+import EvmAsm.Evm64.DivMod.Compose.FullPathN3LoopUnified
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2Full
 import EvmAsm.Evm64.DivMod.SpecCallV4
 import EvmAsm.Evm64.DivMod.SpecCallAddbackBeq.NumericalTests
