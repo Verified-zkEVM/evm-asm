@@ -93,12 +93,12 @@ theorem mulsub_chain_no_underflow (qNat : Nat)
 /-- After correction (add v back, decrement q), the equation holds.
     If `val256 u + 2^256 = val256 r + q * val256 v` with cb = 1 (underflow),
     then: `val256 u + 2^256 = (val256 r + val256 v) + (q - 1) * val256 v`. -/
-theorem mulsub_correction_eq (u_nat v_nat r_nat qNat : Nat)
-    (hchain : u_nat + 2^256 = r_nat + qNat * v_nat)
+theorem mulsub_correction_eq (uNat vNat rNat qNat : Nat)
+    (hchain : uNat + 2^256 = rNat + qNat * vNat)
     (hq : 0 < qNat) :
-    u_nat + 2^256 = (r_nat + v_nat) + (qNat - 1) * v_nat := by
+    uNat + 2^256 = (rNat + vNat) + (qNat - 1) * vNat := by
   have : qNat = 1 + (qNat - 1) := by omega
-  nlinarith [show qNat * v_nat = v_nat + (qNat - 1) * v_nat by nlinarith]
+  nlinarith [show qNat * vNat = vNat + (qNat - 1) * vNat by nlinarith]
 
 end EvmWord
 
