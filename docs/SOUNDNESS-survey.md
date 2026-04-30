@@ -165,30 +165,65 @@ subroutines are sorry-free.
 These are gaps the SOUNDNESS.md should explicitly call out so external
 readers do not over-claim.
 
-1. **Top-level `run_stateless_guest`.** No Hoare-triple spec exists yet
+### 4.0 Rough classification of failure cases
+
+Before enumerating the specific gaps, it is useful to bucket *kinds* of
+soundness failure into two rough classes. SOUNDNESS.md should keep this
+framing because the two classes have very different audit cost and very
+different remediation paths:
+
+* **(A) The result isn't a theorem.** A claim that *looks* proved is
+  not actually closed under the Lean kernel: it contains `sorry`, depends
+  on an `axiom`, is gated by a hypothesis that is never discharged, or
+  hides a side-condition behind `decide`/`native_decide` whose decidable
+  instance is wrong. Detection is mechanical (`#print axioms`,
+  grep for `sorry`/`axiom`, CI rejection of new `sorry`s).
+* **(B) The result is a theorem, but the statement isn't useful.** The
+  Lean term type-checks and the kernel accepts it, but the *statement*
+  does not say what we want soundness to mean: the spec mismatches the
+  Python execution-specs reference, the precondition is too strong (e.g.
+  vacuously satisfied by an empty memory map), the postcondition is too
+  weak, the assertion frame omits a register or memory region that real
+  callers care about, or the theorem is about an idealised model that does
+  not bridge to the underlying machine. Detection requires *semantic*
+  review against execution-specs and against the calling convention; a
+  green `lake build` says nothing about it.
+
+Each gap in §4.1 below is tagged `[A]`, `[B]`, or `[A+B]` accordingly.
+
+### 4.1 Specific gaps
+
+1. **Top-level `run_stateless_guest`.** `[A+B]` No Hoare-triple spec exists yet
    linking the RV64IM image to the Python `run_stateless_guest` function.
    This is the project's headline goal.
-2. **Gas accounting.** The opcode subroutines focus on functional
-   correctness; gas semantics are not yet tracked.
-3. **World state / storage / accounts.** Storage opcodes (SLOAD/SSTORE),
-   account creation/deletion, log opcodes, balance/transfer, and the
-   stateless-witness (MPT) machinery are not yet verified — only pure
-   stack-and-memory opcodes are.
-4. **Sail equivalence.** The `EvmAsm/Rv64/SailEquiv/` bridge to
+2. **Gas accounting.** `[B]` The opcode subroutines focus on functional
+   correctness; gas semantics are not yet tracked. Existing per-opcode
+   theorems are useful but incomplete as a soundness statement against
+   execution-specs.
+3. **World state / storage / accounts.** `[B]` Storage opcodes
+   (SLOAD/SSTORE), account creation/deletion, log opcodes,
+   balance/transfer, and the stateless-witness (MPT) machinery are not yet
+   verified — only pure stack-and-memory opcodes are. Per-opcode
+   statements that abstract these effects away will not compose into the
+   top-level claim.
+4. **Sail equivalence.** `[B]` The `EvmAsm/Rv64/SailEquiv/` bridge to
    `dhsorens/sail-riscv-lean` is partial; the project's Lean RV64IM model
    is not yet proved equivalent to the Sail-generated spec across the full
-   instruction subset we use.
-5. **Open `sorry`s in DivMod / Div128.** See §3.4. DivMod's stack-level
-   semantic spec is not closed until the Knuth-B bound (KB-6b/c/d) and
-   the addback / addback-beq postcondition proofs land.
-6. **Cryptographic precompiles.** ECRECOVER, SHA256, RIPEMD160, MODEXP,
-   BN254 curves, BLS12-381, KZG, etc. — not in scope today.
-7. **Concrete axiom audit.** No automated `#print axioms` report is
+   instruction subset we use. Until that bridge lands, every RV64IM
+   theorem is a theorem about *our* Lean model, not about Sail-RV64IM.
+5. **Open `sorry`s in DivMod / Div128.** `[A]` See §3.4. DivMod's
+   stack-level semantic spec is not closed until the Knuth-B bound
+   (KB-6b/c/d) and the addback / addback-beq postcondition proofs land.
+6. **Cryptographic precompiles.** `[B]` ECRECOVER, SHA256, RIPEMD160,
+   MODEXP, BN254 curves, BLS12-381, KZG, etc. — not in scope today.
+7. **Concrete axiom audit.** `[A]` No automated `#print axioms` report is
    published per top-level theorem. Standard Lean/mathlib axioms are
-   assumed; a concrete report would tighten the trust statement.
-8. **`execution-specs` ↔ Lean-spec faithfulness.** Translation is
+   assumed; a concrete report would tighten the trust statement and
+   surface accidental axiom dependencies.
+8. **`execution-specs` ↔ Lean-spec faithfulness.** `[B]` Translation is
    hand-written; no systematic differential test against execution-specs
-   test vectors is wired up.
+   test vectors is wired up. A theorem against a hand-translated spec is
+   only as useful as the translation.
 
 ## 5. Suggested SOUNDNESS.md structure (input to slice 2)
 
