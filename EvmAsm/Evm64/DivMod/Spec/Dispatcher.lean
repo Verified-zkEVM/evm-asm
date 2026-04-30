@@ -395,6 +395,118 @@ theorem fullDivN1_hdivs_of_word_eq
     delta fullDivN1QuotientWord
     exact EvmWord.getLimbN_fromLimbs_3
 
+theorem fullDivN1QuotientWord_eq_div_of_toNat_eq
+    (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
+    (a b : EvmWord) (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hdiv_toNat :
+      (fullDivN1QuotientWord bltu_3 bltu_2 bltu_1 bltu_0
+        a0 a1 a2 a3 b0 b1 b2 b3).toNat = (EvmWord.div a b).toNat) :
+    fullDivN1QuotientWord bltu_3 bltu_2 bltu_1 bltu_0
+      a0 a1 a2 a3 b0 b1 b2 b3 = EvmWord.div a b :=
+  BitVec.eq_of_toNat_eq hdiv_toNat
+
+theorem fullDivN1QuotientWord_toNat
+    (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
+    (fullDivN1QuotientWord bltu_3 bltu_2 bltu_1 bltu_0
+      a0 a1 a2 a3 b0 b1 b2 b3).toNat =
+    EvmWord.val256
+      (fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).1
+      (fullDivN1R1 bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).1
+      (fullDivN1R2 bltu_3 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).1
+      (fullDivN1R3 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3).1 := by
+  delta fullDivN1QuotientWord
+  rw [EvmWord.fromLimbs_toNat]
+  rfl
+
+theorem fullDivN1QuotientWord_toNat_eq_div_toNat_of_val256_eq
+    (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
+    (a b : EvmWord) (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (ha0 : a.getLimbN 0 = a0) (ha1 : a.getLimbN 1 = a1)
+    (ha2 : a.getLimbN 2 = a2) (ha3 : a.getLimbN 3 = a3)
+    (hb0 : b.getLimbN 0 = b0) (hb1 : b.getLimbN 1 = b1)
+    (hb2 : b.getLimbN 2 = b2) (hb3 : b.getLimbN 3 = b3)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hquot :
+      EvmWord.val256
+        (fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).1
+        (fullDivN1R1 bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).1
+        (fullDivN1R2 bltu_3 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).1
+        (fullDivN1R3 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3).1 =
+      EvmWord.val256 a0 a1 a2 a3 / EvmWord.val256 b0 b1 b2 b3) :
+    (fullDivN1QuotientWord bltu_3 bltu_2 bltu_1 bltu_0
+      a0 a1 a2 a3 b0 b1 b2 b3).toNat = (EvmWord.div a b).toNat := by
+  have ha_val : EvmWord.val256 a0 a1 a2 a3 = a.toNat := by
+    rw [← ha0, ← ha1, ← ha2, ← ha3]
+    simp only [← EvmWord.getLimb_as_getLimbN_0,
+      ← EvmWord.getLimb_as_getLimbN_1,
+      ← EvmWord.getLimb_as_getLimbN_2,
+      ← EvmWord.getLimb_as_getLimbN_3]
+    exact EvmWord.val256_eq_toNat a
+  have hb_val : EvmWord.val256 b0 b1 b2 b3 = b.toNat := by
+    rw [← hb0, ← hb1, ← hb2, ← hb3]
+    simp only [← EvmWord.getLimb_as_getLimbN_0,
+      ← EvmWord.getLimb_as_getLimbN_1,
+      ← EvmWord.getLimb_as_getLimbN_2,
+      ← EvmWord.getLimb_as_getLimbN_3]
+    exact EvmWord.val256_eq_toNat b
+  have hb_pos : 0 < b.toNat := by
+    rw [← hb_val]
+    exact EvmWord.val256_pos_of_or_ne_zero hbnz
+  have hb_ne : b ≠ 0 := by
+    intro hb_zero
+    have hb_toNat_zero : b.toNat = 0 := by simp [hb_zero]
+    omega
+  have hdiv_toNat : (EvmWord.div a b).toNat = a.toNat / b.toNat := by
+    unfold EvmWord.div
+    rw [if_neg hb_ne]
+    exact BitVec.toNat_udiv
+  rw [fullDivN1QuotientWord_toNat, hquot, ha_val, hb_val, hdiv_toNat]
+
+theorem evm_div_n1_stack_spec_within_word
+    (bltu_3 bltu_2 bltu_1 bltu_0 : Bool) (sp base : Word)
+    (a b : EvmWord)
+    (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old : Word)
+    (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratch_un0 : Word)
+    (ha0 : a.getLimbN 0 = a0) (ha1 : a.getLimbN 1 = a1)
+    (ha2 : a.getLimbN 2 = a2) (ha3 : a.getLimbN 3 = a3)
+    (hb0 : b.getLimbN 0 = b0) (hb1 : b.getLimbN 1 = b1)
+    (hb2 : b.getLimbN 2 = b2) (hb3 : b.getLimbN 3 = b3)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb3z : b3 = 0) (hb2z : b2 = 0) (hb1z : b1 = 0)
+    (hshift_nz : (clzResult b0).1 ≠ 0)
+    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (hbltu_3 : isTrialN1_j3 bltu_3 a3 b0)
+    (hbltu_2 : isTrialN1_j2 bltu_3 bltu_2 a2 a3 b0 b1 b2 b3)
+    (hbltu_1 : isTrialN1_j1 bltu_3 bltu_2 bltu_1 a1 a2 a3 b0 b1 b2 b3)
+    (hbltu_0 : isTrialN1_j0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3)
+    (hcarry2 : Carry2NzAll (b0 <<< (((clzResult b0).1).toNat % 64))
+      ((b1 <<< (((clzResult b0).1).toNat % 64)) ||| (b0 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b0).1).toNat % 64)))
+      ((b2 <<< (((clzResult b0).1).toNat % 64)) ||| (b1 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b0).1).toNat % 64)))
+      ((b3 <<< (((clzResult b0).1).toNat % 64)) ||| (b2 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b0).1).toNat % 64))))
+    (hdivWord : fullDivN1QuotientWord bltu_3 bltu_2 bltu_1 bltu_0
+      a0 a1 a2 a3 b0 b1 b2 b3 = EvmWord.div a b) :
+    cpsTripleWithin 946 base (base + nopOff) (divCode base)
+      (divModStackDispatchPre sp a b
+        (signExtend12 (4 : BitVec 12) - (4 : Word))
+        ((clzResult b0).2 >>> (63 : Nat))
+        v5 v6 v7 v10 v11Old
+        q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratch_un0)
+      (divStackDispatchPost sp a b) := by
+  obtain ⟨hdiv0, hdiv1, hdiv2, hdiv3⟩ :=
+    fullDivN1_hdivs_of_word_eq bltu_3 bltu_2 bltu_1 bltu_0
+      a b a0 a1 a2 a3 b0 b1 b2 b3 hdivWord
+  exact evm_div_n1_stack_spec_within bltu_3 bltu_2 bltu_1 bltu_0
+    sp base a b
+    a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old
+    q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+    nMem shiftMem jMem retMem dMem dloMem scratch_un0
+    ha0 ha1 ha2 ha3 hb0 hb1 hb2 hb3 hbnz hb3z hb2z hb1z
+    hshift_nz halign hbltu_3 hbltu_2 hbltu_1 hbltu_0 hcarry2
+    hdiv0 hdiv1 hdiv2 hdiv3
+
 @[irreducible]
 def fullModN1RemainderWord (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
     (a0 a1 a2 a3 b0 b1 b2 b3 : Word) : EvmWord :=
@@ -457,6 +569,40 @@ theorem fullModN1_hmods_of_word_eq
   · rw [← hmod]
     delta fullModN1RemainderWord
     exact EvmWord.getLimbN_fromLimbs_3
+
+theorem fullModN1RemainderWord_eq_mod_of_toNat_eq
+    (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
+    (a b : EvmWord) (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hmod_toNat :
+      (fullModN1RemainderWord bltu_3 bltu_2 bltu_1 bltu_0
+        a0 a1 a2 a3 b0 b1 b2 b3).toNat = (EvmWord.mod a b).toNat) :
+    fullModN1RemainderWord bltu_3 bltu_2 bltu_1 bltu_0
+      a0 a1 a2 a3 b0 b1 b2 b3 = EvmWord.mod a b :=
+  BitVec.eq_of_toNat_eq hmod_toNat
+
+theorem fullModN1RemainderWord_toNat
+    (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
+    (fullModN1RemainderWord bltu_3 bltu_2 bltu_1 bltu_0
+      a0 a1 a2 a3 b0 b1 b2 b3).toNat =
+    EvmWord.val256
+      (((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.1 >>>
+          ((fullDivN1Shift b0).toNat % 64)) |||
+        ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.2.1 <<<
+          ((signExtend12 (0 : BitVec 12) - fullDivN1Shift b0).toNat % 64)))
+      (((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.2.1 >>>
+          ((fullDivN1Shift b0).toNat % 64)) |||
+        ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.1 <<<
+          ((signExtend12 (0 : BitVec 12) - fullDivN1Shift b0).toNat % 64)))
+      (((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.1 >>>
+          ((fullDivN1Shift b0).toNat % 64)) |||
+        ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1 <<<
+          ((signExtend12 (0 : BitVec 12) - fullDivN1Shift b0).toNat % 64)))
+      ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1 >>>
+        ((fullDivN1Shift b0).toNat % 64)) := by
+  delta fullModN1RemainderWord
+  rw [EvmWord.fromLimbs_toNat]
+  rfl
 
 theorem evm_mod_n1_stack_spec_within
     (bltu_3 bltu_2 bltu_1 bltu_0 : Bool) (sp base : Word)
@@ -527,5 +673,49 @@ theorem evm_mod_n1_stack_spec_within
         a0 a1 a2 a3 b0 b1 b2 b3 retMem dMem dloMem scratch_un0
         ha0 ha1 ha2 ha3 hmod0 hmod1 hmod2 hmod3 h hq)
     hFull
+
+theorem evm_mod_n1_stack_spec_within_word
+    (bltu_3 bltu_2 bltu_1 bltu_0 : Bool) (sp base : Word)
+    (a b : EvmWord)
+    (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old : Word)
+    (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratch_un0 : Word)
+    (ha0 : a.getLimbN 0 = a0) (ha1 : a.getLimbN 1 = a1)
+    (ha2 : a.getLimbN 2 = a2) (ha3 : a.getLimbN 3 = a3)
+    (hb0 : b.getLimbN 0 = b0) (hb1 : b.getLimbN 1 = b1)
+    (hb2 : b.getLimbN 2 = b2) (hb3 : b.getLimbN 3 = b3)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb3z : b3 = 0) (hb2z : b2 = 0) (hb1z : b1 = 0)
+    (hshift_nz : (clzResult b0).1 ≠ 0)
+    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (hbltu_3 : isTrialN1_j3 bltu_3 a3 b0)
+    (hbltu_2 : isTrialN1_j2 bltu_3 bltu_2 a2 a3 b0 b1 b2 b3)
+    (hbltu_1 : isTrialN1_j1 bltu_3 bltu_2 bltu_1 a1 a2 a3 b0 b1 b2 b3)
+    (hbltu_0 : isTrialN1_j0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3)
+    (hcarry2 : Carry2NzAll (b0 <<< (((clzResult b0).1).toNat % 64))
+      ((b1 <<< (((clzResult b0).1).toNat % 64)) ||| (b0 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b0).1).toNat % 64)))
+      ((b2 <<< (((clzResult b0).1).toNat % 64)) ||| (b1 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b0).1).toNat % 64)))
+      ((b3 <<< (((clzResult b0).1).toNat % 64)) ||| (b2 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b0).1).toNat % 64))))
+    (hmodWord : fullModN1RemainderWord bltu_3 bltu_2 bltu_1 bltu_0
+      a0 a1 a2 a3 b0 b1 b2 b3 = EvmWord.mod a b) :
+    cpsTripleWithin 946 base (base + nopOff) (modCode base)
+      (divModStackDispatchPre sp a b
+        (signExtend12 (4 : BitVec 12) - (4 : Word))
+        ((clzResult b0).2 >>> (63 : Nat))
+        v5 v6 v7 v10 v11Old
+        q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratch_un0)
+      (modStackDispatchPost sp a b) := by
+  obtain ⟨hmod0, hmod1, hmod2, hmod3⟩ :=
+    fullModN1_hmods_of_word_eq bltu_3 bltu_2 bltu_1 bltu_0
+      a b a0 a1 a2 a3 b0 b1 b2 b3 hmodWord
+  exact evm_mod_n1_stack_spec_within bltu_3 bltu_2 bltu_1 bltu_0
+    sp base a b
+    a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old
+    q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+    nMem shiftMem jMem retMem dMem dloMem scratch_un0
+    ha0 ha1 ha2 ha3 hb0 hb1 hb2 hb3 hbnz hb3z hb2z hb1z
+    hshift_nz halign hbltu_3 hbltu_2 hbltu_1 hbltu_0 hcarry2
+    hmod0 hmod1 hmod2 hmod3
 
 end EvmAsm.Evm64
