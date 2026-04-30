@@ -11,15 +11,8 @@
 # additions should include a comment explaining why the file cannot be
 # imported yet — silent additions defeat the purpose of the check.
 
-# DivMod V4 work-in-progress cluster (issue #1337). These files are under
-# active development. Remove entries as each file is wired into the main module
-# graph.
+# DivMod V4 work-in-progress: this file currently fails to build standalone
+# (Type mismatch at line 105, decide failure at line 208 — see issue #1440).
+# Once the body proofs in FullPathN3LoopUnified.lean are repaired it can
+# be wired into EvmAsm/Evm64/DivMod.lean and removed from this list.
 EvmAsm.Evm64.DivMod.Compose.FullPathN3LoopUnified
-EvmAsm.Evm64.DivMod.SpecCallAddbackBeq
-EvmAsm.Evm64.DivMod.SpecCallAddbackBeq.NumericalTests
-EvmAsm.Evm64.DivMod.SpecCallAddbackBeq.NumericalTestsV4
-EvmAsm.Evm64.DivMod.SpecCallV4
-
-# EvmWordArith cluster — pure-arithmetic helpers used by DivMod V4.
-# (Drained: umbrella EvmAsm.Evm64.EvmWordArith is now imported from
-# EvmAsm/Evm64.lean, transitively reaching all helpers.)
