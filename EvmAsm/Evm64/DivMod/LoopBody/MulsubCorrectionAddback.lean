@@ -29,16 +29,17 @@ open EvmAsm.Rv64
 -- Section 10b: Mulsub + correction_addback composition (borrow ≠ 0 path)
 -- ============================================================================
 
-theorem lb_beq_back_ntaken_local {base : Word} : (base + 880 : Word) + 4 = base + storeLoopOff := by
+theorem lb_beq_back_ntaken_local {base : Word} :
+    (base + addbackBeqOff : Word) + 4 = base + storeLoopOff := by
   bv_addr
 
 /-- BEQ passthrough at [108]: when carry (x7) != 0, BEQ falls through from
     base+880 to base+884. -/
 theorem divK_beq_passthrough_spec_within {carry : Word} (base : Word) (hne : carry ≠ 0) :
-    cpsTripleWithin 1 (base + 880) (base + storeLoopOff) (sharedDivModCode base)
+    cpsTripleWithin 1 (base + addbackBeqOff) (base + storeLoopOff) (sharedDivModCode base)
       ((.x7 ↦ᵣ carry) ** (.x0 ↦ᵣ (0 : Word)))
       ((.x7 ↦ᵣ carry) ** (.x0 ↦ᵣ (0 : Word))) := by
-  have hbeq := beq_spec_gen_within .x7 .x0 (8044 : BitVec 13) carry 0 (base + 880)
+  have hbeq := beq_spec_gen_within .x7 .x0 (8044 : BitVec 13) carry 0 (base + addbackBeqOff)
   rw [lb_beq_back_ntaken_local] at hbeq
   have hbeq_ext := cpsBranchWithin_extend_code (hmono :=
     lb_sub 108 _ _ (by decide) (by bv_addr) (by decide)) hbeq
@@ -53,10 +54,10 @@ theorem divK_beq_passthrough_spec_within {carry : Word} (base : Word) (hne : car
 
 /-- v2 mirror of `divK_beq_passthrough_spec_within`. -/
 theorem divK_beq_passthrough_v2_spec_within {carry : Word} (base : Word) (hne : carry ≠ 0) :
-    cpsTripleWithin 1 (base + 880) (base + storeLoopOff) (sharedDivModCode_v2 base)
+    cpsTripleWithin 1 (base + addbackBeqOff) (base + storeLoopOff) (sharedDivModCode_v2 base)
       ((.x7 ↦ᵣ carry) ** (.x0 ↦ᵣ (0 : Word)))
       ((.x7 ↦ᵣ carry) ** (.x0 ↦ᵣ (0 : Word))) := by
-  have hbeq := beq_spec_gen_within .x7 .x0 (8044 : BitVec 13) carry 0 (base + 880)
+  have hbeq := beq_spec_gen_within .x7 .x0 (8044 : BitVec 13) carry 0 (base + addbackBeqOff)
   rw [lb_beq_back_ntaken_local] at hbeq
   have hbeq_ext := cpsBranchWithin_extend_code (hmono :=
     lb_sub_v2 108 _ _ (by decide) (by bv_addr) (by decide)) hbeq
@@ -125,7 +126,7 @@ theorem divK_mulsub_correction_addback_880_spec_within
     let qHat' := qHat + signExtend12 4095
     -- Hypothesis: borrow ≠ 0
     (if BitVec.ult uTop c3 then (1 : Word) else 0) ≠ (0 : Word) →
-    cpsTripleWithin 91 (base + div128CallRetOff) (base + 880) (sharedDivModCode base)
+    cpsTripleWithin 91 (base + div128CallRetOff) (base + addbackBeqOff) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
        (.x1 ↦ᵣ v1Old) ** (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
        (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x2 ↦ᵣ v2Old) **
@@ -192,7 +193,7 @@ theorem divK_mulsub_correction_addback_named_880_spec_within
     let qHat' := qHat + signExtend12 4095
     -- Hypothesis: borrow ≠ 0
     (if BitVec.ult uTop c3 then (1 : Word) else 0) ≠ (0 : Word) →
-    cpsTripleWithin 91 (base + div128CallRetOff) (base + 880) (sharedDivModCode base)
+    cpsTripleWithin 91 (base + div128CallRetOff) (base + addbackBeqOff) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
        (.x1 ↦ᵣ v1Old) ** (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
        (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x2 ↦ᵣ v2Old) **

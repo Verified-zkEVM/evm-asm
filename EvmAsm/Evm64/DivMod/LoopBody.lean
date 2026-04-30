@@ -244,7 +244,7 @@ private theorem lb_ab0_end {base : Word} : (base + 736 : Word) + 32 = base + 768
 private theorem lb_ab1_end {base : Word} : (base + 768 : Word) + 32 = base + 800 := by bv_addr
 private theorem lb_ab2_end {base : Word} : (base + 800 : Word) + 32 = base + 832 := by bv_addr
 private theorem lb_ab3_end {base : Word} : (base + 832 : Word) + 32 = base + 864 := by bv_addr
-private theorem lb_abf_end {base : Word} : (base + 864 : Word) + 16 = base + 880 := by bv_addr
+private theorem lb_abf_end {base : Word} : (base + 864 : Word) + 16 = base + addbackBeqOff := by bv_addr
 
 set_option maxRecDepth 4096 in
 /-- Full add-back correction: init carry + 4 limb corrections + final u[j+4] adjust + qHat--.
@@ -281,7 +281,7 @@ theorem divK_addback_full_spec_within
     -- Final: u4 + carry, qHat--
     let aun4 := u4 + aco3
     let qHat' := qHat + signExtend12 4095
-    cpsTripleWithin 37 (base + 732) (base + 880) (sharedDivModCode base)
+    cpsTripleWithin 37 (base + 732) (base + addbackBeqOff) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ uBase) ** (.x7 ↦ᵣ v7_init) **
        (.x11 ↦ᵣ qHat) ** (.x5 ↦ᵣ v5_init) ** (.x2 ↦ᵣ v2_init) ** (.x0 ↦ᵣ (0 : Word)) **
        ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
@@ -779,7 +779,7 @@ theorem divK_addback_full_v2_spec_within
     let aco3 := ac1_3 ||| ac2_3
     let aun4 := u4 + aco3
     let qHat' := qHat + signExtend12 4095
-    cpsTripleWithin 37 (base + 732) (base + 880) (sharedDivModCode_v2 base)
+    cpsTripleWithin 37 (base + 732) (base + addbackBeqOff) (sharedDivModCode_v2 base)
       ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ uBase) ** (.x7 ↦ᵣ v7_init) **
        (.x11 ↦ᵣ qHat) ** (.x5 ↦ᵣ v5_init) ** (.x2 ↦ᵣ v2_init) ** (.x0 ↦ᵣ (0 : Word)) **
        ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
@@ -924,7 +924,7 @@ theorem divK_correction_addback_v2_spec_within
     let aco3 := ac1_3 ||| ac2_3
     let aun4 := u4 + aco3
     let qHat' := qHat + signExtend12 4095
-    cpsTripleWithin 38 (base + 728) (base + 880) (sharedDivModCode_v2 base)
+    cpsTripleWithin 38 (base + 728) (base + addbackBeqOff) (sharedDivModCode_v2 base)
       ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ uBase) ** (.x7 ↦ᵣ borrow) **
        (.x11 ↦ᵣ qHat) ** (.x5 ↦ᵣ v5Old) ** (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
        ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
@@ -1000,7 +1000,7 @@ theorem divK_correction_addback_spec_within
     let aco3 := ac1_3 ||| ac2_3
     let aun4 := u4 + aco3
     let qHat' := qHat + signExtend12 4095
-    cpsTripleWithin 38 (base + 728) (base + 880) (sharedDivModCode base)
+    cpsTripleWithin 38 (base + 728) (base + addbackBeqOff) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ uBase) ** (.x7 ↦ᵣ borrow) **
        (.x11 ↦ᵣ qHat) ** (.x5 ↦ᵣ v5Old) ** (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
        ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
@@ -1060,7 +1060,7 @@ theorem divK_correction_addback_named_spec_within
     (hb : borrow ≠ (0 : Word)) :
     let ab := addbackN4 u0 u1 u2 u3 u4 v0 v1 v2 v3
     let qHat' := qHat + signExtend12 4095
-    cpsTripleWithin 38 (base + 728) (base + 880) (sharedDivModCode base)
+    cpsTripleWithin 38 (base + 728) (base + addbackBeqOff) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ uBase) ** (.x7 ↦ᵣ borrow) **
        (.x11 ↦ᵣ qHat) ** (.x5 ↦ᵣ v5Old) ** (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
        ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
@@ -1162,15 +1162,15 @@ private theorem lb_lc_taken {base : Word} :
   rv64_addr
 private theorem lb_lc_exit {base : Word} : (base + 900 : Word) + 8 = base + denormOff := by bv_addr
 
-private theorem lb_beq_back_ntaken {base : Word} : (base + 880 : Word) + 4 = base + storeLoopOff := by bv_addr
+private theorem lb_beq_back_ntaken {base : Word} : (base + addbackBeqOff : Word) + 4 = base + storeLoopOff := by bv_addr
 
 /-- BEQ passthrough at [108]: when carry (x7) ≠ 0, BEQ falls through from base+880 to base+884.
     Used to bridge addback exit (base+880) to store_loop entry (base+884). -/
 theorem divK_beq_passthrough_within {carry : Word} (base : Word) (hne : carry ≠ 0) :
-    cpsTripleWithin 1 (base + 880) (base + storeLoopOff) (sharedDivModCode base)
+    cpsTripleWithin 1 (base + addbackBeqOff) (base + storeLoopOff) (sharedDivModCode base)
       ((.x7 ↦ᵣ carry) ** (.x0 ↦ᵣ (0 : Word)))
       ((.x7 ↦ᵣ carry) ** (.x0 ↦ᵣ (0 : Word))) := by
-  have hbeq := beq_spec_gen_within .x7 .x0 (8044 : BitVec 13) carry 0 (base + 880)
+  have hbeq := beq_spec_gen_within .x7 .x0 (8044 : BitVec 13) carry 0 (base + addbackBeqOff)
   rw [lb_beq_back_ntaken] at hbeq
   have hbeq_ext := cpsBranchWithin_extend_code (hmono :=
     lb_sub 108 _ _ (by decide) (by bv_addr) (by decide)) hbeq
@@ -1184,7 +1184,7 @@ theorem divK_beq_passthrough_within {carry : Word} (base : Word) (hne : carry �
     ntaken
 
 private theorem lb_beq_back_taken {base : Word} :
-    (base + 880 : Word) + signExtend13 (8044 : BitVec 13) = base + 732 := by
+    (base + addbackBeqOff : Word) + signExtend13 (8044 : BitVec 13) = base + 732 := by
   rv64_addr
 
 /-- Double-addback path at [108]: when first addback carry (x7) = 0, BEQ jumps back to [71]
@@ -1219,7 +1219,7 @@ theorem divK_double_addback_beq_spec_within
     let aco3' := ac1_3' ||| ac2_3'
     let aun4' := aun4 + aco3'
     let qHat'' := qHat' + signExtend12 4095
-    cpsTripleWithin 39 (base + 880) (base + storeLoopOff) (sharedDivModCode base)
+    cpsTripleWithin 39 (base + addbackBeqOff) (base + storeLoopOff) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ uBase) ** (.x7 ↦ᵣ (0 : Word)) **
        (.x11 ↦ᵣ qHat') ** (.x5 ↦ᵣ aun4) ** (.x2 ↦ᵣ aun3) ** (.x0 ↦ᵣ (0 : Word)) **
        ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ aun0) **
@@ -1237,7 +1237,7 @@ theorem divK_double_addback_beq_spec_within
   intro upc0' ac1_0' aun0' ac2_0' aco0' upc1' ac1_1' aun1' ac2_1' aco1'
         upc2' ac1_2' aun2' ac2_2' aco2' upc3' ac1_3' aun3' ac2_3' aco3' aun4' qHat''
   -- 1. BEQ at [108] taken (carry = 0, x7 = 0 = x0) → base+732
-  have hbeq := beq_spec_gen_within .x7 .x0 (8044 : BitVec 13) (0 : Word) 0 (base + 880)
+  have hbeq := beq_spec_gen_within .x7 .x0 (8044 : BitVec 13) (0 : Word) 0 (base + addbackBeqOff)
   rw [lb_beq_back_taken, lb_beq_back_ntaken] at hbeq
   have hbeq_ext := cpsBranchWithin_extend_code (hmono :=
     lb_sub 108 _ _ (by decide) (by bv_addr) (by decide)) hbeq
@@ -1300,7 +1300,7 @@ theorem divK_double_addback_beq_named_spec_within
     (hcarry2_nz : addbackN4_carry aun0 aun1 aun2 aun3 v0 v1 v2 v3 ≠ 0) :
     let ab' := addbackN4 aun0 aun1 aun2 aun3 aun4 v0 v1 v2 v3
     let qHat'' := qHat' + signExtend12 4095
-    cpsTripleWithin 39 (base + 880) (base + storeLoopOff) (sharedDivModCode base)
+    cpsTripleWithin 39 (base + addbackBeqOff) (base + storeLoopOff) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ uBase) ** (.x7 ↦ᵣ (0 : Word)) **
        (.x11 ↦ᵣ qHat') ** (.x5 ↦ᵣ aun4) ** (.x2 ↦ᵣ aun3) ** (.x0 ↦ᵣ (0 : Word)) **
        ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ aun0) **
