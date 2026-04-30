@@ -822,9 +822,7 @@ theorem evm_div_n4_full_max_skip_stack_pre_spec_bundled (sp base : Word)
 
 /-- EvmWord-level wrapper over `evm_div_n4_full_max_addback_beq_spec`: same
     shape as `evm_div_n4_full_max_skip_stack_pre_spec` but for the
-    max+addback BEQ sub-path (double-addback included). The extra
-    `hvalid : ValidMemRange sp 8` hypothesis is threaded through, along
-    with all 20 individual `hv_*` access hypotheses and `hbltu`,
+    max+addback BEQ sub-path (double-addback included). Threads `hbltu`,
     `hcarry2_nz`, `hborrow`. The postcondition is the concrete
     `fullDivN4MaxAddbackBeqPost` — turning that into a stack post
     requires the semantic-correctness bridge (single-addback or
@@ -836,7 +834,6 @@ theorem evm_div_n4_full_max_addback_beq_stack_pre_spec (sp base : Word)
     (hbnz : b ≠ 0)
     (hb3nz : b.getLimbN 3 ≠ 0)
     (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
-    (hvalid : ValidMemRange sp 8)
     (hbltu : isMaxTrialN4Evm a b)
     (hcarry2_nz : isAddbackCarry2NzN4MaxAbEvm a b)
     (hborrow : isAddbackBorrowN4MaxEvm a b) :
@@ -883,7 +880,6 @@ theorem evm_div_n4_full_max_addback_beq_stack_pre_spec_bundled (sp base : Word)
     (hbnz : b ≠ 0)
     (hb3nz : b.getLimbN 3 ≠ 0)
     (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
-    (hvalid : ValidMemRange sp 8)
     (hbltu : isMaxTrialN4Evm a b)
     (hcarry2_nz : isAddbackCarry2NzN4MaxAbEvm a b)
     (hborrow : isAddbackBorrowN4MaxEvm a b) :
@@ -896,7 +892,7 @@ theorem evm_div_n4_full_max_addback_beq_stack_pre_spec_bundled (sp base : Word)
         (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) := by
   have h := evm_div_n4_full_max_addback_beq_stack_pre_spec sp base a b
     v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-    nMem shiftMem jMem hbnz hb3nz hshift_nz hvalid
+    nMem shiftMem jMem hbnz hb3nz hshift_nz
     hbltu hcarry2_nz hborrow
   exact cpsTripleWithin_weaken
     (fun _ hp => by rw [divN4StackPre_unfold] at hp; exact hp)
