@@ -172,9 +172,9 @@ def isAddbackCarry2NzN4MaxAb (a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Prop :=
     \`divK_loop_body_n4_max_addback_j0_beq_norm\`, the 18 corresponding
     validity hypotheses here also became unused and are removed.
 
-    GH #338: the outer \`hvalid : ValidMemRange sp 8\` and the four
-    derived \`have hv_v0..hv_v3\` are also dead — the inner spec no
-    longer consumes them. Removed. -/
+    Per #338 (slice 4): the 4 derived \`hv_v0..hv_v3\` \`have\`s were
+    dead-bound and never consumed — also removed, along with the now
+    unused outer \`hvalid : ValidMemRange sp 8\` parameter. -/
 theorem evm_div_n4_preloop_max_addback_beq_spec (sp base : Word)
     (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old : Word)
     (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem : Word)

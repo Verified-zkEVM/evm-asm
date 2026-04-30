@@ -822,8 +822,8 @@ theorem evm_div_n4_full_max_skip_stack_pre_spec_bundled (sp base : Word)
 
 /-- EvmWord-level wrapper over `evm_div_n4_full_max_addback_beq_spec`: same
     shape as `evm_div_n4_full_max_skip_stack_pre_spec` but for the
-    max+addback BEQ sub-path (double-addback included).
-    The postcondition is the concrete
+    max+addback BEQ sub-path (double-addback included). Threads `hbltu`,
+    `hcarry2_nz`, `hborrow`. The postcondition is the concrete
     `fullDivN4MaxAddbackBeqPost` — turning that into a stack post
     requires the semantic-correctness bridge (single-addback or
     double-addback) threaded separately in the final stack spec. -/
