@@ -42,3 +42,4 @@ import EvmAsm.Evm64.EvmWordArith.AddbackBorrowExtract
 import EvmAsm.Evm64.EvmWordArith.AddbackPinning
 import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV2
 import EvmAsm.Evm64.EvmWordArith.Div128NoWrapDischarge
+import EvmAsm.Evm64.EvmWordArith.Div128NoWrapInvSearch
