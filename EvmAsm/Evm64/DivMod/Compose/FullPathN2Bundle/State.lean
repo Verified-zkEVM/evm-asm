@@ -18,7 +18,7 @@ def fullDivN2ScratchFinal (bltu_2 bltu_1 bltu_0 : Bool)
   let u := fullDivN2NormU a0 a1 a2 a3 b1
   let r2 := fullDivN2R2 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3
   let r1 := fullDivN2R1 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3
-  fullDivN2Scratch0 bltu_2 bltu_1 bltu_0 base v.2.1 u.2.2.1 r2.2.1 r1.2.1
+  fullDivN2Scratch0 bltu_2 bltu_1 bltu_0 base v.2.1 u.2.2.2.1 r2.2.1 r1.2.1
     retMem dMem dloMem scratch_un0
 
 @[irreducible]
@@ -78,7 +78,7 @@ theorem fullDivN2ScratchFinal_unfold (bltu_2 bltu_1 bltu_0 : Bool)
     let u := fullDivN2NormU a0 a1 a2 a3 b1
     let r2 := fullDivN2R2 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3
     let r1 := fullDivN2R1 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3
-    fullDivN2Scratch0 bltu_2 bltu_1 bltu_0 base v.2.1 u.2.2.1 r2.2.1 r1.2.1
+    fullDivN2Scratch0 bltu_2 bltu_1 bltu_0 base v.2.1 u.2.2.2.1 r2.2.1 r1.2.1
       retMem dMem dloMem scratch_un0 := by
   delta fullDivN2ScratchFinal
   rfl
