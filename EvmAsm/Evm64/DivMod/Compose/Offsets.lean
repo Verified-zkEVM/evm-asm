@@ -79,6 +79,13 @@ abbrev nopOff       : Word := 1068
 /-- Offset of `divK_div128` (the 128÷64 long-division subroutine). -/
 abbrev div128Off    : Word := 1072
 
+/-- Return-site PC of the `divK_div128` call from inside `divK_loopBody`.
+    The call sits 68 bytes (17 instructions) into `divK_loopBody`, so the
+    JALR-saved return address is `base + loopBodyOff + 68 = base + div128CallRetOff`.
+    Used pervasively across `LoopBody*`, `LoopIter*`, `LoopCompose*`,
+    `LoopUnified*`, `Compose/FullPath*`, and `Spec/Call*` files. -/
+abbrev div128CallRetOff : Word := 516
+
 -- ============================================================================
 -- Consistency / drift checks
 --
@@ -124,5 +131,9 @@ example : zeroPathOff = epilogueOff + 4 * (divK_mod_epilogue 24).length := by de
 example : nopOff = zeroPathOff + 4 * divK_zeroPath.length := by decide
 /-- div128Off = nopOff + 4 (single NOP instruction). -/
 example : div128Off = nopOff + 4 := by decide
+/-- div128CallRetOff = loopBodyOff + 68 (17 instructions into `divK_loopBody`).
+    If the prelude of `divK_loopBody` before the JAL to `divK_div128` ever
+    changes length, this check fails and points at the constant to update. -/
+example : div128CallRetOff = loopBodyOff + 68 := by decide
 
 end EvmAsm.Evm64

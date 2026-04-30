@@ -154,6 +154,25 @@ the pure atoms are exposed as the leading conjuncts. Defined in
 macro using left-associativity normalisation plus the
 `sepConj_pure_left/right/mid_*` iff lemmas.
 
+## drop_pure
+
+Sibling of `extract_pure` that *discards* the pure atoms instead of
+exposing them, rebinding the hypothesis to the bare resource tail.
+Useful when the goal has no pure atoms (so neither `extract_pure` +
+`obtain` nor `xperm_pure` compose cleanly): after `drop_pure h`, a
+follow-up `xperm_hyp h` works directly with no destructuring.
+
+```lean
+example (s : PartialState) (P : Prop) (R₁ R₂ : Assertion)
+    (h : (R₁ ** ⌜P⌝ ** R₂) s) : (R₂ ** R₁) s := by
+  drop_pure h
+  xperm_hyp h
+```
+
+Defined in `EvmAsm/Rv64/Tactics/DropPure.lean`. Reuses
+`extract_pure`'s normalisation lemmas plus a small projection loop
+that peels `.2` off `h` until no `And` remains.
+
 ## @[spec_gen] and #spec_db
 
 ### Registering specs

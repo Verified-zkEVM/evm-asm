@@ -23,6 +23,7 @@
 -/
 
 import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV2.Algorithm
+import EvmAsm.Evm64.EvmWordArith.Div128KnuthLower
 
 namespace EvmAsm.Evm64
 

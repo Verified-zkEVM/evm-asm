@@ -274,7 +274,7 @@ theorem divK_loop_body_n3_call_skip_spec_within
      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
     (retMem dMem dloMem scratch_un0 : Word)
     (base : Word)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
     (hbltu : BitVec.ult u3 v2) :
     let uBase := sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat
     -- div128 intermediates
@@ -322,13 +322,13 @@ theorem divK_loop_body_n3_call_skip_spec_within
        (sp + signExtend12 3944 ↦ₘ scratch_un0))
       (base + loopBodyOff)
       (loopBodyN3SkipPost sp j qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop **
-       (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+       (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
        (sp + signExtend12 3960 ↦ₘ v2) **
        (sp + signExtend12 3952 ↦ₘ dLo) **
        (sp + signExtend12 3944 ↦ₘ div_un0))
       (base + denormOff)
       (loopBodyN3SkipPost sp j qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop **
-       (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+       (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
        (sp + signExtend12 3960 ↦ₘ v2) **
        (sp + signExtend12 3952 ↦ₘ dLo) **
        (sp + signExtend12 3944 ↦ₘ div_un0)) := by
@@ -380,7 +380,7 @@ theorem divK_loop_body_n3_call_skip_spec_within
   rw [vtop_eq_v2_n3] at TF
   -- 2. Mulsub + correction skip (base+516 → base+880)
   have MCS := divK_mulsub_correction_skip_spec_within sp qHat j v0 v1 v2 v3 u0 u1 u2 u3 uTop
-    x1Exit q0' dHi x7Exit q1' (base + 516) base
+    x1Exit q0' dHi x7Exit q1' (base + div128CallRetOff) base
 
   intro_lets at MCS
   have MCS0 := MCS hborrow
@@ -407,7 +407,7 @@ theorem divK_loop_body_n3_call_skip_spec_within
      ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ un3) **
      ((uBase + signExtend12 4064) ↦ₘ u4_new) **
      (sp + signExtend12 3984 ↦ₘ (3 : Word)) **
-     (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+     (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
      (sp + signExtend12 3960 ↦ₘ v2) **
      (sp + signExtend12 3952 ↦ₘ dLo) **
      (sp + signExtend12 3944 ↦ₘ div_un0))
@@ -433,7 +433,7 @@ theorem divK_loop_body_n3_call_addback_spec_within
      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
     (retMem dMem dloMem scratch_un0 : Word)
     (base : Word)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
     (hbltu : BitVec.ult u3 v2) :
     let uBase := sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat
     -- div128 intermediates
@@ -486,13 +486,13 @@ theorem divK_loop_body_n3_call_addback_spec_within
        (sp + signExtend12 3944 ↦ₘ scratch_un0))
       (base + loopBodyOff)
       (loopBodyN3AddbackBeqPost sp j qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop **
-       (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+       (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
        (sp + signExtend12 3960 ↦ₘ v2) **
        (sp + signExtend12 3952 ↦ₘ dLo) **
        (sp + signExtend12 3944 ↦ₘ div_un0))
       (base + denormOff)
       (loopBodyN3AddbackBeqPost sp j qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop **
-       (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+       (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
        (sp + signExtend12 3960 ↦ₘ v2) **
        (sp + signExtend12 3952 ↦ₘ dLo) **
        (sp + signExtend12 3944 ↦ₘ div_un0)) := by
@@ -531,7 +531,7 @@ theorem divK_loop_body_n3_call_addback_spec_within
   rw [vtop_eq_v2_n3] at TF
   -- 2. Mulsub + correction addback + BEQ (base+516 → base+884)
   have MCA := divK_mulsub_correction_addback_beq_spec_within sp qHat j v0 v1 v2 v3 u0 u1 u2 u3 uTop
-    x1Exit q0' dHi x7Exit q1' (base + 516) base
+    x1Exit q0' dHi x7Exit q1' (base + div128CallRetOff) base
 
   intro_lets at MCA
   have MCA0 := MCA hcarry2_nz hborrow
@@ -557,7 +557,7 @@ theorem divK_loop_body_n3_call_addback_spec_within
      ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ un3Out) **
      ((uBase + signExtend12 4064) ↦ₘ u4_out) **
      (sp + signExtend12 3984 ↦ₘ (3 : Word)) **
-     (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+     (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
      (sp + signExtend12 3960 ↦ₘ v2) **
      (sp + signExtend12 3952 ↦ₘ dLo) **
      (sp + signExtend12 3944 ↦ₘ div_un0))
@@ -665,7 +665,7 @@ theorem divK_loop_body_n3_call_unified_spec_within
      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
     (retMem dMem dloMem scratch_un0 : Word)
     (base : Word)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
     (hbltu : BitVec.ult u3 v2)
     (hcarry : ¬borrow_zero →
       let ms := mulsubN4 (div128Quot u3 u2 v2) v0 v1 v2 v3 u0 u1 u2 u3
@@ -685,13 +685,13 @@ theorem divK_loop_body_n3_call_unified_spec_within
         retMem dMem dloMem scratch_un0)
       (base + loopBodyOff)
       (loopBodyUnifiedPostN3 borrow_zero sp j (div128Quot u3 u2 v2) v0 v1 v2 v3 u0 u1 u2 u3 uTop **
-       (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+       (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
        (sp + signExtend12 3960 ↦ₘ v2) **
        (sp + signExtend12 3952 ↦ₘ div128DLo v2) **
        (sp + signExtend12 3944 ↦ₘ div128Un0 u2))
       (base + denormOff)
       (loopBodyUnifiedPostN3 borrow_zero sp j (div128Quot u3 u2 v2) v0 v1 v2 v3 u0 u1 u2 u3 uTop **
-       (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+       (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
        (sp + signExtend12 3960 ↦ₘ v2) **
        (sp + signExtend12 3952 ↦ₘ div128DLo v2) **
        (sp + signExtend12 3944 ↦ₘ div128Un0 u2)) := by

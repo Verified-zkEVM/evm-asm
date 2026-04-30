@@ -242,7 +242,7 @@ theorem evm_mod_n4_preloop_call_skip_spec_within (sp base : Word)
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
     (hb3nz : b3 ≠ 0)
     (hshift_nz : (clzResult b3).1 ≠ 0)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
     (hbltu : isCallTrialN4 a3 b2 b3)
     (hborrow : isSkipBorrowN4Call a0 a1 a2 a3 b0 b1 b2 b3) :
     cpsTripleWithin 229 base (base + denormOff) (modCode base)
@@ -416,7 +416,7 @@ theorem evm_mod_n4_full_call_skip_spec_within (sp base : Word)
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
     (hb3nz : b3 ≠ 0)
     (hshift_nz : (clzResult b3).1 ≠ 0)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
     (hbltu : isCallTrialN4 a3 b2 b3)
     (hborrow : isSkipBorrowN4Call a0 a1 a2 a3 b0 b1 b2 b3) :
     cpsTripleWithin 264 base (base + nopOff) (modCode base)
@@ -485,7 +485,7 @@ theorem evm_mod_n4_full_call_skip_spec_within (sp base : Word)
      (sp + signExtend12 3984 ↦ₘ (4 : Word)) **
      (sp + signExtend12 3976 ↦ₘ (0 : Word)) **
      (.x1 ↦ᵣ signExtend12 4095) ** (.x11 ↦ᵣ qHat) **
-     (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+     (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
      (sp + signExtend12 3960 ↦ₘ b3') **
      (sp + signExtend12 3952 ↦ₘ dLo) **
      (sp + signExtend12 3944 ↦ₘ div_un0))
@@ -517,7 +517,7 @@ theorem evm_mod_n4_preloop_call_addback_beq_spec_within (sp base : Word)
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
     (hb3nz : b3 ≠ 0)
     (hshift_nz : (clzResult b3).1 ≠ 0)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
     (hbltu : isCallTrialN4 a3 b2 b3)
     (hcarry2_nz : isAddbackCarry2NzN4CallAb a0 a1 a2 a3 b0 b1 b2 b3)
     (hborrow : isAddbackBorrowN4Call a0 a1 a2 a3 b0 b1 b2 b3) :
@@ -604,7 +604,7 @@ theorem evm_mod_n4_full_call_addback_beq_spec_within (sp base : Word)
     (retMem dMem dloMem scratch_un0 : Word)
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0) (hb3nz : b3 ≠ 0)
     (hshift_nz : (clzResult b3).1 ≠ 0)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
     (hbltu : isCallTrialN4 a3 b2 b3)
     (hcarry2_nz : isAddbackCarry2NzN4CallAb a0 a1 a2 a3 b0 b1 b2 b3)
     (hborrow : isAddbackBorrowN4Call a0 a1 a2 a3 b0 b1 b2 b3) :
@@ -681,7 +681,7 @@ theorem evm_mod_n4_full_call_addback_beq_spec_within (sp base : Word)
      (sp + signExtend12 3984 ↦ₘ (4 : Word)) **
      (sp + signExtend12 3976 ↦ₘ (0 : Word)) **
      (.x1 ↦ᵣ signExtend12 4095) ** (.x11 ↦ᵣ q_out) **
-     (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+     (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
      (sp + signExtend12 3960 ↦ₘ b3') **
      (sp + signExtend12 3952 ↦ₘ dLo) **
      (sp + signExtend12 3944 ↦ₘ div_un0))

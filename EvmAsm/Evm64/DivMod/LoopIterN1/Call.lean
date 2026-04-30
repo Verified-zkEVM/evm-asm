@@ -25,7 +25,7 @@ theorem divK_loop_body_n1_call_skip_j0_spec_within
      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
     (retMem dMem dloMem scratch_un0 : Word)
     (base : Word)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
     (hbltu : BitVec.ult u1 v0)
     (hborrow : isSkipBorrowN1Call v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
     let uBase := sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat
@@ -85,7 +85,7 @@ theorem divK_loop_body_n1_call_skip_j0_spec_within
   rw [u_addr8_eq_n1] at TF
   rw [vtop_eq_v0_n1] at TF
   have MCS := divK_mulsub_correction_skip_spec_within sp qHat (0 : Word) v0 v1 v2 v3 u0 u1 u2 u3 uTop
-    x1Exit q0' dHi x7Exit q1' (base + 516) base
+    x1Exit q0' dHi x7Exit q1' (base + div128CallRetOff) base
 
   intro_lets at MCS
   have MCS0 := MCS hborrow
@@ -125,7 +125,7 @@ theorem divK_loop_body_n1_call_skip_j0_spec_within
      ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ un3) **
      ((uBase + signExtend12 4064) ↦ₘ u4_new) **
      (sp + signExtend12 3984 ↦ₘ (1 : Word)) **
-     (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+     (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
      (sp + signExtend12 3960 ↦ₘ v0) **
      (sp + signExtend12 3952 ↦ₘ dLo) **
      (sp + signExtend12 3944 ↦ₘ div_un0))
@@ -146,7 +146,7 @@ theorem divK_loop_body_n1_call_skip_jgt0_spec_within (j : Word)
      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
     (retMem dMem dloMem scratch_un0 : Word)
     (base : Word)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
     (hbltu : BitVec.ult u1 v0)
     (hborrow : isSkipBorrowN1Call v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
     let uBase := sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat
@@ -206,7 +206,7 @@ theorem divK_loop_body_n1_call_skip_jgt0_spec_within (j : Word)
   rw [u_addr8_eq_n1] at TF
   rw [vtop_eq_v0_n1] at TF
   have MCS := divK_mulsub_correction_skip_spec_within sp qHat j v0 v1 v2 v3 u0 u1 u2 u3 uTop
-    x1Exit q0' dHi x7Exit q1' (base + 516) base
+    x1Exit q0' dHi x7Exit q1' (base + div128CallRetOff) base
 
   intro_lets at MCS
   have MCS0 := MCS hborrow
@@ -246,7 +246,7 @@ theorem divK_loop_body_n1_call_skip_jgt0_spec_within (j : Word)
      ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ un3) **
      ((uBase + signExtend12 4064) ↦ₘ u4_new) **
      (sp + signExtend12 3984 ↦ₘ (1 : Word)) **
-     (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+     (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
      (sp + signExtend12 3960 ↦ₘ v0) **
      (sp + signExtend12 3952 ↦ₘ dLo) **
      (sp + signExtend12 3944 ↦ₘ div_un0))

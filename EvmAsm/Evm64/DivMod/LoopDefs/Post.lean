@@ -171,7 +171,7 @@ abbrev loopBodyUnifiedPostN4 (borrow_zero : Bool) := loopBodyUnifiedPost borrow_
 def loopBodyN3CallSkipPost (sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) : Assertion :=
   let qHat := div128Quot u3 u2 v2
   loopBodyN3SkipPost sp (0 : Word) qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop **
-  (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+  (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
   (sp + signExtend12 3960 ↦ₘ v2) **
   (sp + signExtend12 3952 ↦ₘ div128DLo v2) **
   (sp + signExtend12 3944 ↦ₘ div128Un0 u2)
@@ -182,7 +182,7 @@ def loopBodyN3CallSkipPost (sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) : Asser
 def loopBodyN3CallAddbackPost (sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) : Assertion :=
   let qHat := div128Quot u3 u2 v2
   loopBodyN3AddbackPost sp (0 : Word) qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop **
-  (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+  (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
   (sp + signExtend12 3960 ↦ₘ v2) **
   (sp + signExtend12 3952 ↦ₘ div128DLo v2) **
   (sp + signExtend12 3944 ↦ₘ div128Un0 u2)
@@ -207,7 +207,7 @@ def isAddbackBorrowN3Call (v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) : Prop :=
 def loopBodyN3CallSkipPostJ (sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) : Assertion :=
   let qHat := div128Quot u3 u2 v2
   loopBodyN3SkipPost sp j qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop **
-  (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+  (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
   (sp + signExtend12 3960 ↦ₘ v2) **
   (sp + signExtend12 3952 ↦ₘ div128DLo v2) **
   (sp + signExtend12 3944 ↦ₘ div128Un0 u2)
@@ -218,7 +218,7 @@ def loopBodyN3CallSkipPostJ (sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) : As
 def loopBodyN3CallAddbackPostJ (sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) : Assertion :=
   let qHat := div128Quot u3 u2 v2
   loopBodyN3AddbackPost sp j qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop **
-  (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+  (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
   (sp + signExtend12 3960 ↦ₘ v2) **
   (sp + signExtend12 3952 ↦ₘ div128DLo v2) **
   (sp + signExtend12 3944 ↦ₘ div128Un0 u2)
@@ -228,7 +228,7 @@ def loopBodyN3CallAddbackPostJ (sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) :
 def loopBodyN3CallAddbackBeqPost (sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) : Assertion :=
   let qHat := div128Quot u3 u2 v2
   loopBodyN3AddbackBeqPost sp (0 : Word) qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop **
-  (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+  (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
   (sp + signExtend12 3960 ↦ₘ v2) **
   (sp + signExtend12 3952 ↦ₘ div128DLo v2) **
   (sp + signExtend12 3944 ↦ₘ div128Un0 u2)
@@ -238,7 +238,7 @@ def loopBodyN3CallAddbackBeqPost (sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) :
 def loopBodyN3CallAddbackBeqPostJ (sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) : Assertion :=
   let qHat := div128Quot u3 u2 v2
   loopBodyN3AddbackBeqPost sp j qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop **
-  (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+  (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
   (sp + signExtend12 3960 ↦ₘ v2) **
   (sp + signExtend12 3952 ↦ₘ div128DLo v2) **
   (sp + signExtend12 3944 ↦ₘ div128Un0 u2)
@@ -261,7 +261,7 @@ theorem loopBodyN3CallAddbackBeqPost_eq_J {sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop 
 def loopBodyN1CallSkipPostJ (sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) : Assertion :=
   let qHat := div128Quot u1 u0 v0
   loopBodyN1SkipPost sp j qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop **
-  (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+  (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
   (sp + signExtend12 3960 ↦ₘ v0) **
   (sp + signExtend12 3952 ↦ₘ div128DLo v0) **
   (sp + signExtend12 3944 ↦ₘ div128Un0 u0)
@@ -272,7 +272,7 @@ def loopBodyN1CallSkipPostJ (sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) : As
 def loopBodyN1CallAddbackPostJ (sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) : Assertion :=
   let qHat := div128Quot u1 u0 v0
   loopBodyN1AddbackPost sp j qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop **
-  (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+  (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
   (sp + signExtend12 3960 ↦ₘ v0) **
   (sp + signExtend12 3952 ↦ₘ div128DLo v0) **
   (sp + signExtend12 3944 ↦ₘ div128Un0 u0)
@@ -282,7 +282,7 @@ def loopBodyN1CallAddbackPostJ (sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) :
 def loopBodyN1CallAddbackBeqPostJ (sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) : Assertion :=
   let qHat := div128Quot u1 u0 v0
   loopBodyN1AddbackBeqPost sp j qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop **
-  (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+  (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
   (sp + signExtend12 3960 ↦ₘ v0) **
   (sp + signExtend12 3952 ↦ₘ div128DLo v0) **
   (sp + signExtend12 3944 ↦ₘ div128Un0 u0)
@@ -298,7 +298,7 @@ def loopBodyN1CallAddbackBeqPostJ (sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word
 def loopBodyN2CallSkipPostJ (sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) : Assertion :=
   let qHat := div128Quot u2 u1 v1
   loopBodyN2SkipPost sp j qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop **
-  (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+  (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
   (sp + signExtend12 3960 ↦ₘ v1) **
   (sp + signExtend12 3952 ↦ₘ div128DLo v1) **
   (sp + signExtend12 3944 ↦ₘ div128Un0 u1)
@@ -309,7 +309,7 @@ def loopBodyN2CallSkipPostJ (sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) : As
 def loopBodyN2CallAddbackPostJ (sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) : Assertion :=
   let qHat := div128Quot u2 u1 v1
   loopBodyN2AddbackPost sp j qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop **
-  (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+  (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
   (sp + signExtend12 3960 ↦ₘ v1) **
   (sp + signExtend12 3952 ↦ₘ div128DLo v1) **
   (sp + signExtend12 3944 ↦ₘ div128Un0 u1)
@@ -319,7 +319,7 @@ def loopBodyN2CallAddbackPostJ (sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) :
 def loopBodyN2CallAddbackBeqPostJ (sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) : Assertion :=
   let qHat := div128Quot u2 u1 v1
   loopBodyN2AddbackBeqPost sp j qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop **
-  (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+  (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
   (sp + signExtend12 3960 ↦ₘ v1) **
   (sp + signExtend12 3952 ↦ₘ div128DLo v1) **
   (sp + signExtend12 3944 ↦ₘ div128Un0 u1)
@@ -371,7 +371,7 @@ theorem loopIterPostN1Max_skip {sp j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word}
   let qHat := div128Quot u1 u0 v0
   let c3 := (mulsubN4 qHat v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2
   loopExitPostN1 sp j r.1 c3 r.2.1 r.2.2.1 r.2.2.2.1 r.2.2.2.2.1 r.2.2.2.2.2 v0 v1 v2 v3 **
-  (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+  (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
   (sp + signExtend12 3960 ↦ₘ v0) **
   (sp + signExtend12 3952 ↦ₘ div128DLo v0) **
   (sp + signExtend12 3944 ↦ₘ div128Un0 u0)
@@ -423,7 +423,7 @@ theorem loopIterPostN2Max_skip {sp j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word}
   let qHat := div128Quot u2 u1 v1
   let c3 := (mulsubN4 qHat v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2
   loopExitPostN2 sp j r.1 c3 r.2.1 r.2.2.1 r.2.2.2.1 r.2.2.2.2.1 r.2.2.2.2.2 v0 v1 v2 v3 **
-  (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+  (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
   (sp + signExtend12 3960 ↦ₘ v1) **
   (sp + signExtend12 3952 ↦ₘ div128DLo v1) **
   (sp + signExtend12 3944 ↦ₘ div128Un0 u1)
@@ -477,7 +477,7 @@ theorem loopIterPostN3Max_skip {sp j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word}
   let qHat := div128Quot u3 u2 v2
   let c3 := (mulsubN4 qHat v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2
   loopExitPostN3 sp j r.1 c3 r.2.1 r.2.2.1 r.2.2.2.1 r.2.2.2.2.1 r.2.2.2.2.2 v0 v1 v2 v3 **
-  (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+  (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
   (sp + signExtend12 3960 ↦ₘ v2) **
   (sp + signExtend12 3952 ↦ₘ div128DLo v2) **
   (sp + signExtend12 3944 ↦ₘ div128Un0 u2)
@@ -548,7 +548,7 @@ def loopN3CallMaxPost (sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig : Word) : Ass
   loopIterPostN3Max sp (0 : Word) v0 v1 v2 v3
     u0Orig r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1 **
   ((u_base_1 + signExtend12 4064) ↦ₘ r1.2.2.2.2.2) ** (q_addr_1 ↦ₘ r1.1) **
-  (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+  (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
   (sp + signExtend12 3960 ↦ₘ v2) **
   (sp + signExtend12 3952 ↦ₘ div128DLo v2) **
   (sp + signExtend12 3944 ↦ₘ div128Un0 u2)
@@ -611,7 +611,7 @@ def loopN2CallMaxPost (sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig : Word) : Ass
   loopIterPostN2Max sp (0 : Word) v0 v1 v2 v3
     u0Orig r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1 **
   ((u_base_1 + signExtend12 4064) ↦ₘ r1.2.2.2.2.2) ** (q_addr_1 ↦ₘ r1.1) **
-  (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+  (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
   (sp + signExtend12 3960 ↦ₘ v1) **
   (sp + signExtend12 3952 ↦ₘ div128DLo v1) **
   (sp + signExtend12 3944 ↦ₘ div128Un0 u1)
@@ -644,7 +644,7 @@ def loopN2UnifiedPost (bltu_2 bltu_1 bltu_0 : Bool)
   let u_base_2 := sp + signExtend12 4056 - (2 : Word) <<< (3 : BitVec 6).toNat
   let q_addr_2 := sp + signExtend12 4088 - (2 : Word) <<< (3 : BitVec 6).toNat
   -- Scratch values: call path overwrites them, max path passes through
-  let scratch_ret := if bltu_2 then (base + 516) else retMem
+  let scratch_ret := if bltu_2 then (base + div128CallRetOff) else retMem
   let scratch_d := if bltu_2 then v1 else dMem
   let scratch_dlo := if bltu_2 then div128DLo v1 else dloMem
   let scratch_un0 := if bltu_2 then div128Un0 u1 else scratch_un0
@@ -678,7 +678,7 @@ def loopN1Iter10Post (bltu_1 bltu_0 : Bool)
     (sp + signExtend12 3944 ↦ₘ scratch_un0)
   | false, true  => empAssertion
   | true,  false =>
-    (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+    (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
     (sp + signExtend12 3960 ↦ₘ v0) **
     (sp + signExtend12 3952 ↦ₘ div128DLo v0) **
     (sp + signExtend12 3944 ↦ₘ div128Un0 u0)
@@ -695,7 +695,7 @@ def loopN1Iter210Post (bltu_2 bltu_1 bltu_0 : Bool)
   let u_base_2 := sp + signExtend12 4056 - (2 : Word) <<< (3 : BitVec 6).toNat
   let q_addr_2 := sp + signExtend12 4088 - (2 : Word) <<< (3 : BitVec 6).toNat
   -- Scratch values: call path overwrites them, max path passes through
-  let scratch_ret := if bltu_2 then (base + 516) else retMem
+  let scratch_ret := if bltu_2 then (base + div128CallRetOff) else retMem
   let scratch_d := if bltu_2 then v0 else dMem
   let scratch_dlo := if bltu_2 then div128DLo v0 else dloMem
   let scratch_un0 := if bltu_2 then div128Un0 u0 else scratch_un0
@@ -719,7 +719,7 @@ def loopN1UnifiedPost (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
   let u_base_3 := sp + signExtend12 4056 - (3 : Word) <<< (3 : BitVec 6).toNat
   let q_addr_3 := sp + signExtend12 4088 - (3 : Word) <<< (3 : BitVec 6).toNat
   -- Scratch values: call path overwrites them, max path passes through
-  let scratch_ret := if bltu_3 then (base + 516) else retMem
+  let scratch_ret := if bltu_3 then (base + div128CallRetOff) else retMem
   let scratch_d := if bltu_3 then v0 else dMem
   let scratch_dlo := if bltu_3 then div128DLo v0 else dloMem
   let scratch_un0 := if bltu_3 then div128Un0 u0 else scratch_un0

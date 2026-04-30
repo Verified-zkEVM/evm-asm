@@ -25,7 +25,7 @@ theorem divK_loop_body_n1_call_addback_j0_beq_spec_within
      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
     (retMem dMem dloMem scratch_un0 : Word)
     (base : Word)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
     (hbltu : BitVec.ult u1 v0)
     (hborrow : isAddbackBorrowN1Call v0 v1 v2 v3 u0 u1 u2 u3 uTop)
     (hcarry2_nz : isAddbackCarry2NzN1Call v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
@@ -101,7 +101,7 @@ theorem divK_loop_body_n1_call_addback_j0_beq_spec_within
       addbackN4_carry ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 v0 v1 v2 v3
     else carry
   have MCA := divK_mulsub_correction_addback_beq_spec_within sp qHat (0 : Word) v0 v1 v2 v3 u0 u1 u2 u3 uTop
-    x1Exit q0' dHi x7Exit q1' (base + 516) base
+    x1Exit q0' dHi x7Exit q1' (base + div128CallRetOff) base
 
   intro_lets at MCA
   unfold isAddbackCarry2NzN1Call isAddbackCarry2Nz div128Quot at hcarry2_nz
@@ -124,7 +124,7 @@ theorem divK_loop_body_n1_call_addback_j0_beq_spec_within
      ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ un3Out) **
      ((uBase + signExtend12 4064) ↦ₘ u4_out) **
      (sp + signExtend12 3984 ↦ₘ (1 : Word)) **
-     (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+     (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
      (sp + signExtend12 3960 ↦ₘ v0) **
      (sp + signExtend12 3952 ↦ₘ dLo) **
      (sp + signExtend12 3944 ↦ₘ div_un0))
@@ -145,7 +145,7 @@ theorem divK_loop_body_n1_call_addback_jgt0_beq_spec_within (j : Word)
      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
     (retMem dMem dloMem scratch_un0 : Word)
     (base : Word)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
     (hbltu : BitVec.ult u1 v0)
     (hborrow : isAddbackBorrowN1Call v0 v1 v2 v3 u0 u1 u2 u3 uTop)
     (hcarry2_nz : isAddbackCarry2NzN1Call v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
@@ -221,7 +221,7 @@ theorem divK_loop_body_n1_call_addback_jgt0_beq_spec_within (j : Word)
       addbackN4_carry ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 v0 v1 v2 v3
     else carry
   have MCA := divK_mulsub_correction_addback_beq_spec_within sp qHat j v0 v1 v2 v3 u0 u1 u2 u3 uTop
-    x1Exit q0' dHi x7Exit q1' (base + 516) base
+    x1Exit q0' dHi x7Exit q1' (base + div128CallRetOff) base
 
   intro_lets at MCA
   unfold isAddbackCarry2NzN1Call isAddbackCarry2Nz div128Quot at hcarry2_nz
@@ -244,7 +244,7 @@ theorem divK_loop_body_n1_call_addback_jgt0_beq_spec_within (j : Word)
      ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ un3Out) **
      ((uBase + signExtend12 4064) ↦ₘ u4_out) **
      (sp + signExtend12 3984 ↦ₘ (1 : Word)) **
-     (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+     (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
      (sp + signExtend12 3960 ↦ₘ v0) **
      (sp + signExtend12 3952 ↦ₘ dLo) **
      (sp + signExtend12 3944 ↦ₘ div_un0))

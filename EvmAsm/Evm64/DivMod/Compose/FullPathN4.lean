@@ -558,7 +558,7 @@ theorem divK_loop_body_n4_call_skip_j0_norm (sp base : Word)
     (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
     (v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
     (retMem dMem dloMem scratch_un0 : Word)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
     (hbltu : BitVec.ult uTop v3) :
     let qHat := div128Quot uTop u3 v3
     let dLo := (v3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
@@ -582,7 +582,7 @@ theorem divK_loop_body_n4_call_skip_j0_norm (sp base : Word)
        (sp + signExtend12 3952 ↦ₘ dloMem) **
        (sp + signExtend12 3944 ↦ₘ scratch_un0))
       (loopBodyN4SkipPost sp (0 : Word) qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop **
-       (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+       (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
        (sp + signExtend12 3960 ↦ₘ v3) **
        (sp + signExtend12 3952 ↦ₘ dLo) **
        (sp + signExtend12 3944 ↦ₘ div_un0)) := by
@@ -617,7 +617,7 @@ def preloopCallSkipPostN4 (sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Assertion :
   let dLo := (b3' <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
   let div_un0 := (u3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
   loopBodyN4SkipPost sp (0 : Word) qHat b0' b1' b2' b3' u0 u1 u2 u3 u4 **
-  (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+  (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
   (sp + signExtend12 3960 ↦ₘ b3') **
   (sp + signExtend12 3952 ↦ₘ dLo) **
   (sp + signExtend12 3944 ↦ₘ div_un0) **
@@ -660,7 +660,7 @@ theorem preloopCallSkipPostN4_unfold {sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word} :
      ((sp + 56) ↦ₘ b3') ** ((sp + signExtend12 4032) ↦ₘ ms.2.2.2.1) **
      ((sp + signExtend12 4024) ↦ₘ u4 - ms.2.2.2.2) **
      ((sp + signExtend12 4088) ↦ₘ qHat)) **
-    (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+    (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
     (sp + signExtend12 3960 ↦ₘ b3') **
     (sp + signExtend12 3952 ↦ₘ dLo) **
     (sp + signExtend12 3944 ↦ₘ div_un0) **
@@ -684,7 +684,7 @@ theorem evm_div_n4_preloop_call_skip_spec (sp base : Word)
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
     (hb3nz : b3 ≠ 0)
     (hshift_nz : (clzResult b3).1 ≠ 0)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
     (hbltu : isCallTrialN4 a3 b2 b3)
     (hborrow : isSkipBorrowN4Call a0 a1 a2 a3 b0 b1 b2 b3) :
     cpsTripleWithin (8 + 21 + 24 + 4 + 21 + 21 + 4 + 126) base (base + denormOff) (divCode base)
@@ -791,7 +791,7 @@ def fullDivN4CallSkipPost (sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Assertion :
   (sp + signExtend12 3984 ↦ₘ (4 : Word)) **
   (sp + signExtend12 3976 ↦ₘ (0 : Word)) **
   (.x1 ↦ᵣ signExtend12 4095) ** (.x11 ↦ᵣ qHat) **
-  (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+  (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
   (sp + signExtend12 3960 ↦ₘ b3') **
   (sp + signExtend12 3952 ↦ₘ dLo) **
   (sp + signExtend12 3944 ↦ₘ div_un0)
@@ -829,7 +829,7 @@ theorem fullDivN4CallSkipPost_unfold {sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word} :
      (sp + signExtend12 3984 ↦ₘ (4 : Word)) **
      (sp + signExtend12 3976 ↦ₘ (0 : Word)) **
      (.x1 ↦ᵣ signExtend12 4095) ** (.x11 ↦ᵣ qHat) **
-     (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+     (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
      (sp + signExtend12 3960 ↦ₘ b3') **
      (sp + signExtend12 3952 ↦ₘ dLo) **
      (sp + signExtend12 3944 ↦ₘ div_un0)) := by
@@ -843,7 +843,7 @@ theorem evm_div_n4_full_call_skip_spec (sp base : Word)
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
     (hb3nz : b3 ≠ 0)
     (hshift_nz : (clzResult b3).1 ≠ 0)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
     (hbltu : isCallTrialN4 a3 b2 b3)
     (hborrow : isSkipBorrowN4Call a0 a1 a2 a3 b0 b1 b2 b3) :
     cpsTripleWithin (8 + 21 + 24 + 4 + 21 + 21 + 4 + 126 + 2 + 23 + 10) base (base + nopOff) (divCode base)
@@ -908,7 +908,7 @@ theorem evm_div_n4_full_call_skip_spec (sp base : Word)
      (sp + signExtend12 3984 ↦ₘ (4 : Word)) **
      (sp + signExtend12 3976 ↦ₘ (0 : Word)) **
      (.x1 ↦ᵣ signExtend12 4095) ** (.x11 ↦ᵣ qHat) **
-     (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+     (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
      (sp + signExtend12 3960 ↦ₘ b3') **
      (sp + signExtend12 3952 ↦ₘ dLo) **
      (sp + signExtend12 3944 ↦ₘ div_un0))
@@ -963,7 +963,7 @@ def fullModN4CallSkipPost (sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Assertion :
   (sp + signExtend12 3984 ↦ₘ (4 : Word)) **
   (sp + signExtend12 3976 ↦ₘ (0 : Word)) **
   (.x1 ↦ᵣ signExtend12 4095) ** (.x11 ↦ᵣ qHat) **
-  (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+  (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
   (sp + signExtend12 3960 ↦ₘ b3') **
   (sp + signExtend12 3952 ↦ₘ dLo) **
   (sp + signExtend12 3944 ↦ₘ div_un0)
@@ -1005,7 +1005,7 @@ theorem fullModN4CallSkipPost_unfold {sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word} :
      (sp + signExtend12 3984 ↦ₘ (4 : Word)) **
      (sp + signExtend12 3976 ↦ₘ (0 : Word)) **
      (.x1 ↦ᵣ signExtend12 4095) ** (.x11 ↦ᵣ qHat) **
-     (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+     (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
      (sp + signExtend12 3960 ↦ₘ b3') **
      (sp + signExtend12 3952 ↦ₘ dLo) **
      (sp + signExtend12 3944 ↦ₘ div_un0)) := by

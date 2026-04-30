@@ -42,7 +42,7 @@ theorem divK_loop_n1_iter10_unified_spec_within (bltu_1 bltu_0 : Bool)
     (retMem dMem dloMem scratch_un0 : Word)
     (base : Word)
     -- Validity hypotheses
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
     -- Unified branch conditions (using iterN1 for j=0)
     (hbltu_1 : bltu_1 = BitVec.ult u1 v0)
     (hbltu_0 : bltu_0 = BitVec.ult (iterN1 bltu_1 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.1 v0)
@@ -238,7 +238,7 @@ theorem divK_loop_n1_iter10_unified_spec_within (bltu_1 bltu_0 : Bool)
     have J0f := cpsTripleWithin_frameR
       (((u_base_1 + signExtend12 4064) ↦ₘ (iterN1Call v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.2) **
        (q_addr_1 ↦ₘ (iterN1Call v0 v1 v2 v3 u0 u1 u2 u3 uTop).1) **
-       (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+       (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
        (sp + signExtend12 3960 ↦ₘ v0) **
        (sp + signExtend12 3952 ↦ₘ div128DLo v0) **
        (sp + signExtend12 3944 ↦ₘ div128Un0 u0))
@@ -294,7 +294,7 @@ theorem divK_loop_n1_iter10_unified_spec_within (bltu_1 bltu_0 : Bool)
       (iterN1Call v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.1
       (iterN1Call v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.1
       q0Old
-      (base + 516) v0 (div128DLo v0) (div128Un0 u0) base
+      (base + div128CallRetOff) v0 (div128DLo v0) (div128Un0 u0) base
       halign
 
       hbltu_0'
@@ -341,7 +341,7 @@ theorem divK_loop_n1_max_iter10_spec_within (bltu_1 bltu_0 : Bool)
      q2Old q1Old q0Old : Word)
     (retMem dMem dloMem scratch_un0 : Word)
     (base : Word)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
     (hbltu_2 : ¬BitVec.ult u1 v0)
     (hbltu_1 : bltu_1 = BitVec.ult (iterN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.1 v0)
     (hbltu_0 : bltu_0 = BitVec.ult (iterN1 bltu_1 v0 v1 v2 v3 u0_orig_1
@@ -423,7 +423,7 @@ theorem divK_loop_n1_call_iter10_spec_within (bltu_1 bltu_0 : Bool)
      q2Old q1Old q0Old : Word)
     (retMem dMem dloMem scratch_un0 : Word)
     (base : Word)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
     (hbltu_2 : BitVec.ult u1 v0)
     (hbltu_1 : bltu_1 = BitVec.ult (iterN1Call v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.1 v0)
     (hbltu_0 : bltu_0 = BitVec.ult (iterN1 bltu_1 v0 v1 v2 v3 u0_orig_1
@@ -466,7 +466,7 @@ theorem divK_loop_n1_call_iter10_spec_within (bltu_1 bltu_0 : Bool)
     v0 v1 v2 v3
     u0_orig_1 r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1
     u0_orig_0 q1Old q0Old
-    (base + 516) v0 (div128DLo v0) (div128Un0 u0) base halign
+    (base + div128CallRetOff) v0 (div128DLo v0) (div128Un0 u0) base halign
 
 
     hbltu_1 hbltu_0 hcarry2
@@ -508,7 +508,7 @@ theorem divK_loop_n1_iter210_unified_spec_within (bltu_2 bltu_1 bltu_0 : Bool)
      q2Old q1Old q0Old : Word)
     (retMem dMem dloMem scratch_un0 : Word)
     (base : Word)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
     (hbltu_2 : bltu_2 = BitVec.ult u1 v0)
     (hbltu_1 : bltu_1 = BitVec.ult (iterN1 bltu_2 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.1 v0)
     (hbltu_0 : bltu_0 = BitVec.ult (iterN1 bltu_1 v0 v1 v2 v3 u0_orig_1
@@ -560,7 +560,7 @@ theorem divK_loop_n1_max_iter210_spec_within (bltu_2 bltu_1 bltu_0 : Bool)
      q3Old q2Old q1Old q0Old : Word)
     (retMem dMem dloMem scratch_un0 : Word)
     (base : Word)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
     (hbltu_3 : ¬BitVec.ult u1 v0)
     (hbltu_2 : bltu_2 = BitVec.ult (iterN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.1 v0)
     (hbltu_1 : bltu_1 = BitVec.ult (iterN1 bltu_2 v0 v1 v2 v3 u0_orig_2
@@ -670,7 +670,7 @@ theorem divK_loop_n1_call_iter210_spec_within (bltu_2 bltu_1 bltu_0 : Bool)
      q3Old q2Old q1Old q0Old : Word)
     (retMem dMem dloMem scratch_un0 : Word)
     (base : Word)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
     (hbltu_3 : BitVec.ult u1 v0)
     (hbltu_2 : bltu_2 = BitVec.ult (iterN1Call v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.1 v0)
     (hbltu_1 : bltu_1 = BitVec.ult (iterN1 bltu_2 v0 v1 v2 v3 u0_orig_2
@@ -737,7 +737,7 @@ theorem divK_loop_n1_call_iter210_spec_within (bltu_2 bltu_1 bltu_0 : Bool)
     u0_orig_2 r3.2.1 r3.2.2.1 r3.2.2.2.1 r3.2.2.2.2.1
     u0_orig_1 u0_orig_0
     q2Old q1Old q0Old
-    (base + 516) v0 (div128DLo v0) (div128Un0 u0) base halign
+    (base + div128CallRetOff) v0 (div128DLo v0) (div128Un0 u0) base halign
     hbltu_2 hbltu_1 hbltu_0 hcarry2
   -- Frame iter210 with j=3 carried atoms
   have H210f := cpsTripleWithin_frameR
@@ -782,7 +782,7 @@ theorem divK_loop_n1_unified_spec_within (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
      q3Old q2Old q1Old q0Old : Word)
     (retMem dMem dloMem scratch_un0 : Word)
     (base : Word)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
     (hbltu_3 : bltu_3 = BitVec.ult u1 v0)
     (hbltu_2 : bltu_2 = BitVec.ult (iterN1 bltu_3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.1 v0)
     (hbltu_1 : bltu_1 = BitVec.ult (iterN1 bltu_2 v0 v1 v2 v3 u0_orig_2

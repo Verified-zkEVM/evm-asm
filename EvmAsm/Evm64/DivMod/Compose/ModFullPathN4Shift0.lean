@@ -37,7 +37,7 @@ theorem evm_mod_n4_preloop_shift0_call_skip_spec (sp base : Word)
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
     (hb3nz : b3 ≠ 0)
     (hshift_z : (clzResult b3).1 = 0)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
     (hborrow : isSkipBorrowN4Shift0 a0 a1 a2 a3 b0 b1 b2 b3) :
     cpsTripleWithin (8 + 21 + 24 + 4 + 9 + 4 + 126) base (base + denormOff) (modCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
@@ -137,7 +137,7 @@ def fullModN4Shift0CallSkipPost (sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Asser
   (sp + signExtend12 3984 ↦ₘ (4 : Word)) **
   (sp + signExtend12 3976 ↦ₘ (0 : Word)) **
   (.x1 ↦ᵣ signExtend12 4095) ** (.x11 ↦ᵣ qHat) **
-  (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+  (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
   (sp + signExtend12 3960 ↦ₘ b3) **
   (sp + signExtend12 3952 ↦ₘ (b3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat) **
   (sp + signExtend12 3944 ↦ₘ (a3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat)
@@ -169,7 +169,7 @@ theorem evm_mod_n4_full_shift0_call_skip_spec (sp base : Word)
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
     (hb3nz : b3 ≠ 0)
     (hshift_z : (clzResult b3).1 = 0)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
     (hborrow : isSkipBorrowN4Shift0 a0 a1 a2 a3 b0 b1 b2 b3) :
     cpsTripleWithin (8 + 21 + 24 + 4 + 9 + 4 + 126 + 12) base (base + nopOff) (modCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
@@ -218,7 +218,7 @@ theorem evm_mod_n4_full_shift0_call_skip_spec (sp base : Word)
      (sp + signExtend12 3984 ↦ₘ (4 : Word)) **
      (sp + signExtend12 3976 ↦ₘ (0 : Word)) **
      (.x1 ↦ᵣ signExtend12 4095) ** (.x11 ↦ᵣ qHat) **
-     (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+     (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
      (sp + signExtend12 3960 ↦ₘ b3) **
      (sp + signExtend12 3952 ↦ₘ (b3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat) **
      (sp + signExtend12 3944 ↦ₘ (a3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat))
@@ -248,7 +248,7 @@ theorem evm_mod_n4_preloop_shift0_call_addback_beq_spec (sp base : Word)
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
     (hb3nz : b3 ≠ 0)
     (hshift_z : (clzResult b3).1 = 0)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
     (hcarry2_nz : isAddbackCarry2NzN4Shift0 a0 a1 a2 a3 b0 b1 b2 b3)
     (hborrow : isAddbackBorrowN4Shift0 a0 a1 a2 a3 b0 b1 b2 b3) :
     cpsTripleWithin (8 + 21 + 24 + 4 + 9 + 4 + 202) base (base + denormOff) (modCode base)
@@ -366,7 +366,7 @@ def fullModN4Shift0CallAddbackBeqPost
   (sp + signExtend12 3984 ↦ₘ (4 : Word)) **
   (sp + signExtend12 3976 ↦ₘ (0 : Word)) **
   (.x1 ↦ᵣ signExtend12 4095) ** (.x11 ↦ᵣ q_out) **
-  (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+  (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
   (sp + signExtend12 3960 ↦ₘ b3) **
   (sp + signExtend12 3952 ↦ₘ (b3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat) **
   (sp + signExtend12 3944 ↦ₘ (a3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat)
@@ -398,7 +398,7 @@ theorem evm_mod_n4_full_shift0_call_addback_beq_spec (sp base : Word)
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
     (hb3nz : b3 ≠ 0)
     (hshift_z : (clzResult b3).1 = 0)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
     (hcarry2_nz : isAddbackCarry2NzN4Shift0 a0 a1 a2 a3 b0 b1 b2 b3)
     (hborrow : isAddbackBorrowN4Shift0 a0 a1 a2 a3 b0 b1 b2 b3) :
     cpsTripleWithin (8 + 21 + 24 + 4 + 9 + 4 + 202 + 12) base (base + nopOff) (modCode base)
@@ -459,7 +459,7 @@ theorem evm_mod_n4_full_shift0_call_addback_beq_spec (sp base : Word)
      (sp + signExtend12 3984 ↦ₘ (4 : Word)) **
      (sp + signExtend12 3976 ↦ₘ (0 : Word)) **
      (.x1 ↦ᵣ signExtend12 4095) ** (.x11 ↦ᵣ q_out) **
-     (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+     (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
      (sp + signExtend12 3960 ↦ₘ b3) **
      (sp + signExtend12 3952 ↦ₘ (b3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat) **
      (sp + signExtend12 3944 ↦ₘ (a3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat))

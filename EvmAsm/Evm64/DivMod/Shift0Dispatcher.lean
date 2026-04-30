@@ -50,7 +50,7 @@ theorem evm_div_n4_shift0_stack_spec (sp base : Word)
     (hbnz : b ≠ 0)
     (hb3nz : b.getLimbN 3 ≠ 0)
     (hshift_z : (clzResult (b.getLimbN 3)).1 = 0)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516) :
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff) :
     cpsTripleWithin (8 + 21 + 24 + 4 + 9 + 4 + 202 + 12)
       base (base + nopOff) (divCode base)
       (divN4StackPreCall sp a b v5 v6 v7 v10 v11
@@ -85,7 +85,7 @@ theorem evm_mod_n4_shift0_stack_spec (sp base : Word)
     (hbnz : b ≠ 0)
     (hb3nz : b.getLimbN 3 ≠ 0)
     (hshift_z : (clzResult (b.getLimbN 3)).1 = 0)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516) :
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff) :
     cpsTripleWithin (8 + 21 + 24 + 4 + 9 + 4 + 202 + 12)
       base (base + nopOff) (modCode base)
       (modN4StackPreCall sp a b v5 v6 v7 v10 v11

@@ -36,7 +36,7 @@ open EvmAsm.Rv64
 
 private theorem lb_jal_target {base : Word} : (base + 512 : Word) + signExtend21 (560 : BitVec 21) = base + div128Off := by
   rv64_addr
-private theorem lb_jal_ret {base : Word} : (base + 512 : Word) + 4 = base + 516 := by bv_addr
+private theorem lb_jal_ret {base : Word} : (base + 512 : Word) + 4 = base + div128CallRetOff := by bv_addr
 
 /-- Trial call path: JAL x2 560 (instr [16]) + div128 subroutine.
     Entry: base+512, Exit: base+516, CodeReq: sharedDivModCode base.
@@ -45,8 +45,8 @@ theorem divK_trial_call_path_spec_within
     (sp j uLo uHi vTop vtopBase : Word) (base : Word)
     (v2Old v11Old : Word)
     (retMem dMem dloMem un0Mem : Word)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516) :
-    cpsTripleWithin 52 (base + 512) (base + 516) (sharedDivModCode base)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff) :
+    cpsTripleWithin 52 (base + 512) (base + div128CallRetOff) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
        (.x5 ↦ᵣ uLo) ** (.x6 ↦ᵣ vtopBase) **
        (.x7 ↦ᵣ uHi) ** (.x10 ↦ᵣ vTop) **
@@ -55,7 +55,7 @@ theorem divK_trial_call_path_spec_within
        (sp + signExtend12 3960 ↦ₘ dMem) **
        (sp + signExtend12 3952 ↦ₘ dloMem) **
        (sp + signExtend12 3944 ↦ₘ un0Mem))
-      (div128SpecPost sp (base + 516) vTop uLo uHi) := by
+      (div128SpecPost sp (base + div128CallRetOff) vTop uLo uHi) := by
   -- Reuse the bundled `div128SpecPost` from `Compose/Div128.lean`. The
   -- post atoms here are identical to div128's (with retAddr ↦ base+516,
   -- d ↦ vTop) — just a permutation that the final `xperm_hyp` handles.
@@ -96,7 +96,7 @@ theorem divK_trial_call_path_spec_within
   have Je := cpsTripleWithin_extend_code (hmono :=
     lb_sub 16 _ _ (by decide) (by bv_addr) (by decide)) J
   -- 2. div128 subroutine: base+1072 → base+516
-  have D := div128_spec_within sp (base + 516) vTop uLo uHi base
+  have D := div128_spec_within sp (base + div128CallRetOff) vTop uLo uHi base
     j vtopBase v11Old retMem dMem dloMem un0Mem
     halign
   unfold div128SpecPost at D
@@ -124,8 +124,8 @@ theorem divK_trial_call_path_v2_spec_within
     (sp j uLo uHi vTop vtopBase : Word) (base : Word)
     (v2Old v11Old : Word)
     (retMem dMem dloMem un0Mem : Word)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516) :
-    cpsTripleWithin 62 (base + 512) (base + 516) (sharedDivModCode_v2 base)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff) :
+    cpsTripleWithin 62 (base + 512) (base + div128CallRetOff) (sharedDivModCode_v2 base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
        (.x5 ↦ᵣ uLo) ** (.x6 ↦ᵣ vtopBase) **
        (.x7 ↦ᵣ uHi) ** (.x10 ↦ᵣ vTop) **
@@ -134,7 +134,7 @@ theorem divK_trial_call_path_v2_spec_within
        (sp + signExtend12 3960 ↦ₘ dMem) **
        (sp + signExtend12 3952 ↦ₘ dloMem) **
        (sp + signExtend12 3944 ↦ₘ un0Mem))
-      (div128V2SpecPost sp (base + 516) vTop uLo uHi) := by
+      (div128V2SpecPost sp (base + div128CallRetOff) vTop uLo uHi) := by
   unfold div128V2SpecPost
   -- 1. JAL x2 560 at base+512.
   have J := jal_spec_within .x2 v2Old (560 : BitVec 21) (base + 512) (by nofun)
@@ -142,7 +142,7 @@ theorem divK_trial_call_path_v2_spec_within
   have Je := cpsTripleWithin_extend_code (hmono :=
     lb_sub_v2 16 _ _ (by decide) (by bv_addr) (by decide)) J
   -- 2. div128_v2 subroutine: base+1072 → base+516.
-  have D := div128_v2_spec_shared_within sp (base + 516) vTop uLo uHi base
+  have D := div128_v2_spec_shared_within sp (base + div128CallRetOff) vTop uLo uHi base
     j vtopBase v11Old retMem dMem dloMem un0Mem
     halign
   unfold div128V2SpecPost at D

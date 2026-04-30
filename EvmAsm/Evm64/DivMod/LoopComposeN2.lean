@@ -230,7 +230,7 @@ theorem divK_loop_body_n2_call_unified_j2_spec_within
      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
     (retMem dMem dloMem scratch_un0 : Word)
     (base : Word)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
     (hbltu : BitVec.ult u2 v1)
     (hcarry2_nz : isAddbackCarry2NzN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
     let uBase := sp + signExtend12 4056 - (2 : Word) <<< (3 : BitVec 6).toNat
@@ -291,7 +291,7 @@ theorem divK_loop_body_n2_call_unified_j1_spec_within
      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
     (retMem dMem dloMem scratch_un0 : Word)
     (base : Word)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
     (hbltu : BitVec.ult u2 v1)
     (hcarry2_nz : isAddbackCarry2NzN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
     let uBase := sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat
@@ -353,7 +353,7 @@ theorem divK_loop_body_n2_call_unified_j0_spec_within
      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
     (retMem dMem dloMem scratch_un0 : Word)
     (base : Word)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
     (hbltu : BitVec.ult u2 v1)
     (hcarry2_nz : isAddbackCarry2NzN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
     let uBase := sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat
@@ -488,7 +488,7 @@ theorem divK_loop_n2_call_call_spec_within
      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old : Word)
     (retMem dMem dloMem scratch_un0 : Word)
     (base : Word)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
     (hbltu_1 : BitVec.ult u2 v1)
     (hbltu_0 : BitVec.ult (iterN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1 v1)
     (hcarry2 : Carry2NzAll v0 v1 v2 v3) :
@@ -524,7 +524,7 @@ theorem divK_loop_n2_call_call_spec_within
     (iterN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.1
     (iterN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.1
     q0Old
-    (base + 516) v1 (div128DLo v1) (div128Un0 u1)
+    (base + div128CallRetOff) v1 (div128DLo v1) (div128Un0 u1)
     base halign
 
     hbltu_0
@@ -571,7 +571,7 @@ theorem divK_loop_n2_max_call_spec_within
      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old : Word)
     (retMem dMem dloMem scratch_un0 : Word)
     (base : Word)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
     -- Branch conditions: j=1 max (BLTU not taken), j=0 call (BLTU taken)
     (hbltu_1 : ¬BitVec.ult u2 v1)
     (hbltu_0 : BitVec.ult (iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1 v1)
@@ -659,7 +659,7 @@ theorem divK_loop_n2_call_max_spec_within
      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old : Word)
     (retMem dMem dloMem scratch_un0 : Word)
     (base : Word)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
     -- Branch conditions: j=1 call (BLTU taken), j=0 max (BLTU not taken)
     (hbltu_1 : BitVec.ult u2 v1)
     (hbltu_0 : ¬BitVec.ult (iterN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1 v1)
@@ -710,7 +710,7 @@ theorem divK_loop_n2_call_max_spec_within
   have J0f := cpsTripleWithin_frameR
     (((u_base_1 + signExtend12 4064) ↦ₘ (iterN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.2) **
      (q_addr_1 ↦ₘ (iterN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop).1) **
-     (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+     (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
      (sp + signExtend12 3960 ↦ₘ v1) **
      (sp + signExtend12 3952 ↦ₘ div128DLo v1) **
      (sp + signExtend12 3944 ↦ₘ div128Un0 u1))
@@ -753,7 +753,7 @@ theorem divK_loop_body_n2_iter_spec_within (j : Fin 3) (bltu : Bool)
      v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old : Word)
     (ret_mem d_mem dlo_mem scratch_un0 : Word)
     (base : Word)
-    (halign : if bltu then ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516
+    (halign : if bltu then ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff
               else True)
     (hbltu : if bltu then BitVec.ult u2 v1 else ¬BitVec.ult u2 v1)
     (hcarry : if bltu then isAddbackCarry2NzN2Call v0 v1 v2 v3 u0 u1 u2 u3 u_top

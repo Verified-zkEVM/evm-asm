@@ -393,7 +393,7 @@ theorem divK_addback_full_spec_within
     (fun h hq => by xperm_hyp hq)
     IfA0eA1eA2eA3eAFe
 
-private theorem lb_ms_setup {base : Word} : (base + 516 : Word) + 20 = base + 536 := by bv_addr
+private theorem lb_ms_setup {base : Word} : (base + div128CallRetOff : Word) + 20 = base + 536 := by bv_addr
 
 -- Address normalization for sub_carry
 private theorem lb_sc {base : Word} : (base + 712 : Word) + 16 = base + 728 := by bv_addr
@@ -443,7 +443,7 @@ theorem divK_mulsub_full_spec_within
     -- Sub-carry intermediates
     let borrow := if BitVec.ult uTop c3 then (1 : Word) else 0
     let u4_new := uTop - c3
-    cpsTripleWithin 53 (base + 516) (base + 728) (sharedDivModCode base)
+    cpsTripleWithin 53 (base + div128CallRetOff) (base + 728) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
        (.x1 ↦ᵣ v1Old) ** (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
        (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x2 ↦ᵣ v2Old) **
@@ -471,7 +471,7 @@ theorem divK_mulsub_full_spec_within
         p3_lo p3_hi fs3 ba3 pc3 bs3 un3 c3
         borrow u4_new
   -- 1. Mulsub setup: instrs [17]-[21] at base+516
-  have S := divK_mulsub_setup_spec_within sp qHat j v1Old v5Old v6Old v10Old (base + 516)
+  have S := divK_mulsub_setup_spec_within sp qHat j v1Old v5Old v6Old v10Old (base + div128CallRetOff)
   rw [lb_ms_setup] at S
   have Se := cpsTripleWithin_extend_code (hmono := by
     exact CodeReq.union_sub (lb_sub 17 _ _ (by decide) (by bv_addr) (by decide))
@@ -686,7 +686,7 @@ theorem divK_mulsub_full_v2_spec_within
     let un3 := u3 - fs3; let c3 := pc3 + bs3
     let borrow := if BitVec.ult uTop c3 then (1 : Word) else 0
     let u4_new := uTop - c3
-    cpsTripleWithin 53 (base + 516) (base + 728) (sharedDivModCode_v2 base)
+    cpsTripleWithin 53 (base + div128CallRetOff) (base + 728) (sharedDivModCode_v2 base)
       ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
        (.x1 ↦ᵣ v1Old) ** (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
        (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x2 ↦ᵣ v2Old) **
@@ -714,7 +714,7 @@ theorem divK_mulsub_full_v2_spec_within
         p3_lo p3_hi fs3 ba3 pc3 bs3 un3 c3
         borrow u4_new
   -- 1. Mulsub setup: instrs [17]-[21] at base+516
-  have S := divK_mulsub_setup_spec_within sp qHat j v1Old v5Old v6Old v10Old (base + 516)
+  have S := divK_mulsub_setup_spec_within sp qHat j v1Old v5Old v6Old v10Old (base + div128CallRetOff)
   rw [lb_ms_setup] at S
   have Se := cpsTripleWithin_extend_code (hmono := by
     exact CodeReq.union_sub (lb_sub_v2 17 _ _ (by decide) (by bv_addr) (by decide))

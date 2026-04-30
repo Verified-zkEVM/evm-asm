@@ -126,7 +126,7 @@ private theorem evm_div_n1_loop_unified_inst
     (shift antiShift v0' v1' v2' v3' u0S u1S u2S u3S u4_s : Word)
     (v10_val v11Old jMem : Word)
     (retMem dMem dloMem scratch_un0 : Word)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
     (hbltu_3 : bltu_3 = BitVec.ult u4_s v0')
     (hbltu_2 : bltu_2 = BitVec.ult
       (iterN1 bltu_3 v0' v1' v2' v3' u3S u4_s (0 : Word) (0 : Word) (0 : Word)).2.1 v0')
@@ -194,7 +194,7 @@ theorem evm_div_n1_preloop_loop_unified_spec
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
     (hb3z : b3 = 0) (hb2z : b2 = 0) (hb1z : b1 = 0)
     (hshift_nz : (clzResult b0).1 ≠ 0)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
     (hbltu_3 : isTrialN1_j3 bltu_3 a3 b0)
     (hbltu_2 : isTrialN1_j2 bltu_3 bltu_2 a2 a3 b0 b1 b2 b3)
     (hbltu_1 : isTrialN1_j1 bltu_3 bltu_2 bltu_1 a1 a2 a3 b0 b1 b2 b3)
@@ -372,19 +372,19 @@ def fullDivN1Scratch (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
     Assertion :=
   let v := fullDivN1NormV b0 b1 b2 b3
   let u := fullDivN1NormU a0 a1 a2 a3 b0
-  let scratch_ret3 := if bltu_3 then (base + 516) else retMem
+  let scratch_ret3 := if bltu_3 then (base + div128CallRetOff) else retMem
   let scratch_d3 := if bltu_3 then v.1 else dMem
   let scratch_dlo3 := if bltu_3 then div128DLo v.1 else dloMem
   let scratch_un03 := if bltu_3 then div128Un0 u.2.2.2.1 else scratch_un0
-  let scratch_ret2 := if bltu_2 then (base + 516) else scratch_ret3
+  let scratch_ret2 := if bltu_2 then (base + div128CallRetOff) else scratch_ret3
   let scratch_d2 := if bltu_2 then v.1 else scratch_d3
   let scratch_dlo2 := if bltu_2 then div128DLo v.1 else scratch_dlo3
   let scratch_un02 := if bltu_2 then div128Un0 u.2.2.1 else scratch_un03
-  let scratch_ret1 := if bltu_1 then (base + 516) else scratch_ret2
+  let scratch_ret1 := if bltu_1 then (base + div128CallRetOff) else scratch_ret2
   let scratch_d1 := if bltu_1 then v.1 else scratch_d2
   let scratch_dlo1 := if bltu_1 then div128DLo v.1 else scratch_dlo2
   let scratch_un01 := if bltu_1 then div128Un0 u.2.1 else scratch_un02
-  (sp + signExtend12 3968 ↦ₘ (if bltu_0 then (base + 516) else scratch_ret1)) **
+  (sp + signExtend12 3968 ↦ₘ (if bltu_0 then (base + div128CallRetOff) else scratch_ret1)) **
   (sp + signExtend12 3960 ↦ₘ (if bltu_0 then v.1 else scratch_d1)) **
   (sp + signExtend12 3952 ↦ₘ (if bltu_0 then div128DLo v.1 else scratch_dlo1)) **
   (sp + signExtend12 3944 ↦ₘ (if bltu_0 then div128Un0 u.1 else scratch_un01))
@@ -607,7 +607,7 @@ theorem evm_div_n1_full_unified_spec
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
     (hb3z : b3 = 0) (hb2z : b2 = 0) (hb1z : b1 = 0)
     (hshift_nz : (clzResult b0).1 ≠ 0)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
     (hbltu_3 : isTrialN1_j3 bltu_3 a3 b0)
     (hbltu_2 : isTrialN1_j2 bltu_3 bltu_2 a2 a3 b0 b1 b2 b3)
     (hbltu_1 : isTrialN1_j1 bltu_3 bltu_2 bltu_1 a1 a2 a3 b0 b1 b2 b3)

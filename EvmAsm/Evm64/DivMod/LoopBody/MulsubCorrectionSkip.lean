@@ -56,7 +56,7 @@ theorem divK_mulsub_correction_skip_spec_within
     let u4_new := uTop - c3
     -- Hypothesis: mulsub borrow = 0
     (if BitVec.ult uTop c3 then (1 : Word) else 0) = (0 : Word) →
-    cpsTripleWithin 54 (base + 516) (base + storeLoopOff) (sharedDivModCode base)
+    cpsTripleWithin 54 (base + div128CallRetOff) (base + storeLoopOff) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
        (.x1 ↦ᵣ v1Old) ** (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
        (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x2 ↦ᵣ v2Old) **
@@ -152,7 +152,7 @@ theorem divK_mulsub_correction_skip_v2_spec_within
     let un3 := u3 - fs3; let c3 := pc3 + bs3
     let u4_new := uTop - c3
     (if BitVec.ult uTop c3 then (1 : Word) else 0) = (0 : Word) →
-    cpsTripleWithin 54 (base + 516) (base + storeLoopOff) (sharedDivModCode_v2 base)
+    cpsTripleWithin 54 (base + div128CallRetOff) (base + storeLoopOff) (sharedDivModCode_v2 base)
       ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
        (.x1 ↦ᵣ v1Old) ** (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
        (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x2 ↦ᵣ v2Old) **

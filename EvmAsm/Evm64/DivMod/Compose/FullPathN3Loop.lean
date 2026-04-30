@@ -70,7 +70,7 @@ theorem divK_loop_n3_unified_divCode (bltu_1 bltu_0 : Bool)
      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old : Word)
     (retMem dMem dloMem scratch_un0 : Word)
     (base : Word)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
     (hbltu_1 : bltu_1 = BitVec.ult u3 v2)
     (hbltu_0 : bltu_0 = BitVec.ult (iterN3 bltu_1 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.1 v2)
     (hcarry2 : Carry2NzAll v0 v1 v2 v3) :

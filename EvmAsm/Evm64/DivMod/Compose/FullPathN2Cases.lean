@@ -56,7 +56,7 @@ def fullDivN2_FFT_Post (sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Assertion :=
   (sp + signExtend12 3984 ↦ₘ (2 : Word)) **
   (sp + signExtend12 3976 ↦ₘ (0 : Word)) **
   (.x1 ↦ᵣ signExtend12 4095) ** (.x11 ↦ᵣ r0.1) **
-  (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+  (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
   (sp + signExtend12 3960 ↦ₘ v1') **
   (sp + signExtend12 3952 ↦ₘ div128DLo v1') **
   (sp + signExtend12 3944 ↦ₘ div128Un0 r1.2.1)
@@ -68,7 +68,7 @@ theorem evm_div_n2_full_FFT_spec (sp base : Word)
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
     (hb3z : b3 = 0) (hb2z : b2 = 0) (hb1nz : b1 ≠ 0)
     (hshift_nz : (clzResult b1).1 ≠ 0)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
     (hbltu_2 : isTrialN2_j2 false a3 b0 b1)
     (hbltu_1 : isTrialN2_j1 false false a1 a2 a3 b0 b1 b2 b3)
     (hbltu_0 : isTrialN2_j0 false false true a0 a1 a2 a3 b0 b1 b2 b3)
@@ -137,7 +137,7 @@ theorem evm_div_n2_full_FFT_spec (sp base : Word)
      (sp + signExtend12 3984 ↦ₘ (2 : Word)) **
      (sp + signExtend12 3976 ↦ₘ (0 : Word)) **
      (.x1 ↦ᵣ signExtend12 4095) ** (.x11 ↦ᵣ r0.1) **
-     (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+     (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
      (sp + signExtend12 3960 ↦ₘ v1') **
      (sp + signExtend12 3952 ↦ₘ div128DLo v1') **
      (sp + signExtend12 3944 ↦ₘ div128Un0 r1.2.1))
@@ -189,7 +189,7 @@ def fullDivN2_FTF_Post (sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Assertion :=
   (sp + signExtend12 3984 ↦ₘ (2 : Word)) **
   (sp + signExtend12 3976 ↦ₘ (0 : Word)) **
   (.x1 ↦ᵣ signExtend12 4095) ** (.x11 ↦ᵣ r0.1) **
-  (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+  (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
   (sp + signExtend12 3960 ↦ₘ v1') **
   (sp + signExtend12 3952 ↦ₘ div128DLo v1') **
   (sp + signExtend12 3944 ↦ₘ div128Un0 r2.2.1)
@@ -201,7 +201,7 @@ theorem evm_div_n2_full_FTF_spec (sp base : Word)
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
     (hb3z : b3 = 0) (hb2z : b2 = 0) (hb1nz : b1 ≠ 0)
     (hshift_nz : (clzResult b1).1 ≠ 0)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
     (hbltu_2 : isTrialN2_j2 false a3 b0 b1)
     (hbltu_1 : isTrialN2_j1 false true a1 a2 a3 b0 b1 b2 b3)
     (hbltu_0 : isTrialN2_j0 false true false a0 a1 a2 a3 b0 b1 b2 b3)
@@ -270,7 +270,7 @@ theorem evm_div_n2_full_FTF_spec (sp base : Word)
      (sp + signExtend12 3984 ↦ₘ (2 : Word)) **
      (sp + signExtend12 3976 ↦ₘ (0 : Word)) **
      (.x1 ↦ᵣ signExtend12 4095) ** (.x11 ↦ᵣ r0.1) **
-     (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+     (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
      (sp + signExtend12 3960 ↦ₘ v1') **
      (sp + signExtend12 3952 ↦ₘ div128DLo v1') **
      (sp + signExtend12 3944 ↦ₘ div128Un0 r2.2.1))
@@ -322,7 +322,7 @@ def fullDivN2_FTT_Post (sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Assertion :=
   (sp + signExtend12 3984 ↦ₘ (2 : Word)) **
   (sp + signExtend12 3976 ↦ₘ (0 : Word)) **
   (.x1 ↦ᵣ signExtend12 4095) ** (.x11 ↦ᵣ r0.1) **
-  (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+  (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
   (sp + signExtend12 3960 ↦ₘ v1') **
   (sp + signExtend12 3952 ↦ₘ div128DLo v1') **
   (sp + signExtend12 3944 ↦ₘ div128Un0 r1.2.1)
@@ -334,7 +334,7 @@ theorem evm_div_n2_full_FTT_spec (sp base : Word)
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
     (hb3z : b3 = 0) (hb2z : b2 = 0) (hb1nz : b1 ≠ 0)
     (hshift_nz : (clzResult b1).1 ≠ 0)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
     (hbltu_2 : isTrialN2_j2 false a3 b0 b1)
     (hbltu_1 : isTrialN2_j1 false true a1 a2 a3 b0 b1 b2 b3)
     (hbltu_0 : isTrialN2_j0 false true true a0 a1 a2 a3 b0 b1 b2 b3)
@@ -403,7 +403,7 @@ theorem evm_div_n2_full_FTT_spec (sp base : Word)
      (sp + signExtend12 3984 ↦ₘ (2 : Word)) **
      (sp + signExtend12 3976 ↦ₘ (0 : Word)) **
      (.x1 ↦ᵣ signExtend12 4095) ** (.x11 ↦ᵣ r0.1) **
-     (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+     (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
      (sp + signExtend12 3960 ↦ₘ v1') **
      (sp + signExtend12 3952 ↦ₘ div128DLo v1') **
      (sp + signExtend12 3944 ↦ₘ div128Un0 r1.2.1))
@@ -455,7 +455,7 @@ def fullDivN2_TFF_Post (sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Assertion :=
   (sp + signExtend12 3984 ↦ₘ (2 : Word)) **
   (sp + signExtend12 3976 ↦ₘ (0 : Word)) **
   (.x1 ↦ᵣ signExtend12 4095) ** (.x11 ↦ᵣ r0.1) **
-  (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+  (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
   (sp + signExtend12 3960 ↦ₘ v1') **
   (sp + signExtend12 3952 ↦ₘ div128DLo v1') **
   (sp + signExtend12 3944 ↦ₘ div128Un0 u3S)
@@ -467,7 +467,7 @@ theorem evm_div_n2_full_TFF_spec (sp base : Word)
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
     (hb3z : b3 = 0) (hb2z : b2 = 0) (hb1nz : b1 ≠ 0)
     (hshift_nz : (clzResult b1).1 ≠ 0)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
     (hbltu_2 : isTrialN2_j2 true a3 b0 b1)
     (hbltu_1 : isTrialN2_j1 true false a1 a2 a3 b0 b1 b2 b3)
     (hbltu_0 : isTrialN2_j0 true false false a0 a1 a2 a3 b0 b1 b2 b3)
@@ -536,7 +536,7 @@ theorem evm_div_n2_full_TFF_spec (sp base : Word)
      (sp + signExtend12 3984 ↦ₘ (2 : Word)) **
      (sp + signExtend12 3976 ↦ₘ (0 : Word)) **
      (.x1 ↦ᵣ signExtend12 4095) ** (.x11 ↦ᵣ r0.1) **
-     (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+     (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
      (sp + signExtend12 3960 ↦ₘ v1') **
      (sp + signExtend12 3952 ↦ₘ div128DLo v1') **
      (sp + signExtend12 3944 ↦ₘ div128Un0 u3S))
@@ -588,7 +588,7 @@ def fullDivN2_TFT_Post (sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Assertion :=
   (sp + signExtend12 3984 ↦ₘ (2 : Word)) **
   (sp + signExtend12 3976 ↦ₘ (0 : Word)) **
   (.x1 ↦ᵣ signExtend12 4095) ** (.x11 ↦ᵣ r0.1) **
-  (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+  (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
   (sp + signExtend12 3960 ↦ₘ v1') **
   (sp + signExtend12 3952 ↦ₘ div128DLo v1') **
   (sp + signExtend12 3944 ↦ₘ div128Un0 r1.2.1)
@@ -600,7 +600,7 @@ theorem evm_div_n2_full_TFT_spec (sp base : Word)
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
     (hb3z : b3 = 0) (hb2z : b2 = 0) (hb1nz : b1 ≠ 0)
     (hshift_nz : (clzResult b1).1 ≠ 0)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
     (hbltu_2 : isTrialN2_j2 true a3 b0 b1)
     (hbltu_1 : isTrialN2_j1 true false a1 a2 a3 b0 b1 b2 b3)
     (hbltu_0 : isTrialN2_j0 true false true a0 a1 a2 a3 b0 b1 b2 b3)
@@ -669,7 +669,7 @@ theorem evm_div_n2_full_TFT_spec (sp base : Word)
      (sp + signExtend12 3984 ↦ₘ (2 : Word)) **
      (sp + signExtend12 3976 ↦ₘ (0 : Word)) **
      (.x1 ↦ᵣ signExtend12 4095) ** (.x11 ↦ᵣ r0.1) **
-     (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+     (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
      (sp + signExtend12 3960 ↦ₘ v1') **
      (sp + signExtend12 3952 ↦ₘ div128DLo v1') **
      (sp + signExtend12 3944 ↦ₘ div128Un0 r1.2.1))
@@ -721,7 +721,7 @@ def fullDivN2_TTF_Post (sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Assertion :=
   (sp + signExtend12 3984 ↦ₘ (2 : Word)) **
   (sp + signExtend12 3976 ↦ₘ (0 : Word)) **
   (.x1 ↦ᵣ signExtend12 4095) ** (.x11 ↦ᵣ r0.1) **
-  (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+  (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
   (sp + signExtend12 3960 ↦ₘ v1') **
   (sp + signExtend12 3952 ↦ₘ div128DLo v1') **
   (sp + signExtend12 3944 ↦ₘ div128Un0 r2.2.1)
@@ -733,7 +733,7 @@ theorem evm_div_n2_full_TTF_spec (sp base : Word)
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
     (hb3z : b3 = 0) (hb2z : b2 = 0) (hb1nz : b1 ≠ 0)
     (hshift_nz : (clzResult b1).1 ≠ 0)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
     (hbltu_2 : isTrialN2_j2 true a3 b0 b1)
     (hbltu_1 : isTrialN2_j1 true true a1 a2 a3 b0 b1 b2 b3)
     (hbltu_0 : isTrialN2_j0 true true false a0 a1 a2 a3 b0 b1 b2 b3)
@@ -802,7 +802,7 @@ theorem evm_div_n2_full_TTF_spec (sp base : Word)
      (sp + signExtend12 3984 ↦ₘ (2 : Word)) **
      (sp + signExtend12 3976 ↦ₘ (0 : Word)) **
      (.x1 ↦ᵣ signExtend12 4095) ** (.x11 ↦ᵣ r0.1) **
-     (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+     (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
      (sp + signExtend12 3960 ↦ₘ v1') **
      (sp + signExtend12 3952 ↦ₘ div128DLo v1') **
      (sp + signExtend12 3944 ↦ₘ div128Un0 r2.2.1))
@@ -854,7 +854,7 @@ def fullDivN2_TTT_Post (sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Assertion :=
   (sp + signExtend12 3984 ↦ₘ (2 : Word)) **
   (sp + signExtend12 3976 ↦ₘ (0 : Word)) **
   (.x1 ↦ᵣ signExtend12 4095) ** (.x11 ↦ᵣ r0.1) **
-  (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+  (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
   (sp + signExtend12 3960 ↦ₘ v1') **
   (sp + signExtend12 3952 ↦ₘ div128DLo v1') **
   (sp + signExtend12 3944 ↦ₘ div128Un0 r1.2.1)
@@ -866,7 +866,7 @@ theorem evm_div_n2_full_TTT_spec (sp base : Word)
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
     (hb3z : b3 = 0) (hb2z : b2 = 0) (hb1nz : b1 ≠ 0)
     (hshift_nz : (clzResult b1).1 ≠ 0)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
     (hbltu_2 : isTrialN2_j2 true a3 b0 b1)
     (hbltu_1 : isTrialN2_j1 true true a1 a2 a3 b0 b1 b2 b3)
     (hbltu_0 : isTrialN2_j0 true true true a0 a1 a2 a3 b0 b1 b2 b3)
@@ -935,7 +935,7 @@ theorem evm_div_n2_full_TTT_spec (sp base : Word)
      (sp + signExtend12 3984 ↦ₘ (2 : Word)) **
      (sp + signExtend12 3976 ↦ₘ (0 : Word)) **
      (.x1 ↦ᵣ signExtend12 4095) ** (.x11 ↦ᵣ r0.1) **
-     (sp + signExtend12 3968 ↦ₘ (base + 516)) **
+     (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
      (sp + signExtend12 3960 ↦ₘ v1') **
      (sp + signExtend12 3952 ↦ₘ div128DLo v1') **
      (sp + signExtend12 3944 ↦ₘ div128Un0 r1.2.1))

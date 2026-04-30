@@ -91,7 +91,7 @@ private theorem evm_div_n3_loop_unified_inst
     (shift antiShift b0' b1' b2' b3' u0 u1 u2 u3 u4 : Word)
     (v10Old v11Old jMem : Word)
     (retMem dMem dloMem scratch_un0 : Word)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
     (hbltu_1 : bltu_1 = BitVec.ult u4 b2')
     (hbltu_0 : bltu_0 = BitVec.ult
       (iterN3 bltu_1 b0' b1' b2' b3' u1 u2 u3 u4 (0 : Word)).2.2.2.1 b2')
@@ -124,7 +124,7 @@ theorem evm_div_n3_preloop_loop_unified_spec (bltu_1 bltu_0 : Bool) (sp base : W
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
     (hb3z : b3 = 0) (hb2nz : b2 ≠ 0)
     (hshift_nz : (clzResult b2).1 ≠ 0)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
     (hbltu_1 : isTrialN3_j1 bltu_1 a3 b1 b2)
     (hbltu_0 : isTrialN3_j0 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3)
     (hcarry2 : Carry2NzAll (b0 <<< (((clzResult b2).1).toNat % 64))
@@ -306,11 +306,11 @@ def fullDivN3Scratch (bltu_1 bltu_0 : Bool)
   let v := fullDivN3NormV b0 b1 b2 b3
   let u := fullDivN3NormU a0 a1 a2 a3 b2
   let r1 := fullDivN3R1 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3
-  let scratch_ret1 := if bltu_1 then (base + 516) else retMem
+  let scratch_ret1 := if bltu_1 then (base + div128CallRetOff) else retMem
   let scratch_d1 := if bltu_1 then v.2.2.1 else dMem
   let scratch_dlo1 := if bltu_1 then div128DLo v.2.2.1 else dloMem
   let scratch_un01 := if bltu_1 then div128Un0 u.2.2.2.1 else scratch_un0
-  (sp + signExtend12 3968 ↦ₘ (if bltu_0 then (base + 516) else scratch_ret1)) **
+  (sp + signExtend12 3968 ↦ₘ (if bltu_0 then (base + div128CallRetOff) else scratch_ret1)) **
   (sp + signExtend12 3960 ↦ₘ (if bltu_0 then v.2.2.1 else scratch_d1)) **
   (sp + signExtend12 3952 ↦ₘ (if bltu_0 then div128DLo v.2.2.1 else scratch_dlo1)) **
   (sp + signExtend12 3944 ↦ₘ (if bltu_0 then div128Un0 r1.2.2.1 else scratch_un01))
@@ -533,7 +533,7 @@ theorem fullDivN3Scratch_false_true (sp base a0 a1 a2 a3 b0 b1 b2 b3
       retMem dMem dloMem scratch_un0 =
     let v := fullDivN3NormV b0 b1 b2 b3
     let r1 := fullDivN3R1 false a0 a1 a2 a3 b0 b1 b2 b3
-    ((sp + signExtend12 3968 ↦ₘ (base + 516)) **
+    ((sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
      (sp + signExtend12 3960 ↦ₘ v.2.2.1) **
      (sp + signExtend12 3952 ↦ₘ div128DLo v.2.2.1) **
      (sp + signExtend12 3944 ↦ₘ div128Un0 r1.2.2.1)) := by
@@ -546,7 +546,7 @@ theorem fullDivN3Scratch_true_false (sp base a0 a1 a2 a3 b0 b1 b2 b3
       retMem dMem dloMem scratch_un0 =
     let v := fullDivN3NormV b0 b1 b2 b3
     let u := fullDivN3NormU a0 a1 a2 a3 b2
-    ((sp + signExtend12 3968 ↦ₘ (base + 516)) **
+    ((sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
      (sp + signExtend12 3960 ↦ₘ v.2.2.1) **
      (sp + signExtend12 3952 ↦ₘ div128DLo v.2.2.1) **
      (sp + signExtend12 3944 ↦ₘ div128Un0 u.2.2.2.1)) := by
@@ -559,7 +559,7 @@ theorem fullDivN3Scratch_true_true (sp base a0 a1 a2 a3 b0 b1 b2 b3
       retMem dMem dloMem scratch_un0 =
     let v := fullDivN3NormV b0 b1 b2 b3
     let r1 := fullDivN3R1 true a0 a1 a2 a3 b0 b1 b2 b3
-    ((sp + signExtend12 3968 ↦ₘ (base + 516)) **
+    ((sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
      (sp + signExtend12 3960 ↦ₘ v.2.2.1) **
      (sp + signExtend12 3952 ↦ₘ div128DLo v.2.2.1) **
      (sp + signExtend12 3944 ↦ₘ div128Un0 r1.2.2.1)) := by
@@ -753,7 +753,7 @@ theorem evm_div_n3_full_unified_spec (bltu_1 bltu_0 : Bool) (sp base : Word)
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
     (hb3z : b3 = 0) (hb2nz : b2 ≠ 0)
     (hshift_nz : (clzResult b2).1 ≠ 0)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
     (hbltu_1 : isTrialN3_j1 bltu_1 a3 b1 b2)
     (hbltu_0 : isTrialN3_j0 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3)
     (hcarry2 : Carry2NzAll (b0 <<< (((clzResult b2).1).toNat % 64))

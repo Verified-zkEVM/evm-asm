@@ -125,7 +125,7 @@ theorem divK_mulsub_correction_addback_880_spec_within
     let qHat' := qHat + signExtend12 4095
     -- Hypothesis: borrow ≠ 0
     (if BitVec.ult uTop c3 then (1 : Word) else 0) ≠ (0 : Word) →
-    cpsTripleWithin 91 (base + 516) (base + 880) (sharedDivModCode base)
+    cpsTripleWithin 91 (base + div128CallRetOff) (base + 880) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
        (.x1 ↦ᵣ v1Old) ** (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
        (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x2 ↦ᵣ v2Old) **
@@ -192,7 +192,7 @@ theorem divK_mulsub_correction_addback_named_880_spec_within
     let qHat' := qHat + signExtend12 4095
     -- Hypothesis: borrow ≠ 0
     (if BitVec.ult uTop c3 then (1 : Word) else 0) ≠ (0 : Word) →
-    cpsTripleWithin 91 (base + 516) (base + 880) (sharedDivModCode base)
+    cpsTripleWithin 91 (base + div128CallRetOff) (base + 880) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
        (.x1 ↦ᵣ v1Old) ** (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
        (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x2 ↦ᵣ v2Old) **
@@ -285,7 +285,7 @@ theorem divK_mulsub_correction_addback_spec_within
     (if BitVec.ult uTop c3 then (1 : Word) else 0) ≠ (0 : Word) →
     -- Hypothesis: addback carry ≠ 0 (single addback sufficient)
     aco3 ≠ 0 →
-    cpsTripleWithin 92 (base + 516) (base + storeLoopOff) (sharedDivModCode base)
+    cpsTripleWithin 92 (base + div128CallRetOff) (base + storeLoopOff) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
        (.x1 ↦ᵣ v1Old) ** (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
        (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x2 ↦ᵣ v2Old) **
