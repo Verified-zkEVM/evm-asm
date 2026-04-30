@@ -594,6 +594,24 @@ theorem evm_div_n3_denorm_epilogue_bundled_spec (bltu_1 bltu_0 : Bool)
       xperm_hyp hq)
     h
 
+theorem preloopN3UnifiedPost_to_fullDivN3DenormPre_frame_FF
+    (sp base a0 a1 a2 a3 b0 b1 b2 b3 retMem dMem dloMem scratch_un0 : Word)
+    (h : PartialState)
+    (hp :
+      preloopN3UnifiedPost false false sp base a0 a1 a2 a3 b0 b1 b2 b3
+        retMem dMem dloMem scratch_un0 h) :
+    (fullDivN3DenormPre false false sp a0 a1 a2 a3 b0 b1 b2 b3 **
+     fullDivN3Frame false false sp base a0 a1 a2 a3 b0 b1 b2 b3
+       retMem dMem dloMem scratch_un0) h := by
+  delta preloopN3UnifiedPost loopN3UnifiedPost loopN3MaxPost loopIterPostN3Max at hp
+  delta fullDivN3DenormPre fullDivN3Frame fullDivN3Scratch fullDivN3Shift
+    fullDivN3AntiShift fullDivN3NormV fullDivN3NormU fullDivN3R1 fullDivN3R0 fullDivN3C3
+  simp (config := { decide := true }) only [iterN3_false, ite_false] at hp ⊢
+  rw [loopExitPostN3_j0_eq] at hp
+  simp (config := { decide := true }) only
+    [n3_ub1_off4064, n3_qa1, se12_32, se12_40, se12_48, se12_56] at hp ⊢
+  xperm_hyp hp
+
 theorem fullDivN3UnifiedPost_weaken (bltu_1 bltu_0 : Bool)
     (sp base a0 a1 a2 a3 b0 b1 b2 b3 retMem dMem dloMem scratch_un0 : Word)
     (h : PartialState)
