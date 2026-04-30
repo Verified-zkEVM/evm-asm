@@ -376,18 +376,13 @@ def fullDivN3UnifiedPost (bltu_1 bltu_0 : Bool)
     (sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word)
     (retMem dMem dloMem scratch_un0 : Word) : Assertion :=
   let shift := fullDivN3Shift b2
-  let v := fullDivN3NormV b0 b1 b2 b3
   let r1 := fullDivN3R1 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3
   let r0 := fullDivN3R0 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3
   denormDivPost sp shift r0.2.1 r0.2.2.1 r0.2.2.2.1 r0.2.2.2.2.1
     r0.1 r1.1 (0 : Word) (0 : Word) **
   ((sp + signExtend12 3992) ↦ₘ shift) **
   fullDivN3Frame bltu_1 bltu_0 sp base a0 a1 a2 a3 b0 b1 b2 b3
-    retMem dMem dloMem scratch_un0 **
-  ((sp + signExtend12 32) ↦ₘ v.1) **
-  ((sp + signExtend12 40) ↦ₘ v.2.1) **
-  ((sp + signExtend12 48) ↦ₘ v.2.2.1) **
-  ((sp + signExtend12 56) ↦ₘ v.2.2.2)
+    retMem dMem dloMem scratch_un0
 
 theorem fullDivN3Shift_unfold (b2 : Word) :
     fullDivN3Shift b2 = (clzResult b2).1 := by
@@ -598,5 +593,17 @@ theorem evm_div_n3_denorm_epilogue_bundled_spec (bltu_1 bltu_0 : Bool)
       delta fullDivN3DenormPost
       xperm_hyp hq)
     h
+
+theorem fullDivN3UnifiedPost_weaken (bltu_1 bltu_0 : Bool)
+    (sp base a0 a1 a2 a3 b0 b1 b2 b3 retMem dMem dloMem scratch_un0 : Word)
+    (h : PartialState)
+    (hq :
+      (fullDivN3DenormPost bltu_1 bltu_0 sp a0 a1 a2 a3 b0 b1 b2 b3 **
+       fullDivN3Frame bltu_1 bltu_0 sp base a0 a1 a2 a3 b0 b1 b2 b3
+         retMem dMem dloMem scratch_un0) h) :
+    fullDivN3UnifiedPost bltu_1 bltu_0 sp base a0 a1 a2 a3 b0 b1 b2 b3
+      retMem dMem dloMem scratch_un0 h := by
+  delta fullDivN3UnifiedPost fullDivN3DenormPost at hq ⊢
+  xperm_hyp hq
 
 end EvmAsm.Evm64
