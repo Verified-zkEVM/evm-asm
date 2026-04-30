@@ -44,17 +44,17 @@ theorem denorm_mod_eq {a b s : Nat} :
     `b' = b * 2^s`, the quotient is the same as for the original values,
     and the remainder can be recovered by dividing by 2^s. -/
 theorem norm_euclidean_bridge {a b q r s : Nat}
-    (h_eq : a * 2^s = b * 2^s * q + r)
-    (h_rem : r < b * 2^s) :
+    (hEq : a * 2^s = b * 2^s * q + r)
+    (hRem : r < b * 2^s) :
     q = a / b ∧ r / 2^s = a % b := by
   have hs : 0 < 2^s := by positivity
   -- r is divisible by 2^s
-  have h_dvd : 2^s ∣ r := by
+  have hDvd : 2^s ∣ r := by
     have : r = a * 2^s - b * 2^s * q := by omega
     rw [this]; exact Nat.dvd_sub ⟨a, by ring⟩ ⟨b * q, by ring⟩
-  obtain ⟨r', hr'⟩ := h_dvd; subst hr'
+  obtain ⟨r', hr'⟩ := hDvd; subst hr'
   have : a = b * q + r' := by nlinarith [Nat.mul_comm (2^s) r']
-  have hr'_lt : r' < b := by nlinarith [Nat.mul_comm (2^s) r']
+  have hrLt : r' < b := by nlinarith [Nat.mul_comm (2^s) r']
   constructor
   · have h4 : q * b ≤ a := by nlinarith
     have h5 : a < (q + 1) * b := by nlinarith
