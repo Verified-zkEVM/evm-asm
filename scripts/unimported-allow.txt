@@ -1,0 +1,33 @@
+# scripts/unimported-allow.txt
+#
+# Modules that exist as .lean files under EvmAsm/ but are intentionally
+# not transitively imported from EvmAsm.lean yet. Used by
+# scripts/check-unimported.sh (issue #1209) to grandfather pre-existing
+# orphans without blocking CI.
+#
+# Format: one fully-qualified module name per line. '#' starts a comment.
+#
+# Trim entries as files get wired into umbrellas or deleted. New
+# additions should include a comment explaining why the file cannot be
+# imported yet — silent additions defeat the purpose of the check.
+
+# DivMod V4 work-in-progress cluster (issue #1337). These files are
+# under active development and not yet wired into the main module
+# graph. Remove once the V4 program replaces V2.
+EvmAsm.Evm64.DivMod.Compose.FullPathN3LoopUnified
+EvmAsm.Evm64.DivMod.LoopDefs.IterV4
+EvmAsm.Evm64.DivMod.LoopDefs.IterV4Invariants
+EvmAsm.Evm64.DivMod.LoopDefs.IterV4InvariantsPhase2
+EvmAsm.Evm64.DivMod.SpecCallAddbackBeq
+EvmAsm.Evm64.DivMod.SpecCallAddbackBeq.AlgDefs
+EvmAsm.Evm64.DivMod.SpecCallAddbackBeq.AlgEuclideans
+EvmAsm.Evm64.DivMod.SpecCallAddbackBeq.NumericalTests
+EvmAsm.Evm64.DivMod.SpecCallAddbackBeq.NumericalTestsV4
+EvmAsm.Evm64.DivMod.SpecCallV4
+
+# EvmWordArith cluster — pure-arithmetic helpers used by DivMod V4.
+# Pending integration into Evm64.lean once V4 lands.
+EvmAsm.Evm64.EvmWordArith
+EvmAsm.Evm64.EvmWordArith.AddbackPinning
+EvmAsm.Evm64.EvmWordArith.Div128NoWrapDischarge
+EvmAsm.Evm64.EvmWordArith.Div128PhaseNoWrap
