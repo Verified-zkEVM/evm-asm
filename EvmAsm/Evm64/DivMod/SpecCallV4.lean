@@ -1455,7 +1455,6 @@ theorem n4CallAddback_v4_carry_zero_iff_overshoot_ge_two (a b : EvmWord)
     6. b3_prime_val256_eq_scaled: val256(v_norm) = val256(b) * 2^shift.
     7. Cancel 2^shift: qHat * val256(b) > val256(a). -/
 theorem n4CallAddbackBeq_v4_qHat_mul_b_gt_a (a b : EvmWord)
-    (hb3nz : b.getLimbN 3 ≠ 0)
     (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
     (_hcall : isCallTrialN4Evm a b)
     (haddback : isAddbackBorrowN4CallEvm_v4 a b) :
@@ -1554,7 +1553,7 @@ theorem n4CallAddbackBeq_v4_qHat_ge_q_true_plus_one (a b : EvmWord)
   intro shift antiShift b3' u4 u3 qHat q_true
   -- val256-level overshoot: qHat * val256(b) > val256(a).
   have h_overshoot := n4CallAddbackBeq_v4_qHat_mul_b_gt_a a b
-    hb3nz hshift_nz hcall haddback
+    hshift_nz hcall haddback
   -- val256(b) > 0 (from b3 ≠ 0).
   have h_b_pos : 0 < val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) := by
     -- val256(b) ≥ b3.toNat * 2^192. Since b3 ≠ 0, b3.toNat ≥ 1.

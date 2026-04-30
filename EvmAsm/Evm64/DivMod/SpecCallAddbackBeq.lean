@@ -329,8 +329,7 @@ theorem div128Quot_v2_phase1b_2nd_post
       have h_rhat'_lt : rhat'.toNat < 2 * dHi.toNat := by
         have h_rhat'_lt_pow32 : rhat'.toNat < 2^32 := by
           have h := congrArg BitVec.toNat h_guard
-          simp [BitVec.toNat_ushiftRight, EvmAsm.Rv64.AddrNorm.bv6_toNat_32,
-                Nat.shiftRight_eq_div_pow] at h
+          simp [BitVec.toNat_ushiftRight, Nat.shiftRight_eq_div_pow] at h
           have h_word : rhat'.toNat < 2^64 := rhat'.isLt
           omega
         omega
@@ -452,8 +451,7 @@ theorem div128Quot_v2_rhat_prime_lt_2dHi_under_guard
   -- h_guard says (rhat' >> 32).toNat = 0, which means rhat'.toNat < 2^32.
   have h_rhat'_lt_pow32 : rhat'.toNat < 2^32 := by
     have h := congrArg BitVec.toNat h_guard
-    simp [BitVec.toNat_ushiftRight, EvmAsm.Rv64.AddrNorm.bv6_toNat_32,
-          Nat.shiftRight_eq_div_pow] at h
+    simp [BitVec.toNat_ushiftRight, Nat.shiftRight_eq_div_pow] at h
     -- h : rhat'.toNat / 2^32 = 0.
     have h_word : rhat'.toNat < 2^64 := rhat'.isLt
     omega
@@ -490,8 +488,7 @@ theorem div128Quot_v2_rhat_prime_prime_lt_pow33
   · -- Guard taken: rhat' < 2^32 from the guard.
     have h_rhat'_lt_pow32 : rhat'.toNat < 2^32 := by
       have h := congrArg BitVec.toNat h_guard
-      simp [BitVec.toNat_ushiftRight, EvmAsm.Rv64.AddrNorm.bv6_toNat_32,
-            Nat.shiftRight_eq_div_pow] at h
+      simp [BitVec.toNat_ushiftRight, Nat.shiftRight_eq_div_pow] at h
       have h_word : rhat'.toNat < 2^64 := rhat'.isLt
       omega
     by_cases h_check : BitVec.ult ((rhat' <<< (32 : BitVec 6).toNat) ||| div_un1)
@@ -947,7 +944,6 @@ private theorem conj2_arith
     (h_dHi_lt : dHi < 2^32)
     (h_dLo_lt : dLo < 2^32)
     (h_dHi_ge : dHi ≥ 2^31)
-    (h_div_un1_lt : div_un1 < 2^32)
     (h_knuthA : q1pp ≥ (uHi * 2^32 + div_un1) / (dHi * 2^32 + dLo)) :
     rhat_pp * 2^32 + div_un1 - q1pp * dLo < 2^64 := by
   have h_vTop_pos : 0 < dHi * 2^32 + dLo := by
@@ -1005,7 +1001,6 @@ private theorem un21_lt_vTop_arith
     (h_dHi_lt : dHi < 2^32)
     (h_dLo_lt : dLo < 2^32)
     (h_dHi_ge : dHi ≥ 2^31)
-    (h_div_un1_lt : div_un1 < 2^32)
     (h_knuthA : q1pp ≥ (uHi * 2^32 + div_un1) / (dHi * 2^32 + dLo)) :
     rhat_pp * 2^32 + div_un1 - q1pp * dLo < dHi * 2^32 + dLo := by
   have h_vTop_pos : 0 < dHi * 2^32 + dLo := by
@@ -3356,12 +3351,12 @@ theorem div128Quot_v2_un21_lt_vTop_under_runtime (a b : EvmWord)
   -- conj2 (PROVEN via algebraic combiner).
   have h_conj2 : rhat''.toNat * 2^32 + div_un1.toNat - q1''.toNat * dLo.toNat < 2^64 :=
     conj2_arith u4.toNat div_un1.toNat q1''.toNat rhat''.toNat
-      dHi.toNat dLo.toNat h_eucl_2nd hdHi_lt hdLo_lt hdHi_ge h_div_un1_lt h_knuthA
+      dHi.toNat dLo.toNat h_eucl_2nd hdHi_lt hdLo_lt hdHi_ge h_knuthA
   -- Apply un21<vTop algebraic combiner (PROVEN, returns A_un - B < vTop).
   have h_alg : rhat''.toNat * 2^32 + div_un1.toNat - q1''.toNat * dLo.toNat <
       dHi.toNat * 2^32 + dLo.toNat :=
     un21_lt_vTop_arith u4.toNat div_un1.toNat q1''.toNat rhat''.toNat
-      dHi.toNat dLo.toNat h_eucl_2nd hdHi_lt hdLo_lt hdHi_ge h_div_un1_lt h_knuthA
+      dHi.toNat dLo.toNat h_eucl_2nd hdHi_lt hdLo_lt hdHi_ge h_knuthA
   -- Bridge: un21.toNat = (A_un - B) via _un21_toNat_untruncated, under conj1+conj2.
   have huHi_lt_vTop : u4.toNat < dHi.toNat * 2^32 + dLo.toNat := by
     have h_b3'_decomp : b3'.toNat = dHi.toNat * 2^32 + dLo.toNat :=
