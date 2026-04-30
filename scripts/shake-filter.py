@@ -87,6 +87,18 @@ MARKERS: list[tuple[str, str]] = [
     # Notation use — `notation \"Word\" => BitVec 64` is in Rv64.Basic; files
     # using `Word` look unrelated to that import.
     ("notation \"Word\"",  "Word notation defined in Rv64.Basic"),
+    # RLP Phase1 cascade helpers — the *Cascade*.lean files invoke
+    # `rlp_phase1_step_code_disjoint_*` lemmas registered in the
+    # `Phase1Disjoint` import (verified in evm-asm-5et: removing the import
+    # breaks the build). shake doesn't follow the chained-helper-name lookup.
+    ("rlp_phase1_step_code_disjoint",
+                           "Phase1Disjoint helpers used via attribute / chained lookup"),
+    # DivMod compose Offsets uses `divK_phaseA` / `divK_loopBody` etc inside
+    # `example := by decide` blocks; shake misses references inside `example`.
+    ("divK_phaseA",        "DivMod.Program identifiers used in `example` blocks"),
+    # EvmWordArith CallSkipClose uses `div128Quot_le_q_true` from
+    # Div128KB6Composition; shake doesn't follow the underscored compound name.
+    ("div128Quot",         "Div128KB6Composition lemmas referenced via compound names"),
 ]
 
 BLOCK_HEADER = re.compile(r"^/.+\.lean:$")
