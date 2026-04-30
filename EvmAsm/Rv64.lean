@@ -15,6 +15,8 @@ import EvmAsm.Rv64.Tactics.RunBlock
 import EvmAsm.Rv64.Tactics.LiftSpec
 -- ExtractPure: design stub for #1432 (slice 1, beads evm-asm-bx7).
 import EvmAsm.Rv64.Tactics.ExtractPure
+-- XPermPartial: design stub for #156 (slice 1, beads evm-asm-a7k).
+import EvmAsm.Rv64.Tactics.XPermPartial
 import EvmAsm.Rv64.RLP
 -- The `*Attr` files are imported by their non-Attr counterparts.
 import EvmAsm.Rv64.RegOps
