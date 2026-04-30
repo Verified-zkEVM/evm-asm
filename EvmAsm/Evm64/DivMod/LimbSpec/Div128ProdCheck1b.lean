@@ -266,9 +266,9 @@ theorem divK_div128_prodcheck1b_merged_spec
       rw [hcr_eq]; intro a i
       simp only [CodeReq.union_singleton_apply, CodeReq.singleton]; intro h
       split at h
-      · next hab => rw [beq_iff_eq] at hab; subst hab; simp_all [CodeReq.beq_offset_self_left, CodeReq.beq_base_offset]
+      · next hab => rw [beq_iff_eq] at hab; subst hab; simp_all
       · split at h
-        · next hab => rw [beq_iff_eq] at hab; subst hab; simp_all [CodeReq.beq_offset_self_left, CodeReq.beq_base_offset]
+        · next hab => rw [beq_iff_eq] at hab; subst hab; simp_all [CodeReq.beq_offset_self_left]
         · simp at h)
   -- Frame guard with the unchanged-through-guard atoms
   have h1f := cpsBranch_frameR
