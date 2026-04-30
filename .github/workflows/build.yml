@@ -36,6 +36,18 @@ jobs:
           # main cache within ~24 h. See #1441.
           use-github-cache: false
           lake-package-directory: .
+          # Skip the inner `lake build` — we run our own in the next step
+          # so we can capture stdout/stderr for the no-warnings guard.
+          # lean-action still installs elan and fetches the mathlib cache.
+          build: "false"
+
+      - name: Lake build (with log capture)
+        run: |
+          set -o pipefail
+          lake build 2>&1 | tee build.log
+
+      - name: No-warnings guard (EvmAsm/ source paths)
+        run: scripts/check-no-warnings.sh build.log
 
       # Only push to main / merge_group / workflow_dispatch save the cache, so
       # PR runs cannot churn the quota and evict the main-branch cache.
