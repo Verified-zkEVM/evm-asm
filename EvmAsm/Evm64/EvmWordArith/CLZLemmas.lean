@@ -15,7 +15,6 @@
 -/
 
 import EvmAsm.Evm64.DivMod.Compose.CLZ
-import EvmAsm.Evm64.EvmWordArith.DivN4Lemmas
 
 namespace EvmAsm.Evm64
 
