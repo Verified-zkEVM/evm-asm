@@ -108,7 +108,7 @@ private def findInstrCtorInCodeReq (cr : Expr) : Option Name :=
   else none
 
 /-- Extract the instruction constructor from a spec theorem's type.
-    Strips ∀ binders and looks for `cpsTriple _ _ cr pre _` or `cpsBranch ...`.
+    Strips ∀ binders and looks for bounded CPS specs.
     Checks both the `cr` (CodeReq.singleton) argument and the `instrAt` atoms
     in the precondition for backward compatibility. -/
 private partial def extractInstrCtorFromType (type : Expr) : Option Name :=
@@ -134,21 +134,6 @@ private partial def extractInstrCtorFromType (type : Expr) : Option Name :=
     else if type.isAppOfArity `EvmAsm.Rv64.cpsHaltTripleWithin 5 then
       let cr := type.getAppArgs[2]!
       let pre := type.getAppArgs[3]!
-      findInstrCtorInCodeReq cr |>.orElse fun () => findInstrCtorInPre pre
-    -- Try historical cpsTriple entry exit cr pre post (5 args)
-    else if type.isAppOfArity `EvmAsm.Rv64.cpsTriple 5 then
-      let cr := type.getAppArgs[2]!
-      let pre := type.getAppArgs[3]!
-      findInstrCtorInCodeReq cr |>.orElse fun () => findInstrCtorInPre pre
-    -- Try historical cpsBranch addr cr pre takenTarget takenPost notTakenTarget notTakenPost (7 args)
-    else if type.isAppOfArity `EvmAsm.Rv64.cpsBranch 7 then
-      let cr := type.getAppArgs[1]!
-      let pre := type.getAppArgs[2]!
-      findInstrCtorInCodeReq cr |>.orElse fun () => findInstrCtorInPre pre
-    -- Try historical cpsHaltTriple addr cr pre post (4 args)
-    else if type.isAppOfArity `EvmAsm.Rv64.cpsHaltTriple 4 then
-      let cr := type.getAppArgs[1]!
-      let pre := type.getAppArgs[2]!
       findInstrCtorInCodeReq cr |>.orElse fun () => findInstrCtorInPre pre
     else none
 
@@ -180,7 +165,7 @@ initialize registerBuiltinAttribute {
     | none =>
       throwError "spec_gen_rv64: could not detect instruction constructor in {declName}.\n\
         The theorem must be a cpsTripleWithin/cpsBranchWithin/cpsNBranchWithin/cpsHaltTripleWithin \
-        (or historical cpsTriple/cpsBranch/cpsHaltTriple during migration) with a CodeReq.singleton \
+        with a CodeReq.singleton \
         or instrAt atom for the instruction."
 }
 
