@@ -24,6 +24,7 @@
     [copyAUOff    = 396] divK_copyAU        (36 bytes)
     [loopSetupOff = 432] divK_loopSetup     (16 bytes)
     [loopBodyOff  = 448] divK_loopBody     (460 bytes)
+      [correctionSkipBeqOff = 728]  divK_loopBody mulsub-correction-skip BEQ entry (loopBodyOff + 280)
       [storeLoopOff = 884]  divK_store_qj sub-block (loopBodyOff + 436)
     [denormOff    = 908] divK_denorm       (100 bytes)
     [epilogueOff  =1008] divK_{div,mod}_epilogue (40 bytes)
@@ -60,6 +61,12 @@ abbrev copyAUOff    : Word :=  396
 abbrev loopSetupOff : Word :=  432
 /-- Offset of `divK_loopBody` (Knuth Algorithm D main loop body). -/
 abbrev loopBodyOff  : Word :=  448
+/-- Offset of the mulsub correction-skip BEQ entry inside `divK_loopBody`.
+    Entry PC of the BEQ instruction that branches over the addback correction
+    block when the trial-quotient mulsub did not borrow (the "skip" path).
+    Sub-offset relative to the loopBody block (= loopBodyOff + 280, i.e. 70
+    instructions into the loop body). -/
+abbrev correctionSkipBeqOff : Word :=  728
 /-- Offset of the store-quotient sub-block inside `divK_loopBody`.
     Entry PC of the `divK_store_qj` snippet that writes the trial-quotient
     digit `q[j]` to the output buffer (followed by the loop-back / loop-exit
@@ -121,6 +128,10 @@ example : denormOff = loopBodyOff + 4 * (divK_loopBody 560 7736).length := by de
 /-- storeLoopOff = loopBodyOff + 436 (sub-block offset within `divK_loopBody`).
     The `divK_store_qj` snippet starts 109 instructions into the loop body. -/
 example : storeLoopOff = loopBodyOff + 436 := by decide
+/-- correctionSkipBeqOff = loopBodyOff + 280 (sub-block offset within
+    `divK_loopBody`). The mulsub correction-skip BEQ sits 70 instructions
+    into the loop body. -/
+example : correctionSkipBeqOff = loopBodyOff + 280 := by decide
 /-- epilogueOff = denormOff + 4 · |divK_denorm|. -/
 example : epilogueOff = denormOff + 4 * divK_denorm.length := by decide
 /-- zeroPathOff = epilogueOff + 4 · |divK_div_epilogue 24|
