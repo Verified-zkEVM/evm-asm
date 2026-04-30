@@ -315,6 +315,59 @@ def fullDivN3Scratch (bltu_1 bltu_0 : Bool)
   (sp + signExtend12 3952 ↦ₘ (if bltu_0 then div128DLo v.2.2.1 else scratch_dlo1)) **
   (sp + signExtend12 3944 ↦ₘ (if bltu_0 then div128Un0 r1.2.2.2.1 else scratch_un01))
 
+@[irreducible]
+def fullDivN3DenormPre (bltu_1 bltu_0 : Bool)
+    (sp a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Assertion :=
+  let shift := fullDivN3Shift b2
+  let v := fullDivN3NormV b0 b1 b2 b3
+  let r1 := fullDivN3R1 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3
+  let r0 := fullDivN3R0 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3
+  ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ sp + signExtend12 4056) ** (.x0 ↦ᵣ (0 : Word)) **
+   (.x5 ↦ᵣ (0 : Word)) ** (.x7 ↦ᵣ sp + signExtend12 4088) **
+   (.x2 ↦ᵣ r0.2.2.2.2.1) **
+   (.x10 ↦ᵣ fullDivN3C3 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3) **
+   ((sp + signExtend12 3992) ↦ₘ shift) **
+   ((sp + signExtend12 4056) ↦ₘ r0.2.1) **
+   ((sp + signExtend12 4048) ↦ₘ r0.2.2.1) **
+   ((sp + signExtend12 4040) ↦ₘ r0.2.2.2.1) **
+   ((sp + signExtend12 4032) ↦ₘ r0.2.2.2.2.1) **
+   ((sp + signExtend12 4088) ↦ₘ r0.1) **
+   ((sp + signExtend12 4080) ↦ₘ r1.1) **
+   ((sp + signExtend12 4072) ↦ₘ (0 : Word)) **
+   ((sp + signExtend12 4064) ↦ₘ (0 : Word)) **
+   ((sp + signExtend12 32) ↦ₘ v.1) **
+   ((sp + signExtend12 40) ↦ₘ v.2.1) **
+   ((sp + signExtend12 48) ↦ₘ v.2.2.1) **
+   ((sp + signExtend12 56) ↦ₘ v.2.2.2))
+
+@[irreducible]
+def fullDivN3Frame (bltu_1 bltu_0 : Bool)
+    (sp base a0 a1 a2 a3 b0 b1 b2 b3 retMem dMem dloMem scratch_un0 : Word) :
+    Assertion :=
+  let r1 := fullDivN3R1 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3
+  let r0 := fullDivN3R0 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3
+  ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
+  ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+  ((sp + signExtend12 4024) ↦ₘ r0.2.2.2.2.2) **
+  ((sp + signExtend12 4016) ↦ₘ r1.2.2.2.2.2) **
+  ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
+  ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
+  (sp + signExtend12 3984 ↦ₘ (3 : Word)) **
+  (sp + signExtend12 3976 ↦ₘ (0 : Word)) **
+  (.x1 ↦ᵣ signExtend12 4095) ** (.x11 ↦ᵣ r0.1) **
+  fullDivN3Scratch bltu_1 bltu_0 sp base a0 a1 a2 a3 b0 b1 b2 b3
+    retMem dMem dloMem scratch_un0
+
+@[irreducible]
+def fullDivN3DenormPost (bltu_1 bltu_0 : Bool)
+    (sp a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Assertion :=
+  let shift := fullDivN3Shift b2
+  let r1 := fullDivN3R1 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3
+  let r0 := fullDivN3R0 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3
+  denormDivPost sp shift r0.2.1 r0.2.2.1 r0.2.2.2.1 r0.2.2.2.2.1
+    r0.1 r1.1 (0 : Word) (0 : Word) **
+  ((sp + signExtend12 3992) ↦ₘ shift)
+
 /-- Bundled n=3 full-path postcondition. The long computation chain is hidden
     behind irreducible intermediate definitions so later wrapper proofs can
     unfold only the pieces they need. -/
@@ -329,16 +382,7 @@ def fullDivN3UnifiedPost (bltu_1 bltu_0 : Bool)
   denormDivPost sp shift r0.2.1 r0.2.2.1 r0.2.2.2.1 r0.2.2.2.2.1
     r0.1 r1.1 (0 : Word) (0 : Word) **
   ((sp + signExtend12 3992) ↦ₘ shift) **
-  ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
-  ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
-  ((sp + signExtend12 4024) ↦ₘ r0.2.2.2.2.2) **
-  ((sp + signExtend12 4016) ↦ₘ r1.2.2.2.2.2) **
-  ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
-  ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
-  (sp + signExtend12 3984 ↦ₘ (3 : Word)) **
-  (sp + signExtend12 3976 ↦ₘ (0 : Word)) **
-  (.x1 ↦ᵣ signExtend12 4095) ** (.x11 ↦ᵣ r0.1) **
-  fullDivN3Scratch bltu_1 bltu_0 sp base a0 a1 a2 a3 b0 b1 b2 b3
+  fullDivN3Frame bltu_1 bltu_0 sp base a0 a1 a2 a3 b0 b1 b2 b3
     retMem dMem dloMem scratch_un0 **
   ((sp + signExtend12 32) ↦ₘ v.1) **
   ((sp + signExtend12 40) ↦ₘ v.2.1) **
@@ -396,6 +440,65 @@ theorem fullDivN3R0_unfold (bltu_1 bltu_0 : Bool)
     iterN3 bltu_0 v.1 v.2.1 v.2.2.1 v.2.2.2 u.1
       r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1 := by
   delta fullDivN3R0
+  rfl
+
+theorem fullDivN3DenormPre_unfold (bltu_1 bltu_0 : Bool)
+    (sp a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
+    fullDivN3DenormPre bltu_1 bltu_0 sp a0 a1 a2 a3 b0 b1 b2 b3 =
+    let shift := fullDivN3Shift b2
+    let v := fullDivN3NormV b0 b1 b2 b3
+    let r1 := fullDivN3R1 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3
+    let r0 := fullDivN3R0 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3
+    ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ sp + signExtend12 4056) ** (.x0 ↦ᵣ (0 : Word)) **
+     (.x5 ↦ᵣ (0 : Word)) ** (.x7 ↦ᵣ sp + signExtend12 4088) **
+     (.x2 ↦ᵣ r0.2.2.2.2.1) **
+     (.x10 ↦ᵣ fullDivN3C3 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3) **
+     ((sp + signExtend12 3992) ↦ₘ shift) **
+     ((sp + signExtend12 4056) ↦ₘ r0.2.1) **
+     ((sp + signExtend12 4048) ↦ₘ r0.2.2.1) **
+     ((sp + signExtend12 4040) ↦ₘ r0.2.2.2.1) **
+     ((sp + signExtend12 4032) ↦ₘ r0.2.2.2.2.1) **
+     ((sp + signExtend12 4088) ↦ₘ r0.1) **
+     ((sp + signExtend12 4080) ↦ₘ r1.1) **
+     ((sp + signExtend12 4072) ↦ₘ (0 : Word)) **
+     ((sp + signExtend12 4064) ↦ₘ (0 : Word)) **
+     ((sp + signExtend12 32) ↦ₘ v.1) **
+     ((sp + signExtend12 40) ↦ₘ v.2.1) **
+     ((sp + signExtend12 48) ↦ₘ v.2.2.1) **
+     ((sp + signExtend12 56) ↦ₘ v.2.2.2)) := by
+  delta fullDivN3DenormPre
+  rfl
+
+theorem fullDivN3Frame_unfold (bltu_1 bltu_0 : Bool)
+    (sp base a0 a1 a2 a3 b0 b1 b2 b3 retMem dMem dloMem scratch_un0 : Word) :
+    fullDivN3Frame bltu_1 bltu_0 sp base a0 a1 a2 a3 b0 b1 b2 b3
+      retMem dMem dloMem scratch_un0 =
+    let r1 := fullDivN3R1 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3
+    let r0 := fullDivN3R0 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3
+    ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
+    ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+    ((sp + signExtend12 4024) ↦ₘ r0.2.2.2.2.2) **
+    ((sp + signExtend12 4016) ↦ₘ r1.2.2.2.2.2) **
+    ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
+    ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
+    (sp + signExtend12 3984 ↦ₘ (3 : Word)) **
+    (sp + signExtend12 3976 ↦ₘ (0 : Word)) **
+    (.x1 ↦ᵣ signExtend12 4095) ** (.x11 ↦ᵣ r0.1) **
+    fullDivN3Scratch bltu_1 bltu_0 sp base a0 a1 a2 a3 b0 b1 b2 b3
+      retMem dMem dloMem scratch_un0 := by
+  delta fullDivN3Frame
+  rfl
+
+theorem fullDivN3DenormPost_unfold (bltu_1 bltu_0 : Bool)
+    (sp a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
+    fullDivN3DenormPost bltu_1 bltu_0 sp a0 a1 a2 a3 b0 b1 b2 b3 =
+    let shift := fullDivN3Shift b2
+    let r1 := fullDivN3R1 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3
+    let r0 := fullDivN3R0 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3
+    denormDivPost sp shift r0.2.1 r0.2.2.1 r0.2.2.2.1 r0.2.2.2.2.1
+      r0.1 r1.1 (0 : Word) (0 : Word) **
+    ((sp + signExtend12 3992) ↦ₘ shift) := by
+  delta fullDivN3DenormPost
   rfl
 
 theorem fullDivN3C3_false (bltu_1 : Bool) (a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
@@ -467,5 +570,33 @@ theorem fullDivN3Scratch_true_true (sp base a0 a1 a2 a3 b0 b1 b2 b3
      (sp + signExtend12 3944 ↦ₘ div128Un0 r1.2.2.2.1)) := by
   delta fullDivN3Scratch
   rfl
+
+theorem evm_div_n3_denorm_epilogue_bundled_spec (bltu_1 bltu_0 : Bool)
+    (sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hshift_nz : fullDivN3Shift b2 ≠ 0) :
+    cpsTripleWithin (2 + 23 + 10) (base + denormOff) (base + nopOff) (divCode base)
+      (fullDivN3DenormPre bltu_1 bltu_0 sp a0 a1 a2 a3 b0 b1 b2 b3)
+      (fullDivN3DenormPost bltu_1 bltu_0 sp a0 a1 a2 a3 b0 b1 b2 b3) := by
+  let shift := fullDivN3Shift b2
+  let v := fullDivN3NormV b0 b1 b2 b3
+  let r1 := fullDivN3R1 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3
+  let r0 := fullDivN3R0 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3
+  let c3 := fullDivN3C3 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3
+  have h := evm_div_preamble_denorm_epilogue_spec sp base
+    r0.2.1 r0.2.2.1 r0.2.2.2.1 r0.2.2.2.2.1 shift
+    r0.2.2.2.2.1 (0 : Word) (sp + signExtend12 4056) (sp + signExtend12 4088)
+    c3 r0.1 r1.1 (0 : Word) (0 : Word)
+    v.1 v.2.1 v.2.2.1 v.2.2.2 hshift_nz
+  exact cpsTripleWithin_weaken
+    (fun h hp => by
+      subst shift; subst v; subst r1; subst r0; subst c3
+      delta fullDivN3DenormPre at hp
+      simp only [se12_32, se12_40, se12_48, se12_56] at hp
+      xperm_hyp hp)
+    (fun h hq => by
+      subst shift; subst r1; subst r0
+      delta fullDivN3DenormPost
+      xperm_hyp hq)
+    h
 
 end EvmAsm.Evm64
