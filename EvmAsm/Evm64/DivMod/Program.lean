@@ -153,8 +153,8 @@ def divK_div128 : Program :=
     variant (~10 new instructions for Phase 2b 2nd D3 correction +
     ~2 for register save/restore of rhat2c, since x11 is clobbered
     by `LD un0` in the existing layout). See
-    `~/.claude/projects/-home-zksecurity-evm-asm/memory/project_v2_to_v4_migration_plan.md`
-    for the staged migration plan. -/
+    the local memory file `project_v2_to_v4_migration_plan.md`
+    (under `~/.claude/projects/...`) for the staged migration plan. -/
 def divK_div128_v2 : Program :=
   -- Save return addr and d
   SD .x12 .x2 3968 ;;                         -- [0]  save return addr
