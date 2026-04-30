@@ -10,3 +10,4 @@ import EvmAsm.Evm64.DivMod.NormDefs
 import EvmAsm.Evm64.DivMod.Shift0Dispatcher
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1LoopUnified
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2Full
+import EvmAsm.Evm64.DivMod.Compose.FullPathN3LoopUnified
