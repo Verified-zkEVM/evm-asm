@@ -263,15 +263,14 @@ private theorem divK_loopSetup_code_sub_modCode {base : Word} :
   skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock
   exact CodeReq.union_mono_left
 
-/-- BLT singleton at base+444 (index 3 of loopSetup) is subsumed by modCode. -/
+/-- BLT singleton at base+loopSetupOff+12 (index 3 of loopSetup) is subsumed by modCode. -/
 private theorem blt_loopSetup_sub_modCode {base : Word} :
-    ∀ a i, (CodeReq.singleton (base + 444) (.BLT .x1 .x0 464)) a = some i →
+    ∀ a i, (CodeReq.singleton (base + loopSetupOff + 12) (.BLT .x1 .x0 464)) a = some i →
       (modCode base) a = some i := by
   intro a i h
   have hlookup := CodeReq.ofProg_lookup (base + loopSetupOff) (divK_loopSetup 464) 3
     (by decide) (by decide)
-  rw [bv64_4mul_3,
-      show (base + loopSetupOff : Word) + 12 = base + 444 from by bv_addr] at hlookup
+  rw [bv64_4mul_3] at hlookup
   exact divK_loopSetup_code_sub_modCode a i
     (CodeReq.singleton_mono hlookup a i h)
 
@@ -289,11 +288,10 @@ theorem mod_loopSetup_ntaken_spec_within (sp n v1 v5 : Word) (base : Word)
        ((sp + signExtend12 3984) ↦ₘ n)) := by
   intro m
   have hbody := divK_loopSetup_body_spec_within sp n v1 v5 464 (base + loopSetupOff)
-  rw [show (base + loopSetupOff : Word) + 12 = base + 444 from by bv_addr] at hbody
   have hbodye := cpsTripleWithin_extend_code divK_loopSetup_code_sub_modCode hbody
-  have hblt_raw := blt_spec_gen_within .x1 .x0 464 m (0 : Word) (base + 444)
-  rw [show (base + 444 : Word) + signExtend13 464 = base + denormOff from by rv64_addr,
-      show (base + 444 : Word) + 4 = base + loopBodyOff from by bv_addr] at hblt_raw
+  have hblt_raw := blt_spec_gen_within .x1 .x0 464 m (0 : Word) (base + loopSetupOff + 12)
+  rw [show (base + loopSetupOff + 12 : Word) + signExtend13 464 = base + denormOff from by rv64_addr,
+      show (base + loopSetupOff + 12 : Word) + 4 = base + loopBodyOff from by bv_addr] at hblt_raw
   have hblt_clean := cpsBranchWithin_ntakenStripPure2 hblt_raw
     (fun hp hQt => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQt
@@ -319,11 +317,10 @@ theorem mod_loopSetup_taken_spec_within (sp n v1 v5 : Word) (base : Word)
        ((sp + signExtend12 3984) ↦ₘ n)) := by
   intro m
   have hbody := divK_loopSetup_body_spec_within sp n v1 v5 464 (base + loopSetupOff)
-  rw [show (base + loopSetupOff : Word) + 12 = base + 444 from by bv_addr] at hbody
   have hbodye := cpsTripleWithin_extend_code divK_loopSetup_code_sub_modCode hbody
-  have hblt_raw := blt_spec_gen_within .x1 .x0 464 m (0 : Word) (base + 444)
-  rw [show (base + 444 : Word) + signExtend13 464 = base + denormOff from by rv64_addr,
-      show (base + 444 : Word) + 4 = base + loopBodyOff from by bv_addr] at hblt_raw
+  have hblt_raw := blt_spec_gen_within .x1 .x0 464 m (0 : Word) (base + loopSetupOff + 12)
+  rw [show (base + loopSetupOff + 12 : Word) + signExtend13 464 = base + denormOff from by rv64_addr,
+      show (base + loopSetupOff + 12 : Word) + 4 = base + loopBodyOff from by bv_addr] at hblt_raw
   have hblt_clean := cpsBranchWithin_takenStripPure2 hblt_raw
     (fun hp hQf => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQf
