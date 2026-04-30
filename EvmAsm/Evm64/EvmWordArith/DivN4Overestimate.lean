@@ -41,6 +41,13 @@ theorem val256_div_lt_pow64 (a0 a1 a2 a3 b0 b1 b2 b3 : Word) (hb3nz : b3 ≠ 0) 
 theorem signExtend12_4095_toNat : (signExtend12 (4095 : BitVec 12) : Word).toNat = 2^64 - 1 := by
   decide
 
+theorem add_signExtend12_4095_toNat (q : Word) (hq : 1 ≤ q.toNat) :
+    (q + signExtend12 (4095 : BitVec 12)).toNat = q.toNat - 1 := by
+  rw [BitVec.toNat_add, signExtend12_4095_toNat]
+  rw [show q.toNat + (2^64 - 1) = (q.toNat - 1) + 2^64 from by omega]
+  rw [Nat.add_mod_right]
+  exact Nat.mod_eq_of_lt (by have := q.isLt; omega)
+
 /-- Max trial quotient overestimate for n=4: when b3 ≠ 0,
     ⌊val256(a)/val256(b)⌋ ≤ (signExtend12 4095).toNat.
     This is the `hge` hypothesis needed by `div_correct_n4_no_shift`. -/
@@ -134,6 +141,81 @@ theorem mulsub_addback_val256_combined (q : Word) {v0 v1 v2 v3 u0 u1 u2 u3 : Wor
       q.toNat * val256 v0 v1 v2 v3 by linarith
   have hq1 : q.toNat = q.toNat - 1 + 1 := by omega
   nlinarith
+
+@[irreducible]
+def iterSingleAddbackBranch (q v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) : Prop :=
+  let ms := mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3
+  BitVec.ult uTop ms.2.2.2.2 ∧
+    ms.2.2.2.2 = 1 ∧
+    addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 v0 v1 v2 v3 = 1 ∧
+    1 ≤ q.toNat
+
+@[irreducible]
+def iterSingleAddbackConservation (q v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) : Prop :=
+  let ms := mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3
+  let ab := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 (uTop - ms.2.2.2.2) v0 v1 v2 v3
+  EvmWord.val256 u0 u1 u2 u3 + uTop.toNat * 2^256 =
+    (q + signExtend12 (4095 : BitVec 12)).toNat * EvmWord.val256 v0 v1 v2 v3 +
+      EvmWord.val256 ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 +
+      ab.2.2.2.2.toNat * 2^256
+
+theorem iterSingleAddbackBranch_uTop_toNat_eq_zero
+    (q v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
+    (hbranch : iterSingleAddbackBranch q v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
+    uTop.toNat = 0 := by
+  delta iterSingleAddbackBranch at hbranch
+  simp only [] at hbranch
+  rcases hbranch with ⟨hb, hc3_one, _hcarry_one, _hq_pos⟩
+  rw [EvmWord.ult_iff] at hb
+  rw [hc3_one, word_toNat_1] at hb
+  omega
+
+theorem iterSingleAddbackBranch_uTop_eq_zero
+    (q v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
+    (hbranch : iterSingleAddbackBranch q v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
+    uTop = 0 :=
+  BitVec.eq_of_toNat_eq
+    (iterSingleAddbackBranch_uTop_toNat_eq_zero q v0 v1 v2 v3 u0 u1 u2 u3 uTop hbranch)
+
+theorem iterSingleAddbackBranch_ab_top_toNat_eq_zero
+    (q v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
+    (hbranch : iterSingleAddbackBranch q v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
+    let ms := mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3
+    let ab := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 (uTop - ms.2.2.2.2) v0 v1 v2 v3
+    ab.2.2.2.2.toNat = 0 := by
+  intro ms ab
+  have huTop_zero := iterSingleAddbackBranch_uTop_eq_zero
+    q v0 v1 v2 v3 u0 u1 u2 u3 uTop hbranch
+  delta iterSingleAddbackBranch at hbranch
+  simp only [] at hbranch
+  rcases hbranch with ⟨_hb, hc3_one, hcarry_one, _hq_pos⟩
+  have hab_top := addbackN4_top_eq ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1
+    (uTop - ms.2.2.2.2) v0 v1 v2 v3
+  simp only [] at hab_top
+  rw [show addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 v0 v1 v2 v3 = 1
+    from hcarry_one] at hab_top
+  rw [hab_top, huTop_zero]
+  subst ms
+  rw [hc3_one]
+  decide
+
+theorem iterSingleAddbackBranch_low_val256_eq
+    (q v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
+    (hbranch : iterSingleAddbackBranch q v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
+    let ms := mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3
+    let ab := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 (uTop - ms.2.2.2.2) v0 v1 v2 v3
+    EvmWord.val256 u0 u1 u2 u3 =
+      (q + signExtend12 (4095 : BitVec 12)).toNat * EvmWord.val256 v0 v1 v2 v3 +
+        EvmWord.val256 ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 := by
+  intro ms ab
+  delta iterSingleAddbackBranch at hbranch
+  simp only [] at hbranch
+  rcases hbranch with ⟨_hb, hc3_one, hcarry_one, hq_pos⟩
+  have hcombined := mulsub_addback_val256_combined q (uTop - ms.2.2.2.2)
+    hc3_one hcarry_one hq_pos
+  simp only [] at hcombined
+  rw [add_signExtend12_4095_toNat q hq_pos]
+  exact hcombined
 
 -- ============================================================================
 -- Addback path correctness for max trial at n=4
