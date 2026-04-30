@@ -23,6 +23,9 @@ concurrency:
   group: benchmark
   cancel-in-progress: false
 
+permissions:
+  contents: write
+
 jobs:
   benchmark:
     runs-on: ubuntu-latest
@@ -112,6 +115,104 @@ jobs:
               echo "| status        | build failed (see log) |"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Persist record to benchmark-history branch
+        if: steps.metrics.outcome == 'success'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WALL_RAW: ${{ steps.metrics.outputs.wall_raw }}
+          WALL_SECONDS: ${{ steps.metrics.outputs.wall_seconds }}
+          PEAK_RSS_KB: ${{ steps.metrics.outputs.peak_rss_kb }}
+        run: |
+          set -euo pipefail
+          # Clone a fresh copy of the repo at a temp path and check out (or
+          # initialize) the long-lived `benchmark-history` orphan branch.
+          # Keeping this in its own working tree means we don't disturb the
+          # checkout used for the build above.
+          tmpdir=$(mktemp -d)
+          git -c protocol.version=2 clone --no-checkout --filter=blob:none \
+            "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            "$tmpdir/history"
+          cd "$tmpdir/history"
+          git config user.name  'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          if git ls-remote --exit-code --heads origin benchmark-history >/dev/null 2>&1; then
+            git fetch --depth=1 origin benchmark-history
+            git checkout benchmark-history
+          else
+            # Initialize a fresh orphan branch with a README and an empty log.
+            git checkout --orphan benchmark-history
+            git rm -rf --quiet . 2>/dev/null || true
+            printf '%s\n' \
+              '# benchmark-history' \
+              '' \
+              'Append-only record of weekly `lake build` benchmark runs from' \
+              '`.github/workflows/benchmark.yml` (issue #949 slice 3).' \
+              '' \
+              'One JSON object per line in `history.jsonl`:' \
+              '' \
+              '- `commit`        : full SHA of the commit benchmarked' \
+              '- `ref`           : the branch / ref that triggered the run' \
+              '- `timestamp`     : ISO 8601 UTC timestamp of when the record was appended' \
+              '- `trigger`       : GitHub event name (`schedule` or `workflow_dispatch`)' \
+              '- `run_id`        : GitHub Actions run ID (link target)' \
+              '- `wall_seconds`  : `lake build` wall-clock time, integer seconds' \
+              '- `wall_raw`      : raw `Elapsed (wall clock) time` string from `/usr/bin/time -v`' \
+              '- `peak_rss_kb`   : peak resident set size in kilobytes' \
+              '- `runner_os`     : `uname -s` of the runner' \
+              '- `runner_cores`  : `nproc` on the runner' \
+              > README.md
+            : > history.jsonl
+          fi
+          # Build a single JSONL record for this run via a tempfile script
+          # (avoids Python's strictness about leading whitespace in `-c`).
+          export TIMESTAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          export RUNNER_OS_NAME="$(uname -s)"
+          export RUNNER_CORES="$(nproc)"
+          script="$tmpdir/append_record.py"
+          {
+            echo 'import json, os'
+            echo 'rec = {'
+            echo '  "commit":       os.environ["GITHUB_SHA"],'
+            echo '  "ref":          os.environ["GITHUB_REF"],'
+            echo '  "timestamp":    os.environ["TIMESTAMP"],'
+            echo '  "trigger":      os.environ["GITHUB_EVENT_NAME"],'
+            echo '  "run_id":       os.environ["GITHUB_RUN_ID"],'
+            echo '  "wall_raw":     os.environ["WALL_RAW"],'
+            echo '  "wall_seconds": int(os.environ["WALL_SECONDS"]),'
+            echo '  "peak_rss_kb":  int(os.environ["PEAK_RSS_KB"]),'
+            echo '  "runner_os":    os.environ["RUNNER_OS_NAME"],'
+            echo '  "runner_cores": int(os.environ["RUNNER_CORES"]),'
+            echo '}'
+            echo 'with open("history.jsonl", "a") as f:'
+            echo '  f.write(json.dumps(rec, sort_keys=True) + "\n")'
+          } > "$script"
+          python3 "$script"
+          git add history.jsonl README.md
+          # `--allow-empty` keeps the run idempotent if an immediate re-run
+          # on the same commit produced identical metrics (extremely unlikely
+          # but defensive).
+          git commit -m "benchmark: ${GITHUB_SHA::12} wall=${WALL_SECONDS}s rss=${PEAK_RSS_KB}KB" \
+            --allow-empty
+          # Push with retries: the `benchmark` concurrency group should
+          # serialize runs, but a manual workflow_dispatch could still race
+          # against the cron run. On rejection, re-fetch the remote branch,
+          # re-append our record, amend the commit, and try again. We avoid
+          # `git rebase` per the project's no-rebase policy.
+          for attempt in 1 2 3; do
+            if git push origin benchmark-history; then
+              echo "history push: ok on attempt $attempt"
+              break
+            fi
+            echo "history push: attempt $attempt failed, refetching + re-applying" >&2
+            git fetch origin benchmark-history
+            git reset --hard origin/benchmark-history
+            python3 "$script"
+            git add history.jsonl README.md
+            git commit -m "benchmark: ${GITHUB_SHA::12} wall=${WALL_SECONDS}s rss=${PEAK_RSS_KB}KB" \
+              --allow-empty
+            sleep 5
+          done
 
       - name: Upload raw timing artifacts
         if: always()
