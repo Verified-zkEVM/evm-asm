@@ -356,6 +356,108 @@ theorem evm_div_n1_stack_spec_within
         ha0 ha1 ha2 ha3 hdiv0 hdiv1 hdiv2 hdiv3 h hq)
     hFull
 
+@[irreducible]
+def fullDivN1QuotientWord (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word) : EvmWord :=
+  EvmWord.fromLimbs (fun i : Fin 4 =>
+    match i with
+    | 0 => (fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).1
+    | 1 => (fullDivN1R1 bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).1
+    | 2 => (fullDivN1R2 bltu_3 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).1
+    | 3 => (fullDivN1R3 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3).1)
+
+theorem fullDivN1_hdivs_of_word_eq
+    (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
+    (a b : EvmWord) (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hdiv : fullDivN1QuotientWord bltu_3 bltu_2 bltu_1 bltu_0
+      a0 a1 a2 a3 b0 b1 b2 b3 = EvmWord.div a b) :
+    (EvmWord.div a b).getLimbN 0 =
+      (fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).1 ∧
+    (EvmWord.div a b).getLimbN 1 =
+      (fullDivN1R1 bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).1 ∧
+    (EvmWord.div a b).getLimbN 2 =
+      (fullDivN1R2 bltu_3 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).1 ∧
+    (EvmWord.div a b).getLimbN 3 =
+      (fullDivN1R3 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3).1 := by
+  constructor
+  · rw [← hdiv]
+    delta fullDivN1QuotientWord
+    exact EvmWord.getLimbN_fromLimbs_0
+  constructor
+  · rw [← hdiv]
+    delta fullDivN1QuotientWord
+    exact EvmWord.getLimbN_fromLimbs_1
+  constructor
+  · rw [← hdiv]
+    delta fullDivN1QuotientWord
+    exact EvmWord.getLimbN_fromLimbs_2
+  · rw [← hdiv]
+    delta fullDivN1QuotientWord
+    exact EvmWord.getLimbN_fromLimbs_3
+
+@[irreducible]
+def fullModN1RemainderWord (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word) : EvmWord :=
+  EvmWord.fromLimbs (fun i : Fin 4 =>
+    match i with
+    | 0 =>
+        (((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.1 >>>
+            ((fullDivN1Shift b0).toNat % 64)) |||
+          ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.2.1 <<<
+            ((signExtend12 (0 : BitVec 12) - fullDivN1Shift b0).toNat % 64)))
+    | 1 =>
+        (((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.2.1 >>>
+            ((fullDivN1Shift b0).toNat % 64)) |||
+          ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.1 <<<
+            ((signExtend12 (0 : BitVec 12) - fullDivN1Shift b0).toNat % 64)))
+    | 2 =>
+        (((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.1 >>>
+            ((fullDivN1Shift b0).toNat % 64)) |||
+          ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1 <<<
+            ((signExtend12 (0 : BitVec 12) - fullDivN1Shift b0).toNat % 64)))
+    | 3 =>
+        ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1 >>>
+          ((fullDivN1Shift b0).toNat % 64)))
+
+theorem fullModN1_hmods_of_word_eq
+    (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
+    (a b : EvmWord) (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hmod : fullModN1RemainderWord bltu_3 bltu_2 bltu_1 bltu_0
+      a0 a1 a2 a3 b0 b1 b2 b3 = EvmWord.mod a b) :
+    (EvmWord.mod a b).getLimbN 0 =
+      (((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.1 >>>
+          ((fullDivN1Shift b0).toNat % 64)) |||
+        ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.2.1 <<<
+          ((signExtend12 (0 : BitVec 12) - fullDivN1Shift b0).toNat % 64))) ∧
+    (EvmWord.mod a b).getLimbN 1 =
+      (((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.2.1 >>>
+          ((fullDivN1Shift b0).toNat % 64)) |||
+        ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.1 <<<
+          ((signExtend12 (0 : BitVec 12) - fullDivN1Shift b0).toNat % 64))) ∧
+    (EvmWord.mod a b).getLimbN 2 =
+      (((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.1 >>>
+          ((fullDivN1Shift b0).toNat % 64)) |||
+        ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1 <<<
+          ((signExtend12 (0 : BitVec 12) - fullDivN1Shift b0).toNat % 64))) ∧
+    (EvmWord.mod a b).getLimbN 3 =
+      ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1 >>>
+        ((fullDivN1Shift b0).toNat % 64)) := by
+  constructor
+  · rw [← hmod]
+    delta fullModN1RemainderWord
+    exact EvmWord.getLimbN_fromLimbs_0
+  constructor
+  · rw [← hmod]
+    delta fullModN1RemainderWord
+    exact EvmWord.getLimbN_fromLimbs_1
+  constructor
+  · rw [← hmod]
+    delta fullModN1RemainderWord
+    exact EvmWord.getLimbN_fromLimbs_2
+  · rw [← hmod]
+    delta fullModN1RemainderWord
+    exact EvmWord.getLimbN_fromLimbs_3
+
 theorem evm_mod_n1_stack_spec_within
     (bltu_3 bltu_2 bltu_1 bltu_0 : Bool) (sp base : Word)
     (a b : EvmWord)
