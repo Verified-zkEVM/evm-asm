@@ -14,7 +14,7 @@
      Three-iteration -- dispatches via cases on bltu_2.
   4. `divK_loop_n1_max_iter210_spec` / `divK_loop_n1_call_iter210_spec`:
      Compose j=3 (max or call) with the three-iteration intermediate.
-  5. `divK_loop_n1_unified_spec (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)`:
+  5. `divK_loop_n1_unified_spec_within (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)`:
      Full four-iteration -- dispatches via cases on bltu_3.
 -/
 
@@ -839,56 +839,5 @@ theorem divK_loop_n1_unified_spec_within (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
       retMem dMem dloMem scratch_un0 base
       halign
       hbltu_3' hbltu_2 hbltu_1 hbltu_0 hcarry2
-
-/-- Compatibility wrapper for unbounded callers. -/
-theorem divK_loop_n1_unified_spec (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
-    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-     v0 v1 v2 v3 u0 u1 u2 u3 uTop
-     u0_orig_2 u0_orig_1 u0_orig_0
-     q3Old q2Old q1Old q0Old : Word)
-    (retMem dMem dloMem scratch_un0 : Word)
-    (base : Word)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
-    (hbltu_3 : bltu_3 = BitVec.ult u1 v0)
-    (hbltu_2 : bltu_2 = BitVec.ult (iterN1 bltu_3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.1 v0)
-    (hbltu_1 : bltu_1 = BitVec.ult (iterN1 bltu_2 v0 v1 v2 v3 u0_orig_2
-      (iterN1 bltu_3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.1
-      (iterN1 bltu_3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1
-      (iterN1 bltu_3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.1
-      (iterN1 bltu_3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.1).2.1 v0)
-    (hbltu_0 : bltu_0 = BitVec.ult (iterN1 bltu_1 v0 v1 v2 v3 u0_orig_1
-      (iterN1 bltu_2 v0 v1 v2 v3 u0_orig_2
-        (iterN1 bltu_3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.1
-        (iterN1 bltu_3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1
-        (iterN1 bltu_3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.1
-        (iterN1 bltu_3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.1).2.1
-      (iterN1 bltu_2 v0 v1 v2 v3 u0_orig_2
-        (iterN1 bltu_3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.1
-        (iterN1 bltu_3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1
-        (iterN1 bltu_3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.1
-        (iterN1 bltu_3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.1).2.2.1
-      (iterN1 bltu_2 v0 v1 v2 v3 u0_orig_2
-        (iterN1 bltu_3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.1
-        (iterN1 bltu_3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1
-        (iterN1 bltu_3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.1
-        (iterN1 bltu_3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.1).2.2.2.1
-      (iterN1 bltu_2 v0 v1 v2 v3 u0_orig_2
-        (iterN1 bltu_3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.1
-        (iterN1 bltu_3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1
-        (iterN1 bltu_3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.1
-        (iterN1 bltu_3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.1).2.2.2.2.1).2.1 v0)
-    (hcarry2 : Carry2NzAll v0 v1 v2 v3) :
-    cpsTriple (base + loopBodyOff) (base + denormOff) (sharedDivModCode base)
-      (loopN1PreWithScratch sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-        v0 v1 v2 v3 u0 u1 u2 u3 uTop
-        u0_orig_2 u0_orig_1 u0_orig_0 q3Old q2Old q1Old q0Old
-        retMem dMem dloMem scratch_un0)
-      (loopN1UnifiedPost bltu_3 bltu_2 bltu_1 bltu_0 sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop
-        u0_orig_2 u0_orig_1 u0_orig_0 retMem dMem dloMem scratch_un0) := by
-  exact (divK_loop_n1_unified_spec_within bltu_3 bltu_2 bltu_1 bltu_0
-    sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-    v0 v1 v2 v3 u0 u1 u2 u3 uTop u0_orig_2 u0_orig_1 u0_orig_0
-    q3Old q2Old q1Old q0Old retMem dMem dloMem scratch_un0 base
-    halign hbltu_3 hbltu_2 hbltu_1 hbltu_0 hcarry2).to_cpsTriple
 
 end EvmAsm.Evm64

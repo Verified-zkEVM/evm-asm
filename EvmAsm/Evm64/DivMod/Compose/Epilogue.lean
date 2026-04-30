@@ -82,20 +82,6 @@ theorem divK_denorm_preamble_spec_within (sp shift v5 v6 v7 v2 v10 : Word) (base
     (fun h hq => by xperm_hyp hq)
     full
 
-theorem divK_denorm_preamble_spec (sp shift v5 v6 v7 v2 v10 : Word) (base : Word)
-    (hshift_nz : shift ≠ 0) :
-    cpsTriple (base + denormOff) (base + 916) (divCode base)
-      ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ v6) ** (.x0 ↦ᵣ (0 : Word)) **
-       (.x5 ↦ᵣ v5) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ v2) ** (.x10 ↦ᵣ v10) **
-       ((sp + signExtend12 3992) ↦ₘ shift))
-      ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ shift) ** (.x0 ↦ᵣ (0 : Word)) **
-       (.x5 ↦ᵣ v5) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ v2) ** (.x10 ↦ᵣ v10) **
-       ((sp + signExtend12 3992) ↦ₘ shift)) :=
-  (divK_denorm_preamble_spec_within sp shift v5 v6 v7 v2 v10 base hshift_nz).to_cpsTriple
-
-/-- Full Denorm (shift body only): denormalize u[0..3] by right-shifting.
-    base+908+8 → base+908+100 (23 instructions: ADDI+SUB + 3×merge + last).
-    Used when shift≠0. The BEQ and LD are handled separately. -/
 theorem divK_denorm_body_spec_within (sp u0 u1 u2 u3 v2 v5 v7 shift : Word) (base : Word) :
     let antiShift := signExtend12 (0 : BitVec 12) - shift
     let u0' := (u0 >>> (shift.toNat % 64)) ||| (u1 <<< (antiShift.toNat % 64))
@@ -204,7 +190,7 @@ theorem divK_denorm_body_spec_within (sp u0 u1 u2 u3 v2 v5 v7 shift : Word) (bas
     (by pcFree) hle
   have h_all := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h_m2 hlef
-  exact cpsTripleWithin_weaken
+  exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq)
     h_all
@@ -215,7 +201,7 @@ theorem divK_denorm_body_spec (sp u0 u1 u2 u3 v2 v5 v7 shift : Word) (base : Wor
     let u1' := (u1 >>> (shift.toNat % 64)) ||| (u2 <<< (antiShift.toNat % 64))
     let u2' := (u2 >>> (shift.toNat % 64)) ||| (u3 <<< (antiShift.toNat % 64))
     let u3' := u3 >>> (shift.toNat % 64)
-    cpsTriple (base + 916) (base + epilogueOff) (divCode base)
+    cpsTripleWithin 10000 (base + 916) (base + epilogueOff) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x7 ↦ᵣ v7) **
        (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ v2) ** (.x0 ↦ᵣ (0 : Word)) **
        ((sp + signExtend12 4056) ↦ₘ u0) ** ((sp + signExtend12 4048) ↦ₘ u1) **
@@ -224,7 +210,7 @@ theorem divK_denorm_body_spec (sp u0 u1 u2 u3 v2 v5 v7 shift : Word) (base : Wor
        (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ antiShift) ** (.x0 ↦ᵣ (0 : Word)) **
        ((sp + signExtend12 4056) ↦ₘ u0') ** ((sp + signExtend12 4048) ↦ₘ u1') **
        ((sp + signExtend12 4040) ↦ₘ u2') ** ((sp + signExtend12 4032) ↦ₘ u3')) :=
-  (divK_denorm_body_spec_within sp u0 u1 u2 u3 v2 v5 v7 shift base).to_cpsTriple
+  cpsTripleWithin_mono_nSteps (by decide) (divK_denorm_body_spec_within sp u0 u1 u2 u3 v2 v5 v7 shift base)
 
 -- ============================================================================
 -- Section 10m: DIV Epilogue composition (10 instructions at base+1008)
@@ -284,14 +270,14 @@ theorem divK_div_epilogue_spec_within (sp : Word) (base : Word)
     (by pcFree) hstoree
   have h12 := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hloadef hstoref
-  exact cpsTripleWithin_weaken
+  exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq)
     h12
 
 theorem divK_div_epilogue_spec (sp : Word) (base : Word)
     (q0 q1 q2 q3 v5 v6 v7 v10 m0 m8 m16 m24 : Word) :
-    cpsTriple (base + epilogueOff) (base + nopOff) (divCode base)
+    cpsTripleWithin 10000 (base + epilogueOff) (base + nopOff) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x10 ↦ᵣ v10) **
        ((sp + signExtend12 4088) ↦ₘ q0) ** ((sp + signExtend12 4080) ↦ₘ q1) **
        ((sp + signExtend12 4072) ↦ₘ q2) ** ((sp + signExtend12 4064) ↦ₘ q3) **
@@ -302,7 +288,7 @@ theorem divK_div_epilogue_spec (sp : Word) (base : Word)
        ((sp + signExtend12 4072) ↦ₘ q2) ** ((sp + signExtend12 4064) ↦ₘ q3) **
        ((sp + 32) ↦ₘ q0) ** ((sp + 40) ↦ₘ q1) **
        ((sp + 48) ↦ₘ q2) ** ((sp + 56) ↦ₘ q3)) :=
-  (divK_div_epilogue_spec_within sp base q0 q1 q2 q3 v5 v6 v7 v10 m0 m8 m16 m24).to_cpsTriple
+  cpsTripleWithin_mono_nSteps (by decide) (divK_div_epilogue_spec_within sp base q0 q1 q2 q3 v5 v6 v7 v10 m0 m8 m16 m24)
 
 -- ============================================================================
 -- Section 11: MOD program code infrastructure
@@ -387,29 +373,11 @@ theorem evm_mod_bzero_spec_within (sp base : Word)
   have hABZ := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hAB hzp_framed
   -- Step 7: Final consequence — rewrite bor → 0
-  exact cpsTripleWithin_weaken
+  exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by rw [hbz] at hq; xperm_hyp hq)
     hABZ
 
-theorem evm_mod_bzero_spec (sp base : Word)
-    (b0 b1 b2 b3 v5 v10 : Word)
-    (hbz : b0 ||| b1 ||| b2 ||| b3 = 0) :
-    cpsTriple base (base + nopOff) (modCode base)
-      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
-       ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
-       ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3))
-      ((.x12 ↦ᵣ (sp + 32)) ** (.x5 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ b3) ** (.x0 ↦ᵣ (0 : Word)) **
-       ((sp + 32) ↦ₘ (0 : Word)) ** ((sp + 40) ↦ₘ (0 : Word)) **
-       ((sp + 48) ↦ₘ (0 : Word)) ** ((sp + 56) ↦ₘ (0 : Word))) :=
-  (evm_mod_bzero_spec_within sp base b0 b1 b2 b3 v5 v10 hbz).to_cpsTriple
-
--- ============================================================================
--- Section 14: MOD Phase A not-taken composition (b ≠ 0)
--- ============================================================================
-
-/-- When b ≠ 0, evm_mod falls through Phase A to Phase B at base+32.
-    Execution path: phaseA body (7 instrs), BEQ not taken. -/
 theorem evm_mod_phaseA_ntaken_spec_within (sp base : Word)
     (b0 b1 b2 b3 v5 v10 : Word)
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0) :
@@ -442,7 +410,7 @@ theorem evm_mod_phaseA_ntaken_spec_within (sp base : Word)
   have hAB := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hbody hbeq_framed
   -- Step 5: Final consequence — permute assertions
-  exact cpsTripleWithin_weaken
+  exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq)
     hAB
@@ -450,14 +418,14 @@ theorem evm_mod_phaseA_ntaken_spec_within (sp base : Word)
 theorem evm_mod_phaseA_ntaken_spec (sp base : Word)
     (b0 b1 b2 b3 v5 v10 : Word)
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0) :
-    cpsTriple base (base + phaseBOff) (modCode base)
+    cpsTripleWithin 10000 base (base + phaseBOff) (modCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
        ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3))
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ (b0 ||| b1 ||| b2 ||| b3)) ** (.x10 ↦ᵣ b3) ** (.x0 ↦ᵣ (0 : Word)) **
        ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
        ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3)) :=
-  (evm_mod_phaseA_ntaken_spec_within sp base b0 b1 b2 b3 v5 v10 hbnz).to_cpsTriple
+  cpsTripleWithin_mono_nSteps (by decide) (evm_mod_phaseA_ntaken_spec_within sp base b0 b1 b2 b3 v5 v10 hbnz)
 
 -- ============================================================================
 -- Section 14: MOD epilogue composition (load u[0..3], store to output)
@@ -516,24 +484,8 @@ theorem divK_mod_epilogue_spec_within (sp : Word) (base : Word)
     (by pcFree) hstoree
   have h12 := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hloadef hstoref
-  exact cpsTripleWithin_weaken
+  exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq)
     h12
 
-theorem divK_mod_epilogue_spec (sp : Word) (base : Word)
-    (u0 u1 u2 u3 v5 v6 v7 v10 m0 m8 m16 m24 : Word) :
-    cpsTriple (base + epilogueOff) (base + nopOff) (modCode base)
-      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x10 ↦ᵣ v10) **
-       ((sp + signExtend12 4056) ↦ₘ u0) ** ((sp + signExtend12 4048) ↦ₘ u1) **
-       ((sp + signExtend12 4040) ↦ₘ u2) ** ((sp + signExtend12 4032) ↦ₘ u3) **
-       ((sp + 32) ↦ₘ m0) ** ((sp + 40) ↦ₘ m8) **
-       ((sp + 48) ↦ₘ m16) ** ((sp + 56) ↦ₘ m24))
-      ((.x12 ↦ᵣ (sp + 32)) ** (.x5 ↦ᵣ u0) ** (.x6 ↦ᵣ u1) ** (.x7 ↦ᵣ u2) ** (.x10 ↦ᵣ u3) **
-       ((sp + signExtend12 4056) ↦ₘ u0) ** ((sp + signExtend12 4048) ↦ₘ u1) **
-       ((sp + signExtend12 4040) ↦ₘ u2) ** ((sp + signExtend12 4032) ↦ₘ u3) **
-       ((sp + 32) ↦ₘ u0) ** ((sp + 40) ↦ₘ u1) **
-       ((sp + 48) ↦ₘ u2) ** ((sp + 56) ↦ₘ u3)) :=
-  (divK_mod_epilogue_spec_within sp base u0 u1 u2 u3 v5 v6 v7 v10 m0 m8 m16 m24).to_cpsTriple
-
-end EvmAsm.Evm64

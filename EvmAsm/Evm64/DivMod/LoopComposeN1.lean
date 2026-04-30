@@ -5,10 +5,10 @@
   per-iteration specs that build on the raw per-iteration specs in LoopIterN1.
 
   For n=1, the loop runs 4 iterations:
-  - j=3 (first): cpsTriple base+448 → base+448 (loop-back)
-  - j=2 (middle): cpsTriple base+448 → base+448 (loop-back)
-  - j=1 (middle): cpsTriple base+448 → base+448 (loop-back)
-  - j=0 (final): cpsTriple base+448 → base+904 (loop exit)
+  - j=3 (first): cpsTripleWithin base+448 → base+448 (loop-back)
+  - j=2 (middle): cpsTripleWithin base+448 → base+448 (loop-back)
+  - j=1 (middle): cpsTripleWithin base+448 → base+448 (loop-back)
+  - j=0 (final): cpsTripleWithin base+448 → base+904 (loop exit)
 
   This file provides:
   1. Address linking lemmas for j=3 → j=2, j=2 → j=1, j=1 → j=0 transitions
@@ -582,53 +582,6 @@ theorem divK_loop_body_n1_call_unified_j0_spec_within
         rw [← loopIterPostN1Call_skip hb]; exact hp)
       (cpsTripleWithin_mono_nSteps (by decide) J0)
 
-def divK_loop_body_n1_max_unified_j3_spec := fun sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-    v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base hbltu hcarry2_nz =>
-  (divK_loop_body_n1_max_unified_j3_spec_within sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-    v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base hbltu hcarry2_nz).to_cpsTriple
-
-def divK_loop_body_n1_max_unified_j2_spec := fun sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-    v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base hbltu hcarry2_nz =>
-  (divK_loop_body_n1_max_unified_j2_spec_within sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-    v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base hbltu hcarry2_nz).to_cpsTriple
-
-def divK_loop_body_n1_max_unified_j1_spec := fun sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-    v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base hbltu hcarry2_nz =>
-  (divK_loop_body_n1_max_unified_j1_spec_within sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-    v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base hbltu hcarry2_nz).to_cpsTriple
-
-def divK_loop_body_n1_max_unified_j0_spec := fun sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-    v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base hbltu hcarry2_nz =>
-  (divK_loop_body_n1_max_unified_j0_spec_within sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-    v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base hbltu hcarry2_nz).to_cpsTriple
-
-def divK_loop_body_n1_call_unified_j3_spec := fun sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-    v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0 base halign hbltu hcarry2_nz =>
-  (divK_loop_body_n1_call_unified_j3_spec_within sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-    v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0 base halign hbltu hcarry2_nz).to_cpsTriple
-
-def divK_loop_body_n1_call_unified_j2_spec := fun sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-    v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0 base halign hbltu hcarry2_nz =>
-  (divK_loop_body_n1_call_unified_j2_spec_within sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-    v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0 base halign hbltu hcarry2_nz).to_cpsTriple
-
-def divK_loop_body_n1_call_unified_j1_spec := fun sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-    v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0 base halign hbltu hcarry2_nz =>
-  (divK_loop_body_n1_call_unified_j1_spec_within sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-    v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0 base halign hbltu hcarry2_nz).to_cpsTriple
-
-def divK_loop_body_n1_call_unified_j0_spec := fun sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-    v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0 base halign hbltu hcarry2_nz =>
-  (divK_loop_body_n1_call_unified_j0_spec_within sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-    v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0 base halign hbltu hcarry2_nz).to_cpsTriple
-
--- ============================================================================
--- Single `(j : Fin 4) (bltu : Bool)` iter spec for n=1
--- ============================================================================
-
-/-- Unified iter spec for n=1: one theorem covering all 16 original path combinations.
-    Dispatches directly to per-j `_unified_j{k}_spec` specs via `fin_cases j` +
-    Fin-residue cleanup from `AddrNorm.fin_id_*` helpers. -/
 theorem divK_loop_body_n1_iter_spec_within (j : Fin 4) (bltu : Bool)
     (sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
      v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old : Word)
@@ -677,11 +630,5 @@ theorem divK_loop_body_n1_iter_spec_within (j : Fin 4) (bltu : Bool)
         v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old ret_mem d_mem dlo_mem scratch_un0 base halign hbltu hcarry
     · exact divK_loop_body_n1_call_unified_j3_spec_within sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
         v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old ret_mem d_mem dlo_mem scratch_un0 base halign hbltu hcarry
-
-
-def divK_loop_body_n1_iter_spec := fun j bltu sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
-    v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old ret_mem d_mem dlo_mem scratch_un0 base halign hbltu hcarry =>
-  (divK_loop_body_n1_iter_spec_within j bltu sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
-    v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old ret_mem d_mem dlo_mem scratch_un0 base halign hbltu hcarry).to_cpsTriple
 
 end EvmAsm.Evm64

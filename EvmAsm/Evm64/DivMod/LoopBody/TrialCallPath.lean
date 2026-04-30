@@ -3,7 +3,7 @@
 
   Extracted from `LoopBody.lean` (Section 8b).
 
-  `divK_trial_call_path_spec`: trial-quotient TAKEN path (uHi < vTop) —
+  `divK_trial_call_path_spec_within`: trial-quotient TAKEN path (uHi < vTop) —
   JAL x2 560 (instr [16]) at base+512 + div128 subroutine, returning
   to base+516 with x11 = q.
 
@@ -17,7 +17,7 @@
   **v2 migration plan (issue #1337):** This spec uses the buggy v1
   `div128_spec` (with `divK_div128`). Once `n4CallAddbackBeqSemanticHolds_v2_of_call_addback_beq`
   is closed (path 3 chain — see `EvmAsm/Evm64/DivMod/SpecCallAddbackBeq.lean`),
-  a parallel `divK_trial_call_path_v2_spec` needs to be added that:
+  a parallel `divK_trial_call_path_v2_spec_within` needs to be added that:
     1. Uses `div128_v2_spec` (PR #1392, merged) instead of `div128_spec`.
     2. Uses `sharedDivModCode_v2 base` (referencing `divK_div128_v2`) as
        the CodeReq instead of `sharedDivModCode base`.
@@ -120,30 +120,6 @@ theorem divK_trial_call_path_spec_within
     (fun h hq => by xperm_hyp hq)
     full
 
-/-- Compatibility wrapper for the unbounded trial call path surface. -/
-theorem divK_trial_call_path_spec
-    (sp j uLo uHi vTop vtopBase : Word) (base : Word)
-    (v2Old v11Old : Word)
-    (retMem dMem dloMem un0Mem : Word)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516) :
-    cpsTriple (base + 512) (base + 516) (sharedDivModCode base)
-      ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
-       (.x5 ↦ᵣ uLo) ** (.x6 ↦ᵣ vtopBase) **
-       (.x7 ↦ᵣ uHi) ** (.x10 ↦ᵣ vTop) **
-       (.x2 ↦ᵣ v2Old) ** (.x11 ↦ᵣ v11Old) ** (.x0 ↦ᵣ (0 : Word)) **
-       (sp + signExtend12 3968 ↦ₘ retMem) **
-       (sp + signExtend12 3960 ↦ₘ dMem) **
-       (sp + signExtend12 3952 ↦ₘ dloMem) **
-       (sp + signExtend12 3944 ↦ₘ un0Mem))
-      (div128SpecPost sp (base + 516) vTop uLo uHi) :=
-  (divK_trial_call_path_spec_within sp j uLo uHi vTop vtopBase base v2Old v11Old
-    retMem dMem dloMem un0Mem halign).to_cpsTriple
-
-/-- v2 mirror of `divK_trial_call_path_spec` — same structure but uses
-    `sharedDivModCode_v2 base` and `div128_v2_spec_shared`. Computes
-    qHat via the v2 algorithm (with Knuth's classical 2nd D3 correction).
-
-    Issue #1337 algorithm fix migration. -/
 theorem divK_trial_call_path_v2_spec_within
     (sp j uLo uHi vTop vtopBase : Word) (base : Word)
     (v2Old v11Old : Word)
@@ -189,24 +165,5 @@ theorem divK_trial_call_path_v2_spec_within
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq)
     full
-
-/-- Compatibility wrapper for the unbounded v2 trial call path surface. -/
-theorem divK_trial_call_path_v2_spec
-    (sp j uLo uHi vTop vtopBase : Word) (base : Word)
-    (v2Old v11Old : Word)
-    (retMem dMem dloMem un0Mem : Word)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516) :
-    cpsTriple (base + 512) (base + 516) (sharedDivModCode_v2 base)
-      ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
-       (.x5 ↦ᵣ uLo) ** (.x6 ↦ᵣ vtopBase) **
-       (.x7 ↦ᵣ uHi) ** (.x10 ↦ᵣ vTop) **
-       (.x2 ↦ᵣ v2Old) ** (.x11 ↦ᵣ v11Old) ** (.x0 ↦ᵣ (0 : Word)) **
-       (sp + signExtend12 3968 ↦ₘ retMem) **
-       (sp + signExtend12 3960 ↦ₘ dMem) **
-       (sp + signExtend12 3952 ↦ₘ dloMem) **
-       (sp + signExtend12 3944 ↦ₘ un0Mem))
-      (div128V2SpecPost sp (base + 516) vTop uLo uHi) :=
-  (divK_trial_call_path_v2_spec_within sp j uLo uHi vTop vtopBase base v2Old v11Old
-    retMem dMem dloMem un0Mem halign).to_cpsTriple
 
 end EvmAsm.Evm64

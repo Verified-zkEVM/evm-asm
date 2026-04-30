@@ -74,14 +74,15 @@ theorem divK_loop_n3_unified_divCode (bltu_1 bltu_0 : Bool)
     (hbltu_1 : bltu_1 = BitVec.ult u3 v2)
     (hbltu_0 : bltu_0 = BitVec.ult (iterN3 bltu_1 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.1 v2)
     (hcarry2 : Carry2NzAll v0 v1 v2 v3) :
-    cpsTriple (base + loopBodyOff) (base + denormOff) (divCode base)
+    cpsTripleWithin 404 (base + loopBodyOff) (base + denormOff) (divCode base)
       (loopN3PreWithScratch sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
         v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
         retMem dMem dloMem scratch_un0)
       (loopN3UnifiedPost bltu_1 bltu_0 sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig
         retMem dMem dloMem scratch_un0) :=
-  cpsTriple_extend_code (hmono := sharedDivModCode_sub_divCode)
-    (divK_loop_n3_unified_spec bltu_1 bltu_0
+  cpsTripleWithin_mono_nSteps (by decide) <|
+  cpsTripleWithin_extend_code (hmono := sharedDivModCode_sub_divCode)
+    (divK_loop_n3_unified_spec_within bltu_1 bltu_0
       sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
       v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
       retMem dMem dloMem scratch_un0 base halign

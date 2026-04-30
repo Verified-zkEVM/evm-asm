@@ -128,18 +128,6 @@ private theorem divK_clz_stage_combined_within
       (fun _ hp => hp)
       (fun _ hp => by rw [show (val >>> K.toNat : Word) = 0 from h]; exact hp) hs
 
-private theorem divK_clz_stage_combined
-    (K M_s : BitVec 6) (M_a : BitVec 12) (val count v7 : Word) (base : Word) :
-    let cr := divK_clz_stage_code K M_s M_a base
-    let val' := if val >>> K.toNat ≠ 0 then val else val <<< M_s.toNat
-    let count' := if val >>> K.toNat ≠ 0 then count else count + signExtend12 M_a
-    cpsTriple base (base + 16) cr
-      ((.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count) ** (.x7 ↦ᵣ v7) ** (.x0 ↦ᵣ (0 : Word)))
-      ((.x5 ↦ᵣ val') ** (.x6 ↦ᵣ count') **
-       (.x7 ↦ᵣ (val >>> K.toNat)) ** (.x0 ↦ᵣ (0 : Word))) :=
-  (divK_clz_stage_combined_within K M_s M_a val count v7 base).to_cpsTriple
-
-/-- Combined CLZ last stage: handles both taken and ntaken. -/
 private theorem divK_clz_last_combined_within (val count v7 : Word) (base : Word) :
     let cr := divK_clz_last_code base
     let count' := if val >>> (63 : Nat) ≠ 0 then count else count + signExtend12 (1 : BitVec 12)
@@ -159,19 +147,6 @@ private theorem divK_clz_last_combined_within (val count v7 : Word) (base : Word
       (fun _ hp => hp)
       (fun _ hp => by rw [show (val >>> (63 : Nat) : Word) = 0 from h]; exact hp) hs
 
-private theorem divK_clz_last_combined (val count v7 : Word) (base : Word) :
-    let cr := divK_clz_last_code base
-    let count' := if val >>> (63 : Nat) ≠ 0 then count else count + signExtend12 (1 : BitVec 12)
-    cpsTriple base (base + 12) cr
-      ((.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count) ** (.x7 ↦ᵣ v7) ** (.x0 ↦ᵣ (0 : Word)))
-      ((.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count') **
-       (.x7 ↦ᵣ (val >>> (63 : Nat))) ** (.x0 ↦ᵣ (0 : Word))) :=
-  (divK_clz_last_combined_within val count v7 base).to_cpsTriple
-
-/-- Full CLZ composition: 24 instructions at base+116→base+212.
-    Computes count of leading zeros in x6, shifts x5 left by that count.
-    Entry: base+116 with x5=val, x6=v6Old, x7=v7Old, x0=0.
-    Exit: base+212 with x5=(clzResult val).2, x6=(clzResult val).1, x0=0. -/
 theorem divK_clz_spec_within (val v6Old v7Old : Word) (base : Word) :
     cpsTripleWithin 24 (base + clzOff) (base + phaseC2Off) (divCode base)
       ((.x5 ↦ᵣ val) ** (.x6 ↦ᵣ v6Old) ** (.x7 ↦ᵣ v7Old) ** (.x0 ↦ᵣ (0 : Word)))
@@ -257,11 +232,3 @@ theorem divK_clz_spec_within (val v6Old v7Old : Word) (base : Word) :
     (fun h hq => by xperm_hyp hq)
     IefS0eS1eS2eS3eS4eS5e
 
-theorem divK_clz_spec (val v6Old v7Old : Word) (base : Word) :
-    cpsTriple (base + clzOff) (base + phaseC2Off) (divCode base)
-      ((.x5 ↦ᵣ val) ** (.x6 ↦ᵣ v6Old) ** (.x7 ↦ᵣ v7Old) ** (.x0 ↦ᵣ (0 : Word)))
-      ((.x5 ↦ᵣ (clzResult val).2) ** (.x6 ↦ᵣ (clzResult val).1) **
-       (.x7 ↦ᵣ (clzResult val).2 >>> (63 : Nat)) ** (.x0 ↦ᵣ (0 : Word))) :=
-  (divK_clz_spec_within val v6Old v7Old base).to_cpsTriple
-
-end EvmAsm.Evm64

@@ -1,15 +1,15 @@
 /-
   EvmAsm.Evm64.DivMod.LoopIterN2
 
-  Loop body cpsTriple specs for n=2 (2-limb divisor).
-  These specialize the generic LoopBodyN2 cpsBranch specs to specific j values,
-  producing cpsTriple specs using divK_store_loop_j0_spec_within (j=0) and
+  Loop body cpsTripleWithin specs for n=2 (2-limb divisor).
+  These specialize the generic LoopBodyN2 cpsBranchWithin specs to specific j values,
+  producing cpsTripleWithin specs using divK_store_loop_j0_spec_within (j=0) and
   divK_store_loop_jgt0_spec_within (j>0).
 
   For n=2, the loop runs 3 iterations (j=2 then j=1 then j=0). This file covers:
-  - j=0 (final iteration): cpsTriple base+448 → base+904
-  - j=1 (middle iteration): cpsTriple base+448 → base+448
-  - j=2 (first iteration): cpsTriple base+448 → base+448
+  - j=0 (final iteration): cpsTripleWithin base+448 → base+904
+  - j=1 (middle iteration): cpsTripleWithin base+448 → base+448
+  - j=2 (first iteration): cpsTripleWithin base+448 → base+448
 
   For n=2: BLTU compares u2 vs v1, div128 uses uHi=u2, uLo=u1, vTop=v1.
 -/
@@ -24,12 +24,12 @@ open EvmAsm.Rv64
 open EvmAsm.Evm64.DivMod.AddrNorm (slt_jpos_1 slt_jpos_2)
 
 -- ============================================================================
--- n=2, BLTU not-taken (max path) + BEQ skip, j=0 → cpsTriple to base+904
+-- n=2, BLTU not-taken (max path) + BEQ skip, j=0 → cpsTripleWithin to base+904
 -- ============================================================================
 
 set_option maxRecDepth 4096 in
-/-- Loop body cpsTriple for n=2, max+skip, j=0.
-    Since j=0, the BGE loop-back is not taken, giving a cpsTriple to base+904. -/
+/-- Loop body cpsTripleWithin for n=2, max+skip, j=0.
+    Since j=0, the BGE loop-back is not taken, giving a cpsTripleWithin to base+904. -/
 theorem divK_loop_body_n2_max_skip_j0_spec_within
     (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
@@ -93,7 +93,7 @@ theorem divK_loop_body_n2_max_skip_j0_spec_within
 
   intro_lets at MCS
   have MCS0 := MCS hborrow
-  -- 3. Store + loop exit j=0 (cpsTriple base+880 → base+904)
+  -- 3. Store + loop exit j=0 (cpsTripleWithin base+880 → base+904)
   have SL := divK_store_loop_j0_spec_within sp qHat u4_new (0 : Word) qOld base
   intro_lets at SL
   -- 4. Frame TF with mulsub cells (n=2: u2,u1,v1 consumed by trial; v0,u0,v2,u3,v3,uTop in frame)
@@ -120,19 +120,19 @@ theorem divK_loop_body_n2_max_skip_j0_spec_within
   -- 7. Compose pre_store + SLf
   have full := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by rw [sepConj_assoc'] at hp; xperm_hyp hp) TFfMCS0 SLf
-  -- 8. Permute final cpsTriple to match target
+  -- 8. Permute final cpsTripleWithin to match target
   exact cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hp => by delta loopBodyN2SkipPost loopBodySkipPost mulsubN4 loopExitPostN2 loopExitPost; rw [sepConj_assoc'] at hp; xperm_hyp hp)
     full
 
 -- ============================================================================
--- n=2, BLTU taken (call path) + BEQ skip, j=0 → cpsTriple to base+904
+-- n=2, BLTU taken (call path) + BEQ skip, j=0 → cpsTripleWithin to base+904
 -- ============================================================================
 
 set_option maxRecDepth 4096 in
-/-- Loop body cpsTriple for n=2, call+skip, j=0.
-    Since j=0, the BGE loop-back is not taken, giving a cpsTriple to base+904. -/
+/-- Loop body cpsTripleWithin for n=2, call+skip, j=0.
+    Since j=0, the BGE loop-back is not taken, giving a cpsTripleWithin to base+904. -/
 theorem divK_loop_body_n2_call_skip_j0_spec_within
     (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
@@ -225,7 +225,7 @@ theorem divK_loop_body_n2_call_skip_j0_spec_within
   let pc3 := ba3 + p3_hi; let bs3 := if BitVec.ult u3 fs3 then (1 : Word) else 0
   let un3 := u3 - fs3; let c3 := pc3 + bs3
   let u4_new := uTop - c3
-  -- 3. Store + loop exit j=0 (cpsTriple base+880 → base+904)
+  -- 3. Store + loop exit j=0 (cpsTripleWithin base+880 → base+904)
   have SL := divK_store_loop_j0_spec_within sp qHat u4_new (0 : Word) qOld base
   intro_lets at SL
   -- 4. Frame TF (for n=2: v1, u1, u2 consumed by trial; v0, u0, v2, u3, v3, uTop in frame)
@@ -264,12 +264,12 @@ theorem divK_loop_body_n2_call_skip_j0_spec_within
     full
 
 -- ============================================================================
--- n=2, BLTU not-taken (max path) + BEQ skip, j > 0 → cpsTriple to base+448
+-- n=2, BLTU not-taken (max path) + BEQ skip, j > 0 → cpsTripleWithin to base+448
 -- Word-parametric: callers pass concrete j ∈ {1,2} + corresponding slt_jpos_k.
 -- ============================================================================
 
 set_option maxRecDepth 4096 in
-/-- Loop body cpsTriple for n=2, max+skip, j > 0 (parametric on `j : Word`). -/
+/-- Loop body cpsTripleWithin for n=2, max+skip, j > 0 (parametric on `j : Word`). -/
 theorem divK_loop_body_n2_max_skip_jgt0_spec_within (j : Word)
     (hpos : BitVec.slt (j + signExtend12 4095) 0 = false)
     (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
@@ -353,12 +353,12 @@ theorem divK_loop_body_n2_max_skip_jgt0_spec_within (j : Word)
     full
 
 -- ============================================================================
--- n=2, BLTU taken (call path) + BEQ skip, j > 0 → cpsTriple to base+448
+-- n=2, BLTU taken (call path) + BEQ skip, j > 0 → cpsTripleWithin to base+448
 -- Word-parametric: callers pass concrete j ∈ {1,2} + corresponding slt_jpos_k.
 -- ============================================================================
 
 set_option maxRecDepth 4096 in
-/-- Loop body cpsTriple for n=2, call+skip, j > 0 (parametric on `j : Word`). -/
+/-- Loop body cpsTripleWithin for n=2, call+skip, j > 0 (parametric on `j : Word`). -/
 theorem divK_loop_body_n2_call_skip_jgt0_spec_within (j : Word)
     (hpos : BitVec.slt (j + signExtend12 4095) 0 = false)
     (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
@@ -488,7 +488,7 @@ theorem divK_loop_body_n2_call_skip_jgt0_spec_within (j : Word)
 -- ============================================================================
 
 -- ============================================================================
--- n=2, BLTU not-taken (max path) + BEQ addback, j=0 → cpsTriple to base+904
+-- n=2, BLTU not-taken (max path) + BEQ addback, j=0 → cpsTripleWithin to base+904
 -- ============================================================================
 
 set_option maxRecDepth 4096 in
@@ -572,7 +572,7 @@ theorem divK_loop_body_n2_max_addback_j0_beq_spec_within
     full
 
 -- ============================================================================
--- n=2, BLTU taken (call path) + BEQ addback, j=0 → cpsTriple to base+904
+-- n=2, BLTU taken (call path) + BEQ addback, j=0 → cpsTripleWithin to base+904
 -- ============================================================================
 
 set_option maxRecDepth 4096 in
@@ -666,7 +666,7 @@ theorem divK_loop_body_n2_call_addback_j0_beq_spec_within
   intro_lets at MCA
   unfold isAddbackCarry2NzN2Call isAddbackCarry2Nz div128Quot at hcarry2_nz
   have MCA0 := MCA hcarry2_nz hborrow
-  -- 3. Store + loop exit j=0 (cpsTriple base+884 → base+908)
+  -- 3. Store + loop exit j=0 (cpsTripleWithin base+884 → base+908)
   have SL := divK_store_loop_j0_spec_within sp q_out u4_out carryOut qOld base
   intro_lets at SL
   -- 4. Frame TF
@@ -705,7 +705,7 @@ theorem divK_loop_body_n2_call_addback_j0_beq_spec_within
     full
 
 -- ============================================================================
--- n=2, BLTU not-taken (max path) + BEQ addback, j > 0 → cpsTriple to base+448
+-- n=2, BLTU not-taken (max path) + BEQ addback, j > 0 → cpsTripleWithin to base+448
 -- Word-parametric: callers pass concrete j ∈ {1,2} + corresponding slt_jpos_k.
 -- ============================================================================
 
@@ -791,7 +791,7 @@ theorem divK_loop_body_n2_max_addback_jgt0_beq_spec_within (j : Word)
     full
 
 -- ============================================================================
--- n=2, BLTU taken (call path) + BEQ addback, j > 0 → cpsTriple to base+448
+-- n=2, BLTU taken (call path) + BEQ addback, j > 0 → cpsTripleWithin to base+448
 -- Word-parametric: callers pass concrete j ∈ {1,2} + corresponding slt_jpos_k.
 -- ============================================================================
 

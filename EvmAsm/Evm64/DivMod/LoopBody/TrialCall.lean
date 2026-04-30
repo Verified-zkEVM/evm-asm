@@ -3,7 +3,7 @@
 
   Extracted from `LoopBody.lean` (Section 11b).
 
-  `divK_trial_call_full_spec`: full trial-quotient call path —
+  `divK_trial_call_full_spec_within`: full trial-quotient call path —
   save j + trial load + BLTU taken + JAL + div128 — composing into a
   single base+448 → base+516 spec when `uHi < vTop`. Used by every
   `LoopBodyN{1..4}.lean` and `LoopIterN1.{Call,CallBeq}`.
@@ -15,7 +15,7 @@
   Uses public helpers from `LoopBody.lean`:
   - `lb_sub`, `lb_bltu_taken`, `lb_bltu_ntaken` (now public, made
     non-`private` for this split).
-  - `divK_save_trial_load_spec`, `divK_trial_call_path_spec`.
+  - `divK_save_trial_load_spec_within`, `divK_trial_call_path_spec_within`.
 -/
 
 import EvmAsm.Evm64.DivMod.LoopBody.TrialCallPath
@@ -33,7 +33,7 @@ open EvmAsm.Rv64
 -- Entry: base+448, Exit: base+516, CodeReq: sharedDivModCode base.
 -- ============================================================================
 
-/-- Bundled postcondition for `divK_trial_call_full_spec` (#1139). Inlines
+/-- Bundled postcondition for `divK_trial_call_full_spec_within` (#1139). Inlines
     the 30+ let chain so xperm / seqFrame see all atoms in one flat sepConj
     when bridging. Marked `@[irreducible]` so the theorem *signature* hides
     the bundle from consumers; call-sites that need per-limb atoms must
@@ -202,30 +202,5 @@ theorem divK_trial_call_full_spec_within
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq)
     full
-
-/-- Compatibility wrapper for the unbounded trial call full surface. -/
-theorem divK_trial_call_full_spec
-    (sp j n jOld v5Old v6Old v7Old v10Old v11Old v2Old uHi uLo vTop : Word)
-    (retMem dMem dloMem un0Mem : Word)
-    (base : Word)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
-    (hbltu : BitVec.ult uHi vTop) :
-    let uAddr := sp + signExtend12 4056 - (j + n) <<< (3 : BitVec 6).toNat
-    let vtopBase := sp + (n + signExtend12 4095) <<< (3 : BitVec 6).toNat
-    cpsTriple (base + loopBodyOff) (base + 516) (sharedDivModCode base)
-      ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
-       (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
-       (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
-       (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
-       (sp + signExtend12 3976 ↦ₘ jOld) ** (sp + signExtend12 3984 ↦ₘ n) **
-       (uAddr ↦ₘ uHi) ** ((uAddr + 8) ↦ₘ uLo) **
-       (vtopBase + signExtend12 32 ↦ₘ vTop) **
-       (sp + signExtend12 3968 ↦ₘ retMem) **
-       (sp + signExtend12 3960 ↦ₘ dMem) **
-       (sp + signExtend12 3952 ↦ₘ dloMem) **
-       (sp + signExtend12 3944 ↦ₘ un0Mem))
-      (divKTrialCallFullPost sp j n uHi uLo vTop base) :=
-  (divK_trial_call_full_spec_within sp j n jOld v5Old v6Old v7Old v10Old v11Old v2Old
-    uHi uLo vTop retMem dMem dloMem un0Mem base halign hbltu).to_cpsTriple
 
 end EvmAsm.Evm64

@@ -80,37 +80,6 @@ theorem evm_div_phaseAB_n3_clz_spec_within (sp base : Word)
     (fun h hq => by xperm_hyp hq)
     hABCLZ
 
-theorem evm_div_phaseAB_n3_clz_spec (sp base : Word)
-    (b0 b1 b2 b3 v5 v6 v7 v10 : Word)
-    (q0 q1 q2 q3 u5 u6 u7 nMem : Word)
-    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
-    (hb3z : b3 = 0) (hb2nz : b2 ≠ 0) :
-    cpsTriple base (base + phaseC2Off) (divCode base)
-      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
-       (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
-       ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
-       ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3) **
-       ((sp + signExtend12 4088) ↦ₘ q0) ** ((sp + signExtend12 4080) ↦ₘ q1) **
-       ((sp + signExtend12 4072) ↦ₘ q2) ** ((sp + signExtend12 4064) ↦ₘ q3) **
-       ((sp + signExtend12 4016) ↦ₘ u5) ** ((sp + signExtend12 4008) ↦ₘ u6) **
-       ((sp + signExtend12 4000) ↦ₘ u7) ** ((sp + signExtend12 3984) ↦ₘ nMem))
-      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ (clzResult b2).2) ** (.x10 ↦ᵣ b3) ** (.x0 ↦ᵣ (0 : Word)) **
-       (.x6 ↦ᵣ (clzResult b2).1) ** (.x7 ↦ᵣ (clzResult b2).2 >>> (63 : Nat)) **
-       ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
-       ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3) **
-       ((sp + signExtend12 4088) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4080) ↦ₘ (0 : Word)) **
-       ((sp + signExtend12 4072) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4064) ↦ₘ (0 : Word)) **
-       ((sp + signExtend12 4016) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
-       ((sp + signExtend12 4000) ↦ₘ (0 : Word)) ** ((sp + signExtend12 3984) ↦ₘ (3 : Word))) :=
-  (evm_div_phaseAB_n3_clz_spec_within sp base b0 b1 b2 b3 v5 v6 v7 v10
-    q0 q1 q2 q3 u5 u6 u7 nMem hbnz hb3z hb2nz).to_cpsTriple
-
--- ============================================================================
--- Full n=3 path to LoopSetup (shift ≠ 0): base → base+448
--- ============================================================================
-
-/-- DIV full n=3 path (shift ≠ 0): b[3]=0, b[2]≠0, shift=clzResult(b2).1≠0.
-    base → base+448. -/
 theorem evm_div_n3_to_loopSetup_spec_within (sp base : Word)
     (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 : Word)
     (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem : Word)
@@ -375,22 +344,3 @@ theorem evm_div_n3_shift0_to_loopSetup_spec_within (sp base : Word)
     (fun h hq => by xperm_hyp hq)
     hFull
 
-def evm_div_n3_to_loopSetup_spec := fun sp base
-    a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10
-    q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem
-    hbnz hb3z hb2nz hshift_nz =>
-  (evm_div_n3_to_loopSetup_spec_within sp base
-    a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10
-    q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem
-    hbnz hb3z hb2nz hshift_nz).to_cpsTriple
-
-def evm_div_n3_shift0_to_loopSetup_spec := fun sp base
-    a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10
-    q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem
-    hbnz hb3z hb2nz hshift_z =>
-  (evm_div_n3_shift0_to_loopSetup_spec_within sp base
-    a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10
-    q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem
-    hbnz hb3z hb2nz hshift_z).to_cpsTriple
-
-end EvmAsm.Evm64

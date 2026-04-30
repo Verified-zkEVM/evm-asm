@@ -4,7 +4,7 @@ import EvmAsm.Evm64.DivMod.Compose.Div128
 # DivMod Compose: div128 subroutine composition (modCode)
 
 MOD mirror of Div128.lean: composes 5 block specs
-(phase1, step1, compute_un21, step2, end) into a single `mod_div128_spec` theorem
+(phase1, step1, compute_un21, step2, end) into a single `mod_div128_spec_within` theorem
 for the div128 subroutine under modCode.
 Block 13 (div128 at base+1072) is identical between divCode and modCode.
 -/
@@ -17,7 +17,7 @@ open EvmAsm.Rv64
 
 -- ============================================================================
 -- div128 subroutine composition for modCode (Issue #89)
--- Compose 5 block specs into a single mod_div128_spec theorem.
+-- Compose 5 block specs into a single mod_div128_spec_within theorem.
 -- ============================================================================
 
 -- Master subsumption: ofProg (base+1072) divK_div128 ⊆ modCode base
@@ -48,7 +48,7 @@ private theorem d128_sub_mod {base : Word} (k : Nat) (addr : Word) (instr : Inst
       (CodeReq.ofProg_lookup (base + div128Off) divK_div128 k hk (by decide)) a i h)
 
 -- ============================================================================
--- mod_div128_spec: compose 5 block specs into single subroutine theorem.
+-- mod_div128_spec_within: compose 5 block specs into single subroutine theorem.
 -- Entry: base+1072, Exit: retAddr (via JALR), CodeReq: modCode base.
 -- ============================================================================
 
@@ -68,7 +68,7 @@ theorem mod_div128_spec_within (sp retAddr d uLo uHi : Word) (base : Word)
        (sp + signExtend12 3944 ↦ₘ un0Mem))
       (div128SpecPost sp retAddr d uLo uHi) := by
   -- Reuse the bundled post from Compose/Div128.lean (the post is identical
-  -- for div128_spec and mod_div128_spec — only the CodeReq subsumption
+  -- for div128_spec_within and mod_div128_spec_within — only the CodeReq subsumption
   -- differs). Unfold to expose the lets so the proof body can reference
   -- q1', q0', x7Exit, etc. by name.
   unfold div128SpecPost
@@ -244,27 +244,8 @@ theorem mod_div128_spec_within (sp retAddr d uLo uHi : Word) (base : Word)
   have h12345 := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h1234 hendf
   -- Final permutation to canonical pre/post order
-  exact cpsTripleWithin_weaken
+  exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq)
     h12345
 
-theorem mod_div128_spec (sp retAddr d uLo uHi : Word) (base : Word)
-    (v1Old v6Old v11Old : Word)
-    (retMem dMem dloMem un0Mem : Word)
-    (halign : (retAddr + signExtend12 0) &&& ~~~1 = retAddr) :
-    cpsTriple (base + div128Off) retAddr (modCode base)
-      (-- Precondition: caller registers + scratch memory
-       (.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ retAddr) ** (.x10 ↦ᵣ d) **
-       (.x5 ↦ᵣ uLo) ** (.x7 ↦ᵣ uHi) **
-       (.x6 ↦ᵣ v6Old) ** (.x1 ↦ᵣ v1Old) ** (.x11 ↦ᵣ v11Old) **
-       (.x0 ↦ᵣ (0 : Word)) **
-       (sp + signExtend12 3968 ↦ₘ retMem) **
-       (sp + signExtend12 3960 ↦ₘ dMem) **
-       (sp + signExtend12 3952 ↦ₘ dloMem) **
-       (sp + signExtend12 3944 ↦ₘ un0Mem))
-      (div128SpecPost sp retAddr d uLo uHi) :=
-  (mod_div128_spec_within sp retAddr d uLo uHi base v1Old v6Old v11Old
-    retMem dMem dloMem un0Mem halign).to_cpsTriple
-
-end EvmAsm.Evm64

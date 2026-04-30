@@ -2,7 +2,7 @@
   EvmAsm.Evm64.DivMod.LoopBody
 
   Hierarchical composition of the 114-instruction Knuth Algorithm D main loop body.
-  Composes sub-specs from LimbSpec.lean into a single cpsBranch for one iteration,
+  Composes sub-specs from LimbSpec.lean into a single cpsBranchWithin for one iteration,
   then proves the inductive loop spec via cpsTriple_loop_with_perm.
 
   Issue #87: DIV/MOD loop body composition.
@@ -239,68 +239,6 @@ theorem divK_mulsub_4limbs_spec_within
     (fun h hq => by xperm_hyp hq)
     L0fL1eL2eL3e
 
-theorem divK_mulsub_4limbs_spec
-    (sp uBase qHat v0 v1 v2 v3 u0 u1 u2 u3 : Word)
-    (v5_init v7_init v2_init : Word)
-    (base : Word) :
-    let p0_lo := qHat * v0
-    let p0_hi := rv64_mulhu qHat v0
-    let fs0 := p0_lo + (signExtend12 0 : Word)
-    let ba0 := if BitVec.ult fs0 (signExtend12 0 : Word) then (1 : Word) else 0
-    let pc0 := ba0 + p0_hi
-    let bs0 := if BitVec.ult u0 fs0 then (1 : Word) else 0
-    let un0 := u0 - fs0
-    let c0 := pc0 + bs0
-    let p1_lo := qHat * v1
-    let p1_hi := rv64_mulhu qHat v1
-    let fs1 := p1_lo + c0
-    let ba1 := if BitVec.ult fs1 c0 then (1 : Word) else 0
-    let pc1 := ba1 + p1_hi
-    let bs1 := if BitVec.ult u1 fs1 then (1 : Word) else 0
-    let un1 := u1 - fs1
-    let c1 := pc1 + bs1
-    let p2_lo := qHat * v2
-    let p2_hi := rv64_mulhu qHat v2
-    let fs2 := p2_lo + c1
-    let ba2 := if BitVec.ult fs2 c1 then (1 : Word) else 0
-    let pc2 := ba2 + p2_hi
-    let bs2 := if BitVec.ult u2 fs2 then (1 : Word) else 0
-    let un2 := u2 - fs2
-    let c2 := pc2 + bs2
-    let p3_lo := qHat * v3
-    let p3_hi := rv64_mulhu qHat v3
-    let fs3 := p3_lo + c2
-    let ba3 := if BitVec.ult fs3 c2 then (1 : Word) else 0
-    let pc3 := ba3 + p3_hi
-    let bs3 := if BitVec.ult u3 fs3 then (1 : Word) else 0
-    let un3 := u3 - fs3
-    let c3 := pc3 + bs3
-    cpsTriple (base + 536) (base + 712) (sharedDivModCode base)
-      ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) ** (.x10 ↦ᵣ (signExtend12 0 : Word)) **
-       (.x6 ↦ᵣ uBase) ** (.x5 ↦ᵣ v5_init) ** (.x7 ↦ᵣ v7_init) **
-       (.x2 ↦ᵣ v2_init) **
-       ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
-       ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4088) ↦ₘ u1) **
-       ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4080) ↦ₘ u2) **
-       ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ u3))
-      ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) ** (.x10 ↦ᵣ c3) **
-       (.x6 ↦ᵣ uBase) ** (.x5 ↦ᵣ bs3) ** (.x7 ↦ᵣ fs3) **
-       (.x2 ↦ᵣ un3) **
-       ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ un0) **
-       ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4088) ↦ₘ un1) **
-       ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4080) ↦ₘ un2) **
-       ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ un3)) := by
-  exact (divK_mulsub_4limbs_spec_within sp uBase qHat v0 v1 v2 v3 u0 u1 u2 u3
-    v5_init v7_init v2_init base).to_cpsTriple
-
--- ============================================================================
--- Section 4: Addback full composition
--- Composes addback_init + 4 × addback_limb + addback_final.
--- 37 instructions at loop body indices [71]-[107].
--- Entry: base+732, Exit: base+880, CodeReq: sharedDivModCode base.
--- ============================================================================
-
--- Addback base addresses (instrs [71]-[107])
 private theorem lb_ab0 {base : Word} : (base + 732 : Word) + 4 = base + 736 := by bv_addr
 private theorem lb_ab0_end {base : Word} : (base + 736 : Word) + 32 = base + 768 := by bv_addr
 private theorem lb_ab1_end {base : Word} : (base + 768 : Word) + 32 = base + 800 := by bv_addr
@@ -455,19 +393,6 @@ theorem divK_addback_full_spec_within
     (fun h hq => by xperm_hyp hq)
     IfA0eA1eA2eA3eAFe
 
-def divK_addback_full_spec
-    (sp uBase qHat v0 v1 v2 v3 u0 u1 u2 u3 u4 : Word)
-    (v7_init v5_init v2_init : Word)
-    (base : Word) :=
-  (divK_addback_full_spec_within sp uBase qHat v0 v1 v2 v3 u0 u1 u2 u3 u4
-    v7_init v5_init v2_init base).to_cpsTriple
-
--- ============================================================================
--- Section 5: Mulsub full composition (setup + 4limbs + sub_carry)
--- Instrs [17]-[69] at base+516 → base+728.
--- ============================================================================
-
--- Address normalization for mulsub_setup
 private theorem lb_ms_setup {base : Word} : (base + 516 : Word) + 20 = base + 536 := by bv_addr
 
 -- Address normalization for sub_carry
@@ -585,84 +510,6 @@ theorem divK_mulsub_full_spec_within
     (fun h hq => by xperm_hyp hq)
     SfMSCe
 
-theorem divK_mulsub_full_spec
-    (sp qHat j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
-    (v1Old v5Old v6Old v7Old v10Old v2Old : Word)
-    (base : Word) :
-    let uBase := sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat
-    let p0_lo := qHat * v0
-    let p0_hi := rv64_mulhu qHat v0
-    let fs0 := p0_lo + (signExtend12 0 : Word)
-    let ba0 := if BitVec.ult fs0 (signExtend12 0 : Word) then (1 : Word) else 0
-    let pc0 := ba0 + p0_hi
-    let bs0 := if BitVec.ult u0 fs0 then (1 : Word) else 0
-    let un0 := u0 - fs0
-    let c0 := pc0 + bs0
-    let p1_lo := qHat * v1
-    let p1_hi := rv64_mulhu qHat v1
-    let fs1 := p1_lo + c0
-    let ba1 := if BitVec.ult fs1 c0 then (1 : Word) else 0
-    let pc1 := ba1 + p1_hi
-    let bs1 := if BitVec.ult u1 fs1 then (1 : Word) else 0
-    let un1 := u1 - fs1
-    let c1 := pc1 + bs1
-    let p2_lo := qHat * v2
-    let p2_hi := rv64_mulhu qHat v2
-    let fs2 := p2_lo + c1
-    let ba2 := if BitVec.ult fs2 c1 then (1 : Word) else 0
-    let pc2 := ba2 + p2_hi
-    let bs2 := if BitVec.ult u2 fs2 then (1 : Word) else 0
-    let un2 := u2 - fs2
-    let c2 := pc2 + bs2
-    let p3_lo := qHat * v3
-    let p3_hi := rv64_mulhu qHat v3
-    let fs3 := p3_lo + c2
-    let ba3 := if BitVec.ult fs3 c2 then (1 : Word) else 0
-    let pc3 := ba3 + p3_hi
-    let bs3 := if BitVec.ult u3 fs3 then (1 : Word) else 0
-    let un3 := u3 - fs3
-    let c3 := pc3 + bs3
-    let borrow := if BitVec.ult uTop c3 then (1 : Word) else 0
-    let u4_new := uTop - c3
-    cpsTriple (base + 516) (base + 728) (sharedDivModCode base)
-      ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
-       (.x1 ↦ᵣ v1Old) ** (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
-       (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x2 ↦ᵣ v2Old) **
-       (.x0 ↦ᵣ 0) **
-       (sp + signExtend12 3976 ↦ₘ j) **
-       ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
-       ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4088) ↦ₘ u1) **
-       ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4080) ↦ₘ u2) **
-       ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ u3) **
-       ((uBase + signExtend12 4064) ↦ₘ uTop))
-      ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
-       (.x1 ↦ᵣ j) ** (.x5 ↦ᵣ u4_new) ** (.x6 ↦ᵣ uBase) **
-       (.x7 ↦ᵣ borrow) ** (.x10 ↦ᵣ c3) ** (.x2 ↦ᵣ un3) **
-       (.x0 ↦ᵣ 0) **
-       (sp + signExtend12 3976 ↦ₘ j) **
-       ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ un0) **
-       ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4088) ↦ₘ un1) **
-       ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4080) ↦ₘ un2) **
-       ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ un3) **
-       ((uBase + signExtend12 4064) ↦ₘ u4_new)) := by
-  exact (divK_mulsub_full_spec_within sp qHat j v0 v1 v2 v3 u0 u1 u2 u3 uTop
-    v1Old v5Old v6Old v7Old v10Old v2Old base).to_cpsTriple
-
-set_option maxRecDepth 4096 in
-/-- v2 mirror of `divK_mulsub_4limbs_spec` — same body but targets
-    `sharedDivModCode_v2 base`.
-
-    **STUB:** ~150-line mechanical copy of `divK_mulsub_4limbs_spec`'s
-    body with `lb_sub → lb_sub_v2` substitutions throughout. Block 8
-    (`divK_loopBody`) is identical between v1 and v2; only the cr's
-    block 12 (`divK_div128` vs `divK_div128_v2`) differs, and this
-    spec doesn't touch block 12. So the proof body is mechanical.
-
-    Future iteration: either copy-paste the body or refactor v1's
-    `divK_mulsub_4limbs_spec` to be cr-polymorphic so both versions
-    can share a single closed proof.
-
-    Issue #1337 algorithm fix migration. -/
 theorem divK_mulsub_4limbs_v2_spec_within
     (sp uBase qHat v0 v1 v2 v3 u0 u1 u2 u3 : Word)
     (v5_init v7_init v2_init : Word)
@@ -808,74 +655,6 @@ theorem divK_mulsub_4limbs_v2_spec_within
     (fun h hq => by xperm_hyp hq)
     L0fL1eL2eL3e
 
-theorem divK_mulsub_4limbs_v2_spec
-    (sp uBase qHat v0 v1 v2 v3 u0 u1 u2 u3 : Word)
-    (v5_init v7_init v2_init : Word)
-    (base : Word) :
-    let p0_lo := qHat * v0
-    let p0_hi := rv64_mulhu qHat v0
-    let fs0 := p0_lo + (signExtend12 0 : Word)
-    let ba0 := if BitVec.ult fs0 (signExtend12 0 : Word) then (1 : Word) else 0
-    let pc0 := ba0 + p0_hi
-    let bs0 := if BitVec.ult u0 fs0 then (1 : Word) else 0
-    let un0 := u0 - fs0
-    let c0 := pc0 + bs0
-    let p1_lo := qHat * v1
-    let p1_hi := rv64_mulhu qHat v1
-    let fs1 := p1_lo + c0
-    let ba1 := if BitVec.ult fs1 c0 then (1 : Word) else 0
-    let pc1 := ba1 + p1_hi
-    let bs1 := if BitVec.ult u1 fs1 then (1 : Word) else 0
-    let un1 := u1 - fs1
-    let c1 := pc1 + bs1
-    let p2_lo := qHat * v2
-    let p2_hi := rv64_mulhu qHat v2
-    let fs2 := p2_lo + c1
-    let ba2 := if BitVec.ult fs2 c1 then (1 : Word) else 0
-    let pc2 := ba2 + p2_hi
-    let bs2 := if BitVec.ult u2 fs2 then (1 : Word) else 0
-    let un2 := u2 - fs2
-    let c2 := pc2 + bs2
-    let p3_lo := qHat * v3
-    let p3_hi := rv64_mulhu qHat v3
-    let fs3 := p3_lo + c2
-    let ba3 := if BitVec.ult fs3 c2 then (1 : Word) else 0
-    let pc3 := ba3 + p3_hi
-    let bs3 := if BitVec.ult u3 fs3 then (1 : Word) else 0
-    let un3 := u3 - fs3
-    let c3 := pc3 + bs3
-    cpsTriple (base + 536) (base + 712) (sharedDivModCode_v2 base)
-      ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) ** (.x10 ↦ᵣ (signExtend12 0 : Word)) **
-       (.x6 ↦ᵣ uBase) ** (.x5 ↦ᵣ v5_init) ** (.x7 ↦ᵣ v7_init) **
-       (.x2 ↦ᵣ v2_init) **
-       ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
-       ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4088) ↦ₘ u1) **
-       ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4080) ↦ₘ u2) **
-       ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ u3))
-      ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) ** (.x10 ↦ᵣ c3) **
-       (.x6 ↦ᵣ uBase) ** (.x5 ↦ᵣ bs3) ** (.x7 ↦ᵣ fs3) **
-       (.x2 ↦ᵣ un3) **
-       ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ un0) **
-       ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4088) ↦ₘ un1) **
-       ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4080) ↦ₘ un2) **
-       ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ un3)) := by
-  exact (divK_mulsub_4limbs_v2_spec_within sp uBase qHat v0 v1 v2 v3 u0 u1 u2 u3
-    v5_init v7_init v2_init base).to_cpsTriple
-
-set_option maxRecDepth 4096 in
-/-- v2 mirror of `divK_mulsub_full_spec` — same body but targets
-    `sharedDivModCode_v2 base`.
-
-    Closed by composition of:
-    - `divK_mulsub_setup_spec` (cr-poly, lifted via `lb_sub_v2`).
-    - `divK_mulsub_4limbs_v2_spec` (NEW STUB, sorry-driven).
-    - `divK_sub_carry_spec` (cr-poly, lifted via `lb_sub_v2`).
-
-    The proof body is a structural copy of `divK_mulsub_full_spec`'s,
-    with `lb_sub → lb_sub_v2` and `divK_mulsub_4limbs_spec →
-    divK_mulsub_4limbs_v2_spec` substitutions.
-
-    Issue #1337 algorithm fix migration. -/
 theorem divK_mulsub_full_v2_spec_within
     (sp qHat j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
     (v1Old v5Old v6Old v7Old v10Old v2Old : Word)
@@ -974,20 +753,6 @@ theorem divK_mulsub_full_v2_spec_within
     (fun h hq => by xperm_hyp hq)
     SfMSCe
 
-def divK_mulsub_full_v2_spec
-    (sp qHat j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
-    (v1Old v5Old v6Old v7Old v10Old v2Old : Word)
-    (base : Word) :=
-  (divK_mulsub_full_v2_spec_within sp qHat j v0 v1 v2 v3 u0 u1 u2 u3 uTop
-    v1Old v5Old v6Old v7Old v10Old v2Old base).to_cpsTriple
-
-set_option maxRecDepth 4096 in
-/-- v2 mirror of `divK_addback_full_spec` — same body but targets
-    `sharedDivModCode_v2 base`. Mechanical copy of v1's body with
-    `lb_sub → lb_sub_v2` substitutions. Block 8 (`divK_loopBody`) is
-    identical between v1 and v2.
-
-    Issue #1337 algorithm fix migration. -/
 theorem divK_addback_full_v2_spec_within
     (sp uBase qHat v0 v1 v2 v3 u0 u1 u2 u3 u4 : Word)
     (v7_init v5_init v2_init : Word)
@@ -1123,25 +888,13 @@ theorem divK_addback_full_v2_spec_within
     (fun h hq => by xperm_hyp hq)
     IfA0eA1eA2eA3eAFe
 
-def divK_addback_full_v2_spec
-    (sp uBase qHat v0 v1 v2 v3 u0 u1 u2 u3 u4 : Word)
-    (v7_init v5_init v2_init : Word)
-    (base : Word) :=
-  (divK_addback_full_v2_spec_within sp uBase qHat v0 v1 v2 v3 u0 u1 u2 u3 u4
-    v7_init v5_init v2_init base).to_cpsTriple
-
--- ============================================================================
--- Section 6: Correction branch address normalization
--- BEQ at instr [70] (base+728): taken → base+884, not-taken → base+732.
--- ============================================================================
-
 theorem lb_beq_taken {base : Word} : (base + 728 : Word) + signExtend13 (156 : BitVec 13) = base + 884 := by
   rv64_addr
 
 theorem lb_beq_ntaken {base : Word} : (base + 728 : Word) + 4 = base + 732 := by bv_addr
 
-/-- v2 mirror of `divK_correction_addback_spec` — same body but targets
-    `sharedDivModCode_v2 base`. Uses `divK_addback_full_v2_spec` and
+/-- v2 mirror of `divK_correction_addback_spec_within` — same body but targets
+    `sharedDivModCode_v2 base`. Uses `divK_addback_full_v2_spec_within` and
     `lb_sub_v2` for the BEQ subsumption.
 
     Issue #1337 algorithm fix migration. -/
@@ -1220,20 +973,6 @@ theorem divK_correction_addback_v2_spec_within
     (fun h hq => by xperm_hyp hq)
     ntaken_framedAB
 
-def divK_correction_addback_v2_spec
-    (sp uBase borrow qHat v0 v1 v2 v3 u0 u1 u2 u3 u4 : Word)
-    (v5Old v2Old : Word) (base : Word)
-    (hb : borrow ≠ (0 : Word)) :=
-  (divK_correction_addback_v2_spec_within sp uBase borrow qHat v0 v1 v2 v3 u0 u1 u2 u3 u4
-    v5Old v2Old base hb).to_cpsTriple
-
--- ============================================================================
--- Section 6b: Correction addback spec (borrow ≠ 0)
--- BEQ not-taken → run addback. 38 instrs at base+728 → base+880.
--- ============================================================================
-
-/-- Correction with addback: when borrow≠0, BEQ not-taken → addback_full.
-    38 instructions. Modifies u values and decrements qHat. -/
 theorem divK_correction_addback_spec_within
     (sp uBase borrow qHat v0 v1 v2 v3 u0 u1 u2 u3 u4 : Word)
     (v5Old v2Old : Word) (base : Word)
@@ -1315,15 +1054,6 @@ theorem divK_correction_addback_spec_within
     (fun h hq => by xperm_hyp hq)
     ntaken_framedAB
 
-def divK_correction_addback_spec
-    (sp uBase borrow qHat v0 v1 v2 v3 u0 u1 u2 u3 u4 : Word)
-    (v5Old v2Old : Word) (base : Word)
-    (hb : borrow ≠ (0 : Word)) :=
-  (divK_correction_addback_spec_within sp uBase borrow qHat v0 v1 v2 v3 u0 u1 u2 u3 u4
-    v5Old v2Old base hb).to_cpsTriple
-
-/-- Variant of correction_addback_spec with addbackN4/addbackN4_carry in postcondition.
-    Same proof via cpsTriple_weaken (definitional equality). -/
 theorem divK_correction_addback_named_spec_within
     (sp uBase borrow qHat v0 v1 v2 v3 u0 u1 u2 u3 u4 : Word)
     (v5Old v2Old : Word) (base : Word)
@@ -1348,18 +1078,6 @@ theorem divK_correction_addback_named_spec_within
   intro ab qHat'
   exact divK_correction_addback_spec_within sp uBase borrow qHat v0 v1 v2 v3 u0 u1 u2 u3 u4
     v5Old v2Old base hb
-
-def divK_correction_addback_named_spec
-    (sp uBase borrow qHat v0 v1 v2 v3 u0 u1 u2 u3 u4 : Word)
-    (v5Old v2Old : Word) (base : Word)
-    (hb : borrow ≠ (0 : Word)) :=
-  (divK_correction_addback_named_spec_within sp uBase borrow qHat v0 v1 v2 v3 u0 u1 u2 u3 u4
-    v5Old v2Old base hb).to_cpsTriple
-
--- ============================================================================
--- Section 7: Save j + trial load composition
--- Instrs [0]-[12] at base+448 → base+500.
--- ============================================================================
 
 private theorem lb_save_j {base : Word} : (base + loopBodyOff : Word) + 4 = base + 452 := by bv_addr
 private theorem lb_trial_load {base : Word} : (base + 452 : Word) + 48 = base + 500 := by bv_addr
@@ -1427,21 +1145,6 @@ theorem divK_save_trial_load_spec_within
     (fun h hq => by xperm_hyp hq)
     SJfTLe
 
-def divK_save_trial_load_spec
-    (sp j n jOld v5Old v6Old v7Old v10Old uHi uLo vTop : Word)
-    (base : Word) :=
-  (divK_save_trial_load_spec_within sp j n jOld v5Old v6Old v7Old v10Old uHi uLo vTop
-    base).to_cpsTriple
-
--- ============================================================================
--- Section 8: Trial quotient BLTU branch + div128/max composition
--- After trial_load (base+500): x7=uHi, x10=vTop, x5=uLo.
--- BLTU x7 x10 12 at base+500:
---   Taken (uHi < vTop) → base+512: JAL x2 560 → div128 → base+516, x11=q
---   Not-taken (uHi >= vTop) → base+504: ADDI x11 x0 4095 + JAL x0 8 → base+516
--- ============================================================================
-
--- Address normalization for trial quotient
 theorem lb_bltu_taken {base : Word} : (base + 500 : Word) + signExtend13 (12 : BitVec 13) = base + 512 := by
   rv64_addr
 theorem lb_bltu_ntaken {base : Word} : (base + 500 : Word) + 4 = base + 504 := by bv_addr
@@ -1480,10 +1183,6 @@ theorem divK_beq_passthrough_within {carry : Word} (base : Word) (hne : carry �
       (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp)
     ntaken
 
-def divK_beq_passthrough {carry : Word} (base : Word) (hne : carry ≠ 0) :=
-  (divK_beq_passthrough_within (carry := carry) base hne).to_cpsTriple
-
--- Address normalization for BEQ taken (double-addback backward branch)
 private theorem lb_beq_back_taken {base : Word} :
     (base + 880 : Word) + signExtend13 (8044 : BitVec 13) = base + 732 := by
   rv64_addr
@@ -1595,14 +1294,6 @@ theorem divK_double_addback_beq_spec_within
     (fun h hp => by xperm_hyp hp)
     full
 
-def divK_double_addback_beq_spec
-    (sp uBase qHat' v0 v1 v2 v3 aun0 aun1 aun2 aun3 aun4 : Word)
-    (base : Word)
-    (hcarry2_nz : addbackN4_carry aun0 aun1 aun2 aun3 v0 v1 v2 v3 ≠ 0) :=
-  (divK_double_addback_beq_spec_within sp uBase qHat' v0 v1 v2 v3 aun0 aun1 aun2 aun3 aun4
-    base hcarry2_nz).to_cpsTriple
-
-/-- Named variant of double_addback_beq_spec with addbackN4 projections in postcondition. -/
 theorem divK_double_addback_beq_named_spec_within
     (sp uBase qHat' v0 v1 v2 v3 aun0 aun1 aun2 aun3 aun4 : Word)
     (base : Word)
@@ -1629,19 +1320,6 @@ theorem divK_double_addback_beq_named_spec_within
   exact divK_double_addback_beq_spec_within sp uBase qHat' v0 v1 v2 v3 aun0 aun1 aun2 aun3 aun4
     base hcarry2_nz
 
-def divK_double_addback_beq_named_spec
-    (sp uBase qHat' v0 v1 v2 v3 aun0 aun1 aun2 aun3 aun4 : Word)
-    (base : Word)
-    (hcarry2_nz : addbackN4_carry aun0 aun1 aun2 aun3 v0 v1 v2 v3 ≠ 0) :=
-  (divK_double_addback_beq_named_spec_within sp uBase qHat' v0 v1 v2 v3 aun0 aun1 aun2 aun3 aun4
-    base hcarry2_nz).to_cpsTriple
-
-/-- Double-addback BEQ check + store q[j] + loop control.
-    7 instructions, loop body indices [108]-[114].
-    The BEQ at [108] checks if addback carry (x7) = 0.
-    When x7 ≠ 0 (single addback sufficient), BEQ falls through to store+loop.
-    Entry: base+880. Taken exit: base+448 (loop back). Not-taken exit: base+908 (exit loop).
-    CodeReq: sharedDivModCode base. -/
 theorem divK_store_loop_spec_within
     (sp j qHat v5Old v7Old qOld : Word)
     (base : Word) :
@@ -1709,11 +1387,5 @@ theorem divK_store_loop_spec_within
   -- 5. Compose store_qj(+x0) → loop_control(reshaped)
   exact cpsTripleWithin_seq_cpsBranchWithin_perm_same_cr
     (fun h hp => hp) SQx0 LCp
-
-def divK_store_loop_spec
-    (sp j qHat v5Old v7Old qOld : Word)
-    (base : Word) :=
-  (divK_store_loop_spec_within sp j qHat v5Old v7Old qOld base).to_cpsBranch
-
 
 end EvmAsm.Evm64

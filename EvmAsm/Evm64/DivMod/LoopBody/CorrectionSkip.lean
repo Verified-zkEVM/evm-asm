@@ -74,33 +74,7 @@ theorem divK_correction_skip_spec_within
 
 /-- Correction skip: when borrow=0, BEQ taken → jump to base+884. No addback.
     1 instruction. All registers and memory unchanged. -/
-theorem divK_correction_skip_spec
-    (sp uBase qHat v0 v1 v2 v3 u0 u1 u2 u3 u4 : Word)
-    (v5Old v2Old : Word) (base : Word) :
-    cpsTriple (base + 728) (base + 884) (sharedDivModCode base)
-      ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ uBase) ** (.x7 ↦ᵣ (0 : Word)) **
-       (.x11 ↦ᵣ qHat) ** (.x5 ↦ᵣ v5Old) ** (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
-       ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
-       ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4088) ↦ₘ u1) **
-       ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4080) ↦ₘ u2) **
-       ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ u3) **
-       ((uBase + signExtend12 4064) ↦ₘ u4))
-      ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ uBase) ** (.x7 ↦ᵣ (0 : Word)) **
-       (.x11 ↦ᵣ qHat) ** (.x5 ↦ᵣ v5Old) ** (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
-       ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
-       ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4088) ↦ₘ u1) **
-       ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4080) ↦ₘ u2) **
-       ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ u3) **
-       ((uBase + signExtend12 4064) ↦ₘ u4)) :=
-  (divK_correction_skip_spec_within sp uBase qHat v0 v1 v2 v3 u0 u1 u2 u3 u4
-    v5Old v2Old base).to_cpsTriple
 
-/-- v2 mirror of `divK_correction_skip_spec` — same body but targets
-    `sharedDivModCode_v2 base` (the v2 cr) and uses `lb_sub_v2`. The
-    underlying instruction (BEQ at offset 70 within `divK_loopBody`) is
-    identical in v1 and v2; only the target cr changes.
-
-    Issue #1337 algorithm fix migration. -/
 theorem divK_correction_skip_v2_spec_within
     (sp uBase qHat v0 v1 v2 v3 u0 u1 u2 u3 u4 : Word)
     (v5Old v2Old : Word) (base : Word) :
@@ -147,32 +121,5 @@ theorem divK_correction_skip_v2_spec_within
     (fun h hp => by xperm_hyp hp)
     (fun h hp => by xperm_hyp hp)
     skip_framed
-
-/-- v2 mirror of `divK_correction_skip_spec` — same body but targets
-    `sharedDivModCode_v2 base` (the v2 cr) and uses `lb_sub_v2`. The
-    underlying instruction (BEQ at offset 70 within `divK_loopBody`) is
-    identical in v1 and v2; only the target cr changes.
-
-    Issue #1337 algorithm fix migration. -/
-theorem divK_correction_skip_v2_spec
-    (sp uBase qHat v0 v1 v2 v3 u0 u1 u2 u3 u4 : Word)
-    (v5Old v2Old : Word) (base : Word) :
-    cpsTriple (base + 728) (base + 884) (sharedDivModCode_v2 base)
-      ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ uBase) ** (.x7 ↦ᵣ (0 : Word)) **
-       (.x11 ↦ᵣ qHat) ** (.x5 ↦ᵣ v5Old) ** (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
-       ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
-       ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4088) ↦ₘ u1) **
-       ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4080) ↦ₘ u2) **
-       ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ u3) **
-       ((uBase + signExtend12 4064) ↦ₘ u4))
-      ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ uBase) ** (.x7 ↦ᵣ (0 : Word)) **
-       (.x11 ↦ᵣ qHat) ** (.x5 ↦ᵣ v5Old) ** (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
-       ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
-       ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4088) ↦ₘ u1) **
-       ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4080) ↦ₘ u2) **
-       ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ u3) **
-       ((uBase + signExtend12 4064) ↦ₘ u4)) :=
-  (divK_correction_skip_v2_spec_within sp uBase qHat v0 v1 v2 v3 u0 u1 u2 u3 u4
-    v5Old v2Old base).to_cpsTriple
 
 end EvmAsm.Evm64

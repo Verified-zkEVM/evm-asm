@@ -115,7 +115,7 @@ private theorem mod_clz_last_combined (val count v7 : Word) (base : Word) :
       (fun _ hp => by rw [show (val >>> (63 : Nat) : Word) = 0 from h]; exact hp) hs
 
 /-- Full CLZ composition for modCode: 24 instructions at base+116 -> base+212.
-    Mirror of divK_clz_spec with modCode instead of divCode. -/
+    Mirror of divK_clz_spec_within with modCode instead of divCode. -/
 theorem mod_clz_spec_within (val v6Old v7Old : Word) (base : Word) :
     cpsTripleWithin 24 (base + clzOff) (base + phaseC2Off) (modCode base)
       ((.x5 ↦ᵣ val) ** (.x6 ↦ᵣ v6Old) ** (.x7 ↦ᵣ v7Old) ** (.x0 ↦ᵣ (0 : Word)))
@@ -201,11 +201,3 @@ theorem mod_clz_spec_within (val v6Old v7Old : Word) (base : Word) :
     (fun h hq => by xperm_hyp hq)
     IefS0eS1eS2eS3eS4eS5e
 
-theorem mod_clz_spec (val v6Old v7Old : Word) (base : Word) :
-    cpsTriple (base + clzOff) (base + phaseC2Off) (modCode base)
-      ((.x5 ↦ᵣ val) ** (.x6 ↦ᵣ v6Old) ** (.x7 ↦ᵣ v7Old) ** (.x0 ↦ᵣ (0 : Word)))
-      ((.x5 ↦ᵣ (clzResult val).2) ** (.x6 ↦ᵣ (clzResult val).1) **
-       (.x7 ↦ᵣ (clzResult val).2 >>> (63 : Nat)) ** (.x0 ↦ᵣ (0 : Word))) :=
-  (mod_clz_spec_within val v6Old v7Old base).to_cpsTriple
-
-end EvmAsm.Evm64

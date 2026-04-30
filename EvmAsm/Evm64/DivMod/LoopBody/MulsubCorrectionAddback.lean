@@ -4,7 +4,7 @@
   Extracted from `LoopBody.lean` (Section 10b).
 
   Mulsub + correction_addback composition (borrow ≠ 0 path):
-  combines `divK_mulsub_full_spec` with `divK_correction_addback_spec`,
+  combines `divK_mulsub_full_spec_within` with `divK_correction_addback_spec_within`,
   with optional BEQ passthrough for the single-addback case.
 
   Three theorems (all public):
@@ -69,12 +69,6 @@ theorem divK_beq_passthrough_v2_spec_within {carry : Word} (base : Word) (hne : 
       (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp)
     ntaken
 
-def divK_beq_passthrough_v2 {carry : Word} (base : Word) (hne : carry ≠ 0) :=
-  (divK_beq_passthrough_v2_spec_within (carry := carry) base hne).to_cpsTriple
-
-/-- Mulsub + correction addback (without BEQ): when mulsub produces borrow≠0, run addback.
-    Entry: base+516, Exit: base+880 (before BEQ at [108]).
-    CodeReq: sharedDivModCode base. -/
 theorem divK_mulsub_correction_addback_880_spec_within
     (sp qHat j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
     (v1Old v5Old v6Old v7Old v10Old v2Old : Word)

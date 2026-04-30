@@ -4,7 +4,7 @@ import EvmAsm.Evm64.DivMod.Compose.Base
 # DivMod Compose: div128 subroutine composition
 
 Section 15 of the DivMod composition: composes 5 block specs
-(phase1, step1, compute_un21, step2, end) into a single `div128_spec` theorem
+(phase1, step1, compute_un21, step2, end) into a single `div128_spec_within` theorem
 for the div128 subroutine.
 -/
 
@@ -16,7 +16,7 @@ open EvmAsm.Rv64
 
 -- ============================================================================
 -- Section 15: div128 subroutine composition (Issue #88)
--- Compose 5 block specs into a single div128_spec theorem.
+-- Compose 5 block specs into a single div128_spec_within theorem.
 -- ============================================================================
 
 -- Master subsumption: ofProg (base+1072) divK_div128 ⊆ sharedDivModCode base
@@ -49,14 +49,14 @@ private theorem d128_sub {base : Word} (k : Nat) (addr : Word) (instr : Instr)
 -- Each block's subsumption uses: CodeReq.union_sub (d128_sub ...) (CodeReq.union_sub ...)
 
 -- ============================================================================
--- div128_spec: compose 5 block specs into single subroutine theorem.
+-- div128_spec_within: compose 5 block specs into single subroutine theorem.
 -- Entry: base+1072, Exit: retAddr (via JALR), CodeReq: sharedDivModCode base.
 -- ============================================================================
 
-/-- Bundled postcondition for `div128_spec` (and `mod_div128_spec`).
+/-- Bundled postcondition for `div128_spec_within` (and `mod_div128_spec_within`).
     Hides the 25-let chain that computes Phase 1 / compute-un21 / Phase 2 /
     Phase 2b-guarded / end-combine intermediates so the theorem signature
-    stays a clean `cpsTriple A B C P (div128SpecPost …)` instead of a
+    stays a clean `cpsTripleWithin 10000 A B C P (div128SpecPost …)` instead of a
     let-chain immediately preceding the triple (anti-pattern, slows
     elaboration). Marked `@[irreducible]` so callers see only the bundled
     assertion; `unfold` to expose the lets when threading downstream.
@@ -298,62 +298,11 @@ theorem div128_spec_within (sp retAddr d uLo uHi : Word) (base : Word)
   have h12345 := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h1234 hendf
   -- Final permutation to canonical pre/post order
-  exact cpsTripleWithin_weaken
+  exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq)
     h12345
 
-theorem div128_spec (sp retAddr d uLo uHi : Word) (base : Word)
-    (v1Old v6Old v11Old : Word)
-    (retMem dMem dloMem un0Mem : Word)
-    (halign : (retAddr + signExtend12 0) &&& ~~~1 = retAddr) :
-    cpsTriple (base + div128Off) retAddr (sharedDivModCode base)
-      (-- Precondition: caller registers + scratch memory
-       (.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ retAddr) ** (.x10 ↦ᵣ d) **
-       (.x5 ↦ᵣ uLo) ** (.x7 ↦ᵣ uHi) **
-       (.x6 ↦ᵣ v6Old) ** (.x1 ↦ᵣ v1Old) ** (.x11 ↦ᵣ v11Old) **
-       (.x0 ↦ᵣ (0 : Word)) **
-       (sp + signExtend12 3968 ↦ₘ retMem) **
-       (sp + signExtend12 3960 ↦ₘ dMem) **
-       (sp + signExtend12 3952 ↦ₘ dloMem) **
-       (sp + signExtend12 3944 ↦ₘ un0Mem))
-      (div128SpecPost sp retAddr d uLo uHi) :=
-  (div128_spec_within sp retAddr d uLo uHi base v1Old v6Old v11Old
-    retMem dMem dloMem un0Mem halign).to_cpsTriple
-
--- ============================================================================
--- Section 15.v2: divK_div128_v2 subroutine composition (issue #1337 fix)
---
--- Parallel to `div128_spec` but for the FIXED `divK_div128_v2` subroutine
--- (with Knuth's classical 2nd D3 correction iteration). Mirrors the Lean
--- abstraction `div128Quot_v2`.
---
--- This is a **STUB** awaiting the full multi-iteration migration:
--- 1. Add 5 new block specs for the inserted [25..34] instructions
---    (mirror of Phase 2b's existing [37..46] block specs).
--- 2. Adjust offsets for the shifted [35..60] block specs
---    (originally [25..50]).
--- 3. Compose blocks via `runBlock` / `seqFrame` (similar to `div128_spec`).
---
--- Until the migration is complete, callers should continue using
--- `div128_spec` with the buggy `divK_div128`. The buggy version is
--- correct for inputs that don't reach Knuth's D3 2nd-iteration regime
--- (per the analysis in
--- `memory/project_n4callbeq_addback_overshoot_2pow32.md`); the v2 fix
--- is needed only for the corner-case inputs.
--- ============================================================================
-
-/-- Bundled postcondition for `div128_v2_spec`.
-
-    Mirrors `div128SpecPost` but uses the fixed `q1''/rhat''` values
-    (post-2nd-D3-correction) for the high half of `q`, matching
-    `div128Quot_v2`'s output. `@[irreducible]` to keep the let-chain
-    out of the theorem signature.
-
-    The Phase 2 / end-combine intermediates are unchanged from
-    `div128SpecPost` — only Phase 1's `q1' / rhat'` are replaced by
-    `q1'' / rhat''`. -/
-@[irreducible]
 def div128V2SpecPost (sp retAddr d uLo uHi : Word) : Assertion :=
   -- Phase 1 split intermediates (unchanged).
   let dHi := d >>> (32 : BitVec 6).toNat
@@ -382,7 +331,7 @@ def div128V2SpecPost (sp retAddr d uLo uHi : Word) : Assertion :=
   let cu_rhat_un1 := (rhat'' <<< (32 : BitVec 6).toNat) ||| un1
   let cu_q1_dlo := q1'' * dLo
   let un21 := cu_rhat_un1 - cu_q1_dlo
-  -- Step 2 (unchanged from div128_spec, but starts with v2's un21).
+  -- Step 2 (unchanged from div128_spec_within, but starts with v2's un21).
   let q0 := rv64_divu un21 dHi
   let rhat2 := un21 - q0 * dHi
   let hi2 := q0 >>> (32 : BitVec 6).toNat
@@ -421,8 +370,8 @@ private theorem d128_v2_sub {base : Word} (k : Nat) (addr : Word) (instr : Instr
 /-- **STUB**: equivalence between `divK_div128_v2` (fixed RISC-V) and
     `div128Quot_v2` (fixed Lean abstraction).
 
-    Mirrors `div128_spec` but for the v2 algorithm. The proof structure
-    parallels `div128_spec` with two changes:
+    Mirrors `div128_spec_within` but for the v2 algorithm. The proof structure
+    parallels `div128_spec_within` with two changes:
     - The Phase 1 block uses `divK_div128_step1_v2_spec` (covering instrs
       [10..34]) instead of `divK_div128_step1_spec` ([10..24]).
     - Offsets in the shifted `[35..60]` blocks bump by +40 bytes from
@@ -440,7 +389,7 @@ theorem div128_v2_spec_within (sp retAddr d uLo uHi : Word) (base : Word)
     (_halign : (retAddr + signExtend12 0) &&& ~~~1 = retAddr) :
     cpsTripleWithin 61 (base + div128Off) retAddr
       (CodeReq.ofProg (base + div128Off) divK_div128_v2)
-      (-- Precondition: same as div128_spec.
+      (-- Precondition: same as div128_spec_within.
        (.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ retAddr) ** (.x10 ↦ᵣ d) **
        (.x5 ↦ᵣ uLo) ** (.x7 ↦ᵣ uHi) **
        (.x6 ↦ᵣ v6Old) ** (.x1 ↦ᵣ v1Old) ** (.x11 ↦ᵣ v11Old) **
@@ -451,7 +400,7 @@ theorem div128_v2_spec_within (sp retAddr d uLo uHi : Word) (base : Word)
        (sp + signExtend12 3944 ↦ₘ un0Mem))
       (div128V2SpecPost sp retAddr d uLo uHi) := by
   unfold div128V2SpecPost
-  -- Phase 1 intermediates (same as div128_spec).
+  -- Phase 1 intermediates (same as div128_spec_within).
   let dHi := d >>> (32 : BitVec 6).toNat
   let dLo := (d <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
   let un1 := uLo >>> (32 : BitVec 6).toNat
@@ -641,39 +590,11 @@ theorem div128_v2_spec_within (sp retAddr d uLo uHi : Word) (base : Word)
   have h12345 := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h1234 hendf
   -- Final permutation to canonical pre/post order
-  exact cpsTripleWithin_weaken
+  exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq)
     h12345
 
-theorem div128_v2_spec (sp retAddr d uLo uHi : Word) (base : Word)
-    (v1Old v6Old v11Old : Word)
-    (retMem dMem dloMem un0Mem : Word)
-    (halign : (retAddr + signExtend12 0) &&& ~~~1 = retAddr) :
-    cpsTriple (base + div128Off) retAddr
-      (CodeReq.ofProg (base + div128Off) divK_div128_v2)
-      (-- Precondition: same as div128_spec.
-       (.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ retAddr) ** (.x10 ↦ᵣ d) **
-       (.x5 ↦ᵣ uLo) ** (.x7 ↦ᵣ uHi) **
-       (.x6 ↦ᵣ v6Old) ** (.x1 ↦ᵣ v1Old) ** (.x11 ↦ᵣ v11Old) **
-       (.x0 ↦ᵣ (0 : Word)) **
-       (sp + signExtend12 3968 ↦ₘ retMem) **
-       (sp + signExtend12 3960 ↦ₘ dMem) **
-       (sp + signExtend12 3952 ↦ₘ dloMem) **
-       (sp + signExtend12 3944 ↦ₘ un0Mem))
-      (div128V2SpecPost sp retAddr d uLo uHi) :=
-  (div128_v2_spec_within sp retAddr d uLo uHi base v1Old v6Old v11Old
-    retMem dMem dloMem un0Mem halign).to_cpsTriple
-
-/-- Lifted `div128_v2_spec` over `sharedDivModCode_v2 base` — a thin
-    wrapper that lifts the cr from the singleton `ofProg`-form to the
-    shared cr via `cpsTripleWithin_extend_code` + `shared_b12_div128_v2_sub`.
-
-    This is the v2 counterpart to `div128_spec` which already uses
-    `sharedDivModCode base` directly. Future v2-migrated specs (loop
-    body, full path) will use this lifted form.
-
-    Issue #1337 algorithm fix migration. -/
 theorem div128_v2_spec_shared_within (sp retAddr d uLo uHi : Word) (base : Word)
     (v1Old v6Old v11Old : Word)
     (retMem dMem dloMem un0Mem : Word)
@@ -692,21 +613,3 @@ theorem div128_v2_spec_shared_within (sp retAddr d uLo uHi : Word) (base : Word)
     (div128_v2_spec_within sp retAddr d uLo uHi base v1Old v6Old v11Old
                      retMem dMem dloMem un0Mem halign)
 
-theorem div128_v2_spec_shared (sp retAddr d uLo uHi : Word) (base : Word)
-    (v1Old v6Old v11Old : Word)
-    (retMem dMem dloMem un0Mem : Word)
-    (halign : (retAddr + signExtend12 0) &&& ~~~1 = retAddr) :
-    cpsTriple (base + div128Off) retAddr (sharedDivModCode_v2 base)
-      ((.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ retAddr) ** (.x10 ↦ᵣ d) **
-       (.x5 ↦ᵣ uLo) ** (.x7 ↦ᵣ uHi) **
-       (.x6 ↦ᵣ v6Old) ** (.x1 ↦ᵣ v1Old) ** (.x11 ↦ᵣ v11Old) **
-       (.x0 ↦ᵣ (0 : Word)) **
-       (sp + signExtend12 3968 ↦ₘ retMem) **
-       (sp + signExtend12 3960 ↦ₘ dMem) **
-       (sp + signExtend12 3952 ↦ₘ dloMem) **
-       (sp + signExtend12 3944 ↦ₘ un0Mem))
-      (div128V2SpecPost sp retAddr d uLo uHi) :=
-  (div128_v2_spec_shared_within sp retAddr d uLo uHi base v1Old v6Old v11Old
-    retMem dMem dloMem un0Mem halign).to_cpsTriple
-
-end EvmAsm.Evm64

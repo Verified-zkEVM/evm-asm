@@ -172,7 +172,7 @@ theorem divK_normA_full_spec_within (sp a0 a1 a2 a3 v5 v7 v10 shift antiShift : 
       hjalef
   have h123456 := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h12345 hjal_clean
-  exact cpsTripleWithin_weaken
+  exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq)
     h123456
@@ -184,7 +184,7 @@ theorem divK_normA_full_spec (sp a0 a1 a2 a3 v5 v7 v10 shift antiShift : Word)
     let u2 := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (antiShift.toNat % 64))
     let u1 := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (antiShift.toNat % 64))
     let u0 := a0 <<< (shift.toNat % 64)
-    cpsTriple (base + normAOff) (base + loopSetupOff) (divCode base)
+    cpsTripleWithin 10000 (base + normAOff) (base + loopSetupOff) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x7 ↦ᵣ v7) ** (.x10 ↦ᵣ v10) **
        (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ antiShift) **
        ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
@@ -199,8 +199,8 @@ theorem divK_normA_full_spec (sp a0 a1 a2 a3 v5 v7 v10 shift antiShift : Word)
        ((sp + signExtend12 4024) ↦ₘ u4) ** ((sp + signExtend12 4032) ↦ₘ u3) **
        ((sp + signExtend12 4040) ↦ₘ u2) ** ((sp + signExtend12 4048) ↦ₘ u1) **
        ((sp + signExtend12 4056) ↦ₘ u0)) :=
-  (divK_normA_full_spec_within sp a0 a1 a2 a3 v5 v7 v10 shift antiShift
-    u0Old u1Old u2Old u3Old u4Old base).to_cpsTriple
+  cpsTripleWithin_mono_nSteps (by decide) (divK_normA_full_spec_within sp a0 a1 a2 a3 v5 v7 v10 shift antiShift
+    u0Old u1Old u2Old u3Old u4Old base)
 
 -- ============================================================================
 -- Section 10j: CopyAU composition (copy a[] to u[], 9 instructions)
@@ -237,7 +237,7 @@ theorem divK_copyAU_full_spec_within (sp : Word)
 
 theorem divK_copyAU_full_spec (sp : Word)
     (a0 a1 a2 a3 : Word) (u0 u1 u2 u3 u4 v5 : Word) (base : Word) :
-    cpsTriple (base + copyAUOff) (base + loopSetupOff) (divCode base)
+    cpsTripleWithin 10000 (base + copyAUOff) (base + loopSetupOff) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) **
        ((sp + signExtend12 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
        ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
@@ -250,10 +250,10 @@ theorem divK_copyAU_full_spec (sp : Word)
        ((sp + signExtend12 4056) ↦ₘ a0) ** ((sp + signExtend12 4048) ↦ₘ a1) **
        ((sp + signExtend12 4040) ↦ₘ a2) ** ((sp + signExtend12 4032) ↦ₘ a3) **
        ((sp + signExtend12 4024) ↦ₘ (0 : Word))) :=
-  (divK_copyAU_full_spec_within sp a0 a1 a2 a3 u0 u1 u2 u3 u4 v5 base).to_cpsTriple
+  cpsTripleWithin_mono_nSteps (by decide) (divK_copyAU_full_spec_within sp a0 a1 a2 a3 u0 u1 u2 u3 u4 v5 base)
 
 -- ============================================================================
--- Section 10k: LoopSetup composition (4 instructions, cpsBranch at base+432)
+-- Section 10k: LoopSetup composition (4 instructions, cpsBranchWithin 10000 at base+432)
 -- LD n, ADDI 4, SUB m=4-n, BLT m<0
 -- ============================================================================
 
@@ -305,22 +305,11 @@ theorem divK_loopSetup_ntaken_spec_within (sp n v1 v5 : Word) (base : Word)
     (by pcFree) hblte
   have h12 := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hbodye hbltef
-  exact cpsTripleWithin_weaken
+  exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq)
     h12
 
-theorem divK_loopSetup_ntaken_spec (sp n v1 v5 : Word) (base : Word)
-    (hm_ge : ¬BitVec.slt (signExtend12 (4 : BitVec 12) - n) (0 : Word)) :
-    let m := signExtend12 (4 : BitVec 12) - n
-    cpsTriple (base + loopSetupOff) (base + loopBodyOff) (divCode base)
-      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x1 ↦ᵣ v1) ** (.x0 ↦ᵣ (0 : Word)) **
-       ((sp + signExtend12 3984) ↦ₘ n))
-      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ n) ** (.x1 ↦ᵣ m) ** (.x0 ↦ᵣ (0 : Word)) **
-       ((sp + signExtend12 3984) ↦ₘ n)) :=
-  (divK_loopSetup_ntaken_spec_within sp n v1 v5 base hm_ge).to_cpsTriple
-
-/-- LoopSetup when m < 0 (n > 4, skip loop): branches to denorm at base+904. -/
 theorem divK_loopSetup_taken_spec_within (sp n v1 v5 : Word) (base : Word)
     (hm_lt : BitVec.slt (signExtend12 (4 : BitVec 12) - n) (0 : Word)) :
     let m := signExtend12 (4 : BitVec 12) - n
@@ -346,19 +335,8 @@ theorem divK_loopSetup_taken_spec_within (sp n v1 v5 : Word) (base : Word)
     (by pcFree) hblte
   have h12 := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hbodye hbltef
-  exact cpsTripleWithin_weaken
+  exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq)
     h12
 
-theorem divK_loopSetup_taken_spec (sp n v1 v5 : Word) (base : Word)
-    (hm_lt : BitVec.slt (signExtend12 (4 : BitVec 12) - n) (0 : Word)) :
-    let m := signExtend12 (4 : BitVec 12) - n
-    cpsTriple (base + loopSetupOff) (base + denormOff) (divCode base)
-      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x1 ↦ᵣ v1) ** (.x0 ↦ᵣ (0 : Word)) **
-       ((sp + signExtend12 3984) ↦ₘ n))
-      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ n) ** (.x1 ↦ᵣ m) ** (.x0 ↦ᵣ (0 : Word)) **
-       ((sp + signExtend12 3984) ↦ₘ n)) :=
-  (divK_loopSetup_taken_spec_within sp n v1 v5 base hm_lt).to_cpsTriple
-
-end EvmAsm.Evm64

@@ -1,8 +1,8 @@
 /-
   EvmAsm.Evm64.DivMod.LoopIterN4
 
-  Loop body cpsTriple specs for n=4 at j=0.
-  These are the j=0-specialized versions of the LoopBodyN4 cpsBranch specs,
+  Loop body cpsTripleWithin specs for n=4 at j=0.
+  These are the j=0-specialized versions of the LoopBodyN4 cpsBranchWithin specs,
   using divK_store_loop_j0_spec_within to eliminate the loop-back branch and
   produce clean cpsTriples from base+448 to base+904.
 -/
@@ -16,12 +16,12 @@ namespace EvmAsm.Evm64
 open EvmAsm.Rv64
 
 -- ============================================================================
--- n=4, BLTU not-taken (max path) + BEQ skip, j=0 → cpsTriple to base+904
+-- n=4, BLTU not-taken (max path) + BEQ skip, j=0 → cpsTripleWithin to base+904
 -- ============================================================================
 
 set_option maxRecDepth 4096 in
-/-- Loop body cpsTriple for n=4, max+skip, j=0.
-    Since j=0, the BGE loop-back is not taken, giving a cpsTriple to base+904. -/
+/-- Loop body cpsTripleWithin for n=4, max+skip, j=0.
+    Since j=0, the BGE loop-back is not taken, giving a cpsTripleWithin to base+904. -/
 theorem divK_loop_body_n4_max_skip_j0_spec_within
     (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
@@ -88,7 +88,7 @@ theorem divK_loop_body_n4_max_skip_j0_spec_within
 
   intro_lets at MCS
   have MCS0 := MCS hborrow
-  -- 3. Store + loop exit j=0 (cpsTriple base+880 → base+904)
+  -- 3. Store + loop exit j=0 (cpsTripleWithin base+880 → base+904)
   have SL := divK_store_loop_j0_spec_within sp qHat u4_new (0 : Word) qOld base
   intro_lets at SL
   -- 4. Frame TF with mulsub cells
@@ -112,22 +112,22 @@ theorem divK_loop_body_n4_max_skip_j0_spec_within
      ((uBase + signExtend12 4064) ↦ₘ u4_new) **
      (sp + signExtend12 3984 ↦ₘ (4 : Word)))
     (by pcFree) SL
-  -- 7. Compose pre_store (cpsTriple) with SLf (cpsTriple)
+  -- 7. Compose pre_store (cpsTripleWithin) with SLf (cpsTripleWithin)
   have full := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by rw [sepConj_assoc'] at hp; xperm_hyp hp) TFfMCS0 SLf
-  -- 8. Permute final cpsTriple to match target
+  -- 8. Permute final cpsTripleWithin to match target
   exact cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hp => by delta loopBodyN4SkipPost loopBodySkipPost mulsubN4 loopExitPostN4 loopExitPost; rw [sepConj_assoc'] at hp; xperm_hyp hp)
     full
 
 -- ============================================================================
--- n=4, BLTU taken (call path) + BEQ skip, j=0 → cpsTriple to base+904
+-- n=4, BLTU taken (call path) + BEQ skip, j=0 → cpsTripleWithin to base+904
 -- ============================================================================
 
 set_option maxRecDepth 4096 in
-/-- Loop body cpsTriple for n=4, call+skip, j=0.
-    Since j=0, the BGE loop-back is not taken, giving a cpsTriple to base+904. -/
+/-- Loop body cpsTripleWithin for n=4, call+skip, j=0.
+    Since j=0, the BGE loop-back is not taken, giving a cpsTripleWithin to base+904. -/
 theorem divK_loop_body_n4_call_skip_j0_spec_within
     (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
@@ -229,7 +229,7 @@ theorem divK_loop_body_n4_call_skip_j0_spec_within
 
   intro_lets at MCS
   have MCS0 := MCS hborrow
-  -- 3. Store + loop exit j=0 (cpsTriple base+880 → base+904)
+  -- 3. Store + loop exit j=0 (cpsTripleWithin base+880 → base+904)
   have SL := divK_store_loop_j0_spec_within sp qHat u4_new (0 : Word) qOld base
   intro_lets at SL
   -- 4. Frame TF
@@ -270,7 +270,7 @@ theorem divK_loop_body_n4_call_skip_j0_spec_within
 -- ============================================================================
 
 set_option maxRecDepth 4096 in
-/-- Loop body cpsTriple for n=4, max+addback (beq variant), j=0.
+/-- Loop body cpsTripleWithin for n=4, max+addback (beq variant), j=0.
     Uses the beq_spec which handles both carry=0 and carry≠0 internally,
     eliminating the sorry for aco3 ≠ 0. -/
 theorem divK_loop_body_n4_max_addback_j0_beq_spec_within
@@ -353,10 +353,10 @@ theorem divK_loop_body_n4_max_addback_j0_beq_spec_within
      ((uBase + signExtend12 4064) ↦ₘ u4_out) **
      (sp + signExtend12 3984 ↦ₘ (4 : Word)))
     (by pcFree) SL
-  -- 7. Compose pre_store (cpsTriple) with SLf (cpsTriple)
+  -- 7. Compose pre_store (cpsTripleWithin) with SLf (cpsTripleWithin)
   have full := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by rw [sepConj_assoc'] at hp; xperm_hyp hp) TFfMCA0 SLf
-  -- 8. Permute final cpsTriple to match target
+  -- 8. Permute final cpsTripleWithin to match target
   exact cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hp => by delta loopBodyN4AddbackBeqPost loopBodyAddbackBeqPost loopExitPostN4 loopExitPost; rw [sepConj_assoc'] at hp; xperm_hyp hp)
@@ -368,7 +368,7 @@ theorem divK_loop_body_n4_max_addback_j0_beq_spec_within
 -- ============================================================================
 
 set_option maxRecDepth 4096 in
-/-- Loop body cpsTriple for n=4, call+addback (beq variant), j=0.
+/-- Loop body cpsTripleWithin for n=4, call+addback (beq variant), j=0.
     Uses the beq_spec which handles both carry=0 and carry≠0 internally,
     eliminating the sorry for aco3 ≠ 0. -/
 theorem divK_loop_body_n4_call_addback_j0_beq_spec_within
@@ -621,27 +621,5 @@ theorem divK_loop_body_n4_iter_spec_within (j : Fin 1) (bltu borrow_zero : Bool)
         (fun _ hp => by delta loopBodyPreWithScratch loopBodyPre at hp; xperm_hyp hp)
         (fun _ hp => hp)
         Hout
-
-def divK_loop_body_n4_max_skip_j0_spec := fun sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-    v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base hbltu hborrow =>
-  (divK_loop_body_n4_max_skip_j0_spec_within sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-    v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base hbltu hborrow).to_cpsTriple
-
-def divK_loop_body_n4_call_skip_j0_spec := fun sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-    v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0 base halign hbltu hborrow =>
-  (divK_loop_body_n4_call_skip_j0_spec_within sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-    v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0 base
-    halign hbltu hborrow).to_cpsTriple
-
-def divK_loop_body_n4_max_addback_j0_beq_spec := fun sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-    v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base hbltu hcarry2_nz hborrow =>
-  (divK_loop_body_n4_max_addback_j0_beq_spec_within sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-    v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base hbltu hcarry2_nz hborrow).to_cpsTriple
-
-def divK_loop_body_n4_call_addback_j0_beq_spec := fun sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-    v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0 base halign hbltu hcarry2_nz hborrow =>
-  (divK_loop_body_n4_call_addback_j0_beq_spec_within sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-    v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0 base
-    halign hbltu hcarry2_nz hborrow).to_cpsTriple
 
 end EvmAsm.Evm64

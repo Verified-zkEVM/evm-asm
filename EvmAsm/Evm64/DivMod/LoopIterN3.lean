@@ -1,8 +1,8 @@
 /-
   EvmAsm.Evm64.DivMod.LoopIterN3
 
-  Loop body cpsTriple specs for n=3 at j=0 (final iteration).
-  These are the j=0-specialized versions of the LoopBodyN3 cpsBranch specs,
+  Loop body cpsTripleWithin specs for n=3 at j=0 (final iteration).
+  These are the j=0-specialized versions of the LoopBodyN3 cpsBranchWithin specs,
   using divK_store_loop_j0_spec_within to eliminate the loop-back branch and
   produce clean cpsTriples from base+448 to base+904.
 
@@ -20,12 +20,12 @@ open EvmAsm.Rv64
 open EvmAsm.Evm64.DivMod.AddrNorm (slt_jpos_1)
 
 -- ============================================================================
--- n=3, BLTU not-taken (max path) + BEQ skip, j=0 → cpsTriple to base+904
+-- n=3, BLTU not-taken (max path) + BEQ skip, j=0 → cpsTripleWithin to base+904
 -- ============================================================================
 
 set_option maxRecDepth 4096 in
-/-- Loop body cpsTriple for n=3, max+skip, j=0.
-    Since j=0, the BGE loop-back is not taken, giving a cpsTriple to base+904. -/
+/-- Loop body cpsTripleWithin for n=3, max+skip, j=0.
+    Since j=0, the BGE loop-back is not taken, giving a cpsTripleWithin to base+904. -/
 theorem divK_loop_body_n3_max_skip_j0_spec_within
     (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
@@ -89,7 +89,7 @@ theorem divK_loop_body_n3_max_skip_j0_spec_within
 
   intro_lets at MCS
   have MCS0 := MCS hborrow
-  -- 3. Store + loop exit j=0 (cpsTriple base+880 → base+904)
+  -- 3. Store + loop exit j=0 (cpsTripleWithin base+880 → base+904)
   have SL := divK_store_loop_j0_spec_within sp qHat u4_new (0 : Word) qOld base
   intro_lets at SL
   -- 4. Frame TF with mulsub cells
@@ -116,19 +116,19 @@ theorem divK_loop_body_n3_max_skip_j0_spec_within
   -- 7. Compose pre_store + SLf
   have full := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by rw [sepConj_assoc'] at hp; xperm_hyp hp) TFfMCS0 SLf
-  -- 8. Permute final cpsTriple to match target
+  -- 8. Permute final cpsTripleWithin to match target
   exact cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hp => by delta loopBodyN3SkipPost loopBodySkipPost mulsubN4 loopExitPostN3 loopExitPost; rw [sepConj_assoc'] at hp; xperm_hyp hp)
     full
 
 -- ============================================================================
--- n=3, BLTU taken (call path) + BEQ skip, j=0 → cpsTriple to base+904
+-- n=3, BLTU taken (call path) + BEQ skip, j=0 → cpsTripleWithin to base+904
 -- ============================================================================
 
 set_option maxRecDepth 4096 in
-/-- Loop body cpsTriple for n=3, call+skip, j=0.
-    Since j=0, the BGE loop-back is not taken, giving a cpsTriple to base+904. -/
+/-- Loop body cpsTripleWithin for n=3, call+skip, j=0.
+    Since j=0, the BGE loop-back is not taken, giving a cpsTripleWithin to base+904. -/
 theorem divK_loop_body_n3_call_skip_j0_spec_within
     (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
@@ -221,7 +221,7 @@ theorem divK_loop_body_n3_call_skip_j0_spec_within
   let pc3 := ba3 + p3_hi; let bs3 := if BitVec.ult u3 fs3 then (1 : Word) else 0
   let un3 := u3 - fs3; let c3 := pc3 + bs3
   let u4_new := uTop - c3
-  -- 3. Store + loop exit j=0 (cpsTriple base+880 → base+904)
+  -- 3. Store + loop exit j=0 (cpsTripleWithin base+880 → base+904)
   have SL := divK_store_loop_j0_spec_within sp qHat u4_new (0 : Word) qOld base
   intro_lets at SL
   -- 4. Frame TF (for n=3: v2, u2, u3 consumed by trial; v3, uTop in frame)
@@ -260,12 +260,12 @@ theorem divK_loop_body_n3_call_skip_j0_spec_within
     full
 
 -- ============================================================================
--- n=3, BLTU not-taken (max path) + BEQ skip, j=1 → cpsTriple to base+448
+-- n=3, BLTU not-taken (max path) + BEQ skip, j=1 → cpsTripleWithin to base+448
 -- ============================================================================
 
 set_option maxRecDepth 4096 in
-/-- Loop body cpsTriple for n=3, max+skip, j=1.
-    Since j=1, the BGE loop-back is taken (j' = 0 ≥ 0), giving a cpsTriple to base+448. -/
+/-- Loop body cpsTripleWithin for n=3, max+skip, j=1.
+    Since j=1, the BGE loop-back is taken (j' = 0 ≥ 0), giving a cpsTripleWithin to base+448. -/
 theorem divK_loop_body_n3_max_skip_j1_spec_within
     (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
@@ -329,7 +329,7 @@ theorem divK_loop_body_n3_max_skip_j1_spec_within
 
   intro_lets at MCS
   have MCS0 := MCS hborrow
-  -- 3. Store + loop continue j=1 (cpsTriple base+880 → base+448)
+  -- 3. Store + loop continue j=1 (cpsTripleWithin base+880 → base+448)
   have SL := divK_store_loop_jgt0_spec_within sp (1 : Word) qHat u4_new (0 : Word) qOld base slt_jpos_1
   intro_lets at SL
   -- 4. Frame TF with mulsub cells
@@ -356,19 +356,19 @@ theorem divK_loop_body_n3_max_skip_j1_spec_within
   -- 7. Compose pre_store + SLf
   have full := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by rw [sepConj_assoc'] at hp; xperm_hyp hp) TFfMCS0 SLf
-  -- 8. Permute final cpsTriple to match target
+  -- 8. Permute final cpsTripleWithin to match target
   exact cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hp => by delta loopBodyN3SkipPost loopBodySkipPost mulsubN4 loopExitPostN3 loopExitPost; rw [sepConj_assoc'] at hp; xperm_hyp hp)
     full
 
 -- ============================================================================
--- n=3, BLTU taken (call path) + BEQ skip, j=1 → cpsTriple to base+448
+-- n=3, BLTU taken (call path) + BEQ skip, j=1 → cpsTripleWithin to base+448
 -- ============================================================================
 
 set_option maxRecDepth 4096 in
-/-- Loop body cpsTriple for n=3, call+skip, j=1.
-    Since j=1, the BGE loop-back is taken, giving a cpsTriple to base+448. -/
+/-- Loop body cpsTripleWithin for n=3, call+skip, j=1.
+    Since j=1, the BGE loop-back is taken, giving a cpsTripleWithin to base+448. -/
 theorem divK_loop_body_n3_call_skip_j1_spec_within
     (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
@@ -461,7 +461,7 @@ theorem divK_loop_body_n3_call_skip_j1_spec_within
   let pc3 := ba3 + p3_hi; let bs3 := if BitVec.ult u3 fs3 then (1 : Word) else 0
   let un3 := u3 - fs3; let c3 := pc3 + bs3
   let u4_new := uTop - c3
-  -- 3. Store + loop back j=1 (cpsTriple base+880 → base+448)
+  -- 3. Store + loop back j=1 (cpsTripleWithin base+880 → base+448)
   have SL := divK_store_loop_jgt0_spec_within sp (1 : Word) qHat u4_new (0 : Word) qOld base slt_jpos_1
   intro_lets at SL
   -- 4. Frame TF (for n=3: v2, u2, u3 consumed by trial; v3, uTop in frame)
@@ -500,11 +500,11 @@ theorem divK_loop_body_n3_call_skip_j1_spec_within
     full
 
 -- ============================================================================
--- BEQ variants: n=3, max+addback+beq, j=0 → cpsTriple to base+908
+-- BEQ variants: n=3, max+addback+beq, j=0 → cpsTripleWithin to base+908
 -- ============================================================================
 
 set_option maxRecDepth 4096 in
-/-- Loop body cpsTriple for n=3, max+addback+beq, j=0.
+/-- Loop body cpsTripleWithin for n=3, max+addback+beq, j=0.
     Uses divK_mulsub_correction_addback_beq_spec_within to eliminate sorry. -/
 theorem divK_loop_body_n3_max_addback_beq_j0_spec_within
     (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
@@ -561,7 +561,7 @@ theorem divK_loop_body_n3_max_addback_beq_j0_spec_within
 
   intro_lets at MCA
   have MCA0 := MCA hcarry2_nz hborrow
-  -- 3. Store + loop exit j=0 (cpsTriple base+884 → base+908)
+  -- 3. Store + loop exit j=0 (cpsTripleWithin base+884 → base+908)
   have SL := divK_store_loop_j0_spec_within sp q_out u4_out carryOut qOld base
   intro_lets at SL
   have TFf := cpsTripleWithin_frameR
@@ -590,11 +590,11 @@ theorem divK_loop_body_n3_max_addback_beq_j0_spec_within
     full
 
 -- ============================================================================
--- BEQ variants: n=3, call+addback+beq, j=0 → cpsTriple to base+908
+-- BEQ variants: n=3, call+addback+beq, j=0 → cpsTripleWithin to base+908
 -- ============================================================================
 
 set_option maxRecDepth 4096 in
-/-- Loop body cpsTriple for n=3, call+addback+beq, j=0.
+/-- Loop body cpsTripleWithin for n=3, call+addback+beq, j=0.
     Uses divK_mulsub_correction_addback_beq_spec_within to eliminate sorry. -/
 theorem divK_loop_body_n3_call_addback_beq_j0_spec_within
     (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
@@ -687,7 +687,7 @@ theorem divK_loop_body_n3_call_addback_beq_j0_spec_within
   intro_lets at MCA
   unfold isAddbackCarry2NzN3Call isAddbackCarry2Nz div128Quot at hcarry2_nz
   have MCA0 := MCA hcarry2_nz hborrow
-  -- 3. Store + loop exit j=0 (cpsTriple base+884 → base+908)
+  -- 3. Store + loop exit j=0 (cpsTripleWithin base+884 → base+908)
   have SL := divK_store_loop_j0_spec_within sp q_out u4_out carryOut qOld base
   intro_lets at SL
   -- 4. Frame TF
@@ -726,11 +726,11 @@ theorem divK_loop_body_n3_call_addback_beq_j0_spec_within
     full
 
 -- ============================================================================
--- BEQ variants: n=3, max+addback+beq, j=1 → cpsTriple to base+448
+-- BEQ variants: n=3, max+addback+beq, j=1 → cpsTripleWithin to base+448
 -- ============================================================================
 
 set_option maxRecDepth 4096 in
-/-- Loop body cpsTriple for n=3, max+addback+beq, j=1.
+/-- Loop body cpsTripleWithin for n=3, max+addback+beq, j=1.
     Uses divK_mulsub_correction_addback_beq_spec_within to eliminate sorry. -/
 theorem divK_loop_body_n3_max_addback_beq_j1_spec_within
     (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
@@ -787,7 +787,7 @@ theorem divK_loop_body_n3_max_addback_beq_j1_spec_within
 
   intro_lets at MCA
   have MCA0 := MCA hcarry2_nz hborrow
-  -- 3. Store + loop continue j=1 (cpsTriple base+884 → base+448)
+  -- 3. Store + loop continue j=1 (cpsTripleWithin base+884 → base+448)
   have SL := divK_store_loop_jgt0_spec_within sp (1 : Word) q_out u4_out carryOut qOld base slt_jpos_1
   intro_lets at SL
   have TFf := cpsTripleWithin_frameR
@@ -816,11 +816,11 @@ theorem divK_loop_body_n3_max_addback_beq_j1_spec_within
     full
 
 -- ============================================================================
--- BEQ variants: n=3, call+addback+beq, j=1 → cpsTriple to base+448
+-- BEQ variants: n=3, call+addback+beq, j=1 → cpsTripleWithin to base+448
 -- ============================================================================
 
 set_option maxRecDepth 4096 in
-/-- Loop body cpsTriple for n=3, call+addback+beq, j=1.
+/-- Loop body cpsTripleWithin for n=3, call+addback+beq, j=1.
     Uses divK_mulsub_correction_addback_beq_spec_within to eliminate sorry. -/
 theorem divK_loop_body_n3_call_addback_beq_j1_spec_within
     (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
@@ -913,7 +913,7 @@ theorem divK_loop_body_n3_call_addback_beq_j1_spec_within
   intro_lets at MCA
   unfold isAddbackCarry2NzN3Call isAddbackCarry2Nz div128Quot at hcarry2_nz
   have MCA0 := MCA hcarry2_nz hborrow
-  -- 3. Store + loop back j=1 (cpsTriple base+884 → base+448)
+  -- 3. Store + loop back j=1 (cpsTripleWithin base+884 → base+448)
   have SL := divK_store_loop_jgt0_spec_within sp (1 : Word) q_out u4_out carryOut qOld base slt_jpos_1
   intro_lets at SL
   -- 4. Frame TF

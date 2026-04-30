@@ -107,7 +107,7 @@ theorem mod_phB_sp24_32 {sp : Word} :
 
 -- ============================================================================
 -- MOD Phase B n=4 (b[3] ≠ 0): init1→init2→ADDI→BNE(taken)→tail
--- Mirror of evm_div_phaseB_n4_spec with modCode.
+-- Mirror of evm_div_phaseB_n4_spec_within with modCode.
 -- ============================================================================
 
 /-- MOD Phase B for n=4 (b[3] ≠ 0): x5 = b[3], x10 = b[3] (leading limb).
@@ -174,35 +174,6 @@ theorem evm_mod_phaseB_n4_spec_within (sp base : Word)
     (fun h hq => by xperm_hyp hq)
     hinit1fhinit2haddihbnehtail
 
-theorem evm_mod_phaseB_n4_spec (sp base : Word)
-    (b1 b2 b3 : Word) (v5 v6 v7 : Word)
-    (q0 q1 q2 q3 u5 u6 u7 nMem : Word)
-    (hb3nz : b3 ≠ 0) :
-    cpsTriple (base + phaseBOff) (base + clzOff) (modCode base)
-      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ b3) ** (.x0 ↦ᵣ (0 : Word)) **
-       (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
-       ((sp + 40) ↦ₘ b1) ** ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3) **
-       ((sp + signExtend12 4088) ↦ₘ q0) ** ((sp + signExtend12 4080) ↦ₘ q1) **
-       ((sp + signExtend12 4072) ↦ₘ q2) ** ((sp + signExtend12 4064) ↦ₘ q3) **
-       ((sp + signExtend12 4016) ↦ₘ u5) ** ((sp + signExtend12 4008) ↦ₘ u6) **
-       ((sp + signExtend12 4000) ↦ₘ u7) **
-       ((sp + signExtend12 3984) ↦ₘ nMem))
-      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ b3) ** (.x10 ↦ᵣ b3) ** (.x0 ↦ᵣ (0 : Word)) **
-       (.x6 ↦ᵣ b1) ** (.x7 ↦ᵣ b2) **
-       ((sp + 40) ↦ₘ b1) ** ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3) **
-       ((sp + signExtend12 4088) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4080) ↦ₘ (0 : Word)) **
-       ((sp + signExtend12 4072) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4064) ↦ₘ (0 : Word)) **
-       ((sp + signExtend12 4016) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
-       ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
-       ((sp + signExtend12 3984) ↦ₘ (4 : Word))) :=
-  (evm_mod_phaseB_n4_spec_within sp base b1 b2 b3 v5 v6 v7 q0 q1 q2 q3 u5 u6 u7 nMem hb3nz).to_cpsTriple
-
-
--- ============================================================================
--- MOD Phase B cascade step subsumption lemmas
--- ============================================================================
-
--- ADDI x5 x0 3 at base+76 (index 11 of phaseB)
 theorem addi_x5_3_sub_modCode {base : Word} :
     ∀ a i, (CodeReq.singleton (base + 76) (.ADDI .x5 .x0 3)) a = some i →
       (modCode base) a = some i := by

@@ -62,42 +62,11 @@ theorem evm_mod_phaseAB_n4_spec_within (sp base : Word)
     (by pcFree) hB
   have hAB := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hAf hBf
-  exact cpsTripleWithin_weaken
+  exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq)
     hAB
 
-theorem evm_mod_phaseAB_n4_spec (sp base : Word)
-    (b0 b1 b2 b3 v5 v6 v7 v10 : Word)
-    (q0 q1 q2 q3 u5 u6 u7 nMem : Word)
-    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
-    (hb3nz : b3 ≠ 0) :
-    cpsTriple base (base + clzOff) (modCode base)
-      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
-       (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
-       ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
-       ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3) **
-       ((sp + signExtend12 4088) ↦ₘ q0) ** ((sp + signExtend12 4080) ↦ₘ q1) **
-       ((sp + signExtend12 4072) ↦ₘ q2) ** ((sp + signExtend12 4064) ↦ₘ q3) **
-       ((sp + signExtend12 4016) ↦ₘ u5) ** ((sp + signExtend12 4008) ↦ₘ u6) **
-       ((sp + signExtend12 4000) ↦ₘ u7) ** ((sp + signExtend12 3984) ↦ₘ nMem))
-      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ b3) ** (.x10 ↦ᵣ b3) ** (.x0 ↦ᵣ (0 : Word)) **
-       (.x6 ↦ᵣ b1) ** (.x7 ↦ᵣ b2) **
-       ((sp + 32) ↦ₘ b0) **
-       ((sp + 40) ↦ₘ b1) ** ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3) **
-       ((sp + signExtend12 4088) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4080) ↦ₘ (0 : Word)) **
-       ((sp + signExtend12 4072) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4064) ↦ₘ (0 : Word)) **
-       ((sp + signExtend12 4016) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
-       ((sp + signExtend12 4000) ↦ₘ (0 : Word)) ** ((sp + signExtend12 3984) ↦ₘ (4 : Word))) :=
-  (evm_mod_phaseAB_n4_spec_within sp base b0 b1 b2 b3 v5 v6 v7 v10
-    q0 q1 q2 q3 u5 u6 u7 nMem hbnz hb3nz).to_cpsTriple
-
--- ============================================================================
--- Phase AB(n=4) → CLZ: base → base+212
--- ============================================================================
-
-/-- MOD PhaseAB(n=4) + CLZ: b≠0, b[3]≠0.
-    base → base+212. After CLZ, x6 = shift count, x5 = shifted leading limb. -/
 theorem evm_mod_phaseAB_n4_clz_spec_within (sp base : Word)
     (b0 b1 b2 b3 v5 v6 v7 v10 : Word)
     (q0 q1 q2 q3 u5 u6 u7 nMem : Word)
@@ -134,42 +103,11 @@ theorem evm_mod_phaseAB_n4_clz_spec_within (sp base : Word)
     (by pcFree) hCLZ
   have hABCLZ := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hAB hCLZf
-  exact cpsTripleWithin_weaken
+  exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq)
     hABCLZ
 
-theorem evm_mod_phaseAB_n4_clz_spec (sp base : Word)
-    (b0 b1 b2 b3 v5 v6 v7 v10 : Word)
-    (q0 q1 q2 q3 u5 u6 u7 nMem : Word)
-    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
-    (hb3nz : b3 ≠ 0) :
-    cpsTriple base (base + phaseC2Off) (modCode base)
-      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
-       (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
-       ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
-       ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3) **
-       ((sp + signExtend12 4088) ↦ₘ q0) ** ((sp + signExtend12 4080) ↦ₘ q1) **
-       ((sp + signExtend12 4072) ↦ₘ q2) ** ((sp + signExtend12 4064) ↦ₘ q3) **
-       ((sp + signExtend12 4016) ↦ₘ u5) ** ((sp + signExtend12 4008) ↦ₘ u6) **
-       ((sp + signExtend12 4000) ↦ₘ u7) ** ((sp + signExtend12 3984) ↦ₘ nMem))
-      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ (clzResult b3).2) ** (.x10 ↦ᵣ b3) ** (.x0 ↦ᵣ (0 : Word)) **
-       (.x6 ↦ᵣ (clzResult b3).1) ** (.x7 ↦ᵣ (clzResult b3).2 >>> (63 : Nat)) **
-       ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
-       ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3) **
-       ((sp + signExtend12 4088) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4080) ↦ₘ (0 : Word)) **
-       ((sp + signExtend12 4072) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4064) ↦ₘ (0 : Word)) **
-       ((sp + signExtend12 4016) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
-       ((sp + signExtend12 4000) ↦ₘ (0 : Word)) ** ((sp + signExtend12 3984) ↦ₘ (4 : Word))) :=
-  (evm_mod_phaseAB_n4_clz_spec_within sp base b0 b1 b2 b3 v5 v6 v7 v10
-    q0 q1 q2 q3 u5 u6 u7 nMem hbnz hb3nz).to_cpsTriple
-
--- ============================================================================
--- PhaseAB(n=4) → CLZ → PhaseC2(ntaken) → NormB: base → base+312
--- ============================================================================
-
-/-- MOD PhaseAB(n=4) + CLZ + PhaseC2(shift≠0) + NormB: full normalization path.
-    base → base+312. b[0..3] normalized in-place. -/
 theorem evm_mod_n4_to_normB_spec_within (sp base : Word)
     (b0 b1 b2 b3 v5 v6 v7 v10 : Word)
     (q0 q1 q2 q3 u5 u6 u7 nMem shiftMem : Word)
@@ -225,37 +163,11 @@ theorem evm_mod_n4_to_normB_spec_within (sp base : Word)
     (by pcFree) hNB
   have hFull := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hABC2 hNBf
-  exact cpsTripleWithin_weaken
+  exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by delta normBPost; xperm_hyp hq)
     hFull
 
-theorem evm_mod_n4_to_normB_spec (sp base : Word)
-    (b0 b1 b2 b3 v5 v6 v7 v10 : Word)
-    (q0 q1 q2 q3 u5 u6 u7 nMem shiftMem : Word)
-    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
-    (hb3nz : b3 ≠ 0)
-    (hshift_nz : (clzResult b3).1 ≠ 0) :
-    cpsTriple base (base + normAOff) (modCode base)
-      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
-       (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b3).2 >>> (63 : Nat)) **
-       ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
-       ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3) **
-       ((sp + signExtend12 4088) ↦ₘ q0) ** ((sp + signExtend12 4080) ↦ₘ q1) **
-       ((sp + signExtend12 4072) ↦ₘ q2) ** ((sp + signExtend12 4064) ↦ₘ q3) **
-       ((sp + signExtend12 4016) ↦ₘ u5) ** ((sp + signExtend12 4008) ↦ₘ u6) **
-       ((sp + signExtend12 4000) ↦ₘ u7) ** ((sp + signExtend12 3984) ↦ₘ nMem) **
-       ((sp + signExtend12 3992) ↦ₘ shiftMem))
-      (normBPost sp (4 : Word) (clzResult b3).1 b0 b1 b2 b3) :=
-  (evm_mod_n4_to_normB_spec_within sp base b0 b1 b2 b3 v5 v6 v7 v10
-    q0 q1 q2 q3 u5 u6 u7 nMem shiftMem hbnz hb3nz hshift_nz).to_cpsTriple
-
--- ============================================================================
--- Full n=4 path to LoopSetup (shift ≠ 0): base → base+448
--- ============================================================================
-
-/-- MOD full n=4 path from entry to loop body start (shift ≠ 0 case).
-    base → base+448. Normalizes b[] and a[], sets up loop parameters. -/
 theorem evm_mod_n4_to_loopSetup_spec_within (sp base : Word)
     (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 : Word)
     (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem : Word)
@@ -342,45 +254,11 @@ theorem evm_mod_n4_to_loopSetup_spec_within (sp base : Word)
     (by pcFree) hLS
   have hFull := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hNA hLSf
-  exact cpsTripleWithin_weaken
+  exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by delta loopSetupPost; xperm_hyp hq)
     hFull
 
-theorem evm_mod_n4_to_loopSetup_spec (sp base : Word)
-    (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 : Word)
-    (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem : Word)
-    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
-    (hb3nz : b3 ≠ 0)
-    (hshift_nz : (clzResult b3).1 ≠ 0) :
-    cpsTriple base (base + loopBodyOff) (modCode base)
-      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
-       (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b3).2 >>> (63 : Nat)) **
-       (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
-       ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
-       ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
-       ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
-       ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3) **
-       ((sp + signExtend12 4088) ↦ₘ q0) ** ((sp + signExtend12 4080) ↦ₘ q1) **
-       ((sp + signExtend12 4072) ↦ₘ q2) ** ((sp + signExtend12 4064) ↦ₘ q3) **
-       ((sp + signExtend12 4056) ↦ₘ u0Old) ** ((sp + signExtend12 4048) ↦ₘ u1Old) **
-       ((sp + signExtend12 4040) ↦ₘ u2Old) ** ((sp + signExtend12 4032) ↦ₘ u3Old) **
-       ((sp + signExtend12 4024) ↦ₘ u4Old) **
-       ((sp + signExtend12 4016) ↦ₘ u5) ** ((sp + signExtend12 4008) ↦ₘ u6) **
-       ((sp + signExtend12 4000) ↦ₘ u7) ** ((sp + signExtend12 3984) ↦ₘ nMem) **
-       ((sp + signExtend12 3992) ↦ₘ shiftMem))
-      (loopSetupPost sp (4 : Word) (clzResult b3).1 a0 a1 a2 a3 b0 b1 b2 b3) :=
-  (evm_mod_n4_to_loopSetup_spec_within sp base
-    a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10
-    q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem
-    hbnz hb3nz hshift_nz).to_cpsTriple
-
--- ============================================================================
--- Full n=4 path to LoopSetup (shift = 0): base → base+448
--- ============================================================================
-
-/-- MOD full n=4 path from entry to loop body start (shift = 0 case).
-    base → base+448. b[] already normalized, u[] = copy of a[]. -/
 theorem evm_mod_n4_shift0_to_loopSetup_spec_within (sp base : Word)
     (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 : Word)
     (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem : Word)
@@ -498,52 +376,8 @@ theorem evm_mod_n4_shift0_to_loopSetup_spec_within (sp base : Word)
     (by pcFree) hLS
   have hFull := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hABC2C hLSf
-  exact cpsTripleWithin_weaken
+  exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq)
     hFull
 
-theorem evm_mod_n4_shift0_to_loopSetup_spec (sp base : Word)
-    (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 : Word)
-    (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem : Word)
-    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
-    (hb3nz : b3 ≠ 0)
-    (hshift_z : (clzResult b3).1 = 0) :
-    cpsTriple base (base + loopBodyOff) (modCode base)
-      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
-       (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b3).2 >>> (63 : Nat)) **
-       (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
-       ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
-       ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
-       ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
-       ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3) **
-       ((sp + signExtend12 4088) ↦ₘ q0) ** ((sp + signExtend12 4080) ↦ₘ q1) **
-       ((sp + signExtend12 4072) ↦ₘ q2) ** ((sp + signExtend12 4064) ↦ₘ q3) **
-       ((sp + signExtend12 4056) ↦ₘ u0Old) ** ((sp + signExtend12 4048) ↦ₘ u1Old) **
-       ((sp + signExtend12 4040) ↦ₘ u2Old) ** ((sp + signExtend12 4032) ↦ₘ u3Old) **
-       ((sp + signExtend12 4024) ↦ₘ u4Old) **
-       ((sp + signExtend12 4016) ↦ₘ u5) ** ((sp + signExtend12 4008) ↦ₘ u6) **
-       ((sp + signExtend12 4000) ↦ₘ u7) ** ((sp + signExtend12 3984) ↦ₘ nMem) **
-       ((sp + signExtend12 3992) ↦ₘ shiftMem))
-      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ (4 : Word)) ** (.x10 ↦ᵣ b3) ** (.x0 ↦ᵣ (0 : Word)) **
-       (.x6 ↦ᵣ (clzResult b3).1) ** (.x7 ↦ᵣ (clzResult b3).2 >>> (63 : Nat)) **
-       (.x2 ↦ᵣ signExtend12 (0 : BitVec 12) - (clzResult b3).1) **
-       (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
-       ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
-       ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
-       ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
-       ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3) **
-       ((sp + signExtend12 4088) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4080) ↦ₘ (0 : Word)) **
-       ((sp + signExtend12 4072) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4064) ↦ₘ (0 : Word)) **
-       ((sp + signExtend12 4056) ↦ₘ a0) ** ((sp + signExtend12 4048) ↦ₘ a1) **
-       ((sp + signExtend12 4040) ↦ₘ a2) ** ((sp + signExtend12 4032) ↦ₘ a3) **
-       ((sp + signExtend12 4024) ↦ₘ (0 : Word)) **
-       ((sp + signExtend12 4016) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
-       ((sp + signExtend12 4000) ↦ₘ (0 : Word)) ** ((sp + signExtend12 3984) ↦ₘ (4 : Word)) **
-       ((sp + signExtend12 3992) ↦ₘ (clzResult b3).1)) :=
-  (evm_mod_n4_shift0_to_loopSetup_spec_within sp base
-    a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10
-    q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem
-    hbnz hb3nz hshift_z).to_cpsTriple
-
-end EvmAsm.Evm64

@@ -3,7 +3,7 @@
 
   Extracted from `LoopBody.lean` (Sections 8a + 11).
 
-  `divK_trial_max_full_spec`: full trial-quotient max path —
+  `divK_trial_max_full_spec_within`: full trial-quotient max path —
   save j + trial load + BLTU not-taken + trial_max — composing into a
   single base+448 → base+516 spec when `uHi >= vTop`. Used by every
   `LoopBodyN{1..4}.lean` and the `LoopIterN1.{Max,MaxBeq}` files.
@@ -14,7 +14,7 @@
   Uses public helpers from `LoopBody.lean`:
   - `lb_sub`, `lb_bltu_taken`, `lb_bltu_ntaken` (now public, made
     non-`private` for this split).
-  - `divK_save_trial_load_spec`, `divK_trial_max_spec`.
+  - `divK_save_trial_load_spec_within`, `divK_trial_max_spec`.
 -/
 
 import EvmAsm.Evm64.DivMod.LoopBody
@@ -29,7 +29,7 @@ private theorem lb_trial_max_end {base : Word} :
     (base + 504 : Word) + 12 = base + 516 := by bv_addr
 -- ============================================================================
 -- Trial quotient MAX path (Section 8a) — extended to sharedDivModCode
--- Used only by `divK_trial_max_full_spec` below.
+-- Used only by `divK_trial_max_full_spec_within` below.
 -- ============================================================================
 
 /-- Trial quotient MAX path: qHat = MAX64, skip div128 call.
@@ -125,32 +125,5 @@ theorem divK_trial_max_full_spec_within
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq)
     STLfntaken_cleanTM
-
-/-- Trial quotient max path: save j + load + BLTU not-taken + trial_max.
-    When uHi >= vTop, sets qHat = MAX64 without calling div128.
-    Entry: base+448, Exit: base+516, CodeReq: sharedDivModCode base. -/
-theorem divK_trial_max_full_spec
-    (sp j n jOld v5Old v6Old v7Old v10Old v11Old uHi uLo vTop : Word)
-    (base : Word)
-    (hbltu : ¬BitVec.ult uHi vTop) :
-    let uAddr := sp + signExtend12 4056 - (j + n) <<< (3 : BitVec 6).toNat
-    let vtopBase := sp + (n + signExtend12 4095) <<< (3 : BitVec 6).toNat
-    cpsTriple (base + loopBodyOff) (base + 516) (sharedDivModCode base)
-      ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
-       (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
-       (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
-       (.x0 ↦ᵣ (0 : Word)) **
-       (sp + signExtend12 3976 ↦ₘ jOld) ** (sp + signExtend12 3984 ↦ₘ n) **
-       (uAddr ↦ₘ uHi) ** ((uAddr + 8) ↦ₘ uLo) **
-       (vtopBase + signExtend12 32 ↦ₘ vTop))
-      ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
-       (.x5 ↦ᵣ uLo) ** (.x6 ↦ᵣ vtopBase) **
-       (.x7 ↦ᵣ uHi) ** (.x10 ↦ᵣ vTop) ** (.x11 ↦ᵣ signExtend12 4095) **
-       (.x0 ↦ᵣ (0 : Word)) **
-       (sp + signExtend12 3976 ↦ₘ j) ** (sp + signExtend12 3984 ↦ₘ n) **
-       (uAddr ↦ₘ uHi) ** ((uAddr + 8) ↦ₘ uLo) **
-       (vtopBase + signExtend12 32 ↦ₘ vTop)) :=
-  (divK_trial_max_full_spec_within sp j n jOld v5Old v6Old v7Old v10Old v11Old
-    uHi uLo vTop base hbltu).to_cpsTriple
 
 end EvmAsm.Evm64

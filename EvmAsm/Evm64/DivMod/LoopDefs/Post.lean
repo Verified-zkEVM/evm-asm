@@ -23,7 +23,7 @@ open EvmAsm.Rv64
 
 -- ============================================================================
 -- Loop exit postcondition for n
--- Common assertion shape for both cpsBranch exits (taken/ntaken).
+-- Common assertion shape for both cpsBranchWithin exits (taken/ntaken).
 -- Parameterized by the final output values (un0F..un3F, u4F, q_f, c3).
 -- ============================================================================
 

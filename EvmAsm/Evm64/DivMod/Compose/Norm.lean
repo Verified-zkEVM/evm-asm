@@ -47,16 +47,6 @@ private theorem divK_phaseC2_body_divCode_within (sp shift v2 shiftMem : Word) (
   rw [show (base + phaseC2Off : Word) + 12 = base + 224 from by bv_addr] at hbody
   exact cpsTripleWithin_extend_code divK_phaseC2_code_sub_divCode hbody
 
-private theorem divK_phaseC2_body_divCode (sp shift v2 shiftMem : Word) (base : Word) :
-    cpsTriple (base + phaseC2Off) (base + 224) (divCode base)
-      ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ v2) ** (.x0 ↦ᵣ (0 : Word)) **
-       ((sp + signExtend12 3992) ↦ₘ shiftMem))
-      ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ (signExtend12 (0 : BitVec 12) - shift)) **
-       (.x0 ↦ᵣ (0 : Word)) ** ((sp + signExtend12 3992) ↦ₘ shift)) :=
-  (divK_phaseC2_body_divCode_within sp shift v2 shiftMem base).to_cpsTriple
-
-/-- Phase C2 when shift ≠ 0: falls through to normB at base+228.
-    Stores shift to scratch, computes antiShift = -shift. -/
 theorem divK_phaseC2_ntaken_spec_within (sp shift v2 shiftMem : Word) (base : Word)
     (hshift_nz : shift ≠ 0) :
     cpsTripleWithin 4 (base + phaseC2Off) (base + normBOff) (divCode base)
@@ -79,22 +69,11 @@ theorem divK_phaseC2_ntaken_spec_within (sp shift v2 shiftMem : Word) (base : Wo
     (by pcFree) hbeq
   have hC2 := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hbody hbeqf
-  exact cpsTripleWithin_weaken
+  exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq)
     hC2
 
-theorem divK_phaseC2_ntaken_spec (sp shift v2 shiftMem : Word) (base : Word)
-    (hshift_nz : shift ≠ 0) :
-    cpsTriple (base + phaseC2Off) (base + normBOff) (divCode base)
-      ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ v2) ** (.x0 ↦ᵣ (0 : Word)) **
-       ((sp + signExtend12 3992) ↦ₘ shiftMem))
-      ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ (signExtend12 (0 : BitVec 12) - shift)) **
-       (.x0 ↦ᵣ (0 : Word)) ** ((sp + signExtend12 3992) ↦ₘ shift)) :=
-  (divK_phaseC2_ntaken_spec_within sp shift v2 shiftMem base hshift_nz).to_cpsTriple
-
-/-- Phase C2 when shift = 0: branches to copyAU at base+396.
-    Stores shift (=0) to scratch, computes antiShift = 0. -/
 theorem divK_phaseC2_taken_spec_within (sp shift v2 shiftMem : Word) (base : Word)
     (hshift_z : shift = 0) :
     cpsTripleWithin 4 (base + phaseC2Off) (base + copyAUOff) (divCode base)
@@ -117,19 +96,19 @@ theorem divK_phaseC2_taken_spec_within (sp shift v2 shiftMem : Word) (base : Wor
     (by pcFree) hbeq
   have hC2 := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hbody hbeqf
-  exact cpsTripleWithin_weaken
+  exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq)
     hC2
 
 theorem divK_phaseC2_taken_spec (sp shift v2 shiftMem : Word) (base : Word)
     (hshift_z : shift = 0) :
-    cpsTriple (base + phaseC2Off) (base + copyAUOff) (divCode base)
+    cpsTripleWithin 10000 (base + phaseC2Off) (base + copyAUOff) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ v2) ** (.x0 ↦ᵣ (0 : Word)) **
        ((sp + signExtend12 3992) ↦ₘ shiftMem))
       ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ (signExtend12 (0 : BitVec 12) - shift)) **
        (.x0 ↦ᵣ (0 : Word)) ** ((sp + signExtend12 3992) ↦ₘ shift)) :=
-  (divK_phaseC2_taken_spec_within sp shift v2 shiftMem base hshift_z).to_cpsTriple
+  cpsTripleWithin_mono_nSteps (by decide) (divK_phaseC2_taken_spec_within sp shift v2 shiftMem base hshift_z)
 
 -- ============================================================================
 -- Section 10h: NormB composition (normalize divisor, 21 instructions)
@@ -188,27 +167,11 @@ private theorem divK_normB_half1_within (sp b0 b1 b2 b3 v5 v7 shift antiShift : 
     (by pcFree) hm2e
   have h12 := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hm1ef hm2ef
-  exact cpsTripleWithin_weaken
+  exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq)
     h12
 
-private theorem divK_normB_half1 (sp b0 b1 b2 b3 v5 v7 shift antiShift : Word) (base : Word) :
-    let b3' := (b3 <<< (shift.toNat % 64)) ||| (b2 >>> (antiShift.toNat % 64))
-    let b2' := (b2 <<< (shift.toNat % 64)) ||| (b1 >>> (antiShift.toNat % 64))
-    cpsTriple (base + normBOff) (base + 276) (divCode base)
-      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x7 ↦ᵣ v7) **
-       (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ antiShift) **
-       ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
-       ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3))
-      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ b2') ** (.x7 ↦ᵣ (b1 >>> (antiShift.toNat % 64))) **
-       (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ antiShift) **
-       ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
-       ((sp + 48) ↦ₘ b2') ** ((sp + 56) ↦ₘ b3')) :=
-  (divK_normB_half1_within sp b0 b1 b2 b3 v5 v7 shift antiShift base).to_cpsTriple
-
-/-- NormB second half: merge3 (b[1] with b[0]) + last (b[0] shift).
-    base+276 → base+312 (9 instructions). -/
 private theorem divK_normB_half2_within (sp b0 b1 b2' b3' shift antiShift : Word) (base : Word) :
     let b1' := (b1 <<< (shift.toNat % 64)) ||| (b0 >>> (antiShift.toNat % 64))
     let b0' := b0 <<< (shift.toNat % 64)
@@ -250,29 +213,11 @@ private theorem divK_normB_half2_within (sp b0 b1 b2' b3' shift antiShift : Word
     (by pcFree) hle
   have h34 := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hm3ef hlef
-  exact cpsTripleWithin_weaken
+  exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq)
     h34
 
-private theorem divK_normB_half2 (sp b0 b1 b2' b3' shift antiShift : Word) (base : Word) :
-    let b1' := (b1 <<< (shift.toNat % 64)) ||| (b0 >>> (antiShift.toNat % 64))
-    let b0' := b0 <<< (shift.toNat % 64)
-    cpsTriple (base + 276) (base + normAOff) (divCode base)
-      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ b2') ** (.x7 ↦ᵣ (b1 >>> (antiShift.toNat % 64))) **
-       (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ antiShift) **
-       ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
-       ((sp + 48) ↦ₘ b2') ** ((sp + 56) ↦ₘ b3'))
-      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ b0') ** (.x7 ↦ᵣ (b0 >>> (antiShift.toNat % 64))) **
-       (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ antiShift) **
-       ((sp + 32) ↦ₘ b0') ** ((sp + 40) ↦ₘ b1') **
-       ((sp + 48) ↦ₘ b2') ** ((sp + 56) ↦ₘ b3')) :=
-  (divK_normB_half2_within sp b0 b1 b2' b3' shift antiShift base).to_cpsTriple
-
-/-- Full NormB: normalize divisor b[0..3] in place by left-shifting.
-    base+228 → base+312 (21 instructions).
-    Pre: x12=sp, x6=shift, x2=antiShift, b[0..3] at sp+32..56.
-    Post: b[i] normalized, x5=b[0]<<<shift, x7=b[0]>>>antiShift. -/
 theorem divK_normB_full_spec_within (sp b0 b1 b2 b3 v5 v7 shift antiShift : Word) (base : Word) :
     let b3' := (b3 <<< (shift.toNat % 64)) ||| (b2 >>> (antiShift.toNat % 64))
     let b2' := (b2 <<< (shift.toNat % 64)) ||| (b1 >>> (antiShift.toNat % 64))
@@ -296,20 +241,3 @@ theorem divK_normB_full_spec_within (sp b0 b1 b2 b3 v5 v7 shift antiShift : Word
     (cpsTripleWithin_seq_perm_same_cr
       (fun h hp => by xperm_hyp hp) h1 h2)
 
-theorem divK_normB_full_spec (sp b0 b1 b2 b3 v5 v7 shift antiShift : Word) (base : Word) :
-    let b3' := (b3 <<< (shift.toNat % 64)) ||| (b2 >>> (antiShift.toNat % 64))
-    let b2' := (b2 <<< (shift.toNat % 64)) ||| (b1 >>> (antiShift.toNat % 64))
-    let b1' := (b1 <<< (shift.toNat % 64)) ||| (b0 >>> (antiShift.toNat % 64))
-    let b0' := b0 <<< (shift.toNat % 64)
-    cpsTriple (base + normBOff) (base + normAOff) (divCode base)
-      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x7 ↦ᵣ v7) **
-       (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ antiShift) **
-       ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
-       ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3))
-      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ b0') ** (.x7 ↦ᵣ (b0 >>> (antiShift.toNat % 64))) **
-       (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ antiShift) **
-       ((sp + 32) ↦ₘ b0') ** ((sp + 40) ↦ₘ b1') **
-       ((sp + 48) ↦ₘ b2') ** ((sp + 56) ↦ₘ b3')) :=
-  (divK_normB_full_spec_within sp b0 b1 b2 b3 v5 v7 shift antiShift base).to_cpsTriple
-
-end EvmAsm.Evm64

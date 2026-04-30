@@ -80,7 +80,7 @@ theorem mod_denorm_preamble_spec_within (sp shift v5 v6 v7 v2 v10 : Word) (base 
     full
 
 /-- Post-loop chain for MOD: denormalize u[], then load u'[] to output.
-    Bounded variant of `evm_mod_denorm_epilogue_spec`. -/
+    Bounded variant of `evm_mod_denorm_epilogue_spec_within`. -/
 theorem evm_mod_denorm_epilogue_spec_within (sp base : Word)
     (u0 u1 u2 u3 v2 v5 v7 v10 shift : Word)
     (m0 m8 m16 m24 : Word) :
@@ -111,7 +111,7 @@ theorem evm_mod_denorm_epilogue_spec_within (sp base : Word)
     (by pcFree) hEpi
   have hFull := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hDenormF hEpiF
-  exact cpsTripleWithin_weaken
+  exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by delta denormModPost; xperm_hyp hq)
     hFull
@@ -146,7 +146,7 @@ theorem evm_mod_preamble_denorm_epilogue_spec_within (sp base : Word)
     (by pcFree) hDE
   have hFull := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hPreF hDEF
-  exact cpsTripleWithin_weaken
+  exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq)
     hFull
@@ -225,7 +225,7 @@ theorem evm_mod_n4_preloop_max_skip_spec_within (sp base : Word)
       delta loopSetupPost at hp
       simp only [x1_val_n4] at hp
       xperm_hyp hp) hPreF hLoopF
-  exact cpsTripleWithin_weaken
+  exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by delta preloopMaxSkipPostN4; xperm_hyp hq)
     hFull
@@ -233,7 +233,7 @@ theorem evm_mod_n4_preloop_max_skip_spec_within (sp base : Word)
 /-- n=4 MOD pre-loop + call+skip loop body: base → base+denormOff (shift ≠ 0).
     Mirror of `evm_div_n4_preloop_call_skip_spec` (FullPathN4.lean:660) with
     `divCode → modCode` and the corresponding loopSetup/loop-body theorems
-    swapped. Same proof structure as `evm_mod_n4_preloop_max_skip_spec` but
+    swapped. Same proof structure as `evm_mod_n4_preloop_max_skip_spec_within` but
     for the call-trial path. -/
 theorem evm_mod_n4_preloop_call_skip_spec_within (sp base : Word)
     (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old : Word)
@@ -311,7 +311,7 @@ theorem evm_mod_n4_preloop_call_skip_spec_within (sp base : Word)
       delta loopSetupPost at hp
       simp only [x1_val_n4] at hp
       xperm_hyp hp) hPreF hLoopF
-  exact cpsTripleWithin_weaken
+  exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by delta preloopCallSkipPostN4; xperm_hyp hq)
     hFull
@@ -396,7 +396,7 @@ theorem evm_mod_n4_full_max_skip_spec_within (sp base : Word)
     (fun h hp => by
       simp only [preloopMaxSkipPostN4_unfold] at hp
       xperm_hyp hp) hA hBF
-  exact cpsTripleWithin_weaken
+  exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by delta fullModN4MaxSkipPost; rw [sepConj_assoc'] at hq; xperm_hyp hq)
     hFull
@@ -495,7 +495,7 @@ theorem evm_mod_n4_full_call_skip_spec_within (sp base : Word)
     (fun h hp => by
       simp only [preloopCallSkipPostN4_unfold] at hp
       xperm_hyp hp) hA hBF
-  exact cpsTripleWithin_weaken
+  exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by delta fullModN4CallSkipPost; rw [sepConj_assoc'] at hq; xperm_hyp hq)
     hFull
@@ -584,7 +584,7 @@ theorem evm_mod_n4_preloop_call_addback_beq_spec_within (sp base : Word)
       delta loopSetupPost at hp
       rw [x1_val_n4] at hp
       xperm_hyp hp) hPreF hLoopF
-  exact cpsTripleWithin_weaken
+  exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by delta preloopCallAddbackBeqPostN4; xperm_hyp hq)
     hFull
@@ -597,7 +597,7 @@ theorem evm_mod_n4_preloop_call_addback_beq_spec_within (sp base : Word)
     Composes pre-loop + call+addback loop body + denorm preamble + MOD denorm
     + MOD epilogue. Mirror of `evm_div_n4_full_call_addback_beq_spec`
     (FullPathN4Beq.lean) using `modCode` and the MOD-specific post-loop
-    composer `evm_mod_preamble_denorm_epilogue_spec`. -/
+    composer `evm_mod_preamble_denorm_epilogue_spec_within`. -/
 theorem evm_mod_n4_full_call_addback_beq_spec_within (sp base : Word)
     (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old : Word)
     (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem : Word)
@@ -689,111 +689,8 @@ theorem evm_mod_n4_full_call_addback_beq_spec_within (sp base : Word)
   -- 3. Compose A + B
   have hFull := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by simp only [preloopCallAddbackBeqPostN4_unfold] at hp; xperm_hyp hp) hA hBF
-  exact cpsTripleWithin_weaken
+  exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by delta fullModN4CallAddbackBeqPost; rw [sepConj_assoc'] at hq; xperm_hyp hq)
     hFull
 
-/-- Compatibility wrapper: forget the explicit step bound. -/
-def evm_mod_n4_preloop_max_skip_spec :=
-  fun (sp base : Word)
-      (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old : Word)
-      (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem : Word)
-      (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
-      (hb3nz : b3 ≠ 0)
-      (hshift_nz : (clzResult b3).1 ≠ 0)
-      (hbltu : isMaxTrialN4 a3 b2 b3)
-      (hborrow : isSkipBorrowN4Max a0 a1 a2 a3 b0 b1 b2 b3) =>
-    (evm_mod_n4_preloop_max_skip_spec_within sp base
-      a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old
-      q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem
-      hbnz hb3nz hshift_nz hbltu hborrow).to_cpsTriple
-
-/-- Compatibility wrapper: forget the explicit step bound. -/
-def evm_mod_n4_preloop_call_skip_spec :=
-  fun (sp base : Word)
-      (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old : Word)
-      (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem : Word)
-      (retMem dMem dloMem scratch_un0 : Word)
-      (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
-      (hb3nz : b3 ≠ 0)
-      (hshift_nz : (clzResult b3).1 ≠ 0)
-      (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
-      (hbltu : isCallTrialN4 a3 b2 b3)
-      (hborrow : isSkipBorrowN4Call a0 a1 a2 a3 b0 b1 b2 b3) =>
-    (evm_mod_n4_preloop_call_skip_spec_within sp base
-      a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old
-      q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem
-      retMem dMem dloMem scratch_un0 hbnz hb3nz hshift_nz halign hbltu hborrow).to_cpsTriple
-
-/-- Compatibility wrapper: forget the explicit step bound. -/
-def evm_mod_n4_full_max_skip_spec :=
-  fun (sp base : Word)
-      (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old : Word)
-      (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem : Word)
-      (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
-      (hb3nz : b3 ≠ 0)
-      (hshift_nz : (clzResult b3).1 ≠ 0)
-      (hbltu : isMaxTrialN4 a3 b2 b3)
-      (hborrow : isSkipBorrowN4Max a0 a1 a2 a3 b0 b1 b2 b3) =>
-    (evm_mod_n4_full_max_skip_spec_within sp base
-      a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old
-      q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem
-      hbnz hb3nz hshift_nz hbltu hborrow).to_cpsTriple
-
-/-- Compatibility wrapper: forget the explicit step bound. -/
-def evm_mod_n4_full_call_skip_spec :=
-  fun (sp base : Word)
-      (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old : Word)
-      (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem : Word)
-      (retMem dMem dloMem scratch_un0 : Word)
-      (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
-      (hb3nz : b3 ≠ 0)
-      (hshift_nz : (clzResult b3).1 ≠ 0)
-      (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
-      (hbltu : isCallTrialN4 a3 b2 b3)
-      (hborrow : isSkipBorrowN4Call a0 a1 a2 a3 b0 b1 b2 b3) =>
-    (evm_mod_n4_full_call_skip_spec_within sp base
-      a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old
-      q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem
-      retMem dMem dloMem scratch_un0 hbnz hb3nz hshift_nz halign hbltu hborrow).to_cpsTriple
-
-/-- Compatibility wrapper: forget the explicit step bound. -/
-def evm_mod_n4_preloop_call_addback_beq_spec :=
-  fun (sp base : Word)
-      (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old : Word)
-      (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem : Word)
-      (retMem dMem dloMem scratch_un0 : Word)
-      (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
-      (hb3nz : b3 ≠ 0)
-      (hshift_nz : (clzResult b3).1 ≠ 0)
-      (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
-      (hbltu : isCallTrialN4 a3 b2 b3)
-      (hcarry2_nz : isAddbackCarry2NzN4CallAb a0 a1 a2 a3 b0 b1 b2 b3)
-      (hborrow : isAddbackBorrowN4Call a0 a1 a2 a3 b0 b1 b2 b3) =>
-    (evm_mod_n4_preloop_call_addback_beq_spec_within sp base
-      a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old
-      q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem
-      retMem dMem dloMem scratch_un0 hbnz hb3nz hshift_nz halign hbltu
-      hcarry2_nz hborrow).to_cpsTriple
-
-/-- Compatibility wrapper: forget the explicit step bound. -/
-def evm_mod_n4_full_call_addback_beq_spec :=
-  fun (sp base : Word)
-      (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old : Word)
-      (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem : Word)
-      (retMem dMem dloMem scratch_un0 : Word)
-      (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
-      (hb3nz : b3 ≠ 0)
-      (hshift_nz : (clzResult b3).1 ≠ 0)
-      (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
-      (hbltu : isCallTrialN4 a3 b2 b3)
-      (hcarry2_nz : isAddbackCarry2NzN4CallAb a0 a1 a2 a3 b0 b1 b2 b3)
-      (hborrow : isAddbackBorrowN4Call a0 a1 a2 a3 b0 b1 b2 b3) =>
-    (evm_mod_n4_full_call_addback_beq_spec_within sp base
-      a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old
-      q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem
-      retMem dMem dloMem scratch_un0 hbnz hb3nz hshift_nz halign hbltu
-      hcarry2_nz hborrow).to_cpsTriple
-
-end EvmAsm.Evm64

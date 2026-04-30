@@ -1,6 +1,6 @@
 /-
   MOD Phase B n=3 composition (b[3]=0, b[2]≠0).
-  Mirrors evm_div_phaseB_n3_spec with modCode.
+  Mirrors evm_div_phaseB_n3_spec_within with modCode.
 -/
 import EvmAsm.Evm64.DivMod.Compose.ModPhaseB
 open EvmAsm.Rv64.Tactics
@@ -154,28 +154,3 @@ theorem evm_mod_phaseB_n3_spec_within (sp base : Word)
     (fun h hq => by xperm_hyp hq)
     hphaseB
 
-theorem evm_mod_phaseB_n3_spec (sp base : Word)
-    (b1 b2 b3 : Word) (v5 v6 v7 : Word)
-    (q0 q1 q2 q3 u5 u6 u7 nMem : Word)
-    (hb3z : b3 = 0) (hb2nz : b2 ≠ 0) :
-    cpsTriple (base + phaseBOff) (base + clzOff) (modCode base)
-      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ b3) ** (.x0 ↦ᵣ (0 : Word)) **
-       (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
-       ((sp + 40) ↦ₘ b1) ** ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3) **
-       ((sp + signExtend12 4088) ↦ₘ q0) ** ((sp + signExtend12 4080) ↦ₘ q1) **
-       ((sp + signExtend12 4072) ↦ₘ q2) ** ((sp + signExtend12 4064) ↦ₘ q3) **
-       ((sp + signExtend12 4016) ↦ₘ u5) ** ((sp + signExtend12 4008) ↦ₘ u6) **
-       ((sp + signExtend12 4000) ↦ₘ u7) **
-       ((sp + signExtend12 3984) ↦ₘ nMem))
-      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ b2) ** (.x10 ↦ᵣ b3) ** (.x0 ↦ᵣ (0 : Word)) **
-       (.x6 ↦ᵣ b1) ** (.x7 ↦ᵣ b2) **
-       ((sp + 40) ↦ₘ b1) ** ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3) **
-       ((sp + signExtend12 4088) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4080) ↦ₘ (0 : Word)) **
-       ((sp + signExtend12 4072) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4064) ↦ₘ (0 : Word)) **
-       ((sp + signExtend12 4016) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
-       ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
-       ((sp + signExtend12 3984) ↦ₘ (3 : Word))) :=
-  (evm_mod_phaseB_n3_spec_within sp base b1 b2 b3 v5 v6 v7 q0 q1 q2 q3 u5 u6 u7 nMem hb3z hb2nz).to_cpsTriple
-
-
-end EvmAsm.Evm64

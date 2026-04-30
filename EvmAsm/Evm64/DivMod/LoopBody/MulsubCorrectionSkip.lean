@@ -8,8 +8,8 @@
   parameter (not let-bound) to enable rw.
 
   Uses public helpers from `LoopBody.lean`:
-  - `divK_mulsub_full_spec`
-  - `divK_correction_skip_spec`
+  - `divK_mulsub_full_spec_within`
+  - `divK_correction_skip_spec_within`
 -/
 
 import EvmAsm.Evm64.DivMod.LoopBody.CorrectionSkip
@@ -110,9 +110,9 @@ def divK_mulsub_correction_skip_spec
 /-- v2 mirror of `divK_mulsub_correction_skip_spec` — same body but
     targets `sharedDivModCode_v2 base`.
 
-    **STUB:** the proof would use a `divK_mulsub_full_v2_spec` (not yet
+    **STUB:** the proof would use a `divK_mulsub_full_v2_spec_within` (not yet
     written, depends on v2 versions of `mulsub_setup`, `mulsub_4limbs`,
-    `sub_carry`) plus `divK_correction_skip_v2_spec` (just landed). The
+    `sub_carry`) plus `divK_correction_skip_v2_spec_within` (just landed). The
     deep dependency chain on the v1 LoopBody.lean sub-specs means a
     proper v2 mirror requires either copy-pasting the 100+ line proof or
     refactoring the v1 sub-specs to be cr-polymorphic. Either path is

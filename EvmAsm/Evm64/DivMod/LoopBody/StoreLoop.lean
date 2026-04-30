@@ -21,7 +21,7 @@ namespace EvmAsm.Evm64
 open EvmAsm.Rv64
 
 -- ============================================================================
--- Section 9b: Store + loop exit for j=0 (cpsTriple, BGE eliminated)
+-- Section 9b: Store + loop exit for j=0 (cpsTripleWithin, BGE eliminated)
 -- For j=0, j' = -1 < 0, so BGE is not taken → always exits to base+908.
 -- ============================================================================
 
@@ -30,7 +30,7 @@ private theorem j0_slt_zero :
     BitVec.slt ((0 : Word) + signExtend12 4095) 0 = true := by decide
 
 /-- Store q[0] + loop exit at j=0. Since j' = -1 < 0, BGE is not taken,
-    so this is a cpsTriple (not cpsBranch) to base+908. -/
+    so this is a cpsTripleWithin (not cpsBranchWithin) to base+908. -/
 theorem divK_store_loop_j0_spec_within
     (sp qHat v5Old v7Old qOld : Word)
     (base : Word) :
@@ -107,28 +107,8 @@ theorem divK_store_loop_j0_spec_within
     full
 
 /-- Store q[0] + loop exit at j=0. Since j' = -1 < 0, BGE is not taken,
-    so this is a cpsTriple (not cpsBranch) to base+908. -/
-theorem divK_store_loop_j0_spec
-    (sp qHat v5Old v7Old qOld : Word)
-    (base : Word) :
-    let qAddr := sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat
-    let j' := (0 : Word) + signExtend12 4095
-    cpsTriple (base + 884) (base + denormOff) (sharedDivModCode base)
-      ((.x1 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
-       (.x5 ↦ᵣ v5Old) ** (.x7 ↦ᵣ v7Old) ** (.x0 ↦ᵣ (0 : Word)) **
-       (qAddr ↦ₘ qOld))
-      ((.x1 ↦ᵣ j') ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
-       (.x5 ↦ᵣ (0 : Word) <<< (3 : BitVec 6).toNat) ** (.x7 ↦ᵣ qAddr) ** (.x0 ↦ᵣ (0 : Word)) **
-       (qAddr ↦ₘ qHat)) :=
-  (divK_store_loop_j0_spec_within sp qHat v5Old v7Old qOld base).to_cpsTriple
+    so this is a cpsTripleWithin (not cpsBranchWithin) to base+908. -/
 
--- ============================================================================
--- Section 9c: Store + loop continue for j > 0 (cpsTriple, BGE eliminated)
--- For j > 0, j' = j-1 ≥ 0, so BGE is taken → always loops back to base+448.
--- ============================================================================
-
-/-- Store q[j] + loop back at j > 0. Since j' = j-1 ≥ 0 (signed), BGE is taken,
-    so this is a cpsTriple (not cpsBranch) to base+448. -/
 theorem divK_store_loop_jgt0_spec_within
     (sp j qHat v5Old v7Old qOld : Word)
     (base : Word)
@@ -204,23 +184,5 @@ theorem divK_store_loop_jgt0_spec_within
     (fun h hp => by xperm_hyp hp)
     (fun h hp => by xperm_hyp hp)
     full
-
-/-- Store q[j] + loop back at j > 0. Since j' = j-1 ≥ 0 (signed), BGE is taken,
-    so this is a cpsTriple (not cpsBranch) to base+448. -/
-theorem divK_store_loop_jgt0_spec
-    (sp j qHat v5Old v7Old qOld : Word)
-    (base : Word)
-    (hj_pos : BitVec.slt (j + signExtend12 4095) 0 = false) :
-    let jX8 := j <<< (3 : BitVec 6).toNat
-    let qAddr := sp + signExtend12 4088 - jX8
-    let j' := j + signExtend12 4095
-    cpsTriple (base + 884) (base + loopBodyOff) (sharedDivModCode base)
-      ((.x1 ↦ᵣ j) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
-       (.x5 ↦ᵣ v5Old) ** (.x7 ↦ᵣ v7Old) ** (.x0 ↦ᵣ (0 : Word)) **
-       (qAddr ↦ₘ qOld))
-      ((.x1 ↦ᵣ j') ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
-       (.x5 ↦ᵣ jX8) ** (.x7 ↦ᵣ qAddr) ** (.x0 ↦ᵣ (0 : Word)) **
-       (qAddr ↦ₘ qHat)) :=
-  (divK_store_loop_jgt0_spec_within sp j qHat v5Old v7Old qOld base hj_pos).to_cpsTriple
 
 end EvmAsm.Evm64

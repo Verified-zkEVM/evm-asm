@@ -1,6 +1,6 @@
 /-
   MOD Phase B n=2 and n=1 compositions.
-  Mirrors evm_div_phaseB_n2_spec and evm_div_phaseB_n1_spec with modCode.
+  Mirrors evm_div_phaseB_n2_spec_within and evm_div_phaseB_n1_spec_within with modCode.
 -/
 import EvmAsm.Evm64.DivMod.Compose.ModPhaseB
 open EvmAsm.Rv64.Tactics
@@ -190,40 +190,6 @@ theorem evm_mod_phaseB_n2_spec_within (sp base : Word)
     (fun h hq => by xperm_hyp hq)
     hphaseB
 
-theorem evm_mod_phaseB_n2_spec (sp base : Word)
-    (b1 b2 b3 : Word) (v5 v6 v7 : Word)
-    (q0 q1 q2 q3 u5 u6 u7 nMem : Word)
-    (hb3z : b3 = 0) (hb2z : b2 = 0) (hb1nz : b1 ≠ 0) :
-    cpsTriple (base + phaseBOff) (base + clzOff) (modCode base)
-      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ b3) ** (.x0 ↦ᵣ (0 : Word)) **
-       (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
-       ((sp + 40) ↦ₘ b1) ** ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3) **
-       ((sp + signExtend12 4088) ↦ₘ q0) ** ((sp + signExtend12 4080) ↦ₘ q1) **
-       ((sp + signExtend12 4072) ↦ₘ q2) ** ((sp + signExtend12 4064) ↦ₘ q3) **
-       ((sp + signExtend12 4016) ↦ₘ u5) ** ((sp + signExtend12 4008) ↦ₘ u6) **
-       ((sp + signExtend12 4000) ↦ₘ u7) **
-       ((sp + signExtend12 3984) ↦ₘ nMem))
-      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ b1) ** (.x10 ↦ᵣ b3) ** (.x0 ↦ᵣ (0 : Word)) **
-       (.x6 ↦ᵣ b1) ** (.x7 ↦ᵣ b2) **
-       ((sp + 40) ↦ₘ b1) ** ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3) **
-       ((sp + signExtend12 4088) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4080) ↦ₘ (0 : Word)) **
-       ((sp + signExtend12 4072) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4064) ↦ₘ (0 : Word)) **
-       ((sp + signExtend12 4016) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
-       ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
-       ((sp + signExtend12 3984) ↦ₘ (2 : Word))) :=
-  (evm_mod_phaseB_n2_spec_within sp base b1 b2 b3 v5 v6 v7 q0 q1 q2 q3 u5 u6 u7 nMem hb3z hb2z hb1nz).to_cpsTriple
-
-
--- ============================================================================
--- MOD Phase B n=1 (b[3]=b[2]=b[1]=0)
--- init1 → init2 → ADDI x5=4 → BNE x10 ntaken → ADDI x5=3 → BNE x7 ntaken
--- → ADDI x5=2 → BNE x6 ntaken → ADDI x5=1 → tail
--- ============================================================================
-
-/-- MOD Phase B when b[3]=b[2]=b[1]=0 (n=1): zero scratch, cascade falls through all BNEs, load b[0].
-    Execution: all 21 instructions of divK_phaseB.
-    Exit at base+116. x5 = b[0] (leading limb), n = 1.
-    Note: b[0] must be in precondition since the tail loads from sp+32. -/
 theorem evm_mod_phaseB_n1_spec_within (sp base : Word)
     (b0 b1 b2 b3 : Word) (v5 v6 v7 : Word)
     (q0 q1 q2 q3 u5 u6 u7 nMem : Word)
@@ -410,28 +376,3 @@ theorem evm_mod_phaseB_n1_spec_within (sp base : Word)
     (fun h hq => by xperm_hyp hq)
     hphaseB
 
-theorem evm_mod_phaseB_n1_spec (sp base : Word)
-    (b0 b1 b2 b3 : Word) (v5 v6 v7 : Word)
-    (q0 q1 q2 q3 u5 u6 u7 nMem : Word)
-    (hb3z : b3 = 0) (hb2z : b2 = 0) (hb1z : b1 = 0) :
-    cpsTriple (base + phaseBOff) (base + clzOff) (modCode base)
-      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ b3) ** (.x0 ↦ᵣ (0 : Word)) **
-       (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
-       ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) ** ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3) **
-       ((sp + signExtend12 4088) ↦ₘ q0) ** ((sp + signExtend12 4080) ↦ₘ q1) **
-       ((sp + signExtend12 4072) ↦ₘ q2) ** ((sp + signExtend12 4064) ↦ₘ q3) **
-       ((sp + signExtend12 4016) ↦ₘ u5) ** ((sp + signExtend12 4008) ↦ₘ u6) **
-       ((sp + signExtend12 4000) ↦ₘ u7) **
-       ((sp + signExtend12 3984) ↦ₘ nMem))
-      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ b0) ** (.x10 ↦ᵣ b3) ** (.x0 ↦ᵣ (0 : Word)) **
-       (.x6 ↦ᵣ b1) ** (.x7 ↦ᵣ b2) **
-       ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) ** ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3) **
-       ((sp + signExtend12 4088) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4080) ↦ₘ (0 : Word)) **
-       ((sp + signExtend12 4072) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4064) ↦ₘ (0 : Word)) **
-       ((sp + signExtend12 4016) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
-       ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
-       ((sp + signExtend12 3984) ↦ₘ (1 : Word))) :=
-  (evm_mod_phaseB_n1_spec_within sp base b0 b1 b2 b3 v5 v6 v7 q0 q1 q2 q3 u5 u6 u7 nMem hb3z hb2z hb1z).to_cpsTriple
-
-
-end EvmAsm.Evm64

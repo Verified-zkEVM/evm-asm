@@ -54,7 +54,7 @@ private theorem mod_phaseC2_body_modCode (sp shift v2 shiftMem : Word) (base : W
   exact cpsTripleWithin_extend_code divK_phaseC2_code_sub_modCode hbody
 
 /-- Phase C2 when shift != 0: falls through to normB at base+228.
-    MOD mirror of divK_phaseC2_ntaken_spec. -/
+    MOD mirror of divK_phaseC2_ntaken_spec_within. -/
 theorem mod_phaseC2_ntaken_spec_within (sp shift v2 shiftMem : Word) (base : Word)
     (hshift_nz : shift ≠ 0) :
     cpsTripleWithin 4 (base + phaseC2Off) (base + normBOff) (modCode base)
@@ -77,22 +77,11 @@ theorem mod_phaseC2_ntaken_spec_within (sp shift v2 shiftMem : Word) (base : Wor
     (by pcFree) hbeq
   have hC2 := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hbody hbeqf
-  exact cpsTripleWithin_weaken
+  exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq)
     hC2
 
-theorem mod_phaseC2_ntaken_spec (sp shift v2 shiftMem : Word) (base : Word)
-    (hshift_nz : shift ≠ 0) :
-    cpsTriple (base + phaseC2Off) (base + normBOff) (modCode base)
-      ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ v2) ** (.x0 ↦ᵣ (0 : Word)) **
-       ((sp + signExtend12 3992) ↦ₘ shiftMem))
-      ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ (signExtend12 (0 : BitVec 12) - shift)) **
-       (.x0 ↦ᵣ (0 : Word)) ** ((sp + signExtend12 3992) ↦ₘ shift)) :=
-  (mod_phaseC2_ntaken_spec_within sp shift v2 shiftMem base hshift_nz).to_cpsTriple
-
-/-- Phase C2 when shift = 0: branches to copyAU at base+396.
-    MOD mirror of divK_phaseC2_taken_spec. -/
 theorem mod_phaseC2_taken_spec_within (sp shift v2 shiftMem : Word) (base : Word)
     (hshift_z : shift = 0) :
     cpsTripleWithin 4 (base + phaseC2Off) (base + copyAUOff) (modCode base)
@@ -115,19 +104,19 @@ theorem mod_phaseC2_taken_spec_within (sp shift v2 shiftMem : Word) (base : Word
     (by pcFree) hbeq
   have hC2 := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hbody hbeqf
-  exact cpsTripleWithin_weaken
+  exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq)
     hC2
 
 theorem mod_phaseC2_taken_spec (sp shift v2 shiftMem : Word) (base : Word)
     (hshift_z : shift = 0) :
-    cpsTriple (base + phaseC2Off) (base + copyAUOff) (modCode base)
+    cpsTripleWithin 10000 (base + phaseC2Off) (base + copyAUOff) (modCode base)
       ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ v2) ** (.x0 ↦ᵣ (0 : Word)) **
        ((sp + signExtend12 3992) ↦ₘ shiftMem))
       ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ (signExtend12 (0 : BitVec 12) - shift)) **
        (.x0 ↦ᵣ (0 : Word)) ** ((sp + signExtend12 3992) ↦ₘ shift)) :=
-  (mod_phaseC2_taken_spec_within sp shift v2 shiftMem base hshift_z).to_cpsTriple
+  cpsTripleWithin_mono_nSteps (by decide) (mod_phaseC2_taken_spec_within sp shift v2 shiftMem base hshift_z)
 
 -- ============================================================================
 -- MOD NormB composition (normalize divisor, 21 instructions)
@@ -186,7 +175,7 @@ private theorem mod_normB_half1 (sp b0 b1 b2 b3 v5 v7 shift antiShift : Word) (b
     (by pcFree) hm2e
   have h12 := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hm1ef hm2ef
-  exact cpsTripleWithin_weaken
+  exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq)
     h12
@@ -234,14 +223,14 @@ private theorem mod_normB_half2 (sp b0 b1 b2' b3' shift antiShift : Word) (base 
     (by pcFree) hle
   have h34 := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hm3ef hlef
-  exact cpsTripleWithin_weaken
+  exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq)
     h34
 
 /-- Full NormB for modCode: normalize divisor b[0..3] in place by left-shifting.
     base+228 -> base+312 (21 instructions).
-    MOD mirror of divK_normB_full_spec. -/
+    MOD mirror of divK_normB_full_spec_within. -/
 theorem mod_normB_full_spec_within (sp b0 b1 b2 b3 v5 v7 shift antiShift : Word) (base : Word) :
     let b3' := (b3 <<< (shift.toNat % 64)) ||| (b2 >>> (antiShift.toNat % 64))
     let b2' := (b2 <<< (shift.toNat % 64)) ||| (b1 >>> (antiShift.toNat % 64))
@@ -265,20 +254,3 @@ theorem mod_normB_full_spec_within (sp b0 b1 b2 b3 v5 v7 shift antiShift : Word)
     (cpsTripleWithin_seq_perm_same_cr
       (fun h hp => by xperm_hyp hp) h1 h2)
 
-theorem mod_normB_full_spec (sp b0 b1 b2 b3 v5 v7 shift antiShift : Word) (base : Word) :
-    let b3' := (b3 <<< (shift.toNat % 64)) ||| (b2 >>> (antiShift.toNat % 64))
-    let b2' := (b2 <<< (shift.toNat % 64)) ||| (b1 >>> (antiShift.toNat % 64))
-    let b1' := (b1 <<< (shift.toNat % 64)) ||| (b0 >>> (antiShift.toNat % 64))
-    let b0' := b0 <<< (shift.toNat % 64)
-    cpsTriple (base + normBOff) (base + normAOff) (modCode base)
-      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x7 ↦ᵣ v7) **
-       (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ antiShift) **
-       ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
-       ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3))
-      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ b0') ** (.x7 ↦ᵣ (b0 >>> (antiShift.toNat % 64))) **
-       (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ antiShift) **
-       ((sp + 32) ↦ₘ b0') ** ((sp + 40) ↦ₘ b1') **
-       ((sp + 48) ↦ₘ b2') ** ((sp + 56) ↦ₘ b3')) :=
-  (mod_normB_full_spec_within sp b0 b1 b2 b3 v5 v7 shift antiShift base).to_cpsTriple
-
-end EvmAsm.Evm64

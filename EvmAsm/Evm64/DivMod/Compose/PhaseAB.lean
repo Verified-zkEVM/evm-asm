@@ -208,26 +208,6 @@ theorem evm_div_bzero_spec_within (sp base : Word)
     (fun h hq => by rw [hbz] at hq; xperm_hyp hq)
     hABZ
 
-theorem evm_div_bzero_spec (sp base : Word)
-    (b0 b1 b2 b3 v5 v10 : Word)
-    (hbz : b0 ||| b1 ||| b2 ||| b3 = 0) :
-    cpsTriple base (base + nopOff) (divCode base)
-      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
-       ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
-       ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3))
-      ((.x12 ↦ᵣ (sp + 32)) ** (.x5 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ b3) ** (.x0 ↦ᵣ (0 : Word)) **
-       ((sp + 32) ↦ₘ (0 : Word)) ** ((sp + 40) ↦ₘ (0 : Word)) **
-       ((sp + 48) ↦ₘ (0 : Word)) ** ((sp + 56) ↦ₘ (0 : Word))) :=
-  (evm_div_bzero_spec_within sp base b0 b1 b2 b3 v5 v10 hbz).to_cpsTriple
-
-
--- ============================================================================
--- Section 8: Phase A not-taken composition (b ≠ 0)
--- Phase A body → BEQ(ntaken) → fall through to Phase B
--- ============================================================================
-
-/-- When b ≠ 0, evm_div falls through Phase A to Phase B at base+32.
-    Execution path: phaseA body (7 instrs), BEQ not taken. -/
 theorem evm_div_phaseA_ntaken_spec_within (sp base : Word)
     (b0 b1 b2 b3 v5 v10 : Word)
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0) :
@@ -266,27 +246,6 @@ theorem evm_div_phaseA_ntaken_spec_within (sp base : Word)
     (fun h hq => by xperm_hyp hq)
     hAB
 
-theorem evm_div_phaseA_ntaken_spec (sp base : Word)
-    (b0 b1 b2 b3 v5 v10 : Word)
-    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0) :
-    cpsTriple base (base + phaseBOff) (divCode base)
-      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
-       ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
-       ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3))
-      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ (b0 ||| b1 ||| b2 ||| b3)) ** (.x10 ↦ᵣ b3) ** (.x0 ↦ᵣ (0 : Word)) **
-       ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
-       ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3)) :=
-  (evm_div_phaseA_ntaken_spec_within sp base b0 b1 b2 b3 v5 v10 hbnz).to_cpsTriple
-
-
--- ============================================================================
--- Section 9: Phase B composition for n=4 (b[3] ≠ 0)
--- init1 → init2 → ADDI x5=4 → BNE x10(taken) → tail
--- ============================================================================
-
-/-- Phase B when b[3] ≠ 0 (n=4): zero scratch, load b[1..2], cascade BNE taken, load leading limb.
-    Execution path: init1 (7 instrs) + init2 (2) + ADDI (1) + BNE taken (1) + tail (5) = 16 instrs.
-    Exit at base+116 (start of CLZ). x5 = b[3] (leading limb), x6 = b[1], x7 = b[2], n = 4. -/
 theorem evm_div_phaseB_n4_spec_within (sp base : Word)
     (b1 b2 b3 : Word) (v5 v6 v7 : Word)
     (q0 q1 q2 q3 u5 u6 u7 nMem : Word)
@@ -349,38 +308,6 @@ theorem evm_div_phaseB_n4_spec_within (sp base : Word)
     (fun h hq => by xperm_hyp hq)
     hinit1fhinit2haddihbnehtail
 
-theorem evm_div_phaseB_n4_spec (sp base : Word)
-    (b1 b2 b3 : Word) (v5 v6 v7 : Word)
-    (q0 q1 q2 q3 u5 u6 u7 nMem : Word)
-    (hb3nz : b3 ≠ 0) :
-    cpsTriple (base + phaseBOff) (base + clzOff) (divCode base)
-      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ b3) ** (.x0 ↦ᵣ (0 : Word)) **
-       (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
-       ((sp + 40) ↦ₘ b1) ** ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3) **
-       ((sp + signExtend12 4088) ↦ₘ q0) ** ((sp + signExtend12 4080) ↦ₘ q1) **
-       ((sp + signExtend12 4072) ↦ₘ q2) ** ((sp + signExtend12 4064) ↦ₘ q3) **
-       ((sp + signExtend12 4016) ↦ₘ u5) ** ((sp + signExtend12 4008) ↦ₘ u6) **
-       ((sp + signExtend12 4000) ↦ₘ u7) **
-       ((sp + signExtend12 3984) ↦ₘ nMem))
-      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ b3) ** (.x10 ↦ᵣ b3) ** (.x0 ↦ᵣ (0 : Word)) **
-       (.x6 ↦ᵣ b1) ** (.x7 ↦ᵣ b2) **
-       ((sp + 40) ↦ₘ b1) ** ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3) **
-       ((sp + signExtend12 4088) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4080) ↦ₘ (0 : Word)) **
-       ((sp + signExtend12 4072) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4064) ↦ₘ (0 : Word)) **
-       ((sp + signExtend12 4016) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
-       ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
-       ((sp + signExtend12 3984) ↦ₘ (4 : Word))) :=
-  (evm_div_phaseB_n4_spec_within sp base b1 b2 b3 v5 v6 v7 q0 q1 q2 q3 u5 u6 u7 nMem hb3nz).to_cpsTriple
-
-
--- ============================================================================
--- Section 10: Phase A + Phase B n=4 composition (b≠0, b[3]≠0)
--- base → base+116 (entry to CLZ)
--- ============================================================================
-
-/-- When b ≠ 0 and b[3] ≠ 0, evm_div executes Phase A (ntaken) then Phase B (n=4).
-    Execution: 8 + 16 = 24 instructions, base → base+116 (start of CLZ).
-    Pre/postcondition shapes reflect frame structure from composition. -/
 theorem evm_div_phaseAB_n4_spec_within (sp base : Word)
     (b0 b1 b2 b3 v5 v6 v7 v10 : Word)
     (q0 q1 q2 q3 u5 u6 u7 nMem : Word)
@@ -429,7 +356,7 @@ theorem evm_div_phaseAB_n4_spec (sp base : Word)
     (q0 q1 q2 q3 u5 u6 u7 nMem : Word)
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
     (hb3nz : b3 ≠ 0) :
-    cpsTriple base (base + clzOff) (divCode base)
+    cpsTripleWithin 10000 base (base + clzOff) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
        ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
@@ -446,7 +373,7 @@ theorem evm_div_phaseAB_n4_spec (sp base : Word)
        ((sp + signExtend12 4072) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4064) ↦ₘ (0 : Word)) **
        ((sp + signExtend12 4016) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
        ((sp + signExtend12 4000) ↦ₘ (0 : Word)) ** ((sp + signExtend12 3984) ↦ₘ (4 : Word))) :=
-  (evm_div_phaseAB_n4_spec_within sp base b0 b1 b2 b3 v5 v6 v7 v10 q0 q1 q2 q3 u5 u6 u7 nMem hbnz hb3nz).to_cpsTriple
+  cpsTripleWithin_mono_nSteps (by decide) (evm_div_phaseAB_n4_spec_within sp base b0 b1 b2 b3 v5 v6 v7 v10 q0 q1 q2 q3 u5 u6 u7 nMem hbnz hb3nz)
 
 
 -- ============================================================================
@@ -692,39 +619,6 @@ theorem evm_div_phaseB_n3_spec_within (sp base : Word)
     (fun h hq => by xperm_hyp hq)
     hphaseB
 
-theorem evm_div_phaseB_n3_spec (sp base : Word)
-    (b1 b2 b3 : Word) (v5 v6 v7 : Word)
-    (q0 q1 q2 q3 u5 u6 u7 nMem : Word)
-    (hb3z : b3 = 0) (hb2nz : b2 ≠ 0) :
-    cpsTriple (base + phaseBOff) (base + clzOff) (divCode base)
-      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ b3) ** (.x0 ↦ᵣ (0 : Word)) **
-       (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
-       ((sp + 40) ↦ₘ b1) ** ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3) **
-       ((sp + signExtend12 4088) ↦ₘ q0) ** ((sp + signExtend12 4080) ↦ₘ q1) **
-       ((sp + signExtend12 4072) ↦ₘ q2) ** ((sp + signExtend12 4064) ↦ₘ q3) **
-       ((sp + signExtend12 4016) ↦ₘ u5) ** ((sp + signExtend12 4008) ↦ₘ u6) **
-       ((sp + signExtend12 4000) ↦ₘ u7) **
-       ((sp + signExtend12 3984) ↦ₘ nMem))
-      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ b2) ** (.x10 ↦ᵣ b3) ** (.x0 ↦ᵣ (0 : Word)) **
-       (.x6 ↦ᵣ b1) ** (.x7 ↦ᵣ b2) **
-       ((sp + 40) ↦ₘ b1) ** ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3) **
-       ((sp + signExtend12 4088) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4080) ↦ₘ (0 : Word)) **
-       ((sp + signExtend12 4072) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4064) ↦ₘ (0 : Word)) **
-       ((sp + signExtend12 4016) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
-       ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
-       ((sp + signExtend12 3984) ↦ₘ (3 : Word))) :=
-  (evm_div_phaseB_n3_spec_within sp base b1 b2 b3 v5 v6 v7 q0 q1 q2 q3 u5 u6 u7 nMem hb3z hb2nz).to_cpsTriple
-
-
--- ============================================================================
--- Section 10e: Phase B n=2 (b[3]=b[2]=0, b[1]≠0)
--- init1 → init2 → ADDI x5=4 → BNE x10 ntaken → ADDI x5=3 → BNE x7 ntaken
--- → ADDI x5=2 → BNE x6 taken → tail
--- ============================================================================
-
-/-- Phase B when b[3]=b[2]=0, b[1]≠0 (n=2): zero scratch, cascade to n=2, load b[1].
-    Execution: init1(7) + init2(2) + 3×step(6) + tail(5) = 20 instrs.
-    Exit at base+116. x5 = b[1] (leading limb), n = 2. -/
 theorem evm_div_phaseB_n2_spec_within (sp base : Word)
     (b1 b2 b3 : Word) (v5 v6 v7 : Word)
     (q0 q1 q2 q3 u5 u6 u7 nMem : Word)
@@ -895,40 +789,6 @@ theorem evm_div_phaseB_n2_spec_within (sp base : Word)
     (fun h hq => by xperm_hyp hq)
     hphaseB
 
-theorem evm_div_phaseB_n2_spec (sp base : Word)
-    (b1 b2 b3 : Word) (v5 v6 v7 : Word)
-    (q0 q1 q2 q3 u5 u6 u7 nMem : Word)
-    (hb3z : b3 = 0) (hb2z : b2 = 0) (hb1nz : b1 ≠ 0) :
-    cpsTriple (base + phaseBOff) (base + clzOff) (divCode base)
-      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ b3) ** (.x0 ↦ᵣ (0 : Word)) **
-       (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
-       ((sp + 40) ↦ₘ b1) ** ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3) **
-       ((sp + signExtend12 4088) ↦ₘ q0) ** ((sp + signExtend12 4080) ↦ₘ q1) **
-       ((sp + signExtend12 4072) ↦ₘ q2) ** ((sp + signExtend12 4064) ↦ₘ q3) **
-       ((sp + signExtend12 4016) ↦ₘ u5) ** ((sp + signExtend12 4008) ↦ₘ u6) **
-       ((sp + signExtend12 4000) ↦ₘ u7) **
-       ((sp + signExtend12 3984) ↦ₘ nMem))
-      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ b1) ** (.x10 ↦ᵣ b3) ** (.x0 ↦ᵣ (0 : Word)) **
-       (.x6 ↦ᵣ b1) ** (.x7 ↦ᵣ b2) **
-       ((sp + 40) ↦ₘ b1) ** ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3) **
-       ((sp + signExtend12 4088) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4080) ↦ₘ (0 : Word)) **
-       ((sp + signExtend12 4072) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4064) ↦ₘ (0 : Word)) **
-       ((sp + signExtend12 4016) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
-       ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
-       ((sp + signExtend12 3984) ↦ₘ (2 : Word))) :=
-  (evm_div_phaseB_n2_spec_within sp base b1 b2 b3 v5 v6 v7 q0 q1 q2 q3 u5 u6 u7 nMem hb3z hb2z hb1nz).to_cpsTriple
-
-
--- ============================================================================
--- Section 10f: Phase B n=1 (b[3]=b[2]=b[1]=0)
--- init1 → init2 → ADDI x5=4 → BNE x10 ntaken → ADDI x5=3 → BNE x7 ntaken
--- → ADDI x5=2 → BNE x6 ntaken → ADDI x5=1 → tail
--- ============================================================================
-
-/-- Phase B when b[3]=b[2]=b[1]=0 (n=1): zero scratch, cascade falls through all BNEs, load b[0].
-    Execution: all 21 instructions of divK_phaseB.
-    Exit at base+116. x5 = b[0] (leading limb), n = 1.
-    Note: b[0] must be in precondition since the tail loads from sp+32. -/
 theorem evm_div_phaseB_n1_spec_within (sp base : Word)
     (b0 b1 b2 b3 : Word) (v5 v6 v7 : Word)
     (q0 q1 q2 q3 u5 u6 u7 nMem : Word)
@@ -1114,28 +974,3 @@ theorem evm_div_phaseB_n1_spec_within (sp base : Word)
     (fun h hq => by xperm_hyp hq)
     hphaseB
 
-theorem evm_div_phaseB_n1_spec (sp base : Word)
-    (b0 b1 b2 b3 : Word) (v5 v6 v7 : Word)
-    (q0 q1 q2 q3 u5 u6 u7 nMem : Word)
-    (hb3z : b3 = 0) (hb2z : b2 = 0) (hb1z : b1 = 0) :
-    cpsTriple (base + phaseBOff) (base + clzOff) (divCode base)
-      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ b3) ** (.x0 ↦ᵣ (0 : Word)) **
-       (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
-       ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) ** ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3) **
-       ((sp + signExtend12 4088) ↦ₘ q0) ** ((sp + signExtend12 4080) ↦ₘ q1) **
-       ((sp + signExtend12 4072) ↦ₘ q2) ** ((sp + signExtend12 4064) ↦ₘ q3) **
-       ((sp + signExtend12 4016) ↦ₘ u5) ** ((sp + signExtend12 4008) ↦ₘ u6) **
-       ((sp + signExtend12 4000) ↦ₘ u7) **
-       ((sp + signExtend12 3984) ↦ₘ nMem))
-      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ b0) ** (.x10 ↦ᵣ b3) ** (.x0 ↦ᵣ (0 : Word)) **
-       (.x6 ↦ᵣ b1) ** (.x7 ↦ᵣ b2) **
-       ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) ** ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3) **
-       ((sp + signExtend12 4088) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4080) ↦ₘ (0 : Word)) **
-       ((sp + signExtend12 4072) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4064) ↦ₘ (0 : Word)) **
-       ((sp + signExtend12 4016) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
-       ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
-       ((sp + signExtend12 3984) ↦ₘ (1 : Word))) :=
-  (evm_div_phaseB_n1_spec_within sp base b0 b1 b2 b3 v5 v6 v7 q0 q1 q2 q3 u5 u6 u7 nMem hb3z hb2z hb1z).to_cpsTriple
-
-
-end EvmAsm.Evm64

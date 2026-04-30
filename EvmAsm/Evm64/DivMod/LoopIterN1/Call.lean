@@ -1,7 +1,7 @@
 /-
   EvmAsm.Evm64.DivMod.LoopIterN1.Call
 
-  Loop body cpsTriple specs for n=1, BLTU taken (call path).
+  Loop body cpsTripleWithin specs for n=1, BLTU taken (call path).
   Split from LoopIterN1.lean for faster builds.
 -/
 
@@ -14,12 +14,12 @@ namespace EvmAsm.Evm64
 open EvmAsm.Rv64
 
 -- ============================================================================
--- n=1, BLTU taken (call path) + BEQ skip, j=0 → cpsTriple to base+904
+-- n=1, BLTU taken (call path) + BEQ skip, j=0 → cpsTripleWithin to base+904
 -- ============================================================================
 
 set_option maxRecDepth 4096 in
-/-- Loop body cpsTriple for n=1, call+skip, j=0.
-    Since j=0, the BGE loop-back is not taken, giving a cpsTriple to base+904. -/
+/-- Loop body cpsTripleWithin for n=1, call+skip, j=0.
+    Since j=0, the BGE loop-back is not taken, giving a cpsTripleWithin to base+904. -/
 theorem divK_loop_body_n1_call_skip_j0_spec_within
     (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
@@ -140,49 +140,6 @@ theorem divK_loop_body_n1_call_skip_j0_spec_within
       rw [sepConj_assoc'] at hp; xperm_hyp hp)
     full
 
-/-- Compatibility wrapper for the unbounded n=1 call+skip j=0 surface. -/
-theorem divK_loop_body_n1_call_skip_j0_spec
-    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-     v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
-    (retMem dMem dloMem scratch_un0 : Word)
-    (base : Word)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
-    (hbltu : BitVec.ult u1 v0)
-    (hborrow : isSkipBorrowN1Call v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
-    let uBase := sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat
-    let qAddr := sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat
-    cpsTriple (base + loopBodyOff) (base + denormOff) (sharedDivModCode base)
-      ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (0 : Word)) **
-       (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
-       (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
-       (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
-       (sp + signExtend12 3976 ↦ₘ jOld) ** (sp + signExtend12 3984 ↦ₘ (1 : Word)) **
-       ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
-       ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4088) ↦ₘ u1) **
-       ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4080) ↦ₘ u2) **
-       ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ u3) **
-       ((uBase + signExtend12 4064) ↦ₘ uTop) **
-       (qAddr ↦ₘ qOld) **
-       (sp + signExtend12 3968 ↦ₘ retMem) **
-       (sp + signExtend12 3960 ↦ₘ dMem) **
-       (sp + signExtend12 3952 ↦ₘ dloMem) **
-       (sp + signExtend12 3944 ↦ₘ scratch_un0))
-      (loopBodyN1CallSkipPostJ sp base (0 : Word) v0 v1 v2 v3 u0 u1 u2 u3 uTop) := by
-  intro uBase qAddr
-  exact (divK_loop_body_n1_call_skip_j0_spec_within
-    sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-    v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld
-    retMem dMem dloMem scratch_un0 base halign hbltu hborrow).to_cpsTriple
-
--- ============================================================================
--- n=1, BLTU taken (call path) + BEQ skip, j > 0 → cpsTriple to base+448
--- Single Word-parametric theorem: callers pass concrete j ∈ {1,2,3} and the
--- corresponding `slt_jpos_k` fact to discharge BLT-not-taken.
--- ============================================================================
-
-set_option maxRecDepth 4096 in
-/-- Loop body cpsTriple for n=1, call+skip, j > 0 (parametric on `j : Word`).
-    `hpos` discharges BGE loop-back via caller's `slt_jpos_k` for k ∈ {1,2,3}. -/
 theorem divK_loop_body_n1_call_skip_jgt0_spec_within (j : Word)
     (hpos : BitVec.slt (j + signExtend12 4095) 0 = false)
     (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
@@ -303,40 +260,5 @@ theorem divK_loop_body_n1_call_skip_jgt0_spec_within (j : Word)
             loopBodyN1SkipPost loopBodySkipPost mulsubN4 loopExitPostN1 loopExitPost
       rw [sepConj_assoc'] at hp; xperm_hyp hp)
     full
-
-/-- Compatibility wrapper for the unbounded n=1 call+skip j>0 surface. -/
-theorem divK_loop_body_n1_call_skip_jgt0_spec (j : Word)
-    (hpos : BitVec.slt (j + signExtend12 4095) 0 = false)
-    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-     v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
-    (retMem dMem dloMem scratch_un0 : Word)
-    (base : Word)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
-    (hbltu : BitVec.ult u1 v0)
-    (hborrow : isSkipBorrowN1Call v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
-    let uBase := sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat
-    let qAddr := sp + signExtend12 4088 - j <<< (3 : BitVec 6).toNat
-    cpsTriple (base + loopBodyOff) (base + loopBodyOff) (sharedDivModCode base)
-      ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
-       (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
-       (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
-       (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
-       (sp + signExtend12 3976 ↦ₘ jOld) ** (sp + signExtend12 3984 ↦ₘ (1 : Word)) **
-       ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
-       ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4088) ↦ₘ u1) **
-       ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4080) ↦ₘ u2) **
-       ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ u3) **
-       ((uBase + signExtend12 4064) ↦ₘ uTop) **
-       (qAddr ↦ₘ qOld) **
-       (sp + signExtend12 3968 ↦ₘ retMem) **
-       (sp + signExtend12 3960 ↦ₘ dMem) **
-       (sp + signExtend12 3952 ↦ₘ dloMem) **
-       (sp + signExtend12 3944 ↦ₘ scratch_un0))
-      (loopBodyN1CallSkipPostJ sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop) := by
-  intro uBase qAddr
-  exact (divK_loop_body_n1_call_skip_jgt0_spec_within j hpos
-    sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-    v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld
-    retMem dMem dloMem scratch_un0 base halign hbltu hborrow).to_cpsTriple
 
 end EvmAsm.Evm64

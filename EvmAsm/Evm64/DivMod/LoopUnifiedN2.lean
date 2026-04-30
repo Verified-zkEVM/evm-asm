@@ -6,11 +6,11 @@
 
   For n=2, the loop runs 3 iterations (j=2, j=1, j=0).
   Structure:
-  1. `divK_loop_n2_iter10_unified_spec (bltu_1 bltu_0 : Bool)`:
+  1. `divK_loop_n2_iter10_unified_spec_within (bltu_1 bltu_0 : Bool)`:
      Two-iteration (j=1, j=0) composition — 4 cases, same pattern as n=3 unified.
-  2. `divK_loop_n2_max_iter10_spec` / `divK_loop_n2_call_iter10_spec`:
+  2. `divK_loop_n2_max_iter10_spec_within` / `divK_loop_n2_call_iter10_spec_within`:
      Compose j=2 (max or call) with the two-iteration intermediate.
-  3. `divK_loop_n2_unified_spec (bltu_2 bltu_1 bltu_0 : Bool)`:
+  3. `divK_loop_n2_unified_spec_within (bltu_2 bltu_1 bltu_0 : Bool)`:
      Full three-iteration — dispatches to the above via cases on bltu_2.
 -/
 
@@ -25,7 +25,7 @@ open EvmAsm.Evm64.DivMod.AddrNorm (jpred_2)
 
 -- ============================================================================
 -- Double-addback () two-iteration (j=1, j=0) unified composition
--- Same pattern as divK_loop_n3_unified_spec but with n=2 per-iteration specs
+-- Same pattern as divK_loop_n3_unified_spec_within but with n=2 per-iteration specs
 -- ============================================================================
 
 /-- Unified n=2 two-iteration  loop composition for j=1 and j=0,
@@ -274,7 +274,7 @@ theorem divK_loop_n2_call_iter10_spec_within (bltu_1 bltu_0 : Bool)
 
 /-- Unified n=2 three-iteration  loop composition, parameterized by
     `(bltu_2 bltu_1 bltu_0 : Bool)`.  Covers all 8 path combinations.
-    Dispatches to divK_loop_n2_max_iter10_spec / divK_loop_n2_call_iter10_spec. -/
+    Dispatches to divK_loop_n2_max_iter10_spec_within / divK_loop_n2_call_iter10_spec_within. -/
 theorem divK_loop_n2_unified_spec_within (bltu_2 bltu_1 bltu_0 : Bool)
     (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
      v0 v1 v2 v3 u0 u1 u2 u3 uTop
@@ -318,114 +318,5 @@ theorem divK_loop_n2_unified_spec_within (bltu_2 bltu_1 bltu_0 : Bool)
 
 
       hbltu_2' hbltu_1 hbltu_0 hcarry2
-
--- Compatibility wrappers for unbounded callers.
-
-theorem divK_loop_n2_iter10_unified_spec (bltu_1 bltu_0 : Bool)
-    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-     v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old : Word)
-    (retMem dMem dloMem scratch_un0 : Word)
-    (base : Word)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
-    (hbltu_1 : bltu_1 = BitVec.ult u2 v1)
-    (hbltu_0 : bltu_0 = BitVec.ult (iterN2 bltu_1 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1 v1)
-    (hcarry2 : Carry2NzAll v0 v1 v2 v3) :
-    cpsTriple (base + loopBodyOff) (base + denormOff) (sharedDivModCode base)
-      (loopN2Iter10PreWithScratch sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-        v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
-        retMem dMem dloMem scratch_un0)
-      (loopN2Iter10Post bltu_1 bltu_0 sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig
-        retMem dMem dloMem scratch_un0) := by
-  exact (divK_loop_n2_iter10_unified_spec_within bltu_1 bltu_0
-    sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-    v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
-    retMem dMem dloMem scratch_un0 base halign hbltu_1 hbltu_0 hcarry2).to_cpsTriple
-
-theorem divK_loop_n2_max_iter10_spec (bltu_1 bltu_0 : Bool)
-    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-     v0 v1 v2 v3 u0 u1 u2 u3 uTop
-     u0_orig_1 u0_orig_0
-     q2Old q1Old q0Old : Word)
-    (retMem dMem dloMem scratch_un0 : Word)
-    (base : Word)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
-    (hbltu_2 : ¬BitVec.ult u2 v1)
-    (hbltu_1 : bltu_1 = BitVec.ult (iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1 v1)
-    (hbltu_0 : bltu_0 = BitVec.ult (iterN2 bltu_1 v0 v1 v2 v3 u0_orig_1
-      (iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.1
-      (iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1
-      (iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.1
-      (iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.1).2.2.1 v1)
-    (hcarry2 : Carry2NzAll v0 v1 v2 v3) :
-    cpsTriple (base + loopBodyOff) (base + denormOff) (sharedDivModCode base)
-      (loopN2PreWithScratch sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-        v0 v1 v2 v3 u0 u1 u2 u3 uTop
-        u0_orig_1 u0_orig_0 q2Old q1Old q0Old
-        retMem dMem dloMem scratch_un0)
-      (loopN2UnifiedPost false bltu_1 bltu_0 sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop
-        u0_orig_1 u0_orig_0 retMem dMem dloMem scratch_un0) := by
-  exact (divK_loop_n2_max_iter10_spec_within bltu_1 bltu_0
-    sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-    v0 v1 v2 v3 u0 u1 u2 u3 uTop u0_orig_1 u0_orig_0 q2Old q1Old q0Old
-    retMem dMem dloMem scratch_un0 base halign
-    hbltu_2 hbltu_1 hbltu_0 hcarry2).to_cpsTriple
-
-theorem divK_loop_n2_call_iter10_spec (bltu_1 bltu_0 : Bool)
-    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-     v0 v1 v2 v3 u0 u1 u2 u3 uTop
-     u0_orig_1 u0_orig_0
-     q2Old q1Old q0Old : Word)
-    (retMem dMem dloMem scratch_un0 : Word)
-    (base : Word)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
-    (hbltu_2 : BitVec.ult u2 v1)
-    (hbltu_1 : bltu_1 = BitVec.ult (iterN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1 v1)
-    (hbltu_0 : bltu_0 = BitVec.ult (iterN2 bltu_1 v0 v1 v2 v3 u0_orig_1
-      (iterN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.1
-      (iterN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1
-      (iterN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.1
-      (iterN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.1).2.2.1 v1)
-    (hcarry2 : Carry2NzAll v0 v1 v2 v3) :
-    cpsTriple (base + loopBodyOff) (base + denormOff) (sharedDivModCode base)
-      (loopN2PreWithScratch sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-        v0 v1 v2 v3 u0 u1 u2 u3 uTop
-        u0_orig_1 u0_orig_0 q2Old q1Old q0Old
-        retMem dMem dloMem scratch_un0)
-      (loopN2UnifiedPost true bltu_1 bltu_0 sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop
-        u0_orig_1 u0_orig_0 retMem dMem dloMem scratch_un0) := by
-  exact (divK_loop_n2_call_iter10_spec_within bltu_1 bltu_0
-    sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-    v0 v1 v2 v3 u0 u1 u2 u3 uTop u0_orig_1 u0_orig_0 q2Old q1Old q0Old
-    retMem dMem dloMem scratch_un0 base halign
-    hbltu_2 hbltu_1 hbltu_0 hcarry2).to_cpsTriple
-
-theorem divK_loop_n2_unified_spec (bltu_2 bltu_1 bltu_0 : Bool)
-    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-     v0 v1 v2 v3 u0 u1 u2 u3 uTop
-     u0_orig_1 u0_orig_0
-     q2Old q1Old q0Old : Word)
-    (retMem dMem dloMem scratch_un0 : Word)
-    (base : Word)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
-    (hbltu_2 : bltu_2 = BitVec.ult u2 v1)
-    (hbltu_1 : bltu_1 = BitVec.ult (iterN2 bltu_2 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1 v1)
-    (hbltu_0 : bltu_0 = BitVec.ult (iterN2 bltu_1 v0 v1 v2 v3 u0_orig_1
-      (iterN2 bltu_2 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.1
-      (iterN2 bltu_2 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1
-      (iterN2 bltu_2 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.1
-      (iterN2 bltu_2 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.1).2.2.1 v1)
-    (hcarry2 : Carry2NzAll v0 v1 v2 v3) :
-    cpsTriple (base + loopBodyOff) (base + denormOff) (sharedDivModCode base)
-      (loopN2PreWithScratch sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-        v0 v1 v2 v3 u0 u1 u2 u3 uTop
-        u0_orig_1 u0_orig_0 q2Old q1Old q0Old
-        retMem dMem dloMem scratch_un0)
-      (loopN2UnifiedPost bltu_2 bltu_1 bltu_0 sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop
-        u0_orig_1 u0_orig_0 retMem dMem dloMem scratch_un0) := by
-  exact (divK_loop_n2_unified_spec_within bltu_2 bltu_1 bltu_0
-    sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-    v0 v1 v2 v3 u0 u1 u2 u3 uTop u0_orig_1 u0_orig_0 q2Old q1Old q0Old
-    retMem dMem dloMem scratch_un0 base halign
-    hbltu_2 hbltu_1 hbltu_0 hcarry2).to_cpsTriple
 
 end EvmAsm.Evm64

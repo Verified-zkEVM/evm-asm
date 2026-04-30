@@ -30,7 +30,7 @@ private theorem divK_denorm_code_sub_modCode {base : Word} :
 /-- Full Denorm (shift body only) for modCode: denormalize u[0..3] by right-shifting.
     base+904+16 → base+904+100 (21 instructions: ADDI+SUB + 3×merge + last).
     Used when shift≠0. The BEQ and LD are handled separately.
-    Mirror of divK_denorm_body_spec from Epilogue.lean with modCode. -/
+    Mirror of divK_denorm_body_spec_within from Epilogue.lean with modCode. -/
 theorem mod_denorm_body_spec_within (sp u0 u1 u2 u3 v2 v5 v7 shift : Word) (base : Word) :
     let antiShift := signExtend12 (0 : BitVec 12) - shift
     let u0' := (u0 >>> (shift.toNat % 64)) ||| (u1 <<< (antiShift.toNat % 64))
@@ -139,26 +139,8 @@ theorem mod_denorm_body_spec_within (sp u0 u1 u2 u3 v2 v5 v7 shift : Word) (base
     (by pcFree) hle
   have h_all := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h_m2 hlef
-  exact cpsTripleWithin_weaken
+  exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq)
     h_all
 
-theorem mod_denorm_body_spec (sp u0 u1 u2 u3 v2 v5 v7 shift : Word) (base : Word) :
-    let antiShift := signExtend12 (0 : BitVec 12) - shift
-    let u0' := (u0 >>> (shift.toNat % 64)) ||| (u1 <<< (antiShift.toNat % 64))
-    let u1' := (u1 >>> (shift.toNat % 64)) ||| (u2 <<< (antiShift.toNat % 64))
-    let u2' := (u2 >>> (shift.toNat % 64)) ||| (u3 <<< (antiShift.toNat % 64))
-    let u3' := u3 >>> (shift.toNat % 64)
-    cpsTriple (base + 916) (base + epilogueOff) (modCode base)
-      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x7 ↦ᵣ v7) **
-       (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ v2) ** (.x0 ↦ᵣ (0 : Word)) **
-       ((sp + signExtend12 4056) ↦ₘ u0) ** ((sp + signExtend12 4048) ↦ₘ u1) **
-       ((sp + signExtend12 4040) ↦ₘ u2) ** ((sp + signExtend12 4032) ↦ₘ u3))
-      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ u3') ** (.x7 ↦ᵣ (u3 <<< (antiShift.toNat % 64))) **
-       (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ antiShift) ** (.x0 ↦ᵣ (0 : Word)) **
-       ((sp + signExtend12 4056) ↦ₘ u0') ** ((sp + signExtend12 4048) ↦ₘ u1') **
-       ((sp + signExtend12 4040) ↦ₘ u2') ** ((sp + signExtend12 4032) ↦ₘ u3')) :=
-  (mod_denorm_body_spec_within sp u0 u1 u2 u3 v2 v5 v7 shift base).to_cpsTriple
-
-end EvmAsm.Evm64

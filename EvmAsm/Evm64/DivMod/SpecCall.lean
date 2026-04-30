@@ -125,8 +125,8 @@ instance (sp : Word) (a b : EvmWord) :
 
 /-- Call-trial counterpart to `modN4MaxSkipStackPost`. Identical content
     except for the scratch ownership: uses `divScratchOwnCall` (19 cells).
-    Paired with `modN4StackPreCall` for the forthcoming
-    `evm_mod_n4_call_skip_stack_spec`. -/
+    Paired with `modN4StackPreCall` for
+    `evm_mod_n4_call_skip_stack_spec_within`. -/
 @[irreducible]
 def modN4CallSkipStackPost (sp : Word) (a b : EvmWord) : Assertion :=
   (.x12 ↦ᵣ (sp + 32)) ** regOwn .x1 ** regOwn .x2 **
@@ -248,7 +248,8 @@ theorem evm_div_n4_full_call_skip_stack_pre_spec (sp base : Word)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
     (hbltu : isCallTrialN4Evm a b)
     (hborrow : isSkipBorrowN4CallEvm a b) :
-    cpsTriple base (base + nopOff) (divCode base)
+    cpsTripleWithin (8 + 21 + 24 + 4 + 21 + 21 + 4 + 126 + 2 + 23 + 10)
+      base (base + nopOff) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
        (.x2 ↦ᵣ (clzResult (b.getLimbN 3)).2 >>> (63 : Nat)) **
@@ -269,7 +270,7 @@ theorem evm_div_n4_full_call_skip_stack_pre_spec (sp base : Word)
     q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
     nMem shiftMem jMem retMem dMem dloMem scratch_un0
     hbnz' hb3nz hshift_nz halign hbltu hborrow
-  exact cpsTriple_weaken
+  exact cpsTripleWithin_weaken
     (fun h hp => by
       rw [evmWordIs_sp_limbs_eq sp a _ _ _ _ rfl rfl rfl rfl,
           evmWordIs_sp32_limbs_eq sp b _ _ _ _ rfl rfl rfl rfl,
@@ -292,7 +293,8 @@ theorem evm_div_n4_full_call_skip_stack_pre_spec_bundled (sp base : Word)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
     (hbltu : isCallTrialN4Evm a b)
     (hborrow : isSkipBorrowN4CallEvm a b) :
-    cpsTriple base (base + nopOff) (divCode base)
+    cpsTripleWithin (8 + 21 + 24 + 4 + 21 + 21 + 4 + 126 + 2 + 23 + 10)
+      base (base + nopOff) (divCode base)
       (divN4StackPreCall sp a b v5 v6 v7 v10 v11
          q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
          shiftMem nMem jMem retMem dMem dloMem scratch_un0)
@@ -303,7 +305,7 @@ theorem evm_div_n4_full_call_skip_stack_pre_spec_bundled (sp base : Word)
     v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
     nMem shiftMem jMem retMem dMem dloMem scratch_un0
     hbnz hb3nz hshift_nz halign hbltu hborrow
-  exact cpsTriple_weaken
+  exact cpsTripleWithin_weaken
     (fun _ hp => by rw [divN4StackPreCall_unfold] at hp; exact hp)
     (fun _ hq => hq)
     h
@@ -354,36 +356,7 @@ theorem evm_mod_n4_full_call_skip_stack_pre_spec_within (sp base : Word)
     (fun _ hq => hq)
     hraw
 
-/-- Compatibility wrapper: forgets the step bound. TODO: delete after downstream
-    callers migrate to `evm_mod_n4_full_call_skip_stack_pre_spec_within`. -/
-theorem evm_mod_n4_full_call_skip_stack_pre_spec (sp base : Word)
-    (a b : EvmWord) (v5 v6 v7 v10 v11Old : Word)
-    (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
-     nMem shiftMem jMem retMem dMem dloMem scratch_un0 : Word)
-    (hbnz : b ≠ 0)
-    (hb3nz : b.getLimbN 3 ≠ 0)
-    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
-    (hbltu : isCallTrialN4Evm a b)
-    (hborrow : isSkipBorrowN4CallEvm a b) :
-    cpsTriple base (base + nopOff) (modCode base)
-      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
-       (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
-       (.x2 ↦ᵣ (clzResult (b.getLimbN 3)).2 >>> (63 : Nat)) **
-       (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
-       (.x11 ↦ᵣ v11Old) **
-       evmWordIs sp a ** evmWordIs (sp + 32) b **
-       divScratchValuesCall sp q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old
-         u5 u6 u7 shiftMem nMem jMem retMem dMem dloMem scratch_un0)
-      (fullModN4CallSkipPost sp base
-        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) :=
-  (evm_mod_n4_full_call_skip_stack_pre_spec_within sp base a b
-    v5 v6 v7 v10 v11Old q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old
-    u5 u6 u7 nMem shiftMem jMem retMem dMem dloMem scratch_un0
-    hbnz hb3nz hshift_nz halign hbltu hborrow).to_cpsTriple
-
-/-- Bundled version of `evm_mod_n4_full_call_skip_stack_pre_spec`: takes
+/-- Bundled version of `evm_mod_n4_full_call_skip_stack_pre_spec_within`: takes
     the precondition as a single `modN4StackPreCall` atom. Mirror of
     `evm_div_n4_full_call_skip_stack_pre_spec_bundled`. -/
 theorem evm_mod_n4_full_call_skip_stack_pre_spec_bundled_within (sp base : Word)
@@ -412,30 +385,6 @@ theorem evm_mod_n4_full_call_skip_stack_pre_spec_bundled_within (sp base : Word)
     (fun _ hq => hq)
     h
 
-/-- Compatibility wrapper: forgets the step bound. TODO: delete after downstream
-    callers migrate to `evm_mod_n4_full_call_skip_stack_pre_spec_bundled_within`. -/
-theorem evm_mod_n4_full_call_skip_stack_pre_spec_bundled (sp base : Word)
-    (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
-    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-     nMem shiftMem jMem retMem dMem dloMem scratch_un0 : Word)
-    (hbnz : b ≠ 0)
-    (hb3nz : b.getLimbN 3 ≠ 0)
-    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
-    (hbltu : isCallTrialN4Evm a b)
-    (hborrow : isSkipBorrowN4CallEvm a b) :
-    cpsTriple base (base + nopOff) (modCode base)
-      (modN4StackPreCall sp a b v5 v6 v7 v10 v11
-         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-         shiftMem nMem jMem retMem dMem dloMem scratch_un0)
-      (fullModN4CallSkipPost sp base
-        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) :=
-  (evm_mod_n4_full_call_skip_stack_pre_spec_bundled_within sp base a b
-    v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-    nMem shiftMem jMem retMem dMem dloMem scratch_un0
-    hbnz hb3nz hshift_nz halign hbltu hborrow).to_cpsTriple
-
 -- ============================================================================
 -- Call-trial addback (BEQ double-addback): EvmWord-level wrappers
 -- ============================================================================
@@ -462,7 +411,8 @@ theorem evm_div_n4_full_call_addback_beq_stack_pre_spec (sp base : Word)
     (hbltu : isCallTrialN4Evm a b)
     (hcarry2_nz : isAddbackCarry2NzN4CallEvm a b)
     (hborrow : isAddbackBorrowN4CallEvm a b) :
-    cpsTriple base (base + nopOff) (divCode base)
+    cpsTripleWithin (8 + 21 + 24 + 4 + 21 + 21 + 4 + 202 + 2 + 23 + 10)
+      base (base + nopOff) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
        (.x2 ↦ᵣ (clzResult (b.getLimbN 3)).2 >>> (63 : Nat)) **
@@ -483,7 +433,7 @@ theorem evm_div_n4_full_call_addback_beq_stack_pre_spec (sp base : Word)
     q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
     nMem shiftMem jMem retMem dMem dloMem scratch_un0
     hbnz' hb3nz hshift_nz hvalid halign hbltu hcarry2_nz hborrow
-  exact cpsTriple_weaken
+  exact cpsTripleWithin_weaken
     (fun h hp => by
       rw [evmWordIs_sp_limbs_eq sp a _ _ _ _ rfl rfl rfl rfl,
           evmWordIs_sp32_limbs_eq sp b _ _ _ _ rfl rfl rfl rfl,
@@ -509,7 +459,8 @@ theorem evm_div_n4_full_call_addback_beq_stack_pre_spec_bundled (sp base : Word)
     (hbltu : isCallTrialN4Evm a b)
     (hcarry2_nz : isAddbackCarry2NzN4CallEvm a b)
     (hborrow : isAddbackBorrowN4CallEvm a b) :
-    cpsTriple base (base + nopOff) (divCode base)
+    cpsTripleWithin (8 + 21 + 24 + 4 + 21 + 21 + 4 + 202 + 2 + 23 + 10)
+      base (base + nopOff) (divCode base)
       (divN4StackPreCall sp a b v5 v6 v7 v10 v11
          q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
          shiftMem nMem jMem retMem dMem dloMem scratch_un0)
@@ -520,7 +471,7 @@ theorem evm_div_n4_full_call_addback_beq_stack_pre_spec_bundled (sp base : Word)
     v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
     nMem shiftMem jMem retMem dMem dloMem scratch_un0
     hbnz hb3nz hshift_nz hvalid halign hbltu hcarry2_nz hborrow
-  exact cpsTriple_weaken
+  exact cpsTripleWithin_weaken
     (fun _ hp => by rw [divN4StackPreCall_unfold] at hp; exact hp)
     (fun _ hq => hq)
     h
@@ -576,37 +527,7 @@ theorem evm_mod_n4_full_call_addback_beq_stack_pre_spec_within (sp base : Word)
     (fun _ hq => hq)
     hraw
 
-/-- Compatibility wrapper: forgets the step bound. TODO: delete after downstream
-    callers migrate to `evm_mod_n4_full_call_addback_beq_stack_pre_spec_within`. -/
-theorem evm_mod_n4_full_call_addback_beq_stack_pre_spec (sp base : Word)
-    (a b : EvmWord) (v5 v6 v7 v10 v11Old : Word)
-    (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
-     nMem shiftMem jMem retMem dMem dloMem scratch_un0 : Word)
-    (hbnz : b ≠ 0)
-    (hb3nz : b.getLimbN 3 ≠ 0)
-    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
-    (hbltu : isCallTrialN4Evm a b)
-    (hcarry2_nz : isAddbackCarry2NzN4CallEvm a b)
-    (hborrow : isAddbackBorrowN4CallEvm a b) :
-    cpsTriple base (base + nopOff) (modCode base)
-      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
-       (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
-       (.x2 ↦ᵣ (clzResult (b.getLimbN 3)).2 >>> (63 : Nat)) **
-       (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
-       (.x11 ↦ᵣ v11Old) **
-       evmWordIs sp a ** evmWordIs (sp + 32) b **
-       divScratchValuesCall sp q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old
-         u5 u6 u7 shiftMem nMem jMem retMem dMem dloMem scratch_un0)
-      (fullModN4CallAddbackBeqPost sp base
-        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) :=
-  (evm_mod_n4_full_call_addback_beq_stack_pre_spec_within sp base a b
-    v5 v6 v7 v10 v11Old q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old
-    u5 u6 u7 nMem shiftMem jMem retMem dMem dloMem scratch_un0
-    hbnz hb3nz hshift_nz halign hbltu hcarry2_nz hborrow).to_cpsTriple
-
-/-- Bundled version of `evm_mod_n4_full_call_addback_beq_stack_pre_spec`:
+/-- Bundled version of `evm_mod_n4_full_call_addback_beq_stack_pre_spec_within`:
     takes the precondition as a single `modN4StackPreCall` atom. Mirror
     of `evm_div_n4_full_call_addback_beq_stack_pre_spec_bundled`. -/
 theorem evm_mod_n4_full_call_addback_beq_stack_pre_spec_bundled_within (sp base : Word)
@@ -635,31 +556,6 @@ theorem evm_mod_n4_full_call_addback_beq_stack_pre_spec_bundled_within (sp base 
     (fun _ hp => by rw [modN4StackPreCall_unfold] at hp; exact hp)
     (fun _ hq => hq)
     h
-
-/-- Compatibility wrapper: forgets the step bound. TODO: delete after downstream
-    callers migrate to `evm_mod_n4_full_call_addback_beq_stack_pre_spec_bundled_within`. -/
-theorem evm_mod_n4_full_call_addback_beq_stack_pre_spec_bundled (sp base : Word)
-    (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
-    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-     nMem shiftMem jMem retMem dMem dloMem scratch_un0 : Word)
-    (hbnz : b ≠ 0)
-    (hb3nz : b.getLimbN 3 ≠ 0)
-    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
-    (hbltu : isCallTrialN4Evm a b)
-    (hcarry2_nz : isAddbackCarry2NzN4CallEvm a b)
-    (hborrow : isAddbackBorrowN4CallEvm a b) :
-    cpsTriple base (base + nopOff) (modCode base)
-      (modN4StackPreCall sp a b v5 v6 v7 v10 v11
-         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-         shiftMem nMem jMem retMem dMem dloMem scratch_un0)
-      (fullModN4CallAddbackBeqPost sp base
-        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) :=
-  (evm_mod_n4_full_call_addback_beq_stack_pre_spec_bundled_within sp base a b
-    v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-    nMem shiftMem jMem retMem dMem dloMem scratch_un0
-    hbnz hb3nz hshift_nz halign hbltu hcarry2_nz hborrow).to_cpsTriple
 
 -- ============================================================================
 -- Shift = 0 call-trial skip: DIV EvmWord-level wrapper
@@ -695,7 +591,8 @@ theorem evm_div_n4_full_shift0_call_skip_stack_pre_spec (sp base : Word)
     (hshift_z : (clzResult (b.getLimbN 3)).1 = 0)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
     (hborrow : isSkipBorrowN4Shift0Evm a b) :
-    cpsTriple base (base + nopOff) (divCode base)
+    cpsTripleWithin (8 + 21 + 24 + 4 + 9 + 4 + 126 + 12)
+      base (base + nopOff) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
        (.x2 ↦ᵣ (clzResult (b.getLimbN 3)).2 >>> (63 : Nat)) **
@@ -716,7 +613,7 @@ theorem evm_div_n4_full_shift0_call_skip_stack_pre_spec (sp base : Word)
     q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
     nMem shiftMem jMem retMem dMem dloMem scratch_un0
     hbnz' hb3nz hshift_z halign hborrow
-  exact cpsTriple_weaken
+  exact cpsTripleWithin_weaken
     (fun h hp => by
       rw [evmWordIs_sp_limbs_eq sp a _ _ _ _ rfl rfl rfl rfl,
           evmWordIs_sp32_limbs_eq sp b _ _ _ _ rfl rfl rfl rfl,
@@ -737,7 +634,8 @@ theorem evm_div_n4_full_shift0_call_skip_stack_pre_spec_bundled (sp base : Word)
     (hshift_z : (clzResult (b.getLimbN 3)).1 = 0)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
     (hborrow : isSkipBorrowN4Shift0Evm a b) :
-    cpsTriple base (base + nopOff) (divCode base)
+    cpsTripleWithin (8 + 21 + 24 + 4 + 9 + 4 + 126 + 12)
+      base (base + nopOff) (divCode base)
       (divN4StackPreCall sp a b v5 v6 v7 v10 v11
          q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
          shiftMem nMem jMem retMem dMem dloMem scratch_un0)
@@ -748,7 +646,7 @@ theorem evm_div_n4_full_shift0_call_skip_stack_pre_spec_bundled (sp base : Word)
     v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
     nMem shiftMem jMem retMem dMem dloMem scratch_un0
     hbnz hb3nz hshift_z halign hborrow
-  exact cpsTriple_weaken
+  exact cpsTripleWithin_weaken
     (fun _ hp => by rw [divN4StackPreCall_unfold] at hp; exact hp)
     (fun _ hq => hq)
     h
@@ -766,7 +664,8 @@ theorem evm_mod_n4_full_shift0_call_skip_stack_pre_spec (sp base : Word)
     (hshift_z : (clzResult (b.getLimbN 3)).1 = 0)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
     (hborrow : isSkipBorrowN4Shift0Evm a b) :
-    cpsTriple base (base + nopOff) (modCode base)
+    cpsTripleWithin (8 + 21 + 24 + 4 + 9 + 4 + 126 + 12)
+      base (base + nopOff) (modCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
        (.x2 ↦ᵣ (clzResult (b.getLimbN 3)).2 >>> (63 : Nat)) **
@@ -787,7 +686,7 @@ theorem evm_mod_n4_full_shift0_call_skip_stack_pre_spec (sp base : Word)
     q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
     nMem shiftMem jMem retMem dMem dloMem scratch_un0
     hbnz' hb3nz hshift_z halign hborrow
-  exact cpsTriple_weaken
+  exact cpsTripleWithin_weaken
     (fun h hp => by
       rw [evmWordIs_sp_limbs_eq sp a _ _ _ _ rfl rfl rfl rfl,
           evmWordIs_sp32_limbs_eq sp b _ _ _ _ rfl rfl rfl rfl,
@@ -808,7 +707,8 @@ theorem evm_mod_n4_full_shift0_call_skip_stack_pre_spec_bundled (sp base : Word)
     (hshift_z : (clzResult (b.getLimbN 3)).1 = 0)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
     (hborrow : isSkipBorrowN4Shift0Evm a b) :
-    cpsTriple base (base + nopOff) (modCode base)
+    cpsTripleWithin (8 + 21 + 24 + 4 + 9 + 4 + 126 + 12)
+      base (base + nopOff) (modCode base)
       (modN4StackPreCall sp a b v5 v6 v7 v10 v11
          q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
          shiftMem nMem jMem retMem dMem dloMem scratch_un0)
@@ -819,7 +719,7 @@ theorem evm_mod_n4_full_shift0_call_skip_stack_pre_spec_bundled (sp base : Word)
     v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
     nMem shiftMem jMem retMem dMem dloMem scratch_un0
     hbnz hb3nz hshift_z halign hborrow
-  exact cpsTriple_weaken
+  exact cpsTripleWithin_weaken
     (fun _ hp => by rw [modN4StackPreCall_unfold] at hp; exact hp)
     (fun _ hq => hq)
     h
@@ -861,7 +761,8 @@ theorem evm_div_n4_full_shift0_call_addback_beq_stack_pre_spec (sp base : Word)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
     (hcarry2_nz : isAddbackCarry2NzN4Shift0Evm a b)
     (hborrow : isAddbackBorrowN4Shift0Evm a b) :
-    cpsTriple base (base + nopOff) (divCode base)
+    cpsTripleWithin (8 + 21 + 24 + 4 + 9 + 4 + 202 + 12)
+      base (base + nopOff) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
        (.x2 ↦ᵣ (clzResult (b.getLimbN 3)).2 >>> (63 : Nat)) **
@@ -882,7 +783,7 @@ theorem evm_div_n4_full_shift0_call_addback_beq_stack_pre_spec (sp base : Word)
     q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
     nMem shiftMem jMem retMem dMem dloMem scratch_un0
     hbnz' hb3nz hshift_z halign hcarry2_nz hborrow
-  exact cpsTriple_weaken
+  exact cpsTripleWithin_weaken
     (fun h hp => by
       rw [evmWordIs_sp_limbs_eq sp a _ _ _ _ rfl rfl rfl rfl,
           evmWordIs_sp32_limbs_eq sp b _ _ _ _ rfl rfl rfl rfl,
@@ -903,7 +804,8 @@ theorem evm_div_n4_full_shift0_call_addback_beq_stack_pre_spec_bundled (sp base 
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
     (hcarry2_nz : isAddbackCarry2NzN4Shift0Evm a b)
     (hborrow : isAddbackBorrowN4Shift0Evm a b) :
-    cpsTriple base (base + nopOff) (divCode base)
+    cpsTripleWithin (8 + 21 + 24 + 4 + 9 + 4 + 202 + 12)
+      base (base + nopOff) (divCode base)
       (divN4StackPreCall sp a b v5 v6 v7 v10 v11
          q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
          shiftMem nMem jMem retMem dMem dloMem scratch_un0)
@@ -914,7 +816,7 @@ theorem evm_div_n4_full_shift0_call_addback_beq_stack_pre_spec_bundled (sp base 
     v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
     nMem shiftMem jMem retMem dMem dloMem scratch_un0
     hbnz hb3nz hshift_z halign hcarry2_nz hborrow
-  exact cpsTriple_weaken
+  exact cpsTripleWithin_weaken
     (fun _ hp => by rw [divN4StackPreCall_unfold] at hp; exact hp)
     (fun _ hq => hq)
     h
@@ -930,7 +832,8 @@ theorem evm_mod_n4_full_shift0_call_addback_beq_stack_pre_spec (sp base : Word)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
     (hcarry2_nz : isAddbackCarry2NzN4Shift0Evm a b)
     (hborrow : isAddbackBorrowN4Shift0Evm a b) :
-    cpsTriple base (base + nopOff) (modCode base)
+    cpsTripleWithin (8 + 21 + 24 + 4 + 9 + 4 + 202 + 12)
+      base (base + nopOff) (modCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
        (.x2 ↦ᵣ (clzResult (b.getLimbN 3)).2 >>> (63 : Nat)) **
@@ -951,7 +854,7 @@ theorem evm_mod_n4_full_shift0_call_addback_beq_stack_pre_spec (sp base : Word)
     q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
     nMem shiftMem jMem retMem dMem dloMem scratch_un0
     hbnz' hb3nz hshift_z halign hcarry2_nz hborrow
-  exact cpsTriple_weaken
+  exact cpsTripleWithin_weaken
     (fun h hp => by
       rw [evmWordIs_sp_limbs_eq sp a _ _ _ _ rfl rfl rfl rfl,
           evmWordIs_sp32_limbs_eq sp b _ _ _ _ rfl rfl rfl rfl,
@@ -972,7 +875,8 @@ theorem evm_mod_n4_full_shift0_call_addback_beq_stack_pre_spec_bundled (sp base 
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
     (hcarry2_nz : isAddbackCarry2NzN4Shift0Evm a b)
     (hborrow : isAddbackBorrowN4Shift0Evm a b) :
-    cpsTriple base (base + nopOff) (modCode base)
+    cpsTripleWithin (8 + 21 + 24 + 4 + 9 + 4 + 202 + 12)
+      base (base + nopOff) (modCode base)
       (modN4StackPreCall sp a b v5 v6 v7 v10 v11
          q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
          shiftMem nMem jMem retMem dMem dloMem scratch_un0)
@@ -983,7 +887,7 @@ theorem evm_mod_n4_full_shift0_call_addback_beq_stack_pre_spec_bundled (sp base 
     v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
     nMem shiftMem jMem retMem dMem dloMem scratch_un0
     hbnz hb3nz hshift_z halign hcarry2_nz hborrow
-  exact cpsTriple_weaken
+  exact cpsTripleWithin_weaken
     (fun _ hp => by rw [modN4StackPreCall_unfold] at hp; exact hp)
     (fun _ hq => hq)
     h
@@ -1167,7 +1071,7 @@ theorem evm_div_n4_call_skip_stack_spec (sp base : Word)
     (hbltu : isCallTrialN4Evm a b)
     (hborrow : isSkipBorrowN4CallEvm a b)
     (hsem : n4CallSkipSemanticHolds a b) :
-    cpsTriple base (base + nopOff) (divCode base)
+    cpsTripleWithin 264 base (base + nopOff) (divCode base)
       (divN4StackPreCall sp a b v5 v6 v7 v10 v11
          q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
          shiftMem nMem jMem retMem dMem dloMem scratch_un0)
@@ -1178,7 +1082,7 @@ theorem evm_div_n4_call_skip_stack_spec (sp base : Word)
     hbnz hb3nz hshift_nz halign hbltu hborrow
   obtain ⟨hdiv0, hdiv1, hdiv2, hdiv3⟩ :=
     n4_call_skip_div_mod_getLimbN a b hbnz hshift_nz hborrow hsem
-  refine cpsTriple_weaken (fun _ hp => hp) ?_ h_pre
+  refine cpsTripleWithin_weaken (fun _ hp => hp) ?_ h_pre
   intro h hq
   simp only [fullDivN4CallSkipPost_unfold, denormDivPost_unfold] at hq
   apply div_n4_call_skip_stack_weaken sp a b h
@@ -1723,13 +1627,13 @@ theorem output_slot_to_evmWordIs_mod_n4_call_skip_denorm
     call-trial path. Takes the same six runtime + semantic conditions as
     `evm_div_n4_call_skip_stack_spec`.
 
-    Reduces to `evm_mod_n4_full_call_skip_stack_pre_spec_bundled` + a
+    Reduces to `evm_mod_n4_full_call_skip_stack_pre_spec_bundled_within` + a
     postcondition reshape via `output_slot_to_evmWordIs_mod_n4_call_skip_denorm`
     and `mod_n4_call_skip_stack_weaken`.
 
     **Tip**: callers without an externally-supplied
     `n4CallSkipSemanticHolds` should use
-    `evm_mod_n4_call_skip_stack_spec_unconditional`. -/
+    `evm_mod_n4_call_skip_stack_spec_unconditional_within`. -/
 theorem evm_mod_n4_call_skip_stack_spec_within (sp base : Word)
     (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
     (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
@@ -1785,29 +1689,6 @@ theorem evm_mod_n4_call_skip_stack_spec_within (sp base : Word)
   rw [word_add_zero] at hq
   simp only [hmod_eq, hanti_toNat_mod] at hq ⊢
   xperm_hyp hq
-
-/-- Compatibility wrapper: forgets the step bound. TODO: delete after downstream
-    callers migrate to `evm_mod_n4_call_skip_stack_spec_within`. -/
-theorem evm_mod_n4_call_skip_stack_spec (sp base : Word)
-    (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
-    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-     nMem shiftMem jMem retMem dMem dloMem scratch_un0 : Word)
-    (hbnz : b ≠ 0)
-    (hb3nz : b.getLimbN 3 ≠ 0)
-    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
-    (hbltu : isCallTrialN4Evm a b)
-    (hborrow : isSkipBorrowN4CallEvm a b)
-    (hsem : n4CallSkipSemanticHolds a b) :
-    cpsTriple base (base + nopOff) (modCode base)
-      (modN4StackPreCall sp a b v5 v6 v7 v10 v11
-         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-         shiftMem nMem jMem retMem dMem dloMem scratch_un0)
-      (modN4CallSkipStackPost sp a b) :=
-  (evm_mod_n4_call_skip_stack_spec_within sp base a b v5 v6 v7 v10 v11
-    q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-    nMem shiftMem jMem retMem dMem dloMem scratch_un0
-    hbnz hb3nz hshift_nz halign hbltu hborrow hsem).to_cpsTriple
 
 /-- **`isSkipBorrowN4CallEvm` and `isAddbackBorrowN4CallEvm` are
     complementary** (CLOSED).
@@ -1871,7 +1752,7 @@ theorem evm_div_n4_call_skip_stack_spec_unconditional (sp base : Word)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
     (hbltu : isCallTrialN4Evm a b)
     (hborrow : isSkipBorrowN4CallEvm a b) :
-    cpsTriple base (base + nopOff) (divCode base)
+    cpsTripleWithin 264 base (base + nopOff) (divCode base)
       (divN4StackPreCall sp a b v5 v6 v7 v10 v11
          q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
          shiftMem nMem jMem retMem dMem dloMem scratch_un0)
@@ -1882,7 +1763,7 @@ theorem evm_div_n4_call_skip_stack_spec_unconditional (sp base : Word)
     hbnz hb3nz hshift_nz halign hbltu hborrow
     (n4CallSkipSemanticHolds_of_call_trial a b hb3nz hshift_nz hbltu)
 
-/-- **`evm_mod_n4_call_skip_stack_spec` without `hsem`** — same idea
+/-- **`evm_mod_n4_call_skip_stack_spec_within` without `hsem`** — same idea
     for MOD. -/
 theorem evm_mod_n4_call_skip_stack_spec_unconditional_within (sp base : Word)
     (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
@@ -1904,28 +1785,5 @@ theorem evm_mod_n4_call_skip_stack_spec_unconditional_within (sp base : Word)
     nMem shiftMem jMem retMem dMem dloMem scratch_un0
     hbnz hb3nz hshift_nz halign hbltu hborrow
     (n4CallSkipSemanticHolds_of_call_trial a b hb3nz hshift_nz hbltu)
-
-/-- Compatibility wrapper: forgets the step bound. TODO: delete after downstream
-    callers migrate to `evm_mod_n4_call_skip_stack_spec_unconditional_within`. -/
-theorem evm_mod_n4_call_skip_stack_spec_unconditional (sp base : Word)
-    (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
-    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-     nMem shiftMem jMem retMem dMem dloMem scratch_un0 : Word)
-    (hbnz : b ≠ 0)
-    (hb3nz : b.getLimbN 3 ≠ 0)
-    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
-    (hbltu : isCallTrialN4Evm a b)
-    (hborrow : isSkipBorrowN4CallEvm a b) :
-    cpsTriple base (base + nopOff) (modCode base)
-      (modN4StackPreCall sp a b v5 v6 v7 v10 v11
-         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-         shiftMem nMem jMem retMem dMem dloMem scratch_un0)
-      (modN4CallSkipStackPost sp a b) :=
-  (evm_mod_n4_call_skip_stack_spec_unconditional_within sp base a b
-    v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-    nMem shiftMem jMem retMem dMem dloMem scratch_un0
-    hbnz hb3nz hshift_nz halign hbltu hborrow).to_cpsTriple
-
 
 end EvmAsm.Evm64

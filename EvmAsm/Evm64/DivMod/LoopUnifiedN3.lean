@@ -22,7 +22,7 @@ open EvmAsm.Rv64
 
 -- ============================================================================
 -- Double-addback () unified two-iteration composition
--- Same pattern as divK_loop_n3_unified_spec but with  postconditions.
+-- Same pattern as divK_loop_n3_unified_spec_within but with  postconditions.
 -- Uses iterN3 for the j=0 branch condition.
 -- ============================================================================
 
@@ -102,25 +102,5 @@ theorem divK_loop_n3_unified_spec_within (bltu_1 bltu_0 : Bool)
       (fun h hp => hp)
       (fun h hp => by delta loopN3UnifiedPost; exact hp)
       hCC
-
-/-- Compatibility wrapper: forgets the explicit step bound. -/
-theorem divK_loop_n3_unified_spec (bltu_1 bltu_0 : Bool)
-    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-     v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old : Word)
-    (retMem dMem dloMem scratch_un0 : Word)
-    (base : Word)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
-    (hbltu_1 : bltu_1 = BitVec.ult u3 v2)
-    (hbltu_0 : bltu_0 = BitVec.ult (iterN3 bltu_1 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.1 v2)
-    (hcarry2 : Carry2NzAll v0 v1 v2 v3) :
-    cpsTriple (base + loopBodyOff) (base + denormOff) (sharedDivModCode base)
-      (loopN3PreWithScratch sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-        v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
-        retMem dMem dloMem scratch_un0)
-      (loopN3UnifiedPost bltu_1 bltu_0 sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig
-        retMem dMem dloMem scratch_un0) :=
-  (divK_loop_n3_unified_spec_within bltu_1 bltu_0 sp jOld v5Old v6Old v7Old
-    v10Old v11Old v2Old v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
-    retMem dMem dloMem scratch_un0 base halign hbltu_1 hbltu_0 hcarry2).to_cpsTriple
 
 end EvmAsm.Evm64

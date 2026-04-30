@@ -101,10 +101,10 @@ theorem divK_loop_body_n4_max_skip_j0_divCode_within
       (loopBodyN4SkipPost sp (0 : Word) qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop) := by
   intro uBase qHat qAddr hborrow
   exact cpsTripleWithin_extend_code (hmono := sharedDivModCode_sub_divCode)
-    (divK_loop_body_n4_max_skip_j0_spec_within sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base hbltu hborrow)
+    (cpsTripleWithin_mono_nSteps (by decide) (divK_loop_body_n4_max_skip_j0_spec_within sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base hbltu hborrow))
 
-/-- Compatibility wrapper: forget the explicit step bound. -/
+/-- Bounded alias for the step-bounded specification. -/
 theorem divK_loop_body_n4_max_skip_j0_divCode
     (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
@@ -114,7 +114,7 @@ theorem divK_loop_body_n4_max_skip_j0_divCode
     let qHat : Word := signExtend12 4095
     let qAddr := sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat
     (if BitVec.ult uTop (mulsubN4_c3 qHat v0 v1 v2 v3 u0 u1 u2 u3) then (1 : Word) else 0) = (0 : Word) →
-    cpsTriple (base + loopBodyOff) (base + denormOff) (divCode base)
+    cpsTripleWithin 10000 (base + loopBodyOff) (base + denormOff) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (0 : Word)) **
        (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
        (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
@@ -128,11 +128,11 @@ theorem divK_loop_body_n4_max_skip_j0_divCode
       (qAddr ↦ₘ qOld))
       (loopBodyN4SkipPost sp (0 : Word) qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop) := by
   intro uBase qHat qAddr hborrow
-  exact cpsTriple_extend_code (hmono := sharedDivModCode_sub_divCode)
-    (divK_loop_body_n4_max_skip_j0_spec sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base hbltu hborrow)
+  exact cpsTripleWithin_extend_code (hmono := sharedDivModCode_sub_divCode)
+    (cpsTripleWithin_mono_nSteps (by decide) (divK_loop_body_n4_max_skip_j0_spec_within sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base hbltu hborrow))
 
-/-- Bundled precondition for the `divK_loop_body_n4_max_skip_j0_modCode` /
+/-- Bundled precondition for the `divK_loop_body_n4_max_skip_j0_modCode_within` /
     `_divCode` code-extended loop-body specs. Wraps the 21-atom sepConj
     chain that the `let uBase / qAddr` bindings make awkward in the
     raw statement. Marked `@[irreducible]` so the `let`-bound offsets
@@ -177,7 +177,7 @@ theorem loopBodyN4SkipJ0Pre_unfold
   delta loopBodyN4SkipJ0Pre; rfl
 
 /-- Extend max_skip j=0 loop body from sharedDivModCode to modCode.
-    Mirror of `divK_loop_body_n4_max_skip_j0_divCode` — same proof,
+    Mirror of `divK_loop_body_n4_max_skip_j0_divCode_within` — same proof,
     swapping `sharedDivModCode_sub_divCode` for
     `sharedDivModCode_sub_modCode`. Uses the irreducible
     `loopBodyN4SkipJ0Pre` bundle so the `let`-bound offsets don't
@@ -203,7 +203,7 @@ theorem divK_loop_body_n4_max_skip_j0_modCode_within
   rw [loopBodyN4SkipJ0Pre_unfold] at hp
   exact hp
 
-/-- Compatibility wrapper: forget the explicit step bound. -/
+/-- Bounded alias for the step-bounded specification. -/
 theorem divK_loop_body_n4_max_skip_j0_modCode
     (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
@@ -212,14 +212,14 @@ theorem divK_loop_body_n4_max_skip_j0_modCode
     (hborrow : (if BitVec.ult uTop
                   (mulsubN4_c3 (signExtend12 4095) v0 v1 v2 v3 u0 u1 u2 u3)
                 then (1 : Word) else 0) = (0 : Word)) :
-    cpsTriple (base + loopBodyOff) (base + denormOff) (modCode base)
+    cpsTripleWithin 10000 (base + loopBodyOff) (base + denormOff) (modCode base)
       (loopBodyN4SkipJ0Pre sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
         v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld)
       (loopBodyN4SkipPost sp (0 : Word) (signExtend12 4095)
         v0 v1 v2 v3 u0 u1 u2 u3 uTop) := by
-  exact (divK_loop_body_n4_max_skip_j0_modCode_within sp jOld v5Old v6Old
+  exact cpsTripleWithin_mono_nSteps (by decide) (divK_loop_body_n4_max_skip_j0_modCode_within sp jOld v5Old v6Old
     v7Old v10Old v11Old v2Old v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base
-    hbltu hborrow).to_cpsTriple
+    hbltu hborrow)
 
 /-- Max_skip j=0 loop body against modCode with sp-relative addresses in the
     precondition. Mirror of the DIV `divK_loop_body_n4_max_skip_j0_norm`
@@ -256,7 +256,7 @@ theorem divK_loop_body_n4_max_skip_j0_norm_modCode_within (sp base : Word)
              u_base_off4072_j0, u_base_off4064_j0, q_addr_j0]
   exact hp
 
-/-- Compatibility wrapper: forget the explicit step bound. -/
+/-- Bounded alias for the step-bounded specification. -/
 theorem divK_loop_body_n4_max_skip_j0_norm_modCode (sp base : Word)
     (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
     (v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
@@ -264,7 +264,7 @@ theorem divK_loop_body_n4_max_skip_j0_norm_modCode (sp base : Word)
     (hborrow : (if BitVec.ult uTop
                   (mulsubN4_c3 (signExtend12 4095) v0 v1 v2 v3 u0 u1 u2 u3)
                 then (1 : Word) else 0) = (0 : Word)) :
-    cpsTriple (base + loopBodyOff) (base + denormOff) (modCode base)
+    cpsTripleWithin 10000 (base + loopBodyOff) (base + denormOff) (modCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (0 : Word)) **
        (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
        (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
@@ -278,9 +278,9 @@ theorem divK_loop_body_n4_max_skip_j0_norm_modCode (sp base : Word)
        ((sp + signExtend12 4088) ↦ₘ qOld))
       (loopBodyN4SkipPost sp (0 : Word) (signExtend12 4095)
         v0 v1 v2 v3 u0 u1 u2 u3 uTop) := by
-  exact (divK_loop_body_n4_max_skip_j0_norm_modCode_within sp base jOld
+  exact cpsTripleWithin_mono_nSteps (by decide) (divK_loop_body_n4_max_skip_j0_norm_modCode_within sp base jOld
     v5Old v6Old v7Old v10Old v11Old v2Old v0 v1 v2 v3 u0 u1 u2 u3 uTop
-    qOld hbltu hborrow).to_cpsTriple
+    qOld hbltu hborrow)
 
 -- ============================================================================
 -- Call path: Loop body j=0 extended to divCode (from sharedDivModCode)
@@ -347,11 +347,11 @@ theorem divK_loop_body_n4_call_skip_j0_divCode_within
         cu_rhat_un1 cu_q1_dlo un21 q0 rhat2 hi2 q0c rhat2c q0' qHat
         qAddr hborrow
   exact cpsTripleWithin_extend_code (hmono := sharedDivModCode_sub_divCode)
-    (divK_loop_body_n4_call_skip_j0_spec_within sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+    (cpsTripleWithin_mono_nSteps (by decide) (divK_loop_body_n4_call_skip_j0_spec_within sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
       v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0 base
-      halign hbltu hborrow)
+      halign hbltu hborrow))
 
-/-- Compatibility wrapper: forget the explicit step bound. -/
+/-- Bounded alias for the step-bounded specification. -/
 theorem divK_loop_body_n4_call_skip_j0_divCode
     (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
@@ -386,7 +386,7 @@ theorem divK_loop_body_n4_call_skip_j0_divCode
     let qHat := (q1' <<< (32 : BitVec 6).toNat) ||| q0'
     let qAddr := sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat
     (if BitVec.ult uTop (mulsubN4_c3 qHat v0 v1 v2 v3 u0 u1 u2 u3) then (1 : Word) else 0) = (0 : Word) →
-    cpsTriple (base + loopBodyOff) (base + denormOff) (divCode base)
+    cpsTripleWithin 10000 (base + loopBodyOff) (base + denormOff) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (0 : Word)) **
        (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
        (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
@@ -411,10 +411,10 @@ theorem divK_loop_body_n4_call_skip_j0_divCode
         dHi dLo div_un1 div_un0 q1 rhat hi1 q1c rhatc qDlo rhatUn1 q1' rhat'
         cu_rhat_un1 cu_q1_dlo un21 q0 rhat2 hi2 q0c rhat2c q0' qHat
         qAddr hborrow
-  exact cpsTriple_extend_code (hmono := sharedDivModCode_sub_divCode)
-    (divK_loop_body_n4_call_skip_j0_spec sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+  exact cpsTripleWithin_extend_code (hmono := sharedDivModCode_sub_divCode)
+    (cpsTripleWithin_mono_nSteps (by decide) (divK_loop_body_n4_call_skip_j0_spec_within sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
       v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0 base
-      halign hbltu hborrow)
+      halign hbltu hborrow))
 
 -- ============================================================================
 -- _da (double-addback) variants: lift _beq_spec to divCode
@@ -446,10 +446,10 @@ theorem divK_loop_body_n4_max_addback_j0_beq_divCode_within
       (loopBodyN4AddbackBeqPost sp (0 : Word) qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop) := by
   intro uBase qHat qAddr hborrow
   exact cpsTripleWithin_extend_code (hmono := sharedDivModCode_sub_divCode)
-    (divK_loop_body_n4_max_addback_j0_beq_spec_within sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base hbltu hcarry2_nz hborrow)
+    (cpsTripleWithin_mono_nSteps (by decide) (divK_loop_body_n4_max_addback_j0_beq_spec_within sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base hbltu hcarry2_nz hborrow))
 
-/-- Compatibility wrapper: forget the explicit step bound. -/
+/-- Bounded alias for the step-bounded specification. -/
 theorem divK_loop_body_n4_max_addback_j0_beq_divCode
     (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
@@ -460,7 +460,7 @@ theorem divK_loop_body_n4_max_addback_j0_beq_divCode
     let qHat : Word := signExtend12 4095
     let qAddr := sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat
     (if BitVec.ult uTop (mulsubN4_c3 qHat v0 v1 v2 v3 u0 u1 u2 u3) then (1 : Word) else 0) ≠ (0 : Word) →
-    cpsTriple (base + loopBodyOff) (base + denormOff) (divCode base)
+    cpsTripleWithin 10000 (base + loopBodyOff) (base + denormOff) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (0 : Word)) **
        (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
        (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
@@ -474,9 +474,9 @@ theorem divK_loop_body_n4_max_addback_j0_beq_divCode
        (qAddr ↦ₘ qOld))
       (loopBodyN4AddbackBeqPost sp (0 : Word) qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop) := by
   intro uBase qHat qAddr hborrow
-  exact cpsTriple_extend_code (hmono := sharedDivModCode_sub_divCode)
-    (divK_loop_body_n4_max_addback_j0_beq_spec sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base hbltu hcarry2_nz hborrow)
+  exact cpsTripleWithin_extend_code (hmono := sharedDivModCode_sub_divCode)
+    (cpsTripleWithin_mono_nSteps (by decide) (divK_loop_body_n4_max_addback_j0_beq_spec_within sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base hbltu hcarry2_nz hborrow))
 
 /-- Extend call_addback (BEQ double-addback) j=0 loop body from sharedDivModCode to divCode. -/
 theorem divK_loop_body_n4_call_addback_j0_beq_divCode_within
@@ -540,11 +540,11 @@ theorem divK_loop_body_n4_call_addback_j0_beq_divCode_within
         cu_rhat_un1 cu_q1_dlo un21 q0 rhat2 hi2 q0c rhat2c q0' qHat
         qAddr hborrow
   exact cpsTripleWithin_extend_code (hmono := sharedDivModCode_sub_divCode)
-    (divK_loop_body_n4_call_addback_j0_beq_spec_within sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+    (cpsTripleWithin_mono_nSteps (by decide) (divK_loop_body_n4_call_addback_j0_beq_spec_within sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
       v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0 base
-      halign hbltu hcarry2_nz hborrow)
+      halign hbltu hcarry2_nz hborrow))
 
-/-- Compatibility wrapper: forget the explicit step bound. -/
+/-- Bounded alias for the step-bounded specification. -/
 theorem divK_loop_body_n4_call_addback_j0_beq_divCode
     (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
@@ -580,7 +580,7 @@ theorem divK_loop_body_n4_call_addback_j0_beq_divCode
     let qHat := (q1' <<< (32 : BitVec 6).toNat) ||| q0'
     let qAddr := sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat
     (if BitVec.ult uTop (mulsubN4_c3 qHat v0 v1 v2 v3 u0 u1 u2 u3) then (1 : Word) else 0) ≠ (0 : Word) →
-    cpsTriple (base + loopBodyOff) (base + denormOff) (divCode base)
+    cpsTripleWithin 10000 (base + loopBodyOff) (base + denormOff) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (0 : Word)) **
        (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
        (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
@@ -605,10 +605,10 @@ theorem divK_loop_body_n4_call_addback_j0_beq_divCode
         dHi dLo div_un1 div_un0 q1 rhat hi1 q1c rhatc qDlo rhatUn1 q1' rhat'
         cu_rhat_un1 cu_q1_dlo un21 q0 rhat2 hi2 q0c rhat2c q0' qHat
         qAddr hborrow
-  exact cpsTriple_extend_code (hmono := sharedDivModCode_sub_divCode)
-    (divK_loop_body_n4_call_addback_j0_beq_spec sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+  exact cpsTripleWithin_extend_code (hmono := sharedDivModCode_sub_divCode)
+    (cpsTripleWithin_mono_nSteps (by decide) (divK_loop_body_n4_call_addback_j0_beq_spec_within sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
       v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0 base
-      halign hbltu hcarry2_nz hborrow)
+      halign hbltu hcarry2_nz hborrow))
 
 -- ============================================================================
 -- Call path: Loop body j=0 extended to modCode (from sharedDivModCode)
@@ -702,7 +702,7 @@ theorem loopBodyN4CallSkipJ0Post_unfold
   delta loopBodyN4CallSkipJ0Post; rfl
 
 /-- Extend call_skip j=0 loop body from sharedDivModCode to modCode.
-    Mirror of `divK_loop_body_n4_call_skip_j0_divCode` with
+    Mirror of `divK_loop_body_n4_call_skip_j0_divCode_within` with
     `divCode → modCode` (uses `sharedDivModCode_sub_modCode` instead).
 
     Pre/post are bundled into `loopBodyN4CallSkipJ0Pre` /
@@ -736,7 +736,7 @@ theorem divK_loop_body_n4_call_skip_j0_modCode_within
     rw [loopBodyN4CallSkipJ0Post_unfold]
     exact hq
 
-/-- Compatibility wrapper: forget the explicit step bound. -/
+/-- Bounded alias for the step-bounded specification. -/
 theorem divK_loop_body_n4_call_skip_j0_modCode
     (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
@@ -747,13 +747,13 @@ theorem divK_loop_body_n4_call_skip_j0_modCode
     (hborrow : (if BitVec.ult uTop
                   (mulsubN4_c3 (div128Quot uTop u3 v3) v0 v1 v2 v3 u0 u1 u2 u3)
                 then (1 : Word) else 0) = (0 : Word)) :
-    cpsTriple (base + loopBodyOff) (base + denormOff) (modCode base)
+    cpsTripleWithin 10000 (base + loopBodyOff) (base + denormOff) (modCode base)
       (loopBodyN4CallSkipJ0Pre sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
         v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0)
       (loopBodyN4CallSkipJ0Post sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop) := by
-  exact (divK_loop_body_n4_call_skip_j0_modCode_within sp jOld v5Old v6Old
+  exact cpsTripleWithin_mono_nSteps (by decide) (divK_loop_body_n4_call_skip_j0_modCode_within sp jOld v5Old v6Old
     v7Old v10Old v11Old v2Old v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem
-    dMem dloMem scratch_un0 base halign hbltu hborrow).to_cpsTriple
+    dMem dloMem scratch_un0 base halign hbltu hborrow)
 
 /-- Call_skip j=0 loop body against modCode with sp-relative addresses
     in the precondition. Mirror of `divK_loop_body_n4_call_skip_j0_norm`
@@ -805,7 +805,7 @@ theorem divK_loop_body_n4_call_skip_j0_norm_modCode_within (sp base : Word)
     rw [loopBodyN4CallSkipJ0Post_unfold] at hq
     exact hq
 
-/-- Compatibility wrapper: forget the explicit step bound. -/
+/-- Bounded alias for the step-bounded specification. -/
 theorem divK_loop_body_n4_call_skip_j0_norm_modCode (sp base : Word)
     (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
     (v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
@@ -817,7 +817,7 @@ theorem divK_loop_body_n4_call_skip_j0_norm_modCode (sp base : Word)
     let div_un0 := (u3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
     (if BitVec.ult uTop (mulsubN4_c3 qHat v0 v1 v2 v3 u0 u1 u2 u3)
      then (1 : Word) else 0) = (0 : Word) →
-    cpsTriple (base + loopBodyOff) (base + denormOff) (modCode base)
+    cpsTripleWithin 10000 (base + loopBodyOff) (base + denormOff) (modCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (0 : Word)) **
        (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
        (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
@@ -839,9 +839,9 @@ theorem divK_loop_body_n4_call_skip_j0_norm_modCode (sp base : Word)
        (sp + signExtend12 3952 ↦ₘ dLo) **
        (sp + signExtend12 3944 ↦ₘ div_un0)) := by
   intro qHat dLo div_un0 hborrow
-  exact (divK_loop_body_n4_call_skip_j0_norm_modCode_within sp base jOld
+  exact cpsTripleWithin_mono_nSteps (by decide) (divK_loop_body_n4_call_skip_j0_norm_modCode_within sp base jOld
     v5Old v6Old v7Old v10Old v11Old v2Old v0 v1 v2 v3 u0 u1 u2 u3 uTop
-    qOld retMem dMem dloMem scratch_un0 halign hbltu hborrow).to_cpsTriple
+    qOld retMem dMem dloMem scratch_un0 halign hbltu hborrow)
 
 -- ============================================================================
 -- Call-addback path (BEQ double-addback): Loop body j=0 extended to modCode
@@ -881,7 +881,7 @@ theorem loopBodyN4CallAddbackBeqJ0Post_unfold
 
 /-- Extend call_addback (BEQ double-addback) j=0 loop body from
     sharedDivModCode to modCode. Mirror of
-    `divK_loop_body_n4_call_addback_j0_beq_divCode` with
+    `divK_loop_body_n4_call_addback_j0_beq_divCode_within` with
     `divCode → modCode` (uses `sharedDivModCode_sub_modCode` instead).
 
     Pre is shared with the call_skip branch (`loopBodyN4CallSkipJ0Pre`);
@@ -914,7 +914,7 @@ theorem divK_loop_body_n4_call_addback_j0_beq_modCode_within
     rw [loopBodyN4CallAddbackBeqJ0Post_unfold]
     exact hq
 
-/-- Compatibility wrapper: forget the explicit step bound. -/
+/-- Bounded alias for the step-bounded specification. -/
 theorem divK_loop_body_n4_call_addback_j0_beq_modCode
     (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
@@ -926,13 +926,13 @@ theorem divK_loop_body_n4_call_addback_j0_beq_modCode
     (hborrow : (if BitVec.ult uTop
                   (mulsubN4_c3 (div128Quot uTop u3 v3) v0 v1 v2 v3 u0 u1 u2 u3)
                 then (1 : Word) else 0) ≠ (0 : Word)) :
-    cpsTriple (base + loopBodyOff) (base + denormOff) (modCode base)
+    cpsTripleWithin 10000 (base + loopBodyOff) (base + denormOff) (modCode base)
       (loopBodyN4CallSkipJ0Pre sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
         v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0)
       (loopBodyN4CallAddbackBeqJ0Post sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop) := by
-  exact (divK_loop_body_n4_call_addback_j0_beq_modCode_within sp jOld v5Old
+  exact cpsTripleWithin_mono_nSteps (by decide) (divK_loop_body_n4_call_addback_j0_beq_modCode_within sp jOld v5Old
     v6Old v7Old v10Old v11Old v2Old v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld
-    retMem dMem dloMem scratch_un0 base halign hbltu hcarry2_nz hborrow).to_cpsTriple
+    retMem dMem dloMem scratch_un0 base halign hbltu hcarry2_nz hborrow)
 
 /-- Call_addback (BEQ) j=0 loop body against modCode with sp-relative
     addresses in the precondition. -/
@@ -984,7 +984,7 @@ theorem divK_loop_body_n4_call_addback_j0_beq_norm_modCode_within (sp base : Wor
     rw [loopBodyN4CallAddbackBeqJ0Post_unfold] at hq
     exact hq
 
-/-- Compatibility wrapper: forget the explicit step bound. -/
+/-- Bounded alias for the step-bounded specification. -/
 theorem divK_loop_body_n4_call_addback_j0_beq_norm_modCode (sp base : Word)
     (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
     (v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
@@ -997,7 +997,7 @@ theorem divK_loop_body_n4_call_addback_j0_beq_norm_modCode (sp base : Word)
     let div_un0 := (u3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
     (if BitVec.ult uTop (mulsubN4_c3 qHat v0 v1 v2 v3 u0 u1 u2 u3)
      then (1 : Word) else 0) ≠ (0 : Word) →
-    cpsTriple (base + loopBodyOff) (base + denormOff) (modCode base)
+    cpsTripleWithin 10000 (base + loopBodyOff) (base + denormOff) (modCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (0 : Word)) **
        (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
        (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
@@ -1019,9 +1019,9 @@ theorem divK_loop_body_n4_call_addback_j0_beq_norm_modCode (sp base : Word)
        (sp + signExtend12 3952 ↦ₘ dLo) **
        (sp + signExtend12 3944 ↦ₘ div_un0)) := by
   intro qHat dLo div_un0 hborrow
-  exact (divK_loop_body_n4_call_addback_j0_beq_norm_modCode_within sp base
+  exact cpsTripleWithin_mono_nSteps (by decide) (divK_loop_body_n4_call_addback_j0_beq_norm_modCode_within sp base
     jOld v5Old v6Old v7Old v10Old v11Old v2Old v0 v1 v2 v3 u0 u1 u2 u3
     uTop qOld retMem dMem dloMem scratch_un0 halign hbltu hcarry2_nz
-    hborrow).to_cpsTriple
+    hborrow)
 
 end EvmAsm.Evm64

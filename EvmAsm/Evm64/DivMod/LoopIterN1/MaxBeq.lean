@@ -1,7 +1,7 @@
 /-
   EvmAsm.Evm64.DivMod.LoopIterN1.MaxBeq
 
-  Loop body cpsTriple specs for n=1, max path with BEQ double-addback handling.
+  Loop body cpsTripleWithin specs for n=1, max path with BEQ double-addback handling.
   Split from LoopIterN1.lean for faster builds.
 -/
 
@@ -99,42 +99,6 @@ theorem divK_loop_body_n1_max_addback_j0_beq_spec_within
     (fun h hp => by delta loopBodyN1AddbackBeqPost loopBodyAddbackBeqPost loopExitPostN1 loopExitPost; rw [sepConj_assoc'] at hp; xperm_hyp hp)
     full
 
-/-- Compatibility wrapper for the unbounded n=1 max+addback BEQ j=0 surface. -/
-theorem divK_loop_body_n1_max_addback_j0_beq_spec
-    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-     v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
-    (base : Word)
-    (hbltu : ¬BitVec.ult u1 v0)
-    (hcarry2_nz : isAddbackCarry2NzN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
-    let uBase := sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat
-    let qHat : Word := signExtend12 4095
-    let qAddr := sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat
-    (if BitVec.ult uTop (mulsubN4_c3 qHat v0 v1 v2 v3 u0 u1 u2 u3) then (1 : Word) else 0) ≠ (0 : Word) →
-    cpsTriple (base + loopBodyOff) (base + denormOff) (sharedDivModCode base)
-      ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (0 : Word)) **
-       (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
-       (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
-       (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
-       (sp + signExtend12 3976 ↦ₘ jOld) ** (sp + signExtend12 3984 ↦ₘ (1 : Word)) **
-       ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
-       ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4088) ↦ₘ u1) **
-       ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4080) ↦ₘ u2) **
-       ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ u3) **
-       ((uBase + signExtend12 4064) ↦ₘ uTop) **
-       (qAddr ↦ₘ qOld))
-      (loopBodyN1AddbackBeqPost sp (0 : Word) qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop) := by
-  intro uBase qHat qAddr hborrow
-  exact ((divK_loop_body_n1_max_addback_j0_beq_spec_within
-    sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-    v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base hbltu hcarry2_nz) hborrow).to_cpsTriple
-
--- n=1, max+addback BEQ, j > 0 → cpsTriple to base+448
--- Single Word-parametric theorem: callers pass concrete j ∈ {1,2,3} and the
--- corresponding `slt_jpos_k` fact to discharge BLT-not-taken.
-
-set_option maxRecDepth 4096 in
-/-- Loop body cpsTriple for n=1, max+addback BEQ, j > 0 (parametric on `j : Word`).
-    `hpos` discharges BGE loop-back via caller's `slt_jpos_k` for k ∈ {1,2,3}. -/
 theorem divK_loop_body_n1_max_addback_jgt0_beq_spec_within (j : Word)
     (hpos : BitVec.slt (j + signExtend12 4095) 0 = false)
     (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
@@ -214,35 +178,5 @@ theorem divK_loop_body_n1_max_addback_jgt0_beq_spec_within (j : Word)
     (fun h hp => by xperm_hyp hp)
     (fun h hp => by delta loopBodyN1AddbackBeqPost loopBodyAddbackBeqPost loopExitPostN1 loopExitPost; rw [sepConj_assoc'] at hp; xperm_hyp hp)
     full
-
-/-- Compatibility wrapper for the unbounded n=1 max+addback BEQ j>0 surface. -/
-theorem divK_loop_body_n1_max_addback_jgt0_beq_spec (j : Word)
-    (hpos : BitVec.slt (j + signExtend12 4095) 0 = false)
-    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-     v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
-    (base : Word)
-    (hbltu : ¬BitVec.ult u1 v0)
-    (hcarry2_nz : isAddbackCarry2NzN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
-    let uBase := sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat
-    let qHat : Word := signExtend12 4095
-    let qAddr := sp + signExtend12 4088 - j <<< (3 : BitVec 6).toNat
-    (if BitVec.ult uTop (mulsubN4_c3 qHat v0 v1 v2 v3 u0 u1 u2 u3) then (1 : Word) else 0) ≠ (0 : Word) →
-    cpsTriple (base + loopBodyOff) (base + loopBodyOff) (sharedDivModCode base)
-      ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
-       (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
-       (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
-       (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
-       (sp + signExtend12 3976 ↦ₘ jOld) ** (sp + signExtend12 3984 ↦ₘ (1 : Word)) **
-       ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
-       ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4088) ↦ₘ u1) **
-       ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4080) ↦ₘ u2) **
-       ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ u3) **
-       ((uBase + signExtend12 4064) ↦ₘ uTop) **
-       (qAddr ↦ₘ qOld))
-      (loopBodyN1AddbackBeqPost sp j qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop) := by
-  intro uBase qHat qAddr hborrow
-  exact ((divK_loop_body_n1_max_addback_jgt0_beq_spec_within j hpos
-    sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-    v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base hbltu hcarry2_nz) hborrow).to_cpsTriple
 
 end EvmAsm.Evm64
