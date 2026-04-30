@@ -85,6 +85,13 @@ theorem word_sub_toNat_of_le (x y : Word) (h : y.toNat ≤ x.toNat) :
   rw [Nat.add_mod_right]
   exact Nat.mod_eq_of_lt (by omega)
 
+theorem val256_conservation_of_low_eq_and_zero_tops
+    {uVal qVal vVal rVal uTop rTop : Nat}
+    (huTop : uTop = 0) (hrTop : rTop = 0)
+    (hlow : uVal = qVal * vVal + rVal) :
+    uVal + uTop * 2^256 = qVal * vVal + rVal + rTop * 2^256 := by
+  omega
+
 theorem iterWithDoubleAddback_no_borrow_val256_conservation
     (q v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
     (hb : ¬ BitVec.ult uTop (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2) :
