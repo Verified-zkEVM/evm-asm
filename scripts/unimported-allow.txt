@@ -10,19 +10,3 @@
 # Trim entries as files get wired into umbrellas or deleted. New
 # additions should include a comment explaining why the file cannot be
 # imported yet — silent additions defeat the purpose of the check.
-
-# DivMod V4 work-in-progress cluster (issue #1337). These files are under
-# active development. Remove entries as each file is wired into the main module
-# graph.
-EvmAsm.Evm64.DivMod.LoopDefs.IterV4Invariants
-EvmAsm.Evm64.DivMod.LoopDefs.IterV4InvariantsPhase2
-EvmAsm.Evm64.DivMod.SpecCallAddbackBeq
-EvmAsm.Evm64.DivMod.SpecCallAddbackBeq.AlgDefs
-EvmAsm.Evm64.DivMod.SpecCallAddbackBeq.AlgEuclideans
-EvmAsm.Evm64.DivMod.SpecCallAddbackBeq.NumericalTests
-EvmAsm.Evm64.DivMod.SpecCallAddbackBeq.NumericalTestsV4
-EvmAsm.Evm64.DivMod.SpecCallV4
-
-# EvmWordArith cluster — pure-arithmetic helpers used by DivMod V4.
-# (Drained: umbrella EvmAsm.Evm64.EvmWordArith is now imported from
-# EvmAsm/Evm64.lean, transitively reaching all helpers.)
