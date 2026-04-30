@@ -17,7 +17,31 @@ jobs:
         run: scripts/check-file-size.sh
       - name: Unimported-file check
         run: scripts/check-unimported.sh
+      # Restore the lake build cache. The key matches lean-action@v1's scheme
+      # so we keep compatibility with caches it has already saved on main.
+      - name: Restore lake cache
+        uses: actions/cache/restore@v5
+        with:
+          path: .lake
+          key: lake-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain') }}-${{ hashFiles('lake-manifest.json') }}-${{ github.sha }}
+          restore-keys: lake-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain') }}-${{ hashFiles('lake-manifest.json') }}
+
       - uses: leanprover/lean-action@v1
         with:
           use-mathlib-cache: true
+          # We manage the GitHub Actions cache ourselves (steps above + below)
+          # so that PR runs only RESTORE while push/merge_group runs SAVE. The
+          # lean-action default saves on every event, which combined with the
+          # 10 GB per-repo cache quota and ~2.3 GB cache size was evicting the
+          # main cache within ~24 h. See #1441.
+          use-github-cache: false
           lake-package-directory: .
+
+      # Only push to main / merge_group / workflow_dispatch save the cache, so
+      # PR runs cannot churn the quota and evict the main-branch cache.
+      - name: Save lake cache
+        if: ${{ github.event_name != 'pull_request' }}
+        uses: actions/cache/save@v5
+        with:
+          path: .lake
+          key: lake-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain') }}-${{ hashFiles('lake-manifest.json') }}-${{ github.sha }}
