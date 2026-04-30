@@ -7,7 +7,6 @@
 
 import EvmAsm.Rv64.Basic
 import Std.Tactic.BVDecide
-import Mathlib.Tactic.Set
 
 namespace EvmAsm.Evm64
 
