@@ -15,11 +15,7 @@
 # active development. Remove entries as each file is wired into the main module
 # graph.
 EvmAsm.Evm64.DivMod.Compose.FullPathN3LoopUnified
-EvmAsm.Evm64.DivMod.LoopDefs.IterV4Invariants
-EvmAsm.Evm64.DivMod.LoopDefs.IterV4InvariantsPhase2
 EvmAsm.Evm64.DivMod.SpecCallAddbackBeq
-EvmAsm.Evm64.DivMod.SpecCallAddbackBeq.AlgDefs
-EvmAsm.Evm64.DivMod.SpecCallAddbackBeq.AlgEuclideans
 EvmAsm.Evm64.DivMod.SpecCallAddbackBeq.NumericalTests
 EvmAsm.Evm64.DivMod.SpecCallAddbackBeq.NumericalTestsV4
 EvmAsm.Evm64.DivMod.SpecCallV4
