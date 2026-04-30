@@ -33,8 +33,8 @@ namespace EvmWord
     - carryOut = carry1 ||| carry2
 
     At the Nat level, this is simply:
-      u_i + v_i + carryIn = carry_nat * 2^64 + uNew
-    where carry_nat = (u_i + v_i + carryIn) / 2^64 ∈ {0, 1}.
+      u_i + v_i + carryIn = carryNat * 2^64 + uNew
+    where carryNat = (u_i + v_i + carryIn) / 2^64 ∈ {0, 1}.
 
     We state the equation at the Nat level without referencing the
     register-level carryOut Word, since the carries are used only
@@ -42,8 +42,8 @@ namespace EvmWord
 theorem addback_limb_nat_eq (u_i v_i carryIn : Word) (hci : carryIn.toNat ≤ 1) :
     let uPlusCarry := u_i + carryIn
     let uNew := uPlusCarry + v_i
-    ∃ (carry_nat : Nat), carry_nat ≤ 1 ∧
-      u_i.toNat + v_i.toNat + carryIn.toNat = carry_nat * 2^64 + uNew.toNat := by
+    ∃ (carryNat : Nat), carryNat ≤ 1 ∧
+      u_i.toNat + v_i.toNat + carryIn.toNat = carryNat * 2^64 + uNew.toNat := by
   intro uPlusCarry uNew
   -- Step 1: u_i + carryIn = c1 * 2^64 + uPlusCarry
   have h1 := add_carry_nat u_i carryIn
@@ -101,12 +101,12 @@ theorem addback_4limb_val256
     This variant takes a general initial carry for the first limb. -/
 theorem addback_4limb_val256_with_carry
     (u0 u1 u2 u3 v0 v1 v2 v3 r0 r1 r2 r3 : Word)
-    (c_init c0 c1 c2 c3 : Nat)
-    (h0 : u0.toNat + v0.toNat + c_init = c0 * 2^64 + r0.toNat)
+    (cInit c0 c1 c2 c3 : Nat)
+    (h0 : u0.toNat + v0.toNat + cInit = c0 * 2^64 + r0.toNat)
     (h1 : u1.toNat + v1.toNat + c0 = c1 * 2^64 + r1.toNat)
     (h2 : u2.toNat + v2.toNat + c1 = c2 * 2^64 + r2.toNat)
     (h3 : u3.toNat + v3.toNat + c2 = c3 * 2^64 + r3.toNat) :
-    val256 u0 u1 u2 u3 + val256 v0 v1 v2 v3 + c_init =
+    val256 u0 u1 u2 u3 + val256 v0 v1 v2 v3 + cInit =
     val256 r0 r1 r2 r3 + c3 * 2^256 := by
   unfold val256; nlinarith
 
