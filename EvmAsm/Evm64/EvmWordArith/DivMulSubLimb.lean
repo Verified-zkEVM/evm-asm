@@ -145,9 +145,9 @@ theorem mulsub_limb_nat_eq {q v_i u_i carryIn : Word} :
 /-- The Nat-level carry from one mulsub_limb step is at most 2^64.
     borrowAdd ≤ 1, prodHi ≤ 2^64 - 2, borrowSub ≤ 1. -/
 theorem mulsub_limb_carry_le (q v_i : Word)
-    (borrowAdd_nat borrowSub_nat : Nat)
-    (h_ba : borrowAdd_nat ≤ 1) (h_bs : borrowSub_nat ≤ 1) :
-    borrowAdd_nat + (rv64_mulhu q v_i).toNat + borrowSub_nat ≤ 2^64 := by
+    (borrowAddNat borrowSubNat : Nat)
+    (h_ba : borrowAddNat ≤ 1) (h_bs : borrowSubNat ≤ 1) :
+    borrowAddNat + (rv64_mulhu q v_i).toNat + borrowSubNat ≤ 2^64 := by
   have := mulhu_toNat_le q v_i; omega
 
 /-- When carryIn + prodLo doesn't overflow, the add-borrow is 0. -/
@@ -168,9 +168,9 @@ theorem borrowAdd_eq_zero_of_no_overflow (q v_i carryIn : Word)
     borrowAdd + borrowSub ≤ 1 (not both overflow and underflow).
     This ensures the carry fits in a Word. -/
 theorem mulsub_limb_carry_lt_of_sum_le_one (q v_i : Word)
-    (borrowAdd_nat borrowSub_nat : Nat)
-    (h_sum : borrowAdd_nat + borrowSub_nat ≤ 1) :
-    borrowAdd_nat + (rv64_mulhu q v_i).toNat + borrowSub_nat < 2^64 := by
+    (borrowAddNat borrowSubNat : Nat)
+    (h_sum : borrowAddNat + borrowSubNat ≤ 1) :
+    borrowAddNat + (rv64_mulhu q v_i).toNat + borrowSubNat < 2^64 := by
   have := mulhu_toNat_le q v_i; omega
 
 /-- When the carry is < 2^64, the Word-level carry equals the Nat-level carry.
