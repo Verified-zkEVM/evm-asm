@@ -168,6 +168,22 @@ def iterSingleAddbackConservation (q v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) : Prop
       EvmWord.val256 ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 +
       ab.2.2.2.2.toNat * 2^256
 
+theorem iterSingleAddbackBranch_of
+    (q v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
+    (hb : BitVec.ult uTop (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2)
+    (hc3_one : (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2 = 1)
+    (hcarry_one : addbackN4_carry
+      (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).1
+      (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.1
+      (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.1
+      (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.1
+      v0 v1 v2 v3 = 1)
+    (hq_pos : 1 ≤ q.toNat) :
+    iterSingleAddbackBranch q v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
+  delta iterSingleAddbackBranch
+  simp only []
+  exact ⟨hb, hc3_one, hcarry_one, hq_pos⟩
+
 theorem iterSingleAddbackBranch_uTop_toNat_eq_zero
     (q v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
     (hbranch : iterSingleAddbackBranch q v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
@@ -567,6 +583,24 @@ def iterDoubleAddbackBranch (q v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) : Prop :=
     v0 ||| v1 ||| v2 ||| v3 ≠ 0 ∧
     q.toNat ≤ val256 u0 u1 u2 u3 / val256 v0 v1 v2 v3 + 2 ∧
     2 ≤ q.toNat
+
+theorem iterDoubleAddbackBranch_of
+    (q v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
+    (hb : BitVec.ult uTop (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2)
+    (hc3_one : (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2 = 1)
+    (hcarry_zero : addbackN4_carry
+      (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).1
+      (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.1
+      (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.1
+      (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.1
+      v0 v1 v2 v3 = 0)
+    (hbnz : v0 ||| v1 ||| v2 ||| v3 ≠ 0)
+    (hq_over : q.toNat ≤ val256 u0 u1 u2 u3 / val256 v0 v1 v2 v3 + 2)
+    (hq_ge_2 : 2 ≤ q.toNat) :
+    iterDoubleAddbackBranch q v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
+  delta iterDoubleAddbackBranch
+  simp only []
+  exact ⟨hb, hc3_one, hcarry_zero, hbnz, hq_over, hq_ge_2⟩
 
 theorem iterDoubleAddbackBranch_uTop_toNat_eq_zero
     (q v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
