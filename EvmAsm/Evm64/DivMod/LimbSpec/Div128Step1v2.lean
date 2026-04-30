@@ -28,7 +28,7 @@ namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
 
-/-- Bundled CodeReq for `divK_div128_step1_v2_spec` (25 singletons,
+/-- Bundled CodeReq for `divK_div128_step1_v2_spec_within` (25 singletons,
     instrs [10..34] of `divK_div128_v2`). `@[irreducible]` to keep
     let-bindings out of theorem signatures. -/
 @[irreducible]
@@ -59,8 +59,8 @@ def divKDiv128Step1V2Code (base : Word) : CodeReq :=
   (CodeReq.union (CodeReq.singleton (base + 92) (.ADDI .x10 .x10 4095))
    (CodeReq.singleton (base + 96) (.ADD .x7 .x7 .x6)))))))))))))))))))))))))
 
-/-- Bundled precondition for `divK_div128_step1_v2_spec` and
-    `divK_div128_step1_v2_branch_merged_spec`. -/
+/-- Bundled precondition for `divK_div128_step1_v2_spec_within` and
+    `divK_div128_step1_v2_branch_merged_spec_within`. -/
 @[irreducible]
 def divKDiv128Step1V2Pre (sp uHi dHi un1 v1Old v5Old v10Old dlo : Word) :
     Assertion :=
@@ -68,7 +68,7 @@ def divKDiv128Step1V2Pre (sp uHi dHi un1 v1Old v5Old v10Old dlo : Word) :
   (.x5 ↦ᵣ v5Old) ** (.x11 ↦ᵣ un1) ** (.x1 ↦ᵣ v1Old) **
   (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) ** (sp + signExtend12 3952 ↦ₘ dlo)
 
-/-- Bundled taken-leg postcondition for `divK_div128_step1_v2_branch_merged_spec`
+/-- Bundled taken-leg postcondition for `divK_div128_step1_v2_branch_merged_spec_within`
     (rhatHi2 ≠ 0: 2nd D3 guard fires, body is skipped). -/
 @[irreducible]
 def divKDiv128Step1V2BranchMergedTakenPost
@@ -88,7 +88,7 @@ def divKDiv128Step1V2BranchMergedTakenPost
   (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) ** ⌜rhatHi2 ≠ 0⌝ **
   (sp + signExtend12 3952 ↦ₘ dlo)
 
-/-- Bundled fall-through-leg postcondition for `divK_div128_step1_v2_branch_merged_spec`
+/-- Bundled fall-through-leg postcondition for `divK_div128_step1_v2_branch_merged_spec_within`
     (rhatHi2 = 0: 2nd D3 guard falls through, body runs). -/
 @[irreducible]
 def divKDiv128Step1V2BranchMergedFTPost
@@ -112,7 +112,7 @@ def divKDiv128Step1V2BranchMergedFTPost
   (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) ** ⌜rhatHi2 = 0⌝ **
   (sp + signExtend12 3952 ↦ₘ dlo)
 
-/-- Bundled postcondition for `divK_div128_step1_v2_spec` (top-level cpsTriple).
+/-- Bundled postcondition for `divK_div128_step1_v2_spec_within` (top-level cpsTripleWithin).
     Output q1''/rhat'' match `div128Quot_v2`'s Phase 1 output exactly. The
     `.x5 / .x1` register postconditions are conditional on `rhatHi2 = 0`. -/
 @[irreducible]
@@ -142,7 +142,7 @@ def divKDiv128Step1V2Post (sp uHi dHi un1 dlo : Word) : Assertion :=
 /-- Helper: prodcheck1b's 10-singleton cr at offset (base+60) is included in
     step1_v2's 25-singleton merged cr.
 
-    Defined outside `divK_div128_step1_v2_branch_merged_spec` so the heartbeat
+    Defined outside `divK_div128_step1_v2_branch_merged_spec_within` so the heartbeat
     budget for this inclusion check is independent of the surrounding proof
     (which itself instantiates a 5-let prodcheck1b spec). -/
 private theorem step1_v2_pc1b_cr_subsumed (base : Word) :
@@ -187,12 +187,12 @@ private theorem step1_v2_pc1b_cr_subsumed (base : Word) :
                     · simp at h
 
 /-- div128 step 1 v2 branch-merged: composes step1_spec + prodcheck1b_merged_spec
-    into a cpsBranch where BOTH legs end at base+100. Instrs [10]-[34].
-    The cpsBranch shape arises because the 2nd D3 guard at [25..26] either
+    into a cpsBranchWithin where BOTH legs end at base+100. Instrs [10]-[34].
+    The cpsBranchWithin shape arises because the 2nd D3 guard at [25..26] either
     skips the body [27..34] (taken leg, rhatHi2 ≠ 0) or executes it (fall-through
     leg, rhatHi2 = 0).
 
-    Mirrors `divK_div128_step2_branch_merged_spec` from Div128Step2.lean.
+    Mirrors `divK_div128_step2_branch_merged_spec_within` from Div128Step2.lean.
 
     Issue #1337 algorithm fix migration. -/
 theorem divK_div128_step1_v2_branch_merged_spec_within
@@ -309,19 +309,6 @@ theorem divK_div128_step1_v2_branch_merged_spec_within
     (fun h hp => by xperm_hyp hp)
     (fun h hp => by xperm_hyp hp)
     composed
-
-/-- div128 step 1 v2 branch-merged: composes step1_spec + prodcheck1b_merged_spec
-    into a cpsBranch where BOTH legs end at base+100. Instrs [10]-[34]. -/
-theorem divK_div128_step1_v2_branch_merged_spec
-    (sp uHi dHi un1 v1Old v5Old v10Old dlo : Word) (base : Word) :
-    cpsBranch base (divKDiv128Step1V2Code base)
-      (divKDiv128Step1V2Pre sp uHi dHi un1 v1Old v5Old v10Old dlo)
-      (base + 100)
-        (divKDiv128Step1V2BranchMergedTakenPost sp uHi dHi un1 dlo)
-      (base + 100)
-        (divKDiv128Step1V2BranchMergedFTPost sp uHi dHi un1 dlo) :=
-  (divK_div128_step1_v2_branch_merged_spec_within sp uHi dHi un1 v1Old v5Old
-    v10Old dlo base).to_cpsBranch
 
 /-- div128 step 1 v2: trial division q1, clamp, FIRST product check + correction,
     SECOND product check + correction (gated by `rhatc < 2^32` guard).
@@ -487,14 +474,5 @@ theorem divK_div128_step1_v2_spec_within
           (fun h' hp' => ((sepConj_pure_left h').1 hp').2)))))))) hp hP
     xperm_hyp hP')
   exact cpsBranchWithin_merge_same_cr hbr h_t h_f
-
-/-- div128 step 1 v2: trial division q1, clamp, FIRST product check + correction,
-    SECOND product check + correction (gated by `rhatc < 2^32` guard). -/
-theorem divK_div128_step1_v2_spec
-    (sp uHi dHi un1 v1Old v5Old v10Old dlo : Word) (base : Word) :
-    cpsTriple base (base + 100) (divKDiv128Step1V2Code base)
-      (divKDiv128Step1V2Pre sp uHi dHi un1 v1Old v5Old v10Old dlo)
-      (divKDiv128Step1V2Post sp uHi dHi un1 dlo) :=
-  (divK_div128_step1_v2_spec_within sp uHi dHi un1 v1Old v5Old v10Old dlo base).to_cpsTriple
 
 end EvmAsm.Evm64

@@ -11,7 +11,7 @@
       long-form loop pre-state (lenLen counter, length accumulator,
       data pointer).
 
-  Result: a single `cpsTriple base (e3_target + 12)` witnessing that
+  Result: a single `cpsTripleWithin base (e3_target + 12)` witnessing that
   whenever `v5 ∈ [0xB8, 0xC0)`, executing the Phase 1 cascade from
   `base` traverses the e3 path then immediately seeds the long-form
   length loop.
@@ -32,7 +32,7 @@ open EvmAsm.Rv64.Tactics
 -- Spec
 -- ============================================================================
 
-/-- `cpsTriple base (e3_target + 12)` for the full Phase 1 e3
+/-- `cpsTripleWithin base (e3_target + 12)` for the full Phase 1 e3
     (long-string) path: cascade prefix to `e3_target`, then Phase 3
     long-string entry.
 
@@ -111,46 +111,6 @@ theorem rlp_phase1_e3_full_path_spec_within
         (by pcFree) ph3)
   exact cpsTripleWithin_seq hd_phase3 prefix' ph3'
 
-theorem rlp_phase1_e3_full_path_spec
-    (v5 v10 v11Old v13 v14Old : Word)
-    (off1 off2 off3 : BitVec 13) (base e3_target : Word)
-    (htarget : (base + 16 + 4) + signExtend13 off3 = e3_target)
-    (hv5_lo  : ¬ BitVec.ult v5 ((0 : Word) + signExtend12 (0x80 : BitVec 12)))
-    (hv5_mid : ¬ BitVec.ult v5 ((0 : Word) + signExtend12 (0xB8 : BitVec 12)))
-    (hv5_hi  : BitVec.ult v5 ((0 : Word) + signExtend12 (0xC0 : BitVec 12)))
-    (hd12 : (rlp_phase1_step_code 0x80 off1 base).Disjoint
-              (rlp_phase1_step_code 0xB8 off2 (base + 8)))
-    (hd13 : (rlp_phase1_step_code 0x80 off1 base).Disjoint
-              (rlp_phase1_step_code 0xC0 off3 (base + 16)))
-    (hd23 : (rlp_phase1_step_code 0xB8 off2 (base + 8)).Disjoint
-              (rlp_phase1_step_code 0xC0 off3 (base + 16)))
-    (hd_phase3 :
-      (((rlp_phase1_step_code 0x80 off1 base).union
-        ((rlp_phase1_step_code 0xB8 off2 (base + 8)).union
-          (rlp_phase1_step_code 0xC0 off3 (base + 16))))).Disjoint
-        (CodeReq.ofProg e3_target rlp_phase3_long_string_prog)) :
-    cpsTriple base (e3_target + 12)
-      (((rlp_phase1_step_code 0x80 off1 base).union
-         ((rlp_phase1_step_code 0xB8 off2 (base + 8)).union
-           (rlp_phase1_step_code 0xC0 off3 (base + 16)))).union
-         (CodeReq.ofProg e3_target rlp_phase3_long_string_prog))
-      ((.x0 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) **
-        (.x11 ↦ᵣ v11Old) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14Old))
-      ((.x0 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ v5) **
-        (.x10 ↦ᵣ ((0 : Word) + signExtend12 (0xC0 : BitVec 12))) **
-        (.x11 ↦ᵣ (0 : Word)) **
-        (.x13 ↦ᵣ (v13 + signExtend12 (1 : BitVec 12))) **
-        (.x14 ↦ᵣ (v5 + signExtend12 (-(0xB7 : BitVec 12))))) :=
-  (rlp_phase1_e3_full_path_spec_within v5 v10 v11Old v13 v14Old off1 off2
-    off3 base e3_target htarget hv5_lo hv5_mid hv5_hi hd12 hd13 hd23
-    hd_phase3).to_cpsTriple
-
-/-- Convenience variant of `rlp_phase1_e3_full_path_spec` that
-    discharges the three pairwise cascade-step disjointness
-    obligations (`hd12`, `hd13`, `hd23`) internally via the
-    `rlp_phase1_step_code_disjoint_*` helpers. The caller still
-    supplies the Phase 1↔Phase 3 disjointness `hd_phase3` since
-    `e3_target` is not derivable from `base`. -/
 theorem rlp_phase1_e3_full_path_spec'_within
     (v5 v10 v11Old v13 v14Old : Word)
     (off1 off2 off3 : BitVec 13) (base e3_target : Word)
@@ -181,32 +141,5 @@ theorem rlp_phase1_e3_full_path_spec'_within
     (rlp_phase1_step_code_disjoint_16 0x80 0xC0 off1 off3 base)
     (rlp_phase1_step_code_disjoint_8_at_8 0xB8 0xC0 off2 off3 base)
     hd_phase3
-
-theorem rlp_phase1_e3_full_path_spec'
-    (v5 v10 v11Old v13 v14Old : Word)
-    (off1 off2 off3 : BitVec 13) (base e3_target : Word)
-    (htarget : (base + 16 + 4) + signExtend13 off3 = e3_target)
-    (hv5_lo  : ¬ BitVec.ult v5 ((0 : Word) + signExtend12 (0x80 : BitVec 12)))
-    (hv5_mid : ¬ BitVec.ult v5 ((0 : Word) + signExtend12 (0xB8 : BitVec 12)))
-    (hv5_hi  : BitVec.ult v5 ((0 : Word) + signExtend12 (0xC0 : BitVec 12)))
-    (hd_phase3 :
-      (((rlp_phase1_step_code 0x80 off1 base).union
-        ((rlp_phase1_step_code 0xB8 off2 (base + 8)).union
-          (rlp_phase1_step_code 0xC0 off3 (base + 16))))).Disjoint
-        (CodeReq.ofProg e3_target rlp_phase3_long_string_prog)) :
-    cpsTriple base (e3_target + 12)
-      (((rlp_phase1_step_code 0x80 off1 base).union
-         ((rlp_phase1_step_code 0xB8 off2 (base + 8)).union
-           (rlp_phase1_step_code 0xC0 off3 (base + 16)))).union
-         (CodeReq.ofProg e3_target rlp_phase3_long_string_prog))
-      ((.x0 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) **
-        (.x11 ↦ᵣ v11Old) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14Old))
-      ((.x0 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ v5) **
-        (.x10 ↦ᵣ ((0 : Word) + signExtend12 (0xC0 : BitVec 12))) **
-        (.x11 ↦ᵣ (0 : Word)) **
-        (.x13 ↦ᵣ (v13 + signExtend12 (1 : BitVec 12))) **
-        (.x14 ↦ᵣ (v5 + signExtend12 (-(0xB7 : BitVec 12))))) :=
-  (rlp_phase1_e3_full_path_spec'_within v5 v10 v11Old v13 v14Old off1 off2
-    off3 base e3_target htarget hv5_lo hv5_mid hv5_hi hd_phase3).to_cpsTriple
 
 end EvmAsm.Rv64.RLP

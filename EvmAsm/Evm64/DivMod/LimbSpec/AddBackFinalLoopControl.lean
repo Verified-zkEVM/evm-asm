@@ -3,10 +3,10 @@
 
   CPS specs for the two small blocks at the end of each Knuth Algorithm D
   step:
-    * `divK_addback_final_spec` — 4 instructions (LD, ADD, SD, ADDI)
+    * `divK_addback_final_spec_within` — 4 instructions (LD, ADD, SD, ADDI)
       that add the final carry to `u[j+4]` after the add-back corrections
       and decrement `qHat`.
-    * `divK_loop_control_spec` — 2-instruction `cpsBranch` (ADDI + BGE)
+    * `divK_loop_control_spec_within` — 2-instruction `cpsBranchWithin` (ADDI + BGE)
       that decrements `j` and branches back to the top of the loop while
       `j ≥ 0`.
 
@@ -49,23 +49,6 @@ theorem divK_addback_final_spec_within (uBase carry qHat v5Old uTop : Word)
   have I2 := sd_spec_gen_within .x6 .x5 uBase uNew uTop u_off (base + 8)
   have I3 := addi_spec_gen_same_within .x11 qHat 4095 (base + 12) (by nofun)
   runBlock I0 I1 I2 I3
-
-/-- Add-back finalization after limb corrections. -/
-theorem divK_addback_final_spec (uBase carry qHat v5Old uTop : Word)
-    (u_off : BitVec 12) (base : Word) :
-    let uNew := uTop + carry
-    let qHat' := qHat + signExtend12 4095
-    let cr :=
-      CodeReq.union (CodeReq.singleton base (.LD .x5 .x6 u_off))
-      (CodeReq.union (CodeReq.singleton (base + 4) (.ADD .x5 .x5 .x7))
-      (CodeReq.union (CodeReq.singleton (base + 8) (.SD .x6 .x5 u_off))
-       (CodeReq.singleton (base + 12) (.ADDI .x11 .x11 4095))))
-    cpsTriple base (base + 16) cr
-      ((.x6 ↦ᵣ uBase) ** (.x7 ↦ᵣ carry) ** (.x11 ↦ᵣ qHat) **
-       (.x5 ↦ᵣ v5Old) ** (uBase + signExtend12 u_off ↦ₘ uTop))
-      ((.x6 ↦ᵣ uBase) ** (.x7 ↦ᵣ carry) ** (.x11 ↦ᵣ qHat') **
-       (.x5 ↦ᵣ uNew) ** (uBase + signExtend12 u_off ↦ₘ uNew)) :=
-  (divK_addback_final_spec_within uBase carry qHat v5Old uTop u_off base).to_cpsTriple
 
 /-- Loop control: decrement j and branch back if j >= 0. -/
 theorem divK_loop_control_spec_within (j : Word) (loop_back_off : BitVec 13)
@@ -114,20 +97,5 @@ theorem divK_loop_control_spec_within (j : Word) (loop_back_off : BitVec 13)
         have h0 : ¬(base + 4 = base) := by bv_omega
         simp only [beq_iff_eq, h0, ↓reduceIte]))) hPR hpc
   exact cpsTripleWithin_seq_cpsBranchWithin_same_cr hbody hbge_ext
-
-/-- Loop control: decrement j and branch back if j >= 0. -/
-theorem divK_loop_control_spec (j : Word) (loop_back_off : BitVec 13)
-    (base : Word) :
-    let j' := j + signExtend12 4095
-    let cr :=
-      CodeReq.union (CodeReq.singleton base (.ADDI .x1 .x1 4095))
-       (CodeReq.singleton (base + 4) (.BGE .x1 .x0 loop_back_off))
-    cpsBranch base cr
-      ((.x1 ↦ᵣ j) ** (.x0 ↦ᵣ 0))
-      (base + 4 + signExtend13 loop_back_off)
-      ((.x1 ↦ᵣ j') ** (.x0 ↦ᵣ 0))
-      (base + 8)
-      ((.x1 ↦ᵣ j') ** (.x0 ↦ᵣ 0)) :=
-  (divK_loop_control_spec_within j loop_back_off base).to_cpsBranch
 
 end EvmAsm.Evm64

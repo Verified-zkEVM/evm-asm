@@ -2,7 +2,7 @@
   EvmAsm.Evm64.DivMod.LimbSpec.PhaseBTail
 
   CPS spec for the Knuth Algorithm D "phase B tail":
-    * `divK_phaseB_tail_code` / `divK_phaseB_tail_spec` — 5-instruction
+    * `divK_phaseB_tail_code` / `divK_phaseB_tail_spec_within` — 5-instruction
       block (SD n, ADDI n-1, SLLI ×8, ADD sp + offset, LD b[n-1]) that
       stores `n` to scratch and loads the leading limb of the divisor.
 
@@ -27,7 +27,7 @@ open EvmAsm.Rv64
 abbrev divK_phaseB_tail_code (base : Word) : CodeReq :=
   CodeReq.ofProg base (divK_phaseB.drop 16)
 
-/-- Precondition for `divK_phaseB_tail_spec` (issue #433): the register
+/-- Precondition for `divK_phaseB_tail_spec_within` (issue #433): the register
     and memory shape before the 5-instruction phase-B tail runs. Wrapped
     in an `@[irreducible] def` so the leading-limb address expression
     `sp + (n + signExtend12 4095) <<< 3 + signExtend12 32` doesn't appear
@@ -48,7 +48,7 @@ theorem divK_phaseB_tail_pre_unfold {sp n nMem leading_limb : Word} :
      ((sp + (n + signExtend12 4095) <<< (3 : BitVec 6).toNat + signExtend12 32) ↦ₘ leading_limb)) := by
   delta divK_phaseB_tail_pre; rfl
 
-/-- Postcondition for `divK_phaseB_tail_spec` (issue #433): x5 now holds
+/-- Postcondition for `divK_phaseB_tail_spec_within` (issue #433): x5 now holds
     the leading limb, and the scratch slot at `sp + 3984` holds `n`.
     Wrapped in `@[irreducible]` for the same reason as `_pre`. -/
 @[irreducible]
@@ -87,20 +87,5 @@ theorem divK_phaseB_tail_spec_within (sp n leading_limb nMem : Word) (base : Wor
   have I4 := ld_spec_gen_same_within .x5
     (sp + (n + signExtend12 4095) <<< (3 : BitVec 6).toNat) leading_limb 32 (base + 16) (by nofun)
   runBlock I0 I1 I2 I3 I4
-
-/-- Phase B tail: store n to scratch, compute sp + (n-1)*8, load b[n-1].
-    x5 = n on entry. On exit, x5 = leading limb b[n-1].
-
-    Pre and post are wrapped in `@[irreducible] def`s
-    (`divK_phaseB_tail_pre` / `_post`) so the leading-limb address
-    expression stays hidden in the theorem statement (issue #433).
-    Callers invoke `simp only [divK_phaseB_tail_pre_unfold,
-    divK_phaseB_tail_post_unfold]` (or `delta ... ; rfl`) to peel back
-    the wrappers before normalizing the concrete `n`. -/
-theorem divK_phaseB_tail_spec (sp n leading_limb nMem : Word) (base : Word) :
-    cpsTriple base (base + 20) (divK_phaseB_tail_code base)
-      (divK_phaseB_tail_pre sp n nMem leading_limb)
-      (divK_phaseB_tail_post sp n leading_limb) :=
-  (divK_phaseB_tail_spec_within sp n leading_limb nMem base).to_cpsTriple
 
 end EvmAsm.Evm64

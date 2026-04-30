@@ -10,7 +10,7 @@
       iter 1 @ base → state at base (BNE taken, cnt 3→2)
       iter 2+3 @ base (via two-byte closure) → state at base + 24
 
-  Produces a `cpsTriple` from `base` to `base + 24` that decodes three
+  Produces a `cpsTripleWithin` from `base` to `base + 24` that decodes three
   big-endian bytes. Corresponds to RLP prefixes `0xBA` and `0xFA`
   (`lenLen = 3`).
 
@@ -129,30 +129,5 @@ theorem rlp_phase2_long_loop_three_byte_spec_within
     (fun _ hp => hp)
     (fun h hp => by xperm_hyp hp)
     composed
-
-/-- `cpsTriple` spec for the three-iteration (lenLen = 3) closure of
-    the long-form length loop. -/
-theorem rlp_phase2_long_loop_three_byte_spec
-    (len ptr v12Old wordVal dwordAddr : Word)
-    (base : Word) (back : BitVec 13)
-    (halign1 : alignToDword ptr = dwordAddr)
-    (halign2 : alignToDword (ptr + 1) = dwordAddr)
-    (halign3 : alignToDword (ptr + 2) = dwordAddr)
-    (hvalid1 : isValidByteAccess ptr = true)
-    (hvalid2 : isValidByteAccess (ptr + 1) = true)
-    (hvalid3 : isValidByteAccess (ptr + 2) = true)
-    (hback : (base + 20) + signExtend13 back = base) :
-    cpsTriple base (base + 24)
-      (CodeReq.ofProg base (rlp_phase2_long_loop_body_prog back))
-      ((.x11 ↦ᵣ len) ** (.x13 ↦ᵣ ptr) ** (.x14 ↦ᵣ (3 : Word)) **
-       (.x12 ↦ᵣ v12Old) ** (.x0 ↦ᵣ (0 : Word)) **
-       (dwordAddr ↦ₘ wordVal))
-      (rlp_phase2_long_loop_three_byte_post len ptr
-        ((extractByte wordVal (byteOffset ptr)).zeroExtend 64)
-        ((extractByte wordVal (byteOffset (ptr + 1))).zeroExtend 64)
-        ((extractByte wordVal (byteOffset (ptr + 2))).zeroExtend 64)
-        wordVal dwordAddr) :=
-  (rlp_phase2_long_loop_three_byte_spec_within len ptr v12Old wordVal dwordAddr
-    base back halign1 halign2 halign3 hvalid1 hvalid2 hvalid3 hback).to_cpsTriple
 
 end EvmAsm.Rv64.RLP

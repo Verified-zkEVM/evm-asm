@@ -8,7 +8,7 @@
   decrements to `0`, the `BNE x14, x0, back` falls through, and control
   reaches the exit at `base + 24`. The "loop-back" branch is
   unreachable (its pure fact `cnt' ≠ 0` is `0 ≠ 0`, which is false),
-  so the resulting spec is a plain `cpsTriple`.
+  so the resulting spec is a plain `cpsTripleWithin`.
 
   This is the simplest concrete closure of the long-form loop: it
   corresponds to RLP long-form prefixes `0xB8` or `0xF8`, where
@@ -99,23 +99,5 @@ theorem rlp_phase2_long_loop_one_byte_spec_within
       intro h' hp'
       exact ((sepConj_pure_right _).1 hp').1)
     tri
-
-/-- `cpsTriple` spec for the single-iteration (lenLen = 1) closure of
-    the long-form length loop. -/
-theorem rlp_phase2_long_loop_one_byte_spec
-    (len ptr v12Old wordVal dwordAddr : Word)
-    (base : Word) (back : BitVec 13)
-    (halign : alignToDword ptr = dwordAddr)
-    (hvalid : isValidByteAccess ptr = true) :
-    let byteZext := (extractByte wordVal (byteOffset ptr)).zeroExtend 64
-    cpsTriple base (base + 24)
-      (CodeReq.ofProg base (rlp_phase2_long_loop_body_prog back))
-      ((.x11 ↦ᵣ len) ** (.x13 ↦ᵣ ptr) ** (.x14 ↦ᵣ (1 : Word)) **
-       (.x12 ↦ᵣ v12Old) ** (.x0 ↦ᵣ (0 : Word)) **
-       (dwordAddr ↦ₘ wordVal))
-      (rlp_phase2_long_loop_one_byte_post len ptr byteZext wordVal
-         dwordAddr) :=
-  (rlp_phase2_long_loop_one_byte_spec_within len ptr v12Old wordVal dwordAddr
-    base back halign hvalid).to_cpsTriple
 
 end EvmAsm.Rv64.RLP

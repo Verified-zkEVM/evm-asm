@@ -27,7 +27,7 @@
     * `rlp_phase1_step_prog` — the 2-instruction cascade-step program
     * `rlp_phase1_classifier_prog` — the full 8-instruction classifier
     * `rlp_phase1_step_code` — the matching `CodeReq`
-    * `rlp_phase1_step_spec` — `cpsBranch` spec preserving the dispatch fact
+    * `rlp_phase1_step_spec` — `cpsBranchWithin` spec preserving the dispatch fact
       (`BitVec.ult v5 kVal` on the taken side, `¬…` on the fall-through).
 -/
 
@@ -75,7 +75,7 @@ abbrev rlp_phase1_step_code
 -- Spec: cascade step
 -- ============================================================================
 
-/-- `cpsBranch` spec for one cascade step.
+/-- `cpsBranchWithin` spec for one cascade step.
 
     Taken (`x5 <u kVal`):     PC := target           (BLTU took the branch)
     Not taken (`¬ x5 <u kVal`): PC := base + 8       (fell through)
@@ -138,24 +138,6 @@ theorem rlp_phase1_step_spec_within (v5 v10 : Word)
   exact cpsTripleWithin_seq_cpsBranchWithin hd
     (cpsTripleWithin_weaken (fun _ hp => hp) (fun _ hp => hp) s1') s2'
 
-theorem rlp_phase1_step_spec (v5 v10 : Word)
-    (k : BitVec 12) (offset : BitVec 13) (base target : Word)
-    (htarget : (base + 4) + signExtend13 offset = target) :
-    let kVal := (0 : Word) + signExtend12 k
-    let code := rlp_phase1_step_code k offset base
-    cpsBranch base code
-      ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10))
-      target
-        ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ kVal) **
-         ⌜BitVec.ult v5 kVal⌝)
-      (base + 8)
-        ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ kVal) **
-         ⌜¬ BitVec.ult v5 kVal⌝) :=
-  (rlp_phase1_step_spec_within v5 v10 k offset base target htarget).to_cpsBranch
-
-/-- Plain variant of `rlp_phase1_step_spec`: drops the `⌜…⌝` dispatch facts,
-    leaving just the register ownership. Simpler to chain when downstream
-    consumers don't need the ult-based discrimination. -/
 theorem rlp_phase1_step_spec_plain_within (v5 v10 : Word)
     (k : BitVec 12) (offset : BitVec 13) (base target : Word)
     (htarget : (base + 4) + signExtend13 offset = target) :
@@ -171,26 +153,6 @@ theorem rlp_phase1_step_spec_plain_within (v5 v10 : Word)
     sepConj_strip_pure_end3
     (rlp_phase1_step_spec_within v5 v10 k offset base target htarget)
 
-theorem rlp_phase1_step_spec_plain (v5 v10 : Word)
-    (k : BitVec 12) (offset : BitVec 13) (base target : Word)
-    (htarget : (base + 4) + signExtend13 offset = target) :
-    let kVal := (0 : Word) + signExtend12 k
-    let code := rlp_phase1_step_code k offset base
-    cpsBranch base code
-      ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10))
-      target ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ kVal))
-      (base + 8) ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ kVal)) :=
-  (rlp_phase1_step_spec_plain_within v5 v10 k offset base target htarget).to_cpsBranch
-
-/-- Taken-path-only variant of `rlp_phase1_step_spec`: assumes the BLTU
-    will take its branch (`v5 <u kVal`) and produces a plain `cpsTriple`
-    landing at `target`, with the register-ownership post (no
-    `⌜…⌝` dispatch fact remaining).
-
-    Useful for downstream consumers that already know which Phase 1 exit
-    they are heading toward — typically because they are composing the
-    cascade with a specific Phase 3 entry program — and just need the
-    "from base to e_i" cpsTriple to chain. -/
 theorem rlp_phase1_step_taken_spec_within (v5 v10 : Word)
     (k : BitVec 12) (offset : BitVec 13) (base target : Word)
     (htarget : (base + 4) + signExtend13 offset = target)
@@ -213,26 +175,6 @@ theorem rlp_phase1_step_taken_spec_within (v5 v10 : Word)
         obtain ⟨_, _, _, _, _, hpost⟩ := hpost  -- peel x10
         exact hpost.2 hv5))
 
-theorem rlp_phase1_step_taken_spec (v5 v10 : Word)
-    (k : BitVec 12) (offset : BitVec 13) (base target : Word)
-    (htarget : (base + 4) + signExtend13 offset = target)
-    (hv5 : BitVec.ult v5 ((0 : Word) + signExtend12 k)) :
-    let kVal := (0 : Word) + signExtend12 k
-    let code := rlp_phase1_step_code k offset base
-    cpsTriple base target code
-      ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10))
-      ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ kVal)) :=
-  (rlp_phase1_step_taken_spec_within v5 v10 k offset base target htarget hv5).to_cpsTriple
-
-/-- Not-taken-path-only variant of `rlp_phase1_step_spec`: assumes the
-    BLTU does *not* take its branch (`¬ v5 <u kVal`) and produces a
-    plain `cpsTriple` landing at `base + 8` (the fall-through PC),
-    with the register-ownership post (no `⌜…⌝` dispatch fact remaining).
-
-    Sibling to `rlp_phase1_step_taken_spec`. Useful for downstream
-    consumers stitching together multiple cascade steps along the
-    e2 / e3 / e4 / e5 paths, where each non-final step is a fall-through
-    leading into the next cascade step. -/
 theorem rlp_phase1_step_ntaken_spec_within (v5 v10 : Word)
     (k : BitVec 12) (offset : BitVec 13) (base target : Word)
     (htarget : (base + 4) + signExtend13 offset = target)
@@ -255,24 +197,6 @@ theorem rlp_phase1_step_ntaken_spec_within (v5 v10 : Word)
         obtain ⟨_, _, _, _, _, hpost⟩ := hpost  -- peel x10
         exact hv5 hpost.2))
 
-theorem rlp_phase1_step_ntaken_spec (v5 v10 : Word)
-    (k : BitVec 12) (offset : BitVec 13) (base target : Word)
-    (htarget : (base + 4) + signExtend13 offset = target)
-    (hv5 : ¬ BitVec.ult v5 ((0 : Word) + signExtend12 k)) :
-    let kVal := (0 : Word) + signExtend12 k
-    let code := rlp_phase1_step_code k offset base
-    cpsTriple base (base + 8) code
-      ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10))
-      ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ kVal)) :=
-  (rlp_phase1_step_ntaken_spec_within v5 v10 k offset base target htarget hv5).to_cpsTriple
-
--- ============================================================================
--- Full classifier code: union of four cascade-step CodeReqs
--- ============================================================================
-
-/-- Code requirement for the full Phase 1 classifier, as a union of the
-    four cascade-step `CodeReq`s. Matches the disjoint-composition
-    structure used in the classifier spec. -/
 abbrev rlp_phase1_classifier_code
     (off_single off_short_str off_long_str off_short_list : BitVec 13)
     (base : Word) : CodeReq :=
@@ -400,7 +324,7 @@ theorem rlp_phase1_classifier_spec_within (v5 v10 : Word) (base : Word)
        (e4, rlp_phase1_exit_post v5 0xF8),
        (e5, rlp_phase1_exit_post v5 0xF8)] := by
   -- Step specs (one per cascade step), with per-step target-address witnesses.
-  -- rlp_phase1_step_spec_plain gives us `cpsBranch base_i (...) e_i (...) (base_i + 8) (...)`.
+  -- rlp_phase1_step_spec_plain gives us `cpsBranchWithin base_i (...) e_i (...) (base_i + 8) (...)`.
   have cs1 := rlp_phase1_step_spec_plain_within v5 v10 0x80 off1 base e1 he1
   have cs2 := rlp_phase1_step_spec_plain_within v5 ((0 : Word) + signExtend12 0x80)
     0xB8 off2 (base + 8) e2 (by
@@ -427,26 +351,26 @@ theorem rlp_phase1_classifier_spec_within (v5 v10 : Word) (base : Word)
   have hd23 : cr2.Disjoint cr3 := step_code_Disjoint_8_at_8 0xB8 0xC0 off2 off3 base
   have hd24 : cr2.Disjoint cr4 := step_code_Disjoint_16_at_8 0xB8 0xF8 off2 off4 base
   have hd34 : cr3.Disjoint cr4 := step_code_Disjoint_8_at_16 0xC0 0xF8 off3 off4 base
-  -- Fallthrough cpsNBranch at e5 (zero steps; refl).
+  -- Fallthrough cpsNBranchWithin at e5 (zero steps; refl).
   have ft : cpsNBranchWithin 0 e5 CodeReq.empty
       ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x10 ↦ᵣ ((0 : Word) + signExtend12 0xF8)))
       [(e5, (.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) **
             (.x10 ↦ᵣ ((0 : Word) + signExtend12 0xF8)))] :=
     cpsNBranchWithin_refl e5 _ _ (fun _ hp => hp)
-  -- Chain step 4 + fallthrough → cpsNBranch at base+24 with [e4, e5].
+  -- Chain step 4 + fallthrough → cpsNBranchWithin at base+24 with [e4, e5].
   have n4 := cpsBranchWithin_cons_cpsNBranchWithin (CodeReq.Disjoint.empty_right cr4) cs4 ft
-  -- Chain step 3 + n4 → cpsNBranch at base+16 with [e3, e4, e5].
+  -- Chain step 3 + n4 → cpsNBranchWithin at base+16 with [e3, e4, e5].
   have hunion_empty : ∀ (cr : CodeReq), cr.union CodeReq.empty = cr := by
     intro cr; funext a; simp only [CodeReq.union, CodeReq.empty]; cases cr a <;> rfl
   have hd3_rest : cr3.Disjoint (cr4.union CodeReq.empty) := by
     rw [hunion_empty]; exact hd34
   have n3 := cpsBranchWithin_cons_cpsNBranchWithin hd3_rest cs3 n4
-  -- Chain step 2 + n3 → cpsNBranch at base+8 with [e2, e3, e4, e5].
+  -- Chain step 2 + n3 → cpsNBranchWithin at base+8 with [e2, e3, e4, e5].
   have hd2_rest : cr2.Disjoint (cr3.union (cr4.union CodeReq.empty)) := by
     rw [hunion_empty]; exact CodeReq.Disjoint.union_right hd23 hd24
   have n2 := cpsBranchWithin_cons_cpsNBranchWithin hd2_rest cs2 n3
-  -- Chain step 1 + n2 → cpsNBranch at base with [e1, e2, e3, e4, e5].
+  -- Chain step 1 + n2 → cpsNBranchWithin at base with [e1, e2, e3, e4, e5].
   have hd1_rest : cr1.Disjoint (cr2.union (cr3.union (cr4.union CodeReq.empty))) := by
     rw [hunion_empty]
     exact CodeReq.Disjoint.union_right hd12 (CodeReq.Disjoint.union_right hd13 hd14)
@@ -461,32 +385,6 @@ theorem rlp_phase1_classifier_spec_within (v5 v10 : Word) (base : Word)
   simp only [rlp_phase1_exit_post_unfold]
   exact hcr_eq ▸ n1
 
-theorem rlp_phase1_classifier_spec (v5 v10 : Word) (base : Word)
-    (off1 off2 off3 off4 : BitVec 13)
-    (e1 e2 e3 e4 e5 : Word)
-    (he1 : (base + 4) + signExtend13 off1 = e1)
-    (he2 : (base + 12) + signExtend13 off2 = e2)
-    (he3 : (base + 20) + signExtend13 off3 = e3)
-    (he4 : (base + 28) + signExtend13 off4 = e4)
-    (he5 : base + 32 = e5) :
-    cpsNBranch base (rlp_phase1_classifier_code off1 off2 off3 off4 base)
-      ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10))
-      [(e1, rlp_phase1_exit_post v5 0x80),
-       (e2, rlp_phase1_exit_post v5 0xB8),
-       (e3, rlp_phase1_exit_post v5 0xC0),
-       (e4, rlp_phase1_exit_post v5 0xF8),
-       (e5, rlp_phase1_exit_post v5 0xF8)] :=
-  (rlp_phase1_classifier_spec_within v5 v10 base off1 off2 off3 off4 e1 e2 e3 e4 e5
-    he1 he2 he3 he4 he5).to_cpsNBranch
-
--- ============================================================================
--- Spec: 5-exit classifier with per-step dispatch facts
--- ============================================================================
-
-/-- Bundled exit postcondition with a dispatch fact: the register-ownership
-    triple (`x10 ↦ᵣ kVal`) conjoined with `⌜fact⌝`. Wrapped `@[irreducible]`
-    to keep `let` bindings out of the classifier theorem statement — see
-    AGENTS.md ("Bundling Postconditions with `let` Bindings"). -/
 @[irreducible]
 def rlp_phase1_exit_post_pure
     (v5 : Word) (k : BitVec 12) (fact : Prop) : Assertion :=
@@ -557,7 +455,7 @@ theorem rlp_phase1_classifier_spec_pure_within (v5 v10 : Word) (base : Word)
   have hd23 : cr2.Disjoint cr3 := step_code_Disjoint_8_at_8 0xB8 0xC0 off2 off3 base
   have hd24 : cr2.Disjoint cr4 := step_code_Disjoint_16_at_8 0xB8 0xF8 off2 off4 base
   have hd34 : cr3.Disjoint cr4 := step_code_Disjoint_8_at_16 0xC0 0xF8 off3 off4 base
-  -- Fallthrough cpsNBranch preserving step 4's pure fact.
+  -- Fallthrough cpsNBranchWithin preserving step 4's pure fact.
   have ft : cpsNBranchWithin 0 e5 CodeReq.empty
       ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x10 ↦ᵣ ((0 : Word) + signExtend12 0xF8)) **
@@ -594,39 +492,6 @@ theorem rlp_phase1_classifier_spec_pure_within (v5 v10 : Word) (base : Word)
   simp only [rlp_phase1_exit_post_pure_unfold]
   exact hcr_eq ▸ n1
 
-theorem rlp_phase1_classifier_spec_pure (v5 v10 : Word) (base : Word)
-    (off1 off2 off3 off4 : BitVec 13)
-    (e1 e2 e3 e4 e5 : Word)
-    (he1 : (base + 4) + signExtend13 off1 = e1)
-    (he2 : (base + 12) + signExtend13 off2 = e2)
-    (he3 : (base + 20) + signExtend13 off3 = e3)
-    (he4 : (base + 28) + signExtend13 off4 = e4)
-    (he5 : base + 32 = e5) :
-    cpsNBranch base (rlp_phase1_classifier_code off1 off2 off3 off4 base)
-      ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10))
-      [(e1, rlp_phase1_exit_post_pure v5 0x80
-              (BitVec.ult v5 ((0 : Word) + signExtend12 0x80))),
-       (e2, rlp_phase1_exit_post_pure v5 0xB8
-              (BitVec.ult v5 ((0 : Word) + signExtend12 0xB8))),
-       (e3, rlp_phase1_exit_post_pure v5 0xC0
-              (BitVec.ult v5 ((0 : Word) + signExtend12 0xC0))),
-       (e4, rlp_phase1_exit_post_pure v5 0xF8
-              (BitVec.ult v5 ((0 : Word) + signExtend12 0xF8))),
-       (e5, rlp_phase1_exit_post_pure v5 0xF8
-              (¬ BitVec.ult v5 ((0 : Word) + signExtend12 0xF8)))] :=
-  (rlp_phase1_classifier_spec_pure_within v5 v10 base off1 off2 off3 off4
-    e1 e2 e3 e4 e5 he1 he2 he3 he4 he5).to_cpsNBranch
-
--- ============================================================================
--- Spec: 5-exit classifier with accumulated dispatch facts
--- ============================================================================
-
-/-- Cascade step with accumulator: frames `rlp_phase1_step_spec` with a pure
-    prefix `⌜Acc⌝` and merges it with the step's own dispatch fact into a
-    single `⌜Acc ∧ …⌝` conjunction.
-
-    Chains cleanly: step `i`'s fall post becomes `regs ** ⌜Acc ∧ ¬ult_i⌝`,
-    which is exactly step `i+1`'s pre shape with `Acc' := Acc ∧ ¬ult_i`. -/
 theorem rlp_phase1_step_spec_acc_within (Acc : Prop) (v5 v10 : Word)
     (k : BitVec 12) (offset : BitVec 13) (base target : Word)
     (htarget : (base + 4) + signExtend13 offset = target) :
@@ -651,22 +516,6 @@ theorem rlp_phase1_step_spec_acc_within (Acc : Prop) (v5 v10 : Word)
     sepConj_merge_pure_and_end3
     hf
 
-theorem rlp_phase1_step_spec_acc (Acc : Prop) (v5 v10 : Word)
-    (k : BitVec 12) (offset : BitVec 13) (base target : Word)
-    (htarget : (base + 4) + signExtend13 offset = target) :
-    let kVal := (0 : Word) + signExtend12 k
-    let code := rlp_phase1_step_code k offset base
-    cpsBranch base code
-      ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10) ** ⌜Acc⌝)
-      target
-        ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ kVal) **
-         ⌜Acc ∧ BitVec.ult v5 kVal⌝)
-      (base + 8)
-        ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ kVal) **
-         ⌜Acc ∧ ¬ BitVec.ult v5 kVal⌝) :=
-  (rlp_phase1_step_spec_acc_within Acc v5 v10 k offset base target htarget).to_cpsBranch
-
-/-- Bundled exit postcondition with a single accumulated dispatch fact. -/
 @[irreducible]
 def rlp_phase1_exit_post_acc
     (v5 : Word) (k : BitVec 12) (Acc : Prop) : Assertion :=
@@ -761,7 +610,7 @@ theorem rlp_phase1_classifier_spec_acc_within (v5 v10 : Word) (base : Word)
   have hd23 : cr2.Disjoint cr3 := step_code_Disjoint_8_at_8 0xB8 0xC0 off2 off3 base
   have hd24 : cr2.Disjoint cr4 := step_code_Disjoint_16_at_8 0xB8 0xF8 off2 off4 base
   have hd34 : cr3.Disjoint cr4 := step_code_Disjoint_8_at_16 0xC0 0xF8 off3 off4 base
-  -- Fallthrough cpsNBranch at e5, carrying cs4's fall-post accumulator.
+  -- Fallthrough cpsNBranchWithin at e5, carrying cs4's fall-post accumulator.
   have ft : cpsNBranchWithin 0 e5 CodeReq.empty
       ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x10 ↦ᵣ ((0 : Word) + signExtend12 0xF8)) **
@@ -798,37 +647,5 @@ theorem rlp_phase1_classifier_spec_acc_within (v5 v10 : Word) (base : Word)
   -- the `@[irreducible]` exit-post def and rewrite the code requirement.
   simp only [rlp_phase1_exit_post_acc_unfold]
   exact hcr_eq ▸ n1
-
-theorem rlp_phase1_classifier_spec_acc (v5 v10 : Word) (base : Word)
-    (off1 off2 off3 off4 : BitVec 13)
-    (e1 e2 e3 e4 e5 : Word)
-    (he1 : (base + 4) + signExtend13 off1 = e1)
-    (he2 : (base + 12) + signExtend13 off2 = e2)
-    (he3 : (base + 20) + signExtend13 off3 = e3)
-    (he4 : (base + 28) + signExtend13 off4 = e4)
-    (he5 : base + 32 = e5) :
-    cpsNBranch base (rlp_phase1_classifier_code off1 off2 off3 off4 base)
-      ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10))
-      [(e1, rlp_phase1_exit_post_acc v5 0x80
-              (BitVec.ult v5 ((0 : Word) + signExtend12 0x80))),
-       (e2, rlp_phase1_exit_post_acc v5 0xB8
-              (¬ BitVec.ult v5 ((0 : Word) + signExtend12 0x80) ∧
-                 BitVec.ult v5 ((0 : Word) + signExtend12 0xB8))),
-       (e3, rlp_phase1_exit_post_acc v5 0xC0
-              ((¬ BitVec.ult v5 ((0 : Word) + signExtend12 0x80) ∧
-                ¬ BitVec.ult v5 ((0 : Word) + signExtend12 0xB8)) ∧
-                 BitVec.ult v5 ((0 : Word) + signExtend12 0xC0))),
-       (e4, rlp_phase1_exit_post_acc v5 0xF8
-              (((¬ BitVec.ult v5 ((0 : Word) + signExtend12 0x80) ∧
-                 ¬ BitVec.ult v5 ((0 : Word) + signExtend12 0xB8)) ∧
-                 ¬ BitVec.ult v5 ((0 : Word) + signExtend12 0xC0)) ∧
-                 BitVec.ult v5 ((0 : Word) + signExtend12 0xF8))),
-       (e5, rlp_phase1_exit_post_acc v5 0xF8
-              (((¬ BitVec.ult v5 ((0 : Word) + signExtend12 0x80) ∧
-                 ¬ BitVec.ult v5 ((0 : Word) + signExtend12 0xB8)) ∧
-                 ¬ BitVec.ult v5 ((0 : Word) + signExtend12 0xC0)) ∧
-                 ¬ BitVec.ult v5 ((0 : Word) + signExtend12 0xF8)))] :=
-  (rlp_phase1_classifier_spec_acc_within v5 v10 base off1 off2 off3 off4
-    e1 e2 e3 e4 e5 he1 he2 he3 he4 he5).to_cpsNBranch
 
 end EvmAsm.Rv64.RLP

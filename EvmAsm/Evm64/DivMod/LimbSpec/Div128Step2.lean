@@ -31,7 +31,7 @@ open EvmAsm.Rv64
     guard to consume.
 
     Note: proof pattern matches the pre-guard (main-branch) step2_spec's first
-    two sub-specs; this sub-lemma exists so the full `divK_div128_step2_spec`
+    two sub-specs; this sub-lemma exists so the full `divK_div128_step2_spec_within`
     can compose it with the new `phase2b_guard_spec` + `prodcheck2_merged_spec`
     without re-stating the init/clamp code subsumption every time. -/
 theorem divK_div128_step2_upto_guard_spec_within
@@ -106,36 +106,8 @@ theorem divK_div128_step2_upto_guard_spec_within
     (fun h hp => by xperm_hyp hp)
     h12
 
-/-- div128 step 2 upto-guard: init + clamp_q0 composition for instrs [30]-[36]. -/
-theorem divK_div128_step2_upto_guard_spec
-    (sp un21 dHi v1Old v5Old v11Old dlo un0 : Word) (base : Word) :
-    let q0 := rv64_divu un21 dHi
-    let rhat2 := un21 - q0 * dHi
-    let hi := q0 >>> (32 : BitVec 6).toNat
-    let q0c := if hi = 0 then q0 else q0 + signExtend12 4095
-    let rhat2c := if hi = 0 then rhat2 else rhat2 + dHi
-    let cr :=
-      CodeReq.union (CodeReq.singleton base (.DIVU .x5 .x7 .x6))
-      (CodeReq.union (CodeReq.singleton (base + 4) (.MUL .x1 .x5 .x6))
-      (CodeReq.union (CodeReq.singleton (base + 8) (.SUB .x11 .x7 .x1))
-      (CodeReq.union (CodeReq.singleton (base + 12) (.SRLI .x1 .x5 32))
-      (CodeReq.union (CodeReq.singleton (base + 16) (.BEQ .x1 .x0 12))
-      (CodeReq.union (CodeReq.singleton (base + 20) (.ADDI .x5 .x5 4095))
-       (CodeReq.singleton (base + 24) (.ADD .x11 .x11 .x6)))))))
-    cpsTriple base (base + 28) cr
-      ((.x7 ↦ᵣ un21) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ v5Old) **
-       (.x1 ↦ᵣ v1Old) ** (.x11 ↦ᵣ v11Old) **
-       (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) **
-       (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0))
-      ((.x7 ↦ᵣ un21) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ q0c) **
-       (.x1 ↦ᵣ hi) ** (.x11 ↦ᵣ rhat2c) **
-       (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) **
-       (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0)) :=
-  (divK_div128_step2_upto_guard_spec_within sp un21 dHi v1Old v5Old v11Old
-    dlo un0 base).to_cpsTriple
-
 /-- div128 step 2 thru-guard: init + clamp_q0 + phase2b_guard composition
-    for instrs [30]-[38]. Produces a cpsBranch at base+28 that either takes
+    for instrs [30]-[38]. Produces a cpsBranchWithin at base+28 that either takes
     the taken path to base+68 (skipping mul-check when rhat2cHi ≠ 0) or
     falls through to base+36 (rhat2cHi = 0) where mul-check will run. -/
 theorem divK_div128_step2_thru_guard_spec_within
@@ -182,7 +154,7 @@ theorem divK_div128_step2_thru_guard_spec_within
       (CodeReq.union (CodeReq.singleton (base + 24) (.ADD .x11 .x11 .x6))
       (CodeReq.union (CodeReq.singleton (base + 28) (.SRLI .x1 .x11 32))
        (CodeReq.singleton (base + 32) (.BNE .x1 .x0 36))))))))) := rfl
-  -- h1 = step2_upto_guard_spec (cpsTriple base..base+28, 7-singleton cr).
+  -- h1 = step2_upto_guard_spec (cpsTripleWithin base..base+28, 7-singleton cr).
   -- Its cr is a STRUCTURAL PREFIX of thru_guard's cr: same 7 singletons,
   -- ending in `singleton (base+24) ADD` vs thru_guard's `union (sing 24 ADD)
   -- (union (sing 28 SRLI) (sing 32 BNE))`. So 6 union_mono_tails + 1
@@ -224,46 +196,8 @@ theorem divK_div128_step2_thru_guard_spec_within
     (fun h hp => by xperm_hyp hp)
     composed
 
-/-- div128 step 2 thru-guard: init + clamp_q0 + phase2b_guard composition
-    for instrs [30]-[38]. -/
-theorem divK_div128_step2_thru_guard_spec
-    (sp un21 dHi v1Old v5Old v11Old dlo un0 : Word) (base : Word) :
-    let q0 := rv64_divu un21 dHi
-    let rhat2 := un21 - q0 * dHi
-    let hi := q0 >>> (32 : BitVec 6).toNat
-    let q0c := if hi = 0 then q0 else q0 + signExtend12 4095
-    let rhat2c := if hi = 0 then rhat2 else rhat2 + dHi
-    let rhat2cHi := rhat2c >>> (32 : BitVec 6).toNat
-    let cr :=
-      CodeReq.union (CodeReq.singleton base (.DIVU .x5 .x7 .x6))
-      (CodeReq.union (CodeReq.singleton (base + 4) (.MUL .x1 .x5 .x6))
-      (CodeReq.union (CodeReq.singleton (base + 8) (.SUB .x11 .x7 .x1))
-      (CodeReq.union (CodeReq.singleton (base + 12) (.SRLI .x1 .x5 32))
-      (CodeReq.union (CodeReq.singleton (base + 16) (.BEQ .x1 .x0 12))
-      (CodeReq.union (CodeReq.singleton (base + 20) (.ADDI .x5 .x5 4095))
-      (CodeReq.union (CodeReq.singleton (base + 24) (.ADD .x11 .x11 .x6))
-      (CodeReq.union (CodeReq.singleton (base + 28) (.SRLI .x1 .x11 32))
-       (CodeReq.singleton (base + 32) (.BNE .x1 .x0 36)))))))))
-    cpsBranch base cr
-      ((.x7 ↦ᵣ un21) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ v5Old) **
-       (.x1 ↦ᵣ v1Old) ** (.x11 ↦ᵣ v11Old) **
-       (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) **
-       (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0))
-      (base + 68)
-        ((.x7 ↦ᵣ un21) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ q0c) **
-         (.x1 ↦ᵣ rhat2cHi) ** (.x11 ↦ᵣ rhat2c) **
-         (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) ** ⌜rhat2cHi ≠ 0⌝ **
-         (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0))
-      (base + 36)
-        ((.x7 ↦ᵣ un21) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ q0c) **
-         (.x1 ↦ᵣ rhat2cHi) ** (.x11 ↦ᵣ rhat2c) **
-         (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) ** ⌜rhat2cHi = 0⌝ **
-         (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0)) :=
-  (divK_div128_step2_thru_guard_spec_within sp un21 dHi v1Old v5Old v11Old
-    dlo un0 base).to_cpsBranch
-
 /-- div128 step 2 branch-merged: composes thru_guard + prodcheck2_merged into
-    a cpsBranch where BOTH legs end at base+68 (guard-fires skips directly;
+    a cpsBranchWithin where BOTH legs end at base+68 (guard-fires skips directly;
     guard-doesn't-fire runs the mul-check). -/
 theorem divK_div128_step2_branch_merged_spec_within
     (sp un21 dHi v1Old v5Old v11Old dlo un0 : Word) (base : Word) :
@@ -328,7 +262,7 @@ theorem divK_div128_step2_branch_merged_spec_within
       (CodeReq.union (CodeReq.singleton (base + 56) (.BLTU .x1 .x7 8))
       (CodeReq.union (CodeReq.singleton (base + 60) (.JAL .x0 8))
        (CodeReq.singleton (base + 64) (.ADDI .x5 .x5 4095))))))))))))))))) := rfl
-  -- h1 = thru_guard_spec (cpsBranch base..base+68|base+36, 9-singleton cr).
+  -- h1 = thru_guard_spec (cpsBranchWithin base..base+68|base+36, 9-singleton cr).
   -- Its cr is a STRUCTURAL PREFIX of branch_merged's 17-cr: same 8 outer unions,
   -- innermost differs (thru_guard = sing 32 BNE, branch_merged = union (sing 32 BNE) REST).
   -- So 8 union_mono_tails + 1 union_mono_left.
@@ -395,59 +329,10 @@ theorem divK_div128_step2_branch_merged_spec_within
     (fun h hp => by xperm_hyp hp)  -- Q_f_final reshaped
     composed
 
-/-- div128 step 2 branch-merged: composes thru_guard + prodcheck2_merged into
-    a cpsBranch where BOTH legs end at base+68. -/
-theorem divK_div128_step2_branch_merged_spec
-    (sp un21 dHi v1Old v5Old v11Old dlo un0 : Word) (base : Word) :
-    let q0 := rv64_divu un21 dHi
-    let rhat2 := un21 - q0 * dHi
-    let hi := q0 >>> (32 : BitVec 6).toNat
-    let q0c := if hi = 0 then q0 else q0 + signExtend12 4095
-    let rhat2c := if hi = 0 then rhat2 else rhat2 + dHi
-    let q0Dlo := q0c * dlo
-    let rhat2Un0 := (rhat2c <<< (32 : BitVec 6).toNat) ||| un0
-    let rhat2cHi := rhat2c >>> (32 : BitVec 6).toNat
-    let q0'Unguarded := if BitVec.ult rhat2Un0 q0Dlo then q0c + signExtend12 4095 else q0c
-    let cr :=
-      CodeReq.union (CodeReq.singleton base (.DIVU .x5 .x7 .x6))
-      (CodeReq.union (CodeReq.singleton (base + 4) (.MUL .x1 .x5 .x6))
-      (CodeReq.union (CodeReq.singleton (base + 8) (.SUB .x11 .x7 .x1))
-      (CodeReq.union (CodeReq.singleton (base + 12) (.SRLI .x1 .x5 32))
-      (CodeReq.union (CodeReq.singleton (base + 16) (.BEQ .x1 .x0 12))
-      (CodeReq.union (CodeReq.singleton (base + 20) (.ADDI .x5 .x5 4095))
-      (CodeReq.union (CodeReq.singleton (base + 24) (.ADD .x11 .x11 .x6))
-      (CodeReq.union (CodeReq.singleton (base + 28) (.SRLI .x1 .x11 32))
-      (CodeReq.union (CodeReq.singleton (base + 32) (.BNE .x1 .x0 36))
-      (CodeReq.union (CodeReq.singleton (base + 36) (.LD .x1 .x12 3952))
-      (CodeReq.union (CodeReq.singleton (base + 40) (.MUL .x7 .x5 .x1))
-      (CodeReq.union (CodeReq.singleton (base + 44) (.SLLI .x1 .x11 32))
-      (CodeReq.union (CodeReq.singleton (base + 48) (.LD .x11 .x12 3944))
-      (CodeReq.union (CodeReq.singleton (base + 52) (.OR .x1 .x1 .x11))
-      (CodeReq.union (CodeReq.singleton (base + 56) (.BLTU .x1 .x7 8))
-      (CodeReq.union (CodeReq.singleton (base + 60) (.JAL .x0 8))
-       (CodeReq.singleton (base + 64) (.ADDI .x5 .x5 4095)))))))))))))))))
-    cpsBranch base cr
-      ((.x7 ↦ᵣ un21) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ v5Old) **
-       (.x1 ↦ᵣ v1Old) ** (.x11 ↦ᵣ v11Old) **
-       (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) **
-       (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0))
-      (base + 68)
-        ((.x7 ↦ᵣ un21) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ q0c) **
-         (.x1 ↦ᵣ rhat2cHi) ** (.x11 ↦ᵣ rhat2c) **
-         (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) ** ⌜rhat2cHi ≠ 0⌝ **
-         (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0))
-      (base + 68)
-        ((.x7 ↦ᵣ q0Dlo) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ q0'Unguarded) **
-         (.x1 ↦ᵣ rhat2Un0) ** (.x11 ↦ᵣ un0) **
-         (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) ** ⌜rhat2cHi = 0⌝ **
-         (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0)) :=
-  (divK_div128_step2_branch_merged_spec_within sp un21 dHi v1Old v5Old v11Old
-    dlo un0 base).to_cpsBranch
-
-/-- Bundled postcondition for `divK_div128_step2_spec`. Hides the
+/-- Bundled postcondition for `divK_div128_step2_spec_within`. Hides the
     13-let chain (Step 2 trial-division intermediates + Phase 2b
     exit selectors) so the theorem signature stays a clean
-    `cpsTriple A B cr P (divKDiv128Step2Post …)` instead of a
+    `cpsTripleWithin A B cr P (divKDiv128Step2Post …)` instead of a
     let-chain immediately preceding the triple. Marked
     `@[irreducible]` so callers see only the bundled assertion;
     `unfold` to expose the lets when bridging downstream. Part of #1139. -/
@@ -470,7 +355,7 @@ def divKDiv128Step2Post (sp un21 dHi dlo un0 : Word) : Assertion :=
   (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) **
   (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0)
 
-/-- Bundled CodeReq for `divK_div128_step2_spec` (instrs [30]-[46], 17
+/-- Bundled CodeReq for `divK_div128_step2_spec_within` (instrs [30]-[46], 17
     singletons). Bundling avoids the let in the theorem signature. -/
 @[irreducible]
 def divKDiv128Step2Code (base : Word) : CodeReq :=
@@ -502,7 +387,7 @@ def divKDiv128Step2Code (base : Word) : CodeReq :=
 
     Postcondition is bundled as `divKDiv128Step2Post`; the per-register
     breakdown is in that def's body. Bundling addresses the "many lets
-    before cpsTriple" elaboration anti-pattern (#1139). -/
+    before cpsTripleWithin" elaboration anti-pattern (#1139). -/
 theorem divK_div128_step2_spec_within
     (sp un21 dHi v1Old v5Old v11Old dlo un0 : Word) (base : Word) :
     cpsTripleWithin 17 base (base + 68) (divKDiv128Step2Code base)
@@ -542,7 +427,7 @@ theorem divK_div128_step2_spec_within
     (CodeReq.union (CodeReq.singleton (base + 56) (.BLTU .x1 .x7 8))
     (CodeReq.union (CodeReq.singleton (base + 60) (.JAL .x0 8))
      (CodeReq.singleton (base + 64) (.ADDI .x5 .x5 4095)))))))))))))))))
-  -- Apply branch_merged to get a cpsBranch with both legs at base+68.
+  -- Apply branch_merged to get a cpsBranchWithin with both legs at base+68.
   have hbr := divK_div128_step2_branch_merged_spec_within sp un21 dHi v1Old v5Old v11Old
     dlo un0 base
   -- Target post as a local assertion.
@@ -645,17 +530,5 @@ theorem divK_div128_step2_spec_within
         (sepConj_mono_right (fun h' hp' => ((sepConj_pure_left h').1 hp').2))))))) hp hP
     xperm_hyp hP')
   exact cpsBranchWithin_merge_same_cr hbr h_t h_f
-
-/-- div128 step 2: trial division q0, clamp, Phase 2b guard, product check.
-    Instrs [30]-[46] (17 instructions). -/
-theorem divK_div128_step2_spec
-    (sp un21 dHi v1Old v5Old v11Old dlo un0 : Word) (base : Word) :
-    cpsTriple base (base + 68) (divKDiv128Step2Code base)
-      ((.x7 ↦ᵣ un21) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ v5Old) **
-       (.x1 ↦ᵣ v1Old) ** (.x11 ↦ᵣ v11Old) **
-       (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) **
-       (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0))
-      (divKDiv128Step2Post sp un21 dHi dlo un0) :=
-  (divK_div128_step2_spec_within sp un21 dHi v1Old v5Old v11Old dlo un0 base).to_cpsTriple
 
 end EvmAsm.Evm64

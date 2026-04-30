@@ -54,20 +54,6 @@ theorem divK_epilogue_load_spec_within (off0 off1 off2 off3 : BitVec 12)
 
 /-- Epilogue load phase: load 4 values from scratch space. 4 instructions.
     Loads q[0..3] (for DIV) or u[0..3] (for MOD) into x5, x6, x7, x10. -/
-theorem divK_epilogue_load_spec (off0 off1 off2 off3 : BitVec 12)
-    (sp r0 r1 r2 r3 v5 v6 v7 v10 : Word) (base : Word) :
-    let cr := divK_epilogue_load_code off0 off1 off2 off3 base
-    cpsTriple base (base + 16) cr
-      (
-       (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x10 ↦ᵣ v10) **
-       ((sp + signExtend12 off0) ↦ₘ r0) ** ((sp + signExtend12 off1) ↦ₘ r1) **
-       ((sp + signExtend12 off2) ↦ₘ r2) ** ((sp + signExtend12 off3) ↦ₘ r3))
-      (
-       (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ r0) ** (.x6 ↦ᵣ r1) ** (.x7 ↦ᵣ r2) ** (.x10 ↦ᵣ r3) **
-       ((sp + signExtend12 off0) ↦ₘ r0) ** ((sp + signExtend12 off1) ↦ₘ r1) **
-       ((sp + signExtend12 off2) ↦ₘ r2) ** ((sp + signExtend12 off3) ↦ₘ r3)) :=
-  (divK_epilogue_load_spec_within off0 off1 off2 off3 sp r0 r1 r2 r3 v5 v6 v7 v10 base).to_cpsTriple
-
 def divK_epilogue_store_prog (jal_off : BitVec 21) : List Instr :=
   [.ADDI .x12 .x12 32, .SD .x12 .x5 0, .SD .x12 .x6 8,
    .SD .x12 .x7 16, .SD .x12 .x10 24, .JAL .x0 jal_off]
@@ -95,20 +81,5 @@ theorem divK_epilogue_store_spec_within (sp : Word) (base : Word)
   have I4 := sd_spec_gen_within .x12 .x10 (sp + 32) r3 m24 24 (base + 16)
   have I5 := jal_x0_spec_gen_within jal_off (base + 20)
   runBlock I0 I1 I2 I3 I4 I5
-
-/-- Epilogue store phase: ADDI sp+32, store 4 values, JAL to exit. 6 instructions. -/
-theorem divK_epilogue_store_spec (sp : Word) (base : Word)
-    (r0 r1 r2 r3 m0 m8 m16 m24 : Word) (jal_off : BitVec 21) :
-    let cr := divK_epilogue_store_code jal_off base
-    cpsTriple base (base + 20 + signExtend21 jal_off) cr
-      (
-       (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ r0) ** (.x6 ↦ᵣ r1) ** (.x7 ↦ᵣ r2) ** (.x10 ↦ᵣ r3) **
-       ((sp + 32) ↦ₘ m0) ** ((sp + 40) ↦ₘ m8) **
-       ((sp + 48) ↦ₘ m16) ** ((sp + 56) ↦ₘ m24))
-      (
-       (.x12 ↦ᵣ (sp + 32)) ** (.x5 ↦ᵣ r0) ** (.x6 ↦ᵣ r1) ** (.x7 ↦ᵣ r2) ** (.x10 ↦ᵣ r3) **
-       ((sp + 32) ↦ₘ r0) ** ((sp + 40) ↦ₘ r1) **
-       ((sp + 48) ↦ₘ r2) ** ((sp + 56) ↦ₘ r3)) :=
-  (divK_epilogue_store_spec_within sp base r0 r1 r2 r3 m0 m8 m16 m24 jal_off).to_cpsTriple
 
 end EvmAsm.Evm64

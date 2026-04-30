@@ -165,43 +165,4 @@ theorem divK_div128_step1_spec_within
     (fun h hp => by xperm_hyp hp)
     h123
 
-/-- div128 step 1: trial division q1, clamp, product check. Instrs [10]-[24].
-    Input: uHi in x7, dHi in x6, un1 in x11, dlo in memory.
-    Output: refined q1 in x10, refined rhat in x7. -/
-theorem divK_div128_step1_spec
-    (sp uHi dHi un1 v1Old v5Old v10Old dlo : Word) (base : Word) :
-    let q1 := rv64_divu uHi dHi
-    let rhat := uHi - q1 * dHi
-    let hi := q1 >>> (32 : BitVec 6).toNat
-    let q1c := if hi = 0 then q1 else q1 + signExtend12 4095
-    let rhatc := if hi = 0 then rhat else rhat + dHi
-    let qDlo := q1c * dlo
-    let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| un1
-    let q1' := if BitVec.ult rhatUn1 qDlo then q1c + signExtend12 4095 else q1c
-    let rhat' := if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc
-    let cr :=
-      CodeReq.union (CodeReq.singleton base (.DIVU .x10 .x7 .x6))
-      (CodeReq.union (CodeReq.singleton (base + 4) (.MUL .x5 .x10 .x6))
-      (CodeReq.union (CodeReq.singleton (base + 8) (.SUB .x7 .x7 .x5))
-      (CodeReq.union (CodeReq.singleton (base + 12) (.SRLI .x5 .x10 32))
-      (CodeReq.union (CodeReq.singleton (base + 16) (.BEQ .x5 .x0 12))
-      (CodeReq.union (CodeReq.singleton (base + 20) (.ADDI .x10 .x10 4095))
-      (CodeReq.union (CodeReq.singleton (base + 24) (.ADD .x7 .x7 .x6))
-      (CodeReq.union (CodeReq.singleton (base + 28) (.LD .x1 .x12 3952))
-      (CodeReq.union (CodeReq.singleton (base + 32) (.MUL .x5 .x10 .x1))
-      (CodeReq.union (CodeReq.singleton (base + 36) (.SLLI .x1 .x7 32))
-      (CodeReq.union (CodeReq.singleton (base + 40) (.OR .x1 .x1 .x11))
-      (CodeReq.union (CodeReq.singleton (base + 44) (.BLTU .x1 .x5 8))
-      (CodeReq.union (CodeReq.singleton (base + 48) (.JAL .x0 12))
-      (CodeReq.union (CodeReq.singleton (base + 52) (.ADDI .x10 .x10 4095))
-       (CodeReq.singleton (base + 56) (.ADD .x7 .x7 .x6)))))))))))))))
-    cpsTriple base (base + 60) cr
-      ((.x7 ↦ᵣ uHi) ** (.x6 ↦ᵣ dHi) ** (.x10 ↦ᵣ v10Old) **
-       (.x5 ↦ᵣ v5Old) ** (.x11 ↦ᵣ un1) ** (.x1 ↦ᵣ v1Old) **
-       (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) ** (sp + signExtend12 3952 ↦ₘ dlo))
-      ((.x7 ↦ᵣ rhat') ** (.x6 ↦ᵣ dHi) ** (.x10 ↦ᵣ q1') **
-       (.x5 ↦ᵣ qDlo) ** (.x11 ↦ᵣ un1) ** (.x1 ↦ᵣ rhatUn1) **
-       (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) ** (sp + signExtend12 3952 ↦ₘ dlo)) :=
-  (divK_div128_step1_spec_within sp uHi dHi un1 v1Old v5Old v10Old dlo base).to_cpsTriple
-
 end EvmAsm.Evm64

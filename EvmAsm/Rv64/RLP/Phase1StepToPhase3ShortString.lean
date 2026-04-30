@@ -35,7 +35,7 @@ open EvmAsm.Rv64.Tactics
 -- Spec
 -- ============================================================================
 
-/-- `cpsTriple` chaining a Phase 1 cascade step (taken at threshold
+/-- `cpsTripleWithin` chaining a Phase 1 cascade step (taken at threshold
     `0xB8`) with the Phase 3 short-string flat-decode emitter.
 
     Pre-state: standard Phase 1 entry plus an `x11` slot to be
@@ -98,25 +98,5 @@ theorem rlp_phase1_step_then_short_string_spec_within
          (.x10 ↦ᵣ ((0 : Word) + signExtend12 (0xB8 : BitVec 12))))
         (by pcFree) ph3)
   exact cpsTripleWithin_seq hd ph1' ph3'
-
-theorem rlp_phase1_step_then_short_string_spec
-    (v5 v10 v11Old v13 : Word)
-    (offset : BitVec 13)
-    (step_base target : Word)
-    (htarget : (step_base + 4) + signExtend13 offset = target)
-    (hv5 : BitVec.ult v5 ((0 : Word) + signExtend12 0xB8))
-    (hd  : (rlp_phase1_step_code 0xB8 offset step_base).Disjoint
-            (CodeReq.ofProg target rlp_phase3_short_string_prog)) :
-    cpsTriple step_base (target + 8)
-      ((rlp_phase1_step_code 0xB8 offset step_base).union
-         (CodeReq.ofProg target rlp_phase3_short_string_prog))
-      ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10) **
-        (.x11 ↦ᵣ v11Old) ** (.x13 ↦ᵣ v13))
-      ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) **
-        (.x10 ↦ᵣ ((0 : Word) + signExtend12 (0xB8 : BitVec 12))) **
-        (.x11 ↦ᵣ (v5 + signExtend12 (-(0x80 : BitVec 12)))) **
-        (.x13 ↦ᵣ (v13 + signExtend12 (1 : BitVec 12)))) :=
-  (rlp_phase1_step_then_short_string_spec_within v5 v10 v11Old v13 offset
-    step_base target htarget hv5 hd).to_cpsTriple
 
 end EvmAsm.Rv64.RLP

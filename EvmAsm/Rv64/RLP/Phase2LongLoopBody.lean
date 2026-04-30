@@ -16,13 +16,13 @@
   The `back` offset is a parameter; the caller chooses it so the taken
   branch lands at the loop header.
 
-  The spec is a `cpsBranch` at the loop-body entry:
+  The spec is a `cpsBranchWithin` at the loop-body entry:
     * taken      → PC = `(base + 20) + signExtend13 back`,  ⌜cnt' ≠ 0⌝
     * not taken  → PC = `base + 24`,                        ⌜cnt' = 0⌝
   where `cnt' = cnt + signExtend12 (-1 : BitVec 12)`.
 
   Full loop closure (invariant over iterations) is a follow-up; this
-  file provides the per-iteration `cpsBranch` that that closure will
+  file provides the per-iteration `cpsBranchWithin` that that closure will
   unfold.
 -/
 
@@ -242,26 +242,5 @@ theorem rlp_phase2_long_loop_body_spec_within
         simp only [CodeReq.union, hcr])
       bne_framed
   exact cpsTripleWithin_seq_cpsBranchWithin hd_iter_bne iter' bne_ext
-
-/-- `cpsBranch` spec for one pass through the long-form length-loop body. -/
-theorem rlp_phase2_long_loop_body_spec
-    (len ptr cnt v12Old wordVal dwordAddr : Word)
-    (base : Word) (back : BitVec 13)
-    (halign : alignToDword ptr = dwordAddr)
-    (hvalid : isValidByteAccess ptr = true) :
-    let byteZext := (extractByte wordVal (byteOffset ptr)).zeroExtend 64
-    let cnt'      := cnt + signExtend12 (-1 : BitVec 12)
-    cpsBranch base (CodeReq.ofProg base (rlp_phase2_long_loop_body_prog back))
-      ((.x11 ↦ᵣ len) ** (.x13 ↦ᵣ ptr) ** (.x14 ↦ᵣ cnt) **
-       (.x12 ↦ᵣ v12Old) ** (.x0 ↦ᵣ (0 : Word)) **
-       (dwordAddr ↦ₘ wordVal))
-      ((base + 20) + signExtend13 back)
-        (rlp_phase2_long_loop_body_post len ptr cnt byteZext wordVal
-           dwordAddr (cnt' ≠ 0))
-      (base + 24)
-        (rlp_phase2_long_loop_body_post len ptr cnt byteZext wordVal
-           dwordAddr (cnt' = 0)) :=
-  (rlp_phase2_long_loop_body_spec_within len ptr cnt v12Old wordVal dwordAddr
-    base back halign hvalid).to_cpsBranch
 
 end EvmAsm.Rv64.RLP

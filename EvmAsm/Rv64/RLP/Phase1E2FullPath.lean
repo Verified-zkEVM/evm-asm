@@ -9,7 +9,7 @@
     * `rlp_phase3_short_string_spec` at `e2_target` — emits the
       payload length in `x11` and advances the data pointer in `x13`.
 
-  Result: a single `cpsTriple base (e2_target + 8)` witnessing that
+  Result: a single `cpsTripleWithin base (e2_target + 8)` witnessing that
   whenever `v5 ∈ [0x80, 0xB8)`, executing the Phase 1 cascade from
   `base` runs through the e2 fall-through-then-taken path, then
   immediately into the Phase 3 short-string emitter.
@@ -28,7 +28,7 @@ open EvmAsm.Rv64.Tactics
 -- Spec
 -- ============================================================================
 
-/-- `cpsTriple base (e2_target + 8)` for the full Phase 1 e2
+/-- `cpsTripleWithin base (e2_target + 8)` for the full Phase 1 e2
     (short-string) path: cascade prefix to `e2_target`, then Phase 3
     short-string emit.
 
@@ -94,35 +94,6 @@ theorem rlp_phase1_e2_full_path_spec_within
         (by pcFree) ph3)
   exact cpsTripleWithin_seq hd_phase3 prefix' ph3'
 
-theorem rlp_phase1_e2_full_path_spec
-    (v5 v10 v11Old v13 : Word)
-    (off1 off2 : BitVec 13) (base e2_target : Word)
-    (htarget : (base + 8 + 4) + signExtend13 off2 = e2_target)
-    (hv5_lo : ¬ BitVec.ult v5 ((0 : Word) + signExtend12 (0x80 : BitVec 12)))
-    (hv5_hi : BitVec.ult v5 ((0 : Word) + signExtend12 (0xB8 : BitVec 12)))
-    (hd_steps : (rlp_phase1_step_code 0x80 off1 base).Disjoint
-                  (rlp_phase1_step_code 0xB8 off2 (base + 8)))
-    (hd_phase3 : ((rlp_phase1_step_code 0x80 off1 base).union
-                    (rlp_phase1_step_code 0xB8 off2 (base + 8))).Disjoint
-                 (CodeReq.ofProg e2_target rlp_phase3_short_string_prog)) :
-    cpsTriple base (e2_target + 8)
-      (((rlp_phase1_step_code 0x80 off1 base).union
-          (rlp_phase1_step_code 0xB8 off2 (base + 8))).union
-         (CodeReq.ofProg e2_target rlp_phase3_short_string_prog))
-      ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10) **
-        (.x11 ↦ᵣ v11Old) ** (.x13 ↦ᵣ v13))
-      ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) **
-        (.x10 ↦ᵣ ((0 : Word) + signExtend12 (0xB8 : BitVec 12))) **
-        (.x11 ↦ᵣ (v5 + signExtend12 (-(0x80 : BitVec 12)))) **
-        (.x13 ↦ᵣ (v13 + signExtend12 (1 : BitVec 12)))) :=
-  (rlp_phase1_e2_full_path_spec_within v5 v10 v11Old v13 off1 off2 base
-    e2_target htarget hv5_lo hv5_hi hd_steps hd_phase3).to_cpsTriple
-
-/-- Convenience variant of `rlp_phase1_e2_full_path_spec` that
-    discharges the cascade-step disjointness obligation internally
-    via `rlp_phase1_step_code_disjoint_8`. The caller still has to
-    supply the Phase 1↔Phase 3 disjointness `hd_phase3` since
-    `e2_target` is not derivable from `base`. -/
 theorem rlp_phase1_e2_full_path_spec'_within
     (v5 v10 v11Old v13 : Word)
     (off1 off2 : BitVec 13) (base e2_target : Word)
@@ -146,27 +117,5 @@ theorem rlp_phase1_e2_full_path_spec'_within
     htarget hv5_lo hv5_hi
     (rlp_phase1_step_code_disjoint_8 0x80 0xB8 off1 off2 base)
     hd_phase3
-
-theorem rlp_phase1_e2_full_path_spec'
-    (v5 v10 v11Old v13 : Word)
-    (off1 off2 : BitVec 13) (base e2_target : Word)
-    (htarget : (base + 8 + 4) + signExtend13 off2 = e2_target)
-    (hv5_lo : ¬ BitVec.ult v5 ((0 : Word) + signExtend12 (0x80 : BitVec 12)))
-    (hv5_hi : BitVec.ult v5 ((0 : Word) + signExtend12 (0xB8 : BitVec 12)))
-    (hd_phase3 : ((rlp_phase1_step_code 0x80 off1 base).union
-                    (rlp_phase1_step_code 0xB8 off2 (base + 8))).Disjoint
-                 (CodeReq.ofProg e2_target rlp_phase3_short_string_prog)) :
-    cpsTriple base (e2_target + 8)
-      (((rlp_phase1_step_code 0x80 off1 base).union
-          (rlp_phase1_step_code 0xB8 off2 (base + 8))).union
-         (CodeReq.ofProg e2_target rlp_phase3_short_string_prog))
-      ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10) **
-        (.x11 ↦ᵣ v11Old) ** (.x13 ↦ᵣ v13))
-      ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) **
-        (.x10 ↦ᵣ ((0 : Word) + signExtend12 (0xB8 : BitVec 12))) **
-        (.x11 ↦ᵣ (v5 + signExtend12 (-(0x80 : BitVec 12)))) **
-        (.x13 ↦ᵣ (v13 + signExtend12 (1 : BitVec 12)))) :=
-  (rlp_phase1_e2_full_path_spec'_within v5 v10 v11Old v13 off1 off2 base
-    e2_target htarget hv5_lo hv5_hi hd_phase3).to_cpsTriple
 
 end EvmAsm.Rv64.RLP

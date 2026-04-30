@@ -46,7 +46,7 @@ example : rlp_phase3_single_byte_prog.length = 1 := rfl
 -- Spec
 -- ============================================================================
 
-/-- `cpsTriple` spec for the single-byte length emitter. After the one
+/-- `cpsTripleWithin` spec for the single-byte length emitter. After the one
     instruction, `x11 = 1`. `x0` stays zero (RISC-V invariant); the caller
     is expected to keep its data pointer (typically in `x13`) framed
     through this step.
@@ -73,16 +73,6 @@ theorem rlp_phase3_single_byte_spec_within (v11Old : Word) (base : Word) :
     (fun _ hp => by xperm_hyp hp)
     h
 
-theorem rlp_phase3_single_byte_spec (v11Old : Word) (base : Word) :
-    cpsTriple base (base + 4)
-      (CodeReq.ofProg base rlp_phase3_single_byte_prog)
-      ((.x11 ↦ᵣ v11Old) ** (.x0 ↦ᵣ (0 : Word)))
-      ((.x11 ↦ᵣ (1 : Word)) ** (.x0 ↦ᵣ (0 : Word))) :=
-  (rlp_phase3_single_byte_spec_within v11Old base).to_cpsTriple
-
-/-! ## Concrete sanity check -/
-
--- Confirms the one-instruction encoding matches the program definition.
 example : rlp_phase3_single_byte_prog =
     [.ADDI .x11 .x0 1] := rfl
 

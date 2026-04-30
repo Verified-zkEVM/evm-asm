@@ -9,7 +9,7 @@
     * `rlp_phase1_step_taken_spec` at `(base + 8, k = 0xB8)` — second
       cascade step assumed taken (caller has `ult v5 0xB8`).
 
-  Result: a single `cpsTriple` from the Phase 1 entry `base` to the
+  Result: a single `cpsTripleWithin` from the Phase 1 entry `base` to the
   e2 target, witnessing that the cascade traverses the first two steps
   along the e2 path under both dispatch hypotheses.
 
@@ -30,7 +30,7 @@ open EvmAsm.Rv64.Tactics
 -- Spec
 -- ============================================================================
 
-/-- `cpsTriple base e2_target` for the Phase 1 cascade prefix on the
+/-- `cpsTripleWithin base e2_target` for the Phase 1 cascade prefix on the
     e2 (short-string) path: first cascade step at `base` (k = 0x80,
     not taken), then second cascade step at `base + 8` (k = 0xB8,
     taken).
@@ -60,27 +60,6 @@ theorem rlp_phase1_cascade_prefix_e2_spec_within (v5 v10 : Word)
     (base + 8) e2_target htarget hv5_hi
   exact cpsTripleWithin_seq hd step1 step2
 
-theorem rlp_phase1_cascade_prefix_e2_spec (v5 v10 : Word)
-    (off1 off2 : BitVec 13) (base e2_target : Word)
-    (htarget : (base + 8 + 4) + signExtend13 off2 = e2_target)
-    (hv5_lo : ¬ BitVec.ult v5 ((0 : Word) + signExtend12 (0x80 : BitVec 12)))
-    (hv5_hi : BitVec.ult v5 ((0 : Word) + signExtend12 (0xB8 : BitVec 12)))
-    (hd : (rlp_phase1_step_code 0x80 off1 base).Disjoint
-            (rlp_phase1_step_code 0xB8 off2 (base + 8))) :
-    let kVal2 := (0 : Word) + signExtend12 (0xB8 : BitVec 12)
-    cpsTriple base e2_target
-      ((rlp_phase1_step_code 0x80 off1 base).union
-         (rlp_phase1_step_code 0xB8 off2 (base + 8)))
-      ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10))
-      ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ kVal2)) :=
-  (rlp_phase1_cascade_prefix_e2_spec_within v5 v10 off1 off2 base e2_target
-    htarget hv5_lo hv5_hi hd).to_cpsTriple
-
-/-- Convenience variant of `rlp_phase1_cascade_prefix_e2_spec` that
-    discharges the cascade-step disjointness obligation internally
-    via `rlp_phase1_step_code_disjoint_8` (#1364). The user only
-    supplies the two dispatch hypotheses on `v5` and the `htarget`
-    PC equation. -/
 theorem rlp_phase1_cascade_prefix_e2_spec'_within (v5 v10 : Word)
     (off1 off2 : BitVec 13) (base e2_target : Word)
     (htarget : (base + 8 + 4) + signExtend13 off2 = e2_target)
@@ -95,19 +74,5 @@ theorem rlp_phase1_cascade_prefix_e2_spec'_within (v5 v10 : Word)
   rlp_phase1_cascade_prefix_e2_spec_within v5 v10 off1 off2 base e2_target
     htarget hv5_lo hv5_hi
     (rlp_phase1_step_code_disjoint_8 0x80 0xB8 off1 off2 base)
-
-theorem rlp_phase1_cascade_prefix_e2_spec' (v5 v10 : Word)
-    (off1 off2 : BitVec 13) (base e2_target : Word)
-    (htarget : (base + 8 + 4) + signExtend13 off2 = e2_target)
-    (hv5_lo : ¬ BitVec.ult v5 ((0 : Word) + signExtend12 (0x80 : BitVec 12)))
-    (hv5_hi : BitVec.ult v5 ((0 : Word) + signExtend12 (0xB8 : BitVec 12))) :
-    let kVal2 := (0 : Word) + signExtend12 (0xB8 : BitVec 12)
-    cpsTriple base e2_target
-      ((rlp_phase1_step_code 0x80 off1 base).union
-         (rlp_phase1_step_code 0xB8 off2 (base + 8)))
-      ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10))
-      ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ kVal2)) :=
-  (rlp_phase1_cascade_prefix_e2_spec'_within v5 v10 off1 off2 base e2_target
-    htarget hv5_lo hv5_hi).to_cpsTriple
 
 end EvmAsm.Rv64.RLP

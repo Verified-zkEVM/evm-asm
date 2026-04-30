@@ -3,10 +3,10 @@
 
   CPS specs for the two q-clamp sections of the `div128` trial-division
   subroutine:
-    * `divK_div128_clamp_q1_merged_spec` — Instrs [13]-[16]. SRLI test
+    * `divK_div128_clamp_q1_merged_spec_within` — Instrs [13]-[16]. SRLI test
       q1 >= 2^32, BEQ skips correction when q1 < 2^32, else ADDI
       q1-- and ADD rhat += dHi. Both branches merge at base + 16.
-    * `divK_div128_clamp_q0_merged_spec` — the same shape on x5/x11 for
+    * `divK_div128_clamp_q0_merged_spec_within` — the same shape on x5/x11 for
       q0/rhat2.
 
   Twenty-third chunk of the `LimbSpec.lean` split tracked by issue #312.
@@ -114,24 +114,6 @@ theorem divK_div128_clamp_q1_merged_spec_within (q1 rhat dHi v5Old : Word) (base
       (fun h hp => hp)
       (fun h hp => by xperm_hyp hp) full
 
-/-- div128 clamp q1: test q1 >= 2^32, conditionally decrement and adjust rhat.
-    Instrs [13]-[16]. Both BEQ paths merge at base+16. -/
-theorem divK_div128_clamp_q1_merged_spec (q1 rhat dHi v5Old : Word) (base : Word) :
-    let hi := q1 >>> (32 : BitVec 6).toNat
-    let q1' := if hi = 0 then q1 else q1 + signExtend12 4095
-    let rhat' := if hi = 0 then rhat else rhat + dHi
-    let cr :=
-      CodeReq.union (CodeReq.singleton base (.SRLI .x5 .x10 32))
-      (CodeReq.union (CodeReq.singleton (base + 4) (.BEQ .x5 .x0 12))
-      (CodeReq.union (CodeReq.singleton (base + 8) (.ADDI .x10 .x10 4095))
-       (CodeReq.singleton (base + 12) (.ADD .x7 .x7 .x6))))
-    cpsTriple base (base + 16) cr
-      ((.x10 ↦ᵣ q1) ** (.x7 ↦ᵣ rhat) ** (.x6 ↦ᵣ dHi) **
-       (.x5 ↦ᵣ v5Old) ** (.x0 ↦ᵣ 0))
-      ((.x10 ↦ᵣ q1') ** (.x7 ↦ᵣ rhat') ** (.x6 ↦ᵣ dHi) **
-       (.x5 ↦ᵣ hi) ** (.x0 ↦ᵣ 0)) :=
-  (divK_div128_clamp_q1_merged_spec_within q1 rhat dHi v5Old base).to_cpsTriple
-
 /-- div128 clamp q0: test q0 >= 2^32, conditionally decrement and adjust rhat2.
     Instrs [33]-[36]. Both BEQ paths merge at base+16. -/
 theorem divK_div128_clamp_q0_merged_spec_within (q0 rhat2 dHi v1Old : Word) (base : Word) :
@@ -217,23 +199,5 @@ theorem divK_div128_clamp_q0_merged_spec_within (q0 rhat2 dHi v1Old : Word) (bas
     exact cpsTripleWithin_weaken
       (fun h hp => hp)
       (fun h hp => by xperm_hyp hp) full
-
-/-- div128 clamp q0: test q0 >= 2^32, conditionally decrement and adjust rhat2.
-    Instrs [33]-[36]. Both BEQ paths merge at base+16. -/
-theorem divK_div128_clamp_q0_merged_spec (q0 rhat2 dHi v1Old : Word) (base : Word) :
-    let hi := q0 >>> (32 : BitVec 6).toNat
-    let q0' := if hi = 0 then q0 else q0 + signExtend12 4095
-    let rhat2' := if hi = 0 then rhat2 else rhat2 + dHi
-    let cr :=
-      CodeReq.union (CodeReq.singleton base (.SRLI .x1 .x5 32))
-      (CodeReq.union (CodeReq.singleton (base + 4) (.BEQ .x1 .x0 12))
-      (CodeReq.union (CodeReq.singleton (base + 8) (.ADDI .x5 .x5 4095))
-       (CodeReq.singleton (base + 12) (.ADD .x11 .x11 .x6))))
-    cpsTriple base (base + 16) cr
-      ((.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ rhat2) ** (.x6 ↦ᵣ dHi) **
-       (.x1 ↦ᵣ v1Old) ** (.x0 ↦ᵣ 0))
-      ((.x5 ↦ᵣ q0') ** (.x11 ↦ᵣ rhat2') ** (.x6 ↦ᵣ dHi) **
-       (.x1 ↦ᵣ hi) ** (.x0 ↦ᵣ 0)) :=
-  (divK_div128_clamp_q0_merged_spec_within q0 rhat2 dHi v1Old base).to_cpsTriple
 
 end EvmAsm.Evm64

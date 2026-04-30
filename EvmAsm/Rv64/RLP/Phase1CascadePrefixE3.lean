@@ -11,7 +11,7 @@
     * `rlp_phase1_step_taken_spec` at `(base + 16, k = 0xC0)` —
       third cascade step assumed taken (caller has `ult v5 0xC0`).
 
-  Result: a single `cpsTriple` from the Phase 1 entry `base` to the
+  Result: a single `cpsTripleWithin` from the Phase 1 entry `base` to the
   e3 target, witnessing that the cascade traverses the first three
   steps along the e3 path under all three dispatch hypotheses.
 
@@ -32,7 +32,7 @@ open EvmAsm.Rv64.Tactics
 -- Spec
 -- ============================================================================
 
-/-- `cpsTriple base e3_target` for the Phase 1 cascade prefix on the
+/-- `cpsTripleWithin base e3_target` for the Phase 1 cascade prefix on the
     e3 (long-string) path: cascade steps 1, 2 fall through, step 3
     takes its branch.
 
@@ -78,33 +78,6 @@ theorem rlp_phase1_cascade_prefix_e3_spec_within (v5 v10 : Word)
     CodeReq.Disjoint.union_right hd12 hd13
   exact cpsTripleWithin_seq hd1_23 step1 step23
 
-theorem rlp_phase1_cascade_prefix_e3_spec (v5 v10 : Word)
-    (off1 off2 off3 : BitVec 13) (base e3_target : Word)
-    (htarget : (base + 16 + 4) + signExtend13 off3 = e3_target)
-    (hv5_lo  : ¬ BitVec.ult v5 ((0 : Word) + signExtend12 (0x80 : BitVec 12)))
-    (hv5_mid : ¬ BitVec.ult v5 ((0 : Word) + signExtend12 (0xB8 : BitVec 12)))
-    (hv5_hi  : BitVec.ult v5 ((0 : Word) + signExtend12 (0xC0 : BitVec 12)))
-    (hd12 : (rlp_phase1_step_code 0x80 off1 base).Disjoint
-              (rlp_phase1_step_code 0xB8 off2 (base + 8)))
-    (hd13 : (rlp_phase1_step_code 0x80 off1 base).Disjoint
-              (rlp_phase1_step_code 0xC0 off3 (base + 16)))
-    (hd23 : (rlp_phase1_step_code 0xB8 off2 (base + 8)).Disjoint
-              (rlp_phase1_step_code 0xC0 off3 (base + 16))) :
-    let kVal3 := (0 : Word) + signExtend12 (0xC0 : BitVec 12)
-    cpsTriple base e3_target
-      ((rlp_phase1_step_code 0x80 off1 base).union
-        ((rlp_phase1_step_code 0xB8 off2 (base + 8)).union
-          (rlp_phase1_step_code 0xC0 off3 (base + 16))))
-      ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10))
-      ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ kVal3)) :=
-  (rlp_phase1_cascade_prefix_e3_spec_within v5 v10 off1 off2 off3 base e3_target
-    htarget hv5_lo hv5_mid hv5_hi hd12 hd13 hd23).to_cpsTriple
-
-/-- Convenience variant of `rlp_phase1_cascade_prefix_e3_spec` that
-    discharges all three pairwise cascade-step disjointness obligations
-    internally via the `rlp_phase1_step_code_disjoint_*` helpers
-    (#1364). The user only supplies the dispatch hypotheses on `v5`
-    and the `htarget` PC equation. -/
 theorem rlp_phase1_cascade_prefix_e3_spec'_within (v5 v10 : Word)
     (off1 off2 off3 : BitVec 13) (base e3_target : Word)
     (htarget : (base + 16 + 4) + signExtend13 off3 = e3_target)
@@ -123,21 +96,5 @@ theorem rlp_phase1_cascade_prefix_e3_spec'_within (v5 v10 : Word)
     (rlp_phase1_step_code_disjoint_8 0x80 0xB8 off1 off2 base)
     (rlp_phase1_step_code_disjoint_16 0x80 0xC0 off1 off3 base)
     (rlp_phase1_step_code_disjoint_8_at_8 0xB8 0xC0 off2 off3 base)
-
-theorem rlp_phase1_cascade_prefix_e3_spec' (v5 v10 : Word)
-    (off1 off2 off3 : BitVec 13) (base e3_target : Word)
-    (htarget : (base + 16 + 4) + signExtend13 off3 = e3_target)
-    (hv5_lo  : ¬ BitVec.ult v5 ((0 : Word) + signExtend12 (0x80 : BitVec 12)))
-    (hv5_mid : ¬ BitVec.ult v5 ((0 : Word) + signExtend12 (0xB8 : BitVec 12)))
-    (hv5_hi  : BitVec.ult v5 ((0 : Word) + signExtend12 (0xC0 : BitVec 12))) :
-    let kVal3 := (0 : Word) + signExtend12 (0xC0 : BitVec 12)
-    cpsTriple base e3_target
-      ((rlp_phase1_step_code 0x80 off1 base).union
-        ((rlp_phase1_step_code 0xB8 off2 (base + 8)).union
-          (rlp_phase1_step_code 0xC0 off3 (base + 16))))
-      ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10))
-      ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ kVal3)) :=
-  (rlp_phase1_cascade_prefix_e3_spec'_within v5 v10 off1 off2 off3 base
-    e3_target htarget hv5_lo hv5_mid hv5_hi).to_cpsTriple
 
 end EvmAsm.Rv64.RLP

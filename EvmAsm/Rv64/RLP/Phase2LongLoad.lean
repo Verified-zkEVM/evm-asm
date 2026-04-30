@@ -64,7 +64,7 @@ theorem rlp_phase2_long_load_acc_post_unfold
      (.x12 ↦ᵣ byteZext) ** (dwordAddr ↦ₘ wordVal)) := by
   delta rlp_phase2_long_load_acc_post; rfl
 
-/-- `cpsTriple` spec for the load-and-accumulate step.
+/-- `cpsTripleWithin` spec for the load-and-accumulate step.
 
     The caller owns the doubleword at `dwordAddr` containing the byte at
     `ptr` (established via `halign`, `hvalid`). After execution, `x11`
@@ -136,18 +136,5 @@ theorem rlp_phase2_long_load_acc_spec_within (len ptr v12Old wordVal dwordAddr :
       (cpsTripleWithin_frameR
         ((.x13 ↦ᵣ ptr) ** (dwordAddr ↦ₘ wordVal)) (by pcFree) acc)
   exact cpsTripleWithin_seq hd lbu_framed acc_framed
-
-theorem rlp_phase2_long_load_acc_spec (len ptr v12Old wordVal dwordAddr : Word)
-    (base : Word)
-    (halign : alignToDword ptr = dwordAddr)
-    (hvalid : isValidByteAccess ptr = true) :
-    let byteZext := (extractByte wordVal (byteOffset ptr)).zeroExtend 64
-    cpsTriple base (base + 12)
-      (CodeReq.ofProg base rlp_phase2_long_load_acc_prog)
-      ((.x11 ↦ᵣ len) ** (.x13 ↦ᵣ ptr) ** (.x12 ↦ᵣ v12Old) **
-       (dwordAddr ↦ₘ wordVal))
-      (rlp_phase2_long_load_acc_post len ptr byteZext wordVal dwordAddr) :=
-  (rlp_phase2_long_load_acc_spec_within len ptr v12Old wordVal dwordAddr base
-    halign hvalid).to_cpsTriple
 
 end EvmAsm.Rv64.RLP

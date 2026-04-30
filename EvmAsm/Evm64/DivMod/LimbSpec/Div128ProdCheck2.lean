@@ -3,7 +3,7 @@
 
   CPS spec for instrs [37]-[44] of the `div128` subroutine — the second
   product-check section:
-    * `divK_div128_prodcheck2_merged_spec` — 8 instructions: LD + MUL +
+    * `divK_div128_prodcheck2_merged_spec_within` — 8 instructions: LD + MUL +
       SLLI + LD + OR (body) + BLTU + JAL (branch) + ADDI (correction).
       If `rhat2*2^32 + un0 < q0*dLo`, BLTU takes the correction path
       (ADDI `q0--`); otherwise JAL skips the correction. Both branches
@@ -55,7 +55,7 @@ def div128Quot_phase2b_q0' (q0c rhat2c dLo div_un0 : Word) : Word :=
     if BitVec.ult rhat2Un0 q0Dlo then q0c + signExtend12 4095 else q0c
   else q0c
 
-/-- Phase 2b guard: 2-instruction cpsBranch that skips the Phase 2b mul-check
+/-- Phase 2b guard: 2-instruction cpsBranchWithin that skips the Phase 2b mul-check
     when `rhat2c ≥ 2^32`. Per Knuth TAOCP §4.3.1 Step D3 ("repeat this test
     if r̂ < b") — when `rhat2c ≥ 2^32`, the 64-bit `<< 32` in `rhat2Un0`
     truncates, so the downstream `BLTU` mul-check would false-positively
@@ -73,7 +73,7 @@ def div128Quot_phase2b_q0' (q0c rhat2c dLo div_un0 : Word) : Word :=
     - **Fall-through** (rhat2cHi = 0): continues to `base + 8`, Phase 2b
       mul-check runs normally.
 
-    Used by `divK_div128_step2_guarded_spec` (future) to compose
+    Used by `divK_div128_step2_guarded_spec_within` (future) to compose
     clamp_q0 + guard + prodcheck2 into a 17-instruction step2 block. -/
 theorem divK_div128_phase2b_guard_spec_within
     (sp rhat2c v1Old : Word) (base : Word) (guard_off : BitVec 13) :
@@ -90,7 +90,7 @@ theorem divK_div128_phase2b_guard_spec_within
         ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ rhat2c) ** (.x1 ↦ᵣ rhat2cHi) **
          (.x0 ↦ᵣ 0) ** ⌜rhat2cHi = 0⌝) := by
   intro rhat2cHi cr
-  -- Step 1: SRLI .x1 .x11 32  (cpsTriple base → base+4)
+  -- Step 1: SRLI .x1 .x11 32  (cpsTripleWithin base → base+4)
   have hsrli_raw := srli_spec_gen_within .x1 .x11 v1Old rhat2c 32 base (by nofun)
   -- Extend to the full cr (which includes the BNE).
   have hcr_srli : ∀ a i,
@@ -104,7 +104,7 @@ theorem divK_div128_phase2b_guard_spec_within
   have hsrli_framed := cpsTripleWithin_frameR
     ((.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0))
     (by pcFree) hsrli
-  -- Step 2: BNE .x1 .x0 guard_off  (cpsBranch base+4 → ...)
+  -- Step 2: BNE .x1 .x0 guard_off  (cpsBranchWithin base+4 → ...)
   have hbne_raw := bne_spec_gen_within .x1 .x0 guard_off rhat2cHi (0 : Word) (base + 4)
   have hcr_bne : ∀ a i,
       CodeReq.singleton (base + 4) (.BNE .x1 .x0 guard_off) a = some i → cr a = some i := by
@@ -119,7 +119,7 @@ theorem divK_div128_phase2b_guard_spec_within
   have hbne_framed := cpsBranchWithin_frameR
     ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ rhat2c))
     (by pcFree) hbne
-  -- Compose SRLI (cpsTriple) + BNE (cpsBranch).
+  -- Compose SRLI (cpsTripleWithin) + BNE (cpsBranchWithin).
   have composed := cpsTripleWithin_seq_cpsBranchWithin_perm_same_cr
     (fun h hp => by xperm_hyp hp) hsrli_framed hbne_framed
   -- Weaken to the stated pre/post shapes (atom permutation, `base + 4 + 4 = base + 8`).
@@ -131,24 +131,6 @@ theorem divK_div128_phase2b_guard_spec_within
     (fun h hp => by xperm_hyp hp)
     composed
 
-/-- Phase 2b guard: 2-instruction cpsBranch that skips the Phase 2b mul-check
-    when `rhat2c ≥ 2^32`. -/
-theorem divK_div128_phase2b_guard_spec
-    (sp rhat2c v1Old : Word) (base : Word) (guard_off : BitVec 13) :
-    let rhat2cHi := rhat2c >>> (32 : BitVec 6).toNat
-    let cr :=
-      CodeReq.union (CodeReq.singleton base (.SRLI .x1 .x11 32))
-        (CodeReq.singleton (base + 4) (.BNE .x1 .x0 guard_off))
-    cpsBranch base cr
-      ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ rhat2c) ** (.x1 ↦ᵣ v1Old) ** (.x0 ↦ᵣ 0))
-      ((base + 4) + signExtend13 guard_off)
-        ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ rhat2c) ** (.x1 ↦ᵣ rhat2cHi) **
-         (.x0 ↦ᵣ 0) ** ⌜rhat2cHi ≠ 0⌝)
-      (base + 8)
-        ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ rhat2c) ** (.x1 ↦ᵣ rhat2cHi) **
-         (.x0 ↦ᵣ 0) ** ⌜rhat2cHi = 0⌝) :=
-  (divK_div128_phase2b_guard_spec_within sp rhat2c v1Old base guard_off).to_cpsBranch
-
 /-- div128 product check 2: compute q0*dLo vs rhat2*2^32+un0, conditionally correct q0.
     Instrs [37]-[44]. Both BLTU paths merge at base+32. -/
 theorem divK_div128_prodcheck2_merged_spec_within
@@ -157,7 +139,7 @@ theorem divK_div128_prodcheck2_merged_spec_within
     let rhat2Un0 := (rhat2 <<< (32 : BitVec 6).toNat) ||| un0
     -- NOTE: describes the UNGUARDED 8-instruction Phase 2b mul-check.
     -- The `div128Quot_phase2b_q0'` helper (guarded form) is used at
-    -- the step2 level, where the upstream `phase2b_guard_spec` cpsBranch
+    -- the step2 level, where the upstream `phase2b_guard_spec` cpsBranchWithin
     -- gates this mul-check.
     let q0' := if BitVec.ult rhat2Un0 q0Dlo then q0 + signExtend12 4095 else q0
     let cr :=
@@ -292,34 +274,5 @@ theorem divK_div128_prodcheck2_merged_spec_within
       (cpsTripleWithin_seq_perm_same_cr
         (fun _ hp => hp)
         ntaken_clean hjal_framed)
-
-/-- div128 product check 2: compute q0*dLo vs rhat2*2^32+un0, conditionally correct q0.
-    Instrs [37]-[44]. Both BLTU paths merge at base+32. -/
-theorem divK_div128_prodcheck2_merged_spec
-    (sp q0 rhat2 v1Old v7Old dlo un0 : Word) (base : Word) :
-    let q0Dlo := q0 * dlo
-    let rhat2Un0 := (rhat2 <<< (32 : BitVec 6).toNat) ||| un0
-    -- NOTE: describes the UNGUARDED 8-instruction Phase 2b mul-check.
-    -- The `div128Quot_phase2b_q0'` helper (guarded form) is used at
-    -- the step2 level, where the upstream `phase2b_guard_spec` cpsBranch
-    -- gates this mul-check.
-    let q0' := if BitVec.ult rhat2Un0 q0Dlo then q0 + signExtend12 4095 else q0
-    let cr :=
-      CodeReq.union (CodeReq.singleton base (.LD .x1 .x12 3952))
-      (CodeReq.union (CodeReq.singleton (base + 4) (.MUL .x7 .x5 .x1))
-      (CodeReq.union (CodeReq.singleton (base + 8) (.SLLI .x1 .x11 32))
-      (CodeReq.union (CodeReq.singleton (base + 12) (.LD .x11 .x12 3944))
-      (CodeReq.union (CodeReq.singleton (base + 16) (.OR .x1 .x1 .x11))
-      (CodeReq.union (CodeReq.singleton (base + 20) (.BLTU .x1 .x7 8))
-      (CodeReq.union (CodeReq.singleton (base + 24) (.JAL .x0 8))
-       (CodeReq.singleton (base + 28) (.ADDI .x5 .x5 4095))))))))
-    cpsTriple base (base + 32) cr
-      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ rhat2) **
-       (.x7 ↦ᵣ v7Old) ** (.x1 ↦ᵣ v1Old) **
-       (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0))
-      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ q0') ** (.x11 ↦ᵣ un0) **
-       (.x7 ↦ᵣ q0Dlo) ** (.x1 ↦ᵣ rhat2Un0) **
-       (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0)) :=
-  (divK_div128_prodcheck2_merged_spec_within sp q0 rhat2 v1Old v7Old dlo un0 base).to_cpsTriple
 
 end EvmAsm.Evm64

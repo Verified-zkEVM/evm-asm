@@ -6,7 +6,7 @@
   `n` (the index of the highest non-zero limb of the divisor):
     * `divK_phaseB_cascade_step_code` — a 2-instruction `CodeReq.union`
       of the ADDI and the BNE.
-    * `divK_phaseB_cascade_step_spec` — full `cpsBranch` spec: in either
+    * `divK_phaseB_cascade_step_spec_within` — full `cpsBranchWithin` spec: in either
       branch `x5 = nVal`; the taken branch jumps when `rx ≠ 0`.
 
   Eleventh chunk of the `LimbSpec.lean` split tracked by issue #312. The
@@ -94,22 +94,5 @@ theorem divK_phaseB_cascade_step_spec_within (nVal : BitVec 12) (rx : Reg) (chec
     (fun h hp => by xperm_hyp hp)
     (cpsTripleWithin_seq_cpsBranchWithin_perm_same_cr
       (fun h hp => by xperm_hyp hp) hbody hbne_ext)
-
-/-- Single cascade step: load nVal into x5, then BNE on rx vs x0.
-    Taken: rx ≠ 0 (limb is nonzero), branch to target with x5 = nVal.
-    Not taken: rx = 0, fall through with x5 = nVal. -/
-theorem divK_phaseB_cascade_step_spec (nVal : BitVec 12) (rx : Reg) (check v5 : Word)
-    (bne_off : BitVec 13) (base : Word) :
-    let n := (0 : Word) + signExtend12 nVal
-    let cr := divK_phaseB_cascade_step_code nVal rx bne_off base
-    let post :=
-      (.x5 ↦ᵣ n) ** (.x0 ↦ᵣ (0 : Word)) ** (rx ↦ᵣ check)
-    cpsBranch base cr
-      ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (rx ↦ᵣ check))
-      -- Taken: check ≠ 0
-      ((base + 4) + signExtend13 bne_off) post
-      -- Not taken: check = 0
-      (base + 8) post :=
-  (divK_phaseB_cascade_step_spec_within nVal rx check v5 bne_off base).to_cpsBranch
 
 end EvmAsm.Evm64

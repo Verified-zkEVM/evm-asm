@@ -60,7 +60,7 @@ theorem rlp_phase2_long_acc_post_unfold {len byte : Word} :
     ((.x11 ↦ᵣ ((len <<< 8) + byte)) ** (.x12 ↦ᵣ byte)) := by
   delta rlp_phase2_long_acc_post; rfl
 
-/-- `cpsTriple` spec for the big-endian accumulation step. Composes SLLI
+/-- `cpsTripleWithin` spec for the big-endian accumulation step. Composes SLLI
     (mutates x11 in place) with ADD rd=rs1 (folds x12 into x11).
 
     The caller must supply a `byte` value whose high 56 bits are zero (the
@@ -98,16 +98,6 @@ theorem rlp_phase2_long_acc_spec_within (len byte : Word) (base : Word) :
   rw [bv6_toNat_8] at s1 s2
   runBlock s1 s2
 
-theorem rlp_phase2_long_acc_spec (len byte : Word) (base : Word) :
-    cpsTriple base (base + 8)
-      (CodeReq.ofProg base rlp_phase2_long_acc_prog)
-      ((.x11 ↦ᵣ len) ** (.x12 ↦ᵣ byte))
-      (rlp_phase2_long_acc_post len byte) :=
-  (rlp_phase2_long_acc_spec_within len byte base).to_cpsTriple
-
-/-! ## Concrete sanity checks -/
-
--- One accumulation step starting from 0: length = 0 * 256 + byte = byte.
 example : (((0 : Word) <<< 8) + (0x42 : Word)) = (0x42 : Word) := by decide
 
 -- Accumulating 2 bytes (0x01, 0x00) gives 0x100 = 256.

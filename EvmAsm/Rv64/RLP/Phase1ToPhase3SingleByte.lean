@@ -9,7 +9,7 @@
     * `rlp_phase3_single_byte_spec` at the e1 target — materializes
       `length = 1` in `x11`.
 
-  Result: a single `cpsTriple` from the Phase 1 base (where the
+  Result: a single `cpsTripleWithin` from the Phase 1 base (where the
   classifier starts) through the e1 target to the e1 exit
   (`target + 4`), under the disjointness assumption that the Phase 1
   step code at `[base, base+8)` does not overlap the Phase 3
@@ -28,7 +28,7 @@ open EvmAsm.Rv64.Tactics
 -- Spec
 -- ============================================================================
 
-/-- `cpsTriple` for the e1 path: Phase 1 first cascade step (taken)
+/-- `cpsTripleWithin` for the e1 path: Phase 1 first cascade step (taken)
     composed with Phase 3 single-byte length emitter.
 
     Pre-state: standard Phase 1 entry plus an arbitrary `x11` slot to be
@@ -89,40 +89,14 @@ theorem rlp_phase1_e1_then_single_byte_spec_within
         (by pcFree) ph3)
   exact cpsTripleWithin_seq hd ph1' ph3'
 
-theorem rlp_phase1_e1_then_single_byte_spec
-    (v5 v10 v11Old : Word)
-    (offset : BitVec 13)
-    (base target : Word)
-    (htarget : (base + 4) + signExtend13 offset = target)
-    (hv5 : BitVec.ult v5 ((0 : Word) + signExtend12 0x80))
-    (hd  : (rlp_phase1_step_code 0x80 offset base).Disjoint
-            (CodeReq.ofProg target rlp_phase3_single_byte_prog)) :
-    cpsTriple base (target + 4)
-      ((rlp_phase1_step_code 0x80 offset base).union
-         (CodeReq.ofProg target rlp_phase3_single_byte_prog))
-      ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10) **
-        (.x11 ↦ᵣ v11Old))
-      ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) **
-        (.x10 ↦ᵣ ((0 : Word) + signExtend12 (0x80 : BitVec 12))) **
-        (.x11 ↦ᵣ (1 : Word))) :=
-  (rlp_phase1_e1_then_single_byte_spec_within v5 v10 v11Old offset base target
-    htarget hv5 hd).to_cpsTriple
-
-/-! ## Concrete-byte specializations of the e1 path -/
-
-/-- Specialization at `v5 = 0x42` (a representative single-byte payload
-    in the canonical e1 range `[0, 0x80)`). The dispatch hypothesis
-    `BitVec.ult 0x42 0x80` is discharged internally via `decide`, so the
-    caller need only supply the `htarget` PC equation and the code
-    disjointness `hd`. -/
-theorem rlp_phase1_e1_then_single_byte_spec_at_0x42
+theorem rlp_phase1_e1_then_single_byte_spec_at_0x42_within
     (v10 v11Old : Word)
     (offset : BitVec 13)
     (base target : Word)
     (htarget : (base + 4) + signExtend13 offset = target)
     (hd  : (rlp_phase1_step_code 0x80 offset base).Disjoint
             (CodeReq.ofProg target rlp_phase3_single_byte_prog)) :
-    cpsTriple base (target + 4)
+    cpsTripleWithin 3 base (target + 4)
       ((rlp_phase1_step_code 0x80 offset base).union
          (CodeReq.ofProg target rlp_phase3_single_byte_prog))
       ((.x5 ↦ᵣ (0x42 : Word)) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10) **
@@ -130,21 +104,21 @@ theorem rlp_phase1_e1_then_single_byte_spec_at_0x42
       ((.x5 ↦ᵣ (0x42 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
         (.x10 ↦ᵣ ((0 : Word) + signExtend12 (0x80 : BitVec 12))) **
         (.x11 ↦ᵣ (1 : Word))) :=
-  rlp_phase1_e1_then_single_byte_spec
+  rlp_phase1_e1_then_single_byte_spec_within
     (0x42 : Word) v10 v11Old offset base target htarget
     (by decide) hd
 
 /-- Specialization at `v5 = 0x00` (the smallest canonical single-byte
     payload). The dispatch hypothesis `BitVec.ult 0 0x80` is discharged
     internally via `decide`. -/
-theorem rlp_phase1_e1_then_single_byte_spec_at_0x00
+theorem rlp_phase1_e1_then_single_byte_spec_at_0x00_within
     (v10 v11Old : Word)
     (offset : BitVec 13)
     (base target : Word)
     (htarget : (base + 4) + signExtend13 offset = target)
     (hd  : (rlp_phase1_step_code 0x80 offset base).Disjoint
             (CodeReq.ofProg target rlp_phase3_single_byte_prog)) :
-    cpsTriple base (target + 4)
+    cpsTripleWithin 3 base (target + 4)
       ((rlp_phase1_step_code 0x80 offset base).union
          (CodeReq.ofProg target rlp_phase3_single_byte_prog))
       ((.x5 ↦ᵣ (0x00 : Word)) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10) **
@@ -152,7 +126,7 @@ theorem rlp_phase1_e1_then_single_byte_spec_at_0x00
       ((.x5 ↦ᵣ (0x00 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
         (.x10 ↦ᵣ ((0 : Word) + signExtend12 (0x80 : BitVec 12))) **
         (.x11 ↦ᵣ (1 : Word))) :=
-  rlp_phase1_e1_then_single_byte_spec
+  rlp_phase1_e1_then_single_byte_spec_within
     (0x00 : Word) v10 v11Old offset base target htarget
     (by decide) hd
 
@@ -160,14 +134,14 @@ theorem rlp_phase1_e1_then_single_byte_spec_at_0x00
     payload, just below the short-string threshold). The dispatch
     hypothesis `BitVec.ult 0x7F 0x80` is discharged internally via
     `decide`. -/
-theorem rlp_phase1_e1_then_single_byte_spec_at_0x7F
+theorem rlp_phase1_e1_then_single_byte_spec_at_0x7F_within
     (v10 v11Old : Word)
     (offset : BitVec 13)
     (base target : Word)
     (htarget : (base + 4) + signExtend13 offset = target)
     (hd  : (rlp_phase1_step_code 0x80 offset base).Disjoint
             (CodeReq.ofProg target rlp_phase3_single_byte_prog)) :
-    cpsTriple base (target + 4)
+    cpsTripleWithin 3 base (target + 4)
       ((rlp_phase1_step_code 0x80 offset base).union
          (CodeReq.ofProg target rlp_phase3_single_byte_prog))
       ((.x5 ↦ᵣ (0x7F : Word)) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10) **
@@ -175,7 +149,7 @@ theorem rlp_phase1_e1_then_single_byte_spec_at_0x7F
       ((.x5 ↦ᵣ (0x7F : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
         (.x10 ↦ᵣ ((0 : Word) + signExtend12 (0x80 : BitVec 12))) **
         (.x11 ↦ᵣ (1 : Word))) :=
-  rlp_phase1_e1_then_single_byte_spec
+  rlp_phase1_e1_then_single_byte_spec_within
     (0x7F : Word) v10 v11Old offset base target htarget
     (by decide) hd
 

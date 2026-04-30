@@ -131,35 +131,4 @@ theorem rlp_phase2_long_loop_five_byte_spec_within
     (fun h hp => by xperm_hyp hp)
     composed
 
-/-- `cpsTriple` spec for the five-iteration (lenLen = 5) closure. -/
-theorem rlp_phase2_long_loop_five_byte_spec
-    (len ptr v12Old wordVal dwordAddr : Word)
-    (base : Word) (back : BitVec 13)
-    (halign1 : alignToDword ptr = dwordAddr)
-    (halign2 : alignToDword (ptr + 1) = dwordAddr)
-    (halign3 : alignToDword (ptr + 2) = dwordAddr)
-    (halign4 : alignToDword (ptr + 3) = dwordAddr)
-    (halign5 : alignToDword (ptr + 4) = dwordAddr)
-    (hvalid1 : isValidByteAccess ptr = true)
-    (hvalid2 : isValidByteAccess (ptr + 1) = true)
-    (hvalid3 : isValidByteAccess (ptr + 2) = true)
-    (hvalid4 : isValidByteAccess (ptr + 3) = true)
-    (hvalid5 : isValidByteAccess (ptr + 4) = true)
-    (hback : (base + 20) + signExtend13 back = base) :
-    cpsTriple base (base + 24)
-      (CodeReq.ofProg base (rlp_phase2_long_loop_body_prog back))
-      ((.x11 ↦ᵣ len) ** (.x13 ↦ᵣ ptr) ** (.x14 ↦ᵣ (5 : Word)) **
-       (.x12 ↦ᵣ v12Old) ** (.x0 ↦ᵣ (0 : Word)) **
-       (dwordAddr ↦ₘ wordVal))
-      (rlp_phase2_long_loop_five_byte_post len ptr
-        ((extractByte wordVal (byteOffset ptr)).zeroExtend 64)
-        ((extractByte wordVal (byteOffset (ptr + 1))).zeroExtend 64)
-        ((extractByte wordVal (byteOffset (ptr + 2))).zeroExtend 64)
-        ((extractByte wordVal (byteOffset (ptr + 3))).zeroExtend 64)
-        ((extractByte wordVal (byteOffset (ptr + 4))).zeroExtend 64)
-        wordVal dwordAddr) :=
-  (rlp_phase2_long_loop_five_byte_spec_within len ptr v12Old wordVal dwordAddr
-    base back halign1 halign2 halign3 halign4 halign5 hvalid1 hvalid2 hvalid3
-    hvalid4 hvalid5 hback).to_cpsTriple
-
 end EvmAsm.Rv64.RLP

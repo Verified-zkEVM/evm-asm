@@ -3,7 +3,7 @@
 
   CPS specs for the count-leading-zeros subcircuit used by the Knuth
   Algorithm D shift computation:
-    * `divK_clz_init_spec` — single ADDI x6 x0 0 that zeros the counter.
+    * `divK_clz_init_spec_within` — single ADDI x6 x0 0 that zeros the counter.
     * `divK_clz_stage_prog` / `_code` — 4-instruction SRLI+BNE+SLLI+ADDI
       stage, parameterized by the per-stage shamt (K/M_s) and count
       increment (M_a).
@@ -45,15 +45,6 @@ theorem divK_clz_init_spec_within (v6 : Word) (base : Word) :
   intro cr
   have I0 := addi_x0_spec_gen_within .x6 v6 0 base (by nofun)
   runBlock I0
-
-/-- CLZ init: set x6 = 0 (count register). -/
-theorem divK_clz_init_spec (v6 : Word) (base : Word) :
-    let cr := CodeReq.singleton base (.ADDI .x6 .x0 0)
-    cpsTriple base (base + 4) cr
-      ((.x6 ↦ᵣ v6) ** (.x0 ↦ᵣ (0 : Word)))
-      ((.x6 ↦ᵣ signExtend12 (0 : BitVec 12)) **
-       (.x0 ↦ᵣ (0 : Word))) :=
-  (divK_clz_init_spec_within v6 base).to_cpsTriple
 
 def divK_clz_stage_prog (K M_s : BitVec 6) (M_a : BitVec 12) : List Instr :=
   [.SRLI .x7 .x5 K, .BNE .x7 .x0 12, .SLLI .x5 .x5 M_s, .ADDI .x6 .x6 M_a]
@@ -113,18 +104,6 @@ theorem divK_clz_stage_taken_spec_within (K M_s : BitVec 6) (M_a : BitVec 12) (v
         (fun h' hp' => ((sepConj_pure_right h').1 hp').1)) h hp
       xperm_hyp hp')
     taken
-
-/-- CLZ stage, taken branch: val >>> K ≠ 0, skip SLLI+ADDI.
-    x5 = val (unchanged), x6 = count (unchanged), x7 = val >>> K. -/
-theorem divK_clz_stage_taken_spec (K M_s : BitVec 6) (M_a : BitVec 12) (val count v7 : Word)
-    (base : Word)
-    (hne : val >>> K.toNat ≠ 0) :
-    let cr := divK_clz_stage_code K M_s M_a base
-    cpsTriple base (base + 16) cr
-      ((.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count) ** (.x7 ↦ᵣ v7) ** (.x0 ↦ᵣ (0 : Word)))
-      ((.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count) **
-              (.x7 ↦ᵣ (val >>> K.toNat)) ** (.x0 ↦ᵣ (0 : Word))) :=
-  (divK_clz_stage_taken_spec_within K M_s M_a val count v7 base hne).to_cpsTriple
 
 /-- CLZ stage, not-taken branch: val >>> K = 0, execute SLLI+ADDI.
     x5 = val <<< M, x6 = count + signExtend12 M, x7 = 0. -/
@@ -192,16 +171,6 @@ theorem divK_clz_stage_ntaken_spec_within (K M_s : BitVec 6) (M_a : BitVec 12) (
 
 /-- CLZ stage, not-taken branch: val >>> K = 0, execute SLLI+ADDI.
     x5 = val <<< M, x6 = count + signExtend12 M, x7 = 0. -/
-theorem divK_clz_stage_ntaken_spec (K M_s : BitVec 6) (M_a : BitVec 12) (val count v7 : Word)
-    (base : Word)
-    (heq : val >>> K.toNat = 0) :
-    let cr := divK_clz_stage_code K M_s M_a base
-    cpsTriple base (base + 16) cr
-      ((.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count) ** (.x7 ↦ᵣ v7) ** (.x0 ↦ᵣ (0 : Word)))
-      ((.x5 ↦ᵣ (val <<< M_s.toNat)) ** (.x6 ↦ᵣ (count + signExtend12 M_a)) **
-              (.x7 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word))) :=
-  (divK_clz_stage_ntaken_spec_within K M_s M_a val count v7 base heq).to_cpsTriple
-
 def divK_clz_last_prog : List Instr :=
   [.SRLI .x7 .x5 63, .BNE .x7 .x0 8, .ADDI .x6 .x6 1]
 
@@ -259,17 +228,6 @@ theorem divK_clz_last_taken_spec_within (val count v7 : Word) (base : Word)
         (fun h' hp' => ((sepConj_pure_right h').1 hp').1)) h hp
       xperm_hyp hp')
     taken
-
-/-- CLZ last stage, taken: val >>> 63 ≠ 0 (MSB is 1), skip ADDI.
-    x5 unchanged, x6 unchanged, x7 = val >>> 63. -/
-theorem divK_clz_last_taken_spec (val count v7 : Word) (base : Word)
-    (hne : val >>> 63 ≠ 0) :
-    let cr := divK_clz_last_code base
-    cpsTriple base (base + 12) cr
-      ((.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count) ** (.x7 ↦ᵣ v7) ** (.x0 ↦ᵣ (0 : Word)))
-      ((.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count) **
-              (.x7 ↦ᵣ (val >>> 63)) ** (.x0 ↦ᵣ (0 : Word))) :=
-  (divK_clz_last_taken_spec_within val count v7 base hne).to_cpsTriple
 
 /-- CLZ last stage, ntaken: val >>> 63 = 0, execute ADDI.
     x5 unchanged, x6 = count + 1, x7 = 0. -/
@@ -333,16 +291,5 @@ theorem divK_clz_last_ntaken_spec_within (val count v7 : Word) (base : Word)
     (fun h hp => hp)
     (fun h hp => by rw [heq] at hp; xperm_hyp hp)
     full
-
-/-- CLZ last stage, ntaken: val >>> 63 = 0, execute ADDI.
-    x5 unchanged, x6 = count + 1, x7 = 0. -/
-theorem divK_clz_last_ntaken_spec (val count v7 : Word) (base : Word)
-    (heq : val >>> 63 = 0) :
-    let cr := divK_clz_last_code base
-    cpsTriple base (base + 12) cr
-      ((.x5 ↦ᵣ val) ** (.x6 ↦ᵣ count) ** (.x7 ↦ᵣ v7) ** (.x0 ↦ᵣ (0 : Word)))
-      ((.x5 ↦ᵣ val) ** (.x6 ↦ᵣ (count + signExtend12 (1 : BitVec 12))) **
-              (.x7 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word))) :=
-  (divK_clz_last_ntaken_spec_within val count v7 base heq).to_cpsTriple
 
 end EvmAsm.Evm64

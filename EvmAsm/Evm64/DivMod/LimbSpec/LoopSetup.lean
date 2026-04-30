@@ -3,9 +3,9 @@
 
   CPS specs for the Knuth Algorithm D main-loop setup:
     * `divK_loopSetup_code` — `CodeReq.ofProg base (divK_loopSetup bltOff)`.
-    * `divK_loopSetup_body_spec` — 3-instruction body (LD n, ADDI x1 = 4,
+    * `divK_loopSetup_body_spec_within` — 3-instruction body (LD n, ADDI x1 = 4,
       SUB x1 = 4 - n).
-    * `divK_loopSetup_spec` — full `cpsBranch` wrapping body + BLT that
+    * `divK_loopSetup_spec_within` — full `cpsBranchWithin` wrapping body + BLT that
       skips the loop when `m = 4 - n` is negative.
 
   Twelfth chunk of the `LimbSpec.lean` split tracked by issue #312. The
@@ -48,21 +48,6 @@ theorem divK_loopSetup_body_spec_within (sp n v1 v5 : Word)
   have I2 := sub_spec_gen_rd_eq_rs1_within .x1 .x5
     (signExtend12 (4 : BitVec 12)) n (base + 8) (by nofun)
   runBlock I0 I1 I2
-
-/-- Loop setup body: load n, compute m = 4 - n. 3 straight-line instructions.
-    Uses signExtend12 4 directly to match addi_x0_spec_gen + sub_spec_gen output. -/
-theorem divK_loopSetup_body_spec (sp n v1 v5 : Word)
-    (bltOff : BitVec 13) (base : Word) :
-    let cr := divK_loopSetup_code bltOff base
-    cpsTriple base (base + 12) cr
-      (
-       (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x1 ↦ᵣ v1) ** (.x0 ↦ᵣ (0 : Word)) **
-       ((sp + signExtend12 3984) ↦ₘ n))
-      (
-       (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ n) **
-       (.x1 ↦ᵣ (signExtend12 (4 : BitVec 12) - n)) ** (.x0 ↦ᵣ (0 : Word)) **
-       ((sp + signExtend12 3984) ↦ₘ n)) :=
-  (divK_loopSetup_body_spec_within sp n v1 v5 bltOff base).to_cpsTriple
 
 /-- Loop setup: load n, compute m = 4-n, BLT if m < 0 (skip loop).
     Taken: m < 0 (n > 4, impossible in practice but handled).
@@ -122,25 +107,5 @@ theorem divK_loopSetup_spec_within (sp n v1 v5 : Word)
     (fun h hp => by xperm_hyp hp)
     (cpsTripleWithin_seq_cpsBranchWithin_perm_same_cr
       (fun h hp => by xperm_hyp hp) hbody hblt_ext)
-
-/-- Loop setup: load n, compute m = 4-n, BLT if m < 0 (skip loop).
-    Taken: m < 0 (n > 4, impossible in practice but handled).
-    Not taken: m >= 0, proceed to loop. -/
-theorem divK_loopSetup_spec (sp n v1 v5 : Word)
-    (bltOff : BitVec 13) (base : Word) :
-    let m := signExtend12 (4 : BitVec 12) - n
-    let cr := divK_loopSetup_code bltOff base
-    let post :=
-      (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ n) ** (.x1 ↦ᵣ m) ** (.x0 ↦ᵣ (0 : Word)) **
-      ((sp + signExtend12 3984) ↦ₘ n)
-    cpsBranch base cr
-      (
-       (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x1 ↦ᵣ v1) ** (.x0 ↦ᵣ (0 : Word)) **
-       ((sp + signExtend12 3984) ↦ₘ n))
-      -- Taken: m < 0 (signed)
-      ((base + 12) + signExtend13 bltOff) post
-      -- Not taken: m >= 0
-      (base + 16) post :=
-  (divK_loopSetup_spec_within sp n v1 v5 bltOff base).to_cpsBranch
 
 end EvmAsm.Evm64

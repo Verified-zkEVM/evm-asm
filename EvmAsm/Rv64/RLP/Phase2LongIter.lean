@@ -104,7 +104,7 @@ private theorem iter_addrs_distinct (base : Word) :
 -- Main spec
 -- ============================================================================
 
-/-- `cpsTriple` spec for one iteration of the long-form length loop.
+/-- `cpsTripleWithin` spec for one iteration of the long-form length loop.
 
     Composes five instruction specs — LBU + SLLI + ADD + ADDI (ptr) +
     ADDI (counter) — each framed with the registers and memory not
@@ -288,18 +288,5 @@ theorem rlp_phase2_long_iter_spec_within
   have t345 := cpsTripleWithin_seq hd3 s3 t45
   have t2345 := cpsTripleWithin_seq hd2 s2 t345
   exact cpsTripleWithin_seq hd1 s1 t2345
-
-theorem rlp_phase2_long_iter_spec
-    (len ptr cnt v12Old wordVal dwordAddr : Word) (base : Word)
-    (halign : alignToDword ptr = dwordAddr)
-    (hvalid : isValidByteAccess ptr = true) :
-    let byteZext := (extractByte wordVal (byteOffset ptr)).zeroExtend 64
-    cpsTriple base (base + 20)
-      (CodeReq.ofProg base rlp_phase2_long_iter_prog)
-      ((.x11 ↦ᵣ len) ** (.x13 ↦ᵣ ptr) ** (.x14 ↦ᵣ cnt) **
-       (.x12 ↦ᵣ v12Old) ** (dwordAddr ↦ₘ wordVal))
-      (rlp_phase2_long_iter_post len ptr cnt byteZext wordVal dwordAddr) :=
-  (rlp_phase2_long_iter_spec_within len ptr cnt v12Old wordVal dwordAddr base
-    halign hvalid).to_cpsTriple
 
 end EvmAsm.Rv64.RLP

@@ -73,7 +73,7 @@ theorem rlp_phase2_short_length_post_unfold {v5 : Word} {k : BitVec 12} :
     ((.x5 ↦ᵣ v5) ** (.x11 ↦ᵣ (v5 + signExtend12 (-k)))) := by
   delta rlp_phase2_short_length_post; rfl
 
-/-- `cpsTriple` spec for the short-form length extractor. Given the prefix
+/-- `cpsTripleWithin` spec for the short-form length extractor. Given the prefix
     byte in `x5` and arbitrary old value in `x11`, the program writes
     `v5 - k` (via `signExtend12 (-k)`) into `x11` and leaves `x5` unchanged.
 
@@ -93,13 +93,5 @@ theorem rlp_phase2_short_length_spec_within (v5 v11Old : Word)
   rw [show CodeReq.ofProg base (rlp_phase2_short_length_prog k) =
       CodeReq.singleton base (.ADDI .x11 .x5 (-k)) from CodeReq.ofProg_singleton]
   runBlock
-
-theorem rlp_phase2_short_length_spec (v5 v11Old : Word)
-    (k : BitVec 12) (base : Word) :
-    cpsTriple base (base + 4)
-      (CodeReq.ofProg base (rlp_phase2_short_length_prog k))
-      ((.x5 ↦ᵣ v5) ** (.x11 ↦ᵣ v11Old))
-      (rlp_phase2_short_length_post v5 k) :=
-  (rlp_phase2_short_length_spec_within v5 v11Old k base).to_cpsTriple
 
 end EvmAsm.Rv64.RLP

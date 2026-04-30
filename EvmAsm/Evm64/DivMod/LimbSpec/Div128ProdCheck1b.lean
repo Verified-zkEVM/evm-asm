@@ -15,8 +15,8 @@
     then q1' := q1c - 1, rhat' := rhatc + dHi.
   - otherwise q1' := q1c, rhat' := rhatc.
 
-  The merged spec is shaped as a `cpsBranch` (mirroring
-  `divK_div128_step2_branch_merged_spec`) where both legs converge at
+  The merged spec is shaped as a `cpsBranchWithin` (mirroring
+  `divK_div128_step2_branch_merged_spec_within`) where both legs converge at
   `base + 40` but carry different register postconditions for `.x5`
   and `.x1` (the body's mul-check temporaries).
 
@@ -33,8 +33,8 @@ namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
 
-/-- **Sub-stub A — guard portion**: `[25..26]` SRLI + BNE (cpsBranch).
-    Mirrors `divK_div128_phase2b_guard_spec` but with `.x7` as the rhat
+/-- **Sub-stub A — guard portion**: `[25..26]` SRLI + BNE (cpsBranchWithin).
+    Mirrors `divK_div128_phase2b_guard_spec_within` but with `.x7` as the rhat
     register (Phase 2b uses `.x11`).
 
     Branches:
@@ -68,7 +68,7 @@ theorem divK_div128_prodcheck1b_guard_spec_within
   have hsrli_framed := cpsTripleWithin_frameR
     ((.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0))
     (by pcFree) hsrli
-  -- Step 2: BNE .x1 .x0 guard_off  (cpsBranch base+4 → ...)
+  -- Step 2: BNE .x1 .x0 guard_off  (cpsBranchWithin base+4 → ...)
   have hbne_raw := bne_spec_gen_within .x1 .x0 guard_off rhatHi (0 : Word) (base + 4)
   have hcr_bne : ∀ a i,
       CodeReq.singleton (base + 4) (.BNE .x1 .x0 guard_off) a = some i → cr a = some i := by
@@ -93,24 +93,7 @@ theorem divK_div128_prodcheck1b_guard_spec_within
     (fun h hp => by xperm_hyp hp)
     composed
 
-/-- Compatibility wrapper forgetting the explicit guard bound. -/
-theorem divK_div128_prodcheck1b_guard_spec
-    (sp rhat v1Old : Word) (base : Word) (guard_off : BitVec 13) :
-    let rhatHi := rhat >>> (32 : BitVec 6).toNat
-    let cr :=
-      CodeReq.union (CodeReq.singleton base (.SRLI .x1 .x7 32))
-        (CodeReq.singleton (base + 4) (.BNE .x1 .x0 guard_off))
-    cpsBranch base cr
-      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ rhat) ** (.x1 ↦ᵣ v1Old) ** (.x0 ↦ᵣ 0))
-      ((base + 4) + signExtend13 guard_off)
-        ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ rhat) ** (.x1 ↦ᵣ rhatHi) **
-         (.x0 ↦ᵣ 0) ** ⌜rhatHi ≠ 0⌝)
-      (base + 8)
-        ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ rhat) ** (.x1 ↦ᵣ rhatHi) **
-         (.x0 ↦ᵣ 0) ** ⌜rhatHi = 0⌝) :=
-  (divK_div128_prodcheck1b_guard_spec_within sp rhat v1Old base guard_off).to_cpsBranch
-
-/-- Bundled CodeReq for `divK_div128_prodcheck1b_body_spec` (8 singletons,
+/-- Bundled CodeReq for `divK_div128_prodcheck1b_body_spec_within` (8 singletons,
     instrs [27..34]). `@[irreducible]` to keep let-bindings out of the
     theorem signature. -/
 @[irreducible]
@@ -124,7 +107,7 @@ def divKDiv128Prodcheck1bBodyCode (base : Word) : CodeReq :=
   (CodeReq.union (CodeReq.singleton (base + 24) (.ADDI .x10 .x10 4095))
    (CodeReq.singleton (base + 28) (.ADD .x7 .x7 .x6))))))))
 
-/-- Bundled precondition for `divK_div128_prodcheck1b_body_spec`. -/
+/-- Bundled precondition for `divK_div128_prodcheck1b_body_spec_within`. -/
 @[irreducible]
 def divKDiv128Prodcheck1bBodyPre (sp q1c rhatc dHi un1 v1Old v5Old dlo : Word) :
     Assertion :=
@@ -132,7 +115,7 @@ def divKDiv128Prodcheck1bBodyPre (sp q1c rhatc dHi un1 v1Old v5Old dlo : Word) :
   (.x5 ↦ᵣ v5Old) ** (.x1 ↦ᵣ v1Old) ** (.x6 ↦ᵣ dHi) **
   (sp + signExtend12 3952 ↦ₘ dlo)
 
-/-- Bundled postcondition for `divK_div128_prodcheck1b_body_spec`. -/
+/-- Bundled postcondition for `divK_div128_prodcheck1b_body_spec_within`. -/
 @[irreducible]
 def divKDiv128Prodcheck1bBodyPost (sp q1c rhatc dHi un1 dlo : Word) : Assertion :=
   let qDlo := q1c * dlo
@@ -144,7 +127,7 @@ def divKDiv128Prodcheck1bBodyPost (sp q1c rhatc dHi un1 dlo : Word) : Assertion 
   (sp + signExtend12 3952 ↦ₘ dlo)
 
 /-- **Sub-stub B — body portion**: `[27..34]` LD/MUL/SLLI/OR/BLTU/JAL/ADDI/ADD.
-    Identical structure to `divK_div128_prodcheck1_merged_spec` (the 1st
+    Identical structure to `divK_div128_prodcheck1_merged_spec_within` (the 1st
     D3 block); just at a different offset within `divK_div128_v2`.
 
     Reachable only when the guard at [25..26] falls through (rhatc < 2^32). -/
@@ -158,15 +141,7 @@ theorem divK_div128_prodcheck1b_body_spec_within
   exact divK_div128_prodcheck1_merged_spec_within
     sp q1c rhatc dHi un1 v1Old v5Old dlo base
 
-/-- Compatibility wrapper forgetting the explicit body bound. -/
-theorem divK_div128_prodcheck1b_body_spec
-    (sp q1c rhatc dHi un1 v1Old v5Old dlo : Word) (base : Word) :
-    cpsTriple base (base + 32) (divKDiv128Prodcheck1bBodyCode base)
-      (divKDiv128Prodcheck1bBodyPre sp q1c rhatc dHi un1 v1Old v5Old dlo)
-      (divKDiv128Prodcheck1bBodyPost sp q1c rhatc dHi un1 dlo) :=
-  (divK_div128_prodcheck1b_body_spec_within sp q1c rhatc dHi un1 v1Old v5Old dlo base).to_cpsTriple
-
-/-- Bundled CodeReq for `divK_div128_prodcheck1b_merged_spec` (10 singletons,
+/-- Bundled CodeReq for `divK_div128_prodcheck1b_merged_spec_within` (10 singletons,
     instrs [25..34]). `@[irreducible]` to keep let-bindings out of the
     theorem signature. -/
 @[irreducible]
@@ -182,7 +157,7 @@ def divKDiv128Prodcheck1bMergedCode (base : Word) : CodeReq :=
   (CodeReq.union (CodeReq.singleton (base + 32) (.ADDI .x10 .x10 4095))
    (CodeReq.singleton (base + 36) (.ADD .x7 .x7 .x6))))))))))
 
-/-- Bundled precondition for `divK_div128_prodcheck1b_merged_spec`. -/
+/-- Bundled precondition for `divK_div128_prodcheck1b_merged_spec_within`. -/
 @[irreducible]
 def divKDiv128Prodcheck1bMergedPre (sp q1c rhatc dHi un1 v1Old v5Old dlo : Word) :
     Assertion :=
@@ -190,7 +165,7 @@ def divKDiv128Prodcheck1bMergedPre (sp q1c rhatc dHi un1 v1Old v5Old dlo : Word)
   (.x5 ↦ᵣ v5Old) ** (.x1 ↦ᵣ v1Old) ** (.x6 ↦ᵣ dHi) ** (.x0 ↦ᵣ 0) **
   (sp + signExtend12 3952 ↦ₘ dlo)
 
-/-- Bundled taken-leg postcondition for `divK_div128_prodcheck1b_merged_spec`
+/-- Bundled taken-leg postcondition for `divK_div128_prodcheck1b_merged_spec_within`
     (rhatHi ≠ 0: guard fires, body is skipped). -/
 @[irreducible]
 def divKDiv128Prodcheck1bMergedTakenPost
@@ -201,7 +176,7 @@ def divKDiv128Prodcheck1bMergedTakenPost
   ⌜rhatHi ≠ 0⌝ **
   (sp + signExtend12 3952 ↦ₘ dlo)
 
-/-- Bundled fall-through-leg postcondition for `divK_div128_prodcheck1b_merged_spec`
+/-- Bundled fall-through-leg postcondition for `divK_div128_prodcheck1b_merged_spec_within`
     (rhatHi = 0: guard falls through, body runs the 2nd D3 mul-check). -/
 @[irreducible]
 def divKDiv128Prodcheck1bMergedFTPost (sp q1c rhatc dHi un1 dlo : Word) :
@@ -220,7 +195,7 @@ def divKDiv128Prodcheck1bMergedFTPost (sp q1c rhatc dHi un1 dlo : Word) :
     Instrs [25]-[34] of `divK_div128_v2`. Both guard branches and both
     BLTU paths merge at `base + 40`.
 
-    **Shape**: `cpsBranch` — mirrors `divK_div128_step2_branch_merged_spec`'s
+    **Shape**: `cpsBranchWithin` — mirrors `divK_div128_step2_branch_merged_spec_within`'s
     pattern of "two paths converging at the same merge address but with
     different register postconditions". The taken leg (rhatHi ≠ 0) skips
     the body, leaving `.x5 = v5Old` and `.x1 = rhatHi` (the SRLI result).
@@ -228,8 +203,8 @@ def divKDiv128Prodcheck1bMergedFTPost (sp q1c rhatc dHi un1 dlo : Word) :
     `.x5 = qDlo` and `.x1 = rhatUn1'`. Both legs end at `base + 40`.
 
     Composes:
-    - Sub-stub A (`divK_div128_prodcheck1b_guard_spec`): [25..26] guard.
-    - Sub-stub B (`divK_div128_prodcheck1b_body_spec`): [27..34] body.
+    - Sub-stub A (`divK_div128_prodcheck1b_guard_spec_within`): [25..26] guard.
+    - Sub-stub B (`divK_div128_prodcheck1b_body_spec_within`): [27..34] body.
 
     **Output for `.x10` (q1) / `.x7` (rhat)** matches the Lean abstraction
     `div128Quot_v2`'s 2nd D3 step:
@@ -280,7 +255,7 @@ theorem divK_div128_prodcheck1b_merged_spec_within
       (CodeReq.union (CodeReq.singleton (base + 28) (.JAL .x0 12))
       (CodeReq.union (CodeReq.singleton (base + 32) (.ADDI .x10 .x10 4095))
        (CodeReq.singleton (base + 36) (.ADD .x7 .x7 .x6)))))))))) := rfl
-  -- h1 = guard_spec sp rhatc v1Old base 36 (cpsBranch base..base+40|base+8)
+  -- h1 = guard_spec sp rhatc v1Old base 36 (cpsBranchWithin base..base+40|base+8)
   have h1_raw := divK_div128_prodcheck1b_guard_spec_within sp rhatc v1Old base (36 : BitVec 13)
   have ha_t : (base + 4 : Word) + signExtend13 (36 : BitVec 13) = base + 40 := by rv64_addr
   rw [ha_t] at h1_raw
@@ -352,16 +327,5 @@ theorem divK_div128_prodcheck1b_merged_spec_within
     (fun h hp => by xperm_hyp hp)
     (fun h hp => by xperm_hyp hp)
     composed
-
-/-- Compatibility wrapper forgetting the explicit merged bound. -/
-theorem divK_div128_prodcheck1b_merged_spec
-    (sp q1c rhatc dHi un1 v1Old v5Old dlo : Word) (base : Word) :
-    cpsBranch base (divKDiv128Prodcheck1bMergedCode base)
-      (divKDiv128Prodcheck1bMergedPre sp q1c rhatc dHi un1 v1Old v5Old dlo)
-      (base + 40)
-        (divKDiv128Prodcheck1bMergedTakenPost sp q1c rhatc dHi un1 v5Old dlo)
-      (base + 40)
-        (divKDiv128Prodcheck1bMergedFTPost sp q1c rhatc dHi un1 dlo) :=
-  (divK_div128_prodcheck1b_merged_spec_within sp q1c rhatc dHi un1 v1Old v5Old dlo base).to_cpsBranch
 
 end EvmAsm.Evm64

@@ -3,7 +3,7 @@
 
   CPS spec for instrs [17]-[24] of the `div128` subroutine — the first
   product-check section:
-    * `divK_div128_prodcheck1_merged_spec` — 8 instructions: LD + MUL +
+    * `divK_div128_prodcheck1_merged_spec_within` — 8 instructions: LD + MUL +
       SLLI + OR (body) + BLTU + JAL (branch) + ADDI + ADD (correction).
       If `rhat*2^32 + un1 < q1*dLo`, BLTU takes the correction path
       (`q1--`, `rhat += dHi`); otherwise JAL skips both adjustments.
@@ -170,31 +170,5 @@ theorem divK_div128_prodcheck1_merged_spec_within
       (cpsTripleWithin_seq_perm_same_cr
         (fun _ hp => hp)
         ntaken_clean hjal_framed)
-
-/-- div128 product check 1: compute q1*dLo vs rhat*2^32+un1, conditionally correct.
-    Instrs [17]-[24]. Both BLTU paths merge at base+32. -/
-theorem divK_div128_prodcheck1_merged_spec
-    (sp q1 rhat dHi un1 v1Old v5Old dlo : Word) (base : Word) :
-    let qDlo := q1 * dlo
-    let rhatUn1 := (rhat <<< (32 : BitVec 6).toNat) ||| un1
-    let q1' := if BitVec.ult rhatUn1 qDlo then q1 + signExtend12 4095 else q1
-    let rhat' := if BitVec.ult rhatUn1 qDlo then rhat + dHi else rhat
-    let cr :=
-      CodeReq.union (CodeReq.singleton base (.LD .x1 .x12 3952))
-      (CodeReq.union (CodeReq.singleton (base + 4) (.MUL .x5 .x10 .x1))
-      (CodeReq.union (CodeReq.singleton (base + 8) (.SLLI .x1 .x7 32))
-      (CodeReq.union (CodeReq.singleton (base + 12) (.OR .x1 .x1 .x11))
-      (CodeReq.union (CodeReq.singleton (base + 16) (.BLTU .x1 .x5 8))
-      (CodeReq.union (CodeReq.singleton (base + 20) (.JAL .x0 12))
-      (CodeReq.union (CodeReq.singleton (base + 24) (.ADDI .x10 .x10 4095))
-       (CodeReq.singleton (base + 28) (.ADD .x7 .x7 .x6))))))))
-    cpsTriple base (base + 32) cr
-      ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ q1) ** (.x7 ↦ᵣ rhat) ** (.x11 ↦ᵣ un1) **
-       (.x5 ↦ᵣ v5Old) ** (.x1 ↦ᵣ v1Old) ** (.x6 ↦ᵣ dHi) **
-       (sp + signExtend12 3952 ↦ₘ dlo))
-      ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ q1') ** (.x7 ↦ᵣ rhat') ** (.x11 ↦ᵣ un1) **
-       (.x5 ↦ᵣ qDlo) ** (.x1 ↦ᵣ rhatUn1) ** (.x6 ↦ᵣ dHi) **
-       (sp + signExtend12 3952 ↦ₘ dlo)) :=
-  (divK_div128_prodcheck1_merged_spec_within sp q1 rhat dHi un1 v1Old v5Old dlo base).to_cpsTriple
 
 end EvmAsm.Evm64

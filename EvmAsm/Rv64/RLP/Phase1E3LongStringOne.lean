@@ -142,43 +142,4 @@ theorem rlp_phase1_e3_0xB8_one_byte_length_spec_within
       framed
   exact cpsTripleWithin_seq hd_loop prefix' loop'
 
-theorem rlp_phase1_e3_0xB8_one_byte_length_spec
-    (v10 v11Old v12Old v13 v14Old wordVal dwordAddr : Word)
-    (off1 off2 off3 back : BitVec 13)
-    (base e3_target : Word)
-    (htarget : (base + 16 + 4) + signExtend13 off3 = e3_target)
-    (halign : alignToDword (v13 + signExtend12 (1 : BitVec 12)) = dwordAddr)
-    (hvalid : isValidByteAccess (v13 + signExtend12 (1 : BitVec 12)) = true)
-    (hd_phase3 :
-      (((rlp_phase1_step_code 0x80 off1 base).union
-        ((rlp_phase1_step_code 0xB8 off2 (base + 8)).union
-          (rlp_phase1_step_code 0xC0 off3 (base + 16))))).Disjoint
-        (CodeReq.ofProg e3_target rlp_phase3_long_string_prog))
-    (hd_loop :
-      ((((rlp_phase1_step_code 0x80 off1 base).union
-         ((rlp_phase1_step_code 0xB8 off2 (base + 8)).union
-           (rlp_phase1_step_code 0xC0 off3 (base + 16)))).union
-         (CodeReq.ofProg e3_target rlp_phase3_long_string_prog))).Disjoint
-        (CodeReq.ofProg (e3_target + 12) (rlp_phase2_long_loop_body_prog back))) :
-    let lenByte :=
-      (extractByte wordVal
-        (byteOffset (v13 + signExtend12 (1 : BitVec 12)))).zeroExtend 64
-    cpsTriple base ((e3_target + 12) + 24)
-      (((((rlp_phase1_step_code 0x80 off1 base).union
-          ((rlp_phase1_step_code 0xB8 off2 (base + 8)).union
-            (rlp_phase1_step_code 0xC0 off3 (base + 16)))).union
-          (CodeReq.ofProg e3_target rlp_phase3_long_string_prog))).union
-          (CodeReq.ofProg (e3_target + 12) (rlp_phase2_long_loop_body_prog back)))
-      ((.x0 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ (0xB8 : Word)) ** (.x10 ↦ᵣ v10) **
-        (.x11 ↦ᵣ v11Old) ** (.x12 ↦ᵣ v12Old) ** (.x13 ↦ᵣ v13) **
-        (.x14 ↦ᵣ v14Old) ** (dwordAddr ↦ₘ wordVal))
-      ((.x0 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ (0xB8 : Word)) **
-        (.x10 ↦ᵣ ((0 : Word) + signExtend12 (0xC0 : BitVec 12))) **
-        (.x11 ↦ᵣ lenByte) ** (.x12 ↦ᵣ lenByte) **
-        (.x13 ↦ᵣ ((v13 + signExtend12 (1 : BitVec 12)) + 1)) **
-        (.x14 ↦ᵣ (0 : Word)) ** (dwordAddr ↦ₘ wordVal)) :=
-  (rlp_phase1_e3_0xB8_one_byte_length_spec_within v10 v11Old v12Old v13 v14Old
-    wordVal dwordAddr off1 off2 off3 back base e3_target htarget halign hvalid
-    hd_phase3 hd_loop).to_cpsTriple
-
 end EvmAsm.Rv64.RLP

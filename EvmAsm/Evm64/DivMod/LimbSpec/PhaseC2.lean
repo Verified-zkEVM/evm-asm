@@ -6,8 +6,8 @@
   `x2 = -shift` (the "anti-shift") — followed by a BEQ that jumps past
   the normalize/denormalize dance when `shift = 0`:
     * `divK_phaseC2_code` — `CodeReq.ofProg base (divK_phaseC2 shift0_off)`.
-    * `divK_phaseC2_body_spec` — SD + ADDI + SUB (3 instructions).
-    * `divK_phaseC2_spec` — full `cpsBranch` wrapping body + BEQ.
+    * `divK_phaseC2_body_spec_within` — SD + ADDI + SUB (3 instructions).
+    * `divK_phaseC2_spec_within` — full `cpsBranchWithin` wrapping body + BEQ.
 
   Ninth chunk of the `LimbSpec.lean` split tracked by issue #312. The
   consumer surface is unchanged: `LimbSpec.lean` re-exports this file so
@@ -50,22 +50,6 @@ theorem divK_phaseC2_body_spec_within (sp shift v2 shiftMem : Word)
   have I2 := sub_spec_gen_rd_eq_rs1_within .x2 .x6
     (signExtend12 (0 : BitVec 12)) shift (base + 8) (by nofun)
   runBlock I0 I1 I2
-
-/-- Phase C2 body: SD shift to scratch, ADDI x2 = 0, SUB x2 = -shift.
-    Preserves x6 and x0 for the subsequent BEQ.
-    The postcondition uses `signExtend12 (0 : BitVec 12) - shift` (= 0 - shift)
-    to match the syntactic form produced by addi_x0_spec_gen + sub_spec_gen. -/
-theorem divK_phaseC2_body_spec (sp shift v2 shiftMem : Word)
-    (shift0_off : BitVec 13) (base : Word) :
-    let cr := divK_phaseC2_code shift0_off base
-    cpsTriple base (base + 12) cr
-      (
-       (.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ v2) ** (.x0 ↦ᵣ (0 : Word)) **
-       ((sp + signExtend12 3992) ↦ₘ shiftMem))
-      (
-       (.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ (signExtend12 (0 : BitVec 12) - shift)) ** (.x0 ↦ᵣ (0 : Word)) **
-       ((sp + signExtend12 3992) ↦ₘ shift)) :=
-  (divK_phaseC2_body_spec_within sp shift v2 shiftMem shift0_off base).to_cpsTriple
 
 /-- Phase C2: store shift, compute antiShift, BEQ if shift=0.
     Taken: shift = 0, skip normalization.
@@ -126,26 +110,5 @@ theorem divK_phaseC2_spec_within (sp shift v2 shiftMem : Word)
     (fun h hp => by xperm_hyp hp)
     (cpsTripleWithin_seq_cpsBranchWithin_perm_same_cr
       (fun h hp => by xperm_hyp hp) hbody hbeq_ext)
-
-/-- Phase C2: store shift, compute antiShift, BEQ if shift=0.
-    Taken: shift = 0, skip normalization.
-    Not taken: shift ≠ 0, proceed to normalize.
-    antiShift = signExtend12 0 - shift (= 0 - shift = negation of shift amount). -/
-theorem divK_phaseC2_spec (sp shift v2 shiftMem : Word)
-    (shift0_off : BitVec 13) (base : Word) :
-    let cr := divK_phaseC2_code shift0_off base
-    let post :=
-      (.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ shift) **
-      (.x2 ↦ᵣ (signExtend12 (0 : BitVec 12) - shift)) ** (.x0 ↦ᵣ (0 : Word)) **
-      ((sp + signExtend12 3992) ↦ₘ shift)
-    cpsBranch base cr
-      (
-       (.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ v2) ** (.x0 ↦ᵣ (0 : Word)) **
-       ((sp + signExtend12 3992) ↦ₘ shiftMem))
-      -- Taken: shift = 0
-      ((base + 12) + signExtend13 shift0_off) post
-      -- Not taken: shift ≠ 0
-      (base + 16) post :=
-  (divK_phaseC2_spec_within sp shift v2 shiftMem shift0_off base).to_cpsBranch
 
 end EvmAsm.Evm64

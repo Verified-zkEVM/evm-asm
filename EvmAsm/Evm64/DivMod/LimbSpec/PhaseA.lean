@@ -5,9 +5,9 @@
   limbs of the divisor `b` and branching to the zero path if the
   reduction is zero:
     * `divK_phaseA_code` — `CodeReq.ofProg base (divK_phaseA 1020)`.
-    * `divK_phaseA_body_spec` — 7-instruction straight-line body
+    * `divK_phaseA_body_spec_within` — 7-instruction straight-line body
       (LD, LD, OR, LD, OR, LD, OR) producing `x5 = b0 ||| b1 ||| b2 ||| b3`.
-    * `divK_phaseA_spec` — full `cpsBranch` wrapping the body plus the
+    * `divK_phaseA_spec_within` — full `cpsBranchWithin` wrapping the body plus the
       BEQ at `base + 28` that branches to the zero path when the OR-reduce
       is zero.
 
@@ -55,23 +55,6 @@ theorem divK_phaseA_body_spec_within (sp : Word) (base : Word)
   have I5 := ld_spec_gen_within .x10 .x12 sp b2 b3 56 (base + 20) (by nofun)
   have I6 := or_spec_gen_rd_eq_rs1_within .x5 .x10 (b0 ||| b1 ||| b2) b3 (base + 24) (by nofun)
   runBlock I0 I1 I2 I3 I4 I5 I6
-
-/-- Phase A body: load and OR-reduce the 4 limbs of b.
-    Produces x5 = b0 ||| b1 ||| b2 ||| b3.
-    The BEQ instruction at base+28 and x0 are preserved for branch composition. -/
-theorem divK_phaseA_body_spec (sp : Word) (base : Word)
-    (b0 b1 b2 b3 v5 v10 : Word) :
-    let cr := divK_phaseA_code base
-    cpsTriple base (base + 28) cr
-      (
-       (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
-       ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
-       ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3))
-      (
-       (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ (b0 ||| b1 ||| b2 ||| b3)) ** (.x10 ↦ᵣ b3) ** (.x0 ↦ᵣ (0 : Word)) **
-       ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
-       ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3)) :=
-  (divK_phaseA_body_spec_within sp base b0 b1 b2 b3 v5 v10).to_cpsTriple
 
 /-- Phase A: OR-reduce b then BEQ to zero path. -/
 theorem divK_phaseA_spec_within (sp : Word) (base : Word)
@@ -128,25 +111,5 @@ theorem divK_phaseA_spec_within (sp : Word) (base : Word)
     (fun h hp => by xperm_hyp hp)
     (cpsTripleWithin_seq_cpsBranchWithin_perm_same_cr
       (fun h hp => by xperm_hyp hp) hbody hbeq_ext)
-
-/-- Phase A: OR-reduce b then BEQ to zero path. -/
-theorem divK_phaseA_spec (sp : Word) (base : Word)
-    (b0 b1 b2 b3 v5 v10 : Word) :
-    let bor := b0 ||| b1 ||| b2 ||| b3
-    let cr := divK_phaseA_code base
-    let post :=
-      (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ bor) ** (.x10 ↦ᵣ b3) ** (.x0 ↦ᵣ (0 : Word)) **
-      ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
-      ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3)
-    cpsBranch base cr
-      (
-       (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
-       ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
-       ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3))
-      -- Taken: bor = 0
-      ((base + 28) + signExtend13 1020) post
-      -- Not taken: bor ≠ 0
-      (base + 32) post :=
-  (divK_phaseA_spec_within sp base b0 b1 b2 b3 v5 v10).to_cpsBranch
 
 end EvmAsm.Evm64
