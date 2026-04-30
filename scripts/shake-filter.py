@@ -84,9 +84,27 @@ MARKERS: list[tuple[str, str]] = [
     ("divmod_addr",        "custom simp attribute (divmod_addr)"),
     ("reg_ops",            "custom simp attribute (reg_ops)"),
     ("byte_alg",           "custom simp attribute (byte_alg)"),
-    # Notation use — `notation \"Word\" => BitVec 64` is in Rv64.Basic; files
+    # Notation use — `notation "Word" => BitVec 64` is in Rv64.Basic; files
     # using `Word` look unrelated to that import.
-    ("notation \"Word\"",  "Word notation defined in Rv64.Basic"),
+    ("notation \"Word\"",   "Word notation defined in Rv64.Basic"),
+    # rlp_phase1_step_code_disjoint_* helpers are declared in Phase1Disjoint
+    # but used positionally inside `xperm`/`exact` chains in cascade-prefix
+    # files. shake mis-flags Phase1Disjoint as unused.
+    ("rlp_phase1_step_code_disjoint",
+                           "helpers from Rv64.RLP.Phase1Disjoint used in cascade specs"),
+    # DivMod block program names (`divK_phaseA`, `divK_loopBody`, ...) appear
+    # inside `example := by decide` length-drift checks in
+    # Evm64/DivMod/Compose/Offsets.lean. shake's per-decl analysis seems
+    # to miss `example` bodies, so DivMod.Program is mis-flagged.
+    ("divK_phaseA",        "DivMod block names used in `example` drift checks"),
+    ("divK_loopBody",      "DivMod block names used in `example` drift checks"),
+    # Knuth Theorem B closure lemmas (`div128Quot_le_q_true`,
+    # `knuth_compose_qHat_vTop_le_nat`) are defined in
+    # Div128KB6Composition / Div128KnuthLower and referenced from
+    # Div128CallSkipClose.lean inside long `have` chains; shake mis-flags
+    # the supplying imports as unused for at least one of them.
+    ("div128Quot_le_q_true",
+                           "KB6 closure lemma supplied by Div128KB6Composition"),
 ]
 
 BLOCK_HEADER = re.compile(r"^/.+\.lean:$")
