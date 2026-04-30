@@ -48,6 +48,15 @@ theorem add_signExtend12_4095_toNat (q : Word) (hq : 1 ≤ q.toNat) :
   rw [Nat.add_mod_right]
   exact Nat.mod_eq_of_lt (by have := q.isLt; omega)
 
+theorem add_signExtend12_4095_add_signExtend12_4095_toNat
+    (q : Word) (hq : 2 ≤ q.toNat) :
+    (q + signExtend12 (4095 : BitVec 12) + signExtend12 (4095 : BitVec 12)).toNat =
+      q.toNat - 2 := by
+  rw [BitVec.toNat_add, add_signExtend12_4095_toNat q (by omega), signExtend12_4095_toNat]
+  rw [show (q.toNat - 1) + (2^64 - 1) = (q.toNat - 2) + 2^64 from by omega]
+  rw [Nat.add_mod_right]
+  exact Nat.mod_eq_of_lt (by have := q.isLt; omega)
+
 /-- Max trial quotient overestimate for n=4: when b3 ≠ 0,
     ⌊val256(a)/val256(b)⌋ ≤ (signExtend12 4095).toNat.
     This is the `hge` hypothesis needed by `div_correct_n4_no_shift`. -/
@@ -548,6 +557,118 @@ theorem mulsub_double_addback_val256_combined (q : Word) {v0 v1 v2 v3 u0 u1 u2 u
       q.toNat * val256 v0 v1 v2 v3 by linarith
   have : q.toNat = (q.toNat - 2) + 2 := by omega
   nlinarith
+
+@[irreducible]
+def iterDoubleAddbackBranch (q v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) : Prop :=
+  let ms := mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3
+  BitVec.ult uTop ms.2.2.2.2 ∧
+    ms.2.2.2.2 = 1 ∧
+    addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 v0 v1 v2 v3 = 0 ∧
+    v0 ||| v1 ||| v2 ||| v3 ≠ 0 ∧
+    q.toNat ≤ val256 u0 u1 u2 u3 / val256 v0 v1 v2 v3 + 2 ∧
+    2 ≤ q.toNat
+
+theorem iterDoubleAddbackBranch_uTop_toNat_eq_zero
+    (q v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
+    (hbranch : iterDoubleAddbackBranch q v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
+    uTop.toNat = 0 := by
+  delta iterDoubleAddbackBranch at hbranch
+  simp only [] at hbranch
+  rcases hbranch with ⟨hb, hc3_one, _hcarry_zero, _hbnz, _hq_over, _hq_ge_2⟩
+  rw [EvmWord.ult_iff] at hb
+  rw [hc3_one, word_toNat_1] at hb
+  omega
+
+theorem iterDoubleAddbackBranch_uTop_eq_zero
+    (q v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
+    (hbranch : iterDoubleAddbackBranch q v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
+    uTop = 0 :=
+  BitVec.eq_of_toNat_eq
+    (iterDoubleAddbackBranch_uTop_toNat_eq_zero q v0 v1 v2 v3 u0 u1 u2 u3 uTop hbranch)
+
+theorem addbackN4_low_eq_of_u4_new
+    (un0 un1 un2 un3 u4_new u4_new' v0 v1 v2 v3 : Word) :
+    let ab := addbackN4 un0 un1 un2 un3 u4_new v0 v1 v2 v3
+    let ab' := addbackN4 un0 un1 un2 un3 u4_new' v0 v1 v2 v3
+    ab.1 = ab'.1 ∧ ab.2.1 = ab'.2.1 ∧
+      ab.2.2.1 = ab'.2.2.1 ∧ ab.2.2.2.1 = ab'.2.2.2.1 := by
+  simp only [addbackN4]
+  exact ⟨trivial, trivial, trivial, trivial⟩
+
+theorem iterDoubleAddbackBranch_ab_top_toNat_eq_max
+    (q v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
+    (hbranch : iterDoubleAddbackBranch q v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
+    let ms := mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3
+    let ab := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 (uTop - ms.2.2.2.2) v0 v1 v2 v3
+    ab.2.2.2.2.toNat = 2^64 - 1 := by
+  intro ms ab
+  have huTop_zero := iterDoubleAddbackBranch_uTop_eq_zero
+    q v0 v1 v2 v3 u0 u1 u2 u3 uTop hbranch
+  delta iterDoubleAddbackBranch at hbranch
+  simp only [] at hbranch
+  rcases hbranch with ⟨_hb, hc3_one, hcarry_zero, _hbnz, _hq_over, _hq_ge_2⟩
+  have hab_top := addbackN4_top_eq ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1
+    (uTop - ms.2.2.2.2) v0 v1 v2 v3
+  simp only [] at hab_top
+  rw [show addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 v0 v1 v2 v3 = 0
+    from hcarry_zero] at hab_top
+  rw [hab_top, huTop_zero]
+  subst ms
+  rw [hc3_one]
+  decide
+
+theorem iterDoubleAddbackBranch_ab'_top_toNat_eq_zero
+    (q v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
+    (hbranch : iterDoubleAddbackBranch q v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
+    let ms := mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3
+    let ab := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 (uTop - ms.2.2.2.2) v0 v1 v2 v3
+    let ab' := addbackN4 ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 ab.2.2.2.2 v0 v1 v2 v3
+    ab'.2.2.2.2.toNat = 0 := by
+  intro ms ab ab'
+  have hab_top_max := iterDoubleAddbackBranch_ab_top_toNat_eq_max
+    q v0 v1 v2 v3 u0 u1 u2 u3 uTop hbranch
+  simp only [] at hab_top_max
+  delta iterDoubleAddbackBranch at hbranch
+  simp only [] at hbranch
+  rcases hbranch with ⟨_hb, hc3_one, hcarry_zero, hbnz, hq_over, _hq_ge_2⟩
+  have hcarry2_zeroTop := addbackN4_second_carry_one q v0 v1 v2 v3 u0 u1 u2 u3
+    hbnz hq_over hc3_one hcarry_zero
+  simp only [] at hcarry2_zeroTop
+  have hcarry2_actual :
+      (addbackN4_carry ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 v0 v1 v2 v3).toNat = 1 := by
+    subst ab
+    simp only [addbackN4] at hcarry2_zeroTop ⊢
+    exact hcarry2_zeroTop
+  have hab'_top := addbackN4_top_eq ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1
+    ab.2.2.2.2 v0 v1 v2 v3
+  simp only [] at hab'_top
+  rw [hab'_top, show addbackN4_carry ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 v0 v1 v2 v3 = 1
+    from BitVec.eq_of_toNat_eq hcarry2_actual]
+  rw [BitVec.toNat_add, hab_top_max, word_toNat_1]
+  decide
+
+theorem iterDoubleAddbackBranch_low_val256_eq
+    (q v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
+    (hbranch : iterDoubleAddbackBranch q v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
+    let ms := mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3
+    let ab := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 (uTop - ms.2.2.2.2) v0 v1 v2 v3
+    let ab' := addbackN4 ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 ab.2.2.2.2 v0 v1 v2 v3
+    EvmWord.val256 u0 u1 u2 u3 =
+      (q + signExtend12 (4095 : BitVec 12) + signExtend12 (4095 : BitVec 12)).toNat *
+          EvmWord.val256 v0 v1 v2 v3 +
+        EvmWord.val256 ab'.1 ab'.2.1 ab'.2.2.1 ab'.2.2.2.1 := by
+  intro ms ab ab'
+  delta iterDoubleAddbackBranch at hbranch
+  simp only [] at hbranch
+  rcases hbranch with ⟨_hb, hc3_one, hcarry_zero, hbnz, hq_over, hq_ge_2⟩
+  have hcombined := mulsub_double_addback_val256_combined q hbnz hq_over
+    hc3_one hcarry_zero hq_ge_2
+  simp only [] at hcombined
+  rw [add_signExtend12_4095_add_signExtend12_4095_toNat q hq_ge_2]
+  subst ab'
+  subst ab
+  simp only [addbackN4] at hcombined ⊢
+  exact hcombined
 
 -- ============================================================================
 -- First addback carry is 1 when overestimate ≤ 1
