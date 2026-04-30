@@ -1,158 +1,162 @@
 /-
-# `xperm` / `xperm_hyp` and pure assertions — design note (slice 1 of #1435)
+# `xperm_pure` — slice 2 of #1435 (beads evm-asm-8py)
 
 Authored by @pirapira; implemented by Hermes-bot (evm-hermes).
 
-This file is a DESIGN-ONLY survey + design note. It does NOT yet implement
-anything (slice 2, beads `evm-asm-8py`, will land the implementation; slice 3,
-`evm-asm-ag3`, will adopt it at call sites). Closely related to #1432 /
-`extract_pure` (`EvmAsm/Rv64/Tactics/ExtractPure.lean`); this note explicitly
-calls out where the two should compose vs. where `xperm` itself needs a
-pure-aware mode.
+`xperm_pure h` is a sibling of `xperm_hyp` that tolerates pure (`⌜·⌝`)
+atoms in the source hypothesis and/or the goal. It composes the
+`extract_pure` machinery (#1432, `EvmAsm/Rv64/Tactics/ExtractPure.lean`)
+with `xperm_hyp` (`EvmAsm/Rv64/Tactics/XSimp.lean`).
 
-## Problem
+## Semantics
 
-`xperm` (and its `xperm_hyp` cousin in `Tactics/XSimp.lean`) AC-normalizes a
-`sepConj` chain on each side and then closes the goal/hypothesis by matching
-atoms hash-by-hash. Pure-atom leaves (`⌜P⌝`, defined in `Rv64/SepLogic.lean`
-as `pure (P : Prop) : Assertion`) participate in this match exactly like
-resource atoms — but they aren't actually about the heap, they're propositions
-lifted into the assertion language.
+Given a hypothesis `h : H s` and goal `⊢ G s` where each of `H` and `G`
+is an AC-tree of `**` whose resource leaves match (up to AC) and whose
+pure leaves on the goal side are derivable from the pure leaves on the
+hypothesis side, `xperm_pure h` closes the goal.
 
-This causes friction at call sites where the pure leaves on the two sides are:
+Concretely, `xperm_pure h`:
 
-* **Identical and in the same position** — `xperm_hyp` works fine. (Most call
-  sites, e.g. all of `Phase2LongLoop*.lean`.)
+1. Runs `extract_pure` on the hypothesis, peeling every `⌜P_i⌝` atom
+   into a `∧`-chain. After this `h : P₁ ∧ … ∧ Pₖ ∧ Hr s` where `Hr`
+   is the resource-only tail.
+2. Runs the same `simp only` lemma set on the goal, peeling every
+   goal-side `⌜Q_j⌝` atom analogously. After this the goal is
+   `Q₁ ∧ … ∧ Qₘ ∧ Gr s`.
+3. Decomposes the hypothesis pure conjuncts into the local context.
+4. Splits the goal `And`s, discharging each pure side with
+   `assumption` / `decide`, leaving the resource side.
+5. Closes the resource side with `xperm_hyp h`.
 
-* **Identical but rearranged** — `xperm_hyp` still works because it AC-normalizes.
-  Also fine.
-
-* **Asymmetric** — only one side has the pure atom (or the two sides have
-  *different* pure props, with one logically implying the other). This is the
-  painful case: callers either drill the pure out manually with
-  `obtain ⟨_, _, _, _, _, hrest⟩ := …` chains (see #1432 / `extract_pure`)
-  or they hand-build a `sepConj_mono_right` tower to drop the pure leaf
-  before invoking `xperm_hyp`, or they sidestep `xperm_hyp` entirely and
-  spell out `(congrFun (show _ = _ from by xperm) h).mp hp` plus a separate
-  `(sepConj_pure_right h).1 hp |>.1`.
-
-## Survey of call sites (2026-04-30)
-
-`xperm` / `xperm_hyp` is invoked in ~200 places across the codebase. The
-overwhelming majority do not interact with `⌜·⌝` at all: e.g. every
-`Phase2LongLoop{Two..Eight}.lean`, every `Lt/Gt/Or/Sgt/.../Spec.lean`, the
-`Tactics/LiftSpec.lean` macro itself. These are pure resource-atom permutations
-and are not relevant to this issue.
-
-The interesting sites — where pure assertions live in the same `**` chain as
-resource atoms that `xperm_hyp` is asked to permute — fall into three flavors:
-
-### Flavor A: pure atom drops out (asymmetric end)
-
-Caller has a hypothesis `(R₁ ** ... ** Rₙ ** ⌜P⌝) s` and wants to feed it to a
-goal `(Rπ(1) ** ... ** Rπ(n)) s` (no pure). Today: build a `sepConj_mono_right`
-tower to peel `⌜P⌝` off, then `xperm_hyp` the resource-only tail.
-
-Representative sites:
-
-1. `EvmAsm/Evm64/DivMod/LimbSpec/Div128Step1v2.lean:420-428` — 8-deep
-   `sepConj_mono_right` chain dropping `⌜rhatHi2 ≠ 0⌝` before `xperm_hyp hP'`.
-2. `EvmAsm/Evm64/DivMod/LimbSpec/Div128Step1v2.lean:465-475` — sibling case,
-   same shape, dropping `⌜rhatHi2 = 0⌝`.
-3. `EvmAsm/Evm64/DivMod/LimbSpec/Div128Step2.lean:~456` and `~500` — same
-   8-deep tower pattern, mirror lemmas.
-4. `EvmAsm/Evm64/DivMod/LimbSpec/Div128Clamp.lean`, `Div128ProdCheck1.lean`,
-   `Div128ProdCheck1b.lean`, `Div128ProdCheck2.lean`, `Div128Step2v4.lean`
-   — same family, several occurrences each.
-
-These sites are also called out by #1432 / `extract_pure` slice 1, but from
-the other direction (extracting the *value* of `P`, not just dropping it).
-The two issues meet here: `extract_pure h` introduces `h_pure : P` and rebinds
-`h` to the resource-only tail — which is exactly the input that a pure-stripped
-`xperm_hyp` would also produce.
-
-### Flavor B: pure atoms accumulate asymmetrically (frameR + weaken)
-
-Caller has `(R ** ⌜P⌝) → (R' ** ⌜Q⌝)` where `R, R'` permute via `xperm` and
-`P → Q` is provable directly (typically `Q = P ∧ … ∧ … ` with the extra
-conjuncts coming in via `cpsBranch_frameR (⌜…⌝)`). Today: split the post-
-condition rewrite into two halves — `xperm` (or `(congrFun (show _ = _ by
-xperm) _).mp`) on the resource side, `(sepConj_pure_right h).1 hp |>.1` on
-the pure side.
-
-Representative sites:
-
-5. `EvmAsm/Evm64/SignExtend/Compose.lean:484-491` — `cs1_framed` builds
-   `cs1_clean ** ⌜v5 ≠ 0⌝`, then `cpsBranchWithin_weaken` is forced to do
-   `xperm` *and* a manual `sepConj_pure_right` extraction in two separate
-   closure arguments (one per branch leg) because the pre/post pures don't
-   line up.
-6. `EvmAsm/Evm64/SignExtend/Compose.lean:520-528` — same shape, `cs2_framed`.
-7. `EvmAsm/Evm64/Byte/Spec.lean:289-299`, `407-417`, `780-783`, `900-906`,
-   `938-944` — repeated `(congrFun (show _ = _ from by xperm) h).mp hq` next
-   to a separate pure-extraction line. ~5 instances in this file alone.
-8. `EvmAsm/Evm64/Shift/ShlCompose.lean:316-322`, `456-462`, `767` — same
-   pattern, copied across the SHL composition variants.
-
-### Flavor C: pure atoms passed through unchanged (false alarms)
-
-Some sites carry `⌜P⌝` in *both* the hypothesis and the goal, in different
-positions. `xperm_hyp` already handles this — the pure atom is just one more
-hash to permute. We surveyed these but they are not motivating examples.
-Example: `EvmAsm/Rv64/RLP/Phase2LongLoopBody.lean:208,213` (both pre and post
-of the BNE branching closure carry the pure atom; `xperm_hyp` runs on each
-side once).
-
-## Decision: option (b) — sibling tactic, not (a) preprocessing
-
-We considered three designs:
-
-(a) **Preprocess inside `xperm` itself.** Strip pure leaves from both sides
-    before AC-normalizing, run the resource permutation, re-attach pure leaves
-    afterwards via `decide`/`assumption`. Rejected: silent strip-and-reattach
-    changes the closing tactic's contract and would make Flavor C sites slower
-    for no benefit (they already work). It would also make debugging "why
-    didn't `xperm` close?" harder when the failure is on the pure side.
-
-(b) **Sibling tactic `xperm_pure` that wraps `extract_pure` + `xperm`.** This
-    composes the existing #1432 work cleanly: `xperm_pure h` first invokes
-    `extract_pure h` (introducing `h_pure_1, h_pure_2, …` from the LHS),
-    then runs `xperm_hyp h` on the resource-only tail, then closes any
-    `⌜·⌝` atoms remaining on the goal side via `decide` / `assumption` /
-    `tauto` over the introduced pures. **This is the recommended option.**
-    It keeps `xperm` simple, gives users explicit control at problem sites,
-    and benefits from any future improvement to `extract_pure`.
-
-(c) **Documented combinator only.** Just write the recipe in `XPerm.lean`'s
-    docstring and tell users to spell it out. Rejected: Flavor B sites
-    *already* spell it out (5–8 lines each, 15+ instances) — the value of
-    a tactic over a combinator is precisely to delete those lines.
-
-Slice 2 (`evm-asm-8py`) will implement `xperm_pure` along these lines:
-
-```
-syntax "xperm_pure" ident : tactic
--- semantics:
---   xperm_pure h
---   ≡ (extract_pure h with ⟨..⟩;     -- intro h_pure_*, rebind h to resource tail
---      xperm_hyp h                     -- permute resource side
---      <;> first | assumption | decide | tauto)
---                                       -- close any ⌜·⌝ on the goal side
-```
-
-Slice 3 (`evm-asm-ag3`) will rewrite the Flavor-A and Flavor-B sites listed
-above. Approximate impact: ~25 lines deleted per Flavor-A site (× ~7 sites)
-and ~5 lines per Flavor-B site (× ~15 sites); total ~250 LoC removed, plus a
-significant readability win for the DivMod / Shift / SignExtend Compose files.
-
-## What this design does NOT cover
-
-* **Pure atoms inside `cpsTriple` codomains** that are *not* the immediate
-  argument of `xperm_hyp` — those are out of scope; they're a `weaken` /
-  `seq_frame` problem, not a permutation problem.
-* **Multi-state pure atoms** like `⌜∀ s, …⌝` — not observed anywhere in the
-  current codebase, deferred until a real use case appears.
-* **Replacing `extract_pure`.** `xperm_pure` is a *composition*, not a
-  replacement; `extract_pure` will still be the right tool when the user
-  wants the pure value but does not want to permute the resource tail.
+For the common case where neither side has any pure atoms (Flavor C
+in the slice-1 design note), `xperm_pure h` degrades cleanly to
+`xperm_hyp h`.
 -/
+
+import EvmAsm.Rv64.Tactics.ExtractPure
+import EvmAsm.Rv64.Tactics.XSimp
+
+namespace EvmAsm.Rv64.Tactics
+
+open Lean Elab Tactic
+
+/-- Run a tactic on every currently-open goal, in order. Equivalent
+    to Mathlib's `Lean.Elab.Tactic.allGoals` but inlined here to keep
+    `XPermPure.lean` Mathlib-free. -/
+private def runOnAllGoals (tac : TacticM Unit) : TacticM Unit := do
+  let mvarIds ← getGoals
+  let mut newGoals := #[]
+  for mvarId in mvarIds do
+    unless ← mvarId.isAssigned do
+      setGoals [mvarId]
+      tac
+      newGoals := newGoals ++ (← getUnsolvedGoals)
+  setGoals newGoals.toList
+
+/-- Repeatedly split the leading `∧` in the main goal into two
+    focused sub-goals, recursing into both branches. After this runs
+    every leaf in the conjunction tree becomes an open goal — the
+    resource leaf and any leftover pure leaves. -/
+partial def xpermPureSplitGoal : TacticM Unit := do
+  let goalType ← instantiateMVars (← (← getMainGoal).getType)
+  if goalType.isAppOfArity ``And 2 then
+    evalTactic (← `(tactic| refine ⟨?_, ?_⟩))
+    runOnAllGoals xpermPureSplitGoal
+  else
+    return
+
+/-- Repeatedly destructure the leading `∧` in `h`'s type, naming the
+    head conjunct under a fresh ident (so `assumption` finds it
+    later) and rebinding `h` to the tail. -/
+partial def xpermPureDestructHyp (h : TSyntax `ident) : TacticM Unit :=
+  withMainContext do
+    let lctx ← getLCtx
+    let some hDecl := lctx.findFromUserName? h.getId | return
+    let ty ← instantiateMVars hDecl.type
+    if ty.isAppOfArity ``And 2 then
+      let fresh ← Lean.Elab.Term.mkFreshIdent (Lean.mkIdent `pureAtom)
+      evalTactic (← `(tactic| obtain ⟨$fresh:ident, $h:ident⟩ := $h:ident))
+      xpermPureDestructHyp h
+    else
+      return
+
+/-- Pure-aware variant of `xperm_hyp`. See file docstring. -/
+syntax (name := xpermPure) "xperm_pure " ident : tactic
+
+@[tactic xpermPure]
+def evalXpermPure : Tactic := fun stx => do
+  match stx with
+  | `(tactic| xperm_pure $h:ident) => withMainContext do
+      -- Step 1: peel pures from the hypothesis. Use `try` so that a
+      -- bare resource hypothesis (no pures, no `**`) is left
+      -- untouched.
+      evalTactic (← `(tactic| try extract_pure $h:ident))
+      -- Step 2: peel pures from the goal via the same simp lemma set.
+      evalTactic (← `(tactic|
+        try
+          simp only
+            [ ← EvmAsm.Rv64.sepConj_assoc'
+            , EvmAsm.Rv64.sepConj_pure_right
+            , EvmAsm.Rv64.sepConj_pure_left
+            , EvmAsm.Rv64.Tactics.sepConj_pure_mid_left
+            , EvmAsm.Rv64.Tactics.sepConj_pure_mid_right
+            , EvmAsm.Rv64.sepConj_emp_left'
+            , EvmAsm.Rv64.sepConj_emp_right'
+            ]))
+      -- Step 3: destructure hypothesis pure conjuncts under fresh
+      -- names so step 4's `assumption` can reach them.
+      xpermPureDestructHyp h
+      -- Step 4: split goal `And`s; each leaf becomes a focused goal.
+      xpermPureSplitGoal
+      -- Step 5: close every leaf. The resource leaf closes via
+      -- `xperm_hyp h`; the pure leaves close via `assumption` /
+      -- `decide`. `first` picks the right tactic per goal.
+      runOnAllGoals do
+        evalTactic (← `(tactic| first
+          | xperm_hyp $h:ident
+          | assumption
+          | decide))
+  | _ => throwUnsupportedSyntax
+
+end EvmAsm.Rv64.Tactics
+
+/- ============================================================================
+   Smoke tests
+   ============================================================================
+   These mirror the shapes that motivated #1435: pure atoms on the
+   hypothesis side, on the goal side, on both sides, and asymmetric
+   between the two. They use only the separation-logic vocabulary
+   from `Rv64/SepLogic.lean` and don't depend on any RISC-V program /
+   spec infrastructure. -/
+
+namespace EvmAsm.Rv64.Tactics.XPermPureTests
+
+open EvmAsm.Rv64
+
+/-- Flavor A: pure on hypothesis, none on goal. -/
+example (s : PartialState) (P : Prop) (R₁ R₂ : Assertion)
+    (h : (R₁ ** R₂ ** ⌜P⌝) s) : (R₂ ** R₁) s := by
+  xperm_pure h
+
+/-- Flavor B: pure on both sides, asymmetric position. -/
+example (s : PartialState) (P : Prop) (R₁ R₂ : Assertion)
+    (h : (R₁ ** R₂ ** ⌜P⌝) s) : (⌜P⌝ ** R₂ ** R₁) s := by
+  xperm_pure h
+
+/-- Goal pure derivable by `decide`. -/
+example (s : PartialState) (R : Assertion)
+    (h : R s) : (R ** ⌜(1 : Nat) + 1 = 2⌝) s := by
+  xperm_pure h
+
+/-- No pure atoms on either side: must degrade to `xperm_hyp`. -/
+example (s : PartialState) (R₁ R₂ R₃ : Assertion)
+    (h : (R₁ ** R₂ ** R₃) s) : (R₃ ** R₁ ** R₂) s := by
+  xperm_pure h
+
+/-- Multiple pures on the hypothesis, single pure on the goal,
+    derivable via `assumption` from one of the destructured pures. -/
+example (s : PartialState) (P Q : Prop) (R₁ R₂ : Assertion)
+    (h : (R₁ ** ⌜P⌝ ** R₂ ** ⌜Q⌝) s) : (R₂ ** R₁ ** ⌜P⌝) s := by
+  xperm_pure h
+
+end EvmAsm.Rv64.Tactics.XPermPureTests
