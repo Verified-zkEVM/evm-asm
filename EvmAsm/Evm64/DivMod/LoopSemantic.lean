@@ -76,4 +76,61 @@ theorem addbackN4_top_eq (un0 un1 un2 un3 u4_new v0 v1 v2 v3 : Word) :
     ab.2.2.2.2 = u4_new + carry := by
   simp only [addbackN4, addbackN4_carry]
 
+theorem word_sub_toNat_of_le (x y : Word) (h : y.toNat ≤ x.toNat) :
+    (x - y).toNat = x.toNat - y.toNat := by
+  simp only [BitVec.toNat_sub]
+  have hx : x.toNat < 2^64 := x.isLt
+  have hy : y.toNat < 2^64 := y.isLt
+  rw [show 2 ^ 64 - y.toNat + x.toNat = x.toNat - y.toNat + 2 ^ 64 by omega]
+  rw [Nat.add_mod_right]
+  exact Nat.mod_eq_of_lt (by omega)
+
+theorem iterWithDoubleAddback_no_borrow_val256_conservation
+    (q v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
+    (hb : ¬ BitVec.ult uTop (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2) :
+    EvmWord.val256 u0 u1 u2 u3 + uTop.toNat * 2^256 =
+      q.toNat * EvmWord.val256 v0 v1 v2 v3 +
+        EvmWord.val256
+          (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).1
+          (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.1
+          (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.1
+          (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.1 +
+        (uTop - (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2).toNat * 2^256 := by
+  have hmulsub := mulsubN4_val256_eq q v0 v1 v2 v3 u0 u1 u2 u3
+  simp only [] at hmulsub
+  have hc3_le : (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2.toNat ≤ uTop.toNat := by
+    rw [EvmWord.ult_iff] at hb
+    omega
+  rw [word_sub_toNat_of_le uTop (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2 hc3_le]
+  have htop_split : uTop.toNat =
+      (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2.toNat +
+      (uTop.toNat - (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2.toNat) := by
+    omega
+  calc
+    EvmWord.val256 u0 u1 u2 u3 + uTop.toNat * 2^256 =
+        (EvmWord.val256 u0 u1 u2 u3 +
+          (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2.toNat * 2^256) +
+          (uTop.toNat - (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2.toNat) *
+            2^256 := by
+      nth_rw 1 [htop_split]
+      ring
+    _ = (EvmWord.val256
+          (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).1
+          (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.1
+          (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.1
+          (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.1 +
+        q.toNat * EvmWord.val256 v0 v1 v2 v3) +
+          (uTop.toNat - (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2.toNat) *
+            2^256 := by
+      rw [hmulsub]
+    _ = q.toNat * EvmWord.val256 v0 v1 v2 v3 +
+        EvmWord.val256
+          (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).1
+          (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.1
+          (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.1
+          (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.1 +
+        (uTop.toNat - (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2.toNat) *
+          2^256 := by
+      ring
+
 end EvmAsm.Evm64
