@@ -114,7 +114,7 @@ theorem divK_loop_body_n4_max_skip_j0_divCode
     let qHat : Word := signExtend12 4095
     let qAddr := sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat
     (if BitVec.ult uTop (mulsubN4_c3 qHat v0 v1 v2 v3 u0 u1 u2 u3) then (1 : Word) else 0) = (0 : Word) →
-    cpsTripleWithin 10000 (base + loopBodyOff) (base + denormOff) (divCode base)
+    cpsTripleWithin 76 (base + loopBodyOff) (base + denormOff) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (0 : Word)) **
        (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
        (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
@@ -212,7 +212,7 @@ theorem divK_loop_body_n4_max_skip_j0_modCode
     (hborrow : (if BitVec.ult uTop
                   (mulsubN4_c3 (signExtend12 4095) v0 v1 v2 v3 u0 u1 u2 u3)
                 then (1 : Word) else 0) = (0 : Word)) :
-    cpsTripleWithin 10000 (base + loopBodyOff) (base + denormOff) (modCode base)
+    cpsTripleWithin 76 (base + loopBodyOff) (base + denormOff) (modCode base)
       (loopBodyN4SkipJ0Pre sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
         v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld)
       (loopBodyN4SkipPost sp (0 : Word) (signExtend12 4095)
@@ -264,7 +264,7 @@ theorem divK_loop_body_n4_max_skip_j0_norm_modCode (sp base : Word)
     (hborrow : (if BitVec.ult uTop
                   (mulsubN4_c3 (signExtend12 4095) v0 v1 v2 v3 u0 u1 u2 u3)
                 then (1 : Word) else 0) = (0 : Word)) :
-    cpsTripleWithin 10000 (base + loopBodyOff) (base + denormOff) (modCode base)
+    cpsTripleWithin 76 (base + loopBodyOff) (base + denormOff) (modCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (0 : Word)) **
        (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
        (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
@@ -386,7 +386,7 @@ theorem divK_loop_body_n4_call_skip_j0_divCode
     let qHat := (q1' <<< (32 : BitVec 6).toNat) ||| q0'
     let qAddr := sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat
     (if BitVec.ult uTop (mulsubN4_c3 qHat v0 v1 v2 v3 u0 u1 u2 u3) then (1 : Word) else 0) = (0 : Word) →
-    cpsTripleWithin 10000 (base + loopBodyOff) (base + denormOff) (divCode base)
+    cpsTripleWithin 126 (base + loopBodyOff) (base + denormOff) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (0 : Word)) **
        (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
        (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
@@ -460,7 +460,7 @@ theorem divK_loop_body_n4_max_addback_j0_beq_divCode
     let qHat : Word := signExtend12 4095
     let qAddr := sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat
     (if BitVec.ult uTop (mulsubN4_c3 qHat v0 v1 v2 v3 u0 u1 u2 u3) then (1 : Word) else 0) ≠ (0 : Word) →
-    cpsTripleWithin 10000 (base + loopBodyOff) (base + denormOff) (divCode base)
+    cpsTripleWithin 152 (base + loopBodyOff) (base + denormOff) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (0 : Word)) **
        (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
        (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
@@ -580,7 +580,7 @@ theorem divK_loop_body_n4_call_addback_j0_beq_divCode
     let qHat := (q1' <<< (32 : BitVec 6).toNat) ||| q0'
     let qAddr := sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat
     (if BitVec.ult uTop (mulsubN4_c3 qHat v0 v1 v2 v3 u0 u1 u2 u3) then (1 : Word) else 0) ≠ (0 : Word) →
-    cpsTripleWithin 10000 (base + loopBodyOff) (base + denormOff) (divCode base)
+    cpsTripleWithin 202 (base + loopBodyOff) (base + denormOff) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (0 : Word)) **
        (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
        (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
@@ -747,7 +747,7 @@ theorem divK_loop_body_n4_call_skip_j0_modCode
     (hborrow : (if BitVec.ult uTop
                   (mulsubN4_c3 (div128Quot uTop u3 v3) v0 v1 v2 v3 u0 u1 u2 u3)
                 then (1 : Word) else 0) = (0 : Word)) :
-    cpsTripleWithin 10000 (base + loopBodyOff) (base + denormOff) (modCode base)
+    cpsTripleWithin 126 (base + loopBodyOff) (base + denormOff) (modCode base)
       (loopBodyN4CallSkipJ0Pre sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
         v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0)
       (loopBodyN4CallSkipJ0Post sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop) := by
@@ -817,7 +817,7 @@ theorem divK_loop_body_n4_call_skip_j0_norm_modCode (sp base : Word)
     let div_un0 := (u3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
     (if BitVec.ult uTop (mulsubN4_c3 qHat v0 v1 v2 v3 u0 u1 u2 u3)
      then (1 : Word) else 0) = (0 : Word) →
-    cpsTripleWithin 10000 (base + loopBodyOff) (base + denormOff) (modCode base)
+    cpsTripleWithin 126 (base + loopBodyOff) (base + denormOff) (modCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (0 : Word)) **
        (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
        (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
@@ -926,7 +926,7 @@ theorem divK_loop_body_n4_call_addback_j0_beq_modCode
     (hborrow : (if BitVec.ult uTop
                   (mulsubN4_c3 (div128Quot uTop u3 v3) v0 v1 v2 v3 u0 u1 u2 u3)
                 then (1 : Word) else 0) ≠ (0 : Word)) :
-    cpsTripleWithin 10000 (base + loopBodyOff) (base + denormOff) (modCode base)
+    cpsTripleWithin 202 (base + loopBodyOff) (base + denormOff) (modCode base)
       (loopBodyN4CallSkipJ0Pre sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
         v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0)
       (loopBodyN4CallAddbackBeqJ0Post sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop) := by
@@ -997,7 +997,7 @@ theorem divK_loop_body_n4_call_addback_j0_beq_norm_modCode (sp base : Word)
     let div_un0 := (u3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
     (if BitVec.ult uTop (mulsubN4_c3 qHat v0 v1 v2 v3 u0 u1 u2 u3)
      then (1 : Word) else 0) ≠ (0 : Word) →
-    cpsTripleWithin 10000 (base + loopBodyOff) (base + denormOff) (modCode base)
+    cpsTripleWithin 202 (base + loopBodyOff) (base + denormOff) (modCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (0 : Word)) **
        (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
        (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **

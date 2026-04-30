@@ -111,12 +111,12 @@ theorem mod_phaseC2_taken_spec_within (sp shift v2 shiftMem : Word) (base : Word
 
 theorem mod_phaseC2_taken_spec (sp shift v2 shiftMem : Word) (base : Word)
     (hshift_z : shift = 0) :
-    cpsTripleWithin 10000 (base + phaseC2Off) (base + copyAUOff) (modCode base)
+    cpsTripleWithin 4 (base + phaseC2Off) (base + copyAUOff) (modCode base)
       ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ v2) ** (.x0 ↦ᵣ (0 : Word)) **
        ((sp + signExtend12 3992) ↦ₘ shiftMem))
       ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ (signExtend12 (0 : BitVec 12) - shift)) **
        (.x0 ↦ᵣ (0 : Word)) ** ((sp + signExtend12 3992) ↦ₘ shift)) :=
-  cpsTripleWithin_mono_nSteps (by decide) (mod_phaseC2_taken_spec_within sp shift v2 shiftMem base hshift_z)
+  mod_phaseC2_taken_spec_within sp shift v2 shiftMem base hshift_z
 
 -- ============================================================================
 -- MOD NormB composition (normalize divisor, 21 instructions)
@@ -253,4 +253,3 @@ theorem mod_normB_full_spec_within (sp b0 b1 b2 b3 v5 v7 shift antiShift : Word)
     (fun h hq => by xperm_hyp hq)
     (cpsTripleWithin_seq_perm_same_cr
       (fun h hp => by xperm_hyp hp) h1 h2)
-

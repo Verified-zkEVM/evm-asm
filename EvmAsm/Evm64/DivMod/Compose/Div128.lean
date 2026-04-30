@@ -56,7 +56,7 @@ private theorem d128_sub {base : Word} (k : Nat) (addr : Word) (instr : Instr)
 /-- Bundled postcondition for `div128_spec_within` (and `mod_div128_spec_within`).
     Hides the 25-let chain that computes Phase 1 / compute-un21 / Phase 2 /
     Phase 2b-guarded / end-combine intermediates so the theorem signature
-    stays a clean `cpsTripleWithin 10000 A B C P (div128SpecPost …)` instead of a
+    stays a clean `cpsTripleWithin n A B C P (div128SpecPost …)` instead of a
     let-chain immediately preceding the triple (anti-pattern, slows
     elaboration). Marked `@[irreducible]` so callers see only the bundled
     assertion; `unfold` to expose the lets when threading downstream.
@@ -612,4 +612,3 @@ theorem div128_v2_spec_shared_within (sp retAddr d uLo uHi : Word) (base : Word)
   cpsTripleWithin_extend_code (hmono := shared_b12_div128_v2_sub)
     (div128_v2_spec_within sp retAddr d uLo uHi base v1Old v6Old v11Old
                      retMem dMem dloMem un0Mem halign)
-

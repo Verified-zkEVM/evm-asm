@@ -356,7 +356,7 @@ theorem evm_div_phaseAB_n4_spec (sp base : Word)
     (q0 q1 q2 q3 u5 u6 u7 nMem : Word)
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
     (hb3nz : b3 ≠ 0) :
-    cpsTripleWithin 10000 base (base + clzOff) (divCode base)
+    cpsTripleWithin (8 + 21) base (base + clzOff) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
        ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
@@ -973,4 +973,3 @@ theorem evm_div_phaseB_n1_spec_within (sp base : Word)
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq)
     hphaseB
-
