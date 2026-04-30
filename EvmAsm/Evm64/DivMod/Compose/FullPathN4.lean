@@ -106,14 +106,14 @@ theorem divK_loop_body_n4_max_skip_j0_norm (sp base : Word)
        ((sp + signExtend12 4088) ↦ₘ qOld))
       (loopBodyN4SkipPost sp (0 : Word) qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop) := by
   intro qHat hborrow
-  have raw := divK_loop_body_n4_max_skip_j0_divCode sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+  have raw := divK_loop_body_n4_max_skip_j0_divCode_within sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
     v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base
 
     hbltu hborrow
   simp only [se12_32, se12_40, se12_48, se12_56,
              u_base_off0_j0, u_base_off4088_j0, u_base_off4080_j0,
              u_base_off4072_j0, u_base_off4064_j0, q_addr_j0] at raw
-  exact raw
+  exact raw.to_cpsTriple
 
 -- ============================================================================
 -- Pre-loop + loop body (max+skip): base → base+904
@@ -587,13 +587,13 @@ theorem divK_loop_body_n4_call_skip_j0_norm (sp base : Word)
        (sp + signExtend12 3952 ↦ₘ dLo) **
        (sp + signExtend12 3944 ↦ₘ div_un0)) := by
   intro qHat dLo div_un0 hborrow
-  have raw := divK_loop_body_n4_call_skip_j0_divCode sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+  have raw := divK_loop_body_n4_call_skip_j0_divCode_within sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
     v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0 base halign hbltu
   have raw' := raw hborrow
   simp only [se12_32, se12_40, se12_48, se12_56,
              u_base_off0_j0, u_base_off4088_j0, u_base_off4080_j0,
              u_base_off4072_j0, u_base_off4064_j0, q_addr_j0] at raw'
-  exact raw'
+  exact raw'.to_cpsTriple
 
 -- ============================================================================
 -- Call+skip full path: preloop + loop + postloop (base → base+1068)
