@@ -15,9 +15,11 @@
 # under active development and not yet wired into the main module
 # graph. Remove once the V4 program replaces V2.
 EvmAsm.Evm64.DivMod.Compose.FullPathN3LoopUnified
+EvmAsm.Evm64.DivMod.Compose.Div128V4
 EvmAsm.Evm64.DivMod.LoopDefs.IterV4
 EvmAsm.Evm64.DivMod.LoopDefs.IterV4Invariants
 EvmAsm.Evm64.DivMod.LoopDefs.IterV4InvariantsPhase2
+EvmAsm.Evm64.DivMod.LimbSpec.Div128Step2v4
 EvmAsm.Evm64.DivMod.SpecCallAddbackBeq
 EvmAsm.Evm64.DivMod.SpecCallAddbackBeq.AlgDefs
 EvmAsm.Evm64.DivMod.SpecCallAddbackBeq.AlgEuclideans
