@@ -11,4 +11,5 @@ import EvmAsm.Evm64.DivMod.Spec
 -- FullPathN2LoopUnified + FullPathN2Cases + FullPath.
 import EvmAsm.Evm64.DivMod.Shift0Dispatcher
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1LoopUnified
+import EvmAsm.Evm64.DivMod.Compose.FullPathN3LoopUnified
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2Full

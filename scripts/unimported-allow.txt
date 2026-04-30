@@ -14,7 +14,6 @@
 # DivMod V4 work-in-progress cluster (issue #1337). These files are under
 # active development. Remove entries as each file is wired into the main module
 # graph.
-EvmAsm.Evm64.DivMod.Compose.FullPathN3LoopUnified
 EvmAsm.Evm64.DivMod.SpecCallAddbackBeq
 EvmAsm.Evm64.DivMod.SpecCallAddbackBeq.NumericalTests
 EvmAsm.Evm64.DivMod.SpecCallAddbackBeq.NumericalTestsV4
