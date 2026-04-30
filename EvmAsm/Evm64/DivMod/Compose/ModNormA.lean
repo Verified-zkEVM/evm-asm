@@ -182,7 +182,7 @@ theorem mod_normA_full_spec (sp a0 a1 a2 a3 v5 v7 v10 shift antiShift : Word)
     let u2 := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (antiShift.toNat % 64))
     let u1 := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (antiShift.toNat % 64))
     let u0 := a0 <<< (shift.toNat % 64)
-    cpsTripleWithin 10000 (base + normAOff) (base + loopSetupOff) (modCode base)
+    cpsTripleWithin 21 (base + normAOff) (base + loopSetupOff) (modCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x7 ↦ᵣ v7) ** (.x10 ↦ᵣ v10) **
        (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ antiShift) **
        ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
@@ -197,8 +197,8 @@ theorem mod_normA_full_spec (sp a0 a1 a2 a3 v5 v7 v10 shift antiShift : Word)
        ((sp + signExtend12 4024) ↦ₘ u4) ** ((sp + signExtend12 4032) ↦ₘ u3) **
        ((sp + signExtend12 4040) ↦ₘ u2) ** ((sp + signExtend12 4048) ↦ₘ u1) **
        ((sp + signExtend12 4056) ↦ₘ u0)) :=
-  cpsTripleWithin_mono_nSteps (by decide) (mod_normA_full_spec_within sp a0 a1 a2 a3 v5 v7 v10 shift antiShift
-    u0Old u1Old u2Old u3Old u4Old base)
+  mod_normA_full_spec_within sp a0 a1 a2 a3 v5 v7 v10 shift antiShift
+    u0Old u1Old u2Old u3Old u4Old base
 
 -- ============================================================================
 -- MOD CopyAU composition (copy a[] to u[], 9 instructions)
@@ -236,7 +236,7 @@ theorem mod_copyAU_full_spec_within (sp : Word)
 
 theorem mod_copyAU_full_spec (sp : Word)
     (a0 a1 a2 a3 : Word) (u0 u1 u2 u3 u4 v5 : Word) (base : Word) :
-    cpsTripleWithin 10000 (base + copyAUOff) (base + loopSetupOff) (modCode base)
+    cpsTripleWithin 9 (base + copyAUOff) (base + loopSetupOff) (modCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) **
        ((sp + signExtend12 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
        ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
@@ -249,10 +249,10 @@ theorem mod_copyAU_full_spec (sp : Word)
        ((sp + signExtend12 4056) ↦ₘ a0) ** ((sp + signExtend12 4048) ↦ₘ a1) **
        ((sp + signExtend12 4040) ↦ₘ a2) ** ((sp + signExtend12 4032) ↦ₘ a3) **
        ((sp + signExtend12 4024) ↦ₘ (0 : Word))) :=
-  cpsTripleWithin_mono_nSteps (by decide) (mod_copyAU_full_spec_within sp a0 a1 a2 a3 u0 u1 u2 u3 u4 v5 base)
+  mod_copyAU_full_spec_within sp a0 a1 a2 a3 u0 u1 u2 u3 u4 v5 base
 
 -- ============================================================================
--- MOD LoopSetup composition (4 instructions, cpsBranchWithin 10000 at base+432)
+-- MOD LoopSetup composition (4 instructions at base+432)
 -- LD n, ADDI 4, SUB m=4-n, BLT m<0
 -- ============================================================================
 
@@ -338,4 +338,3 @@ theorem mod_loopSetup_taken_spec_within (sp n v1 v5 : Word) (base : Word)
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq)
     h12
-
