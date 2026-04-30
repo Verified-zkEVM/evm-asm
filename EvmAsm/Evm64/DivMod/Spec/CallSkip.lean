@@ -431,7 +431,7 @@ theorem evm_div_n4_full_call_addback_beq_stack_pre_spec (sp base : Word)
     v5 v6 v7 v10 v11Old
     q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
     nMem shiftMem jMem retMem dMem dloMem scratch_un0
-    hbnz' hb3nz hshift_nz hvalid halign hbltu hcarry2_nz hborrow
+    hbnz' hb3nz hshift_nz halign hbltu hcarry2_nz hborrow
   exact cpsTripleWithin_weaken
     (fun h hp => by
       rw [evmWordIs_sp_limbs_eq sp a _ _ _ _ rfl rfl rfl rfl,

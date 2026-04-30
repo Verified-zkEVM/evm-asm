@@ -861,7 +861,7 @@ theorem evm_div_n4_full_max_addback_beq_stack_pre_spec (sp base : Word)
     v5 v6 v7 v10 v11Old
     q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
     nMem shiftMem jMem
-    hbnz' hb3nz hshift_nz hvalid
+    hbnz' hb3nz hshift_nz
     hbltu hcarry2_nz hborrow
   exact cpsTripleWithin_weaken
     (fun h hp => by
