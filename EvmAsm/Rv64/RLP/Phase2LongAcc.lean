@@ -26,6 +26,7 @@
 
 import EvmAsm.Rv64.SyscallSpecs
 import EvmAsm.Rv64.AddrNorm
+import EvmAsm.Rv64.Tactics.RunBlock
 
 namespace EvmAsm.Rv64.RLP
 
@@ -79,11 +80,6 @@ theorem rlp_phase2_long_acc_spec_within (len byte : Word) (base : Word) :
       (CodeReq.singleton base (.SLLI .x11 .x11 8)).union
       (CodeReq.singleton (base + 4) (.ADD .x11 .x11 .x12)) from
     CodeReq.ofProg_pair]
-  -- Disjointness of the two singletons (distinct PCs).
-  have hd : CodeReq.Disjoint
-      (CodeReq.singleton base (.SLLI .x11 .x11 8))
-      (CodeReq.singleton (base + 4) (.ADD .x11 .x11 .x12)) :=
-    CodeReq.Disjoint.singleton (by bv_omega)
   -- Step 1: SLLI x11, x11, 8 — use `slli_spec_gen_same` (rd = rs1),
   -- then frame with x12 to bring it into scope.
   have s1Base := slli_spec_gen_same_within .x11 len 8 base (by nofun)
@@ -97,9 +93,10 @@ theorem rlp_phase2_long_acc_spec_within (len byte : Word) (base : Word) :
   have s2 := add_spec_gen_rd_eq_rs1_within .x11 .x12
     (len <<< (8 : BitVec 6).toNat) byte (base + 4) (by nofun)
   rw [show (base + 4 : Word) + 4 = base + 8 from by bv_omega] at s2
-  -- Compose. `(8 : BitVec 6).toNat = 8` so the result matches.
-  rw [bv6_toNat_8] at s1
-  exact cpsTripleWithin_seq hd s1 s2
+  -- Compose with bounded runBlock. Normalize the shift amount in both local
+  -- specs so their midpoint atoms are syntactically identical.
+  rw [bv6_toNat_8] at s1 s2
+  runBlock s1 s2
 
 theorem rlp_phase2_long_acc_spec (len byte : Word) (base : Word) :
     cpsTriple base (base + 8)

@@ -1118,6 +1118,46 @@ def assignOrPermute (goal : MVarId) (result : Expr) : MetaM Unit := do
   goal.assign (mkAppN (mkConst ``EvmAsm.Rv64.cpsTriple_weaken)
     #[gEntry, gExit, gCr, gPre, gPre, resultPost, goalPost, idPre, postPerm, result'])
 
+/-- Bounded variant of `assignOrPermute`. It also widens the step bound using
+    `cpsTripleWithin_mono_nSteps` when the goal allows more steps than the
+    composed result used. -/
+def assignOrPermuteWithin (goal : MVarId) (result : Expr) : MetaM Unit := do
+  let goalType ← goal.getType
+  let resultType ← inferType result
+  if ← withoutModifyingState (isDefEq goalType resultType) then
+    goal.assign result
+    return
+  let some (gSteps, gEntry, gExit, gCr, gPre, goalPost) ← parseCpsTripleWithin? goalType
+    | throwError "seqFrame: goal is not a cpsTripleWithin"
+  let some (rSteps, rEntry, rExit, rCr, _, resultPost) ← parseCpsTripleWithin? resultType
+    | throwError "seqFrame: result is not a cpsTripleWithin (internal error)"
+  unless ← isDefEq gEntry rEntry do
+    throwError "seqFrame: entry addresses don't match goal"
+  unless ← isDefEq gExit rExit do
+    throwError "seqFrame: exit addresses don't match goal"
+  let result' ←
+    if ← withoutModifyingState (isDefEq gCr rCr) then
+      Pure.pure result
+    else do
+      let monoProof ← try buildMonoProof rCr gCr
+        catch e =>
+          Lean.logInfo m!"seqFrame/assignOrPermuteWithin: CR extension failed:\n  rCr = {rCr}\n  gCr = {gCr}\n  error = {← e.toMessageData.toString}"
+          throw e
+      mkAppM ``EvmAsm.Rv64.cpsTripleWithin_extend_code #[monoProof, result]
+  let result'' ←
+    if ← withoutModifyingState (isDefEq rSteps gSteps) then
+      Pure.pure result'
+    else do
+      let hleType ← mkAppM ``LE.le #[rSteps, gSteps]
+      let hle ← mkFreshExprMVar hleType
+      let stx ← `(tactic| omega)
+      runTacticSilent hle.mvarId! stx
+      mkAppM ``EvmAsm.Rv64.cpsTripleWithin_mono_nSteps #[← instantiateMVars hle, result']
+  let postPerm ← mkPermLambda resultPost goalPost
+  let idPre ← mkIdLambda gPre
+  goal.assign (mkAppN (mkConst ``EvmAsm.Rv64.cpsTripleWithin_weaken)
+    #[gSteps, gEntry, gExit, gCr, gPre, gPre, resultPost, goalPost, idPre, postPerm, result''])
+
 /-- `seqFrame h1 h2` composes two `cpsTriple` hypotheses with automatic framing.
 
     Given:
@@ -1133,17 +1173,26 @@ def assignOrPermute (goal : MVarId) (result : Expr) : MetaM Unit := do
 elab "seqFrame" h1:ident h2:ident : tactic => withMainContext do
   let h1Expr ← elabTerm h1 none
   let h2Expr ← elabTerm h2 none
-  let result ← seqFrameCore h1Expr h2Expr
+  let h1Type ← inferType h1Expr
+  let h2Type ← inferType h2Expr
+  let result ←
+    match (← parseCpsTripleWithin? h1Type), (← parseCpsTripleWithin? h2Type) with
+    | some _, some _ => seqFrameWithinCore h1Expr h2Expr
+    | none, none => seqFrameCore h1Expr h2Expr
+    | _, _ => throwError "seqFrame: both arguments must be cpsTriple or both must be cpsTripleWithin"
   let goal ← getMainGoal
   let goalType ← goal.getType
   -- Fast check: can we plausibly close the goal?
-  let isCpsGoal := (← parseCpsTriple? goalType).isSome
+  let isCpsGoal := (← parseCpsTriple? goalType).isSome || (← parseCpsTripleWithin? goalType).isSome
   let canClose ← if isCpsGoal then Pure.pure true else do
     let resultType ← inferType result
     withoutModifyingState (isDefEq goalType resultType)
   if canClose then
     try
-      assignOrPermute goal result
+      if (← parseCpsTripleWithin? (← inferType result)).isSome then
+        assignOrPermuteWithin goal result
+      else
+        assignOrPermute goal result
       replaceMainGoal []
     catch e =>
       Lean.logWarning m!"seqFrame: could not close goal: {← e.toMessageData.toString}"

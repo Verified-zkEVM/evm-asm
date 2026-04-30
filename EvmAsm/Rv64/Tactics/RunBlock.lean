@@ -832,16 +832,36 @@ elab "validMem" : tactic => do
     Uses unification: creates MVars for all spec parameters, unifies the spec's
     instruction and register/memory atoms with the state, then solves proof
     obligations. Returns the instantiated proof term. -/
+private inductive ResolvedSpecShape where
+  | unbounded
+  | bounded
+  deriving BEq
+
 private def tryInstantiateSpec (specName : Name) (instrExpr instrAddr : Expr)
-    (stateAtoms : List Expr) : MetaM Expr := do
+    (stateAtoms : List Expr) (requiredShape : Option ResolvedSpecShape := none) : MetaM Expr := do
   let specConst := mkConst specName
   let specType ← inferType specConst
   -- Create metavariable telescope for spec parameters (non-reducing to avoid
   -- unfolding cpsTriple, which is itself a ∀ internally)
   let (params, _, body) ← forallMetaTelescope specType
-  -- body should be cpsTriple entry exit cr pre post
-  let some (specEntry, _, specCr, specPre, _) ← parseCpsTriple? body
-    | throwError "tryInstantiateSpec: {specName} is not a cpsTriple"
+  -- body should be cpsTriple/cpsTripleWithin entry exit cr pre post
+  let (shape, specEntry, specCr, specPre) ←
+    match ← parseCpsTripleWithin? body with
+    | some (_, specEntry, _, specCr, specPre, _) =>
+      Pure.pure (.bounded, specEntry, specCr, specPre)
+    | none =>
+      match ← parseCpsTriple? body with
+      | some (specEntry, _, specCr, specPre, _) =>
+        Pure.pure (.unbounded, specEntry, specCr, specPre)
+      | none =>
+        throwError "tryInstantiateSpec: {specName} is not a cpsTriple or cpsTripleWithin"
+  if let some required := requiredShape then
+    unless shape == required do
+      let expected :=
+        match required with
+        | .bounded => "cpsTripleWithin"
+        | .unbounded => "cpsTriple"
+      throwError "tryInstantiateSpec: {specName} has the wrong shape; expected {expected}"
   -- Step 1: Unify spec address with our instruction address
   unless ← isDefEq specEntry instrAddr do
     throwError "address mismatch"
@@ -909,7 +929,7 @@ private def tryInstantiateSpec (specName : Name) (instrExpr instrAddr : Expr)
 /-- Resolve a spec for an instruction by trying all registered specs.
     Returns the first successfully instantiated spec proof. -/
 private def resolveSpecForInstr (instrExpr instrAddr : Expr)
-    (stateAtoms : List Expr) : MetaM Expr := do
+    (stateAtoms : List Expr) (requiredShape : Option ResolvedSpecShape := none) : MetaM Expr := do
   let instrHead := instrExpr.getAppFn
   let .const instrName _ := instrHead
     | throwError "runBlock: instruction is not a constructor application: {instrExpr}\n\
@@ -926,7 +946,7 @@ private def resolveSpecForInstr (instrExpr instrAddr : Expr)
   for entry in specs do
     let saved ← saveState
     try
-      let result ← tryInstantiateSpec entry.specName instrExpr instrAddr stateAtoms
+      let result ← tryInstantiateSpec entry.specName instrExpr instrAddr stateAtoms requiredShape
       trace[runBlock] "  resolved with {entry.specName}"
       return result
     catch e =>
@@ -946,8 +966,13 @@ private def resolveSpecForInstr (instrExpr instrAddr : Expr)
     Returns postcondition atoms ∪ (currentAtoms \ precondition atoms). -/
 private def advanceState (currentAtoms : List Expr) (specExpr : Expr) : MetaM (List Expr) := do
   let specType ← inferType specExpr
-  let some (_, _, _, specPre, specPost) ← parseCpsTriple? specType
-    | throwError "advanceState: not a cpsTriple"
+  let (specPre, specPost) ←
+    match ← parseCpsTripleWithin? specType with
+    | some (_, _, _, _, specPre, specPost) => Pure.pure (specPre, specPost)
+    | none =>
+      match ← parseCpsTriple? specType with
+      | some (_, _, _, specPre, specPost) => Pure.pure (specPre, specPost)
+      | none => throwError "advanceState: not a cpsTriple or cpsTripleWithin"
   let preAtoms ← flattenSepConj specPre
   let postAtoms ← flattenSepConj specPost
   -- Remove consumed atoms (those in spec's precondition)
@@ -1054,6 +1079,36 @@ private def autoResolveAndCompose (goalPre : Expr) (goalCr : Expr) : MetaM Expr 
   trace[runBlock] "all {specs.size} spec(s) resolved, composing..."
   runBlockCore specs goalPre (goalCr := some goalCr)
 
+private def autoResolveAndComposeWithin (goalPre : Expr) (goalCr : Expr) : MetaM Expr :=
+  withTraceNode `runBlock.perf (fun _ => return m!"autoResolveAndComposeWithin") do
+  let mut instrAtoms ← extractCrEntries goalCr
+  if instrAtoms.isEmpty then
+    let atoms ← flattenSepConj goalPre
+    instrAtoms := extractInstrAtoms atoms
+  if instrAtoms.isEmpty then
+    throwError "runBlock: no instructions found in the goal's CodeReq or precondition.\n\
+        The goal must be a `cpsTripleWithin` whose CodeReq contains `CodeReq.singleton` entries,\n\
+        or whose precondition contains `instrAt` (↦ᵢ) atoms."
+  let atoms ← flattenSepConj goalPre
+  let stateAtoms := atoms.filter fun a => !a.isAppOfArity `EvmAsm.Rv64.instrAt 2
+  trace[runBlock] "bounded auto mode: {instrAtoms.length} instruction(s), {stateAtoms.length} state atom(s)"
+  let mut currentState := stateAtoms
+  let mut specs : Array Expr := #[]
+  let mut resolvedCount : Nat := 0
+  let totalCount := instrAtoms.length
+  for (addr, instr) in instrAtoms do
+    try
+      let spec ← resolveSpecForInstr instr addr currentState (requiredShape := some .bounded)
+      specs := specs.push spec
+      currentState ← advanceState currentState spec
+      resolvedCount := resolvedCount + 1
+    catch e =>
+      let eMsg ← e.toMessageData.format
+      throwError "{eMsg}\n  Progress: resolved {resolvedCount} of {totalCount} bounded instruction spec(s) before failure.\n\
+        Hint: bounded auto mode only uses registered cpsTripleWithin specs; register the bounded spec or use manual mode: `runBlock s1 s2 ...`."
+  trace[runBlock] "all {specs.size} bounded spec(s) resolved, composing..."
+  runBlockWithinCore specs goalPre (goalCr := some goalCr)
+
 /-- Verify a basic block by composing instruction specs with automatic framing.
 
     **Auto mode** (no arguments): resolves specs from the `@[spec_gen_rv64]` database.
@@ -1131,10 +1186,12 @@ elab "runBlock" specs:ident* : tactic => withMainContext do
     | none =>
       let some (gSteps, gEntry, gExit, gCr, gPre, goalPost) ← parseCpsTripleWithin? workingGoalType
         | throwError "runBlock: goal is not a `cpsTriple` or `cpsTripleWithin` after normalization."
-      if specs.isEmpty then
-        throwError "runBlock: auto mode for cpsTripleWithin goals is not implemented; pass bounded specs explicitly."
-      let specExprs ← specs.mapM fun s => elabTerm s none
-      let composed ← runBlockWithinCore specExprs gPre (goalCr := some gCr)
+      let composed ←
+        if specs.isEmpty then
+          autoResolveAndComposeWithin gPre gCr
+        else
+          let specExprs ← specs.mapM fun s => elabTerm s none
+          runBlockWithinCore specExprs gPre (goalCr := some gCr)
       let finalResult ← normalizeWithinToGoal composed workingGoalType
       let resultType ← inferType finalResult
       let some (rSteps, _, _, _, _, resultPost) ← parseCpsTripleWithin? resultType

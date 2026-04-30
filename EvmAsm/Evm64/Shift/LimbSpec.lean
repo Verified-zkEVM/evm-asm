@@ -511,12 +511,12 @@ abbrev shr_cascade_step_code (k : BitVec 12) (offset : BitVec 13) (base : Word) 
 /-- Cascade step: ADDI x10,x0,k followed by BEQ x5,x10,off.
     Produces a cpsBranch with clean postconditions (no pure facts).
     Uses disjoint composition of the two singleton CRs. -/
-theorem shr_cascade_step_spec (v5 v10 : Word)
+theorem shr_cascade_step_spec_within (v5 v10 : Word)
     (k : BitVec 12) (offset : BitVec 13) (base target : Word)
     (htarget : (base + 4) + signExtend13 offset = target) :
     let kVal := (0 : Word) + signExtend12 k
     let code := shr_cascade_step_code k offset base
-    cpsBranch base code
+    cpsBranchWithin 2 base code
       ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10))
       target ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ kVal))
       (base + 8) ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ kVal)) := by
@@ -527,29 +527,29 @@ theorem shr_cascade_step_spec (v5 v10 : Word)
       (CodeReq.singleton (base + 4) (.BEQ .x5 .x10 offset)) :=
     CodeReq.Disjoint.singleton (by bv_omega)
   -- Step 1: ADDI x10, x0, k at base (singleton CR)
-  have s1 := addi_spec_gen .x10 .x0 v10 0 k base (by nofun)
+  have s1 := addi_spec_gen_within .x10 .x0 v10 0 k base (by nofun)
   -- Frame ADDI with x5 and permute
-  have s1' : cpsTriple base (base + 4) (CodeReq.singleton base (.ADDI .x10 .x0 k))
+  have s1' : cpsTripleWithin 1 base (base + 4) (CodeReq.singleton base (.ADDI .x10 .x0 k))
       ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10))
       ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ ((0 : Word) + signExtend12 k))) :=
-    cpsTriple_weaken
+    cpsTripleWithin_weaken
       (fun h hp => by xperm_hyp hp)
       (fun h hp => by xperm_hyp hp)
-      (cpsTriple_frameR (.x5 ↦ᵣ v5) (by pcFree) s1)
+      (cpsTripleWithin_frameR (.x5 ↦ᵣ v5) (by pcFree) s1)
   -- Step 2: BEQ x5, x10, offset at base+4 (singleton CR)
-  have s2_raw := beq_spec_gen .x5 .x10 offset v5 ((0 : Word) + signExtend12 k) (base + 4)
+  have s2_raw := beq_spec_gen_within .x5 .x10 offset v5 ((0 : Word) + signExtend12 k) (base + 4)
   rw [htarget, ha1] at s2_raw
   -- Strip pure facts + frame with x0 + permute
-  have s2' : cpsBranch (base + 4) (CodeReq.singleton (base + 4) (.BEQ .x5 .x10 offset))
+  have s2' : cpsBranchWithin 1 (base + 4) (CodeReq.singleton (base + 4) (.BEQ .x5 .x10 offset))
       ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ ((0 : Word) + signExtend12 k)))
       target ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ ((0 : Word) + signExtend12 k)))
       (base + 8) ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ ((0 : Word) + signExtend12 k))) :=
-    cpsBranch_weaken
+    cpsBranchWithin_weaken
       (fun h hp => by xperm_hyp hp)
       (fun h hp => by xperm_hyp hp)
       (fun h hp => by xperm_hyp hp)
-      (cpsBranch_frameR (.x0 ↦ᵣ (0 : Word)) (by pcFree)
-        (cpsBranch_weaken
+      (cpsBranchWithin_frameR (.x0 ↦ᵣ (0 : Word)) (by pcFree)
+        (cpsBranchWithin_weaken
           (fun _ hp => hp)
           (fun h hp => sepConj_mono_right
             (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp)
@@ -557,8 +557,19 @@ theorem shr_cascade_step_spec (v5 v10 : Word)
             (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp)
           s2_raw))
   -- Compose with disjoint CRs
-  exact cpsTriple_seq_cpsBranch_with_perm hd
+  exact cpsTripleWithin_seq_cpsBranchWithin_with_perm hd
     (fun _ hp => hp) s1' s2'
+
+theorem shr_cascade_step_spec (v5 v10 : Word)
+    (k : BitVec 12) (offset : BitVec 13) (base target : Word)
+    (htarget : (base + 4) + signExtend13 offset = target) :
+    let kVal := (0 : Word) + signExtend12 k
+    let code := shr_cascade_step_code k offset base
+    cpsBranch base code
+      ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10))
+      target ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ kVal))
+      (base + 8) ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ kVal)) :=
+  (shr_cascade_step_spec_within v5 v10 k offset base target htarget).to_cpsBranch
 
 /-- Cascade step variant that preserves pure dispatch facts.
     Taken postcondition includes `⌜v5 = kVal⌝`, not-taken includes `⌜v5 ≠ kVal⌝`. -/
@@ -621,14 +632,14 @@ abbrev shr_phase_c_code (base : Word) : CodeReq :=
 
 /-- Phase C spec: cascade dispatch on limb_shift (0-3).
     Uses disjoint composition to chain BEQ + two cascade steps. -/
-theorem shr_phase_c_spec (v5 v10 : Word) (base : Word)
+theorem shr_phase_c_spec_within (v5 v10 : Word) (base : Word)
     (e0 e1 e2 e3 : Word)
     (he0 : base + signExtend13 176 = e0)
     (he1 : (base + 8) + signExtend13 92 = e1)
     (he2 : (base + 16) + signExtend13 32 = e2)
     (he3 : base + 20 = e3) :
     let code := shr_phase_c_code base
-    cpsNBranch base code
+    cpsNBranchWithin 5 base code
       ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10))
       [(e0, (.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10)),
        (e1, (.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ ((0 : Word) + signExtend12 1))),
@@ -661,14 +672,14 @@ theorem shr_phase_c_spec (v5 v10 : Word) (base : Word)
         (CodeReq.Disjoint.singleton (by bv_omega))
         (CodeReq.Disjoint.singleton (by bv_omega)))
   -- Step 0: BEQ x5 x0 176 at base (singleton CR)
-  have beq0_raw := beq_spec_gen .x5 .x0 176 v5 (0 : Word) base
+  have beq0_raw := beq_spec_gen_within .x5 .x0 176 v5 (0 : Word) base
   rw [he0] at beq0_raw
   -- Strip pure facts
-  have beq0 : cpsBranch base cr_beq0
+  have beq0 : cpsBranchWithin 1 base cr_beq0
       ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)))
       e0 ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)))
       (base + 4) ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word))) :=
-    cpsBranch_weaken
+    cpsBranchWithin_weaken
       (fun _ hp => hp)
       (fun h hp => sepConj_mono_right
         (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp)
@@ -676,32 +687,32 @@ theorem shr_phase_c_spec (v5 v10 : Word) (base : Word)
         (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp)
       beq0_raw
   -- Frame BEQ with x10
-  have beq0f := cpsBranch_frameR
+  have beq0f := cpsBranchWithin_frameR
     (.x10 ↦ᵣ v10) (by pcFree) beq0
   -- Step 1: cascade step at base+4 (CR = cr_cs1)
-  have cs1 := shr_cascade_step_spec v5 v10 1 92 (base + 4) e1 hc1
+  have cs1 := shr_cascade_step_spec_within v5 v10 1 92 (base + 4) e1 hc1
   rw [show (base + 4 : Word) + 8 = base + 12 from by bv_addr] at cs1
   -- Step 2: cascade step at base+12 (CR = cr_cs2)
-  have cs2 := shr_cascade_step_spec v5 ((0 : Word) + signExtend12 1) 2 32 (base + 12) e2 hc2
+  have cs2 := shr_cascade_step_spec_within v5 ((0 : Word) + signExtend12 1) 2 32 (base + 12) e2 hc2
   rw [show (base + 12 : Word) + 8 = base + 20 from by bv_addr] at cs2
   -- Fallthrough at base+20 (CR = empty)
-  have ft := cpsNBranch_refl (base + 20)
+  have ft := cpsNBranchWithin_refl (base + 20)
     ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ ((0 : Word) + signExtend12 2)))
     _ (fun _ hp => hp)
   -- Chain step 2 + fallthrough (disjoint: cr_cs2 vs empty)
-  have n3 := cpsBranch_cons_cpsNBranch (CodeReq.Disjoint.empty_right cr_cs2) cs2 ft
+  have n3 := cpsBranchWithin_cons_cpsNBranchWithin (CodeReq.Disjoint.empty_right cr_cs2) cs2 ft
   -- Helper: union with empty is identity
   have hunion_empty : ∀ (cr : CodeReq), cr.union CodeReq.empty = cr := by
     intro cr; funext a; simp only [CodeReq.union, CodeReq.empty]; cases cr a <;> rfl
   -- Chain step 1 + n3 (disjoint: cr_cs1 vs cr_cs2.union empty)
   have hd_cs1_rest : cr_cs1.Disjoint (cr_cs2.union CodeReq.empty) := by
     rw [hunion_empty]; exact hd_cs1_cs2
-  have n2 := cpsBranch_cons_cpsNBranch_with_perm hd_cs1_rest
+  have n2 := cpsBranchWithin_cons_cpsNBranchWithin_with_perm hd_cs1_rest
     (fun h hp => by xperm_hyp hp) cs1 n3
   -- Chain step 0 + n2 (disjoint: cr_beq0 vs cr_cs1.union (cr_cs2.union empty))
   have hd_beq0_rest : cr_beq0.Disjoint (cr_cs1.union (cr_cs2.union CodeReq.empty)) := by
     rw [hunion_empty]; exact CodeReq.Disjoint.union_right hd_beq0_cs1 hd_beq0_cs2
-  have n1 := cpsBranch_cons_cpsNBranch_with_perm hd_beq0_rest
+  have n1 := cpsBranchWithin_cons_cpsNBranchWithin_with_perm hd_beq0_rest
     (fun h hp => by xperm_hyp hp) beq0f n2
   -- The CR now is: cr_beq0.union (cr_cs1.union (cr_cs2.union empty))
   -- Simplify empty away and match the goal CR
@@ -711,7 +722,7 @@ theorem shr_phase_c_spec (v5 v10 : Word) (base : Word)
   -- Rewrite CR, weaken pre, and weaken post
   intro code
   have n1_rw := hcr_eq ▸ n1
-  exact cpsNBranch_weaken_posts (cpsNBranch_weaken_pre (fun h hp => by xperm_hyp hp) n1_rw)
+  exact cpsNBranchWithin_weaken_posts (cpsNBranchWithin_weaken_pre (fun h hp => by xperm_hyp hp) n1_rw)
     (fun ex hmem => by
       simp only [List.mem_cons, List.mem_nil_iff, or_false] at hmem
       rcases hmem with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
@@ -719,6 +730,21 @@ theorem shr_phase_c_spec (v5 v10 : Word) (base : Word)
       · exact ⟨_, List.Mem.tail _ (List.Mem.head _), rfl, fun h hp => by xperm_hyp hp⟩
       · exact ⟨_, List.Mem.tail _ (List.Mem.tail _ (List.Mem.head _)), rfl, fun h hp => by xperm_hyp hp⟩
       · exact ⟨_, List.Mem.tail _ (List.Mem.tail _ (List.Mem.tail _ (List.Mem.head _))), he3.symm, fun h hp => by xperm_hyp hp⟩)
+
+theorem shr_phase_c_spec (v5 v10 : Word) (base : Word)
+    (e0 e1 e2 e3 : Word)
+    (he0 : base + signExtend13 176 = e0)
+    (he1 : (base + 8) + signExtend13 92 = e1)
+    (he2 : (base + 16) + signExtend13 32 = e2)
+    (he3 : base + 20 = e3) :
+    let code := shr_phase_c_code base
+    cpsNBranch base code
+      ((.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10))
+      [(e0, (.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10)),
+       (e1, (.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ ((0 : Word) + signExtend12 1))),
+       (e2, (.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ ((0 : Word) + signExtend12 2))),
+       (e3, (.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ ((0 : Word) + signExtend12 2)))] :=
+  (shr_phase_c_spec_within v5 v10 base e0 e1 e2 e3 he0 he1 he2 he3).to_cpsNBranch
 
 /-- Phase C spec with pure dispatch facts: each exit postcondition includes
     the constraint that identifies which branch was taken.
@@ -894,13 +920,13 @@ abbrev shr_phase_a_code (base : Word) : CodeReq :=
     - Taken (zero_path): shift >= 256, x5/x10 are regOwn (existential)
     - Not-taken (base+36): shift < 256, x5=s0, x10 is regOwn
     Uses disjoint composition throughout (no extend_code). -/
-theorem shr_phase_a_spec (sp r5 r10 : Word)
+theorem shr_phase_a_spec_within (sp r5 r10 : Word)
     (s0 s1 s2 s3 : Word)
     (base zero_path : Word)
     (hzero : (base + 20) + signExtend13 320 = zero_path)
     (hzero2 : (base + 32) + signExtend13 308 = zero_path) :
     let code := shr_phase_a_code base
-    cpsBranch base code
+    cpsBranchWithin 9 base code
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ r5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ r10) **
        (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3))
       zero_path
@@ -926,10 +952,10 @@ theorem shr_phase_a_spec (sp r5 r10 : Word)
   let crBeq := CodeReq.singleton (base + 32) (.BEQ .x10 .x0 308)
   -- ── Part 1: Linear chain base..base+20 (LD + LD/OR + LD/OR) ──
   -- Step 1: LD x5 x12 8 at base (CR = crLd1)
-  have lw1 := ld_spec_gen .x5 .x12 sp r5 s1 8 base (by nofun)
+  have lw1 := ld_spec_gen_within .x5 .x12 sp r5 s1 8 base (by nofun)
   simp only [signExtend12_8] at lw1
   -- Step 2: shr_ld_or_acc at base+4 (CR = crLor2, exit = (base+4)+8 = base+12)
-  have lor2 := shr_ld_or_acc_spec sp s1 r10 s2 16 (base + 4)
+  have lor2 := shr_ld_or_acc_spec_within sp s1 r10 s2 16 (base + 4)
   simp only [signExtend12_16] at lor2
   rw [ha48] at lor2
   -- Disjoint: crLd1 vs crLor2
@@ -938,15 +964,15 @@ theorem shr_phase_a_spec (sp r5 r10 : Word)
       (CodeReq.Disjoint.singleton (by bv_omega))
       (CodeReq.Disjoint.singleton (by bv_omega))
   -- Compose LD + LD/OR (need to frame + perm)
-  have lw1f := cpsTriple_frameR ((.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ r10) ** (sp ↦ₘ s0) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3)) (by pcFree) lw1
-  have lor2f := cpsTriple_frameR ((.x0 ↦ᵣ (0 : Word)) ** (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 24) ↦ₘ s3)) (by pcFree) lor2
-  have c12 := cpsTriple_seq_with_perm hd_ld1_lor2
+  have lw1f := cpsTripleWithin_frameR ((.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ r10) ** (sp ↦ₘ s0) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3)) (by pcFree) lw1
+  have lor2f := cpsTripleWithin_frameR ((.x0 ↦ᵣ (0 : Word)) ** (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 24) ↦ₘ s3)) (by pcFree) lor2
+  have c12 := cpsTripleWithin_seq_with_perm hd_ld1_lor2
     (fun h hp => by xperm_hyp hp) lw1f lor2f
   -- Step 3: shr_ld_or_acc at base+12 (CR = crLor3, exit = (base+12)+8 = base+20)
-  have lor3 := shr_ld_or_acc_spec sp (s1 ||| s2) s2 s3 24 (base + 12)
+  have lor3 := shr_ld_or_acc_spec_within sp (s1 ||| s2) s2 s3 24 (base + 12)
   simp only [signExtend12_24] at lor3
   rw [ha128] at lor3
-  have lor3f := cpsTriple_frameR ((.x0 ↦ᵣ (0 : Word)) ** (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2)) (by pcFree) lor3
+  have lor3f := cpsTripleWithin_frameR ((.x0 ↦ᵣ (0 : Word)) ** (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2)) (by pcFree) lor3
   -- Disjoint: (crLd1 ∪ crLor2) vs crLor3
   have hd_12_lor3 : (crLd1.union crLor2).Disjoint crLor3 :=
     CodeReq.Disjoint.union_left
@@ -960,19 +986,19 @@ theorem shr_phase_a_spec (sp r5 r10 : Word)
         (CodeReq.Disjoint.union_right
           (CodeReq.Disjoint.singleton (by bv_omega))
           (CodeReq.Disjoint.singleton (by bv_omega))))
-  have c13 := cpsTriple_seq_with_perm hd_12_lor3
+  have c13 := cpsTripleWithin_seq_with_perm hd_12_lor3
     (fun h hp => by xperm_hyp hp) c12 lor3f
   -- CR so far: (crLd1 ∪ crLor2) ∪ crLor3
   let crLinear := (crLd1.union crLor2).union crLor3
   -- ── Part 2: BNE at base+20 (first branch) ──
-  have bne_raw := bne_spec_gen .x5 .x0 320 (s1 ||| s2 ||| s3) (0 : Word) (base + 20)
+  have bne_raw := bne_spec_gen_within .x5 .x0 320 (s1 ||| s2 ||| s3) (0 : Word) (base + 20)
   rw [hzero, ha20] at bne_raw
   -- Strip pure facts from BNE
-  have bne1 : cpsBranch (base + 20) crBne
+  have bne1 : cpsBranchWithin 1 (base + 20) crBne
       ((.x5 ↦ᵣ (s1 ||| s2 ||| s3)) ** (.x0 ↦ᵣ (0 : Word)))
       zero_path ((.x5 ↦ᵣ (s1 ||| s2 ||| s3)) ** (.x0 ↦ᵣ (0 : Word)))
       (base + 24) ((.x5 ↦ᵣ (s1 ||| s2 ||| s3)) ** (.x0 ↦ᵣ (0 : Word))) :=
-    cpsBranch_weaken
+    cpsBranchWithin_weaken
       (fun _ hp => hp)
       (fun h hp => sepConj_mono_right
         (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp)
@@ -980,7 +1006,7 @@ theorem shr_phase_a_spec (sp r5 r10 : Word)
         (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp)
       bne_raw
   -- Frame BNE with remaining state
-  have bne1f := cpsBranch_frameR
+  have bne1f := cpsBranchWithin_frameR
     ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ s3) ** (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3)) (by pcFree) bne1
   -- Disjoint: crLinear vs crBne
   have hd_lin_bne : crLinear.Disjoint crBne :=
@@ -994,37 +1020,37 @@ theorem shr_phase_a_spec (sp r5 r10 : Word)
         (CodeReq.Disjoint.singleton (by bv_omega))
         (CodeReq.Disjoint.singleton (by bv_omega)))
   -- Compose linear chain + BNE branch
-  have br1 := cpsTriple_seq_cpsBranch_with_perm hd_lin_bne
+  have br1 := cpsTripleWithin_seq_cpsBranchWithin_with_perm hd_lin_bne
     (fun h hp => by xperm_hyp hp) c13 bne1f
   -- BR1 CR: crLinear ∪ crBne
   -- ── Part 3: Fall-through path (base+24..base+32): LD + SLTIU + BEQ ──
   -- Step 5: LD x5 x12 0 at base+24
-  have lw5 := ld_spec_gen .x5 .x12 sp
+  have lw5 := ld_spec_gen_within .x5 .x12 sp
     (s1 ||| s2 ||| s3) s0 0 (base + 24) (by nofun)
   simp only [signExtend12_0] at lw5
   rw [word_add_zero] at lw5
   rw [ha24] at lw5
   -- Step 6: SLTIU x10 x5 256 at base+28
-  have sltiu_raw := sltiu_spec_gen .x10 .x5 s3 s0 256 (base + 28) (by nofun)
+  have sltiu_raw := sltiu_spec_gen_within .x10 .x5 s3 s0 256 (base + 28) (by nofun)
   rw [ha28] at sltiu_raw
   let sltiuVal := (if BitVec.ult s0 (signExtend12 (256 : BitVec 12)) then (1 : Word) else (0 : Word))
   -- Disjoint: crLd5 vs crSltiu
   have hd_ld5_sltiu : crLd5.Disjoint crSltiu :=
     CodeReq.Disjoint.singleton (by bv_omega)
   -- Frame and compose LD + SLTIU
-  have lw5f := cpsTriple_frameR ((.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ s3) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3)) (by pcFree) lw5
-  have sltiuf := cpsTriple_frameR ((.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) ** (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3)) (by pcFree) sltiu_raw
-  have c56 := cpsTriple_seq_with_perm hd_ld5_sltiu
+  have lw5f := cpsTripleWithin_frameR ((.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ s3) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3)) (by pcFree) lw5
+  have sltiuf := cpsTripleWithin_frameR ((.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) ** (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3)) (by pcFree) sltiu_raw
+  have c56 := cpsTripleWithin_seq_with_perm hd_ld5_sltiu
     (fun h hp => by xperm_hyp hp) lw5f sltiuf
   -- Step 7: BEQ x10 x0 308 at base+32
-  have beq_raw := beq_spec_gen .x10 .x0 308 sltiuVal (0 : Word) (base + 32)
+  have beq_raw := beq_spec_gen_within .x10 .x0 308 sltiuVal (0 : Word) (base + 32)
   rw [hzero2, ha32] at beq_raw
   -- Strip pure facts from BEQ
-  have beq1 : cpsBranch (base + 32) crBeq
+  have beq1 : cpsBranchWithin 1 (base + 32) crBeq
       ((.x10 ↦ᵣ sltiuVal) ** (.x0 ↦ᵣ (0 : Word)))
       zero_path ((.x10 ↦ᵣ sltiuVal) ** (.x0 ↦ᵣ (0 : Word)))
       (base + 36) ((.x10 ↦ᵣ sltiuVal) ** (.x0 ↦ᵣ (0 : Word))) :=
-    cpsBranch_weaken
+    cpsBranchWithin_weaken
       (fun _ hp => hp)
       (fun h hp => sepConj_mono_right
         (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp)
@@ -1032,7 +1058,7 @@ theorem shr_phase_a_spec (sp r5 r10 : Word)
         (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp)
       beq_raw
   -- Frame BEQ with remaining state
-  have beq1f := cpsBranch_frameR
+  have beq1f := cpsBranchWithin_frameR
     ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ s0) ** (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3)) (by pcFree) beq1
   -- Disjoint: (crLd5 ∪ crSltiu) vs crBeq
   have hd_56_beq : (crLd5.union crSltiu).Disjoint crBeq :=
@@ -1040,7 +1066,7 @@ theorem shr_phase_a_spec (sp r5 r10 : Word)
       (CodeReq.Disjoint.singleton (by bv_omega))
       (CodeReq.Disjoint.singleton (by bv_omega))
   -- Compose LD+SLTIU chain with BEQ branch
-  have br2 := cpsTriple_seq_cpsBranch_with_perm hd_56_beq
+  have br2 := cpsTripleWithin_seq_cpsBranchWithin_with_perm hd_56_beq
     (fun h hp => by xperm_hyp hp) c56 beq1f
   -- BR2 CR: (crLd5 ∪ crSltiu) ∪ crBeq
   let crTail := (crLd5.union crSltiu).union crBeq
@@ -1076,7 +1102,7 @@ theorem shr_phase_a_spec (sp r5 r10 : Word)
         hd_lor3_tail)
       -- crBne
       (sd_tail (base + 20) _ (by bv_omega) (by bv_omega) (by bv_omega))
-  have combined := cpsBranch_seq_cpsBranch_with_perm
+  have combined := cpsBranchWithin_seq_cpsBranchWithin_with_perm
     hd_br1_br2
     br1 (fun h hp => by xperm_hyp hp) br2
     -- ht1: weaken first taken path (BNE taken: x5 = s1|||s2|||s3, x10 = s3)
@@ -1120,7 +1146,7 @@ theorem shr_phase_a_spec (sp r5 r10 : Word)
     -- Unfold definitions and reassociate both sides
     simp only [shr_phase_a_code, shr_ld_or_acc_code, CodeReq.union_assoc]
   -- Final: weaken not-taken postcondition and rewrite CR
-  have result : cpsBranch base (shr_phase_a_code base)
+  have result : cpsBranchWithin 9 base (shr_phase_a_code base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ r5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ r10) **
        (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3))
       zero_path
@@ -1130,7 +1156,7 @@ theorem shr_phase_a_spec (sp r5 r10 : Word)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ s0) ** (.x0 ↦ᵣ (0 : Word)) ** (regOwn .x10) **
        (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3)) := by
     rw [← hcr_eq]
-    exact cpsBranch_weaken
+    exact cpsBranchWithin_weaken
       (fun h hp => by xperm_hyp hp)
       (fun _ hp => hp)
       (fun h hp => by
@@ -1146,5 +1172,22 @@ theorem shr_phase_a_spec (sp r5 r10 : Word)
           from by xperm) h).mp w0)
       combined
   exact result
+
+theorem shr_phase_a_spec (sp r5 r10 : Word)
+    (s0 s1 s2 s3 : Word)
+    (base zero_path : Word)
+    (hzero : (base + 20) + signExtend13 320 = zero_path)
+    (hzero2 : (base + 32) + signExtend13 308 = zero_path) :
+    let code := shr_phase_a_code base
+    cpsBranch base code
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ r5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ r10) **
+       (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3))
+      zero_path
+      ((.x12 ↦ᵣ sp) ** (regOwn .x5) ** (.x0 ↦ᵣ (0 : Word)) ** (regOwn .x10) **
+       (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3))
+      (base + 36)
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ s0) ** (.x0 ↦ᵣ (0 : Word)) ** (regOwn .x10) **
+       (sp ↦ₘ s0) ** ((sp + 8) ↦ₘ s1) ** ((sp + 16) ↦ₘ s2) ** ((sp + 24) ↦ₘ s3)) :=
+  (shr_phase_a_spec_within sp r5 r10 s0 s1 s2 s3 base zero_path hzero hzero2).to_cpsBranch
 
 end EvmAsm.Evm64

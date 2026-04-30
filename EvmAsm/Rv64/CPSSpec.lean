@@ -246,6 +246,16 @@ theorem cpsBranchWithin_mono_nSteps {nSteps nSteps' : Nat} {entry : Word} {cr : 
   obtain ⟨k, hk, s', hstep, hbranch⟩ := h R hR s hcr hPR hpc
   exact ⟨k, Nat.le_trans hk hle, s', hstep, hbranch⟩
 
+/-- Swap the two branch targets of a bounded cpsBranch. The step bound is
+    unchanged. -/
+theorem cpsBranchWithin_swap {nSteps : Nat} {entry : Word} {cr : CodeReq} {P : Assertion}
+    {exit_t : Word} {Q_t : Assertion} {exit_f : Word} {Q_f : Assertion}
+    (h : cpsBranchWithin nSteps entry cr P exit_t Q_t exit_f Q_f) :
+    cpsBranchWithin nSteps entry cr P exit_f Q_f exit_t Q_t := by
+  intro R hR s hcr hPR hpc
+  obtain ⟨k, hk, s', hstep, hbranch⟩ := h R hR s hcr hPR hpc
+  exact ⟨k, hk, s', hstep, hbranch.symm⟩
+
 -- ============================================================================
 -- Structural rules
 -- ============================================================================
@@ -414,6 +424,40 @@ theorem cpsTriple_of_forall_memIs_to_memOwn
   exact h vOld R hR s hcr
     ⟨hp, hcompat, h1, h2, hd12, hunion12, ⟨h3, h4, hd34, hunion34, hP3, hv4⟩, hR2⟩ hpc
 
+/-- Bounded variant of `cpsTriple_of_forall_regIs_to_regOwn`. The step bound
+    is unchanged. -/
+theorem cpsTripleWithin_of_forall_regIs_to_regOwn
+    {nSteps : Nat} {entry exit_ r P Q} {cr : CodeReq}
+    (h : ∀ vOld, cpsTripleWithin nSteps entry exit_ cr (P ** (r ↦ᵣ vOld)) Q) :
+    cpsTripleWithin nSteps entry exit_ cr (P ** regOwn r) Q := by
+  intro R hR s hcr hPR hpc
+  obtain ⟨hp, hcompat, h1, h2, hd12, hunion12, hPown1, hR2⟩ := hPR
+  obtain ⟨h3, h4, hd34, hunion34, hP3, ⟨vOld, hv4⟩⟩ := hPown1
+  exact h vOld R hR s hcr
+    ⟨hp, hcompat, h1, h2, hd12, hunion12, ⟨h3, h4, hd34, hunion34, hP3, hv4⟩, hR2⟩ hpc
+
+/-- Bounded variant of `cpsTriple_of_forall_regIs_to_regOwn_single`. The step
+    bound is unchanged. -/
+theorem cpsTripleWithin_of_forall_regIs_to_regOwn_single
+    {nSteps : Nat} {entry exit_ r Q} {cr : CodeReq}
+    (h : ∀ vOld, cpsTripleWithin nSteps entry exit_ cr (r ↦ᵣ vOld) Q) :
+    cpsTripleWithin nSteps entry exit_ cr (regOwn r) Q := by
+  intro R hR s hcr hPR hpc
+  obtain ⟨hp, hcompat, h1, h2, hd, hunion, ⟨vOld, hv⟩, hR2⟩ := hPR
+  exact h vOld R hR s hcr ⟨hp, hcompat, h1, h2, hd, hunion, hv, hR2⟩ hpc
+
+/-- Bounded variant of `cpsTriple_of_forall_memIs_to_memOwn`. The step bound is
+    unchanged. -/
+theorem cpsTripleWithin_of_forall_memIs_to_memOwn
+    {nSteps : Nat} {entry exit_ a P Q} {cr : CodeReq}
+    (h : ∀ vOld, cpsTripleWithin nSteps entry exit_ cr (P ** (a ↦ₘ vOld)) Q) :
+    cpsTripleWithin nSteps entry exit_ cr (P ** memOwn a) Q := by
+  intro R hR s hcr hPR hpc
+  obtain ⟨hp, hcompat, h1, h2, hd12, hunion12, hPown1, hR2⟩ := hPR
+  obtain ⟨h3, h4, hd34, hunion34, hP3, ⟨vOld, hv4⟩⟩ := hPown1
+  exact h vOld R hR s hcr
+    ⟨hp, hcompat, h1, h2, hd12, hunion12, ⟨h3, h4, hd34, hunion34, hP3, hv4⟩, hR2⟩ hpc
+
 /-- Branch elimination: if both branch exits lead to the same
     continuation exit with R, merge back into a single cpsTriple.
     All position/code/assertion arguments are implicit — inferred from `hbr`/`h_t`/`h_f`. -/
@@ -456,6 +500,49 @@ theorem cpsBranch_merge_same_cr {entry l_t l_f exit_ : Word} {cr : CodeReq}
   · have hcr' := CodeReq.SatisfiedBy_preserved hstep1 hcr
     obtain ⟨k2, s2, hstep2, hpc2, hR⟩ := h_f F hF s1 hcr' hQ_f hpc_f
     exact ⟨k1 + k2, s2, stepN_add_eq hstep1 hstep2, hpc2, hR⟩
+
+/-- Bounded branch elimination: both branch exits lead to the same continuation.
+    Bounds add, using the larger continuation bound for both paths. -/
+theorem cpsBranchWithin_merge {nSteps1 nSteps2 : Nat}
+    {entry l_t l_f exit_ : Word} {cr1 cr_t cr_f : CodeReq}
+    (hd1 : cr1.Disjoint (cr_t.union cr_f)) (hd2 : cr_t.Disjoint cr_f)
+    {P Q_t Q_f R : Assertion}
+    (hbr   : cpsBranchWithin nSteps1 entry cr1 P l_t Q_t l_f Q_f)
+    (h_t   : cpsTripleWithin nSteps2 l_t exit_ cr_t Q_t R)
+    (h_f   : cpsTripleWithin nSteps2 l_f exit_ cr_f Q_f R) :
+    cpsTripleWithin (nSteps1 + nSteps2) entry exit_ (cr1.union (cr_t.union cr_f)) P R := by
+  intro F hF s hcr hPF hpc
+  rw [CodeReq.union_satisfiedBy hd1] at hcr
+  obtain ⟨hcr1, hcr_tf⟩ := hcr
+  rw [CodeReq.union_satisfiedBy hd2] at hcr_tf
+  obtain ⟨hcrt, hcrf⟩ := hcr_tf
+  obtain ⟨k1, hk1, s1, hstep1, hbranch⟩ := hbr F hF s hcr1 hPF hpc
+  rcases hbranch with ⟨hpc_t, hQ_t⟩ | ⟨hpc_f, hQ_f⟩
+  · have hcrt' := CodeReq.SatisfiedBy_preserved hstep1 hcrt
+    obtain ⟨k2, hk2, s2, hstep2, hpc2, hR⟩ := h_t F hF s1 hcrt' hQ_t hpc_t
+    exact ⟨k1 + k2, Nat.add_le_add hk1 hk2, s2, stepN_add_eq hstep1 hstep2, hpc2, hR⟩
+  · have hcrf' := CodeReq.SatisfiedBy_preserved hstep1 hcrf
+    obtain ⟨k2, hk2, s2, hstep2, hpc2, hR⟩ := h_f F hF s1 hcrf' hQ_f hpc_f
+    exact ⟨k1 + k2, Nat.add_le_add hk1 hk2, s2, stepN_add_eq hstep1 hstep2, hpc2, hR⟩
+
+/-- Bounded same-CodeReq branch elimination. Bounds add, using the larger
+    continuation bound for both paths. -/
+theorem cpsBranchWithin_merge_same_cr {nSteps1 nSteps2 : Nat}
+    {entry l_t l_f exit_ : Word} {cr : CodeReq}
+    {P Q_t Q_f R : Assertion}
+    (hbr   : cpsBranchWithin nSteps1 entry cr P l_t Q_t l_f Q_f)
+    (h_t   : cpsTripleWithin nSteps2 l_t exit_ cr Q_t R)
+    (h_f   : cpsTripleWithin nSteps2 l_f exit_ cr Q_f R) :
+    cpsTripleWithin (nSteps1 + nSteps2) entry exit_ cr P R := by
+  intro F hF s hcr hPF hpc
+  obtain ⟨k1, hk1, s1, hstep1, hbranch⟩ := hbr F hF s hcr hPF hpc
+  rcases hbranch with ⟨hpc_t, hQ_t⟩ | ⟨hpc_f, hQ_f⟩
+  · have hcr' := CodeReq.SatisfiedBy_preserved hstep1 hcr
+    obtain ⟨k2, hk2, s2, hstep2, hpc2, hR⟩ := h_t F hF s1 hcr' hQ_t hpc_t
+    exact ⟨k1 + k2, Nat.add_le_add hk1 hk2, s2, stepN_add_eq hstep1 hstep2, hpc2, hR⟩
+  · have hcr' := CodeReq.SatisfiedBy_preserved hstep1 hcr
+    obtain ⟨k2, hk2, s2, hstep2, hpc2, hR⟩ := h_f F hF s1 hcr' hQ_f hpc_f
+    exact ⟨k1 + k2, Nat.add_le_add hk1 hk2, s2, stepN_add_eq hstep1 hstep2, hpc2, hR⟩
 
 /-- Extract the taken path from a cpsBranch when the not-taken postcondition
     is unsatisfiable (e.g., contains a contradictory pure fact).
@@ -703,6 +790,45 @@ theorem cpsNBranchWithin_mono_nSteps {nSteps nSteps' : Nat} {entry : Word} {cr :
   obtain ⟨k, hk, s', hstep, ex, hmem, hpc', hQR⟩ := h R hR s hcr hPR hpc
   exact ⟨k, Nat.le_trans hk hle, s', hstep, ex, hmem, hpc', hQR⟩
 
+/-- Consequence: strengthen the precondition of a bounded N-branch. The step
+    bound is unchanged. -/
+theorem cpsNBranchWithin_weaken_pre {nSteps : Nat} {entry : Word} {cr : CodeReq}
+    {P P' : Assertion}
+    {exits : List (Word × Assertion)}
+    (hpre : ∀ h, P' h → P h) (h : cpsNBranchWithin nSteps entry cr P exits) :
+    cpsNBranchWithin nSteps entry cr P' exits := by
+  intro R hR s hcr hP'R hpc
+  have hPR : (P ** R).holdsFor s := by
+    obtain ⟨hp, hcompat, hpq⟩ := hP'R
+    exact ⟨hp, hcompat, sepConj_mono_left hpre hp hpq⟩
+  exact h R hR s hcr hPR hpc
+
+/-- Monotonicity: expand the exit list of a bounded N-branch. The step bound
+    is unchanged. -/
+theorem cpsNBranchWithin_weaken_exits {nSteps : Nat} {entry : Word} {cr : CodeReq}
+    {P : Assertion}
+    {exits : List (Word × Assertion)} (exits' : List (Word × Assertion))
+    (hsub : ∀ ex, ex ∈ exits → ex ∈ exits') (h : cpsNBranchWithin nSteps entry cr P exits) :
+    cpsNBranchWithin nSteps entry cr P exits' := by
+  intro R hR s hcr hPR hpc
+  obtain ⟨k, hk, s', hstep, ex, hmem, hpc', hQR⟩ := h R hR s hcr hPR hpc
+  exact ⟨k, hk, s', hstep, ex, hsub ex hmem, hpc', hQR⟩
+
+/-- Weaken postconditions of all exits in a bounded N-branch. The step bound
+    is unchanged. -/
+theorem cpsNBranchWithin_weaken_posts {nSteps : Nat} {entry : Word} {cr : CodeReq}
+    {P : Assertion} {exits exits' : List (Word × Assertion)}
+    (h : cpsNBranchWithin nSteps entry cr P exits)
+    (hmap : ∀ ex ∈ exits, ∃ ex' ∈ exits', ex'.1 = ex.1 ∧ ∀ h, ex.2 h → ex'.2 h) :
+    cpsNBranchWithin nSteps entry cr P exits' := by
+  intro R hR s hcr hPR hpc
+  obtain ⟨k, hk, s', hstep, ex, hmem, hpc', hER⟩ := h R hR s hcr hPR hpc
+  obtain ⟨ex', hmem', heq, hpost⟩ := hmap ex hmem
+  rw [← heq] at hpc'
+  exact ⟨k, hk, s', hstep, ex', hmem', hpc', by
+    obtain ⟨hp, hcompat, hpq⟩ := hER
+    exact ⟨hp, hcompat, sepConj_mono_left hpost hp hpq⟩⟩
+
 /-- Monotonicity for bounded N-branches: extend to a larger CodeReq. -/
 theorem cpsNBranchWithin_extend_code {nSteps : Nat} {entry : Word} {cr cr' : CodeReq}
     {P : Assertion} {exits : List (Word × Assertion)}
@@ -763,6 +889,27 @@ theorem cpsTripleWithin_seq_cpsNBranchWithin {nSteps1 nSteps2 : Nat}
     h2 R hR s1 hcr2' hQR hpc1
   exact ⟨k1 + k2, Nat.add_le_add hk1 hk2, s2, stepN_add_eq hstep1 hstep2,
     ex, hmem, hpc2, hER⟩
+
+/-- Extend the head exit of a bounded N-branch by composing a bounded triple
+    after it. The head path bound adds; non-head paths use monotonicity into
+    the summed bound. -/
+theorem cpsNBranchWithin_extend_head {nSteps1 nSteps2 : Nat} {entry l l' : Word} {cr : CodeReq}
+    {P Q R : Assertion}
+    {others : List (Word × Assertion)}
+    (hbr : cpsNBranchWithin nSteps1 entry cr P ((l, Q) :: others))
+    (hseq : cpsTripleWithin nSteps2 l l' cr Q R) :
+    cpsNBranchWithin (nSteps1 + nSteps2) entry cr P ((l', R) :: others) := by
+  intro F hF s hcr hPF hpc
+  obtain ⟨k1, hk1, s1, hstep1, ex, hmem, hpc1, hQF⟩ := hbr F hF s hcr hPF hpc
+  cases hmem with
+  | head =>
+    have hcr1 := CodeReq.SatisfiedBy_preserved hstep1 hcr
+    obtain ⟨k2, hk2, s2, hstep2, hpc2, hRF⟩ := hseq F hF s1 hcr1 hQF hpc1
+    exact ⟨k1 + k2, Nat.add_le_add hk1 hk2, s2, stepN_add_eq hstep1 hstep2,
+           (l', R), List.Mem.head _, hpc2, hRF⟩
+  | tail _ htail =>
+    exact ⟨k1, Nat.le_trans hk1 (Nat.le_add_right nSteps1 nSteps2), s1, hstep1,
+           ex, List.Mem.tail _ htail, hpc1, hQF⟩
 
 /-- Bounded sequence with the same CodeReq: a triple followed by an N-branch. -/
 theorem cpsTripleWithin_seq_cpsNBranchWithin_same_cr {nSteps1 nSteps2 : Nat}
@@ -1129,6 +1276,57 @@ theorem cpsHaltTripleWithin_mono_nSteps {nSteps nSteps' : Nat} {entry : Word} {c
   obtain ⟨k, hk, s', hstep, hhalt, hQR⟩ := h R hR s hcr hPR hpc
   exact ⟨k, Nat.le_trans hk hle, s', hstep, hhalt, hQR⟩
 
+/-- Monotonicity for bounded halt triples: extend to a larger CodeReq. The
+    step bound is unchanged. -/
+theorem cpsHaltTripleWithin_extend_code {nSteps : Nat} {entry : Word} {cr cr' : CodeReq}
+    {P Q : Assertion}
+    (hmono : ∀ a i, cr a = some i → cr' a = some i)
+    (h : cpsHaltTripleWithin nSteps entry cr P Q) :
+    cpsHaltTripleWithin nSteps entry cr' P Q := by
+  intro R hR s hcr' hPR hpc
+  exact h R hR s (CodeReq.SatisfiedBy_mono hmono hcr') hPR hpc
+
+/-- Frame on the right for bounded halt triples. The step bound is unchanged. -/
+theorem cpsHaltTripleWithin_frameR {nSteps : Nat} {entry : Word} {cr : CodeReq}
+    {P Q : Assertion} (F : Assertion) (hF : F.pcFree)
+    (h : cpsHaltTripleWithin nSteps entry cr P Q) :
+    cpsHaltTripleWithin nSteps entry cr (P ** F) (Q ** F) := by
+  intro R hR s hcr hPFR hpc
+  have hPFR' := holdsFor_sepConj_assoc.mp hPFR
+  obtain ⟨k, hk, s', hstep, hhalt, hpost⟩ :=
+    h (F ** R) (pcFree_sepConj hF hR) s hcr hPFR' hpc
+  exact ⟨k, hk, s', hstep, hhalt, holdsFor_sepConj_assoc.mpr hpost⟩
+
+/-- Sequence a bounded triple followed by a bounded halt triple. Bounds add. -/
+theorem cpsTripleWithin_seq_haltWithin {nSteps1 nSteps2 : Nat}
+    {entry mid : Word} {cr1 cr2 : CodeReq}
+    (hd : cr1.Disjoint cr2)
+    {P Q R : Assertion}
+    (h1 : cpsTripleWithin nSteps1 entry mid cr1 P Q)
+    (h2 : cpsHaltTripleWithin nSteps2 mid cr2 Q R) :
+    cpsHaltTripleWithin (nSteps1 + nSteps2) entry (cr1.union cr2) P R := by
+  intro F hF s hcr hPF hpc
+  rw [CodeReq.union_satisfiedBy hd] at hcr
+  obtain ⟨hcr1, hcr2⟩ := hcr
+  obtain ⟨k1, hk1, s1, hstep1, hpc1, hQF⟩ := h1 F hF s hcr1 hPF hpc
+  have hcr2' := CodeReq.SatisfiedBy_preserved hstep1 hcr2
+  obtain ⟨k2, hk2, s2, hstep2, hhalt, hRF⟩ := h2 F hF s1 hcr2' hQF hpc1
+  exact ⟨k1 + k2, Nat.add_le_add hk1 hk2, s2, stepN_add_eq hstep1 hstep2, hhalt, hRF⟩
+
+/-- Sequence a bounded triple followed by a bounded halt triple with the same
+    CodeReq. Bounds add. -/
+theorem cpsTripleWithin_seq_haltWithin_same_cr {nSteps1 nSteps2 : Nat}
+    {entry mid : Word} {cr : CodeReq}
+    {P Q R : Assertion}
+    (h1 : cpsTripleWithin nSteps1 entry mid cr P Q)
+    (h2 : cpsHaltTripleWithin nSteps2 mid cr Q R) :
+    cpsHaltTripleWithin (nSteps1 + nSteps2) entry cr P R := by
+  intro F hF s hcr hPF hpc
+  obtain ⟨k1, hk1, s1, hstep1, hpc1, hQF⟩ := h1 F hF s hcr hPF hpc
+  have hcr' := CodeReq.SatisfiedBy_preserved hstep1 hcr
+  obtain ⟨k2, hk2, s2, hstep2, hhalt, hRF⟩ := h2 F hF s1 hcr' hQF hpc1
+  exact ⟨k1 + k2, Nat.add_le_add hk1 hk2, s2, stepN_add_eq hstep1 hstep2, hhalt, hRF⟩
+
 /-- Promote a `cpsTriple` to a `cpsHaltTriple` when the exit address is halted.
     If execution reaches exit_ with Q, and every state satisfying (Q ** R) at exit_ is halted,
     then the program halts with Q.
@@ -1191,6 +1389,18 @@ theorem cpsTriple_seq_with_perm {s m e : Word} {cr1 cr2 : CodeReq}
     (h2 : cpsTriple m e cr2 Q2 R) :
     cpsTriple s e (cr1.union cr2) P R :=
   cpsTriple_seq hd (cpsTriple_weaken (fun _ hp => hp) hperm h1) h2
+
+/-- Bounded sequential composition with midpoint permutation. Bounds add. -/
+theorem cpsTripleWithin_seq_with_perm {nSteps1 nSteps2 : Nat}
+    {s m e : Word} {cr1 cr2 : CodeReq}
+    (hd : cr1.Disjoint cr2)
+    {P Q1 Q2 R : Assertion}
+    (hperm : ∀ h, Q1 h → Q2 h)
+    (h1 : cpsTripleWithin nSteps1 s m cr1 P Q1)
+    (h2 : cpsTripleWithin nSteps2 m e cr2 Q2 R) :
+    cpsTripleWithin (nSteps1 + nSteps2) s e (cr1.union cr2) P R :=
+  cpsTripleWithin_seq hd
+    (cpsTripleWithin_weaken (fun _ hp => hp) hperm h1) h2
 
 /-- Sequence with same CodeReq: compose two CPS triples sharing the same CodeReq.
     Unlike `cpsTriple_seq`, does not require disjointness (same cr on both sides).
@@ -1280,6 +1490,19 @@ theorem cpsTriple_seq_cpsBranch_with_perm {entry mid : Word} {cr1 cr2 : CodeReq}
     cpsBranch entry (cr1.union cr2) P exit_t Q_t exit_f Q_f :=
   cpsTriple_seq_cpsBranch hd
     (cpsTriple_weaken (fun _ hp => hp) hperm h1) h2
+
+/-- Bounded sequential composition with permutation: a triple followed by a
+    branch. Bounds add. -/
+theorem cpsTripleWithin_seq_cpsBranchWithin_with_perm {nSteps1 nSteps2 : Nat}
+    {entry mid : Word} {cr1 cr2 : CodeReq}
+    (hd : cr1.Disjoint cr2)
+    {P Q1 Q2 : Assertion} {exit_t : Word} {Q_t : Assertion} {exit_f : Word} {Q_f : Assertion}
+    (hperm : ∀ h, Q1 h → Q2 h)
+    (h1 : cpsTripleWithin nSteps1 entry mid cr1 P Q1)
+    (h2 : cpsBranchWithin nSteps2 mid cr2 Q2 exit_t Q_t exit_f Q_f) :
+    cpsBranchWithin (nSteps1 + nSteps2) entry (cr1.union cr2) P exit_t Q_t exit_f Q_f :=
+  cpsTripleWithin_seq_cpsBranchWithin hd
+    (cpsTripleWithin_weaken (fun _ hp => hp) hperm h1) h2
 
 /-- Compose a cpsBranch with a cpsNBranch on the not-taken (false) path.
     The taken path becomes a new exit prepended to the cpsNBranch exits. -/
@@ -1373,6 +1596,52 @@ theorem cpsBranch_seq_cpsBranch_with_perm
     cpsBranch entry (cr1.union cr2) P target Q_t exit_f Q_f2 :=
   cpsBranch_seq_cpsBranch hd
     (cpsBranch_weaken (fun _ hp => hp) (fun _ hp => hp) hperm h1)
+    h2 ht1 ht2
+
+/-- Bounded version of `cpsBranch_seq_cpsBranch`. Bounds add; the first
+    branch's taken path is padded into the summed bound. -/
+theorem cpsBranchWithin_seq_cpsBranchWithin {nSteps1 nSteps2 : Nat}
+    {entry mid target exit_f : Word} {cr1 cr2 : CodeReq}
+    (hd : cr1.Disjoint cr2)
+    {P Q_t1 Q_f1 Q_t2 Q_f2 Q_t : Assertion}
+    (h1 : cpsBranchWithin nSteps1 entry cr1 P target Q_t1 mid Q_f1)
+    (h2 : cpsBranchWithin nSteps2 mid cr2 Q_f1 target Q_t2 exit_f Q_f2)
+    (ht1 : ∀ h, Q_t1 h → Q_t h)
+    (ht2 : ∀ h, Q_t2 h → Q_t h) :
+    cpsBranchWithin (nSteps1 + nSteps2) entry (cr1.union cr2) P target Q_t exit_f Q_f2 := by
+  intro R hR s hcr hPR hpc
+  rw [CodeReq.union_satisfiedBy hd] at hcr
+  obtain ⟨hcr1, hcr2⟩ := hcr
+  obtain ⟨k1, hk1, s1, hstep1, hbranch1⟩ := h1 R hR s hcr1 hPR hpc
+  rcases hbranch1 with ⟨hpc_t1, hQ_t1R⟩ | ⟨hpc_f1, hQ_f1R⟩
+  · exact ⟨k1, Nat.le_trans hk1 (Nat.le_add_right nSteps1 nSteps2), s1, hstep1,
+      Or.inl ⟨hpc_t1, by
+        obtain ⟨hp, hcompat, hpq⟩ := hQ_t1R
+        exact ⟨hp, hcompat, sepConj_mono_left ht1 hp hpq⟩⟩⟩
+  · have hcr2' := CodeReq.SatisfiedBy_preserved hstep1 hcr2
+    obtain ⟨k2, hk2, s2, hstep2, hbranch2⟩ := h2 R hR s1 hcr2' hQ_f1R hpc_f1
+    rcases hbranch2 with ⟨hpc_t2, hQ_t2R⟩ | ⟨hpc_f2, hQ_f2R⟩
+    · exact ⟨k1 + k2, Nat.add_le_add hk1 hk2, s2, stepN_add_eq hstep1 hstep2,
+        Or.inl ⟨hpc_t2, by
+          obtain ⟨hp, hcompat, hpq⟩ := hQ_t2R
+          exact ⟨hp, hcompat, sepConj_mono_left ht2 hp hpq⟩⟩⟩
+    · exact ⟨k1 + k2, Nat.add_le_add hk1 hk2, s2, stepN_add_eq hstep1 hstep2,
+        Or.inr ⟨hpc_f2, hQ_f2R⟩⟩
+
+/-- Bounded version of `cpsBranch_seq_cpsBranch_with_perm`. Bounds add. -/
+theorem cpsBranchWithin_seq_cpsBranchWithin_with_perm
+    {nSteps1 nSteps2 : Nat}
+    {entry mid target exit_f : Word} {cr1 cr2 : CodeReq}
+    (hd : cr1.Disjoint cr2)
+    {P Q_t1 Q_f1 R Q_t2 Q_f2 Q_t : Assertion}
+    (h1 : cpsBranchWithin nSteps1 entry cr1 P target Q_t1 mid Q_f1)
+    (hperm : ∀ h, Q_f1 h → R h)
+    (h2 : cpsBranchWithin nSteps2 mid cr2 R target Q_t2 exit_f Q_f2)
+    (ht1 : ∀ h, Q_t1 h → Q_t h)
+    (ht2 : ∀ h, Q_t2 h → Q_t h) :
+    cpsBranchWithin (nSteps1 + nSteps2) entry (cr1.union cr2) P target Q_t exit_f Q_f2 :=
+  cpsBranchWithin_seq_cpsBranchWithin hd
+    (cpsBranchWithin_weaken (fun _ hp => hp) (fun _ hp => hp) hperm h1)
     h2 ht1 ht2
 
 /-- Weaken postconditions of all exits in a cpsNBranch.
@@ -1662,6 +1931,48 @@ theorem cpsBranch_seq_cpsBranch_with_perm_same_cr
     (cpsBranch_weaken (fun _ hp => hp) (fun _ hp => hp) hperm h1)
     h2 ht1 ht2
 
+/-- Bounded same-CodeReq version of `cpsBranch_seq_cpsBranch_same_cr`.
+    Bounds add; the first branch's taken path is padded into the summed bound. -/
+theorem cpsBranchWithin_seq_cpsBranchWithin_same_cr {nSteps1 nSteps2 : Nat}
+    {entry mid target exit_f : Word} {cr : CodeReq}
+    {P Q_t1 Q_f1 Q_t2 Q_f2 Q_t : Assertion}
+    (h1 : cpsBranchWithin nSteps1 entry cr P target Q_t1 mid Q_f1)
+    (h2 : cpsBranchWithin nSteps2 mid cr Q_f1 target Q_t2 exit_f Q_f2)
+    (ht1 : ∀ h, Q_t1 h → Q_t h)
+    (ht2 : ∀ h, Q_t2 h → Q_t h) :
+    cpsBranchWithin (nSteps1 + nSteps2) entry cr P target Q_t exit_f Q_f2 := by
+  intro R hR s hcr hPR hpc
+  obtain ⟨k1, hk1, s1, hstep1, hbranch1⟩ := h1 R hR s hcr hPR hpc
+  rcases hbranch1 with ⟨hpc_t1, hQ_t1R⟩ | ⟨hpc_f1, hQ_f1R⟩
+  · exact ⟨k1, Nat.le_trans hk1 (Nat.le_add_right nSteps1 nSteps2), s1, hstep1,
+      Or.inl ⟨hpc_t1, by
+        obtain ⟨hp, hcompat, hpq⟩ := hQ_t1R
+        exact ⟨hp, hcompat, sepConj_mono_left ht1 hp hpq⟩⟩⟩
+  · have hcr' := CodeReq.SatisfiedBy_preserved hstep1 hcr
+    obtain ⟨k2, hk2, s2, hstep2, hbranch2⟩ := h2 R hR s1 hcr' hQ_f1R hpc_f1
+    rcases hbranch2 with ⟨hpc_t2, hQ_t2R⟩ | ⟨hpc_f2, hQ_f2R⟩
+    · exact ⟨k1 + k2, Nat.add_le_add hk1 hk2, s2, stepN_add_eq hstep1 hstep2,
+        Or.inl ⟨hpc_t2, by
+          obtain ⟨hp, hcompat, hpq⟩ := hQ_t2R
+          exact ⟨hp, hcompat, sepConj_mono_left ht2 hp hpq⟩⟩⟩
+    · exact ⟨k1 + k2, Nat.add_le_add hk1 hk2, s2, stepN_add_eq hstep1 hstep2,
+        Or.inr ⟨hpc_f2, hQ_f2R⟩⟩
+
+/-- Bounded same-CodeReq version of `cpsBranch_seq_cpsBranch_with_perm_same_cr`.
+    Bounds add. -/
+theorem cpsBranchWithin_seq_cpsBranchWithin_with_perm_same_cr {nSteps1 nSteps2 : Nat}
+    {entry mid target exit_f : Word} {cr : CodeReq}
+    {P Q_t1 Q_f1 R Q_t2 Q_f2 Q_t : Assertion}
+    (h1 : cpsBranchWithin nSteps1 entry cr P target Q_t1 mid Q_f1)
+    (hperm : ∀ h, Q_f1 h → R h)
+    (h2 : cpsBranchWithin nSteps2 mid cr R target Q_t2 exit_f Q_f2)
+    (ht1 : ∀ h, Q_t1 h → Q_t h)
+    (ht2 : ∀ h, Q_t2 h → Q_t h) :
+    cpsBranchWithin (nSteps1 + nSteps2) entry cr P target Q_t exit_f Q_f2 :=
+  cpsBranchWithin_seq_cpsBranchWithin_same_cr
+    (cpsBranchWithin_weaken (fun _ hp => hp) (fun _ hp => hp) hperm h1)
+    h2 ht1 ht2
+
 /-- Compose a cpsBranch (ntaken exit) with a cpsTriple, same CodeReq.
     The taken exit is passed through with a postcondition weakening. -/
 theorem cpsBranch_seq_cpsTriple_same_cr {entry mid target exit_f : Word} {cr : CodeReq}
@@ -1692,6 +2003,41 @@ theorem cpsBranch_seq_cpsTriple_with_perm_same_cr {entry mid target exit_f : Wor
     cpsBranch entry cr P target Q_t exit_f Q_f2 :=
   cpsBranch_seq_cpsTriple_same_cr
     (cpsBranch_weaken (fun _ hp => hp) (fun _ hp => hp) hperm h1)
+    h2 ht1
+
+/-- Bounded same-CodeReq composition of a branch's not-taken path with a triple.
+    Bounds add; the taken path is padded into the summed bound. -/
+theorem cpsBranchWithin_seq_cpsTripleWithin_same_cr {nSteps1 nSteps2 : Nat}
+    {entry mid target exit_f : Word} {cr : CodeReq}
+    {P Q_t1 Q_f1 Q_f2 Q_t : Assertion}
+    (h1 : cpsBranchWithin nSteps1 entry cr P target Q_t1 mid Q_f1)
+    (h2 : cpsTripleWithin nSteps2 mid exit_f cr Q_f1 Q_f2)
+    (ht1 : ∀ h, Q_t1 h → Q_t h) :
+    cpsBranchWithin (nSteps1 + nSteps2) entry cr P target Q_t exit_f Q_f2 := by
+  intro R hR s hcr hPR hpc
+  obtain ⟨k1, hk1, s1, hstep1, hbranch1⟩ := h1 R hR s hcr hPR hpc
+  rcases hbranch1 with ⟨hpc_t1, hQ_t1R⟩ | ⟨hpc_f1, hQ_f1R⟩
+  · exact ⟨k1, Nat.le_trans hk1 (Nat.le_add_right nSteps1 nSteps2), s1, hstep1,
+      Or.inl ⟨hpc_t1, by
+        obtain ⟨hp, hcompat, hpq⟩ := hQ_t1R
+        exact ⟨hp, hcompat, sepConj_mono_left ht1 hp hpq⟩⟩⟩
+  · have hcr' := CodeReq.SatisfiedBy_preserved hstep1 hcr
+    obtain ⟨k2, hk2, s2, hstep2, hpc2, hQ_f2R⟩ := h2 R hR s1 hcr' hQ_f1R hpc_f1
+    exact ⟨k1 + k2, Nat.add_le_add hk1 hk2, s2, stepN_add_eq hstep1 hstep2,
+           Or.inr ⟨hpc2, hQ_f2R⟩⟩
+
+/-- Bounded same-CodeReq composition of a branch and triple with a permutation
+    on the not-taken postcondition. Bounds add. -/
+theorem cpsBranchWithin_seq_cpsTripleWithin_with_perm_same_cr {nSteps1 nSteps2 : Nat}
+    {entry mid target exit_f : Word} {cr : CodeReq}
+    {P Q_t1 Q_f1 R Q_f2 Q_t : Assertion}
+    (h1 : cpsBranchWithin nSteps1 entry cr P target Q_t1 mid Q_f1)
+    (hperm : ∀ h, Q_f1 h → R h)
+    (h2 : cpsTripleWithin nSteps2 mid exit_f cr R Q_f2)
+    (ht1 : ∀ h, Q_t1 h → Q_t h) :
+    cpsBranchWithin (nSteps1 + nSteps2) entry cr P target Q_t exit_f Q_f2 :=
+  cpsBranchWithin_seq_cpsTripleWithin_same_cr
+    (cpsBranchWithin_weaken (fun _ hp => hp) (fun _ hp => hp) hperm h1)
     h2 ht1
 
 /-- Compose a cpsBranch with a cpsNBranch on the not-taken path, same CodeReq. -/

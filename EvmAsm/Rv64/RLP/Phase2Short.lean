@@ -20,6 +20,7 @@
 -/
 
 import EvmAsm.Rv64.SyscallSpecs
+import EvmAsm.Rv64.Tactics.RunBlock
 
 namespace EvmAsm.Rv64.RLP
 
@@ -91,7 +92,7 @@ theorem rlp_phase2_short_length_spec_within (v5 v11Old : Word)
   -- The one-instruction `ofProg` reduces to a singleton CodeReq.
   rw [show CodeReq.ofProg base (rlp_phase2_short_length_prog k) =
       CodeReq.singleton base (.ADDI .x11 .x5 (-k)) from CodeReq.ofProg_singleton]
-  exact addi_spec_gen_within .x11 .x5 v11Old v5 (-k) base (by nofun)
+  runBlock
 
 theorem rlp_phase2_short_length_spec (v5 v11Old : Word)
     (k : BitVec 12) (base : Word) :

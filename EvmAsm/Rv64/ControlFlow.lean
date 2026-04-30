@@ -212,7 +212,7 @@ theorem execInstrBr_jal_x0 (s : MachineState) (off : BitVec 21) :
 
 /-- Bounded JAL x0 spec for any code memory: pure PC jump, no register/memory changes.
     Since x0 writes are dropped, JAL x0 just updates PC. -/
-theorem jal_x0_spec_gen_within (offset : BitVec 21) (addr : Word) :
+@[spec_gen_rv64] theorem jal_x0_spec_gen_within (offset : BitVec 21) (addr : Word) :
     cpsTripleWithin 1 addr (addr + signExtend21 offset)
       (CodeReq.singleton addr (.JAL .x0 offset))
       empAssertion
@@ -223,7 +223,7 @@ theorem jal_x0_spec_gen_within (offset : BitVec 21) (addr : Word) :
 
 /-- JAL x0 spec for any code memory: pure PC jump, no register/memory changes.
     Since x0 writes are dropped, JAL x0 just updates PC. -/
-@[spec_gen_rv64] theorem jal_x0_spec_gen (offset : BitVec 21) (addr : Word) :
+theorem jal_x0_spec_gen (offset : BitVec 21) (addr : Word) :
     cpsTriple addr (addr + signExtend21 offset)
       (CodeReq.singleton addr (.JAL .x0 offset))
       empAssertion
@@ -236,7 +236,7 @@ theorem execInstrBr_jalr_x0 (s : MachineState) (rs1 : Reg) (off : BitVec 12) :
   simp [execInstrBr, MachineState.setReg, MachineState.setPC]
 
 /-- Bounded JALR x0 spec: pure PC jump to (rs1 + sext(offset)) & ~1, no register changes. -/
-theorem jalr_x0_spec_gen_within (rs1 : Reg) (v : Word)
+@[spec_gen_rv64] theorem jalr_x0_spec_gen_within (rs1 : Reg) (v : Word)
     (offset : BitVec 12) (addr : Word) :
     cpsTripleWithin 1 addr ((v + signExtend12 offset) &&& ~~~1)
       (CodeReq.singleton addr (.JALR .x0 rs1 offset))
@@ -257,7 +257,7 @@ theorem jalr_x0_spec_gen_within (rs1 : Reg) (v : Word)
   · exact holdsFor_pcFree_setPC (pcFree_sepConj (by pcFree) hR) hPR
 
 /-- JALR x0 spec: pure PC jump to (rs1 + sext(offset)) & ~1, no register changes. -/
-@[spec_gen_rv64] theorem jalr_x0_spec_gen (rs1 : Reg) (v : Word)
+theorem jalr_x0_spec_gen (rs1 : Reg) (v : Word)
     (offset : BitVec 12) (addr : Word) :
     cpsTriple addr ((v + signExtend12 offset) &&& ~~~1)
       (CodeReq.singleton addr (.JALR .x0 rs1 offset))
