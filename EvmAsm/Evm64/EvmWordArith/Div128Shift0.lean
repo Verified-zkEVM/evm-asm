@@ -21,6 +21,7 @@
 -/
 
 import EvmAsm.Evm64.EvmWordArith.Div128CallSkipClose
+import EvmAsm.Evm64.EvmWordArith.Div128KnuthLower
 
 namespace EvmAsm.Evm64
 
