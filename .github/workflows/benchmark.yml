@@ -1,0 +1,127 @@
+name: Benchmark
+
+# Weekly lake-build benchmark to track total build wall time and peak RSS.
+#
+# Scope (per #949 slice 1 design): a minimal baseline metric — wall time
+# and peak RSS for `lake build` after Mathlib's cache is fetched. No external
+# service, no per-target / per-file profiling (lakeprof) yet, no PR-comment
+# integration, no history persistence yet. Results surface only in the run's
+# job summary. History persistence + finer-grained metrics are follow-up
+# slices (see beads evm-asm-alg, evm-asm-wgr).
+#
+# This workflow is independent of PR CI (`build.yml`) and does not gate any
+# pull request.
+
+on:
+  schedule:
+    # Mondays 06:00 UTC.
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+# Avoid stacking concurrent benchmark runs (e.g. cron + manual dispatch).
+concurrency:
+  group: benchmark
+  cancel-in-progress: false
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      # Install elan + the toolchain pinned in `lean-toolchain`, and fetch the
+      # Mathlib cache. We deliberately do NOT use `actions/cache` for `.lake`
+      # here — the benchmark should reflect a clean from-source build of
+      # EvmAsm itself (Mathlib stays cached so we measure our work, not theirs).
+      - uses: leanprover/lean-action@v1
+        with:
+          use-mathlib-cache: true
+          use-github-cache: false
+          lake-package-directory: .
+          # Skip the inner `lake build`; we run our own timed build below.
+          build: "false"
+
+      # AGENTS.md mandates `lake exe cache get` BEFORE the first `lake build`,
+      # otherwise the build pays a Mathlib-rebuild tax that swamps EvmAsm's
+      # own compile time. lean-action with `use-mathlib-cache: true` already
+      # runs this; we re-run as a no-op safety belt and to record its time
+      # separately from the EvmAsm build.
+      - name: Mathlib cache get (timed, excluded from EvmAsm metric)
+        id: cache_get
+        run: |
+          set -o pipefail
+          /usr/bin/time -v -o cache_get.time lake exe cache get 2>&1 | tee cache_get.log || true
+          echo "::group::cache_get /usr/bin/time -v"
+          cat cache_get.time
+          echo "::endgroup::"
+
+      - name: Lake build (timed)
+        id: build
+        run: |
+          set -o pipefail
+          /usr/bin/time -v -o build.time lake build 2>&1 | tee build.log
+          echo "::group::build /usr/bin/time -v"
+          cat build.time
+          echo "::endgroup::"
+
+      - name: Extract metrics
+        id: metrics
+        if: always() && steps.build.outcome == 'success'
+        run: |
+          set -euo pipefail
+          # /usr/bin/time -v "Elapsed (wall clock) time" is in either
+          # h:mm:ss or m:ss format. Convert to integer seconds.
+          wall_raw=$(grep 'Elapsed (wall clock) time' build.time | awk -F': ' '{print $NF}')
+          # Convert h:mm:ss or m:ss(.fraction) -> seconds (integer floor).
+          wall_seconds=$(awk -v t="$wall_raw" 'BEGIN {
+            n = split(t, a, ":");
+            s = 0;
+            for (i = 1; i <= n; i++) s = s * 60 + a[i];
+            printf("%d", s);
+          }')
+          peak_rss_kb=$(grep 'Maximum resident set size' build.time | awk -F': ' '{print $NF}')
+          echo "wall_raw=$wall_raw"           >> "$GITHUB_OUTPUT"
+          echo "wall_seconds=$wall_seconds"   >> "$GITHUB_OUTPUT"
+          echo "peak_rss_kb=$peak_rss_kb"     >> "$GITHUB_OUTPUT"
+
+      - name: Write job summary
+        if: always()
+        run: |
+          {
+            echo "## EvmAsm lake build benchmark"
+            echo
+            echo "| field         | value |"
+            echo "|---------------|-------|"
+            echo "| commit        | \`${GITHUB_SHA}\` |"
+            echo "| ref           | \`${GITHUB_REF}\` |"
+            echo "| timestamp     | $(date -u +%Y-%m-%dT%H:%M:%SZ) |"
+            echo "| trigger       | ${GITHUB_EVENT_NAME} |"
+            echo "| runner os     | $(uname -s) $(uname -r) |"
+            echo "| runner cpu    | $(grep -m1 'model name' /proc/cpuinfo | sed 's/.*: //') |"
+            echo "| runner cores  | $(nproc) |"
+            if [ -f build.time ] && [ "${{ steps.build.outcome }}" = "success" ]; then
+              echo "| wall (raw)    | ${{ steps.metrics.outputs.wall_raw }} |"
+              echo "| wall seconds  | ${{ steps.metrics.outputs.wall_seconds }} |"
+              echo "| peak RSS (KB) | ${{ steps.metrics.outputs.peak_rss_kb }} |"
+            else
+              echo "| status        | build failed (see log) |"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload raw timing artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-${{ github.run_id }}
+          path: |
+            build.time
+            build.log
+            cache_get.time
+            cache_get.log
+          if-no-files-found: warn
+          retention-days: 90
