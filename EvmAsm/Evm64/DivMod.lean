@@ -1,6 +1,8 @@
 import EvmAsm.Evm64.DivMod.NormDefs
--- SpecCall covers Spec → Compose + FullPathN4 + FullPathN4Beq + ModFullPathN4
--- + EvmWordArith + ModFullPathN4Shift0 + FullPathN4Shift0.
+-- Spec is the public stack-spec surface and re-exports the split Spec/*
+-- modules. It also covers Compose + FullPathN4 + FullPathN4Beq +
+-- ModFullPathN4 + EvmWordArith + ModFullPathN4Shift0 + FullPathN4Shift0.
+import EvmAsm.Evm64.DivMod.Spec
 -- Shift0Dispatcher → Shift0AddbackMod → SpecCall transitively.
 -- FullPathN1LoopUnified transitively covers FullPathN1Loop + FullPathN3Loop,
 -- which pull in LoopUnifiedN{1,2,3} + LoopComposeN3 + FullPathN{1,2,3}
