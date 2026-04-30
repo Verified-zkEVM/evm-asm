@@ -3,8 +3,8 @@
 
   Preloop+loop composition for n=2 (shift≠0 path).
   Composes:
-  - Preloop: evm_div_n2_to_loopSetup_spec (base → base+448)
-  - Loop: divK_loop_n2_unified_spec (base+448 → base+904)
+  - Preloop: evm_div_n2_to_loopSetup_spec_within (base → base+448)
+  - Loop: divK_loop_n2_unified_spec_within (base+448 → base+904)
 
   Follows the pattern of FullPathN3Loop.lean but for n=2.
 -/
@@ -117,15 +117,16 @@ theorem divK_loop_n2_unified_divCode (bltu_2 bltu_1 bltu_0 : Bool)
       (iterN2 bltu_2 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.1
       (iterN2 bltu_2 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.1).2.2.1 v1)
     (hcarry2 : Carry2NzAll v0 v1 v2 v3) :
-    cpsTriple (base + loopBodyOff) (base + denormOff) (divCode base)
+    cpsTripleWithin 606 (base + loopBodyOff) (base + denormOff) (divCode base)
       (loopN2PreWithScratch sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
         v0 v1 v2 v3 u0 u1 u2 u3 uTop
         u0_orig_1 u0_orig_0 q2Old q1Old q0Old
         retMem dMem dloMem scratch_un0)
       (loopN2UnifiedPost bltu_2 bltu_1 bltu_0 sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop
         u0_orig_1 u0_orig_0 retMem dMem dloMem scratch_un0) :=
-  cpsTriple_extend_code (hmono := sharedDivModCode_sub_divCode)
-    (divK_loop_n2_unified_spec bltu_2 bltu_1 bltu_0
+  cpsTripleWithin_mono_nSteps (by decide) <|
+  cpsTripleWithin_extend_code (hmono := sharedDivModCode_sub_divCode)
+    (divK_loop_n2_unified_spec_within bltu_2 bltu_1 bltu_0
       sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
       v0 v1 v2 v3 u0 u1 u2 u3 uTop u0_orig_1 u0_orig_0 q2Old q1Old q0Old
       retMem dMem dloMem scratch_un0 base halign

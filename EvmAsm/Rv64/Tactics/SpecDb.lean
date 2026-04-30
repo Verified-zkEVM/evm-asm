@@ -10,13 +10,14 @@
   ```
   @[spec_gen_rv64]
   theorem lw_spec_gen_rv64 (rd rs1 : Reg) ... :
-      cpsTriple addr (addr + 4) (CodeReq.singleton addr (.LW rd rs1 offset)) (...) (...) := ...
+      cpsTripleWithin 1 addr (addr + 4) (CodeReq.singleton addr (.LW rd rs1 offset)) (...) (...) := ...
   ```
 
   The instruction constructor (e.g., `EvmAsm.Rv64.Instr.LW`) is auto-detected
   from the `CodeReq.singleton` argument, or (for backward compatibility) from
-  an `instrAt` atom in the precondition. Supports `cpsTriple`, `cpsBranch`,
-  and `cpsHaltTriple`.
+  an `instrAt` atom in the precondition. Supports `cpsTripleWithin`,
+  `cpsBranchWithin`, `cpsNBranchWithin`, and `cpsHaltTripleWithin`; historical
+  unbounded shapes are accepted while the migration is in progress.
 
   ## Diagnostics
 
@@ -26,7 +27,9 @@
 
   ## Requirements for `@[spec_gen_rv64]` specs
 
-  - Must be a `cpsTriple`, `cpsBranch`, or `cpsHaltTriple`
+  - Must be a bounded CPS spec (`cpsTripleWithin`, `cpsBranchWithin`,
+    `cpsNBranchWithin`, or `cpsHaltTripleWithin`) or a historical unbounded
+    compatibility wrapper during migration
   - The CodeReq argument must be `CodeReq.singleton addr instr`, OR
     the precondition must contain an `instrAt` (`↦ᵢ`) atom (backward compat)
   - The instruction must be a concrete constructor application (e.g., `.ADD .x7 .x7 .x6`)
@@ -105,27 +108,32 @@ private def findInstrCtorInCodeReq (cr : Expr) : Option Name :=
   else none
 
 /-- Extract the instruction constructor from a spec theorem's type.
-    Strips ∀ binders and looks for `cpsTriple _ _ cr pre _` or `cpsBranch ...`.
+    Strips ∀ binders and looks for bounded CPS specs.
     Checks both the `cr` (CodeReq.singleton) argument and the `instrAt` atoms
     in the precondition for backward compatibility. -/
 private partial def extractInstrCtorFromType (type : Expr) : Option Name :=
   match type with
   | .forallE _ _ body _ => extractInstrCtorFromType body
   | _ =>
-    -- Try cpsTriple entry exit cr pre post (5 args)
-    if type.isAppOfArity `EvmAsm.Rv64.cpsTriple 5 then
+    -- Try cpsTripleWithin nSteps entry exit cr pre post (6 args)
+    if type.isAppOfArity `EvmAsm.Rv64.cpsTripleWithin 6 then
+      let cr := type.getAppArgs[3]!
+      let pre := type.getAppArgs[4]!
+      findInstrCtorInCodeReq cr |>.orElse fun () => findInstrCtorInPre pre
+    -- Try cpsBranchWithin nSteps addr cr pre takenTarget takenPost notTakenTarget notTakenPost (8 args)
+    else if type.isAppOfArity `EvmAsm.Rv64.cpsBranchWithin 8 then
       let cr := type.getAppArgs[2]!
       let pre := type.getAppArgs[3]!
       findInstrCtorInCodeReq cr |>.orElse fun () => findInstrCtorInPre pre
-    -- Try cpsBranch addr cr pre takenTarget takenPost notTakenTarget notTakenPost (7 args)
-    else if type.isAppOfArity `EvmAsm.Rv64.cpsBranch 7 then
-      let cr := type.getAppArgs[1]!
-      let pre := type.getAppArgs[2]!
+    -- Try cpsNBranchWithin nSteps addr cr pre exits (5 args)
+    else if type.isAppOfArity `EvmAsm.Rv64.cpsNBranchWithin 5 then
+      let cr := type.getAppArgs[2]!
+      let pre := type.getAppArgs[3]!
       findInstrCtorInCodeReq cr |>.orElse fun () => findInstrCtorInPre pre
-    -- Try cpsHaltTriple addr cr pre post (4 args)
-    else if type.isAppOfArity `EvmAsm.Rv64.cpsHaltTriple 4 then
-      let cr := type.getAppArgs[1]!
-      let pre := type.getAppArgs[2]!
+    -- Try cpsHaltTripleWithin nSteps addr cr pre post (5 args)
+    else if type.isAppOfArity `EvmAsm.Rv64.cpsHaltTripleWithin 5 then
+      let cr := type.getAppArgs[2]!
+      let pre := type.getAppArgs[3]!
       findInstrCtorInCodeReq cr |>.orElse fun () => findInstrCtorInPre pre
     else none
 
@@ -140,7 +148,7 @@ private partial def extractInstrCtorFromType (type : Expr) : Option Name :=
     Usage:
     ```
     @[spec_gen_rv64]
-    theorem lw_spec_gen_rv64 ... : cpsTriple ... (CodeReq.singleton addr (.LW ...)) ... ... := ...
+    theorem lw_spec_gen_rv64 ... : cpsTripleWithin 1 ... (CodeReq.singleton addr (.LW ...)) ... ... := ...
     ```
 -/
 initialize registerBuiltinAttribute {
@@ -156,7 +164,9 @@ initialize registerBuiltinAttribute {
       modifyEnv fun env => specGenExt.addEntry env { instrCtor, specName := declName }
     | none =>
       throwError "spec_gen_rv64: could not detect instruction constructor in {declName}.\n\
-        The theorem must be a cpsTriple/cpsBranch/cpsHaltTriple with an instrAt atom in its precondition."
+        The theorem must be a cpsTripleWithin/cpsBranchWithin/cpsNBranchWithin/cpsHaltTripleWithin \
+        with a CodeReq.singleton \
+        or instrAt atom for the instruction."
 }
 
 -- ============================================================================

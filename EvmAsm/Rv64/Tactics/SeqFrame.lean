@@ -1,15 +1,15 @@
 /-
   EvmAsm.Rv64.Tactics.SeqFrame
 
-  Frame-aware sequential composition of two `cpsTriple` specs.
+  Frame-aware sequential composition of two `cpsTripleWithin` specs.
 
   ## Usage
 
   ```
-  have s1 : cpsTriple base mid P Q1 := ...
-  have s2 : cpsTriple mid exit_ P2 Q2 := ...
+  have s1 : cpsTripleWithin n base mid cr P Q1 := ...
+  have s2 : cpsTripleWithin m mid exit_ cr P2 Q2 := ...
   seqFrame s1 s2
-  -- Result: cpsTriple base exit_ P (Q2 ** Frame)
+  -- Result: cpsTripleWithin (n + m) base exit_ cr P (Q2 ** Frame)
   -- where Frame = Q1 \ P2 (postcondition atoms not consumed by s2's precondition)
   ```
 
@@ -17,11 +17,11 @@
 
   1. Extracts postcondition Q1 of h1 and precondition P2 of h2
   2. Computes frame F = Q1 \ P2 (atoms in Q1 not matched by P2)
-  3. Frames h2: `cpsTriple_frameR` produces `cpsTriple mid exit (P2 ** F) (Q2 ** F)`
+  3. Frames h2 with the bounded frame rule
   4. Builds permutation proof Q1 → (P2 ** F)
-  5. Composes via `cpsTriple_seq_with_perm`
+  5. Composes via the bounded sequential rule
 
-  If the goal is a `cpsTriple`, `seqFrame` tries to close it (with postcondition
+  If the goal is a bounded CPS triple, `seqFrame` tries to close it (with postcondition
   permutation). Otherwise, the result is introduced as a hypothesis named `h1h2`.
 -/
 
@@ -49,24 +49,22 @@ def runTacticSilent (mvarId : MVarId) (stx : Syntax) : MetaM Unit := do
     Lean.Core.setMessageLog savedLog
     throw e
 
-/-- Parse `cpsTriple entry exit_ cr P Q` returning the five arguments.
-    Does NOT whnf (which would unfold the def). -/
-def parseCpsTriple? (e : Expr) : MetaM (Option (Expr × Expr × Expr × Expr × Expr)) := do
+/-- Parse `cpsTripleWithin nSteps entry exit_ cr P Q`, returning the six
+    arguments. Does NOT whnf (which would unfold the def). -/
+def parseCpsTripleWithin? (e : Expr) : MetaM (Option (Expr × Expr × Expr × Expr × Expr × Expr)) := do
   let e ← instantiateMVars e
-  -- First try without whnf (fast path)
-  if e.isAppOfArity ``EvmAsm.Rv64.cpsTriple 5 then
+  if e.isAppOfArity ``EvmAsm.Rv64.cpsTripleWithin 6 then
     let args := e.getAppArgs
-    return some (args[0]!, args[1]!, args[2]!, args[3]!, args[4]!)
-  -- Try zetaReduce to resolve let-bindings without unfolding defs or normalizing addresses
+    return some (args[0]!, args[1]!, args[2]!, args[3]!, args[4]!, args[5]!)
   let e' ← Lean.Meta.zetaReduce e
-  if e'.isAppOfArity ``EvmAsm.Rv64.cpsTriple 5 then
+  if e'.isAppOfArity ``EvmAsm.Rv64.cpsTripleWithin 6 then
     let args := e'.getAppArgs
-    return some (args[0]!, args[1]!, args[2]!, args[3]!, args[4]!)
+    return some (args[0]!, args[1]!, args[2]!, args[3]!, args[4]!, args[5]!)
   return none
 
 /-- Peel outermost let-bindings from hypothesis `h`'s type, introducing them as
     local let-definitions in the proof context. This exposes the underlying type
-    (e.g., `cpsTriple`) without expanding lets inside the pre/postconditions.
+    (e.g., bounded CPS triples) without expanding lets inside the pre/postconditions.
 
     Example: `h : let x := v; P x` becomes `x : T := v` in context + `h : P x`.
 
@@ -850,83 +848,59 @@ partial def buildMonoProof (oldCr newCr : Expr) : MetaM Expr :=
   -- Fallback: tactic-based proof
   buildMonoProofTactic oldCr newCr
 
-/-- Extend a spec's CodeReq from oldCr to newCr using `cpsTriple_extend_code`. -/
-def extendSpecCr (spec : Expr) (oldCr newCr : Expr) : MetaM Expr := do
-  if oldCr == newCr then return spec
-  if ← withoutModifyingState (withReducible (isDefEq oldCr newCr)) then return spec
-  let monoProof ← buildMonoProof oldCr newCr
-  mkAppM ``EvmAsm.Rv64.cpsTriple_extend_code #[monoProof, spec]
-
-/-- Core MetaM implementation of seqFrame.
-    Returns the composed proof term. -/
-def seqFrameCore (h1Expr h2Expr : Expr) : MetaM Expr :=
-  withTraceNode `runBlock.perf.seq (fun _ => return m!"seqFrameCore") do
+/-- Core MetaM implementation of seqFrame for bounded proofs. This mirrors the
+    straight-line composition path used by `runBlock`; bounds add through
+    sequential composition. -/
+def seqFrameWithinCore (h1Expr h2Expr : Expr) : MetaM Expr :=
+  withTraceNode `runBlock.perf.seq (fun _ => return m!"seqFrameWithinCore") do
   let h1Type ← inferType h1Expr
   let h2Type ← inferType h2Expr
 
-  let some (entry, mid1, cr1, preP, postQ1) ← parseCpsTriple? h1Type
-    | throwError "seqFrame: first argument is not a cpsTriple"
-  let some (mid2, exit_, cr2, preP2, postQ2) ← parseCpsTriple? h2Type
-    | throwError "seqFrame: second argument is not a cpsTriple"
+  let some (nSteps1, entry, mid1, cr1, preP, postQ1) ← parseCpsTripleWithin? h1Type
+    | throwError "seqFrame: first argument is not a cpsTripleWithin"
+  let some (nSteps2, mid2, exit_, cr2, preP2, postQ2) ← parseCpsTripleWithin? h2Type
+    | throwError "seqFrame: second argument is not a cpsTripleWithin"
 
   unless ← isDefEq mid1 mid2 do
     throwError "seqFrame: midpoints don't match:\n  h1 exit: {mid1}\n  h2 entry: {mid2}"
 
-  -- Check if P2 is empAssertion (e.g., jal_x0_spec_gen).
-  -- When P2 = empAssertion, the spec needs no state atoms. We frame h2 with Q1,
-  -- then use cpsTriple_weaken with sepConj_emp_left' to eliminate empAssertion.
   let preP2N ← normForSepConj preP2
   let p2IsEmp := preP2N == mkConst ``EvmAsm.Rv64.empAssertion
-
-  -- Find frame: Q1 atoms not matched by P2
   let frameAtoms ← computeFrame postQ1 preP2
 
   if frameAtoms.isEmpty then
-    -- No frame: compose directly with permutation (avoids spurious empAssertion atom)
     let hperm ← mkPermLambda postQ1 preP2
-    -- Same-CR fast path
     if ← withoutModifyingState (isDefEq cr1 cr2) then
-      return mkAppN (mkConst ``EvmAsm.Rv64.cpsTriple_seq_perm_same_cr)
-        #[entry, mid1, exit_, cr1, preP, postQ1, preP2, postQ2,
+      return mkAppN (mkConst ``EvmAsm.Rv64.cpsTripleWithin_seq_perm_same_cr)
+        #[nSteps1, nSteps2, entry, mid1, exit_, cr1, preP, postQ1, preP2, postQ2,
           hperm, h1Expr, h2Expr]
-    -- Different CRs
     let hdProof ← buildDisjointProof cr1 cr2
-    return mkAppN (mkConst ``EvmAsm.Rv64.cpsTriple_seq_with_perm)
-      #[entry, mid1, exit_, cr1, cr2, hdProof, preP, postQ1, preP2, postQ2,
-        hperm, h1Expr, h2Expr]
+    let h1Perm := mkAppN (mkConst ``EvmAsm.Rv64.cpsTripleWithin_weaken)
+      #[nSteps1, entry, mid1, cr1, preP, preP, postQ1, preP2,
+        (← mkIdLambda preP), hperm, h1Expr]
+    return mkAppN (mkConst ``EvmAsm.Rv64.cpsTripleWithin_seq)
+      #[nSteps1, nSteps2, entry, mid1, exit_, cr1, cr2, hdProof, preP, preP2, postQ2,
+        h1Perm, h2Expr]
 
   let frameExpr ← buildSepConjChain frameAtoms
-
-  -- Solve pcFree for the frame (direct proof construction, no tactic overhead)
   let pcFreeProof ← try buildPcFreeProof frameExpr
     catch _ => throwError "seqFrame: could not prove pcFree for frame:\n  {frameExpr}"
+  let h2Framed := mkAppN (mkConst ``EvmAsm.Rv64.cpsTripleWithin_frameR)
+    #[nSteps2, mid2, exit_, cr2, preP2, postQ2, frameExpr, pcFreeProof, h2Expr]
 
-  -- h2Framed : cpsTriple mid exit_ cr2 (P2 ** F) (Q2 ** F)
-  let h2Framed := mkAppN (mkConst ``EvmAsm.Rv64.cpsTriple_frameR)
-    #[mid2, exit_, cr2, preP2, postQ2, frameExpr, pcFreeProof, h2Expr]
-
-  -- When P2 = empAssertion, simplify (empAssertion ** F) to F and (Q2 ** F) similarly.
-  -- Uses cpsTriple_weaken with sepConj_emp_left' to eliminate empAssertion.
   if p2IsEmp then
-    -- Build pre-simplification: empAssertion ** F → F
-    -- hpre : F → empAssertion ** F (reverse direction for consequence pre)
     let empStarFrame := mkApp2 (mkConst ``EvmAsm.Rv64.sepConj) preP2 frameExpr
     let preRw := mkApp (mkConst ``EvmAsm.Rv64.sepConj_emp_left') frameExpr
-    -- preRw : empAssertion ** F = F
-    -- We need hpre : F → empAssertion ** F, i.e., λ h hp => (preRw.symm ▸ hp)
     let psType := mkConst ``EvmAsm.Rv64.PartialState
     let hpre ← withLocalDeclD `h psType fun h => do
       withLocalDeclD `hp (mkApp frameExpr h) fun hp => do
-        -- Eq.mp (congrFun preRw.symm h) hp : (empAssertion ** F) h
         let congrPf ← mkCongrFun (← mkEqSymm preRw) h
         let result ← mkEqMP congrPf hp
         mkLambdaFVars #[h, hp] result
-    -- Build post-simplification: Q2 ** F → F (when Q2 = empAssertion too)
     let postQ2N ← normForSepConj postQ2
     let q2IsEmp := postQ2N == mkConst ``EvmAsm.Rv64.empAssertion
     let q2StarFrame := mkApp2 (mkConst ``EvmAsm.Rv64.sepConj) postQ2 frameExpr
     let (actualPost, hpost) ← if q2IsEmp then do
-      -- hpost : empAssertion ** F → F
       let postRw := mkApp (mkConst ``EvmAsm.Rv64.sepConj_emp_left') frameExpr
       let hpost ← withLocalDeclD `h psType fun h => do
         withLocalDeclD `hq (mkApp q2StarFrame h) fun hq => do
@@ -937,104 +911,112 @@ def seqFrameCore (h1Expr h2Expr : Expr) : MetaM Expr :=
     else do
       let hpost ← mkIdLambda q2StarFrame
       Pure.pure (q2StarFrame, hpost)
-    -- h2Simplified : cpsTriple mid exit_ cr2 F actualPost
-    let h2Simplified := mkAppN (mkConst ``EvmAsm.Rv64.cpsTriple_weaken)
-      #[mid2, exit_, cr2, empStarFrame, frameExpr, q2StarFrame, actualPost,
+    let h2Simplified := mkAppN (mkConst ``EvmAsm.Rv64.cpsTripleWithin_weaken)
+      #[nSteps2, mid2, exit_, cr2, empStarFrame, frameExpr, q2StarFrame, actualPost,
         hpre, hpost, h2Framed]
-    -- Permutation: Q1 = F (since frame = all Q1 atoms)
     let hperm ← mkPermLambda postQ1 frameExpr
-    -- Same-CR fast path
     if ← withoutModifyingState (isDefEq cr1 cr2) then
-      return mkAppN (mkConst ``EvmAsm.Rv64.cpsTriple_seq_perm_same_cr)
-        #[entry, mid1, exit_, cr1, preP, postQ1, frameExpr, actualPost,
+      return mkAppN (mkConst ``EvmAsm.Rv64.cpsTripleWithin_seq_perm_same_cr)
+        #[nSteps1, nSteps2, entry, mid1, exit_, cr1, preP, postQ1, frameExpr, actualPost,
           hperm, h1Expr, h2Simplified]
-    -- Different CRs
     let hdProof ← buildDisjointProof cr1 cr2
-    return mkAppN (mkConst ``EvmAsm.Rv64.cpsTriple_seq_with_perm)
-      #[entry, mid1, exit_, cr1, cr2, hdProof, preP, postQ1, frameExpr, actualPost,
-        hperm, h1Expr, h2Simplified]
+    let h1Perm := mkAppN (mkConst ``EvmAsm.Rv64.cpsTripleWithin_weaken)
+      #[nSteps1, entry, mid1, cr1, preP, preP, postQ1, frameExpr,
+        (← mkIdLambda preP), hperm, h1Expr]
+    return mkAppN (mkConst ``EvmAsm.Rv64.cpsTripleWithin_seq)
+      #[nSteps1, nSteps2, entry, mid1, exit_, cr1, cr2, hdProof, preP, frameExpr, actualPost,
+        h1Perm, h2Simplified]
 
-  -- Permutation proof: Q1 → (P2 ** F)
   let p2StarFrame := mkApp2 (mkConst ``EvmAsm.Rv64.sepConj) preP2 frameExpr
   let hperm ← mkPermLambda postQ1 p2StarFrame
-
   let q2StarFrame := mkApp2 (mkConst ``EvmAsm.Rv64.sepConj) postQ2 frameExpr
 
-  -- Same-CR fast path: skip disjointness proof
   if ← withoutModifyingState (isDefEq cr1 cr2) then
-    return mkAppN (mkConst ``EvmAsm.Rv64.cpsTriple_seq_perm_same_cr)
-      #[entry, mid1, exit_, cr1, preP, postQ1, p2StarFrame, q2StarFrame,
+    return mkAppN (mkConst ``EvmAsm.Rv64.cpsTripleWithin_seq_perm_same_cr)
+      #[nSteps1, nSteps2, entry, mid1, exit_, cr1, preP, postQ1, p2StarFrame, q2StarFrame,
         hperm, h1Expr, h2Framed]
 
-  -- Different CRs: build disjointness proof
   let hdProof ← buildDisjointProof cr1 cr2
+  let h1Perm := mkAppN (mkConst ``EvmAsm.Rv64.cpsTripleWithin_weaken)
+    #[nSteps1, entry, mid1, cr1, preP, preP, postQ1, p2StarFrame,
+      (← mkIdLambda preP), hperm, h1Expr]
+  return mkAppN (mkConst ``EvmAsm.Rv64.cpsTripleWithin_seq)
+    #[nSteps1, nSteps2, entry, mid1, exit_, cr1, cr2, hdProof, preP, p2StarFrame, q2StarFrame,
+      h1Perm, h2Framed]
 
-  -- Compose: cpsTriple_seq_with_perm entry mid exit_ cr1 cr2 hd P Q1 (P2**F) (Q2**F) hperm h1 h2Framed
-  return mkAppN (mkConst ``EvmAsm.Rv64.cpsTriple_seq_with_perm)
-    #[entry, mid1, exit_, cr1, cr2, hdProof, preP, postQ1, p2StarFrame, q2StarFrame,
-      hperm, h1Expr, h2Framed]
-
-/-- Try to assign `result` directly to `goal`, or with a postcondition permutation. -/
-def assignOrPermute (goal : MVarId) (result : Expr) : MetaM Unit := do
+/-- Try to assign `result` directly to `goal`, or with a postcondition
+    permutation. It also widens the step bound using
+    `cpsTripleWithin_mono_nSteps` when the goal allows more steps than the
+    composed result used. -/
+def assignOrPermuteWithin (goal : MVarId) (result : Expr) : MetaM Unit := do
   let goalType ← goal.getType
   let resultType ← inferType result
-  -- Attempt 1: types already match (check without side effects first)
   if ← withoutModifyingState (isDefEq goalType resultType) then
     goal.assign result
     return
-  -- Attempt 2: permute postcondition (and extend CR if needed) via cpsTriple_weaken
-  let some (gEntry, gExit, gCr, gPre, goalPost) ← parseCpsTriple? goalType
-    | throwError "seqFrame: goal is not a cpsTriple"
-  let some (rEntry, rExit, rCr, _, resultPost) ← parseCpsTriple? resultType
-    | throwError "seqFrame: result is not a cpsTriple (internal error)"
+  let some (gSteps, gEntry, gExit, gCr, gPre, goalPost) ← parseCpsTripleWithin? goalType
+    | throwError "seqFrame: goal is not a cpsTripleWithin"
+  let some (rSteps, rEntry, rExit, rCr, _, resultPost) ← parseCpsTripleWithin? resultType
+    | throwError "seqFrame: result is not a cpsTripleWithin (internal error)"
   unless ← isDefEq gEntry rEntry do
     throwError "seqFrame: entry addresses don't match goal"
   unless ← isDefEq gExit rExit do
     throwError "seqFrame: exit addresses don't match goal"
-  -- If CRs differ, extend the result's CR to the goal's CR first
   let result' ←
     if ← withoutModifyingState (isDefEq gCr rCr) then
       Pure.pure result
     else do
-      -- Build monotonicity proof: rCr ⊆ gCr
       let monoProof ← try buildMonoProof rCr gCr
         catch e =>
-          Lean.logInfo m!"seqFrame/assignOrPermute: CR extension failed:\n  rCr = {rCr}\n  gCr = {gCr}\n  error = {← e.toMessageData.toString}"
+          Lean.logInfo m!"seqFrame/assignOrPermuteWithin: CR extension failed:\n  rCr = {rCr}\n  gCr = {gCr}\n  error = {← e.toMessageData.toString}"
           throw e
-      -- Extend result's CR: cpsTriple_extend_code monoProof result
-      let extended ← mkAppM ``EvmAsm.Rv64.cpsTriple_extend_code #[monoProof, result]
-      Pure.pure extended
+      mkAppM ``EvmAsm.Rv64.cpsTripleWithin_extend_code #[monoProof, result]
+  let result'' ←
+    if ← withoutModifyingState (isDefEq rSteps gSteps) then
+      Pure.pure result'
+    else do
+      let hleType ← mkAppM ``LE.le #[rSteps, gSteps]
+      let hle ← mkFreshExprMVar hleType
+      let stx ← `(tactic| omega)
+      runTacticSilent hle.mvarId! stx
+      mkAppM ``EvmAsm.Rv64.cpsTripleWithin_mono_nSteps #[← instantiateMVars hle, result']
   let postPerm ← mkPermLambda resultPost goalPost
   let idPre ← mkIdLambda gPre
-  goal.assign (mkAppN (mkConst ``EvmAsm.Rv64.cpsTriple_weaken)
-    #[gEntry, gExit, gCr, gPre, gPre, resultPost, goalPost, idPre, postPerm, result'])
+  goal.assign (mkAppN (mkConst ``EvmAsm.Rv64.cpsTripleWithin_weaken)
+    #[gSteps, gEntry, gExit, gCr, gPre, gPre, resultPost, goalPost, idPre, postPerm, result''])
 
-/-- `seqFrame h1 h2` composes two `cpsTriple` hypotheses with automatic framing.
+/-- `seqFrame h1 h2` composes two bounded CPS hypotheses with automatic framing.
 
     Given:
-      h1 : cpsTriple entry mid P Q1
-      h2 : cpsTriple mid exit_ P2 Q2
+      h1 : cpsTripleWithin n entry mid cr P Q1
+      h2 : cpsTripleWithin m mid exit_ cr P2 Q2
 
-    Produces: cpsTriple entry exit_ P (Q2 ** F)
+    Produces: cpsTripleWithin (n + m) entry exit_ cr P (Q2 ** F)
     where F is the frame (Q1 atoms not consumed by P2).
 
-    If the goal is a cpsTriple, the tactic tries to close it directly
+    If the goal is a bounded CPS triple, the tactic tries to close it directly
     (with postcondition permutation if needed). Otherwise, the result
     is introduced as a named hypothesis `h1h2` (concatenation of the two names). -/
 elab "seqFrame" h1:ident h2:ident : tactic => withMainContext do
   let h1Expr ← elabTerm h1 none
   let h2Expr ← elabTerm h2 none
-  let result ← seqFrameCore h1Expr h2Expr
+  let h1Type ← inferType h1Expr
+  let h2Type ← inferType h2Expr
+  unless (← parseCpsTripleWithin? h1Type).isSome do
+    throwError "seqFrame: first argument is not a cpsTripleWithin"
+  unless (← parseCpsTripleWithin? h2Type).isSome do
+    throwError "seqFrame: second argument is not a cpsTripleWithin"
+  let result ← seqFrameWithinCore h1Expr h2Expr
   let goal ← getMainGoal
   let goalType ← goal.getType
   -- Fast check: can we plausibly close the goal?
-  let isCpsGoal := (← parseCpsTriple? goalType).isSome
+  let isCpsGoal := (← parseCpsTripleWithin? goalType).isSome
   let canClose ← if isCpsGoal then Pure.pure true else do
     let resultType ← inferType result
     withoutModifyingState (isDefEq goalType resultType)
   if canClose then
     try
-      assignOrPermute goal result
+      assignOrPermuteWithin goal result
       replaceMainGoal []
     catch e =>
       Lean.logWarning m!"seqFrame: could not close goal: {← e.toMessageData.toString}"
@@ -1046,7 +1028,7 @@ elab "seqFrame" h1:ident h2:ident : tactic => withMainContext do
       withMainContext do
         Term.addLocalVarInfo (mkIdent name) (.fvar fvarId)
   else
-    -- Goal is not a cpsTriple — silently introduce as named hypothesis
+    -- Goal is not a bounded CPS triple — silently introduce as named hypothesis
     let name := Name.mkSimple s!"{h1.getId}{h2.getId}"
     let fvarId ← liftMetaTacticAux (α := FVarId) fun mvarId => do
       let (fvarId, mvarId) ← mvarId.note name result

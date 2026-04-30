@@ -92,7 +92,7 @@ theorem divK_loop_body_n4_max_skip_j0_norm (sp base : Word)
     let qHat : Word := signExtend12 4095
     (if BitVec.ult uTop (mulsubN4_c3 qHat v0 v1 v2 v3 u0 u1 u2 u3)
      then (1 : Word) else 0) = (0 : Word) →
-    cpsTriple (base + loopBodyOff) (base + denormOff) (divCode base)
+    cpsTripleWithin 76 (base + loopBodyOff) (base + denormOff) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (0 : Word)) **
        (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
        (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
@@ -106,14 +106,14 @@ theorem divK_loop_body_n4_max_skip_j0_norm (sp base : Word)
        ((sp + signExtend12 4088) ↦ₘ qOld))
       (loopBodyN4SkipPost sp (0 : Word) qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop) := by
   intro qHat hborrow
-  have raw := divK_loop_body_n4_max_skip_j0_divCode sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+  have raw := divK_loop_body_n4_max_skip_j0_divCode_within sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
     v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base
 
     hbltu hborrow
   simp only [se12_32, se12_40, se12_48, se12_56,
              u_base_off0_j0, u_base_off4088_j0, u_base_off4080_j0,
              u_base_off4072_j0, u_base_off4064_j0, q_addr_j0] at raw
-  exact raw
+  exact cpsTripleWithin_mono_nSteps (by decide) raw
 
 -- ============================================================================
 -- Pre-loop + loop body (max+skip): base → base+904
@@ -128,7 +128,7 @@ theorem evm_div_n4_preloop_max_skip_spec (sp base : Word)
     (hshift_nz : (clzResult b3).1 ≠ 0)
     (hbltu : isMaxTrialN4 a3 b2 b3)
     (hborrow : isSkipBorrowN4Max a0 a1 a2 a3 b0 b1 b2 b3) :
-    cpsTriple base (base + denormOff) (divCode base)
+    cpsTripleWithin (8 + 21 + 24 + 4 + 21 + 21 + 4 + 76) base (base + denormOff) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b3).2 >>> (63 : Nat)) **
        (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
@@ -166,7 +166,7 @@ theorem evm_div_n4_preloop_max_skip_spec (sp base : Word)
     hbnz hb3nz hshift_nz
 
 
-  have hPreF := cpsTriple_frameR
+  have hPreF := cpsTripleWithin_frameR
     ((.x11 ↦ᵣ v11Old) ** ((sp + signExtend12 3976) ↦ₘ jMem))
     (by pcFree) hPre
   have hLoop := divK_loop_body_n4_max_skip_j0_norm sp base
@@ -176,7 +176,7 @@ theorem evm_div_n4_preloop_max_skip_spec (sp base : Word)
     hbltu
   intro_lets at hLoop
   have hLoop' := hLoop hborrow
-  have hLoopF := cpsTriple_frameR
+  have hLoopF := cpsTripleWithin_frameR
     (((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
      ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
      ((sp + signExtend12 4080) ↦ₘ (0 : Word)) **
@@ -187,12 +187,12 @@ theorem evm_div_n4_preloop_max_skip_spec (sp base : Word)
      ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
      ((sp + signExtend12 3992) ↦ₘ shift))
     (by pcFree) hLoop'
-  have hFull := cpsTriple_seq_perm_same_cr
+  have hFull := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by
       delta loopSetupPost at hp
       simp only [x1_val_n4] at hp
       xperm_hyp hp) hPreF hLoopF
-  exact cpsTriple_weaken
+  exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by delta preloopMaxSkipPostN4; xperm_hyp hq)
     hFull
@@ -330,7 +330,7 @@ instance pcFreeInst_fullDivN4MaxSkipPost
     cells at `sp+4088..sp+4064` still carry the raw `qHat / 0 / 0 / 0`
     trial-quotient values from the loop-body phase.
 
-    Scaffolding for the forthcoming `evm_mod_n4_full_max_skip_spec`.
+    Scaffolding for the forthcoming `evm_mod_n4_full_max_skip_spec_within`.
     Mirrors `fullDivN4MaxSkipPost` atom-for-atom except for the inner
     `denormDivPost` / `denormModPost` swap and the resulting output-slot
     values. -/
@@ -415,7 +415,7 @@ theorem evm_div_n4_full_max_skip_spec (sp base : Word)
     (hshift_nz : (clzResult b3).1 ≠ 0)
     (hbltu : isMaxTrialN4 a3 b2 b3)
     (hborrow : isSkipBorrowN4Max a0 a1 a2 a3 b0 b1 b2 b3) :
-    cpsTriple base (base + nopOff) (divCode base)
+    cpsTripleWithin (8 + 21 + 24 + 4 + 21 + 21 + 4 + 76 + 2 + 23 + 10) base (base + nopOff) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b3).2 >>> (63 : Nat)) **
        (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
@@ -462,7 +462,7 @@ theorem evm_div_n4_full_max_skip_spec (sp base : Word)
     b0' b1' b2' b3'
     hshift_nz
   -- Frame post-loop with remainder atoms
-  have hBF := cpsTriple_frameR
+  have hBF := cpsTripleWithin_frameR
     (((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
      ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
      ((sp + signExtend12 4024) ↦ₘ (a3 >>> (antiShift.toNat % 64)) - ms.2.2.2.2) **
@@ -474,11 +474,11 @@ theorem evm_div_n4_full_max_skip_spec (sp base : Word)
      (.x1 ↦ᵣ signExtend12 4095) ** (.x11 ↦ᵣ qHat))
     (by pcFree) hB
   -- 3. Compose A + B
-  have hFull := cpsTriple_seq_perm_same_cr
+  have hFull := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by
       simp only [preloopMaxSkipPostN4_unfold] at hp
       xperm_hyp hp) hA hBF
-  exact cpsTriple_weaken
+  exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by delta fullDivN4MaxSkipPost; rw [sepConj_assoc'] at hq; xperm_hyp hq)
     hFull
@@ -565,7 +565,7 @@ theorem divK_loop_body_n4_call_skip_j0_norm (sp base : Word)
     let div_un0 := (u3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
     (if BitVec.ult uTop (mulsubN4_c3 qHat v0 v1 v2 v3 u0 u1 u2 u3)
      then (1 : Word) else 0) = (0 : Word) →
-    cpsTriple (base + loopBodyOff) (base + denormOff) (divCode base)
+    cpsTripleWithin 126 (base + loopBodyOff) (base + denormOff) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (0 : Word)) **
        (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
        (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
@@ -587,13 +587,13 @@ theorem divK_loop_body_n4_call_skip_j0_norm (sp base : Word)
        (sp + signExtend12 3952 ↦ₘ dLo) **
        (sp + signExtend12 3944 ↦ₘ div_un0)) := by
   intro qHat dLo div_un0 hborrow
-  have raw := divK_loop_body_n4_call_skip_j0_divCode sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+  have raw := divK_loop_body_n4_call_skip_j0_divCode_within sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
     v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0 base halign hbltu
   have raw' := raw hborrow
   simp only [se12_32, se12_40, se12_48, se12_56,
              u_base_off0_j0, u_base_off4088_j0, u_base_off4080_j0,
              u_base_off4072_j0, u_base_off4064_j0, q_addr_j0] at raw'
-  exact raw'
+  exact cpsTripleWithin_mono_nSteps (by decide) raw'
 
 -- ============================================================================
 -- Call+skip full path: preloop + loop + postloop (base → base+1068)
@@ -687,7 +687,7 @@ theorem evm_div_n4_preloop_call_skip_spec (sp base : Word)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
     (hbltu : isCallTrialN4 a3 b2 b3)
     (hborrow : isSkipBorrowN4Call a0 a1 a2 a3 b0 b1 b2 b3) :
-    cpsTriple base (base + denormOff) (divCode base)
+    cpsTripleWithin (8 + 21 + 24 + 4 + 21 + 21 + 4 + 126) base (base + denormOff) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b3).2 >>> (63 : Nat)) **
        (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
@@ -727,7 +727,7 @@ theorem evm_div_n4_preloop_call_skip_spec (sp base : Word)
     hbnz hb3nz hshift_nz
 
 
-  have hPreF := cpsTriple_frameR
+  have hPreF := cpsTripleWithin_frameR
     ((.x11 ↦ᵣ v11Old) ** ((sp + signExtend12 3976) ↦ₘ jMem) **
      (sp + signExtend12 3968 ↦ₘ retMem) ** (sp + signExtend12 3960 ↦ₘ dMem) **
      (sp + signExtend12 3952 ↦ₘ dloMem) ** (sp + signExtend12 3944 ↦ₘ scratch_un0))
@@ -740,7 +740,7 @@ theorem evm_div_n4_preloop_call_skip_spec (sp base : Word)
     hbltu
   intro_lets at hLoop
   have hLoop' := hLoop hborrow
-  have hLoopF := cpsTriple_frameR
+  have hLoopF := cpsTripleWithin_frameR
     (((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
      ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
      ((sp + signExtend12 4080) ↦ₘ (0 : Word)) **
@@ -751,12 +751,12 @@ theorem evm_div_n4_preloop_call_skip_spec (sp base : Word)
      ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
      ((sp + signExtend12 3992) ↦ₘ shift))
     (by pcFree) hLoop'
-  have hFull := cpsTriple_seq_perm_same_cr
+  have hFull := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by
       delta loopSetupPost at hp
       simp only [x1_val_n4] at hp
       xperm_hyp hp) hPreF hLoopF
-  exact cpsTriple_weaken
+  exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by delta preloopCallSkipPostN4; xperm_hyp hq)
     hFull
@@ -846,7 +846,7 @@ theorem evm_div_n4_full_call_skip_spec (sp base : Word)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
     (hbltu : isCallTrialN4 a3 b2 b3)
     (hborrow : isSkipBorrowN4Call a0 a1 a2 a3 b0 b1 b2 b3) :
-    cpsTriple base (base + nopOff) (divCode base)
+    cpsTripleWithin (8 + 21 + 24 + 4 + 21 + 21 + 4 + 126 + 2 + 23 + 10) base (base + nopOff) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b3).2 >>> (63 : Nat)) **
        (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
@@ -898,7 +898,7 @@ theorem evm_div_n4_full_call_skip_spec (sp base : Word)
     ms.2.2.2.2 qHat 0 0 0
     b0' b1' b2' b3'
     hshift_nz
-  have hBF := cpsTriple_frameR
+  have hBF := cpsTripleWithin_frameR
     (((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
      ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
      ((sp + signExtend12 4024) ↦ₘ u4 - ms.2.2.2.2) **
@@ -914,11 +914,11 @@ theorem evm_div_n4_full_call_skip_spec (sp base : Word)
      (sp + signExtend12 3944 ↦ₘ div_un0))
     (by pcFree) hB
   -- 3. Compose
-  have hFull := cpsTriple_seq_perm_same_cr
+  have hFull := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by
       simp only [preloopCallSkipPostN4_unfold] at hp
       xperm_hyp hp) hA hBF
-  exact cpsTriple_weaken
+  exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by delta fullDivN4CallSkipPost; rw [sepConj_assoc'] at hq; xperm_hyp hq)
     hFull
@@ -930,7 +930,7 @@ theorem evm_div_n4_full_call_skip_spec (sp base : Word)
     scratch cells (return address, dHi, dLo, scratch_un0) carry the
     same div128-subroutine values as in the DIV variant.
 
-    Scaffolding for the forthcoming `evm_mod_n4_full_call_skip_spec`. -/
+    Scaffolding for the forthcoming `evm_mod_n4_full_call_skip_spec_within`. -/
 @[irreducible]
 def fullModN4CallSkipPost (sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Assertion :=
   let shift := (clzResult b3).1

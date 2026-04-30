@@ -1996,7 +1996,7 @@ instance : Assertion.PCFree (progAt base prog) := ⟨pcFree_progAt⟩
 -- ============================================================================
 
 /-- A code requirement maps addresses to optional instructions.
-    Used as a side-condition in cpsTriple instead of linear instrAt assertions.
+    Used as a side-condition in bounded CPS specs instead of linear instrAt assertions.
     Unlike instrAt (which is linear), CodeReq is persistent/checked non-consumptively. -/
 def CodeReq := Word → Option Instr
 

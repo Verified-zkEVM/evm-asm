@@ -1,7 +1,7 @@
 /-
   EvmAsm.Evm64.DivMod.LoopIterN1.MaxBeq
 
-  Loop body cpsTriple specs for n=1, max path with BEQ double-addback handling.
+  Loop body cpsTripleWithin specs for n=1, max path with BEQ double-addback handling.
   Split from LoopIterN1.lean for faster builds.
 -/
 
@@ -20,7 +20,7 @@ open EvmAsm.Rv64
 -- n=1, max+addback BEQ, j=0
 
 set_option maxRecDepth 4096 in
-theorem divK_loop_body_n1_max_addback_j0_beq_spec
+theorem divK_loop_body_n1_max_addback_j0_beq_spec_within
     (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
     (base : Word)
@@ -30,7 +30,7 @@ theorem divK_loop_body_n1_max_addback_j0_beq_spec
     let qHat : Word := signExtend12 4095
     let qAddr := sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat
     (if BitVec.ult uTop (mulsubN4_c3 qHat v0 v1 v2 v3 u0 u1 u2 u3) then (1 : Word) else 0) ≠ (0 : Word) →
-    cpsTriple (base + loopBodyOff) (base + denormOff) (sharedDivModCode base)
+    cpsTripleWithin 152 (base + loopBodyOff) (base + denormOff) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (0 : Word)) **
        (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
        (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
@@ -60,21 +60,21 @@ theorem divK_loop_body_n1_max_addback_j0_beq_spec
       addbackN4_carry ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 v0 v1 v2 v3
     else carry
   let vtopBase := sp + ((1 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
-  have TF := divK_trial_max_full_spec sp (0 : Word) (1 : Word) jOld v5Old v6Old v7Old v10Old v11Old
+  have TF := divK_trial_max_full_spec_within sp (0 : Word) (1 : Word) jOld v5Old v6Old v7Old v10Old v11Old
     u1 u0 v0 base hbltu
   dsimp only [] at TF
   rw [u_addr_eq_n1] at TF
   rw [u_addr8_eq_n1] at TF
   rw [vtop_eq_v0_n1] at TF
-  have MCA := divK_mulsub_correction_addback_beq_spec sp qHat (0 : Word) v0 v1 v2 v3 u0 u1 u2 u3 uTop
+  have MCA := divK_mulsub_correction_addback_beq_spec_within sp qHat (0 : Word) v0 v1 v2 v3 u0 u1 u2 u3 uTop
     (0 : Word) u0 vtopBase u1 v0 v2Old base
 
   intro_lets at MCA
   unfold isAddbackCarry2NzN1Max isAddbackCarry2Nz at hcarry2_nz
   have MCA0 := MCA hcarry2_nz hborrow
-  have SL := divK_store_loop_j0_spec sp q_out u4_out carryOut qOld base
+  have SL := divK_store_loop_j0_spec_within sp q_out u4_out carryOut qOld base
   intro_lets at SL
-  have TFf := cpsTriple_frameR
+  have TFf := cpsTripleWithin_frameR
     ((.x2 ↦ᵣ v2Old) **
      ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4080) ↦ₘ u2) **
      ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4072) ↦ₘ u3) **
@@ -82,7 +82,7 @@ theorem divK_loop_body_n1_max_addback_j0_beq_spec
      (qAddr ↦ₘ qOld))
     (by pcFree) TF
   seqFrame TFf MCA0
-  have SLf := cpsTriple_frameR
+  have SLf := cpsTripleWithin_frameR
     ((.x6 ↦ᵣ uBase) ** (.x10 ↦ᵣ c3) ** (.x2 ↦ᵣ un3Out) **
      (sp + signExtend12 3976 ↦ₘ (0 : Word)) **
      ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ un0Out) **
@@ -92,21 +92,14 @@ theorem divK_loop_body_n1_max_addback_j0_beq_spec
      ((uBase + signExtend12 4064) ↦ₘ u4_out) **
      (sp + signExtend12 3984 ↦ₘ (1 : Word)))
     (by pcFree) SL
-  have full := cpsTriple_seq_perm_same_cr
+  have full := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by rw [sepConj_assoc'] at hp; xperm_hyp hp) TFfMCA0 SLf
-  exact cpsTriple_weaken
+  exact cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hp => by delta loopBodyN1AddbackBeqPost loopBodyAddbackBeqPost loopExitPostN1 loopExitPost; rw [sepConj_assoc'] at hp; xperm_hyp hp)
     full
 
--- n=1, max+addback BEQ, j > 0 → cpsTriple to base+448
--- Single Word-parametric theorem: callers pass concrete j ∈ {1,2,3} and the
--- corresponding `slt_jpos_k` fact to discharge BLT-not-taken.
-
-set_option maxRecDepth 4096 in
-/-- Loop body cpsTriple for n=1, max+addback BEQ, j > 0 (parametric on `j : Word`).
-    `hpos` discharges BGE loop-back via caller's `slt_jpos_k` for k ∈ {1,2,3}. -/
-theorem divK_loop_body_n1_max_addback_jgt0_beq_spec (j : Word)
+theorem divK_loop_body_n1_max_addback_jgt0_beq_spec_within (j : Word)
     (hpos : BitVec.slt (j + signExtend12 4095) 0 = false)
     (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
@@ -117,7 +110,7 @@ theorem divK_loop_body_n1_max_addback_jgt0_beq_spec (j : Word)
     let qHat : Word := signExtend12 4095
     let qAddr := sp + signExtend12 4088 - j <<< (3 : BitVec 6).toNat
     (if BitVec.ult uTop (mulsubN4_c3 qHat v0 v1 v2 v3 u0 u1 u2 u3) then (1 : Word) else 0) ≠ (0 : Word) →
-    cpsTriple (base + loopBodyOff) (base + loopBodyOff) (sharedDivModCode base)
+    cpsTripleWithin 152 (base + loopBodyOff) (base + loopBodyOff) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
        (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
        (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
@@ -147,21 +140,21 @@ theorem divK_loop_body_n1_max_addback_jgt0_beq_spec (j : Word)
       addbackN4_carry ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 v0 v1 v2 v3
     else carry
   let vtopBase := sp + ((1 : Word) + signExtend12 4095) <<< (3 : BitVec 6).toNat
-  have TF := divK_trial_max_full_spec sp j (1 : Word) jOld v5Old v6Old v7Old v10Old v11Old
+  have TF := divK_trial_max_full_spec_within sp j (1 : Word) jOld v5Old v6Old v7Old v10Old v11Old
     u1 u0 v0 base hbltu
   dsimp only [] at TF
   rw [u_addr_eq_n1] at TF
   rw [u_addr8_eq_n1] at TF
   rw [vtop_eq_v0_n1] at TF
-  have MCA := divK_mulsub_correction_addback_beq_spec sp qHat j v0 v1 v2 v3 u0 u1 u2 u3 uTop
+  have MCA := divK_mulsub_correction_addback_beq_spec_within sp qHat j v0 v1 v2 v3 u0 u1 u2 u3 uTop
     j u0 vtopBase u1 v0 v2Old base
 
   intro_lets at MCA
   unfold isAddbackCarry2NzN1Max isAddbackCarry2Nz at hcarry2_nz
   have MCA0 := MCA hcarry2_nz hborrow
-  have SL := divK_store_loop_jgt0_spec sp j q_out u4_out carryOut qOld base hpos
+  have SL := divK_store_loop_jgt0_spec_within sp j q_out u4_out carryOut qOld base hpos
   intro_lets at SL
-  have TFf := cpsTriple_frameR
+  have TFf := cpsTripleWithin_frameR
     ((.x2 ↦ᵣ v2Old) **
      ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4080) ↦ₘ u2) **
      ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4072) ↦ₘ u3) **
@@ -169,7 +162,7 @@ theorem divK_loop_body_n1_max_addback_jgt0_beq_spec (j : Word)
      (qAddr ↦ₘ qOld))
     (by pcFree) TF
   seqFrame TFf MCA0
-  have SLf := cpsTriple_frameR
+  have SLf := cpsTripleWithin_frameR
     ((.x6 ↦ᵣ uBase) ** (.x10 ↦ᵣ c3) ** (.x2 ↦ᵣ un3Out) **
      (sp + signExtend12 3976 ↦ₘ j) **
      ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ un0Out) **
@@ -179,9 +172,9 @@ theorem divK_loop_body_n1_max_addback_jgt0_beq_spec (j : Word)
      ((uBase + signExtend12 4064) ↦ₘ u4_out) **
      (sp + signExtend12 3984 ↦ₘ (1 : Word)))
     (by pcFree) SL
-  have full := cpsTriple_seq_perm_same_cr
+  have full := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by rw [sepConj_assoc'] at hp; xperm_hyp hp) TFfMCA0 SLf
-  exact cpsTriple_weaken
+  exact cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hp => by delta loopBodyN1AddbackBeqPost loopBodyAddbackBeqPost loopExitPostN1 loopExitPost; rw [sepConj_assoc'] at hp; xperm_hyp hp)
     full

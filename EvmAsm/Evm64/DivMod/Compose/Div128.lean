@@ -4,7 +4,7 @@ import EvmAsm.Evm64.DivMod.Compose.Base
 # DivMod Compose: div128 subroutine composition
 
 Section 15 of the DivMod composition: composes 5 block specs
-(phase1, step1, compute_un21, step2, end) into a single `div128_spec` theorem
+(phase1, step1, compute_un21, step2, end) into a single `div128_spec_within` theorem
 for the div128 subroutine.
 -/
 
@@ -16,7 +16,7 @@ open EvmAsm.Rv64
 
 -- ============================================================================
 -- Section 15: div128 subroutine composition (Issue #88)
--- Compose 5 block specs into a single div128_spec theorem.
+-- Compose 5 block specs into a single div128_spec_within theorem.
 -- ============================================================================
 
 -- Master subsumption: ofProg (base+1072) divK_div128 ⊆ sharedDivModCode base
@@ -49,14 +49,14 @@ private theorem d128_sub {base : Word} (k : Nat) (addr : Word) (instr : Instr)
 -- Each block's subsumption uses: CodeReq.union_sub (d128_sub ...) (CodeReq.union_sub ...)
 
 -- ============================================================================
--- div128_spec: compose 5 block specs into single subroutine theorem.
+-- div128_spec_within: compose 5 block specs into single subroutine theorem.
 -- Entry: base+1072, Exit: retAddr (via JALR), CodeReq: sharedDivModCode base.
 -- ============================================================================
 
-/-- Bundled postcondition for `div128_spec` (and `mod_div128_spec`).
+/-- Bundled postcondition for `div128_spec_within` (and `mod_div128_spec_within`).
     Hides the 25-let chain that computes Phase 1 / compute-un21 / Phase 2 /
     Phase 2b-guarded / end-combine intermediates so the theorem signature
-    stays a clean `cpsTriple A B C P (div128SpecPost …)` instead of a
+    stays a clean `cpsTripleWithin 10000 A B C P (div128SpecPost …)` instead of a
     let-chain immediately preceding the triple (anti-pattern, slows
     elaboration). Marked `@[irreducible]` so callers see only the bundled
     assertion; `unfold` to expose the lets when threading downstream.
@@ -104,11 +104,11 @@ def div128SpecPost (sp retAddr d uLo uHi : Word) : Assertion :=
   (sp + signExtend12 3952 ↦ₘ dLo) **
   (sp + signExtend12 3944 ↦ₘ un0)
 
-theorem div128_spec (sp retAddr d uLo uHi : Word) (base : Word)
+theorem div128_spec_within (sp retAddr d uLo uHi : Word) (base : Word)
     (v1Old v6Old v11Old : Word)
     (retMem dMem dloMem un0Mem : Word)
     (halign : (retAddr + signExtend12 0) &&& ~~~1 = retAddr) :
-    cpsTriple (base + div128Off) retAddr (sharedDivModCode base)
+    cpsTripleWithin 51 (base + div128Off) retAddr (sharedDivModCode base)
       (-- Precondition: caller registers + scratch memory
        (.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ retAddr) ** (.x10 ↦ᵣ d) **
        (.x5 ↦ᵣ uLo) ** (.x7 ↦ᵣ uHi) **
@@ -157,11 +157,11 @@ theorem div128_spec (sp retAddr d uLo uHi : Word) (base : Word)
   -- Block 1: Phase 1 (base+1072 → base+1112)
   -- Saves ret/d, splits d and uLo into halves.
   -- ================================================================
-  have hph1 := divK_div128_phase1_spec sp retAddr d uLo uHi v1Old v6Old v11Old
+  have hph1 := divK_div128_phase1_spec_within sp retAddr d uLo uHi v1Old v6Old v11Old
     retMem dMem dloMem un0Mem (base + div128Off)
   rw [show (base + div128Off : Word) + 40 = base + 1112 from by bv_addr] at hph1
   -- Extend phase1 cr to sharedDivModCode
-  have hph1e := cpsTriple_extend_code (hmono := by
+  have hph1e := cpsTripleWithin_extend_code (hmono := by
     -- phase1 cr: 10 singletons at (base+1072)+{0,4,...,36}, indices 0-9
     exact CodeReq.union_sub (d128_sub 0 _ _ (by decide) (by bv_addr) (by decide))
      (CodeReq.union_sub (d128_sub 1 _ _ (by decide) (by bv_addr) (by decide))
@@ -175,17 +175,17 @@ theorem div128_spec (sp retAddr d uLo uHi : Word) (base : Word)
       (d128_sub 9 _ _ (by decide) (by bv_addr) (by decide)))))))))))
     hph1
   -- Frame phase1 with x0=0 (not used by phase1)
-  have hph1f := cpsTriple_frameR
+  have hph1f := cpsTripleWithin_frameR
     (.x0 ↦ᵣ (0 : Word))
     (by pcFree) hph1e
   -- ================================================================
   -- Block 2: Step 1 (base+1112 → base+1172)
   -- Trial division q1, clamp, product check.
   -- ================================================================
-  have hst1 := divK_div128_step1_spec sp uHi dHi un1 dLo un0 d dLo
+  have hst1 := divK_div128_step1_spec_within sp uHi dHi un1 dLo un0 d dLo
     (base + 1112)
   rw [show (base + 1112 : Word) + 60 = base + 1172 from by bv_addr] at hst1
-  have hst1e := cpsTriple_extend_code (hmono := by
+  have hst1e := cpsTripleWithin_extend_code (hmono := by
     exact CodeReq.union_sub (d128_sub 10 _ _ (by decide) (by bv_addr) (by decide))
      (CodeReq.union_sub (d128_sub 11 _ _ (by decide) (by bv_addr) (by decide))
      (CodeReq.union_sub (d128_sub 12 _ _ (by decide) (by bv_addr) (by decide))
@@ -203,21 +203,21 @@ theorem div128_spec (sp retAddr d uLo uHi : Word) (base : Word)
       (d128_sub 24 _ _ (by decide) (by bv_addr) (by decide))))))))))))))))
     hst1
   -- Frame step1 with x2, mem[3968], mem[3960], mem[3944]
-  have hst1f := cpsTriple_frameR
+  have hst1f := cpsTripleWithin_frameR
     ((.x2 ↦ᵣ retAddr) ** (sp + signExtend12 3968 ↦ₘ retAddr) **
      (sp + signExtend12 3960 ↦ₘ d) ** (sp + signExtend12 3944 ↦ₘ un0))
     (by pcFree) hst1e
   -- Compose phase1 → step1
-  have h12 := cpsTriple_seq_perm_same_cr
+  have h12 := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hph1f hst1f
   -- ================================================================
   -- Block 3: Compute un21 (base+1172 → base+1192)
   -- un21 = rhat*2^32 + un1 - q1*dLo.
   -- ================================================================
-  have hcu := divK_div128_compute_un21_spec sp q1' rhat' un1 rhatUn1 qDlo dLo
+  have hcu := divK_div128_compute_un21_spec_within sp q1' rhat' un1 rhatUn1 qDlo dLo
     (base + 1172)
   rw [show (base + 1172 : Word) + 20 = base + 1192 from by bv_addr] at hcu
-  have hcue := cpsTriple_extend_code (hmono := by
+  have hcue := cpsTripleWithin_extend_code (hmono := by
     exact CodeReq.union_sub (d128_sub 25 _ _ (by decide) (by bv_addr) (by decide))
      (CodeReq.union_sub (d128_sub 26 _ _ (by decide) (by bv_addr) (by decide))
      (CodeReq.union_sub (d128_sub 27 _ _ (by decide) (by bv_addr) (by decide))
@@ -225,13 +225,13 @@ theorem div128_spec (sp retAddr d uLo uHi : Word) (base : Word)
       (d128_sub 29 _ _ (by decide) (by bv_addr) (by decide))))))
     hcu
   -- Frame compute_un21 with x6, x0, x2, mem[3968], mem[3960], mem[3944]
-  have hcuf := cpsTriple_frameR
+  have hcuf := cpsTripleWithin_frameR
     ((.x6 ↦ᵣ dHi) ** (.x0 ↦ᵣ (0 : Word)) **
      (.x2 ↦ᵣ retAddr) ** (sp + signExtend12 3968 ↦ₘ retAddr) **
      (sp + signExtend12 3960 ↦ₘ d) ** (sp + signExtend12 3944 ↦ₘ un0))
     (by pcFree) hcue
   -- Compose (phase1→step1) → compute_un21
-  have h123 := cpsTriple_seq_perm_same_cr
+  have h123 := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h12 hcuf
   -- ================================================================
   -- Block 4: Step 2 (base+1192 → base+1260)
@@ -242,11 +242,11 @@ theorem div128_spec (sp retAddr d uLo uHi : Word) (base : Word)
   -- NOTE: 17 instructions (was 15) — SRLI+BNE guard added between clamp
   -- and mul-check per Knuth TAOCP §4.3.1 Step D3.
   -- ================================================================
-  have hst2 := divK_div128_step2_spec sp un21 dHi cu_q1_dlo cu_rhat_un1 un1 dLo un0
+  have hst2 := divK_div128_step2_spec_within sp un21 dHi cu_q1_dlo cu_rhat_un1 un1 dLo un0
     (base + 1192)
   unfold divKDiv128Step2Code divKDiv128Step2Post at hst2
   rw [show (base + 1192 : Word) + 68 = base + 1260 from by bv_addr] at hst2
-  have hst2e := cpsTriple_extend_code (hmono := by
+  have hst2e := cpsTripleWithin_extend_code (hmono := by
     exact CodeReq.union_sub (d128_sub 30 _ _ (by decide) (by bv_addr) (by decide))
      (CodeReq.union_sub (d128_sub 31 _ _ (by decide) (by bv_addr) (by decide))
      (CodeReq.union_sub (d128_sub 32 _ _ (by decide) (by bv_addr) (by decide))
@@ -266,12 +266,12 @@ theorem div128_spec (sp retAddr d uLo uHi : Word) (base : Word)
       (d128_sub 46 _ _ (by decide) (by bv_addr) (by decide))))))))))))))))))
     hst2
   -- Frame step2 with x10, x2, mem[3968], mem[3960]
-  have hst2f := cpsTriple_frameR
+  have hst2f := cpsTripleWithin_frameR
     ((.x10 ↦ᵣ q1') ** (.x2 ↦ᵣ retAddr) **
      (sp + signExtend12 3968 ↦ₘ retAddr) ** (sp + signExtend12 3960 ↦ₘ d))
     (by pcFree) hst2e
   -- Compose (→step1→compute_un21) → step2
-  have h1234 := cpsTriple_seq_perm_same_cr
+  have h1234 := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h123 hst2f
   -- ================================================================
   -- Block 5: End (base+1260 → retAddr via JALR)
@@ -279,63 +279,30 @@ theorem div128_spec (sp retAddr d uLo uHi : Word) (base : Word)
   -- Params: q1=q1'(x10), q0=q0'(x5), v2Old=retAddr(x2),
   --         v11Old=x11Exit(x11), retAddr(mem[3968])
   -- ================================================================
-  have hend := divK_div128_end_spec sp q1' q0' retAddr x11Exit retAddr
+  have hend := divK_div128_end_spec_within sp q1' q0' retAddr x11Exit retAddr
     (base + 1260) halign
-  have hende := cpsTriple_extend_code (hmono := by
+  have hende := cpsTripleWithin_extend_code (hmono := by
     exact CodeReq.union_sub (d128_sub 47 _ _ (by decide) (by bv_addr) (by decide))
      (CodeReq.union_sub (d128_sub 48 _ _ (by decide) (by bv_addr) (by decide))
      (CodeReq.union_sub (d128_sub 49 _ _ (by decide) (by bv_addr) (by decide))
       (d128_sub 50 _ _ (by decide) (by bv_addr) (by decide)))))
     hend
   -- Frame end with x7, x6, x1, x0, mem[3960], mem[3952], mem[3944]
-  have hendf := cpsTriple_frameR
+  have hendf := cpsTripleWithin_frameR
     ((.x7 ↦ᵣ x7Exit) ** (.x6 ↦ᵣ dHi) ** (.x1 ↦ᵣ x1Exit) **
      (.x0 ↦ᵣ (0 : Word)) **
      (sp + signExtend12 3960 ↦ₘ d) ** (sp + signExtend12 3952 ↦ₘ dLo) **
      (sp + signExtend12 3944 ↦ₘ un0))
     (by pcFree) hende
   -- Compose (→step2) → end
-  have h12345 := cpsTriple_seq_perm_same_cr
+  have h12345 := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h1234 hendf
   -- Final permutation to canonical pre/post order
-  exact cpsTriple_weaken
+  exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq)
     h12345
 
--- ============================================================================
--- Section 15.v2: divK_div128_v2 subroutine composition (issue #1337 fix)
---
--- Parallel to `div128_spec` but for the FIXED `divK_div128_v2` subroutine
--- (with Knuth's classical 2nd D3 correction iteration). Mirrors the Lean
--- abstraction `div128Quot_v2`.
---
--- This is a **STUB** awaiting the full multi-iteration migration:
--- 1. Add 5 new block specs for the inserted [25..34] instructions
---    (mirror of Phase 2b's existing [37..46] block specs).
--- 2. Adjust offsets for the shifted [35..60] block specs
---    (originally [25..50]).
--- 3. Compose blocks via `runBlock` / `seqFrame` (similar to `div128_spec`).
---
--- Until the migration is complete, callers should continue using
--- `div128_spec` with the buggy `divK_div128`. The buggy version is
--- correct for inputs that don't reach Knuth's D3 2nd-iteration regime
--- (per the analysis in
--- `memory/project_n4callbeq_addback_overshoot_2pow32.md`); the v2 fix
--- is needed only for the corner-case inputs.
--- ============================================================================
-
-/-- Bundled postcondition for `div128_v2_spec`.
-
-    Mirrors `div128SpecPost` but uses the fixed `q1''/rhat''` values
-    (post-2nd-D3-correction) for the high half of `q`, matching
-    `div128Quot_v2`'s output. `@[irreducible]` to keep the let-chain
-    out of the theorem signature.
-
-    The Phase 2 / end-combine intermediates are unchanged from
-    `div128SpecPost` — only Phase 1's `q1' / rhat'` are replaced by
-    `q1'' / rhat''`. -/
-@[irreducible]
 def div128V2SpecPost (sp retAddr d uLo uHi : Word) : Assertion :=
   -- Phase 1 split intermediates (unchanged).
   let dHi := d >>> (32 : BitVec 6).toNat
@@ -364,7 +331,7 @@ def div128V2SpecPost (sp retAddr d uLo uHi : Word) : Assertion :=
   let cu_rhat_un1 := (rhat'' <<< (32 : BitVec 6).toNat) ||| un1
   let cu_q1_dlo := q1'' * dLo
   let un21 := cu_rhat_un1 - cu_q1_dlo
-  -- Step 2 (unchanged from div128_spec, but starts with v2's un21).
+  -- Step 2 (unchanged from div128_spec_within, but starts with v2's un21).
   let q0 := rv64_divu un21 dHi
   let rhat2 := un21 - q0 * dHi
   let hi2 := q0 >>> (32 : BitVec 6).toNat
@@ -403,8 +370,8 @@ private theorem d128_v2_sub {base : Word} (k : Nat) (addr : Word) (instr : Instr
 /-- **STUB**: equivalence between `divK_div128_v2` (fixed RISC-V) and
     `div128Quot_v2` (fixed Lean abstraction).
 
-    Mirrors `div128_spec` but for the v2 algorithm. The proof structure
-    parallels `div128_spec` with two changes:
+    Mirrors `div128_spec_within` but for the v2 algorithm. The proof structure
+    parallels `div128_spec_within` with two changes:
     - The Phase 1 block uses `divK_div128_step1_v2_spec` (covering instrs
       [10..34]) instead of `divK_div128_step1_spec` ([10..24]).
     - Offsets in the shifted `[35..60]` blocks bump by +40 bytes from
@@ -416,13 +383,13 @@ private theorem d128_v2_sub {base : Word} (k : Nat) (addr : Word) (instr : Instr
     Estimated: ~600 LOC for the full proof.
 
     Tracked in issue #1337's algorithm-fix migration. -/
-theorem div128_v2_spec (sp retAddr d uLo uHi : Word) (base : Word)
+theorem div128_v2_spec_within (sp retAddr d uLo uHi : Word) (base : Word)
     (v1Old v6Old v11Old : Word)
     (retMem dMem dloMem un0Mem : Word)
     (_halign : (retAddr + signExtend12 0) &&& ~~~1 = retAddr) :
-    cpsTriple (base + div128Off) retAddr
+    cpsTripleWithin 61 (base + div128Off) retAddr
       (CodeReq.ofProg (base + div128Off) divK_div128_v2)
-      (-- Precondition: same as div128_spec.
+      (-- Precondition: same as div128_spec_within.
        (.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ retAddr) ** (.x10 ↦ᵣ d) **
        (.x5 ↦ᵣ uLo) ** (.x7 ↦ᵣ uHi) **
        (.x6 ↦ᵣ v6Old) ** (.x1 ↦ᵣ v1Old) ** (.x11 ↦ᵣ v11Old) **
@@ -433,7 +400,7 @@ theorem div128_v2_spec (sp retAddr d uLo uHi : Word) (base : Word)
        (sp + signExtend12 3944 ↦ₘ un0Mem))
       (div128V2SpecPost sp retAddr d uLo uHi) := by
   unfold div128V2SpecPost
-  -- Phase 1 intermediates (same as div128_spec).
+  -- Phase 1 intermediates (same as div128_spec_within).
   let dHi := d >>> (32 : BitVec 6).toNat
   let dLo := (d <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
   let un1 := uLo >>> (32 : BitVec 6).toNat
@@ -459,10 +426,10 @@ theorem div128_v2_spec (sp retAddr d uLo uHi : Word) (base : Word)
   -- Block 1: Phase 1 (base+1072 → base+1112). Same instructions [0..9]
   -- as divK_div128 — the v2 fix doesn't touch Phase 1.
   -- ================================================================
-  have hph1 := divK_div128_phase1_spec sp retAddr d uLo uHi v1Old v6Old v11Old
+  have hph1 := divK_div128_phase1_spec_within sp retAddr d uLo uHi v1Old v6Old v11Old
     retMem dMem dloMem un0Mem (base + div128Off)
   rw [show (base + div128Off : Word) + 40 = base + 1112 from by bv_addr] at hph1
-  have hph1e := cpsTriple_extend_code (hmono := by
+  have hph1e := cpsTripleWithin_extend_code (hmono := by
     exact CodeReq.union_sub (d128_v2_sub 0 _ _ (by decide) (by bv_addr) (by decide))
      (CodeReq.union_sub (d128_v2_sub 1 _ _ (by decide) (by bv_addr) (by decide))
      (CodeReq.union_sub (d128_v2_sub 2 _ _ (by decide) (by bv_addr) (by decide))
@@ -474,7 +441,7 @@ theorem div128_v2_spec (sp retAddr d uLo uHi : Word) (base : Word)
      (CodeReq.union_sub (d128_v2_sub 8 _ _ (by decide) (by bv_addr) (by decide))
       (d128_v2_sub 9 _ _ (by decide) (by bv_addr) (by decide)))))))))))
     hph1
-  have hph1f := cpsTriple_frameR
+  have hph1f := cpsTripleWithin_frameR
     (.x0 ↦ᵣ (0 : Word))
     (by pcFree) hph1e
   -- ================================================================
@@ -482,13 +449,13 @@ theorem div128_v2_spec (sp retAddr d uLo uHi : Word) (base : Word)
   -- Covers instructions [10..34] = step1 init + clamp + 1st D3 +
   -- 2nd D3 (the inserted block).
   -- ================================================================
-  have hst1 := divK_div128_step1_v2_spec sp uHi dHi un1 dLo un0 d dLo
+  have hst1 := divK_div128_step1_v2_spec_within sp uHi dHi un1 dLo un0 d dLo
     (base + 1112)
   unfold divKDiv128Step1V2Code divKDiv128Step1V2Pre divKDiv128Step1V2Post at hst1
   rw [show (base + 1112 : Word) + 100 = base + 1212 from by bv_addr] at hst1
   -- Extend step1_v2's 25-singleton cr to ofProg-of-divK_div128_v2.
   -- Indices 10..34 in divK_div128_v2 (instructions [10..34]).
-  have hst1e := cpsTriple_extend_code (hmono := by
+  have hst1e := cpsTripleWithin_extend_code (hmono := by
     exact CodeReq.union_sub (d128_v2_sub 10 _ _ (by decide) (by bv_addr) (by decide))
      (CodeReq.union_sub (d128_v2_sub 11 _ _ (by decide) (by bv_addr) (by decide))
      (CodeReq.union_sub (d128_v2_sub 12 _ _ (by decide) (by bv_addr) (by decide))
@@ -516,12 +483,12 @@ theorem div128_v2_spec (sp retAddr d uLo uHi : Word) (base : Word)
       (d128_v2_sub 34 _ _ (by decide) (by bv_addr) (by decide))))))))))))))))))))))))))
     hst1
   -- Frame step1_v2 with x2, mem[3968], mem[3960], mem[3944]
-  have hst1f := cpsTriple_frameR
+  have hst1f := cpsTripleWithin_frameR
     ((.x2 ↦ᵣ retAddr) ** (sp + signExtend12 3968 ↦ₘ retAddr) **
      (sp + signExtend12 3960 ↦ₘ d) ** (sp + signExtend12 3944 ↦ₘ un0))
     (by pcFree) hst1e
   -- Compose phase1 → step1_v2
-  have h12 := cpsTriple_seq_perm_same_cr
+  have h12 := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hph1f hst1f
   -- ================================================================
   -- Block 3: Compute un21 (base+1212 → base+1232) — shifted +40 from v1.
@@ -530,10 +497,10 @@ theorem div128_v2_spec (sp retAddr d uLo uHi : Word) (base : Word)
   -- ================================================================
   let x5Exit_st1 := if rhatHi2 = 0 then qDlo2 else qDlo1
   let x1Exit_st1 := if rhatHi2 = 0 then rhatUn1' else rhatHi2
-  have hcu := divK_div128_compute_un21_spec sp q1'' rhat'' un1 x1Exit_st1 x5Exit_st1 dLo
+  have hcu := divK_div128_compute_un21_spec_within sp q1'' rhat'' un1 x1Exit_st1 x5Exit_st1 dLo
     (base + 1212)
   rw [show (base + 1212 : Word) + 20 = base + 1232 from by bv_addr] at hcu
-  have hcue := cpsTriple_extend_code (hmono := by
+  have hcue := cpsTripleWithin_extend_code (hmono := by
     exact CodeReq.union_sub (d128_v2_sub 35 _ _ (by decide) (by bv_addr) (by decide))
      (CodeReq.union_sub (d128_v2_sub 36 _ _ (by decide) (by bv_addr) (by decide))
      (CodeReq.union_sub (d128_v2_sub 37 _ _ (by decide) (by bv_addr) (by decide))
@@ -541,13 +508,13 @@ theorem div128_v2_spec (sp retAddr d uLo uHi : Word) (base : Word)
       (d128_v2_sub 39 _ _ (by decide) (by bv_addr) (by decide))))))
     hcu
   -- Frame compute_un21 with x6, x0, x2, mem[3968], mem[3960], mem[3944]
-  have hcuf := cpsTriple_frameR
+  have hcuf := cpsTripleWithin_frameR
     ((.x6 ↦ᵣ dHi) ** (.x0 ↦ᵣ (0 : Word)) **
      (.x2 ↦ᵣ retAddr) ** (sp + signExtend12 3968 ↦ₘ retAddr) **
      (sp + signExtend12 3960 ↦ₘ d) ** (sp + signExtend12 3944 ↦ₘ un0))
     (by pcFree) hcue
   -- Compose (phase1→step1_v2) → compute_un21
-  have h123 := cpsTriple_seq_perm_same_cr
+  have h123 := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h12 hcuf
   -- ================================================================
   -- Block 4: Step 2 (base+1232 → base+1300) — shifted +40 from v1.
@@ -557,11 +524,11 @@ theorem div128_v2_spec (sp retAddr d uLo uHi : Word) (base : Word)
   let cu_rhat_un1 := (rhat'' <<< (32 : BitVec 6).toNat) ||| un1
   let cu_q1_dlo := q1'' * dLo
   let un21 := cu_rhat_un1 - cu_q1_dlo
-  have hst2 := divK_div128_step2_spec sp un21 dHi cu_q1_dlo cu_rhat_un1 un1 dLo un0
+  have hst2 := divK_div128_step2_spec_within sp un21 dHi cu_q1_dlo cu_rhat_un1 un1 dLo un0
     (base + 1232)
   unfold divKDiv128Step2Code divKDiv128Step2Post at hst2
   rw [show (base + 1232 : Word) + 68 = base + 1300 from by bv_addr] at hst2
-  have hst2e := cpsTriple_extend_code (hmono := by
+  have hst2e := cpsTripleWithin_extend_code (hmono := by
     exact CodeReq.union_sub (d128_v2_sub 40 _ _ (by decide) (by bv_addr) (by decide))
      (CodeReq.union_sub (d128_v2_sub 41 _ _ (by decide) (by bv_addr) (by decide))
      (CodeReq.union_sub (d128_v2_sub 42 _ _ (by decide) (by bv_addr) (by decide))
@@ -581,12 +548,12 @@ theorem div128_v2_spec (sp retAddr d uLo uHi : Word) (base : Word)
       (d128_v2_sub 56 _ _ (by decide) (by bv_addr) (by decide))))))))))))))))))
     hst2
   -- Frame step2 with x10, x2, mem[3968], mem[3960]
-  have hst2f := cpsTriple_frameR
+  have hst2f := cpsTripleWithin_frameR
     ((.x10 ↦ᵣ q1'') ** (.x2 ↦ᵣ retAddr) **
      (sp + signExtend12 3968 ↦ₘ retAddr) ** (sp + signExtend12 3960 ↦ₘ d))
     (by pcFree) hst2e
   -- Compose (→step1_v2→compute_un21) → step2
-  have h1234 := cpsTriple_seq_perm_same_cr
+  have h1234 := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h123 hst2f
   -- ================================================================
   -- Block 5: End (base+1300 → retAddr via JALR) — shifted +40 from v1.
@@ -604,44 +571,35 @@ theorem div128_v2_spec (sp retAddr d uLo uHi : Word) (base : Word)
   let x7Exit := if rhat2cHi = 0 then q0Dlo else un21
   let x1Exit := if rhat2cHi = 0 then rhat2Un0 else rhat2cHi
   let x11Exit := if rhat2cHi = 0 then un0 else rhat2c
-  have hend := divK_div128_end_spec sp q1'' q0' retAddr x11Exit retAddr
+  have hend := divK_div128_end_spec_within sp q1'' q0' retAddr x11Exit retAddr
     (base + 1300) _halign
-  have hende := cpsTriple_extend_code (hmono := by
+  have hende := cpsTripleWithin_extend_code (hmono := by
     exact CodeReq.union_sub (d128_v2_sub 57 _ _ (by decide) (by bv_addr) (by decide))
      (CodeReq.union_sub (d128_v2_sub 58 _ _ (by decide) (by bv_addr) (by decide))
      (CodeReq.union_sub (d128_v2_sub 59 _ _ (by decide) (by bv_addr) (by decide))
       (d128_v2_sub 60 _ _ (by decide) (by bv_addr) (by decide)))))
     hend
   -- Frame end with x7, x6, x1, x0, mem[3960], mem[3952], mem[3944]
-  have hendf := cpsTriple_frameR
+  have hendf := cpsTripleWithin_frameR
     ((.x7 ↦ᵣ x7Exit) ** (.x6 ↦ᵣ dHi) ** (.x1 ↦ᵣ x1Exit) **
      (.x0 ↦ᵣ (0 : Word)) **
      (sp + signExtend12 3960 ↦ₘ d) ** (sp + signExtend12 3952 ↦ₘ dLo) **
      (sp + signExtend12 3944 ↦ₘ un0))
     (by pcFree) hende
   -- Compose (→step2) → end
-  have h12345 := cpsTriple_seq_perm_same_cr
+  have h12345 := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h1234 hendf
   -- Final permutation to canonical pre/post order
-  exact cpsTriple_weaken
+  exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq)
     h12345
 
-/-- Lifted `div128_v2_spec` over `sharedDivModCode_v2 base` — a thin
-    wrapper that lifts the cr from the singleton `ofProg`-form to the
-    shared cr via `cpsTriple_extend_code` + `shared_b12_div128_v2_sub`.
-
-    This is the v2 counterpart to `div128_spec` which already uses
-    `sharedDivModCode base` directly. Future v2-migrated specs (loop
-    body, full path) will use this lifted form.
-
-    Issue #1337 algorithm fix migration. -/
-theorem div128_v2_spec_shared (sp retAddr d uLo uHi : Word) (base : Word)
+theorem div128_v2_spec_shared_within (sp retAddr d uLo uHi : Word) (base : Word)
     (v1Old v6Old v11Old : Word)
     (retMem dMem dloMem un0Mem : Word)
     (halign : (retAddr + signExtend12 0) &&& ~~~1 = retAddr) :
-    cpsTriple (base + div128Off) retAddr (sharedDivModCode_v2 base)
+    cpsTripleWithin 61 (base + div128Off) retAddr (sharedDivModCode_v2 base)
       ((.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ retAddr) ** (.x10 ↦ᵣ d) **
        (.x5 ↦ᵣ uLo) ** (.x7 ↦ᵣ uHi) **
        (.x6 ↦ᵣ v6Old) ** (.x1 ↦ᵣ v1Old) ** (.x11 ↦ᵣ v11Old) **
@@ -651,8 +609,7 @@ theorem div128_v2_spec_shared (sp retAddr d uLo uHi : Word) (base : Word)
        (sp + signExtend12 3952 ↦ₘ dloMem) **
        (sp + signExtend12 3944 ↦ₘ un0Mem))
       (div128V2SpecPost sp retAddr d uLo uHi) :=
-  cpsTriple_extend_code (hmono := shared_b12_div128_v2_sub)
-    (div128_v2_spec sp retAddr d uLo uHi base v1Old v6Old v11Old
+  cpsTripleWithin_extend_code (hmono := shared_b12_div128_v2_sub)
+    (div128_v2_spec_within sp retAddr d uLo uHi base v1Old v6Old v11Old
                      retMem dMem dloMem un0Mem halign)
 
-end EvmAsm.Evm64

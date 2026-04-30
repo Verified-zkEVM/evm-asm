@@ -57,9 +57,10 @@ private theorem shr_zero_evmWord_weaken (sp : Word) {s0 s1 s2 s3 : Word} (r6 r7 
 
 /-- Compose one zero-path case into evmWordIs form.
     Shared proof structure for both high-limbs and s0≥256 cases. -/
-private theorem shr_zero_lift (sp base : Word)
+private theorem shr_zero_lift_within (sp base : Word)
     (shift value : EvmWord) (r5 r6 r7 r10 r11 : Word)
-    (hmain : cpsTriple base (base + 360) (shrCode base)
+    {nSteps : Nat}
+    (hmain : cpsTripleWithin nSteps base (base + 360) (shrCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ r5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ r10) **
        (sp ↦ₘ shift.getLimb 0) ** ((sp + 8) ↦ₘ shift.getLimb 1) **
        ((sp + 16) ↦ₘ shift.getLimb 2) ** ((sp + 24) ↦ₘ shift.getLimb 3) **
@@ -71,7 +72,7 @@ private theorem shr_zero_lift (sp base : Word)
        ((sp + 32) ↦ₘ (0 : Word)) ** ((sp + 40) ↦ₘ (0 : Word)) **
        ((sp + 48) ↦ₘ (0 : Word)) ** ((sp + 56) ↦ₘ (0 : Word))))
     (result : EvmWord) (hresult : result = 0) :
-    cpsTriple base (base + 360) (shrCode base)
+    cpsTripleWithin nSteps base (base + 360) (shrCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ r5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ r10) **
        (.x6 ↦ᵣ r6) ** (.x7 ↦ᵣ r7) ** (.x11 ↦ᵣ r11) **
        evmWordIs sp shift ** evmWordIs (sp + 32) value)
@@ -79,10 +80,10 @@ private theorem shr_zero_lift (sp base : Word)
        (regOwn .x6) ** (regOwn .x7) ** (regOwn .x11) **
        evmWordIs sp shift ** evmWordIs (sp + 32) result) := by
   subst hresult
-  have hframed := cpsTriple_frameR
+  have hframed := cpsTripleWithin_frameR
     ((.x6 ↦ᵣ r6) ** (.x7 ↦ᵣ r7) ** (.x11 ↦ᵣ r11))
     (by pcFree) hmain
-  have hflat : cpsTriple base (base + 360) (shrCode base)
+  have hflat : cpsTripleWithin nSteps base (base + 360) (shrCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ r5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ r10) **
        (sp ↦ₘ shift.getLimb 0) ** ((sp + 8) ↦ₘ shift.getLimb 1) **
        ((sp + 16) ↦ₘ shift.getLimb 2) ** ((sp + 24) ↦ₘ shift.getLimb 3) **
@@ -95,11 +96,11 @@ private theorem shr_zero_lift (sp base : Word)
        ((sp + 32) ↦ₘ (0 : Word)) ** ((sp + 40) ↦ₘ (0 : Word)) **
        ((sp + 48) ↦ₘ (0 : Word)) ** ((sp + 56) ↦ₘ (0 : Word)) **
        (.x6 ↦ᵣ r6) ** (.x7 ↦ᵣ r7) ** (.x11 ↦ᵣ r11)) :=
-    cpsTriple_weaken
+    cpsTripleWithin_weaken
       (fun h hp => by xperm_hyp hp)
       (fun h hq => by xperm_hyp hq)
       hframed
-  exact cpsTriple_weaken
+  exact cpsTripleWithin_weaken
     (fun h hp => by
       simp only [evmWordIs, ← EvmWord.getLimb_as_getLimbN_0, ← EvmWord.getLimb_as_getLimbN_1,
                  ← EvmWord.getLimb_as_getLimbN_2, ← EvmWord.getLimb_as_getLimbN_3] at hp
@@ -124,13 +125,13 @@ private theorem shr_zero_lift (sp base : Word)
 -- Main theorem
 -- ============================================================================
 
-/-- **Main SHR theorem**: `evm_shr` computes the 256-bit logical right shift.
+/-- **Bounded main SHR theorem**: `evm_shr` computes the 256-bit logical right shift.
     Given shift and value as EvmWords on the stack, produces
     `if shift.toNat ≥ 256 then 0 else value >>> shift.toNat`. -/
-theorem evm_shr_stack_spec (sp base : Word)
+theorem evm_shr_stack_spec_within (sp base : Word)
     (shift value : EvmWord) (r5 r6 r7 r10 r11 : Word) :
     let result := if shift.toNat ≥ 256 then 0 else value >>> shift.toNat
-    cpsTriple base (base + 360) (shrCode base)
+    cpsTripleWithin 46 base (base + 360) (shrCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ r5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ r10) **
        (.x6 ↦ᵣ r6) ** (.x7 ↦ᵣ r7) ** (.x11 ↦ᵣ r11) **
        evmWordIs sp shift ** evmWordIs (sp + 32) value)
@@ -144,9 +145,10 @@ theorem evm_shr_stack_spec (sp base : Word)
     have hresult : result = 0 := by simp [result, hge]
     -- Sub-case: high limbs nonzero or s0 ≥ 256
     by_cases hhigh : shift.getLimb 1 ||| shift.getLimb 2 ||| shift.getLimb 3 ≠ 0
-    · exact shr_zero_lift sp base shift value r5 r6 r7 r10 r11
-        (evm_shr_zero_high_spec sp base r5 r10 hhigh)
-        result hresult
+    · exact cpsTripleWithin_mono_nSteps (nSteps' := 46) (by decide)
+        (shr_zero_lift_within sp base shift value r5 r6 r7 r10 r11
+        (evm_shr_zero_high_spec_within sp base r5 r10 hhigh)
+        result hresult)
     · have hhigh' : shift.getLimb 1 ||| shift.getLimb 2 ||| shift.getLimb 3 = 0 :=
         Classical.byContradiction (fun h => hhigh h)
       -- High limbs = 0 but shift ≥ 256 → s0 ≥ 256
@@ -161,9 +163,10 @@ theorem evm_shr_stack_spec (sp base : Word)
         cases h : decide ((shift.getLimb 0).toNat < 256)
         · rfl
         · simp at h; omega
-      exact shr_zero_lift sp base shift value r5 r6 r7 r10 r11
-        (evm_shr_zero_large_spec sp base r5 r10 hhigh' hlarge)
-        result hresult
+      exact cpsTripleWithin_mono_nSteps (nSteps' := 46) (by decide)
+        (shr_zero_lift_within sp base shift value r5 r6 r7 r10 r11
+        (evm_shr_zero_large_spec_within sp base r5 r10 hhigh' hlarge)
+        result hresult)
   · -- shift < 256: result = value >>> shift.toNat
     have hlt : shift.toNat < 256 := Nat.lt_of_not_le hge
     have hresult : result = value >>> shift.toNat := by simp [result, show ¬(shift.toNat ≥ 256) from hge]
@@ -179,11 +182,9 @@ theorem evm_shr_stack_spec (sp base : Word)
       cases h : decide ((shift.getLimb 0).toNat < 256)
       · simp at h; omega
       · rfl
-    -- Use the body composition from ShrCompose + bitvector bridge
-    -- The full body composition proof is ~230 lines (see commit 4bd9349).
-    -- We factor it into evm_shr_body_evmWord_spec (below) to keep this clean.
+    -- Use the body composition from Shift.Compose + bitvector bridge.
     rw [show result = value >>> shift.toNat from by simp [result, show ¬(shift.toNat ≥ 256) from hge]]
-    exact evm_shr_body_evmWord_spec sp base shift value r5 r6 r7 r10 r11
+    exact evm_shr_body_evmWord_spec_within sp base shift value r5 r6 r7 r10 r11
       hhigh_zero hlt_s0 hlt
 
 end EvmAsm.Evm64

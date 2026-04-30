@@ -76,7 +76,7 @@ theorem evm_div_n2_full_FFT_spec (sp base : Word)
       ((b1 <<< (((clzResult b1).1).toNat % 64)) ||| (b0 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b1).1).toNat % 64)))
       ((b2 <<< (((clzResult b1).1).toNat % 64)) ||| (b1 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b1).1).toNat % 64)))
       ((b3 <<< (((clzResult b1).1).toNat % 64)) ||| (b2 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b1).1).toNat % 64)))) :
-    cpsTriple base (base + nopOff) (divCode base)
+    cpsTripleWithin 10000 base (base + nopOff) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b1).2 >>> (63 : Nat)) **
        (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
@@ -127,7 +127,7 @@ theorem evm_div_n2_full_FFT_spec (sp base : Word)
     c3_0 r0.1 r1.1 r2.1 (0 : Word)
     v0' v1' v2' v3'
     hshift_nz
-  have hBF := cpsTriple_frameR
+  have hBF := cpsTripleWithin_frameR
     (((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
      ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
      ((sp + signExtend12 4024) ↦ₘ r0.2.2.2.2.2) **
@@ -142,7 +142,7 @@ theorem evm_div_n2_full_FFT_spec (sp base : Word)
      (sp + signExtend12 3952 ↦ₘ div128DLo v1') **
      (sp + signExtend12 3944 ↦ₘ div128Un0 r1.2.1))
     (by pcFree) hB
-  have hFull := cpsTriple_seq_perm_same_cr
+  have hFull := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by
       delta preloopN2UnifiedPost loopN2UnifiedPost at hp
       simp (config := { decide := true }) only [iterN2_false, ite_false] at hp
@@ -151,7 +151,7 @@ theorem evm_div_n2_full_FFT_spec (sp base : Word)
         n2_ub2_off4064, n3_ub1_off4064, n2_qa2, n3_qa1,
         se12_32, se12_40, se12_48, se12_56] at hp
       xperm_hyp hp) hA hBF
-  exact cpsTriple_weaken
+  exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by delta fullDivN2_FFT_Post; rw [sepConj_assoc'] at hq; xperm_hyp hq)
     hFull
@@ -209,7 +209,7 @@ theorem evm_div_n2_full_FTF_spec (sp base : Word)
       ((b1 <<< (((clzResult b1).1).toNat % 64)) ||| (b0 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b1).1).toNat % 64)))
       ((b2 <<< (((clzResult b1).1).toNat % 64)) ||| (b1 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b1).1).toNat % 64)))
       ((b3 <<< (((clzResult b1).1).toNat % 64)) ||| (b2 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b1).1).toNat % 64)))) :
-    cpsTriple base (base + nopOff) (divCode base)
+    cpsTripleWithin 10000 base (base + nopOff) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b1).2 >>> (63 : Nat)) **
        (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
@@ -260,7 +260,7 @@ theorem evm_div_n2_full_FTF_spec (sp base : Word)
     c3_0 r0.1 r1.1 r2.1 (0 : Word)
     v0' v1' v2' v3'
     hshift_nz
-  have hBF := cpsTriple_frameR
+  have hBF := cpsTripleWithin_frameR
     (((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
      ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
      ((sp + signExtend12 4024) ↦ₘ r0.2.2.2.2.2) **
@@ -275,7 +275,7 @@ theorem evm_div_n2_full_FTF_spec (sp base : Word)
      (sp + signExtend12 3952 ↦ₘ div128DLo v1') **
      (sp + signExtend12 3944 ↦ₘ div128Un0 r2.2.1))
     (by pcFree) hB
-  have hFull := cpsTriple_seq_perm_same_cr
+  have hFull := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by
       delta preloopN2UnifiedPost loopN2UnifiedPost at hp
       simp (config := { decide := true }) only [iterN2_false, ite_false] at hp
@@ -284,7 +284,7 @@ theorem evm_div_n2_full_FTF_spec (sp base : Word)
         n2_ub2_off4064, n3_ub1_off4064, n2_qa2, n3_qa1,
         se12_32, se12_40, se12_48, se12_56] at hp
       xperm_hyp hp) hA hBF
-  exact cpsTriple_weaken
+  exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by delta fullDivN2_FTF_Post; rw [sepConj_assoc'] at hq; xperm_hyp hq)
     hFull
@@ -342,7 +342,7 @@ theorem evm_div_n2_full_FTT_spec (sp base : Word)
       ((b1 <<< (((clzResult b1).1).toNat % 64)) ||| (b0 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b1).1).toNat % 64)))
       ((b2 <<< (((clzResult b1).1).toNat % 64)) ||| (b1 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b1).1).toNat % 64)))
       ((b3 <<< (((clzResult b1).1).toNat % 64)) ||| (b2 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b1).1).toNat % 64)))) :
-    cpsTriple base (base + nopOff) (divCode base)
+    cpsTripleWithin 10000 base (base + nopOff) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b1).2 >>> (63 : Nat)) **
        (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
@@ -393,7 +393,7 @@ theorem evm_div_n2_full_FTT_spec (sp base : Word)
     c3_0 r0.1 r1.1 r2.1 (0 : Word)
     v0' v1' v2' v3'
     hshift_nz
-  have hBF := cpsTriple_frameR
+  have hBF := cpsTripleWithin_frameR
     (((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
      ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
      ((sp + signExtend12 4024) ↦ₘ r0.2.2.2.2.2) **
@@ -408,7 +408,7 @@ theorem evm_div_n2_full_FTT_spec (sp base : Word)
      (sp + signExtend12 3952 ↦ₘ div128DLo v1') **
      (sp + signExtend12 3944 ↦ₘ div128Un0 r1.2.1))
     (by pcFree) hB
-  have hFull := cpsTriple_seq_perm_same_cr
+  have hFull := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by
       delta preloopN2UnifiedPost loopN2UnifiedPost at hp
       simp (config := { decide := true }) only [iterN2_false, ite_false] at hp
@@ -417,7 +417,7 @@ theorem evm_div_n2_full_FTT_spec (sp base : Word)
         n2_ub2_off4064, n3_ub1_off4064, n2_qa2, n3_qa1,
         se12_32, se12_40, se12_48, se12_56] at hp
       xperm_hyp hp) hA hBF
-  exact cpsTriple_weaken
+  exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by delta fullDivN2_FTT_Post; rw [sepConj_assoc'] at hq; xperm_hyp hq)
     hFull
@@ -475,7 +475,7 @@ theorem evm_div_n2_full_TFF_spec (sp base : Word)
       ((b1 <<< (((clzResult b1).1).toNat % 64)) ||| (b0 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b1).1).toNat % 64)))
       ((b2 <<< (((clzResult b1).1).toNat % 64)) ||| (b1 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b1).1).toNat % 64)))
       ((b3 <<< (((clzResult b1).1).toNat % 64)) ||| (b2 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b1).1).toNat % 64)))) :
-    cpsTriple base (base + nopOff) (divCode base)
+    cpsTripleWithin 10000 base (base + nopOff) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b1).2 >>> (63 : Nat)) **
        (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
@@ -526,7 +526,7 @@ theorem evm_div_n2_full_TFF_spec (sp base : Word)
     c3_0 r0.1 r1.1 r2.1 (0 : Word)
     v0' v1' v2' v3'
     hshift_nz
-  have hBF := cpsTriple_frameR
+  have hBF := cpsTripleWithin_frameR
     (((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
      ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
      ((sp + signExtend12 4024) ↦ₘ r0.2.2.2.2.2) **
@@ -541,7 +541,7 @@ theorem evm_div_n2_full_TFF_spec (sp base : Word)
      (sp + signExtend12 3952 ↦ₘ div128DLo v1') **
      (sp + signExtend12 3944 ↦ₘ div128Un0 u3S))
     (by pcFree) hB
-  have hFull := cpsTriple_seq_perm_same_cr
+  have hFull := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by
       delta preloopN2UnifiedPost loopN2UnifiedPost at hp
       simp (config := { decide := true }) only [iterN2_true, ite_true] at hp
@@ -550,7 +550,7 @@ theorem evm_div_n2_full_TFF_spec (sp base : Word)
         n2_ub2_off4064, n3_ub1_off4064, n2_qa2, n3_qa1,
         se12_32, se12_40, se12_48, se12_56] at hp
       xperm_hyp hp) hA hBF
-  exact cpsTriple_weaken
+  exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by delta fullDivN2_TFF_Post; rw [sepConj_assoc'] at hq; xperm_hyp hq)
     hFull
@@ -608,7 +608,7 @@ theorem evm_div_n2_full_TFT_spec (sp base : Word)
       ((b1 <<< (((clzResult b1).1).toNat % 64)) ||| (b0 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b1).1).toNat % 64)))
       ((b2 <<< (((clzResult b1).1).toNat % 64)) ||| (b1 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b1).1).toNat % 64)))
       ((b3 <<< (((clzResult b1).1).toNat % 64)) ||| (b2 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b1).1).toNat % 64)))) :
-    cpsTriple base (base + nopOff) (divCode base)
+    cpsTripleWithin 10000 base (base + nopOff) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b1).2 >>> (63 : Nat)) **
        (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
@@ -659,7 +659,7 @@ theorem evm_div_n2_full_TFT_spec (sp base : Word)
     c3_0 r0.1 r1.1 r2.1 (0 : Word)
     v0' v1' v2' v3'
     hshift_nz
-  have hBF := cpsTriple_frameR
+  have hBF := cpsTripleWithin_frameR
     (((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
      ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
      ((sp + signExtend12 4024) ↦ₘ r0.2.2.2.2.2) **
@@ -674,7 +674,7 @@ theorem evm_div_n2_full_TFT_spec (sp base : Word)
      (sp + signExtend12 3952 ↦ₘ div128DLo v1') **
      (sp + signExtend12 3944 ↦ₘ div128Un0 r1.2.1))
     (by pcFree) hB
-  have hFull := cpsTriple_seq_perm_same_cr
+  have hFull := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by
       delta preloopN2UnifiedPost loopN2UnifiedPost at hp
       simp (config := { decide := true }) only [iterN2_true, ite_true] at hp
@@ -683,7 +683,7 @@ theorem evm_div_n2_full_TFT_spec (sp base : Word)
         n2_ub2_off4064, n3_ub1_off4064, n2_qa2, n3_qa1,
         se12_32, se12_40, se12_48, se12_56] at hp
       xperm_hyp hp) hA hBF
-  exact cpsTriple_weaken
+  exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by delta fullDivN2_TFT_Post; rw [sepConj_assoc'] at hq; xperm_hyp hq)
     hFull
@@ -741,7 +741,7 @@ theorem evm_div_n2_full_TTF_spec (sp base : Word)
       ((b1 <<< (((clzResult b1).1).toNat % 64)) ||| (b0 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b1).1).toNat % 64)))
       ((b2 <<< (((clzResult b1).1).toNat % 64)) ||| (b1 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b1).1).toNat % 64)))
       ((b3 <<< (((clzResult b1).1).toNat % 64)) ||| (b2 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b1).1).toNat % 64)))) :
-    cpsTriple base (base + nopOff) (divCode base)
+    cpsTripleWithin 10000 base (base + nopOff) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b1).2 >>> (63 : Nat)) **
        (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
@@ -792,7 +792,7 @@ theorem evm_div_n2_full_TTF_spec (sp base : Word)
     c3_0 r0.1 r1.1 r2.1 (0 : Word)
     v0' v1' v2' v3'
     hshift_nz
-  have hBF := cpsTriple_frameR
+  have hBF := cpsTripleWithin_frameR
     (((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
      ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
      ((sp + signExtend12 4024) ↦ₘ r0.2.2.2.2.2) **
@@ -807,7 +807,7 @@ theorem evm_div_n2_full_TTF_spec (sp base : Word)
      (sp + signExtend12 3952 ↦ₘ div128DLo v1') **
      (sp + signExtend12 3944 ↦ₘ div128Un0 r2.2.1))
     (by pcFree) hB
-  have hFull := cpsTriple_seq_perm_same_cr
+  have hFull := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by
       delta preloopN2UnifiedPost loopN2UnifiedPost at hp
       simp (config := { decide := true }) only [iterN2_true, ite_true] at hp
@@ -816,7 +816,7 @@ theorem evm_div_n2_full_TTF_spec (sp base : Word)
         n2_ub2_off4064, n3_ub1_off4064, n2_qa2, n3_qa1,
         se12_32, se12_40, se12_48, se12_56] at hp
       xperm_hyp hp) hA hBF
-  exact cpsTriple_weaken
+  exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by delta fullDivN2_TTF_Post; rw [sepConj_assoc'] at hq; xperm_hyp hq)
     hFull
@@ -874,7 +874,7 @@ theorem evm_div_n2_full_TTT_spec (sp base : Word)
       ((b1 <<< (((clzResult b1).1).toNat % 64)) ||| (b0 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b1).1).toNat % 64)))
       ((b2 <<< (((clzResult b1).1).toNat % 64)) ||| (b1 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b1).1).toNat % 64)))
       ((b3 <<< (((clzResult b1).1).toNat % 64)) ||| (b2 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b1).1).toNat % 64)))) :
-    cpsTriple base (base + nopOff) (divCode base)
+    cpsTripleWithin 10000 base (base + nopOff) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b1).2 >>> (63 : Nat)) **
        (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
@@ -925,7 +925,7 @@ theorem evm_div_n2_full_TTT_spec (sp base : Word)
     c3_0 r0.1 r1.1 r2.1 (0 : Word)
     v0' v1' v2' v3'
     hshift_nz
-  have hBF := cpsTriple_frameR
+  have hBF := cpsTripleWithin_frameR
     (((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
      ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
      ((sp + signExtend12 4024) ↦ₘ r0.2.2.2.2.2) **
@@ -940,7 +940,7 @@ theorem evm_div_n2_full_TTT_spec (sp base : Word)
      (sp + signExtend12 3952 ↦ₘ div128DLo v1') **
      (sp + signExtend12 3944 ↦ₘ div128Un0 r1.2.1))
     (by pcFree) hB
-  have hFull := cpsTriple_seq_perm_same_cr
+  have hFull := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by
       delta preloopN2UnifiedPost loopN2UnifiedPost at hp
       simp (config := { decide := true }) only [iterN2_true, ite_true] at hp
@@ -949,7 +949,7 @@ theorem evm_div_n2_full_TTT_spec (sp base : Word)
         n2_ub2_off4064, n3_ub1_off4064, n2_qa2, n3_qa1,
         se12_32, se12_40, se12_48, se12_56] at hp
       xperm_hyp hp) hA hBF
-  exact cpsTriple_weaken
+  exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by delta fullDivN2_TTT_Post; rw [sepConj_assoc'] at hq; xperm_hyp hq)
     hFull

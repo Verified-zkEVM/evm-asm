@@ -472,7 +472,8 @@ theorem evm_mod_n4_shift0_call_addback_beq_stack_spec (sp base : Word)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
     (hcarry2_nz : isAddbackCarry2NzN4Shift0Evm a b)
     (hborrow : isAddbackBorrowN4Shift0Evm a b) :
-    cpsTriple base (base + nopOff) (modCode base)
+    cpsTripleWithin (8 + 21 + 24 + 4 + 9 + 4 + 202 + 12)
+      base (base + nopOff) (modCode base)
       (modN4StackPreCall sp a b v5 v6 v7 v10 v11
          q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
          shiftMem nMem jMem retMem dMem dloMem scratch_un0)
@@ -493,7 +494,7 @@ theorem evm_mod_n4_shift0_call_addback_beq_stack_spec (sp base : Word)
   have hmod1 := (congrArg (·.getLimbN 1) h_mod_eq_a).trans h_ab1.symm
   have hmod2 := (congrArg (·.getLimbN 2) h_mod_eq_a).trans h_ab2.symm
   have hmod3 := (congrArg (·.getLimbN 3) h_mod_eq_a).trans h_ab3.symm
-  refine cpsTriple_weaken (fun _ hp => hp) ?_ h_pre
+  refine cpsTripleWithin_weaken (fun _ hp => hp) ?_ h_pre
   intro h hq
   unfold fullModN4Shift0CallAddbackBeqPost at hq
   apply mod_n4_call_skip_stack_weaken sp a b h

@@ -59,13 +59,13 @@ theorem halfwordOffset_lt_4 {addr : Word} : (byteOffset addr) / 2 < 4 := by
 
 LHU reads a halfword from memory at a 2-byte aligned address and zero-extends it. -/
 
-theorem generic_lhu_spec (rd rs1 : Reg) (v_addr vOld : Word)
+theorem generic_lhu_spec_within (rd rs1 : Reg) (v_addr vOld : Word)
     (offset : BitVec 12) (base : Word)
     (dwordAddr : Word) (wordVal : Word)
     (hrd_ne_x0 : rd ≠ .x0)
     (halign : alignToDword (v_addr + signExtend12 offset) = dwordAddr)
     (hvalid : isValidHalfwordAccess (v_addr + signExtend12 offset) = true) :
-    cpsTriple base (base + 4)
+    cpsTripleWithin 1 base (base + 4)
       (CodeReq.singleton base (.LHU rd rs1 offset))
       ((rs1 ↦ᵣ v_addr) ** (rd ↦ᵣ vOld) ** (dwordAddr ↦ₘ wordVal))
       ((rs1 ↦ᵣ v_addr) **
@@ -85,7 +85,7 @@ theorem generic_lhu_spec (rd rs1 : Reg) (v_addr vOld : Word)
   have hexec' : execInstrBr s (.LHU rd rs1 offset) =
       (s.setReg rd ((extractHalfword wordVal ((byteOffset (v_addr + signExtend12 offset)) / 2)).zeroExtend 64)).setPC (s.pc + 4) := by
     simp only [execInstrBr, hrs1, getHalfword_eq]; rw [halign, hmem]
-  refine ⟨1,
+  refine ⟨1, Nat.le_refl 1,
     (s.setReg rd ((extractHalfword wordVal ((byteOffset (v_addr + signExtend12 offset)) / 2)).zeroExtend 64)).setPC (s.pc + 4),
     ?_, rfl, ?_⟩
   · show (step s).bind (stepN 0) = some _
@@ -103,13 +103,13 @@ theorem generic_lhu_spec (rd rs1 : Reg) (v_addr vOld : Word)
 
 LH reads a halfword from memory at a 2-byte aligned address and sign-extends it. -/
 
-theorem generic_lh_spec (rd rs1 : Reg) (v_addr vOld : Word)
+theorem generic_lh_spec_within (rd rs1 : Reg) (v_addr vOld : Word)
     (offset : BitVec 12) (base : Word)
     (dwordAddr : Word) (wordVal : Word)
     (hrd_ne_x0 : rd ≠ .x0)
     (halign : alignToDword (v_addr + signExtend12 offset) = dwordAddr)
     (hvalid : isValidHalfwordAccess (v_addr + signExtend12 offset) = true) :
-    cpsTriple base (base + 4)
+    cpsTripleWithin 1 base (base + 4)
       (CodeReq.singleton base (.LH rd rs1 offset))
       ((rs1 ↦ᵣ v_addr) ** (rd ↦ᵣ vOld) ** (dwordAddr ↦ₘ wordVal))
       ((rs1 ↦ᵣ v_addr) **
@@ -129,7 +129,7 @@ theorem generic_lh_spec (rd rs1 : Reg) (v_addr vOld : Word)
   have hexec' : execInstrBr s (.LH rd rs1 offset) =
       (s.setReg rd ((extractHalfword wordVal ((byteOffset (v_addr + signExtend12 offset)) / 2)).signExtend 64)).setPC (s.pc + 4) := by
     simp only [execInstrBr, hrs1, getHalfword_eq]; rw [halign, hmem]
-  refine ⟨1,
+  refine ⟨1, Nat.le_refl 1,
     (s.setReg rd ((extractHalfword wordVal ((byteOffset (v_addr + signExtend12 offset)) / 2)).signExtend 64)).setPC (s.pc + 4),
     ?_, rfl, ?_⟩
   · show (step s).bind (stepN 0) = some _
@@ -147,12 +147,12 @@ theorem generic_lh_spec (rd rs1 : Reg) (v_addr vOld : Word)
 
 SH writes a halfword to memory at a 2-byte aligned address. -/
 
-theorem generic_sh_spec (rs1 rs2 : Reg) (v_addr v_data : Word)
+theorem generic_sh_spec_within (rs1 rs2 : Reg) (v_addr v_data : Word)
     (offset : BitVec 12) (base : Word)
     (dwordAddr : Word) (wordOld : Word)
     (halign : alignToDword (v_addr + signExtend12 offset) = dwordAddr)
     (hvalid : isValidHalfwordAccess (v_addr + signExtend12 offset) = true) :
-    cpsTriple base (base + 4)
+    cpsTripleWithin 1 base (base + 4)
       (CodeReq.singleton base (.SH rs1 rs2 offset))
       ((rs1 ↦ᵣ v_addr) ** (rs2 ↦ᵣ v_data) ** (dwordAddr ↦ₘ wordOld))
       ((rs1 ↦ᵣ v_addr) ** (rs2 ↦ᵣ v_data) **
@@ -174,7 +174,7 @@ theorem generic_sh_spec (rs1 rs2 : Reg) (v_addr v_data : Word)
   have hexec' : execInstrBr s (.SH rs1 rs2 offset) =
       (s.setMem dwordAddr (replaceHalfword wordOld ((byteOffset (v_addr + signExtend12 offset)) / 2) (v_data.truncate 16))).setPC (s.pc + 4) := by
     simp only [execInstrBr, hrs1, hrs2, setHalfword_eq]; rw [halign, hmem]
-  refine ⟨1,
+  refine ⟨1, Nat.le_refl 1,
     (s.setMem dwordAddr (replaceHalfword wordOld ((byteOffset (v_addr + signExtend12 offset)) / 2) (v_data.truncate 16))).setPC (s.pc + 4),
     ?_, rfl, ?_⟩
   · show (step s).bind (stepN 0) = some _
@@ -187,4 +187,5 @@ theorem generic_sh_spec (rs1 rs2 : Reg) (v_addr v_data : Word)
     have h5 := holdsFor_sepConj_pull_second.mpr h4
     exact holdsFor_pcFree_setPC (pcFree_sepConj (by pcFree) hR) h5
 
+/-! ## Compatibility wrappers -/
 end EvmAsm.Rv64

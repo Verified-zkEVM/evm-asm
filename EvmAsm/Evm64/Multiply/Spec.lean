@@ -87,15 +87,15 @@ private theorem mul_stack_weaken (sp : Word) (a b : EvmWord)
 
     The postcondition is `evmMulStackPost sp a b` — see its doc comment for
     the register/memory layout on exit. -/
-theorem evm_mul_stack_spec (sp base : Word)
+theorem evm_mul_stack_spec_within (sp base : Word)
     (a b : EvmWord) (v5 v6 v7 v10 v11 : Word) :
-    cpsTriple base (base + 252) (evm_mul_code base)
+    cpsTripleWithin 63 base (base + 252) (evm_mul_code base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
        (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) **
        evmWordIs sp a ** evmWordIs (sp + 32) b)
       (evmMulStackPost sp a b) := by
   -- Raw column-organized limb-level spec with explicit limbs of a, b
-  have h_main := evm_mul_spec sp base
+  have h_main := evm_mul_spec_within sp base
     (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
     (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
     v5 v6 v7 v10 v11
@@ -106,7 +106,7 @@ theorem evm_mul_stack_spec (sp base : Word)
   simp only [EvmWord.getLimb_as_getLimbN_0, EvmWord.getLimb_as_getLimbN_1,
              EvmWord.getLimb_as_getLimbN_2, EvmWord.getLimb_as_getLimbN_3]
     at h0 h1 h2 h3
-  exact cpsTriple_weaken
+  exact cpsTripleWithin_weaken
     (fun h hp => by
       -- Pre: unfold `evmWordIs sp a` and `evmWordIs (sp+32) b` into 4 raw
       -- memIs atoms each, then permute to match the raw evm_mul_spec pre.
@@ -121,5 +121,6 @@ theorem evm_mul_stack_spec (sp base : Word)
       rw [← evmWordIs_sp32_limbs_eq sp (a * b) _ _ _ _ h0 h1 h2 h3] at hq
       exact mul_stack_weaken sp a b h (by xperm_hyp hq))
     h_main
+
 
 end EvmAsm.Evm64

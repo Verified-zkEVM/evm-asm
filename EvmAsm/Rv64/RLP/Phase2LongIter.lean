@@ -104,17 +104,17 @@ private theorem iter_addrs_distinct (base : Word) :
 -- Main spec
 -- ============================================================================
 
-/-- `cpsTriple` spec for one iteration of the long-form length loop.
+/-- `cpsTripleWithin` spec for one iteration of the long-form length loop.
 
     Composes five instruction specs — LBU + SLLI + ADD + ADDI (ptr) +
     ADDI (counter) — each framed with the registers and memory not
     touched by that instruction. -/
-theorem rlp_phase2_long_iter_spec
+theorem rlp_phase2_long_iter_spec_within
     (len ptr cnt v12Old wordVal dwordAddr : Word) (base : Word)
     (halign : alignToDword ptr = dwordAddr)
     (hvalid : isValidByteAccess ptr = true) :
     let byteZext := (extractByte wordVal (byteOffset ptr)).zeroExtend 64
-    cpsTriple base (base + 20)
+    cpsTripleWithin 5 base (base + 20)
       (CodeReq.ofProg base rlp_phase2_long_iter_prog)
       ((.x11 ↦ᵣ len) ** (.x13 ↦ᵣ ptr) ** (.x14 ↦ᵣ cnt) **
        (.x12 ↦ᵣ v12Old) ** (dwordAddr ↦ₘ wordVal))
@@ -131,23 +131,23 @@ theorem rlp_phase2_long_iter_spec
     rw [se12_0]; simpa using halign
   have hvalid0 : isValidByteAccess (ptr + signExtend12 (0 : BitVec 12)) = true := by
     rw [se12_0]; simpa using hvalid
-  have lbu_raw := generic_lbu_spec .x12 .x13 ptr v12Old 0 base dwordAddr wordVal
+  have lbu_raw := generic_lbu_spec_within .x12 .x13 ptr v12Old 0 base dwordAddr wordVal
     (by nofun) halign0 hvalid0
   rw [show ptr + signExtend12 (0 : BitVec 12) = ptr from by rv64_addr] at lbu_raw
   -- Step 2: SLLI x11, x11, 8.
-  have slli_raw := slli_spec_gen_same .x11 len 8 (base + 4) (by nofun)
+  have slli_raw := slli_spec_gen_same_within .x11 len 8 (base + 4) (by nofun)
   rw [show (base + 4 : Word) + 4 = base + 8 from by bv_omega] at slli_raw
   rw [bv6_toNat_8] at slli_raw
   -- Step 3: ADD x11, x11, x12.
-  have add_raw := add_spec_gen_rd_eq_rs1 .x11 .x12 (len <<< 8) byteZext
+  have add_raw := add_spec_gen_rd_eq_rs1_within .x11 .x12 (len <<< 8) byteZext
     (base + 8) (by nofun)
   rw [show (base + 8 : Word) + 4 = base + 12 from by bv_omega] at add_raw
   -- Step 4: ADDI x13, x13, 1.
-  have addi_ptr_raw := addi_spec_gen_same .x13 ptr 1 (base + 12) (by nofun)
+  have addi_ptr_raw := addi_spec_gen_same_within .x13 ptr 1 (base + 12) (by nofun)
   rw [show (base + 12 : Word) + 4 = base + 16 from by bv_omega] at addi_ptr_raw
   rw [se12_1] at addi_ptr_raw
   -- Step 5: ADDI x14, x14, -1.
-  have addi_cnt_raw := addi_spec_gen_same .x14 cnt (-1) (base + 16) (by nofun)
+  have addi_cnt_raw := addi_spec_gen_same_within .x14 cnt (-1) (base + 16) (by nofun)
   rw [show (base + 16 : Word) + 4 = base + 20 from by bv_omega] at addi_cnt_raw
   -- Frame each step with the assertions it doesn't touch, and chain.
   -- To keep the proof compact, we use `cpsTriple_weaken` with
@@ -155,10 +155,10 @@ theorem rlp_phase2_long_iter_spec
   have frame_and_perm :=
     fun {entry exit_ : Word} {cr : CodeReq} {P P' Q Q' : Assertion}
         (hpre : ∀ h, P' h → P h) (hpost : ∀ h, Q h → Q' h)
-        (h : cpsTriple entry exit_ cr P Q) =>
-      cpsTriple_weaken (P := P) (Q := Q) (P' := P') (Q' := Q') hpre hpost h
+        (h : cpsTripleWithin 1 entry exit_ cr P Q) =>
+      cpsTripleWithin_weaken (P := P) (Q := Q) (P' := P') (Q' := Q') hpre hpost h
   -- Step 1 framed with (x11, x14, memory) — leaves (x12, x13) to LBU.
-  have s1 : cpsTriple base (base + 4)
+  have s1 : cpsTripleWithin 1 base (base + 4)
       (CodeReq.singleton base (.LBU .x12 .x13 0))
       ((.x11 ↦ᵣ len) ** (.x13 ↦ᵣ ptr) ** (.x14 ↦ᵣ cnt) **
        (.x12 ↦ᵣ v12Old) ** (dwordAddr ↦ₘ wordVal))
@@ -166,10 +166,10 @@ theorem rlp_phase2_long_iter_spec
        (.x12 ↦ᵣ byteZext) ** (dwordAddr ↦ₘ wordVal)) :=
     frame_and_perm
       (fun h hp => by xperm_hyp hp) (fun h hp => by xperm_hyp hp)
-      (cpsTriple_frameR
+      (cpsTripleWithin_frameR
         ((.x11 ↦ᵣ len) ** (.x14 ↦ᵣ cnt)) (by pcFree) lbu_raw)
   -- Step 2 (SLLI x11 x11 8) — leaves (x13, x14, x12, mem) untouched.
-  have s2 : cpsTriple (base + 4) (base + 8)
+  have s2 : cpsTripleWithin 1 (base + 4) (base + 8)
       (CodeReq.singleton (base + 4) (.SLLI .x11 .x11 8))
       ((.x11 ↦ᵣ len) ** (.x13 ↦ᵣ ptr) ** (.x14 ↦ᵣ cnt) **
        (.x12 ↦ᵣ byteZext) ** (dwordAddr ↦ₘ wordVal))
@@ -177,11 +177,11 @@ theorem rlp_phase2_long_iter_spec
        (.x12 ↦ᵣ byteZext) ** (dwordAddr ↦ₘ wordVal)) :=
     frame_and_perm
       (fun h hp => by xperm_hyp hp) (fun h hp => by xperm_hyp hp)
-      (cpsTriple_frameR
+      (cpsTripleWithin_frameR
         ((.x13 ↦ᵣ ptr) ** (.x14 ↦ᵣ cnt) ** (.x12 ↦ᵣ byteZext) **
          (dwordAddr ↦ₘ wordVal)) (by pcFree) slli_raw)
   -- Step 3 (ADD x11 x11 x12) — uses (x11, x12); frames (x13, x14, mem).
-  have s3 : cpsTriple (base + 8) (base + 12)
+  have s3 : cpsTripleWithin 1 (base + 8) (base + 12)
       (CodeReq.singleton (base + 8) (.ADD .x11 .x11 .x12))
       ((.x11 ↦ᵣ (len <<< 8)) ** (.x13 ↦ᵣ ptr) ** (.x14 ↦ᵣ cnt) **
        (.x12 ↦ᵣ byteZext) ** (dwordAddr ↦ₘ wordVal))
@@ -190,11 +190,11 @@ theorem rlp_phase2_long_iter_spec
        (dwordAddr ↦ₘ wordVal)) :=
     frame_and_perm
       (fun h hp => by xperm_hyp hp) (fun h hp => by xperm_hyp hp)
-      (cpsTriple_frameR
+      (cpsTripleWithin_frameR
         ((.x13 ↦ᵣ ptr) ** (.x14 ↦ᵣ cnt) ** (dwordAddr ↦ₘ wordVal))
         (by pcFree) add_raw)
   -- Step 4 (ADDI x13 x13 1) — mutates x13; frames the rest.
-  have s4 : cpsTriple (base + 12) (base + 16)
+  have s4 : cpsTripleWithin 1 (base + 12) (base + 16)
       (CodeReq.singleton (base + 12) (.ADDI .x13 .x13 1))
       ((.x11 ↦ᵣ ((len <<< 8) + byteZext)) ** (.x13 ↦ᵣ ptr) **
        (.x14 ↦ᵣ cnt) ** (.x12 ↦ᵣ byteZext) **
@@ -204,12 +204,12 @@ theorem rlp_phase2_long_iter_spec
        (dwordAddr ↦ₘ wordVal)) :=
     frame_and_perm
       (fun h hp => by xperm_hyp hp) (fun h hp => by xperm_hyp hp)
-      (cpsTriple_frameR
+      (cpsTripleWithin_frameR
         ((.x11 ↦ᵣ ((len <<< 8) + byteZext)) ** (.x14 ↦ᵣ cnt) **
          (.x12 ↦ᵣ byteZext) ** (dwordAddr ↦ₘ wordVal))
         (by pcFree) addi_ptr_raw)
   -- Step 5 (ADDI x14 x14 -1) — mutates x14; frames the rest.
-  have s5 : cpsTriple (base + 16) (base + 20)
+  have s5 : cpsTripleWithin 1 (base + 16) (base + 20)
       (CodeReq.singleton (base + 16) (.ADDI .x14 .x14 (-1)))
       ((.x11 ↦ᵣ ((len <<< 8) + byteZext)) ** (.x13 ↦ᵣ (ptr + 1)) **
        (.x14 ↦ᵣ cnt) ** (.x12 ↦ᵣ byteZext) **
@@ -219,7 +219,7 @@ theorem rlp_phase2_long_iter_spec
        (.x12 ↦ᵣ byteZext) ** (dwordAddr ↦ₘ wordVal)) :=
     frame_and_perm
       (fun h hp => by xperm_hyp hp) (fun h hp => by xperm_hyp hp)
-      (cpsTriple_frameR
+      (cpsTripleWithin_frameR
         ((.x11 ↦ᵣ ((len <<< 8) + byteZext)) ** (.x13 ↦ᵣ (ptr + 1)) **
          (.x12 ↦ᵣ byteZext) ** (dwordAddr ↦ₘ wordVal))
         (by pcFree) addi_cnt_raw)
@@ -274,19 +274,19 @@ theorem rlp_phase2_long_iter_spec
             (CodeReq.Disjoint.singleton h04)
             (CodeReq.Disjoint.empty_right _))))
   -- Extend s5's CR with a trailing empty.
-  have s5_ext : cpsTriple (base + 16) (base + 20)
+  have s5_ext : cpsTripleWithin 1 (base + 16) (base + 20)
       ((CodeReq.singleton (base + 16) (.ADDI .x14 .x14 (-1))).union
         CodeReq.empty) _ _ :=
-    cpsTriple_extend_code
+    cpsTripleWithin_extend_code
       (fun a _ hcr => by
         show (CodeReq.singleton (base + 16) (.ADDI .x14 .x14 (-1))).union
             CodeReq.empty a = _
         simp only [CodeReq.union, hcr])
       s5
   -- Chain bottom up.
-  have t45 := cpsTriple_seq hd4 s4 s5_ext
-  have t345 := cpsTriple_seq hd3 s3 t45
-  have t2345 := cpsTriple_seq hd2 s2 t345
-  exact cpsTriple_seq hd1 s1 t2345
+  have t45 := cpsTripleWithin_seq hd4 s4 s5_ext
+  have t345 := cpsTripleWithin_seq hd3 s3 t45
+  have t2345 := cpsTripleWithin_seq hd2 s2 t345
+  exact cpsTripleWithin_seq hd1 s1 t2345
 
 end EvmAsm.Rv64.RLP

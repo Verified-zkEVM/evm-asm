@@ -46,15 +46,15 @@ example : rlp_phase3_single_byte_prog.length = 1 := rfl
 -- Spec
 -- ============================================================================
 
-/-- `cpsTriple` spec for the single-byte length emitter. After the one
+/-- `cpsTripleWithin` spec for the single-byte length emitter. After the one
     instruction, `x11 = 1`. `x0` stays zero (RISC-V invariant); the caller
     is expected to keep its data pointer (typically in `x13`) framed
     through this step.
 
     The triple does not name `x13` — the caller owns it as a frame
     atom and threads it through unchanged via `cpsTriple_frameR`. -/
-theorem rlp_phase3_single_byte_spec (v11Old : Word) (base : Word) :
-    cpsTriple base (base + 4)
+theorem rlp_phase3_single_byte_spec_within (v11Old : Word) (base : Word) :
+    cpsTripleWithin 1 base (base + 4)
       (CodeReq.ofProg base rlp_phase3_single_byte_prog)
       ((.x11 ↦ᵣ v11Old) ** (.x0 ↦ᵣ (0 : Word)))
       ((.x11 ↦ᵣ (1 : Word)) ** (.x0 ↦ᵣ (0 : Word))) := by
@@ -62,20 +62,17 @@ theorem rlp_phase3_single_byte_spec (v11Old : Word) (base : Word) :
   rw [show CodeReq.ofProg base rlp_phase3_single_byte_prog =
       CodeReq.singleton base (.ADDI .x11 .x0 1) from CodeReq.ofProg_singleton]
   -- ADDI x11, x0, 1: x11 ← 0 + signExtend12 1 = 1.
-  have h := addi_spec_gen .x11 .x0 v11Old (0 : Word) 1 base (by nofun)
+  have h := addi_spec_gen_within .x11 .x0 v11Old (0 : Word) 1 base (by nofun)
   -- Normalize the post: 0 + signExtend12 1 = 1.
   have hsig : (0 : Word) + signExtend12 (1 : BitVec 12) = (1 : Word) := by decide
   rw [hsig] at h
   -- `addi_spec_gen` produces `(rs1 ↦ᵣ ...) ** (rd ↦ᵣ ...)` (rs1 first);
   -- the spec statement uses `(rd ↦ᵣ ...) ** (rs1 ↦ᵣ ...)`. Permute.
-  exact cpsTriple_weaken
+  exact cpsTripleWithin_weaken
     (fun _ hp => by xperm_hyp hp)
     (fun _ hp => by xperm_hyp hp)
     h
 
-/-! ## Concrete sanity check -/
-
--- Confirms the one-instruction encoding matches the program definition.
 example : rlp_phase3_single_byte_prog =
     [.ADDI .x11 .x0 1] := rfl
 

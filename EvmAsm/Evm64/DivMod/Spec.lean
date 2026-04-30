@@ -4,7 +4,7 @@
   Stack-level specs for the 256-bit EVM DIV and MOD programs using evmWordIs.
 
   Currently covers:
-  - Zero divisor path (b = 0): evm_div_bzero_stack_spec, evm_mod_bzero_stack_spec
+  - Zero divisor path (b = 0): evm_div_bzero_stack_spec_within, evm_mod_bzero_stack_spec_within
   - Normal path (b ≠ 0): infrastructure complete; final composition pending.
 
   Stack-spec infrastructure (for the n=4 max+skip sub-path and its symmetric
@@ -737,7 +737,8 @@ theorem evm_div_n4_full_max_skip_stack_pre_spec (sp base : Word)
     (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
     (hbltu : isMaxTrialN4Evm a b)
     (hborrow : isSkipBorrowN4MaxEvm a b) :
-    cpsTriple base (base + nopOff) (divCode base)
+    cpsTripleWithin (8 + 21 + 24 + 4 + 21 + 21 + 4 + 76 + 2 + 23 + 10)
+      base (base + nopOff) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
        (.x2 ↦ᵣ (clzResult (b.getLimbN 3)).2 >>> (63 : Nat)) **
@@ -758,7 +759,7 @@ theorem evm_div_n4_full_max_skip_stack_pre_spec (sp base : Word)
     q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
     nMem shiftMem jMem
     hbnz' hb3nz hshift_nz hbltu hborrow
-  exact cpsTriple_weaken
+  exact cpsTripleWithin_weaken
     (fun h hp => by
       rw [evmWordIs_sp_limbs_eq sp a _ _ _ _ rfl rfl rfl rfl,
           evmWordIs_sp32_limbs_eq sp b _ _ _ _ rfl rfl rfl rfl,
@@ -799,7 +800,8 @@ theorem evm_div_n4_full_max_skip_stack_pre_spec_bundled (sp base : Word)
     (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
     (hbltu : isMaxTrialN4Evm a b)
     (hborrow : isSkipBorrowN4MaxEvm a b) :
-    cpsTriple base (base + nopOff) (divCode base)
+    cpsTripleWithin (8 + 21 + 24 + 4 + 21 + 21 + 4 + 76 + 2 + 23 + 10)
+      base (base + nopOff) (divCode base)
       (divN4StackPre sp a b v5 v6 v7 v10 v11
          q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem)
       (fullDivN4MaxSkipPost sp
@@ -808,7 +810,7 @@ theorem evm_div_n4_full_max_skip_stack_pre_spec_bundled (sp base : Word)
   have h := evm_div_n4_full_max_skip_stack_pre_spec sp base a b
     v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
     nMem shiftMem jMem hbnz hb3nz hshift_nz hbltu hborrow
-  exact cpsTriple_weaken
+  exact cpsTripleWithin_weaken
     (fun _ hp => by rw [divN4StackPre_unfold] at hp; exact hp)
     (fun _ hq => hq)
     h
@@ -837,7 +839,8 @@ theorem evm_div_n4_full_max_addback_beq_stack_pre_spec (sp base : Word)
     (hbltu : isMaxTrialN4Evm a b)
     (hcarry2_nz : isAddbackCarry2NzN4MaxAbEvm a b)
     (hborrow : isAddbackBorrowN4MaxEvm a b) :
-    cpsTriple base (base + nopOff) (divCode base)
+    cpsTripleWithin (8 + 21 + 24 + 4 + 21 + 21 + 4 + 152 + 2 + 23 + 10)
+      base (base + nopOff) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
        (.x2 ↦ᵣ (clzResult (b.getLimbN 3)).2 >>> (63 : Nat)) **
@@ -859,7 +862,7 @@ theorem evm_div_n4_full_max_addback_beq_stack_pre_spec (sp base : Word)
     nMem shiftMem jMem
     hbnz' hb3nz hshift_nz hvalid
     hbltu hcarry2_nz hborrow
-  exact cpsTriple_weaken
+  exact cpsTripleWithin_weaken
     (fun h hp => by
       rw [evmWordIs_sp_limbs_eq sp a _ _ _ _ rfl rfl rfl rfl,
           evmWordIs_sp32_limbs_eq sp b _ _ _ _ rfl rfl rfl rfl,
@@ -883,7 +886,8 @@ theorem evm_div_n4_full_max_addback_beq_stack_pre_spec_bundled (sp base : Word)
     (hbltu : isMaxTrialN4Evm a b)
     (hcarry2_nz : isAddbackCarry2NzN4MaxAbEvm a b)
     (hborrow : isAddbackBorrowN4MaxEvm a b) :
-    cpsTriple base (base + nopOff) (divCode base)
+    cpsTripleWithin (8 + 21 + 24 + 4 + 21 + 21 + 4 + 152 + 2 + 23 + 10)
+      base (base + nopOff) (divCode base)
       (divN4StackPre sp a b v5 v6 v7 v10 v11
          q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem)
       (fullDivN4MaxAddbackBeqPost sp
@@ -893,17 +897,17 @@ theorem evm_div_n4_full_max_addback_beq_stack_pre_spec_bundled (sp base : Word)
     v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
     nMem shiftMem jMem hbnz hb3nz hshift_nz hvalid
     hbltu hcarry2_nz hborrow
-  exact cpsTriple_weaken
+  exact cpsTripleWithin_weaken
     (fun _ hp => by rw [divN4StackPre_unfold] at hp; exact hp)
     (fun _ hq => hq)
     h
 
 /-- Stack-level DIV spec for the zero divisor path: when b = 0, result is 0.
     Uses evmWordIs for the b-operand at sp+32. The a-operand at sp is untouched. -/
-theorem evm_div_bzero_stack_spec (sp base : Word)
+theorem evm_div_bzero_stack_spec_within (sp base : Word)
     (a b : EvmWord) (v5 v10 : Word)
     (hbz : b = 0) :
-    cpsTriple base (base + nopOff) (divCode base)
+    cpsTripleWithin (8 + 5) base (base + nopOff) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        evmWordIs (sp + 32) b)
       ((.x12 ↦ᵣ (sp + 32)) ** (regOwn .x5) ** (regOwn .x10) ** (.x0 ↦ᵣ (0 : Word)) **
@@ -917,7 +921,7 @@ theorem evm_div_bzero_stack_spec (sp base : Word)
   -- Get the limb-level zero-path spec
   have hlimbs_or : (0 : EvmWord).getLimbN 0 ||| (0 : EvmWord).getLimbN 1 |||
       (0 : EvmWord).getLimbN 2 ||| (0 : EvmWord).getLimbN 3 = (0 : Word) := by decide
-  have h_raw := evm_div_bzero_spec sp base
+  have h_raw := evm_div_bzero_spec_within sp base
     ((0 : EvmWord).getLimbN 0) ((0 : EvmWord).getLimbN 1)
     ((0 : EvmWord).getLimbN 2) ((0 : EvmWord).getLimbN 3)
     v5 v10 hlimbs_or
@@ -927,7 +931,7 @@ theorem evm_div_bzero_stack_spec (sp base : Word)
   have hr1 := EvmWord.div_getLimbN_zero_right a 1
   have hr2 := EvmWord.div_getLimbN_zero_right a 2
   have hr3 := EvmWord.div_getLimbN_zero_right a 3
-  exact cpsTriple_weaken
+  exact cpsTripleWithin_weaken
     (fun h hp => by
       rw [evmWordIs_sp32_limbs_eq sp 0 0 0 0 0 hg0 hg1 hg2 hg3] at hp
       xperm_hyp hp)
@@ -957,10 +961,10 @@ theorem evm_div_bzero_stack_spec (sp base : Word)
 
 /-- Stack-level MOD spec for the zero divisor path: when b = 0, result is 0.
     Uses evmWordIs for the b-operand at sp+32. The a-operand at sp is untouched. -/
-theorem evm_mod_bzero_stack_spec (sp base : Word)
+theorem evm_mod_bzero_stack_spec_within (sp base : Word)
     (a b : EvmWord) (v5 v10 : Word)
     (hbz : b = 0) :
-    cpsTriple base (base + nopOff) (modCode base)
+    cpsTripleWithin 13 base (base + nopOff) (modCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        evmWordIs (sp + 32) b)
       ((.x12 ↦ᵣ (sp + 32)) ** (regOwn .x5) ** (regOwn .x10) ** (.x0 ↦ᵣ (0 : Word)) **
@@ -972,7 +976,7 @@ theorem evm_mod_bzero_stack_spec (sp base : Word)
   have hg3 := EvmWord.getLimbN_zero 3
   have hlimbs_or : (0 : EvmWord).getLimbN 0 ||| (0 : EvmWord).getLimbN 1 |||
       (0 : EvmWord).getLimbN 2 ||| (0 : EvmWord).getLimbN 3 = (0 : Word) := by decide
-  have h_raw := evm_mod_bzero_spec sp base
+  have h_raw := evm_mod_bzero_spec_within sp base
     ((0 : EvmWord).getLimbN 0) ((0 : EvmWord).getLimbN 1)
     ((0 : EvmWord).getLimbN 2) ((0 : EvmWord).getLimbN 3)
     v5 v10 hlimbs_or
@@ -981,7 +985,7 @@ theorem evm_mod_bzero_stack_spec (sp base : Word)
   have hr1 := EvmWord.mod_getLimbN_zero_right a 1
   have hr2 := EvmWord.mod_getLimbN_zero_right a 2
   have hr3 := EvmWord.mod_getLimbN_zero_right a 3
-  exact cpsTriple_weaken
+  exact cpsTripleWithin_weaken
     (fun h hp => by
       rw [evmWordIs_sp32_limbs_eq sp 0 0 0 0 0 hg0 hg1 hg2 hg3] at hp
       xperm_hyp hp)
@@ -1011,7 +1015,7 @@ theorem evm_mod_bzero_stack_spec (sp base : Word)
     is still the concrete `fullModN4MaxSkipPost` — turning that into
     `modN4MaxSkipStackPost` requires a denormalization bridge that's deferred
     to the forthcoming MOD stack spec. -/
-theorem evm_mod_n4_full_max_skip_stack_pre_spec (sp base : Word)
+theorem evm_mod_n4_full_max_skip_stack_pre_spec_within (sp base : Word)
     (a b : EvmWord) (v5 v6 v7 v10 v11Old : Word)
     (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
      nMem shiftMem jMem : Word)
@@ -1020,7 +1024,7 @@ theorem evm_mod_n4_full_max_skip_stack_pre_spec (sp base : Word)
     (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
     (hbltu : isMaxTrialN4Evm a b)
     (hborrow : isSkipBorrowN4MaxEvm a b) :
-    cpsTriple base (base + nopOff) (modCode base)
+    cpsTripleWithin 214 base (base + nopOff) (modCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
        (.x2 ↦ᵣ (clzResult (b.getLimbN 3)).2 >>> (63 : Nat)) **
@@ -1034,14 +1038,14 @@ theorem evm_mod_n4_full_max_skip_stack_pre_spec (sp base : Word)
         (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) := by
   have hbnz' : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 ||| b.getLimbN 3 ≠ 0 :=
     (EvmWord.ne_zero_iff_getLimbN_or).mp hbnz
-  have hraw := evm_mod_n4_full_max_skip_spec sp base
+  have hraw := evm_mod_n4_full_max_skip_spec_within sp base
     (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
     (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
     v5 v6 v7 v10 v11Old
     q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
     nMem shiftMem jMem
     hbnz' hb3nz hshift_nz hbltu hborrow
-  exact cpsTriple_weaken
+  exact cpsTripleWithin_weaken
     (fun h hp => by
       rw [evmWordIs_sp_limbs_eq sp a _ _ _ _ rfl rfl rfl rfl,
           evmWordIs_sp32_limbs_eq sp b _ _ _ _ rfl rfl rfl rfl,
@@ -1053,7 +1057,7 @@ theorem evm_mod_n4_full_max_skip_stack_pre_spec (sp base : Word)
 
 /-- Bundled MOD version mirroring `evm_div_n4_full_max_skip_stack_pre_spec_bundled`:
     takes the precondition as a single `modN4StackPre` atom. -/
-theorem evm_mod_n4_full_max_skip_stack_pre_spec_bundled (sp base : Word)
+theorem evm_mod_n4_full_max_skip_stack_pre_spec_bundled_within (sp base : Word)
     (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
     (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
      nMem shiftMem jMem : Word)
@@ -1062,16 +1066,16 @@ theorem evm_mod_n4_full_max_skip_stack_pre_spec_bundled (sp base : Word)
     (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
     (hbltu : isMaxTrialN4Evm a b)
     (hborrow : isSkipBorrowN4MaxEvm a b) :
-    cpsTriple base (base + nopOff) (modCode base)
+    cpsTripleWithin 214 base (base + nopOff) (modCode base)
       (modN4StackPre sp a b v5 v6 v7 v10 v11
          q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem)
       (fullModN4MaxSkipPost sp
         (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
         (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) := by
-  have h := evm_mod_n4_full_max_skip_stack_pre_spec sp base a b
+  have h := evm_mod_n4_full_max_skip_stack_pre_spec_within sp base a b
     v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
     nMem shiftMem jMem hbnz hb3nz hshift_nz hbltu hborrow
-  exact cpsTriple_weaken
+  exact cpsTripleWithin_weaken
     (fun _ hp => by rw [modN4StackPre_unfold] at hp; exact hp)
     (fun _ hq => hq)
     h
@@ -1235,7 +1239,8 @@ theorem evm_div_n4_max_skip_stack_spec (sp base : Word)
     (hbltu : isMaxTrialN4Evm a b)
     (hborrow : isSkipBorrowN4MaxEvm a b)
     (hsem : n4MaxSkipSemanticHolds a b) :
-    cpsTriple base (base + nopOff) (divCode base)
+    cpsTripleWithin (8 + 21 + 24 + 4 + 21 + 21 + 4 + 76 + 2 + 23 + 10)
+      base (base + nopOff) (divCode base)
       (divN4StackPre sp a b v5 v6 v7 v10 v11
          q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem)
       (divN4MaxSkipStackPost sp a b) := by
@@ -1244,7 +1249,7 @@ theorem evm_div_n4_max_skip_stack_spec (sp base : Word)
     hbnz hb3nz hshift_nz hbltu hborrow
   obtain ⟨hdiv0, hdiv1, hdiv2, hdiv3, _, _, _, _⟩ :=
     n4_max_skip_div_mod_getLimbN a b hb3nz hsem
-  refine cpsTriple_weaken (fun _ hp => hp) ?_ h_pre
+  refine cpsTripleWithin_weaken (fun _ hp => hp) ?_ h_pre
   intro h hq
   -- Flatten the post: both unfolds in one `simp only` pass, which
   -- zeta-reduces through `fullDivN4MaxSkipPost_unfold`'s let-bindings
@@ -1283,10 +1288,10 @@ theorem evm_div_n4_max_skip_stack_spec (sp base : Word)
     the post reshape through the denormalization round-trip, is discharged
     via `clzResult_fst_top_bound`.
 
-    Reduces to `evm_mod_n4_full_max_skip_stack_pre_spec_bundled` + a post
+    Reduces to `evm_mod_n4_full_max_skip_stack_pre_spec_bundled_within` + a post
     reshape via `output_slot_to_evmWordIs_mod_n4_max_skip_denorm` and
     `mod_n4_max_skip_stack_weaken`. -/
-theorem evm_mod_n4_max_skip_stack_spec (sp base : Word)
+theorem evm_mod_n4_max_skip_stack_spec_within (sp base : Word)
     (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
     (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
      nMem shiftMem jMem : Word)
@@ -1296,14 +1301,14 @@ theorem evm_mod_n4_max_skip_stack_spec (sp base : Word)
     (hbltu : isMaxTrialN4Evm a b)
     (hborrow : isSkipBorrowN4MaxEvm a b)
     (hsem : n4MaxSkipSemanticHolds a b) :
-    cpsTriple base (base + nopOff) (modCode base)
+    cpsTripleWithin 214 base (base + nopOff) (modCode base)
       (modN4StackPre sp a b v5 v6 v7 v10 v11
          q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem)
       (modN4MaxSkipStackPost sp a b) := by
   have hb3_bound : (b.getLimbN 3).toNat <
       2 ^ (64 - (clzResult (b.getLimbN 3)).1.toNat) :=
     clzResult_fst_top_bound (b.getLimbN 3)
-  have h_pre := evm_mod_n4_full_max_skip_stack_pre_spec_bundled sp base a b
+  have h_pre := evm_mod_n4_full_max_skip_stack_pre_spec_bundled_within sp base a b
     v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 nMem shiftMem jMem
     hbnz hb3nz hshift_nz hbltu hborrow
   -- Shift bound: clzResult.1.toNat ≤ 63, and hshift_nz gives it > 0.
@@ -1344,7 +1349,7 @@ theorem evm_mod_n4_max_skip_stack_spec (sp base : Word)
   have h_slot := EvmWord.output_slot_to_evmWordIs_mod_n4_max_skip_denorm sp a b
     hb3nz (clzResult (b.getLimbN 3)).1.toNat hshift_pos hshift_lt_64
     hb3_bound hc3_un hc3_le
-  refine cpsTriple_weaken (fun _ hp => hp) ?_ h_pre
+  refine cpsTripleWithin_weaken (fun _ hp => hp) ?_ h_pre
   intro h hq
   simp only [fullModN4MaxSkipPost_unfold, denormModPost_unfold] at hq
   apply mod_n4_max_skip_stack_weaken sp a b h
@@ -1378,14 +1383,14 @@ theorem evm_mod_n4_max_skip_stack_spec (sp base : Word)
     (Issue #61): the bridge chain I was planning is not needed, because
     the runtime path this spec describes is dead code at runtime for
     shift > 0. -/
-theorem evm_div_n4_max_addback_beq_stack_spec (sp base : Word)
+theorem evm_div_n4_max_addback_beq_stack_spec_within (sp base : Word)
     (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
     (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
      nMem shiftMem jMem : Word)
     (hb3nz : b.getLimbN 3 ≠ 0)
     (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
     (hbltu : isMaxTrialN4Evm a b) :
-    cpsTriple base (base + nopOff) (divCode base)
+    cpsTripleWithin 0 base (base + nopOff) (divCode base)
       (divN4StackPre sp a b v5 v6 v7 v10 v11
          q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem)
       (divN4MaxSkipStackPost sp a b) := by
@@ -1393,15 +1398,15 @@ theorem evm_div_n4_max_addback_beq_stack_spec (sp base : Word)
   exact isMaxTrialN4_false_of_shift_nz (a.getLimbN 3) (b.getLimbN 2) (b.getLimbN 3)
     hb3nz hshift_nz hbltu
 
-/-- MOD counterpart of `evm_div_n4_max_addback_beq_stack_spec` — also vacuous. -/
-theorem evm_mod_n4_max_addback_beq_stack_spec (sp base : Word)
+/-- MOD counterpart of `evm_div_n4_max_addback_beq_stack_spec_within` — also vacuous. -/
+theorem evm_mod_n4_max_addback_beq_stack_spec_within (sp base : Word)
     (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
     (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
      nMem shiftMem jMem : Word)
     (hb3nz : b.getLimbN 3 ≠ 0)
     (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
     (hbltu : isMaxTrialN4Evm a b) :
-    cpsTriple base (base + nopOff) (modCode base)
+    cpsTripleWithin 0 base (base + nopOff) (modCode base)
       (modN4StackPre sp a b v5 v6 v7 v10 v11
          q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem)
       (modN4MaxSkipStackPost sp a b) := by

@@ -3,7 +3,7 @@
 
   Extracted from `LoopBody.lean` (Section 8b).
 
-  `divK_trial_call_path_spec`: trial-quotient TAKEN path (uHi < vTop) —
+  `divK_trial_call_path_spec_within`: trial-quotient TAKEN path (uHi < vTop) —
   JAL x2 560 (instr [16]) at base+512 + div128 subroutine, returning
   to base+516 with x11 = q.
 
@@ -17,7 +17,7 @@
   **v2 migration plan (issue #1337):** This spec uses the buggy v1
   `div128_spec` (with `divK_div128`). Once `n4CallAddbackBeqSemanticHolds_v2_of_call_addback_beq`
   is closed (path 3 chain — see `EvmAsm/Evm64/DivMod/SpecCallAddbackBeq.lean`),
-  a parallel `divK_trial_call_path_v2_spec` needs to be added that:
+  a parallel `divK_trial_call_path_v2_spec_within` needs to be added that:
     1. Uses `div128_v2_spec` (PR #1392, merged) instead of `div128_spec`.
     2. Uses `sharedDivModCode_v2 base` (referencing `divK_div128_v2`) as
        the CodeReq instead of `sharedDivModCode base`.
@@ -41,12 +41,12 @@ private theorem lb_jal_ret {base : Word} : (base + 512 : Word) + 4 = base + 516 
 /-- Trial call path: JAL x2 560 (instr [16]) + div128 subroutine.
     Entry: base+512, Exit: base+516, CodeReq: sharedDivModCode base.
     Computes qHat = div128(uHi, uLo, vTop). -/
-theorem divK_trial_call_path_spec
+theorem divK_trial_call_path_spec_within
     (sp j uLo uHi vTop vtopBase : Word) (base : Word)
     (v2Old v11Old : Word)
     (retMem dMem dloMem un0Mem : Word)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516) :
-    cpsTriple (base + 512) (base + 516) (sharedDivModCode base)
+    cpsTripleWithin 52 (base + 512) (base + 516) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
        (.x5 ↦ᵣ uLo) ** (.x6 ↦ᵣ vtopBase) **
        (.x7 ↦ᵣ uHi) ** (.x10 ↦ᵣ vTop) **
@@ -91,17 +91,17 @@ theorem divK_trial_call_path_spec
   let x1Exit := if rhat2cHi = 0 then rhat2Un0 else rhat2cHi
   let q := (q1' <<< (32 : BitVec 6).toNat) ||| q0'
   -- 1. JAL x2 560 at base+512: x2 ← base+516, PC → base+1072
-  have J := jal_spec .x2 v2Old (560 : BitVec 21) (base + 512) (by nofun)
+  have J := jal_spec_within .x2 v2Old (560 : BitVec 21) (base + 512) (by nofun)
   rw [lb_jal_target, lb_jal_ret] at J
-  have Je := cpsTriple_extend_code (hmono :=
+  have Je := cpsTripleWithin_extend_code (hmono :=
     lb_sub 16 _ _ (by decide) (by bv_addr) (by decide)) J
   -- 2. div128 subroutine: base+1072 → base+516
-  have D := div128_spec sp (base + 516) vTop uLo uHi base
+  have D := div128_spec_within sp (base + 516) vTop uLo uHi base
     j vtopBase v11Old retMem dMem dloMem un0Mem
     halign
   unfold div128SpecPost at D
   -- 3. Frame JAL with all registers/memory for div128
-  have Jf := cpsTriple_frameR
+  have Jf := cpsTripleWithin_frameR
     ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
      (.x5 ↦ᵣ uLo) ** (.x6 ↦ᵣ vtopBase) **
      (.x7 ↦ᵣ uHi) ** (.x10 ↦ᵣ vTop) **
@@ -112,25 +112,20 @@ theorem divK_trial_call_path_spec
      (sp + signExtend12 3944 ↦ₘ un0Mem))
     (by pcFree) Je
   -- 4. Compose JAL + div128
-  have full := cpsTriple_seq_perm_same_cr
+  have full := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) Jf D
   -- 5. Final permutation
-  exact cpsTriple_weaken
+  exact cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq)
     full
 
-/-- v2 mirror of `divK_trial_call_path_spec` — same structure but uses
-    `sharedDivModCode_v2 base` and `div128_v2_spec_shared`. Computes
-    qHat via the v2 algorithm (with Knuth's classical 2nd D3 correction).
-
-    Issue #1337 algorithm fix migration. -/
-theorem divK_trial_call_path_v2_spec
+theorem divK_trial_call_path_v2_spec_within
     (sp j uLo uHi vTop vtopBase : Word) (base : Word)
     (v2Old v11Old : Word)
     (retMem dMem dloMem un0Mem : Word)
     (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516) :
-    cpsTriple (base + 512) (base + 516) (sharedDivModCode_v2 base)
+    cpsTripleWithin 62 (base + 512) (base + 516) (sharedDivModCode_v2 base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
        (.x5 ↦ᵣ uLo) ** (.x6 ↦ᵣ vtopBase) **
        (.x7 ↦ᵣ uHi) ** (.x10 ↦ᵣ vTop) **
@@ -142,17 +137,17 @@ theorem divK_trial_call_path_v2_spec
       (div128V2SpecPost sp (base + 516) vTop uLo uHi) := by
   unfold div128V2SpecPost
   -- 1. JAL x2 560 at base+512.
-  have J := jal_spec .x2 v2Old (560 : BitVec 21) (base + 512) (by nofun)
+  have J := jal_spec_within .x2 v2Old (560 : BitVec 21) (base + 512) (by nofun)
   rw [lb_jal_target, lb_jal_ret] at J
-  have Je := cpsTriple_extend_code (hmono :=
+  have Je := cpsTripleWithin_extend_code (hmono :=
     lb_sub_v2 16 _ _ (by decide) (by bv_addr) (by decide)) J
   -- 2. div128_v2 subroutine: base+1072 → base+516.
-  have D := div128_v2_spec_shared sp (base + 516) vTop uLo uHi base
+  have D := div128_v2_spec_shared_within sp (base + 516) vTop uLo uHi base
     j vtopBase v11Old retMem dMem dloMem un0Mem
     halign
   unfold div128V2SpecPost at D
   -- 3. Frame JAL with all registers/memory for div128.
-  have Jf := cpsTriple_frameR
+  have Jf := cpsTripleWithin_frameR
     ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
      (.x5 ↦ᵣ uLo) ** (.x6 ↦ᵣ vtopBase) **
      (.x7 ↦ᵣ uHi) ** (.x10 ↦ᵣ vTop) **
@@ -163,10 +158,10 @@ theorem divK_trial_call_path_v2_spec
      (sp + signExtend12 3944 ↦ₘ un0Mem))
     (by pcFree) Je
   -- 4. Compose JAL + div128_v2.
-  have full := cpsTriple_seq_perm_same_cr
+  have full := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) Jf D
   -- 5. Final permutation.
-  exact cpsTriple_weaken
+  exact cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq)
     full

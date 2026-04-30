@@ -35,7 +35,7 @@ abbrev evm_sgt_code (base : Word) : CodeReq :=
     Pops 2 stack words (A at sp, B at sp+32),
     writes result to sp+32..sp+56, advances sp by 32.
     25 instructions = 100 bytes total. -/
-theorem evm_sgt_spec (sp : Word) (base : Word)
+theorem evm_sgt_spec_within (sp : Word) (base : Word)
     (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
     (v7 v6 v5 v11 : Word) :
     -- Lower 3 limbs borrow chain: b - a direction (used when MSB limbs equal)
@@ -53,7 +53,7 @@ theorem evm_sgt_spec (sp : Word) (base : Word)
     -- Result: signed GT
     let result := if b3 = a3 then borrow2 else sgtMsb
     let code := evm_sgt_code base
-    cpsTriple base (base + 100) code
+    cpsTripleWithin 25 base (base + 100) code
       (-- Registers + memory
        (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) ** (.x5 ↦ᵣ v5) ** (.x11 ↦ᵣ v11) **
        (sp ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
@@ -73,41 +73,42 @@ theorem evm_sgt_spec (sp : Word) (base : Word)
     subst h
     simp only [ite_true]
     -- MSB load phase (swapped: 56 first, 24 second)
-    have M := slt_msb_load_spec 56 24 sp b3 b3 v7 v6 base
+    have M := slt_msb_load_spec_within 56 24 sp b3 b3 v7 v6 base
     -- BEQ taken (b3 = b3)
-    have B := beq_eq_spec .x7 .x6 (12 : BitVec 13) b3 (base + 8)
+    have B := beq_eq_spec_within .x7 .x6 (12 : BitVec 13) b3 (base + 8)
     simp only [se13_12] at B
     -- Lower limb borrow chain (swapped: b-limbs into x7, a-limbs into x6)
-    have L0 := lt_limb0_spec 32 0 sp b0 a0 b3 b3 v5 (base + 20)
-    have L1 := lt_limb_carry_spec 40 8 sp b1 a1 b0 a0 borrow0 v11 (base + 32)
-    have L2 := lt_limb_carry_spec 48 16 sp b2 a2 temp1 borrow1b borrow1 borrow1a (base + 56)
+    have L0 := lt_limb0_spec_within 32 0 sp b0 a0 b3 b3 v5 (base + 20)
+    have L1 := lt_limb_carry_spec_within 40 8 sp b1 a1 b0 a0 borrow0 v11 (base + 32)
+    have L2 := lt_limb_carry_spec_within 48 16 sp b2 a2 temp1 borrow1b borrow1 borrow1a (base + 56)
     -- Store phase
-    have A := addi_spec_gen_same .x12 sp 32 (base + 80) (by nofun)
+    have A := addi_spec_gen_same_within .x12 sp 32 (base + 80) (by nofun)
     simp only [signExtend12_32] at A
-    have S0 := sd_spec_gen .x12 .x5 (sp + 32) borrow2 b0 0 (base + 84)
-    have S1 := sd_x0_spec_gen .x12 (sp + 32) b1 8 (base + 88)
-    have S2 := sd_x0_spec_gen .x12 (sp + 32) b2 16 (base + 92)
-    have S3 := sd_x0_spec_gen .x12 (sp + 32) b3 24 (base + 96)
+    have S0 := sd_spec_gen_within .x12 .x5 (sp + 32) borrow2 b0 0 (base + 84)
+    have S1 := sd_x0_spec_gen_within .x12 (sp + 32) b1 8 (base + 88)
+    have S2 := sd_x0_spec_gen_within .x12 (sp + 32) b2 16 (base + 92)
+    have S3 := sd_x0_spec_gen_within .x12 (sp + 32) b3 24 (base + 96)
     runBlock M B L0 L1 L2 A S0 S1 S2 S3
   · -- Case: MSB limbs differ → BEQ not taken, SLT + JAL path
     simp only [if_neg h]
     -- MSB load phase (swapped)
-    have M := slt_msb_load_spec 56 24 sp b3 a3 v7 v6 base
+    have M := slt_msb_load_spec_within 56 24 sp b3 a3 v7 v6 base
     -- BEQ not taken (b3 ≠ a3)
-    have B := beq_ne_spec .x7 .x6 (12 : BitVec 13) b3 a3 h (base + 8)
+    have B := beq_ne_spec_within .x7 .x6 (12 : BitVec 13) b3 a3 h (base + 8)
     -- SLT instruction (signed compare b3 vs a3)
-    have S := slt_spec_gen .x5 .x7 .x6 v5 b3 a3 (base + 12) (by nofun)
+    have S := slt_spec_gen_within .x5 .x7 .x6 v5 b3 a3 (base + 12) (by nofun)
     -- JAL to store
-    have J := jal_x0_spec_gen (64 : BitVec 21) (base + 16)
+    have J := jal_x0_spec_gen_within (64 : BitVec 21) (base + 16)
     simp only [se21_64] at J
     -- Store phase
-    have A := addi_spec_gen_same .x12 sp 32 (base + 80) (by nofun)
+    have A := addi_spec_gen_same_within .x12 sp 32 (base + 80) (by nofun)
     simp only [signExtend12_32] at A
-    have S0 := sd_spec_gen .x12 .x5 (sp + 32) sgtMsb b0 0 (base + 84)
-    have S1 := sd_x0_spec_gen .x12 (sp + 32) b1 8 (base + 88)
-    have S2 := sd_x0_spec_gen .x12 (sp + 32) b2 16 (base + 92)
-    have S3 := sd_x0_spec_gen .x12 (sp + 32) b3 24 (base + 96)
+    have S0 := sd_spec_gen_within .x12 .x5 (sp + 32) sgtMsb b0 0 (base + 84)
+    have S1 := sd_x0_spec_gen_within .x12 (sp + 32) b1 8 (base + 88)
+    have S2 := sd_x0_spec_gen_within .x12 (sp + 32) b2 16 (base + 92)
+    have S3 := sd_x0_spec_gen_within .x12 (sp + 32) b3 24 (base + 96)
     runBlock M B S J A S0 S1 S2 S3
+
 
 -- ============================================================================
 -- Stack-level SGT spec
@@ -115,7 +116,7 @@ theorem evm_sgt_spec (sp : Word) (base : Word)
 
 /-- Stack-level 256-bit EVM SGT: operates on two EvmWords via evmWordIs.
     SGT(a, b) = SLT(b, a), using signed comparison with swapped operands. -/
-theorem evm_sgt_stack_spec (sp base : Word)
+theorem evm_sgt_stack_spec_within (sp base : Word)
     (a b : EvmWord) (v7 v6 v5 v11 : Word) :
     -- Lower 3 limbs borrow chain: b - a direction (used when MSB limbs equal)
     let borrow0 := if BitVec.ult (b.getLimbN 0) (a.getLimbN 0) then (1 : Word) else 0
@@ -131,7 +132,7 @@ theorem evm_sgt_stack_spec (sp base : Word)
     let sgtMsb := if BitVec.slt (b.getLimbN 3) (a.getLimbN 3) then (1 : Word) else 0
     let result := if b.getLimbN 3 = a.getLimbN 3 then borrow2 else sgtMsb
     let code := evm_sgt_code base
-    cpsTriple base (base + 100) code
+    cpsTripleWithin 25 base (base + 100) code
       (-- Registers + memory
        (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) ** (.x5 ↦ᵣ v5) ** (.x11 ↦ᵣ v11) **
        evmWordIs sp a ** evmWordIs (sp + 32) b)
@@ -143,11 +144,11 @@ theorem evm_sgt_stack_spec (sp base : Word)
        (.x11 ↦ᵣ (if b.getLimbN 3 = a.getLimbN 3 then borrow2a else v11)) **
        evmWordIs sp a ** evmWordIs (sp + 32) (if BitVec.slt b a then 1 else 0)) := by
   intro borrow0 borrow1a temp1 borrow1b borrow1 borrow2a temp2 borrow2b borrow2 sgtMsb result
-  have h_main := evm_sgt_spec sp base
+  have h_main := evm_sgt_spec_within sp base
     (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
     (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
     v7 v6 v5 v11
-  exact cpsTriple_weaken
+  exact cpsTripleWithin_weaken
     (fun h hp => by
       simp only [evmWordIs] at hp
       rw [spAddr32_8, spAddr32_16, spAddr32_24] at hp
@@ -164,5 +165,6 @@ theorem evm_sgt_stack_spec (sp base : Word)
       rw [spAddr32_8, spAddr32_16, spAddr32_24]
       xperm_hyp hq)
     h_main
+
 
 end EvmAsm.Evm64

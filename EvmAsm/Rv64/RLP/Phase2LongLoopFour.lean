@@ -47,10 +47,10 @@ theorem rlp_phase2_long_loop_four_byte_post_unfold
      (dwordAddr ↦ₘ wordVal)) := by
   delta rlp_phase2_long_loop_four_byte_post; rfl
 
-/-- `cpsTriple` spec for the four-iteration (lenLen = 4) closure.
+/-- Step-bounded spec for the four-iteration (lenLen = 4) closure.
 
     Iter 1 (cnt 4→3, BNE taken) + three-byte closure (iters 2–4). -/
-theorem rlp_phase2_long_loop_four_byte_spec
+theorem rlp_phase2_long_loop_four_byte_spec_within
     (len ptr v12Old wordVal dwordAddr : Word)
     (base : Word) (back : BitVec 13)
     (halign1 : alignToDword ptr = dwordAddr)
@@ -62,7 +62,7 @@ theorem rlp_phase2_long_loop_four_byte_spec
     (hvalid3 : isValidByteAccess (ptr + 2) = true)
     (hvalid4 : isValidByteAccess (ptr + 3) = true)
     (hback : (base + 20) + signExtend13 back = base) :
-    cpsTriple base (base + 24)
+    cpsTripleWithin 24 base (base + 24)
       (CodeReq.ofProg base (rlp_phase2_long_loop_body_prog back))
       ((.x11 ↦ᵣ len) ** (.x13 ↦ᵣ ptr) ** (.x14 ↦ᵣ (4 : Word)) **
        (.x12 ↦ᵣ v12Old) ** (.x0 ↦ᵣ (0 : Word)) **
@@ -75,7 +75,7 @@ theorem rlp_phase2_long_loop_four_byte_spec
         wordVal dwordAddr) := by
   simp only [rlp_phase2_long_loop_four_byte_post_unfold]
   -- Iter 1: body at cnt = 4. cnt' = 3.
-  have body := rlp_phase2_long_loop_body_spec len ptr (4 : Word) v12Old
+  have body := rlp_phase2_long_loop_body_spec_within len ptr (4 : Word) v12Old
     wordVal dwordAddr base back halign1 hvalid1
   rw [cnt_dec_4] at body
   set byte1 := (extractByte wordVal (byteOffset ptr)).zeroExtend 64
@@ -83,9 +83,9 @@ theorem rlp_phase2_long_loop_four_byte_spec
       rlp_phase2_long_loop_body_post len ptr (4 : Word) byte1 wordVal
          dwordAddr ((3 : Word) = 0) hp → False := fun hp hpost =>
     absurd (rlp_phase2_long_loop_body_post_pure hp hpost) (by decide)
-  have tri1 := cpsBranch_takenPath body h_absurd
+  have tri1 := cpsBranchWithin_takenPath body h_absurd
   rw [hback] at tri1
-  have tri1' : cpsTriple base base
+  have tri1' : cpsTripleWithin 6 base base
       (CodeReq.ofProg base (rlp_phase2_long_loop_body_prog back))
       ((.x11 ↦ᵣ len) ** (.x13 ↦ᵣ ptr) ** (.x14 ↦ᵣ (4 : Word)) **
        (.x12 ↦ᵣ v12Old) ** (.x0 ↦ᵣ (0 : Word)) **
@@ -93,7 +93,7 @@ theorem rlp_phase2_long_loop_four_byte_spec
       ((.x11 ↦ᵣ ((len <<< 8) + byte1)) ** (.x13 ↦ᵣ (ptr + 1)) **
        (.x14 ↦ᵣ (3 : Word)) ** (.x12 ↦ᵣ byte1) **
        (.x0 ↦ᵣ (0 : Word)) ** (dwordAddr ↦ₘ wordVal)) :=
-    cpsTriple_weaken
+    cpsTripleWithin_weaken
       (fun _ hp => hp)
       (fun h hp => by
         simp only [rlp_phase2_long_loop_body_post_unfold] at hp
@@ -103,7 +103,7 @@ theorem rlp_phase2_long_loop_four_byte_spec
         exact ((sepConj_pure_right _).1 hp').1)
       tri1
   -- Iters 2-4: three-byte closure at base with (ptr+1, cnt=3).
-  have three_byte := rlp_phase2_long_loop_three_byte_spec ((len <<< 8) + byte1)
+  have three_byte := rlp_phase2_long_loop_three_byte_spec_within ((len <<< 8) + byte1)
     (ptr + 1) byte1 wordVal dwordAddr base back
     halign2
     (by rw [show (ptr + 1 : Word) + 1 = ptr + 2 from by bv_omega]; exact halign3)
@@ -118,9 +118,9 @@ theorem rlp_phase2_long_loop_four_byte_spec
   have h_ptr_4 : (ptr + 1 : Word) + 3 = ptr + 4 := by bv_omega
   rw [h_ptr_2, h_ptr_3, h_ptr_4] at three_byte
   have composed :=
-    cpsTriple_seq_perm_same_cr
+    cpsTripleWithin_seq_perm_same_cr
       (fun h hp => by xperm_hyp hp) tri1' three_byte
-  exact cpsTriple_weaken
+  exact cpsTripleWithin_weaken
     (fun _ hp => hp)
     (fun h hp => by xperm_hyp hp)
     composed

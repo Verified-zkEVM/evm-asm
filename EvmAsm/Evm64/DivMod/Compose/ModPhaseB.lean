@@ -107,16 +107,16 @@ theorem mod_phB_sp24_32 {sp : Word} :
 
 -- ============================================================================
 -- MOD Phase B n=4 (b[3] ≠ 0): init1→init2→ADDI→BNE(taken)→tail
--- Mirror of evm_div_phaseB_n4_spec with modCode.
+-- Mirror of evm_div_phaseB_n4_spec_within with modCode.
 -- ============================================================================
 
 /-- MOD Phase B for n=4 (b[3] ≠ 0): x5 = b[3], x10 = b[3] (leading limb).
     init1 → init2 → ADDI x5=4 → BNE(taken, b[3]≠0) → tail. -/
-theorem evm_mod_phaseB_n4_spec (sp base : Word)
+theorem evm_mod_phaseB_n4_spec_within (sp base : Word)
     (b1 b2 b3 : Word) (v5 v6 v7 : Word)
     (q0 q1 q2 q3 u5 u6 u7 nMem : Word)
     (hb3nz : b3 ≠ 0) :
-    cpsTriple (base + phaseBOff) (base + clzOff) (modCode base)
+    cpsTripleWithin (21) (base + phaseBOff) (base + clzOff) (modCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ b3) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
        ((sp + 40) ↦ₘ b1) ** ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3) **
@@ -134,51 +134,46 @@ theorem evm_mod_phaseB_n4_spec (sp base : Word)
        ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
        ((sp + signExtend12 3984) ↦ₘ (4 : Word))) := by
   -- ---- Step 1: init1 (base+32 → base+60) — zero q[0..3] and u[5..7]
-  have hinit1_raw := divK_phaseB_init1_spec sp (base + phaseBOff) q0 q1 q2 q3 u5 u6 u7
+  have hinit1_raw := divK_phaseB_init1_spec_within sp (base + phaseBOff) q0 q1 q2 q3 u5 u6 u7
   simp only [phB_off_28] at hinit1_raw
-  have hinit1 := cpsTriple_extend_code divK_phaseB_init1_code_sub_modCode hinit1_raw
-  have hinit1f := cpsTriple_frameR
+  have hinit1 := cpsTripleWithin_extend_code divK_phaseB_init1_code_sub_modCode hinit1_raw
+  have hinit1f := cpsTripleWithin_frameR
     ((.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ b3) ** (.x0 ↦ᵣ (0 : Word)) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
      ((sp + 40) ↦ₘ b1) ** ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3) **
      ((sp + signExtend12 3984) ↦ₘ nMem))
     (by pcFree) hinit1
   -- ---- Step 2: init2 (base+60 → base+68) — load b[1], b[2]
-  have hinit2_raw := divK_phaseB_init2_spec sp (base + 60) b1 b2 v6 v7
+  have hinit2_raw := divK_phaseB_init2_spec_within sp (base + 60) b1 b2 v6 v7
   simp only [mod_phB_i2_8] at hinit2_raw
-  have hinit2 := cpsTriple_extend_code divK_phaseB_init2_code_sub_modCode hinit2_raw
+  have hinit2 := cpsTripleWithin_extend_code divK_phaseB_init2_code_sub_modCode hinit2_raw
   seqFrame hinit1f hinit2
   -- ---- Step 3: ADDI x5 x0 4 at base+68 → base+72
-  have haddi_raw := addi_x0_spec_gen .x5 v5 4 (base + 68) (by nofun)
+  have haddi_raw := addi_x0_spec_gen_within .x5 v5 4 (base + 68) (by nofun)
   simp only [mod_phB_addi_4, se12_4] at haddi_raw
-  have haddi := cpsTriple_extend_code addi_x5_singleton_sub_modCode haddi_raw
+  have haddi := cpsTripleWithin_extend_code addi_x5_singleton_sub_modCode haddi_raw
   seqFrame hinit1fhinit2 haddi
   -- ---- Step 4: BNE x10 x0 24 at base+72, elim ntaken (b3=0 absurd)
-  have hbne_raw := bne_spec_gen .x10 .x0 24 b3 (0 : Word) (base + 72)
+  have hbne_raw := bne_spec_gen_within .x10 .x0 24 b3 (0 : Word) (base + 72)
   rw [show (base + 72 : Word) + signExtend13 24 = base + 96 from by rv64_addr,
       mod_phB_bne_4] at hbne_raw
-  have hbne_clean := cpsBranch_takenStripPure2 hbne_raw
+  have hbne_clean := cpsBranchWithin_takenStripPure2 hbne_raw
     (fun hp hQf => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQf
       exact absurd ((sepConj_pure_right _).mp h_rest).2 hb3nz)
-  have hbne := cpsTriple_extend_code bne_x10_singleton_sub_modCode hbne_clean
+  have hbne := cpsTripleWithin_extend_code bne_x10_singleton_sub_modCode hbne_clean
   seqFrame hinit1fhinit2haddi hbne
   -- ---- Step 5: Tail (base+96 → base+116) — store n=4, load leading limb b[3]
-  have htail_raw := divK_phaseB_tail_spec sp (4 : Word) b3 nMem (base + 96)
+  have htail_raw := divK_phaseB_tail_spec_within sp (4 : Word) b3 nMem (base + 96)
   simp only [divK_phaseB_tail_pre_unfold, divK_phaseB_tail_post_unfold,
              mod_phB_t_20, mod_phB_sp24_32] at htail_raw
-  have htail := cpsTriple_extend_code divK_phaseB_tail_code_sub_modCode htail_raw
+  have htail := cpsTripleWithin_extend_code divK_phaseB_tail_code_sub_modCode htail_raw
   seqFrame hinit1fhinit2haddihbne htail
   -- ---- Final consequence — permute assertions
-  exact cpsTriple_weaken
+  exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq)
     hinit1fhinit2haddihbnehtail
 
--- ============================================================================
--- MOD Phase B cascade step subsumption lemmas
--- ============================================================================
-
--- ADDI x5 x0 3 at base+76 (index 11 of phaseB)
 theorem addi_x5_3_sub_modCode {base : Word} :
     ∀ a i, (CodeReq.singleton (base + 76) (.ADDI .x5 .x0 3)) a = some i →
       (modCode base) a = some i := by

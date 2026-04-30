@@ -1,7 +1,7 @@
 /-
   EvmAsm.Rv64.Tactics.LiftSpec
 
-  Tactic for lifting limb-level cpsTriple specs to stack-level goals (64-bit).
+  Tactic for lifting limb-level bounded specs to stack-level goals (64-bit).
 
   ## Usage
 
@@ -12,9 +12,9 @@
 
   ## What It Does
 
-  1. The goal should be `cpsTriple entry exit goalPre goalPost`
-  2. `h_main` should be `cpsTriple entry exit mainPre mainPost`
-  3. Applies `cpsTriple_weaken` with `h_main`
+  1. The goal should be `cpsTripleWithin steps entry exit cr goalPre goalPost`
+  2. `h_main` should be `cpsTripleWithin steps entry exit cr mainPre mainPost`
+  3. Applies `cpsTripleWithin_weaken` with `h_main`
   4. In the pre/post lambdas: unfolds `evmWordIs`/`evmStackIs`, normalizes
      addresses via `BitVec.add_assoc`, then permutes via `xperm_hyp`
 -/
@@ -36,7 +36,7 @@ macro_rules
   | `(tactic| norm_addr $loc) =>
     `(tactic| try simp only [BitVec.add_assoc] $loc)
 
-/-- `liftSpec h` lifts a limb-level cpsTriple spec `h` to a stack-level goal by
+/-- `liftSpec h` lifts a limb-level bounded spec `h` to a stack-level goal by
     unfolding `evmWordIs`/`evmStackIs`, normalizing addresses, and permuting.
     Optional `post_simp [lemmas]` applies additional simp lemmas to the postcondition
     (e.g., `EvmWord.getLimb_and` to push operations through limb extraction). -/
@@ -44,7 +44,7 @@ syntax "liftSpec" ident ("post_simp" "[" Lean.Parser.Tactic.simpLemma,* "]")? : 
 macro_rules
   | `(tactic| liftSpec $h) =>
     `(tactic|
-      exact cpsTriple_weaken
+      exact cpsTripleWithin_weaken
         (fun _h _hp => by
           simp only [evmWordIs, evmStackIs, evmStackIs_cons, evmStackIs_nil] at _hp
           norm_addr at _hp
@@ -56,7 +56,7 @@ macro_rules
         $h)
   | `(tactic| liftSpec $h post_simp [$lemmas,*]) =>
     `(tactic|
-      exact cpsTriple_weaken
+      exact cpsTripleWithin_weaken
         (fun _h _hp => by
           simp only [evmWordIs, evmStackIs, evmStackIs_cons, evmStackIs_nil] at _hp
           norm_addr at _hp

@@ -3,7 +3,7 @@
 
   Extracted from `LoopBody.lean` (Section 11b).
 
-  `divK_trial_call_full_spec`: full trial-quotient call path —
+  `divK_trial_call_full_spec_within`: full trial-quotient call path —
   save j + trial load + BLTU taken + JAL + div128 — composing into a
   single base+448 → base+516 spec when `uHi < vTop`. Used by every
   `LoopBodyN{1..4}.lean` and `LoopIterN1.{Call,CallBeq}`.
@@ -15,10 +15,11 @@
   Uses public helpers from `LoopBody.lean`:
   - `lb_sub`, `lb_bltu_taken`, `lb_bltu_ntaken` (now public, made
     non-`private` for this split).
-  - `divK_save_trial_load_spec`, `divK_trial_call_path_spec`.
+  - `divK_save_trial_load_spec_within`, `divK_trial_call_path_spec_within`.
 -/
 
 import EvmAsm.Evm64.DivMod.LoopBody.TrialCallPath
+import EvmAsm.Evm64.DivMod.LoopBody.TrialMax
 
 open EvmAsm.Rv64.Tactics
 
@@ -32,8 +33,7 @@ open EvmAsm.Rv64
 -- Entry: base+448, Exit: base+516, CodeReq: sharedDivModCode base.
 -- ============================================================================
 
-set_option maxRecDepth 4096 in
-/-- Bundled postcondition for `divK_trial_call_full_spec` (#1139). Inlines
+/-- Bundled postcondition for `divK_trial_call_full_spec_within` (#1139). Inlines
     the 30+ let chain so xperm / seqFrame see all atoms in one flat sepConj
     when bridging. Marked `@[irreducible]` so the theorem *signature* hides
     the bundle from consumers; call-sites that need per-limb atoms must
@@ -82,11 +82,10 @@ def divKTrialCallFullPost (sp j n uHi uLo vTop base : Word) : Assertion :=
   (sp + signExtend12 3952 ↦ₘ dLo) **
   (sp + signExtend12 3944 ↦ₘ un0Div)
 
-set_option maxRecDepth 4096 in
 /-- Trial quotient call path: save j + load + BLTU taken + JAL + div128.
     When uHi < vTop, computes qHat = div128(uHi, uLo, vTop).
     Entry: base+448, Exit: base+516, CodeReq: sharedDivModCode base. -/
-theorem divK_trial_call_full_spec
+theorem divK_trial_call_full_spec_within
     (sp j n jOld v5Old v6Old v7Old v10Old v11Old v2Old uHi uLo vTop : Word)
     (retMem dMem dloMem un0Mem : Word)
     (base : Word)
@@ -94,7 +93,7 @@ theorem divK_trial_call_full_spec
     (hbltu : BitVec.ult uHi vTop) :
     let uAddr := sp + signExtend12 4056 - (j + n) <<< (3 : BitVec 6).toNat
     let vtopBase := sp + (n + signExtend12 4095) <<< (3 : BitVec 6).toNat
-    cpsTriple (base + loopBodyOff) (base + 516) (sharedDivModCode base)
+    cpsTripleWithin 66 (base + loopBodyOff) (base + 516) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
        (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
        (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
@@ -142,45 +141,66 @@ theorem divK_trial_call_full_spec
   let x1Exit := if rhat2cHi = 0 then rhat2Un0 else rhat2cHi
   let q := (q1' <<< (32 : BitVec 6).toNat) ||| q0'
   -- 1. Save j + trial load (base+448 → base+500)
-  have STL := divK_save_trial_load_spec sp j n jOld v5Old v6Old v7Old v10Old uHi uLo vTop
+  have STL := divK_save_trial_load_spec_within sp j n jOld v5Old v6Old v7Old v10Old uHi uLo vTop
     base
   dsimp only [] at STL
   -- 2. BLTU x7 x10 12 at base+500
-  have hbltu_raw := bltu_spec_gen .x7 .x10 (12 : BitVec 13) uHi vTop (base + 500)
+  have hbltu_raw := bltu_spec_gen_within .x7 .x10 (12 : BitVec 13) uHi vTop (base + 500)
   rw [lb_bltu_taken, lb_bltu_ntaken] at hbltu_raw
-  have hbltu_ext := cpsBranch_extend_code (hmono :=
+  have hbltu_ext := cpsBranchWithin_extend_code (hmono :=
     lb_sub 13 _ _ (by decide) (by bv_addr) (by decide)) hbltu_raw
   -- Eliminate ntaken path (⌜¬BitVec.ult uHi vTop⌝ contradicts hbltu)
-  have taken := cpsBranch_takenPath hbltu_ext (fun hp hQf => by
+  have taken := cpsBranchWithin_takenPath hbltu_ext (fun hp hQf => by
     obtain ⟨_, _, _, _, _, ⟨_, _, _, _, _, ⟨_, hpure⟩⟩⟩ := hQf
     exact hpure hbltu)
   -- Strip pure fact from taken postcondition
-  have taken_clean := cpsTriple_weaken
+  have taken_clean := cpsTripleWithin_weaken
     (fun h hp => hp)
     (fun h hp => sepConj_mono_right
       (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp) taken
   -- 3. Trial call path (base+512 → base+516)
-  have TCP := divK_trial_call_path_spec sp j uLo uHi vTop vtopBase base
+  have TCP := divK_trial_call_path_spec_within sp j uLo uHi vTop vtopBase base
     v2Old v11Old retMem dMem dloMem un0Mem
     halign
   unfold div128SpecPost at TCP
   -- 4. Frame save_trial_load with x2, x11, x0, scratch memory
-  have STLf := cpsTriple_frameR
+  have STLf := cpsTripleWithin_frameR
     ((.x11 ↦ᵣ v11Old) ** (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
      (sp + signExtend12 3968 ↦ₘ retMem) **
      (sp + signExtend12 3960 ↦ₘ dMem) **
      (sp + signExtend12 3952 ↦ₘ dloMem) **
      (sp + signExtend12 3944 ↦ₘ un0Mem))
     (by pcFree) STL
+  have taken_framed := cpsTripleWithin_frameR
+    ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
+     (.x5 ↦ᵣ uLo) ** (.x6 ↦ᵣ vtopBase) **
+     (.x11 ↦ᵣ v11Old) ** (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
+     (sp + signExtend12 3976 ↦ₘ j) **
+     (sp + signExtend12 3984 ↦ₘ n) **
+     (uAddr ↦ₘ uHi) ** ((uAddr + 8) ↦ₘ uLo) **
+     (vtopBase + signExtend12 32 ↦ₘ vTop) **
+     (sp + signExtend12 3968 ↦ₘ retMem) **
+     (sp + signExtend12 3960 ↦ₘ dMem) **
+     (sp + signExtend12 3952 ↦ₘ dloMem) **
+     (sp + signExtend12 3944 ↦ₘ un0Mem))
+    (by pcFree) taken_clean
+  have TCPf := cpsTripleWithin_frameR
+    ((sp + signExtend12 3976 ↦ₘ j) **
+     (sp + signExtend12 3984 ↦ₘ n) **
+     (uAddr ↦ₘ uHi) ** ((uAddr + 8) ↦ₘ uLo) **
+     (vtopBase + signExtend12 32 ↦ₘ vTop))
+    (by pcFree) TCP
   -- 5. Compose save_trial_load + BLTU taken
-  seqFrame STLf taken_clean
+  have STLf_taken_clean := cpsTripleWithin_seq_perm_same_cr
+    (fun h hp => by xperm_hyp hp) STLf taken_framed
   -- 6. Compose (save_trial_load + BLTU) + trial_call_path
-  seqFrame STLftaken_clean TCP
+  have full := cpsTripleWithin_seq_perm_same_cr
+    (fun h hp => by xperm_hyp hp) STLf_taken_clean TCPf
   -- 7. Final permutation — unfold the bundled post so xperm sees all atoms.
   unfold divKTrialCallFullPost
-  exact cpsTriple_weaken
+  exact cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq)
-    STLftaken_cleanTCP
+    full
 
 end EvmAsm.Evm64

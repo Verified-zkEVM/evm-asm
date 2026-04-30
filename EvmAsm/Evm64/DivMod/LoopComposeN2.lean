@@ -5,9 +5,9 @@
   per-iteration specs that build on the raw per-iteration specs in LoopIterN2.
 
   For n=2, the loop runs 3 iterations:
-  - j=2 (first): cpsTriple base+448 → base+448 (loop-back)
-  - j=1 (middle): cpsTriple base+448 → base+448 (loop-back)
-  - j=0 (final): cpsTriple base+448 → base+904 (loop exit)
+  - j=2 (first): cpsTripleWithin base+448 → base+448 (loop-back)
+  - j=1 (middle): cpsTripleWithin base+448 → base+448 (loop-back)
+  - j=0 (final): cpsTripleWithin base+448 → base+904 (loop exit)
 
   This file provides:
   1. Address linking lemmas for j=2 → j=1 transition
@@ -63,7 +63,7 @@ theorem u_j2_4072_eq_j1_4064 {sp : Word} :
 
 /-- Unified  j=2 max-path spec: handles both skip and addback internally.
     Produces loopIterPostN2Max which uses AddbackBeqPost/SkipPost. -/
-theorem divK_loop_body_n2_max_unified_j2_spec
+theorem divK_loop_body_n2_max_unified_j2_spec_within
     (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
     (base : Word)
@@ -71,7 +71,7 @@ theorem divK_loop_body_n2_max_unified_j2_spec
     (hcarry2_nz : isAddbackCarry2NzN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
     let uBase := sp + signExtend12 4056 - (2 : Word) <<< (3 : BitVec 6).toNat
     let qAddr := sp + signExtend12 4088 - (2 : Word) <<< (3 : BitVec 6).toNat
-    cpsTriple (base + loopBodyOff) (base + loopBodyOff) (sharedDivModCode base)
+    cpsTripleWithin 152 (base + loopBodyOff) (base + loopBodyOff) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (2 : Word)) **
        (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
        (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
@@ -89,13 +89,13 @@ theorem divK_loop_body_n2_max_unified_j2_spec
   · -- addback path: use _beq spec
     have hborrow : (if BitVec.ult uTop (mulsubN4_c3 (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3)
                     then (1 : Word) else 0) ≠ (0 : Word) := by rw [if_pos hb]; decide
-    have J2 := divK_loop_body_n2_max_addback_jgt0_beq_spec (2 : Word)
+    have J2 := divK_loop_body_n2_max_addback_jgt0_beq_spec_within (2 : Word)
       EvmAsm.Evm64.DivMod.AddrNorm.slt_jpos_2
       sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
       v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base hbltu
       hcarry2_nz
     intro_lets at J2
-    exact cpsTriple_weaken
+    exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
       (fun h hp => hp)
       (fun h hp => by
         rw [← loopIterPostN2Max_addback hb]; exact hp)
@@ -103,12 +103,12 @@ theorem divK_loop_body_n2_max_unified_j2_spec
   · -- skip path: use existing skip spec (unchanged)
     have hborrow : (if BitVec.ult uTop (mulsubN4_c3 (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3)
                     then (1 : Word) else 0) = (0 : Word) := if_neg hb
-    have J2 := divK_loop_body_n2_max_skip_jgt0_spec (2 : Word)
+    have J2 := divK_loop_body_n2_max_skip_jgt0_spec_within (2 : Word)
       EvmAsm.Evm64.DivMod.AddrNorm.slt_jpos_2
       sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
       v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base hbltu
     intro_lets at J2
-    exact cpsTriple_weaken
+    exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
       (fun h hp => hp)
       (fun h hp => by
         rw [← loopIterPostN2Max_skip hb]; exact hp)
@@ -116,7 +116,7 @@ theorem divK_loop_body_n2_max_unified_j2_spec
 
 /-- Unified  j=1 max-path spec: handles both skip and addback internally.
     Produces loopIterPostN2Max which uses AddbackBeqPost/SkipPost. -/
-theorem divK_loop_body_n2_max_unified_j1_spec
+theorem divK_loop_body_n2_max_unified_j1_spec_within
     (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
     (base : Word)
@@ -124,7 +124,7 @@ theorem divK_loop_body_n2_max_unified_j1_spec
     (hcarry2_nz : isAddbackCarry2NzN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
     let uBase := sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat
     let qAddr := sp + signExtend12 4088 - (1 : Word) <<< (3 : BitVec 6).toNat
-    cpsTriple (base + loopBodyOff) (base + loopBodyOff) (sharedDivModCode base)
+    cpsTripleWithin 152 (base + loopBodyOff) (base + loopBodyOff) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (1 : Word)) **
        (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
        (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
@@ -142,13 +142,13 @@ theorem divK_loop_body_n2_max_unified_j1_spec
   · -- addback path: use _beq spec
     have hborrow : (if BitVec.ult uTop (mulsubN4_c3 (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3)
                     then (1 : Word) else 0) ≠ (0 : Word) := by rw [if_pos hb]; decide
-    have J1 := divK_loop_body_n2_max_addback_jgt0_beq_spec (1 : Word)
+    have J1 := divK_loop_body_n2_max_addback_jgt0_beq_spec_within (1 : Word)
       EvmAsm.Evm64.DivMod.AddrNorm.slt_jpos_1
       sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
       v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base hbltu
       hcarry2_nz
     intro_lets at J1
-    exact cpsTriple_weaken
+    exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
       (fun h hp => hp)
       (fun h hp => by
         rw [← loopIterPostN2Max_addback hb]; exact hp)
@@ -156,21 +156,21 @@ theorem divK_loop_body_n2_max_unified_j1_spec
   · -- skip path: use existing skip spec (unchanged)
     have hborrow : (if BitVec.ult uTop (mulsubN4_c3 (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3)
                     then (1 : Word) else 0) = (0 : Word) := if_neg hb
-    have J1 := divK_loop_body_n2_max_skip_jgt0_spec (1 : Word)
+    have J1 := divK_loop_body_n2_max_skip_jgt0_spec_within (1 : Word)
       EvmAsm.Evm64.DivMod.AddrNorm.slt_jpos_1
       sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
       v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base
       hbltu
     intro_lets at J1
-    exact cpsTriple_weaken
+    exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
       (fun h hp => hp)
       (fun h hp => by
         rw [← loopIterPostN2Max_skip hb]; exact hp)
       (J1 hborrow)
 
 /-- Unified  j=0 max-path spec: handles both skip and addback internally.
-    Since j=0, the BGE loop-back is not taken, giving a cpsTriple to base+908. -/
-theorem divK_loop_body_n2_max_unified_j0_spec
+    Since j=0, the BGE loop-back is not taken, giving a cpsTripleWithin 152 to base+908. -/
+theorem divK_loop_body_n2_max_unified_j0_spec_within
     (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
     (base : Word)
@@ -178,7 +178,7 @@ theorem divK_loop_body_n2_max_unified_j0_spec
     (hcarry2_nz : isAddbackCarry2NzN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
     let uBase := sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat
     let qAddr := sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat
-    cpsTriple (base + loopBodyOff) (base + denormOff) (sharedDivModCode base)
+    cpsTripleWithin 152 (base + loopBodyOff) (base + denormOff) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (0 : Word)) **
        (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
        (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
@@ -196,12 +196,12 @@ theorem divK_loop_body_n2_max_unified_j0_spec
   · -- addback path: use _beq spec
     have hborrow : (if BitVec.ult uTop (mulsubN4_c3 (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3)
                     then (1 : Word) else 0) ≠ (0 : Word) := by rw [if_pos hb]; decide
-    have J0 := divK_loop_body_n2_max_addback_j0_beq_spec sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+    have J0 := divK_loop_body_n2_max_addback_j0_beq_spec_within sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
       v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base
       hbltu
       hcarry2_nz
     intro_lets at J0
-    exact cpsTriple_weaken
+    exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
       (fun h hp => hp)
       (fun h hp => by
         rw [← loopIterPostN2Max_addback hb]; exact hp)
@@ -209,11 +209,11 @@ theorem divK_loop_body_n2_max_unified_j0_spec
   · -- skip path: use existing skip spec (unchanged)
     have hborrow : (if BitVec.ult uTop (mulsubN4_c3 (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3)
                     then (1 : Word) else 0) = (0 : Word) := if_neg hb
-    have J0 := divK_loop_body_n2_max_skip_j0_spec sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+    have J0 := divK_loop_body_n2_max_skip_j0_spec_within sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
       v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base
       hbltu
     intro_lets at J0
-    exact cpsTriple_weaken
+    exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
       (fun h hp => hp)
       (fun h hp => by
         rw [← loopIterPostN2Max_skip hb]; exact hp)
@@ -225,7 +225,7 @@ theorem divK_loop_body_n2_max_unified_j0_spec
 -- ============================================================================
 
 /-- Unified  j=2 call-path spec: handles both skip and addback internally. -/
-theorem divK_loop_body_n2_call_unified_j2_spec
+theorem divK_loop_body_n2_call_unified_j2_spec_within
     (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
     (retMem dMem dloMem scratch_un0 : Word)
@@ -235,7 +235,7 @@ theorem divK_loop_body_n2_call_unified_j2_spec
     (hcarry2_nz : isAddbackCarry2NzN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
     let uBase := sp + signExtend12 4056 - (2 : Word) <<< (3 : BitVec 6).toNat
     let qAddr := sp + signExtend12 4088 - (2 : Word) <<< (3 : BitVec 6).toNat
-    cpsTriple (base + loopBodyOff) (base + loopBodyOff) (sharedDivModCode base)
+    cpsTripleWithin 202 (base + loopBodyOff) (base + loopBodyOff) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (2 : Word)) **
        (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
        (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
@@ -257,7 +257,7 @@ theorem divK_loop_body_n2_call_unified_j2_spec
   · -- addback path: use _beq spec
     have hborrow : isAddbackBorrowN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
       delta isAddbackBorrowN2Call; simp only []; rw [if_pos hb]; decide
-    have J2 := divK_loop_body_n2_call_addback_jgt0_beq_spec (2 : Word)
+    have J2 := divK_loop_body_n2_call_addback_jgt0_beq_spec_within (2 : Word)
       EvmAsm.Evm64.DivMod.AddrNorm.slt_jpos_2
       sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
       v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0 base
@@ -265,28 +265,28 @@ theorem divK_loop_body_n2_call_unified_j2_spec
       hbltu hborrow
       hcarry2_nz
     intro_lets at J2
-    exact cpsTriple_weaken
+    exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
       (fun h hp => hp)
       (fun h hp => by
         rw [← loopIterPostN2Call_addback hb]; exact hp)
       J2
   · -- skip path: use existing skip spec (unchanged)
     have hborrow : isSkipBorrowN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop := if_neg hb
-    have J2 := divK_loop_body_n2_call_skip_jgt0_spec (2 : Word)
+    have J2 := divK_loop_body_n2_call_skip_jgt0_spec_within (2 : Word)
       EvmAsm.Evm64.DivMod.AddrNorm.slt_jpos_2
       sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
       v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0 base
       halign
       hbltu hborrow
     intro_lets at J2
-    exact cpsTriple_weaken
+    exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
       (fun h hp => hp)
       (fun h hp => by
         rw [← loopIterPostN2Call_skip hb]; exact hp)
       J2
 
 /-- Unified  j=1 call-path spec: handles both skip and addback internally. -/
-theorem divK_loop_body_n2_call_unified_j1_spec
+theorem divK_loop_body_n2_call_unified_j1_spec_within
     (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
     (retMem dMem dloMem scratch_un0 : Word)
@@ -296,7 +296,7 @@ theorem divK_loop_body_n2_call_unified_j1_spec
     (hcarry2_nz : isAddbackCarry2NzN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
     let uBase := sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat
     let qAddr := sp + signExtend12 4088 - (1 : Word) <<< (3 : BitVec 6).toNat
-    cpsTriple (base + loopBodyOff) (base + loopBodyOff) (sharedDivModCode base)
+    cpsTripleWithin 202 (base + loopBodyOff) (base + loopBodyOff) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (1 : Word)) **
        (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
        (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
@@ -318,7 +318,7 @@ theorem divK_loop_body_n2_call_unified_j1_spec
   · -- addback path: use _beq spec
     have hborrow : isAddbackBorrowN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
       delta isAddbackBorrowN2Call; simp only []; rw [if_pos hb]; decide
-    have J1 := divK_loop_body_n2_call_addback_jgt0_beq_spec (1 : Word)
+    have J1 := divK_loop_body_n2_call_addback_jgt0_beq_spec_within (1 : Word)
       EvmAsm.Evm64.DivMod.AddrNorm.slt_jpos_1
       sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
       v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0 base
@@ -326,29 +326,29 @@ theorem divK_loop_body_n2_call_unified_j1_spec
       hbltu hborrow
       hcarry2_nz
     intro_lets at J1
-    exact cpsTriple_weaken
+    exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
       (fun h hp => hp)
       (fun h hp => by
         rw [← loopIterPostN2Call_addback hb]; exact hp)
       J1
   · -- skip path: use existing skip spec (unchanged)
     have hborrow : isSkipBorrowN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop := if_neg hb
-    have J1 := divK_loop_body_n2_call_skip_jgt0_spec (1 : Word)
+    have J1 := divK_loop_body_n2_call_skip_jgt0_spec_within (1 : Word)
       EvmAsm.Evm64.DivMod.AddrNorm.slt_jpos_1
       sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
       v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0 base
       halign
       hbltu hborrow
     intro_lets at J1
-    exact cpsTriple_weaken
+    exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
       (fun h hp => hp)
       (fun h hp => by
         rw [← loopIterPostN2Call_skip hb]; exact hp)
       J1
 
 /-- Unified  j=0 call-path spec: handles both skip and addback internally.
-    Since j=0, the BGE loop-back is not taken, giving a cpsTriple to base+908. -/
-theorem divK_loop_body_n2_call_unified_j0_spec
+    Since j=0, the BGE loop-back is not taken, giving a cpsTripleWithin 202 to base+908. -/
+theorem divK_loop_body_n2_call_unified_j0_spec_within
     (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
     (retMem dMem dloMem scratch_un0 : Word)
@@ -358,7 +358,7 @@ theorem divK_loop_body_n2_call_unified_j0_spec
     (hcarry2_nz : isAddbackCarry2NzN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
     let uBase := sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat
     let qAddr := sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat
-    cpsTriple (base + loopBodyOff) (base + denormOff) (sharedDivModCode base)
+    cpsTripleWithin 202 (base + loopBodyOff) (base + denormOff) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (0 : Word)) **
        (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
        (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
@@ -380,24 +380,24 @@ theorem divK_loop_body_n2_call_unified_j0_spec
   · -- addback path: use _beq spec
     have hborrow : isAddbackBorrowN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
       delta isAddbackBorrowN2Call; simp only []; rw [if_pos hb]; decide
-    have J0 := divK_loop_body_n2_call_addback_j0_beq_spec sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+    have J0 := divK_loop_body_n2_call_addback_j0_beq_spec_within sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
       v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0 base
       halign hbltu hborrow
       hcarry2_nz
     intro_lets at J0
-    exact cpsTriple_weaken
+    exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
       (fun h hp => hp)
       (fun h hp => by
         rw [← loopIterPostN2Call_addback hb]; exact hp)
       J0
   · -- skip path: use existing skip spec (unchanged)
     have hborrow : isSkipBorrowN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop := if_neg hb
-    have J0 := divK_loop_body_n2_call_skip_j0_spec sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+    have J0 := divK_loop_body_n2_call_skip_j0_spec_within sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
       v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0 base
       halign
       hbltu hborrow
     intro_lets at J0
-    exact cpsTriple_weaken
+    exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
       (fun h hp => hp)
       (fun h hp => by
         rw [← loopIterPostN2Call_skip hb]; exact hp)
@@ -408,14 +408,14 @@ theorem divK_loop_body_n2_call_unified_j0_spec
 -- j=1 max path, j=0 max path. Scratch cells in the frame throughout.
 -- ============================================================================
 
-theorem divK_loop_n2_max_max_spec
+theorem divK_loop_n2_max_max_spec_within
     (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old : Word)
     (base : Word)
     (hbltu_1 : ¬BitVec.ult u2 v1)
     (hbltu_0 : ¬BitVec.ult (iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1 v1)
     (hcarry2 : Carry2NzAll v0 v1 v2 v3) :
-    cpsTriple (base + loopBodyOff) (base + denormOff) (sharedDivModCode base)
+    cpsTripleWithin 304 (base + loopBodyOff) (base + denormOff) (sharedDivModCode base)
       (loopN2Iter10Pre sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
         v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old)
       (loopN2MaxPost sp v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig) := by
@@ -425,17 +425,17 @@ theorem divK_loop_n2_max_max_spec
   let q_addr_1 := sp + signExtend12 4088 - (1 : Word) <<< (3 : BitVec 6).toNat
   let q_addr_0 := sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat
   -- 1. j=1  iteration spec
-  have J1 := divK_loop_body_n2_max_unified_j1_spec sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+  have J1 := divK_loop_body_n2_max_unified_j1_spec_within sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
     v0 v1 v2 v3 u0 u1 u2 u3 uTop q1Old base
     hbltu_1
     (hcarry2 (signExtend12 4095) u0 u1 u2 u3 uTop : isAddbackCarry2NzN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop)
   intro_lets at J1
   -- Frame j=1 with u0Orig and q0Old
-  have J1f := cpsTriple_frameR
+  have J1f := cpsTripleWithin_frameR
     (((u_base_0 + signExtend12 0) ↦ₘ u0Orig) ** (q_addr_0 ↦ₘ q0Old))
     (by pcFree) J1
   -- 3. j=0  iteration spec (inputs from j=1 via iterN2Max)
-  have J0 := divK_loop_body_n2_max_unified_j0_spec sp (1 : Word)
+  have J0 := divK_loop_body_n2_max_unified_j0_spec_within sp (1 : Word)
     ((1 : Word) <<< (3 : BitVec 6).toNat) u_base_1 q_addr_1
     ((mulsubN4 (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2)
     ((iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).1)
@@ -456,12 +456,12 @@ theorem divK_loop_n2_max_max_spec
       (iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.1)
   intro_lets at J0
   -- Frame j=0 with j=1's carried atoms (u4, q[1])
-  have J0f := cpsTriple_frameR
+  have J0f := cpsTripleWithin_frameR
     (((u_base_1 + signExtend12 4064) ↦ₘ (iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.2) **
      (q_addr_1 ↦ₘ (iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).1))
     (by pcFree) J0
   -- 4. Compose: rewrite j=1  postcondition → j=0 precondition
-  have full := cpsTriple_seq_perm_same_cr
+  have full := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by
       delta loopIterPostN2Max loopExitPostN2 loopExitPost at hp
       simp only [] at hp ⊢
@@ -472,7 +472,7 @@ theorem divK_loop_n2_max_max_spec
       xperm_hyp hp)
     J1f J0f
   -- 5. Clean up postcondition
-  exact cpsTriple_weaken
+  exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hp => by
       delta loopN2MaxPost
@@ -483,7 +483,7 @@ theorem divK_loop_n2_max_max_spec
 -- Double-addback () two-iteration call×call composition for n=2
 -- ============================================================================
 
-theorem divK_loop_n2_call_call_spec
+theorem divK_loop_n2_call_call_spec_within
     (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old : Word)
     (retMem dMem dloMem scratch_un0 : Word)
@@ -492,7 +492,7 @@ theorem divK_loop_n2_call_call_spec
     (hbltu_1 : BitVec.ult u2 v1)
     (hbltu_0 : BitVec.ult (iterN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1 v1)
     (hcarry2 : Carry2NzAll v0 v1 v2 v3) :
-    cpsTriple (base + loopBodyOff) (base + denormOff) (sharedDivModCode base)
+    cpsTripleWithin 404 (base + loopBodyOff) (base + denormOff) (sharedDivModCode base)
       (loopN2Iter10PreWithScratch sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
         v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
         retMem dMem dloMem scratch_un0)
@@ -503,16 +503,16 @@ theorem divK_loop_n2_call_call_spec
   let q_addr_1 := sp + signExtend12 4088 - (1 : Word) <<< (3 : BitVec 6).toNat
   let q_addr_0 := sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat
   -- 1. j=1 call  iteration spec
-  have J1 := divK_loop_body_n2_call_unified_j1_spec sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+  have J1 := divK_loop_body_n2_call_unified_j1_spec_within sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
     v0 v1 v2 v3 u0 u1 u2 u3 uTop q1Old retMem dMem dloMem scratch_un0 base halign hbltu_1
     (hcarry2 (div128Quot u2 u1 v1) u0 u1 u2 u3 uTop : isAddbackCarry2NzN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop)
   intro_lets at J1
   -- Frame j=1 with u0Orig and q0Old
-  have J1f := cpsTriple_frameR
+  have J1f := cpsTripleWithin_frameR
     (((u_base_0 + signExtend12 0) ↦ₘ u0Orig) ** (q_addr_0 ↦ₘ q0Old))
     (by pcFree) J1
   -- 3. j=0 call  iteration spec (inputs from j=1 via iterN2Call)
-  have J0 := divK_loop_body_n2_call_unified_j0_spec sp (1 : Word)
+  have J0 := divK_loop_body_n2_call_unified_j0_spec_within sp (1 : Word)
     ((1 : Word) <<< (3 : BitVec 6).toNat) u_base_1 q_addr_1
     ((mulsubN4 (div128Quot u2 u1 v1) v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2)
     ((iterN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop).1)
@@ -537,12 +537,12 @@ theorem divK_loop_n2_call_call_spec
       (iterN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.1)
   intro_lets at J0
   -- Frame j=0 with j=1's carried atoms (u4, q[1])
-  have J0f := cpsTriple_frameR
+  have J0f := cpsTripleWithin_frameR
     (((u_base_1 + signExtend12 4064) ↦ₘ (iterN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.2) **
      (q_addr_1 ↦ₘ (iterN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop).1))
     (by pcFree) J0
   -- 4. Compose: rewrite j=1  postcondition → j=0 precondition
-  have full := cpsTriple_seq_perm_same_cr
+  have full := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by
       delta loopIterPostN2Call loopExitPostN2 loopExitPost at hp
       simp only [] at hp ⊢
@@ -553,7 +553,7 @@ theorem divK_loop_n2_call_call_spec
       xperm_hyp hp)
     J1f J0f
   -- 5. Clean up postcondition
-  exact cpsTriple_weaken
+  exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hp => by
       delta loopN2CallCallPost
@@ -566,7 +566,7 @@ theorem divK_loop_n2_call_call_spec
 -- consumed/written by j=0 call.
 -- ============================================================================
 
-theorem divK_loop_n2_max_call_spec
+theorem divK_loop_n2_max_call_spec_within
     (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old : Word)
     (retMem dMem dloMem scratch_un0 : Word)
@@ -576,7 +576,7 @@ theorem divK_loop_n2_max_call_spec
     (hbltu_1 : ¬BitVec.ult u2 v1)
     (hbltu_0 : BitVec.ult (iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1 v1)
     (hcarry2 : Carry2NzAll v0 v1 v2 v3) :
-    cpsTriple (base + loopBodyOff) (base + denormOff) (sharedDivModCode base)
+    cpsTripleWithin 354 (base + loopBodyOff) (base + denormOff) (sharedDivModCode base)
       (loopN2Iter10PreWithScratch sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
         v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
         retMem dMem dloMem scratch_un0)
@@ -587,19 +587,19 @@ theorem divK_loop_n2_max_call_spec
   let q_addr_1 := sp + signExtend12 4088 - (1 : Word) <<< (3 : BitVec 6).toNat
   let q_addr_0 := sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat
   -- 1. j=1 max  spec (no scratch cells)
-  have J1 := divK_loop_body_n2_max_unified_j1_spec sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+  have J1 := divK_loop_body_n2_max_unified_j1_spec_within sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
     v0 v1 v2 v3 u0 u1 u2 u3 uTop q1Old base
     hbltu_1
     (hcarry2 (signExtend12 4095) u0 u1 u2 u3 uTop : isAddbackCarry2NzN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop)
   intro_lets at J1
   -- Frame j=1 with u0Orig, q0Old, AND scratch cells (max doesn't touch scratch)
-  have J1f := cpsTriple_frameR
+  have J1f := cpsTripleWithin_frameR
     (((u_base_0 + signExtend12 0) ↦ₘ u0Orig) ** (q_addr_0 ↦ₘ q0Old) **
      (sp + signExtend12 3968 ↦ₘ retMem) ** (sp + signExtend12 3960 ↦ₘ dMem) **
      (sp + signExtend12 3952 ↦ₘ dloMem) ** (sp + signExtend12 3944 ↦ₘ scratch_un0))
     (by pcFree) J1
   -- 3. j=0 call  spec (inputs from j=1 via iterN2Max, scratch from frame)
-  have J0 := divK_loop_body_n2_call_unified_j0_spec sp (1 : Word)
+  have J0 := divK_loop_body_n2_call_unified_j0_spec_within sp (1 : Word)
     ((1 : Word) <<< (3 : BitVec 6).toNat) u_base_1 q_addr_1
     ((mulsubN4 (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2)
     ((iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).1)
@@ -625,12 +625,12 @@ theorem divK_loop_n2_max_call_spec
       (iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.1)
   intro_lets at J0
   -- Frame j=0 with j=1's carried atoms (u4, q[1])
-  have J0f := cpsTriple_frameR
+  have J0f := cpsTripleWithin_frameR
     (((u_base_1 + signExtend12 4064) ↦ₘ (iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.2) **
      (q_addr_1 ↦ₘ (iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).1))
     (by pcFree) J0
   -- 4. Compose: rewrite j=1 max  postcondition → j=0 precondition
-  have full := cpsTriple_seq_perm_same_cr
+  have full := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by
       delta loopIterPostN2Max loopExitPostN2 loopExitPost at hp
       simp only [] at hp ⊢
@@ -641,7 +641,7 @@ theorem divK_loop_n2_max_call_spec
       xperm_hyp hp)
     J1f J0f
   -- 5. Clean up postcondition
-  exact cpsTriple_weaken
+  exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hp => by
       delta loopN2MaxCallPost
@@ -654,7 +654,7 @@ theorem divK_loop_n2_max_call_spec
 -- through as frame atoms for j=0 max.
 -- ============================================================================
 
-theorem divK_loop_n2_call_max_spec
+theorem divK_loop_n2_call_max_spec_within
     (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old : Word)
     (retMem dMem dloMem scratch_un0 : Word)
@@ -664,7 +664,7 @@ theorem divK_loop_n2_call_max_spec
     (hbltu_1 : BitVec.ult u2 v1)
     (hbltu_0 : ¬BitVec.ult (iterN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1 v1)
     (hcarry2 : Carry2NzAll v0 v1 v2 v3) :
-    cpsTriple (base + loopBodyOff) (base + denormOff) (sharedDivModCode base)
+    cpsTripleWithin 354 (base + loopBodyOff) (base + denormOff) (sharedDivModCode base)
       (loopN2Iter10PreWithScratch sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
         v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
         retMem dMem dloMem scratch_un0)
@@ -675,18 +675,18 @@ theorem divK_loop_n2_call_max_spec
   let q_addr_1 := sp + signExtend12 4088 - (1 : Word) <<< (3 : BitVec 6).toNat
   let q_addr_0 := sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat
   -- 1. j=1 call  spec (with scratch cells)
-  have J1 := divK_loop_body_n2_call_unified_j1_spec sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+  have J1 := divK_loop_body_n2_call_unified_j1_spec_within sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
     v0 v1 v2 v3 u0 u1 u2 u3 uTop q1Old retMem dMem dloMem scratch_un0 base
     halign
     hbltu_1
     (hcarry2 (div128Quot u2 u1 v1) u0 u1 u2 u3 uTop : isAddbackCarry2NzN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop)
   intro_lets at J1
   -- Frame j=1 with u0Orig and q0Old
-  have J1f := cpsTriple_frameR
+  have J1f := cpsTripleWithin_frameR
     (((u_base_0 + signExtend12 0) ↦ₘ u0Orig) ** (q_addr_0 ↦ₘ q0Old))
     (by pcFree) J1
   -- 3. j=0 max  spec (inputs from j=1 via iterN2Call)
-  have J0 := divK_loop_body_n2_max_unified_j0_spec sp (1 : Word)
+  have J0 := divK_loop_body_n2_max_unified_j0_spec_within sp (1 : Word)
     ((1 : Word) <<< (3 : BitVec 6).toNat) u_base_1 q_addr_1
     ((mulsubN4 (div128Quot u2 u1 v1) v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2)
     ((iterN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop).1)
@@ -707,7 +707,7 @@ theorem divK_loop_n2_call_max_spec
       (iterN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.1)
   intro_lets at J0
   -- Frame j=0 with j=1's carried atoms (u4, q[1]) AND j=1's scratch cells
-  have J0f := cpsTriple_frameR
+  have J0f := cpsTripleWithin_frameR
     (((u_base_1 + signExtend12 4064) ↦ₘ (iterN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.2) **
      (q_addr_1 ↦ₘ (iterN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop).1) **
      (sp + signExtend12 3968 ↦ₘ (base + 516)) **
@@ -716,7 +716,7 @@ theorem divK_loop_n2_call_max_spec
      (sp + signExtend12 3944 ↦ₘ div128Un0 u1))
     (by pcFree) J0
   -- 4. Compose: rewrite j=1 call  postcondition → j=0 precondition
-  have full := cpsTriple_seq_perm_same_cr
+  have full := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by
       delta loopIterPostN2Call loopExitPostN2 loopExitPost at hp
       simp only [] at hp ⊢
@@ -727,7 +727,7 @@ theorem divK_loop_n2_call_max_spec
       xperm_hyp hp)
     J1f J0f
   -- 5. Clean up postcondition
-  exact cpsTriple_weaken
+  exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hp => by
       delta loopN2CallMaxPost
@@ -748,7 +748,7 @@ theorem divK_loop_n2_call_max_spec
 /-- Unified iter spec for n=2: one theorem covering all 12 original path combinations.
     Dispatches directly to per-j `_unified_j{k}_spec` specs via `fin_cases j` after
     unfolding `loopBodyPre` / `loopBodyPreWithScratch` / `loopIterPostN2`. -/
-theorem divK_loop_body_n2_iter_spec (j : Fin 3) (bltu : Bool)
+theorem divK_loop_body_n2_iter_spec_within (j : Fin 3) (bltu : Bool)
     (sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
      v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old : Word)
     (ret_mem d_mem dlo_mem scratch_un0 : Word)
@@ -759,7 +759,7 @@ theorem divK_loop_body_n2_iter_spec (j : Fin 3) (bltu : Bool)
     (hcarry : if bltu then isAddbackCarry2NzN2Call v0 v1 v2 v3 u0 u1 u2 u3 u_top
               else isAddbackCarry2NzN2Max v0 v1 v2 v3 u0 u1 u2 u3 u_top) :
     let exit_addr := if j.val = 0 then base + denormOff else base + loopBodyOff
-    cpsTriple (base + loopBodyOff) exit_addr (sharedDivModCode base)
+    cpsTripleWithin (if bltu then 202 else 152) (base + loopBodyOff) exit_addr (sharedDivModCode base)
       (match bltu with
        | true => loopBodyPreWithScratch (2 : Word) sp (j.val : Word) j_old
                    v5_old v6_old v7_old v10_old v11_old v2_old
@@ -775,22 +775,22 @@ theorem divK_loop_body_n2_iter_spec (j : Fin 3) (bltu : Bool)
     delta loopBodyPre
     simp only [loopIterPostN2, sepConj_emp_right']
     fin_cases j
-    · exact divK_loop_body_n2_max_unified_j0_spec sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
+    · exact divK_loop_body_n2_max_unified_j0_spec_within sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
         v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old base hbltu hcarry
-    · exact divK_loop_body_n2_max_unified_j1_spec sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
+    · exact divK_loop_body_n2_max_unified_j1_spec_within sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
         v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old base hbltu hcarry
-    · exact divK_loop_body_n2_max_unified_j2_spec sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
+    · exact divK_loop_body_n2_max_unified_j2_spec_within sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
         v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old base hbltu hcarry
   · -- true (call)
     rw [if_pos rfl] at halign hbltu hcarry
     delta loopBodyPreWithScratch loopBodyPre
     simp only [loopIterPostN2, sepConj_assoc']
     fin_cases j
-    · exact divK_loop_body_n2_call_unified_j0_spec sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
+    · exact divK_loop_body_n2_call_unified_j0_spec_within sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
         v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old ret_mem d_mem dlo_mem scratch_un0 base halign hbltu hcarry
-    · exact divK_loop_body_n2_call_unified_j1_spec sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
+    · exact divK_loop_body_n2_call_unified_j1_spec_within sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
         v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old ret_mem d_mem dlo_mem scratch_un0 base halign hbltu hcarry
-    · exact divK_loop_body_n2_call_unified_j2_spec sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
+    · exact divK_loop_body_n2_call_unified_j2_spec_within sp j_old v5_old v6_old v7_old v10_old v11_old v2_old
         v0 v1 v2 v3 u0 u1 u2 u3 u_top q_old ret_mem d_mem dlo_mem scratch_un0 base halign hbltu hcarry
 
 end EvmAsm.Evm64

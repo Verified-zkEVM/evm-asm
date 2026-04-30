@@ -22,9 +22,9 @@ open EvmAsm.Rv64
 -- `regIs_to_regOwn` lives in `Rv64/SepLogic.lean` (shared).
 
 /-- Helper: lift a no-change raw-limb spec to evmWordIs form (with x6 framing). -/
-private theorem signext_nochange_lift (sp base : Word)
-    (b x : EvmWord) (r5 r6 r10 : Word)
-    (hmain : cpsTriple base (base + 192) (signextCode base)
+private theorem signext_nochange_lift_within (sp base : Word)
+    (b x : EvmWord) (r5 r6 r10 : Word) {nSteps : Nat}
+    (hmain : cpsTripleWithin nSteps base (base + 192) (signextCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ r5) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ r10) **
        (sp ↦ₘ b.getLimbN 0) ** ((sp + 8) ↦ₘ b.getLimbN 1) **
        ((sp + 16) ↦ₘ b.getLimbN 2) ** ((sp + 24) ↦ₘ b.getLimbN 3) **
@@ -36,15 +36,14 @@ private theorem signext_nochange_lift (sp base : Word)
        ((sp + 32) ↦ₘ x.getLimbN 0) ** ((sp + 40) ↦ₘ x.getLimbN 1) **
        ((sp + 48) ↦ₘ x.getLimbN 2) ** ((sp + 56) ↦ₘ x.getLimbN 3)))
     (result : EvmWord) (hresult : result = x) :
-    cpsTriple base (base + 192) (signextCode base)
+    cpsTripleWithin nSteps base (base + 192) (signextCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ r5) ** (.x6 ↦ᵣ r6) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ r10) **
        evmWordIs sp b ** evmWordIs (sp + 32) x)
       ((.x12 ↦ᵣ (sp + 32)) ** (regOwn .x5) ** (regOwn .x6) ** (.x0 ↦ᵣ (0 : Word)) ** (regOwn .x10) **
        evmWordIs sp b ** evmWordIs (sp + 32) result) := by
   subst hresult
-  -- Frame x6 through the no-change spec, then weaken to regOwn
-  have hmain_f := cpsTriple_frameR (.x6 ↦ᵣ r6) (by pcFree) hmain
-  exact cpsTriple_weaken
+  have hmain_f := cpsTripleWithin_frameR (.x6 ↦ᵣ r6) (by pcFree) hmain
+  exact cpsTripleWithin_weaken
     (fun h hp => by
       simp only [evmWordIs] at hp
       simp only [spAddr32_8, spAddr32_16, spAddr32_24] at hp
@@ -62,10 +61,10 @@ private theorem signext_nochange_lift (sp base : Word)
 
 /-- **Main SIGNEXTEND theorem**: `evm_signextend` computes
     `EvmWord.signextend b x`. -/
-theorem evm_signextend_stack_spec (sp base : Word)
+theorem evm_signextend_stack_spec_within (sp base : Word)
     (b x : EvmWord) (r5 r6 r10 : Word) :
     let result := EvmWord.signextend b x
-    cpsTriple base (base + 192) (signextCode base)
+    cpsTripleWithin 28 base (base + 192) (signextCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ r5) ** (.x6 ↦ᵣ r6) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ r10) **
        evmWordIs sp b ** evmWordIs (sp + 32) x)
       ((.x12 ↦ᵣ (sp + 32)) ** (regOwn .x5) ** (regOwn .x6) ** (.x0 ↦ᵣ (0 : Word)) ** (regOwn .x10) **
@@ -75,8 +74,8 @@ theorem evm_signextend_stack_spec (sp base : Word)
   · -- b >= 31: result = x (no change)
     have hresult : result = x := by simp [result, EvmWord.signextend_ge31 b x hge]
     by_cases hhigh : b.getLimbN 1 ||| b.getLimbN 2 ||| b.getLimbN 3 ≠ 0
-    · exact signext_nochange_lift sp base b x r5 r6 r10
-        (signext_nochange_high_spec sp base r5 r10 hhigh)
+    · exact cpsTripleWithin_mono_nSteps (by omega) <| signext_nochange_lift_within sp base b x r5 r6 r10
+        (signext_nochange_high_spec_within sp base r5 r10 hhigh)
         result hresult
     · have hhigh' : b.getLimbN 1 ||| b.getLimbN 2 ||| b.getLimbN 3 = 0 :=
         Classical.byContradiction (fun h => hhigh h)
@@ -89,8 +88,8 @@ theorem evm_signextend_stack_spec (sp base : Word)
         cases h : decide ((b.getLimbN 0).toNat < 31)
         · rfl
         · simp at h; omega
-      exact signext_nochange_lift sp base b x r5 r6 r10
-        (signext_nochange_geq31_spec sp base r5 r10 hhigh' hlarge)
+      exact cpsTripleWithin_mono_nSteps (by omega) <| signext_nochange_lift_within sp base b x r5 r6 r10
+        (signext_nochange_geq31_spec_within sp base r5 r10 hhigh' hlarge)
         result hresult
   · -- b < 31: body path
     push Not at hge
@@ -105,8 +104,8 @@ theorem evm_signextend_stack_spec (sp base : Word)
       · simp at h; omega
       · rfl
     -- Use the body path theorem from Compose, lifting to evmWordIs
-    have h_raw := signext_body_spec sp base b x r5 r6 r10 hhigh hsmall
-    exact cpsTriple_weaken
+    have h_raw := signext_body_spec_within sp base b x r5 r6 r10 hhigh hsmall
+    exact cpsTripleWithin_weaken
       (fun h hp => by
         simp only [evmWordIs] at hp
         simp only [spAddr32_8, spAddr32_16, spAddr32_24] at hp
@@ -120,5 +119,6 @@ theorem evm_signextend_stack_spec (sp base : Word)
                    EvmWord.getLimb_as_getLimbN_2, EvmWord.getLimb_as_getLimbN_3] at hq
         xperm_hyp hq)
       h_raw
+
 
 end EvmAsm.Evm64

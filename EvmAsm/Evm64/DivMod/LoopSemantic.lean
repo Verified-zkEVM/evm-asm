@@ -6,7 +6,7 @@
 
   These theorems are pure Nat-level facts about the Word computations,
   independent of separation logic. They form the link between the
-  loop body cpsTriple specs and the final EvmWord.div/mod correctness.
+  loop body bounded CPS specs and the final EvmWord.div/mod correctness.
 -/
 
 -- `LoopDefs → LoopDefs.Post → LoopDefs.Iter → Compose.Base → DivMod.AddrNorm`.

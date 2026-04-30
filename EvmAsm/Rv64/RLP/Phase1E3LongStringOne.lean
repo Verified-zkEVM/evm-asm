@@ -41,7 +41,7 @@ open EvmAsm.Rv64.Tactics
 
     This is the first executable RISC-V bridge from Phase 1 classification to
     a usable zero-copy `(payload_ptr, payload_len)` pair for long strings. -/
-theorem rlp_phase1_e3_0xB8_one_byte_length_spec
+theorem rlp_phase1_e3_0xB8_one_byte_length_spec_within
     (v10 v11Old v12Old v13 v14Old wordVal dwordAddr : Word)
     (off1 off2 off3 back : BitVec 13)
     (base e3_target : Word)
@@ -62,7 +62,7 @@ theorem rlp_phase1_e3_0xB8_one_byte_length_spec
     let lenByte :=
       (extractByte wordVal
         (byteOffset (v13 + signExtend12 (1 : BitVec 12)))).zeroExtend 64
-    cpsTriple base ((e3_target + 12) + 24)
+    cpsTripleWithin 15 base ((e3_target + 12) + 24)
       (((((rlp_phase1_step_code 0x80 off1 base).union
           ((rlp_phase1_step_code 0xB8 off2 (base + 8)).union
             (rlp_phase1_step_code 0xC0 off3 (base + 16)))).union
@@ -86,14 +86,14 @@ theorem rlp_phase1_e3_0xB8_one_byte_length_spec
   have hv5_hi :
       BitVec.ult (0xB8 : Word) ((0 : Word) + signExtend12 (0xC0 : BitVec 12)) := by
     decide
-  have prefixSpec := rlp_phase1_e3_full_path_spec'
+  have prefixSpec := rlp_phase1_e3_full_path_spec'_within
     (0xB8 : Word) v10 v11Old v13 v14Old off1 off2 off3 base e3_target
     htarget hv5_lo hv5_mid hv5_hi hd_phase3
   have h_lenLen :
       (0xB8 : Word) + signExtend12 (-(0xB7 : BitVec 12)) = (1 : Word) := by
     decide
   rw [h_lenLen] at prefixSpec
-  have prefix' : cpsTriple base (e3_target + 12)
+  have prefix' : cpsTripleWithin 9 base (e3_target + 12)
       (((rlp_phase1_step_code 0x80 off1 base).union
          ((rlp_phase1_step_code 0xB8 off2 (base + 8)).union
            (rlp_phase1_step_code 0xC0 off3 (base + 16)))).union
@@ -106,19 +106,19 @@ theorem rlp_phase1_e3_0xB8_one_byte_length_spec
         (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ v12Old) **
         (.x13 ↦ᵣ (v13 + signExtend12 (1 : BitVec 12))) **
         (.x14 ↦ᵣ (1 : Word)) ** (dwordAddr ↦ₘ wordVal)) :=
-    cpsTriple_weaken
+    cpsTripleWithin_weaken
       (fun _ hp => by xperm_hyp hp)
       (fun _ hp => by xperm_hyp hp)
-      (cpsTriple_frameR
+      (cpsTripleWithin_frameR
         ((.x12 ↦ᵣ v12Old) ** (dwordAddr ↦ₘ wordVal)) (by pcFree) prefixSpec)
-  have loop := rlp_phase2_long_loop_one_byte_spec
+  have loop := rlp_phase2_long_loop_one_byte_spec_within
     (0 : Word) (v13 + signExtend12 (1 : BitVec 12)) v12Old wordVal dwordAddr
     (e3_target + 12) back halign hvalid
   simp only [rlp_phase2_long_loop_one_byte_post_unfold] at loop
   have h_zero_len : (((0 : Word) <<< 8) + lenByte) = lenByte := by
     simp
   rw [h_zero_len] at loop
-  have loop' : cpsTriple (e3_target + 12) ((e3_target + 12) + 24)
+  have loop' : cpsTripleWithin 6 (e3_target + 12) ((e3_target + 12) + 24)
       (CodeReq.ofProg (e3_target + 12) (rlp_phase2_long_loop_body_prog back))
       ((.x0 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ (0xB8 : Word)) **
         (.x10 ↦ᵣ ((0 : Word) + signExtend12 (0xC0 : BitVec 12))) **
@@ -130,16 +130,16 @@ theorem rlp_phase1_e3_0xB8_one_byte_length_spec
         (.x11 ↦ᵣ lenByte) ** (.x12 ↦ᵣ lenByte) **
         (.x13 ↦ᵣ ((v13 + signExtend12 (1 : BitVec 12)) + 1)) **
         (.x14 ↦ᵣ (0 : Word)) ** (dwordAddr ↦ₘ wordVal)) := by
-    have framed := cpsTriple_frameR
+    have framed := cpsTripleWithin_frameR
       ((.x5 ↦ᵣ (0xB8 : Word)) **
        (.x10 ↦ᵣ ((0 : Word) + signExtend12 (0xC0 : BitVec 12))))
       (by pcFree) loop
-    exact cpsTriple_weaken
+    exact cpsTripleWithin_weaken
       (fun _ hp => by xperm_hyp hp)
       (fun _ hp => by
         unfold lenByte
         xperm_hyp hp)
       framed
-  exact cpsTriple_seq hd_loop prefix' loop'
+  exact cpsTripleWithin_seq hd_loop prefix' loop'
 
 end EvmAsm.Rv64.RLP

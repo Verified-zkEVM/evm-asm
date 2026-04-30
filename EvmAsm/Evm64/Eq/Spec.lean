@@ -26,7 +26,7 @@ abbrev evm_eq_code (base : Word) : CodeReq :=
     Pops 2 stack words (A at sp, B at sp+32),
     writes result to sp+32..sp+56, advances sp by 32.
     21 instructions = 84 bytes total. -/
-theorem evm_eq_spec (sp : Word) (base : Word)
+theorem evm_eq_spec_within (sp : Word) (base : Word)
     (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
     (v7 v6 v5 v11 : Word) :
     -- XOR-OR accumulation chain
@@ -36,7 +36,7 @@ theorem evm_eq_spec (sp : Word) (base : Word)
     let acc3 := acc2 ||| (a3 ^^^ b3)
     let eqResult := if BitVec.ult acc3 (1 : Word) then (1 : Word) else 0
     let code := evm_eq_code base
-    cpsTriple base (base + 84) code
+    cpsTripleWithin 21 base (base + 84) code
       (-- Registers + memory
        (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) ** (.x5 ↦ᵣ v5) ** (.x11 ↦ᵣ v11) **
        (sp ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
@@ -48,32 +48,33 @@ theorem evm_eq_spec (sp : Word) (base : Word)
        ((sp + 32) ↦ₘ eqResult) ** ((sp + 40) ↦ₘ 0) ** ((sp + 48) ↦ₘ 0) ** ((sp + 56) ↦ₘ 0)) := by
   intro acc0 acc1 acc2 acc3 eqResult
   -- Per-limb EQ specs
-  have L0 := eq_limb0_spec 0 32 sp a0 b0 v7 v6 base
-  have L1 := eq_or_limb_spec 8 40 sp a1 b1 b0 v5 (a0 ^^^ b0) (base + 12)
-  have L2 := eq_or_limb_spec 16 48 sp a2 b2 (a1 ^^^ b1) b1
+  have L0 := eq_limb0_spec_within 0 32 sp a0 b0 v7 v6 base
+  have L1 := eq_or_limb_spec_within 8 40 sp a1 b1 b0 v5 (a0 ^^^ b0) (base + 12)
+  have L2 := eq_or_limb_spec_within 16 48 sp a2 b2 (a1 ^^^ b1) b1
     ((a0 ^^^ b0) ||| (a1 ^^^ b1)) (base + 28)
-  have L3 := eq_or_limb_spec 24 56 sp a3 b3 (a2 ^^^ b2) b2
+  have L3 := eq_or_limb_spec_within 24 56 sp a3 b3 (a2 ^^^ b2) b2
     ((a0 ^^^ b0) ||| (a1 ^^^ b1) ||| (a2 ^^^ b2)) (base + 44)
   -- Store phase: SLTIU + ADDI + SD eqResult + 3×SD 0
-  have T := sltiu_spec_gen_same .x7
+  have T := sltiu_spec_gen_same_within .x7
     ((a0 ^^^ b0) ||| (a1 ^^^ b1) ||| (a2 ^^^ b2) ||| (a3 ^^^ b3)) 1 (base + 60) (by nofun)
   simp only [signExtend12_1] at T
-  have A := addi_spec_gen_same .x12 sp 32 (base + 64) (by nofun)
+  have A := addi_spec_gen_same_within .x12 sp 32 (base + 64) (by nofun)
   simp only [signExtend12_32] at A
-  have S0 := sd_spec_gen .x12 .x7 (sp + 32)
+  have S0 := sd_spec_gen_within .x12 .x7 (sp + 32)
     (if BitVec.ult ((a0 ^^^ b0) ||| (a1 ^^^ b1) ||| (a2 ^^^ b2) ||| (a3 ^^^ b3)) (1 : Word) then (1 : Word) else 0)
     b0 0 (base + 68)
-  have S1 := sd_x0_spec_gen .x12 (sp + 32) b1 8 (base + 72)
-  have S2 := sd_x0_spec_gen .x12 (sp + 32) b2 16 (base + 76)
-  have S3 := sd_x0_spec_gen .x12 (sp + 32) b3 24 (base + 80)
+  have S1 := sd_x0_spec_gen_within .x12 (sp + 32) b1 8 (base + 72)
+  have S2 := sd_x0_spec_gen_within .x12 (sp + 32) b2 16 (base + 76)
+  have S3 := sd_x0_spec_gen_within .x12 (sp + 32) b3 24 (base + 80)
   runBlock L0 L1 L2 L3 T A S0 S1 S2 S3
+
 
 -- ============================================================================
 -- Stack-level EQ spec
 -- ============================================================================
 
 /-- Stack-level 256-bit EVM EQ: operates on two EvmWords via evmWordIs. -/
-theorem evm_eq_stack_spec (sp base : Word)
+theorem evm_eq_stack_spec_within (sp base : Word)
     (a b : EvmWord) (v7 v6 v5 v11 : Word) :
     -- XOR-OR accumulation chain
     let acc0 := a.getLimbN 0 ^^^ b.getLimbN 0
@@ -82,7 +83,7 @@ theorem evm_eq_stack_spec (sp base : Word)
     let acc3 := acc2 ||| (a.getLimbN 3 ^^^ b.getLimbN 3)
     let eqResult := if BitVec.ult acc3 (1 : Word) then (1 : Word) else 0
     let code := evm_eq_code base
-    cpsTriple base (base + 84) code
+    cpsTripleWithin 21 base (base + 84) code
       (-- Registers + memory
        (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) ** (.x5 ↦ᵣ v5) ** (.x11 ↦ᵣ v11) **
        evmWordIs sp a ** evmWordIs (sp + 32) b)
@@ -92,11 +93,11 @@ theorem evm_eq_stack_spec (sp base : Word)
        (.x5 ↦ᵣ b.getLimbN 3) ** (.x11 ↦ᵣ v11) **
        evmWordIs sp a ** evmWordIs (sp + 32) (if a = b then 1 else 0)) := by
   intro acc0 acc1 acc2 acc3 eqResult
-  have h_main := evm_eq_spec sp base
+  have h_main := evm_eq_spec_within sp base
     (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
     (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
     v7 v6 v5 v11
-  exact cpsTriple_weaken
+  exact cpsTripleWithin_weaken
     (fun h hp => by
       simp only [evmWordIs] at hp
       rw [spAddr32_8, spAddr32_16, spAddr32_24] at hp
@@ -113,5 +114,6 @@ theorem evm_eq_stack_spec (sp base : Word)
       rw [spAddr32_8, spAddr32_16, spAddr32_24]
       xperm_hyp hq)
     h_main
+
 
 end EvmAsm.Evm64
