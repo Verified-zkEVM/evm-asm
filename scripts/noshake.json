@@ -11,4 +11,25 @@
   "EvmAsm.Rv64.Tactics.SeqFrame":
   ["EvmAsm.Rv64.Tactics.PerfTrace"],
   "EvmAsm.Rv64.Tactics.LiftSpec":
-  ["EvmAsm.Rv64.Tactics.XSimp", "EvmAsm.Evm64.Stack"]}}
+  ["EvmAsm.Rv64.Tactics.XSimp", "EvmAsm.Evm64.Stack"],
+  "EvmAsm.Evm64.Pop.Spec":
+  ["EvmAsm.Rv64.SyscallSpecs", "EvmAsm.Rv64.Tactics.RunBlock"],
+  "EvmAsm.Evm64.Push0.Spec":
+  ["EvmAsm.Rv64.SyscallSpecs", "EvmAsm.Rv64.Tactics.XSimp", "EvmAsm.Rv64.Tactics.RunBlock"],
+  "EvmAsm.Evm64.Dup.Spec":
+  ["EvmAsm.Rv64.SyscallSpecs", "EvmAsm.Rv64.Tactics.XSimp", "EvmAsm.Rv64.Tactics.RunBlock"],
+  "EvmAsm.Evm64.Swap.Spec":
+  ["EvmAsm.Rv64.SyscallSpecs", "EvmAsm.Rv64.Tactics.XSimp", "EvmAsm.Rv64.Tactics.RunBlock"],
+  "EvmAsm.Evm64.And.Spec":     ["EvmAsm.Rv64.Tactics.XSimp"],
+  "EvmAsm.Evm64.Or.Spec":      ["EvmAsm.Rv64.Tactics.XSimp"],
+  "EvmAsm.Evm64.Xor.Spec":     ["EvmAsm.Rv64.Tactics.XSimp"],
+  "EvmAsm.Evm64.Not.Spec":     ["EvmAsm.Rv64.Tactics.XSimp"],
+  "EvmAsm.Evm64.Add.Spec":     ["EvmAsm.Rv64.Tactics.XSimp"],
+  "EvmAsm.Evm64.Sub.Spec":     ["EvmAsm.Rv64.Tactics.XSimp"],
+  "EvmAsm.Evm64.Lt.Spec":      ["EvmAsm.Rv64.Tactics.XSimp"],
+  "EvmAsm.Evm64.Gt.Spec":      ["EvmAsm.Rv64.Tactics.XSimp"],
+  "EvmAsm.Evm64.Eq.Spec":      ["EvmAsm.Rv64.Tactics.XSimp"],
+  "EvmAsm.Evm64.IsZero.Spec":  ["EvmAsm.Rv64.Tactics.XSimp"],
+  "EvmAsm.Evm64.Slt.Spec":     ["EvmAsm.Rv64.Tactics.XSimp"],
+  "EvmAsm.Evm64.Sgt.Spec":     ["EvmAsm.Rv64.Tactics.XSimp"],
+  "EvmAsm.Evm64.Multiply.Spec":["EvmAsm.Rv64.Tactics.XSimp"]}}
