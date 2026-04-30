@@ -7,8 +7,8 @@ import EvmAsm.Evm64.DivMod.Spec
 -- FullPathN1LoopUnified transitively covers FullPathN1Loop + FullPathN3Loop,
 -- which pull in LoopUnifiedN{1,2,3} + LoopComposeN3 + FullPathN{1,2,3}
 -- + FullPathN4Loop → LoopIterN4 → LoopBodyN4 → LoopBody → Compose +
--- LoopDefs + EvmWordArith.DivN4Overestimate. ModFullPathN{1,3}LoopUnified
--- cover the MOD n=1/n=3 wrappers. FullPathN2Bundle carries shared N2
+-- LoopDefs + EvmWordArith.DivN4Overestimate. ModFullPathN{1,2,3}LoopUnified
+-- cover the MOD n=1/n=2/n=3 wrappers. FullPathN2Bundle carries shared N2
 -- irreducible intermediates for later full-wrapper refactors. FullPathN2Full
 -- covers FullPathN2LoopUnified + FullPathN2Cases + FullPath.
 -- SpecCallV4 transitively covers SpecCallAddbackBeq (+ AlgDefs, AlgEuclideans)
@@ -18,6 +18,7 @@ import EvmAsm.Evm64.DivMod.Spec
 import EvmAsm.Evm64.DivMod.Shift0Dispatcher
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1LoopUnified
 import EvmAsm.Evm64.DivMod.Compose.ModFullPathN1LoopUnified
+import EvmAsm.Evm64.DivMod.Compose.ModFullPathN2LoopUnified
 import EvmAsm.Evm64.DivMod.Compose.FullPathN3LoopUnified
 import EvmAsm.Evm64.DivMod.Compose.ModFullPathN3LoopUnified
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2Bundle
