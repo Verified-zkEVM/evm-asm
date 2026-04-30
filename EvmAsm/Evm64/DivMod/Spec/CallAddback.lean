@@ -1882,51 +1882,6 @@ private theorem div128Quot_v2_case_0_rhatc_lt_pow32_under_runtime
   rw [if_pos h_hi1_zero]
   omega
 
-/-- Pure-Nat helper: `u < V → div < 2^32 → V ≥ 1 → u*2^32 + div < V*2^32`. -/
-private theorem q_true_x_lt_vTop_pow32_arith
-    (u V div : Nat) (h_u : u < V) (h_div : div < 2^32) :
-    u * 2^32 + div < V * 2^32 := by
-  set X := V * 2^32 with hX
-  set Y := u * 2^32 with hY
-  have h_Y_le : Y + 2^32 ≤ X := by
-    rw [hX, hY]
-    have h1 : u + 1 ≤ V := h_u
-    have h2 : (u + 1) * 2^32 ≤ V * 2^32 := Nat.mul_le_mul_right _ h1
-    have h3 : (u + 1) * 2^32 = u * 2^32 + 2^32 := by ring
-    omega
-  omega
-
-/-- Pure-Nat helper: `x < (x/V + 1) * V` when `V > 0`. Used to derive
-    "case 1 overshoots" (q_true + 1) * vTop > x. -/
-private theorem x_lt_succ_div_mul (x V : Nat) (hV : 0 < V) :
-    x < (x / V + 1) * V := by
-  have h_div_mod : V * (x / V) + x % V = x := Nat.div_add_mod x V
-  have h_mod_lt : x % V < V := Nat.mod_lt _ hV
-  have h_eq : (x / V + 1) * V = V * (x / V) + V := by
-    rw [Nat.add_mul, Nat.one_mul, Nat.mul_comm V (x / V)]
-  omega
-
-/-- Pure-Nat helper: `q_true * dHi ≤ u4` from the Phase-1a Euclidean and
-    case 1 hypothesis. Used to bridge between rhatc-form and rhat'-form. -/
-private theorem qt_dHi_le_u4_case_1
-    (q_true q1c dHi rhatc u4 : Nat)
-    (h_post1a : q1c * dHi + rhatc = u4)
-    (h_q1c_eq : q1c = q_true + 1) :
-    q_true * dHi ≤ u4 := by
-  rw [h_q1c_eq] at h_post1a
-  have h_eq : (q_true + 1) * dHi = q_true * dHi + dHi := by ring
-  omega
-
-/-- Pure-Nat helper for case 2 inner BLTU: `dHi*2^32 ≤ u4*2^32 - q_true*dHi*2^32`
-    from `(q_true + 2)*dHi*2^32 ≤ u4*2^32`. -/
-private theorem case_2_dHi_2pow32_le_arith
-    (q_true dHi U QdHi DHi : Nat)
-    (h_decomp : (q_true + 2) * dHi * 2^32 = QdHi + (DHi + DHi))
-    (h_dhi_eq : DHi = dHi * 2^32)
-    (h_le : (q_true + 2) * dHi * 2^32 ≤ U) :
-    DHi ≤ U - QdHi := by
-  omega
-
 /-- **q_true < 2^32 under runtime preconditions**.
 
     From the call-trial precondition `u4 < vTop` (i.e. uHi-half < vTop),

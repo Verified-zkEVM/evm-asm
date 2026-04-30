@@ -205,4 +205,55 @@ theorem abPrime_val_eq_amod_pow_s_pure_nat
   rw [h_c3_eq] at h_id
   omega
 
+/-! ## Phase-1 division invariant arithmetic helpers
+
+Small pure-Nat helpers consumed by `Spec/CallAddback.lean`'s Phase-1
+division-invariant case analysis (overshoot=0/1/2). Kept here so the
+host file does not have to carry them. -/
+
+/-- Pure-Nat helper: `u < V → div < 2^32 → V ≥ 1 → u*2^32 + div < V*2^32`. -/
+theorem q_true_x_lt_vTop_pow32_arith
+    (u V div : Nat) (h_u : u < V) (h_div : div < 2^32) :
+    u * 2^32 + div < V * 2^32 := by
+  set X := V * 2^32 with hX
+  set Y := u * 2^32 with hY
+  have h_Y_le : Y + 2^32 ≤ X := by
+    rw [hX, hY]
+    have h1 : u + 1 ≤ V := h_u
+    have h2 : (u + 1) * 2^32 ≤ V * 2^32 := Nat.mul_le_mul_right _ h1
+    have h3 : (u + 1) * 2^32 = u * 2^32 + 2^32 := by ring
+    omega
+  omega
+
+/-- Pure-Nat helper: `x < (x/V + 1) * V` when `V > 0`. Used to derive
+    "case 1 overshoots" (q_true + 1) * vTop > x. -/
+theorem x_lt_succ_div_mul (x V : Nat) (hV : 0 < V) :
+    x < (x / V + 1) * V := by
+  have h_div_mod : V * (x / V) + x % V = x := Nat.div_add_mod x V
+  have h_mod_lt : x % V < V := Nat.mod_lt _ hV
+  have h_eq : (x / V + 1) * V = V * (x / V) + V := by
+    rw [Nat.add_mul, Nat.one_mul, Nat.mul_comm V (x / V)]
+  omega
+
+/-- Pure-Nat helper: `q_true * dHi ≤ u4` from the Phase-1a Euclidean and
+    case 1 hypothesis. Used to bridge between rhatc-form and rhat'-form. -/
+theorem qt_dHi_le_u4_case_1
+    (q_true q1c dHi rhatc u4 : Nat)
+    (h_post1a : q1c * dHi + rhatc = u4)
+    (h_q1c_eq : q1c = q_true + 1) :
+    q_true * dHi ≤ u4 := by
+  rw [h_q1c_eq] at h_post1a
+  have h_eq : (q_true + 1) * dHi = q_true * dHi + dHi := by ring
+  omega
+
+/-- Pure-Nat helper for case 2 inner BLTU: `dHi*2^32 ≤ u4*2^32 - q_true*dHi*2^32`
+    from `(q_true + 2)*dHi*2^32 ≤ u4*2^32`. -/
+theorem case_2_dHi_2pow32_le_arith
+    (q_true dHi U QdHi DHi : Nat)
+    (h_decomp : (q_true + 2) * dHi * 2^32 = QdHi + (DHi + DHi))
+    (h_dhi_eq : DHi = dHi * 2^32)
+    (h_le : (q_true + 2) * dHi * 2^32 ≤ U) :
+    DHi ≤ U - QdHi := by
+  omega
+
 end EvmAsm.Evm64
