@@ -66,6 +66,13 @@ abbrev loopBodyOff  : Word :=  448
     so no addback is needed). Sub-offset relative to the loopBody block
     (= storeLoopOff - 4 = loopBodyOff + 432). -/
 abbrev addbackBeqOff : Word :=  880
+/-- Offset of the correction-skip BEQ instruction inside `divK_loopBody`.
+    Entry PC of the `BEQ x7, x0, +156` instruction immediately after the
+    mulsub-correction sub-block. Located at `loopBodyOff + 280`; falls
+    through 4 bytes when the borrow result is non-zero (taking the
+    addback fixup path) or branches forward `+156` to `storeLoopOff`
+    when the borrow result is zero (skipping the addback). -/
+abbrev correctionSkipBeqOff : Word :=  728
 /-- Offset of the store-quotient sub-block inside `divK_loopBody`.
     Entry PC of the `divK_store_qj` snippet that writes the trial-quotient
     digit `q[j]` to the output buffer (followed by the loop-back / loop-exit
@@ -129,6 +136,13 @@ example : denormOff = loopBodyOff + 4 * (divK_loopBody 560 7736).length := by de
     the `divK_store_qj` entry. -/
 example : addbackBeqOff = storeLoopOff - 4 := by decide
 example : addbackBeqOff = loopBodyOff + 432 := by decide
+/-- correctionSkipBeqOff = loopBodyOff + 280 (sub-block offset within
+    `divK_loopBody`). The correction-skip BEQ sits 70 instructions into
+    the loop body, immediately after the mulsub-correction sub-block.
+    Falls through 4 bytes (to base+732) on borrow, or branches +156 to
+    storeLoopOff when no correction is needed. -/
+example : correctionSkipBeqOff = loopBodyOff + 280 := by decide
+example : correctionSkipBeqOff + signExtend13 (156 : BitVec 13) = storeLoopOff := by decide
 /-- storeLoopOff = loopBodyOff + 436 (sub-block offset within `divK_loopBody`).
     The `divK_store_qj` snippet starts 109 instructions into the loop body. -/
 example : storeLoopOff = loopBodyOff + 436 := by decide
