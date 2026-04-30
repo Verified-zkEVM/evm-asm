@@ -24,7 +24,7 @@ open EvmAsm.Rv64
 theorem divK_correction_skip_spec_within
     (sp uBase qHat v0 v1 v2 v3 u0 u1 u2 u3 u4 : Word)
     (v5Old v2Old : Word) (base : Word) :
-    cpsTripleWithin 1 (base + 728) (base + 884) (sharedDivModCode base)
+    cpsTripleWithin 1 (base + 728) (base + storeLoopOff) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ uBase) ** (.x7 ↦ᵣ (0 : Word)) **
        (.x11 ↦ᵣ qHat) ** (.x5 ↦ᵣ v5Old) ** (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
        ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
@@ -49,7 +49,7 @@ theorem divK_correction_skip_spec_within
     obtain ⟨_, _, _, _, _, ⟨_, _, _, _, _, ⟨_, hpure⟩⟩⟩ := hQf
     exact hpure rfl)
   -- Strip pure fact from taken postcondition
-  have skip_clean : cpsTripleWithin 1 (base + 728) (base + 884) (sharedDivModCode base)
+  have skip_clean : cpsTripleWithin 1 (base + 728) (base + storeLoopOff) (sharedDivModCode base)
       ((.x7 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)))
       ((.x7 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word))) :=
     cpsTripleWithin_weaken
@@ -78,7 +78,7 @@ theorem divK_correction_skip_spec_within
 theorem divK_correction_skip_v2_spec_within
     (sp uBase qHat v0 v1 v2 v3 u0 u1 u2 u3 u4 : Word)
     (v5Old v2Old : Word) (base : Word) :
-    cpsTripleWithin 1 (base + 728) (base + 884) (sharedDivModCode_v2 base)
+    cpsTripleWithin 1 (base + 728) (base + storeLoopOff) (sharedDivModCode_v2 base)
       ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ uBase) ** (.x7 ↦ᵣ (0 : Word)) **
        (.x11 ↦ᵣ qHat) ** (.x5 ↦ᵣ v5Old) ** (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
        ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
@@ -100,7 +100,7 @@ theorem divK_correction_skip_v2_spec_within
   have skip := cpsBranchWithin_takenPath hbeq_ext (fun hp hQf => by
     obtain ⟨_, _, _, _, _, ⟨_, _, _, _, _, ⟨_, hpure⟩⟩⟩ := hQf
     exact hpure rfl)
-  have skip_clean : cpsTripleWithin 1 (base + 728) (base + 884) (sharedDivModCode_v2 base)
+  have skip_clean : cpsTripleWithin 1 (base + 728) (base + storeLoopOff) (sharedDivModCode_v2 base)
       ((.x7 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)))
       ((.x7 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word))) :=
     cpsTripleWithin_weaken

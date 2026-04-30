@@ -36,7 +36,7 @@ theorem divK_store_loop_j0_spec_within
     (base : Word) :
     let qAddr := sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat
     let j' := (0 : Word) + signExtend12 4095
-    cpsTripleWithin 6 (base + 884) (base + denormOff) (sharedDivModCode base)
+    cpsTripleWithin 6 (base + storeLoopOff) (base + denormOff) (sharedDivModCode base)
       ((.x1 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
        (.x5 ↦ᵣ v5Old) ** (.x7 ↦ᵣ v7Old) ** (.x0 ↦ᵣ (0 : Word)) **
        (qAddr ↦ₘ qOld))
@@ -45,7 +45,7 @@ theorem divK_store_loop_j0_spec_within
        (qAddr ↦ₘ qHat)) := by
   intro qAddr j'
   -- 1. Store q[j]: instrs [109]-[112] at base+884
-  have SQ := divK_store_qj_spec_within sp (0 : Word) qHat v5Old v7Old qOld (base + 884)
+  have SQ := divK_store_qj_spec_within sp (0 : Word) qHat v5Old v7Old qOld (base + storeLoopOff)
   dsimp only [] at SQ
   rw [lb_sqj] at SQ
   have SQe := cpsTripleWithin_extend_code (hmono := by
@@ -76,7 +76,7 @@ theorem divK_store_loop_j0_spec_within
       (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp)
     hbge_exit_raw
   -- 5. Build store_qj + x0 frame → base+900
-  have SQx0 : cpsTripleWithin 4 (base + 884) (base + 900) (sharedDivModCode base)
+  have SQx0 : cpsTripleWithin 4 (base + storeLoopOff) (base + 900) (sharedDivModCode base)
       ((.x1 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
        (.x5 ↦ᵣ v5Old) ** (.x7 ↦ᵣ v7Old) ** (.x0 ↦ᵣ (0 : Word)) ** (qAddr ↦ₘ qOld))
       ((.x1 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
@@ -116,7 +116,7 @@ theorem divK_store_loop_jgt0_spec_within
     let jX8 := j <<< (3 : BitVec 6).toNat
     let qAddr := sp + signExtend12 4088 - jX8
     let j' := j + signExtend12 4095
-    cpsTripleWithin 6 (base + 884) (base + loopBodyOff) (sharedDivModCode base)
+    cpsTripleWithin 6 (base + storeLoopOff) (base + loopBodyOff) (sharedDivModCode base)
       ((.x1 ↦ᵣ j) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
        (.x5 ↦ᵣ v5Old) ** (.x7 ↦ᵣ v7Old) ** (.x0 ↦ᵣ (0 : Word)) **
        (qAddr ↦ₘ qOld))
@@ -125,7 +125,7 @@ theorem divK_store_loop_jgt0_spec_within
        (qAddr ↦ₘ qHat)) := by
   intro jX8 qAddr j'
   -- 1. Store q[j]: instrs [109]-[112] at base+884
-  have SQ := divK_store_qj_spec_within sp j qHat v5Old v7Old qOld (base + 884)
+  have SQ := divK_store_qj_spec_within sp j qHat v5Old v7Old qOld (base + storeLoopOff)
   dsimp only [] at SQ
   rw [lb_sqj] at SQ
   have SQe := cpsTripleWithin_extend_code (hmono := by
@@ -156,7 +156,7 @@ theorem divK_store_loop_jgt0_spec_within
       (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp)
     hbge_exit_raw
   -- 5. Build store_qj + x0 frame → base+900
-  have SQx0 : cpsTripleWithin 4 (base + 884) (base + 900) (sharedDivModCode base)
+  have SQx0 : cpsTripleWithin 4 (base + storeLoopOff) (base + 900) (sharedDivModCode base)
       ((.x1 ↦ᵣ j) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
        (.x5 ↦ᵣ v5Old) ** (.x7 ↦ᵣ v7Old) ** (.x0 ↦ᵣ (0 : Word)) ** (qAddr ↦ₘ qOld))
       ((.x1 ↦ᵣ j) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **

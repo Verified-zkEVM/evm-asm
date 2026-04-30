@@ -57,7 +57,7 @@ theorem divK_mulsub_correction_addback_beq_spec_within
     (carry = 0 → addbackN4_carry ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 v0 v1 v2 v3 ≠ 0) →
     -- Hypothesis: borrow ≠ 0
     (if BitVec.ult uTop c3 then (1 : Word) else 0) ≠ (0 : Word) →
-    cpsTripleWithin 130 (base + 516) (base + 884) (sharedDivModCode base)
+    cpsTripleWithin 130 (base + 516) (base + storeLoopOff) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
        (.x1 ↦ᵣ v1Old) ** (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
        (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x2 ↦ᵣ v2Old) **

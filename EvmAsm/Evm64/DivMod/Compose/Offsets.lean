@@ -24,6 +24,7 @@
     [copyAUOff    = 396] divK_copyAU        (36 bytes)
     [loopSetupOff = 432] divK_loopSetup     (16 bytes)
     [loopBodyOff  = 448] divK_loopBody     (460 bytes)
+      [storeLoopOff = 884]  divK_store_qj sub-block (loopBodyOff + 436)
     [denormOff    = 908] divK_denorm       (100 bytes)
     [epilogueOff  =1008] divK_{div,mod}_epilogue (40 bytes)
     [zeroPathOff  =1048] divK_zeroPath      (20 bytes)
@@ -59,6 +60,12 @@ abbrev copyAUOff    : Word :=  396
 abbrev loopSetupOff : Word :=  432
 /-- Offset of `divK_loopBody` (Knuth Algorithm D main loop body). -/
 abbrev loopBodyOff  : Word :=  448
+/-- Offset of the store-quotient sub-block inside `divK_loopBody`.
+    Entry PC of the `divK_store_qj` snippet that writes the trial-quotient
+    digit `q[j]` to the output buffer (followed by the loop-back / loop-exit
+    branch into the next iteration or `divK_denorm`). Sub-offset relative
+    to the loopBody block (= loopBodyOff + 436). -/
+abbrev storeLoopOff : Word :=  884
 /-- Offset of `divK_denorm` (denormalize result back to original shift). -/
 abbrev denormOff    : Word :=  908
 /-- Offset of the epilogue (`divK_div_epilogue` for DIV, `divK_mod_epilogue`
@@ -104,6 +111,9 @@ example : loopSetupOff = copyAUOff + 4 * divK_copyAU.length := by decide
 example : loopBodyOff = loopSetupOff + 4 * (divK_loopSetup 464).length := by decide
 /-- denormOff = loopBodyOff + 4 · |divK_loopBody 560 7736|. -/
 example : denormOff = loopBodyOff + 4 * (divK_loopBody 560 7736).length := by decide
+/-- storeLoopOff = loopBodyOff + 436 (sub-block offset within `divK_loopBody`).
+    The `divK_store_qj` snippet starts 109 instructions into the loop body. -/
+example : storeLoopOff = loopBodyOff + 436 := by decide
 /-- epilogueOff = denormOff + 4 · |divK_denorm|. -/
 example : epilogueOff = denormOff + 4 * divK_denorm.length := by decide
 /-- zeroPathOff = epilogueOff + 4 · |divK_div_epilogue 24|

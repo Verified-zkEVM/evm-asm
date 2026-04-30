@@ -888,7 +888,7 @@ theorem divK_addback_full_v2_spec_within
     (fun h hq => by xperm_hyp hq)
     IfA0eA1eA2eA3eAFe
 
-theorem lb_beq_taken {base : Word} : (base + 728 : Word) + signExtend13 (156 : BitVec 13) = base + 884 := by
+theorem lb_beq_taken {base : Word} : (base + 728 : Word) + signExtend13 (156 : BitVec 13) = base + storeLoopOff := by
   rv64_addr
 
 theorem lb_beq_ntaken {base : Word} : (base + 728 : Word) + 4 = base + 732 := by bv_addr
@@ -1156,18 +1156,18 @@ theorem lb_bltu_ntaken {base : Word} : (base + 500 : Word) + 4 = base + 504 := b
 -- ============================================================================
 
 -- Address normalization for store_qj and loop control
-theorem lb_sqj {base : Word} : (base + 884 : Word) + 16 = base + 900 := by bv_addr
+theorem lb_sqj {base : Word} : (base + storeLoopOff : Word) + 16 = base + 900 := by bv_addr
 private theorem lb_lc_taken {base : Word} :
     (base + 900 : Word) + 4 + signExtend13 (7736 : BitVec 13) = base + loopBodyOff := by
   rv64_addr
 private theorem lb_lc_exit {base : Word} : (base + 900 : Word) + 8 = base + denormOff := by bv_addr
 
-private theorem lb_beq_back_ntaken {base : Word} : (base + 880 : Word) + 4 = base + 884 := by bv_addr
+private theorem lb_beq_back_ntaken {base : Word} : (base + 880 : Word) + 4 = base + storeLoopOff := by bv_addr
 
 /-- BEQ passthrough at [108]: when carry (x7) ≠ 0, BEQ falls through from base+880 to base+884.
     Used to bridge addback exit (base+880) to store_loop entry (base+884). -/
 theorem divK_beq_passthrough_within {carry : Word} (base : Word) (hne : carry ≠ 0) :
-    cpsTripleWithin 1 (base + 880) (base + 884) (sharedDivModCode base)
+    cpsTripleWithin 1 (base + 880) (base + storeLoopOff) (sharedDivModCode base)
       ((.x7 ↦ᵣ carry) ** (.x0 ↦ᵣ (0 : Word)))
       ((.x7 ↦ᵣ carry) ** (.x0 ↦ᵣ (0 : Word))) := by
   have hbeq := beq_spec_gen_within .x7 .x0 (8044 : BitVec 13) carry 0 (base + 880)
@@ -1219,7 +1219,7 @@ theorem divK_double_addback_beq_spec_within
     let aco3' := ac1_3' ||| ac2_3'
     let aun4' := aun4 + aco3'
     let qHat'' := qHat' + signExtend12 4095
-    cpsTripleWithin 39 (base + 880) (base + 884) (sharedDivModCode base)
+    cpsTripleWithin 39 (base + 880) (base + storeLoopOff) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ uBase) ** (.x7 ↦ᵣ (0 : Word)) **
        (.x11 ↦ᵣ qHat') ** (.x5 ↦ᵣ aun4) ** (.x2 ↦ᵣ aun3) ** (.x0 ↦ᵣ (0 : Word)) **
        ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ aun0) **
@@ -1300,7 +1300,7 @@ theorem divK_double_addback_beq_named_spec_within
     (hcarry2_nz : addbackN4_carry aun0 aun1 aun2 aun3 v0 v1 v2 v3 ≠ 0) :
     let ab' := addbackN4 aun0 aun1 aun2 aun3 aun4 v0 v1 v2 v3
     let qHat'' := qHat' + signExtend12 4095
-    cpsTripleWithin 39 (base + 880) (base + 884) (sharedDivModCode base)
+    cpsTripleWithin 39 (base + 880) (base + storeLoopOff) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ uBase) ** (.x7 ↦ᵣ (0 : Word)) **
        (.x11 ↦ᵣ qHat') ** (.x5 ↦ᵣ aun4) ** (.x2 ↦ᵣ aun3) ** (.x0 ↦ᵣ (0 : Word)) **
        ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ aun0) **
@@ -1326,7 +1326,7 @@ theorem divK_store_loop_spec_within
     let jX8 := j <<< (3 : BitVec 6).toNat
     let qAddr := sp + signExtend12 4088 - jX8
     let j' := j + signExtend12 4095
-    cpsBranchWithin 6 (base + 884) (sharedDivModCode base)
+    cpsBranchWithin 6 (base + storeLoopOff) (sharedDivModCode base)
       ((.x1 ↦ᵣ j) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
        (.x5 ↦ᵣ v5Old) ** (.x7 ↦ᵣ v7Old) ** (.x0 ↦ᵣ (0 : Word)) **
        (qAddr ↦ₘ qOld))
@@ -1340,7 +1340,7 @@ theorem divK_store_loop_spec_within
        (qAddr ↦ₘ qHat)) := by
   intro jX8 qAddr j'
   -- 1. Store q[j]: instrs [109]-[112] at base+884
-  have SQ := divK_store_qj_spec_within sp j qHat v5Old v7Old qOld (base + 884)
+  have SQ := divK_store_qj_spec_within sp j qHat v5Old v7Old qOld (base + storeLoopOff)
   dsimp only [] at SQ
   rw [lb_sqj] at SQ
   have SQe := cpsTripleWithin_extend_code (hmono := by
@@ -1356,7 +1356,7 @@ theorem divK_store_loop_spec_within
     exact CodeReq.union_sub (lb_sub 113 _ _ (by decide) (by bv_addr) (by decide))
       (lb_sub 114 _ _ (by decide) (by bv_addr) (by decide))) LC
   -- 3. Add x0 to store_qj via frame, then reshape via consequence
-  have SQx0 : cpsTripleWithin 4 (base + 884) (base + 900) (sharedDivModCode base)
+  have SQx0 : cpsTripleWithin 4 (base + storeLoopOff) (base + 900) (sharedDivModCode base)
       ((.x1 ↦ᵣ j) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
        (.x5 ↦ᵣ v5Old) ** (.x7 ↦ᵣ v7Old) ** (.x0 ↦ᵣ (0 : Word)) ** (qAddr ↦ₘ qOld))
       ((.x1 ↦ᵣ j) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
