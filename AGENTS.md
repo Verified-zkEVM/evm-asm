@@ -98,7 +98,7 @@ When adding or modifying proofs:
 
    If your new file declares an attribute via `register_simp_attr`, place the attribute-declaration file **before** any consumer file in the umbrella's import list so the attribute exists when the consumer is elaborated. Typical pattern: split into `FooAttr.lean` (declares the attribute) + `Foo.lean` (uses the attribute, imports `FooAttr`), then import both from the umbrella, attr first. See `Rv64/RegOpsAttr.lean` + `Rv64/RegOps.lean` or `Evm64/DivMod/AddrNormAttr.lean` + `Evm64/DivMod/AddrNorm.lean` for the canonical shape.
 
-   CI enforces this via `scripts/check-unimported.sh` (issue #1209): a `.lean` file under `EvmAsm/` that is not transitively reachable from `EvmAsm.lean` will fail the build unless it is grandfathered in `scripts/unimported-allow.txt`.
+   CI enforces this via `scripts/check-unimported.sh` (issues #1209 / #1440): a `.lean` file under `EvmAsm/` that is not transitively reachable from `EvmAsm.lean` will fail the build. The grandfathering allow-list (`scripts/unimported-allow.txt`) was drained and removed in #1440 — there is no escape hatch, so wire new files into the appropriate umbrella when you add them.
 
 ## Testing
 
