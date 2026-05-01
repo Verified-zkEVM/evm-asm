@@ -214,14 +214,14 @@ theorem addi_x5_2_sub_modCode {base : Word} :
 
 -- BNE x6 x0 8 at base+88 (index 14 of phaseB)
 theorem bne_x6_8_sub_modCode {base : Word} :
-    ∀ a i, (CodeReq.singleton (base + 88) (.BNE .x6 .x0 8)) a = some i →
+    ∀ a i, (CodeReq.singleton (base + phaseBBne3Off) (.BNE .x6 .x0 8)) a = some i →
       (modCode base) a = some i := by
   unfold modCode; simp only [CodeReq.unionAll_cons]
   intro a i h
   have hlookup := CodeReq.ofProg_lookup (base + phaseBOff) divK_phaseB 14
     (by decide) (by decide)
   rw [bv64_4mul_14,
-      show (base + phaseBOff : Word) + 56 = base + 88 from by bv_addr] at hlookup
+      show (base + phaseBOff : Word) + 56 = base + phaseBBne3Off from by bv_addr] at hlookup
   have h1 := CodeReq.singleton_mono hlookup a i h
   exact sub_modCode_of_phaseB_left a i h1
 
@@ -259,8 +259,8 @@ theorem mod_divK_phaseB_n1_nm1_x8 :
 -- Cascade address normalization
 theorem mod_phB_step1_4 {base : Word} : (base + 76 : Word) + 4 = base + 80 := by bv_addr
 theorem mod_phB_step1_8 {base : Word} : (base + 80 : Word) + 4 = base + 84 := by bv_addr
-theorem mod_phB_step2_4 {base : Word} : (base + 84 : Word) + 4 = base + 88 := by bv_addr
-theorem mod_phB_step2_8 {base : Word} : (base + 88 : Word) + 4 = base + 92 := by bv_addr
+theorem mod_phB_step2_4 {base : Word} : (base + 84 : Word) + 4 = base + phaseBBne3Off := by bv_addr
+theorem mod_phB_step2_8 {base : Word} : (base + phaseBBne3Off : Word) + 4 = base + 92 := by bv_addr
 theorem mod_phB_fall_4 {base : Word} : (base + 92 : Word) + 4 = base + phaseBTailOff := by bv_addr
 
 -- Tail memory address normalization

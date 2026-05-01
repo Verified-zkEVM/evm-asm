@@ -421,14 +421,14 @@ private theorem addi_x5_2_sub_divCode {base : Word} :
 
 -- BNE x6 x0 8 at base+88 (index 14 of phaseB)
 private theorem bne_x6_8_sub_divCode {base : Word} :
-    ∀ a i, (CodeReq.singleton (base + 88) (.BNE .x6 .x0 8)) a = some i →
+    ∀ a i, (CodeReq.singleton (base + phaseBBne3Off) (.BNE .x6 .x0 8)) a = some i →
       (divCode base) a = some i := by
   unfold divCode; simp only [CodeReq.unionAll_cons]
   intro a i h
   have hlookup := CodeReq.ofProg_lookup (base + phaseBOff) divK_phaseB 14
     (by decide) (by decide)
   rw [bv64_4mul_14,
-      show (base + phaseBOff : Word) + 56 = base + 88 from by bv_addr] at hlookup
+      show (base + phaseBOff : Word) + 56 = base + phaseBBne3Off from by bv_addr] at hlookup
   have h1 := CodeReq.singleton_mono hlookup a i h
   exact sub_divCode_of_phaseB_left a i h1
 
@@ -467,8 +467,8 @@ private theorem divK_phaseB_n1_nm1_x8 :
 -- Cascade address normalization
 private theorem phB_step1_4 {base : Word} : (base + 76 : Word) + 4 = base + 80 := by bv_addr
 private theorem phB_step1_8 {base : Word} : (base + 80 : Word) + 4 = base + 84 := by bv_addr
-private theorem phB_step2_4 {base : Word} : (base + 84 : Word) + 4 = base + 88 := by bv_addr
-private theorem phB_step2_8 {base : Word} : (base + 88 : Word) + 4 = base + 92 := by bv_addr
+private theorem phB_step2_4 {base : Word} : (base + 84 : Word) + 4 = base + phaseBBne3Off := by bv_addr
+private theorem phB_step2_8 {base : Word} : (base + phaseBBne3Off : Word) + 4 = base + 92 := by bv_addr
 private theorem phB_fall_4 {base : Word} : (base + 92 : Word) + 4 = base + phaseBTailOff := by bv_addr
 
 -- Tail memory address normalization
@@ -750,8 +750,8 @@ theorem evm_div_phaseB_n2_spec_within (sp base : Word)
   have h1234567 := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h123456 haddi2f
   -- ---- Cascade step 2: BNE x6 taken (base+88 → base+96, b1≠0)
-  have hbne2_raw := bne_spec_gen_within .x6 .x0 8 b1 (0 : Word) (base + 88)
-  rw [show (base + 88 : Word) + signExtend13 8 = base + phaseBTailOff from by
+  have hbne2_raw := bne_spec_gen_within .x6 .x0 8 b1 (0 : Word) (base + phaseBBne3Off)
+  rw [show (base + phaseBBne3Off : Word) + signExtend13 8 = base + phaseBTailOff from by
         rv64_addr, phB_step2_8] at hbne2_raw
   have hbne2_clean := cpsBranchWithin_takenStripPure2 hbne2_raw
     (fun hp hQf => by
@@ -920,8 +920,8 @@ theorem evm_div_phaseB_n1_spec_within (sp base : Word)
   have h1234567 := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h123456 haddi2f
   -- ---- Cascade step 2: BNE x6 ntaken (base+88 → base+92, b1=0)
-  have hbne2_raw := bne_spec_gen_within .x6 .x0 8 b1 (0 : Word) (base + 88)
-  rw [show (base + 88 : Word) + signExtend13 8 = base + phaseBTailOff from by
+  have hbne2_raw := bne_spec_gen_within .x6 .x0 8 b1 (0 : Word) (base + phaseBBne3Off)
+  rw [show (base + phaseBBne3Off : Word) + signExtend13 8 = base + phaseBTailOff from by
         rv64_addr, phB_step2_8] at hbne2_raw
   have hbne2_clean := cpsBranchWithin_ntakenStripPure2 hbne2_raw
     (fun hp hQt => by
