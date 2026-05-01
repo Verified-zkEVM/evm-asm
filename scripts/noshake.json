@@ -83,4 +83,12 @@
    "EvmAsm.Evm64.DivMod.LoopBody.TrialMax",
    "EvmAsm.Evm64.DivMod.LoopBody.StoreLoop",
    "EvmAsm.Evm64.DivMod.LoopBody.CorrectionAddbackBeq",
-   "EvmAsm.Evm64.DivMod.LoopBody.MulsubCorrectionSkip"]}}
+   "EvmAsm.Evm64.DivMod.LoopBody.MulsubCorrectionSkip"],
+ "EvmAsm.Evm64.DivMod.LoopUnifiedN3":
+  ["EvmAsm.Evm64.DivMod.LoopComposeN3"],
+ "EvmAsm.Evm64.DivMod.LoopUnifiedN2":
+  ["EvmAsm.Evm64.DivMod.LoopComposeN2"],
+ "EvmAsm.Evm64.DivMod.LoopComposeN3":
+  ["EvmAsm.Evm64.DivMod.LoopIterN3"],
+ "EvmAsm.Evm64.DivMod.Compose.FullPathN4Loop":
+  ["EvmAsm.Evm64.DivMod.LoopIterN4"]}}
