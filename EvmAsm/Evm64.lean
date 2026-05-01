@@ -11,6 +11,7 @@ import EvmAsm.Evm64.CodeRegion
 -- Stack operations
 import EvmAsm.Evm64.Pop
 import EvmAsm.Evm64.Push0
+import EvmAsm.Evm64.Push
 import EvmAsm.Evm64.Dup
 import EvmAsm.Evm64.Swap
 
@@ -48,6 +49,9 @@ import EvmAsm.Evm64.SignExtend
 
 -- Multiply
 import EvmAsm.Evm64.Multiply
+
+-- Exp (skeleton — GH #92, square-and-multiply over 256-bit exponent)
+import EvmAsm.Evm64.Exp
 
 -- DivMod (Knuth Algorithm D)
 import EvmAsm.Evm64.DivMod

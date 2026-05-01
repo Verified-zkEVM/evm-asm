@@ -24,7 +24,7 @@
     [copyAUOff    = 396] divK_copyAU        (36 bytes)
     [loopSetupOff = 432] divK_loopSetup     (16 bytes)
     [loopBodyOff  = 448] divK_loopBody     (460 bytes)
-      [trialCallOff       = 500]  divK_loopBody BLTU/JAL trial-quotient call entry (loopBodyOff + 52)
+      [trialCallOff = 500]  divK_loopBody trial-divide call-site (loopBodyOff + 52)
       [correctionSkipBeqOff = 728]  divK_loopBody mulsub-correction-skip BEQ entry (loopBodyOff + 280)
       [storeLoopOff = 884]  divK_store_qj sub-block (loopBodyOff + 436)
     [denormOff    = 908] divK_denorm       (100 bytes)
@@ -62,13 +62,18 @@ abbrev copyAUOff    : Word :=  396
 abbrev loopSetupOff : Word :=  432
 /-- Offset of `divK_loopBody` (Knuth Algorithm D main loop body). -/
 abbrev loopBodyOff  : Word :=  448
-/-- Offset of the trial-quotient call sub-block inside `divK_loopBody`.
-    Entry PC of the `BLTU x7, x10, +12` instruction that branches between the
-    div128 call path (uHi < vTop) and the max-trial path (uHi ≥ vTop).
-    Sub-offset relative to the loopBody block (= loopBodyOff + 52, i.e. 13
-    instructions into the loop body, just after the `save j + trial load`
-    prelude). -/
+/-- Offset of the trial-divide call-site sub-block inside `divK_loopBody`.
+    Entry PC of the BLTU/JAL sequence that loads the trial divisor and calls
+    into `divK_div128`. Sub-offset relative to the loopBody block
+    (= loopBodyOff + 52, i.e. 13 instructions into the loop body). -/
 abbrev trialCallOff : Word :=  500
+/-- Offset of the `divK_mulsub_correction` sub-block inside `divK_loopBody`.
+    Entry PC of the mulsub-correction snippet that computes
+    `u[j..j+n] := u[j..j+n] − q̂ · v` (the trial-quotient subtract step in
+    Knuth Algorithm D). Sub-offset relative to the loopBody block
+    (= loopBodyOff + 88, i.e. 22 instructions into the loop body — past
+    the trial-divide entry and div128 call site). -/
+abbrev mulsubOff : Word :=  536
 /-- Offset of the mulsub correction-skip BEQ entry inside `divK_loopBody`.
     Entry PC of the BEQ instruction that branches over the addback correction
     block when the trial-quotient mulsub did not borrow (the "skip" path).
@@ -162,8 +167,13 @@ example : correctionSkipBeqOff = loopBodyOff + 280 := by decide
     sits 66 instructions into the loop body. -/
 example : correctionAddbackOff = loopBodyOff + 264 := by decide
 /-- trialCallOff = loopBodyOff + 52 (sub-block offset within `divK_loopBody`).
-    The trial-quotient BLTU/JAL pair sits 13 instructions into the loop body. -/
+    The trial-divide call-site sits 13 instructions into the loop body. -/
 example : trialCallOff = loopBodyOff + 52 := by decide
+/-- mulsubOff = loopBodyOff + 88 (sub-block offset within `divK_loopBody`).
+    The `divK_mulsub_correction` snippet starts 22 instructions into the loop
+    body, after the trial-divide entry (~13 instructions) and the div128 call
+    site (~9 instructions including the JAL+JALR ABI dance). -/
+example : mulsubOff = loopBodyOff + 88 := by decide
 /-- epilogueOff = denormOff + 4 · |divK_denorm|. -/
 example : epilogueOff = denormOff + 4 * divK_denorm.length := by decide
 /-- zeroPathOff = epilogueOff + 4 · |divK_div_epilogue 24|
