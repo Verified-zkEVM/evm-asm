@@ -76,6 +76,24 @@ theorem addbackN4_top_eq (un0 un1 un2 un3 u4_new v0 v1 v2 v3 : Word) :
     ab.2.2.2.2 = u4_new + carry := by
   simp only [addbackN4, addbackN4_carry]
 
+theorem addbackN4_carry_toNat_le_one (un0 un1 un2 un3 v0 v1 v2 v3 : Word) :
+    (addbackN4_carry un0 un1 un2 un3 v0 v1 v2 v3).toNat ≤ 1 := by
+  unfold addbackN4_carry
+  simp only []
+  split_ifs <;> decide
+
+theorem addbackN4_carry_eq_one_of_ne_zero
+    (un0 un1 un2 un3 v0 v1 v2 v3 : Word)
+    (hcarry : addbackN4_carry un0 un1 un2 un3 v0 v1 v2 v3 ≠ 0) :
+    addbackN4_carry un0 un1 un2 un3 v0 v1 v2 v3 = 1 := by
+  apply BitVec.eq_of_toNat_eq
+  rw [show (1 : Word).toNat = 1 by decide]
+  have hne : (addbackN4_carry un0 un1 un2 un3 v0 v1 v2 v3).toNat ≠ 0 := by
+    intro hzero
+    exact hcarry (BitVec.eq_of_toNat_eq hzero)
+  have hle := addbackN4_carry_toNat_le_one un0 un1 un2 un3 v0 v1 v2 v3
+  omega
+
 theorem word_sub_toNat_of_le (x y : Word) (h : y.toNat ≤ x.toNat) :
     (x - y).toNat = x.toNat - y.toNat := by
   simp only [BitVec.toNat_sub]

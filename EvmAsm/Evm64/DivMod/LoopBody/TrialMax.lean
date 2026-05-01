@@ -81,7 +81,7 @@ theorem divK_trial_max_full_spec_within
     base
   dsimp only [] at STL
   -- 2. BLTU x7 x10 12 at base+500
-  have hbltu_raw := bltu_spec_gen_within .x7 .x10 (12 : BitVec 13) uHi vTop (base + 500)
+  have hbltu_raw := bltu_spec_gen_within .x7 .x10 (12 : BitVec 13) uHi vTop (base + trialCallOff)
   rw [lb_bltu_taken, lb_bltu_ntaken] at hbltu_raw
   have hbltu_ext := cpsBranchWithin_extend_code (hmono :=
     lb_sub 13 _ _ (by decide) (by bv_addr) (by decide)) hbltu_raw

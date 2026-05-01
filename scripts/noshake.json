@@ -8,6 +8,10 @@
   ["Mathlib.Tactic.IntervalCases", "Mathlib.Tactic.FinCases", "Mathlib.Data.Fintype.Basic"],
   "EvmAsm.Rv64.RLP.Phase1":
   ["EvmAsm.Rv64.SyscallSpecs", "EvmAsm.Rv64.Tactics.XSimp", "EvmAsm.Rv64.Tactics.ExtractPure"],
+  "EvmAsm.Rv64.RLP.Phase1CascadePrefixE2": ["EvmAsm.Rv64.RLP.Phase1Disjoint"],
+  "EvmAsm.Rv64.RLP.Phase1CascadePrefixE3": ["EvmAsm.Rv64.RLP.Phase1Disjoint"],
+  "EvmAsm.Rv64.RLP.Phase1CascadePrefixE4": ["EvmAsm.Rv64.RLP.Phase1Disjoint"],
+  "EvmAsm.Rv64.RLP.Phase1CascadePrefixE5": ["EvmAsm.Rv64.RLP.Phase1Disjoint"],
   "EvmAsm.Rv64.RLP.Phase2LongLoad":
   ["EvmAsm.Rv64.Tactics.XSimp"],
   "EvmAsm.Rv64.Tactics.XPerm":
@@ -16,6 +20,7 @@
   ["EvmAsm.Rv64.Tactics.PerfTrace", "EvmAsm.Rv64.InstructionSpecs"],
   "EvmAsm.Rv64.Tactics.LiftSpec":
   ["EvmAsm.Rv64.Tactics.XSimp", "EvmAsm.Evm64.Stack"],
+  "EvmAsm.Rv64.AddrNorm": ["EvmAsm.Rv64.AddrNormAttr"],
   "EvmAsm.Evm64.Pop.Spec":
   ["EvmAsm.Rv64.SyscallSpecs", "EvmAsm.Rv64.Tactics.RunBlock"],
   "EvmAsm.Evm64.Push0.Spec":
@@ -36,4 +41,18 @@
   "EvmAsm.Evm64.IsZero.Spec":  ["EvmAsm.Rv64.Tactics.XSimp"],
   "EvmAsm.Evm64.Slt.Spec":     ["EvmAsm.Rv64.Tactics.XSimp"],
   "EvmAsm.Evm64.Sgt.Spec":     ["EvmAsm.Rv64.Tactics.XSimp"],
-  "EvmAsm.Evm64.Multiply.Spec":["EvmAsm.Rv64.Tactics.XSimp"]}}
+  "EvmAsm.Evm64.Multiply.Spec":["EvmAsm.Rv64.Tactics.XSimp", "EvmAsm.Evm64.EvmWordArith.MulCorrect"],
+  "EvmAsm.Evm64.DivMod.LimbSpec.Div128Step1v2":
+  ["EvmAsm.Evm64.DivMod.LimbSpec.Div128Step1"],
+  "EvmAsm.Evm64.DivMod.LimbSpec.Div128Step2":
+  ["EvmAsm.Evm64.DivMod.LimbSpec.Div128Clamp", "EvmAsm.Evm64.DivMod.LimbSpec.Div128Tail"],
+  "EvmAsm.Evm64.DivMod.Compose.Offsets":
+  ["EvmAsm.Evm64.DivMod.Program"],
+  "EvmAsm.Evm64.EvmWordArith.Div128CallSkipClose":
+  ["EvmAsm.Evm64.EvmWordArith.Div128KB6Composition"],
+  "EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV2.QuotientBounds":
+  ["EvmAsm.Evm64.EvmWordArith.Div128KnuthLower"],
+  "EvmAsm.Evm64.Shift.ShlCompose":
+  ["EvmAsm.Evm64.Shift.ComposeBase"],
+  "EvmAsm.Evm64.Shift.SarCompose":
+  ["EvmAsm.Evm64.Shift.ComposeBase"]}}
