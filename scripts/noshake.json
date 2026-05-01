@@ -21,6 +21,9 @@
   "EvmAsm.Rv64.Tactics.LiftSpec":
   ["EvmAsm.Rv64.Tactics.XSimp", "EvmAsm.Evm64.Stack"],
   "EvmAsm.Rv64.AddrNorm": ["EvmAsm.Rv64.AddrNormAttr"],
+  "EvmAsm.Rv64.AddrNormAttr": ["Lean.Meta.Tactic.Simp.RegisterCommand"],
+  "EvmAsm.Rv64.RegOpsAttr": ["Lean.Meta.Tactic.Simp.RegisterCommand"],
+  "EvmAsm.Rv64.ByteAlgAttr": ["Lean.Meta.Tactic.Simp.RegisterCommand"],
   "EvmAsm.Evm64.Pop.Spec":
   ["EvmAsm.Rv64.SyscallSpecs", "EvmAsm.Rv64.Tactics.RunBlock"],
   "EvmAsm.Evm64.Push0.Spec":
