@@ -21,6 +21,7 @@
 
 import EvmAsm.Evm64.DivMod.LimbSpec.Div128Step1
 import EvmAsm.Evm64.DivMod.LimbSpec.Div128ProdCheck1b
+import EvmAsm.Rv64.Tactics.DropPure
 
 open EvmAsm.Rv64.Tactics
 
@@ -417,15 +418,10 @@ theorem divK_div128_step1_v2_spec_within
          (.x5 ↦ᵣ x5Exit) ** (.x11 ↦ᵣ un1) ** (.x1 ↦ᵣ x1Exit) **
          (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) ** (sp + signExtend12 3952 ↦ₘ dlo)) hp
     rw [hq1'', hrhat'', hx5, hx1]
-    have hP' : ((.x7 ↦ᵣ rhat') ** (.x6 ↦ᵣ dHi) ** (.x10 ↦ᵣ q1') **
-                (.x5 ↦ᵣ qDlo1) ** (.x11 ↦ᵣ un1) ** (.x1 ↦ᵣ rhatHi2) **
-                (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) **
-                (sp + signExtend12 3952 ↦ₘ dlo)) hp :=
-      sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
-        (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
-        (sepConj_mono_right (sepConj_mono_right
-          (fun h' hp' => ((sepConj_pure_left h').1 hp').2)))))))) hp hP
-    xperm_hyp hP')
+    -- drop_pure (#1435): strip ⌜rhatHi2 ≠ 0⌝ from hP via ac_rfl-based rebind,
+    -- then xperm_hyp closes. Replaces a 9-line sepConj_mono_right ladder.
+    drop_pure hP
+    xperm_hyp hP)
   -- Fall-through bridge: rhatHi2 = 0 ⟹ q1'' = q1'FT, rhat'' = rhat'FT, x5Exit = qDlo2, x1Exit = rhatUn1'
   have h_f : cpsTripleWithin 0 (base + 100) (base + 100) cr _ tgtPost := refl_of (P :=
     (.x7 ↦ᵣ (if BitVec.ult rhatUn1' qDlo2 then rhat' + dHi else rhat')) **
@@ -462,17 +458,10 @@ theorem divK_div128_step1_v2_spec_within
          (.x5 ↦ᵣ x5Exit) ** (.x11 ↦ᵣ un1) ** (.x1 ↦ᵣ x1Exit) **
          (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) ** (sp + signExtend12 3952 ↦ₘ dlo)) hp
     rw [hq1'', hrhat'', hx5, hx1]
-    have hP' : ((.x7 ↦ᵣ (if BitVec.ult rhatUn1' qDlo2 then rhat' + dHi else rhat')) **
-                (.x6 ↦ᵣ dHi) **
-                (.x10 ↦ᵣ (if BitVec.ult rhatUn1' qDlo2 then q1' + signExtend12 4095 else q1')) **
-                (.x5 ↦ᵣ qDlo2) ** (.x11 ↦ᵣ un1) ** (.x1 ↦ᵣ rhatUn1') **
-                (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) **
-                (sp + signExtend12 3952 ↦ₘ dlo)) hp :=
-      sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
-        (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
-        (sepConj_mono_right (sepConj_mono_right
-          (fun h' hp' => ((sepConj_pure_left h').1 hp').2)))))))) hp hP
-    xperm_hyp hP')
+    -- drop_pure (#1435): strip ⌜rhatHi2 = 0⌝ from hP via ac_rfl-based rebind,
+    -- then xperm_hyp closes. Replaces a 9-line sepConj_mono_right ladder.
+    drop_pure hP
+    xperm_hyp hP)
   exact cpsBranchWithin_merge_same_cr hbr h_t h_f
 
 end EvmAsm.Evm64

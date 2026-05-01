@@ -77,6 +77,13 @@ abbrev trialCallOff : Word :=  500
     Sub-offset relative to the loopBody block (= trialCallOff + 4
     = loopBodyOff + 56, i.e. 14 instructions into the loop body). -/
 abbrev trialMaxOff : Word :=  504
+/-- Offset of the `divK_mulsub_correction` sub-block inside `divK_loopBody`.
+    Entry PC of the mulsub-correction snippet that computes
+    `u[j..j+n] := u[j..j+n] − q̂ · v` (the trial-quotient subtract step in
+    Knuth Algorithm D). Sub-offset relative to the loopBody block
+    (= loopBodyOff + 88, i.e. 22 instructions into the loop body — past
+    the trial-divide entry and div128 call site). -/
+abbrev mulsubOff : Word :=  536
 /-- Offset of the mulsub correction-skip BEQ entry inside `divK_loopBody`.
     Entry PC of the BEQ instruction that branches over the addback correction
     block when the trial-quotient mulsub did not borrow (the "skip" path).
@@ -167,6 +174,11 @@ example : trialCallOff = loopBodyOff + 52 := by decide
     instruction past `trialCallOff`. -/
 example : trialMaxOff = trialCallOff + 4 := by decide
 example : trialMaxOff = loopBodyOff + 56 := by decide
+/-- mulsubOff = loopBodyOff + 88 (sub-block offset within `divK_loopBody`).
+    The `divK_mulsub_correction` snippet starts 22 instructions into the loop
+    body, after the trial-divide entry (~13 instructions) and the div128 call
+    site (~9 instructions including the JAL+JALR ABI dance). -/
+example : mulsubOff = loopBodyOff + 88 := by decide
 /-- epilogueOff = denormOff + 4 · |divK_denorm|. -/
 example : epilogueOff = denormOff + 4 * divK_denorm.length := by decide
 /-- zeroPathOff = epilogueOff + 4 · |divK_div_epilogue 24|
