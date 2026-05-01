@@ -353,4 +353,55 @@ theorem fullDivN1R0_v4_rawTrial_ge_local_digit
       delta isTrialN1_v4_j0 at hbltu_0
       simpa using hbltu_0)
 
+@[irreducible]
+def fullDivN1QuotientVal_v4
+    (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Nat :=
+  let B := 2^64
+  let r3 := fullDivN1R3_v4 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3
+  let r2 := fullDivN1R2_v4 bltu_3 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3
+  let r1 := fullDivN1R1_v4 bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3
+  let r0 := fullDivN1R0_v4 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3
+  r3.1.toNat * B^3 + r2.1.toNat * B^2 + r1.1.toNat * B + r0.1.toNat
+
+@[irreducible]
+def fullDivN1CorrectedTrialVal_v4
+    (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Nat :=
+  let B := 2^64
+  let v := fullDivN1NormV b0 b1 b2 b3
+  let u := fullDivN1NormU a0 a1 a2 a3 b0
+  let r3 := fullDivN1R3_v4 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3
+  let r2 := fullDivN1R2_v4 bltu_3 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3
+  let r1 := fullDivN1R1_v4 bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3
+  let qHat3 : Word := if bltu_3 then div128Quot_v4 u.2.2.2.2 u.2.2.2.1 v.1
+    else signExtend12 4095
+  let qHat2 : Word := if bltu_2 then div128Quot_v4 r3.2.1 u.2.2.1 v.1
+    else signExtend12 4095
+  let qHat1 : Word := if bltu_1 then div128Quot_v4 r2.2.1 u.2.1 v.1
+    else signExtend12 4095
+  let qHat0 : Word := if bltu_0 then div128Quot_v4 r1.2.1 u.1 v.1
+    else signExtend12 4095
+  (qHat3.toNat - 2) * B^3 + (qHat2.toNat - 2) * B^2 +
+    (qHat1.toNat - 2) * B + (qHat0.toNat - 2)
+
+theorem fullDivN1CorrectedTrialVal_v4_le_quotientVal_v4
+    (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
+    fullDivN1CorrectedTrialVal_v4 bltu_3 bltu_2 bltu_1 bltu_0
+        a0 a1 a2 a3 b0 b1 b2 b3 ≤
+      fullDivN1QuotientVal_v4 bltu_3 bltu_2 bltu_1 bltu_0
+        a0 a1 a2 a3 b0 b1 b2 b3 := by
+  have h3 := fullDivN1R3_v4_qout_ge_trial_sub_two
+    bltu_3 a0 a1 a2 a3 b0 b1 b2 b3
+  have h2 := fullDivN1R2_v4_qout_ge_trial_sub_two
+    bltu_3 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3
+  have h1 := fullDivN1R1_v4_qout_ge_trial_sub_two
+    bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3
+  have h0 := fullDivN1R0_v4_qout_ge_trial_sub_two
+    bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3
+  delta fullDivN1CorrectedTrialVal_v4 fullDivN1QuotientVal_v4
+  simp only [] at h3 h2 h1 h0 ⊢
+  nlinarith [h3, h2, h1, h0]
+
 end EvmAsm.Evm64
