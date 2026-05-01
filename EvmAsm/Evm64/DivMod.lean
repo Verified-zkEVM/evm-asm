@@ -1,4 +1,7 @@
 import EvmAsm.Evm64.DivMod.NormDefs
+-- AddrNormSmokeTests pins canonical shapes from docs/263-addr-norm-inventory.md
+-- so silent gaps in @[divmod_addr] coverage become CI failures (issue #263).
+import EvmAsm.Evm64.DivMod.AddrNormSmokeTests
 -- Spec is the public stack-spec surface and re-exports the split Spec/*
 -- modules. It also covers Compose + FullPathN4 + FullPathN4Beq +
 -- ModFullPathN4 + EvmWordArith + ModFullPathN4Shift0 + FullPathN4Shift0.
