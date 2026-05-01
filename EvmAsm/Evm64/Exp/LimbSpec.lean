@@ -83,7 +83,94 @@ theorem exp_square_block_spec_within
   exact jal_spec_within .x1 vOld mulOff base (by nofun)
 
 -- ============================================================================
--- Section 3: exp_loop_back (2 instructions, slice 4d / evm-asm-smfg)
+-- Section 3: exp_cond_mul_block (2 instructions, slice 4c / evm-asm-a0vp)
+-- ============================================================================
+--
+-- `exp_cond_mul_block mulOff skipOff` (defined in `Exp/Program.lean`):
+--
+--     BEQ .x10 .x0 skipOff ;;     -- if x10 == 0 (current bit is zero), skip
+--     JAL .x1 mulOff              -- otherwise call mul_callable
+--
+-- Two-instruction conditional-multiply branch: the BEQ skips past the JAL
+-- when the current exponent bit (`x10`) is zero, otherwise the JAL invokes
+-- `mul_callable` and updates `.x1` with the return address `(base + 4) + 4
+-- = base + 8`. As with `exp_square_block`, argument-marshalling is handled
+-- by the surrounding scaffold and is not part of this leaf cpsBranch.
+--
+-- Mirrors the BEQ-into-instruction shape from `divK_div128_clamp_q*`
+-- (`DivMod/LimbSpec/Div128Clamp.lean`), but emits a `cpsBranchWithin` (two
+-- exits) rather than a merged `cpsTripleWithin`, because the surrounding
+-- `exp_iter_body` composition cares about which path the iteration took.
+
+abbrev exp_cond_mul_block_code (base : Word)
+    (mulOff : BitVec 21) (skipOff : BitVec 13) : CodeReq :=
+  CodeReq.ofProg base (exp_cond_mul_block mulOff skipOff)
+
+theorem exp_cond_mul_block_spec_within
+    (mulOff : BitVec 21) (skipOff : BitVec 13) (v10 vOld : Word) (base : Word) :
+    cpsBranchWithin 2 base (exp_cond_mul_block_code base mulOff skipOff)
+      ((.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ 0) ** (.x1 ↦ᵣ vOld))
+      (base + signExtend13 skipOff)
+        ((.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ 0) ** (.x1 ↦ᵣ vOld) ** ⌜v10 = 0⌝)
+      ((base + 4) + signExtend21 mulOff)
+        ((.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ 0) ** (.x1 ↦ᵣ (base + 8)) ** ⌜v10 ≠ 0⌝) := by
+  -- Reshape the 2-instruction `ofProg` CodeReq into a union of singletons.
+  have hcr_eq : exp_cond_mul_block_code base mulOff skipOff =
+      (CodeReq.singleton base (.BEQ .x10 .x0 skipOff)).union
+        (CodeReq.singleton (base + 4) (.JAL .x1 mulOff)) := by
+    show CodeReq.ofProg base [.BEQ .x10 .x0 skipOff, .JAL .x1 mulOff] = _
+    exact CodeReq.ofProg_pair
+  -- Step 1: BEQ at base, framed with (.x1 ↦ᵣ vOld), extended to the full cr.
+  have hbeq := beq_spec_within .x10 .x0 skipOff v10 (0 : Word) base
+  have hbeq_framed := cpsBranchWithin_frameR (.x1 ↦ᵣ vOld) (by pcFree) hbeq
+  have hbeq_ext : cpsBranchWithin 1 base
+      (exp_cond_mul_block_code base mulOff skipOff)
+      (((.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word))) ** (.x1 ↦ᵣ vOld))
+      (base + signExtend13 skipOff)
+        (((.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜v10 = (0 : Word)⌝) **
+         (.x1 ↦ᵣ vOld))
+      (base + 4)
+        (((.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜v10 ≠ (0 : Word)⌝) **
+         (.x1 ↦ᵣ vOld)) :=
+    cpsBranchWithin_extend_code (h := hbeq_framed) (hmono := by
+      rw [hcr_eq]; intro a i
+      simp only [CodeReq.union_singleton_apply, CodeReq.singleton]
+      intro h
+      split at h <;> simp_all)
+  -- Step 2: JAL at base + 4, framed with x10/x0/⌜v10 ≠ 0⌝, extended to cr.
+  have hjal_raw := jal_spec_within .x1 vOld mulOff (base + 4) (by nofun)
+  have hjal_framed := cpsTripleWithin_frameR
+    ((.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜v10 ≠ (0 : Word)⌝)
+    (by pcFree) hjal_raw
+  have hb4 : (base + 4 : Word) + 4 = base + 8 := by bv_omega
+  rw [hb4] at hjal_framed
+  have hjal_ext : cpsTripleWithin 1 (base + 4)
+      ((base + 4) + signExtend21 mulOff)
+      (exp_cond_mul_block_code base mulOff skipOff)
+      ((.x1 ↦ᵣ vOld) **
+       ((.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜v10 ≠ (0 : Word)⌝))
+      ((.x1 ↦ᵣ (base + 8)) **
+       ((.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜v10 ≠ (0 : Word)⌝)) :=
+    cpsTripleWithin_extend_code (h := hjal_framed) (hmono := by
+      rw [hcr_eq]; intro a i
+      simp only [CodeReq.union_singleton_apply, CodeReq.singleton]
+      intro h
+      split at h <;> simp_all)
+  -- Compose: BEQ ntaken path (v10 ≠ 0) flows into JAL; taken path exits.
+  have composed := cpsBranchWithin_seq_cpsTripleWithin_with_perm_same_cr
+    (h1 := hbeq_ext)
+    (hperm := fun h hp => by xperm_hyp hp)
+    (h2 := hjal_ext)
+    (ht1 := fun h hp => hp)
+  -- Permute pre and posts into the natural right-associated shape.
+  exact cpsBranchWithin_weaken
+    (fun h hp => by xperm_hyp hp)
+    (fun h hp => by xperm_hyp hp)
+    (fun h hp => by xperm_hyp hp)
+    composed
+
+-- ============================================================================
+-- Section 4: exp_loop_back (2 instructions, slice 4d / evm-asm-smfg)
 -- ============================================================================
 --
 -- `exp_loop_back backOff` (defined in `Exp/Program.lean`):

@@ -16,7 +16,6 @@
 -/
 
 import EvmAsm.Evm64.DivMod.Spec.Dispatcher
-import EvmAsm.Evm64.DivMod.Spec.N2RemainderWord
 import EvmAsm.Evm64.DivMod.Compose.ModFullPathN2LoopUnified
 
 namespace EvmAsm.Evm64
