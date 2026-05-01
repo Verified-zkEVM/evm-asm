@@ -14,4 +14,5 @@ import EvmAsm.Evm64.DivMod.Spec.CallAddbackCounterexamples
 import EvmAsm.Evm64.DivMod.Spec.CallAddbackMod
 import EvmAsm.Evm64.DivMod.Spec.V4
 import EvmAsm.Evm64.DivMod.Spec.V4Addback
+import EvmAsm.Evm64.DivMod.Spec.N2RemainderWord
 import EvmAsm.Evm64.DivMod.Spec.Dispatcher
