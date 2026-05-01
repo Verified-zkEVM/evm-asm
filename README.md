@@ -215,8 +215,10 @@ diff'd against earlier runs.
 The workflow is independent of PR CI and does not gate any pull
 request. To trigger an off-schedule run manually, go to **Actions →
 Benchmark → Run workflow** (or `gh workflow run benchmark.yml`).
-History persistence (a long-lived JSON log of timings) is tracked as a
-follow-up under issue #949.
+Long-lived history (`benchmark-history` orphan branch) and
+regression-hunting workflow are documented for contributors in
+[`AGENTS.md`](AGENTS.md) and
+[`docs/benchmark-workflow-design.md`](docs/benchmark-workflow-design.md).
 
 The shape of this workflow was informed by a survey of
 [`Beneficial-AI-Foundation/curve25519-dalek-lean-verify`](https://github.com/Beneficial-AI-Foundation/curve25519-dalek-lean-verify)'s

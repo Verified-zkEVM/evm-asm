@@ -366,6 +366,33 @@ scripts/check-file-size.sh           # exit 1 on any unexcused violation
 scripts/check-file-size.sh --report  # always exit 0; print all over-cap files
 ```
 
+### Benchmark history (`benchmark-history` orphan branch)
+
+The Monday `benchmark.yml` cron appends one JSON object per successful
+run to `history.jsonl` on the long-lived `benchmark-history` orphan
+branch (created on first push by the workflow itself). Each row carries
+`commit`, `timestamp`, `wall_seconds`, `peak_rss_kb`, `runner_os`,
+`runner_cores`, … — see `docs/benchmark-workflow-design.md` for the
+full schema and rationale.
+
+To inspect the historical series locally:
+
+```bash
+git fetch origin benchmark-history
+git show origin/benchmark-history:history.jsonl | tail -n 20
+# project a single metric over time:
+git show origin/benchmark-history:history.jsonl \
+  | jq -r '[.timestamp, .commit[:12], .wall_seconds] | @tsv'
+```
+
+When chasing a build-time regression, correlate adjacent `wall_seconds`
+jumps with `git log --oneline <prev-sha>..<curr-sha>` between the two
+recorded `commit` values. Files that have historically driven the
+largest deltas live under `EvmAsm/Evm64/DivMod/` (compose chains; see
+the `xperm` notes above) and `EvmAsm/Evm64/Shift/` (composition files
+where bumping `set_option maxHeartbeats` is permitted per the Critical
+Rules).
+
 ## Bundling Postconditions with `let` Bindings
 
 When a composed spec's postcondition has many `let` bindings (e.g., shift
