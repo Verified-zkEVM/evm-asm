@@ -15,6 +15,7 @@
 -/
 
 import EvmAsm.Evm64.DivMod.Spec.CallAddback
+import EvmAsm.Evm64.DivMod.Spec.CallAddbackSubStubs
 
 namespace EvmAsm.Evm64
 
