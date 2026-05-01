@@ -69,6 +69,13 @@ abbrev loopBodyOff  : Word :=  448
     instructions into the loop body, just after the `save j + trial load`
     prelude). -/
 abbrev trialCallOff : Word :=  500
+/-- Offset of the `divK_mulsub_correction` sub-block inside `divK_loopBody`.
+    Entry PC of the mulsub-correction snippet that computes
+    `u[j..j+n] := u[j..j+n] − q̂ · v` (the trial-quotient subtract step in
+    Knuth Algorithm D). Sub-offset relative to the loopBody block
+    (= loopBodyOff + 88, i.e. 22 instructions into the loop body — past
+    the trial-divide entry and div128 call site). -/
+abbrev mulsubOff : Word :=  536
 /-- Offset of the mulsub correction-skip sub-block inside `divK_loopBody`.
     Entry PC of the divK_sub_carry (sub-borrow) chain that runs along the
     skip-correction path when the trial-quotient mulsub did not borrow.
@@ -160,6 +167,11 @@ example : correctionSkipBeqOff = loopBodyOff + 280 := by decide
 /-- trialCallOff = loopBodyOff + 52 (sub-block offset within `divK_loopBody`).
     The trial-quotient BLTU/JAL pair sits 13 instructions into the loop body. -/
 example : trialCallOff = loopBodyOff + 52 := by decide
+/-- mulsubOff = loopBodyOff + 88 (sub-block offset within `divK_loopBody`).
+    The `divK_mulsub_correction` snippet starts 22 instructions into the loop
+    body, after the trial-divide entry (~13 instructions) and the div128 call
+    site (~9 instructions including the JAL+JALR ABI dance). -/
+example : mulsubOff = loopBodyOff + 88 := by decide
 /-- correctionSkipOff = loopBodyOff + 176 (sub-block offset within
     `divK_loopBody`). The divK_sub_carry chain on the skip-correction path
     sits 44 instructions into the loop body. -/
