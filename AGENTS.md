@@ -332,6 +332,42 @@ Impact: olean sizes drop 50-80% (e.g., LoopBody 16MB → 2.8MB), kernel checking
 
 For closing repetitive proof patterns (e.g., DivMod address-arithmetic equalities via `divmod_addr`), use the registered grind/simp sets rather than inline `simp only [show … from by decide]; bv_omega` chains. See **[GRIND.md](GRIND.md)** for the full conventions, canonical reference implementation (`EvmAsm/Evm64/DivMod/AddrNorm.lean`), layout patterns, empirical justification, and the rollout roadmap.
 
+#### Address-normalization grindset family
+
+Three address grindsets cover all current call-sites; pick the most specific
+that matches the proof's domain:
+
+| Grindset | Scope | File pair |
+|---|---|---|
+| `rv64_addr` | Rv64-wide: `signExtend12/13/21` + `BitVec.add_assoc` + `(N : BitVec 6).toNat` + `(N : Word).toNat` + `BitVec.ofNat 64 (4 * k)`. Subsumes the legacy `bv_addr`. | `EvmAsm/Rv64/AddrNormAttr.lean` + `EvmAsm/Rv64/AddrNorm.lean` |
+| `divmod_addr` | DivMod-specific atoms (Phase-1/Phase-2 offsets, `k <<< 3`, scratch-cell projections). Re-tags the relevant `rv64_addr` atoms so `divmod_addr` is a strict superset within DivMod. | `EvmAsm/Evm64/DivMod/AddrNormAttr.lean` + `EvmAsm/Evm64/DivMod/AddrNorm.lean` |
+| `exp_addr` | EXP opcode-local atoms (skeleton — attribute reserved; populate atoms + add a `by exp_addr` macro once EXP Compose emits concrete address arithmetic). | `EvmAsm/Evm64/Exp/AddrNormAttr.lean` + `EvmAsm/Evm64/Exp/AddrNorm.lean` |
+
+Usage: write `by rv64_addr` (or `by divmod_addr` / `by exp_addr`) to close
+address-arithmetic equalities. Each tactic tries `grind` first and falls back
+to `simp only [<set>, BitVec.add_assoc]; rfl`. New concrete offsets are added
+as one-line `@[<set>, grind =] theorem <name> : … := by decide` lemmas in the
+set's atom file; every downstream proof picks them up.
+
+Opt-in pattern for a new opcode subtree (e.g. `Evm64/Foo/`):
+
+1. Create `Evm64/Foo/AddrNormAttr.lean` with `register_simp_attr foo_addr`.
+2. Create `Evm64/Foo/AddrNorm.lean` that imports `AddrNormAttr`, re-tags
+   relevant `rv64_addr` atoms with `@[foo_addr]` (or adds opcode-specific
+   atoms), and exposes a `foo_addr` macro tactic mirroring `rv64_addr`'s
+   shape.
+3. Wire both into the umbrella import (attr file first — see the
+   `register_simp_attr` rule above).
+
+`EvmAsm/Evm64/Exp/AddrNormAttr.lean` + `EvmAsm/Evm64/Exp/AddrNorm.lean` is the
+canonical minimal shape; `EvmAsm/Evm64/DivMod/AddrNorm.lean` shows the
+mature pattern with re-tagging and per-domain extensions.
+
+**Do not** introduce a new opcode subtree without an `AddrNorm` pair on the
+first commit that adds non-trivial address arithmetic — see
+[`EvmAsm/Evm64/OPCODE_TEMPLATE.md`](EvmAsm/Evm64/OPCODE_TEMPLATE.md) §2.5.
+Retrofitting the grindset later is the tax that issue #263 documents.
+
 ### Parallel file splitting for Compose files
 
 Large composition files (>1000 lines) should be split into independent sub-files under a `Compose/` directory:
