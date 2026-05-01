@@ -24,6 +24,7 @@
     [copyAUOff    = 396] divK_copyAU        (36 bytes)
     [loopSetupOff = 432] divK_loopSetup     (16 bytes)
     [loopBodyOff  = 448] divK_loopBody     (460 bytes)
+      [trialCallOff = 500]  divK_loopBody trial-quotient BLTU sub-block entry (loopBodyOff + 52)
       [correctionSkipBeqOff = 728]  divK_loopBody mulsub-correction-skip BEQ entry (loopBodyOff + 280)
       [storeLoopOff = 884]  divK_store_qj sub-block (loopBodyOff + 436)
     [denormOff    = 908] divK_denorm       (100 bytes)
@@ -61,6 +62,13 @@ abbrev copyAUOff    : Word :=  396
 abbrev loopSetupOff : Word :=  432
 /-- Offset of `divK_loopBody` (Knuth Algorithm D main loop body). -/
 abbrev loopBodyOff  : Word :=  448
+/-- Offset of the trial-quotient BLTU sub-block inside `divK_loopBody`.
+    Entry PC of the `BLTU x7 x10 +12` instruction that branches into the
+    "max" trial-quotient path (`q̂ = 2^64 - 1`) when the high limb equals
+    the divisor's top limb; otherwise falls through to the call path that
+    invokes `divK_div128`. Sub-offset relative to the loopBody block
+    (= loopBodyOff + 52, i.e. 13 instructions into the loop body). -/
+abbrev trialCallOff : Word :=  500
 /-- Offset of the mulsub correction-skip BEQ entry inside `divK_loopBody`.
     Entry PC of the BEQ instruction that branches over the addback correction
     block when the trial-quotient mulsub did not borrow (the "skip" path).
@@ -143,6 +151,9 @@ example : storeLoopOff = loopBodyOff + 436 := by decide
     `divK_loopBody`). The mulsub correction-skip BEQ sits 70 instructions
     into the loop body. -/
 example : correctionSkipBeqOff = loopBodyOff + 280 := by decide
+/-- trialCallOff = loopBodyOff + 52 (sub-block offset within `divK_loopBody`).
+    The trial-quotient BLTU sits 13 instructions into the loop body. -/
+example : trialCallOff = loopBodyOff + 52 := by decide
 /-- epilogueOff = denormOff + 4 · |divK_denorm|. -/
 example : epilogueOff = denormOff + 4 * divK_denorm.length := by decide
 /-- zeroPathOff = epilogueOff + 4 · |divK_div_epilogue 24|
