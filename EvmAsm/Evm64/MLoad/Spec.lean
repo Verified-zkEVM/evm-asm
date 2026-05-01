@@ -15,6 +15,39 @@ namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
 
+/-- CodeReq for the two-instruction MLOAD address prologue. -/
+def mloadPrologueCode
+    (offReg addrReg memBaseReg : Reg) (base : Word) : CodeReq :=
+  (CodeReq.singleton base (.LD offReg .x12 0)).union
+    (CodeReq.singleton (base + 4) (.ADD addrReg memBaseReg offReg))
+
+/--
+  MLOAD prologue spec: load the low 64-bit offset limb from the EVM stack and
+  compute the concrete byte address `memBase + offset` used by the four
+  subsequent limb-load blocks.
+-/
+theorem mload_prologue_spec_within
+    (offReg addrReg memBaseReg : Reg)
+    (sp offset offOld addrOld memBase : Word) (base : Word)
+    (h_off_ne_x0 : offReg ≠ .x0)
+    (h_addr_ne_x0 : addrReg ≠ .x0) :
+    cpsTripleWithin 2 base (base + 8)
+      (mloadPrologueCode offReg addrReg memBaseReg base)
+      (((.x12 : Reg) ↦ᵣ sp) ** (offReg ↦ᵣ offOld) **
+       (memBaseReg ↦ᵣ memBase) ** (addrReg ↦ᵣ addrOld) **
+       (sp ↦ₘ offset))
+      (((.x12 : Reg) ↦ᵣ sp) ** (offReg ↦ᵣ offset) **
+       (memBaseReg ↦ᵣ memBase) ** (addrReg ↦ᵣ (memBase + offset)) **
+       (sp ↦ₘ offset)) := by
+  unfold mloadPrologueCode
+  have h_ld := ld_spec_within offReg (.x12 : Reg) sp offOld offset 0 base h_off_ne_x0
+  rw [show (sp + signExtend12 (0 : BitVec 12) : Word) = sp from by
+    rw [signExtend12_0]; bv_omega] at h_ld
+  have h_add := add_spec_gen_within addrReg memBaseReg offReg memBase offset addrOld
+    (base + 4) h_addr_ne_x0
+  rw [show (base + 4 : Word) + 4 = base + 8 from by bv_omega] at h_add
+  runBlock h_ld h_add
+
 /-- The 256-bit value assembled by MLOAD from four little-endian output limbs. -/
 def mloadLoadedWord (l0 l1 l2 l3 : Word) : EvmWord :=
   EvmWord.fromLimbs fun i : Fin 4 =>
