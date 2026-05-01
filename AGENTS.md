@@ -120,6 +120,33 @@ The project includes concrete test cases using `native_decide`:
 - ECALL/halt termination examples
 - COMMIT-then-halt examples
 
+## Import Hygiene (`lake exe shake`)
+
+We use Mathlib's `shake` tool to flag unused imports. Configuration lives in
+`scripts/noshake.json` (curated entries for known false positives — e.g.
+files that use `IntervalCases` / `FinCases` / `Fintype` instances, the
+`Init` / `Lean` modules referenced by Word notation, and tactic-registry
+attributes that shake doesn't track).
+
+Reproduction recipe:
+
+```bash
+lake build           # required: shake reads .olean metadata
+lake exe shake EvmAsm
+```
+
+Pitfalls:
+
+- `shake` does **not** track tactic registries / `@[spec_gen_*]` attributes
+  that elaborate via tactics, term-elaborator macros, or `notation`-only
+  references (`notation "Word" => BitVec 64` in `EvmAsm.Rv64.Basic`). Many
+  of its suggestions are false positives — see the audit in beads
+  `evm-asm-o6y` (parent `evm-asm-6qj`) before acting on raw shake output.
+  Filter via `scripts/shake-filter.py` / `scripts/shake-filter.md` and
+  verify each removal with `lake build` before committing.
+- When in doubt, prefer adding a `noshake.json` entry over removing the
+  import.
+
 ## Git Workflow
 
 - Main branch: `main`
