@@ -145,7 +145,7 @@ private theorem divK_phaseB_n4_nm1_x8 :
 -- and are shared with the MOD-side files (ModPhaseB / ModPhaseBn3 / ModPhaseBn21).
 private theorem phB_i2_8 {base : Word} : (base + phaseBInit2Off : Word) + 8 = base + 68 := by bv_addr
 private theorem phB_addi_4 {base : Word} : (base + 68 : Word) + 4 = base + phaseBBneOff := by bv_addr
-private theorem phB_bne_4 {base : Word} : (base + phaseBBneOff : Word) + 4 = base + 76 := by bv_addr
+private theorem phB_bne_4 {base : Word} : (base + phaseBBneOff : Word) + 4 = base + phaseBStep1Off := by bv_addr
 private theorem phB_t_20 {base : Word} : (base + phaseBTailOff : Word) + 20 = base + clzOff := by bv_addr
 private theorem phB_sp24_32 {sp : Word} : (sp + (24 : Word) + (32 : Word)) = sp + 56 := by bv_addr
 
@@ -382,14 +382,14 @@ theorem evm_div_phaseAB_n4_spec (sp base : Word)
 
 -- ADDI x5 x0 3 at base+76 (index 11 of phaseB)
 private theorem addi_x5_3_sub_divCode {base : Word} :
-    ∀ a i, (CodeReq.singleton (base + 76) (.ADDI .x5 .x0 3)) a = some i →
+    ∀ a i, (CodeReq.singleton (base + phaseBStep1Off) (.ADDI .x5 .x0 3)) a = some i →
       (divCode base) a = some i := by
   unfold divCode; simp only [CodeReq.unionAll_cons]
   intro a i h
   have hlookup := CodeReq.ofProg_lookup (base + phaseBOff) divK_phaseB 11
     (by decide) (by decide)
   rw [bv64_4mul_11,
-      show (base + phaseBOff : Word) + 44 = base + 76 from by bv_addr] at hlookup
+      show (base + phaseBOff : Word) + 44 = base + phaseBStep1Off from by bv_addr] at hlookup
   have h1 := CodeReq.singleton_mono hlookup a i h
   exact sub_divCode_of_phaseB_left a i h1
 
@@ -465,7 +465,7 @@ private theorem divK_phaseB_n1_nm1_x8 :
   decide
 
 -- Cascade address normalization
-private theorem phB_step1_4 {base : Word} : (base + 76 : Word) + 4 = base + phaseBBne2Off := by bv_addr
+private theorem phB_step1_4 {base : Word} : (base + phaseBStep1Off : Word) + 4 = base + phaseBBne2Off := by bv_addr
 private theorem phB_step1_8 {base : Word} : (base + phaseBBne2Off : Word) + 4 = base + 84 := by bv_addr
 private theorem phB_step2_4 {base : Word} : (base + 84 : Word) + 4 = base + 88 := by bv_addr
 private theorem phB_step2_8 {base : Word} : (base + 88 : Word) + 4 = base + 92 := by bv_addr
@@ -565,7 +565,7 @@ theorem evm_div_phaseB_n3_spec_within (sp base : Word)
   have h1234 := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h123 hbne0f
   -- ---- Cascade step 1: ADDI x5=3 (base+76 → base+80)
-  have haddi1_raw := addi_x0_spec_gen_within .x5 (4 : Word) 3 (base + 76) (by nofun)
+  have haddi1_raw := addi_x0_spec_gen_within .x5 (4 : Word) 3 (base + phaseBStep1Off) (by nofun)
   simp only [phB_step1_4, signExtend12_3] at haddi1_raw
   have haddi1 := cpsTripleWithin_extend_code addi_x5_3_sub_divCode haddi1_raw
   have haddi1f := cpsTripleWithin_frameR
@@ -700,7 +700,7 @@ theorem evm_div_phaseB_n2_spec_within (sp base : Word)
   have h1234 := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h123 hbne0f
   -- ---- Cascade step 1: ADDI x5=3 (base+76 → base+80)
-  have haddi1_raw := addi_x0_spec_gen_within .x5 (4 : Word) 3 (base + 76) (by nofun)
+  have haddi1_raw := addi_x0_spec_gen_within .x5 (4 : Word) 3 (base + phaseBStep1Off) (by nofun)
   simp only [phB_step1_4, signExtend12_3] at haddi1_raw
   have haddi1 := cpsTripleWithin_extend_code addi_x5_3_sub_divCode haddi1_raw
   have haddi1f := cpsTripleWithin_frameR
@@ -870,7 +870,7 @@ theorem evm_div_phaseB_n1_spec_within (sp base : Word)
   have h1234 := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h123 hbne0f
   -- ---- Cascade step 1: ADDI x5=3 (base+76 → base+80)
-  have haddi1_raw := addi_x0_spec_gen_within .x5 (4 : Word) 3 (base + 76) (by nofun)
+  have haddi1_raw := addi_x0_spec_gen_within .x5 (4 : Word) 3 (base + phaseBStep1Off) (by nofun)
   simp only [phB_step1_4, signExtend12_3] at haddi1_raw
   have haddi1 := cpsTripleWithin_extend_code addi_x5_3_sub_divCode haddi1_raw
   have haddi1f := cpsTripleWithin_frameR

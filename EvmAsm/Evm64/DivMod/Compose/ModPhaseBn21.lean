@@ -100,7 +100,7 @@ theorem evm_mod_phaseB_n2_spec_within (sp base : Word)
   have h1234 := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h123 hbne0f
   -- ---- Cascade step 1: ADDI x5=3 (base+76 → base+80)
-  have haddi1_raw := addi_x0_spec_gen_within .x5 (4 : Word) 3 (base + 76) (by nofun)
+  have haddi1_raw := addi_x0_spec_gen_within .x5 (4 : Word) 3 (base + phaseBStep1Off) (by nofun)
   simp only [mod_phB_step1_4, se12_3] at haddi1_raw
   have haddi1 := cpsTripleWithin_extend_code addi_x5_3_sub_modCode haddi1_raw
   have haddi1f := cpsTripleWithin_frameR
@@ -271,7 +271,7 @@ theorem evm_mod_phaseB_n1_spec_within (sp base : Word)
   have h1234 := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h123 hbne0f
   -- ---- Cascade step 1: ADDI x5=3 (base+76 → base+80)
-  have haddi1_raw := addi_x0_spec_gen_within .x5 (4 : Word) 3 (base + 76) (by nofun)
+  have haddi1_raw := addi_x0_spec_gen_within .x5 (4 : Word) 3 (base + phaseBStep1Off) (by nofun)
   simp only [mod_phB_step1_4, se12_3] at haddi1_raw
   have haddi1 := cpsTripleWithin_extend_code addi_x5_3_sub_modCode haddi1_raw
   have haddi1f := cpsTripleWithin_frameR
