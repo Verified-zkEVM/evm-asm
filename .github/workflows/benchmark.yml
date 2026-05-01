@@ -25,6 +25,7 @@ concurrency:
 
 permissions:
   contents: write
+  issues: write
 
 jobs:
   benchmark:
@@ -226,3 +227,63 @@ jobs:
             cache_get.log
           if-no-files-found: warn
           retention-days: 90
+
+      # Regression surfacing (#949 slice 4 / evm-asm-9o8v).
+      #
+      # After the new record is on `benchmark-history`, compare the most
+      # recent two records in `history.jsonl`, compute wall-clock and peak-RSS
+      # deltas, and post / update a single tracking issue (label
+      # `benchmark-tracking`, fixed title `Weekly benchmark report`) with the
+      # latest snapshot plus the diff. No CI gate, no email, no PR comment —
+      # design doc `docs/benchmark-workflow-design.md` (c) explicitly defers
+      # thresholds. We only surface a soft ⚠️ marker when wall time grows by
+      # more than `REGRESSION_PCT` percent over the previous run; the user
+      # decides whether the regression is real before acting.
+      - name: Update benchmark tracking issue
+        if: steps.metrics.outcome == 'success'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WALL_RAW: ${{ steps.metrics.outputs.wall_raw }}
+          WALL_SECONDS: ${{ steps.metrics.outputs.wall_seconds }}
+          PEAK_RSS_KB: ${{ steps.metrics.outputs.peak_rss_kb }}
+          REGRESSION_PCT: '10'
+          ISSUE_LABEL: benchmark-tracking
+          ISSUE_TITLE: Weekly benchmark report
+        run: |
+          set -euo pipefail
+          # Fetch the just-pushed history.jsonl. The previous step pushed at
+          # least one new line; if this is the very first run, history.jsonl
+          # has a single entry and we skip the diff.
+          tmpdir=$(mktemp -d)
+          git -c protocol.version=2 clone --no-checkout --depth=2 --filter=blob:none \
+            --branch benchmark-history \
+            "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            "$tmpdir/history"
+          (cd "$tmpdir/history" && git checkout benchmark-history -- history.jsonl)
+          cp "$tmpdir/history/history.jsonl" history.jsonl
+
+          # Build the report markdown via the checked-in helper. We avoid
+          # inlining Python in the YAML (heredoc + indented `run:` blocks
+          # are notoriously fragile).
+          python3 "${GITHUB_WORKSPACE}/scripts/benchmark-report.py"
+          echo "::group::report.md"
+          cat report.md
+          echo "::endgroup::"
+
+          # Find an existing tracking issue, or open a new one.
+          issue_number=$(gh issue list --label "$ISSUE_LABEL" --state open \
+            --json number,title --jq \
+            '[.[] | select(.title == env.ISSUE_TITLE)][0].number // empty')
+          if [ -n "$issue_number" ]; then
+            echo "Updating tracking issue #$issue_number"
+            gh issue edit "$issue_number" --body-file report.md
+          else
+            # Ensure label exists (idempotent — gh returns 422 if it already
+            # exists, which we tolerate).
+            gh label create "$ISSUE_LABEL" \
+              --description "Auto-updated weekly benchmark report (issue #949)" \
+              --color FBCA04 2>/dev/null || true
+            echo "Opening new tracking issue"
+            gh issue create --label "$ISSUE_LABEL" --title "$ISSUE_TITLE" \
+              --body-file report.md
+          fi
