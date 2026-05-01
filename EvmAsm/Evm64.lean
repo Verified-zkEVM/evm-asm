@@ -49,7 +49,6 @@ import EvmAsm.Evm64.SignExtend
 
 -- Multiply
 import EvmAsm.Evm64.Multiply
-import EvmAsm.Evm64.MStore8
 
 -- Exp (skeleton — GH #92, square-and-multiply over 256-bit exponent)
 import EvmAsm.Evm64.Exp
@@ -67,3 +66,4 @@ import EvmAsm.Evm64.Environment.Layout
 -- EVM memory model (issue #99)
 import EvmAsm.Evm64.Memory
 import EvmAsm.Evm64.MSize
+import EvmAsm.Evm64.MStore8
