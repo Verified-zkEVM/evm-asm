@@ -92,6 +92,27 @@ theorem iterN1_v4_qout_ge_trial_sub_two
     exact iterWithDoubleAddback_qout_ge_tsub_two
       (div128Quot_v4 u1 u0 v0) v0 v1 v2 v3 u0 u1 u2 u3 uTop
 
+theorem iterN1_v4_val256_conservation_v3_zero_of_carry2
+    (bltu : Bool) (v0 v1 v2 u0 u1 u2 u3 uTop : Word)
+    (hbnz : v0 ||| v1 ||| v2 ||| (0 : Word) ≠ 0)
+    (hcarry2 : Carry2NzAll v0 v1 v2 0) :
+    let out := iterN1_v4 bltu v0 v1 v2 0 u0 u1 u2 u3 uTop
+    EvmWord.val256 u0 u1 u2 u3 + uTop.toNat * 2^256 =
+      out.1.toNat * EvmWord.val256 v0 v1 v2 0 +
+        EvmWord.val256 out.2.1 out.2.2.1 out.2.2.2.1 out.2.2.2.2.1 +
+        out.2.2.2.2.2.toNat * 2^256 := by
+  cases bltu
+  · simp only [iterN1_v4_false]
+    unfold iterN1Max
+    exact iterWithDoubleAddback_val256_conservation_v3_zero_of_carry2
+      (signExtend12 4095) v0 v1 v2 u0 u1 u2 u3 uTop hbnz
+      (hcarry2 (signExtend12 4095) u0 u1 u2 u3 uTop)
+  · simp only [iterN1_v4_true]
+    unfold iterN1Call_v4
+    exact iterWithDoubleAddback_val256_conservation_v3_zero_of_carry2
+      (div128Quot_v4 u1 u0 v0) v0 v1 v2 u0 u1 u2 u3 uTop hbnz
+      (hcarry2 (div128Quot_v4 u1 u0 v0) u0 u1 u2 u3 uTop)
+
 @[irreducible]
 def fullDivN1R3_v4 (bltu_3 : Bool) (a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
     Word × Word × Word × Word × Word × Word :=
