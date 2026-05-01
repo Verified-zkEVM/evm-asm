@@ -295,6 +295,50 @@ def fullDivN1StepsTelescoped
   let r0 := fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3
   n1StepsTelescoped v u r3 r2 r1 r0
 
+theorem fullDivN1RemainderVal_eq_mod_mul_pow_of_telescoped
+    (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hb2z : b2 = 0) (hb3z : b3 = 0)
+    (hshift_nz : fullDivN1Shift b0 ≠ 0)
+    (htel : fullDivN1StepsTelescoped bltu_3 bltu_2 bltu_1 bltu_0
+      a0 a1 a2 a3 b0 b1 b2 b3)
+    (hlt : n1StepRemainderVal
+        (fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3) +
+        n1StepsCarryVal
+          (fullDivN1R3 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3)
+          (fullDivN1R2 bltu_3 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3)
+          (fullDivN1R1 bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3)
+          (fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3) <
+      EvmWord.val256 b0 b1 b2 b3 * 2 ^ ((fullDivN1Shift b0).toNat % 64))
+    (hbound : EvmWord.val256 a0 a1 a2 a3 % EvmWord.val256 b0 b1 b2 b3 *
+        2 ^ ((fullDivN1Shift b0).toNat % 64) < 2^256) :
+    n1StepRemainderVal
+        (fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3) =
+      EvmWord.val256 a0 a1 a2 a3 % EvmWord.val256 b0 b1 b2 b3 *
+        2 ^ ((fullDivN1Shift b0).toNat % 64) := by
+  let r3 := fullDivN1R3 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3
+  let r2 := fullDivN1R2 bltu_3 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3
+  let r1 := fullDivN1R1 bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3
+  let r0 := fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3
+  let qVal := r3.1.toNat * (2^64)^3 + r2.1.toNat * (2^64)^2 +
+    r1.1.toNat * (2^64) + r0.1.toNat
+  have hv3z := fullDivN1NormV_v3_eq_zero_of_high_zero b0 b1 b2 b3 hb3z hb2z
+  have hnormu := fullDivN1NormU_val256_eq_scaled_with_overflow
+    a0 a1 a2 a3 b0 hshift_nz
+  have hnormv := fullDivN1NormV_val256_eq_scaled b0 b1 b2 b3 hb3z hshift_nz
+  have heq : EvmWord.val256 a0 a1 a2 a3 * 2 ^ ((fullDivN1Shift b0).toNat % 64) =
+      qVal * (EvmWord.val256 b0 b1 b2 b3 * 2 ^ ((fullDivN1Shift b0).toNat % 64)) +
+        (n1StepRemainderVal r0 + n1StepsCarryVal r3 r2 r1 r0) := by
+    delta fullDivN1StepsTelescoped n1StepsTelescoped at htel
+    dsimp only at htel
+    rw [← hnormu]
+    rw [← hnormv]
+    rw [hv3z]
+    simp only [qVal, r0, r1, r2, r3]
+    norm_num at htel ⊢
+    omega
+  exact n1StepsRemainderVal_eq_mod_mul_pow_of_normalized_euclidean r3 r2 r1 r0 heq hlt hbound
+
 theorem fullDivN1R3_step_conservation
     (bltu_3 : Bool) (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
     (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0)
