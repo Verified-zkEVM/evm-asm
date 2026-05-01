@@ -13,12 +13,10 @@
     * loopN1Iter210Pre / loopN1Iter210PreWithScratch — n=1 three-iteration path
 
   These are plain `Assertion`s (no iter/mulsub computations), so this file
-  depends only on `Compose.Base`.
+  depends only on `Rv64.SepLogic`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.Base
-
-open EvmAsm.Rv64.Tactics
+import EvmAsm.Rv64.SepLogic
 
 namespace EvmAsm.Evm64
 
