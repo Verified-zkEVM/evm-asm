@@ -1147,7 +1147,7 @@ theorem divK_save_trial_load_spec_within
 
 theorem lb_bltu_taken {base : Word} : (base + trialCallOff : Word) + signExtend13 (12 : BitVec 13) = base + 512 := by
   rv64_addr
-theorem lb_bltu_ntaken {base : Word} : (base + trialCallOff : Word) + 4 = base + 504 := by bv_addr
+theorem lb_bltu_ntaken {base : Word} : (base + trialCallOff : Word) + 4 = base + trialMaxOff := by bv_addr
 
 -- ============================================================================
 -- Section 9: Store q[j] + loop control
