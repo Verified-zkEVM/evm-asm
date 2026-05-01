@@ -172,6 +172,58 @@ theorem mloadPackedLimbFromDwordPair_eq_fold
     (mloadByteFromDwordPair lo hi start 7)
 
 /--
+  Precondition shape for an unaligned one-limb MLOAD proof: the 8-byte
+  source window may read from the low dword, the high dword, or both.
+-/
+@[irreducible]
+def mloadOneLimbUnalignedPre
+    (addrReg byteReg accReg : Reg)
+    (addrPtr accOld byteOld loVal hiVal loAddr hiAddr sp dstWordOld : Word)
+    (dstOff : BitVec 12) : Assertion :=
+  (addrReg ↦ᵣ addrPtr) ** (byteReg ↦ᵣ byteOld) ** (accReg ↦ᵣ accOld) **
+  (loAddr ↦ₘ loVal) ** (hiAddr ↦ₘ hiVal) ** ((.x12 : Reg) ↦ᵣ sp) **
+  ((sp + signExtend12 dstOff) ↦ₘ dstWordOld)
+
+theorem mloadOneLimbUnalignedPre_unfold
+    {addrReg byteReg accReg : Reg}
+    {addrPtr accOld byteOld loVal hiVal loAddr hiAddr sp dstWordOld : Word}
+    {dstOff : BitVec 12} :
+    mloadOneLimbUnalignedPre addrReg byteReg accReg
+        addrPtr accOld byteOld loVal hiVal loAddr hiAddr sp dstWordOld dstOff =
+    ((addrReg ↦ᵣ addrPtr) ** (byteReg ↦ᵣ byteOld) ** (accReg ↦ᵣ accOld) **
+     (loAddr ↦ₘ loVal) ** (hiAddr ↦ₘ hiVal) ** ((.x12 : Reg) ↦ᵣ sp) **
+     ((sp + signExtend12 dstOff) ↦ₘ dstWordOld)) := by
+  delta mloadOneLimbUnalignedPre; rfl
+
+/--
+  Postcondition shape for an unaligned one-limb MLOAD proof, after folding
+  the runtime shift/or accumulator into `mloadPackedLimbFromDwordPair`.
+-/
+@[irreducible]
+def mloadOneLimbUnalignedPost
+    (addrReg byteReg accReg : Reg)
+    (addrPtr loVal hiVal loAddr hiAddr sp : Word)
+    (start : Nat) (dstOff : BitVec 12) : Assertion :=
+  let lastByte := (mloadByteFromDwordPair loVal hiVal start 7).zeroExtend 64
+  let accFinal := mloadPackedLimbFromDwordPair loVal hiVal start
+  (addrReg ↦ᵣ addrPtr) ** (byteReg ↦ᵣ lastByte) ** (accReg ↦ᵣ accFinal) **
+  (loAddr ↦ₘ loVal) ** (hiAddr ↦ₘ hiVal) ** ((.x12 : Reg) ↦ᵣ sp) **
+  ((sp + signExtend12 dstOff) ↦ₘ accFinal)
+
+theorem mloadOneLimbUnalignedPost_unfold
+    {addrReg byteReg accReg : Reg}
+    {addrPtr loVal hiVal loAddr hiAddr sp : Word}
+    {start : Nat} {dstOff : BitVec 12} :
+    mloadOneLimbUnalignedPost addrReg byteReg accReg
+        addrPtr loVal hiVal loAddr hiAddr sp start dstOff =
+    (let lastByte := (mloadByteFromDwordPair loVal hiVal start 7).zeroExtend 64
+     let accFinal := mloadPackedLimbFromDwordPair loVal hiVal start
+     (addrReg ↦ᵣ addrPtr) ** (byteReg ↦ᵣ lastByte) ** (accReg ↦ᵣ accFinal) **
+     (loAddr ↦ₘ loVal) ** (hiAddr ↦ₘ hiVal) ** ((.x12 : Reg) ↦ᵣ sp) **
+     ((sp + signExtend12 dstOff) ↦ₘ accFinal)) := by
+  delta mloadOneLimbUnalignedPost; rfl
+
+/--
   The 256-bit value loaded by MLOAD from 32 consecutive EVM-memory bytes.
 
   `b00` is the most-significant byte at the requested offset and `b31` is
