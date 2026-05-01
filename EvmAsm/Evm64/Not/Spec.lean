@@ -5,6 +5,7 @@
 -/
 
 import EvmAsm.Evm64.Not.LimbSpec
+import EvmAsm.Evm64.Stack
 import EvmAsm.Rv64.Tactics.XSimp
 
 open EvmAsm.Rv64.Tactics
@@ -47,6 +48,48 @@ theorem evm_not_spec_within (sp base : Word)
 -- ============================================================================
 -- Stack-level NOT spec
 -- ============================================================================
+
+/-- Bridge lemma: `signExtend12 (-1)` is `-1` as a 64-bit `Word`. -/
+private theorem signExtend12_neg1_eq_neg1 :
+    signExtend12 (-1 : BitVec 12) = (-1 : Word) := by decide
+
+/-- Bridge lemma: a 64-bit XOR with `-1` is bitwise complement. -/
+private theorem word_xor_neg1_eq_not (a : Word) :
+    a ^^^ signExtend12 (-1 : BitVec 12) = ~~~ a := by
+  rw [signExtend12_neg1_eq_neg1]; bv_decide
+
+/-- Per-limb bridge: `(a.getLimbN k) ^^^ -1 = (~~~ a).getLimbN k` for `k < 4`. -/
+private theorem getLimbN_xor_neg1 (a : EvmWord) {k : Nat} (hk : k < 4) :
+    a.getLimbN k ^^^ signExtend12 (-1 : BitVec 12) = (~~~ a).getLimbN k := by
+  rw [word_xor_neg1_eq_not, EvmWord.getLimbN_not hk]
+
+/-- Stack-level 256-bit EVM NOT: operates on an EvmWord via evmWordIs.
+    Unary: pops 1, pushes 1, sp unchanged. Result is bitwise complement. -/
+theorem evm_not_stack_spec_within (sp base : Word)
+    (a : EvmWord) (v7 : Word) :
+    let code := evm_not_code base
+    cpsTripleWithin 12 base (base + 48) code
+      (-- Registers + memory
+       (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) **
+       evmWordIs sp a)
+      (-- Registers + memory (updated)
+       (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ (~~~ a).getLimbN 3) **
+       evmWordIs sp (~~~ a)) := by
+  have h_main := evm_not_spec_within sp base
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) v7
+  exact cpsTripleWithin_weaken
+    (fun h hp => by
+      simp only [evmWordIs] at hp
+      xperm_hyp hp)
+    (fun h hq => by
+      unfold evmWordIs
+      simp only [
+        getLimbN_xor_neg1 a (by decide : 0 < 4),
+        getLimbN_xor_neg1 a (by decide : 1 < 4),
+        getLimbN_xor_neg1 a (by decide : 2 < 4),
+        getLimbN_xor_neg1 a (by decide : 3 < 4)] at hq
+      xperm_hyp hq)
+    h_main
 
 
 end EvmAsm.Evm64
