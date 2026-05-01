@@ -57,4 +57,28 @@
   "EvmAsm.Evm64.Shift.SarCompose":
   ["EvmAsm.Evm64.Shift.ComposeBase"],
   "EvmAsm.Evm64.DivMod.NormDefs":
-  ["EvmAsm.Rv64.Basic"]}}
+  ["EvmAsm.Rv64.Basic"],
+  "EvmAsm.Evm64.DivMod.LoopBodyN1":
+  ["EvmAsm.Evm64.DivMod.LoopBody.TrialCall",
+   "EvmAsm.Evm64.DivMod.LoopBody.TrialMax",
+   "EvmAsm.Evm64.DivMod.LoopBody.StoreLoop",
+   "EvmAsm.Evm64.DivMod.LoopBody.CorrectionAddbackBeq",
+   "EvmAsm.Evm64.DivMod.LoopBody.MulsubCorrectionSkip"],
+  "EvmAsm.Evm64.DivMod.LoopBodyN2":
+  ["EvmAsm.Evm64.DivMod.LoopBody.TrialCall",
+   "EvmAsm.Evm64.DivMod.LoopBody.TrialMax",
+   "EvmAsm.Evm64.DivMod.LoopBody.StoreLoop",
+   "EvmAsm.Evm64.DivMod.LoopBody.CorrectionAddbackBeq",
+   "EvmAsm.Evm64.DivMod.LoopBody.MulsubCorrectionSkip"],
+  "EvmAsm.Evm64.DivMod.LoopBodyN3":
+  ["EvmAsm.Evm64.DivMod.LoopBody.TrialCall",
+   "EvmAsm.Evm64.DivMod.LoopBody.TrialMax",
+   "EvmAsm.Evm64.DivMod.LoopBody.StoreLoop",
+   "EvmAsm.Evm64.DivMod.LoopBody.CorrectionAddbackBeq",
+   "EvmAsm.Evm64.DivMod.LoopBody.MulsubCorrectionSkip"],
+  "EvmAsm.Evm64.DivMod.LoopBodyN4":
+  ["EvmAsm.Evm64.DivMod.LoopBody.TrialCall",
+   "EvmAsm.Evm64.DivMod.LoopBody.TrialMax",
+   "EvmAsm.Evm64.DivMod.LoopBody.StoreLoop",
+   "EvmAsm.Evm64.DivMod.LoopBody.CorrectionAddbackBeq",
+   "EvmAsm.Evm64.DivMod.LoopBody.MulsubCorrectionSkip"]}}
