@@ -91,4 +91,16 @@
  "EvmAsm.Evm64.DivMod.LoopComposeN3":
   ["EvmAsm.Evm64.DivMod.LoopIterN3"],
  "EvmAsm.Evm64.DivMod.Compose.FullPathN4Loop":
-  ["EvmAsm.Evm64.DivMod.LoopIterN4"]}}
+  ["EvmAsm.Evm64.DivMod.LoopIterN4"],
+ "EvmAsm.Evm64.DivMod.LoopIterN1.Max":
+  ["EvmAsm.Evm64.DivMod.LoopBodyN1"],
+ "EvmAsm.Evm64.DivMod.LoopIterN1.Call":
+  ["EvmAsm.Evm64.DivMod.LoopBodyN1"],
+ "EvmAsm.Evm64.DivMod.LoopIterN1.MaxBeq":
+  ["EvmAsm.Evm64.DivMod.LoopBodyN1"],
+ "EvmAsm.Evm64.DivMod.LoopIterN1.CallBeq":
+  ["EvmAsm.Evm64.DivMod.LoopBodyN1"],
+ "EvmAsm.Evm64.DivMod.LoopIterN2":
+  ["EvmAsm.Evm64.DivMod.LoopBodyN2"],
+ "EvmAsm.Evm64.DivMod.LoopIterN3":
+  ["EvmAsm.Evm64.DivMod.LoopBodyN3"]}}
