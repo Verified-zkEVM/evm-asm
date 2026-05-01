@@ -102,9 +102,12 @@ theorem fullModN2UnifiedPost_to_modStackDispatchPost
   rw [word_add_zero] at hq
   xperm_hyp hq
 
-/-- N=2 MOD stack-level entry point: mirrors `evm_mod_n1_stack_spec_within`.
-    Composes `evm_mod_n2_full_unified_spec` with the
-    `fullModN2UnifiedPost_to_modStackDispatchPost` bridge above. -/
+/-- N=2 MOD stack-level entry point: mirrors `evm_mod_n1_stack_spec_within`
+(Spec/Dispatcher.lean line 819) and `evm_div_n3_stack_spec_within`
+(Spec/Dispatcher.lean line 1162). Composes `evm_mod_n2_full_unified_spec`
+with `fullModN2UnifiedPost_to_modStackDispatchPost`, mirroring how the n=1
+MOD spec composes its full+bridge counterparts. The step count `744` matches
+`evm_mod_n2_full_unified_spec`. -/
 theorem evm_mod_n2_stack_spec_within
     (bltu_2 bltu_1 bltu_0 : Bool) (sp base : Word)
     (a b : EvmWord)
@@ -174,10 +177,9 @@ theorem evm_mod_n2_stack_spec_within
         ha0 ha1 ha2 ha3 hmod0 hmod1 hmod2 hmod3 h hq)
     hFull
 
-/-- `_word`-flavoured n=2 MOD stack spec: mirrors
-    `evm_mod_n1_stack_spec_within_word`. Takes a single
-    `fullModN2RemainderWord ... = EvmWord.mod a b` hypothesis and unpacks it
-    into the four per-limb hypotheses via `fullModN2_hmods_of_word_eq`. -/
+/-- `_word` form of `evm_mod_n2_stack_spec_within`: takes a packed
+`fullModN2RemainderWord` equality with `EvmWord.mod a b` and unpacks it into
+the four per-limb equations. Mirrors `evm_mod_n1_stack_spec_within_word`. -/
 theorem evm_mod_n2_stack_spec_within_word
     (bltu_2 bltu_1 bltu_0 : Bool) (sp base : Word)
     (a b : EvmWord)
