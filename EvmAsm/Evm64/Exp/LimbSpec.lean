@@ -51,4 +51,35 @@ theorem exp_bit_test_block_spec_within
   have AD := addi_spec_gen_same_within .x6 c (-1) (base + 8) (by nofun)
   runBlock AN SR AD
 
+-- ============================================================================
+-- Section 2: exp_square_block (1 instruction, slice 4b / evm-asm-4219)
+-- ============================================================================
+--
+-- `exp_square_block mulOff` (defined in `Exp/Program.lean`):
+--
+--     JAL .x1 mulOff
+--
+-- Single near-`JAL` invoking `mul_callable`. This is the unconditional
+-- squaring step of the per-iteration body: control transfers to
+-- `base + signExtend21 mulOff` and `.x1` is updated with the return
+-- address `base + 4`. Argument-marshalling (placing both factors in the
+-- LP64 a-slots) is handled by the surrounding scaffold and is not part of
+-- this leaf cpsTriple. Mirrors `rlp_phase3_single_byte_spec_within`'s
+-- single-instruction `ofProg → singleton` shape.
+
+abbrev exp_square_block_code (base : Word) (mulOff : BitVec 21) : CodeReq :=
+  CodeReq.ofProg base (exp_square_block mulOff)
+
+theorem exp_square_block_spec_within
+    (mulOff : BitVec 21) (vOld : Word) (base : Word) :
+    let code := exp_square_block_code base mulOff
+    cpsTripleWithin 1 base (base + signExtend21 mulOff) code
+      (.x1 ↦ᵣ vOld)
+      (.x1 ↦ᵣ (base + 4)) := by
+  show cpsTripleWithin 1 base (base + signExtend21 mulOff)
+    (CodeReq.ofProg base (exp_square_block mulOff)) _ _
+  rw [show CodeReq.ofProg base (exp_square_block mulOff) =
+      CodeReq.singleton base (.JAL .x1 mulOff) from CodeReq.ofProg_singleton]
+  exact jal_spec_within .x1 vOld mulOff base (by nofun)
+
 end EvmAsm.Evm64
