@@ -79,8 +79,8 @@ theorem evm_mod_phaseB_n3_spec_within (sp base : Word)
   have h123 := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h12 haddi0f
   -- ---- Cascade step 0: BNE x10 ntaken (base+72 → base+76, b3=0)
-  have hbne0_raw := bne_spec_gen_within .x10 .x0 24 b3 (0 : Word) (base + 72)
-  rw [show (base + 72 : Word) + signExtend13 24 = base + phaseBTailOff from by rv64_addr,
+  have hbne0_raw := bne_spec_gen_within .x10 .x0 24 b3 (0 : Word) (base + phaseBBneOff)
+  rw [show (base + phaseBBneOff : Word) + signExtend13 24 = base + phaseBTailOff from by rv64_addr,
       mod_phB_bne_4] at hbne0_raw
   have hbne0_clean := cpsBranchWithin_ntakenStripPure2 hbne0_raw
     (fun hp hQt => by

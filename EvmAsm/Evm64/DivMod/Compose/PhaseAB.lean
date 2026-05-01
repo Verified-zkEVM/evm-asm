@@ -100,14 +100,14 @@ private theorem addi_x5_singleton_sub_divCode {base : Word} :
 
 /-- BNE x10 x0 24 singleton at base+72 (part of block 1: phaseB) is subsumed by divCode. -/
 private theorem bne_x10_singleton_sub_divCode {base : Word} :
-    ∀ a i, (CodeReq.singleton (base + 72) (.BNE .x10 .x0 24)) a = some i →
+    ∀ a i, (CodeReq.singleton (base + phaseBBneOff) (.BNE .x10 .x0 24)) a = some i →
       (divCode base) a = some i := by
   unfold divCode; simp only [CodeReq.unionAll_cons]
   intro a i h
   have hlookup := CodeReq.ofProg_lookup (base + phaseBOff) divK_phaseB 10
     (by decide) (by decide)
   rw [bv64_4mul_10,
-      show (base + phaseBOff : Word) + 40 = base + 72 from by bv_addr] at hlookup
+      show (base + phaseBOff : Word) + 40 = base + phaseBBneOff from by bv_addr] at hlookup
   have h1 := CodeReq.singleton_mono hlookup a i h
   exact sub_divCode_of_phaseB_left a i h1
 
@@ -144,8 +144,8 @@ private theorem divK_phaseB_n4_nm1_x8 :
 -- Address normalization lemmas `phB_off_{4..28}` now live in `Compose/Base.lean`
 -- and are shared with the MOD-side files (ModPhaseB / ModPhaseBn3 / ModPhaseBn21).
 private theorem phB_i2_8 {base : Word} : (base + 60 : Word) + 8 = base + 68 := by bv_addr
-private theorem phB_addi_4 {base : Word} : (base + 68 : Word) + 4 = base + 72 := by bv_addr
-private theorem phB_bne_4 {base : Word} : (base + 72 : Word) + 4 = base + 76 := by bv_addr
+private theorem phB_addi_4 {base : Word} : (base + 68 : Word) + 4 = base + phaseBBneOff := by bv_addr
+private theorem phB_bne_4 {base : Word} : (base + phaseBBneOff : Word) + 4 = base + 76 := by bv_addr
 private theorem phB_t_20 {base : Word} : (base + phaseBTailOff : Word) + 20 = base + clzOff := by bv_addr
 private theorem phB_sp24_32 {sp : Word} : (sp + (24 : Word) + (32 : Word)) = sp + 56 := by bv_addr
 
@@ -287,8 +287,8 @@ theorem evm_div_phaseB_n4_spec_within (sp base : Word)
   have haddi := cpsTripleWithin_extend_code addi_x5_singleton_sub_divCode haddi_raw
   seqFrame hinit1fhinit2 haddi
   -- ---- Step 4: BNE x10 x0 24 at base+72, elim ntaken (b3=0 absurd)
-  have hbne_raw := bne_spec_gen_within .x10 .x0 24 b3 (0 : Word) (base + 72)
-  rw [show (base + 72 : Word) + signExtend13 24 = base + phaseBTailOff from by
+  have hbne_raw := bne_spec_gen_within .x10 .x0 24 b3 (0 : Word) (base + phaseBBneOff)
+  rw [show (base + phaseBBneOff : Word) + signExtend13 24 = base + phaseBTailOff from by
         rv64_addr, phB_bne_4] at hbne_raw
   have hbne_clean := cpsBranchWithin_takenStripPure2 hbne_raw
     (fun hp hQf => by
@@ -545,8 +545,8 @@ theorem evm_div_phaseB_n3_spec_within (sp base : Word)
   have h123 := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h12 haddi0f
   -- ---- Cascade step 0: BNE x10 ntaken (base+72 → base+76, b3=0)
-  have hbne0_raw := bne_spec_gen_within .x10 .x0 24 b3 (0 : Word) (base + 72)
-  rw [show (base + 72 : Word) + signExtend13 24 = base + phaseBTailOff from by
+  have hbne0_raw := bne_spec_gen_within .x10 .x0 24 b3 (0 : Word) (base + phaseBBneOff)
+  rw [show (base + phaseBBneOff : Word) + signExtend13 24 = base + phaseBTailOff from by
         rv64_addr, phB_bne_4] at hbne0_raw
   have hbne0_clean := cpsBranchWithin_ntakenStripPure2 hbne0_raw
     (fun hp hQt => by
@@ -680,8 +680,8 @@ theorem evm_div_phaseB_n2_spec_within (sp base : Word)
   have h123 := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h12 haddi0f
   -- ---- Cascade step 0: BNE x10 ntaken (base+72 → base+76, b3=0)
-  have hbne0_raw := bne_spec_gen_within .x10 .x0 24 b3 (0 : Word) (base + 72)
-  rw [show (base + 72 : Word) + signExtend13 24 = base + phaseBTailOff from by
+  have hbne0_raw := bne_spec_gen_within .x10 .x0 24 b3 (0 : Word) (base + phaseBBneOff)
+  rw [show (base + phaseBBneOff : Word) + signExtend13 24 = base + phaseBTailOff from by
         rv64_addr, phB_bne_4] at hbne0_raw
   have hbne0_clean := cpsBranchWithin_ntakenStripPure2 hbne0_raw
     (fun hp hQt => by
@@ -850,8 +850,8 @@ theorem evm_div_phaseB_n1_spec_within (sp base : Word)
   have h123 := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h12 haddi0f
   -- ---- Cascade step 0: BNE x10 ntaken (base+72 → base+76, b3=0)
-  have hbne0_raw := bne_spec_gen_within .x10 .x0 24 b3 (0 : Word) (base + 72)
-  rw [show (base + 72 : Word) + signExtend13 24 = base + phaseBTailOff from by
+  have hbne0_raw := bne_spec_gen_within .x10 .x0 24 b3 (0 : Word) (base + phaseBBneOff)
+  rw [show (base + phaseBBneOff : Word) + signExtend13 24 = base + phaseBTailOff from by
         rv64_addr, phB_bne_4] at hbne0_raw
   have hbne0_clean := cpsBranchWithin_ntakenStripPure2 hbne0_raw
     (fun hp hQt => by

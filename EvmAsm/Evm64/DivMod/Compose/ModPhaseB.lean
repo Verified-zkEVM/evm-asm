@@ -70,14 +70,14 @@ theorem addi_x5_singleton_sub_modCode {base : Word} :
   exact sub_modCode_of_phaseB_left a i h1
 
 theorem bne_x10_singleton_sub_modCode {base : Word} :
-    ∀ a i, (CodeReq.singleton (base + 72) (.BNE .x10 .x0 24)) a = some i →
+    ∀ a i, (CodeReq.singleton (base + phaseBBneOff) (.BNE .x10 .x0 24)) a = some i →
       (modCode base) a = some i := by
   unfold modCode; simp only [CodeReq.unionAll_cons]
   intro a i h
   have hlookup := CodeReq.ofProg_lookup (base + phaseBOff) divK_phaseB 10
     (by decide) (by decide)
   rw [bv64_4mul_10,
-      show (base + phaseBOff : Word) + 40 = base + 72 from by bv_addr] at hlookup
+      show (base + phaseBOff : Word) + 40 = base + phaseBBneOff from by bv_addr] at hlookup
   have h1 := CodeReq.singleton_mono hlookup a i h
   exact sub_modCode_of_phaseB_left a i h1
 
@@ -95,8 +95,8 @@ theorem divK_phaseB_tail_code_sub_modCode {base : Word} :
 -- now lives in `Compose/Base.lean` as the shared `phB_off_28` and is used
 -- directly from both the DIV and MOD sides.
 theorem mod_phB_i2_8 {base : Word} : (base + 60 : Word) + 8 = base + 68 := by bv_addr
-theorem mod_phB_addi_4 {base : Word} : (base + 68 : Word) + 4 = base + 72 := by bv_addr
-theorem mod_phB_bne_4 {base : Word} : (base + 72 : Word) + 4 = base + 76 := by bv_addr
+theorem mod_phB_addi_4 {base : Word} : (base + 68 : Word) + 4 = base + phaseBBneOff := by bv_addr
+theorem mod_phB_bne_4 {base : Word} : (base + phaseBBneOff : Word) + 4 = base + 76 := by bv_addr
 theorem mod_phB_t_20 {base : Word} : (base + phaseBTailOff : Word) + 20 = base + clzOff := by bv_addr
 -- `mod_signExtend13_24` → use `se13_24` from `Compose/Base.lean`.
 theorem mod_phB_sp24_32 {sp : Word} :
@@ -153,8 +153,8 @@ theorem evm_mod_phaseB_n4_spec_within (sp base : Word)
   have haddi := cpsTripleWithin_extend_code addi_x5_singleton_sub_modCode haddi_raw
   seqFrame hinit1fhinit2 haddi
   -- ---- Step 4: BNE x10 x0 24 at base+72, elim ntaken (b3=0 absurd)
-  have hbne_raw := bne_spec_gen_within .x10 .x0 24 b3 (0 : Word) (base + 72)
-  rw [show (base + 72 : Word) + signExtend13 24 = base + phaseBTailOff from by rv64_addr,
+  have hbne_raw := bne_spec_gen_within .x10 .x0 24 b3 (0 : Word) (base + phaseBBneOff)
+  rw [show (base + phaseBBneOff : Word) + signExtend13 24 = base + phaseBTailOff from by rv64_addr,
       mod_phB_bne_4] at hbne_raw
   have hbne_clean := cpsBranchWithin_takenStripPure2 hbne_raw
     (fun hp hQf => by

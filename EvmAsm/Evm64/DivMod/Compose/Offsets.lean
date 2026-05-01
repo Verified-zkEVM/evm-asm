@@ -59,6 +59,13 @@ abbrev phaseAOff    : Word :=    0
 abbrev phaseABeqOff : Word :=   28
 /-- Offset of `divK_phaseB` (b=0 branch + leading-limb analysis). -/
 abbrev phaseBOff    : Word :=   32
+/-- Offset of the BNE-to-`divK_phaseB_tail` instruction inside `divK_phaseB`.
+    Entry PC of the `BNE x10, x0, +24` that ends the leading-limb-analysis
+    cascade step and branches forward into `divK_phaseB_tail` when the current
+    candidate top limb is non-zero (falls through to the next per-limb
+    cascade step otherwise). Sub-offset relative to `divK_phaseB`
+    (= phaseBOff + 40 = phaseBTailOff − 24). -/
+abbrev phaseBBneOff : Word :=   72
 /-- Offset of the `divK_phaseB_tail` sub-block inside `divK_phaseB`.
     Entry PC of the leading-limb-analysis tail (16 instructions / 64 bytes
     into `divK_phaseB`); the per-limb cascade in `divK_phaseB_cascade` falls
@@ -303,6 +310,11 @@ example : trialMaxOff = loopBodyOff + 56 := by decide
 example : trialJalOff = trialCallOff + 12 := by decide
 example : trialJalOff = loopBodyOff + 64 := by decide
 example : trialJalOff + 4 = div128CallRetOff := by decide
+/-- phaseBBneOff = phaseBOff + 40 (sub-block offset within `divK_phaseB`).
+    The BNE-to-`divK_phaseB_tail` instruction sits 10 instructions into
+    `divK_phaseB`, 24 bytes (6 instructions) before `phaseBTailOff`. -/
+example : phaseBBneOff = phaseBOff + 40 := by decide
+example : phaseBBneOff + 24 = phaseBTailOff := by decide
 /-- mulsubOff = loopBodyOff + 88 (sub-block offset within `divK_loopBody`).
     The `divK_mulsub_correction` snippet starts 22 instructions into the loop
     body, after the trial-divide entry (~13 instructions) and the div128 call
