@@ -22,6 +22,7 @@
 -/
 
 import EvmAsm.Evm64.DivMod.Spec.CallAddback
+import EvmAsm.Evm64.DivMod.Spec.CallAddbackPost1Wrappers
 
 namespace EvmAsm.Evm64
 
