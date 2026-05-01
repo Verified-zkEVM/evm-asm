@@ -768,7 +768,7 @@ instance pcFreeInst_normBPost (sp nVal shift b0 b1 b2 b3 : Word) :
 -- in PhaseAB.lean and `mod_phB_off_28` in ModPhaseB.lean.
 -- ============================================================================
 
-theorem phB_off_28 {base : Word} : (base + phaseBOff : Word) + 28 = base + 60 := by bv_addr
+theorem phB_off_28 {base : Word} : (base + phaseBOff : Word) + 28 = base + phaseBInit2Off := by bv_addr
 
 -- n=4 special: x1 = signExtend12 4 - 4 = 0, used by the shift-0 fast path
 -- and the main `FullPathN4` path. Shared here so the two consumer files

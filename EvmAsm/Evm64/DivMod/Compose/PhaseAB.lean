@@ -77,10 +77,10 @@ private theorem divK_phaseB_init1_code_sub_divCode {base : Word} :
 
 /-- Phase B init2 code (ofProg sub-range of block 1) is subsumed by divCode. -/
 private theorem divK_phaseB_init2_code_sub_divCode {base : Word} :
-    ∀ a i, (divK_phaseB_init2_code (base + 60)) a = some i → (divCode base) a = some i := by
+    ∀ a i, (divK_phaseB_init2_code (base + phaseBInit2Off)) a = some i → (divCode base) a = some i := by
   unfold divCode; simp only [CodeReq.unionAll_cons]
   intro a i h
-  have h1 := CodeReq.ofProg_mono_sub (base + phaseBOff) (base + 60) divK_phaseB
+  have h1 := CodeReq.ofProg_mono_sub (base + phaseBOff) (base + phaseBInit2Off) divK_phaseB
     (divK_phaseB.drop 7 |>.take 2) 7
     (by bv_addr) (by decide) (by decide) (by decide) a i h
   exact sub_divCode_of_phaseB_left a i h1
@@ -143,7 +143,7 @@ private theorem divK_phaseB_n4_nm1_x8 :
 
 -- Address normalization lemmas `phB_off_{4..28}` now live in `Compose/Base.lean`
 -- and are shared with the MOD-side files (ModPhaseB / ModPhaseBn3 / ModPhaseBn21).
-private theorem phB_i2_8 {base : Word} : (base + 60 : Word) + 8 = base + 68 := by bv_addr
+private theorem phB_i2_8 {base : Word} : (base + phaseBInit2Off : Word) + 8 = base + 68 := by bv_addr
 private theorem phB_addi_4 {base : Word} : (base + 68 : Word) + 4 = base + phaseBBneOff := by bv_addr
 private theorem phB_bne_4 {base : Word} : (base + phaseBBneOff : Word) + 4 = base + 76 := by bv_addr
 private theorem phB_t_20 {base : Word} : (base + phaseBTailOff : Word) + 20 = base + clzOff := by bv_addr
@@ -277,7 +277,7 @@ theorem evm_div_phaseB_n4_spec_within (sp base : Word)
      ((sp + signExtend12 3984) ↦ₘ nMem))
     (by pcFree) hinit1
   -- ---- Step 2: init2 (base+60 → base+68) — load b[1], b[2]
-  have hinit2_raw := divK_phaseB_init2_spec_within sp (base + 60) b1 b2 v6 v7
+  have hinit2_raw := divK_phaseB_init2_spec_within sp (base + phaseBInit2Off) b1 b2 v6 v7
   simp only [phB_i2_8] at hinit2_raw
   have hinit2 := cpsTripleWithin_extend_code divK_phaseB_init2_code_sub_divCode hinit2_raw
   seqFrame hinit1f hinit2
@@ -515,7 +515,7 @@ theorem evm_div_phaseB_n3_spec_within (sp base : Word)
      ((sp + signExtend12 3984) ↦ₘ nMem))
     (by pcFree) hinit1
   -- ---- init2 (base+60 → base+68)
-  have hinit2_raw := divK_phaseB_init2_spec_within sp (base + 60) b1 b2 v6 v7
+  have hinit2_raw := divK_phaseB_init2_spec_within sp (base + phaseBInit2Off) b1 b2 v6 v7
   simp only [phB_i2_8] at hinit2_raw
   have hinit2 := cpsTripleWithin_extend_code divK_phaseB_init2_code_sub_divCode hinit2_raw
   have hinit2f := cpsTripleWithin_frameR
@@ -650,7 +650,7 @@ theorem evm_div_phaseB_n2_spec_within (sp base : Word)
      ((sp + signExtend12 3984) ↦ₘ nMem))
     (by pcFree) hinit1
   -- ---- init2 (base+60 → base+68)
-  have hinit2_raw := divK_phaseB_init2_spec_within sp (base + 60) b1 b2 v6 v7
+  have hinit2_raw := divK_phaseB_init2_spec_within sp (base + phaseBInit2Off) b1 b2 v6 v7
   simp only [phB_i2_8] at hinit2_raw
   have hinit2 := cpsTripleWithin_extend_code divK_phaseB_init2_code_sub_divCode hinit2_raw
   have hinit2f := cpsTripleWithin_frameR
@@ -820,7 +820,7 @@ theorem evm_div_phaseB_n1_spec_within (sp base : Word)
      ((sp + signExtend12 3984) ↦ₘ nMem))
     (by pcFree) hinit1
   -- ---- init2 (base+60 → base+68)
-  have hinit2_raw := divK_phaseB_init2_spec_within sp (base + 60) b1 b2 v6 v7
+  have hinit2_raw := divK_phaseB_init2_spec_within sp (base + phaseBInit2Off) b1 b2 v6 v7
   simp only [phB_i2_8] at hinit2_raw
   have hinit2 := cpsTripleWithin_extend_code divK_phaseB_init2_code_sub_divCode hinit2_raw
   have hinit2f := cpsTripleWithin_frameR
