@@ -634,8 +634,8 @@ theorem div128Quot_v4_q0''_lt_pow32 (uHi uLo vTop : Word)
   exact div128Quot_v4_phase2_quot_lt_pow32 uHi uLo vTop h_vTop_ge_pow63 h_uHi_lt_vTop
 
 /-- **v4's exact-quotient property**: under standard Knuth-A
-    preconditions (shift-norm + `u4 < b3'` + `u4 < 2^63`), the v4
-    algorithm produces the exact 128/64 quotient.
+    preconditions (`b3'` normalized and `u4 < b3'`), the v4 algorithm
+    produces the exact 128/64 quotient.
 
     Proof composes:
     - `_phase1_perfect` + `_phase2_perfect` (proven in IterV4Invariants*).
@@ -644,11 +644,10 @@ theorem div128Quot_v4_q0''_lt_pow32 (uHi uLo vTop : Word)
       identity).
     - `_combined_arith` (proven; pure-Nat composition).
     - `halfword_combine` (existing lemma; OR-shift to add at toNat). -/
-theorem div128Quot_v4_eq_q_true_normalized
+theorem div128Quot_v4_eq_q_true_normalized_of_lt
     (u4 u3 b3' : Word)
     (h_b3'_ge : b3'.toNat ≥ 2^63)
-    (h_u4_lt_b3' : u4.toNat < b3'.toNat)
-    (_h_u4_lt_pow63 : u4.toNat < 2^63) :
+    (h_u4_lt_b3' : u4.toNat < b3'.toNat) :
     (div128Quot_v4 u4 u3 b3').toNat =
       (u4.toNat * 2^64 + u3.toNat) / b3'.toNat := by
   have h_phase1 := div128Quot_v4_q1''_eq_phase1_perfect u4 u3 b3' h_b3'_ge h_u4_lt_b3'
@@ -693,6 +692,28 @@ theorem div128Quot_v4_eq_q_true_normalized
     ((u3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat).toNat
     _ _ _
     h_u3_decomp h_b3'_pos h_phase1' h_un21 h_phase2'
+
+/-- Compatibility wrapper for older call sites that still thread the v1
+    runtime fact `u4 < 2^63`. The v4 proof no longer needs that premise. -/
+theorem div128Quot_v4_eq_q_true_normalized
+    (u4 u3 b3' : Word)
+    (h_b3'_ge : b3'.toNat ≥ 2^63)
+    (h_u4_lt_b3' : u4.toNat < b3'.toNat)
+    (_h_u4_lt_pow63 : u4.toNat < 2^63) :
+    (div128Quot_v4 u4 u3 b3').toNat =
+      (u4.toNat * 2^64 + u3.toNat) / b3'.toNat :=
+  div128Quot_v4_eq_q_true_normalized_of_lt u4 u3 b3' h_b3'_ge h_u4_lt_b3'
+
+/-- Lower-bound corollary of the v4 exact quotient theorem. This is the
+    div128 shape needed by later N1 digits where `uHi < vTop`, but
+    `uHi < 2^63` is not available. -/
+theorem div128Quot_v4_ge_q_true_normalized_of_lt
+    (u4 u3 b3' : Word)
+    (h_b3'_ge : b3'.toNat ≥ 2^63)
+    (h_u4_lt_b3' : u4.toNat < b3'.toNat) :
+    (u4.toNat * 2^64 + u3.toNat) / b3'.toNat ≤
+      (div128Quot_v4 u4 u3 b3').toNat := by
+  rw [div128Quot_v4_eq_q_true_normalized_of_lt u4 u3 b3' h_b3'_ge h_u4_lt_b3']
 
 /-- **`n4CallSkipSemanticHolds_v4` holds unconditionally** under the
     standard call-trial preconditions.

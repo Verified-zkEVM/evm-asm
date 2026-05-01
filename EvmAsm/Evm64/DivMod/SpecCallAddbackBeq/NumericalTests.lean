@@ -469,6 +469,21 @@ theorem div128Quot_v2_buggy_at_unreachable_uHi :
       (uHi.toNat * 2^64 + uLo.toNat) / vTop.toNat := by
   decide
 
+/-- **v1 lower-bound failure at the same unreachable wide-uHi input.**
+    This refutes the all-regime lemma shape
+    `uHi < vTop -> q_true <= div128Quot uHi uLo vTop` for the current v1
+    `div128Quot`. The missing runtime fact is `uHi < 2^63`; without it,
+    the unguarded first D3 correction can undershoot. -/
+theorem div128Quot_v1_lower_bound_false_at_unreachable_uHi :
+    let uHi : Word := BitVec.ofNat 64 (2^64 - 2^32 + 1)
+    let uLo : Word := 0
+    let vTop : Word := BitVec.ofNat 64 (2^64 - 1)
+    vTop.toNat ≥ 2^63 ∧
+    uHi.toNat < vTop.toNat ∧
+    ¬ ((uHi.toNat * 2^64 + uLo.toNat) / vTop.toNat ≤
+        (div128Quot uHi uLo vTop).toNat) := by
+  decide
+
 /-- **u4 bound under runtime preconditions** (numerical evidence):
     On the v1 counterexample, `u4 < 2^63`, confirming the case 0 closure
     plan. Together with `dHi ≥ 2^31`, this gives `q1 < 2^32`, hence
