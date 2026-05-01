@@ -21,6 +21,30 @@ def n1StepConservation
       out.2.2.2.2.2.toNat * 2^256
 
 @[irreducible]
+def n1StepRemainderVal (out : Word × Word × Word × Word × Word × Word) : Nat :=
+  EvmWord.val256 out.2.1 out.2.2.1 out.2.2.2.1 out.2.2.2.2.1 +
+    out.2.2.2.2.2.toNat * 2^256
+
+theorem n1StepConservation_remainder_le_input
+    (v0 v1 v2 u0 u1 u2 u3 uTop : Word)
+    (out : Word × Word × Word × Word × Word × Word)
+    (h : n1StepConservation v0 v1 v2 u0 u1 u2 u3 uTop out) :
+    n1StepRemainderVal out ≤ EvmWord.val256 u0 u1 u2 u3 + uTop.toNat * 2^256 := by
+  delta n1StepConservation at h
+  delta n1StepRemainderVal
+  omega
+
+theorem n1StepConservation_remainder_lt_of_input_lt
+    (v0 v1 v2 u0 u1 u2 u3 uTop : Word)
+    (out : Word × Word × Word × Word × Word × Word) {bound : Nat}
+    (h : n1StepConservation v0 v1 v2 u0 u1 u2 u3 uTop out)
+    (hinput : EvmWord.val256 u0 u1 u2 u3 + uTop.toNat * 2^256 < bound) :
+    n1StepRemainderVal out < bound := by
+  have hle := n1StepConservation_remainder_le_input
+    v0 v1 v2 u0 u1 u2 u3 uTop out h
+  omega
+
+@[irreducible]
 def fullDivN1StepsConservation
     (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
     (a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Prop :=
