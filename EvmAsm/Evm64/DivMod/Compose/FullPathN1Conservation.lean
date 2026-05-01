@@ -54,6 +54,26 @@ theorem n1StepTopVal_mul_base4
   delta n1StepTopVal
   norm_num
 
+@[irreducible]
+def n1StepConservationNat
+    (v0 v1 v2 u0 u1 u2 u3 uTop : Word)
+    (out : Word × Word × Word × Word × Word × Word) : Prop :=
+  u0.toNat + u1.toNat * 2^64 + u2.toNat * 2^128 + u3.toNat * 2^192 +
+      uTop.toNat * 2^256 =
+    out.1.toNat * EvmWord.val256 v0 v1 v2 0 +
+      n1StepRemainderVal out + n1StepTopVal out * 2^256
+
+theorem n1StepConservationNat_of_conservation
+    (v0 v1 v2 u0 u1 u2 u3 uTop : Word)
+    (out : Word × Word × Word × Word × Word × Word)
+    (h : n1StepConservation v0 v1 v2 u0 u1 u2 u3 uTop out) :
+    n1StepConservationNat v0 v1 v2 u0 u1 u2 u3 uTop out := by
+  delta n1StepConservation at h
+  delta n1StepConservationNat
+  unfold EvmWord.val256 at h ⊢
+  delta n1StepRemainderVal n1StepTopVal
+  exact h
+
 theorem n1StepConservation_remainder_le_input
     (v0 v1 v2 u0 u1 u2 u3 uTop : Word)
     (out : Word × Word × Word × Word × Word × Word)
@@ -96,6 +116,32 @@ def n1StepsConservation
     r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1 r1 ∧
   n1StepConservation v.1 v.2.1 v.2.2.1 u.1
     r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1 r0
+
+@[irreducible]
+def n1StepsConservationNat
+    (v : Word × Word × Word × Word) (u : Word × Word × Word × Word × Word)
+    (r3 r2 r1 r0 : Word × Word × Word × Word × Word × Word) : Prop :=
+  n1StepConservationNat v.1 v.2.1 v.2.2.1 u.2.2.2.1 u.2.2.2.2 0 0 0 r3 ∧
+  n1StepConservationNat v.1 v.2.1 v.2.2.1 u.2.2.1
+    r3.2.1 r3.2.2.1 r3.2.2.2.1 r3.2.2.2.2.1 r2 ∧
+  n1StepConservationNat v.1 v.2.1 v.2.2.1 u.2.1
+    r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1 r1 ∧
+  n1StepConservationNat v.1 v.2.1 v.2.2.1 u.1
+    r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1 r0
+
+theorem n1StepsConservationNat_of_conservation
+    (v : Word × Word × Word × Word) (u : Word × Word × Word × Word × Word)
+    (r3 r2 r1 r0 : Word × Word × Word × Word × Word × Word)
+    (hsteps : n1StepsConservation v u r3 r2 r1 r0) :
+    n1StepsConservationNat v u r3 r2 r1 r0 := by
+  delta n1StepsConservation at hsteps
+  delta n1StepsConservationNat
+  rcases hsteps with ⟨h3, h2, h1, h0⟩
+  exact ⟨
+    n1StepConservationNat_of_conservation _ _ _ _ _ _ _ _ _ h3,
+    n1StepConservationNat_of_conservation _ _ _ _ _ _ _ _ _ h2,
+    n1StepConservationNat_of_conservation _ _ _ _ _ _ _ _ _ h1,
+    n1StepConservationNat_of_conservation _ _ _ _ _ _ _ _ _ h0⟩
 
 theorem n1NatStepConservation_telescope
     {B V q3 q2 q1 q0 rem3 rem2 rem1 rem0 top3 top2 top1 top0
