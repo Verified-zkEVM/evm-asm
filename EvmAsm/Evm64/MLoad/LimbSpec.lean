@@ -1025,4 +1025,243 @@ theorem mload_byte_pack_six_spec_within
   -- The final code-req shape is `mloadBytePackSixCode = five.union triple`.
   exact cpsTripleWithin_seq hd_step fiveRaw step
 
+/-- Bundled CodeReq for `mload_byte_pack_seven_spec_within`: a 19-instruction
+    union extending `mloadBytePackSixCode` with one additional
+    `LBU/SLLI/OR` triple at `base + 64 / base + 68 / base + 72` for the
+    seventh byte. -/
+def mloadBytePackSevenCode
+    (addrReg byteReg accReg : Reg)
+    (off0 off1 off2 off3 off4 off5 off6 : BitVec 12)
+    (base : Word) : CodeReq :=
+  (mloadBytePackSixCode addrReg byteReg accReg
+      off0 off1 off2 off3 off4 off5 base).union
+    ((CodeReq.singleton (base + 64) (.LBU byteReg addrReg off6)).union
+     ((CodeReq.singleton (base + 68) (.SLLI accReg accReg (BitVec.ofNat 6 8))).union
+      (CodeReq.singleton (base + 72) (.OR accReg accReg byteReg))))
+
+/-- Bundled precondition for `mload_byte_pack_seven_spec_within`: the
+    three roles `addrReg ↦ᵣ addrPtr`, `byteReg ↦ᵣ byteOld`,
+    `accReg ↦ᵣ accOld`, plus the source dword `dwordAddr ↦ₘ wordVal`.
+
+    Pulled into an `@[irreducible]` definition (mirroring the slice 3d-pre5
+    convention from PR #1701) so the spec statement is not cluttered by a
+    long chain of `let`-bindings; downstream callers see a single named
+    handle and use `mloadBytePackSevenPre_unfold` to expand on demand. -/
+@[irreducible]
+def mloadBytePackSevenPre
+    (addrReg byteReg accReg : Reg)
+    (addrPtr accOld byteOld wordVal dwordAddr : Word) : Assertion :=
+  (addrReg ↦ᵣ addrPtr) ** (byteReg ↦ᵣ byteOld) ** (accReg ↦ᵣ accOld) **
+  (dwordAddr ↦ₘ wordVal)
+
+theorem mloadBytePackSevenPre_unfold
+    {addrReg byteReg accReg : Reg}
+    {addrPtr accOld byteOld wordVal dwordAddr : Word} :
+    mloadBytePackSevenPre addrReg byteReg accReg
+        addrPtr accOld byteOld wordVal dwordAddr =
+    ((addrReg ↦ᵣ addrPtr) ** (byteReg ↦ᵣ byteOld) ** (accReg ↦ᵣ accOld) **
+     (dwordAddr ↦ₘ wordVal)) := by
+  delta mloadBytePackSevenPre; rfl
+
+/-- Bundled postcondition for `mload_byte_pack_seven_spec_within`: after
+    the 19-instruction sequence, `byteReg` holds the last byte loaded
+    (`b6`) and `accReg` holds the big-endian fold
+    `((((((b0 <<< 8) ||| b1) <<< 8 ||| b2) <<< 8 ||| b3) <<< 8 ||| b4)
+        <<< 8 ||| b5) <<< 8 ||| b6`. -/
+@[irreducible]
+def mloadBytePackSevenPost
+    (addrReg byteReg accReg : Reg)
+    (addrPtr wordVal dwordAddr : Word)
+    (off0 off1 off2 off3 off4 off5 off6 : BitVec 12) : Assertion :=
+  let b0 :=
+    (extractByte wordVal (byteOffset (addrPtr + signExtend12 off0))).zeroExtend 64
+  let b1 :=
+    (extractByte wordVal (byteOffset (addrPtr + signExtend12 off1))).zeroExtend 64
+  let b2 :=
+    (extractByte wordVal (byteOffset (addrPtr + signExtend12 off2))).zeroExtend 64
+  let b3 :=
+    (extractByte wordVal (byteOffset (addrPtr + signExtend12 off3))).zeroExtend 64
+  let b4 :=
+    (extractByte wordVal (byteOffset (addrPtr + signExtend12 off4))).zeroExtend 64
+  let b5 :=
+    (extractByte wordVal (byteOffset (addrPtr + signExtend12 off5))).zeroExtend 64
+  let b6 :=
+    (extractByte wordVal (byteOffset (addrPtr + signExtend12 off6))).zeroExtend 64
+  let accFinal :=
+    (((((((b0 <<< (8 : Nat)) ||| b1) <<< (8 : Nat)) ||| b2) <<< (8 : Nat) ||| b3)
+        <<< (8 : Nat) ||| b4) <<< (8 : Nat) ||| b5) <<< (8 : Nat) ||| b6
+  (addrReg ↦ᵣ addrPtr) ** (byteReg ↦ᵣ b6) ** (accReg ↦ᵣ accFinal) **
+  (dwordAddr ↦ₘ wordVal)
+
+theorem mloadBytePackSevenPost_unfold
+    {addrReg byteReg accReg : Reg}
+    {addrPtr wordVal dwordAddr : Word}
+    {off0 off1 off2 off3 off4 off5 off6 : BitVec 12} :
+    mloadBytePackSevenPost addrReg byteReg accReg
+        addrPtr wordVal dwordAddr off0 off1 off2 off3 off4 off5 off6 =
+    (let b0 :=
+       (extractByte wordVal (byteOffset (addrPtr + signExtend12 off0))).zeroExtend 64
+     let b1 :=
+       (extractByte wordVal (byteOffset (addrPtr + signExtend12 off1))).zeroExtend 64
+     let b2 :=
+       (extractByte wordVal (byteOffset (addrPtr + signExtend12 off2))).zeroExtend 64
+     let b3 :=
+       (extractByte wordVal (byteOffset (addrPtr + signExtend12 off3))).zeroExtend 64
+     let b4 :=
+       (extractByte wordVal (byteOffset (addrPtr + signExtend12 off4))).zeroExtend 64
+     let b5 :=
+       (extractByte wordVal (byteOffset (addrPtr + signExtend12 off5))).zeroExtend 64
+     let b6 :=
+       (extractByte wordVal (byteOffset (addrPtr + signExtend12 off6))).zeroExtend 64
+     let accFinal :=
+       (((((((b0 <<< (8 : Nat)) ||| b1) <<< (8 : Nat)) ||| b2) <<< (8 : Nat) ||| b3)
+           <<< (8 : Nat) ||| b4) <<< (8 : Nat) ||| b5) <<< (8 : Nat) ||| b6
+     (addrReg ↦ᵣ addrPtr) ** (byteReg ↦ᵣ b6) ** (accReg ↦ᵣ accFinal) **
+     (dwordAddr ↦ₘ wordVal)) := by
+  delta mloadBytePackSevenPost; rfl
+
+/-- Seven-byte big-endian byte-pack spec (19 instructions): seed `LBU`
+    loading `b0`, then six `LBU + SLLI + OR` triples folding `b1`..`b6`
+    in big-endian order, yielding
+    `((((((b0 <<< 8) ||| b1) <<< 8 ||| b2) <<< 8 ||| b3) <<< 8 ||| b4)
+        <<< 8 ||| b5) <<< 8 ||| b6`
+    in `accReg`.
+
+    This is the `n = 7` step in the inductive ladder
+    `mload_byte_pack_init` (n=1) → `mload_byte_pack_two` (n=2) →
+    `mload_byte_pack_three` (n=3) → `mload_byte_pack_four` (n=4) →
+    `mload_byte_pack_five` (n=5) → `mload_byte_pack_six` (n=6) →
+    `mload_byte_pack_seven` (n=7) → `mload_one_limb` (n=8). Proved by
+    composing the existing 6-byte spec (PR #1701) with one
+    `mload_byte_pack_step_spec_within` application; no new tactic
+    machinery is needed. -/
+theorem mload_byte_pack_seven_spec_within
+    (addrReg byteReg accReg : Reg)
+    (addrPtr accOld byteOld wordVal : Word)
+    (dwordAddr : Word)
+    (off0 off1 off2 off3 off4 off5 off6 : BitVec 12) (base : Word)
+    (h_byte_ne_x0 : byteReg ≠ .x0)
+    (h_acc_ne_x0  : accReg  ≠ .x0)
+    (h_align0 : alignToDword (addrPtr + signExtend12 off0) = dwordAddr)
+    (h_valid0 : isValidByteAccess (addrPtr + signExtend12 off0) = true)
+    (h_align1 : alignToDword (addrPtr + signExtend12 off1) = dwordAddr)
+    (h_valid1 : isValidByteAccess (addrPtr + signExtend12 off1) = true)
+    (h_align2 : alignToDword (addrPtr + signExtend12 off2) = dwordAddr)
+    (h_valid2 : isValidByteAccess (addrPtr + signExtend12 off2) = true)
+    (h_align3 : alignToDword (addrPtr + signExtend12 off3) = dwordAddr)
+    (h_valid3 : isValidByteAccess (addrPtr + signExtend12 off3) = true)
+    (h_align4 : alignToDword (addrPtr + signExtend12 off4) = dwordAddr)
+    (h_valid4 : isValidByteAccess (addrPtr + signExtend12 off4) = true)
+    (h_align5 : alignToDword (addrPtr + signExtend12 off5) = dwordAddr)
+    (h_valid5 : isValidByteAccess (addrPtr + signExtend12 off5) = true)
+    (h_align6 : alignToDword (addrPtr + signExtend12 off6) = dwordAddr)
+    (h_valid6 : isValidByteAccess (addrPtr + signExtend12 off6) = true) :
+    cpsTripleWithin 19 base (base + 76)
+      (mloadBytePackSevenCode addrReg byteReg accReg
+        off0 off1 off2 off3 off4 off5 off6 base)
+      (mloadBytePackSevenPre addrReg byteReg accReg
+        addrPtr accOld byteOld wordVal dwordAddr)
+      (mloadBytePackSevenPost addrReg byteReg accReg
+        addrPtr wordVal dwordAddr off0 off1 off2 off3 off4 off5 off6) := by
+  rw [mloadBytePackSevenPre_unfold, mloadBytePackSevenPost_unfold]
+  set b0 :=
+    (extractByte wordVal (byteOffset (addrPtr + signExtend12 off0))).zeroExtend 64
+  set b1 :=
+    (extractByte wordVal (byteOffset (addrPtr + signExtend12 off1))).zeroExtend 64
+  set b2 :=
+    (extractByte wordVal (byteOffset (addrPtr + signExtend12 off2))).zeroExtend 64
+  set b3 :=
+    (extractByte wordVal (byteOffset (addrPtr + signExtend12 off3))).zeroExtend 64
+  set b4 :=
+    (extractByte wordVal (byteOffset (addrPtr + signExtend12 off4))).zeroExtend 64
+  set b5 :=
+    (extractByte wordVal (byteOffset (addrPtr + signExtend12 off5))).zeroExtend 64
+  set b6 :=
+    (extractByte wordVal (byteOffset (addrPtr + signExtend12 off6))).zeroExtend 64
+  set accAfter6 :=
+    ((((((b0 <<< (8 : Nat)) ||| b1) <<< (8 : Nat)) ||| b2) <<< (8 : Nat) ||| b3)
+        <<< (8 : Nat) ||| b4) <<< (8 : Nat) ||| b5
+    with h_accAfter6
+  set accFinal := (accAfter6 <<< (8 : Nat)) ||| b6
+  -- Step 1: 16-instruction 6-byte spec at `base`.
+  have sixRaw := mload_byte_pack_six_spec_within addrReg byteReg accReg
+    addrPtr accOld byteOld wordVal dwordAddr off0 off1 off2 off3 off4 off5 base
+    h_byte_ne_x0 h_acc_ne_x0 h_align0 h_valid0 h_align1 h_valid1
+    h_align2 h_valid2 h_align3 h_valid3 h_align4 h_valid4 h_align5 h_valid5
+  rw [mloadBytePackSixPre_unfold, mloadBytePackSixPost_unfold] at sixRaw
+  -- Step 2: 3-instruction byte-pack triple at `base + 64` folding `b6`.
+  have step := mload_byte_pack_step_spec_within addrReg byteReg accReg
+    addrPtr accAfter6 b5 wordVal dwordAddr off6 (base + 64)
+    h_byte_ne_x0 h_acc_ne_x0 h_align6 h_valid6
+  rw [show (base + 64 : Word) + 12 = base + 76 from by bv_omega] at step
+  rw [show (base + 64 : Word) + 4 = base + 68 from by bv_omega,
+      show (base + 64 : Word) + 8 = base + 72 from by bv_omega] at step
+  -- Disjointness between the six-byte block (addresses base, base+4,
+  -- base+8, …, base+60) and the trailing triple (base+64, base+68,
+  -- base+72). 16 leaf inequalities.
+  have hd_step : CodeReq.Disjoint
+      (mloadBytePackSixCode addrReg byteReg accReg off0 off1 off2 off3 off4 off5 base)
+      ((CodeReq.singleton (base + 64) (.LBU byteReg addrReg off6)).union
+       ((CodeReq.singleton (base + 68) (.SLLI accReg accReg (BitVec.ofNat 6 8))).union
+        (CodeReq.singleton (base + 72) (.OR accReg accReg byteReg)))) := by
+    unfold mloadBytePackSixCode mloadBytePackFiveCode mloadBytePackFourCode
+      mloadBytePackThreeCode mloadBytePackTwoCode
+    have leaf : ∀ {a : Word} {i : Instr},
+        a ≠ base + 64 → a ≠ base + 68 → a ≠ base + 72 →
+        CodeReq.Disjoint (CodeReq.singleton a i)
+            ((CodeReq.singleton (base + 64) (.LBU byteReg addrReg off6)).union
+             ((CodeReq.singleton (base + 68) (.SLLI accReg accReg (BitVec.ofNat 6 8))).union
+              (CodeReq.singleton (base + 72) (.OR accReg accReg byteReg)))) := by
+      intro a i h64 h68 h72
+      exact CodeReq.Disjoint.union_right
+        (CodeReq.Disjoint.singleton h64)
+        (CodeReq.Disjoint.union_right
+          (CodeReq.Disjoint.singleton h68)
+          (CodeReq.Disjoint.singleton h72))
+    -- Top-level structure of mloadBytePackSixCode is
+    --   Six = Five ∪ trio_52
+    -- Five = ((Four = (Two ∪ trio_16) ∪ trio_28) ∪ trio_40)
+    -- Two = leaves at base, +4, +8, +12.
+    refine CodeReq.Disjoint.union_left ?_ ?_
+    · -- Five
+      refine CodeReq.Disjoint.union_left ?_ ?_
+      · -- Four
+        refine CodeReq.Disjoint.union_left ?_ ?_
+        · -- (Two ∪ trio_16)
+          refine CodeReq.Disjoint.union_left ?_ ?_
+          · -- Two: 4 leaves at base, +4, +8, +12
+            refine CodeReq.Disjoint.union_left
+              (leaf (by bv_omega) (by bv_omega) (by bv_omega)) ?_
+            refine CodeReq.Disjoint.union_left
+              (leaf (by bv_omega) (by bv_omega) (by bv_omega)) ?_
+            refine CodeReq.Disjoint.union_left
+              (leaf (by bv_omega) (by bv_omega) (by bv_omega)) ?_
+            exact leaf (by bv_omega) (by bv_omega) (by bv_omega)
+          · -- trio_16: leaves at +16, +20, +24
+            refine CodeReq.Disjoint.union_left
+              (leaf (by bv_omega) (by bv_omega) (by bv_omega)) ?_
+            refine CodeReq.Disjoint.union_left
+              (leaf (by bv_omega) (by bv_omega) (by bv_omega)) ?_
+            exact leaf (by bv_omega) (by bv_omega) (by bv_omega)
+        · -- trio_28: leaves at +28, +32, +36
+          refine CodeReq.Disjoint.union_left
+            (leaf (by bv_omega) (by bv_omega) (by bv_omega)) ?_
+          refine CodeReq.Disjoint.union_left
+            (leaf (by bv_omega) (by bv_omega) (by bv_omega)) ?_
+          exact leaf (by bv_omega) (by bv_omega) (by bv_omega)
+      · -- trio_40: leaves at +40, +44, +48
+        refine CodeReq.Disjoint.union_left
+          (leaf (by bv_omega) (by bv_omega) (by bv_omega)) ?_
+        refine CodeReq.Disjoint.union_left
+          (leaf (by bv_omega) (by bv_omega) (by bv_omega)) ?_
+        exact leaf (by bv_omega) (by bv_omega) (by bv_omega)
+    · -- trio_52: leaves at +52, +56, +60
+      refine CodeReq.Disjoint.union_left
+        (leaf (by bv_omega) (by bv_omega) (by bv_omega)) ?_
+      refine CodeReq.Disjoint.union_left
+        (leaf (by bv_omega) (by bv_omega) (by bv_omega)) ?_
+      exact leaf (by bv_omega) (by bv_omega) (by bv_omega)
+  -- The final code-req shape is `mloadBytePackSevenCode = six.union triple`.
+  exact cpsTripleWithin_seq hd_step sixRaw step
+
 end EvmAsm.Evm64
