@@ -16,6 +16,7 @@
   Layout of `divCode` / `modCode` (all values in bytes from program base):
 
     [phaseAOff    =   0] divK_phaseA        (32 bytes)
+      [phaseABeqOff =  28]  phaseA-end BEQ → zeroPath (phaseAOff + 28)
     [phaseBOff    =  32] divK_phaseB        (84 bytes)
       [phaseBTailOff = 96]  divK_phaseB_tail sub-block (phaseBOff + 64)
     [clzOff       = 116] divK_clz           (96 bytes)
@@ -49,6 +50,13 @@ open EvmAsm.Rv64
 
 /-- Offset of `divK_phaseA` (the entry block). -/
 abbrev phaseAOff    : Word :=    0
+/-- Offset of the phaseA-end BEQ instruction inside `divK_phaseA`.
+    Entry PC of the `BEQ x5, x0, 1020` instruction that branches to
+    `divK_zeroPath` when the OR-reduce of the four divisor limbs equals 0
+    (the b=0 detection at the end of phaseA). Sub-offset relative to the
+    phaseA block (= phaseAOff + 28, i.e. 7 instructions into phaseA — the
+    final branch instruction, with the next PC = `phaseBOff`). -/
+abbrev phaseABeqOff : Word :=   28
 /-- Offset of `divK_phaseB` (b=0 branch + leading-limb analysis). -/
 abbrev phaseBOff    : Word :=   32
 /-- Offset of the `divK_phaseB_tail` sub-block inside `divK_phaseB`.
@@ -207,6 +215,10 @@ abbrev div128CallRetOff : Word := 516
 -- reduce to concrete numerals).
 -- ============================================================================
 
+/-- phaseABeqOff = phaseAOff + 28 (sub-block offset within `divK_phaseA`).
+    The phaseA-end BEQ to `divK_zeroPath` sits 7 instructions into phaseA. -/
+example : phaseABeqOff = phaseAOff + 28 := by decide
+example : phaseABeqOff + 4 = phaseBOff := by decide
 /-- phaseBOff = phaseAOff + 4 · |divK_phaseA 1020|. -/
 example : phaseBOff = phaseAOff + 4 * (divK_phaseA 1020).length := by decide
 /-- clzOff = phaseBOff + 4 · |divK_phaseB|. -/
