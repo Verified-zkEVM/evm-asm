@@ -55,7 +55,7 @@ private theorem divK_zeroPath_code_sub_divCode {base : Word} :
 
 /-- BEQ singleton at base+28 is subsumed by divCode (part of block 0: phaseA). -/
 private theorem beq_singleton_sub_divCode {base : Word} :
-    ∀ a i, (CodeReq.singleton (base + 28) (.BEQ .x5 .x0 1020)) a = some i →
+    ∀ a i, (CodeReq.singleton (base + phaseABeqOff) (.BEQ .x5 .x0 1020)) a = some i →
       (divCode base) a = some i := by
   unfold divCode; simp only [CodeReq.unionAll_cons]
   intro a i h
@@ -172,9 +172,9 @@ theorem evm_div_bzero_spec_within (sp base : Word)
   have hbody := cpsTripleWithin_extend_code divK_phaseA_code_sub_divCode
     (divK_phaseA_body_spec_within sp base b0 b1 b2 b3 v5 v10)
   -- Step 2: BEQ at base+28, eliminate ntaken via hbz
-  have hbeq_raw := beq_spec_gen_within .x5 .x0 1020 (b0 ||| b1 ||| b2 ||| b3) (0 : Word) (base + 28)
-  rw [show (base + 28 : Word) + signExtend13 1020 = base + zeroPathOff from by rv64_addr,
-      show (base + 28 : Word) + 4 = base + phaseBOff from by bv_addr] at hbeq_raw
+  have hbeq_raw := beq_spec_gen_within .x5 .x0 1020 (b0 ||| b1 ||| b2 ||| b3) (0 : Word) (base + phaseABeqOff)
+  rw [show (base + phaseABeqOff : Word) + signExtend13 1020 = base + zeroPathOff from by rv64_addr,
+      show (base + phaseABeqOff : Word) + 4 = base + phaseBOff from by bv_addr] at hbeq_raw
   have hbeq_clean := cpsBranchWithin_takenStripPure2 hbeq_raw
     (fun hp hQf => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQf
@@ -222,9 +222,9 @@ theorem evm_div_phaseA_ntaken_spec_within (sp base : Word)
   have hbody := cpsTripleWithin_extend_code divK_phaseA_code_sub_divCode
     (divK_phaseA_body_spec_within sp base b0 b1 b2 b3 v5 v10)
   -- Step 2: BEQ at base+28, eliminate taken path (b=0 absurd since hbnz)
-  have hbeq_raw := beq_spec_gen_within .x5 .x0 1020 (b0 ||| b1 ||| b2 ||| b3) (0 : Word) (base + 28)
-  rw [show (base + 28 : Word) + signExtend13 1020 = base + zeroPathOff from by rv64_addr,
-      show (base + 28 : Word) + 4 = base + phaseBOff from by bv_addr] at hbeq_raw
+  have hbeq_raw := beq_spec_gen_within .x5 .x0 1020 (b0 ||| b1 ||| b2 ||| b3) (0 : Word) (base + phaseABeqOff)
+  rw [show (base + phaseABeqOff : Word) + signExtend13 1020 = base + zeroPathOff from by rv64_addr,
+      show (base + phaseABeqOff : Word) + 4 = base + phaseBOff from by bv_addr] at hbeq_raw
   have hbeq_clean := cpsBranchWithin_ntakenStripPure2 hbeq_raw
     (fun hp hQt => by
       obtain ⟨_, _, _, _, _, h_rest⟩ := hQt
