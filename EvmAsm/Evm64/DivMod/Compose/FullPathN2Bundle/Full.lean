@@ -52,7 +52,7 @@ theorem evm_div_n2_full_bundled_spec
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
     (hb3z : b3 = 0) (hb2z : b2 = 0) (hb1nz : b1 ≠ 0)
     (hshift_nz : (clzResult b1).1 ≠ 0)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
     (hbltu_2 : isTrialN2_j2 bltu_2 a3 b0 b1)
     (hbltu_1 : isTrialN2_j1 bltu_2 bltu_1 a1 a2 a3 b0 b1 b2 b3)
     (hbltu_0 : isTrialN2_j0 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3)

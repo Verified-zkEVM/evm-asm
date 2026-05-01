@@ -169,15 +169,15 @@ theorem fullDivN1UnifiedPost_to_divStackDispatchPost
   let u3' := r0.2.2.2.2.1 >>> (shift.toNat % 64)
   let v := fullDivN1NormV b0 b1 b2 b3
   let u := fullDivN1NormU a0 a1 a2 a3 b0
-  let scratch_ret3 := if bltu_3 then (base + 516) else retMem
+  let scratch_ret3 := if bltu_3 then (base + div128CallRetOff) else retMem
   let scratch_d3 := if bltu_3 then v.1 else dMem
   let scratch_dlo3 := if bltu_3 then div128DLo v.1 else dloMem
   let scratch_un03 := if bltu_3 then div128Un0 u.2.2.2.1 else scratch_un0
-  let scratch_ret2 := if bltu_2 then (base + 516) else scratch_ret3
+  let scratch_ret2 := if bltu_2 then (base + div128CallRetOff) else scratch_ret3
   let scratch_d2 := if bltu_2 then v.1 else scratch_d3
   let scratch_dlo2 := if bltu_2 then div128DLo v.1 else scratch_dlo3
   let scratch_un02 := if bltu_2 then div128Un0 u.2.2.1 else scratch_un03
-  let scratch_ret1 := if bltu_1 then (base + 516) else scratch_ret2
+  let scratch_ret1 := if bltu_1 then (base + div128CallRetOff) else scratch_ret2
   let scratch_d1 := if bltu_1 then v.1 else scratch_d2
   let scratch_dlo1 := if bltu_1 then div128DLo v.1 else scratch_dlo2
   let scratch_un01 := if bltu_1 then div128Un0 u.2.1 else scratch_un02
@@ -190,7 +190,7 @@ theorem fullDivN1UnifiedPost_to_divStackDispatchPost
     (u4 := r0.2.2.2.2.2) (u5 := r1.2.2.2.2.2)
     (u6 := r2.2.2.2.2.2) (u7 := r3.2.2.2.2.2)
     (shiftMem := shift) (nMem := 1) (jMem := 0)
-    (retMem := if bltu_0 then (base + 516) else scratch_ret1)
+    (retMem := if bltu_0 then (base + div128CallRetOff) else scratch_ret1)
     (dMem := if bltu_0 then v.1 else scratch_d1)
     (dloMem := if bltu_0 then div128DLo v.1 else scratch_dlo1)
     (scratch_un0 := if bltu_0 then div128Un0 u.1 else scratch_un01) h ?_
@@ -257,15 +257,15 @@ theorem fullModN1UnifiedPost_to_modStackDispatchPost
   let u3' := r0.2.2.2.2.1 >>> (shift.toNat % 64)
   let v := fullDivN1NormV b0 b1 b2 b3
   let u := fullDivN1NormU a0 a1 a2 a3 b0
-  let scratch_ret3 := if bltu_3 then (base + 516) else retMem
+  let scratch_ret3 := if bltu_3 then (base + div128CallRetOff) else retMem
   let scratch_d3 := if bltu_3 then v.1 else dMem
   let scratch_dlo3 := if bltu_3 then div128DLo v.1 else dloMem
   let scratch_un03 := if bltu_3 then div128Un0 u.2.2.2.1 else scratch_un0
-  let scratch_ret2 := if bltu_2 then (base + 516) else scratch_ret3
+  let scratch_ret2 := if bltu_2 then (base + div128CallRetOff) else scratch_ret3
   let scratch_d2 := if bltu_2 then v.1 else scratch_d3
   let scratch_dlo2 := if bltu_2 then div128DLo v.1 else scratch_dlo3
   let scratch_un02 := if bltu_2 then div128Un0 u.2.2.1 else scratch_un03
-  let scratch_ret1 := if bltu_1 then (base + 516) else scratch_ret2
+  let scratch_ret1 := if bltu_1 then (base + div128CallRetOff) else scratch_ret2
   let scratch_d1 := if bltu_1 then v.1 else scratch_d2
   let scratch_dlo1 := if bltu_1 then div128DLo v.1 else scratch_dlo2
   let scratch_un01 := if bltu_1 then div128Un0 u.2.1 else scratch_un02
@@ -278,7 +278,7 @@ theorem fullModN1UnifiedPost_to_modStackDispatchPost
     (u4 := r0.2.2.2.2.2) (u5 := r1.2.2.2.2.2)
     (u6 := r2.2.2.2.2.2) (u7 := r3.2.2.2.2.2)
     (shiftMem := shift) (nMem := 1) (jMem := 0)
-    (retMem := if bltu_0 then (base + 516) else scratch_ret1)
+    (retMem := if bltu_0 then (base + div128CallRetOff) else scratch_ret1)
     (dMem := if bltu_0 then v.1 else scratch_d1)
     (dloMem := if bltu_0 then div128DLo v.1 else scratch_dlo1)
     (scratch_un0 := if bltu_0 then div128Un0 u.1 else scratch_un01) h ?_
@@ -311,7 +311,7 @@ theorem evm_div_n1_stack_spec_within
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
     (hb3z : b3 = 0) (hb2z : b2 = 0) (hb1z : b1 = 0)
     (hshift_nz : (clzResult b0).1 ≠ 0)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
     (hbltu_3 : isTrialN1_j3 bltu_3 a3 b0)
     (hbltu_2 : isTrialN1_j2 bltu_3 bltu_2 a2 a3 b0 b1 b2 b3)
     (hbltu_1 : isTrialN1_j1 bltu_3 bltu_2 bltu_1 a1 a2 a3 b0 b1 b2 b3)
@@ -478,7 +478,7 @@ theorem evm_div_n1_stack_spec_within_word
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
     (hb3z : b3 = 0) (hb2z : b2 = 0) (hb1z : b1 = 0)
     (hshift_nz : (clzResult b0).1 ≠ 0)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
     (hbltu_3 : isTrialN1_j3 bltu_3 a3 b0)
     (hbltu_2 : isTrialN1_j2 bltu_3 bltu_2 a2 a3 b0 b1 b2 b3)
     (hbltu_1 : isTrialN1_j1 bltu_3 bltu_2 bltu_1 a1 a2 a3 b0 b1 b2 b3)
@@ -829,7 +829,7 @@ theorem evm_mod_n1_stack_spec_within
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
     (hb3z : b3 = 0) (hb2z : b2 = 0) (hb1z : b1 = 0)
     (hshift_nz : (clzResult b0).1 ≠ 0)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
     (hbltu_3 : isTrialN1_j3 bltu_3 a3 b0)
     (hbltu_2 : isTrialN1_j2 bltu_3 bltu_2 a2 a3 b0 b1 b2 b3)
     (hbltu_1 : isTrialN1_j1 bltu_3 bltu_2 bltu_1 a1 a2 a3 b0 b1 b2 b3)
@@ -899,7 +899,7 @@ theorem evm_mod_n1_stack_spec_within_word
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
     (hb3z : b3 = 0) (hb2z : b2 = 0) (hb1z : b1 = 0)
     (hshift_nz : (clzResult b0).1 ≠ 0)
-    (halign : ((base + 516) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 516)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
     (hbltu_3 : isTrialN1_j3 bltu_3 a3 b0)
     (hbltu_2 : isTrialN1_j2 bltu_3 bltu_2 a2 a3 b0 b1 b2 b3)
     (hbltu_1 : isTrialN1_j1 bltu_3 bltu_2 bltu_1 a1 a2 a3 b0 b1 b2 b3)
@@ -1121,7 +1121,7 @@ theorem fullDivN3UnifiedPost_to_divStackDispatchPost
   let u3' := r0.2.2.2.2.1 >>> (shift.toNat % 64)
   let v := fullDivN3NormV b0 b1 b2 b3
   let u := fullDivN3NormU a0 a1 a2 a3 b2
-  let scratch_ret1 := if bltu_1 then (base + 516) else retMem
+  let scratch_ret1 := if bltu_1 then (base + div128CallRetOff) else retMem
   let scratch_d1 := if bltu_1 then v.2.2.1 else dMem
   let scratch_dlo1 := if bltu_1 then div128DLo v.2.2.1 else dloMem
   let scratch_un01 := if bltu_1 then div128Un0 u.2.2.2.1 else scratch_un0
@@ -1134,7 +1134,7 @@ theorem fullDivN3UnifiedPost_to_divStackDispatchPost
     (u4 := r0.2.2.2.2.2) (u5 := r1.2.2.2.2.2)
     (u6 := (0 : Word)) (u7 := (0 : Word))
     (shiftMem := shift) (nMem := 3) (jMem := 0)
-    (retMem := if bltu_0 then (base + 516) else scratch_ret1)
+    (retMem := if bltu_0 then (base + div128CallRetOff) else scratch_ret1)
     (dMem := if bltu_0 then v.2.2.1 else scratch_d1)
     (dloMem := if bltu_0 then div128DLo v.2.2.1 else scratch_dlo1)
     (scratch_un0 := if bltu_0 then div128Un0 r1.2.2.1 else scratch_un01) h ?_
