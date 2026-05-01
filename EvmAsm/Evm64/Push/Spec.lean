@@ -37,6 +37,19 @@ def push_zero_slot_code (base : Word) : CodeReq :=
         ((CodeReq.singleton (base + 12) (.SD .x12 .x0 16)).union
           (CodeReq.singleton (base + 16) (.SD .x12 .x0 24)))))
 
+theorem push_zero_slot_code_eq_ofProg (base : Word) :
+    push_zero_slot_code base =
+      CodeReq.ofProg base
+        (ADDI .x12 .x12 (-32) ;; SD .x12 .x0 0 ;; SD .x12 .x0 8 ;;
+         SD .x12 .x0 16 ;; SD .x12 .x0 24) := by
+  unfold push_zero_slot_code ADDI SD single seq
+  change _ = CodeReq.ofProg base
+    [.ADDI .x12 .x12 (-32), .SD .x12 .x0 0, .SD .x12 .x0 8,
+     .SD .x12 .x0 16, .SD .x12 .x0 24]
+  rw [CodeReq.ofProg_cons, CodeReq.ofProg_cons, CodeReq.ofProg_cons,
+    CodeReq.ofProg_cons, CodeReq.ofProg_singleton]
+  bv_addr
+
 theorem push_zero_slot_spec_within
     (sp d0 d1 d2 d3 : Word) (base : Word) :
     let nsp := sp + signExtend12 ((-32 : BitVec 12))
