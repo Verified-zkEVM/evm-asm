@@ -27,6 +27,7 @@
       [trialCallOff = 500]  divK_loopBody trial-divide call-site (loopBodyOff + 52)
       [trialMaxOff  = 504]  divK_loopBody divK_trial_max sub-block (trialCallOff + 4)
       [correctionSkipBeqOff = 728]  divK_loopBody mulsub-correction-skip BEQ entry (loopBodyOff + 280)
+      [addbackInitOff = 732]  divK_addback_init entry (correctionSkipBeqOff + 4)
       [storeLoopOff = 884]  divK_store_qj sub-block (loopBodyOff + 436)
       [loopBackBgeOff = 904]  loop-back BGE entry (denormOff - 4 = loopBodyOff + 456)
     [denormOff    = 908] divK_denorm       (100 bytes)
@@ -101,6 +102,13 @@ abbrev correctionSkipBeqOff : Word :=  728
     66 instructions into the loop body). Sub-offset relative to the loopBody
     block (= loopBodyOff + 264). -/
 abbrev correctionAddbackOff : Word :=  712
+/-- Offset of the addback-init sub-block entry inside `divK_loopBody`.
+    Entry PC of the `divK_addback_init` snippet that sets up the addback
+    path after the correction-skip BEQ falls through (i.e. the trial-quotient
+    `q̂` overshot and the mulsub borrowed). Sits one instruction past
+    `correctionSkipBeqOff` (= correctionSkipBeqOff + 4 = loopBodyOff + 284,
+    71 instructions into the loop body). -/
+abbrev addbackInitOff : Word :=  732
 /-- Offset of the addback-skip BEQ sub-block inside `divK_loopBody`.
     Entry PC of the `BEQ x7, x0, +4` instruction that branches over the
     addback fixup (executed when the trial-quotient `q̂` did NOT overshoot,
@@ -199,6 +207,12 @@ example : loopBackBgeOff = loopBodyOff + 456 := by decide
     `divK_loopBody`). The mulsub correction-skip BEQ sits 70 instructions
     into the loop body. -/
 example : correctionSkipBeqOff = loopBodyOff + 280 := by decide
+/-- addbackInitOff = correctionSkipBeqOff + 4 (= loopBodyOff + 284, sub-block
+    offset within `divK_loopBody`). The `divK_addback_init` snippet sits one
+    instruction past the correction-skip BEQ — this is the BEQ fall-through
+    when the mulsub borrowed (trial-quotient overshot). -/
+example : addbackInitOff = correctionSkipBeqOff + 4 := by decide
+example : addbackInitOff = loopBodyOff + 284 := by decide
 /-- correctionAddbackOff = loopBodyOff + 264 (sub-block offset within
     `divK_loopBody`). The correction-addback path (sub-carry snippet entry)
     sits 66 instructions into the loop body. -/

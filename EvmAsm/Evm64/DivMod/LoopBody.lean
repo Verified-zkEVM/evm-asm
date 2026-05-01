@@ -239,7 +239,7 @@ theorem divK_mulsub_4limbs_spec_within
     (fun h hq => by xperm_hyp hq)
     L0fL1eL2eL3e
 
-private theorem lb_ab0 {base : Word} : (base + 732 : Word) + 4 = base + 736 := by bv_addr
+private theorem lb_ab0 {base : Word} : (base + addbackInitOff : Word) + 4 = base + 736 := by bv_addr
 private theorem lb_ab0_end {base : Word} : (base + 736 : Word) + 32 = base + 768 := by bv_addr
 private theorem lb_ab1_end {base : Word} : (base + 768 : Word) + 32 = base + 800 := by bv_addr
 private theorem lb_ab2_end {base : Word} : (base + 800 : Word) + 32 = base + 832 := by bv_addr
@@ -281,7 +281,7 @@ theorem divK_addback_full_spec_within
     -- Final: u4 + carry, qHat--
     let aun4 := u4 + aco3
     let qHat' := qHat + signExtend12 4095
-    cpsTripleWithin 37 (base + 732) (base + addbackBeqOff) (sharedDivModCode base)
+    cpsTripleWithin 37 (base + addbackInitOff) (base + addbackBeqOff) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ uBase) ** (.x7 ↦ᵣ v7_init) **
        (.x11 ↦ᵣ qHat) ** (.x5 ↦ᵣ v5_init) ** (.x2 ↦ᵣ v2_init) ** (.x0 ↦ᵣ (0 : Word)) **
        ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
@@ -302,7 +302,7 @@ theorem divK_addback_full_spec_within
         upc3 ac1_3 aun3 ac2_3 aco3
         aun4 qHat'
   -- Init: instr [71] at base+732
-  have I := divK_addback_init_spec_within v7_init (base + 732)
+  have I := divK_addback_init_spec_within v7_init (base + addbackInitOff)
   rw [lb_ab0] at I
   have Ie := cpsTripleWithin_extend_code (hmono := by
     exact lb_sub 71 _ _ (by decide) (by bv_addr) (by decide)) I
@@ -779,7 +779,7 @@ theorem divK_addback_full_v2_spec_within
     let aco3 := ac1_3 ||| ac2_3
     let aun4 := u4 + aco3
     let qHat' := qHat + signExtend12 4095
-    cpsTripleWithin 37 (base + 732) (base + addbackBeqOff) (sharedDivModCode_v2 base)
+    cpsTripleWithin 37 (base + addbackInitOff) (base + addbackBeqOff) (sharedDivModCode_v2 base)
       ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ uBase) ** (.x7 ↦ᵣ v7_init) **
        (.x11 ↦ᵣ qHat) ** (.x5 ↦ᵣ v5_init) ** (.x2 ↦ᵣ v2_init) ** (.x0 ↦ᵣ (0 : Word)) **
        ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
@@ -800,7 +800,7 @@ theorem divK_addback_full_v2_spec_within
         upc3 ac1_3 aun3 ac2_3 aco3
         aun4 qHat'
   -- Init: instr [71] at base+732
-  have I := divK_addback_init_spec_within v7_init (base + 732)
+  have I := divK_addback_init_spec_within v7_init (base + addbackInitOff)
   rw [lb_ab0] at I
   have Ie := cpsTripleWithin_extend_code (hmono := by
     exact lb_sub_v2 71 _ _ (by decide) (by bv_addr) (by decide)) I
@@ -891,7 +891,7 @@ theorem divK_addback_full_v2_spec_within
 theorem lb_beq_taken {base : Word} : (base + correctionSkipBeqOff : Word) + signExtend13 (156 : BitVec 13) = base + storeLoopOff := by
   rv64_addr
 
-theorem lb_beq_ntaken {base : Word} : (base + correctionSkipBeqOff : Word) + 4 = base + 732 := by bv_addr
+theorem lb_beq_ntaken {base : Word} : (base + correctionSkipBeqOff : Word) + 4 = base + addbackInitOff := by bv_addr
 
 /-- v2 mirror of `divK_correction_addback_spec_within` — same body but targets
     `sharedDivModCode_v2 base`. Uses `divK_addback_full_v2_spec_within` and
@@ -948,7 +948,7 @@ theorem divK_correction_addback_v2_spec_within
   have ntaken := cpsBranchWithin_ntakenPath hbeq_ext (fun hp hQt => by
     obtain ⟨_, _, _, _, _, ⟨_, _, _, _, _, ⟨_, hpure⟩⟩⟩ := hQt
     exact hb hpure)
-  have ntaken_clean : cpsTripleWithin 1 (base + correctionSkipBeqOff) (base + 732) (sharedDivModCode_v2 base)
+  have ntaken_clean : cpsTripleWithin 1 (base + correctionSkipBeqOff) (base + addbackInitOff) (sharedDivModCode_v2 base)
       ((.x7 ↦ᵣ borrow) ** (.x0 ↦ᵣ (0 : Word)))
       ((.x7 ↦ᵣ borrow) ** (.x0 ↦ᵣ (0 : Word))) :=
     cpsTripleWithin_weaken
@@ -1027,7 +1027,7 @@ theorem divK_correction_addback_spec_within
     obtain ⟨_, _, _, _, _, ⟨_, _, _, _, _, ⟨_, hpure⟩⟩⟩ := hQt
     exact hb hpure)
   -- Strip pure fact from not-taken postcondition
-  have ntaken_clean : cpsTripleWithin 1 (base + correctionSkipBeqOff) (base + 732) (sharedDivModCode base)
+  have ntaken_clean : cpsTripleWithin 1 (base + correctionSkipBeqOff) (base + addbackInitOff) (sharedDivModCode base)
       ((.x7 ↦ᵣ borrow) ** (.x0 ↦ᵣ (0 : Word)))
       ((.x7 ↦ᵣ borrow) ** (.x0 ↦ᵣ (0 : Word))) :=
     cpsTripleWithin_weaken
@@ -1184,7 +1184,7 @@ theorem divK_beq_passthrough_within {carry : Word} (base : Word) (hne : carry �
     ntaken
 
 private theorem lb_beq_back_taken {base : Word} :
-    (base + addbackBeqOff : Word) + signExtend13 (8044 : BitVec 13) = base + 732 := by
+    (base + addbackBeqOff : Word) + signExtend13 (8044 : BitVec 13) = base + addbackInitOff := by
   rv64_addr
 
 /-- Double-addback path at [108]: when first addback carry (x7) = 0, BEQ jumps back to [71]
