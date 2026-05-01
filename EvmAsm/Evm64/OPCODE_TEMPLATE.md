@@ -123,8 +123,11 @@ introduced (issue #263).
 
 The canonical shape is `EvmAsm/Evm64/Exp/AddrNormAttr.lean` +
 `EvmAsm/Evm64/Exp/AddrNorm.lean` — copy that file pair as the starting
-template. The full grindset family (`rv64_addr`, `divmod_addr`,
-`exp_addr`, `reg_ops`, `byte_alg`) is documented in `TACTICS.md`.
+template (empty atom file, `<opcode>_addr` macro tactic that defers to
+`rv64_addr` until opcode-specific atoms accrue). The full grindset family
+(`rv64_addr`, `divmod_addr`, `exp_addr`, `reg_ops`, `byte_alg`) is
+documented in `AGENTS.md` (Build Performance → Named grind/simp sets) and
+`TACTICS.md`. Use the most specific that matches the proof's domain.
 
 ### 2.6 Validity bundle
 
