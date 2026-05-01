@@ -8,6 +8,7 @@
 -- Execution, CPSSpec, GenericSpecs, InstructionSpecs, ByteOps, HalfwordOps,
 -- WordOps, and Tactics.SpecDb. ControlFlow also covers Program directly.
 import EvmAsm.Rv64.SyscallSpecs
+import EvmAsm.Rv64.HintSpecs
 import EvmAsm.Rv64.ControlFlow
 -- RunBlock → SeqFrame → {XCancel → XPerm, PerfTrace, InstructionSpecs} + SpecDb.
 -- LiftSpec → XSimp → XPerm.
