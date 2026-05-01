@@ -76,7 +76,9 @@
    "EvmAsm.Evm64.DivMod.LoopBody.StoreLoop",
    "EvmAsm.Evm64.DivMod.LoopBody.CorrectionAddbackBeq",
    "EvmAsm.Evm64.DivMod.LoopBody.MulsubCorrectionSkip"],
-  "EvmAsm.Evm64.DivMod.LoopBodyN4":
+  "EvmAsm.Evm64.DivMod.Compose.ModFullPathN1LoopUnified":
+ ["EvmAsm.Evm64.DivMod.Compose.ModFullPathN4"],
+ "EvmAsm.Evm64.DivMod.LoopBodyN4":
   ["EvmAsm.Evm64.DivMod.LoopBody.TrialCall",
    "EvmAsm.Evm64.DivMod.LoopBody.TrialMax",
    "EvmAsm.Evm64.DivMod.LoopBody.StoreLoop",
