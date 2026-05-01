@@ -21,6 +21,7 @@ import EvmAsm.Evm64.DivMod.Spec
 import EvmAsm.Evm64.DivMod.Shift0Dispatcher
 import EvmAsm.Evm64.DivMod.Compose.SharedLoopPost
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1LoopUnified
+import EvmAsm.Evm64.DivMod.Compose.FullPathN1Conservation
 import EvmAsm.Evm64.DivMod.Compose.ModFullPathN1LoopUnified
 import EvmAsm.Evm64.DivMod.Compose.ModFullPathN2LoopUnified
 import EvmAsm.Evm64.DivMod.Compose.FullPathN3LoopUnified
