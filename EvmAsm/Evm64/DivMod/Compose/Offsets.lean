@@ -74,6 +74,12 @@ abbrev trialCallOff : Word :=  500
     (= loopBodyOff + 88, i.e. 22 instructions into the loop body — past
     the trial-divide entry and div128 call site). -/
 abbrev mulsubOff : Word :=  536
+/-- Offset of the mulsub correction-skip sub-block inside `divK_loopBody`.
+    Entry PC of the divK_sub_carry (sub-borrow) chain that runs along the
+    skip-correction path when the trial-quotient mulsub did not borrow.
+    Sub-offset relative to the loopBody block (= loopBodyOff + 176, i.e. 44
+    instructions into the loop body). See docs/divmod-offset-audit.md. -/
+abbrev correctionSkipOff : Word :=  624
 /-- Offset of the mulsub correction-skip BEQ entry inside `divK_loopBody`.
     Entry PC of the BEQ instruction that branches over the addback correction
     block when the trial-quotient mulsub did not borrow (the "skip" path).
@@ -174,6 +180,10 @@ example : trialCallOff = loopBodyOff + 52 := by decide
     body, after the trial-divide entry (~13 instructions) and the div128 call
     site (~9 instructions including the JAL+JALR ABI dance). -/
 example : mulsubOff = loopBodyOff + 88 := by decide
+/-- correctionSkipOff = loopBodyOff + 176 (sub-block offset within
+    `divK_loopBody`). The divK_sub_carry chain on the skip-correction path
+    sits 44 instructions into the loop body. -/
+example : correctionSkipOff = loopBodyOff + 176 := by decide
 /-- epilogueOff = denormOff + 4 · |divK_denorm|. -/
 example : epilogueOff = denormOff + 4 * divK_denorm.length := by decide
 /-- zeroPathOff = epilogueOff + 4 · |divK_div_epilogue 24|
