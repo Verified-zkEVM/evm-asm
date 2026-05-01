@@ -6,3 +6,4 @@
 -/
 
 import EvmAsm.Evm64.Push.Program
+import EvmAsm.Evm64.Push.Spec
