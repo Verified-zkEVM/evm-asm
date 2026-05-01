@@ -788,4 +788,25 @@ theorem fullDivN1QuotientVal_v4_le_div_of_telescoped
   simp only [qVal, r0, r1, r2, r3] at hq_le ⊢
   exact hq_le
 
+theorem fullDivN1QuotientVal_v4_le_div_of_runtime
+    (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hshift_nz : fullDivN1Shift b0 ≠ 0)
+    (hcarry2 : Carry2NzAll
+      (fullDivN1NormV b0 b1 b2 b3).1
+      (fullDivN1NormV b0 b1 b2 b3).2.1
+      (fullDivN1NormV b0 b1 b2 b3).2.2.1
+      (fullDivN1NormV b0 b1 b2 b3).2.2.2) :
+    fullDivN1QuotientVal_v4 bltu_3 bltu_2 bltu_1 bltu_0
+        a0 a1 a2 a3 b0 b1 b2 b3 ≤
+      EvmWord.val256 a0 a1 a2 a3 / EvmWord.val256 b0 b1 b2 b3 := by
+  exact fullDivN1QuotientVal_v4_le_div_of_telescoped
+    bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3
+    hb2z hb3z hbnz hshift_nz
+    (fullDivN1StepsTelescoped_v4_of_runtime
+      bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3
+      hb1z hb2z hb3z hbnz hcarry2)
+
 end EvmAsm.Evm64
