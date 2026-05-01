@@ -358,6 +358,31 @@ theorem fullDivN1NormV_val256_eq_v0_of_high_zero
   unfold EvmWord.val256
   simp
 
+theorem iterWithDoubleAddback_qout_ge_sub_two
+    (q v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) (hq2 : 2 ≤ q.toNat) :
+    let out := iterWithDoubleAddback q v0 v1 v2 v3 u0 u1 u2 u3 uTop
+    q.toNat - 2 ≤ out.1.toNat := by
+  intro out
+  subst out
+  by_cases hb : BitVec.ult uTop (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2
+  · rw [iterWithDoubleAddback_borrow (qHat := q) (v0 := v0) (v1 := v1)
+      (v2 := v2) (v3 := v3) (u0 := u0) (u1 := u1) (u2 := u2) (u3 := u3)
+      (uTop := uTop) hb]
+    let ms := mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3
+    let carry := addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 v0 v1 v2 v3
+    let ab := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1
+      (uTop - ms.2.2.2.2) v0 v1 v2 v3
+    by_cases hcarry : carry = 0
+    · rw [if_pos hcarry]
+      rw [add_signExtend12_4095_add_signExtend12_4095_toNat q hq2]
+    · rw [if_neg hcarry]
+      rw [add_signExtend12_4095_toNat q (by omega)]
+      omega
+  · rw [iterWithDoubleAddback_no_borrow (qHat := q) (v0 := v0) (v1 := v1)
+      (v2 := v2) (v3 := v3) (u0 := u0) (u1 := u1) (u2 := u2) (u3 := u3)
+      (uTop := uTop) hb]
+    simp
+
 theorem fullDivN1RemainderVal_eq_mod_mul_pow_of_telescoped
     (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
     (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
