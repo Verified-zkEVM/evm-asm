@@ -54,3 +54,6 @@ import EvmAsm.Evm64.DivMod
 
 -- Calling convention (LP64)
 import EvmAsm.Evm64.CallingConvention
+
+-- EVM memory model (issue #99)
+import EvmAsm.Evm64.Memory
