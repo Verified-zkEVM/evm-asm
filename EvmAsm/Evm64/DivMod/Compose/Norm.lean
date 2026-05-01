@@ -127,7 +127,7 @@ private theorem divK_normB_code_sub_divCode {base : Word} :
 private theorem divK_normB_half1_within (sp b0 b1 b2 b3 v5 v7 shift antiShift : Word) (base : Word) :
     let b3' := (b3 <<< (shift.toNat % 64)) ||| (b2 >>> (antiShift.toNat % 64))
     let b2' := (b2 <<< (shift.toNat % 64)) ||| (b1 >>> (antiShift.toNat % 64))
-    cpsTripleWithin 12 (base + normBOff) (base + 276) (divCode base)
+    cpsTripleWithin 12 (base + normBOff) (base + normBOff + 48) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x7 ↦ᵣ v7) **
        (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ antiShift) **
        ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
@@ -140,7 +140,6 @@ private theorem divK_normB_half1_within (sp b0 b1 b2 b3 v5 v7 shift antiShift : 
   -- Merge 1: b[3] with b[2] (base+228 → base+252)
   have hm1 := divK_normB_merge_spec_within 56 48 sp b3 b2 v5 v7 shift antiShift (base + normBOff)
   simp only [se12_56, se12_48] at hm1
-  rw [show (base + normBOff : Word) + 24 = base + 252 from by bv_addr] at hm1
   have hm1e := cpsTripleWithin_extend_code (hmono := fun a i h =>
     divK_normB_code_sub_divCode a i
       (CodeReq.ofProg_mono_sub (base + normBOff) (base + normBOff) divK_normB
@@ -152,12 +151,12 @@ private theorem divK_normB_half1_within (sp b0 b1 b2 b3 v5 v7 shift antiShift : 
     (by pcFree) hm1e
   -- Merge 2: b[2] with b[1] (base+252 → base+276)
   have hm2 := divK_normB_merge_spec_within 48 40 sp b2 b1 b3' (b2 >>> (antiShift.toNat % 64))
-    shift antiShift (base + 252)
+    shift antiShift (base + normBOff + 24)
   simp only [se12_48, se12_40] at hm2
-  rw [show (base + 252 : Word) + 24 = base + 276 from by bv_addr] at hm2
+  rw [show (base + normBOff + 24 : Word) + 24 = base + normBOff + 48 from by bv_addr] at hm2
   have hm2e := cpsTripleWithin_extend_code (hmono := fun a i h =>
     divK_normB_code_sub_divCode a i
-      (CodeReq.ofProg_mono_sub (base + normBOff) (base + 252) divK_normB
+      (CodeReq.ofProg_mono_sub (base + normBOff) (base + normBOff + 24) divK_normB
         (divK_normB_merge_prog 48 40) 6
         (by bv_addr) (by decide) (by decide) (by decide) a i h)) hm2
   have hm2ef := cpsTripleWithin_frameR
@@ -173,7 +172,7 @@ private theorem divK_normB_half1_within (sp b0 b1 b2 b3 v5 v7 shift antiShift : 
 private theorem divK_normB_half2_within (sp b0 b1 b2' b3' shift antiShift : Word) (base : Word) :
     let b1' := (b1 <<< (shift.toNat % 64)) ||| (b0 >>> (antiShift.toNat % 64))
     let b0' := b0 <<< (shift.toNat % 64)
-    cpsTripleWithin 9 (base + 276) (base + normAOff) (divCode base)
+    cpsTripleWithin 9 (base + normBOff + 48) (base + normAOff) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ b2') ** (.x7 ↦ᵣ (b1 >>> (antiShift.toNat % 64))) **
        (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ antiShift) **
        ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
@@ -185,24 +184,24 @@ private theorem divK_normB_half2_within (sp b0 b1 b2' b3' shift antiShift : Word
   intro b1' b0'
   -- Merge 3: b[1] with b[0] (base+276 → base+300)
   have hm3 := divK_normB_merge_spec_within 40 32 sp b1 b0
-    b2' (b1 >>> (antiShift.toNat % 64)) shift antiShift (base + 276)
+    b2' (b1 >>> (antiShift.toNat % 64)) shift antiShift (base + normBOff + 48)
   simp only [se12_40, se12_32] at hm3
-  rw [show (base + 276 : Word) + 24 = base + 300 from by bv_addr] at hm3
+  rw [show (base + normBOff + 48 : Word) + 24 = base + normBOff + 72 from by bv_addr] at hm3
   have hm3e := cpsTripleWithin_extend_code (hmono := fun a i h =>
     divK_normB_code_sub_divCode a i
-      (CodeReq.ofProg_mono_sub (base + normBOff) (base + 276) divK_normB
+      (CodeReq.ofProg_mono_sub (base + normBOff) (base + normBOff + 48) divK_normB
         (divK_normB_merge_prog 40 32) 12
         (by bv_addr) (by decide) (by decide) (by decide) a i h)) hm3
   have hm3ef := cpsTripleWithin_frameR
     (((sp + 48) ↦ₘ b2') ** ((sp + 56) ↦ₘ b3'))
     (by pcFree) hm3e
   -- Last: b[0] alone (base+300 → base+312)
-  have hl := divK_normB_last_spec_within 32 sp b0 b1' shift (base + 300)
+  have hl := divK_normB_last_spec_within 32 sp b0 b1' shift (base + normBOff + 72)
   simp only [se12_32] at hl
-  rw [show (base + 300 : Word) + 12 = base + normAOff from by bv_addr] at hl
+  rw [show (base + normBOff + 72 : Word) + 12 = base + normAOff from by bv_addr] at hl
   have hle := cpsTripleWithin_extend_code (hmono := fun a i h =>
     divK_normB_code_sub_divCode a i
-      (CodeReq.ofProg_mono_sub (base + normBOff) (base + 300) divK_normB
+      (CodeReq.ofProg_mono_sub (base + normBOff) (base + normBOff + 72) divK_normB
         (divK_normB_last_prog 32) 18
         (by bv_addr) (by decide) (by decide) (by decide) a i h)) hl
   have hlef := cpsTripleWithin_frameR
