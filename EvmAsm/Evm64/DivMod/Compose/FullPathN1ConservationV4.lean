@@ -660,4 +660,301 @@ theorem fullDivN1R0_v4_step_conservation
   delta fullDivN1R0_v4
   simpa [hv3z] using h
 
+@[irreducible]
+def fullDivN1StepsConservation_v4
+    (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Prop :=
+  let v := fullDivN1NormV b0 b1 b2 b3
+  let u := fullDivN1NormU a0 a1 a2 a3 b0
+  let r3 := fullDivN1R3_v4 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3
+  let r2 := fullDivN1R2_v4 bltu_3 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3
+  let r1 := fullDivN1R1_v4 bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3
+  let r0 := fullDivN1R0_v4 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3
+  n1StepsConservation v u r3 r2 r1 r0
+
+theorem fullDivN1StepsConservation_v4_of_runtime
+    (bltu_3 bltu_2 bltu_1 bltu_0 : Bool) (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hcarry2 : Carry2NzAll
+      (fullDivN1NormV b0 b1 b2 b3).1
+      (fullDivN1NormV b0 b1 b2 b3).2.1
+      (fullDivN1NormV b0 b1 b2 b3).2.2.1
+      (fullDivN1NormV b0 b1 b2 b3).2.2.2) :
+    fullDivN1StepsConservation_v4 bltu_3 bltu_2 bltu_1 bltu_0
+      a0 a1 a2 a3 b0 b1 b2 b3 := by
+  delta fullDivN1StepsConservation_v4
+  delta n1StepsConservation
+  constructor
+  · exact fullDivN1R3_v4_step_conservation
+      bltu_3 a0 a1 a2 a3 b0 b1 b2 b3 hb1z hb2z hb3z hbnz hcarry2
+  constructor
+  · exact fullDivN1R2_v4_step_conservation
+      bltu_3 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3 hb1z hb2z hb3z hbnz hcarry2
+  constructor
+  · exact fullDivN1R1_v4_step_conservation
+      bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3 hb1z hb2z hb3z hbnz
+      hcarry2
+  · exact fullDivN1R0_v4_step_conservation
+      bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3 hb1z hb2z hb3z
+      hbnz hcarry2
+
+@[irreducible]
+def fullDivN1StepsTelescoped_v4
+    (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Prop :=
+  let v := fullDivN1NormV b0 b1 b2 b3
+  let u := fullDivN1NormU a0 a1 a2 a3 b0
+  let r3 := fullDivN1R3_v4 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3
+  let r2 := fullDivN1R2_v4 bltu_3 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3
+  let r1 := fullDivN1R1_v4 bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3
+  let r0 := fullDivN1R0_v4 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3
+  n1StepsTelescoped v u r3 r2 r1 r0
+
+theorem fullDivN1StepsTelescoped_v4_of_conservation
+    (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hsteps : fullDivN1StepsConservation_v4 bltu_3 bltu_2 bltu_1 bltu_0
+      a0 a1 a2 a3 b0 b1 b2 b3) :
+    fullDivN1StepsTelescoped_v4 bltu_3 bltu_2 bltu_1 bltu_0
+      a0 a1 a2 a3 b0 b1 b2 b3 := by
+  delta fullDivN1StepsConservation_v4 at hsteps
+  delta fullDivN1StepsTelescoped_v4
+  exact n1StepsTelescoped_of_conservation
+    (fullDivN1NormV b0 b1 b2 b3)
+    (fullDivN1NormU a0 a1 a2 a3 b0)
+    (fullDivN1R3_v4 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3)
+    (fullDivN1R2_v4 bltu_3 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3)
+    (fullDivN1R1_v4 bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3)
+    (fullDivN1R0_v4 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3)
+    hsteps
+
+theorem fullDivN1StepsTelescoped_v4_of_runtime
+    (bltu_3 bltu_2 bltu_1 bltu_0 : Bool) (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hcarry2 : Carry2NzAll
+      (fullDivN1NormV b0 b1 b2 b3).1
+      (fullDivN1NormV b0 b1 b2 b3).2.1
+      (fullDivN1NormV b0 b1 b2 b3).2.2.1
+      (fullDivN1NormV b0 b1 b2 b3).2.2.2) :
+    fullDivN1StepsTelescoped_v4 bltu_3 bltu_2 bltu_1 bltu_0
+      a0 a1 a2 a3 b0 b1 b2 b3 :=
+  fullDivN1StepsTelescoped_v4_of_conservation
+    bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3
+    (fullDivN1StepsConservation_v4_of_runtime
+      bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3
+      hb1z hb2z hb3z hbnz hcarry2)
+
+theorem fullDivN1QuotientVal_v4_le_div_of_telescoped
+    (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hb2z : b2 = 0) (hb3z : b3 = 0)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hshift_nz : fullDivN1Shift b0 ≠ 0)
+    (htel : fullDivN1StepsTelescoped_v4 bltu_3 bltu_2 bltu_1 bltu_0
+      a0 a1 a2 a3 b0 b1 b2 b3) :
+    fullDivN1QuotientVal_v4 bltu_3 bltu_2 bltu_1 bltu_0
+        a0 a1 a2 a3 b0 b1 b2 b3 ≤
+      EvmWord.val256 a0 a1 a2 a3 / EvmWord.val256 b0 b1 b2 b3 := by
+  let r3 := fullDivN1R3_v4 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3
+  let r2 := fullDivN1R2_v4 bltu_3 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3
+  let r1 := fullDivN1R1_v4 bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3
+  let r0 := fullDivN1R0_v4 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3
+  let qVal := r3.1.toNat * (2^64)^3 + r2.1.toNat * (2^64)^2 +
+    r1.1.toNat * (2^64) + r0.1.toNat
+  have hv3z := fullDivN1NormV_v3_eq_zero_of_high_zero b0 b1 b2 b3 hb3z hb2z
+  have hnormu := fullDivN1NormU_val256_eq_scaled_with_overflow
+    a0 a1 a2 a3 b0 hshift_nz
+  have hnormv := fullDivN1NormV_val256_eq_scaled b0 b1 b2 b3 hb3z hshift_nz
+  have heq : EvmWord.val256 a0 a1 a2 a3 * 2 ^ ((fullDivN1Shift b0).toNat % 64) =
+      qVal * (EvmWord.val256 b0 b1 b2 b3 * 2 ^ ((fullDivN1Shift b0).toNat % 64)) +
+        (n1StepRemainderVal r0 + n1StepsCarryVal r3 r2 r1 r0) := by
+    delta fullDivN1StepsTelescoped_v4 n1StepsTelescoped at htel
+    dsimp only at htel
+    rw [← hnormu]
+    rw [← hnormv]
+    rw [hv3z]
+    simp only [qVal, r0, r1, r2, r3]
+    norm_num at htel ⊢
+    omega
+  have hb_pos : 0 < EvmWord.val256 b0 b1 b2 b3 *
+      2 ^ ((fullDivN1Shift b0).toNat % 64) := by
+    have hb : 0 < EvmWord.val256 b0 b1 b2 b3 := EvmWord.val256_pos_of_or_ne_zero hbnz
+    positivity
+  have hq_le := EvmWord.quotient_le_of_euclidean hb_pos heq
+  rw [div_mul_pow_mul_pow_eq_div] at hq_le
+  delta fullDivN1QuotientVal_v4
+  simp only [qVal, r0, r1, r2, r3] at hq_le ⊢
+  exact hq_le
+
+theorem fullDivN1QuotientVal_v4_le_div_of_runtime
+    (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hshift_nz : fullDivN1Shift b0 ≠ 0)
+    (hcarry2 : Carry2NzAll
+      (fullDivN1NormV b0 b1 b2 b3).1
+      (fullDivN1NormV b0 b1 b2 b3).2.1
+      (fullDivN1NormV b0 b1 b2 b3).2.2.1
+      (fullDivN1NormV b0 b1 b2 b3).2.2.2) :
+    fullDivN1QuotientVal_v4 bltu_3 bltu_2 bltu_1 bltu_0
+        a0 a1 a2 a3 b0 b1 b2 b3 ≤
+      EvmWord.val256 a0 a1 a2 a3 / EvmWord.val256 b0 b1 b2 b3 := by
+  exact fullDivN1QuotientVal_v4_le_div_of_telescoped
+    bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3
+    hb2z hb3z hbnz hshift_nz
+    (fullDivN1StepsTelescoped_v4_of_runtime
+      bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3
+      hb1z hb2z hb3z hbnz hcarry2)
+
+theorem fullDivN1ExtendedRemainder_v4_lt_of_runtime_quotientVal_le
+    (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hshift_nz : fullDivN1Shift b0 ≠ 0)
+    (hcarry2 : Carry2NzAll
+      (fullDivN1NormV b0 b1 b2 b3).1
+      (fullDivN1NormV b0 b1 b2 b3).2.1
+      (fullDivN1NormV b0 b1 b2 b3).2.2.1
+      (fullDivN1NormV b0 b1 b2 b3).2.2.2)
+    (hge : EvmWord.val256 a0 a1 a2 a3 / EvmWord.val256 b0 b1 b2 b3 ≤
+      fullDivN1QuotientVal_v4 bltu_3 bltu_2 bltu_1 bltu_0
+        a0 a1 a2 a3 b0 b1 b2 b3) :
+    n1StepRemainderVal
+        (fullDivN1R0_v4 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3) +
+        n1StepsCarryVal
+          (fullDivN1R3_v4 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3)
+          (fullDivN1R2_v4 bltu_3 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3)
+          (fullDivN1R1_v4 bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3)
+          (fullDivN1R0_v4 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3) <
+      EvmWord.val256 b0 b1 b2 b3 * 2 ^ ((fullDivN1Shift b0).toNat % 64) := by
+  let r3 := fullDivN1R3_v4 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3
+  let r2 := fullDivN1R2_v4 bltu_3 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3
+  let r1 := fullDivN1R1_v4 bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3
+  let r0 := fullDivN1R0_v4 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3
+  let qVal := r3.1.toNat * (2^64)^3 + r2.1.toNat * (2^64)^2 +
+    r1.1.toNat * (2^64) + r0.1.toNat
+  have htel : n1StepsTelescoped
+      (fullDivN1NormV b0 b1 b2 b3)
+      (fullDivN1NormU a0 a1 a2 a3 b0)
+      (fullDivN1R3_v4 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3)
+      (fullDivN1R2_v4 bltu_3 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3)
+      (fullDivN1R1_v4 bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3)
+      (fullDivN1R0_v4 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3) := by
+    exact n1StepsTelescoped_of_conservation
+      (fullDivN1NormV b0 b1 b2 b3)
+      (fullDivN1NormU a0 a1 a2 a3 b0)
+      (fullDivN1R3_v4 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3)
+      (fullDivN1R2_v4 bltu_3 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3)
+      (fullDivN1R1_v4 bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3)
+      (fullDivN1R0_v4 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3)
+      (by
+        delta n1StepsConservation
+        exact ⟨
+          fullDivN1R3_v4_step_conservation
+            bltu_3 a0 a1 a2 a3 b0 b1 b2 b3 hb1z hb2z hb3z hbnz hcarry2,
+          fullDivN1R2_v4_step_conservation
+            bltu_3 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3 hb1z hb2z hb3z hbnz hcarry2,
+          fullDivN1R1_v4_step_conservation
+            bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3 hb1z hb2z hb3z hbnz
+            hcarry2,
+          fullDivN1R0_v4_step_conservation
+            bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3 hb1z hb2z hb3z
+            hbnz hcarry2⟩)
+  have hv3z := fullDivN1NormV_v3_eq_zero_of_high_zero b0 b1 b2 b3 hb3z hb2z
+  have hnormu := fullDivN1NormU_val256_eq_scaled_with_overflow
+    a0 a1 a2 a3 b0 hshift_nz
+  have hnormv := fullDivN1NormV_val256_eq_scaled b0 b1 b2 b3 hb3z hshift_nz
+  have heq : EvmWord.val256 a0 a1 a2 a3 * 2 ^ ((fullDivN1Shift b0).toNat % 64) =
+      qVal * (EvmWord.val256 b0 b1 b2 b3 * 2 ^ ((fullDivN1Shift b0).toNat % 64)) +
+        (n1StepRemainderVal r0 + n1StepsCarryVal r3 r2 r1 r0) := by
+    delta n1StepsTelescoped at htel
+    dsimp only at htel
+    rw [← hnormu]
+    rw [← hnormv]
+    rw [hv3z]
+    simp only [qVal, r0, r1, r2, r3]
+    norm_num at htel ⊢
+    omega
+  have hb_pos : 0 < EvmWord.val256 b0 b1 b2 b3 *
+      2 ^ ((fullDivN1Shift b0).toNat % 64) := by
+    have hb : 0 < EvmWord.val256 b0 b1 b2 b3 := EvmWord.val256_pos_of_or_ne_zero hbnz
+    positivity
+  have hge' : EvmWord.val256 a0 a1 a2 a3 / EvmWord.val256 b0 b1 b2 b3 ≤ qVal := by
+    delta fullDivN1QuotientVal_v4 at hge
+    simpa [qVal, r0, r1, r2, r3] using hge
+  have hge_scaled :
+      (EvmWord.val256 a0 a1 a2 a3 * 2 ^ ((fullDivN1Shift b0).toNat % 64)) /
+        (EvmWord.val256 b0 b1 b2 b3 * 2 ^ ((fullDivN1Shift b0).toNat % 64)) ≤
+      qVal := by
+    rw [div_mul_pow_mul_pow_eq_div]
+    exact hge'
+  have ⟨_, hr_lt⟩ := EvmWord.remainder_lt_of_ge_floor hb_pos heq hge_scaled
+  simpa [r0, r1, r2, r3] using hr_lt
+
+theorem fullDivN1ExtendedRemainder_v4_lt_of_runtime_correctedTrial_le
+    (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hshift_nz : fullDivN1Shift b0 ≠ 0)
+    (hcarry2 : Carry2NzAll
+      (fullDivN1NormV b0 b1 b2 b3).1
+      (fullDivN1NormV b0 b1 b2 b3).2.1
+      (fullDivN1NormV b0 b1 b2 b3).2.2.1
+      (fullDivN1NormV b0 b1 b2 b3).2.2.2)
+    (hge : EvmWord.val256 a0 a1 a2 a3 / EvmWord.val256 b0 b1 b2 b3 ≤
+      fullDivN1CorrectedTrialVal_v4 bltu_3 bltu_2 bltu_1 bltu_0
+        a0 a1 a2 a3 b0 b1 b2 b3) :
+    n1StepRemainderVal
+        (fullDivN1R0_v4 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3) +
+        n1StepsCarryVal
+          (fullDivN1R3_v4 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3)
+          (fullDivN1R2_v4 bltu_3 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3)
+          (fullDivN1R1_v4 bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3)
+          (fullDivN1R0_v4 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3) <
+      EvmWord.val256 b0 b1 b2 b3 * 2 ^ ((fullDivN1Shift b0).toNat % 64) := by
+  have hcorr := fullDivN1CorrectedTrialVal_v4_le_quotientVal_v4
+    bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3
+  exact fullDivN1ExtendedRemainder_v4_lt_of_runtime_quotientVal_le
+    bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3
+    hb1z hb2z hb3z hbnz hshift_nz hcarry2 (Nat.le_trans hge hcorr)
+
+theorem fullDivN1ExtendedRemainder_v4_lt_of_runtime_localFloor_le
+    (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hshift_nz : fullDivN1Shift b0 ≠ 0)
+    (hcarry2 : Carry2NzAll
+      (fullDivN1NormV b0 b1 b2 b3).1
+      (fullDivN1NormV b0 b1 b2 b3).2.1
+      (fullDivN1NormV b0 b1 b2 b3).2.2.1
+      (fullDivN1NormV b0 b1 b2 b3).2.2.2)
+    (hbltu_3 : isTrialN1_v4_j3 bltu_3 a3 b0)
+    (hbltu_2 : isTrialN1_v4_j2 bltu_3 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3)
+    (hbltu_1 : isTrialN1_v4_j1 bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3)
+    (hbltu_0 : isTrialN1_v4_j0 bltu_3 bltu_2 bltu_1 bltu_0
+      a0 a1 a2 a3 b0 b1 b2 b3)
+    (hge : EvmWord.val256 a0 a1 a2 a3 / EvmWord.val256 b0 b1 b2 b3 ≤
+      fullDivN1LocalFloorVal_v4 bltu_3 bltu_2 bltu_1 bltu_0
+        a0 a1 a2 a3 b0 b1 b2 b3) :
+    n1StepRemainderVal
+        (fullDivN1R0_v4 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3) +
+        n1StepsCarryVal
+          (fullDivN1R3_v4 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3)
+          (fullDivN1R2_v4 bltu_3 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3)
+          (fullDivN1R1_v4 bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3)
+          (fullDivN1R0_v4 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3) <
+      EvmWord.val256 b0 b1 b2 b3 * 2 ^ ((fullDivN1Shift b0).toNat % 64) := by
+  have hlocal := fullDivN1LocalFloorVal_v4_le_correctedTrialVal_v4
+    bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3
+    hb1z hb2z hb3z hbnz hbltu_3 hbltu_2 hbltu_1 hbltu_0
+  exact fullDivN1ExtendedRemainder_v4_lt_of_runtime_correctedTrial_le
+    bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3
+    hb1z hb2z hb3z hbnz hshift_nz hcarry2 (Nat.le_trans hge hlocal)
+
 end EvmAsm.Evm64
