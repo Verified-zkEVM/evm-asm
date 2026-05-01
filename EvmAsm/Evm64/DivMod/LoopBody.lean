@@ -76,7 +76,7 @@ theorem lb_sub_v2 {base : Word} (k : Nat) (addr : Word) (instr : Instr)
 -- ============================================================================
 
 -- Mulsub limb base addresses (instrs [22]-[65])
-private theorem lb_ms1 {base : Word} : (base + 536 : Word) + 44 = base + 580 := by bv_addr
+private theorem lb_ms1 {base : Word} : (base + mulsubOff : Word) + 44 = base + 580 := by bv_addr
 private theorem lb_ms2 {base : Word} : (base + 580 : Word) + 44 = base + 624 := by bv_addr
 private theorem lb_ms3 {base : Word} : (base + 624 : Word) + 44 = base + 668 := by bv_addr
 private theorem lb_ms_end {base : Word} : (base + 668 : Word) + 44 = base + 712 := by bv_addr
@@ -130,7 +130,7 @@ theorem divK_mulsub_4limbs_spec_within
     let bs3 := if BitVec.ult u3 fs3 then (1 : Word) else 0
     let un3 := u3 - fs3
     let c3 := pc3 + bs3
-    cpsTripleWithin 44 (base + 536) (base + 712) (sharedDivModCode base)
+    cpsTripleWithin 44 (base + mulsubOff) (base + 712) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) ** (.x10 ↦ᵣ (signExtend12 0 : Word)) **
        (.x6 ↦ᵣ uBase) ** (.x5 ↦ᵣ v5_init) ** (.x7 ↦ᵣ v7_init) **
        (.x2 ↦ᵣ v2_init) **
@@ -151,7 +151,7 @@ theorem divK_mulsub_4limbs_spec_within
         p3_lo p3_hi fs3 ba3 pc3 bs3 un3 c3
   -- Limb 0: instrs [22]-[32] at base+536
   have L0 := divK_mulsub_limb_spec_within sp uBase qHat (signExtend12 0 : Word)
-    v5_init v7_init v2_init v0 u0 32 0 (base + 536)
+    v5_init v7_init v2_init v0 u0 32 0 (base + mulsubOff)
 
   rw [lb_ms1] at L0
   have L0e := cpsTripleWithin_extend_code (hmono := by
@@ -393,7 +393,7 @@ theorem divK_addback_full_spec_within
     (fun h hq => by xperm_hyp hq)
     IfA0eA1eA2eA3eAFe
 
-private theorem lb_ms_setup {base : Word} : (base + div128CallRetOff : Word) + 20 = base + 536 := by bv_addr
+private theorem lb_ms_setup {base : Word} : (base + div128CallRetOff : Word) + 20 = base + mulsubOff := by bv_addr
 
 -- Address normalization for sub_carry
 private theorem lb_sc {base : Word} : (base + 712 : Word) + 16 = base + 728 := by bv_addr
@@ -546,7 +546,7 @@ theorem divK_mulsub_4limbs_v2_spec_within
     let bs3 := if BitVec.ult u3 fs3 then (1 : Word) else 0
     let un3 := u3 - fs3
     let c3 := pc3 + bs3
-    cpsTripleWithin 44 (base + 536) (base + 712) (sharedDivModCode_v2 base)
+    cpsTripleWithin 44 (base + mulsubOff) (base + 712) (sharedDivModCode_v2 base)
       ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) ** (.x10 ↦ᵣ (signExtend12 0 : Word)) **
        (.x6 ↦ᵣ uBase) ** (.x5 ↦ᵣ v5_init) ** (.x7 ↦ᵣ v7_init) **
        (.x2 ↦ᵣ v2_init) **
@@ -567,7 +567,7 @@ theorem divK_mulsub_4limbs_v2_spec_within
         p3_lo p3_hi fs3 ba3 pc3 bs3 un3 c3
   -- Limb 0: instrs [22]-[32] at base+536
   have L0 := divK_mulsub_limb_spec_within sp uBase qHat (signExtend12 0 : Word)
-    v5_init v7_init v2_init v0 u0 32 0 (base + 536)
+    v5_init v7_init v2_init v0 u0 32 0 (base + mulsubOff)
 
   rw [lb_ms1] at L0
   have L0e := cpsTripleWithin_extend_code (hmono := by
