@@ -62,6 +62,7 @@ import EvmAsm.Evm64.CallingConvention
 -- Execution-context structure (#100 slice 1; envIs assertion lands in slice 3)
 import EvmAsm.Evm64.Environment
 import EvmAsm.Evm64.Environment.Layout
+import EvmAsm.Evm64.Environment.Assertion
 
 -- EVM memory model (issue #99)
 import EvmAsm.Evm64.Memory
