@@ -129,6 +129,27 @@ def fullDivN1R0_v4 (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
   iterN1_v4 bltu_0 v.1 v.2.1 v.2.2.1 v.2.2.2 u.1
     r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1
 
+def isTrialN1_v4_j3 (bltu_3 : Bool) (a3 b0 : Word) : Prop :=
+  isTrialN1_j3 bltu_3 a3 b0
+
+def isTrialN1_v4_j2 (bltu_3 bltu_2 : Bool) (a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
+    Prop :=
+  bltu_2 = BitVec.ult
+    (fullDivN1R3_v4 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3).2.1
+    (fullDivN1NormV b0 b1 b2 b3).1
+
+def isTrialN1_v4_j1 (bltu_3 bltu_2 bltu_1 : Bool)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Prop :=
+  bltu_1 = BitVec.ult
+    (fullDivN1R2_v4 bltu_3 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).2.1
+    (fullDivN1NormV b0 b1 b2 b3).1
+
+def isTrialN1_v4_j0 (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Prop :=
+  bltu_0 = BitVec.ult
+    (fullDivN1R1_v4 bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).2.1
+    (fullDivN1NormV b0 b1 b2 b3).1
+
 theorem fullDivN1R3_v4_qout_ge_trial_sub_two
     (bltu_3 : Bool) (a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
     let v := fullDivN1NormV b0 b1 b2 b3
@@ -228,5 +249,108 @@ theorem fullDivN1R0_v4_qout_ge_trial_sub_two
     (fullDivN1R1_v4 bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).2.2.1
     (fullDivN1R1_v4 bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.1
     (fullDivN1R1_v4 bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1
+
+theorem fullDivN1R3_v4_rawTrial_ge_local_digit
+    (bltu_3 : Bool) (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hbltu_3 : isTrialN1_v4_j3 bltu_3 a3 b0) :
+    let v := fullDivN1NormV b0 b1 b2 b3
+    let u := fullDivN1NormU a0 a1 a2 a3 b0
+    let qHat : Word := if bltu_3 then div128Quot_v4 u.2.2.2.2 u.2.2.2.1 v.1
+      else signExtend12 4095
+    n1LocalFloorDigit v.1 u.2.2.2.1 u.2.2.2.2 ≤ qHat.toNat := by
+  intro v u qHat
+  subst v
+  subst u
+  subst qHat
+  have hv0_ge : ((fullDivN1NormV b0 b1 b2 b3).1).toNat ≥ 2^63 :=
+    fullDivN1NormV_v0_ge_pow63_of_high_zero b0 b1 b2 b3 hb1z hb2z hb3z hbnz
+  exact iterN1_v4_rawTrial_ge_local_digit bltu_3
+    (fullDivN1NormV b0 b1 b2 b3).1
+    (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1
+    (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2
+    hv0_ge (by
+      delta isTrialN1_v4_j3 isTrialN1_j3 at hbltu_3
+      simpa [fullDivN1NormU, fullDivN1NormV, fullDivN1Shift, fullDivN1AntiShift]
+        using hbltu_3)
+
+theorem fullDivN1R2_v4_rawTrial_ge_local_digit
+    (bltu_3 bltu_2 : Bool) (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hbltu_2 : isTrialN1_v4_j2 bltu_3 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3) :
+    let v := fullDivN1NormV b0 b1 b2 b3
+    let u := fullDivN1NormU a0 a1 a2 a3 b0
+    let r3 := fullDivN1R3_v4 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3
+    let qHat : Word := if bltu_2 then div128Quot_v4 r3.2.1 u.2.2.1 v.1
+      else signExtend12 4095
+    n1LocalFloorDigit v.1 u.2.2.1 r3.2.1 ≤ qHat.toNat := by
+  intro v u r3 qHat
+  subst v
+  subst u
+  subst r3
+  subst qHat
+  have hv0_ge : ((fullDivN1NormV b0 b1 b2 b3).1).toNat ≥ 2^63 :=
+    fullDivN1NormV_v0_ge_pow63_of_high_zero b0 b1 b2 b3 hb1z hb2z hb3z hbnz
+  exact iterN1_v4_rawTrial_ge_local_digit bltu_2
+    (fullDivN1NormV b0 b1 b2 b3).1
+    (fullDivN1NormU a0 a1 a2 a3 b0).2.2.1
+    (fullDivN1R3_v4 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3).2.1
+    hv0_ge (by
+      delta isTrialN1_v4_j2 at hbltu_2
+      simpa using hbltu_2)
+
+theorem fullDivN1R1_v4_rawTrial_ge_local_digit
+    (bltu_3 bltu_2 bltu_1 : Bool) (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hbltu_1 : isTrialN1_v4_j1 bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3) :
+    let v := fullDivN1NormV b0 b1 b2 b3
+    let u := fullDivN1NormU a0 a1 a2 a3 b0
+    let r2 := fullDivN1R2_v4 bltu_3 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3
+    let qHat : Word := if bltu_1 then div128Quot_v4 r2.2.1 u.2.1 v.1
+      else signExtend12 4095
+    n1LocalFloorDigit v.1 u.2.1 r2.2.1 ≤ qHat.toNat := by
+  intro v u r2 qHat
+  subst v
+  subst u
+  subst r2
+  subst qHat
+  have hv0_ge : ((fullDivN1NormV b0 b1 b2 b3).1).toNat ≥ 2^63 :=
+    fullDivN1NormV_v0_ge_pow63_of_high_zero b0 b1 b2 b3 hb1z hb2z hb3z hbnz
+  exact iterN1_v4_rawTrial_ge_local_digit bltu_1
+    (fullDivN1NormV b0 b1 b2 b3).1
+    (fullDivN1NormU a0 a1 a2 a3 b0).2.1
+    (fullDivN1R2_v4 bltu_3 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).2.1
+    hv0_ge (by
+      delta isTrialN1_v4_j1 at hbltu_1
+      simpa using hbltu_1)
+
+theorem fullDivN1R0_v4_rawTrial_ge_local_digit
+    (bltu_3 bltu_2 bltu_1 bltu_0 : Bool) (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hbltu_0 : isTrialN1_v4_j0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3) :
+    let v := fullDivN1NormV b0 b1 b2 b3
+    let u := fullDivN1NormU a0 a1 a2 a3 b0
+    let r1 := fullDivN1R1_v4 bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3
+    let qHat : Word := if bltu_0 then div128Quot_v4 r1.2.1 u.1 v.1
+      else signExtend12 4095
+    n1LocalFloorDigit v.1 u.1 r1.2.1 ≤ qHat.toNat := by
+  intro v u r1 qHat
+  subst v
+  subst u
+  subst r1
+  subst qHat
+  have hv0_ge : ((fullDivN1NormV b0 b1 b2 b3).1).toNat ≥ 2^63 :=
+    fullDivN1NormV_v0_ge_pow63_of_high_zero b0 b1 b2 b3 hb1z hb2z hb3z hbnz
+  exact iterN1_v4_rawTrial_ge_local_digit bltu_0
+    (fullDivN1NormV b0 b1 b2 b3).1
+    (fullDivN1NormU a0 a1 a2 a3 b0).1
+    (fullDivN1R1_v4 bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).2.1
+    hv0_ge (by
+      delta isTrialN1_v4_j0 at hbltu_0
+      simpa using hbltu_0)
 
 end EvmAsm.Evm64
