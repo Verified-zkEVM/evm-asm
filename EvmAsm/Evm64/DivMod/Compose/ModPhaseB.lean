@@ -58,14 +58,14 @@ theorem divK_phaseB_init2_code_sub_modCode {base : Word} :
   exact sub_modCode_of_phaseB_left a i h1
 
 theorem addi_x5_singleton_sub_modCode {base : Word} :
-    ∀ a i, (CodeReq.singleton (base + 68) (.ADDI .x5 .x0 4)) a = some i →
+    ∀ a i, (CodeReq.singleton (base + phaseBStep0Off) (.ADDI .x5 .x0 4)) a = some i →
       (modCode base) a = some i := by
   unfold modCode; simp only [CodeReq.unionAll_cons]
   intro a i h
   have hlookup := CodeReq.ofProg_lookup (base + phaseBOff) divK_phaseB 9
     (by decide) (by decide)
   rw [bv64_4mul_9,
-      show (base + phaseBOff : Word) + 36 = base + 68 from by bv_addr] at hlookup
+      show (base + phaseBOff : Word) + 36 = base + phaseBStep0Off from by bv_addr] at hlookup
   have h1 := CodeReq.singleton_mono hlookup a i h
   exact sub_modCode_of_phaseB_left a i h1
 
@@ -94,8 +94,8 @@ theorem divK_phaseB_tail_code_sub_modCode {base : Word} :
 -- The former `mod_phB_off_28` (identical to PhaseAB's private `phB_off_28`)
 -- now lives in `Compose/Base.lean` as the shared `phB_off_28` and is used
 -- directly from both the DIV and MOD sides.
-theorem mod_phB_i2_8 {base : Word} : (base + phaseBInit2Off : Word) + 8 = base + 68 := by bv_addr
-theorem mod_phB_addi_4 {base : Word} : (base + 68 : Word) + 4 = base + phaseBBneOff := by bv_addr
+theorem mod_phB_i2_8 {base : Word} : (base + phaseBInit2Off : Word) + 8 = base + phaseBStep0Off := by bv_addr
+theorem mod_phB_addi_4 {base : Word} : (base + phaseBStep0Off : Word) + 4 = base + phaseBBneOff := by bv_addr
 theorem mod_phB_bne_4 {base : Word} : (base + phaseBBneOff : Word) + 4 = base + phaseBStep1Off := by bv_addr
 theorem mod_phB_t_20 {base : Word} : (base + phaseBTailOff : Word) + 20 = base + clzOff := by bv_addr
 -- `mod_signExtend13_24` → use `se13_24` from `Compose/Base.lean`.
@@ -148,7 +148,7 @@ theorem evm_mod_phaseB_n4_spec_within (sp base : Word)
   have hinit2 := cpsTripleWithin_extend_code divK_phaseB_init2_code_sub_modCode hinit2_raw
   seqFrame hinit1f hinit2
   -- ---- Step 3: ADDI x5 x0 4 at base+68 → base+72
-  have haddi_raw := addi_x0_spec_gen_within .x5 v5 4 (base + 68) (by nofun)
+  have haddi_raw := addi_x0_spec_gen_within .x5 v5 4 (base + phaseBStep0Off) (by nofun)
   simp only [mod_phB_addi_4, se12_4] at haddi_raw
   have haddi := cpsTripleWithin_extend_code addi_x5_singleton_sub_modCode haddi_raw
   seqFrame hinit1fhinit2 haddi
@@ -201,14 +201,14 @@ theorem bne_x7_16_sub_modCode {base : Word} :
 
 -- ADDI x5 x0 2 at base+84 (index 13 of phaseB)
 theorem addi_x5_2_sub_modCode {base : Word} :
-    ∀ a i, (CodeReq.singleton (base + 84) (.ADDI .x5 .x0 2)) a = some i →
+    ∀ a i, (CodeReq.singleton (base + phaseBStep2Off) (.ADDI .x5 .x0 2)) a = some i →
       (modCode base) a = some i := by
   unfold modCode; simp only [CodeReq.unionAll_cons]
   intro a i h
   have hlookup := CodeReq.ofProg_lookup (base + phaseBOff) divK_phaseB 13
     (by decide) (by decide)
   rw [bv64_4mul_13,
-      show (base + phaseBOff : Word) + 52 = base + 84 from by bv_addr] at hlookup
+      show (base + phaseBOff : Word) + 52 = base + phaseBStep2Off from by bv_addr] at hlookup
   have h1 := CodeReq.singleton_mono hlookup a i h
   exact sub_modCode_of_phaseB_left a i h1
 
@@ -258,8 +258,8 @@ theorem mod_divK_phaseB_n1_nm1_x8 :
 
 -- Cascade address normalization
 theorem mod_phB_step1_4 {base : Word} : (base + phaseBStep1Off : Word) + 4 = base + phaseBBne2Off := by bv_addr
-theorem mod_phB_step1_8 {base : Word} : (base + phaseBBne2Off : Word) + 4 = base + 84 := by bv_addr
-theorem mod_phB_step2_4 {base : Word} : (base + 84 : Word) + 4 = base + phaseBBne3Off := by bv_addr
+theorem mod_phB_step1_8 {base : Word} : (base + phaseBBne2Off : Word) + 4 = base + phaseBStep2Off := by bv_addr
+theorem mod_phB_step2_4 {base : Word} : (base + phaseBStep2Off : Word) + 4 = base + phaseBBne3Off := by bv_addr
 theorem mod_phB_step2_8 {base : Word} : (base + phaseBBne3Off : Word) + 4 = base + 92 := by bv_addr
 theorem mod_phB_fall_4 {base : Word} : (base + 92 : Word) + 4 = base + phaseBTailOff := by bv_addr
 

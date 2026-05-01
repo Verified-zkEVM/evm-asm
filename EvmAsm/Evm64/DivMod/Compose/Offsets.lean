@@ -67,6 +67,14 @@ abbrev phaseBOff    : Word :=   32
     and `Compose/ModPhaseBn21.lean` invoke `divK_phaseB_init2_spec_within` at
     this address. Sub-offset relative to `divK_phaseB` (= phaseBOff + 28). -/
 abbrev phaseBInit2Off : Word :=   60
+/-- Offset of the `divK_phaseB` step0 selection instruction (n=4 path).
+    Entry PC of the `ADDI x5, x0, 4` that loads the limb-count `n = 4` into
+    `x5`; the immediately-following `BNE x7, x0, +8` (at `phaseBBneOff = 72`)
+    selects the n=4 path when the top divisor limb is non-zero. Sub-offset
+    relative to `divK_phaseB` (= phaseBOff + 36 = phaseBBneOff − 4).
+    Mirrors `phaseBStep1Off` (76, n=3 selection) and `phaseBStep2Off`
+    (84, n=2 selection). -/
+abbrev phaseBStep0Off : Word :=   68
 /-- Offset of the BNE-to-`divK_phaseB_tail` instruction inside `divK_phaseB`.
     Entry PC of the `BNE x10, x0, +24` that ends the leading-limb-analysis
     cascade step and branches forward into `divK_phaseB_tail` when the current
@@ -80,6 +88,12 @@ abbrev phaseBBneOff : Word :=   72
     of the cascade following `divK_phaseB_init2`). Sub-offset relative
     to `divK_phaseB` (= phaseBOff + 44 = phaseBBneOff + 4). -/
 abbrev phaseBStep1Off : Word :=   76
+/-- Offset of `divK_phaseB_step2` inside `divK_phaseB`.
+    Entry PC of the `ADDI x5, x0, 2 ;; BNE x6, x0, 8` pair that selects
+    the n=2 path during leading-limb analysis (the fourth per-limb step
+    of the cascade following `divK_phaseB_step1`). Sub-offset relative
+    to `divK_phaseB` (= phaseBOff + 52). -/
+abbrev phaseBStep2Off : Word :=   84
 /-- Offset of the second BNE-to-`divK_phaseB_tail` instruction inside
     `divK_phaseB`. Entry PC of the `BNE x7, x0, +16` that ends the
     second per-limb leading-limb-analysis cascade step and branches
@@ -348,6 +362,9 @@ example : trialJalOff + 4 = div128CallRetOff := by decide
     `divK_phaseB`, 24 bytes (6 instructions) before `phaseBTailOff`. -/
 example : phaseBBneOff = phaseBOff + 40 := by decide
 example : phaseBBneOff + 24 = phaseBTailOff := by decide
+/-- phaseBStep2Off = phaseBOff + 52. The
+    `ADDI x5, x0, 2 ;; BNE x6, x0, 8` pair selecting the n=2 path. -/
+example : phaseBStep2Off = phaseBOff + 52 := by decide
 /-- phaseBBne2Off = phaseBOff + 48 (sub-block offset within `divK_phaseB`).
     The second BNE-to-`divK_phaseB_tail` instruction sits 12 instructions
     into `divK_phaseB`, 16 bytes (4 instructions) before `phaseBTailOff`. -/

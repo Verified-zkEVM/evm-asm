@@ -40,6 +40,88 @@ each per-`n` spec to this bound via `cpsTripleWithin_mono_nSteps`, so a future
 incompatible `nSteps` between branches. -/
 def unifiedDivBound : Nat := 946
 
+theorem divStackDispatchPost_weaken_bzero_frame
+    (sp : Word) (a b : EvmWord)
+    {v1 v2 v6 v7 v11 : Word}
+    {q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     shiftMem nMem jMem retMem dMem dloMem scratch_un0 : Word} :
+    ∀ h,
+      ((.x12 ↦ᵣ (sp + 32)) **
+       (.x1 ↦ᵣ v1) ** (.x2 ↦ᵣ v2) **
+       regOwn .x5 ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+       regOwn .x10 ** (.x11 ↦ᵣ v11) **
+       (.x0 ↦ᵣ (0 : Word)) **
+       evmWordIs sp a ** evmWordIs (sp + 32) (EvmWord.div a b) **
+       divScratchValuesCall sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+         shiftMem nMem jMem retMem dMem dloMem scratch_un0) h →
+      divStackDispatchPost sp a b h := by
+  intro h hp
+  delta divStackDispatchPost
+  apply sepConj_mono_right
+  apply sepConj_mono (regIs_implies_regOwn .x1 (v := v1))
+  apply sepConj_mono (regIs_implies_regOwn .x2 (v := v2))
+  apply sepConj_mono_right
+  apply sepConj_mono (regIs_implies_regOwn .x6 (v := v6))
+  apply sepConj_mono (regIs_implies_regOwn .x7 (v := v7))
+  apply sepConj_mono_right
+  apply sepConj_mono (regIs_implies_regOwn .x11 (v := v11))
+  apply sepConj_mono_right
+  apply sepConj_mono_right
+  apply sepConj_mono_right
+  exact divScratchValuesCall_implies_divScratchOwnCall
+    sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem
+      retMem dMem dloMem scratch_un0
+  exact hp
+
+theorem evm_div_bzero_stack_spec_within_dispatch_uni (sp base : Word)
+    (a b : EvmWord) (v1 v2 v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratch_un0 : Word)
+    (hbz : b = 0) :
+    cpsTripleWithin unifiedDivBound base (base + nopOff) (divCode base)
+      (divModStackDispatchPre sp a b
+        v1 v2 v5 v6 v7 v10 v11
+        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratch_un0)
+      (divStackDispatchPost sp a b) := by
+  let frame : Assertion :=
+    (.x1 ↦ᵣ v1) ** (.x2 ↦ᵣ v2) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+    (.x11 ↦ᵣ v11) ** evmWordIs sp a **
+    divScratchValuesCall sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+      shiftMem nMem jMem retMem dMem dloMem scratch_un0
+  have hBzero :=
+    evm_div_bzero_stack_spec_within sp base a b v5 v10 hbz
+  have hFramed :
+      cpsTripleWithin (8 + 5) base (base + nopOff) (divCode base)
+        (((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) **
+          (.x0 ↦ᵣ (0 : Word)) ** evmWordIs (sp + 32) b) ** frame)
+        ((((.x12 ↦ᵣ (sp + 32)) ** regOwn .x5 ** regOwn .x10 **
+          (.x0 ↦ᵣ (0 : Word)) ** evmWordIs (sp + 32) (EvmWord.div a b)) ** frame)) :=
+    cpsTripleWithin_frameR frame (by
+      dsimp [frame]
+      rw [divScratchValuesCall_unfold]
+      pcFree) hBzero
+  exact cpsTripleWithin_mono_nSteps (by decide) <|
+    cpsTripleWithin_weaken
+      (fun _ hp => by
+        rw [divModStackDispatchPre_unfold] at hp
+        dsimp [frame]
+        simp only [sepConj_comm', sepConj_left_comm'] at hp ⊢
+        exact hp)
+      (fun _ hq => by
+        dsimp [frame] at hq
+        refine divStackDispatchPost_weaken_bzero_frame (sp := sp) (a := a) (b := b)
+          (v1 := v1) (v2 := v2) (v6 := v6) (v7 := v7) (v11 := v11)
+          (q0 := q0) (q1 := q1) (q2 := q2) (q3 := q3)
+          (u0 := u0) (u1 := u1) (u2 := u2) (u3 := u3)
+          (u4 := u4) (u5 := u5) (u6 := u6) (u7 := u7)
+          (shiftMem := shiftMem) (nMem := nMem) (jMem := jMem)
+          (retMem := retMem) (dMem := dMem) (dloMem := dloMem)
+          (scratch_un0 := scratch_un0) _ ?_
+        simp only [sepConj_assoc', sepConj_comm', sepConj_left_comm'] at hq ⊢
+        exact hq)
+      hFramed
+
 theorem modStackDispatchPost_weaken_bzero_frame
     (sp : Word) (a b : EvmWord)
     {v1 v2 v6 v7 v11 : Word}
