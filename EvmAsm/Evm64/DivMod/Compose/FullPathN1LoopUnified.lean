@@ -531,6 +531,25 @@ theorem fullDivN1NormV_v3_eq_zero_of_high_zero
   rw [fullDivN1NormV_unfold]
   simp [hb3z, hb2z]
 
+theorem fullDivN1NormV_v1_eq_zero_of_high_zero
+    (b0 b1 b2 b3 : Word) (hb1z : b1 = 0) (hshift_nz : fullDivN1Shift b0 ≠ 0) :
+    (fullDivN1NormV b0 b1 b2 b3).2.1 = 0 := by
+  rw [fullDivN1NormV_unfold]
+  simp only [hb1z]
+  rw [fullDivN1AntiShift_unfold]
+  rw [fullDivN1AntiShift_toNat_mod_eq hshift_nz]
+  rw [fullDivN1Shift_unfold]
+  have hz : b0 >>> (64 - (clzResult b0).1.toNat) = 0 :=
+    (ushiftRight_eq_zero_iff (64 - (clzResult b0).1.toNat)).mpr
+      (clzResult_fst_top_bound b0)
+  simp [hz]
+
+theorem fullDivN1NormV_v2_eq_zero_of_high_zero
+    (b0 b1 b2 b3 : Word) (hb1z : b1 = 0) (hb2z : b2 = 0) :
+    (fullDivN1NormV b0 b1 b2 b3).2.2.1 = 0 := by
+  rw [fullDivN1NormV_unfold]
+  simp [hb1z, hb2z]
+
 theorem fullDivN1NormV_or_ne_zero_of_high_zero
     (b0 b1 b2 b3 : Word) (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0)
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0) :
