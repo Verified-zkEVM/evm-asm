@@ -77,4 +77,38 @@ theorem mload_byte_pack_step_spec_within
   rw [h8] at I
   runBlock L I O
 
+/-- Init step of the `mload_byte_pack` recursion: a single `LBU accReg
+    addrReg offset` that loads the leading (most-significant) byte of a
+    limb directly into `accReg`, with no shift/OR (since the accumulator
+    is freshly overwritten).
+
+    This is the level-1 base-case spec for sub-slice 3d
+    (`mload_one_limb_spec_within`, `docs/99-mload-design.md` §6). The
+    inductive step is `mload_byte_pack_step_spec_within` above. Together
+    they let the limb-spec slice fold 1 init + 7 triples = 22 instructions
+    into a single per-limb postcondition; the SD that closes the limb is
+    then a one-instruction `sd_spec_gen_within` application.
+
+    The address register and the source memory dword are unchanged; the
+    accumulator and the byte register the spec mentions are limited to
+    the accumulator only — the byte register is not used in this step,
+    so it does not appear in the spec's footprint. -/
+theorem mload_byte_pack_init_spec_within
+    (addrReg accReg : Reg)
+    (addrPtr accOld wordVal : Word)
+    (dwordAddr : Word)
+    (offset : BitVec 12) (base : Word)
+    (h_acc_ne_x0 : accReg ≠ .x0)
+    (h_align : alignToDword (addrPtr + signExtend12 offset) = dwordAddr)
+    (h_valid : isValidByteAccess (addrPtr + signExtend12 offset) = true) :
+    let byteZext :=
+      (extractByte wordVal (byteOffset (addrPtr + signExtend12 offset))).zeroExtend 64
+    cpsTripleWithin 1 base (base + 4)
+      (CodeReq.singleton base (.LBU accReg addrReg offset))
+      ((addrReg ↦ᵣ addrPtr) ** (accReg ↦ᵣ accOld) ** (dwordAddr ↦ₘ wordVal))
+      ((addrReg ↦ᵣ addrPtr) ** (accReg ↦ᵣ byteZext) ** (dwordAddr ↦ₘ wordVal)) := by
+  intro byteZext
+  exact lbu_spec_gen_within accReg addrReg addrPtr accOld offset base
+    dwordAddr wordVal h_acc_ne_x0 h_align h_valid
+
 end EvmAsm.Evm64
