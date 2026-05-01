@@ -502,4 +502,186 @@ theorem evm_mod_n4_stack_spec_within_dispatch_uni (sp base : Word)
       nMem shiftMem jMem retMem dMem dloMem scratch_un0
       hbnz hb3nz halign hbltu hcarry2_nz_addback hsem_addback)
 
+/-! ### Single MOD dispatcher theorem -/
+
+/-- Branch certificate for the single public MOD stack spec.
+
+The constructors mirror the dispatcher branches. Each nonzero branch carries
+exactly the semantic side conditions required by the corresponding
+`evm_mod_stack_spec_within_*` alias, but states them directly over `a` and `b`
+via `getLimbN` instead of exposing separate limb variables in the final theorem.
+-/
+inductive ModStackSpecCase (base : Word) (a b : EvmWord) where
+  | bzero (v1 v2 : Word) (hbz : b = 0)
+  | n1Full (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
+      (hbnz : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 ||| b.getLimbN 3 ≠ 0)
+      (hb3z : b.getLimbN 3 = 0) (hb2z : b.getLimbN 2 = 0)
+      (hb1z : b.getLimbN 1 = 0)
+      (hshift_nz : (clzResult (b.getLimbN 0)).1 ≠ 0)
+      (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&&
+        ~~~(1 : Word) = base + div128CallRetOff)
+      (hbltu_3 : isTrialN1_j3 bltu_3 (a.getLimbN 3) (b.getLimbN 0))
+      (hbltu_2 : isTrialN1_j2 bltu_3 bltu_2
+        (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3))
+      (hbltu_1 : isTrialN1_j1 bltu_3 bltu_2 bltu_1
+        (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3))
+      (hbltu_0 : isTrialN1_j0 bltu_3 bltu_2 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3))
+      (hcarry2 : Carry2NzAll
+        (b.getLimbN 0 <<< (((clzResult (b.getLimbN 0)).1).toNat % 64))
+        ((b.getLimbN 1 <<< (((clzResult (b.getLimbN 0)).1).toNat % 64)) |||
+          (b.getLimbN 0 >>> ((signExtend12 (0 : BitVec 12) -
+            (clzResult (b.getLimbN 0)).1).toNat % 64)))
+        ((b.getLimbN 2 <<< (((clzResult (b.getLimbN 0)).1).toNat % 64)) |||
+          (b.getLimbN 1 >>> ((signExtend12 (0 : BitVec 12) -
+            (clzResult (b.getLimbN 0)).1).toNat % 64)))
+        ((b.getLimbN 3 <<< (((clzResult (b.getLimbN 0)).1).toNat % 64)) |||
+          (b.getLimbN 2 >>> ((signExtend12 (0 : BitVec 12) -
+            (clzResult (b.getLimbN 0)).1).toNat % 64))))
+      (hmodWord : fullModN1RemainderWord bltu_3 bltu_2 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) =
+          EvmWord.mod a b)
+  | n2Full (bltu_2 bltu_1 bltu_0 : Bool)
+      (hbnz : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 ||| b.getLimbN 3 ≠ 0)
+      (hb3z : b.getLimbN 3 = 0) (hb2z : b.getLimbN 2 = 0)
+      (hb1nz : b.getLimbN 1 ≠ 0)
+      (hshift_nz : (clzResult (b.getLimbN 1)).1 ≠ 0)
+      (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&&
+        ~~~(1 : Word) = base + div128CallRetOff)
+      (hbltu_2 : isTrialN2_j2 bltu_2 (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1))
+      (hbltu_1 : isTrialN2_j1 bltu_2 bltu_1
+        (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3))
+      (hbltu_0 : isTrialN2_j0 bltu_2 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3))
+      (hcarry2 : Carry2NzAll
+        (b.getLimbN 0 <<< (((clzResult (b.getLimbN 1)).1).toNat % 64))
+        ((b.getLimbN 1 <<< (((clzResult (b.getLimbN 1)).1).toNat % 64)) |||
+          (b.getLimbN 0 >>> ((signExtend12 (0 : BitVec 12) -
+            (clzResult (b.getLimbN 1)).1).toNat % 64)))
+        ((b.getLimbN 2 <<< (((clzResult (b.getLimbN 1)).1).toNat % 64)) |||
+          (b.getLimbN 1 >>> ((signExtend12 (0 : BitVec 12) -
+            (clzResult (b.getLimbN 1)).1).toNat % 64)))
+        ((b.getLimbN 3 <<< (((clzResult (b.getLimbN 1)).1).toNat % 64)) |||
+          (b.getLimbN 2 >>> ((signExtend12 (0 : BitVec 12) -
+            (clzResult (b.getLimbN 1)).1).toNat % 64))))
+      (hmodWord : fullModN2RemainderWord bltu_2 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) =
+          EvmWord.mod a b)
+  | n3Full (bltu_1 bltu_0 : Bool)
+      (hbnz : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 ||| b.getLimbN 3 ≠ 0)
+      (hb3z : b.getLimbN 3 = 0) (hb2nz : b.getLimbN 2 ≠ 0)
+      (hshift_nz : (clzResult (b.getLimbN 2)).1 ≠ 0)
+      (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&&
+        ~~~(1 : Word) = base + div128CallRetOff)
+      (hbltu_1 : isTrialN3_j1 bltu_1 (a.getLimbN 3)
+        (b.getLimbN 1) (b.getLimbN 2))
+      (hbltu_0 : isTrialN3_j0 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3))
+      (hcarry2 : Carry2NzAll
+        (b.getLimbN 0 <<< (((clzResult (b.getLimbN 2)).1).toNat % 64))
+        ((b.getLimbN 1 <<< (((clzResult (b.getLimbN 2)).1).toNat % 64)) |||
+          (b.getLimbN 0 >>> ((signExtend12 (0 : BitVec 12) -
+            (clzResult (b.getLimbN 2)).1).toNat % 64)))
+        ((b.getLimbN 2 <<< (((clzResult (b.getLimbN 2)).1).toNat % 64)) |||
+          (b.getLimbN 1 >>> ((signExtend12 (0 : BitVec 12) -
+            (clzResult (b.getLimbN 2)).1).toNat % 64)))
+        ((b.getLimbN 3 <<< (((clzResult (b.getLimbN 2)).1).toNat % 64)) |||
+          (b.getLimbN 2 >>> ((signExtend12 (0 : BitVec 12) -
+            (clzResult (b.getLimbN 2)).1).toNat % 64))))
+      (hmodWord : fullModN3RemainderWord bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) =
+          EvmWord.mod a b)
+  | n4Full
+      (hbnz : b ≠ 0)
+      (hb3nz : b.getLimbN 3 ≠ 0)
+      (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&&
+        ~~~(1 : Word) = base + div128CallRetOff)
+      (hbltu : isCallTrialN4Evm a b)
+      (hcarry2_nz_addback :
+        isAddbackBorrowN4CallEvm a b → isAddbackCarry2NzN4CallEvm a b)
+      (hsem_addback :
+        isAddbackBorrowN4CallEvm a b → n4CallAddbackBeqSemanticHolds a b)
+
+namespace ModStackSpecCase
+
+def x1 {base : Word} {a b : EvmWord} : ModStackSpecCase base a b → Word
+  | .bzero v1 _ _ => v1
+  | _ => signExtend12 (4 : BitVec 12) - (4 : Word)
+
+def x2 {base : Word} {a b : EvmWord} : ModStackSpecCase base a b → Word
+  | .bzero _ v2 _ => v2
+  | .n1Full .. => (clzResult (b.getLimbN 0)).2 >>> (63 : Nat)
+  | .n2Full .. => (clzResult (b.getLimbN 1)).2 >>> (63 : Nat)
+  | .n3Full .. => (clzResult (b.getLimbN 2)).2 >>> (63 : Nat)
+  | .n4Full .. => (clzResult (b.getLimbN 3)).2 >>> (63 : Nat)
+
+end ModStackSpecCase
+
+/-- Single named MOD stack spec over the dispatcher branch certificate. -/
+theorem evm_mod_stack_spec (sp base : Word) (a b : EvmWord)
+    (v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratch_un0 : Word)
+    (branch : ModStackSpecCase base a b) :
+    cpsTripleWithin unifiedDivBound base (base + nopOff) (modCode base)
+      (divModStackDispatchPre sp a b
+        branch.x1 branch.x2 v5 v6 v7 v10 v11
+        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratch_un0)
+      (modStackDispatchPost sp a b) := by
+  cases branch with
+  | bzero v1 v2 hbz =>
+      exact evm_mod_bzero_stack_spec_within_dispatch_uni sp base a b
+        v1 v2 v5 v6 v7 v10 v11
+        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        nMem shiftMem jMem retMem dMem dloMem scratch_un0 hbz
+  | n1Full bltu_3 bltu_2 bltu_1 bltu_0 hbnz hb3z hb2z hb1z hshift_nz halign
+      hbltu_3 hbltu_2 hbltu_1 hbltu_0 hcarry2 hmodWord =>
+      exact evm_mod_n1_stack_spec_within_word_uni
+        bltu_3 bltu_2 bltu_1 bltu_0 sp base a b
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+        v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        nMem shiftMem jMem retMem dMem dloMem scratch_un0
+        rfl rfl rfl rfl rfl rfl rfl rfl
+        hbnz hb3z hb2z hb1z hshift_nz halign
+        hbltu_3 hbltu_2 hbltu_1 hbltu_0 hcarry2 hmodWord
+  | n2Full bltu_2 bltu_1 bltu_0 hbnz hb3z hb2z hb1nz hshift_nz halign
+      hbltu_2 hbltu_1 hbltu_0 hcarry2 hmodWord =>
+      exact evm_mod_n2_stack_spec_within_word_uni
+        bltu_2 bltu_1 bltu_0 sp base a b
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+        v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        nMem shiftMem jMem retMem dMem dloMem scratch_un0
+        rfl rfl rfl rfl rfl rfl rfl rfl
+        hbnz hb3z hb2z hb1nz hshift_nz halign
+        hbltu_2 hbltu_1 hbltu_0 hcarry2 hmodWord
+  | n3Full bltu_1 bltu_0 hbnz hb3z hb2nz hshift_nz halign
+      hbltu_1 hbltu_0 hcarry2 hmodWord =>
+      exact evm_mod_n3_stack_spec_within_word_uni
+        bltu_1 bltu_0 sp base a b
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+        v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        nMem shiftMem jMem retMem dMem dloMem scratch_un0
+        rfl rfl rfl rfl rfl rfl rfl rfl
+        hbnz hb3z hb2nz hshift_nz halign
+        hbltu_1 hbltu_0 hcarry2 hmodWord
+  | n4Full hbnz hb3nz halign hbltu hcarry2_nz_addback hsem_addback =>
+      exact evm_mod_n4_stack_spec_within_dispatch_uni sp base a b
+        v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        nMem shiftMem jMem retMem dMem dloMem scratch_un0
+        hbnz hb3nz halign hbltu hcarry2_nz_addback hsem_addback
+
 end EvmAsm.Evm64
