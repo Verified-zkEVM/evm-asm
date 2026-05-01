@@ -1081,8 +1081,11 @@ theorem divK_correction_addback_named_spec_within
   exact divK_correction_addback_spec_within sp uBase borrow qHat v0 v1 v2 v3 u0 u1 u2 u3 u4
     v5Old v2Old base hb
 
-private theorem lb_save_j {base : Word} : (base + loopBodyOff : Word) + 4 = base + 452 := by bv_addr
-private theorem lb_trial_load {base : Word} : (base + 452 : Word) + 48 = base + trialCallOff := by bv_addr
+private theorem lb_save_j {base : Word} :
+    (base + loopBodyOff : Word) + 4 = base + (loopBodyOff + 4) := by
+  simp [BitVec.add_assoc]
+private theorem lb_trial_load {base : Word} :
+    (base + (loopBodyOff + 4) : Word) + 48 = base + trialCallOff := by bv_addr
 
 /-- Save j + trial load: save j to memory, then load uHi, uLo, vTop for trial quotient.
     13 instructions, loop body indices [0]-[12].
@@ -1123,7 +1126,7 @@ theorem divK_save_trial_load_spec_within
     (by pcFree) SJe
   -- 2. Trial load: instrs [1]-[12] at base+452
   have TL := divK_trial_load_spec_within sp j n v5Old v6Old v7Old v10Old uHi uLo vTop
-    (base + 452)
+    (base + (loopBodyOff + 4))
   dsimp only [] at TL
   rw [lb_trial_load] at TL
   have TLe := cpsTripleWithin_extend_code (hmono := by
