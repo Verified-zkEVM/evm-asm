@@ -16,6 +16,8 @@
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1Loop
 import EvmAsm.Evm64.DivMod.Compose.FullPathN3Loop
 import EvmAsm.Evm64.EvmWordArith.CLZLemmas
+import EvmAsm.Evm64.EvmWordArith.DenormLemmas
+import EvmAsm.Evm64.EvmWordArith.MaxTrialVacuity
 
 open EvmAsm.Rv64.Tactics
 
@@ -523,6 +525,61 @@ theorem fullDivN1NormV_unfold (b0 b1 b2 b3 : Word) :
   delta fullDivN1NormV
   rfl
 
+theorem fullDivN1NormV_v3_eq_zero_of_high_zero
+    (b0 b1 b2 b3 : Word) (hb3z : b3 = 0) (hb2z : b2 = 0) :
+    (fullDivN1NormV b0 b1 b2 b3).2.2.2 = 0 := by
+  rw [fullDivN1NormV_unfold]
+  simp [hb3z, hb2z]
+
+theorem fullDivN1NormV_or_ne_zero_of_high_zero
+    (b0 b1 b2 b3 : Word) (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0) :
+    (fullDivN1NormV b0 b1 b2 b3).1 |||
+      (fullDivN1NormV b0 b1 b2 b3).2.1 |||
+      (fullDivN1NormV b0 b1 b2 b3).2.2.1 |||
+      (fullDivN1NormV b0 b1 b2 b3).2.2.2 ≠ 0 := by
+  have hb0nz : b0 ≠ 0 := by
+    intro hb0z
+    subst b0; subst b1; subst b2; subst b3
+    simp at hbnz
+  have hge : ((fullDivN1NormV b0 b1 b2 b3).1).toNat ≥ 2^63 := by
+    rw [fullDivN1NormV_unfold]
+    simp only []
+    rw [fullDivN1Shift_unfold]
+    exact b3_shifted_ge_pow63 hb0nz
+  have hfirst_ne : (fullDivN1NormV b0 b1 b2 b3).1 ≠ 0 := by
+    intro hzero
+    have hto : ((fullDivN1NormV b0 b1 b2 b3).1).toNat = 0 := by
+      simp [hzero]
+    omega
+  intro hzero
+  have hz3 := BitVec.or_eq_zero_iff.mp hzero
+  have hz2 := BitVec.or_eq_zero_iff.mp hz3.1
+  have hz1 := BitVec.or_eq_zero_iff.mp hz2.1
+  exact hfirst_ne hz1.1
+
+theorem fullDivN1NormV_val256_eq_scaled
+    (b0 b1 b2 b3 : Word) (hb3z : b3 = 0) (hshift_nz : fullDivN1Shift b0 ≠ 0) :
+    EvmWord.val256
+      (fullDivN1NormV b0 b1 b2 b3).1
+      (fullDivN1NormV b0 b1 b2 b3).2.1
+      (fullDivN1NormV b0 b1 b2 b3).2.2.1
+      (fullDivN1NormV b0 b1 b2 b3).2.2.2 =
+    EvmWord.val256 b0 b1 b2 b3 * 2 ^ ((fullDivN1Shift b0).toNat % 64) := by
+  have hs0 : 0 < (fullDivN1Shift b0).toNat % 64 := by
+    rw [fullDivN1Shift_toNat_mod_eq]
+    exact fullDivN1Shift_toNat_pos_of_ne_zero hshift_nz
+  have hs : (fullDivN1Shift b0).toNat % 64 < 64 := Nat.mod_lt _ (by decide)
+  rw [fullDivN1NormV_unfold]
+  simp only []
+  rw [fullDivN1AntiShift_unfold]
+  have hanti :
+      (signExtend12 (0 : BitVec 12) - fullDivN1Shift b0).toNat % 64 =
+        64 - (fullDivN1Shift b0).toNat % 64 := by
+    rw [fullDivN1AntiShift_toNat_mod_eq hshift_nz, fullDivN1Shift_toNat_mod_eq b0]
+  rw [hanti]
+  exact EvmWord.val256_normalize hs0 hs b0 b1 b2 b3 (by simp [hb3z])
+
 theorem fullDivN1NormU_unfold (a0 a1 a2 a3 b0 : Word) :
     fullDivN1NormU a0 a1 a2 a3 b0 =
     let shift := fullDivN1Shift b0
@@ -534,6 +591,29 @@ theorem fullDivN1NormU_unfold (a0 a1 a2 a3 b0 : Word) :
      a3 >>> (antiShift.toNat % 64)) := by
   delta fullDivN1NormU
   rfl
+
+theorem fullDivN1NormU_val256_eq_scaled_with_overflow
+    (a0 a1 a2 a3 b0 : Word) (hshift_nz : fullDivN1Shift b0 ≠ 0) :
+    EvmWord.val256
+      (fullDivN1NormU a0 a1 a2 a3 b0).1
+      (fullDivN1NormU a0 a1 a2 a3 b0).2.1
+      (fullDivN1NormU a0 a1 a2 a3 b0).2.2.1
+      (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1 +
+      (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2.toNat * 2^256 =
+    EvmWord.val256 a0 a1 a2 a3 * 2 ^ ((fullDivN1Shift b0).toNat % 64) := by
+  have hs0 : 0 < (fullDivN1Shift b0).toNat % 64 := by
+    rw [fullDivN1Shift_toNat_mod_eq]
+    exact fullDivN1Shift_toNat_pos_of_ne_zero hshift_nz
+  have hs : (fullDivN1Shift b0).toNat % 64 < 64 := Nat.mod_lt _ (by decide)
+  rw [fullDivN1NormU_unfold]
+  simp only []
+  rw [fullDivN1AntiShift_unfold]
+  have hanti :
+      (signExtend12 (0 : BitVec 12) - fullDivN1Shift b0).toNat % 64 =
+        64 - (fullDivN1Shift b0).toNat % 64 := by
+    rw [fullDivN1AntiShift_toNat_mod_eq hshift_nz, fullDivN1Shift_toNat_mod_eq b0]
+  rw [hanti]
+  exact EvmWord.val256_normalize_general hs0 hs a0 a1 a2 a3
 
 theorem fullDivN1R3_unfold (bltu_3 : Bool) (a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
     fullDivN1R3 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3 =
