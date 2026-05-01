@@ -624,6 +624,18 @@ theorem fullDivN1R3_unfold (bltu_3 : Bool) (a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
   delta fullDivN1R3
   rfl
 
+theorem fullDivN1R3_eq_iterN1_v3_zero
+    (bltu_3 : Bool) (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hb2z : b2 = 0) (hb3z : b3 = 0) :
+    fullDivN1R3 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3 =
+      let v := fullDivN1NormV b0 b1 b2 b3
+      let u := fullDivN1NormU a0 a1 a2 a3 b0
+      iterN1 bltu_3 v.1 v.2.1 v.2.2.1 0
+        u.2.2.2.1 u.2.2.2.2 0 0 0 := by
+  rw [fullDivN1R3_unfold]
+  simp only []
+  rw [fullDivN1NormV_v3_eq_zero_of_high_zero b0 b1 b2 b3 hb3z hb2z]
+
 theorem fullDivN1R2_unfold (bltu_3 bltu_2 : Bool)
     (a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
     fullDivN1R2 bltu_3 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3 =
@@ -634,6 +646,19 @@ theorem fullDivN1R2_unfold (bltu_3 bltu_2 : Bool)
       u.2.2.1 r3.2.1 r3.2.2.1 r3.2.2.2.1 r3.2.2.2.2.1 := by
   delta fullDivN1R2
   rfl
+
+theorem fullDivN1R2_eq_iterN1_v3_zero
+    (bltu_3 bltu_2 : Bool) (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hb2z : b2 = 0) (hb3z : b3 = 0) :
+    fullDivN1R2 bltu_3 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3 =
+      let v := fullDivN1NormV b0 b1 b2 b3
+      let u := fullDivN1NormU a0 a1 a2 a3 b0
+      let r3 := fullDivN1R3 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3
+      iterN1 bltu_2 v.1 v.2.1 v.2.2.1 0
+        u.2.2.1 r3.2.1 r3.2.2.1 r3.2.2.2.1 r3.2.2.2.2.1 := by
+  rw [fullDivN1R2_unfold]
+  simp only []
+  rw [fullDivN1NormV_v3_eq_zero_of_high_zero b0 b1 b2 b3 hb3z hb2z]
 
 theorem fullDivN1R1_unfold (bltu_3 bltu_2 bltu_1 : Bool)
     (a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
@@ -646,6 +671,19 @@ theorem fullDivN1R1_unfold (bltu_3 bltu_2 bltu_1 : Bool)
   delta fullDivN1R1
   rfl
 
+theorem fullDivN1R1_eq_iterN1_v3_zero
+    (bltu_3 bltu_2 bltu_1 : Bool) (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hb2z : b2 = 0) (hb3z : b3 = 0) :
+    fullDivN1R1 bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3 =
+      let v := fullDivN1NormV b0 b1 b2 b3
+      let u := fullDivN1NormU a0 a1 a2 a3 b0
+      let r2 := fullDivN1R2 bltu_3 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3
+      iterN1 bltu_1 v.1 v.2.1 v.2.2.1 0
+        u.2.1 r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1 := by
+  rw [fullDivN1R1_unfold]
+  simp only []
+  rw [fullDivN1NormV_v3_eq_zero_of_high_zero b0 b1 b2 b3 hb3z hb2z]
+
 theorem fullDivN1R0_unfold (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
     (a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
     fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3 =
@@ -656,6 +694,19 @@ theorem fullDivN1R0_unfold (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
       r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1 := by
   delta fullDivN1R0
   rfl
+
+theorem fullDivN1R0_eq_iterN1_v3_zero
+    (bltu_3 bltu_2 bltu_1 bltu_0 : Bool) (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hb2z : b2 = 0) (hb3z : b3 = 0) :
+    fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3 =
+      let v := fullDivN1NormV b0 b1 b2 b3
+      let u := fullDivN1NormU a0 a1 a2 a3 b0
+      let r1 := fullDivN1R1 bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3
+      iterN1 bltu_0 v.1 v.2.1 v.2.2.1 0
+        u.1 r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1 := by
+  rw [fullDivN1R0_unfold]
+  simp only []
+  rw [fullDivN1NormV_v3_eq_zero_of_high_zero b0 b1 b2 b3 hb3z hb2z]
 
 theorem evm_div_n1_denorm_epilogue_bundled_spec
     (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
