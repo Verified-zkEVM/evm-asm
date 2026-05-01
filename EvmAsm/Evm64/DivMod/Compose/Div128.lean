@@ -159,7 +159,6 @@ theorem div128_spec_within (sp retAddr d uLo uHi : Word) (base : Word)
   -- ================================================================
   have hph1 := divK_div128_phase1_spec_within sp retAddr d uLo uHi v1Old v6Old v11Old
     retMem dMem dloMem un0Mem (base + div128Off)
-  rw [show (base + div128Off : Word) + 40 = base + 1112 from by bv_addr] at hph1
   -- Extend phase1 cr to sharedDivModCode
   have hph1e := cpsTripleWithin_extend_code (hmono := by
     -- phase1 cr: 10 singletons at (base+1072)+{0,4,...,36}, indices 0-9
@@ -183,8 +182,8 @@ theorem div128_spec_within (sp retAddr d uLo uHi : Word) (base : Word)
   -- Trial division q1, clamp, product check.
   -- ================================================================
   have hst1 := divK_div128_step1_spec_within sp uHi dHi un1 dLo un0 d dLo
-    (base + 1112)
-  rw [show (base + 1112 : Word) + 60 = base + 1172 from by bv_addr] at hst1
+    (base + div128Off + 40)
+  rw [show (base + div128Off + 40 : Word) + 60 = base + div128Off + 100 from by bv_addr] at hst1
   have hst1e := cpsTripleWithin_extend_code (hmono := by
     exact CodeReq.union_sub (d128_sub 10 _ _ (by decide) (by bv_addr) (by decide))
      (CodeReq.union_sub (d128_sub 11 _ _ (by decide) (by bv_addr) (by decide))
@@ -215,8 +214,8 @@ theorem div128_spec_within (sp retAddr d uLo uHi : Word) (base : Word)
   -- un21 = rhat*2^32 + un1 - q1*dLo.
   -- ================================================================
   have hcu := divK_div128_compute_un21_spec_within sp q1' rhat' un1 rhatUn1 qDlo dLo
-    (base + 1172)
-  rw [show (base + 1172 : Word) + 20 = base + 1192 from by bv_addr] at hcu
+    (base + div128Off + 100)
+  rw [show (base + div128Off + 100 : Word) + 20 = base + div128Off + 120 from by bv_addr] at hcu
   have hcue := cpsTripleWithin_extend_code (hmono := by
     exact CodeReq.union_sub (d128_sub 25 _ _ (by decide) (by bv_addr) (by decide))
      (CodeReq.union_sub (d128_sub 26 _ _ (by decide) (by bv_addr) (by decide))
@@ -243,9 +242,9 @@ theorem div128_spec_within (sp retAddr d uLo uHi : Word) (base : Word)
   -- and mul-check per Knuth TAOCP §4.3.1 Step D3.
   -- ================================================================
   have hst2 := divK_div128_step2_spec_within sp un21 dHi cu_q1_dlo cu_rhat_un1 un1 dLo un0
-    (base + 1192)
+    (base + div128Off + 120)
   unfold divKDiv128Step2Code divKDiv128Step2Post at hst2
-  rw [show (base + 1192 : Word) + 68 = base + 1260 from by bv_addr] at hst2
+  rw [show (base + div128Off + 120 : Word) + 68 = base + div128Off + 188 from by bv_addr] at hst2
   have hst2e := cpsTripleWithin_extend_code (hmono := by
     exact CodeReq.union_sub (d128_sub 30 _ _ (by decide) (by bv_addr) (by decide))
      (CodeReq.union_sub (d128_sub 31 _ _ (by decide) (by bv_addr) (by decide))
@@ -280,7 +279,7 @@ theorem div128_spec_within (sp retAddr d uLo uHi : Word) (base : Word)
   --         v11Old=x11Exit(x11), retAddr(mem[3968])
   -- ================================================================
   have hend := divK_div128_end_spec_within sp q1' q0' retAddr x11Exit retAddr
-    (base + 1260) halign
+    (base + div128Off + 188) halign
   have hende := cpsTripleWithin_extend_code (hmono := by
     exact CodeReq.union_sub (d128_sub 47 _ _ (by decide) (by bv_addr) (by decide))
      (CodeReq.union_sub (d128_sub 48 _ _ (by decide) (by bv_addr) (by decide))
@@ -428,7 +427,6 @@ theorem div128_v2_spec_within (sp retAddr d uLo uHi : Word) (base : Word)
   -- ================================================================
   have hph1 := divK_div128_phase1_spec_within sp retAddr d uLo uHi v1Old v6Old v11Old
     retMem dMem dloMem un0Mem (base + div128Off)
-  rw [show (base + div128Off : Word) + 40 = base + 1112 from by bv_addr] at hph1
   have hph1e := cpsTripleWithin_extend_code (hmono := by
     exact CodeReq.union_sub (d128_v2_sub 0 _ _ (by decide) (by bv_addr) (by decide))
      (CodeReq.union_sub (d128_v2_sub 1 _ _ (by decide) (by bv_addr) (by decide))
@@ -450,9 +448,9 @@ theorem div128_v2_spec_within (sp retAddr d uLo uHi : Word) (base : Word)
   -- 2nd D3 (the inserted block).
   -- ================================================================
   have hst1 := divK_div128_step1_v2_spec_within sp uHi dHi un1 dLo un0 d dLo
-    (base + 1112)
+    (base + div128Off + 40)
   unfold divKDiv128Step1V2Code divKDiv128Step1V2Pre divKDiv128Step1V2Post at hst1
-  rw [show (base + 1112 : Word) + 100 = base + 1212 from by bv_addr] at hst1
+  rw [show (base + div128Off + 40 : Word) + 100 = base + div128Off + 140 from by bv_addr] at hst1
   -- Extend step1_v2's 25-singleton cr to ofProg-of-divK_div128_v2.
   -- Indices 10..34 in divK_div128_v2 (instructions [10..34]).
   have hst1e := cpsTripleWithin_extend_code (hmono := by
@@ -498,8 +496,8 @@ theorem div128_v2_spec_within (sp retAddr d uLo uHi : Word) (base : Word)
   let x5Exit_st1 := if rhatHi2 = 0 then qDlo2 else qDlo1
   let x1Exit_st1 := if rhatHi2 = 0 then rhatUn1' else rhatHi2
   have hcu := divK_div128_compute_un21_spec_within sp q1'' rhat'' un1 x1Exit_st1 x5Exit_st1 dLo
-    (base + 1212)
-  rw [show (base + 1212 : Word) + 20 = base + 1232 from by bv_addr] at hcu
+    (base + div128Off + 140)
+  rw [show (base + div128Off + 140 : Word) + 20 = base + div128Off + 160 from by bv_addr] at hcu
   have hcue := cpsTripleWithin_extend_code (hmono := by
     exact CodeReq.union_sub (d128_v2_sub 35 _ _ (by decide) (by bv_addr) (by decide))
      (CodeReq.union_sub (d128_v2_sub 36 _ _ (by decide) (by bv_addr) (by decide))
@@ -525,9 +523,9 @@ theorem div128_v2_spec_within (sp retAddr d uLo uHi : Word) (base : Word)
   let cu_q1_dlo := q1'' * dLo
   let un21 := cu_rhat_un1 - cu_q1_dlo
   have hst2 := divK_div128_step2_spec_within sp un21 dHi cu_q1_dlo cu_rhat_un1 un1 dLo un0
-    (base + 1232)
+    (base + div128Off + 160)
   unfold divKDiv128Step2Code divKDiv128Step2Post at hst2
-  rw [show (base + 1232 : Word) + 68 = base + 1300 from by bv_addr] at hst2
+  rw [show (base + div128Off + 160 : Word) + 68 = base + (div128Off + 228) from by bv_addr] at hst2
   have hst2e := cpsTripleWithin_extend_code (hmono := by
     exact CodeReq.union_sub (d128_v2_sub 40 _ _ (by decide) (by bv_addr) (by decide))
      (CodeReq.union_sub (d128_v2_sub 41 _ _ (by decide) (by bv_addr) (by decide))
@@ -572,7 +570,7 @@ theorem div128_v2_spec_within (sp retAddr d uLo uHi : Word) (base : Word)
   let x1Exit := if rhat2cHi = 0 then rhat2Un0 else rhat2cHi
   let x11Exit := if rhat2cHi = 0 then un0 else rhat2c
   have hend := divK_div128_end_spec_within sp q1'' q0' retAddr x11Exit retAddr
-    (base + 1300) _halign
+    (base + (div128Off + 228)) _halign
   have hende := cpsTripleWithin_extend_code (hmono := by
     exact CodeReq.union_sub (d128_v2_sub 57 _ _ (by decide) (by bv_addr) (by decide))
      (CodeReq.union_sub (d128_v2_sub 58 _ _ (by decide) (by bv_addr) (by decide))

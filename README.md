@@ -202,6 +202,40 @@ lake exec cache get
 lake build
 ```
 
+### Dependencies
+
+Top-level Lake dependencies (declared in [`lakefile.toml`](lakefile.toml)):
+
+- **[Mathlib4](https://github.com/leanprover-community/mathlib4)** — Lean 4
+  mathematics library. Used pervasively for `BitVec`, `Nat` arithmetic, `Fin`,
+  decidability instances, and tactic infrastructure.
+- **[`Lean_RV64D`](https://github.com/dhsorens/sail-riscv-lean)** — fork of
+  [`opencompl/sail-riscv-lean`](https://github.com/opencompl/sail-riscv-lean),
+  itself the Lean export of the official
+  [Sail RISC-V model](https://github.com/riscv/sail-riscv). Pulls in
+  [`lean-sail`](https://github.com/sail-lean/lean-sail) (Sail's Lean monad
+  runtime) transitively.
+
+  Why a fork? The mainline `sail-riscv-lean` lags slightly behind the Lean
+  toolchain we use; the `dhsorens` fork pins a `main` branch that tracks our
+  nightly. Switching back to upstream is the goal once toolchains converge.
+  Pinned to a moving `rev = "main"`; the resolved commit is recorded in
+  [`lake-manifest.json`](lake-manifest.json) and bumped in tandem with
+  Mathlib updates.
+
+The `Lean_RV64D` dependency is the **trust anchor** for our RISC-V semantics:
+hand-written specs in [`EvmAsm/Rv64/Instructions.lean`](EvmAsm/Rv64/Instructions.lean)
+are tied to the Sail-generated decoder/executor via abstraction-relation
+proofs in [`EvmAsm/Rv64/SailEquiv/`](EvmAsm/Rv64/SailEquiv/) (`StateRel.lean`
+plus per-instruction-class `*Proofs.lean`). This is how we discharge the
+"is your hand-written instruction semantics actually RISC-V?" obligation
+against the official Sail model.
+
+Tracking issues: [#84](https://github.com/Verified-zkEVM/evm-asm/issues/84)
+(import sail-riscv-lean as Lake dep — landed),
+[#93](https://github.com/Verified-zkEVM/evm-asm/issues/93) (map hand-written
+`Instr` to SAIL-generated AST).
+
 ### Weekly build benchmark
 
 A scheduled GitHub Actions workflow,
