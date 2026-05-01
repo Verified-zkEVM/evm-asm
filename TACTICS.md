@@ -18,7 +18,7 @@ documented in [`GRIND.md`](GRIND.md):
 
 | Grindset | File | Closes |
 |----------|------|--------|
-| `rv64_addr`   | `Rv64/AddrNorm.lean`           | Rv64-wide address arithmetic (signExtend12/13/21 + assoc + `BitVec 6.toNat` + `BitVec.ofNat 64 (4*k)`), subsumes `bv_addr` |
+| `rv64_addr`   | `Rv64/AddrNorm.lean`           | Rv64-wide address arithmetic (signExtend12/13/21 + assoc + `BitVec 6.toNat` + `BitVec.ofNat 64 (4*k)`); subsumes `bv_addr` |
 | `divmod_addr` | `Evm64/DivMod/AddrNorm.lean`   | DivMod address arithmetic (re-tags `rv64_addr` atoms + DivMod-specific Phase-1/Phase-2 offsets) |
 | `exp_addr`    | `Evm64/Exp/AddrNorm.lean`      | EXP opcode-local atoms (skeleton — attribute reserved; populate atoms + add a `by exp_addr` macro once Exp Compose emits concrete address arithmetic) |
 | `reg_ops`     | `Rv64/RegOps.lean`             | `MachineState` projection chains (`pc_set<F>`, `getReg_setPC`, etc.) |
@@ -30,10 +30,27 @@ Each grindset exposes a `by <name>` tactic (`by rv64_addr`, `by divmod_addr`,
 `@[<set>, grind =]` lemmas in the set's file; consumers pick them up
 automatically.
 
-Pick the most specific set that matches the proof's domain. New opcode
-subtrees opt in by adding an `AddrNormAttr.lean` + `AddrNorm.lean` pair —
-see `EvmAsm/Evm64/Exp/AddrNormAttr.lean` for the canonical minimal shape and
-`EvmAsm/Evm64/OPCODE_TEMPLATE.md` §2.5 for the requirement.
+### Adding a new opcode-specific address grindset
+
+Each opcode subtree opts into the family by shipping an `AddrNormAttr.lean`
++ `AddrNorm.lean` pair. The canonical shape is `EvmAsm/Evm64/Exp/`:
+
+- `Exp/AddrNormAttr.lean` — single-line `register_simp_attr exp_addr`. Lean
+  forbids using a freshly-registered simp attribute in the same file that
+  declares it, so this *must* be its own module.
+- `Exp/AddrNorm.lean` — atomic equalities tagged
+  `@[exp_addr, grind =]` (and typically `@[rv64_addr, grind =]` so the
+  universal `by rv64_addr` tactic can also close them). Add the new file
+  *after* `AddrNormAttr.lean` in the umbrella import list (`Evm64/Exp.lean`)
+  so the attribute exists when the consumer is elaborated.
+
+Use `by rv64_addr` everywhere by default — it covers `signExtend12 N` and
+`<<<` over numeric literals universally. Reach for `by divmod_addr` /
+`by exp_addr` only when the goal mentions an opcode-specific atom (an
+offset constant defined in that subtree, an opcode-specific scratch-cell
+identity, etc.). See `EvmAsm/Evm64/OPCODE_TEMPLATE.md` §2.5 for the
+requirement to ship this pair on the first commit introducing a non-trivial
+address computation.
 
 ## runBlock
 

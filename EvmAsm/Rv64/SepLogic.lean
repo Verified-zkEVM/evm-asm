@@ -2684,6 +2684,42 @@ theorem sepConj_emp_right' (P : Assertion) : (P ** empAssertion) = P :=
 theorem sepConj_emp_left' (P : Assertion) : (empAssertion ** P) = P :=
   funext fun h => propext (sepConj_emp_left h)
 
+-- ---------------------------------------------------------------------------
+-- Equality-congruence over `sepConj` (structural-cancel base lemmas, GH #245)
+--
+-- These three one-line congruence lemmas lift an established assertion
+-- equality `A = B` through an arbitrary frame, *without* ever flattening
+-- the surrounding `**`-chain to atoms. They are the structural counterpart
+-- of the atom-flattening step inside `xperm_hyp`: instead of reducing both
+-- sides to an atom list, we rewrite a single matched sub-assertion in
+-- place. The forthcoming `xcancel_struct` tactic (issue #245) is built on
+-- top of these together with the existing AC-rewrite trio
+-- (`sepConj_assoc'` / `sepConj_comm'` / `sepConj_left_comm'`).
+--
+-- See `docs/structural-cancel-design.md` §Lemma shapes for the full design.
+-- ---------------------------------------------------------------------------
+
+/-- Equality-congruence on the left: rewrite the head of a `**`-chain
+    using an established assertion equality `A = B`, leaving the right
+    frame `F` untouched. -/
+theorem sepConj_eq_congr_left {A B : Assertion} (h : A = B) (F : Assertion) :
+    (A ** F) = (B ** F) := h ▸ rfl
+
+/-- Equality-congruence on the right: rewrite the tail of a `**`-chain
+    using an established assertion equality `A = B`, leaving the left
+    frame `F` untouched. -/
+theorem sepConj_eq_congr_right (F : Assertion) {A B : Assertion} (h : A = B) :
+    (F ** A) = (F ** B) := h ▸ rfl
+
+/-- Equality-congruence in the middle: rewrite a sub-assertion `A` sitting
+    between an outer left frame `X` and an outer right frame `Y` using an
+    established equality `A = B`. Combines `sepConj_left_comm'` rotation
+    with `sepConj_eq_congr_left`. This is the lemma the `xcancel_struct`
+    tactic uses to peel a matched sub-assertion from the middle of a
+    chain without unfolding the rest. -/
+theorem sepConj_eq_congr_mid_left {A B : Assertion} (X Y : Assertion) (h : A = B) :
+    (X ** A ** Y) = (X ** B ** Y) := h ▸ rfl
+
 instance : Std.Associative (α := Assertion) sepConj := ⟨sepConj_assoc'⟩
 instance : Std.Commutative (α := Assertion) sepConj := ⟨sepConj_comm'⟩
 
