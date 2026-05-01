@@ -47,8 +47,6 @@
   ```
 -/
 
-import EvmAsm.Evm64.Environment
-
 namespace EvmAsm.Evm64
 namespace EvmEnv
 
