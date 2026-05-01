@@ -615,4 +615,49 @@ theorem fullDivN1R1_v4_step_conservation
   delta fullDivN1R1_v4
   simpa [hv3z] using h
 
+theorem fullDivN1R0_v4_step_conservation
+    (bltu_3 bltu_2 bltu_1 bltu_0 : Bool) (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hcarry2 : Carry2NzAll
+      (fullDivN1NormV b0 b1 b2 b3).1
+      (fullDivN1NormV b0 b1 b2 b3).2.1
+      (fullDivN1NormV b0 b1 b2 b3).2.2.1
+      (fullDivN1NormV b0 b1 b2 b3).2.2.2) :
+    let v := fullDivN1NormV b0 b1 b2 b3
+    let u := fullDivN1NormU a0 a1 a2 a3 b0
+    let r1 := fullDivN1R1_v4 bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3
+    n1StepConservation v.1 v.2.1 v.2.2.1 u.1
+      r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1
+      (fullDivN1R0_v4 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3) := by
+  intro v u r1
+  subst v
+  subst u
+  subst r1
+  have hv3z := fullDivN1NormV_v3_eq_zero_of_high_zero b0 b1 b2 b3 hb3z hb2z
+  have hvnz :
+      (fullDivN1NormV b0 b1 b2 b3).1 |||
+        (fullDivN1NormV b0 b1 b2 b3).2.1 |||
+        (fullDivN1NormV b0 b1 b2 b3).2.2.1 ||| (0 : Word) ≠ 0 := by
+    simpa [hv3z] using
+      fullDivN1NormV_or_ne_zero_of_high_zero b0 b1 b2 b3 hb1z hb2z hb3z hbnz
+  have hc :
+      Carry2NzAll (fullDivN1NormV b0 b1 b2 b3).1
+        (fullDivN1NormV b0 b1 b2 b3).2.1
+        (fullDivN1NormV b0 b1 b2 b3).2.2.1 0 := by
+    simpa [hv3z] using hcarry2
+  have h := iterN1_v4_val256_conservation_v3_zero_of_carry2 bltu_0
+    (fullDivN1NormV b0 b1 b2 b3).1
+    (fullDivN1NormV b0 b1 b2 b3).2.1
+    (fullDivN1NormV b0 b1 b2 b3).2.2.1
+    (fullDivN1NormU a0 a1 a2 a3 b0).1
+    (fullDivN1R1_v4 bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).2.1
+    (fullDivN1R1_v4 bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).2.2.1
+    (fullDivN1R1_v4 bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.1
+    (fullDivN1R1_v4 bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1
+    hvnz hc
+  delta n1StepConservation
+  delta fullDivN1R0_v4
+  simpa [hv3z] using h
+
 end EvmAsm.Evm64
