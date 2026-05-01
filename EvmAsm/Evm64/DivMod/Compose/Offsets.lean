@@ -59,6 +59,14 @@ abbrev phaseAOff    : Word :=    0
 abbrev phaseABeqOff : Word :=   28
 /-- Offset of `divK_phaseB` (b=0 branch + leading-limb analysis). -/
 abbrev phaseBOff    : Word :=   32
+/-- Offset of the `divK_phaseB` step0 selection instruction (n=4 path).
+    Entry PC of the `ADDI x5, x0, 4` that loads the limb-count `n = 4` into
+    `x5`; the immediately-following `BNE x7, x0, +8` (at `phaseBBneOff = 72`)
+    selects the n=4 path when the top divisor limb is non-zero. Sub-offset
+    relative to `divK_phaseB` (= phaseBOff + 36 = phaseBBneOff − 4).
+    Mirrors `phaseBStep1Off` (76, n=3 selection) and `phaseBStep2Off`
+    (84, n=2 selection). -/
+abbrev phaseBStep0Off : Word :=   68
 /-- Offset of the BNE-to-`divK_phaseB_tail` instruction inside `divK_phaseB`.
     Entry PC of the `BNE x10, x0, +24` that ends the leading-limb-analysis
     cascade step and branches forward into `divK_phaseB_tail` when the current

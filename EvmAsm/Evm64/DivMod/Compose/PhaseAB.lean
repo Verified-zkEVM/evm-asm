@@ -87,14 +87,14 @@ private theorem divK_phaseB_init2_code_sub_divCode {base : Word} :
 
 /-- ADDI x5 x0 4 singleton at base+68 (part of block 1: phaseB) is subsumed by divCode. -/
 private theorem addi_x5_singleton_sub_divCode {base : Word} :
-    ∀ a i, (CodeReq.singleton (base + 68) (.ADDI .x5 .x0 4)) a = some i →
+    ∀ a i, (CodeReq.singleton (base + phaseBStep0Off) (.ADDI .x5 .x0 4)) a = some i →
       (divCode base) a = some i := by
   unfold divCode; simp only [CodeReq.unionAll_cons]
   intro a i h
   have hlookup := CodeReq.ofProg_lookup (base + phaseBOff) divK_phaseB 9
     (by decide) (by decide)
   rw [bv64_4mul_9,
-      show (base + phaseBOff : Word) + 36 = base + 68 from by bv_addr] at hlookup
+      show (base + phaseBOff : Word) + 36 = base + phaseBStep0Off from by bv_addr] at hlookup
   have h1 := CodeReq.singleton_mono hlookup a i h
   exact sub_divCode_of_phaseB_left a i h1
 
@@ -143,8 +143,8 @@ private theorem divK_phaseB_n4_nm1_x8 :
 
 -- Address normalization lemmas `phB_off_{4..28}` now live in `Compose/Base.lean`
 -- and are shared with the MOD-side files (ModPhaseB / ModPhaseBn3 / ModPhaseBn21).
-private theorem phB_i2_8 {base : Word} : (base + 60 : Word) + 8 = base + 68 := by bv_addr
-private theorem phB_addi_4 {base : Word} : (base + 68 : Word) + 4 = base + phaseBBneOff := by bv_addr
+private theorem phB_i2_8 {base : Word} : (base + 60 : Word) + 8 = base + phaseBStep0Off := by bv_addr
+private theorem phB_addi_4 {base : Word} : (base + phaseBStep0Off : Word) + 4 = base + phaseBBneOff := by bv_addr
 private theorem phB_bne_4 {base : Word} : (base + phaseBBneOff : Word) + 4 = base + 76 := by bv_addr
 private theorem phB_t_20 {base : Word} : (base + phaseBTailOff : Word) + 20 = base + clzOff := by bv_addr
 private theorem phB_sp24_32 {sp : Word} : (sp + (24 : Word) + (32 : Word)) = sp + 56 := by bv_addr
@@ -282,7 +282,7 @@ theorem evm_div_phaseB_n4_spec_within (sp base : Word)
   have hinit2 := cpsTripleWithin_extend_code divK_phaseB_init2_code_sub_divCode hinit2_raw
   seqFrame hinit1f hinit2
   -- ---- Step 3: ADDI x5 x0 4 at base+68 → base+72
-  have haddi_raw := addi_x0_spec_gen_within .x5 v5 4 (base + 68) (by nofun)
+  have haddi_raw := addi_x0_spec_gen_within .x5 v5 4 (base + phaseBStep0Off) (by nofun)
   simp only [phB_addi_4, signExtend12_4] at haddi_raw
   have haddi := cpsTripleWithin_extend_code addi_x5_singleton_sub_divCode haddi_raw
   seqFrame hinit1fhinit2 haddi
@@ -530,7 +530,7 @@ theorem evm_div_phaseB_n3_spec_within (sp base : Word)
   have h12 := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hinit1f hinit2f
   -- ---- Cascade step 0: ADDI x5=4 (base+68 → base+72)
-  have haddi0_raw := addi_x0_spec_gen_within .x5 v5 4 (base + 68) (by nofun)
+  have haddi0_raw := addi_x0_spec_gen_within .x5 v5 4 (base + phaseBStep0Off) (by nofun)
   simp only [phB_addi_4, signExtend12_4] at haddi0_raw
   have haddi0 := cpsTripleWithin_extend_code addi_x5_singleton_sub_divCode haddi0_raw
   have haddi0f := cpsTripleWithin_frameR
@@ -665,7 +665,7 @@ theorem evm_div_phaseB_n2_spec_within (sp base : Word)
   have h12 := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hinit1f hinit2f
   -- ---- Cascade step 0: ADDI x5=4 (base+68 → base+72)
-  have haddi0_raw := addi_x0_spec_gen_within .x5 v5 4 (base + 68) (by nofun)
+  have haddi0_raw := addi_x0_spec_gen_within .x5 v5 4 (base + phaseBStep0Off) (by nofun)
   simp only [phB_addi_4, signExtend12_4] at haddi0_raw
   have haddi0 := cpsTripleWithin_extend_code addi_x5_singleton_sub_divCode haddi0_raw
   have haddi0f := cpsTripleWithin_frameR
@@ -835,7 +835,7 @@ theorem evm_div_phaseB_n1_spec_within (sp base : Word)
   have h12 := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hinit1f hinit2f
   -- ---- Cascade step 0: ADDI x5=4 (base+68 → base+72)
-  have haddi0_raw := addi_x0_spec_gen_within .x5 v5 4 (base + 68) (by nofun)
+  have haddi0_raw := addi_x0_spec_gen_within .x5 v5 4 (base + phaseBStep0Off) (by nofun)
   simp only [phB_addi_4, signExtend12_4] at haddi0_raw
   have haddi0 := cpsTripleWithin_extend_code addi_x5_singleton_sub_divCode haddi0_raw
   have haddi0f := cpsTripleWithin_frameR

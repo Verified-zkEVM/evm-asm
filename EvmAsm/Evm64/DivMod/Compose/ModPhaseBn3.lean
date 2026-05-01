@@ -64,7 +64,7 @@ theorem evm_mod_phaseB_n3_spec_within (sp base : Word)
   have h12 := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) hinit1f hinit2f
   -- ---- Cascade step 0: ADDI x5=4 (base+68 → base+72)
-  have haddi0_raw := addi_x0_spec_gen_within .x5 v5 4 (base + 68) (by nofun)
+  have haddi0_raw := addi_x0_spec_gen_within .x5 v5 4 (base + phaseBStep0Off) (by nofun)
   simp only [mod_phB_addi_4, se12_4] at haddi0_raw
   have haddi0 := cpsTripleWithin_extend_code addi_x5_singleton_sub_modCode haddi0_raw
   have haddi0f := cpsTripleWithin_frameR
