@@ -24,7 +24,7 @@
     [copyAUOff    = 396] divK_copyAU        (36 bytes)
     [loopSetupOff = 432] divK_loopSetup     (16 bytes)
     [loopBodyOff  = 448] divK_loopBody     (460 bytes)
-      [trialCallOff = 500]  divK_loopBody trial-quotient BLTU sub-block entry (loopBodyOff + 52)
+      [trialCallOff = 500]  divK_loopBody trial-divide call-site (loopBodyOff + 52)
       [trialMaxOff  = 504]  divK_loopBody divK_trial_max sub-block (trialCallOff + 4)
       [correctionSkipBeqOff = 728]  divK_loopBody mulsub-correction-skip BEQ entry (loopBodyOff + 280)
       [storeLoopOff = 884]  divK_store_qj sub-block (loopBodyOff + 436)
@@ -63,11 +63,9 @@ abbrev copyAUOff    : Word :=  396
 abbrev loopSetupOff : Word :=  432
 /-- Offset of `divK_loopBody` (Knuth Algorithm D main loop body). -/
 abbrev loopBodyOff  : Word :=  448
-/-- Offset of the trial-quotient BLTU sub-block inside `divK_loopBody`.
-    Entry PC of the `BLTU x7 x10 +12` instruction that branches into the
-    "max" trial-quotient path (`q̂ = 2^64 - 1`) when the high limb equals
-    the divisor's top limb; otherwise falls through to the call path that
-    invokes `divK_div128`. Sub-offset relative to the loopBody block
+/-- Offset of the trial-divide call-site sub-block inside `divK_loopBody`.
+    Entry PC of the BLTU/JAL sequence that loads the trial divisor and calls
+    into `divK_div128`. Sub-offset relative to the loopBody block
     (= loopBodyOff + 52, i.e. 13 instructions into the loop body). -/
 abbrev trialCallOff : Word :=  500
 /-- Offset of the trial-quotient `divK_trial_max` sub-block inside `divK_loopBody`.
@@ -167,7 +165,7 @@ example : storeLoopOff = loopBodyOff + 436 := by decide
     into the loop body. -/
 example : correctionSkipBeqOff = loopBodyOff + 280 := by decide
 /-- trialCallOff = loopBodyOff + 52 (sub-block offset within `divK_loopBody`).
-    The trial-quotient BLTU sits 13 instructions into the loop body. -/
+    The trial-divide call-site sits 13 instructions into the loop body. -/
 example : trialCallOff = loopBodyOff + 52 := by decide
 /-- trialMaxOff = trialCallOff + 4 (= loopBodyOff + 56, sub-block offset within
     `divK_loopBody`). The `divK_trial_max` snippet is the BLT fall-through one
