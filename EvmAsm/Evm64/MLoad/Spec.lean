@@ -1209,6 +1209,163 @@ theorem mloadOneLimbUnalignedPost_unfold
      ((sp + signExtend12 dstOff) ↦ₘ accFinal)) := by
   delta mloadOneLimbUnalignedPost; rfl
 
+/-- Full one-limb unaligned MLOAD composition: eight byte-pack loads plus trailing store. -/
+theorem mload_one_limb_unaligned_spec_within
+    (addrReg byteReg accReg : Reg)
+    (addrPtr accOld byteOld loVal hiVal loAddr hiAddr sp dstWordOld : Word)
+    (off0 off1 off2 off3 off4 off5 off6 off7 dstOff : BitVec 12)
+    (start : Nat) (base : Word)
+    (h_byte_ne_x0 : byteReg ≠ .x0)
+    (h_acc_ne_x0  : accReg  ≠ .x0)
+    (h_align0 :
+      alignToDword (addrPtr + signExtend12 off0) =
+        mloadDwordPairAddr loAddr hiAddr start 0)
+    (h_byte0 : byteOffset (addrPtr + signExtend12 off0) = (start + 0) % 8)
+    (h_valid0 : isValidByteAccess (addrPtr + signExtend12 off0) = true)
+    (h_align1 :
+      alignToDword (addrPtr + signExtend12 off1) =
+        mloadDwordPairAddr loAddr hiAddr start 1)
+    (h_byte1 : byteOffset (addrPtr + signExtend12 off1) = (start + 1) % 8)
+    (h_valid1 : isValidByteAccess (addrPtr + signExtend12 off1) = true)
+    (h_align2 :
+      alignToDword (addrPtr + signExtend12 off2) =
+        mloadDwordPairAddr loAddr hiAddr start 2)
+    (h_byte2 : byteOffset (addrPtr + signExtend12 off2) = (start + 2) % 8)
+    (h_valid2 : isValidByteAccess (addrPtr + signExtend12 off2) = true)
+    (h_align3 :
+      alignToDword (addrPtr + signExtend12 off3) =
+        mloadDwordPairAddr loAddr hiAddr start 3)
+    (h_byte3 : byteOffset (addrPtr + signExtend12 off3) = (start + 3) % 8)
+    (h_valid3 : isValidByteAccess (addrPtr + signExtend12 off3) = true)
+    (h_align4 :
+      alignToDword (addrPtr + signExtend12 off4) =
+        mloadDwordPairAddr loAddr hiAddr start 4)
+    (h_byte4 : byteOffset (addrPtr + signExtend12 off4) = (start + 4) % 8)
+    (h_valid4 : isValidByteAccess (addrPtr + signExtend12 off4) = true)
+    (h_align5 :
+      alignToDword (addrPtr + signExtend12 off5) =
+        mloadDwordPairAddr loAddr hiAddr start 5)
+    (h_byte5 : byteOffset (addrPtr + signExtend12 off5) = (start + 5) % 8)
+    (h_valid5 : isValidByteAccess (addrPtr + signExtend12 off5) = true)
+    (h_align6 :
+      alignToDword (addrPtr + signExtend12 off6) =
+        mloadDwordPairAddr loAddr hiAddr start 6)
+    (h_byte6 : byteOffset (addrPtr + signExtend12 off6) = (start + 6) % 8)
+    (h_valid6 : isValidByteAccess (addrPtr + signExtend12 off6) = true)
+    (h_align7 :
+      alignToDword (addrPtr + signExtend12 off7) =
+        mloadDwordPairAddr loAddr hiAddr start 7)
+    (h_byte7 : byteOffset (addrPtr + signExtend12 off7) = (start + 7) % 8)
+    (h_valid7 : isValidByteAccess (addrPtr + signExtend12 off7) = true) :
+    cpsTripleWithin 23 base (base + 92)
+      (mloadOneLimbCode addrReg byteReg accReg
+        off0 off1 off2 off3 off4 off5 off6 off7 dstOff base)
+      (mloadOneLimbUnalignedPre addrReg byteReg accReg
+        addrPtr accOld byteOld loVal hiVal loAddr hiAddr sp dstWordOld dstOff)
+      (mloadOneLimbUnalignedPost addrReg byteReg accReg
+        addrPtr loVal hiVal loAddr hiAddr sp start dstOff) := by
+  rw [mloadOneLimbUnalignedPre_unfold, mloadOneLimbUnalignedPost_unfold]
+  dsimp only []
+  set b0 := (mloadByteFromDwordPair loVal hiVal start 0).zeroExtend 64
+  set b1 := (mloadByteFromDwordPair loVal hiVal start 1).zeroExtend 64
+  set b2 := (mloadByteFromDwordPair loVal hiVal start 2).zeroExtend 64
+  set b3 := (mloadByteFromDwordPair loVal hiVal start 3).zeroExtend 64
+  set b4 := (mloadByteFromDwordPair loVal hiVal start 4).zeroExtend 64
+  set b5 := (mloadByteFromDwordPair loVal hiVal start 5).zeroExtend 64
+  set b6 := (mloadByteFromDwordPair loVal hiVal start 6).zeroExtend 64
+  set b7 := (mloadByteFromDwordPair loVal hiVal start 7).zeroExtend 64
+  unfold mloadOneLimbCode
+  rw [show (23 : Nat) = 22 + 1 from rfl,
+      show (base + 92 : Word) = base + 88 + 4 from by bv_omega]
+  have eight := mload_byte_pack_eight_pair_spec_within addrReg byteReg accReg
+    addrPtr accOld byteOld loVal hiVal loAddr hiAddr
+    off0 off1 off2 off3 off4 off5 off6 off7 start base
+    h_byte_ne_x0 h_acc_ne_x0
+    h_align0 h_byte0 h_valid0 h_align1 h_byte1 h_valid1
+    h_align2 h_byte2 h_valid2 h_align3 h_byte3 h_valid3
+    h_align4 h_byte4 h_valid4 h_align5 h_byte5 h_valid5
+    h_align6 h_byte6 h_valid6 h_align7 h_byte7 h_valid7
+  have eightPacked : cpsTripleWithin 22 base (base + 88)
+      (mloadBytePackEightCode addrReg byteReg accReg
+        off0 off1 off2 off3 off4 off5 off6 off7 base)
+      ((addrReg ↦ᵣ addrPtr) ** (byteReg ↦ᵣ byteOld) ** (accReg ↦ᵣ accOld) **
+       (loAddr ↦ₘ loVal) ** (hiAddr ↦ₘ hiVal))
+      ((addrReg ↦ᵣ addrPtr) ** (byteReg ↦ᵣ b7) **
+       (accReg ↦ᵣ mloadPackedLimbFromDwordPair loVal hiVal start) **
+       (loAddr ↦ₘ loVal) ** (hiAddr ↦ₘ hiVal)) :=
+    cpsTripleWithin_weaken
+      (fun _ hp => hp)
+      (fun _ hp => by
+        rw [← mloadPackedLimbFromDwordPair_eq_fold loVal hiVal start]
+        exact hp)
+      eight
+  have sd := generic_sd_spec_within (.x12 : Reg) accReg sp
+    (mloadPackedLimbFromDwordPair loVal hiVal start) dstWordOld dstOff (base + 88)
+  have eightF := cpsTripleWithin_frameR
+    (F := ((.x12 : Reg) ↦ᵣ sp) ** ((sp + signExtend12 dstOff) ↦ₘ dstWordOld))
+    (by pcFree) eightPacked
+  have sdF := cpsTripleWithin_frameL
+    (F := (addrReg ↦ᵣ addrPtr) ** (byteReg ↦ᵣ b7) **
+      (loAddr ↦ₘ loVal) ** (hiAddr ↦ₘ hiVal))
+    (by pcFree) sd
+  have hMid :
+      (((addrReg ↦ᵣ addrPtr) ** (byteReg ↦ᵣ b7) **
+        (loAddr ↦ₘ loVal) ** (hiAddr ↦ₘ hiVal)) **
+        (((.x12 : Reg) ↦ᵣ sp) **
+         (accReg ↦ᵣ mloadPackedLimbFromDwordPair loVal hiVal start) **
+         ((sp + signExtend12 dstOff) ↦ₘ dstWordOld))) =
+      (((addrReg ↦ᵣ addrPtr) ** (byteReg ↦ᵣ b7) **
+        (accReg ↦ᵣ mloadPackedLimbFromDwordPair loVal hiVal start) **
+        (loAddr ↦ₘ loVal) ** (hiAddr ↦ₘ hiVal)) **
+        (((.x12 : Reg) ↦ᵣ sp) **
+         ((sp + signExtend12 dstOff) ↦ₘ dstWordOld))) := by ac_rfl
+  have hd_step : CodeReq.Disjoint
+      (mloadBytePackEightCode addrReg byteReg accReg
+        off0 off1 off2 off3 off4 off5 off6 off7 base)
+      (CodeReq.singleton (base + 88) (.SD (.x12 : Reg) accReg dstOff)) := by
+    unfold mloadBytePackEightCode mloadBytePackSevenCode mloadBytePackSixCode
+      mloadBytePackFiveCode mloadBytePackFourCode mloadBytePackThreeCode
+      mloadBytePackTwoCode
+    have leaf : ∀ {a : Word} {i : Instr},
+        a ≠ base + 88 →
+        CodeReq.Disjoint (CodeReq.singleton a i)
+            (CodeReq.singleton (base + 88) (.SD (.x12 : Reg) accReg dstOff)) := by
+      intro a i h88
+      exact CodeReq.Disjoint.singleton h88
+    refine CodeReq.Disjoint.union_left ?_ ?_
+    · refine CodeReq.Disjoint.union_left ?_ ?_
+      · refine CodeReq.Disjoint.union_left ?_ ?_
+        · refine CodeReq.Disjoint.union_left ?_ ?_
+          · refine CodeReq.Disjoint.union_left ?_ ?_
+            · refine CodeReq.Disjoint.union_left ?_ ?_
+              · refine CodeReq.Disjoint.union_left (leaf (by bv_omega)) ?_
+                refine CodeReq.Disjoint.union_left (leaf (by bv_omega)) ?_
+                refine CodeReq.Disjoint.union_left (leaf (by bv_omega)) ?_
+                exact leaf (by bv_omega)
+              · refine CodeReq.Disjoint.union_left (leaf (by bv_omega)) ?_
+                refine CodeReq.Disjoint.union_left (leaf (by bv_omega)) ?_
+                exact leaf (by bv_omega)
+            · refine CodeReq.Disjoint.union_left (leaf (by bv_omega)) ?_
+              refine CodeReq.Disjoint.union_left (leaf (by bv_omega)) ?_
+              exact leaf (by bv_omega)
+          · refine CodeReq.Disjoint.union_left (leaf (by bv_omega)) ?_
+            refine CodeReq.Disjoint.union_left (leaf (by bv_omega)) ?_
+            exact leaf (by bv_omega)
+        · refine CodeReq.Disjoint.union_left (leaf (by bv_omega)) ?_
+          refine CodeReq.Disjoint.union_left (leaf (by bv_omega)) ?_
+          exact leaf (by bv_omega)
+      · refine CodeReq.Disjoint.union_left (leaf (by bv_omega)) ?_
+        refine CodeReq.Disjoint.union_left (leaf (by bv_omega)) ?_
+        exact leaf (by bv_omega)
+    · refine CodeReq.Disjoint.union_left (leaf (by bv_omega)) ?_
+      refine CodeReq.Disjoint.union_left (leaf (by bv_omega)) ?_
+      exact leaf (by bv_omega)
+  have composed := cpsTripleWithin_seq hd_step (hMid ▸ eightF) sdF
+  exact cpsTripleWithin_weaken
+    (fun h hp => by sep_perm hp)
+    (fun h hp => by sep_perm hp)
+    composed
+
 /--
   The 256-bit value loaded by MLOAD from 32 consecutive EVM-memory bytes.
 
