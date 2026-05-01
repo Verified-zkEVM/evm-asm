@@ -176,6 +176,125 @@ theorem mload_byte_pack_two_spec_within
         (CodeReq.Disjoint.singleton h03))
   exact cpsTripleWithin_seq hd_step s1 step
 
+/-- Bundled CodeReq for `mload_byte_pack_three_spec_within`: a 7-instruction
+    union extending `mloadBytePackTwoCode` with one additional
+    `LBU/SLLI/OR` triple at `base + 16 / base + 20 / base + 24` for the
+    third byte.
+
+    Pulled out of the spec body (mirroring the slice-3d-prep convention
+    @pirapira asked for on PR #1659) so the code requirement is a named
+    handle that callers and downstream composition lemmas can refer to
+    without re-spelling the union. -/
+def mloadBytePackThreeCode
+    (addrReg byteReg accReg : Reg) (off0 off1 off2 : BitVec 12) (base : Word) :
+    CodeReq :=
+  (mloadBytePackTwoCode addrReg byteReg accReg off0 off1 base).union
+    ((CodeReq.singleton (base + 16) (.LBU byteReg addrReg off2)).union
+     ((CodeReq.singleton (base + 20) (.SLLI accReg accReg (BitVec.ofNat 6 8))).union
+      (CodeReq.singleton (base + 24) (.OR accReg accReg byteReg))))
+
+/-- Three-byte big-endian byte-pack spec (7 instructions): seed `LBU`
+    loading `b0`, then two `LBU + SLLI + OR` triples folding `b1` and
+    `b2` in big-endian order, yielding
+    `((b0 <<< 8) ||| b1) <<< 8 ||| b2` in `accReg`.
+
+    This is the `n = 3` step in the inductive ladder
+    `mload_byte_pack_init` (n=1) → `mload_byte_pack_two` (n=2) →
+    `mload_byte_pack_three` (n=3) → … → `mload_one_limb` (n=8). It is
+    proved by composing the existing 2-byte spec with one
+    `mload_byte_pack_step_spec_within` application; no new tactic
+    machinery is needed.
+
+    All three bytes live in the same source `dwordAddr`; the caller
+    supplies one `(alignToDword, isValidByteAccess)` pair per byte.
+
+    NOTE: the beads task `evm-asm-svpr` titled this slice "5-instr
+    3-byte pattern", but the natural composition (reusing the
+    seed-LBU + per-byte-pack-step shape established in slice 3d-prep)
+    is 7 instructions: 1 seed LBU + 2 × (LBU + SLLI + OR). -/
+theorem mload_byte_pack_three_spec_within
+    (addrReg byteReg accReg : Reg)
+    (addrPtr accOld byteOld wordVal : Word)
+    (dwordAddr : Word)
+    (off0 off1 off2 : BitVec 12) (base : Word)
+    (h_byte_ne_x0 : byteReg ≠ .x0)
+    (h_acc_ne_x0  : accReg  ≠ .x0)
+    (h_align0 : alignToDword (addrPtr + signExtend12 off0) = dwordAddr)
+    (h_valid0 : isValidByteAccess (addrPtr + signExtend12 off0) = true)
+    (h_align1 : alignToDword (addrPtr + signExtend12 off1) = dwordAddr)
+    (h_valid1 : isValidByteAccess (addrPtr + signExtend12 off1) = true)
+    (h_align2 : alignToDword (addrPtr + signExtend12 off2) = dwordAddr)
+    (h_valid2 : isValidByteAccess (addrPtr + signExtend12 off2) = true) :
+    let b0 :=
+      (extractByte wordVal (byteOffset (addrPtr + signExtend12 off0))).zeroExtend 64
+    let b1 :=
+      (extractByte wordVal (byteOffset (addrPtr + signExtend12 off1))).zeroExtend 64
+    let b2 :=
+      (extractByte wordVal (byteOffset (addrPtr + signExtend12 off2))).zeroExtend 64
+    let accAfter2 := (b0 <<< (8 : Nat)) ||| b1
+    let accFinal := (accAfter2 <<< (8 : Nat)) ||| b2
+    let cr := mloadBytePackThreeCode addrReg byteReg accReg off0 off1 off2 base
+    cpsTripleWithin 7 base (base + 28) cr
+      ((addrReg ↦ᵣ addrPtr) ** (byteReg ↦ᵣ byteOld) ** (accReg ↦ᵣ accOld) **
+       (dwordAddr ↦ₘ wordVal))
+      ((addrReg ↦ᵣ addrPtr) ** (byteReg ↦ᵣ b2) ** (accReg ↦ᵣ accFinal) **
+       (dwordAddr ↦ₘ wordVal)) := by
+  intro b0 b1 b2 accAfter2 accFinal cr
+  -- Step 1: 4-instruction 2-byte spec at `base`.
+  have two := mload_byte_pack_two_spec_within addrReg byteReg accReg
+    addrPtr accOld byteOld wordVal dwordAddr off0 off1 base
+    h_byte_ne_x0 h_acc_ne_x0 h_align0 h_valid0 h_align1 h_valid1
+  -- Step 2: 3-instruction byte-pack triple at `base + 16` folding `b2`.
+  -- Specialising `accOld := accAfter2` makes its post equal
+  -- `(accAfter2 <<< 8) ||| b2 = accFinal`. The `byteOld` slot of `step`
+  -- is filled with `b1` (the trailing byte left in `byteReg` by `two`).
+  have step := mload_byte_pack_step_spec_within addrReg byteReg accReg
+    addrPtr accAfter2 b1 wordVal dwordAddr off2 (base + 16)
+    h_byte_ne_x0 h_acc_ne_x0 h_align2 h_valid2
+  -- Normalise the `step`'s exit and code-req sub-addresses so they
+  -- match the `cr` shape.
+  rw [show (base + 16 : Word) + 12 = base + 28 from by bv_omega] at step
+  rw [show (base + 16 : Word) + 4 = base + 20 from by bv_omega,
+      show (base + 16 : Word) + 8 = base + 24 from by bv_omega] at step
+  -- Disjointness between the two-byte block (addresses base, base+4,
+  -- base+8, base+12) and the trailing triple (base+16, base+20,
+  -- base+24).
+  have h_b_b16  : base ≠ base + 16 := by bv_omega
+  have h_b_b20  : base ≠ base + 20 := by bv_omega
+  have h_b_b24  : base ≠ base + 24 := by bv_omega
+  have h_b4_b16 : base + 4 ≠ base + 16 := by bv_omega
+  have h_b4_b20 : base + 4 ≠ base + 20 := by bv_omega
+  have h_b4_b24 : base + 4 ≠ base + 24 := by bv_omega
+  have h_b8_b16 : base + 8 ≠ base + 16 := by bv_omega
+  have h_b8_b20 : base + 8 ≠ base + 20 := by bv_omega
+  have h_b8_b24 : base + 8 ≠ base + 24 := by bv_omega
+  have h_b12_b16 : base + 12 ≠ base + 16 := by bv_omega
+  have h_b12_b20 : base + 12 ≠ base + 20 := by bv_omega
+  have h_b12_b24 : base + 12 ≠ base + 24 := by bv_omega
+  -- Build the trailing triple's union and prove `mloadBytePackTwoCode`
+  -- is disjoint from it.
+  have hd_step : CodeReq.Disjoint
+      (mloadBytePackTwoCode addrReg byteReg accReg off0 off1 base)
+      ((CodeReq.singleton (base + 16) (.LBU byteReg addrReg off2)).union
+       ((CodeReq.singleton (base + 20) (.SLLI accReg accReg (BitVec.ofNat 6 8))).union
+        (CodeReq.singleton (base + 24) (.OR accReg accReg byteReg)))) := by
+    unfold mloadBytePackTwoCode
+    refine CodeReq.Disjoint.union_left ?_ (CodeReq.Disjoint.union_left ?_
+      (CodeReq.Disjoint.union_left ?_ ?_))
+    · refine CodeReq.Disjoint.union_right (CodeReq.Disjoint.singleton h_b_b16) ?_
+      exact CodeReq.Disjoint.union_right (CodeReq.Disjoint.singleton h_b_b20)
+        (CodeReq.Disjoint.singleton h_b_b24)
+    · refine CodeReq.Disjoint.union_right (CodeReq.Disjoint.singleton h_b4_b16) ?_
+      exact CodeReq.Disjoint.union_right (CodeReq.Disjoint.singleton h_b4_b20)
+        (CodeReq.Disjoint.singleton h_b4_b24)
+    · refine CodeReq.Disjoint.union_right (CodeReq.Disjoint.singleton h_b8_b16) ?_
+      exact CodeReq.Disjoint.union_right (CodeReq.Disjoint.singleton h_b8_b20)
+        (CodeReq.Disjoint.singleton h_b8_b24)
+    · refine CodeReq.Disjoint.union_right (CodeReq.Disjoint.singleton h_b12_b16) ?_
+      exact CodeReq.Disjoint.union_right (CodeReq.Disjoint.singleton h_b12_b20)
+        (CodeReq.Disjoint.singleton h_b12_b24)
+  exact cpsTripleWithin_seq hd_step two step
+
 /-- Init step of the `mload_byte_pack` recursion: a single `LBU accReg
     addrReg offset` that loads the leading (most-significant) byte of a
     limb directly into `accReg`, with no shift/OR (since the accumulator
