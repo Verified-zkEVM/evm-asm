@@ -82,10 +82,10 @@ theorem bne_x10_singleton_sub_modCode {base : Word} :
   exact sub_modCode_of_phaseB_left a i h1
 
 theorem divK_phaseB_tail_code_sub_modCode {base : Word} :
-    ∀ a i, (divK_phaseB_tail_code (base + 96)) a = some i → (modCode base) a = some i := by
+    ∀ a i, (divK_phaseB_tail_code (base + phaseBTailOff)) a = some i → (modCode base) a = some i := by
   unfold modCode; simp only [CodeReq.unionAll_cons]
   intro a i h
-  have h1 := CodeReq.ofProg_mono_sub (base + phaseBOff) (base + 96) divK_phaseB
+  have h1 := CodeReq.ofProg_mono_sub (base + phaseBOff) (base + phaseBTailOff) divK_phaseB
     (divK_phaseB.drop 16) 16
     (by bv_addr) (by decide) (by decide) (by decide) a i h
   exact sub_modCode_of_phaseB_left a i h1
@@ -97,7 +97,7 @@ theorem divK_phaseB_tail_code_sub_modCode {base : Word} :
 theorem mod_phB_i2_8 {base : Word} : (base + 60 : Word) + 8 = base + 68 := by bv_addr
 theorem mod_phB_addi_4 {base : Word} : (base + 68 : Word) + 4 = base + 72 := by bv_addr
 theorem mod_phB_bne_4 {base : Word} : (base + 72 : Word) + 4 = base + 76 := by bv_addr
-theorem mod_phB_t_20 {base : Word} : (base + 96 : Word) + 20 = base + clzOff := by bv_addr
+theorem mod_phB_t_20 {base : Word} : (base + phaseBTailOff : Word) + 20 = base + clzOff := by bv_addr
 -- `mod_signExtend13_24` → use `se13_24` from `Compose/Base.lean`.
 theorem mod_phB_sp24_32 {sp : Word} :
     sp + ((4 : Word) + signExtend12 (4095 : BitVec 12)) <<< (3 : BitVec 6).toNat +
@@ -154,7 +154,7 @@ theorem evm_mod_phaseB_n4_spec_within (sp base : Word)
   seqFrame hinit1fhinit2 haddi
   -- ---- Step 4: BNE x10 x0 24 at base+72, elim ntaken (b3=0 absurd)
   have hbne_raw := bne_spec_gen_within .x10 .x0 24 b3 (0 : Word) (base + 72)
-  rw [show (base + 72 : Word) + signExtend13 24 = base + 96 from by rv64_addr,
+  rw [show (base + 72 : Word) + signExtend13 24 = base + phaseBTailOff from by rv64_addr,
       mod_phB_bne_4] at hbne_raw
   have hbne_clean := cpsBranchWithin_takenStripPure2 hbne_raw
     (fun hp hQf => by
@@ -163,7 +163,7 @@ theorem evm_mod_phaseB_n4_spec_within (sp base : Word)
   have hbne := cpsTripleWithin_extend_code bne_x10_singleton_sub_modCode hbne_clean
   seqFrame hinit1fhinit2haddi hbne
   -- ---- Step 5: Tail (base+96 → base+116) — store n=4, load leading limb b[3]
-  have htail_raw := divK_phaseB_tail_spec_within sp (4 : Word) b3 nMem (base + 96)
+  have htail_raw := divK_phaseB_tail_spec_within sp (4 : Word) b3 nMem (base + phaseBTailOff)
   simp only [divK_phaseB_tail_pre_unfold, divK_phaseB_tail_post_unfold,
              mod_phB_t_20, mod_phB_sp24_32] at htail_raw
   have htail := cpsTripleWithin_extend_code divK_phaseB_tail_code_sub_modCode htail_raw
@@ -261,7 +261,7 @@ theorem mod_phB_step1_4 {base : Word} : (base + 76 : Word) + 4 = base + 80 := by
 theorem mod_phB_step1_8 {base : Word} : (base + 80 : Word) + 4 = base + 84 := by bv_addr
 theorem mod_phB_step2_4 {base : Word} : (base + 84 : Word) + 4 = base + 88 := by bv_addr
 theorem mod_phB_step2_8 {base : Word} : (base + 88 : Word) + 4 = base + 92 := by bv_addr
-theorem mod_phB_fall_4 {base : Word} : (base + 92 : Word) + 4 = base + 96 := by bv_addr
+theorem mod_phB_fall_4 {base : Word} : (base + 92 : Word) + 4 = base + phaseBTailOff := by bv_addr
 
 -- Tail memory address normalization
 theorem mod_phB_sp16_32 {sp : Word} :

@@ -80,7 +80,7 @@ theorem evm_mod_phaseB_n3_spec_within (sp base : Word)
     (fun h hp => by xperm_hyp hp) h12 haddi0f
   -- ---- Cascade step 0: BNE x10 ntaken (base+72 → base+76, b3=0)
   have hbne0_raw := bne_spec_gen_within .x10 .x0 24 b3 (0 : Word) (base + 72)
-  rw [show (base + 72 : Word) + signExtend13 24 = base + 96 from by rv64_addr,
+  rw [show (base + 72 : Word) + signExtend13 24 = base + phaseBTailOff from by rv64_addr,
       mod_phB_bne_4] at hbne0_raw
   have hbne0_clean := cpsBranchWithin_ntakenStripPure2 hbne0_raw
     (fun hp hQt => by
@@ -115,7 +115,7 @@ theorem evm_mod_phaseB_n3_spec_within (sp base : Word)
     (fun h hp => by xperm_hyp hp) h1234 haddi1f
   -- ---- Cascade step 1: BNE x7 taken (base+80 → base+96, b2≠0)
   have hbne1_raw := bne_spec_gen_within .x7 .x0 16 b2 (0 : Word) (base + 80)
-  rw [show (base + 80 : Word) + signExtend13 16 = base + 96 from by rv64_addr,
+  rw [show (base + 80 : Word) + signExtend13 16 = base + phaseBTailOff from by rv64_addr,
       mod_phB_step1_8] at hbne1_raw
   have hbne1_clean := cpsBranchWithin_takenStripPure2 hbne1_raw
     (fun hp hQf => by
@@ -134,7 +134,7 @@ theorem evm_mod_phaseB_n3_spec_within (sp base : Word)
   have h123456 := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h12345 hbne1f
   -- ---- Tail (base+96 → base+116)
-  have htail_raw := divK_phaseB_tail_spec_within sp (3 : Word) b2 nMem (base + 96)
+  have htail_raw := divK_phaseB_tail_spec_within sp (3 : Word) b2 nMem (base + phaseBTailOff)
   simp only [divK_phaseB_tail_pre_unfold, divK_phaseB_tail_post_unfold,
     mod_phB_t_20, mod_divK_phaseB_n3_nm1_x8, se12_32,
     mod_phB_sp16_32] at htail_raw

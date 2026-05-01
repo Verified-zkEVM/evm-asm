@@ -17,6 +17,7 @@
 
     [phaseAOff    =   0] divK_phaseA        (32 bytes)
     [phaseBOff    =  32] divK_phaseB        (84 bytes)
+      [phaseBTailOff = 96]  divK_phaseB_tail sub-block (phaseBOff + 64)
     [clzOff       = 116] divK_clz           (96 bytes)
     [phaseC2Off   = 212] divK_phaseC2       (16 bytes)
     [normBOff     = 228] divK_normB         (84 bytes)
@@ -50,6 +51,14 @@ open EvmAsm.Rv64
 abbrev phaseAOff    : Word :=    0
 /-- Offset of `divK_phaseB` (b=0 branch + leading-limb analysis). -/
 abbrev phaseBOff    : Word :=   32
+/-- Offset of the `divK_phaseB_tail` sub-block inside `divK_phaseB`.
+    Entry PC of the leading-limb-analysis tail (16 instructions / 64 bytes
+    into `divK_phaseB`); the per-limb cascade in `divK_phaseB_cascade` falls
+    through to this PC, and the per-limb specs in `Compose/PhaseAB.lean`,
+    `Compose/ModPhaseB.lean`, and `Compose/ModPhaseBn21.lean` invoke
+    `divK_phaseB_tail_spec_within` at this address. Sub-offset relative to
+    `divK_phaseB` (= phaseBOff + 64). -/
+abbrev phaseBTailOff : Word :=   96
 /-- Offset of `divK_clz` (count leading zeros for shift amount). -/
 abbrev clzOff       : Word :=  116
 /-- Offset of `divK_phaseC2` (branch on shift=0 fast path). -/
