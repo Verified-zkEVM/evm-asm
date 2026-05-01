@@ -100,7 +100,7 @@ theorem evm_mod_phaseB_n2_spec_within (sp base : Word)
   have h1234 := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h123 hbne0f
   -- ---- Cascade step 1: ADDI x5=3 (base+76 → base+80)
-  have haddi1_raw := addi_x0_spec_gen_within .x5 (4 : Word) 3 (base + 76) (by nofun)
+  have haddi1_raw := addi_x0_spec_gen_within .x5 (4 : Word) 3 (base + phaseBStep1Off) (by nofun)
   simp only [mod_phB_step1_4, se12_3] at haddi1_raw
   have haddi1 := cpsTripleWithin_extend_code addi_x5_3_sub_modCode haddi1_raw
   have haddi1f := cpsTripleWithin_frameR
@@ -150,8 +150,8 @@ theorem evm_mod_phaseB_n2_spec_within (sp base : Word)
   have h1234567 := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h123456 haddi2f
   -- ---- Cascade step 2: BNE x6 taken (base+88 → base+96, b1≠0)
-  have hbne2_raw := bne_spec_gen_within .x6 .x0 8 b1 (0 : Word) (base + 88)
-  rw [show (base + 88 : Word) + signExtend13 8 = base + phaseBTailOff from by rv64_addr,
+  have hbne2_raw := bne_spec_gen_within .x6 .x0 8 b1 (0 : Word) (base + phaseBBne3Off)
+  rw [show (base + phaseBBne3Off : Word) + signExtend13 8 = base + phaseBTailOff from by rv64_addr,
       mod_phB_step2_8] at hbne2_raw
   have hbne2_clean := cpsBranchWithin_takenStripPure2 hbne2_raw
     (fun hp hQf => by
@@ -271,7 +271,7 @@ theorem evm_mod_phaseB_n1_spec_within (sp base : Word)
   have h1234 := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h123 hbne0f
   -- ---- Cascade step 1: ADDI x5=3 (base+76 → base+80)
-  have haddi1_raw := addi_x0_spec_gen_within .x5 (4 : Word) 3 (base + 76) (by nofun)
+  have haddi1_raw := addi_x0_spec_gen_within .x5 (4 : Word) 3 (base + phaseBStep1Off) (by nofun)
   simp only [mod_phB_step1_4, se12_3] at haddi1_raw
   have haddi1 := cpsTripleWithin_extend_code addi_x5_3_sub_modCode haddi1_raw
   have haddi1f := cpsTripleWithin_frameR
@@ -321,8 +321,8 @@ theorem evm_mod_phaseB_n1_spec_within (sp base : Word)
   have h1234567 := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h123456 haddi2f
   -- ---- Cascade step 2: BNE x6 ntaken (base+88 → base+92, b1=0)
-  have hbne2_raw := bne_spec_gen_within .x6 .x0 8 b1 (0 : Word) (base + 88)
-  rw [show (base + 88 : Word) + signExtend13 8 = base + phaseBTailOff from by rv64_addr,
+  have hbne2_raw := bne_spec_gen_within .x6 .x0 8 b1 (0 : Word) (base + phaseBBne3Off)
+  rw [show (base + phaseBBne3Off : Word) + signExtend13 8 = base + phaseBTailOff from by rv64_addr,
       mod_phB_step2_8] at hbne2_raw
   have hbne2_clean := cpsBranchWithin_ntakenStripPure2 hbne2_raw
     (fun hp hQt => by
