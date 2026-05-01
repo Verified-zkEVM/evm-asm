@@ -54,3 +54,6 @@ import EvmAsm.Evm64.DivMod
 
 -- Calling convention (LP64)
 import EvmAsm.Evm64.CallingConvention
+
+-- Execution-context structure (#100 slice 1; envIs assertion lands in slice 3)
+import EvmAsm.Evm64.Environment
