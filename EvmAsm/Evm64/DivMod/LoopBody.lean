@@ -396,7 +396,7 @@ theorem divK_addback_full_spec_within
 private theorem lb_ms_setup {base : Word} : (base + div128CallRetOff : Word) + 20 = base + 536 := by bv_addr
 
 -- Address normalization for sub_carry
-private theorem lb_sc {base : Word} : (base + 712 : Word) + 16 = base + 728 := by bv_addr
+private theorem lb_sc {base : Word} : (base + 712 : Word) + 16 = base + correctionSkipBeqOff := by bv_addr
 
 set_option maxRecDepth 4096 in
 /-- Mulsub full: setup + 4-limb multiply-subtract + carry subtraction from u[j+4].
@@ -443,7 +443,7 @@ theorem divK_mulsub_full_spec_within
     -- Sub-carry intermediates
     let borrow := if BitVec.ult uTop c3 then (1 : Word) else 0
     let u4_new := uTop - c3
-    cpsTripleWithin 53 (base + div128CallRetOff) (base + 728) (sharedDivModCode base)
+    cpsTripleWithin 53 (base + div128CallRetOff) (base + correctionSkipBeqOff) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
        (.x1 ↦ᵣ v1Old) ** (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
        (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x2 ↦ᵣ v2Old) **
@@ -686,7 +686,7 @@ theorem divK_mulsub_full_v2_spec_within
     let un3 := u3 - fs3; let c3 := pc3 + bs3
     let borrow := if BitVec.ult uTop c3 then (1 : Word) else 0
     let u4_new := uTop - c3
-    cpsTripleWithin 53 (base + div128CallRetOff) (base + 728) (sharedDivModCode_v2 base)
+    cpsTripleWithin 53 (base + div128CallRetOff) (base + correctionSkipBeqOff) (sharedDivModCode_v2 base)
       ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
        (.x1 ↦ᵣ v1Old) ** (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
        (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x2 ↦ᵣ v2Old) **
@@ -888,10 +888,10 @@ theorem divK_addback_full_v2_spec_within
     (fun h hq => by xperm_hyp hq)
     IfA0eA1eA2eA3eAFe
 
-theorem lb_beq_taken {base : Word} : (base + 728 : Word) + signExtend13 (156 : BitVec 13) = base + storeLoopOff := by
+theorem lb_beq_taken {base : Word} : (base + correctionSkipBeqOff : Word) + signExtend13 (156 : BitVec 13) = base + storeLoopOff := by
   rv64_addr
 
-theorem lb_beq_ntaken {base : Word} : (base + 728 : Word) + 4 = base + 732 := by bv_addr
+theorem lb_beq_ntaken {base : Word} : (base + correctionSkipBeqOff : Word) + 4 = base + 732 := by bv_addr
 
 /-- v2 mirror of `divK_correction_addback_spec_within` — same body but targets
     `sharedDivModCode_v2 base`. Uses `divK_addback_full_v2_spec_within` and
@@ -924,7 +924,7 @@ theorem divK_correction_addback_v2_spec_within
     let aco3 := ac1_3 ||| ac2_3
     let aun4 := u4 + aco3
     let qHat' := qHat + signExtend12 4095
-    cpsTripleWithin 38 (base + 728) (base + addbackBeqOff) (sharedDivModCode_v2 base)
+    cpsTripleWithin 38 (base + correctionSkipBeqOff) (base + addbackBeqOff) (sharedDivModCode_v2 base)
       ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ uBase) ** (.x7 ↦ᵣ borrow) **
        (.x11 ↦ᵣ qHat) ** (.x5 ↦ᵣ v5Old) ** (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
        ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
@@ -941,14 +941,14 @@ theorem divK_correction_addback_v2_spec_within
        ((uBase + signExtend12 4064) ↦ₘ aun4)) := by
   intro upc0 ac1_0 aun0 ac2_0 aco0 upc1 ac1_1 aun1 ac2_1 aco1
         upc2 ac1_2 aun2 ac2_2 aco2 upc3 ac1_3 aun3 ac2_3 aco3 aun4 qHat'
-  have hbeq := beq_spec_gen_within .x7 .x0 (156 : BitVec 13) borrow 0 (base + 728)
+  have hbeq := beq_spec_gen_within .x7 .x0 (156 : BitVec 13) borrow 0 (base + correctionSkipBeqOff)
   rw [lb_beq_taken, lb_beq_ntaken] at hbeq
   have hbeq_ext := cpsBranchWithin_extend_code (hmono :=
     lb_sub_v2 70 _ _ (by decide) (by bv_addr) (by decide)) hbeq
   have ntaken := cpsBranchWithin_ntakenPath hbeq_ext (fun hp hQt => by
     obtain ⟨_, _, _, _, _, ⟨_, _, _, _, _, ⟨_, hpure⟩⟩⟩ := hQt
     exact hb hpure)
-  have ntaken_clean : cpsTripleWithin 1 (base + 728) (base + 732) (sharedDivModCode_v2 base)
+  have ntaken_clean : cpsTripleWithin 1 (base + correctionSkipBeqOff) (base + 732) (sharedDivModCode_v2 base)
       ((.x7 ↦ᵣ borrow) ** (.x0 ↦ᵣ (0 : Word)))
       ((.x7 ↦ᵣ borrow) ** (.x0 ↦ᵣ (0 : Word))) :=
     cpsTripleWithin_weaken
@@ -1000,7 +1000,7 @@ theorem divK_correction_addback_spec_within
     let aco3 := ac1_3 ||| ac2_3
     let aun4 := u4 + aco3
     let qHat' := qHat + signExtend12 4095
-    cpsTripleWithin 38 (base + 728) (base + addbackBeqOff) (sharedDivModCode base)
+    cpsTripleWithin 38 (base + correctionSkipBeqOff) (base + addbackBeqOff) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ uBase) ** (.x7 ↦ᵣ borrow) **
        (.x11 ↦ᵣ qHat) ** (.x5 ↦ᵣ v5Old) ** (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
        ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
@@ -1018,7 +1018,7 @@ theorem divK_correction_addback_spec_within
   intro upc0 ac1_0 aun0 ac2_0 aco0 upc1 ac1_1 aun1 ac2_1 aco1
         upc2 ac1_2 aun2 ac2_2 aco2 upc3 ac1_3 aun3 ac2_3 aco3 aun4 qHat'
   -- BEQ x7 x0 156 at base+728
-  have hbeq := beq_spec_gen_within .x7 .x0 (156 : BitVec 13) borrow 0 (base + 728)
+  have hbeq := beq_spec_gen_within .x7 .x0 (156 : BitVec 13) borrow 0 (base + correctionSkipBeqOff)
   rw [lb_beq_taken, lb_beq_ntaken] at hbeq
   have hbeq_ext := cpsBranchWithin_extend_code (hmono :=
     lb_sub 70 _ _ (by decide) (by bv_addr) (by decide)) hbeq
@@ -1027,7 +1027,7 @@ theorem divK_correction_addback_spec_within
     obtain ⟨_, _, _, _, _, ⟨_, _, _, _, _, ⟨_, hpure⟩⟩⟩ := hQt
     exact hb hpure)
   -- Strip pure fact from not-taken postcondition
-  have ntaken_clean : cpsTripleWithin 1 (base + 728) (base + 732) (sharedDivModCode base)
+  have ntaken_clean : cpsTripleWithin 1 (base + correctionSkipBeqOff) (base + 732) (sharedDivModCode base)
       ((.x7 ↦ᵣ borrow) ** (.x0 ↦ᵣ (0 : Word)))
       ((.x7 ↦ᵣ borrow) ** (.x0 ↦ᵣ (0 : Word))) :=
     cpsTripleWithin_weaken
@@ -1060,7 +1060,7 @@ theorem divK_correction_addback_named_spec_within
     (hb : borrow ≠ (0 : Word)) :
     let ab := addbackN4 u0 u1 u2 u3 u4 v0 v1 v2 v3
     let qHat' := qHat + signExtend12 4095
-    cpsTripleWithin 38 (base + 728) (base + addbackBeqOff) (sharedDivModCode base)
+    cpsTripleWithin 38 (base + correctionSkipBeqOff) (base + addbackBeqOff) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ uBase) ** (.x7 ↦ᵣ borrow) **
        (.x11 ↦ᵣ qHat) ** (.x5 ↦ᵣ v5Old) ** (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
        ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
