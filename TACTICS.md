@@ -18,15 +18,22 @@ documented in [`GRIND.md`](GRIND.md):
 
 | Grindset | File | Closes |
 |----------|------|--------|
-| `divmod_addr` | `Evm64/DivMod/AddrNorm.lean`  | DivMod address arithmetic (signExtend12 + shift + toNat) |
-| `rv64_addr`   | `Rv64/AddrNorm.lean`           | Rv64-wide address arithmetic (signExtend13/21 + assoc), subsumes `bv_addr` |
+| `rv64_addr`   | `Rv64/AddrNorm.lean`           | Rv64-wide address arithmetic (signExtend12/13/21 + assoc + `BitVec 6.toNat` + `BitVec.ofNat 64 (4*k)`), subsumes `bv_addr` |
+| `divmod_addr` | `Evm64/DivMod/AddrNorm.lean`   | DivMod address arithmetic (re-tags `rv64_addr` atoms + DivMod-specific Phase-1/Phase-2 offsets) |
+| `exp_addr`    | `Evm64/Exp/AddrNorm.lean`      | EXP opcode-local atoms (skeleton — attribute reserved; populate atoms + add a `by exp_addr` macro once Exp Compose emits concrete address arithmetic) |
 | `reg_ops`     | `Rv64/RegOps.lean`             | `MachineState` projection chains (`pc_set<F>`, `getReg_setPC`, etc.) |
 | `byte_alg`    | `Rv64/ByteAlg.lean`            | `extractByte` / `replaceByte` algebra on `Word` |
 
-Each grindset exposes a `by <name>` tactic (`by divmod_addr`, `by rv64_addr`,
-…) that tries `grind` first and falls back to a per-domain `simp only [...]`
-closer. New atomic facts are added as one-line `@[<set>, grind =]` lemmas
-in the set's file; consumers pick them up automatically.
+Each grindset exposes a `by <name>` tactic (`by rv64_addr`, `by divmod_addr`,
+`by exp_addr`, …) that tries `grind` first and falls back to a per-domain
+`simp only [...]` closer. New atomic facts are added as one-line
+`@[<set>, grind =]` lemmas in the set's file; consumers pick them up
+automatically.
+
+Pick the most specific set that matches the proof's domain. New opcode
+subtrees opt in by adding an `AddrNormAttr.lean` + `AddrNorm.lean` pair —
+see `EvmAsm/Evm64/Exp/AddrNormAttr.lean` for the canonical minimal shape and
+`EvmAsm/Evm64/OPCODE_TEMPLATE.md` §2.5 for the requirement.
 
 ## runBlock
 
