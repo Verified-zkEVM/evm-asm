@@ -67,6 +67,12 @@ abbrev loopBodyOff  : Word :=  448
     Sub-offset relative to the loopBody block (= loopBodyOff + 280, i.e. 70
     instructions into the loop body). -/
 abbrev correctionSkipBeqOff : Word :=  728
+/-- Offset of the correction-addback sub-block entry inside `divK_loopBody`.
+    Entry PC of the `divK_sub_carry` snippet that runs the carry/borrow path
+    used by mulsub correction (the start of the addback-correction path,
+    66 instructions into the loop body). Sub-offset relative to the loopBody
+    block (= loopBodyOff + 264). -/
+abbrev correctionAddbackOff : Word :=  712
 /-- Offset of the addback-skip BEQ sub-block inside `divK_loopBody`.
     Entry PC of the `BEQ x7, x0, +4` instruction that branches over the
     addback fixup (executed when the trial-quotient `q̂` did NOT overshoot,
@@ -143,6 +149,10 @@ example : storeLoopOff = loopBodyOff + 436 := by decide
     `divK_loopBody`). The mulsub correction-skip BEQ sits 70 instructions
     into the loop body. -/
 example : correctionSkipBeqOff = loopBodyOff + 280 := by decide
+/-- correctionAddbackOff = loopBodyOff + 264 (sub-block offset within
+    `divK_loopBody`). The correction-addback path (sub-carry snippet entry)
+    sits 66 instructions into the loop body. -/
+example : correctionAddbackOff = loopBodyOff + 264 := by decide
 /-- epilogueOff = denormOff + 4 · |divK_denorm|. -/
 example : epilogueOff = denormOff + 4 * divK_denorm.length := by decide
 /-- zeroPathOff = epilogueOff + 4 · |divK_div_epilogue 24|
