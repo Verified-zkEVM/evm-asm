@@ -63,13 +63,12 @@ private theorem clz_init_sub_mod {base : Word} :
         base + clzOff + BitVec.ofNat 64 (4 * 0) from by bv_addr] at h))
 
 -- Address lemmas for CLZ stages (reused from CLZ.lean, but those are private so we redefine)
-private theorem mod_clz_addr0 {base : Word} : (base + clzOff : Word) + 4 = base + 120 := by bv_addr
-private theorem mod_clz_addr1 {base : Word} : (base + 120 : Word) + 16 = base + 136 := by bv_addr
-private theorem mod_clz_addr2 {base : Word} : (base + 136 : Word) + 16 = base + 152 := by bv_addr
-private theorem mod_clz_addr3 {base : Word} : (base + 152 : Word) + 16 = base + 168 := by bv_addr
-private theorem mod_clz_addr4 {base : Word} : (base + 168 : Word) + 16 = base + 184 := by bv_addr
-private theorem mod_clz_addr5 {base : Word} : (base + 184 : Word) + 16 = base + 200 := by bv_addr
-private theorem mod_clz_addr6 {base : Word} : (base + 200 : Word) + 12 = base + phaseC2Off := by bv_addr
+private theorem mod_clz_addr1 {base : Word} : (base + clzOff + 4 : Word) + 16 = base + clzOff + 20 := by bv_addr
+private theorem mod_clz_addr2 {base : Word} : (base + clzOff + 20 : Word) + 16 = base + clzOff + 36 := by bv_addr
+private theorem mod_clz_addr3 {base : Word} : (base + clzOff + 36 : Word) + 16 = base + clzOff + 52 := by bv_addr
+private theorem mod_clz_addr4 {base : Word} : (base + clzOff + 52 : Word) + 16 = base + clzOff + 68 := by bv_addr
+private theorem mod_clz_addr5 {base : Word} : (base + clzOff + 68 : Word) + 16 = base + clzOff + 84 := by bv_addr
+private theorem mod_clz_addr6 {base : Word} : (base + clzOff + 84 : Word) + 12 = base + phaseC2Off := by bv_addr
 
 /-- Combined CLZ stage: handles both taken and ntaken with conditional postcondition.
     (Reused from CLZ.lean — the stage specs are code-generic, only subsumption differs.) -/
@@ -122,10 +121,9 @@ theorem mod_clz_spec_within (val v6Old v7Old : Word) (base : Word) :
       ((.x5 ↦ᵣ (clzResult val).2) ** (.x6 ↦ᵣ (clzResult val).1) **
        (.x7 ↦ᵣ (clzResult val).2 >>> (63 : Nat)) ** (.x0 ↦ᵣ (0 : Word))) := by
   unfold clzResult
-  -- 0. Init: ADDI x6 x0 0 (base+116 -> base+120)
+  -- 0. Init: ADDI x6 x0 0 (base+116 -> base+clzOff+4)
   have I := divK_clz_init_spec_within v6Old (base + clzOff)
   have Ie := cpsTripleWithin_extend_code (hmono := clz_init_sub_mod) I
-  rw [mod_clz_addr0] at Ie
   -- Frame init with x5, x7
   have Ief := cpsTripleWithin_frameR
     ((.x5 ↦ᵣ val) ** (.x7 ↦ᵣ v7Old)) (by pcFree) Ie
@@ -135,7 +133,7 @@ theorem mod_clz_spec_within (val v6Old v7Old : Word) (base : Word) :
   dsimp only [] at S0
   have S0e := cpsTripleWithin_extend_code (hmono := clz_stage_sub_mod 32 32 32 1
     (by decide) (by decide) (by decide)) S0
-  rw [show (base + clzOff : Word) + BitVec.ofNat 64 (4 * 1) = base + 120 from by bv_addr] at S0e
+  rw [show (base + clzOff : Word) + BitVec.ofNat 64 (4 * 1) = base + clzOff + 4 from by bv_addr] at S0e
   rw [mod_clz_addr1] at S0e
   seqFrame Ief S0e
   -- Abbreviations for stage 0 results
@@ -148,7 +146,7 @@ theorem mod_clz_spec_within (val v6Old v7Old : Word) (base : Word) :
   dsimp only [] at S1
   have S1e := cpsTripleWithin_extend_code (hmono := clz_stage_sub_mod 48 16 16 5
     (by decide) (by decide) (by decide)) S1
-  rw [show (base + clzOff : Word) + BitVec.ofNat 64 (4 * 5) = base + 136 from by bv_addr] at S1e
+  rw [show (base + clzOff : Word) + BitVec.ofNat 64 (4 * 5) = base + clzOff + 20 from by bv_addr] at S1e
   rw [mod_clz_addr2] at S1e
   seqFrame IefS0e S1e
   -- Stage 2: K=56, M_s=8, M_a=8 (base+152 -> base+168)
@@ -159,7 +157,7 @@ theorem mod_clz_spec_within (val v6Old v7Old : Word) (base : Word) :
   dsimp only [] at S2
   have S2e := cpsTripleWithin_extend_code (hmono := clz_stage_sub_mod 56 8 8 9
     (by decide) (by decide) (by decide)) S2
-  rw [show (base + clzOff : Word) + BitVec.ofNat 64 (4 * 9) = base + 152 from by bv_addr] at S2e
+  rw [show (base + clzOff : Word) + BitVec.ofNat 64 (4 * 9) = base + clzOff + 36 from by bv_addr] at S2e
   rw [mod_clz_addr3] at S2e
   seqFrame IefS0eS1e S2e
   -- Stage 3: K=60, M_s=4, M_a=4 (base+168 -> base+184)
@@ -170,7 +168,7 @@ theorem mod_clz_spec_within (val v6Old v7Old : Word) (base : Word) :
   dsimp only [] at S3
   have S3e := cpsTripleWithin_extend_code (hmono := clz_stage_sub_mod 60 4 4 13
     (by decide) (by decide) (by decide)) S3
-  rw [show (base + clzOff : Word) + BitVec.ofNat 64 (4 * 13) = base + 168 from by bv_addr] at S3e
+  rw [show (base + clzOff : Word) + BitVec.ofNat 64 (4 * 13) = base + clzOff + 52 from by bv_addr] at S3e
   rw [mod_clz_addr4] at S3e
   seqFrame IefS0eS1eS2e S3e
   -- Stage 4: K=62, M_s=2, M_a=2 (base+184 -> base+200)
@@ -181,7 +179,7 @@ theorem mod_clz_spec_within (val v6Old v7Old : Word) (base : Word) :
   dsimp only [] at S4
   have S4e := cpsTripleWithin_extend_code (hmono := clz_stage_sub_mod 62 2 2 17
     (by decide) (by decide) (by decide)) S4
-  rw [show (base + clzOff : Word) + BitVec.ofNat 64 (4 * 17) = base + 184 from by bv_addr] at S4e
+  rw [show (base + clzOff : Word) + BitVec.ofNat 64 (4 * 17) = base + clzOff + 68 from by bv_addr] at S4e
   rw [mod_clz_addr5] at S4e
   seqFrame IefS0eS1eS2eS3e S4e
   -- Stage 5 (last): K=63 (base+200 -> base+212)
@@ -192,7 +190,7 @@ theorem mod_clz_spec_within (val v6Old v7Old : Word) (base : Word) :
   dsimp only [] at S5
   have S5e := cpsTripleWithin_extend_code (hmono := clz_last_sub_mod 21
     (by decide) (by decide) (by decide)) S5
-  rw [show (base + clzOff : Word) + BitVec.ofNat 64 (4 * 21) = base + 200 from by bv_addr] at S5e
+  rw [show (base + clzOff : Word) + BitVec.ofNat 64 (4 * 21) = base + clzOff + 84 from by bv_addr] at S5e
   rw [mod_clz_addr6] at S5e
   seqFrame IefS0eS1eS2eS3eS4e S5e
   -- Final permutation
