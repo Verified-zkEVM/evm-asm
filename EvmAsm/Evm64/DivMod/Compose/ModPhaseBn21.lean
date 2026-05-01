@@ -50,7 +50,7 @@ theorem evm_mod_phaseB_n2_spec_within (sp base : Word)
      ((sp + signExtend12 3984) ↦ₘ nMem))
     (by pcFree) hinit1
   -- ---- init2 (base+60 → base+68)
-  have hinit2_raw := divK_phaseB_init2_spec_within sp (base + 60) b1 b2 v6 v7
+  have hinit2_raw := divK_phaseB_init2_spec_within sp (base + phaseBInit2Off) b1 b2 v6 v7
   simp only [mod_phB_i2_8] at hinit2_raw
   have hinit2 := cpsTripleWithin_extend_code divK_phaseB_init2_code_sub_modCode hinit2_raw
   have hinit2f := cpsTripleWithin_frameR
@@ -115,8 +115,8 @@ theorem evm_mod_phaseB_n2_spec_within (sp base : Word)
   have h12345 := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h1234 haddi1f
   -- ---- Cascade step 1: BNE x7 ntaken (base+80 → base+84, b2=0)
-  have hbne1_raw := bne_spec_gen_within .x7 .x0 16 b2 (0 : Word) (base + 80)
-  rw [show (base + 80 : Word) + signExtend13 16 = base + phaseBTailOff from by rv64_addr,
+  have hbne1_raw := bne_spec_gen_within .x7 .x0 16 b2 (0 : Word) (base + phaseBBne2Off)
+  rw [show (base + phaseBBne2Off : Word) + signExtend13 16 = base + phaseBTailOff from by rv64_addr,
       mod_phB_step1_8] at hbne1_raw
   have hbne1_clean := cpsBranchWithin_ntakenStripPure2 hbne1_raw
     (fun hp hQt => by
@@ -221,7 +221,7 @@ theorem evm_mod_phaseB_n1_spec_within (sp base : Word)
      ((sp + signExtend12 3984) ↦ₘ nMem))
     (by pcFree) hinit1
   -- ---- init2 (base+60 → base+68)
-  have hinit2_raw := divK_phaseB_init2_spec_within sp (base + 60) b1 b2 v6 v7
+  have hinit2_raw := divK_phaseB_init2_spec_within sp (base + phaseBInit2Off) b1 b2 v6 v7
   simp only [mod_phB_i2_8] at hinit2_raw
   have hinit2 := cpsTripleWithin_extend_code divK_phaseB_init2_code_sub_modCode hinit2_raw
   have hinit2f := cpsTripleWithin_frameR
@@ -286,8 +286,8 @@ theorem evm_mod_phaseB_n1_spec_within (sp base : Word)
   have h12345 := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h1234 haddi1f
   -- ---- Cascade step 1: BNE x7 ntaken (base+80 → base+84, b2=0)
-  have hbne1_raw := bne_spec_gen_within .x7 .x0 16 b2 (0 : Word) (base + 80)
-  rw [show (base + 80 : Word) + signExtend13 16 = base + phaseBTailOff from by rv64_addr,
+  have hbne1_raw := bne_spec_gen_within .x7 .x0 16 b2 (0 : Word) (base + phaseBBne2Off)
+  rw [show (base + phaseBBne2Off : Word) + signExtend13 16 = base + phaseBTailOff from by rv64_addr,
       mod_phB_step1_8] at hbne1_raw
   have hbne1_clean := cpsBranchWithin_ntakenStripPure2 hbne1_raw
     (fun hp hQt => by
