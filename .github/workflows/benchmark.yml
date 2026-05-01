@@ -226,3 +226,105 @@ jobs:
             cache_get.log
           if-no-files-found: warn
           retention-days: 90
+
+  # Per-module timing via lakeprof (https://github.com/Kha/lakeprof).
+  # Independent of `benchmark` so a lakeprof break never gates the wall/RSS
+  # metric. Same trigger; appends `kind=lakeprof` records to
+  # `benchmark-history`. See docs/949-lakeprof-design.md (#949 follow-up).
+  lakeprof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    env:
+      LAKEPROF_TOP_N: '20'
+
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: leanprover/lean-action@v1
+        with:
+          use-mathlib-cache: true
+          use-github-cache: false
+          lake-package-directory: .
+          # We run our own build via `lakeprof record`.
+          build: "false"
+
+      - name: Mathlib cache get
+        run: lake exe cache get
+
+      - name: Install uv (for uvx)
+        uses: astral-sh/setup-uv@v3
+
+      - name: lakeprof record
+        id: record
+        run: |
+          set -o pipefail
+          uvx --from git+https://github.com/Kha/lakeprof \
+            lakeprof record -o lakeprof.log lake build 2>&1 | tee lakeprof.record.log
+
+      - name: lakeprof report (chrome-trace + crit-path)
+        id: report
+        if: steps.record.outcome == 'success'
+        run: |
+          set -o pipefail
+          uvx --from git+https://github.com/Kha/lakeprof \
+            lakeprof report \
+              -i lakeprof.log \
+              --save-chrome-trace lakeprof.trace.json \
+              --print-crit-path \
+              --print-avg-crit \
+              2>&1 | tee lakeprof.report.txt
+
+      - name: Extract top-N
+        id: topn
+        if: steps.report.outcome == 'success'
+        run: |
+          python3 .github/workflows/scripts/lakeprof_topn.py \
+            --in lakeprof.trace.json \
+            --out lakeprof.topn.json \
+            --n "${LAKEPROF_TOP_N}"
+
+      - name: Write job summary
+        if: always()
+        run: |
+          {
+            echo "## lakeprof top-${LAKEPROF_TOP_N} slowest modules"
+            echo
+            echo "| field      | value |"
+            echo "|------------|-------|"
+            echo "| commit     | \`${GITHUB_SHA}\` |"
+            echo "| ref        | \`${GITHUB_REF}\` |"
+            echo "| trigger    | ${GITHUB_EVENT_NAME} |"
+            echo "| timestamp  | $(date -u +%Y-%m-%dT%H:%M:%SZ) |"
+            if [ -f lakeprof.topn.json ]; then
+              python3 .github/workflows/scripts/lakeprof_md.py \
+                --in lakeprof.topn.json
+            else
+              echo
+              echo "_lakeprof did not produce a top-N file (record/report failed)._"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Append top-modules to benchmark-history
+        if: steps.topn.outcome == 'success'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LAKEPROF_TOPN_JSON: lakeprof.topn.json
+        run: bash .github/workflows/scripts/lakeprof_append.sh
+
+      - name: Upload lakeprof artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lakeprof-${{ github.run_id }}
+          path: |
+            lakeprof.log
+            lakeprof.trace.json
+            lakeprof.report.txt
+            lakeprof.record.log
+            lakeprof.topn.json
+          if-no-files-found: warn
+          retention-days: 90
