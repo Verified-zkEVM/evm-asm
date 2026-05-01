@@ -1,105 +1,99 @@
-# #1075 spurious-parens audit (slice 1)
+# 1075 spurious-parens audit (slice 1)
 
-Audit of remaining spurious single-symbol parentheses across `EvmAsm/`,
-classifying findings into:
+GH issue: [#1075](https://github.com/Verified-zkEVM/evm-asm/issues/1075).
 
-- (a) **safe-to-strip** in expressions
-- (b) **intentional** (precedence in tactic blocks, ascription, polymorphic
-  literals where parens disambiguate)
-- (c) **inside string/doc comments** — out of scope
+This is the audit slice for [`evm-asm-wxaj`](https://github.com/Verified-zkEVM/evm-asm/issues/1075):
+classify single-symbol parenthesizations across `EvmAsm/` so the cleanup
+slice (`evm-asm-y7uu`) only touches the safe-to-strip ones.
 
-No code changes in this slice. Slice 2 (`evm-asm-y7uu`) will land the first
-cleanup PR for category (a). All counts below are `lake build` green at
-`origin/main`.
+## Method
 
-## Methodology
+Regex sweep over all `.lean` under `EvmAsm/` (390 files) for two patterns,
+after stripping `/- ... -/`, `--`, and `"..."` (so hits inside doc comments
+or string literals are excluded):
 
-`rg -P` regex sweep across `EvmAsm/`, then manual filter for code-only
-matches (drop lines starting with `--` or inside `/-- ... -/`). Patterns
-that returned zero code matches are noted as "exhausted" — the parent
-sweep tracked at `evm-asm-d2p0` has already drained them via PRs
-#1144 / #1424 / #1425 / #1426 / #1475 / #1478.
+  - `\(([A-Za-z_][A-Za-z0-9_']*)\)` — paren around a bare identifier
+  - `\(([0-9]+)\)`                 — paren around a bare numeric literal
 
-## Patterns surveyed
+A line is then classified as *intentional* (paren is required syntax) when
+it begins with one of: `open`, `export`, `namespace`, `attribute`,
+`notation`, `infixl/r`, `prefix`, `postfix`, `syntax`, `macro`, `elab`,
+`initialize`, `instance`, `abbrev`, `deriving`, `protected`, `private`.
 
-| Pattern | Code matches | Disposition |
-|---|---|---|
-| `apply\|exact\|refine \(ident\)` (sole-arg paren) | 0 | (exhausted) |
-| `[\(ident\),`/`[\(ident\)]` simp-list paren | 0 | (exhausted) |
-| `at \(ident\)` | 0 | (exhausted) |
-| `:= \(ident\)$` | 0 | (exhausted) |
-| `from \(ident\)` | 0 | (exhausted) |
-| `← \(ident\)` rewrite | 0 | (exhausted) |
-| `, \(ident\) [,⟩\]]` (list/tuple) | 0 | (exhausted) |
-| `⟨\(ident\),` anon constructor | 0 | (exhausted) |
-| `\(QualifiedName\).proj` (paren-then-projection) | **21** | **(a) safe-to-strip** |
-| `\([0-9]+\)` paren-around-numeric-literal | ~111 (mostly comments / `O(1)` / `(0)` after `<<<` shift index where ascription matters) | (b) intentional / (c) comment |
-| `\(ident\)` standalone EOL | ~179 raw, dominated by comments / closure parens | (c) comment-heavy — defer |
+Script: ad-hoc Python under `/tmp/parens_audit.json` (not committed).
 
-## Category (a) — safe-to-strip findings
+Counts (as of `origin/main` at this audit):
 
-Pattern: `(QualifiedName).proj` where `QualifiedName` is a single
-fully-qualified identifier (no internal whitespace, operators, or
-arguments) and `.proj` is one of `mp`, `mpr`, `symm`, `left`, `right`,
-`elim`, `out`, `trans`. Field-projection precedence is higher than
-juxtaposition, so the parens are redundant; dropping them does not change
-parse. All 21 lines below were verified to fit this shape.
+| pattern   | total | safe-candidates | intentional/syntax |
+|-----------|-------|-----------------|---------------------|
+| `(ident)` |   64  |        5        |         59          |
+| `(num)`   |    9  |        9        |          0          |
+
+## Bucket A — safe-to-strip (9 hits, 4 files)
+
+All numeric: `cpsTripleWithin (21)` / `cpsTripleWithin (8)` where the
+parenthesized literal is just a function argument and reads identically
+without the parens. Removing them is a pure whitespace change.
 
 ```
-EvmAsm/Evm64/EvmWordArith/MaxTrialVacuity.lean:190:  exact (EvmWord.ult_iff).mpr h_lt
-EvmAsm/Evm64/EvmWordArith/KnuthTheoremB.lean:342:  exact (EvmWord.ult_iff).mp h
-EvmAsm/Evm64/EvmWordArith/KnuthTheoremB.lean:851:    (EvmWord.ult_iff).mp h_check
-EvmAsm/Evm64/DivMod/LoopDefs/IterV4InvariantsHelpers.lean:383:    rcases (Nat.div_eq_zero_iff).mp h_div_zero with h | h
-EvmAsm/Evm64/DivMod/LoopDefs/IterV4InvariantsHelpers.lean:618:    rcases (Nat.div_eq_zero_iff).mp h_div_zero with h | h
-EvmAsm/Evm64/DivMod/SpecCallShift0.lean:80:    (EvmWord.ne_zero_iff_getLimbN_or).mp hbnz
-EvmAsm/Evm64/DivMod/SpecCallShift0.lean:245:    (EvmWord.ne_zero_iff_getLimbN_or).mp hbnz
-EvmAsm/Evm64/DivMod/SpecCallShift0.lean:434:    (EvmWord.ne_zero_iff_getLimbN_or).mp hbnz
-EvmAsm/Evm64/DivMod/Shift0AddbackMod.lean:173:    (EvmWord.ne_zero_iff_getLimbN_or).mp hbnz
-EvmAsm/Evm64/DivMod/Shift0AddbackMod.lean:280:    (EvmWord.ne_zero_iff_getLimbN_or).mp hbnz
-EvmAsm/Evm64/DivMod/Spec/Base.lean:755:    (EvmWord.ne_zero_iff_getLimbN_or).mp hbnz
-EvmAsm/Evm64/DivMod/Spec/Base.lean:854:    (EvmWord.ne_zero_iff_getLimbN_or).mp hbnz
-EvmAsm/Evm64/DivMod/Spec/Base.lean:1037:    (EvmWord.ne_zero_iff_getLimbN_or).mp hbnz
-EvmAsm/Evm64/DivMod/Spec/CallSkip.lean:264:    (EvmWord.ne_zero_iff_getLimbN_or).mp hbnz
-EvmAsm/Evm64/DivMod/Spec/CallSkip.lean:340:    (EvmWord.ne_zero_iff_getLimbN_or).mp hbnz
-EvmAsm/Evm64/DivMod/Spec/CallSkip.lean:426:    (EvmWord.ne_zero_iff_getLimbN_or).mp hbnz
-EvmAsm/Evm64/DivMod/Spec/CallSkip.lean:509:    (EvmWord.ne_zero_iff_getLimbN_or).mp hbnz
-EvmAsm/Evm64/DivMod/Spec/CallSkip.lean:605:    (EvmWord.ne_zero_iff_getLimbN_or).mp hbnz
-EvmAsm/Evm64/DivMod/Spec/CallSkip.lean:678:    (EvmWord.ne_zero_iff_getLimbN_or).mp hbnz
-EvmAsm/Evm64/DivMod/Spec/CallSkip.lean:775:    (EvmWord.ne_zero_iff_getLimbN_or).mp hbnz
-EvmAsm/Evm64/DivMod/Spec/CallSkip.lean:846:    (EvmWord.ne_zero_iff_getLimbN_or).mp hbnz
+EvmAsm/Evm64/DivMod/Compose/ModPhaseBn3.lean:25      (21)
+EvmAsm/Evm64/DivMod/Compose/PhaseAB.lean:214         (8)
+EvmAsm/Evm64/DivMod/Compose/PhaseAB.lean:253         (21)
+EvmAsm/Evm64/DivMod/Compose/PhaseAB.lean:491         (21)
+EvmAsm/Evm64/DivMod/Compose/PhaseAB.lean:626         (21)
+EvmAsm/Evm64/DivMod/Compose/PhaseAB.lean:796         (21)
+EvmAsm/Evm64/DivMod/Compose/ModPhaseB.lean:119       (21)
+EvmAsm/Evm64/DivMod/Compose/ModPhaseBn21.lean:26     (21)
+EvmAsm/Evm64/DivMod/Compose/ModPhaseBn21.lean:197    (21)
 ```
 
-Recommended slice-2 PR: rewrite all 21 occurrences as
-`QualifiedName.proj args` (drop only the outer parens; preserve everything
-else). Diff is purely whitespace + 2 chars per line × 21 lines, ≤ 30 fixes
-cap from the slice-2 description. `lake build` green expected with no
-proof body changes.
+These are the targets for slice 2 (`evm-asm-y7uu`).
 
-## Category (b) — intentional (do NOT touch)
+## Bucket B — intentional / risky (64 hits)
 
-- `\(0\)` / `\(1\)` after `<<<`, `>>>`, `^` — the parens often act as type
-  hints for polymorphic literal disambiguation in `BitVec`/`Word` shift
-  expressions (e.g. `(1 : Word) <<< (3 : BitVec 6).toNat`). Some "bare"
-  numeric-paren matches are subtly load-bearing here; do not bulk-strip.
-- `O(1)`, `O(n)` etc. inside doc comments — out of scope.
-- `Tactics/SeqFrame.lean` macro `$(...)` antiquotation parens — required
-  by the macro-elaborator grammar.
-- Type-ascription parens like `(x : Foo)` — single-symbol body, but parens
-  are required to attach the ascription.
+### B1. `open Foo (name)` — required syntax (59 hits)
 
-## Category (c) — inside string / doc comments
+`open` with an explicit identifier list uses `( ... )` as part of the
+declaration grammar. Removing the parens is a syntax error. Examples:
 
-Skipped entirely. The bulk of the remaining `\([0-9]+\)` and trailing
-`\(ident\)` matches live in `/-- ... -/` doc comments (register banks,
-ABI tables, RLP-phase comments) where the parens are part of human-prose
-formatting (e.g. `x10 (a0)`, `selfBalance (EvmWord)`, `(reserved)`).
-Stripping these has no semantic effect but also no semantic gain, and
-risks reflowing tables. Out of scope for this sweep.
+```
+open EvmAsm.Rv64.AddrNorm (word_add_zero)
+open EvmWord (val256)
+open EvmAsm.Evm64.DivMod.AddrNorm (jpred_1)
+```
 
-## Status
+These were flagged because the contents are a single identifier; they
+should NOT be touched.
 
-Parent sweep `evm-asm-d2p0` (#1075) has already drained patterns A–H via
-the merged batches above. This audit identifies one remaining safe
-category — paren-then-projection — with **21 occurrences** ready for
-slice-2 cleanup. No further audit slices needed unless a new spurious
-pattern appears in future refactorings.
+### B2. Macro antiquotation `$(ident)` (5 hits)
+
+In `EvmAsm/Rv64/Tactics/SeqFrame.lean` and `RunBlock.lean`, the form
+`$(n1Stx)` / `$(s)` appears inside `Tactic`/`MetaM` quotation blocks.
+Although `$x` and `$(x)` parse equivalently for a bare ident inside a
+splice, conservatively leave these alone — the parenthesized form
+generalizes to compound spliced terms and the surrounding code mixes
+both forms intentionally.
+
+```
+EvmAsm/Rv64/Tactics/SeqFrame.lean:322   $(n1Stx)  $(n2Stx)
+EvmAsm/Rv64/Tactics/SeqFrame.lean:375   $(n2Stx)
+EvmAsm/Rv64/Tactics/SeqFrame.lean:395   $(n1Stx)
+EvmAsm/Rv64/Tactics/RunBlock.lean:872   $(s)
+```
+
+## Bucket C — out of scope
+
+  - paren-with-type-ascription, e.g. `(0 : Word)`, `(x : Nat)` — not
+    captured by the regex (the `:` blocks the match).
+  - parenthesized binders in `def f (x : Nat)` / `theorem foo (h : P)` —
+    required syntax.
+  - parens inside `/- ... -/` and `--` comments — stripped before scan.
+
+## Recommendation
+
+Slice 2 (`evm-asm-y7uu`, ~30-fix cap) is well within budget: only 9 fixes
+are needed across 4 files, all of them removing parens around a literal
+`21` or `8` passed to `cpsTripleWithin`. After slice 2 the audit is
+empty and the parent (`evm-asm-d2p0` / GH #1075) can be closed.
+
+Authored by @pirapira; implemented by Hermes-bot (evm-hermes).
