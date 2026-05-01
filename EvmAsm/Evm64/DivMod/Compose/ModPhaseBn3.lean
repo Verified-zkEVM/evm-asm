@@ -114,8 +114,8 @@ theorem evm_mod_phaseB_n3_spec_within (sp base : Word)
   have h12345 := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h1234 haddi1f
   -- ---- Cascade step 1: BNE x7 taken (base+80 → base+96, b2≠0)
-  have hbne1_raw := bne_spec_gen_within .x7 .x0 16 b2 (0 : Word) (base + 80)
-  rw [show (base + 80 : Word) + signExtend13 16 = base + phaseBTailOff from by rv64_addr,
+  have hbne1_raw := bne_spec_gen_within .x7 .x0 16 b2 (0 : Word) (base + phaseBBne2Off)
+  rw [show (base + phaseBBne2Off : Word) + signExtend13 16 = base + phaseBTailOff from by rv64_addr,
       mod_phB_step1_8] at hbne1_raw
   have hbne1_clean := cpsBranchWithin_takenStripPure2 hbne1_raw
     (fun hp hQf => by
