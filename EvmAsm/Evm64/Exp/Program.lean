@@ -129,6 +129,37 @@ theorem exp_iter_body_length (mulOff : BitVec 21) (skipOff : BitVec 13) :
   simp only [seq, Program.length_append, exp_bit_test_block_length,
     exp_square_block_length, exp_cond_mul_block_length]
 
+-- ----------------------------------------------------------------------------
+-- Loop back edge: exp_loop_back (#92 slice 3c, beads evm-asm-46ue)
+-- ----------------------------------------------------------------------------
+--
+-- Per `docs/92-exp-survey.md` §6 ("Iteration counter via decrement-and-branch"),
+-- the 256-iteration EXP loop cannot be unrolled the way DivMod's fixed N=4
+-- outer loop is. Instead a register (provisionally `x9`) holds the remaining
+-- iteration count, initialized to 256 in the prologue and decremented at the
+-- bottom of every iteration; if it has not reached zero, the BNE jumps back
+-- to the top of `exp_iter_body`.
+--
+-- This block is purely the back edge — counter decrement + conditional
+-- backward branch. It is `;;`-appended after `exp_iter_body` to form the
+-- full body of one loop iteration. The numeric value of `backOff` (the BNE
+-- target, signed byte offset from the BNE to the top of `exp_iter_body`) is
+-- pinned once `evm_exp` is laid out in slice evm-asm-ahaz.
+
+/-- Loop back edge for the 256-iteration EXP square-and-multiply loop:
+    decrement the iteration counter `x9` and, if it has not reached zero,
+    branch back to the top of `exp_iter_body`. 2 instructions.
+
+    `backOff` is the signed branch offset from the BNE site to the top of
+    `exp_iter_body`; it is negative when the BNE is laid out below the loop
+    top, as expected. -/
+def exp_loop_back (backOff : BitVec 13) : Program :=
+  ADDI .x9 .x9 (-1) ;;
+  BNE .x9 .x0 backOff
+
+theorem exp_loop_back_length (backOff : BitVec 13) :
+    (exp_loop_back backOff).length = 2 := rfl
+
 -- Placeholder: `evm_exp : Program` lands in slice 3 (evm-asm-ahaz).
 -- See `docs/92-exp-survey.md` for the algorithm and reuse points.
 
