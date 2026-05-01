@@ -94,6 +94,26 @@ theorem n1StepConservation_remainder_lt_of_input_lt
     v0 v1 v2 u0 u1 u2 u3 uTop out h
   omega
 
+theorem n1StepExtendedRemainder_lt_of_floor_le
+    (v0 v1 v2 u0 u1 u2 u3 uTop : Word)
+    (out : Word × Word × Word × Word × Word × Word)
+    (hbnz : v0 ||| v1 ||| v2 ||| (0 : Word) ≠ 0)
+    (h : n1StepConservation v0 v1 v2 u0 u1 u2 u3 uTop out)
+    (hge : (EvmWord.val256 u0 u1 u2 u3 + uTop.toNat * 2^256) /
+        EvmWord.val256 v0 v1 v2 0 ≤ out.1.toNat) :
+    n1StepRemainderVal out + n1StepTopVal out * 2^256 <
+      EvmWord.val256 v0 v1 v2 0 := by
+  have hv_pos : 0 < EvmWord.val256 v0 v1 v2 0 :=
+    EvmWord.val256_pos_of_or_ne_zero hbnz
+  have heq : EvmWord.val256 u0 u1 u2 u3 + uTop.toNat * 2^256 =
+      out.1.toNat * EvmWord.val256 v0 v1 v2 0 +
+        (n1StepRemainderVal out + n1StepTopVal out * 2^256) := by
+    delta n1StepConservation at h
+    delta n1StepRemainderVal n1StepTopVal
+    omega
+  have ⟨_, hr_lt⟩ := EvmWord.remainder_lt_of_ge_floor hv_pos heq hge
+  exact hr_lt
+
 @[irreducible]
 def n1StepsTelescoped
     (v : Word × Word × Word × Word) (u : Word × Word × Word × Word × Word)
