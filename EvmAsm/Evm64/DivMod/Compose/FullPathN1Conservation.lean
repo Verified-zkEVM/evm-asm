@@ -129,6 +129,21 @@ def n1StepsConservationNat
   n1StepConservationNat v.1 v.2.1 v.2.2.1 u.1
     r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1 r0
 
+@[irreducible]
+def n1StepsTelescopeInput
+    (v : Word × Word × Word × Word) (u : Word × Word × Word × Word × Word)
+    (r3 r2 r1 r0 : Word × Word × Word × Word × Word × Word) : Prop :=
+  let B := 2^64
+  let V := EvmWord.val256 v.1 v.2.1 v.2.2.1 0
+  u.2.2.2.1.toNat + u.2.2.2.2.toNat * B =
+    r3.1.toNat * V + n1StepRemainderVal r3 + n1StepTopVal r3 * B^4 ∧
+  u.2.2.1.toNat + n1StepRemainderVal r3 * B =
+    r2.1.toNat * V + n1StepRemainderVal r2 + n1StepTopVal r2 * B^4 ∧
+  u.2.1.toNat + n1StepRemainderVal r2 * B =
+    r1.1.toNat * V + n1StepRemainderVal r1 + n1StepTopVal r1 * B^4 ∧
+  u.1.toNat + n1StepRemainderVal r1 * B =
+    r0.1.toNat * V + n1StepRemainderVal r0 + n1StepTopVal r0 * B^4
+
 theorem n1StepsConservationNat_of_conservation
     (v : Word × Word × Word × Word) (u : Word × Word × Word × Word × Word)
     (r3 r2 r1 r0 : Word × Word × Word × Word × Word × Word)
@@ -142,6 +157,51 @@ theorem n1StepsConservationNat_of_conservation
     n1StepConservationNat_of_conservation _ _ _ _ _ _ _ _ _ h2,
     n1StepConservationNat_of_conservation _ _ _ _ _ _ _ _ _ h1,
     n1StepConservationNat_of_conservation _ _ _ _ _ _ _ _ _ h0⟩
+
+theorem n1TelescopeInput3_of_nat
+    (v : Word × Word × Word × Word) (u : Word × Word × Word × Word × Word)
+    (r3 : Word × Word × Word × Word × Word × Word)
+    (h3 : n1StepConservationNat v.1 v.2.1 v.2.2.1
+      u.2.2.2.1 u.2.2.2.2 0 0 0 r3) :
+    let B := 2^64
+    let V := EvmWord.val256 v.1 v.2.1 v.2.2.1 0
+    u.2.2.2.1.toNat + u.2.2.2.2.toNat * B =
+      r3.1.toNat * V + n1StepRemainderVal r3 + n1StepTopVal r3 * B^4 := by
+  intro B V
+  delta n1StepConservationNat at h3
+  subst B; subst V
+  simp at h3 ⊢
+  exact h3
+
+theorem n1TelescopeInput_of_nat_remainder
+    (v0 v1 v2 u0 : Word)
+    (rin rout : Word × Word × Word × Word × Word × Word)
+    (h : n1StepConservationNat v0 v1 v2 u0
+      rin.2.1 rin.2.2.1 rin.2.2.2.1 rin.2.2.2.2.1 rout) :
+    let B := 2^64
+    let V := EvmWord.val256 v0 v1 v2 0
+    u0.toNat + n1StepRemainderVal rin * B =
+      rout.1.toNat * V + n1StepRemainderVal rout + n1StepTopVal rout * B^4 := by
+  intro B V
+  delta n1StepConservationNat at h
+  rw [n1StepRemainderVal_mul_base]
+  subst B; subst V
+  norm_num at h ⊢
+  omega
+
+theorem n1StepsTelescopeInput_of_nat_conservation
+    (v : Word × Word × Word × Word) (u : Word × Word × Word × Word × Word)
+    (r3 r2 r1 r0 : Word × Word × Word × Word × Word × Word)
+    (hsteps : n1StepsConservationNat v u r3 r2 r1 r0) :
+    n1StepsTelescopeInput v u r3 r2 r1 r0 := by
+  delta n1StepsConservationNat at hsteps
+  delta n1StepsTelescopeInput
+  rcases hsteps with ⟨h3, h2, h1, h0⟩
+  exact ⟨
+    n1TelescopeInput3_of_nat v u r3 h3,
+    n1TelescopeInput_of_nat_remainder v.1 v.2.1 v.2.2.1 u.2.2.1 r3 r2 h2,
+    n1TelescopeInput_of_nat_remainder v.1 v.2.1 v.2.2.1 u.2.1 r2 r1 h1,
+    n1TelescopeInput_of_nat_remainder v.1 v.2.1 v.2.2.1 u.1 r1 r0 h0⟩
 
 theorem n1NatStepConservation_telescope
     {B V q3 q2 q1 q0 rem3 rem2 rem1 rem0 top3 top2 top1 top0
@@ -158,6 +218,35 @@ theorem n1NatStepConservation_telescope
   have H1 := congrArg (fun x => x * B) h1
   ring_nf at H3 H2 H1 h0 ⊢
   nlinarith
+
+theorem n1StepsTelescoped_of_telescopeInput
+    (v : Word × Word × Word × Word) (u : Word × Word × Word × Word × Word)
+    (r3 r2 r1 r0 : Word × Word × Word × Word × Word × Word)
+    (hinput : n1StepsTelescopeInput v u r3 r2 r1 r0) :
+    n1StepsTelescoped v u r3 r2 r1 r0 := by
+  delta n1StepsTelescopeInput at hinput
+  delta n1StepsTelescoped n1StepsCarryVal
+  rcases hinput with ⟨h3, h2, h1, h0⟩
+  have ht := n1NatStepConservation_telescope h3 h2 h1 h0
+  unfold EvmWord.val256 at ht ⊢
+  ring_nf at ht ⊢
+  exact ht
+
+theorem n1StepsTelescoped_of_nat_conservation
+    (v : Word × Word × Word × Word) (u : Word × Word × Word × Word × Word)
+    (r3 r2 r1 r0 : Word × Word × Word × Word × Word × Word)
+    (hsteps : n1StepsConservationNat v u r3 r2 r1 r0) :
+    n1StepsTelescoped v u r3 r2 r1 r0 :=
+  n1StepsTelescoped_of_telescopeInput v u r3 r2 r1 r0
+    (n1StepsTelescopeInput_of_nat_conservation v u r3 r2 r1 r0 hsteps)
+
+theorem n1StepsTelescoped_of_conservation
+    (v : Word × Word × Word × Word) (u : Word × Word × Word × Word × Word)
+    (r3 r2 r1 r0 : Word × Word × Word × Word × Word × Word)
+    (hsteps : n1StepsConservation v u r3 r2 r1 r0) :
+    n1StepsTelescoped v u r3 r2 r1 r0 :=
+  n1StepsTelescoped_of_nat_conservation v u r3 r2 r1 r0
+    (n1StepsConservationNat_of_conservation v u r3 r2 r1 r0 hsteps)
 
 @[irreducible]
 def fullDivN1StepsConservation
@@ -375,5 +464,40 @@ theorem fullDivN1StepsConservation_of_runtime
       bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3 hb1z hb2z hb3z hbnz hcarry2
   · exact fullDivN1R0_step_conservation
       bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3 hb1z hb2z hb3z hbnz hcarry2
+
+theorem fullDivN1StepsTelescoped_of_conservation
+    (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hsteps : fullDivN1StepsConservation bltu_3 bltu_2 bltu_1 bltu_0
+      a0 a1 a2 a3 b0 b1 b2 b3) :
+    fullDivN1StepsTelescoped bltu_3 bltu_2 bltu_1 bltu_0
+      a0 a1 a2 a3 b0 b1 b2 b3 := by
+  delta fullDivN1StepsConservation at hsteps
+  delta fullDivN1StepsTelescoped
+  exact n1StepsTelescoped_of_conservation
+    (fullDivN1NormV b0 b1 b2 b3)
+    (fullDivN1NormU a0 a1 a2 a3 b0)
+    (fullDivN1R3 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3)
+    (fullDivN1R2 bltu_3 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3)
+    (fullDivN1R1 bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3)
+    (fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3)
+    hsteps
+
+theorem fullDivN1StepsTelescoped_of_runtime
+    (bltu_3 bltu_2 bltu_1 bltu_0 : Bool) (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hcarry2 : Carry2NzAll
+      (fullDivN1NormV b0 b1 b2 b3).1
+      (fullDivN1NormV b0 b1 b2 b3).2.1
+      (fullDivN1NormV b0 b1 b2 b3).2.2.1
+      (fullDivN1NormV b0 b1 b2 b3).2.2.2) :
+    fullDivN1StepsTelescoped bltu_3 bltu_2 bltu_1 bltu_0
+      a0 a1 a2 a3 b0 b1 b2 b3 :=
+  fullDivN1StepsTelescoped_of_conservation
+    bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3
+    (fullDivN1StepsConservation_of_runtime
+      bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3
+      hb1z hb2z hb3z hbnz hcarry2)
 
 end EvmAsm.Evm64
