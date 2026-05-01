@@ -5,6 +5,7 @@
 -/
 
 import EvmAsm.Evm64.Push0.Program
+import EvmAsm.Evm64.Stack
 import EvmAsm.Rv64.SyscallSpecs
 import EvmAsm.Rv64.Tactics.XSimp
 import EvmAsm.Rv64.Tactics.RunBlock
