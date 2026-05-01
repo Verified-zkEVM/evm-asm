@@ -399,6 +399,53 @@ def fullDivN1CorrectedTrialVal_v4
   (qHat3.toNat - 2) * B^3 + (qHat2.toNat - 2) * B^2 +
     (qHat1.toNat - 2) * B + (qHat0.toNat - 2)
 
+@[irreducible]
+def fullDivN1LocalFloorVal_v4
+    (bltu_3 bltu_2 bltu_1 _bltu_0 : Bool)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Nat :=
+  let B := 2^64
+  let v := fullDivN1NormV b0 b1 b2 b3
+  let u := fullDivN1NormU a0 a1 a2 a3 b0
+  let r3 := fullDivN1R3_v4 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3
+  let r2 := fullDivN1R2_v4 bltu_3 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3
+  let r1 := fullDivN1R1_v4 bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3
+  let local3 := n1LocalFloorDigit v.1 u.2.2.2.1 u.2.2.2.2
+  let local2 := n1LocalFloorDigit v.1 u.2.2.1 r3.2.1
+  let local1 := n1LocalFloorDigit v.1 u.2.1 r2.2.1
+  let local0 := n1LocalFloorDigit v.1 u.1 r1.2.1
+  (local3 - 2) * B^3 + (local2 - 2) * B^2 + (local1 - 2) * B + (local0 - 2)
+
+theorem fullDivN1LocalFloorVal_v4_le_correctedTrialVal_v4
+    (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hbltu_3 : isTrialN1_v4_j3 bltu_3 a3 b0)
+    (hbltu_2 : isTrialN1_v4_j2 bltu_3 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3)
+    (hbltu_1 : isTrialN1_v4_j1 bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3)
+    (hbltu_0 : isTrialN1_v4_j0 bltu_3 bltu_2 bltu_1 bltu_0
+      a0 a1 a2 a3 b0 b1 b2 b3) :
+    fullDivN1LocalFloorVal_v4 bltu_3 bltu_2 bltu_1 bltu_0
+        a0 a1 a2 a3 b0 b1 b2 b3 ≤
+      fullDivN1CorrectedTrialVal_v4 bltu_3 bltu_2 bltu_1 bltu_0
+        a0 a1 a2 a3 b0 b1 b2 b3 := by
+  have h3 := fullDivN1R3_v4_rawTrial_ge_local_digit
+    bltu_3 a0 a1 a2 a3 b0 b1 b2 b3 hb1z hb2z hb3z hbnz hbltu_3
+  have h2 := fullDivN1R2_v4_rawTrial_ge_local_digit
+    bltu_3 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3 hb1z hb2z hb3z hbnz hbltu_2
+  have h1 := fullDivN1R1_v4_rawTrial_ge_local_digit
+    bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3 hb1z hb2z hb3z hbnz hbltu_1
+  have h0 := fullDivN1R0_v4_rawTrial_ge_local_digit
+    bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3
+    hb1z hb2z hb3z hbnz hbltu_0
+  have h3' := Nat.sub_le_sub_right h3 2
+  have h2' := Nat.sub_le_sub_right h2 2
+  have h1' := Nat.sub_le_sub_right h1 2
+  have h0' := Nat.sub_le_sub_right h0 2
+  delta fullDivN1LocalFloorVal_v4 fullDivN1CorrectedTrialVal_v4
+  simp only [] at h3' h2' h1' h0' ⊢
+  nlinarith [h3', h2', h1', h0']
+
 theorem fullDivN1CorrectedTrialVal_v4_le_quotientVal_v4
     (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
     (a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
