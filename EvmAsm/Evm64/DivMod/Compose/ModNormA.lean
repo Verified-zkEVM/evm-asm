@@ -60,7 +60,6 @@ theorem mod_normA_full_spec_within (sp a0 a1 a2 a3 v5 v7 v10 shift antiShift : W
   -- Top: LD a[3], SRL->u[4], SD u[4] (base+312 -> base+324)
   have htop := divK_normA_top_spec_within 24 4024 sp a3 v5 v7 antiShift u4Old (base + normAOff)
   simp only [signExtend12_24] at htop
-  rw [show (base + normAOff : Word) + 12 = base + 324 from by bv_addr] at htop
   have htope := cpsTripleWithin_extend_code (hmono := fun a i h =>
     divK_normA_code_sub_modCode a i
       (CodeReq.ofProg_mono_sub (base + normAOff) (base + normAOff) (divK_normA 40)
@@ -75,12 +74,12 @@ theorem mod_normA_full_spec_within (sp a0 a1 a2 a3 v5 v7 v10 shift antiShift : W
      ((sp + signExtend12 4056) ↦ₘ u0Old))
     (by pcFree) htope
   -- MergeA 1: u[3] = (a[3]<<<shift) | (a[2]>>>anti) (base+324 -> base+344)
-  have hma1 := divK_normA_mergeA_spec_within 16 4032 sp a3 a2 u4 v10 shift antiShift u3Old (base + 324)
+  have hma1 := divK_normA_mergeA_spec_within 16 4032 sp a3 a2 u4 v10 shift antiShift u3Old (base + normAOff + 12)
   simp only [signExtend12_16] at hma1
-  rw [show (base + 324 : Word) + 20 = base + 344 from by bv_addr] at hma1
+  rw [show (base + normAOff + 12 : Word) + 20 = base + normAOff + 32 from by bv_addr] at hma1
   have hma1e := cpsTripleWithin_extend_code (hmono := fun a i h =>
     divK_normA_code_sub_modCode a i
-      (CodeReq.ofProg_mono_sub (base + normAOff) (base + 324) (divK_normA 40)
+      (CodeReq.ofProg_mono_sub (base + normAOff) (base + normAOff + 12) (divK_normA 40)
         (divK_normA_mergeA_prog 16 4032) 3
         (by bv_addr) (by decide) (by decide) (by decide) a i h)) hma1
   have hma1ef := cpsTripleWithin_frameR
@@ -93,12 +92,12 @@ theorem mod_normA_full_spec_within (sp a0 a1 a2 a3 v5 v7 v10 shift antiShift : W
     (fun h hp => by xperm_hyp hp) htopef hma1ef
   -- MergeB: u[2] = (a[2]<<<shift) | (a[1]>>>anti) (base+344 -> base+364)
   have hmb := divK_normA_mergeB_spec_within 8 4040 sp a2 a1 u3 (a2 >>> (antiShift.toNat % 64))
-    shift antiShift u2Old (base + 344)
+    shift antiShift u2Old (base + normAOff + 32)
   simp only [signExtend12_8] at hmb
-  rw [show (base + 344 : Word) + 20 = base + 364 from by bv_addr] at hmb
+  rw [show (base + normAOff + 32 : Word) + 20 = base + normAOff + 52 from by bv_addr] at hmb
   have hmbe := cpsTripleWithin_extend_code (hmono := fun a i h =>
     divK_normA_code_sub_modCode a i
-      (CodeReq.ofProg_mono_sub (base + normAOff) (base + 344) (divK_normA 40)
+      (CodeReq.ofProg_mono_sub (base + normAOff) (base + normAOff + 32) (divK_normA 40)
         (divK_normA_mergeB_prog 8 4040) 8
         (by bv_addr) (by decide) (by decide) (by decide) a i h)) hmb
   have hmbef := cpsTripleWithin_frameR
@@ -110,12 +109,12 @@ theorem mod_normA_full_spec_within (sp a0 a1 a2 a3 v5 v7 v10 shift antiShift : W
     (fun h hp => by xperm_hyp hp) h12 hmbef
   -- MergeA 2: u[1] = (a[1]<<<shift) | (a[0]>>>anti) (base+364 -> base+384)
   have hma2 := divK_normA_mergeA_spec_within 0 4048 sp a1 a0 u2 (a1 >>> (antiShift.toNat % 64))
-    shift antiShift u1Old (base + 364)
+    shift antiShift u1Old (base + normAOff + 52)
   simp only [signExtend12_0] at hma2
-  rw [show (base + 364 : Word) + 20 = base + 384 from by bv_addr] at hma2
+  rw [show (base + normAOff + 52 : Word) + 20 = base + normAOff + 72 from by bv_addr] at hma2
   have hma2e := cpsTripleWithin_extend_code (hmono := fun a i h =>
     divK_normA_code_sub_modCode a i
-      (CodeReq.ofProg_mono_sub (base + normAOff) (base + 364) (divK_normA 40)
+      (CodeReq.ofProg_mono_sub (base + normAOff) (base + normAOff + 52) (divK_normA 40)
         (divK_normA_mergeA_prog 0 4048) 13
         (by bv_addr) (by decide) (by decide) (by decide) a i h)) hma2
   have hma2ef := cpsTripleWithin_frameR
@@ -126,11 +125,11 @@ theorem mod_normA_full_spec_within (sp a0 a1 a2 a3 v5 v7 v10 shift antiShift : W
   have h1234 := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h123 hma2ef
   -- Last: u[0] = a[0]<<<shift (base+384 -> base+392)
-  have hlast := divK_normA_last_spec_within 4056 sp a0 shift u0Old (base + 384)
-  rw [show (base + 384 : Word) + 8 = base + 392 from by bv_addr] at hlast
+  have hlast := divK_normA_last_spec_within 4056 sp a0 shift u0Old (base + normAOff + 72)
+  rw [show (base + normAOff + 72 : Word) + 8 = base + normAOff + 80 from by bv_addr] at hlast
   have hlaste := cpsTripleWithin_extend_code (hmono := fun a i h =>
     divK_normA_code_sub_modCode a i
-      (CodeReq.ofProg_mono_sub (base + normAOff) (base + 384) (divK_normA 40)
+      (CodeReq.ofProg_mono_sub (base + normAOff) (base + normAOff + 72) (divK_normA 40)
         (divK_normA_last_prog 4056) 18
         (by bv_addr) (by decide) (by decide) (by decide) a i h)) hlast
   have hlastef := cpsTripleWithin_frameR
@@ -143,15 +142,15 @@ theorem mod_normA_full_spec_within (sp a0 a1 a2 a3 v5 v7 v10 shift antiShift : W
   have h12345 := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h1234 hlastef
   -- JAL x0 40 at base+392 -> base+432 (1 instruction, empAssertion pre/post)
-  have hjal := jal_x0_spec_gen_within 40 (base + 392)
-  rw [show (base + 392 : Word) + signExtend21 40 = base + loopSetupOff from by rv64_addr] at hjal
+  have hjal := jal_x0_spec_gen_within 40 (base + normAOff + 80)
+  rw [show (base + normAOff + 80 : Word) + signExtend21 40 = base + loopSetupOff from by rv64_addr] at hjal
   have hjale := cpsTripleWithin_extend_code (hmono := by
     intro a i h
     exact divK_normA_code_sub_modCode a i
       (CodeReq.singleton_mono (by
         have hlookup := CodeReq.ofProg_lookup (base + normAOff) (divK_normA 40) 20
           (by decide) (by decide)
-        rw [show (base + normAOff : Word) + BitVec.ofNat 64 (4 * 20) = base + 392 from by bv_addr]
+        rw [show (base + normAOff : Word) + BitVec.ofNat 64 (4 * 20) = base + normAOff + 80 from by bv_addr]
           at hlookup
         exact hlookup) a i h)) hjal
   -- Frame JAL with everything, then strip empAssertion via consequence
@@ -163,7 +162,7 @@ theorem mod_normA_full_spec_within (sp a0 a1 a2 a3 v5 v7 v10 shift antiShift : W
     ((sp + signExtend12 4040) ↦ₘ u2) ** ((sp + signExtend12 4048) ↦ₘ u1) **
     ((sp + signExtend12 4056) ↦ₘ u0)
   have hjalef := cpsTripleWithin_frameR postAll (by pcFree) hjale
-  have hjal_clean : cpsTripleWithin 1 (base + 392) (base + loopSetupOff) (modCode base) postAll postAll :=
+  have hjal_clean : cpsTripleWithin 1 (base + normAOff + 80) (base + loopSetupOff) (modCode base) postAll postAll :=
     cpsTripleWithin_weaken
       (fun h hp => by show (empAssertion ** postAll) h; rw [sepConj_emp_left']; exact hp)
       (fun h hp => by rw [sepConj_emp_left'] at hp; exact hp)
