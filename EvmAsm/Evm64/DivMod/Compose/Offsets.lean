@@ -25,6 +25,7 @@
     [loopSetupOff = 432] divK_loopSetup     (16 bytes)
     [loopBodyOff  = 448] divK_loopBody     (460 bytes)
       [trialCallOff = 500]  divK_loopBody trial-divide call-site (loopBodyOff + 52)
+      [trialMaxOff  = 504]  divK_loopBody divK_trial_max sub-block (trialCallOff + 4)
       [correctionSkipBeqOff = 728]  divK_loopBody mulsub-correction-skip BEQ entry (loopBodyOff + 280)
       [storeLoopOff = 884]  divK_store_qj sub-block (loopBodyOff + 436)
       [loopBackBgeOff = 904]  loop-back BGE entry (denormOff - 4 = loopBodyOff + 456)
@@ -68,6 +69,13 @@ abbrev loopBodyOff  : Word :=  448
     into `divK_div128`. Sub-offset relative to the loopBody block
     (= loopBodyOff + 52, i.e. 13 instructions into the loop body). -/
 abbrev trialCallOff : Word :=  500
+/-- Offset of the trial-quotient `divK_trial_max` sub-block inside `divK_loopBody`.
+    Entry PC of the BLT-fall-through into the "max" trial-quotient `divK_trial_max`
+    snippet (`q̂ = 2^64 - 1`) — the BLTU instruction at `trialCallOff` falls
+    through here when the high limb does NOT equal the divisor's top limb.
+    Sub-offset relative to the loopBody block (= trialCallOff + 4
+    = loopBodyOff + 56, i.e. 14 instructions into the loop body). -/
+abbrev trialMaxOff : Word :=  504
 /-- Offset of the `divK_mulsub_correction` sub-block inside `divK_loopBody`.
     Entry PC of the mulsub-correction snippet that computes
     `u[j..j+n] := u[j..j+n] − q̂ · v` (the trial-quotient subtract step in
@@ -177,6 +185,11 @@ example : correctionSkipBeqOff = loopBodyOff + 280 := by decide
 /-- trialCallOff = loopBodyOff + 52 (sub-block offset within `divK_loopBody`).
     The trial-divide call-site sits 13 instructions into the loop body. -/
 example : trialCallOff = loopBodyOff + 52 := by decide
+/-- trialMaxOff = trialCallOff + 4 (= loopBodyOff + 56, sub-block offset within
+    `divK_loopBody`). The `divK_trial_max` snippet is the BLT fall-through one
+    instruction past `trialCallOff`. -/
+example : trialMaxOff = trialCallOff + 4 := by decide
+example : trialMaxOff = loopBodyOff + 56 := by decide
 /-- mulsubOff = loopBodyOff + 88 (sub-block offset within `divK_loopBody`).
     The `divK_mulsub_correction` snippet starts 22 instructions into the loop
     body, after the trial-divide entry (~13 instructions) and the div128 call
