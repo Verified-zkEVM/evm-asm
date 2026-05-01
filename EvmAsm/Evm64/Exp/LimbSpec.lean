@@ -274,4 +274,63 @@ theorem exp_prologue_spec_within
     (24 : BitVec 12) (base + 20)
   runBlock hCounter hOne hSd0 hSd1 hSd2 hSd3
 
+-- ============================================================================
+-- Section 6: exp_epilogue (9 instructions, slice 4f / evm-asm-20z6.2)
+-- ============================================================================
+
+def exp_epilogue_code (base : Word) : CodeReq :=
+  (CodeReq.singleton base (.LD .x5 .x2 0)).union
+    ((CodeReq.singleton (base + 4) (.SD .x12 .x5 32)).union
+      ((CodeReq.singleton (base + 8) (.LD .x5 .x2 8)).union
+        ((CodeReq.singleton (base + 12) (.SD .x12 .x5 40)).union
+          ((CodeReq.singleton (base + 16) (.LD .x5 .x2 16)).union
+            ((CodeReq.singleton (base + 20) (.SD .x12 .x5 48)).union
+              ((CodeReq.singleton (base + 24) (.LD .x5 .x2 24)).union
+                ((CodeReq.singleton (base + 28) (.SD .x12 .x5 56)).union
+                  (CodeReq.singleton (base + 32) (.ADDI .x12 .x12 32)))))))))
+
+theorem exp_epilogue_spec_within
+    (sp evmSp tOld r0 r1 r2 r3 d0 d1 d2 d3 : Word) (base : Word) :
+    cpsTripleWithin 9 base (base + 36) (exp_epilogue_code base)
+      ((.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ evmSp) ** (.x5 ↦ᵣ tOld) **
+       ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ r0) **
+       ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ r1) **
+       ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ r2) **
+       ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ r3) **
+       ((evmSp + signExtend12 (32 : BitVec 12)) ↦ₘ d0) **
+       ((evmSp + signExtend12 (40 : BitVec 12)) ↦ₘ d1) **
+       ((evmSp + signExtend12 (48 : BitVec 12)) ↦ₘ d2) **
+       ((evmSp + signExtend12 (56 : BitVec 12)) ↦ₘ d3))
+      ((.x2 ↦ᵣ sp) **
+       (.x12 ↦ᵣ (evmSp + signExtend12 (32 : BitVec 12))) **
+       (.x5 ↦ᵣ r3) **
+       ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ r0) **
+       ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ r1) **
+       ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ r2) **
+       ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ r3) **
+       ((evmSp + signExtend12 (32 : BitVec 12)) ↦ₘ r0) **
+       ((evmSp + signExtend12 (40 : BitVec 12)) ↦ₘ r1) **
+       ((evmSp + signExtend12 (48 : BitVec 12)) ↦ₘ r2) **
+       ((evmSp + signExtend12 (56 : BitVec 12)) ↦ₘ r3)) := by
+  unfold exp_epilogue_code
+  have hLd0 := ld_spec_gen_within .x5 .x2 sp tOld r0
+    (0 : BitVec 12) base (by decide)
+  have hSd0 := generic_sd_spec_within .x12 .x5 evmSp r0 d0
+    (32 : BitVec 12) (base + 4)
+  have hLd1 := ld_spec_gen_within .x5 .x2 sp r0 r1
+    (8 : BitVec 12) (base + 8) (by decide)
+  have hSd1 := generic_sd_spec_within .x12 .x5 evmSp r1 d1
+    (40 : BitVec 12) (base + 12)
+  have hLd2 := ld_spec_gen_within .x5 .x2 sp r1 r2
+    (16 : BitVec 12) (base + 16) (by decide)
+  have hSd2 := generic_sd_spec_within .x12 .x5 evmSp r2 d2
+    (48 : BitVec 12) (base + 20)
+  have hLd3 := ld_spec_gen_within .x5 .x2 sp r2 r3
+    (24 : BitVec 12) (base + 24) (by decide)
+  have hSd3 := generic_sd_spec_within .x12 .x5 evmSp r3 d3
+    (56 : BitVec 12) (base + 28)
+  have hAddSp := addi_spec_gen_same_within .x12 evmSp
+    (32 : BitVec 12) (base + 32) (by decide)
+  runBlock hLd0 hSd0 hLd1 hSd1 hLd2 hSd2 hLd3 hSd3 hAddSp
+
 end EvmAsm.Evm64
