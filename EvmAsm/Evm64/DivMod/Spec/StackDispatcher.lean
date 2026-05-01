@@ -21,7 +21,7 @@ abbrev evm_div_stack_spec_within_n2Full := evm_div_n2_stack_spec_within_word_uni
 abbrev evm_div_stack_spec_within_n3Full := evm_div_n3_stack_spec_within_word_uni
 abbrev evm_div_stack_spec_within_n4Full := evm_div_n4_stack_spec_within_dispatch_uni
 
-abbrev evm_mod_stack_spec_within_bzero := evm_mod_bzero_stack_spec_within
+abbrev evm_mod_stack_spec_within_bzero := evm_mod_bzero_stack_spec_within_dispatch_uni
 abbrev evm_mod_stack_spec_within_n1Full := evm_mod_n1_stack_spec_within_word_uni
 abbrev evm_mod_stack_spec_within_n2Full := evm_mod_n2_stack_spec_within_word_uni
 abbrev evm_mod_stack_spec_within_n3Full := evm_mod_n3_stack_spec_within_word_uni
