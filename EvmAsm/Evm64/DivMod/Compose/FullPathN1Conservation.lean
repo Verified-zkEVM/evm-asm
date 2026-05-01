@@ -383,9 +383,19 @@ theorem iterWithDoubleAddback_qout_ge_sub_two
       (uTop := uTop) hb]
     simp
 
+theorem iterWithDoubleAddback_qout_ge_tsub_two
+    (q v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) :
+    let out := iterWithDoubleAddback q v0 v1 v2 v3 u0 u1 u2 u3 uTop
+    q.toNat - 2 ≤ out.1.toNat := by
+  intro out
+  by_cases hq2 : 2 ≤ q.toNat
+  · exact iterWithDoubleAddback_qout_ge_sub_two q v0 v1 v2 v3 u0 u1 u2 u3 uTop hq2
+  · have hzero : q.toNat - 2 = 0 := by omega
+    rw [hzero]
+    exact Nat.zero_le _
+
 theorem iterN1_qout_ge_trial_sub_two
-    (bltu : Bool) (v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
-    (hqCall : bltu = true → 2 ≤ (div128Quot u1 u0 v0).toNat) :
+    (bltu : Bool) (v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) :
     let qHat : Word := if bltu then div128Quot u1 u0 v0 else signExtend12 4095
     let out := iterN1 bltu v0 v1 v2 v3 u0 u1 u2 u3 uTop
     qHat.toNat - 2 ≤ out.1.toNat := by
@@ -401,18 +411,12 @@ theorem iterN1_qout_ge_trial_sub_two
         norm_num)
   · simp only [ite_true, iterN1_true]
     unfold iterN1Call
-    exact iterWithDoubleAddback_qout_ge_sub_two
+    exact iterWithDoubleAddback_qout_ge_tsub_two
       (div128Quot u1 u0 v0) v0 v1 v2 v3 u0 u1 u2 u3 uTop
-      (hqCall rfl)
 
 theorem fullDivN1R3_qout_ge_trial_sub_two
     (bltu_3 : Bool) (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
-    (hb2z : b2 = 0) (hb3z : b3 = 0)
-    (hqCall : bltu_3 = true →
-      2 ≤ (div128Quot
-        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2
-        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1
-        (fullDivN1NormV b0 b1 b2 b3).1).toNat) :
+    (hb2z : b2 = 0) (hb3z : b3 = 0) :
     let v := fullDivN1NormV b0 b1 b2 b3
     let u := fullDivN1NormU a0 a1 a2 a3 b0
     let qHat : Word := if bltu_3 then div128Quot u.2.2.2.2 u.2.2.2.1 v.1
@@ -432,16 +436,10 @@ theorem fullDivN1R3_qout_ge_trial_sub_two
     (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1
     (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2
     0 0 0
-    hqCall
 
 theorem fullDivN1R2_qout_ge_trial_sub_two
     (bltu_3 bltu_2 : Bool) (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
-    (hb2z : b2 = 0) (hb3z : b3 = 0)
-    (hqCall : bltu_2 = true →
-      2 ≤ (div128Quot
-        (fullDivN1R3 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3).2.1
-        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.1
-        (fullDivN1NormV b0 b1 b2 b3).1).toNat) :
+    (hb2z : b2 = 0) (hb3z : b3 = 0) :
     let v := fullDivN1NormV b0 b1 b2 b3
     let u := fullDivN1NormU a0 a1 a2 a3 b0
     let r3 := fullDivN1R3 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3
@@ -466,16 +464,10 @@ theorem fullDivN1R2_qout_ge_trial_sub_two
     (fullDivN1R3 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3).2.2.1
     (fullDivN1R3 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.1
     (fullDivN1R3 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1
-    hqCall
 
 theorem fullDivN1R1_qout_ge_trial_sub_two
     (bltu_3 bltu_2 bltu_1 : Bool) (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
-    (hb2z : b2 = 0) (hb3z : b3 = 0)
-    (hqCall : bltu_1 = true →
-      2 ≤ (div128Quot
-        (fullDivN1R2 bltu_3 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).2.1
-        (fullDivN1NormU a0 a1 a2 a3 b0).2.1
-        (fullDivN1NormV b0 b1 b2 b3).1).toNat) :
+    (hb2z : b2 = 0) (hb3z : b3 = 0) :
     let v := fullDivN1NormV b0 b1 b2 b3
     let u := fullDivN1NormU a0 a1 a2 a3 b0
     let r2 := fullDivN1R2 bltu_3 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3
@@ -500,16 +492,10 @@ theorem fullDivN1R1_qout_ge_trial_sub_two
     (fullDivN1R2 bltu_3 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).2.2.1
     (fullDivN1R2 bltu_3 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.1
     (fullDivN1R2 bltu_3 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1
-    hqCall
 
 theorem fullDivN1R0_qout_ge_trial_sub_two
     (bltu_3 bltu_2 bltu_1 bltu_0 : Bool) (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
-    (hb2z : b2 = 0) (hb3z : b3 = 0)
-    (hqCall : bltu_0 = true →
-      2 ≤ (div128Quot
-        (fullDivN1R1 bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).2.1
-        (fullDivN1NormU a0 a1 a2 a3 b0).1
-        (fullDivN1NormV b0 b1 b2 b3).1).toNat) :
+    (hb2z : b2 = 0) (hb3z : b3 = 0) :
     let v := fullDivN1NormV b0 b1 b2 b3
     let u := fullDivN1NormU a0 a1 a2 a3 b0
     let r1 := fullDivN1R1 bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3
@@ -534,7 +520,6 @@ theorem fullDivN1R0_qout_ge_trial_sub_two
     (fullDivN1R1 bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).2.2.1
     (fullDivN1R1 bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.1
     (fullDivN1R1 bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1
-    hqCall
 
 theorem fullDivN1RemainderVal_eq_mod_mul_pow_of_telescoped
     (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
