@@ -1156,11 +1156,11 @@ theorem lb_bltu_ntaken {base : Word} : (base + trialCallOff : Word) + 4 = base +
 -- ============================================================================
 
 -- Address normalization for store_qj and loop control
-theorem lb_sqj {base : Word} : (base + storeLoopOff : Word) + 16 = base + 900 := by bv_addr
+theorem lb_sqj {base : Word} : (base + storeLoopOff : Word) + 16 = base + loopControlOff := by bv_addr
 private theorem lb_lc_taken {base : Word} :
-    (base + 900 : Word) + 4 + signExtend13 (7736 : BitVec 13) = base + loopBodyOff := by
+    (base + loopControlOff : Word) + 4 + signExtend13 (7736 : BitVec 13) = base + loopBodyOff := by
   rv64_addr
-private theorem lb_lc_exit {base : Word} : (base + 900 : Word) + 8 = base + denormOff := by bv_addr
+private theorem lb_lc_exit {base : Word} : (base + loopControlOff : Word) + 8 = base + denormOff := by bv_addr
 
 private theorem lb_beq_back_ntaken {base : Word} : (base + addbackBeqOff : Word) + 4 = base + storeLoopOff := by bv_addr
 
@@ -1349,14 +1349,14 @@ theorem divK_store_loop_spec_within
      (CodeReq.union_sub (lb_sub 111 _ _ (by decide) (by bv_addr) (by decide))
       (lb_sub 112 _ _ (by decide) (by bv_addr) (by decide))))) SQ
   -- 2. Loop control: instrs [113]-[114] at base+900
-  have LC := divK_loop_control_spec_within j (7736 : BitVec 13) (base + 900)
+  have LC := divK_loop_control_spec_within j (7736 : BitVec 13) (base + loopControlOff)
   dsimp only [] at LC
   rw [lb_lc_taken, lb_lc_exit] at LC
   have LCe := cpsBranchWithin_extend_code (hmono := by
     exact CodeReq.union_sub (lb_sub 113 _ _ (by decide) (by bv_addr) (by decide))
       (lb_sub 114 _ _ (by decide) (by bv_addr) (by decide))) LC
   -- 3. Add x0 to store_qj via frame, then reshape via consequence
-  have SQx0 : cpsTripleWithin 4 (base + storeLoopOff) (base + 900) (sharedDivModCode base)
+  have SQx0 : cpsTripleWithin 4 (base + storeLoopOff) (base + loopControlOff) (sharedDivModCode base)
       ((.x1 ↦ᵣ j) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
        (.x5 ↦ᵣ v5Old) ** (.x7 ↦ᵣ v7Old) ** (.x0 ↦ᵣ (0 : Word)) ** (qAddr ↦ₘ qOld))
       ((.x1 ↦ᵣ j) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
@@ -1366,7 +1366,7 @@ theorem divK_store_loop_spec_within
       (fun h hp => by xperm_hyp hp)
       (cpsTripleWithin_frameR (.x0 ↦ᵣ (0 : Word)) (by pcFree) SQe)
   -- 4. Frame loop_control with store_qj postcondition atoms, then reshape
-  have LCp : cpsBranchWithin 2 (base + 900) (sharedDivModCode base)
+  have LCp : cpsBranchWithin 2 (base + loopControlOff) (sharedDivModCode base)
       ((.x1 ↦ᵣ j) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
        (.x5 ↦ᵣ jX8) ** (.x7 ↦ᵣ qAddr) ** (.x0 ↦ᵣ (0 : Word)) ** (qAddr ↦ₘ qHat))
       (base + loopBodyOff)

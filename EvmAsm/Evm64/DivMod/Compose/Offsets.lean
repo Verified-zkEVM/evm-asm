@@ -107,6 +107,11 @@ abbrev addbackBeqOff : Word :=  880
     branch into the next iteration or `divK_denorm`). Sub-offset relative
     to the loopBody block (= loopBodyOff + 436). -/
 abbrev storeLoopOff : Word :=  884
+/-- Offset of the `divK_loop_control` sub-block inside `divK_loopBody`.
+    Entry PC of the 2-instruction snippet (`ADDI x1, ., 4095` + back-jump BGE)
+    sandwiched between `divK_store_qj` and `divK_denorm`. Sub-offset relative
+    to the loopBody block (= storeLoopOff + 16 = denormOff - 8 = loopBodyOff + 452). -/
+abbrev loopControlOff : Word :=  900
 /-- Offset of the loop-back BGE sub-block inside `divK_loopBody`.
     Entry PC of the `BGE x1, x0, -...` instruction at the end of the loop
     body that branches back to `loopBodyOff` for the next iteration when
@@ -178,6 +183,12 @@ example : storeLoopOff = loopBodyOff + 436 := by decide
     the `divK_denorm` block. -/
 example : loopBackBgeOff = denormOff - 4 := by decide
 example : loopBackBgeOff = loopBodyOff + 456 := by decide
+/-- loopControlOff = storeLoopOff + 16 (= loopBodyOff + 452 = denormOff - 8,
+    sub-block offset within `divK_loopBody`). The 2-instruction loop-control
+    snippet sits between `divK_store_qj` and `divK_denorm`. -/
+example : loopControlOff = storeLoopOff + 16 := by decide
+example : loopControlOff = denormOff - 8 := by decide
+example : loopControlOff = loopBodyOff + 452 := by decide
 /-- correctionSkipBeqOff = loopBodyOff + 280 (sub-block offset within
     `divK_loopBody`). The mulsub correction-skip BEQ sits 70 instructions
     into the loop body. -/

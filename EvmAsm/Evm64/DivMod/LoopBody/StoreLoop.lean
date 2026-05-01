@@ -54,8 +54,8 @@ theorem divK_store_loop_j0_spec_within
      (CodeReq.union_sub (lb_sub 111 _ _ (by decide) (by bv_addr) (by decide))
       (lb_sub 112 _ _ (by decide) (by bv_addr) (by decide))))) SQ
   -- 2. ADDI x1 x1 4095 at base+900 (instr [113])
-  have haddi := addi_spec_gen_same_within .x1 (0 : Word) 4095 (base + 900) (by nofun)
-  rw [show (base + 900 : Word) + 4 = base + loopBackBgeOff from by bv_addr] at haddi
+  have haddi := addi_spec_gen_same_within .x1 (0 : Word) 4095 (base + loopControlOff) (by nofun)
+  rw [show (base + loopControlOff : Word) + 4 = base + loopBackBgeOff from by bv_addr] at haddi
   have haddi_e := cpsTripleWithin_extend_code (hmono := by
     exact lb_sub 113 _ _ (by decide) (by bv_addr) (by decide)) haddi
   -- 3. BGE x1 x0 7736 at base+904 (instr [114])
@@ -76,7 +76,7 @@ theorem divK_store_loop_j0_spec_within
       (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp)
     hbge_exit_raw
   -- 5. Build store_qj + x0 frame → base+900
-  have SQx0 : cpsTripleWithin 4 (base + storeLoopOff) (base + 900) (sharedDivModCode base)
+  have SQx0 : cpsTripleWithin 4 (base + storeLoopOff) (base + loopControlOff) (sharedDivModCode base)
       ((.x1 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
        (.x5 ↦ᵣ v5Old) ** (.x7 ↦ᵣ v7Old) ** (.x0 ↦ᵣ (0 : Word)) ** (qAddr ↦ₘ qOld))
       ((.x1 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
@@ -134,8 +134,8 @@ theorem divK_store_loop_jgt0_spec_within
      (CodeReq.union_sub (lb_sub 111 _ _ (by decide) (by bv_addr) (by decide))
       (lb_sub 112 _ _ (by decide) (by bv_addr) (by decide))))) SQ
   -- 2. ADDI x1 x1 4095 at base+900 (instr [113])
-  have haddi := addi_spec_gen_same_within .x1 j 4095 (base + 900) (by nofun)
-  rw [show (base + 900 : Word) + 4 = base + loopBackBgeOff from by bv_addr] at haddi
+  have haddi := addi_spec_gen_same_within .x1 j 4095 (base + loopControlOff) (by nofun)
+  rw [show (base + loopControlOff : Word) + 4 = base + loopBackBgeOff from by bv_addr] at haddi
   have haddi_e := cpsTripleWithin_extend_code (hmono := by
     exact lb_sub 113 _ _ (by decide) (by bv_addr) (by decide)) haddi
   -- 3. BGE x1 x0 7736 at base+904 (instr [114])
@@ -156,7 +156,7 @@ theorem divK_store_loop_jgt0_spec_within
       (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp)
     hbge_exit_raw
   -- 5. Build store_qj + x0 frame → base+900
-  have SQx0 : cpsTripleWithin 4 (base + storeLoopOff) (base + 900) (sharedDivModCode base)
+  have SQx0 : cpsTripleWithin 4 (base + storeLoopOff) (base + loopControlOff) (sharedDivModCode base)
       ((.x1 ↦ᵣ j) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
        (.x5 ↦ᵣ v5Old) ** (.x7 ↦ᵣ v7Old) ** (.x0 ↦ᵣ (0 : Word)) ** (qAddr ↦ₘ qOld))
       ((.x1 ↦ᵣ j) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
