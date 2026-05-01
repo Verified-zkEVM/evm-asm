@@ -322,6 +322,52 @@ theorem denorm_limbN_eq_mod_of_overestimate
     Useful for the call+addback BEQ MOD adapter's single-addback branch
     (with `X = post1` limbs) — and dual-purpose for any other path that
     establishes the val256 = a%b * 2^s fact at normalized limbs. -/
+theorem denorm_4limb_eq_mod_of_val256_eq_amod_pow_s_of_or_ne_zero
+    {a b : EvmWord} {X1 X2 X3 X4 : Word}
+    {s : Nat} (hs0 : 0 < s) (hs : s < 64)
+    (hbnz : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 ||| b.getLimbN 3 ≠ 0)
+    (h_val_eq : val256 X1 X2 X3 X4 =
+      val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) %
+        val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) * 2 ^ s) :
+    (EvmWord.mod a b).getLimbN 0 = ((X1 >>> s) ||| (X2 <<< (64 - s))) ∧
+    (EvmWord.mod a b).getLimbN 1 = ((X2 >>> s) ||| (X3 <<< (64 - s))) ∧
+    (EvmWord.mod a b).getLimbN 2 = ((X3 >>> s) ||| (X4 <<< (64 - s))) ∧
+    (EvmWord.mod a b).getLimbN 3 = (X4 >>> s) := by
+  have h_denorm := EvmWord.val256_denormalize hs0 hs X1 X2 X3 X4
+  have hspos : 0 < (2 : Nat) ^ s := Nat.pos_of_ne_zero (by positivity)
+  have h_div : val256 X1 X2 X3 X4 / 2 ^ s =
+      val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) %
+        val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) := by
+    rw [h_val_eq, Nat.mul_div_cancel _ hspos]
+  rw [h_div] at h_denorm
+  have hr : EvmWord.fromLimbs (fun i : Fin 4 => match i with
+      | 0 => (X1 >>> s) ||| (X2 <<< (64 - s))
+      | 1 => (X2 >>> s) ||| (X3 <<< (64 - s))
+      | 2 => (X3 >>> s) ||| (X4 <<< (64 - s))
+      | 3 => X4 >>> s) =
+      EvmWord.mod
+        (EvmWord.fromLimbs (fun i : Fin 4 => match i with
+          | 0 => a.getLimbN 0 | 1 => a.getLimbN 1
+          | 2 => a.getLimbN 2 | 3 => a.getLimbN 3))
+        (EvmWord.fromLimbs (fun i : Fin 4 => match i with
+          | 0 => b.getLimbN 0 | 1 => b.getLimbN 1
+          | 2 => b.getLimbN 2 | 3 => b.getLimbN 3)) :=
+    EvmWord.mod_of_val256_eq_mod hbnz h_denorm
+  have ha_fold : (EvmWord.fromLimbs (fun i : Fin 4 => match i with
+        | 0 => a.getLimbN 0 | 1 => a.getLimbN 1
+        | 2 => a.getLimbN 2 | 3 => a.getLimbN 3)) = a :=
+    EvmWord.fromLimbs_match_getLimbN_id a
+  have hb_fold : (EvmWord.fromLimbs (fun i : Fin 4 => match i with
+        | 0 => b.getLimbN 0 | 1 => b.getLimbN 1
+        | 2 => b.getLimbN 2 | 3 => b.getLimbN 3)) = b :=
+    EvmWord.fromLimbs_match_getLimbN_id b
+  rw [ha_fold, hb_fold] at hr
+  refine ⟨?_, ?_, ?_, ?_⟩
+  · rw [← hr]; exact EvmWord.getLimbN_fromLimbs_0
+  · rw [← hr]; exact EvmWord.getLimbN_fromLimbs_1
+  · rw [← hr]; exact EvmWord.getLimbN_fromLimbs_2
+  · rw [← hr]; exact EvmWord.getLimbN_fromLimbs_3
+
 theorem denorm_4limb_eq_mod_of_val256_eq_amod_pow_s
     {a b : EvmWord} {X1 X2 X3 X4 : Word}
     {s : Nat} (hs0 : 0 < s) (hs : s < 64)

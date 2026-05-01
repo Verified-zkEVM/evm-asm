@@ -15,6 +15,7 @@
 
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1Loop
 import EvmAsm.Evm64.DivMod.Compose.FullPathN3Loop
+import EvmAsm.Evm64.EvmWordArith.CLZLemmas
 
 open EvmAsm.Rv64.Tactics
 
@@ -461,10 +462,55 @@ theorem fullDivN1Shift_unfold (b0 : Word) :
   delta fullDivN1Shift
   rfl
 
+theorem fullDivN1Shift_toNat_pos_of_ne_zero {b0 : Word}
+    (hshift_nz : fullDivN1Shift b0 ≠ 0) :
+    0 < (fullDivN1Shift b0).toNat := by
+  rcases Nat.eq_zero_or_pos (fullDivN1Shift b0).toNat with h0 | hpos
+  · exfalso
+    apply hshift_nz
+    exact BitVec.eq_of_toNat_eq h0
+  · exact hpos
+
+theorem fullDivN1Shift_toNat_lt_64 (b0 : Word) :
+    (fullDivN1Shift b0).toNat < 64 := by
+  rw [fullDivN1Shift_unfold]
+  have hle := clzResult_fst_toNat_le b0
+  omega
+
+theorem fullDivN1Shift_toNat_mod_eq (b0 : Word) :
+    (fullDivN1Shift b0).toNat % 64 = (fullDivN1Shift b0).toNat := by
+  exact Nat.mod_eq_of_lt (fullDivN1Shift_toNat_lt_64 b0)
+
 theorem fullDivN1AntiShift_unfold (b0 : Word) :
     fullDivN1AntiShift b0 = signExtend12 (0 : BitVec 12) - fullDivN1Shift b0 := by
   delta fullDivN1AntiShift
   rfl
+
+theorem fullDivN1AntiShift_toNat_mod_eq {b0 : Word}
+    (hshift_nz : fullDivN1Shift b0 ≠ 0) :
+    (signExtend12 (0 : BitVec 12) - fullDivN1Shift b0).toNat % 64 =
+      64 - (fullDivN1Shift b0).toNat := by
+  have h1 : 1 ≤ (fullDivN1Shift b0).toNat :=
+    fullDivN1Shift_toNat_pos_of_ne_zero hshift_nz
+  have h63 : (fullDivN1Shift b0).toNat ≤ 63 := by
+    have hlt := fullDivN1Shift_toNat_lt_64 b0
+    omega
+  have h0 : (signExtend12 (0 : BitVec 12) : Word) = 0 := by decide
+  rw [h0]
+  have hshift_toNat : ((0 : Word) - fullDivN1Shift b0).toNat =
+      2^64 - (fullDivN1Shift b0).toNat := by
+    rw [BitVec.toNat_sub]
+    simp
+    omega
+  rw [hshift_toNat]
+  have hsplit : 2^64 - (fullDivN1Shift b0).toNat =
+      (2^64 - 64) + (64 - (fullDivN1Shift b0).toNat) := by
+    omega
+  rw [hsplit, Nat.add_mod]
+  have hmod64 : (2^64 - 64) % 64 = 0 := by decide
+  rw [hmod64]
+  simp
+  omega
 
 theorem fullDivN1NormV_unfold (b0 b1 b2 b3 : Word) :
     fullDivN1NormV b0 b1 b2 b3 =
