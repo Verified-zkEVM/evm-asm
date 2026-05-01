@@ -18,15 +18,37 @@ documented in [`GRIND.md`](GRIND.md):
 
 | Grindset | File | Closes |
 |----------|------|--------|
-| `divmod_addr` | `Evm64/DivMod/AddrNorm.lean`  | DivMod address arithmetic (signExtend12 + shift + toNat) |
-| `rv64_addr`   | `Rv64/AddrNorm.lean`           | Rv64-wide address arithmetic (signExtend13/21 + assoc), subsumes `bv_addr` |
+| `rv64_addr`   | `Rv64/AddrNorm.lean`           | Rv64-wide address arithmetic (signExtend12/13/21 + shift + toNat over numeric literals); subsumes `bv_addr` |
+| `divmod_addr` | `Evm64/DivMod/AddrNorm.lean`   | DivMod-specific atoms layered on top of `rv64_addr` |
+| `exp_addr`    | `Evm64/Exp/AddrNorm.lean`      | Exp-specific atoms (canonical per-opcode example, see #263) |
 | `reg_ops`     | `Rv64/RegOps.lean`             | `MachineState` projection chains (`pc_set<F>`, `getReg_setPC`, etc.) |
 | `byte_alg`    | `Rv64/ByteAlg.lean`            | `extractByte` / `replaceByte` algebra on `Word` |
 
-Each grindset exposes a `by <name>` tactic (`by divmod_addr`, `by rv64_addr`,
-…) that tries `grind` first and falls back to a per-domain `simp only [...]`
-closer. New atomic facts are added as one-line `@[<set>, grind =]` lemmas
-in the set's file; consumers pick them up automatically.
+Each grindset exposes a `by <name>` tactic (`by rv64_addr`, `by divmod_addr`,
+`by exp_addr`, …) that tries `grind` first and falls back to a per-domain
+`simp only [...]` closer. New atomic facts are added as one-line
+`@[<set>, grind =]` lemmas in the set's file; consumers pick them up
+automatically.
+
+### Adding a new opcode-specific address grindset
+
+Each opcode subtree opts into the family by shipping an `AddrNormAttr.lean`
++ `AddrNorm.lean` pair. The canonical shape is `EvmAsm/Evm64/Exp/`:
+
+- `Exp/AddrNormAttr.lean` — single-line `register_simp_attr exp_addr`. Lean
+  forbids using a freshly-registered simp attribute in the same file that
+  declares it, so this *must* be its own module.
+- `Exp/AddrNorm.lean` — atomic equalities tagged
+  `@[exp_addr, grind =]` (and typically `@[rv64_addr, grind =]` so the
+  universal `by rv64_addr` tactic can also close them). Add the new file
+  *after* `AddrNormAttr.lean` in the umbrella import list (`Evm64/Exp.lean`)
+  so the attribute exists when the consumer is elaborated.
+
+Use `by rv64_addr` everywhere by default — it covers `signExtend12 N` and
+`<<<` over numeric literals universally. Reach for `by divmod_addr` /
+`by exp_addr` only when the goal mentions an opcode-specific atom (an
+offset constant defined in that subtree, an opcode-specific scratch-cell
+identity, etc.).
 
 ## runBlock
 
