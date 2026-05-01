@@ -78,6 +78,22 @@ theorem mload_byte_pack_step_spec_within
   rw [h8] at I
   runBlock L I O
 
+/-- Bundled CodeReq for `mload_byte_pack_two_spec_within`: a 4-instruction
+    union covering the seed `LBU` at `base`, the inner-byte `LBU` at
+    `base + 4`, and the `SLLI`/`OR` byte-pack pair at `base + 8` /
+    `base + 12`.
+
+    Pulled out of the spec body (per @pirapira review on PR #1659) so the
+    code requirement is a named handle that callers and downstream
+    composition lemmas can refer to without re-spelling the union. -/
+def mloadBytePackTwoCode
+    (addrReg byteReg accReg : Reg) (off0 off1 : BitVec 12) (base : Word) :
+    CodeReq :=
+  (CodeReq.singleton base (.LBU accReg addrReg off0)).union
+    ((CodeReq.singleton (base + 4) (.LBU byteReg addrReg off1)).union
+     ((CodeReq.singleton (base + 8) (.SLLI accReg accReg (BitVec.ofNat 6 8))).union
+      (CodeReq.singleton (base + 12) (.OR accReg accReg byteReg))))
+
 /-- Two-byte big-endian byte-pack spec (4 instructions): seed `LBU`
     loading `b0` into `accReg`, followed by one
     `mload_byte_pack_step_spec_within` triple loading `b1` and folding it
@@ -108,11 +124,7 @@ theorem mload_byte_pack_two_spec_within
     let b1 :=
       (extractByte wordVal (byteOffset (addrPtr + signExtend12 off1))).zeroExtend 64
     let accFinal := (b0 <<< (8 : Nat)) ||| b1
-    let cr :=
-      (CodeReq.singleton base (.LBU accReg addrReg off0)).union
-        ((CodeReq.singleton (base + 4) (.LBU byteReg addrReg off1)).union
-         ((CodeReq.singleton (base + 8) (.SLLI accReg accReg (BitVec.ofNat 6 8))).union
-          (CodeReq.singleton (base + 12) (.OR accReg accReg byteReg))))
+    let cr := mloadBytePackTwoCode addrReg byteReg accReg off0 off1 base
     cpsTripleWithin 4 base (base + 16) cr
       ((addrReg ↦ᵣ addrPtr) ** (byteReg ↦ᵣ byteOld) ** (accReg ↦ᵣ accOld) **
        (dwordAddr ↦ₘ wordVal))
