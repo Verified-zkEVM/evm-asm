@@ -260,6 +260,17 @@ theorem n1StepsRemainderVal_eq_of_extended_eq_lt_pow256
     exact EvmWord.val256_bound _ _ _ _
   omega
 
+theorem n1StepsRemainderVal_eq_mod_mul_pow_of_normalized_euclidean
+    (r3 r2 r1 r0 : Word × Word × Word × Word × Word × Word)
+    {aVal bVal qVal s : Nat}
+    (heq : aVal * 2^s =
+      qVal * (bVal * 2^s) + (n1StepRemainderVal r0 + n1StepsCarryVal r3 r2 r1 r0))
+    (hlt : n1StepRemainderVal r0 + n1StepsCarryVal r3 r2 r1 r0 < bVal * 2^s)
+    (hbound : aVal % bVal * 2^s < 2^256) :
+    n1StepRemainderVal r0 = aVal % bVal * 2^s := by
+  have htarget := EvmWord.normalized_remainder_eq_mod_mul_pow s heq hlt
+  exact n1StepsRemainderVal_eq_of_extended_eq_lt_pow256 r3 r2 r1 r0 htarget hbound
+
 @[irreducible]
 def fullDivN1StepsConservation
     (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
