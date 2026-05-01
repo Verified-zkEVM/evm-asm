@@ -122,6 +122,81 @@ theorem mloadByteFromDwordPair_high
     mloadByteFromDwordPair lo hi start i = extractByte hi ((start + i) % 8) := by
   simp [mloadByteFromDwordPair, show ¬ start + i < 8 from by omega]
 
+/-- Select the source dword address for byte `i` in an unaligned limb window. -/
+def mloadDwordPairAddr (loAddr hiAddr : Word) (start i : Nat) : Word :=
+  if start + i < 8 then loAddr else hiAddr
+
+theorem mloadDwordPairAddr_low
+    (loAddr hiAddr : Word) {start i : Nat} (h_pos : start + i < 8) :
+    mloadDwordPairAddr loAddr hiAddr start i = loAddr := by
+  simp [mloadDwordPairAddr, h_pos]
+
+theorem mloadDwordPairAddr_high
+    (loAddr hiAddr : Word) {start i : Nat} (h_pos : 8 ≤ start + i) :
+    mloadDwordPairAddr loAddr hiAddr start i = hiAddr := by
+  simp [mloadDwordPairAddr, show ¬ start + i < 8 from by omega]
+
+/-- Select the source dword value for byte `i` in an unaligned limb window. -/
+def mloadDwordPairVal (loVal hiVal : Word) (start i : Nat) : Word :=
+  if start + i < 8 then loVal else hiVal
+
+theorem mloadDwordPairVal_low
+    (loVal hiVal : Word) {start i : Nat} (h_pos : start + i < 8) :
+    mloadDwordPairVal loVal hiVal start i = loVal := by
+  simp [mloadDwordPairVal, h_pos]
+
+theorem mloadDwordPairVal_high
+    (loVal hiVal : Word) {start i : Nat} (h_pos : 8 ≤ start + i) :
+    mloadDwordPairVal loVal hiVal start i = hiVal := by
+  simp [mloadDwordPairVal, show ¬ start + i < 8 from by omega]
+
+theorem mloadByteFromDwordPair_eq_extractByte_pair
+    (loVal hiVal : Word) (start i : Nat) :
+    mloadByteFromDwordPair loVal hiVal start i =
+      extractByte (mloadDwordPairVal loVal hiVal start i) ((start + i) % 8) := by
+  simp [mloadByteFromDwordPair, mloadDwordPairVal]
+
+theorem mloadByteFromDwordPair_zeroExtend_eq
+    (loVal hiVal : Word) (start i : Nat) :
+    (mloadByteFromDwordPair loVal hiVal start i).zeroExtend 64 =
+      (extractByte (mloadDwordPairVal loVal hiVal start i)
+        ((start + i) % 8)).zeroExtend 64 := by
+  rw [mloadByteFromDwordPair_eq_extractByte_pair]
+
+theorem mloadByteFromDwordPair_eq_extractByte_low_of_byteOffset
+    (loVal hiVal addr : Word) {start i : Nat}
+    (h_pos : start + i < 8)
+    (h_byte : byteOffset addr = (start + i) % 8) :
+    mloadByteFromDwordPair loVal hiVal start i =
+      extractByte loVal (byteOffset addr) := by
+  rw [mloadByteFromDwordPair_low loVal hiVal h_pos, h_byte]
+
+theorem mloadByteFromDwordPair_eq_extractByte_high_of_byteOffset
+    (loVal hiVal addr : Word) {start i : Nat}
+    (h_pos : 8 ≤ start + i)
+    (h_byte : byteOffset addr = (start + i) % 8) :
+    mloadByteFromDwordPair loVal hiVal start i =
+      extractByte hiVal (byteOffset addr) := by
+  rw [mloadByteFromDwordPair_high loVal hiVal h_pos, h_byte]
+
+theorem mloadByteFromDwordPair_zeroExtend_eq_extractByte_low_of_byteOffset
+    (loVal hiVal addr : Word) {start i : Nat}
+    (h_pos : start + i < 8)
+    (h_byte : byteOffset addr = (start + i) % 8) :
+    (mloadByteFromDwordPair loVal hiVal start i).zeroExtend 64 =
+      (extractByte loVal (byteOffset addr)).zeroExtend 64 := by
+  rw [mloadByteFromDwordPair_eq_extractByte_low_of_byteOffset
+    loVal hiVal addr h_pos h_byte]
+
+theorem mloadByteFromDwordPair_zeroExtend_eq_extractByte_high_of_byteOffset
+    (loVal hiVal addr : Word) {start i : Nat}
+    (h_pos : 8 ≤ start + i)
+    (h_byte : byteOffset addr = (start + i) % 8) :
+    (mloadByteFromDwordPair loVal hiVal start i).zeroExtend 64 =
+      (extractByte hiVal (byteOffset addr)).zeroExtend 64 := by
+  rw [mloadByteFromDwordPair_eq_extractByte_high_of_byteOffset
+    loVal hiVal addr h_pos h_byte]
+
 /--
   Pack eight consecutive bytes starting at byte offset `start` in `lo`,
   crossing into adjacent dword `hi` when needed.
