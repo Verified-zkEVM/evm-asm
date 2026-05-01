@@ -134,5 +134,81 @@ def envCells : Nat := 56
 
 theorem envCells_eq : envCells * 8 = envSize := by decide
 
+/-! ## Acceptance smoke tests (#100 slice 4)
+
+  These are deliberately tiny: they only re-exercise the
+  `envIs_unfold` + `ac_rfl` recipe used by `envIs_caller_split` for
+  two additional representative field shapes — the `address` field
+  (an `Address` already sitting at the head of the chain at offset
+  0) and the `callValue` field (a non-`Address` `EvmWord` cell deep
+  in the middle of the chain). Together with `envIs_caller_split`
+  they cover all three field templates a future opcode handler
+  (`ADDRESS`, `CALLVALUE`, `CALLER`, …) is going to invoke.
+-/
+
+/-- Remaining 16 env-field cells after the `address` cell is rotated
+    to the head of the sepConj chain. Mirror of `envIsCallerRest`. -/
+def envIsAddressRest (base : Word) (env : EvmEnv) : Assertion :=
+  evmWordIs (base + BitVec.ofNat 64 selfBalanceOff)     env.selfBalance **
+  evmWordIs (base + BitVec.ofNat 64 callerOff)          (addrAsWord env.caller) **
+  evmWordIs (base + BitVec.ofNat 64 callValueOff)       env.callValue **
+  evmWordIs (base + BitVec.ofNat 64 txOriginOff)        (addrAsWord env.txOrigin) **
+  evmWordIs (base + BitVec.ofNat 64 gasPriceOff)        env.gasPrice **
+  evmWordIs (base + BitVec.ofNat 64 blockCoinbaseOff)   (addrAsWord env.blockCoinbase) **
+  evmWordIs (base + BitVec.ofNat 64 blockTimestampOff)  env.blockTimestamp **
+  evmWordIs (base + BitVec.ofNat 64 blockNumberOff)     env.blockNumber **
+  evmWordIs (base + BitVec.ofNat 64 blockPrevrandaoOff) env.blockPrevrandao **
+  evmWordIs (base + BitVec.ofNat 64 blockGasLimitOff)   env.blockGasLimit **
+  evmWordIs (base + BitVec.ofNat 64 blockBaseFeeOff)    env.blockBaseFee **
+  evmWordIs (base + BitVec.ofNat 64 chainIdOff)         env.chainId **
+  ((base + BitVec.ofNat 64 callDataPtrOff)    ↦ₘ env.callDataPtr) **
+  ((base + BitVec.ofNat 64 callDataLenOff)    ↦ₘ env.callDataLen) **
+  ((base + BitVec.ofNat 64 returnDataPtrOff)  ↦ₘ env.returnDataPtr) **
+  ((base + BitVec.ofNat 64 returnDataSizeOff) ↦ₘ env.returnDataSize)
+
+/-- Rotate the `address` cell to the head. Trivial — `address` is
+    already the head of `envIs`'s sepConj chain — but stated as a
+    named theorem so opcode handlers (`ADDRESS`) can frame on it
+    uniformly with `envIs_caller_split` / `envIs_callValue_split`. -/
+theorem envIs_address_split (base : Word) (env : EvmEnv) :
+    envIs base env =
+      (evmWordIs (base + BitVec.ofNat 64 addressOff) (addrAsWord env.address) **
+        envIsAddressRest base env) := by
+  rw [envIs_unfold]
+  unfold envIsAddressRest
+  ac_rfl
+
+/-- Remaining 16 env-field cells after the `callValue` cell is
+    rotated to the head of the sepConj chain. Smoke test for a
+    non-`Address` `EvmWord` field in the middle of the chain. -/
+def envIsCallValueRest (base : Word) (env : EvmEnv) : Assertion :=
+  evmWordIs (base + BitVec.ofNat 64 addressOff)         (addrAsWord env.address) **
+  evmWordIs (base + BitVec.ofNat 64 selfBalanceOff)     env.selfBalance **
+  evmWordIs (base + BitVec.ofNat 64 callerOff)          (addrAsWord env.caller) **
+  evmWordIs (base + BitVec.ofNat 64 txOriginOff)        (addrAsWord env.txOrigin) **
+  evmWordIs (base + BitVec.ofNat 64 gasPriceOff)        env.gasPrice **
+  evmWordIs (base + BitVec.ofNat 64 blockCoinbaseOff)   (addrAsWord env.blockCoinbase) **
+  evmWordIs (base + BitVec.ofNat 64 blockTimestampOff)  env.blockTimestamp **
+  evmWordIs (base + BitVec.ofNat 64 blockNumberOff)     env.blockNumber **
+  evmWordIs (base + BitVec.ofNat 64 blockPrevrandaoOff) env.blockPrevrandao **
+  evmWordIs (base + BitVec.ofNat 64 blockGasLimitOff)   env.blockGasLimit **
+  evmWordIs (base + BitVec.ofNat 64 blockBaseFeeOff)    env.blockBaseFee **
+  evmWordIs (base + BitVec.ofNat 64 chainIdOff)         env.chainId **
+  ((base + BitVec.ofNat 64 callDataPtrOff)    ↦ₘ env.callDataPtr) **
+  ((base + BitVec.ofNat 64 callDataLenOff)    ↦ₘ env.callDataLen) **
+  ((base + BitVec.ofNat 64 returnDataPtrOff)  ↦ₘ env.returnDataPtr) **
+  ((base + BitVec.ofNat 64 returnDataSizeOff) ↦ₘ env.returnDataSize)
+
+/-- Rotate the `callValue` cell (non-`Address` `EvmWord` deep in the
+    chain) to the head. Mirror of `envIs_caller_split` for the
+    `CALLVALUE` opcode. -/
+theorem envIs_callValue_split (base : Word) (env : EvmEnv) :
+    envIs base env =
+      (evmWordIs (base + BitVec.ofNat 64 callValueOff) env.callValue **
+        envIsCallValueRest base env) := by
+  rw [envIs_unfold]
+  unfold envIsCallValueRest
+  ac_rfl
+
 end EvmEnv
 end EvmAsm.Evm64
