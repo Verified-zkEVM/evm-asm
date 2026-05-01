@@ -25,6 +25,7 @@
     [loopSetupOff = 432] divK_loopSetup     (16 bytes)
     [loopBodyOff  = 448] divK_loopBody     (460 bytes)
       [trialCallOff = 500]  divK_loopBody trial-quotient BLTU sub-block entry (loopBodyOff + 52)
+      [trialMaxOff  = 504]  divK_loopBody divK_trial_max sub-block (trialCallOff + 4)
       [correctionSkipBeqOff = 728]  divK_loopBody mulsub-correction-skip BEQ entry (loopBodyOff + 280)
       [storeLoopOff = 884]  divK_store_qj sub-block (loopBodyOff + 436)
     [denormOff    = 908] divK_denorm       (100 bytes)
@@ -69,6 +70,13 @@ abbrev loopBodyOff  : Word :=  448
     invokes `divK_div128`. Sub-offset relative to the loopBody block
     (= loopBodyOff + 52, i.e. 13 instructions into the loop body). -/
 abbrev trialCallOff : Word :=  500
+/-- Offset of the trial-quotient `divK_trial_max` sub-block inside `divK_loopBody`.
+    Entry PC of the BLT-fall-through into the "max" trial-quotient `divK_trial_max`
+    snippet (`q̂ = 2^64 - 1`) — the BLTU instruction at `trialCallOff` falls
+    through here when the high limb does NOT equal the divisor's top limb.
+    Sub-offset relative to the loopBody block (= trialCallOff + 4
+    = loopBodyOff + 56, i.e. 14 instructions into the loop body). -/
+abbrev trialMaxOff : Word :=  504
 /-- Offset of the mulsub correction-skip BEQ entry inside `divK_loopBody`.
     Entry PC of the BEQ instruction that branches over the addback correction
     block when the trial-quotient mulsub did not borrow (the "skip" path).
@@ -154,6 +162,11 @@ example : correctionSkipBeqOff = loopBodyOff + 280 := by decide
 /-- trialCallOff = loopBodyOff + 52 (sub-block offset within `divK_loopBody`).
     The trial-quotient BLTU sits 13 instructions into the loop body. -/
 example : trialCallOff = loopBodyOff + 52 := by decide
+/-- trialMaxOff = trialCallOff + 4 (= loopBodyOff + 56, sub-block offset within
+    `divK_loopBody`). The `divK_trial_max` snippet is the BLT fall-through one
+    instruction past `trialCallOff`. -/
+example : trialMaxOff = trialCallOff + 4 := by decide
+example : trialMaxOff = loopBodyOff + 56 := by decide
 /-- epilogueOff = denormOff + 4 · |divK_denorm|. -/
 example : epilogueOff = denormOff + 4 * divK_denorm.length := by decide
 /-- zeroPathOff = epilogueOff + 4 · |divK_div_epilogue 24|

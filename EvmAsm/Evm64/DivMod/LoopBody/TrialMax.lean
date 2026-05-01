@@ -26,7 +26,7 @@ namespace EvmAsm.Evm64
 open EvmAsm.Rv64
 
 private theorem lb_trial_max_end {base : Word} :
-    (base + 504 : Word) + 12 = base + div128CallRetOff := by bv_addr
+    (base + trialMaxOff : Word) + 12 = base + div128CallRetOff := by bv_addr
 -- ============================================================================
 -- Trial quotient MAX path (Section 8a) — extended to sharedDivModCode
 -- Used only by `divK_trial_max_full_spec_within` below.
@@ -35,10 +35,10 @@ private theorem lb_trial_max_end {base : Word} :
 /-- Trial quotient MAX path: qHat = MAX64, skip div128 call.
     2 instructions at base+504. Entry: base+504, Exit: base+516. -/
 private theorem divK_trial_max_extended (v11Old : Word) (base : Word) :
-    cpsTripleWithin 2 (base + 504) (base + div128CallRetOff) (sharedDivModCode base)
+    cpsTripleWithin 2 (base + trialMaxOff) (base + div128CallRetOff) (sharedDivModCode base)
       ((.x11 ↦ᵣ v11Old) ** (.x0 ↦ᵣ 0))
       ((.x11 ↦ᵣ signExtend12 4095) ** (.x0 ↦ᵣ 0)) := by
-  have TM := divK_trial_max_spec_within v11Old (base + 504)
+  have TM := divK_trial_max_spec_within v11Old (base + trialMaxOff)
   dsimp only [] at TM
   rw [lb_trial_max_end] at TM
   exact cpsTripleWithin_extend_code (hmono := by
