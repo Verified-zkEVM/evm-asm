@@ -92,6 +92,89 @@ theorem iterN1_v4_qout_ge_trial_sub_two
     exact iterWithDoubleAddback_qout_ge_tsub_two
       (div128Quot_v4 u1 u0 v0) v0 v1 v2 v3 u0 u1 u2 u3 uTop
 
+theorem mulsubN4_c3_eq_zero_of_qv0_le_low
+    (q v0 u0 u1 u2 u3 : Word)
+    (hle : q.toNat * v0.toNat ≤ u1.toNat * 2^64 + u0.toNat) :
+    (mulsubN4 q v0 0 0 0 u0 u1 u2 u3).2.2.2.2 = 0 := by
+  by_contra hc3_ne
+  have hc3_one := mulsubN4_c3_eq_one_v3_zero q v0 0 0 u0 u1 u2 u3 hc3_ne
+  have hmul := mulsubN4_val256_eq q v0 0 0 0 u0 u1 u2 u3
+  let ms := mulsubN4 q v0 0 0 0 u0 u1 u2 u3
+  have hbound : EvmWord.val256 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 < 2^256 :=
+    EvmWord.val256_bound ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1
+  have hlow_le : u1.toNat * 2^64 + u0.toNat ≤ EvmWord.val256 u0 u1 u2 u3 := by
+    unfold EvmWord.val256
+    nlinarith [u2.isLt, u3.isLt]
+  have hmul' : EvmWord.val256 u0 u1 u2 u3 + 2^256 =
+      EvmWord.val256 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 + q.toNat * v0.toNat := by
+    subst ms
+    simp only [] at hmul
+    rw [hc3_one] at hmul
+    unfold EvmWord.val256 at hmul ⊢
+    norm_num at hmul ⊢
+    exact hmul
+  have hval_lt_qv0 : EvmWord.val256 u0 u1 u2 u3 < q.toNat * v0.toNat := by
+    nlinarith [hbound, hmul']
+  have : q.toNat * v0.toNat ≤ EvmWord.val256 u0 u1 u2 u3 := le_trans hle hlow_le
+  omega
+
+theorem iterWithDoubleAddback_qout_eq_q_of_qv0_le_low
+    (q v0 u0 u1 u2 u3 uTop : Word)
+    (hle : q.toNat * v0.toNat ≤ u1.toNat * 2^64 + u0.toNat) :
+    (iterWithDoubleAddback q v0 0 0 0 u0 u1 u2 u3 uTop).1 = q := by
+  have hc3 := mulsubN4_c3_eq_zero_of_qv0_le_low q v0 u0 u1 u2 u3 hle
+  have hb : ¬ BitVec.ult uTop (mulsubN4 q v0 0 0 0 u0 u1 u2 u3).2.2.2.2 := by
+    rw [hc3]
+    exact (EvmWord.ult_iff).not.mpr (by simp)
+  have hout := iterWithDoubleAddback_no_borrow (qHat := q) (v0 := v0) (v1 := 0)
+      (v2 := 0) (v3 := 0) (u0 := u0) (u1 := u1) (u2 := u2) (u3 := u3)
+      (uTop := uTop) hb
+  simp only [] at hout
+  rw [hout]
+
+theorem iterN1_v4_qout_eq_local_digit
+    (bltu : Bool) (v0 u0 u1 u2 u3 uTop : Word)
+    (hv0_ge : v0.toNat ≥ 2^63)
+    (hbranch : bltu = BitVec.ult u1 v0) :
+    (iterN1_v4 bltu v0 0 0 0 u0 u1 u2 u3 uTop).1.toNat =
+      n1LocalFloorDigit v0 u0 u1 := by
+  cases hult : BitVec.ult u1 v0
+  · have hbltu_false : bltu = false := by simpa [hult] using hbranch
+    rw [hbltu_false]
+    simp only [iterN1_v4_false]
+    unfold iterN1Max n1LocalFloorDigit
+    rw [hult]
+    simp only [Bool.false_eq_true, if_false]
+    have hnot : ¬ BitVec.ult u1 v0 := by simp [hult]
+    have hv0_le_u1 : v0.toNat ≤ u1.toNat := by
+      exact le_of_not_gt (fun h => hnot ((EvmWord.ult_iff).mpr h))
+    have hle : (signExtend12 (4095 : BitVec 12) : Word).toNat * v0.toNat ≤
+        u1.toNat * 2^64 + u0.toNat := by
+      rw [signExtend12_4095_toNat]
+      have hmul := Nat.mul_le_mul_right (2^64) hv0_le_u1
+      calc
+        (2^64 - 1) * v0.toNat ≤ 2^64 * v0.toNat := by
+          exact Nat.mul_le_mul_right v0.toNat (by norm_num)
+        _ = v0.toNat * 2^64 := by rw [Nat.mul_comm]
+        _ ≤ u1.toNat * 2^64 := by simpa [Nat.mul_comm] using hmul
+        _ ≤ u1.toNat * 2^64 + u0.toNat := Nat.le_add_right _ _
+    rw [iterWithDoubleAddback_qout_eq_q_of_qv0_le_low _ _ _ _ _ _ _ hle]
+    rw [signExtend12_4095_toNat]
+  · have hbltu_true : bltu = true := by simpa [hult] using hbranch
+    rw [hbltu_true]
+    simp only [iterN1_v4_true]
+    unfold iterN1Call_v4 n1LocalFloorDigit
+    rw [hult]
+    simp only [if_true]
+    have hq_eq := div128Quot_v4_eq_q_true_normalized_of_lt u1 u0 v0 hv0_ge
+      ((EvmWord.ult_iff).mp hult)
+    have hle :
+        (div128Quot_v4 u1 u0 v0).toNat * v0.toNat ≤ u1.toNat * 2^64 + u0.toNat := by
+      rw [hq_eq]
+      exact Nat.div_mul_le_self _ _
+    rw [iterWithDoubleAddback_qout_eq_q_of_qv0_le_low _ _ _ _ _ _ _ hle]
+    rw [hq_eq]
+
 theorem iterN1_v4_val256_conservation_v3_zero_of_carry2
     (bltu : Bool) (v0 v1 v2 u0 u1 u2 u3 uTop : Word)
     (hbnz : v0 ||| v1 ||| v2 ||| (0 : Word) ≠ 0)
