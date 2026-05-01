@@ -4,7 +4,7 @@
   256-bit EVM AND program definition.
 -/
 
-import EvmAsm.Evm64.Stack
+import EvmAsm.Rv64.Program
 
 namespace EvmAsm.Evm64
 

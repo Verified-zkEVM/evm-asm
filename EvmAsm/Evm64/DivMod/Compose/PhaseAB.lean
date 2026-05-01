@@ -408,14 +408,14 @@ private theorem bne_x7_16_sub_divCode {base : Word} :
 
 -- ADDI x5 x0 2 at base+84 (index 13 of phaseB)
 private theorem addi_x5_2_sub_divCode {base : Word} :
-    ∀ a i, (CodeReq.singleton (base + 84) (.ADDI .x5 .x0 2)) a = some i →
+    ∀ a i, (CodeReq.singleton (base + phaseBStep2Off) (.ADDI .x5 .x0 2)) a = some i →
       (divCode base) a = some i := by
   unfold divCode; simp only [CodeReq.unionAll_cons]
   intro a i h
   have hlookup := CodeReq.ofProg_lookup (base + phaseBOff) divK_phaseB 13
     (by decide) (by decide)
   rw [bv64_4mul_13,
-      show (base + phaseBOff : Word) + 52 = base + 84 from by bv_addr] at hlookup
+      show (base + phaseBOff : Word) + 52 = base + phaseBStep2Off from by bv_addr] at hlookup
   have h1 := CodeReq.singleton_mono hlookup a i h
   exact sub_divCode_of_phaseB_left a i h1
 
@@ -466,8 +466,8 @@ private theorem divK_phaseB_n1_nm1_x8 :
 
 -- Cascade address normalization
 private theorem phB_step1_4 {base : Word} : (base + phaseBStep1Off : Word) + 4 = base + phaseBBne2Off := by bv_addr
-private theorem phB_step1_8 {base : Word} : (base + phaseBBne2Off : Word) + 4 = base + 84 := by bv_addr
-private theorem phB_step2_4 {base : Word} : (base + 84 : Word) + 4 = base + phaseBBne3Off := by bv_addr
+private theorem phB_step1_8 {base : Word} : (base + phaseBBne2Off : Word) + 4 = base + phaseBStep2Off := by bv_addr
+private theorem phB_step2_4 {base : Word} : (base + phaseBStep2Off : Word) + 4 = base + phaseBBne3Off := by bv_addr
 private theorem phB_step2_8 {base : Word} : (base + phaseBBne3Off : Word) + 4 = base + phaseBStep3Off := by bv_addr
 private theorem phB_fall_4 {base : Word} : (base + phaseBStep3Off : Word) + 4 = base + phaseBTailOff := by bv_addr
 
@@ -735,7 +735,7 @@ theorem evm_div_phaseB_n2_spec_within (sp base : Word)
   have h123456 := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h12345 hbne1f
   -- ---- Cascade step 2: ADDI x5=2 (base+84 → base+88)
-  have haddi2_raw := addi_x0_spec_gen_within .x5 (3 : Word) 2 (base + 84) (by nofun)
+  have haddi2_raw := addi_x0_spec_gen_within .x5 (3 : Word) 2 (base + phaseBStep2Off) (by nofun)
   simp only [phB_step2_4, signExtend12_2] at haddi2_raw
   have haddi2 := cpsTripleWithin_extend_code addi_x5_2_sub_divCode haddi2_raw
   have haddi2f := cpsTripleWithin_frameR
@@ -905,7 +905,7 @@ theorem evm_div_phaseB_n1_spec_within (sp base : Word)
   have h123456 := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by xperm_hyp hp) h12345 hbne1f
   -- ---- Cascade step 2: ADDI x5=2 (base+84 → base+88)
-  have haddi2_raw := addi_x0_spec_gen_within .x5 (3 : Word) 2 (base + 84) (by nofun)
+  have haddi2_raw := addi_x0_spec_gen_within .x5 (3 : Word) 2 (base + phaseBStep2Off) (by nofun)
   simp only [phB_step2_4, signExtend12_2] at haddi2_raw
   have haddi2 := cpsTripleWithin_extend_code addi_x5_2_sub_divCode haddi2_raw
   have haddi2f := cpsTripleWithin_frameR
