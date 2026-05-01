@@ -76,10 +76,12 @@ theorem lb_sub_v2 {base : Word} (k : Nat) (addr : Word) (instr : Instr)
 -- ============================================================================
 
 -- Mulsub limb base addresses (instrs [22]-[65])
-private theorem lb_ms1 {base : Word} : (base + mulsubOff : Word) + 44 = base + 580 := by bv_addr
-private theorem lb_ms2 {base : Word} : (base + 580 : Word) + 44 = base + correctionSkipOff := by bv_addr
-private theorem lb_ms3 {base : Word} : (base + correctionSkipOff : Word) + 44 = base + 668 := by bv_addr
-private theorem lb_ms_end {base : Word} : (base + 668 : Word) + 44 = base + correctionAddbackOff := by bv_addr
+private theorem lb_ms1 {base : Word} : (base + mulsubOff : Word) + 44 = base + (mulsubOff + 44) := by
+  rw [BitVec.add_assoc]
+private theorem lb_ms2 {base : Word} : (base + (mulsubOff + 44) : Word) + 44 = base + correctionSkipOff := by bv_addr
+private theorem lb_ms3 {base : Word} : (base + correctionSkipOff : Word) + 44 = base + (correctionSkipOff + 44) := by
+  rw [BitVec.add_assoc]
+private theorem lb_ms_end {base : Word} : (base + (correctionSkipOff + 44) : Word) + 44 = base + correctionAddbackOff := by bv_addr
 
 -- ============================================================================
 -- Section 3: Mulsub 4-limbs composition
@@ -169,7 +171,7 @@ theorem divK_mulsub_4limbs_spec_within
     L0
   -- Limb 1: instrs [33]-[43] at base+580
   have L1 := divK_mulsub_limb_spec_within sp uBase qHat c0
-    bs0 fs0 un0 v1 u1 40 4088 (base + 580)
+    bs0 fs0 un0 v1 u1 40 4088 (base + (mulsubOff + 44))
 
   rw [lb_ms2] at L1
   have L1e := cpsTripleWithin_extend_code (hmono := by
@@ -215,7 +217,7 @@ theorem divK_mulsub_4limbs_spec_within
   seqFrame L0fL1e L2e
   -- Limb 3: instrs [55]-[65] at base+668
   have L3 := divK_mulsub_limb_spec_within sp uBase qHat c2
-    bs2 fs2 un2 v3 u3 56 4072 (base + 668)
+    bs2 fs2 un2 v3 u3 56 4072 (base + (correctionSkipOff + 44))
 
   rw [lb_ms_end] at L3
   have L3e := cpsTripleWithin_extend_code (hmono := by
@@ -585,7 +587,7 @@ theorem divK_mulsub_4limbs_v2_spec_within
     L0
   -- Limb 1: instrs [33]-[43] at base+580
   have L1 := divK_mulsub_limb_spec_within sp uBase qHat c0
-    bs0 fs0 un0 v1 u1 40 4088 (base + 580)
+    bs0 fs0 un0 v1 u1 40 4088 (base + (mulsubOff + 44))
 
   rw [lb_ms2] at L1
   have L1e := cpsTripleWithin_extend_code (hmono := by
@@ -631,7 +633,7 @@ theorem divK_mulsub_4limbs_v2_spec_within
   seqFrame L0fL1e L2e
   -- Limb 3: instrs [55]-[65] at base+668
   have L3 := divK_mulsub_limb_spec_within sp uBase qHat c2
-    bs2 fs2 un2 v3 u3 56 4072 (base + 668)
+    bs2 fs2 un2 v3 u3 56 4072 (base + (correctionSkipOff + 44))
 
   rw [lb_ms_end] at L3
   have L3e := cpsTripleWithin_extend_code (hmono := by
