@@ -65,3 +65,4 @@ import EvmAsm.Evm64.Environment.Layout
 
 -- EVM memory model (issue #99)
 import EvmAsm.Evm64.Memory
+import EvmAsm.Evm64.MSize

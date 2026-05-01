@@ -752,6 +752,62 @@ theorem iterDoubleAddbackBranch_val256_conservation
       simp only [] at hlow
       exact hlow)
 
+theorem q_pos_of_mulsub_borrow
+    (q v0 v1 v2 v3 u0 u1 u2 u3 : Word)
+    (hc3_one : (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2 = 1) :
+    1 ≤ q.toNat := by
+  have hmulsub := mulsubN4_val256_eq q v0 v1 v2 v3 u0 u1 u2 u3
+  simp only [] at hmulsub
+  rw [show (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2 =
+    (1 : Word) from hc3_one] at hmulsub
+  rw [word_toNat_1] at hmulsub
+  by_contra h
+  have hq0 : q.toNat = 0 := by omega
+  rw [hq0] at hmulsub
+  have hms_bound := EvmWord.val256_bound
+    (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).1
+    (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.1
+    (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.1
+    (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.1
+  have hu_bound := EvmWord.val256_bound u0 u1 u2 u3
+  nlinarith
+
+theorem q_ge_two_of_mulsub_borrow_and_addback_carry_zero
+    (q v0 v1 v2 v3 u0 u1 u2 u3 : Word)
+    (hc3_one : (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2 = 1)
+    (hcarry_zero :
+      addbackN4_carry
+        (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).1
+        (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.1
+        (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.1
+        (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.1
+        v0 v1 v2 v3 = 0) :
+    2 ≤ q.toNat := by
+  have hmulsub := mulsubN4_val256_eq q v0 v1 v2 v3 u0 u1 u2 u3
+  simp only [] at hmulsub
+  rw [show (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2 =
+    (1 : Word) from hc3_one] at hmulsub
+  rw [word_toNat_1] at hmulsub
+  let ms := mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3
+  have hab := addbackN4_val256_eq ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 0 v0 v1 v2 v3
+  simp only [] at hab
+  have hcarry_toNat :
+      (addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 v0 v1 v2 v3).toNat = 0 := by
+    subst ms
+    rw [hcarry_zero]
+    exact word_toNat_0
+  rw [hcarry_toNat] at hab
+  have hab_bound := EvmWord.val256_bound
+    (addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 0 v0 v1 v2 v3).1
+    (addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 0 v0 v1 v2 v3).2.1
+    (addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 0 v0 v1 v2 v3).2.2.1
+    (addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 0 v0 v1 v2 v3).2.2.2.1
+  by_contra h
+  have hq_le : q.toNat ≤ 1 := by omega
+  have hv_bound := EvmWord.val256_bound v0 v1 v2 v3
+  have hu_nonneg : 0 ≤ EvmWord.val256 u0 u1 u2 u3 := Nat.zero_le _
+  nlinarith
+
 theorem iterWithDoubleAddback_val256_conservation_of_branch_bounds
     (q v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
     (hbnz : v0 ||| v1 ||| v2 ||| v3 ≠ 0)

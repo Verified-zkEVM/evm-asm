@@ -55,4 +55,6 @@
   "EvmAsm.Evm64.Shift.ShlCompose":
   ["EvmAsm.Evm64.Shift.ComposeBase"],
   "EvmAsm.Evm64.Shift.SarCompose":
-  ["EvmAsm.Evm64.Shift.ComposeBase"]}}
+  ["EvmAsm.Evm64.Shift.ComposeBase"],
+  "EvmAsm.Evm64.DivMod.NormDefs":
+  ["EvmAsm.Rv64.Basic"]}}

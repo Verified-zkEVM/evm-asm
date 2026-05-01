@@ -218,6 +218,12 @@ Benchmark → Run workflow** (or `gh workflow run benchmark.yml`).
 History persistence (a long-lived JSON log of timings) is tracked as a
 follow-up under issue #949.
 
+The shape of this workflow was informed by a survey of
+[`Beneficial-AI-Foundation/curve25519-dalek-lean-verify`](https://github.com/Beneficial-AI-Foundation/curve25519-dalek-lean-verify)'s
+benchmark CI, which was useful for figuring out what a Lean-project
+build benchmark looks like in practice. Design rationale lives in
+[`docs/benchmark-workflow-design.md`](docs/benchmark-workflow-design.md).
+
 ## Status
 
 This is a **prototype** demonstrating the approach. Current state:
