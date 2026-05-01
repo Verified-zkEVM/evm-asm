@@ -18,6 +18,7 @@
     [phaseAOff    =   0] divK_phaseA        (32 bytes)
       [phaseABeqOff =  28]  phaseA-end BEQ → zeroPath (phaseAOff + 28)
     [phaseBOff    =  32] divK_phaseB        (84 bytes)
+      [phaseBInit2Off = 60]  divK_phaseB_init2 sub-block (phaseBOff + 28)
       [phaseBTailOff = 96]  divK_phaseB_tail sub-block (phaseBOff + 64)
     [clzOff       = 116] divK_clz           (96 bytes)
     [phaseC2Off   = 212] divK_phaseC2       (16 bytes)
@@ -59,6 +60,13 @@ abbrev phaseAOff    : Word :=    0
 abbrev phaseABeqOff : Word :=   28
 /-- Offset of `divK_phaseB` (b=0 branch + leading-limb analysis). -/
 abbrev phaseBOff    : Word :=   32
+/-- Offset of the `divK_phaseB_init2` sub-block inside `divK_phaseB`.
+    Entry PC of the second pair of phaseB init loads (`LD x6 sp 16 ;; LD x7 sp 24`),
+    7 instructions / 28 bytes into `divK_phaseB`. The per-limb specs in
+    `Compose/PhaseAB.lean`, `Compose/ModPhaseB.lean`, `Compose/ModPhaseBn3.lean`,
+    and `Compose/ModPhaseBn21.lean` invoke `divK_phaseB_init2_spec_within` at
+    this address. Sub-offset relative to `divK_phaseB` (= phaseBOff + 28). -/
+abbrev phaseBInit2Off : Word :=   60
 /-- Offset of the `divK_phaseB` step0 selection instruction (n=4 path).
     Entry PC of the `ADDI x5, x0, 4` that loads the limb-count `n = 4` into
     `x5`; the immediately-following `BNE x7, x0, +8` (at `phaseBBneOff = 72`)
@@ -74,6 +82,14 @@ abbrev phaseBStep0Off : Word :=   68
     cascade step otherwise). Sub-offset relative to `divK_phaseB`
     (= phaseBOff + 40 = phaseBTailOff − 24). -/
 abbrev phaseBBneOff : Word :=   72
+/-- Offset of the second BNE-to-`divK_phaseB_tail` instruction inside
+    `divK_phaseB`. Entry PC of the `BNE x7, x0, +16` that ends the
+    second per-limb leading-limb-analysis cascade step and branches
+    forward into `divK_phaseB_tail` when the current candidate top limb
+    is non-zero (falls through to the next per-limb cascade step
+    otherwise). Sub-offset relative to `divK_phaseB`
+    (= phaseBOff + 48 = phaseBTailOff − 16). -/
+abbrev phaseBBne2Off : Word :=   80
 /-- Offset of the `divK_phaseB_tail` sub-block inside `divK_phaseB`.
     Entry PC of the leading-limb-analysis tail (16 instructions / 64 bytes
     into `divK_phaseB`); the per-limb cascade in `divK_phaseB_cascade` falls
@@ -234,6 +250,10 @@ abbrev div128CallRetOff : Word := 516
     The phaseA-end BEQ to `divK_zeroPath` sits 7 instructions into phaseA. -/
 example : phaseABeqOff = phaseAOff + 28 := by decide
 example : phaseABeqOff + 4 = phaseBOff := by decide
+/-- phaseBInit2Off = phaseBOff + 28 (sub-block offset within `divK_phaseB`).
+    The second pair of phaseB init loads (`LD x6 sp 16 ;; LD x7 sp 24`) sits
+    7 instructions into phaseB. -/
+example : phaseBInit2Off = phaseBOff + 28 := by decide
 /-- phaseBOff = phaseAOff + 4 · |divK_phaseA 1020|. -/
 example : phaseBOff = phaseAOff + 4 * (divK_phaseA 1020).length := by decide
 /-- clzOff = phaseBOff + 4 · |divK_phaseB|. -/
@@ -323,6 +343,12 @@ example : trialJalOff + 4 = div128CallRetOff := by decide
     `divK_phaseB`, 24 bytes (6 instructions) before `phaseBTailOff`. -/
 example : phaseBBneOff = phaseBOff + 40 := by decide
 example : phaseBBneOff + 24 = phaseBTailOff := by decide
+/-- phaseBBne2Off = phaseBOff + 48 (sub-block offset within `divK_phaseB`).
+    The second BNE-to-`divK_phaseB_tail` instruction sits 12 instructions
+    into `divK_phaseB`, 16 bytes (4 instructions) before `phaseBTailOff`. -/
+example : phaseBBne2Off = phaseBOff + 48 := by decide
+example : phaseBBne2Off + 16 = phaseBTailOff := by decide
+example : phaseBBne2Off = phaseBBneOff + 8 := by decide
 /-- mulsubOff = loopBodyOff + 88 (sub-block offset within `divK_loopBody`).
     The `divK_mulsub_correction` snippet starts 22 instructions into the loop
     body, after the trial-divide entry (~13 instructions) and the div128 call
