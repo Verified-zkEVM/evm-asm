@@ -1080,7 +1080,7 @@ theorem divK_correction_addback_named_spec_within
     v5Old v2Old base hb
 
 private theorem lb_save_j {base : Word} : (base + loopBodyOff : Word) + 4 = base + 452 := by bv_addr
-private theorem lb_trial_load {base : Word} : (base + 452 : Word) + 48 = base + 500 := by bv_addr
+private theorem lb_trial_load {base : Word} : (base + 452 : Word) + 48 = base + trialCallOff := by bv_addr
 
 /-- Save j + trial load: save j to memory, then load uHi, uLo, vTop for trial quotient.
     13 instructions, loop body indices [0]-[12].
@@ -1090,7 +1090,7 @@ theorem divK_save_trial_load_spec_within
     (base : Word) :
     let uAddr := sp + signExtend12 4056 - (j + n) <<< (3 : BitVec 6).toNat
     let vtopBase := sp + (n + signExtend12 4095) <<< (3 : BitVec 6).toNat
-    cpsTripleWithin 13 (base + loopBodyOff) (base + 500) (sharedDivModCode base)
+    cpsTripleWithin 13 (base + loopBodyOff) (base + trialCallOff) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
        (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
        (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) **
@@ -1145,9 +1145,9 @@ theorem divK_save_trial_load_spec_within
     (fun h hq => by xperm_hyp hq)
     SJfTLe
 
-theorem lb_bltu_taken {base : Word} : (base + 500 : Word) + signExtend13 (12 : BitVec 13) = base + 512 := by
+theorem lb_bltu_taken {base : Word} : (base + trialCallOff : Word) + signExtend13 (12 : BitVec 13) = base + 512 := by
   rv64_addr
-theorem lb_bltu_ntaken {base : Word} : (base + 500 : Word) + 4 = base + 504 := by bv_addr
+theorem lb_bltu_ntaken {base : Word} : (base + trialCallOff : Word) + 4 = base + 504 := by bv_addr
 
 -- ============================================================================
 -- Section 9: Store q[j] + loop control

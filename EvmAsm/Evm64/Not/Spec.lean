@@ -5,6 +5,7 @@
 -/
 
 import EvmAsm.Evm64.Not.LimbSpec
+import EvmAsm.Evm64.Stack
 import EvmAsm.Rv64.Tactics.XSimp
 
 open EvmAsm.Rv64.Tactics
@@ -47,6 +48,37 @@ theorem evm_not_spec_within (sp base : Word)
 -- ============================================================================
 -- Stack-level NOT spec
 -- ============================================================================
+
+/-- Helper: `x ^^^ signExtend12 (-1)` is bitwise complement at `Word` (BitVec 64) width.
+    `signExtend12 (-1 : BitVec 12)` evaluates to `(-1 : Word) = BitVec.allOnes 64`,
+    and `x ^^^ allOnes = ~~~x`. -/
+private theorem xor_signExtend12_neg_one (x : Word) :
+    x ^^^ signExtend12 (-1 : BitVec 12) = ~~~ x := by
+  have h : signExtend12 (-1 : BitVec 12) = (-1 : Word) := by decide
+  rw [h]; bv_decide
+
+/-- Stack-level 256-bit EVM NOT: operates on a single EvmWord via evmWordIs.
+    Unary opcode — sp unchanged, in-place complement. -/
+theorem evm_not_stack_spec_within (sp base : Word)
+    (a : EvmWord) (v7 : Word) :
+    let code := evm_not_code base
+    cpsTripleWithin 12 base (base + 48) code
+      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** evmWordIs sp a)
+      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ ~~~ (a.getLimbN 3)) ** evmWordIs sp (~~~ a)) := by
+  have h_main := evm_not_spec_within sp base
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) v7
+  exact cpsTripleWithin_weaken
+    (fun h hp => by
+      simp only [evmWordIs] at hp
+      xperm_hyp hp)
+    (fun h hq => by
+      simp only [evmWordIs, EvmWord.getLimbN_not (by decide : (0:Nat) < 4),
+                 EvmWord.getLimbN_not (by decide : (1:Nat) < 4),
+                 EvmWord.getLimbN_not (by decide : (2:Nat) < 4),
+                 EvmWord.getLimbN_not (by decide : (3:Nat) < 4)]
+      simp only [xor_signExtend12_neg_one] at hq
+      xperm_hyp hq)
+    h_main
 
 
 end EvmAsm.Evm64
