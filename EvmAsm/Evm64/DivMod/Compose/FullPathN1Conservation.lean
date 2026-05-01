@@ -383,6 +383,28 @@ theorem iterWithDoubleAddback_qout_ge_sub_two
       (uTop := uTop) hb]
     simp
 
+theorem iterN1_qout_ge_trial_sub_two
+    (bltu : Bool) (v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
+    (hqCall : bltu = true → 2 ≤ (div128Quot u1 u0 v0).toNat) :
+    let qHat : Word := if bltu then div128Quot u1 u0 v0 else signExtend12 4095
+    let out := iterN1 bltu v0 v1 v2 v3 u0 u1 u2 u3 uTop
+    qHat.toNat - 2 ≤ out.1.toNat := by
+  intro qHat out
+  subst qHat
+  subst out
+  cases bltu
+  · simp only [iterN1_false]
+    unfold iterN1Max
+    exact iterWithDoubleAddback_qout_ge_sub_two
+      (signExtend12 4095) v0 v1 v2 v3 u0 u1 u2 u3 uTop (by
+        rw [signExtend12_4095_toNat]
+        norm_num)
+  · simp only [ite_true, iterN1_true]
+    unfold iterN1Call
+    exact iterWithDoubleAddback_qout_ge_sub_two
+      (div128Quot u1 u0 v0) v0 v1 v2 v3 u0 u1 u2 u3 uTop
+      (hqCall rfl)
+
 theorem fullDivN1RemainderVal_eq_mod_mul_pow_of_telescoped
     (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
     (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
