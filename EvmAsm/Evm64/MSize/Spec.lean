@@ -17,6 +17,7 @@
 
 import EvmAsm.Evm64.MSize.Program
 import EvmAsm.Evm64.Memory
+import EvmAsm.Evm64.Stack
 import EvmAsm.Rv64.SyscallSpecs
 import EvmAsm.Rv64.Tactics.XSimp
 import EvmAsm.Rv64.Tactics.RunBlock
@@ -64,5 +65,86 @@ theorem evm_msize_spec_within
   have LSD2 := sd_x0_spec_gen_within .x12 nsp d2 16 (base + 16)
   have LSD3 := sd_x0_spec_gen_within .x12 nsp d3 24 (base + 20)
   runBlock LLD LADDI LSD0 LSD1 LSD2 LSD3
+
+/-! ## Stack-form lift
+
+  Lift `evm_msize_spec_within` to the EVM stack view: the post asserts
+  `evmStackIs nsp (BitVec.ofNat 256 sizeBytes :: rest)` whenever the
+  caller knows the size fits in 64 bits (which is true for any realistic
+  EVM execution — gas costs bound `sizeBytes` well below `2^64`).
+-/
+
+private theorem evmWordIs_msize_unfold (nsp : Word) (sizeBytes : Nat)
+    (h_size_lt : sizeBytes < 2 ^ 64) :
+    evmWordIs nsp (BitVec.ofNat 256 sizeBytes) =
+      ((nsp ↦ₘ BitVec.ofNat 64 sizeBytes) ** ((nsp + 8) ↦ₘ 0) **
+       ((nsp + 16) ↦ₘ 0) ** ((nsp + 24) ↦ₘ 0)) := by
+  -- Rewrite the four `getLimbN` applications using `getLimbN_eq_extractLsb'`
+  -- and the algebraic identities for `extractLsb'` on `BitVec.ofNat 256 _`.
+  have hlow : EvmWord.getLimbN (BitVec.ofNat 256 sizeBytes) 0 = BitVec.ofNat 64 sizeBytes := by
+    rw [EvmWord.getLimbN_eq_extractLsb']
+    apply BitVec.eq_of_toNat_eq
+    simp only [BitVec.extractLsb'_toNat, BitVec.toNat_ofNat, Nat.shiftRight_zero,
+               Nat.zero_mul]
+    have h1 : sizeBytes % 2 ^ 256 = sizeBytes :=
+      Nat.mod_eq_of_lt (by
+        have : sizeBytes < 2 ^ 256 :=
+          Nat.lt_of_lt_of_le h_size_lt (by norm_num)
+        exact this)
+    rw [h1, Nat.mod_eq_of_lt h_size_lt]
+  have hhigh : ∀ k : Nat, k ≠ 0 → k < 4 →
+      EvmWord.getLimbN (BitVec.ofNat 256 sizeBytes) k = 0 := by
+    intro k hk hk4
+    rw [EvmWord.getLimbN_eq_extractLsb']
+    apply BitVec.eq_of_toNat_eq
+    simp only [BitVec.extractLsb'_toNat, BitVec.toNat_ofNat,
+               Nat.shiftRight_eq_div_pow]
+    have h1 : sizeBytes % 2 ^ 256 = sizeBytes :=
+      Nat.mod_eq_of_lt (Nat.lt_of_lt_of_le h_size_lt (by norm_num))
+    rw [h1]
+    have hp : 2 ^ 64 ≤ 2 ^ (k * 64) :=
+      Nat.pow_le_pow_right (by norm_num) (by
+        have : 0 < k := Nat.pos_of_ne_zero hk
+        omega)
+    have hdiv : sizeBytes / 2 ^ (k * 64) = 0 :=
+      Nat.div_eq_of_lt (Nat.lt_of_lt_of_le h_size_lt hp)
+    simp [hdiv]
+  unfold evmWordIs
+  rw [hlow, hhigh 1 (by decide) (by decide),
+      hhigh 2 (by decide) (by decide),
+      hhigh 3 (by decide) (by decide)]
+
+/-- MSIZE stack spec: pushes `BitVec.ofNat 256 sizeBytes` (the EVM memory
+    high-water mark) onto the EVM stack. Requires `sizeBytes < 2^64`,
+    which always holds for realistic EVM executions. -/
+theorem evm_msize_stack_spec_within
+    (sizeReg tempReg : Reg)
+    (htemp_ne_x0 : tempReg ≠ .x0)
+    (nsp base sizeLoc tempOld : Word) (sizeBytes : Nat)
+    (h_size_lt : sizeBytes < 2 ^ 64)
+    (d0 d1 d2 d3 : Word) (rest : List EvmWord) :
+    let code := evm_msize_code sizeReg tempReg base
+    cpsTripleWithin 6 base (base + 24) code
+      ((sizeReg ↦ᵣ sizeLoc) ** (tempReg ↦ᵣ tempOld) **
+       (.x12 ↦ᵣ (nsp + 32)) **
+       (nsp ↦ₘ d0) ** ((nsp + 8) ↦ₘ d1) **
+       ((nsp + 16) ↦ₘ d2) ** ((nsp + 24) ↦ₘ d3) **
+       evmMemSizeIs sizeLoc sizeBytes **
+       evmStackIs (nsp + 32) rest)
+      ((sizeReg ↦ᵣ sizeLoc) ** (tempReg ↦ᵣ BitVec.ofNat 64 sizeBytes) **
+       (.x12 ↦ᵣ nsp) **
+       evmWordIs nsp (BitVec.ofNat 256 sizeBytes) **
+       evmMemSizeIs sizeLoc sizeBytes **
+       evmStackIs (nsp + 32) rest) :=
+  cpsTripleWithin_weaken
+    (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by
+      rw [evmWordIs_msize_unfold nsp sizeBytes h_size_lt]
+      xperm_hyp hq)
+    (cpsTripleWithin_frameR
+      (evmStackIs (nsp + 32) rest)
+      pcFree_evmStackIs
+      (evm_msize_spec_within sizeReg tempReg htemp_ne_x0
+        nsp base sizeLoc tempOld sizeBytes d0 d1 d2 d3))
 
 end EvmAsm.Evm64
