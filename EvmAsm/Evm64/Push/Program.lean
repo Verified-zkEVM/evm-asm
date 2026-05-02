@@ -80,6 +80,24 @@ theorem push2Byte1SrcOffset : pushByteSrcOffset 1 = 2 := by
 theorem push2Byte1DstOffset : pushByteDstOffset 2 1 = 0 := by
   rfl
 
+theorem push3Byte0SrcOffset : pushByteSrcOffset 0 = 1 := by
+  rfl
+
+theorem push3Byte0DstOffset : pushByteDstOffset 3 0 = 2 := by
+  rfl
+
+theorem push3Byte1SrcOffset : pushByteSrcOffset 1 = 2 := by
+  rfl
+
+theorem push3Byte1DstOffset : pushByteDstOffset 3 1 = 1 := by
+  rfl
+
+theorem push3Byte2SrcOffset : pushByteSrcOffset 2 = 3 := by
+  rfl
+
+theorem push3Byte2DstOffset : pushByteDstOffset 3 2 = 0 := by
+  rfl
+
 theorem push32Byte0SrcOffset : pushByteSrcOffset 0 = 1 := by
   rfl
 
