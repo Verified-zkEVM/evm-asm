@@ -133,6 +133,9 @@ def toSailInstr? : Instr → Option SailInstr
   | .LUI rd imm       => some <| instruction.UTYPE (imm, regToRegidx rd, uop.LUI)
   | .AUIPC rd imm     => some <| instruction.UTYPE (imm, regToRegidx rd, uop.AUIPC)
   | .ADDIW rd rs1 imm => some <| instruction.ADDIW (imm, regToRegidx rs1, regToRegidx rd)
+  | .ECALL            => some <| instruction.ECALL ()
+  | .FENCE            => some <| instruction.FENCE (0, 0, 0, regToRegidx .x0, regToRegidx .x0)
+  | .EBREAK           => some <| instruction.EBREAK ()
   | _                 => none
 
 def rtypeToInstr? (rs2 rs1 rd : regidx) : rop → Option Instr
@@ -236,6 +239,9 @@ def utypeToInstr? (imm : BitVec 20) (rd : regidx) : uop → Option Instr
 
 /-- Map the supported SAIL ALU/immediate constructors back to the hand-written AST. -/
 def fromSailInstr? : SailInstr → Option Instr
+  | instruction.ECALL () => some .ECALL
+  | instruction.FENCE _ => some .FENCE
+  | instruction.EBREAK () => some .EBREAK
   | instruction.UTYPE (imm, rd, op) => utypeToInstr? imm rd op
   | instruction.JAL (off, rd) => return .JAL (← regidxToReg? rd) off
   | instruction.JALR (off, rs1, rd) => return .JALR (← regidxToReg? rd) (← regidxToReg? rs1) off
@@ -376,5 +382,18 @@ theorem fromSailInstr?_toSailInstr?_ADDIW
     fromSailInstr? (instruction.ADDIW (imm, regToRegidx rs1, regToRegidx rd)) =
     some (.ADDIW rd rs1 imm) := by
   simp [fromSailInstr?, regidxToReg?_regToRegidx]
+
+theorem fromSailInstr?_toSailInstr?_ECALL :
+    fromSailInstr? (instruction.ECALL ()) = some .ECALL := by
+  simp [fromSailInstr?]
+
+theorem fromSailInstr?_toSailInstr?_FENCE :
+    fromSailInstr? (instruction.FENCE (0, 0, 0, regToRegidx .x0, regToRegidx .x0)) =
+    some .FENCE := by
+  simp [fromSailInstr?]
+
+theorem fromSailInstr?_toSailInstr?_EBREAK :
+    fromSailInstr? (instruction.EBREAK ()) = some .EBREAK := by
+  simp [fromSailInstr?]
 
 end EvmAsm.Rv64.SailEquiv
