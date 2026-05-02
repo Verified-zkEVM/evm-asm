@@ -1059,6 +1059,29 @@ theorem decodeAux_fifty_nine_byte_long_string
         rest) := by
   simp [decodeAux, readLength, takeBytes, Nat.fromBytesBE]
 
+/-- Sixty-byte long string (prefix `0xB8`, length byte `0x3C`). -/
+theorem decodeAux_sixty_byte_long_string
+    (fuel : Nat)
+    (b1 b2 b3 b4 b5 b6 b7 b8 b9 b10 b11 b12 b13 b14 b15 b16 b17 b18 b19 b20 b21 b22
+      b23 b24 b25 b26 b27 b28 b29 b30 b31 b32 b33 b34 b35 b36 b37 b38 b39 b40 b41 b42
+      b43 b44 b45 b46 b47 b48 b49 b50 b51 b52 b53 b54 b55 b56 b57 b58 b59 b60 : Byte)
+    (rest : List Byte) :
+    decodeAux (fuel + 1)
+        ((0xB8 : Byte) :: (0x3C : Byte) :: b1 :: b2 :: b3 :: b4 :: b5 :: b6 :: b7 ::
+          b8 :: b9 :: b10 :: b11 :: b12 :: b13 :: b14 :: b15 :: b16 :: b17 :: b18 ::
+          b19 :: b20 :: b21 :: b22 :: b23 :: b24 :: b25 :: b26 :: b27 :: b28 :: b29 ::
+          b30 :: b31 :: b32 :: b33 :: b34 :: b35 :: b36 :: b37 :: b38 :: b39 :: b40 ::
+          b41 :: b42 :: b43 :: b44 :: b45 :: b46 :: b47 :: b48 :: b49 :: b50 ::
+          b51 :: b52 :: b53 :: b54 :: b55 :: b56 :: b57 :: b58 :: b59 :: b60 ::
+          rest) =
+      some (.bytes
+        [b1, b2, b3, b4, b5, b6, b7, b8, b9, b10, b11, b12, b13, b14, b15, b16, b17,
+          b18, b19, b20, b21, b22, b23, b24, b25, b26, b27, b28, b29, b30, b31, b32,
+          b33, b34, b35, b36, b37, b38, b39, b40, b41, b42, b43, b44, b45, b46, b47,
+          b48, b49, b50, b51, b52, b53, b54, b55, b56, b57, b58, b59, b60],
+        rest) := by
+  simp [decodeAux, readLength, takeBytes, Nat.fromBytesBE]
+
 /-- Canonical-form rejection: prefix `0x81` followed by a byte `b`
     with `b.toNat < 0x80` is non-canonical (the byte should have
     been encoded as itself, not under prefix `0x81`), so `decodeAux`
@@ -2054,6 +2077,24 @@ theorem decode_fifty_nine_byte_long_string
         []) := by
   simp [decode, decodeAux, readLength, takeBytes, Nat.fromBytesBE]
 
+/-- `decode [0xB8, 0x3C, b1..b60] = some (.bytes [b1..b60], [])`. -/
+theorem decode_sixty_byte_long_string
+    (b1 b2 b3 b4 b5 b6 b7 b8 b9 b10 b11 b12 b13 b14 b15 b16 b17 b18 b19 b20 b21 b22
+      b23 b24 b25 b26 b27 b28 b29 b30 b31 b32 b33 b34 b35 b36 b37 b38 b39 b40 b41 b42
+      b43 b44 b45 b46 b47 b48 b49 b50 b51 b52 b53 b54 b55 b56 b57 b58 b59 b60 : Byte) :
+    decode [(0xB8 : Byte), (0x3C : Byte), b1, b2, b3, b4, b5, b6, b7, b8, b9, b10,
+      b11, b12, b13, b14, b15, b16, b17, b18, b19, b20, b21, b22, b23, b24, b25,
+      b26, b27, b28, b29, b30, b31, b32, b33, b34, b35, b36, b37, b38, b39, b40,
+      b41, b42, b43, b44, b45, b46, b47, b48, b49, b50, b51, b52, b53, b54, b55,
+      b56, b57, b58, b59, b60] =
+      some (.bytes
+        [b1, b2, b3, b4, b5, b6, b7, b8, b9, b10, b11, b12, b13, b14, b15, b16, b17,
+          b18, b19, b20, b21, b22, b23, b24, b25, b26, b27, b28, b29, b30, b31, b32,
+          b33, b34, b35, b36, b37, b38, b39, b40, b41, b42, b43, b44, b45, b46, b47,
+          b48, b49, b50, b51, b52, b53, b54, b55, b56, b57, b58, b59, b60],
+        []) := by
+  simp [decode, decodeAux, readLength, takeBytes, Nat.fromBytesBE]
+
 /-! ## encodeBytes characterizations -/
 
 /-- Empty byte string encodes to the single prefix `[0x80]`. -/
@@ -2684,6 +2725,20 @@ theorem encodeBytes_fifty_nine_long
         n, o, p, q, r, s, t, u, v, w, x, y, z, aa, ab, ac, ad, ae, af, ag, ah, ai, aj,
         ak, al, am, an, ao, ap, aq, ar, as, au, av, aw, ax, ay, az, ba, bb, bc, bd,
         be, bf, bg, bh] := by
+  simp [encodeBytes, Nat.toBytesBE]
+
+/-- Sixty-byte long string:
+    `encodeBytes [a, b, ..., bi] = [0xB8, 0x3C, a, b, ..., bi]`. -/
+theorem encodeBytes_sixty_long
+    (a b c d e f g h i j k l m n o p q r s t u v w x y z aa ab ac ad ae af ag ah ai aj ak al am an ao ap aq ar as au av aw ax ay az ba bb bc bd be bf bg bh bi :
+      Byte) :
+    encodeBytes [a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, s, t, u, v, w, x,
+      y, z, aa, ab, ac, ad, ae, af, ag, ah, ai, aj, ak, al, am, an, ao, ap, aq, ar, as,
+      au, av, aw, ax, ay, az, ba, bb, bc, bd, be, bf, bg, bh, bi] =
+      [BitVec.ofNat 8 0xB8, BitVec.ofNat 8 0x3C, a, b, c, d, e, f, g, h, i, j, k, l, m,
+        n, o, p, q, r, s, t, u, v, w, x, y, z, aa, ab, ac, ad, ae, af, ag, ah, ai, aj,
+        ak, al, am, an, ao, ap, aq, ar, as, au, av, aw, ax, ay, az, ba, bb, bc, bd,
+        be, bf, bg, bh, bi] := by
   simp [encodeBytes, Nat.toBytesBE]
 
 /-! ## Encoding produces non-empty output -/
