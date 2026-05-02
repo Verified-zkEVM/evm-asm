@@ -106,4 +106,28 @@ theorem evm_mstore8_byte_length (offReg valReg addrReg memBaseReg : Reg) :
     4 * (evm_mstore8 offReg valReg addrReg memBaseReg).length = 20 := by
   rw [evm_mstore8_length]
 
+/-- Byte offset of the MSTORE8 offset-load instruction. -/
+theorem evm_mstore8_offset_load_byte_off : 4 * 0 = 0 := by
+  rfl
+
+/-- Byte offset of the MSTORE8 value-load instruction. -/
+theorem evm_mstore8_value_load_byte_off : 4 * 1 = 4 := by
+  rfl
+
+/-- Byte offset of the MSTORE8 address-add instruction. -/
+theorem evm_mstore8_addr_add_byte_off : 4 * 2 = 8 := by
+  rfl
+
+/-- Byte offset of the MSTORE8 byte-store instruction. -/
+theorem evm_mstore8_store_byte_off : 4 * 3 = 12 := by
+  rfl
+
+/-- Byte offset of the MSTORE8 final stack-pointer update. -/
+theorem evm_mstore8_pop_byte_off : 4 * 4 = 16 := by
+  rfl
+
+/-- Byte offset immediately after the full MSTORE8 program. -/
+theorem evm_mstore8_end_byte_off : 4 * 5 = 20 := by
+  rfl
+
 end EvmAsm.Evm64
