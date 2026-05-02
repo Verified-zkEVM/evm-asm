@@ -252,4 +252,49 @@ theorem mstore_byte_unpack_step_pair_high_spec_within
       xperm_hyp hp)
     framed
 
+/-- Dword-pair form of `mstore_byte_unpack_step_spec_within` that dispatches
+    to the low or high destination dword according to
+    `MStore.mstoreDwordPairAddr`. This is the uniform byte-step lemma used by
+    the one-limb MSTORE composition. -/
+theorem mstore_byte_unpack_step_pair_spec_within
+    (addrReg byteReg accReg : Reg)
+    (addrPtr accVal byteOld loVal hiVal : Word)
+    (loAddr hiAddr : Word)
+    (k start i : Nat) (dstOff : BitVec 12) (base : Word)
+    (h_byte_ne_x0 : byteReg ≠ .x0)
+    (h_k_lt : k < 8)
+    (h_align :
+      alignToDword (addrPtr + signExtend12 dstOff) =
+        MStore.mstoreDwordPairAddr loAddr hiAddr start i)
+    (h_valid : isValidByteAccess (addrPtr + signExtend12 dstOff) = true)
+    (h_byte : byteOffset (addrPtr + signExtend12 dstOff) = (start + i) % 8) :
+    let shift := BitVec.ofNat 6 ((7 - k) * 8)
+    let byteVal := accVal >>> shift.toNat
+    let storedByte := extractByte accVal (7 - k)
+    let stored := MStore.mstoreDwordPairReplaceByte loVal hiVal start i storedByte
+    let cr :=
+      (CodeReq.singleton base (.SRLI byteReg accReg shift)).union
+        (CodeReq.singleton (base + 4) (.SB addrReg byteReg dstOff))
+    cpsTripleWithin 2 base (base + 8) cr
+      ((addrReg ↦ᵣ addrPtr) ** (accReg ↦ᵣ accVal) ** (byteReg ↦ᵣ byteOld) **
+       (loAddr ↦ₘ loVal) ** (hiAddr ↦ₘ hiVal))
+      ((addrReg ↦ᵣ addrPtr) ** (accReg ↦ᵣ accVal) ** (byteReg ↦ᵣ byteVal) **
+       (loAddr ↦ₘ stored.1) ** (hiAddr ↦ₘ stored.2)) := by
+  by_cases h_pos : start + i < 8
+  · have h_align_low :
+        alignToDword (addrPtr + signExtend12 dstOff) = loAddr := by
+      rw [MStore.mstoreDwordPairAddr_low loAddr hiAddr h_pos] at h_align
+      exact h_align
+    exact mstore_byte_unpack_step_pair_low_spec_within
+      addrReg byteReg accReg addrPtr accVal byteOld loVal hiVal loAddr hiAddr
+      k start i dstOff base h_byte_ne_x0 h_k_lt h_pos h_align_low h_valid h_byte
+  · have h_high : 8 ≤ start + i := by omega
+    have h_align_high :
+        alignToDword (addrPtr + signExtend12 dstOff) = hiAddr := by
+      rw [MStore.mstoreDwordPairAddr_high loAddr hiAddr h_high] at h_align
+      exact h_align
+    exact mstore_byte_unpack_step_pair_high_spec_within
+      addrReg byteReg accReg addrPtr accVal byteOld loVal hiVal loAddr hiAddr
+      k start i dstOff base h_byte_ne_x0 h_k_lt h_high h_align_high h_valid h_byte
+
 end EvmAsm.Evm64
