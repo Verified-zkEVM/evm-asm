@@ -304,6 +304,38 @@ theorem evmMemExpand_word_eq (sizeBytes offset : Nat) :
   unfold evmMemExpand
   simp
 
+/--
+  Named size-cell postcondition for a 32-byte MLOAD/MSTORE-style access.
+  This keeps opcode specs from repeating the high-water expression in every
+  postcondition while preserving the underlying `evmMemSizeIs` ownership.
+-/
+@[irreducible]
+def evmMemSizeIsWordExpanded (sizeLoc : Word) (sizeBytes offset : Nat) : Assertion :=
+  evmMemSizeIs sizeLoc (evmMemExpand sizeBytes offset 32)
+
+theorem evmMemSizeIsWordExpanded_unfold
+    {sizeLoc : Word} {sizeBytes offset : Nat} :
+    evmMemSizeIsWordExpanded sizeLoc sizeBytes offset =
+      evmMemSizeIs sizeLoc (evmMemExpand sizeBytes offset 32) := by
+  delta evmMemSizeIsWordExpanded
+  rfl
+
+theorem evmMemSizeIsWordExpanded_unfold_max
+    {sizeLoc : Word} {sizeBytes offset : Nat} :
+    evmMemSizeIsWordExpanded sizeLoc sizeBytes offset =
+      evmMemSizeIs sizeLoc (max sizeBytes (roundUpTo32 (offset + 32))) := by
+  rw [evmMemSizeIsWordExpanded_unfold, evmMemExpand_word_eq]
+
+theorem pcFree_evmMemSizeIsWordExpanded
+    {sizeLoc : Word} {sizeBytes offset : Nat} :
+    (evmMemSizeIsWordExpanded sizeLoc sizeBytes offset).pcFree := by
+  rw [evmMemSizeIsWordExpanded_unfold]
+  exact pcFree_evmMemSizeIs
+
+instance (sizeLoc : Word) (sizeBytes offset : Nat) :
+    Assertion.PCFree (evmMemSizeIsWordExpanded sizeLoc sizeBytes offset) :=
+  ⟨pcFree_evmMemSizeIsWordExpanded⟩
+
 /-- MLOAD is a 32-byte byte-addressed access: expansion covers the byte just
     past the requested range for any starting byte offset. -/
 theorem evmMemExpand_mload_ge_end (sizeBytes offset : Nat) :
