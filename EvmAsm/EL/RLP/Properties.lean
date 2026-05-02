@@ -528,6 +528,44 @@ theorem decodeAux_thirty_four_byte_string
         rest) := by
   simp [decodeAux, takeBytes]
 
+/-- Thirty-five-byte short string (prefix `0xA3`). Multi-byte payload
+    bypasses the canonical-form check. -/
+theorem decodeAux_thirty_five_byte_string
+    (fuel : Nat)
+    (b1 b2 b3 b4 b5 b6 b7 b8 b9 b10 b11 b12 b13 b14 b15 b16 b17 b18 b19 b20 b21 b22
+      b23 b24 b25 b26 b27 b28 b29 b30 b31 b32 b33 b34 b35 : Byte)
+    (rest : List Byte) :
+    decodeAux (fuel + 1)
+        ((0xA3 : Byte) :: b1 :: b2 :: b3 :: b4 :: b5 :: b6 :: b7 :: b8 :: b9 :: b10 ::
+          b11 :: b12 :: b13 :: b14 :: b15 :: b16 :: b17 :: b18 :: b19 :: b20 :: b21 ::
+          b22 :: b23 :: b24 :: b25 :: b26 :: b27 :: b28 :: b29 :: b30 :: b31 ::
+          b32 :: b33 :: b34 :: b35 :: rest) =
+      some (.bytes
+        [b1, b2, b3, b4, b5, b6, b7, b8, b9, b10, b11, b12, b13, b14, b15, b16, b17,
+          b18, b19, b20, b21, b22, b23, b24, b25, b26, b27, b28, b29, b30, b31, b32,
+          b33, b34, b35],
+        rest) := by
+  simp [decodeAux, takeBytes]
+
+/-- Thirty-six-byte short string (prefix `0xA4`). Multi-byte payload
+    bypasses the canonical-form check. -/
+theorem decodeAux_thirty_six_byte_string
+    (fuel : Nat)
+    (b1 b2 b3 b4 b5 b6 b7 b8 b9 b10 b11 b12 b13 b14 b15 b16 b17 b18 b19 b20 b21 b22
+      b23 b24 b25 b26 b27 b28 b29 b30 b31 b32 b33 b34 b35 b36 : Byte)
+    (rest : List Byte) :
+    decodeAux (fuel + 1)
+        ((0xA4 : Byte) :: b1 :: b2 :: b3 :: b4 :: b5 :: b6 :: b7 :: b8 :: b9 :: b10 ::
+          b11 :: b12 :: b13 :: b14 :: b15 :: b16 :: b17 :: b18 :: b19 :: b20 :: b21 ::
+          b22 :: b23 :: b24 :: b25 :: b26 :: b27 :: b28 :: b29 :: b30 :: b31 ::
+          b32 :: b33 :: b34 :: b35 :: b36 :: rest) =
+      some (.bytes
+        [b1, b2, b3, b4, b5, b6, b7, b8, b9, b10, b11, b12, b13, b14, b15, b16, b17,
+          b18, b19, b20, b21, b22, b23, b24, b25, b26, b27, b28, b29, b30, b31, b32,
+          b33, b34, b35, b36],
+        rest) := by
+  simp [decodeAux, takeBytes]
+
 /-- Canonical-form rejection: prefix `0x81` followed by a byte `b`
     with `b.toNat < 0x80` is non-canonical (the byte should have
     been encoded as itself, not under prefix `0x81`), so `decodeAux`
@@ -1102,6 +1140,36 @@ theorem decode_thirty_four_byte_string
         []) := by
   simp [decode, decodeAux, takeBytes]
 
+/-- `decode [0xA3, b1..b35] = some (.bytes [b1..b35], [])` — the
+    canonical thirty-five-byte short-string encoding. -/
+theorem decode_thirty_five_byte_string
+    (b1 b2 b3 b4 b5 b6 b7 b8 b9 b10 b11 b12 b13 b14 b15 b16 b17 b18 b19 b20 b21 b22
+      b23 b24 b25 b26 b27 b28 b29 b30 b31 b32 b33 b34 b35 : Byte) :
+    decode [(0xA3 : Byte), b1, b2, b3, b4, b5, b6, b7, b8, b9, b10, b11, b12, b13, b14,
+      b15, b16, b17, b18, b19, b20, b21, b22, b23, b24, b25, b26, b27, b28, b29, b30,
+      b31, b32, b33, b34, b35] =
+      some (.bytes
+        [b1, b2, b3, b4, b5, b6, b7, b8, b9, b10, b11, b12, b13, b14, b15, b16, b17,
+          b18, b19, b20, b21, b22, b23, b24, b25, b26, b27, b28, b29, b30, b31, b32,
+          b33, b34, b35],
+        []) := by
+  simp [decode, decodeAux, takeBytes]
+
+/-- `decode [0xA4, b1..b36] = some (.bytes [b1..b36], [])` — the
+    canonical thirty-six-byte short-string encoding. -/
+theorem decode_thirty_six_byte_string
+    (b1 b2 b3 b4 b5 b6 b7 b8 b9 b10 b11 b12 b13 b14 b15 b16 b17 b18 b19 b20 b21 b22
+      b23 b24 b25 b26 b27 b28 b29 b30 b31 b32 b33 b34 b35 b36 : Byte) :
+    decode [(0xA4 : Byte), b1, b2, b3, b4, b5, b6, b7, b8, b9, b10, b11, b12, b13, b14,
+      b15, b16, b17, b18, b19, b20, b21, b22, b23, b24, b25, b26, b27, b28, b29, b30,
+      b31, b32, b33, b34, b35, b36] =
+      some (.bytes
+        [b1, b2, b3, b4, b5, b6, b7, b8, b9, b10, b11, b12, b13, b14, b15, b16, b17,
+          b18, b19, b20, b21, b22, b23, b24, b25, b26, b27, b28, b29, b30, b31, b32,
+          b33, b34, b35, b36],
+        []) := by
+  simp [decode, decodeAux, takeBytes]
+
 /-! ## encodeBytes characterizations -/
 
 /-- Empty byte string encodes to the single prefix `[0x80]`. -/
@@ -1400,6 +1468,30 @@ theorem encodeBytes_quattuortrigintuple
       y, z, aa, ab, ac, ad, ae, af, ag, ah] =
       [BitVec.ofNat 8 0xA2, a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, s, t,
         u, v, w, x, y, z, aa, ab, ac, ad, ae, af, ag, ah] := by
+  simp [encodeBytes]
+
+/-- Thirty-five-byte short string:
+    `encodeBytes [a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, s, t, u, v, w, x, y, z, aa, ab, ac, ad, ae, af, ag, ah, ai] =
+    [0xA3, a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, s, t, u, v, w, x, y, z, aa, ab, ac, ad, ae, af, ag, ah, ai]`. -/
+theorem encodeBytes_quintrigintuple
+    (a b c d e f g h i j k l m n o p q r s t u v w x y z aa ab ac ad ae af ag ah ai :
+      Byte) :
+    encodeBytes [a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, s, t, u, v, w, x,
+      y, z, aa, ab, ac, ad, ae, af, ag, ah, ai] =
+      [BitVec.ofNat 8 0xA3, a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, s, t,
+        u, v, w, x, y, z, aa, ab, ac, ad, ae, af, ag, ah, ai] := by
+  simp [encodeBytes]
+
+/-- Thirty-six-byte short string:
+    `encodeBytes [a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, s, t, u, v, w, x, y, z, aa, ab, ac, ad, ae, af, ag, ah, ai, aj] =
+    [0xA4, a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, s, t, u, v, w, x, y, z, aa, ab, ac, ad, ae, af, ag, ah, ai, aj]`. -/
+theorem encodeBytes_sestrigintuple
+    (a b c d e f g h i j k l m n o p q r s t u v w x y z aa ab ac ad ae af ag ah ai aj :
+      Byte) :
+    encodeBytes [a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, s, t, u, v, w, x,
+      y, z, aa, ab, ac, ad, ae, af, ag, ah, ai, aj] =
+      [BitVec.ofNat 8 0xA4, a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, s, t,
+        u, v, w, x, y, z, aa, ab, ac, ad, ae, af, ag, ah, ai, aj] := by
   simp [encodeBytes]
 
 /-! ## Encoding produces non-empty output -/
