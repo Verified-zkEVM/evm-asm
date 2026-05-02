@@ -123,6 +123,15 @@ theorem decodeAux_six_byte_string
       some (.bytes [b1, b2, b3, b4, b5, b6], rest) := by
   simp [decodeAux, takeBytes]
 
+/-- Seven-byte short string (prefix `0x87`). Multi-byte payload
+    bypasses the canonical-form check. -/
+theorem decodeAux_seven_byte_string
+    (fuel : Nat) (b1 b2 b3 b4 b5 b6 b7 : Byte) (rest : List Byte) :
+    decodeAux (fuel + 1)
+        ((0x87 : Byte) :: b1 :: b2 :: b3 :: b4 :: b5 :: b6 :: b7 :: rest) =
+      some (.bytes [b1, b2, b3, b4, b5, b6, b7], rest) := by
+  simp [decodeAux, takeBytes]
+
 /-- Canonical-form rejection: prefix `0x81` followed by a byte `b`
     with `b.toNat < 0x80` is non-canonical (the byte should have
     been encoded as itself, not under prefix `0x81`), so `decodeAux`
@@ -382,6 +391,13 @@ theorem decode_six_byte_string (b1 b2 b3 b4 b5 b6 : Byte) :
       some (.bytes [b1, b2, b3, b4, b5, b6], []) := by
   simp [decode, decodeAux, takeBytes]
 
+/-- `decode [0x87, b1..b7] = some (.bytes [b1..b7], [])` — the
+    canonical seven-byte short-string encoding. -/
+theorem decode_seven_byte_string (b1 b2 b3 b4 b5 b6 b7 : Byte) :
+    decode [(0x87 : Byte), b1, b2, b3, b4, b5, b6, b7] =
+      some (.bytes [b1, b2, b3, b4, b5, b6, b7], []) := by
+  simp [decode, decodeAux, takeBytes]
+
 /-! ## encodeBytes characterizations -/
 
 /-- Empty byte string encodes to the single prefix `[0x80]`. -/
@@ -426,6 +442,13 @@ theorem encodeBytes_quint (a b c d e : Byte) :
 theorem encodeBytes_sext (a b c d e f : Byte) :
     encodeBytes [a, b, c, d, e, f] =
       [BitVec.ofNat 8 0x86, a, b, c, d, e, f] := by
+  simp [encodeBytes]
+
+/-- Seven-byte short string:
+    `encodeBytes [a, b, c, d, e, f, g] = [0x87, a, b, c, d, e, f, g]`. -/
+theorem encodeBytes_sept (a b c d e f g : Byte) :
+    encodeBytes [a, b, c, d, e, f, g] =
+      [BitVec.ofNat 8 0x87, a, b, c, d, e, f, g] := by
   simp [encodeBytes]
 
 /-! ## Encoding produces non-empty output -/
