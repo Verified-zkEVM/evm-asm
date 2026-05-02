@@ -73,4 +73,24 @@ def evm_push (n : Nat) : Program :=
 abbrev evm_push_code (base : Word) (n : Nat) : CodeReq :=
   CodeReq.ofProg base (evm_push n)
 
+private theorem push_bytes_length (n k : Nat) :
+    (push_bytes n k).length = 2 * k := by
+  induction k with
+  | zero => rfl
+  | succ k ih =>
+      simp [push_bytes, push_one_byte, LBU, SB, single, seq,
+        Program.length_append, ih, Nat.mul_succ]
+
+/-- Concrete instruction length of `evm_push n`. -/
+theorem evm_push_length (n : Nat) :
+    (evm_push n).length = 5 + 2 * n := by
+  simp [evm_push, ADDI, SD, single, seq, Program.length_append, push_bytes_length]
+  omega
+
+/-- Concrete byte length of `evm_push n` when placed in RV64 code memory. -/
+theorem evm_push_byte_length (n : Nat) :
+    4 * (evm_push n).length = 20 + 8 * n := by
+  rw [evm_push_length]
+  omega
+
 end EvmAsm.Evm64
