@@ -556,6 +556,109 @@ theorem mload_byte_pack_three_pair_spec_within
   exact cpsTripleWithin_seq hd_step two step
 
 /--
+  Four-byte big-endian byte-pack composition for an unaligned source window,
+  extending `mload_byte_pack_three_pair_spec_within` with one more pair step.
+-/
+theorem mload_byte_pack_four_pair_spec_within
+    (addrReg byteReg accReg : Reg)
+    (addrPtr accOld byteOld loVal hiVal loAddr hiAddr : Word)
+    (off0 off1 off2 off3 : BitVec 12) (start : Nat) (base : Word)
+    (h_byte_ne_x0 : byteReg ≠ .x0)
+    (h_acc_ne_x0  : accReg  ≠ .x0)
+    (h_align0 :
+      alignToDword (addrPtr + signExtend12 off0) =
+        mloadDwordPairAddr loAddr hiAddr start 0)
+    (h_byte0 : byteOffset (addrPtr + signExtend12 off0) = (start + 0) % 8)
+    (h_valid0 : isValidByteAccess (addrPtr + signExtend12 off0) = true)
+    (h_align1 :
+      alignToDword (addrPtr + signExtend12 off1) =
+        mloadDwordPairAddr loAddr hiAddr start 1)
+    (h_byte1 : byteOffset (addrPtr + signExtend12 off1) = (start + 1) % 8)
+    (h_valid1 : isValidByteAccess (addrPtr + signExtend12 off1) = true)
+    (h_align2 :
+      alignToDword (addrPtr + signExtend12 off2) =
+        mloadDwordPairAddr loAddr hiAddr start 2)
+    (h_byte2 : byteOffset (addrPtr + signExtend12 off2) = (start + 2) % 8)
+    (h_valid2 : isValidByteAccess (addrPtr + signExtend12 off2) = true)
+    (h_align3 :
+      alignToDword (addrPtr + signExtend12 off3) =
+        mloadDwordPairAddr loAddr hiAddr start 3)
+    (h_byte3 : byteOffset (addrPtr + signExtend12 off3) = (start + 3) % 8)
+    (h_valid3 : isValidByteAccess (addrPtr + signExtend12 off3) = true) :
+    let b0 := (mloadByteFromDwordPair loVal hiVal start 0).zeroExtend 64
+    let b1 := (mloadByteFromDwordPair loVal hiVal start 1).zeroExtend 64
+    let b2 := (mloadByteFromDwordPair loVal hiVal start 2).zeroExtend 64
+    let b3 := (mloadByteFromDwordPair loVal hiVal start 3).zeroExtend 64
+    let accAfter3 := (((b0 <<< (8 : Nat)) ||| b1) <<< (8 : Nat)) ||| b2
+    let accFinal := (accAfter3 <<< (8 : Nat)) ||| b3
+    let cr := mloadBytePackFourCode addrReg byteReg accReg off0 off1 off2 off3 base
+    cpsTripleWithin 10 base (base + 40) cr
+      ((addrReg ↦ᵣ addrPtr) ** (byteReg ↦ᵣ byteOld) ** (accReg ↦ᵣ accOld) **
+       (loAddr ↦ₘ loVal) ** (hiAddr ↦ₘ hiVal))
+      ((addrReg ↦ᵣ addrPtr) ** (byteReg ↦ᵣ b3) ** (accReg ↦ᵣ accFinal) **
+       (loAddr ↦ₘ loVal) ** (hiAddr ↦ₘ hiVal)) := by
+  intro b0 b1 b2 b3 accAfter3 accFinal cr
+  have three := mload_byte_pack_three_pair_spec_within addrReg byteReg accReg
+    addrPtr accOld byteOld loVal hiVal loAddr hiAddr off0 off1 off2 start base
+    h_byte_ne_x0 h_acc_ne_x0
+    h_align0 h_byte0 h_valid0 h_align1 h_byte1 h_valid1
+    h_align2 h_byte2 h_valid2
+  have step := mload_byte_pack_step_pair_spec_within addrReg byteReg accReg
+    addrPtr accAfter3 b2 loVal hiVal loAddr hiAddr off3 start 3 (base + 28)
+    h_byte_ne_x0 h_acc_ne_x0 h_align3 h_byte3 h_valid3
+  rw [show (base + 28 : Word) + 12 = base + 40 from by bv_omega] at step
+  rw [show (base + 28 : Word) + 4 = base + 32 from by bv_omega,
+      show (base + 28 : Word) + 8 = base + 36 from by bv_omega] at step
+  have h_b_b28   : base ≠ base + 28 := by bv_omega
+  have h_b_b32   : base ≠ base + 32 := by bv_omega
+  have h_b_b36   : base ≠ base + 36 := by bv_omega
+  have h_b4_b28  : base + 4  ≠ base + 28 := by bv_omega
+  have h_b4_b32  : base + 4  ≠ base + 32 := by bv_omega
+  have h_b4_b36  : base + 4  ≠ base + 36 := by bv_omega
+  have h_b8_b28  : base + 8  ≠ base + 28 := by bv_omega
+  have h_b8_b32  : base + 8  ≠ base + 32 := by bv_omega
+  have h_b8_b36  : base + 8  ≠ base + 36 := by bv_omega
+  have h_b12_b28 : base + 12 ≠ base + 28 := by bv_omega
+  have h_b12_b32 : base + 12 ≠ base + 32 := by bv_omega
+  have h_b12_b36 : base + 12 ≠ base + 36 := by bv_omega
+  have h_b16_b28 : base + 16 ≠ base + 28 := by bv_omega
+  have h_b16_b32 : base + 16 ≠ base + 32 := by bv_omega
+  have h_b16_b36 : base + 16 ≠ base + 36 := by bv_omega
+  have h_b20_b28 : base + 20 ≠ base + 28 := by bv_omega
+  have h_b20_b32 : base + 20 ≠ base + 32 := by bv_omega
+  have h_b20_b36 : base + 20 ≠ base + 36 := by bv_omega
+  have h_b24_b28 : base + 24 ≠ base + 28 := by bv_omega
+  have h_b24_b32 : base + 24 ≠ base + 32 := by bv_omega
+  have h_b24_b36 : base + 24 ≠ base + 36 := by bv_omega
+  have hd_step : CodeReq.Disjoint
+      (mloadBytePackThreeCode addrReg byteReg accReg off0 off1 off2 base)
+      ((CodeReq.singleton (base + 28) (.LBU byteReg addrReg off3)).union
+       ((CodeReq.singleton (base + 32) (.SLLI accReg accReg (BitVec.ofNat 6 8))).union
+        (CodeReq.singleton (base + 36) (.OR accReg accReg byteReg)))) := by
+    unfold mloadBytePackThreeCode mloadBytePackTwoCode
+    have leaf : ∀ {a : Word} {i : Instr},
+        a ≠ base + 28 → a ≠ base + 32 → a ≠ base + 36 →
+        CodeReq.Disjoint (CodeReq.singleton a i)
+            ((CodeReq.singleton (base + 28) (.LBU byteReg addrReg off3)).union
+             ((CodeReq.singleton (base + 32) (.SLLI accReg accReg (BitVec.ofNat 6 8))).union
+              (CodeReq.singleton (base + 36) (.OR accReg accReg byteReg)))) := by
+      intro a i h28 h32 h36
+      exact CodeReq.Disjoint.union_right
+        (CodeReq.Disjoint.singleton h28)
+        (CodeReq.Disjoint.union_right
+          (CodeReq.Disjoint.singleton h32)
+          (CodeReq.Disjoint.singleton h36))
+    refine CodeReq.Disjoint.union_left ?_ ?_
+    · refine CodeReq.Disjoint.union_left (leaf h_b_b28 h_b_b32 h_b_b36) ?_
+      refine CodeReq.Disjoint.union_left (leaf h_b4_b28 h_b4_b32 h_b4_b36) ?_
+      refine CodeReq.Disjoint.union_left (leaf h_b8_b28 h_b8_b32 h_b8_b36) ?_
+      exact leaf h_b12_b28 h_b12_b32 h_b12_b36
+    · refine CodeReq.Disjoint.union_left (leaf h_b16_b28 h_b16_b32 h_b16_b36) ?_
+      refine CodeReq.Disjoint.union_left (leaf h_b20_b28 h_b20_b32 h_b20_b36) ?_
+      exact leaf h_b24_b28 h_b24_b32 h_b24_b36
+  exact cpsTripleWithin_seq hd_step three step
+
+/--
   Pack eight consecutive bytes starting at byte offset `start` in `lo`,
   crossing into adjacent dword `hi` when needed.
 -/
