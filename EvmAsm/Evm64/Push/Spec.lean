@@ -135,6 +135,18 @@ theorem push_zero_slot_word_zero_right (nsp : Word) (Q : Assertion) :
 -- Per-byte helper (mirror of `dup_pair_spec_within` for LBU+SB)
 -- ============================================================================
 
+theorem push_one_byte_code_eq_ofProg
+    (base : Word) (codeOff dstOff : BitVec 12) :
+    ((CodeReq.singleton base (.LBU .x7 .x10 codeOff)).union
+      (CodeReq.singleton (base + 4) (.SB .x12 .x7 dstOff))) =
+    CodeReq.ofProg base
+      (LBU .x7 .x10 codeOff ;; SB .x12 .x7 dstOff) := by
+  unfold LBU SB single seq
+  change _ =
+    CodeReq.ofProg base
+      [.LBU .x7 .x10 codeOff, .SB .x12 .x7 dstOff]
+  rw [CodeReq.ofProg_cons, CodeReq.ofProg_singleton]
+
 /-- Two-instruction spec for one PUSH byte: LBU x7 from EVM code at
     `codePtr + codeOff`, then SB x7 to the new stack slot at
     `sp + dstOff`.
@@ -170,5 +182,30 @@ theorem push_one_byte_spec_within
   have S := sb_spec_gen_within .x12 .x7 sp byteZext dstOff (base + 4)
     dstDwordAddr dstWordOld h_dst_align h_dst_valid
   runBlock L S
+
+theorem push_one_byte_ofProg_spec_within
+    (codePtr sp v7Old codeWord dstWordOld : Word)
+    (codeDwordAddr dstDwordAddr : Word)
+    (codeOff dstOff : BitVec 12) (base : Word)
+    (h_code_align : alignToDword (codePtr + signExtend12 codeOff) = codeDwordAddr)
+    (h_code_valid : isValidByteAccess (codePtr + signExtend12 codeOff) = true)
+    (h_dst_align  : alignToDword (sp + signExtend12 dstOff) = dstDwordAddr)
+    (h_dst_valid  : isValidByteAccess (sp + signExtend12 dstOff) = true) :
+    let byteZext :=
+      (extractByte codeWord (byteOffset (codePtr + signExtend12 codeOff))).zeroExtend 64
+    cpsTripleWithin 2 base (base + 8)
+      (CodeReq.ofProg base (LBU .x7 .x10 codeOff ;; SB .x12 .x7 dstOff))
+      ((.x10 ↦ᵣ codePtr) ** (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7Old) **
+       (codeDwordAddr ↦ₘ codeWord) ** (dstDwordAddr ↦ₘ dstWordOld))
+      ((.x10 ↦ᵣ codePtr) ** (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ byteZext) **
+       (codeDwordAddr ↦ₘ codeWord) **
+       (dstDwordAddr ↦ₘ
+         replaceByte dstWordOld (byteOffset (sp + signExtend12 dstOff))
+           (byteZext.truncate 8))) := by
+  intro byteZext
+  rw [← push_one_byte_code_eq_ofProg]
+  exact push_one_byte_spec_within codePtr sp v7Old codeWord dstWordOld
+    codeDwordAddr dstDwordAddr codeOff dstOff base
+    h_code_align h_code_valid h_dst_align h_dst_valid
 
 end EvmAsm.Evm64
