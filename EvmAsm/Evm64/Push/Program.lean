@@ -2012,6 +2012,162 @@ theorem push25Byte24SrcOffset : pushByteSrcOffset 24 = 25 := by
 theorem push25Byte24DstOffset : pushByteDstOffset 25 24 = 0 := by
   rfl
 
+theorem push26Byte0SrcOffset : pushByteSrcOffset 0 = 1 := by
+  rfl
+
+theorem push26Byte0DstOffset : pushByteDstOffset 26 0 = 25 := by
+  rfl
+
+theorem push26Byte1SrcOffset : pushByteSrcOffset 1 = 2 := by
+  rfl
+
+theorem push26Byte1DstOffset : pushByteDstOffset 26 1 = 24 := by
+  rfl
+
+theorem push26Byte2SrcOffset : pushByteSrcOffset 2 = 3 := by
+  rfl
+
+theorem push26Byte2DstOffset : pushByteDstOffset 26 2 = 23 := by
+  rfl
+
+theorem push26Byte3SrcOffset : pushByteSrcOffset 3 = 4 := by
+  rfl
+
+theorem push26Byte3DstOffset : pushByteDstOffset 26 3 = 22 := by
+  rfl
+
+theorem push26Byte4SrcOffset : pushByteSrcOffset 4 = 5 := by
+  rfl
+
+theorem push26Byte4DstOffset : pushByteDstOffset 26 4 = 21 := by
+  rfl
+
+theorem push26Byte5SrcOffset : pushByteSrcOffset 5 = 6 := by
+  rfl
+
+theorem push26Byte5DstOffset : pushByteDstOffset 26 5 = 20 := by
+  rfl
+
+theorem push26Byte6SrcOffset : pushByteSrcOffset 6 = 7 := by
+  rfl
+
+theorem push26Byte6DstOffset : pushByteDstOffset 26 6 = 19 := by
+  rfl
+
+theorem push26Byte7SrcOffset : pushByteSrcOffset 7 = 8 := by
+  rfl
+
+theorem push26Byte7DstOffset : pushByteDstOffset 26 7 = 18 := by
+  rfl
+
+theorem push26Byte8SrcOffset : pushByteSrcOffset 8 = 9 := by
+  rfl
+
+theorem push26Byte8DstOffset : pushByteDstOffset 26 8 = 17 := by
+  rfl
+
+theorem push26Byte9SrcOffset : pushByteSrcOffset 9 = 10 := by
+  rfl
+
+theorem push26Byte9DstOffset : pushByteDstOffset 26 9 = 16 := by
+  rfl
+
+theorem push26Byte10SrcOffset : pushByteSrcOffset 10 = 11 := by
+  rfl
+
+theorem push26Byte10DstOffset : pushByteDstOffset 26 10 = 15 := by
+  rfl
+
+theorem push26Byte11SrcOffset : pushByteSrcOffset 11 = 12 := by
+  rfl
+
+theorem push26Byte11DstOffset : pushByteDstOffset 26 11 = 14 := by
+  rfl
+
+theorem push26Byte12SrcOffset : pushByteSrcOffset 12 = 13 := by
+  rfl
+
+theorem push26Byte12DstOffset : pushByteDstOffset 26 12 = 13 := by
+  rfl
+
+theorem push26Byte13SrcOffset : pushByteSrcOffset 13 = 14 := by
+  rfl
+
+theorem push26Byte13DstOffset : pushByteDstOffset 26 13 = 12 := by
+  rfl
+
+theorem push26Byte14SrcOffset : pushByteSrcOffset 14 = 15 := by
+  rfl
+
+theorem push26Byte14DstOffset : pushByteDstOffset 26 14 = 11 := by
+  rfl
+
+theorem push26Byte15SrcOffset : pushByteSrcOffset 15 = 16 := by
+  rfl
+
+theorem push26Byte15DstOffset : pushByteDstOffset 26 15 = 10 := by
+  rfl
+
+theorem push26Byte16SrcOffset : pushByteSrcOffset 16 = 17 := by
+  rfl
+
+theorem push26Byte16DstOffset : pushByteDstOffset 26 16 = 9 := by
+  rfl
+
+theorem push26Byte17SrcOffset : pushByteSrcOffset 17 = 18 := by
+  rfl
+
+theorem push26Byte17DstOffset : pushByteDstOffset 26 17 = 8 := by
+  rfl
+
+theorem push26Byte18SrcOffset : pushByteSrcOffset 18 = 19 := by
+  rfl
+
+theorem push26Byte18DstOffset : pushByteDstOffset 26 18 = 7 := by
+  rfl
+
+theorem push26Byte19SrcOffset : pushByteSrcOffset 19 = 20 := by
+  rfl
+
+theorem push26Byte19DstOffset : pushByteDstOffset 26 19 = 6 := by
+  rfl
+
+theorem push26Byte20SrcOffset : pushByteSrcOffset 20 = 21 := by
+  rfl
+
+theorem push26Byte20DstOffset : pushByteDstOffset 26 20 = 5 := by
+  rfl
+
+theorem push26Byte21SrcOffset : pushByteSrcOffset 21 = 22 := by
+  rfl
+
+theorem push26Byte21DstOffset : pushByteDstOffset 26 21 = 4 := by
+  rfl
+
+theorem push26Byte22SrcOffset : pushByteSrcOffset 22 = 23 := by
+  rfl
+
+theorem push26Byte22DstOffset : pushByteDstOffset 26 22 = 3 := by
+  rfl
+
+theorem push26Byte23SrcOffset : pushByteSrcOffset 23 = 24 := by
+  rfl
+
+theorem push26Byte23DstOffset : pushByteDstOffset 26 23 = 2 := by
+  rfl
+
+theorem push26Byte24SrcOffset : pushByteSrcOffset 24 = 25 := by
+  rfl
+
+theorem push26Byte24DstOffset : pushByteDstOffset 26 24 = 1 := by
+  rfl
+
+theorem push26Byte25SrcOffset : pushByteSrcOffset 25 = 26 := by
+  rfl
+
+theorem push26Byte25DstOffset : pushByteDstOffset 26 25 = 0 := by
+  rfl
+
 theorem push32Byte0SrcOffset : pushByteSrcOffset 0 = 1 := by
   rfl
 
