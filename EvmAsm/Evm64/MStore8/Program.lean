@@ -61,6 +61,16 @@ def evm_mstore8_kernel (addrReg dataReg : Reg) : Program :=
 abbrev evm_mstore8_kernel_code (addrReg dataReg : Reg) (base : Word) : CodeReq :=
   CodeReq.ofProg base (evm_mstore8_kernel addrReg dataReg)
 
+/-- Concrete instruction length of the MSTORE8 byte-write kernel. -/
+theorem evm_mstore8_kernel_length (addrReg dataReg : Reg) :
+    (evm_mstore8_kernel addrReg dataReg).length = 1 := by
+  rfl
+
+/-- Concrete byte length of the MSTORE8 byte-write kernel. -/
+theorem evm_mstore8_kernel_byte_length (addrReg dataReg : Reg) :
+    4 * (evm_mstore8_kernel addrReg dataReg).length = 4 := by
+  rw [evm_mstore8_kernel_length]
+
 /-- 256-bit EVM MSTORE8 program parameterized over the registers used as
     scratch and the register holding the EVM memory base address.
 
@@ -85,5 +95,15 @@ def evm_mstore8 (offReg valReg addrReg memBaseReg : Reg) : Program :=
 /-- `CodeReq` for `evm_mstore8` placed at `base`. -/
 abbrev evm_mstore8_code (offReg valReg addrReg memBaseReg : Reg) (base : Word) : CodeReq :=
   CodeReq.ofProg base (evm_mstore8 offReg valReg addrReg memBaseReg)
+
+/-- Concrete instruction length of `evm_mstore8`. -/
+theorem evm_mstore8_length (offReg valReg addrReg memBaseReg : Reg) :
+    (evm_mstore8 offReg valReg addrReg memBaseReg).length = 5 := by
+  simp [evm_mstore8, LD, ADD, ADDI, SB, single, seq, Program.length_append]
+
+/-- Concrete byte length of `evm_mstore8` when placed in RV64 code memory. -/
+theorem evm_mstore8_byte_length (offReg valReg addrReg memBaseReg : Reg) :
+    4 * (evm_mstore8 offReg valReg addrReg memBaseReg).length = 20 := by
+  rw [evm_mstore8_length]
 
 end EvmAsm.Evm64
