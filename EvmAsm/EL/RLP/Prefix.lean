@@ -435,6 +435,17 @@ theorem rlpPrefixHeaderBytes_le_one_iff_non_long_ranges (pfx : Byte) :
       (rlpPrefixHeaderBytes_lt_two_iff_non_long_ranges pfx).mpr h_non_long
     omega
 
+theorem rlpPrefixHeaderBytes_eq_zero_or_one_iff_non_long_ranges (pfx : Byte) :
+    rlpPrefixHeaderBytes pfx = 0 ∨ rlpPrefixHeaderBytes pfx = 1 ↔
+      pfx.toNat < 0xB8 ∨
+        (0xC0 ≤ pfx.toNat ∧ pfx.toNat ≤ 0xF7) := by
+  rw [← rlpPrefixHeaderBytes_le_one_iff_non_long_ranges]
+  constructor
+  · intro h_zero_or_one
+    rcases h_zero_or_one with h_zero | h_one <;> omega
+  · intro h_le
+    omega
+
 theorem rlpPrefixHeaderBytes_eq_zero_or_one_or_ge_two (pfx : Byte) :
     rlpPrefixHeaderBytes pfx = 0 ∨
       rlpPrefixHeaderBytes pfx = 1 ∨
