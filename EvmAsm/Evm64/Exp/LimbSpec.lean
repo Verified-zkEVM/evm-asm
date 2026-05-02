@@ -303,6 +303,42 @@ theorem exp_prologue_ofProg_spec_within
   rw [← exp_prologue_code_eq_ofProg]
   exact exp_prologue_spec_within sp cOld tOld m0 m1 m2 m3 base
 
+/-- The four result limbs initialized by `exp_prologue` fold to the EVM word
+    value `1`, which is the accumulator seed for square-and-multiply. -/
+theorem exp_prologue_result_word_one (sp : Word) :
+    (((sp + signExtend12 (0 : BitVec 12)) ↦ₘ
+        ((0 : Word) + signExtend12 (1 : BitVec 12))) **
+      ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ (0 : Word)) **
+      ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ (0 : Word)) **
+      ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ (0 : Word))) =
+    evmWordIs sp (1 : EvmWord) := by
+  rw [evmWordIs_one]
+  simp only [signExtend12]
+  congr
+  all_goals bv_decide
+
+/-- Right-associated variant of `exp_prologue_result_word_one` for composition
+    postconditions with a framed remainder. -/
+theorem exp_prologue_result_word_one_right (sp : Word) (Q : Assertion) :
+    (((sp + signExtend12 (0 : BitVec 12)) ↦ₘ
+        ((0 : Word) + signExtend12 (1 : BitVec 12))) **
+      ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ (0 : Word)) **
+      ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ (0 : Word)) **
+      ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ (0 : Word)) ** Q) =
+    (evmWordIs sp (1 : EvmWord) ** Q) := by
+  have h0 : (sp + signExtend12 (0 : BitVec 12) : Word) = sp := by
+    unfold signExtend12; bv_decide
+  have h1 : ((0 : Word) + signExtend12 (1 : BitVec 12)) = (1 : Word) := by
+    unfold signExtend12; bv_decide
+  have h8 : (sp + signExtend12 (8 : BitVec 12) : Word) = sp + 8 := by
+    unfold signExtend12; bv_decide
+  have h16 : (sp + signExtend12 (16 : BitVec 12) : Word) = sp + 16 := by
+    unfold signExtend12; bv_decide
+  have h24 : (sp + signExtend12 (24 : BitVec 12) : Word) = sp + 24 := by
+    unfold signExtend12; bv_decide
+  rw [h0, h1, h8, h16, h24]
+  rw [evmWordIs_one_right]
+
 -- ============================================================================
 -- Section 6: exp_epilogue (9 instructions, slice 4f / evm-asm-20z6.2)
 -- ============================================================================
