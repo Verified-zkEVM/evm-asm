@@ -188,6 +188,48 @@ theorem push6Byte5SrcOffset : pushByteSrcOffset 5 = 6 := by
 theorem push6Byte5DstOffset : pushByteDstOffset 6 5 = 0 := by
   rfl
 
+theorem push7Byte0SrcOffset : pushByteSrcOffset 0 = 1 := by
+  rfl
+
+theorem push7Byte0DstOffset : pushByteDstOffset 7 0 = 6 := by
+  rfl
+
+theorem push7Byte1SrcOffset : pushByteSrcOffset 1 = 2 := by
+  rfl
+
+theorem push7Byte1DstOffset : pushByteDstOffset 7 1 = 5 := by
+  rfl
+
+theorem push7Byte2SrcOffset : pushByteSrcOffset 2 = 3 := by
+  rfl
+
+theorem push7Byte2DstOffset : pushByteDstOffset 7 2 = 4 := by
+  rfl
+
+theorem push7Byte3SrcOffset : pushByteSrcOffset 3 = 4 := by
+  rfl
+
+theorem push7Byte3DstOffset : pushByteDstOffset 7 3 = 3 := by
+  rfl
+
+theorem push7Byte4SrcOffset : pushByteSrcOffset 4 = 5 := by
+  rfl
+
+theorem push7Byte4DstOffset : pushByteDstOffset 7 4 = 2 := by
+  rfl
+
+theorem push7Byte5SrcOffset : pushByteSrcOffset 5 = 6 := by
+  rfl
+
+theorem push7Byte5DstOffset : pushByteDstOffset 7 5 = 1 := by
+  rfl
+
+theorem push7Byte6SrcOffset : pushByteSrcOffset 6 = 7 := by
+  rfl
+
+theorem push7Byte6DstOffset : pushByteDstOffset 7 6 = 0 := by
+  rfl
+
 theorem push32Byte0SrcOffset : pushByteSrcOffset 0 = 1 := by
   rfl
 
