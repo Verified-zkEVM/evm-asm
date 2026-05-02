@@ -5,6 +5,7 @@
 -/
 
 import EvmAsm.Evm64.Memory
+import EvmAsm.Rv64.AddrNorm
 import EvmAsm.Rv64.SyscallSpecs
 import EvmAsm.Rv64.Tactics.RunBlock
 import EvmAsm.Rv64.Tactics.XSimp
@@ -489,6 +490,34 @@ theorem mload_select_expanded_size_ofProg_spec_within
   rw [← mload_select_expanded_size_code_eq_ofProg]
   exact mload_select_expanded_size_spec_within
     sizeReg roundReg flagReg sizeOld roundedAccessEnd flagVal base
+
+/--
+  Fall-through copy step for `mload_select_expanded_size`: when the dispatch
+  does not branch, this instruction copies the rounded access end into the
+  size register.
+-/
+theorem mload_select_expanded_size_copy_spec_within
+    (sizeReg roundReg flagReg : Reg)
+    (sizeOld roundedAccessEnd flagVal : Word) (base : Word)
+    (h_size_ne_x0 : sizeReg ≠ .x0) :
+    cpsTripleWithin 1 (base + 4) (base + 8)
+      (CodeReq.singleton (base + 4) (Instr.ADDI sizeReg roundReg 0))
+      ((flagReg ↦ᵣ flagVal) ** (.x0 ↦ᵣ (0 : Word)) **
+       (sizeReg ↦ᵣ sizeOld) ** (roundReg ↦ᵣ roundedAccessEnd))
+      ((flagReg ↦ᵣ flagVal) ** (.x0 ↦ᵣ (0 : Word)) **
+       (sizeReg ↦ᵣ roundedAccessEnd) ** (roundReg ↦ᵣ roundedAccessEnd)) := by
+  have haddi :=
+    addi_spec_gen_within sizeReg roundReg sizeOld roundedAccessEnd
+      (0 : BitVec 12) (base + 4) h_size_ne_x0
+  simp only [signExtend12_0] at haddi
+  rw [EvmAsm.Rv64.AddrNorm.word_add_zero] at haddi
+  rw [show (base + 4 : Word) + 4 = base + 8 from by bv_omega] at haddi
+  exact cpsTripleWithin_weaken
+    (fun h hp => by xperm_hyp hp)
+    (fun h hp => by xperm_hyp hp)
+    (cpsTripleWithin_frameL
+      ((flagReg ↦ᵣ flagVal) ** (.x0 ↦ᵣ (0 : Word))) (by pcFree)
+      haddi)
 
 /--
   Store a precomputed 32-byte-access expanded high-water mark into the EVM
