@@ -1683,6 +1683,16 @@ theorem decodeAux_eighty_three_byte_long_string
         rest) := by
   simp [decodeAux, readLength, takeBytes, Nat.fromBytesBE]
 
+/-- Concrete 84-byte long-string payload used by the executable examples below. -/
+def rlpEightyFourBytePayload : List Byte :=
+  List.replicate 84 (0x42 : Byte)
+
+/-- Executable example: 84-byte long string (prefix `0xB8`, length byte `0x54`). -/
+theorem decodeAux_eighty_four_byte_long_string :
+    decodeAux 100 ([(0xB8 : Byte), (0x54 : Byte)] ++ rlpEightyFourBytePayload) =
+      some (.bytes rlpEightyFourBytePayload, []) := by
+  native_decide
+
 /-- Canonical-form rejection: prefix `0x81` followed by a byte `b`
     with `b.toNat < 0x80` is non-canonical (the byte should have
     been encoded as itself, not under prefix `0x81`), so `decodeAux`
@@ -3178,6 +3188,13 @@ theorem decode_eighty_three_byte_long_string
         []) := by
   simp [decode, decodeAux, readLength, takeBytes, Nat.fromBytesBE]
 
+/-- `decode [0xB8, 0x54] ++ rlpEightyFourBytePayload`
+    returns the concrete 84-byte payload. -/
+theorem decode_eighty_four_byte_long_string :
+    decode ([(0xB8 : Byte), (0x54 : Byte)] ++ rlpEightyFourBytePayload) =
+      some (.bytes rlpEightyFourBytePayload, []) := by
+  native_decide
+
 /-! ## encodeBytes characterizations -/
 
 /-- Empty byte string encodes to the single prefix `[0x80]`. -/
@@ -4172,6 +4189,12 @@ theorem encodeBytes_eighty_three_long
         be, bf, bg, bh, bi, bj, bk, bl, bm, bn, bo, bp, bq, br, bs, bt, bu, bv, bw,
         bx, bz, ca, cb, cc, cd, ce, cf, cg] := by
   simp [encodeBytes, Nat.toBytesBE]
+
+/-- Executable encoding example for the concrete 84-byte long-string payload. -/
+theorem encodeBytes_eighty_four_long :
+    encodeBytes rlpEightyFourBytePayload =
+      [(0xB8 : Byte), (0x54 : Byte)] ++ rlpEightyFourBytePayload := by
+  native_decide
 
 /-! ## Encoding produces non-empty output -/
 
