@@ -14,6 +14,46 @@ namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
 
+/-- CodeReq for the eight SRLI/SB byte-unpack steps in one MSTORE limb. -/
+def mstoreByteUnpackEightCode
+    (addrReg byteReg accReg : Reg)
+    (off0 off1 off2 off3 off4 off5 off6 off7 : BitVec 12)
+    (base : Word) : CodeReq :=
+  ((CodeReq.singleton base
+      (.SRLI byteReg accReg (BitVec.ofNat 6 ((7 - 0) * 8)))).union
+   (CodeReq.singleton (base + 4) (.SB addrReg byteReg off0))).union
+  (((CodeReq.singleton (base + 8)
+      (.SRLI byteReg accReg (BitVec.ofNat 6 ((7 - 1) * 8)))).union
+    (CodeReq.singleton (base + 12) (.SB addrReg byteReg off1))).union
+  (((CodeReq.singleton (base + 16)
+      (.SRLI byteReg accReg (BitVec.ofNat 6 ((7 - 2) * 8)))).union
+    (CodeReq.singleton (base + 20) (.SB addrReg byteReg off2))).union
+  (((CodeReq.singleton (base + 24)
+      (.SRLI byteReg accReg (BitVec.ofNat 6 ((7 - 3) * 8)))).union
+    (CodeReq.singleton (base + 28) (.SB addrReg byteReg off3))).union
+  (((CodeReq.singleton (base + 32)
+      (.SRLI byteReg accReg (BitVec.ofNat 6 ((7 - 4) * 8)))).union
+    (CodeReq.singleton (base + 36) (.SB addrReg byteReg off4))).union
+  (((CodeReq.singleton (base + 40)
+      (.SRLI byteReg accReg (BitVec.ofNat 6 ((7 - 5) * 8)))).union
+    (CodeReq.singleton (base + 44) (.SB addrReg byteReg off5))).union
+  (((CodeReq.singleton (base + 48)
+      (.SRLI byteReg accReg (BitVec.ofNat 6 ((7 - 6) * 8)))).union
+    (CodeReq.singleton (base + 52) (.SB addrReg byteReg off6))).union
+   ((CodeReq.singleton (base + 56)
+      (.SRLI byteReg accReg (BitVec.ofNat 6 ((7 - 7) * 8)))).union
+    (CodeReq.singleton (base + 60) (.SB addrReg byteReg off7)))))))))
+
+/-- CodeReq for one MSTORE limb: load a source limb, then emit eight
+    byte-unpack SRLI/SB steps. -/
+def mstoreOneLimbCode
+    (addrReg byteReg accReg : Reg)
+    (srcOff off0 off1 off2 off3 off4 off5 off6 off7 : BitVec 12)
+    (base : Word) : CodeReq :=
+  (CodeReq.singleton base (.LD accReg .x12 srcOff)).union
+    (mstoreByteUnpackEightCode addrReg byteReg accReg
+      off0 off1 off2 off3 off4 off5 off6 off7 (base + 4))
+
 /-- Bundled precondition for the upcoming one-limb MSTORE spec. It contains
     the address/scratch registers, the two destination dwords that may be
     touched by an unaligned 8-byte limb write, and the source EVM-stack limb
