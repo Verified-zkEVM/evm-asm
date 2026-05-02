@@ -262,6 +262,12 @@ theorem roundUpTo32_eq_self_of_dvd (n : Nat) (h : 32 ∣ n) :
   unfold roundUpTo32
   omega
 
+theorem roundUpTo32_le_of_le_dvd {n m : Nat} (h_le : n ≤ m) (h_dvd : 32 ∣ m) :
+    roundUpTo32 n ≤ m := by
+  rcases h_dvd with ⟨k, rfl⟩
+  unfold roundUpTo32
+  omega
+
 theorem roundUpTo32_idempotent (n : Nat) : roundUpTo32 (roundUpTo32 n) = roundUpTo32 n := by
   unfold roundUpTo32
   -- (n+31)/32 * 32 is already a multiple of 32, so adding 31 and dividing
@@ -304,6 +310,13 @@ theorem evmMemExpand_word_eq (sizeBytes offset : Nat) :
   unfold evmMemExpand
   simp
 
+theorem evmMemExpand_word_eq_old_of_end_le
+    (sizeBytes offset : Nat) (h_end : offset + 32 ≤ sizeBytes)
+    (h_size_dvd : 32 ∣ sizeBytes) :
+    evmMemExpand sizeBytes offset 32 = sizeBytes := by
+  rw [evmMemExpand_word_eq]
+  exact max_eq_left (roundUpTo32_le_of_le_dvd h_end h_size_dvd)
+
 /--
   Named size-cell postcondition for a 32-byte MLOAD/MSTORE-style access.
   This keeps opcode specs from repeating the high-water expression in every
@@ -325,6 +338,14 @@ theorem evmMemSizeIsWordExpanded_unfold_max
     evmMemSizeIsWordExpanded sizeLoc sizeBytes offset =
       evmMemSizeIs sizeLoc (max sizeBytes (roundUpTo32 (offset + 32))) := by
   rw [evmMemSizeIsWordExpanded_unfold, evmMemExpand_word_eq]
+
+theorem evmMemSizeIsWordExpanded_eq_current_of_mload_within
+    {sizeLoc : Word} {sizeBytes offset : Nat}
+    (h_end : offset + 32 ≤ sizeBytes) (h_size_dvd : 32 ∣ sizeBytes) :
+    evmMemSizeIsWordExpanded sizeLoc sizeBytes offset =
+      evmMemSizeIs sizeLoc sizeBytes := by
+  rw [evmMemSizeIsWordExpanded_unfold,
+    evmMemExpand_word_eq_old_of_end_le sizeBytes offset h_end h_size_dvd]
 
 theorem pcFree_evmMemSizeIsWordExpanded
     {sizeLoc : Word} {sizeBytes offset : Nat} :
