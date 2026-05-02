@@ -78,6 +78,18 @@ theorem exp_loop_next_iter_byte_off (mulOff : BitVec 21) (skipOff backOff : BitV
     4 * (EvmAsm.Evm64.exp_loop mulOff skipOff backOff).length = 32 := by
   exact exp_loop_byte_len mulOff skipOff backOff
 
+/-- Bundled byte offsets for the blocks within one EXP loop iteration. -/
+theorem exp_loop_block_byte_offsets (mulOff : BitVec 21) (skipOff backOff : BitVec 13) :
+    4 * (EvmAsm.Evm64.exp_bit_test_block).length = 12 ∧
+    4 * ((EvmAsm.Evm64.exp_bit_test_block).length +
+      (EvmAsm.Evm64.exp_square_block mulOff).length) = 16 ∧
+    4 * (EvmAsm.Evm64.exp_iter_body mulOff skipOff).length = 24 ∧
+    4 * (EvmAsm.Evm64.exp_loop mulOff skipOff backOff).length = 32 := by
+  exact ⟨exp_loop_square_byte_off,
+    exp_loop_cond_mul_byte_off mulOff,
+    exp_loop_back_byte_off mulOff skipOff,
+    exp_loop_next_iter_byte_off mulOff skipOff backOff⟩
+
 theorem exp_prologue_byte_len :
     4 * (EvmAsm.Evm64.exp_prologue).length = 24 := by
   exact EvmAsm.Evm64.exp_prologue_byte_length
