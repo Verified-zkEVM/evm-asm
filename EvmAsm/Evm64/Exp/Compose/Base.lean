@@ -41,6 +41,10 @@ theorem exp_loop_back_len (backOff : BitVec 13) :
     (EvmAsm.Evm64.exp_loop_back backOff).length = 2 := by
   exact EvmAsm.Evm64.exp_loop_back_length backOff
 
+theorem exp_loop_len (mulOff : BitVec 21) (skipOff backOff : BitVec 13) :
+    (EvmAsm.Evm64.exp_loop mulOff skipOff backOff).length = 8 := by
+  exact EvmAsm.Evm64.exp_loop_length mulOff skipOff backOff
+
 /-- First EXP composition code skeleton: the verified boundary blocks around
     the loop. The loop body and callable-multiply blocks will extend this
     union as their composed specs land. -/
@@ -138,5 +142,130 @@ theorem expOneIterCode_loop_back_sub {base : Word}
       simp only [exp_cond_mul_block_len, exp_loop_back_len] at hk1 hk2
       bv_omega))
   exact CodeReq.union_mono_left
+
+/-- The concrete `CodeReq` for one full `exp_loop` program. -/
+abbrev expLoopCode (base : Word)
+    (mulOff : BitVec 21) (skipOff backOff : BitVec 13) : CodeReq :=
+  CodeReq.ofProg base (EvmAsm.Evm64.exp_loop mulOff skipOff backOff)
+
+theorem expLoopCode_bit_test_sub {base : Word}
+    {mulOff : BitVec 21} {skipOff backOff : BitVec 13} :
+    ∀ a i, (CodeReq.ofProg base EvmAsm.Evm64.exp_bit_test_block) a = some i →
+      (expLoopCode base mulOff skipOff backOff) a = some i := by
+  unfold expLoopCode
+  exact CodeReq.ofProg_mono_sub base base
+    (EvmAsm.Evm64.exp_loop mulOff skipOff backOff)
+    EvmAsm.Evm64.exp_bit_test_block 0
+    (by bv_omega)
+    (by
+      unfold EvmAsm.Evm64.exp_loop EvmAsm.Evm64.exp_iter_body
+      unfold EvmAsm.Evm64.exp_bit_test_block EvmAsm.Evm64.exp_square_block
+      unfold EvmAsm.Evm64.exp_cond_mul_block EvmAsm.Evm64.exp_loop_back
+      unfold EvmAsm.Rv64.ANDI EvmAsm.Rv64.SRLI EvmAsm.Rv64.ADDI
+      unfold EvmAsm.Rv64.JAL EvmAsm.Rv64.BEQ
+      rfl)
+    (by
+      simp only [exp_loop_len, exp_bit_test_block_len]
+      omega)
+    (by
+      simp only [exp_loop_len]
+      norm_num)
+
+theorem expLoopCode_square_sub {base : Word}
+    {mulOff : BitVec 21} {skipOff backOff : BitVec 13} :
+    ∀ a i, (CodeReq.ofProg (base + 12)
+      (EvmAsm.Evm64.exp_square_block mulOff)) a = some i →
+      (expLoopCode base mulOff skipOff backOff) a = some i := by
+  unfold expLoopCode
+  exact CodeReq.ofProg_mono_sub base (base + 12)
+    (EvmAsm.Evm64.exp_loop mulOff skipOff backOff)
+    (EvmAsm.Evm64.exp_square_block mulOff) 3
+    (by bv_omega)
+    (by
+      unfold EvmAsm.Evm64.exp_loop EvmAsm.Evm64.exp_iter_body
+      unfold EvmAsm.Evm64.exp_bit_test_block EvmAsm.Evm64.exp_square_block
+      unfold EvmAsm.Evm64.exp_cond_mul_block EvmAsm.Evm64.exp_loop_back
+      unfold EvmAsm.Rv64.ANDI EvmAsm.Rv64.SRLI EvmAsm.Rv64.ADDI
+      unfold EvmAsm.Rv64.JAL EvmAsm.Rv64.BEQ
+      rfl)
+    (by
+      simp only [exp_loop_len, exp_square_block_len]
+      omega)
+    (by
+      simp only [exp_loop_len]
+      norm_num)
+
+theorem expLoopCode_cond_mul_sub {base : Word}
+    {mulOff : BitVec 21} {skipOff backOff : BitVec 13} :
+    ∀ a i, (CodeReq.ofProg (base + 16)
+      (EvmAsm.Evm64.exp_cond_mul_block mulOff skipOff)) a = some i →
+      (expLoopCode base mulOff skipOff backOff) a = some i := by
+  unfold expLoopCode
+  exact CodeReq.ofProg_mono_sub base (base + 16)
+    (EvmAsm.Evm64.exp_loop mulOff skipOff backOff)
+    (EvmAsm.Evm64.exp_cond_mul_block mulOff skipOff) 4
+    (by bv_omega)
+    (by
+      unfold EvmAsm.Evm64.exp_loop EvmAsm.Evm64.exp_iter_body
+      unfold EvmAsm.Evm64.exp_bit_test_block EvmAsm.Evm64.exp_square_block
+      unfold EvmAsm.Evm64.exp_cond_mul_block EvmAsm.Evm64.exp_loop_back
+      unfold EvmAsm.Rv64.ANDI EvmAsm.Rv64.SRLI EvmAsm.Rv64.ADDI
+      unfold EvmAsm.Rv64.JAL EvmAsm.Rv64.BEQ
+      rfl)
+    (by
+      simp only [exp_loop_len, exp_cond_mul_block_len]
+      omega)
+    (by
+      simp only [exp_loop_len]
+      norm_num)
+
+theorem expLoopCode_loop_back_sub {base : Word}
+    {mulOff : BitVec 21} {skipOff backOff : BitVec 13} :
+    ∀ a i, (CodeReq.ofProg (base + 24)
+      (EvmAsm.Evm64.exp_loop_back backOff)) a = some i →
+      (expLoopCode base mulOff skipOff backOff) a = some i := by
+  unfold expLoopCode
+  exact CodeReq.ofProg_mono_sub base (base + 24)
+    (EvmAsm.Evm64.exp_loop mulOff skipOff backOff)
+    (EvmAsm.Evm64.exp_loop_back backOff) 6
+    (by bv_omega)
+    (by
+      unfold EvmAsm.Evm64.exp_loop EvmAsm.Evm64.exp_iter_body
+      unfold EvmAsm.Evm64.exp_bit_test_block EvmAsm.Evm64.exp_square_block
+      unfold EvmAsm.Evm64.exp_cond_mul_block EvmAsm.Evm64.exp_loop_back
+      unfold EvmAsm.Rv64.ANDI EvmAsm.Rv64.SRLI EvmAsm.Rv64.ADDI
+      unfold EvmAsm.Rv64.JAL EvmAsm.Rv64.BEQ
+      rfl)
+    (by
+      simp only [exp_loop_len, exp_loop_back_len]
+      omega)
+    (by
+      simp only [exp_loop_len]
+      norm_num)
+
+theorem expOneIterCode_loop_sub {base : Word}
+    {mulOff : BitVec 21} {skipOff backOff : BitVec 13} :
+    ∀ a i, (expOneIterCode base mulOff skipOff backOff) a = some i →
+      (expLoopCode base mulOff skipOff backOff) a = some i := by
+  unfold expOneIterCode
+  simp only [CodeReq.unionAll_cons, CodeReq.unionAll_nil]
+  intro a i h
+  unfold CodeReq.union at h
+  split at h
+  · cases h
+    exact expLoopCode_bit_test_sub a _ (by assumption)
+  · rename_i hBit
+    split at h
+    · cases h
+      exact expLoopCode_square_sub a _ (by assumption)
+    · rename_i hSquare
+      split at h
+      · cases h
+        exact expLoopCode_cond_mul_sub a _ (by assumption)
+      · rename_i hCond
+        split at h
+        · cases h
+          exact expLoopCode_loop_back_sub a _ (by assumption)
+        · simp_all [CodeReq.empty]
 
 end EvmAsm.Evm64.Exp.Compose
