@@ -1763,6 +1763,16 @@ theorem decodeAux_ninety_one_byte_long_string :
       some (.bytes rlpNinetyOneBytePayload, []) := by
   native_decide
 
+/-- Concrete 92-byte long-string payload used by the executable examples below. -/
+def rlpNinetyTwoBytePayload : List Byte :=
+  List.replicate 92 (0x4A : Byte)
+
+/-- Executable example: 92-byte long string (prefix `0xB8`, length byte `0x5C`). -/
+theorem decodeAux_ninety_two_byte_long_string :
+    decodeAux 100 ([(0xB8 : Byte), (0x5C : Byte)] ++ rlpNinetyTwoBytePayload) =
+      some (.bytes rlpNinetyTwoBytePayload, []) := by
+  native_decide
+
 /-- Canonical-form rejection: prefix `0x81` followed by a byte `b`
     with `b.toNat < 0x80` is non-canonical (the byte should have
     been encoded as itself, not under prefix `0x81`), so `decodeAux`
@@ -3314,6 +3324,13 @@ theorem decode_ninety_one_byte_long_string :
       some (.bytes rlpNinetyOneBytePayload, []) := by
   native_decide
 
+/-- `decode [0xB8, 0x5C] ++ rlpNinetyTwoBytePayload`
+    returns the concrete 92-byte payload. -/
+theorem decode_ninety_two_byte_long_string :
+    decode ([(0xB8 : Byte), (0x5C : Byte)] ++ rlpNinetyTwoBytePayload) =
+      some (.bytes rlpNinetyTwoBytePayload, []) := by
+  native_decide
+
 /-! ## encodeBytes characterizations -/
 
 /-- Empty byte string encodes to the single prefix `[0x80]`. -/
@@ -4355,6 +4372,12 @@ theorem encodeBytes_ninety_long :
 theorem encodeBytes_ninety_one_long :
     encodeBytes rlpNinetyOneBytePayload =
       [(0xB8 : Byte), (0x5B : Byte)] ++ rlpNinetyOneBytePayload := by
+  native_decide
+
+/-- Executable encoding example for the concrete 92-byte long-string payload. -/
+theorem encodeBytes_ninety_two_long :
+    encodeBytes rlpNinetyTwoBytePayload =
+      [(0xB8 : Byte), (0x5C : Byte)] ++ rlpNinetyTwoBytePayload := by
   native_decide
 
 /-! ## Encoding produces non-empty output -/
