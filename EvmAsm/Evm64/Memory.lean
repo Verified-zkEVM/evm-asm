@@ -149,6 +149,24 @@ theorem evmMemByteRead_replace_same
   exact extractByte_replaceByte_same oldDword
     (evmMemByteOffsetFin memBase byteAddr) b
 
+/-- LBU-shaped bridge: zero-extending the byte read immediately after an EVM
+    memory byte write yields the written byte, zero-extended to a word. -/
+theorem evmMemByteRead_replace_same_zeroExtend
+    (memBase byteAddr oldDword : Word) (b : BitVec 8) :
+    (evmMemByteRead memBase byteAddr
+      (replaceByte oldDword (evmMemByteOffset memBase byteAddr) b)).zeroExtend 64 =
+      b.zeroExtend 64 := by
+  rw [evmMemByteRead_replace_same]
+
+/-- LB-shaped bridge: sign-extending the byte read immediately after an EVM
+    memory byte write yields the written byte, sign-extended to a word. -/
+theorem evmMemByteRead_replace_same_signExtend
+    (memBase byteAddr oldDword : Word) (b : BitVec 8) :
+    (evmMemByteRead memBase byteAddr
+      (replaceByte oldDword (evmMemByteOffset memBase byteAddr) b)).signExtend 64 =
+      b.signExtend 64 := by
+  rw [evmMemByteRead_replace_same]
+
 theorem evmMemDwordIs_unfold {memBase byteAddr dwordVal : Word} :
     evmMemDwordIs memBase byteAddr dwordVal =
       (evmMemDwordAddr memBase byteAddr ↦ₘ dwordVal) := rfl
