@@ -72,6 +72,27 @@ theorem mload_write_expanded_size_ofProg_spec_within
     sizeLocReg sizeReg sizeLoc sizeBytes offset base
 
 /--
+  Max-form variant of `mload_write_expanded_size_ofProg_spec_within`, for
+  callers that compute the 32-byte MLOAD high-water mark explicitly as a
+  maximum rather than through `evmMemExpand`.
+-/
+theorem mload_write_expanded_size_max_spec_within
+    (sizeLocReg sizeReg : Reg)
+    (sizeLoc : Word) (sizeBytes offset : Nat) (base : Word) :
+    cpsTripleWithin 1 base (base + 4)
+      (CodeReq.ofProg base (mload_write_expanded_size sizeLocReg sizeReg))
+      ((sizeLocReg ↦ᵣ sizeLoc) **
+       (sizeReg ↦ᵣ BitVec.ofNat 64 (max sizeBytes (roundUpTo32 (offset + 32)))) **
+       evmMemSizeIs sizeLoc sizeBytes)
+      ((sizeLocReg ↦ᵣ sizeLoc) **
+       (sizeReg ↦ᵣ BitVec.ofNat 64 (max sizeBytes (roundUpTo32 (offset + 32)))) **
+       evmMemSizeIs sizeLoc (max sizeBytes (roundUpTo32 (offset + 32)))) := by
+  convert
+    (mload_write_expanded_size_ofProg_spec_within
+      sizeLocReg sizeReg sizeLoc sizeBytes offset base) using 1
+  · rw [evmMemSizeIsWordExpanded_unfold_max, evmMemExpand_word_eq]
+
+/--
   No-expansion specialization of `mload_write_expanded_size_ofProg_spec_within`:
   when the 32-byte MLOAD access already fits inside the current 32-byte-aligned
   high-water mark, writing the current size back preserves `evmMemSizeIs`.
