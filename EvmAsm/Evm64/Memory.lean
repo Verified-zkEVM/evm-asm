@@ -256,6 +256,12 @@ theorem roundUpTo32_le_add_31 (n : Nat) :
 theorem roundUpTo32_dvd (n : Nat) : 32 ∣ roundUpTo32 n := by
   unfold roundUpTo32; exact ⟨(n + 31) / 32, (Nat.mul_comm _ _)⟩
 
+theorem roundUpTo32_eq_self_of_dvd (n : Nat) (h : 32 ∣ n) :
+    roundUpTo32 n = n := by
+  rcases h with ⟨k, rfl⟩
+  unfold roundUpTo32
+  omega
+
 theorem roundUpTo32_idempotent (n : Nat) : roundUpTo32 (roundUpTo32 n) = roundUpTo32 n := by
   unfold roundUpTo32
   -- (n+31)/32 * 32 is already a multiple of 32, so adding 31 and dividing
@@ -291,6 +297,27 @@ theorem evmMemExpand_ge_access (sizeBytes offset length : Nat) (hlen : length �
   rw [if_neg hlen]
   exact Nat.le_trans (roundUpTo32_le _) (Nat.le_max_right _ _)
 
+/-- MLOAD is a 32-byte byte-addressed access: expansion covers the byte just
+    past the requested range for any starting byte offset. -/
+theorem evmMemExpand_mload_ge_end (sizeBytes offset : Nat) :
+    offset + 32 ≤ evmMemExpand sizeBytes offset 32 := by
+  exact evmMemExpand_ge_access sizeBytes offset 32 (by decide)
+
+/-- MLOAD expansion covers the starting byte for any byte offset; no
+    doubleword-alignment precondition is needed. -/
+theorem evmMemExpand_mload_ge_start (sizeBytes offset : Nat) :
+    offset ≤ evmMemExpand sizeBytes offset 32 := by
+  have h_end := evmMemExpand_mload_ge_end sizeBytes offset
+  omega
+
+/-- Every byte selected by MLOAD lies below the expanded high-water mark,
+    independent of the offset's alignment. -/
+theorem evmMemExpand_mload_byte_lt
+    (sizeBytes offset byteIndex : Nat) (h_byte : byteIndex < 32) :
+    offset + byteIndex < evmMemExpand sizeBytes offset 32 := by
+  have h_end := evmMemExpand_mload_ge_end sizeBytes offset
+  omega
+
 theorem evmMemExpand_le_max_old_access_plus_31
     (sizeBytes offset length : Nat) :
     evmMemExpand sizeBytes offset length ≤ max sizeBytes (offset + length + 31) := by
@@ -300,6 +327,17 @@ theorem evmMemExpand_le_max_old_access_plus_31
   · rw [if_neg hlen]
     exact max_le (Nat.le_max_left _ _)
       (Nat.le_trans (roundUpTo32_le_add_31 (offset + length)) (Nat.le_max_right _ _))
+
+theorem evmMemExpand_le_of_old_le_and_access_le
+    (sizeBytes offset length bound : Nat)
+    (h_old : sizeBytes ≤ bound)
+    (h_access : roundUpTo32 (offset + length) ≤ bound) :
+    evmMemExpand sizeBytes offset length ≤ bound := by
+  unfold evmMemExpand
+  by_cases hlen : length = 0
+  · simp [hlen, h_old]
+  · rw [if_neg hlen]
+    exact max_le h_old h_access
 
 /-- If the current high-water mark already covers the rounded access bound,
     the EVM memory size is unchanged. -/
