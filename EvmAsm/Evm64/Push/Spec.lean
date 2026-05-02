@@ -99,6 +99,38 @@ theorem push_zero_slot_ofProg_spec_within
   rw [← push_zero_slot_code_eq_ofProg]
   exact push_zero_slot_spec_within sp d0 d1 d2 d3 base
 
+/-- The four zero-filled limbs written by the PUSH allocation prefix fold to
+    the EVM word value `0`. -/
+theorem push_zero_slot_word_zero (nsp : Word) :
+    (((nsp + signExtend12 (0 : BitVec 12)) ↦ₘ (0 : Word)) **
+      ((nsp + signExtend12 (8 : BitVec 12)) ↦ₘ (0 : Word)) **
+      ((nsp + signExtend12 (16 : BitVec 12)) ↦ₘ (0 : Word)) **
+      ((nsp + signExtend12 (24 : BitVec 12)) ↦ₘ (0 : Word))) =
+    evmWordIs nsp (0 : EvmWord) := by
+  rw [evmWordIs_zero]
+  simp only [signExtend12]
+  congr
+  all_goals bv_decide
+
+/-- Right-associated variant of `push_zero_slot_word_zero` for composing byte
+    copy postconditions after the zero-fill prefix. -/
+theorem push_zero_slot_word_zero_right (nsp : Word) (Q : Assertion) :
+    (((nsp + signExtend12 (0 : BitVec 12)) ↦ₘ (0 : Word)) **
+      ((nsp + signExtend12 (8 : BitVec 12)) ↦ₘ (0 : Word)) **
+      ((nsp + signExtend12 (16 : BitVec 12)) ↦ₘ (0 : Word)) **
+      ((nsp + signExtend12 (24 : BitVec 12)) ↦ₘ (0 : Word)) ** Q) =
+    (evmWordIs nsp (0 : EvmWord) ** Q) := by
+  have h0 : (nsp + signExtend12 (0 : BitVec 12) : Word) = nsp := by
+    unfold signExtend12; bv_decide
+  have h8 : (nsp + signExtend12 (8 : BitVec 12) : Word) = nsp + 8 := by
+    unfold signExtend12; bv_decide
+  have h16 : (nsp + signExtend12 (16 : BitVec 12) : Word) = nsp + 16 := by
+    unfold signExtend12; bv_decide
+  have h24 : (nsp + signExtend12 (24 : BitVec 12) : Word) = nsp + 24 := by
+    unfold signExtend12; bv_decide
+  rw [h0, h8, h16, h24]
+  rw [evmWordIs_zero_right]
+
 -- ============================================================================
 -- Per-byte helper (mirror of `dup_pair_spec_within` for LBU+SB)
 -- ============================================================================
