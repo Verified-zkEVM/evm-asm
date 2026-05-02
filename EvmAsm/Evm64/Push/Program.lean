@@ -82,6 +82,23 @@ private def push_bytes (n : Nat) : Nat → Program
   | 0     => prog_skip
   | k + 1 => push_bytes n k ;; push_one_byte n k
 
+private theorem push_one_byte_length (n i : Nat) :
+    (push_one_byte n i).length = 2 := by
+  unfold push_one_byte LBU SB single seq
+  rfl
+
+theorem push_bytes_length (n k : Nat) :
+    (push_bytes n k).length = 2 * k := by
+  induction k with
+  | zero =>
+      unfold push_bytes prog_skip
+      rfl
+  | succ k ih =>
+      unfold push_bytes
+      unfold seq
+      rw [Program.length_append, ih, push_one_byte_length]
+      omega
+
 /-- Generic PUSHn program.
 
     Layout (5 + 2n instructions):
@@ -96,6 +113,13 @@ def evm_push (n : Nat) : Program :=
   ADDI .x12 .x12 (-32) ;;
   SD .x12 .x0 0 ;; SD .x12 .x0 8 ;; SD .x12 .x0 16 ;; SD .x12 .x0 24 ;;
   push_bytes n n
+
+theorem evm_push_length (n : Nat) :
+    (evm_push n).length = 5 + 2 * n := by
+  unfold evm_push ADDI SD single seq
+  simp only [Program.length_append, List.length_cons, List.length_nil,
+    push_bytes_length]
+  omega
 
 /-- CodeReq for `evm_push n`.
 
