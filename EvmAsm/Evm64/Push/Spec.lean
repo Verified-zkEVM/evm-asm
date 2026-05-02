@@ -27,8 +27,125 @@ namespace EvmAsm.Evm64
 open EvmAsm.Rv64
 
 -- ============================================================================
+-- Stack slot allocation and zero-fill prefix
+-- ============================================================================
+
+def push_zero_slot_code (base : Word) : CodeReq :=
+  (CodeReq.singleton base (.ADDI .x12 .x12 (-32))).union
+    ((CodeReq.singleton (base + 4) (.SD .x12 .x0 0)).union
+      ((CodeReq.singleton (base + 8) (.SD .x12 .x0 8)).union
+        ((CodeReq.singleton (base + 12) (.SD .x12 .x0 16)).union
+          (CodeReq.singleton (base + 16) (.SD .x12 .x0 24)))))
+
+theorem push_zero_slot_code_eq_ofProg (base : Word) :
+    push_zero_slot_code base =
+      CodeReq.ofProg base
+        (ADDI .x12 .x12 (-32) ;; SD .x12 .x0 0 ;; SD .x12 .x0 8 ;;
+         SD .x12 .x0 16 ;; SD .x12 .x0 24) := by
+  unfold push_zero_slot_code ADDI SD single seq
+  change _ = CodeReq.ofProg base
+    [.ADDI .x12 .x12 (-32), .SD .x12 .x0 0, .SD .x12 .x0 8,
+     .SD .x12 .x0 16, .SD .x12 .x0 24]
+  rw [CodeReq.ofProg_cons, CodeReq.ofProg_cons, CodeReq.ofProg_cons,
+    CodeReq.ofProg_cons, CodeReq.ofProg_singleton]
+  bv_addr
+
+theorem push_zero_slot_spec_within
+    (sp d0 d1 d2 d3 : Word) (base : Word) :
+    let nsp := sp + signExtend12 ((-32 : BitVec 12))
+    cpsTripleWithin 5 base (base + 20) (push_zero_slot_code base)
+      ((.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) **
+       ((nsp + signExtend12 (0 : BitVec 12)) ↦ₘ d0) **
+       ((nsp + signExtend12 (8 : BitVec 12)) ↦ₘ d1) **
+       ((nsp + signExtend12 (16 : BitVec 12)) ↦ₘ d2) **
+       ((nsp + signExtend12 (24 : BitVec 12)) ↦ₘ d3))
+      ((.x12 ↦ᵣ nsp) ** (.x0 ↦ᵣ (0 : Word)) **
+       ((nsp + signExtend12 (0 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((nsp + signExtend12 (8 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((nsp + signExtend12 (16 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((nsp + signExtend12 (24 : BitVec 12)) ↦ₘ (0 : Word))) := by
+  intro nsp
+  unfold push_zero_slot_code
+  have hAlloc := addi_spec_gen_same_within .x12 sp
+    (-32 : BitVec 12) base (by decide)
+  have hSd0 := generic_sd_spec_within .x12 .x0 nsp (0 : Word) d0
+    (0 : BitVec 12) (base + 4)
+  have hSd1 := generic_sd_spec_within .x12 .x0 nsp (0 : Word) d1
+    (8 : BitVec 12) (base + 8)
+  have hSd2 := generic_sd_spec_within .x12 .x0 nsp (0 : Word) d2
+    (16 : BitVec 12) (base + 12)
+  have hSd3 := generic_sd_spec_within .x12 .x0 nsp (0 : Word) d3
+    (24 : BitVec 12) (base + 16)
+  runBlock hAlloc hSd0 hSd1 hSd2 hSd3
+
+theorem push_zero_slot_ofProg_spec_within
+    (sp d0 d1 d2 d3 : Word) (base : Word) :
+    let nsp := sp + signExtend12 ((-32 : BitVec 12))
+    cpsTripleWithin 5 base (base + 20)
+      (CodeReq.ofProg base
+        (ADDI .x12 .x12 (-32) ;; SD .x12 .x0 0 ;; SD .x12 .x0 8 ;;
+         SD .x12 .x0 16 ;; SD .x12 .x0 24))
+      ((.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) **
+       ((nsp + signExtend12 (0 : BitVec 12)) ↦ₘ d0) **
+       ((nsp + signExtend12 (8 : BitVec 12)) ↦ₘ d1) **
+       ((nsp + signExtend12 (16 : BitVec 12)) ↦ₘ d2) **
+       ((nsp + signExtend12 (24 : BitVec 12)) ↦ₘ d3))
+      ((.x12 ↦ᵣ nsp) ** (.x0 ↦ᵣ (0 : Word)) **
+       ((nsp + signExtend12 (0 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((nsp + signExtend12 (8 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((nsp + signExtend12 (16 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((nsp + signExtend12 (24 : BitVec 12)) ↦ₘ (0 : Word))) := by
+  intro nsp
+  rw [← push_zero_slot_code_eq_ofProg]
+  exact push_zero_slot_spec_within sp d0 d1 d2 d3 base
+
+/-- The four zero-filled limbs written by the PUSH allocation prefix fold to
+    the EVM word value `0`. -/
+theorem push_zero_slot_word_zero (nsp : Word) :
+    (((nsp + signExtend12 (0 : BitVec 12)) ↦ₘ (0 : Word)) **
+      ((nsp + signExtend12 (8 : BitVec 12)) ↦ₘ (0 : Word)) **
+      ((nsp + signExtend12 (16 : BitVec 12)) ↦ₘ (0 : Word)) **
+      ((nsp + signExtend12 (24 : BitVec 12)) ↦ₘ (0 : Word))) =
+    evmWordIs nsp (0 : EvmWord) := by
+  rw [evmWordIs_zero]
+  simp only [signExtend12]
+  congr
+  all_goals bv_decide
+
+/-- Right-associated variant of `push_zero_slot_word_zero` for composing byte
+    copy postconditions after the zero-fill prefix. -/
+theorem push_zero_slot_word_zero_right (nsp : Word) (Q : Assertion) :
+    (((nsp + signExtend12 (0 : BitVec 12)) ↦ₘ (0 : Word)) **
+      ((nsp + signExtend12 (8 : BitVec 12)) ↦ₘ (0 : Word)) **
+      ((nsp + signExtend12 (16 : BitVec 12)) ↦ₘ (0 : Word)) **
+      ((nsp + signExtend12 (24 : BitVec 12)) ↦ₘ (0 : Word)) ** Q) =
+    (evmWordIs nsp (0 : EvmWord) ** Q) := by
+  have h0 : (nsp + signExtend12 (0 : BitVec 12) : Word) = nsp := by
+    unfold signExtend12; bv_decide
+  have h8 : (nsp + signExtend12 (8 : BitVec 12) : Word) = nsp + 8 := by
+    unfold signExtend12; bv_decide
+  have h16 : (nsp + signExtend12 (16 : BitVec 12) : Word) = nsp + 16 := by
+    unfold signExtend12; bv_decide
+  have h24 : (nsp + signExtend12 (24 : BitVec 12) : Word) = nsp + 24 := by
+    unfold signExtend12; bv_decide
+  rw [h0, h8, h16, h24]
+  rw [evmWordIs_zero_right]
+
+-- ============================================================================
 -- Per-byte helper (mirror of `dup_pair_spec_within` for LBU+SB)
 -- ============================================================================
+
+theorem push_one_byte_code_eq_ofProg
+    (base : Word) (codeOff dstOff : BitVec 12) :
+    ((CodeReq.singleton base (.LBU .x7 .x10 codeOff)).union
+      (CodeReq.singleton (base + 4) (.SB .x12 .x7 dstOff))) =
+    CodeReq.ofProg base
+      (LBU .x7 .x10 codeOff ;; SB .x12 .x7 dstOff) := by
+  unfold LBU SB single seq
+  change _ =
+    CodeReq.ofProg base
+      [.LBU .x7 .x10 codeOff, .SB .x12 .x7 dstOff]
+  rw [CodeReq.ofProg_cons, CodeReq.ofProg_singleton]
 
 /-- Two-instruction spec for one PUSH byte: LBU x7 from EVM code at
     `codePtr + codeOff`, then SB x7 to the new stack slot at
@@ -65,5 +182,30 @@ theorem push_one_byte_spec_within
   have S := sb_spec_gen_within .x12 .x7 sp byteZext dstOff (base + 4)
     dstDwordAddr dstWordOld h_dst_align h_dst_valid
   runBlock L S
+
+theorem push_one_byte_ofProg_spec_within
+    (codePtr sp v7Old codeWord dstWordOld : Word)
+    (codeDwordAddr dstDwordAddr : Word)
+    (codeOff dstOff : BitVec 12) (base : Word)
+    (h_code_align : alignToDword (codePtr + signExtend12 codeOff) = codeDwordAddr)
+    (h_code_valid : isValidByteAccess (codePtr + signExtend12 codeOff) = true)
+    (h_dst_align  : alignToDword (sp + signExtend12 dstOff) = dstDwordAddr)
+    (h_dst_valid  : isValidByteAccess (sp + signExtend12 dstOff) = true) :
+    let byteZext :=
+      (extractByte codeWord (byteOffset (codePtr + signExtend12 codeOff))).zeroExtend 64
+    cpsTripleWithin 2 base (base + 8)
+      (CodeReq.ofProg base (LBU .x7 .x10 codeOff ;; SB .x12 .x7 dstOff))
+      ((.x10 ↦ᵣ codePtr) ** (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7Old) **
+       (codeDwordAddr ↦ₘ codeWord) ** (dstDwordAddr ↦ₘ dstWordOld))
+      ((.x10 ↦ᵣ codePtr) ** (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ byteZext) **
+       (codeDwordAddr ↦ₘ codeWord) **
+       (dstDwordAddr ↦ₘ
+         replaceByte dstWordOld (byteOffset (sp + signExtend12 dstOff))
+           (byteZext.truncate 8))) := by
+  intro byteZext
+  rw [← push_one_byte_code_eq_ofProg]
+  exact push_one_byte_spec_within codePtr sp v7Old codeWord dstWordOld
+    codeDwordAddr dstDwordAddr codeOff dstOff base
+    h_code_align h_code_valid h_dst_align h_dst_valid
 
 end EvmAsm.Evm64
