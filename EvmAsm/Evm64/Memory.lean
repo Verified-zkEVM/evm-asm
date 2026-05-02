@@ -361,6 +361,14 @@ theorem evmMemExpand_mload_last_dword_interval
       ((offset + 31) / 8 + 1) * 8 ≤ evmMemExpand sizeBytes offset 32 := by
   exact evmMemExpand_mload_byte_dword_interval sizeBytes offset 31 (by decide)
 
+theorem evmMemExpand_mload_dword_span
+    (sizeBytes offset : Nat) :
+    (offset / 8) * 8 < evmMemExpand sizeBytes offset 32 ∧
+      ((offset + 31) / 8 + 1) * 8 ≤ evmMemExpand sizeBytes offset 32 := by
+  exact ⟨
+    (evmMemExpand_mload_dword_interval sizeBytes offset).1,
+    (evmMemExpand_mload_last_dword_interval sizeBytes offset).2⟩
+
 theorem evmMemExpand_le_max_old_access_plus_31
     (sizeBytes offset length : Nat) :
     evmMemExpand sizeBytes offset length ≤ max sizeBytes (offset + length + 31) := by
