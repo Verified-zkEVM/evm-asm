@@ -314,6 +314,19 @@ theorem rlpPrefixHeaderBytes_pos_iff_not_singleByte (pfx : Byte) :
   · intro h
     exact rlpPrefixHeaderBytes_pos_of_not_singleByte h
 
+theorem rlpPrefixHeaderBytes_pos_iff_ge_0x80 (pfx : Byte) :
+    0 < rlpPrefixHeaderBytes pfx ↔ 0x80 ≤ pfx.toNat := by
+  rw [rlpPrefixHeaderBytes_pos_iff_not_singleByte]
+  constructor
+  · intro h_not_single
+    have h_not_lt : ¬ pfx.toNat < 0x80 := by
+      intro h_lt
+      exact h_not_single ((classifyPrefix_singleByte_iff pfx).mpr h_lt)
+    omega
+  · intro h_ge h_single
+    have h_lt := (classifyPrefix_singleByte_iff pfx).mp h_single
+    omega
+
 theorem rlpPrefixHeaderBytes_eq_one_iff_shortClass (pfx : Byte) :
     rlpPrefixHeaderBytes pfx = 1 ↔
       classifyPrefix pfx = .shortBytes ∨ classifyPrefix pfx = .shortList := by
