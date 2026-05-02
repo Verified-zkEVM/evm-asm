@@ -45,6 +45,77 @@ theorem exp_loop_len (mulOff : BitVec 21) (skipOff backOff : BitVec 13) :
     (EvmAsm.Evm64.exp_loop mulOff skipOff backOff).length = 8 := by
   exact EvmAsm.Evm64.exp_loop_length mulOff skipOff backOff
 
+theorem exp_iter_body_byte_len (mulOff : BitVec 21) (skipOff : BitVec 13) :
+    4 * (EvmAsm.Evm64.exp_iter_body mulOff skipOff).length = 24 := by
+  exact EvmAsm.Evm64.exp_iter_body_byte_length mulOff skipOff
+
+theorem exp_loop_back_byte_len (backOff : BitVec 13) :
+    4 * (EvmAsm.Evm64.exp_loop_back backOff).length = 8 := by
+  exact EvmAsm.Evm64.exp_loop_back_byte_length backOff
+
+theorem exp_loop_byte_len (mulOff : BitVec 21) (skipOff backOff : BitVec 13) :
+    4 * (EvmAsm.Evm64.exp_loop mulOff skipOff backOff).length = 32 := by
+  exact EvmAsm.Evm64.exp_loop_byte_length mulOff skipOff backOff
+
+/-- Byte offset of the square-call block within one EXP loop iteration. -/
+theorem exp_loop_square_byte_off :
+    4 * (EvmAsm.Evm64.exp_bit_test_block).length = 12 := by
+  rw [exp_bit_test_block_len]
+
+/-- Byte offset of the conditional multiply block within one EXP loop iteration. -/
+theorem exp_loop_cond_mul_byte_off (mulOff : BitVec 21) :
+    4 * ((EvmAsm.Evm64.exp_bit_test_block).length +
+      (EvmAsm.Evm64.exp_square_block mulOff).length) = 16 := by
+  simp only [exp_bit_test_block_len, exp_square_block_len]
+
+/-- Byte offset of the loop-back block within one EXP loop iteration. -/
+theorem exp_loop_back_byte_off (mulOff : BitVec 21) (skipOff : BitVec 13) :
+    4 * (EvmAsm.Evm64.exp_iter_body mulOff skipOff).length = 24 := by
+  exact exp_iter_body_byte_len mulOff skipOff
+
+/-- Byte offset of the next EXP loop iteration. -/
+theorem exp_loop_next_iter_byte_off (mulOff : BitVec 21) (skipOff backOff : BitVec 13) :
+    4 * (EvmAsm.Evm64.exp_loop mulOff skipOff backOff).length = 32 := by
+  exact exp_loop_byte_len mulOff skipOff backOff
+
+/-- Bundled byte offsets for the blocks within one EXP loop iteration. -/
+theorem exp_loop_block_byte_offsets (mulOff : BitVec 21) (skipOff backOff : BitVec 13) :
+    4 * (EvmAsm.Evm64.exp_bit_test_block).length = 12 ∧
+    4 * ((EvmAsm.Evm64.exp_bit_test_block).length +
+      (EvmAsm.Evm64.exp_square_block mulOff).length) = 16 ∧
+    4 * (EvmAsm.Evm64.exp_iter_body mulOff skipOff).length = 24 ∧
+    4 * (EvmAsm.Evm64.exp_loop mulOff skipOff backOff).length = 32 := by
+  exact ⟨exp_loop_square_byte_off,
+    exp_loop_cond_mul_byte_off mulOff,
+    exp_loop_back_byte_off mulOff skipOff,
+    exp_loop_next_iter_byte_off mulOff skipOff backOff⟩
+
+theorem exp_prologue_byte_len :
+    4 * (EvmAsm.Evm64.exp_prologue).length = 24 := by
+  exact EvmAsm.Evm64.exp_prologue_byte_length
+
+theorem exp_epilogue_byte_len :
+    4 * (EvmAsm.Evm64.exp_epilogue).length = 36 := by
+  exact EvmAsm.Evm64.exp_epilogue_byte_length
+
+/-- Byte offset of the EXP epilogue within the boundary-code layout. -/
+theorem exp_boundary_epilogue_byte_off :
+    4 * (EvmAsm.Evm64.exp_prologue).length = 24 := by
+  exact exp_prologue_byte_len
+
+/-- Byte offset immediately after the EXP prologue/epilogue boundary blocks. -/
+theorem exp_boundary_end_byte_off :
+    4 * ((EvmAsm.Evm64.exp_prologue).length +
+      (EvmAsm.Evm64.exp_epilogue).length) = 60 := by
+  simp only [exp_prologue_len, exp_epilogue_len]
+
+/-- Bundled byte offsets for the EXP boundary-code layout. -/
+theorem exp_boundary_block_byte_offsets :
+    4 * (EvmAsm.Evm64.exp_prologue).length = 24 ∧
+    4 * ((EvmAsm.Evm64.exp_prologue).length +
+      (EvmAsm.Evm64.exp_epilogue).length) = 60 := by
+  exact ⟨exp_boundary_epilogue_byte_off, exp_boundary_end_byte_off⟩
+
 /-- First EXP composition code skeleton: the verified boundary blocks around
     the loop. The loop body and callable-multiply blocks will extend this
     union as their composed specs land. -/
@@ -71,6 +142,79 @@ theorem expBoundaryCode_epilogue_sub {base : Word} :
       simp only [exp_prologue_len, exp_epilogue_len] at hk1 hk2
       bv_omega))
   exact CodeReq.union_mono_left
+
+theorem expBoundaryCode_block_subs {base : Word} :
+    (∀ a i, (CodeReq.ofProg base EvmAsm.Evm64.exp_prologue) a = some i →
+      (expBoundaryCode base) a = some i) ∧
+    (∀ a i, (CodeReq.ofProg (base + 24) EvmAsm.Evm64.exp_epilogue) a = some i →
+      (expBoundaryCode base) a = some i) := by
+  exact ⟨expBoundaryCode_prologue_sub, expBoundaryCode_epilogue_sub⟩
+
+/-- Concrete prologue/epilogue boundary mini-program used by early EXP
+    composition slices before the full 256-iteration loop is wired. -/
+abbrev expBoundaryProgram : Program :=
+  EvmAsm.Evm64.exp_prologue ;; EvmAsm.Evm64.exp_epilogue
+
+theorem expBoundaryProgram_len : expBoundaryProgram.length = 15 := by
+  native_decide
+
+theorem expBoundaryProgram_byte_len : 4 * expBoundaryProgram.length = 60 := by
+  rw [expBoundaryProgram_len]
+
+/-- Concrete `CodeReq.ofProg` handle for `expBoundaryProgram`. -/
+abbrev expBoundaryProgramCode (base : Word) : CodeReq :=
+  CodeReq.ofProg base expBoundaryProgram
+
+theorem expBoundaryProgramCode_prologue_sub {base : Word} :
+    ∀ a i, (CodeReq.ofProg base EvmAsm.Evm64.exp_prologue) a = some i →
+      (expBoundaryProgramCode base) a = some i := by
+  unfold expBoundaryProgramCode
+  exact CodeReq.ofProg_mono_sub base base expBoundaryProgram EvmAsm.Evm64.exp_prologue 0
+    (by bv_omega)
+    (by unfold expBoundaryProgram; simp only [EvmAsm.Rv64.seq]; rfl)
+    (by
+      rw [expBoundaryProgram_len, exp_prologue_len]
+      norm_num)
+    (by
+      rw [expBoundaryProgram_len]
+      norm_num)
+
+theorem expBoundaryProgramCode_epilogue_sub {base : Word} :
+    ∀ a i, (CodeReq.ofProg (base + 24) EvmAsm.Evm64.exp_epilogue) a = some i →
+      (expBoundaryProgramCode base) a = some i := by
+  unfold expBoundaryProgramCode
+  exact CodeReq.ofProg_mono_sub base (base + 24)
+    expBoundaryProgram EvmAsm.Evm64.exp_epilogue 6
+    (by bv_omega)
+    (by unfold expBoundaryProgram; simp only [EvmAsm.Rv64.seq]; rfl)
+    (by
+      rw [expBoundaryProgram_len, exp_epilogue_len])
+    (by
+      rw [expBoundaryProgram_len]
+      norm_num)
+
+theorem expBoundaryProgramCode_block_subs {base : Word} :
+    (∀ a i, (CodeReq.ofProg base EvmAsm.Evm64.exp_prologue) a = some i →
+      (expBoundaryProgramCode base) a = some i) ∧
+    (∀ a i, (CodeReq.ofProg (base + 24) EvmAsm.Evm64.exp_epilogue) a = some i →
+      (expBoundaryProgramCode base) a = some i) := by
+  exact ⟨expBoundaryProgramCode_prologue_sub, expBoundaryProgramCode_epilogue_sub⟩
+
+theorem expBoundaryProgramCode_program_sub {base : Word} :
+    ∀ a i, (expBoundaryCode base) a = some i →
+      (expBoundaryProgramCode base) a = some i := by
+  unfold expBoundaryCode
+  simp only [CodeReq.unionAll_cons, CodeReq.unionAll_nil]
+  intro a i h
+  unfold CodeReq.union at h
+  split at h
+  · cases h
+    exact expBoundaryProgramCode_prologue_sub a _ (by assumption)
+  · rename_i hPrologue
+    split at h
+    · cases h
+      exact expBoundaryProgramCode_epilogue_sub a _ (by assumption)
+    · simp_all [CodeReq.empty]
 
 /-- CodeReq decomposition for one EXP loop iteration. This mirrors
     `exp_loop`: bit-test (3 instructions), square call (1), conditional
@@ -142,6 +286,22 @@ theorem expOneIterCode_loop_back_sub {base : Word}
       simp only [exp_cond_mul_block_len, exp_loop_back_len] at hk1 hk2
       bv_omega))
   exact CodeReq.union_mono_left
+
+theorem expOneIterCode_block_subs {base : Word}
+    {mulOff : BitVec 21} {skipOff backOff : BitVec 13} :
+    (∀ a i, (CodeReq.ofProg base EvmAsm.Evm64.exp_bit_test_block) a = some i →
+      (expOneIterCode base mulOff skipOff backOff) a = some i) ∧
+    (∀ a i, (CodeReq.ofProg (base + 12)
+      (EvmAsm.Evm64.exp_square_block mulOff)) a = some i →
+      (expOneIterCode base mulOff skipOff backOff) a = some i) ∧
+    (∀ a i, (CodeReq.ofProg (base + 16)
+      (EvmAsm.Evm64.exp_cond_mul_block mulOff skipOff)) a = some i →
+      (expOneIterCode base mulOff skipOff backOff) a = some i) ∧
+    (∀ a i, (CodeReq.ofProg (base + 24)
+      (EvmAsm.Evm64.exp_loop_back backOff)) a = some i →
+      (expOneIterCode base mulOff skipOff backOff) a = some i) := by
+  exact ⟨expOneIterCode_bit_test_sub, expOneIterCode_square_sub,
+    expOneIterCode_cond_mul_sub, expOneIterCode_loop_back_sub⟩
 
 /-- The concrete `CodeReq` for one full `exp_loop` program. -/
 abbrev expLoopCode (base : Word)
@@ -242,6 +402,22 @@ theorem expLoopCode_loop_back_sub {base : Word}
     (by
       simp only [exp_loop_len]
       norm_num)
+
+theorem expLoopCode_block_subs {base : Word}
+    {mulOff : BitVec 21} {skipOff backOff : BitVec 13} :
+    (∀ a i, (CodeReq.ofProg base EvmAsm.Evm64.exp_bit_test_block) a = some i →
+      (expLoopCode base mulOff skipOff backOff) a = some i) ∧
+    (∀ a i, (CodeReq.ofProg (base + 12)
+      (EvmAsm.Evm64.exp_square_block mulOff)) a = some i →
+      (expLoopCode base mulOff skipOff backOff) a = some i) ∧
+    (∀ a i, (CodeReq.ofProg (base + 16)
+      (EvmAsm.Evm64.exp_cond_mul_block mulOff skipOff)) a = some i →
+      (expLoopCode base mulOff skipOff backOff) a = some i) ∧
+    (∀ a i, (CodeReq.ofProg (base + 24)
+      (EvmAsm.Evm64.exp_loop_back backOff)) a = some i →
+      (expLoopCode base mulOff skipOff backOff) a = some i) := by
+  exact ⟨expLoopCode_bit_test_sub, expLoopCode_square_sub,
+    expLoopCode_cond_mul_sub, expLoopCode_loop_back_sub⟩
 
 theorem expOneIterCode_loop_sub {base : Word}
     {mulOff : BitVec 21} {skipOff backOff : BitVec 13} :

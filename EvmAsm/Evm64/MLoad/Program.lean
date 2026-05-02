@@ -130,4 +130,80 @@ abbrev evm_mload_code
     (offReg byteReg accReg addrReg memBaseReg : Reg) (base : Word) : CodeReq :=
   CodeReq.ofProg base (evm_mload offReg byteReg accReg addrReg memBaseReg)
 
+/-- Concrete instruction length of `mload_byte_pack`.
+
+    `k = 0` is the seed `LBU`; each successor adds one `LBU; SLLI; OR`
+    step, so the length is `1 + 3*k`. -/
+theorem mload_byte_pack_length
+    (addrReg byteReg accReg : Reg) (limbStart k : Nat) :
+    (mload_byte_pack addrReg byteReg accReg limbStart k).length = 1 + 3 * k := by
+  induction k with
+  | zero => rfl
+  | succ k ih =>
+      simp [mload_byte_pack, LBU, SLLI, OR', single, seq,
+        Program.length_append, ih, Nat.mul_succ]
+      omega
+
+/-- Concrete instruction length of one MLOAD limb block. -/
+theorem mload_one_limb_length (addrReg byteReg accReg : Reg) (j : Nat) :
+    (mload_one_limb addrReg byteReg accReg j).length = 23 := by
+  simp [mload_one_limb, SD, single, seq, Program.length_append,
+    mload_byte_pack_length]
+
+/-- Concrete instruction length of `evm_mload`. -/
+theorem evm_mload_length (offReg byteReg accReg addrReg memBaseReg : Reg) :
+    (evm_mload offReg byteReg accReg addrReg memBaseReg).length = 94 := by
+  simp [evm_mload, LD, ADD, single, seq, Program.length_append,
+    mload_one_limb_length]
+
+/-- Concrete byte length of `evm_mload` when placed in RV64 code memory. -/
+theorem evm_mload_byte_length (offReg byteReg accReg addrReg memBaseReg : Reg) :
+    4 * (evm_mload offReg byteReg accReg addrReg memBaseReg).length = 376 := by
+  rw [evm_mload_length]
+
+/-- Byte offset of the MLOAD offset-load instruction. -/
+theorem evm_mload_offset_load_byte_off : 4 * 0 = 0 := by
+  rfl
+
+/-- Byte offset of the MLOAD address-add instruction. -/
+theorem evm_mload_addr_add_byte_off : 4 * 1 = 4 := by
+  rfl
+
+/-- Byte offset of the seed LBU inside `mload_byte_pack`. -/
+theorem mload_byte_pack_seed_byte_off : 4 * 0 = 0 := by
+  rfl
+
+/-- Byte offset of the repeated LBU instruction for step `i` inside `mload_byte_pack`. -/
+theorem mload_byte_pack_lbu_byte_off (i : Nat) :
+    4 * (1 + 3 * i) = 4 + 12 * i := by
+  omega
+
+/-- Byte offset of the repeated SLLI instruction for step `i` inside `mload_byte_pack`. -/
+theorem mload_byte_pack_slli_byte_off (i : Nat) :
+    4 * (1 + 3 * i + 1) = 8 + 12 * i := by
+  omega
+
+/-- Byte offset of the repeated OR instruction for step `i` inside `mload_byte_pack`. -/
+theorem mload_byte_pack_or_byte_off (i : Nat) :
+    4 * (1 + 3 * i + 2) = 12 + 12 * i := by
+  omega
+
+/-- Byte offset of the final stack-store instruction inside `mload_one_limb`. -/
+theorem mload_one_limb_store_byte_off : 4 * 22 = 88 := by
+  rfl
+
+/-- Byte offset of MLOAD limb block `j` within `evm_mload`. -/
+theorem evm_mload_limb_block_byte_off (j : Nat) :
+    4 * (2 + 23 * j) = 8 + 92 * j := by
+  omega
+
+/-- Byte offset of the final stack-store instruction in MLOAD limb block `j`. -/
+theorem evm_mload_limb_store_byte_off (j : Nat) :
+    4 * (2 + 23 * j + 22) = 96 + 92 * j := by
+  omega
+
+/-- Byte offset immediately after the full MLOAD program. -/
+theorem evm_mload_end_byte_off : 4 * 94 = 376 := by
+  rfl
+
 end EvmAsm.Evm64
