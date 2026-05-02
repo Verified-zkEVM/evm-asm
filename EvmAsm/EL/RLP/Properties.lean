@@ -180,6 +180,17 @@ theorem decodeAux_twelve_byte_string
       some (.bytes [b1, b2, b3, b4, b5, b6, b7, b8, b9, b10, b11, b12], rest) := by
   simp [decodeAux, takeBytes]
 
+/-- Thirteen-byte short string (prefix `0x8D`). Multi-byte payload
+    bypasses the canonical-form check. -/
+theorem decodeAux_thirteen_byte_string
+    (fuel : Nat) (b1 b2 b3 b4 b5 b6 b7 b8 b9 b10 b11 b12 b13 : Byte)
+    (rest : List Byte) :
+    decodeAux (fuel + 1)
+        ((0x8D : Byte) :: b1 :: b2 :: b3 :: b4 :: b5 :: b6 :: b7 :: b8 :: b9 :: b10 ::
+          b11 :: b12 :: b13 :: rest) =
+      some (.bytes [b1, b2, b3, b4, b5, b6, b7, b8, b9, b10, b11, b12, b13], rest) := by
+  simp [decodeAux, takeBytes]
+
 /-- Canonical-form rejection: prefix `0x81` followed by a byte `b`
     with `b.toNat < 0x80` is non-canonical (the byte should have
     been encoded as itself, not under prefix `0x81`), so `decodeAux`
@@ -482,6 +493,14 @@ theorem decode_twelve_byte_string
       some (.bytes [b1, b2, b3, b4, b5, b6, b7, b8, b9, b10, b11, b12], []) := by
   simp [decode, decodeAux, takeBytes]
 
+/-- `decode [0x8D, b1..b13] = some (.bytes [b1..b13], [])` — the
+    canonical thirteen-byte short-string encoding. -/
+theorem decode_thirteen_byte_string
+    (b1 b2 b3 b4 b5 b6 b7 b8 b9 b10 b11 b12 b13 : Byte) :
+    decode [(0x8D : Byte), b1, b2, b3, b4, b5, b6, b7, b8, b9, b10, b11, b12, b13] =
+      some (.bytes [b1, b2, b3, b4, b5, b6, b7, b8, b9, b10, b11, b12, b13], []) := by
+  simp [decode, decodeAux, takeBytes]
+
 /-! ## encodeBytes characterizations -/
 
 /-- Empty byte string encodes to the single prefix `[0x80]`. -/
@@ -570,6 +589,14 @@ theorem encodeBytes_undecuple (a b c d e f g h i j k : Byte) :
 theorem encodeBytes_duodecuple (a b c d e f g h i j k l : Byte) :
     encodeBytes [a, b, c, d, e, f, g, h, i, j, k, l] =
       [BitVec.ofNat 8 0x8C, a, b, c, d, e, f, g, h, i, j, k, l] := by
+  simp [encodeBytes]
+
+/-- Thirteen-byte short string:
+    `encodeBytes [a, b, c, d, e, f, g, h, i, j, k, l, m] =
+    [0x8D, a, b, c, d, e, f, g, h, i, j, k, l, m]`. -/
+theorem encodeBytes_tredecuple (a b c d e f g h i j k l m : Byte) :
+    encodeBytes [a, b, c, d, e, f, g, h, i, j, k, l, m] =
+      [BitVec.ofNat 8 0x8D, a, b, c, d, e, f, g, h, i, j, k, l, m] := by
   simp [encodeBytes]
 
 /-! ## Encoding produces non-empty output -/
