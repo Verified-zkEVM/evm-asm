@@ -16,6 +16,30 @@ namespace EvmAsm.Rv64.SailEquiv
 /-- Local alias for the SAIL-generated RISC-V instruction AST. -/
 abbrev SailInstr := instruction
 
+/-- SAIL encoding of RV64M `mul`. -/
+def sailMulOp : mul_op :=
+  { result_part := VectorHalf.Low
+    signed_rs1 := Signedness.Signed
+    signed_rs2 := Signedness.Signed }
+
+/-- SAIL encoding of RV64M `mulh`. -/
+def sailMulhOp : mul_op :=
+  { result_part := VectorHalf.High
+    signed_rs1 := Signedness.Signed
+    signed_rs2 := Signedness.Signed }
+
+/-- SAIL encoding of RV64M `mulhsu`. -/
+def sailMulhsuOp : mul_op :=
+  { result_part := VectorHalf.High
+    signed_rs1 := Signedness.Signed
+    signed_rs2 := Signedness.Unsigned }
+
+/-- SAIL encoding of RV64M `mulhu`. -/
+def sailMulhuOp : mul_op :=
+  { result_part := VectorHalf.High
+    signed_rs1 := Signedness.Unsigned
+    signed_rs2 := Signedness.Unsigned }
+
 /-- Partial inverse of `regToRegidx` for SAIL register indices. -/
 def regidxToReg? : regidx → Option Reg
   | regidx.Regidx 0  => some .x0
@@ -96,6 +120,16 @@ def toSailInstr? : Instr → Option SailInstr
   | .SW rs1 rs2 off   => some <| instruction.STORE (off, regToRegidx rs2, regToRegidx rs1, 32)
   | .SB rs1 rs2 off   => some <| instruction.STORE (off, regToRegidx rs2, regToRegidx rs1, 8)
   | .SH rs1 rs2 off   => some <| instruction.STORE (off, regToRegidx rs2, regToRegidx rs1, 16)
+  | .MUL rd rs1 rs2   => some <| instruction.MUL (regToRegidx rs2, regToRegidx rs1, regToRegidx rd, sailMulOp)
+  | .MULH rd rs1 rs2  => some <| instruction.MUL (regToRegidx rs2, regToRegidx rs1, regToRegidx rd, sailMulhOp)
+  | .MULHSU rd rs1 rs2 =>
+      some <| instruction.MUL (regToRegidx rs2, regToRegidx rs1, regToRegidx rd, sailMulhsuOp)
+  | .MULHU rd rs1 rs2 =>
+      some <| instruction.MUL (regToRegidx rs2, regToRegidx rs1, regToRegidx rd, sailMulhuOp)
+  | .DIV rd rs1 rs2   => some <| instruction.DIV (regToRegidx rs2, regToRegidx rs1, regToRegidx rd, false)
+  | .DIVU rd rs1 rs2  => some <| instruction.DIV (regToRegidx rs2, regToRegidx rs1, regToRegidx rd, true)
+  | .REM rd rs1 rs2   => some <| instruction.REM (regToRegidx rs2, regToRegidx rs1, regToRegidx rd, false)
+  | .REMU rd rs1 rs2  => some <| instruction.REM (regToRegidx rs2, regToRegidx rs1, regToRegidx rd, true)
   | _                 => none
 
 def rtypeToInstr? (rs2 rs1 rd : regidx) : rop → Option Instr
@@ -162,6 +196,37 @@ def storeToInstr? (off : BitVec 12) (rs2 rs1 : regidx) : word_width → Option I
   | 64 => return .SD (← regidxToReg? rs1) (← regidxToReg? rs2) off
   | _ => none
 
+def mulToInstr? (rs2 rs1 rd : regidx) : mul_op → Option Instr
+  | { result_part := VectorHalf.Low,
+      signed_rs1 := Signedness.Signed,
+      signed_rs2 := Signedness.Signed } =>
+      return .MUL (← regidxToReg? rd) (← regidxToReg? rs1) (← regidxToReg? rs2)
+  | { result_part := VectorHalf.High,
+      signed_rs1 := Signedness.Signed,
+      signed_rs2 := Signedness.Signed } =>
+      return .MULH (← regidxToReg? rd) (← regidxToReg? rs1) (← regidxToReg? rs2)
+  | { result_part := VectorHalf.High,
+      signed_rs1 := Signedness.Signed,
+      signed_rs2 := Signedness.Unsigned } =>
+      return .MULHSU (← regidxToReg? rd) (← regidxToReg? rs1) (← regidxToReg? rs2)
+  | { result_part := VectorHalf.High,
+      signed_rs1 := Signedness.Unsigned,
+      signed_rs2 := Signedness.Unsigned } =>
+      return .MULHU (← regidxToReg? rd) (← regidxToReg? rs1) (← regidxToReg? rs2)
+  | _ => none
+
+def divToInstr? (rs2 rs1 rd : regidx) (isUnsigned : Bool) : Option Instr := do
+  if isUnsigned then
+    return .DIVU (← regidxToReg? rd) (← regidxToReg? rs1) (← regidxToReg? rs2)
+  else
+    return .DIV (← regidxToReg? rd) (← regidxToReg? rs1) (← regidxToReg? rs2)
+
+def remToInstr? (rs2 rs1 rd : regidx) (isUnsigned : Bool) : Option Instr := do
+  if isUnsigned then
+    return .REMU (← regidxToReg? rd) (← regidxToReg? rs1) (← regidxToReg? rs2)
+  else
+    return .REM (← regidxToReg? rd) (← regidxToReg? rs1) (← regidxToReg? rs2)
+
 /-- Map the supported SAIL ALU/immediate constructors back to the hand-written AST. -/
 def fromSailInstr? : SailInstr → Option Instr
   | instruction.JAL (off, rd) => return .JAL (← regidxToReg? rd) off
@@ -170,6 +235,9 @@ def fromSailInstr? : SailInstr → Option Instr
   | instruction.LOAD (off, rs1, rd, isUnsigned, width) =>
       loadToInstr? off rs1 rd isUnsigned width
   | instruction.STORE (off, rs2, rs1, width) => storeToInstr? off rs2 rs1 width
+  | instruction.MUL (rs2, rs1, rd, op) => mulToInstr? rs2 rs1 rd op
+  | instruction.DIV (rs2, rs1, rd, isUnsigned) => divToInstr? rs2 rs1 rd isUnsigned
+  | instruction.REM (rs2, rs1, rd, isUnsigned) => remToInstr? rs2 rs1 rd isUnsigned
   | instruction.RTYPE (rs2, rs1, rd, op) => rtypeToInstr? rs2 rs1 rd op
   | instruction.ITYPE (imm, rs1, rd, op) => itypeToInstr? imm rs1 rd op
   | instruction.SHIFTIOP (shamt, rs1, rd, op) => shiftIToInstr? shamt rs1 rd op
@@ -182,7 +250,9 @@ theorem fromSailInstr?_toSailInstr?_of_some
   all_goals
     cases h
     simp [fromSailInstr?, rtypeToInstr?, itypeToInstr?, shiftIToInstr?,
-      btypeToInstr?, loadToInstr?, storeToInstr?, regidxToReg?_regToRegidx]
+      btypeToInstr?, loadToInstr?, storeToInstr?, mulToInstr?, divToInstr?,
+      remToInstr?, sailMulOp, sailMulhOp, sailMulhsuOp, sailMulhuOp,
+      regidxToReg?_regToRegidx]
 
 theorem fromSailInstr?_toSailInstr?_ADD (rd rs1 rs2 : Reg) :
     fromSailInstr? (instruction.RTYPE
@@ -251,5 +321,33 @@ theorem fromSailInstr?_toSailInstr?_SB
       (off, regToRegidx rs2, regToRegidx rs1, 8)) =
     some (.SB rs1 rs2 off) := by
   simp [fromSailInstr?, storeToInstr?, regidxToReg?_regToRegidx]
+
+theorem fromSailInstr?_toSailInstr?_MUL
+    (rd rs1 rs2 : Reg) :
+    fromSailInstr? (instruction.MUL
+      (regToRegidx rs2, regToRegidx rs1, regToRegidx rd, sailMulOp)) =
+    some (.MUL rd rs1 rs2) := by
+  simp [fromSailInstr?, mulToInstr?, sailMulOp, regidxToReg?_regToRegidx]
+
+theorem fromSailInstr?_toSailInstr?_MULHU
+    (rd rs1 rs2 : Reg) :
+    fromSailInstr? (instruction.MUL
+      (regToRegidx rs2, regToRegidx rs1, regToRegidx rd, sailMulhuOp)) =
+    some (.MULHU rd rs1 rs2) := by
+  simp [fromSailInstr?, mulToInstr?, sailMulhuOp, regidxToReg?_regToRegidx]
+
+theorem fromSailInstr?_toSailInstr?_DIVU
+    (rd rs1 rs2 : Reg) :
+    fromSailInstr? (instruction.DIV
+      (regToRegidx rs2, regToRegidx rs1, regToRegidx rd, true)) =
+    some (.DIVU rd rs1 rs2) := by
+  simp [fromSailInstr?, divToInstr?, regidxToReg?_regToRegidx]
+
+theorem fromSailInstr?_toSailInstr?_REMU
+    (rd rs1 rs2 : Reg) :
+    fromSailInstr? (instruction.REM
+      (regToRegidx rs2, regToRegidx rs1, regToRegidx rd, true)) =
+    some (.REMU rd rs1 rs2) := by
+  simp [fromSailInstr?, remToInstr?, regidxToReg?_regToRegidx]
 
 end EvmAsm.Rv64.SailEquiv
