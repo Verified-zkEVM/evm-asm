@@ -23,6 +23,7 @@ import EvmAsm.Rv64.RLP.Phase2LongLoopEight
 import EvmAsm.Rv64.RLP.Phase2LongLoopSeven
 import EvmAsm.Rv64.RLP.Phase2LongLoopSix
 import EvmAsm.Rv64.RLP.Phase3LongString
+import EvmAsm.Rv64.RLP.Phase3ShortList
 import EvmAsm.Rv64.RLP.Phase3ShortString
 import EvmAsm.Rv64.RLP.Phase3SingleByte
 import EvmAsm.Rv64.RLP.Phase1Disjoint
