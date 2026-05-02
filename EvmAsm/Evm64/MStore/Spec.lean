@@ -43,4 +43,17 @@ theorem mstore_prologue_spec_within
   rw [show (base + 4 : Word) + 4 = base + 8 from by bv_omega] at h_add
   runBlock h_ld h_add
 
+/-- CodeReq for the final MSTORE stack-pop epilogue. -/
+def mstoreEpilogueCode (base : Word) : CodeReq :=
+  CodeReq.singleton base (.ADDI .x12 .x12 64)
+
+/-- MSTORE epilogue spec: pop the offset and value words from the EVM stack. -/
+theorem mstore_epilogue_spec_within (sp : Word) (base : Word) :
+    cpsTripleWithin 1 base (base + 4)
+      (mstoreEpilogueCode base)
+      (((.x12 : Reg) ↦ᵣ sp))
+      (((.x12 : Reg) ↦ᵣ (sp + 64))) := by
+  unfold mstoreEpilogueCode
+  exact addi_spec_gen_same_within (.x12 : Reg) sp 64 base (by nofun)
+
 end EvmAsm.Evm64
