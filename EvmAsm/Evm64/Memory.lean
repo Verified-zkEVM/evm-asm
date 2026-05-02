@@ -128,6 +128,16 @@ theorem evmMemByteOffset_lt_8 (memBase byteAddr : Word) :
   unfold evmMemByteOffset
   exact byteOffset_lt_8
 
+theorem evmMemByteAccess_valid_iff_memAddr_valid (memBase byteAddr : Word) :
+    isValidByteAccess (memBase + byteAddr) = true ↔
+      isValidMemAddr (memBase + byteAddr) = true := by
+  rfl
+
+theorem evmMemByteAccess_valid_of_memAddr_valid {memBase byteAddr : Word}
+    (h_valid : isValidMemAddr (memBase + byteAddr) = true) :
+    isValidByteAccess (memBase + byteAddr) = true := by
+  exact (evmMemByteAccess_valid_iff_memAddr_valid memBase byteAddr).mpr h_valid
+
 /-- The byte position inside the owning RV64 dword, packaged as a `Fin 8`
     for direct use with byte-algebra lemmas. -/
 def evmMemByteOffsetFin (memBase byteAddr : Word) : Fin 8 :=
