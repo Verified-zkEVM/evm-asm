@@ -398,6 +398,19 @@ theorem evmMemExpand_mload_byte_dword_interval
     evmMemExpand_mload_byte_dword_start_lt sizeBytes offset byteIndex h_byte,
     evmMemExpand_mload_byte_dword_end_le sizeBytes offset byteIndex h_byte⟩
 
+theorem evmMemExpand_mload_byte_dword_byte_lt
+    (sizeBytes offset byteIndex dwordByte : Nat)
+    (h_byte : byteIndex < 32) (h_dword : dwordByte < 8) :
+    ((offset + byteIndex) / 8) * 8 + dwordByte <
+      evmMemExpand sizeBytes offset 32 := by
+  have h_interval :=
+    evmMemExpand_mload_byte_dword_interval sizeBytes offset byteIndex h_byte
+  have h_lt_end :
+      ((offset + byteIndex) / 8) * 8 + dwordByte <
+        ((offset + byteIndex) / 8 + 1) * 8 := by
+    omega
+  exact Nat.lt_of_lt_of_le h_lt_end h_interval.2
+
 theorem evmMemExpand_mload_dword_interval
     (sizeBytes offset : Nat) :
     (offset / 8) * 8 < evmMemExpand sizeBytes offset 32 ∧
