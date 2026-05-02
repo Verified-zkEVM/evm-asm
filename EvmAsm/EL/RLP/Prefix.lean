@@ -53,6 +53,16 @@ def rlpPrefixLongBytesHeaderBytes (pfx : Byte) : Nat :=
 def rlpPrefixLongListHeaderBytes (pfx : Byte) : Nat :=
   1 + rlpPrefixLongListLenOfLen pfx
 
+/-- Total header bytes before payload for any RLP prefix class. Single-byte
+    payloads have no header byte before the payload. -/
+def rlpPrefixHeaderBytes (pfx : Byte) : Nat :=
+  match classifyPrefix pfx with
+  | .singleByte => 0
+  | .shortBytes => 1
+  | .longBytes => rlpPrefixLongBytesHeaderBytes pfx
+  | .shortList => 1
+  | .longList => rlpPrefixLongListHeaderBytes pfx
+
 theorem classifyPrefix_singleByte_iff (pfx : Byte) :
     classifyPrefix pfx = .singleByte ↔ pfx.toNat < 0x80 := by
   unfold classifyPrefix
@@ -201,5 +211,42 @@ theorem rlpPrefixLongListHeaderBytes_eq_lenOfLen_add_one (pfx : Byte) :
       rlpPrefixLongListLenOfLen pfx + 1 := by
   unfold rlpPrefixLongListHeaderBytes
   omega
+
+theorem rlpPrefixHeaderBytes_eq_zero_of_singleByte {pfx : Byte}
+    (h : classifyPrefix pfx = .singleByte) :
+    rlpPrefixHeaderBytes pfx = 0 := by
+  unfold rlpPrefixHeaderBytes
+  rw [h]
+
+theorem rlpPrefixHeaderBytes_eq_one_of_shortBytes {pfx : Byte}
+    (h : classifyPrefix pfx = .shortBytes) :
+    rlpPrefixHeaderBytes pfx = 1 := by
+  unfold rlpPrefixHeaderBytes
+  rw [h]
+
+theorem rlpPrefixHeaderBytes_eq_longBytesHeader_of_longBytes {pfx : Byte}
+    (h : classifyPrefix pfx = .longBytes) :
+    rlpPrefixHeaderBytes pfx = rlpPrefixLongBytesHeaderBytes pfx := by
+  unfold rlpPrefixHeaderBytes
+  rw [h]
+
+theorem rlpPrefixHeaderBytes_eq_one_of_shortList {pfx : Byte}
+    (h : classifyPrefix pfx = .shortList) :
+    rlpPrefixHeaderBytes pfx = 1 := by
+  unfold rlpPrefixHeaderBytes
+  rw [h]
+
+theorem rlpPrefixHeaderBytes_eq_longListHeader_of_longList {pfx : Byte}
+    (h : classifyPrefix pfx = .longList) :
+    rlpPrefixHeaderBytes pfx = rlpPrefixLongListHeaderBytes pfx := by
+  unfold rlpPrefixHeaderBytes
+  rw [h]
+
+theorem rlpPrefixHeaderBytes_le_9 (pfx : Byte) :
+    rlpPrefixHeaderBytes pfx ≤ 9 := by
+  unfold rlpPrefixHeaderBytes
+  cases h : classifyPrefix pfx <;> simp
+  · exact rlpPrefixLongBytesHeaderBytes_le_9_of_class h
+  · exact rlpPrefixLongListHeaderBytes_le_9_of_class h
 
 end EvmAsm.EL.RLP
