@@ -407,6 +407,74 @@ theorem mload_byte_pack_step_pair_spec_within
       h_byte_ne_x0 h_acc_ne_x0 h_ge h_align h_byte h_valid
 
 /--
+  Two-byte big-endian byte-pack composition for an unaligned source window.
+  This is the first composition rung over the low/high dword pair wrappers:
+  the seed `LBU` loads byte 0 into `accReg`, then one pair step folds byte 1
+  into `(b0 <<< 8) ||| b1`.
+-/
+theorem mload_byte_pack_two_pair_spec_within
+    (addrReg byteReg accReg : Reg)
+    (addrPtr accOld byteOld loVal hiVal loAddr hiAddr : Word)
+    (off0 off1 : BitVec 12) (start : Nat) (base : Word)
+    (h_byte_ne_x0 : byteReg ≠ .x0)
+    (h_acc_ne_x0  : accReg  ≠ .x0)
+    (h_align0 :
+      alignToDword (addrPtr + signExtend12 off0) =
+        mloadDwordPairAddr loAddr hiAddr start 0)
+    (h_byte0 : byteOffset (addrPtr + signExtend12 off0) = (start + 0) % 8)
+    (h_valid0 : isValidByteAccess (addrPtr + signExtend12 off0) = true)
+    (h_align1 :
+      alignToDword (addrPtr + signExtend12 off1) =
+        mloadDwordPairAddr loAddr hiAddr start 1)
+    (h_byte1 : byteOffset (addrPtr + signExtend12 off1) = (start + 1) % 8)
+    (h_valid1 : isValidByteAccess (addrPtr + signExtend12 off1) = true) :
+    let b0 := (mloadByteFromDwordPair loVal hiVal start 0).zeroExtend 64
+    let b1 := (mloadByteFromDwordPair loVal hiVal start 1).zeroExtend 64
+    let accFinal := (b0 <<< (8 : Nat)) ||| b1
+    let cr := mloadBytePackTwoCode addrReg byteReg accReg off0 off1 base
+    cpsTripleWithin 4 base (base + 16) cr
+      ((addrReg ↦ᵣ addrPtr) ** (byteReg ↦ᵣ byteOld) ** (accReg ↦ᵣ accOld) **
+       (loAddr ↦ₘ loVal) ** (hiAddr ↦ₘ hiVal))
+      ((addrReg ↦ᵣ addrPtr) ** (byteReg ↦ᵣ b1) ** (accReg ↦ᵣ accFinal) **
+       (loAddr ↦ₘ loVal) ** (hiAddr ↦ₘ hiVal)) := by
+  intro b0 b1 accFinal cr
+  have init := mload_byte_pack_init_pair_spec_within addrReg accReg
+    addrPtr accOld loVal hiVal loAddr hiAddr off0 start 0 base
+    h_acc_ne_x0 h_align0 h_byte0 h_valid0
+  have initF := cpsTripleWithin_frameR (F := byteReg ↦ᵣ byteOld)
+    (by pcFree) init
+  have s1 : cpsTripleWithin 1 base (base + 4)
+      (CodeReq.singleton base (.LBU accReg addrReg off0))
+      ((addrReg ↦ᵣ addrPtr) ** (byteReg ↦ᵣ byteOld) ** (accReg ↦ᵣ accOld) **
+       (loAddr ↦ₘ loVal) ** (hiAddr ↦ₘ hiVal))
+      ((addrReg ↦ᵣ addrPtr) ** (byteReg ↦ᵣ byteOld) ** (accReg ↦ᵣ b0) **
+       (loAddr ↦ₘ loVal) ** (hiAddr ↦ₘ hiVal)) :=
+    cpsTripleWithin_weaken
+      (fun _ hp => by xperm_hyp hp)
+      (fun _ hp => by xperm_hyp hp)
+      initF
+  have step := mload_byte_pack_step_pair_spec_within addrReg byteReg accReg
+    addrPtr b0 byteOld loVal hiVal loAddr hiAddr off1 start 1 (base + 4)
+    h_byte_ne_x0 h_acc_ne_x0 h_align1 h_byte1 h_valid1
+  rw [show (base + 4 : Word) + 12 = base + 16 from by bv_omega] at step
+  rw [show (base + 4 : Word) + 4 = base + 8 from by bv_omega,
+      show (base + 4 : Word) + 8 = base + 12 from by bv_omega] at step
+  have h01 : base ≠ base + 4 := by bv_omega
+  have h02 : base ≠ base + 8 := by bv_omega
+  have h03 : base ≠ base + 12 := by bv_omega
+  have hd_step : CodeReq.Disjoint
+      (CodeReq.singleton base (.LBU accReg addrReg off0))
+      ((CodeReq.singleton (base + 4) (.LBU byteReg addrReg off1)).union
+       ((CodeReq.singleton (base + 8) (.SLLI accReg accReg (BitVec.ofNat 6 8))).union
+        (CodeReq.singleton (base + 12) (.OR accReg accReg byteReg)))) :=
+    CodeReq.Disjoint.union_right
+      (CodeReq.Disjoint.singleton h01)
+      (CodeReq.Disjoint.union_right
+        (CodeReq.Disjoint.singleton h02)
+        (CodeReq.Disjoint.singleton h03))
+  exact cpsTripleWithin_seq hd_step s1 step
+
+/--
   Pack eight consecutive bytes starting at byte offset `start` in `lo`,
   crossing into adjacent dword `hi` when needed.
 -/
