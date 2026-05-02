@@ -7,6 +7,7 @@
 import EvmAsm.Evm64.Memory
 import EvmAsm.Rv64.AddrNorm
 import EvmAsm.Rv64.SyscallSpecs
+import EvmAsm.Rv64.Tactics.ExtractPure
 import EvmAsm.Rv64.Tactics.RunBlock
 import EvmAsm.Rv64.Tactics.XSimp
 
@@ -518,6 +519,103 @@ theorem mload_select_expanded_size_copy_spec_within
     (cpsTripleWithin_frameL
       ((flagReg ↦ᵣ flagVal) ** (.x0 ↦ᵣ (0 : Word))) (by pcFree)
       haddi)
+
+/--
+  Composed select bridge for the MLOAD memory high-water update. The branch
+  keeps the old memory size when the comparison flag is zero and otherwise
+  executes the copy step that selects the rounded access end.
+-/
+theorem mload_select_expanded_size_merged_spec_within
+    (sizeReg roundReg flagReg : Reg)
+    (sizeOld roundedAccessEnd flagVal : Word) (base : Word)
+    (h_size_ne_x0 : sizeReg ≠ .x0) :
+    cpsTripleWithin 2 base (base + 8)
+      (mload_select_expanded_size_code sizeReg roundReg flagReg base)
+      ((flagReg ↦ᵣ flagVal) ** (.x0 ↦ᵣ (0 : Word)) **
+       (sizeReg ↦ᵣ sizeOld) ** (roundReg ↦ᵣ roundedAccessEnd))
+      ((flagReg ↦ᵣ flagVal) ** (.x0 ↦ᵣ (0 : Word)) **
+       (sizeReg ↦ᵣ
+        (if flagVal = (0 : Word) then sizeOld else roundedAccessEnd)) **
+       (roundReg ↦ᵣ roundedAccessEnd)) := by
+  let finalPost : Assertion :=
+    ((flagReg ↦ᵣ flagVal) ** (.x0 ↦ᵣ (0 : Word)) **
+     (sizeReg ↦ᵣ
+      (if flagVal = (0 : Word) then sizeOld else roundedAccessEnd)) **
+     (roundReg ↦ᵣ roundedAccessEnd))
+  have hbr :=
+    mload_select_expanded_size_spec_within
+      sizeReg roundReg flagReg sizeOld roundedAccessEnd flagVal base
+  have ht_empty : cpsTripleWithin 1 (base + 8) (base + 8) CodeReq.empty
+      ((flagReg ↦ᵣ flagVal) ** (.x0 ↦ᵣ (0 : Word)) **
+       (sizeReg ↦ᵣ sizeOld) ** (roundReg ↦ᵣ roundedAccessEnd) **
+       ⌜flagVal = (0 : Word)⌝)
+      finalPost :=
+    cpsTripleWithin_mono_nSteps (by decide)
+      (cpsTripleWithin_refl (fun h hp => by
+        open EvmAsm.Rv64.Tactics in extract_pure hp
+        obtain ⟨h_eq, hp⟩ := hp
+        simp only [finalPost, if_pos h_eq]
+        xperm_hyp hp))
+  have ht : cpsTripleWithin 1 (base + 8) (base + 8)
+      (mload_select_expanded_size_code sizeReg roundReg flagReg base)
+      ((flagReg ↦ᵣ flagVal) ** (.x0 ↦ᵣ (0 : Word)) **
+       (sizeReg ↦ᵣ sizeOld) ** (roundReg ↦ᵣ roundedAccessEnd) **
+       ⌜flagVal = (0 : Word)⌝)
+      finalPost :=
+    cpsTripleWithin_extend_code (fun a i h => by
+      simp [CodeReq.empty] at h)
+      ht_empty
+  have hf_raw :=
+    mload_select_expanded_size_copy_spec_within
+      sizeReg roundReg flagReg sizeOld roundedAccessEnd flagVal base h_size_ne_x0
+  have hf_with_pure : cpsTripleWithin 1 (base + 4) (base + 8)
+      (CodeReq.singleton (base + 4) (Instr.ADDI sizeReg roundReg 0))
+      (((flagReg ↦ᵣ flagVal) ** (.x0 ↦ᵣ (0 : Word)) **
+        (sizeReg ↦ᵣ sizeOld) ** (roundReg ↦ᵣ roundedAccessEnd)) **
+       ⌜flagVal ≠ (0 : Word)⌝)
+      (((flagReg ↦ᵣ flagVal) ** (.x0 ↦ᵣ (0 : Word)) **
+        (sizeReg ↦ᵣ roundedAccessEnd) ** (roundReg ↦ᵣ roundedAccessEnd)) **
+       ⌜flagVal ≠ (0 : Word)⌝) :=
+    cpsTripleWithin_frameR ⌜flagVal ≠ (0 : Word)⌝ (by pcFree) hf_raw
+  have hf_single : cpsTripleWithin 1 (base + 4) (base + 8)
+      (CodeReq.singleton (base + 4) (Instr.ADDI sizeReg roundReg 0))
+      ((flagReg ↦ᵣ flagVal) ** (.x0 ↦ᵣ (0 : Word)) **
+       (sizeReg ↦ᵣ sizeOld) ** (roundReg ↦ᵣ roundedAccessEnd) **
+       ⌜flagVal ≠ (0 : Word)⌝)
+      finalPost :=
+    cpsTripleWithin_weaken
+      (fun h hp => by xperm_hyp hp)
+      (fun h hp => by
+        open EvmAsm.Rv64.Tactics in extract_pure hp
+        obtain ⟨hp, h_ne⟩ := hp
+        simp only [finalPost, if_neg h_ne]
+        xperm_hyp hp)
+      hf_with_pure
+  have hf : cpsTripleWithin 1 (base + 4) (base + 8)
+      (mload_select_expanded_size_code sizeReg roundReg flagReg base)
+      ((flagReg ↦ᵣ flagVal) ** (.x0 ↦ᵣ (0 : Word)) **
+       (sizeReg ↦ᵣ sizeOld) ** (roundReg ↦ᵣ roundedAccessEnd) **
+       ⌜flagVal ≠ (0 : Word)⌝)
+      finalPost :=
+    cpsTripleWithin_extend_code (fun a i h => by
+      unfold mload_select_expanded_size_code
+      unfold CodeReq.union
+      unfold CodeReq.singleton at h ⊢
+      by_cases ha4 : a == base + 4
+      · simp at h
+        obtain ⟨ha_eq, hi_eq⟩ := h
+        by_cases hb : a == base
+        ·
+          have hb_eq : a = base := by simpa using hb
+          bv_omega
+        · simp [ha_eq, hi_eq]
+      · simp at h
+        obtain ⟨ha_eq, _hi_eq⟩ := h
+        have ha4_true : (a == base + 4) = true := by simp [ha_eq]
+        exact False.elim (ha4 ha4_true))
+      hf_single
+  simpa only [Nat.reduceAdd, finalPost] using
+    cpsBranchWithin_merge_same_cr hbr ht hf
 
 /--
   Store a precomputed 32-byte-access expanded high-water mark into the EVM
