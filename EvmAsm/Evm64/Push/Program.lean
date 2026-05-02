@@ -28,6 +28,40 @@ namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
 
+/-- Source byte offset for immediate byte `i` of a PUSHn instruction. The
+    opcode itself is at offset 0, so immediates start at offset 1. -/
+def pushByteSrcOffset (i : Nat) : Nat :=
+  1 + i
+
+/-- Destination byte offset in the newly allocated stack word for immediate
+    byte `i` of PUSH width `n`. PUSH immediates are big-endian, while the
+    stack word is stored little-endian in memory, so byte `i` lands at
+    offset `n - 1 - i`. -/
+def pushByteDstOffset (n i : Nat) : Nat :=
+  n - 1 - i
+
+theorem pushByteSrcOffset_pos (i : Nat) :
+    0 < pushByteSrcOffset i := by
+  unfold pushByteSrcOffset
+  omega
+
+theorem pushByteSrcOffset_le_32_of_lt {n i : Nat}
+    (hn : n ≤ 32) (hi : i < n) :
+    pushByteSrcOffset i ≤ 32 := by
+  unfold pushByteSrcOffset
+  omega
+
+theorem pushByteDstOffset_lt_32_of_lt {n i : Nat}
+    (hn : n ≤ 32) (hi : i < n) :
+    pushByteDstOffset n i < 32 := by
+  unfold pushByteDstOffset
+  omega
+
+theorem pushByteDstOffset_lt_width_of_lt {n i : Nat} (hi : i < n) :
+    pushByteDstOffset n i < n := by
+  unfold pushByteDstOffset
+  omega
+
 /-- Read one immediate byte and store it into the new EVM stack slot.
 
     `n` is the PUSH width (1..32) and `i` is the byte index in
@@ -37,8 +71,8 @@ open EvmAsm.Rv64
     so it goes into memory offset `n - 1 - i` from the new stack
     pointer (which holds limb 0's LSB at offset 0). -/
 private def push_one_byte (n i : Nat) : Program :=
-  LBU .x7 .x10 (BitVec.ofNat 12 (1 + i)) ;;
-  SB .x12 .x7 (BitVec.ofNat 12 (n - 1 - i))
+  LBU .x7 .x10 (BitVec.ofNat 12 (pushByteSrcOffset i)) ;;
+  SB .x12 .x7 (BitVec.ofNat 12 (pushByteDstOffset n i))
 
 /-- Sequence `push_one_byte n 0 ;; push_one_byte n 1 ;; ... ;; push_one_byte n (k-1)`.
 
