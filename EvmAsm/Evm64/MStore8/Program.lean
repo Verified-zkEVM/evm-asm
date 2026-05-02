@@ -61,6 +61,16 @@ def evm_mstore8_kernel (addrReg dataReg : Reg) : Program :=
 abbrev evm_mstore8_kernel_code (addrReg dataReg : Reg) (base : Word) : CodeReq :=
   CodeReq.ofProg base (evm_mstore8_kernel addrReg dataReg)
 
+/-- Concrete instruction length of the MSTORE8 byte-write kernel. -/
+theorem evm_mstore8_kernel_length (addrReg dataReg : Reg) :
+    (evm_mstore8_kernel addrReg dataReg).length = 1 := by
+  rfl
+
+/-- Concrete byte length of the MSTORE8 byte-write kernel. -/
+theorem evm_mstore8_kernel_byte_length (addrReg dataReg : Reg) :
+    4 * (evm_mstore8_kernel addrReg dataReg).length = 4 := by
+  rw [evm_mstore8_kernel_length]
+
 /-- 256-bit EVM MSTORE8 program parameterized over the registers used as
     scratch and the register holding the EVM memory base address.
 
@@ -85,5 +95,39 @@ def evm_mstore8 (offReg valReg addrReg memBaseReg : Reg) : Program :=
 /-- `CodeReq` for `evm_mstore8` placed at `base`. -/
 abbrev evm_mstore8_code (offReg valReg addrReg memBaseReg : Reg) (base : Word) : CodeReq :=
   CodeReq.ofProg base (evm_mstore8 offReg valReg addrReg memBaseReg)
+
+/-- Concrete instruction length of `evm_mstore8`. -/
+theorem evm_mstore8_length (offReg valReg addrReg memBaseReg : Reg) :
+    (evm_mstore8 offReg valReg addrReg memBaseReg).length = 5 := by
+  simp [evm_mstore8, LD, ADD, ADDI, SB, single, seq, Program.length_append]
+
+/-- Concrete byte length of `evm_mstore8` when placed in RV64 code memory. -/
+theorem evm_mstore8_byte_length (offReg valReg addrReg memBaseReg : Reg) :
+    4 * (evm_mstore8 offReg valReg addrReg memBaseReg).length = 20 := by
+  rw [evm_mstore8_length]
+
+/-- Byte offset of the MSTORE8 offset-load instruction. -/
+theorem evm_mstore8_offset_load_byte_off : 4 * 0 = 0 := by
+  rfl
+
+/-- Byte offset of the MSTORE8 value-load instruction. -/
+theorem evm_mstore8_value_load_byte_off : 4 * 1 = 4 := by
+  rfl
+
+/-- Byte offset of the MSTORE8 address-add instruction. -/
+theorem evm_mstore8_addr_add_byte_off : 4 * 2 = 8 := by
+  rfl
+
+/-- Byte offset of the MSTORE8 byte-store instruction. -/
+theorem evm_mstore8_store_byte_off : 4 * 3 = 12 := by
+  rfl
+
+/-- Byte offset of the MSTORE8 final stack-pointer update. -/
+theorem evm_mstore8_pop_byte_off : 4 * 4 = 16 := by
+  rfl
+
+/-- Byte offset immediately after the full MSTORE8 program. -/
+theorem evm_mstore8_end_byte_off : 4 * 5 = 20 := by
+  rfl
 
 end EvmAsm.Evm64

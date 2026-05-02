@@ -12,7 +12,7 @@
   `evm_mstore_stack_spec_within` land in follow-up sub-slices per
   `docs/99-mstore-design.md` §6 (sub-slices 4b..4f).
 
-  Layout (98 instructions = 392 bytes):
+  Layout (71 instructions = 284 bytes):
 
     prologue (2 instr):
       LD   offReg     x12  0           -- low limb of `offset` (high 3
@@ -22,7 +22,7 @@
                                        -- base byte address of the
                                        -- 32-byte write window
 
-    per limb j ∈ {0, 1, 2, 3} (23 instr each — 92 total):
+    per limb j ∈ {0, 1, 2, 3} (17 instr each — 68 total):
       LD   accReg     x12   (8 * j + 32)             -- load limb j of value
       SRLI byteReg    accReg ((7 - 0) * 8)
       SB   addrReg    byteReg (8 * (3 - j) + 0)      -- write MSB of limb j
@@ -123,6 +123,18 @@ private def mstore_one_limb
   LD accReg .x12 (BitVec.ofNat 12 (8 * j + 32)) ;;
   mstore_byte_unpack addrReg byteReg accReg (8 * (3 - j)) 7
 
+private theorem mstore_byte_unpack_7_length
+    (addrReg byteReg accReg : Reg) (limbStart : Nat) :
+    (mstore_byte_unpack addrReg byteReg accReg limbStart 7).length = 16 := by
+  simp [mstore_byte_unpack, SRLI, SB, single, seq, Program.length_append]
+
+private theorem mstore_one_limb_length
+    (addrReg byteReg accReg : Reg) (j : Nat) :
+    (mstore_one_limb addrReg byteReg accReg j).length = 17 := by
+  unfold mstore_one_limb LD single seq
+  rw [Program.length_append, mstore_byte_unpack_7_length]
+  rfl
+
 /-- 256-bit EVM `MSTORE` program.
 
     Pops a 32-byte `offset` from the EVM stack at `x12 + 0`, a 32-byte
@@ -152,5 +164,52 @@ abbrev evm_mstore_code
     (offReg valReg byteReg accReg addrReg memBaseReg : Reg) (base : Word) :
     CodeReq :=
   CodeReq.ofProg base (evm_mstore offReg valReg byteReg accReg addrReg memBaseReg)
+
+/-- Concrete instruction length of `evm_mstore`. -/
+theorem evm_mstore_length
+    (offReg valReg byteReg accReg addrReg memBaseReg : Reg) :
+    (evm_mstore offReg valReg byteReg accReg addrReg memBaseReg).length = 71 := by
+  simp [evm_mstore, LD, ADD, ADDI, single, seq, Program.length_append,
+    mstore_one_limb_length]
+
+/-- Concrete byte length of `evm_mstore` when placed in RV64 code memory. -/
+theorem evm_mstore_byte_length
+    (offReg valReg byteReg accReg addrReg memBaseReg : Reg) :
+    4 * (evm_mstore offReg valReg byteReg accReg addrReg memBaseReg).length = 284 := by
+  rw [evm_mstore_length]
+
+/-- Byte offset of the first MSTORE limb block after the two-instruction prologue. -/
+theorem evm_mstore_limb0_byte_off : 4 * (2 + 17 * 0) = 8 := by
+  rfl
+
+/-- Byte offset of the second MSTORE limb block. -/
+theorem evm_mstore_limb1_byte_off : 4 * (2 + 17 * 1) = 76 := by
+  rfl
+
+/-- Byte offset of the third MSTORE limb block. -/
+theorem evm_mstore_limb2_byte_off : 4 * (2 + 17 * 2) = 144 := by
+  rfl
+
+/-- Byte offset of the fourth MSTORE limb block. -/
+theorem evm_mstore_limb3_byte_off : 4 * (2 + 17 * 3) = 212 := by
+  rfl
+
+/-- Byte offset of the SRLI instruction for byte `i` inside `mstore_byte_unpack`. -/
+theorem mstore_byte_unpack_srli_byte_off (i : Nat) :
+    4 * (2 * i) = 8 * i := by
+  omega
+
+/-- Byte offset of the SB instruction for byte `i` inside `mstore_byte_unpack`. -/
+theorem mstore_byte_unpack_sb_byte_off (i : Nat) :
+    4 * (2 * i + 1) = 4 + 8 * i := by
+  omega
+
+/-- Byte offset where the byte-unpack sequence starts inside one MSTORE limb block. -/
+theorem mstore_one_limb_unpack_byte_off : 4 * 1 = 4 := by
+  rfl
+
+/-- Byte offset of the final stack-pointer update in `evm_mstore`. -/
+theorem evm_mstore_epilogue_byte_off : 4 * (2 + 17 * 4) = 280 := by
+  rfl
 
 end EvmAsm.Evm64

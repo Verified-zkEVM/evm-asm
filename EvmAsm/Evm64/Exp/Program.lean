@@ -129,6 +129,10 @@ theorem exp_iter_body_length (mulOff : BitVec 21) (skipOff : BitVec 13) :
   simp only [seq, Program.length_append, exp_bit_test_block_length,
     exp_square_block_length, exp_cond_mul_block_length]
 
+theorem exp_iter_body_byte_length (mulOff : BitVec 21) (skipOff : BitVec 13) :
+    4 * (exp_iter_body mulOff skipOff).length = 24 := by
+  rw [exp_iter_body_length]
+
 -- ----------------------------------------------------------------------------
 -- Loop-back tail: counter decrement + backward BNE (#92 slice 3c, beads
 -- evm-asm-46ue)
@@ -176,6 +180,10 @@ theorem exp_loop_back_length (backOff : BitVec 13) :
   show (ADDI .x9 .x9 (-1) ;; single (.BNE .x9 .x0 backOff)).length = 2
   rfl
 
+theorem exp_loop_back_byte_length (backOff : BitVec 13) :
+    4 * (exp_loop_back backOff).length = 8 := by
+  rw [exp_loop_back_length]
+
 -- ----------------------------------------------------------------------------
 -- Per-iteration loop block: exp_loop (#92 slice 3d, beads evm-asm-j2h5)
 -- ----------------------------------------------------------------------------
@@ -215,6 +223,10 @@ theorem exp_loop_length (mulOff : BitVec 21) (skipOff backOff : BitVec 13) :
   show (exp_iter_body mulOff skipOff ;; exp_loop_back backOff).length = 8
   simp only [seq, Program.length_append,
     exp_iter_body_length, exp_loop_back_length]
+
+theorem exp_loop_byte_length (mulOff : BitVec 21) (skipOff backOff : BitVec 13) :
+    4 * (exp_loop mulOff skipOff backOff).length = 32 := by
+  rw [exp_loop_length]
 
 -- ----------------------------------------------------------------------------
 -- Loop prologue: initialize accumulator + counter (#92 slice 3d, beads
@@ -274,6 +286,9 @@ def exp_prologue : Program :=
 
 theorem exp_prologue_length : exp_prologue.length = 6 := by decide
 
+theorem exp_prologue_byte_length : 4 * exp_prologue.length = 24 := by
+  rw [exp_prologue_length]
+
 -- ----------------------------------------------------------------------------
 -- Loop epilogue: result writeback + EVM stack advance (#92 slice 3e, beads
 -- evm-asm-tesj)
@@ -331,6 +346,9 @@ def exp_epilogue : Program :=
   ADDI .x12 .x12 32
 
 theorem exp_epilogue_length : exp_epilogue.length = 9 := by decide
+
+theorem exp_epilogue_byte_length : 4 * exp_epilogue.length = 36 := by
+  rw [exp_epilogue_length]
 
 -- Placeholder: `evm_exp : Program` lands in slice 3 (evm-asm-ahaz).
 -- See `docs/92-exp-survey.md` for the algorithm and reuse points.
