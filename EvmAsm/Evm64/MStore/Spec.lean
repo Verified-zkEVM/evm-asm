@@ -77,4 +77,29 @@ def mstoreStackCode
     ((mstoreFourLimbsCode addrReg byteReg accReg base).union
       (mstoreEpilogueCode (base + 280)))
 
+theorem mstoreStackCode_prologue_sub
+    (offReg byteReg accReg addrReg memBaseReg : Reg) (base : Word) :
+    ∀ a i, (mstorePrologueCode offReg addrReg memBaseReg base) a = some i →
+      (mstoreStackCode offReg byteReg accReg addrReg memBaseReg base) a = some i := by
+  unfold mstoreStackCode
+  exact CodeReq.union_mono_left
+
+theorem mstore_prologue_stack_spec_within
+    (offReg byteReg accReg addrReg memBaseReg : Reg)
+    (sp offset offOld addrOld memBase : Word) (base : Word)
+    (h_off_ne_x0 : offReg ≠ .x0)
+    (h_addr_ne_x0 : addrReg ≠ .x0) :
+    cpsTripleWithin 2 base (base + 8)
+      (mstoreStackCode offReg byteReg accReg addrReg memBaseReg base)
+      (((.x12 : Reg) ↦ᵣ sp) ** (offReg ↦ᵣ offOld) **
+       (memBaseReg ↦ᵣ memBase) ** (addrReg ↦ᵣ addrOld) **
+       (sp ↦ₘ offset))
+      (((.x12 : Reg) ↦ᵣ sp) ** (offReg ↦ᵣ offset) **
+       (memBaseReg ↦ᵣ memBase) ** (addrReg ↦ᵣ (memBase + offset)) **
+       (sp ↦ₘ offset)) := by
+  exact cpsTripleWithin_extend_code
+    (h := mstore_prologue_spec_within offReg addrReg memBaseReg
+      sp offset offOld addrOld memBase base h_off_ne_x0 h_addr_ne_x0)
+    (hmono := mstoreStackCode_prologue_sub offReg byteReg accReg addrReg memBaseReg base)
+
 end EvmAsm.Evm64
