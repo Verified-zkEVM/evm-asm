@@ -48,4 +48,14 @@ def evm_msize (sizeReg tempReg : Reg) : Program :=
 abbrev evm_msize_code (sizeReg tempReg : Reg) (base : Word) : CodeReq :=
   CodeReq.ofProg base (evm_msize sizeReg tempReg)
 
+/-- Concrete instruction length of `evm_msize`. -/
+theorem evm_msize_length (sizeReg tempReg : Reg) :
+    (evm_msize sizeReg tempReg).length = 6 := by
+  simp [evm_msize, LD, ADDI, SD, single, seq, Program.length_append]
+
+/-- Concrete byte length of `evm_msize` when placed in RV64 code memory. -/
+theorem evm_msize_byte_length (sizeReg tempReg : Reg) :
+    4 * (evm_msize sizeReg tempReg).length = 24 := by
+  rw [evm_msize_length]
+
 end EvmAsm.Evm64
