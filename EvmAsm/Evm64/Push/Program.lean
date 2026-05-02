@@ -530,6 +530,84 @@ theorem push12Byte11SrcOffset : pushByteSrcOffset 11 = 12 := by
 theorem push12Byte11DstOffset : pushByteDstOffset 12 11 = 0 := by
   rfl
 
+theorem push13Byte0SrcOffset : pushByteSrcOffset 0 = 1 := by
+  rfl
+
+theorem push13Byte0DstOffset : pushByteDstOffset 13 0 = 12 := by
+  rfl
+
+theorem push13Byte1SrcOffset : pushByteSrcOffset 1 = 2 := by
+  rfl
+
+theorem push13Byte1DstOffset : pushByteDstOffset 13 1 = 11 := by
+  rfl
+
+theorem push13Byte2SrcOffset : pushByteSrcOffset 2 = 3 := by
+  rfl
+
+theorem push13Byte2DstOffset : pushByteDstOffset 13 2 = 10 := by
+  rfl
+
+theorem push13Byte3SrcOffset : pushByteSrcOffset 3 = 4 := by
+  rfl
+
+theorem push13Byte3DstOffset : pushByteDstOffset 13 3 = 9 := by
+  rfl
+
+theorem push13Byte4SrcOffset : pushByteSrcOffset 4 = 5 := by
+  rfl
+
+theorem push13Byte4DstOffset : pushByteDstOffset 13 4 = 8 := by
+  rfl
+
+theorem push13Byte5SrcOffset : pushByteSrcOffset 5 = 6 := by
+  rfl
+
+theorem push13Byte5DstOffset : pushByteDstOffset 13 5 = 7 := by
+  rfl
+
+theorem push13Byte6SrcOffset : pushByteSrcOffset 6 = 7 := by
+  rfl
+
+theorem push13Byte6DstOffset : pushByteDstOffset 13 6 = 6 := by
+  rfl
+
+theorem push13Byte7SrcOffset : pushByteSrcOffset 7 = 8 := by
+  rfl
+
+theorem push13Byte7DstOffset : pushByteDstOffset 13 7 = 5 := by
+  rfl
+
+theorem push13Byte8SrcOffset : pushByteSrcOffset 8 = 9 := by
+  rfl
+
+theorem push13Byte8DstOffset : pushByteDstOffset 13 8 = 4 := by
+  rfl
+
+theorem push13Byte9SrcOffset : pushByteSrcOffset 9 = 10 := by
+  rfl
+
+theorem push13Byte9DstOffset : pushByteDstOffset 13 9 = 3 := by
+  rfl
+
+theorem push13Byte10SrcOffset : pushByteSrcOffset 10 = 11 := by
+  rfl
+
+theorem push13Byte10DstOffset : pushByteDstOffset 13 10 = 2 := by
+  rfl
+
+theorem push13Byte11SrcOffset : pushByteSrcOffset 11 = 12 := by
+  rfl
+
+theorem push13Byte11DstOffset : pushByteDstOffset 13 11 = 1 := by
+  rfl
+
+theorem push13Byte12SrcOffset : pushByteSrcOffset 12 = 13 := by
+  rfl
+
+theorem push13Byte12DstOffset : pushByteDstOffset 13 12 = 0 := by
+  rfl
+
 theorem push32Byte0SrcOffset : pushByteSrcOffset 0 = 1 := by
   rfl
 
