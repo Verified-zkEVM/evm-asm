@@ -26,6 +26,46 @@ def mloadLoadedWordFromDwordPairs
     (mloadPackedLimbFromDwordPair lo2 hi2 start2)
     (mloadPackedLimbFromDwordPair lo3 hi3 start3)
 
+theorem getLimbN_mloadLoadedWordFromDwordPairs_0
+    (lo0 hi0 : Word) (start0 : Nat)
+    (lo1 hi1 : Word) (start1 : Nat)
+    (lo2 hi2 : Word) (start2 : Nat)
+    (lo3 hi3 : Word) (start3 : Nat) :
+    (mloadLoadedWordFromDwordPairs
+      lo0 hi0 start0 lo1 hi1 start1 lo2 hi2 start2 lo3 hi3 start3).getLimbN 0 =
+    mloadPackedLimbFromDwordPair lo0 hi0 start0 := by
+  rw [mloadLoadedWordFromDwordPairs, getLimbN_mloadLoadedWord_0]
+
+theorem getLimbN_mloadLoadedWordFromDwordPairs_1
+    (lo0 hi0 : Word) (start0 : Nat)
+    (lo1 hi1 : Word) (start1 : Nat)
+    (lo2 hi2 : Word) (start2 : Nat)
+    (lo3 hi3 : Word) (start3 : Nat) :
+    (mloadLoadedWordFromDwordPairs
+      lo0 hi0 start0 lo1 hi1 start1 lo2 hi2 start2 lo3 hi3 start3).getLimbN 1 =
+    mloadPackedLimbFromDwordPair lo1 hi1 start1 := by
+  rw [mloadLoadedWordFromDwordPairs, getLimbN_mloadLoadedWord_1]
+
+theorem getLimbN_mloadLoadedWordFromDwordPairs_2
+    (lo0 hi0 : Word) (start0 : Nat)
+    (lo1 hi1 : Word) (start1 : Nat)
+    (lo2 hi2 : Word) (start2 : Nat)
+    (lo3 hi3 : Word) (start3 : Nat) :
+    (mloadLoadedWordFromDwordPairs
+      lo0 hi0 start0 lo1 hi1 start1 lo2 hi2 start2 lo3 hi3 start3).getLimbN 2 =
+    mloadPackedLimbFromDwordPair lo2 hi2 start2 := by
+  rw [mloadLoadedWordFromDwordPairs, getLimbN_mloadLoadedWord_2]
+
+theorem getLimbN_mloadLoadedWordFromDwordPairs_3
+    (lo0 hi0 : Word) (start0 : Nat)
+    (lo1 hi1 : Word) (start1 : Nat)
+    (lo2 hi2 : Word) (start2 : Nat)
+    (lo3 hi3 : Word) (start3 : Nat) :
+    (mloadLoadedWordFromDwordPairs
+      lo0 hi0 start0 lo1 hi1 start1 lo2 hi2 start2 lo3 hi3 start3).getLimbN 3 =
+    mloadPackedLimbFromDwordPair lo3 hi3 start3 := by
+  rw [mloadLoadedWordFromDwordPairs, getLimbN_mloadLoadedWord_3]
+
 /--
   Fold the four unaligned dword-pair MLOAD destination limbs into one
   `evmWordIs` assertion.
