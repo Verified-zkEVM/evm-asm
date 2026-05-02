@@ -396,6 +396,22 @@ theorem expLoopCode_loop_back_sub {base : Word}
       simp only [exp_loop_len]
       norm_num)
 
+theorem expLoopCode_block_subs {base : Word}
+    {mulOff : BitVec 21} {skipOff backOff : BitVec 13} :
+    (∀ a i, (CodeReq.ofProg base EvmAsm.Evm64.exp_bit_test_block) a = some i →
+      (expLoopCode base mulOff skipOff backOff) a = some i) ∧
+    (∀ a i, (CodeReq.ofProg (base + 12)
+      (EvmAsm.Evm64.exp_square_block mulOff)) a = some i →
+      (expLoopCode base mulOff skipOff backOff) a = some i) ∧
+    (∀ a i, (CodeReq.ofProg (base + 16)
+      (EvmAsm.Evm64.exp_cond_mul_block mulOff skipOff)) a = some i →
+      (expLoopCode base mulOff skipOff backOff) a = some i) ∧
+    (∀ a i, (CodeReq.ofProg (base + 24)
+      (EvmAsm.Evm64.exp_loop_back backOff)) a = some i →
+      (expLoopCode base mulOff skipOff backOff) a = some i) := by
+  exact ⟨expLoopCode_bit_test_sub, expLoopCode_square_sub,
+    expLoopCode_cond_mul_sub, expLoopCode_loop_back_sub⟩
+
 theorem expOneIterCode_loop_sub {base : Word}
     {mulOff : BitVec 21} {skipOff backOff : BitVec 13} :
     ∀ a i, (expOneIterCode base mulOff skipOff backOff) a = some i →
