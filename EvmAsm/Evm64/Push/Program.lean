@@ -121,6 +121,15 @@ theorem evm_push_length (n : Nat) :
     push_bytes_length]
   omega
 
+theorem evm_push1_length : (evm_push 1).length = 7 := by
+  rw [evm_push_length]
+
+theorem evm_push2_length : (evm_push 2).length = 9 := by
+  rw [evm_push_length]
+
+theorem evm_push32_length : (evm_push 32).length = 69 := by
+  rw [evm_push_length]
+
 /-- CodeReq for `evm_push n`.
 
     Symbolic `n` prevents `CodeReq.ofProg` from fully reducing, but for
