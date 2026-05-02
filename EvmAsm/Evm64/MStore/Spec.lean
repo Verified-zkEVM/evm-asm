@@ -23,6 +23,15 @@ def mstoreFourLimbsCode
         (mstoreOneLimbCode addrReg byteReg accReg
           56 0 1 2 3 4 5 6 7 (base + 212))))
 
+theorem mstoreFourLimbsCode_limb0_sub
+    (addrReg byteReg accReg : Reg) (base : Word) :
+    ∀ a i,
+      (mstoreOneLimbCode addrReg byteReg accReg
+        32 24 25 26 27 28 29 30 31 (base + 8)) a = some i →
+      (mstoreFourLimbsCode addrReg byteReg accReg base) a = some i := by
+  unfold mstoreFourLimbsCode
+  exact CodeReq.union_mono_left
+
 /-- CodeReq for the two-instruction MSTORE address prologue. -/
 def mstorePrologueCode
     (offReg addrReg memBaseReg : Reg) (base : Word) : CodeReq :=
