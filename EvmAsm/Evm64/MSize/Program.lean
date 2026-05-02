@@ -58,4 +58,32 @@ theorem evm_msize_byte_length (sizeReg tempReg : Reg) :
     4 * (evm_msize sizeReg tempReg).length = 24 := by
   rw [evm_msize_length]
 
+/-- Byte offset of the MSIZE memory-size load instruction. -/
+theorem evm_msize_load_byte_off : 4 * 0 = 0 := by
+  rfl
+
+/-- Byte offset of the MSIZE stack-pointer decrement instruction. -/
+theorem evm_msize_push_byte_off : 4 * 1 = 4 := by
+  rfl
+
+/-- Byte offset of the MSIZE low-limb store instruction. -/
+theorem evm_msize_low_limb_store_byte_off : 4 * 2 = 8 := by
+  rfl
+
+/-- Byte offset of the first MSIZE zero-limb store instruction. -/
+theorem evm_msize_zero_limb1_store_byte_off : 4 * 3 = 12 := by
+  rfl
+
+/-- Byte offset of the second MSIZE zero-limb store instruction. -/
+theorem evm_msize_zero_limb2_store_byte_off : 4 * 4 = 16 := by
+  rfl
+
+/-- Byte offset of the third MSIZE zero-limb store instruction. -/
+theorem evm_msize_zero_limb3_store_byte_off : 4 * 5 = 20 := by
+  rfl
+
+/-- Byte offset immediately after the full MSIZE program. -/
+theorem evm_msize_end_byte_off : 4 * 6 = 24 := by
+  rfl
+
 end EvmAsm.Evm64
