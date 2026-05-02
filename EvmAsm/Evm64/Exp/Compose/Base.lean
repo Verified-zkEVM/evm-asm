@@ -86,6 +86,17 @@ theorem exp_epilogue_byte_len :
     4 * (EvmAsm.Evm64.exp_epilogue).length = 36 := by
   exact EvmAsm.Evm64.exp_epilogue_byte_length
 
+/-- Byte offset of the EXP epilogue within the boundary-code layout. -/
+theorem exp_boundary_epilogue_byte_off :
+    4 * (EvmAsm.Evm64.exp_prologue).length = 24 := by
+  exact exp_prologue_byte_len
+
+/-- Byte offset immediately after the EXP prologue/epilogue boundary blocks. -/
+theorem exp_boundary_end_byte_off :
+    4 * ((EvmAsm.Evm64.exp_prologue).length +
+      (EvmAsm.Evm64.exp_epilogue).length) = 60 := by
+  simp only [exp_prologue_len, exp_epilogue_len]
+
 /-- First EXP composition code skeleton: the verified boundary blocks around
     the loop. The loop body and callable-multiply blocks will extend this
     union as their composed specs land. -/
