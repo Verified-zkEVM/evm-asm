@@ -85,4 +85,44 @@ theorem extractByte_shr_zero_descending_truncate (w : Word) (k : Nat) (h : k < 8
   rw [← extractByte_shr_zero_descending w k h]
   rfl
 
+/-- Select the destination dword address for byte `i` in an unaligned
+    8-byte MSTORE limb window. -/
+def mstoreDwordPairAddr (loAddr hiAddr : Word) (start i : Nat) : Word :=
+  if start + i < 8 then loAddr else hiAddr
+
+theorem mstoreDwordPairAddr_low
+    (loAddr hiAddr : Word) {start i : Nat} (h_pos : start + i < 8) :
+    mstoreDwordPairAddr loAddr hiAddr start i = loAddr := by
+  simp [mstoreDwordPairAddr, h_pos]
+
+theorem mstoreDwordPairAddr_high
+    (loAddr hiAddr : Word) {start i : Nat} (h_pos : 8 ≤ start + i) :
+    mstoreDwordPairAddr loAddr hiAddr start i = hiAddr := by
+  simp [mstoreDwordPairAddr, show ¬ start + i < 8 from by omega]
+
+/--
+  Replace byte `i` of an unaligned 8-byte MSTORE limb window spanning two
+  adjacent destination dwords. `start` is the byte offset of the first limb
+  byte within `lo`.
+-/
+def mstoreDwordPairReplaceByte
+    (lo hi : Word) (start i : Nat) (b : BitVec 8) : Word × Word :=
+  let pos := start + i
+  if pos < 8 then
+    (replaceByte lo (pos % 8) b, hi)
+  else
+    (lo, replaceByte hi (pos % 8) b)
+
+theorem mstoreDwordPairReplaceByte_low
+    (lo hi : Word) {start i : Nat} (b : BitVec 8) (h_pos : start + i < 8) :
+    mstoreDwordPairReplaceByte lo hi start i b =
+      (replaceByte lo ((start + i) % 8) b, hi) := by
+  simp [mstoreDwordPairReplaceByte, h_pos]
+
+theorem mstoreDwordPairReplaceByte_high
+    (lo hi : Word) {start i : Nat} (b : BitVec 8) (h_pos : 8 ≤ start + i) :
+    mstoreDwordPairReplaceByte lo hi start i b =
+      (lo, replaceByte hi ((start + i) % 8) b) := by
+  simp [mstoreDwordPairReplaceByte, show ¬ start + i < 8 from by omega]
+
 end EvmAsm.Evm64.MStore
