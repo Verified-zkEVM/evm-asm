@@ -238,6 +238,11 @@ theorem roundUpTo32_le (n : Nat) : n ≤ roundUpTo32 n := by
     omega
   exact h
 
+theorem roundUpTo32_le_add_31 (n : Nat) :
+    roundUpTo32 n ≤ n + 31 := by
+  unfold roundUpTo32
+  exact Nat.div_mul_le_self (n + 31) 32
+
 theorem roundUpTo32_dvd (n : Nat) : 32 ∣ roundUpTo32 n := by
   unfold roundUpTo32; exact ⟨(n + 31) / 32, (Nat.mul_comm _ _)⟩
 
@@ -275,6 +280,16 @@ theorem evmMemExpand_ge_access (sizeBytes offset length : Nat) (hlen : length �
   unfold evmMemExpand
   rw [if_neg hlen]
   exact Nat.le_trans (roundUpTo32_le _) (Nat.le_max_right _ _)
+
+theorem evmMemExpand_le_max_old_access_plus_31
+    (sizeBytes offset length : Nat) :
+    evmMemExpand sizeBytes offset length ≤ max sizeBytes (offset + length + 31) := by
+  unfold evmMemExpand
+  by_cases hlen : length = 0
+  · simp [hlen]
+  · rw [if_neg hlen]
+    exact max_le (Nat.le_max_left _ _)
+      (Nat.le_trans (roundUpTo32_le_add_31 (offset + length)) (Nat.le_max_right _ _))
 
 /-- If the current high-water mark already covers the rounded access bound,
     the EVM memory size is unchanged. -/
