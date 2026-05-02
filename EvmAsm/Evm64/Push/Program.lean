@@ -62,6 +62,24 @@ theorem pushByteDstOffset_lt_width_of_lt {n i : Nat} (hi : i < n) :
   unfold pushByteDstOffset
   omega
 
+theorem push1Byte0SrcOffset : pushByteSrcOffset 0 = 1 := by
+  rfl
+
+theorem push1Byte0DstOffset : pushByteDstOffset 1 0 = 0 := by
+  rfl
+
+theorem push32Byte0SrcOffset : pushByteSrcOffset 0 = 1 := by
+  rfl
+
+theorem push32Byte0DstOffset : pushByteDstOffset 32 0 = 31 := by
+  rfl
+
+theorem push32Byte31SrcOffset : pushByteSrcOffset 31 = 32 := by
+  rfl
+
+theorem push32Byte31DstOffset : pushByteDstOffset 32 31 = 0 := by
+  rfl
+
 /-- Read one immediate byte and store it into the new EVM stack slot.
 
     `n` is the PUSH width (1..32) and `i` is the byte index in
