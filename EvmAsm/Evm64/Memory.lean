@@ -351,6 +351,15 @@ theorem evmMemExpand_mstore8_byte_dword_end_le
     omega
   exact Nat.le_trans h_round (Nat.le_max_right _ _)
 
+theorem evmMemExpand_mstore8_byte_dword_start_lt
+    (sizeBytes offset byteIndex : Nat) (h_byte : byteIndex < 1) :
+    ((offset + byteIndex) / 8) * 8 <
+      evmMemExpand sizeBytes offset 1 := by
+  have h_byte_lt := evmMemExpand_mstore8_byte_lt sizeBytes offset byteIndex h_byte
+  have h_start_le : ((offset + byteIndex) / 8) * 8 ≤ offset + byteIndex := by
+    exact Nat.div_mul_le_self (offset + byteIndex) 8
+  exact Nat.lt_of_le_of_lt h_start_le h_byte_lt
+
 theorem evmMemExpand_le_max_old_access_plus_31
     (sizeBytes offset length : Nat) :
     evmMemExpand sizeBytes offset length ≤ max sizeBytes (offset + length + 31) := by
