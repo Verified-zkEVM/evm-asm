@@ -241,6 +241,37 @@ theorem push_one_byte_ofProg_spec_within
     codeDwordAddr dstDwordAddr codeOff dstOff base
     h_code_align h_code_valid h_dst_align h_dst_valid
 
+@[irreducible]
+def evmPushOneBytePost
+    (n i : Nat) (codePtr sp codeWord dstWordOld : Word)
+    (codeDwordAddr dstDwordAddr : Word) : Assertion :=
+  let codeOff := BitVec.ofNat 12 (pushByteSrcOffset i)
+  let dstOff := BitVec.ofNat 12 (pushByteDstOffset n i)
+  let byteZext :=
+    (extractByte codeWord (byteOffset (codePtr + signExtend12 codeOff))).zeroExtend 64
+  ((.x10 ↦ᵣ codePtr) ** (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ byteZext) **
+   (codeDwordAddr ↦ₘ codeWord) **
+   (dstDwordAddr ↦ₘ
+     replaceByte dstWordOld (byteOffset (sp + signExtend12 dstOff))
+       (byteZext.truncate 8)))
+
+theorem evmPushOneBytePost_unfold
+    (n i : Nat) (codePtr sp codeWord dstWordOld : Word)
+    (codeDwordAddr dstDwordAddr : Word) :
+    evmPushOneBytePost n i codePtr sp codeWord dstWordOld
+      codeDwordAddr dstDwordAddr =
+    let codeOff := BitVec.ofNat 12 (pushByteSrcOffset i)
+    let dstOff := BitVec.ofNat 12 (pushByteDstOffset n i)
+    let byteZext :=
+      (extractByte codeWord (byteOffset (codePtr + signExtend12 codeOff))).zeroExtend 64
+    ((.x10 ↦ᵣ codePtr) ** (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ byteZext) **
+     (codeDwordAddr ↦ₘ codeWord) **
+     (dstDwordAddr ↦ₘ
+       replaceByte dstWordOld (byteOffset (sp + signExtend12 dstOff))
+         (byteZext.truncate 8))) := by
+  delta evmPushOneBytePost
+  rfl
+
 /-- Lift the one-byte PUSH copy spec under the full generic `evm_push n`
     program for any byte index `i < n`. -/
 theorem evm_push_one_byte_spec_within
@@ -261,45 +292,46 @@ theorem evm_push_one_byte_spec_within
     (h_dst_valid :
       isValidByteAccess
         (sp + signExtend12 (BitVec.ofNat 12 (pushByteDstOffset n i))) = true) :
-    let codeOff := BitVec.ofNat 12 (pushByteSrcOffset i)
-    let dstOff := BitVec.ofNat 12 (pushByteDstOffset n i)
-    let subBase := base + BitVec.ofNat 64 (4 * (5 + 2 * i))
-    let byteZext :=
-      (extractByte codeWord (byteOffset (codePtr + signExtend12 codeOff))).zeroExtend 64
-    cpsTripleWithin 2 subBase (subBase + 8) (evm_push_code base n)
+    cpsTripleWithin 2 (base + BitVec.ofNat 64 (4 * (5 + 2 * i)))
+      ((base + BitVec.ofNat 64 (4 * (5 + 2 * i))) + 8)
+      (evm_push_code base n)
       ((.x10 ↦ᵣ codePtr) ** (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7Old) **
        (codeDwordAddr ↦ₘ codeWord) ** (dstDwordAddr ↦ₘ dstWordOld))
-      ((.x10 ↦ᵣ codePtr) ** (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ byteZext) **
-       (codeDwordAddr ↦ₘ codeWord) **
-       (dstDwordAddr ↦ₘ
-         replaceByte dstWordOld (byteOffset (sp + signExtend12 dstOff))
-           (byteZext.truncate 8))) := by
-  intro codeOff dstOff subBase byteZext
+      (evmPushOneBytePost n i codePtr sp codeWord dstWordOld
+        codeDwordAddr dstDwordAddr) := by
+  let codeOff := BitVec.ofNat 12 (pushByteSrcOffset i)
+  let dstOff := BitVec.ofNat 12 (pushByteDstOffset n i)
+  let subBase := base + BitVec.ofNat 64 (4 * (5 + 2 * i))
   have hByte := push_one_byte_ofProg_spec_within
     codePtr sp v7Old codeWord dstWordOld codeDwordAddr dstDwordAddr
     codeOff dstOff subBase h_code_align h_code_valid h_dst_align h_dst_valid
-  exact cpsTripleWithin_extend_code (h := hByte) (hmono := by
-    unfold evm_push_code
-    exact CodeReq.ofProg_mono_sub base subBase (evm_push n)
-      (LBU .x7 .x10 codeOff ;; SB .x12 .x7 dstOff) (5 + 2 * i)
-      (by rfl)
-      (by
-        have hlen :
-            (LBU .x7 .x10 codeOff ;; SB .x12 .x7 dstOff).length = 2 := by
+  exact cpsTripleWithin_weaken
+    (fun _ hp => hp)
+    (fun _ hp => by
+      rw [evmPushOneBytePost_unfold]
+      exact hp)
+    (cpsTripleWithin_extend_code (h := hByte) (hmono := by
+      unfold evm_push_code
+      exact CodeReq.ofProg_mono_sub base subBase (evm_push n)
+        (LBU .x7 .x10 codeOff ;; SB .x12 .x7 dstOff) (5 + 2 * i)
+        (by rfl)
+        (by
+          have hlen :
+              (LBU .x7 .x10 codeOff ;; SB .x12 .x7 dstOff).length = 2 := by
+            unfold LBU SB single seq
+            rfl
+          rw [hlen]
+          change ((evm_push n).drop (5 + 2 * i)).take 2 =
+            (LBU .x7 .x10 (BitVec.ofNat 12 (pushByteSrcOffset i)) ;;
+             SB .x12 .x7 (BitVec.ofNat 12 (pushByteDstOffset n i)))
+          rw [evm_push_byte_slice hi])
+        (by
+          rw [evm_push_length]
           unfold LBU SB single seq
-          rfl
-        rw [hlen]
-        change ((evm_push n).drop (5 + 2 * i)).take 2 =
-          (LBU .x7 .x10 (BitVec.ofNat 12 (pushByteSrcOffset i)) ;;
-           SB .x12 .x7 (BitVec.ofNat 12 (pushByteDstOffset n i)))
-        rw [evm_push_byte_slice hi])
-      (by
-        rw [evm_push_length]
-        unfold LBU SB single seq
-        simp only [Program.length_append, List.length_cons, List.length_nil]
-        omega)
-      (by
-        rw [evm_push_length]
-        omega))
+          simp only [Program.length_append, List.length_cons, List.length_nil]
+          omega)
+        (by
+          rw [evm_push_length]
+          omega)))
 
 end EvmAsm.Evm64
