@@ -5,6 +5,7 @@
 -/
 
 import EvmAsm.Evm64.Memory
+import EvmAsm.Rv64.AddrNorm
 import EvmAsm.Rv64.SyscallSpecs
 import EvmAsm.Rv64.Tactics.RunBlock
 import EvmAsm.Rv64.Tactics.XSimp
@@ -504,11 +505,12 @@ theorem mload_select_expanded_size_copy_spec_within
       ((flagReg ↦ᵣ flagVal) ** (.x0 ↦ᵣ (0 : Word)) **
        (sizeReg ↦ᵣ sizeOld) ** (roundReg ↦ᵣ roundedAccessEnd))
       ((flagReg ↦ᵣ flagVal) ** (.x0 ↦ᵣ (0 : Word)) **
-       (sizeReg ↦ᵣ (roundedAccessEnd + 0)) ** (roundReg ↦ᵣ roundedAccessEnd)) := by
+       (sizeReg ↦ᵣ roundedAccessEnd) ** (roundReg ↦ᵣ roundedAccessEnd)) := by
   have haddi :=
     addi_spec_gen_within sizeReg roundReg sizeOld roundedAccessEnd
       (0 : BitVec 12) (base + 4) h_size_ne_x0
   simp only [signExtend12_0] at haddi
+  rw [EvmAsm.Rv64.AddrNorm.word_add_zero] at haddi
   rw [show (base + 4 : Word) + 4 = base + 8 from by bv_omega] at haddi
   exact cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
