@@ -3044,6 +3044,186 @@ theorem push32Byte0SrcOffset : pushByteSrcOffset 0 = 1 := by
 theorem push32Byte0DstOffset : pushByteDstOffset 32 0 = 31 := by
   rfl
 
+theorem push32Byte1SrcOffset : pushByteSrcOffset 1 = 2 := by
+  rfl
+
+theorem push32Byte1DstOffset : pushByteDstOffset 32 1 = 30 := by
+  rfl
+
+theorem push32Byte2SrcOffset : pushByteSrcOffset 2 = 3 := by
+  rfl
+
+theorem push32Byte2DstOffset : pushByteDstOffset 32 2 = 29 := by
+  rfl
+
+theorem push32Byte3SrcOffset : pushByteSrcOffset 3 = 4 := by
+  rfl
+
+theorem push32Byte3DstOffset : pushByteDstOffset 32 3 = 28 := by
+  rfl
+
+theorem push32Byte4SrcOffset : pushByteSrcOffset 4 = 5 := by
+  rfl
+
+theorem push32Byte4DstOffset : pushByteDstOffset 32 4 = 27 := by
+  rfl
+
+theorem push32Byte5SrcOffset : pushByteSrcOffset 5 = 6 := by
+  rfl
+
+theorem push32Byte5DstOffset : pushByteDstOffset 32 5 = 26 := by
+  rfl
+
+theorem push32Byte6SrcOffset : pushByteSrcOffset 6 = 7 := by
+  rfl
+
+theorem push32Byte6DstOffset : pushByteDstOffset 32 6 = 25 := by
+  rfl
+
+theorem push32Byte7SrcOffset : pushByteSrcOffset 7 = 8 := by
+  rfl
+
+theorem push32Byte7DstOffset : pushByteDstOffset 32 7 = 24 := by
+  rfl
+
+theorem push32Byte8SrcOffset : pushByteSrcOffset 8 = 9 := by
+  rfl
+
+theorem push32Byte8DstOffset : pushByteDstOffset 32 8 = 23 := by
+  rfl
+
+theorem push32Byte9SrcOffset : pushByteSrcOffset 9 = 10 := by
+  rfl
+
+theorem push32Byte9DstOffset : pushByteDstOffset 32 9 = 22 := by
+  rfl
+
+theorem push32Byte10SrcOffset : pushByteSrcOffset 10 = 11 := by
+  rfl
+
+theorem push32Byte10DstOffset : pushByteDstOffset 32 10 = 21 := by
+  rfl
+
+theorem push32Byte11SrcOffset : pushByteSrcOffset 11 = 12 := by
+  rfl
+
+theorem push32Byte11DstOffset : pushByteDstOffset 32 11 = 20 := by
+  rfl
+
+theorem push32Byte12SrcOffset : pushByteSrcOffset 12 = 13 := by
+  rfl
+
+theorem push32Byte12DstOffset : pushByteDstOffset 32 12 = 19 := by
+  rfl
+
+theorem push32Byte13SrcOffset : pushByteSrcOffset 13 = 14 := by
+  rfl
+
+theorem push32Byte13DstOffset : pushByteDstOffset 32 13 = 18 := by
+  rfl
+
+theorem push32Byte14SrcOffset : pushByteSrcOffset 14 = 15 := by
+  rfl
+
+theorem push32Byte14DstOffset : pushByteDstOffset 32 14 = 17 := by
+  rfl
+
+theorem push32Byte15SrcOffset : pushByteSrcOffset 15 = 16 := by
+  rfl
+
+theorem push32Byte15DstOffset : pushByteDstOffset 32 15 = 16 := by
+  rfl
+
+theorem push32Byte16SrcOffset : pushByteSrcOffset 16 = 17 := by
+  rfl
+
+theorem push32Byte16DstOffset : pushByteDstOffset 32 16 = 15 := by
+  rfl
+
+theorem push32Byte17SrcOffset : pushByteSrcOffset 17 = 18 := by
+  rfl
+
+theorem push32Byte17DstOffset : pushByteDstOffset 32 17 = 14 := by
+  rfl
+
+theorem push32Byte18SrcOffset : pushByteSrcOffset 18 = 19 := by
+  rfl
+
+theorem push32Byte18DstOffset : pushByteDstOffset 32 18 = 13 := by
+  rfl
+
+theorem push32Byte19SrcOffset : pushByteSrcOffset 19 = 20 := by
+  rfl
+
+theorem push32Byte19DstOffset : pushByteDstOffset 32 19 = 12 := by
+  rfl
+
+theorem push32Byte20SrcOffset : pushByteSrcOffset 20 = 21 := by
+  rfl
+
+theorem push32Byte20DstOffset : pushByteDstOffset 32 20 = 11 := by
+  rfl
+
+theorem push32Byte21SrcOffset : pushByteSrcOffset 21 = 22 := by
+  rfl
+
+theorem push32Byte21DstOffset : pushByteDstOffset 32 21 = 10 := by
+  rfl
+
+theorem push32Byte22SrcOffset : pushByteSrcOffset 22 = 23 := by
+  rfl
+
+theorem push32Byte22DstOffset : pushByteDstOffset 32 22 = 9 := by
+  rfl
+
+theorem push32Byte23SrcOffset : pushByteSrcOffset 23 = 24 := by
+  rfl
+
+theorem push32Byte23DstOffset : pushByteDstOffset 32 23 = 8 := by
+  rfl
+
+theorem push32Byte24SrcOffset : pushByteSrcOffset 24 = 25 := by
+  rfl
+
+theorem push32Byte24DstOffset : pushByteDstOffset 32 24 = 7 := by
+  rfl
+
+theorem push32Byte25SrcOffset : pushByteSrcOffset 25 = 26 := by
+  rfl
+
+theorem push32Byte25DstOffset : pushByteDstOffset 32 25 = 6 := by
+  rfl
+
+theorem push32Byte26SrcOffset : pushByteSrcOffset 26 = 27 := by
+  rfl
+
+theorem push32Byte26DstOffset : pushByteDstOffset 32 26 = 5 := by
+  rfl
+
+theorem push32Byte27SrcOffset : pushByteSrcOffset 27 = 28 := by
+  rfl
+
+theorem push32Byte27DstOffset : pushByteDstOffset 32 27 = 4 := by
+  rfl
+
+theorem push32Byte28SrcOffset : pushByteSrcOffset 28 = 29 := by
+  rfl
+
+theorem push32Byte28DstOffset : pushByteDstOffset 32 28 = 3 := by
+  rfl
+
+theorem push32Byte29SrcOffset : pushByteSrcOffset 29 = 30 := by
+  rfl
+
+theorem push32Byte29DstOffset : pushByteDstOffset 32 29 = 2 := by
+  rfl
+
+theorem push32Byte30SrcOffset : pushByteSrcOffset 30 = 31 := by
+  rfl
+
+theorem push32Byte30DstOffset : pushByteDstOffset 32 30 = 1 := by
+  rfl
+
 theorem push32Byte31SrcOffset : pushByteSrcOffset 31 = 32 := by
   rfl
 
