@@ -78,6 +78,27 @@ theorem push_zero_slot_spec_within
     (24 : BitVec 12) (base + 16)
   runBlock hAlloc hSd0 hSd1 hSd2 hSd3
 
+theorem push_zero_slot_ofProg_spec_within
+    (sp d0 d1 d2 d3 : Word) (base : Word) :
+    let nsp := sp + signExtend12 ((-32 : BitVec 12))
+    cpsTripleWithin 5 base (base + 20)
+      (CodeReq.ofProg base
+        (ADDI .x12 .x12 (-32) ;; SD .x12 .x0 0 ;; SD .x12 .x0 8 ;;
+         SD .x12 .x0 16 ;; SD .x12 .x0 24))
+      ((.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) **
+       ((nsp + signExtend12 (0 : BitVec 12)) ↦ₘ d0) **
+       ((nsp + signExtend12 (8 : BitVec 12)) ↦ₘ d1) **
+       ((nsp + signExtend12 (16 : BitVec 12)) ↦ₘ d2) **
+       ((nsp + signExtend12 (24 : BitVec 12)) ↦ₘ d3))
+      ((.x12 ↦ᵣ nsp) ** (.x0 ↦ᵣ (0 : Word)) **
+       ((nsp + signExtend12 (0 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((nsp + signExtend12 (8 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((nsp + signExtend12 (16 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((nsp + signExtend12 (24 : BitVec 12)) ↦ₘ (0 : Word))) := by
+  intro nsp
+  rw [← push_zero_slot_code_eq_ofProg]
+  exact push_zero_slot_spec_within sp d0 d1 d2 d3 base
+
 -- ============================================================================
 -- Per-byte helper (mirror of `dup_pair_spec_within` for LBU+SB)
 -- ============================================================================
