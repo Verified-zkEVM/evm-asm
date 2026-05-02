@@ -360,6 +360,15 @@ theorem evmMemExpand_access_last_dword_interval
   exact evmMemExpand_access_byte_dword_interval
     sizeBytes offset length (length - 1) hlen h_byte
 
+theorem evmMemExpand_access_dword_span
+    (sizeBytes offset length : Nat) (hlen : length ≠ 0) :
+    (offset / 8) * 8 < evmMemExpand sizeBytes offset length ∧
+      ((offset + (length - 1)) / 8 + 1) * 8 ≤
+        evmMemExpand sizeBytes offset length := by
+  exact ⟨
+    (evmMemExpand_access_dword_interval sizeBytes offset length hlen).1,
+    (evmMemExpand_access_last_dword_interval sizeBytes offset length hlen).2⟩
+
 /-- MLOAD is a 32-byte byte-addressed access: expansion covers the byte just
     past the requested range for any starting byte offset. -/
 theorem evmMemExpand_mload_ge_end (sizeBytes offset : Nat) :
