@@ -284,6 +284,25 @@ theorem exp_prologue_spec_within
     (24 : BitVec 12) (base + 20)
   runBlock hCounter hOne hSd0 hSd1 hSd2 hSd3
 
+theorem exp_prologue_ofProg_spec_within
+    (sp cOld tOld m0 m1 m2 m3 : Word) (base : Word) :
+    cpsTripleWithin 6 base (base + 24) (CodeReq.ofProg base exp_prologue)
+      ((.x2 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) ** (.x9 ↦ᵣ cOld) **
+       (.x5 ↦ᵣ tOld) ** ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ m0) **
+       ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ m1) **
+       ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ m2) **
+       ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ m3))
+      ((.x2 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) **
+       (.x9 ↦ᵣ ((0 : Word) + signExtend12 (256 : BitVec 12))) **
+       (.x5 ↦ᵣ ((0 : Word) + signExtend12 (1 : BitVec 12))) **
+       ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ
+        ((0 : Word) + signExtend12 (1 : BitVec 12))) **
+       ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ (0 : Word))) := by
+  rw [← exp_prologue_code_eq_ofProg]
+  exact exp_prologue_spec_within sp cOld tOld m0 m1 m2 m3 base
+
 -- ============================================================================
 -- Section 6: exp_epilogue (9 instructions, slice 4f / evm-asm-20z6.2)
 -- ============================================================================
@@ -354,5 +373,31 @@ theorem exp_epilogue_spec_within
   have hAddSp := addi_spec_gen_same_within .x12 evmSp
     (32 : BitVec 12) (base + 32) (by decide)
   runBlock hLd0 hSd0 hLd1 hSd1 hLd2 hSd2 hLd3 hSd3 hAddSp
+
+theorem exp_epilogue_ofProg_spec_within
+    (sp evmSp tOld r0 r1 r2 r3 d0 d1 d2 d3 : Word) (base : Word) :
+    cpsTripleWithin 9 base (base + 36) (CodeReq.ofProg base exp_epilogue)
+      ((.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ evmSp) ** (.x5 ↦ᵣ tOld) **
+       ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ r0) **
+       ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ r1) **
+       ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ r2) **
+       ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ r3) **
+       ((evmSp + signExtend12 (32 : BitVec 12)) ↦ₘ d0) **
+       ((evmSp + signExtend12 (40 : BitVec 12)) ↦ₘ d1) **
+       ((evmSp + signExtend12 (48 : BitVec 12)) ↦ₘ d2) **
+       ((evmSp + signExtend12 (56 : BitVec 12)) ↦ₘ d3))
+      ((.x2 ↦ᵣ sp) **
+       (.x12 ↦ᵣ (evmSp + signExtend12 (32 : BitVec 12))) **
+       (.x5 ↦ᵣ r3) **
+       ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ r0) **
+       ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ r1) **
+       ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ r2) **
+       ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ r3) **
+       ((evmSp + signExtend12 (32 : BitVec 12)) ↦ₘ r0) **
+       ((evmSp + signExtend12 (40 : BitVec 12)) ↦ₘ r1) **
+       ((evmSp + signExtend12 (48 : BitVec 12)) ↦ₘ r2) **
+       ((evmSp + signExtend12 (56 : BitVec 12)) ↦ₘ r3)) := by
+  rw [← exp_epilogue_code_eq_ofProg]
+  exact exp_epilogue_spec_within sp evmSp tOld r0 r1 r2 r3 d0 d1 d2 d3 base
 
 end EvmAsm.Evm64
