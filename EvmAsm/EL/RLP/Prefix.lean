@@ -43,6 +43,15 @@ def rlpPrefixShortListPayloadLen (pfx : Byte) : Nat :=
 def rlpPrefixLongListLenOfLen (pfx : Byte) : Nat :=
   pfx.toNat - 0xF7
 
+/-- Total length-of-length byte count for an RLP prefix. Only long-form
+    byte strings and lists carry an encoded payload length; all other
+    prefixes have zero length bytes. -/
+def rlpPrefixLenOfLen (pfx : Byte) : Nat :=
+  match classifyPrefix pfx with
+  | .longBytes => rlpPrefixLongBytesLenOfLen pfx
+  | .longList => rlpPrefixLongListLenOfLen pfx
+  | _ => 0
+
 /-- Total header bytes before payload for a long string prefix. This includes
     the prefix byte plus the encoded length bytes. -/
 def rlpPrefixLongBytesHeaderBytes (pfx : Byte) : Nat :=
@@ -175,6 +184,70 @@ theorem rlpPrefixLongListLenOfLen_le_8_of_class {pfx : Byte}
   unfold rlpPrefixLongListLenOfLen
   have h_bound : pfx.toNat < 256 := pfx.isLt
   omega
+
+theorem rlpPrefixLenOfLen_eq_zero_of_singleByte {pfx : Byte}
+    (h : classifyPrefix pfx = .singleByte) :
+    rlpPrefixLenOfLen pfx = 0 := by
+  unfold rlpPrefixLenOfLen
+  rw [h]
+
+theorem rlpPrefixLenOfLen_eq_zero_of_shortBytes {pfx : Byte}
+    (h : classifyPrefix pfx = .shortBytes) :
+    rlpPrefixLenOfLen pfx = 0 := by
+  unfold rlpPrefixLenOfLen
+  rw [h]
+
+theorem rlpPrefixLenOfLen_eq_longBytesLenOfLen {pfx : Byte}
+    (h : classifyPrefix pfx = .longBytes) :
+    rlpPrefixLenOfLen pfx = rlpPrefixLongBytesLenOfLen pfx := by
+  unfold rlpPrefixLenOfLen
+  rw [h]
+
+theorem rlpPrefixLenOfLen_eq_zero_of_shortList {pfx : Byte}
+    (h : classifyPrefix pfx = .shortList) :
+    rlpPrefixLenOfLen pfx = 0 := by
+  unfold rlpPrefixLenOfLen
+  rw [h]
+
+theorem rlpPrefixLenOfLen_eq_longListLenOfLen {pfx : Byte}
+    (h : classifyPrefix pfx = .longList) :
+    rlpPrefixLenOfLen pfx = rlpPrefixLongListLenOfLen pfx := by
+  unfold rlpPrefixLenOfLen
+  rw [h]
+
+theorem rlpPrefixLenOfLen_le_8 (pfx : Byte) :
+    rlpPrefixLenOfLen pfx ≤ 8 := by
+  unfold rlpPrefixLenOfLen
+  cases h : classifyPrefix pfx <;> simp
+  · exact rlpPrefixLongBytesLenOfLen_le_8_of_class h
+  · exact rlpPrefixLongListLenOfLen_le_8_of_class h
+
+theorem rlpPrefixLenOfLen_pos_iff_longClass (pfx : Byte) :
+    0 < rlpPrefixLenOfLen pfx ↔
+      classifyPrefix pfx = .longBytes ∨ classifyPrefix pfx = .longList := by
+  constructor
+  · intro h_pos
+    cases h_class : classifyPrefix pfx
+    · rw [rlpPrefixLenOfLen_eq_zero_of_singleByte h_class] at h_pos
+      omega
+    · rw [rlpPrefixLenOfLen_eq_zero_of_shortBytes h_class] at h_pos
+      omega
+    · exact Or.inl rfl
+    · rw [rlpPrefixLenOfLen_eq_zero_of_shortList h_class] at h_pos
+      omega
+    · exact Or.inr rfl
+  · intro h_long
+    rcases h_long with h_longBytes | h_longList
+    · rw [rlpPrefixLenOfLen_eq_longBytesLenOfLen h_longBytes]
+      exact rlpPrefixLongBytesLenOfLen_pos_of_class h_longBytes
+    · rw [rlpPrefixLenOfLen_eq_longListLenOfLen h_longList]
+      exact rlpPrefixLongListLenOfLen_pos_of_class h_longList
+
+theorem rlpPrefixLenOfLen_pos_iff_long_ranges (pfx : Byte) :
+    0 < rlpPrefixLenOfLen pfx ↔
+      (0xB8 ≤ pfx.toNat ∧ pfx.toNat ≤ 0xBF) ∨ 0xF8 ≤ pfx.toNat := by
+  rw [rlpPrefixLenOfLen_pos_iff_longClass,
+    classifyPrefix_longBytes_iff, classifyPrefix_longList_iff]
 
 theorem rlpPrefixLongBytesHeaderBytes_pos (pfx : Byte) :
     0 < rlpPrefixLongBytesHeaderBytes pfx := by
