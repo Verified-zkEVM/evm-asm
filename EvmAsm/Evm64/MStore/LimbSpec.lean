@@ -106,6 +106,19 @@ theorem mstoreOneLimbPost_unfold
   delta mstoreOneLimbPost
   rfl
 
+/-- One-instruction source-limb load used by `mstore_one_limb_spec_within`. -/
+theorem mstore_one_limb_load_spec_within
+    (accReg : Reg) (sp accOld limbVal : Word)
+    (srcOff : BitVec 12) (base : Word)
+    (h_acc_ne_x0 : accReg ≠ .x0) :
+    cpsTripleWithin 1 base (base + 4)
+      (CodeReq.singleton base (.LD accReg .x12 srcOff))
+      (((.x12 : Reg) ↦ᵣ sp) ** (accReg ↦ᵣ accOld) **
+       ((sp + signExtend12 srcOff) ↦ₘ limbVal))
+      (((.x12 : Reg) ↦ᵣ sp) ** (accReg ↦ᵣ limbVal) **
+       ((sp + signExtend12 srcOff) ↦ₘ limbVal)) :=
+  ld_spec_gen_within accReg .x12 sp accOld limbVal srcOff base h_acc_ne_x0
+
 /-- Two-instruction MSTORE byte-unpack step:
     shift the selected byte of `accReg` into `byteReg`, then store that
     low byte to `addrReg + dstOff`.
