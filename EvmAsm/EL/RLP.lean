@@ -6,4 +6,5 @@
 -- `Properties` transitively imports `Decode`, which transitively imports `Basic`.
 import EvmAsm.EL.RLP.Prefix
 import EvmAsm.EL.RLP.PrefixDecode
+import EvmAsm.EL.RLP.Program
 import EvmAsm.EL.RLP.Properties
