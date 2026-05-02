@@ -57,6 +57,27 @@ theorem exp_loop_byte_len (mulOff : BitVec 21) (skipOff backOff : BitVec 13) :
     4 * (EvmAsm.Evm64.exp_loop mulOff skipOff backOff).length = 32 := by
   exact EvmAsm.Evm64.exp_loop_byte_length mulOff skipOff backOff
 
+/-- Byte offset of the square-call block within one EXP loop iteration. -/
+theorem exp_loop_square_byte_off :
+    4 * (EvmAsm.Evm64.exp_bit_test_block).length = 12 := by
+  rw [exp_bit_test_block_len]
+
+/-- Byte offset of the conditional multiply block within one EXP loop iteration. -/
+theorem exp_loop_cond_mul_byte_off (mulOff : BitVec 21) :
+    4 * ((EvmAsm.Evm64.exp_bit_test_block).length +
+      (EvmAsm.Evm64.exp_square_block mulOff).length) = 16 := by
+  simp only [exp_bit_test_block_len, exp_square_block_len]
+
+/-- Byte offset of the loop-back block within one EXP loop iteration. -/
+theorem exp_loop_back_byte_off (mulOff : BitVec 21) (skipOff : BitVec 13) :
+    4 * (EvmAsm.Evm64.exp_iter_body mulOff skipOff).length = 24 := by
+  exact exp_iter_body_byte_len mulOff skipOff
+
+/-- Byte offset of the next EXP loop iteration. -/
+theorem exp_loop_next_iter_byte_off (mulOff : BitVec 21) (skipOff backOff : BitVec 13) :
+    4 * (EvmAsm.Evm64.exp_loop mulOff skipOff backOff).length = 32 := by
+  exact exp_loop_byte_len mulOff skipOff backOff
+
 theorem exp_prologue_byte_len :
     4 * (EvmAsm.Evm64.exp_prologue).length = 24 := by
   exact EvmAsm.Evm64.exp_prologue_byte_length
