@@ -230,4 +230,48 @@ theorem exp_loop_back_spec_within (c : Word) (backOff : BitVec 13)
   exact cpsTripleWithin_seq_cpsBranchWithin_with_perm hd
     (fun _ hp => hp) s1 s2_raw
 
+-- ============================================================================
+-- Section 5: exp_prologue (6 instructions, slice 4e / evm-asm-20z6.1)
+-- ============================================================================
+
+def exp_prologue_code (base : Word) : CodeReq :=
+  (CodeReq.singleton base (.ADDI .x9 .x0 256)).union
+    ((CodeReq.singleton (base + 4) (.ADDI .x5 .x0 1)).union
+      ((CodeReq.singleton (base + 8) (.SD .x2 .x5 0)).union
+        ((CodeReq.singleton (base + 12) (.SD .x2 .x0 8)).union
+          ((CodeReq.singleton (base + 16) (.SD .x2 .x0 16)).union
+            (CodeReq.singleton (base + 20) (.SD .x2 .x0 24))))))
+
+theorem exp_prologue_spec_within
+    (sp cOld tOld m0 m1 m2 m3 : Word) (base : Word) :
+    cpsTripleWithin 6 base (base + 24) (exp_prologue_code base)
+      ((.x2 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) ** (.x9 ↦ᵣ cOld) **
+       (.x5 ↦ᵣ tOld) ** ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ m0) **
+       ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ m1) **
+       ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ m2) **
+       ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ m3))
+      ((.x2 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) **
+       (.x9 ↦ᵣ ((0 : Word) + signExtend12 (256 : BitVec 12))) **
+       (.x5 ↦ᵣ ((0 : Word) + signExtend12 (1 : BitVec 12))) **
+       ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ
+        ((0 : Word) + signExtend12 (1 : BitVec 12))) **
+       ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ (0 : Word))) := by
+  unfold exp_prologue_code
+  have hCounter := addi_spec_gen_within .x9 .x0 cOld (0 : Word)
+    (256 : BitVec 12) base (by decide)
+  have hOne := addi_spec_gen_within .x5 .x0 tOld (0 : Word)
+    (1 : BitVec 12) (base + 4) (by decide)
+  have hSd0 := generic_sd_spec_within .x2 .x5 sp
+    ((0 : Word) + signExtend12 (1 : BitVec 12)) m0
+    (0 : BitVec 12) (base + 8)
+  have hSd1 := generic_sd_spec_within .x2 .x0 sp (0 : Word) m1
+    (8 : BitVec 12) (base + 12)
+  have hSd2 := generic_sd_spec_within .x2 .x0 sp (0 : Word) m2
+    (16 : BitVec 12) (base + 16)
+  have hSd3 := generic_sd_spec_within .x2 .x0 sp (0 : Word) m3
+    (24 : BitVec 12) (base + 20)
+  runBlock hCounter hOne hSd0 hSd1 hSd2 hSd3
+
 end EvmAsm.Evm64
