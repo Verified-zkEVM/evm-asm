@@ -33,6 +33,7 @@
     x14 — output: length-of-length counter (= prefix − 0xB7)
 -/
 
+import EvmAsm.EL.RLP.ProgramSpec
 import EvmAsm.Rv64.SyscallSpecs
 import EvmAsm.Rv64.Tactics.XSimp
 
@@ -176,6 +177,32 @@ theorem rlp_phase3_long_string_spec_within
     · exact CodeReq.Disjoint.singleton (by bv_omega)
     exact CodeReq.Disjoint.ofProg_nil_right _ _
   exact cpsTripleWithin_seq hd1_23 s1 s23_raw
+
+theorem rlp_phase3_long_string_lenOfLen_of_class_spec_within
+    (pfx : EvmAsm.EL.RLP.Byte) (v11Old v13 v14Old : Word) (base : Word)
+    (h_class : EvmAsm.EL.RLP.classifyPrefix pfx =
+      EvmAsm.EL.RLP.PrefixClass.longBytes) :
+    cpsTripleWithin 3 base (base + 12)
+      (CodeReq.ofProg base rlp_phase3_long_string_prog)
+      ((.x0 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ pfx.zeroExtend 64) **
+       (.x11 ↦ᵣ v11Old) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14Old))
+      ((.x0 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ pfx.zeroExtend 64) **
+       (.x11 ↦ᵣ (0 : Word)) **
+       (.x13 ↦ᵣ (v13 + signExtend12 (1 : BitVec 12))) **
+       (.x14 ↦ᵣ
+        (BitVec.ofNat 64 (EvmAsm.EL.RLP.rlpPrefixLongBytesLenOfLen pfx) : Word))) := by
+  have h_add_sub :
+      pfx.zeroExtend 64 + signExtend12 (-(0xB7 : BitVec 12)) =
+        pfx.zeroExtend 64 - (0xB7 : Word) := by
+    native_decide +revert
+  have h_len :=
+    EvmAsm.EL.RLP.rlpPrefixLongBytesLenOfLen_toWord_of_class pfx h_class
+  have h_add :
+      pfx.zeroExtend 64 + signExtend12 (-(0xB7 : BitVec 12)) =
+        (BitVec.ofNat 64 (EvmAsm.EL.RLP.rlpPrefixLongBytesLenOfLen pfx) : Word) := by
+    rw [h_add_sub, ← h_len]
+  rw [← h_add]
+  exact rlp_phase3_long_string_spec_within (pfx.zeroExtend 64) v11Old v13 v14Old base
 
 theorem rlp_phase3_long_string_spec_at_0xB8_within
     (v11Old v13 v14Old : Word) (base : Word) :

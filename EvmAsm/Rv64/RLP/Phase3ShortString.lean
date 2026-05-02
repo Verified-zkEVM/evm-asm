@@ -24,6 +24,7 @@
                          first payload byte)
 -/
 
+import EvmAsm.EL.RLP.ProgramSpec
 import EvmAsm.Rv64.SyscallSpecs
 import EvmAsm.Rv64.Tactics.XSimp
 
@@ -117,6 +118,30 @@ theorem rlp_phase3_short_string_spec_within (v5 v11Old v13 : Word) (base : Word)
       (fun _ hp => by xperm_hyp hp)
       framed
   exact cpsTripleWithin_seq hd s1 s2
+
+theorem rlp_phase3_short_string_payload_len_of_class_spec_within
+    (pfx : EvmAsm.EL.RLP.Byte) (v11Old v13 : Word) (base : Word)
+    (h_class : EvmAsm.EL.RLP.classifyPrefix pfx =
+      EvmAsm.EL.RLP.PrefixClass.shortBytes) :
+    cpsTripleWithin 2 base (base + 8)
+      (CodeReq.ofProg base rlp_phase3_short_string_prog)
+      ((.x5 ↦ᵣ pfx.zeroExtend 64) ** (.x11 ↦ᵣ v11Old) ** (.x13 ↦ᵣ v13))
+      ((.x5 ↦ᵣ pfx.zeroExtend 64) **
+       (.x11 ↦ᵣ
+        (BitVec.ofNat 64 (EvmAsm.EL.RLP.rlpPrefixShortBytesPayloadLen pfx) : Word)) **
+       (.x13 ↦ᵣ (v13 + signExtend12 (1 : BitVec 12)))) := by
+  have h_add_sub :
+      pfx.zeroExtend 64 + signExtend12 (-(0x80 : BitVec 12)) =
+        pfx.zeroExtend 64 - (0x80 : Word) := by
+    native_decide +revert
+  have h_len :=
+    EvmAsm.EL.RLP.rlpPrefixShortBytesPayloadLen_toWord_of_class pfx h_class
+  have h_add :
+      pfx.zeroExtend 64 + signExtend12 (-(0x80 : BitVec 12)) =
+        (BitVec.ofNat 64 (EvmAsm.EL.RLP.rlpPrefixShortBytesPayloadLen pfx) : Word) := by
+    rw [h_add_sub, ← h_len]
+  rw [← h_add]
+  exact rlp_phase3_short_string_spec_within (pfx.zeroExtend 64) v11Old v13 base
 
 theorem rlp_phase3_short_string_spec_at_0x80_within
     (v11Old v13 : Word) (base : Word) :
