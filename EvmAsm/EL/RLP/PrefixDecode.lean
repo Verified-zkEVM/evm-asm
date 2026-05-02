@@ -85,4 +85,47 @@ theorem decodeAux_cons_longList_of_classifyPrefix
   simp [decodeAux, rlpPrefixLongListLenOfLen,
     h_not_lt, h_not_shortBytes, h_not_longBytes, h_not_shortList]
 
+/--
+  Classifier-dispatch form of the `decodeAux` prefix branch equations. This
+  packages the five class-specific bridge lemmas into one semantic target for
+  executable prefix classifiers.
+-/
+theorem decodeAux_cons_eq_classifyPrefix_match
+    (fuel : Nat) (pfx : Byte) (rest : List Byte) :
+    decodeAux (fuel + 1) (pfx :: rest) =
+      match classifyPrefix pfx with
+      | .singleByte => some (.bytes [pfx], rest)
+      | .shortBytes =>
+          (do
+            let (data, rest') ← takeBytes rest (rlpPrefixShortBytesPayloadLen pfx)
+            match data with
+            | [b] => if b.toNat < 0x80 then none else some (.bytes data, rest')
+            | _ => some (.bytes data, rest'))
+      | .longBytes =>
+          (do
+            let (lenVal, rest') ← readLength rest (rlpPrefixLongBytesLenOfLen pfx)
+            if lenVal ≤ 55 then none
+            else do
+              let (data, rest'') ← takeBytes rest' lenVal
+              some (.bytes data, rest''))
+      | .shortList =>
+          (do
+            let (payload, rest') ← takeBytes rest (rlpPrefixShortListPayloadLen pfx)
+            let (items, leftover) ← decodeItems fuel payload
+            if List.isEmpty leftover then some (.list items, rest') else none)
+      | .longList =>
+          (do
+            let (lenVal, rest') ← readLength rest (rlpPrefixLongListLenOfLen pfx)
+            if lenVal ≤ 55 then none
+            else do
+              let (payload, rest'') ← takeBytes rest' lenVal
+              let (items, leftover) ← decodeItems fuel payload
+              if List.isEmpty leftover then some (.list items, rest'') else none) := by
+  cases h : classifyPrefix pfx
+  · rw [decodeAux_cons_singleByte_of_classifyPrefix fuel pfx rest h]
+  · rw [decodeAux_cons_shortBytes_of_classifyPrefix fuel pfx rest h]
+  · rw [decodeAux_cons_longBytes_of_classifyPrefix fuel pfx rest h]
+  · rw [decodeAux_cons_shortList_of_classifyPrefix fuel pfx rest h]
+  · rw [decodeAux_cons_longList_of_classifyPrefix fuel pfx rest h]
+
 end EvmAsm.EL.RLP
