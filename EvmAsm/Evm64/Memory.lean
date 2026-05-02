@@ -256,6 +256,12 @@ theorem roundUpTo32_le_add_31 (n : Nat) :
 theorem roundUpTo32_dvd (n : Nat) : 32 ∣ roundUpTo32 n := by
   unfold roundUpTo32; exact ⟨(n + 31) / 32, (Nat.mul_comm _ _)⟩
 
+theorem roundUpTo32_eq_self_of_dvd (n : Nat) (h : 32 ∣ n) :
+    roundUpTo32 n = n := by
+  rcases h with ⟨k, rfl⟩
+  unfold roundUpTo32
+  omega
+
 theorem roundUpTo32_idempotent (n : Nat) : roundUpTo32 (roundUpTo32 n) = roundUpTo32 n := by
   unfold roundUpTo32
   -- (n+31)/32 * 32 is already a multiple of 32, so adding 31 and dividing
