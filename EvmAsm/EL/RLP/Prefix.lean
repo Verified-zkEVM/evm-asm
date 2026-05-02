@@ -353,9 +353,20 @@ theorem rlpPrefixHeaderBytes_eq_one_iff_shortClass (pfx : Byte) :
 theorem rlpPrefixHeaderBytes_eq_one_iff_short_ranges (pfx : Byte) :
     rlpPrefixHeaderBytes pfx = 1 ↔
       (0x80 ≤ pfx.toNat ∧ pfx.toNat ≤ 0xB7) ∨
-        (0xC0 ≤ pfx.toNat ∧ pfx.toNat ≤ 0xF7) := by
+      (0xC0 ≤ pfx.toNat ∧ pfx.toNat ≤ 0xF7) := by
   rw [rlpPrefixHeaderBytes_eq_one_iff_shortClass,
     classifyPrefix_shortBytes_iff, classifyPrefix_shortList_iff]
+
+theorem rlpPrefixHeaderBytes_pos_and_le_one_iff_short_ranges (pfx : Byte) :
+    0 < rlpPrefixHeaderBytes pfx ∧ rlpPrefixHeaderBytes pfx ≤ 1 ↔
+      (0x80 ≤ pfx.toNat ∧ pfx.toNat ≤ 0xB7) ∨
+      (0xC0 ≤ pfx.toNat ∧ pfx.toNat ≤ 0xF7) := by
+  constructor
+  · intro h
+    exact (rlpPrefixHeaderBytes_eq_one_iff_short_ranges pfx).mp (by omega)
+  · intro h_short
+    have h_one := (rlpPrefixHeaderBytes_eq_one_iff_short_ranges pfx).mpr h_short
+    omega
 
 theorem rlpPrefixHeaderBytes_ge_two_iff_longClass (pfx : Byte) :
     2 ≤ rlpPrefixHeaderBytes pfx ↔
