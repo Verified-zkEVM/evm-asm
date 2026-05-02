@@ -85,6 +85,17 @@ def toSailInstr? : Instr → Option SailInstr
   | .BGEU rs1 rs2 off => some <| instruction.BTYPE (off, regToRegidx rs2, regToRegidx rs1, bop.BGEU)
   | .JAL rd off       => some <| instruction.JAL (off, regToRegidx rd)
   | .JALR rd rs1 off  => some <| instruction.JALR (off, regToRegidx rs1, regToRegidx rd)
+  | .LD rd rs1 off    => some <| instruction.LOAD (off, regToRegidx rs1, regToRegidx rd, false, 64)
+  | .LW rd rs1 off    => some <| instruction.LOAD (off, regToRegidx rs1, regToRegidx rd, false, 32)
+  | .LWU rd rs1 off   => some <| instruction.LOAD (off, regToRegidx rs1, regToRegidx rd, true, 32)
+  | .LB rd rs1 off    => some <| instruction.LOAD (off, regToRegidx rs1, regToRegidx rd, false, 8)
+  | .LBU rd rs1 off   => some <| instruction.LOAD (off, regToRegidx rs1, regToRegidx rd, true, 8)
+  | .LH rd rs1 off    => some <| instruction.LOAD (off, regToRegidx rs1, regToRegidx rd, false, 16)
+  | .LHU rd rs1 off   => some <| instruction.LOAD (off, regToRegidx rs1, regToRegidx rd, true, 16)
+  | .SD rs1 rs2 off   => some <| instruction.STORE (off, regToRegidx rs2, regToRegidx rs1, 64)
+  | .SW rs1 rs2 off   => some <| instruction.STORE (off, regToRegidx rs2, regToRegidx rs1, 32)
+  | .SB rs1 rs2 off   => some <| instruction.STORE (off, regToRegidx rs2, regToRegidx rs1, 8)
+  | .SH rs1 rs2 off   => some <| instruction.STORE (off, regToRegidx rs2, regToRegidx rs1, 16)
   | _                 => none
 
 def rtypeToInstr? (rs2 rs1 rd : regidx) : rop → Option Instr
@@ -120,11 +131,45 @@ def btypeToInstr? (off : BitVec 13) (rs2 rs1 : regidx) : bop → Option Instr
   | bop.BLTU => return .BLTU (← regidxToReg? rs1) (← regidxToReg? rs2) off
   | bop.BGEU => return .BGEU (← regidxToReg? rs1) (← regidxToReg? rs2) off
 
+def loadToInstr? (off : BitVec 12) (rs1 rd : regidx)
+    (isUnsigned : Bool) : word_width → Option Instr
+  | 8  =>
+      if isUnsigned then
+        return .LBU (← regidxToReg? rd) (← regidxToReg? rs1) off
+      else
+        return .LB (← regidxToReg? rd) (← regidxToReg? rs1) off
+  | 16 =>
+      if isUnsigned then
+        return .LHU (← regidxToReg? rd) (← regidxToReg? rs1) off
+      else
+        return .LH (← regidxToReg? rd) (← regidxToReg? rs1) off
+  | 32 =>
+      if isUnsigned then
+        return .LWU (← regidxToReg? rd) (← regidxToReg? rs1) off
+      else
+        return .LW (← regidxToReg? rd) (← regidxToReg? rs1) off
+  | 64 =>
+      if isUnsigned then
+        none
+      else
+        return .LD (← regidxToReg? rd) (← regidxToReg? rs1) off
+  | _ => none
+
+def storeToInstr? (off : BitVec 12) (rs2 rs1 : regidx) : word_width → Option Instr
+  | 8  => return .SB (← regidxToReg? rs1) (← regidxToReg? rs2) off
+  | 16 => return .SH (← regidxToReg? rs1) (← regidxToReg? rs2) off
+  | 32 => return .SW (← regidxToReg? rs1) (← regidxToReg? rs2) off
+  | 64 => return .SD (← regidxToReg? rs1) (← regidxToReg? rs2) off
+  | _ => none
+
 /-- Map the supported SAIL ALU/immediate constructors back to the hand-written AST. -/
 def fromSailInstr? : SailInstr → Option Instr
   | instruction.JAL (off, rd) => return .JAL (← regidxToReg? rd) off
   | instruction.JALR (off, rs1, rd) => return .JALR (← regidxToReg? rd) (← regidxToReg? rs1) off
   | instruction.BTYPE (off, rs2, rs1, op) => btypeToInstr? off rs2 rs1 op
+  | instruction.LOAD (off, rs1, rd, isUnsigned, width) =>
+      loadToInstr? off rs1 rd isUnsigned width
+  | instruction.STORE (off, rs2, rs1, width) => storeToInstr? off rs2 rs1 width
   | instruction.RTYPE (rs2, rs1, rd, op) => rtypeToInstr? rs2 rs1 rd op
   | instruction.ITYPE (imm, rs1, rd, op) => itypeToInstr? imm rs1 rd op
   | instruction.SHIFTIOP (shamt, rs1, rd, op) => shiftIToInstr? shamt rs1 rd op
@@ -137,7 +182,7 @@ theorem fromSailInstr?_toSailInstr?_of_some
   all_goals
     cases h
     simp [fromSailInstr?, rtypeToInstr?, itypeToInstr?, shiftIToInstr?,
-      btypeToInstr?, regidxToReg?_regToRegidx]
+      btypeToInstr?, loadToInstr?, storeToInstr?, regidxToReg?_regToRegidx]
 
 theorem fromSailInstr?_toSailInstr?_ADD (rd rs1 rs2 : Reg) :
     fromSailInstr? (instruction.RTYPE
@@ -178,5 +223,33 @@ theorem fromSailInstr?_toSailInstr?_JALR
       (off, regToRegidx rs1, regToRegidx rd)) =
     some (.JALR rd rs1 off) := by
   simp [fromSailInstr?, regidxToReg?_regToRegidx]
+
+theorem fromSailInstr?_toSailInstr?_LD
+    (rd rs1 : Reg) (off : BitVec 12) :
+    fromSailInstr? (instruction.LOAD
+      (off, regToRegidx rs1, regToRegidx rd, false, 64)) =
+    some (.LD rd rs1 off) := by
+  simp [fromSailInstr?, loadToInstr?, regidxToReg?_regToRegidx]
+
+theorem fromSailInstr?_toSailInstr?_LBU
+    (rd rs1 : Reg) (off : BitVec 12) :
+    fromSailInstr? (instruction.LOAD
+      (off, regToRegidx rs1, regToRegidx rd, true, 8)) =
+    some (.LBU rd rs1 off) := by
+  simp [fromSailInstr?, loadToInstr?, regidxToReg?_regToRegidx]
+
+theorem fromSailInstr?_toSailInstr?_SD
+    (rs1 rs2 : Reg) (off : BitVec 12) :
+    fromSailInstr? (instruction.STORE
+      (off, regToRegidx rs2, regToRegidx rs1, 64)) =
+    some (.SD rs1 rs2 off) := by
+  simp [fromSailInstr?, storeToInstr?, regidxToReg?_regToRegidx]
+
+theorem fromSailInstr?_toSailInstr?_SB
+    (rs1 rs2 : Reg) (off : BitVec 12) :
+    fromSailInstr? (instruction.STORE
+      (off, regToRegidx rs2, regToRegidx rs1, 8)) =
+    some (.SB rs1 rs2 off) := by
+  simp [fromSailInstr?, storeToInstr?, regidxToReg?_regToRegidx]
 
 end EvmAsm.Rv64.SailEquiv
