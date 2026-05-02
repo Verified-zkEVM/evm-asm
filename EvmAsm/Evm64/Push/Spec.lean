@@ -27,6 +27,45 @@ namespace EvmAsm.Evm64
 open EvmAsm.Rv64
 
 -- ============================================================================
+-- Stack slot allocation and zero-fill prefix
+-- ============================================================================
+
+def push_zero_slot_code (base : Word) : CodeReq :=
+  (CodeReq.singleton base (.ADDI .x12 .x12 (-32))).union
+    ((CodeReq.singleton (base + 4) (.SD .x12 .x0 0)).union
+      ((CodeReq.singleton (base + 8) (.SD .x12 .x0 8)).union
+        ((CodeReq.singleton (base + 12) (.SD .x12 .x0 16)).union
+          (CodeReq.singleton (base + 16) (.SD .x12 .x0 24)))))
+
+theorem push_zero_slot_spec_within
+    (sp d0 d1 d2 d3 : Word) (base : Word) :
+    let nsp := sp + signExtend12 ((-32 : BitVec 12))
+    cpsTripleWithin 5 base (base + 20) (push_zero_slot_code base)
+      ((.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) **
+       ((nsp + signExtend12 (0 : BitVec 12)) ↦ₘ d0) **
+       ((nsp + signExtend12 (8 : BitVec 12)) ↦ₘ d1) **
+       ((nsp + signExtend12 (16 : BitVec 12)) ↦ₘ d2) **
+       ((nsp + signExtend12 (24 : BitVec 12)) ↦ₘ d3))
+      ((.x12 ↦ᵣ nsp) ** (.x0 ↦ᵣ (0 : Word)) **
+       ((nsp + signExtend12 (0 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((nsp + signExtend12 (8 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((nsp + signExtend12 (16 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((nsp + signExtend12 (24 : BitVec 12)) ↦ₘ (0 : Word))) := by
+  intro nsp
+  unfold push_zero_slot_code
+  have hAlloc := addi_spec_gen_same_within .x12 sp
+    (-32 : BitVec 12) base (by decide)
+  have hSd0 := generic_sd_spec_within .x12 .x0 nsp (0 : Word) d0
+    (0 : BitVec 12) (base + 4)
+  have hSd1 := generic_sd_spec_within .x12 .x0 nsp (0 : Word) d1
+    (8 : BitVec 12) (base + 8)
+  have hSd2 := generic_sd_spec_within .x12 .x0 nsp (0 : Word) d2
+    (16 : BitVec 12) (base + 12)
+  have hSd3 := generic_sd_spec_within .x12 .x0 nsp (0 : Word) d3
+    (24 : BitVec 12) (base + 16)
+  runBlock hAlloc hSd0 hSd1 hSd2 hSd3
+
+-- ============================================================================
 -- Per-byte helper (mirror of `dup_pair_spec_within` for LBU+SB)
 -- ============================================================================
 
