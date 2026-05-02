@@ -6,6 +6,7 @@
 
 import EvmAsm.Evm64.Memory
 import EvmAsm.Rv64.SyscallSpecs
+import EvmAsm.Rv64.Tactics.RunBlock
 
 namespace EvmAsm.Evm64
 
@@ -55,6 +56,61 @@ theorem mload_compute_access_end_ofProg_spec_within
   rw [← mload_compute_access_end_code_eq_ofProg]
   exact mload_compute_access_end_spec_within
     endReg offReg offset endOld base h_end_ne_x0
+
+/--
+  Round an already-computed MLOAD access end up to the next 32-byte boundary
+  in executable RV64 code: add 31, then clear the low five bits.
+-/
+def mload_round_access_end (roundReg endReg : Reg) : Program :=
+  ADDI roundReg endReg 31 ;;
+  ANDI roundReg roundReg (-32)
+
+abbrev mload_round_access_end_code
+    (roundReg endReg : Reg) (base : Word) : CodeReq :=
+  (CodeReq.singleton base (.ADDI roundReg endReg 31)).union
+    (CodeReq.singleton (base + 4) (.ANDI roundReg roundReg (-32)))
+
+theorem mload_round_access_end_code_eq_ofProg
+    (roundReg endReg : Reg) (base : Word) :
+    mload_round_access_end_code roundReg endReg base =
+      CodeReq.ofProg base (mload_round_access_end roundReg endReg) := by
+  unfold mload_round_access_end_code mload_round_access_end ADDI ANDI single seq
+  rfl
+
+/--
+  Executable bridge for the 32-byte alignment stage of MLOAD memory expansion.
+  The resulting word is `(accessEnd + 31) &&& -32`, i.e. the usual round-up
+  mask for a 32-byte boundary.
+-/
+theorem mload_round_access_end_spec_within
+    (roundReg endReg : Reg) (accessEnd roundOld : Word) (base : Word)
+    (h_round_ne_x0 : roundReg ≠ .x0) :
+    cpsTripleWithin 2 base (base + 8)
+      (mload_round_access_end_code roundReg endReg base)
+      ((endReg ↦ᵣ accessEnd) ** (roundReg ↦ᵣ roundOld))
+      ((endReg ↦ᵣ accessEnd) **
+       (roundReg ↦ᵣ ((accessEnd + 31) &&& signExtend12 (-32 : BitVec 12)))) := by
+  unfold mload_round_access_end_code
+  have h_add :=
+    addi_spec_gen_within roundReg endReg roundOld accessEnd 31 base h_round_ne_x0
+  have h_andi :=
+    andi_spec_gen_same_within roundReg (accessEnd + signExtend12 (31 : BitVec 12))
+      (-32 : BitVec 12) (base + 4) h_round_ne_x0
+  simp only [show signExtend12 (31 : BitVec 12) = (31 : Word) from by decide] at h_add h_andi
+  rw [show (base + 4 : Word) + 4 = base + 8 from by bv_omega] at h_andi
+  runBlock h_add h_andi
+
+theorem mload_round_access_end_ofProg_spec_within
+    (roundReg endReg : Reg) (accessEnd roundOld : Word) (base : Word)
+    (h_round_ne_x0 : roundReg ≠ .x0) :
+    cpsTripleWithin 2 base (base + 8)
+      (CodeReq.ofProg base (mload_round_access_end roundReg endReg))
+      ((endReg ↦ᵣ accessEnd) ** (roundReg ↦ᵣ roundOld))
+      ((endReg ↦ᵣ accessEnd) **
+       (roundReg ↦ᵣ ((accessEnd + 31) &&& signExtend12 (-32 : BitVec 12)))) := by
+  rw [← mload_round_access_end_code_eq_ofProg]
+  exact mload_round_access_end_spec_within
+    roundReg endReg accessEnd roundOld base h_round_ne_x0
 
 /--
   Store a precomputed 32-byte-access expanded high-water mark into the EVM
