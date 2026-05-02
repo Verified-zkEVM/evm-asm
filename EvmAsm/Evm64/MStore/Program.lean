@@ -178,4 +178,38 @@ theorem evm_mstore_byte_length
     4 * (evm_mstore offReg valReg byteReg accReg addrReg memBaseReg).length = 284 := by
   rw [evm_mstore_length]
 
+/-- Byte offset of the first MSTORE limb block after the two-instruction prologue. -/
+theorem evm_mstore_limb0_byte_off : 4 * (2 + 17 * 0) = 8 := by
+  rfl
+
+/-- Byte offset of the second MSTORE limb block. -/
+theorem evm_mstore_limb1_byte_off : 4 * (2 + 17 * 1) = 76 := by
+  rfl
+
+/-- Byte offset of the third MSTORE limb block. -/
+theorem evm_mstore_limb2_byte_off : 4 * (2 + 17 * 2) = 144 := by
+  rfl
+
+/-- Byte offset of the fourth MSTORE limb block. -/
+theorem evm_mstore_limb3_byte_off : 4 * (2 + 17 * 3) = 212 := by
+  rfl
+
+/-- Byte offset of the SRLI instruction for byte `i` inside `mstore_byte_unpack`. -/
+theorem mstore_byte_unpack_srli_byte_off (i : Nat) :
+    4 * (2 * i) = 8 * i := by
+  omega
+
+/-- Byte offset of the SB instruction for byte `i` inside `mstore_byte_unpack`. -/
+theorem mstore_byte_unpack_sb_byte_off (i : Nat) :
+    4 * (2 * i + 1) = 4 + 8 * i := by
+  omega
+
+/-- Byte offset where the byte-unpack sequence starts inside one MSTORE limb block. -/
+theorem mstore_one_limb_unpack_byte_off : 4 * 1 = 4 := by
+  rfl
+
+/-- Byte offset of the final stack-pointer update in `evm_mstore`. -/
+theorem evm_mstore_epilogue_byte_off : 4 * (2 + 17 * 4) = 280 := by
+  rfl
+
 end EvmAsm.Evm64
