@@ -283,4 +283,30 @@ theorem rlpPrefixHeaderBytes_pos_of_not_singleByte {pfx : Byte}
   · exact rlpPrefixHeaderBytes_pos_of_shortList h_class
   · exact rlpPrefixHeaderBytes_pos_of_longList h_class
 
+theorem rlpPrefixHeaderBytes_eq_zero_iff_singleByte (pfx : Byte) :
+    rlpPrefixHeaderBytes pfx = 0 ↔ classifyPrefix pfx = .singleByte := by
+  constructor
+  · intro h_zero
+    cases h_class : classifyPrefix pfx
+    · rfl
+    · have h_pos := rlpPrefixHeaderBytes_pos_of_shortBytes h_class
+      omega
+    · have h_pos := rlpPrefixHeaderBytes_pos_of_longBytes h_class
+      omega
+    · have h_pos := rlpPrefixHeaderBytes_pos_of_shortList h_class
+      omega
+    · have h_pos := rlpPrefixHeaderBytes_pos_of_longList h_class
+      omega
+  · intro h
+    exact rlpPrefixHeaderBytes_eq_zero_of_singleByte h
+
+theorem rlpPrefixHeaderBytes_pos_iff_not_singleByte (pfx : Byte) :
+    0 < rlpPrefixHeaderBytes pfx ↔ classifyPrefix pfx ≠ .singleByte := by
+  constructor
+  · intro h_pos h_single
+    rw [rlpPrefixHeaderBytes_eq_zero_of_singleByte h_single] at h_pos
+    omega
+  · intro h
+    exact rlpPrefixHeaderBytes_pos_of_not_singleByte h
+
 end EvmAsm.EL.RLP
