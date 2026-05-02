@@ -124,6 +124,13 @@ theorem expBoundaryCode_epilogue_sub {base : Word} :
       bv_omega))
   exact CodeReq.union_mono_left
 
+theorem expBoundaryCode_block_subs {base : Word} :
+    (∀ a i, (CodeReq.ofProg base EvmAsm.Evm64.exp_prologue) a = some i →
+      (expBoundaryCode base) a = some i) ∧
+    (∀ a i, (CodeReq.ofProg (base + 24) EvmAsm.Evm64.exp_epilogue) a = some i →
+      (expBoundaryCode base) a = some i) := by
+  exact ⟨expBoundaryCode_prologue_sub, expBoundaryCode_epilogue_sub⟩
+
 /-- Concrete prologue/epilogue boundary mini-program used by early EXP
     composition slices before the full 256-iteration loop is wired. -/
 abbrev expBoundaryProgram : Program :=
