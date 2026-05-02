@@ -902,6 +902,151 @@ theorem mload_write_expanded_size_max_spec_within
   · rw [evmMemSizeIsWordExpanded_unfold_max, evmMemExpand_word_eq]
 
 /--
+  Compute the selected MLOAD high-water mark and write it back to the EVM
+  memory-size cell.
+-/
+def mload_compute_select_write_expanded_size
+    (sizeLocReg flagReg sizeReg roundReg endReg offReg : Reg) : Program :=
+  mload_compute_select_expanded_size flagReg sizeReg roundReg endReg offReg ;;
+  mload_write_expanded_size sizeLocReg sizeReg
+
+theorem mload_compute_select_write_expanded_size_code_eq_ofProg
+    (sizeLocReg flagReg sizeReg roundReg endReg offReg : Reg) (base : Word) :
+    (CodeReq.ofProg base
+      (mload_compute_select_expanded_size flagReg sizeReg roundReg endReg offReg)).union
+      (CodeReq.ofProg (base + 24) (mload_write_expanded_size sizeLocReg sizeReg)) =
+        CodeReq.ofProg base
+          (mload_compute_select_write_expanded_size
+            sizeLocReg flagReg sizeReg roundReg endReg offReg) := by
+  unfold mload_compute_select_write_expanded_size
+  unfold seq
+  have hlen :
+      (mload_compute_select_expanded_size flagReg sizeReg roundReg endReg offReg).length =
+        6 := by
+    simp [mload_compute_select_expanded_size, mload_compute_rounded_access_flag,
+      mload_compute_rounded_access_end, mload_compute_access_end,
+      mload_round_access_end, mload_compute_expand_flag, mload_select_expanded_size,
+      ADDI, ANDI, single, seq]
+  rw [show base + 24 =
+      base + BitVec.ofNat 64
+        (4 * (mload_compute_select_expanded_size
+          flagReg sizeReg roundReg endReg offReg).length) by
+    rw [hlen]
+    bv_omega]
+  exact (CodeReq.ofProg_append (base := base)
+    (p1 := mload_compute_select_expanded_size flagReg sizeReg roundReg endReg offReg)
+    (p2 := mload_write_expanded_size sizeLocReg sizeReg)).symm
+
+theorem mload_compute_select_write_expanded_size_max_spec_within
+    (sizeLocReg flagReg sizeReg roundReg endReg offReg : Reg)
+    (sizeLoc offsetWord endOld roundOld flagOld : Word)
+    (sizeBytes offset rounded : Nat) (base : Word)
+    (h_end_ne_x0 : endReg ≠ .x0)
+    (h_round_ne_x0 : roundReg ≠ .x0)
+    (h_flag_ne_x0 : flagReg ≠ .x0)
+    (h_size_ne_x0 : sizeReg ≠ .x0)
+    (h_size_lt : sizeBytes < 2^64)
+    (h_rounded_lt : rounded < 2^64)
+    (h_rounded_nat : rounded = roundUpTo32 (offset + 32))
+    (h_rounded_word :
+      (((offsetWord + 32) + 31) &&& signExtend12 (-32 : BitVec 12)) =
+        BitVec.ofNat 64 rounded) :
+    cpsTripleWithin 7 base (base + 28)
+      (CodeReq.ofProg base
+        (mload_compute_select_write_expanded_size
+          sizeLocReg flagReg sizeReg roundReg endReg offReg))
+      (((offReg ↦ᵣ offsetWord) ** (endReg ↦ᵣ endOld) **
+       (roundReg ↦ᵣ roundOld) ** (sizeReg ↦ᵣ BitVec.ofNat 64 sizeBytes) **
+       (flagReg ↦ᵣ flagOld) ** (.x0 ↦ᵣ (0 : Word))) **
+       ((sizeLocReg ↦ᵣ sizeLoc) ** evmMemSizeIs sizeLoc sizeBytes))
+      (((offReg ↦ᵣ offsetWord) ** (endReg ↦ᵣ (offsetWord + 32)) **
+       (roundReg ↦ᵣ BitVec.ofNat 64 rounded) **
+       (flagReg ↦ᵣ
+        (if BitVec.ult (BitVec.ofNat 64 sizeBytes) (BitVec.ofNat 64 rounded)
+         then (1 : Word) else 0)) **
+       (.x0 ↦ᵣ (0 : Word))) **
+       ((sizeLocReg ↦ᵣ sizeLoc) **
+        (sizeReg ↦ᵣ BitVec.ofNat 64 (max sizeBytes rounded)) **
+        evmMemSizeIs sizeLoc (max sizeBytes rounded))) := by
+  have h_compute :=
+    mload_compute_select_expanded_size_max_spec_within
+      flagReg sizeReg roundReg endReg offReg offsetWord endOld roundOld flagOld
+      sizeBytes rounded base h_end_ne_x0 h_round_ne_x0 h_flag_ne_x0
+      h_size_ne_x0 h_size_lt h_rounded_lt h_rounded_word
+  have h_write :=
+    mload_write_expanded_size_max_spec_within
+      sizeLocReg sizeReg sizeLoc sizeBytes offset (base + 24)
+  rw [show (base + 24 : Word) + 4 = base + 28 from by bv_omega] at h_write
+  rw [← h_rounded_nat] at h_write
+  have hd :
+      (CodeReq.ofProg base
+        (mload_compute_select_expanded_size flagReg sizeReg roundReg endReg offReg)).Disjoint
+        (CodeReq.ofProg (base + 24) (mload_write_expanded_size sizeLocReg sizeReg)) := by
+    apply CodeReq.ofProg_disjoint_range_len _ _ 6 _ _ 1
+    · simp [mload_compute_select_expanded_size, mload_compute_rounded_access_flag,
+        mload_compute_rounded_access_end, mload_compute_access_end,
+        mload_round_access_end, mload_compute_expand_flag, mload_select_expanded_size,
+        ADDI, ANDI, single, seq]
+    · unfold mload_write_expanded_size SD single
+      rfl
+    · intro k1 k2 hk1 hk2
+      interval_cases k1 <;> interval_cases k2 <;> bv_omega
+  have h_compute_framed :
+      cpsTripleWithin 6 base (base + 24)
+        (CodeReq.ofProg base
+          (mload_compute_select_expanded_size flagReg sizeReg roundReg endReg offReg))
+        (((offReg ↦ᵣ offsetWord) ** (endReg ↦ᵣ endOld) **
+          (roundReg ↦ᵣ roundOld) ** (sizeReg ↦ᵣ BitVec.ofNat 64 sizeBytes) **
+          (flagReg ↦ᵣ flagOld) ** (.x0 ↦ᵣ (0 : Word))) **
+         ((sizeLocReg ↦ᵣ sizeLoc) ** evmMemSizeIs sizeLoc sizeBytes))
+        (((offReg ↦ᵣ offsetWord) ** (endReg ↦ᵣ (offsetWord + 32)) **
+          (roundReg ↦ᵣ BitVec.ofNat 64 rounded) **
+          (sizeReg ↦ᵣ BitVec.ofNat 64 (max sizeBytes rounded)) **
+          (flagReg ↦ᵣ
+           (if BitVec.ult (BitVec.ofNat 64 sizeBytes) (BitVec.ofNat 64 rounded)
+            then (1 : Word) else 0)) **
+          (.x0 ↦ᵣ (0 : Word))) **
+         ((sizeLocReg ↦ᵣ sizeLoc) ** evmMemSizeIs sizeLoc sizeBytes)) :=
+    cpsTripleWithin_frameR
+      ((sizeLocReg ↦ᵣ sizeLoc) ** evmMemSizeIs sizeLoc sizeBytes) (by pcFree)
+      h_compute
+  have h_write_framed :
+      cpsTripleWithin 1 (base + 24) (base + 28)
+        (CodeReq.ofProg (base + 24) (mload_write_expanded_size sizeLocReg sizeReg))
+        (((offReg ↦ᵣ offsetWord) ** (endReg ↦ᵣ (offsetWord + 32)) **
+          (roundReg ↦ᵣ BitVec.ofNat 64 rounded) **
+          (flagReg ↦ᵣ
+           (if BitVec.ult (BitVec.ofNat 64 sizeBytes) (BitVec.ofNat 64 rounded)
+            then (1 : Word) else 0)) **
+          (.x0 ↦ᵣ (0 : Word))) **
+         ((sizeLocReg ↦ᵣ sizeLoc) **
+          (sizeReg ↦ᵣ BitVec.ofNat 64 (max sizeBytes rounded)) **
+          evmMemSizeIs sizeLoc sizeBytes))
+        (((offReg ↦ᵣ offsetWord) ** (endReg ↦ᵣ (offsetWord + 32)) **
+          (roundReg ↦ᵣ BitVec.ofNat 64 rounded) **
+          (flagReg ↦ᵣ
+           (if BitVec.ult (BitVec.ofNat 64 sizeBytes) (BitVec.ofNat 64 rounded)
+            then (1 : Word) else 0)) **
+          (.x0 ↦ᵣ (0 : Word))) **
+         ((sizeLocReg ↦ᵣ sizeLoc) **
+          (sizeReg ↦ᵣ BitVec.ofNat 64 (max sizeBytes rounded)) **
+          evmMemSizeIs sizeLoc (max sizeBytes rounded))) :=
+    cpsTripleWithin_frameL
+      ((offReg ↦ᵣ offsetWord) ** (endReg ↦ᵣ (offsetWord + 32)) **
+       (roundReg ↦ᵣ BitVec.ofNat 64 rounded) **
+       (flagReg ↦ᵣ
+        (if BitVec.ult (BitVec.ofNat 64 sizeBytes) (BitVec.ofNat 64 rounded)
+         then (1 : Word) else 0)) **
+       (.x0 ↦ᵣ (0 : Word))) (by pcFree)
+      h_write
+  rw [← mload_compute_select_write_expanded_size_code_eq_ofProg]
+  exact cpsTripleWithin_seq hd h_compute_framed
+    (cpsTripleWithin_weaken
+      (fun h hp => by xperm_hyp hp)
+      (fun _ hp => hp)
+      h_write_framed)
+
+/--
   No-expansion specialization of `mload_write_expanded_size_ofProg_spec_within`:
   when the 32-byte MLOAD access already fits inside the current 32-byte-aligned
   high-water mark, writing the current size back preserves `evmMemSizeIs`.
