@@ -166,6 +166,52 @@ theorem mstore_byte_unpack_step_spec_within
   rw [h_stored] at B
   runBlock S B
 
+/-- Bundled precondition for the dword-pair byte-unpack step lemmas. It pairs
+    the address/scratch registers with the two destination dwords that the
+    step may touch, before the SB stores its byte. -/
+@[irreducible]
+def mstoreBytePairStepPre
+    (addrReg byteReg accReg : Reg)
+    (addrPtr accVal byteOld loVal hiVal loAddr hiAddr : Word) : Assertion :=
+  (addrReg ↦ᵣ addrPtr) ** (accReg ↦ᵣ accVal) ** (byteReg ↦ᵣ byteOld) **
+  (loAddr ↦ₘ loVal) ** (hiAddr ↦ₘ hiVal)
+
+theorem mstoreBytePairStepPre_unfold
+    (addrReg byteReg accReg : Reg)
+    (addrPtr accVal byteOld loVal hiVal loAddr hiAddr : Word) :
+    mstoreBytePairStepPre addrReg byteReg accReg
+        addrPtr accVal byteOld loVal hiVal loAddr hiAddr =
+      ((addrReg ↦ᵣ addrPtr) ** (accReg ↦ᵣ accVal) ** (byteReg ↦ᵣ byteOld) **
+       (loAddr ↦ₘ loVal) ** (hiAddr ↦ₘ hiVal)) := by
+  delta mstoreBytePairStepPre
+  rfl
+
+/-- Bundled postcondition for the dword-pair byte-unpack step lemmas. It
+    captures the post-SRLI byte value in `byteReg` and the updated low/high
+    destination dwords. -/
+@[irreducible]
+def mstoreBytePairStepPost
+    (addrReg byteReg accReg : Reg)
+    (addrPtr accVal storedLo storedHi loAddr hiAddr : Word)
+    (k : Nat) : Assertion :=
+  let shift := BitVec.ofNat 6 ((7 - k) * 8)
+  let byteVal := accVal >>> shift.toNat
+  (addrReg ↦ᵣ addrPtr) ** (accReg ↦ᵣ accVal) ** (byteReg ↦ᵣ byteVal) **
+  (loAddr ↦ₘ storedLo) ** (hiAddr ↦ₘ storedHi)
+
+theorem mstoreBytePairStepPost_unfold
+    (addrReg byteReg accReg : Reg)
+    (addrPtr accVal storedLo storedHi loAddr hiAddr : Word)
+    (k : Nat) :
+    mstoreBytePairStepPost addrReg byteReg accReg
+        addrPtr accVal storedLo storedHi loAddr hiAddr k =
+      (let shift := BitVec.ofNat 6 ((7 - k) * 8)
+       let byteVal := accVal >>> shift.toNat
+       (addrReg ↦ᵣ addrPtr) ** (accReg ↦ᵣ accVal) ** (byteReg ↦ᵣ byteVal) **
+       (loAddr ↦ₘ storedLo) ** (hiAddr ↦ₘ storedHi)) := by
+  delta mstoreBytePairStepPost
+  rfl
+
 /-- Low-dword form of `mstore_byte_unpack_step_spec_within` for an unaligned
     low/high destination dword pair. The byte position `start + i` is still
     inside the low dword, so the high dword is framed through unchanged. -/
@@ -180,19 +226,19 @@ theorem mstore_byte_unpack_step_pair_low_spec_within
     (h_align : alignToDword (addrPtr + signExtend12 dstOff) = loAddr)
     (h_valid : isValidByteAccess (addrPtr + signExtend12 dstOff) = true)
     (h_byte : byteOffset (addrPtr + signExtend12 dstOff) = (start + i) % 8) :
-    let shift := BitVec.ofNat 6 ((7 - k) * 8)
-    let byteVal := accVal >>> shift.toNat
     let storedByte := extractByte accVal (7 - k)
     let stored := MStore.mstoreDwordPairReplaceByte loVal hiVal start i storedByte
+    let shift := BitVec.ofNat 6 ((7 - k) * 8)
     let cr :=
       (CodeReq.singleton base (.SRLI byteReg accReg shift)).union
         (CodeReq.singleton (base + 4) (.SB addrReg byteReg dstOff))
     cpsTripleWithin 2 base (base + 8) cr
-      ((addrReg ↦ᵣ addrPtr) ** (accReg ↦ᵣ accVal) ** (byteReg ↦ᵣ byteOld) **
-       (loAddr ↦ₘ loVal) ** (hiAddr ↦ₘ hiVal))
-      ((addrReg ↦ᵣ addrPtr) ** (accReg ↦ᵣ accVal) ** (byteReg ↦ᵣ byteVal) **
-       (loAddr ↦ₘ stored.1) ** (hiAddr ↦ₘ stored.2)) := by
-  intro shift byteVal storedByte stored cr
+      (mstoreBytePairStepPre addrReg byteReg accReg
+        addrPtr accVal byteOld loVal hiVal loAddr hiAddr)
+      (mstoreBytePairStepPost addrReg byteReg accReg
+        addrPtr accVal stored.1 stored.2 loAddr hiAddr k) := by
+  intro storedByte stored shift cr
+  rw [mstoreBytePairStepPre_unfold, mstoreBytePairStepPost_unfold]
   have step := mstore_byte_unpack_step_spec_within
     addrReg byteReg accReg addrPtr accVal byteOld loVal loAddr
     k dstOff base h_byte_ne_x0 h_k_lt h_align h_valid
