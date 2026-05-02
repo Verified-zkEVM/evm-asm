@@ -301,6 +301,17 @@ theorem evmMemExpand_le_max_old_access_plus_31
     exact max_le (Nat.le_max_left _ _)
       (Nat.le_trans (roundUpTo32_le_add_31 (offset + length)) (Nat.le_max_right _ _))
 
+theorem evmMemExpand_le_of_old_le_and_access_le
+    (sizeBytes offset length bound : Nat)
+    (h_old : sizeBytes ≤ bound)
+    (h_access : roundUpTo32 (offset + length) ≤ bound) :
+    evmMemExpand sizeBytes offset length ≤ bound := by
+  unfold evmMemExpand
+  by_cases hlen : length = 0
+  · simp [hlen, h_old]
+  · rw [if_neg hlen]
+    exact max_le h_old h_access
+
 /-- If the current high-water mark already covers the rounded access bound,
     the EVM memory size is unchanged. -/
 theorem evmMemExpand_eq_old_of_access_le
