@@ -156,4 +156,108 @@ theorem mstoreDwordPairStoreLimb_unfold
   unfold mstoreDwordPairStoreLimb
   rfl
 
+/-- Concrete byte-write split for an 8-byte MSTORE window starting at dword byte 0. -/
+theorem mstoreDwordPairStoreLimb_start0 (lo hi limb : Word) :
+    mstoreDwordPairStoreLimb lo hi limb 0 =
+      (let lo0 := replaceByte lo 0 (extractByte limb 7)
+       let lo1 := replaceByte lo0 1 (extractByte limb 6)
+       let lo2 := replaceByte lo1 2 (extractByte limb 5)
+       let lo3 := replaceByte lo2 3 (extractByte limb 4)
+       let lo4 := replaceByte lo3 4 (extractByte limb 3)
+       let lo5 := replaceByte lo4 5 (extractByte limb 2)
+       let lo6 := replaceByte lo5 6 (extractByte limb 1)
+       (replaceByte lo6 7 (extractByte limb 0), hi)) := by
+  simp [mstoreDwordPairStoreLimb, mstoreDwordPairReplaceByte]
+
+/-- Concrete byte-write split for an 8-byte MSTORE window starting at dword byte 1. -/
+theorem mstoreDwordPairStoreLimb_start1 (lo hi limb : Word) :
+    mstoreDwordPairStoreLimb lo hi limb 1 =
+      (let lo0 := replaceByte lo 1 (extractByte limb 7)
+       let lo1 := replaceByte lo0 2 (extractByte limb 6)
+       let lo2 := replaceByte lo1 3 (extractByte limb 5)
+       let lo3 := replaceByte lo2 4 (extractByte limb 4)
+       let lo4 := replaceByte lo3 5 (extractByte limb 3)
+       let lo5 := replaceByte lo4 6 (extractByte limb 2)
+       let lo6 := replaceByte lo5 7 (extractByte limb 1)
+       (lo6, replaceByte hi 0 (extractByte limb 0))) := by
+  simp [mstoreDwordPairStoreLimb, mstoreDwordPairReplaceByte]
+
+/-- Concrete byte-write split for an 8-byte MSTORE window starting at dword byte 2. -/
+theorem mstoreDwordPairStoreLimb_start2 (lo hi limb : Word) :
+    mstoreDwordPairStoreLimb lo hi limb 2 =
+      (let lo0 := replaceByte lo 2 (extractByte limb 7)
+       let lo1 := replaceByte lo0 3 (extractByte limb 6)
+       let lo2 := replaceByte lo1 4 (extractByte limb 5)
+       let lo3 := replaceByte lo2 5 (extractByte limb 4)
+       let lo4 := replaceByte lo3 6 (extractByte limb 3)
+       let lo5 := replaceByte lo4 7 (extractByte limb 2)
+       let hi0 := replaceByte hi 0 (extractByte limb 1)
+       (lo5, replaceByte hi0 1 (extractByte limb 0))) := by
+  simp [mstoreDwordPairStoreLimb, mstoreDwordPairReplaceByte]
+
+/-- Concrete byte-write split for an 8-byte MSTORE window starting at dword byte 3. -/
+theorem mstoreDwordPairStoreLimb_start3 (lo hi limb : Word) :
+    mstoreDwordPairStoreLimb lo hi limb 3 =
+      (let lo0 := replaceByte lo 3 (extractByte limb 7)
+       let lo1 := replaceByte lo0 4 (extractByte limb 6)
+       let lo2 := replaceByte lo1 5 (extractByte limb 5)
+       let lo3 := replaceByte lo2 6 (extractByte limb 4)
+       let lo4 := replaceByte lo3 7 (extractByte limb 3)
+       let hi0 := replaceByte hi 0 (extractByte limb 2)
+       let hi1 := replaceByte hi0 1 (extractByte limb 1)
+       (lo4, replaceByte hi1 2 (extractByte limb 0))) := by
+  simp [mstoreDwordPairStoreLimb, mstoreDwordPairReplaceByte]
+
+/-- Concrete byte-write split for an 8-byte MSTORE window starting at dword byte 4. -/
+theorem mstoreDwordPairStoreLimb_start4 (lo hi limb : Word) :
+    mstoreDwordPairStoreLimb lo hi limb 4 =
+      (let lo0 := replaceByte lo 4 (extractByte limb 7)
+       let lo1 := replaceByte lo0 5 (extractByte limb 6)
+       let lo2 := replaceByte lo1 6 (extractByte limb 5)
+       let lo3 := replaceByte lo2 7 (extractByte limb 4)
+       let hi0 := replaceByte hi 0 (extractByte limb 3)
+       let hi1 := replaceByte hi0 1 (extractByte limb 2)
+       let hi2 := replaceByte hi1 2 (extractByte limb 1)
+       (lo3, replaceByte hi2 3 (extractByte limb 0))) := by
+  simp [mstoreDwordPairStoreLimb, mstoreDwordPairReplaceByte]
+
+/-- Concrete byte-write split for an 8-byte MSTORE window starting at dword byte 5. -/
+theorem mstoreDwordPairStoreLimb_start5 (lo hi limb : Word) :
+    mstoreDwordPairStoreLimb lo hi limb 5 =
+      (let lo0 := replaceByte lo 5 (extractByte limb 7)
+       let lo1 := replaceByte lo0 6 (extractByte limb 6)
+       let lo2 := replaceByte lo1 7 (extractByte limb 5)
+       let hi0 := replaceByte hi 0 (extractByte limb 4)
+       let hi1 := replaceByte hi0 1 (extractByte limb 3)
+       let hi2 := replaceByte hi1 2 (extractByte limb 2)
+       let hi3 := replaceByte hi2 3 (extractByte limb 1)
+       (lo2, replaceByte hi3 4 (extractByte limb 0))) := by
+  simp [mstoreDwordPairStoreLimb, mstoreDwordPairReplaceByte]
+
+/-- Concrete byte-write split for an 8-byte MSTORE window starting at dword byte 6. -/
+theorem mstoreDwordPairStoreLimb_start6 (lo hi limb : Word) :
+    mstoreDwordPairStoreLimb lo hi limb 6 =
+      (let lo0 := replaceByte lo 6 (extractByte limb 7)
+       let lo1 := replaceByte lo0 7 (extractByte limb 6)
+       let hi0 := replaceByte hi 0 (extractByte limb 5)
+       let hi1 := replaceByte hi0 1 (extractByte limb 4)
+       let hi2 := replaceByte hi1 2 (extractByte limb 3)
+       let hi3 := replaceByte hi2 3 (extractByte limb 2)
+       let hi4 := replaceByte hi3 4 (extractByte limb 1)
+       (lo1, replaceByte hi4 5 (extractByte limb 0))) := by
+  simp [mstoreDwordPairStoreLimb, mstoreDwordPairReplaceByte]
+
+/-- Concrete byte-write split for an 8-byte MSTORE window starting at dword byte 7. -/
+theorem mstoreDwordPairStoreLimb_start7 (lo hi limb : Word) :
+    mstoreDwordPairStoreLimb lo hi limb 7 =
+      (let lo0 := replaceByte lo 7 (extractByte limb 7)
+       let hi0 := replaceByte hi 0 (extractByte limb 6)
+       let hi1 := replaceByte hi0 1 (extractByte limb 5)
+       let hi2 := replaceByte hi1 2 (extractByte limb 4)
+       let hi3 := replaceByte hi2 3 (extractByte limb 3)
+       let hi4 := replaceByte hi3 4 (extractByte limb 2)
+       let hi5 := replaceByte hi4 5 (extractByte limb 1)
+       (lo0, replaceByte hi5 6 (extractByte limb 0))) := by
+  simp [mstoreDwordPairStoreLimb, mstoreDwordPairReplaceByte]
+
 end EvmAsm.Evm64.MStore
