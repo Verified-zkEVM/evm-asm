@@ -297,6 +297,37 @@ theorem evmMemExpand_ge_access (sizeBytes offset length : Nat) (hlen : length �
   rw [if_neg hlen]
   exact Nat.le_trans (roundUpTo32_le _) (Nat.le_max_right _ _)
 
+theorem evmMemExpand_access_byte_lt
+    (sizeBytes offset length byteIndex : Nat)
+    (hlen : length ≠ 0) (h_byte : byteIndex < length) :
+    offset + byteIndex < evmMemExpand sizeBytes offset length := by
+  have h_end := evmMemExpand_ge_access sizeBytes offset length hlen
+  omega
+
+theorem evmMemExpand_access_byte_dword_end_le
+    (sizeBytes offset length byteIndex : Nat)
+    (hlen : length ≠ 0) (h_byte : byteIndex < length) :
+    ((offset + byteIndex) / 8 + 1) * 8 ≤
+      evmMemExpand sizeBytes offset length := by
+  unfold evmMemExpand
+  rw [if_neg hlen]
+  have h_round : ((offset + byteIndex) / 8 + 1) * 8 ≤
+      roundUpTo32 (offset + length) := by
+    unfold roundUpTo32
+    omega
+  exact Nat.le_trans h_round (Nat.le_max_right _ _)
+
+theorem evmMemExpand_access_byte_dword_start_lt
+    (sizeBytes offset length byteIndex : Nat)
+    (hlen : length ≠ 0) (h_byte : byteIndex < length) :
+    ((offset + byteIndex) / 8) * 8 <
+      evmMemExpand sizeBytes offset length := by
+  have h_byte_lt :=
+    evmMemExpand_access_byte_lt sizeBytes offset length byteIndex hlen h_byte
+  have h_start_le : ((offset + byteIndex) / 8) * 8 ≤ offset + byteIndex := by
+    exact Nat.div_mul_le_self (offset + byteIndex) 8
+  exact Nat.lt_of_le_of_lt h_start_le h_byte_lt
+
 /-- MLOAD is a 32-byte byte-addressed access: expansion covers the byte just
     past the requested range for any starting byte offset. -/
 theorem evmMemExpand_mload_ge_end (sizeBytes offset : Nat) :
