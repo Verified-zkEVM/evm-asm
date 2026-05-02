@@ -297,6 +297,27 @@ theorem evmMemExpand_ge_access (sizeBytes offset length : Nat) (hlen : length �
   rw [if_neg hlen]
   exact Nat.le_trans (roundUpTo32_le _) (Nat.le_max_right _ _)
 
+/-- MLOAD is a 32-byte byte-addressed access: expansion covers the byte just
+    past the requested range for any starting byte offset. -/
+theorem evmMemExpand_mload_ge_end (sizeBytes offset : Nat) :
+    offset + 32 ≤ evmMemExpand sizeBytes offset 32 := by
+  exact evmMemExpand_ge_access sizeBytes offset 32 (by decide)
+
+/-- MLOAD expansion covers the starting byte for any byte offset; no
+    doubleword-alignment precondition is needed. -/
+theorem evmMemExpand_mload_ge_start (sizeBytes offset : Nat) :
+    offset ≤ evmMemExpand sizeBytes offset 32 := by
+  have h_end := evmMemExpand_mload_ge_end sizeBytes offset
+  omega
+
+/-- Every byte selected by MLOAD lies below the expanded high-water mark,
+    independent of the offset's alignment. -/
+theorem evmMemExpand_mload_byte_lt
+    (sizeBytes offset byteIndex : Nat) (h_byte : byteIndex < 32) :
+    offset + byteIndex < evmMemExpand sizeBytes offset 32 := by
+  have h_end := evmMemExpand_mload_ge_end sizeBytes offset
+  omega
+
 theorem evmMemExpand_le_max_old_access_plus_31
     (sizeBytes offset length : Nat) :
     evmMemExpand sizeBytes offset length ≤ max sizeBytes (offset + length + 31) := by
