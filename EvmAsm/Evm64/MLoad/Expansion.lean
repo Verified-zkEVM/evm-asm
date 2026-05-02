@@ -782,6 +782,44 @@ theorem mload_compute_select_expanded_size_ofProg_spec_within
     flagReg sizeReg roundReg endReg offReg offset endOld roundOld sizeBytesWord
     flagOld base h_end_ne_x0 h_round_ne_x0 h_flag_ne_x0 h_size_ne_x0
 
+theorem mload_compute_select_expanded_size_max_spec_within
+    (flagReg sizeReg roundReg endReg offReg : Reg)
+    (offsetWord endOld roundOld flagOld : Word)
+    (sizeBytes rounded : Nat) (base : Word)
+    (h_end_ne_x0 : endReg ≠ .x0)
+    (h_round_ne_x0 : roundReg ≠ .x0)
+    (h_flag_ne_x0 : flagReg ≠ .x0)
+    (h_size_ne_x0 : sizeReg ≠ .x0)
+    (h_size_lt : sizeBytes < 2^64)
+    (h_rounded_lt : rounded < 2^64)
+    (h_rounded_word :
+      (((offsetWord + 32) + 31) &&& signExtend12 (-32 : BitVec 12)) =
+        BitVec.ofNat 64 rounded) :
+    cpsTripleWithin 6 base (base + 24)
+      (CodeReq.ofProg base
+        (mload_compute_select_expanded_size flagReg sizeReg roundReg endReg offReg))
+      ((offReg ↦ᵣ offsetWord) ** (endReg ↦ᵣ endOld) **
+       (roundReg ↦ᵣ roundOld) ** (sizeReg ↦ᵣ BitVec.ofNat 64 sizeBytes) **
+       (flagReg ↦ᵣ flagOld) ** (.x0 ↦ᵣ (0 : Word)))
+      ((offReg ↦ᵣ offsetWord) ** (endReg ↦ᵣ (offsetWord + 32)) **
+       (roundReg ↦ᵣ BitVec.ofNat 64 rounded) **
+       (sizeReg ↦ᵣ BitVec.ofNat 64 (max sizeBytes rounded)) **
+       (flagReg ↦ᵣ
+        (if BitVec.ult (BitVec.ofNat 64 sizeBytes) (BitVec.ofNat 64 rounded)
+         then (1 : Word) else 0)) **
+       (.x0 ↦ᵣ (0 : Word))) := by
+  have h := mload_compute_select_expanded_size_ofProg_spec_within
+    flagReg sizeReg roundReg endReg offReg offsetWord endOld roundOld
+    (BitVec.ofNat 64 sizeBytes) flagOld base
+    h_end_ne_x0 h_round_ne_x0 h_flag_ne_x0 h_size_ne_x0
+  exact cpsTripleWithin_weaken
+    (fun h hp => by xperm_hyp hp)
+    (fun h hp => by
+      rw [h_rounded_word] at hp
+      rw [bitvec_select_word_eq_ofNat_max sizeBytes rounded h_size_lt h_rounded_lt] at hp
+      xperm_hyp hp)
+    h
+
 /--
   Store a precomputed 32-byte-access expanded high-water mark into the EVM
   memory-size cell. The arithmetic that computes
