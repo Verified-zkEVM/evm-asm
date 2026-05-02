@@ -10,6 +10,19 @@ namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
 
+/-- CodeReq for all four MSTORE value-limb byte-unpack blocks, placed after
+    the two-instruction address prologue. -/
+def mstoreFourLimbsCode
+    (addrReg byteReg accReg : Reg) (base : Word) : CodeReq :=
+  (mstoreOneLimbCode addrReg byteReg accReg
+      32 24 25 26 27 28 29 30 31 (base + 8)).union
+    ((mstoreOneLimbCode addrReg byteReg accReg
+        40 16 17 18 19 20 21 22 23 (base + 76)).union
+      ((mstoreOneLimbCode addrReg byteReg accReg
+          48 8 9 10 11 12 13 14 15 (base + 144)).union
+        (mstoreOneLimbCode addrReg byteReg accReg
+          56 0 1 2 3 4 5 6 7 (base + 212))))
+
 /-- CodeReq for the two-instruction MSTORE address prologue. -/
 def mstorePrologueCode
     (offReg addrReg memBaseReg : Reg) (base : Word) : CodeReq :=
