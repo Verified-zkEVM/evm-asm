@@ -31,6 +31,7 @@
     matches how `evmStackIs` uses a `List EvmWord`.
 -/
 
+import EvmAsm.Rv64.ByteOps
 import EvmAsm.Rv64.SepLogic
 
 namespace EvmAsm.Evm64
@@ -89,6 +90,120 @@ instance (base : Word) (n : Nat) (contents : Nat → Word) :
 instance (base : Word) (n : Nat) : Assertion.PCFree (evmMemZero base n) :=
   ⟨pcFree_evmMemZero⟩
 
+/-! ## Byte-addressing adapters -/
+
+/-- The RV64 dword cell address that owns the EVM memory byte
+    `memBase + byteAddr`. -/
+def evmMemDwordAddr (memBase byteAddr : Word) : Word :=
+  alignToDword (memBase + byteAddr)
+
+/-- The byte position, inside its owning RV64 dword, of EVM memory byte
+    `memBase + byteAddr`. -/
+def evmMemByteOffset (memBase byteAddr : Word) : Nat :=
+  byteOffset (memBase + byteAddr)
+
+/-- Read the EVM memory byte at `byteAddr` from its owning RV64 dword value. -/
+def evmMemByteRead (memBase byteAddr dwordVal : Word) : BitVec 8 :=
+  extractByte dwordVal (evmMemByteOffset memBase byteAddr)
+
+/-- Own the RV64 dword cell that contains EVM memory byte `byteAddr`. -/
+def evmMemDwordIs (memBase byteAddr dwordVal : Word) : Assertion :=
+  evmMemDwordAddr memBase byteAddr ↦ₘ dwordVal
+
+/-- Own the post-state dword after writing byte `b` to EVM memory byte
+    `byteAddr`, starting from old owning dword `oldDword`. -/
+def evmMemByteWriteIs
+    (memBase byteAddr oldDword : Word) (b : BitVec 8) : Assertion :=
+  evmMemDwordIs memBase byteAddr
+    (replaceByte oldDword (evmMemByteOffset memBase byteAddr) b)
+
+theorem evmMemDwordAddr_unfold {memBase byteAddr : Word} :
+    evmMemDwordAddr memBase byteAddr = alignToDword (memBase + byteAddr) := rfl
+
+theorem evmMemByteOffset_unfold {memBase byteAddr : Word} :
+    evmMemByteOffset memBase byteAddr = byteOffset (memBase + byteAddr) := rfl
+
+theorem evmMemByteOffset_lt_8 (memBase byteAddr : Word) :
+    evmMemByteOffset memBase byteAddr < 8 := by
+  unfold evmMemByteOffset
+  exact byteOffset_lt_8
+
+theorem evmMemByteAccess_valid_iff_memAddr_valid (memBase byteAddr : Word) :
+    isValidByteAccess (memBase + byteAddr) = true ↔
+      isValidMemAddr (memBase + byteAddr) = true := by
+  rfl
+
+theorem evmMemByteAccess_valid_of_memAddr_valid {memBase byteAddr : Word}
+    (h_valid : isValidMemAddr (memBase + byteAddr) = true) :
+    isValidByteAccess (memBase + byteAddr) = true := by
+  exact (evmMemByteAccess_valid_iff_memAddr_valid memBase byteAddr).mpr h_valid
+
+/-- The byte position inside the owning RV64 dword, packaged as a `Fin 8`
+    for direct use with byte-algebra lemmas. -/
+def evmMemByteOffsetFin (memBase byteAddr : Word) : Fin 8 :=
+  ⟨evmMemByteOffset memBase byteAddr, evmMemByteOffset_lt_8 memBase byteAddr⟩
+
+@[simp] theorem evmMemByteOffsetFin_val (memBase byteAddr : Word) :
+    (evmMemByteOffsetFin memBase byteAddr).val =
+      evmMemByteOffset memBase byteAddr := rfl
+
+theorem evmMemByteRead_unfold {memBase byteAddr dwordVal : Word} :
+    evmMemByteRead memBase byteAddr dwordVal =
+      extractByte dwordVal (evmMemByteOffset memBase byteAddr) := rfl
+
+theorem evmMemByteRead_replace_same
+    (memBase byteAddr oldDword : Word) (b : BitVec 8) :
+    evmMemByteRead memBase byteAddr
+      (replaceByte oldDword (evmMemByteOffset memBase byteAddr) b) = b := by
+  unfold evmMemByteRead evmMemByteOffset
+  exact extractByte_replaceByte_same oldDword
+    (evmMemByteOffsetFin memBase byteAddr) b
+
+/-- LBU-shaped bridge: zero-extending the byte read immediately after an EVM
+    memory byte write yields the written byte, zero-extended to a word. -/
+theorem evmMemByteRead_replace_same_zeroExtend
+    (memBase byteAddr oldDword : Word) (b : BitVec 8) :
+    (evmMemByteRead memBase byteAddr
+      (replaceByte oldDword (evmMemByteOffset memBase byteAddr) b)).zeroExtend 64 =
+      b.zeroExtend 64 := by
+  rw [evmMemByteRead_replace_same]
+
+/-- LB-shaped bridge: sign-extending the byte read immediately after an EVM
+    memory byte write yields the written byte, sign-extended to a word. -/
+theorem evmMemByteRead_replace_same_signExtend
+    (memBase byteAddr oldDword : Word) (b : BitVec 8) :
+    (evmMemByteRead memBase byteAddr
+      (replaceByte oldDword (evmMemByteOffset memBase byteAddr) b)).signExtend 64 =
+      b.signExtend 64 := by
+  rw [evmMemByteRead_replace_same]
+
+theorem evmMemDwordIs_unfold {memBase byteAddr dwordVal : Word} :
+    evmMemDwordIs memBase byteAddr dwordVal =
+      (evmMemDwordAddr memBase byteAddr ↦ₘ dwordVal) := rfl
+
+theorem evmMemByteWriteIs_unfold
+    {memBase byteAddr oldDword : Word} {b : BitVec 8} :
+    evmMemByteWriteIs memBase byteAddr oldDword b =
+      evmMemDwordIs memBase byteAddr
+        (replaceByte oldDword (evmMemByteOffset memBase byteAddr) b) := rfl
+
+theorem pcFree_evmMemDwordIs {memBase byteAddr dwordVal : Word} :
+    (evmMemDwordIs memBase byteAddr dwordVal).pcFree := by
+  unfold evmMemDwordIs; exact pcFree_memIs
+
+theorem pcFree_evmMemByteWriteIs
+    {memBase byteAddr oldDword : Word} {b : BitVec 8} :
+    (evmMemByteWriteIs memBase byteAddr oldDword b).pcFree := by
+  unfold evmMemByteWriteIs; exact pcFree_evmMemDwordIs
+
+instance (memBase byteAddr dwordVal : Word) :
+    Assertion.PCFree (evmMemDwordIs memBase byteAddr dwordVal) :=
+  ⟨pcFree_evmMemDwordIs⟩
+
+instance (memBase byteAddr oldDword : Word) (b : BitVec 8) :
+    Assertion.PCFree (evmMemByteWriteIs memBase byteAddr oldDword b) :=
+  ⟨pcFree_evmMemByteWriteIs⟩
+
 /-! ## High-water mark / EVM memory expansion (slice 2)
 
   The EVM tracks a single dynamic byte-size for memory (MSIZE), which only
@@ -133,6 +248,11 @@ theorem roundUpTo32_le (n : Nat) : n ≤ roundUpTo32 n := by
     omega
   exact h
 
+theorem roundUpTo32_le_add_31 (n : Nat) :
+    roundUpTo32 n ≤ n + 31 := by
+  unfold roundUpTo32
+  exact Nat.div_mul_le_self (n + 31) 32
+
 theorem roundUpTo32_dvd (n : Nat) : 32 ∣ roundUpTo32 n := by
   unfold roundUpTo32; exact ⟨(n + 31) / 32, (Nat.mul_comm _ _)⟩
 
@@ -163,13 +283,45 @@ theorem evmMemExpand_ge_old (sizeBytes offset length : Nat) :
   unfold evmMemExpand
   by_cases h : length = 0
   · simp [h]
-  · simp [h]; exact Nat.le_max_left _ _
+  · rw [if_neg h]; exact Nat.le_max_left _ _
 
 theorem evmMemExpand_ge_access (sizeBytes offset length : Nat) (hlen : length ≠ 0) :
     offset + length ≤ evmMemExpand sizeBytes offset length := by
   unfold evmMemExpand
-  simp [hlen]
+  rw [if_neg hlen]
   exact Nat.le_trans (roundUpTo32_le _) (Nat.le_max_right _ _)
+
+theorem evmMemExpand_le_max_old_access_plus_31
+    (sizeBytes offset length : Nat) :
+    evmMemExpand sizeBytes offset length ≤ max sizeBytes (offset + length + 31) := by
+  unfold evmMemExpand
+  by_cases hlen : length = 0
+  · simp [hlen]
+  · rw [if_neg hlen]
+    exact max_le (Nat.le_max_left _ _)
+      (Nat.le_trans (roundUpTo32_le_add_31 (offset + length)) (Nat.le_max_right _ _))
+
+/-- If the current high-water mark already covers the rounded access bound,
+    the EVM memory size is unchanged. -/
+theorem evmMemExpand_eq_old_of_access_le
+    (sizeBytes offset length : Nat)
+    (h : roundUpTo32 (offset + length) ≤ sizeBytes) :
+    evmMemExpand sizeBytes offset length = sizeBytes := by
+  unfold evmMemExpand
+  by_cases hlen : length = 0
+  · simp [hlen]
+  · rw [if_neg hlen]
+    exact max_eq_left h
+
+/-- If a nonzero access grows past the current high-water mark, the new EVM
+    memory size is the rounded access bound. -/
+theorem evmMemExpand_eq_access_of_old_le
+    (sizeBytes offset length : Nat) (hlen : length ≠ 0)
+    (h : sizeBytes ≤ roundUpTo32 (offset + length)) :
+    evmMemExpand sizeBytes offset length = roundUpTo32 (offset + length) := by
+  unfold evmMemExpand
+  rw [if_neg hlen]
+  exact max_eq_right h
 
 /-- The new high-water mark is always a multiple of 32 (when nonzero) — i.e.
     if the old size was 32-aligned, the new one is too. -/
