@@ -249,4 +249,38 @@ theorem rlpPrefixHeaderBytes_le_9 (pfx : Byte) :
   · exact rlpPrefixLongBytesHeaderBytes_le_9_of_class h
   · exact rlpPrefixLongListHeaderBytes_le_9_of_class h
 
+theorem rlpPrefixHeaderBytes_pos_of_shortBytes {pfx : Byte}
+    (h : classifyPrefix pfx = .shortBytes) :
+    0 < rlpPrefixHeaderBytes pfx := by
+  rw [rlpPrefixHeaderBytes_eq_one_of_shortBytes h]
+  omega
+
+theorem rlpPrefixHeaderBytes_pos_of_longBytes {pfx : Byte}
+    (h : classifyPrefix pfx = .longBytes) :
+    0 < rlpPrefixHeaderBytes pfx := by
+  rw [rlpPrefixHeaderBytes_eq_longBytesHeader_of_longBytes h]
+  exact rlpPrefixLongBytesHeaderBytes_pos pfx
+
+theorem rlpPrefixHeaderBytes_pos_of_shortList {pfx : Byte}
+    (h : classifyPrefix pfx = .shortList) :
+    0 < rlpPrefixHeaderBytes pfx := by
+  rw [rlpPrefixHeaderBytes_eq_one_of_shortList h]
+  omega
+
+theorem rlpPrefixHeaderBytes_pos_of_longList {pfx : Byte}
+    (h : classifyPrefix pfx = .longList) :
+    0 < rlpPrefixHeaderBytes pfx := by
+  rw [rlpPrefixHeaderBytes_eq_longListHeader_of_longList h]
+  exact rlpPrefixLongListHeaderBytes_pos pfx
+
+theorem rlpPrefixHeaderBytes_pos_of_not_singleByte {pfx : Byte}
+    (h : classifyPrefix pfx ≠ .singleByte) :
+    0 < rlpPrefixHeaderBytes pfx := by
+  cases h_class : classifyPrefix pfx
+  · contradiction
+  · exact rlpPrefixHeaderBytes_pos_of_shortBytes h_class
+  · exact rlpPrefixHeaderBytes_pos_of_longBytes h_class
+  · exact rlpPrefixHeaderBytes_pos_of_shortList h_class
+  · exact rlpPrefixHeaderBytes_pos_of_longList h_class
+
 end EvmAsm.EL.RLP
