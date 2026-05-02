@@ -31,6 +31,7 @@
     matches how `evmStackIs` uses a `List EvmWord`.
 -/
 
+import EvmAsm.Rv64.ByteOps
 import EvmAsm.Rv64.SepLogic
 
 namespace EvmAsm.Evm64
@@ -125,6 +126,15 @@ theorem evmMemByteOffset_unfold {memBase byteAddr : Word} :
 theorem evmMemByteRead_unfold {memBase byteAddr dwordVal : Word} :
     evmMemByteRead memBase byteAddr dwordVal =
       extractByte dwordVal (evmMemByteOffset memBase byteAddr) := rfl
+
+theorem evmMemByteRead_replace_same
+    (memBase byteAddr oldDword : Word) (b : BitVec 8) :
+    evmMemByteRead memBase byteAddr
+      (replaceByte oldDword (evmMemByteOffset memBase byteAddr) b) = b := by
+  unfold evmMemByteRead evmMemByteOffset
+  have h_lt : byteOffset (memBase + byteAddr) < 8 := byteOffset_lt_8
+  exact extractByte_replaceByte_same oldDword
+    ⟨byteOffset (memBase + byteAddr), h_lt⟩ b
 
 theorem evmMemDwordIs_unfold {memBase byteAddr dwordVal : Word} :
     evmMemDwordIs memBase byteAddr dwordVal =
@@ -227,12 +237,12 @@ theorem evmMemExpand_ge_old (sizeBytes offset length : Nat) :
   unfold evmMemExpand
   by_cases h : length = 0
   · simp [h]
-  · simp [h]; exact Nat.le_max_left _ _
+  · rw [if_neg h]; exact Nat.le_max_left _ _
 
 theorem evmMemExpand_ge_access (sizeBytes offset length : Nat) (hlen : length ≠ 0) :
     offset + length ≤ evmMemExpand sizeBytes offset length := by
   unfold evmMemExpand
-  simp [hlen]
+  rw [if_neg hlen]
   exact Nat.le_trans (roundUpTo32_le _) (Nat.le_max_right _ _)
 
 /-- The new high-water mark is always a multiple of 32 (when nonzero) — i.e.
