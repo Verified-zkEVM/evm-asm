@@ -141,6 +141,15 @@ theorem decodeAux_eight_byte_string
       some (.bytes [b1, b2, b3, b4, b5, b6, b7, b8], rest) := by
   simp [decodeAux, takeBytes]
 
+/-- Nine-byte short string (prefix `0x89`). Multi-byte payload
+    bypasses the canonical-form check. -/
+theorem decodeAux_nine_byte_string
+    (fuel : Nat) (b1 b2 b3 b4 b5 b6 b7 b8 b9 : Byte) (rest : List Byte) :
+    decodeAux (fuel + 1)
+        ((0x89 : Byte) :: b1 :: b2 :: b3 :: b4 :: b5 :: b6 :: b7 :: b8 :: b9 :: rest) =
+      some (.bytes [b1, b2, b3, b4, b5, b6, b7, b8, b9], rest) := by
+  simp [decodeAux, takeBytes]
+
 /-- Canonical-form rejection: prefix `0x81` followed by a byte `b`
     with `b.toNat < 0x80` is non-canonical (the byte should have
     been encoded as itself, not under prefix `0x81`), so `decodeAux`
@@ -414,6 +423,13 @@ theorem decode_eight_byte_string (b1 b2 b3 b4 b5 b6 b7 b8 : Byte) :
       some (.bytes [b1, b2, b3, b4, b5, b6, b7, b8], []) := by
   simp [decode, decodeAux, takeBytes]
 
+/-- `decode [0x89, b1..b9] = some (.bytes [b1..b9], [])` — the
+    canonical nine-byte short-string encoding. -/
+theorem decode_nine_byte_string (b1 b2 b3 b4 b5 b6 b7 b8 b9 : Byte) :
+    decode [(0x89 : Byte), b1, b2, b3, b4, b5, b6, b7, b8, b9] =
+      some (.bytes [b1, b2, b3, b4, b5, b6, b7, b8, b9], []) := by
+  simp [decode, decodeAux, takeBytes]
+
 /-! ## encodeBytes characterizations -/
 
 /-- Empty byte string encodes to the single prefix `[0x80]`. -/
@@ -472,6 +488,13 @@ theorem encodeBytes_sept (a b c d e f g : Byte) :
 theorem encodeBytes_oct (a b c d e f g h : Byte) :
     encodeBytes [a, b, c, d, e, f, g, h] =
       [BitVec.ofNat 8 0x88, a, b, c, d, e, f, g, h] := by
+  simp [encodeBytes]
+
+/-- Nine-byte short string:
+    `encodeBytes [a, b, c, d, e, f, g, h, i] = [0x89, a, b, c, d, e, f, g, h, i]`. -/
+theorem encodeBytes_nonuple (a b c d e f g h i : Byte) :
+    encodeBytes [a, b, c, d, e, f, g, h, i] =
+      [BitVec.ofNat 8 0x89, a, b, c, d, e, f, g, h, i] := by
   simp [encodeBytes]
 
 /-! ## Encoding produces non-empty output -/
