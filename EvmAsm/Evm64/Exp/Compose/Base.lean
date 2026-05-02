@@ -586,4 +586,24 @@ theorem exp_loop_back_loop_spec_within (c : Word)
   rw [hnext] at h
   exact cpsBranchWithin_extend_code (h := h) (hmono := expLoopCode_loop_back_sub)
 
+theorem exp_cond_mul_loop_spec_within
+    (mulOff : BitVec 21) (skipOff backOff : BitVec 13)
+    (v10 vOld : Word) (base skipTarget mulTarget : Word)
+    (hskip : ((base + 16) + signExtend13 skipOff : Word) = skipTarget)
+    (hmul : (((base + 16) + 4) + signExtend21 mulOff : Word) = mulTarget) :
+    cpsBranchWithin 2 (base + 16) (expLoopCode base mulOff skipOff backOff)
+      ((.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ vOld))
+      skipTarget
+        ((.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ vOld) **
+          ⌜v10 = 0⌝)
+      mulTarget
+        ((.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (base + 24)) **
+          ⌜v10 ≠ 0⌝) := by
+  have h := EvmAsm.Evm64.exp_cond_mul_block_spec_within
+    mulOff skipOff v10 vOld (base + 16)
+  rw [hskip, hmul] at h
+  have hret : ((base + 16 : Word) + 8) = base + 24 := by bv_omega
+  rw [hret] at h
+  exact cpsBranchWithin_extend_code (h := h) (hmono := expLoopCode_cond_mul_sub)
+
 end EvmAsm.Evm64.Exp.Compose
