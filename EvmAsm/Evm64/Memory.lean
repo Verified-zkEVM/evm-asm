@@ -325,6 +325,64 @@ theorem evmMemExpand_mload_byte_lt
   have h_end := evmMemExpand_mload_ge_end sizeBytes offset
   omega
 
+/-- MSTORE8 is a one-byte byte-addressed access: expansion covers the byte just
+    past the requested range for any starting byte offset. -/
+theorem evmMemExpand_mstore8_ge_end (sizeBytes offset : Nat) :
+    offset + 1 ≤ evmMemExpand sizeBytes offset 1 := by
+  exact evmMemExpand_ge_access sizeBytes offset 1 (by decide)
+
+/-- MSTORE8 expansion covers the starting byte for any byte offset; no
+    doubleword-alignment precondition is needed. -/
+theorem evmMemExpand_mstore8_ge_start (sizeBytes offset : Nat) :
+    offset ≤ evmMemExpand sizeBytes offset 1 := by
+  have h_end := evmMemExpand_mstore8_ge_end sizeBytes offset
+  omega
+
+/-- Every byte selected by MSTORE8 lies below the expanded high-water mark,
+    independent of the offset's alignment. -/
+theorem evmMemExpand_mstore8_byte_lt
+    (sizeBytes offset byteIndex : Nat) (h_byte : byteIndex < 1) :
+    offset + byteIndex < evmMemExpand sizeBytes offset 1 := by
+  have h_end := evmMemExpand_mstore8_ge_end sizeBytes offset
+  omega
+
+theorem evmMemExpand_mstore8_byte_dword_end_le
+    (sizeBytes offset byteIndex : Nat) (h_byte : byteIndex < 1) :
+    ((offset + byteIndex) / 8 + 1) * 8 ≤
+      evmMemExpand sizeBytes offset 1 := by
+  unfold evmMemExpand
+  rw [if_neg (by decide : (1 : Nat) ≠ 0)]
+  have h_round : ((offset + byteIndex) / 8 + 1) * 8 ≤
+      roundUpTo32 (offset + 1) := by
+    unfold roundUpTo32
+    omega
+  exact Nat.le_trans h_round (Nat.le_max_right _ _)
+
+theorem evmMemExpand_mstore8_byte_dword_start_lt
+    (sizeBytes offset byteIndex : Nat) (h_byte : byteIndex < 1) :
+    ((offset + byteIndex) / 8) * 8 <
+      evmMemExpand sizeBytes offset 1 := by
+  have h_byte_lt := evmMemExpand_mstore8_byte_lt sizeBytes offset byteIndex h_byte
+  have h_start_le : ((offset + byteIndex) / 8) * 8 ≤ offset + byteIndex := by
+    exact Nat.div_mul_le_self (offset + byteIndex) 8
+  exact Nat.lt_of_le_of_lt h_start_le h_byte_lt
+
+theorem evmMemExpand_mstore8_byte_dword_interval
+    (sizeBytes offset byteIndex : Nat) (h_byte : byteIndex < 1) :
+    ((offset + byteIndex) / 8) * 8 <
+        evmMemExpand sizeBytes offset 1 ∧
+      ((offset + byteIndex) / 8 + 1) * 8 ≤
+        evmMemExpand sizeBytes offset 1 := by
+  exact ⟨
+    evmMemExpand_mstore8_byte_dword_start_lt sizeBytes offset byteIndex h_byte,
+    evmMemExpand_mstore8_byte_dword_end_le sizeBytes offset byteIndex h_byte⟩
+
+theorem evmMemExpand_mstore8_dword_interval
+    (sizeBytes offset : Nat) :
+    (offset / 8) * 8 < evmMemExpand sizeBytes offset 1 ∧
+      (offset / 8 + 1) * 8 ≤ evmMemExpand sizeBytes offset 1 := by
+  exact evmMemExpand_mstore8_byte_dword_interval sizeBytes offset 0 (by decide)
+
 theorem evmMemExpand_le_max_old_access_plus_31
     (sizeBytes offset length : Nat) :
     evmMemExpand sizeBytes offset length ≤ max sizeBytes (offset + length + 31) := by
