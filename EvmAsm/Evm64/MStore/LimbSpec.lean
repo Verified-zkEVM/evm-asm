@@ -209,4 +209,47 @@ theorem mstore_byte_unpack_step_pair_low_spec_within
       xperm_hyp hp)
     framed
 
+/-- High-dword form of `mstore_byte_unpack_step_spec_within` for an unaligned
+    low/high destination dword pair. The byte position `start + i` has crossed
+    into the high dword, so the low dword is framed through unchanged. -/
+theorem mstore_byte_unpack_step_pair_high_spec_within
+    (addrReg byteReg accReg : Reg)
+    (addrPtr accVal byteOld loVal hiVal : Word)
+    (loAddr hiAddr : Word)
+    (k start i : Nat) (dstOff : BitVec 12) (base : Word)
+    (h_byte_ne_x0 : byteReg ≠ .x0)
+    (h_k_lt : k < 8)
+    (h_pos : 8 ≤ start + i)
+    (h_align : alignToDword (addrPtr + signExtend12 dstOff) = hiAddr)
+    (h_valid : isValidByteAccess (addrPtr + signExtend12 dstOff) = true)
+    (h_byte : byteOffset (addrPtr + signExtend12 dstOff) = (start + i) % 8) :
+    let shift := BitVec.ofNat 6 ((7 - k) * 8)
+    let byteVal := accVal >>> shift.toNat
+    let storedByte := extractByte accVal (7 - k)
+    let stored := MStore.mstoreDwordPairReplaceByte loVal hiVal start i storedByte
+    let cr :=
+      (CodeReq.singleton base (.SRLI byteReg accReg shift)).union
+        (CodeReq.singleton (base + 4) (.SB addrReg byteReg dstOff))
+    cpsTripleWithin 2 base (base + 8) cr
+      ((addrReg ↦ᵣ addrPtr) ** (accReg ↦ᵣ accVal) ** (byteReg ↦ᵣ byteOld) **
+       (loAddr ↦ₘ loVal) ** (hiAddr ↦ₘ hiVal))
+      ((addrReg ↦ᵣ addrPtr) ** (accReg ↦ᵣ accVal) ** (byteReg ↦ᵣ byteVal) **
+       (loAddr ↦ₘ stored.1) ** (hiAddr ↦ₘ stored.2)) := by
+  intro shift byteVal storedByte stored cr
+  have step := mstore_byte_unpack_step_spec_within
+    addrReg byteReg accReg addrPtr accVal byteOld hiVal hiAddr
+    k dstOff base h_byte_ne_x0 h_k_lt h_align h_valid
+  dsimp only at step
+  have framed := cpsTripleWithin_frameL (loAddr ↦ₘ loVal) (by pcFree) step
+  rw [show stored = (loVal, replaceByte hiVal ((start + i) % 8) storedByte) by
+    unfold stored
+    rw [MStore.mstoreDwordPairReplaceByte_high loVal hiVal storedByte h_pos]]
+  exact cpsTripleWithin_weaken
+    (fun _ hp => by xperm_hyp hp)
+    (fun _ hp => by
+      rw [h_byte] at hp
+      dsimp only at hp ⊢
+      xperm_hyp hp)
+    framed
+
 end EvmAsm.Evm64
