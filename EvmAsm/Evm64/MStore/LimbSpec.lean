@@ -14,6 +14,58 @@ namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
 
+/-- Bundled precondition for the upcoming one-limb MSTORE spec. It contains
+    the address/scratch registers, the two destination dwords that may be
+    touched by an unaligned 8-byte limb write, and the source EVM-stack limb
+    loaded from `sp + signExtend12 srcOff`. -/
+@[irreducible]
+def mstoreOneLimbPre
+    (addrReg byteReg accReg : Reg)
+    (addrPtr byteOld accOld loVal hiVal loAddr hiAddr sp limbVal : Word)
+    (srcOff : BitVec 12) : Assertion :=
+  (addrReg ↦ᵣ addrPtr) ** (byteReg ↦ᵣ byteOld) ** (accReg ↦ᵣ accOld) **
+  (loAddr ↦ₘ loVal) ** (hiAddr ↦ₘ hiVal) ** ((.x12 : Reg) ↦ᵣ sp) **
+  ((sp + signExtend12 srcOff) ↦ₘ limbVal)
+
+theorem mstoreOneLimbPre_unfold
+    (addrReg byteReg accReg : Reg)
+    (addrPtr byteOld accOld loVal hiVal loAddr hiAddr sp limbVal : Word)
+    (srcOff : BitVec 12) :
+    mstoreOneLimbPre addrReg byteReg accReg
+        addrPtr byteOld accOld loVal hiVal loAddr hiAddr sp limbVal srcOff =
+    ((addrReg ↦ᵣ addrPtr) ** (byteReg ↦ᵣ byteOld) ** (accReg ↦ᵣ accOld) **
+     (loAddr ↦ₘ loVal) ** (hiAddr ↦ₘ hiVal) ** ((.x12 : Reg) ↦ᵣ sp) **
+     ((sp + signExtend12 srcOff) ↦ₘ limbVal)) := by
+  delta mstoreOneLimbPre
+  rfl
+
+/-- Bundled postcondition for the upcoming one-limb MSTORE spec. The source
+    limb has been loaded into `accReg`, the final `byteReg` value is the last
+    SRLI result, and the low/high destination dwords are updated by the pure
+    eight-byte fold `mstoreDwordPairStoreLimb`. -/
+@[irreducible]
+def mstoreOneLimbPost
+    (addrReg byteReg accReg : Reg)
+    (addrPtr loVal hiVal loAddr hiAddr sp limbVal : Word)
+    (start : Nat) (srcOff : BitVec 12) : Assertion :=
+  let stored := MStore.mstoreDwordPairStoreLimb loVal hiVal limbVal start
+  (addrReg ↦ᵣ addrPtr) ** (byteReg ↦ᵣ limbVal) ** (accReg ↦ᵣ limbVal) **
+  (loAddr ↦ₘ stored.1) ** (hiAddr ↦ₘ stored.2) ** ((.x12 : Reg) ↦ᵣ sp) **
+  ((sp + signExtend12 srcOff) ↦ₘ limbVal)
+
+theorem mstoreOneLimbPost_unfold
+    (addrReg byteReg accReg : Reg)
+    (addrPtr loVal hiVal loAddr hiAddr sp limbVal : Word)
+    (start : Nat) (srcOff : BitVec 12) :
+    mstoreOneLimbPost addrReg byteReg accReg
+        addrPtr loVal hiVal loAddr hiAddr sp limbVal start srcOff =
+    (let stored := MStore.mstoreDwordPairStoreLimb loVal hiVal limbVal start
+     (addrReg ↦ᵣ addrPtr) ** (byteReg ↦ᵣ limbVal) ** (accReg ↦ᵣ limbVal) **
+     (loAddr ↦ₘ stored.1) ** (hiAddr ↦ₘ stored.2) ** ((.x12 : Reg) ↦ᵣ sp) **
+     ((sp + signExtend12 srcOff) ↦ₘ limbVal)) := by
+  delta mstoreOneLimbPost
+  rfl
+
 /-- Two-instruction MSTORE byte-unpack step:
     shift the selected byte of `accReg` into `byteReg`, then store that
     low byte to `addrReg + dstOff`.
