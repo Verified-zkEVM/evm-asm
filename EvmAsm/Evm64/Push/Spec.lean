@@ -99,6 +99,39 @@ theorem push_zero_slot_ofProg_spec_within
   rw [← push_zero_slot_code_eq_ofProg]
   exact push_zero_slot_spec_within sp d0 d1 d2 d3 base
 
+theorem evm_push_zero_slot_code_spec_within
+    (n : Nat) (hn : n ≤ 32) (sp d0 d1 d2 d3 : Word) (base : Word) :
+    let nsp := sp + signExtend12 ((-32 : BitVec 12))
+    cpsTripleWithin 5 base (base + 20) (evm_push_code base n)
+      ((.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) **
+       ((nsp + signExtend12 (0 : BitVec 12)) ↦ₘ d0) **
+       ((nsp + signExtend12 (8 : BitVec 12)) ↦ₘ d1) **
+       ((nsp + signExtend12 (16 : BitVec 12)) ↦ₘ d2) **
+       ((nsp + signExtend12 (24 : BitVec 12)) ↦ₘ d3))
+      ((.x12 ↦ᵣ nsp) ** (.x0 ↦ᵣ (0 : Word)) **
+       ((nsp + signExtend12 (0 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((nsp + signExtend12 (8 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((nsp + signExtend12 (16 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((nsp + signExtend12 (24 : BitVec 12)) ↦ₘ (0 : Word))) := by
+  intro nsp
+  have hPrefix := push_zero_slot_ofProg_spec_within sp d0 d1 d2 d3 base
+  exact cpsTripleWithin_extend_code (h := hPrefix) (hmono := by
+    unfold evm_push_code
+    exact CodeReq.ofProg_mono_sub base base (evm_push n)
+      (ADDI .x12 .x12 (-32) ;; SD .x12 .x0 0 ;; SD .x12 .x0 8 ;;
+       SD .x12 .x0 16 ;; SD .x12 .x0 24) 0
+      (by bv_omega)
+      (by
+        unfold evm_push ADDI SD single seq
+        rfl)
+      (by
+        change 0 + 5 ≤ (evm_push n).length
+        rw [evm_push_length]
+        omega)
+      (by
+        rw [evm_push_length]
+        omega))
+
 /-- The four zero-filled limbs written by the PUSH allocation prefix fold to
     the EVM word value `0`. -/
 theorem push_zero_slot_word_zero (nsp : Word) :

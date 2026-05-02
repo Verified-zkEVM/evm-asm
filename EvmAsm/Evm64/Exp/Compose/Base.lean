@@ -216,6 +216,133 @@ theorem expBoundaryProgramCode_program_sub {base : Word} :
       exact expBoundaryProgramCode_epilogue_sub a _ (by assumption)
     · simp_all [CodeReq.empty]
 
+/-- Composed spec for the current EXP boundary mini-program: the EXP-specific
+    prologue initializes the accumulator to one, and the EXP-specific epilogue
+    writes that accumulator back to the EVM stack result slot. -/
+theorem expBoundaryProgram_spec_within
+    (sp evmSp cOld tOld m0 m1 m2 m3 d0 d1 d2 d3 : Word) (base : Word) :
+    cpsTripleWithin 15 base (base + 60) (expBoundaryProgramCode base)
+      ((.x2 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) ** (.x9 ↦ᵣ cOld) **
+       (.x5 ↦ᵣ tOld) ** (.x12 ↦ᵣ evmSp) **
+       ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ m0) **
+       ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ m1) **
+       ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ m2) **
+       ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ m3) **
+       ((evmSp + signExtend12 (32 : BitVec 12)) ↦ₘ d0) **
+       ((evmSp + signExtend12 (40 : BitVec 12)) ↦ₘ d1) **
+       ((evmSp + signExtend12 (48 : BitVec 12)) ↦ₘ d2) **
+       ((evmSp + signExtend12 (56 : BitVec 12)) ↦ₘ d3))
+      ((.x2 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) **
+       (.x9 ↦ᵣ ((0 : Word) + signExtend12 (256 : BitVec 12))) **
+       (.x12 ↦ᵣ (evmSp + signExtend12 (32 : BitVec 12))) **
+       (.x5 ↦ᵣ (0 : Word)) **
+       ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ
+        ((0 : Word) + signExtend12 (1 : BitVec 12))) **
+       ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ (0 : Word)) **
+       evmWordIs (evmSp + 32) (expResultWord
+        ((0 : Word) + signExtend12 (1 : BitVec 12))
+        (0 : Word) (0 : Word) (0 : Word))) := by
+  have hPro :=
+    EvmAsm.Evm64.exp_prologue_ofProg_spec_within
+      sp cOld tOld m0 m1 m2 m3 base
+  have hEpi :=
+    EvmAsm.Evm64.exp_epilogue_word_spec_within sp evmSp
+      ((0 : Word) + signExtend12 (1 : BitVec 12))
+      ((0 : Word) + signExtend12 (1 : BitVec 12))
+      (0 : Word) (0 : Word) (0 : Word) d0 d1 d2 d3 (base + 24)
+  rw [show (base + 24 : Word) + 36 = base + 60 from by bv_omega] at hEpi
+  have hProFramed : cpsTripleWithin 6 base (base + 24)
+      (CodeReq.ofProg base EvmAsm.Evm64.exp_prologue)
+      ((.x2 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) ** (.x9 ↦ᵣ cOld) **
+       (.x5 ↦ᵣ tOld) ** (.x12 ↦ᵣ evmSp) **
+       ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ m0) **
+       ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ m1) **
+       ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ m2) **
+       ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ m3) **
+       ((evmSp + signExtend12 (32 : BitVec 12)) ↦ₘ d0) **
+       ((evmSp + signExtend12 (40 : BitVec 12)) ↦ₘ d1) **
+       ((evmSp + signExtend12 (48 : BitVec 12)) ↦ₘ d2) **
+       ((evmSp + signExtend12 (56 : BitVec 12)) ↦ₘ d3))
+      ((.x2 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) **
+       (.x9 ↦ᵣ ((0 : Word) + signExtend12 (256 : BitVec 12))) **
+       (.x5 ↦ᵣ ((0 : Word) + signExtend12 (1 : BitVec 12))) **
+       (.x12 ↦ᵣ evmSp) **
+       ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ
+        ((0 : Word) + signExtend12 (1 : BitVec 12))) **
+       ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((evmSp + signExtend12 (32 : BitVec 12)) ↦ₘ d0) **
+       ((evmSp + signExtend12 (40 : BitVec 12)) ↦ₘ d1) **
+       ((evmSp + signExtend12 (48 : BitVec 12)) ↦ₘ d2) **
+       ((evmSp + signExtend12 (56 : BitVec 12)) ↦ₘ d3)) :=
+    cpsTripleWithin_weaken
+      (fun _ hp => by xperm_hyp hp)
+      (fun _ hp => by xperm_hyp hp)
+      (cpsTripleWithin_frameR
+        ((.x12 ↦ᵣ evmSp) **
+         ((evmSp + signExtend12 (32 : BitVec 12)) ↦ₘ d0) **
+         ((evmSp + signExtend12 (40 : BitVec 12)) ↦ₘ d1) **
+         ((evmSp + signExtend12 (48 : BitVec 12)) ↦ₘ d2) **
+         ((evmSp + signExtend12 (56 : BitVec 12)) ↦ₘ d3))
+        (by pcFree) hPro)
+  have hEpiFramed : cpsTripleWithin 9 (base + 24) (base + 60)
+      (CodeReq.ofProg (base + 24) EvmAsm.Evm64.exp_epilogue)
+      ((.x2 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) **
+       (.x9 ↦ᵣ ((0 : Word) + signExtend12 (256 : BitVec 12))) **
+       (.x5 ↦ᵣ ((0 : Word) + signExtend12 (1 : BitVec 12))) **
+       (.x12 ↦ᵣ evmSp) **
+       ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ
+        ((0 : Word) + signExtend12 (1 : BitVec 12))) **
+       ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((evmSp + signExtend12 (32 : BitVec 12)) ↦ₘ d0) **
+       ((evmSp + signExtend12 (40 : BitVec 12)) ↦ₘ d1) **
+       ((evmSp + signExtend12 (48 : BitVec 12)) ↦ₘ d2) **
+       ((evmSp + signExtend12 (56 : BitVec 12)) ↦ₘ d3))
+      ((.x2 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) **
+       (.x9 ↦ᵣ ((0 : Word) + signExtend12 (256 : BitVec 12))) **
+       (.x12 ↦ᵣ (evmSp + signExtend12 (32 : BitVec 12))) **
+       (.x5 ↦ᵣ (0 : Word)) **
+       ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ
+        ((0 : Word) + signExtend12 (1 : BitVec 12))) **
+       ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ (0 : Word)) **
+       evmWordIs (evmSp + 32) (expResultWord
+        ((0 : Word) + signExtend12 (1 : BitVec 12))
+        (0 : Word) (0 : Word) (0 : Word))) :=
+    cpsTripleWithin_weaken
+      (fun _ hp => by xperm_hyp hp)
+      (fun _ hp => by xperm_hyp hp)
+      (cpsTripleWithin_frameR
+        ((.x0 ↦ᵣ (0 : Word)) **
+         (.x9 ↦ᵣ ((0 : Word) + signExtend12 (256 : BitVec 12))))
+        (by pcFree) hEpi)
+  have hd : CodeReq.Disjoint
+      (CodeReq.ofProg base EvmAsm.Evm64.exp_prologue)
+      (CodeReq.ofProg (base + 24) EvmAsm.Evm64.exp_epilogue) :=
+    CodeReq.ofProg_disjoint_range (fun k1 k2 hk1 hk2 => by
+      simp only [exp_prologue_len, exp_epilogue_len] at hk1 hk2
+      bv_omega)
+  have hSeq := cpsTripleWithin_seq hd hProFramed hEpiFramed
+  have hUnionSub :
+      ∀ a i,
+        ((CodeReq.ofProg base EvmAsm.Evm64.exp_prologue).union
+          (CodeReq.ofProg (base + 24) EvmAsm.Evm64.exp_epilogue)) a = some i →
+        (expBoundaryProgramCode base) a = some i := by
+    intro a i h
+    unfold CodeReq.union at h
+    split at h
+    · cases h
+      exact expBoundaryProgramCode_prologue_sub a _ (by assumption)
+    · exact expBoundaryProgramCode_epilogue_sub a i h
+  simpa only [Nat.reduceAdd] using
+    cpsTripleWithin_extend_code hUnionSub hSeq
+
 /-- CodeReq decomposition for one EXP loop iteration. This mirrors
     `exp_loop`: bit-test (3 instructions), square call (1), conditional
     multiply branch/call (2), and loop-back (2). -/

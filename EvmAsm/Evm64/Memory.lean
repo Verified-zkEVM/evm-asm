@@ -397,6 +397,33 @@ theorem evmMemExpand_word_eq (sizeBytes offset : Nat) :
   unfold evmMemExpand
   simp
 
+theorem bitvec_select_word_eq_ofNat_max
+    (sizeBytes rounded : Nat)
+    (h_size : sizeBytes < 2^64)
+    (h_round : rounded < 2^64) :
+    (if BitVec.ult (BitVec.ofNat 64 sizeBytes) (BitVec.ofNat 64 rounded)
+      then BitVec.ofNat 64 rounded else BitVec.ofNat 64 sizeBytes) =
+      BitVec.ofNat 64 (max sizeBytes rounded) := by
+  by_cases h_lt : sizeBytes < rounded
+  · have h_ult :
+        BitVec.ult (BitVec.ofNat 64 sizeBytes) (BitVec.ofNat 64 rounded) = true := by
+      unfold BitVec.ult
+      simp only [BitVec.toNat_ofNat]
+      rw [Nat.mod_eq_of_lt h_size, Nat.mod_eq_of_lt h_round]
+      simp [h_lt]
+    have h_max : max sizeBytes rounded = rounded :=
+      max_eq_right (Nat.le_of_lt h_lt)
+    simp [h_ult, h_max]
+  · have h_ult :
+        BitVec.ult (BitVec.ofNat 64 sizeBytes) (BitVec.ofNat 64 rounded) = false := by
+      unfold BitVec.ult
+      simp only [BitVec.toNat_ofNat]
+      rw [Nat.mod_eq_of_lt h_size, Nat.mod_eq_of_lt h_round]
+      simp [h_lt]
+    have h_max : max sizeBytes rounded = sizeBytes :=
+      max_eq_left (by omega)
+    simp [h_ult, h_max]
+
 theorem evmMemExpand_word_eq_old_of_end_le
     (sizeBytes offset : Nat) (h_end : offset + 32 ≤ sizeBytes)
     (h_size_dvd : 32 ∣ sizeBytes) :
