@@ -161,4 +161,26 @@ theorem evm_mload_byte_length (offReg byteReg accReg addrReg memBaseReg : Reg) :
     4 * (evm_mload offReg byteReg accReg addrReg memBaseReg).length = 376 := by
   rw [evm_mload_length]
 
+/-- Byte offset of the MLOAD offset-load instruction. -/
+theorem evm_mload_offset_load_byte_off : 4 * 0 = 0 := by
+  rfl
+
+/-- Byte offset of the MLOAD address-add instruction. -/
+theorem evm_mload_addr_add_byte_off : 4 * 1 = 4 := by
+  rfl
+
+/-- Byte offset of MLOAD limb block `j` within `evm_mload`. -/
+theorem evm_mload_limb_block_byte_off (j : Nat) :
+    4 * (2 + 23 * j) = 8 + 92 * j := by
+  omega
+
+/-- Byte offset of the final stack-store instruction in MLOAD limb block `j`. -/
+theorem evm_mload_limb_store_byte_off (j : Nat) :
+    4 * (2 + 23 * j + 22) = 96 + 92 * j := by
+  omega
+
+/-- Byte offset immediately after the full MLOAD program. -/
+theorem evm_mload_end_byte_off : 4 * 94 = 376 := by
+  rfl
+
 end EvmAsm.Evm64
