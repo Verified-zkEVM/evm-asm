@@ -184,4 +184,107 @@ theorem mloadLoadedWordFromDwordPairs_evmWordIs_fold_bytes
   rw [mloadLoadedWordFromDwordPairs_evmWordIs_fold]
   rw [mloadLoadedWordFromDwordPairs_eq_mloadLoadedWordFromBytes]
 
+/--
+  The byte-level MLOAD result word described by the four unaligned dword-pair
+  source windows. This names the semantic word used by the final stack-level
+  MLOAD theorem without exposing all 32 byte projections in that theorem's
+  postcondition.
+-/
+def mloadStackOutputWordFromDwordPairs
+    (lo0 hi0 : Word) (start0 : Nat)
+    (lo1 hi1 : Word) (start1 : Nat)
+    (lo2 hi2 : Word) (start2 : Nat)
+    (lo3 hi3 : Word) (start3 : Nat) : EvmWord :=
+  mloadLoadedWordFromBytes
+    (mloadByteFromDwordPair lo3 hi3 start3 0)
+    (mloadByteFromDwordPair lo3 hi3 start3 1)
+    (mloadByteFromDwordPair lo3 hi3 start3 2)
+    (mloadByteFromDwordPair lo3 hi3 start3 3)
+    (mloadByteFromDwordPair lo3 hi3 start3 4)
+    (mloadByteFromDwordPair lo3 hi3 start3 5)
+    (mloadByteFromDwordPair lo3 hi3 start3 6)
+    (mloadByteFromDwordPair lo3 hi3 start3 7)
+    (mloadByteFromDwordPair lo2 hi2 start2 0)
+    (mloadByteFromDwordPair lo2 hi2 start2 1)
+    (mloadByteFromDwordPair lo2 hi2 start2 2)
+    (mloadByteFromDwordPair lo2 hi2 start2 3)
+    (mloadByteFromDwordPair lo2 hi2 start2 4)
+    (mloadByteFromDwordPair lo2 hi2 start2 5)
+    (mloadByteFromDwordPair lo2 hi2 start2 6)
+    (mloadByteFromDwordPair lo2 hi2 start2 7)
+    (mloadByteFromDwordPair lo1 hi1 start1 0)
+    (mloadByteFromDwordPair lo1 hi1 start1 1)
+    (mloadByteFromDwordPair lo1 hi1 start1 2)
+    (mloadByteFromDwordPair lo1 hi1 start1 3)
+    (mloadByteFromDwordPair lo1 hi1 start1 4)
+    (mloadByteFromDwordPair lo1 hi1 start1 5)
+    (mloadByteFromDwordPair lo1 hi1 start1 6)
+    (mloadByteFromDwordPair lo1 hi1 start1 7)
+    (mloadByteFromDwordPair lo0 hi0 start0 0)
+    (mloadByteFromDwordPair lo0 hi0 start0 1)
+    (mloadByteFromDwordPair lo0 hi0 start0 2)
+    (mloadByteFromDwordPair lo0 hi0 start0 3)
+    (mloadByteFromDwordPair lo0 hi0 start0 4)
+    (mloadByteFromDwordPair lo0 hi0 start0 5)
+    (mloadByteFromDwordPair lo0 hi0 start0 6)
+    (mloadByteFromDwordPair lo0 hi0 start0 7)
+
+theorem mloadStackOutputWordFromDwordPairs_eq_mloadLoadedWordFromDwordPairs
+    (lo0 hi0 : Word) (start0 : Nat)
+    (lo1 hi1 : Word) (start1 : Nat)
+    (lo2 hi2 : Word) (start2 : Nat)
+    (lo3 hi3 : Word) (start3 : Nat) :
+    mloadStackOutputWordFromDwordPairs
+      lo0 hi0 start0 lo1 hi1 start1 lo2 hi2 start2 lo3 hi3 start3 =
+    mloadLoadedWordFromDwordPairs
+      lo0 hi0 start0 lo1 hi1 start1 lo2 hi2 start2 lo3 hi3 start3 := by
+  rw [mloadStackOutputWordFromDwordPairs]
+  rw [mloadLoadedWordFromDwordPairs_eq_mloadLoadedWordFromBytes]
+
+/--
+  Named stack postcondition for the four output limbs of unaligned MLOAD.
+  The executable composition can target this compact assertion and use
+  `mloadStackOutputPost_evmWordIs_fold` to consume the four produced cells.
+-/
+@[irreducible]
+def mloadStackOutputPost
+    (sp : Word)
+    (lo0 hi0 : Word) (start0 : Nat)
+    (lo1 hi1 : Word) (start1 : Nat)
+    (lo2 hi2 : Word) (start2 : Nat)
+    (lo3 hi3 : Word) (start3 : Nat) : Assertion :=
+  evmWordIs sp
+    (mloadStackOutputWordFromDwordPairs
+      lo0 hi0 start0 lo1 hi1 start1 lo2 hi2 start2 lo3 hi3 start3)
+
+theorem mloadStackOutputPost_unfold
+    (sp : Word)
+    (lo0 hi0 : Word) (start0 : Nat)
+    (lo1 hi1 : Word) (start1 : Nat)
+    (lo2 hi2 : Word) (start2 : Nat)
+    (lo3 hi3 : Word) (start3 : Nat) :
+    mloadStackOutputPost sp
+      lo0 hi0 start0 lo1 hi1 start1 lo2 hi2 start2 lo3 hi3 start3 =
+    evmWordIs sp
+      (mloadStackOutputWordFromDwordPairs
+        lo0 hi0 start0 lo1 hi1 start1 lo2 hi2 start2 lo3 hi3 start3) := by
+  delta mloadStackOutputPost
+  rfl
+
+theorem mloadStackOutputPost_evmWordIs_fold
+    (sp : Word)
+    (lo0 hi0 : Word) (start0 : Nat)
+    (lo1 hi1 : Word) (start1 : Nat)
+    (lo2 hi2 : Word) (start2 : Nat)
+    (lo3 hi3 : Word) (start3 : Nat) :
+    ((sp ↦ₘ mloadPackedLimbFromDwordPair lo0 hi0 start0) **
+     ((sp + 8) ↦ₘ mloadPackedLimbFromDwordPair lo1 hi1 start1) **
+     ((sp + 16) ↦ₘ mloadPackedLimbFromDwordPair lo2 hi2 start2) **
+     ((sp + 24) ↦ₘ mloadPackedLimbFromDwordPair lo3 hi3 start3)) =
+    mloadStackOutputPost sp
+      lo0 hi0 start0 lo1 hi1 start1 lo2 hi2 start2 lo3 hi3 start3 := by
+  rw [mloadStackOutputPost_unfold]
+  rw [mloadStackOutputWordFromDwordPairs_eq_mloadLoadedWordFromDwordPairs]
+  rw [mloadLoadedWordFromDwordPairs_evmWordIs_fold]
+
 end EvmAsm.Evm64
