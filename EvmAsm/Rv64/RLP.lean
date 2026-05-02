@@ -22,6 +22,7 @@ import EvmAsm.Rv64.RLP.Phase2LongLoopFive
 import EvmAsm.Rv64.RLP.Phase2LongLoopEight
 import EvmAsm.Rv64.RLP.Phase2LongLoopSeven
 import EvmAsm.Rv64.RLP.Phase2LongLoopSix
+import EvmAsm.Rv64.RLP.Phase3LongList
 import EvmAsm.Rv64.RLP.Phase3LongString
 import EvmAsm.Rv64.RLP.Phase3ShortString
 import EvmAsm.Rv64.RLP.Phase3SingleByte
