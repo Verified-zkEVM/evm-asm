@@ -169,6 +169,29 @@ theorem evm_mload_offset_load_byte_off : 4 * 0 = 0 := by
 theorem evm_mload_addr_add_byte_off : 4 * 1 = 4 := by
   rfl
 
+/-- Byte offset of the seed LBU inside `mload_byte_pack`. -/
+theorem mload_byte_pack_seed_byte_off : 4 * 0 = 0 := by
+  rfl
+
+/-- Byte offset of the repeated LBU instruction for step `i` inside `mload_byte_pack`. -/
+theorem mload_byte_pack_lbu_byte_off (i : Nat) :
+    4 * (1 + 3 * i) = 4 + 12 * i := by
+  omega
+
+/-- Byte offset of the repeated SLLI instruction for step `i` inside `mload_byte_pack`. -/
+theorem mload_byte_pack_slli_byte_off (i : Nat) :
+    4 * (1 + 3 * i + 1) = 8 + 12 * i := by
+  omega
+
+/-- Byte offset of the repeated OR instruction for step `i` inside `mload_byte_pack`. -/
+theorem mload_byte_pack_or_byte_off (i : Nat) :
+    4 * (1 + 3 * i + 2) = 12 + 12 * i := by
+  omega
+
+/-- Byte offset of the final stack-store instruction inside `mload_one_limb`. -/
+theorem mload_one_limb_store_byte_off : 4 * 22 = 88 := by
+  rfl
+
 /-- Byte offset of MLOAD limb block `j` within `evm_mload`. -/
 theorem evm_mload_limb_block_byte_off (j : Nat) :
     4 * (2 + 23 * j) = 8 + 92 * j := by
