@@ -71,4 +71,28 @@ theorem mload_write_expanded_size_ofProg_spec_within
   exact mload_write_expanded_size_spec_within
     sizeLocReg sizeReg sizeLoc sizeBytes offset base
 
+/--
+  No-expansion specialization of `mload_write_expanded_size_ofProg_spec_within`:
+  when the 32-byte MLOAD access already fits inside the current 32-byte-aligned
+  high-water mark, writing the current size back preserves `evmMemSizeIs`.
+-/
+theorem mload_write_current_size_no_expansion_spec_within
+    (sizeLocReg sizeReg : Reg)
+    (sizeLoc : Word) (sizeBytes offset : Nat) (base : Word)
+    (h_end : offset + 32 ≤ sizeBytes) (h_size_dvd : 32 ∣ sizeBytes) :
+    cpsTripleWithin 1 base (base + 4)
+      (CodeReq.ofProg base (mload_write_expanded_size sizeLocReg sizeReg))
+      ((sizeLocReg ↦ᵣ sizeLoc) **
+       (sizeReg ↦ᵣ BitVec.ofNat 64 sizeBytes) **
+       evmMemSizeIs sizeLoc sizeBytes)
+      ((sizeLocReg ↦ᵣ sizeLoc) **
+       (sizeReg ↦ᵣ BitVec.ofNat 64 sizeBytes) **
+       evmMemSizeIs sizeLoc sizeBytes) := by
+  convert
+    (mload_write_expanded_size_ofProg_spec_within
+      sizeLocReg sizeReg sizeLoc sizeBytes offset base) using 1
+  · rw [evmMemExpand_word_eq_old_of_end_le sizeBytes offset h_end h_size_dvd]
+  · rw [evmMemExpand_word_eq_old_of_end_le sizeBytes offset h_end h_size_dvd,
+      evmMemSizeIsWordExpanded_eq_current_of_mload_within h_end h_size_dvd]
+
 end EvmAsm.Evm64
