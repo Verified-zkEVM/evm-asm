@@ -130,6 +130,9 @@ def toSailInstr? : Instr → Option SailInstr
   | .DIVU rd rs1 rs2  => some <| instruction.DIV (regToRegidx rs2, regToRegidx rs1, regToRegidx rd, true)
   | .REM rd rs1 rs2   => some <| instruction.REM (regToRegidx rs2, regToRegidx rs1, regToRegidx rd, false)
   | .REMU rd rs1 rs2  => some <| instruction.REM (regToRegidx rs2, regToRegidx rs1, regToRegidx rd, true)
+  | .LUI rd imm       => some <| instruction.UTYPE (imm, regToRegidx rd, uop.LUI)
+  | .AUIPC rd imm     => some <| instruction.UTYPE (imm, regToRegidx rd, uop.AUIPC)
+  | .ADDIW rd rs1 imm => some <| instruction.ADDIW (imm, regToRegidx rs1, regToRegidx rd)
   | _                 => none
 
 def rtypeToInstr? (rs2 rs1 rd : regidx) : rop → Option Instr
@@ -227,8 +230,13 @@ def remToInstr? (rs2 rs1 rd : regidx) (isUnsigned : Bool) : Option Instr := do
   else
     return .REM (← regidxToReg? rd) (← regidxToReg? rs1) (← regidxToReg? rs2)
 
+def utypeToInstr? (imm : BitVec 20) (rd : regidx) : uop → Option Instr
+  | uop.LUI => return .LUI (← regidxToReg? rd) imm
+  | uop.AUIPC => return .AUIPC (← regidxToReg? rd) imm
+
 /-- Map the supported SAIL ALU/immediate constructors back to the hand-written AST. -/
 def fromSailInstr? : SailInstr → Option Instr
+  | instruction.UTYPE (imm, rd, op) => utypeToInstr? imm rd op
   | instruction.JAL (off, rd) => return .JAL (← regidxToReg? rd) off
   | instruction.JALR (off, rs1, rd) => return .JALR (← regidxToReg? rd) (← regidxToReg? rs1) off
   | instruction.BTYPE (off, rs2, rs1, op) => btypeToInstr? off rs2 rs1 op
@@ -238,6 +246,7 @@ def fromSailInstr? : SailInstr → Option Instr
   | instruction.MUL (rs2, rs1, rd, op) => mulToInstr? rs2 rs1 rd op
   | instruction.DIV (rs2, rs1, rd, isUnsigned) => divToInstr? rs2 rs1 rd isUnsigned
   | instruction.REM (rs2, rs1, rd, isUnsigned) => remToInstr? rs2 rs1 rd isUnsigned
+  | instruction.ADDIW (imm, rs1, rd) => return .ADDIW (← regidxToReg? rd) (← regidxToReg? rs1) imm
   | instruction.RTYPE (rs2, rs1, rd, op) => rtypeToInstr? rs2 rs1 rd op
   | instruction.ITYPE (imm, rs1, rd, op) => itypeToInstr? imm rs1 rd op
   | instruction.SHIFTIOP (shamt, rs1, rd, op) => shiftIToInstr? shamt rs1 rd op
@@ -251,7 +260,7 @@ theorem fromSailInstr?_toSailInstr?_of_some
     cases h
     simp [fromSailInstr?, rtypeToInstr?, itypeToInstr?, shiftIToInstr?,
       btypeToInstr?, loadToInstr?, storeToInstr?, mulToInstr?, divToInstr?,
-      remToInstr?, sailMulOp, sailMulhOp, sailMulhsuOp, sailMulhuOp,
+      remToInstr?, utypeToInstr?, sailMulOp, sailMulhOp, sailMulhsuOp, sailMulhuOp,
       regidxToReg?_regToRegidx]
 
 theorem fromSailInstr?_toSailInstr?_ADD (rd rs1 rs2 : Reg) :
@@ -349,5 +358,23 @@ theorem fromSailInstr?_toSailInstr?_REMU
       (regToRegidx rs2, regToRegidx rs1, regToRegidx rd, true)) =
     some (.REMU rd rs1 rs2) := by
   simp [fromSailInstr?, remToInstr?, regidxToReg?_regToRegidx]
+
+theorem fromSailInstr?_toSailInstr?_LUI
+    (rd : Reg) (imm : BitVec 20) :
+    fromSailInstr? (instruction.UTYPE (imm, regToRegidx rd, uop.LUI)) =
+    some (.LUI rd imm) := by
+  simp [fromSailInstr?, utypeToInstr?, regidxToReg?_regToRegidx]
+
+theorem fromSailInstr?_toSailInstr?_AUIPC
+    (rd : Reg) (imm : BitVec 20) :
+    fromSailInstr? (instruction.UTYPE (imm, regToRegidx rd, uop.AUIPC)) =
+    some (.AUIPC rd imm) := by
+  simp [fromSailInstr?, utypeToInstr?, regidxToReg?_regToRegidx]
+
+theorem fromSailInstr?_toSailInstr?_ADDIW
+    (rd rs1 : Reg) (imm : BitVec 12) :
+    fromSailInstr? (instruction.ADDIW (imm, regToRegidx rs1, regToRegidx rd)) =
+    some (.ADDIW rd rs1 imm) := by
+  simp [fromSailInstr?, regidxToReg?_regToRegidx]
 
 end EvmAsm.Rv64.SailEquiv
