@@ -194,6 +194,20 @@ theorem evm_mstore_limb2_byte_off : 4 * (2 + 17 * 2) = 144 := by
 theorem evm_mstore_limb3_byte_off : 4 * (2 + 17 * 3) = 212 := by
   rfl
 
+/-- Byte offset of the SRLI instruction for byte `i` inside `mstore_byte_unpack`. -/
+theorem mstore_byte_unpack_srli_byte_off (i : Nat) :
+    4 * (2 * i) = 8 * i := by
+  omega
+
+/-- Byte offset of the SB instruction for byte `i` inside `mstore_byte_unpack`. -/
+theorem mstore_byte_unpack_sb_byte_off (i : Nat) :
+    4 * (2 * i + 1) = 4 + 8 * i := by
+  omega
+
+/-- Byte offset where the byte-unpack sequence starts inside one MSTORE limb block. -/
+theorem mstore_one_limb_unpack_byte_off : 4 * 1 = 4 := by
+  rfl
+
 /-- Byte offset of the final stack-pointer update in `evm_mstore`. -/
 theorem evm_mstore_epilogue_byte_off : 4 * (2 + 17 * 4) = 280 := by
   rfl
