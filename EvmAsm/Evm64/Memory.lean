@@ -276,6 +276,28 @@ theorem evmMemExpand_ge_access (sizeBytes offset length : Nat) (hlen : length �
   rw [if_neg hlen]
   exact Nat.le_trans (roundUpTo32_le _) (Nat.le_max_right _ _)
 
+/-- If the current high-water mark already covers the rounded access bound,
+    the EVM memory size is unchanged. -/
+theorem evmMemExpand_eq_old_of_access_le
+    (sizeBytes offset length : Nat)
+    (h : roundUpTo32 (offset + length) ≤ sizeBytes) :
+    evmMemExpand sizeBytes offset length = sizeBytes := by
+  unfold evmMemExpand
+  by_cases hlen : length = 0
+  · simp [hlen]
+  · rw [if_neg hlen]
+    exact max_eq_left h
+
+/-- If a nonzero access grows past the current high-water mark, the new EVM
+    memory size is the rounded access bound. -/
+theorem evmMemExpand_eq_access_of_old_le
+    (sizeBytes offset length : Nat) (hlen : length ≠ 0)
+    (h : sizeBytes ≤ roundUpTo32 (offset + length)) :
+    evmMemExpand sizeBytes offset length = roundUpTo32 (offset + length) := by
+  unfold evmMemExpand
+  rw [if_neg hlen]
+  exact max_eq_right h
+
 /-- The new high-water mark is always a multiple of 32 (when nonzero) — i.e.
     if the old size was 32-aligned, the new one is too. -/
 theorem evmMemExpand_dvd_of_old_dvd (sizeBytes offset length : Nat)
