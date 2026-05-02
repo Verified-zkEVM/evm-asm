@@ -159,6 +159,16 @@ theorem decodeAux_ten_byte_string
       some (.bytes [b1, b2, b3, b4, b5, b6, b7, b8, b9, b10], rest) := by
   simp [decodeAux, takeBytes]
 
+/-- Eleven-byte short string (prefix `0x8B`). Multi-byte payload
+    bypasses the canonical-form check. -/
+theorem decodeAux_eleven_byte_string
+    (fuel : Nat) (b1 b2 b3 b4 b5 b6 b7 b8 b9 b10 b11 : Byte) (rest : List Byte) :
+    decodeAux (fuel + 1)
+        ((0x8B : Byte) :: b1 :: b2 :: b3 :: b4 :: b5 :: b6 :: b7 :: b8 :: b9 :: b10 ::
+          b11 :: rest) =
+      some (.bytes [b1, b2, b3, b4, b5, b6, b7, b8, b9, b10, b11], rest) := by
+  simp [decodeAux, takeBytes]
+
 /-- Canonical-form rejection: prefix `0x81` followed by a byte `b`
     with `b.toNat < 0x80` is non-canonical (the byte should have
     been encoded as itself, not under prefix `0x81`), so `decodeAux`
@@ -446,6 +456,13 @@ theorem decode_ten_byte_string (b1 b2 b3 b4 b5 b6 b7 b8 b9 b10 : Byte) :
       some (.bytes [b1, b2, b3, b4, b5, b6, b7, b8, b9, b10], []) := by
   simp [decode, decodeAux, takeBytes]
 
+/-- `decode [0x8B, b1..b11] = some (.bytes [b1..b11], [])` — the
+    canonical eleven-byte short-string encoding. -/
+theorem decode_eleven_byte_string (b1 b2 b3 b4 b5 b6 b7 b8 b9 b10 b11 : Byte) :
+    decode [(0x8B : Byte), b1, b2, b3, b4, b5, b6, b7, b8, b9, b10, b11] =
+      some (.bytes [b1, b2, b3, b4, b5, b6, b7, b8, b9, b10, b11], []) := by
+  simp [decode, decodeAux, takeBytes]
+
 /-! ## encodeBytes characterizations -/
 
 /-- Empty byte string encodes to the single prefix `[0x80]`. -/
@@ -518,6 +535,14 @@ theorem encodeBytes_nonuple (a b c d e f g h i : Byte) :
 theorem encodeBytes_decuple (a b c d e f g h i j : Byte) :
     encodeBytes [a, b, c, d, e, f, g, h, i, j] =
       [BitVec.ofNat 8 0x8A, a, b, c, d, e, f, g, h, i, j] := by
+  simp [encodeBytes]
+
+/-- Eleven-byte short string:
+    `encodeBytes [a, b, c, d, e, f, g, h, i, j, k] =
+    [0x8B, a, b, c, d, e, f, g, h, i, j, k]`. -/
+theorem encodeBytes_undecuple (a b c d e f g h i j k : Byte) :
+    encodeBytes [a, b, c, d, e, f, g, h, i, j, k] =
+      [BitVec.ofNat 8 0x8B, a, b, c, d, e, f, g, h, i, j, k] := by
   simp [encodeBytes]
 
 /-! ## Encoding produces non-empty output -/
