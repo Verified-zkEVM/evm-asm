@@ -318,6 +318,25 @@ theorem evmMemExpand_mload_byte_lt
   have h_end := evmMemExpand_mload_ge_end sizeBytes offset
   omega
 
+/-- MSTORE is also a 32-byte byte-addressed access: expansion covers the byte
+    just past the requested range for any starting byte offset. -/
+theorem evmMemExpand_mstore_ge_end (sizeBytes offset : Nat) :
+    offset + 32 ≤ evmMemExpand sizeBytes offset 32 := by
+  exact evmMemExpand_mload_ge_end sizeBytes offset
+
+/-- MSTORE expansion covers the starting byte for any byte offset; no
+    doubleword-alignment precondition is needed. -/
+theorem evmMemExpand_mstore_ge_start (sizeBytes offset : Nat) :
+    offset ≤ evmMemExpand sizeBytes offset 32 := by
+  exact evmMemExpand_mload_ge_start sizeBytes offset
+
+/-- Every byte selected by MSTORE lies below the expanded high-water mark,
+    independent of the offset's alignment. -/
+theorem evmMemExpand_mstore_byte_lt
+    (sizeBytes offset byteIndex : Nat) (h_byte : byteIndex < 32) :
+    offset + byteIndex < evmMemExpand sizeBytes offset 32 := by
+  exact evmMemExpand_mload_byte_lt sizeBytes offset byteIndex h_byte
+
 theorem evmMemExpand_le_max_old_access_plus_31
     (sizeBytes offset length : Nat) :
     evmMemExpand sizeBytes offset length ≤ max sizeBytes (offset + length + 31) := by
