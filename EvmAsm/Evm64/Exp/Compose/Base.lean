@@ -167,6 +167,13 @@ theorem expBoundaryProgramCode_epilogue_sub {base : Word} :
       rw [expBoundaryProgram_len]
       norm_num)
 
+theorem expBoundaryProgramCode_block_subs {base : Word} :
+    (∀ a i, (CodeReq.ofProg base EvmAsm.Evm64.exp_prologue) a = some i →
+      (expBoundaryProgramCode base) a = some i) ∧
+    (∀ a i, (CodeReq.ofProg (base + 24) EvmAsm.Evm64.exp_epilogue) a = some i →
+      (expBoundaryProgramCode base) a = some i) := by
+  exact ⟨expBoundaryProgramCode_prologue_sub, expBoundaryProgramCode_epilogue_sub⟩
+
 theorem expBoundaryProgramCode_program_sub {base : Word} :
     ∀ a i, (expBoundaryCode base) a = some i →
       (expBoundaryProgramCode base) a = some i := by
