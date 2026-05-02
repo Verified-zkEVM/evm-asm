@@ -339,6 +339,27 @@ theorem exp_prologue_result_word_one_right (sp : Word) (Q : Assertion) :
   rw [h0, h1, h8, h16, h24]
   rw [evmWordIs_one_right]
 
+/-- Consumer-facing prologue spec with the initialized accumulator folded into
+    the stack-word assertion used by later EXP composition proofs. -/
+theorem exp_prologue_word_spec_within
+    (sp cOld tOld m0 m1 m2 m3 : Word) (base : Word) :
+    cpsTripleWithin 6 base (base + 24) (CodeReq.ofProg base exp_prologue)
+      ((.x2 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) ** (.x9 ↦ᵣ cOld) **
+       (.x5 ↦ᵣ tOld) ** ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ m0) **
+       ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ m1) **
+       ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ m2) **
+       ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ m3))
+      ((.x2 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) **
+       (.x9 ↦ᵣ ((0 : Word) + signExtend12 (256 : BitVec 12))) **
+       (.x5 ↦ᵣ ((0 : Word) + signExtend12 (1 : BitVec 12))) **
+       evmWordIs sp (1 : EvmWord)) := by
+  exact cpsTripleWithin_weaken
+    (fun _ hp => hp)
+    (fun _ hq => by
+      rw [← exp_prologue_result_word_one sp]
+      xperm_hyp hq)
+    (exp_prologue_ofProg_spec_within sp cOld tOld m0 m1 m2 m3 base)
+
 -- ============================================================================
 -- Section 6: exp_epilogue (9 instructions, slice 4f / evm-asm-20z6.2)
 -- ============================================================================
