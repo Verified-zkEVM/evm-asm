@@ -357,6 +357,25 @@ theorem evmMemExpand_mload_byte_lt
   have h_end := evmMemExpand_mload_ge_end sizeBytes offset
   omega
 
+/-- MSTORE is also a 32-byte byte-addressed access: expansion covers the byte
+    just past the requested range for any starting byte offset. -/
+theorem evmMemExpand_mstore_ge_end (sizeBytes offset : Nat) :
+    offset + 32 ≤ evmMemExpand sizeBytes offset 32 := by
+  exact evmMemExpand_mload_ge_end sizeBytes offset
+
+/-- MSTORE expansion covers the starting byte for any byte offset; no
+    doubleword-alignment precondition is needed. -/
+theorem evmMemExpand_mstore_ge_start (sizeBytes offset : Nat) :
+    offset ≤ evmMemExpand sizeBytes offset 32 := by
+  exact evmMemExpand_mload_ge_start sizeBytes offset
+
+/-- Every byte selected by MSTORE lies below the expanded high-water mark,
+    independent of the offset's alignment. -/
+theorem evmMemExpand_mstore_byte_lt
+    (sizeBytes offset byteIndex : Nat) (h_byte : byteIndex < 32) :
+    offset + byteIndex < evmMemExpand sizeBytes offset 32 := by
+  exact evmMemExpand_mload_byte_lt sizeBytes offset byteIndex h_byte
+
 theorem evmMemExpand_mload_byte_dword_end_le
     (sizeBytes offset byteIndex : Nat) (h_byte : byteIndex < 32) :
     ((offset + byteIndex) / 8 + 1) * 8 ≤
@@ -463,6 +482,44 @@ theorem evmMemExpand_mload_dword_span
     (evmMemExpand_mload_dword_interval sizeBytes offset).1,
     (evmMemExpand_mload_last_dword_interval sizeBytes offset).2⟩
 
+theorem evmMemExpand_mstore_byte_dword_end_le
+    (sizeBytes offset byteIndex : Nat) (h_byte : byteIndex < 32) :
+    ((offset + byteIndex) / 8 + 1) * 8 ≤
+      evmMemExpand sizeBytes offset 32 := by
+  exact evmMemExpand_mload_byte_dword_end_le sizeBytes offset byteIndex h_byte
+
+theorem evmMemExpand_mstore_byte_dword_start_lt
+    (sizeBytes offset byteIndex : Nat) (h_byte : byteIndex < 32) :
+    ((offset + byteIndex) / 8) * 8 <
+      evmMemExpand sizeBytes offset 32 := by
+  exact evmMemExpand_mload_byte_dword_start_lt sizeBytes offset byteIndex h_byte
+
+theorem evmMemExpand_mstore_byte_dword_interval
+    (sizeBytes offset byteIndex : Nat) (h_byte : byteIndex < 32) :
+    ((offset + byteIndex) / 8) * 8 <
+        evmMemExpand sizeBytes offset 32 ∧
+      ((offset + byteIndex) / 8 + 1) * 8 ≤
+        evmMemExpand sizeBytes offset 32 := by
+  exact evmMemExpand_mload_byte_dword_interval sizeBytes offset byteIndex h_byte
+
+theorem evmMemExpand_mstore_dword_interval
+    (sizeBytes offset : Nat) :
+    (offset / 8) * 8 < evmMemExpand sizeBytes offset 32 ∧
+      (offset / 8 + 1) * 8 ≤ evmMemExpand sizeBytes offset 32 := by
+  exact evmMemExpand_mload_dword_interval sizeBytes offset
+
+theorem evmMemExpand_mstore_last_dword_interval
+    (sizeBytes offset : Nat) :
+    ((offset + 31) / 8) * 8 < evmMemExpand sizeBytes offset 32 ∧
+      ((offset + 31) / 8 + 1) * 8 ≤ evmMemExpand sizeBytes offset 32 := by
+  exact evmMemExpand_mload_last_dword_interval sizeBytes offset
+
+theorem evmMemExpand_mstore_dword_span
+    (sizeBytes offset : Nat) :
+    (offset / 8) * 8 < evmMemExpand sizeBytes offset 32 ∧
+      ((offset + 31) / 8 + 1) * 8 ≤ evmMemExpand sizeBytes offset 32 := by
+  exact evmMemExpand_mload_dword_span sizeBytes offset
+
 theorem evmMemExpand_mstore8_byte_dword_interval
     (sizeBytes offset byteIndex : Nat) (h_byte : byteIndex < 1) :
     ((offset + byteIndex) / 8) * 8 <
@@ -498,6 +555,19 @@ theorem evmMemExpand_mstore8_dword_interval
     (offset / 8) * 8 < evmMemExpand sizeBytes offset 1 ∧
       (offset / 8 + 1) * 8 ≤ evmMemExpand sizeBytes offset 1 := by
   exact evmMemExpand_mstore8_byte_dword_interval sizeBytes offset 0 (by decide)
+
+theorem evmMemExpand_mstore_byte_dword_byte_lt
+    (sizeBytes offset byteIndex dwordByte : Nat)
+    (h_byte : byteIndex < 32) (h_dwordByte : dwordByte < 8) :
+    ((offset + byteIndex) / 8) * 8 + dwordByte <
+      evmMemExpand sizeBytes offset 32 := by
+  have h_interval :=
+    evmMemExpand_mstore_byte_dword_interval sizeBytes offset byteIndex h_byte
+  have h_lt_end :
+      ((offset + byteIndex) / 8) * 8 + dwordByte <
+        ((offset + byteIndex) / 8 + 1) * 8 := by
+    omega
+  exact Nat.lt_of_lt_of_le h_lt_end h_interval.2
 
 theorem evmMemExpand_le_max_old_access_plus_31
     (sizeBytes offset length : Nat) :
