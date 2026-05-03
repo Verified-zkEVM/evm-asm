@@ -38,6 +38,9 @@ def decodeByte? : Nat → Option EvmOpcode
   | 0x1b => some SHL
   | 0x1c => some SHR
   | 0x1d => some SAR
+  | 0x35 => some CALLDATALOAD
+  | 0x36 => some CALLDATASIZE
+  | 0x37 => some CALLDATACOPY
   | 0x50 => some POP
   | 0x51 => some MLOAD
   | 0x52 => some MSTORE
@@ -117,6 +120,9 @@ def modeledByte (b : Nat) : Prop :=
 
 theorem decodeByte?_ADD : decodeByte? 0x01 = some ADD := rfl
 theorem decodeByte?_EXP : decodeByte? 0x0a = some EXP := rfl
+theorem decodeByte?_CALLDATALOAD : decodeByte? 0x35 = some CALLDATALOAD := rfl
+theorem decodeByte?_CALLDATASIZE : decodeByte? 0x36 = some CALLDATASIZE := rfl
+theorem decodeByte?_CALLDATACOPY : decodeByte? 0x37 = some CALLDATACOPY := rfl
 theorem decodeByte?_MLOAD : decodeByte? 0x51 = some MLOAD := rfl
 theorem decodeByte?_PUSH0 : decodeByte? 0x5f = some PUSH0 := rfl
 theorem decodeByte?_PUSH1 : decodeByte? 0x60 = some (PUSH 1) := rfl
@@ -128,6 +134,18 @@ theorem decodeByte?_SWAP16 : decodeByte? 0x9f = some (SWAP 16) := rfl
 
 theorem byte?_roundtrip_ADD :
     byte? ADD = some 0x01 ∧ decodeByte? 0x01 = some ADD := by
+  exact ⟨rfl, rfl⟩
+
+theorem byte?_roundtrip_CALLDATALOAD :
+    byte? CALLDATALOAD = some 0x35 ∧ decodeByte? 0x35 = some CALLDATALOAD := by
+  exact ⟨rfl, rfl⟩
+
+theorem byte?_roundtrip_CALLDATASIZE :
+    byte? CALLDATASIZE = some 0x36 ∧ decodeByte? 0x36 = some CALLDATASIZE := by
+  exact ⟨rfl, rfl⟩
+
+theorem byte?_roundtrip_CALLDATACOPY :
+    byte? CALLDATACOPY = some 0x37 ∧ decodeByte? 0x37 = some CALLDATACOPY := by
   exact ⟨rfl, rfl⟩
 
 theorem byte?_roundtrip_PUSH32 :
