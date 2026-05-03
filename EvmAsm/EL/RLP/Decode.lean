@@ -97,6 +97,11 @@ end
 def decode (bs : List Byte) : Option (RLPItem × List Byte) :=
   decodeAux (2 * bs.length) bs
 
+/-- Expose the exact fuel budget used by the top-level decode wrapper. -/
+theorem decode_eq_decodeAux_length (bs : List Byte) :
+    decode bs = decodeAux (2 * bs.length) bs := by
+  rfl
+
 /-- Top-level decode on a nonempty stream uses two fuel units for the head byte
     plus twice the tail length. -/
 theorem decode_cons_eq_decodeAux_fuel (pfx : Byte) (rest : List Byte) :
