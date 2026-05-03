@@ -10,6 +10,51 @@ namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
 
+/-- CodeReq for all four MLOAD output-limb byte-pack blocks, placed after the
+    two-instruction address prologue. -/
+def mloadFourLimbsCode
+    (addrReg byteReg accReg : Reg) (base : Word) : CodeReq :=
+  (mloadOneLimbCode addrReg byteReg accReg
+      24 25 26 27 28 29 30 31 0 (base + 8)).union
+    ((mloadOneLimbCode addrReg byteReg accReg
+        16 17 18 19 20 21 22 23 8 (base + 100)).union
+      ((mloadOneLimbCode addrReg byteReg accReg
+          8 9 10 11 12 13 14 15 16 (base + 192)).union
+        (mloadOneLimbCode addrReg byteReg accReg
+          0 1 2 3 4 5 6 7 24 (base + 284))))
+
+/-- Compact CodeReq for the full MLOAD program: address prologue followed by
+    the four unaligned output-limb blocks. -/
+def mloadStackCode
+    (offReg byteReg accReg addrReg memBaseReg : Reg) (base : Word) : CodeReq :=
+  (mloadPrologueCode offReg addrReg memBaseReg base).union
+    (mloadFourLimbsCode addrReg byteReg accReg base)
+
+theorem mloadStackCode_prologue_sub
+    (offReg byteReg accReg addrReg memBaseReg : Reg) (base : Word) :
+    ∀ a i, (mloadPrologueCode offReg addrReg memBaseReg base) a = some i →
+      (mloadStackCode offReg byteReg accReg addrReg memBaseReg base) a = some i := by
+  unfold mloadStackCode
+  exact CodeReq.union_mono_left
+
+theorem mload_prologue_stack_spec_within
+    (offReg byteReg accReg addrReg memBaseReg : Reg)
+    (sp offset offOld addrOld memBase : Word) (base : Word)
+    (h_off_ne_x0 : offReg ≠ .x0)
+    (h_addr_ne_x0 : addrReg ≠ .x0) :
+    cpsTripleWithin 2 base (base + 8)
+      (mloadStackCode offReg byteReg accReg addrReg memBaseReg base)
+      (((.x12 : Reg) ↦ᵣ sp) ** (offReg ↦ᵣ offOld) **
+       (memBaseReg ↦ᵣ memBase) ** (addrReg ↦ᵣ addrOld) **
+       (sp ↦ₘ offset))
+      (((.x12 : Reg) ↦ᵣ sp) ** (offReg ↦ᵣ offset) **
+       (memBaseReg ↦ᵣ memBase) ** (addrReg ↦ᵣ (memBase + offset)) **
+       (sp ↦ₘ offset)) := by
+  exact cpsTripleWithin_extend_code
+    (h := mload_prologue_spec_within offReg addrReg memBaseReg
+      sp offset offOld addrOld memBase base h_off_ne_x0 h_addr_ne_x0)
+    (hmono := mloadStackCode_prologue_sub offReg byteReg accReg addrReg memBaseReg base)
+
 /--
   The 256-bit value loaded by MLOAD when each output limb is assembled from
   an adjacent low/high dword pair. The four limbs are stored in EVM-stack
