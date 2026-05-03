@@ -524,4 +524,12 @@ theorem mloadStackOutputPostFiveDwords_evmWordIs_fold
   rw [mloadStackOutputPostFiveDwords_unfold]
   rw [mloadLoadedWordFromFiveDwords_evmWordIs_fold]
 
+theorem mloadStackOutputPostFiveDwords_evmStackIs_fold
+    (sp d0 d1 d2 d3 d4 : Word) (start : Nat) (rest : List EvmWord) :
+    (mloadStackOutputPostFiveDwords sp d0 d1 d2 d3 d4 start **
+      evmStackIs (sp + 32) rest) =
+    evmStackIs sp (mloadLoadedWordFromFiveDwords d0 d1 d2 d3 d4 start :: rest) := by
+  rw [mloadStackOutputPostFiveDwords_unfold]
+  rfl
+
 end EvmAsm.Evm64
