@@ -114,6 +114,14 @@ private theorem evmWordIs_msize_unfold (nsp : Word) (sizeBytes : Nat)
       hhigh 2 (by decide) (by decide),
       hhigh 3 (by decide) (by decide)]
 
+/-- Fold the four concrete MSIZE output limbs into the stack-word assertion. -/
+theorem msizeWord_evmWordIs_fold (nsp : Word) (sizeBytes : Nat)
+    (h_size_lt : sizeBytes < 2 ^ 64) :
+    ((nsp ↦ₘ BitVec.ofNat 64 sizeBytes) ** ((nsp + 8) ↦ₘ 0) **
+      ((nsp + 16) ↦ₘ 0) ** ((nsp + 24) ↦ₘ 0)) =
+    evmWordIs nsp (BitVec.ofNat 256 sizeBytes) := by
+  rw [evmWordIs_msize_unfold nsp sizeBytes h_size_lt]
+
 /-- MSIZE stack spec: pushes `BitVec.ofNat 256 sizeBytes` (the EVM memory
     high-water mark) onto the EVM stack. Requires `sizeBytes < 2^64`,
     which always holds for realistic EVM executions. -/
