@@ -22,6 +22,7 @@
 -/
 
 import EvmAsm.Rv64.SyscallSpecs
+import EvmAsm.Rv64.Tactics.XSimp
 
 namespace EvmAsm.Rv64
 
@@ -82,5 +83,21 @@ namespace EvmAsm.Rv64
     -- h3 : (((x10 ↦ᵣ ofNat input.length) ** ((addr ↦ᵢ .ECALL) ** ..)) ** R)
     --        .holdsFor (s.setReg x10 _)
     exact holdsFor_pcFree_setPC (pcFree_sepConj (by pcFree) hR) h3
+
+/-- `HINT_LEN` variant for callers that only own the return register `x10`,
+    rather than knowing its pre-state value. -/
+theorem ecall_hint_len_spec_gen_own_within
+    (input : List (BitVec 8)) (addr : Word) :
+    cpsTripleWithin 1 addr (addr + 4) (CodeReq.singleton addr .ECALL)
+      (((addr ↦ᵢ .ECALL) ** (.x5 ↦ᵣ (BitVec.ofNat 64 0xF0)) **
+        privateInputIs input) ** regOwn .x10)
+      ((.x10 ↦ᵣ (BitVec.ofNat 64 input.length)) ** (addr ↦ᵢ .ECALL) **
+        (.x5 ↦ᵣ (BitVec.ofNat 64 0xF0)) ** privateInputIs input) := by
+  apply cpsTripleWithin_of_forall_regIs_to_regOwn
+  intro vOld
+  exact cpsTripleWithin_weaken
+    (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq)
+    (ecall_hint_len_spec_gen_within vOld input addr)
 
 end EvmAsm.Rv64
