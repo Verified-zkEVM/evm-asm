@@ -181,6 +181,37 @@ theorem exp_boundary_result_one_full_stack_shape_spec_within
     (exp_boundary_result_one_stack_tail_spec_within sp evmSp cOld tOld m0 m1 m2 m3 base
       baseWord exponentWord rest)
 
+/-- Boundary bridge with both input and output operands expressed as ordinary
+    EVM stack prefixes. The scratch accumulator at `sp` remains explicit,
+    because the boundary mini-program writes it before the full EXP loop is
+    available. -/
+theorem exp_boundary_result_one_full_post_stack_shape_spec_within
+    (sp evmSp cOld tOld m0 m1 m2 m3 : Word) (base : Word)
+    (baseWord exponentWord : EvmWord) (rest : List EvmWord) :
+    cpsTripleWithin 15 base (base + 60) (expBoundaryProgramCode base)
+      ((.x2 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) ** (.x9 ↦ᵣ cOld) **
+       (.x5 ↦ᵣ tOld) ** (.x12 ↦ᵣ evmSp) **
+       ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ m0) **
+       ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ m1) **
+       ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ m2) **
+       ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ m3) **
+       evmStackIs evmSp (baseWord :: exponentWord :: rest))
+      ((.x2 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) **
+       (.x9 ↦ᵣ ((0 : Word) + signExtend12 (256 : BitVec 12))) **
+       (.x12 ↦ᵣ (evmSp + signExtend12 (32 : BitVec 12))) **
+       (.x5 ↦ᵣ (0 : Word)) **
+       evmWordIs sp (1 : EvmWord) **
+       evmStackIs evmSp (baseWord :: (1 : EvmWord) :: rest)) := by
+  exact cpsTripleWithin_weaken
+    (fun _ hp => hp)
+    (fun _ hp => by
+      rw [evmStackIs_cons] at hp
+      rw [evmStackIs_cons, evmStackIs_cons]
+      rw [show (evmSp + 32 : Word) + 32 = evmSp + 64 from by bv_addr] at hp ⊢
+      xperm_hyp hp)
+    (exp_boundary_result_one_full_stack_shape_spec_within sp evmSp cOld tOld m0 m1 m2 m3 base
+      baseWord exponentWord rest)
+
 -- Placeholder: `evm_exp_stack_spec_within` lands in slice 6 (evm-asm-6snn).
 
 end EvmAsm.Evm64
