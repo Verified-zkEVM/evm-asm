@@ -165,6 +165,20 @@ theorem expBoundaryProgram_byte_len : 4 * expBoundaryProgram.length = 60 := by
 abbrev expBoundaryProgramCode (base : Word) : CodeReq :=
   CodeReq.ofProg base expBoundaryProgram
 
+/-- The structural boundary-code union is exactly the executable boundary
+    program's `CodeReq.ofProg` handle. -/
+theorem expBoundaryCode_eq_programCode (base : Word) :
+    expBoundaryCode base = expBoundaryProgramCode base := by
+  unfold expBoundaryCode expBoundaryProgramCode expBoundaryProgram
+  simp only [CodeReq.unionAll_cons, CodeReq.unionAll_nil,
+    CodeReq.union_empty_right, EvmAsm.Rv64.seq]
+  rw [show (base + 24 : Word) =
+      base + BitVec.ofNat 64 (4 * EvmAsm.Evm64.exp_prologue.length) by
+    rw [exp_prologue_len]
+    bv_omega]
+  rw [← CodeReq.ofProg_append]
+  rfl
+
 theorem expBoundaryProgramCode_prologue_sub {base : Word} :
     ∀ a i, (CodeReq.ofProg base EvmAsm.Evm64.exp_prologue) a = some i →
       (expBoundaryProgramCode base) a = some i := by
