@@ -165,6 +165,20 @@ theorem expBoundaryProgram_byte_len : 4 * expBoundaryProgram.length = 60 := by
 abbrev expBoundaryProgramCode (base : Word) : CodeReq :=
   CodeReq.ofProg base expBoundaryProgram
 
+/-- The structural boundary-code union is exactly the executable boundary
+    program's `CodeReq.ofProg` handle. -/
+theorem expBoundaryCode_eq_programCode (base : Word) :
+    expBoundaryCode base = expBoundaryProgramCode base := by
+  unfold expBoundaryCode expBoundaryProgramCode expBoundaryProgram
+  simp only [CodeReq.unionAll_cons, CodeReq.unionAll_nil,
+    CodeReq.union_empty_right, EvmAsm.Rv64.seq]
+  rw [show (base + 24 : Word) =
+      base + BitVec.ofNat 64 (4 * EvmAsm.Evm64.exp_prologue.length) by
+    rw [exp_prologue_len]
+    bv_omega]
+  rw [← CodeReq.ofProg_append]
+  rfl
+
 theorem expBoundaryProgramCode_prologue_sub {base : Word} :
     ∀ a i, (CodeReq.ofProg base EvmAsm.Evm64.exp_prologue) a = some i →
       (expBoundaryProgramCode base) a = some i := by
@@ -342,6 +356,37 @@ theorem expBoundaryProgram_spec_within
     · exact expBoundaryProgramCode_epilogue_sub a i h
   simpa only [Nat.reduceAdd] using
     cpsTripleWithin_extend_code hUnionSub hSeq
+
+/-- Composed spec for the current EXP boundary mini-program over the
+    structural boundary `CodeReq` union. -/
+theorem expBoundaryCode_spec_within
+    (sp evmSp cOld tOld m0 m1 m2 m3 d0 d1 d2 d3 : Word) (base : Word) :
+    cpsTripleWithin 15 base (base + 60) (expBoundaryCode base)
+      ((.x2 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) ** (.x9 ↦ᵣ cOld) **
+       (.x5 ↦ᵣ tOld) ** (.x12 ↦ᵣ evmSp) **
+       ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ m0) **
+       ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ m1) **
+       ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ m2) **
+       ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ m3) **
+       ((evmSp + signExtend12 (32 : BitVec 12)) ↦ₘ d0) **
+       ((evmSp + signExtend12 (40 : BitVec 12)) ↦ₘ d1) **
+       ((evmSp + signExtend12 (48 : BitVec 12)) ↦ₘ d2) **
+       ((evmSp + signExtend12 (56 : BitVec 12)) ↦ₘ d3))
+      ((.x2 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) **
+       (.x9 ↦ᵣ ((0 : Word) + signExtend12 (256 : BitVec 12))) **
+       (.x12 ↦ᵣ (evmSp + signExtend12 (32 : BitVec 12))) **
+       (.x5 ↦ᵣ (0 : Word)) **
+       ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ
+        ((0 : Word) + signExtend12 (1 : BitVec 12))) **
+       ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ (0 : Word)) **
+       evmWordIs (evmSp + 32) (expResultWord
+        ((0 : Word) + signExtend12 (1 : BitVec 12))
+        (0 : Word) (0 : Word) (0 : Word))) := by
+  rw [expBoundaryCode_eq_programCode]
+  exact expBoundaryProgram_spec_within
+    sp evmSp cOld tOld m0 m1 m2 m3 d0 d1 d2 d3 base
 
 /-- CodeReq decomposition for one EXP loop iteration. This mirrors
     `exp_loop`: bit-test (3 instructions), square call (1), conditional
@@ -570,6 +615,43 @@ theorem expOneIterCode_loop_sub {base : Word}
         · cases h
           exact expLoopCode_loop_back_sub a _ (by assumption)
         · simp_all [CodeReq.empty]
+
+theorem expLoopCode_eq_oneIterCode (base : Word)
+    (mulOff : BitVec 21) (skipOff backOff : BitVec 13) :
+    expLoopCode base mulOff skipOff backOff =
+      expOneIterCode base mulOff skipOff backOff := by
+  unfold expLoopCode expOneIterCode
+  unfold EvmAsm.Evm64.exp_loop
+  simp only [EvmAsm.Rv64.seq]
+  unfold Program
+  rw [CodeReq.ofProg_append]
+  have h24 :
+      base + BitVec.ofNat 64 (4 *
+        (EvmAsm.Evm64.exp_iter_body mulOff skipOff).length) = base + 24 := by
+    rw [EvmAsm.Evm64.exp_iter_body_length]
+    rfl
+  rw [h24]
+  unfold EvmAsm.Evm64.exp_iter_body
+  simp only [EvmAsm.Rv64.seq]
+  unfold Program
+  rw [CodeReq.ofProg_append]
+  have h12 :
+      base + BitVec.ofNat 64 (4 *
+        (EvmAsm.Evm64.exp_bit_test_block).length) = base + 12 := by
+    rw [EvmAsm.Evm64.exp_bit_test_block_length]
+    rfl
+  rw [h12]
+  rw [CodeReq.ofProg_append]
+  have h16 :
+      (base + 12 : Word) + BitVec.ofNat 64 (4 *
+        (EvmAsm.Evm64.exp_square_block mulOff).length) = base + 16 := by
+    rw [EvmAsm.Evm64.exp_square_block_length]
+    bv_addr
+  rw [h16]
+  simp only [CodeReq.unionAll_cons, CodeReq.unionAll_nil]
+  rw [CodeReq.union_empty_right]
+  rw [CodeReq.union_assoc]
+  rw [CodeReq.union_assoc]
 
 theorem exp_loop_back_loop_spec_within (c : Word)
     (mulOff : BitVec 21) (skipOff backOff : BitVec 13)

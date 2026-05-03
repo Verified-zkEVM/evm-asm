@@ -63,10 +63,25 @@ import EvmAsm.Evm64.CallingConvention
 import EvmAsm.Evm64.Environment
 import EvmAsm.Evm64.Environment.Layout
 import EvmAsm.Evm64.Environment.Assertion
+import EvmAsm.Evm64.Env.Field
+
+-- Static gas schedule (#117)
+import EvmAsm.Evm64.Gas
+import EvmAsm.Evm64.StorageGas
+import EvmAsm.Evm64.StorageAccess
+
+-- Opcode dispatch surface (#106)
+import EvmAsm.Evm64.Dispatch
 
 -- EVM memory model (issue #99)
 import EvmAsm.Evm64.Memory
+import EvmAsm.Evm64.MemoryGas
+import EvmAsm.Evm64.EvmState
 import EvmAsm.Evm64.MSize
 import EvmAsm.Evm64.MStore8
 import EvmAsm.Evm64.MStore
 import EvmAsm.Evm64.MLoad
+
+-- Calldata helpers (issue #104)
+import EvmAsm.Evm64.Calldata.Basic
+import EvmAsm.Evm64.Calldata.Size

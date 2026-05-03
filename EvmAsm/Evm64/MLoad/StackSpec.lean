@@ -10,6 +10,170 @@ namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
 
+/-- CodeReq for all four MLOAD output-limb byte-pack blocks, placed after the
+    two-instruction address prologue. -/
+def mloadFourLimbsCode
+    (addrReg byteReg accReg : Reg) (base : Word) : CodeReq :=
+  (mloadOneLimbCode addrReg byteReg accReg
+      24 25 26 27 28 29 30 31 0 (base + 8)).union
+    ((mloadOneLimbCode addrReg byteReg accReg
+        16 17 18 19 20 21 22 23 8 (base + 100)).union
+      ((mloadOneLimbCode addrReg byteReg accReg
+          8 9 10 11 12 13 14 15 16 (base + 192)).union
+        (mloadOneLimbCode addrReg byteReg accReg
+          0 1 2 3 4 5 6 7 24 (base + 284))))
+
+/-- Program form of the four MLOAD output-limb byte-pack blocks, placed after
+    the two-instruction address prologue. -/
+def mloadFourLimbsProg
+    (addrReg byteReg accReg : Reg) : Program :=
+  mloadTwoLimbsProg addrReg byteReg accReg
+    24 25 26 27 28 29 30 31 0
+    16 17 18 19 20 21 22 23 8 ;;
+  mloadTwoLimbsProg addrReg byteReg accReg
+    8 9 10 11 12 13 14 15 16
+    0 1 2 3 4 5 6 7 24
+
+theorem mloadFourLimbsCode_eq_ofProg
+    (addrReg byteReg accReg : Reg) (base : Word) :
+    mloadFourLimbsCode addrReg byteReg accReg base =
+      CodeReq.ofProg (base + 8)
+        (mloadFourLimbsProg addrReg byteReg accReg) := by
+  have hshape :
+      mloadFourLimbsCode addrReg byteReg accReg base =
+        (mloadTwoLimbsCode addrReg byteReg accReg
+          24 25 26 27 28 29 30 31 0
+          16 17 18 19 20 21 22 23 8 (base + 8)).union
+        (mloadTwoLimbsCode addrReg byteReg accReg
+          8 9 10 11 12 13 14 15 16
+          0 1 2 3 4 5 6 7 24 (base + 192)) := by
+    unfold mloadFourLimbsCode mloadTwoLimbsCode
+    rw [← CodeReq.union_assoc]
+    rw [show (base + 8 : Word) + 92 = base + 100 from by bv_addr]
+    rw [show (base + 192 : Word) + 92 = base + 284 from by bv_addr]
+  rw [hshape, mloadTwoLimbsCode_eq_ofProg, mloadTwoLimbsCode_eq_ofProg]
+  let p1 := mloadTwoLimbsProg addrReg byteReg accReg
+    24 25 26 27 28 29 30 31 0
+    16 17 18 19 20 21 22 23 8
+  let p2 := mloadTwoLimbsProg addrReg byteReg accReg
+    8 9 10 11 12 13 14 15 16
+    0 1 2 3 4 5 6 7 24
+  change (CodeReq.ofProg (base + 8) p1).union (CodeReq.ofProg (base + 192) p2) =
+    CodeReq.ofProg (base + 8) (List.append p1 p2)
+  rw [show base + 192 = (base + 8) + BitVec.ofNat 64 (4 * p1.length) from by
+    unfold p1 mloadTwoLimbsProg mloadOneLimbProg mloadBytePackEightProg
+      LBU SLLI OR' SD single seq
+    symm
+    bv_addr]
+  exact (@CodeReq.ofProg_append (base + 8) p1 p2).symm
+
+/-- Compact CodeReq for the full MLOAD program: address prologue followed by
+    the four unaligned output-limb blocks. -/
+def mloadStackCode
+    (offReg byteReg accReg addrReg memBaseReg : Reg) (base : Word) : CodeReq :=
+  (mloadPrologueCode offReg addrReg memBaseReg base).union
+    (mloadFourLimbsCode addrReg byteReg accReg base)
+
+theorem mloadStackCode_prologue_sub
+    (offReg byteReg accReg addrReg memBaseReg : Reg) (base : Word) :
+    ∀ a i, (mloadPrologueCode offReg addrReg memBaseReg base) a = some i →
+      (mloadStackCode offReg byteReg accReg addrReg memBaseReg base) a = some i := by
+  unfold mloadStackCode
+  exact CodeReq.union_mono_left
+
+theorem mloadPrologueCode_disjoint_mloadFourLimbsCode
+    (offReg byteReg accReg addrReg memBaseReg : Reg) (base : Word) :
+    CodeReq.Disjoint
+      (mloadPrologueCode offReg addrReg memBaseReg base)
+      (mloadFourLimbsCode addrReg byteReg accReg base) := by
+  rw [mloadFourLimbsCode_eq_ofProg]
+  unfold mloadPrologueCode
+  refine CodeReq.Disjoint.union_left ?_ ?_
+  · apply CodeReq.Disjoint.singleton_ofProg
+    apply CodeReq.ofProg_none_range
+    intro k hk h_eq
+    have hk_lt : k < 92 := by
+      simpa [mloadFourLimbsProg, mloadTwoLimbsProg, mloadOneLimbProg,
+        mloadBytePackEightProg, LBU, SLLI, OR', SD, single, seq] using hk
+    have h_ne :
+        base ≠ (base + 8) + BitVec.ofNat 64 (4 * k) := by
+      bv_omega
+    exact h_ne h_eq
+  · apply CodeReq.Disjoint.singleton_ofProg
+    apply CodeReq.ofProg_none_range
+    intro k hk h_eq
+    have hk_lt : k < 92 := by
+      simpa [mloadFourLimbsProg, mloadTwoLimbsProg, mloadOneLimbProg,
+        mloadBytePackEightProg, LBU, SLLI, OR', SD, single, seq] using hk
+    have h_ne :
+        base + 4 ≠ (base + 8) + BitVec.ofNat 64 (4 * k) := by
+      bv_omega
+    exact h_ne h_eq
+
+theorem mloadStackCode_four_limbs_sub
+    (offReg byteReg accReg addrReg memBaseReg : Reg) (base : Word) :
+    ∀ a i, (mloadFourLimbsCode addrReg byteReg accReg base) a = some i →
+      (mloadStackCode offReg byteReg accReg addrReg memBaseReg base) a = some i := by
+  unfold mloadStackCode
+  exact CodeReq.mono_union_right
+    (mloadPrologueCode_disjoint_mloadFourLimbsCode
+      offReg byteReg accReg addrReg memBaseReg base)
+    (fun _ _ h => h)
+
+theorem mload_prologue_stack_spec_within
+    (offReg byteReg accReg addrReg memBaseReg : Reg)
+    (sp offset offOld addrOld memBase : Word) (base : Word)
+    (h_off_ne_x0 : offReg ≠ .x0)
+    (h_addr_ne_x0 : addrReg ≠ .x0) :
+    cpsTripleWithin 2 base (base + 8)
+      (mloadStackCode offReg byteReg accReg addrReg memBaseReg base)
+      (((.x12 : Reg) ↦ᵣ sp) ** (offReg ↦ᵣ offOld) **
+       (memBaseReg ↦ᵣ memBase) ** (addrReg ↦ᵣ addrOld) **
+       (sp ↦ₘ offset))
+      (((.x12 : Reg) ↦ᵣ sp) ** (offReg ↦ᵣ offset) **
+       (memBaseReg ↦ᵣ memBase) ** (addrReg ↦ᵣ (memBase + offset)) **
+       (sp ↦ₘ offset)) := by
+  exact cpsTripleWithin_extend_code
+    (h := mload_prologue_spec_within offReg addrReg memBaseReg
+      sp offset offOld addrOld memBase base h_off_ne_x0 h_addr_ne_x0)
+    (hmono := mloadStackCode_prologue_sub offReg byteReg accReg addrReg memBaseReg base)
+
+theorem mload_four_limb_sequence_spec_within
+    {n0 n1 n2 n3 : Nat} {P0 P1 P2 P3 P4 : Assertion}
+    (addrReg byteReg accReg : Reg) (base : Word)
+    (h0 :
+      cpsTripleWithin n0 (base + 8) (base + 100)
+        (mloadFourLimbsCode addrReg byteReg accReg base) P0 P1)
+    (h1 :
+      cpsTripleWithin n1 (base + 100) (base + 192)
+        (mloadFourLimbsCode addrReg byteReg accReg base) P1 P2)
+    (h2 :
+      cpsTripleWithin n2 (base + 192) (base + 284)
+        (mloadFourLimbsCode addrReg byteReg accReg base) P2 P3)
+    (h3 :
+      cpsTripleWithin n3 (base + 284) (base + 376)
+        (mloadFourLimbsCode addrReg byteReg accReg base) P3 P4) :
+    cpsTripleWithin (n0 + n1 + n2 + n3) (base + 8) (base + 376)
+      (mloadFourLimbsCode addrReg byteReg accReg base) P0 P4 := by
+  exact cpsTripleWithin_seq_same_cr
+    (cpsTripleWithin_seq_same_cr
+      (cpsTripleWithin_seq_same_cr h0 h1)
+      h2)
+    h3
+
+theorem mload_four_limbs_stack_spec_within
+    {n : Nat} {P Q : Assertion}
+    (offReg byteReg accReg addrReg memBaseReg : Reg) (base : Word)
+    (h :
+      cpsTripleWithin n (base + 8) (base + 376)
+        (mloadFourLimbsCode addrReg byteReg accReg base) P Q) :
+    cpsTripleWithin n (base + 8) (base + 376)
+      (mloadStackCode offReg byteReg accReg addrReg memBaseReg base) P Q := by
+  exact cpsTripleWithin_extend_code
+    (h := h)
+    (hmono := mloadStackCode_four_limbs_sub
+      offReg byteReg accReg addrReg memBaseReg base)
+
 /--
   The 256-bit value loaded by MLOAD when each output limb is assembled from
   an adjacent low/high dword pair. The four limbs are stored in EVM-stack
@@ -286,5 +450,86 @@ theorem mloadStackOutputPost_evmWordIs_fold
   rw [mloadStackOutputPost_unfold]
   rw [mloadStackOutputWordFromDwordPairs_eq_mloadLoadedWordFromDwordPairs]
   rw [mloadLoadedWordFromDwordPairs_evmWordIs_fold]
+
+/--
+  The 256-bit value loaded by a 32-byte unaligned MLOAD window spanning five
+  consecutive RV64 dwords. The single `start` byte offset applies to each
+  8-byte EVM limb window; adjacent limbs share boundary dwords.
+-/
+def mloadLoadedWordFromFiveDwords
+    (d0 d1 d2 d3 d4 : Word) (start : Nat) : EvmWord :=
+  mloadLoadedWordFromDwordPairs
+    d3 d4 start
+    d2 d3 start
+    d1 d2 start
+    d0 d1 start
+
+theorem mloadLoadedWordFromFiveDwords_eq_mloadLoadedWordFromDwordPairs
+    (d0 d1 d2 d3 d4 : Word) (start : Nat) :
+    mloadLoadedWordFromFiveDwords d0 d1 d2 d3 d4 start =
+      mloadLoadedWordFromDwordPairs
+        d3 d4 start
+        d2 d3 start
+        d1 d2 start
+        d0 d1 start := by
+  rfl
+
+/--
+  Fold the four output limbs from a five-dword unaligned MLOAD source window
+  into one `evmWordIs` assertion.
+-/
+theorem mloadLoadedWordFromFiveDwords_evmWordIs_fold
+    (sp d0 d1 d2 d3 d4 : Word) (start : Nat) :
+    ((sp ↦ₘ mloadPackedLimbFromDwordPair d3 d4 start) **
+     ((sp + 8) ↦ₘ mloadPackedLimbFromDwordPair d2 d3 start) **
+     ((sp + 16) ↦ₘ mloadPackedLimbFromDwordPair d1 d2 start) **
+     ((sp + 24) ↦ₘ mloadPackedLimbFromDwordPair d0 d1 start)) =
+    evmWordIs sp (mloadLoadedWordFromFiveDwords d0 d1 d2 d3 d4 start) := by
+  rw [mloadLoadedWordFromFiveDwords_eq_mloadLoadedWordFromDwordPairs]
+  rw [mloadLoadedWordFromDwordPairs_evmWordIs_fold]
+
+theorem mloadLoadedWordFromFiveDwords_evmStackIs_fold
+    (sp d0 d1 d2 d3 d4 : Word) (start : Nat) (rest : List EvmWord) :
+    (((sp ↦ₘ mloadPackedLimbFromDwordPair d3 d4 start) **
+      ((sp + 8) ↦ₘ mloadPackedLimbFromDwordPair d2 d3 start) **
+      ((sp + 16) ↦ₘ mloadPackedLimbFromDwordPair d1 d2 start) **
+      ((sp + 24) ↦ₘ mloadPackedLimbFromDwordPair d0 d1 start)) **
+      evmStackIs (sp + 32) rest) =
+    evmStackIs sp (mloadLoadedWordFromFiveDwords d0 d1 d2 d3 d4 start :: rest) := by
+  rw [mloadLoadedWordFromFiveDwords_evmWordIs_fold]
+  rfl
+
+/--
+  Compact stack postcondition for the five-dword unaligned MLOAD source shape.
+-/
+@[irreducible]
+def mloadStackOutputPostFiveDwords
+    (sp d0 d1 d2 d3 d4 : Word) (start : Nat) : Assertion :=
+  evmWordIs sp (mloadLoadedWordFromFiveDwords d0 d1 d2 d3 d4 start)
+
+theorem mloadStackOutputPostFiveDwords_unfold
+    (sp d0 d1 d2 d3 d4 : Word) (start : Nat) :
+    mloadStackOutputPostFiveDwords sp d0 d1 d2 d3 d4 start =
+      evmWordIs sp (mloadLoadedWordFromFiveDwords d0 d1 d2 d3 d4 start) := by
+  delta mloadStackOutputPostFiveDwords
+  rfl
+
+theorem mloadStackOutputPostFiveDwords_evmWordIs_fold
+    (sp d0 d1 d2 d3 d4 : Word) (start : Nat) :
+    ((sp ↦ₘ mloadPackedLimbFromDwordPair d3 d4 start) **
+     ((sp + 8) ↦ₘ mloadPackedLimbFromDwordPair d2 d3 start) **
+     ((sp + 16) ↦ₘ mloadPackedLimbFromDwordPair d1 d2 start) **
+     ((sp + 24) ↦ₘ mloadPackedLimbFromDwordPair d0 d1 start)) =
+    mloadStackOutputPostFiveDwords sp d0 d1 d2 d3 d4 start := by
+  rw [mloadStackOutputPostFiveDwords_unfold]
+  rw [mloadLoadedWordFromFiveDwords_evmWordIs_fold]
+
+theorem mloadStackOutputPostFiveDwords_evmStackIs_fold
+    (sp d0 d1 d2 d3 d4 : Word) (start : Nat) (rest : List EvmWord) :
+    (mloadStackOutputPostFiveDwords sp d0 d1 d2 d3 d4 start **
+      evmStackIs (sp + 32) rest) =
+    evmStackIs sp (mloadLoadedWordFromFiveDwords d0 d1 d2 d3 d4 start :: rest) := by
+  rw [mloadStackOutputPostFiveDwords_unfold]
+  rfl
 
 end EvmAsm.Evm64

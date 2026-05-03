@@ -41,7 +41,13 @@ open EvmAsm.Rv64
 def mul_callable : Program := evm_mul ;; cc_ret
 
 /-- 63 (`evm_mul`) + 1 (`cc_ret`) = 64 instructions. -/
-example : mul_callable.length = 64 := by decide
+theorem mul_callable_length : mul_callable.length = 64 := by decide
+
+theorem mul_callable_ret_byte_off : 4 * (evm_mul).length = 252 := by
+  native_decide
+
+theorem mul_callable_byte_length : 4 * mul_callable.length = 256 := by
+  rw [mul_callable_length]
 
 -- ============================================================================
 -- Code-region helper
@@ -53,6 +59,21 @@ example : mul_callable.length = 64 := by decide
 abbrev mul_callable_code (base : Word) : CodeReq :=
   CodeReq.union (evm_mul_code base) (cc_ret_code (base + 252))
 
+theorem mul_callable_code_eq_ofProg (base : Word) :
+    mul_callable_code base = CodeReq.ofProg base mul_callable := by
+  unfold mul_callable_code mul_callable cc_ret_code
+  rw [evm_mul_code_eq_ofProg]
+  unfold seq
+  symm
+  have h0 :
+      CodeReq.ofProg base (evm_mul ++ cc_ret) =
+        (CodeReq.ofProg base evm_mul).union
+          (CodeReq.ofProg (base + BitVec.ofNat 64 (4 * evm_mul.length)) cc_ret) := by
+    exact CodeReq.ofProg_append
+  rw [h0]
+  rw [mul_callable_ret_byte_off]
+  rfl
+
 -- ============================================================================
 -- Disjointness — evm_mul_code base ∥ cc_ret_code (base + 252)
 -- ============================================================================
@@ -63,6 +84,27 @@ private theorem mul_callable_codes_disjoint (base : Word) :
          cc_ret_code cc_ret
   unfold mul_col0 mul_col1 mul_col2 mul_col3
   crDisjoint
+
+theorem mul_callable_code_mul_sub (base : Word) :
+    ∀ a i, (evm_mul_code base) a = some i →
+      (mul_callable_code base) a = some i := by
+  unfold mul_callable_code
+  exact CodeReq.union_mono_left
+
+theorem mul_callable_code_ret_sub (base : Word) :
+    ∀ a i, (cc_ret_code (base + 252)) a = some i →
+      (mul_callable_code base) a = some i := by
+  unfold mul_callable_code
+  apply CodeReq.mono_union_right (mul_callable_codes_disjoint base)
+  intro a i h
+  exact h
+
+theorem mul_callable_code_block_subs (base : Word) :
+    (∀ a i, (evm_mul_code base) a = some i →
+      (mul_callable_code base) a = some i) ∧
+    (∀ a i, (cc_ret_code (base + 252)) a = some i →
+      (mul_callable_code base) a = some i) := by
+  exact ⟨mul_callable_code_mul_sub base, mul_callable_code_ret_sub base⟩
 
 -- ============================================================================
 -- Callable spec

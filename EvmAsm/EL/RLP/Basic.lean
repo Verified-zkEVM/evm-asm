@@ -70,6 +70,19 @@ def encodeBytes (data : List Byte) : List Byte :=
       let lenBytes := Nat.toBytesBE len
       [BitVec.ofNat 8 (0xB7 + lenBytes.length)] ++ lenBytes ++ data
 
+/-- Generic short byte-string encoding, excluding the singleton special case. -/
+theorem encodeBytes_short_of_length_ne_one (data : List Byte)
+    (hLen : data.length ≤ 55) (hNeOne : data.length ≠ 1) :
+    encodeBytes data = [BitVec.ofNat 8 (0x80 + data.length)] ++ data := by
+  cases data with
+  | nil => simp [encodeBytes]
+  | cons a tail =>
+      cases tail with
+      | nil => exact False.elim (hNeOne rfl)
+      | cons b tail =>
+          have hLen' : tail.length + 1 + 1 ≤ 55 := by simpa using hLen
+          simp [encodeBytes, hLen']
+
 /-- Encode an RLP item to bytes. -/
 def encode : RLPItem → List Byte
   | .bytes data => encodeBytes data

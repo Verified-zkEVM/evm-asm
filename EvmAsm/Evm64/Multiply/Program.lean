@@ -155,8 +155,17 @@ def evm_mul : Program :=
 -- Instruction count verification
 -- ============================================================================
 
-/-- evm_mul has exactly 63 instructions. -/
-example : evm_mul.length = 63 := by decide
+/-- `evm_mul` has exactly 63 instructions. -/
+theorem evm_mul_length : evm_mul.length = 63 := by decide
+
+/-- The epilogue starts at byte offset 248 within `evm_mul`. -/
+theorem evm_mul_epilogue_byte_off :
+    4 * (mul_col0.length + mul_col1.length + mul_col2.length + mul_col3.length) = 248 := by
+  native_decide
+
+/-- `evm_mul` occupies exactly 252 bytes. -/
+theorem evm_mul_byte_length : 4 * evm_mul.length = 252 := by
+  rw [evm_mul_length]
 
 -- ============================================================================
 -- Test infrastructure
