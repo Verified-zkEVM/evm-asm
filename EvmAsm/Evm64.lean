@@ -70,3 +70,6 @@ import EvmAsm.Evm64.MSize
 import EvmAsm.Evm64.MStore8
 import EvmAsm.Evm64.MStore
 import EvmAsm.Evm64.MLoad
+
+-- Calldata helpers (issue #104)
+import EvmAsm.Evm64.Calldata.Basic
