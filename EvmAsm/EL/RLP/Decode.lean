@@ -97,4 +97,11 @@ end
 def decode (bs : List Byte) : Option (RLPItem × List Byte) :=
   decodeAux (2 * bs.length) bs
 
+/-- Top-level decode on a nonempty stream uses two fuel units for the head byte
+    plus twice the tail length. -/
+theorem decode_cons_eq_decodeAux_fuel (pfx : Byte) (rest : List Byte) :
+    decode (pfx :: rest) = decodeAux (2 * rest.length + 2) (pfx :: rest) := by
+  unfold decode
+  simp [Nat.mul_succ]
+
 end EvmAsm.EL.RLP
