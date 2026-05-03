@@ -581,4 +581,77 @@ theorem mstore_one_limb_spec_within
       xperm_hyp hp)
     composed
 
+/-- Program-backed form of `mstore_one_limb_spec_within` for consumers that
+    compose concrete instruction lists via `CodeReq.ofProg`. -/
+theorem mstore_one_limb_ofProg_spec_within
+    (addrReg byteReg accReg : Reg)
+    (addrPtr byteOld accOld loVal hiVal loAddr hiAddr sp limbVal : Word)
+    (start : Nat)
+    (srcOff off0 off1 off2 off3 off4 off5 off6 off7 : BitVec 12) (base : Word)
+    (h_byte_ne_x0 : byteReg ≠ .x0)
+    (h_acc_ne_x0 : accReg ≠ .x0)
+    (h_align0 :
+      alignToDword (addrPtr + signExtend12 off0) =
+        MStore.mstoreDwordPairAddr loAddr hiAddr start 0)
+    (h_valid0 : isValidByteAccess (addrPtr + signExtend12 off0) = true)
+    (h_byte0 : byteOffset (addrPtr + signExtend12 off0) = (start + 0) % 8)
+    (h_align1 :
+      alignToDword (addrPtr + signExtend12 off1) =
+        MStore.mstoreDwordPairAddr loAddr hiAddr start 1)
+    (h_valid1 : isValidByteAccess (addrPtr + signExtend12 off1) = true)
+    (h_byte1 : byteOffset (addrPtr + signExtend12 off1) = (start + 1) % 8)
+    (h_align2 :
+      alignToDword (addrPtr + signExtend12 off2) =
+        MStore.mstoreDwordPairAddr loAddr hiAddr start 2)
+    (h_valid2 : isValidByteAccess (addrPtr + signExtend12 off2) = true)
+    (h_byte2 : byteOffset (addrPtr + signExtend12 off2) = (start + 2) % 8)
+    (h_align3 :
+      alignToDword (addrPtr + signExtend12 off3) =
+        MStore.mstoreDwordPairAddr loAddr hiAddr start 3)
+    (h_valid3 : isValidByteAccess (addrPtr + signExtend12 off3) = true)
+    (h_byte3 : byteOffset (addrPtr + signExtend12 off3) = (start + 3) % 8)
+    (h_align4 :
+      alignToDword (addrPtr + signExtend12 off4) =
+        MStore.mstoreDwordPairAddr loAddr hiAddr start 4)
+    (h_valid4 : isValidByteAccess (addrPtr + signExtend12 off4) = true)
+    (h_byte4 : byteOffset (addrPtr + signExtend12 off4) = (start + 4) % 8)
+    (h_align5 :
+      alignToDword (addrPtr + signExtend12 off5) =
+        MStore.mstoreDwordPairAddr loAddr hiAddr start 5)
+    (h_valid5 : isValidByteAccess (addrPtr + signExtend12 off5) = true)
+    (h_byte5 : byteOffset (addrPtr + signExtend12 off5) = (start + 5) % 8)
+    (h_align6 :
+      alignToDword (addrPtr + signExtend12 off6) =
+        MStore.mstoreDwordPairAddr loAddr hiAddr start 6)
+    (h_valid6 : isValidByteAccess (addrPtr + signExtend12 off6) = true)
+    (h_byte6 : byteOffset (addrPtr + signExtend12 off6) = (start + 6) % 8)
+    (h_align7 :
+      alignToDword (addrPtr + signExtend12 off7) =
+        MStore.mstoreDwordPairAddr loAddr hiAddr start 7)
+    (h_valid7 : isValidByteAccess (addrPtr + signExtend12 off7) = true)
+    (h_byte7 : byteOffset (addrPtr + signExtend12 off7) = (start + 7) % 8) :
+    cpsTripleWithin 17 base (base + 68)
+      (CodeReq.ofProg base
+        (mstoreOneLimbProg addrReg byteReg accReg
+          srcOff off0 off1 off2 off3 off4 off5 off6 off7))
+      (mstoreOneLimbPre addrReg byteReg accReg
+        addrPtr byteOld accOld loVal hiVal loAddr hiAddr sp limbVal srcOff)
+      (mstoreOneLimbPost addrReg byteReg accReg
+        addrPtr loVal hiVal loAddr hiAddr sp limbVal start srcOff) := by
+  rw [← mstoreOneLimbCode_eq_ofProg]
+  exact mstore_one_limb_spec_within
+    addrReg byteReg accReg
+    addrPtr byteOld accOld loVal hiVal loAddr hiAddr sp limbVal
+    start
+    srcOff off0 off1 off2 off3 off4 off5 off6 off7 base
+    h_byte_ne_x0 h_acc_ne_x0
+    h_align0 h_valid0 h_byte0
+    h_align1 h_valid1 h_byte1
+    h_align2 h_valid2 h_byte2
+    h_align3 h_valid3 h_byte3
+    h_align4 h_valid4 h_byte4
+    h_align5 h_valid5 h_byte5
+    h_align6 h_valid6 h_byte6
+    h_align7 h_valid7 h_byte7
+
 end EvmAsm.Evm64
