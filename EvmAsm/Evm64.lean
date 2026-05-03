@@ -68,6 +68,7 @@ import EvmAsm.Evm64.Env.Field
 -- Static gas schedule (#117)
 import EvmAsm.Evm64.Gas
 import EvmAsm.Evm64.StorageGas
+import EvmAsm.Evm64.StorageAccess
 
 -- Opcode dispatch surface (#106)
 import EvmAsm.Evm64.Dispatch
