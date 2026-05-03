@@ -397,6 +397,13 @@ theorem evmMemExpand_word_eq (sizeBytes offset : Nat) :
   unfold evmMemExpand
   simp
 
+/-- Byte-granular memory writes such as MSTORE8 access one EVM memory byte. -/
+theorem evmMemExpand_byte_eq (sizeBytes offset : Nat) :
+    evmMemExpand sizeBytes offset 1 =
+      max sizeBytes (roundUpTo32 (offset + 1)) := by
+  unfold evmMemExpand
+  simp
+
 theorem bitvec_select_word_eq_ofNat_max
     (sizeBytes rounded : Nat)
     (h_size : sizeBytes < 2^64)
