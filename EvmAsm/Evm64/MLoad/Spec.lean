@@ -78,6 +78,46 @@ theorem mload_prologue_ofProg_spec_within
   exact mload_prologue_spec_within offReg addrReg memBaseReg
     sp offset offOld addrOld memBase base h_off_ne_x0 h_addr_ne_x0
 
+theorem evm_mload_code_prologue_sub
+    (offReg byteReg accReg addrReg memBaseReg : Reg) (base : Word) :
+    ∀ a i,
+      (CodeReq.ofProg base (LD offReg .x12 0 ;; ADD addrReg memBaseReg offReg)) a =
+        some i →
+      (evm_mload_code offReg byteReg accReg addrReg memBaseReg base) a =
+        some i := by
+  unfold evm_mload_code
+  exact CodeReq.ofProg_mono_sub base base
+    (evm_mload offReg byteReg accReg addrReg memBaseReg)
+    (LD offReg .x12 0 ;; ADD addrReg memBaseReg offReg) 0
+    (by bv_omega)
+    (evm_mload_prologue_slice offReg byteReg accReg addrReg memBaseReg)
+    (by
+      rw [evm_mload_length]
+      change 2 ≤ 94
+      norm_num)
+    (by
+      rw [evm_mload_length]
+      norm_num)
+
+theorem mload_prologue_evm_mload_spec_within
+    (offReg byteReg accReg addrReg memBaseReg : Reg)
+    (sp offset offOld addrOld memBase : Word) (base : Word)
+    (h_off_ne_x0 : offReg ≠ .x0)
+    (h_addr_ne_x0 : addrReg ≠ .x0) :
+    cpsTripleWithin 2 base (base + 8)
+      (evm_mload_code offReg byteReg accReg addrReg memBaseReg base)
+      (((.x12 : Reg) ↦ᵣ sp) ** (offReg ↦ᵣ offOld) **
+       (memBaseReg ↦ᵣ memBase) ** (addrReg ↦ᵣ addrOld) **
+       (sp ↦ₘ offset))
+      (((.x12 : Reg) ↦ᵣ sp) ** (offReg ↦ᵣ offset) **
+       (memBaseReg ↦ᵣ memBase) ** (addrReg ↦ᵣ (memBase + offset)) **
+       (sp ↦ₘ offset)) := by
+  exact cpsTripleWithin_extend_code
+    (h := mload_prologue_ofProg_spec_within offReg addrReg memBaseReg
+      sp offset offOld addrOld memBase base h_off_ne_x0 h_addr_ne_x0)
+    (hmono := evm_mload_code_prologue_sub
+      offReg byteReg accReg addrReg memBaseReg base)
+
 /-- The 256-bit value assembled by MLOAD from four little-endian output limbs. -/
 def mloadLoadedWord (l0 l1 l2 l3 : Word) : EvmWord :=
   EvmWord.fromLimbs fun i : Fin 4 =>
