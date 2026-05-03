@@ -404,4 +404,15 @@ theorem mstore_epilogue_evm_mstore_spec_within
   exact mstore_epilogue_stack_spec_within offReg byteReg accReg addrReg memBaseReg
     sp base
 
+theorem mstore_epilogue_evm_mstore_frame_spec_within
+    (offReg valReg byteReg accReg addrReg memBaseReg : Reg)
+    (sp : Word) (base : Word) (F : Assertion) (hF : F.pcFree) :
+    cpsTripleWithin 1 (base + 280) (base + 284)
+      (evm_mstore_code offReg valReg byteReg accReg addrReg memBaseReg base)
+      (((.x12 : Reg) ↦ᵣ sp) ** F)
+      (((.x12 : Reg) ↦ᵣ (sp + 64)) ** F) := by
+  exact cpsTripleWithin_frameR F hF
+    (mstore_epilogue_evm_mstore_spec_within
+      offReg valReg byteReg accReg addrReg memBaseReg sp base)
+
 end EvmAsm.Evm64
