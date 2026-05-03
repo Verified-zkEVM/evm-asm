@@ -19,6 +19,9 @@ import EvmAsm.Evm64.EvmWordArith.SignExtend
 -- MulCorrect covers Arithmetic → MultiLimb → Common.
 import EvmAsm.Evm64.EvmWordArith.MulCorrect
 
+-- Pure EXP semantic target.
+import EvmAsm.Evm64.EvmWordArith.Exp
+
 -- Div128Shift0 → Div128CallSkipClose → {Div128FinalAssembly +
 -- Div128KnuthLower + Div128QuotientBounds → KnuthTheoremB →
 -- {DivN4Overestimate, MaxTrialVacuity → CLZLemmas → DivN4Lemmas,
