@@ -1163,6 +1163,37 @@ theorem mstore_four_limb_body_concrete_spec_within
       h56a6 h56v6 h56b6 h56a7 h56v7 h56b7)
   simpa using h
 
+theorem mstore_four_limb_body_evm_mstore_spec_within
+    (offReg valReg byteReg accReg addrReg memBaseReg : Reg)
+    (addrPtr byteOld accOld d0 d1 d2 d3 d4 : Word)
+    (d0Addr d1Addr d2Addr d3Addr d4Addr sp : Word)
+    (limb32 limb40 limb48 limb56 : Word)
+    (start : Nat) (base : Word)
+    (h_byte_ne_x0 : byteReg ≠ .x0)
+    (h_acc_ne_x0 : accReg ≠ .x0)
+    (h32 : mstoreLimbWindowOk addrPtr d3Addr d4Addr start
+      24 25 26 27 28 29 30 31)
+    (h40 : mstoreLimbWindowOk addrPtr d2Addr d3Addr start
+      16 17 18 19 20 21 22 23)
+    (h48 : mstoreLimbWindowOk addrPtr d1Addr d2Addr start
+      8 9 10 11 12 13 14 15)
+    (h56 : mstoreLimbWindowOk addrPtr d0Addr d1Addr start
+      0 1 2 3 4 5 6 7) :
+    cpsTripleWithin 68 (base + 8) (base + 280)
+      (evm_mstore_code offReg valReg byteReg accReg addrReg memBaseReg base)
+      (mstoreFourLimbBodyPre addrReg byteReg accReg
+        addrPtr byteOld accOld d0 d1 d2 d3 d4
+        d0Addr d1Addr d2Addr d3Addr d4Addr sp limb32 limb40 limb48 limb56)
+      (mstoreFourLimbBodyPost addrReg byteReg accReg
+        addrPtr d0 d1 d2 d3 d4 d0Addr d1Addr d2Addr d3Addr d4Addr sp
+        limb32 limb40 limb48 limb56 start) :=
+  mstore_four_limbs_evm_mstore_spec_within
+    offReg valReg byteReg accReg addrReg memBaseReg base
+    (mstore_four_limb_body_concrete_spec_within
+      addrReg byteReg accReg addrPtr byteOld accOld d0 d1 d2 d3 d4
+      d0Addr d1Addr d2Addr d3Addr d4Addr sp limb32 limb40 limb48 limb56
+      start base h_byte_ne_x0 h_acc_ne_x0 h32 h40 h48 h56)
+
 theorem mstoreStackCode_epilogue_sub
     (offReg byteReg accReg addrReg memBaseReg : Reg) (base : Word) :
     ∀ a i, (mstoreEpilogueCode (base + 280)) a = some i →
