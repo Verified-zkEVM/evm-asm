@@ -409,6 +409,53 @@ theorem mloadOneLimbCode_eq_ofProg
     _ = CodeReq.ofProg base (List.append pack tail) := by
         exact (@CodeReq.ofProg_append base pack tail).symm
 
+/-- Bundled CodeReq for two adjacent MLOAD output limbs. Each one-limb block
+    is 23 instructions = 92 bytes, so the second block starts at `base + 92`. -/
+def mloadTwoLimbsCode
+    (addrReg byteReg accReg : Reg)
+    (a0 a1 a2 a3 a4 a5 a6 a7 aDst : BitVec 12)
+    (b0 b1 b2 b3 b4 b5 b6 b7 bDst : BitVec 12)
+    (base : Word) : CodeReq :=
+  (mloadOneLimbCode addrReg byteReg accReg
+    a0 a1 a2 a3 a4 a5 a6 a7 aDst base).union
+  (mloadOneLimbCode addrReg byteReg accReg
+    b0 b1 b2 b3 b4 b5 b6 b7 bDst (base + 92))
+
+/-- Program form of two adjacent MLOAD output limbs. -/
+def mloadTwoLimbsProg
+    (addrReg byteReg accReg : Reg)
+    (a0 a1 a2 a3 a4 a5 a6 a7 aDst : BitVec 12)
+    (b0 b1 b2 b3 b4 b5 b6 b7 bDst : BitVec 12) : Program :=
+  mloadOneLimbProg addrReg byteReg accReg
+    a0 a1 a2 a3 a4 a5 a6 a7 aDst ;;
+  mloadOneLimbProg addrReg byteReg accReg
+    b0 b1 b2 b3 b4 b5 b6 b7 bDst
+
+theorem mloadTwoLimbsCode_eq_ofProg
+    (addrReg byteReg accReg : Reg)
+    (a0 a1 a2 a3 a4 a5 a6 a7 aDst : BitVec 12)
+    (b0 b1 b2 b3 b4 b5 b6 b7 bDst : BitVec 12)
+    (base : Word) :
+    mloadTwoLimbsCode addrReg byteReg accReg
+      a0 a1 a2 a3 a4 a5 a6 a7 aDst
+      b0 b1 b2 b3 b4 b5 b6 b7 bDst base =
+    CodeReq.ofProg base
+      (mloadTwoLimbsProg addrReg byteReg accReg
+        a0 a1 a2 a3 a4 a5 a6 a7 aDst
+        b0 b1 b2 b3 b4 b5 b6 b7 bDst) := by
+  unfold mloadTwoLimbsCode mloadTwoLimbsProg
+  rw [mloadOneLimbCode_eq_ofProg, mloadOneLimbCode_eq_ofProg]
+  let p1 := mloadOneLimbProg addrReg byteReg accReg
+    a0 a1 a2 a3 a4 a5 a6 a7 aDst
+  let p2 := mloadOneLimbProg addrReg byteReg accReg
+    b0 b1 b2 b3 b4 b5 b6 b7 bDst
+  change (CodeReq.ofProg base p1).union (CodeReq.ofProg (base + 92) p2) =
+    CodeReq.ofProg base (List.append p1 p2)
+  rw [show base + 92 = base + BitVec.ofNat 64 (4 * p1.length) from by
+    unfold p1 mloadOneLimbProg mloadBytePackEightProg LBU SLLI OR' SD single seq
+    rfl]
+  exact (@CodeReq.ofProg_append base p1 p2).symm
+
 /-- Bundled precondition for `mload_one_limb_spec_within`: the four
     "byte-pack" atoms (`addrReg`, `byteReg`, `accReg`, source
     `dwordAddr`) plus the SD-side atoms (`.x12 ↦ᵣ sp` and the
