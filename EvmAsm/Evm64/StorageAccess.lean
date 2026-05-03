@@ -66,5 +66,29 @@ theorem accessStatus_after_warmKey (accesses : StorageAccessList) (key : Storage
     accessStatus (warmKey accesses key) key = .warm := by
   exact accessStatus_of_warm (warmKey_warms accesses key)
 
+/-- Dynamic SLOAD gas for a key under the current access list. -/
+def sloadDynamicCostForKey (accesses : StorageAccessList) (key : StorageAccessKey) : Nat :=
+  StorageGas.sloadDynamicCost (accessStatus accesses key)
+
+theorem sloadDynamicCostForKey_of_warm {accesses : StorageAccessList} {key : StorageAccessKey}
+    (h_warm : isWarm accesses key = true) :
+    sloadDynamicCostForKey accesses key = StorageGas.warmStorageReadCost := by
+  simp [sloadDynamicCostForKey, accessStatus_of_warm h_warm]
+
+theorem sloadDynamicCostForKey_of_cold {accesses : StorageAccessList} {key : StorageAccessKey}
+    (h_cold : isWarm accesses key = false) :
+    sloadDynamicCostForKey accesses key = StorageGas.coldSloadCost := by
+  simp [sloadDynamicCostForKey, accessStatus_of_cold h_cold]
+
+@[simp] theorem sloadDynamicCostForKey_nil (key : StorageAccessKey) :
+    sloadDynamicCostForKey [] key = StorageGas.coldSloadCost := by
+  simp [sloadDynamicCostForKey]
+
+theorem sloadDynamicCostForKey_after_warmKey
+    (accesses : StorageAccessList) (key : StorageAccessKey) :
+    sloadDynamicCostForKey (warmKey accesses key) key =
+      StorageGas.warmStorageReadCost := by
+  simp [sloadDynamicCostForKey, accessStatus_after_warmKey]
+
 end StorageAccess
 end EvmAsm.Evm64
