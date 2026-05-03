@@ -75,6 +75,22 @@ def withPc (state : EvmState) (pc : Nat) : EvmState :=
 def withGas (state : EvmState) (gas : Nat) : EvmState :=
   { state with gas := gas }
 
+/-- Pure precondition for charging `cost` gas from an EVM state. -/
+def hasGas (state : EvmState) (cost : Nat) : Bool :=
+  decide (cost ≤ state.gas)
+
+/-- Charge gas with saturating Nat subtraction. Consumers that need an
+    out-of-gas branch should use `chargeGas?`. -/
+def chargeGas (state : EvmState) (cost : Nat) : EvmState :=
+  withGas state (state.gas - cost)
+
+/-- Charge gas only when enough gas is available. -/
+def chargeGas? (state : EvmState) (cost : Nat) : Option EvmState :=
+  if state.hasGas cost then
+    some (state.chargeGas cost)
+  else
+    none
+
 def withStack (state : EvmState) (stack : List EvmWord) : EvmState :=
   { state with stack := stack }
 
@@ -86,6 +102,32 @@ def withStatus (state : EvmState) (status : EvmStatus) : EvmState :=
 
 @[simp] theorem withGas_gas (state : EvmState) (gas : Nat) :
     (withGas state gas).gas = gas := rfl
+
+@[simp] theorem hasGas_zero (state : EvmState) :
+    state.hasGas 0 = true := by
+  simp [hasGas]
+
+@[simp] theorem chargeGas_gas (state : EvmState) (cost : Nat) :
+    (state.chargeGas cost).gas = state.gas - cost := rfl
+
+@[simp] theorem chargeGas_pc (state : EvmState) (cost : Nat) :
+    (state.chargeGas cost).pc = state.pc := rfl
+
+@[simp] theorem chargeGas_status (state : EvmState) (cost : Nat) :
+    (state.chargeGas cost).status = state.status := rfl
+
+@[simp] theorem chargeGas_stack (state : EvmState) (cost : Nat) :
+    (state.chargeGas cost).stack = state.stack := rfl
+
+theorem chargeGas?_of_hasGas {state : EvmState} {cost : Nat}
+    (h_gas : state.hasGas cost = true) :
+    state.chargeGas? cost = some (state.chargeGas cost) := by
+  simp [chargeGas?, h_gas]
+
+theorem chargeGas?_of_not_hasGas {state : EvmState} {cost : Nat}
+    (h_gas : state.hasGas cost = false) :
+    state.chargeGas? cost = none := by
+  simp [chargeGas?, h_gas]
 
 @[simp] theorem withStack_stack (state : EvmState) (stack : List EvmWord) :
     (withStack state stack).stack = stack := rfl
