@@ -81,6 +81,45 @@ theorem mloadStackCode_prologue_sub
   unfold mloadStackCode
   exact CodeReq.union_mono_left
 
+theorem mloadPrologueCode_disjoint_mloadFourLimbsCode
+    (offReg byteReg accReg addrReg memBaseReg : Reg) (base : Word) :
+    CodeReq.Disjoint
+      (mloadPrologueCode offReg addrReg memBaseReg base)
+      (mloadFourLimbsCode addrReg byteReg accReg base) := by
+  rw [mloadFourLimbsCode_eq_ofProg]
+  unfold mloadPrologueCode
+  refine CodeReq.Disjoint.union_left ?_ ?_
+  · apply CodeReq.Disjoint.singleton_ofProg
+    apply CodeReq.ofProg_none_range
+    intro k hk h_eq
+    have hk_lt : k < 92 := by
+      simpa [mloadFourLimbsProg, mloadTwoLimbsProg, mloadOneLimbProg,
+        mloadBytePackEightProg, LBU, SLLI, OR', SD, single, seq] using hk
+    have h_ne :
+        base ≠ (base + 8) + BitVec.ofNat 64 (4 * k) := by
+      bv_omega
+    exact h_ne h_eq
+  · apply CodeReq.Disjoint.singleton_ofProg
+    apply CodeReq.ofProg_none_range
+    intro k hk h_eq
+    have hk_lt : k < 92 := by
+      simpa [mloadFourLimbsProg, mloadTwoLimbsProg, mloadOneLimbProg,
+        mloadBytePackEightProg, LBU, SLLI, OR', SD, single, seq] using hk
+    have h_ne :
+        base + 4 ≠ (base + 8) + BitVec.ofNat 64 (4 * k) := by
+      bv_omega
+    exact h_ne h_eq
+
+theorem mloadStackCode_four_limbs_sub
+    (offReg byteReg accReg addrReg memBaseReg : Reg) (base : Word) :
+    ∀ a i, (mloadFourLimbsCode addrReg byteReg accReg base) a = some i →
+      (mloadStackCode offReg byteReg accReg addrReg memBaseReg base) a = some i := by
+  unfold mloadStackCode
+  exact CodeReq.mono_union_right
+    (mloadPrologueCode_disjoint_mloadFourLimbsCode
+      offReg byteReg accReg addrReg memBaseReg base)
+    (fun _ _ h => h)
+
 theorem mload_prologue_stack_spec_within
     (offReg byteReg accReg addrReg memBaseReg : Reg)
     (sp offset offOld addrOld memBase : Word) (base : Word)
@@ -121,6 +160,19 @@ theorem mload_four_limb_sequence_spec_within
       (cpsTripleWithin_seq_same_cr h0 h1)
       h2)
     h3
+
+theorem mload_four_limbs_stack_spec_within
+    {n : Nat} {P Q : Assertion}
+    (offReg byteReg accReg addrReg memBaseReg : Reg) (base : Word)
+    (h :
+      cpsTripleWithin n (base + 8) (base + 376)
+        (mloadFourLimbsCode addrReg byteReg accReg base) P Q) :
+    cpsTripleWithin n (base + 8) (base + 376)
+      (mloadStackCode offReg byteReg accReg addrReg memBaseReg base) P Q := by
+  exact cpsTripleWithin_extend_code
+    (h := h)
+    (hmono := mloadStackCode_four_limbs_sub
+      offReg byteReg accReg addrReg memBaseReg base)
 
 /--
   The 256-bit value loaded by MLOAD when each output limb is assembled from
@@ -436,6 +488,17 @@ theorem mloadLoadedWordFromFiveDwords_evmWordIs_fold
   rw [mloadLoadedWordFromFiveDwords_eq_mloadLoadedWordFromDwordPairs]
   rw [mloadLoadedWordFromDwordPairs_evmWordIs_fold]
 
+theorem mloadLoadedWordFromFiveDwords_evmStackIs_fold
+    (sp d0 d1 d2 d3 d4 : Word) (start : Nat) (rest : List EvmWord) :
+    (((sp ↦ₘ mloadPackedLimbFromDwordPair d3 d4 start) **
+      ((sp + 8) ↦ₘ mloadPackedLimbFromDwordPair d2 d3 start) **
+      ((sp + 16) ↦ₘ mloadPackedLimbFromDwordPair d1 d2 start) **
+      ((sp + 24) ↦ₘ mloadPackedLimbFromDwordPair d0 d1 start)) **
+      evmStackIs (sp + 32) rest) =
+    evmStackIs sp (mloadLoadedWordFromFiveDwords d0 d1 d2 d3 d4 start :: rest) := by
+  rw [mloadLoadedWordFromFiveDwords_evmWordIs_fold]
+  rfl
+
 /--
   Compact stack postcondition for the five-dword unaligned MLOAD source shape.
 -/
@@ -460,5 +523,13 @@ theorem mloadStackOutputPostFiveDwords_evmWordIs_fold
     mloadStackOutputPostFiveDwords sp d0 d1 d2 d3 d4 start := by
   rw [mloadStackOutputPostFiveDwords_unfold]
   rw [mloadLoadedWordFromFiveDwords_evmWordIs_fold]
+
+theorem mloadStackOutputPostFiveDwords_evmStackIs_fold
+    (sp d0 d1 d2 d3 d4 : Word) (start : Nat) (rest : List EvmWord) :
+    (mloadStackOutputPostFiveDwords sp d0 d1 d2 d3 d4 start **
+      evmStackIs (sp + 32) rest) =
+    evmStackIs sp (mloadLoadedWordFromFiveDwords d0 d1 d2 d3 d4 start :: rest) := by
+  rw [mloadStackOutputPostFiveDwords_unfold]
+  rfl
 
 end EvmAsm.Evm64

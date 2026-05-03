@@ -6,3 +6,4 @@
 import EvmAsm.EL.RLP
 import EvmAsm.EL.WorldState
 import EvmAsm.EL.Storage
+import EvmAsm.EL.Transaction

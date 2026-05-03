@@ -36,6 +36,7 @@ import EvmAsm.Rv64.RLP.Phase1CascadePrefixE5
 import EvmAsm.Rv64.RLP.Phase1E2FullPath
 import EvmAsm.Rv64.RLP.Phase1E3FullPath
 import EvmAsm.Rv64.RLP.Phase1E4FullPath
+import EvmAsm.Rv64.RLP.Phase1E5FullPath
 import EvmAsm.Rv64.RLP.Phase1E3LongStringOne
 import EvmAsm.Rv64.RLP.Phase1StepToPhase3LongString
 import EvmAsm.Rv64.RLP.Phase1ToPhase3SingleByte
