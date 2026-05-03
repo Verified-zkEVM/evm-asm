@@ -40,6 +40,68 @@ def mloadBytePackEightCode
      ((CodeReq.singleton (base + 80) (.SLLI accReg accReg (BitVec.ofNat 6 8))).union
       (CodeReq.singleton (base + 84) (.OR accReg accReg byteReg))))
 
+/-- Public program form of the eight-byte MLOAD byte-pack block. This mirrors
+    `mloadBytePackEightCode` and gives downstream consumers an `ofProg`
+    bridge without depending on the private recursive helpers in
+    `MLoad.Program`. -/
+def mloadBytePackEightProg
+    (addrReg byteReg accReg : Reg)
+    (off0 off1 off2 off3 off4 off5 off6 off7 : BitVec 12) : Program :=
+  LBU accReg addrReg off0 ;;
+  LBU byteReg addrReg off1 ;; SLLI accReg accReg (BitVec.ofNat 6 8) ;;
+  OR' accReg accReg byteReg ;;
+  LBU byteReg addrReg off2 ;; SLLI accReg accReg (BitVec.ofNat 6 8) ;;
+  OR' accReg accReg byteReg ;;
+  LBU byteReg addrReg off3 ;; SLLI accReg accReg (BitVec.ofNat 6 8) ;;
+  OR' accReg accReg byteReg ;;
+  LBU byteReg addrReg off4 ;; SLLI accReg accReg (BitVec.ofNat 6 8) ;;
+  OR' accReg accReg byteReg ;;
+  LBU byteReg addrReg off5 ;; SLLI accReg accReg (BitVec.ofNat 6 8) ;;
+  OR' accReg accReg byteReg ;;
+  LBU byteReg addrReg off6 ;; SLLI accReg accReg (BitVec.ofNat 6 8) ;;
+  OR' accReg accReg byteReg ;;
+  LBU byteReg addrReg off7 ;; SLLI accReg accReg (BitVec.ofNat 6 8) ;;
+  OR' accReg accReg byteReg
+
+theorem mloadBytePackEightCode_eq_ofProg
+    (addrReg byteReg accReg : Reg)
+    (off0 off1 off2 off3 off4 off5 off6 off7 : BitVec 12)
+    (base : Word) :
+    mloadBytePackEightCode addrReg byteReg accReg
+      off0 off1 off2 off3 off4 off5 off6 off7 base =
+    CodeReq.ofProg base
+      (mloadBytePackEightProg addrReg byteReg accReg
+        off0 off1 off2 off3 off4 off5 off6 off7) := by
+  unfold mloadBytePackEightCode mloadBytePackSevenCode mloadBytePackSixCode
+    mloadBytePackFiveCode mloadBytePackFourCode mloadBytePackThreeCode
+    mloadBytePackTwoCode mloadBytePackEightProg LBU SLLI OR' single seq
+  change _ = CodeReq.ofProg base
+    [.LBU accReg addrReg off0,
+     .LBU byteReg addrReg off1, .SLLI accReg accReg (BitVec.ofNat 6 8),
+     .OR accReg accReg byteReg,
+     .LBU byteReg addrReg off2, .SLLI accReg accReg (BitVec.ofNat 6 8),
+     .OR accReg accReg byteReg,
+     .LBU byteReg addrReg off3, .SLLI accReg accReg (BitVec.ofNat 6 8),
+     .OR accReg accReg byteReg,
+     .LBU byteReg addrReg off4, .SLLI accReg accReg (BitVec.ofNat 6 8),
+     .OR accReg accReg byteReg,
+     .LBU byteReg addrReg off5, .SLLI accReg accReg (BitVec.ofNat 6 8),
+     .OR accReg accReg byteReg,
+     .LBU byteReg addrReg off6, .SLLI accReg accReg (BitVec.ofNat 6 8),
+     .OR accReg accReg byteReg,
+     .LBU byteReg addrReg off7, .SLLI accReg accReg (BitVec.ofNat 6 8),
+     .OR accReg accReg byteReg]
+  rw [CodeReq.ofProg_cons, CodeReq.ofProg_cons, CodeReq.ofProg_cons,
+    CodeReq.ofProg_cons, CodeReq.ofProg_cons, CodeReq.ofProg_cons,
+    CodeReq.ofProg_cons, CodeReq.ofProg_cons, CodeReq.ofProg_cons,
+    CodeReq.ofProg_cons, CodeReq.ofProg_cons, CodeReq.ofProg_cons,
+    CodeReq.ofProg_cons, CodeReq.ofProg_cons, CodeReq.ofProg_cons,
+    CodeReq.ofProg_cons, CodeReq.ofProg_cons, CodeReq.ofProg_cons,
+    CodeReq.ofProg_cons, CodeReq.ofProg_cons, CodeReq.ofProg_cons,
+    CodeReq.ofProg_singleton]
+  simp only [CodeReq.union_assoc]
+  bv_addr
+
 /-- Bundled precondition for `mload_byte_pack_eight_spec_within`: the
     three roles `addrReg ↦ᵣ addrPtr`, `byteReg ↦ᵣ byteOld`,
     `accReg ↦ᵣ accOld`, plus the source dword `dwordAddr ↦ₘ wordVal`.
@@ -306,6 +368,46 @@ def mloadOneLimbCode
   (mloadBytePackEightCode addrReg byteReg accReg
       off0 off1 off2 off3 off4 off5 off6 off7 base).union
     (CodeReq.singleton (base + 88) (.SD .x12 accReg dstOff))
+
+/-- Public program form of one MLOAD limb: pack eight bytes and store the
+    resulting limb to the EVM stack. -/
+def mloadOneLimbProg
+    (addrReg byteReg accReg : Reg)
+    (off0 off1 off2 off3 off4 off5 off6 off7 dstOff : BitVec 12) : Program :=
+  mloadBytePackEightProg addrReg byteReg accReg
+    off0 off1 off2 off3 off4 off5 off6 off7 ;;
+  SD .x12 accReg dstOff
+
+theorem mloadOneLimbCode_eq_ofProg
+    (addrReg byteReg accReg : Reg)
+    (off0 off1 off2 off3 off4 off5 off6 off7 dstOff : BitVec 12)
+    (base : Word) :
+    mloadOneLimbCode addrReg byteReg accReg
+      off0 off1 off2 off3 off4 off5 off6 off7 dstOff base =
+    CodeReq.ofProg base
+      (mloadOneLimbProg addrReg byteReg accReg
+        off0 off1 off2 off3 off4 off5 off6 off7 dstOff) := by
+  unfold mloadOneLimbCode mloadOneLimbProg
+  rw [mloadBytePackEightCode_eq_ofProg]
+  let pack := mloadBytePackEightProg addrReg byteReg accReg
+    off0 off1 off2 off3 off4 off5 off6 off7
+  let tail := SD .x12 accReg dstOff
+  change (CodeReq.ofProg base pack).union
+      (CodeReq.singleton (base + 88) (Instr.SD .x12 accReg dstOff)) =
+    CodeReq.ofProg base (List.append pack tail)
+  calc
+    (CodeReq.ofProg base pack).union
+        (CodeReq.singleton (base + 88) (Instr.SD .x12 accReg dstOff))
+        =
+      (CodeReq.ofProg base pack).union
+        (CodeReq.ofProg (base + BitVec.ofNat 64 (4 * pack.length)) tail) := by
+        rw [show base + BitVec.ofNat 64 (4 * pack.length) = base + 88 from by
+          unfold pack mloadBytePackEightProg LBU SLLI OR' single seq
+          rfl]
+        unfold tail SD single
+        rw [CodeReq.ofProg_singleton]
+    _ = CodeReq.ofProg base (List.append pack tail) := by
+        exact (@CodeReq.ofProg_append base pack tail).symm
 
 /-- Bundled precondition for `mload_one_limb_spec_within`: the four
     "byte-pack" atoms (`addrReg`, `byteReg`, `accReg`, source
