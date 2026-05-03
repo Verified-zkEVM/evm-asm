@@ -626,6 +626,173 @@ theorem mstoreFourLimbBodyPost_unfold
   delta mstoreFourLimbBodyPost
   rfl
 
+theorem mstore_four_limb_body_sequence_spec_within
+    {n0 n1 n2 n3 : Nat}
+    (addrReg byteReg accReg : Reg)
+    (addrPtr byteOld accOld d0 d1 d2 d3 d4 : Word)
+    (d0Addr d1Addr d2Addr d3Addr d4Addr sp : Word)
+    (limb32 limb40 limb48 limb56 : Word)
+    (start : Nat) (base : Word)
+    (h0 :
+      cpsTripleWithin n0 (base + 8) (base + 76)
+        (mstoreFourLimbsCode addrReg byteReg accReg base)
+        (mstoreOneLimbPre addrReg byteReg accReg
+          addrPtr byteOld accOld d3 d4 d3Addr d4Addr sp limb32 (32 : BitVec 12))
+        (mstoreOneLimbPost addrReg byteReg accReg
+          addrPtr d3 d4 d3Addr d4Addr sp limb32 start (32 : BitVec 12)))
+    (h1 :
+      let p0 := MStore.mstoreDwordPairStoreLimb d3 d4 limb32 start
+      cpsTripleWithin n1 (base + 76) (base + 144)
+        (mstoreFourLimbsCode addrReg byteReg accReg base)
+        (mstoreOneLimbPre addrReg byteReg accReg
+          addrPtr limb32 limb32 d2 p0.1 d2Addr d3Addr sp limb40 (40 : BitVec 12))
+        (mstoreOneLimbPost addrReg byteReg accReg
+          addrPtr d2 p0.1 d2Addr d3Addr sp limb40 start (40 : BitVec 12)))
+    (h2 :
+      let p0 := MStore.mstoreDwordPairStoreLimb d3 d4 limb32 start
+      let p1 := MStore.mstoreDwordPairStoreLimb d2 p0.1 limb40 start
+      cpsTripleWithin n2 (base + 144) (base + 212)
+        (mstoreFourLimbsCode addrReg byteReg accReg base)
+        (mstoreOneLimbPre addrReg byteReg accReg
+          addrPtr limb40 limb40 d1 p1.1 d1Addr d2Addr sp limb48 (48 : BitVec 12))
+        (mstoreOneLimbPost addrReg byteReg accReg
+          addrPtr d1 p1.1 d1Addr d2Addr sp limb48 start (48 : BitVec 12)))
+    (h3 :
+      let p0 := MStore.mstoreDwordPairStoreLimb d3 d4 limb32 start
+      let p1 := MStore.mstoreDwordPairStoreLimb d2 p0.1 limb40 start
+      let p2 := MStore.mstoreDwordPairStoreLimb d1 p1.1 limb48 start
+      cpsTripleWithin n3 (base + 212) (base + 280)
+        (mstoreFourLimbsCode addrReg byteReg accReg base)
+        (mstoreOneLimbPre addrReg byteReg accReg
+          addrPtr limb48 limb48 d0 p2.1 d0Addr d1Addr sp limb56 (56 : BitVec 12))
+        (mstoreOneLimbPost addrReg byteReg accReg
+          addrPtr d0 p2.1 d0Addr d1Addr sp limb56 start (56 : BitVec 12))) :
+    cpsTripleWithin (n0 + n1 + n2 + n3) (base + 8) (base + 280)
+      (mstoreFourLimbsCode addrReg byteReg accReg base)
+      (mstoreFourLimbBodyPre addrReg byteReg accReg
+        addrPtr byteOld accOld d0 d1 d2 d3 d4
+        d0Addr d1Addr d2Addr d3Addr d4Addr sp limb32 limb40 limb48 limb56)
+      (mstoreFourLimbBodyPost addrReg byteReg accReg
+        addrPtr d0 d1 d2 d3 d4 d0Addr d1Addr d2Addr d3Addr d4Addr sp
+        limb32 limb40 limb48 limb56 start) := by
+  let p0 := MStore.mstoreDwordPairStoreLimb d3 d4 limb32 start
+  let p1 := MStore.mstoreDwordPairStoreLimb d2 p0.1 limb40 start
+  let p2 := MStore.mstoreDwordPairStoreLimb d1 p1.1 limb48 start
+  let rest0 : Assertion :=
+    (d0Addr ↦ₘ d0) ** (d1Addr ↦ₘ d1) ** (d2Addr ↦ₘ d2) **
+    ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ limb40) **
+    ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ limb48) **
+    ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ limb56)
+  let h0Framed := cpsTripleWithin_frameR rest0 (by pcFree) h0
+  have h0Body :
+      cpsTripleWithin n0 (base + 8) (base + 76)
+        (mstoreFourLimbsCode addrReg byteReg accReg base)
+        (mstoreFourLimbBodyPre addrReg byteReg accReg
+          addrPtr byteOld accOld d0 d1 d2 d3 d4
+          d0Addr d1Addr d2Addr d3Addr d4Addr sp limb32 limb40 limb48 limb56)
+        (mstoreFourLimbBodyMid0 addrReg byteReg accReg
+          addrPtr d0 d1 d2 d3 d4 d0Addr d1Addr d2Addr d3Addr d4Addr sp
+          limb32 limb40 limb48 limb56 start) := by
+    exact cpsTripleWithin_weaken
+      (fun _ hp => by
+        rw [mstoreFourLimbBodyPre_unfold] at hp
+        rw [mstoreOneLimbPre_unfold]
+        unfold rest0
+        xperm_hyp hp)
+      (fun _ hp => by
+        rw [mstoreOneLimbPost_unfold] at hp
+        rw [mstoreFourLimbBodyMid0_unfold]
+        unfold rest0 at hp
+        dsimp only
+        xperm_hyp hp)
+      h0Framed
+  let rest1 : Assertion :=
+    (d0Addr ↦ₘ d0) ** (d1Addr ↦ₘ d1) ** (d4Addr ↦ₘ p0.2) **
+    ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ limb32) **
+    ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ limb48) **
+    ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ limb56)
+  let h1Framed := cpsTripleWithin_frameR rest1 (by pcFree) h1
+  have h1Body :
+      cpsTripleWithin n1 (base + 76) (base + 144)
+        (mstoreFourLimbsCode addrReg byteReg accReg base)
+        (mstoreFourLimbBodyMid0 addrReg byteReg accReg
+          addrPtr d0 d1 d2 d3 d4 d0Addr d1Addr d2Addr d3Addr d4Addr sp
+          limb32 limb40 limb48 limb56 start)
+        (mstoreFourLimbBodyMid1 addrReg byteReg accReg
+          addrPtr d0 d1 d2 d3 d4 d0Addr d1Addr d2Addr d3Addr d4Addr sp
+          limb32 limb40 limb48 limb56 start) := by
+    exact cpsTripleWithin_weaken
+      (fun _ hp => by
+        rw [mstoreFourLimbBodyMid0_unfold] at hp
+        rw [mstoreOneLimbPre_unfold]
+        unfold rest1 p0
+        xperm_hyp hp)
+      (fun _ hp => by
+        rw [mstoreOneLimbPost_unfold] at hp
+        rw [mstoreFourLimbBodyMid1_unfold]
+        unfold rest1 at hp
+        dsimp only
+        xperm_hyp hp)
+      h1Framed
+  let rest2 : Assertion :=
+    (d0Addr ↦ₘ d0) ** (d3Addr ↦ₘ p1.2) ** (d4Addr ↦ₘ p0.2) **
+    ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ limb32) **
+    ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ limb40) **
+    ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ limb56)
+  let h2Framed := cpsTripleWithin_frameR rest2 (by pcFree) h2
+  have h2Body :
+      cpsTripleWithin n2 (base + 144) (base + 212)
+        (mstoreFourLimbsCode addrReg byteReg accReg base)
+        (mstoreFourLimbBodyMid1 addrReg byteReg accReg
+          addrPtr d0 d1 d2 d3 d4 d0Addr d1Addr d2Addr d3Addr d4Addr sp
+          limb32 limb40 limb48 limb56 start)
+        (mstoreFourLimbBodyMid2 addrReg byteReg accReg
+          addrPtr d0 d1 d2 d3 d4 d0Addr d1Addr d2Addr d3Addr d4Addr sp
+          limb32 limb40 limb48 limb56 start) := by
+    exact cpsTripleWithin_weaken
+      (fun _ hp => by
+        rw [mstoreFourLimbBodyMid1_unfold] at hp
+        rw [mstoreOneLimbPre_unfold]
+        unfold rest2 p0 p1
+        xperm_hyp hp)
+      (fun _ hp => by
+        rw [mstoreOneLimbPost_unfold] at hp
+        rw [mstoreFourLimbBodyMid2_unfold]
+        unfold rest2 at hp
+        dsimp only
+        xperm_hyp hp)
+      h2Framed
+  let rest3 : Assertion :=
+    (d2Addr ↦ₘ p2.2) ** (d3Addr ↦ₘ p1.2) ** (d4Addr ↦ₘ p0.2) **
+    ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ limb32) **
+    ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ limb40) **
+    ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ limb48)
+  let h3Framed := cpsTripleWithin_frameR rest3 (by pcFree) h3
+  have h3Body :
+      cpsTripleWithin n3 (base + 212) (base + 280)
+        (mstoreFourLimbsCode addrReg byteReg accReg base)
+        (mstoreFourLimbBodyMid2 addrReg byteReg accReg
+          addrPtr d0 d1 d2 d3 d4 d0Addr d1Addr d2Addr d3Addr d4Addr sp
+          limb32 limb40 limb48 limb56 start)
+        (mstoreFourLimbBodyPost addrReg byteReg accReg
+          addrPtr d0 d1 d2 d3 d4 d0Addr d1Addr d2Addr d3Addr d4Addr sp
+          limb32 limb40 limb48 limb56 start) := by
+    exact cpsTripleWithin_weaken
+      (fun _ hp => by
+        rw [mstoreFourLimbBodyMid2_unfold] at hp
+        rw [mstoreOneLimbPre_unfold]
+        unfold rest3 p0 p1 p2
+        xperm_hyp hp)
+      (fun _ hp => by
+        rw [mstoreOneLimbPost_unfold] at hp
+        rw [mstoreFourLimbBodyPost_unfold, mstoreFourLimbStore_unfold]
+        unfold rest3 at hp
+        dsimp only
+        xperm_hyp hp)
+      h3Framed
+  exact mstore_four_limb_sequence_spec_within addrReg byteReg accReg base
+    h0Body h1Body h2Body h3Body
+
 theorem mstore_limb0_four_code_spec_within
     (addrReg byteReg accReg : Reg)
     (addrPtr byteOld accOld loVal hiVal loAddr hiAddr sp limbVal : Word)
