@@ -319,6 +319,29 @@ theorem mstore_four_limbs_evm_mstore_spec_within
     (evm_mstore_code_four_limbs_sub offReg valReg byteReg accReg addrReg memBaseReg base)
     h
 
+theorem mstore_four_limb_sequence_spec_within
+    {n0 n1 n2 n3 : Nat} {P0 P1 P2 P3 P4 : Assertion}
+    (addrReg byteReg accReg : Reg) (base : Word)
+    (h0 :
+      cpsTripleWithin n0 (base + 8) (base + 76)
+        (mstoreFourLimbsCode addrReg byteReg accReg base) P0 P1)
+    (h1 :
+      cpsTripleWithin n1 (base + 76) (base + 144)
+        (mstoreFourLimbsCode addrReg byteReg accReg base) P1 P2)
+    (h2 :
+      cpsTripleWithin n2 (base + 144) (base + 212)
+        (mstoreFourLimbsCode addrReg byteReg accReg base) P2 P3)
+    (h3 :
+      cpsTripleWithin n3 (base + 212) (base + 280)
+        (mstoreFourLimbsCode addrReg byteReg accReg base) P3 P4) :
+    cpsTripleWithin (n0 + n1 + n2 + n3) (base + 8) (base + 280)
+      (mstoreFourLimbsCode addrReg byteReg accReg base) P0 P4 := by
+  exact cpsTripleWithin_seq_same_cr
+    (cpsTripleWithin_seq_same_cr
+      (cpsTripleWithin_seq_same_cr h0 h1)
+      h2)
+    h3
+
 theorem mstoreStackCode_epilogue_sub
     (offReg byteReg accReg addrReg memBaseReg : Reg) (base : Word) :
     ∀ a i, (mstoreEpilogueCode (base + 280)) a = some i →
