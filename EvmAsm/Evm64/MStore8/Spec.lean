@@ -25,6 +25,7 @@
 import EvmAsm.Evm64.MStore8.Program
 import EvmAsm.Evm64.Memory
 import EvmAsm.Rv64.SyscallSpecs
+import EvmAsm.Rv64.Tactics.RunBlock
 
 open EvmAsm.Rv64.Tactics
 
@@ -60,6 +61,75 @@ theorem evm_mstore8_kernel_spec_within
     rw [h_off]; simp
   rw [hbo] at hSB
   exact hSB
+
+/-- Full MSTORE8 executable spec: load the low offset and value limbs from
+    the EVM stack, compute `memBase + offset`, store the low byte of the
+    value, and pop the two consumed stack words. -/
+theorem evm_mstore8_spec_within
+    (offReg valReg addrReg memBaseReg : Reg)
+    (sp memBase offOld valOld addrOld offset valueLow wordOld : Word)
+    (base dwordAddr : Word)
+    (hoff_ne_x0 : offReg ≠ .x0)
+    (hval_ne_x0 : valReg ≠ .x0)
+    (haddr_ne_x0 : addrReg ≠ .x0)
+    (halign : alignToDword (memBase + offset) = dwordAddr)
+    (hvalid : isValidByteAccess (memBase + offset) = true) :
+    let targetAddr := memBase + offset
+    cpsTripleWithin 5 base (base + 20)
+      (evm_mstore8_code offReg valReg addrReg memBaseReg base)
+      ((.x12 ↦ᵣ sp) ** (memBaseReg ↦ᵣ memBase) **
+       (offReg ↦ᵣ offOld) ** (valReg ↦ᵣ valOld) ** (addrReg ↦ᵣ addrOld) **
+       ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ offset) **
+       ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ valueLow) **
+       (dwordAddr ↦ₘ wordOld))
+      ((.x12 ↦ᵣ (sp + signExtend12 (64 : BitVec 12))) **
+       (memBaseReg ↦ᵣ memBase) **
+       (offReg ↦ᵣ offset) ** (valReg ↦ᵣ valueLow) **
+       (addrReg ↦ᵣ targetAddr) **
+       ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ offset) **
+       ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ valueLow) **
+       (dwordAddr ↦ₘ
+        replaceByte wordOld (byteOffset targetAddr) (valueLow.truncate 8))) := by
+  intro targetAddr
+  have hLoadOff := ld_spec_gen_within offReg .x12 sp offOld offset
+    (0 : BitVec 12) base hoff_ne_x0
+  have hLoadVal := ld_spec_gen_within valReg .x12 sp valOld valueLow
+    (32 : BitVec 12) (base + 4) hval_ne_x0
+  have hAdd := add_spec_gen_within addrReg memBaseReg offReg
+    memBase offset addrOld (base + 8) haddr_ne_x0
+  have h_zero : signExtend12 (0 : BitVec 12) = (0 : Word) := by decide
+  have halign_store :
+      alignToDword (targetAddr + signExtend12 (0 : BitVec 12)) = dwordAddr := by
+    rw [h_zero]
+    simpa [targetAddr] using halign
+  have hvalid_store :
+      isValidByteAccess (targetAddr + signExtend12 (0 : BitVec 12)) = true := by
+    rw [h_zero]
+    simpa [targetAddr] using hvalid
+  have hStore := sb_spec_gen_within addrReg valReg targetAddr valueLow
+    (0 : BitVec 12) (base + 12) dwordAddr wordOld halign_store hvalid_store
+  have hStore' : cpsTripleWithin 1 (base + 12) ((base + 12) + 4)
+      (CodeReq.singleton (base + 12) (.SB addrReg valReg 0))
+      ((addrReg ↦ᵣ targetAddr) ** (valReg ↦ᵣ valueLow) ** (dwordAddr ↦ₘ wordOld))
+      ((addrReg ↦ᵣ targetAddr) ** (valReg ↦ᵣ valueLow) **
+       (dwordAddr ↦ₘ replaceByte wordOld (byteOffset targetAddr) (valueLow.truncate 8))) := by
+    rw [show byteOffset (targetAddr + signExtend12 (0 : BitVec 12)) =
+        byteOffset targetAddr by rw [h_zero]; simp] at hStore
+    exact hStore
+  have hPop := addi_spec_gen_same_within .x12 sp (64 : BitVec 12)
+    (base + 16) (by nofun)
+  unfold evm_mstore8_code evm_mstore8 LD ADD ADDI SB single seq
+  change cpsTripleWithin 5 base (base + 20)
+    (CodeReq.ofProg base
+      [.LD offReg .x12 0, .LD valReg .x12 32, .ADD addrReg memBaseReg offReg,
+       .SB addrReg valReg 0, .ADDI .x12 .x12 64])
+    _ _
+  rw [CodeReq.ofProg_cons, CodeReq.ofProg_cons, CodeReq.ofProg_cons,
+    CodeReq.ofProg_cons, CodeReq.ofProg_singleton]
+  rw [show (base + 4 : Word) + 4 = base + 8 by bv_addr]
+  rw [show (base + 8 : Word) + 4 = base + 12 by bv_addr]
+  rw [show (base + 12 : Word) + 4 = base + 16 by bv_addr]
+  runBlock hLoadOff hLoadVal hAdd hStore' hPop
 
 /-! ## EVM memory expansion for a one-byte access
 
