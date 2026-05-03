@@ -214,6 +214,46 @@ theorem evm_mstore8_stack_spec_within
       xperm_hyp hp)
     hFramed
 
+/-- Stack-level MSTORE8 spec with the postcondition stack pointer normalized
+    from the sign-extended ADDI immediate to the usual `sp + 64` surface form. -/
+theorem evm_mstore8_stack_spec_clean_sp_within
+    (offReg valReg addrReg memBaseReg : Reg)
+    (sp memBase offOld valOld addrOld wordOld : Word)
+    (base dwordAddr : Word)
+    (offsetWord valueWord : EvmWord) (rest : List EvmWord)
+    (hoff_ne_x0 : offReg ≠ .x0)
+    (hval_ne_x0 : valReg ≠ .x0)
+    (haddr_ne_x0 : addrReg ≠ .x0)
+    (halign : alignToDword (memBase + offsetWord.getLimbN 0) = dwordAddr)
+    (hvalid : isValidByteAccess (memBase + offsetWord.getLimbN 0) = true) :
+    let targetAddr := memBase + offsetWord.getLimbN 0
+    cpsTripleWithin 5 base (base + 20)
+      (evm_mstore8_code offReg valReg addrReg memBaseReg base)
+      ((.x12 ↦ᵣ sp) ** (memBaseReg ↦ᵣ memBase) **
+       (offReg ↦ᵣ offOld) ** (valReg ↦ᵣ valOld) ** (addrReg ↦ᵣ addrOld) **
+       evmWordIs sp offsetWord ** evmWordIs (sp + 32) valueWord **
+       evmStackIs (sp + 64) rest ** (dwordAddr ↦ₘ wordOld))
+      ((.x12 ↦ᵣ (sp + 64)) **
+       (memBaseReg ↦ᵣ memBase) **
+       (offReg ↦ᵣ offsetWord.getLimbN 0) ** (valReg ↦ᵣ valueWord.getLimbN 0) **
+       (addrReg ↦ᵣ targetAddr) **
+       evmWordIs sp offsetWord ** evmWordIs (sp + 32) valueWord **
+       evmStackIs (sp + 64) rest **
+       (dwordAddr ↦ₘ
+        replaceByte wordOld (byteOffset targetAddr)
+          ((valueWord.getLimbN 0).truncate 8))) := by
+  intro targetAddr
+  exact cpsTripleWithin_weaken
+    (fun _ hp => hp)
+    (fun _ hp => by
+      have hsp : sp + signExtend12 (64 : BitVec 12) = sp + 64 := by
+        rw [show signExtend12 (64 : BitVec 12) = (64 : Word) by decide]
+      simpa [hsp] using hp)
+    (evm_mstore8_stack_spec_within offReg valReg addrReg memBaseReg
+      sp memBase offOld valOld addrOld wordOld base dwordAddr
+      offsetWord valueWord rest hoff_ne_x0 hval_ne_x0 haddr_ne_x0
+      halign hvalid)
+
 /-! ## EVM memory expansion for a one-byte access
 
   MSTORE8 writes one byte at offset `o`, so the access is `(o, 1)` and
