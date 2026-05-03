@@ -128,4 +128,43 @@ theorem decodeAux_cons_eq_classifyPrefix_match
   · rw [decodeAux_cons_shortList_of_classifyPrefix fuel pfx rest h]
   · rw [decodeAux_cons_longList_of_classifyPrefix fuel pfx rest h]
 
+/--
+  Top-level `decode` wrapper version of `decodeAux_cons_eq_classifyPrefix_match`.
+  This exposes the pure prefix classifier as the first dispatch point for every
+  nonempty RLP input stream.
+-/
+theorem decode_cons_eq_classifyPrefix_match (pfx : Byte) (rest : List Byte) :
+    decode (pfx :: rest) =
+      match classifyPrefix pfx with
+      | .singleByte => some (.bytes [pfx], rest)
+      | .shortBytes =>
+          (do
+            let (data, rest') ← takeBytes rest (rlpPrefixShortBytesPayloadLen pfx)
+            match data with
+            | [b] => if b.toNat < 0x80 then none else some (.bytes data, rest')
+            | _ => some (.bytes data, rest'))
+      | .longBytes =>
+          (do
+            let (lenVal, rest') ← readLength rest (rlpPrefixLongBytesLenOfLen pfx)
+            if lenVal ≤ 55 then none
+            else do
+              let (data, rest'') ← takeBytes rest' lenVal
+              some (.bytes data, rest''))
+      | .shortList =>
+          (do
+            let (payload, rest') ← takeBytes rest (rlpPrefixShortListPayloadLen pfx)
+            let (items, leftover) ← decodeItems (2 * rest.length + 1) payload
+            if List.isEmpty leftover then some (.list items, rest') else none)
+      | .longList =>
+          (do
+            let (lenVal, rest') ← readLength rest (rlpPrefixLongListLenOfLen pfx)
+            if lenVal ≤ 55 then none
+            else do
+              let (payload, rest'') ← takeBytes rest' lenVal
+              let (items, leftover) ← decodeItems (2 * rest.length + 1) payload
+              if List.isEmpty leftover then some (.list items, rest'') else none) := by
+  unfold decode
+  rw [show 2 * (pfx :: rest).length = (2 * rest.length + 1) + 1 by simp; omega]
+  exact decodeAux_cons_eq_classifyPrefix_match (2 * rest.length + 1) pfx rest
+
 end EvmAsm.EL.RLP
