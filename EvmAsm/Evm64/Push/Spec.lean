@@ -265,6 +265,19 @@ theorem pushImmediateWord_evmWordIs_fold
     (pushImmediateWord_getLimbN_2 n byteAt)
     (pushImmediateWord_getLimbN_3 n byteAt)]
 
+/-- Fold the generic PUSH immediate result limbs and existing tail stack into
+    the stack-list shape used by the final `evm_push_n_stack_spec`. -/
+theorem pushImmediateWord_evmStackIs_fold
+    (sp : Word) (n : Nat) (byteAt : Nat → BitVec 8) (rest : List EvmWord) :
+    (((sp ↦ₘ pushImmediateLimb n byteAt 0) **
+      ((sp + 8) ↦ₘ pushImmediateLimb n byteAt 1) **
+      ((sp + 16) ↦ₘ pushImmediateLimb n byteAt 2) **
+      ((sp + 24) ↦ₘ pushImmediateLimb n byteAt 3)) **
+      evmStackIs (sp + 32) rest) =
+    evmStackIs sp (pushImmediateWord n byteAt :: rest) := by
+  rw [pushImmediateWord_evmWordIs_fold]
+  rfl
+
 -- ============================================================================
 -- Per-byte helper (mirror of `dup_pair_spec_within` for LBU+SB)
 -- ============================================================================
