@@ -259,6 +259,30 @@ theorem mstoreStackCode_prologue_sub
   unfold mstoreStackCode
   exact CodeReq.union_mono_left
 
+theorem mstoreStackCode_four_limbs_sub
+    (offReg byteReg accReg addrReg memBaseReg : Reg) (base : Word) :
+    ∀ a i, (mstoreFourLimbsCode addrReg byteReg accReg base) a = some i →
+      (mstoreStackCode offReg byteReg accReg addrReg memBaseReg base) a = some i := by
+  rw [mstoreStackCode_eq_ofProg, mstoreFourLimbsCode_eq_ofProg]
+  exact CodeReq.ofProg_mono_sub base (base + 8)
+    (mstoreStackProg offReg byteReg accReg addrReg memBaseReg)
+    (mstoreFourLimbsProg addrReg byteReg accReg) 2
+    (by
+      change base + 8 = base + 8
+      rfl)
+    (by
+      rw [show (mstoreFourLimbsProg addrReg byteReg accReg).length = 68 from
+        mstoreFourLimbsProg_length addrReg byteReg accReg]
+      unfold mstoreStackProg mstoreFourLimbsProg mstoreOneLimbProg
+        mstoreByteUnpackEightProg LD ADD ADDI SRLI SB single seq
+      rfl)
+    (by
+      rw [mstoreFourLimbsProg_length, mstoreStackProg_length]
+      decide)
+    (by
+      rw [mstoreStackProg_length]
+      omega)
+
 theorem mstoreStackCode_epilogue_sub
     (offReg byteReg accReg addrReg memBaseReg : Reg) (base : Word) :
     ∀ a i, (mstoreEpilogueCode (base + 280)) a = some i →
