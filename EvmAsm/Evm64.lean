@@ -66,6 +66,7 @@ import EvmAsm.Evm64.Environment.Assertion
 
 -- EVM memory model (issue #99)
 import EvmAsm.Evm64.Memory
+import EvmAsm.Evm64.EvmState
 import EvmAsm.Evm64.MSize
 import EvmAsm.Evm64.MStore8
 import EvmAsm.Evm64.MStore
