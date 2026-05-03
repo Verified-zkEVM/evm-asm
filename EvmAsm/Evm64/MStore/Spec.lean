@@ -483,6 +483,114 @@ theorem mstoreFourLimbBodyPre_unfold
   rfl
 
 @[irreducible]
+def mstoreFourLimbBodyMid0
+    (addrReg byteReg accReg : Reg)
+    (addrPtr d0 d1 d2 d3 d4 : Word)
+    (d0Addr d1Addr d2Addr d3Addr d4Addr sp : Word)
+    (limb32 limb40 limb48 limb56 : Word) (start : Nat) : Assertion :=
+  let p0 := MStore.mstoreDwordPairStoreLimb d3 d4 limb32 start
+  (addrReg ↦ᵣ addrPtr) ** (byteReg ↦ᵣ limb32) ** (accReg ↦ᵣ limb32) **
+  (d0Addr ↦ₘ d0) ** (d1Addr ↦ₘ d1) ** (d2Addr ↦ₘ d2) **
+  (d3Addr ↦ₘ p0.1) ** (d4Addr ↦ₘ p0.2) ** ((.x12 : Reg) ↦ᵣ sp) **
+  ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ limb32) **
+  ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ limb40) **
+  ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ limb48) **
+  ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ limb56)
+
+theorem mstoreFourLimbBodyMid0_unfold
+    (addrReg byteReg accReg : Reg)
+    (addrPtr d0 d1 d2 d3 d4 : Word)
+    (d0Addr d1Addr d2Addr d3Addr d4Addr sp : Word)
+    (limb32 limb40 limb48 limb56 : Word) (start : Nat) :
+    mstoreFourLimbBodyMid0 addrReg byteReg accReg
+        addrPtr d0 d1 d2 d3 d4 d0Addr d1Addr d2Addr d3Addr d4Addr sp
+        limb32 limb40 limb48 limb56 start =
+      (let p0 := MStore.mstoreDwordPairStoreLimb d3 d4 limb32 start
+       (addrReg ↦ᵣ addrPtr) ** (byteReg ↦ᵣ limb32) ** (accReg ↦ᵣ limb32) **
+       (d0Addr ↦ₘ d0) ** (d1Addr ↦ₘ d1) ** (d2Addr ↦ₘ d2) **
+       (d3Addr ↦ₘ p0.1) ** (d4Addr ↦ₘ p0.2) ** ((.x12 : Reg) ↦ᵣ sp) **
+       ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ limb32) **
+       ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ limb40) **
+       ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ limb48) **
+       ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ limb56)) := by
+  delta mstoreFourLimbBodyMid0
+  rfl
+
+@[irreducible]
+def mstoreFourLimbBodyMid1
+    (addrReg byteReg accReg : Reg)
+    (addrPtr d0 d1 d2 d3 d4 : Word)
+    (d0Addr d1Addr d2Addr d3Addr d4Addr sp : Word)
+    (limb32 limb40 limb48 limb56 : Word) (start : Nat) : Assertion :=
+  let p0 := MStore.mstoreDwordPairStoreLimb d3 d4 limb32 start
+  let p1 := MStore.mstoreDwordPairStoreLimb d2 p0.1 limb40 start
+  (addrReg ↦ᵣ addrPtr) ** (byteReg ↦ᵣ limb40) ** (accReg ↦ᵣ limb40) **
+  (d0Addr ↦ₘ d0) ** (d1Addr ↦ₘ d1) ** (d2Addr ↦ₘ p1.1) **
+  (d3Addr ↦ₘ p1.2) ** (d4Addr ↦ₘ p0.2) ** ((.x12 : Reg) ↦ᵣ sp) **
+  ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ limb32) **
+  ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ limb40) **
+  ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ limb48) **
+  ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ limb56)
+
+theorem mstoreFourLimbBodyMid1_unfold
+    (addrReg byteReg accReg : Reg)
+    (addrPtr d0 d1 d2 d3 d4 : Word)
+    (d0Addr d1Addr d2Addr d3Addr d4Addr sp : Word)
+    (limb32 limb40 limb48 limb56 : Word) (start : Nat) :
+    mstoreFourLimbBodyMid1 addrReg byteReg accReg
+        addrPtr d0 d1 d2 d3 d4 d0Addr d1Addr d2Addr d3Addr d4Addr sp
+        limb32 limb40 limb48 limb56 start =
+      (let p0 := MStore.mstoreDwordPairStoreLimb d3 d4 limb32 start
+       let p1 := MStore.mstoreDwordPairStoreLimb d2 p0.1 limb40 start
+       (addrReg ↦ᵣ addrPtr) ** (byteReg ↦ᵣ limb40) ** (accReg ↦ᵣ limb40) **
+       (d0Addr ↦ₘ d0) ** (d1Addr ↦ₘ d1) ** (d2Addr ↦ₘ p1.1) **
+       (d3Addr ↦ₘ p1.2) ** (d4Addr ↦ₘ p0.2) ** ((.x12 : Reg) ↦ᵣ sp) **
+       ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ limb32) **
+       ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ limb40) **
+       ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ limb48) **
+       ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ limb56)) := by
+  delta mstoreFourLimbBodyMid1
+  rfl
+
+@[irreducible]
+def mstoreFourLimbBodyMid2
+    (addrReg byteReg accReg : Reg)
+    (addrPtr d0 d1 d2 d3 d4 : Word)
+    (d0Addr d1Addr d2Addr d3Addr d4Addr sp : Word)
+    (limb32 limb40 limb48 limb56 : Word) (start : Nat) : Assertion :=
+  let p0 := MStore.mstoreDwordPairStoreLimb d3 d4 limb32 start
+  let p1 := MStore.mstoreDwordPairStoreLimb d2 p0.1 limb40 start
+  let p2 := MStore.mstoreDwordPairStoreLimb d1 p1.1 limb48 start
+  (addrReg ↦ᵣ addrPtr) ** (byteReg ↦ᵣ limb48) ** (accReg ↦ᵣ limb48) **
+  (d0Addr ↦ₘ d0) ** (d1Addr ↦ₘ p2.1) ** (d2Addr ↦ₘ p2.2) **
+  (d3Addr ↦ₘ p1.2) ** (d4Addr ↦ₘ p0.2) ** ((.x12 : Reg) ↦ᵣ sp) **
+  ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ limb32) **
+  ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ limb40) **
+  ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ limb48) **
+  ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ limb56)
+
+theorem mstoreFourLimbBodyMid2_unfold
+    (addrReg byteReg accReg : Reg)
+    (addrPtr d0 d1 d2 d3 d4 : Word)
+    (d0Addr d1Addr d2Addr d3Addr d4Addr sp : Word)
+    (limb32 limb40 limb48 limb56 : Word) (start : Nat) :
+    mstoreFourLimbBodyMid2 addrReg byteReg accReg
+        addrPtr d0 d1 d2 d3 d4 d0Addr d1Addr d2Addr d3Addr d4Addr sp
+        limb32 limb40 limb48 limb56 start =
+      (let p0 := MStore.mstoreDwordPairStoreLimb d3 d4 limb32 start
+       let p1 := MStore.mstoreDwordPairStoreLimb d2 p0.1 limb40 start
+       let p2 := MStore.mstoreDwordPairStoreLimb d1 p1.1 limb48 start
+       (addrReg ↦ᵣ addrPtr) ** (byteReg ↦ᵣ limb48) ** (accReg ↦ᵣ limb48) **
+       (d0Addr ↦ₘ d0) ** (d1Addr ↦ₘ p2.1) ** (d2Addr ↦ₘ p2.2) **
+       (d3Addr ↦ₘ p1.2) ** (d4Addr ↦ₘ p0.2) ** ((.x12 : Reg) ↦ᵣ sp) **
+       ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ limb32) **
+       ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ limb40) **
+       ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ limb48) **
+       ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ limb56)) := by
+  delta mstoreFourLimbBodyMid2
+  rfl
+
+@[irreducible]
 def mstoreFourLimbBodyPost
     (addrReg byteReg accReg : Reg)
     (addrPtr d0 d1 d2 d3 d4 : Word)
