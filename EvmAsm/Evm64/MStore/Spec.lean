@@ -379,6 +379,25 @@ theorem mstore_prologue_evm_mstore_spec_within
   exact mstore_prologue_stack_spec_within offReg byteReg accReg addrReg memBaseReg
     sp offset offOld addrOld memBase base h_off_ne_x0 h_addr_ne_x0
 
+theorem mstore_prologue_evm_mstore_frame_spec_within
+    (offReg valReg byteReg accReg addrReg memBaseReg : Reg)
+    (sp offset offOld addrOld memBase : Word) (base : Word)
+    (F : Assertion) (hF : F.pcFree)
+    (h_off_ne_x0 : offReg ≠ .x0)
+    (h_addr_ne_x0 : addrReg ≠ .x0) :
+    cpsTripleWithin 2 base (base + 8)
+      (evm_mstore_code offReg valReg byteReg accReg addrReg memBaseReg base)
+      ((((.x12 : Reg) ↦ᵣ sp) ** (offReg ↦ᵣ offOld) **
+        (memBaseReg ↦ᵣ memBase) ** (addrReg ↦ᵣ addrOld) **
+        (sp ↦ₘ offset)) ** F)
+      ((((.x12 : Reg) ↦ᵣ sp) ** (offReg ↦ᵣ offset) **
+        (memBaseReg ↦ᵣ memBase) ** (addrReg ↦ᵣ (memBase + offset)) **
+        (sp ↦ₘ offset)) ** F) := by
+  exact cpsTripleWithin_frameR F hF
+    (mstore_prologue_evm_mstore_spec_within
+      offReg valReg byteReg accReg addrReg memBaseReg
+      sp offset offOld addrOld memBase base h_off_ne_x0 h_addr_ne_x0)
+
 theorem mstore_epilogue_stack_spec_within
     (offReg byteReg accReg addrReg memBaseReg : Reg)
     (sp : Word) (base : Word) :
