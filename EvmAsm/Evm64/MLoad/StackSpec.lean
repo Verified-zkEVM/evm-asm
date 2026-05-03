@@ -287,4 +287,66 @@ theorem mloadStackOutputPost_evmWordIs_fold
   rw [mloadStackOutputWordFromDwordPairs_eq_mloadLoadedWordFromDwordPairs]
   rw [mloadLoadedWordFromDwordPairs_evmWordIs_fold]
 
+/--
+  The 256-bit value loaded by a 32-byte unaligned MLOAD window spanning five
+  consecutive RV64 dwords. The single `start` byte offset applies to each
+  8-byte EVM limb window; adjacent limbs share boundary dwords.
+-/
+def mloadLoadedWordFromFiveDwords
+    (d0 d1 d2 d3 d4 : Word) (start : Nat) : EvmWord :=
+  mloadLoadedWordFromDwordPairs
+    d3 d4 start
+    d2 d3 start
+    d1 d2 start
+    d0 d1 start
+
+theorem mloadLoadedWordFromFiveDwords_eq_mloadLoadedWordFromDwordPairs
+    (d0 d1 d2 d3 d4 : Word) (start : Nat) :
+    mloadLoadedWordFromFiveDwords d0 d1 d2 d3 d4 start =
+      mloadLoadedWordFromDwordPairs
+        d3 d4 start
+        d2 d3 start
+        d1 d2 start
+        d0 d1 start := by
+  rfl
+
+/--
+  Fold the four output limbs from a five-dword unaligned MLOAD source window
+  into one `evmWordIs` assertion.
+-/
+theorem mloadLoadedWordFromFiveDwords_evmWordIs_fold
+    (sp d0 d1 d2 d3 d4 : Word) (start : Nat) :
+    ((sp ↦ₘ mloadPackedLimbFromDwordPair d3 d4 start) **
+     ((sp + 8) ↦ₘ mloadPackedLimbFromDwordPair d2 d3 start) **
+     ((sp + 16) ↦ₘ mloadPackedLimbFromDwordPair d1 d2 start) **
+     ((sp + 24) ↦ₘ mloadPackedLimbFromDwordPair d0 d1 start)) =
+    evmWordIs sp (mloadLoadedWordFromFiveDwords d0 d1 d2 d3 d4 start) := by
+  rw [mloadLoadedWordFromFiveDwords_eq_mloadLoadedWordFromDwordPairs]
+  rw [mloadLoadedWordFromDwordPairs_evmWordIs_fold]
+
+/--
+  Compact stack postcondition for the five-dword unaligned MLOAD source shape.
+-/
+@[irreducible]
+def mloadStackOutputPostFiveDwords
+    (sp d0 d1 d2 d3 d4 : Word) (start : Nat) : Assertion :=
+  evmWordIs sp (mloadLoadedWordFromFiveDwords d0 d1 d2 d3 d4 start)
+
+theorem mloadStackOutputPostFiveDwords_unfold
+    (sp d0 d1 d2 d3 d4 : Word) (start : Nat) :
+    mloadStackOutputPostFiveDwords sp d0 d1 d2 d3 d4 start =
+      evmWordIs sp (mloadLoadedWordFromFiveDwords d0 d1 d2 d3 d4 start) := by
+  delta mloadStackOutputPostFiveDwords
+  rfl
+
+theorem mloadStackOutputPostFiveDwords_evmWordIs_fold
+    (sp d0 d1 d2 d3 d4 : Word) (start : Nat) :
+    ((sp ↦ₘ mloadPackedLimbFromDwordPair d3 d4 start) **
+     ((sp + 8) ↦ₘ mloadPackedLimbFromDwordPair d2 d3 start) **
+     ((sp + 16) ↦ₘ mloadPackedLimbFromDwordPair d1 d2 start) **
+     ((sp + 24) ↦ₘ mloadPackedLimbFromDwordPair d0 d1 start)) =
+    mloadStackOutputPostFiveDwords sp d0 d1 d2 d3 d4 start := by
+  rw [mloadStackOutputPostFiveDwords_unfold]
+  rw [mloadLoadedWordFromFiveDwords_evmWordIs_fold]
+
 end EvmAsm.Evm64
