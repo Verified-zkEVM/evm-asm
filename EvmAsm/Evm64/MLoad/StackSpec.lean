@@ -23,6 +23,50 @@ def mloadFourLimbsCode
         (mloadOneLimbCode addrReg byteReg accReg
           0 1 2 3 4 5 6 7 24 (base + 284))))
 
+/-- Program form of the four MLOAD output-limb byte-pack blocks, placed after
+    the two-instruction address prologue. -/
+def mloadFourLimbsProg
+    (addrReg byteReg accReg : Reg) : Program :=
+  mloadTwoLimbsProg addrReg byteReg accReg
+    24 25 26 27 28 29 30 31 0
+    16 17 18 19 20 21 22 23 8 ;;
+  mloadTwoLimbsProg addrReg byteReg accReg
+    8 9 10 11 12 13 14 15 16
+    0 1 2 3 4 5 6 7 24
+
+theorem mloadFourLimbsCode_eq_ofProg
+    (addrReg byteReg accReg : Reg) (base : Word) :
+    mloadFourLimbsCode addrReg byteReg accReg base =
+      CodeReq.ofProg (base + 8)
+        (mloadFourLimbsProg addrReg byteReg accReg) := by
+  have hshape :
+      mloadFourLimbsCode addrReg byteReg accReg base =
+        (mloadTwoLimbsCode addrReg byteReg accReg
+          24 25 26 27 28 29 30 31 0
+          16 17 18 19 20 21 22 23 8 (base + 8)).union
+        (mloadTwoLimbsCode addrReg byteReg accReg
+          8 9 10 11 12 13 14 15 16
+          0 1 2 3 4 5 6 7 24 (base + 192)) := by
+    unfold mloadFourLimbsCode mloadTwoLimbsCode
+    rw [← CodeReq.union_assoc]
+    rw [show (base + 8 : Word) + 92 = base + 100 from by bv_addr]
+    rw [show (base + 192 : Word) + 92 = base + 284 from by bv_addr]
+  rw [hshape, mloadTwoLimbsCode_eq_ofProg, mloadTwoLimbsCode_eq_ofProg]
+  let p1 := mloadTwoLimbsProg addrReg byteReg accReg
+    24 25 26 27 28 29 30 31 0
+    16 17 18 19 20 21 22 23 8
+  let p2 := mloadTwoLimbsProg addrReg byteReg accReg
+    8 9 10 11 12 13 14 15 16
+    0 1 2 3 4 5 6 7 24
+  change (CodeReq.ofProg (base + 8) p1).union (CodeReq.ofProg (base + 192) p2) =
+    CodeReq.ofProg (base + 8) (List.append p1 p2)
+  rw [show base + 192 = (base + 8) + BitVec.ofNat 64 (4 * p1.length) from by
+    unfold p1 mloadTwoLimbsProg mloadOneLimbProg mloadBytePackEightProg
+      LBU SLLI OR' SD single seq
+    symm
+    bv_addr]
+  exact (@CodeReq.ofProg_append (base + 8) p1 p2).symm
+
 /-- Compact CodeReq for the full MLOAD program: address prologue followed by
     the four unaligned output-limb blocks. -/
 def mloadStackCode
