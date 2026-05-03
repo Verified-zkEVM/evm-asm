@@ -24,6 +24,68 @@ def mstoreFourLimbsCode
         (mstoreOneLimbCode addrReg byteReg accReg
           56 0 1 2 3 4 5 6 7 (base + 212))))
 
+/-- Program form of the four MSTORE value-limb byte-unpack blocks. The source
+    limbs are read from the stack in EVM big-endian order and written to memory
+    starting at byte offsets 24, 16, 8, and 0 respectively. -/
+def mstoreFourLimbsProg
+    (addrReg byteReg accReg : Reg) : Program :=
+  mstoreOneLimbProg addrReg byteReg accReg
+    32 24 25 26 27 28 29 30 31 ;;
+  mstoreOneLimbProg addrReg byteReg accReg
+    40 16 17 18 19 20 21 22 23 ;;
+  mstoreOneLimbProg addrReg byteReg accReg
+    48 8 9 10 11 12 13 14 15 ;;
+  mstoreOneLimbProg addrReg byteReg accReg
+    56 0 1 2 3 4 5 6 7
+
+/-- Public `ofProg` bridge for the four value-limb blocks used by MSTORE. -/
+theorem mstoreFourLimbsCode_eq_ofProg
+    (addrReg byteReg accReg : Reg) (base : Word) :
+    mstoreFourLimbsCode addrReg byteReg accReg base =
+      CodeReq.ofProg (base + 8) (mstoreFourLimbsProg addrReg byteReg accReg) := by
+  unfold mstoreFourLimbsCode mstoreFourLimbsProg seq
+  rw [mstoreOneLimbCode_eq_ofProg, mstoreOneLimbCode_eq_ofProg,
+    mstoreOneLimbCode_eq_ofProg, mstoreOneLimbCode_eq_ofProg]
+  let p0 := mstoreOneLimbProg addrReg byteReg accReg 32 24 25 26 27 28 29 30 31
+  let p1 := mstoreOneLimbProg addrReg byteReg accReg 40 16 17 18 19 20 21 22 23
+  let p2 := mstoreOneLimbProg addrReg byteReg accReg 48 8 9 10 11 12 13 14 15
+  let p3 := mstoreOneLimbProg addrReg byteReg accReg 56 0 1 2 3 4 5 6 7
+  change (CodeReq.ofProg (base + 8) p0).union
+      ((CodeReq.ofProg (base + 76) p1).union
+        ((CodeReq.ofProg (base + 144) p2).union
+          (CodeReq.ofProg (base + 212) p3))) =
+    CodeReq.ofProg (base + 8) (p0 ++ (p1 ++ (p2 ++ p3)))
+  have h23 :
+      (CodeReq.ofProg (base + 144) p2).union
+          (CodeReq.ofProg (base + 212) p3) =
+        CodeReq.ofProg (base + 144) (p2 ++ p3) := by
+    rw [show base + 212 =
+        (base + 144) + BitVec.ofNat 64 (4 * p2.length) by
+      unfold p2 mstoreOneLimbProg mstoreByteUnpackEightProg LD SRLI SB single seq
+      bv_addr]
+    exact (CodeReq.ofProg_append (base := base + 144) (p1 := p2) (p2 := p3)).symm
+  rw [h23]
+  have h123 :
+      (CodeReq.ofProg (base + 76) p1).union
+          (CodeReq.ofProg (base + 144) (p2 ++ p3)) =
+        CodeReq.ofProg (base + 76) (p1 ++ (p2 ++ p3)) := by
+    rw [show base + 144 =
+        (base + 76) + BitVec.ofNat 64 (4 * p1.length) by
+      unfold p1 mstoreOneLimbProg mstoreByteUnpackEightProg LD SRLI SB single seq
+      bv_addr]
+    exact (CodeReq.ofProg_append (base := base + 76) (p1 := p1) (p2 := p2 ++ p3)).symm
+  rw [h123]
+  have h0123 :
+      (CodeReq.ofProg (base + 8) p0).union
+          (CodeReq.ofProg (base + 76) (p1 ++ (p2 ++ p3))) =
+        CodeReq.ofProg (base + 8) (p0 ++ (p1 ++ (p2 ++ p3))) := by
+    rw [show base + 76 =
+        (base + 8) + BitVec.ofNat 64 (4 * p0.length) by
+      unfold p0 mstoreOneLimbProg mstoreByteUnpackEightProg LD SRLI SB single seq
+      bv_addr]
+    exact (CodeReq.ofProg_append (base := base + 8) (p1 := p0) (p2 := p1 ++ (p2 ++ p3))).symm
+  exact h0123
+
 theorem mstoreFourLimbsCode_limb0_sub
     (addrReg byteReg accReg : Reg) (base : Word) :
     ∀ a i,
