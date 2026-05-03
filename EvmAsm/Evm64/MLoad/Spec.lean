@@ -1520,4 +1520,25 @@ theorem mloadLoadedWordFromBytes_evmWordIs_fold
         b24 b25 b26 b27 b28 b29 b30 b31) := by
   rw [mloadLoadedWordFromBytes, mloadLoadedWord_evmWordIs_fold]
 
+/-- Fold the byte-window MLOAD result and existing stack tail into one stack assertion. -/
+theorem mloadLoadedWordFromBytes_evmStackIs_fold
+    (sp : Word) (rest : List EvmWord)
+    (b00 b01 b02 b03 b04 b05 b06 b07 : BitVec 8)
+    (b08 b09 b10 b11 b12 b13 b14 b15 : BitVec 8)
+    (b16 b17 b18 b19 b20 b21 b22 b23 : BitVec 8)
+    (b24 b25 b26 b27 b28 b29 b30 b31 : BitVec 8) :
+    (((sp ↦ₘ mloadPackedLimb b24 b25 b26 b27 b28 b29 b30 b31) **
+      ((sp + 8) ↦ₘ mloadPackedLimb b16 b17 b18 b19 b20 b21 b22 b23) **
+      ((sp + 16) ↦ₘ mloadPackedLimb b08 b09 b10 b11 b12 b13 b14 b15) **
+      ((sp + 24) ↦ₘ mloadPackedLimb b00 b01 b02 b03 b04 b05 b06 b07)) **
+      evmStackIs (sp + 32) rest) =
+    evmStackIs sp
+      ((mloadLoadedWordFromBytes
+        b00 b01 b02 b03 b04 b05 b06 b07
+        b08 b09 b10 b11 b12 b13 b14 b15
+        b16 b17 b18 b19 b20 b21 b22 b23
+        b24 b25 b26 b27 b28 b29 b30 b31) :: rest) := by
+  rw [mloadLoadedWordFromBytes_evmWordIs_fold]
+  rfl
+
 end EvmAsm.Evm64
