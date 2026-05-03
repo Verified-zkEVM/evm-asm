@@ -438,6 +438,13 @@ theorem evmMemExpand_word_eq_old_of_end_le
   rw [evmMemExpand_word_eq]
   exact max_eq_left (roundUpTo32_le_of_le_dvd h_end h_size_dvd)
 
+theorem evmMemExpand_byte_eq_old_of_end_le
+    (sizeBytes offset : Nat) (h_end : offset + 1 ≤ sizeBytes)
+    (h_size_dvd : 32 ∣ sizeBytes) :
+    evmMemExpand sizeBytes offset 1 = sizeBytes := by
+  rw [evmMemExpand_byte_eq]
+  exact max_eq_left (roundUpTo32_le_of_le_dvd h_end h_size_dvd)
+
 /--
   Named size-cell postcondition for a 32-byte MLOAD/MSTORE-style access.
   This keeps opcode specs from repeating the high-water expression in every
@@ -498,6 +505,14 @@ theorem evmMemSizeIsByteExpanded_unfold_max
     evmMemSizeIsByteExpanded sizeLoc sizeBytes offset =
       evmMemSizeIs sizeLoc (max sizeBytes (roundUpTo32 (offset + 1))) := by
   rw [evmMemSizeIsByteExpanded_unfold, evmMemExpand_byte_eq]
+
+theorem evmMemSizeIsByteExpanded_eq_current_of_mstore8_within
+    {sizeLoc : Word} {sizeBytes offset : Nat}
+    (h_end : offset + 1 ≤ sizeBytes) (h_size_dvd : 32 ∣ sizeBytes) :
+    evmMemSizeIsByteExpanded sizeLoc sizeBytes offset =
+      evmMemSizeIs sizeLoc sizeBytes := by
+  rw [evmMemSizeIsByteExpanded_unfold,
+    evmMemExpand_byte_eq_old_of_end_le sizeBytes offset h_end h_size_dvd]
 
 theorem pcFree_evmMemSizeIsByteExpanded
     {sizeLoc : Word} {sizeBytes offset : Nat} :
