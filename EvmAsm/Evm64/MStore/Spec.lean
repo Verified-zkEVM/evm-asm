@@ -4,6 +4,7 @@
   Stack-level building blocks for the 256-bit EVM MSTORE program.
 -/
 
+import EvmAsm.Evm64.MStore.Program
 import EvmAsm.Evm64.MStore.LimbSpec
 
 namespace EvmAsm.Evm64
@@ -251,6 +252,21 @@ theorem mstoreStackCode_eq_ofProg
       rfl]
     exact (CodeReq.ofProg_append (base := base) (p1 := p0) (p2 := p1 ++ p2)).symm
   exact h012
+
+theorem mstoreStackProg_eq_evm_mstore
+    (offReg valReg byteReg accReg addrReg memBaseReg : Reg) :
+    mstoreStackProg offReg byteReg accReg addrReg memBaseReg =
+      evm_mstore offReg valReg byteReg accReg addrReg memBaseReg := by
+  unfold mstoreStackProg mstoreFourLimbsProg mstoreOneLimbProg
+    mstoreByteUnpackEightProg evm_mstore
+  rfl
+
+theorem mstoreStackCode_eq_evm_mstore_code
+    (offReg valReg byteReg accReg addrReg memBaseReg : Reg) (base : Word) :
+    mstoreStackCode offReg byteReg accReg addrReg memBaseReg base =
+      evm_mstore_code offReg valReg byteReg accReg addrReg memBaseReg base := by
+  rw [mstoreStackCode_eq_ofProg,
+    mstoreStackProg_eq_evm_mstore offReg valReg byteReg accReg addrReg memBaseReg]
 
 theorem mstoreStackCode_prologue_sub
     (offReg byteReg accReg addrReg memBaseReg : Reg) (base : Word) :
