@@ -70,6 +70,7 @@ def signExtend21 (imm : BitVec 21) : Word :=
 @[simp] theorem signExtend12_52 : signExtend12 (52 : BitVec 12) = (52 : Word) := by decide
 @[simp] theorem signExtend12_56 : signExtend12 (56 : BitVec 12) = (56 : Word) := by decide
 @[simp] theorem signExtend12_60 : signExtend12 (60 : BitVec 12) = (60 : Word) := by decide
+@[simp] theorem signExtend12_64 : signExtend12 (64 : BitVec 12) = (64 : Word) := by decide
 @[simp] theorem signExtend12_1  : signExtend12 (1  : BitVec 12) = (1  : Word) := by decide
 @[simp] theorem signExtend12_2  : signExtend12 (2  : BitVec 12) = (2  : Word) := by decide
 @[simp] theorem signExtend12_3  : signExtend12 (3  : BitVec 12) = (3  : Word) := by decide
