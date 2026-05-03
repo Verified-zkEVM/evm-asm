@@ -193,6 +193,34 @@ theorem evm_push_zero_slot_stack_spec_within
       pcFree_evmStackIs
       (evm_push_zero_slot_code_spec_within n hn sp d0 d1 d2 d3 base))
 
+/-- Stack-list variant of the generic PUSH allocation prefix: after the
+    zero-filled slot is allocated, the new top of stack is the word `0`
+    followed by the previous stack tail. -/
+theorem evm_push_zero_slot_full_stack_spec_within
+    (n : Nat) (hn : n ≤ 32) (sp d0 d1 d2 d3 : Word) (base : Word)
+    (rest : List EvmWord) :
+    let nsp := sp + signExtend12 ((-32 : BitVec 12))
+    cpsTripleWithin 5 base (base + 20) (evm_push_code base n)
+      ((.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) **
+       ((nsp + signExtend12 (0 : BitVec 12)) ↦ₘ d0) **
+       ((nsp + signExtend12 (8 : BitVec 12)) ↦ₘ d1) **
+       ((nsp + signExtend12 (16 : BitVec 12)) ↦ₘ d2) **
+       ((nsp + signExtend12 (24 : BitVec 12)) ↦ₘ d3) **
+       evmStackIs sp rest)
+      ((.x12 ↦ᵣ nsp) ** (.x0 ↦ᵣ (0 : Word)) **
+       evmStackIs nsp ((0 : EvmWord) :: rest)) := by
+  intro nsp
+  exact cpsTripleWithin_weaken
+    (fun _ hp => hp)
+    (fun _ hq => by
+      rw [evmStackIs_cons]
+      rw [show (nsp + 32 : Word) = sp from by
+        change (sp + signExtend12 ((-32 : BitVec 12)) + 32 : Word) = sp
+        unfold signExtend12
+        bv_decide]
+      xperm_hyp hq)
+    (evm_push_zero_slot_stack_spec_within n hn sp d0 d1 d2 d3 base rest)
+
 -- ============================================================================
 -- Per-byte helper (mirror of `dup_pair_spec_within` for LBU+SB)
 -- ============================================================================
