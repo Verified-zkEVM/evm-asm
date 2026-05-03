@@ -156,6 +156,22 @@ theorem evm_mload_length (offReg byteReg accReg addrReg memBaseReg : Reg) :
   simp [evm_mload, LD, ADD, single, seq, Program.length_append,
     mload_one_limb_length]
 
+theorem evm_mload_prologue_slice
+    (offReg byteReg accReg addrReg memBaseReg : Reg) :
+    ((evm_mload offReg byteReg accReg addrReg memBaseReg).drop 0).take
+      (LD offReg .x12 0 ;; ADD addrReg memBaseReg offReg).length =
+      (LD offReg .x12 0 ;; ADD addrReg memBaseReg offReg) := by
+  simp only [evm_mload, LD, ADD, single, seq, Program, List.drop_zero]
+  let prologue : List Instr :=
+    [Instr.LD offReg .x12 0] ++ [Instr.ADD addrReg memBaseReg offReg]
+  let suffix : List Instr :=
+    mload_one_limb addrReg byteReg accReg 0 ++
+      (mload_one_limb addrReg byteReg accReg 1 ++
+        (mload_one_limb addrReg byteReg accReg 2 ++
+          mload_one_limb addrReg byteReg accReg 3))
+  change List.take prologue.length (prologue ++ suffix) = prologue
+  exact List.take_left
+
 /-- Concrete byte length of `evm_mload` when placed in RV64 code memory. -/
 theorem evm_mload_byte_length (offReg byteReg accReg addrReg memBaseReg : Reg) :
     4 * (evm_mload offReg byteReg accReg addrReg memBaseReg).length = 376 := by

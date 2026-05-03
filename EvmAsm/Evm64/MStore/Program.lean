@@ -135,6 +135,23 @@ private theorem mstore_one_limb_length
   rw [Program.length_append, mstore_byte_unpack_7_length]
   rfl
 
+private def evm_mstore_prefix
+    (offReg valReg byteReg accReg addrReg memBaseReg : Reg) : Program :=
+  let _ := valReg
+  LD offReg .x12 0 ;;
+  ADD addrReg memBaseReg offReg ;;
+  mstore_one_limb addrReg byteReg accReg 0 ;;
+  mstore_one_limb addrReg byteReg accReg 1 ;;
+  mstore_one_limb addrReg byteReg accReg 2 ;;
+  mstore_one_limb addrReg byteReg accReg 3
+
+private theorem evm_mstore_prefix_length
+    (offReg valReg byteReg accReg addrReg memBaseReg : Reg) :
+    (evm_mstore_prefix offReg valReg byteReg accReg addrReg memBaseReg).length =
+      70 := by
+  simp [evm_mstore_prefix, LD, ADD, single, seq, Program.length_append,
+    mstore_one_limb_length]
+
 /-- 256-bit EVM `MSTORE` program.
 
     Pops a 32-byte `offset` from the EVM stack at `x12 + 0`, a 32-byte
@@ -150,13 +167,7 @@ private theorem mstore_one_limb_length
     without changing call sites. -/
 def evm_mstore (offReg valReg byteReg accReg addrReg memBaseReg : Reg) :
     Program :=
-  let _ := valReg
-  LD offReg .x12 0 ;;
-  ADD addrReg memBaseReg offReg ;;
-  mstore_one_limb addrReg byteReg accReg 0 ;;
-  mstore_one_limb addrReg byteReg accReg 1 ;;
-  mstore_one_limb addrReg byteReg accReg 2 ;;
-  mstore_one_limb addrReg byteReg accReg 3 ;;
+  evm_mstore_prefix offReg valReg byteReg accReg addrReg memBaseReg ;;
   ADDI .x12 .x12 (BitVec.ofNat 12 64)
 
 /-- `CodeReq` for `evm_mstore` placed at `base`. -/
@@ -169,8 +180,48 @@ abbrev evm_mstore_code
 theorem evm_mstore_length
     (offReg valReg byteReg accReg addrReg memBaseReg : Reg) :
     (evm_mstore offReg valReg byteReg accReg addrReg memBaseReg).length = 71 := by
-  simp [evm_mstore, LD, ADD, ADDI, single, seq, Program.length_append,
-    mstore_one_limb_length]
+  simp [evm_mstore, ADDI, single, seq, Program.length_append,
+    evm_mstore_prefix_length]
+
+theorem evm_mstore_prologue_slice
+    (offReg valReg byteReg accReg addrReg memBaseReg : Reg) :
+    ((evm_mstore offReg valReg byteReg accReg addrReg memBaseReg).drop 0).take
+      (LD offReg .x12 0 ;; ADD addrReg memBaseReg offReg).length =
+      (LD offReg .x12 0 ;; ADD addrReg memBaseReg offReg) := by
+  simp only [evm_mstore, evm_mstore_prefix, LD, ADD, single, seq, Program,
+    List.drop_zero]
+  let prologue : List Instr :=
+    [Instr.LD offReg .x12 0] ++ [Instr.ADD addrReg memBaseReg offReg]
+  let suffix : List Instr :=
+    (mstore_one_limb addrReg byteReg accReg 0 ++
+      (mstore_one_limb addrReg byteReg accReg 1 ++
+        (mstore_one_limb addrReg byteReg accReg 2 ++
+          mstore_one_limb addrReg byteReg accReg 3))) ++
+      ADDI .x12 .x12 (BitVec.ofNat 12 64)
+  change List.take prologue.length (prologue ++ suffix) = prologue
+  exact List.take_left
+
+theorem evm_mstore_epilogue_slice
+    (offReg valReg byteReg accReg addrReg memBaseReg : Reg) :
+    ((evm_mstore offReg valReg byteReg accReg addrReg memBaseReg).drop 70).take
+        (ADDI .x12 .x12 (BitVec.ofNat 12 64)).length =
+      (ADDI .x12 .x12 (BitVec.ofNat 12 64)) := by
+  unfold evm_mstore
+  simp only [seq, Program, ADDI, single]
+  let pre : List Instr := evm_mstore_prefix offReg valReg byteReg accReg addrReg memBaseReg
+  let suffix : List Instr := [Instr.ADDI .x12 .x12 (BitVec.ofNat 12 64)]
+  change List.take suffix.length
+      (List.drop 70 (pre ++ suffix)) = suffix
+  have hdrop :
+      List.drop 70 (pre ++ suffix) =
+        suffix := by
+    have hpre_len : pre.length = 70 := by
+      dsimp [pre]
+      exact evm_mstore_prefix_length offReg valReg byteReg accReg addrReg memBaseReg
+    rw [← hpre_len]
+    exact List.drop_left
+  rw [hdrop]
+  simp
 
 /-- Concrete byte length of `evm_mstore` when placed in RV64 code memory. -/
 theorem evm_mstore_byte_length

@@ -3275,8 +3275,42 @@ theorem push_bytes_length (n k : Nat) :
   | succ k ih =>
       unfold push_bytes
       unfold seq
-      rw [Program.length_append, ih, push_one_byte_length]
+      unfold Program at *
+      rw [List.length_append, ih, push_one_byte_length]
       omega
+
+private theorem push_bytes_byte_slice (n k i : Nat) (hi : i < k) :
+    ((push_bytes n k : List Instr).drop (2 * i)).take 2 =
+      (push_one_byte n i : List Instr) := by
+  induction k with
+  | zero =>
+      omega
+  | succ k ih =>
+      unfold push_bytes
+      unfold seq
+      by_cases h_i : i < k
+      · unfold Program at *
+        rw [List.drop_append]
+        rw [push_bytes_length]
+        rw [show 2 * i - 2 * k = 0 by omega]
+        simp only [List.drop_zero]
+        rw [List.take_append_of_le_length
+          (l₁ := (push_bytes n k).drop (2 * i)) (l₂ := push_one_byte n k) (i := 2)
+          (by
+            rw [List.length_drop, push_bytes_length]
+            omega)]
+        exact ih h_i
+      · have h_eq : i = k := by omega
+        subst i
+        unfold Program at *
+        rw [List.drop_append]
+        rw [push_bytes_length]
+        rw [show 2 * k - 2 * k = 0 by omega]
+        simp only [List.drop_zero]
+        rw [show (push_bytes n k).drop (2 * k) = [] by
+          exact List.drop_eq_nil_of_le (by rw [push_bytes_length]; omega)]
+        simp only [List.nil_append]
+        rw [List.take_of_length_le (by rw [push_one_byte_length]; omega)]
 
 /-- Generic PUSHn program.
 
@@ -3299,6 +3333,30 @@ theorem evm_push_length (n : Nat) :
   simp only [Program.length_append, List.length_cons, List.length_nil,
     push_bytes_length]
   omega
+
+/-- The `i`th PUSH byte-copy pair is the two-instruction slice beginning at
+    instruction offset `5 + 2 * i` of the generic `evm_push n` program. -/
+theorem evm_push_byte_slice {n i : Nat} (hi : i < n) :
+    ((evm_push n).drop (5 + 2 * i)).take 2 =
+      (LBU .x7 .x10 (BitVec.ofNat 12 (pushByteSrcOffset i)) ;;
+       SB .x12 .x7 (BitVec.ofNat 12 (pushByteDstOffset n i))) := by
+  unfold evm_push ADDI SD single seq
+  unfold Program at *
+  simp only [List.singleton_append]
+  rw [show 5 + 2 * i = Nat.succ (4 + 2 * i) by omega]
+  simp only [List.drop_succ_cons]
+  rw [show 4 + 2 * i = Nat.succ (3 + 2 * i) by omega]
+  simp only [List.drop_succ_cons]
+  rw [show 3 + 2 * i = Nat.succ (2 + 2 * i) by omega]
+  simp only [List.drop_succ_cons]
+  rw [show 2 + 2 * i = Nat.succ (1 + 2 * i) by omega]
+  simp only [List.drop_succ_cons]
+  rw [show 1 + 2 * i = Nat.succ (2 * i) by omega]
+  simp only [List.drop_succ_cons]
+  repeat rw [List.drop_succ_cons]
+  rw [push_bytes_byte_slice n n i hi]
+  unfold push_one_byte LBU SB single seq
+  rfl
 
 theorem evm_push1_length : (evm_push 1).length = 7 := by
   rw [evm_push_length]

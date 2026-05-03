@@ -410,6 +410,53 @@ abbrev evm_mul_code (base : Word) : CodeReq :=
       (CodeReq.union (mul_col3_code (base + 228))
         (CodeReq.singleton (base + 248) (.ADDI .x12 .x12 32)))))
 
+theorem evm_mul_code_eq_ofProg (base : Word) :
+    evm_mul_code base = CodeReq.ofProg base evm_mul := by
+  unfold evm_mul_code evm_mul seq
+  symm
+  have h0 :
+      CodeReq.ofProg base
+          (mul_col0 ++ (mul_col1 ++ (mul_col2 ++ (mul_col3 ++ mul_epilogue)))) =
+        (CodeReq.ofProg base mul_col0).union
+          (CodeReq.ofProg (base + BitVec.ofNat 64 (4 * mul_col0.length))
+            (mul_col1 ++ (mul_col2 ++ (mul_col3 ++ mul_epilogue)))) := by
+    exact CodeReq.ofProg_append
+  rw [h0]
+  rw [show 4 * mul_col0.length = 84 by native_decide]
+  have h1 :
+      CodeReq.ofProg (base + BitVec.ofNat 64 84)
+          (mul_col1 ++ (mul_col2 ++ (mul_col3 ++ mul_epilogue))) =
+        (CodeReq.ofProg (base + BitVec.ofNat 64 84) mul_col1).union
+          (CodeReq.ofProg ((base + BitVec.ofNat 64 84) +
+            BitVec.ofNat 64 (4 * mul_col1.length))
+            (mul_col2 ++ (mul_col3 ++ mul_epilogue))) := by
+    exact CodeReq.ofProg_append
+  rw [h1]
+  rw [show 4 * mul_col1.length = 92 by native_decide]
+  rw [show (base + BitVec.ofNat 64 84 : Word) + BitVec.ofNat 64 92 =
+    base + 176 by bv_omega]
+  have h2 :
+      CodeReq.ofProg (base + 176) (mul_col2 ++ (mul_col3 ++ mul_epilogue)) =
+        (CodeReq.ofProg (base + 176) mul_col2).union
+          (CodeReq.ofProg ((base + 176) + BitVec.ofNat 64 (4 * mul_col2.length))
+            (mul_col3 ++ mul_epilogue)) := by
+    exact CodeReq.ofProg_append
+  rw [h2]
+  rw [show 4 * mul_col2.length = 52 by native_decide]
+  rw [show (base + 176 : Word) + BitVec.ofNat 64 52 = base + 228 by bv_omega]
+  have h3 :
+      CodeReq.ofProg (base + 228) (mul_col3 ++ mul_epilogue) =
+        (CodeReq.ofProg (base + 228) mul_col3).union
+          (CodeReq.ofProg ((base + 228) + BitVec.ofNat 64 (4 * mul_col3.length))
+            mul_epilogue) := by
+    exact CodeReq.ofProg_append
+  rw [h3]
+  rw [show 4 * mul_col3.length = 20 by native_decide]
+  rw [show (base + 228 : Word) + BitVec.ofNat 64 20 = base + 248 by bv_omega]
+  unfold mul_epilogue ADDI single
+  rw [CodeReq.ofProg_singleton]
+  rfl
+
 /-- Full 256-bit EVM MUL: composes cols01 + cols23ep intermediate triples.
     63 instructions total. Pops 2 stack words (A at sp, B at sp+32),
     writes (A * B) mod 2^256 to sp+32..sp+56, advances sp by 32. -/

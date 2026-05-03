@@ -22,6 +22,17 @@ def mloadPrologueCode
   (CodeReq.singleton base (.LD offReg .x12 0)).union
     (CodeReq.singleton (base + 4) (.ADD addrReg memBaseReg offReg))
 
+theorem mloadPrologueCode_eq_ofProg
+    (offReg addrReg memBaseReg : Reg) (base : Word) :
+    mloadPrologueCode offReg addrReg memBaseReg base =
+      CodeReq.ofProg base
+        (LD offReg .x12 0 ;; ADD addrReg memBaseReg offReg) := by
+  unfold mloadPrologueCode LD ADD single seq
+  change _ =
+    CodeReq.ofProg base
+      [.LD offReg .x12 0, .ADD addrReg memBaseReg offReg]
+  rw [CodeReq.ofProg_cons, CodeReq.ofProg_singleton]
+
 /--
   MLOAD prologue spec: load the low 64-bit offset limb from the EVM stack and
   compute the concrete byte address `memBase + offset` used by the four
@@ -48,6 +59,64 @@ theorem mload_prologue_spec_within
     (base + 4) h_addr_ne_x0
   rw [show (base + 4 : Word) + 4 = base + 8 from by bv_omega] at h_add
   runBlock h_ld h_add
+
+theorem mload_prologue_ofProg_spec_within
+    (offReg addrReg memBaseReg : Reg)
+    (sp offset offOld addrOld memBase : Word) (base : Word)
+    (h_off_ne_x0 : offReg ≠ .x0)
+    (h_addr_ne_x0 : addrReg ≠ .x0) :
+    cpsTripleWithin 2 base (base + 8)
+      (CodeReq.ofProg base
+        (LD offReg .x12 0 ;; ADD addrReg memBaseReg offReg))
+      (((.x12 : Reg) ↦ᵣ sp) ** (offReg ↦ᵣ offOld) **
+       (memBaseReg ↦ᵣ memBase) ** (addrReg ↦ᵣ addrOld) **
+       (sp ↦ₘ offset))
+      (((.x12 : Reg) ↦ᵣ sp) ** (offReg ↦ᵣ offset) **
+       (memBaseReg ↦ᵣ memBase) ** (addrReg ↦ᵣ (memBase + offset)) **
+       (sp ↦ₘ offset)) := by
+  rw [← mloadPrologueCode_eq_ofProg]
+  exact mload_prologue_spec_within offReg addrReg memBaseReg
+    sp offset offOld addrOld memBase base h_off_ne_x0 h_addr_ne_x0
+
+theorem evm_mload_code_prologue_sub
+    (offReg byteReg accReg addrReg memBaseReg : Reg) (base : Word) :
+    ∀ a i,
+      (CodeReq.ofProg base (LD offReg .x12 0 ;; ADD addrReg memBaseReg offReg)) a =
+        some i →
+      (evm_mload_code offReg byteReg accReg addrReg memBaseReg base) a =
+        some i := by
+  unfold evm_mload_code
+  exact CodeReq.ofProg_mono_sub base base
+    (evm_mload offReg byteReg accReg addrReg memBaseReg)
+    (LD offReg .x12 0 ;; ADD addrReg memBaseReg offReg) 0
+    (by bv_omega)
+    (evm_mload_prologue_slice offReg byteReg accReg addrReg memBaseReg)
+    (by
+      rw [evm_mload_length]
+      change 2 ≤ 94
+      norm_num)
+    (by
+      rw [evm_mload_length]
+      norm_num)
+
+theorem mload_prologue_evm_mload_spec_within
+    (offReg byteReg accReg addrReg memBaseReg : Reg)
+    (sp offset offOld addrOld memBase : Word) (base : Word)
+    (h_off_ne_x0 : offReg ≠ .x0)
+    (h_addr_ne_x0 : addrReg ≠ .x0) :
+    cpsTripleWithin 2 base (base + 8)
+      (evm_mload_code offReg byteReg accReg addrReg memBaseReg base)
+      (((.x12 : Reg) ↦ᵣ sp) ** (offReg ↦ᵣ offOld) **
+       (memBaseReg ↦ᵣ memBase) ** (addrReg ↦ᵣ addrOld) **
+       (sp ↦ₘ offset))
+      (((.x12 : Reg) ↦ᵣ sp) ** (offReg ↦ᵣ offset) **
+       (memBaseReg ↦ᵣ memBase) ** (addrReg ↦ᵣ (memBase + offset)) **
+       (sp ↦ₘ offset)) := by
+  exact cpsTripleWithin_extend_code
+    (h := mload_prologue_ofProg_spec_within offReg addrReg memBaseReg
+      sp offset offOld addrOld memBase base h_off_ne_x0 h_addr_ne_x0)
+    (hmono := evm_mload_code_prologue_sub
+      offReg byteReg accReg addrReg memBaseReg base)
 
 /-- The 256-bit value assembled by MLOAD from four little-endian output limbs. -/
 def mloadLoadedWord (l0 l1 l2 l3 : Word) : EvmWord :=
@@ -1519,5 +1588,26 @@ theorem mloadLoadedWordFromBytes_evmWordIs_fold
         b16 b17 b18 b19 b20 b21 b22 b23
         b24 b25 b26 b27 b28 b29 b30 b31) := by
   rw [mloadLoadedWordFromBytes, mloadLoadedWord_evmWordIs_fold]
+
+/-- Fold the byte-window MLOAD result and existing stack tail into one stack assertion. -/
+theorem mloadLoadedWordFromBytes_evmStackIs_fold
+    (sp : Word) (rest : List EvmWord)
+    (b00 b01 b02 b03 b04 b05 b06 b07 : BitVec 8)
+    (b08 b09 b10 b11 b12 b13 b14 b15 : BitVec 8)
+    (b16 b17 b18 b19 b20 b21 b22 b23 : BitVec 8)
+    (b24 b25 b26 b27 b28 b29 b30 b31 : BitVec 8) :
+    (((sp ↦ₘ mloadPackedLimb b24 b25 b26 b27 b28 b29 b30 b31) **
+      ((sp + 8) ↦ₘ mloadPackedLimb b16 b17 b18 b19 b20 b21 b22 b23) **
+      ((sp + 16) ↦ₘ mloadPackedLimb b08 b09 b10 b11 b12 b13 b14 b15) **
+      ((sp + 24) ↦ₘ mloadPackedLimb b00 b01 b02 b03 b04 b05 b06 b07)) **
+      evmStackIs (sp + 32) rest) =
+    evmStackIs sp
+      ((mloadLoadedWordFromBytes
+        b00 b01 b02 b03 b04 b05 b06 b07
+        b08 b09 b10 b11 b12 b13 b14 b15
+        b16 b17 b18 b19 b20 b21 b22 b23
+        b24 b25 b26 b27 b28 b29 b30 b31) :: rest) := by
+  rw [mloadLoadedWordFromBytes_evmWordIs_fold]
+  rfl
 
 end EvmAsm.Evm64

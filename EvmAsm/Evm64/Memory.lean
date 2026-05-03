@@ -397,6 +397,13 @@ theorem evmMemExpand_word_eq (sizeBytes offset : Nat) :
   unfold evmMemExpand
   simp
 
+/-- Byte-granular memory writes such as MSTORE8 access one EVM memory byte. -/
+theorem evmMemExpand_byte_eq (sizeBytes offset : Nat) :
+    evmMemExpand sizeBytes offset 1 =
+      max sizeBytes (roundUpTo32 (offset + 1)) := by
+  unfold evmMemExpand
+  simp
+
 theorem bitvec_select_word_eq_ofNat_max
     (sizeBytes rounded : Nat)
     (h_size : sizeBytes < 2^64)
@@ -430,6 +437,20 @@ theorem evmMemExpand_word_eq_old_of_end_le
     evmMemExpand sizeBytes offset 32 = sizeBytes := by
   rw [evmMemExpand_word_eq]
   exact max_eq_left (roundUpTo32_le_of_le_dvd h_end h_size_dvd)
+
+theorem evmMemExpand_byte_eq_old_of_end_le
+    (sizeBytes offset : Nat) (h_end : offset + 1 ≤ sizeBytes)
+    (h_size_dvd : 32 ∣ sizeBytes) :
+    evmMemExpand sizeBytes offset 1 = sizeBytes := by
+  rw [evmMemExpand_byte_eq]
+  exact max_eq_left (roundUpTo32_le_of_le_dvd h_end h_size_dvd)
+
+theorem evmMemExpand_byte_eq_rounded_of_old_le
+    (sizeBytes offset : Nat)
+    (h_old : sizeBytes ≤ roundUpTo32 (offset + 1)) :
+    evmMemExpand sizeBytes offset 1 = roundUpTo32 (offset + 1) := by
+  rw [evmMemExpand_byte_eq]
+  exact max_eq_right h_old
 
 /--
   Named size-cell postcondition for a 32-byte MLOAD/MSTORE-style access.
@@ -470,6 +491,53 @@ theorem pcFree_evmMemSizeIsWordExpanded
 instance (sizeLoc : Word) (sizeBytes offset : Nat) :
     Assertion.PCFree (evmMemSizeIsWordExpanded sizeLoc sizeBytes offset) :=
   ⟨pcFree_evmMemSizeIsWordExpanded⟩
+
+/--
+  Named size-cell postcondition for a one-byte MSTORE8-style access.
+  This mirrors `evmMemSizeIsWordExpanded` for byte-granular memory updates.
+-/
+@[irreducible]
+def evmMemSizeIsByteExpanded (sizeLoc : Word) (sizeBytes offset : Nat) : Assertion :=
+  evmMemSizeIs sizeLoc (evmMemExpand sizeBytes offset 1)
+
+theorem evmMemSizeIsByteExpanded_unfold
+    {sizeLoc : Word} {sizeBytes offset : Nat} :
+    evmMemSizeIsByteExpanded sizeLoc sizeBytes offset =
+      evmMemSizeIs sizeLoc (evmMemExpand sizeBytes offset 1) := by
+  delta evmMemSizeIsByteExpanded
+  rfl
+
+theorem evmMemSizeIsByteExpanded_unfold_max
+    {sizeLoc : Word} {sizeBytes offset : Nat} :
+    evmMemSizeIsByteExpanded sizeLoc sizeBytes offset =
+      evmMemSizeIs sizeLoc (max sizeBytes (roundUpTo32 (offset + 1))) := by
+  rw [evmMemSizeIsByteExpanded_unfold, evmMemExpand_byte_eq]
+
+theorem evmMemSizeIsByteExpanded_eq_current_of_mstore8_within
+    {sizeLoc : Word} {sizeBytes offset : Nat}
+    (h_end : offset + 1 ≤ sizeBytes) (h_size_dvd : 32 ∣ sizeBytes) :
+    evmMemSizeIsByteExpanded sizeLoc sizeBytes offset =
+      evmMemSizeIs sizeLoc sizeBytes := by
+  rw [evmMemSizeIsByteExpanded_unfold,
+    evmMemExpand_byte_eq_old_of_end_le sizeBytes offset h_end h_size_dvd]
+
+theorem evmMemSizeIsByteExpanded_eq_rounded_of_mstore8_within
+    {sizeLoc : Word} {sizeBytes offset : Nat}
+    (h_old : sizeBytes ≤ roundUpTo32 (offset + 1)) :
+    evmMemSizeIsByteExpanded sizeLoc sizeBytes offset =
+      evmMemSizeIs sizeLoc (roundUpTo32 (offset + 1)) := by
+  rw [evmMemSizeIsByteExpanded_unfold,
+    evmMemExpand_byte_eq_rounded_of_old_le sizeBytes offset h_old]
+
+theorem pcFree_evmMemSizeIsByteExpanded
+    {sizeLoc : Word} {sizeBytes offset : Nat} :
+    (evmMemSizeIsByteExpanded sizeLoc sizeBytes offset).pcFree := by
+  rw [evmMemSizeIsByteExpanded_unfold]
+  exact pcFree_evmMemSizeIs
+
+instance (sizeLoc : Word) (sizeBytes offset : Nat) :
+    Assertion.PCFree (evmMemSizeIsByteExpanded sizeLoc sizeBytes offset) :=
+  ⟨pcFree_evmMemSizeIsByteExpanded⟩
 
 /-- MLOAD is a 32-byte byte-addressed access: expansion covers the byte just
     past the requested range for any starting byte offset. -/
