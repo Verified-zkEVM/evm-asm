@@ -26,6 +26,7 @@ import EvmAsm.Evm64.MStore8.Program
 import EvmAsm.Evm64.Memory
 import EvmAsm.Rv64.SyscallSpecs
 import EvmAsm.Rv64.Tactics.RunBlock
+import EvmAsm.Rv64.Tactics.XSimp
 
 open EvmAsm.Rv64.Tactics
 
@@ -130,6 +131,88 @@ theorem evm_mstore8_spec_within
   rw [show (base + 8 : Word) + 4 = base + 12 by bv_addr]
   rw [show (base + 12 : Word) + 4 = base + 16 by bv_addr]
   runBlock hLoadOff hLoadVal hAdd hStore' hPop
+
+/-- Stack-level lift of the full MSTORE8 handler. The two consumed EVM stack
+    words remain owned as memory, matching the convention used by `POP`;
+    `x12` advances past them and the selected memory byte is updated from the
+    low byte of the value word. -/
+theorem evm_mstore8_stack_spec_within
+    (offReg valReg addrReg memBaseReg : Reg)
+    (sp memBase offOld valOld addrOld wordOld : Word)
+    (base dwordAddr : Word)
+    (offsetWord valueWord : EvmWord) (rest : List EvmWord)
+    (hoff_ne_x0 : offReg ≠ .x0)
+    (hval_ne_x0 : valReg ≠ .x0)
+    (haddr_ne_x0 : addrReg ≠ .x0)
+    (halign : alignToDword (memBase + offsetWord.getLimbN 0) = dwordAddr)
+    (hvalid : isValidByteAccess (memBase + offsetWord.getLimbN 0) = true) :
+    let targetAddr := memBase + offsetWord.getLimbN 0
+    cpsTripleWithin 5 base (base + 20)
+      (evm_mstore8_code offReg valReg addrReg memBaseReg base)
+      ((.x12 ↦ᵣ sp) ** (memBaseReg ↦ᵣ memBase) **
+       (offReg ↦ᵣ offOld) ** (valReg ↦ᵣ valOld) ** (addrReg ↦ᵣ addrOld) **
+       evmWordIs sp offsetWord ** evmWordIs (sp + 32) valueWord **
+       evmStackIs (sp + 64) rest ** (dwordAddr ↦ₘ wordOld))
+      ((.x12 ↦ᵣ (sp + signExtend12 (64 : BitVec 12))) **
+       (memBaseReg ↦ᵣ memBase) **
+       (offReg ↦ᵣ offsetWord.getLimbN 0) ** (valReg ↦ᵣ valueWord.getLimbN 0) **
+       (addrReg ↦ᵣ targetAddr) **
+       evmWordIs sp offsetWord ** evmWordIs (sp + 32) valueWord **
+       evmStackIs (sp + 64) rest **
+       (dwordAddr ↦ₘ
+        replaceByte wordOld (byteOffset targetAddr)
+          ((valueWord.getLimbN 0).truncate 8))) := by
+  intro targetAddr
+  let offset := offsetWord.getLimbN 0
+  let valueLow := valueWord.getLimbN 0
+  let frame : Assertion :=
+    ((sp + 8) ↦ₘ offsetWord.getLimbN 1) **
+    ((sp + 16) ↦ₘ offsetWord.getLimbN 2) **
+    ((sp + 24) ↦ₘ offsetWord.getLimbN 3) **
+    (((sp + 32) + 8) ↦ₘ valueWord.getLimbN 1) **
+    (((sp + 32) + 16) ↦ₘ valueWord.getLimbN 2) **
+    (((sp + 32) + 24) ↦ₘ valueWord.getLimbN 3) **
+    evmStackIs (sp + 64) rest
+  have hRaw := evm_mstore8_spec_within offReg valReg addrReg memBaseReg
+    sp memBase offOld valOld addrOld offset valueLow wordOld base dwordAddr
+    hoff_ne_x0 hval_ne_x0 haddr_ne_x0
+    (by simpa [offset] using halign)
+    (by simpa [offset] using hvalid)
+  have hRawNorm : cpsTripleWithin 5 base (base + 20)
+      (evm_mstore8_code offReg valReg addrReg memBaseReg base)
+      ((.x12 ↦ᵣ sp) ** (memBaseReg ↦ᵣ memBase) **
+       (offReg ↦ᵣ offOld) ** (valReg ↦ᵣ valOld) ** (addrReg ↦ᵣ addrOld) **
+       (sp ↦ₘ offset) ** ((sp + 32) ↦ₘ valueLow) ** (dwordAddr ↦ₘ wordOld))
+      ((.x12 ↦ᵣ (sp + signExtend12 (64 : BitVec 12))) **
+       (memBaseReg ↦ᵣ memBase) **
+       (offReg ↦ᵣ offset) ** (valReg ↦ᵣ valueLow) **
+       (addrReg ↦ᵣ targetAddr) **
+       (sp ↦ₘ offset) ** ((sp + 32) ↦ₘ valueLow) **
+      (dwordAddr ↦ₘ
+        replaceByte wordOld (byteOffset targetAddr) (valueLow.truncate 8))) := by
+    exact cpsTripleWithin_weaken
+      (fun _ hp => by
+        rw [show sp + signExtend12 (0 : BitVec 12) = sp from by
+          rw [signExtend12_0]; bv_omega]
+        rw [show sp + signExtend12 (32 : BitVec 12) = sp + 32 from by
+          rw [signExtend12_32]]
+        xperm_hyp hp)
+      (fun _ hp => by
+        rw [show sp + signExtend12 (0 : BitVec 12) = sp from by
+          rw [signExtend12_0]; bv_omega] at hp
+        rw [show sp + signExtend12 (32 : BitVec 12) = sp + 32 from by
+          rw [signExtend12_32]] at hp
+        xperm_hyp hp)
+      hRaw
+  have hFramed := cpsTripleWithin_frameR frame (by pcFree) hRawNorm
+  exact cpsTripleWithin_weaken
+    (fun _ hp => by
+      dsimp [frame, evmWordIs] at hp ⊢
+      xperm_hyp hp)
+    (fun _ hp => by
+      dsimp [frame, evmWordIs] at hp ⊢
+      xperm_hyp hp)
+    hFramed
 
 /-! ## EVM memory expansion for a one-byte access
 
