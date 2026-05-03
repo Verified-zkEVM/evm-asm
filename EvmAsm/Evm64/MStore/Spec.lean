@@ -205,6 +205,13 @@ def mstoreStackProg
   mstoreFourLimbsProg addrReg byteReg accReg ;;
   ADDI .x12 .x12 64
 
+theorem mstoreStackProg_length
+    (offReg byteReg accReg addrReg memBaseReg : Reg) :
+    (mstoreStackProg offReg byteReg accReg addrReg memBaseReg).length = 71 := by
+  unfold mstoreStackProg LD ADD ADDI single seq
+  simp only [Program.length_append, List.length_cons, List.length_nil,
+    mstoreFourLimbsProg_length]
+
 /-- Public `ofProg` bridge for the full MSTORE stack helper code. -/
 theorem mstoreStackCode_eq_ofProg
     (offReg byteReg accReg addrReg memBaseReg : Reg) (base : Word) :
@@ -252,6 +259,30 @@ theorem mstoreStackCode_prologue_sub
   unfold mstoreStackCode
   exact CodeReq.union_mono_left
 
+theorem mstoreStackCode_epilogue_sub
+    (offReg byteReg accReg addrReg memBaseReg : Reg) (base : Word) :
+    ∀ a i, (mstoreEpilogueCode (base + 280)) a = some i →
+      (mstoreStackCode offReg byteReg accReg addrReg memBaseReg base) a = some i := by
+  rw [mstoreStackCode_eq_ofProg, mstoreEpilogueCode_eq_ofProg]
+  exact CodeReq.ofProg_mono_sub base (base + 280)
+    (mstoreStackProg offReg byteReg accReg addrReg memBaseReg)
+    (ADDI .x12 .x12 64) 70
+    (by
+      change base + 280 = base + 280
+      rfl)
+    (by
+      change ((mstoreStackProg offReg byteReg accReg addrReg memBaseReg).drop 70).take 1 =
+        (ADDI .x12 .x12 64)
+      unfold mstoreStackProg mstoreFourLimbsProg mstoreOneLimbProg
+        mstoreByteUnpackEightProg LD ADD ADDI SRLI SB single seq
+      rfl)
+    (by
+      rw [show (ADDI .x12 .x12 64).length = 1 from rfl]
+      rw [mstoreStackProg_length])
+    (by
+      rw [mstoreStackProg_length]
+      omega)
+
 theorem mstore_prologue_stack_spec_within
     (offReg byteReg accReg addrReg memBaseReg : Reg)
     (sp offset offOld addrOld memBase : Word) (base : Word)
@@ -269,5 +300,18 @@ theorem mstore_prologue_stack_spec_within
     (h := mstore_prologue_spec_within offReg addrReg memBaseReg
       sp offset offOld addrOld memBase base h_off_ne_x0 h_addr_ne_x0)
     (hmono := mstoreStackCode_prologue_sub offReg byteReg accReg addrReg memBaseReg base)
+
+theorem mstore_epilogue_stack_spec_within
+    (offReg byteReg accReg addrReg memBaseReg : Reg)
+    (sp : Word) (base : Word) :
+    cpsTripleWithin 1 (base + 280) (base + 284)
+      (mstoreStackCode offReg byteReg accReg addrReg memBaseReg base)
+      (((.x12 : Reg) ↦ᵣ sp))
+      (((.x12 : Reg) ↦ᵣ (sp + 64))) := by
+  have h := cpsTripleWithin_extend_code
+    (h := mstore_epilogue_spec_within sp (base + 280))
+    (hmono := mstoreStackCode_epilogue_sub offReg byteReg accReg addrReg memBaseReg base)
+  rw [show (base + 280 : Word) + 4 = base + 284 from by bv_addr] at h
+  exact h
 
 end EvmAsm.Evm64
