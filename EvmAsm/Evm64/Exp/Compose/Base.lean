@@ -357,6 +357,37 @@ theorem expBoundaryProgram_spec_within
   simpa only [Nat.reduceAdd] using
     cpsTripleWithin_extend_code hUnionSub hSeq
 
+/-- Composed spec for the current EXP boundary mini-program over the
+    structural boundary `CodeReq` union. -/
+theorem expBoundaryCode_spec_within
+    (sp evmSp cOld tOld m0 m1 m2 m3 d0 d1 d2 d3 : Word) (base : Word) :
+    cpsTripleWithin 15 base (base + 60) (expBoundaryCode base)
+      ((.x2 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) ** (.x9 ↦ᵣ cOld) **
+       (.x5 ↦ᵣ tOld) ** (.x12 ↦ᵣ evmSp) **
+       ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ m0) **
+       ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ m1) **
+       ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ m2) **
+       ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ m3) **
+       ((evmSp + signExtend12 (32 : BitVec 12)) ↦ₘ d0) **
+       ((evmSp + signExtend12 (40 : BitVec 12)) ↦ₘ d1) **
+       ((evmSp + signExtend12 (48 : BitVec 12)) ↦ₘ d2) **
+       ((evmSp + signExtend12 (56 : BitVec 12)) ↦ₘ d3))
+      ((.x2 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) **
+       (.x9 ↦ᵣ ((0 : Word) + signExtend12 (256 : BitVec 12))) **
+       (.x12 ↦ᵣ (evmSp + signExtend12 (32 : BitVec 12))) **
+       (.x5 ↦ᵣ (0 : Word)) **
+       ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ
+        ((0 : Word) + signExtend12 (1 : BitVec 12))) **
+       ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ (0 : Word)) **
+       evmWordIs (evmSp + 32) (expResultWord
+        ((0 : Word) + signExtend12 (1 : BitVec 12))
+        (0 : Word) (0 : Word) (0 : Word))) := by
+  rw [expBoundaryCode_eq_programCode]
+  exact expBoundaryProgram_spec_within
+    sp evmSp cOld tOld m0 m1 m2 m3 d0 d1 d2 d3 base
+
 /-- CodeReq decomposition for one EXP loop iteration. This mirrors
     `exp_loop`: bit-test (3 instructions), square call (1), conditional
     multiply branch/call (2), and loop-back (2). -/
