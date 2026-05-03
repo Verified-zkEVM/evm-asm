@@ -122,6 +122,16 @@ theorem msizeWord_evmWordIs_fold (nsp : Word) (sizeBytes : Nat)
     evmWordIs nsp (BitVec.ofNat 256 sizeBytes) := by
   rw [evmWordIs_msize_unfold nsp sizeBytes h_size_lt]
 
+/-- Fold the concrete MSIZE output word plus a tail stack into `evmStackIs`. -/
+theorem msizeWord_evmStackIs_fold (nsp : Word) (sizeBytes : Nat)
+    (h_size_lt : sizeBytes < 2 ^ 64) (rest : List EvmWord) :
+    (((nsp ↦ₘ BitVec.ofNat 64 sizeBytes) ** ((nsp + 8) ↦ₘ 0) **
+      ((nsp + 16) ↦ₘ 0) ** ((nsp + 24) ↦ₘ 0)) **
+      evmStackIs (nsp + 32) rest) =
+    evmStackIs nsp (BitVec.ofNat 256 sizeBytes :: rest) := by
+  rw [msizeWord_evmWordIs_fold nsp sizeBytes h_size_lt]
+  rfl
+
 /-- MSIZE stack spec: pushes `BitVec.ofNat 256 sizeBytes` (the EVM memory
     high-water mark) onto the EVM stack. Requires `sizeBytes < 2^64`,
     which always holds for realistic EVM executions. -/
