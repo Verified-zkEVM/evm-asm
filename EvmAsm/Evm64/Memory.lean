@@ -438,6 +438,12 @@ theorem evmMemExpand_word_eq_rounded_of_old_le
   rw [evmMemExpand_word_eq]
   exact max_eq_right h_old
 
+theorem evmMemExpand_word_eq_rounded_of_end_gt
+    (sizeBytes offset : Nat) (h_end : sizeBytes < offset + 32) :
+    evmMemExpand sizeBytes offset 32 = roundUpTo32 (offset + 32) := by
+  exact evmMemExpand_word_eq_rounded_of_old_le sizeBytes offset
+    (Nat.le_trans (Nat.le_of_lt h_end) (roundUpTo32_le (offset + 32)))
+
 /--
   Named size-cell postcondition for a 32-byte MLOAD/MSTORE-style access.
   This keeps opcode specs from repeating the high-water expression in every
@@ -475,6 +481,14 @@ theorem evmMemSizeIsWordExpanded_eq_rounded_of_mload_within
       evmMemSizeIs sizeLoc (roundUpTo32 (offset + 32)) := by
   rw [evmMemSizeIsWordExpanded_unfold,
     evmMemExpand_word_eq_rounded_of_old_le sizeBytes offset h_old]
+
+theorem evmMemSizeIsWordExpanded_eq_rounded_of_word_growth
+    {sizeLoc : Word} {sizeBytes offset : Nat}
+    (h_end : sizeBytes < offset + 32) :
+    evmMemSizeIsWordExpanded sizeLoc sizeBytes offset =
+      evmMemSizeIs sizeLoc (roundUpTo32 (offset + 32)) := by
+  rw [evmMemSizeIsWordExpanded_unfold,
+    evmMemExpand_word_eq_rounded_of_end_gt sizeBytes offset h_end]
 
 theorem pcFree_evmMemSizeIsWordExpanded
     {sizeLoc : Word} {sizeBytes offset : Nat} :
