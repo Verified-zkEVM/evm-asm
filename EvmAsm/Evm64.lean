@@ -68,6 +68,7 @@ import EvmAsm.Evm64.Env.Semantics
 
 -- Static gas schedule (#117)
 import EvmAsm.Evm64.Gas
+import EvmAsm.Evm64.Env.Gas
 import EvmAsm.Evm64.StorageGas
 import EvmAsm.Evm64.StorageAccess
 
