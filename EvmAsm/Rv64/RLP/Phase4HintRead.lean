@@ -88,4 +88,31 @@ theorem rlp_phase4_hint_read_one_word_spec_within
     hli_framed hread_ext
   simpa only [Nat.reduceAdd, sepConj_assoc', sepConj_comm', sepConj_left_comm'] using hseq
 
+/-- Whole-input specialization of the one-dword HINT_READ wrapper.  This is
+    the Phase 4 shape used when the private input fits in the first output
+    dword, so consumers can avoid repeating the `BitVec.ofNat` length bridge. -/
+theorem rlp_phase4_hint_read_whole_one_word_spec_within
+    (buf oldWord : Word) (input : List (BitVec 8)) (base : Word)
+    (h_pos : 0 < input.length) (h_le8 : input.length ≤ 8) :
+    cpsTripleWithin 2 base (base + 8)
+      (CodeReq.ofProg base rlp_phase4_hint_read_one_word_prog)
+      ((base + 4 ↦ᵢ .ECALL) ** regOwn .x5 ** (.x10 ↦ᵣ buf) **
+        (.x11 ↦ᵣ (BitVec.ofNat 64 input.length)) ** (buf ↦ₘ oldWord) **
+        privateInputIs input)
+      ((base + 4 ↦ᵢ .ECALL) ** (.x10 ↦ᵣ buf) **
+        (.x11 ↦ᵣ (BitVec.ofNat 64 input.length)) **
+        (buf ↦ₘ bytesToWordLE input) **
+        (.x5 ↦ᵣ (BitVec.ofNat 64 0xF1)) ** privateInputIs []) := by
+  have h_len_lt : input.length < 2^64 := by omega
+  have h_toNat : (BitVec.ofNat 64 input.length).toNat = input.length := by
+    simp only [BitVec.toNat_ofNat]
+    exact Nat.mod_eq_of_lt h_len_lt
+  have hread := rlp_phase4_hint_read_one_word_spec_within
+    buf (BitVec.ofNat 64 input.length) oldWord input base
+    (by simpa [h_toNat] using h_pos)
+    (by simpa [h_toNat] using h_le8)
+    (by simp [h_toNat])
+  simpa [h_toNat, List.take_of_length_le (Nat.le_refl input.length),
+    List.drop_eq_nil_of_le (Nat.le_refl input.length)] using hread
+
 end EvmAsm.Rv64.RLP
