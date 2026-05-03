@@ -50,6 +50,23 @@ def opcodeByte : SimpleEnvField → Nat
   | baseFee => 0x48
   | selfBalance => 0x47
 
+/-- Decode an opcode byte when it is one of the simple environment opcodes. -/
+def ofOpcodeByte? : Nat → Option SimpleEnvField
+  | 0x30 => some address
+  | 0x32 => some origin
+  | 0x33 => some caller
+  | 0x34 => some callValue
+  | 0x3a => some gasPrice
+  | 0x41 => some coinbase
+  | 0x42 => some timestamp
+  | 0x43 => some number
+  | 0x44 => some prevrandao
+  | 0x45 => some gasLimit
+  | 0x46 => some chainId
+  | 0x47 => some selfBalance
+  | 0x48 => some baseFee
+  | _ => none
+
 /-- Byte offset of the field in the `envIs` block. Every simple env field is
     represented as a 32-byte slot. -/
 def offset : SimpleEnvField → Nat
@@ -95,6 +112,16 @@ def cellIs (base : Word) (field : SimpleEnvField) (env : EvmEnv) : Assertion :=
 theorem offset_align (field : SimpleEnvField) :
     field.offset % 32 = 0 := by
   cases field <;> decide
+
+theorem ofOpcodeByte?_opcodeByte (field : SimpleEnvField) :
+    ofOpcodeByte? field.opcodeByte = some field := by
+  cases field <;> rfl
+
+theorem ofOpcodeByte?_balance :
+    ofOpcodeByte? 0x31 = none := rfl
+
+theorem ofOpcodeByte?_unknown_ff :
+    ofOpcodeByte? 0xff = none := rfl
 
 theorem cellIs_unfold (base : Word) (field : SimpleEnvField) (env : EvmEnv) :
     cellIs base field env =

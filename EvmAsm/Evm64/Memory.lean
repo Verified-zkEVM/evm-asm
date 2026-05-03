@@ -438,6 +438,13 @@ theorem evmMemExpand_word_eq_old_of_end_le
   rw [evmMemExpand_word_eq]
   exact max_eq_left (roundUpTo32_le_of_le_dvd h_end h_size_dvd)
 
+theorem evmMemExpand_word_eq_rounded_of_old_le
+    (sizeBytes offset : Nat)
+    (h_old : sizeBytes ≤ roundUpTo32 (offset + 32)) :
+    evmMemExpand sizeBytes offset 32 = roundUpTo32 (offset + 32) := by
+  rw [evmMemExpand_word_eq]
+  exact max_eq_right h_old
+
 theorem evmMemExpand_byte_eq_old_of_end_le
     (sizeBytes offset : Nat) (h_end : offset + 1 ≤ sizeBytes)
     (h_size_dvd : 32 ∣ sizeBytes) :
@@ -481,6 +488,14 @@ theorem evmMemSizeIsWordExpanded_eq_current_of_mload_within
       evmMemSizeIs sizeLoc sizeBytes := by
   rw [evmMemSizeIsWordExpanded_unfold,
     evmMemExpand_word_eq_old_of_end_le sizeBytes offset h_end h_size_dvd]
+
+theorem evmMemSizeIsWordExpanded_eq_rounded_of_mload_within
+    {sizeLoc : Word} {sizeBytes offset : Nat}
+    (h_old : sizeBytes ≤ roundUpTo32 (offset + 32)) :
+    evmMemSizeIsWordExpanded sizeLoc sizeBytes offset =
+      evmMemSizeIs sizeLoc (roundUpTo32 (offset + 32)) := by
+  rw [evmMemSizeIsWordExpanded_unfold,
+    evmMemExpand_word_eq_rounded_of_old_le sizeBytes offset h_old]
 
 theorem pcFree_evmMemSizeIsWordExpanded
     {sizeLoc : Word} {sizeBytes offset : Nat} :

@@ -42,6 +42,9 @@ inductive EvmOpcode where
   | MSTORE
   | MSTORE8
   | MSIZE
+  | CALLDATALOAD
+  | CALLDATASIZE
+  | CALLDATACOPY
   | PUSH0
   | PUSH (n : Nat)
   | DUP (n : Nat)
@@ -92,6 +95,9 @@ def byte? : EvmOpcode → Option Nat
   | MSTORE => some 0x52
   | MSTORE8 => some 0x53
   | MSIZE => some 0x59
+  | CALLDATALOAD => some 0x35
+  | CALLDATASIZE => some 0x36
+  | CALLDATACOPY => some 0x37
   | PUSH0 => some 0x5f
   | PUSH n => if validPushWidth n then some (0x5f + n) else none
   | DUP n => if validDupIndex n then some (0x7f + n) else none
@@ -126,6 +132,9 @@ def staticGasCost : EvmOpcode → Nat
   | MSTORE => 3
   | MSTORE8 => 3
   | MSIZE => 2
+  | CALLDATALOAD => 3
+  | CALLDATASIZE => 2
+  | CALLDATACOPY => 3
   | PUSH0 => 2
   | PUSH _ => 3
   | DUP _ => 3
@@ -157,6 +166,12 @@ theorem byte?_PUSH0 : byte? PUSH0 = some 0x5f := rfl
 theorem staticGasCost_push0 : staticGasCost PUSH0 = 2 := rfl
 
 theorem staticGasCost_msize : staticGasCost MSIZE = 2 := rfl
+
+theorem staticGasCost_calldataLoad : staticGasCost CALLDATALOAD = 3 := rfl
+
+theorem staticGasCost_calldataSize : staticGasCost CALLDATASIZE = 2 := rfl
+
+theorem staticGasCost_calldataCopyBase : staticGasCost CALLDATACOPY = 3 := rfl
 
 theorem staticGasCost_expBase : staticGasCost EXP = 10 := rfl
 
