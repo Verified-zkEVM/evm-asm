@@ -5889,6 +5889,182 @@ def ziskU256EqProbeUnit : BuildUnit := {
 }
 
 
+/-! ## u256_mul_u64_be -- PR-K54 u256 × u64 schoolbook multiply
+
+    Compute `(a * b) mod 2^256` where `a` is a 32-byte big-endian
+    `u256` buffer and `b` is a u64 scalar. Stores the low 256 bits
+    of the product in `out` (BE) and returns a 0/1 overflow flag.
+
+    Direct use case: `tx_cost = max_fee_per_gas * gas_limit` in
+    tx validation (then `+ value` via PR-K51 `u256_add_be`).
+
+    Algorithm: byte-by-byte schoolbook over the u256 operand,
+    avoiding any BE↔u64 conversion of `a`. For each byte
+    `a[31-p]` (p in 0..31, LSB first):
+
+      1. partial = a[31-p] * b  (u72; mul + mulhu)
+      2. add `partial` to an LSB-first 40-byte accumulator at
+         byte offset `p`, with carry propagation
+      3. After all 32 bytes, accumulator[0..32] = low 256 bits
+         (LSB first), accumulator[32..40] holds the high 64 bits
+
+    Final output:
+      out[i]   = accumulator[31 - i]  for i in 0..32  (BE)
+      overflow = (accumulator[32..40] != 0)
+
+    The accumulator lives in `.data` (`u256m_acc`, 40 bytes), so
+    this function is NOT reentrant.
+
+    Calling convention:
+      a0 (input)  : u256 a ptr (32 bytes, BE)
+      a1 (input)  : u64 b (scalar, in register)
+      a2 (input)  : u256 out ptr (32 bytes, BE; out may alias a;
+                    must NOT alias `u256m_acc`)
+      ra (input)  : return
+      a0 (output) : 1 on overflow (a * b >= 2^256), 0 otherwise.
+
+    Uses 40 bytes of `.data` scratch (`u256m_acc`). -/
+def u256MulU64BeFunction : String :=
+  "u256_mul_u64_be:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  mv s0, a0                  # a ptr\n" ++
+  "  mv s1, a1                  # b\n" ++
+  "  mv s2, a2                  # out ptr\n" ++
+  "  # Zero 40-byte accumulator.\n" ++
+  "  la s3, u256m_acc\n" ++
+  "  mv t0, s3\n" ++
+  "  li t1, 5\n" ++
+  ".Lmul_zinit:\n" ++
+  "  beqz t1, .Lmul_zdone\n" ++
+  "  sd zero, 0(t0)\n" ++
+  "  addi t0, t0, 8\n" ++
+  "  addi t1, t1, -1\n" ++
+  "  j .Lmul_zinit\n" ++
+  ".Lmul_zdone:\n" ++
+  "  # Outer loop: p in 0..32 (byte position from LSB).\n" ++
+  "  li s4, 0\n" ++
+  ".Lmul_outer:\n" ++
+  "  li t0, 32\n" ++
+  "  beq s4, t0, .Lmul_post\n" ++
+  "  # byte_a = a[31 - p]\n" ++
+  "  li t0, 31\n" ++
+  "  sub t0, t0, s4\n" ++
+  "  add t0, s0, t0\n" ++
+  "  lbu t0, 0(t0)\n" ++
+  "  beqz t0, .Lmul_step        # skip zero bytes (optimization)\n" ++
+  "  # partial = byte_a * b: low 64 in t1, high ≤ 0xff in t2.\n" ++
+  "  mul   t1, t0, s1\n" ++
+  "  mulhu t2, t0, s1\n" ++
+  "  # Add to acc[p..p+9] with carry.\n" ++
+  "  add t3, s3, s4             # &acc[p]\n" ++
+  "  li t4, 8                   # 8 low bytes\n" ++
+  "  li t5, 0                   # carry\n" ++
+  ".Lmul_addlo:\n" ++
+  "  lbu t6, 0(t3)\n" ++
+  "  andi a3, t1, 0xff\n" ++
+  "  add  t6, t6, a3\n" ++
+  "  add  t6, t6, t5\n" ++
+  "  andi a3, t6, 0xff\n" ++
+  "  sb   a3, 0(t3)\n" ++
+  "  srli t5, t6, 8\n" ++
+  "  srli t1, t1, 8\n" ++
+  "  addi t3, t3, 1\n" ++
+  "  addi t4, t4, -1\n" ++
+  "  bnez t4, .Lmul_addlo\n" ++
+  "  # Add p_hi (t2; ≤ 1 byte) + carry at acc[p+8].\n" ++
+  "  lbu t6, 0(t3)\n" ++
+  "  add t6, t6, t2\n" ++
+  "  add t6, t6, t5\n" ++
+  "  andi a3, t6, 0xff\n" ++
+  "  sb   a3, 0(t3)\n" ++
+  "  srli t5, t6, 8\n" ++
+  "  addi t3, t3, 1\n" ++
+  "  # Propagate remaining carry through higher bytes.\n" ++
+  ".Lmul_carry:\n" ++
+  "  beqz t5, .Lmul_step\n" ++
+  "  lbu t6, 0(t3)\n" ++
+  "  add t6, t6, t5\n" ++
+  "  andi a3, t6, 0xff\n" ++
+  "  sb   a3, 0(t3)\n" ++
+  "  srli t5, t6, 8\n" ++
+  "  addi t3, t3, 1\n" ++
+  "  j .Lmul_carry\n" ++
+  ".Lmul_step:\n" ++
+  "  addi s4, s4, 1\n" ++
+  "  j .Lmul_outer\n" ++
+  ".Lmul_post:\n" ++
+  "  # Copy acc[0..32] (LSB first) into out (BE, MSB first).\n" ++
+  "  mv t0, s3                  # acc cursor (LSB)\n" ++
+  "  addi t1, s2, 32            # out end (exclusive)\n" ++
+  "  li t2, 32\n" ++
+  ".Lmul_copy:\n" ++
+  "  beqz t2, .Lmul_overflow_check\n" ++
+  "  addi t1, t1, -1\n" ++
+  "  lbu t3, 0(t0)\n" ++
+  "  sb t3, 0(t1)\n" ++
+  "  addi t0, t0, 1\n" ++
+  "  addi t2, t2, -1\n" ++
+  "  j .Lmul_copy\n" ++
+  ".Lmul_overflow_check:\n" ++
+  "  # t0 now points to acc[32]; any nonzero in acc[32..40] → overflow.\n" ++
+  "  li t1, 8\n" ++
+  "  li a0, 0\n" ++
+  ".Lmul_of_loop:\n" ++
+  "  beqz t1, .Lmul_done\n" ++
+  "  lbu t3, 0(t0)\n" ++
+  "  beqz t3, .Lmul_of_next\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lmul_done\n" ++
+  ".Lmul_of_next:\n" ++
+  "  addi t0, t0, 1\n" ++
+  "  addi t1, t1, -1\n" ++
+  "  j .Lmul_of_loop\n" ++
+  ".Lmul_done:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+/-- `zisk_u256_mul_u64_be`: probe BuildUnit. Reads (32B a BE,
+    8B b LE) from host input, writes (overflow_flag, 32B result
+    BE) to OUTPUT (40 bytes total). -/
+def ziskU256MulU64BePrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  addi a0, a3, 8              # a ptr (32B BE)\n" ++
+  "  ld a1, 40(a3)               # b (u64 LE)\n" ++
+  "  li a2, 0xa0010008           # out ptr at OUTPUT + 8\n" ++
+  "  # Pre-zero the 32 output bytes (defensive).\n" ++
+  "  mv t0, a2; li t1, 4\n" ++
+  ".Lmul_zout:\n" ++
+  "  beqz t1, .Lmul_zout_done\n" ++
+  "  sd zero, 0(t0)\n" ++
+  "  addi t0, t0, 8\n" ++
+  "  addi t1, t1, -1\n" ++
+  "  j .Lmul_zout\n" ++
+  ".Lmul_zout_done:\n" ++
+  "  jal ra, u256_mul_u64_be\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # overflow flag\n" ++
+  "  j .Lmul_pdone\n" ++
+  u256MulU64BeFunction ++ "\n" ++
+  ".Lmul_pdone:"
+
+def ziskU256MulU64BeDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "u256m_acc:\n" ++
+  "  .zero 40"
+
+def ziskU256MulU64BeProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskU256MulU64BePrologue
+  dataAsm     := ziskU256MulU64BeDataSection
+}
+
+
 /-! ## tx_type_dispatch -- PR-K40 typed-tx prefix detector
 
     Read the first byte of an RLP/typed-tx-encoded transaction
@@ -8251,6 +8427,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_u256_add_be"          => some ziskU256AddBeProbeUnit
   | "zisk_u256_sub_be"          => some ziskU256SubBeProbeUnit
   | "zisk_u256_eq"              => some ziskU256EqProbeUnit
+  | "zisk_u256_mul_u64_be"      => some ziskU256MulU64BeProbeUnit
   | "zisk_tx_type_dispatch"     => some ziskTxTypeDispatchProbeUnit
   | "zisk_tx_eip2930_decode"    => some ziskTxEip2930DecodeProbeUnit
   | "zisk_tx_eip7702_decode"    => some ziskTxEip7702DecodeProbeUnit
@@ -8318,6 +8495,7 @@ def knownProgramNames : List String :=
    "zisk_u256_add_be",
    "zisk_u256_sub_be",
    "zisk_u256_eq",
+   "zisk_u256_mul_u64_be",
    "zisk_tx_type_dispatch",
    "zisk_tx_eip2930_decode",
    "zisk_tx_eip7702_decode",
