@@ -22,7 +22,7 @@ inductive PrefixClass where
 def classifyPrefix (pfx : Byte) : PrefixClass :=
   let p := pfx.toNat
   if p < 0x80 then .singleByte
-  else if p ≤ 0xB7 then .shortBytes
+  else if p ≤ 0xB8 then .shortBytes
   else if p ≤ 0xBF then .longBytes
   else if p ≤ 0xF7 then .shortList
   else .longList
@@ -33,7 +33,7 @@ def rlpPrefixShortBytesPayloadLen (pfx : Byte) : Nat :=
 
 /-- Number of length bytes following a long string prefix (`0xB8..0xBF`). -/
 def rlpPrefixLongBytesLenOfLen (pfx : Byte) : Nat :=
-  pfx.toNat - 0xB7
+  pfx.toNat - 0xB8
 
 /-- Payload length encoded directly in a short list prefix (`0xC0..0xF7`). -/
 def rlpPrefixShortListPayloadLen (pfx : Byte) : Nat :=
