@@ -433,6 +433,7 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "8:\n" ++
     "  li x16, 32\n" ++
     "  sd x16, 8(x15)\n" ++
+    "  mv s9, x13\n" ++
     "  mv s10, x10\n" ++
     "  mv s11, x12\n" ++
     "  ld a1, " ++ toString inSizeOff ++ "(x12)\n" ++
@@ -441,6 +442,7 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  add a0, x13, x18\n" ++
     "  addi a2, x15, 16\n" ++
     "  jal x1, zkvm_sha256\n" ++
+    "  mv x13, s9\n" ++
     "  mv x10, s10\n" ++
     "  mv x12, s11\n" ++
     "  la x15, evm_precompile_frame\n" ++
@@ -492,12 +494,14 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
       (tag ++ "_bn254_add_p1") inOffsetOff inSizeOff precompileFrameBls12G1Input0Off 0 64 ++
     stagePrecompileInputWindowAsm
       (tag ++ "_bn254_add_p2") inOffsetOff inSizeOff precompileFrameBls12G1Input1Off 64 64 ++
+    "  mv s9, x13\n" ++
     "  mv s10, x10\n" ++
     "  mv s11, x12\n" ++
     precompileFrameAddi "a0" precompileFrameBls12G1Input0Off ++
     precompileFrameAddi "a1" precompileFrameBls12G1Input1Off ++
     precompileFrameAddi "a2" precompileFrameBls12G1OutputOff ++
     "  jal x1, zkvm_bn254_g1_add\n" ++
+    "  mv x13, s9\n" ++
     "  mv x10, s10\n" ++
     "  mv x12, s11\n" ++
     "  bnez a0, 1f\n" ++
@@ -514,12 +518,14 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
       (tag ++ "_bn254_mul_point") inOffsetOff inSizeOff precompileFrameBls12G1Input0Off 0 64 ++
     stagePrecompileInputWindowAsm
       (tag ++ "_bn254_mul_scalar") inOffsetOff inSizeOff precompileFrameBls12G1Input1Off 64 32 ++
+    "  mv s9, x13\n" ++
     "  mv s10, x10\n" ++
     "  mv s11, x12\n" ++
     precompileFrameAddi "a0" precompileFrameBls12G1Input0Off ++
     precompileFrameAddi "a1" precompileFrameBls12G1Input1Off ++
     precompileFrameAddi "a2" precompileFrameBls12G1OutputOff ++
     "  jal x1, zkvm_bn254_g1_mul\n" ++
+    "  mv x13, s9\n" ++
     "  mv x10, s10\n" ++
     "  mv x12, s11\n" ++
     "  bnez a0, 1f\n" ++
@@ -546,6 +552,7 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  li x16, 192\n" ++
     "  remu x17, x18, x16\n" ++
     "  bnez x17, 1f\n" ++
+    "  mv s9, x13\n" ++
     "  mv s10, x10\n" ++
     "  mv s11, x12\n" ++
     "  ld x17, " ++ toString inOffsetOff ++ "(x12)\n" ++
@@ -553,6 +560,7 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  mv a1, x22\n" ++
     precompileFrameAddi "a2" precompileFrameBls12G1OutputOff ++
     "  jal x1, zkvm_bn254_pairing\n" ++
+    "  mv x13, s9\n" ++
     "  mv x10, s10\n" ++
     "  mv x12, s11\n" ++
     "  bnez a0, 1f\n" ++
@@ -587,6 +595,7 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  lbu x17, 212(x18)\n" ++
     "  li x22, 1\n" ++
     "  bltu x22, x17, 1f\n" ++
+    "  mv s9, x13\n" ++
     "  mv s10, x10\n" ++
     "  mv s11, x12\n" ++
     "  mv a0, x16\n" ++
@@ -595,6 +604,7 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     precompileFrameAddi "a3" (precompileFrameBls12G2InputOff + 196) ++
     "  mv a4, x17\n" ++
     "  jal x1, zkvm_blake2f\n" ++
+    "  mv x13, s9\n" ++
     "  mv x10, s10\n" ++
     "  mv x12, s11\n" ++
     "  bnez a0, 1f\n" ++
@@ -615,6 +625,7 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
       (tag ++ "_kzg_payload") inOffsetOff inSizeOff precompileFrameBls12G2InputOff 0 192 ++
     kzgVersionedHashGateAsm ++
     "  sb x0, " ++ toString precompileFrameBls12G2OutputOff ++ "(x15)\n" ++
+    "  mv s9, x13\n" ++
     "  mv s10, x10\n" ++
     "  mv s11, x12\n" ++
     precompileFrameAddi "a0" (precompileFrameBls12G2InputOff + 96) ++
@@ -623,6 +634,7 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     precompileFrameAddi "a3" (precompileFrameBls12G2InputOff + 144) ++
     precompileFrameAddi "a4" precompileFrameBls12G2OutputOff ++
     "  jal x1, zkvm_kzg_point_eval\n" ++
+    "  mv x13, s9\n" ++
     "  mv x10, s10\n" ++
     "  mv x12, s11\n" ++
     "  bnez a0, 1f\n" ++
@@ -646,6 +658,7 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     stagePrecompileInputWindowAsm
       (tag ++ "_p256verify_payload") inOffsetOff inSizeOff precompileFrameBls12G2InputOff 0 160 ++
     "  sb x0, " ++ toString precompileFrameBls12G2OutputOff ++ "(x15)\n" ++
+    "  mv s9, x13\n" ++
     "  mv s10, x10\n" ++
     "  mv s11, x12\n" ++
     precompileFrameAddi "a0" precompileFrameBls12G2InputOff ++
@@ -653,6 +666,7 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     precompileFrameAddi "a2" (precompileFrameBls12G2InputOff + 96) ++
     precompileFrameAddi "a3" precompileFrameBls12G2OutputOff ++
     "  jal x1, zkvm_secp256r1_verify\n" ++
+    "  mv x13, s9\n" ++
     "  mv x10, s10\n" ++
     "  mv x12, s11\n" ++
     "  bnez a0, 1f\n" ++
@@ -677,12 +691,14 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  bne x17, x16, 1f\n" ++
     "  la x15, evm_precompile_frame\n" ++
     chargePrecompileGasConstAsm 375 "x16" "x22" ++
+    "  mv s9, x13\n" ++
     "  mv s10, x10\n" ++
     "  mv s11, x12\n" ++
     precompileFrameAddi "a0" precompileFrameBls12G1Input0Off ++
     precompileFrameAddi "a1" precompileFrameBls12G1Input1Off ++
     precompileFrameAddi "a2" precompileFrameBls12G1OutputOff ++
     "  jal x1, zkvm_bls12_g1_add\n" ++
+    "  mv x13, s9\n" ++
     "  mv x10, s10\n" ++
     "  mv x12, s11\n" ++
     "  la x15, evm_precompile_frame\n" ++
@@ -740,11 +756,13 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  bnez x17, 1f\n" ++
     "  la x15, evm_precompile_frame\n" ++
     chargeBls12G1MsmGasAsm "x18" "a1" "x22" "x23" "x24" ++
+    "  mv s9, x13\n" ++
     "  mv s10, x10\n" ++
     "  mv s11, x12\n" ++
     precompileFrameAddi "a0" precompileFrameBls12G1Input0Off ++
     precompileFrameAddi "a2" precompileFrameBls12G1OutputOff ++
     "  jal x1, zkvm_bls12_g1_msm\n" ++
+    "  mv x13, s9\n" ++
     "  mv x10, s10\n" ++
     "  mv x12, s11\n" ++
     "  la x15, evm_precompile_frame\n" ++
@@ -757,8 +775,8 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  addi x18, x15, 32\n" ++
     "  li x19, 48\n" ++
     "20:\n" ++
-    "  lbu x20, 0(x17)\n" ++
-    "  sb x20, 0(x18)\n" ++
+    "  lbu x16, 0(x17)\n" ++
+    "  sb x16, 0(x18)\n" ++
     "  addi x17, x17, 1\n" ++
     "  addi x18, x18, 1\n" ++
     "  addi x19, x19, -1\n" ++
@@ -769,8 +787,8 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  addi x18, x15, 96\n" ++
     "  li x19, 48\n" ++
     "21:\n" ++
-    "  lbu x20, 0(x17)\n" ++
-    "  sb x20, 0(x18)\n" ++
+    "  lbu x16, 0(x17)\n" ++
+    "  sb x16, 0(x18)\n" ++
     "  addi x17, x17, 1\n" ++
     "  addi x18, x18, 1\n" ++
     "  addi x19, x19, -1\n" ++
@@ -790,12 +808,14 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  bne x17, x16, 1f\n" ++
     "  la x15, evm_precompile_frame\n" ++
     chargePrecompileGasConstAsm 600 "x16" "x22" ++
+    "  mv s9, x13\n" ++
     "  mv s10, x10\n" ++
     "  mv s11, x12\n" ++
     precompileFrameAddi "a0" precompileFrameBls12G2AddInput0Off ++
     precompileFrameAddi "a1" precompileFrameBls12G2AddInput1Off ++
     precompileFrameAddi "a2" precompileFrameBls12G2AddOutputOff ++
     "  jal x1, zkvm_bls12_g2_add\n" ++
+    "  mv x13, s9\n" ++
     "  mv x10, s10\n" ++
     "  mv x12, s11\n" ++
     "  la x15, evm_precompile_frame\n" ++
@@ -855,11 +875,13 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  bnez x17, 1f\n" ++
     "  la x15, evm_precompile_frame\n" ++
     chargeBls12G2MsmGasAsm "x18" "a1" "x22" "x23" "x24" ++
+    "  mv s9, x13\n" ++
     "  mv s10, x10\n" ++
     "  mv s11, x12\n" ++
     precompileFrameAddi "a0" precompileFrameBls12G2InputOff ++
     precompileFrameAddi "a2" precompileFrameBls12G2OutputOff ++
     "  jal x1, zkvm_bls12_g2_msm\n" ++
+    "  mv x13, s9\n" ++
     "  mv x10, s10\n" ++
     "  mv x12, s11\n" ++
     "  la x15, evm_precompile_frame\n" ++
@@ -917,12 +939,14 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  bnez x17, 1f\n" ++
     "  la x15, evm_precompile_frame\n" ++
     chargeBls12PairingGasAsm "x18" "a1" "x22" "x23" ++
+    "  mv s9, x13\n" ++
     "  mv s10, x10\n" ++
     "  mv s11, x12\n" ++
     "  ld x17, " ++ toString inOffsetOff ++ "(x12)\n" ++
     "  add a0, x13, x17\n" ++
     precompileFrameAddi "a2" precompileFrameBls12G1OutputOff ++
     "  jal x1, zkvm_bls12_pairing\n" ++
+    "  mv x13, s9\n" ++
     "  mv x10, s10\n" ++
     "  mv x12, s11\n" ++
     "  la x15, evm_precompile_frame\n" ++
@@ -965,6 +989,7 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  bne x17, x16, 1f\n" ++
     "  la x15, evm_precompile_frame\n" ++
     chargePrecompileGasConstAsm 5500 "x16" "x22" ++
+    "  mv s9, x13\n" ++
     "  mv s10, x10\n" ++
     "  mv s11, x12\n" ++
     "  ld x18, " ++ toString inOffsetOff ++ "(x12)\n" ++
@@ -972,6 +997,7 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  addi a0, x18, 16\n" ++
     precompileFrameAddi "a1" precompileFrameBls12G1OutputOff ++
     "  jal x1, zkvm_bls12_map_fp_to_g1\n" ++
+    "  mv x13, s9\n" ++
     "  mv x10, s10\n" ++
     "  mv x12, s11\n" ++
     "  la x15, evm_precompile_frame\n" ++
@@ -1053,11 +1079,13 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  addi x23, x23, 1\n" ++
     "  addi x22, x22, -1\n" ++
     "  bnez x22, 21b\n" ++
+    "  mv s9, x13\n" ++
     "  mv s10, x10\n" ++
     "  mv s11, x12\n" ++
     precompileFrameAddi "a0" precompileFrameBls12G2InputOff ++
     precompileFrameAddi "a1" precompileFrameBls12G2OutputOff ++
     "  jal x1, zkvm_bls12_map_fp2_to_g2\n" ++
+    "  mv x13, s9\n" ++
     "  mv x10, s10\n" ++
     "  mv x12, s11\n" ++
     "  la x15, evm_precompile_frame\n" ++

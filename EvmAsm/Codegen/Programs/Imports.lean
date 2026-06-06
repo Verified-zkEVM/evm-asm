@@ -1,6 +1,11 @@
-/- EvmAsm.Codegen.Programs.Imports
-  Import hub for the codegen program registry.
+/-
+  EvmAsm.Codegen.Programs.Imports
+
+  Import hub for codegen program BuildUnit declarations used by the
+  CLI registry. Keeping this list out of Programs.lean makes the public
+  registry module small enough to review.
 -/
+
 import EvmAsm.Rv64.Program
 import EvmAsm.Evm64.Add.Program
 import EvmAsm.Evm64.AddMod.Program
@@ -51,8 +56,8 @@ import EvmAsm.Codegen.Programs.Clz
 import EvmAsm.Codegen.Programs.ExpProperty
 import EvmAsm.Codegen.Programs.CryptoRegistry
 import EvmAsm.Codegen.Programs.Selfdestruct
-import EvmAsm.Codegen.Programs.StatelessGuestData
-import EvmAsm.Codegen.Programs.StatelessGuestEpilogue
+import EvmAsm.Codegen.Programs.SelfdestructDescriptors
+import EvmAsm.Codegen.Programs.StatelessGuest
 import EvmAsm.Codegen.Programs.IntrinsicGas
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Mpt
@@ -86,6 +91,8 @@ import EvmAsm.Codegen.Programs.BalAccountNthDescriptor
 import EvmAsm.Codegen.Programs.BalAccountDescriptorArray
 import EvmAsm.Codegen.Programs.BalAccountStateRoot
 import EvmAsm.Codegen.Programs.BalAccountRecordArray
+import EvmAsm.Codegen.Programs.BalAccountAccessDescriptors
+import EvmAsm.Codegen.Programs.BalStorageAccessDescriptors
 import EvmAsm.Codegen.Programs.StorageWrite
 import EvmAsm.Codegen.Programs.StorageEffectRecords
 import EvmAsm.Codegen.Programs.SstoreGasRefund
@@ -93,6 +100,9 @@ import EvmAsm.Codegen.Programs.BlockAccessListHash
 import EvmAsm.Codegen.Programs.BlockVerdictModeledSystem
 import EvmAsm.Codegen.Programs.BlockGasRemaining
 import EvmAsm.Codegen.Programs.BlockVerdictGasGate
+import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransfer
+import EvmAsm.Codegen.Programs.SimpleTransferRecipient
+import EvmAsm.Codegen.Programs.SimpleTransferFeeRecipient
 import EvmAsm.Codegen.Programs.BlockhashRequiredHeaders
 import EvmAsm.Codegen.Programs.Eip7702NonceReuseGuard
 import EvmAsm.Codegen.Programs.AccountApplyStorage
@@ -144,6 +154,7 @@ import EvmAsm.Codegen.Programs.ChainWalkOneStepBack
 import EvmAsm.Codegen.Programs.ChainWalkNStepsBack
 import EvmAsm.Codegen.Programs.StateRootChainWalkBack
 import EvmAsm.Codegen.Programs.BlockNumberAtBlockHash
+import EvmAsm.Codegen.Programs.BlockHashWindow
 import EvmAsm.Codegen.Programs.StateSlotAtBlockNumber
 import EvmAsm.Codegen.Programs.StateAccountAtBlockNumber
 import EvmAsm.Codegen.Programs.BalanceAtBlockNumber
@@ -274,3 +285,7 @@ import EvmAsm.Codegen.Programs.PostMergeInvariantsAtBlockHash
 import EvmAsm.Codegen.Programs.BlockRootsAtBlockHash
 import EvmAsm.Codegen.Programs.NumberTimestampPairAtBlockHash
 import EvmAsm.Codegen.Programs.GasPairAtBlockHash
+import EvmAsm.Codegen.Programs.BlockVerdictGasResults
+import EvmAsm.Codegen.Programs.ReceiptList
+import EvmAsm.Codegen.Programs.StatelessGuestUnit
+import EvmAsm.Codegen.Programs.RegistryNames

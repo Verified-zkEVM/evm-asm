@@ -505,11 +505,17 @@ format_verdict_debug() {
     sri_mode
     sri_status
     block_rlp_len
+    brr_status
+    brr_count
+    brr_append
+    brr0
+    brr1
+    brr2
   )
   local -a words=()
   local i value dbg=""
 
-  raw="$(od -An -v -tu8 -N 120 "$out" 2>/dev/null | xargs || true)"
+  raw="$(od -An -v -tu8 -N 168 "$out" 2>/dev/null | xargs || true)"
   read -r -a words <<< "$raw"
   for i in "${!labels[@]}"; do
     value="${words[$i]:-?}"
@@ -522,6 +528,19 @@ format_verdict_debug() {
     if [[ -n "$recomputed_state_root" && -n "$payload_state_root" ]]; then
       dbg="$dbg recomputed_state_root=$recomputed_state_root payload_state_root=$payload_state_root"
     fi
+  fi
+  if [[ "$(stat -c%s "$out" 2>/dev/null || echo 0)" -ge 256 ]]; then
+    raw="$(od -An -v -tu8 -j 232 -N 24 "$out" 2>/dev/null | xargs || true)"
+    read -r -a words <<< "$raw"
+    local -a gas_labels=(
+      gas_arena_status
+      gas_arena_tx_count
+      gas_arena_runtime_count
+    )
+    for i in "${!gas_labels[@]}"; do
+      value="${words[$i]:-?}"
+      dbg="${dbg:+$dbg }${gas_labels[$i]}=$value"
+    done
   fi
   echo "$dbg"
 }
