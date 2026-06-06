@@ -71,6 +71,14 @@ jobs:
       - name: No-warnings guard (EvmAsm/ source paths)
         run: scripts/check-no-warnings.sh build.log
 
+      - name: Install RISC-V binutils for codegen link checks
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y binutils-riscv64-unknown-elf
+
+      - name: Link stateless_guest.elf
+        run: scripts/codegen-stateless-link-check.sh --no-build
+
       - name: Progress-report drift check
         run: scripts/check-progress.sh
 

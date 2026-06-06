@@ -154,6 +154,12 @@ elif collision == 'insufficient':
     header = encode_header(k256(leaf))
     witness_state = build_ssz_section([leaf])
     expected_address = b'\x00' * 20
+elif collision == 'nonce_max':
+    account = encode_account(2**64 - 1, 0, EMPTY_TRIE, EMPTY_CODE_HASH)
+    leaf = leaf_node(bytes_to_nibbles(k256(creator)), account)
+    header = encode_header(k256(leaf))
+    witness_state = build_ssz_section([leaf])
+    expected_address = b'\x00' * 20
 elif collision == 'nonce':
     account = encode_account(1, 0, EMPTY_TRIE, EMPTY_CODE_HASH)
     leaf = leaf_node(bytes_to_nibbles(k256(target)), account)
@@ -186,8 +192,10 @@ CASES=(
   "create_nonce_collision create nonce"
   "create_code_collision create code"
   "create_insufficient_balance create insufficient"
+  "create_nonce_exhaustion create nonce_max"
   "create2_absent_target create2 absent"
   "create2_nonce_collision create2 nonce"
+  "create2_nonce_exhaustion create2 nonce_max"
 )
 
 for spec in "${CASES[@]}"; do
