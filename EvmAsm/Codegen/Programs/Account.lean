@@ -22,6 +22,7 @@ import EvmAsm.Codegen.Programs.Tx
 import EvmAsm.Codegen.Programs.TxExtract
 import EvmAsm.Codegen.Programs.U256
 import EvmAsm.Codegen.Programs.AccountFieldExtract
+import EvmAsm.Codegen.Programs.U256GasPricing
 
 namespace EvmAsm.Codegen
 

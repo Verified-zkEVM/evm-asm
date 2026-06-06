@@ -8,6 +8,8 @@
 import EvmAsm.Codegen.Programs.BlockVerdict
 import EvmAsm.Codegen.Programs.RequestsHash
 
+import EvmAsm.Codegen.Programs.MptEncodeLeafBranch
+
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
@@ -127,12 +129,15 @@ def statelessVerdictV2GuestClosure : String :=
   bsrApplyModeledSystemPostFieldsFunction ++ "\n" ++
   blockStateRootFunction ++ "\n" ++
   codesBlockhashRequiredHeadersFunction ++ "\n" ++
+  chainConfigValidFunction ++ "\n" ++
   publicKeysValidFunction ++ "\n" ++
   receiptRecordsFunction ++ "\n" ++
   blockReceiptRecordsMaterializeFunction ++ "\n" ++
   blockVerdictFunction ++ "\n" ++
   rlpListCountItemsFunction ++ "\n" ++
   txTypeDispatchFunction ++ "\n" ++
+  txEip4844DecodeFunction ++ "\n" ++
+  sszTxListVersionedHashesMatchFunction ++ "\n" ++
   txExtractToAddressFunction ++ "\n" ++
   txExtractValueFunction ++ "\n" ++
   txExtractDataSectionFunction ++ "\n" ++

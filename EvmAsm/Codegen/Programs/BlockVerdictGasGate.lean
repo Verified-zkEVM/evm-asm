@@ -23,9 +23,9 @@ open EvmAsm.Rv64
     This mirrors the gas portion of Prague `validate_transaction` for legacy,
     EIP-2930, EIP-1559, EIP-4844, and EIP-7702 transactions that this gate can
     parse cheaply: `max(intrinsic_gas, calldata_floor_gas_cost) <= tx.gas`.
-    The EIP-8037 `TX_MAX_GAS_LIMIT` cap is applied only to the worst-regular-gas
-    bound below, not as a transaction-validity rule. Malformed tx lists, unknown
-    tx types. The gate also mirrors the execution-spec pre-execution block-gas
+    The EIP-8037 `TX_MAX_GAS_LIMIT` cap is also enforced as a
+    transaction-validity rule. Malformed tx lists, unknown tx types. The gate
+    also mirrors the execution-spec pre-execution block-gas
     availability check when it can prove rejection from the intrinsic/floor gas
     lower bound of prior transactions. Single-transaction overflow is always
     invalid. Multi-transaction regular overflow is rejected only when the
@@ -205,6 +205,7 @@ def eip8037TxGasGateFunction : String :=
   "  la t0, bsg_gas_field; ld a2, 0(t0); mv a0, s9; mv a1, s10; la a3, bsg_tx_gas\n" ++
   "  jal ra, rlp_field_to_u64\n" ++
   "  bnez a0, .Letg_ok\n" ++
+  "  la t0, bsg_tx_gas; ld t1, 0(t0)\n" ++
   "  la t0, bsg_data_field; ld a2, 0(t0); mv a0, s9; mv a1, s10; la a3, bsg_data_off; la a4, bsg_data_len\n" ++
   "  jal ra, rlp_list_nth_item\n" ++
   "  bnez a0, .Letg_ok\n" ++

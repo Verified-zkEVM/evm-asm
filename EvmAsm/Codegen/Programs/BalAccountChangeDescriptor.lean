@@ -11,6 +11,8 @@ import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.AccountFields
 import EvmAsm.Codegen.Programs.BalAccountChangeValue
 
+import EvmAsm.Codegen.Programs.MptEncodeLeafBranch
+
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64

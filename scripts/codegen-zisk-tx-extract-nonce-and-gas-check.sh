@@ -84,11 +84,16 @@ with open(sys.argv[1], 'wb') as f:
   local actual_nonce; actual_nonce="$(dd if="$out_file" bs=1 skip=8 count=8 2>/dev/null | xxd -p | tr -d '\n')"
   local actual_gas; actual_gas="$(dd if="$out_file" bs=1 skip=16 count=8 2>/dev/null | xxd -p | tr -d '\n')"
   local exp_status_le; exp_status_le="$(python3 -c "print(int('$exp').to_bytes(8, 'little').hex())")"
-  local exp_nonce_le; exp_nonce_le="$(python3 -c "print(int('$nonce').to_bytes(8, 'little').hex())")"
-  local exp_gas_le; exp_gas_le="$(python3 -c "print(int('$gas').to_bytes(8, 'little').hex())")"
+  local exp_nonce="$nonce" exp_gas="$gas"
+  if [[ "$exp" != "0" ]]; then
+    exp_nonce=0
+    exp_gas=0
+  fi
+  local exp_nonce_le; exp_nonce_le="$(python3 -c "print(int('$exp_nonce').to_bytes(8, 'little').hex())")"
+  local exp_gas_le; exp_gas_le="$(python3 -c "print(int('$exp_gas').to_bytes(8, 'little').hex())")"
 
   if [[ "$actual_status" == "$exp_status_le" && "$actual_nonce" == "$exp_nonce_le" && "$actual_gas" == "$exp_gas_le" ]]; then
-    printf "  %-32s OK   nonce=%d gas=%d\n" "$name" "$nonce" "$gas"
+    printf "  %-32s OK   status=%s nonce=%s gas=%s\n" "$name" "$exp" "$exp_nonce" "$exp_gas"
     return 0
   else
     printf "  %-32s FAIL status=0x%s nonce=0x%s gas=0x%s\n" "$name" "$actual_status" "$actual_nonce" "$actual_gas"
@@ -105,6 +110,10 @@ run_case "eip4844"        eip4844  5       100000     0 || FAILED=1
 run_case "eip7702"        eip7702  1       150000     0 || FAILED=1
 # Edge: nonce 0 and gas at u32 max — valid u64
 run_case "legacy_zero_nonce" legacy 0      0          0 || FAILED=1
+# EIP-2681: nonce must be strictly below u64 max.
+run_case "legacy_nonce_max_minus_one" legacy 18446744073709551614 21000 0 || FAILED=1
+run_case "legacy_nonce_max_reject"    legacy 18446744073709551615 21000 4 || FAILED=1
+run_case "eip7702_nonce_max_reject"   eip7702 18446744073709551615 150000 4 || FAILED=1
 
 echo
 if [[ $FAILED -eq 0 ]]; then
