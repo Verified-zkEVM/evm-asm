@@ -42,11 +42,68 @@ import EvmAsm.Codegen.Dispatch
 import EvmAsm.Codegen.Programs.EvmBasic
 import EvmAsm.Codegen.Programs.EvmTinyInterp
 import EvmAsm.Codegen.Programs.EvmDivModWrappers
+import EvmAsm.Codegen.Programs.EvmStackHandlers
+import EvmAsm.Codegen.Programs.EvmSingletonHandlers
+import EvmAsm.Codegen.Programs.EvmMemoryHandlers
+import EvmAsm.Codegen.Programs.EvmGasHandlers
+import EvmAsm.Codegen.Programs.EvmCodeHandlers
+import EvmAsm.Codegen.Programs.EvmEnvHandlers
+import EvmAsm.Codegen.Programs.EvmSlotnum
+import EvmAsm.Codegen.Programs.EvmMcopyGas
+import EvmAsm.Codegen.Programs.EvmMemoryGas
+import EvmAsm.Codegen.Programs.Clz
+import EvmAsm.Codegen.Programs.EvmBalance
+import EvmAsm.Codegen.Programs.Noop
+import EvmAsm.Codegen.Programs.EvmAccountWitness
+import EvmAsm.Codegen.Programs.EvmExtcodecopy
+import EvmAsm.Codegen.Programs.Storage
 import EvmAsm.Codegen.Programs.EvmRegistry
 
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
+
+/-! ## tiny_interp_dispatch — M5b runtime fetch/decode/dispatch loop
+
+    Same EVM bytecodes as M5a, but routed through an actual RISC-V
+    dispatch loop. The dispatcher scaffolding (loop body, 256-entry
+    jump table, `h_invalid` fallback, `.exit_label`) now lives in
+    `EvmAsm.Codegen.Dispatch`; this section declares only the opcode
+    handler registry.
+
+    **Adding a new opcode = adding one `OpcodeHandlerSpec` entry below.**
+
+    Calling convention (informal):
+      x10  EVM code pointer  (preserved across handler calls; each
+                              handler with `tail := .advanceAndRet n`
+                              advances `x10` by `n` before returning)
+      x12  EVM stack pointer (handlers update freely; persistent
+                              across the loop)
+      x1   return address    (clobbered by `jalr ra, ...`; each
+                              `advanceAndRet` handler ends in `ret`)
+      x5, x6, x7   scratch   (clobbered by both the dispatcher's
+                              fetch/lookup *and* the verified handler
+                              bodies; the dispatcher reloads from x10
+                              and the table base on every iteration,
+                              so no preservation needed)
+
+    Coverage (M6b): 82 opcodes wired —
+      - **PUSH0..PUSH32** (33) via `pushHandlers`
+      - **DUP1..DUP16** (16) via `dupHandlers`
+      - **SWAP1..SWAP16** (16) via `swapHandlers`
+      - **17 fixed-shape singletons** via `singletonHandlers`:
+        SUB, MUL, SIGNEXTEND, AND, OR, XOR, NOT, LT, GT, SLT, SGT,
+        EQ, ISZERO, BYTE, CLZ, SHR, POP — CLZ is currently a bounded
+        raw RV64IM handler; the others are parameter-free verified
+        `Program`s with the standard `<body>` + `addi x10, x10, 1` +
+        `ret` ABI.
+      - **STOP** via `stopHandler` (jumps to `.exit_label` instead
+        of returning to the dispatcher).
+
+    All other opcode bytes fall to `h_invalid` (emitted automatically
+    by `emitDispatcherEpilogue`), which takes the same exit path as
+    STOP. -/
+
 
 /-! ## evm_div — M2 first DIV end-to-end through ziskemu
 
