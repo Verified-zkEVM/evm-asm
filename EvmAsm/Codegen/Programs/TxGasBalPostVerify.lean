@@ -11,6 +11,7 @@ import EvmAsm.Codegen.Programs.Address
 import EvmAsm.Codegen.Programs.BalAccountPostFields
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.RlpRead
+import EvmAsm.Codegen.Programs.TxExtract
 import EvmAsm.Codegen.Programs.TxGasSenderBalLookup
 
 namespace EvmAsm.Codegen
@@ -19,11 +20,9 @@ open EvmAsm.Rv64
 
 /-! ## tx_gas_bal_post_verify
 
-    Compose sender BAL lookup with the transaction upfront gas precharge helper.
-    This first BAL-facing slice validates the sender nonce post-field against
-    the nonce after pre-execution charge. It deliberately reports the charged
-    balance as a diagnostic but does not require exact final balance yet, because
-    post-execution refunds and settlement are wired by later gas beads.
+    Compose sender BAL lookup with the transaction upfront gas precharge helper,
+    then validate the simple-transfer sender post balance:
+      charged_balance + (tx.gas_limit - 21000) * effective_gas_price - tx.value.
 
     Calling convention:
       a0 = tx ptr
@@ -43,6 +42,13 @@ open EvmAsm.Rv64
              30 sender BAL post nonce absent
              31 sender BAL post nonce exceeds u64
              32 sender BAL post nonce mismatch
+             33 sender BAL post balance absent
+             34 tx gas below simple-transfer intrinsic gas
+             35 unused-gas refund multiplication overflow
+             36 unused-gas refund addition overflow
+             37 tx value extraction failed
+             38 sender final balance underflow on value
+             39 sender BAL post balance mismatch
       +8   lookup status
       +16  precharge status
       +24  BAL row index, or UINT64_MAX
@@ -53,6 +59,9 @@ open EvmAsm.Rv64
       +64  post balance len
       +72  charged balance, u256 BE
       +104 sender address, 20 B
+      +128 expected final sender balance, u256 BE
+      +160 normalized BAL post balance, u256 BE
+      +192 tx value, u256 BE
 -/
 def txGasBalPostVerifyFunction : String :=
   "tx_gas_bal_post_verify:\n" ++
@@ -74,6 +83,9 @@ def txGasBalPostVerifyFunction : String :=
   "  sd zero,  32(s7); sd zero,  40(s7); sd zero,  48(s7); sd zero,  56(s7)\n" ++
   "  sd zero,  64(s7); sd zero,  72(s7); sd zero,  80(s7); sd zero,  88(s7)\n" ++
   "  sd zero,  96(s7); sd zero, 104(s7); sd zero, 112(s7); sd zero, 120(s7)\n" ++
+  "  sd zero, 128(s7); sd zero, 136(s7); sd zero, 144(s7); sd zero, 152(s7)\n" ++
+  "  sd zero, 160(s7); sd zero, 168(s7); sd zero, 176(s7); sd zero, 184(s7)\n" ++
+  "  sd zero, 192(s7); sd zero, 200(s7); sd zero, 208(s7); sd zero, 216(s7)\n" ++
   "  li t0, -1; sd t0, 24(s7); sd t0, 48(s7); sd t0, 64(s7)\n" ++
   "  # Locate sender BAL row and pre/post scalar fields.\n" ++
   "  mv a0, s0; mv a1, s1; mv a2, s3; mv a3, s4; mv a4, s5; mv a5, s6\n" ++
@@ -135,8 +147,85 @@ def txGasBalPostVerifyFunction : String :=
   "  j .Ltgbpv_nonce_be_loop\n" ++
   ".Ltgbpv_nonce_be_done:\n" ++
   "  sd s9, 56(s7)\n" ++
-  "  la t0, tgbpv_nonce; ld t1, 0(t0); beq s9, t1, .Ltgbpv_ok\n" ++
+  "  la t0, tgbpv_nonce; ld t1, 0(t0); beq s9, t1, .Ltgbpv_nonce_match\n" ++
   "  li t0, 32; sd t0, 0(s7)\n" ++
+  "  j .Ltgbpv_ret\n" ++
+  ".Ltgbpv_nonce_match:\n" ++
+  "  la t0, tgbpv_lookup; ld t1, 88(t0) # post balance len\n" ++
+  "  li t2, -1; bne t1, t2, .Ltgbpv_balance_present\n" ++
+  "  li t0, 33; sd t0, 0(s7)\n" ++
+  "  j .Ltgbpv_ret\n" ++
+  ".Ltgbpv_balance_present:\n" ++
+  "  li t2, 32; bleu t1, t2, .Ltgbpv_balance_len_ok\n" ++
+  "  li t0, 39; sd t0, 0(s7)\n" ++
+  "  j .Ltgbpv_ret\n" ++
+  ".Ltgbpv_balance_len_ok:\n" ++
+  "  la t0, tgbpv_balance; la t1, tgbpv_expected_balance\n" ++
+  "  ld t2,  0(t0); sd t2,  0(t1)\n" ++
+  "  ld t2,  8(t0); sd t2,  8(t1)\n" ++
+  "  ld t2, 16(t0); sd t2, 16(t1)\n" ++
+  "  ld t2, 24(t0); sd t2, 24(t1)\n" ++
+  "  la t0, txup_gas_limit; ld t1, 0(t0)\n" ++
+  "  li t2, 21000; bgeu t1, t2, .Ltgbpv_refund_gas_ok\n" ++
+  "  li t0, 34; sd t0, 0(s7)\n" ++
+  "  j .Ltgbpv_ret\n" ++
+  ".Ltgbpv_refund_gas_ok:\n" ++
+  "  sub t1, t1, t2\n" ++
+  "  la a0, txup_effective_gas_price; mv a1, t1; la a2, tgbpv_refund\n" ++
+  "  jal ra, u256_mul_u64_be\n" ++
+  "  beqz a0, .Ltgbpv_refund_mul_ok\n" ++
+  "  li t0, 35; sd t0, 0(s7)\n" ++
+  "  j .Ltgbpv_ret\n" ++
+  ".Ltgbpv_refund_mul_ok:\n" ++
+  "  la a0, tgbpv_expected_balance; la a1, tgbpv_refund; la a2, tgbpv_expected_balance\n" ++
+  "  jal ra, u256_add_be\n" ++
+  "  beqz a0, .Ltgbpv_refund_add_ok\n" ++
+  "  li t0, 36; sd t0, 0(s7)\n" ++
+  "  j .Ltgbpv_ret\n" ++
+  ".Ltgbpv_refund_add_ok:\n" ++
+  "  mv a0, s0; mv a1, s1; la a2, tgbpv_value\n" ++
+  "  jal ra, tx_extract_value\n" ++
+  "  beqz a0, .Ltgbpv_value_ok\n" ++
+  "  li t0, 37; sd t0, 0(s7)\n" ++
+  "  j .Ltgbpv_ret\n" ++
+  ".Ltgbpv_value_ok:\n" ++
+  "  la a0, tgbpv_expected_balance; la a1, tgbpv_value; la a2, tgbpv_expected_balance\n" ++
+  "  jal ra, u256_sub_be\n" ++
+  "  beqz a0, .Ltgbpv_value_sub_ok\n" ++
+  "  li t0, 38; sd t0, 0(s7)\n" ++
+  "  j .Ltgbpv_ret\n" ++
+  ".Ltgbpv_value_sub_ok:\n" ++
+  "  la t0, tgbpv_expected_balance\n" ++
+  "  ld t1,  0(t0); sd t1, 128(s7)\n" ++
+  "  ld t1,  8(t0); sd t1, 136(s7)\n" ++
+  "  ld t1, 16(t0); sd t1, 144(s7)\n" ++
+  "  ld t1, 24(t0); sd t1, 152(s7)\n" ++
+  "  la t0, tgbpv_value\n" ++
+  "  ld t1,  0(t0); sd t1, 192(s7)\n" ++
+  "  ld t1,  8(t0); sd t1, 200(s7)\n" ++
+  "  ld t1, 16(t0); sd t1, 208(s7)\n" ++
+  "  ld t1, 24(t0); sd t1, 216(s7)\n" ++
+  "  la t0, tgbpv_post_balance\n" ++
+  "  sd zero,  0(t0); sd zero,  8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++
+  "  la t1, tgbpv_lookup; ld t2, 88(t1)       # len\n" ++
+  "  addi t3, t1, 96                          # src\n" ++
+  "  la t4, tgbpv_post_balance; li t5, 32; sub t5, t5, t2; add t4, t4, t5\n" ++
+  "  mv t5, t2\n" ++
+  ".Ltgbpv_post_balance_copy:\n" ++
+  "  beqz t5, .Ltgbpv_post_balance_done\n" ++
+  "  lbu t6, 0(t3); sb t6, 0(t4)\n" ++
+  "  addi t3, t3, 1; addi t4, t4, 1; addi t5, t5, -1\n" ++
+  "  j .Ltgbpv_post_balance_copy\n" ++
+  ".Ltgbpv_post_balance_done:\n" ++
+  "  la t0, tgbpv_post_balance\n" ++
+  "  ld t1,  0(t0); sd t1, 160(s7)\n" ++
+  "  ld t1,  8(t0); sd t1, 168(s7)\n" ++
+  "  ld t1, 16(t0); sd t1, 176(s7)\n" ++
+  "  ld t1, 24(t0); sd t1, 184(s7)\n" ++
+  "  la a0, tgbpv_expected_balance; la a1, tgbpv_post_balance\n" ++
+  "  jal ra, u256_eq\n" ++
+  "  li t0, 1; beq a0, t0, .Ltgbpv_ok\n" ++
+  "  li t0, 39; sd t0, 0(s7)\n" ++
   "  j .Ltgbpv_ret\n" ++
   ".Ltgbpv_ok:\n" ++
   "  sd zero, 0(s7)\n" ++
@@ -199,8 +288,10 @@ def ziskTxGasBalPostVerifyPrologue : String :=
   txGasSenderBalLookupFunction ++ "\n" ++
   txTypeDispatchFunction ++ "\n" ++
   txExtractNonceAndGasFunction ++ "\n" ++
+  txExtractValueFunction ++ "\n" ++
   txExtractGasPricingFunction ++ "\n" ++
   u256SubBeFunction ++ "\n" ++
+  u256EqFunction ++ "\n" ++
   u256MinFunction ++ "\n" ++
   u256AddBeFunction ++ "\n" ++
   priorityFeePerGasEip1559Function ++ "\n" ++
@@ -234,6 +325,10 @@ def ziskTxGasBalPostVerifyDataSection : String :=
   "bpf_val_len:\n  .zero 8\n" ++
   "teng_type:\n  .zero 8\n" ++
   "teng_inner_off:\n  .zero 8\n" ++
+  "tev_type:\n  .zero 8\n" ++
+  "tev_inner_off:\n  .zero 8\n" ++
+  "t48_offset:\n  .zero 8\n" ++
+  "t48_length:\n  .zero 8\n" ++
   "tegp_type:\n  .zero 8\n" ++
   "tegp_inner_off:\n  .zero 8\n" ++
   ".balign 32\n" ++
@@ -253,6 +348,10 @@ def ziskTxGasBalPostVerifyDataSection : String :=
   ".balign 32\n" ++
   "acpg_gas_fee:\n  .zero 32\n" ++
   "tgbpv_balance:\n  .zero 32\n" ++
+  "tgbpv_refund:\n  .zero 32\n" ++
+  "tgbpv_expected_balance:\n  .zero 32\n" ++
+  "tgbpv_post_balance:\n  .zero 32\n" ++
+  "tgbpv_value:\n  .zero 32\n" ++
   ".balign 8\n" ++
   "tgbpv_nonce:\n  .zero 8\n" ++
   "tgbpv_lookup:\n  .zero 168\n" ++

@@ -1182,6 +1182,92 @@ def ziskTxPostExecGasSettlementProbeUnit : BuildUnit := {
   dataAsm     := ziskTxPostExecGasSettlementDataSection
 }
 
+/-! ## tx_gas_result_increments
+
+    EIP-7623/EIP-7778 gas increments derived from execution results.
+    This is the scalar post-execution formula used by Amsterdam
+    `process_transaction` before block-output and receipt updates:
+
+      before_refund = tx.gas - tx_output.gas_left
+      refund        = min(before_refund / 5, tx_output.refund_counter)
+      after_refund  = before_refund - refund
+      receipt_inc   = max(after_refund, calldata_floor_gas_cost)
+      block_inc     = max(before_refund, calldata_floor_gas_cost)
+
+    Calling convention:
+      a0 (input)  : tx_gas_limit u64
+      a1 (input)  : gas_left after execution u64
+      a2 (input)  : refund_counter u64
+      a3 (input)  : calldata_floor_gas_cost u64
+      ra (input)  : return
+      a0 (output) : status, 0 ok; 1 if gas_left > tx_gas_limit
+      a1 (output) : block_gas_used_in_tx
+      a2 (output) : receipt gas increment
+      a3 (output) : tx_gas_used_before_refund
+      a4 (output) : applied refund
+-/
+def txGasResultIncrementsFunction : String :=
+  "tx_gas_result_increments:\n" ++
+  "  bgtu a1, a0, .Ltgri_bad_remaining\n" ++
+  "  sub t0, a0, a1              # before_refund\n" ++
+  "  li t1, 5\n" ++
+  "  divu t2, t0, t1             # refund cap = before_refund / 5\n" ++
+  "  mv t3, a2                   # refund_counter\n" ++
+  "  bleu t3, t2, .Ltgri_refund_min_done\n" ++
+  "  mv t3, t2\n" ++
+  ".Ltgri_refund_min_done:\n" ++
+  "  sub t4, t0, t3              # after_refund\n" ++
+  "  mv t5, t0                   # block_inc = max(before_refund, floor)\n" ++
+  "  bleu a3, t5, .Ltgri_block_max_done\n" ++
+  "  mv t5, a3\n" ++
+  ".Ltgri_block_max_done:\n" ++
+  "  mv t6, t4                   # receipt_inc = max(after_refund, floor)\n" ++
+  "  bleu a3, t6, .Ltgri_receipt_max_done\n" ++
+  "  mv t6, a3\n" ++
+  ".Ltgri_receipt_max_done:\n" ++
+  "  li a0, 0\n" ++
+  "  mv a1, t5\n" ++
+  "  mv a2, t6\n" ++
+  "  mv a3, t0\n" ++
+  "  mv a4, t3\n" ++
+  "  ret\n" ++
+  ".Ltgri_bad_remaining:\n" ++
+  "  li a0, 1\n" ++
+  "  li a1, 0\n" ++
+  "  li a2, 0\n" ++
+  "  li a3, 0\n" ++
+  "  li a4, 0\n" ++
+  "  ret"
+
+/-- `zisk_tx_gas_result_increments`: focused probe for the scalar
+    post-execution gas increment formula. Input payload after zisk's length
+    prefix is four u64s: tx_gas_limit, gas_left, refund_counter,
+    calldata_floor_gas_cost. Output is five u64s: status, block increment,
+    receipt increment, before-refund gas, applied refund. -/
+def ziskTxGasResultIncrementsPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li s0, 0x40000000\n" ++
+  "  ld a0,  8(s0)              # tx_gas_limit\n" ++
+  "  ld a1, 16(s0)              # gas_left\n" ++
+  "  ld a2, 24(s0)              # refund_counter\n" ++
+  "  ld a3, 32(s0)              # calldata_floor_gas_cost\n" ++
+  "  jal ra, tx_gas_result_increments\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0,  0(t0)\n" ++
+  "  sd a1,  8(t0)\n" ++
+  "  sd a2, 16(t0)\n" ++
+  "  sd a3, 24(t0)\n" ++
+  "  sd a4, 32(t0)\n" ++
+  "  j .Ltgri_probe_done\n" ++
+  txGasResultIncrementsFunction ++ "\n" ++
+  ".Ltgri_probe_done:"
+
+def ziskTxGasResultIncrementsProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskTxGasResultIncrementsPrologue
+  dataAsm     := ".section .data\n.balign 8\n"
+}
+
 /-! ## account_validate_balance_zero -- PR-K259
 
     Predicate: `account.balance == 0`. RLP canonical zero is the

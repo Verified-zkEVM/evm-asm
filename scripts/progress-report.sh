@@ -83,7 +83,8 @@ CONF_COUNT="$(grep -oE 'allConformanceVectorCount = [0-9]+' \
 # --------------------------------------------------------------------
 
 codegen_registry_count() {
-  grep -c '=> some' EvmAsm/Codegen/Programs.lean || echo 0
+  # Programs.lean may be a thin import hub; count across all registry split files.
+  grep -rh '=> some' EvmAsm/Codegen/Programs.lean EvmAsm/Codegen/Programs/ 2>/dev/null | grep -c '=> some' || echo 0
 }
 
 codegen_milestones() {
