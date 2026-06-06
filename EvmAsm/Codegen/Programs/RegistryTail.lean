@@ -19,8 +19,8 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_single_leaf_trie_root" => some ziskSingleLeafTrieRootProbeUnit
   | "zisk_system_write_descriptors" => some ziskSystemWriteDescriptorsProbeUnit
   | "zisk_storage_access_gas" => some ziskStorageAccessGasProbeUnit
-  
-  
+  | "zisk_bal_gas_valid" => some ziskBalGasValidProbeUnit
+  | "zisk_bal_section_info" => some ziskBalSectionInfoProbeUnit
   | "zisk_bal_account_post_fields" => some ziskBalAccountPostFieldsProbeUnit
   | "zisk_bal_account_apply_post_fields" => some ziskBalAccountApplyPostFieldsProbeUnit
   | "zisk_bal_account_change_value" => some ziskBalAccountChangeValueProbeUnit

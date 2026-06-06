@@ -7,7 +7,10 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.Bloom
+import EvmAsm.Codegen.Programs.BloomBlock
 import EvmAsm.Codegen.Programs.ReceiptsRootIndexed
+
+import EvmAsm.Codegen.Programs.MptEncodeLeafBranch
 
 namespace EvmAsm.Codegen
 
