@@ -10,7 +10,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-JOBS="${EEST_BAL_REPLAY_JOBS:-${EEST_JOBS:-auto}}"
+JOBS="${EEST_BAL_REPLAY_JOBS:-${EEST_JOBS:-3}}"
 STEPS="${EEST_BAL_REPLAY_STEPS:-${EEST_STEPS:-1000000000}}"
 
 scripts/codegen-eest-stateless-check.sh \
