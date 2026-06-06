@@ -588,6 +588,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_tx_eip4844_decode"    => some ziskTxEip4844DecodeProbeUnit
   | "zisk_tx_eip4844_compute_blob_gas" => some ziskTxEip4844ComputeBlobGasProbeUnit
   | "zisk_tx_eip4844_validate_blob_hashes" => some ziskTxEip4844ValidateBlobHashesProbeUnit
+  | "zisk_ssz_tx_list_versioned_hashes_match" => some ziskSszTxListVersionedHashesMatchProbeUnit
   | "zisk_tx_calculate_total_blob_gas" => some ziskTxCalculateTotalBlobGasProbeUnit
   | "zisk_block_body_blob_gas_total" => some ziskBlockBodyBlobGasTotalProbeUnit
   | "zisk_block_validate_blob_gas_consistency" => some ziskBlockValidateBlobGasConsistencyProbeUnit

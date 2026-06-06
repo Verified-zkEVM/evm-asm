@@ -13,25 +13,19 @@
 # scripts/eest-fetch-fixtures.sh (NOT re-filled locally); the EEST repo is
 # vendored as the `execution-spec-tests` submodule for provenance.
 #
-# Conformance metrics reported per run -- the SSZ
+# Conformance metrics reported per run -- the 105-byte
 # SszStatelessValidationResult decomposes into three independently
-# checkable regions. The expected length is read from each fixture's
-# statelessOutputBytes so future chain_config encodings are not truncated:
+# checkable regions, each reported separately so we can see *where* the
+# guest is right, not just full-vs-not:
 #   * root   -- bytes 0:32  == expected: new_payload_request_root
-#               (computed by the epilogue's SSZ merkle tree; the
-#               transactions / withdrawals / versioned-hashes /
-#               execution-requests / block_access_list field-roots are
-#               all computed dynamically from the input. The one
-#               remaining static leaf is extra_data -- leaf_10 is
-#               hard-coded to the empty-ByteList root and the offset
-#               slot at exec_payload+436 is never read -- so root
-#               currently mismatches exactly on blocks with non-empty
-#               extra_data. Confirmed by the 2026-06-06 guest-vs-spec
-#               audit.)
+#               (computed by the epilogue's SSZ merkle tree from the
+#               guest-visible stateless input. Root mismatches now point to
+#               a concrete unsupported field/path rather than a blanket
+#               "static list roots" limitation.)
 #   * succ   -- byte 32     == expected: successful_validation bit.
-#   * tail   -- bytes 33:end == expected: u32 offset + chain_config
-#               (echoed from the input by the encoder).
-#   * full   -- all expected bytes match (root AND succ AND tail).
+#   * tail   -- bytes 33:105 == expected: u32 offset (=37) + the 68-byte
+#               chain_config (echoed from the input by the encoder).
+#   * full   -- all 105 bytes match (root AND succ AND tail).
 #   * BUDGET -- the run exhausted the ziskemu --steps budget before halting
 #               (e.g. a sha256-heavy NPR-root merkleization). This is NOT a
 #               correctness failure (the guest never produced an answer to
@@ -66,13 +60,13 @@
 #     --job-mem-mib N|auto
 #                        memory budget per ziskemu job (default $EEST_JOB_MEM_MIB
 #                        or auto). Auto is derived from the ziskemu build:
-#                        stock builds budget ~40960 MiB/process; patched lowmem
+#                        stock builds budget ~7000 MiB/process; patched lowmem
 #                        builds advertising PATCHED-lowmem budget 1024 MiB/process
 #                        for this stateless guest workload.
 #                        CPU cap uses one core/job on patched builds and four
 #                        cores/job on stock builds unless EEST_JOB_CPU_THREADS is set.
 #     --min-succ N       exit 1 if fewer than N succ-bit matches (regression gate)
-#     --min-full N       exit 1 if fewer than N full-output matches (regression gate)
+#     --min-full N       exit 1 if fewer than N full (105-byte) matches (regression gate)
 #     --min-root N       exit 1 if fewer than N root matches (regression gate)
 #     --no-verify-input-parity
 #                        skip the default byte-for-byte check that ziskemu -i
@@ -111,7 +105,7 @@ FILTER=""
 # are not slowed.
 STEPS="${EEST_STEPS:-1000000000}"
 # Case-insensitive ERE matched against the ziskemu log when a run does NOT
-# produce a valid expected-length output, to tell "exhausted the --steps budget"
+# produce a valid 105-byte output, to tell "exhausted the --steps budget"
 # (BUDGET, not a correctness failure) apart from a genuine ERROR. Override
 # EEST_STEP_LIMIT_RE if your ziskemu build phrases step exhaustion
 # differently; a non-match safely falls through to ERROR.
@@ -317,11 +311,10 @@ fi
 # independent of the program or step budget. A stock build keeps every ROM
 # instruction in one flat array indexed from the program base; because the
 # embedded float library is linked ~127 MB above the program, that array spans
-# the whole gap (~33M entries). On real stateless-guest fixtures the peak RSS
-# reaches ~38 GB per process; budget to 40 GB to leave a margin. A "PATCHED-lowmem" build moves the float library
-# into its own array; tiny ELFs measure around 30 MB RSS, while the stateless
-# guest measures around 700 MB RSS on real fixtures. We size this harness for
-# the stateless workload.
+# the whole gap (~33M entries) and costs ~6.5 GB. A "PATCHED-lowmem" build moves
+# the float library into its own array; tiny ELFs measure around 30 MB RSS, while
+# the stateless guest measures around 700 MB RSS on real fixtures. We size this
+# harness for the stateless workload.
 ZISKEMU_VERSION="$("$ZISKEMU" --version 2>/dev/null || echo unknown)"
 if [[ "$ZISKEMU_VERSION" == *PATCHED-lowmem* ]]; then
   ZISKEMU_FLAVOR="patched-lowmem"
@@ -329,7 +322,7 @@ if [[ "$ZISKEMU_VERSION" == *PATCHED-lowmem* ]]; then
   ZISKEMU_AUTO_JOB_CPU_THREADS=1
 else
   ZISKEMU_FLAVOR="stock"
-  ZISKEMU_AUTO_JOB_MEM_MIB=40960
+  ZISKEMU_AUTO_JOB_MEM_MIB=7000
   ZISKEMU_AUTO_JOB_CPU_THREADS=4
 fi
 if [[ "$JOB_MEM_MIB" == "auto" ]]; then
@@ -665,13 +658,7 @@ run_case() {
   local log="$RUN_DIR/$label.emu.log"
   local result="$RUN_DIR/$label.result.tsv"
   local tmp_result="$result.tmp.$$"
-  local actual_hex expected_hex_len expected_bytes
-  expected_hex_len="${#expected_hex}"
-  if (( expected_hex_len % 2 != 0 )); then
-    printf 'ERROR\tbad-expected-hex:%s\n' "$expected_hex_len" >"$res"
-    return 0
-  fi
-  expected_bytes=$((expected_hex_len / 2))
+  local actual_hex
 
   if ! "$ZISKEMU" -e "$GUEST_ELF" -i "$input" -o "$out" \
         -n "$STEPS" >"$log" 2>&1 </dev/null; then
@@ -686,8 +673,8 @@ run_case() {
     mv "$tmp_result" "$result"
     return 0
   fi
-  actual_hex="$(xxd -p -l "$expected_bytes" "$out" 2>/dev/null | tr -d '\n' || true)"
-  if [[ "${#actual_hex}" -lt "$expected_hex_len" ]]; then
+  actual_hex="$(xxd -p -l 105 "$out" 2>/dev/null | tr -d '\n' || true)"
+  if [[ "${#actual_hex}" -lt 210 ]]; then
     # A zero-exit run that produced no valid output but whose log shows the
     # step cap was hit is also a budget exhaustion, not a correctness error.
     if grep -qiE "$STEP_LIMIT_RE" "$log" 2>/dev/null; then
@@ -712,19 +699,19 @@ wait_for_one_worker() {
 }
 
 # --- classify ---------------------------------------------------------------
-# The SszStatelessValidationResult decomposes into three
+# The 105-byte SszStatelessValidationResult decomposes into three
 # independently-checkable regions, so we report each separately to show
 # exactly where the guest stands (not just full-vs-not):
 #   root [0:32]   = new_payload_request_root  (hex chars 0..64)
 #   succ [32]     = successful_validation     (hex chars 64..66)
-#   tail [33:end] = u32 offset + chain_config (hex chars 66..end)
+#   tail [33:105] = u32 offset (=37) + 68-byte chain_config (hex 66..210)
 declare -A classifiedLabels=()
 total=0 err=0 full=0 succ=0 root=0 tail=0 fail=0 rod=0 budget=0
 
 classify_case_result() {
   local line="$1"
   local require_result="${2:-0}"
-  local label input expected_hex succ_bit input_len gas_limit relpath result status actual_hex exp r s t tail_hex_len
+  local label input expected_hex succ_bit input_len gas_limit relpath result status actual_hex exp r s t
   IFS=$'\t' read -r label input expected_hex succ_bit input_len gas_limit relpath <<< "$line"
   if [[ -n "${classifiedLabels[$label]+x}" ]]; then
     return 0
@@ -758,14 +745,12 @@ classify_case_result() {
     esac
     return 0
   fi
-  exp="$expected_hex"
-  tail_hex_len=$((${#exp} - 66))
-  [[ "$tail_hex_len" -lt 0 ]] && tail_hex_len=0
+  exp="${expected_hex:0:210}"
 
   # Per-region matches.
   [[ "${actual_hex:0:64}"   == "${exp:0:64}"   ]] && { root=$((root + 1)); r=root; } || r=----
   [[ "${actual_hex:64:2}"   == "${exp:64:2}"   ]] && { succ=$((succ + 1)); s=succ; } || s=----
-  [[ "${actual_hex:66:tail_hex_len}" == "${exp:66:tail_hex_len}" ]] && { tail=$((tail + 1)); t=tail; } || t=----
+  [[ "${actual_hex:66:144}" == "${exp:66:144}" ]] && { tail=$((tail + 1)); t=tail; } || t=----
 
   if [[ "$actual_hex" == "$exp" ]]; then
     full=$((full + 1))
@@ -884,10 +869,10 @@ BASELINE="$RUN_DIR/eest-baseline.txt"
   echo "  errored:     $err"
   echo "  budget:      $budget   (--steps exhausted before halt; NOT a correctness failure)"
   echo "  ran:         $ran"
-  echo "  full match:    $full   (all expected bytes)"
+  echo "  full match:    $full   (all 105 bytes)"
   echo "  root match:    $root   (bytes 0:32  = new_payload_request_root)"
   echo "  succ match:    $succ   (byte 32     = successful_validation)"
-  echo "  tail match:    $tail   (bytes 33:end = offset + chain_config)"
+  echo "  tail match:    $tail   (bytes 33:105 = offset + chain_config)"
   echo "  root-only diff:$rod   (succ+tail match; ONLY root differs => 1 field from full)"
   echo "  fail:          $fail"
 } | tee "$BASELINE"

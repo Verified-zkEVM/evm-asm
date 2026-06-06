@@ -136,6 +136,8 @@ def statelessVerdictV2GuestClosure : String :=
   blockVerdictFunction ++ "\n" ++
   rlpListCountItemsFunction ++ "\n" ++
   txTypeDispatchFunction ++ "\n" ++
+  txEip4844DecodeFunction ++ "\n" ++
+  sszTxListVersionedHashesMatchFunction ++ "\n" ++
   txExtractToAddressFunction ++ "\n" ++
   txExtractValueFunction ++ "\n" ++
   txExtractDataSectionFunction ++ "\n" ++

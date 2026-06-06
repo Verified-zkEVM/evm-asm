@@ -11,12 +11,17 @@
     * SSZ merkleization scratch buffers (`ssz_merkleize_*`,
       `ssz_hb_*`, `ssz_ltb_*`, `ssz_ew_field_roots`).
     * `ssz_zero_hashes` lookup table (32 × 32 bytes).
-    * SSZ sub-tree constants used by the
-      `compute_new_payload_request_root` computation at
-      `.Lsg_hash`: `npr_node_0_15`, `npr_node_16_17`,
-      `npr_versioned_hashes_root`, `npr_exec_requests_root`, and
-      legacy `npr_left_subtree` / `empty_npr_root` (currently
-      unreferenced but kept for context).
+    * Header-validator pipeline scratch (`sg_header_lengths`,
+      `sg_kpr_valid`, `sg_kpr_bad_index`).
+    * Shared K-PR scratch (`zk3_state`, `rfu_offset`,
+      `rfu_length`) plus per-K-PR locals.
+    * Live SSZ sub-tree constants plus historical reference bytes for the
+      `compute_new_payload_request_root` computation at `.Lsg_hash`.
+      Current live roots are mostly derived into `npr_*_scratch` or
+      `npr_*_dyn` buffers from the SSZ input; legacy labels such as
+      `empty_npr_root`, `npr_left_subtree`, `npr_node_0_15`, and
+      `npr_node_16_17` are retained only as reference bytes unless a
+      later comment says a label is read by the epilogue.
     * Two scratch buffers `npr_sha_input` (64 bytes) and
       `npr_sha_subtree` (32 bytes) plus `npr_exec_payload_root`
       / `npr_left_subtree_scratch` (32 bytes each) for the
@@ -135,12 +140,89 @@ def statelessGuestDataSection : String :=
   "npr_exec_requests_dyn:\n" ++
   "  .zero 32\n" ++
   sszZeroHashesDataSection ++ "\n" ++
-  -- compute_new_payload_request_root(empty_input) -- the spec
-  -- hash for an empty `SszNewPayloadRequest`, independent of
-  -- chain_id. Was previously stamped at OUTPUT[0..32) by the
-  -- epilogue; now derived dynamically via the
-  -- exec_payload + NPR merkle computation in `.Lsg_hash`. Kept
-  -- here as a reference value for diff context.
+  -- Header-validator pipeline scratch:
+  ".balign 8\n" ++
+  "sg_header_lengths:\n" ++
+  "  .zero 2048\n" ++          -- MAX_WITNESS_HEADERS (256) × 8 bytes
+  "sg_kpr_valid:\n" ++
+  "  .zero 8\n" ++
+  "sg_kpr_bad_index:\n" ++
+  "  .zero 8\n" ++
+  -- Shared K-PR scratch (zk3_state / rfu_offset / rfu_length: used by
+  -- rlp_list_nth_item + rlp_field_to_u64). Now provided by the appended Step-2
+  -- verdict data section (statelessGuestUnit.dataAsm), so NOT declared here to
+  -- avoid duplicate-symbol errors.
+  -- K290 chain_validate_post_merge_full scratch:
+  "cvpmf_field:\n" ++
+  "  .zero 8\n" ++
+  "cvpmf_offset:\n" ++
+  "  .zero 8\n" ++
+  "cvpmf_length:\n" ++
+  "  .zero 8\n" ++
+  "cvpmf_iter_ptr:\n" ++
+  "  .zero 8\n" ++
+  "cvpmf_iter_i:\n" ++
+  "  .zero 8\n" ++
+  "cvpmf_empty_hash:\n" ++
+  "  .byte 0x1d, 0xcc, 0x4d, 0xe8, 0xde, 0xc7, 0x5d, 0x7a\n" ++
+  "  .byte 0xab, 0x85, 0xb5, 0x67, 0xb6, 0xcc, 0xd4, 0x1a\n" ++
+  "  .byte 0xd3, 0x12, 0x45, 0x1b, 0x94, 0x8a, 0x74, 0x13\n" ++
+  "  .byte 0xf0, 0xa1, 0x42, 0xfd, 0x40, 0xd4, 0x93, 0x47\n" ++
+  -- K291 chain_validate_extra_data_length scratch:
+  "cvedl_offset:\n" ++
+  "  .zero 8\n" ++
+  "cvedl_length:\n" ++
+  "  .zero 8\n" ++
+  "cvedl_iter_ptr:\n" ++
+  "  .zero 8\n" ++
+  "cvedl_iter_i:\n" ++
+  "  .zero 8\n" ++
+  -- K240 chain_validate_gas_used_under_limit scratch:
+  "cvgul_gas_used:\n" ++
+  "  .zero 8\n" ++
+  "cvgul_gas_limit:\n" ++
+  "  .zero 8\n" ++
+  "cvgul_iter_ptr:\n" ++
+  "  .zero 8\n" ++
+  "cvgul_iter_i:\n" ++
+  "  .zero 8\n" ++
+  -- K278 chain_validate_blob_gas_used_multiple scratch:
+  "cvbgm_field:\n" ++
+  "  .zero 8\n" ++
+  "cvbgm_iter_ptr:\n" ++
+  "  .zero 8\n" ++
+  "cvbgm_iter_i:\n" ++
+  "  .zero 8\n" ++
+  -- K277 chain_validate_blob_gas_used_under_max scratch:
+  "cvbgum_field:\n" ++
+  "  .zero 8\n" ++
+  "cvbgum_iter_ptr:\n" ++
+  "  .zero 8\n" ++
+  "cvbgum_iter_i:\n" ++
+  "  .zero 8\n" ++
+  -- K229 chain_validate_increasing_timestamps scratch:
+  "cvit_ts:\n" ++
+  "  .zero 8\n" ++
+  "cvit_iter_child:\n" ++
+  "  .zero 8\n" ++
+  "cvit_iter_i:\n" ++
+  "  .zero 8\n" ++
+  "cvit_iter_prev:\n" ++
+  "  .zero 8\n" ++
+  -- K230 chain_validate_consecutive_numbers scratch:
+  "cvcn_num:\n" ++
+  "  .zero 8\n" ++
+  "cvcn_iter_child:\n" ++
+  "  .zero 8\n" ++
+  "cvcn_iter_i:\n" ++
+  "  .zero 8\n" ++
+  "cvcn_iter_prev:\n" ++
+  "  .zero 8\n" ++
+  -- compute_new_payload_request_root(empty_input) -- historical reference
+  -- bytes for the spec hash of an empty `SszNewPayloadRequest`,
+  -- independent of chain_id. The epilogue no longer stamps this
+  -- constant at OUTPUT[0..32); it recomputes the NPR root dynamically
+  -- from the live SSZ input in `.Lsg_hash`.
   -- (Verified against
   --  `execution-specs/.../stateless.compute_new_payload_request_root`
   --  on d7fe16ab8.)
@@ -151,26 +233,25 @@ def statelessGuestDataSection : String :=
   "  .byte 0xba, 0xdf, 0xfc, 0x45, 0x3d, 0xee, 0x6a, 0x58\n" ++
   "  .byte 0x2c, 0xa2, 0xa5, 0xc7, 0xcc, 0x51, 0x2f, 0x71\n" ++
   -- SSZ field roots / merkle sub-trees for the NPR computation
-  -- at `.Lsg_hash`. Under the currently-supported NPR class
-  -- (default execution_payload modulo slot_number; default
-  -- versioned_hashes; default execution_requests):
+  -- at `.Lsg_hash`. Several old whole-subtree constants remain below
+  -- as historical reference bytes, but the live epilogue now recomputes
+  -- the top-level NPR from `npr_exec_payload_root`,
+  -- `npr_versioned_hashes_dyn`, parent_beacon_block_root, and
+  -- `npr_exec_requests_dyn`.
   --
-  --   `npr_left_subtree` is sha256(field_root[execution_payload]
-  --     || field_root[versioned_hashes]) for the empty case --
-  --     LEGACY (was the precomputed left half before the
-  --     dynamic exec_payload merkle path landed). Kept as
-  --     unreferenced constant for context.
-  --   `npr_versioned_hashes_root` is field_root[versioned_hashes]
-  --     for the empty list; used as the right input to
-  --     `left_subtree = sha256(exec_payload_root || vh_root)`.
-  --   `npr_exec_requests_root` is field_root[execution_requests]
-  --     for the empty case; used as the right input to
-  --     `right_subtree = sha256(pbr || exec_requests_root)`.
-  --   `npr_node_0_15` is the merkle root over the 16 left
-  --     leaves of the default exec_payload Container (padded
-  --     to 32 leaves).
-  --   `npr_node_16_17` is sha256(leaf_16=ssz_zero_hash[0] ||
-  --     leaf_17=block_access_list_root_for_empty).
+  --   `npr_left_subtree` is legacy: it was the precomputed
+  --     sha256(field_root[execution_payload] || field_root[versioned_hashes])
+  --     for the empty case before the dynamic exec_payload and
+  --     versioned_hashes paths landed. The live epilogue writes
+  --     `npr_left_subtree_scratch` instead.
+  --   `npr_exec_requests_root` is legacy for the empty execution_requests
+  --     case; the live epilogue uses `npr_exec_requests_dyn`.
+  --   `npr_node_0_15` and `npr_node_16_17` are legacy default
+  --     exec_payload subtree roots; the live epilogue uses
+  --     `npr_node_0_15_scratch` and `npr_node_16_17_scratch`.
+  --   `npr_versioned_hashes_root` is retained as the empty-list
+  --     reference value; the live epilogue consumes
+  --     `npr_versioned_hashes_dyn`.
   ".balign 8\n" ++
   "npr_left_subtree:\n" ++
   "  .byte 0x50, 0x57, 0xc2, 0x29, 0xce, 0xf7, 0x0b, 0x3d\n" ++
@@ -339,8 +420,9 @@ def statelessGuestDataSection : String :=
   "  .zero 32\n" ++
   -- Constants for the dynamic node_12_15 path supporting
   -- leaf_12 = block_hash:
-  --   `npr_leaf_13_transactions_root` = SSZ hash_tree_root of
-  --     the default empty `transactions` list.
+  --   `npr_leaf_13_transactions_root` is the historical SSZ hash_tree_root
+  --     of the default empty `transactions` list; the live path reads
+  --     `npr_dynamic_tx_root`.
   --   `npr_node_14_15` = sha256(leaf_14=withdrawals_default_root
   --     || leaf_15=blob_gas_used_default=zero). Stays static
   --     until leaf 14 or 15 is opened up in a follow-up PR.
@@ -370,8 +452,9 @@ def statelessGuestDataSection : String :=
   "  .zero 32\n" ++
   -- New constant + scratch for the dynamic node_14_15 path
   -- supporting leaf_15 = blob_gas_used:
-  --   `npr_leaf_14_withdrawals_root` = SSZ hash_tree_root of
-  --     the default empty `withdrawals` list.
+  --   `npr_leaf_14_withdrawals_root` is the historical SSZ hash_tree_root
+  --     of the default empty `withdrawals` list; the live path reads
+  --     `npr_dynamic_wd_root`.
   --   `npr_node_14_15_scratch` holds dynamic
   --     sha256(npr_leaf_14_withdrawals_root || blob_gas_used).
   -- The prior static `npr_node_14_15` constant becomes

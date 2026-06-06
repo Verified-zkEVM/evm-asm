@@ -282,6 +282,7 @@ def knownProgramNames : List String :=
    "zisk_tx_eip2930_decode", "zisk_tx_eip7702_decode",
    "zisk_tx_eip4844_decode", "zisk_tx_eip4844_compute_blob_gas",
    "zisk_tx_eip4844_validate_blob_hashes",
+   "zisk_ssz_tx_list_versioned_hashes_match",
    "zisk_tx_calculate_total_blob_gas",
    "zisk_block_body_blob_gas_total",
    "zisk_block_validate_blob_gas_consistency",
