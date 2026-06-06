@@ -72,41 +72,42 @@ base_fee = 30 * 10**9
 legacy_gas_price = 50 * 10**9
 priority = 2 * 10**9
 max_fee = 50 * 10**9
+tx_value = 1
 
 if kind == "legacy_success":
-    tx = rlp.encode([nonce, legacy_gas_price, gas_limit, to, 1, b"", 27, 1, 2])
+    tx = rlp.encode([nonce, legacy_gas_price, gas_limit, to, tx_value, b"", 27, 1, 2])
     effective = legacy_gas_price
     balance = 10**18
     post_nonce = nonce + 1
-    post_balance = balance - effective * gas_limit
+    post_balance = balance - effective * gas_limit - tx_value
     status = 0
     precharge_status = 0
 elif kind == "typed_success":
-    tx = b"\x02" + rlp.encode([1, nonce, priority, max_fee, gas_limit, to, 1, b"", [], 1, 1, 2])
+    tx = b"\x02" + rlp.encode([1, nonce, priority, max_fee, gas_limit, to, tx_value, b"", [], 1, 1, 2])
     effective = base_fee + min(priority, max_fee - base_fee)
     balance = 10**18
     post_nonce = nonce + 1
-    post_balance = balance - effective * gas_limit
+    post_balance = balance - effective * gas_limit - tx_value
     status = 0
     precharge_status = 0
 elif kind == "nonce_mismatch":
-    tx = rlp.encode([nonce, legacy_gas_price, gas_limit, to, 1, b"", 27, 1, 2])
+    tx = rlp.encode([nonce, legacy_gas_price, gas_limit, to, tx_value, b"", 27, 1, 2])
     effective = legacy_gas_price
     balance = 10**18
     post_nonce = nonce + 2
-    post_balance = balance - effective * gas_limit
+    post_balance = balance - effective * gas_limit - tx_value
     status = 32
     precharge_status = 0
 elif kind == "post_nonce_absent":
-    tx = rlp.encode([nonce, legacy_gas_price, gas_limit, to, 1, b"", 27, 1, 2])
+    tx = rlp.encode([nonce, legacy_gas_price, gas_limit, to, tx_value, b"", 27, 1, 2])
     effective = legacy_gas_price
     balance = 10**18
     post_nonce = None
-    post_balance = balance - effective * gas_limit
+    post_balance = balance - effective * gas_limit - tx_value
     status = 30
     precharge_status = 0
 elif kind == "insufficient_balance":
-    tx = rlp.encode([nonce, legacy_gas_price, gas_limit, to, 1, b"", 27, 1, 2])
+    tx = rlp.encode([nonce, legacy_gas_price, gas_limit, to, tx_value, b"", 27, 1, 2])
     effective = legacy_gas_price
     balance = 10
     post_nonce = nonce
