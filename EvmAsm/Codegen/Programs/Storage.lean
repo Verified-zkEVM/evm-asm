@@ -62,6 +62,108 @@ namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
 
+/-- Additional SSTORE gas after the dispatcher warm floor and storage-access
+    helper have run.
+
+    Inputs:
+    - `x12`: stack pointer. `[x12+0..32]` is key, `[x12+32..64]` is new value.
+    - `x18`: pointer to found log entry's original value (`entry+64`), or zero.
+    - `x19`: storage-access status (`0` warm, `1` cold).
+
+    Clobbers `x5`, `x6`, `x14`-`x17`. Jumps to `.exit_outofgas` if the
+    additional debit cannot be paid. The static dispatch table already charged
+    100 gas for SSTORE, and `evm_storage_access_charge_key` already charged the
+    2000 cold delta, so this computes the remaining debit to match Amsterdam's
+    `vm/instructions/storage.py`:
+    - clean zero -> nonzero: +19900 warm, +20000 cold
+    - clean nonzero update: +2800 warm, +2900 cold
+    - dirty/noop branch: +0 warm, +100 cold
+    Refund-counter updates are still handled separately by later gas work. -/
+def sstoreValueTransitionGasAsm : String :=
+  -- x14 = OR of the new value limbs. For a missing slot, original=current=0.
+  "  mv x14, x0\n" ++
+  "  ld x15, 32(x12)\n" ++
+  "  or x14, x14, x15\n" ++
+  "  ld x15, 40(x12)\n" ++
+  "  or x14, x14, x15\n" ++
+  "  ld x15, 48(x12)\n" ++
+  "  or x14, x14, x15\n" ++
+  "  ld x15, 56(x12)\n" ++
+  "  or x14, x14, x15\n" ++
+  "  beqz x18, .Lsstore_missing_slot\n" ++
+  -- Found slot: x15 = original_or, x16 = original/current diff,
+  -- x17 = current/new diff.
+  "  mv x15, x0\n" ++
+  "  mv x16, x0\n" ++
+  "  mv x17, x0\n" ++
+  "  ld x5, 0(x18)\n" ++
+  "  or x15, x15, x5\n" ++
+  "  ld x6, 32(x18)\n" ++
+  "  xor x6, x5, x6\n" ++
+  "  or x16, x16, x6\n" ++
+  "  ld x5, 32(x18)\n" ++
+  "  ld x6, 32(x12)\n" ++
+  "  xor x6, x5, x6\n" ++
+  "  or x17, x17, x6\n" ++
+  "  ld x5, 8(x18)\n" ++
+  "  or x15, x15, x5\n" ++
+  "  ld x6, 40(x18)\n" ++
+  "  xor x6, x5, x6\n" ++
+  "  or x16, x16, x6\n" ++
+  "  ld x5, 40(x18)\n" ++
+  "  ld x6, 40(x12)\n" ++
+  "  xor x6, x5, x6\n" ++
+  "  or x17, x17, x6\n" ++
+  "  ld x5, 16(x18)\n" ++
+  "  or x15, x15, x5\n" ++
+  "  ld x6, 48(x18)\n" ++
+  "  xor x6, x5, x6\n" ++
+  "  or x16, x16, x6\n" ++
+  "  ld x5, 48(x18)\n" ++
+  "  ld x6, 48(x12)\n" ++
+  "  xor x6, x5, x6\n" ++
+  "  or x17, x17, x6\n" ++
+  "  ld x5, 24(x18)\n" ++
+  "  or x15, x15, x5\n" ++
+  "  ld x6, 56(x18)\n" ++
+  "  xor x6, x5, x6\n" ++
+  "  or x16, x16, x6\n" ++
+  "  ld x5, 56(x18)\n" ++
+  "  ld x6, 56(x12)\n" ++
+  "  xor x6, x5, x6\n" ++
+  "  or x17, x17, x6\n" ++
+  "  bnez x16, .Lsstore_dirty_or_noop\n" ++
+  "  beqz x17, .Lsstore_dirty_or_noop\n" ++
+  "  beqz x15, .Lsstore_clean_zero\n" ++
+  "  li x14, 2800\n" ++
+  "  beqz x19, .Lsstore_charge_delta\n" ++
+  "  li x14, 2900\n" ++
+  "  j .Lsstore_charge_delta\n" ++
+  ".Lsstore_clean_zero:\n" ++
+  "  li x14, 19900\n" ++
+  "  beqz x19, .Lsstore_charge_delta\n" ++
+  "  li x14, 20000\n" ++
+  "  j .Lsstore_charge_delta\n" ++
+  ".Lsstore_missing_slot:\n" ++
+  "  bnez x14, .Lsstore_missing_nonzero\n" ++
+  "  beqz x19, .Lsstore_gas_done\n" ++
+  "  li x14, 100\n" ++
+  "  j .Lsstore_charge_delta\n" ++
+  ".Lsstore_missing_nonzero:\n" ++
+  "  li x14, 19900\n" ++
+  "  beqz x19, .Lsstore_charge_delta\n" ++
+  "  li x14, 20000\n" ++
+  "  j .Lsstore_charge_delta\n" ++
+  ".Lsstore_dirty_or_noop:\n" ++
+  "  beqz x19, .Lsstore_gas_done\n" ++
+  "  li x14, 100\n" ++
+  ".Lsstore_charge_delta:\n" ++
+  "  ld x15, 568(x20)\n" ++
+  "  bltu x15, x14, .exit_outofgas\n" ++
+  "  sub x15, x15, x14\n" ++
+  "  sd x15, 568(x20)\n" ++
+  ".Lsstore_gas_done:\n"
+
 /-- M24 Option A storage handlers. -/
 def storageHandlers : List OpcodeHandlerSpec :=
   [ -- M24 real SLOAD. Scan persistent log from end (last-write-
@@ -162,6 +264,7 @@ def storageHandlers : List OpcodeHandlerSpec :=
         "  beq x14, x15, .exit_outofgas\n" ++
         "  li x15, 3\n" ++
         "  beq x14, x15, .exit_outofgas\n" ++
+        "  mv x19, x14\n" ++            -- x19 = access status (0 warm, 1 cold)
         "  li x18, 0\n" ++                -- x18 = "found.original ptr" (0 = not found)
         "  ld x15, 448(x20)\n" ++         -- x15 = log_length
         "  beqz x15, 2f\n" ++             -- empty log → skip scan, append with original=0
@@ -189,6 +292,7 @@ def storageHandlers : List OpcodeHandlerSpec :=
         "  addi x15, x15, -1\n" ++
         "  bnez x15, 1b\n" ++
         "2:\n" ++                         -- append step
+        sstoreValueTransitionGasAsm ++
         "  ld x15, 448(x20)\n" ++         -- reload current log_length
         "  li x14, 0xa0630000\n" ++
         "  slli x16, x15, 7\n" ++

@@ -18,13 +18,15 @@ open EvmAsm.Rv64.Program
 
 /-! ## block_receipt_records_materialize -- first receipt-record integration.
     a0 = execution payload ptr.
+    a1 = pointer to `a2` u64 receipt gas increments from runtime results.
+    a2 = receipt gas increment count.
 
     This deliberately handles only a small materialization surface before full
     transaction execution exists: zero transactions leaves the arena empty, and
     legacy transactions append success records with cumulative_gas_used equal to
-    the running sum of their gas-limit fields. Exact post-refund gas and failure
-    status are filled by later gas-metered execution slices. Other transaction
-    shapes leave a debug status but do not affect the block verdict. -/
+    the running sum of the runtime-provided receipt gas increments. Other
+    transaction shapes, or missing runtime gas increments, leave a debug status
+    but do not affect the block verdict. -/
 def blockReceiptRecordsMaterializeFunction : String :=
   "block_receipt_records_materialize:\n" ++
   "  addi sp, sp, -120\n" ++
@@ -33,6 +35,8 @@ def blockReceiptRecordsMaterializeFunction : String :=
   "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
   "  sd s8, 72(sp); sd s9, 80(sp); sd s10, 88(sp); sd s11, 96(sp)\n" ++
   "  mv s0, a0                   # execution payload\n" ++
+  "  la t0, brr_receipt_gas_ptr; sd a1, 0(t0)\n" ++
+  "  la t0, brr_receipt_gas_count; sd a2, 0(t0)\n" ++
   "  la t0, brr_status; sd zero, 0(t0)\n" ++
   "  la t0, brr_append_status; sd zero, 0(t0)\n" ++
   "  la a0, brr_control; li a1, 16; la a2, brr_records\n" ++
@@ -49,6 +53,8 @@ def blockReceiptRecordsMaterializeFunction : String :=
   "  andi t0, a0, 3; bnez t0, .Lbrr_unsupported\n" ++
   "  srli s5, a0, 2              # tx_count\n" ++
   "  beqz s5, .Lbrr_ok\n" ++
+  "  la t0, brr_receipt_gas_ptr; ld t1, 0(t0); beqz t1, .Lbrr_missing_gas_results\n" ++
+  "  la t0, brr_receipt_gas_count; ld t1, 0(t0); bltu t1, s5, .Lbrr_missing_gas_results\n" ++
   "  bgtu a0, s4, .Lbrr_unsupported\n" ++
   "  mv s6, zero                 # tx index\n" ++
   "  mv s7, zero                 # cumulative gas\n" ++
@@ -80,10 +86,10 @@ def blockReceiptRecordsMaterializeFunction : String :=
   "  jal ra, tx_type_dispatch\n" ++
   "  bnez a0, .Lbrr_unsupported\n" ++
   "  la t0, brr_tx_type; ld t1, 0(t0); bnez t1, .Lbrr_unsupported\n" ++
-  "  mv a0, s10; mv a1, s11; li a2, 2; la a3, brr_tx_gas\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Lbrr_unsupported\n" ++
-  "  la t0, brr_tx_gas; ld t1, 0(t0)\n" ++
+  "  la t0, brr_receipt_gas_ptr; ld t1, 0(t0)\n" ++
+  "  slli t2, s6, 3\n" ++
+  "  add t1, t1, t2\n" ++
+  "  ld t1, 0(t1)                # runtime receipt gas increment\n" ++
   "  add t2, s7, t1\n" ++
   "  bltu t2, s7, .Lbrr_unsupported\n" ++
   "  mv s7, t2\n" ++
@@ -102,6 +108,8 @@ def blockReceiptRecordsMaterializeFunction : String :=
   "  li t0, 1; la t1, brr_status; sd t0, 0(t1); j .Lbrr_ret\n" ++
   ".Lbrr_append_fail:\n" ++
   "  li t0, 2; la t1, brr_status; sd t0, 0(t1); j .Lbrr_ret\n" ++
+  ".Lbrr_missing_gas_results:\n" ++
+  "  li t0, 3; la t1, brr_status; sd t0, 0(t1); j .Lbrr_ret\n" ++
   ".Lbrr_ok:\n" ++
   "  li a0, 0; j .Lbrr_ret\n" ++
   ".Lbrr_ret:\n" ++
@@ -123,7 +131,12 @@ def blockReceiptRecordsMaterializeFunction : String :=
       +24 first-record nth status
       +32 first 64-byte record copy, zero if absent
       +96 last-record nth status
-      +104 last 64-byte record copy, zero if absent. -/
+      +104 last 64-byte record copy, zero if absent.
+
+    Receipt gas increments for non-empty transaction lists are read from
+    INPUT_ADDR + 8 + 0x1000:
+      +0  count u64
+      +8  count u64 receipt gas increments. -/
 def ziskBlockReceiptRecordsMaterializePrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li t0, 0xa0010000\n" ++
@@ -136,6 +149,9 @@ def ziskBlockReceiptRecordsMaterializePrologue : String :=
   "  j .Lbrrp_zero_out\n" ++
   ".Lbrrp_zero_done:\n" ++
   "  li a0, 0x40000008\n" ++
+  "  li a1, 0x40001010\n" ++
+  "  li t0, 0x40001008\n" ++
+  "  ld a2, 0(t0)\n" ++
   "  jal ra, block_receipt_records_materialize\n" ++
   "  li s0, 0xa0010000\n" ++
   "  la t1, brr_status; ld t2, 0(t1); sd t2, 0(s0)\n" ++
@@ -168,6 +184,8 @@ def ziskBlockReceiptRecordsMaterializeDataSection : String :=
   "brr_tx_type:\n  .zero 8\n" ++
   "brr_tx_inner:\n  .zero 8\n" ++
   "brr_tx_gas:\n  .zero 8\n" ++
+  "brr_receipt_gas_ptr:\n  .zero 8\n" ++
+  "brr_receipt_gas_count:\n  .zero 8\n" ++
   "brr_control:\n  .zero 24\n" ++
   ".balign 8\n" ++
   "brr_records:\n  .zero 1024"
