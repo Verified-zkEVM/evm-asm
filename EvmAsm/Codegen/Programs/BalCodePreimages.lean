@@ -25,8 +25,11 @@ open EvmAsm.Rv64
     the caller for withdrawal-only blocks. A pure account-touch row whose
     pre-state code hash is exactly keccak(0x00) is also skipped: EIP-7708
     selfdestruct beneficiaries can have one-byte STOP code without requiring
-    the bytecode preimage. A pure account-touch row is also accepted when a
-    pure account-touch row for the block fee recipient is also skipped:
+    the bytecode preimage. Scalar rows with nonce changes still require the
+    pre-state code preimage: EIP-7702 sender validation reads a delegated
+    sender's marker code while incrementing the sender nonce. A pure
+    account-touch row is also accepted when a pure account-touch row for the
+    block fee recipient is also skipped:
     Amsterdam warms/touches coinbase without reading its bytecode. A
     literal `PUSH20 <address>; EXTCODEHASH` occurs in witness bytecode, since
     EXTCODEHASH reads the account leaf's code_hash and does not call
@@ -64,6 +67,18 @@ def balCodePreimagesValidFunction : String :=
   "  mv s5, a5                   # witness.state len\n" ++
   "  mv s6, a6                   # witness.codes ptr\n" ++
   "  mv s7, a7                   # witness.codes len\n" ++
+  "  # Some EEST fixture plumbing passes the parent block RLP here. Normalize\n" ++
+  "  # to the header RLP if item 0 is itself a header list rather than the\n" ++
+  "  # 32-byte parent_hash field of an already-normalized header.\n" ++
+  "  mv a0, s2; mv a1, s3; li a2, 0; la a3, bbcv_field_off; la a4, bbcv_field_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lbbcv_parent_header_done\n" ++
+  "  la t0, bbcv_field_len; ld t1, 0(t0); li t2, 32; beq t1, t2, .Lbbcv_parent_header_done\n" ++
+  "  mv a0, s2; mv a1, s3; li a2, 0; la a3, bbcv_field_off; la a4, bbcv_field_len\n" ++
+  "  jal ra, rlp_item_span\n" ++
+  "  bnez a0, .Lbbcv_parent_header_done\n" ++
+  "  la t0, bbcv_field_off; ld t2, 0(t0); la t0, bbcv_field_len; ld t1, 0(t0); add s2, s2, t2; mv s3, t1\n" ++
+  ".Lbbcv_parent_header_done:\n" ++
   "  mv a0, s0; mv a1, s1; la a2, bbcv_count\n" ++
   "  jal ra, rlp_list_count_items\n" ++
   "  bnez a0, .Lbbcv_parse_fail\n" ++
@@ -139,6 +154,10 @@ def balCodePreimagesValidFunction : String :=
   "  bnez a0, .Lbbcv_next\n" ++
   "  la t0, bbcv_addr_off; ld t1, 0(t0); add a2, s10, t1\n" ++
   "  mv a0, s6; mv a1, s7\n" ++
+  "  jal ra, bal_codes_contains_push20_code_read\n" ++
+  "  bnez a0, .Lbbcv_check_code_non_touch\n" ++
+  "  la t0, bbcv_addr_off; ld t1, 0(t0); add a2, s10, t1\n" ++
+  "  mv a0, s6; mv a1, s7\n" ++
   "  jal ra, bal_codes_contains_push20_call_target\n" ++
   "  beqz a0, .Lbbcv_touch_skip_flags_done\n" ++
   "  # Failed CALL prechecks still require the target account proof during\n" ++
@@ -153,12 +172,20 @@ def balCodePreimagesValidFunction : String :=
   "  bnez t4, .Lbbcv_next\n" ++
   "  j .Lbbcv_check_code\n" ++
   ".Lbbcv_scalar_touch:\n" ++
-  "  # Balance/nonce rows normally do not prove bytecode was read, but an\n" ++
-  "  # EIP-7702 sender delegation marker is read during sender validation.\n" ++
+  "  # Balance-only rows normally do not prove bytecode was read, but nonce\n" ++
+  "  # changes do: EIP-7702 sender validation reads delegated sender markers.\n" ++
+  "  la t0, bbcv_nonce_count; ld t1, 0(t0)\n" ++
+  "  beqz t1, .Lbbcv_scalar_sender_fallback\n" ++
+  "  la t0, bbcv_touch_only; sd zero, 0(t0)\n" ++
+  "  j .Lbbcv_check_code\n" ++
+  ".Lbbcv_scalar_sender_fallback:\n" ++
+  "  # Keep the sender recovery fallback for older fixtures where the BAL row\n" ++
+  "  # shape does not expose a nonce-change count in the expected slot.\n" ++
   "  la t0, bbcv_addr_off; ld t1, 0(t0); add a0, s10, t1\n" ++
   "  jal ra, bal_addr_is_tx_sender\n" ++
-  "  bnez a0, .Lbbcv_check_code\n" ++
-  "  j .Lbbcv_next\n" ++
+  "  beqz a0, .Lbbcv_next\n" ++
+  "  la t0, bbcv_touch_only; sd zero, 0(t0)\n" ++
+  "  j .Lbbcv_check_code\n" ++
   ".Lbbcv_check_code_non_touch:\n" ++
   "  la t0, bbcv_touch_only; sd zero, 0(t0)\n" ++
   ".Lbbcv_check_code:\n" ++
@@ -383,6 +410,80 @@ def balCodePreimagesValidFunction : String :=
   ".Lbce_no:\n" ++
   "  li a0, 0\n" ++
   ".Lbce_ret:\n" ++
+  "  ld s0, 0(sp); ld s1, 8(sp); ld s2, 16(sp)\n" ++
+  "  ld s3, 24(sp); ld s4, 32(sp); ld s5, 40(sp)\n" ++
+  "  addi sp, sp, 56\n" ++
+  "  ret\n" ++
+  "\n" ++
+  "# Return 1 iff any witness code contains PUSH20 <addr>; EXTCODESIZE or\n" ++
+  "# PUSH20 <addr>; EXTCODECOPY. These opcodes call WitnessState.get_code,\n" ++
+  "# so a non-empty target code_hash must have a witness.codes preimage.\n" ++
+  "bal_codes_contains_push20_code_read:\n" ++
+  "  addi sp, sp, -56\n" ++
+  "  sd s0, 0(sp); sd s1, 8(sp); sd s2, 16(sp)\n" ++
+  "  sd s3, 24(sp); sd s4, 32(sp); sd s5, 40(sp)\n" ++
+  "  mv s0, a0                  # witness.codes section ptr\n" ++
+  "  mv s1, a1                  # witness.codes section len\n" ++
+  "  mv s2, a2                  # 20-byte target address ptr\n" ++
+  "  beqz s1, .Lbccr_no\n" ++
+  "  lwu t0, 0(s0)              # first element offset = 4*N\n" ++
+  "  srli s3, t0, 2             # s3 = N\n" ++
+  "  li s4, 0\n" ++
+  ".Lbccr_elem_loop:\n" ++
+  "  beq s4, s3, .Lbccr_no\n" ++
+  "  slli t0, s4, 2\n" ++
+  "  add t1, s0, t0\n" ++
+  "  lwu t2, 0(t1)              # element offset\n" ++
+  "  add s5, s0, t2             # element start\n" ++
+  "  addi t3, s4, 1\n" ++
+  "  beq t3, s3, .Lbccr_elem_end_section\n" ++
+  "  slli t3, t3, 2\n" ++
+  "  add t3, s0, t3\n" ++
+  "  lwu t4, 0(t3)\n" ++
+  "  add t4, s0, t4             # element end\n" ++
+  "  j .Lbccr_have_elem_end\n" ++
+  ".Lbccr_elem_end_section:\n" ++
+  "  add t4, s0, s1\n" ++
+  ".Lbccr_have_elem_end:\n" ++
+  "  sub t4, t4, s5             # element len\n" ++
+  "  li t5, 22\n" ++
+  "  bltu t4, t5, .Lbccr_next_elem\n" ++
+  "  sub t6, t4, t5             # max start offset\n" ++
+  "  li t0, 0                   # scan offset\n" ++
+  ".Lbccr_scan_loop:\n" ++
+  "  bgtu t0, t6, .Lbccr_next_elem\n" ++
+  "  add t1, s5, t0\n" ++
+  "  lbu t2, 0(t1)\n" ++
+  "  li t3, 0x73                # PUSH20\n" ++
+  "  bne t2, t3, .Lbccr_advance_scan\n" ++
+  "  li t3, 0                   # address byte index\n" ++
+  ".Lbccr_addr_loop:\n" ++
+  "  li t2, 20\n" ++
+  "  beq t3, t2, .Lbccr_check_opcode\n" ++
+  "  add t4, t1, t3\n" ++
+  "  lbu t4, 1(t4)\n" ++
+  "  add t5, s2, t3\n" ++
+  "  lbu t5, 0(t5)\n" ++
+  "  bne t4, t5, .Lbccr_advance_scan\n" ++
+  "  addi t3, t3, 1\n" ++
+  "  j .Lbccr_addr_loop\n" ++
+  ".Lbccr_check_opcode:\n" ++
+  "  lbu t4, 21(t1)\n" ++
+  "  li t5, 0x3b                # EXTCODESIZE\n" ++
+  "  beq t4, t5, .Lbccr_yes\n" ++
+  "  li t5, 0x3c                # EXTCODECOPY\n" ++
+  "  beq t4, t5, .Lbccr_yes\n" ++
+  ".Lbccr_advance_scan:\n" ++
+  "  addi t0, t0, 1\n" ++
+  "  j .Lbccr_scan_loop\n" ++
+  ".Lbccr_next_elem:\n" ++
+  "  addi s4, s4, 1\n" ++
+  "  j .Lbccr_elem_loop\n" ++
+  ".Lbccr_yes:\n" ++
+  "  li a0, 1; j .Lbccr_ret\n" ++
+  ".Lbccr_no:\n" ++
+  "  li a0, 0\n" ++
+  ".Lbccr_ret:\n" ++
   "  ld s0, 0(sp); ld s1, 8(sp); ld s2, 16(sp)\n" ++
   "  ld s3, 24(sp); ld s4, 32(sp); ld s5, 40(sp)\n" ++
   "  addi sp, sp, 56\n" ++

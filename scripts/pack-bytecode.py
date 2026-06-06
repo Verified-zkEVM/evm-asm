@@ -74,6 +74,8 @@ Output layout:
     next 416 bytes     <13 simple env words in evm_env order>
     next 32 bytes      <SLOTNUM word>
     next 8 bytes       <8-byte LE u64 gas limit>             (M30)
+    next 8 bytes       <8-byte LE u64 validate tx gas flag>  (M35)
+    next 8 bytes       <8-byte LE u64 is contract creation>  (M35)
     next 8 bytes       <8-byte LE u64 parent header RLP len> (M31)
     next 8 bytes       <8-byte LE u64 witness.state len>     (M31)
     next 8 bytes       <8-byte LE u64 witness.codes len>     (M31)
@@ -98,6 +100,12 @@ Pre-M29 callers that don't pass --block-hashes get current block 0 and
 an empty recent-hash table (BLOCKHASH returns 0).
 Pre-env callers that don't pass --env get zero words for every simple
 environment opcode.
+Pre-M35 callers that don't pass --validate-tx-gas preserve the runtime
+dispatcher's old behavior: the gas trailer is treated as already-available
+execution gas. When --validate-tx-gas is set, the dispatcher treats --gas as
+transaction gas, computes Amsterdam call/create intrinsic gas plus the
+EIP-7623 calldata floor from calldata, rejects if the transaction gas cannot
+cover max(intrinsic, floor), and starts opcode execution with gas - intrinsic.
 Pre-M31 callers that don't pass --state-header-rlp get a zero-length
 account-witness context.
 """
@@ -377,6 +385,20 @@ def main() -> int:
              "halt_kind = 6. Defaults to 30,000,000.",
     )
     parser.add_argument(
+        "--validate-tx-gas",
+        action="store_true",
+        help="Treat --gas as transaction gas and ask the runtime dispatcher "
+             "to validate max(intrinsic gas, calldata floor) and deduct "
+             "intrinsic gas before opcode execution. Defaults off for "
+             "backwards-compatible opcode-runtime tests.",
+    )
+    parser.add_argument(
+        "--tx-is-creation",
+        action="store_true",
+        help="With --validate-tx-gas, include the contract-creation intrinsic "
+             "gas component. Defaults to a normal call transaction.",
+    )
+    parser.add_argument(
         "--state-header-rlp",
         default="",
         help="Optional parent header RLP for account-witness runtime context. "
@@ -456,6 +478,10 @@ def main() -> int:
     # M30 gas-limit trailer: 8B LE u64, read by the runtime prologue into
     # env.gasRemaining (env+568).
     packed += struct.pack("<Q", gas_limit)
+
+    # M35 optional transaction intrinsic-gas validation controls.
+    packed += struct.pack("<Q", 1 if args.validate_tx_gas else 0)
+    packed += struct.pack("<Q", 1 if args.tx_is_creation else 0)
 
     # M31 account-witness context trailer. The three length cells are always
     # present so old callers get deterministic zero-context behavior.

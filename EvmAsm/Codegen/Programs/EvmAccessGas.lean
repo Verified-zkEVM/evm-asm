@@ -310,6 +310,48 @@ def runtimeAccessSeedInitialAccountsFunction : String :=
   "  addi sp, sp, 16\n" ++
   "  ret"
 
+/-! ## runtime_access_seed_account_list
+
+    Seed initially warm account addresses from a decoded transaction/access-list
+    account list. The list uses the same 32-byte stride as the runtime warmth
+    table: the canonical 20-byte big-endian address is stored at bytes 0..20,
+    and bytes 20..32 are ignored padding.
+
+    Calling convention:
+      a0 = address-list ptr
+      a1 = address count
+
+    The helper seeds the global runtime account table used by opcode gas
+    helpers. Duplicate addresses are ignored by `runtime_access_account_seed`.
+    Transaction decoding code can call this once it has materialized the
+    tx.to/access-list account tuples. -/
+def runtimeAccessSeedAccountListFunction : String :=
+  "runtime_access_seed_account_list:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  mv s0, a0\n" ++
+  "  mv s1, a1\n" ++
+  "  la s2, " ++ runtimeAccessAccountTableLabel ++ "\n" ++
+  "  la s3, " ++ runtimeAccessAccountCountLabel ++ "\n" ++
+  "  li s4, " ++ toString runtimeAccessAccountCapacity ++ "\n" ++
+  ".Lraasl_loop:\n" ++
+  "  beqz s1, .Lraasl_done\n" ++
+  "  mv a0, s0\n" ++
+  "  mv a1, s2\n" ++
+  "  mv a2, s3\n" ++
+  "  mv a3, s4\n" ++
+  "  jal ra, runtime_access_account_seed\n" ++
+  "  addi s0, s0, 32\n" ++
+  "  addi s1, s1, -1\n" ++
+  "  j .Lraasl_loop\n" ++
+  ".Lraasl_done:\n" ++
+  "  ld a0, 0(s3)\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
 /-- `zisk_runtime_access_account_gas`: probe BuildUnit.
 
     Input selector at byte 0:
@@ -560,6 +602,87 @@ def ziskRuntimeAccessSeedInitialProbeUnit : BuildUnit := {
   body        := NOP
   prologueAsm := ziskRuntimeAccessSeedInitialPrologue
   dataAsm     := ziskRuntimeAccessSeedInitialDataSection
+}
+
+/-! `zisk_runtime_access_seed_account_list`: probe BuildUnit.
+
+    Input memory layout (`ziskemu -i` payload starts at base + 8):
+      +0  u64 count
+      +8  first 32-byte address-list record
+      +40 second 32-byte address-list record
+
+    The check script supplies the same account twice. Output:
+      +0  count after list seed
+      +8  gas after list seed
+      +16 status for charging seeded account A
+      +24 gas after charging A
+      +32 count after charging A
+      +40 status for charging unlisted account B
+      +48 gas after charging B
+      +56 count after charging B. -/
+def ziskRuntimeAccessSeedAccountListPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  la x20, rta_list_seed_env\n" ++
+  "  li t1, 5000\n" ++
+  "  sd t1, 568(x20)\n" ++
+  "  la t0, " ++ runtimeAccessAccountCountLabel ++ "\n" ++
+  "  sd zero, 0(t0)\n" ++
+  "  la t0, " ++ runtimeAccessAccountOutcomeCountLabel ++ "\n" ++
+  "  sd zero, 0(t0)\n" ++
+  "  li t0, 0x40000008\n" ++
+  "  ld a1, 0(t0)\n" ++
+  "  addi a0, t0, 8\n" ++
+  "  jal ra, runtime_access_seed_account_list\n" ++
+  "  li s0, 0xa0010000\n" ++
+  "  la t0, " ++ runtimeAccessAccountCountLabel ++ "\n" ++
+  "  ld t1, 0(t0); sd t1, 0(s0)\n" ++
+  "  ld t1, 568(x20); sd t1, 8(s0)\n" ++
+  "  li t0, 0x40000010\n" ++
+  "  mv a0, t0\n" ++
+  "  la a1, " ++ runtimeAccessAccountTableLabel ++ "\n" ++
+  "  la a2, " ++ runtimeAccessAccountCountLabel ++ "\n" ++
+  "  li a3, " ++ toString runtimeAccessAccountCapacity ++ "\n" ++
+  "  jal ra, runtime_access_account_charge\n" ++
+  "  sd a0, 16(s0)\n" ++
+  "  ld t1, 568(x20); sd t1, 24(s0)\n" ++
+  "  la t0, " ++ runtimeAccessAccountCountLabel ++ "\n" ++
+  "  ld t1, 0(t0); sd t1, 32(s0)\n" ++
+  "  la a0, rta_list_seed_addr_b\n" ++
+  "  la a1, " ++ runtimeAccessAccountTableLabel ++ "\n" ++
+  "  la a2, " ++ runtimeAccessAccountCountLabel ++ "\n" ++
+  "  li a3, " ++ toString runtimeAccessAccountCapacity ++ "\n" ++
+  "  jal ra, runtime_access_account_charge\n" ++
+  "  sd a0, 40(s0)\n" ++
+  "  ld t1, 568(x20); sd t1, 48(s0)\n" ++
+  "  la t0, " ++ runtimeAccessAccountCountLabel ++ "\n" ++
+  "  ld t1, 0(t0); sd t1, 56(s0)\n" ++
+  "  j .Lraasl_probe_done\n" ++
+  runtimeAccessAccountSeedFunction ++ "\n" ++
+  runtimeAccessSeedAccountListFunction ++ "\n" ++
+  runtimeAccessAccountChargeFunction ++ "\n" ++
+  ".exit_outofgas:\n" ++
+  "  li t0, 0xa0010000; li t1, 6; sd t1, 0(t0)\n" ++
+  ".Lraasl_probe_done:"
+
+def ziskRuntimeAccessSeedAccountListDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "rta_list_seed_env:\n" ++
+  "  .zero 656\n" ++
+  ".balign 8\n" ++
+  runtimeAccessAccountCountLabel ++ ":\n" ++
+  "  .zero 8\n" ++
+  ".balign 32\n" ++
+  runtimeAccessAccountTableLabel ++ ":\n" ++
+  "  .zero " ++ toString (runtimeAccessAccountCapacity * runtimeAccessAccountRecordSize) ++ "\n" ++
+  "rta_list_seed_addr_b:\n" ++
+  "  .byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0x11,0x22,0x33,0x44\n" ++
+  runtimeAccessAccountOutcomeData
+
+def ziskRuntimeAccessSeedAccountListProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskRuntimeAccessSeedAccountListPrologue
+  dataAsm     := ziskRuntimeAccessSeedAccountListDataSection
 }
 
 end EvmAsm.Codegen
