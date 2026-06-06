@@ -21,6 +21,7 @@ import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.Address
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.EvmOpcodes
+import EvmAsm.Codegen.Programs.EvmNonce
 import EvmAsm.Codegen.Programs.EvmCodes
 import EvmAsm.Codegen.Programs.EvmOpcodesExtcodecopy
 import EvmAsm.Codegen.Programs.EvmStorageAccessGas
@@ -28,6 +29,7 @@ import EvmAsm.Codegen.Programs.PrecompileBackendProbes
 import EvmAsm.Codegen.Programs.StateCompose
 import EvmAsm.Codegen.Programs.StatePredicates
 import EvmAsm.Codegen.Programs.EvmAccessGas
+import EvmAsm.Codegen.Programs.AccountBalance
 
 namespace EvmAsm.Codegen
 
@@ -331,13 +333,19 @@ def emitPrecompileFrameData : String :=
 
     `evm_selfdestruct_beneficiary` stores the popped beneficiary address as
     20 canonical big-endian bytes (the low 160 bits of the EVM stack word,
-    with higher bits ignored). `evm_selfdestruct_staged` is a u64 flag used by
-    the test/diagnostic surface until later account-access/state children
-    consume this staged beneficiary directly. -/
+    with higher bits ignored). `evm_selfdestruct_created_in_tx` is the
+    transaction-local EIP-6780 marker that CREATE/CREATE2 integration will set
+    before SELFDESTRUCT reaches balance/deletion handling. It defaults to zero.
+    `evm_selfdestruct_staged` is a u64 flag used by the test/diagnostic surface
+    until later account-access/state children consume this staged beneficiary
+    directly. -/
 def emitSelfdestructData : String :=
   ".balign 32\n" ++
   "evm_selfdestruct_beneficiary:\n" ++
   "  .zero 32\n" ++
+  ".balign 8\n" ++
+  "evm_selfdestruct_created_in_tx:\n" ++
+  "  .zero 8\n" ++
   ".balign 8\n" ++
   "evm_selfdestruct_staged:\n" ++
   "  .zero 8\n"
@@ -485,6 +493,77 @@ def emitRuntimeAccountWitnessData : String :=
   "  .byte 0x92, 0x7e, 0x7d, 0xb2, 0xdc, 0xc7, 0x03, 0xc0\n" ++
   "  .byte 0xe5, 0x00, 0xb6, 0x53, 0xca, 0x82, 0x27, 0x3b\n" ++
   "  .byte 0x7b, 0xfa, 0xd8, 0x04, 0x5d, 0x85, 0xa4, 0x70\n" ++
+  ".balign 8\n" ++
+  "sdai_status:\n" ++
+  "  .zero 8\n" ++
+  "sdai_origin_len:\n" ++
+  "  .zero 8\n" ++
+  "sdai_beneficiary_len:\n" ++
+  "  .zero 8\n" ++
+  ".balign 32\n" ++
+  "sdai_state_root:\n" ++
+  "  .zero 32\n" ++
+  ".balign 32\n" ++
+  "sdai_origin_address:\n" ++
+  "  .zero 32\n" ++
+  ".balign 32\n" ++
+  "sdai_origin_rlp:\n" ++
+  "  .zero 256\n" ++
+  ".balign 32\n" ++
+  "sdai_beneficiary_rlp:\n" ++
+  "  .zero 256\n" ++
+  ".balign 8\n" ++
+  "sdai_transfer_status:\n" ++
+  "  .zero 8\n" ++
+  "sdai_transfer_origin_len:\n" ++
+  "  .zero 8\n" ++
+  "sdai_transfer_beneficiary_len:\n" ++
+  "  .zero 8\n" ++
+  ".balign 32\n" ++
+  "sdai_transfer_output:\n" ++
+  "  .zero 256\n" ++
+  ".balign 8\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8\n" ++
+  "t48_offset:\n" ++
+  "  .zero 8\n" ++
+  "t48_length:\n" ++
+  "  .zero 8\n" ++
+  "mset_span_start:\n" ++
+  "  .zero 8\n" ++
+  "mset_span_size:\n" ++
+  "  .zero 8\n" ++
+  "mset_payload_start:\n" ++
+  "  .zero 8\n" ++
+  "mset_head_len:\n" ++
+  "  .zero 8\n" ++
+  "mset_tail_start:\n" ++
+  "  .zero 8\n" ++
+  "mset_tail_len:\n" ++
+  "  .zero 8\n" ++
+  "mset_new_payload_len:\n" ++
+  "  .zero 8\n" ++
+  "mset_prefix_len:\n" ++
+  "  .zero 8\n" ++
+  "mset_cursor:\n" ++
+  "  .zero 8\n" ++
+  "aab_bal_off:\n" ++
+  "  .zero 8\n" ++
+  "aab_bal_len:\n" ++
+  "  .zero 8\n" ++
+  "aab_enc_len:\n" ++
+  "  .zero 8\n" ++
+  ".balign 32\n" ++
+  "aab_bal32:\n" ++
+  "  .zero 32\n" ++
+  ".balign 8\n" ++
+  "aab_enc:\n" ++
+  "  .zero 64\n" ++
+  ".balign 32\n" ++
+  "sdbt_delta32:\n" ++
+  "  .zero 32\n" ++
   ".balign 32\n" ++
   "eahsr_state_root:\n" ++
   "  .zero 32\n" ++
@@ -755,8 +834,20 @@ def emitDispatcherEpilogue
   bytesToNibblesFunction ++ "\n" ++
   mptWalkFunction ++ "\n" ++
   mptLookupByKeyFunction ++ "\n" ++
+  rlpFieldToU256BeFunction ++ "\n" ++
+  rlpEncodeBytesFunction ++ "\n" ++
+  rlpEncodeUintBeFunction ++ "\n" ++
+  rlpEncodeListPrefixFunction ++ "\n" ++
+  rlpItemSizeFunction ++ "\n" ++
+  rlpItemSpanFunction ++ "\n" ++
+  msetMemcpyFunction ++ "\n" ++
+  mptSpliceSlotFunction ++ "\n" ++
   accountDecodeFunction ++ "\n" ++
   accountAtAddressFunction ++ "\n" ++
+  accountExtractBalanceFunction ++ "\n" ++
+  accountAddBalanceFunction ++ "\n" ++
+  accountSetUintFieldFunction ++ "\n" ++
+  selfdestructBalanceTransferFunction ++ "\n" ++
   headerExtractStateRootFunction ++ "\n" ++
   balanceAtHeaderStateRootFunction ++ "\n" ++
   nonceAtHeaderStateRootFunction ++ "\n" ++
@@ -940,7 +1031,7 @@ def emitDispatcherEpilogue
     ```
     evm_code:         <bytecode> (~50 B)
     .balign 32
-    evm_memory:       .zero 0x8000          (32 KiB EVM memory, M7 onward)
+    evm_memory:       .zero 0x10000         (64 KiB EVM memory, M7 onward)
     .balign 8
     evm_env:          runtime environment and helper scratch follows
     lp64_stack:       helper-call stack
@@ -968,7 +1059,7 @@ def emitDispatcherDataSection
   "evm_code_end:\n" ++   -- M33: exact end of baked bytecode (CODESIZE/CODECOPY length)
   ".balign 32\n" ++
   "evm_memory:\n" ++
-  "  .zero 0x8000\n" ++   -- 32 KiB EVM memory (M7 onward)
+  "  .zero 0x10000\n" ++  -- 64 KiB EVM memory, enough for Amsterdam MAX_INIT_CODE_SIZE
   ".balign 8\n" ++
   "evm_env:\n" ++
   "  .zero 656\n" ++      -- 13 SimpleEnvField slots × 32 B + calldata/return-data
@@ -1235,12 +1326,56 @@ def emitRuntimeDispatcherSetup : String :=
   "  ld x8, 24(x5)\n" ++
   "  sd x8, 648(x20)\n" ++
   "  addi x5, x5, 32\n" ++
-  -- M30/M31: gas limit trailer followed by optional account-witness
-  -- context. pack-bytecode.py always appends the three length cells;
-  -- zero header length means no state context is available.
+  -- M30/M35/M31: gas limit trailer, optional transaction intrinsic-gas
+  -- validation controls, then optional account-witness context. When the
+  -- tx-gas validation flag is zero, the gas trailer is treated as execution
+  -- gas for backwards-compatible opcode-runtime tests. When it is nonzero,
+  -- the trailer is transaction gas: compute Amsterdam call/create intrinsic
+  -- gas plus the EIP-7623 calldata floor, reject if gas < max(intrinsic,
+  -- floor), and start execution with gas - intrinsic.
   "  ld x6, 0(x5)\n" ++
-  "  sd x6, 568(x20)\n" ++          -- env.gasRemaining = input gas limit
+  "  addi x5, x5, 8\n" ++          -- x5 = &(tx gas validation flag)
+  "  ld x7, 0(x5)\n" ++            -- x7 = validate_tx_gas flag
+  "  addi x5, x5, 8\n" ++          -- x5 = &(tx is_creation flag)
+  "  ld x8, 0(x5)\n" ++            -- x8 = is_creation
   "  addi x5, x5, 8\n" ++          -- x5 = &(account-witness header_len)
+  "  beqz x7, .runtime_tx_gas_done\n" ++
+  "  li x7, 21000\n" ++            -- x7 = intrinsic = TX_BASE
+  "  li x10, 21000\n" ++           -- x10 = data floor = TX_BASE
+  "  beqz x8, .runtime_tx_gas_no_create\n" ++
+  "  li x8, 32000\n" ++            -- TX_CREATE
+  "  add x7, x7, x8\n" ++
+  ".runtime_tx_gas_no_create:\n" ++
+  "  ld x8, 424(x20)\n" ++         -- x8 = calldata length
+  "  ld x9, 416(x20)\n" ++         -- x9 = calldata ptr
+  "  ld x12, 424(x20)\n" ++        -- x12 = calldata length for initcode words
+  ".runtime_tx_gas_data_loop:\n" ++
+  "  beqz x8, .runtime_tx_gas_create_words\n" ++
+  "  lbu x11, 0(x9)\n" ++
+  "  beqz x11, .runtime_tx_gas_zero_byte\n" ++
+  "  addi x7, x7, 16\n" ++
+  "  addi x10, x10, 40\n" ++
+  "  j .runtime_tx_gas_data_step\n" ++
+  ".runtime_tx_gas_zero_byte:\n" ++
+  "  addi x7, x7, 4\n" ++
+  "  addi x10, x10, 10\n" ++
+  ".runtime_tx_gas_data_step:\n" ++
+  "  addi x9, x9, 1\n" ++
+  "  addi x8, x8, -1\n" ++
+  "  j .runtime_tx_gas_data_loop\n" ++
+  ".runtime_tx_gas_create_words:\n" ++
+  "  ld x8, -8(x5)\n" ++           -- x8 = is_creation
+  "  beqz x8, .runtime_tx_gas_check\n" ++
+  "  addi x12, x12, 31\n" ++
+  "  srli x12, x12, 5\n" ++        -- ceil(calldata_len / 32)
+  "  slli x12, x12, 1\n" ++        -- CODE_INIT_PER_WORD = 2
+  "  add x7, x7, x12\n" ++
+  ".runtime_tx_gas_check:\n" ++
+  "  bltu x6, x7, .exit_outofgas\n" ++
+  "  bltu x6, x10, .exit_outofgas\n" ++
+  "  sub x6, x6, x7\n" ++
+  ".runtime_tx_gas_done:\n" ++
+  "  sd x6, 568(x20)\n" ++          -- env.gasRemaining = execution gas
   "  ld x6, 0(x5)\n" ++            -- x6 = header_len
   "  sd x6, 584(x20)\n" ++
   "  ld x7, 8(x5)\n" ++            -- x7 = witness_state_len
@@ -1291,7 +1426,7 @@ def emitRuntimeDispatcherDataSection
   ".section .data\n" ++
   ".balign 32\n" ++
   "evm_memory:\n" ++
-  "  .zero 0x8000\n" ++   -- 32 KiB EVM memory (M7 onward)
+  "  .zero 0x10000\n" ++  -- 64 KiB EVM memory, enough for Amsterdam MAX_INIT_CODE_SIZE
   ".balign 8\n" ++
   "evm_env:\n" ++
   "  .zero 656\n" ++      -- 13 SimpleEnvField slots × 32 B + calldata/return-data
@@ -1326,6 +1461,7 @@ def emitRuntimeDispatcherDataSection
   ".balign 32\n" ++
   runtimeAccessAccountTableLabel ++ ":\n" ++
   "  .zero " ++ toString (runtimeAccessAccountCapacity * runtimeAccessAccountRecordSize) ++ "\n" ++
+  runtimeAccessAccountOutcomeData ++
   runtimeAccessSeedScratchLabel ++ ":\n" ++
   "  .zero 32\n" ++
   ".balign 16\n" ++
