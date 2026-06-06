@@ -41,6 +41,7 @@
   same arrangement as `Calldata.evm_calldatacopy`.
 -/
 
+import EvmAsm.Evm64.Code.Basic
 import EvmAsm.Rv64.Program
 import EvmAsm.Rv64.SepLogic
 
@@ -48,12 +49,6 @@ namespace EvmAsm.Evm64
 namespace Code
 
 open EvmAsm.Rv64
-
-/-- Byte offset of the M33 `codeSize` cell within the dispatcher env block.
-    Lives in the free gap between `activeMemorySize` (488) and the M28 blob
-    cells (512); raw-literal layout matching the dispatcher prologue's
-    `sd x5, 496(x20)`. -/
-def codeSizeOff : Nat := 496
 
 /-- Top-level RISC-V program implementing the EVM `CODECOPY` opcode. See the
     file header for the stack convention, register roles, and the byte-by-byte

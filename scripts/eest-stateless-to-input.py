@@ -7,7 +7,7 @@ carry two extra hex fields:
 
   * ``statelessInputBytes``  -- the schema-prefixed (``0x0001...``) SSZ
     ``StatelessInput`` that ``run_stateless_guest`` consumes.
-  * ``statelessOutputBytes`` -- the canonical 105-byte SSZ
+  * ``statelessOutputBytes`` -- the canonical SSZ
     ``StatelessValidationResult`` the guest is expected to produce.
 
 This tool walks a directory of such fixtures and, for every block that
