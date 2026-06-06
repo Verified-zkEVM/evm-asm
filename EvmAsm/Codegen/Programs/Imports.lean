@@ -101,6 +101,9 @@ import EvmAsm.Codegen.Programs.BlockVerdictModeledSystem
 import EvmAsm.Codegen.Programs.BlockGasRemaining
 import EvmAsm.Codegen.Programs.BlockVerdictGasGate
 import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransfer
+import EvmAsm.Codegen.Programs.HeaderChainPostMerge
+import EvmAsm.Codegen.Programs.BlockValidate1Tx
+import EvmAsm.Codegen.Programs.WithdrawalBlockSummary
 import EvmAsm.Codegen.Programs.HeaderSummaryStruct
 import EvmAsm.Codegen.Programs.SimpleTransferRecipient
 import EvmAsm.Codegen.Programs.SimpleTransferFeeRecipient

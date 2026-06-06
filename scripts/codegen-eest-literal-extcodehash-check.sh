@@ -7,7 +7,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 TAG="${EEST_FIXTURE_TAG:-zkevm@v0.4.0}"
-JOBS="${EEST_LITERAL_EXTCODEHASH_JOBS:-${EEST_JOBS:-auto}}"
+JOBS="${EEST_LITERAL_EXTCODEHASH_JOBS:-${EEST_JOBS:-3}}"
 STEPS="${EEST_LITERAL_EXTCODEHASH_STEPS:-${EEST_STEPS:-1000000000}}"
 FX="${EEST_FIXTURES_DIR:-$(pwd)/gen-out/eest-fixtures/$TAG/fixtures/fixtures}"
 [[ -d "$FX" ]] || { echo "fixtures not found at $FX (run scripts/eest-fetch-fixtures.sh '$TAG')" >&2; exit 1; }

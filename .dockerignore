@@ -1,0 +1,23 @@
+# Lean build cache (rebuilt fresh inside Docker via lake)
+.lake/
+
+# Generated outputs (rebuilt inside Docker)
+gen-out/
+
+# Large submodules not needed for the Docker EEST test
+execution-specs/
+execution-spec-tests/
+ethrex/
+
+# Rust project not needed inside Docker
+rust-u256-asm/
+
+# VCS and dev tooling
+.git/
+.claude/
+memory/
+__pycache__/
+*.pyc
+.jscpd-report/
+cycles-history.jsonl
+docs/agents/

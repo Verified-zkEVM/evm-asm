@@ -39,29 +39,42 @@ a conservative verdict 0), it just doesn't help yet.
   the per-block change is exactly {2935 1 slot, 4788 1 slot, new 0x01 account
   with balance = amount·1e9 = 10 Gwei}. It is an asm bug, not missing semantics.
 
-### Lead hypothesis (test this first)
-Every synthetic insert vector passes but the real R2 root branch is LARGE
-(genesis ≈6 accounts). The verified MODIFY path (`mpt_set_acc`, used by the 24
-matches + the system writes) splices a **same-size** slot. The INSERT fills an
-**empty** slot, which **GROWS** the branch by ~33 bytes — possibly extending or
-crossing the RLP multi-byte length-prefix (the `0xf8 LL` / `0xf9 LLLL`
-boundary). Prime suspect: **`mpt_splice_slot`** (Programs/MptSet.lean) when it
-fills an empty (`0x80`) slot in a large branch and the new list prefix length
-changes. None of the synthetic vectors made a branch *grow across* that prefix
-boundary on an empty-slot fill.
+### Lead hypothesis — REFUTED by static audit (2026-06-06); do NOT chase
+The original hypothesis was: the INSERT fills an **empty** slot, growing the
+branch ~33 bytes across the RLP multi-byte length-prefix boundary (`0xc0+len`
+→ `0xf8 LL` at 56, or `0xf8 LL` → `0xf9 LLLL` at 256), and `mpt_splice_slot`
+(Programs/MptSet.lean) emits a stale prefix because no synthetic vector ever
+grew a branch *across* that boundary.
+
+A line-by-line static audit refuted this: `mpt_splice_slot` recomputes
+`new_payload_len = head_len + new_ref_len + tail_len` from scratch and calls
+`rlp_encode_list_prefix` fresh on every splice (MptSet.lean:430-438); the
+head/tail copies start at `payload_start`, never including the old prefix; and
+`rlp_encode_list_prefix` (RlpRead.lean:380-433) is correct on both the 55/56
+and 255/256 boundaries (byte-count ladder + BE emit loop checked by hand).
+Child refs are re-derived via `mpt_node_slot_encode` after each splice, so the
+inline/hash threshold is also absorbed. The prefix-boundary synthetic vector
+(old step 1 below) would pass and prove nothing.
+
+Remaining suspects, in rough priority order:
+* the **node-DB threading** between change 2 (MODIFY via `mpt_set_acc`) and
+  change 3 (INSERT via `mpt_insert_acc`) — i.e. `mpt_node_resolve` finding the
+  DB-modified root branch produced by the first two changes;
+* `mpt_insert_walk_db` depth/`consumed` bookkeeping for the depth-0
+  BRANCH_EMPTY_SLOT case;
+* `rlp_item_span` walking a 17-item root branch whose children mix inline
+  (<32 B) and hash refs.
 
 ### How to confirm / fix
-1. Add a targeted `mpt_insert` vector (scripts/mpt_ref.py, `MI_VECTORS`, on the
-   `mpt_insert` PR branch) where a branch is sized just under 56 bytes and an
-   empty-slot insert grows it past 56 (1-byte → 2-byte RLP prefix). Run
-   `scripts/codegen-zisk-mpt-insert-check.sh`. If it reproduces the wrong root,
-   fix `mpt_splice_slot`'s prefix recompute and re-run all mpt vectors.
-2. If that passes too, go to the **witness-model**: extend
+1. Go straight to the **witness-model**: extend
    `scripts/eest_diag_patricialize.py` to parse the zkevm input's SSZ witness
    section into a `{keccak:node}` DB, set the pre-root, and replay the 3 changes
    node-by-node; OR instrument `mpt_insert_acc` to dump the spliced root-branch
    bytes + the new leaf bytes to spare OUTPUT bytes and diff them against the
    Python model to find the first divergent node.
+2. (Superseded — refuted above.) The prefix-boundary `MI_VECTORS` vector via
+   `scripts/codegen-zisk-mpt-insert-check.sh` is no longer the lead; only add
+   it as a regression vector after the real bug is found.
 
 ### Reproduce in ~30s
 ```

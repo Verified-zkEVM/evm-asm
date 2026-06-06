@@ -6,12 +6,12 @@
   system calls every Amsterdam block runs at block start (before withdrawals):
 
     * EIP-2935 (history contract 0x0000…2935):
-        slot  = (block_number - 1) % 8191
+        slot  = (block_number - 1) % 8192
         value = parent block hash (= payload.parent_hash)
     * EIP-4788 (beacon-roots contract 0x000f3df6…beac02):
         slot  = timestamp % 8191        value = timestamp
         slot' = (timestamp % 8191)+8191 value' = parent_beacon_block_root
-        (the root slot is a no-op when the root is 0, e.g. genesis parent.)
+        (a zero root is a storage deletion; absent slots remain no-ops.)
 
   Reads (byte-wise, no-misaligned): exec_payload = SSZ_BASE + 60; parent_hash @
   payload+0 (32 B); block_number @ payload+404 (u64 LE); timestamp @ payload+428
@@ -19,8 +19,8 @@
 
   The slot index is the 32-byte big-endian storage key; the stored value is the
   MINIMAL big-endian word (leading zeros stripped) — what the storage trie leaf's
-  rlp(value) wants. The storage slot is reduced modulo the 8191-entry history
-  buffer before encoding the 32-byte big-endian storage key.
+  rlp(value) wants. The EIP-2935 storage slot is reduced modulo the 8192-entry
+  history buffer before encoding the 32-byte big-endian storage key.
 
   Outputs feed account_apply_storage_slot (one per system contract) in the
   verdict's state recompute.
@@ -109,10 +109,10 @@ def systemWriteDescriptorsFunction : String :=
   "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
   "  mv s0, a0                   # SSZ_BASE\n" ++
   "  addi s1, s0, 60             # exec_payload\n" ++
-  "  # ---- EIP-2935: slot = (number-1) % 8191, value = parent_hash ----\n" ++
+  "  # ---- EIP-2935: slot = (number-1) % 8192, value = parent_hash ----\n" ++
   "  addi a0, s1, 404; jal ra, swd_read_u64le\n" ++
   "  addi a0, a0, -1             # number - 1\n" ++
-  "  li t0, 8191; remu a0, a0, t0\n" ++
+  "  li t0, 8192; remu a0, a0, t0\n" ++
   "  la a1, swd_2935_slot; jal ra, swd_write_be32_u64\n" ++
   "  mv a0, s1; li a1, 32; la a2, swd_2935_val; la a3, swd_2935_vlen\n" ++
   "  jal ra, swd_minimal_copy\n" ++

@@ -588,6 +588,14 @@ def headersValidateChainFunction : String :=
   "  mv s0, a0                  # s0 = section ptr\n" ++
   "  mv s1, a1                  # s1 = section_len\n" ++
   "  mv s2, a2                  # s2 = N out ptr\n" ++
+  "  # Match execution-specs validate_headers: witness headers are capped at\n" ++
+  "  # 256. Enforce this before filling the fixed 256-entry keccak table.\n" ++
+  "  beqz s1, .Lvh_count_ok\n" ++
+  "  lwu t0, 0(s0)\n" ++
+  "  srli t0, t0, 2             # first inner offset = 4*N\n" ++
+  "  li t1, 256\n" ++
+  "  bgtu t0, t1, .Lvh_fail\n" ++
+  ".Lvh_count_ok:\n" ++
   "  # Step 1: keccak each header into vh_keccak_table.\n" ++
   "  mv a0, s0\n" ++
   "  mv a1, s1\n" ++

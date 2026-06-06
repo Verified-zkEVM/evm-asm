@@ -18,10 +18,10 @@
 # checkable regions, each reported separately so we can see *where* the
 # guest is right, not just full-vs-not:
 #   * root   -- bytes 0:32  == expected: new_payload_request_root
-#               (computed by the epilogue's SSZ merkle tree; currently
-#               mismatches when the block has non-empty transactions /
-#               withdrawals / requests / block_access_list, since those
-#               list field-roots are still static constants).
+#               (computed by the epilogue's SSZ merkle tree from the
+#               guest-visible stateless input. Root mismatches now point to
+#               a concrete unsupported field/path rather than a blanket
+#               "static list roots" limitation.)
 #   * succ   -- byte 32     == expected: successful_validation bit.
 #   * tail   -- bytes 33:105 == expected: u32 offset (=37) + the 68-byte
 #               chain_config (echoed from the input by the encoder).
@@ -613,6 +613,13 @@ MANIFEST="$RUN_DIR/manifest.tsv"
 [[ -s "$MANIFEST" ]] || { echo "no stateless blocks selected" >&2; exit 1; }
 mapfile -t manifestLines < "$MANIFEST"
 
+selectedCount="${#manifestLines[@]}"
+declare -A manifestRowByLabel=()
+for i in "${!manifestLines[@]}"; do
+  IFS=$'\t' read -r label _ <<< "${manifestLines[$i]}"
+  manifestRowByLabel["$label"]=$((i + 1))
+done
+
 if [[ "$RANDOM_ORDER" -eq 1 ]]; then
   if [[ -z "$RANDOM_SEED" ]]; then
     RANDOM_SEED="$(python3 -c 'import random; print(random.randint(0, 2**31-1))')"
@@ -629,7 +636,19 @@ print('\n'.join(lines))
   selection="$selection, random(seed=$RANDOM_SEED)"
 fi
 
-selectedCount="${#manifestLines[@]}"
+case_identity() {
+  local label="$1"
+  local relpath="$2"
+  local manifest_row="${manifestRowByLabel[$label]:-?}"
+  local id="$relpath (label=$label manifest_row=$manifest_row/$selectedCount"
+  if [[ "$manifest_row" != "?" ]]; then
+    id="$id rerun_skip=$((SKIP + manifest_row - 1)) rerun_limit=1"
+  fi
+  if [[ "$RANDOM_ORDER" -eq 1 ]]; then
+    id="$id random_seed=$RANDOM_SEED"
+  fi
+  printf '%s)' "$id"
+}
 
 run_case() {
   local line="$1"
@@ -705,7 +724,7 @@ classify_case_result() {
     classifiedLabels["$label"]=1
     total=$((total + 1))
     err=$((err + 1))
-    echo "  ERROR(missing) $relpath"
+    echo "  ERROR(missing) $(case_identity "$label" "$relpath")"
     return 0
   fi
   classifiedLabels["$label"]=1
@@ -714,15 +733,15 @@ classify_case_result() {
   if [[ "$status" == "BUDGET" ]]; then
     # Step-budget exhaustion: counted separately, NOT a correctness failure.
     budget=$((budget + 1))
-    echo "  BUDGET(steps) $relpath (${actual_hex#steps:} steps)"
+    echo "  BUDGET(steps) $(case_identity "$label" "$relpath") (${actual_hex#steps:} steps)"
     return 0
   fi
   if [[ "$status" != "OK" ]]; then
     err=$((err + 1))
     case "$actual_hex" in
-      exit) echo "  ERROR(exit)   $relpath" ;;
-      short:*) echo "  ERROR(short)  $relpath (${actual_hex#short:} hex chars)" ;;
-      *) echo "  ERROR($actual_hex) $relpath" ;;
+      exit) echo "  ERROR(exit)   $(case_identity "$label" "$relpath")" ;;
+      short:*) echo "  ERROR(short)  $(case_identity "$label" "$relpath") (${actual_hex#short:} hex chars)" ;;
+      *) echo "  ERROR($actual_hex) $(case_identity "$label" "$relpath")" ;;
     esac
     return 0
   fi
@@ -735,7 +754,7 @@ classify_case_result() {
 
   if [[ "$actual_hex" == "$exp" ]]; then
     full=$((full + 1))
-    [[ "$QUIET_PASSES" -eq 1 ]] || echo "  PASS(full)        $relpath"
+    [[ "$QUIET_PASSES" -eq 1 ]] || echo "  PASS(full)        $(case_identity "$label" "$relpath")"
   else
     fail=$((fail + 1))
     # root-only diff: succ + tail already match, ONLY the 32-byte root
@@ -747,7 +766,7 @@ classify_case_result() {
       dbg="$(verdict_debug_for_case "$label" "$input")"
       [[ -n "$dbg" ]] && dbg=" dbg=[$dbg]"
     fi
-    echo "  FAIL [$r/$s/$t]  $relpath (succ guest=${actual_hex:64:2} exp=${exp:64:2})$dbg"
+    echo "  FAIL [$r/$s/$t]  $(case_identity "$label" "$relpath") (succ guest=${actual_hex:64:2} exp=${exp:64:2})$dbg"
   fi
   return 0
 }
