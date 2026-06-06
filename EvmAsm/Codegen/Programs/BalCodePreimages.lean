@@ -167,6 +167,10 @@ def balCodePreimagesValidFunction : String :=
   "  mv a0, s2; mv a1, s3; li a3, 20; mv a4, s4; mv a5, s5; la a6, bbcv_acct_struct\n" ++
   "  jal ra, account_at_header_state_root\n" ++
   "  li t0, 2; bgeu a0, t0, .Lbbcv_missing_code\n" ++
+  "  la t0, bbcv_addr_off; ld t1, 0(t0); add a2, s10, t1\n" ++
+  "  mv a0, s2; mv a1, s3; mv a3, s4; mv a4, s5; mv a5, s6; mv a6, s7\n" ++
+  "  jal ra, bal_call_target_delegated_code_valid\n" ++
+  "  bnez a0, .Lbbcv_missing_code\n" ++
   ".Lbbcv_touch_skip_flags_done:\n" ++
   "  la t0, bbcv_skip_touch_only; ld t4, 0(t0)\n" ++
   "  bnez t4, .Lbbcv_next\n" ++
@@ -806,6 +810,67 @@ def balCodePreimagesValidFunction : String :=
   "  ld s0, 0(sp); ld s1, 8(sp); ld s2, 16(sp)\n" ++
   "  ld s3, 24(sp); ld s4, 32(sp); ld s5, 40(sp); ld s6, 48(sp)\n" ++
   "  addi sp, sp, 64\n" ++
+  "  ret\n" ++
+  "\n" ++
+  "# Return 1 iff a CALL target is EIP-7702 delegated code whose delegated\n" ++
+  "# account has non-empty code missing from witness.codes. Non-delegated\n" ++
+  "# targets return 0; parse/proof failures return 1 conservatively.\n" ++
+  "bal_call_target_delegated_code_valid:\n" ++
+  "  addi sp, sp, -96\n" ++
+  "  sd ra, 0(sp)\n" ++
+  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
+  "  sd s8, 72(sp); sd s9, 80(sp)\n" ++
+  "  mv s0, a0                  # parent header RLP ptr\n" ++
+  "  mv s1, a1                  # parent header RLP len\n" ++
+  "  mv s2, a2                  # CALL target address ptr\n" ++
+  "  mv s3, a3                  # witness.state ptr\n" ++
+  "  mv s4, a4                  # witness.state len\n" ++
+  "  mv s5, a5                  # witness.codes ptr\n" ++
+  "  mv s6, a6                  # witness.codes len\n" ++
+  "  mv a0, s0; mv a1, s1; mv a2, s2; mv a3, s3; mv a4, s4; la a5, bbcv_code_hash\n" ++
+  "  jal ra, code_hash_at_header_state_root\n" ++
+  "  bnez a0, .Lbcdcv_bad\n" ++
+  "  la t0, bbcv_code_hash; la t1, chahsr_empty_code_hash\n" ++
+  "  ld t2, 0(t0); ld t3, 0(t1); bne t2, t3, .Lbcdcv_lookup_target_code\n" ++
+  "  ld t2, 8(t0); ld t3, 8(t1); bne t2, t3, .Lbcdcv_lookup_target_code\n" ++
+  "  ld t2, 16(t0); ld t3, 16(t1); bne t2, t3, .Lbcdcv_lookup_target_code\n" ++
+  "  ld t2, 24(t0); ld t3, 24(t1); bne t2, t3, .Lbcdcv_lookup_target_code\n" ++
+  "  j .Lbcdcv_ok               # absent/empty target has no delegated code\n" ++
+  ".Lbcdcv_lookup_target_code:\n" ++
+  "  mv a0, s5; mv a1, s6; la a2, bbcv_code_hash; la a3, bbcv_code_off; la a4, bbcv_code_len\n" ++
+  "  jal ra, witness_lookup_by_hash\n" ++
+  "  bnez a0, .Lbcdcv_bad\n" ++
+  "  la t0, bbcv_code_len; ld t1, 0(t0); li t2, 23\n" ++
+  "  bne t1, t2, .Lbcdcv_ok\n" ++
+  "  la t0, bbcv_code_off; ld t1, 0(t0); add s7, s5, t1\n" ++
+  "  lbu t0, 0(s7); li t1, 0xef; bne t0, t1, .Lbcdcv_ok\n" ++
+  "  lbu t0, 1(s7); li t1, 0x01; bne t0, t1, .Lbcdcv_ok\n" ++
+  "  lbu t0, 2(s7); bnez t0, .Lbcdcv_ok\n" ++
+  "  addi s8, s7, 3             # delegated address ptr\n" ++
+  "  mv a0, s0; mv a1, s1; mv a2, s8; mv a3, s3; mv a4, s4; la a5, bbcv_delegated_code_hash\n" ++
+  "  jal ra, code_hash_at_header_state_root\n" ++
+  "  bnez a0, .Lbcdcv_bad\n" ++
+  "  la t0, bbcv_delegated_code_hash; la t1, chahsr_empty_code_hash\n" ++
+  "  ld t2, 0(t0); ld t3, 0(t1); bne t2, t3, .Lbcdcv_lookup_delegated_code\n" ++
+  "  ld t2, 8(t0); ld t3, 8(t1); bne t2, t3, .Lbcdcv_lookup_delegated_code\n" ++
+  "  ld t2, 16(t0); ld t3, 16(t1); bne t2, t3, .Lbcdcv_lookup_delegated_code\n" ++
+  "  ld t2, 24(t0); ld t3, 24(t1); bne t2, t3, .Lbcdcv_lookup_delegated_code\n" ++
+  "  j .Lbcdcv_ok               # delegated account absent/empty\n" ++
+  ".Lbcdcv_lookup_delegated_code:\n" ++
+  "  mv a0, s5; mv a1, s6; la a2, bbcv_delegated_code_hash; la a3, bbcv_code_off; la a4, bbcv_code_len\n" ++
+  "  jal ra, witness_lookup_by_hash\n" ++
+  "  bnez a0, .Lbcdcv_bad\n" ++
+  ".Lbcdcv_ok:\n" ++
+  "  li a0, 0; j .Lbcdcv_ret\n" ++
+  ".Lbcdcv_bad:\n" ++
+  "  li a0, 1\n" ++
+  ".Lbcdcv_ret:\n" ++
+  "  ld ra, 0(sp)\n" ++
+  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
+  "  ld s8, 72(sp); ld s9, 80(sp)\n" ++
+  "  addi sp, sp, 96\n" ++
   "  ret\n" ++
   "\n" ++
   "# Return 1 iff any legacy transaction data contains PUSH20 <addr>; SELFDESTRUCT.\n" ++
