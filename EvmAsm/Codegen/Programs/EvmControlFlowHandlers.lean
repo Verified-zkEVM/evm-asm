@@ -25,13 +25,14 @@ private def jumpiValidityTail : HandlerTail :=
 
     - **JUMPDEST (0x5b, M14)**: no-op marker. Empty body +
       `.advanceAndRet 1` tail.
-    - **JUMP (0x56, M15)**: pops dest, writes `x10 := x21 + dest`.
-      Tail is `.custom "  ret"`; the body has already written `x10`,
-      so the dispatcher's next loop iteration reads the jump-target
-      byte. No `.advanceAndRet` (would over-advance by 1).
-    - **JUMPI (0x57, M15)**: pops dest + cond; if cond != 0 writes
-      `x10 := x21 + dest`, else advances `x10` by 1 in the body.
-      Tail is `.custom "  ret"`; body handles both branches.
+    - **JUMP (0x56, M15)**: pops dest; if its upper limbs are zero
+      and `dest.low64 < env.codeSize`, writes `x10 := x21 + dest.low64`
+      and feeds the jump-validity tail. No `.advanceAndRet` (would
+      over-advance by 1).
+    - **JUMPI (0x57, M15)**: pops dest + cond; if cond != 0 and dest's
+      upper limbs are zero and `dest.low64 < env.codeSize`, writes
+      `x10 := x21 + dest.low64`; if cond is zero, advances `x10` by 1
+      in the body and skips validation.
     - **PC (0x58, M15)**: pushes `x10 - x21` as a 256-bit word
       with the value in the low limb. Tail is `.advanceAndRet 1`.
 
@@ -43,9 +44,10 @@ private def jumpiValidityTail : HandlerTail :=
 
     **M15.5 JUMPDEST-validity**: JUMP / taken-JUMPI now scan from the
     bytecode base to the target while skipping PUSH1..PUSH32 immediates.
-    A literal `0x5b` inside PUSH data is rejected even though the target byte
-    equals JUMPDEST. Not-taken JUMPI still skips validation, matching
-    execution-specs. -/
+    Targets at or beyond `env.codeSize` are rejected before the body reads
+    `code[dest]`. A literal `0x5b` inside PUSH data is rejected even though
+    the target byte equals JUMPDEST. Not-taken JUMPI still skips validation,
+    matching execution-specs. -/
 def controlFlowHandlers : List OpcodeHandlerSpec :=
   [ { label := "h_JUMPDEST"
     , opcodes := [0x5b]
@@ -54,12 +56,12 @@ def controlFlowHandlers : List OpcodeHandlerSpec :=
   , { label := "h_JUMP"
     , opcodes := [0x56]
     , preBody := stackUnderflowGuardAsm 1
-    , body    := EvmAsm.Evm64.ControlFlow.evm_jump .x21 .x14 .x17
+    , body    := EvmAsm.Evm64.ControlFlow.evm_jump .x21 .x20 .x14 .x16 .x17
     , tail    := jumpValidityTail }
   , { label := "h_JUMPI"
     , opcodes := [0x57]
     , preBody := stackUnderflowGuardAsm 2
-    , body    := EvmAsm.Evm64.ControlFlow.evm_jumpi .x21 .x14 .x15 .x16 .x17
+    , body    := EvmAsm.Evm64.ControlFlow.evm_jumpi .x21 .x20 .x14 .x15 .x16 .x17
     , tail    := jumpiValidityTail }
   , { label := "h_PC"
     , opcodes := [0x58]
