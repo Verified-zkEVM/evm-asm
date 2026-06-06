@@ -295,11 +295,10 @@ def ziskChainValidateExcessBlobGasNonIncreasingProbeUnit : BuildUnit := {
 /-! ## chain_validate_blob_gas_used_under_max -- PR-K277
 
     Per-header invariant: `blob_gas_used <= MAX_BLOB_GAS_PER_BLOCK`
-    (field 17, Cancun+). The EIP-4844 cap is
-    `MAX_BLOB_GAS_PER_BLOCK = 6 * GAS_PER_BLOB = 6 * 131072 = 786432`
-    (Cancun's `target = 393216`, `max = 786432`). Prague raised
-    this to 9 * GAS_PER_BLOB = 1179648; we use the Cancun value
-    here as a conservative lower bound that holds in both forks.
+    (field 17, Cancun+). The Amsterdam EEST frontier carries the
+    blob schedule in the stateless chain config and currently uses
+    `BLOB_SCHEDULE_MAX = 21`, so
+    `MAX_BLOB_GAS_PER_BLOCK = 21 * GAS_PER_BLOB = 21 * 131072 = 2752512`.
 
     Useful as a per-block sanity check on RLP-decoded blob_gas_used
     values. A failure signals corrupted header data or a future
@@ -344,7 +343,7 @@ def chainValidateBlobGasUsedUnderMaxFunction : String :=
   "  la t0, cvbgum_iter_ptr; ld s2, 0(t0)\n" ++
   "  la t0, cvbgum_iter_i;   ld s5, 0(t0)\n" ++
   "  la t0, cvbgum_field;    ld t1, 0(t0)\n" ++
-  "  li t2, 786432             # Cancun MAX_BLOB_GAS_PER_BLOCK\n" ++
+  "  li t2, 2752512            # Amsterdam MAX_BLOB_GAS_PER_BLOCK\n" ++
   "  bgtu t1, t2, .Lcvbgum_violation\n" ++
   "  slli t3, s5, 3\n" ++
   "  add t3, s1, t3\n" ++

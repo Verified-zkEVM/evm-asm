@@ -61,6 +61,23 @@ scripts/codegen-eest-stateless-check.sh \
   --steps 1000000000
 ```
 
+Run a focused gas-parity comparison against the local Python execution-specs:
+
+```bash
+scripts/codegen-eest-gas-parity-report.sh \
+  --filter eip7778_block_gas_accounting_without_refunds/gas_accounting/multi_transaction_gas_accounting.json \
+  --limit 1 \
+  --jobs 1 \
+  --max-failures 1
+```
+
+This wrapper runs the selected inputs through the normal ziskemu stateless
+harness, decodes the exact same guest-visible bytes through
+`execution-specs/src/ethereum/forks/amsterdam/stateless_guest.py`, and prints
+fixture/Python/guest success bits plus payload `gas_used`, `gas_limit`,
+remaining block gas, transaction count, and verdict-debug fields when the
+guest emitted them. Add `--tsv` for machine-readable triage output.
+
 Run the complete `random_statetest` regression class for `zkevm@v0.4.0`:
 
 ```bash
@@ -210,6 +227,17 @@ success bit is still `0` instead of the expected `1`, making it a quick
 transaction/opcode frontier distinct from the BAL large-witness non-completion.
 Override `EEST_PRECOMPILE_WARMING_JOBS` or `EEST_PRECOMPILE_WARMING_STEPS`
 for this wrapper without changing the broader harness defaults.
+
+Run the focused warm/cold BAL visibility frontier:
+
+```bash
+scripts/codegen-eest-warm-cold-bal-visibility-check.sh
+```
+
+This runs small `precompile_warming` and `stEIP150singleCodeGasPrices/eip2929`
+selections through the stateless guest and fails on harness ERROR/BUDGET rows.
+Use `EEST_WARM_COLD_BAL_MIN_FULL` or `--min-full` to turn the same frontier
+into a hard full-match gate once the remaining EIP-2929 gas semantics are ready.
 
 To see the broader precompile fixture frontier, including families not selected
 by the narrow warming probe, run:
@@ -443,6 +471,19 @@ when only the canonical 105-byte stateless output comparison is wanted.
 `bal_count` classify the block-state-root replay path, while the `baacd`,
 `bacv`, `baap`, and `sri` fields expose the lower-level account, storage, and
 state-read helpers.
+
+Run the focused EIP-7934 all-typed block-RLP-limit step-budget guard:
+
+```bash
+scripts/codegen-eest-eip7934-all-typed-rlp-limit-check.sh
+```
+
+The wrapper selects
+`eip7934_block_rlp_limit/max_block_rlp_size/block_rlp_size_at_limit_with_all_typed_transactions.json`
+with a future-proof filter, uses a 1,000,000,000-step default
+(`EEST_EIP7934_ALL_TYPED_STEPS` / `EEST_STEPS` override it), and fails if the
+row reports `BUDGET(steps)` instead of reaching a semantic PASS/FAIL/ERROR
+outcome.
 
 For receipt/log-specific misses, generate a triage map that links likely
 blockers to focused beads:

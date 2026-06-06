@@ -11,27 +11,19 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Evm64.Add.Program
-import EvmAsm.Evm64.AddMod.Program
 import EvmAsm.Evm64.And.Program
 import EvmAsm.Evm64.Byte.Program
-import EvmAsm.Evm64.Calldata.LoadProgram
-import EvmAsm.Evm64.Calldata.CopyProgram
-import EvmAsm.Evm64.Calldata.SizeProgram
-import EvmAsm.Evm64.ControlFlow.Program
 import EvmAsm.Evm64.DivMod.Callable
 import EvmAsm.Evm64.DivMod.Program
 import EvmAsm.Evm64.Dup.Program
 import EvmAsm.Evm64.Eq.Program
-import EvmAsm.Evm64.Exp.Program
 import EvmAsm.Evm64.Gt.Program
 import EvmAsm.Evm64.IsZero.Program
 import EvmAsm.Evm64.Lt.Program
 import EvmAsm.Evm64.MLoad.Program
 import EvmAsm.Evm64.MStore.Program
 import EvmAsm.Evm64.MStore8.Program
-import EvmAsm.Evm64.Multiply.Callable
 import EvmAsm.Evm64.Multiply.Program
-import EvmAsm.Evm64.MulMod.Program
 import EvmAsm.Evm64.Not.Program
 import EvmAsm.Evm64.Or.Program
 import EvmAsm.Evm64.Pop.Program
@@ -65,6 +57,7 @@ import EvmAsm.Codegen.Programs.Noop
 import EvmAsm.Codegen.Programs.EvmAccountWitness
 import EvmAsm.Codegen.Programs.EvmExtcodecopy
 import EvmAsm.Codegen.Programs.Storage
+import EvmAsm.Codegen.Programs.EvmRegistry
 
 namespace EvmAsm.Codegen
 

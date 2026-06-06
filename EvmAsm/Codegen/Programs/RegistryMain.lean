@@ -1,5 +1,5 @@
-/- EvmAsm.Codegen.Programs.Registry
-  Program lookup registry for the codegen tool.
+/- EvmAsm.Codegen.Programs.RegistryMain
+  Front half of the codegen program registry, split from `Programs.lean`.
 -/
 import EvmAsm.Rv64.Program
 import EvmAsm.Evm64.Add.Program
@@ -10,6 +10,9 @@ import EvmAsm.Evm64.DivMod.Callable
 import EvmAsm.Evm64.DivMod.Program
 import EvmAsm.Evm64.Dup.Program
 import EvmAsm.Evm64.Eq.Program
+-- EXP wrapper is parametric over caller-saved registers (x6, x16) that mul_callable clobbers; deferred until upstream lands a
+-- fully callee-saved variant. import re-added when wiring lands.
+-- import EvmAsm.Evm64.Exp.Program
 import EvmAsm.Evm64.Gt.Program
 import EvmAsm.Evm64.IsZero.Program
 import EvmAsm.Evm64.Lt.Program
@@ -33,9 +36,11 @@ import EvmAsm.Evm64.Swap.Program
 import EvmAsm.Evm64.Xor.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Dispatch
+import EvmAsm.Codegen.Programs.FileSizeGuard
+import EvmAsm.Stateless.Entry
+import EvmAsm.Stateless.SSZ.HashTreeRoot.Program
 import EvmAsm.Codegen.Programs.Evm
 import EvmAsm.Codegen.Programs.EvmAccessGas
-import EvmAsm.Codegen.Programs.EvmMessageCallGas
 import EvmAsm.Codegen.Programs.EvmAccountWitness
 import EvmAsm.Codegen.Programs.EIP7708Logs
 import EvmAsm.Codegen.Programs.EvmBalance
@@ -44,15 +49,12 @@ import EvmAsm.Codegen.Programs.EvmArithUnits
 import EvmAsm.Codegen.Programs.EvmDispatchUnits
 import EvmAsm.Codegen.Programs.Clz
 import EvmAsm.Codegen.Programs.ExpProperty
-import EvmAsm.Codegen.Programs.HashBridge
-import EvmAsm.Codegen.Programs.HashProbes
-import EvmAsm.Codegen.Programs.Modexp
-import EvmAsm.Codegen.Programs.PrecompileBackendProbes
-import EvmAsm.Codegen.Programs.PrecompileRuntime
+import EvmAsm.Codegen.Programs.CryptoRegistry
 import EvmAsm.Codegen.Programs.Selfdestruct
 import EvmAsm.Codegen.Programs.SelfdestructDescriptors
 import EvmAsm.Codegen.Programs.StatelessGuestData
 import EvmAsm.Codegen.Programs.StatelessGuestEpilogue
+import EvmAsm.Codegen.Programs.StatelessGuest
 import EvmAsm.Codegen.Programs.IntrinsicGas
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Mpt
@@ -84,11 +86,8 @@ import EvmAsm.Codegen.Programs.BalAccountChangeValue
 import EvmAsm.Codegen.Programs.BalAccountChangeDescriptor
 import EvmAsm.Codegen.Programs.BalAccountNthDescriptor
 import EvmAsm.Codegen.Programs.BalAccountDescriptorArray
-import EvmAsm.Codegen.Programs.BalAccountAccessDescriptors
 import EvmAsm.Codegen.Programs.BalAccountStateRoot
 import EvmAsm.Codegen.Programs.BalAccountRecordArray
-import EvmAsm.Codegen.Programs.BalAccountAccessDescriptors
-import EvmAsm.Codegen.Programs.BalStorageAccessDescriptors
 import EvmAsm.Codegen.Programs.StorageWrite
 import EvmAsm.Codegen.Programs.StorageEffectRecords
 import EvmAsm.Codegen.Programs.SstoreGasRefund
@@ -109,7 +108,6 @@ import EvmAsm.Codegen.Programs.TxDecode
 import EvmAsm.Codegen.Programs.TxExtract
 import EvmAsm.Codegen.Programs.TxGasBalPostVerify
 import EvmAsm.Codegen.Programs.TxGasSenderBalLookup
-import EvmAsm.Codegen.Programs.TxRefund
 import EvmAsm.Codegen.Programs.Bloom
 import EvmAsm.Codegen.Programs.Block
 import EvmAsm.Codegen.Programs.BlockBody
@@ -148,7 +146,6 @@ import EvmAsm.Codegen.Programs.ChainWalkOneStepBack
 import EvmAsm.Codegen.Programs.ChainWalkNStepsBack
 import EvmAsm.Codegen.Programs.StateRootChainWalkBack
 import EvmAsm.Codegen.Programs.BlockNumberAtBlockHash
-import EvmAsm.Codegen.Programs.BlockHashWindow
 import EvmAsm.Codegen.Programs.StateSlotAtBlockNumber
 import EvmAsm.Codegen.Programs.StateAccountAtBlockNumber
 import EvmAsm.Codegen.Programs.BalanceAtBlockNumber
@@ -279,20 +276,62 @@ import EvmAsm.Codegen.Programs.PostMergeInvariantsAtBlockHash
 import EvmAsm.Codegen.Programs.BlockRootsAtBlockHash
 import EvmAsm.Codegen.Programs.NumberTimestampPairAtBlockHash
 import EvmAsm.Codegen.Programs.GasPairAtBlockHash
-import EvmAsm.Codegen.Programs.StatelessGuest
-import EvmAsm.Codegen.Programs.RegistryTail
-import EvmAsm.Codegen.Programs.RegistryMain
-import EvmAsm.Codegen.Programs.Imports
-import EvmAsm.Codegen.Programs.RegistryNamesTail
-import EvmAsm.Codegen.Programs.CryptoRegistry
-
 namespace EvmAsm.Codegen
 
-/-! ## registry -/
+open EvmAsm.Rv64
 
-/-- Look up a program by name. Returns `none` for unknown names so the CLI
-    can produce a clean error. -/
-def lookupProgram : String → Option BuildUnit
+/-! Misc programs moved to submodules:
+    - K21..K26 MPT helpers -> Programs/Mpt.lean
+    - K34/K35/K36/K37 + K121/K120/K123 rlp/account extractors + legacy decoders -> Programs/Tx.lean
+    - K64 blob_gas_used_from_versioned_hashes -> Programs/Tx.lean
+    - K138/K139 signature extractors -> Programs/TxSignature.lean -/
+
+/-! More misc programs moved to submodules — see commit history and
+    the per-PR header comments inside the destination files for details. -/
+
+/-! ## MPT branch helpers K117 / K118 — moved to `Programs/Mpt.lean` (file-size hard cap). -/
+
+/-! ## stateless_guest body — PR-K5 keccak hash field
+
+    Replaces the zero-stub `new_payload_request_root` field in
+    `Stateless.Entry.run_stateless_guest`'s SSZ output with the
+    keccak256 of the entire SSZ-input byte string the host
+    streamed in via `ziskemu -i`. Concretely:
+
+    - Body: the unchanged `Stateless.Entry.run_stateless_guest`
+      Program. It writes:
+        bytes  0..32 : zero hash (placeholder)
+        byte      32 : successful_validation (PR4/PR5 derived)
+        bytes 33..41 : chain_id (PR3 from-decode)
+        bytes 41..48 : zero gap
+        bytes 48..56 : header_count diagnostic (PR6 from-decode)
+    - Epilogue (raw asm): set up sp, load (data ptr, len) from
+      INPUT_ADDR + (16, 8), set output = OUTPUT_ADDR + 0, and
+      `jal ra, zkvm_keccak256`. The function overwrites
+      OUTPUT[0..32] with keccak256(input bytes), clobbering the
+      zero stub.
+
+    The host-side `compute_new_payload_request_root` per the spec
+    is SSZ `hash_tree_root` (SHA-256), not Keccak. PR-K5 stamps a
+    *content-dependent* hash there so the test harness has a
+    non-trivial value to verify and the keccak bridge is wired
+    into the encoder pipeline end-to-end. Once PR-S series lands,
+    the SHA-256 hash_tree_root replaces this keccak. -/
+-- `statelessGuestValidatorPipeline` and `statelessGuestEpilogue`
+-- live in `EvmAsm/Codegen/Programs/StatelessGuestEpilogue.lean`
+-- (carved out here to satisfy the file-size hard cap; see
+-- PR #5870 and PR #5900 for the established submodule pattern).
+
+-- `statelessGuestDataSection` lives in
+-- `EvmAsm/Codegen/Programs/StatelessGuestData.lean` (carved
+-- out here to satisfy the file-size hard cap; see PR #5870
+-- and PR #5900 for the established submodule pattern).
+
+/-! ## registry main -/
+
+/-- Front half of the program lookup. The caller supplies the tail lookup so
+    this module can be compiled without importing `Programs.lean`. -/
+def lookupProgramMain (lookupProgramTail : String → Option BuildUnit) : String → Option BuildUnit
   | "smoke"                     => some smokeUnit
   | "evm_add"                   => some evmAddUnit
   | "evm_div_v5"                => some evmDivV5Unit
@@ -312,22 +351,6 @@ def lookupProgram : String → Option BuildUnit
   | "tiny_interp_dispatch_add2" => some tinyInterpDispatchAdd2Unit
   | "runtime_dispatcher"        => some runtimeDispatcherUnit
   | "stateless_guest"           => some statelessGuestUnit
-  | "zisk_keccak_probe"         => some ziskKeccakProbeUnit
-  | "zisk_keccak256_empty"      => some ziskKeccak256EmptyProbeUnit
-  | "zisk_keccak256_abc"        => some ziskKeccak256AbcProbeUnit
-  | "zisk_zkvm_keccak256"       => some ziskZkvmKeccak256ProbeUnit
-  | "zisk_sha256_probe_le"      => some ziskSha256ProbeLeUnit
-  | "zisk_zkvm_sha256"          => some ziskZkvmSha256ProbeUnit
-  | "zisk_secp256k1_ecrecover_backend_probe" => some ziskSecp256k1EcrecoverBackendProbeUnit
-  | "zisk_modexp_backend_probe" => some ziskModexpBackendProbeUnit
-  | "zisk_bls12_g1_add_backend_probe" => some ziskBls12G1AddBackendProbeUnit
-  | "zisk_bls12_g1_msm_backend_probe" => some ziskBls12G1MsmBackendProbeUnit
-  | "zisk_bls12_g2_add_backend_probe" => some ziskBls12G2AddBackendProbeUnit
-  | "zisk_bls12_g2_msm_backend_probe" => some ziskBls12G2MsmBackendProbeUnit
-  | "zisk_bls12_pairing_backend_probe" => some ziskBls12PairingBackendProbeUnit
-  | "zisk_bls12_map_fp_to_g1_backend_probe" => some ziskBls12MapFpToG1BackendProbeUnit
-  | "zisk_bls12_map_fp2_to_g2_backend_probe" => some ziskBls12MapFp2ToG2BackendProbeUnit
-  | "zisk_keccak256_from_input" => some ziskKeccak256FromInputProbeUnit
   | "zisk_headers_keccak_chain" => some ziskHeadersKeccakChainProbeUnit
   | "zisk_headers_keccak_array" => some ziskHeadersKeccakArrayProbeUnit
   | "zisk_headers_parent_hash"  => some ziskHeadersParentHashProbeUnit
@@ -511,7 +534,6 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_extcodehash_at_header_state_root" => some ziskExtcodehashAtHeaderStateRootProbeUnit
   | "runtime_account_witness_extcodehash" => some runtimeAccountWitnessExtcodehashProbeUnit
   | "runtime_account_witness_extcodecopy" => some runtimeAccountWitnessExtcodecopyProbeUnit
-  | "runtime_selfdestruct_account_inputs" => some runtimeSelfdestructAccountInputsProbeUnit
   | "zisk_balance_at_header_state_root" => some ziskBalanceAtHeaderStateRootProbeUnit
   | "zisk_nonce_at_header_state_root" => some ziskNonceAtHeaderStateRootProbeUnit
   | "zisk_storage_root_at_header_state_root" => some ziskStorageRootAtHeaderStateRootProbeUnit
@@ -618,4 +640,3 @@ def lookupProgram : String → Option BuildUnit
       match lookupCryptoProgram s with
       | some unit => some unit
       | none => lookupProgramTail s
-end EvmAsm.Codegen
