@@ -12,6 +12,7 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.TxDecode
+import EvmAsm.Codegen.Programs.TxBlobGas
 
 namespace EvmAsm.Codegen
 
