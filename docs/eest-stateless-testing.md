@@ -212,6 +212,19 @@ high-gas pricing fixture files to be present and to full-match. Use this when
 checking that the largest EEST gas-limit cases are succeeding semantically, not
 only fitting in the static layout.
 
+Run the focused EIP-4844 excess-blob-gas regression:
+
+```bash
+scripts/codegen-eest-eip4844-excess-blob-gas-check.sh
+```
+
+This wrapper covers the observed `correct_excess_blob_gas_calculation.json`
+and `invalid_negative_excess_blob_gas.json` false-reject files. It counts rows
+from each JSON file before running, so future parameter rows inside those files
+are included by default. For a quick local smoke, set
+`EEST_EIP4844_EXCESS_BLOB_GAS_LIMIT=1`; leave it unset when checking the full
+per-file gate.
+
 Run a fast EIP-2929 precompile-warming frontier:
 
 ```bash

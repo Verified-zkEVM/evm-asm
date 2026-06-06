@@ -8,6 +8,11 @@
 namespace EvmAsm.Evm64
 namespace Code
 
+/-- Byte offset of the M33 `codeSize` cell within the dispatcher env block.
+    Both dispatcher prologues seed this with the exact running-bytecode length;
+    CODESIZE, CODECOPY, and JUMP/JUMPI bounds checks read it. -/
+def codeSizeOff : Nat := 496
+
 /-- Read one byte from executable code, returning zero past the end. -/
 def byte (code : List (BitVec 8)) (idx : Nat) : BitVec 8 :=
   if h : idx < code.length then code[idx] else 0

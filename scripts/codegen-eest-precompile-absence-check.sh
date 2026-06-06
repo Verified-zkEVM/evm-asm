@@ -36,6 +36,7 @@ scripts/codegen-eest-stateless-check.sh \
   --limit "$LIMIT" \
   --jobs "$JOBS" \
   --quiet-passes \
+  --min-full "$LIMIT" \
   --steps "$STEPS" \
   --run-dir "$RUN_DIR" \
   "$@"

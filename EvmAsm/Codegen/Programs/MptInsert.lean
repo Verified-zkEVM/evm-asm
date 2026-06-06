@@ -37,6 +37,8 @@ import EvmAsm.Codegen.Programs.MptInsertWalk
 import EvmAsm.Codegen.Programs.MptInternal
 import EvmAsm.Codegen.Programs.MptEncode
 
+import EvmAsm.Codegen.Programs.MptEncodeLeafBranch
+
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64

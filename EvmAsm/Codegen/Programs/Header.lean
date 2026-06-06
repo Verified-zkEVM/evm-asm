@@ -411,7 +411,7 @@ def ziskHeaderExtractBlockRootsProbeUnit : BuildUnit := {
     `forks/amsterdam/fork.py`):
 
       1. gas_used <= gas_limit
-      2. number == parent.number + 1
+      2. number >= 1 and number == parent.number + 1
       3. timestamp > parent.timestamp
 
     Both inputs are 128-byte extended-header structs as produced
@@ -428,7 +428,7 @@ def ziskHeaderExtractBlockRootsProbeUnit : BuildUnit := {
       ra (input)  : return
       a0 (output) : 0 ok
                     1 gas_used > gas_limit
-                    2 number != parent.number + 1
+                    2 number < 1 or number != parent.number + 1
                     3 timestamp <= parent.timestamp
 
     Pure register arithmetic, no scratch memory, leaf-callable. -/
@@ -438,6 +438,7 @@ def validateHeaderBasicFunction : String :=
   "  ld t1, 80(a0)              # this.gas_limit\n" ++
   "  bgtu t0, t1, .Lvhb_fail_gas\n" ++
   "  ld t0, 64(a0)              # this.number\n" ++
+  "  beqz t0, .Lvhb_fail_number\n" ++
   "  ld t1, 64(a1)              # parent.number\n" ++
   "  addi t1, t1, 1\n" ++
   "  bne t0, t1, .Lvhb_fail_number\n" ++

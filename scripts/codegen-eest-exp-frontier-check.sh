@@ -12,7 +12,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 TAG="${EEST_FIXTURE_TAG:-zkevm@v0.4.0}"
-JOBS="${EEST_EXP_FRONTIER_JOBS:-${EEST_JOBS:-auto}}"
+JOBS="${EEST_EXP_FRONTIER_JOBS:-${EEST_JOBS:-3}}"
 STEPS="${EEST_EXP_FRONTIER_STEPS:-${EEST_STEPS:-1000000000}}"
 RUN_DIR="${EEST_EXP_FRONTIER_RUN_DIR:-gen-out/eest-exp-frontier}"
 FX="${EEST_FIXTURES_DIR:-$(pwd)/gen-out/eest-fixtures/$TAG/fixtures/fixtures}"

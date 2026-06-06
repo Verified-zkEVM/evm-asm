@@ -146,9 +146,9 @@ def statelessGuestValidatorPipeline : String :=
   "  # for the same input shape (spec catches the validator exception\n" ++
   "  # and returns valid=False with chain_config echo + empty NPR root).\n" ++
   "  # Falling through to .Lsg_hash matches the spec: the encoder's\n" ++
-  "  # x11=0 writes valid=False to OUTPUT[32], .Lsg_hash stamps the\n" ++
-  "  # empty_npr_root constant at OUTPUT[0..32), and the codegen halt\n" ++
-  "  # stub takes over.\n" ++
+  "  # x11=0 writes valid=False to OUTPUT[32], .Lsg_hash computes\n" ++
+  "  # the NPR root at OUTPUT[0..32), and the codegen halt stub takes\n" ++
+  "  # over.\n" ++
   "  j .Lsg_hash"
 
 def statelessGuestEpilogue : String :=
@@ -161,28 +161,24 @@ def statelessGuestEpilogue : String :=
   "  #   field_root[1] = hash_tree_root(versioned_hashes)\n" ++
   "  #   field_root[2] = parent_beacon_block_root      (Bytes32 inline)\n" ++
   "  #   field_root[3] = hash_tree_root(execution_requests)\n" ++
-  "  # For all current fixtures every NPR field except\n" ++
-  "  # parent_beacon_block_root is the SSZ default, so field_root[0],\n" ++
-  "  # field_root[1], and field_root[3] are static constants\n" ++
-  "  # (`npr_left_subtree` packages sha256(field_root[0] ||\n" ++
-  "  # field_root[1]); `npr_exec_requests_root` is field_root[3]).\n" ++
+  "  # field_root[0], field_root[1], and field_root[3] are derived\n" ++
+  "  # dynamically into `npr_exec_payload_root`,\n" ++
+  "  # `npr_versioned_hashes_dyn`, and `npr_exec_requests_dyn`.\n" ++
   "  # field_root[2] is read from input at NPR_addr + 8 (NPR_addr\n" ++
   "  # = SSZ_BASE + outer.offsets[0]; for this schema outer.offsets[0]\n" ++
   "  # is always 16).\n" ++
   "  # \n" ++
   "  # Computation:\n" ++
+  "  #   left_subtree  = sha256(npr_exec_payload_root ||\n" ++
+  "  #                          npr_versioned_hashes_dyn)\n" ++
   "  #   right_subtree = sha256(parent_beacon_block_root ||\n" ++
-  "  #                          npr_exec_requests_root)\n" ++
-  "  #   npr_root      = sha256(npr_left_subtree || right_subtree)\n" ++
+  "  #                          npr_exec_requests_dyn)\n" ++
+  "  #   npr_root      = sha256(left_subtree || right_subtree)\n" ++
   "  # \n" ++
   "  # For pbr=zero (every previously-shipped fixture) the\n" ++
   "  # computation reproduces the precomputed `empty_npr_root`\n" ++
   "  # constant. For non-empty pbr it produces the spec-matching\n" ++
   "  # root.\n" ++
-  "  # \n" ++
-  "  # Generalising to non-default execution_payload /\n" ++
-  "  # versioned_hashes / execution_requests requires recomputing\n" ++
-  "  # those field roots dynamically -- deferred to subsequent PRs.\n" ++
   "  # \n" ++
   "  # Re-derive SSZ_BASE in s6 (callee-saved -- survives zkvm_sha256\n" ++
   "  # calls). K-PR pipeline only saves s0-s5 in its validators, so\n" ++
@@ -422,16 +418,26 @@ def statelessGuestEpilogue : String :=
   "  la a0, npr_sha_input; li a1, 64; la a2, npr_node_4_5_scratch\n" ++
   "  jal ra, zkvm_sha256         # node_4_5 -> npr_node_4_5_scratch\n" ++
   "  # \n" ++
-  "  # Dynamic node_10_11 = sha256(leaf_10=extra_data_default ||\n" ++
+  "  # Dynamic node_10_11 = sha256(leaf_10=extra_data_root ||\n" ++
   "  #                            leaf_11=base_fee_per_gas):\n" ++
-  "  #   leaf_10 = SSZ default empty ByteList root = ssz_zero_hash[1]\n" ++
-  "  #             (= sha256(0||0) -- empty merkleized ByteList with\n" ++
-  "  #             length mix-in for the empty case).\n" ++
+  "  #   leaf_10 = hash_tree_root(extra_data: ByteList[32]) where\n" ++
+  "  #             extra_data is exec_payload@[extra_off .. tx_off].\n" ++
   "  #   leaf_11 = base_fee_per_gas (uint256, 32 bytes LE @\n" ++
   "  #             SSZ_BASE + 16 + 44 + 440 = +500)\n" ++
+  "  addi a0, s6, 496           # &extra_data_offset (exec_payload+436)\n" ++
+  "  jal ra, sg_load_u32le\n" ++
+  "  mv s7, a0                  # s7 = extra_data_offset\n" ++
+  "  addi a0, s6, 564           # &transactions_offset (exec_payload+504)\n" ++
+  "  jal ra, sg_load_u32le\n" ++
+  "  mv s8, a0                  # s8 = transactions_offset\n" ++
+  "  addi t0, s6, 60            # exec_payload_addr\n" ++
+  "  add a0, t0, s7             # extra_data_start\n" ++
+  "  sub a1, s8, s7             # extra_data_len\n" ++
+  "  li a2, 0                   # ByteList[32] => 2^0 chunks\n" ++
+  "  la a3, npr_leaf_10_extra_data_scratch\n" ++
+  "  jal ra, ssz_hash_tree_root_bytes\n" ++
   "  la t1, npr_sha_input\n" ++
-  "  la t3, ssz_zero_hashes\n" ++
-  "  addi t3, t3, 32             # ssz_zero_hash[1]\n" ++
+  "  la t3, npr_leaf_10_extra_data_scratch\n" ++
   "  ld t2,  0(t3); sd t2,  0(t1)\n" ++
   "  ld t2,  8(t3); sd t2,  8(t1)\n" ++
   "  ld t2, 16(t3); sd t2, 16(t1)\n" ++
