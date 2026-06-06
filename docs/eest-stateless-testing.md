@@ -472,6 +472,19 @@ when only the canonical 105-byte stateless output comparison is wanted.
 `bacv`, `baap`, and `sri` fields expose the lower-level account, storage, and
 state-read helpers.
 
+Run the focused EIP-7934 all-typed block-RLP-limit step-budget guard:
+
+```bash
+scripts/codegen-eest-eip7934-all-typed-rlp-limit-check.sh
+```
+
+The wrapper selects
+`eip7934_block_rlp_limit/max_block_rlp_size/block_rlp_size_at_limit_with_all_typed_transactions.json`
+with a future-proof filter, uses a 1,000,000,000-step default
+(`EEST_EIP7934_ALL_TYPED_STEPS` / `EEST_STEPS` override it), and fails if the
+row reports `BUDGET(steps)` instead of reaching a semantic PASS/FAIL/ERROR
+outcome.
+
 For receipt/log-specific misses, generate a triage map that links likely
 blockers to focused beads:
 
