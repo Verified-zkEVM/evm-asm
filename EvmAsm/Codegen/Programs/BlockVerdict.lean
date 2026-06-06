@@ -38,6 +38,7 @@ import EvmAsm.Codegen.Programs.BlockVerdictReceiptRecords
 import EvmAsm.Codegen.Programs.BlockVerdictGasResults
 import EvmAsm.Codegen.Programs.BlockVerdictTransactions
 import EvmAsm.Codegen.Programs.MptEncodeLeafBranch
+import EvmAsm.Codegen.Programs.TxBlobGas
 
 import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransfer
 import EvmAsm.Codegen.Programs.TxGasBalPostVerify
@@ -544,6 +545,20 @@ def blockVerdictFunction : String :=
   "  la t5, svf_headers_count; ld t3, 0(t5)\n" ++
   "  bgtu t4, t3, .Lbv_blockhash_headers_fail\n" ++
   ".Lbv_after_tx_gate:\n" ++
+  "  # execution-specs is_valid_versioned_hashes: SSZ NPR.versioned_hashes must\n" ++
+  "  # equal the concatenation of all EIP-4844 tx blob_versioned_hashes.\n" ++
+  "  mv a0, s3; jal ra, bgv_u32le\n" ++
+  "  add t0, s3, a0              # NPR = SSZ_BASE + outer.offsets[0]\n" ++
+  "  la t2, bv_npr_p; sd t0, 0(t2)\n" ++
+  "  addi a0, t0, 4; jal ra, bgv_u32le         # versioned_hashes offset\n" ++
+  "  mv t3, a0\n" ++
+  "  la t2, bv_npr_p; ld t0, 0(t2); addi a0, t0, 40; jal ra, bgv_u32le # execution_requests offset\n" ++
+  "  bltu a0, t3, .Lbv_versioned_hashes_fail\n" ++
+  "  sub a2, a0, t3              # SSZ versioned_hashes byte length\n" ++
+  "  la t2, bv_npr_p; ld t0, 0(t2); add a1, t0, t3\n" ++
+  "  la t2, bv_exec_p; ld a0, 0(t2)\n" ++
+  "  jal ra, ssz_tx_list_versioned_hashes_match\n" ++
+  "  bnez a0, .Lbv_versioned_hashes_fail\n" ++
   "  mv a0, s3\n" ++
   "  la t2, bv_exec_p; ld a1, 0(t2)\n" ++
   "  jal ra, public_keys_valid\n" ++
@@ -719,6 +734,8 @@ def blockVerdictFunction : String :=
   "  li t0, 19; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_receipt_records_fail:\n" ++
   "  li t0, 25; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_versioned_hashes_fail:\n" ++
+  "  li t0, 27; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_zero:\n" ++
   "  li a0, 0\n" ++
   ".Lbv_ret:\n" ++
@@ -899,6 +916,8 @@ def ziskStatelessVerdictV2Prologue : String :=
   rlpListNthItemFunction ++ "\n" ++
   rlpFieldToU64Function ++ "\n" ++
   txTypeDispatchFunction ++ "\n" ++
+  txEip4844DecodeFunction ++ "\n" ++
+  sszTxListVersionedHashesMatchFunction ++ "\n" ++
   txExtractToAddressFunction ++ "\n" ++
   txExtractValueFunction ++ "\n" ++
   txExtractDataSectionFunction ++ "\n" ++
@@ -1213,6 +1232,14 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bvgr_before_refund:\n  .zero 128\n" ++
   "bvgr_applied_refund:\n  .zero 128\n" ++
   blockVerdictTxGasPrechargeDataSection ++
+  ".balign 8\n" ++
+  "tvhm_tx_type:\n  .zero 8\n" ++
+  "tvhm_inner_off:\n  .zero 8\n" ++
+  "tvhm_blob_count:\n  .zero 8\n" ++
+  "tvhm_blob_index:\n  .zero 8\n" ++
+  "tvhm_hash_off:\n  .zero 8\n" ++
+  "tvhm_hash_len:\n  .zero 8\n" ++
+  "tvhm_struct:\n  .zero 248\n" ++
   eip7702NonceReuseGuardDataSection ++
   "brl_item_start:\n  .zero 8\n" ++
   "brl_item_end:\n  .zero 8\n" ++

@@ -1,20 +1,159 @@
 /-
   EvmAsm.Codegen.Programs.StatelessGuestEpilogue
 
-  `.Lsg_hash` merkle epilogue for the `stateless_guest` ELF. Carved out
-  of `Programs.lean` for the file-size hard cap; consumed by the registry
-  hub via `statelessGuestEpilogue`.
+  Validator-pipeline + .Lsg_hash merkle epilogue for the
+  `stateless_guest` ELF. Carved out of `Programs.lean` for the
+  file-size hard cap; consumed by the registry hub via
+  `statelessGuestEpilogue` (and its inner
+  `statelessGuestValidatorPipeline`).
 -/
+import EvmAsm.Codegen.Programs.ChainValidate
+import EvmAsm.Codegen.Programs.ChainValidateBlob
+import EvmAsm.Codegen.Programs.ChainValidatePostMerge
 import EvmAsm.Codegen.Programs.HashBridge
+import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Ssz
+import EvmAsm.Codegen.Programs.Tx
 import EvmAsm.Codegen.Programs.BlockVerdict
 import EvmAsm.Codegen.Programs.BlockVerdictV2
 
 namespace EvmAsm.Codegen
 
-def statelessGuestEpilogue : String :=
-  ".Lsg_hash:\n" ++
+/-! ## stateless_guest header-validator pipeline (integration PR)
+
+    Inserted between the body's `serialize_stateless_output` and the
+    existing SSZ `hash_tree_root` epilogue. Reads N=x16 (header count),
+    section_ptr=x17 (witness.headers section), section_len=x14, then
+    iterates a curated set of K-PR header validators on the chain.
+
+    On any K-PR violation: writes 0xFEFEFE..FE marker + 8-byte reason
+    code at OUTPUT_ADDR and HALTs (matches Stateless.unimplemented_exit
+    layout).  On all-pass: overrides OUTPUT[32] := 1 (the
+    `successful_validation` byte) and falls through to the hash code.
+
+    s2 = N (callee-saved)
+    s3 = section_ptr (callee-saved)
+    s4 = section_len (callee-saved)
+    s5 = headers_data_ptr = section_ptr + 4*N (callee-saved)
+
+    Reason codes (see `EvmAsm/Stateless/Unimplemented.lean`):
+      0x10 POST_MERGE_VIOLATION (K290)
+      0x11 EXTRA_DATA_TOO_LONG  (K291)
+      0x12 GAS_USED_OVER_LIMIT  (K240)
+      0x13 BLOB_GAS_MISALIGNED  (K278)
+      0x14 BLOB_GAS_OVER_MAX    (K277)
+      0x15 TIMESTAMP_NOT_INCREASING (K229)
+      0x16 NUMBERS_NOT_CONSECUTIVE  (K230)
+      0x17 RLP_PARSE_FAIL_IN_HEADER (any K-PR returns nonzero status) -/
+def statelessGuestValidatorPipeline : String :=
+  "  # PR-integration: header-validator pipeline\n" ++
   "  li sp, 0xa0050000\n" ++
+  "  mv s2, x16                  # s2 = N\n" ++
+  "  mv s3, x21                  # s3 = section_ptr (now from decoder's x21,\n" ++
+  "                              # which holds headers_addr; x17 is kept as\n" ++
+  "                              # SSZ_BASE for the encoder's bounded byte-copy)\n" ++
+  "  mv s4, x14                  # s4 = section_len\n" ++
+  "  beqz s2, .Lsg_all_pass      # N=0: skip validators\n" ++
+  "  # Build sg_header_lengths[N]: convert N u32 inner-offset deltas\n" ++
+  "  # to N u64 absolute lengths.\n" ++
+  "  mv t0, s3                   # t0 = offsets cursor (section_ptr)\n" ++
+  "  la t1, sg_header_lengths    # t1 = lengths-out cursor\n" ++
+  "  mv t2, s2                   # t2 = i (counts down from N)\n" ++
+  ".Lsg_bl:\n" ++
+  "  beqz t2, .Lsg_bl_done\n" ++
+  "  lwu t3, 0(t0)               # t3 = inner_offset[i]\n" ++
+  "  addi t4, t2, -1\n" ++
+  "  beqz t4, .Lsg_bl_last       # if last header, end = section_len\n" ++
+  "  lwu t5, 4(t0)               # t5 = inner_offset[i+1]\n" ++
+  "  j .Lsg_bl_diff\n" ++
+  ".Lsg_bl_last:\n" ++
+  "  mv t5, s4                   # t5 = section_len\n" ++
+  ".Lsg_bl_diff:\n" ++
+  "  sub t5, t5, t3              # length_i = end - start\n" ++
+  "  sd t5, 0(t1)\n" ++
+  "  addi t0, t0, 4\n" ++
+  "  addi t1, t1, 8\n" ++
+  "  addi t2, t2, -1\n" ++
+  "  j .Lsg_bl\n" ++
+  ".Lsg_bl_done:\n" ++
+  "  # s5 = headers_data_ptr = section_ptr + 4*N\n" ++
+  "  slli t0, s2, 2\n" ++
+  "  add s5, s3, t0\n" ++
+  "  # Validator 1: K290 chain_validate_post_merge_full\n" ++
+  "  mv a0, s2; la a1, sg_header_lengths; mv a2, s5\n" ++
+  "  la a3, sg_kpr_valid; la a4, sg_kpr_bad_index\n" ++
+  "  jal ra, chain_validate_post_merge_full\n" ++
+  "  bnez a0, .Lsg_fail_rlp\n" ++
+  "  la t0, sg_kpr_valid; ld t1, 0(t0); beqz t1, .Lsg_fail_pm\n" ++
+  "  # Validator 2: K291 chain_validate_extra_data_length\n" ++
+  "  mv a0, s2; la a1, sg_header_lengths; mv a2, s5\n" ++
+  "  la a3, sg_kpr_valid; la a4, sg_kpr_bad_index\n" ++
+  "  jal ra, chain_validate_extra_data_length\n" ++
+  "  bnez a0, .Lsg_fail_rlp\n" ++
+  "  la t0, sg_kpr_valid; ld t1, 0(t0); beqz t1, .Lsg_fail_ed\n" ++
+  "  # Validator 3: K240 chain_validate_gas_used_under_limit\n" ++
+  "  mv a0, s2; la a1, sg_header_lengths; mv a2, s5\n" ++
+  "  la a3, sg_kpr_valid; la a4, sg_kpr_bad_index\n" ++
+  "  jal ra, chain_validate_gas_used_under_limit\n" ++
+  "  bnez a0, .Lsg_fail_rlp\n" ++
+  "  la t0, sg_kpr_valid; ld t1, 0(t0); beqz t1, .Lsg_fail_gas\n" ++
+  "  # Validator 4: K278 chain_validate_blob_gas_used_multiple\n" ++
+  "  mv a0, s2; la a1, sg_header_lengths; mv a2, s5\n" ++
+  "  la a3, sg_kpr_valid; la a4, sg_kpr_bad_index\n" ++
+  "  jal ra, chain_validate_blob_gas_used_multiple\n" ++
+  "  bnez a0, .Lsg_fail_rlp\n" ++
+  "  la t0, sg_kpr_valid; ld t1, 0(t0); beqz t1, .Lsg_fail_bgm\n" ++
+  "  # Validator 5: K277 chain_validate_blob_gas_used_under_max\n" ++
+  "  mv a0, s2; la a1, sg_header_lengths; mv a2, s5\n" ++
+  "  la a3, sg_kpr_valid; la a4, sg_kpr_bad_index\n" ++
+  "  jal ra, chain_validate_blob_gas_used_under_max\n" ++
+  "  bnez a0, .Lsg_fail_rlp\n" ++
+  "  la t0, sg_kpr_valid; ld t1, 0(t0); beqz t1, .Lsg_fail_bgum\n" ++
+  "  # Validator 6: K229 chain_validate_increasing_timestamps\n" ++
+  "  mv a0, s2; la a1, sg_header_lengths; mv a2, s5\n" ++
+  "  la a3, sg_kpr_valid; la a4, sg_kpr_bad_index\n" ++
+  "  jal ra, chain_validate_increasing_timestamps\n" ++
+  "  bnez a0, .Lsg_fail_rlp\n" ++
+  "  la t0, sg_kpr_valid; ld t1, 0(t0); beqz t1, .Lsg_fail_ts\n" ++
+  "  # Validator 7: K230 chain_validate_consecutive_numbers\n" ++
+  "  mv a0, s2; la a1, sg_header_lengths; mv a2, s5\n" ++
+  "  la a3, sg_kpr_valid; la a4, sg_kpr_bad_index\n" ++
+  "  jal ra, chain_validate_consecutive_numbers\n" ++
+  "  bnez a0, .Lsg_fail_rlp\n" ++
+  "  la t0, sg_kpr_valid; ld t1, 0(t0); beqz t1, .Lsg_fail_nm\n" ++
+  ".Lsg_all_pass:\n" ++
+  "  # All validators that ran passed (or N=0 fast-path). NB: with\n" ++
+  "  # the new-schema decoder stubs in `EvmAsm/Stateless/SSZ/Decode/\n" ++
+  "  # Program.lean`, N is always 0 right now, so no real validation\n" ++
+  "  # has occurred. We deliberately do NOT override OUTPUT[32]:\n" ++
+  "  # the encoder already wrote `x11` (= 0 from the decoder stub),\n" ++
+  "  # matching the spec's `verify_stateless_new_payload(empty) ==\n" ++
+  "  # False` outcome. Once the real witness walk + validators run,\n" ++
+  "  # the body's encoder will see x11 = 1 from a real success.\n" ++
+  "  j .Lsg_hash\n" ++
+  ".Lsg_fail_pm:   li a0, 0x10; j .Lsg_unimpl\n" ++
+  ".Lsg_fail_ed:   li a0, 0x11; j .Lsg_unimpl\n" ++
+  ".Lsg_fail_gas:  li a0, 0x12; j .Lsg_unimpl\n" ++
+  ".Lsg_fail_bgm:  li a0, 0x13; j .Lsg_unimpl\n" ++
+  ".Lsg_fail_bgum: li a0, 0x14; j .Lsg_unimpl\n" ++
+  ".Lsg_fail_ts:   li a0, 0x15; j .Lsg_unimpl\n" ++
+  ".Lsg_fail_nm:   li a0, 0x16; j .Lsg_unimpl\n" ++
+  ".Lsg_fail_rlp:  li a0, 0x17\n" ++
+  ".Lsg_unimpl:\n" ++
+  "  # Previously this block wrote the 0xFEFEFEFEFEFEFEFE unimplemented-\n" ++
+  "  # exit marker at OUTPUT[0..8) plus the REASON code at OUTPUT[8..16),\n" ++
+  "  # then halted with ECALL. That diverged from the spec's behaviour\n" ++
+  "  # for the same input shape (spec catches the validator exception\n" ++
+  "  # and returns valid=False with chain_config echo + empty NPR root).\n" ++
+  "  # Falling through to .Lsg_hash matches the spec: the encoder's\n" ++
+  "  # x11=0 writes valid=False to OUTPUT[32], .Lsg_hash computes\n" ++
+  "  # the NPR root at OUTPUT[0..32), and the codegen halt stub takes\n" ++
+  "  # over.\n" ++
+  "  j .Lsg_hash"
+
+def statelessGuestEpilogue : String :=
+  statelessGuestValidatorPipeline ++ "\n" ++
+  ".Lsg_hash:\n" ++
   "  # Compute `compute_new_payload_request_root(stateless_input)`\n" ++
   "  # at OUTPUT[0..32) -- the SSZ merkle root over the four NPR\n" ++
   "  # field roots:\n" ++
@@ -22,31 +161,28 @@ def statelessGuestEpilogue : String :=
   "  #   field_root[1] = hash_tree_root(versioned_hashes)\n" ++
   "  #   field_root[2] = parent_beacon_block_root      (Bytes32 inline)\n" ++
   "  #   field_root[3] = hash_tree_root(execution_requests)\n" ++
-  "  # For all current fixtures every NPR field except\n" ++
-  "  # parent_beacon_block_root is the SSZ default, so field_root[0],\n" ++
-  "  # field_root[1], and field_root[3] are static constants\n" ++
-  "  # (`npr_left_subtree` packages sha256(field_root[0] ||\n" ++
-  "  # field_root[1]); `npr_exec_requests_root` is field_root[3]).\n" ++
+  "  # field_root[0], field_root[1], and field_root[3] are derived\n" ++
+  "  # dynamically into `npr_exec_payload_root`,\n" ++
+  "  # `npr_versioned_hashes_dyn`, and `npr_exec_requests_dyn`.\n" ++
   "  # field_root[2] is read from input at NPR_addr + 8 (NPR_addr\n" ++
   "  # = SSZ_BASE + outer.offsets[0]; for this schema outer.offsets[0]\n" ++
   "  # is always 16).\n" ++
   "  # \n" ++
   "  # Computation:\n" ++
+  "  #   left_subtree  = sha256(npr_exec_payload_root ||\n" ++
+  "  #                          npr_versioned_hashes_dyn)\n" ++
   "  #   right_subtree = sha256(parent_beacon_block_root ||\n" ++
-  "  #                          npr_exec_requests_root)\n" ++
-  "  #   npr_root      = sha256(npr_left_subtree || right_subtree)\n" ++
+  "  #                          npr_exec_requests_dyn)\n" ++
+  "  #   npr_root      = sha256(left_subtree || right_subtree)\n" ++
   "  # \n" ++
   "  # For pbr=zero (every previously-shipped fixture) the\n" ++
   "  # computation reproduces the precomputed `empty_npr_root`\n" ++
   "  # constant. For non-empty pbr it produces the spec-matching\n" ++
   "  # root.\n" ++
   "  # \n" ++
-  "  # Generalising to non-default execution_payload /\n" ++
-  "  # versioned_hashes / execution_requests requires recomputing\n" ++
-  "  # those field roots dynamically -- deferred to subsequent PRs.\n" ++
-  "  # \n" ++
   "  # Re-derive SSZ_BASE in s6 (callee-saved -- survives zkvm_sha256\n" ++
-  "  # calls and the embedded stateless_verdict_v2 closure).\n" ++
+  "  # calls). K-PR pipeline only saves s0-s5 in its validators, so\n" ++
+  "  # s6 is free.\n" ++
   "  li s6, 0x40000000\n" ++
   "  addi s6, s6, 18             # s6 = SSZ_BASE\n" ++
   "  # Preserve zisk's current trap vector: the embedded verdict uses a\n" ++
@@ -845,6 +981,13 @@ def statelessGuestEpilogue : String :=
   "  ld s3,32(sp); ld s4,40(sp); ld s5,48(sp); addi sp,sp,64; ret\n" ++
   rlpListNthItemFunction ++ "\n" ++
   rlpFieldToU64Function ++ "\n" ++
+  chainValidatePostMergeFullFunction ++ "\n" ++
+  chainValidateExtraDataLengthFunction ++ "\n" ++
+  chainValidateGasUsedUnderLimitFunction ++ "\n" ++
+  chainValidateBlobGasUsedMultipleFunction ++ "\n" ++
+  chainValidateBlobGasUsedUnderMaxFunction ++ "\n" ++
+  chainValidateIncreasingTimestampsFunction ++ "\n" ++
+  chainValidateConsecutiveNumbersFunction ++ "\n" ++
   -- Step-2 verdict closure (omits rlp_list_nth_item / rlp_field_to_u64 — already
   -- defined above in this epilogue — to avoid duplicate labels):
   statelessVerdictV2GuestClosure ++ "\n" ++

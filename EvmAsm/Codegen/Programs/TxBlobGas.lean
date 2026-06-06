@@ -6,6 +6,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Programs.BalGasValid
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.TxDecode
 import EvmAsm.Codegen.Programs.TxExtract
@@ -298,6 +299,229 @@ def ziskTxEip4844ValidateBlobHashesProbeUnit : BuildUnit := {
   body        := NOP
   prologueAsm := ziskTxEip4844ValidateBlobHashesPrologue
   dataAsm     := ziskTxEip4844ValidateBlobHashesDataSection
+}
+
+/-! ## ssz_tx_list_versioned_hashes_match -- PR-K140
+
+    Mirrors execution-specs `is_valid_versioned_hashes`: concatenate every
+    EIP-4844 transaction's `blob_versioned_hashes`, in transaction order, and
+    compare the resulting byte stream with
+    `new_payload_request.versioned_hashes`.
+
+    Calling convention:
+      a0 (input)  : execution_payload SSZ ptr
+      a1 (input)  : SSZ versioned_hashes ptr (packed Bytes32 elements)
+      a2 (input)  : SSZ versioned_hashes byte length
+      ra (input)  : return
+      a0 (output) :
+        0 : match
+        1 : malformed SSZ tx list or versioned_hashes list
+        2 : tx dispatch/decode failed
+        3 : malformed blob hash item
+        4 : mismatch / missing / extra hash
+
+    The helper intentionally has no fixed tx-count cap: future EEST fixtures can
+    add transactions without changing the walker. -/
+def sszTxListVersionedHashesMatchFunction : String :=
+  "ssz_tx_list_versioned_hashes_match:\n" ++
+  "  addi sp, sp, -112\n" ++
+  "  sd ra, 0(sp)\n" ++
+  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
+  "  sd s8, 72(sp); sd s9, 80(sp); sd s10, 88(sp); sd s11, 96(sp)\n" ++
+  "  mv s0, a0                   # execution_payload ptr\n" ++
+  "  mv s1, a1                   # versioned_hashes ptr\n" ++
+  "  mv s2, a2                   # versioned_hashes byte length\n" ++
+  "  andi t0, s2, 31\n" ++
+  "  bnez t0, .Ltvhm_bad_ssz\n" ++
+  "  srli s3, s2, 5              # expected hash count\n" ++
+  "  li s4, 0                    # consumed hash count\n" ++
+  "  addi a0, s0, 504; jal ra, bgv_u32le       # transactions_offset\n" ++
+  "  mv s5, a0\n" ++
+  "  addi a0, s0, 508; jal ra, bgv_u32le       # withdrawals_offset\n" ++
+  "  add t0, s0, a0\n" ++
+  "  add s6, s0, s5              # tx list ptr\n" ++
+  "  bltu t0, s6, .Ltvhm_bad_ssz\n" ++
+  "  sub s7, t0, s6              # tx list len\n" ++
+  "  beqz s7, .Ltvhm_after_txs\n" ++
+  "  li t0, 4\n" ++
+  "  bltu s7, t0, .Ltvhm_bad_ssz\n" ++
+  "  mv a0, s6; jal ra, bgv_u32le\n" ++
+  "  andi t0, a0, 3\n" ++
+  "  bnez t0, .Ltvhm_bad_ssz\n" ++
+  "  beqz a0, .Ltvhm_bad_ssz\n" ++
+  "  bgtu a0, s7, .Ltvhm_bad_ssz\n" ++
+  "  srli s8, a0, 2              # tx_count = first offset / 4\n" ++
+  "  li s9, 0                    # tx index\n" ++
+  ".Ltvhm_tx_loop:\n" ++
+  "  beq s9, s8, .Ltvhm_after_txs\n" ++
+  "  slli t0, s9, 2; add t1, s6, t0; mv a0, t1; jal ra, bgv_u32le\n" ++
+  "  mv s10, a0                  # item_off\n" ++
+  "  slli t0, s8, 2\n" ++
+  "  bltu s10, t0, .Ltvhm_bad_ssz\n" ++
+  "  addi t0, s9, 1\n" ++
+  "  beq t0, s8, .Ltvhm_last_tx\n" ++
+  "  slli t1, t0, 2; add t1, s6, t1; mv a0, t1; jal ra, bgv_u32le\n" ++
+  "  j .Ltvhm_have_tx_end\n" ++
+  ".Ltvhm_last_tx:\n" ++
+  "  mv a0, s7\n" ++
+  ".Ltvhm_have_tx_end:\n" ++
+  "  bltu a0, s10, .Ltvhm_bad_ssz\n" ++
+  "  bgtu a0, s7, .Ltvhm_bad_ssz\n" ++
+  "  sub s11, a0, s10            # tx len\n" ++
+  "  add t0, s6, s10             # tx ptr\n" ++
+  "  mv a0, t0; mv a1, s11; la a2, tvhm_tx_type; la a3, tvhm_inner_off\n" ++
+  "  jal ra, tx_type_dispatch\n" ++
+  "  bnez a0, .Ltvhm_tx_fail\n" ++
+  "  la t0, tvhm_tx_type; ld t1, 0(t0)\n" ++
+  "  li t2, 3\n" ++
+  "  bne t1, t2, .Ltvhm_next_tx\n" ++
+  "  la t0, tvhm_inner_off; ld t1, 0(t0)\n" ++
+  "  bgtu t1, s11, .Ltvhm_tx_fail\n" ++
+  "  add t0, s6, s10; add s10, t0, t1      # inner ptr\n" ++
+  "  sub s11, s11, t1                      # inner len\n" ++
+  "  la a2, tvhm_struct\n" ++
+  "  mv t0, a2; li t1, 31\n" ++
+  ".Ltvhm_zinit:\n" ++
+  "  beqz t1, .Ltvhm_zdone\n" ++
+  "  sd zero, 0(t0)\n" ++
+  "  addi t0, t0, 8\n" ++
+  "  addi t1, t1, -1\n" ++
+  "  j .Ltvhm_zinit\n" ++
+  ".Ltvhm_zdone:\n" ++
+  "  mv a0, s10; mv a1, s11; la a2, tvhm_struct\n" ++
+  "  jal ra, tx_eip4844_decode\n" ++
+  "  bnez a0, .Ltvhm_tx_fail\n" ++
+  "  la t0, tvhm_struct\n" ++
+  "  lwu t1, 168(t0); lwu t2, 172(t0)\n" ++
+  "  add s10, s10, t1             # blob hash list ptr\n" ++
+  "  mv s11, t2                   # blob hash list len\n" ++
+  "  mv a0, s10; mv a1, s11; la a2, tvhm_blob_count\n" ++
+  "  jal ra, rlp_list_count_items\n" ++
+  "  bnez a0, .Ltvhm_bad_blob_item\n" ++
+  "  la t0, tvhm_blob_count; ld t0, 0(t0)\n" ++
+  "  li t1, 0\n" ++
+  ".Ltvhm_blob_loop:\n" ++
+  "  beq t1, t0, .Ltvhm_next_tx\n" ++
+  "  bgeu s4, s3, .Ltvhm_mismatch\n" ++
+  "  mv a0, s10; mv a1, s11; mv a2, t1; la a3, tvhm_hash_off; la a4, tvhm_hash_len\n" ++
+  "  la t2, tvhm_blob_index; sd t1, 0(t2)\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  la t2, tvhm_blob_count; ld t0, 0(t2); la t2, tvhm_blob_index; ld t1, 0(t2)\n" ++
+  "  bnez a0, .Ltvhm_bad_blob_item\n" ++
+  "  la t2, tvhm_hash_len; ld t3, 0(t2)\n" ++
+  "  li t4, 32\n" ++
+  "  bne t3, t4, .Ltvhm_bad_blob_item\n" ++
+  "  la t2, tvhm_hash_off; ld t3, 0(t2)\n" ++
+  "  add t3, s10, t3              # actual hash ptr\n" ++
+  "  slli t4, s4, 5\n" ++
+  "  add t4, s1, t4               # expected hash ptr\n" ++
+  "  li t5, 0\n" ++
+  ".Ltvhm_hash_cmp:\n" ++
+  "  li t6, 32\n" ++
+  "  beq t5, t6, .Ltvhm_hash_equal\n" ++
+  "  add t6, t3, t5; lbu t6, 0(t6)\n" ++
+  "  add a5, t4, t5; lbu a5, 0(a5)\n" ++
+  "  bne t6, a5, .Ltvhm_mismatch\n" ++
+  "  addi t5, t5, 1\n" ++
+  "  j .Ltvhm_hash_cmp\n" ++
+  ".Ltvhm_hash_equal:\n" ++
+  "  addi s4, s4, 1\n" ++
+  "  addi t1, t1, 1\n" ++
+  "  j .Ltvhm_blob_loop\n" ++
+  ".Ltvhm_next_tx:\n" ++
+  "  addi s9, s9, 1\n" ++
+  "  j .Ltvhm_tx_loop\n" ++
+  ".Ltvhm_after_txs:\n" ++
+  "  bne s4, s3, .Ltvhm_mismatch\n" ++
+  "  li a0, 0\n" ++
+  "  j .Ltvhm_ret\n" ++
+  ".Ltvhm_bad_ssz:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Ltvhm_ret\n" ++
+  ".Ltvhm_tx_fail:\n" ++
+  "  li a0, 2\n" ++
+  "  j .Ltvhm_ret\n" ++
+  ".Ltvhm_bad_blob_item:\n" ++
+  "  li a0, 3\n" ++
+  "  j .Ltvhm_ret\n" ++
+  ".Ltvhm_mismatch:\n" ++
+  "  li a0, 4\n" ++
+  ".Ltvhm_ret:\n" ++
+  "  ld ra, 0(sp)\n" ++
+  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
+  "  ld s8, 72(sp); ld s9, 80(sp); ld s10, 88(sp); ld s11, 96(sp)\n" ++
+  "  addi sp, sp, 112\n" ++
+  "  ret"
+
+/-- `zisk_ssz_tx_list_versioned_hashes_match`: probe BuildUnit. Reads
+    (tx_list_len, versioned_hashes_len, tx_list_bytes, versioned_hashes_bytes)
+    from host input, wraps the tx list in a fake execution-payload SSZ section,
+    and writes the helper status to OUTPUT[0..8). -/
+def ziskSszTxListVersionedHashesMatchPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a4, 0x40000000\n" ++
+  "  ld s0, 8(a4)                # tx_list_len\n" ++
+  "  ld s1, 16(a4)               # versioned_hashes_len\n" ++
+  "  addi s2, a4, 24             # tx_list src\n" ++
+  "  add s3, s2, s0              # versioned_hashes src\n" ++
+  "  la s4, tvhm_probe_payload\n" ++
+  "  li t0, 1024\n" ++
+  "  sw t0, 504(s4)              # transactions_offset\n" ++
+  "  add t1, t0, s0\n" ++
+  "  sw t1, 508(s4)              # withdrawals_offset\n" ++
+  "  add s5, s4, t0              # tx_list dst\n" ++
+  "  li t2, 0\n" ++
+  ".Ltvhmp_copy:\n" ++
+  "  beq t2, s0, .Ltvhmp_copied\n" ++
+  "  add t3, s2, t2; lbu t4, 0(t3)\n" ++
+  "  add t3, s5, t2; sb t4, 0(t3)\n" ++
+  "  addi t2, t2, 1\n" ++
+  "  j .Ltvhmp_copy\n" ++
+  ".Ltvhmp_copied:\n" ++
+  "  mv a0, s4; mv a1, s3; mv a2, s1\n" ++
+  "  jal ra, ssz_tx_list_versioned_hashes_match\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Ltvhmp_done\n" ++
+  bgvU32leFunction ++ "\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpListCountItemsFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  rlpFieldToU256BeFunction ++ "\n" ++
+  txTypeDispatchFunction ++ "\n" ++
+  txEip4844DecodeFunction ++ "\n" ++
+  sszTxListVersionedHashesMatchFunction ++ "\n" ++
+  ".Ltvhmp_done:"
+
+def ziskSszTxListVersionedHashesMatchDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "t48_offset:\n" ++
+  "  .zero 8\n" ++
+  "t48_length:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "tvhm_tx_type:\n  .zero 8\n" ++
+  "tvhm_inner_off:\n  .zero 8\n" ++
+  "tvhm_blob_count:\n  .zero 8\n" ++
+  "tvhm_blob_index:\n  .zero 8\n" ++
+  "tvhm_hash_off:\n  .zero 8\n" ++
+  "tvhm_hash_len:\n  .zero 8\n" ++
+  "tvhm_struct:\n  .zero 248\n" ++
+  ".balign 8\n" ++
+  "tvhm_probe_payload:\n  .zero 8192"
+
+def ziskSszTxListVersionedHashesMatchProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskSszTxListVersionedHashesMatchPrologue
+  dataAsm     := ziskSszTxListVersionedHashesMatchDataSection
 }
 
 /-! ## tx_calculate_total_blob_gas -- PR-K92

@@ -36,6 +36,7 @@ open EvmAsm.Rv64
              3  tx item start exceeds tx list length
              4  tx item is empty
              20 nonce/gas extraction failed
+             21 type inner offset exceeds tx length
              30 to-address extraction failed
              40 value extraction failed
              50 data-section extraction failed
@@ -59,6 +60,11 @@ open EvmAsm.Rv64
       +136 to-address extractor status
       +144 value extractor status
       +152 data-section extractor status
+      +160 tx type (0 legacy, 1 EIP-2930, 2 EIP-1559, 3 EIP-4844,
+           4 EIP-7702)
+      +168 tx inner offset
+      +176 tx inner ptr
+      +184 tx inner len
 -/
 def simpleTransferTxContextFunction : String :=
   "simple_transfer_tx_context:\n" ++
@@ -71,6 +77,7 @@ def simpleTransferTxContextFunction : String :=
   "  sd zero,  64(s0); sd zero,  72(s0); sd zero,  80(s0); sd zero,  88(s0)\n" ++
   "  sd zero,  96(s0); sd zero, 104(s0); sd zero, 112(s0); sd zero, 120(s0)\n" ++
   "  sd zero, 128(s0); sd zero, 136(s0); sd zero, 144(s0); sd zero, 152(s0)\n" ++
+  "  sd zero, 160(s0); sd zero, 168(s0); sd zero, 176(s0); sd zero, 184(s0)\n" ++
   "  la t0, bv_tx_count; ld t1, 0(t0); li t2, 1; beq t1, t2, .Lsttc_count_ok\n" ++
   "  li t0, 1; sd t0, 0(s0); j .Lsttc_ret\n" ++
   ".Lsttc_count_ok:\n" ++
@@ -92,7 +99,12 @@ def simpleTransferTxContextFunction : String :=
   "  beqz a0, .Lsttc_type_ok\n" ++
   "  li t0, 20; sd t0, 0(s0); j .Lsttc_ret\n" ++
   ".Lsttc_type_ok:\n" ++
-  "  la t0, tea_type; ld t1, 0(t0); li t2, 3; bne t1, t2, .Lsttc_not_blob_tx\n" ++
+  "  la t0, tea_type; ld t1, 0(t0); sd t1, 160(s0)\n" ++
+  "  la t0, tea_inner_off; ld t3, 0(t0); sd t3, 168(s0)\n" ++
+  "  bltu s2, t3, .Lsttc_inner_oob\n" ++
+  "  add t4, s1, t3; sd t4, 176(s0)\n" ++
+  "  sub t4, s2, t3; sd t4, 184(s0)\n" ++
+  "  li t2, 3; bne t1, t2, .Lsttc_not_blob_tx\n" ++
   "  li t0, 62; sd t0, 0(s0); j .Lsttc_ret\n" ++
   ".Lsttc_not_blob_tx:\n" ++
   "  li t2, 4; bne t1, t2, .Lsttc_not_set_code_tx\n" ++
@@ -133,6 +145,9 @@ def simpleTransferTxContextFunction : String :=
   "  li t0, 3; sd t0, 0(s0); j .Lsttc_ret\n" ++
   ".Lsttc_item_empty:\n" ++
   "  li t0, 4; sd t0, 0(s0)\n" ++
+  "  j .Lsttc_ret\n" ++
+  ".Lsttc_inner_oob:\n" ++
+  "  li t0, 21; sd t0, 0(s0)\n" ++
   ".Lsttc_ret:\n" ++
   "  ld ra,  0(sp)\n" ++
   "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
@@ -154,7 +169,7 @@ def blockVerdictSimpleTransferDataSection : String :=
   "teds_field_len:\n  .zero 8\n" ++
   "t48_offset:\n  .zero 8\n" ++
   "t48_length:\n  .zero 8\n" ++
-  "bv_simple_transfer_tx:\n  .zero 160\n"
+  "bv_simple_transfer_tx:\n  .zero 192\n"
 
 def blockVerdictTxGasPrechargeDataSection : String :=
   ".balign 8\n" ++
@@ -201,7 +216,7 @@ def blockVerdictTxGasPrechargeDataSection : String :=
       +320 public keys blob
       +448 transaction-list bytes
 
-   Output is the 160-byte simple_transfer_tx_context record.
+   Output is the 192-byte simple_transfer_tx_context record.
 -/
 def ziskSimpleTransferTxContextPrologue : String :=
   "  li sp, 0xa0050000\n" ++
