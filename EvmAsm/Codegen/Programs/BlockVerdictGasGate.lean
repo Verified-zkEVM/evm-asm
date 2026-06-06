@@ -258,7 +258,10 @@ def eip8037TxGasGateFunction : String :=
   "  la t5, bsg_min_block_gas; ld t2, 0(t5)\n" ++
   "  bltu s3, t2, .Letg_regular_reject\n" ++
   "  sub t3, s3, t2\n" ++
-  "  bgtu t1, t3, .Letg_regular_reject\n" ++
+  "  # EIP-8037 permits the declared tx gas limit to exceed regular remaining\n" ++
+  "  # when the 2D regular/state split still fits; only the required minimum\n" ++
+  "  # gas is a safe pre-execution block availability rejection here.\n" ++
+  "  bgtu t0, t3, .Letg_regular_reject\n" ++
   "  add t2, t2, t0; sd t2, 0(t5)\n" ++
   "  # EIP-8037 state reservoir split is currently modeled only for creation.\n" ++
   "  # Non-creation txs have zero intrinsic state here.\n" ++

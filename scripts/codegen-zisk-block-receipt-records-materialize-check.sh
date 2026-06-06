@@ -30,7 +30,7 @@ REPO_ROOT="$(pwd)"
 # run_case <name> <mode>
 # mode=empty: no transactions.
 # mode=legacy_stop: one legacy tx whose data field is STOP (0x00).
-# mode=two_legacy_stop: two legacy STOP txs, testing the SSZ offset-table loop.
+# mode=two_legacy_stop: two legacy STOP txs, testing runtime receipt-gas increments.
 run_case() {
   local name="$1" mode="$2"
   local in_file="$REPO_ROOT/gen-out/zisk_block_receipt_records_${name}.input"
@@ -43,8 +43,9 @@ import sys
 
 in_file, expected_file, mode = sys.argv[1:]
 TX_OFF = 600
+GAS_FEED_OFF = 0x1000
 GAS_USED = 21000
-payload = bytearray(904)
+payload = bytearray(GAS_FEED_OFF + 64)
 payload[420:428] = struct.pack('<Q', GAS_USED)
 payload[504:508] = struct.pack('<I', TX_OFF)
 
@@ -96,6 +97,7 @@ elif mode == 'legacy_stop':
     tx = legacy_stop_tx(21000)
     tx_list = struct.pack('<I', 4) + tx
     payload[TX_OFF:TX_OFF + len(tx_list)] = tx_list
+    payload[GAS_FEED_OFF:GAS_FEED_OFF + 16] = struct.pack('<QQ', 1, GAS_USED)
     wd_off = TX_OFF + len(tx_list)
     expected_count = 1
     expected_first_status = 0
@@ -107,12 +109,13 @@ elif mode == 'two_legacy_stop':
     tx2 = legacy_stop_tx(22000)
     tx_list = struct.pack('<II', 8, 8 + len(tx1)) + tx1 + tx2
     payload[TX_OFF:TX_OFF + len(tx_list)] = tx_list
+    payload[GAS_FEED_OFF:GAS_FEED_OFF + 24] = struct.pack('<QQQ', 2, 18000, 24000)
     wd_off = TX_OFF + len(tx_list)
     expected_count = 2
     expected_first_status = 0
     expected_last_status = 0
-    first_record = (0, 1, 21000, 0, 0, 0, 0, 0)
-    last_record = (0, 1, 43000, 0, 0, 0, 0, 0)
+    first_record = (0, 1, 18000, 0, 0, 0, 0, 0)
+    last_record = (0, 1, 42000, 0, 0, 0, 0, 0)
 else:
     raise ValueError(mode)
 
