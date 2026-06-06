@@ -11,6 +11,8 @@ import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.HeaderFields
 import EvmAsm.Codegen.Programs.MptIndexedTrieRoot
 
+import EvmAsm.Codegen.Programs.MptEncodeLeafBranch
+
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64

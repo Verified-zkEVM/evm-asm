@@ -16,6 +16,8 @@ import EvmAsm.Codegen.Programs.AccountApplyStorage
 import EvmAsm.Codegen.Programs.BalAccountPostFields
 import EvmAsm.Codegen.Programs.MptStateRootIns
 
+import EvmAsm.Codegen.Programs.MptEncodeLeafBranch
+
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
@@ -214,7 +216,13 @@ def balAccountApplyPostFieldsFunction : String :=
   "  beqz t0, .Lbaap_one_storage_delete\n" ++
   "  la t1, baap_slot_changes_ptr; ld t1, 0(t1); la t2, baap_item_off; ld t2, 0(t2); add t1, t1, t2\n" ++
   "  la t2, baap_val_off; ld t2, 0(t2); add a3, t1, t2\n" ++
-  "  mv a0, s6; mv a1, s7; la a2, baap_slot; mv a4, t0; la a5, baap_tmp2; la a6, baap_tmp2_len\n" ++
+  "  mv a4, t0\n" ++
+  ".Lbaap_one_value_strip_zero:\n" ++
+  "  beqz a4, .Lbaap_one_storage_delete\n" ++
+  "  lbu t0, 0(a3); bnez t0, .Lbaap_one_value_ready\n" ++
+  "  addi a3, a3, 1; addi a4, a4, -1; j .Lbaap_one_value_strip_zero\n" ++
+  ".Lbaap_one_value_ready:\n" ++
+  "  mv a0, s6; mv a1, s7; la a2, baap_slot; la a5, baap_tmp2; la a6, baap_tmp2_len\n" ++
   "  jal ra, account_apply_storage_slot_acc\n" ++
   "  bnez a0, .Lbaap_fail\n" ++
   "  la s6, baap_tmp2; la t0, baap_tmp2_len; ld s7, 0(t0)\n" ++
@@ -302,7 +310,11 @@ def balAccountApplyPostFieldsFunction : String :=
   "  la t1, baap_slot_changes_ptr; ld t1, 0(t1); la t2, baap_item_off; ld t2, 0(t2); add t1, t1, t2\n" ++
   "  la t2, baap_val_off; ld t2, 0(t2); add a0, t1, t2\n" ++
   "  mv a1, t0; la t2, baap_storage_value_cursor; ld a2, 0(t2); la a3, aab_enc_len\n" ++
-  "  bnez a1, .Lbaap_multi_encode_value\n" ++
+  ".Lbaap_multi_value_strip_zero:\n" ++
+  "  beqz a1, .Lbaap_multi_zero_value\n" ++
+  "  lbu t0, 0(a0); bnez t0, .Lbaap_multi_encode_value\n" ++
+  "  addi a0, a0, 1; addi a1, a1, -1; j .Lbaap_multi_value_strip_zero\n" ++
+  ".Lbaap_multi_zero_value:\n" ++
   "  la t0, baap_storage_empty_flag; ld t0, 0(t0); bnez t0, .Lbaap_multi_skip_zero\n" ++
   "  la t0, baap_storage_delete_count; ld t0, 0(t0); li t1, 60000; bgeu t0, t1, .Lbaap_fail\n" ++
   "  li t1, 1; la t2, baap_storage_delete_flag; sd t1, 0(t2)\n" ++
