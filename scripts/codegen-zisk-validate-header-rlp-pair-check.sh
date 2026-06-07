@@ -4,7 +4,7 @@
 # its parent?" check (header_extended_decode x2 + validate_header_full +
 # header_validate_parent_hash).
 #
-# Builds a valid London+-style (this, parent) header pair where parent
+# Builds a valid Amsterdam-style (this, parent) header pair where parent
 # gas_used == gas_limit/2 (so the EIP-1559 child base-fee is unchanged) and
 # this.parent_hash == keccak256(parent_rlp). Expects status 0. Then three
 # invalid tweaks: wrong number (rejected), wrong base-fee (rejected), and a
@@ -38,8 +38,8 @@ def k256(b):
 
 def header(parent_hash, number, gas_limit, gas_used, timestamp, base_fee,
            state_root=b"\x44" * 32, extra=b"", difficulty=0,
-           nonce=b"\x00" * 8):
-    # London+-style 16-field header (field 15 = base_fee_per_gas).
+           nonce=b"\x00" * 8, blob_gas_used=0, excess_blob_gas=0):
+    # Amsterdam-style header with blob-gas fields.
     return [
         parent_hash,            # 0
         EMPTY_OMMERS,           # 1
@@ -57,6 +57,10 @@ def header(parent_hash, number, gas_limit, gas_used, timestamp, base_fee,
         b"\x77" * 32,           # 13 prev_randao
         nonce,                  # 14
         base_fee,               # 15
+        b"\x88" * 32,           # 16 withdrawals_root
+        blob_gas_used,          # 17
+        excess_blob_gas,        # 18
+        b"\x99" * 32,           # 19 parent_beacon_block_root
     ]
 
 GL, BF = 30_000_000, 1_000_000_000

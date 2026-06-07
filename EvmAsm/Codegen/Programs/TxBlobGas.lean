@@ -362,6 +362,7 @@ def sszTxListVersionedHashesMatchFunction : String :=
   "  add s10, s10, t1             # blob hash list ptr\n" ++
   "  mv s11, t2                   # blob hash list len\n" ++
   "  mv a0, s10; mv a1, s11; la a2, tvhm_blob_count\n" ++
+  "  jal ra, rlp_list_count_items\n" ++
   "  bnez a0, .Ltvhm_bad_blob_item\n" ++
   "  la t0, tvhm_blob_count; ld t0, 0(t0)\n" ++
   "  li t1, 0\n" ++
@@ -370,6 +371,8 @@ def sszTxListVersionedHashesMatchFunction : String :=
   "  bgeu s4, s3, .Ltvhm_mismatch\n" ++
   "  mv a0, s10; mv a1, s11; mv a2, t1; la a3, tvhm_hash_off; la a4, tvhm_hash_len\n" ++
   "  la t2, tvhm_blob_index; sd t1, 0(t2)\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Ltvhm_bad_blob_item\n" ++
   "  la t2, tvhm_blob_count; ld t0, 0(t2); la t2, tvhm_blob_index; ld t1, 0(t2)\n" ++
   "  la t2, tvhm_hash_len; ld t3, 0(t2)\n" ++
   "  li t4, 32\n" ++
@@ -396,11 +399,16 @@ def sszTxListVersionedHashesMatchFunction : String :=
   "  j .Ltvhm_tx_loop\n" ++
   ".Ltvhm_after_txs:\n" ++
   "  bne s4, s3, .Ltvhm_mismatch\n" ++
+  "  li a0, 0\n" ++
   "  j .Ltvhm_ret\n" ++
   ".Ltvhm_bad_ssz:\n" ++
+  "  li a0, 1; j .Ltvhm_ret\n" ++
   ".Ltvhm_tx_fail:\n" ++
+  "  li a0, 2; j .Ltvhm_ret\n" ++
   ".Ltvhm_bad_blob_item:\n" ++
+  "  li a0, 3; j .Ltvhm_ret\n" ++
   ".Ltvhm_mismatch:\n" ++
+  "  li a0, 4; j .Ltvhm_ret\n" ++
   ".Ltvhm_ret:\n" ++
   "  ld ra, 0(sp)\n" ++
   "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
@@ -434,11 +442,13 @@ def ziskSszTxListVersionedHashesMatchPrologue : String :=
   ".Ltvhmp_copied:\n" ++
   "  mv a0, s4; mv a1, s3; mv a2, s1\n" ++
   "  jal ra, ssz_tx_list_versioned_hashes_match\n" ++
+  "  li t0, 0xa0010000\n" ++
   "  sd a0, 0(t0)\n" ++
   "  j .Ltvhmp_done\n" ++
   bgvU32leFunction ++ "\n" ++
   txTypeDispatchFunction ++ "\n" ++
   rlpListNthItemFunction ++ "\n" ++
+  rlpListCountItemsFunction ++ "\n" ++
   rlpFieldToU64Function ++ "\n" ++
   rlpFieldToU256BeFunction ++ "\n" ++
   txEip4844DecodeFunction ++ "\n" ++

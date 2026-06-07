@@ -24,6 +24,7 @@ import EvmAsm.Codegen.Programs.MptDeleteAcc
 import EvmAsm.Codegen.Programs.MptStateRootIns
 import EvmAsm.Codegen.Programs.MptIndexedTrieRoot
 import EvmAsm.Codegen.Programs.HeadersKeccak
+import EvmAsm.Codegen.Programs.Header
 import EvmAsm.Codegen.Programs.StateCompose
 import EvmAsm.Codegen.Programs.AccountFieldGetters
 import EvmAsm.Codegen.Programs.BalCodePreimages
@@ -40,6 +41,7 @@ import EvmAsm.Codegen.Programs.BlockVerdictGasResults
 import EvmAsm.Codegen.Programs.BlockVerdictTransactions
 import EvmAsm.Codegen.Programs.MptEncodeLeafBranch
 import EvmAsm.Codegen.Programs.TxBlobGas
+import EvmAsm.Codegen.Programs.TxRoot
 import EvmAsm.Codegen.Programs.WithdrawalsRootIndexed
 import EvmAsm.Codegen.Programs.BlockAccessListHash
 
@@ -311,6 +313,15 @@ def blockVerdictFunction : String :=
   "  ld a0, 0(s0); ld a1, 32(s0); ld a2, 40(s0); ld a3, 48(s0); ld a4, 56(s0); ld a7, 96(s0)\n" ++
   "  la a5, sv_this_rlp; la a6, sv_this_rlp_len\n" ++
   "  jal ra, block_header_ssz_to_rlp\n" ++
+  "  la t0, bv_block_hash_check_enabled; ld t0, 0(t0); beqz t0, .Lbv_block_hash_ok\n" ++
+  "  la a0, sv_this_rlp; la t0, sv_this_rlp_len; ld a1, 0(t0); la a2, bv_block_hash\n" ++
+  "  jal ra, block_hash_from_header\n" ++
+  "  la t0, bv_block_hash; ld t1, 0(s0); addi t1, t1, 472; li t2, 32\n" ++
+  ".Lbv_block_hash_cmp:\n" ++
+  "  beqz t2, .Lbv_block_hash_ok\n" ++
+  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lbv_block_hash_mismatch\n" ++
+  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lbv_block_hash_cmp\n" ++
+  ".Lbv_block_hash_ok:\n" ++
   "  ld a0, 0(s0); la t0, sv_this_rlp_len; ld a1, 0(t0); mv a2, s3\n" ++
   "  jal ra, block_rlp_rebuilt_size\n" ++
   "  bnez a0, .Lbv_block_rlp_parse_fail\n" ++
@@ -636,6 +647,8 @@ def blockVerdictFunction : String :=
   "  li t0, 31; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_blob_gas_used_fail:\n" ++
   "  li t0, 33; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_block_hash_mismatch:\n" ++
+  "  li t0, 31; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_zero:\n" ++
   "  li a0, 0\n" ++
   ".Lbv_ret:\n" ++
@@ -762,13 +775,15 @@ def statelessVerdictV2Function : String :=
   "  mv a0, s0; la a1, svf_bal_hash\n" ++
   "  jal ra, block_access_list_hash\n" ++
   "  bnez a0, .Lv2_bal_hash_fail\n" ++
+  "  # General transaction and withdrawal trie roots have already been computed above.\n" ++
+  "  li t0, 1; la t1, bv_block_hash_check_enabled; sd t0, 0(t1)\n" ++
   "  la t1, sv_params\n" ++
   "  la t0, svf_payload;        ld t0, 0(t0); sd t0, 0(t1)\n" ++
   "  la t0, svf_parent_rlp;     ld t0, 0(t0); sd t0, 8(t1)\n" ++
   "  la t0, svf_parent_rlp_len; ld t0, 0(t0); sd t0, 16(t1)\n" ++
   "  la t0, svf_parent_sr;      sd t0, 24(t1)\n" ++
   "  la t0, svf_tx_root;          sd t0, 32(t1)\n" ++
-  "  la t0, svf_withdrawals_root; sd t0, 40(t1)\n" ++
+  "  la t0, svf_withdrawals_root;  sd t0, 40(t1)\n" ++
   "  addi t0, s0, 24;           sd t0, 48(t1)\n" ++
   "  la t0, erh_requests_hash;  sd t0, 56(t1)\n" ++
   "  la t0, svf_bal_hash;       sd t0, 96(t1)\n" ++
@@ -936,6 +951,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   mptInsertWalkDbFunction ++ "\n" ++
   mptInsertAccFunction ++ "\n" ++
   mptStateRootInsFunction ++ "\n" ++
+  mptOneLeafRootIndexedFunction ++ "\n" ++
   withdrawalsStateRootFunction ++ "\n" ++
   mptIndexedTrieRootSmallFunction ++ "\n" ++
   headerExtractWithdrawalsRootFunction ++ "\n" ++
@@ -958,6 +974,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   blockRlpRebuiltSizeFunction ++ "\n" ++
   bahU32leFunction ++ "\n" ++
   blockAccessListHashFunction ++ "\n" ++
+  blockHashFromHeaderFunction ++ "\n" ++
   executionRequestsHashFunction ++ "\n" ++
   step2VerdictFunction ++ "\n" ++
   headerExtractStateRootFunction ++ "\n" ++
