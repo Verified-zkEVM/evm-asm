@@ -224,4 +224,84 @@ def ziskSecp256k1CurvePointOpsProbeUnit : BuildUnit := {
   dataAsm     := secp256k1CurveDataSection
 }
 
+private def secp256k1ZiskLittleLimbPointData : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "secp256k1_zisk_g_add:\n" ++
+  "  .quad 0x59f2815b16f81798\n" ++
+  "  .quad 0x029bfcdb2dce28d9\n" ++
+  "  .quad 0x55a06295ce870b07\n" ++
+  "  .quad 0x79be667ef9dcbbac\n" ++
+  "  .quad 0x9c47d08ffb10d4b8\n" ++
+  "  .quad 0xfd17b448a6855419\n" ++
+  "  .quad 0x5da4fbfc0e1108a8\n" ++
+  "  .quad 0x483ada7726a3c465\n" ++
+  "secp256k1_zisk_g_add_rhs:\n" ++
+  "  .quad 0x59f2815b16f81798\n" ++
+  "  .quad 0x029bfcdb2dce28d9\n" ++
+  "  .quad 0x55a06295ce870b07\n" ++
+  "  .quad 0x79be667ef9dcbbac\n" ++
+  "  .quad 0x9c47d08ffb10d4b8\n" ++
+  "  .quad 0xfd17b448a6855419\n" ++
+  "  .quad 0x5da4fbfc0e1108a8\n" ++
+  "  .quad 0x483ada7726a3c465\n" ++
+  "secp256k1_zisk_g_dbl:\n" ++
+  "  .quad 0x59f2815b16f81798\n" ++
+  "  .quad 0x029bfcdb2dce28d9\n" ++
+  "  .quad 0x55a06295ce870b07\n" ++
+  "  .quad 0x79be667ef9dcbbac\n" ++
+  "  .quad 0x9c47d08ffb10d4b8\n" ++
+  "  .quad 0xfd17b448a6855419\n" ++
+  "  .quad 0x5da4fbfc0e1108a8\n" ++
+  "  .quad 0x483ada7726a3c465\n" ++
+  ".balign 8\n" ++
+  "secp256k1_zisk_add_args:\n" ++
+  "  .quad secp256k1_zisk_g_add\n" ++
+  "  .quad secp256k1_zisk_g_add_rhs\n"
+
+private def secp256k1ZiskAddDblProbePrologue
+    (addSymbol dblSymbol : String) : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  la a0, secp256k1_zisk_add_args\n" ++
+  "  jal ra, " ++ addSymbol ++ "\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  la t1, secp256k1_zisk_g_add\n" ++
+  "  li t2, 8\n" ++
+  "  addi t0, t0, 8\n" ++
+  ".Lsecp256k1_zisk_copy_add:\n" ++
+  "  ld t3, 0(t1)\n" ++
+  "  sd t3, 0(t0)\n" ++
+  "  addi t1, t1, 8\n" ++
+  "  addi t0, t0, 8\n" ++
+  "  addi t2, t2, -1\n" ++
+  "  bnez t2, .Lsecp256k1_zisk_copy_add\n" ++
+  "  la a0, secp256k1_zisk_g_dbl\n" ++
+  "  jal ra, " ++ dblSymbol ++ "\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  la t1, secp256k1_zisk_g_dbl\n" ++
+  "  li t2, 8\n" ++
+  "  addi t0, t0, 8\n" ++
+  ".Lsecp256k1_zisk_copy_dbl:\n" ++
+  "  ld t3, 0(t1)\n" ++
+  "  sd t3, 0(t0)\n" ++
+  "  addi t1, t1, 8\n" ++
+  "  addi t0, t0, 8\n" ++
+  "  addi t2, t2, -1\n" ++
+  "  bnez t2, .Lsecp256k1_zisk_copy_dbl\n"
+
+def ziskSecp256k1AddDblSyscallProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := secp256k1ZiskAddDblProbePrologue
+    "syscall_secp256k1_add" "syscall_secp256k1_dbl"
+  dataAsm     := secp256k1ZiskLittleLimbPointData
+}
+
+def ziskSecp256k1AddDblOpcodeProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := secp256k1ZiskAddDblProbePrologue
+    "_opcode_secp256k1_add" "_opcode_secp256k1_dbl"
+  dataAsm     := secp256k1ZiskLittleLimbPointData
+}
+
 end EvmAsm.Codegen
