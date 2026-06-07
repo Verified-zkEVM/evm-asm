@@ -19,6 +19,7 @@ def lookupCryptoProgram : String → Option BuildUnit
   | "zisk_sha256_from_input" => some ziskSha256FromInputProbeUnit
   | "zisk_keccak256_from_input" => some ziskKeccak256FromInputProbeUnit
   | "zisk_secp256k1_ecrecover_backend_probe" => some ziskSecp256k1EcrecoverBackendProbeUnit
+  | "zisk_secp256k1_ecrecover_real_backend_probe" => some ziskSecp256k1EcrecoverRealBackendProbeUnit
   | "zisk_modexp_backend_probe" => some ziskModexpBackendProbeUnit
   | "zisk_bls12_g1_add_backend_probe" => some ziskBls12G1AddBackendProbeUnit
   | "zisk_bls12_g1_msm_backend_probe" => some ziskBls12G1MsmBackendProbeUnit
@@ -40,6 +41,7 @@ def knownCryptoProgramNames : List String :=
    "zisk_sha256_from_input",
    "zisk_keccak256_from_input",
    "zisk_secp256k1_ecrecover_backend_probe",
+   "zisk_secp256k1_ecrecover_real_backend_probe",
    "zisk_modexp_backend_probe",
    "zisk_bls12_g1_add_backend_probe",
    "zisk_bls12_g1_msm_backend_probe",

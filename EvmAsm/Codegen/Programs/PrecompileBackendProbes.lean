@@ -245,6 +245,50 @@ def ziskSecp256k1EcrecoverBackendProbeUnit : BuildUnit := {
   dataAsm     := ziskSecp256k1EcrecoverBackendProbeDataSection
 }
 
+/-- Probe driver for the real linked ECRECOVER backend ABI.
+
+    Unlike `ziskSecp256k1EcrecoverBackendProbePrologue`, this program does not
+    append `zkvmSecp256k1EcrecoverSafeFailWrapper`. If the current toolchain
+    cannot resolve `zkvm_secp256k1_ecrecover`, the companion script classifies
+    that link failure as backend-not-ready instead of silently exercising the
+    deterministic shim.
+
+    Input at `0x40000000`:
+
+      +0    32-byte message hash
+      +32   64-byte signature (`r || s`)
+      +96   8-byte recovery id word (low byte consumed by the backend)
+
+    Output at `0xa0010000`:
+
+      +0    returned zkvm_status as u64
+      +8    64-byte recovered public key buffer
+-/
+def ziskSecp256k1EcrecoverRealBackendProbePrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li s0, 0x40000000\n" ++
+  "  li s1, 0xa0010000\n" ++
+  "  addi s2, s1, 8\n" ++
+  "  li t0, 8\n" ++
+  "  mv t1, s2\n" ++
+  "  li t2, -6148914691236517206\n" ++
+  ".Lsecp256k1_ecrecover_real_fill:\n" ++
+  "  sd t2, 0(t1)\n" ++
+  "  addi t1, t1, 8\n" ++
+  "  addi t0, t0, -1\n" ++
+  "  bnez t0, .Lsecp256k1_ecrecover_real_fill\n" ++
+  "  mv a0, s0\n" ++
+  "  addi a1, s0, 32\n" ++
+  "  ld a2, 96(s0)\n" ++
+  "  mv a3, s2\n" ++
+  "  jal ra, zkvm_secp256k1_ecrecover\n" ++
+  "  sd a0, 0(s1)\n"
+
+def ziskSecp256k1EcrecoverRealBackendProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskSecp256k1EcrecoverRealBackendProbePrologue
+}
+
 /-- Probe driver for the MODEXP backend ABI. It passes 2^5 mod 13 with
     one-byte components and records the returned status plus the first two
     output words. The safe-fail shim leaves the poison output unchanged. -/
