@@ -172,6 +172,7 @@ def lookupProgramTail : String → Option BuildUnit
   
   | "zisk_intrinsic_gas_amsterdam_counts" => some ziskIntrinsicGasAmsterdamCountsProbeUnit
   | "zisk_eip8037_reservoir_split" => some ziskEip8037ReservoirSplitProbeUnit
+  | "zisk_eip8037_tx_state_gas" => some ziskEip8037TxStateGasProbeUnit
   | "zisk_mpt_nibbles_to_compact" => some ziskMptNibblesToCompactProbeUnit
   | "zisk_mpt_compact_to_nibbles" => some ziskMptCompactToNibblesProbeUnit
   
