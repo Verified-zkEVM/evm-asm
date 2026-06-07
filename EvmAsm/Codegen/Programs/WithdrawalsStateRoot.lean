@@ -43,6 +43,8 @@ import EvmAsm.Codegen.Programs.AccountBalance
 import EvmAsm.Codegen.Programs.Withdrawal
 import EvmAsm.Codegen.Programs.WithdrawalPath
 
+import EvmAsm.Codegen.Programs.MptEncodeLeafBranch
+
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64

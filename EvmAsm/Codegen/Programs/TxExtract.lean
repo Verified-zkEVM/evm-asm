@@ -24,6 +24,7 @@ import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Tx
 import EvmAsm.Codegen.Programs.U256
+import EvmAsm.Codegen.Programs.U256GasPricing
 
 namespace EvmAsm.Codegen
 
@@ -166,6 +167,7 @@ def ziskTxTypeDispatchProbeUnit : BuildUnit := {
         1 : tx_type_dispatch failed
         2 : nonce field extraction failed
         3 : gas_limit field extraction failed
+        4 : nonce exceeds EIP-2681 maximum (`2^64 - 2`)
 
     Both outputs are zeroed on failure. Uses two 8-byte `.data`
     scratch slots (`teng_type`, `teng_inner_off`). -/
@@ -211,6 +213,13 @@ def txExtractNonceAndGasFunction : String :=
   "  li a0, 2\n" ++
   "  j .Lteng_ret\n" ++
   ".Lteng_step3:\n" ++
+  "  ld t0, 0(s2)\n" ++
+  "  li t1, -1                              # EIP-2681 rejects u64 max\n" ++
+  "  bne t0, t1, .Lteng_nonce_under_cap\n" ++
+  "  sd zero, 0(s2)\n" ++
+  "  li a0, 4\n" ++
+  "  j .Lteng_ret\n" ++
+  ".Lteng_nonce_under_cap:\n" ++
   "  # Step 3: extract gas_limit.\n" ++
   "  li t0, 0\n" ++
   "  beq s4, t0, .Lteng_g_legacy\n" ++

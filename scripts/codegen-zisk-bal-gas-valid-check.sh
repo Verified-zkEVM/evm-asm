@@ -5,12 +5,15 @@
 # 0=valid / 1=exceeded / 2=parse-error. Expected is computed from each input's own
 # SSZ (RLP-walk the BAL, bal_items = Σ(1 + len(storage_changes) + len(storage_reads)),
 # invalid iff bal_items*2000 > gas_limit). Includes bal_gas_limit_boundary, whose
-# below_boundary variant MUST be rejected (1).
+# below_boundary variant MUST be rejected (1). By default the script runs every
+# selected row for the filter so new BAL fixtures are covered automatically; pass
+# a second positional argument to cap the run for a short local smoke.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 REPO_ROOT="$(pwd)"
 TAG="${EEST_FIXTURE_TAG:-zkevm@v0.4.0}"
-FILTER="${1:-block_access_lists}"; LIMIT="${2:-80}"
+FILTER="${1:-block_access_lists}"
+LIMIT_OVERRIDE="${2:-}"
 ZISKEMU="${ZISKEMU:-}"
 if [[ -z "$ZISKEMU" ]]; then
   if command -v ziskemu >/dev/null 2>&1; then ZISKEMU="$(command -v ziskemu)"
@@ -24,7 +27,9 @@ RUN="$REPO_ROOT/gen-out/bgv-check"; rm -rf "$RUN"; mkdir -p "$RUN"
 echo "==> build + emit probe + convert fixtures"
 lake build codegen >/dev/null
 lake exe codegen --program zisk_bal_gas_valid --halt linux93 -o "$REPO_ROOT/gen-out/zisk_bal_gas_valid" >/dev/null
-python3 scripts/eest-stateless-to-input.py --fixtures-dir "$FX" --out-dir "$RUN" --limit "$LIMIT" --filter "$FILTER" >/dev/null
+conv_args=(--fixtures-dir "$FX" --out-dir "$RUN" --filter "$FILTER")
+[[ -n "$LIMIT_OVERRIDE" ]] && conv_args+=(--limit "$LIMIT_OVERRIDE")
+python3 scripts/eest-stateless-to-input.py "${conv_args[@]}" >/dev/null
 MAN="$RUN/manifest.tsv"; [[ -s "$MAN" ]] || { echo "no fixtures" >&2; exit 1; }
 
 # expected per label (single Python pass; absolute paths)

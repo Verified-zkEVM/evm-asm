@@ -276,6 +276,8 @@ import EvmAsm.Codegen.Programs.PostMergeInvariantsAtBlockHash
 import EvmAsm.Codegen.Programs.BlockRootsAtBlockHash
 import EvmAsm.Codegen.Programs.NumberTimestampPairAtBlockHash
 import EvmAsm.Codegen.Programs.GasPairAtBlockHash
+import EvmAsm.Codegen.Programs.WithdrawalBlockSummary
+import EvmAsm.Codegen.Programs.TxTotalBlobGas
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
@@ -317,8 +319,8 @@ open EvmAsm.Rv64
     non-trivial value to verify and the keccak bridge is wired
     into the encoder pipeline end-to-end. Once PR-S series lands,
     the SHA-256 hash_tree_root replaces this keccak. -/
--- `statelessGuestValidatorPipeline` and `statelessGuestEpilogue`
--- live in `EvmAsm/Codegen/Programs/StatelessGuestEpilogue.lean`
+-- `statelessGuestEpilogue` lives in
+-- `EvmAsm/Codegen/Programs/StatelessGuestEpilogue.lean`
 -- (carved out here to satisfy the file-size hard cap; see
 -- PR #5870 and PR #5900 for the established submodule pattern).
 
@@ -609,6 +611,8 @@ def lookupProgramMain (lookupProgramTail : String → Option BuildUnit) : String
   | "zisk_tx_eip7702_decode"    => some ziskTxEip7702DecodeProbeUnit
   | "zisk_tx_eip4844_decode"    => some ziskTxEip4844DecodeProbeUnit
   | "zisk_tx_eip4844_compute_blob_gas" => some ziskTxEip4844ComputeBlobGasProbeUnit
+  | "zisk_tx_eip4844_validate_blob_hashes" => some ziskTxEip4844ValidateBlobHashesProbeUnit
+  | "zisk_ssz_tx_list_versioned_hashes_match" => some ziskSszTxListVersionedHashesMatchProbeUnit
   | "zisk_tx_calculate_total_blob_gas" => some ziskTxCalculateTotalBlobGasProbeUnit
   | "zisk_block_body_blob_gas_total" => some ziskBlockBodyBlobGasTotalProbeUnit
   | "zisk_block_validate_blob_gas_consistency" => some ziskBlockValidateBlobGasConsistencyProbeUnit

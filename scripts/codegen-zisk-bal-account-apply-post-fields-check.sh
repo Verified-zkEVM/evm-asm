@@ -85,6 +85,10 @@ def storage_change(slot: int, changes) -> bytes:
     return rlp_list([rlp_int(slot), rlp_list([change_pair(i, rlp_int(v)) for i, v in changes])])
 
 
+def storage_change_raw_value(slot: int, changes) -> bytes:
+    return rlp_list([rlp_int(slot), rlp_list([change_pair(i, value) for i, value in changes])])
+
+
 def bal_account_change_rlp(
     address: bytes,
     storage_changes=None,
@@ -102,6 +106,12 @@ def bal_account_change_rlp(
     cc = [code_change(i, code) for i, code in code_changes]
     return rlp_list([rlp_bytes(address), rlp_list(sc), rlp_list([]),
                      rlp_list(bc), rlp_list(nc), rlp_list(cc)])
+
+
+def bal_account_change_raw_storage_rlp(address: bytes, storage_changes) -> bytes:
+    sc = [storage_change_raw_value(slot, changes) for slot, changes in storage_changes]
+    return rlp_list([rlp_bytes(address), rlp_list(sc), rlp_list([]),
+                     rlp_list([]), rlp_list([]), rlp_list([])])
 
 
 def build_input(account: bytes, account_change: bytes) -> bytes:
@@ -129,6 +139,12 @@ cases = [
         base,
         bal_account_change_rlp(addr, storage_changes=[(1, [(1, 7)])]),
         account_rlp(1, 5, storage_root({1: 7})),
+    ),
+    (
+        "baap_storage_leading_zero_value",
+        base,
+        bal_account_change_raw_storage_rlp(addr, storage_changes=[(4, [(1, rlp_bytes(b"\x00\x07"))])]),
+        account_rlp(1, 5, storage_root({4: 7})),
     ),
     (
         "baap_two_storage",

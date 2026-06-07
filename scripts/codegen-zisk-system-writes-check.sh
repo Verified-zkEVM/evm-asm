@@ -36,7 +36,7 @@ for line in man:
     ep=outer[60:]
     number=int.from_bytes(ep[404:412],"little"); ts=int.from_bytes(ep[428:436],"little")
     ph=ep[0:32]
-    s2935=(((number-1) & ((1<<64)-1)) % 8191).to_bytes(32,"big")
+    s2935=(((number-1) & ((1<<64)-1)) % 8192).to_bytes(32,"big")
     v2935=ph.lstrip(b"\x00") or b""
     ts_slot=ts % 8191
     s4788=ts_slot.to_bytes(32,"big")

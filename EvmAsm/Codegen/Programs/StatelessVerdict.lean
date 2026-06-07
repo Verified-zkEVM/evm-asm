@@ -47,6 +47,8 @@ import EvmAsm.Codegen.Programs.SszWitnessState
 import EvmAsm.Codegen.Programs.SszPayloadWithdrawals
 import EvmAsm.Codegen.Programs.SszParentHeader
 
+import EvmAsm.Codegen.Programs.MptEncodeLeafBranch
+
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
