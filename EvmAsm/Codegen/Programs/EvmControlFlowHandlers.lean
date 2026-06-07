@@ -9,17 +9,37 @@ import EvmAsm.Codegen.Dispatch
 
 namespace EvmAsm.Codegen
 
-/-- Scanner shared by JUMP / taken-JUMPI validation: require `code[dest]`
-    to be JUMPDEST, then scan from `x21` to `x10`, skipping PUSH data. -/
-private def jumpPushdataAwareScanAsm : String :=
-  "  li x18, 0x5b\n  bne x17, x18, .exit_invalid\n  mv x18, x21\n1:\n  beq x18, x10, 3f\n  bltu x10, x18, .exit_invalid\n  lbu x19, 0(x18)\n  li x5, 0x60\n  bltu x19, x5, 2f\n  li x5, 0x80\n  bgeu x19, x5, 2f\n  addi x19, x19, -94\n  add x18, x18, x19\n  j 1b\n2:\n  addi x18, x18, 1\n  j 1b\n3:\n  ret"
+/-- Validity check shared by JUMP / taken-JUMPI: require `code[dest]`
+    to be JUMPDEST (this is also how the body's invalid-dest sentinel
+    routes to `.exit_invalid`), then test bit `dest = x10 - x21` of the
+    valid-JUMPDEST bitmap the dispatcher prologue precomputed
+    (`emitJumpdestBitmapBuild`). A literal `0x5b` inside PUSH data has
+    no bit set, so it is rejected. O(1) per jump — M15.6 replaces the
+    former O(dest) pushdata-aware scan. Destinations at or beyond the
+    bitmap capacity (impossible for protocol-sized code) are rejected
+    before the bitmap load so the lookup never reads past the region. -/
+private def jumpBitmapCheckAsm : String :=
+  "  li x18, 0x5b\n" ++
+  "  bne x17, x18, .exit_invalid\n" ++
+  "  sub x18, x10, x21\n" ++
+  s!"  li x19, {jumpdestBitmapCodeCapacity}\n" ++
+  "  bgeu x18, x19, .exit_invalid\n" ++
+  "  srli x19, x18, 3\n" ++
+  "  la x5, evm_jumpdest_bitmap\n" ++
+  "  add x5, x5, x19\n" ++
+  "  lbu x19, 0(x5)\n" ++
+  "  andi x18, x18, 7\n" ++
+  "  srl x19, x19, x18\n" ++
+  "  andi x19, x19, 1\n" ++
+  "  beqz x19, .exit_invalid\n" ++
+  "  ret"
 
 private def jumpValidityTail : HandlerTail :=
-  .custom jumpPushdataAwareScanAsm
+  .custom jumpBitmapCheckAsm
 
 private def jumpiValidityTail : HandlerTail :=
   .custom <| "  beqz x15, .Ljumpi_not_taken_valid\n" ++
-    jumpPushdataAwareScanAsm ++ "\n.Ljumpi_not_taken_valid:\n  ret"
+    jumpBitmapCheckAsm ++ "\n.Ljumpi_not_taken_valid:\n  ret"
 
 /-- M14 / M15 control-flow opcodes.
 
@@ -42,11 +62,13 @@ private def jumpiValidityTail : HandlerTail :=
     registers `x14`/`x15`/`x16` are caller-saved per the existing
     convention.
 
-    **M15.5 JUMPDEST-validity**: JUMP / taken-JUMPI now scan from the
-    bytecode base to the target while skipping PUSH1..PUSH32 immediates.
-    Targets at or beyond `env.codeSize` are rejected before the body reads
-    `code[dest]`. A literal `0x5b` inside PUSH data is rejected even though
-    the target byte equals JUMPDEST. Not-taken JUMPI still skips validation,
+    **M15.5/M15.6 JUMPDEST-validity**: JUMP / taken-JUMPI test the
+    target's bit in the valid-JUMPDEST bitmap that the dispatcher
+    prologue precomputes with one pushdata-aware pass over the bytecode
+    (M15.6; formerly an O(dest) per-jump scan). Targets at or beyond
+    `env.codeSize` are rejected before the body reads `code[dest]`. A
+    literal `0x5b` inside PUSH data is rejected even though the target
+    byte equals JUMPDEST. Not-taken JUMPI still skips validation,
     matching execution-specs. -/
 def controlFlowHandlers : List OpcodeHandlerSpec :=
   [ { label := "h_JUMPDEST"

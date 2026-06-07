@@ -49,6 +49,98 @@ def evmStackScratchBytes : Nat := evmStackWordCapacity * evmStackWordBytes
     nearby stack-relative offsets as internal scratch. -/
 def evmStackGuardBytes : Nat := 512
 
+/-- Maximum bytecode length (in bytes) covered by the precomputed
+    valid-JUMPDEST bitmap. Must be ≥ the target fork's largest
+    executable-code size (`MAX_INIT_CODE_SIZE` — initcode executes).
+
+    Set to `0x20000 = 131,072`, the `MAX_INIT_CODE_SIZE` of the *live*
+    EIP-7954 draft (https://eips.ethereum.org/EIPS/eip-7954, which
+    doubles `MAX_CODE_SIZE` to `0x10000`). Fork context:
+    - Spurious Dragon..Osaka: code 24,576 (EIP-170), initcode 49,152
+      (EIP-3860).
+    - Vendored-specs Amsterdam (this repo's conformance target) pins an
+      earlier EIP-7954 revision: `MAX_CODE_SIZE = 0x8000`,
+      `MAX_INIT_CODE_SIZE = 0x10000 = 65,536`
+      (`execution-specs/src/ethereum/forks/amsterdam/vm/interpreter.py`).
+    So this constant carries 2× headroom over the vendored target and
+    already covers a future specs sync to the current draft. The 16 KiB
+    bitmap costs nothing per jump — capacity only sizes the loader-zeroed
+    region and bounds the prologue's build scan (which still stops at the
+    actual `codeSize`). Note the 64 KiB `evm_memory` arena does NOT have
+    this headroom; CODECOPY of >64 KiB initcode is a separate gap.
+
+    The prologue clamps its bitmap-build scan to this many code bytes
+    and the JUMP/JUMPI validity tail rejects any destination at or
+    beyond it, so oversized (non-protocol) test bytecode stays
+    memory-safe. -/
+def jumpdestBitmapCodeCapacity : Nat := 131072
+
+/-- Byte size of the valid-JUMPDEST bitmap region (1 bit per code byte). -/
+def jumpdestBitmapBytes : Nat := jumpdestBitmapCodeCapacity / 8
+
+/-- `.data` region for the valid-JUMPDEST bitmap. Loader-zeroed; the
+    dispatcher prologue sets one bit per JUMPDEST byte outside PUSH data. -/
+def emitJumpdestBitmapData : String :=
+  ".balign 8\n" ++
+  "evm_jumpdest_bitmap:\n" ++
+  s!"  .zero {jumpdestBitmapBytes}\n"
+
+/-- Prologue fragment that precomputes the valid-JUMPDEST bitmap
+    (M15.6). One pushdata-aware pass over the bytecode: for each opcode
+    byte equal to `0x5b` (JUMPDEST), set bit `idx` of
+    `evm_jumpdest_bitmap`; PUSH1..PUSH32 (`0x60..0x7f`) skip their 1..32
+    immediate bytes so a literal `0x5b` inside PUSH data gets no bit.
+    This mirrors execution-specs `get_valid_jump_destinations`, computed
+    once per execution instead of per jump — the JUMP/JUMPI validity
+    tail (`jumpBitmapCheckAsm`) is then an O(1) bit test rather than the
+    former O(dest) scan.
+
+    Runs after both prologues have seeded `x21` (code base) and
+    `env.codeSize` (env+496); emitted immediately before
+    `.dispatch_loop:`. The scan is clamped to
+    `jumpdestBitmapCodeCapacity` code bytes. Clobbers only the
+    per-iteration scratch registers `x5`–`x9`/`x11` (the dispatch loop
+    re-derives `x5`–`x7` every iteration; `x8`/`x9`/`x11` carry no
+    dispatcher state). The bitmap region is loader-zeroed, so no
+    explicit clear pass is needed. -/
+def emitJumpdestBitmapBuild : String :=
+  "  mv x5, x21\n" ++                       -- x5 = scan ptr (code base)
+  "  ld x6, 496(x20)\n" ++                  -- x6 = env.codeSize
+  s!"  li x7, {jumpdestBitmapCodeCapacity}\n" ++
+  "  bleu x6, x7, .jdbm_len_ok\n" ++        -- clamp scan to bitmap capacity
+  "  mv x6, x7\n" ++
+  ".jdbm_len_ok:\n" ++
+  "  add x6, x5, x6\n" ++                   -- x6 = end-of-scan ptr
+  "  la x7, evm_jumpdest_bitmap\n" ++
+  ".jdbm_scan:\n" ++
+  "  bgeu x5, x6, .jdbm_done\n" ++
+  "  lbu x8, 0(x5)\n" ++                    -- x8 = code byte
+  "  li x9, 0x5b\n" ++
+  "  bne x8, x9, .jdbm_not_jumpdest\n" ++
+  "  sub x8, x5, x21\n" ++                  -- x8 = byte index of this JUMPDEST
+  "  andi x9, x8, 7\n" ++                   -- x9 = bit position
+  "  srli x8, x8, 3\n" ++
+  "  add x8, x7, x8\n" ++                   -- x8 = &bitmap[idx >> 3]
+  "  li x11, 1\n" ++
+  "  sll x11, x11, x9\n" ++                 -- x11 = bit mask
+  "  lbu x9, 0(x8)\n" ++
+  "  or x9, x9, x11\n" ++
+  "  sb x9, 0(x8)\n" ++                     -- bitmap[idx >> 3] |= 1 << (idx & 7)
+  "  addi x5, x5, 1\n" ++
+  "  j .jdbm_scan\n" ++
+  ".jdbm_not_jumpdest:\n" ++
+  "  li x9, 0x60\n" ++
+  "  bltu x8, x9, .jdbm_plain\n" ++         -- below PUSH1 → 1-byte opcode
+  "  li x9, 0x80\n" ++
+  "  bgeu x8, x9, .jdbm_plain\n" ++         -- at/above DUP1 → 1-byte opcode
+  "  addi x8, x8, -94\n" ++                 -- PUSHn: skip opcode + n immediates
+  "  add x5, x5, x8\n" ++                   --   (0x60 - 94 = 2 … 0x7f - 94 = 33)
+  "  j .jdbm_scan\n" ++
+  ".jdbm_plain:\n" ++
+  "  addi x5, x5, 1\n" ++
+  "  j .jdbm_scan\n" ++
+  ".jdbm_done:\n"
+
 /-- Shared CALL/STATICCALL precompile-frame status word offset. -/
 def precompileFrameStatusOff : Nat := 0
 
@@ -761,6 +853,9 @@ def emitDispatcherPrologue : String :=
   "  sd x0, 632(x20)\n" ++
   "  sd x0, 640(x20)\n" ++
   "  sd x0, 648(x20)\n" ++
+  -- M15.6: precompute the valid-JUMPDEST bitmap (one pushdata-aware
+  -- pass; JUMP/JUMPI validity checks become O(1) bit tests).
+  emitJumpdestBitmapBuild ++
   ".dispatch_loop:\n" ++
   "  lbu x5, 0(x10)\n" ++
   "  slli x5, x5, 3\n" ++           -- x5 = opcode * 8 (index for both tables)
@@ -1117,6 +1212,7 @@ def emitDispatcherDataSection
                           -- restores `sp = lp64_sp_top`.
   emitBls12G1MsmDiscountTable ++
   emitBls12G2MsmDiscountTable ++
+  emitJumpdestBitmapData ++
   emitGasCostTable ++ "\n" ++
   emitJumpTable registry
 
@@ -1396,6 +1492,9 @@ def emitRuntimeDispatcherSetup : String :=
 /-- Runtime dispatcher prologue: setup plus fetch/decode/dispatch loop. -/
 def emitRuntimeDispatcherPrologue : String :=
   emitRuntimeDispatcherSetup ++ "\n" ++
+  -- M15.6: precompute the valid-JUMPDEST bitmap (one pushdata-aware
+  -- pass; JUMP/JUMPI validity checks become O(1) bit tests).
+  emitJumpdestBitmapBuild ++
   ".dispatch_loop:\n" ++
   "  lbu x5, 0(x10)\n" ++
   "  slli x5, x5, 3\n" ++           -- x5 = opcode * 8 (index for both tables)
@@ -1493,6 +1592,7 @@ def emitRuntimeDispatcherDataSection
                           -- restores `sp = lp64_sp_top`.
   emitBls12G1MsmDiscountTable ++
   emitBls12G2MsmDiscountTable ++
+  emitJumpdestBitmapData ++
   emitGasCostTable ++ "\n" ++
   emitJumpTable registry
 
