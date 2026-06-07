@@ -313,6 +313,7 @@ def lookupProgram : String → Option BuildUnit
   | "tiny_interp_dispatch_add"  => some tinyInterpDispatchAddUnit
   | "tiny_interp_dispatch_add2" => some tinyInterpDispatchAdd2Unit
   | "runtime_dispatcher"        => some runtimeDispatcherUnit
+  | "runtime_dispatcher_call_probe" => some runtimeDispatcherCallProbeUnit
   | "stateless_guest"           => some statelessGuestUnit
   | "zisk_keccak_probe"         => some ziskKeccakProbeUnit
   | "zisk_keccak256_empty"      => some ziskKeccak256EmptyProbeUnit
@@ -514,6 +515,7 @@ def lookupProgram : String → Option BuildUnit
   | "runtime_account_witness_extcodehash" => some runtimeAccountWitnessExtcodehashProbeUnit
   | "runtime_account_witness_extcodecopy" => some runtimeAccountWitnessExtcodecopyProbeUnit
   | "runtime_selfdestruct_account_inputs" => some runtimeSelfdestructAccountInputsProbeUnit
+  | "runtime_selfdestruct_eip7708_logs" => some runtimeSelfdestructEip7708LogsProbeUnit
   | "zisk_balance_at_header_state_root" => some ziskBalanceAtHeaderStateRootProbeUnit
   | "zisk_nonce_at_header_state_root" => some ziskNonceAtHeaderStateRootProbeUnit
   | "zisk_storage_root_at_header_state_root" => some ziskStorageRootAtHeaderStateRootProbeUnit
@@ -550,6 +552,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_check_gas_limit"      => some ziskCheckGasLimitProbeUnit
   | "zisk_tx_validate_against_block" => some ziskTxValidateAgainstBlockProbeUnit
   | "zisk_calc_excess_blob_gas" => some ziskCalcExcessBlobGasProbeUnit
+  | "zisk_amsterdam_blob_gas_price" => some ziskAmsterdamBlobGasPriceProbeUnit
   | "zisk_header_validate_post_merge" => some ziskHeaderValidatePostMergeProbeUnit
   | "zisk_header_validate_extra_data_length" => some ziskHeaderValidateExtraDataLengthProbeUnit
   | "zisk_u256_add_be"          => some ziskU256AddBeProbeUnit
