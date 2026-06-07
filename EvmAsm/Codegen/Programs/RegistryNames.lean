@@ -20,6 +20,7 @@ def knownProgramNames : List String :=
    "tiny_interp_dispatch_add", "tiny_interp_dispatch_add2",
    "runtime_dispatcher",
    "runtime_dispatcher_call_probe",
+   "runtime_dispatcher_gas_capture_probe",
   "stateless_guest"] ++
   knownCryptoProgramNames ++
   ["zisk_headers_keccak_chain",
@@ -216,6 +217,7 @@ def knownProgramNames : List String :=
    "runtime_account_witness_extcodehash",
    "runtime_account_witness_extcodecopy",
    "runtime_create_initcode_frame",
+   "runtime_create_initcode_execute",
    "runtime_selfdestruct_eip7708_logs",
    "zisk_balance_at_header_state_root",
    "zisk_nonce_at_header_state_root",

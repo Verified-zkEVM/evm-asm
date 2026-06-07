@@ -280,6 +280,12 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  bnez x18, 7f\n" ++
     "6:\n" ++
     createStageInitcodeFrameCallAsm (if hasSalt then 1 else 0) ++
+    createExecuteInitcodeFrameCallAsm ++
+    createCopyChildReturndataToFrameAsm ++
+    "  la x18, create_child_status\n" ++
+    "  ld x18, 0(x18)\n" ++
+    "  li x19, 2\n" ++
+    "  bne x18, x19, 7f\n" ++
     "  addi x12, x12, " ++ toString netPopBytes ++ "\n" ++
     -- Push the derived 160-bit address as an EVM stack word: low 160 bits in
     -- stack byte order, high 96 bits zero.

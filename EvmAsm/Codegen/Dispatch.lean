@@ -539,6 +539,9 @@ def emitCreateChildFrameData : String :=
   ".balign 32\n" ++
   "create_child_value_be:\n" ++
   "  .zero 32\n" ++
+  ".balign 8\n" ++
+  "create_child_stack:\n" ++
+  "  .zero 128\n" ++
   ".balign 32\n" ++
   "create_child_initcode:\n" ++
   "  .zero 0x10000\n" ++
@@ -1043,6 +1046,212 @@ def createStageInitcodeFrameRuntimeFunction : String :=
   "  li a0, 0\n" ++
   "  ret"
 
+
+
+/-- Bounded CREATE initcode executor over the staged child-frame arena.
+
+Supported in this first executable slice: STOP, RETURN, REVERT, INVALID,
+PUSH0/PUSH1..PUSH32 with u64 values, MSTORE, and MSTORE8. All other opcodes
+fail deterministically. Result status uses the child-frame status word:
+  2 deployed, 3 reverted, 4 failed/unsupported, 5 bounded-step exhaustion. -/
+def createExecuteInitcodeFrameRuntimeFunction : String :=
+  "create_execute_initcode_frame:\n" ++
+  "  la t0, create_child_status\n" ++
+  "  li t1, 4\n" ++
+  "  sd t1, 0(t0)\n" ++
+  "  la t0, create_child_return_len\n" ++
+  "  sd zero, 0(t0)\n" ++
+  "  la t0, create_child_code_len\n" ++
+  "  sd zero, 0(t0)\n" ++
+  "  la t0, create_child_returndata\n" ++
+  "  la t1, create_child_code\n" ++
+  "  li t2, 256\n" ++
+  ".Lcreate_exec_zero_loop:\n" ++
+  "  sb zero, 0(t0)\n" ++
+  "  sb zero, 0(t1)\n" ++
+  "  addi t0, t0, 1\n" ++
+  "  addi t1, t1, 1\n" ++
+  "  addi t2, t2, -1\n" ++
+  "  bnez t2, .Lcreate_exec_zero_loop\n" ++
+  "  li t0, 0\n" ++
+  "  la t2, create_child_initcode\n" ++
+  "  la t3, create_child_stack\n" ++
+  "  li t4, 0\n" ++
+  "  li t5, 1024\n" ++
+  "  la t1, create_child_init_len\n" ++
+  "  ld t1, 0(t1)\n" ++
+  ".Lcreate_exec_loop:\n" ++
+  "  beqz t5, .Lcreate_exec_oog\n" ++
+  "  addi t5, t5, -1\n" ++
+  "  bgeu t0, t1, .Lcreate_exec_stop\n" ++
+  "  add a0, t2, t0\n" ++
+  "  lbu t6, 0(a0)\n" ++
+  "  addi t0, t0, 1\n" ++
+  "  beqz t6, .Lcreate_exec_stop\n" ++
+  "  li a0, 0xf3\n" ++
+  "  beq t6, a0, .Lcreate_exec_return\n" ++
+  "  li a0, 0xfd\n" ++
+  "  beq t6, a0, .Lcreate_exec_revert\n" ++
+  "  li a0, 0xfe\n" ++
+  "  beq t6, a0, .Lcreate_exec_fail\n" ++
+  "  li a0, 0x52\n" ++
+  "  beq t6, a0, .Lcreate_exec_mstore\n" ++
+  "  li a0, 0x53\n" ++
+  "  beq t6, a0, .Lcreate_exec_mstore8\n" ++
+  "  li a0, 0x5f\n" ++
+  "  beq t6, a0, .Lcreate_exec_push0\n" ++
+  "  li a0, 0x60\n" ++
+  "  bltu t6, a0, .Lcreate_exec_fail\n" ++
+  "  li a0, 0x80\n" ++
+  "  bgeu t6, a0, .Lcreate_exec_fail\n" ++
+  "  j .Lcreate_exec_pushn\n" ++
+  ".Lcreate_exec_push0:\n" ++
+  "  li a1, 0\n" ++
+  "  j .Lcreate_exec_push_value\n" ++
+  ".Lcreate_exec_pushn:\n" ++
+  "  addi a2, t6, -0x5f\n" ++
+  "  add a3, t0, a2\n" ++
+  "  bltu t1, a3, .Lcreate_exec_fail\n" ++
+  "  li a1, 0\n" ++
+  ".Lcreate_exec_pushn_loop:\n" ++
+  "  beqz a2, .Lcreate_exec_push_value\n" ++
+  "  add a3, t2, t0\n" ++
+  "  lbu a4, 0(a3)\n" ++
+  "  addi t0, t0, 1\n" ++
+  "  li a3, 8\n" ++
+  "  bltu a3, a2, .Lcreate_exec_pushn_high\n" ++
+  "  slli a1, a1, 8\n" ++
+  "  or a1, a1, a4\n" ++
+  "  addi a2, a2, -1\n" ++
+  "  j .Lcreate_exec_pushn_loop\n" ++
+  ".Lcreate_exec_pushn_high:\n" ++
+  "  bnez a4, .Lcreate_exec_fail\n" ++
+  "  addi a2, a2, -1\n" ++
+  "  j .Lcreate_exec_pushn_loop\n" ++
+  ".Lcreate_exec_push_value:\n" ++
+  "  li a0, 16\n" ++
+  "  bgeu t4, a0, .Lcreate_exec_fail\n" ++
+  "  slli a0, t4, 3\n" ++
+  "  add a0, t3, a0\n" ++
+  "  sd a1, 0(a0)\n" ++
+  "  addi t4, t4, 1\n" ++
+  "  j .Lcreate_exec_loop\n" ++
+  ".Lcreate_exec_mstore:\n" ++
+  "  li a0, 2\n" ++
+  "  bltu t4, a0, .Lcreate_exec_fail\n" ++
+  "  addi t4, t4, -1\n" ++
+  "  slli a0, t4, 3\n" ++
+  "  add a0, t3, a0\n" ++
+  "  ld a1, 0(a0)\n" ++
+  "  addi t4, t4, -1\n" ++
+  "  slli a0, t4, 3\n" ++
+  "  add a0, t3, a0\n" ++
+  "  ld a2, 0(a0)\n" ++
+  "  li a0, 224\n" ++
+  "  bltu a0, a1, .Lcreate_exec_fail\n" ++
+  "  la a3, create_child_returndata\n" ++
+  "  add a3, a3, a1\n" ++
+  "  li a4, 24\n" ++
+  ".Lcreate_exec_mstore_zero_loop:\n" ++
+  "  sb zero, 0(a3)\n" ++
+  "  addi a3, a3, 1\n" ++
+  "  addi a4, a4, -1\n" ++
+  "  bnez a4, .Lcreate_exec_mstore_zero_loop\n" ++
+  "  li a4, 56\n" ++
+  ".Lcreate_exec_mstore_value_loop:\n" ++
+  "  srl a5, a2, a4\n" ++
+  "  sb a5, 0(a3)\n" ++
+  "  addi a3, a3, 1\n" ++
+  "  addi a4, a4, -8\n" ++
+  "  bgez a4, .Lcreate_exec_mstore_value_loop\n" ++
+  "  j .Lcreate_exec_loop\n" ++
+  ".Lcreate_exec_mstore8:\n" ++
+  "  li a0, 2\n" ++
+  "  bltu t4, a0, .Lcreate_exec_fail\n" ++
+  "  addi t4, t4, -1\n" ++
+  "  slli a0, t4, 3\n" ++
+  "  add a0, t3, a0\n" ++
+  "  ld a1, 0(a0)\n" ++
+  "  addi t4, t4, -1\n" ++
+  "  slli a0, t4, 3\n" ++
+  "  add a0, t3, a0\n" ++
+  "  ld a2, 0(a0)\n" ++
+  "  li a0, 255\n" ++
+  "  bltu a0, a1, .Lcreate_exec_fail\n" ++
+  "  la a3, create_child_returndata\n" ++
+  "  add a3, a3, a1\n" ++
+  "  sb a2, 0(a3)\n" ++
+  "  j .Lcreate_exec_loop\n" ++
+  ".Lcreate_exec_return:\n" ++
+  "  li a6, 2\n" ++
+  "  la a7, create_child_code_len\n" ++
+  "  la a5, create_child_code\n" ++
+  "  j .Lcreate_exec_finish_copy\n" ++
+  ".Lcreate_exec_revert:\n" ++
+  "  li a6, 3\n" ++
+  "  la a7, create_child_return_len\n" ++
+  "  la a5, create_child_returndata\n" ++
+  "  j .Lcreate_exec_finish_copy\n" ++
+  ".Lcreate_exec_finish_copy:\n" ++
+  "  li a0, 2\n" ++
+  "  bltu t4, a0, .Lcreate_exec_fail\n" ++
+  "  addi t4, t4, -1\n" ++
+  "  slli a0, t4, 3\n" ++
+  "  add a0, t3, a0\n" ++
+  "  ld a1, 0(a0)\n" ++
+  "  addi t4, t4, -1\n" ++
+  "  slli a0, t4, 3\n" ++
+  "  add a0, t3, a0\n" ++
+  "  ld a2, 0(a0)\n" ++
+  "  li a0, 256\n" ++
+  "  bltu a0, a2, .Lcreate_exec_fail\n" ++
+  "  add a0, a1, a2\n" ++
+  "  bltu a0, a1, .Lcreate_exec_fail\n" ++
+  "  li a3, 256\n" ++
+  "  bltu a3, a0, .Lcreate_exec_fail\n" ++
+  "  sd a2, 0(a7)\n" ++
+  "  beqz a2, .Lcreate_exec_set_status\n" ++
+  "  la a3, create_child_returndata\n" ++
+  "  add a3, a3, a1\n" ++
+  "  mv a4, a2\n" ++
+  ".Lcreate_exec_copy_result_loop:\n" ++
+  "  lbu a0, 0(a3)\n" ++
+  "  sb a0, 0(a5)\n" ++
+  "  addi a3, a3, 1\n" ++
+  "  addi a5, a5, 1\n" ++
+  "  addi a4, a4, -1\n" ++
+  "  bnez a4, .Lcreate_exec_copy_result_loop\n" ++
+  "  j .Lcreate_exec_set_status\n" ++
+  ".Lcreate_exec_stop:\n" ++
+  "  li a6, 2\n" ++
+  ".Lcreate_exec_set_status:\n" ++
+  "  li a0, 2\n" ++
+  "  bne a6, a0, .Lcreate_exec_store_status\n" ++
+  "  la a1, create_child_returndata\n" ++
+  "  li a2, 256\n" ++
+  ".Lcreate_exec_clear_return_buffer_loop:\n" ++
+  "  sb zero, 0(a1)\n" ++
+  "  addi a1, a1, 1\n" ++
+  "  addi a2, a2, -1\n" ++
+  "  bnez a2, .Lcreate_exec_clear_return_buffer_loop\n" ++
+  ".Lcreate_exec_store_status:\n" ++
+  "  la a0, create_child_status\n" ++
+  "  sd a6, 0(a0)\n" ++
+  "  li a0, 0\n" ++
+  "  ret\n" ++
+  ".Lcreate_exec_oog:\n" ++
+  "  la a0, create_child_status\n" ++
+  "  li a1, 5\n" ++
+  "  sd a1, 0(a0)\n" ++
+  "  li a0, 5\n" ++
+  "  ret\n" ++
+  ".Lcreate_exec_fail:\n" ++
+  "  la a0, create_child_status\n" ++
+  "  li a1, 4\n" ++
+  "  sd a1, 0(a0)\n" ++
+  "  li a0, 4\n" ++
+  "  ret"
+
 /-- Dispatcher epilogue: handler subroutines (each ends with `ret` or
     `j .exit_label`), the `h_invalid` fallback, and `.exit_label`
     which runs `exitBody` (e.g. `evmAddEpilogue`) and falls through
@@ -1101,6 +1310,7 @@ def emitDispatcherEpilogueCore
   addressComputeCreateFunction ++ "\n" ++
   addressComputeCreate2Function ++ "\n" ++
   createStageInitcodeFrameRuntimeFunction ++ "\n" ++
+  createExecuteInitcodeFrameRuntimeFunction ++ "\n" ++
   zkvmModexpSafeFailWrapper ++ "\n" ++
   storageAccessGasFunction ++ "\n" ++
   runtimeAccessAccountSeedFunction ++ "\n" ++
@@ -1633,6 +1843,13 @@ def emitRuntimeDispatcherSetup : String :=
   "  slli x12, x12, 1\n" ++        -- CODE_INIT_PER_WORD = 2
   "  add x7, x7, x12\n" ++
   ".runtime_tx_gas_check:\n" ++
+  -- Persist the EIP-7623 calldata floor (x10) so a caller (e.g. the
+  -- block-verdict gas-result capture probe) can read the exact
+  -- `calldata_floor_gas_cost` this transaction was validated against.
+  -- Only the validate-tx-gas path reaches this label, so x10 is the
+  -- computed floor here; x11 is free (it last held a calldata byte).
+  "  la x11, runtime_tx_calldata_floor\n" ++
+  "  sd x10, 0(x11)\n" ++
   "  bltu x6, x7, .exit_outofgas\n" ++
   "  bltu x6, x10, .exit_outofgas\n" ++
   "  sub x6, x6, x7\n" ++
@@ -1706,6 +1923,11 @@ def emitRuntimeDispatcherDataSection
   ".section .data\n" ++
   ".balign 8\n" ++
   "runtime_dispatcher_caller_ra:\n" ++
+  "  .zero 8\n" ++
+  -- EIP-7623 calldata floor persisted by the validate-tx-gas path so a
+  -- caller can read the exact `calldata_floor_gas_cost` the transaction
+  -- was validated against (0 when --validate-tx-gas was not requested).
+  "runtime_tx_calldata_floor:\n" ++
   "  .zero 8\n" ++
   ".balign 32\n" ++
   "evm_memory:\n" ++
@@ -1816,6 +2038,78 @@ def buildRuntimeDispatchCallableProbeUnit
     emitRuntimeDispatcherCallablePrologue
   epilogueAsm := emitDispatcherCallableEpilogue registry exitBody
   dataAsm     := emitRuntimeDispatcherDataSection registry
+}
+
+/-- Build a probe `BuildUnit` that runs one staged transaction through the
+    callable runtime dispatcher and captures the dispatcher's gas results into
+    stable per-transaction arrays (index 0), as required by the block-verdict
+    gas-result arena (`block_verdict_gas_result_arena_prepare`).
+
+    The transaction payload is supplied as the ordinary `pack-bytecode.py`
+    runtime input (bytecode + calldata + trailers, with `--validate-tx-gas`),
+    so feeding a STOP or `GAS,STOP` body exercises the post-execution gas
+    surface. After `runtime_dispatcher_call` returns, the wrapper records, for
+    transaction index 0:
+
+      * `gas_left`             := `env.gasRemaining` (env+568)
+      * `calldata_floor_gas_cost` := `runtime_tx_calldata_floor` (persisted by
+        the validate-tx-gas path; 0 when validation was not requested)
+      * `refund_counter`       := 0 — the runtime dispatcher does not yet
+        accumulate an EVM refund counter, so this stays a conservative 0
+        until a later child wires SSTORE/SELFDESTRUCT refunds into `env`.
+      * `halt_kind`            := `OUTPUT+32` (0 STOP/RETURN, 2 REVERT, …),
+        captured separately so exceptional halts stay distinguishable from a
+        normal STOP/RETURN.
+
+    The captured arrays live at `rdg_*` and are also surfaced to the stable
+    `OUTPUT+160` diagnostic window (within ziskemu's 256-byte `-o` dump, past
+    the dispatcher's own storage/log surface which a simple STOP/empty-REVERT
+    leaves zeroed) so a focused zisk probe can assert them:
+
+      OUTPUT+160  gas_left[0]
+      OUTPUT+168  refund_counter[0]
+      OUTPUT+176  calldata_floor[0]
+      OUTPUT+184  halt_kind
+      OUTPUT+192  capture marker (0xca97c0de) -/
+def buildRuntimeDispatchGasCaptureProbeUnit
+    (registry : List OpcodeHandlerSpec)
+    (exitBody : Program) : BuildUnit := {
+  body        := []
+  prologueAsm :=
+    "  jal ra, runtime_dispatcher_call\n" ++
+    "  la t2, evm_env\n" ++
+    "  ld t3, 568(t2)             # gas_left = env.gasRemaining\n" ++
+    "  la t4, rdg_gas_left\n" ++
+    "  sd t3, 0(t4)\n" ++
+    "  la t4, runtime_tx_calldata_floor\n" ++
+    "  ld t5, 0(t4)               # EIP-7623 calldata floor\n" ++
+    "  la t4, rdg_calldata_floor\n" ++
+    "  sd t5, 0(t4)\n" ++
+    "  li t6, 0                   # refund_counter (not yet tracked at runtime)\n" ++
+    "  la t4, rdg_refund_counter\n" ++
+    "  sd t6, 0(t4)\n" ++
+    "  li t0, 0xa0010000\n" ++
+    "  ld t1, 32(t0)              # halt_kind from OUTPUT+32\n" ++
+    "  la t4, rdg_halt_kind\n" ++
+    "  sd t1, 0(t4)\n" ++
+    "  sd t3, 160(t0)             # surface gas_left\n" ++
+    "  sd t6, 168(t0)             # surface refund_counter\n" ++
+    "  sd t5, 176(t0)             # surface calldata_floor\n" ++
+    "  sd t1, 184(t0)             # surface halt_kind\n" ++
+    "  li t2, 0xca97c0de\n" ++
+    "  sd t2, 192(t0)             # capture marker\n" ++
+    "  li x17, 93\n" ++
+    "  li x10, 0\n" ++
+    "  ecall\n" ++
+    emitRuntimeDispatcherCallablePrologue
+  epilogueAsm := emitDispatcherCallableEpilogue registry exitBody
+  dataAsm     :=
+    emitRuntimeDispatcherDataSection registry ++ "\n" ++
+    ".balign 8\n" ++
+    "rdg_gas_left:\n  .zero 128\n" ++
+    "rdg_refund_counter:\n  .zero 128\n" ++
+    "rdg_calldata_floor:\n  .zero 128\n" ++
+    "rdg_halt_kind:\n  .zero 8\n"
 }
 
 /-- Build a `BuildUnit` that runs the dispatcher over `bytecodeBytes`

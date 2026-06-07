@@ -355,6 +355,7 @@ def lookupProgramMain (lookupProgramTail : String → Option BuildUnit) : String
   | "tiny_interp_dispatch_add2" => some tinyInterpDispatchAdd2Unit
   | "runtime_dispatcher"        => some runtimeDispatcherUnit
   | "runtime_dispatcher_call_probe" => some runtimeDispatcherCallProbeUnit
+  | "runtime_dispatcher_gas_capture_probe" => some runtimeDispatcherGasCaptureProbeUnit
   | "stateless_guest"           => some statelessGuestUnit
   | "zisk_headers_keccak_chain" => some ziskHeadersKeccakChainProbeUnit
   | "zisk_headers_keccak_array" => some ziskHeadersKeccakArrayProbeUnit
@@ -541,6 +542,7 @@ def lookupProgramMain (lookupProgramTail : String → Option BuildUnit) : String
   | "runtime_account_witness_extcodehash" => some runtimeAccountWitnessExtcodehashProbeUnit
   | "runtime_account_witness_extcodecopy" => some runtimeAccountWitnessExtcodecopyProbeUnit
   | "runtime_create_initcode_frame" => some runtimeCreateInitcodeFrameProbeUnit
+  | "runtime_create_initcode_execute" => some runtimeCreateInitcodeExecuteProbeUnit
   | "runtime_selfdestruct_eip7708_logs" => some runtimeSelfdestructEip7708LogsProbeUnit
   | "zisk_balance_at_header_state_root" => some ziskBalanceAtHeaderStateRootProbeUnit
   | "zisk_nonce_at_header_state_root" => some ziskNonceAtHeaderStateRootProbeUnit
