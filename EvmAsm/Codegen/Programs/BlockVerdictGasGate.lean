@@ -9,6 +9,7 @@ import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.TxExtract
+import EvmAsm.Codegen.Programs.TxDecode4844
 import EvmAsm.Codegen.Programs.IntrinsicGas
 import EvmAsm.Codegen.Programs.AmsterdamSystemTx
 
@@ -148,6 +149,7 @@ def eip8037TxGasGateFunction : String :=
   "  beqz s7, .Letg_ok\n" ++
   "  li t0, 16; bgtu s7, t0, .Letg_ok\n" ++
   "  li s8, 0                    # tx index, 0-based\n" ++
+  "  la t0, bsg_blob_gas_accum; sd zero, 0(t0)\n" ++
   ".Letg_tx_loop:\n" ++
   "  beq s8, s7, .Letg_ok\n" ++
   "  slli t0, s8, 2; add t1, s5, t0; mv a0, t1; jal ra, bgv_u32le\n" ++
@@ -242,6 +244,27 @@ def eip8037TxGasGateFunction : String :=
   "  jal ra, rlp_list_count_items\n" ++
   "  bnez a0, .Letg_ok\n" ++
   ".Letg_after_auth:\n" ++
+  "  la t0, bsg_tx_type; ld t1, 0(t0); li t2, 3; bne t1, t2, .Letg_after_blob_precheck\n" ++
+  "  mv a0, s9; mv a1, s10; la a2, tcbg_struct\n" ++
+  "  jal ra, tx_eip4844_decode\n" ++
+  "  bnez a0, .Letg_validate_fail\n" ++
+  "  la t0, tcbg_struct; lwu t1, 168(t0); lwu t2, 172(t0)\n" ++
+  "  add a0, s9, t1; mv a1, t2; la a2, bsg_blob_count\n" ++
+  "  jal ra, rlp_list_count_items\n" ++
+  "  bnez a0, .Letg_validate_fail\n" ++
+  "  la t0, bsg_blob_count; ld t1, 0(t0); beqz t1, .Letg_validate_fail\n" ++
+  "  li t2, 6; bgtu t1, t2, .Letg_validate_fail\n" ++
+  "  slli t1, t1, 17\n" ++
+  "  la t0, bsg_blob_gas_accum; ld t2, 0(t0); add t2, t2, t1\n" ++
+  "  li t3, 2752512             # Amsterdam MAX_BLOB_GAS_PER_BLOCK\n" ++
+  "  bgtu t2, t3, .Letg_validate_fail\n" ++
+  "  la t0, bsg_blob_gas_accum; sd t2, 0(t0)\n" ++
+  "  addi a0, s0, 520; jal ra, bgv_u64le       # header excess_blob_gas\n" ++
+  "  jal ra, amsterdam_blob_gas_price\n" ++
+  "  bnez a0, .Letg_validate_fail\n" ++
+  "  la t0, tcbg_struct; ld t1, 160(t0)        # max_fee_per_blob_gas\n" ++
+  "  bltu t1, a1, .Letg_validate_fail\n" ++
+  ".Letg_after_blob_precheck:\n" ++
   "  la t0, bsg_data_ptr; ld a0, 0(t0)\n" ++
   "  la t0, bsg_data_len; ld a1, 0(t0)\n" ++
   "  la t0, bsg_to_len; ld a2, 0(t0); seqz a2, a2\n" ++
