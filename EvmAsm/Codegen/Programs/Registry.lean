@@ -566,6 +566,8 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_secp256k1_field_reduce_once" => some ziskSecp256k1FieldReduceOnceProbeUnit
   | "zisk_secp256k1_field_add" => some ziskSecp256k1FieldAddProbeUnit
   | "zisk_secp256k1_field_sub" => some ziskSecp256k1FieldSubProbeUnit
+  | "zisk_secp256k1_field_mul" => some ziskSecp256k1FieldMulProbeUnit
+  | "zisk_secp256k1_field_square" => some ziskSecp256k1FieldSquareProbeUnit
   | "zisk_u256_add_be"          => some ziskU256AddBeProbeUnit
   | "zisk_u256_lt_be"           => some ziskU256LtBeProbeUnit
   | "zisk_u256_sub_be"          => some ziskU256SubBeProbeUnit

@@ -26,6 +26,8 @@ PROGRAMS=(
   zisk_secp256k1_field_reduce_once
   zisk_secp256k1_field_add
   zisk_secp256k1_field_sub
+  zisk_secp256k1_field_mul
+  zisk_secp256k1_field_square
 )
 
 for program in "${PROGRAMS[@]}"; do
@@ -57,7 +59,7 @@ def u256(x):
 
 with open(in_path, 'wb') as f:
     f.write(u256(a))
-    if op in {'add', 'sub'}:
+    if op in {'add', 'sub', 'mul'}:
         f.write(u256(b))
 
 if op == 'cmp':
@@ -71,6 +73,10 @@ elif op == 'add':
     expected = struct.pack('<Q', 0) + u256((a + b) % P)
 elif op == 'sub':
     expected = struct.pack('<Q', 0) + u256((a - b) % P)
+elif op == 'mul':
+    expected = struct.pack('<Q', 0) + u256((a * b) % P)
+elif op == 'square':
+    expected = struct.pack('<Q', 0) + u256((a * a) % P)
 else:
     raise SystemExit(f'unknown op: {op}')
 
@@ -150,9 +156,22 @@ run_case zisk_secp256k1_field_sub zero_minus_one sub 0 1 || FAILED=1
 run_case zisk_secp256k1_field_sub one_minus_p_minus_one sub 1 "$PM1_DEC" || FAILED=1
 run_case zisk_secp256k1_field_sub random_fixed sub "$RAND_A" "$RAND_B" || FAILED=1
 
+
+run_case zisk_secp256k1_field_mul zero_times_random mul 0 "$RAND_A" || FAILED=1
+run_case zisk_secp256k1_field_mul one_times_random mul 1 "$RAND_A" || FAILED=1
+run_case zisk_secp256k1_field_mul p_minus_one_squared mul "$PM1_DEC" "$PM1_DEC" || FAILED=1
+run_case zisk_secp256k1_field_mul carry_heavy mul "$MAX_DEC" "$MAX_DEC" || FAILED=1
+run_case zisk_secp256k1_field_mul random_fixed mul "$RAND_A" "$RAND_B" || FAILED=1
+
+run_case zisk_secp256k1_field_square zero square 0 || FAILED=1
+run_case zisk_secp256k1_field_square one square 1 || FAILED=1
+run_case zisk_secp256k1_field_square p_minus_one square "$PM1_DEC" || FAILED=1
+run_case zisk_secp256k1_field_square carry_heavy square "$MAX_DEC" || FAILED=1
+run_case zisk_secp256k1_field_square random_fixed square "$RAND_A" || FAILED=1
+
 echo
 if [[ $FAILED -eq 0 ]]; then
-  echo "==> PASS: secp256k1 field compare/reduce/add/sub probes match Python modulo p"
+  echo "==> PASS: secp256k1 field compare/reduce/add/sub/mul/square probes match Python modulo p"
   exit 0
 else
   echo "==> FAIL"
