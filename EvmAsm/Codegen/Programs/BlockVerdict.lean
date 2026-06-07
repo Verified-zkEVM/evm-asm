@@ -1124,6 +1124,11 @@ def ziskStatelessVerdictV2DataSection : String :=
   ".balign 8\n" ++
   "bbcv_code_off:\n  .zero 8\n" ++
   "bbcv_code_len:\n  .zero 8\n" ++
+  "bbcv_scan_count:\n  .zero 8\n" ++
+  "bbcv_scan_off:\n  .zero 8\n" ++
+  "bbcv_scan_size:\n  .zero 8\n" ++
+  "bbcv_scan_addr_off:\n  .zero 8\n" ++
+  "bbcv_scan_addr_len:\n  .zero 8\n" ++
   ".balign 32\n" ++
   "bv_tx_recipient_code_hash:\n  .zero 32\n" ++
   "bbcv_sender_addr:\n  .zero 32\n" ++
