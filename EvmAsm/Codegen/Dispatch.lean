@@ -50,11 +50,29 @@ def evmStackScratchBytes : Nat := evmStackWordCapacity * evmStackWordBytes
 def evmStackGuardBytes : Nat := 512
 
 /-- Maximum bytecode length (in bytes) covered by the precomputed
-    valid-JUMPDEST bitmap. 64 KiB comfortably covers the protocol maxima
-    (EIP-170 deployed code = 24,576 B; EIP-3860 initcode = 49,152 B).
-    The prologue clamps its bitmap-build scan to this many code bytes and
-    the JUMP/JUMPI validity tail rejects any destination at or beyond it,
-    so oversized (non-protocol) test bytecode stays memory-safe. -/
+    valid-JUMPDEST bitmap. Must be ≥ the target fork's largest
+    executable-code size (`MAX_INIT_CODE_SIZE` — initcode executes).
+
+    Fork dependence (EIP-7954 raises the caps in Amsterdam):
+    - Spurious Dragon..Osaka: code 24,576 (EIP-170), initcode 49,152
+      (EIP-3860).
+    - Vendored-specs Amsterdam (this repo's conformance target):
+      `MAX_CODE_SIZE = 0x8000`, `MAX_INIT_CODE_SIZE = 0x10000 = 65,536`
+      (`execution-specs/src/ethereum/forks/amsterdam/vm/interpreter.py`)
+      — this constant covers it **exactly** (max dest index 65,535 is
+      the bitmap's last bit; zero slack, so do not shrink it).
+    - The *live* EIP-7954 draft has since doubled to
+      `MAX_CODE_SIZE = 0x10000` / `MAX_INIT_CODE_SIZE = 0x20000 =
+      131,072` (https://eips.ethereum.org/EIPS/eip-7954, still Draft).
+      If the vendored specs sync to that revision, bump this constant
+      to `0x20000` (the bitmap region, build-scan clamp, and validity
+      guard all derive from it) — the 64 KiB `evm_memory` arena has the
+      same exposure.
+
+    The prologue clamps its bitmap-build scan to this many code bytes
+    and the JUMP/JUMPI validity tail rejects any destination at or
+    beyond it, so oversized (non-protocol) test bytecode stays
+    memory-safe. -/
 def jumpdestBitmapCodeCapacity : Nat := 65536
 
 /-- Byte size of the valid-JUMPDEST bitmap region (1 bit per code byte). -/
