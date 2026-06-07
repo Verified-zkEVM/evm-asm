@@ -26,10 +26,11 @@ RUN git clone --depth 1 --branch "${ZISK_TAG}" \
 WORKDIR /zisk
 RUN cargo build --release -p ziskemu
 
-# Collect zisk project license and a per-crate license inventory
+# Collect zisk project licenses (dual MIT/Apache-2.0) and a per-crate license inventory
 RUN mkdir -p /license-report \
-    && for f in LICENSE LICENSE.md LICENSE.txt COPYING; do \
-         [ -f "/zisk/$f" ] && cp "/zisk/$f" /license-report/zisk-LICENSE.txt && break; \
+    && for f in LICENSE LICENSE.md LICENSE.txt LICENSE-MIT LICENSE-APACHE \
+                LICENCE LICENCE.md LICENCE-MIT LICENCE-APACHE COPYING; do \
+         [ -f "/zisk/$f" ] && cp "/zisk/$f" "/license-report/zisk-${f}"; \
        done \
     && cargo metadata --format-version 1 \
        | python3 -c "
