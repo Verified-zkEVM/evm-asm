@@ -354,12 +354,9 @@ def sszTxListVersionedHashesMatchFunction : String :=
   "  bgtu t1, s11, .Ltvhm_tx_fail\n" ++
   "  add t0, s6, s10; add s10, t0, t1      # inner ptr\n" ++
   "  sub s11, s11, t1                      # inner len\n" ++
-  "  la a2, tvhm_struct\n" ++
-  ".Ltvhm_zinit:\n" ++
-  "  beqz t1, .Ltvhm_zdone\n" ++
-  "  j .Ltvhm_zinit\n" ++
-  ".Ltvhm_zdone:\n" ++
   "  mv a0, s10; mv a1, s11; la a2, tvhm_struct\n" ++
+  "  jal ra, tx_eip4844_decode\n" ++
+  "  bnez a0, .Ltvhm_tx_fail\n" ++
   "  la t0, tvhm_struct\n" ++
   "  lwu t1, 168(t0); lwu t2, 172(t0)\n" ++
   "  add s10, s10, t1             # blob hash list ptr\n" ++
@@ -441,9 +438,19 @@ def ziskSszTxListVersionedHashesMatchPrologue : String :=
   "  j .Ltvhmp_done\n" ++
   bgvU32leFunction ++ "\n" ++
   txTypeDispatchFunction ++ "\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  rlpFieldToU256BeFunction ++ "\n" ++
+  txEip4844DecodeFunction ++ "\n" ++
   sszTxListVersionedHashesMatchFunction ++ "\n" ++
   ".Ltvhmp_done:"
 def ziskSszTxListVersionedHashesMatchDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "rfu_offset:\n  .zero 8\n" ++
+  "rfu_length:\n  .zero 8\n" ++
+  "t48_offset:\n  .zero 8\n" ++
+  "t48_length:\n  .zero 8\n" ++
   "tvhm_tx_type:\n  .zero 8\n" ++
   "tvhm_inner_off:\n  .zero 8\n" ++
   "tvhm_blob_count:\n  .zero 8\n" ++
