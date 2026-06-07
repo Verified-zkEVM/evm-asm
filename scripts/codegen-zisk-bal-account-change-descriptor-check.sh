@@ -118,11 +118,10 @@ cases = [
      dict(balance_changes=[(1, 10 ** 10)]), account_rlp(1, 10 ** 10), 0, 0),
     ("baacd_insert", bytes.fromhex("0000000000000000000000000000000000000002"), base,
      dict(balance_changes=[(1, 9)], nonce_changes=[(1, 7)]), account_rlp(7, 9), 1, 1),
-    # Caller flag 4 asks the account rewriter to ignore the pre-existing
-    # storage trie and apply the post-wipe writes from EMPTY_TRIE_ROOT. The
-    # state-trie descriptor itself remains a MODIFY (mode 0).
-    ("baacd_storage_clear", bytes.fromhex("cccccccccccccccccccccccccccccccccccccccc"), nonempty_storage,
-     dict(storage_changes=[(2, [(3, 9)])]), account_rlp(1, 5, storage_root({2: 9})), 4, 0),
+    # Legacy caller flag 4 is now only normalized to MODIFY. It must not clear
+    # the account's pre-existing storage root when storage_changes are absent.
+    ("baacd_flag4_preserve_storage", bytes.fromhex("cccccccccccccccccccccccccccccccccccccccc"), nonempty_storage,
+     dict(balance_changes=[(4, 6)]), account_rlp(1, 6, storage_root({1: 7})), 4, 0),
 ]
 
 with open(f"{outdir}/baacd_cases.txt", "w") as case_file:
