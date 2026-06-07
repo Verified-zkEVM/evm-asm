@@ -6,6 +6,8 @@
 -/
 
 import EvmAsm.Codegen.Programs.BlockVerdict
+import EvmAsm.Codegen.Programs.EvmBasic
+import EvmAsm.Codegen.Programs.EvmRegistry
 import EvmAsm.Codegen.Programs.RequestsHash
 
 import EvmAsm.Codegen.Programs.MptEncodeLeafBranch
@@ -16,8 +18,15 @@ open EvmAsm.Rv64
 
 def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
   body        := NOP
-  prologueAsm := ziskStatelessVerdictV2Prologue
-  dataAsm     := ziskStatelessVerdictV2DataSection ++ "\n" ++ executionRequestsHashShaDataSection
+  prologueAsm :=
+    ziskStatelessVerdictV2Prologue ++ "\n" ++
+    "  j .Lstateless_verdict_v2_debug_after_runtime_dispatcher\n" ++
+    emitRuntimeDispatcherCallableCoreSharedHelpers tinyInterpRegistry evmAddEpilogue ++ "\n" ++
+    ".Lstateless_verdict_v2_debug_after_runtime_dispatcher:\n"
+  dataAsm     :=
+    ziskStatelessVerdictV2DataSection ++ "\n" ++
+    executionRequestsHashShaDataSection ++ "\n" ++
+    emitRuntimeDispatcherDataSectionSharedGuest tinyInterpRegistry
 }
 
 /-- The full stateless_verdict_v2 asm closure for embedding in the GUEST epilogue,

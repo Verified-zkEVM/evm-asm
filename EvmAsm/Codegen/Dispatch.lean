@@ -1625,11 +1625,10 @@ def emitDispatcherDataSection
     initialised — pointed at the input region instead of an
     in-`.data` label. The hex literal `0x40000010` matches
     `INPUT_ADDR + INPUT_DATA_OFFSET` in `Programs.lean`. -/
-def emitRuntimeDispatcherSetup : String :=
+def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  la sp, lp64_sp_top\n" ++   -- M16: LP64 stack ptr for ECALL-bridge helpers
                                 -- (e.g. zkvm_keccak256's `addi sp, sp, -32`)
-  "  li x10, 0x40000010\n" ++   -- INPUT_ADDR + INPUT_DATA_OFFSET
-  "  li x21, 0x40000010\n" ++   -- M15: preserved code base (mirrors x10 init)
+  inputAsm ++
   "  la x12, evm_stack_top\n" ++
   "  la x13, evm_memory\n" ++
   "  la x20, evm_env\n" ++       -- M12: env-region base (ADDRESS, CALLER, …)
@@ -1639,7 +1638,7 @@ def emitRuntimeDispatcherSetup : String :=
   -- bytecode-length sits at INPUT_ADDR + 8 = 0x40000008. We round it up
   -- to 8-byte boundary, add to bytecode start (x10), and that's the
   -- calldata-length address. Eight bytes past it is the calldata.
-  "  li x5, 0x40000008\n" ++       -- &(bytecode length)
+  "  addi x5, x10, -8\n" ++       -- &(bytecode length)
   "  ld x5, 0(x5)\n" ++            -- x5 = bytecode length (exact)
   "  sd x5, 496(x20)\n" ++         -- M33: env.codeSize = bytecode length (CODESIZE/CODECOPY)
   "  addi x5, x5, 7\n" ++          -- round up to 8-byte boundary
@@ -1885,6 +1884,25 @@ def emitRuntimeDispatcherSetup : String :=
   "  la x12, evm_stack_top\n" ++
   "  la x13, evm_memory"
 
+def emitRuntimeDispatcherSetup : String :=
+  emitRuntimeDispatcherSetupWithInputAsm
+    ("  li x10, 0x40000010\n" ++   -- INPUT_ADDR + INPUT_DATA_OFFSET
+     "  li x21, 0x40000010\n")     -- M15: preserved code base (mirrors x10 init)
+
+def emitRuntimeDispatcherCallableSetup : String :=
+  emitRuntimeDispatcherSetupWithInputAsm
+    ("  la x5, runtime_dispatcher_input_ptr\n" ++
+     "  ld x6, 0(x5)\n" ++
+     "  beqz x6, .Lruntime_dispatcher_default_input\n" ++
+     "  mv x10, x6\n" ++
+     "  mv x21, x6\n" ++
+     "  j .Lruntime_dispatcher_input_ready\n" ++
+     ".Lruntime_dispatcher_default_input:\n" ++
+     "  li x10, 0x40000010\n" ++
+     "  li x21, 0x40000010\n" ++
+     ".Lruntime_dispatcher_input_ready:\n")
+
+
 /-- Runtime dispatcher fetch/decode/dispatch loop. Shared by the standalone
     runtime dispatcher and the callable wrapper. -/
 def emitRuntimeDispatcherLoop : String :=
@@ -1924,7 +1942,7 @@ def emitRuntimeDispatcherCallablePrologue : String :=
   "runtime_dispatcher_call:\n" ++
   "  la x5, runtime_dispatcher_caller_ra\n" ++
   "  sd ra, 0(x5)\n" ++
-  emitRuntimeDispatcherSetup ++ "\n" ++
+  emitRuntimeDispatcherCallableSetup ++ "\n" ++
   emitRuntimeDispatcherLoop
 
 /-- Callable runtime dispatcher text body. This is used both by standalone
@@ -2140,6 +2158,8 @@ def emitRuntimeDispatcherDataSectionCore
   ".section .data\n" ++
   ".balign 8\n" ++
   "runtime_dispatcher_caller_ra:\n" ++
+  "  .zero 8\n" ++
+  "runtime_dispatcher_input_ptr:\n" ++
   "  .zero 8\n" ++
   -- EIP-7623 calldata floor persisted by the validate-tx-gas path so a
   -- caller can read the exact `calldata_floor_gas_cost` the transaction
