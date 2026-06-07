@@ -21,6 +21,8 @@ def ziskStatelessVerdictV2DataSection : String :=
   storageAccessGasData ++ "\n" ++
   executionRequestsHashDataSection ++ "\n" ++
   ".balign 32\n" ++
+  "svf_tx_root:\n  .zero 32\n" ++
+  ".balign 32\n" ++
   "svf_bal_hash:\n  .zero 32\n" ++
   ".balign 32\n" ++
   "svf_transactions_root:\n  .zero 32\n" ++
@@ -31,6 +33,8 @@ def ziskStatelessVerdictV2DataSection : String :=
   ".balign 8\n" ++
   "bv_block_hash_check_enabled:\n  .zero 8\n" ++
   ".balign 8\n" ++
+  "svf_tx_count:\n  .zero 8\n" ++
+  "svf_tx_descriptors:\n  .zero 2048\n" ++
   "bah_bal_start:\n  .zero 8\n" ++
   ".balign 8\n" ++
   "sltr_field_len:\n  .zero 8\n" ++
@@ -156,6 +160,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bv_fail_code:\n  .zero 8\n" ++
   "bv_header_status:\n  .zero 8\n" ++
   "bv_state_status:\n  .zero 8\n" ++
+  "bv_tx_root_status:\n  .zero 8\n" ++
   "bv_block_rlp_len:\n  .zero 8\n" ++
   "bv_blockhash_required_headers:\n  .zero 8\n" ++
   "bv_versioned_hashes_len:\n  .zero 8\n" ++

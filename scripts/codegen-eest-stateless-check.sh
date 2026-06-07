@@ -568,6 +568,18 @@ format_verdict_debug() {
       dbg="${dbg:+$dbg }${withdrawals_root_labels[$i]}=$value"
     done
   fi
+  if [[ "$(stat -c%s "$out" 2>/dev/null || echo 0)" -ge 408 ]]; then
+    raw="$(od -An -v -tu8 -j 392 -N 16 "$out" 2>/dev/null | xargs || true)"
+    read -r -a words <<< "$raw"
+    local -a tx_root_labels=(
+      tx_root_status
+      tx_count
+    )
+    for i in "${!tx_root_labels[@]}"; do
+      value="${words[$i]:-?}"
+      dbg="${dbg:+$dbg }${tx_root_labels[$i]}=$value"
+    done
+  fi
   echo "$dbg"
 }
 

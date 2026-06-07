@@ -67,6 +67,7 @@ def statelessVerdictFromSszFunction : String :=
   "  mv a0, s0\n" ++
   "  la a1, svf_payload; la a2, svf_wds_ptr; la a3, svf_wds_count\n" ++
   "  jal ra, extract_payload_and_withdrawals\n" ++
+  "  bnez a0, .Lsvf_zero         # malformed SSZ payload/withdrawals offsets\n" ++
   "  # 2. pre-state witness section.\n" ++
   "  mv a0, s0\n" ++
   "  la a1, svf_witness; la a2, svf_witness_len\n" ++
