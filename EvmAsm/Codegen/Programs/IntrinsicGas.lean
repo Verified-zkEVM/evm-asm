@@ -476,4 +476,93 @@ def ziskEip8037ReservoirSplitProbeUnit : BuildUnit := {
 }
 
 
+/-! ## eip8037_tx_state_gas -- Amsterdam per-tx state-gas settlement
+
+    Mirror execution-specs Amsterdam `process_transaction` per-tx state-gas
+    accounting (fork.py ~1122-1130, 1194-1202):
+
+      if tx_output.error is not None:
+          tx_output.state_gas_left += tx_output.state_gas_used
+          tx_output.state_gas_used = Uint(0)
+          if isinstance(tx.to, Bytes0):              # creation
+              new_account_refund =
+                  STATE_BYTES_PER_NEW_ACCOUNT * COST_PER_STATE_BYTE   # 183600
+              tx_output.state_gas_left  += new_account_refund
+              tx_output.state_refund    += new_account_refund
+
+      tx_state_gas =
+          tx_env.intrinsic_state_gas
+          + tx_output.state_gas_used
+          - tx_output.state_refund
+
+      block_output.block_state_gas_used += tx_state_gas
+
+    The guest is BAL-replay-only and does not execute opcodes, so the runtime
+    `state_gas_used` / `state_refund` from SSTORE/CREATE are NOT derivable here;
+    they are supplied by the caller's conservative model (zero in the common
+    BAL-replay path). This helper implements the BAL-derivable subset:
+    `intrinsic_state_gas` plus the error-path restore (zero out
+    `state_gas_used`, add the new-account refund for a reverted creation),
+    then forms `tx_state_gas`. `state_refund` exceeding
+    `intrinsic_state_gas + state_gas_used` (a Uint underflow in Python) is
+    reported as a nonzero status rather than wrapping. -/
+def eip8037TxStateGasFunction : String :=
+  "eip8037_tx_state_gas:\n" ++
+  "  # a0=intrinsic_state_gas, a1=state_gas_used, a2=state_refund,\n" ++
+  "  # a3=error_flag, a4=is_creation, a5=tx_state_gas_out\n" ++
+  "  beq a3, zero, .Le8037sg_settle\n" ++
+  "  li a1, 0                   # error: state_gas_used = 0\n" ++
+  "  beq a4, zero, .Le8037sg_settle\n" ++
+  "  li t0, 183600             # STATE_BYTES_PER_NEW_ACCOUNT*COST_PER_STATE_BYTE\n" ++
+  "  add a2, a2, t0            # creation revert: state_refund += new_account_refund\n" ++
+  ".Le8037sg_settle:\n" ++
+  "  add t1, a0, a1            # intrinsic_state_gas + state_gas_used\n" ++
+  "  bltu t1, a2, .Le8037sg_underflow\n" ++
+  "  sub t2, t1, a2           # tx_state_gas\n" ++
+  "  sd t2, 0(a5)\n" ++
+  "  li a0, 0\n" ++
+  "  ret\n" ++
+  ".Le8037sg_underflow:\n" ++
+  "  sd zero, 0(a5)\n" ++
+  "  li a0, 1\n" ++
+  "  ret"
+
+/-- `zisk_eip8037_tx_state_gas`: focused probe.
+    Input layout (after the ziskemu length wrapper at 0x40000000+8):
+      bytes  8..16 : intrinsic_state_gas
+      bytes 16..24 : state_gas_used   (conservative model input)
+      bytes 24..32 : state_refund     (conservative model input)
+      bytes 32..40 : error_flag       (nonzero = tx error)
+      bytes 40..48 : is_creation      (nonzero = tx.to is Bytes0)
+    Output layout:
+      bytes  0.. 8 : status
+      bytes  8..16 : tx_state_gas -/
+def ziskEip8037TxStateGasPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li t0, 0x40000000\n" ++
+  "  ld a0, 8(t0)                # intrinsic_state_gas\n" ++
+  "  ld a1, 16(t0)               # state_gas_used\n" ++
+  "  ld a2, 24(t0)               # state_refund\n" ++
+  "  ld a3, 32(t0)               # error_flag\n" ++
+  "  ld a4, 40(t0)               # is_creation\n" ++
+  "  li a5, 0xa0010008           # tx_state_gas out\n" ++
+  "  jal ra, eip8037_tx_state_gas\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Le8037sg_pdone\n" ++
+  eip8037TxStateGasFunction ++ "\n" ++
+  ".Le8037sg_pdone:"
+
+def ziskEip8037TxStateGasDataSection : String :=
+  ".section .data\n" ++
+  "e8037_tx_state_gas_scratch:\n" ++
+  "  .zero 8"
+
+def ziskEip8037TxStateGasProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskEip8037TxStateGasPrologue
+  dataAsm     := ziskEip8037TxStateGasDataSection
+}
+
+
 end EvmAsm.Codegen
