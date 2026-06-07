@@ -60,14 +60,14 @@ else:
 
 # ziskemu maps file byte 0 to guest INPUT+8.  The probe's documented
 # offsets are guest offsets, so each file offset is guest_offset - 8.
-payload = bytearray(440)
+payload = bytearray(632)
 struct.pack_into('<Q', payload, 0, len(tx_bytes))
 struct.pack_into('<Q', payload, 8, 0)
 struct.pack_into('<Q', payload, 16, tx_count)
 struct.pack_into('<Q', payload, 24, pubkeys_len)
 
 for i in range(32):
-    payload[64 - 8 + 160 + i] = 0x33
+    payload[64 - 8 + 440 + i] = 0x33
 for i in range(pubkeys_len):
     payload[320 - 8 + i] = (i + 1) & 0xff
 payload.extend(tx_bytes)
