@@ -5,7 +5,7 @@
   fork, recent block hashes are stored at
   `HISTORY_STORAGE_ADDRESS` (`0x0000F90827F1C53a10cb7A02335B175320002935`)
   under the slot `block_number % HISTORY_SERVE_WINDOW`
-  (HISTORY_SERVE_WINDOW = 8192). The BLOCKHASH opcode now consults
+  (HISTORY_SERVE_WINDOW = 8191). The BLOCKHASH opcode now consults
   that storage rather than walking witness.headers.
 
   Currently hosts `eip2935_blockhash_lookup`; future PRs may add
@@ -33,7 +33,7 @@ open EvmAsm.Rv64.Program
     Resolve `BLOCKHASH(target_block_number)` in the Amsterdam
     fork via the EIP-2935 history contract:
       * account = `state[HISTORY_STORAGE_ADDRESS]`
-      * slot    = `target_block_number mod 8192`  (HISTORY_SERVE_WINDOW)
+      * slot    = `target_block_number mod 8191`  (HISTORY_SERVE_WINDOW)
       * return  = `account.storage[slot]`         (as a 32-byte hash)
 
     `HISTORY_STORAGE_ADDRESS` is the constant
@@ -44,16 +44,16 @@ open EvmAsm.Rv64.Program
       * If the history contract doesn't exist in the witness
         (e.g., the chain is at the genesis block and the contract
         hasn't been deployed yet): return 0.
-      * If `target_block_number mod 8192` is not present in the
+      * If `target_block_number mod 8191` is not present in the
         history contract's storage trie (e.g., the chain hasn't
         run far enough to fill this slot): return 0. This matches
         the SLOAD-style "uninitialised slot is 0" rule.
 
     Composes K201 `header_extract_state_root`, K28
     `account_at_address`, and K29 `slot_at_index`. The
-    target-to-slot conversion is a single `andi t, target, 8191`
-    (since `mod 8192 == AND 0x1FFF`) followed by a 30-byte zero
-    pad and 2-byte BE write.
+    target-to-slot conversion is a single `remu t, target, 8191`
+    followed by a 30-byte zero pad and 2-byte BE write. (8191 is
+    not a power of two, so this is a true `mod`, not a bit mask.)
 
     Calling convention:
       a0 (input)  : header_rlp ptr
@@ -126,8 +126,8 @@ def eip2935BlockhashLookupFunction : String :=
   "  # Zero 30 leading bytes, then write 2-byte BE result.\n" ++
   "  la s9, ebhl_slot_idx\n" ++
   "  sd zero,  0(s9); sd zero,  8(s9); sd zero, 16(s9); sd zero, 24(s9)\n" ++
-  "  li t3, 0x1fff\n" ++
-  "  and t0, s2, t3              # target & (8192 - 1)\n" ++
+  "  li t3, 8191\n" ++
+  "  remu t0, s2, t3             # target mod 8191 (HISTORY_SERVE_WINDOW)\n" ++
   "  srli t1, t0, 8             # high byte\n" ++
   "  andi t2, t0, 0xff          # low byte (0xff fits in 12-bit immediate)\n" ++
   "  sb t1, 30(s9)\n" ++
