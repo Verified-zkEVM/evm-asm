@@ -14,6 +14,8 @@ import EvmAsm.Codegen.Programs.StatelessVerdict
 -/
 
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Programs.EvmBasic
+import EvmAsm.Codegen.Programs.EvmRegistry
 import EvmAsm.Codegen.Programs.StatelessGuestData
 import EvmAsm.Codegen.Programs.StatelessGuestEpilogue
 import EvmAsm.Codegen.Programs.BlockVerdictV2
@@ -51,10 +53,18 @@ namespace EvmAsm.Codegen
 /-- Stateless guest program with the codegen epilogue and guest data section. -/
 def statelessGuestUnit : BuildUnit := {
   body        := EvmAsm.Stateless.run_stateless_guest
-  epilogueAsm := statelessGuestEpilogue
+  epilogueAsm :=
+    statelessGuestEpilogue ++ "\n" ++
+    "  j .Lstateless_guest_halt_after_runtime_dispatcher\n" ++
+    emitRuntimeDispatcherCallableCoreSharedHelpers tinyInterpRegistry evmAddEpilogue ++ "\n" ++
+    ".Lstateless_guest_halt_after_runtime_dispatcher:\n"
   -- guest scratch + the Step-2 verdict's data (zk3_state / rfu_* are dedup'd out
-  -- of the guest section since the appended verdict section provides them).
-  dataAsm     := statelessGuestDataSection ++ "\n" ++ statelessVerdictV2GuestData
+  -- of the guest section since the appended verdict section provides them). The
+  -- runtime dispatcher data also reuses that shared zk3_state scratch.
+  dataAsm     :=
+    statelessGuestDataSection ++ "\n" ++
+    statelessVerdictV2GuestData ++ "\n" ++
+    emitRuntimeDispatcherDataSectionSharedGuest tinyInterpRegistry
 }
 
 end EvmAsm.Codegen

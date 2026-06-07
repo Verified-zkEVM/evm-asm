@@ -339,10 +339,10 @@ def accountIsEmptyAtHeaderStateRootFunction : String :=
   "  mv a1, s1\n" ++
   "  la a2, aie_state_root\n" ++
   "  jal ra, header_extract_state_root\n" ++
-  "  beqz a0, .Laie_step2\n" ++
+  "  beqz a0, .Laiehsr_step2\n" ++
   "  li a0, 4\n" ++
-  "  j .Laie_ret\n" ++
-  ".Laie_step2:\n" ++
+  "  j .Laiehsr_ret\n" ++
+  ".Laiehsr_step2:\n" ++
   "  # Step 2: account_at_address.\n" ++
   "  mv a0, s2\n" ++
   "  li a1, 20\n" ++
@@ -352,39 +352,39 @@ def accountIsEmptyAtHeaderStateRootFunction : String :=
   "  la s5, aie_acct_struct\n" ++
   "  mv a5, s5\n" ++
   "  jal ra, account_at_address\n" ++
-  "  beqz a0, .Laie_check\n" ++
+  "  beqz a0, .Laiehsr_check\n" ++
   "  li t0, 1\n" ++
-  "  beq a0, t0, .Laie_absent\n" ++
-  "  j .Laie_ret\n" ++
-  ".Laie_absent:\n" ++
+  "  beq a0, t0, .Laiehsr_absent\n" ++
+  "  j .Laiehsr_ret\n" ++
+  ".Laiehsr_absent:\n" ++
   "  # absent -> predicate 0 (already zero).\n" ++
   "  li a0, 0\n" ++
-  "  j .Laie_ret\n" ++
-  ".Laie_check:\n" ++
+  "  j .Laiehsr_ret\n" ++
+  ".Laiehsr_check:\n" ++
   "  # nonce == 0 ?\n" ++
   "  ld t1, 0(s5)\n" ++
-  "  bnez t1, .Laie_non_empty\n" ++
+  "  bnez t1, .Laiehsr_non_empty\n" ++
   "  # balance == 0 ?\n" ++
-  "  ld t1,  8(s5); bnez t1, .Laie_non_empty\n" ++
-  "  ld t1, 16(s5); bnez t1, .Laie_non_empty\n" ++
-  "  ld t1, 24(s5); bnez t1, .Laie_non_empty\n" ++
-  "  ld t1, 32(s5); bnez t1, .Laie_non_empty\n" ++
+  "  ld t1,  8(s5); bnez t1, .Laiehsr_non_empty\n" ++
+  "  ld t1, 16(s5); bnez t1, .Laiehsr_non_empty\n" ++
+  "  ld t1, 24(s5); bnez t1, .Laiehsr_non_empty\n" ++
+  "  ld t1, 32(s5); bnez t1, .Laiehsr_non_empty\n" ++
   "  # code_hash == EMPTY_CODE_HASH ?\n" ++
   "  la t0, aie_empty_code_hash\n" ++
-  "  ld t1,  0(t0); ld t2, 72(s5); bne t1, t2, .Laie_non_empty\n" ++
-  "  ld t1,  8(t0); ld t2, 80(s5); bne t1, t2, .Laie_non_empty\n" ++
-  "  ld t1, 16(t0); ld t2, 88(s5); bne t1, t2, .Laie_non_empty\n" ++
-  "  ld t1, 24(t0); ld t2, 96(s5); bne t1, t2, .Laie_non_empty\n" ++
+  "  ld t1,  0(t0); ld t2, 72(s5); bne t1, t2, .Laiehsr_non_empty\n" ++
+  "  ld t1,  8(t0); ld t2, 80(s5); bne t1, t2, .Laiehsr_non_empty\n" ++
+  "  ld t1, 16(t0); ld t2, 88(s5); bne t1, t2, .Laiehsr_non_empty\n" ++
+  "  ld t1, 24(t0); ld t2, 96(s5); bne t1, t2, .Laiehsr_non_empty\n" ++
   "  # All three empty-conditions hold; predicate := 1.\n" ++
   "  la t0, aie_predicate\n" ++
   "  li t1, 1\n" ++
   "  sd t1, 0(t0)\n" ++
   "  li a0, 0\n" ++
-  "  j .Laie_ret\n" ++
-  ".Laie_non_empty:\n" ++
+  "  j .Laiehsr_ret\n" ++
+  ".Laiehsr_non_empty:\n" ++
   "  # Predicate stays 0.\n" ++
   "  li a0, 0\n" ++
-  ".Laie_ret:\n" ++
+  ".Laiehsr_ret:\n" ++
   "  ld ra,  0(sp)\n" ++
   "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
   "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
@@ -416,7 +416,7 @@ def ziskAccountIsEmptyAtHeaderStateRootPrologue : String :=
   "  li t0, 0xa0010000\n" ++
   "  sd a0, 0(t0)\n" ++
   "  la t1, aie_predicate; ld t2, 0(t1); sd t2, 8(t0)\n" ++
-  "  j .Laie_pdone\n" ++
+  "  j .Laiehsr_pdone\n" ++
   zkvmKeccak256Function ++ "\n" ++
   witnessLookupByHashFunction ++ "\n" ++
   rlpListNthItemFunction ++ "\n" ++
@@ -430,7 +430,7 @@ def ziskAccountIsEmptyAtHeaderStateRootPrologue : String :=
   accountAtAddressFunction ++ "\n" ++
   headerExtractStateRootFunction ++ "\n" ++
   accountIsEmptyAtHeaderStateRootFunction ++ "\n" ++
-  ".Laie_pdone:"
+  ".Laiehsr_pdone:"
 
 def ziskAccountIsEmptyAtHeaderStateRootDataSection : String :=
   ".section .data\n" ++
