@@ -162,6 +162,8 @@ def statelessVerdictV2GuestClosure : String :=
   accountChargeGasPreExecFunction ++ "\n" ++
   txUpfrontPrechargeFunction ++ "\n" ++
   txGasBalPostVerifyFunction ++ "\n" ++
+  simpleTransferRecipientBalVerifyFunction ++ "\n" ++
+  simpleTransferFeeRecipientBalVerifyFunction ++ "\n" ++
   accessListCountFunction ++ "\n" ++
   intrinsicGasAmsterdamCountsFunction ++ "\n" ++
   eip8037TxGasGateFunction ++ "\n" ++
