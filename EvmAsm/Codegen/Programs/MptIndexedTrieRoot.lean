@@ -161,6 +161,106 @@ def mptIndexedTrieRootOneLeafFunction : String :=
   "  addi a0, t1, 1\n" ++
   "  ret"
 
+
+/-! ## mpt_indexed_large_leaf_hash -- streaming large-value leaf node hash
+
+    Compute `keccak(rlp([hp_path, value]))` for large indexed-trie leaves
+    without materializing the full leaf node. This helper is intended for
+    branch slots that will use `0xa0 || hash`, so it deliberately accepts only
+    values whose RLP item is already large.
+
+    a0 = value ptr, a1 = value len, a2 = path kind (0 empty, 1 one nibble),
+    a3 = low nibble when kind=1, a4 = out hash ptr.
+    Returns a0 = 0 ok / 1 unsupported small value or bad path kind. -/
+def mptIndexedLargeLeafHashFunction : String :=
+  "mpt_indexed_large_leaf_hash:\n" ++
+  "  addi sp, sp, -144\n" ++
+  "  sd ra,   0(sp)\n" ++
+  "  sd s0,   8(sp); sd s1,  16(sp); sd s2,  24(sp); sd s3,  32(sp)\n" ++
+  "  sd s4,  40(sp); sd s5,  48(sp); sd s6,  56(sp); sd s7,  64(sp)\n" ++
+  "  sd s8,  72(sp); sd s9,  80(sp); sd s10, 88(sp); sd s11, 96(sp)\n" ++
+  "  mv s1, a0                   # value ptr\n" ++
+  "  mv s2, a1                   # value len\n" ++
+  "  mv s3, a2                   # path kind\n" ++
+  "  mv s4, a3                   # nibble for kind=1\n" ++
+  "  mv s5, a4                   # out hash\n" ++
+  "  li t0, 56\n" ++
+  "  bltu s2, t0, .Lillh_fail    # large-only: branch slots will use hash ref\n" ++
+  "  li t0, 1\n" ++
+  "  bgtu s3, t0, .Lillh_fail\n" ++
+  "  li t0, 15\n" ++
+  "  bgtu s4, t0, .Lillh_fail\n" ++
+  "  la s0, zk3_state\n" ++
+  "  mv t0, s0; li t1, 25\n" ++
+  ".Lillh_zero:\n" ++
+  "  sd zero, 0(t0); addi t0, t0, 8; addi t1, t1, -1; bnez t1, .Lillh_zero\n" ++
+  "  li s6, 0                    # current keccak rate offset\n" ++
+  "  li a0, 0x80\n" ++
+  "  mv a1, s2\n" ++
+  "  addi a2, sp, 104            # value prefix scratch\n" ++
+  "  jal ra, rlp_prefix_to_buffer\n" ++
+  "  mv s7, a0                   # value prefix len\n" ++
+  "  add s8, s7, s2              # encoded value item len\n" ++
+  "  addi a1, s8, 1              # list payload: one-byte hp item + value item\n" ++
+  "  li a0, 0xc0\n" ++
+  "  addi a2, sp, 120            # list prefix scratch\n" ++
+  "  jal ra, rlp_prefix_to_buffer\n" ++
+  "  mv s9, a0                   # list prefix len\n" ++
+  "  addi t0, sp, 136            # hp item scratch\n" ++
+  "  beqz s3, .Lillh_hp_empty\n" ++
+  "  ori t1, s4, 0x30\n" ++
+  "  j .Lillh_hp_store\n" ++
+  ".Lillh_hp_empty:\n" ++
+  "  li t1, 0x20\n" ++
+  ".Lillh_hp_store:\n" ++
+  "  sb t1, 0(t0)\n" ++
+  "  addi a0, sp, 120; mv a1, s9; jal ra, .Lillh_absorb\n" ++
+  "  addi a0, sp, 136; li a1, 1; jal ra, .Lillh_absorb\n" ++
+  "  addi a0, sp, 104; mv a1, s7; jal ra, .Lillh_absorb\n" ++
+  "  mv a0, s1; mv a1, s2; jal ra, .Lillh_absorb\n" ++
+  "  add t0, s0, s6\n" ++
+  "  lbu t1, 0(t0); xori t1, t1, 0x01; sb t1, 0(t0)\n" ++
+  "  addi t0, s0, 135\n" ++
+  "  lbu t1, 0(t0); xori t1, t1, 0x80; sb t1, 0(t0)\n" ++
+  "  mv a0, s0\n" ++
+  "  .4byte 0x80052073\n" ++
+  "  ld t0,  0(s0); sd t0,  0(s5)\n" ++
+  "  ld t0,  8(s0); sd t0,  8(s5)\n" ++
+  "  ld t0, 16(s0); sd t0, 16(s5)\n" ++
+  "  ld t0, 24(s0); sd t0, 24(s5)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lillh_ret\n" ++
+  ".Lillh_fail:\n" ++
+  "  li a0, 1\n" ++
+  ".Lillh_ret:\n" ++
+  "  ld ra,   0(sp)\n" ++
+  "  ld s0,   8(sp); ld s1,  16(sp); ld s2,  24(sp); ld s3,  32(sp)\n" ++
+  "  ld s4,  40(sp); ld s5,  48(sp); ld s6,  56(sp); ld s7,  64(sp)\n" ++
+  "  ld s8,  72(sp); ld s9,  80(sp); ld s10, 88(sp); ld s11, 96(sp)\n" ++
+  "  addi sp, sp, 144\n" ++
+  "  ret\n" ++
+  ".Lillh_absorb:\n" ++
+  "  mv s10, a0\n" ++
+  "  mv s11, a1\n" ++
+  ".Lillh_absorb_loop:\n" ++
+  "  beqz s11, .Lillh_absorb_ret\n" ++
+  "  lbu t0, 0(s10)\n" ++
+  "  add t1, s0, s6\n" ++
+  "  lbu t2, 0(t1)\n" ++
+  "  xor t2, t2, t0\n" ++
+  "  sb t2, 0(t1)\n" ++
+  "  addi s10, s10, 1\n" ++
+  "  addi s11, s11, -1\n" ++
+  "  addi s6, s6, 1\n" ++
+  "  li t3, 136\n" ++
+  "  bne s6, t3, .Lillh_absorb_loop\n" ++
+  "  mv a0, s0\n" ++
+  "  .4byte 0x80052073\n" ++
+  "  li s6, 0\n" ++
+  "  j .Lillh_absorb_loop\n" ++
+  ".Lillh_absorb_ret:\n" ++
+  "  ret"
+
 def mptIndexedTrieRootSmallFunction : String :=
   "mpt_indexed_trie_root_small:\n" ++
   "  addi sp, sp, -56\n" ++
@@ -275,6 +375,7 @@ def ziskMptIndexedTrieRootSmallPrologue : String :=
   mptInsertAccFunction ++ "\n" ++
   mptStateRootInsFunction ++ "\n" ++
   mptIndexedTrieRootOneLeafFunction ++ "\n" ++
+  mptIndexedLargeLeafHashFunction ++ "\n" ++
   mptIndexedTrieRootSmallFunction ++ "\n" ++
   ".Litrp_done:"
 
@@ -290,6 +391,37 @@ def ziskMptIndexedTrieRootSmallProbeUnit : BuildUnit := {
   body        := NOP
   prologueAsm := ziskMptIndexedTrieRootSmallPrologue
   dataAsm     := ziskMptIndexedTrieRootSmallDataSection
+}
+
+
+/-! Probe for `mpt_indexed_large_leaf_hash`.
+
+    Input layout (file maps to INPUT+8):
+      +8  path kind (0 empty, 1 one nibble)
+      +16 nibble
+      +24 value_len
+      +32 value bytes, padded by the host test script
+    Output: +0 hash, +32 status. -/
+def ziskMptIndexedLargeLeafHashPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li t0, 0x40000000\n" ++
+  "  ld a2, 8(t0)                # path kind\n" ++
+  "  ld a3, 16(t0)               # nibble\n" ++
+  "  ld a1, 24(t0)               # value len\n" ++
+  "  addi a0, t0, 32             # value ptr\n" ++
+  "  li a4, 0xa0010000           # out hash\n" ++
+  "  jal ra, mpt_indexed_large_leaf_hash\n" ++
+  "  li t0, 0xa0010020; sd a0, 0(t0)\n" ++
+  "  j .Lillhp_done\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  mptIndexedTrieRootOneLeafFunction ++ "\n" ++
+  mptIndexedLargeLeafHashFunction ++ "\n" ++
+  ".Lillhp_done:"
+
+def ziskMptIndexedLargeLeafHashProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskMptIndexedLargeLeafHashPrologue
+  dataAsm     := ziskMptStateRootInsDataSection
 }
 
 end EvmAsm.Codegen
