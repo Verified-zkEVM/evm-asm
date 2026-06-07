@@ -22,7 +22,7 @@
     extract_parent_header_and_state_root(SSZ_BASE, payload+0 = this.parent_hash)
                                      -> parent header RLP ptr/len, parent state_root
     for each SSZ Withdrawal (44 B): ssz_withdrawal_to_rlp -> descriptor (ptr,len)
-    fill the 12-field step2_verdict params struct and call step2_verdict.
+    fill the 13-field step2_verdict params struct and call step2_verdict.
 
   Body roots fed to block_header_ssz_to_rlp: parent_beacon_block_root is the
   real NPR field (SSZ_BASE+24); transactions_root / withdrawals_root /
@@ -95,7 +95,7 @@ def statelessVerdictFromSszFunction : String :=
   "  addi s5, s5, 1\n" ++
   "  j .Lsvf_wloop\n" ++
   ".Lsvf_wdone:\n" ++
-  "  # 5. fill the 12-field step2_verdict params struct (sv_params).\n" ++
+  "  # 5. fill the 13-field step2_verdict params struct (sv_params).\n" ++
   "  la t1, sv_params\n" ++
   "  la t0, svf_payload;        ld t0, 0(t0); sd t0, 0(t1)   # payload\n" ++
   "  la t0, svf_parent_rlp;     ld t0, 0(t0); sd t0, 8(t1)   # parent_rlp ptr\n" ++
@@ -105,6 +105,7 @@ def statelessVerdictFromSszFunction : String :=
   "  la t0, svf_zero32;         sd t0, 40(t1)                # wd_root (placeholder)\n" ++
   "  addi t0, s0, 24;           sd t0, 48(t1)                # parent_beacon_block_root (NPR+8)\n" ++
   "  la t0, svf_zero32;         sd t0, 56(t1)                # requests_hash (placeholder)\n" ++
+  "  la t0, svf_zero32;         sd t0, 96(t1)                # block_access_list_hash (placeholder)\n" ++
   "  la t0, svf_descriptors;    sd t0, 64(t1)                # wds_descriptors\n" ++
   "  la t0, svf_wds_count;      ld t0, 0(t0); sd t0, 72(t1)  # n_wds\n" ++
   "  la t0, svf_witness;        ld t0, 0(t0); sd t0, 80(t1)  # witness\n" ++

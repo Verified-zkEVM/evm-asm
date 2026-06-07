@@ -319,7 +319,7 @@ def blockVerdictFunction : String :=
   "  la t0, bv_fail_code; sd zero, 0(t0)\n" ++
   "  la t0, bv_header_status; sd zero, 0(t0)\n" ++
   "  la t0, bv_state_status; sd zero, 0(t0)\n" ++
-  "  ld a0, 0(s0); ld a1, 32(s0); ld a2, 40(s0); ld a3, 48(s0); ld a4, 56(s0)\n" ++
+  "  ld a0, 0(s0); ld a1, 32(s0); ld a2, 40(s0); ld a3, 48(s0); ld a4, 56(s0); ld a7, 96(s0)\n" ++
   "  la a5, sv_this_rlp; la a6, sv_this_rlp_len\n" ++
   "  jal ra, block_header_ssz_to_rlp\n" ++
   "  ld a0, 0(s0); la t0, sv_this_rlp_len; ld a1, 0(t0); mv a2, s3\n" ++
@@ -652,6 +652,7 @@ def statelessVerdictV2Function : String :=
   "  la t0, svf_zero32;         sd t0, 40(t1)\n" ++
   "  addi t0, s0, 24;           sd t0, 48(t1)\n" ++
   "  la t0, erh_requests_hash;  sd t0, 56(t1)\n" ++
+  "  la t0, svf_zero32;         sd t0, 96(t1)\n" ++
   "  la t0, svf_descriptors;    sd t0, 64(t1)\n" ++
   "  la t0, svf_wds_count;      ld t0, 0(t0); sd t0, 72(t1)\n" ++
   "  la t0, svf_witness;        ld t0, 0(t0); sd t0, 80(t1)\n" ++

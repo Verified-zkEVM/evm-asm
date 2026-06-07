@@ -54,18 +54,20 @@ open EvmAsm.Rv64
 
 /-! ## step2_verdict -- compose the full Step-2 successful_validation bit.
 
-    a0 = params ptr (12 u64 fields):
+    a0 = params ptr (13 u64 fields):
       +0 payload   +8 parent_rlp  +16 parent_rlp_len  +24 parent_state_root
       +32 tx_root  +40 wd_root     +48 beacon_root     +56 requests_hash
       +64 wds_descriptors  +72 n_wds  +80 witness  +88 witness_len
+      +96 block_access_list_hash
     a0 (output) = verdict bit (0 / 1). -/
 def step2VerdictFunction : String :=
   "step2_verdict:\n" ++
   "  addi sp, sp, -32\n" ++
   "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
   "  mv s0, a0                   # params\n" ++
-  "  # 1. this header RLP = block_header_ssz_to_rlp(payload, 4 roots).\n" ++
+  "  # 1. this header RLP = block_header_ssz_to_rlp(payload, header commitments).\n" ++
   "  ld a0, 0(s0); ld a1, 32(s0); ld a2, 40(s0); ld a3, 48(s0); ld a4, 56(s0)\n" ++
+  "  ld a7, 96(s0)\n" ++
   "  la a5, sv_this_rlp; la a6, sv_this_rlp_len\n" ++
   "  jal ra, block_header_ssz_to_rlp\n" ++
   "  # 2. validate_header_rlp_pair(this_rlp, parent_rlp).\n" ++
@@ -105,7 +107,8 @@ def step2VerdictFunction : String :=
       +8  witness_len   +16 n_wds   +24 parent_rlp_len   +32 payload_len
       +40 parent_state_root(32)  +72 tx_root(32)  +104 wd_root(32)
       +136 beacon_root(32)  +168 requests_hash(32)
-      +200 parent_rlp (parent_rlp_len, 8-aligned)
+      +200 block_access_list_hash(32)
+      +232 parent_rlp (parent_rlp_len, 8-aligned)
       then payload (payload_len, 8-aligned), then wd length table (N x u64)
       + wd blobs (8-aligned each), then witness (8-aligned).
     The prologue builds the params struct + the wd descriptor array, then
@@ -123,10 +126,11 @@ def ziskStep2VerdictPrologue : String :=
   "  addi t2, t0, 104; sd t2, 40(t1)  # wd_root\n" ++
   "  addi t2, t0, 136; sd t2, 48(t1)  # beacon_root\n" ++
   "  addi t2, t0, 168; sd t2, 56(t1)  # requests_hash\n" ++
+  "  addi t2, t0, 200; sd t2, 96(t1)  # block_access_list_hash\n" ++
   "  sd a3, 16(t1)                    # parent_rlp_len\n" ++
   "  sd a4, 72(t1)                    # n_wds\n" ++
   "  sd a2, 88(t1)                    # witness_len\n" ++
-  "  addi t3, t0, 200; sd t3, 8(t1)   # parent_rlp ptr (= INPUT+200)\n" ++
+  "  addi t3, t0, 232; sd t3, 8(t1)   # parent_rlp ptr (= INPUT+232)\n" ++
   "  # payload ptr = parent_rlp + roundup8(parent_rlp_len)\n" ++
   "  addi t4, a3, 7; andi t4, t4, -8; add t3, t3, t4; sd t3, 0(t1)\n" ++
   "  # wd table base = payload + roundup8(payload_len)\n" ++
@@ -257,7 +261,7 @@ def ziskStep2VerdictDataSection : String :=
   ".balign 32\n" ++
   "sv_recomputed:\n  .zero 32\n" ++
   ".balign 8\n" ++
-  "sv_params:\n  .zero 96\n" ++
+  "sv_params:\n  .zero 104\n" ++
   "sv_wds:\n  .zero 1024\n" ++
   "sv_this_rlp:\n  .zero 1024"
 

@@ -8,17 +8,18 @@
   needs the current block's header as RLP, and the block-hash linkage is
   keccak256(rlp(header)).
 
-  The 21 Amsterdam header fields (execution-specs amsterdam/blocks.py), in RLP
+  The 23 Amsterdam header fields (execution-specs amsterdam/blocks.py), in RLP
   order, with their source:
     parent_hash, ommers_hash(=EMPTY_OMMER_HASH const), coinbase, state_root,
     transactions_root(INPUT), receipt_root, bloom, difficulty(=0),
     number, gas_limit, gas_used, timestamp, extra_data, prev_randao,
     nonce(=0 Bytes8), base_fee_per_gas, withdrawals_root(INPUT),
     blob_gas_used, excess_blob_gas, parent_beacon_block_root(INPUT),
-    requests_hash(INPUT).
+    requests_hash(INPUT), block_access_list_hash(INPUT), slot_number.
   transactions_root / withdrawals_root / parent_beacon_block_root /
-  requests_hash are NOT in the SSZ payload (the payload carries the lists; the
-  roots are computed separately) -> passed in by the caller.
+  requests_hash / block_access_list_hash are NOT in the fixed SSZ payload (the
+  payload carries the lists/bytes; commitments are computed separately) ->
+  passed in by the caller.
 
   No-misaligned invariant: the payload's u64 fields sit at byte offsets ≡4 mod
   8, so a plain `ld` would trap on verified RV64. We read every integer field
@@ -63,13 +64,15 @@ def bhrRevLeBeFunction : String :=
     a0 = SSZ ExecutionPayload ptr     a1 = transactions_root ptr (32B)
     a2 = withdrawals_root ptr (32B)   a3 = parent_beacon_block_root ptr (32B)
     a4 = requests_hash ptr (32B)      a5 = out RLP buffer ptr
-    a6 = u64 out length ptr           a0 (output) = 0. -/
+    a6 = u64 out length ptr           a7 = block_access_list_hash ptr (32B)
+    a0 (output) = 0. -/
 def blockHeaderSszToRlpFunction : String :=
   "block_header_ssz_to_rlp:\n" ++
-  "  addi sp, sp, -80\n" ++
+  "  addi sp, sp, -96\n" ++
   "  sd ra, 0(sp)\n" ++
   "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
   "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
+  "  sd s8, 72(sp)\n" ++
   "  mv s0, a0                   # payload\n" ++
   "  mv s1, a1                   # transactions_root\n" ++
   "  mv s2, a2                   # withdrawals_root\n" ++
@@ -77,6 +80,7 @@ def blockHeaderSszToRlpFunction : String :=
   "  mv s4, a4                   # requests_hash\n" ++
   "  mv s5, a5                   # out\n" ++
   "  mv s6, a6                   # out_len\n" ++
+  "  mv s8, a7                   # block_access_list_hash\n" ++
   "  li s7, 0                    # payload cursor\n" ++
   -- byte-string field helper: encodes (a0=src, a1=len) at bhr_payload+s7.
   -- field 1: parent_hash (payload@0, 32)
@@ -198,6 +202,17 @@ def blockHeaderSszToRlpFunction : String :=
   "  la a2, bhr_payload; add a2, a2, s7; la a3, bhr_flen\n" ++
   "  jal ra, rlp_encode_bytes\n" ++
   "  la t0, bhr_flen; ld t1, 0(t0); add s7, s7, t1\n" ++
+  -- field 22: block_access_list_hash (INPUT s8, 32)
+  "  mv a0, s8; li a1, 32\n" ++
+  "  la a2, bhr_payload; add a2, a2, s7; la a3, bhr_flen\n" ++
+  "  jal ra, rlp_encode_bytes\n" ++
+  "  la t0, bhr_flen; ld t1, 0(t0); add s7, s7, t1\n" ++
+  -- field 23: slot_number (payload@532)
+  "  addi a0, s0, 532; li a1, 8; la a2, bhr_uint_be\n" ++
+  "  jal ra, bhr_rev_le_be\n" ++
+  "  la a0, bhr_uint_be; li a1, 8; la a2, bhr_payload; add a2, a2, s7\n" ++
+  "  jal ra, rlp_encode_uint_be\n" ++
+  "  add s7, s7, a0\n" ++
   -- list prefix into out, then copy payload after it.
   "  mv a0, s7; mv a1, s5; la a2, bhr_prefix_len\n" ++
   "  jal ra, rlp_encode_list_prefix\n" ++
@@ -217,7 +232,8 @@ def blockHeaderSszToRlpFunction : String :=
   "  ld ra, 0(sp)\n" ++
   "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
   "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
-  "  addi sp, sp, 80\n" ++
+  "  ld s8, 72(sp)\n" ++
+  "  addi sp, sp, 96\n" ++
   "  ret"
 
 /-- `zisk_block_header_ssz_to_rlp`: probe BuildUnit.
@@ -227,7 +243,8 @@ def blockHeaderSszToRlpFunction : String :=
       +48  withdrawals_root (32B)
       +80  parent_beacon_block_root (32B)
       +112 requests_hash (32B)
-      +144 SSZ ExecutionPayload bytes
+      +144 block_access_list_hash (32B)
+      +176 SSZ ExecutionPayload bytes
     Output: OUTPUT+0 = header RLP length (u64); OUTPUT+8 = block hash
     (keccak256 of the re-encoded header RLP, 32 B). The RLP itself is built in
     `bhr_result` scratch (the 627-byte RLP exceeds the 256-byte OUTPUT). -/
@@ -238,7 +255,8 @@ def ziskBlockHeaderSszToRlpPrologue : String :=
   "  addi a2, t0, 48             # withdrawals_root\n" ++
   "  addi a3, t0, 80             # parent_beacon_block_root\n" ++
   "  addi a4, t0, 112            # requests_hash\n" ++
-  "  addi a0, t0, 144            # SSZ ExecutionPayload\n" ++
+  "  addi a7, t0, 144            # block_access_list_hash\n" ++
+  "  addi a0, t0, 176            # SSZ ExecutionPayload\n" ++
   "  la a5, bhr_result           # header RLP buffer\n" ++
   "  la a6, bhr_result_len\n" ++
   "  jal ra, block_header_ssz_to_rlp\n" ++
