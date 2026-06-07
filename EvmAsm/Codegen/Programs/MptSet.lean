@@ -649,7 +649,7 @@ def ziskMptSetDataSection : String :=
   ".balign 8\n" ++
   "mlnen_hp_buf:\n  .zero 1024\n" ++
   ".balign 8\n" ++
-  "mlnen_payload_buf:\n  .zero 16384\n" ++
+  "mlnen_payload_buf:\n  .zero 131072\n" ++
   ".balign 8\n" ++
   "mset_span_start:\n  .zero 8\n" ++
   "mset_span_size:\n  .zero 8\n" ++
