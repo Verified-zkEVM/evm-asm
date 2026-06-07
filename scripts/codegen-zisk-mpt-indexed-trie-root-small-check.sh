@@ -126,10 +126,17 @@ vals = [f"{i % 256:02x}" for i in range(128)]
 print("[" + ",".join(repr(v) for v in vals) + "]")
 PY
 )"
-run_case "max_128" "$MANY_VALUES" 0 || FAILED=1
+run_case "max_old_128" "$MANY_VALUES" 0 || FAILED=1
+
+OVER_128_VALUES="$(python3 - <<'PY'
+vals = [(f"{i % 256:02x}" * 64) for i in range(129)]
+print("[" + ",".join(repr(v) for v in vals) + "]")
+PY
+)"
+run_case "over_128_keys" "$OVER_128_VALUES" 0 || FAILED=1
 
 TOO_MANY="$(python3 - <<'PY'
-vals = [f"{i % 256:02x}" for i in range(129)]
+vals = [f"{i % 256:02x}" for i in range(257)]
 print("[" + ",".join(repr(v) for v in vals) + "]")
 PY
 )"
