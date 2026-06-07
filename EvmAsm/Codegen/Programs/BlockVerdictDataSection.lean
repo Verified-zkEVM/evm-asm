@@ -20,6 +20,10 @@ def ziskStatelessVerdictV2DataSection : String :=
   runtimeAccessAccountOutcomeData ++ "\n" ++
   storageAccessGasData ++ "\n" ++
   executionRequestsHashDataSection ++ "\n" ++
+  ".balign 32\n" ++
+  "svf_bal_hash:\n  .zero 32\n" ++
+  ".balign 8\n" ++
+  "bah_bal_start:\n  .zero 8\n" ++
   ".balign 8\n" ++
   "sltr_field_len:\n  .zero 8\n" ++
   "sltr_nibble_count:\n  .zero 8\n" ++
@@ -143,6 +147,9 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bv_state_status:\n  .zero 8\n" ++
   "bv_block_rlp_len:\n  .zero 8\n" ++
   "bv_blockhash_required_headers:\n  .zero 8\n" ++
+  "bv_versioned_hashes_len:\n  .zero 8\n" ++
+  "bv_blob_gas_expected:\n  .zero 8\n" ++
+  "bv_blob_gas_observed:\n  .zero 8\n" ++
   "brr_status:\n  .zero 8\n" ++
   "brr_append_status:\n  .zero 8\n" ++
   "brr_tx_type:\n  .zero 8\n" ++
