@@ -27,6 +27,21 @@ def secp256k1FieldDataSection : String :=
   "  .byte 0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00\n" ++
   "  .byte 0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00\n" ++
   "  .byte 0x00,0x00,0x00,0x01,0x00,0x00,0x03,0xd1\n" ++
+  "secp256k1_one_be:\n" ++
+  "  .byte 0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00\n" ++
+  "  .byte 0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00\n" ++
+  "  .byte 0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00\n" ++
+  "  .byte 0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x01\n" ++
+  "secp256k1_p_minus_2_be:\n" ++
+  "  .byte 0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff\n" ++
+  "  .byte 0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff\n" ++
+  "  .byte 0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff\n" ++
+  "  .byte 0xff,0xff,0xff,0xfe,0xff,0xff,0xfc,0x2d\n" ++
+  "secp256k1_sqrt_exp_be:\n" ++
+  "  .byte 0x3f,0xff,0xff,0xff,0xff,0xff,0xff,0xff\n" ++
+  "  .byte 0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff\n" ++
+  "  .byte 0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff\n" ++
+  "  .byte 0xff,0xff,0xff,0xfb,0xff,0xff,0xff,0x0c\n" ++
   ".balign 8\n" ++
   "secf_tmp0:\n" ++
   "  .zero 32\n" ++
@@ -38,6 +53,15 @@ def secp256k1FieldDataSection : String :=
   "  .zero 32\n" ++
   ".balign 8\n" ++
   "secf_mul_acc:\n" ++
+  "  .zero 32\n" ++
+  ".balign 8\n" ++
+  "secf_pow_result:\n" ++
+  "  .zero 32\n" ++
+  ".balign 8\n" ++
+  "secf_pow_base:\n" ++
+  "  .zero 32\n" ++
+  ".balign 8\n" ++
+  "secf_pow_verify:\n" ++
   "  .zero 32\n"
 
 /-- Copy 32 bytes from `a0` to `a1`. Leaf helper. -/
@@ -70,6 +94,47 @@ def secp256k1FieldGetBitFunction : String :=
   "  andi t2, a1, 7\n" ++
   "  srl t1, t1, t2\n" ++
   "  andi a0, t1, 1\n" ++
+  "  ret"
+
+/-- Return a0 = 1 iff the 32-byte BE buffer at a0 is zero. Leaf helper. -/
+def secp256k1FieldIsZeroFunction : String :=
+  "secf_is_zero32:\n" ++
+  "  li t0, 32\n" ++
+  "  mv t1, a0\n" ++
+  ".Lsecf_is_zero_loop:\n" ++
+  "  beqz t0, .Lsecf_is_zero_yes\n" ++
+  "  lbu t2, 0(t1)\n" ++
+  "  bnez t2, .Lsecf_is_zero_no\n" ++
+  "  addi t1, t1, 1\n" ++
+  "  addi t0, t0, -1\n" ++
+  "  j .Lsecf_is_zero_loop\n" ++
+  ".Lsecf_is_zero_yes:\n" ++
+  "  li a0, 1\n" ++
+  "  ret\n" ++
+  ".Lsecf_is_zero_no:\n" ++
+  "  li a0, 0\n" ++
+  "  ret"
+
+/-- Return a0 = 1 iff the two 32-byte BE buffers at a0 and a1 are equal. Leaf helper. -/
+def secp256k1FieldEq32Function : String :=
+  "secf_eq32:\n" ++
+  "  li t0, 32\n" ++
+  "  mv t1, a0\n" ++
+  "  mv t2, a1\n" ++
+  ".Lsecf_eq_loop:\n" ++
+  "  beqz t0, .Lsecf_eq_yes\n" ++
+  "  lbu t3, 0(t1)\n" ++
+  "  lbu t4, 0(t2)\n" ++
+  "  bne t3, t4, .Lsecf_eq_no\n" ++
+  "  addi t1, t1, 1\n" ++
+  "  addi t2, t2, 1\n" ++
+  "  addi t0, t0, -1\n" ++
+  "  j .Lsecf_eq_loop\n" ++
+  ".Lsecf_eq_yes:\n" ++
+  "  li a0, 1\n" ++
+  "  ret\n" ++
+  ".Lsecf_eq_no:\n" ++
+  "  li a0, 0\n" ++
   "  ret"
 
 /--
@@ -296,6 +361,172 @@ def secp256k1FieldSquareFunction : String :=
   "  mv a1, a0\n" ++
   "  jal zero, secf_mul_mod_p"
 
+/-- Modular exponentiation by a 256-bit BE exponent using square-and-multiply. -/
+def secp256k1FieldPowFunction : String :=
+  "secf_pow_mod_p:\n" ++
+  "  addi sp, sp, -80\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp)\n" ++
+  "  sd s1, 16(sp)\n" ++
+  "  sd s2, 24(sp)\n" ++
+  "  sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp)\n" ++
+  "  sd s5, 48(sp)\n" ++
+  "  mv s0, a0\n" ++
+  "  mv s1, a1\n" ++
+  "  mv s2, a2\n" ++
+  "  la s4, secf_pow_result\n" ++
+  "  la s5, secf_pow_base\n" ++
+  "  la a0, secp256k1_one_be\n" ++
+  "  mv a1, s4\n" ++
+  "  jal ra, secf_copy32\n" ++
+  "  mv a0, s0\n" ++
+  "  mv a1, s5\n" ++
+  "  jal ra, secf_reduce_once\n" ++
+  "  li s3, 255\n" ++
+  ".Lsecf_pow_loop:\n" ++
+  "  mv a0, s4\n" ++
+  "  mv a2, s4\n" ++
+  "  jal ra, secf_square_mod_p\n" ++
+  "  mv a0, s1\n" ++
+  "  mv a1, s3\n" ++
+  "  jal ra, secf_get_bit_lsb\n" ++
+  "  beqz a0, .Lsecf_pow_after_mul\n" ++
+  "  mv a0, s4\n" ++
+  "  mv a1, s5\n" ++
+  "  mv a2, s4\n" ++
+  "  jal ra, secf_mul_mod_p\n" ++
+  ".Lsecf_pow_after_mul:\n" ++
+  "  beqz s3, .Lsecf_pow_done\n" ++
+  "  addi s3, s3, -1\n" ++
+  "  j .Lsecf_pow_loop\n" ++
+  ".Lsecf_pow_done:\n" ++
+  "  mv a0, s4\n" ++
+  "  mv a1, s2\n" ++
+  "  jal ra, secf_copy32\n" ++
+  "  li a0, 0\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp)\n" ++
+  "  ld s1, 16(sp)\n" ++
+  "  ld s2, 24(sp)\n" ++
+  "  ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp)\n" ++
+  "  ld s5, 48(sp)\n" ++
+  "  addi sp, sp, 80\n" ++
+  "  ret"
+
+
+/-- Invert a nonzero field element. Returns a0 = 1 for zero input, else 0. -/
+def secp256k1FieldInvFunction : String :=
+  "secf_inv_mod_p:\n" ++
+  "  addi sp, sp, -64\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp)\n" ++
+  "  sd s1, 16(sp)\n" ++
+  "  mv s0, a0\n" ++
+  "  mv s1, a1\n" ++
+  "  jal ra, secf_is_zero32\n" ++
+  "  beqz a0, .Lsecf_inv_nonzero\n" ++
+  "  mv a0, s1\n" ++
+  "  jal ra, secf_zero32\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lsecf_inv_done\n" ++
+  ".Lsecf_inv_nonzero:\n" ++
+  "  la a0, secp256k1_p_minus_2_be\n" ++
+  "  addi a1, sp, 24\n" ++
+  "  jal ra, secf_copy32\n" ++
+  "  mv a0, s0\n" ++
+  "  addi a1, sp, 24\n" ++
+  "  mv a2, s1\n" ++
+  "  jal ra, secf_pow_mod_p\n" ++
+  "  li a0, 0\n" ++
+  ".Lsecf_inv_done:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp)\n" ++
+  "  ld s1, 16(sp)\n" ++
+  "  addi sp, sp, 64\n" ++
+  "  ret"
+
+
+/-- Square root modulo p. Returns a0 = 1 if no root exists, else 0. -/
+def secp256k1FieldSqrtFunction : String :=
+  "secf_sqrt_mod_p:\n" ++
+  "  addi sp, sp, -64\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp)\n" ++
+  "  sd s1, 16(sp)\n" ++
+  "  sd s3, 24(sp)\n" ++
+  "  sd s4, 32(sp)\n" ++
+  "  sd s5, 40(sp)\n" ++
+  "  mv s0, a0\n" ++
+  "  mv s1, a1\n" ++
+  "  la s4, secf_pow_result\n" ++
+  "  la s5, secf_pow_base\n" ++
+  "  la a0, secp256k1_one_be\n" ++
+  "  mv a1, s4\n" ++
+  "  jal ra, secf_copy32\n" ++
+  "  mv a0, s0\n" ++
+  "  mv a1, s5\n" ++
+  "  jal ra, secf_reduce_once\n" ++
+  "  li s3, 255\n" ++
+  ".Lsecf_sqrt_pow_loop:\n" ++
+  "  mv a0, s4\n" ++
+  "  mv a2, s4\n" ++
+  "  jal ra, secf_square_mod_p\n" ++
+  "  li t0, 255\n" ++
+  "  beq s3, t0, .Lsecf_sqrt_skip_mul\n" ++
+  "  li t0, 254\n" ++
+  "  beq s3, t0, .Lsecf_sqrt_skip_mul\n" ++
+  "  li t0, 30\n" ++
+  "  beq s3, t0, .Lsecf_sqrt_skip_mul\n" ++
+  "  li t0, 7\n" ++
+  "  beq s3, t0, .Lsecf_sqrt_skip_mul\n" ++
+  "  li t0, 6\n" ++
+  "  beq s3, t0, .Lsecf_sqrt_skip_mul\n" ++
+  "  li t0, 5\n" ++
+  "  beq s3, t0, .Lsecf_sqrt_skip_mul\n" ++
+  "  li t0, 4\n" ++
+  "  beq s3, t0, .Lsecf_sqrt_skip_mul\n" ++
+  "  li t0, 1\n" ++
+  "  beq s3, t0, .Lsecf_sqrt_skip_mul\n" ++
+  "  beqz s3, .Lsecf_sqrt_after_mul\n" ++
+  "  mv a0, s4\n" ++
+  "  mv a1, s5\n" ++
+  "  mv a2, s4\n" ++
+  "  jal ra, secf_mul_mod_p\n" ++
+  ".Lsecf_sqrt_after_mul:\n" ++
+  "  beqz s3, .Lsecf_sqrt_pow_done\n" ++
+  ".Lsecf_sqrt_skip_mul:\n" ++
+  "  beqz s3, .Lsecf_sqrt_pow_done\n" ++
+  "  addi s3, s3, -1\n" ++
+  "  j .Lsecf_sqrt_pow_loop\n" ++
+  ".Lsecf_sqrt_pow_done:\n" ++
+  "  mv a0, s4\n" ++
+  "  mv a1, s1\n" ++
+  "  jal ra, secf_copy32\n" ++
+  "  mv a0, s1\n" ++
+  "  la a2, secf_pow_verify\n" ++
+  "  jal ra, secf_square_mod_p\n" ++
+  "  la a0, secf_pow_verify\n" ++
+  "  mv a1, s0\n" ++
+  "  jal ra, secf_eq32\n" ++
+  "  bnez a0, .Lsecf_sqrt_ok\n" ++
+  "  mv a0, s1\n" ++
+  "  jal ra, secf_zero32\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lsecf_sqrt_done\n" ++
+  ".Lsecf_sqrt_ok:\n" ++
+  "  li a0, 0\n" ++
+  ".Lsecf_sqrt_done:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp)\n" ++
+  "  ld s1, 16(sp)\n" ++
+  "  ld s3, 24(sp)\n" ++
+  "  ld s4, 32(sp)\n" ++
+  "  ld s5, 40(sp)\n" ++
+  "  addi sp, sp, 64\n" ++
+  "  ret"
+
 
 def secp256k1FieldCommonFunctions : String :=
   u256AddBeFunction ++ "\n" ++
@@ -304,12 +535,17 @@ def secp256k1FieldCommonFunctions : String :=
   secp256k1FieldCopy32Function ++ "\n" ++
   secp256k1FieldZero32Function ++ "\n" ++
   secp256k1FieldGetBitFunction ++ "\n" ++
+  secp256k1FieldIsZeroFunction ++ "\n" ++
+  secp256k1FieldEq32Function ++ "\n" ++
   secp256k1FieldCmpPFunction ++ "\n" ++
   secp256k1FieldReduceOnceFunction ++ "\n" ++
   secp256k1FieldAddFunction ++ "\n" ++
   secp256k1FieldSubFunction ++ "\n" ++
   secp256k1FieldMulFunction ++ "\n" ++
-  secp256k1FieldSquareFunction
+  secp256k1FieldSquareFunction ++ "\n" ++
+  secp256k1FieldPowFunction ++ "\n" ++
+  secp256k1FieldInvFunction ++ "\n" ++
+  secp256k1FieldSqrtFunction
 
 def ziskSecp256k1FieldCmpPPrologue : String :=
   "  li sp, 0xa0050000\n" ++
@@ -380,6 +616,7 @@ def ziskSecp256k1FieldMulPrologue : String :=
   secp256k1FieldCommonFunctions ++ "\n" ++
   ".Lsecf_mul_probe_done:"
 
+
 def ziskSecp256k1FieldSquarePrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li a3, 0x40000000\n" ++
@@ -391,6 +628,31 @@ def ziskSecp256k1FieldSquarePrologue : String :=
   "  j .Lsecf_square_probe_done\n" ++
   secp256k1FieldCommonFunctions ++ "\n" ++
   ".Lsecf_square_probe_done:"
+
+
+def ziskSecp256k1FieldInvPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  addi a0, a3, 8\n" ++
+  "  li a1, 0xa0010008\n" ++
+  "  jal ra, secf_inv_mod_p\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lsecf_inv_probe_done\n" ++
+  secp256k1FieldCommonFunctions ++ "\n" ++
+  ".Lsecf_inv_probe_done:"
+
+def ziskSecp256k1FieldSqrtPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  addi a0, a3, 8\n" ++
+  "  li a1, 0xa0010008\n" ++
+  "  jal ra, secf_sqrt_mod_p\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lsecf_sqrt_probe_done\n" ++
+  secp256k1FieldCommonFunctions ++ "\n" ++
+  ".Lsecf_sqrt_probe_done:"
 
 
 def ziskSecp256k1FieldCmpPProbeUnit : BuildUnit := {
@@ -427,6 +689,18 @@ def ziskSecp256k1FieldMulProbeUnit : BuildUnit := {
 def ziskSecp256k1FieldSquareProbeUnit : BuildUnit := {
   body        := NOP
   prologueAsm := ziskSecp256k1FieldSquarePrologue
+  dataAsm     := secp256k1FieldDataSection
+}
+
+def ziskSecp256k1FieldInvProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskSecp256k1FieldInvPrologue
+  dataAsm     := secp256k1FieldDataSection
+}
+
+def ziskSecp256k1FieldSqrtProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskSecp256k1FieldSqrtPrologue
   dataAsm     := secp256k1FieldDataSection
 }
 
