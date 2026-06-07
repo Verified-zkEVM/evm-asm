@@ -266,11 +266,15 @@ def eip8037TxGasGateFunction : String :=
   "  # gas is a safe pre-execution block availability rejection here.\n" ++
   "  bgtu t0, t3, .Letg_regular_reject\n" ++
   "  add t2, t2, t0; sd t2, 0(t5)\n" ++
-  "  # EIP-8037 state reservoir split is currently modeled only for creation.\n" ++
-  "  # Non-creation txs have zero intrinsic state here.\n" ++
+  "  # EIP-8037 intrinsic state gas: CREATE new-account reserve plus\n" ++
+  "  # EIP-7702 authorization reserve, matching calculate_intrinsic_cost.\n" ++
   "  li t6, 0\n" ++
-  "  la t0, bsg_to_len; ld t2, 0(t0); bnez t2, .Letg_intrinsic_done\n" ++
+  "  la t0, bsg_to_len; ld t2, 0(t0); bnez t2, .Letg_after_create_state\n" ++
   liAmsterdamNewAccountStateGas "t6" ++
+  ".Letg_after_create_state:\n" ++
+  "  la t0, bsg_auth_count; ld t2, 0(t0); beqz t2, .Letg_intrinsic_done\n" ++
+  liAmsterdamAuthStateGas "t3" ++
+  "  mul t2, t2, t3; add t6, t6, t2\n" ++
   ".Letg_intrinsic_done:\n" ++
   "  li t2, 0\n" ++
   "  bltu t1, t6, .Letg_regular_have\n" ++
