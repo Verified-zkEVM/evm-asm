@@ -65,15 +65,17 @@ with open(sys.argv[1], 'wb') as f:
     return 1
   fi
 
-  local actual_status_le actual_intrinsic_le actual_floor_le
+  local actual_status_le actual_intrinsic_le actual_floor_le actual_state_le
   actual_status_le="$(xxd -p -l 8 "$out_file" | tr -d '\n')"
   actual_intrinsic_le="$(dd if="$out_file" bs=1 skip=8 count=8 2>/dev/null | xxd -p | tr -d '\n')"
   actual_floor_le="$(dd if="$out_file" bs=1 skip=16 count=8 2>/dev/null | xxd -p | tr -d '\n')"
+  actual_state_le="$(dd if="$out_file" bs=1 skip=24 count=8 2>/dev/null | xxd -p | tr -d '\n')"
 
-  local actual_status actual_intrinsic actual_floor
+  local actual_status actual_intrinsic actual_floor actual_state
   actual_status="$(python3 -c "import struct; print(struct.unpack('<Q', bytes.fromhex('$actual_status_le'))[0])")"
   actual_intrinsic="$(python3 -c "import struct; print(struct.unpack('<Q', bytes.fromhex('$actual_intrinsic_le'))[0])")"
   actual_floor="$(python3 -c "import struct; print(struct.unpack('<Q', bytes.fromhex('$actual_floor_le'))[0])")"
+  actual_state="$(python3 -c "import struct; print(struct.unpack('<Q', bytes.fromhex('$actual_state_le'))[0])")"
 
   local expected
   expected="$(python3 -c "
@@ -96,17 +98,21 @@ intrinsic += 7500 * $auths
 floor = 21000 + 16 * (4 * len(b) + access_tokens)
 required = max(intrinsic, floor)
 status = 0 if required <= $gas_limit and required <= 16777216 else 1
-print(status, intrinsic, floor)
+# EIP-8037 intrinsic state gas: create_state_gas + auth_state_gas
+create_state_gas = (120 * 1530) if $is_creation else 0
+auth_state_gas = (120 + 23) * 1530 * $auths
+state = create_state_gas + auth_state_gas
+print(status, intrinsic, floor, state)
 ")"
-  local expected_status expected_intrinsic expected_floor
-  read -r expected_status expected_intrinsic expected_floor <<<"$expected"
+  local expected_status expected_intrinsic expected_floor expected_state
+  read -r expected_status expected_intrinsic expected_floor expected_state <<<"$expected"
 
-  if [[ "$actual_status" == "$expected_status" && "$actual_intrinsic" == "$expected_intrinsic" && "$actual_floor" == "$expected_floor" ]]; then
-    printf "  %-32s OK   status=%d intrinsic=%d floor=%d\n" "$name" "$expected_status" "$expected_intrinsic" "$expected_floor"
+  if [[ "$actual_status" == "$expected_status" && "$actual_intrinsic" == "$expected_intrinsic" && "$actual_floor" == "$expected_floor" && "$actual_state" == "$expected_state" ]]; then
+    printf "  %-32s OK   status=%d intrinsic=%d floor=%d state=%d\n" "$name" "$expected_status" "$expected_intrinsic" "$expected_floor" "$expected_state"
     return 0
   else
-    printf "  %-32s FAIL status=%s/%s intrinsic=%s/%s floor=%s/%s\n" \
-      "$name" "$actual_status" "$expected_status" "$actual_intrinsic" "$expected_intrinsic" "$actual_floor" "$expected_floor"
+    printf "  %-32s FAIL status=%s/%s intrinsic=%s/%s floor=%s/%s state=%s/%s\n" \
+      "$name" "$actual_status" "$expected_status" "$actual_intrinsic" "$expected_intrinsic" "$actual_floor" "$expected_floor" "$actual_state" "$expected_state"
     return 1
   fi
 }
@@ -119,6 +125,7 @@ run_case "access_list_one_slot"   30000 0 1 1 0 "" || FAILED=1
 run_case "access_list_many_slots" 50000 0 2 5 0 "0001" || FAILED=1
 run_case "authorization_one"      50000 0 0 0 1 "" || FAILED=1
 run_case "authorization_two"      80000 0 0 0 2 "ff" || FAILED=1
+run_case "creation_and_auth"      90000 1 0 0 1 "00ab" || FAILED=1
 run_case "floor_dominates"        26000 0 0 0 0 "$(python3 -c "print('ff' * 200)")" || FAILED=1
 run_case "txmax_floor_cap"        20000000 0 0 0 0 "repeat:ff:262000" || FAILED=1
 run_case "one_gas_short"          20999 0 0 0 0 "" || FAILED=1
