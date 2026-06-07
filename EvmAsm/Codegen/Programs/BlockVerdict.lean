@@ -32,6 +32,8 @@ import EvmAsm.Codegen.Programs.BlockVerdictModeledSystem
 import EvmAsm.Codegen.Programs.BlockhashRequiredHeaders
 import EvmAsm.Codegen.Programs.BlockRlpSize
 import EvmAsm.Codegen.Programs.RequestsHash
+import EvmAsm.Codegen.Programs.Header
+import EvmAsm.Codegen.Programs.BlockAccessListHash
 import EvmAsm.Codegen.Programs.Address
 import EvmAsm.Codegen.Programs.Eip7702NonceReuseGuard
 import EvmAsm.Codegen.Programs.BlockVerdictReceiptRecords
@@ -39,6 +41,7 @@ import EvmAsm.Codegen.Programs.BlockVerdictGasResults
 import EvmAsm.Codegen.Programs.BlockVerdictTransactions
 import EvmAsm.Codegen.Programs.MptEncodeLeafBranch
 import EvmAsm.Codegen.Programs.TxBlobGas
+import EvmAsm.Codegen.Programs.TxRoot
 
 import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransfer
 import EvmAsm.Codegen.Programs.TxGasBalPostVerify
@@ -305,6 +308,15 @@ def blockVerdictFunction : String :=
   "  ld a0, 0(s0); ld a1, 32(s0); ld a2, 40(s0); ld a3, 48(s0); ld a4, 56(s0); ld a7, 96(s0)\n" ++
   "  la a5, sv_this_rlp; la a6, sv_this_rlp_len\n" ++
   "  jal ra, block_header_ssz_to_rlp\n" ++
+  "  la t0, bv_block_hash_check_enabled; ld t0, 0(t0); beqz t0, .Lbv_block_hash_ok\n" ++
+  "  la a0, sv_this_rlp; la t0, sv_this_rlp_len; ld a1, 0(t0); la a2, bv_block_hash\n" ++
+  "  jal ra, block_hash_from_header\n" ++
+  "  la t0, bv_block_hash; ld t1, 0(s0); addi t1, t1, 472; li t2, 32\n" ++
+  ".Lbv_block_hash_cmp:\n" ++
+  "  beqz t2, .Lbv_block_hash_ok\n" ++
+  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lbv_block_hash_mismatch\n" ++
+  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lbv_block_hash_cmp\n" ++
+  ".Lbv_block_hash_ok:\n" ++
   "  ld a0, 0(s0); la t0, sv_this_rlp_len; ld a1, 0(t0); mv a2, s3\n" ++
   "  jal ra, block_rlp_rebuilt_size\n" ++
   "  bnez a0, .Lbv_block_rlp_parse_fail\n" ++
@@ -607,6 +619,8 @@ def blockVerdictFunction : String :=
   "  li t0, 25; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_versioned_hashes_fail:\n" ++
   "  li t0, 27; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_block_hash_mismatch:\n" ++
+  "  li t0, 30; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_zero:\n" ++
   "  li a0, 0\n" ++
   ".Lbv_ret:\n" ++
@@ -685,16 +699,50 @@ def statelessVerdictV2Function : String :=
   "  la a2, erh_requests_hash\n" ++
   "  jal ra, execution_requests_hash\n" ++
   "  bnez a0, .Lv2_requests_hash_fail\n" ++
+  "  mv a0, s0; la a1, svf_block_access_list_hash\n" ++
+  "  jal ra, block_access_list_hash\n" ++
+  "  bnez a0, .Lv2_block_access_list_hash_fail\n" ++
+  "  la t0, bv_block_hash_check_enabled; sd zero, 0(t0)\n" ++
+  "  la t0, svf_payload; ld t3, 0(t0)\n" ++
+  "  addi a0, t3, 504; jal ra, bgv_u32le; mv t4, a0     # transactions_offset\n" ++
+  "  la t0, svf_payload; ld t3, 0(t0)\n" ++
+  "  addi a0, t3, 508; jal ra, bgv_u32le; mv t5, a0     # withdrawals_offset\n" ++
+  "  bltu t5, t4, .Lv2_header_roots_done\n" ++
+  "  sub t6, t5, t4                                      # tx list byte length\n" ++
+  "  beqz t6, .Lv2_tx_root_empty\n" ++
+  "  la t0, svf_payload; ld t3, 0(t0); add t2, t3, t4    # tx list ptr\n" ++
+  "  mv a0, t2; jal ra, bgv_u32le                        # first SSZ offset\n" ++
+  "  li t0, 4; bne a0, t0, .Lv2_header_roots_done\n" ++
+  "  li t0, 4; bltu t6, t0, .Lv2_header_roots_done\n" ++
+  "  la t0, svf_payload; ld t3, 0(t0); add t2, t3, t4\n" ++
+  "  addi a0, t2, 4; addi a1, t6, -4; la a2, svf_transactions_root\n" ++
+  "  jal ra, mpt_one_leaf_root_indexed\n" ++
+  "  j .Lv2_tx_root_ok\n" ++
+  ".Lv2_tx_root_empty:\n" ++
+  "  la a0, svf_transactions_root; la a1, aps_empty_root; li a2, 32\n" ++
+  "  jal ra, mset_memcpy\n" ++
+  ".Lv2_tx_root_ok:\n" ++
+  "  la t0, svf_payload; ld t3, 0(t0)\n" ++
+  "  addi a0, t3, 508; jal ra, bgv_u32le; mv t5, a0     # withdrawals_offset\n" ++
+  "  la t0, svf_payload; ld t3, 0(t0)\n" ++
+  "  addi a0, t3, 528; jal ra, bgv_u32le; mv t6, a0     # block_access_list_offset\n" ++
+  "  bltu t6, t5, .Lv2_header_roots_done\n" ++
+  "  sub t6, t6, t5                                      # withdrawals byte length\n" ++
+  "  bnez t6, .Lv2_header_roots_done\n" ++
+  "  la a0, svf_withdrawals_root; la a1, aps_empty_root; li a2, 32\n" ++
+  "  jal ra, mset_memcpy\n" ++
+  "  li t0, 1; la t1, bv_block_hash_check_enabled; sd t0, 0(t1)\n" ++
+  ".Lv2_header_roots_done:\n" ++
   "  la t1, sv_params\n" ++
   "  la t0, svf_payload;        ld t0, 0(t0); sd t0, 0(t1)\n" ++
   "  la t0, svf_parent_rlp;     ld t0, 0(t0); sd t0, 8(t1)\n" ++
   "  la t0, svf_parent_rlp_len; ld t0, 0(t0); sd t0, 16(t1)\n" ++
   "  la t0, svf_parent_sr;      sd t0, 24(t1)\n" ++
-  "  la t0, svf_zero32;         sd t0, 32(t1)\n" ++
-  "  la t0, svf_zero32;         sd t0, 40(t1)\n" ++
+  "  la t0, svf_transactions_root; sd t0, 32(t1)\n" ++
+  "  la t0, svf_withdrawals_root;  sd t0, 40(t1)\n" ++
   "  addi t0, s0, 24;           sd t0, 48(t1)\n" ++
   "  la t0, erh_requests_hash;  sd t0, 56(t1)\n" ++
-  "  la t0, svf_zero32;         sd t0, 96(t1)\n" ++
+  "  la t0, svf_block_access_list_hash; sd t0, 96(t1)\n" ++
   "  la t0, svf_descriptors;    sd t0, 64(t1)\n" ++
   "  la t0, svf_wds_count;      ld t0, 0(t0); sd t0, 72(t1)\n" ++
   "  la t0, svf_witness;        ld t0, 0(t0); sd t0, 80(t1)\n" ++
@@ -722,6 +770,9 @@ def statelessVerdictV2Function : String :=
   "  j .Lv2_zero\n" ++
   ".Lv2_chain_config_fail:\n" ++
   "  li t0, 26; la t1, bv_fail_code; sd t0, 0(t1)\n" ++
+  "  j .Lv2_zero\n" ++
+  ".Lv2_block_access_list_hash_fail:\n" ++
+  "  li t0, 31; la t1, bv_fail_code; sd t0, 0(t1)\n" ++
   "  j .Lv2_zero\n" ++
   ".Lv2_zero:\n" ++
   "  li a0, 0\n" ++
@@ -857,6 +908,9 @@ def ziskStatelessVerdictV2Prologue : String :=
   validateHeaderRlpPairFunction ++ "\n" ++
   bhrRevLeBeFunction ++ "\n" ++
   blockHeaderSszToRlpFunction ++ "\n" ++
+  bahU32leFunction ++ "\n" ++
+  blockAccessListHashFunction ++ "\n" ++
+  blockHashFromHeaderFunction ++ "\n" ++
   rlpBytesEncodedSizeFunction ++ "\n" ++
   rlpListEncodedSizeFunction ++ "\n" ++
   blockRlpRebuiltSizeFunction ++ "\n" ++
@@ -899,6 +953,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   bsrBeaconChangeFunction ++ "\n" ++
   bsrApplyModeledSystemPostFieldsFunction ++ "\n" ++
   blockStateRootFunction ++ "\n" ++
+  mptOneLeafRootIndexedFunction ++ "\n" ++
   codesBlockhashRequiredHeadersFunction ++ "\n" ++
   chainConfigValidFunction ++ "\n" ++
   publicKeysValidFunction ++ "\n" ++

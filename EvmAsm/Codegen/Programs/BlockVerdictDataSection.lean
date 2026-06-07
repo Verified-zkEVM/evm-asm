@@ -143,6 +143,17 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bv_state_status:\n  .zero 8\n" ++
   "bv_block_rlp_len:\n  .zero 8\n" ++
   "bv_blockhash_required_headers:\n  .zero 8\n" ++
+  "bah_bal_start:\n  .zero 8\n" ++
+  "bv_block_hash_check_enabled:\n  .zero 8\n" ++
+  ".balign 32\n" ++
+  "bv_block_hash:\n  .zero 32\n" ++
+  "svf_block_access_list_hash:\n  .zero 32\n" ++
+  "svf_transactions_root:\n  .zero 32\n" ++
+  "svf_withdrawals_root:\n  .zero 32\n" ++
+  ".balign 8\n" ++
+  "mtoli_nibbles:\n  .zero 8\n" ++
+  "mtoli_leaf_len:\n  .zero 8\n" ++
+  "mtoli_leaf_buf:\n  .zero 16384\n" ++
   "brr_status:\n  .zero 8\n" ++
   "brr_append_status:\n  .zero 8\n" ++
   "brr_tx_type:\n  .zero 8\n" ++

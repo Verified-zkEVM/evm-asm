@@ -86,6 +86,9 @@ def statelessVerdictV2GuestClosure : String :=
   validateHeaderRlpPairFunction ++ "\n" ++
   bhrRevLeBeFunction ++ "\n" ++
   blockHeaderSszToRlpFunction ++ "\n" ++
+  bahU32leFunction ++ "\n" ++
+  blockAccessListHashFunction ++ "\n" ++
+  blockHashFromHeaderFunction ++ "\n" ++
   rlpBytesEncodedSizeFunction ++ "\n" ++
   rlpListEncodedSizeFunction ++ "\n" ++
   blockRlpRebuiltSizeFunction ++ "\n" ++
@@ -128,6 +131,7 @@ def statelessVerdictV2GuestClosure : String :=
   bsrBeaconChangeFunction ++ "\n" ++
   bsrApplyModeledSystemPostFieldsFunction ++ "\n" ++
   blockStateRootFunction ++ "\n" ++
+  mptOneLeafRootIndexedFunction ++ "\n" ++
   codesBlockhashRequiredHeadersFunction ++ "\n" ++
   chainConfigValidFunction ++ "\n" ++
   publicKeysValidFunction ++ "\n" ++
