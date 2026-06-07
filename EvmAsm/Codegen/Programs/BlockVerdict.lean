@@ -42,6 +42,8 @@ import EvmAsm.Codegen.Programs.TxBlobGas
 
 import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransfer
 import EvmAsm.Codegen.Programs.TxGasBalPostVerify
+import EvmAsm.Codegen.Programs.SimpleTransferRecipient
+import EvmAsm.Codegen.Programs.SimpleTransferFeeRecipient
 import EvmAsm.Codegen.Programs.BlockVerdictSysChange
 import EvmAsm.Codegen.Programs.BlockVerdictChainConfig
 namespace EvmAsm.Codegen
@@ -478,6 +480,49 @@ def blockVerdictFunction : String :=
   "  la a6, basr_records; la a7, bv_tx_gas_precharge\n" ++
   "  jal ra, tx_gas_bal_post_verify\n" ++
   "  la t2, bv_tx_gas_precharge; ld t0, 0(t2); bnez t0, .Lbv_tx_gas_precharge_fail\n" ++
+  "  # Non-overlapping EOA simple transfers must also expose recipient and\n" ++
+  "  # fee-recipient BAL post balances matching value and priority-fee effects.\n" ++
+  "  la t2, bv_simple_transfer_tx\n" ++
+  "  la t0, bv_tx_gas_precharge\n" ++
+  "  addi t3, t2, 72; addi t4, t0, 104; li t5, 20\n" ++
+  ".Lbv_st_recipient_sender_cmp:\n" ++
+  "  beqz t5, .Lbv_st_skip_recipient_overlap\n" ++
+  "  lbu t6, 0(t3); lbu a0, 0(t4); bne t6, a0, .Lbv_st_recipient_distinct\n" ++
+  "  addi t3, t3, 1; addi t4, t4, 1; addi t5, t5, -1; j .Lbv_st_recipient_sender_cmp\n" ++
+  ".Lbv_st_recipient_distinct:\n" ++
+  "  la t2, bv_simple_transfer_tx\n" ++
+  "  addi a0, t2, 72; addi a1, t2, 96\n" ++
+  "  la t2, bv_bal_start; ld a2, 0(t2)\n" ++
+  "  la t2, bv_bal_len; ld a3, 0(t2)\n" ++
+  "  la a4, basr_records; la a5, bv_simple_transfer_recipient\n" ++
+  "  jal ra, simple_transfer_recipient_bal_verify\n" ++
+  "  la t2, bv_simple_transfer_recipient; ld t0, 0(t2); bnez t0, .Lbv_simple_transfer_recipient_fail\n" ++
+  ".Lbv_st_skip_recipient_overlap:\n" ++
+  "  ld t0, 0(s0); addi t0, t0, 32\n" ++
+  "  la t1, bv_tx_gas_precharge; addi t1, t1, 104\n" ++
+  "  mv t3, t0; mv t4, t1; li t5, 20\n" ++
+  ".Lbv_st_fee_sender_cmp:\n" ++
+  "  beqz t5, .Lbv_st_skip_fee_overlap\n" ++
+  "  lbu t6, 0(t3); lbu a0, 0(t4); bne t6, a0, .Lbv_st_fee_check_recipient\n" ++
+  "  addi t3, t3, 1; addi t4, t4, 1; addi t5, t5, -1; j .Lbv_st_fee_sender_cmp\n" ++
+  ".Lbv_st_fee_check_recipient:\n" ++
+  "  ld t0, 0(s0); addi t0, t0, 32\n" ++
+  "  la t1, bv_simple_transfer_tx; addi t1, t1, 72\n" ++
+  "  mv t3, t0; mv t4, t1; li t5, 20\n" ++
+  ".Lbv_st_fee_recipient_cmp:\n" ++
+  "  beqz t5, .Lbv_st_skip_fee_overlap\n" ++
+  "  lbu t6, 0(t3); lbu a0, 0(t4); bne t6, a0, .Lbv_st_fee_distinct\n" ++
+  "  addi t3, t3, 1; addi t4, t4, 1; addi t5, t5, -1; j .Lbv_st_fee_recipient_cmp\n" ++
+  ".Lbv_st_fee_distinct:\n" ++
+  "  ld a0, 0(s0); addi a0, a0, 32\n" ++
+  "  la t2, bv_simple_transfer_tx\n" ++
+  "  ld a1, 8(t2); ld a2, 16(t2); ld a3, 32(t2)\n" ++
+  "  la t2, bv_bal_start; ld a4, 0(t2)\n" ++
+  "  la t2, bv_bal_len; ld a5, 0(t2)\n" ++
+  "  la a6, basr_records; la a7, bv_simple_transfer_fee_recipient\n" ++
+  "  jal ra, simple_transfer_fee_recipient_bal_verify\n" ++
+  "  la t2, bv_simple_transfer_fee_recipient; ld t0, 0(t2); bnez t0, .Lbv_simple_transfer_fee_recipient_fail\n" ++
+  ".Lbv_st_skip_fee_overlap:\n" ++
   ".Lbv_after_tx_gas_precharge:\n" ++
   "  # EIP-8037 tx inclusion gas gate: reject parse-supported legacy tx blocks\n" ++
   "  # whose worst regular/state gas exceeds the remaining 2D block budget.\n" ++
@@ -559,6 +604,10 @@ def blockVerdictFunction : String :=
   "  li t0, 16; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_tx_gas_precharge_fail:\n" ++
   "  li t0, 17; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_simple_transfer_recipient_fail:\n" ++
+  "  li t0, 28; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_simple_transfer_fee_recipient_fail:\n" ++
+  "  li t0, 29; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_eip7778_block_gas_fail:\n" ++
   "  li t0, 19; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_receipt_records_fail:\n" ++
@@ -738,6 +787,10 @@ def ziskStatelessVerdictV2Prologue : String :=
   "  la t1, bvgr_tx_gas_limits; ld t2, 0(t1); sd t2, 320(t0)\n" ++
   "  la t1, bvgr_block_gas_increments; ld t2, 0(t1); sd t2, 328(t0)\n" ++
   "  la t1, bvgr_receipt_gas_increments; ld t2, 0(t1); sd t2, 336(t0)\n" ++
+  "  la t1, bv_simple_transfer_tx; ld t2, 0(t1); sd t2, 344(t0)\n" ++
+  "  la t1, bv_tx_gas_precharge; ld t2, 0(t1); sd t2, 352(t0)\n" ++
+  "  la t1, bv_simple_transfer_recipient; ld t2, 0(t1); sd t2, 360(t0)\n" ++
+  "  la t1, bv_simple_transfer_fee_recipient; ld t2, 0(t1); sd t2, 368(t0)\n" ++
   "  j .Lv2_pdone\n" ++
   zkvmSha256Function ++ "\n" ++
   zkvmKeccak256Function ++ "\n" ++
@@ -879,6 +932,8 @@ def ziskStatelessVerdictV2Prologue : String :=
   accountChargeGasPreExecFunction ++ "\n" ++
   txUpfrontPrechargeFunction ++ "\n" ++
   txGasBalPostVerifyFunction ++ "\n" ++
+  simpleTransferRecipientBalVerifyFunction ++ "\n" ++
+  simpleTransferFeeRecipientBalVerifyFunction ++ "\n" ++
   accessListCountFunction ++ "\n" ++
   intrinsicGasAmsterdamCountsFunction ++ "\n" ++
   eip8037TxGasGateFunction ++ "\n" ++
@@ -1061,6 +1116,30 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bvgr_before_refund:\n  .zero 128\n" ++
   "bvgr_applied_refund:\n  .zero 128\n" ++
   blockVerdictTxGasPrechargeDataSection ++
+  ".balign 8\n" ++
+  "strv_count:\n  .zero 8\n" ++
+  "strv_row_off:\n  .zero 8\n" ++
+  "strv_row_len:\n  .zero 8\n" ++
+  "strv_addr_off:\n  .zero 8\n" ++
+  "strv_addr_len:\n  .zero 8\n" ++
+  "strv_post_len:\n  .zero 8\n" ++
+  "strv_nonce_len:\n  .zero 8\n" ++
+  "stfv_count:\n  .zero 8\n" ++
+  "stfv_row_off:\n  .zero 8\n" ++
+  "stfv_row_len:\n  .zero 8\n" ++
+  "stfv_addr_off:\n  .zero 8\n" ++
+  "stfv_addr_len:\n  .zero 8\n" ++
+  "stfv_post_len:\n  .zero 8\n" ++
+  "stfv_nonce_len:\n  .zero 8\n" ++
+  ".balign 32\n" ++
+  "strv_post_raw:\n  .zero 32\n" ++
+  "strv_nonce_raw:\n  .zero 32\n" ++
+  "stfv_effective_gas_price:\n  .zero 32\n" ++
+  "stfv_post_raw:\n  .zero 32\n" ++
+  "stfv_nonce_raw:\n  .zero 32\n" ++
+  ".balign 8\n" ++
+  "bv_simple_transfer_recipient:\n  .zero 208\n" ++
+  "bv_simple_transfer_fee_recipient:\n  .zero 240\n" ++
   ".balign 8\n" ++
   "tvhm_tx_type:\n  .zero 8\n" ++
   "tvhm_inner_off:\n  .zero 8\n" ++
