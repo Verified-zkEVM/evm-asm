@@ -36,7 +36,7 @@ precompile gas or call/create gas.
 | Surface | Owning bead | Example filter | Why it matters |
 | --- | --- | --- | --- |
 | Frontier scenario matrices | `evm-asm-fhsxz.2.4.2.54.2` | `frontier/scenarios/scenarios/scenarios` | Tracks Amsterdam `blockchain_tests/for_amsterdam` scenario failures across CALL/CREATE/revert/static-context combinations. See [`docs/eest-scenarios-frontier.md`](eest-scenarios-frontier.md). |
-| Simple tx/value transfer | `evm-asm-fhsxz.2.4.2.56` | `validation/transaction` | Establishes the basic transaction state transition before contract code. Probe: `scripts/codegen-eest-simple-value-transfer-frontier-check.sh`. |
+| Simple tx/value transfer | `evm-asm-fhsxz.2.4.2.56` | `validation/transaction` | Establishes the basic transaction state transition before contract code. Gate: `scripts/codegen-eest-simple-value-transfer-frontier-check.sh` requires every selected `validation/transaction` block to full-match. |
 | Gas accounting | `evm-asm-fhsxz.2.4.2.57` | `precompile_warming` | Turns warm/cold, intrinsic, memory, call, refund, and OOG fixtures into semantic failures. |
 | Witness-backed state reads | `evm-asm-fhsxz.2.4.2.58` | `sload_non_const` | Replaces local/stub reads for `BALANCE`, `SLOAD`, `EXTCODE*`, and account existence. |
 | General post-state root | `evm-asm-fhsxz.2.4.2.59` | `sstore_non_const` | Recomputes nonce, balance, storage root, code hash, creation, and deletion effects. |
