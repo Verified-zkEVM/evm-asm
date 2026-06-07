@@ -519,6 +519,20 @@ def blockVerdictFunction : String :=
   "  lbu t6, 0(t3); lbu a0, 0(t4); bne t6, a0, .Lbv_st_recipient_distinct\n" ++
   "  addi t3, t3, 1; addi t4, t4, 1; addi t5, t5, -1; j .Lbv_st_recipient_sender_cmp\n" ++
   ".Lbv_st_recipient_distinct:\n" ++
+  "  # Skip the strict recipient BAL balance check when the simple-transfer\n" ++
+  "  # recipient is the block coinbase: that account's BAL post balance also\n" ++
+  "  # folds in the priority fee (transaction_fee), so pre+value != post and\n" ++
+  "  # the EIP-7708 coinbase-recipient case would false-reject even though the\n" ++
+  "  # recomputed post-state root still anchors the coinbase balance. Mirrors\n" ++
+  "  # the fee-recipient coinbase-overlap skip below.\n" ++
+  "  ld t0, 0(s0); addi t0, t0, 32\n" ++
+  "  la t1, bv_simple_transfer_tx; addi t1, t1, 72\n" ++
+  "  li t5, 20\n" ++
+  ".Lbv_st_recipient_coinbase_cmp:\n" ++
+  "  beqz t5, .Lbv_st_skip_recipient_overlap\n" ++
+  "  lbu t6, 0(t0); lbu a0, 0(t1); bne t6, a0, .Lbv_st_recipient_do_verify\n" ++
+  "  addi t0, t0, 1; addi t1, t1, 1; addi t5, t5, -1; j .Lbv_st_recipient_coinbase_cmp\n" ++
+  ".Lbv_st_recipient_do_verify:\n" ++
   "  la t2, bv_simple_transfer_tx\n" ++
   "  addi a0, t2, 72; addi a1, t2, 96\n" ++
   "  la t2, bv_bal_start; ld a2, 0(t2)\n" ++
