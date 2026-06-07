@@ -257,6 +257,8 @@ def eip8037TxGasGateFunction : String :=
   "  mv t0, s11; bgeu t0, t6, .Letg_required_have\n" ++
   "  mv t0, t6\n" ++
   ".Letg_required_have:\n" ++
+  "  li t6, 16777216\n" ++
+  "  bgtu t0, t6, .Letg_validate_fail\n" ++
   "  bltu t1, t0, .Letg_validate_fail\n" ++
   "  la t5, bsg_min_block_gas; ld t2, 0(t5)\n" ++
   "  bltu s3, t2, .Letg_regular_reject\n" ++
