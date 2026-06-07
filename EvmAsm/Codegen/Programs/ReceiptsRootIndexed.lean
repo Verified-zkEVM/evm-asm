@@ -148,6 +148,8 @@ def ziskBlockValidateReceiptsRootIndexedPrologue : String :=
   mptInsertAccFunction ++ "\n" ++
   mptStateRootInsFunction ++ "\n" ++
   mptIndexedTrieRootOneLeafFunction ++ "\n" ++
+  mptIndexedLargeLeafHashFunction ++ "\n" ++
+  mptIndexedTrieRootLargeFunction ++ "\n" ++
   mptIndexedTrieRootSmallFunction ++ "\n" ++
   headerExtractReceiptsRootFunction ++ "\n" ++
   blockValidateReceiptsRootIndexedFunction ++ "\n" ++
