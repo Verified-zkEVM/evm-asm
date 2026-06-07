@@ -190,22 +190,6 @@ def txGasBalPostVerifyFunction : String :=
   "  li t0, 37; sd t0, 0(s7)\n" ++
   "  j .Ltgbpv_ret\n" ++
   ".Ltgbpv_value_ok:\n" ++
-  "  # Self-transfer detection. When the recipient equals the sender, the\n" ++
-  "  # transferred value returns to the sender within the same transaction, so\n" ++
-  "  # the sender's BAL post balance is charged + refund with NO value netting\n" ++
-  "  # (EIP-7708 transfer_to_self). Extract the recipient and compare it byte\n" ++
-  "  # for byte against the sender address recorded by the BAL lookup; on a\n" ++
-  "  # match, skip the value subtraction entirely.\n" ++
-  "  mv a0, s0; mv a1, s1; la a2, tgbpv_to_addr; la a3, tgbpv_is_creation\n" ++
-  "  jal ra, tx_extract_to_address\n" ++
-  "  bnez a0, .Ltgbpv_value_subtract\n" ++
-  "  la t0, tgbpv_is_creation; ld t1, 0(t0); bnez t1, .Ltgbpv_value_subtract\n" ++
-  "  la t0, tgbpv_to_addr; la t1, tgbpv_lookup; addi t1, t1, 16; li t2, 20\n" ++
-  ".Ltgbpv_self_cmp:\n" ++
-  "  beqz t2, .Ltgbpv_value_sub_ok\n" ++
-  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Ltgbpv_value_subtract\n" ++
-  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Ltgbpv_self_cmp\n" ++
-  ".Ltgbpv_value_subtract:\n" ++
   "  la a0, tgbpv_expected_balance; la a1, tgbpv_value; la a2, tgbpv_expected_balance\n" ++
   "  jal ra, u256_sub_be\n" ++
   "  beqz a0, .Ltgbpv_value_sub_ok\n" ++
@@ -371,8 +355,6 @@ def ziskTxGasBalPostVerifyDataSection : String :=
   "tgbpv_value:\n  .zero 32\n" ++
   ".balign 8\n" ++
   "tgbpv_nonce:\n  .zero 8\n" ++
-  "tgbpv_to_addr:\n  .zero 24\n" ++
-  "tgbpv_is_creation:\n  .zero 8\n" ++
   "tgbpv_lookup:\n  .zero 168\n" ++
   "tgbpv_records:\n  .zero 4096"
 
