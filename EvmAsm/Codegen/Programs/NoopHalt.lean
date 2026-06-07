@@ -111,6 +111,7 @@ private def selfdestructTailAsm : String :=
   selfdestructNewAccountSurchargeAsm ++
   selfdestructLoadAccountInputsAsm ++
   selfdestructBalanceTransferRuntimeAsm ++
+  selfdestructEip7708LogRuntimeAsm ++
   "  la x14, evm_selfdestruct_staged\n" ++
   "  li x15, 1\n" ++
   "  sd x15, 0(x14)\n" ++
