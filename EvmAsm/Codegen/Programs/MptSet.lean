@@ -529,6 +529,7 @@ def mptSetFunction : String :=
   "  la a4, mset_node\n" ++
   "  la a5, mset_node_len\n" ++
   "  jal ra, mpt_leaf_node_encode_from_nibbles\n" ++
+  "  bnez a0, .Lmset_ret\n" ++
   "  la t0, mset_node_len; ld s9, 0(t0)   # current node len\n" ++
   "  # ---- current_ref = node_slot_encode(node) ----\n" ++
   "  la a0, mset_node\n" ++
