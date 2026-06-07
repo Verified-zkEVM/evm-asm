@@ -190,6 +190,11 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bvgr_runtime_refund_counter_ptr:\n  .zero 8\n" ++
   "bvgr_runtime_calldata_floor_ptr:\n  .zero 8\n" ++
   "bvgr_runtime_count:\n  .zero 8\n" ++
+  ".balign 8\n" ++
+  "bv_runtime_payload:\n  .zero 584\n" ++
+  "bv_runtime_gas_left:\n  .zero 8\n" ++
+  "bv_runtime_refund_counter:\n  .zero 8\n" ++
+  "bv_runtime_calldata_floor:\n  .zero 8\n" ++
   "bv_eip7778_status:\n  .zero 8\n" ++
   "bv_eip7778_index:\n  .zero 8\n" ++
   "bv_eip7778_used:\n  .zero 8\n" ++
