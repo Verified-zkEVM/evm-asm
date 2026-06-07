@@ -249,6 +249,7 @@ def knownProgramNames : List String :=
    "zisk_check_gas_limit",
    "zisk_tx_validate_against_block",
    "zisk_calc_excess_blob_gas",
+   "zisk_amsterdam_blob_gas_price",
    "zisk_header_validate_post_merge",
    "zisk_header_validate_extra_data_length",
    "zisk_u256_add_be",
