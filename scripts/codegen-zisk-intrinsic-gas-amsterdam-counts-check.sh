@@ -41,7 +41,12 @@ run_case() {
 
   python3 -c "
 import struct, sys
-b = bytes.fromhex('$data_hex')
+spec = '$data_hex'
+if spec.startswith('repeat:'):
+    _, byte_hex, count = spec.split(':')
+    b = bytes.fromhex(byte_hex) * int(count)
+else:
+    b = bytes.fromhex(spec)
 with open(sys.argv[1], 'wb') as f:
     for x in (len(b), $is_creation, $gas_limit, $access_addrs, $access_slots, $auths):
         f.write(struct.pack('<Q', x))
@@ -55,6 +60,11 @@ with open(sys.argv[1], 'wb') as f:
     -i "$in_file" -o "$out_file" -n 5000000 \
     >"$REPO_ROOT/gen-out/zisk_intrinsic_gas_amsterdam_counts_${name}.emu.log" 2>&1 || true
 
+  if [[ ! -s "$out_file" ]]; then
+    printf "  %-32s FAIL missing output\n" "$name"
+    return 1
+  fi
+
   local actual_status_le actual_intrinsic_le actual_floor_le
   actual_status_le="$(xxd -p -l 8 "$out_file" | tr -d '\n')"
   actual_intrinsic_le="$(dd if="$out_file" bs=1 skip=8 count=8 2>/dev/null | xxd -p | tr -d '\n')"
@@ -67,7 +77,12 @@ with open(sys.argv[1], 'wb') as f:
 
   local expected
   expected="$(python3 -c "
-b = bytes.fromhex('$data_hex')
+spec = '$data_hex'
+if spec.startswith('repeat:'):
+    _, byte_hex, count = spec.split(':')
+    b = bytes.fromhex(byte_hex) * int(count)
+else:
+    b = bytes.fromhex(spec)
 zeros = b.count(0)
 nz = len(b) - zeros
 calldata_tokens = zeros + 4 * nz
@@ -79,7 +94,8 @@ intrinsic += 2400 * $access_addrs + 1900 * $access_slots
 intrinsic += 16 * access_tokens
 intrinsic += 7500 * $auths
 floor = 21000 + 16 * (4 * len(b) + access_tokens)
-status = 0 if max(intrinsic, floor) <= $gas_limit else 1
+required = max(intrinsic, floor)
+status = 0 if required <= $gas_limit and required <= 16777216 else 1
 print(status, intrinsic, floor)
 ")"
   local expected_status expected_intrinsic expected_floor
@@ -104,6 +120,7 @@ run_case "access_list_many_slots" 50000 0 2 5 0 "0001" || FAILED=1
 run_case "authorization_one"      50000 0 0 0 1 "" || FAILED=1
 run_case "authorization_two"      80000 0 0 0 2 "ff" || FAILED=1
 run_case "floor_dominates"        26000 0 0 0 0 "$(python3 -c "print('ff' * 200)")" || FAILED=1
+run_case "txmax_floor_cap"        20000000 0 0 0 0 "repeat:ff:262000" || FAILED=1
 run_case "one_gas_short"          20999 0 0 0 0 "" || FAILED=1
 
 echo
