@@ -7,7 +7,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-JOBS="${EEST_POST_RANDOM_JOBS:-${EEST_JOBS:-3}}"
+JOBS="${EEST_POST_RANDOM_JOBS:-${EEST_JOBS:-2}}"
 STEPS="${EEST_POST_RANDOM_STEPS:-${EEST_STEPS:-1000000000}}"
 
 scripts/codegen-eest-stateless-check.sh \
