@@ -8,7 +8,8 @@
 # gas_used == gas_limit/2 (so the EIP-1559 child base-fee is unchanged) and
 # this.parent_hash == keccak256(parent_rlp). Expects status 0. Then three
 # invalid tweaks: wrong number (rejected), wrong base-fee (rejected), and a
-# broken parent_hash link (status 602 = K94 mismatch + the wrapper's +600).
+# broken parent_hash link (status 702 = K94 mismatch + the wrapper's +700),
+# and wrong excess_blob_gas recurrence (status 602 from validate_header_full).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 REPO_ROOT="$(pwd)"
@@ -84,7 +85,8 @@ emit("valid",      header(ph, 101, GL, GL // 2, 1012, BF))
 emit("bad_number", header(ph, 103, GL, GL // 2, 1012, BF))      # number != parent+1
 emit("bad_basefee",header(ph, 101, GL, GL // 2, 1012, BF + 1))  # base-fee mismatch
 emit("bad_phash",  header(b"\xde" * 32, 101, GL, GL // 2, 1012, BF))  # broken link
-print("wrote valid / bad_number / bad_basefee / bad_phash")
+emit("bad_excess", header(ph, 101, GL, GL // 2, 1012, BF, excess_blob_gas=1))
+print("wrote valid / bad_number / bad_basefee / bad_phash / bad_excess")
 PY
 
 echo "==> lake build codegen"
@@ -111,7 +113,8 @@ check() {  # check <name> <predicate-desc> <test>
 check valid       "valid child => 0"      '[[ "$st" == "0" ]]'
 check bad_number  "wrong number rejected" '[[ "$st" != "0" && "$st" != "ERR" ]]'
 check bad_basefee "base-fee rejected"     '[[ "$st" != "0" && "$st" != "ERR" ]]'
-check bad_phash   "broken link => 602"    '[[ "$st" == "602" ]]'
+check bad_phash   "broken link => 702"    '[[ "$st" == "702" ]]'
+check bad_excess  "bad excess => 602"     '[[ "$st" == "602" ]]'
 
 [[ "$fail" -eq 0 ]] && echo "==> PASS: validate_header_rlp_pair matches expectations" \
   || { echo "==> FAIL"; exit 1; }
