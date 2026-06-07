@@ -988,13 +988,12 @@ pushdata-aware pass at startup, then O(1) per jump.
   *both* dispatcher prologues immediately before `.dispatch_loop:`: one
   pushdata-aware pass over the bytecode setting bit `idx` of
   `evm_jumpdest_bitmap` for every JUMPDEST byte outside PUSH1..PUSH32
-  immediates. The scan is clamped to `jumpdestBitmapCodeCapacity` (64 KiB of
-  code — covering the vendored-specs **Amsterdam** maximum *exactly*:
-  EIP-7954 raises `MAX_CODE_SIZE` to `0x8000`, so `MAX_INIT_CODE_SIZE =
-  0x10000 = 65,536`. Note the live EIP-7954 draft has since doubled to
-  `0x10000`/`0x20000`; bump the constant to `0x20000` if the vendored specs
-  sync — see its docstring). `emitJumpdestBitmapData` reserves the 8 KiB
-  loader-zeroed bitmap region in both `.data` sections. Build-pass scratch is
+  immediates. The scan is clamped to `jumpdestBitmapCodeCapacity` (128 KiB of
+  code = `0x20000` = the live EIP-7954 draft's `MAX_INIT_CODE_SIZE`, giving
+  2× headroom over the vendored-specs **Amsterdam** maximum of
+  `MAX_INIT_CODE_SIZE = 0x10000 = 65,536`, so a future specs sync needs no
+  bitmap change — see the constant's docstring). `emitJumpdestBitmapData`
+  reserves the 16 KiB loader-zeroed bitmap region in both `.data` sections. Build-pass scratch is
   `x5`–`x9`/`x11`, all dead at the insertion point.
 - **`EvmAsm/Codegen/Programs/EvmControlFlowHandlers.lean`** — the JUMP /
   taken-JUMPI validity tail (`jumpBitmapCheckAsm`, formerly
