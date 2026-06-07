@@ -42,6 +42,11 @@ def amsterdamNewAccountStateGas : Nat :=
 def amsterdamAuthStateGas : Nat :=
   (amsterdamStateBytesPerNewAccount + amsterdamStateBytesPerAuthBase) * amsterdamCostPerStateByte
 
+/-- Intrinsic state gas charged per EIP-7702 authorization. -/
+def amsterdamAuthStateGasPerAuth : Nat :=
+  (amsterdamStateBytesPerNewAccount + amsterdamStateBytesPerAuthBase)
+    * amsterdamCostPerStateByte
+
 /-- State-gas reservoir passed to each Amsterdam system transaction. -/
 def amsterdamSystemStateGasReservoir : Nat :=
   amsterdamStorageSetStateGas * amsterdamSystemMaxSstoresPerCall
@@ -58,6 +63,10 @@ def liAmsterdamNewAccountStateGas (reg : String) : String :=
 def liAmsterdamAuthStateGas (reg : String) : String :=
   "  li " ++ reg ++ ", " ++ toString amsterdamAuthStateGas ++ "\n"
 
+/-- Assembly `li` helper for the per-authorization intrinsic state gas constant. -/
+def liAmsterdamAuthStateGasPerAuth (reg : String) : String :=
+  "  li " ++ reg ++ ", " ++ toString amsterdamAuthStateGasPerAuth ++ "\n"
+
 /-- Assembly `li` helper for the system transaction regular gas budget. -/
 def liAmsterdamSystemTransactionGas (reg : String) : String :=
   "  li " ++ reg ++ ", " ++ toString amsterdamSystemTransactionGas ++ "\n"
@@ -69,6 +78,7 @@ def liAmsterdamSystemStateGasReservoir (reg : String) : String :=
 #guard amsterdamStorageSetStateGas = 97920
 #guard amsterdamNewAccountStateGas = 183600
 #guard amsterdamAuthStateGas = 218790
+#guard amsterdamAuthStateGasPerAuth = 218790
 #guard amsterdamSystemStateGasReservoir = 1566720
 
 end EvmAsm.Codegen
