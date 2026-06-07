@@ -351,6 +351,7 @@ def intrinsicGasAmsterdamCountsFunction : String :=
       bytes 48..   : data bytes
     Output layout:
       bytes  0.. 8 : status, 0 iff max(intrinsic, floor) <= gas_limit
+                    and max(intrinsic, floor) <= TX_MAX_GAS_LIMIT
       bytes  8..16 : intrinsic gas
       bytes 16..24 : calldata floor gas -/
 def ziskIntrinsicGasAmsterdamCountsPrologue : String :=
@@ -375,6 +376,8 @@ def ziskIntrinsicGasAmsterdamCountsPrologue : String :=
   ".Ligac_have_required:\n" ++
   "  li t0, 0xa0010000\n" ++
   "  li t3, 1\n" ++
+  "  li t4, 16777216\n" ++
+  "  bgtu t2, t4, .Ligac_write_status\n" ++
   "  bltu s0, t2, .Ligac_write_status\n" ++
   "  li t3, 0\n" ++
   ".Ligac_write_status:\n" ++
