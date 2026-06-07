@@ -619,14 +619,14 @@ def ziskSszPackBytesProbeUnit : BuildUnit := {
 
     Calling convention:
       a0 (input)  : src bytes ptr
-      a1 (input)  : L (0 ≤ L ≤ 1024)
+      a1 (input)  : L (bounded by the linked `ssz_hb_chunks` scratch)
       a2 (input)  : limit_log2_chunks (0 ≤ L_log2 ≤ 31)
       a3 (input)  : 32-byte output ptr
       ra (input)  : return
       a0 (output) : 0 (ZKVM_EOK)
 
     Uses three scratches in `.data`:
-      ssz_hb_chunks  (1024 B) -- packed chunks before merkleize
+      ssz_hb_chunks           -- packed chunks before merkleize
       ssz_hb_partial (32 B)   -- partial root from merkleize
       ssz_hb_mix     (64 B)   -- (partial || length) buffer
                                  for the final sha256 -/
@@ -772,9 +772,9 @@ def ziskSszHashTreeRootBytesProbeUnit : BuildUnit := {
       a0 (output) : 0 (ZKVM_EOK), 1 if the section exceeds this helper's
                     scratch-supported bounds
 
-    PR-S11 caps N (element count) at 32, matching the inner
-    merkleize cap, and each ByteList element at 1024 bytes, matching
-    `ssz_hash_tree_root_bytes` scratch. Output is byte-identical to
+    PR-S11 caps N (element count) at 4096, matching the enlarged stateless
+    scratch, and each ByteList element at 2 MiB, matching the current
+    `ssz_hash_tree_root_bytes` stateless scratch. Output is byte-identical to
     `SszList[ByteList[B], M](...).hash_tree_root()` from
     `remerkleable` for any input within those helper bounds. -/
 def sszHashTreeRootListByteListFunction : String :=
@@ -797,8 +797,8 @@ def sszHashTreeRootListByteListFunction : String :=
   "  bnez t5, .Lszls_fail       # offset_0 must equal 4*N\n" ++
   "  srli s5, t0, 2             # s5 = N (element count)\n" ++
   "  beqz s5, .Lszls_fail       # non-empty section cannot encode an empty list\n" ++
-  "  li t5, 32\n" ++
-  "  bltu t5, s5, .Lszls_fail   # child root scratch is 32 roots\n" ++
+  "  li t5, 4096\n" ++
+  "  bltu t5, s5, .Lszls_fail   # child root scratch is 4096 roots\n" ++
   "  bltu s1, t0, .Lszls_fail   # offset table must fit in section\n" ++
   "  li s6, 0                   # s6 = i (loop counter)\n" ++
   ".Lszls_loop:\n" ++
@@ -832,8 +832,8 @@ def sszHashTreeRootListByteListFunction : String :=
   "  li t1, 32\n" ++
   "  sll t1, t1, s2             # declared ByteList byte capacity\n" ++
   "  bltu t1, a1, .Lszls_fail   # reject element longer than ByteList[B]\n" ++
-  "  li t0, 1024\n" ++
-  "  bltu t0, a1, .Lszls_fail   # ssz_hash_tree_root_bytes scratch supports <=1024B\n" ++
+  "  li t0, 0x200000\n" ++
+  "  bltu t0, a1, .Lszls_fail   # ssz_hash_tree_root_bytes scratch supports <=2MiB\n" ++
   "  mv a2, s2                  # byte_log2\n" ++
   "  la a3, ssz_ltb_child_roots\n" ++
   "  slli t0, s6, 5             # 32*i\n" ++
