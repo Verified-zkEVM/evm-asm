@@ -813,8 +813,11 @@ def balCodePreimagesValidFunction : String :=
   "  ret\n" ++
   "\n" ++
   "# Return 1 iff a CALL target is EIP-7702 delegated code whose delegated\n" ++
-  "# account has non-empty code missing from witness.codes. Non-delegated\n" ++
-  "# targets return 0; parse/proof failures return 1 conservatively.\n" ++
+  "# account is present in BAL and has non-empty code missing from\n" ++
+  "# witness.codes. OOG static-check cases can touch only the target account;\n" ++
+  "# in those cases execution-specs does not load the delegated account, so\n" ++
+  "# its code preimage is not required. Non-delegated targets return 0;\n" ++
+  "# parse/proof failures return 1 conservatively.\n" ++
   "bal_call_target_delegated_code_valid:\n" ++
   "  addi sp, sp, -96\n" ++
   "  sd ra, 0(sp)\n" ++
@@ -848,6 +851,9 @@ def balCodePreimagesValidFunction : String :=
   "  lbu t0, 1(s7); li t1, 0x01; bne t0, t1, .Lbcdcv_ok\n" ++
   "  lbu t0, 2(s7); bnez t0, .Lbcdcv_ok\n" ++
   "  addi s8, s7, 3             # delegated address ptr\n" ++
+  "  mv a0, s8\n" ++
+  "  jal ra, bbcv_bal_contains_addr\n" ++
+  "  beqz a0, .Lbcdcv_ok        # delegation target was not loaded\n" ++
   "  mv a0, s0; mv a1, s1; mv a2, s8; mv a3, s3; mv a4, s4; la a5, bbcv_delegated_code_hash\n" ++
   "  jal ra, code_hash_at_header_state_root\n" ++
   "  bnez a0, .Lbcdcv_bad\n" ++
@@ -871,6 +877,51 @@ def balCodePreimagesValidFunction : String :=
   "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
   "  ld s8, 72(sp); ld s9, 80(sp)\n" ++
   "  addi sp, sp, 96\n" ++
+  "  ret\n" ++
+  "\n" ++
+  "# Return 1 iff address a0 occurs as a BAL account row address. Uses\n" ++
+  "# block-verdict's bv_bal_start/bv_bal_len scratch, populated before\n" ++
+  "# bal_code_preimages_valid is called.\n" ++
+  "bbcv_bal_contains_addr:\n" ++
+  "  addi sp, sp, -80\n" ++
+  "  sd ra, 0(sp)\n" ++
+  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
+  "  mv s0, a0                  # needle address ptr\n" ++
+  "  la t0, bv_bal_start; ld s1, 0(t0)\n" ++
+  "  la t0, bv_bal_len; ld s2, 0(t0)\n" ++
+  "  mv a0, s1; mv a1, s2; la a2, bbcv_scan_count\n" ++
+  "  jal ra, rlp_list_count_items\n" ++
+  "  bnez a0, .Lbbcba_no\n" ++
+  "  la t0, bbcv_scan_count; ld s3, 0(t0)\n" ++
+  "  li s4, 0\n" ++
+  ".Lbbcba_loop:\n" ++
+  "  beq s4, s3, .Lbbcba_no\n" ++
+  "  mv a0, s1; mv a1, s2; mv a2, s4; la a3, bbcv_scan_off; la a4, bbcv_scan_size\n" ++
+  "  jal ra, rlp_item_span\n" ++
+  "  bnez a0, .Lbbcba_no\n" ++
+  "  la t0, bbcv_scan_off; ld t1, 0(t0); add s5, s1, t1\n" ++
+  "  la t0, bbcv_scan_size; ld s6, 0(t0)\n" ++
+  "  mv a0, s5; mv a1, s6; li a2, 0; la a3, bbcv_scan_addr_off; la a4, bbcv_scan_addr_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lbbcba_no\n" ++
+  "  la t0, bbcv_scan_addr_len; ld t1, 0(t0); li t2, 20; bne t1, t2, .Lbbcba_next\n" ++
+  "  la t0, bbcv_scan_addr_off; ld t1, 0(t0); add s7, s5, t1\n" ++
+  "  mv a0, s0; mv a1, s7\n" ++
+  "  jal ra, bbcv_addr_eq20\n" ++
+  "  bnez a0, .Lbbcba_yes\n" ++
+  ".Lbbcba_next:\n" ++
+  "  addi s4, s4, 1\n" ++
+  "  j .Lbbcba_loop\n" ++
+  ".Lbbcba_yes:\n" ++
+  "  li a0, 1; j .Lbbcba_ret\n" ++
+  ".Lbbcba_no:\n" ++
+  "  li a0, 0\n" ++
+  ".Lbbcba_ret:\n" ++
+  "  ld ra, 0(sp)\n" ++
+  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
+  "  addi sp, sp, 80\n" ++
   "  ret\n" ++
   "\n" ++
   "# Return 1 iff any legacy transaction data contains PUSH20 <addr>; SELFDESTRUCT.\n" ++
