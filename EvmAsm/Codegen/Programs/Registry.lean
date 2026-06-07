@@ -266,6 +266,7 @@ import EvmAsm.Codegen.Programs.SszPayloadWithdrawals
 import EvmAsm.Codegen.Programs.SszParentHeader
 import EvmAsm.Codegen.Programs.StatelessVerdict
 import EvmAsm.Codegen.Programs.BlockVerdict
+import EvmAsm.Codegen.Programs.BlockVerdictGasResults
 import EvmAsm.Codegen.Programs.BlockVerdictV2
 import EvmAsm.Codegen.Programs.Address
 import EvmAsm.Codegen.Programs.OmmersHashAtBlockHash
@@ -609,6 +610,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_tx_extract_data_section" => some ziskTxExtractDataSectionProbeUnit
   | "zisk_tx_extract_gas_pricing"  => some ziskTxExtractGasPricingProbeUnit
   | "zisk_tx_effective_gas_pricing" => some ziskTxEffectiveGasPricingProbeUnit
+  | "zisk_block_verdict_gas_result_arena" => some ziskBlockVerdictGasResultArenaProbeUnit
   | "zisk_tx_eip2930_decode"    => some ziskTxEip2930DecodeProbeUnit
   | "zisk_tx_eip7702_decode"    => some ziskTxEip7702DecodeProbeUnit
   | "zisk_tx_eip4844_decode"    => some ziskTxEip4844DecodeProbeUnit
