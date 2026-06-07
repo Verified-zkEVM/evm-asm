@@ -216,6 +216,7 @@ def knownProgramNames : List String :=
    "zisk_extcodehash_at_header_state_root",
    "runtime_account_witness_extcodehash",
    "runtime_account_witness_extcodecopy",
+   "runtime_create_initcode_frame",
    "runtime_selfdestruct_eip7708_logs",
    "zisk_balance_at_header_state_root",
    "zisk_nonce_at_header_state_root",

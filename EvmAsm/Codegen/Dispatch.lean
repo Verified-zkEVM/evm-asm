@@ -513,6 +513,42 @@ def emitSha256Data : String :=
   "  .quad sha256_w_state\n" ++
   "  .quad sha256_w_input\n"
 
+/-- Runtime CREATE/CREATE2 child-frame staging arena.
+
+The first implementation slice only records the frame that later slices will
+execute: creator/target/value, initcode length+bytes, and empty result/code
+arenas. The status word is set to 1 when staging succeeds. -/
+def emitCreateChildFrameData : String :=
+  ".balign 8\n" ++
+  "create_child_status:\n" ++
+  "  .zero 8\n" ++
+  "create_child_kind:\n" ++
+  "  .zero 8\n" ++
+  "create_child_init_len:\n" ++
+  "  .zero 8\n" ++
+  "create_child_return_len:\n" ++
+  "  .zero 8\n" ++
+  "create_child_code_len:\n" ++
+  "  .zero 8\n" ++
+  ".balign 32\n" ++
+  "create_child_creator_be:\n" ++
+  "  .zero 32\n" ++
+  ".balign 32\n" ++
+  "create_child_target_be:\n" ++
+  "  .zero 32\n" ++
+  ".balign 32\n" ++
+  "create_child_value_be:\n" ++
+  "  .zero 32\n" ++
+  ".balign 32\n" ++
+  "create_child_initcode:\n" ++
+  "  .zero 0x10000\n" ++
+  ".balign 32\n" ++
+  "create_child_returndata:\n" ++
+  "  .zero 0x10000\n" ++
+  ".balign 32\n" ++
+  "create_child_code:\n" ++
+  "  .zero 0x10000\n"
+
 /-- Scratch labels shared by runtime account-witness helpers.
 
 These labels match the standalone header-state-root probes in
@@ -775,6 +811,7 @@ def emitRuntimeAccountWitnessData : String :=
   ".balign 32\n" ++
   "create_balance_be:\n" ++
   "  .zero 32\n" ++
+  emitCreateChildFrameData ++
   ".balign 8\n" ++
   "ac_buffer:\n" ++
   "  .zero 32\n" ++
@@ -936,6 +973,76 @@ def emitExceptionalExit (label : String) (kind : Nat) : String :=
   "  sd x17, 32(x16)\n" ++
   "  j .exit_no_epilogue\n"
 
+
+/-- CREATE/CREATE2 child-frame staging helper emitted into the runtime dispatcher.
+
+This duplicates the standalone probe helper label intentionally: each BuildUnit
+links one asm image, and the dispatcher image needs the same callable label for
+CREATE/CREATE2 handlers. -/
+def createStageInitcodeFrameRuntimeFunction : String :=
+  "create_stage_initcode_frame:\n" ++
+  "  la t0, create_child_status\n" ++
+  "  sd zero, 0(t0)\n" ++
+  "  la t0, create_child_kind\n" ++
+  "  sd a2, 0(t0)\n" ++
+  "  la t0, create_child_return_len\n" ++
+  "  sd zero, 0(t0)\n" ++
+  "  la t0, create_child_code_len\n" ++
+  "  sd zero, 0(t0)\n" ++
+  "  la t0, create_init_size\n" ++
+  "  ld t1, 0(t0)\n" ++
+  "  la t2, create_child_init_len\n" ++
+  "  sd t1, 0(t2)\n" ++
+  "  la t0, create_sender_be\n" ++
+  "  la t2, create_child_creator_be\n" ++
+  "  li t3, 32\n" ++
+  ".Lcreate_stage_copy_creator:\n" ++
+  "  lbu t4, 0(t0)\n" ++
+  "  sb t4, 0(t2)\n" ++
+  "  addi t0, t0, 1\n" ++
+  "  addi t2, t2, 1\n" ++
+  "  addi t3, t3, -1\n" ++
+  "  bnez t3, .Lcreate_stage_copy_creator\n" ++
+  "  la t0, create_address_be\n" ++
+  "  la t2, create_child_target_be\n" ++
+  "  li t3, 32\n" ++
+  ".Lcreate_stage_copy_target:\n" ++
+  "  lbu t4, 0(t0)\n" ++
+  "  sb t4, 0(t2)\n" ++
+  "  addi t0, t0, 1\n" ++
+  "  addi t2, t2, 1\n" ++
+  "  addi t3, t3, -1\n" ++
+  "  bnez t3, .Lcreate_stage_copy_target\n" ++
+  "  addi t0, a1, 31\n" ++
+  "  la t2, create_child_value_be\n" ++
+  "  li t3, 32\n" ++
+  ".Lcreate_stage_copy_value:\n" ++
+  "  lbu t4, 0(t0)\n" ++
+  "  sb t4, 0(t2)\n" ++
+  "  addi t0, t0, -1\n" ++
+  "  addi t2, t2, 1\n" ++
+  "  addi t3, t3, -1\n" ++
+  "  bnez t3, .Lcreate_stage_copy_value\n" ++
+  "  la t0, create_init_offset\n" ++
+  "  ld t2, 0(t0)\n" ++
+  "  add t0, a0, t2\n" ++
+  "  la t2, create_child_initcode\n" ++
+  "  mv t3, t1\n" ++
+  ".Lcreate_stage_copy_initcode:\n" ++
+  "  beqz t3, .Lcreate_stage_done\n" ++
+  "  lbu t4, 0(t0)\n" ++
+  "  sb t4, 0(t2)\n" ++
+  "  addi t0, t0, 1\n" ++
+  "  addi t2, t2, 1\n" ++
+  "  addi t3, t3, -1\n" ++
+  "  j .Lcreate_stage_copy_initcode\n" ++
+  ".Lcreate_stage_done:\n" ++
+  "  la t0, create_child_status\n" ++
+  "  li t1, 1\n" ++
+  "  sd t1, 0(t0)\n" ++
+  "  li a0, 0\n" ++
+  "  ret"
+
 /-- Dispatcher epilogue: handler subroutines (each ends with `ret` or
     `j .exit_label`), the `h_invalid` fallback, and `.exit_label`
     which runs `exitBody` (e.g. `evmAddEpilogue`) and falls through
@@ -993,6 +1100,7 @@ def emitDispatcherEpilogueCore
   hasCodeOrNonceAtHeaderStateRootFunction ++ "\n" ++
   addressComputeCreateFunction ++ "\n" ++
   addressComputeCreate2Function ++ "\n" ++
+  createStageInitcodeFrameRuntimeFunction ++ "\n" ++
   zkvmModexpSafeFailWrapper ++ "\n" ++
   storageAccessGasFunction ++ "\n" ++
   runtimeAccessAccountSeedFunction ++ "\n" ++
