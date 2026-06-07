@@ -19,8 +19,8 @@
   an invalid block. Status (so callers can see which gate failed):
     0          valid child
     1          this-header parse fail        2  parent-header parse fail
-    100..502   validate_header_full failure  (K75's decade encoding)
-    601..602   parent-hash failure           (K94 sub-status + 600)
+    100..602   validate_header_full failure  (K75's decade encoding)
+    701..702   parent-hash failure           (K94 sub-status + 700)
 
   Bundles only existing, tested functions; their scratch is the union of the
   K75 / K39 / K94 probe data sections (all label-disjoint) plus two 128-byte
@@ -70,7 +70,7 @@ def validateHeaderRlpPairFunction : String :=
   "  mv a0, s0; mv a1, s1; mv a2, s2; mv a3, s3\n" ++
   "  jal ra, header_validate_parent_hash\n" ++
   "  beqz a0, .Lvhrp_ret         # 0 = valid\n" ++
-  "  addi a0, a0, 600            # 601 parse / 602 mismatch\n" ++
+  "  addi a0, a0, 700            # 701 parse / 702 mismatch\n" ++
   "  j .Lvhrp_ret\n" ++
   ".Lvhrp_this_parse:\n" ++
   "  li a0, 1\n" ++
@@ -109,12 +109,15 @@ def ziskValidateHeaderRlpPairPrologue : String :=
   u256AddBeFunction ++ "\n" ++
   u256SubBeFunction ++ "\n" ++
   u256EqFunction ++ "\n" ++
+  u256LtBeFunction ++ "\n" ++
   validateHeaderBasicFunction ++ "\n" ++
   checkGasLimitFunction ++ "\n" ++
   headerValidatePostMergeFunction ++ "\n" ++
   headerValidateExtraDataLengthFunction ++ "\n" ++
+  amsterdamBlobGasPriceFunction ++ "\n" ++
   eip1559CalcBaseFeePerGasFunction ++ "\n" ++
   headerValidateBaseFeeFunction ++ "\n" ++
+  headerValidateExcessBlobGasFunction ++ "\n" ++
   validateHeaderFullFunction ++ "\n" ++
   headerExtendedDecodeFunction ++ "\n" ++
   zkvmKeccak256Function ++ "\n" ++
@@ -135,6 +138,8 @@ def ziskValidateHeaderRlpPairDataSection : String :=
   "  .byte 0xf0, 0xa1, 0x42, 0xfd, 0x40, 0xd4, 0x93, 0x47\n" ++
   ".balign 32\n" ++
   "hvbf_expected:\n  .zero 32\n" ++
+  ".balign 32\n" ++
+  "hvebg_threshold:\n  .zero 32\n" ++
   ".balign 8\n" ++
   "u256m_acc:\n  .zero 40\n" ++
   "hvpm_off:\n  .zero 8\n" ++
