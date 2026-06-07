@@ -573,9 +573,9 @@ def ziskStatelessVerdictV2DataSection : String :=
   ".balign 8\n" ++
   "ins_ref2:\n  .zero 64\n" ++
   ".balign 8\n" ++
-  "ins_node:\n  .zero 2048\n" ++
+  "ins_node:\n  .zero 131072\n" ++
   ".balign 8\n" ++
-  "ins_node2:\n  .zero 2048\n" ++
+  "ins_node2:\n  .zero 131072\n" ++
   ".balign 8\n" ++
   "ins_empty_branch:\n" ++
   "  .byte 0xd1,0x80,0x80,0x80,0x80,0x80,0x80,0x80\n" ++
