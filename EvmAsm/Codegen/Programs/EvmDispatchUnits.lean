@@ -30,4 +30,13 @@ def tinyInterpDispatchAdd2Unit : BuildUnit :=
 def runtimeDispatcherUnit : BuildUnit :=
   buildRuntimeDispatchUnit tinyInterpRegistry evmAddEpilogue
 
+/-! ## runtime_dispatcher_call_probe
+
+    Probe for the callable runtime dispatcher ABI. It runs the same
+    runtime-bytecode input format as `runtime_dispatcher`, but calls
+    `runtime_dispatcher_call` as a subroutine and writes a return marker
+    after the dispatcher returns to its caller. -/
+def runtimeDispatcherCallProbeUnit : BuildUnit :=
+  buildRuntimeDispatchCallableProbeUnit tinyInterpRegistry evmAddEpilogue
+
 end EvmAsm.Codegen

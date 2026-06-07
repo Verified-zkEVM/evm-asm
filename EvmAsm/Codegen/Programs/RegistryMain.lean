@@ -352,6 +352,7 @@ def lookupProgramMain (lookupProgramTail : String → Option BuildUnit) : String
   | "tiny_interp_dispatch_add"  => some tinyInterpDispatchAddUnit
   | "tiny_interp_dispatch_add2" => some tinyInterpDispatchAdd2Unit
   | "runtime_dispatcher"        => some runtimeDispatcherUnit
+  | "runtime_dispatcher_call_probe" => some runtimeDispatcherCallProbeUnit
   | "stateless_guest"           => some statelessGuestUnit
   | "zisk_headers_keccak_chain" => some ziskHeadersKeccakChainProbeUnit
   | "zisk_headers_keccak_array" => some ziskHeadersKeccakArrayProbeUnit
