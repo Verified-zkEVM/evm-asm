@@ -54,7 +54,7 @@ def stopHandler : OpcodeHandlerSpec :=
     jump table is built by `jumpTargetLabel`, which scans the list for a
     spec whose `opcodes` contains the byte. -/
 def tinyInterpRegistry : List OpcodeHandlerSpec :=
-  pushHandlers ++ dupHandlers ++ swapHandlers ++ singletonHandlers ++
+  pushHandlers ++ dupHandlers ++ swapHandlers ++ eip8024StackHandlers ++ singletonHandlers ++
   memoryHandlers ++ memoryMetadataHandlers ++ gasHandlers ++ envHandlers ++ slotnumContextHandlers ++
   blobContextHandlers ++ blockHashHandlers ++ calldataHandlers ++ codeHandlers ++
   controlFlowHandlers ++ hashHandlers ++ logHandlers ++
