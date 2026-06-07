@@ -72,6 +72,7 @@ def statelessVerdictV2GuestClosure : String :=
   mptInsertWalkDbFunction ++ "\n" ++
   mptInsertAccFunction ++ "\n" ++
   mptStateRootInsFunction ++ "\n" ++
+  mptOneLeafRootIndexedFunction ++ "\n" ++
   withdrawalsStateRootFunction ++ "\n" ++
   validateHeaderBasicFunction ++ "\n" ++
   checkGasLimitFunction ++ "\n" ++
@@ -91,6 +92,7 @@ def statelessVerdictV2GuestClosure : String :=
   blockRlpRebuiltSizeFunction ++ "\n" ++
   bahU32leFunction ++ "\n" ++
   blockAccessListHashFunction ++ "\n" ++
+  blockHashFromHeaderFunction ++ "\n" ++
   executionRequestsHashFunction ++ "\n" ++
   step2VerdictFunction ++ "\n" ++
   headerExtractStateRootFunction ++ "\n" ++

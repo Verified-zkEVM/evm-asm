@@ -22,6 +22,11 @@ def ziskStatelessVerdictV2DataSection : String :=
   executionRequestsHashDataSection ++ "\n" ++
   ".balign 32\n" ++
   "svf_bal_hash:\n  .zero 32\n" ++
+  "svf_transactions_root:\n  .zero 32\n" ++
+  "svf_withdrawals_root:\n  .zero 32\n" ++
+  "bv_block_hash:\n  .zero 32\n" ++
+  ".balign 8\n" ++
+  "bv_block_hash_check_enabled:\n  .zero 8\n" ++
   ".balign 8\n" ++
   "bah_bal_start:\n  .zero 8\n" ++
   ".balign 8\n" ++
@@ -34,6 +39,9 @@ def ziskStatelessVerdictV2DataSection : String :=
   "sltr_hp_buf:\n  .zero 1024\n" ++
   "sltr_payload_buf:\n  .zero 16384\n" ++
   "sltr_node_buf:\n  .zero 16384\n" ++
+  "mtoli_nibbles:\n  .zero 8\n" ++
+  "mtoli_leaf_len:\n  .zero 8\n" ++
+  "mtoli_leaf_buf:\n  .zero 16384\n" ++
   ".balign 32\n" ++
   "srss_key:\n  .zero 32\n" ++
   ".balign 8\n" ++
