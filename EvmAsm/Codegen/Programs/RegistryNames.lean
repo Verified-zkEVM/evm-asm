@@ -262,6 +262,8 @@ def knownProgramNames : List String :=
    "zisk_secp256k1_field_reduce_once",
    "zisk_secp256k1_field_add",
    "zisk_secp256k1_field_sub",
+   "zisk_secp256k1_field_mul",
+   "zisk_secp256k1_field_square",
    "zisk_u256_add_be",
    "zisk_u256_lt_be",
    "zisk_u256_sub_be",
