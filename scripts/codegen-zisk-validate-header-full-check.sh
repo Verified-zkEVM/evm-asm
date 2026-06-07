@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # codegen-zisk-validate-header-full-check.sh -- PR-K75.
 #
-# Run all five header validation checks (post_merge, extra_data,
+# Run header validation checks (post_merge, extra_data,
 # basic, gas_limit, base_fee) in sequence and verify the
 # composite return code.
 set -euo pipefail
@@ -74,8 +74,8 @@ rlp_bytes = rlp.encode(this_fields)
 if len(rlp_bytes) > 1024:
     raise RuntimeError(f'rlp too long for fixture: {len(rlp_bytes)}')
 
-# Build extended-decode structs (128 B each)
-def build_struct(parent_hash, state_root, number, ts, gl, gu, bf):
+# Build extended-decode structs (144 B each)
+def build_struct(parent_hash, state_root, number, ts, gl, gu, bf, blob_gas_used=0, excess_blob_gas=0):
     out  = parent_hash
     out += state_root
     out += struct.pack('<Q', number)
@@ -83,7 +83,9 @@ def build_struct(parent_hash, state_root, number, ts, gl, gu, bf):
     out += struct.pack('<Q', gl)
     out += struct.pack('<Q', gu)
     out += bf.to_bytes(32, 'big')
-    assert len(out) == 128
+    out += struct.pack('<Q', blob_gas_used)
+    out += struct.pack('<Q', excess_blob_gas)
+    assert len(out) == 144
     return out
 
 this_struct   = build_struct(b'\x11' * 32, b'\x44' * 32,
@@ -97,9 +99,9 @@ parent_struct = build_struct(b'\x22' * 32, b'\x55' * 32,
 out  = struct.pack('<Q', len(rlp_bytes))   # bytes 0..8: rlp_len
 out += rlp_bytes
 out += b'\x00' * (1024 - len(rlp_bytes))   # pad rlp area to 1024 B
-out += this_struct                          # 128 B
-out += parent_struct                        # 128 B
-assert len(out) == 8 + 1024 + 256
+out += this_struct                          # 144 B
+out += parent_struct                        # 144 B
+assert len(out) == 8 + 1024 + 288
 
 with open(sys.argv[1], 'wb') as f:
     f.write(out)

@@ -8,7 +8,7 @@
   Step-2 verdict (.2.4) can set successful_validation.
 
   Given two RLP headers (this, parent) it:
-    1. header_extended_decode (K39) each into a 128-byte field struct;
+    1. header_extended_decode (K39) each into a 144-byte field struct;
     2. validate_header_full (K75) — post-merge + extra_data + gas/number/
        timestamp + gas-limit drift + EIP-1559 base-fee, all against the
        parent struct;
@@ -53,7 +53,7 @@ def validateHeaderRlpPairFunction : String :=
   "  mv s1, a1                   # this len\n" ++
   "  mv s2, a2                   # parent rlp\n" ++
   "  mv s3, a3                   # parent len\n" ++
-  "  # decode this header -> vhrp_this_struct (128 B).\n" ++
+  "  # decode this header -> vhrp_this_struct (144 B).\n" ++
   "  la a2, vhrp_this_struct\n" ++
   "  jal ra, header_extended_decode\n" ++
   "  bnez a0, .Lvhrp_this_parse\n" ++
@@ -152,9 +152,9 @@ def ziskValidateHeaderRlpPairDataSection : String :=
   ".balign 32\n" ++
   "hvph_computed:\n  .zero 32\n" ++
   ".balign 8\n" ++
-  "vhrp_this_struct:\n  .zero 128\n" ++
+  "vhrp_this_struct:\n  .zero 144\n" ++
   ".balign 8\n" ++
-  "vhrp_parent_struct:\n  .zero 128"
+  "vhrp_parent_struct:\n  .zero 144"
 
 def ziskValidateHeaderRlpPairProbeUnit : BuildUnit := {
   body        := NOP

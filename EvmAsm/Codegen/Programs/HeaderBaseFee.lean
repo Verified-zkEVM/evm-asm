@@ -343,8 +343,8 @@ def ziskHeaderValidateBaseFeeProbeUnit : BuildUnit := {
       a0 (input)  : this header's RLP ptr
       a1 (input)  : this header's RLP byte length
       a2 (input)  : this header's PR-K39 extended-decode struct
-                    (128 B, with gas_limit @ 80, gas_used @ 88,
-                    base_fee_per_gas @ 96..128)
+                    (144 B, with gas_limit @ 80, gas_used @ 88,
+                    base_fee_per_gas @ 96..128, blob fields @ 128..144)
       a3 (input)  : parent header's PR-K39 extended-decode struct
                     (same layout)
       ra (input)  : return
@@ -360,8 +360,8 @@ def validateHeaderFullFunction : String :=
   "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
   "  mv s0, a0                   # this_rlp ptr\n" ++
   "  mv s1, a1                   # this_rlp_len\n" ++
-  "  mv s2, a2                   # this_struct (128 B)\n" ++
-  "  mv s3, a3                   # parent_struct (128 B)\n" ++
+  "  mv s2, a2                   # this_struct (144 B)\n" ++
+  "  mv s3, a3                   # parent_struct (144 B)\n" ++
   "  # Step 1: post_merge check\n" ++
   "  mv a0, s0; mv a1, s1\n" ++
   "  jal ra, header_validate_post_merge\n" ++
@@ -411,8 +411,8 @@ def validateHeaderFullFunction : String :=
   "  ret"
 
 /-- `zisk_validate_header_full`: probe BuildUnit. Reads (this_rlp_len,
-    this_rlp_bytes [up to 1024 B], this_struct 128 B, parent_struct
-    128 B) from host input, writes 8-byte composite status to OUTPUT. -/
+    this_rlp_bytes [up to 1024 B], this_struct 144 B, parent_struct
+    144 B) from host input, writes 8-byte composite status to OUTPUT. -/
 def ziskValidateHeaderFullPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li a4, 0x40000000\n" ++
@@ -420,14 +420,14 @@ def ziskValidateHeaderFullPrologue : String :=
   "  addi a0, a4, 16             # this_rlp ptr\n" ++
   "  addi a2, a4, 16             # placeholder; reset after rlp\n" ++
   "  # this_struct offset = 16 + rlp_len_aligned\n" ++
-  "  # parent_struct offset = this_struct + 128\n" ++
+  "  # parent_struct offset = this_struct + 144\n" ++
   "  # We require the caller to lay them out at fixed positions:\n" ++
   "  # bytes 8..16  : rlp_len\n" ++
   "  # bytes 16..16+1024 : this_rlp (padded to 1024)\n" ++
-  "  # bytes 1040..1168  : this_struct (128 B)\n" ++
-  "  # bytes 1168..1296  : parent_struct (128 B)\n" ++
+  "  # bytes 1040..1184  : this_struct (144 B)\n" ++
+  "  # bytes 1184..1328  : parent_struct (144 B)\n" ++
   "  li a2, 0x40000410           # this_struct  (= INPUT_ADDR + 1040)\n" ++
-  "  li a3, 0x40000490           # parent_struct (= INPUT_ADDR + 1168)\n" ++
+  "  li a3, 0x400004a0           # parent_struct (= INPUT_ADDR + 1184)\n" ++
   "  jal ra, validate_header_full\n" ++
   "  li t0, 0xa0010000\n" ++
   "  sd a0, 0(t0)                # status\n" ++
