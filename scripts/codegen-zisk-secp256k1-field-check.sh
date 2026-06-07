@@ -28,6 +28,8 @@ PROGRAMS=(
   zisk_secp256k1_field_sub
   zisk_secp256k1_field_mul
   zisk_secp256k1_field_square
+  zisk_secp256k1_field_inv
+  zisk_secp256k1_field_sqrt
 )
 
 for program in "${PROGRAMS[@]}"; do
@@ -77,6 +79,18 @@ elif op == 'mul':
     expected = struct.pack('<Q', 0) + u256((a * b) % P)
 elif op == 'square':
     expected = struct.pack('<Q', 0) + u256((a * a) % P)
+elif op == 'inv':
+    if a % P == 0:
+        expected = struct.pack('<Q', 1) + bytes(32)
+    else:
+        expected = struct.pack('<Q', 0) + u256(pow(a, P - 2, P))
+elif op == 'sqrt':
+    x = a % P
+    y = pow(x, (P + 1) // 4, P)
+    if (y * y) % P == x:
+        expected = struct.pack('<Q', 0) + u256(y)
+    else:
+        expected = struct.pack('<Q', 1) + bytes(32)
 else:
     raise SystemExit(f'unknown op: {op}')
 
@@ -84,7 +98,12 @@ with open(exp_path, 'wb') as f:
     f.write(expected)
 PYSCRIPT
 
-  "$ZISKEMU" -e "gen-out/${program}.elf" -i "$in_file" -o "$out_file" -n 2000000 >"$log_file" 2>&1 || true
+  local steps=2000000
+  if [[ "$op" == "inv" || "$op" == "sqrt" ]]; then
+    steps=1000000000
+  fi
+
+  "$ZISKEMU" -e "gen-out/${program}.elf" -i "$in_file" -o "$out_file" -n "$steps" >"$log_file" 2>&1 || true
 
   local exp_size actual expected
   exp_size="$(stat -c%s "$exp_file")"
@@ -125,6 +144,17 @@ PYSCRIPT
 )"
 RAND_B="$(python3 - <<'PYSCRIPT'
 print(int('deadbeefcafebabe00112233445566778899aabbccddeeff0102030405060', 16))
+PYSCRIPT
+)"
+GENERATOR_RHS="$(python3 - <<'PYSCRIPT'
+P = int('fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f', 16)
+Gx = int('79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798', 16)
+print((pow(Gx, 3, P) + 7) % P)
+PYSCRIPT
+)"
+NON_RESIDUE="$(python3 - <<'PYSCRIPT'
+P = int('fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f', 16)
+print(next(x for x in range(2, 100) if pow(x, (P - 1) // 2, P) == P - 1))
 PYSCRIPT
 )"
 P_PLUS_FIVE="$(python3 - <<'PYSCRIPT'
@@ -169,9 +199,17 @@ run_case zisk_secp256k1_field_square p_minus_one square "$PM1_DEC" || FAILED=1
 run_case zisk_secp256k1_field_square carry_heavy square "$MAX_DEC" || FAILED=1
 run_case zisk_secp256k1_field_square random_fixed square "$RAND_A" || FAILED=1
 
+run_case zisk_secp256k1_field_inv one inv 1 || FAILED=1
+run_case zisk_secp256k1_field_inv random_fixed inv "$RAND_A" || FAILED=1
+run_case zisk_secp256k1_field_inv zero inv 0 || FAILED=1
+
+run_case zisk_secp256k1_field_sqrt four sqrt 4 || FAILED=1
+run_case zisk_secp256k1_field_sqrt generator_rhs sqrt "$GENERATOR_RHS" || FAILED=1
+run_case zisk_secp256k1_field_sqrt non_residue sqrt "$NON_RESIDUE" || FAILED=1
+
 echo
 if [[ $FAILED -eq 0 ]]; then
-  echo "==> PASS: secp256k1 field compare/reduce/add/sub/mul/square probes match Python modulo p"
+  echo "==> PASS: secp256k1 field compare/reduce/add/sub/mul/square/inv/sqrt probes match Python modulo p"
   exit 0
 else
   echo "==> FAIL"

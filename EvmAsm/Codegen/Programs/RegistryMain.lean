@@ -591,6 +591,8 @@ def lookupProgramMain (lookupProgramTail : String → Option BuildUnit) : String
   | "zisk_secp256k1_field_sub" => some ziskSecp256k1FieldSubProbeUnit
   | "zisk_secp256k1_field_mul" => some ziskSecp256k1FieldMulProbeUnit
   | "zisk_secp256k1_field_square" => some ziskSecp256k1FieldSquareProbeUnit
+  | "zisk_secp256k1_field_inv" => some ziskSecp256k1FieldInvProbeUnit
+  | "zisk_secp256k1_field_sqrt" => some ziskSecp256k1FieldSqrtProbeUnit
   | "zisk_u256_add_be"          => some ziskU256AddBeProbeUnit
   | "zisk_u256_lt_be"           => some ziskU256LtBeProbeUnit
   | "zisk_u256_sub_be"          => some ziskU256SubBeProbeUnit
