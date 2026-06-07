@@ -268,6 +268,81 @@ def txPubkeyEcrecoverStageMaterialFunction : String :=
   "  addi sp, sp, 32\n" ++
   "  ret"
 
+/-! ## tx_pubkey_recover_raw
+
+    Callable recovered-key helper surface. Mirrors execution-specs Amsterdam
+    `recover_transaction_public_key`: build the signature material, stage it into
+    the `zkvm_secp256k1_ecrecover(msg, sig, recid, output)` ABI, then (eventually)
+    run secp256k1 recovery to produce the 64-byte public key. This child only
+    wires the call surface and scratch layout; the software recovery backend is
+    not implemented yet, so success paths terminate at status 50 rather than
+    pretending recovery succeeded. The safe-fail accelerator wrapper is
+    deliberately NOT used, and no stateless `public_keys` comparison happens here.
+
+    Calling convention:
+      a0 (input)  : encoded transaction ptr
+      a1 (input)  : encoded transaction byte length
+      a2 (input)  : execution chain_id (u64)
+      a3 (input)  : recovered-pubkey output ptr (64 bytes, BE x || y)
+      a4 (input)  : scratch ptr (>= 304 bytes, 8-byte aligned)
+      ra (input)  : return
+      a0 (output) : status
+
+    Scratch layout at `a4`:
+      +0    material status side slot (u64; meaningful when status == 10)
+      +8    signature material block (128 bytes; `tx_pubkey_signature_material`
+            output: type/recid/r/s/hash/inner_off/is_eip155)
+      +136  staged ecrecover ABI block (168 bytes; msg hash 32 || sig 64 ||
+            recid word 8 || reserved pubkey buffer 64)
+
+    Status:
+      0  reserved for future success (real recovery lands later)
+      10 signature material failed (material status stored at scratch +0)
+      20 ecrecover ABI staging failed
+      50 software secp256k1 recovery backend not implemented yet
+
+    On status 50 the recovered-pubkey output buffer is zeroed so callers never
+    observe stale bytes from a non-recovery run. -/
+def txPubkeyRecoverRawFunction : String :=
+  "tx_pubkey_recover_raw:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  mv s0, a0                   # tx ptr\n" ++
+  "  mv s1, a1                   # tx len\n" ++
+  "  mv s2, a2                   # chain_id\n" ++
+  "  mv s3, a3                   # recovered pubkey out\n" ++
+  "  mv s4, a4                   # scratch ptr\n" ++
+  "  # build signature material into scratch+8\n" ++
+  "  mv a0, s0; mv a1, s1; mv a2, s2; addi a3, s4, 8\n" ++
+  "  jal ra, tx_pubkey_signature_material\n" ++
+  "  sd a0, 0(s4)                # record material status in side slot\n" ++
+  "  beqz a0, .Ltprr_material_ok\n" ++
+  "  li a0, 10\n" ++
+  "  j .Ltprr_ret\n" ++
+  ".Ltprr_material_ok:\n" ++
+  "  # stage material into ecrecover ABI at scratch+136\n" ++
+  "  addi a0, s4, 8; addi a1, s4, 136\n" ++
+  "  jal ra, tx_pubkey_ecrecover_stage_material\n" ++
+  "  beqz a0, .Ltprr_stage_ok\n" ++
+  "  li a0, 20\n" ++
+  "  j .Ltprr_ret\n" ++
+  ".Ltprr_stage_ok:\n" ++
+  "  # software secp256k1 recovery backend not implemented yet; zero the\n" ++
+  "  # 64-byte output buffer so no stale bytes leak, then report status 50.\n" ++
+  "  mv t1, s3\n" ++
+  "  li t2, 8\n" ++
+  ".Ltprr_zero_out:\n" ++
+  "  sd zero, 0(t1)\n" ++
+  "  addi t1, t1, 8; addi t2, t2, -1\n" ++
+  "  bnez t2, .Ltprr_zero_out\n" ++
+  "  li a0, 50\n" ++
+  ".Ltprr_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
 /-- `zisk_tx_pubkey_ecrecover_stage_material`: probe BuildUnit.
     Reads the same input as `zisk_tx_pubkey_signature_material`, first builds
     material at OUTPUT+8, then stages accelerator ABI bytes at OUTPUT+136.
@@ -408,6 +483,68 @@ def ziskTxPubkeySignatureMaterialProbeUnit : BuildUnit := {
   body        := NOP
   prologueAsm := ziskTxPubkeySignatureMaterialPrologue
   dataAsm     := ziskTxPubkeySignatureMaterialDataSection
+}
+
+/-- `zisk_tx_pubkey_recover_raw_status`: probe BuildUnit.
+
+    Drives `tx_pubkey_recover_raw` over one transaction and exposes both the
+    helper status and the material-failure side slot, so a script can assert a
+    valid tx reaches status 50 (material+stage succeeded, recovery backend not
+    implemented) while a malformed/high-s tx surfaces the material failure
+    class (status 10 with the material status preserved).
+
+    Input layout (same as `zisk_tx_pubkey_signature_material`):
+      bytes  0.. 8 : tx byte length
+      bytes  8..16 : execution chain_id
+      bytes 16..   : encoded transaction
+
+    Output layout:
+      +0  helper status (10 material fail, 20 stage fail, 50 backend stub)
+      +8  material status side slot (meaningful when helper status == 10) -/
+def ziskTxPubkeyRecoverRawStatusPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a5, 0x40000000\n" ++
+  "  ld a1, 8(a5)                # tx_len\n" ++
+  "  ld a2, 16(a5)               # chain_id\n" ++
+  "  addi a0, a5, 24             # tx ptr\n" ++
+  "  la a3, tprr_pubkey_out      # recovered pubkey out (64 bytes)\n" ++
+  "  la a4, tprr_scratch         # scratch (>= 304 bytes)\n" ++
+  "  jal ra, tx_pubkey_recover_raw\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # helper status\n" ++
+  "  la t1, tprr_scratch\n" ++
+  "  ld t2, 0(t1)\n" ++
+  "  sd t2, 8(t0)                # material status side slot\n" ++
+  "  j .Ltprrs_pdone\n" ++
+  txTypeDispatchFunction ++ "\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpEncodeUintBeFunction ++ "\n" ++
+  rlpEncodeListPrefixFunction ++ "\n" ++
+  rlpListTruncateToNFieldsFunction ++ "\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  u256IsZeroFunction ++ "\n" ++
+  u256LtBeFunction ++ "\n" ++
+  txLegacyExtractSignatureFunction ++ "\n" ++
+  txEip2930ExtractSignatureFunction ++ "\n" ++
+  txEip1559ExtractSignatureFunction ++ "\n" ++
+  txEip4844ExtractSignatureFunction ++ "\n" ++
+  txEip7702ExtractSignatureFunction ++ "\n" ++
+  txSigningHashFunction ++ "\n" ++
+  txSigningHashLegacyEip155Function ++ "\n" ++
+  txPubkeySignatureMaterialFunction ++ "\n" ++
+  txPubkeyEcrecoverStageMaterialFunction ++ "\n" ++
+  txPubkeyRecoverRawFunction ++ "\n" ++
+  ".Ltprrs_pdone:"
+
+def ziskTxPubkeyRecoverRawStatusDataSection : String :=
+  ziskTxPubkeySignatureMaterialDataSection ++ "\n" ++
+  "tprr_pubkey_out:\n  .zero 64\n" ++
+  "tprr_scratch:\n  .zero 312"
+
+def ziskTxPubkeyRecoverRawStatusProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskTxPubkeyRecoverRawStatusPrologue
+  dataAsm     := ziskTxPubkeyRecoverRawStatusDataSection
 }
 
 end EvmAsm.Codegen
