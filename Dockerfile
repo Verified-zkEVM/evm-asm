@@ -33,13 +33,8 @@ RUN mkdir -p /license-report \
          [ -f "/zisk/$f" ] && cp "/zisk/$f" "/license-report/zisk-${f}"; \
        done \
     && cargo metadata --format-version 1 \
-       | python3 -c "
-import json, sys
-pkgs = sorted(json.load(sys.stdin)['packages'], key=lambda p: p['name'].lower())
-for p in pkgs:
-    lic = p.get('license') or 'UNKNOWN'
-    print(f\"{p['name']} {p['version']}  {lic}\")
-" > /license-report/zisk-rust-crates.txt
+       | python3 -c 'import json,sys; [print(p["name"], p["version"], p.get("license") or "UNKNOWN") for p in sorted(json.load(sys.stdin)["packages"], key=lambda p: p["name"].lower())]' \
+       > /license-report/zisk-rust-crates.txt
 
 
 # ── Stage 2: Lean build + ELF emit + fixture bake ────────────────────────────
