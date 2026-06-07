@@ -3,7 +3,8 @@
 #
 # Amsterdam intrinsic gas over decoded transaction counts:
 # data tokens, creation init-code cost, access-list counts, EIP-7702
-# authorization count, and EIP-7623 calldata floor.
+# authorization count, EIP-7976 calldata floor, and EIP-7981
+# access-list floor tokens.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -69,12 +70,15 @@ with open(sys.argv[1], 'wb') as f:
 b = bytes.fromhex('$data_hex')
 zeros = b.count(0)
 nz = len(b) - zeros
-tokens = zeros + 4 * nz
-intrinsic = 21000 + 4 * tokens
+calldata_tokens = zeros + 4 * nz
+access_tokens = 80 * $access_addrs + 128 * $access_slots
+intrinsic = 21000 + 4 * calldata_tokens
 if $is_creation:
-    intrinsic += 32000 + 2 * ((len(b) + 31) // 32)
-intrinsic += 2400 * $access_addrs + 1900 * $access_slots + 25000 * $auths
-floor = 21000 + 10 * tokens
+    intrinsic += 9000 + 2 * ((len(b) + 31) // 32)
+intrinsic += 2400 * $access_addrs + 1900 * $access_slots
+intrinsic += 16 * access_tokens
+intrinsic += 7500 * $auths
+floor = 21000 + 16 * (4 * len(b) + access_tokens)
 status = 0 if max(intrinsic, floor) <= $gas_limit else 1
 print(status, intrinsic, floor)
 ")"

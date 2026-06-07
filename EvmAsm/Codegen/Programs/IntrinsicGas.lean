@@ -265,18 +265,21 @@ def ziskInitCodeCostProbeUnit : BuildUnit := {
     Compute Amsterdam `calculate_intrinsic_cost(tx)` over already-decoded
     transaction shape:
 
-      tokens    = zero_data_bytes + 4 * non_zero_data_bytes
-      intrinsic = 21000
-                + 4 * tokens
-                + creation ? (32000 + 2 * ceil(data_len / 32)) : 0
-                + 2400 * access_list_address_count
-                + 1900 * access_list_storage_key_count
-                + 25000 * authorization_count
-      floor     = 21000 + 10 * tokens
+      calldata_tokens = zero_data_bytes + 4 * non_zero_data_bytes
+      access_tokens   = 80 * access_list_address_count
+                      + 128 * access_list_storage_key_count
+      intrinsic       = 21000
+                      + 4 * calldata_tokens
+                      + creation ? (9000 + 2 * ceil(data_len / 32)) : 0
+                      + 2400 * access_list_address_count
+                      + 1900 * access_list_storage_key_count
+                      + 16 * access_tokens
+                      + 7500 * authorization_count
+      floor           = 21000 + 16 * (4 * data_len + access_tokens)
 
-    The current Amsterdam execution-specs leaves access-list floor tokens at
-    zero, so access-list entries affect the standard intrinsic cost but not the
-    calldata floor. -/
+    This intentionally returns the regular intrinsic component and calldata
+    floor. Amsterdam's EIP-8037 state-gas component is handled by the caller's
+    reservoir path. -/
 def intrinsicGasAmsterdamCountsFunction : String :=
   "intrinsic_gas_amsterdam_counts:\n" ++
   "  # a0=data ptr, a1=data len, a2=is_creation, a3=access addrs,\n" ++
@@ -304,7 +307,7 @@ def intrinsicGasAmsterdamCountsFunction : String :=
   "  li t4, 21000\n" ++
   "  add t6, t6, t4              # intrinsic = base + data\n" ++
   "  beqz a2, .Ligac_after_creation\n" ++
-  "  li t4, 32000\n" ++
+  "  li t4, 9000\n" ++
   "  add t6, t6, t4\n" ++
   "  addi t4, a1, 31\n" ++
   "  srli t4, t4, 5\n" ++
@@ -317,12 +320,20 @@ def intrinsicGasAmsterdamCountsFunction : String :=
   "  li t4, 1900\n" ++
   "  mul t4, a4, t4\n" ++
   "  add t6, t6, t4\n" ++
-  "  li t4, 25000\n" ++
+  "  li t4, 80\n" ++
+  "  mul t2, a3, t4             # access-list floor tokens: addresses\n" ++
+  "  li t4, 128\n" ++
+  "  mul t4, a4, t4             # access-list floor tokens: storage keys\n" ++
+  "  add t2, t2, t4             # access_tokens\n" ++
+  "  slli t4, t2, 4             # access-list floor gas = access_tokens * 16\n" ++
+  "  add t6, t6, t4\n" ++
+  "  li t4, 7500\n" ++
   "  mul t4, a5, t4\n" ++
   "  add t6, t6, t4\n" ++
   "  sd t6, 0(a6)\n" ++
-  "  li t4, 10\n" ++
-  "  mul t5, t5, t4\n" ++
+  "  slli t5, a1, 2             # floor calldata tokens = 4 * data_len\n" ++
+  "  add t5, t5, t2             # total floor tokens\n" ++
+  "  slli t5, t5, 4             # calldata floor gas = total tokens * 16\n" ++
   "  li t4, 21000\n" ++
   "  add t5, t5, t4\n" ++
   "  sd t5, 0(a7)\n" ++
