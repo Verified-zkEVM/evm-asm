@@ -46,7 +46,7 @@ open EvmAsm.Rv64.Program
       a4 (input)  : output buffer ptr (caller-supplied)
       a5 (input)  : u64 out length ptr (total bytes written)
       ra (input)  : return
-      a0 (output) : 0 (always succeeds). -/
+      a0 (output) : 0 on success, 1 on invalid output pointer. -/
 def mptLeafNodeEncodeFromNibblesFunction : String :=
   "mpt_leaf_node_encode_from_nibbles:\n" ++
   "  addi sp, sp, -64\n" ++
@@ -59,6 +59,13 @@ def mptLeafNodeEncodeFromNibblesFunction : String :=
   "  mv s3, a3                   # value len\n" ++
   "  mv s4, a4                   # output ptr\n" ++
   "  mv s5, a5                   # out_length ptr\n" ++
+  "  li t0, 0xa0000000\n" ++
+  "  bltu s4, t0, .Lmlnen_fail\n" ++
+  "  bltu s5, t0, .Lmlnen_fail\n" ++
+  "  li t0, 0xc0000000\n" ++
+  "  bgeu s4, t0, .Lmlnen_fail\n" ++
+  "  li t0, 0xbffffff8\n" ++
+  "  bgtu s5, t0, .Lmlnen_fail\n" ++
   "  # ---- Step 1: HP-encode (leaf=true) ----\n" ++
   "  mv a0, s0; mv a1, s1; li a2, 1\n" ++
   "  la a3, mlnen_hp_buf\n" ++
@@ -88,6 +95,12 @@ def mptLeafNodeEncodeFromNibblesFunction : String :=
   "  jal ra, rlp_encode_list_prefix\n" ++
   "  la t0, mlnen_field_len; ld t1, 0(t0)\n" ++
   "  la t0, mlnen_total_payload; ld t2, 0(t0)\n" ++
+  "  add t6, s4, t1\n" ++
+  "  bltu t6, s4, .Lmlnen_fail\n" ++
+  "  add t6, t6, t2\n" ++
+  "  bltu t6, s4, .Lmlnen_fail\n" ++
+  "  li t0, 0xc0000000\n" ++
+  "  bgtu t6, t0, .Lmlnen_fail\n" ++
   "  # ---- Step 5: copy payload after prefix ----\n" ++
   "  add t3, s4, t1\n" ++
   "  la t4, mlnen_payload_buf\n" ++
@@ -104,6 +117,13 @@ def mptLeafNodeEncodeFromNibblesFunction : String :=
   "  add t1, t1, t2\n" ++
   "  sd t1, 0(s5)\n" ++
   "  li a0, 0\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
+  "  addi sp, sp, 64\n" ++
+  "  ret\n" ++
+  ".Lmlnen_fail:\n" ++
+  "  li a0, 1\n" ++
   "  ld ra,  0(sp)\n" ++
   "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
   "  ld s4, 40(sp); ld s5, 48(sp)\n" ++

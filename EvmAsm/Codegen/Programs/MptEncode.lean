@@ -249,7 +249,7 @@ def ziskSingleLeafTrieRootProbeUnit : BuildUnit := {
                     (caller supplies enough space)
       a5 (input)  : u64 out length ptr (total bytes written)
       ra (input)  : return
-      a0 (output) : 0 (always succeeds). -/
+      a0 (output) : 0 on success, 1 on invalid output pointer. -/
 def mptLeafNodeEncodeFunction : String :=
   "mpt_leaf_node_encode:\n" ++
   "  addi sp, sp, -64\n" ++
@@ -262,6 +262,13 @@ def mptLeafNodeEncodeFunction : String :=
   "  mv s3, a3                   # value len\n" ++
   "  mv s4, a4                   # output ptr\n" ++
   "  mv s5, a5                   # out_length ptr\n" ++
+  "  li t0, 0xa0000000\n" ++
+  "  bltu s4, t0, .Lmlne_fail\n" ++
+  "  bltu s5, t0, .Lmlne_fail\n" ++
+  "  li t0, 0xc0000000\n" ++
+  "  bgeu s4, t0, .Lmlne_fail\n" ++
+  "  li t0, 0xbffffff8\n" ++
+  "  bgtu s5, t0, .Lmlne_fail\n" ++
   "  # ---- Step 1: expand path bytes to nibbles ----\n" ++
   "  mv a0, s0; mv a1, s1\n" ++
   "  la a2, mlne_nibbles\n" ++
@@ -299,6 +306,12 @@ def mptLeafNodeEncodeFunction : String :=
   "  jal ra, rlp_encode_list_prefix\n" ++
   "  la t0, mlne_field_len; ld t1, 0(t0)\n" ++
   "  la t0, mlne_total_payload; ld t2, 0(t0)\n" ++
+  "  add t6, s4, t1\n" ++
+  "  bltu t6, s4, .Lmlne_fail\n" ++
+  "  add t6, t6, t2\n" ++
+  "  bltu t6, s4, .Lmlne_fail\n" ++
+  "  li t0, 0xc0000000\n" ++
+  "  bgtu t6, t0, .Lmlne_fail\n" ++
   "  # ---- Step 6: copy payload after prefix in output ----\n" ++
   "  add t3, s4, t1\n" ++
   "  la t4, mlne_payload_buf\n" ++
@@ -315,6 +328,13 @@ def mptLeafNodeEncodeFunction : String :=
   "  add t1, t1, t2\n" ++
   "  sd t1, 0(s5)\n" ++
   "  li a0, 0\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
+  "  addi sp, sp, 64\n" ++
+  "  ret\n" ++
+  ".Lmlne_fail:\n" ++
+  "  li a0, 1\n" ++
   "  ld ra,  0(sp)\n" ++
   "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
   "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
@@ -519,7 +539,7 @@ def ziskMptNodeSlotEncodeProbeUnit : BuildUnit := {
       a4 (input)  : output buffer ptr
       a5 (input)  : u64 out length ptr (total bytes written)
       ra (input)  : return
-      a0 (output) : 0 (always succeeds). -/
+      a0 (output) : 0 on success, 1 on invalid output pointer. -/
 def mptExtensionNodeEncodeFunction : String :=
   "mpt_extension_node_encode:\n" ++
   "  addi sp, sp, -64\n" ++
@@ -532,6 +552,13 @@ def mptExtensionNodeEncodeFunction : String :=
   "  mv s3, a3                   # child_ref len\n" ++
   "  mv s4, a4                   # output ptr\n" ++
   "  mv s5, a5                   # out_length ptr\n" ++
+  "  li t0, 0xa0000000\n" ++
+  "  bltu s4, t0, .Lmxne_fail\n" ++
+  "  bltu s5, t0, .Lmxne_fail\n" ++
+  "  li t0, 0xc0000000\n" ++
+  "  bgeu s4, t0, .Lmxne_fail\n" ++
+  "  li t0, 0xbffffff8\n" ++
+  "  bgtu s5, t0, .Lmxne_fail\n" ++
   "  # ---- Step 1: HP-encode nibbles (is_leaf=0) ----\n" ++
   "  mv a0, s0; mv a1, s1; li a2, 0\n" ++
   "  la a3, mxne_hp_buf\n" ++
@@ -568,6 +595,12 @@ def mptExtensionNodeEncodeFunction : String :=
   "  jal ra, rlp_encode_list_prefix\n" ++
   "  la t0, mxne_field_len; ld t1, 0(t0)          # outer_prefix_len\n" ++
   "  la t0, mxne_total_payload; ld t2, 0(t0)\n" ++
+  "  add t6, s4, t1\n" ++
+  "  bltu t6, s4, .Lmxne_fail\n" ++
+  "  add t6, t6, t2\n" ++
+  "  bltu t6, s4, .Lmxne_fail\n" ++
+  "  li t0, 0xc0000000\n" ++
+  "  bgtu t6, t0, .Lmxne_fail\n" ++
   "  # ---- Step 5: copy payload after prefix ----\n" ++
   "  add t3, s4, t1                                # dst\n" ++
   "  la t4, mxne_payload_buf                       # src\n" ++
@@ -584,6 +617,13 @@ def mptExtensionNodeEncodeFunction : String :=
   "  add t1, t1, t2                                # total written = prefix + payload\n" ++
   "  sd t1, 0(s5)\n" ++
   "  li a0, 0\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
+  "  addi sp, sp, 64\n" ++
+  "  ret\n" ++
+  ".Lmxne_fail:\n" ++
+  "  li a0, 1\n" ++
   "  ld ra,  0(sp)\n" ++
   "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
   "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
@@ -676,7 +716,7 @@ def ziskMptExtensionNodeEncodeProbeUnit : BuildUnit := {
       a3 (input)  : u64 out length ptr (total bytes written:
                     prefix_len + payload_len)
       ra (input)  : return
-      a0 (output) : 0 (always succeeds). -/
+      a0 (output) : 0 on success, 1 on invalid output pointer. -/
 def mptBranchNodeEncodeFunction : String :=
   "mpt_branch_node_encode:\n" ++
   "  addi sp, sp, -48\n" ++
@@ -686,11 +726,24 @@ def mptBranchNodeEncodeFunction : String :=
   "  mv s1, a1                   # slot_payload len\n" ++
   "  mv s2, a2                   # output ptr\n" ++
   "  mv s3, a3                   # out_length ptr\n" ++
+  "  li t0, 0xa0000000\n" ++
+  "  bltu s2, t0, .Lmbne_fail\n" ++
+  "  bltu s3, t0, .Lmbne_fail\n" ++
+  "  li t0, 0xc0000000\n" ++
+  "  bgeu s2, t0, .Lmbne_fail\n" ++
+  "  li t0, 0xbffffff8\n" ++
+  "  bgtu s3, t0, .Lmbne_fail\n" ++
   "  # ---- Write outer list prefix at output[0..] ----\n" ++
   "  mv a0, s1; mv a1, s2\n" ++
   "  la a2, mbne_field_len\n" ++
   "  jal ra, rlp_encode_list_prefix\n" ++
   "  la t0, mbne_field_len; ld t1, 0(t0)         # prefix_len\n" ++
+  "  add t6, s2, t1\n" ++
+  "  bltu t6, s2, .Lmbne_fail\n" ++
+  "  add t6, t6, s1\n" ++
+  "  bltu t6, s2, .Lmbne_fail\n" ++
+  "  li t0, 0xc0000000\n" ++
+  "  bgtu t6, t0, .Lmbne_fail\n" ++
   "  # ---- Copy payload after prefix ----\n" ++
   "  add t2, s2, t1                                # dst = output + prefix_len\n" ++
   "  mv t3, s0                                     # src\n" ++
@@ -707,6 +760,12 @@ def mptBranchNodeEncodeFunction : String :=
   "  add t1, t1, s1                                # total written\n" ++
   "  sd t1, 0(s3)\n" ++
   "  li a0, 0\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret\n" ++
+  ".Lmbne_fail:\n" ++
+  "  li a0, 1\n" ++
   "  ld ra,  0(sp)\n" ++
   "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
   "  addi sp, sp, 48\n" ++
