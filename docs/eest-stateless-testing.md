@@ -95,12 +95,21 @@ Run a focused simple value-transfer transaction frontier:
 scripts/codegen-eest-simple-value-transfer-frontier-check.sh --jobs 1
 ```
 
-This wrapper loops over the simple transaction/value-transfer fixture filters
-from the feature-surface report and forwards `--skip`, `--limit`, `--jobs`, and
-`--max-failures` to the stateless harness. It is a baseline probe today: it does
-not claim the selected fixtures pass until the value-transfer validation,
+This wrapper is now a passing gate. For each owned fixture filter it counts the
+stateless blocks the converter selects from the manifest and requires every
+selected block to full-match (`--min-full` == that count), so new rows added to
+the owned fixtures are covered automatically without a hardcoded fixture list.
+The gated default is the canonical "Simple tx/value transfer" surface
+(`validation/transaction`, the frontier `sender_balance` and `tx_nonce`
+fixtures), which full-matches now that the value-transfer validation,
 state-effect, gas-settlement, and post-state integration children under bead
-`evm-asm-fhsxz.2.4.2.56` land.
+`evm-asm-fhsxz.2.4.2.56` have landed. Broader transaction-validity fixtures
+(EIP-7976 calldata floor cost, EIP-7981 access-list pricing, type-3 blob
+validity, etc.) are not simple value transfers and are deliberately excluded
+from the default gate; pass `--filter SUBSTR` to probe them, but do not treat
+their selection as a simple-transfer pass claim. Override `--jobs`, `--steps`,
+or `--limit` (or the `EEST_SIMPLE_TRANSFER_*` env vars) without changing the
+broader harness defaults.
 
 Run the literal EXTCODEHASH missing-code regression filters:
 
