@@ -919,8 +919,9 @@ def emitExceptionalExit (label : String) (kind : Nat) : String :=
     (which would otherwise clobber their writes with the EVM
     stack-top copy). STOP and the other halts continue to flow
     through `.exit_label` → `exitBody` → halt stub. -/
-def emitDispatcherEpilogue
-    (registry : List OpcodeHandlerSpec) (exitBody : Program) : String :=
+def emitDispatcherEpilogueCore
+    (registry : List OpcodeHandlerSpec) (exitBody : Program)
+    (afterDiagnostics : String) : String :=
   String.intercalate "\n" (registry.map OpcodeHandlerSpec.emitSubroutine) ++ "\n" ++
   -- M16/M27: hash subroutines sit BETWEEN the handler subroutines
   -- and the `h_invalid:` / `.exit_label:` blocks so it's reachable only
@@ -1128,7 +1129,24 @@ def emitDispatcherEpilogue
   "  addi x19, x19, 1\n" ++
   "  addi x21, x21, -1\n" ++
   "  bnez x21, 9b\n" ++
-  ".L_selfdestruct_diag_done:\n"
+  ".L_selfdestruct_diag_done:\n" ++
+  afterDiagnostics
+
+/-- Dispatcher epilogue for standalone BuildUnits. Falls through to the
+    halt stub appended by `emitBuildUnit`. -/
+def emitDispatcherEpilogue
+    (registry : List OpcodeHandlerSpec) (exitBody : Program) : String :=
+  emitDispatcherEpilogueCore registry exitBody ""
+
+/-- Dispatcher epilogue for callable BuildUnits. It surfaces the same output
+    diagnostics as the standalone path, then restores the caller's saved
+    return address and returns. -/
+def emitDispatcherCallableEpilogue
+    (registry : List OpcodeHandlerSpec) (exitBody : Program) : String :=
+  emitDispatcherEpilogueCore registry exitBody
+    ("  la x5, runtime_dispatcher_caller_ra\n" ++
+     "  ld ra, 0(x5)\n" ++
+     "  ret\n")
 
 /-- `.data` section layout (starts at `0xa0000000` per
     `Driver.lean`'s `-Tdata=...`):
@@ -1500,9 +1518,9 @@ def emitRuntimeDispatcherSetup : String :=
   "  la x12, evm_stack_top\n" ++
   "  la x13, evm_memory"
 
-/-- Runtime dispatcher prologue: setup plus fetch/decode/dispatch loop. -/
-def emitRuntimeDispatcherPrologue : String :=
-  emitRuntimeDispatcherSetup ++ "\n" ++
+/-- Runtime dispatcher fetch/decode/dispatch loop. Shared by the standalone
+    runtime dispatcher and the callable wrapper. -/
+def emitRuntimeDispatcherLoop : String :=
   -- M15.6: precompute the valid-JUMPDEST bitmap (one pushdata-aware
   -- pass; JUMP/JUMPI validity checks become O(1) bit tests).
   emitJumpdestBitmapBuild ++
@@ -1527,6 +1545,21 @@ def emitRuntimeDispatcherPrologue : String :=
   "  jalr x1, x7, 0\n" ++
   "  j .dispatch_loop"
 
+/-- Runtime dispatcher prologue: setup plus fetch/decode/dispatch loop. -/
+def emitRuntimeDispatcherPrologue : String :=
+  emitRuntimeDispatcherSetup ++ "\n" ++
+  emitRuntimeDispatcherLoop
+
+/-- Callable runtime dispatcher entry. The dispatcher loop uses `ra` for
+    opcode-handler calls, so the caller's return address is saved in the
+    runtime data section and restored by the callable exit join. -/
+def emitRuntimeDispatcherCallablePrologue : String :=
+  "runtime_dispatcher_call:\n" ++
+  "  la x5, runtime_dispatcher_caller_ra\n" ++
+  "  sd ra, 0(x5)\n" ++
+  emitRuntimeDispatcherSetup ++ "\n" ++
+  emitRuntimeDispatcherLoop
+
 /-- Runtime-bytecode `.data` section. Drops the `evm_code:` block
     (no baked bytecode); everything else matches the `.data`-baked
     variant. The static EVM stack arena is sized for the protocol
@@ -1534,6 +1567,9 @@ def emitRuntimeDispatcherPrologue : String :=
 def emitRuntimeDispatcherDataSection
     (registry : List OpcodeHandlerSpec) : String :=
   ".section .data\n" ++
+  ".balign 8\n" ++
+  "runtime_dispatcher_caller_ra:\n" ++
+  "  .zero 8\n" ++
   ".balign 32\n" ++
   "evm_memory:\n" ++
   "  .zero 0x10000\n" ++  -- 64 KiB EVM memory, enough for Amsterdam MAX_INIT_CODE_SIZE
@@ -1618,6 +1654,30 @@ def buildRuntimeDispatchUnit
   body        := []
   prologueAsm := emitRuntimeDispatcherPrologue
   epilogueAsm := emitDispatcherEpilogue registry exitBody
+  dataAsm     := emitRuntimeDispatcherDataSection registry
+}
+
+/-- Build a probe `BuildUnit` that exercises the callable runtime dispatcher
+    ABI. The wrapper calls `runtime_dispatcher_call`, then writes final
+    `env.gasRemaining` at `OUTPUT+240` and a return marker at `OUTPUT+248`.
+    The ordinary dispatcher output prefix remains unchanged. -/
+def buildRuntimeDispatchCallableProbeUnit
+    (registry : List OpcodeHandlerSpec)
+    (exitBody : Program) : BuildUnit := {
+  body        := []
+  prologueAsm :=
+    "  jal ra, runtime_dispatcher_call\n" ++
+    "  li t0, 0xa0010000\n" ++
+    "  li t1, 0xc011ab1e\n" ++
+    "  sd t1, 248(t0)             # returned-to-caller marker\n" ++
+    "  la t2, evm_env\n" ++
+    "  ld t3, 568(t2)\n" ++
+    "  sd t3, 240(t0)             # final gasRemaining\n" ++
+    "  li x17, 93\n" ++
+    "  li x10, 0\n" ++
+    "  ecall\n" ++
+    emitRuntimeDispatcherCallablePrologue
+  epilogueAsm := emitDispatcherCallableEpilogue registry exitBody
   dataAsm     := emitRuntimeDispatcherDataSection registry
 }
 

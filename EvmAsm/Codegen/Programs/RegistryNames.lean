@@ -19,6 +19,7 @@ def knownProgramNames : List String :=
    "tiny_interp_add", "tiny_interp_add2",
    "tiny_interp_dispatch_add", "tiny_interp_dispatch_add2",
    "runtime_dispatcher",
+   "runtime_dispatcher_call_probe",
   "stateless_guest"] ++
   knownCryptoProgramNames ++
   ["zisk_headers_keccak_chain",
