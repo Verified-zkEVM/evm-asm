@@ -47,7 +47,8 @@ def secp256k1CurveDataSection : String :=
   "secc_inv:\n  .zero 32\n" ++
   "secc_tmp0:\n  .zero 32\n" ++
   "secc_tmp1:\n  .zero 32\n" ++
-  "secc_tmp2:\n  .zero 32\n"
+  "secc_tmp2:\n  .zero 32\n" ++
+  "secc_point_tmp:\n  .zero 64\n"
 
 /-- Double an affine point. a0=input x||y, a1=output x||y. Returns 1 for infinity. -/
 def secp256k1PointDoubleFunction : String :=
@@ -196,10 +197,102 @@ def secp256k1PointAddFunction : String :=
   "  addi sp, sp, 40\n" ++
   "  ret"
 
+
+private def secp256k1PointCopy64Function : String :=
+  "secp256k1_point_copy64:\n" ++
+  "  li t0, 64\n" ++
+  ".Lsecc_copy64_loop:\n" ++
+  "  beqz t0, .Lsecc_copy64_ret\n" ++
+  "  lbu t1, 0(a0)\n" ++
+  "  sb t1, 0(a1)\n" ++
+  "  addi a0, a0, 1\n" ++
+  "  addi a1, a1, 1\n" ++
+  "  addi t0, t0, -1\n" ++
+  "  j .Lsecc_copy64_loop\n" ++
+  ".Lsecc_copy64_ret:\n" ++
+  "  ret"
+
+private def secp256k1PointZero64Function : String :=
+  "secp256k1_point_zero64:\n" ++
+  "  li t0, 64\n" ++
+  ".Lsecc_zero64_loop:\n" ++
+  "  beqz t0, .Lsecc_zero64_ret\n" ++
+  "  sb zero, 0(a0)\n" ++
+  "  addi a0, a0, 1\n" ++
+  "  addi t0, t0, -1\n" ++
+  "  j .Lsecc_zero64_loop\n" ++
+  ".Lsecc_zero64_ret:\n" ++
+  "  ret"
+
+/-- Multiply an affine point by a 256-bit big-endian scalar.
+    a0=scalar32, a1=base x||y, a2=output x||y. Returns 1 when the result is
+    the point at infinity, represented as zeroed output. -/
+def secp256k1ScalarMulFunction : String :=
+  "secp256k1_scalar_mul:\n" ++
+  "  addi sp, sp, -72\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
+  "  mv s0, a0                      # scalar bytes\n" ++
+  "  mv s1, a1                      # base point\n" ++
+  "  mv s2, a2                      # accumulator/output\n" ++
+  "  mv a0, s2\n" ++
+  "  jal ra, secp256k1_point_zero64\n" ++
+  "  li s3, 1                       # accumulator is infinity\n" ++
+  "  li s4, 0                       # byte index\n" ++
+  ".Lsecc_mul_byte_loop:\n" ++
+  "  li t0, 32\n" ++
+  "  bgeu s4, t0, .Lsecc_mul_done\n" ++
+  "  add t0, s0, s4\n" ++
+  "  lbu s5, 0(t0)\n" ++
+  "  li s6, 128\n" ++
+  ".Lsecc_mul_bit_loop:\n" ++
+  "  beqz s6, .Lsecc_mul_next_byte\n" ++
+  "  bnez s3, .Lsecc_mul_skip_double\n" ++
+  "  mv a0, s2\n" ++
+  "  la a1, secc_point_tmp\n" ++
+  "  jal ra, secp256k1_point_double\n" ++
+  "  mv s3, a0\n" ++
+  "  la a0, secc_point_tmp\n" ++
+  "  mv a1, s2\n" ++
+  "  jal ra, secp256k1_point_copy64\n" ++
+  ".Lsecc_mul_skip_double:\n" ++
+  "  and t0, s5, s6\n" ++
+  "  beqz t0, .Lsecc_mul_advance_bit\n" ++
+  "  beqz s3, .Lsecc_mul_add_base\n" ++
+  "  mv a0, s1\n" ++
+  "  mv a1, s2\n" ++
+  "  jal ra, secp256k1_point_copy64\n" ++
+  "  li s3, 0\n" ++
+  "  j .Lsecc_mul_advance_bit\n" ++
+  ".Lsecc_mul_add_base:\n" ++
+  "  mv a0, s2\n" ++
+  "  mv a1, s1\n" ++
+  "  la a2, secc_point_tmp\n" ++
+  "  jal ra, secp256k1_point_add\n" ++
+  "  mv s3, a0\n" ++
+  "  la a0, secc_point_tmp\n" ++
+  "  mv a1, s2\n" ++
+  "  jal ra, secp256k1_point_copy64\n" ++
+  ".Lsecc_mul_advance_bit:\n" ++
+  "  srli s6, s6, 1\n" ++
+  "  j .Lsecc_mul_bit_loop\n" ++
+  ".Lsecc_mul_next_byte:\n" ++
+  "  addi s4, s4, 1\n" ++
+  "  j .Lsecc_mul_byte_loop\n" ++
+  ".Lsecc_mul_done:\n" ++
+  "  mv a0, s3\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
+  "  addi sp, sp, 72\n" ++
+  "  ret"
+
 def secp256k1CurveCommonFunctions : String :=
   secp256k1FieldCommonFunctions ++ "\n" ++
   secp256k1PointDoubleFunction ++ "\n" ++
-  secp256k1PointAddFunction
+  secp256k1PointAddFunction ++ "\n" ++
+  secp256k1PointCopy64Function ++ "\n" ++
+  secp256k1PointZero64Function ++ "\n" ++
+  secp256k1ScalarMulFunction
 
 def ziskSecp256k1CurvePointOpsPrologue : String :=
   "  li sp, 0xa0050000\n" ++
@@ -213,6 +306,12 @@ def ziskSecp256k1CurvePointOpsPrologue : String :=
   "  li a2, 0xa0010050\n" ++
   "  jal ra, secp256k1_point_add\n" ++
   "  li t0, 0xa0010048\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  li a0, 0x40000008\n" ++
+  "  la a1, secp256k1_generator\n" ++
+  "  li a2, 0xa0010098\n" ++
+  "  jal ra, secp256k1_scalar_mul\n" ++
+  "  li t0, 0xa0010090\n" ++
   "  sd a0, 0(t0)\n" ++
   "  j .Lsecc_probe_done\n" ++
   secp256k1CurveCommonFunctions ++ "\n" ++
