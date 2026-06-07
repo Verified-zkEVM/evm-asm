@@ -549,6 +549,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_check_gas_limit"      => some ziskCheckGasLimitProbeUnit
   | "zisk_tx_validate_against_block" => some ziskTxValidateAgainstBlockProbeUnit
   | "zisk_calc_excess_blob_gas" => some ziskCalcExcessBlobGasProbeUnit
+  | "zisk_amsterdam_blob_gas_price" => some ziskAmsterdamBlobGasPriceProbeUnit
   | "zisk_header_validate_post_merge" => some ziskHeaderValidatePostMergeProbeUnit
   | "zisk_header_validate_extra_data_length" => some ziskHeaderValidateExtraDataLengthProbeUnit
   | "zisk_u256_add_be"          => some ziskU256AddBeProbeUnit
