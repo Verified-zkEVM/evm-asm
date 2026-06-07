@@ -149,6 +149,8 @@ def ziskBlockValidateWithdrawalsRootIndexedPrologue : String :=
   mptInsertAccFunction ++ "\n" ++
   mptStateRootInsFunction ++ "\n" ++
   mptIndexedTrieRootOneLeafFunction ++ "\n" ++
+  mptIndexedLargeLeafHashFunction ++ "\n" ++
+  mptIndexedTrieRootLargeFunction ++ "\n" ++
   mptIndexedTrieRootSmallFunction ++ "\n" ++
   headerExtractWithdrawalsRootFunction ++ "\n" ++
   blockValidateWithdrawalsRootIndexedFunction ++ "\n" ++
