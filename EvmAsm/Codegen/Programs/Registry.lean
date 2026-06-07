@@ -519,6 +519,7 @@ def lookupProgram : String → Option BuildUnit
   | "runtime_account_witness_extcodehash" => some runtimeAccountWitnessExtcodehashProbeUnit
   | "runtime_account_witness_extcodecopy" => some runtimeAccountWitnessExtcodecopyProbeUnit
   | "runtime_create_initcode_frame" => some runtimeCreateInitcodeFrameProbeUnit
+  | "runtime_create_initcode_execute" => some runtimeCreateInitcodeExecuteProbeUnit
   | "runtime_selfdestruct_account_inputs" => some runtimeSelfdestructAccountInputsProbeUnit
   | "runtime_selfdestruct_eip7708_logs" => some runtimeSelfdestructEip7708LogsProbeUnit
   | "zisk_balance_at_header_state_root" => some ziskBalanceAtHeaderStateRootProbeUnit

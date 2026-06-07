@@ -246,4 +246,101 @@ def runtimeCreateInitcodeFrameProbeUnit : BuildUnit := {
 }
 
 
+/-- Probe for the bounded CREATE initcode executor.
+
+Input payload after ziskemu's 8-byte length wrapper:
+  bytes   0..  8 : kind, preserved into the staged frame
+  bytes   8.. 16 : initcode offset in `evm_memory`
+  bytes  16.. 24 : initcode length
+  bytes  24.. 56 : value, big-endian
+  bytes  56..    : initcode bytes
+
+Output:
+  bytes   0..  8 : child status (2 deployed, 3 reverted, 4 failed, 5 OOG)
+  bytes   8.. 16 : returndata length
+  bytes  16.. 24 : deployed-code candidate length
+  bytes  24.. 56 : first returndata bytes
+  bytes  56.. 88 : first deployed-code candidate bytes
+-/
+def runtimeCreateInitcodeExecuteProbePrologue : String :=
+  "  la sp, lp64_sp_top\n" ++
+  "  li t0, 0x40000000\n" ++
+  "  addi t0, t0, 8\n" ++
+  "  ld s0, 0(t0)\n" ++
+  "  ld s1, 8(t0)\n" ++
+  "  ld s2, 16(t0)\n" ++
+  "  la t1, create_init_offset\n" ++
+  "  sd s1, 0(t1)\n" ++
+  "  la t1, create_init_size\n" ++
+  "  sd s2, 0(t1)\n" ++
+  "  addi t2, t0, 24\n" ++
+  "  addi t2, t2, 31\n" ++
+  "  la t3, create_probe_value_word\n" ++
+  "  li t4, 32\n" ++
+  ".Lcreate_exec_probe_value_loop:\n" ++
+  "  lbu t5, 0(t2)\n" ++
+  "  sb t5, 0(t3)\n" ++
+  "  addi t2, t2, -1\n" ++
+  "  addi t3, t3, 1\n" ++
+  "  addi t4, t4, -1\n" ++
+  "  bnez t4, .Lcreate_exec_probe_value_loop\n" ++
+  "  la t2, evm_memory\n" ++
+  "  add t2, t2, s1\n" ++
+  "  addi t3, t0, 56\n" ++
+  "  mv t4, s2\n" ++
+  ".Lcreate_exec_probe_init_loop:\n" ++
+  "  beqz t4, .Lcreate_exec_probe_stage\n" ++
+  "  lbu t5, 0(t3)\n" ++
+  "  sb t5, 0(t2)\n" ++
+  "  addi t2, t2, 1\n" ++
+  "  addi t3, t3, 1\n" ++
+  "  addi t4, t4, -1\n" ++
+  "  j .Lcreate_exec_probe_init_loop\n" ++
+  ".Lcreate_exec_probe_stage:\n" ++
+  "  la a0, evm_memory\n" ++
+  "  la a1, create_probe_value_word\n" ++
+  "  mv a2, s0\n" ++
+  "  jal ra, create_stage_initcode_frame\n" ++
+  "  jal ra, create_execute_initcode_frame\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  la t1, create_child_status\n" ++
+  "  ld t2, 0(t1)\n" ++
+  "  sd t2, 0(t0)\n" ++
+  "  la t1, create_child_return_len\n" ++
+  "  ld t2, 0(t1)\n" ++
+  "  sd t2, 8(t0)\n" ++
+  "  la t1, create_child_code_len\n" ++
+  "  ld t2, 0(t1)\n" ++
+  "  sd t2, 16(t0)\n" ++
+  "  addi t0, t0, 24\n" ++
+  "  la t1, create_child_returndata\n" ++
+  "  li t2, 32\n" ++
+  ".Lcreate_exec_probe_output_return_loop:\n" ++
+  "  lbu t3, 0(t1)\n" ++
+  "  sb t3, 0(t0)\n" ++
+  "  addi t1, t1, 1\n" ++
+  "  addi t0, t0, 1\n" ++
+  "  addi t2, t2, -1\n" ++
+  "  bnez t2, .Lcreate_exec_probe_output_return_loop\n" ++
+  "  la t1, create_child_code\n" ++
+  "  li t2, 32\n" ++
+  ".Lcreate_exec_probe_output_code_loop:\n" ++
+  "  lbu t3, 0(t1)\n" ++
+  "  sb t3, 0(t0)\n" ++
+  "  addi t1, t1, 1\n" ++
+  "  addi t0, t0, 1\n" ++
+  "  addi t2, t2, -1\n" ++
+  "  bnez t2, .Lcreate_exec_probe_output_code_loop\n" ++
+  "  j .Lcreate_exec_probe_done\n" ++
+  createStageInitcodeFrameRuntimeFunction ++ "\n" ++
+  createExecuteInitcodeFrameRuntimeFunction ++ "\n" ++
+  ".Lcreate_exec_probe_done:"
+
+def runtimeCreateInitcodeExecuteProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := runtimeCreateInitcodeExecuteProbePrologue
+  dataAsm     := runtimeCreateInitcodeFrameProbeDataSection
+}
+
+
 end EvmAsm.Codegen
