@@ -214,6 +214,8 @@ def blockVerdictTxGasPrechargeDataSection : String :=
   "tgbpv_value:\n  .zero 32\n" ++
   ".balign 8\n" ++
   "tgbpv_nonce:\n  .zero 8\n" ++
+  "tgbpv_to_addr:\n  .zero 24\n" ++
+  "tgbpv_is_creation:\n  .zero 8\n" ++
   "tgbpv_lookup:\n  .zero 168\n" ++
   "tgbpv_records:\n  .zero 4096\n" ++
   "bv_tx_gas_precharge:\n  .zero 224\n"
