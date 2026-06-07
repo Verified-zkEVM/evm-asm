@@ -49,7 +49,7 @@ open EvmAsm.Rv64
       +8   tx ptr
       +16  tx len
       +24  selected pubkey ptr (64-byte x||y tail)
-      +32  base_fee_per_gas ptr (32-byte BE in execution payload)
+      +32  base_fee_per_gas ptr (32-byte BE scratch)
       +40  tx gas limit u64
       +48  is_creation flag
       +56  data ptr
@@ -93,7 +93,15 @@ def simpleTransferTxContextFunction : String :=
   "  sub s2, s2, s3              # tx len\n" ++
   "  sd s1, 8(s0); sd s2, 16(s0)\n" ++
   "  la t0, bv_public_keys_ptr; ld t1, 0(t0); addi t1, t1, 1; sd t1, 24(s0)\n" ++
-  "  la t0, bv_exec_p; ld t1, 0(t0); addi t1, t1, 160; sd t1, 32(s0)\n" ++
+  "  la t0, bv_exec_p; ld t1, 0(t0); addi t1, t1, 440\n" ++
+  "  la t2, sttc_base_fee_be; li t3, 0\n" ++
+  ".Lsttc_base_fee_rev:\n" ++
+  "  li t4, 32; beq t3, t4, .Lsttc_base_fee_done\n" ++
+  "  sub t5, t4, t3; addi t5, t5, -1; add t5, t1, t5\n" ++
+  "  lbu t6, 0(t5); add t5, t2, t3; sb t6, 0(t5)\n" ++
+  "  addi t3, t3, 1; j .Lsttc_base_fee_rev\n" ++
+  ".Lsttc_base_fee_done:\n" ++
+  "  sd t2, 32(s0)\n" ++
   "  mv a0, s1; mv a1, s2; la a2, tea_type; la a3, tea_inner_off\n" ++
   "  jal ra, tx_type_dispatch\n" ++
   "  beqz a0, .Lsttc_type_ok\n" ++
@@ -169,6 +177,9 @@ def blockVerdictSimpleTransferDataSection : String :=
   "teds_field_len:\n  .zero 8\n" ++
   "t48_offset:\n  .zero 8\n" ++
   "t48_length:\n  .zero 8\n" ++
+  ".balign 32\n" ++
+  "sttc_base_fee_be:\n  .zero 32\n" ++
+  ".balign 8\n" ++
   "bv_simple_transfer_tx:\n  .zero 192\n"
 
 def blockVerdictTxGasPrechargeDataSection : String :=
@@ -212,9 +223,9 @@ def blockVerdictTxGasPrechargeDataSection : String :=
       +16  tx_item_start
       +24  tx_count
       +32  public_keys_len
-      +64  fake execution payload (base_fee starts at +160)
+      +64  fake execution payload (base_fee starts at +440, SSZ little-endian)
       +320 public keys blob
-      +448 transaction-list bytes
+      +640 transaction-list bytes
 
    Output is the 192-byte simple_transfer_tx_context record.
 -/
@@ -224,7 +235,7 @@ def ziskSimpleTransferTxContextPrologue : String :=
   "  addi t0, s0, 64; la t1, bv_exec_p; sd t0, 0(t1)\n" ++
   "  addi t0, s0, 320; la t1, bv_public_keys_ptr; sd t0, 0(t1)\n" ++
   "  ld t0, 32(s0); la t1, bv_public_keys_len; sd t0, 0(t1)\n" ++
-  "  addi t0, s0, 448; la t1, bv_tx_list_ptr; sd t0, 0(t1)\n" ++
+  "  addi t0, s0, 640; la t1, bv_tx_list_ptr; sd t0, 0(t1)\n" ++
   "  ld t0, 8(s0); la t1, bv_tx_list_len; sd t0, 0(t1)\n" ++
   "  ld t0, 16(s0); la t1, bv_tx_item_start; sd t0, 0(t1)\n" ++
   "  ld t0, 24(s0); la t1, bv_tx_count; sd t0, 0(t1)\n" ++
