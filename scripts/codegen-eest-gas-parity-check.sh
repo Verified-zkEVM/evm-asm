@@ -10,7 +10,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 TAG="${EEST_FIXTURE_TAG:-zkevm@v0.4.0}"
-JOBS="${EEST_GAS_PARITY_JOBS:-${EEST_JOBS:-3}}"
+JOBS="${EEST_GAS_PARITY_JOBS:-${EEST_JOBS:-2}}"
 STEPS="${EEST_GAS_PARITY_STEPS:-${EEST_STEPS:-1000000000}}"
 LIMIT="${EEST_GAS_PARITY_LIMIT:-1}"
 SKIP="${EEST_GAS_PARITY_SKIP:-0}"
@@ -40,7 +40,7 @@ Options:
   --filter SUBSTR              add a fixture path substring filter
   --limit N                    per-filter row cap after skip (default: 1)
   --skip N                     per-filter rows to skip (default: 0)
-  --jobs N|auto                ziskemu jobs (default: $EEST_GAS_PARITY_JOBS, $EEST_JOBS, or 3)
+  --jobs N|auto                ziskemu jobs (default: $EEST_GAS_PARITY_JOBS, $EEST_JOBS, or 2)
   --steps N                    ziskemu max steps (default: 1000000000)
   --max-failures N             per-filter FAIL/ERROR stop cap (default: 1)
   --run-dir DIR                output directory (default: gen-out/eest-gas-parity)

@@ -9,7 +9,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 TAG="${EEST_FIXTURE_TAG:-zkevm@v0.4.0}"
-JOBS="${EEST_PRECOMPILE_ABSENCE_JOBS:-${EEST_JOBS:-3}}"
+JOBS="${EEST_PRECOMPILE_ABSENCE_JOBS:-${EEST_JOBS:-2}}"
 STEPS="${EEST_PRECOMPILE_ABSENCE_STEPS:-${EEST_STEPS:-1000000000}}"
 RUN_DIR="${EEST_PRECOMPILE_ABSENCE_RUN_DIR:-gen-out/eest-precompile-absence}"
 FX="${EEST_FIXTURES_DIR:-$(pwd)/gen-out/eest-fixtures/$TAG/fixtures/fixtures}"
