@@ -95,6 +95,13 @@ run_case "max_block_blob_gas"       "$AMSTERDAM_MAX" || FAILED=1
 run_case "four_times_target"        $((4 * AMSTERDAM_TARGET)) || FAILED=1
 run_case "ten_million"              10000000 || FAILED=1
 run_case "hundred_million"          100000000 || FAILED=1
+# Regression for evm-asm-7uitv: the old u64-product gate false-rejected these
+# (mulhu of accum*numerator exceeded 2**64) even though the spec price fits u64.
+# 128-bit-product divide keeps full correctness up to the genuine output-envelope
+# overflow near ~3.28e8.
+run_case "blob_taylor_134_5m"       134500000 || FAILED=1
+run_case "blob_taylor_200m"         200000000 || FAILED=1
+run_case "blob_taylor_328m"         328000000 || FAILED=1
 
 echo
 if [[ $FAILED -eq 0 ]]; then

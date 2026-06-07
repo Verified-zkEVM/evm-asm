@@ -687,14 +687,32 @@ def amsterdamBlobGasPriceFunction : String :=
   "  add t0, s3, s4              # output += numerator_accumulated\n" ++
   "  bltu t0, s3, .Labgp_overflow\n" ++
   "  mv s3, t0\n" ++
-  "  mulhu t0, s4, s0            # high half of accum * numerator\n" ++
-  "  bnez t0, .Labgp_overflow\n" ++
-  "  mul t1, s4, s0              # low half of accum * numerator\n" ++
+  "  mulhu t3, s4, s0            # hi half of accum * numerator (128-bit product)\n" ++
+  "  mul t4, s4, s0             # lo half of accum * numerator\n" ++
   "  mulhu t0, s1, s2            # high half of denominator * i\n" ++
   "  bnez t0, .Labgp_overflow\n" ++
-  "  mul t2, s1, s2              # denominator * i\n" ++
+  "  mul t2, s1, s2              # deni = denominator * i\n" ++
   "  beqz t2, .Labgp_overflow\n" ++
-  "  divu s4, t1, t2             # next numerator_accumulated\n" ++
+  "  bgeu t3, t2, .Labgp_overflow # hi >= deni => quotient exceeds u64\n" ++
+  "  mv t5, t3                   # rem = hi (hi < deni guaranteed)\n" ++
+  "  li t6, 0                    # q = 0\n" ++
+  "  li t1, 64                   # 64 division iterations\n" ++
+  ".Labgp_div:\n" ++
+  "  srli t0, t4, 63             # lobit = MSB of lo\n" ++
+  "  srli t3, t5, 63             # topbit = carry-out of rem << 1\n" ++
+  "  slli t5, t5, 1              # rem <<= 1\n" ++
+  "  or t5, t5, t0               # rem |= lobit\n" ++
+  "  slli t4, t4, 1              # consume next lo bit\n" ++
+  "  slli t6, t6, 1              # q <<= 1\n" ++
+  "  bnez t3, .Labgp_div_sub     # carry-out => true rem >= 2^64 > deni\n" ++
+  "  bltu t5, t2, .Labgp_div_next\n" ++
+  ".Labgp_div_sub:\n" ++
+  "  sub t5, t5, t2              # rem -= deni (u64 wrap exact when topbit set)\n" ++
+  "  ori t6, t6, 1               # q |= 1\n" ++
+  ".Labgp_div_next:\n" ++
+  "  addi t1, t1, -1\n" ++
+  "  bnez t1, .Labgp_div\n" ++
+  "  mv s4, t6                   # next numerator_accumulated\n" ++
   "  addi t0, s2, 1\n" ++
   "  beqz t0, .Labgp_overflow\n" ++
   "  mv s2, t0\n" ++
