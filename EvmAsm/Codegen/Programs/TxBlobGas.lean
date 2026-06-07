@@ -453,6 +453,7 @@ def ziskSszTxListVersionedHashesMatchDataSection : String :=
   "tvhm_struct:\n  .zero 248\n" ++
   "tvhm_probe_payload:\n  .zero 8192"
 def ziskSszTxListVersionedHashesMatchProbeUnit : BuildUnit := {
+  body        := NOP
   prologueAsm := ziskSszTxListVersionedHashesMatchPrologue
   dataAsm     := ziskSszTxListVersionedHashesMatchDataSection
 }
