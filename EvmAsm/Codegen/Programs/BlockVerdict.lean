@@ -22,6 +22,7 @@ import EvmAsm.Codegen.Programs.BalModeledSystem
 import EvmAsm.Codegen.Programs.MptInsertAcc
 import EvmAsm.Codegen.Programs.MptDeleteAcc
 import EvmAsm.Codegen.Programs.MptStateRootIns
+import EvmAsm.Codegen.Programs.MptIndexedTrieRoot
 import EvmAsm.Codegen.Programs.HeadersKeccak
 import EvmAsm.Codegen.Programs.StateCompose
 import EvmAsm.Codegen.Programs.AccountFieldGetters
@@ -303,6 +304,7 @@ def blockVerdictFunction : String :=
   "  la t0, bv_fail_code; sd zero, 0(t0)\n" ++
   "  la t0, bv_header_status; sd zero, 0(t0)\n" ++
   "  la t0, bv_state_status; sd zero, 0(t0)\n" ++
+  "  la t0, bv_tx_root_status; sd zero, 0(t0)\n" ++
   "  ld a0, 0(s0); ld a1, 32(s0); ld a2, 40(s0); ld a3, 48(s0); ld a4, 56(s0); ld a7, 96(s0)\n" ++
   "  la a5, sv_this_rlp; la a6, sv_this_rlp_len\n" ++
   "  jal ra, block_header_ssz_to_rlp\n" ++
@@ -679,6 +681,47 @@ def statelessVerdictV2Function : String :=
   "  sd s4, 0(s3); la t0, svf_wd_len; ld t1, 0(t0); sd t1, 8(s3)\n" ++
   "  addi s2, s2, 44; addi s4, s4, 72; addi s3, s3, 16; addi s5, s5, 1; j .Lv2_wl\n" ++
   ".Lv2_wd:\n" ++
+  "  la t0, svf_payload; ld t0, 0(t0)\n" ++
+  "  addi a0, t0, 504; jal ra, bgv_u32le; mv s3, a0     # transactions offset\n" ++
+  "  la t0, svf_payload; ld t0, 0(t0)\n" ++
+  "  addi a0, t0, 508; jal ra, bgv_u32le; mv s4, a0     # withdrawals offset\n" ++
+  "  la t0, svf_payload; ld t0, 0(t0); add s2, t0, s3   # tx list ptr\n" ++
+  "  sub s1, s4, s3                                      # tx list len\n" ++
+  "  la t0, svf_tx_count; sd zero, 0(t0)\n" ++
+  "  beqz s1, .Lv2_tx_desc_done\n" ++
+  "  li t0, 4; bltu s1, t0, .Lv2_tx_root_fail\n" ++
+  "  mv a0, s2; jal ra, bgv_u32le                       # first offset = 4 * tx_count\n" ++
+  "  andi t0, a0, 3; bnez t0, .Lv2_tx_root_fail\n" ++
+  "  beqz a0, .Lv2_tx_root_fail\n" ++
+  "  bgtu a0, s1, .Lv2_tx_root_fail\n" ++
+  "  srli s4, a0, 2\n" ++
+  "  li t0, 129; bgeu s4, t0, .Lv2_tx_root_fail\n" ++
+  "  la t0, svf_tx_count; sd s4, 0(t0)\n" ++
+  "  li s5, 0\n" ++
+  "  la s3, svf_tx_descriptors\n" ++
+  ".Lv2_tx_desc_loop:\n" ++
+  "  beq s5, s4, .Lv2_tx_desc_done\n" ++
+  "  slli t0, s5, 2; add a0, s2, t0; jal ra, bgv_u32le  # offset[i]\n" ++
+  "  mv t6, a0\n" ++
+  "  addi t0, s5, 1\n" ++
+  "  beq t0, s4, .Lv2_tx_desc_last\n" ++
+  "  slli t0, t0, 2; add a0, s2, t0; jal ra, bgv_u32le  # offset[i+1]\n" ++
+  "  j .Lv2_tx_desc_have_end\n" ++
+  ".Lv2_tx_desc_last:\n" ++
+  "  mv a0, s1\n" ++
+  ".Lv2_tx_desc_have_end:\n" ++
+  "  bltu a0, t6, .Lv2_tx_root_fail\n" ++
+  "  bgtu a0, s1, .Lv2_tx_root_fail\n" ++
+  "  add t2, s2, t6; sub t3, a0, t6\n" ++
+  "  slli t4, s5, 4; add t5, s3, t4\n" ++
+  "  sd t2, 0(t5); sd t3, 8(t5)\n" ++
+  "  addi s5, s5, 1\n" ++
+  "  j .Lv2_tx_desc_loop\n" ++
+  ".Lv2_tx_desc_done:\n" ++
+  "  la a0, svf_tx_descriptors; la t0, svf_tx_count; ld a1, 0(t0); la a2, svf_tx_root\n" ++
+  "  jal ra, mpt_indexed_trie_root_small\n" ++
+  "  la t0, bv_tx_root_status; sd a0, 0(t0)\n" ++
+  "  bnez a0, .Lv2_tx_root_fail\n" ++
   "  addi a0, s0, 56; jal ra, bgv_u32le; mv s3, a0     # execution_requests offset\n" ++
   "  addi a0, s0, 4;  jal ra, bgv_u32le; mv s4, a0     # witness offset = NPR end\n" ++
   "  addi a0, s0, 16; add a0, a0, s3                   # er section start\n" ++
@@ -694,7 +737,7 @@ def statelessVerdictV2Function : String :=
   "  la t0, svf_parent_rlp;     ld t0, 0(t0); sd t0, 8(t1)\n" ++
   "  la t0, svf_parent_rlp_len; ld t0, 0(t0); sd t0, 16(t1)\n" ++
   "  la t0, svf_parent_sr;      sd t0, 24(t1)\n" ++
-  "  la t0, svf_zero32;         sd t0, 32(t1)\n" ++
+  "  la t0, svf_tx_root;        sd t0, 32(t1)\n" ++
   "  la t0, svf_zero32;         sd t0, 40(t1)\n" ++
   "  addi t0, s0, 24;           sd t0, 48(t1)\n" ++
   "  la t0, erh_requests_hash;  sd t0, 56(t1)\n" ++
@@ -726,6 +769,9 @@ def statelessVerdictV2Function : String :=
   "  j .Lv2_zero\n" ++
   ".Lv2_bal_hash_fail:\n" ++
   "  li t0, 30; la t1, bv_fail_code; sd t0, 0(t1)\n" ++
+  "  j .Lv2_zero\n" ++
+  ".Lv2_tx_root_fail:\n" ++
+  "  li t0, 32; la t1, bv_fail_code; sd t0, 0(t1)\n" ++
   "  j .Lv2_zero\n" ++
   ".Lv2_chain_config_fail:\n" ++
   "  li t0, 26; la t1, bv_fail_code; sd t0, 0(t1)\n" ++
@@ -792,6 +838,8 @@ def ziskStatelessVerdictV2Prologue : String :=
   "  la t1, bv_tx_gas_precharge; ld t2, 0(t1); sd t2, 352(t0)\n" ++
   "  la t1, bv_simple_transfer_recipient; ld t2, 0(t1); sd t2, 360(t0)\n" ++
   "  la t1, bv_simple_transfer_fee_recipient; ld t2, 0(t1); sd t2, 368(t0)\n" ++
+  "  la t1, bv_tx_root_status; ld t2, 0(t1); sd t2, 376(t0)\n" ++
+  "  la t1, svf_tx_count; ld t2, 0(t1); sd t2, 384(t0)\n" ++
   "  j .Lv2_pdone\n" ++
   zkvmSha256Function ++ "\n" ++
   zkvmKeccak256Function ++ "\n" ++
@@ -851,6 +899,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   mptInsertAccFunction ++ "\n" ++
   mptStateRootInsFunction ++ "\n" ++
   withdrawalsStateRootFunction ++ "\n" ++
+  mptIndexedTrieRootSmallFunction ++ "\n" ++
   validateHeaderBasicFunction ++ "\n" ++
   checkGasLimitFunction ++ "\n" ++
   headerValidatePostMergeFunction ++ "\n" ++
