@@ -397,5 +397,83 @@ def ziskIntrinsicGasAmsterdamCountsProbeUnit : BuildUnit := {
   dataAsm     := ziskIntrinsicGasAmsterdamCountsDataSection
 }
 
+/-! ## eip8037_reservoir_split -- Amsterdam state-gas reservoir
+
+    Mirror execution-specs Amsterdam `process_transaction` after intrinsic
+    validation:
+
+      intrinsic_total      = intrinsic.regular + intrinsic.state
+      execution_gas        = tx.gas - intrinsic_total
+      regular_gas_budget   = TX_MAX_GAS_LIMIT - intrinsic.regular
+      gas                  = min(regular_gas_budget, execution_gas)
+      state_gas_reservoir  = execution_gas - gas
+
+    The helper intentionally accepts both intrinsic totals as inputs so it can
+    compose with the existing regular/calldata probe and the EIP-8037
+    intrinsic-state component without redoing either calculation. -/
+def eip8037ReservoirSplitFunction : String :=
+  "eip8037_reservoir_split:\n" ++
+  "  # a0=tx_gas, a1=intrinsic_total, a2=intrinsic_regular,\n" ++
+  "  # a3=gas_out, a4=state_reservoir_out\n" ++
+  "  bltu a0, a1, .Le8037_underflow\n" ++
+  "  li t0, 16777216            # TX_MAX_GAS_LIMIT\n" ++
+  "  bltu t0, a2, .Le8037_regular_too_large\n" ++
+  "  sub t1, a0, a1             # execution_gas\n" ++
+  "  sub t2, t0, a2             # regular_gas_budget\n" ++
+  "  mv t3, t1                  # gas = execution_gas by default\n" ++
+  "  bltu t1, t2, .Le8037_have_gas\n" ++
+  "  mv t3, t2                  # gas = regular_gas_budget\n" ++
+  ".Le8037_have_gas:\n" ++
+  "  sub t4, t1, t3             # state_gas_reservoir\n" ++
+  "  sd t3, 0(a3)\n" ++
+  "  sd t4, 0(a4)\n" ++
+  "  li a0, 0\n" ++
+  "  ret\n" ++
+  ".Le8037_underflow:\n" ++
+  "  sd zero, 0(a3)\n" ++
+  "  sd zero, 0(a4)\n" ++
+  "  li a0, 1\n" ++
+  "  ret\n" ++
+  ".Le8037_regular_too_large:\n" ++
+  "  sd zero, 0(a3)\n" ++
+  "  sd zero, 0(a4)\n" ++
+  "  li a0, 2\n" ++
+  "  ret"
+
+/-- `zisk_eip8037_reservoir_split`: focused probe.
+    Input layout:
+      bytes  0.. 8 : tx.gas
+      bytes  8..16 : intrinsic_total = intrinsic.regular + intrinsic.state
+      bytes 16..24 : intrinsic.regular
+    Output layout:
+      bytes  0.. 8 : status
+      bytes  8..16 : gas
+      bytes 16..24 : state_gas_reservoir -/
+def ziskEip8037ReservoirSplitPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li t0, 0x40000000\n" ++
+  "  ld a0, 8(t0)                # tx.gas\n" ++
+  "  ld a1, 16(t0)               # intrinsic_total\n" ++
+  "  ld a2, 24(t0)               # intrinsic.regular\n" ++
+  "  li a3, 0xa0010008           # gas out\n" ++
+  "  li a4, 0xa0010010           # state_gas_reservoir out\n" ++
+  "  jal ra, eip8037_reservoir_split\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Le8037_pdone\n" ++
+  eip8037ReservoirSplitFunction ++ "\n" ++
+  ".Le8037_pdone:"
+
+def ziskEip8037ReservoirSplitDataSection : String :=
+  ".section .data\n" ++
+  "e8037_reservoir_scratch:\n" ++
+  "  .zero 8"
+
+def ziskEip8037ReservoirSplitProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskEip8037ReservoirSplitPrologue
+  dataAsm     := ziskEip8037ReservoirSplitDataSection
+}
+
 
 end EvmAsm.Codegen

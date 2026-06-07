@@ -166,6 +166,7 @@ def knownProgramNamesTail : List String :=
    "zisk_header_root_is_empty_trie",
    "zisk_calldata_byte_counts", "zisk_intrinsic_gas_calldata_floor_eip7623",
    "zisk_init_code_cost", "zisk_intrinsic_gas_amsterdam_counts",
+   "zisk_eip8037_reservoir_split",
    "zisk_mpt_nibbles_to_compact",
    "zisk_mpt_compact_to_nibbles",
    "zisk_mpt_node_classify",
