@@ -105,6 +105,7 @@ def mptDeleteAccFunction : String :=
   "  la a0, mdacc_collapsed_path; mv a1, zero\n" ++
   "  la a4, mset_node; la a5, mset_node_len\n" ++
   "  jal ra, mpt_leaf_node_encode_from_nibbles\n" ++
+  "  bnez a0, .Lmdacc_fail\n" ++
   "  la t0, mset_node_len; ld s4, 0(t0)\n" ++
   "  la a0, mset_node; mv a1, s4\n" ++
   "  jal ra, node_db_append\n" ++
@@ -155,6 +156,7 @@ def mptDeleteAccFunction : String :=
   "  la a0, mdacc_collapsed_path; la t0, mdacc_leaf_value_ptr; ld a2, 0(t0); la t0, mdacc_leaf_value_len; ld a3, 0(t0)\n" ++
   "  la a4, mset_node; la a5, mset_node_len\n" ++
   "  jal ra, mpt_leaf_node_encode_from_nibbles\n" ++
+  "  bnez a0, .Lmdacc_fail\n" ++
   "  la t0, mset_node_len; ld s4, 0(t0)\n" ++
   "  la a0, mset_node; mv a1, s4\n" ++
   "  jal ra, node_db_append\n" ++
@@ -335,6 +337,7 @@ def mptDeleteAccFunction : String :=
   "  la a0, mdacc_collapsed_path; la t0, mdacc_leaf_value_ptr; ld a2, 0(t0); la t0, mdacc_leaf_value_len; ld a3, 0(t0)\n" ++
   "  la a4, mset_node; la a5, mset_node_len\n" ++
   "  jal ra, mpt_leaf_node_encode_from_nibbles\n" ++
+  "  bnez a0, .Lmdacc_fail\n" ++
   "  la t0, mset_node_len; ld s4, 0(t0)\n" ++
   "  la a0, mset_node; mv a1, s4\n" ++
   "  jal ra, node_db_append\n" ++
