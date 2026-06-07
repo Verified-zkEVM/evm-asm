@@ -410,6 +410,8 @@ def sszTxListVersionedHashesMatchFunction : String :=
   "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
   "  ld s8, 72(sp); ld s9, 80(sp); ld s10, 88(sp); ld s11, 96(sp)\n" ++
   "  addi sp, sp, 112\n" ++
+  "  ret"
+
 /-- `zisk_ssz_tx_list_versioned_hashes_match`: probe BuildUnit. Reads
     (tx_list_len, versioned_hashes_len, tx_list_bytes, versioned_hashes_bytes)
     from host input, wraps the tx list in a fake execution-payload SSZ section,
