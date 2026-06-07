@@ -141,6 +141,9 @@ def decodeByte? : Nat → Option EvmOpcode
   | 0x9d => some (SWAP 14)
   | 0x9e => some (SWAP 15)
   | 0x9f => some (SWAP 16)
+  | 0xe6 => some DUPN
+  | 0xe7 => some SWAPN
+  | 0xe8 => some EXCHANGE
   | 0xa0 => some (LOG LogArgs.Kind.log0)
   | 0xa1 => some (LOG LogArgs.Kind.log1)
   | 0xa2 => some (LOG LogArgs.Kind.log2)

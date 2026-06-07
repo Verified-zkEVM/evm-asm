@@ -133,9 +133,37 @@ def emitJumpdestBitmapBuild : String :=
   "  li x9, 0x60\n" ++
   "  bltu x8, x9, .jdbm_plain\n" ++         -- below PUSH1 → 1-byte opcode
   "  li x9, 0x80\n" ++
-  "  bgeu x8, x9, .jdbm_plain\n" ++         -- at/above DUP1 → 1-byte opcode
+  "  bltu x8, x9, .jdbm_push\n" ++
+  "  li x9, 0xe6\n" ++
+  "  beq x8, x9, .jdbm_dupn_swapn\n" ++
+  "  li x9, 0xe7\n" ++
+  "  beq x8, x9, .jdbm_dupn_swapn\n" ++
+  "  li x9, 0xe8\n" ++
+  "  beq x8, x9, .jdbm_exchange\n" ++
+  "  j .jdbm_plain\n" ++
+  ".jdbm_push:\n" ++
   "  addi x8, x8, -94\n" ++                 -- PUSHn: skip opcode + n immediates
   "  add x5, x5, x8\n" ++                   --   (0x60 - 94 = 2 … 0x7f - 94 = 33)
+  "  j .jdbm_scan\n" ++
+  ".jdbm_dupn_swapn:\n" ++
+  "  addi x9, x5, 1\n" ++
+  "  bgeu x9, x6, .jdbm_skip_eip8024_imm\n" ++
+  "  lbu x9, 1(x5)\n" ++
+  "  li x11, 0x5b\n" ++
+  "  bltu x9, x11, .jdbm_skip_eip8024_imm\n" ++
+  "  li x11, 0x80\n" ++
+  "  bltu x9, x11, .jdbm_plain\n" ++        -- invalid immediate remains an instruction boundary
+  "  j .jdbm_skip_eip8024_imm\n" ++
+  ".jdbm_exchange:\n" ++
+  "  addi x9, x5, 1\n" ++
+  "  bgeu x9, x6, .jdbm_skip_eip8024_imm\n" ++
+  "  lbu x9, 1(x5)\n" ++
+  "  li x11, 0x52\n" ++
+  "  bltu x9, x11, .jdbm_skip_eip8024_imm\n" ++
+  "  li x11, 0x80\n" ++
+  "  bltu x9, x11, .jdbm_plain\n" ++        -- invalid immediate remains an instruction boundary
+  ".jdbm_skip_eip8024_imm:\n" ++
+  "  addi x5, x5, 2\n" ++
   "  j .jdbm_scan\n" ++
   ".jdbm_plain:\n" ++
   "  addi x5, x5, 1\n" ++
@@ -301,6 +329,7 @@ def staticGasCost (op : Nat) : Nat :=
   if 0x60 ≤ op ∧ op ≤ 0x7f then 3        -- PUSH1..PUSH32 (VERYLOW)
   else if 0x80 ≤ op ∧ op ≤ 0x8f then 3   -- DUP1..DUP16 (VERYLOW)
   else if 0x90 ≤ op ∧ op ≤ 0x9f then 3   -- SWAP1..SWAP16 (VERYLOW)
+  else if 0xe6 ≤ op ∧ op ≤ 0xe8 then 3   -- DUPN/SWAPN/EXCHANGE (EIP-8024, VERYLOW)
   else if 0xa0 ≤ op ∧ op ≤ 0xa4 then 375 -- LOG0..LOG4 (base)
   else match op with
     -- arithmetic

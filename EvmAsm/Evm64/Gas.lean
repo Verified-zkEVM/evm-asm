@@ -92,6 +92,9 @@ inductive EvmOpcode where
   | PUSH (n : Nat)
   | DUP (n : Nat)
   | SWAP (n : Nat)
+  | DUPN
+  | SWAPN
+  | EXCHANGE
   deriving DecidableEq, Repr
 
 namespace EvmOpcode
@@ -185,6 +188,9 @@ def byte? : EvmOpcode → Option Nat
   | PUSH n => if validPushWidth n then some (0x5f + n) else none
   | DUP n => if validDupIndex n then some (0x7f + n) else none
   | SWAP n => if validSwapIndex n then some (0x8f + n) else none
+  | DUPN => some 0xe6
+  | SWAPN => some 0xe7
+  | EXCHANGE => some 0xe8
 
 /-- Shanghai static/base gas cost. Costs that also have dynamic components
     return only the fixed part charged before the dynamic add-on. -/
@@ -262,6 +268,9 @@ def staticGasCost : EvmOpcode → Nat
   | PUSH _ => 3
   | DUP _ => 3
   | SWAP _ => 3
+  | DUPN => 3
+  | SWAPN => 3
+  | EXCHANGE => 3
 
 theorem staticGasCost_PUSH (n : Nat) :
     staticGasCost (PUSH n) = 3 := rfl
@@ -271,6 +280,15 @@ theorem staticGasCost_DUP (n : Nat) :
 
 theorem staticGasCost_SWAP (n : Nat) :
     staticGasCost (SWAP n) = 3 := rfl
+
+theorem staticGasCost_DUPN :
+    staticGasCost DUPN = 3 := rfl
+
+theorem staticGasCost_SWAPN :
+    staticGasCost SWAPN = 3 := rfl
+
+theorem staticGasCost_EXCHANGE :
+    staticGasCost EXCHANGE = 3 := rfl
 
 theorem byte?_PUSH_of_valid {n : Nat} (h : validPushWidth n = true) :
     byte? (PUSH n) = some (0x5f + n) := by
