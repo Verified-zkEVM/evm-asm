@@ -496,4 +496,201 @@ def ziskEip8037ReservoirSplitProbeUnit : BuildUnit := {
 }
 
 
+/-! ## eip8037_tx_state_gas -- Amsterdam per-tx state-gas settlement
+
+    Mirror execution-specs Amsterdam `process_transaction` per-tx state-gas
+    accounting (fork.py ~1122-1130, 1194-1202):
+
+      if tx_output.error is not None:
+          tx_output.state_gas_left += tx_output.state_gas_used
+          tx_output.state_gas_used = Uint(0)
+          if isinstance(tx.to, Bytes0):              # creation
+              new_account_refund =
+                  STATE_BYTES_PER_NEW_ACCOUNT * COST_PER_STATE_BYTE   # 183600
+              tx_output.state_gas_left  += new_account_refund
+              tx_output.state_refund    += new_account_refund
+
+      tx_state_gas =
+          tx_env.intrinsic_state_gas
+          + tx_output.state_gas_used
+          - tx_output.state_refund
+
+      block_output.block_state_gas_used += tx_state_gas
+
+    The guest is BAL-replay-only and does not execute opcodes, so the runtime
+    `state_gas_used` / `state_refund` from SSTORE/CREATE are NOT derivable here;
+    they are supplied by the caller's conservative model (zero in the common
+    BAL-replay path). This helper implements the BAL-derivable subset:
+    `intrinsic_state_gas` plus the error-path restore (zero out
+    `state_gas_used`, add the new-account refund for a reverted creation),
+    then forms `tx_state_gas`. `state_refund` exceeding
+    `intrinsic_state_gas + state_gas_used` (a Uint underflow in Python) is
+    reported as a nonzero status rather than wrapping. -/
+def eip8037TxStateGasFunction : String :=
+  "eip8037_tx_state_gas:\n" ++
+  "  # a0=intrinsic_state_gas, a1=state_gas_used, a2=state_refund,\n" ++
+  "  # a3=error_flag, a4=is_creation, a5=tx_state_gas_out\n" ++
+  "  beq a3, zero, .Le8037sg_settle\n" ++
+  "  li a1, 0                   # error: state_gas_used = 0\n" ++
+  "  beq a4, zero, .Le8037sg_settle\n" ++
+  "  li t0, 183600             # STATE_BYTES_PER_NEW_ACCOUNT*COST_PER_STATE_BYTE\n" ++
+  "  add a2, a2, t0            # creation revert: state_refund += new_account_refund\n" ++
+  ".Le8037sg_settle:\n" ++
+  "  add t1, a0, a1            # intrinsic_state_gas + state_gas_used\n" ++
+  "  bltu t1, a2, .Le8037sg_underflow\n" ++
+  "  sub t2, t1, a2           # tx_state_gas\n" ++
+  "  sd t2, 0(a5)\n" ++
+  "  li a0, 0\n" ++
+  "  ret\n" ++
+  ".Le8037sg_underflow:\n" ++
+  "  sd zero, 0(a5)\n" ++
+  "  li a0, 1\n" ++
+  "  ret"
+
+/-- `zisk_eip8037_tx_state_gas`: focused probe.
+    Input layout (after the ziskemu length wrapper at 0x40000000+8):
+      bytes  8..16 : intrinsic_state_gas
+      bytes 16..24 : state_gas_used   (conservative model input)
+      bytes 24..32 : state_refund     (conservative model input)
+      bytes 32..40 : error_flag       (nonzero = tx error)
+      bytes 40..48 : is_creation      (nonzero = tx.to is Bytes0)
+    Output layout:
+      bytes  0.. 8 : status
+      bytes  8..16 : tx_state_gas -/
+def ziskEip8037TxStateGasPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li t0, 0x40000000\n" ++
+  "  ld a0, 8(t0)                # intrinsic_state_gas\n" ++
+  "  ld a1, 16(t0)               # state_gas_used\n" ++
+  "  ld a2, 24(t0)               # state_refund\n" ++
+  "  ld a3, 32(t0)               # error_flag\n" ++
+  "  ld a4, 40(t0)               # is_creation\n" ++
+  "  li a5, 0xa0010008           # tx_state_gas out\n" ++
+  "  jal ra, eip8037_tx_state_gas\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Le8037sg_pdone\n" ++
+  eip8037TxStateGasFunction ++ "\n" ++
+  ".Le8037sg_pdone:"
+
+def ziskEip8037TxStateGasDataSection : String :=
+  ".section .data\n" ++
+  "e8037_tx_state_gas_scratch:\n" ++
+  "  .zero 8"
+
+def ziskEip8037TxStateGasProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskEip8037TxStateGasPrologue
+  dataAsm     := ziskEip8037TxStateGasDataSection
+}
+
+/-! ## eip8037_block_gas_used -- Amsterdam block gas_used = max(regular,state)
+
+    Mirror execution-specs Amsterdam `apply_body` / `process_transaction` block
+    gas accounting (fork.py ~1199-1202, then 358-363):
+
+      # accumulated per transaction
+      block_output.block_gas_used       += max(tx_regular_gas, intrinsic.calldata_floor)
+      block_output.block_state_gas_used += tx_state_gas
+
+      # at finalization
+      block_gas_used = max(
+          block_output.block_gas_used,        # block_regular
+          block_output.block_state_gas_used,  # block_state
+      )
+      if block_gas_used != block.header.gas_used:
+          raise InvalidBlock
+
+    The guest is BAL-replay-only and does not meter opcode execution, so the
+    per-tx `regular` increment (`max(tx_regular_gas, intrinsic.calldata_floor)`)
+    and `tx_state_gas` are caller-supplied: in the common BAL-replay path the
+    state increment is zero and the regular increment comes from the EIP-7778
+    remaining-block-gas results arena. This helper isolates the pure block-level
+    arithmetic — accumulate both totals across the per-tx arrays, take the max,
+    and compare against the header `gas_used`. A `u64` overflow while
+    accumulating either total is reported as a distinct nonzero status rather
+    than wrapping. The wiring into `block_verdict` lands in a separate child
+    once a real metered regular-gas accumulator exists. -/
+def eip8037BlockGasUsedFunction : String :=
+  "eip8037_block_gas_used:\n" ++
+  "  # a0=regular_inc ptr, a1=tx_state_gas ptr, a2=count,\n" ++
+  "  # a3=header_gas_used, a4=block_gas_used_out\n" ++
+  "  mv t0, a0                   # regular_inc ptr\n" ++
+  "  mv t1, a1                   # tx_state_gas ptr\n" ++
+  "  mv t2, a2                   # count\n" ++
+  "  li t3, 0                    # i\n" ++
+  "  li t4, 0                    # block_regular\n" ++
+  "  li t5, 0                    # block_state\n" ++
+  ".Le8037bg_loop:\n" ++
+  "  beq t3, t2, .Le8037bg_done\n" ++
+  "  slli t6, t3, 3\n" ++
+  "  add a5, t0, t6\n" ++
+  "  ld a5, 0(a5)               # regular increment\n" ++
+  "  add a6, t4, a5\n" ++
+  "  bltu a6, t4, .Le8037bg_overflow\n" ++
+  "  mv t4, a6                  # block_regular += regular increment\n" ++
+  "  add a5, t1, t6\n" ++
+  "  ld a5, 0(a5)               # tx_state_gas\n" ++
+  "  add a6, t5, a5\n" ++
+  "  bltu a6, t5, .Le8037bg_overflow\n" ++
+  "  mv t5, a6                  # block_state += tx_state_gas\n" ++
+  "  addi t3, t3, 1\n" ++
+  "  j .Le8037bg_loop\n" ++
+  ".Le8037bg_done:\n" ++
+  "  mv a5, t4                  # block_gas_used = block_regular\n" ++
+  "  bgeu t4, t5, .Le8037bg_have_max\n" ++
+  "  mv a5, t5                  # block_gas_used = block_state\n" ++
+  ".Le8037bg_have_max:\n" ++
+  "  sd a5, 0(a4)\n" ++
+  "  bne a5, a3, .Le8037bg_mismatch\n" ++
+  "  li a0, 0\n" ++
+  "  mv a1, a5\n" ++
+  "  ret\n" ++
+  ".Le8037bg_mismatch:\n" ++
+  "  li a0, 1\n" ++
+  "  mv a1, a5\n" ++
+  "  ret\n" ++
+  ".Le8037bg_overflow:\n" ++
+  "  sd zero, 0(a4)\n" ++
+  "  li a0, 2\n" ++
+  "  li a1, 0\n" ++
+  "  ret"
+
+/-- `zisk_eip8037_block_gas_used`: focused probe.
+    Input layout (after the ziskemu length wrapper at 0x40000000+8):
+      bytes  8..16 : count            (number of transactions, <= 4)
+      bytes 16..24 : header_gas_used
+      bytes 24.. .. : `count` regular increments (u64 each)
+      then           : `count` tx_state_gas values (u64 each)
+    Output layout:
+      bytes  0.. 8 : status
+      bytes  8..16 : computed block_gas_used -/
+def ziskEip8037BlockGasUsedPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li t0, 0x40000000\n" ++
+  "  ld a2, 8(t0)                # count\n" ++
+  "  ld a3, 16(t0)               # header_gas_used\n" ++
+  "  addi a0, t0, 24             # regular_inc ptr\n" ++
+  "  slli t1, a2, 3\n" ++
+  "  add a1, a0, t1              # tx_state_gas ptr = regular ptr + count*8\n" ++
+  "  li a4, 0xa0010008           # block_gas_used out\n" ++
+  "  jal ra, eip8037_block_gas_used\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Le8037bg_pdone\n" ++
+  eip8037BlockGasUsedFunction ++ "\n" ++
+  ".Le8037bg_pdone:"
+
+def ziskEip8037BlockGasUsedDataSection : String :=
+  ".section .data\n" ++
+  "e8037_block_gas_used_scratch:\n" ++
+  "  .zero 8"
+
+def ziskEip8037BlockGasUsedProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskEip8037BlockGasUsedPrologue
+  dataAsm     := ziskEip8037BlockGasUsedDataSection
+}
+
+
 end EvmAsm.Codegen
