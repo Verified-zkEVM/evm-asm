@@ -963,15 +963,58 @@ handler tail.
   assertion confirming the sentinel path doesn't spuriously halt. Existing
   `jump_forward` / `jumpi_taken` (which jump to real JUMPDEST bytes) still pass.
 
-**Known limitations:** validation uses a per-jump pushdata-aware scan instead
-of a precomputed valid-JUMPDEST bitmap. `RegistryInvariants` counts unchanged
-(149 — JUMP/JUMPI stay in `controlFlowHandlers`).
+**Known limitations:** ~~validation uses a per-jump pushdata-aware scan instead
+of a precomputed valid-JUMPDEST bitmap~~ (resolved by M15.6 below).
+`RegistryInvariants` counts unchanged (149 — JUMP/JUMPI stay in
+`controlFlowHandlers`).
 
 **Exit criteria (met).**
 `scripts/codegen-opcodes-runtime-check.sh` is the ziskemu-backed gate for the
 full opcode registry (355 cases at this update, including the out-of-bounds
 runtime-trailer regressions). `scripts/check-progress.sh` exits 0. `lake build
 EvmAsm.Codegen` clean.
+
+### M15.6 — precomputed valid-JUMPDEST bitmap — **DONE (2026-06-07)**
+
+Closes M15.5's known limitation. The per-jump pushdata-aware scan made each
+JUMP / taken-JUMPI cost O(dest) guest instructions (~10 per scanned opcode),
+so a K-iteration EVM loop jumping back to offset `d` cost `K·d` — quadratic
+guest work for O(1) EVM gas (JUMP = 8, JUMPI = 10), a prover-cost hazard.
+M15.6 matches execution-specs' `get_valid_jump_destinations` shape: one
+pushdata-aware pass at startup, then O(1) per jump.
+
+**Delivered:**
+- **`EvmAsm/Codegen/Dispatch.lean`** — `emitJumpdestBitmapBuild`, emitted by
+  *both* dispatcher prologues immediately before `.dispatch_loop:`: one
+  pushdata-aware pass over the bytecode setting bit `idx` of
+  `evm_jumpdest_bitmap` for every JUMPDEST byte outside PUSH1..PUSH32
+  immediates. The scan is clamped to `jumpdestBitmapCodeCapacity` (128 KiB of
+  code = `0x20000` = the live EIP-7954 draft's `MAX_INIT_CODE_SIZE`, giving
+  2× headroom over the vendored-specs **Amsterdam** maximum of
+  `MAX_INIT_CODE_SIZE = 0x10000 = 65,536`, so a future specs sync needs no
+  bitmap change — see the constant's docstring). `emitJumpdestBitmapData`
+  reserves the 16 KiB loader-zeroed bitmap region in both `.data` sections. Build-pass scratch is
+  `x5`–`x9`/`x11`, all dead at the insertion point.
+- **`EvmAsm/Codegen/Programs/EvmControlFlowHandlers.lean`** — the JUMP /
+  taken-JUMPI validity tail (`jumpBitmapCheckAsm`, formerly
+  `jumpPushdataAwareScanAsm`) keeps the `validityReg == 0x5b` compare (still
+  the routing for the body's non-canonical / out-of-bounds sentinel and the
+  not-taken JUMPI fall-through) and replaces the O(dest) scan with a 12-
+  instruction bit test: `dest = x10 - x21`, reject `dest ≥` bitmap capacity
+  (memory-safety backstop for oversized non-protocol test bytecode; protocol
+  code can't reach it), load `bitmap[dest >> 3]`, test bit `dest & 7`,
+  mismatch → `.exit_invalid`. Verified `evm_jump` / `evm_jumpi` bodies are
+  untouched.
+- **`EvmAsm/Codegen/Tests/Cases.lean`** — `jumpi_loop_backward` (countdown
+  loop validating the same backward destination on every taken iteration) and
+  `jump_forward_second_bitmap_byte` (JUMPDEST at byte 9 exercises bitmap byte
+  indexing past `bitmap[0]`). All M15/M15.5 jump regressions (pushdata,
+  out-of-bounds, high-limb, not-taken sentinel) pin the unchanged semantics.
+
+**Complexity:** per execution O(codeSize) prologue + O(1) per jump, replacing
+O(jumps × dest). Worst-case adversarial cost drops from ~10¹¹ guest
+instructions per 30M-gas frame to the one-time ~10-instruction-per-opcode
+build pass.
 
 ### M16 — KECCAK256 via ECALL bridge (first precompile pattern) — **DONE (2026-05-27)**
 
