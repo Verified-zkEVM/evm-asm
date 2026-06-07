@@ -5,7 +5,7 @@
   per the file-size hard cap. Hosts:
 
     K38  header_minimal_decode  (parent_hash + state_root + number + timestamp)
-    K39  header_extended_decode (full 15-field header decode)
+    K39  header_extended_decode (full Amsterdam header decode)
     K55  coinbase_extract_from_header (beneficiary getter)
 
   Compose K20 / K34 / K35 (RlpRead + Tx).
@@ -162,6 +162,8 @@ def ziskHeaderMinimalDecodeProbeUnit : BuildUnit := {
       80..88   gas_limit      (field 9, u64)
       88..96   gas_used       (field 10, u64)
       96..128  base_fee_per_gas (field 15, u256 BE)
+     128..136  blob_gas_used    (field 17, u64)
+     136..144  excess_blob_gas  (field 18, u64)
 
     The base_fee_per_gas field exists from EIP-1559 (London)
     onward. Headers older than London don't have it; this
@@ -170,7 +172,7 @@ def ziskHeaderMinimalDecodeProbeUnit : BuildUnit := {
     Calling convention:
       a0 (input)  : header_rlp ptr
       a1 (input)  : header byte length
-      a2 (input)  : 128-byte output struct ptr
+      a2 (input)  : 144-byte output struct ptr
       ra (input)  : return
       a0 (output) : 0 success / 1 parse fail. -/
 def headerExtendedDecodeFunction : String :=
@@ -233,6 +235,16 @@ def headerExtendedDecodeFunction : String :=
   "  addi a3, s2, 96\n" ++
   "  jal ra, rlp_field_to_u256_be\n" ++
   "  bnez a0, .Lhed_fail\n" ++
+  "  # Field 17: blob_gas_used\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 17\n" ++
+  "  addi a3, s2, 128\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  bnez a0, .Lhed_fail\n" ++
+  "  # Field 18: excess_blob_gas\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 18\n" ++
+  "  addi a3, s2, 136\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  bnez a0, .Lhed_fail\n" ++
   "  li a0, 0\n" ++
   "  j .Lhed_ret\n" ++
   ".Lhed_fail:\n" ++
@@ -250,8 +262,8 @@ def ziskHeaderExtendedDecodePrologue : String :=
   "  ld a1, 8(a3)                # header_len\n" ++
   "  addi a0, a3, 16             # header ptr\n" ++
   "  li a2, 0xa0010008           # struct at OUTPUT + 8\n" ++
-  "  # Pre-zero 128 bytes.\n" ++
-  "  mv t0, a2; li t1, 16\n" ++
+  "  # Pre-zero 144 bytes.\n" ++
+  "  mv t0, a2; li t1, 18\n" ++
   ".Lhed_zinit:\n" ++
   "  beqz t1, .Lhed_zdone\n" ++
   "  sd zero, 0(t0)\n" ++
