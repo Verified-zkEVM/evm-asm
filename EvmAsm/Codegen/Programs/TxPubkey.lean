@@ -202,6 +202,119 @@ def txPubkeySignatureMaterialFunction : String :=
   "  addi sp, sp, 80\n" ++
   "  ret"
 
+
+/-! ## tx_pubkey_ecrecover_stage_material
+
+    Stage `tx_pubkey_signature_material` output into the byte layout consumed by
+    `zkvm_secp256k1_ecrecover(msg, sig, recid, output)`.
+
+    Calling convention:
+      a0 (input)  : material ptr from `tx_pubkey_signature_material`
+      a1 (input)  : output/staging ptr
+      ra (input)  : return
+      a0 (output) : status
+
+    Staging output at `a1`:
+      +0    32-byte message hash
+      +32   64-byte signature (`r || s`)
+      +96   recid as u64 word (low byte consumed by backend)
+      +104  reserved 64-byte recovered-pubkey buffer, pre-zeroed
+
+    Status:
+      0 success
+      1 recid outside {0, 1}
+
+    Scalar and signing-hash validity are owned by `tx_pubkey_signature_material`;
+    this helper is deliberately just the ABI staging layer for the later recovery
+    and compare slices. -/
+def txPubkeyEcrecoverStageMaterialFunction : String :=
+  "tx_pubkey_ecrecover_stage_material:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd s0,  0(sp); sd s1,  8(sp); sd s2, 16(sp); sd s3, 24(sp)\n" ++
+  "  mv s0, a0                   # material ptr\n" ++
+  "  mv s1, a1                   # staging ptr\n" ++
+  "  ld s2, 8(s0)                # recid\n" ++
+  "  li t0, 1\n" ++
+  "  bgtu s2, t0, .Ltpes_bad_recid\n" ++
+  "  # message hash = material.signing_hash\n" ++
+  "  addi t0, s0, 80\n" ++
+  "  mv t1, s1\n" ++
+  "  li t2, 4\n" ++
+  ".Ltpes_copy_hash:\n" ++
+  "  ld t3, 0(t0); sd t3, 0(t1)\n" ++
+  "  addi t0, t0, 8; addi t1, t1, 8; addi t2, t2, -1\n" ++
+  "  bnez t2, .Ltpes_copy_hash\n" ++
+  "  # signature = r || s\n" ++
+  "  addi t0, s0, 16\n" ++
+  "  addi t1, s1, 32\n" ++
+  "  li t2, 8\n" ++
+  ".Ltpes_copy_sig:\n" ++
+  "  ld t3, 0(t0); sd t3, 0(t1)\n" ++
+  "  addi t0, t0, 8; addi t1, t1, 8; addi t2, t2, -1\n" ++
+  "  bnez t2, .Ltpes_copy_sig\n" ++
+  "  sd s2, 96(s1)\n" ++
+  "  addi t1, s1, 104\n" ++
+  "  li t2, 8\n" ++
+  ".Ltpes_zero_pubkey:\n" ++
+  "  sd zero, 0(t1)\n" ++
+  "  addi t1, t1, 8; addi t2, t2, -1\n" ++
+  "  bnez t2, .Ltpes_zero_pubkey\n" ++
+  "  li a0, 0\n" ++
+  "  j .Ltpes_ret\n" ++
+  ".Ltpes_bad_recid:\n" ++
+  "  li a0, 1\n" ++
+  ".Ltpes_ret:\n" ++
+  "  ld s0,  0(sp); ld s1,  8(sp); ld s2, 16(sp); ld s3, 24(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
+/-- `zisk_tx_pubkey_ecrecover_stage_material`: probe BuildUnit.
+    Reads the same input as `zisk_tx_pubkey_signature_material`, first builds
+    material at OUTPUT+8, then stages accelerator ABI bytes at OUTPUT+136.
+
+    Output layout:
+      +0    material status
+      +8    128-byte material block
+      +136  stage status
+      +144  staged message hash
+      +176  staged signature r||s
+      +240  staged recid word
+      +248  reserved pubkey buffer -/
+def ziskTxPubkeyEcrecoverStageMaterialPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a5, 0x40000000\n" ++
+  "  ld a1, 8(a5)                # tx_len\n" ++
+  "  ld a2, 16(a5)               # chain_id\n" ++
+  "  addi a0, a5, 24             # tx ptr\n" ++
+  "  li a3, 0xa0010008           # material out\n" ++
+  "  jal ra, tx_pubkey_signature_material\n" ++
+  "  li s0, 0xa0010000\n" ++
+  "  sd a0, 0(s0)                # material status\n" ++
+  "  bnez a0, .Ltpes_probe_done\n" ++
+  "  addi a0, s0, 8              # material ptr\n" ++
+  "  addi a1, s0, 144            # staged ABI ptr\n" ++
+  "  jal ra, tx_pubkey_ecrecover_stage_material\n" ++
+  "  sd a0, 136(s0)              # stage status\n" ++
+  "  j .Ltpes_probe_done\n" ++
+  txTypeDispatchFunction ++ "\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpEncodeUintBeFunction ++ "\n" ++
+  rlpEncodeListPrefixFunction ++ "\n" ++
+  rlpListTruncateToNFieldsFunction ++ "\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  u256IsZeroFunction ++ "\n" ++
+  u256LtBeFunction ++ "\n" ++
+  txLegacyExtractSignatureFunction ++ "\n" ++
+  txEip2930ExtractSignatureFunction ++ "\n" ++
+  txEip1559ExtractSignatureFunction ++ "\n" ++
+  txEip4844ExtractSignatureFunction ++ "\n" ++
+  txEip7702ExtractSignatureFunction ++ "\n" ++
+  txSigningHashFunction ++ "\n" ++
+  txSigningHashLegacyEip155Function ++ "\n" ++
+  txPubkeySignatureMaterialFunction ++ "\n" ++
+  txPubkeyEcrecoverStageMaterialFunction ++ "\n" ++
+  ".Ltpes_probe_done:"
+
 /-- `zisk_tx_pubkey_signature_material`: probe BuildUnit.
     Input layout:
       bytes  0.. 8 : tx byte length
@@ -284,6 +397,12 @@ def ziskTxPubkeySignatureMaterialDataSection : String :=
   "t155_chain_enc:\n  .zero 9\n" ++
   ".balign 8\n" ++
   "t155_prefix_len:\n  .zero 8"
+
+def ziskTxPubkeyEcrecoverStageMaterialProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskTxPubkeyEcrecoverStageMaterialPrologue
+  dataAsm     := ziskTxPubkeySignatureMaterialDataSection
+}
 
 def ziskTxPubkeySignatureMaterialProbeUnit : BuildUnit := {
   body        := NOP
