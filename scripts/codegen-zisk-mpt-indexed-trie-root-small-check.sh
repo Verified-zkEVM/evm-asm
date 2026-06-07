@@ -100,7 +100,26 @@ vals = [('$LARGE0' if i % 2 == 0 else '$LARGE1') for i in range(18)]
 print("[" + ",".join(repr(v) for v in vals) + "]")
 PYGROUP
 )"
-run_case "grouped_large" "$GROUPED_LARGE" 0 || FAILED=1
+run_case "two_large_same_first" "$GROUPED_LARGE" 0 || FAILED=1
+
+ONE_GROUP_16_LARGE="$(python3 - <<PYGROUP16
+vals = [('$LARGE0' if i % 2 == 0 else '$LARGE1') for i in range(32)]
+print("[" + ",".join(repr(v) for v in vals) + "]")
+PYGROUP16
+)"
+run_case "one_group_16_large" "$ONE_GROUP_16_LARGE" 0 || FAILED=1
+
+SPREAD_FIRST_NIBBLES="$(python3 - <<PYSPREAD
+vals = [('$LARGE0' if i % 3 == 0 else '$LARGE1') for i in range(33)]
+print("[" + ",".join(repr(v) for v in vals) + "]")
+PYSPREAD
+)"
+run_case "spread_0_1_2_8" "$SPREAD_FIRST_NIBBLES" 0 || FAILED=1
+
+# Row-12970-shaped: 34 large indexed values, scaled down to keep the probe
+# fast while still exceeding the 128 KiB mpt leaf payload buffer class.
+ROW_12970_SCALED="[(f'{i % 256:02x}' * 4096) for i in range(34)]"
+run_case "row12970_scaled_34" "$ROW_12970_SCALED" 0 || FAILED=1
 
 MANY_VALUES="$(python3 - <<'PY'
 vals = [f"{i % 256:02x}" for i in range(128)]
