@@ -32,7 +32,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bv_block_hash_check_enabled:\n  .zero 8\n" ++
   ".balign 8\n" ++
   "svf_tx_count:\n  .zero 8\n" ++
-  "svf_tx_descriptors:\n  .zero 2048\n" ++
+  "svf_tx_descriptors:\n  .zero 4096\n" ++
   "bah_bal_start:\n  .zero 8\n" ++
   ".balign 8\n" ++
   "sltr_field_len:\n  .zero 8\n" ++
@@ -184,8 +184,8 @@ def ziskStatelessVerdictV2DataSection : String :=
   ".balign 8\n" ++
   "itr_empty_witness:\n  .zero 8\n" ++
   "itr_value_descs:\n  .zero 2048\n" ++
-  "itr_paths:\n  .zero 256\n" ++
-  "itr_changes:\n  .zero 8192\n" ++
+  "itr_paths:\n  .zero 1024\n" ++
+  "itr_changes:\n  .zero 10240\n" ++
   "bvgr_runtime_gas_left_ptr:\n  .zero 8\n" ++
   "bvgr_runtime_refund_counter_ptr:\n  .zero 8\n" ++
   "bvgr_runtime_calldata_floor_ptr:\n  .zero 8\n" ++

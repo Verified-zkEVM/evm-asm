@@ -735,7 +735,7 @@ def statelessVerdictV2Function : String :=
   "  beqz a0, .Lv2_tx_root_fail\n" ++
   "  bgtu a0, s1, .Lv2_tx_root_fail\n" ++
   "  srli s4, a0, 2\n" ++
-  "  li t0, 129; bgeu s4, t0, .Lv2_tx_root_fail\n" ++
+  "  li t0, 257; bgeu s4, t0, .Lv2_tx_root_fail\n" ++
   "  la t0, svf_tx_count; sd s4, 0(t0)\n" ++
   "  li s5, 0\n" ++
   "  la s3, svf_tx_descriptors\n" ++
