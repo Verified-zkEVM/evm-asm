@@ -22,6 +22,8 @@ def ziskStatelessVerdictV2DataSection : String :=
   executionRequestsHashDataSection ++ "\n" ++
   ".balign 32\n" ++
   "svf_bal_hash:\n  .zero 32\n" ++
+  ".balign 32\n" ++
+  "svf_withdrawals_root:\n  .zero 32\n" ++
   ".balign 8\n" ++
   "bah_bal_start:\n  .zero 8\n" ++
   ".balign 8\n" ++
@@ -150,6 +152,8 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bv_versioned_hashes_len:\n  .zero 8\n" ++
   "bv_blob_gas_expected:\n  .zero 8\n" ++
   "bv_blob_gas_observed:\n  .zero 8\n" ++
+  "bv_withdrawals_root_status:\n  .zero 8\n" ++
+  "bv_withdrawals_root_valid:\n  .zero 8\n" ++
   "brr_status:\n  .zero 8\n" ++
   "brr_append_status:\n  .zero 8\n" ++
   "brr_tx_type:\n  .zero 8\n" ++
@@ -160,6 +164,16 @@ def ziskStatelessVerdictV2DataSection : String :=
   "brr_control:\n  .zero 24\n" ++
   ".balign 8\n" ++
   "brr_records:\n  .zero 1024\n" ++
+  "hewr_offset:\n  .zero 8\n" ++
+  "hewr_length:\n  .zero 8\n" ++
+  ".balign 32\n" ++
+  "bvwri_expected_root:\n  .zero 32\n" ++
+  "bvwri_computed_root:\n  .zero 32\n" ++
+  ".balign 8\n" ++
+  "itr_empty_witness:\n  .zero 8\n" ++
+  "itr_value_descs:\n  .zero 2048\n" ++
+  "itr_paths:\n  .zero 256\n" ++
+  "itr_changes:\n  .zero 8192\n" ++
   "bvgr_runtime_gas_left_ptr:\n  .zero 8\n" ++
   "bvgr_runtime_refund_counter_ptr:\n  .zero 8\n" ++
   "bvgr_runtime_calldata_floor_ptr:\n  .zero 8\n" ++
