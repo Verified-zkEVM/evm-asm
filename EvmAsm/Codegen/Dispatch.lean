@@ -1266,70 +1266,73 @@ def createExecuteInitcodeFrameRuntimeFunction : String :=
     through `.exit_label` → `exitBody` → halt stub. -/
 def emitDispatcherEpilogueCore
     (registry : List OpcodeHandlerSpec) (exitBody : Program)
-    (afterDiagnostics : String) : String :=
+    (afterDiagnostics : String) (includeSharedHelpers : Bool := true) : String :=
   String.intercalate "\n" (registry.map OpcodeHandlerSpec.emitSubroutine) ++ "\n" ++
-  -- M16/M27: hash subroutines sit BETWEEN the handler subroutines
-  -- and the `h_invalid:` / `.exit_label:` blocks so it's reachable only
-  -- via explicit `jal`s (not by fall-through from exitBody).
-  -- Each handler subroutine ends with `ret` / `j .dispatch_loop`, so
-  -- they don't fall through into these labels. The subroutines end
-  -- with `ret`, returning to whoever JAL'd them.
-  zkvmSha256Function ++ "\n" ++
-  zkvmKeccak256Function ++ "\n" ++
-  witnessLookupByHashFunction ++ "\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  mptNodeKindFunction ++ "\n" ++
-  mptBranchChildFunction ++ "\n" ++
-  hpDecodeNibblesFunction ++ "\n" ++
-  bytesToNibblesFunction ++ "\n" ++
-  mptWalkFunction ++ "\n" ++
-  mptLookupByKeyFunction ++ "\n" ++
-  rlpFieldToU256BeFunction ++ "\n" ++
-  rlpEncodeBytesFunction ++ "\n" ++
-  rlpEncodeUintBeFunction ++ "\n" ++
-  rlpEncodeListPrefixFunction ++ "\n" ++
-  rlpItemSizeFunction ++ "\n" ++
-  rlpItemSpanFunction ++ "\n" ++
-  msetMemcpyFunction ++ "\n" ++
-  mptSpliceSlotFunction ++ "\n" ++
-  accountDecodeFunction ++ "\n" ++
-  accountAtAddressFunction ++ "\n" ++
-  accountExtractBalanceFunction ++ "\n" ++
-  accountAddBalanceFunction ++ "\n" ++
-  accountSetUintFieldFunction ++ "\n" ++
-  selfdestructBalanceTransferFunction ++ "\n" ++
-  headerExtractStateRootFunction ++ "\n" ++
-  balanceAtHeaderStateRootFunction ++ "\n" ++
-  nonceAtHeaderStateRootFunction ++ "\n" ++
-  accountExistsAtHeaderStateRootFunction ++ "\n" ++
-  accountIsEmptyAtHeaderStateRootFunction ++ "\n" ++
-  extcodehashAtHeaderStateRootFunction ++ "\n" ++
-  extcodesizeAtHeaderStateRootFunction ++ "\n" ++
-  extcodecopyAtHeaderStateRootFunction ++ "\n" ++
-  hasCodeOrNonceAtHeaderStateRootFunction ++ "\n" ++
-  addressComputeCreateFunction ++ "\n" ++
-  addressComputeCreate2Function ++ "\n" ++
-  createStageInitcodeFrameRuntimeFunction ++ "\n" ++
-  createExecuteInitcodeFrameRuntimeFunction ++ "\n" ++
-  zkvmModexpSafeFailWrapper ++ "\n" ++
-  storageAccessGasFunction ++ "\n" ++
-  runtimeAccessAccountSeedFunction ++ "\n" ++
-  runtimeAccessSeedInitialAccountsFunction ++ "\n" ++
-  runtimeAccessAccountChargeFunction ++ "\n" ++
-  eip7708SyntheticLogFunctions ++ "\n" ++
-  zkvmBls12G1AddSafeFailWrapper ++ "\n" ++
-  zkvmBls12G1MsmSafeFailWrapper ++ "\n" ++
-  zkvmBn254G1AddSafeFailWrapper ++ "\n" ++
-  zkvmBn254G1MulSafeFailWrapper ++ "\n" ++
-  zkvmBn254PairingSafeFailWrapper ++ "\n" ++
-  zkvmBlake2fSafeFailWrapper ++ "\n" ++
-  zkvmKzgPointEvalSafeFailWrapper ++ "\n" ++
-  zkvmSecp256r1VerifySafeFailWrapper ++ "\n" ++
-  bls12SafeFailWrapper "zkvm_bls12_g2_add" "0x10d" ++ "\n" ++
-  bls12SafeFailWrapper "zkvm_bls12_g2_msm" "0x10e" ++ "\n" ++
-  bls12SafeFailWrapper "zkvm_bls12_pairing" "0x10f" ++ "\n" ++
-  bls12SafeFailWrapper "zkvm_bls12_map_fp_to_g1" "0x110" ++ "\n" ++
-  bls12SafeFailWrapper "zkvm_bls12_map_fp2_to_g2" "0x111" ++ "\n" ++
+  (if includeSharedHelpers then
+    -- M16/M27: hash subroutines sit BETWEEN the handler subroutines
+    -- and the `h_invalid:` / `.exit_label:` blocks so it's reachable only
+    -- via explicit `jal`s (not by fall-through from exitBody).
+    -- Each handler subroutine ends with `ret` / `j .dispatch_loop`, so
+    -- they don't fall through into these labels. The subroutines end
+    -- with `ret`, returning to whoever JAL'd them.
+    zkvmSha256Function ++ "\n" ++
+    zkvmKeccak256Function ++ "\n" ++
+    witnessLookupByHashFunction ++ "\n" ++
+    rlpListNthItemFunction ++ "\n" ++
+    mptNodeKindFunction ++ "\n" ++
+    mptBranchChildFunction ++ "\n" ++
+    hpDecodeNibblesFunction ++ "\n" ++
+    bytesToNibblesFunction ++ "\n" ++
+    mptWalkFunction ++ "\n" ++
+    mptLookupByKeyFunction ++ "\n" ++
+    rlpFieldToU256BeFunction ++ "\n" ++
+    rlpEncodeBytesFunction ++ "\n" ++
+    rlpEncodeUintBeFunction ++ "\n" ++
+    rlpEncodeListPrefixFunction ++ "\n" ++
+    rlpItemSizeFunction ++ "\n" ++
+    rlpItemSpanFunction ++ "\n" ++
+    msetMemcpyFunction ++ "\n" ++
+    mptSpliceSlotFunction ++ "\n" ++
+    accountDecodeFunction ++ "\n" ++
+    accountAtAddressFunction ++ "\n" ++
+    accountExtractBalanceFunction ++ "\n" ++
+    accountAddBalanceFunction ++ "\n" ++
+    accountSetUintFieldFunction ++ "\n" ++
+    selfdestructBalanceTransferFunction ++ "\n" ++
+    headerExtractStateRootFunction ++ "\n" ++
+    balanceAtHeaderStateRootFunction ++ "\n" ++
+    nonceAtHeaderStateRootFunction ++ "\n" ++
+    accountExistsAtHeaderStateRootFunction ++ "\n" ++
+    accountIsEmptyAtHeaderStateRootFunction ++ "\n" ++
+    extcodehashAtHeaderStateRootFunction ++ "\n" ++
+    extcodesizeAtHeaderStateRootFunction ++ "\n" ++
+    extcodecopyAtHeaderStateRootFunction ++ "\n" ++
+    hasCodeOrNonceAtHeaderStateRootFunction ++ "\n" ++
+    addressComputeCreateFunction ++ "\n" ++
+    addressComputeCreate2Function ++ "\n" ++
+    createStageInitcodeFrameRuntimeFunction ++ "\n" ++
+    createExecuteInitcodeFrameRuntimeFunction ++ "\n" ++
+    zkvmModexpSafeFailWrapper ++ "\n" ++
+    storageAccessGasFunction ++ "\n" ++
+    runtimeAccessAccountSeedFunction ++ "\n" ++
+    runtimeAccessSeedInitialAccountsFunction ++ "\n" ++
+    runtimeAccessAccountChargeFunction ++ "\n" ++
+    eip7708SyntheticLogFunctions ++ "\n" ++
+    zkvmBls12G1AddSafeFailWrapper ++ "\n" ++
+    zkvmBls12G1MsmSafeFailWrapper ++ "\n" ++
+    zkvmBn254G1AddSafeFailWrapper ++ "\n" ++
+    zkvmBn254G1MulSafeFailWrapper ++ "\n" ++
+    zkvmBn254PairingSafeFailWrapper ++ "\n" ++
+    zkvmBlake2fSafeFailWrapper ++ "\n" ++
+    zkvmKzgPointEvalSafeFailWrapper ++ "\n" ++
+    zkvmSecp256r1VerifySafeFailWrapper ++ "\n" ++
+    bls12SafeFailWrapper "zkvm_bls12_g2_add" "0x10d" ++ "\n" ++
+    bls12SafeFailWrapper "zkvm_bls12_g2_msm" "0x10e" ++ "\n" ++
+    bls12SafeFailWrapper "zkvm_bls12_pairing" "0x10f" ++ "\n" ++
+    bls12SafeFailWrapper "zkvm_bls12_map_fp_to_g1" "0x110" ++ "\n" ++
+    bls12SafeFailWrapper "zkvm_bls12_map_fp2_to_g2" "0x111" ++ "\n"
+   else
+    "") ++
   "h_invalid:\n" ++
   "  j .exit_label\n" ++
   -- Exceptional-halt exits (reached only via `j <label>`; `h_invalid`'s
@@ -1494,6 +1497,16 @@ def emitDispatcherCallableEpilogue
     ("  la x5, runtime_dispatcher_caller_ra\n" ++
      "  ld ra, 0(x5)\n" ++
      "  ret\n")
+
+/-- Callable dispatcher epilogue variant for embedding into a guest that already
+    links the shared hash/RLP/MPT/account helper functions. -/
+def emitDispatcherCallableEpilogueSharedHelpers
+    (registry : List OpcodeHandlerSpec) (exitBody : Program) : String :=
+  emitDispatcherEpilogueCore registry exitBody
+    ("  la x5, runtime_dispatcher_caller_ra\n" ++
+     "  ld ra, 0(x5)\n" ++
+     "  ret\n")
+    false
 
 /-- `.data` section layout (starts at `0xa0000000` per
     `Driver.lean`'s `-Tdata=...`):
@@ -1914,12 +1927,33 @@ def emitRuntimeDispatcherCallablePrologue : String :=
   emitRuntimeDispatcherSetup ++ "\n" ++
   emitRuntimeDispatcherLoop
 
+/-- Callable runtime dispatcher text body. This is used both by standalone
+    probes and by larger guests that need `runtime_dispatcher_call` linked as
+    a subroutine while retaining their own `_start` entry path. -/
+def emitRuntimeDispatcherCallableCore
+    (registry : List OpcodeHandlerSpec)
+    (exitBody : Program) : String :=
+  emitRuntimeDispatcherCallablePrologue ++ "\n" ++
+  emitDispatcherCallableEpilogue registry exitBody
+
+
+/-- Callable runtime dispatcher text for embedding into a guest that already
+    links the shared helper functions used by opcode handlers. -/
+def emitRuntimeDispatcherCallableCoreSharedHelpers
+    (registry : List OpcodeHandlerSpec)
+    (exitBody : Program) : String :=
+  emitRuntimeDispatcherCallablePrologue ++ "\n" ++
+  runtimeAccessAccountSeedFunction ++ "\n" ++
+  runtimeAccessSeedInitialAccountsFunction ++ "\n" ++
+  emitDispatcherCallableEpilogueSharedHelpers registry exitBody
+
 /-- Runtime-bytecode `.data` section. Drops the `evm_code:` block
     (no baked bytecode); everything else matches the `.data`-baked
     variant. The static EVM stack arena is sized for the protocol
     1024-word stack depth. -/
-def emitRuntimeDispatcherDataSection
-    (registry : List OpcodeHandlerSpec) : String :=
+def emitRuntimeDispatcherDataSectionCore
+    (registry : List OpcodeHandlerSpec)
+    (includeKeccakScratch includeSharedHelperData : Bool) : String :=
   ".section .data\n" ++
   ".balign 8\n" ++
   "runtime_dispatcher_caller_ra:\n" ++
@@ -1953,21 +1987,24 @@ def emitRuntimeDispatcherDataSection
   "  .zero 4096\n" ++     -- M26: 16 × 256-byte bounded LOG event descriptors
   emitSelfdestructData ++
   eip7708SyntheticLogTopicData ++
-  storageAccessGasData ++
+  (if includeSharedHelperData then storageAccessGasData else "") ++
   emitPrecompileFrameData ++
   emitModexpScratchData ++
-  emitSha256Data ++
-  ".balign 8\n" ++
-  "zk3_state:\n" ++
-  "  .zero 200\n" ++      -- M16: 25 × u64 keccak permutation state buffer
-  emitRuntimeAccountWitnessData ++
+  (if includeSharedHelperData then emitSha256Data else "") ++
+  (if includeKeccakScratch then
+    ".balign 8\n" ++
+    "zk3_state:\n" ++
+    "  .zero 200\n"       -- M16: 25 × u64 keccak permutation state buffer
+   else
+    "") ++
+  (if includeSharedHelperData then emitRuntimeAccountWitnessData else "") ++
   ".balign 8\n" ++
   runtimeAccessAccountCountLabel ++ ":\n" ++
   "  .zero 8\n" ++
   ".balign 32\n" ++
   runtimeAccessAccountTableLabel ++ ":\n" ++
   "  .zero " ++ toString (runtimeAccessAccountCapacity * runtimeAccessAccountRecordSize) ++ "\n" ++
-  runtimeAccessAccountOutcomeData ++
+  (if includeSharedHelperData then runtimeAccessAccountOutcomeData else "") ++
   runtimeAccessSeedScratchLabel ++ ":\n" ++
   "  .zero 32\n" ++
   ".balign 16\n" ++
@@ -2002,6 +2039,27 @@ def emitRuntimeDispatcherDataSection
   emitJumpdestBitmapData ++
   emitGasCostTable ++ "\n" ++
   emitJumpTable registry
+
+/-- Runtime-bytecode `.data` section. Drops the `evm_code:` block
+    (no baked bytecode); everything else matches the `.data`-baked
+    variant. The static EVM stack arena is sized for the protocol
+    1024-word stack depth. -/
+def emitRuntimeDispatcherDataSection
+    (registry : List OpcodeHandlerSpec) : String :=
+  emitRuntimeDispatcherDataSectionCore registry true true
+
+/-- Runtime dispatcher data for guests that already provide the shared
+    `zk3_state` keccak scratch in their own data section. -/
+def emitRuntimeDispatcherDataSectionSharedKeccak
+    (registry : List OpcodeHandlerSpec) : String :=
+  emitRuntimeDispatcherDataSectionCore registry false true
+
+/-- Runtime dispatcher data for embedding into `stateless_guest`, which already
+    links both `zk3_state` and the helper scratch records used by the runtime
+    opcode helper functions. -/
+def emitRuntimeDispatcherDataSectionSharedGuest
+    (registry : List OpcodeHandlerSpec) : String :=
+  emitRuntimeDispatcherDataSectionCore registry false false
 
 /-- Build a runtime-bytecode `BuildUnit` for `registry` + `exitBody`.
     The emitted ELF doesn't carry any bytecode — the test harness
