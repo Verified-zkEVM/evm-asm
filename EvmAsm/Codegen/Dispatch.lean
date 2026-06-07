@@ -30,6 +30,7 @@ import EvmAsm.Codegen.Programs.StateCompose
 import EvmAsm.Codegen.Programs.StatePredicates
 import EvmAsm.Codegen.Programs.EvmAccessGas
 import EvmAsm.Codegen.Programs.AccountBalance
+import EvmAsm.Codegen.Programs.EIP7708Logs
 
 namespace EvmAsm.Codegen
 
@@ -430,13 +431,21 @@ def emitPrecompileFrameData : String :=
     before SELFDESTRUCT reaches balance/deletion handling. It defaults to zero.
     `evm_selfdestruct_staged` is a u64 flag used by the test/diagnostic surface
     until later account-access/state children consume this staged beneficiary
-    directly. -/
+    directly. `evm_selfdestruct_log_status` records the EIP-7708 synthetic-log
+    bridge: 0 success/no-log, 1 skipped before account inputs, 2 balance parse
+    failure, 3 append failure. -/
 def emitSelfdestructData : String :=
   ".balign 32\n" ++
   "evm_selfdestruct_beneficiary:\n" ++
   "  .zero 32\n" ++
+  ".balign 32\n" ++
+  "evm_selfdestruct_balance_scratch:\n" ++
+  "  .zero 32\n" ++
   ".balign 8\n" ++
   "evm_selfdestruct_created_in_tx:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "evm_selfdestruct_log_status:\n" ++
   "  .zero 8\n" ++
   ".balign 8\n" ++
   "evm_selfdestruct_staged:\n" ++
@@ -959,6 +968,7 @@ def emitDispatcherEpilogue
   runtimeAccessAccountSeedFunction ++ "\n" ++
   runtimeAccessSeedInitialAccountsFunction ++ "\n" ++
   runtimeAccessAccountChargeFunction ++ "\n" ++
+  eip7708SyntheticLogFunctions ++ "\n" ++
   zkvmBls12G1AddSafeFailWrapper ++ "\n" ++
   zkvmBls12G1MsmSafeFailWrapper ++ "\n" ++
   zkvmBn254G1AddSafeFailWrapper ++ "\n" ++
@@ -1175,6 +1185,7 @@ def emitDispatcherDataSection
   "evm_event_logs:\n" ++
   "  .zero 4096\n" ++     -- M26: 16 × 256-byte bounded LOG event descriptors
   emitSelfdestructData ++
+  eip7708SyntheticLogTopicData ++
   storageAccessGasData ++
   emitPrecompileFrameData ++
   emitModexpScratchData ++
@@ -1546,6 +1557,7 @@ def emitRuntimeDispatcherDataSection
   "evm_event_logs:\n" ++
   "  .zero 4096\n" ++     -- M26: 16 × 256-byte bounded LOG event descriptors
   emitSelfdestructData ++
+  eip7708SyntheticLogTopicData ++
   storageAccessGasData ++
   emitPrecompileFrameData ++
   emitModexpScratchData ++

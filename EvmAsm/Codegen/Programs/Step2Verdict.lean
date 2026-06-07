@@ -234,9 +234,9 @@ def ziskStep2VerdictDataSection : String :=
   ".balign 32\n" ++
   "hvph_computed:\n  .zero 32\n" ++
   ".balign 8\n" ++
-  "vhrp_this_struct:\n  .zero 128\n" ++
+  "vhrp_this_struct:\n  .zero 144\n" ++
   ".balign 8\n" ++
-  "vhrp_parent_struct:\n  .zero 128\n" ++
+  "vhrp_parent_struct:\n  .zero 144\n" ++
   -- block_header_ssz_to_rlp extras (zk3_state already present)
   ".balign 32\n" ++
   "bhr_empty_ommers:\n" ++

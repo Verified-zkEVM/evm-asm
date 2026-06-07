@@ -8,6 +8,7 @@
 import EvmAsm.Codegen.Dispatch
 import EvmAsm.Codegen.Programs.EvmAccessGas
 import EvmAsm.Codegen.Programs.AccountBalance
+import EvmAsm.Codegen.Programs.EIP7708Logs
 
 namespace EvmAsm.Codegen
 
@@ -256,6 +257,112 @@ def selfdestructBalanceTransferRuntimeAsm : String :=
   ".L_selfdestruct_transfer_done:\n"
 
 /--
+Append the EIP-7708 synthetic Transfer/Burn log for a successful
+SELFDESTRUCT balance transfer.
+
+The runtime already has the pre-transfer origin account RLP, beneficiary,
+same-address relation, and created-in-transaction marker. This mirrors
+execution-specs:
+  * created-in-tx selfdestruct-to-self emits Burn(origin, balance);
+  * different beneficiary emits Transfer(origin, beneficiary, balance);
+  * zero balance and pre-existing selfdestruct-to-self emit no log.
+
+`evm_selfdestruct_log_status` records 0 success/no-log, 1 skipped because the
+account-transfer stage did not run, 2 origin balance parse failure, 3 synthetic
+log append failure. -/
+def selfdestructEip7708LogRuntimeAsm : String :=
+  "  la t0, evm_selfdestruct_log_status\n" ++
+  "  li t1, 1\n" ++
+  "  sd t1, 0(t0)\n" ++
+  "  la t0, sdai_transfer_status\n" ++
+  "  ld t1, 0(t0)\n" ++
+  "  bnez t1, .L_selfdestruct_eip7708_done\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd x10, 0(sp)\n" ++
+  "  sd x12, 8(sp)\n" ++
+  "  la a0, sdai_origin_rlp\n" ++
+  "  la t0, sdai_origin_len\n" ++
+  "  ld a1, 0(t0)\n" ++
+  "  la a2, evm_selfdestruct_balance_scratch\n" ++
+  "  jal ra, account_extract_balance\n" ++
+  "  mv t6, a0\n" ++
+  "  ld x10, 0(sp)\n" ++
+  "  ld x12, 8(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  bnez t6, .L_selfdestruct_eip7708_balance_fail\n" ++
+  "  la t0, evm_selfdestruct_balance_scratch\n" ++
+  "  addi t1, t0, 31\n" ++
+  "  li t2, 16\n" ++
+  ".L_selfdestruct_eip7708_balance_rev:\n" ++
+  "  lbu t3, 0(t0)\n" ++
+  "  lbu t4, 0(t1)\n" ++
+  "  sb t4, 0(t0)\n" ++
+  "  sb t3, 0(t1)\n" ++
+  "  addi t0, t0, 1\n" ++
+  "  addi t1, t1, -1\n" ++
+  "  addi t2, t2, -1\n" ++
+  "  bnez t2, .L_selfdestruct_eip7708_balance_rev\n" ++
+  "  la t0, sdai_origin_address\n" ++
+  "  la t1, evm_selfdestruct_beneficiary\n" ++
+  "  li t2, 20\n" ++
+  "  li t3, 1\n" ++
+  ".L_selfdestruct_eip7708_same_loop:\n" ++
+  "  lbu t4, 0(t0)\n" ++
+  "  lbu t5, 0(t1)\n" ++
+  "  bne t4, t5, .L_selfdestruct_eip7708_not_same\n" ++
+  "  addi t0, t0, 1\n" ++
+  "  addi t1, t1, 1\n" ++
+  "  addi t2, t2, -1\n" ++
+  "  bnez t2, .L_selfdestruct_eip7708_same_loop\n" ++
+  "  j .L_selfdestruct_eip7708_same_ready\n" ++
+  ".L_selfdestruct_eip7708_not_same:\n" ++
+  "  li t3, 0\n" ++
+  ".L_selfdestruct_eip7708_same_ready:\n" ++
+  "  beqz t3, .L_selfdestruct_eip7708_transfer\n" ++
+  "  la t0, evm_selfdestruct_created_in_tx\n" ++
+  "  ld t1, 0(t0)\n" ++
+  "  beqz t1, .L_selfdestruct_eip7708_success\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd x10, 0(sp)\n" ++
+  "  sd x12, 8(sp)\n" ++
+  "  la a0, sdai_origin_address\n" ++
+  "  la a1, evm_selfdestruct_balance_scratch\n" ++
+  "  jal ra, eip7708_append_burn_log\n" ++
+  "  mv t6, a0\n" ++
+  "  ld x10, 0(sp)\n" ++
+  "  ld x12, 8(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  bnez t6, .L_selfdestruct_eip7708_append_fail\n" ++
+  "  j .L_selfdestruct_eip7708_success\n" ++
+  ".L_selfdestruct_eip7708_transfer:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd x10, 0(sp)\n" ++
+  "  sd x12, 8(sp)\n" ++
+  "  la a0, sdai_origin_address\n" ++
+  "  la a1, evm_selfdestruct_beneficiary\n" ++
+  "  la a2, evm_selfdestruct_balance_scratch\n" ++
+  "  jal ra, eip7708_append_transfer_log\n" ++
+  "  mv t6, a0\n" ++
+  "  ld x10, 0(sp)\n" ++
+  "  ld x12, 8(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  bnez t6, .L_selfdestruct_eip7708_append_fail\n" ++
+  ".L_selfdestruct_eip7708_success:\n" ++
+  "  la t0, evm_selfdestruct_log_status\n" ++
+  "  sd x0, 0(t0)\n" ++
+  "  j .L_selfdestruct_eip7708_done\n" ++
+  ".L_selfdestruct_eip7708_balance_fail:\n" ++
+  "  la t0, evm_selfdestruct_log_status\n" ++
+  "  li t1, 2\n" ++
+  "  sd t1, 0(t0)\n" ++
+  "  j .L_selfdestruct_eip7708_done\n" ++
+  ".L_selfdestruct_eip7708_append_fail:\n" ++
+  "  la t0, evm_selfdestruct_log_status\n" ++
+  "  li t1, 3\n" ++
+  "  sd t1, 0(t0)\n" ++
+  ".L_selfdestruct_eip7708_done:\n"
+
+/--
 Runtime-layout probe for `selfdestructLoadAccountInputsAsm`.
 
 Input is the normal `scripts/pack-bytecode.py` runtime payload. The bytecode
@@ -270,6 +377,7 @@ Output:
   bytes  32.. 40 : transfer status
   bytes  40.. 48 : transfer origin result RLP length
   bytes  48.. 56 : transfer beneficiary result RLP length
+  bytes  56.. 64 : EIP-7708 log status
   bytes  64..160 : origin account RLP bytes, zero-padded/truncated
   bytes 160..256 : beneficiary account RLP bytes, zero-padded/truncated
 -/
@@ -292,6 +400,7 @@ def runtimeSelfdestructAccountInputsPrologue : String :=
   "  sd t3, 0(t0)\n" ++
   selfdestructLoadAccountInputsAsm ++
   selfdestructBalanceTransferRuntimeAsm ++
+  selfdestructEip7708LogRuntimeAsm ++
   "  li t0, 0xa0010000\n" ++
   "  la t1, sdai_status\n" ++
   "  ld t2, 0(t1)\n" ++
@@ -314,6 +423,9 @@ def runtimeSelfdestructAccountInputsPrologue : String :=
   "  la t1, sdai_transfer_beneficiary_len\n" ++
   "  ld t2, 0(t1)\n" ++
   "  sd t2, 48(t0)\n" ++
+  "  la t1, evm_selfdestruct_log_status\n" ++
+  "  ld t2, 0(t1)\n" ++
+  "  sd t2, 56(t0)\n" ++
   "  la t1, sdai_transfer_output\n" ++
   "  ld t2, 0(t1)\n" ++
   "  addi t1, t1, 16\n" ++
@@ -366,6 +478,7 @@ def runtimeSelfdestructAccountInputsPrologue : String :=
   accountAddBalanceFunction ++ "\n" ++
   accountSetUintFieldFunction ++ "\n" ++
   selfdestructBalanceTransferFunction ++ "\n" ++
+  eip7708SyntheticLogFunctions ++ "\n" ++
   runtimeAccessAccountSeedFunction ++ "\n" ++
   runtimeAccessSeedInitialAccountsFunction ++ "\n" ++
   ".exit_outofgas:\n" ++
@@ -394,6 +507,7 @@ def runtimeSelfdestructAccountInputsDataSection : String :=
   ".balign 8\n" ++
   "evm_event_logs:\n" ++
   "  .zero 4096\n" ++
+  eip7708SyntheticLogTopicData ++
   emitPrecompileFrameData ++
   emitSha256Data ++
   ".balign 8\n" ++
@@ -411,8 +525,14 @@ def runtimeSelfdestructAccountInputsDataSection : String :=
   ".balign 32\n" ++
   "evm_selfdestruct_beneficiary:\n" ++
   "  .zero 32\n" ++
+  ".balign 32\n" ++
+  "evm_selfdestruct_balance_scratch:\n" ++
+  "  .zero 32\n" ++
   ".balign 8\n" ++
   "evm_selfdestruct_created_in_tx:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "evm_selfdestruct_log_status:\n" ++
   "  .zero 8\n" ++
   ".balign 8\n" ++
   "evm_selfdestruct_staged:\n" ++
@@ -425,6 +545,84 @@ def runtimeSelfdestructAccountInputsDataSection : String :=
 def runtimeSelfdestructAccountInputsProbeUnit : BuildUnit := {
   body        := NOP
   prologueAsm := runtimeSelfdestructAccountInputsPrologue
+  dataAsm     := runtimeSelfdestructAccountInputsDataSection
+}
+
+/-- Runtime-layout probe for SELFDESTRUCT EIP-7708 log bridging.
+
+Input matches `runtime_selfdestruct_account_inputs`; output is the first
+256-byte captured log descriptor, or all zeros when no log is emitted. -/
+def runtimeSelfdestructEip7708LogsPrologue : String :=
+  emitRuntimeDispatcherSetup ++ "\n" ++
+  "  la t0, evm_selfdestruct_created_in_tx\n" ++
+  "  sd x0, 0(t0)\n" ++
+  "  la t0, evm_event_logs\n" ++
+  "  li t1, 512\n" ++
+  ".L_rsdl_zero_logs:\n" ++
+  "  sd x0, 0(t0)\n" ++
+  "  addi t0, t0, 8\n" ++
+  "  addi t1, t1, -1\n" ++
+  "  bnez t1, .L_rsdl_zero_logs\n" ++
+  "  sd x0, 472(x20)\n" ++
+  "  la t0, evm_selfdestruct_beneficiary\n" ++
+  "  li t1, 20\n" ++
+  "  mv t2, x21\n" ++
+  ".L_rsdl_copy_beneficiary:\n" ++
+  "  lbu t3, 0(t2)\n" ++
+  "  sb t3, 0(t0)\n" ++
+  "  addi t2, t2, 1\n" ++
+  "  addi t0, t0, 1\n" ++
+  "  addi t1, t1, -1\n" ++
+  "  bnez t1, .L_rsdl_copy_beneficiary\n" ++
+  "  lbu t3, 0(t2)\n" ++
+  "  la t0, evm_selfdestruct_created_in_tx\n" ++
+  "  sd t3, 0(t0)\n" ++
+  selfdestructLoadAccountInputsAsm ++
+  selfdestructBalanceTransferRuntimeAsm ++
+  selfdestructEip7708LogRuntimeAsm ++
+  "  li t0, 0xa0010000\n" ++
+  "  la t1, evm_event_logs\n" ++
+  "  li t2, 32\n" ++
+  ".L_rsdl_copy_desc:\n" ++
+  "  ld t3, 0(t1)\n" ++
+  "  sd t3, 0(t0)\n" ++
+  "  addi t1, t1, 8\n" ++
+  "  addi t0, t0, 8\n" ++
+  "  addi t2, t2, -1\n" ++
+  "  bnez t2, .L_rsdl_copy_desc\n" ++
+  "  j .L_rsdl_done\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  witnessLookupByHashFunction ++ "\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  mptNodeKindFunction ++ "\n" ++
+  mptBranchChildFunction ++ "\n" ++
+  hpDecodeNibblesFunction ++ "\n" ++
+  bytesToNibblesFunction ++ "\n" ++
+  mptWalkFunction ++ "\n" ++
+  mptLookupByKeyFunction ++ "\n" ++
+  headerExtractStateRootFunction ++ "\n" ++
+  rlpFieldToU256BeFunction ++ "\n" ++
+  rlpEncodeBytesFunction ++ "\n" ++
+  rlpEncodeUintBeFunction ++ "\n" ++
+  rlpEncodeListPrefixFunction ++ "\n" ++
+  rlpItemSizeFunction ++ "\n" ++
+  rlpItemSpanFunction ++ "\n" ++
+  msetMemcpyFunction ++ "\n" ++
+  mptSpliceSlotFunction ++ "\n" ++
+  accountExtractBalanceFunction ++ "\n" ++
+  accountAddBalanceFunction ++ "\n" ++
+  accountSetUintFieldFunction ++ "\n" ++
+  selfdestructBalanceTransferFunction ++ "\n" ++
+  eip7708SyntheticLogFunctions ++ "\n" ++
+  runtimeAccessAccountSeedFunction ++ "\n" ++
+  runtimeAccessSeedInitialAccountsFunction ++ "\n" ++
+  ".exit_outofgas:\n" ++
+  "  j .L_rsdl_done\n" ++
+  ".L_rsdl_done:"
+
+def runtimeSelfdestructEip7708LogsProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := runtimeSelfdestructEip7708LogsPrologue
   dataAsm     := runtimeSelfdestructAccountInputsDataSection
 }
 
