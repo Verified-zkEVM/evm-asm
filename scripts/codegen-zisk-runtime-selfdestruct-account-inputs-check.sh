@@ -34,6 +34,11 @@ lake exe codegen --program runtime_selfdestruct_account_inputs \
   --halt linux93 \
   -o gen-out/runtime_selfdestruct_account_inputs
 
+echo "==> emit runtime_selfdestruct_eip7708_logs ELF"
+lake exe codegen --program runtime_selfdestruct_eip7708_logs \
+  --halt linux93 \
+  -o gen-out/runtime_selfdestruct_eip7708_logs
+
 make_case() {
   local name="$1" origin="$2" beneficiary="$3" created_in_tx="$4" origin_nonce="$5" origin_balance="$6" origin_code_hex="$7" beneficiary_nonce="$8" beneficiary_balance="$9" beneficiary_code_hex="${10}"
   uv run --directory execution-specs --quiet python3 - \
@@ -171,10 +176,40 @@ expected = (
     beneficiary_expected.ljust(96, b'\0')
 )
 
+TRANSFER_TOPIC = bytes.fromhex('ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef')
+BURN_TOPIC = bytes.fromhex('cc16f5dbb4873280815c1ee09dbd06736cffcc184412cf7a71a0fdb75d397ca5')
+
+def word_from_be32(value):
+    return value[::-1]
+
+def descriptor(topic_count, topics, amount_word):
+    d = bytearray(256)
+    struct.pack_into('<Q', d, 0, topic_count)
+    struct.pack_into('<Q', d, 16, 32)
+    struct.pack_into('<Q', d, 24, 32)
+    for i, topic in enumerate(topics):
+        d[32 + 32 * i : 64 + 32 * i] = topic
+    d[160:192] = amount_word[::-1]
+    d[192:224] = bytes.fromhex('fe' + 'ff' * 19) + bytes(12)
+    return bytes(d)
+
+origin_word = origin + bytes(12)
+beneficiary_word = beneficiary + bytes(12)
+amount_word = origin_balance.to_bytes(32, 'little')
+if origin_balance == 0:
+    log_expected = bytes(256)
+elif origin == beneficiary and created_in_tx:
+    log_expected = descriptor(2, [word_from_be32(BURN_TOPIC), origin_word], amount_word)
+elif origin != beneficiary:
+    log_expected = descriptor(3, [word_from_be32(TRANSFER_TOPIC), origin_word, beneficiary_word], amount_word)
+else:
+    log_expected = bytes(256)
+
 out.mkdir(parents=True, exist_ok=True)
 out.joinpath('header.bin').write_bytes(header)
 out.joinpath('state.bin').write_bytes(witness_state)
 out.joinpath('expected.bin').write_bytes(expected)
+out.joinpath('log.expected.bin').write_bytes(log_expected)
 out.joinpath('origin.hex').write_text(origin.hex())
 out.joinpath('bytecode.csv').write_text(
     ', '.join(f'0x{x:02x}' for x in beneficiary + bytes([created_in_tx]))
@@ -216,6 +251,24 @@ for name in same_account same_created_burn different_beneficiary zero_balance_di
     printf "  %-12s OK\n" "$name"
   else
     printf "  %-12s FAIL\n    expected: %s\n    actual:   %s\n" "$name" "$expected" "$actual"
+    FAILED=1
+  fi
+
+  echo "==> ziskemu $name logs"
+  if ! "$ZISKEMU" -e gen-out/runtime_selfdestruct_eip7708_logs.elf \
+    -i "$RUN_DIR/$name/input.bin" \
+    -o "$RUN_DIR/$name/log.output.bin" \
+    -n 5000000 \
+    >"$RUN_DIR/$name/log.emu.log" 2>&1; then
+    FAILED=1
+  fi
+
+  actual_log="$(xxd -p -l 256 "$RUN_DIR/$name/log.output.bin" 2>/dev/null | tr -d '\n')"
+  expected_log="$(xxd -p -l 256 "$RUN_DIR/$name/log.expected.bin" | tr -d '\n')"
+  if [[ "$actual_log" == "$expected_log" ]]; then
+    printf "  %-12s log OK\n" "$name"
+  else
+    printf "  %-12s log FAIL\n    expected: %s\n    actual:   %s\n" "$name" "$expected_log" "$actual_log"
     FAILED=1
   fi
 done

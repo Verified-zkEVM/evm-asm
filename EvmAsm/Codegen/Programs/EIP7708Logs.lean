@@ -161,6 +161,15 @@ def eip7708SyntheticLogFunctions : String :=
   "  addi sp, sp, 24\n" ++
   "  ret\n"
 
+def eip7708SyntheticLogTopicData : String :=
+  ".balign 8\n" ++
+  "eip7708_transfer_topic:\n" ++
+  "  .quad 0x28f55a4df523b3ef, 0x952ba7f163c4a116\n" ++
+  "  .quad 0x69c2b068fc378daa, 0xddf252ad1be2c89b\n" ++
+  "eip7708_burn_topic:\n" ++
+  "  .quad 0x71a0fdb75d397ca5, 0x6cffcc184412cf7a\n" ++
+  "  .quad 0x815c1ee09dbd0673, 0xcc16f5dbb4873280\n"
+
 def eip7708SyntheticLogDataSection : String :=
   ".section .data\n" ++
   ".balign 8\n" ++
@@ -169,13 +178,7 @@ def eip7708SyntheticLogDataSection : String :=
   ".balign 8\n" ++
   "evm_event_logs:\n" ++
   "  .zero 4096\n" ++
-  ".balign 8\n" ++
-  "eip7708_transfer_topic:\n" ++
-  "  .quad 0x28f55a4df523b3ef, 0x952ba7f163c4a116\n" ++
-  "  .quad 0x69c2b068fc378daa, 0xddf252ad1be2c89b\n" ++
-  "eip7708_burn_topic:\n" ++
-  "  .quad 0x71a0fdb75d397ca5, 0x6cffcc184412cf7a\n" ++
-  "  .quad 0x815c1ee09dbd0673, 0xcc16f5dbb4873280\n" ++
+  eip7708SyntheticLogTopicData ++
   "eip7708_probe_sender:\n" ++
   "  .quad 0x1111111111111111, 0x1111111111111111, 0x0000000011111111, 0\n" ++
   "eip7708_probe_recipient:\n" ++
