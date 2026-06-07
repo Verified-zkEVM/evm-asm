@@ -3,7 +3,8 @@
 
   system_write_descriptors (bead evm-asm-fhsxz.2.4.2.5, steps a/b): derive the
   per-block SYSTEM-contract storage writes from the ExecutionPayload — the two
-  system calls every Amsterdam block runs at block start (before withdrawals):
+  modeled startup effects of the two unchecked system calls every Amsterdam
+  block runs at block start (before withdrawals):
 
     * EIP-2935 (history contract 0x0000…2935):
         slot  = (block_number - 1) % 8192
@@ -23,11 +24,14 @@
   history buffer before encoding the 32-byte big-endian storage key.
 
   Outputs feed account_apply_storage_slot (one per system contract) in the
-  verdict's state recompute.
+  verdict's state recompute.  Shared Amsterdam system-transaction gas and
+  reservoir constants live in AmsterdamSystemTx.lean; this helper is the current
+  direct-descriptor shortcut for the EIP-4788/EIP-2935 startup calls.
 -/
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Programs.AmsterdamSystemTx
 
 namespace EvmAsm.Codegen
 

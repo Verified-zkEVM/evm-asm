@@ -10,6 +10,7 @@ import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.TxExtract
 import EvmAsm.Codegen.Programs.IntrinsicGas
+import EvmAsm.Codegen.Programs.AmsterdamSystemTx
 
 namespace EvmAsm.Codegen
 
@@ -105,7 +106,8 @@ def eip8037TxGasGateFunction : String :=
   "  jal ra, rlp_list_nth_item\n" ++
   "  bnez a0, .Lesub_next_slot\n" ++
   "  la t0, bsg_value_len; ld t1, 0(t0); beqz t1, .Lesub_next_slot\n" ++
-  "  ld t2, 0(s3); li t3, 97920; add t2, t2, t3; sd t2, 0(s3)\n" ++
+  "  ld t2, 0(s3);" ++ liAmsterdamStorageSetStateGas "t3" ++
+  "  add t2, t2, t3; sd t2, 0(s3)\n" ++
   ".Lesub_next_slot:\n" ++
   "  addi s6, s6, 1; j .Lesub_slot_loop\n" ++
   ".Lesub_next_acct:\n" ++
@@ -268,7 +270,7 @@ def eip8037TxGasGateFunction : String :=
   "  # Non-creation txs have zero intrinsic state here.\n" ++
   "  li t6, 0\n" ++
   "  la t0, bsg_to_len; ld t2, 0(t0); bnez t2, .Letg_intrinsic_done\n" ++
-  "  li t6, 183600\n" ++
+  liAmsterdamNewAccountStateGas "t6" ++
   ".Letg_intrinsic_done:\n" ++
   "  li t2, 0\n" ++
   "  bltu t1, t6, .Letg_regular_have\n" ++
