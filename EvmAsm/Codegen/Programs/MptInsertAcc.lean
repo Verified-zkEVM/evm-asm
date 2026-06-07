@@ -67,6 +67,7 @@ def mptInsertAccFunction : String :=
   "  mv a0, s1; mv a1, s2; mv a2, s3; mv a3, s4\n" ++
   "  la a4, ins_node; la a5, ins_node_len\n" ++
   "  jal ra, mpt_leaf_node_encode_from_nibbles\n" ++
+  "  bnez a0, .Lacc_fail\n" ++
   "  la a0, ins_node; la t0, ins_node_len; ld a1, 0(t0)\n" ++
   "  jal ra, node_db_append\n" ++
   "  la a0, ins_node; la t0, ins_node_len; ld a1, 0(t0); mv a2, s5\n" ++
@@ -87,6 +88,7 @@ def mptInsertAccFunction : String :=
   "  la t0, ins_lv_ptr; ld a2, 0(t0); la t0, ins_lv_len; ld a3, 0(t0)\n" ++
   "  la a4, ins_node; la a5, ins_node_len\n" ++
   "  jal ra, mpt_leaf_node_encode_from_nibbles\n" ++
+  "  bnez a0, .Lacc_fail\n" ++
   "  la a0, ins_node; la t0, ins_node_len; ld a1, 0(t0)\n" ++
   "  jal ra, node_db_append\n" ++
   "  la a0, ins_node; la t0, ins_node_len; ld a1, 0(t0)\n" ++
@@ -98,6 +100,7 @@ def mptInsertAccFunction : String :=
   "  mv a2, s3; mv a3, s4\n" ++
   "  la a4, ins_node2; la a5, ins_node2_len\n" ++
   "  jal ra, mpt_leaf_node_encode_from_nibbles\n" ++
+  "  bnez a0, .Lacc_fail\n" ++
   "  la a0, ins_node2; la t0, ins_node2_len; ld a1, 0(t0)\n" ++
   "  jal ra, node_db_append\n" ++
   "  la a0, ins_node2; la t0, ins_node2_len; ld a1, 0(t0)\n" ++
@@ -197,6 +200,7 @@ def mptInsertAccFunction : String :=
   "  mv a2, s3; mv a3, s4\n" ++
   "  la a4, ins_node2; la a5, ins_node2_len\n" ++
   "  jal ra, mpt_leaf_node_encode_from_nibbles\n" ++
+  "  bnez a0, .Lacc_fail\n" ++
   "  la a0, ins_node2; la t0, ins_node2_len; ld a1, 0(t0)\n" ++
   "  jal ra, node_db_append\n" ++
   "  la a0, ins_node2; la t0, ins_node2_len; ld a1, 0(t0)\n" ++
@@ -242,6 +246,7 @@ def mptInsertAccFunction : String :=
   "  mv a2, s3; mv a3, s4\n" ++
   "  la a4, ins_node; la a5, ins_node_len\n" ++
   "  jal ra, mpt_leaf_node_encode_from_nibbles\n" ++
+  "  bnez a0, .Lacc_fail\n" ++
   "  la a0, ins_node; la t0, ins_node_len; ld a1, 0(t0)\n" ++
   "  jal ra, node_db_append\n" ++
   "  la a0, ins_node; la t0, ins_node_len; ld a1, 0(t0)\n" ++

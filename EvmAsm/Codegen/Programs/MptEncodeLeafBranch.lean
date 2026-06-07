@@ -14,6 +14,15 @@ namespace EvmAsm.Codegen
 open EvmAsm.Rv64
 open EvmAsm.Rv64.Program
 
+/-! Conservative bound for `mlnen_payload_buf`.
+
+    The helper RLP-encodes `hp_path || value` into a fixed 16 KiB scratch.
+    Keep the accepted raw value below that capacity with enough room for the
+    value's own RLP prefix and the small HP field. Larger values need a
+    streaming/large-buffer path; returning failure is better than corrupting
+    adjacent globals. -/
+def mptLeafNodeMaxScratchValueBytes : Nat := 16000
+
 /-! ## mpt_leaf_node_encode_from_nibbles -- PR-K168
 
     Encode an MPT leaf node directly from a *nibble* path (one
@@ -66,6 +75,8 @@ def mptLeafNodeEncodeFromNibblesFunction : String :=
   "  bgeu s4, t0, .Lmlnen_fail\n" ++
   "  li t0, 0xbffffff8\n" ++
   "  bgtu s5, t0, .Lmlnen_fail\n" ++
+  "  li t0, " ++ toString mptLeafNodeMaxScratchValueBytes ++ "\n" ++
+  "  bgtu s3, t0, .Lmlnen_fail\n" ++
   "  # ---- Step 1: HP-encode (leaf=true) ----\n" ++
   "  mv a0, s0; mv a1, s1; li a2, 1\n" ++
   "  la a3, mlnen_hp_buf\n" ++
