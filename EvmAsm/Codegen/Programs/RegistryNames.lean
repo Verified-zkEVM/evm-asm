@@ -244,6 +244,7 @@ def knownProgramNames : List String :=
    "zisk_eip7702_authorization_signing_hash",
    "zisk_tx_pubkey_signature_material",
    "zisk_tx_pubkey_ecrecover_stage_material",
+   "zisk_tx_pubkey_recover_raw_status",
    "zisk_header_minimal_decode",
    "zisk_header_extended_decode",
    "zisk_coinbase_extract_from_header",
