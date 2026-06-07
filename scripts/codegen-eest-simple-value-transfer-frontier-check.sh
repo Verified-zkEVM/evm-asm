@@ -11,7 +11,7 @@ cd "$(dirname "$0")/.."
 
 LIMIT="${EEST_SIMPLE_TRANSFER_LIMIT:-1}"
 SKIP="${EEST_SIMPLE_TRANSFER_SKIP:-0}"
-JOBS="${EEST_SIMPLE_TRANSFER_JOBS:-${EEST_JOBS:-3}}"
+JOBS="${EEST_SIMPLE_TRANSFER_JOBS:-${EEST_JOBS:-2}}"
 STEPS="${EEST_SIMPLE_TRANSFER_STEPS:-${EEST_STEPS:-1000000000}}"
 MAX_FAILURES="${EEST_SIMPLE_TRANSFER_MAX_FAILURES:-1}"
 FILTERS=()
@@ -27,7 +27,7 @@ Options:
                                (default: validation/transaction and transaction_validity)
   --skip N                     skip first N selected fixtures per filter (default: 0)
   --limit N                    per-filter fixture cap (default: 1)
-  --jobs N|auto                ziskemu jobs (default: $EEST_SIMPLE_TRANSFER_JOBS, $EEST_JOBS, or 3)
+  --jobs N|auto                ziskemu jobs (default: $EEST_SIMPLE_TRANSFER_JOBS, $EEST_JOBS, or 2)
   --steps N                    ziskemu max steps (default: $EEST_SIMPLE_TRANSFER_STEPS, $EEST_STEPS, or 1000000000)
   --max-failures N             stop each filter after N failures (default: 1)
   --stop-after-failures N      alias for --max-failures
