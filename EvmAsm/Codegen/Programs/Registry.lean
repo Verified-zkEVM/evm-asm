@@ -49,6 +49,7 @@ import EvmAsm.Codegen.Programs.HashProbes
 import EvmAsm.Codegen.Programs.Modexp
 import EvmAsm.Codegen.Programs.PrecompileBackendProbes
 import EvmAsm.Codegen.Programs.PrecompileRuntime
+import EvmAsm.Codegen.Programs.Secp256k1Field
 import EvmAsm.Codegen.Programs.Selfdestruct
 import EvmAsm.Codegen.Programs.SelfdestructDescriptors
 import EvmAsm.Codegen.Programs.StatelessGuestData
@@ -545,6 +546,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_eip7702_authorization_signing_hash" => some ziskEip7702AuthorizationSigningHashProbeUnit
   | "zisk_tx_pubkey_signature_material" => some ziskTxPubkeySignatureMaterialProbeUnit
   | "zisk_tx_pubkey_ecrecover_stage_material" => some ziskTxPubkeyEcrecoverStageMaterialProbeUnit
+  | "zisk_tx_pubkey_recover_raw_status" => some ziskTxPubkeyRecoverRawStatusProbeUnit
   | "zisk_header_minimal_decode" => some ziskHeaderMinimalDecodeProbeUnit
   | "zisk_header_extended_decode" => some ziskHeaderExtendedDecodeProbeUnit
   | "zisk_coinbase_extract_from_header" => some ziskCoinbaseExtractFromHeaderProbeUnit
@@ -558,6 +560,10 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_amsterdam_blob_gas_price" => some ziskAmsterdamBlobGasPriceProbeUnit
   | "zisk_header_validate_post_merge" => some ziskHeaderValidatePostMergeProbeUnit
   | "zisk_header_validate_extra_data_length" => some ziskHeaderValidateExtraDataLengthProbeUnit
+  | "zisk_secp256k1_field_cmp_p" => some ziskSecp256k1FieldCmpPProbeUnit
+  | "zisk_secp256k1_field_reduce_once" => some ziskSecp256k1FieldReduceOnceProbeUnit
+  | "zisk_secp256k1_field_add" => some ziskSecp256k1FieldAddProbeUnit
+  | "zisk_secp256k1_field_sub" => some ziskSecp256k1FieldSubProbeUnit
   | "zisk_u256_add_be"          => some ziskU256AddBeProbeUnit
   | "zisk_u256_lt_be"           => some ziskU256LtBeProbeUnit
   | "zisk_u256_sub_be"          => some ziskU256SubBeProbeUnit
