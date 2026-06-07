@@ -21,7 +21,9 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 TAG="${EEST_FIXTURE_TAG:-zkevm@v0.4.0}"
-JOBS="${EEST_SIMPLE_TRANSFER_JOBS:-${EEST_JOBS:-3}}"
+LIMIT="${EEST_SIMPLE_TRANSFER_LIMIT:-1}"
+SKIP="${EEST_SIMPLE_TRANSFER_SKIP:-0}"
+JOBS="${EEST_SIMPLE_TRANSFER_JOBS:-${EEST_JOBS:-2}}"
 STEPS="${EEST_SIMPLE_TRANSFER_STEPS:-${EEST_STEPS:-1000000000}}"
 RUN_DIR="${EEST_SIMPLE_TRANSFER_RUN_DIR:-gen-out/eest-simple-transfer-frontier}"
 FX="${EEST_FIXTURES_DIR:-$(pwd)/gen-out/eest-fixtures/$TAG/fixtures/fixtures}"
@@ -41,13 +43,13 @@ automatically.
 
 Options:
   --filter SUBSTR              add a fixture path substring filter
-                               (default: validation/transaction -- the canonical
-                               simple tx/value-transfer surface)
-  --limit N                    per-filter override of the derived block count
-  --jobs N|auto                ziskemu jobs (default: $EEST_SIMPLE_TRANSFER_JOBS,
-                               $EEST_JOBS, or 3)
-  --steps N                    ziskemu max steps (default: $EEST_SIMPLE_TRANSFER_STEPS,
-                               $EEST_STEPS, or 1000000000)
+                               (default: validation/transaction and transaction_validity)
+  --skip N                     skip first N selected fixtures per filter (default: 0)
+  --limit N                    per-filter fixture cap (default: 1)
+  --jobs N|auto                ziskemu jobs (default: $EEST_SIMPLE_TRANSFER_JOBS, $EEST_JOBS, or 2)
+  --steps N                    ziskemu max steps (default: $EEST_SIMPLE_TRANSFER_STEPS, $EEST_STEPS, or 1000000000)
+  --max-failures N             stop each filter after N failures (default: 1)
+  --stop-after-failures N      alias for --max-failures
   -h, --help                   show this help
 
 Any arguments after `--` are forwarded to codegen-eest-stateless-check.sh.
