@@ -459,8 +459,7 @@ def blockVerdictFunction : String :=
   "  li t4, 1; bltu t3, t4, .Lbv_tx_gas_precharge_not_precompile\n" ++
   "  li t4, 17; bgeu t4, t3, .Lbv_after_tx_gas_precharge\n" ++
   "  li t4, 256; beq t3, t4, .Lbv_after_tx_gas_precharge\n" ++
-  ".Lbv_tx_gas_precharge_not_precompile:\n" ++
-  "  ld a0, 8(s0); ld a1, 16(s0); addi a2, t2, 72; ld a3, 80(s0); ld a4, 88(s0); la a5, bv_tx_recipient_code_hash\n" ++
+  ".Lbv_tx_gas_precharge_not_precompile:\n" ++  "  ld a0, 8(s0); ld a1, 16(s0); addi a2, t2, 72; ld a3, 80(s0); ld a4, 88(s0); la a5, bv_tx_recipient_code_hash\n" ++
   "  jal ra, code_hash_at_header_state_root\n" ++
   "  bnez a0, .Lbv_tx_gas_precharge_fail\n" ++
   "  la t0, bv_tx_recipient_code_hash; la t1, chahsr_empty_code_hash\n" ++
