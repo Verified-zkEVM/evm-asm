@@ -30,7 +30,7 @@ RUN cargo build --release -p ziskemu
 RUN mkdir -p /license-report \
     && for f in LICENSE LICENSE.md LICENSE.txt LICENSE-MIT LICENSE-APACHE \
                 LICENCE LICENCE.md LICENCE-MIT LICENCE-APACHE COPYING; do \
-         [ -f "/zisk/$f" ] && cp "/zisk/$f" "/license-report/zisk-${f}"; \
+         if [ -f "/zisk/$f" ]; then cp "/zisk/$f" "/license-report/zisk-${f}"; fi; \
        done \
     && cargo metadata --format-version 1 \
        | python3 -c 'import json,sys; [print(p["name"], p["version"], p.get("license") or "UNKNOWN") for p in sorted(json.load(sys.stdin)["packages"], key=lambda p: p["name"].lower())]' \
