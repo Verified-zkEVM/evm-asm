@@ -463,6 +463,21 @@ def blockVerdictFunction : String :=
   "  # final balance = precharge + unused intrinsic refund - value. For value\n" ++
   "  # transfers into contracts, bytecode execution spends additional gas, so\n" ++
   "  # leave the verdict to the state-root/BAL checks instead.\n" ++
+  "  # Active precompile targets are also not ordinary empty-code EOAs: they may\n" ++
+  "  # be absent from the state trie while still executing precompile semantics.\n" ++
+  "  la t2, bv_simple_transfer_tx\n" ++
+  "  addi t3, t2, 72             # recipient address\n" ++
+  "  li t4, 0\n" ++
+  ".Lbv_tx_recipient_pc_prefix:\n" ++
+  "  li t5, 18; beq t4, t5, .Lbv_tx_recipient_pc_low16\n" ++
+  "  add t6, t3, t4; lbu t6, 0(t6); bnez t6, .Lbv_tx_recipient_not_precompile\n" ++
+  "  addi t4, t4, 1; j .Lbv_tx_recipient_pc_prefix\n" ++
+  ".Lbv_tx_recipient_pc_low16:\n" ++
+  "  lbu t4, 18(t3); lbu t5, 19(t3); slli t4, t4, 8; or t4, t4, t5\n" ++
+  "  li t6, 1; bltu t4, t6, .Lbv_tx_recipient_not_precompile\n" ++
+  "  li t6, 17; bleu t4, t6, .Lbv_after_tx_gas_precharge\n" ++
+  "  li t6, 256; beq t4, t6, .Lbv_after_tx_gas_precharge\n" ++
+  ".Lbv_tx_recipient_not_precompile:\n" ++
   "  ld a0, 8(s0); ld a1, 16(s0); addi a2, t2, 72; ld a3, 80(s0); ld a4, 88(s0); la a5, bv_tx_recipient_code_hash\n" ++
   "  jal ra, code_hash_at_header_state_root\n" ++
   "  bnez a0, .Lbv_tx_gas_precharge_fail\n" ++
