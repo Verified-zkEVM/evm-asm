@@ -12,9 +12,9 @@
   K75 is the per-header semantic+structural validator: composes
   K43 `validate_header_basic`, K67 `header_validate_post_merge`,
   K68 `header_validate_extra_data_length`, K72 `check_gas_limit`,
-  and K74 `header_validate_base_fee`. K43/K67/K68/K72 remain in
-  `Programs/Header.lean`; `HeaderBaseFee.lean` imports `Header.lean`
-  plus the u256 + RLP helpers.
+  K74 `header_validate_base_fee`, and the Amsterdam excess-blob-gas
+  recurrence. K43/K67/K68/K72 remain in `Programs/Header.lean`;
+  `HeaderBaseFee.lean` imports `Header.lean` plus the u256 + RLP helpers.
 
   No proofs yet -- these are codegen `String` defs only.
 -/
@@ -312,9 +312,102 @@ def ziskHeaderValidateBaseFeeProbeUnit : BuildUnit := {
   dataAsm     := ziskHeaderValidateBaseFeeDataSection
 }
 
+/-! ## header_validate_excess_blob_gas -- Amsterdam recurrence
+
+    Validate the Amsterdam `header.excess_blob_gas` recurrence from
+    `execution-specs/src/ethereum/forks/amsterdam/vm/gas.py`.
+
+    The spec computes:
+
+      parent_blob_gas = parent.excess_blob_gas + parent.blob_gas_used
+      if parent_blob_gas < BLOB_TARGET_GAS_PER_BLOCK:
+        expected = 0
+      elif BLOB_BASE_COST * parent.base_fee_per_gas
+           > PER_BLOB * calculate_blob_gas_price(parent.excess_blob_gas):
+        expected = parent.excess_blob_gas
+                 + parent.blob_gas_used
+                   * (BLOB_SCHEDULE_MAX - BLOB_SCHEDULE_TARGET)
+                   // BLOB_SCHEDULE_MAX
+      else:
+        expected = parent_blob_gas - BLOB_TARGET_GAS_PER_BLOCK
+
+    Constants for Amsterdam are PER_BLOB=131072, BLOB_SCHEDULE_TARGET=14,
+    BLOB_SCHEDULE_MAX=21, and BLOB_BASE_COST=8192. The branch comparison
+    simplifies to:
+
+      parent.base_fee_per_gas > 16 * calculate_blob_gas_price(...)
+
+    because `PER_BLOB / BLOB_BASE_COST = 16`.
+
+    Calling convention:
+      a0 (input)  : this.excess_blob_gas (u64)
+      a1 (input)  : parent.blob_gas_used (u64)
+      a2 (input)  : parent.excess_blob_gas (u64)
+      a3 (input)  : parent.base_fee_per_gas ptr (u256 BE, 32 B)
+      ra (input)  : return
+      a0 (output) : 0 ok / 1 helper overflow / 2 mismatch.
+
+    Uses 32 bytes of `.data` scratch (`hvebg_threshold`) and the existing
+    u256 multiplication scratch (`u256m_acc`). -/
+def headerValidateExcessBlobGasFunction : String :=
+  "header_validate_excess_blob_gas:\n" ++
+  "  addi sp, sp, -64\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp)\n" ++
+  "  mv s0, a0                   # this.excess_blob_gas\n" ++
+  "  mv s1, a1                   # parent.blob_gas_used\n" ++
+  "  mv s2, a2                   # parent.excess_blob_gas\n" ++
+  "  mv s3, a3                   # parent.base_fee_per_gas ptr\n" ++
+  "  add s4, s2, s1              # parent_blob_gas\n" ++
+  "  bltu s4, s2, .Lhvebg_overflow\n" ++
+  "  li t0, 1835008              # 14 * 131072\n" ++
+  "  bltu s4, t0, .Lhvebg_expected_zero\n" ++
+  "  mv a0, s2\n" ++
+  "  jal ra, amsterdam_blob_gas_price\n" ++
+  "  bnez a0, .Lhvebg_overflow\n" ++
+  "  mv a0, a1                   # blob gas price\n" ++
+  "  la a1, hvebg_threshold\n" ++
+  "  jal ra, u256_from_u64_be\n" ++
+  "  la a0, hvebg_threshold\n" ++
+  "  li a1, 16\n" ++
+  "  la a2, hvebg_threshold\n" ++
+  "  jal ra, u256_mul_u64_be     # threshold = 16 * price\n" ++
+  "  bnez a0, .Lhvebg_overflow\n" ++
+  "  la a0, hvebg_threshold\n" ++
+  "  mv a1, s3\n" ++
+  "  jal ra, u256_lt_be          # threshold < parent_base_fee?\n" ++
+  "  beqz a0, .Lhvebg_normal\n" ++
+  "  li t0, 3\n" ++
+  "  divu t1, s1, t0             # used * 7 // 21 == used // 3\n" ++
+  "  add s5, s2, t1\n" ++
+  "  bltu s5, s2, .Lhvebg_overflow\n" ++
+  "  j .Lhvebg_compare\n" ++
+  ".Lhvebg_normal:\n" ++
+  "  li t0, 1835008\n" ++
+  "  sub s5, s4, t0\n" ++
+  "  j .Lhvebg_compare\n" ++
+  ".Lhvebg_expected_zero:\n" ++
+  "  li s5, 0\n" ++
+  ".Lhvebg_compare:\n" ++
+  "  bne s0, s5, .Lhvebg_mismatch\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lhvebg_ret\n" ++
+  ".Lhvebg_overflow:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lhvebg_ret\n" ++
+  ".Lhvebg_mismatch:\n" ++
+  "  li a0, 2\n" ++
+  ".Lhvebg_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
+  "  addi sp, sp, 64\n" ++
+  "  ret"
+
 /-! ## validate_header_full -- PR-K75 complete per-header validation
 
-    Run all five per-header validation checks in sequence, returning
+    Run all six per-header validation checks in sequence, returning
     a single status code that distinguishes which step failed:
 
       1. PR-K67 `header_validate_post_merge`        — ommers/difficulty/nonce
@@ -322,6 +415,7 @@ def ziskHeaderValidateBaseFeeProbeUnit : BuildUnit := {
       3. PR-K43 `validate_header_basic`             — gas_used ≤ gas_limit + number/timestamp
       4. PR-K72 `check_gas_limit`                   — elasticity
       5. PR-K74 `header_validate_base_fee`          — EIP-1559 invariant
+      6. `header_validate_excess_blob_gas`          — Amsterdam blob recurrence
 
     Chain-level checks (parent_hash continuity, validate_chain
     PR-K18) are NOT included here — they iterate across multiple
@@ -335,6 +429,7 @@ def ziskHeaderValidateBaseFeeProbeUnit : BuildUnit := {
       301..303         : step 3 failed with K43's sub-status 1..3
       401..402         : step 4 failed with K72's sub-status 1..2
       501..502         : step 5 failed with K74's sub-status 1..2
+      601..602         : step 6 failed with sub-status 1..2
 
     Distinct decades let callers `floor(status/100)` to identify
     the failing step.
@@ -401,8 +496,19 @@ def validateHeaderFullFunction : String :=
   "  ld a2, 88(s3)\n" ++
   "  addi a3, s3, 96\n" ++
   "  jal ra, header_validate_base_fee\n" ++
-  "  beqz a0, .Lvhf_ret\n" ++
+  "  beqz a0, .Lvhf_s6\n" ++
   "  li t0, 500\n" ++
+  "  add a0, a0, t0\n" ++
+  "  j .Lvhf_ret\n" ++
+  ".Lvhf_s6:\n" ++
+  "  # Step 6: Amsterdam excess_blob_gas recurrence\n" ++
+  "  ld a0, 136(s2)\n" ++
+  "  ld a1, 128(s3)\n" ++
+  "  ld a2, 136(s3)\n" ++
+  "  addi a3, s3, 96\n" ++
+  "  jal ra, header_validate_excess_blob_gas\n" ++
+  "  beqz a0, .Lvhf_ret\n" ++
+  "  li t0, 600\n" ++
   "  add a0, a0, t0\n" ++
   ".Lvhf_ret:\n" ++
   "  ld ra,  0(sp)\n" ++
@@ -440,12 +546,15 @@ def ziskValidateHeaderFullPrologue : String :=
   u256AddBeFunction ++ "\n" ++
   u256SubBeFunction ++ "\n" ++
   u256EqFunction ++ "\n" ++
+  u256LtBeFunction ++ "\n" ++
   validateHeaderBasicFunction ++ "\n" ++
   checkGasLimitFunction ++ "\n" ++
   headerValidatePostMergeFunction ++ "\n" ++
   headerValidateExtraDataLengthFunction ++ "\n" ++
+  amsterdamBlobGasPriceFunction ++ "\n" ++
   eip1559CalcBaseFeePerGasFunction ++ "\n" ++
   headerValidateBaseFeeFunction ++ "\n" ++
+  headerValidateExcessBlobGasFunction ++ "\n" ++
   validateHeaderFullFunction ++ "\n" ++
   ".Lvhf_pdone:"
 
@@ -459,6 +568,9 @@ def ziskValidateHeaderFullDataSection : String :=
   "  .byte 0xf0, 0xa1, 0x42, 0xfd, 0x40, 0xd4, 0x93, 0x47\n" ++
   ".balign 32\n" ++
   "hvbf_expected:\n" ++
+  "  .zero 32\n" ++
+  ".balign 32\n" ++
+  "hvebg_threshold:\n" ++
   "  .zero 32\n" ++
   ".balign 8\n" ++
   "u256m_acc:\n" ++
