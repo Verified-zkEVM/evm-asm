@@ -48,6 +48,10 @@ open EvmAsm.Rv64
     address for a legacy contract-creation transaction, or when it is a
     CREATE2 address for a BAL creator row with nonce/storage activity, a
     recoverable literal salt, and copied initcode present in witness.codes.
+    A pure touch row is not skipped when witness.codes contains an EIP-7702
+    delegation marker for that row address: execution-specs follows the marker
+    and loads the delegated bytecode, so the delegated account's non-empty code
+    hash must also have a preimage.
     These match CREATE collision predicate paths (`account_has_code_or_nonce` /
     `account_has_storage`) which do not read bytecode. Rows that carry storage
     or code activity still reject the
@@ -172,7 +176,12 @@ def balCodePreimagesValidFunction : String :=
   "  mv a0, s2; mv a1, s3; mv a3, s4; mv a4, s5; mv a5, s6; mv a6, s7\n" ++
   "  jal ra, bal_call_target_delegated_code_valid\n" ++
   "  bnez a0, .Lbbcv_missing_code\n" ++
+  "  j .Lbbcv_touch_skip_flags_done\n" ++
   ".Lbbcv_touch_skip_flags_done:\n" ++
+  "  la t0, bbcv_addr_off; ld t1, 0(t0); add a2, s10, t1\n" ++
+  "  mv a0, s6; mv a1, s7\n" ++
+  "  jal ra, bal_codes_contains_delegation_marker_target\n" ++
+  "  bnez a0, .Lbbcv_check_code_non_touch\n" ++
   "  la t0, bbcv_skip_touch_only; ld t4, 0(t0)\n" ++
   "  bnez t4, .Lbbcv_next\n" ++
   "  j .Lbbcv_check_code\n" ++
@@ -811,6 +820,65 @@ def balCodePreimagesValidFunction : String :=
   "  ld s0, 0(sp); ld s1, 8(sp); ld s2, 16(sp)\n" ++
   "  ld s3, 24(sp); ld s4, 32(sp); ld s5, 40(sp); ld s6, 48(sp)\n" ++
   "  addi sp, sp, 64\n" ++
+  "  ret\n" ++
+  "\n" ++
+  "# Return 1 iff witness.codes contains an EIP-7702 delegation marker\n" ++
+  "# (0xef0100 || addr) for this 20-byte address. Such a row represents\n" ++
+  "# delegated bytecode execution, so the delegated account code preimage is\n" ++
+  "# required when the account has non-empty code.\n" ++
+  "bal_codes_contains_delegation_marker_target:\n" ++
+  "  addi sp, sp, -56\n" ++
+  "  sd s0, 0(sp); sd s1, 8(sp); sd s2, 16(sp)\n" ++
+  "  sd s3, 24(sp); sd s4, 32(sp); sd s5, 40(sp)\n" ++
+  "  mv s0, a0                  # witness.codes section ptr\n" ++
+  "  mv s1, a1                  # witness.codes section len\n" ++
+  "  mv s2, a2                  # 20-byte delegated address ptr\n" ++
+  "  beqz s1, .Lbcdmt_no\n" ++
+  "  lwu t0, 0(s0)              # first element offset = 4*N\n" ++
+  "  srli s3, t0, 2             # s3 = N\n" ++
+  "  li s4, 0\n" ++
+  ".Lbcdmt_elem_loop:\n" ++
+  "  beq s4, s3, .Lbcdmt_no\n" ++
+  "  slli t0, s4, 2\n" ++
+  "  add t1, s0, t0\n" ++
+  "  lwu t2, 0(t1)              # element offset\n" ++
+  "  add s5, s0, t2             # element start\n" ++
+  "  addi t3, s4, 1\n" ++
+  "  beq t3, s3, .Lbcdmt_elem_end_section\n" ++
+  "  slli t3, t3, 2\n" ++
+  "  add t3, s0, t3\n" ++
+  "  lwu t4, 0(t3)\n" ++
+  "  add t4, s0, t4             # element end\n" ++
+  "  j .Lbcdmt_have_elem_end\n" ++
+  ".Lbcdmt_elem_end_section:\n" ++
+  "  add t4, s0, s1\n" ++
+  ".Lbcdmt_have_elem_end:\n" ++
+  "  sub t4, t4, s5             # element len\n" ++
+  "  li t5, 23\n" ++
+  "  bne t4, t5, .Lbcdmt_next_elem\n" ++
+  "  lbu t0, 0(s5); li t1, 0xef; bne t0, t1, .Lbcdmt_next_elem\n" ++
+  "  lbu t0, 1(s5); li t1, 0x01; bne t0, t1, .Lbcdmt_next_elem\n" ++
+  "  lbu t0, 2(s5); bnez t0, .Lbcdmt_next_elem\n" ++
+  "  li t0, 0\n" ++
+  ".Lbcdmt_addr_loop:\n" ++
+  "  li t1, 20\n" ++
+  "  beq t0, t1, .Lbcdmt_yes\n" ++
+  "  add t2, s5, t0; lbu t2, 3(t2)\n" ++
+  "  add t3, s2, t0; lbu t3, 0(t3)\n" ++
+  "  bne t2, t3, .Lbcdmt_next_elem\n" ++
+  "  addi t0, t0, 1\n" ++
+  "  j .Lbcdmt_addr_loop\n" ++
+  ".Lbcdmt_next_elem:\n" ++
+  "  addi s4, s4, 1\n" ++
+  "  j .Lbcdmt_elem_loop\n" ++
+  ".Lbcdmt_yes:\n" ++
+  "  li a0, 1; j .Lbcdmt_ret\n" ++
+  ".Lbcdmt_no:\n" ++
+  "  li a0, 0\n" ++
+  ".Lbcdmt_ret:\n" ++
+  "  ld s0, 0(sp); ld s1, 8(sp); ld s2, 16(sp)\n" ++
+  "  ld s3, 24(sp); ld s4, 32(sp); ld s5, 40(sp)\n" ++
+  "  addi sp, sp, 56\n" ++
   "  ret\n" ++
   "\n" ++
   "# Return 1 iff a CALL target is EIP-7702 delegated code whose delegated\n" ++
