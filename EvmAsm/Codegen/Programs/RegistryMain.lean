@@ -52,6 +52,7 @@ import EvmAsm.Codegen.Programs.ExpProperty
 import EvmAsm.Codegen.Programs.CryptoRegistry
 import EvmAsm.Codegen.Programs.Secp256k1Field
 import EvmAsm.Codegen.Programs.Secp256k1Curve
+import EvmAsm.Codegen.Programs.Secp256k1Recover
 import EvmAsm.Codegen.Programs.Selfdestruct
 import EvmAsm.Codegen.Programs.SelfdestructDescriptors
 import EvmAsm.Codegen.Programs.StatelessGuestData
@@ -595,6 +596,7 @@ def lookupProgramMain (lookupProgramTail : String → Option BuildUnit) : String
   | "zisk_secp256k1_field_inv" => some ziskSecp256k1FieldInvProbeUnit
   | "zisk_secp256k1_field_sqrt" => some ziskSecp256k1FieldSqrtProbeUnit
   | "zisk_secp256k1_curve_point_ops" => some ziskSecp256k1CurvePointOpsProbeUnit
+  | "zisk_secp256k1_recover_r"  => some ziskSecp256k1RecoverRProbeUnit
   | "zisk_u256_add_be"          => some ziskU256AddBeProbeUnit
   | "zisk_u256_lt_be"           => some ziskU256LtBeProbeUnit
   | "zisk_u256_sub_be"          => some ziskU256SubBeProbeUnit
