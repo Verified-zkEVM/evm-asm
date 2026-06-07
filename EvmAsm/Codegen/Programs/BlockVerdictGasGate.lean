@@ -274,25 +274,9 @@ def eip8037TxGasGateFunction : String :=
   "  la a6, bsg_intrinsic_gas; la a7, bsg_floor_gas\n" ++
   "  jal ra, intrinsic_gas_amsterdam_counts\n" ++
   "  bnez a0, .Letg_ok\n" ++
-  "  la t0, bsg_tx_gas; ld t1, 0(t0)\n" ++
-  "  la t0, bsg_intrinsic_gas; ld s11, 0(t0)\n" ++
-  "  la t0, bsg_floor_gas; ld t6, 0(t0)\n" ++
-  "  mv t0, s11; bgeu t0, t6, .Letg_required_have\n" ++
-  "  mv t0, t6\n" ++
-  ".Letg_required_have:\n" ++
-  "  li t6, 16777216\n" ++
-  "  bgtu t0, t6, .Letg_validate_fail\n" ++
-  "  bltu t1, t0, .Letg_validate_fail\n" ++
-  "  la t5, bsg_min_block_gas; ld t2, 0(t5)\n" ++
-  "  bltu s3, t2, .Letg_regular_reject\n" ++
-  "  sub t3, s3, t2\n" ++
-  "  # EIP-8037 permits the declared tx gas limit to exceed regular remaining\n" ++
-  "  # when the 2D regular/state split still fits; only the required minimum\n" ++
-  "  # gas is a safe pre-execution block availability rejection here.\n" ++
-  "  bgtu t0, t3, .Letg_regular_reject\n" ++
-  "  add t2, t2, t0; sd t2, 0(t5)\n" ++
-  "  # EIP-8037 intrinsic state gas: CREATE new-account reserve plus\n" ++
-  "  # EIP-7702 authorization reserve, matching calculate_intrinsic_cost.\n" ++
+  "  # EIP-8037 intrinsic.state gas: CREATE new-account reserve plus EIP-7702\n" ++
+  "  # authorization reserve (calculate_intrinsic_cost). Computed once here and\n" ++
+  "  # consumed by both the per-tx sufficiency test and the 2D block accounting.\n" ++
   "  li t6, 0\n" ++
   "  la t0, bsg_to_len; ld t2, 0(t0); bnez t2, .Letg_after_create_state\n" ++
   liAmsterdamNewAccountStateGas "t6" ++
@@ -301,6 +285,34 @@ def eip8037TxGasGateFunction : String :=
   liAmsterdamAuthStateGas "t3" ++
   "  mul t2, t2, t3; add t6, t6, t2\n" ++
   ".Letg_intrinsic_done:\n" ++
+  "  la t0, bsg_state_gas; sd t6, 0(t0)\n" ++
+  "  la t0, bsg_tx_gas; ld t1, 0(t0)\n" ++
+  "  la t0, bsg_intrinsic_gas; ld s11, 0(t0)\n" ++
+  "  la t0, bsg_floor_gas; ld t6, 0(t0)\n" ++
+  "  mv t0, s11; bgeu t0, t6, .Letg_required_have\n" ++
+  "  mv t0, t6\n" ++
+  ".Letg_required_have:\n" ++
+  "  li t4, 16777216\n" ++
+  "  # TX_MAX_GAS_LIMIT test (spec transactions.py:590) uses max(regular, floor),\n" ++
+  "  # no state component.\n" ++
+  "  bgtu t0, t4, .Letg_validate_fail\n" ++
+  "  # Per-tx 'insufficient gas' test (spec transactions.py:587-588) uses\n" ++
+  "  # max(intrinsic.regular + intrinsic.state, calldata_floor): fold the state\n" ++
+  "  # component into the regular term before comparing against tx.gas.\n" ++
+  "  la t4, bsg_state_gas; ld t4, 0(t4); add t4, s11, t4\n" ++
+  "  bgeu t4, t6, .Letg_suff_have\n" ++
+  "  mv t4, t6\n" ++
+  ".Letg_suff_have:\n" ++
+  "  bltu t1, t4, .Letg_validate_fail\n" ++
+  "  la t5, bsg_min_block_gas; ld t2, 0(t5)\n" ++
+  "  bltu s3, t2, .Letg_regular_reject\n" ++
+  "  sub t3, s3, t2\n" ++
+  "  # EIP-8037 permits the declared tx gas limit to exceed regular remaining\n" ++
+  "  # when the 2D regular/state split still fits; only the required minimum\n" ++
+  "  # gas is a safe pre-execution block availability rejection here.\n" ++
+  "  bgtu t0, t3, .Letg_regular_reject\n" ++
+  "  add t2, t2, t0; sd t2, 0(t5)\n" ++
+  "  la t0, bsg_state_gas; ld t6, 0(t0)\n" ++
   "  li t2, 0\n" ++
   "  bltu t1, t6, .Letg_regular_have\n" ++
   "  sub t2, t1, t6              # tx.gas - intrinsic.state\n" ++

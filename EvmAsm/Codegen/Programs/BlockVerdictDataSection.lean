@@ -410,6 +410,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "alc_keys_length:\n  .zero 8\n" ++
   "bsg_worst_state:\n  .zero 8\n" ++
   "bsg_prior_state:\n  .zero 8\n" ++
+  "bsg_state_gas:\n  .zero 8\n" ++
   "bsg_blob_count:\n  .zero 8\n" ++
   "bsg_blob_gas_accum:\n  .zero 8\n" ++
   "bgvh_count_scratch:\n  .zero 8\n" ++
