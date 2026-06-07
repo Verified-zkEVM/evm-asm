@@ -9,7 +9,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 TAG="${EEST_FIXTURE_TAG:-zkevm@v0.4.0}"
-JOBS="${EEST_EIP8037_PRICING_JOBS:-${EEST_JOBS:-3}}"
+JOBS="${EEST_EIP8037_PRICING_JOBS:-${EEST_JOBS:-2}}"
 STEPS="${EEST_EIP8037_PRICING_STEPS:-${EEST_STEPS:-1000000000}}"
 RUN_DIR="${EEST_EIP8037_PRICING_RUN_DIR:-gen-out/eest-eip8037-pricing-various-gas}"
 FX="${EEST_FIXTURES_DIR:-$(pwd)/gen-out/eest-fixtures/$TAG/fixtures/fixtures}"

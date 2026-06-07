@@ -9,7 +9,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 TAG="${EEST_FIXTURE_TAG:-zkevm@v0.4.0}"
-JOBS="${EEST_EIP7002_SYSTEM_ERRORS_JOBS:-${EEST_JOBS:-3}}"
+JOBS="${EEST_EIP7002_SYSTEM_ERRORS_JOBS:-${EEST_JOBS:-2}}"
 STEPS="${EEST_EIP7002_SYSTEM_ERRORS_STEPS:-${EEST_STEPS:-1000000000}}"
 RUN_DIR="${EEST_EIP7002_SYSTEM_ERRORS_RUN_DIR:-gen-out/eest-eip7002-system-errors}"
 FX="${EEST_FIXTURES_DIR:-$(pwd)/gen-out/eest-fixtures/$TAG/fixtures/fixtures}"
