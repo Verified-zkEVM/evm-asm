@@ -119,12 +119,19 @@ def mptDeleteAccFunction : String :=
   "  jal ra, rlp_list_nth_item\n" ++
   "  bnez a0, .Lmdacc_fail\n" ++
   "  la t0, mw_child_length; ld t1, 0(t0)\n" ++
-  "  li t2, 32; bne t1, t2, .Lmdacc_need_collapse\n" ++
+  "  beqz t1, .Lmdacc_need_collapse\n" ++
+  "  li t2, 32; beq t1, t2, .Lmdacc_resolve_hash_child\n" ++
+  "  la t0, mw_child_offset; ld t0, 0(t0); add t0, s3, t0\n" ++
+  "  la t2, mdacc_child_ptr; sd t0, 0(t2)\n" ++
+  "  la t2, mdacc_child_len; sd t1, 0(t2)\n" ++
+  "  j .Lmdacc_classify_child\n" ++
+  ".Lmdacc_resolve_hash_child:\n" ++
   "  la t0, mw_child_offset; ld t0, 0(t0); add a2, s3, t0\n" ++
   "  mv a0, s0; la t0, mdacc_witness_len; ld a1, 0(t0)\n" ++
   "  la a3, mdacc_child_ptr; la a4, mdacc_child_len\n" ++
   "  jal ra, mpt_node_resolve\n" ++
   "  bnez a0, .Lmdacc_need_collapse\n" ++
+  ".Lmdacc_classify_child:\n" ++
   "  la t0, mdacc_child_ptr; ld a0, 0(t0)\n" ++
   "  la t0, mdacc_child_len; ld a1, 0(t0)\n" ++
   "  jal ra, mpt_node_kind\n" ++
@@ -202,15 +209,24 @@ def mptDeleteAccFunction : String :=
   "  jal ra, rlp_list_nth_item\n" ++
   "  bnez a0, .Lmdacc_fail\n" ++
   "  la t0, mw_child_length; ld t1, 0(t0)\n" ++
-  "  li t2, 32; bne t1, t2, .Lmdacc_need_collapse\n" ++
+  "  beqz t1, .Lmdacc_need_collapse\n" ++
   "  la t0, mw_child_offset; ld t0, 0(t0); add t0, s3, t0\n" ++
+  "  li t2, 32; bne t1, t2, .Lmdacc_branch_child_inline\n" ++
   "  la t4, mset_ref; li t5, 0xa0; sb t5, 0(t4); addi t4, t4, 1; li t5, 32\n" ++
   ".Lmdacc_branch_child_hash_cp:\n" ++
   "  beqz t5, .Lmdacc_branch_child_hash_done\n" ++
   "  lbu t6, 0(t0); sb t6, 0(t4); addi t0, t0, 1; addi t4, t4, 1; addi t5, t5, -1; j .Lmdacc_branch_child_hash_cp\n" ++
   ".Lmdacc_branch_child_hash_done:\n" ++
-  "  la t4, mset_ref_len; li t5, 33; sd t5, 0(t4)\n" ++
-  "  la a0, mdacc_collapsed_path; li a1, 1; la a2, mset_ref; li a3, 33\n" ++
+  "  la t4, mset_ref_len; li t5, 33; sd t5, 0(t4); j .Lmdacc_branch_child_ref_ready\n" ++
+  ".Lmdacc_branch_child_inline:\n" ++
+  "  la t4, mset_ref; mv t5, t1\n" ++
+  ".Lmdacc_branch_child_inline_cp:\n" ++
+  "  beqz t5, .Lmdacc_branch_child_inline_done\n" ++
+  "  lbu t6, 0(t0); sb t6, 0(t4); addi t0, t0, 1; addi t4, t4, 1; addi t5, t5, -1; j .Lmdacc_branch_child_inline_cp\n" ++
+  ".Lmdacc_branch_child_inline_done:\n" ++
+  "  la t4, mset_ref_len; sd t1, 0(t4)\n" ++
+  ".Lmdacc_branch_child_ref_ready:\n" ++
+  "  la a0, mdacc_collapsed_path; li a1, 1; la a2, mset_ref; la t0, mset_ref_len; ld a3, 0(t0)\n" ++
   "  la a4, mset_node; la a5, mset_node_len\n" ++
   "  jal ra, mpt_extension_node_encode\n" ++
   "  la t0, mset_node_len; ld s4, 0(t0)\n" ++

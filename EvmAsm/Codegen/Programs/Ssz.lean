@@ -769,12 +769,14 @@ def ziskSszHashTreeRootBytesProbeUnit : BuildUnit := {
       a3 (input)  : list count_limit_log2 (capacity = 2^a3)
       a4 (input)  : 32-byte output ptr
       ra (input)  : return
-      a0 (output) : 0 (ZKVM_EOK)
+      a0 (output) : 0 (ZKVM_EOK), 1 if the section exceeds this helper's
+                    scratch-supported bounds
 
     PR-S11 caps N (element count) at 32, matching the inner
-    merkleize cap. Output is byte-identical to
+    merkleize cap, and each ByteList element at 1024 bytes, matching
+    `ssz_hash_tree_root_bytes` scratch. Output is byte-identical to
     `SszList[ByteList[B], M](...).hash_tree_root()` from
-    `remerkleable` for any compliant input. -/
+    `remerkleable` for any input within those helper bounds. -/
 def sszHashTreeRootListByteListFunction : String :=
   "ssz_hash_tree_root_list_bytelist:\n" ++
   "  addi sp, sp, -64\n" ++
@@ -791,7 +793,13 @@ def sszHashTreeRootListByteListFunction : String :=
   "  lbu t5, 1(s0); slli t5, t5, 8;  or t0, t0, t5\n" ++
   "  lbu t5, 2(s0); slli t5, t5, 16; or t0, t0, t5\n" ++
   "  lbu t5, 3(s0); slli t5, t5, 24; or t0, t0, t5\n" ++
+  "  andi t5, t0, 3\n" ++
+  "  bnez t5, .Lszls_fail       # offset_0 must equal 4*N\n" ++
   "  srli s5, t0, 2             # s5 = N (element count)\n" ++
+  "  beqz s5, .Lszls_fail       # non-empty section cannot encode an empty list\n" ++
+  "  li t5, 32\n" ++
+  "  bltu t5, s5, .Lszls_fail   # child root scratch is 32 roots\n" ++
+  "  bltu s1, t0, .Lszls_fail   # offset table must fit in section\n" ++
   "  li s6, 0                   # s6 = i (loop counter)\n" ++
   ".Lszls_loop:\n" ++
   "  beq s6, s5, .Lszls_done_loop\n" ++
@@ -801,6 +809,9 @@ def sszHashTreeRootListByteListFunction : String :=
   "  lbu t5, 1(t1); slli t5, t5, 8;  or t2, t2, t5\n" ++
   "  lbu t5, 2(t1); slli t5, t5, 16; or t2, t2, t5\n" ++
   "  lbu t5, 3(t1); slli t5, t5, 24; or t2, t2, t5\n" ++
+  "  slli t3, s5, 2\n" ++
+  "  bltu t2, t3, .Lszls_fail   # element data starts after offset table\n" ++
+  "  bltu s1, t2, .Lszls_fail   # element start must be in section\n" ++
   "  add a0, s0, t2             # el_i_start\n" ++
   "  addi t3, s6, 1\n" ++
   "  beq t3, s5, .Lszls_use_end\n" ++
@@ -810,17 +821,25 @@ def sszHashTreeRootListByteListFunction : String :=
   "  lbu t5, 1(t3); slli t5, t5, 8;  or t4, t4, t5\n" ++
   "  lbu t5, 2(t3); slli t5, t5, 16; or t4, t4, t5\n" ++
   "  lbu t5, 3(t3); slli t5, t5, 24; or t4, t4, t5\n" ++
+  "  bltu t4, t2, .Lszls_fail   # offsets must be monotone\n" ++
+  "  bltu s1, t4, .Lszls_fail   # next element start must be in section\n" ++
   "  add t4, s0, t4             # el_i_end\n" ++
   "  j .Lszls_have_end\n" ++
   ".Lszls_use_end:\n" ++
   "  add t4, s0, s1             # el_i_end = section_end\n" ++
   ".Lszls_have_end:\n" ++
   "  sub a1, t4, a0             # el_i_len\n" ++
+  "  li t1, 32\n" ++
+  "  sll t1, t1, s2             # declared ByteList byte capacity\n" ++
+  "  bltu t1, a1, .Lszls_fail   # reject element longer than ByteList[B]\n" ++
+  "  li t0, 1024\n" ++
+  "  bltu t0, a1, .Lszls_fail   # ssz_hash_tree_root_bytes scratch supports <=1024B\n" ++
   "  mv a2, s2                  # byte_log2\n" ++
   "  la a3, ssz_ltb_child_roots\n" ++
   "  slli t0, s6, 5             # 32*i\n" ++
   "  add a3, a3, t0             # &child_roots[i]\n" ++
   "  jal ra, ssz_hash_tree_root_bytes\n" ++
+  "  bnez a0, .Lszls_fail\n" ++
   "  addi s6, s6, 1\n" ++
   "  j .Lszls_loop\n" ++
   ".Lszls_done_loop:\n" ++
@@ -861,6 +880,14 @@ def sszHashTreeRootListByteListFunction : String :=
   "  jal ra, zkvm_sha256\n" ++
   ".Lszls_ret:\n" ++
   "  li a0, 0\n" ++
+  "  j .Lszls_restore\n" ++
+  ".Lszls_fail:\n" ++
+  "  sd zero,  0(s4)\n" ++
+  "  sd zero,  8(s4)\n" ++
+  "  sd zero, 16(s4)\n" ++
+  "  sd zero, 24(s4)\n" ++
+  "  li a0, 1\n" ++
+  ".Lszls_restore:\n" ++
   "  ld ra,  0(sp)\n" ++
   "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
   "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
@@ -884,6 +911,8 @@ def ziskSszHashTreeRootListByteListPrologue : String :=
   "  addi a0, a5, 32             # section ptr\n" ++
   "  li a4, 0xa0010000           # OUTPUT_ADDR\n" ++
   "  jal ra, ssz_hash_tree_root_list_bytelist\n" ++
+  "  li t0, 0xa0010020\n" ++
+  "  sd a0, 0(t0)                # OUTPUT+32 = status\n" ++
   "  j .Lzs11_done\n" ++
   zkvmSha256Function ++ "\n" ++
   sszPackBytesFunction ++ "\n" ++
@@ -965,7 +994,7 @@ def ziskSszHashTreeRootListByteListProbeUnit : BuildUnit := {
       a1 (input)  : section_len
       a2 (input)  : 32-byte output ptr
       ra (input)  : return
-      a0 (output) : 0 (ZKVM_EOK)
+      a0 (output) : 0 (ZKVM_EOK), nonzero if a nested list exceeds helper bounds
 
     Per-field caps inherited from PR-S11: each list's N ≤ 32.
     Test fixtures stay well below; production-sized witnesses
@@ -991,6 +1020,7 @@ def sszHashTreeRootExecutionWitnessFunction : String :=
   "  li a3, 20\n" ++
   "  la a4, ssz_ew_field_roots\n" ++
   "  jal ra, ssz_hash_tree_root_list_bytelist\n" ++
+  "  bnez a0, .Lszew_ret\n" ++
   "  # Field 1: codes (List[ByteList[2^24], 2^16]; byte_log2=19, count_log2=16)\n" ++
   "  add a0, s0, s4              # codes_start\n" ++
   "  add t0, s0, s5              # codes_end\n" ++
@@ -1000,6 +1030,7 @@ def sszHashTreeRootExecutionWitnessFunction : String :=
   "  la a4, ssz_ew_field_roots\n" ++
   "  addi a4, a4, 32\n" ++
   "  jal ra, ssz_hash_tree_root_list_bytelist\n" ++
+  "  bnez a0, .Lszew_ret\n" ++
   "  # Field 2: headers (List[ByteList[2^10], 2^8]; byte_log2=5, count_log2=8)\n" ++
   "  add a0, s0, s5              # headers_start\n" ++
   "  sub a1, s6, a0\n" ++
@@ -1008,6 +1039,7 @@ def sszHashTreeRootExecutionWitnessFunction : String :=
   "  la a4, ssz_ew_field_roots\n" ++
   "  addi a4, a4, 64\n" ++
   "  jal ra, ssz_hash_tree_root_list_bytelist\n" ++
+  "  bnez a0, .Lszew_ret\n" ++
   "  # Merkleize 3 field roots, capacity = 4 slots (limit_log2 = 2)\n" ++
   "  la a0, ssz_ew_field_roots\n" ++
   "  li a1, 3\n" ++
@@ -1015,6 +1047,7 @@ def sszHashTreeRootExecutionWitnessFunction : String :=
   "  mv a3, s2\n" ++
   "  jal ra, ssz_merkleize\n" ++
   "  li a0, 0\n" ++
+  ".Lszew_ret:\n" ++
   "  ld ra,  0(sp)\n" ++
   "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
   "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
@@ -1034,6 +1067,8 @@ def ziskSszHashTreeRootExecutionWitnessPrologue : String :=
   "  addi a0, a3, 16             # section ptr\n" ++
   "  li a2, 0xa0010000           # OUTPUT_ADDR\n" ++
   "  jal ra, ssz_hash_tree_root_execution_witness\n" ++
+  "  li t0, 0xa0010020\n" ++
+  "  sd a0, 0(t0)                # OUTPUT+32 = status\n" ++
   "  j .Lzs12_done\n" ++
   zkvmSha256Function ++ "\n" ++
   sszPackBytesFunction ++ "\n" ++

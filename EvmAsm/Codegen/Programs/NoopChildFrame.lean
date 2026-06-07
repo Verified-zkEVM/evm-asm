@@ -131,7 +131,7 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  bnez x18, .exit_outofgas\n" ++
     "  add x18, x15, x16\n" ++
     "  bltu x18, x15, .exit_outofgas\n" ++
-    "  li x19, 0x8000\n" ++
+    "  li x19, 0x10000\n" ++
     "  bltu x19, x18, .exit_outofgas\n" ++
     "1:\n" ++
     createInitcodeGasAsm

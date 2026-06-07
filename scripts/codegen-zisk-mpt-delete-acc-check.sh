@@ -139,6 +139,39 @@ root6 = branch_node(slots6)
 collapsed_branch = extension_node([2], node_ref(child_branch))
 write_case("branch_collapse_branch", trie_root(root6), [1, 0xa, 0xb], [root6, la, child_branch], trie_root(collapsed_branch))
 
+la_small = leaf_node([0xa], b"A")
+lb_small = leaf_node([0xc], b"B")
+assert len(la_small) < 32 and len(lb_small) < 32
+slots_inline_leaf = [b"\x80"] * 16
+slots_inline_leaf[1] = node_ref(la_small); slots_inline_leaf[2] = node_ref(lb_small)
+root_inline_leaf = branch_node(slots_inline_leaf)
+collapsed_inline_leaf = leaf_node([2, 0xc], b"B")
+write_case("branch_collapse_inline_leaf", trie_root(root_inline_leaf), [1, 0xa],
+           [root_inline_leaf, la_small], trie_root(collapsed_inline_leaf))
+
+ext_small = extension_node([3], node_ref(lb_small))
+assert len(ext_small) < 32
+slots_inline_ext = [b"\x80"] * 16
+slots_inline_ext[1] = node_ref(la_small); slots_inline_ext[2] = node_ref(ext_small)
+root_inline_ext = branch_node(slots_inline_ext)
+collapsed_inline_ext = extension_node([2, 3], node_ref(lb_small))
+write_case("branch_collapse_inline_extension", trie_root(root_inline_ext), [1, 0xa],
+           [root_inline_ext, la_small], trie_root(collapsed_inline_ext))
+
+lc_small = leaf_node([0xe], b"C")
+ld_small = leaf_node([0xf], b"D")
+assert len(lc_small) < 32 and len(ld_small) < 32
+child_slots_inline = [b"\x80"] * 16
+child_slots_inline[4] = node_ref(lc_small); child_slots_inline[5] = node_ref(ld_small)
+child_branch_inline = branch_node(child_slots_inline)
+assert len(child_branch_inline) < 32
+slots_inline_branch = [b"\x80"] * 16
+slots_inline_branch[1] = node_ref(la_small); slots_inline_branch[2] = node_ref(child_branch_inline)
+root_inline_branch = branch_node(slots_inline_branch)
+collapsed_inline_branch = extension_node([2], node_ref(child_branch_inline))
+write_case("branch_collapse_inline_branch", trie_root(root_inline_branch), [1, 0xa],
+           [root_inline_branch, la_small], trie_root(collapsed_inline_branch))
+
 # The survivor branch has a non-empty slot 0 whose hash begins with a high
 # nibble that looks like a compact leaf prefix. Delete collapse must classify
 # the survivor as a branch before trying leaf/extension extractors.
@@ -191,7 +224,7 @@ lake exe codegen --program zisk_mpt_delete_acc --halt linux93 \
 read_u64() { od -An -tu8 -j "$2" -N 8 "$1" | tr -d ' \n'; }
 
 fail=0
-for name in leaf_to_empty branch_no_collapse branch_collapse_leaf branch_value_collapse branch_collapse_extension branch_collapse_branch branch_collapse_branch_leaflike_slot0 extension_bubble_branch_no_collapse extension_merge_leaf extension_merge_extension; do
+for name in leaf_to_empty branch_no_collapse branch_collapse_leaf branch_value_collapse branch_collapse_extension branch_collapse_branch branch_collapse_inline_leaf branch_collapse_inline_extension branch_collapse_inline_branch branch_collapse_branch_leaflike_slot0 extension_bubble_branch_no_collapse extension_merge_leaf extension_merge_extension; do
   out="$VDIR/$name.output"
   if ! "$ZISKEMU" -e "$REPO_ROOT/gen-out/zisk_mpt_delete_acc.elf" \
         -i "$VDIR/$name.input" -o "$out" -n 10000000 >/dev/null 2>&1 </dev/null; then
