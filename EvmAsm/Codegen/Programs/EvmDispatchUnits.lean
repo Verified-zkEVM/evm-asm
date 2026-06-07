@@ -39,4 +39,15 @@ def runtimeDispatcherUnit : BuildUnit :=
 def runtimeDispatcherCallProbeUnit : BuildUnit :=
   buildRuntimeDispatchCallableProbeUnit tinyInterpRegistry evmAddEpilogue
 
+/-! ## runtime_dispatcher_gas_capture_probe
+
+    Probe for the runtime dispatcher gas-result capture path. It runs one
+    staged transaction through `runtime_dispatcher_call` and records the
+    dispatcher's post-execution gas results (`gas_left`, `refund_counter`,
+    `calldata_floor_gas_cost`, and `halt_kind`) into per-transaction arrays
+    at index 0 — the arrays consumed by the block-verdict gas-result arena —
+    and surfaces them to the stable `OUTPUT+160` diagnostic window. -/
+def runtimeDispatcherGasCaptureProbeUnit : BuildUnit :=
+  buildRuntimeDispatchGasCaptureProbeUnit tinyInterpRegistry evmAddEpilogue
+
 end EvmAsm.Codegen

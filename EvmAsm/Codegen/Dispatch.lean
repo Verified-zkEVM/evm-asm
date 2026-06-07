@@ -1525,6 +1525,13 @@ def emitRuntimeDispatcherSetup : String :=
   "  slli x12, x12, 1\n" ++        -- CODE_INIT_PER_WORD = 2
   "  add x7, x7, x12\n" ++
   ".runtime_tx_gas_check:\n" ++
+  -- Persist the EIP-7623 calldata floor (x10) so a caller (e.g. the
+  -- block-verdict gas-result capture probe) can read the exact
+  -- `calldata_floor_gas_cost` this transaction was validated against.
+  -- Only the validate-tx-gas path reaches this label, so x10 is the
+  -- computed floor here; x11 is free (it last held a calldata byte).
+  "  la x11, runtime_tx_calldata_floor\n" ++
+  "  sd x10, 0(x11)\n" ++
   "  bltu x6, x7, .exit_outofgas\n" ++
   "  bltu x6, x10, .exit_outofgas\n" ++
   "  sub x6, x6, x7\n" ++
@@ -1598,6 +1605,11 @@ def emitRuntimeDispatcherDataSection
   ".section .data\n" ++
   ".balign 8\n" ++
   "runtime_dispatcher_caller_ra:\n" ++
+  "  .zero 8\n" ++
+  -- EIP-7623 calldata floor persisted by the validate-tx-gas path so a
+  -- caller can read the exact `calldata_floor_gas_cost` the transaction
+  -- was validated against (0 when --validate-tx-gas was not requested).
+  "runtime_tx_calldata_floor:\n" ++
   "  .zero 8\n" ++
   ".balign 32\n" ++
   "evm_memory:\n" ++
@@ -1708,6 +1720,78 @@ def buildRuntimeDispatchCallableProbeUnit
     emitRuntimeDispatcherCallablePrologue
   epilogueAsm := emitDispatcherCallableEpilogue registry exitBody
   dataAsm     := emitRuntimeDispatcherDataSection registry
+}
+
+/-- Build a probe `BuildUnit` that runs one staged transaction through the
+    callable runtime dispatcher and captures the dispatcher's gas results into
+    stable per-transaction arrays (index 0), as required by the block-verdict
+    gas-result arena (`block_verdict_gas_result_arena_prepare`).
+
+    The transaction payload is supplied as the ordinary `pack-bytecode.py`
+    runtime input (bytecode + calldata + trailers, with `--validate-tx-gas`),
+    so feeding a STOP or `GAS,STOP` body exercises the post-execution gas
+    surface. After `runtime_dispatcher_call` returns, the wrapper records, for
+    transaction index 0:
+
+      * `gas_left`             := `env.gasRemaining` (env+568)
+      * `calldata_floor_gas_cost` := `runtime_tx_calldata_floor` (persisted by
+        the validate-tx-gas path; 0 when validation was not requested)
+      * `refund_counter`       := 0 — the runtime dispatcher does not yet
+        accumulate an EVM refund counter, so this stays a conservative 0
+        until a later child wires SSTORE/SELFDESTRUCT refunds into `env`.
+      * `halt_kind`            := `OUTPUT+32` (0 STOP/RETURN, 2 REVERT, …),
+        captured separately so exceptional halts stay distinguishable from a
+        normal STOP/RETURN.
+
+    The captured arrays live at `rdg_*` and are also surfaced to the stable
+    `OUTPUT+160` diagnostic window (within ziskemu's 256-byte `-o` dump, past
+    the dispatcher's own storage/log surface which a simple STOP/empty-REVERT
+    leaves zeroed) so a focused zisk probe can assert them:
+
+      OUTPUT+160  gas_left[0]
+      OUTPUT+168  refund_counter[0]
+      OUTPUT+176  calldata_floor[0]
+      OUTPUT+184  halt_kind
+      OUTPUT+192  capture marker (0xca97c0de) -/
+def buildRuntimeDispatchGasCaptureProbeUnit
+    (registry : List OpcodeHandlerSpec)
+    (exitBody : Program) : BuildUnit := {
+  body        := []
+  prologueAsm :=
+    "  jal ra, runtime_dispatcher_call\n" ++
+    "  la t2, evm_env\n" ++
+    "  ld t3, 568(t2)             # gas_left = env.gasRemaining\n" ++
+    "  la t4, rdg_gas_left\n" ++
+    "  sd t3, 0(t4)\n" ++
+    "  la t4, runtime_tx_calldata_floor\n" ++
+    "  ld t5, 0(t4)               # EIP-7623 calldata floor\n" ++
+    "  la t4, rdg_calldata_floor\n" ++
+    "  sd t5, 0(t4)\n" ++
+    "  li t6, 0                   # refund_counter (not yet tracked at runtime)\n" ++
+    "  la t4, rdg_refund_counter\n" ++
+    "  sd t6, 0(t4)\n" ++
+    "  li t0, 0xa0010000\n" ++
+    "  ld t1, 32(t0)              # halt_kind from OUTPUT+32\n" ++
+    "  la t4, rdg_halt_kind\n" ++
+    "  sd t1, 0(t4)\n" ++
+    "  sd t3, 160(t0)             # surface gas_left\n" ++
+    "  sd t6, 168(t0)             # surface refund_counter\n" ++
+    "  sd t5, 176(t0)             # surface calldata_floor\n" ++
+    "  sd t1, 184(t0)             # surface halt_kind\n" ++
+    "  li t2, 0xca97c0de\n" ++
+    "  sd t2, 192(t0)             # capture marker\n" ++
+    "  li x17, 93\n" ++
+    "  li x10, 0\n" ++
+    "  ecall\n" ++
+    emitRuntimeDispatcherCallablePrologue
+  epilogueAsm := emitDispatcherCallableEpilogue registry exitBody
+  dataAsm     :=
+    emitRuntimeDispatcherDataSection registry ++ "\n" ++
+    ".balign 8\n" ++
+    "rdg_gas_left:\n  .zero 128\n" ++
+    "rdg_refund_counter:\n  .zero 128\n" ++
+    "rdg_calldata_floor:\n  .zero 128\n" ++
+    "rdg_halt_kind:\n  .zero 8\n"
 }
 
 /-- Build a `BuildUnit` that runs the dispatcher over `bytecodeBytes`

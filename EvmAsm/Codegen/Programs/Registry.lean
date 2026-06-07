@@ -315,6 +315,7 @@ def lookupProgram : String → Option BuildUnit
   | "tiny_interp_dispatch_add2" => some tinyInterpDispatchAdd2Unit
   | "runtime_dispatcher"        => some runtimeDispatcherUnit
   | "runtime_dispatcher_call_probe" => some runtimeDispatcherCallProbeUnit
+  | "runtime_dispatcher_gas_capture_probe" => some runtimeDispatcherGasCaptureProbeUnit
   | "stateless_guest"           => some statelessGuestUnit
   | "zisk_keccak_probe"         => some ziskKeccakProbeUnit
   | "zisk_keccak256_empty"      => some ziskKeccak256EmptyProbeUnit
