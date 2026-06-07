@@ -39,6 +39,7 @@ import EvmAsm.Codegen.Programs.BlockVerdictGasResults
 import EvmAsm.Codegen.Programs.BlockVerdictTransactions
 import EvmAsm.Codegen.Programs.MptEncodeLeafBranch
 import EvmAsm.Codegen.Programs.TxBlobGas
+import EvmAsm.Codegen.Programs.BlockAccessListHash
 
 import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransfer
 import EvmAsm.Codegen.Programs.TxGasBalPostVerify
@@ -458,8 +459,7 @@ def blockVerdictFunction : String :=
   "  li t4, 1; bltu t3, t4, .Lbv_tx_gas_precharge_not_precompile\n" ++
   "  li t4, 17; bgeu t4, t3, .Lbv_after_tx_gas_precharge\n" ++
   "  li t4, 256; beq t3, t4, .Lbv_after_tx_gas_precharge\n" ++
-  ".Lbv_tx_gas_precharge_not_precompile:\n" ++
-  "  ld a0, 8(s0); ld a1, 16(s0); addi a2, t2, 72; ld a3, 80(s0); ld a4, 88(s0); la a5, bv_tx_recipient_code_hash\n" ++
+  ".Lbv_tx_gas_precharge_not_precompile:\n" ++  "  ld a0, 8(s0); ld a1, 16(s0); addi a2, t2, 72; ld a3, 80(s0); ld a4, 88(s0); la a5, bv_tx_recipient_code_hash\n" ++
   "  jal ra, code_hash_at_header_state_root\n" ++
   "  bnez a0, .Lbv_tx_gas_precharge_fail\n" ++
   "  la t0, bv_tx_recipient_code_hash; la t1, chahsr_empty_code_hash\n" ++
@@ -687,6 +687,9 @@ def statelessVerdictV2Function : String :=
   "  la a2, erh_requests_hash\n" ++
   "  jal ra, execution_requests_hash\n" ++
   "  bnez a0, .Lv2_requests_hash_fail\n" ++
+  "  mv a0, s0; la a1, svf_bal_hash\n" ++
+  "  jal ra, block_access_list_hash\n" ++
+  "  bnez a0, .Lv2_bal_hash_fail\n" ++
   "  la t1, sv_params\n" ++
   "  la t0, svf_payload;        ld t0, 0(t0); sd t0, 0(t1)\n" ++
   "  la t0, svf_parent_rlp;     ld t0, 0(t0); sd t0, 8(t1)\n" ++
@@ -696,7 +699,7 @@ def statelessVerdictV2Function : String :=
   "  la t0, svf_zero32;         sd t0, 40(t1)\n" ++
   "  addi t0, s0, 24;           sd t0, 48(t1)\n" ++
   "  la t0, erh_requests_hash;  sd t0, 56(t1)\n" ++
-  "  la t0, svf_zero32;         sd t0, 96(t1)\n" ++
+  "  la t0, svf_bal_hash;       sd t0, 96(t1)\n" ++
   "  la t0, svf_descriptors;    sd t0, 64(t1)\n" ++
   "  la t0, svf_wds_count;      ld t0, 0(t0); sd t0, 72(t1)\n" ++
   "  la t0, svf_witness;        ld t0, 0(t0); sd t0, 80(t1)\n" ++
@@ -721,6 +724,9 @@ def statelessVerdictV2Function : String :=
   "  j .Lv2_zero\n" ++
   ".Lv2_requests_hash_fail:\n" ++
   "  li t0, 24; la t1, bv_fail_code; sd t0, 0(t1)\n" ++
+  "  j .Lv2_zero\n" ++
+  ".Lv2_bal_hash_fail:\n" ++
+  "  li t0, 30; la t1, bv_fail_code; sd t0, 0(t1)\n" ++
   "  j .Lv2_zero\n" ++
   ".Lv2_chain_config_fail:\n" ++
   "  li t0, 26; la t1, bv_fail_code; sd t0, 0(t1)\n" ++
@@ -865,6 +871,8 @@ def ziskStatelessVerdictV2Prologue : String :=
   rlpBytesEncodedSizeFunction ++ "\n" ++
   rlpListEncodedSizeFunction ++ "\n" ++
   blockRlpRebuiltSizeFunction ++ "\n" ++
+  bahU32leFunction ++ "\n" ++
+  blockAccessListHashFunction ++ "\n" ++
   executionRequestsHashFunction ++ "\n" ++
   step2VerdictFunction ++ "\n" ++
   headerExtractStateRootFunction ++ "\n" ++
