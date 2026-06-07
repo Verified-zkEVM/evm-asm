@@ -89,6 +89,8 @@ def statelessVerdictV2GuestClosure : String :=
   rlpBytesEncodedSizeFunction ++ "\n" ++
   rlpListEncodedSizeFunction ++ "\n" ++
   blockRlpRebuiltSizeFunction ++ "\n" ++
+  bahU32leFunction ++ "\n" ++
+  blockAccessListHashFunction ++ "\n" ++
   executionRequestsHashFunction ++ "\n" ++
   step2VerdictFunction ++ "\n" ++
   headerExtractStateRootFunction ++ "\n" ++
