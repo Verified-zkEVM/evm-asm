@@ -156,6 +156,7 @@ def ziskBlockValidateReceiptsConsensusListPrologue : String :=
   mptDeleteAccFunction ++ "\n" ++
   mptInsertAccFunction ++ "\n" ++
   mptStateRootInsFunction ++ "\n" ++
+  mptIndexedTrieRootOneLeafFunction ++ "\n" ++
   mptIndexedTrieRootSmallFunction ++ "\n" ++
   headerExtractReceiptsRootFunction ++ "\n" ++
   blockValidateReceiptsRootIndexedFunction ++ "\n" ++

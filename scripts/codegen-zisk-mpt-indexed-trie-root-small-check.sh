@@ -88,6 +88,7 @@ LONG1="bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
 FAILED=0
 run_case "empty" "[]" 0 || FAILED=1
 run_case "one_short" "['01']" 0 || FAILED=1
+run_case "one_large" "[('ab' * 200000)]" 0 || FAILED=1
 run_case "two_short" "['01','02']" 0 || FAILED=1
 run_case "three_mixed" "['01','$LONG0','03']" 0 || FAILED=1
 run_case "four_long" "['$LONG0','$LONG1','$LONG0','$LONG1']" 0 || FAILED=1
