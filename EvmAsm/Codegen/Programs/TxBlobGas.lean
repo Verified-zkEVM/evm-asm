@@ -218,7 +218,8 @@ def txEip4844ValidateBlobHashesFunction : String :=
   "  li t2, 32\n" ++
   "  bne t1, t2, .Lt48v_bad_item\n" ++
   "  la t0, t48_offset\n" ++
-  "  add t2, s3, t1\n" ++
+  "  ld t2, 0(t0)\n" ++
+  "  add t2, s3, t2\n" ++
   "  lbu t3, 0(t2)\n" ++
   "  li t4, 1\n" ++
   "  bne t3, t4, .Lt48v_bad_version\n" ++
@@ -229,14 +230,19 @@ def txEip4844ValidateBlobHashesFunction : String :=
   "  j .Lt48v_ret\n" ++
   ".Lt48v_decode_fail:\n" ++
   "  li a0, 1\n" ++
+  "  j .Lt48v_ret\n" ++
   ".Lt48v_count_fail:\n" ++
   "  li a0, 2\n" ++
+  "  j .Lt48v_ret\n" ++
   ".Lt48v_zero_blobs:\n" ++
   "  li a0, 3\n" ++
+  "  j .Lt48v_ret\n" ++
   ".Lt48v_too_many:\n" ++
   "  li a0, 4\n" ++
+  "  j .Lt48v_ret\n" ++
   ".Lt48v_bad_item:\n" ++
   "  li a0, 5\n" ++
+  "  j .Lt48v_ret\n" ++
   ".Lt48v_bad_version:\n" ++
   "  li a0, 6\n" ++
   ".Lt48v_ret:\n" ++
@@ -273,9 +279,13 @@ def ziskTxEip4844ValidateBlobHashesDataSection : String :=
   "rfu_offset:\n" ++
   "  .zero 8\n" ++
   "rfu_length:\n" ++
+  "  .zero 8\n" ++
   "t48_offset:\n" ++
+  "  .zero 8\n" ++
   "t48_length:\n" ++
+  "  .zero 8\n" ++
   "bgvh_count_scratch:\n" ++
+  "  .zero 8\n" ++
   "tcbg_struct:\n" ++
   "  .zero 248"
 def ziskTxEip4844ValidateBlobHashesProbeUnit : BuildUnit := {
