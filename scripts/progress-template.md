@@ -122,5 +122,5 @@ column is the typed `cpsTripleWithin N` step bound (cost surrogate); see C.1.
 | RV64 instruction semantics tie | `Rv64/SailEquiv/` references the official Sail RISC-V model via the `dhsorens/sail-riscv-lean` fork (`lakefile.toml`) |
 | Mathlib pin | `lake-manifest.json` (refreshed alongside Lean nightly) |
 | Lean toolchain pin | `lean-toolchain` (Lean 4 nightly) |
-| Kernel additions | 0 literal `axiom`, 0 `sorry`. Tactic-synthesized trust axioms (kernel `#print axioms`): `bv_decide` (verified-LRAT) accepted; `native_decide` forbidden, pre-existing owners grandfathered in `scripts/axiom-allow.txt` as a burndown to zero. Audited by `scripts/check-axioms.sh` (axis A.1). |
+| Kernel additions | 0 literal `axiom`, 0 `sorry`. Both TCB-expanding tactics are forbidden and fully eliminated (`native_decide` 206→0, `bv_decide` 290→0), so the trusted base is only the three classical axioms (`propext`, `Classical.choice`, `Quot.sound`); the `scripts/axiom-allow.txt` burndown list is now empty. Audited by `scripts/check-axioms.sh` (axis A.1) and pre-filtered by `scripts/check-forbidden-tactics.sh`. |
 | Codegen verification gap | 🟡 codegen is unverified by design (`CODEGEN.md` §Tricky bits #9). Drift caught by build-time `#guard` round-trip tests in `Codegen/RoundTripTests.lean`. |

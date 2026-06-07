@@ -167,7 +167,7 @@ cat <<EOF
 |---|---|
 | \`sorry\` count in \`EvmAsm/\` | $(sorry_count) |
 | literal \`axiom\` declarations in \`EvmAsm/\` | $(axiom_count) |
-| trust axioms in witnessed proofs (kernel \`#print axioms\`) | \`bv_decide\` accepted; \`native_decide\` forbidden — $(nd_grandfathered_count) pre-existing owner(s) grandfathered in [\`scripts/axiom-allow.txt\`](scripts/axiom-allow.txt) (burndown → 0), audited by [\`scripts/check-axioms.sh\`](scripts/check-axioms.sh) |
+| trust axioms in witnessed proofs (kernel \`#print axioms\`) | \`bv_decide\` and \`native_decide\` both forbidden and fully eliminated (trusted base = \`propext\`, \`Classical.choice\`, \`Quot.sound\` only) — $(nd_grandfathered_count) pre-existing owner(s) remain in [\`scripts/axiom-allow.txt\`](scripts/axiom-allow.txt) (burndown → 0), audited by [\`scripts/check-axioms.sh\`](scripts/check-axioms.sh) |
 | Conformance vectors (kernel-checked, \`allConformanceVectors_length\`) | ${CONF_COUNT} (floor in [\`scripts/conformance-baseline.txt\`](scripts/conformance-baseline.txt), gated by \`check-conformance-floor.sh\`) |
 | Build CI guardrails | \`check-no-warnings.sh\`, \`check-unimported.sh\`, \`check-file-size.sh\`, \`check-progress.sh\`, \`check-drift.sh\`, \`check-axioms.sh\`, \`check-conformance-floor.sh\` |
 

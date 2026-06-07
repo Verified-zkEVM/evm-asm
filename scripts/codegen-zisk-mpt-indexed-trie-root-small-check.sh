@@ -84,13 +84,23 @@ PY
 
 LONG0="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 LONG1="bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+LARGE0="$(printf 'cc%.0s' {1..64})"
+LARGE1="$(printf 'dd%.0s' {1..64})"
 
 FAILED=0
 run_case "empty" "[]" 0 || FAILED=1
 run_case "one_short" "['01']" 0 || FAILED=1
+run_case "one_large" "[('ab' * 200000)]" 0 || FAILED=1
 run_case "two_short" "['01','02']" 0 || FAILED=1
 run_case "three_mixed" "['01','$LONG0','03']" 0 || FAILED=1
 run_case "four_long" "['$LONG0','$LONG1','$LONG0','$LONG1']" 0 || FAILED=1
+
+GROUPED_LARGE="$(python3 - <<PYGROUP
+vals = [('$LARGE0' if i % 2 == 0 else '$LARGE1') for i in range(18)]
+print("[" + ",".join(repr(v) for v in vals) + "]")
+PYGROUP
+)"
+run_case "grouped_large" "$GROUPED_LARGE" 0 || FAILED=1
 
 MANY_VALUES="$(python3 - <<'PY'
 vals = [f"{i % 256:02x}" for i in range(128)]
