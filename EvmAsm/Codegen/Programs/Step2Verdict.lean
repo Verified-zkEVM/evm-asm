@@ -178,6 +178,7 @@ def ziskStep2VerdictPrologue : String :=
   u256AddBeFunction ++ "\n" ++
   u256SubBeFunction ++ "\n" ++
   u256EqFunction ++ "\n" ++
+  u256LtBeFunction ++ "\n" ++
   withdrawalDecodeFunction ++ "\n" ++
   withdrawalToPathDeltaFunction ++ "\n" ++
   msetMemcpyFunction ++ "\n" ++
@@ -196,8 +197,10 @@ def ziskStep2VerdictPrologue : String :=
   checkGasLimitFunction ++ "\n" ++
   headerValidatePostMergeFunction ++ "\n" ++
   headerValidateExtraDataLengthFunction ++ "\n" ++
+  amsterdamBlobGasPriceFunction ++ "\n" ++
   eip1559CalcBaseFeePerGasFunction ++ "\n" ++
   headerValidateBaseFeeFunction ++ "\n" ++
+  headerValidateExcessBlobGasFunction ++ "\n" ++
   validateHeaderFullFunction ++ "\n" ++
   headerExtendedDecodeFunction ++ "\n" ++
   headersParentHashFunction ++ "\n" ++
@@ -222,6 +225,8 @@ def ziskStep2VerdictDataSection : String :=
   "  .byte 0xf0, 0xa1, 0x42, 0xfd, 0x40, 0xd4, 0x93, 0x47\n" ++
   ".balign 32\n" ++
   "hvbf_expected:\n  .zero 32\n" ++
+  ".balign 32\n" ++
+  "hvebg_threshold:\n  .zero 32\n" ++
   ".balign 8\n" ++
   "hvpm_off:\n  .zero 8\n" ++
   "hvpm_len:\n  .zero 8\n" ++
