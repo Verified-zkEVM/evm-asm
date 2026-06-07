@@ -20,6 +20,11 @@ def ziskStatelessVerdictV2DataSection : String :=
   runtimeAccessAccountOutcomeData ++ "\n" ++
   storageAccessGasData ++ "\n" ++
   executionRequestsHashDataSection ++ "\n" ++
+  ".balign 32\n" ++
+  "svf_tx_root:\n  .zero 32\n" ++
+  ".balign 8\n" ++
+  "svf_tx_count:\n  .zero 8\n" ++
+  "svf_tx_descriptors:\n  .zero 2048\n" ++
   ".balign 8\n" ++
   "sltr_field_len:\n  .zero 8\n" ++
   "sltr_nibble_count:\n  .zero 8\n" ++
@@ -141,6 +146,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bv_fail_code:\n  .zero 8\n" ++
   "bv_header_status:\n  .zero 8\n" ++
   "bv_state_status:\n  .zero 8\n" ++
+  "bv_tx_root_status:\n  .zero 8\n" ++
   "bv_block_rlp_len:\n  .zero 8\n" ++
   "bv_blockhash_required_headers:\n  .zero 8\n" ++
   "brr_status:\n  .zero 8\n" ++
@@ -153,6 +159,10 @@ def ziskStatelessVerdictV2DataSection : String :=
   "brr_control:\n  .zero 24\n" ++
   ".balign 8\n" ++
   "brr_records:\n  .zero 1024\n" ++
+  "itr_empty_witness:\n  .zero 8\n" ++
+  "itr_value_descs:\n  .zero 2048\n" ++
+  "itr_paths:\n  .zero 256\n" ++
+  "itr_changes:\n  .zero 8192\n" ++
   "bvgr_runtime_gas_left_ptr:\n  .zero 8\n" ++
   "bvgr_runtime_refund_counter_ptr:\n  .zero 8\n" ++
   "bvgr_runtime_calldata_floor_ptr:\n  .zero 8\n" ++

@@ -73,6 +73,7 @@ def statelessVerdictV2GuestClosure : String :=
   mptInsertAccFunction ++ "\n" ++
   mptStateRootInsFunction ++ "\n" ++
   withdrawalsStateRootFunction ++ "\n" ++
+  mptIndexedTrieRootSmallFunction ++ "\n" ++
   validateHeaderBasicFunction ++ "\n" ++
   checkGasLimitFunction ++ "\n" ++
   headerValidatePostMergeFunction ++ "\n" ++
