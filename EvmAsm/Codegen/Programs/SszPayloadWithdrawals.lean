@@ -15,8 +15,8 @@
     bal_off      = u32 @ exec_payload+528           (block_access_list offset =
                                                      end of the withdrawals data)
     withdrawals_ptr = exec_payload + wd_off
-    withdrawals_len = bal_off - wd_off
-    count           = withdrawals_len / 44          (Withdrawal is fixed 44 B,
+    withdrawals_len = bal_off - wd_off              (requires bal_off >= wd_off)
+    count           = withdrawals_len / 44          (requires no remainder; Withdrawal is fixed 44 B,
                                                      so the list has no inner
                                                      offset table)
   All u32 offsets are read byte-wise (LBU+shift) for the no-misaligned
@@ -45,7 +45,7 @@ def spwU32leFunction : String :=
     a1 = out: ExecutionPayload ptr (u64)
     a2 = out: withdrawals list ptr (u64)
     a3 = out: withdrawals count (u64)
-    a0 (output) = 0. -/
+    a0 (output) = status: 0 ok, 1 malformed SSZ offsets/length. -/
 def extractPayloadAndWithdrawalsFunction : String :=
   "extract_payload_and_withdrawals:\n" ++
   "  addi sp, sp, -48\n" ++
@@ -62,6 +62,8 @@ def extractPayloadAndWithdrawalsFunction : String :=
   "  # exec_payload = NPR + NPR.offsets[0]\n" ++
   "  mv a0, t2\n" ++
   "  jal ra, spw_u32le\n" ++
+  "  li t0, 44\n" ++
+  "  bne a0, t0, .Lspw_fail      # SszNewPayloadRequest fixed header before payload\n" ++
   "  # a0 = NPR.offsets[0]; recompute NPR (t2 clobbered by call? spw_u32le uses only t0/t1)\n" ++
   "  add s4, t2, a0              # s4 = exec_payload addr\n" ++
   "  sd s4, 0(s1)                # out payload ptr\n" ++
@@ -73,6 +75,9 @@ def extractPayloadAndWithdrawalsFunction : String :=
   "  addi a0, s4, 528\n" ++
   "  jal ra, spw_u32le\n" ++
   "  # a0 = bal_off ; t4 = wd_off\n" ++
+  "  li t0, 540\n" ++
+  "  bltu t4, t0, .Lspw_fail     # withdrawals must start after the fixed payload part\n" ++
+  "  bltu a0, t4, .Lspw_fail     # block_access_list offset bounds withdrawals end\n" ++
   "  add t5, s4, t4              # withdrawals_ptr = exec_payload + wd_off\n" ++
   "  sd t5, 0(s2)\n" ++
   "  sub t6, a0, t4              # withdrawals_len = bal_off - wd_off\n" ++
@@ -85,8 +90,16 @@ def extractPayloadAndWithdrawalsFunction : String :=
   "  addi t0, t0, 1\n" ++
   "  j .Lspw_cnt\n" ++
   ".Lspw_cnt_done:\n" ++
+  "  bnez t6, .Lspw_fail         # fixed-size SSZ withdrawals must be N*44 bytes\n" ++
   "  sd t0, 0(s3)                # out count\n" ++
   "  li a0, 0\n" ++
+  "  j .Lspw_ret\n" ++
+  ".Lspw_fail:\n" ++
+  "  sd zero, 0(s1)\n" ++
+  "  sd zero, 0(s2)\n" ++
+  "  sd zero, 0(s3)\n" ++
+  "  li a0, 1\n" ++
+  ".Lspw_ret:\n" ++
   "  ld ra, 0(sp)\n" ++
   "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
   "  addi sp, sp, 48\n" ++
@@ -95,7 +108,7 @@ def extractPayloadAndWithdrawalsFunction : String :=
 /-- `zisk_extract_payload_and_withdrawals`: probe. Input file (-> INPUT+8) is
     the SszStatelessInput SSZ blob (SSZ_BASE = INPUT+8 for the probe).
     Output: OUTPUT+0 = payload offset from SSZ_BASE, OUTPUT+8 = withdrawals
-    offset from SSZ_BASE, OUTPUT+16 = withdrawals count. -/
+    offset from SSZ_BASE, OUTPUT+16 = withdrawals count, OUTPUT+24 = status. -/
 def ziskExtractPayloadAndWithdrawalsPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li a0, 0x40000008           # SSZ_BASE = input start (probe)\n" ++
@@ -103,6 +116,9 @@ def ziskExtractPayloadAndWithdrawalsPrologue : String :=
   "  la a2, spw_wd_ptr\n" ++
   "  la a3, spw_wd_count\n" ++
   "  jal ra, extract_payload_and_withdrawals\n" ++
+  "  li t2, 0xa0010018; sd a0, 0(t2)\n" ++
+  "  li t2, 0xa0010000; sd zero, 0(t2); sd zero, 8(t2); sd zero, 16(t2)\n" ++
+  "  bnez a0, .Lspw_pdone\n" ++
   "  li t6, 0x40000008           # SSZ_BASE for relative offsets\n" ++
   "  la t0, spw_payload_ptr; ld t1, 0(t0); sub t1, t1, t6\n" ++
   "  li t2, 0xa0010000; sd t1, 0(t2)\n" ++
