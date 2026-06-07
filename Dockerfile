@@ -112,5 +112,11 @@ LABEL org.opencontainers.image.created="${BUILD_DATE}"
 LABEL eest.fixture.tag="${EEST_TAG}"
 
 ENTRYPOINT ["bash", "scripts/codegen-eest-stateless-check.sh"]
-# --jobs 2 keeps RSS under ~14 GB on a 32 GB host; bump to --jobs 4 on 64 GB+
-CMD ["--all", "--jobs", "2", "--quiet-passes", "--no-build"]
+# Default to --jobs 3 for the large CI host this image targets. The harness
+# applies a hard safety cap (EEST_MAX_JOBS, default 2) on top of its memory/CPU
+# auto-sizing, so --jobs 3 alone would still be clamped to 2 -- raise --max-jobs
+# to 3 as well. Stock ziskemu (this image builds zisk v0.16.0 unpatched) peaks
+# around ~25 GB RSS per process on the stateless_guest workload, so 3 concurrent
+# jobs need ~75 GB and fit comfortably on a 128 GB host. Override with --jobs N
+# / --max-jobs N (or EEST_JOBS / EEST_MAX_JOBS) for other host sizes.
+CMD ["--all", "--jobs", "3", "--max-jobs", "3", "--quiet-passes", "--no-build"]
