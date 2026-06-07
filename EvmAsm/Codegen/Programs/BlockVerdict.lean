@@ -386,10 +386,23 @@ def blockVerdictFunction : String :=
   "  la t2, bv_npr_p; ld t0, 0(t2); addi a0, t0, 40; jal ra, bgv_u32le # execution_requests offset\n" ++
   "  bltu a0, t3, .Lbv_versioned_hashes_fail\n" ++
   "  sub a2, a0, t3              # SSZ versioned_hashes byte length\n" ++
+  "  la t2, bv_versioned_hashes_len; sd a2, 0(t2)\n" ++
   "  la t2, bv_npr_p; ld t0, 0(t2); add a1, t0, t3\n" ++
   "  la t2, bv_exec_p; ld a0, 0(t2)\n" ++
   "  jal ra, ssz_tx_list_versioned_hashes_match\n" ++
   "  bnez a0, .Lbv_versioned_hashes_fail\n" ++
+  "  # execution-specs apply_body checks header.blob_gas_used against the blob\n" ++
+  "  # gas consumed by type-3 txs. The previous gate proves NPR.versioned_hashes\n" ++
+  "  # equals the tx blob-hash concatenation, so total blob gas is derived from\n" ++
+  "  # that SSZ list length.\n" ++
+  "  la t2, bv_versioned_hashes_len; ld t0, 0(t2)\n" ++
+  "  andi t1, t0, 31; bnez t1, .Lbv_blob_gas_used_fail\n" ++
+  "  srli t0, t0, 5              # blob count\n" ++
+  "  slli t0, t0, 17             # * GAS_PER_BLOB (131072)\n" ++
+  "  la t2, bv_blob_gas_expected; sd t0, 0(t2)\n" ++
+  "  la t2, bv_exec_p; ld t1, 0(t2); addi a0, t1, 512; jal ra, bgv_u64le\n" ++
+  "  la t2, bv_blob_gas_observed; sd a0, 0(t2)\n" ++
+  "  la t2, bv_blob_gas_expected; ld t0, 0(t2); bne a0, t0, .Lbv_blob_gas_used_fail\n" ++
   "  mv a0, s3\n" ++
   "  la t2, bv_exec_p; ld a1, 0(t2)\n" ++
   "  jal ra, public_keys_valid\n" ++
@@ -627,6 +640,8 @@ def blockVerdictFunction : String :=
   "  li t0, 25; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_versioned_hashes_fail:\n" ++
   "  li t0, 27; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_blob_gas_used_fail:\n" ++
+  "  li t0, 30; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_zero:\n" ++
   "  li a0, 0\n" ++
   ".Lbv_ret:\n" ++
@@ -1091,6 +1106,9 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bv_state_status:\n  .zero 8\n" ++
   "bv_block_rlp_len:\n  .zero 8\n" ++
   "bv_blockhash_required_headers:\n  .zero 8\n" ++
+  "bv_versioned_hashes_len:\n  .zero 8\n" ++
+  "bv_blob_gas_expected:\n  .zero 8\n" ++
+  "bv_blob_gas_observed:\n  .zero 8\n" ++
   "brr_status:\n  .zero 8\n" ++
   "brr_append_status:\n  .zero 8\n" ++
   "brr_tx_type:\n  .zero 8\n" ++
