@@ -25,8 +25,6 @@ def ziskStatelessVerdictV2DataSection : String :=
   ".balign 32\n" ++
   "svf_bal_hash:\n  .zero 32\n" ++
   ".balign 32\n" ++
-  "svf_transactions_root:\n  .zero 32\n" ++
-  ".balign 32\n" ++
   "svf_withdrawals_root:\n  .zero 32\n" ++
   ".balign 32\n" ++
   "bv_block_hash:\n  .zero 32\n" ++

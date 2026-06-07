@@ -16,6 +16,7 @@
     K43  validate_header_basic
     K72  check_gas_limit
     K63  calc_excess_blob_gas
+         amsterdam_blob_gas_price
     K67  header_validate_post_merge
     K68  header_validate_extra_data_length
 
@@ -635,6 +636,106 @@ def ziskCalcExcessBlobGasProbeUnit : BuildUnit := {
   body        := NOP
   prologueAsm := ziskCalcExcessBlobGasPrologue
   dataAsm     := ziskCalcExcessBlobGasDataSection
+}
+
+/-! ## amsterdam_blob_gas_price -- Amsterdam blob fee fake exponential
+
+    Compute the Amsterdam `calculate_blob_gas_price` helper:
+
+      taylor_exponential(1, excess_blob_gas, 11684671)
+
+    from `execution-specs/src/ethereum/forks/amsterdam/vm/gas.py`.
+    The generic `taylor_exponential` helper in
+    `execution-specs/src/ethereum/utils/numeric.py` uses an accumulator
+    scaled by the denominator:
+
+      i = 1
+      output = 0
+      numerator_accumulated = denominator
+      while numerator_accumulated > 0:
+          output += numerator_accumulated
+          numerator_accumulated =
+              (numerator_accumulated * excess_blob_gas) // (denominator * i)
+          i += 1
+      return output // denominator
+
+    This RV64 implementation is an exact u64 implementation for the
+    EEST-relevant range where every intermediate product and sum fits
+    in u64. It returns status=1 rather than wrapping if the helper's
+    u64 envelope is exceeded; callers that need arbitrary-precision
+    blob prices should extend this helper to the u256 toolkit.
+
+    Calling convention:
+      a0 (input)  : excess_blob_gas (u64)
+      ra (input)  : return
+      a0 (output) : status, 0 ok / 1 u64 overflow
+      a1 (output) : blob gas price (u64; 0 on overflow).
+
+    Pure register arithmetic, no scratch memory, leaf-callable. -/
+def amsterdamBlobGasPriceFunction : String :=
+  "amsterdam_blob_gas_price:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd s0,  0(sp); sd s1,  8(sp); sd s2, 16(sp)\n" ++
+  "  sd s3, 24(sp); sd s4, 32(sp)\n" ++
+  "  mv s0, a0                   # numerator = excess_blob_gas\n" ++
+  "  li s1, 11684671             # Amsterdam BLOB_BASE_FEE_UPDATE_FRACTION\n" ++
+  "  li s2, 1                    # i\n" ++
+  "  li s3, 0                    # output accumulator\n" ++
+  "  mv s4, s1                   # numerator_accumulated = denominator\n" ++
+  ".Labgp_loop:\n" ++
+  "  beqz s4, .Labgp_done\n" ++
+  "  add t0, s3, s4              # output += numerator_accumulated\n" ++
+  "  bltu t0, s3, .Labgp_overflow\n" ++
+  "  mv s3, t0\n" ++
+  "  mulhu t0, s4, s0            # high half of accum * numerator\n" ++
+  "  bnez t0, .Labgp_overflow\n" ++
+  "  mul t1, s4, s0              # low half of accum * numerator\n" ++
+  "  mulhu t0, s1, s2            # high half of denominator * i\n" ++
+  "  bnez t0, .Labgp_overflow\n" ++
+  "  mul t2, s1, s2              # denominator * i\n" ++
+  "  beqz t2, .Labgp_overflow\n" ++
+  "  divu s4, t1, t2             # next numerator_accumulated\n" ++
+  "  addi t0, s2, 1\n" ++
+  "  beqz t0, .Labgp_overflow\n" ++
+  "  mv s2, t0\n" ++
+  "  j .Labgp_loop\n" ++
+  ".Labgp_done:\n" ++
+  "  divu a1, s3, s1             # output // denominator\n" ++
+  "  li a0, 0\n" ++
+  "  j .Labgp_ret\n" ++
+  ".Labgp_overflow:\n" ++
+  "  li a0, 1\n" ++
+  "  li a1, 0\n" ++
+  ".Labgp_ret:\n" ++
+  "  ld s0,  0(sp); ld s1,  8(sp); ld s2, 16(sp)\n" ++
+  "  ld s3, 24(sp); ld s4, 32(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+/-- `zisk_amsterdam_blob_gas_price`: probe BuildUnit. Reads
+    `excess_blob_gas` from host input, writes `(status, price)` to
+    OUTPUT. -/
+def ziskAmsterdamBlobGasPricePrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a2, 0x40000000\n" ++
+  "  ld a0, 8(a2)                # excess_blob_gas\n" ++
+  "  jal ra, amsterdam_blob_gas_price\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status\n" ++
+  "  sd a1, 8(t0)                # blob gas price\n" ++
+  "  j .Labgp_pdone\n" ++
+  amsterdamBlobGasPriceFunction ++ "\n" ++
+  ".Labgp_pdone:"
+
+def ziskAmsterdamBlobGasPriceDataSection : String :=
+  ".section .data\n" ++
+  "abgp_pad:\n" ++
+  "  .zero 8"
+
+def ziskAmsterdamBlobGasPriceProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskAmsterdamBlobGasPricePrologue
+  dataAsm     := ziskAmsterdamBlobGasPriceDataSection
 }
 
 /-! ## header_validate_post_merge -- PR-K67
