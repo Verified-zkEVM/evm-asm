@@ -39,6 +39,7 @@ import EvmAsm.Codegen.Programs.BlockVerdictGasResults
 import EvmAsm.Codegen.Programs.BlockVerdictTransactions
 import EvmAsm.Codegen.Programs.MptEncodeLeafBranch
 import EvmAsm.Codegen.Programs.TxBlobGas
+import EvmAsm.Codegen.Programs.WithdrawalsRootIndexed
 
 import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransfer
 import EvmAsm.Codegen.Programs.TxGasBalPostVerify
@@ -321,6 +322,8 @@ def blockVerdictFunction : String :=
   "  la t0, bv_fail_code; sd zero, 0(t0)\n" ++
   "  la t0, bv_header_status; sd zero, 0(t0)\n" ++
   "  la t0, bv_state_status; sd zero, 0(t0)\n" ++
+  "  la t0, bv_withdrawals_root_status; sd zero, 0(t0)\n" ++
+  "  la t0, bv_withdrawals_root_valid; sd zero, 0(t0)\n" ++
   "  ld a0, 0(s0); ld a1, 32(s0); ld a2, 40(s0); ld a3, 48(s0); ld a4, 56(s0)\n" ++
   "  la a5, sv_this_rlp; la a6, sv_this_rlp_len\n" ++
   "  jal ra, block_header_ssz_to_rlp\n" ++
@@ -333,6 +336,12 @@ def blockVerdictFunction : String :=
   "  jal ra, validate_header_rlp_pair\n" ++
   "  mv s1, a0\n" ++
   "  la t0, bv_header_status; sd s1, 0(t0)\n" ++
+  "  la a0, sv_this_rlp; la t0, sv_this_rlp_len; ld a1, 0(t0); ld a2, 64(s0); ld a3, 72(s0)\n" ++
+  "  jal ra, block_validate_withdrawals_root_indexed\n" ++
+  "  la t0, bv_withdrawals_root_status; sd a0, 0(t0)\n" ++
+  "  la t0, bv_withdrawals_root_valid; sd a1, 0(t0)\n" ++
+  "  bnez a0, .Lbv_withdrawals_root_fail\n" ++
+  "  beqz a1, .Lbv_withdrawals_root_fail\n" ++
   "  ld a0, 24(s0); ld a1, 80(s0); ld a2, 88(s0); ld a3, 64(s0); ld a4, 72(s0)\n" ++
   "  la a5, sv_recomputed; mv a6, s3\n" ++
   "  jal ra, block_state_root\n" ++
@@ -627,6 +636,8 @@ def blockVerdictFunction : String :=
   "  li t0, 25; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_versioned_hashes_fail:\n" ++
   "  li t0, 27; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_withdrawals_root_fail:\n" ++
+  "  li t0, 31; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_zero:\n" ++
   "  li a0, 0\n" ++
   ".Lbv_ret:\n" ++
@@ -698,6 +709,9 @@ def statelessVerdictV2Function : String :=
   "  sd s4, 0(s3); la t0, svf_wd_len; ld t1, 0(t0); sd t1, 8(s3)\n" ++
   "  addi s2, s2, 44; addi s4, s4, 72; addi s3, s3, 16; addi s5, s5, 1; j .Lv2_wl\n" ++
   ".Lv2_wd:\n" ++
+  "  la a0, svf_descriptors; la t0, svf_wds_count; ld a1, 0(t0); la a2, svf_withdrawals_root\n" ++
+  "  jal ra, mpt_indexed_trie_root_small\n" ++
+  "  bnez a0, .Lv2_withdrawals_root_fail\n" ++
   "  addi a0, s0, 56; jal ra, bgv_u32le; mv s3, a0     # execution_requests offset\n" ++
   "  addi a0, s0, 4;  jal ra, bgv_u32le; mv s4, a0     # witness offset = NPR end\n" ++
   "  addi a0, s0, 16; add a0, a0, s3                   # er section start\n" ++
@@ -711,7 +725,7 @@ def statelessVerdictV2Function : String :=
   "  la t0, svf_parent_rlp_len; ld t0, 0(t0); sd t0, 16(t1)\n" ++
   "  la t0, svf_parent_sr;      sd t0, 24(t1)\n" ++
   "  la t0, svf_zero32;         sd t0, 32(t1)\n" ++
-  "  la t0, svf_zero32;         sd t0, 40(t1)\n" ++
+  "  la t0, svf_withdrawals_root; sd t0, 40(t1)\n" ++
   "  addi t0, s0, 24;           sd t0, 48(t1)\n" ++
   "  la t0, erh_requests_hash;  sd t0, 56(t1)\n" ++
   "  la t0, svf_descriptors;    sd t0, 64(t1)\n" ++
@@ -738,6 +752,9 @@ def statelessVerdictV2Function : String :=
   "  j .Lv2_zero\n" ++
   ".Lv2_requests_hash_fail:\n" ++
   "  li t0, 24; la t1, bv_fail_code; sd t0, 0(t1)\n" ++
+  "  j .Lv2_zero\n" ++
+  ".Lv2_withdrawals_root_fail:\n" ++
+  "  li t0, 31; la t1, bv_fail_code; sd t0, 0(t1)\n" ++
   "  j .Lv2_zero\n" ++
   ".Lv2_chain_config_fail:\n" ++
   "  li t0, 26; la t1, bv_fail_code; sd t0, 0(t1)\n" ++
@@ -804,6 +821,8 @@ def ziskStatelessVerdictV2Prologue : String :=
   "  la t1, bv_tx_gas_precharge; ld t2, 0(t1); sd t2, 352(t0)\n" ++
   "  la t1, bv_simple_transfer_recipient; ld t2, 0(t1); sd t2, 360(t0)\n" ++
   "  la t1, bv_simple_transfer_fee_recipient; ld t2, 0(t1); sd t2, 368(t0)\n" ++
+  "  la t1, bv_withdrawals_root_status; ld t2, 0(t1); sd t2, 376(t0)\n" ++
+  "  la t1, bv_withdrawals_root_valid; ld t2, 0(t1); sd t2, 384(t0)\n" ++
   "  j .Lv2_pdone\n" ++
   zkvmSha256Function ++ "\n" ++
   zkvmKeccak256Function ++ "\n" ++
@@ -863,6 +882,9 @@ def ziskStatelessVerdictV2Prologue : String :=
   mptInsertAccFunction ++ "\n" ++
   mptStateRootInsFunction ++ "\n" ++
   withdrawalsStateRootFunction ++ "\n" ++
+  mptIndexedTrieRootSmallFunction ++ "\n" ++
+  headerExtractWithdrawalsRootFunction ++ "\n" ++
+  blockValidateWithdrawalsRootIndexedFunction ++ "\n" ++
   validateHeaderBasicFunction ++ "\n" ++
   checkGasLimitFunction ++ "\n" ++
   headerValidatePostMergeFunction ++ "\n" ++
@@ -968,6 +990,8 @@ def ziskStatelessVerdictV2DataSection : String :=
   runtimeAccessAccountOutcomeData ++ "\n" ++
   storageAccessGasData ++ "\n" ++
   executionRequestsHashDataSection ++ "\n" ++
+  ".balign 32\n" ++
+  "svf_withdrawals_root:\n  .zero 32\n" ++
   ".balign 8\n" ++
   "sltr_field_len:\n  .zero 8\n" ++
   "sltr_nibble_count:\n  .zero 8\n" ++
@@ -1089,6 +1113,8 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bv_fail_code:\n  .zero 8\n" ++
   "bv_header_status:\n  .zero 8\n" ++
   "bv_state_status:\n  .zero 8\n" ++
+  "bv_withdrawals_root_status:\n  .zero 8\n" ++
+  "bv_withdrawals_root_valid:\n  .zero 8\n" ++
   "bv_block_rlp_len:\n  .zero 8\n" ++
   "bv_blockhash_required_headers:\n  .zero 8\n" ++
   "brr_status:\n  .zero 8\n" ++
@@ -1101,6 +1127,14 @@ def ziskStatelessVerdictV2DataSection : String :=
   "brr_control:\n  .zero 24\n" ++
   ".balign 8\n" ++
   "brr_records:\n  .zero 1024\n" ++
+  "hewr_offset:\n  .zero 8\n" ++
+  "hewr_length:\n  .zero 8\n" ++
+  "bvwri_expected_root:\n  .zero 32\n" ++
+  "bvwri_computed_root:\n  .zero 32\n" ++
+  "itr_empty_witness:\n  .zero 8\n" ++
+  "itr_value_descs:\n  .zero 2048\n" ++
+  "itr_paths:\n  .zero 256\n" ++
+  "itr_changes:\n  .zero 8192\n" ++
   "bvgr_runtime_gas_left_ptr:\n  .zero 8\n" ++
   "bvgr_runtime_refund_counter_ptr:\n  .zero 8\n" ++
   "bvgr_runtime_calldata_floor_ptr:\n  .zero 8\n" ++
