@@ -9,7 +9,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 TAG="${EEST_FIXTURE_TAG:-zkevm@v0.4.0}"
-JOBS="${EEST_VALID_MULTI_TYPE_REQUESTS_JOBS:-${EEST_JOBS:-3}}"
+JOBS="${EEST_VALID_MULTI_TYPE_REQUESTS_JOBS:-${EEST_JOBS:-2}}"
 STEPS="${EEST_VALID_MULTI_TYPE_REQUESTS_STEPS:-${EEST_STEPS:-1000000000}}"
 RUN_DIR="${EEST_VALID_MULTI_TYPE_REQUESTS_RUN_DIR:-gen-out/eest-valid-multi-type-requests}"
 FILTER="${EEST_VALID_MULTI_TYPE_REQUESTS_FILTER:-multi_type_requests/valid_multi_type_requests.json}"

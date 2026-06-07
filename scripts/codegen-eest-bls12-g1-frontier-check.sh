@@ -9,7 +9,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 TAG="${EEST_FIXTURE_TAG:-zkevm@v0.4.0}"
-JOBS="${EEST_BLS12_G1_JOBS:-${EEST_JOBS:-3}}"
+JOBS="${EEST_BLS12_G1_JOBS:-${EEST_JOBS:-2}}"
 STEPS="${EEST_BLS12_G1_STEPS:-${EEST_STEPS:-1000000000}}"
 RUN_DIR="${EEST_BLS12_G1_RUN_DIR:-gen-out/eest-bls12-g1-frontier}"
 FX="${EEST_FIXTURES_DIR:-$(pwd)/gen-out/eest-fixtures/$TAG/fixtures/fixtures}"
@@ -33,7 +33,7 @@ Options:
   --skip N                     skip first N selected rows per filter (default: 0)
   --limit N                    per-filter row cap after skip (default: all selected)
   --jobs N|auto                ziskemu jobs (default: $EEST_BLS12_G1_JOBS,
-                               $EEST_JOBS, or 3)
+                               $EEST_JOBS, or 2)
   --steps N                    ziskemu max steps (default: 1000000000)
   --max-failures N             stop each filter after N FAIL/ERROR rows (default: 1)
   --stop-after-failures N      alias for --max-failures

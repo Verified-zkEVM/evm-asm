@@ -46,7 +46,7 @@
 #     --limit N          cap to N guest invocations (default 50)
 #     --filter SUBSTR    only fixtures whose relpath contains SUBSTR
 #     --steps N          ziskemu max steps (default $EEST_STEPS or 1000000000)
-#     --jobs N|auto      parallel ziskemu jobs (default $EEST_JOBS or auto)
+#     --jobs N|auto      parallel ziskemu jobs (default $EEST_JOBS or auto, capped by $EEST_MAX_JOBS or 2)
 #     --max-failures N   stop after N FAIL/ERROR results (default: disabled)
 #     --stop-after-failures N
 #                        alias for --max-failures
@@ -65,6 +65,9 @@
 #                        for this stateless guest workload.
 #                        CPU cap uses one core/job on patched builds and four
 #                        cores/job on stock builds unless EEST_JOB_CPU_THREADS is set.
+#     --max-jobs N       cap parallel ziskemu jobs after memory/CPU auto-cap
+#                        (default $EEST_MAX_JOBS or 2; set higher explicitly
+#                        when this host is not sharing ziskemu capacity).
 #     --min-succ N       exit 1 if fewer than N succ-bit matches (regression gate)
 #     --min-full N       exit 1 if fewer than N full (105-byte) matches (regression gate)
 #     --min-root N       exit 1 if fewer than N root matches (regression gate)
@@ -111,6 +114,7 @@ STEPS="${EEST_STEPS:-1000000000}"
 # differently; a non-match safely falls through to ERROR.
 STEP_LIMIT_RE="${EEST_STEP_LIMIT_RE:-(step[s]? limit|maximum steps|max[_ ]*steps|exceeded.*step|step.*exceeded|out of steps|reached.*steps|step budget|EmulationNoCompleted)}"
 JOBS="${EEST_JOBS:-auto}"
+MAX_JOBS="${EEST_MAX_JOBS:-2}"
 JOB_MEM_MIB="${EEST_JOB_MEM_MIB:-auto}"
 JOB_CPU_THREADS="${EEST_JOB_CPU_THREADS:-auto}"
 MEM_RESERVE_MIB="${EEST_MEM_RESERVE_MIB:-4096}"
@@ -143,7 +147,7 @@ Options:
   --limit N                cap to N guest invocations (default 50)
   --filter SUBSTR          only fixtures whose relpath contains SUBSTR
   --steps N                ziskemu max steps (default $EEST_STEPS or 1000000000)
-  --jobs N|auto            parallel ziskemu jobs (default $EEST_JOBS or auto)
+  --jobs N|auto            parallel ziskemu jobs (default $EEST_JOBS or auto, capped by $EEST_MAX_JOBS or 2)
   --max-failures N         stop after N FAIL/ERROR results
   --stop-after-failures N  alias for --max-failures
   --quiet-passes           suppress per-case PASS(full) lines
@@ -151,6 +155,7 @@ Options:
   --bsr-witness-cap N      experimental: run with a proposed block_state_root witness cap
   --bsr-bal-cap N          experimental: add a lower block_state_root BAL row cap
   --job-mem-mib N|auto     memory budget per ziskemu job
+  --max-jobs N             cap parallel ziskemu jobs after memory/CPU auto-cap
   --min-succ N             exit 1 if fewer than N succ-bit matches
   --min-full N             exit 1 if fewer than N full matches
   --min-root N             exit 1 if fewer than N root matches
@@ -187,6 +192,7 @@ while [[ $# -gt 0 ]]; do
     --filter) require_arg "$1" "${2:-}"; FILTER="$2"; shift 2 ;;
     --steps) require_arg "$1" "${2:-}"; STEPS="$2"; shift 2 ;;
     --jobs) require_arg "$1" "${2:-}"; JOBS="$2"; shift 2 ;;
+    --max-jobs) require_arg "$1" "${2:-}"; MAX_JOBS="$2"; shift 2 ;;
     --max-failures|--stop-after-failures) require_arg "$1" "${2:-}"; MAX_FAILURES="$2"; shift 2 ;;
     --quiet-passes) QUIET_PASSES=1; shift ;;
     --show-passes) QUIET_PASSES=0; shift ;;
@@ -215,6 +221,10 @@ if ! [[ "$SKIP" =~ ^[0-9]+$ ]]; then
 fi
 if [[ "$JOBS" != "auto" ]] && { ! [[ "$JOBS" =~ ^[0-9]+$ ]] || [[ "$JOBS" -lt 1 ]]; }; then
   echo "--jobs must be a positive integer or auto (got: $JOBS)" >&2
+  exit 1
+fi
+if ! [[ "$MAX_JOBS" =~ ^[0-9]+$ ]] || [[ "$MAX_JOBS" -lt 1 ]]; then
+  echo "--max-jobs/EEST_MAX_JOBS must be a positive integer (got: $MAX_JOBS)" >&2
   exit 1
 fi
 if [[ "$JOB_MEM_MIB" != "auto" ]] && { ! [[ "$JOB_MEM_MIB" =~ ^[0-9]+$ ]] || [[ "$JOB_MEM_MIB" -lt 1 ]]; }; then
@@ -369,16 +379,19 @@ compute_job_cap() {
 
 CPUS="$(nproc 2>/dev/null || echo 1)"
 JOB_CAP="$(compute_job_cap)"
+if [[ "$JOB_CAP" -gt "$MAX_JOBS" ]]; then
+  JOB_CAP="$MAX_JOBS"
+fi
 if [[ "$JOBS" == "auto" ]]; then
   JOBS="$JOB_CAP"
 elif [[ "$JOBS" -gt "$JOB_CAP" ]]; then
-  echo "==> requested --jobs $JOBS capped to $JOB_CAP (job_mem=${JOB_MEM_MIB}MiB, reserve=${MEM_RESERVE_MIB}MiB, cpu_threads/job=$JOB_CPU_THREADS)" >&2
+  echo "==> requested --jobs $JOBS capped to $JOB_CAP (max_jobs=${MAX_JOBS}, job_mem=${JOB_MEM_MIB}MiB, reserve=${MEM_RESERVE_MIB}MiB, cpu_threads/job=$JOB_CPU_THREADS)" >&2
   JOBS="$JOB_CAP"
 fi
 
 echo "==> ziskemu: $ZISKEMU"
 echo "    version: $ZISKEMU_VERSION"
-echo "    flavor:  $ZISKEMU_FLAVOR (${JOB_MEM_MIB} MiB/proc budget) -> jobs=$JOBS (cpus=$CPUS)"
+echo "    flavor:  $ZISKEMU_FLAVOR (${JOB_MEM_MIB} MiB/proc budget, max_jobs=$MAX_JOBS) -> jobs=$JOBS (cpus=$CPUS)"
 
 # --- locate fixtures --------------------------------------------------------
 FX="${EEST_FIXTURES_DIR:-$REPO_ROOT/gen-out/eest-fixtures/$TAG/fixtures/fixtures}"
