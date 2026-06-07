@@ -9,7 +9,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 TAG="${EEST_FIXTURE_TAG:-zkevm@v0.4.0}"
-JOBS="${EEST_MEM32KB_SINGLE_BYTE_JOBS:-${EEST_JOBS:-3}}"
+JOBS="${EEST_MEM32KB_SINGLE_BYTE_JOBS:-${EEST_JOBS:-2}}"
 STEPS="${EEST_MEM32KB_SINGLE_BYTE_STEPS:-${EEST_STEPS:-1000000000}}"
 RUN_DIR="${EEST_MEM32KB_SINGLE_BYTE_RUN_DIR:-gen-out/eest-mem32kb-single-byte-minus-31}"
 FX="${EEST_FIXTURES_DIR:-$(pwd)/gen-out/eest-fixtures/$TAG/fixtures/fixtures}"

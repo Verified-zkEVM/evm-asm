@@ -9,7 +9,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 TAG="${EEST_FIXTURE_TAG:-zkevm@v0.4.0}"
-JOBS="${EEST_STATICCALL_REENTRANT_JOBS:-${EEST_JOBS:-3}}"
+JOBS="${EEST_STATICCALL_REENTRANT_JOBS:-${EEST_JOBS:-2}}"
 STEPS="${EEST_STATICCALL_REENTRANT_STEPS:-${EEST_STEPS:-1000000000}}"
 RUN_DIR="${EEST_STATICCALL_REENTRANT_RUN_DIR:-gen-out/eest-staticcall-reentrant-precompile}"
 FX="${EEST_FIXTURES_DIR:-$(pwd)/gen-out/eest-fixtures/$TAG/fixtures/fixtures}"
