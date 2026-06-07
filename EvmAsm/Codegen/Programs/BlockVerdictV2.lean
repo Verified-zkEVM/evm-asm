@@ -167,6 +167,7 @@ def statelessVerdictV2GuestClosure : String :=
   accountExtractNonceFunction ++ "\n" ++
   txGasSenderBalLookupFunction ++ "\n" ++
   simpleTransferTxContextFunction ++ "\n" ++
+  stageRuntimePayloadFunction ++ "\n" ++
   txExtractNonceAndGasFunction ++ "\n" ++
   txExtractGasPricingFunction ++ "\n" ++
   u256MinFunction ++ "\n" ++

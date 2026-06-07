@@ -53,6 +53,7 @@ import EvmAsm.Codegen.Programs.BlockVerdictSysChange
 import EvmAsm.Codegen.Programs.BlockVerdictChainConfig
 import EvmAsm.Codegen.Programs.BlockVerdictParams
 import EvmAsm.Codegen.Programs.BlockVerdictDataSection
+import EvmAsm.Codegen.Programs.BlockVerdictRuntimePayload
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
@@ -310,6 +311,10 @@ def blockVerdictFunction : String :=
   "  la t0, bv_tx_root_status; sd zero, 0(t0)\n" ++
   "  la t0, bv_withdrawals_root_status; sd zero, 0(t0)\n" ++
   "  la t0, bv_withdrawals_root_valid; sd zero, 0(t0)\n" ++
+  "  la t0, bvgr_runtime_gas_left_ptr; sd zero, 0(t0)\n" ++
+  "  la t0, bvgr_runtime_refund_counter_ptr; sd zero, 0(t0)\n" ++
+  "  la t0, bvgr_runtime_calldata_floor_ptr; sd zero, 0(t0)\n" ++
+  "  la t0, bvgr_runtime_count; sd zero, 0(t0)\n" ++
   "  ld a0, 0(s0); ld a1, 32(s0); ld a2, 40(s0); ld a3, 48(s0); ld a4, 56(s0); ld a7, 96(s0)\n" ++
   "  la a5, sv_this_rlp; la a6, sv_this_rlp_len\n" ++
   "  jal ra, block_header_ssz_to_rlp\n" ++
@@ -566,6 +571,29 @@ def blockVerdictFunction : String :=
   "  jal ra, simple_transfer_fee_recipient_bal_verify\n" ++
   "  la t2, bv_simple_transfer_fee_recipient; ld t0, 0(t2); bnez t0, .Lbv_simple_transfer_fee_recipient_fail\n" ++
   ".Lbv_st_skip_fee_overlap:\n" ++
+  "  # For the supported EOA simple-transfer shape, run the staged STOP body\n" ++
+  "  # through the callable runtime dispatcher and expose its gas result to\n" ++
+  "  # block_verdict_gas_result_arena_prepare. Unsupported shapes branch to\n" ++
+  "  # .Lbv_after_tx_gas_precharge with bvgr_runtime_count left at 0.\n" ++
+  "  la a0, bv_simple_transfer_tx\n" ++
+  "  la a1, bv_runtime_payload\n" ++
+  "  la t2, bv_exec_p; ld a2, 0(t2)\n" ++
+  "  jal ra, stage_runtime_payload\n" ++
+  "  bnez a0, .Lbv_after_tx_gas_precharge\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd s0, 0(sp); sd s1, 8(sp); sd s2, 16(sp); sd s3, 24(sp)\n" ++
+  "  jal ra, runtime_dispatcher_call\n" ++
+  "  ld s0, 0(sp); ld s1, 8(sp); ld s2, 16(sp); ld s3, 24(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  la t2, evm_env; ld t3, 568(t2)\n" ++
+  "  la t4, bv_runtime_gas_left; sd t3, 0(t4)\n" ++
+  "  la t4, runtime_tx_calldata_floor; ld t5, 0(t4)\n" ++
+  "  la t4, bv_runtime_calldata_floor; sd t5, 0(t4)\n" ++
+  "  la t4, bv_runtime_refund_counter; sd zero, 0(t4)\n" ++
+  "  la t4, bvgr_runtime_gas_left_ptr; la t5, bv_runtime_gas_left; sd t5, 0(t4)\n" ++
+  "  la t4, bvgr_runtime_refund_counter_ptr; la t5, bv_runtime_refund_counter; sd t5, 0(t4)\n" ++
+  "  la t4, bvgr_runtime_calldata_floor_ptr; la t5, bv_runtime_calldata_floor; sd t5, 0(t4)\n" ++
+  "  li t5, 1; la t4, bvgr_runtime_count; sd t5, 0(t4)\n" ++
   ".Lbv_after_tx_gas_precharge:\n" ++
   "  # EIP-8037 tx inclusion gas gate: reject parse-supported legacy tx blocks\n" ++
   "  # whose worst regular/state gas exceeds the remaining 2D block budget.\n" ++
@@ -1053,6 +1081,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   accountExtractNonceFunction ++ "\n" ++
   txGasSenderBalLookupFunction ++ "\n" ++
   simpleTransferTxContextFunction ++ "\n" ++
+  stageRuntimePayloadFunction ++ "\n" ++
   txExtractNonceAndGasFunction ++ "\n" ++
   txExtractGasPricingFunction ++ "\n" ++
   u256MinFunction ++ "\n" ++
