@@ -9,12 +9,14 @@ import EvmAsm.Codegen.Dispatch
 import EvmAsm.Codegen.Programs.EvmAccessGas
 import EvmAsm.Codegen.Programs.EvmMemoryGas
 import EvmAsm.Codegen.Programs.Modexp
+import EvmAsm.Codegen.Programs.CreateRuntime
 import EvmAsm.Codegen.Programs.PrecompileRuntime
 import EvmAsm.Rv64.Program
 
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
+
 
 /-- M19 child-frame opcodes (CREATE, CALL, CALLCODE, DELEGATECALL,
     CREATE2, STATICCALL). CALL-family non-precompile paths still ship as
@@ -216,6 +218,10 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  la x18, create_nonce\n" ++
     "  sd x0, 0(x18)\n" ++
     "3:\n" ++
+    "  la x18, create_nonce\n" ++
+    "  ld x18, 0(x18)\n" ++
+    "  li x19, -1\n" ++
+    "  beq x18, x19, 7f\n" ++
     (if hasSalt then
       -- Convert the CREATE2 salt stack word to canonical 32-byte big-endian.
       "  la x18, create_salt_be\n" ++
@@ -273,6 +279,7 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  ld x18, 0(x18)\n" ++
     "  bnez x18, 7f\n" ++
     "6:\n" ++
+    createStageInitcodeFrameCallAsm (if hasSalt then 1 else 0) ++
     "  addi x12, x12, " ++ toString netPopBytes ++ "\n" ++
     -- Push the derived 160-bit address as an EVM stack word: low 160 bits in
     -- stack byte order, high 96 bits zero.
