@@ -542,6 +542,20 @@ format_verdict_debug() {
       dbg="${dbg:+$dbg }${gas_labels[$i]}=$value"
     done
   fi
+  if [[ "$(stat -c%s "$out" 2>/dev/null || echo 0)" -ge 376 ]]; then
+    raw="$(od -An -v -tu8 -j 344 -N 32 "$out" 2>/dev/null | xargs || true)"
+    read -r -a words <<< "$raw"
+    local -a simple_transfer_labels=(
+      st_status
+      st_sender_status
+      st_recipient_status
+      st_fee_status
+    )
+    for i in "${!simple_transfer_labels[@]}"; do
+      value="${words[$i]:-?}"
+      dbg="${dbg:+$dbg }${simple_transfer_labels[$i]}=$value"
+    done
+  fi
   echo "$dbg"
 }
 
