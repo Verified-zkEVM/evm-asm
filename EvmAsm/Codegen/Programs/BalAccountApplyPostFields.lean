@@ -123,6 +123,11 @@ def balAccountApplyPostFieldsFunction : String :=
   "  mv s6, s0                   # current account ptr\n" ++
   "  mv s7, s1                   # current account len\n" ++
   "  la t0, baap_fail_code; sd zero, 0(t0)\n" ++
+  "  la t0, baap_storage_empty_flag; sd zero, 0(t0)\n" ++
+  "  la t0, baap_storage_delete_flag; sd zero, 0(t0)\n" ++
+  "  la t0, baap_storage_delete_count; sd zero, 0(t0)\n" ++
+  "  la t0, baap_storage_delete_index; sd zero, 0(t0)\n" ++
+  "  la t0, baap_sc_out_count; sd zero, 0(t0)\n" ++
   "  mv a0, s2; mv a1, s3\n" ++
   "  la a2, baap_bal; la a3, baap_bal_len; la a4, baap_nonce; la a5, baap_nonce_len\n" ++
   "  jal ra, bal_account_post_fields\n" ++
