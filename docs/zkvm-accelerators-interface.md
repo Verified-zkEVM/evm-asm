@@ -122,7 +122,23 @@ ECRECOVER is only partially supported at the zisk layer:
 
 - ziskemu has secp256k1 point-add and point-double primitives
   (`_opcode_secp256k1_add`, `_opcode_secp256k1_dbl`) in
-  `/home/zksecurity/.zisk/zisk/emulator-asm/src/emu.c`.
+  `/home/zksecurity/.zisk/zisk/emulator-asm/src/emu.c`. However, the
+  reproducible backend probe
+  `scripts/codegen-zisk-secp256k1-add-dbl-backend-probe-check.sh` classifies
+  both the documented `syscall_secp256k1_add`/`syscall_secp256k1_dbl` and the
+  emulator-private `_opcode_secp256k1_add`/`_opcode_secp256k1_dbl` symbol
+  families as NOT READY: neither links from a bare codegen ELF on the installed
+  ziskemu 0.16.0 (undefined reference at link time, since the normal codegen
+  path links with `riscv64-elf-ld -nostdlib` and does not pull in zisk's host C
+  library — same limitation as the BLS12 family below). The affine point
+  helpers in `EvmAsm/Codegen/Programs/Secp256k1Curve.lean`
+  (`secp256k1_point_add`, `secp256k1_point_double`) therefore use the
+  **software route** built on the verified `secf_*` field arithmetic, with no
+  accelerator-backed fallback wired. The software route is exercised by
+  `scripts/codegen-zisk-secp256k1-curve-check.sh`, which verifies `double(G)`
+  and `add(G,G)` against the precomputed `2G` constant. Until the backend probe
+  reports ready, keep the software route active rather than calling the
+  undefined `_opcode_secp256k1_*`/`syscall_secp256k1_*` symbols.
 - zisk's C library has `secp256k1_ecdsa_verify` in
   `/home/zksecurity/.zisk/zisk/lib-c/c/src/ec/ec.cpp`. This computes the
   ECDSA verification point from a known public key. It is not public-key
