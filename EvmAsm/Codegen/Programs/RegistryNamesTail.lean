@@ -2,20 +2,14 @@
   Tail of CLI-visible codegen program names, split out of Programs.lean to
   keep the registry hub below the file-size pressure line.
 -/
+import EvmAsm.Codegen.Programs.RegistryReceipts
 
 namespace EvmAsm.Codegen
 
 /-- Tail of known codegen program names appended by `knownProgramNames`. -/
 def knownProgramNamesTail : List String :=
-  ["zisk_bloom_eq",
-   "zisk_rlp_encode_u64",
-   "zisk_receipt_encode",
-   "zisk_typed_receipt_encode",
-   "zisk_receipt_records_probe",
-   "zisk_block_verdict_tx_gas_limits",
-   "zisk_block_verdict_gas_result_arena",
-   "zisk_receipt_records_encode_no_logs",
-   "zisk_single_leaf_trie_root",
+  knownReceiptProgramNamesTail ++
+  ["zisk_single_leaf_trie_root",
    "zisk_system_write_descriptors",
    "zisk_bal_gas_valid",
    "zisk_bal_section_info",
@@ -31,7 +25,7 @@ def knownProgramNamesTail : List String :=
    "zisk_bal_account_record_array", "zisk_bal_account_access_outcome_descriptors", "zisk_bal_storage_access_outcome_descriptors", "zisk_tx_gas_sender_bal_lookup", "zisk_tx_gas_bal_post_verify", "zisk_simple_transfer_tx_context", "zisk_simple_transfer_recipient_bal_verify", "zisk_simple_transfer_fee_recipient_bal_verify",
    "zisk_storage_root_single_slot",
    "zisk_account_set_storage_root",
-   "zisk_block_access_list_hash", "zisk_eip7778_remaining_block_gas_check",
+   "zisk_block_access_list_hash",
    "zisk_account_apply_storage_slot", "zisk_storage_effect_records_probe", "zisk_sstore_gas_refund_outcome",
    "zisk_mpt_leaf_node_encode",
    "zisk_mpt_node_slot_encode",
@@ -47,8 +41,6 @@ def knownProgramNamesTail : List String :=
    "zisk_block_validate_withdrawals_root_one_w",
    "zisk_block_validate_withdrawals_root_two_w",
    "zisk_block_validate_withdrawals_root_indexed",
-   "zisk_block_validate_receipts_root_one_receipt",
-   "zisk_block_validate_receipts_root_two_receipts",
    "zisk_block_validate_transactions_root_two_tx",
    "zisk_block_hash_from_header",
    "zisk_validate_parent_hash_link",
@@ -64,7 +56,6 @@ def knownProgramNamesTail : List String :=
    "zisk_header_extract_state_root",
    "zisk_validate_state_root_against_witness_node",
    "zisk_header_extract_parent_hash",
-   "zisk_header_extract_receipts_root",
    "zisk_header_extract_transactions_root",
    "zisk_header_extract_withdrawals_root",
    "zisk_header_extract_ommers_hash",
@@ -148,7 +139,6 @@ def knownProgramNamesTail : List String :=
    "zisk_chain_compute_max_extra_data_length",
    "zisk_chain_extract_first_last_state_root",
    "zisk_chain_extract_first_last_block_hash",
-   "zisk_chain_extract_first_last_receipts_root",
    "zisk_chain_extract_first_last_transactions_root",
    "zisk_chain_extract_first_last_withdrawals_root",
    "zisk_chain_extract_first_last_prev_randao",
@@ -164,7 +154,6 @@ def knownProgramNamesTail : List String :=
    "zisk_block_body_extract_1tx",
    "zisk_block_validate_1tx_full",
    "zisk_block_validate_1tx_full_with_body",
-   "zisk_block_validate_empty_receipts_root",
    "zisk_block_validate_empty_block",
    "zisk_validate_empty_block_with_parent",
    "zisk_validate_empty_block_chain",
@@ -174,8 +163,6 @@ def knownProgramNamesTail : List String :=
    "zisk_block_body_validate_empty",
    "zisk_chain_body_total_tx_count",
    "zisk_chain_body_total_withdrawal_count",
-   "zisk_block_logs_bloom_from_receipts_list",
-   "zisk_block_validate_logs_bloom",
    "zisk_header_root_is_empty_trie",
    "zisk_calldata_byte_counts", "zisk_intrinsic_gas_calldata_floor_eip7623",
    "zisk_init_code_cost", "zisk_intrinsic_gas_amsterdam_counts",
