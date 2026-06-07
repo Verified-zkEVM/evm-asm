@@ -953,6 +953,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   mptStateRootInsFunction ++ "\n" ++
   mptOneLeafRootIndexedFunction ++ "\n" ++
   withdrawalsStateRootFunction ++ "\n" ++
+  mptIndexedTrieRootOneLeafFunction ++ "\n" ++
   mptIndexedTrieRootSmallFunction ++ "\n" ++
   headerExtractWithdrawalsRootFunction ++ "\n" ++
   blockValidateWithdrawalsRootIndexedFunction ++ "\n" ++
