@@ -463,6 +463,19 @@ def blockVerdictFunction : String :=
   "  # final balance = precharge + unused intrinsic refund - value. For value\n" ++
   "  # transfers into contracts, bytecode execution spends additional gas, so\n" ++
   "  # leave the verdict to the state-root/BAL checks instead.\n" ++
+  "  # Direct transfers to active precompiles also execute code despite having\n" ++
+  "  # no state-trie code hash; skip this 21k-only verifier for them too.\n" ++
+  "  mv t0, t2; addi t0, t0, 72; li t1, 0\n" ++
+  ".Lbv_tx_gas_precharge_pc_prefix:\n" ++
+  "  li t3, 18; beq t1, t3, .Lbv_tx_gas_precharge_pc_low16\n" ++
+  "  add t3, t0, t1; lbu t4, 0(t3); bnez t4, .Lbv_tx_gas_precharge_not_precompile\n" ++
+  "  addi t1, t1, 1; j .Lbv_tx_gas_precharge_pc_prefix\n" ++
+  ".Lbv_tx_gas_precharge_pc_low16:\n" ++
+  "  lbu t3, 18(t0); lbu t4, 19(t0); slli t3, t3, 8; or t3, t3, t4\n" ++
+  "  li t4, 1; bltu t3, t4, .Lbv_tx_gas_precharge_not_precompile\n" ++
+  "  li t4, 17; bgeu t4, t3, .Lbv_after_tx_gas_precharge\n" ++
+  "  li t4, 256; beq t3, t4, .Lbv_after_tx_gas_precharge\n" ++
+  ".Lbv_tx_gas_precharge_not_precompile:\n" ++
   "  ld a0, 8(s0); ld a1, 16(s0); addi a2, t2, 72; ld a3, 80(s0); ld a4, 88(s0); la a5, bv_tx_recipient_code_hash\n" ++
   "  jal ra, code_hash_at_header_state_root\n" ++
   "  bnez a0, .Lbv_tx_gas_precharge_fail\n" ++
