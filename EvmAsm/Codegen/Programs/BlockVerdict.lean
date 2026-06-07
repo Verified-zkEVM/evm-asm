@@ -580,11 +580,13 @@ def blockVerdictFunction : String :=
   "  la t2, bv_exec_p; ld a2, 0(t2)\n" ++
   "  jal ra, stage_runtime_payload\n" ++
   "  bnez a0, .Lbv_after_tx_gas_precharge\n" ++
+  "  la t4, runtime_dispatcher_input_ptr; la t5, bv_runtime_payload; sd t5, 0(t4)\n" ++
   "  addi sp, sp, -32\n" ++
   "  sd s0, 0(sp); sd s1, 8(sp); sd s2, 16(sp); sd s3, 24(sp)\n" ++
   "  jal ra, runtime_dispatcher_call\n" ++
   "  ld s0, 0(sp); ld s1, 8(sp); ld s2, 16(sp); ld s3, 24(sp)\n" ++
   "  addi sp, sp, 32\n" ++
+  "  la t4, runtime_dispatcher_input_ptr; sd zero, 0(t4)\n" ++
   "  la t2, evm_env; ld t3, 568(t2)\n" ++
   "  la t4, bv_runtime_gas_left; sd t3, 0(t4)\n" ++
   "  la t4, runtime_tx_calldata_floor; ld t5, 0(t4)\n" ++
