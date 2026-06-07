@@ -775,43 +775,14 @@ def statelessVerdictV2Function : String :=
   "  mv a0, s0; la a1, svf_bal_hash\n" ++
   "  jal ra, block_access_list_hash\n" ++
   "  bnez a0, .Lv2_bal_hash_fail\n" ++
-  "  la t0, bv_block_hash_check_enabled; sd zero, 0(t0)\n" ++
-  "  la t0, svf_payload; ld t3, 0(t0)\n" ++
-  "  addi a0, t3, 504; jal ra, bgv_u32le; mv t4, a0     # transactions_offset\n" ++
-  "  la t0, svf_payload; ld t3, 0(t0)\n" ++
-  "  addi a0, t3, 508; jal ra, bgv_u32le; mv t5, a0     # withdrawals_offset\n" ++
-  "  bltu t5, t4, .Lv2_header_roots_done\n" ++
-  "  sub t6, t5, t4                                      # tx list byte length\n" ++
-  "  beqz t6, .Lv2_tx_root_empty\n" ++
-  "  la t0, svf_payload; ld t3, 0(t0); add t2, t3, t4    # tx list ptr\n" ++
-  "  mv a0, t2; jal ra, bgv_u32le                        # first SSZ offset\n" ++
-  "  li t0, 4; bne a0, t0, .Lv2_header_roots_done\n" ++
-  "  li t0, 4; bltu t6, t0, .Lv2_header_roots_done\n" ++
-  "  la t0, svf_payload; ld t3, 0(t0); add t2, t3, t4\n" ++
-  "  addi a0, t2, 4; addi a1, t6, -4; la a2, svf_transactions_root\n" ++
-  "  jal ra, mpt_one_leaf_root_indexed\n" ++
-  "  j .Lv2_tx_root_ok\n" ++
-  ".Lv2_tx_root_empty:\n" ++
-  "  la a0, svf_transactions_root; la a1, aps_empty_root; li a2, 32\n" ++
-  "  jal ra, mset_memcpy\n" ++
-  ".Lv2_tx_root_ok:\n" ++
-  "  la t0, svf_payload; ld t3, 0(t0)\n" ++
-  "  addi a0, t3, 508; jal ra, bgv_u32le; mv t5, a0     # withdrawals_offset\n" ++
-  "  la t0, svf_payload; ld t3, 0(t0)\n" ++
-  "  addi a0, t3, 528; jal ra, bgv_u32le; mv t6, a0     # block_access_list_offset\n" ++
-  "  bltu t6, t5, .Lv2_header_roots_done\n" ++
-  "  sub t6, t6, t5                                      # withdrawals byte length\n" ++
-  "  bnez t6, .Lv2_header_roots_done\n" ++
-  "  la a0, svf_withdrawals_root; la a1, aps_empty_root; li a2, 32\n" ++
-  "  jal ra, mset_memcpy\n" ++
+  "  # General transaction and withdrawal trie roots have already been computed above.\n" ++
   "  li t0, 1; la t1, bv_block_hash_check_enabled; sd t0, 0(t1)\n" ++
-  ".Lv2_header_roots_done:\n" ++
   "  la t1, sv_params\n" ++
   "  la t0, svf_payload;        ld t0, 0(t0); sd t0, 0(t1)\n" ++
   "  la t0, svf_parent_rlp;     ld t0, 0(t0); sd t0, 8(t1)\n" ++
   "  la t0, svf_parent_rlp_len; ld t0, 0(t0); sd t0, 16(t1)\n" ++
   "  la t0, svf_parent_sr;      sd t0, 24(t1)\n" ++
-  "  la t0, svf_transactions_root; sd t0, 32(t1)\n" ++
+  "  la t0, svf_tx_root;          sd t0, 32(t1)\n" ++
   "  la t0, svf_withdrawals_root;  sd t0, 40(t1)\n" ++
   "  addi t0, s0, 24;           sd t0, 48(t1)\n" ++
   "  la t0, erh_requests_hash;  sd t0, 56(t1)\n" ++
