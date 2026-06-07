@@ -16,6 +16,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Programs.AmsterdamSystemTx
 
 namespace EvmAsm.Codegen
 
@@ -352,8 +353,11 @@ def intrinsicGasAmsterdamCountsFunction : String :=
     Output layout:
       bytes  0.. 8 : status, 0 iff max(intrinsic, floor) <= gas_limit
                     and max(intrinsic, floor) <= TX_MAX_GAS_LIMIT
-      bytes  8..16 : intrinsic gas
-      bytes 16..24 : calldata floor gas -/
+      bytes  8..16 : intrinsic gas (regular)
+      bytes 16..24 : calldata floor gas
+      bytes 24..32 : EIP-8037 intrinsic state gas
+                    = (is_creation ? 120*1530 : 0)
+                    + (120+23)*1530 * authorization_count -/
 def ziskIntrinsicGasAmsterdamCountsPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li t0, 0x40000000\n" ++
@@ -381,6 +385,22 @@ def ziskIntrinsicGasAmsterdamCountsPrologue : String :=
   "  bltu s0, t2, .Ligac_write_status\n" ++
   "  li t3, 0\n" ++
   ".Ligac_write_status:\n" ++
+  "  sd t3, 0(t0)\n" ++
+  "  # EIP-8037 intrinsic state gas = create_state_gas + auth_state_gas\n" ++
+  "  # create_state_gas = is_creation ? 120*1530 : 0\n" ++
+  "  # auth_state_gas   = (120+23)*1530 * authorization_count\n" ++
+  "  li t0, 0x40000000\n" ++
+  "  ld t1, 16(t0)               # is_creation\n" ++
+  "  ld t2, 48(t0)               # authorization count\n" ++
+  "  li t3, 0                    # intrinsic_state_gas accumulator\n" ++
+  "  beqz t1, .Ligac_state_no_create\n" ++
+  liAmsterdamNewAccountStateGas "t4" ++
+  "  add t3, t3, t4\n" ++
+  ".Ligac_state_no_create:\n" ++
+  liAmsterdamAuthStateGasPerAuth "t4" ++
+  "  mul t4, t2, t4\n" ++
+  "  add t3, t3, t4\n" ++
+  "  li t0, 0xa0010018\n" ++
   "  sd t3, 0(t0)\n" ++
   "  j .Ligac_pdone\n" ++
   intrinsicGasAmsterdamCountsFunction ++ "\n" ++
