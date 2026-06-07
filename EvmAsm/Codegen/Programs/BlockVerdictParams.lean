@@ -1,0 +1,37 @@
+/-
+  EvmAsm.Codegen.Programs.BlockVerdictParams
+
+  Shared numeric parameters for the block-state-root / stateless-verdict-v2
+  programs: static arena capacities and layout byte-widths.
+  Extracted from BlockVerdict.lean so BlockVerdictDataSection.lean can share
+  them without a circular import.
+-/
+
+import EvmAsm.Codegen.Programs.EvmAccessGas
+import EvmAsm.Codegen.Programs.EvmStorageAccessGas
+
+namespace EvmAsm.Codegen
+
+def bsrBalGasCost : Nat := 2000
+/-- Static BAL/state replay arena capacity. This is sized like the former 1G
+    worst-case BAL budget, but high declared block gas is not itself a layout
+    error: the guest first applies Amsterdam's gas-derived BAL rule, then checks
+    actual decoded item counts against these arenas. -/
+def bsrMaxBalItems : Nat := 500000
+def bsrModeledSystemChanges : Nat := 2
+def bsrMaxWithdrawalChanges : Nat := 16
+def bsrMaxAuxChanges : Nat := bsrModeledSystemChanges + bsrMaxWithdrawalChanges
+def bsrMaxStateChanges : Nat :=
+  bsrMaxBalItems + bsrModeledSystemChanges + bsrMaxWithdrawalChanges
+def bsrMaxAccessAccounts : Nat := runtimeAccessAccountOutcomeCapacity
+def bsrMaxAccountAccessOutcomes : Nat := runtimeAccessAccountOutcomeCapacity
+def bsrMaxStorageAccessOutcomes : Nat := storageAccessOutcomeMaxRecords
+
+def bsrAccountRecordBytes : Nat := 24
+def bsrPathBytes : Nat := 64
+def bsrEncodedAccountBytes : Nat := 256
+def bsrSystemAccountBytes : Nat := 128
+def bsrStateChangeBytes : Nat := 40
+def baapStorageDescBytes : Nat := 40
+
+end EvmAsm.Codegen
