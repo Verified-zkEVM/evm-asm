@@ -111,6 +111,20 @@ their selection as a simple-transfer pass claim. Override `--jobs`, `--steps`,
 or `--limit` (or the `EEST_SIMPLE_TRANSFER_*` env vars) without changing the
 broader harness defaults.
 
+Run the focused CREATE/CREATE2 child-execution frontier:
+
+```bash
+scripts/codegen-eest-create-child-frontier-check.sh --jobs 1
+```
+
+This wrapper discovers matching `stCreateTest`, `stCreate2`, and EIP-8037
+`state_gas_create` rows for the active fixture tag, then runs the selected
+stateless blocks through the main harness. It is a baseline probe by default;
+pass `--require-full` once the CREATE post-state descriptor work has landed and
+the selected rows are expected to full-match. Use `--filter`, `--skip`, and
+`--limit` to focus on a smaller CREATE sub-frontier while preserving
+filter-driven discovery for future fixture additions.
+
 Run the literal EXTCODEHASH missing-code regression filters:
 
 ```bash

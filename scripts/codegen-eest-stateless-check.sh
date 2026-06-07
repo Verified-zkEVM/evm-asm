@@ -98,6 +98,25 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 REPO_ROOT="$(pwd)"
 
+# ziskemu startup accelerator (options-only; no zisk/ziskemu change required).
+# Every `ziskemu --elf` re-runs the full RISC-V->ZisK transpile of the ~447MB
+# stateless_guest ELF (~56.7M instructions); that ELF->ROM build dominates
+# per-fixture startup. These stock glibc malloc tunables (honored by glibc
+# 2.35+) make the transpile's large allocations cheaper: hugetlb madvises the
+# multi-GB arenas onto 2MB transparent hugepages (host THP must be
+# always/madvise), a single arena avoids per-thread setup, and disabling trim
+# keeps the arena warm across fixtures. Measured on stateless_guest.elf
+# (ziskemu --elf ... -n 1 -m, ROM-build dominated):
+#   stock: wall 53.5s, sys 26.2s, minor-faults 10.0M, maxRSS 24.7GB
+#   tuned: wall 34.4s, sys 19.6s, minor-faults  25k,  maxRSS 25.0GB
+# => ~36% faster startup, ~400x fewer page faults, maxRSS ~unchanged (OOM-safe).
+# Speeds up docker/CI/local runs alike. Respect any caller-provided value.
+if [[ -z "${GLIBC_TUNABLES:-}" ]]; then
+  export GLIBC_TUNABLES="glibc.malloc.hugetlb=1:glibc.malloc.arena_max=1:glibc.malloc.trim_threshold=-1:glibc.malloc.top_pad=1073741824"
+fi
+: "${MALLOC_ARENA_MAX:=1}"
+export MALLOC_ARENA_MAX
+
 ALL=0
 SKIP=0
 LIMIT=50

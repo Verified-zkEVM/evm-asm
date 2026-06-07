@@ -27,6 +27,45 @@ def createStageInitcodeFrameCallAsm (kind : Nat) : String :=
   "  ld x13, 16(sp)\n" ++
   "  addi sp, sp, 32\n"
 
+/-- Save dispatcher registers, execute the staged CREATE child frame, and
+    restore. The callee records status, returndata, and deployed-code
+    candidates in the shared CREATE child arena. -/
+def createExecuteInitcodeFrameCallAsm : String :=
+  "  addi sp, sp, -32\n" ++
+  "  sd x10, 0(sp)\n" ++
+  "  sd x12, 8(sp)\n" ++
+  "  sd x13, 16(sp)\n" ++
+  "  jal ra, create_execute_initcode_frame\n" ++
+  "  ld x10, 0(sp)\n" ++
+  "  ld x12, 8(sp)\n" ++
+  "  ld x13, 16(sp)\n" ++
+  "  addi sp, sp, 32\n"
+
+/-- Mirror the CREATE child returndata surface into the dispatcher returndata
+    frame used by RETURNDATASIZE/RETURNDATACOPY. -/
+def createCopyChildReturndataToFrameAsm : String :=
+  "  la x18, evm_precompile_frame\n" ++
+  "  sd x0, 0(x18)\n" ++
+  "  la x19, create_child_return_len\n" ++
+  "  ld x22, 0(x19)\n" ++
+  "  sd x22, 8(x18)\n" ++
+  "  la x19, create_child_returndata\n" ++
+  "  addi x18, x18, 16\n" ++
+  "  li x23, 256\n" ++
+  "  bgeu x23, x22, 12f\n" ++
+  "  mv x22, x23\n" ++
+  "12:\n" ++
+  "  beqz x22, 14f\n" ++
+  "13:\n" ++
+  "  lbu x24, 0(x19)\n" ++
+  "  sb x24, 0(x18)\n" ++
+  "  addi x19, x19, 1\n" ++
+  "  addi x18, x18, 1\n" ++
+  "  addi x22, x22, -1\n" ++
+  "  bnez x22, 13b\n" ++
+  "14:\n"
+
+
 
 /-- Probe for the CREATE child-frame staging helper.
 

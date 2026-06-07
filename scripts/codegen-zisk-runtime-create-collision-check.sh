@@ -118,6 +118,30 @@ def create_value_bytecode(value):
     return push_word_u8(0) + push_word_u8(0) + push_word_u8(value) + [0xf0, 0x00]
 
 
+def push_bytes(data):
+    if not 1 <= len(data) <= 32:
+        raise ValueError(len(data))
+    return [0x5f + len(data)] + list(data)
+
+
+def create_initcode_bytecode(initcode, after_create=None):
+    # Store initcode as the low bytes of a 32-byte MSTORE word, then CREATE
+    # from that tail slice. Stack order for CREATE is size, offset, value.
+    if after_create is None:
+        after_create = [0x00]
+    offset = 32 - len(initcode)
+    return (
+        push_bytes(initcode)
+        + push_word_u8(0)
+        + [0x52]
+        + push_word_u8(len(initcode))
+        + push_word_u8(offset)
+        + push_word_u8(0)
+        + [0xf0]
+        + after_create
+    )
+
+
 def create2_bytecode():
     # PUSH1 salt=1; PUSH1 size=0; PUSH1 offset=0; PUSH1 value=0; CREATE2; STOP.
     return push_word_u8(1) + push_word_u8(0) + push_word_u8(0) + push_word_u8(0) + [0xf5, 0x00]
@@ -133,6 +157,14 @@ def create2_address(sender, salt, initcode):
 if opcode == 'create' and collision == 'insufficient':
     bytecode = create_value_bytecode(1)
     target = create_address(creator, 0)
+elif opcode == 'create' and collision == 'return_code':
+    initcode = bytes.fromhex('602a60005260206000f3')
+    bytecode = create_initcode_bytecode(initcode)
+    target = create_address(creator, 0)
+elif opcode == 'create' and collision == 'revert_size':
+    initcode = bytes.fromhex('60ab60005360016000fd')
+    bytecode = create_initcode_bytecode(initcode, after_create=[0x3d, 0x00])
+    target = create_address(creator, 0)
 elif opcode == 'create':
     bytecode = create_bytecode()
     target = create_address(creator, 0)
@@ -142,7 +174,7 @@ elif opcode == 'create2':
 else:
     raise ValueError(opcode)
 
-if collision == 'absent':
+if collision in ('absent', 'return_code', 'revert_size'):
     account = encode_account(0, 0, EMPTY_TRIE, EMPTY_CODE_HASH)
     leaf = leaf_node(bytes_to_nibbles(k256(creator)), account)
     header = encode_header(k256(leaf))
@@ -175,7 +207,10 @@ elif collision == 'code':
 else:
     raise ValueError(collision)
 
-expected_word = expected_address[::-1] + b'\x00' * 12
+if collision == 'revert_size':
+    expected_word = (1).to_bytes(32, 'little')
+else:
+    expected_word = expected_address[::-1] + b'\x00' * 12
 halt_kind = struct.pack('<Q', 0)
 
 out.mkdir(parents=True, exist_ok=True)
@@ -189,6 +224,8 @@ INNERPY
 FAILED=0
 CASES=(
   "create_absent_target create absent"
+  "create_return_code create return_code"
+  "create_revert_size create revert_size"
   "create_nonce_collision create nonce"
   "create_code_collision create code"
   "create_insufficient_balance create insufficient"

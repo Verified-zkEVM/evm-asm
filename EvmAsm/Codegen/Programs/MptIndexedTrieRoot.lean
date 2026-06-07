@@ -2,9 +2,9 @@
   EvmAsm.Codegen.Programs.MptIndexedTrieRoot
 
   Build an MPT root from an indexed list of values by inserting keys
-  rlp(0), rlp(1), ... from an initially empty trie. This first slice supports
-  compact one-byte RLP indices 0..127 and delegates the trie mutation work to
-  the existing insert-aware state-root driver.
+  rlp(0), rlp(1), ... from an initially empty trie. The generic path supports
+  indices 0..255 and delegates the trie mutation work to the existing
+  insert-aware state-root driver.
 -/
 
 import EvmAsm.Rv64.Program
@@ -17,16 +17,17 @@ namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
 
-/-! ## mpt_indexed_trie_root_small -- indexed trie builder for indices < 128
+/-! ## mpt_indexed_trie_root_small -- indexed trie builder for indices <= 255
 
     a0 = value descriptor array ptr, entries `{ptr:u64, len:u64}`
-    a1 = number of values, must be <= 128
+    a1 = number of values, must be <= 256
     a2 = out root ptr
     a0 (output) = 0 ok / 1 too many values / sub-status from mpt_state_root_ins.
 
     Each key is encoded as the nibble path of RLP(index):
       index 0    -> RLP 0x80 -> nibbles [8,0]
       index 1..127 -> single byte -> nibbles [hi,lo]
+      index 128..255 -> bytes 0x81 index -> nibbles [8,1,hi,lo]
 -/
 
 /-! ## mpt_indexed_trie_root_one_leaf -- streaming one-leaf transaction trie root
@@ -479,7 +480,7 @@ def mptIndexedTrieRootSmallFunction : String :=
   "  mv s0, a0                   # value descriptors\n" ++
   "  mv s1, a1                   # n values\n" ++
   "  mv s2, a2                   # out root\n" ++
-  "  li t0, 129\n" ++
+  "  li t0, 257\n" ++
   "  bgeu s1, t0, .Litr_fail\n" ++
   "  li t0, 1\n" ++
   "  beq s1, t0, .Litr_one_leaf\n" ++
@@ -495,19 +496,32 @@ def mptIndexedTrieRootSmallFunction : String :=
   "  slli t0, s3, 4; add t0, s0, t0     # &value_desc[i]\n" ++
   "  ld t1, 0(t0)                       # value ptr\n" ++
   "  ld t2, 8(t0)                       # value len\n" ++
-  "  slli t3, s3, 1; la t4, itr_paths; add t4, t4, t3\n" ++
+  "  slli t3, s3, 2; la t4, itr_paths; add t4, t4, t3\n" ++
   "  beqz s3, .Litr_key_zero\n" ++
+  "  li t0, 128\n" ++
+  "  bgeu s3, t0, .Litr_key_two_byte\n" ++
   "  srli t5, s3, 4\n" ++
   "  andi t6, s3, 15\n" ++
   "  sb t5, 0(t4); sb t6, 1(t4)\n" ++
+  "  li t0, 2\n" ++
+  "  j .Litr_key_done\n" ++
+  ".Litr_key_two_byte:\n" ++
+  "  li t5, 8; sb t5, 0(t4)\n" ++
+  "  li t5, 1; sb t5, 1(t4)\n" ++
+  "  srli t5, s3, 4\n" ++
+  "  andi t6, s3, 15\n" ++
+  "  sb t5, 2(t4); sb t6, 3(t4)\n" ++
+  "  li t0, 4\n" ++
   "  j .Litr_key_done\n" ++
   ".Litr_key_zero:\n" ++
   "  li t5, 8; sb t5, 0(t4); sb zero, 1(t4)\n" ++
+  "  li t0, 2\n" ++
   ".Litr_key_done:\n" ++
+  "  sd t0, 48(sp)              # path len\n" ++
   "  slli t5, s3, 5; slli t6, s3, 3; add t5, t5, t6\n" ++
   "  la s4, itr_changes; add s4, s4, t5\n" ++
   "  sd t4, 0(s4)                # path ptr\n" ++
-  "  li t5, 2; sd t5, 8(s4)      # path len\n" ++
+  "  ld t5, 48(sp); sd t5, 8(s4) # path len\n" ++
   "  sd t1, 16(s4)               # value ptr\n" ++
   "  sd t2, 24(s4)               # value len\n" ++
   "  li t5, 1; sd t5, 32(s4)     # mode = insert\n" ++
@@ -599,9 +613,9 @@ def ziskMptIndexedTrieRootSmallDataSection : String :=
   ziskMptStateRootInsDataSection ++ "\n" ++
   ".balign 8\n" ++
   "itr_empty_witness:\n  .zero 8\n" ++
-  "itr_value_descs:\n  .zero 2048\n" ++
-  "itr_paths:\n  .zero 256\n" ++
-  "itr_changes:\n  .zero 8192"
+  "itr_value_descs:\n  .zero 4096\n" ++
+  "itr_paths:\n  .zero 1024\n" ++
+  "itr_changes:\n  .zero 10240"
 
 def ziskMptIndexedTrieRootSmallProbeUnit : BuildUnit := {
   body        := NOP
