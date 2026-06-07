@@ -626,6 +626,7 @@ def statelessVerdictV2Function : String :=
   "  addi s0, s0, 18\n" ++
   "  mv a0, s0; la a1, svf_payload; la a2, svf_wds_ptr; la a3, svf_wds_count\n" ++
   "  jal ra, extract_payload_and_withdrawals\n" ++
+  "  bnez a0, .Lv2_payload_offsets_fail\n" ++
   "  mv a0, s0; la t0, svf_payload; ld a1, 0(t0)\n" ++
   "  jal ra, chain_config_valid\n" ++
   "  bnez a0, .Lv2_chain_config_fail\n" ++
@@ -723,6 +724,9 @@ def statelessVerdictV2Function : String :=
   "  j .Lv2_zero\n" ++
   ".Lv2_chain_config_fail:\n" ++
   "  li t0, 26; la t1, bv_fail_code; sd t0, 0(t1)\n" ++
+  "  j .Lv2_zero\n" ++
+  ".Lv2_payload_offsets_fail:\n" ++
+  "  li t0, 31; la t1, bv_fail_code; sd t0, 0(t1)\n" ++
   "  j .Lv2_zero\n" ++
   ".Lv2_zero:\n" ++
   "  li a0, 0\n" ++
