@@ -220,6 +220,13 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bvgr_applied_refund:\n  .zero 128\n" ++
   blockVerdictTxGasPrechargeDataSection ++
   ".balign 8\n" ++
+  -- uyu11.1: EIP-4895 withdrawal-aware credit scratch for the coinbase/recipient
+  -- post-balance checks + the bv_sum_withdrawals_to_address accumulator.
+  "strv_wd_credit:\n  .zero 32\n" ++
+  "stfv_wd_credit:\n  .zero 32\n" ++
+  "bsw_amount:\n  .zero 32\n" ++
+  "bsw_wei:\n  .zero 32\n" ++
+  ".balign 8\n" ++
   "strv_count:\n  .zero 8\n" ++
   "strv_row_off:\n  .zero 8\n" ++
   "strv_row_len:\n  .zero 8\n" ++

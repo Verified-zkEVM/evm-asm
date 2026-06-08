@@ -97,6 +97,14 @@ def simpleTransferFeeRecipientBalVerifyFunction : String :=
   "  beqz a0, .Lstfv_have_credit\n" ++
   "  li t0, 11; sd t0, 0(s7); j .Lstfv_ret\n" ++
   ".Lstfv_have_credit:\n" ++
+  "  # uyu11.1: fold the EIP-4895 withdrawal credit (0 unless the caller set it)\n" ++
+  "  # into the fee-recipient credit, so the zero-check below AND the\n" ++
+  "  # expected = pre + credit comparison both account for a withdrawal to this\n" ++
+  "  # account. Keeps the strict check sound on withdrawal blocks instead of\n" ++
+  "  # skipping it (PR #8484 false-accept fix, bead evm-asm-uyu11.1).\n" ++
+  "  addi a0, s7, 112; la a1, stfv_wd_credit; addi a2, s7, 112\n" ++
+  "  jal ra, u256_add_be\n" ++
+  "  bnez a0, .Lstfv_add_overflow\n" ++
   "  addi a0, s7, 112\n" ++
   "  jal ra, u256_is_zero\n" ++
   "  bnez a0, .Lstfv_ok\n" ++
@@ -242,6 +250,8 @@ def ziskSimpleTransferFeeRecipientBalVerifyDataSection : String :=
   ".section .data\n" ++
   ".balign 8\n" ++
   "stfv_count:\n  .zero 8\n" ++
+  ".balign 8\n" ++
+  "stfv_wd_credit:\n  .zero 32\n" ++   -- uyu11.1: EIP-4895 withdrawal credit (0 unless caller set)
   "stfv_row_off:\n  .zero 8\n" ++
   "stfv_row_len:\n  .zero 8\n" ++
   "stfv_addr_off:\n  .zero 8\n" ++

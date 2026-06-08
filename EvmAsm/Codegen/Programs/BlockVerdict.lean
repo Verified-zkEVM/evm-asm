@@ -41,6 +41,7 @@ import EvmAsm.Codegen.Programs.BlockVerdictGasResults
 import EvmAsm.Codegen.Programs.BlockVerdictTransactions
 import EvmAsm.Codegen.Programs.MptEncodeLeafBranch
 import EvmAsm.Codegen.Programs.TxBlobGas
+import EvmAsm.Codegen.Programs.SszWithdrawal
 import EvmAsm.Codegen.Programs.TxRoot
 import EvmAsm.Codegen.Programs.WithdrawalsRootIndexed
 import EvmAsm.Codegen.Programs.BlockAccessListHash
@@ -545,7 +546,17 @@ def blockVerdictFunction : String :=
   "  # post = pre + value + withdrawal and the strict check false-rejects. Skip it\n" ++
   "  # for blocks with withdrawals: the recomputed post-state root (which folds in\n" ++
   "  # both the value transfer and the withdrawal) already validates the balance.\n" ++
-  "  la t2, svf_wds_count; ld t2, 0(t2); bnez t2, .Lbv_st_skip_recipient_overlap\n" ++
+  "  # uyu11.1: instead of skipping the strict recipient check on withdrawal\n" ++
+  "  # blocks (the old #8484 false-reject fix, which left a false-accept hole),\n" ++
+  "  # compute the EIP-4895 withdrawal credit to the recipient and fold it into\n" ++
+  "  # the check via strv_wd_credit, so expected = pre + value + withdrawal.\n" ++
+  "  la t0, strv_wd_credit; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++
+  "  la t2, svf_wds_count; ld a2, 0(t2); beqz a2, .Lbv_st_recipient_wd_done\n" ++
+  "  la t2, bv_simple_transfer_tx; addi a0, t2, 72\n" ++
+  "  la t2, svf_wds_ptr; ld a1, 0(t2)\n" ++
+  "  la a3, strv_wd_credit\n" ++
+  "  jal ra, bv_sum_withdrawals_to_address\n" ++
+  ".Lbv_st_recipient_wd_done:\n" ++
   "  la t2, bv_simple_transfer_tx\n" ++
   "  addi a0, t2, 72; addi a1, t2, 96\n" ++
   "  la t2, bv_bal_start; ld a2, 0(t2)\n" ++
@@ -578,7 +589,16 @@ def blockVerdictFunction : String :=
   "  # post-state root (which folds in both the fee and the withdrawal) already\n" ++
   "  # validates the coinbase balance, so this redundant sanity check is dropped\n" ++
   "  # rather than risk a false reject.\n" ++
-  "  la t2, svf_wds_count; ld t2, 0(t2); bnez t2, .Lbv_st_skip_fee_overlap\n" ++
+  "  # uyu11.1: instead of skipping the strict fee-recipient (coinbase) check on\n" ++
+  "  # withdrawal blocks, compute the EIP-4895 withdrawal credit to the coinbase\n" ++
+  "  # and fold it via stfv_wd_credit, so expected = pre + fee + withdrawal.\n" ++
+  "  la t0, stfv_wd_credit; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++
+  "  la t2, svf_wds_count; ld a2, 0(t2); beqz a2, .Lbv_st_fee_wd_done\n" ++
+  "  ld a0, 0(s0); addi a0, a0, 32\n" ++
+  "  la t2, svf_wds_ptr; ld a1, 0(t2)\n" ++
+  "  la a3, stfv_wd_credit\n" ++
+  "  jal ra, bv_sum_withdrawals_to_address\n" ++
+  ".Lbv_st_fee_wd_done:\n" ++
   "  ld a0, 0(s0); addi a0, a0, 32\n" ++
   "  la t2, bv_simple_transfer_tx\n" ++
   "  ld a1, 8(t2); ld a2, 16(t2); ld a3, 32(t2)\n" ++
@@ -965,6 +985,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   rlpFieldToU64Function ++ "\n" ++
   txTypeDispatchFunction ++ "\n" ++
   txEip4844DecodeFunction ++ "\n" ++
+  txEip4844ValidateBlobHashesFunction ++ "\n" ++
   sszTxListVersionedHashesMatchFunction ++ "\n" ++
   txExtractToAddressFunction ++ "\n" ++
   txExtractValueFunction ++ "\n" ++
@@ -1115,6 +1136,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   txGasBalPostVerifyFunction ++ "\n" ++
   simpleTransferRecipientBalVerifyFunction ++ "\n" ++
   simpleTransferFeeRecipientBalVerifyFunction ++ "\n" ++
+  bvSumWithdrawalsToAddressFunction ++ "\n" ++
   accessListCountFunction ++ "\n" ++
   intrinsicGasAmsterdamCountsFunction ++ "\n" ++
   eip8037TxGasGateFunction ++ "\n" ++
