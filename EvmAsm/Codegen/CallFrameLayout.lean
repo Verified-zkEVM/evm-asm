@@ -17,6 +17,8 @@
   emit, so a units slip (e.g. MiB vs MB) cannot reach `.data`.
 -/
 
+import EvmAsm.Codegen.Programs.BlockVerdictParams
+
 namespace EvmAsm.Codegen
 
 /-! ## Per-frame sub-region sizes (bytes) -/
@@ -88,23 +90,33 @@ def frameSlotCount : Nat := maxCallDepth + 1
 
 /-- `-Tdata=` base. -/
 def dataBase : Nat := 0xa3000000
-/-- `--section-start=.sszscratch=` base (upper bound for `.data` growth). -/
+/-- `--section-start=.sszscratch=` base. -/
 def sszScratchBase : Nat := 0xbf500000
-/-- 32-aligned base for the frame array (after the shared `.data` region). -/
-def frameArrayBase : Nat := 0xa4000000
 
 /-- Total bytes the pre-allocated frame array occupies. -/
 def frameArrayBytes : Nat := frameSlotCount * frameStride
-/-- First address past the frame array. -/
-def frameArrayEnd : Nat := frameArrayBase + frameArrayBytes
+
+/-! ## Placement: union with the BAL-replay scratch (NOT a free `.data` gap)
+
+    ziskemu's RAM is only 512 MiB (`0xa0000000..0xc0000000`) and the guest `.data`
+    already spans ~427 MiB — there is NO free window for a standalone arena (an
+    earlier draft placed it at `0xa4000000`, which overlaps `.data`; the linker
+    rejects it). Instead the frame arena **aliases** the contiguous
+    `basr_values`+`basr_accounts` `block_state_root` replay scratch, which is
+    execution-dead (read only inside `block_state_root`; gate-verified). So the
+    arena's base is a **link-time symbol** (`call_frame_arena = &basr_values`,
+    not a fixed VMA), and the meaningful invariant is that the frame arena fits
+    inside that union, not inside a phantom gap. See
+    `docs/call-frame-memory-layout.md` §5. -/
+
+/-- The `basr_values`+`basr_accounts` union the frame arena reuses: two
+    contiguous `bsrMaxStateChanges * bsrEncodedAccountBytes` arenas. -/
+def balReplayUnionBytes : Nat := 2 * (bsrMaxStateChanges * bsrEncodedAccountBytes)
 
 /-! ## Verified consistency invariants (kernel-checked `decide`) -/
 
 /-- The stride is 32-aligned (the project avoids misaligned load/store). -/
 theorem frameStride_aligned : frameStride % 32 = 0 := by decide
-
-/-- The frame base is 32-aligned, so every per-frame sub-region is aligned. -/
-theorem frameArrayBase_aligned : frameArrayBase % 32 = 0 := by decide
 
 /-- All sub-regions fit within one stride (with slack rounding up to 0x29000). -/
 theorem frameUsed_fits_stride : frameUsedBytes ≤ frameStride := by decide
@@ -116,18 +128,16 @@ theorem frameMeta_within_stride : frameMetaOff + frameMetaBytes ≤ frameStride 
 /-- 1025 slots cover depths 0..1024 inclusive. -/
 theorem frameSlotCount_eq : frameSlotCount = 1025 := by decide
 
-/-- The frame array starts after the `.data` base. -/
-theorem frameArray_after_data : dataBase < frameArrayBase := by decide
+/-- **The fits proof that actually matters:** the whole 1025-slot frame array
+    fits inside the `basr_values`+`basr_accounts` union it overlays (244 MiB vs
+    164 MiB — 84 MiB headroom), so the arena reuses that execution-dead region
+    with zero net RAM growth. (This replaces the earlier `frameArray_fits` that
+    compared against a phantom free `.data` gap.) -/
+theorem frameArray_fits_union : frameArrayBytes ≤ balReplayUnionBytes := by decide
 
-/-- The whole frame array fits below `.sszscratch` (the fits-in-map proof). -/
-theorem frameArray_fits : frameArrayEnd ≤ sszScratchBase := by decide
-
-/-- The usable `.data`→`.sszscratch` gap is `0x1c500000` = 475,004,928 B
-    = 453 MiB (the corrected design-doc figure). -/
+/-- The usable `.data`→`.sszscratch` span is `0x1c500000` = 475,004,928 B
+    = 453 MiB — but it is NOT free (the BAL-replay arenas consume ~385 MiB of it),
+    which is why the arena overlays them rather than taking a fresh slice. -/
 theorem data_gap_bytes : sszScratchBase - dataBase = 0x1c500000 := by decide
-
-/-- Headroom above the frame array, before `.sszscratch`. -/
-theorem frameArray_headroom : sszScratchBase - frameArrayEnd = 0x110d7000 := by
-  decide
 
 end EvmAsm.Codegen
