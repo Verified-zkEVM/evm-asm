@@ -255,12 +255,6 @@ post-replay reader** (verdict body, runtime-dispatch handlers, gas/arena helpers
 post-`block_state_root` read of `basr_values`/`basr_accounts` **breaks this union
 and must be caught** — keep the gate grep in the implementation PR's checks.
 
-164 MiB frames + 16 MiB shared = 180 MiB, well under the 453 MiB budget with
-**272 MiB headroom** (`frame_array_end 0xae429000 → 0xbf500000` = `0x110d7000` =
-285,741,056 B; pinned + proved in `CallFrameLayout.lean` `frameArray_headroom`).
-The array fits with comfortable margin even if `FRAME_STRIDE` or the shared
-reserve grows.
-
 > Consequence for `CallFrameLayout.lean`: `frameArrayBase` is **not** `0xa4000000`
 > — it is the base of the BAL-replay union region (inside the existing `.data`).
 > `frameArray_fits` should be restated against the union-region size, not a
