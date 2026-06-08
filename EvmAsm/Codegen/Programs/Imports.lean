@@ -109,6 +109,7 @@ import EvmAsm.Codegen.Programs.BlockVerdictSelfContained
 import EvmAsm.Codegen.Programs.BlockVerdictBalFindAccount
 import EvmAsm.Codegen.Programs.CallFrameSwitch
 import EvmAsm.Codegen.Programs.CallFrameBase
+import EvmAsm.Codegen.Programs.CallFrameDescend
 import EvmAsm.Codegen.Programs.RegistryReceipts
 import EvmAsm.Codegen.Programs.TxTotalBlobGas
 import EvmAsm.Codegen.Programs.HeaderChainPostMerge
