@@ -85,7 +85,10 @@ def blockReceiptRecordsMaterializeFunction : String :=
   "  mv a0, s10; mv a1, s11; la a2, brr_tx_type; la a3, brr_tx_inner\n" ++
   "  jal ra, tx_type_dispatch\n" ++
   "  bnez a0, .Lbrr_unsupported\n" ++
-  "  la t0, brr_tx_type; ld t1, 0(t0); bnez t1, .Lbrr_unsupported\n" ++
+  -- bmvmx.1.3: typed txs (EIP-2718 type 1/2/3/4) are now supported, not just legacy
+  -- (type 0). tx_type_dispatch already validated the type is in 0..4; the receipt
+  -- record is a consistency pass (no receipts-root/header check) and cumulative gas
+  -- is type-independent, so non-legacy txs no longer bail .Lbrr_unsupported.
   "  la t0, brr_receipt_gas_ptr; ld t1, 0(t0)\n" ++
   "  slli t2, s6, 3\n" ++
   "  add t1, t1, t2\n" ++
@@ -94,7 +97,7 @@ def blockReceiptRecordsMaterializeFunction : String :=
   "  bltu t2, s7, .Lbrr_unsupported\n" ++
   "  mv s7, t2\n" ++
   "  la a0, brr_control\n" ++
-  "  li a1, 0                    # legacy tx type\n" ++
+  "  la t0, brr_tx_type; ld a1, 0(t0)   # tx type (0 legacy / 1-4 typed)\n" ++
   "  li a2, 1                    # successful execution\n" ++
   "  mv a3, s7                   # cumulative gas\n" ++
   "  li a4, 0                    # pre-tx event log checkpoint\n" ++

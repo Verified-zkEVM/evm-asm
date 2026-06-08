@@ -1266,7 +1266,8 @@ def createExecuteInitcodeFrameRuntimeFunction : String :=
     through `.exit_label` → `exitBody` → halt stub. -/
 def emitDispatcherEpilogueCore
     (registry : List OpcodeHandlerSpec) (exitBody : Program)
-    (afterDiagnostics : String) (includeSharedHelpers : Bool := true) : String :=
+    (afterDiagnostics : String) (includeSharedHelpers : Bool := true)
+    (skipExitFinalization : Bool := false) : String :=
   String.intercalate "\n" (registry.map OpcodeHandlerSpec.emitSubroutine) ++ "\n" ++
   (if includeSharedHelpers then
     -- M16/M27: hash subroutines sit BETWEEN the handler subroutines
@@ -1355,8 +1356,15 @@ def emitDispatcherEpilogueCore
   emitExceptionalExit ".exit_stack_underflow" 7 ++
   emitExceptionalExit ".exit_stack_overflow" 8 ++
   ".exit_label:\n" ++
-  emitProgram exitBody ++ "\n" ++
+  -- L2 (bmvmx.1.2.4.6.1): the block-verdict-callable epilogue runs without a
+  -- state tracker (x20) or a live OUTPUT region for the EVM result -- env gas
+  -- is captured from evm_env+568 in setup. Skip exitBody + the OUTPUT@0xa0010000
+  -- log/slot/event/selfdestruct finalization (which derefs x20 and clobbers the
+  -- verdict OUTPUT) and go straight to the caller-return. The .exit_label /
+  -- .exit_no_epilogue labels stay defined so exceptional-exit `j`s still resolve.
+  (if skipExitFinalization then "" else emitProgram exitBody) ++ "\n" ++
   ".exit_no_epilogue:\n" ++
+  (if skipExitFinalization then "" else
   -- M24: surface final log lengths at OUTPUT_ADDR + 40 / + 48.
   -- This runs for EVERY halt path: STOP / RETURN / REVERT /
   -- INVALID / SELFDESTRUCT. REVERT's body has already restored
@@ -1479,7 +1487,7 @@ def emitDispatcherEpilogueCore
   "  addi x19, x19, 1\n" ++
   "  addi x21, x21, -1\n" ++
   "  bnez x21, 9b\n" ++
-  ".L_selfdestruct_diag_done:\n" ++
+  ".L_selfdestruct_diag_done:\n") ++
   afterDiagnostics
 
 /-- Dispatcher epilogue for standalone BuildUnits. Falls through to the
@@ -1503,10 +1511,16 @@ def emitDispatcherCallableEpilogue
 def emitDispatcherCallableEpilogueSharedHelpers
     (registry : List OpcodeHandlerSpec) (exitBody : Program) : String :=
   emitDispatcherEpilogueCore registry exitBody
-    ("  la x5, runtime_dispatcher_caller_ra\n" ++
+    -- L3 (bmvmx.1.2.4.6.1): setup did `la sp, lp64_sp_top`, clobbering the
+    -- caller's sp; restore it (saved in the callable prologue) BEFORE the ra
+    -- restore so the post-dispatcher verdict runs on the caller's stack.
+    ("  la x5, runtime_dispatcher_caller_sp\n" ++
+     "  ld sp, 0(x5)\n" ++
+     "  la x5, runtime_dispatcher_caller_ra\n" ++
      "  ld ra, 0(x5)\n" ++
      "  ret\n")
     false
+    true
 
 /-- `.data` section layout (starts at `0xa0000000` per
     `Driver.lean`'s `-Tdata=...`):
@@ -1942,6 +1956,9 @@ def emitRuntimeDispatcherCallablePrologue : String :=
   "runtime_dispatcher_call:\n" ++
   "  la x5, runtime_dispatcher_caller_ra\n" ++
   "  sd ra, 0(x5)\n" ++
+  -- L3 (bmvmx.1.2.4.6.1): save caller sp before setup clobbers it with lp64_sp_top.
+  "  la x5, runtime_dispatcher_caller_sp\n" ++
+  "  sd sp, 0(x5)\n" ++
   emitRuntimeDispatcherCallableSetup ++ "\n" ++
   emitRuntimeDispatcherLoop
 
@@ -2158,6 +2175,8 @@ def emitRuntimeDispatcherDataSectionCore
   ".section .data\n" ++
   ".balign 8\n" ++
   "runtime_dispatcher_caller_ra:\n" ++
+  "  .zero 8\n" ++
+  "runtime_dispatcher_caller_sp:\n" ++
   "  .zero 8\n" ++
   "runtime_dispatcher_input_ptr:\n" ++
   "  .zero 8\n" ++
