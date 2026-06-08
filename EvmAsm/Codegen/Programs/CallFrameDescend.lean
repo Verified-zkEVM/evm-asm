@@ -62,6 +62,38 @@ def callFrameEnterFunction : String :=
   "  ld ra, 0(sp); ld s0, 8(sp); addi sp, sp, 16\n" ++
   "  ret"
 
+/-- `call_frame_set_call_env(a0 = child env base, a1 = parent env base,
+    a2 = to-word ptr, a3 = value-word ptr, a4 = is_static)`: set the child
+    frame's per-frame env call-context for CALL/STATICCALL (DELEGATECALL/CALLCODE
+    caller/value rules are .61.7). Writes the three 32-byte words:
+      child.ADDRESS  (env+0)  = `to`            (the call target / current_target)
+      child.CALLER   (env+64) = parent.ADDRESS  (msg.sender = the calling frame)
+      child.CALLVALUE (env+96) = is_static ? 0 : `value`
+    Offsets per the per-frame env layout (docs §3; ADDRESS@0 / CALLER@64 read by
+    EvmLogHandlers, CALLVALUE@96). Clobbers t0. -/
+def callFrameSetCallEnvFunction : String :=
+  "call_frame_set_call_env:\n" ++
+  -- ADDRESS = to (4 limbs)
+  "  ld t0, 0(a2); sd t0, 0(a0)\n" ++
+  "  ld t0, 8(a2); sd t0, 8(a0)\n" ++
+  "  ld t0, 16(a2); sd t0, 16(a0)\n" ++
+  "  ld t0, 24(a2); sd t0, 24(a0)\n" ++
+  -- CALLER = parent.ADDRESS (parent env+0 -> child env+64)
+  "  ld t0, 0(a1); sd t0, 64(a0)\n" ++
+  "  ld t0, 8(a1); sd t0, 72(a0)\n" ++
+  "  ld t0, 16(a1); sd t0, 80(a0)\n" ++
+  "  ld t0, 24(a1); sd t0, 88(a0)\n" ++
+  -- CALLVALUE = is_static ? 0 : value
+  "  bnez a4, .Lcfsce_static\n" ++
+  "  ld t0, 0(a3); sd t0, 96(a0)\n" ++
+  "  ld t0, 8(a3); sd t0, 104(a0)\n" ++
+  "  ld t0, 16(a3); sd t0, 112(a0)\n" ++
+  "  ld t0, 24(a3); sd t0, 120(a0)\n" ++
+  "  ret\n" ++
+  ".Lcfsce_static:\n" ++
+  "  sd zero, 96(a0); sd zero, 104(a0); sd zero, 112(a0); sd zero, 120(a0)\n" ++
+  "  ret"
+
 /-- `zisk_call_descend`: unit-probe for `call_frame_enter` over a local
     `call_frame_arena` stub. Pushes depth 0->1, pre-dirties the child slot,
     enters the frame, and checks the rebased register bases + the memory
@@ -92,10 +124,25 @@ def ziskCallDescendPrologue : String :=
   "  sub t1, a1, a0; sd t1, 40(s0)\n" ++
   "  sub t1, a2, a0; sd t1, 48(s0)\n" ++
   "  la t0, call_frame_arena; sub t1, a0, t0; sd t1, 56(s0)\n" ++
+  -- Env setup test: child env = call_frame_arena + frameEnvOff (0x28400) for depth 1.
+  "  la a0, call_frame_arena; li t0, 0x28400; add a0, a0, t0\n" ++
+  "  la a1, cfd_parent_env\n" ++
+  "  la a2, cfd_to_word\n" ++
+  "  la a3, cfd_value_word\n" ++
+  "  li a4, 0\n" ++                          -- CALL (not static)
+  "  jal ra, call_frame_set_call_env\n" ++
+  "  ld t0, 0(a0); sd t0, 64(s0)\n" ++       -- child ADDRESS limb0 (expect 0xaaaaaaaa = to)
+  "  ld t0, 64(a0); sd t0, 72(s0)\n" ++      -- child CALLER limb0 (expect 0xbbbbbbbb = parent ADDRESS)
+  "  ld t0, 96(a0); sd t0, 80(s0)\n" ++      -- child CALLVALUE limb0 (expect 0xcccccccc = value)
+  "  la a0, call_frame_arena; li t0, 0x28400; add a0, a0, t0\n" ++
+  "  la a1, cfd_parent_env; la a2, cfd_to_word; la a3, cfd_value_word; li a4, 1\n" ++  -- STATICCALL
+  "  jal ra, call_frame_set_call_env\n" ++
+  "  ld t0, 96(a0); sd t0, 88(s0)\n" ++      -- child CALLVALUE limb0 (expect 0 = static)
   "  j .Lcd_done\n" ++
   frameBaseFunction ++ "\n" ++
   frameDepthPushFunction ++ "\n" ++
   callFrameEnterFunction ++ "\n" ++
+  callFrameSetCallEnvFunction ++ "\n" ++
   ".Lcd_done:"
 
 /-- Local stubs so the probe links standalone (the real `call_frame_arena`
@@ -106,7 +153,11 @@ def ziskCallDescendDataSection : String :=
   ".balign 32\n" ++
   "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n" ++
   ".balign 8\n" ++
-  "evm_call_depth:\n  .zero 8\n"
+  "evm_call_depth:\n  .zero 8\n" ++
+  ".balign 32\n" ++
+  "cfd_parent_env:\n  .quad 0xbbbbbbbb, 0, 0, 0\n" ++   -- parent ADDRESS@0
+  "cfd_to_word:\n  .quad 0xaaaaaaaa, 0, 0, 0\n" ++       -- call target
+  "cfd_value_word:\n  .quad 0xcccccccc, 0, 0, 0\n"       -- call value
 
 def ziskCallDescendProbeUnit : BuildUnit := {
   body        := NOP
