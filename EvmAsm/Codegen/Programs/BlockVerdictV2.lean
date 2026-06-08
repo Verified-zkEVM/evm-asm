@@ -28,6 +28,19 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     ziskStatelessVerdictV2Prologue ++ "\n" ++
     "  j .Lstateless_verdict_v2_debug_after_runtime_dispatcher\n" ++
     emitRuntimeDispatcherCallableCoreSharedHelpers tinyInterpRegistry evmAddEpilogue ++ "\n" ++
+    -- je0xd: block_verdict's contract-dispatch helpers were embedded in the guest
+    -- closure (statelessVerdictV2GuestClosure) but NOT this debug verdict ELF, so
+    -- its link failed with 6 undefined references. Mirror the guest: emit the
+    -- same 8 bodies (the 6 + the slot leaf helpers) in this jumped-over region.
+    -- The data labels are already shared via ziskStatelessVerdictV2DataSection.
+    slotDecodeU256Function ++ "\n" ++
+    slotAtIndexFunction ++ "\n" ++
+    slotAtHeaderStateRootFunction ++ "\n" ++
+    codeAtHeaderStateRootFunction ++ "\n" ++
+    bytecodeIsSelfContainedFunction ++ "\n" ++
+    balFindAccountByAddressFunction ++ "\n" ++
+    balRecipientStorageKeysFunction ++ "\n" ++
+    stageRuntimePayloadCodeFunction ++ "\n" ++
     ".Lstateless_verdict_v2_debug_after_runtime_dispatcher:\n"
   dataAsm     :=
     ziskStatelessVerdictV2DataSection ++ "\n" ++
