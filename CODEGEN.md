@@ -28,6 +28,26 @@ repo and running them on the Zisk emulator (`ziskemu`). Companion to
    - This sidesteps the still-Open
      [`docs/host-io-halt-convention.md`](docs/host-io-halt-convention.md) ADR.
 
+## Current status
+
+Single source of truth for the headline numbers. Lower sections are kept in
+*completion order* and may lag; when they disagree with this block, this block
+(and the kernel-checked theorems it cites) wins.
+
+| Axis | State | Source of truth |
+|---|---|---|
+| **Opcode coverage** | **154 / 256 bytes wired** through `tinyInterpRegistry`; 102 → `h_invalid`. Covers 100% of the live EVM opcode space plus EIP-8024 stack ops (DUPN/SWAPN/EXCHANGE), CLZ, and blob/code handler bytes. | `EvmAsm/Codegen/Proofs/RegistryInvariants.lean` (`tinyInterpRegistry_wired_opcode_count = 154`, kernel-checked) |
+| **Latest milestone** | M15.6 (precomputed valid-JUMPDEST bitmap, 2026-06-07). Most recent *feature* milestones: M33 + M31 (2026-06-04). | this file (§Milestones) |
+| **Codegen-proofs frontier** | Phase 1 (6 registry invariants) ✅; Phase 4 partial — **13 of ~87** handler-level `cpsTripleWithin` specs. Phases 2 (parser round-trip), 3 (dispatch-loop spec), 5 (end-to-end refinement) **not started**. | `Proofs/RegistryInvariants.lean`, `Proofs/HandlerSpecs.lean` |
+| **EEST conformance** | Stateless harness live (`scripts/codegen-eest-stateless-check.sh`); correctly rejects all 894 invalid-witness blocks but **0 full-output matches** (guest emits pre-`zkevm@v0.4.0` encoding). | PLAN.md Axis F |
+| **CI** | Link-time only (`scripts/codegen-stateless-link-check.sh` in `build.yml`). A round-trip / EEST smoke-subset CI job is **still TODO**. | `.github/workflows/build.yml` |
+
+> **Real-semantics caveat.** "100% wired" ≠ "100% spec-compliant". Several
+> opcodes are wired as no-ops that fake their effect: the 6 child-frame
+> opcodes (CREATE/CALL family) return all-zero; BALANCE / EXTCODE* /
+> BLOCKHASH / BLOBHASH / BLOBBASEFEE return 0; CLZ and the EIP-8024 stack ops
+> are raw-asm, not verified `Program` bodies. See §Next for the graduation path.
+
 ## File layout
 
 New code lives under a fresh `EvmAsm/Codegen/` tree so the verified core is
@@ -39,10 +59,12 @@ untouched. Generated artifacts go in `gen-out/` (gitignored).
 | `EvmAsm/Codegen/Emit.lean` | Pure `emitReg`, `emitInstr`, `emitProgram` — `Instr → String`. No `IO`. |
 | `EvmAsm/Codegen/Layout.lean` | `HaltConv` enum, halt stubs, `_start` preamble, `.option norvc`, `MEM_START`/`MEM_END` constants, `BuildUnit` struct + `emitBuildUnit`/`emitDataLabel` helpers. |
 | `EvmAsm/Codegen/Dispatch.lean` | M5b dispatcher scaffolding: `OpcodeHandlerSpec` (optional `preBody` for x10-clobbering handlers + optional `postBodyLabel` for M9's trampoline pattern) + `HandlerTail` types, `emitDispatcherPrologue`/`Epilogue`/`DataSection` and `buildDispatchUnit` helpers. M8.5 adds the parallel runtime-bytecode helpers (`emitRuntimeDispatcherPrologue` / `emitRuntimeDispatcherDataSection` / `buildRuntimeDispatchUnit`) that read bytecode from `INPUT_ADDR + INPUT_DATA_OFFSET` at runtime. Pure (no IO). |
-| `EvmAsm/Codegen/Programs.lean` | `BuildUnit` lookup hub: `lookupProgram`, `knownProgramNames`, plus the `statelessGuestUnit` build target. Imports every `BuildUnit` defined under `Programs/`. The actual M5b opcode-handler registry (`tinyInterpRegistry`) and the `BuildUnit`s for `evm_add` / `evm_div` / `evm_mod` / `input_echo` / `runtime_dispatcher` / `tiny_interp_*` now live in `Programs/Evm.lean` (see next row). |
-| `EvmAsm/Codegen/Programs/` | Execution-layer programs supporting the Stateless guest (40+ files): Account / Block / Chain / Header / Mpt / Tx / Receipt / Bloom / RLP read / SSZ / U256 / etc. Plus `Programs/Evm.lean` — the M5b opcode handler registry **`tinyInterpRegistry`** at `Programs/Evm.lean:666`, composed from `pushHandlers` (PUSH0..32), `dupHandlers` (DUP1..16), `swapHandlers` (SWAP1..16), `singletonHandlers` (19 fixed-shape opcodes incl. SHL/SAR from M11), `memoryHandlers` (MLOAD/MSTORE/MSTORE8, M7), `envHandlers` (13 simple environment opcodes ADDRESS/CALLER/.../BASEFEE, M12), `calldataHandlers` (CALLDATASIZE, M13), `controlFlowHandlers` (JUMPDEST from M14; JUMP/JUMPI/PC added in M15), `hashHandlers` (KECCAK256 via ECALL bridge from M16), `logHandlers` (LOG0–LOG4 as stack-pop no-ops, M17), `storageHandlers` (SLOAD/SSTORE/TLOAD/TSTORE as no-op stack ops with empty-storage semantics, M17), `haltHandlers`/`pushZeroHandlers`/`popPushZeroHandlers`/`copyNoopHandlers` (M18 — 20 trivial no-ops covering RETURN/REVERT/INVALID/SELFDESTRUCT + 5 push-zero + 6 pop+push-zero + 5 copy-no-op opcodes; defined in `Programs/Noop.lean`), `childFrameHandlers` (M19 — 6 child-frame opcodes CREATE/CALL/CALLCODE/DELEGATECALL/CREATE2/STATICCALL as pop-N + push-zero no-ops; also in `Programs/Noop.lean`), `arithNoopHandlers` (MULMOD as a pop-N + push-zero no-op; in `Programs/Noop.lean` — EXP graduated to a real body in M27), `divModHandlers` (DIV/MOD, M8), `signedDivModHandlers` (SDIV/SMOD via trampoline, M9), `selfCallingHandlers` (ADDMOD via inline-callable from M10; EXP via inline-callable `_fixed_fixed` body from M27), and `stopHandler`. Total: **149 wired opcodes — 🎯 100% of the 149-byte EVM space**. Also hosts shared helpers (`advancePc`, `copy64`, `evmAddEpilogue`, `evmDivPatched`/`evmModPatched`/`evmSdivPatched`/`evmSmodPatched` for the DIV/MOD/SDIV/SMOD NOP-splice). |
+| `EvmAsm/Codegen/Programs.lean` | `BuildUnit` lookup hub: `lookupProgram`, `knownProgramNames`, plus the `statelessGuestUnit` build target. Imports every `BuildUnit` defined under `Programs/`. The opcode-handler registry itself lives in `Programs/EvmRegistry.lean` (see below). |
+| `EvmAsm/Codegen/Programs/EvmRegistry.lean` | **Home of `def tinyInterpRegistry`** — the M5b dispatch registry. It is now just a composition: it `++`-concatenates ~30 handler-builder lists (each defined in its own file, see next rows) and appends `stopHandler`. Order doesn't affect correctness — `jumpTargetLabel` scans for the spec whose `opcodes` contains the fetched byte. **Total: 154 wired opcode bytes — 100% of the live EVM opcode space (149 legacy bytes) plus EIP-8024 stack ops + CLZ + blob/code handler bytes;** 102 bytes fall through to `h_invalid`. The exact count is kernel-checked in `Proofs/RegistryInvariants.lean`. |
+| `EvmAsm/Codegen/Programs/Evm*Handlers.lean` (+ `Storage.lean`, `Noop*.lean`) | The ~30 handler-builder lists, one concern per file. Stack: `EvmStackHandlers` (PUSH0..32 / DUP1..16 / SWAP1..16 / EIP-8024 DUPN/SWAPN/EXCHANGE). Arithmetic / bitwise / shift: `EvmSingletonHandlers` (clean-shape singletons incl. CLZ), `EvmDivModHandlers` (DIV/MOD), `EvmSignedDivModHandlers` (SDIV/SMOD trampoline), `EvmMulmodHandler`, `EvmSelfCallingHandlers` (ADDMOD + EXP inline-callable). Memory: `EvmMemoryHandlers` (MLOAD/MSTORE/MSTORE8), `EvmMcopyHandlers`. Env / context: `EvmEnvHandlers`, `EvmSlotnumHandlers`, `EvmBlobContextHandlers`, `EvmBlockHashHandlers`, `EvmGasHandlers`. Calldata / code: `EvmCalldataHandlers`, `EvmCodeHandlers`. Control flow: `EvmControlFlowHandlers` (JUMPDEST/JUMP/JUMPI/PC). Hash / log: `EvmHashHandlers` (KECCAK256 ECALL bridge), `EvmLogHandlers`. State: `Storage` (real SLOAD/SSTORE/TLOAD/TSTORE on the M24 Option-A log+journal), `EvmBalance`, `EvmAccountWitness`, `EvmExtcodecopy`. No-ops / halt: `Noop` (residual push-zero / copy builders), `NoopHalt` (RETURN/REVERT/INVALID/SELFDESTRUCT halt-kind tagging), `NoopReturnData`, `NoopChildFrame` (the 6 CREATE/CALL-family opcodes as all-zero pop-N no-ops). Several non-`*Handlers` siblings (`EvmMemoryGas`, `EvmStorageAccessGas`, `EvmAccessGas`, `EvmMcopyGas`, `EvmMessageCallGas`, `EvmNonce`, `EvmCodes`, …) hold the gas / witness / opcode-body helpers these builders call. |
+| `EvmAsm/Codegen/Programs/` (rest) | Execution-layer programs supporting the Stateless guest (300+ `.lean` files total under this dir): Account / Block / Chain / Header / Mpt / Tx / Receipt / Bloom / RLP read / SSZ / U256 / etc. Shared codegen helpers (`advancePc`, `copy64`, `evmAddEpilogue`, the `evm{Div,Mod,Sdiv,Smod}Patched` NOP-splice helpers) live alongside. |
 | `EvmAsm/Codegen/Proofs/` | Codegen-proofs scaffolding (post-M10). `RegistryInvariants.lean` (Phase 1) — 6 `decide`-checked theorems about `tinyInterpRegistry`'s structural well-formedness (Nodup on opcodes/labels, byte bounds, jump-table coverage). `HandlerSpecs.lean` (Phase 4) — reusable `cleanRetHandlerSpec` template + **13 concrete handler-level `cpsTripleWithin` instances** for clean-shape singletons (ADD, POP, SUB, LT, GT, SLT, SGT, EQ, ISZERO, AND, OR, XOR, NOT). Phases 2, 3, 5 + the remaining Phase 4 instances are still future work. |
-| `EvmAsm/Codegen/Tests/Cases.lean` | Per-opcode regression test registry: `OpcodeTestCase` struct + `opcodeTestCases` list (**59 cases** as of M20). Wraps each bytecode through the M5b dispatcher for end-to-end ziskemu validation. |
+| `EvmAsm/Codegen/Tests/Cases.lean` | Per-opcode regression test registry: `OpcodeTestCase` struct + `opcodeTestCases` list (**300+ cases**, grown well past the M20-era 59 as later milestones + EIP-specific suites landed). Wraps each bytecode through the M5b dispatcher for end-to-end ziskemu validation. |
 | `EvmAsm/Codegen/Cli.lean` | Argument parsing (`--program`, `--test-case`, `--list-test-cases`, `--halt`, `--out`, `--asm-only`). |
 | `EvmAsm/Codegen/Driver.lean` | `IO`: shells out to `as`/`ld` if available; `--asm-only` for CI without the cross toolchain. |
 | `Main.lean` | Already exists as `import EvmAsm`; extend to call `EvmAsm.Codegen.Cli.main`. |
@@ -2290,7 +2312,14 @@ exits 0).
 
 ### Sequencing
 
-M0 ✅ → M1 ✅ → M2 ✅ → M4 ✅ → M5a ✅ → M5b ✅ → M6a ✅ → M6b ✅ → M7 ✅ → M8 ✅ → M8.5 ✅ → M9 ✅ → M10 ✅ → M11 ✅ → M12 ✅ → M13 ✅ → M14 ✅ → M15 ✅ → M16 ✅ → M17 ✅ → M18 ✅ → M19 ✅ → M20 ✅ 🎯 100% → M21 ✅ → M22 ✅ → M23 ✅ → M24 ✅ → **M25 ✅**.
+M0 ✅ → M1 ✅ → M2 ✅ → M4 ✅ → M5a ✅ → M5b ✅ → M6a ✅ → M6b ✅ → M7 ✅ → M8 ✅ → M8.5 ✅ → M9 ✅ → M10 ✅ → M11 ✅ → M12 ✅ → M13 ✅ → M14 ✅ → M15 ✅ → M15.5 ✅ → M16 ✅ → M17 ✅ → M18 ✅ → M19 ✅ → M20 ✅ 🎯 100% → M21 ✅ → M22 ✅ → M23 ✅ → M23.5 ✅ → M24 ✅ → M25 ✅ → M30 ✅ → M27 ✅ → M33 ✅ → M31 ✅ → **M15.6 ✅ (2026-06-07, latest)**.
+
+> **Section ordering.** The milestone sections below are written in
+> *completion order*, which is **not** numeric order — M30/M33/M31 shipped
+> before M24/M25 because the #7130 storage pivot reprioritised gas/code work
+> while the Option-A storage design settled. M27 is "Real EXP" (it was
+> renumbered out of the M26+ storage band; see its header). When in doubt,
+> the §Current status block at the top of this file is authoritative.
 M3 is deferred; revisit only if a future milestone (full opcode
 coverage, JUMP/JUMPI, or the binary encoder) makes label-free
 emission unreadable. M11 (SHL + SAR) shipped 2026-05-26; M12
@@ -2324,15 +2353,21 @@ of C vs D-flat overlay is ongoing in parallel. Status:
 - M21 ✅ real calldata
 - M22 ✅ real persistent storage (slot-table v1, superseded by M24)
 - M23 ✅ real RETURN/REVERT with halt-kind
+- M23.5 ✅ distinct INVALID / SELFDESTRUCT halt kinds
 - M24 ✅ storage on Option A + real TLOAD/TSTORE + REVERT rollback
 - M25 ✅ post-state slot serializer (modified slots at OUTPUT+56)
+- M27 ✅ real EXP body (graduated from the M20 no-op)
+- M30 ✅ gas metering — static base costs
+- M31 ✅ memory-expansion dynamic gas
+- M33 ✅ real CODESIZE + CODECOPY (graduated from no-ops)
 
 **Storage-coupled candidates for M26+** (all build on M24's
 Option A layout; each will need rework if/when #7130's design
 re-evaluation lands on D+flat overlay — but ~30-40% of work
 carries over):
 - M26 — `addrHash` dimension (multi-contract storage keying)
-- M27 — Nested call frames + multi-frame journal push/pop
+- M34 — Nested call frames + multi-frame journal push/pop
+  (was provisionally "M27"; renumbered when M27 was assigned to Real EXP)
 - M28 — Witness MPT integration (cold reads + commit sweep)
 - M29 — EEST fixture harness + CI — 🟡 stateless harness **landed**:
   `scripts/eest-fetch-fixtures.sh` (download `fixtures_zkevm.tar.gz`),
@@ -2343,14 +2378,14 @@ carries over):
   CI job (smoke subset on PRs) still TODO.
 
 **Storage-orthogonal candidates** (any order, interleave anywhere):
-- Real EXP body wiring (verified body exists complete; M10-
-  style inline-callable composition)
-- INVALID/SELFDESTRUCT distinct halt-kind tagging
-- Gas-metering scaffolding
-- ECRecover precompile via ECALL bridge
-- Returndata > 32 bytes (extend OUTPUT layout)
-- Real RETURNDATASIZE / RETURNDATACOPY (needs nested call
-  frames)
+- ~~Real EXP body wiring~~ — **DONE (M27)**.
+- ~~INVALID/SELFDESTRUCT distinct halt-kind tagging~~ — **DONE (M23.5)**.
+- ~~Gas-metering scaffolding~~ — **DONE (M30 static base + M31 memory expansion)**;
+  dynamic costs (EIP-2929 cold/warm SLOAD/SSTORE, per-word copy gas, EXP-byte
+  gas, SSTORE refunds) and surfacing gas-used at OUTPUT remain.
+- ECRecover precompile via ECALL bridge (still open)
+- Returndata > 32 bytes — extend OUTPUT layout (still open)
+- Real RETURNDATASIZE / RETURNDATACOPY (needs nested call frames — see M34)
 
 **Storage-redesign-dependent work** (deferred until #7130
 lands):
@@ -2692,20 +2727,14 @@ state-root output) is the project's real end goal.
   x10-clobber / saved-ra / self-calling variants. Drift detection
   re-validated on SUB.
 
-## Future work (post-M10)
+## Remaining work (post-M33)
 
-Near-term:
+Already shipped since this section was first written (do not re-open):
+**EXP** (M27), **JUMP / JUMPI / PC + JUMPDEST-validity table** (M15 / M15.5 /
+M15.6), **INVALID/SELFDESTRUCT halt-kinds** (M23.5), and **gas scaffolding**
+(M30 static + M31 memory-expansion).
 
-- **EXP (0x0a).** Blocked on upstream: needs an
-  `evm_exp_msb_saved_bit_two_mul_fixed_fixed` variant that moves
-  the per-limb counter (`x6`) and limb pointer (`x16`) to
-  callee-saved registers (e.g. `x20`/`x21`). Once that lands, EXP
-  can drop into `selfCallingHandlers` next to ADDMOD using the
-  same inline-callable + `signedDivModTail` pattern; the skip-JAL
-  offset and `mulOff` / `condMulOff` derivations from this PR's
-  preliminary work are recorded in the git history.
-
-Longer-term (genuine new design surface):
+Genuine new design surface still ahead:
 
 - **Codegen-proofs Phases 2–5.** Phase 1 (registry invariants)
   shipped; the rest of the roadmap:
@@ -2719,10 +2748,10 @@ Longer-term (genuine new design surface):
     control transfers to `h` with `x1` pointing at the loop's
     re-entry point."
   - **Phase 4:** lift each `OpcodeHandlerSpec`'s spec from the body
-    alone to `preBody + body + tail` — covers the ~90 wired
-    handlers via ~8 templates (PUSH, DUP, SWAP, singleton, memory,
-    divModTail, signedDivModTail, self-calling). **13 of 91 wired
-    opcodes covered** (ADD, POP, SUB, LT, GT, SLT, SGT, EQ, ISZERO,
+    alone to `preBody + body + tail` — covers the ~87 handler
+    builders via ~8 templates (PUSH, DUP, SWAP, singleton, memory,
+    divModTail, signedDivModTail, self-calling). **13 of ~87 handlers
+    covered** (ADD, POP, SUB, LT, GT, SLT, SGT, EQ, ISZERO,
     AND, OR, XOR, NOT — all using `cleanRetHandlerSpec`); follow-ups
     extend to memory handlers (MLOAD/MSTORE/MSTORE8), parameterized
     PUSH / DUP / SWAP families, and add `withX10SavePreBody`
@@ -2731,10 +2760,6 @@ Longer-term (genuine new design surface):
   - **Phase 5:** end-to-end refinement — for every bytecode `B`,
     the runtime dispatcher's final state matches the EVM
     executable-spec interpreter's final state.
-- **JUMP / JUMPI + JUMPDEST table.** Real control flow. Handlers must
-  write `x10` directly (the wrapper baking in a fixed advance no longer
-  works) and JUMP/JUMPI need to consult a JUMPDEST validity table built
-  from the bytecode at codegen time.
 - **Lean-native binary encoder** (`Instr → BitVec 32` + ELF writer) to
   drop the GNU binutils dependency. Cross-check the encoded bytes
   against the verified `step` semantics.
@@ -2745,6 +2770,33 @@ Longer-term (genuine new design surface):
 - **Cross-zkVM testing** (SP1, RISC0) to validate the halt-convention
   ADR closure described in
   [`docs/host-io-halt-convention.md`](docs/host-io-halt-convention.md).
+
+## Next
+
+With opcode wiring at 100% and the doc reconciled, the three highest-leverage
+tracks (pick by goal — they are largely independent):
+
+1. **EEST conformance (functional target, most measurable).** Close the
+   "0 full-output matches" gap: the stateless guest still emits a pre-`v0.4.0`
+   output encoding, so it agrees on the invalid/valid *bit* (894 invalid blocks
+   rejected) but never on full output. Then promote the harness to CI as a
+   smoke subset (the round-trip job that is currently TODO). Concrete metric in
+   PLAN.md Axis F.
+
+2. **Codegen-proofs (shrink the unverified surface).** The codegen layer is
+   essentially unverified beyond Phase 1 + 13 handler specs. Cheapest progress:
+   instantiate the remaining ~74 Phase 4 handler specs via the existing
+   `cleanRetHandlerSpec` template and its planned variants
+   (`withX10SavePreBody`, trampoline, self-calling). Bigger swings: scope
+   Phase 2 (parser round-trip `parseInstr (emitInstr i) = some i`) or Phase 3
+   (dispatch-loop `cpsTripleWithin`).
+
+3. **Real semantics → STF (the end goal).** Graduate the remaining faked
+   opcodes — the 6 child-frame CREATE/CALL-family no-ops and the
+   account/block/blob reads (BALANCE, EXTCODE*, BLOCKHASH, BLOBHASH,
+   BLOBBASEFEE) — which requires **M34 nested call frames** + **M28 witness-MPT
+   integration**, building toward **PLAN.md Phase 11 (block-level STF)**, the
+   project's real end goal. Largest design surface.
 
 ## References
 
