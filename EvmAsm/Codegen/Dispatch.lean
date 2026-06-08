@@ -32,6 +32,8 @@ import EvmAsm.Codegen.Programs.StatePredicates
 import EvmAsm.Codegen.Programs.EvmAccessGas
 import EvmAsm.Codegen.Programs.AccountBalance
 import EvmAsm.Codegen.Programs.EIP7708Logs
+import EvmAsm.Codegen.Programs.CallFrameBase
+import EvmAsm.Codegen.Programs.CallFrameSwitch
 
 namespace EvmAsm.Codegen
 
@@ -2008,7 +2010,19 @@ def emitRuntimeDispatcherEmbeddedHelperFunctions : String :=
   bls12SafeFailWrapper "zkvm_bls12_g2_msm" "0x10e" ++ "\n" ++
   bls12SafeFailWrapper "zkvm_bls12_pairing" "0x10f" ++ "\n" ++
   bls12SafeFailWrapper "zkvm_bls12_map_fp_to_g1" "0x110" ++ "\n" ++
-  bls12SafeFailWrapper "zkvm_bls12_map_fp2_to_g2" "0x111"
+  bls12SafeFailWrapper "zkvm_bls12_map_fp2_to_g2" "0x111" ++ "\n" ++
+  -- Call-frame switching primitives (beads .61.4/.61.5, layout #8516/#8517).
+  -- Linked into the guest so the CALL/CREATE child-frame descent (.61.6/.61.8)
+  -- can call them. `frame_base` resolves `call_frame_arena` (the guest verdict
+  -- data already defines it; BlockVerdictDataSection); `frame_depth_*` and
+  -- `frame_*_regs` resolve `evm_call_depth` / `frame_save_area` added to the
+  -- embedded helper data below. Inert until a CALL handler increments depth —
+  -- depth-0 execution is byte-identical.
+  frameBaseFunction ++ "\n" ++
+  frameDepthPushFunction ++ "\n" ++
+  frameDepthPopFunction ++ "\n" ++
+  frameSaveRegsFunction ++ "\n" ++
+  frameLoadRegsFunction
 
 def emitRuntimeDispatcherCallableCoreSharedHelpers
     (registry : List OpcodeHandlerSpec)
@@ -2164,7 +2178,20 @@ def emitRuntimeDispatcherEmbeddedHelperData : String :=
   "  .byte 0xc5, 0xd2, 0x46, 0x01, 0x86, 0xf7, 0x23, 0x3c\n" ++
   "  .byte 0x92, 0x7e, 0x7d, 0xb2, 0xdc, 0xc7, 0x03, 0xc0\n" ++
   "  .byte 0xe5, 0x00, 0xb6, 0x53, 0xca, 0x82, 0x27, 0x3b\n" ++
-  "  .byte 0x7b, 0xfa, 0xd8, 0x04, 0x5d, 0x85, 0xa4, 0x70\n"
+  "  .byte 0x7b, 0xfa, 0xd8, 0x04, 0x5d, 0x85, 0xa4, 0x70\n" ++
+  -- Call-frame switching state (beads .61.4/.61.5, #8517). `evm_call_depth` is
+  -- the EVM call-depth counter (0 at top level; bumped by CALL/CREATE descent in
+  -- .61.6+); `frame_save_area` is the uniform per-depth saved (pc, codebase) area
+  -- (1025 entries × 16 B), indexed by depth 0..1024. These back the
+  -- frame_depth_push/pop and frame_save_regs/load_regs helpers linked above.
+  -- `call_frame_arena` itself lives in the guest verdict data
+  -- (BlockVerdictDataSection, aliasing basr_values).
+  ".balign 8\n" ++
+  "evm_call_depth:\n" ++
+  "  .zero 8\n" ++
+  ".balign 16\n" ++
+  "frame_save_area:\n" ++
+  "  .zero 16400\n"
 
 /-- Runtime-bytecode `.data` section. Drops the `evm_code:` block
     (no baked bytecode); everything else matches the `.data`-baked
