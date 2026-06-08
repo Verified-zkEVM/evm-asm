@@ -13,6 +13,9 @@ import EvmAsm.Codegen.Programs.TxExtract
 import EvmAsm.Codegen.Programs.TxSignature
 import EvmAsm.Codegen.Programs.TxSigningHash
 import EvmAsm.Codegen.Programs.U256
+import EvmAsm.Codegen.Programs.Secp256k1Field
+import EvmAsm.Codegen.Programs.Secp256k1Curve
+import EvmAsm.Codegen.Programs.Secp256k1Recover
 
 namespace EvmAsm.Codegen
 
@@ -272,12 +275,28 @@ def txPubkeyEcrecoverStageMaterialFunction : String :=
 
     Callable recovered-key helper surface. Mirrors execution-specs Amsterdam
     `recover_transaction_public_key`: build the signature material, stage it into
-    the `zkvm_secp256k1_ecrecover(msg, sig, recid, output)` ABI, then (eventually)
-    run secp256k1 recovery to produce the 64-byte public key. This child only
-    wires the call surface and scratch layout; the software recovery backend is
-    not implemented yet, so success paths terminate at status 50 rather than
-    pretending recovery succeeded. The safe-fail accelerator wrapper is
-    deliberately NOT used, and no stateless `public_keys` comparison happens here.
+    the `zkvm_secp256k1_ecrecover(msg, sig, recid, output)` ABI, then run software
+    secp256k1 recovery to produce the 64-byte public key. The safe-fail
+    accelerator wrapper is deliberately NOT used, and no stateless `public_keys`
+    comparison happens here.
+
+    Recovery math (standard ECDSA, matching execution-specs `secp256k1_recover`):
+      e      = msg_hash mod n
+      r_inv  = r^{-1} mod n
+      u1     = (-e * r_inv) mod n
+      u2     = ( s * r_inv) mod n
+      R      = curve point decompressed from r and the recovery id
+      Q      = u1 * G + u2 * R
+    and Q's affine x||y is the recovered public key. Composes the
+    `Secp256k1Field` mod-n scalar helpers (reduce/mul/inv), the `Secp256k1Recover`
+    R-decompression, and the `Secp256k1Curve` scalar-mul / point-add primitives.
+
+    PERFORMANCE: these primitives are the naive software stack -- bit-serial
+    double-and-add field multiply with a per-point-op Fermat field inversion -- so
+    one recovery is ~1e11 ziskemu steps, far over the stateless guest's budget.
+    Correctness is established here; before wiring recovery into the stateless
+    `public_keys` path the curve stack needs projective/Jacobian coordinates,
+    windowed/Shamir scalar multiplication, or the ecrecover accelerator.
 
     Calling convention:
       a0 (input)  : encoded transaction ptr
@@ -292,17 +311,18 @@ def txPubkeyEcrecoverStageMaterialFunction : String :=
       +0    material status side slot (u64; meaningful when status == 10)
       +8    signature material block (128 bytes; `tx_pubkey_signature_material`
             output: type/recid/r/s/hash/inner_off/is_eip155)
-      +136  staged ecrecover ABI block (168 bytes; msg hash 32 || sig 64 ||
-            recid word 8 || reserved pubkey buffer 64)
+      +136  staged ecrecover ABI block (168 bytes; msg hash 32 @+0 || sig r 32
+            @+32 || sig s 32 @+64 || recid word 8 @+96 || reserved pubkey 64)
 
     Status:
-      0  reserved for future success (real recovery lands later)
+      0  success: recovered public key written to the output buffer
       10 signature material failed (material status stored at scratch +0)
       20 ecrecover ABI staging failed
-      50 software secp256k1 recovery backend not implemented yet
+      60 secp256k1 recovery failed (R is off-curve / out of range, or the
+         recovered point is the identity)
 
-    On status 50 the recovered-pubkey output buffer is zeroed so callers never
-    observe stale bytes from a non-recovery run. -/
+    On any nonzero status the recovered-pubkey output buffer is zeroed so callers
+    never observe stale or partial coordinates from a failed run. -/
 def txPubkeyRecoverRawFunction : String :=
   "tx_pubkey_recover_raw:\n" ++
   "  addi sp, sp, -48\n" ++
@@ -328,20 +348,94 @@ def txPubkeyRecoverRawFunction : String :=
   "  li a0, 20\n" ++
   "  j .Ltprr_ret\n" ++
   ".Ltprr_stage_ok:\n" ++
-  "  # software secp256k1 recovery backend not implemented yet; zero the\n" ++
-  "  # 64-byte output buffer so no stale bytes leak, then report status 50.\n" ++
+  "  # --- software secp256k1 public-key recovery over the staged ABI block ---\n" ++
+  "  # ABI block at s4+136: msg hash @+0, r @+32, s @+64, recid word @+96.\n" ++
+  "  # 1. Decompress R = (x, y) from r and the recovery id.\n" ++
+  "  addi a0, s4, 168            # r ptr (ABI+32)\n" ++
+  "  ld a1, 232(s4)              # recid word (ABI+96); 0 or 1 from staging\n" ++
+  "  la a2, tpr_R\n" ++
+  "  jal ra, secp256k1_recover_r\n" ++
+  "  bnez a0, .Ltprr_recover_fail\n" ++
+  "  # 2. e = msg_hash mod n. The hash is < 2^256 < 2n, so one conditional\n" ++
+  "  #    subtraction of n is sufficient.\n" ++
+  "  addi a0, s4, 136            # msg hash ptr (ABI+0)\n" ++
+  "  la a1, tpr_e\n" ++
+  "  jal ra, secf_reduce_once_n\n" ++
+  "  # 3. r_inv = r^{-1} mod n.\n" ++
+  "  addi a0, s4, 168            # r ptr\n" ++
+  "  la a1, tpr_rinv\n" ++
+  "  jal ra, secf_inv_mod_n\n" ++
+  "  bnez a0, .Ltprr_recover_fail   # r == 0 (defensive; material rejects it)\n" ++
+  "  # 4. neg_e = (n - e) mod n, i.e. (-e) mod n (0 when e == 0).\n" ++
+  "  la a0, tpr_e\n" ++
+  "  jal ra, secf_is_zero32\n" ++
+  "  bnez a0, .Ltprr_neg_e_zero\n" ++
+  "  la a0, secf_n_be\n" ++
+  "  la a1, tpr_e\n" ++
+  "  la a2, tpr_nege\n" ++
+  "  jal ra, u256_sub_be          # nege = n - e (0 < e < n)\n" ++
+  "  j .Ltprr_have_nege\n" ++
+  ".Ltprr_neg_e_zero:\n" ++
+  "  la a0, tpr_nege\n" ++
+  "  jal ra, secf_zero32\n" ++
+  ".Ltprr_have_nege:\n" ++
+  "  # 5. u1 = (-e) * r_inv mod n ; u2 = s * r_inv mod n.\n" ++
+  "  la a0, tpr_nege\n" ++
+  "  la a1, tpr_rinv\n" ++
+  "  la a2, tpr_u1\n" ++
+  "  jal ra, secf_mul_mod_n\n" ++
+  "  addi a0, s4, 200            # s ptr (ABI+64)\n" ++
+  "  la a1, tpr_rinv\n" ++
+  "  la a2, tpr_u2\n" ++
+  "  jal ra, secf_mul_mod_n\n" ++
+  "  # 6. Q = u1*G + u2*R.\n" ++
+  "  la a0, tpr_u1\n" ++
+  "  la a1, secp256k1_generator\n" ++
+  "  la a2, tpr_p1\n" ++
+  "  jal ra, secp256k1_scalar_mul\n" ++
+  "  la a0, tpr_u2\n" ++
+  "  la a1, tpr_R\n" ++
+  "  la a2, tpr_p2\n" ++
+  "  jal ra, secp256k1_scalar_mul\n" ++
+  "  la a0, tpr_p1\n" ++
+  "  la a1, tpr_p2\n" ++
+  "  mv a2, s3                   # recovered pubkey out (x || y)\n" ++
+  "  jal ra, secp256k1_point_add\n" ++
+  "  bnez a0, .Ltprr_recover_fail   # identity result => invalid recovery\n" ++
+  "  li a0, 0\n" ++
+  "  j .Ltprr_ret\n" ++
+  ".Ltprr_recover_fail:\n" ++
+  "  # zero the 64-byte output so callers never see partial coordinates\n" ++
   "  mv t1, s3\n" ++
   "  li t2, 8\n" ++
   ".Ltprr_zero_out:\n" ++
   "  sd zero, 0(t1)\n" ++
   "  addi t1, t1, 8; addi t2, t2, -1\n" ++
   "  bnez t2, .Ltprr_zero_out\n" ++
-  "  li a0, 50\n" ++
+  "  li a0, 60\n" ++
   ".Ltprr_ret:\n" ++
   "  ld ra,  0(sp)\n" ++
   "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
   "  addi sp, sp, 48\n" ++
   "  ret"
+
+/-- Static scratch buffers for `tx_pubkey_recover_raw`'s recovery math (the
+    decompressed R point, the reduced hash and its negation, `r^{-1}`, the two
+    scalars, and the two scalar-mul outputs). Recovery is never re-entrant, so a
+    single static region is safe and mirrors the other secp256k1 helpers. Must be
+    emitted (once) alongside `secp256k1CurveDataSection` /
+    `secp256k1RecoverDataSection` in any build unit that links
+    `txPubkeyRecoverRawFunction`. -/
+def txPubkeyRecoverRawDataSection : String :=
+  ".balign 8\n" ++
+  "tpr_R:\n  .zero 64\n" ++
+  "tpr_e:\n  .zero 32\n" ++
+  "tpr_nege:\n  .zero 32\n" ++
+  "tpr_rinv:\n  .zero 32\n" ++
+  "tpr_u1:\n  .zero 32\n" ++
+  "tpr_u2:\n  .zero 32\n" ++
+  "tpr_p1:\n  .zero 64\n" ++
+  "tpr_p2:\n  .zero 64\n"
 
 /-- `zisk_tx_pubkey_ecrecover_stage_material`: probe BuildUnit.
     Reads the same input as `zisk_tx_pubkey_signature_material`, first builds
@@ -515,6 +609,14 @@ def ziskTxPubkeyRecoverRawStatusPrologue : String :=
   "  la t1, tprr_scratch\n" ++
   "  ld t2, 0(t1)\n" ++
   "  sd t2, 8(t0)                # material status side slot\n" ++
+  "  # copy the 64-byte recovered pubkey (x||y) to output+16 for assertions\n" ++
+  "  la t1, tprr_pubkey_out\n" ++
+  "  addi t0, t0, 16\n" ++
+  "  li t2, 8\n" ++
+  ".Ltprrs_copy_pub:\n" ++
+  "  ld t3, 0(t1); sd t3, 0(t0)\n" ++
+  "  addi t1, t1, 8; addi t0, t0, 8; addi t2, t2, -1\n" ++
+  "  bnez t2, .Ltprrs_copy_pub\n" ++
   "  j .Ltprrs_pdone\n" ++
   txTypeDispatchFunction ++ "\n" ++
   rlpListNthItemFunction ++ "\n" ++
@@ -523,7 +625,11 @@ def ziskTxPubkeyRecoverRawStatusPrologue : String :=
   rlpListTruncateToNFieldsFunction ++ "\n" ++
   zkvmKeccak256Function ++ "\n" ++
   u256IsZeroFunction ++ "\n" ++
-  u256LtBeFunction ++ "\n" ++
+  -- secp256k1 recovery stack (curve common already provides u256_lt_be/_add_be/
+  -- _sub_be, so the standalone u256_lt_be above is dropped to avoid a duplicate
+  -- label).
+  secp256k1CurveCommonFunctions ++ "\n" ++
+  secp256k1RecoverRFunction ++ "\n" ++
   txLegacyExtractSignatureFunction ++ "\n" ++
   txEip2930ExtractSignatureFunction ++ "\n" ++
   txEip1559ExtractSignatureFunction ++ "\n" ++
@@ -538,6 +644,9 @@ def ziskTxPubkeyRecoverRawStatusPrologue : String :=
 
 def ziskTxPubkeyRecoverRawStatusDataSection : String :=
   ziskTxPubkeySignatureMaterialDataSection ++ "\n" ++
+  secp256k1CurveDataSection ++ "\n" ++
+  secp256k1RecoverDataSection ++ "\n" ++
+  txPubkeyRecoverRawDataSection ++ "\n" ++
   "tprr_pubkey_out:\n  .zero 64\n" ++
   "tprr_scratch:\n  .zero 312"
 
