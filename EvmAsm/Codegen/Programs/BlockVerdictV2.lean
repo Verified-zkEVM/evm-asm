@@ -13,6 +13,10 @@ import EvmAsm.Codegen.Programs.TxBlobGas
 import EvmAsm.Codegen.Programs.SszWithdrawal
 
 import EvmAsm.Codegen.Programs.MptEncodeLeafBranch
+import EvmAsm.Codegen.Programs.BlockVerdictContractStage
+import EvmAsm.Codegen.Programs.BlockVerdictSelfContained
+import EvmAsm.Codegen.Programs.BlockVerdictBalFindAccount
+import EvmAsm.Codegen.Programs.BlockVerdictContractStorage
 
 namespace EvmAsm.Codegen
 
@@ -181,6 +185,20 @@ def statelessVerdictV2GuestClosure : String :=
   txGasSenderBalLookupFunction ++ "\n" ++
   simpleTransferTxContextFunction ++ "\n" ++
   stageRuntimePayloadFunction ++ "\n" ++
+  -- .6.4.3.2 contract-recipient dispatch: state/code lookups + BAL storage-key
+  -- enumeration + self-containment gate + variable pack-bytecode staging. The
+  -- shared callees (account_at_address, header_extract_state_root,
+  -- witness_lookup_by_hash, rlp_list_nth_item/count_items, mset_memcpy) are
+  -- already in this closure; only these top-level bodies + slot leaf helpers
+  -- (slot_at_index/slot_decode_u256) are new.
+  slotDecodeU256Function ++ "\n" ++
+  slotAtIndexFunction ++ "\n" ++
+  slotAtHeaderStateRootFunction ++ "\n" ++
+  codeAtHeaderStateRootFunction ++ "\n" ++
+  bytecodeIsSelfContainedFunction ++ "\n" ++
+  balFindAccountByAddressFunction ++ "\n" ++
+  balRecipientStorageKeysFunction ++ "\n" ++
+  stageRuntimePayloadCodeFunction ++ "\n" ++
   txExtractNonceAndGasFunction ++ "\n" ++
   txExtractGasPricingFunction ++ "\n" ++
   u256MinFunction ++ "\n" ++
