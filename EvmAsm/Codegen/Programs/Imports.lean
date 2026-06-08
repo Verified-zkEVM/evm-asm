@@ -104,6 +104,7 @@ import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransfer
 import EvmAsm.Codegen.Programs.BlockVerdictMultiTx
 import EvmAsm.Codegen.Programs.BlockVerdictContractStage
 import EvmAsm.Codegen.Programs.BlockVerdictRuntimePayload
+import EvmAsm.Codegen.Programs.BlockVerdictSelfContained
 import EvmAsm.Codegen.Programs.RegistryReceipts
 import EvmAsm.Codegen.Programs.TxTotalBlobGas
 import EvmAsm.Codegen.Programs.HeaderChainPostMerge
