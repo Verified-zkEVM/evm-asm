@@ -77,7 +77,7 @@ open EvmAsm.Rv64.Program
       a0 (output) : 0 success / 1 parse fail (incl. blob fee > u64) -/
 def txEip4844DecodeFunction : String :=
   "tx_eip4844_decode:\n" ++
-  "  addi sp, sp, -48\n" ++
+  "  addi sp, sp, -64\n" ++          -- +32B scratch (sp+32) for the u256 blob-fee read
   "  sd ra,  0(sp)\n" ++
   "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
   "  mv s0, a0                  # inner_rlp ptr\n" ++
@@ -148,11 +148,25 @@ def txEip4844DecodeFunction : String :=
   "  bnez a0, .Lt48_fail\n" ++
   "  la t0, t48_offset; ld t1, 0(t0); sw t1, 152(s2)\n" ++
   "  la t0, t48_length; ld t1, 0(t0); sw t1, 156(s2)\n" ++
-  "  # Field 9: max_fee_per_blob_gas (u64 at 160; rejects > 8B BE)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 9\n" ++
-  "  addi a3, s2, 160\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  # Field 9: max_fee_per_blob_gas. Spec type is u256; we keep a low-64-bit\n" ++
+  "  # view at offset 160 and TOLERATE values > u64 rather than rejecting. In\n" ++
+  "  # the high blob-fee regime (parent excess_blob_gas > ~328M), the blob gas\n" ++
+  "  # price exceeds u64, so a valid tx's max_fee_per_blob_gas does too; the old\n" ++
+  "  # rlp_field_to_u64 reject false-rejected those valid blob txs. Callers that\n" ++
+  "  # need the full value re-extract via rlp_field_to_u256_be at field index 9.\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 9; addi a3, sp, 32\n" ++
+  "  jal ra, rlp_field_to_u256_be\n" ++
   "  bnez a0, .Lt48_fail\n" ++
+  "  addi t0, sp, 32             # low 64 bits (BE bytes 24..31) -> u64 LE @160\n" ++
+  "  lbu t1, 24(t0); slli t1, t1, 56\n" ++
+  "  lbu t2, 25(t0); slli t2, t2, 48; or t1, t1, t2\n" ++
+  "  lbu t2, 26(t0); slli t2, t2, 40; or t1, t1, t2\n" ++
+  "  lbu t2, 27(t0); slli t2, t2, 32; or t1, t1, t2\n" ++
+  "  lbu t2, 28(t0); slli t2, t2, 24; or t1, t1, t2\n" ++
+  "  lbu t2, 29(t0); slli t2, t2, 16; or t1, t1, t2\n" ++
+  "  lbu t2, 30(t0); slli t2, t2,  8; or t1, t1, t2\n" ++
+  "  lbu t2, 31(t0);                  or t1, t1, t2\n" ++
+  "  sd t1, 160(s2)\n" ++
   "  # Field 10: blob_versioned_hashes (u32 off+len at 168/172)\n" ++
   "  mv a0, s0; mv a1, s1; li a2, 10\n" ++
   "  la a3, t48_offset; la a4, t48_length\n" ++
@@ -182,7 +196,7 @@ def txEip4844DecodeFunction : String :=
   ".Lt48_ret:\n" ++
   "  ld ra,  0(sp)\n" ++
   "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
+  "  addi sp, sp, 64\n" ++
   "  ret"
 
 /-- `zisk_tx_eip4844_decode`: probe BuildUnit. Reads (inner_len,
