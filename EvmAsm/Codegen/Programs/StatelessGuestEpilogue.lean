@@ -110,48 +110,16 @@ def statelessGuestValidatorPipeline : String :=
   "  mv s7, s8; mv s6, t2; add s8, s8, t2; addi s9, s9, 1\n" ++
   "  j .Lsg_contig_loop\n" ++
   ".Lsg_contig_done:\n" ++
-  "  # Validator 1: K290 chain_validate_post_merge_full\n" ++
-  "  mv a0, s2; la a1, sg_header_lengths; mv a2, s5\n" ++
-  "  la a3, sg_kpr_valid; la a4, sg_kpr_bad_index\n" ++
-  "  jal ra, chain_validate_post_merge_full\n" ++
-  "  bnez a0, .Lsg_fail_rlp\n" ++
-  "  la t0, sg_kpr_valid; ld t1, 0(t0); beqz t1, .Lsg_fail_pm\n" ++
-  "  # Validator 2: K291 chain_validate_extra_data_length\n" ++
-  "  mv a0, s2; la a1, sg_header_lengths; mv a2, s5\n" ++
-  "  la a3, sg_kpr_valid; la a4, sg_kpr_bad_index\n" ++
-  "  jal ra, chain_validate_extra_data_length\n" ++
-  "  bnez a0, .Lsg_fail_rlp\n" ++
-  "  la t0, sg_kpr_valid; ld t1, 0(t0); beqz t1, .Lsg_fail_ed\n" ++
-  "  # Validator 3: K240 chain_validate_gas_used_under_limit\n" ++
-  "  mv a0, s2; la a1, sg_header_lengths; mv a2, s5\n" ++
-  "  la a3, sg_kpr_valid; la a4, sg_kpr_bad_index\n" ++
-  "  jal ra, chain_validate_gas_used_under_limit\n" ++
-  "  bnez a0, .Lsg_fail_rlp\n" ++
-  "  la t0, sg_kpr_valid; ld t1, 0(t0); beqz t1, .Lsg_fail_gas\n" ++
-  "  # Validator 4: K278 chain_validate_blob_gas_used_multiple\n" ++
-  "  mv a0, s2; la a1, sg_header_lengths; mv a2, s5\n" ++
-  "  la a3, sg_kpr_valid; la a4, sg_kpr_bad_index\n" ++
-  "  jal ra, chain_validate_blob_gas_used_multiple\n" ++
-  "  bnez a0, .Lsg_fail_rlp\n" ++
-  "  la t0, sg_kpr_valid; ld t1, 0(t0); beqz t1, .Lsg_fail_bgm\n" ++
-  "  # Validator 5: K277 chain_validate_blob_gas_used_under_max\n" ++
-  "  mv a0, s2; la a1, sg_header_lengths; mv a2, s5\n" ++
-  "  la a3, sg_kpr_valid; la a4, sg_kpr_bad_index\n" ++
-  "  jal ra, chain_validate_blob_gas_used_under_max\n" ++
-  "  bnez a0, .Lsg_fail_rlp\n" ++
-  "  la t0, sg_kpr_valid; ld t1, 0(t0); beqz t1, .Lsg_fail_bgum\n" ++
-  "  # Validator 6: K229 chain_validate_increasing_timestamps\n" ++
-  "  mv a0, s2; la a1, sg_header_lengths; mv a2, s5\n" ++
-  "  la a3, sg_kpr_valid; la a4, sg_kpr_bad_index\n" ++
-  "  jal ra, chain_validate_increasing_timestamps\n" ++
-  "  bnez a0, .Lsg_fail_rlp\n" ++
-  "  la t0, sg_kpr_valid; ld t1, 0(t0); beqz t1, .Lsg_fail_ts\n" ++
-  "  # Validator 7: K230 chain_validate_consecutive_numbers\n" ++
-  "  mv a0, s2; la a1, sg_header_lengths; mv a2, s5\n" ++
-  "  la a3, sg_kpr_valid; la a4, sg_kpr_bad_index\n" ++
-  "  jal ra, chain_validate_consecutive_numbers\n" ++
-  "  bnez a0, .Lsg_fail_rlp\n" ++
-  "  la t0, sg_kpr_valid; ld t1, 0(t0); beqz t1, .Lsg_fail_nm\n" ++
+  "  # 9lw0m deviation B: the spec's validate_headers (amsterdam stateless.py:266-277)\n" ++
+  "  # field-validates the witness ancestor headers ONLY for parent_hash contiguity\n" ++
+  "  # (checked above) + count<=256 (checked at entry). It does NOT re-validate the\n" ++
+  "  # ancestors' post-merge fields / extra_data / gas_used / blob_gas / timestamps /\n" ++
+  "  # numbers -- those are historical blocks the stateless client trusts, and the\n" ++
+  "  # block-under-test's own header is validated separately in the verdict path. The\n" ++
+  "  # 7 per-witness-header validators here were a spec-absent over-check (a latent\n" ++
+  "  # false-reject vector), so they are removed to match the spec. (RLP-decodability\n" ++
+  "  # of each ancestor is still enforced: the contiguity check parses every header to\n" ++
+  "  # extract parent_hash.)\n" ++
   ".Lsg_all_pass:\n" ++
   "  # All validators that ran passed (or N=0 fast-path). NB: with\n" ++
   "  # the new-schema decoder stubs in `EvmAsm/Stateless/SSZ/Decode/\n" ++
