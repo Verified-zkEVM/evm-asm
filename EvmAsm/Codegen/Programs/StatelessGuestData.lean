@@ -148,6 +148,14 @@ def statelessGuestDataSection : String :=
   "  .zero 8\n" ++
   "sg_kpr_bad_index:\n" ++
   "  .zero 8\n" ++
+  -- 9lw0m: parent_hash contiguity scratch (validate_parent_hash_link + loop verdict)
+  ".balign 8\n" ++
+  "sg_contig_valid:\n  .zero 8\n" ++
+  "vphl_offset:\n  .zero 8\n" ++
+  "vphl_length:\n  .zero 8\n" ++
+  ".balign 32\n" ++
+  "vphl_claimed:\n  .zero 32\n" ++
+  "vphl_computed:\n  .zero 32\n" ++
   -- Shared K-PR scratch (zk3_state / rfu_offset / rfu_length: used by
   -- rlp_list_nth_item + rlp_field_to_u64). Now provided by the appended Step-2
   -- verdict data section (statelessGuestUnit.dataAsm), so NOT declared here to
