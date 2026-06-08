@@ -157,6 +157,12 @@ def txEip4844DecodeFunction : String :=
   "  mv a0, s0; mv a1, s1; li a2, 9; addi a3, sp, 32\n" ++
   "  jal ra, rlp_field_to_u256_be\n" ++
   "  bnez a0, .Lt48_fail\n" ++
+  "  # Persist the full u256 (BE) for callers needing the >u64 value (EIP-8037 gate).\n" ++
+  "  addi t0, sp, 32; la t1, tcbg_blob_fee_be\n" ++
+  "  ld t2,  0(t0); sd t2,  0(t1)\n" ++
+  "  ld t2,  8(t0); sd t2,  8(t1)\n" ++
+  "  ld t2, 16(t0); sd t2, 16(t1)\n" ++
+  "  ld t2, 24(t0); sd t2, 24(t1)\n" ++
   "  addi t0, sp, 32             # low 64 bits (BE bytes 24..31) -> u64 LE @160\n" ++
   "  lbu t1, 24(t0); slli t1, t1, 56\n" ++
   "  lbu t2, 25(t0); slli t2, t2, 48; or t1, t1, t2\n" ++
