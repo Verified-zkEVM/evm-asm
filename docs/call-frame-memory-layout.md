@@ -34,7 +34,8 @@ Status: DESIGN (no code yet). Downstream consumers: `.61` skeleton,
   - `.data`      @ `0xa3000000`
   - `.sszscratch`@ `0xbf500000`
   - ⇒ usable `.data` span before `.sszscratch` = `0xbf500000 − 0xa3000000`
-    = `0x1c500000` = **474 MiB**.
+    = `0x1c500000` = `475,004,928` B = **453 MiB** (≈ 475 MB decimal).
+    (Pinned + proved in `EvmAsm/Codegen/CallFrameLayout.lean` `data_gap_bytes`.)
 - Amsterdam caps: `MAX_CODE_SIZE = 0x10000` (64 KiB), `MAX_INIT_CODE_SIZE =
   0x20000` (128 KiB).
 - This project **avoids misaligned load/store** — every per-frame sub-region is
@@ -114,13 +115,27 @@ LOG accumulation list — see §6 for the per-frame *checkpoint* into it),
 `opcode_handlers`, `lp64_stack`, `zk3_state`, account-witness/precompile/modexp/
 sha256 scratch, and the whole BlockVerdict verdict-spine data.
 
-> **Implementation note:** keep the *intra-frame* env field offsets identical to
-> today (0,32,64,96,416,424,496,568, log 448-480). Handlers that do
-> `ld …, N(x20)` keep working once `x20` points at the *per-frame* env subblock.
-> The shared fields move to a separate `shared_env` block addressed by a new
-> dedicated register (proposal: **x22 = shared_env base**), and the handlers for
-> ORIGIN/GASPRICE/COINBASE/…/BLOBBASEFEE/BLOCKHASH/SLOTNUM switch from `N(x20)`
-> to `M(x22)`. This is the one mechanical handler edit the split forces.
+> **Implementation note.** The shared fields move to a separate `shared_env`
+> block addressed by a dedicated register (**x22 = shared_env base**); the
+> shared-field handlers (ORIGIN/GASPRICE/COINBASE/…/BLOBBASEFEE/BLOCKHASH/SLOTNUM)
+> read it instead of the per-frame env.
+>
+> This is **proof-cheap**, not proof-blocked. The env handlers are the verified
+> `evm_env_load .x20 .x15 .<field>` Program, but `evm_env_load_spec_within`
+> (`EvmAsm/Evm64/Env/Spec.lean:115`) is *parametric* over both `envBaseReg` and
+> `field` — it's a layout/framing triple ("load the 4 limbs of `field.value env`
+> from `envAddr + field.offset + 8*i`"), with no arithmetic tied to a specific
+> register or offset. So the split needs only: (a) pass `.x22` as the base for
+> shared-field handlers (the generic lemma already covers any base register), and
+> (b) give the shared fields their `shared_env`-relative offsets via the
+> `SimpleEnvField.offset` map (`EvmAsm/Evm64/Env/Field.lean:72`) — the same
+> generic lemma applies at the new offsets unchanged. No new proof obligations.
+>
+> (Alternative considered: keep one full contiguous env per frame and *replicate*
+> the shared fields, copying them parent→child on descent — also proof-trivial,
+> ~0.4 MiB + a small per-descent memcpy. The `x22` split is preferred as the
+> single-source-of-truth for block/tx-global env; replication is the fallback if
+> reserving x22 proves inconvenient.)
 
 ---
 
@@ -240,6 +255,12 @@ post-replay reader** (verdict body, runtime-dispatch handlers, gas/arena helpers
 post-`block_state_root` read of `basr_values`/`basr_accounts` **breaks this union
 and must be caught** — keep the gate grep in the implementation PR's checks.
 
+164 MiB frames + 16 MiB shared = 180 MiB, well under the 453 MiB budget with
+**272 MiB headroom** (`frame_array_end 0xae429000 → 0xbf500000` = `0x110d7000` =
+285,741,056 B; pinned + proved in `CallFrameLayout.lean` `frameArray_headroom`).
+The array fits with comfortable margin even if `FRAME_STRIDE` or the shared
+reserve grows.
+
 > Consequence for `CallFrameLayout.lean`: `frameArrayBase` is **not** `0xa4000000`
 > — it is the base of the BAL-replay union region (inside the existing `.data`).
 > `frameArray_fits` should be restated against the union-region size, not a
@@ -257,9 +278,9 @@ Per-frame registers recomputed as `frame_array_base + depth*FRAME_STRIDE + sub`:
 | x10 | PC (offset into code) | yes (saved to `frame_pc` on descent) |
 | x12 | operand stack ptr (grows ↓) | yes (= `frame[d]+frame_stack_top`) |
 | x13 | memBaseReg (EVM memory base) | yes (= `frame[d]+frame_mem`) |
-| x20 | per-frame env base | yes (= `frame[d]+frame_env`) |
+| x20 | per-frame env base (per-frame fields only) | yes (= `frame[d]+frame_env`) |
 | x21 | code base (→ witness.codes slice) | yes (saved to `frame_codebase`) |
-| x22 | **shared_env base** (new) | no (constant) |
+| x22 | **shared_env base** (block/tx-global env; proof-cheap, see §3 note) | no (constant) |
 | x2  | lp64 helper sp | no (shared; helpers run within one frame at a time) |
 | x?? | **depth counter** (proposal: a fixed `.data` cell `evm_call_depth`) | global |
 
