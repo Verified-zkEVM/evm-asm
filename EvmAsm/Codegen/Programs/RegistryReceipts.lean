@@ -2,6 +2,7 @@
   Receipt-related codegen registry arms.
 -/
 import EvmAsm.Rv64.Program
+import EvmAsm.Codegen.Programs.Account
 import EvmAsm.Codegen.Programs.Bloom
 import EvmAsm.Codegen.Programs.BlockEmpty
 import EvmAsm.Codegen.Programs.BlockGasRemaining
@@ -24,6 +25,8 @@ def lookupReceiptProgramTail : String → Option BuildUnit
   | "zisk_receipt_records_probe" => some ziskReceiptRecordsProbeUnit
   | "zisk_block_receipt_records_materialize" => some ziskBlockReceiptRecordsMaterializeProbeUnit
   | "zisk_eip7778_remaining_block_gas_check" => some ziskEip7778RemainingBlockGasCheckProbeUnit
+  | "zisk_eip7778_remaining_block_gas_from_results" => some ziskEip7778RemainingBlockGasFromResultsProbeUnit
+  | "zisk_tx_gas_result_increments" => some ziskTxGasResultIncrementsProbeUnit
   | "zisk_block_validate_receipts_root_indexed" => some ziskBlockValidateReceiptsRootIndexedProbeUnit
   | "zisk_block_validate_receipts_consensus_list" => some ziskBlockValidateReceiptsConsensusListProbeUnit
   | "zisk_block_validate_receipts_root_one_receipt" => some ziskBlockValidateReceiptsRootOneReceiptProbeUnit
@@ -42,6 +45,8 @@ def knownReceiptProgramNamesTail : List String :=
    "zisk_typed_receipt_encode",
    "zisk_receipt_records_probe",
    "zisk_eip7778_remaining_block_gas_check",
+   "zisk_eip7778_remaining_block_gas_from_results",
+   "zisk_tx_gas_result_increments",
    "zisk_block_validate_receipts_root_one_receipt",
    "zisk_block_validate_receipts_root_two_receipts",
    "zisk_header_extract_receipts_root",
