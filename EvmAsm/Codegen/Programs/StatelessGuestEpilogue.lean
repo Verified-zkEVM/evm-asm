@@ -55,6 +55,12 @@ def statelessGuestValidatorPipeline : String :=
   "                              # SSZ_BASE for the encoder's bounded byte-copy)\n" ++
   "  mv s4, x14                  # s4 = section_len\n" ++
   "  beqz s2, .Lsg_all_pass      # N=0: skip validators\n" ++
+  "  # 9lw0m: spec validate_headers asserts len(encoded_headers) <= 256. Enforce it\n" ++
+  "  # here, BEFORE building sg_header_lengths (a fixed 256*8 = 2048-byte buffer):\n" ++
+  "  # this both matches the spec (a >256-header witness is invalid -> reject, closing\n" ++
+  "  # a false-accept) and prevents the .Lsg_bl loop from overflowing sg_header_lengths.\n" ++
+  "  li t0, 256\n" ++
+  "  bgtu s2, t0, .Lsg_fail_toomany\n" ++
   "  # Build sg_header_lengths[N]: convert N u32 inner-offset deltas\n" ++
   "  # to N u64 absolute lengths.\n" ++
   "  mv t0, s3                   # t0 = offsets cursor (section_ptr)\n" ++
@@ -157,6 +163,7 @@ def statelessGuestValidatorPipeline : String :=
   "  # the body's encoder will see x11 = 1 from a real success.\n" ++
   "  j .Lsg_hash\n" ++
   ".Lsg_fail_contig: li a0, 0x18; j .Lsg_unimpl\n" ++
+  ".Lsg_fail_toomany: li a0, 0x19; j .Lsg_unimpl\n" ++
   ".Lsg_fail_pm:   li a0, 0x10; j .Lsg_unimpl\n" ++
   ".Lsg_fail_ed:   li a0, 0x11; j .Lsg_unimpl\n" ++
   ".Lsg_fail_gas:  li a0, 0x12; j .Lsg_unimpl\n" ++
