@@ -191,10 +191,21 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bvgr_runtime_calldata_floor_ptr:\n  .zero 8\n" ++
   "bvgr_runtime_count:\n  .zero 8\n" ++
   ".balign 8\n" ++
-  "bv_runtime_payload:\n  .zero 584\n" ++
+  "bv_runtime_payload:\n  .zero 4096\n" ++
   "bv_runtime_gas_left:\n  .zero 8\n" ++
   "bv_runtime_refund_counter:\n  .zero 8\n" ++
   "bv_runtime_calldata_floor:\n  .zero 8\n" ++
+  -- Contract-recipient dispatch scratch (evm-asm-fhsxz.2.4.2.57.11.6.4.3.2).
+  ".balign 8\n" ++
+  "bvcd_code_ptr:\n  .zero 8\n" ++
+  "bvcd_code_len:\n  .zero 8\n" ++
+  "bvcd_acct_ptr:\n  .zero 8\n" ++
+  "bvcd_acct_len:\n  .zero 8\n" ++
+  "bvcd_key_count:\n  .zero 8\n" ++
+  "bvcd_i:\n  .zero 8\n" ++
+  "bvcd_keys:\n  .zero 512\n" ++       -- up to 16 x 32-byte slot keys
+  "bvcd_preload:\n  .zero 1024\n" ++   -- up to 16 x 64-byte (key,value) pairs
+
   "bv_eip7778_status:\n  .zero 8\n" ++
   "bv_eip7778_index:\n  .zero 8\n" ++
   "bv_eip7778_used:\n  .zero 8\n" ++
@@ -611,6 +622,59 @@ def ziskStatelessVerdictV2DataSection : String :=
   "mxne_cursor:\n  .zero 8\n" ++
   "mxne_total_payload:\n  .zero 8\n" ++
   "mxne_hp_buf:\n  .zero 1024\n" ++
-  "mxne_payload_buf:\n  .zero 16384\n"
+  "mxne_payload_buf:\n  .zero 16384\n" ++
+  -- .6.4.3.2 contract-dispatch leaf-helper scratch. Shared scratch (zk3_state,
+  -- wlh_*, mnk_*, mbc_*, mw_*, mlk_*, ad_*, aa_*, hesr_*) is already provided by
+  -- this guest data section, so only the slot/code-side private labels are added
+  -- here (deduped against the guest object via nm). The contract-stage/self-
+  -- contained/bal-find/bal-storage probe scratch uses unique prefixes (srpc_,
+  -- bsc_, bfa_, brsk_) so it cannot collide.
+  -- slot_at_index leaf scratch:
+  ".balign 8\n" ++
+  "si_value_len:\n  .zero 8\n" ++
+  ".balign 32\n" ++
+  "si_value_scratch:\n  .zero 256\n" ++
+  -- slot_at_header_state_root scratch:
+  ".balign 32\n" ++
+  "sahsr_state_root:\n  .zero 32\n" ++
+  ".balign 8\n" ++
+  "sahsr_acct_struct:\n  .zero 104\n" ++
+  ".balign 32\n" ++
+  "sahsr_u256:\n  .zero 32\n" ++
+  -- code_at_header_state_root scratch:
+  ".balign 32\n" ++
+  "cahsr_state_root:\n  .zero 32\n" ++
+  ".balign 8\n" ++
+  "cahsr_acct_struct:\n  .zero 104\n" ++
+  "cahsr_code_offset:\n  .zero 8\n" ++
+  "cahsr_code_length:\n  .zero 8\n" ++
+  -- stage_runtime_payload_code private scratch:
+  ".balign 8\n" ++
+  "srpc_ctx:\n  .zero 192\n" ++
+  "srpc_exec:\n  .zero 512\n" ++
+  "srpc_code:\n  .zero 64\n" ++
+  "srpc_payload:\n  .zero 1024\n" ++
+  -- bal_find_account_by_address private scratch:
+  ".balign 8\n" ++
+  "bfa_cnt:\n  .zero 8\n" ++
+  "bfa_aoff:\n  .zero 8\n" ++
+  "bfa_alen:\n  .zero 8\n" ++
+  "bfa_doff:\n  .zero 8\n" ++
+  "bfa_dlen:\n  .zero 8\n" ++
+  "bfa_out_ptr:\n  .zero 8\n" ++
+  "bfa_out_len:\n  .zero 8\n" ++
+  "bfa_addr_hit:\n  .zero 20\n" ++
+  "bfa_addr_miss:\n  .zero 20\n" ++
+  -- bal_recipient_storage_keys private scratch:
+  ".balign 8\n" ++
+  "brsk_off:\n  .zero 8\n" ++
+  "brsk_len:\n  .zero 8\n" ++
+  "brsk_cnt:\n  .zero 8\n" ++
+  "brsk_eoff:\n  .zero 8\n" ++
+  "brsk_elen:\n  .zero 8\n" ++
+  "brsk_soff:\n  .zero 8\n" ++
+  "brsk_slen:\n  .zero 8\n" ++
+  ".balign 32\n" ++
+  "brsk_out:\n  .zero 256\n"
 
 end EvmAsm.Codegen
