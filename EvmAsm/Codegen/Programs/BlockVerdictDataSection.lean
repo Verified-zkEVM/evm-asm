@@ -415,6 +415,13 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bsg_blob_gas_accum:\n  .zero 8\n" ++
   "bgvh_count_scratch:\n  .zero 8\n" ++
   "tcbg_struct:\n  .zero 248\n" ++
+  -- Full u256 (BE) max_fee_per_blob_gas, persisted by tx_eip4844_decode for
+  -- callers that need the >u64 value (EIP-8037 gate blob-price check). tcbg_struct+160
+  -- keeps only the low-64 view; in the high blob-fee regime (excess_blob_gas > ~328M)
+  -- the price and a valid tx's max_fee both exceed u64, so the gate compares u256.
+  "tcbg_blob_fee_be:\n  .zero 32\n" ++
+  "bsg_blob_price_be:\n  .zero 32\n" ++
+  "bsg_blob_lt_out:\n  .zero 8\n" ++
   "bsr_fail_code:\n  .zero 8\n" ++
   "bsr_change_count:\n  .zero 8\n" ++
   "sri_cur_mode:\n  .zero 8\n" ++
