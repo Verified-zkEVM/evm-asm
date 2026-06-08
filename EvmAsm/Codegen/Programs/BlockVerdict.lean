@@ -538,6 +538,14 @@ def blockVerdictFunction : String :=
   "  lbu t6, 0(t0); lbu a0, 0(t1); bne t6, a0, .Lbv_st_recipient_do_verify\n" ++
   "  addi t0, t0, 1; addi t1, t1, 1; addi t5, t5, -1; j .Lbv_st_recipient_coinbase_cmp\n" ++
   ".Lbv_st_recipient_do_verify:\n" ++
+  "  # EIP-7928/4895 (evm-asm-ouis9): like the fee-recipient skip below, the strict\n" ++
+  "  # recipient post-balance check models recipient_post = recipient_pre + value.\n" ++
+  "  # When the block has withdrawals the recipient may ALSO receive a withdrawal\n" ++
+  "  # (e.g. bal_withdrawal_and_value_transfer_same_address), so\n" ++
+  "  # post = pre + value + withdrawal and the strict check false-rejects. Skip it\n" ++
+  "  # for blocks with withdrawals: the recomputed post-state root (which folds in\n" ++
+  "  # both the value transfer and the withdrawal) already validates the balance.\n" ++
+  "  la t2, svf_wds_count; ld t2, 0(t2); bnez t2, .Lbv_st_skip_recipient_overlap\n" ++
   "  la t2, bv_simple_transfer_tx\n" ++
   "  addi a0, t2, 72; addi a1, t2, 96\n" ++
   "  la t2, bv_bal_start; ld a2, 0(t2)\n" ++
@@ -562,6 +570,15 @@ def blockVerdictFunction : String :=
   "  lbu t6, 0(t3); lbu a0, 0(t4); bne t6, a0, .Lbv_st_fee_distinct\n" ++
   "  addi t3, t3, 1; addi t4, t4, 1; addi t5, t5, -1; j .Lbv_st_fee_recipient_cmp\n" ++
   ".Lbv_st_fee_distinct:\n" ++
+  "  # EIP-7928/4895 (evm-asm-ouis9): the strict fee-recipient post-balance check\n" ++
+  "  # below models coinbase_post = coinbase_pre + transaction_fee. When the block\n" ++
+  "  # has withdrawals, the coinbase may ALSO be a withdrawal recipient (e.g.\n" ++
+  "  # bal_withdrawal_to_coinbase), so post = pre + fee + withdrawal and the strict\n" ++
+  "  # check false-rejects. Skip it for blocks with withdrawals: the recomputed\n" ++
+  "  # post-state root (which folds in both the fee and the withdrawal) already\n" ++
+  "  # validates the coinbase balance, so this redundant sanity check is dropped\n" ++
+  "  # rather than risk a false reject.\n" ++
+  "  la t2, svf_wds_count; ld t2, 0(t2); bnez t2, .Lbv_st_skip_fee_overlap\n" ++
   "  ld a0, 0(s0); addi a0, a0, 32\n" ++
   "  la t2, bv_simple_transfer_tx\n" ++
   "  ld a1, 8(t2); ld a2, 16(t2); ld a3, 32(t2)\n" ++
@@ -768,7 +785,7 @@ def statelessVerdictV2Function : String :=
   "  beqz a0, .Lv2_tx_root_fail\n" ++
   "  bgtu a0, s1, .Lv2_tx_root_fail\n" ++
   "  srli s4, a0, 2\n" ++
-  "  li t0, 257; bgeu s4, t0, .Lv2_tx_root_fail\n" ++
+  "  li t0, 2049; bgeu s4, t0, .Lv2_tx_root_fail\n" ++
   "  la t0, svf_tx_count; sd s4, 0(t0)\n" ++
   "  li s5, 0\n" ++
   "  la s3, svf_tx_descriptors\n" ++
