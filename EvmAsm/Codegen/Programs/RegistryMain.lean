@@ -574,6 +574,7 @@ def lookupProgramMain (lookupProgramTail : String → Option BuildUnit) : String
   | "zisk_tx_pubkey_signature_material" => some ziskTxPubkeySignatureMaterialProbeUnit
   | "zisk_tx_pubkey_ecrecover_stage_material" => some ziskTxPubkeyEcrecoverStageMaterialProbeUnit
   | "zisk_tx_pubkey_recover_raw_status" => some ziskTxPubkeyRecoverRawStatusProbeUnit
+  | "zisk_tx_pubkey_public_key_matches_status" => some ziskTxPubkeyPublicKeyMatchesStatusProbeUnit
   | "zisk_header_minimal_decode" => some ziskHeaderMinimalDecodeProbeUnit
   | "zisk_header_extended_decode" => some ziskHeaderExtendedDecodeProbeUnit
   | "zisk_coinbase_extract_from_header" => some ziskCoinbaseExtractFromHeaderProbeUnit
