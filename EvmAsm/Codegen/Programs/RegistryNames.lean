@@ -194,6 +194,7 @@ def knownProgramNames : List String :=
    "zisk_withdrawal_rlp_encode",
    "zisk_withdrawal_to_path_delta",
    "zisk_ssz_withdrawal_to_rlp",
+   "zisk_bv_sum_withdrawals_to_address",
    "zisk_extract_witness_state_section",
    "zisk_extract_payload_and_withdrawals",
    "zisk_extract_parent_header_and_state_root",

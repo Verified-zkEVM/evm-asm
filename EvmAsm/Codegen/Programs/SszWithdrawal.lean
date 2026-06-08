@@ -19,6 +19,7 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.RlpRead
+import EvmAsm.Codegen.Programs.U256
 
 namespace EvmAsm.Codegen
 
@@ -125,6 +126,107 @@ def ziskSszWithdrawalToRlpProbeUnit : BuildUnit := {
   body        := NOP
   prologueAsm := ziskSszWithdrawalToRlpPrologue
   dataAsm     := ziskSszWithdrawalToRlpDataSection
+}
+
+/-! ## bv_sum_withdrawals_to_address -- EIP-4895 withdrawal credit to an address.
+
+    Sum the wei credited by all SSZ withdrawals whose 20-byte address equals a
+    target address. Mirrors execution-specs apply_withdrawals: each withdrawal
+    credits `amount (Gwei) * 1e9` wei to its address. Used to make the
+    coinbase/recipient post-balance checks withdrawal-aware on EIP-7928/4895
+    withdrawal blocks (see bead evm-asm-uyu11.1), so the strict
+    `post == pre + fee/value (+ withdrawal credit)` check stays sound instead of
+    being skipped.
+
+    SSZ Withdrawal layout (44 bytes): index u64 @0, validator_index u64 @8,
+    address 20 B @16, amount u64 LE (Gwei) @36.
+
+    Calling convention:
+      a0 (input)  : target address ptr (20 bytes)
+      a1 (input)  : SSZ withdrawals base ptr (44 bytes per entry)
+      a2 (input)  : withdrawal count
+      a3 (input)  : output u256 ptr (32 bytes, BE; receives the summed wei)
+      ra (input)  : return
+      a0 (output) : 0 ok, 1 on u256 overflow (mul or add) -/
+def bvSumWithdrawalsToAddressFunction : String :=
+  "bv_sum_withdrawals_to_address:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra, 0(sp)\n" ++
+  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  mv s0, a0                   # target address ptr (20B)\n" ++
+  "  mv s1, a1                   # SSZ withdrawals base\n" ++
+  "  mv s2, a2                   # withdrawal count\n" ++
+  "  mv s3, a3                   # out u256 BE\n" ++
+  "  sd zero, 0(s3); sd zero, 8(s3); sd zero, 16(s3); sd zero, 24(s3)\n" ++
+  "  li s4, 0                    # i\n" ++
+  ".Lbsw_loop:\n" ++
+  "  beq s4, s2, .Lbsw_ok\n" ++
+  "  li t0, 44; mul t0, s4, t0; add t1, s1, t0   # entry ptr\n" ++
+  "  addi t2, t1, 16             # entry address @ +16\n" ++
+  "  mv t3, s0; li t4, 20\n" ++
+  ".Lbsw_addr_cmp:\n" ++
+  "  beqz t4, .Lbsw_match\n" ++
+  "  lbu t5, 0(t2); lbu t6, 0(t3); bne t5, t6, .Lbsw_next\n" ++
+  "  addi t2, t2, 1; addi t3, t3, 1; addi t4, t4, -1\n" ++
+  "  j .Lbsw_addr_cmp\n" ++
+  ".Lbsw_match:\n" ++
+  "  li t0, 44; mul t0, s4, t0; add t1, s1, t0   # re-derive entry ptr\n" ++
+  "  la t2, bsw_amount\n" ++
+  "  sd zero, 0(t2); sd zero, 8(t2); sd zero, 16(t2); sd zero, 24(t2)\n" ++
+  "  addi a0, t1, 36; li a1, 8; la a2, bsw_amount; addi a2, a2, 24\n" ++
+  "  jal ra, swr_rev_le_be       # amount_gwei LE@36 -> BE in low 8 bytes\n" ++
+  "  la a0, bsw_amount; li a1, 1000000000; la a2, bsw_wei\n" ++
+  "  jal ra, u256_mul_u64_be     # wei = amount_gwei * 1e9\n" ++
+  "  bnez a0, .Lbsw_overflow\n" ++
+  "  mv a0, s3; la a1, bsw_wei; mv a2, s3\n" ++
+  "  jal ra, u256_add_be         # acc += wei\n" ++
+  "  bnez a0, .Lbsw_overflow\n" ++
+  ".Lbsw_next:\n" ++
+  "  addi s4, s4, 1; j .Lbsw_loop\n" ++
+  ".Lbsw_ok:\n" ++
+  "  li a0, 0; j .Lbsw_ret\n" ++
+  ".Lbsw_overflow:\n" ++
+  "  li a0, 1\n" ++
+  ".Lbsw_ret:\n" ++
+  "  ld ra, 0(sp)\n" ++
+  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+/-- `zisk_bv_sum_withdrawals_to_address`: probe.
+    Input payload (after the zisk 8-byte length prefix, i.e. machine 0x40000000+8):
+      user +0  : target address (20 bytes)
+      user +24 : withdrawal count (u64)
+      user +32 : SSZ withdrawals (44 bytes each)
+    Output: OUTPUT+0 = status (u64); OUTPUT+8 = summed wei (u256 BE). -/
+def ziskBvSumWithdrawalsToAddressPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li t0, 0x40000000\n" ++
+  "  addi a0, t0, 8              # target address ptr (user +0)\n" ++
+  "  ld a2, 32(t0)               # count (user +24)\n" ++
+  "  addi a1, t0, 40             # SSZ withdrawals base (user +32)\n" ++
+  "  li a3, 0xa0010008           # out u256 @ OUTPUT+8\n" ++
+  "  jal ra, bv_sum_withdrawals_to_address\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status @ OUTPUT+0\n" ++
+  "  j .Lbsw_pdone\n" ++
+  swrRevLeBeFunction ++ "\n" ++
+  u256MulU64BeFunction ++ "\n" ++
+  u256AddBeFunction ++ "\n" ++
+  bvSumWithdrawalsToAddressFunction ++ "\n" ++
+  ".Lbsw_pdone:"
+
+def ziskBvSumWithdrawalsToAddressDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "u256m_acc:\n  .zero 40\n" ++         -- u256_mul_u64_be accumulator scratch
+  "bsw_amount:\n  .zero 32\n" ++
+  "bsw_wei:\n  .zero 32"
+
+def ziskBvSumWithdrawalsToAddressProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskBvSumWithdrawalsToAddressPrologue
+  dataAsm     := ziskBvSumWithdrawalsToAddressDataSection
 }
 
 end EvmAsm.Codegen
