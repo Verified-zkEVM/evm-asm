@@ -480,7 +480,7 @@ def mptIndexedTrieRootSmallFunction : String :=
   "  mv s0, a0                   # value descriptors\n" ++
   "  mv s1, a1                   # n values\n" ++
   "  mv s2, a2                   # out root\n" ++
-  "  li t0, 257\n" ++
+  "  li t0, 2049\n" ++
   "  bgeu s1, t0, .Litr_fail\n" ++
   "  li t0, 1\n" ++
   "  beq s1, t0, .Litr_one_leaf\n" ++
@@ -496,8 +496,10 @@ def mptIndexedTrieRootSmallFunction : String :=
   "  slli t0, s3, 4; add t0, s0, t0     # &value_desc[i]\n" ++
   "  ld t1, 0(t0)                       # value ptr\n" ++
   "  ld t2, 8(t0)                       # value len\n" ++
-  "  slli t3, s3, 2; la t4, itr_paths; add t4, t4, t3\n" ++
+  "  slli t3, s3, 3; la t4, itr_paths; add t4, t4, t3\n" ++
   "  beqz s3, .Litr_key_zero\n" ++
+  "  li t0, 256\n" ++
+  "  bgeu s3, t0, .Litr_key_three_byte\n" ++
   "  li t0, 128\n" ++
   "  bgeu s3, t0, .Litr_key_two_byte\n" ++
   "  srli t5, s3, 4\n" ++
@@ -512,6 +514,16 @@ def mptIndexedTrieRootSmallFunction : String :=
   "  andi t6, s3, 15\n" ++
   "  sb t5, 2(t4); sb t6, 3(t4)\n" ++
   "  li t0, 4\n" ++
+  "  j .Litr_key_done\n" ++
+  ".Litr_key_three_byte:\n" ++
+  "  # 256<=i<65536 -> rlp(i) = 0x82 hi lo -> nibbles [8,2, hi>>4,hi&15, lo>>4,lo&15]\n" ++
+  "  li t5, 8; sb t5, 0(t4)\n" ++
+  "  li t5, 2; sb t5, 1(t4)\n" ++
+  "  srli t5, s3, 12; andi t5, t5, 15; sb t5, 2(t4)\n" ++
+  "  srli t5, s3,  8; andi t5, t5, 15; sb t5, 3(t4)\n" ++
+  "  srli t5, s3,  4; andi t5, t5, 15; sb t5, 4(t4)\n" ++
+  "  andi t6, s3, 15; sb t6, 5(t4)\n" ++
+  "  li t0, 6\n" ++
   "  j .Litr_key_done\n" ++
   ".Litr_key_zero:\n" ++
   "  li t5, 8; sb t5, 0(t4); sb zero, 1(t4)\n" ++
@@ -613,9 +625,9 @@ def ziskMptIndexedTrieRootSmallDataSection : String :=
   ziskMptStateRootInsDataSection ++ "\n" ++
   ".balign 8\n" ++
   "itr_empty_witness:\n  .zero 8\n" ++
-  "itr_value_descs:\n  .zero 4096\n" ++
-  "itr_paths:\n  .zero 1024\n" ++
-  "itr_changes:\n  .zero 10240"
+  "itr_value_descs:\n  .zero 32768\n" ++
+  "itr_paths:\n  .zero 16384\n" ++
+  "itr_changes:\n  .zero 81920"
 
 def ziskMptIndexedTrieRootSmallProbeUnit : BuildUnit := {
   body        := NOP

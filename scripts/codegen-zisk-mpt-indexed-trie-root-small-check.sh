@@ -135,12 +135,30 @@ PY
 )"
 run_case "over_128_keys" "$OVER_128_VALUES" 0 || FAILED=1
 
-TOO_MANY="$(python3 - <<'PY'
+# 257 entries: index 256 needs a 3-byte RLP index key (rlp(256)=0x82 0x01 0x00 ->
+# nibbles [8,2,0,1,0,0]). Now supported (was rejected under the old 256 cap).
+KEYS_257="$(python3 - <<'PY'
 vals = [f"{i % 256:02x}" for i in range(257)]
 print("[" + ",".join(repr(v) for v in vals) + "]")
 PY
 )"
-run_case "too_many" "$TOO_MANY" 1 || FAILED=1
+run_case "keys_257_three_byte" "$KEYS_257" 0 || FAILED=1
+
+# 300 entries: more 3-byte index keys (256..299).
+KEYS_300="$(python3 - <<'PY'
+vals = [f"{i % 256:02x}" for i in range(300)]
+print("[" + ",".join(repr(v) for v in vals) + "]")
+PY
+)"
+run_case "keys_300_three_byte" "$KEYS_300" 0 || FAILED=1
+
+# New cap: >=2049 entries is rejected (status 1) by mpt_indexed_trie_root_small.
+OVER_CAP="$(python3 - <<'PY'
+vals = [f"{i % 256:02x}" for i in range(2049)]
+print("[" + ",".join(repr(v) for v in vals) + "]")
+PY
+)"
+run_case "over_cap_2049" "$OVER_CAP" 1 || FAILED=1
 
 [[ "$FAILED" -eq 0 ]] && echo "==> PASS: indexed trie root builder matches execution-specs" \
   || { echo "==> FAIL"; exit 1; }
