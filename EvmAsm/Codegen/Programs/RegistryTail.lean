@@ -7,6 +7,8 @@
 -/
 
 import EvmAsm.Codegen.Programs.Imports
+import EvmAsm.Codegen.Programs.EvmMessageCallGas
+import EvmAsm.Codegen.Programs.TxRefund
 
 namespace EvmAsm.Codegen
 
@@ -202,6 +204,21 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_block_roots_at_block_hash" => some ziskBlockRootsAtBlockHashProbeUnit
   | "zisk_number_timestamp_pair_at_block_hash" => some ziskNumberTimestampPairAtBlockHashProbeUnit
   | "zisk_gas_pair_at_block_hash" => some ziskGasPairAtBlockHashProbeUnit
+  -- Re-register probes whose dispatch arms were dropped in a registry refactor;
+  -- each still has a codegen-zisk-*-check.sh. See bead evm-asm-8bt13.
+  | "zisk_bal_account_path" => some ziskBalAccountPathProbeUnit
+  | "zisk_block_verdict_tx_gas_limits" => some ziskBlockVerdictTxGasLimitsProbeUnit
+  | "zisk_init_code_cost" => some ziskInitCodeCostProbeUnit
+  | "zisk_message_call_gas" => some ziskMessageCallGasProbeUnit
+  | "zisk_mpt_leaf_extract" => some ziskMptLeafExtractProbeUnit
+  | "zisk_mpt_node_classify" => some ziskMptNodeClassifyProbeUnit
+  | "zisk_receipt_records_encode_no_logs" => some ziskReceiptRecordsEncodeNoLogsProbeUnit
+  | "zisk_runtime_access_account_outcome_records" => some ziskRuntimeAccessAccountOutcomeRecordsProbeUnit
+  | "zisk_runtime_access_seed_account_list" => some ziskRuntimeAccessSeedAccountListProbeUnit
+  | "zisk_sha256_from_input" => some ziskSha256FromInputProbeUnit
+  | "zisk_storage_access_outcome_records" => some ziskStorageAccessOutcomeRecordsProbeUnit
+  | "zisk_storage_access_seed" => some ziskStorageAccessSeedProbeUnit
+  | "zisk_tx_refund_cap" => some ziskTxRefundCapProbeUnit
   | name => lookupReceiptProgramTail name
 
 
