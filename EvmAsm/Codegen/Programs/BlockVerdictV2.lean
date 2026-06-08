@@ -9,6 +9,7 @@ import EvmAsm.Codegen.Programs.BlockVerdict
 import EvmAsm.Codegen.Programs.EvmBasic
 import EvmAsm.Codegen.Programs.EvmRegistry
 import EvmAsm.Codegen.Programs.RequestsHash
+import EvmAsm.Codegen.Programs.TxBlobGas
 
 import EvmAsm.Codegen.Programs.MptEncodeLeafBranch
 
@@ -160,6 +161,7 @@ def statelessVerdictV2GuestClosure : String :=
   rlpListCountItemsFunction ++ "\n" ++
   txTypeDispatchFunction ++ "\n" ++
   txEip4844DecodeFunction ++ "\n" ++
+  txEip4844ValidateBlobHashesFunction ++ "\n" ++
   sszTxListVersionedHashesMatchFunction ++ "\n" ++
   txExtractToAddressFunction ++ "\n" ++
   txExtractValueFunction ++ "\n" ++

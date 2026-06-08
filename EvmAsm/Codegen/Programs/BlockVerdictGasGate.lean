@@ -268,6 +268,14 @@ def eip8037TxGasGateFunction : String :=
   "  la a0, tcbg_blob_fee_be; la a1, bsg_blob_price_be; la a2, bsg_blob_lt_out\n" ++
   "  jal ra, u256_lt_be                        # *out = 1 iff max_fee < price\n" ++
   "  la t0, bsg_blob_lt_out; ld t0, 0(t0); bnez t0, .Letg_validate_fail\n" ++
+  "  # EIP-4844 versioned-hash validity: every blob_versioned_hash must be 32\n" ++
+  "  # bytes and start with the KZG version byte 0x01 (VERSIONED_HASH_VERSION_KZG,\n" ++
+  "  # spec fork.py check_transaction). The inline precheck above validates blob\n" ++
+  "  # count and gas only, so call K139 here to reject a bad version byte\n" ++
+  "  # (status 6) or malformed item (status 5). s9/s10 are preserved by K139.\n" ++
+  "  mv a0, s9; mv a1, s10; li a2, 6; la a3, bsg_blob_count\n" ++
+  "  jal ra, tx_eip4844_validate_blob_hashes\n" ++
+  "  bnez a0, .Letg_validate_fail\n" ++
   ".Letg_after_blob_precheck:\n" ++
   "  la t0, bsg_data_ptr; ld a0, 0(t0)\n" ++
   "  la t0, bsg_data_len; ld a1, 0(t0)\n" ++
