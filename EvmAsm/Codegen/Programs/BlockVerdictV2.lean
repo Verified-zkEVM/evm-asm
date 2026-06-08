@@ -10,6 +10,7 @@ import EvmAsm.Codegen.Programs.EvmBasic
 import EvmAsm.Codegen.Programs.EvmRegistry
 import EvmAsm.Codegen.Programs.RequestsHash
 import EvmAsm.Codegen.Programs.TxBlobGas
+import EvmAsm.Codegen.Programs.SszWithdrawal
 
 import EvmAsm.Codegen.Programs.MptEncodeLeafBranch
 
@@ -190,6 +191,7 @@ def statelessVerdictV2GuestClosure : String :=
   txGasBalPostVerifyFunction ++ "\n" ++
   simpleTransferRecipientBalVerifyFunction ++ "\n" ++
   simpleTransferFeeRecipientBalVerifyFunction ++ "\n" ++
+  bvSumWithdrawalsToAddressFunction ++ "\n" ++
   accessListCountFunction ++ "\n" ++
   intrinsicGasAmsterdamCountsFunction ++ "\n" ++
   eip8037TxGasGateFunction ++ "\n" ++
