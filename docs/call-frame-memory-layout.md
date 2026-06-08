@@ -176,31 +176,90 @@ Total frame array = `1025 * 0x29000` = `0xA429000` ≈ **164.2 MiB** (depths
 
 ---
 
-## 5. Memory-map placement (fits-in-map proof)
+## 5. Memory-map placement — RAM is full; overlay the BAL-replay arenas
+
+> **CORRECTION (empirically validated 2026-06-08).** An earlier draft of this
+> section assumed `.data` is ~16 MiB and the `0xa4000000..0xbf500000` window is
+> free, "proving" a 164 MiB arena fits. **That is wrong.** ziskemu's RAM region
+> is only **512 MiB** (`0xa0000000..0xc0000000`; CODEGEN.md:149,
+> `docs/agents/eest-static-layout.md`). The current guest `.data` already spans
+> **~427 MiB** (`0xa3000000..0xbdb2e067`), of which **~385 MiB** is BAL-replay
+> scratch sized for the 500k-item / 1G-gas worst case:
+>
+> | arena | size | role |
+> |---|---|---|
+> | `basr_values`, `basr_accounts` | 122 MiB each | block_state_root replay |
+> | `baap_storage_paths`/`_delete_paths`/`_values` | 32 MiB each | BAL-apply storage |
+> | `bsr_changes`, `baap_storage_desc` | 20 MiB each | state-change / desc |
+> | `basr_records` | 12 MiB | pre-account record table |
+>
+> Only **~36 MiB** is free below `0xc0000000`. A standalone 164 MiB arena placed
+> at `0xa4000000` **overlaps `.data`** — the linker rejects it (confirmed). The
+> CallFrameLayout `frameArray_fits` theorem is arithmetically true but its
+> premise (`0xa4000000` is unoccupied) is false.
+
+**Approach: overlay the frame arena on the execution-dead BAL-replay arenas
+(union region).** A soundness-gate grep (2026-06-08) over *every* reference to
+the BAL arenas pins down exactly which are dead during execution — and one is
+NOT, so the naive "all `basr_*`/`baap_*` are dead" claim is wrong:
+
+- **`basr_values` + `basr_accounts`** (122 MiB each, declared **contiguously** at
+  `BlockVerdictDataSection.lean:539–540`) are referenced **only inside
+  `block_state_root`** (`BlockVerdict.lean` ≤ line 302). `block_state_root` runs
+  at `:348`, producing the post-state root compared to the header **before** any
+  tx executes, and nothing past line 302 reads them. ⇒ **244 MiB of contiguous,
+  execution-dead space** — the overlay target (≥ the 164 MiB needed).
+- **`basr_records`** (12 MiB, `:537`) is **LIVE during execution** — read at
+  `BlockVerdict.lean:528/577/620` (per-tx gas precharge + recipient/fee balance
+  verify). It must **NOT** be overlaid (doing so corrupts the gas/balance check →
+  false verdict). It sits *just before* `basr_values`, so aliasing the frame
+  arena at the `basr_values` base excludes it automatically.
+- The `*_fail_code` / `bsr_*_count` diagnostic **cells** (e.g. `baap_fail_code`,
+  `bsr_fail_code`) are read post-replay (`:1020+`, copied to OUTPUT) but are tiny
+  status words, not arenas — untouched by the overlay.
+
+So the frame arena **aliases `basr_values`** and spans 244 MiB
+(`basr_values`+`basr_accounts`), reusing that execution-dead region. (`baap_*`
+are also block_state_root-only, but the contiguous `basr_values`+`basr_accounts`
+pair alone exceeds the 164 MiB need, so the overlay needs only those two.)
+
+This is a **union region**, not a linker overlay (GNU ld rejects overlapping
+sections): one physical region, used as `basr_values`+`basr_accounts` during
+`block_state_root` and as `call_frame_arena` during execution. Concretely, define
+the frame arena to *alias* the `basr_values` base (same base symbol / a
+`union`-style section) spanning the contiguous `basr_values`+`basr_accounts`
+244 MiB. The frame arena needs 164 MiB ≤ 244 MiB and is the existing footprint —
+**zero net RAM growth**.
 
 ```
+0xa0000000  RAM start (ziskemu window 0xa0000000..0xc0000000 = 512 MiB)
 0xa3000000  .data start
-            ├─ shared region: evm_code(removed; code via witness), shared_env,
-            │  blob/block hashes, event logs, helper scratch, lp64_stack(256K),
-            │  opcode_handlers, zk3_state, account-witness, AND the full
-            │  BlockVerdict verdict-spine data section.  Reserve 0x1000000 (16 MiB).
-0xa4000000  frame_array_base (16 MiB after .data start, 32-aligned)
-            ├─ 1025 × 0x29000 = 0xA429000 (164.2 MiB)
-0xae429000  frame_array_end
-            … 0xae429000 .. 0xbf500000 = 0x110d7000 (272 MiB) headroom …
-0xbf500000  .sszscratch
+            ├─ initialized data + verdict spine + shared_env
+            ├─ basr_records (12 MiB) — LIVE during exec (gas/bal verify); NOT overlaid
+            ├─ ┌──────────────────────────────────────────────────────┐
+            │  │ UNION REGION = basr_values+basr_accounts (244 MiB)     │
+            │  │  phase 1 (≤ BlockVerdict:302): BAL-replay encoded accts │
+            │  │  phase 2 (execution, :626+):   call_frame_arena (164MiB)│
+            │  └──────────────────────────────────────────────────────┘
+0xbdb2e067  .data end (unchanged)
+0xbf500000  .sszscratch (NOBITS)
+0xc0000000  RAM end
 ```
 
-164 MiB frames + 16 MiB shared = 180 MiB, well under the 453 MiB budget with
-**272 MiB headroom** (`frame_array_end 0xae429000 → 0xbf500000` = `0x110d7000` =
-285,741,056 B; pinned + proved in `CallFrameLayout.lean` `frameArray_headroom`).
-The array fits with comfortable margin even if `FRAME_STRIDE` or the shared
-reserve grows.
+**SOUNDNESS GATE — verified for `basr_values`/`basr_accounts` (2026-06-08).** A
+grep over every reference to these two symbols finds readers only inside
+`block_state_root` (`BlockVerdict.lean` ≤ 302) and the data declaration; **no
+post-replay reader** (verdict body, runtime-dispatch handlers, gas/arena helpers,
+`.6.4.3.x` contract-dispatch path). The gate **fails** for `basr_records` (read at
+`:528/577/620`), which is therefore excluded. Any future code that adds a
+post-`block_state_root` read of `basr_values`/`basr_accounts` **breaks this union
+and must be caught** — keep the gate grep in the implementation PR's checks.
 
-> Place `frame_array_base` via a dedicated `.balign 32` label at the very end of
-> the guest `.data` so the 16 MiB shared reserve is "whatever the shared data
-> actually consumes" rather than a hard 16 MiB — the 16 MiB is just the
-> conservative ceiling for the proof.
+> Consequence for `CallFrameLayout.lean`: `frameArrayBase` is **not** `0xa4000000`
+> — it is the base of the BAL-replay union region (inside the existing `.data`).
+> `frameArray_fits` should be restated against the union-region size, not a
+> phantom free gap. `FRAME_STRIDE`, the sub-offsets, and `frameSlotCount` are
+> unaffected.
 
 ---
 
