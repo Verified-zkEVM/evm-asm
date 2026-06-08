@@ -37,34 +37,45 @@ open EvmAsm.Rv64
     Calling convention:
       a0 = context record ptr (192-byte simple_transfer/multi_tx_nth_context output;
            reads status@0, gas@40, is_creation@48, value@96, recipient@72)
-      a1 = output payload buffer ptr (>= round8(code_len) + 584 bytes, 8-aligned)
+      a1 = output payload buffer ptr (>= round8(code_len) + storage_count*64 + 584
+           bytes, 8-aligned)
       a2 = exec payload ptr (block env source; bv_exec_p value)
       a3 = recipient code ptr
       a4 = recipient code length (bytes)
+      a5 = storage preload ptr (storage_count x 64-byte (key:32, value:32) pairs,
+           each carrying a slot's ORIGINAL pre-tx value; the dispatcher expands
+           these into the STATE_TRACKER persistent log so SLOAD/SSTORE see the
+           correct original value for EIP-2200/3529 gas). May be null if count 0.
+      a6 = storage preload count
 
     Returns:
       a0 = 0 ok / 1 unsupported (context status nonzero)
 
-    Leaves CALLER/ORIGIN/GASPRICE/calldata/storage/witness zero — those are
-    slice [2/3]. -/
+    Leaves CALLER/ORIGIN/GASPRICE/calldata zero — those (plus the M31
+    account-witness segment for code lookups of OTHER accounts) are still TODO;
+    this covers code + recipient storage + the read env words + gas trailer. -/
 def stageRuntimePayloadCodeFunction : String :=
   "stage_runtime_payload_code:\n" ++
-  "  addi sp, sp, -56\n" ++
+  "  addi sp, sp, -72\n" ++
   "  sd ra, 0(sp)\n" ++
   "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp)\n" ++
+  "  sd s6, 56(sp); sd s7, 64(sp)\n" ++
   "  mv s0, a1                    # output payload ptr\n" ++
   "  mv s1, a0                    # context record\n" ++
   "  mv s2, a2                    # exec payload\n" ++
   "  mv s3, a3                    # code ptr\n" ++
   "  mv s4, a4                    # code length\n" ++
+  "  mv s6, a5                    # storage preload ptr (count x 64B (key,value))\n" ++
+  "  mv s7, a6                    # storage preload count\n" ++
   "  ld t0, 0(s1)                 # context status\n" ++
   "  beqz t0, .Lsrpc_supported\n" ++
   "  li a0, 1\n" ++
   "  j .Lsrpc_ret\n" ++
   ".Lsrpc_supported:\n" ++
-  -- cb = round8(code_len); env_base = cb + 80; total = env_base + 504, rounded to 8.
+  -- cb = round8(code_len); env_base = cb + 80 + storage_count*64; total = env_base + 504.
   "  addi t0, s4, 7; andi t0, t0, -8     # t0 = cb (padded code length)\n" ++
-  "  addi t1, t0, 80                     # t1 = env_base\n" ++
+  "  slli t6, s7, 6                      # t6 = storage bytes = count*64\n" ++
+  "  addi t1, t0, 80; add t1, t1, t6     # t1 = env_base\n" ++
   "  addi t2, t1, 504                    # t2 = total payload bytes\n" ++
   "  addi t2, t2, 7; andi t2, t2, -8\n" ++
   -- Zero [s0, s0+total).
@@ -80,8 +91,17 @@ def stageRuntimePayloadCodeFunction : String :=
   "  beqz t5, .Lsrpc_copy_done\n" ++
   "  lbu t6, 0(t4); sb t6, 0(t3); addi t3, t3, 1; addi t4, t4, 1; addi t5, t5, -1; j .Lsrpc_copy\n" ++
   ".Lsrpc_copy_done:\n" ++
-  -- calldata-len @ +8+cb, slot_count @ +16+cb, blob/blockhash fields: all zero
-  -- (already zeroed). env words base.
+  -- calldata-len @ +8+cb stays 0 (zeroed). slot_count @ +16+cb = storage_count;
+  -- storage pairs @ +24+cb (storage_count x 64B). (t0 still holds cb.)
+  "  add t3, s0, t0               # t3 = s0 + cb\n" ++
+  "  sd s7, 16(t3)                # slot_count @ +16+cb\n" ++
+  "  addi t3, t3, 24              # t3 = dst = s0 + cb + 24 (storage pairs)\n" ++
+  "  mv t4, s6; slli t5, s7, 6    # src, bytes = count*64\n" ++
+  ".Lsrpc_scopy:\n" ++
+  "  beqz t5, .Lsrpc_scopy_done\n" ++
+  "  lbu t6, 0(t4); sb t6, 0(t3); addi t3, t3, 1; addi t4, t4, 1; addi t5, t5, -1; j .Lsrpc_scopy\n" ++
+  ".Lsrpc_scopy_done:\n" ++
+  -- blob/blockhash length fields stay 0 (already zeroed). env words base.
   "  add s5, s0, t1               # s5 = &env_words (env_base)\n" ++
   -- COINBASE (word 6 -> +192): exec 20-byte address @32, low-aligned.
   "  addi t3, s2, 32; addi t4, s5, 192; li t5, 0\n" ++
@@ -117,7 +137,8 @@ def stageRuntimePayloadCodeFunction : String :=
   ".Lsrpc_ret:\n" ++
   "  ld ra, 0(sp)\n" ++
   "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp)\n" ++
-  "  addi sp, sp, 56\n" ++
+  "  ld s6, 56(sp); ld s7, 64(sp)\n" ++
+  "  addi sp, sp, 72\n" ++
   "  ret"
 
 /-- `zisk_stage_runtime_payload_code`: layout-validation probe. Builds a
@@ -146,8 +167,9 @@ def ziskStageRuntimePayloadCodePrologue : String :=
   "  la t3, srpc_code\n" ++
   "  li t1, 0x60; sb t1, 0(t3); li t1, 0x01; sb t1, 1(t3)\n" ++
   "  li t1, 0x60; sb t1, 2(t3); li t1, 0x02; sb t1, 3(t3); sb zero, 4(t3)\n" ++
-  -- Stage into srpc_payload.
+  -- Stage into srpc_payload (no storage preload: a5=0, a6=0).
   "  la a0, srpc_ctx; la a1, srpc_payload; la a2, srpc_exec; la a3, srpc_code; li a4, 5\n" ++
+  "  li a5, 0; li a6, 0\n" ++
   "  jal ra, stage_runtime_payload_code\n" ++
   -- Diagnostics to OUTPUT 0xa0010000.
   "  li s0, 0xa0010000\n" ++
@@ -175,6 +197,63 @@ def ziskStageRuntimePayloadCodeProbeUnit : BuildUnit := {
   body        := NOP
   prologueAsm := ziskStageRuntimePayloadCodePrologue
   dataAsm     := ziskStageRuntimePayloadCodeDataSection
+}
+
+/-- `zisk_stage_runtime_payload_code_storage`: storage-segment layout probe.
+    Same as above but with one storage preload pair (key byte 0x07, value byte
+    0x63), so env_base = round8(5) + 80 + 1*64 = 152. Diagnostics to OUTPUT:
+      +0  slot_count read at payload[+16+cb] = payload[+24]   (expect 1)
+      +8  storage pair key byte at payload[+24+cb] = payload[+32] (expect 0x07)
+      +16 storage pair value byte at payload[+24+cb+32] = payload[+64] (expect 0x63)
+      +24 env_base (expect 152)
+      +32 gas at payload[env_base+448]                         (expect 21000)
+      +40 ADDRESS low byte at payload[env_base+0]              (expect 0xAA) -/
+def ziskStageRuntimePayloadCodeStoragePrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  la t0, srpcs_ctx\n" ++
+  "  sd zero, 0(t0)\n" ++
+  "  li t1, 21000; sd t1, 40(t0)\n" ++
+  "  sd zero, 48(t0); sd zero, 64(t0); sd zero, 96(t0)\n" ++
+  "  li t1, 0xAA; sb t1, 72(t0)\n" ++
+  "  la t2, srpcs_exec\n" ++
+  "  li t1, 0xC0; sb t1, 32(t2)\n" ++
+  "  la t3, srpcs_code\n" ++
+  "  li t1, 0x60; sb t1, 0(t3); li t1, 0x07; sb t1, 1(t3)\n" ++
+  "  li t1, 0x54; sb t1, 2(t3); sb zero, 3(t3)\n" ++   -- PUSH1 0x07 SLOAD STOP
+  -- One storage preload pair: key byte0=0x07, value byte0=0x63.
+  "  la t4, srpcs_store\n" ++
+  "  li t1, 0x07; sb t1, 0(t4)\n" ++
+  "  li t1, 0x63; sb t1, 32(t4)\n" ++
+  "  la a0, srpcs_ctx; la a1, srpcs_payload; la a2, srpcs_exec; la a3, srpcs_code; li a4, 4\n" ++
+  "  la a5, srpcs_store; li a6, 1\n" ++
+  "  jal ra, stage_runtime_payload_code\n" ++
+  "  li s0, 0xa0010000\n" ++
+  "  la t0, srpcs_payload\n" ++
+  -- cb = round8(4) = 8. slot_count @ +16+cb = +24; pair @ +24+cb = +32.
+  "  ld t1, 24(t0); sd t1, 0(s0)\n" ++
+  "  lbu t1, 32(t0); sd t1, 8(s0)\n" ++
+  "  lbu t1, 64(t0); sd t1, 16(s0)\n" ++
+  "  li t1, 152; sd t1, 24(s0)\n" ++
+  "  li t2, 152; add t2, t0, t2\n" ++
+  "  ld t1, 448(t2); sd t1, 32(s0)\n" ++
+  "  lbu t1, 0(t2); sd t1, 40(s0)\n" ++
+  "  j .Lsrpcsp_done\n" ++
+  stageRuntimePayloadCodeFunction ++ "\n" ++
+  ".Lsrpcsp_done:"
+
+def ziskStageRuntimePayloadCodeStorageDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "srpcs_ctx:\n  .zero 192\n" ++
+  "srpcs_exec:\n  .zero 512\n" ++
+  "srpcs_code:\n  .zero 64\n" ++
+  "srpcs_store:\n  .zero 64\n" ++
+  "srpcs_payload:\n  .zero 1024\n"
+
+def ziskStageRuntimePayloadCodeStorageProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskStageRuntimePayloadCodeStoragePrologue
+  dataAsm     := ziskStageRuntimePayloadCodeStorageDataSection
 }
 
 end EvmAsm.Codegen
