@@ -1,0 +1,110 @@
+/-
+  EvmAsm.Codegen.Programs.BlockVerdictSelfContained
+
+  Self-containment scan for contract-recipient runtime execution
+  (evm-asm-fhsxz.2.4.2.57.11.6.4.3). The contract-dispatch wiring stages the
+  recipient's code, OWN storage (M22 preload), calldata, and a subset of env
+  words (ADDRESS/CALLVALUE/COINBASE/NUMBER/TIMESTAMP/GASLIMIT/BASEFEE). It does
+  NOT stage cross-account witness (M31), the sender (CALLER/ORIGIN), GASPRICE,
+  the blockhash table, or the account's own balance (SELFBALANCE). So routing a
+  contract through the dispatcher is only sound (exact gas, no false-reject)
+  when its bytecode reads none of that un-staged state. This helper is the gate:
+  a pushdata-aware scan that returns "self-contained" iff the bytecode contains
+  none of the un-staged-state opcodes.
+
+  Unsafe opcodes (need un-staged state): BALANCE(0x31), ORIGIN(0x32),
+  CALLER(0x33), GASPRICE(0x3a), EXTCODESIZE(0x3b), EXTCODECOPY(0x3c),
+  EXTCODEHASH(0x3f), BLOCKHASH(0x40), SELFBALANCE(0x47), CREATE(0xf0),
+  CALL(0xf1), CALLCODE(0xf2), DELEGATECALL(0xf4), CREATE2(0xf5),
+  STATICCALL(0xfa). PUSH1..PUSH32 (0x60..0x7f) data bytes are skipped so push
+  immediates are never misread as opcodes.
+-/
+
+import EvmAsm.Rv64.Program
+import EvmAsm.Codegen.Layout
+
+namespace EvmAsm.Codegen
+
+open EvmAsm.Rv64
+
+/-! ## bytecode_is_self_contained
+
+    Calling convention:
+      a0 = bytecode ptr   a1 = bytecode length
+    Returns:
+      a0 = 0 self-contained (safe to dispatch) / 1 uses un-staged state. -/
+def bytecodeIsSelfContainedFunction : String :=
+  "bytecode_is_self_contained:\n" ++
+  "  mv t0, a0                    # cursor\n" ++
+  "  add t1, a0, a1               # end\n" ++
+  ".Lbsc_loop:\n" ++
+  "  bgeu t0, t1, .Lbsc_safe\n" ++
+  "  lbu t2, 0(t0)                # opcode\n" ++
+  -- PUSH1..PUSH32 (0x60..0x7f): skip 1 + (op - 0x5f) bytes.
+  "  li t3, 0x60; bltu t2, t3, .Lbsc_check\n" ++
+  "  li t3, 0x7f; bgtu t2, t3, .Lbsc_check\n" ++
+  "  addi t3, t2, -0x5f           # data byte count\n" ++
+  "  addi t0, t0, 1; add t0, t0, t3; j .Lbsc_loop\n" ++
+  ".Lbsc_check:\n" ++
+  -- Reject the un-staged-state opcodes.
+  "  li t3, 0x31; beq t2, t3, .Lbsc_unsafe\n" ++   -- BALANCE
+  "  li t3, 0x32; beq t2, t3, .Lbsc_unsafe\n" ++   -- ORIGIN
+  "  li t3, 0x33; beq t2, t3, .Lbsc_unsafe\n" ++   -- CALLER
+  "  li t3, 0x3a; beq t2, t3, .Lbsc_unsafe\n" ++   -- GASPRICE
+  "  li t3, 0x3b; beq t2, t3, .Lbsc_unsafe\n" ++   -- EXTCODESIZE
+  "  li t3, 0x3c; beq t2, t3, .Lbsc_unsafe\n" ++   -- EXTCODECOPY
+  "  li t3, 0x3f; beq t2, t3, .Lbsc_unsafe\n" ++   -- EXTCODEHASH
+  "  li t3, 0x40; beq t2, t3, .Lbsc_unsafe\n" ++   -- BLOCKHASH
+  "  li t3, 0x47; beq t2, t3, .Lbsc_unsafe\n" ++   -- SELFBALANCE
+  "  li t3, 0xf0; beq t2, t3, .Lbsc_unsafe\n" ++   -- CREATE
+  "  li t3, 0xf1; beq t2, t3, .Lbsc_unsafe\n" ++   -- CALL
+  "  li t3, 0xf2; beq t2, t3, .Lbsc_unsafe\n" ++   -- CALLCODE
+  "  li t3, 0xf4; beq t2, t3, .Lbsc_unsafe\n" ++   -- DELEGATECALL
+  "  li t3, 0xf5; beq t2, t3, .Lbsc_unsafe\n" ++   -- CREATE2
+  "  li t3, 0xfa; beq t2, t3, .Lbsc_unsafe\n" ++   -- STATICCALL
+  "  addi t0, t0, 1; j .Lbsc_loop\n" ++
+  ".Lbsc_safe:\n" ++
+  "  li a0, 0; ret\n" ++
+  ".Lbsc_unsafe:\n" ++
+  "  li a0, 1; ret"
+
+/-- `zisk_bytecode_is_self_contained`: probe over three hand-written bytecodes.
+    Output:
+      +0  scan of PUSH1 0x07 PUSH1 0x01 SSTORE STOP (expect 0 self-contained)
+      +8  scan of PUSH1 0x00 CALL                   (expect 1 unsafe)
+      +16 scan of PUSH1 0xF1 STOP (0xF1 is push DATA, not CALL) (expect 0) -/
+def ziskBytecodeIsSelfContainedPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li s0, 0xa0010000\n" ++
+  -- code A: 60 07 60 01 55 00 (self-contained).
+  "  la t0, bsc_codeA\n" ++
+  "  li t1, 0x60; sb t1, 0(t0); li t1, 0x07; sb t1, 1(t0)\n" ++
+  "  li t1, 0x60; sb t1, 2(t0); li t1, 0x01; sb t1, 3(t0)\n" ++
+  "  li t1, 0x55; sb t1, 4(t0); sb zero, 5(t0)\n" ++
+  "  la a0, bsc_codeA; li a1, 6; jal ra, bytecode_is_self_contained; sd a0, 0(s0)\n" ++
+  -- code B: 60 00 F1 (CALL -> unsafe).
+  "  la t0, bsc_codeB\n" ++
+  "  li t1, 0x60; sb t1, 0(t0); sb zero, 1(t0); li t1, 0xF1; sb t1, 2(t0)\n" ++
+  "  la a0, bsc_codeB; li a1, 3; jal ra, bytecode_is_self_contained; sd a0, 8(s0)\n" ++
+  -- code C: 60 F1 00 (0xF1 is PUSH1 data, then STOP -> self-contained).
+  "  la t0, bsc_codeC\n" ++
+  "  li t1, 0x60; sb t1, 0(t0); li t1, 0xF1; sb t1, 1(t0); sb zero, 2(t0)\n" ++
+  "  la a0, bsc_codeC; li a1, 3; jal ra, bytecode_is_self_contained; sd a0, 16(s0)\n" ++
+  "  j .Lbscp_done\n" ++
+  bytecodeIsSelfContainedFunction ++ "\n" ++
+  ".Lbscp_done:"
+
+def ziskBytecodeIsSelfContainedDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "bsc_codeA:\n  .zero 16\n" ++
+  "bsc_codeB:\n  .zero 16\n" ++
+  "bsc_codeC:\n  .zero 16\n"
+
+def ziskBytecodeIsSelfContainedProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskBytecodeIsSelfContainedPrologue
+  dataAsm     := ziskBytecodeIsSelfContainedDataSection
+}
+
+end EvmAsm.Codegen
