@@ -259,11 +259,15 @@ def eip8037TxGasGateFunction : String :=
   "  li t3, 2752512             # Amsterdam MAX_BLOB_GAS_PER_BLOCK\n" ++
   "  bgtu t2, t3, .Letg_validate_fail\n" ++
   "  la t0, bsg_blob_gas_accum; sd t2, 0(t0)\n" ++
-  "  addi a0, s0, 520; jal ra, bgv_u64le       # header excess_blob_gas\n" ++
-  "  jal ra, amsterdam_blob_gas_price\n" ++
-  "  bnez a0, .Letg_validate_fail\n" ++
-  "  la t0, tcbg_struct; ld t1, 160(t0)        # max_fee_per_blob_gas\n" ++
-  "  bltu t1, a1, .Letg_validate_fail\n" ++
+  "  addi a0, s0, 520; jal ra, bgv_u64le       # header excess_blob_gas (u64)\n" ++
+  "  la a1, bsg_blob_price_be; jal ra, amsterdam_blob_gas_price_u256  # price (u256 BE)\n" ++
+  "  bnez a0, .Letg_validate_fail              # u256 overflow (unreachable for valid blocks)\n" ++
+  "  # EIP-8037: reject iff max_fee_per_blob_gas < blob_gas_price. Compared in u256:\n" ++
+  "  # in the >328M excess regime both exceed u64, so the old u64 amsterdam_blob_gas_price\n" ++
+  "  # overflowed and false-rejected valid blob txs (evm-asm-lcx60.1).\n" ++
+  "  la a0, tcbg_blob_fee_be; la a1, bsg_blob_price_be; la a2, bsg_blob_lt_out\n" ++
+  "  jal ra, u256_lt_be                        # *out = 1 iff max_fee < price\n" ++
+  "  la t0, bsg_blob_lt_out; ld t0, 0(t0); bnez t0, .Letg_validate_fail\n" ++
   "  # EIP-4844 versioned-hash validity: every blob_versioned_hash must be 32\n" ++
   "  # bytes and start with the KZG version byte 0x01 (VERSIONED_HASH_VERSION_KZG,\n" ++
   "  # spec fork.py check_transaction). The inline precheck above validates blob\n" ++
