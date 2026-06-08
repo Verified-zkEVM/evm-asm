@@ -730,6 +730,70 @@ def amsterdamBlobGasPriceFunction : String :=
   "  addi sp, sp, 48\n" ++
   "  ret"
 
+/-! ## amsterdam_blob_gas_price_u256 -- wide-result blob fee fake exponential
+
+    Same `taylor_exponential(1, excess_blob_gas, 11684671)` as
+    `amsterdam_blob_gas_price`, but accumulates in 256-bit precision and
+    returns the price as a 32-byte big-endian u256. The u64 helper saturates
+    to a `status=1` overflow once the (denominator-scaled) accumulator leaves
+    the u64 envelope (around excess ≈ 328M), which is well below the EIP-4844
+    consensus-reachable range: e.g. `excess_blob_gas = 564,002,816` yields a
+    blob gas price ≈ e^48 ≈ 9.4e20 (~70 bits). The spec's `taylor_exponential`
+    is arbitrary precision, so a u64-overflowing helper false-rejects valid
+    headers in `header_validate_excess_blob_gas` (the EIP-7918 reserve-price
+    comparison `BLOB_BASE_COST * base_fee > PER_BLOB * blob_gas_price`). This
+    256-bit variant handles the full reachable range; it only reports overflow
+    if the price itself would exceed 2^256 (unreachable for valid blocks).
+
+    Calling convention:
+      a0 (input)  : excess_blob_gas (u64)
+      a1 (input)  : output price ptr (32 bytes, BE)
+      ra (input)  : return
+      a0 (output) : status, 0 ok / 1 u256 overflow (output left undefined).
+
+    Uses 64 bytes of stack scratch for the two u256 accumulators plus the
+    `u256_mul_u64_be` `.data` scratch (`u256m_acc`). Composes u256_from_u64_be,
+    u256_is_zero, u256_add_be, u256_mul_u64_be, u256_div_u64_be. -/
+def amsterdamBlobGasPriceU256Function : String :=
+  "amsterdam_blob_gas_price_u256:\n" ++
+  "  addi sp, sp, -128\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp)\n" ++
+  "  mv s0, a0                   # numerator = excess_blob_gas\n" ++
+  "  mv s5, a1                   # caller output price ptr (u256 BE)\n" ++
+  "  li s1, 11684671             # Amsterdam BLOB_BASE_FEE_UPDATE_FRACTION\n" ++
+  "  li s2, 1                    # i\n" ++
+  "  addi s3, sp, 64             # numerator_accumulated (u256 scratch)\n" ++
+  "  addi s4, sp, 96             # output accumulator (u256 scratch)\n" ++
+  "  mv a0, s1; mv a1, s3; jal ra, u256_from_u64_be   # accum = denominator\n" ++
+  "  li a0, 0; mv a1, s4; jal ra, u256_from_u64_be    # output = 0\n" ++
+  ".Labgpu_loop:\n" ++
+  "  mv a0, s3; jal ra, u256_is_zero\n" ++
+  "  bnez a0, .Labgpu_done\n" ++
+  "  mv a0, s4; mv a1, s3; mv a2, s4; jal ra, u256_add_be   # output += accum\n" ++
+  "  bnez a0, .Labgpu_overflow\n" ++
+  "  mv a0, s3; mv a1, s0; mv a2, s3; jal ra, u256_mul_u64_be  # accum *= excess\n" ++
+  "  bnez a0, .Labgpu_overflow\n" ++
+  "  mulhu t0, s1, s2; bnez t0, .Labgpu_overflow         # deni = denom*i fits u64\n" ++
+  "  mul t1, s1, s2\n" ++
+  "  srli t0, t1, 56; bnez t0, .Labgpu_overflow          # and within div helper's 2^56\n" ++
+  "  mv a0, s3; mv a1, t1; mv a2, s3; jal ra, u256_div_u64_be  # accum //= deni\n" ++
+  "  addi s2, s2, 1\n" ++
+  "  j .Labgpu_loop\n" ++
+  ".Labgpu_done:\n" ++
+  "  mv a0, s4; mv a1, s1; mv a2, s5; jal ra, u256_div_u64_be  # price = output//denom\n" ++
+  "  li a0, 0\n" ++
+  "  j .Labgpu_u256_ret\n" ++
+  ".Labgpu_overflow:\n" ++
+  "  li a0, 1\n" ++
+  ".Labgpu_u256_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp)\n" ++
+  "  addi sp, sp, 128\n" ++
+  "  ret"
+
 /-- `zisk_amsterdam_blob_gas_price`: probe BuildUnit. Reads
     `excess_blob_gas` from host input, writes `(status, price)` to
     OUTPUT. -/

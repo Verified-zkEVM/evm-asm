@@ -364,11 +364,9 @@ def headerValidateExcessBlobGasFunction : String :=
   "  li t0, 1835008              # 14 * 131072\n" ++
   "  bltu s4, t0, .Lhvebg_expected_zero\n" ++
   "  mv a0, s2\n" ++
-  "  jal ra, amsterdam_blob_gas_price\n" ++
-  "  bnez a0, .Lhvebg_overflow\n" ++
-  "  mv a0, a1                   # blob gas price\n" ++
   "  la a1, hvebg_threshold\n" ++
-  "  jal ra, u256_from_u64_be\n" ++
+  "  jal ra, amsterdam_blob_gas_price_u256   # threshold = blob gas price (u256)\n" ++
+  "  bnez a0, .Lhvebg_overflow\n" ++
   "  la a0, hvebg_threshold\n" ++
   "  li a1, 16\n" ++
   "  la a2, hvebg_threshold\n" ++
@@ -555,6 +553,7 @@ def ziskValidateHeaderFullPrologue : String :=
   headerValidatePostMergeFunction ++ "\n" ++
   headerValidateExtraDataLengthFunction ++ "\n" ++
   amsterdamBlobGasPriceFunction ++ "\n" ++
+  amsterdamBlobGasPriceU256Function ++ "\n" ++
   eip1559CalcBaseFeePerGasFunction ++ "\n" ++
   headerValidateBaseFeeFunction ++ "\n" ++
   headerValidateExcessBlobGasFunction ++ "\n" ++
