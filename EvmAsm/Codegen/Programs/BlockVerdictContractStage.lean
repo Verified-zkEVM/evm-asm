@@ -72,10 +72,14 @@ def stageRuntimePayloadCodeFunction : String :=
   "  li a0, 1\n" ++
   "  j .Lsrpc_ret\n" ++
   ".Lsrpc_supported:\n" ++
-  -- cb = round8(code_len); env_base = cb + 80 + storage_count*64; total = env_base + 504.
+  -- cb = round8(code_len); cd_pad = round8(ctx calldata len); co = cb + cd_pad;
+  -- env_base = 80 + co + storage_count*64; total = env_base + 504.
   "  addi t0, s4, 7; andi t0, t0, -8     # t0 = cb (padded code length)\n" ++
-  "  slli t6, s7, 6                      # t6 = storage bytes = count*64\n" ++
-  "  addi t1, t0, 80; add t1, t1, t6     # t1 = env_base\n" ++
+  "  ld a7, 64(s1)                       # a7 = calldata length (ctx data len)\n" ++
+  "  addi t6, a7, 7; andi t6, t6, -8     # t6 = cd_pad (padded calldata length)\n" ++
+  "  slli a6, s7, 6                      # a6 = storage bytes = count*64\n" ++
+  "  add t1, t0, t6                      # t1 = co = cb + cd_pad\n" ++
+  "  add t1, t1, a6; addi t1, t1, 80     # t1 = env_base = 80 + co + count*64\n" ++
   "  addi t2, t1, 504                    # t2 = total payload bytes\n" ++
   "  addi t2, t2, 7; andi t2, t2, -8\n" ++
   -- Zero [s0, s0+total).
@@ -91,11 +95,21 @@ def stageRuntimePayloadCodeFunction : String :=
   "  beqz t5, .Lsrpc_copy_done\n" ++
   "  lbu t6, 0(t4); sb t6, 0(t3); addi t3, t3, 1; addi t4, t4, 1; addi t5, t5, -1; j .Lsrpc_copy\n" ++
   ".Lsrpc_copy_done:\n" ++
-  -- calldata-len @ +8+cb stays 0 (zeroed). slot_count @ +16+cb = storage_count;
-  -- storage pairs @ +24+cb (storage_count x 64B). (t0 still holds cb.)
+  -- calldata-len @ +8+cb = ctx data len; calldata bytes @ +16+cb (from ctx data ptr@56).
   "  add t3, s0, t0               # t3 = s0 + cb\n" ++
-  "  sd s7, 16(t3)                # slot_count @ +16+cb\n" ++
-  "  addi t3, t3, 24              # t3 = dst = s0 + cb + 24 (storage pairs)\n" ++
+  "  ld a7, 64(s1); sd a7, 8(t3)  # calldata-len @ +8+cb\n" ++
+  "  addi t3, t3, 16              # t3 = dst = s0 + cb + 16 (calldata bytes)\n" ++
+  "  ld t4, 56(s1); mv t5, a7     # src = ctx data ptr, bytes = calldata len\n" ++
+  ".Lsrpc_cdcopy:\n" ++
+  "  beqz t5, .Lsrpc_cdcopy_done\n" ++
+  "  lbu t6, 0(t4); sb t6, 0(t3); addi t3, t3, 1; addi t4, t4, 1; addi t5, t5, -1; j .Lsrpc_cdcopy\n" ++
+  ".Lsrpc_cdcopy_done:\n" ++
+  -- slot_count @ +16+co; storage pairs @ +24+co. (co = cb + cd_pad; recompute.)
+  "  add t3, s0, t0               # s0 + cb\n" ++
+  "  ld a7, 64(s1); addi t6, a7, 7; andi t6, t6, -8   # cd_pad\n" ++
+  "  add t3, t3, t6               # t3 = s0 + co\n" ++
+  "  sd s7, 16(t3)                # slot_count @ +16+co\n" ++
+  "  addi t3, t3, 24              # t3 = dst = s0 + co + 24 (storage pairs)\n" ++
   "  mv t4, s6; slli t5, s7, 6    # src, bytes = count*64\n" ++
   ".Lsrpc_scopy:\n" ++
   "  beqz t5, .Lsrpc_scopy_done\n" ++
@@ -254,6 +268,63 @@ def ziskStageRuntimePayloadCodeStorageProbeUnit : BuildUnit := {
   body        := NOP
   prologueAsm := ziskStageRuntimePayloadCodeStoragePrologue
   dataAsm     := ziskStageRuntimePayloadCodeStorageDataSection
+}
+
+/-- `zisk_stage_runtime_payload_code_calldata`: calldata-segment layout probe.
+    Code len 5, calldata len 4 (0xDE 0xAD 0xBE 0xEF), no storage. cb=8,
+    cd_pad=round8(4)=8, co=16, env_base = 80 + 16 + 0 = 96. Diagnostics:
+      +0  calldata-len at payload[+8+cb] = payload[+16]   (expect 4)
+      +8  calldata byte0 at payload[+16+cb] = payload[+24] (expect 0xDE)
+      +16 slot_count at payload[+16+co] = payload[+32]     (expect 0)
+      +24 env_base (expect 96)
+      +32 gas at payload[env_base+448]                     (expect 21000)
+      +40 ADDRESS low byte at payload[env_base+0]          (expect 0xAA) -/
+def ziskStageRuntimePayloadCodeCalldataPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  la t0, srpcc_ctx\n" ++
+  "  sd zero, 0(t0)\n" ++
+  "  li t1, 21000; sd t1, 40(t0)\n" ++
+  "  sd zero, 48(t0); sd zero, 96(t0)\n" ++
+  "  li t1, 0xAA; sb t1, 72(t0)\n" ++
+  "  li t1, 4; sd t1, 64(t0)\n" ++          -- ctx data len = 4
+  "  la t4, srpcc_cd\n" ++
+  "  sd t4, 56(t0)\n" ++                    -- ctx data ptr
+  "  li t1, 0xDE; sb t1, 0(t4); li t1, 0xAD; sb t1, 1(t4)\n" ++
+  "  li t1, 0xBE; sb t1, 2(t4); li t1, 0xEF; sb t1, 3(t4)\n" ++
+  "  la t2, srpcc_exec\n" ++
+  "  li t1, 0xC0; sb t1, 32(t2)\n" ++
+  "  la t3, srpcc_code\n" ++
+  "  li t1, 0x60; sb t1, 0(t3); li t1, 0x01; sb t1, 1(t3)\n" ++
+  "  li t1, 0x60; sb t1, 2(t3); li t1, 0x02; sb t1, 3(t3); sb zero, 4(t3)\n" ++
+  "  la a0, srpcc_ctx; la a1, srpcc_payload; la a2, srpcc_exec; la a3, srpcc_code; li a4, 5\n" ++
+  "  li a5, 0; li a6, 0\n" ++
+  "  jal ra, stage_runtime_payload_code\n" ++
+  "  li s0, 0xa0010000\n" ++
+  "  la t0, srpcc_payload\n" ++
+  "  ld t1, 16(t0); sd t1, 0(s0)\n" ++       -- calldata-len @ +8+cb = +16
+  "  lbu t1, 24(t0); sd t1, 8(s0)\n" ++      -- calldata byte0 @ +16+cb = +24
+  "  ld t1, 32(t0); sd t1, 16(s0)\n" ++      -- slot_count @ +16+co = +32
+  "  li t1, 96; sd t1, 24(s0)\n" ++
+  "  li t2, 96; add t2, t0, t2\n" ++
+  "  ld t1, 448(t2); sd t1, 32(s0)\n" ++
+  "  lbu t1, 0(t2); sd t1, 40(s0)\n" ++
+  "  j .Lsrpccp_done\n" ++
+  stageRuntimePayloadCodeFunction ++ "\n" ++
+  ".Lsrpccp_done:"
+
+def ziskStageRuntimePayloadCodeCalldataDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "srpcc_ctx:\n  .zero 192\n" ++
+  "srpcc_exec:\n  .zero 512\n" ++
+  "srpcc_code:\n  .zero 64\n" ++
+  "srpcc_cd:\n  .zero 64\n" ++
+  "srpcc_payload:\n  .zero 1024\n"
+
+def ziskStageRuntimePayloadCodeCalldataProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskStageRuntimePayloadCodeCalldataPrologue
+  dataAsm     := ziskStageRuntimePayloadCodeCalldataDataSection
 }
 
 end EvmAsm.Codegen
