@@ -256,6 +256,16 @@ def balCodePreimagesValidFunction : String :=
   "  bnez a0, .Lbbcv_next\n" ++
   "  j .Lbbcv_missing_code\n" ++
   ".Lbbcv_missing_code:\n" ++
+  "  # Final reprieve: fork-level system contracts (EIP-2935/4788/7002/7251/\n" ++
+  "  # 6110) never require an ordinary witness.codes bytecode preimage, even\n" ++
+  "  # when their BAL row is balance/nonce-shaped rather than a pure touch\n" ++
+  "  # (e.g. a system call that reaches the gas limit and is tolerated by\n" ++
+  "  # process_unchecked_system_transaction). The executable spec validates\n" ++
+  "  # such blocks without the predeploy code in the witness, so the guest's\n" ++
+  "  # code-preimage gate must not reject them either.\n" ++
+  "  la t0, bbcv_addr_off; ld t1, 0(t0); add a0, s10, t1\n" ++
+  "  jal ra, bbcv_addr_is_system_contract\n" ++
+  "  bnez a0, .Lbbcv_next\n" ++
   "  li a0, 1; j .Lbbcv_ret\n" ++
   ".Lbbcv_parse_fail:\n" ++
   "  li a0, 2\n" ++
