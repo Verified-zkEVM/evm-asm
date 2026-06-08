@@ -437,6 +437,83 @@ def txPubkeyRecoverRawDataSection : String :=
   "tpr_p1:\n  .zero 64\n" ++
   "tpr_p2:\n  .zero 64\n"
 
+/-! ## tx_pubkey_public_key_matches
+
+    Final `public_keys` comparison helper. Mirrors execution-specs Amsterdam
+    `transactions.recover_sender_from_public_key`: the supplied stateless
+    `public_keys[i]` entry must equal `recover_transaction_public_key(chain_id,
+    tx)`. The supplied key is a 65-byte SEC1 uncompressed point (`0x04 || x || y`);
+    this helper checks the `0x04` prefix, recovers the canonical key from the
+    transaction signature via `tx_pubkey_recover_raw`, and byte-compares the
+    supplied 64 coordinate bytes against the recovered `x || y`.
+
+    The prefix is checked BEFORE recovery: a non-`0x04` key can never match a
+    valid recovered point, and the early-out keeps the bad-prefix path free of the
+    expensive software recovery (~1e11 ziskemu steps), so it can be probed fast.
+
+    Calling convention:
+      a0 (input)  : encoded transaction ptr
+      a1 (input)  : encoded transaction byte length
+      a2 (input)  : execution chain_id (u64)
+      a3 (input)  : supplied public key ptr (65 bytes, 0x04 || BE x || BE y)
+      a4 (input)  : recovered-pubkey scratch ptr (64 bytes, written by recover_raw)
+      a5 (input)  : recover scratch ptr (>= 304 bytes, 8-byte aligned)
+      ra (input)  : return
+      a0 (output) : status
+
+    Status:
+      0   match: prefix ok, recovery ok, supplied coords == recovered x||y
+      1   mismatch: prefix 0x04 and recovery ok, but coordinates differ
+      2   bad prefix: supplied[0] != 0x04
+      10  signature material failed (from tx_pubkey_recover_raw)
+      20  ecrecover ABI staging failed (from tx_pubkey_recover_raw)
+      60  secp256k1 recovery failed (from tx_pubkey_recover_raw)
+
+    The 0/1/2 comparison statuses are disjoint from the 10/20/60 recovery
+    statuses, so a caller can distinguish all four failure classes. -/
+def txPubkeyPublicKeyMatchesFunction : String :=
+  "tx_pubkey_public_key_matches:\n" ++
+  "  addi sp, sp, -56\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp)\n" ++
+  "  mv s0, a0                   # tx ptr\n" ++
+  "  mv s1, a1                   # tx len\n" ++
+  "  mv s2, a2                   # chain_id\n" ++
+  "  mv s3, a3                   # supplied public_key (0x04 || x || y)\n" ++
+  "  mv s4, a4                   # recovered pubkey out (64 bytes)\n" ++
+  "  mv s5, a5                   # recover scratch (>= 304 bytes)\n" ++
+  "  # 1. SEC1 uncompressed prefix must be 0x04 (cheap; before recovery).\n" ++
+  "  lbu t0, 0(s3)\n" ++
+  "  li t1, 4\n" ++
+  "  bne t0, t1, .Ltpm_bad_prefix\n" ++
+  "  # 2. Recover the canonical public key from the transaction signature.\n" ++
+  "  mv a0, s0; mv a1, s1; mv a2, s2; mv a3, s4; mv a4, s5\n" ++
+  "  jal ra, tx_pubkey_recover_raw\n" ++
+  "  bnez a0, .Ltpm_ret          # propagate material/stage/recovery failure\n" ++
+  "  # 3. Byte-compare supplied[1..65] against recovered x||y (64 bytes).\n" ++
+  "  addi t0, s3, 1              # supplied coordinate bytes\n" ++
+  "  mv t1, s4                   # recovered coordinate bytes\n" ++
+  "  li t2, 64\n" ++
+  ".Ltpm_cmp:\n" ++
+  "  lbu t3, 0(t0); lbu t4, 0(t1)\n" ++
+  "  bne t3, t4, .Ltpm_mismatch\n" ++
+  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1\n" ++
+  "  bnez t2, .Ltpm_cmp\n" ++
+  "  li a0, 0\n" ++
+  "  j .Ltpm_ret\n" ++
+  ".Ltpm_mismatch:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Ltpm_ret\n" ++
+  ".Ltpm_bad_prefix:\n" ++
+  "  li a0, 2\n" ++
+  ".Ltpm_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp)\n" ++
+  "  addi sp, sp, 56\n" ++
+  "  ret"
+
 /-- `zisk_tx_pubkey_ecrecover_stage_material`: probe BuildUnit.
     Reads the same input as `zisk_tx_pubkey_signature_material`, first builds
     material at OUTPUT+8, then stages accelerator ABI bytes at OUTPUT+136.
@@ -654,6 +731,86 @@ def ziskTxPubkeyRecoverRawStatusProbeUnit : BuildUnit := {
   body        := NOP
   prologueAsm := ziskTxPubkeyRecoverRawStatusPrologue
   dataAsm     := ziskTxPubkeyRecoverRawStatusDataSection
+}
+
+/-- `zisk_tx_pubkey_public_key_matches_status`: probe BuildUnit.
+
+    Drives `tx_pubkey_public_key_matches` over one transaction and a supplied
+    SEC1 public key. The cheap cases (bad prefix; signature-material failure) are
+    decided before the expensive recovery, so they run in a small step budget;
+    the match/mismatch cases run full software recovery and are gated behind the
+    check script's `RECOVER_RAW_FULL=1` switch (~1e11 steps).
+
+    Input layout:
+      bytes  0.. 8 : tx byte length
+      bytes  8..16 : execution chain_id
+      bytes 16..81 : supplied public key (65 bytes, 0x04 || x || y)
+      bytes 88..   : encoded transaction (8-byte aligned)
+
+    Output layout:
+      +0  match status (0 match, 1 mismatch, 2 bad prefix, 10/20/60 recovery)
+      +8  reserved (zero)
+      +16 recovered public key (64 bytes, BE x||y; zeroed on recovery failure) -/
+def ziskTxPubkeyPublicKeyMatchesStatusPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li t6, 0x40000000           # input base (ziskemu writes an 8-byte length\n" ++
+  "                              # header at +0, so user byte k is at t6+8+k)\n" ++
+  "  ld a1, 8(t6)                # tx_len      (user +0)\n" ++
+  "  ld a2, 16(t6)               # chain_id    (user +8)\n" ++
+  "  addi a3, t6, 24             # supplied public key ptr (65 bytes; user +16)\n" ++
+  "  addi a0, t6, 96             # tx ptr       (user +88)\n" ++
+  "  la a4, tpm_pubkey_out       # recovered pubkey out (64 bytes)\n" ++
+  "  la a5, tpm_scratch          # recover scratch (>= 304 bytes)\n" ++
+  "  jal ra, tx_pubkey_public_key_matches\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # match status\n" ++
+  "  sd zero, 8(t0)              # reserved\n" ++
+  "  # copy the 64-byte recovered pubkey (x||y) to output+16 for assertions\n" ++
+  "  la t1, tpm_pubkey_out\n" ++
+  "  addi t0, t0, 16\n" ++
+  "  li t2, 8\n" ++
+  ".Ltpms_copy_pub:\n" ++
+  "  ld t3, 0(t1); sd t3, 0(t0)\n" ++
+  "  addi t1, t1, 8; addi t0, t0, 8; addi t2, t2, -1\n" ++
+  "  bnez t2, .Ltpms_copy_pub\n" ++
+  "  j .Ltpms_pdone\n" ++
+  txTypeDispatchFunction ++ "\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpEncodeUintBeFunction ++ "\n" ++
+  rlpEncodeListPrefixFunction ++ "\n" ++
+  rlpListTruncateToNFieldsFunction ++ "\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  u256IsZeroFunction ++ "\n" ++
+  -- secp256k1 recovery stack (curve common already provides u256_lt_be/_add_be/
+  -- _sub_be, so no standalone u256_lt_be is linked here to avoid a duplicate
+  -- label).
+  secp256k1CurveCommonFunctions ++ "\n" ++
+  secp256k1RecoverRFunction ++ "\n" ++
+  txLegacyExtractSignatureFunction ++ "\n" ++
+  txEip2930ExtractSignatureFunction ++ "\n" ++
+  txEip1559ExtractSignatureFunction ++ "\n" ++
+  txEip4844ExtractSignatureFunction ++ "\n" ++
+  txEip7702ExtractSignatureFunction ++ "\n" ++
+  txSigningHashFunction ++ "\n" ++
+  txSigningHashLegacyEip155Function ++ "\n" ++
+  txPubkeySignatureMaterialFunction ++ "\n" ++
+  txPubkeyEcrecoverStageMaterialFunction ++ "\n" ++
+  txPubkeyRecoverRawFunction ++ "\n" ++
+  txPubkeyPublicKeyMatchesFunction ++ "\n" ++
+  ".Ltpms_pdone:"
+
+def ziskTxPubkeyPublicKeyMatchesStatusDataSection : String :=
+  ziskTxPubkeySignatureMaterialDataSection ++ "\n" ++
+  secp256k1CurveDataSection ++ "\n" ++
+  secp256k1RecoverDataSection ++ "\n" ++
+  txPubkeyRecoverRawDataSection ++ "\n" ++
+  "tpm_pubkey_out:\n  .zero 64\n" ++
+  "tpm_scratch:\n  .zero 312"
+
+def ziskTxPubkeyPublicKeyMatchesStatusProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskTxPubkeyPublicKeyMatchesStatusPrologue
+  dataAsm     := ziskTxPubkeyPublicKeyMatchesStatusDataSection
 }
 
 end EvmAsm.Codegen
