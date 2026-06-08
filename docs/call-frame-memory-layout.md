@@ -34,7 +34,7 @@ Status: DESIGN (no code yet). Downstream consumers: `.61` skeleton,
   - `.data`      @ `0xa3000000`
   - `.sszscratch`@ `0xbf500000`
   - ⇒ usable `.data` span before `.sszscratch` = `0xbf500000 − 0xa3000000`
-    = `0x1c500000` = **474 MiB**.
+    = `0x1c500000` = `475,004,928` B = **453 MiB** (≈ 475 MB decimal).
 - Amsterdam caps: `MAX_CODE_SIZE = 0x10000` (64 KiB), `MAX_INIT_CODE_SIZE =
   0x20000` (128 KiB).
 - This project **avoids misaligned load/store** — every per-frame sub-region is
@@ -176,9 +176,10 @@ Total frame array = `1025 * 0x29000` = `0xA429000` ≈ **164.2 MiB** (depths
 0xbf500000  .sszscratch
 ```
 
-164 MiB frames + 16 MiB shared = 180 MiB, well under the 474 MiB budget with
-**273 MiB headroom**. The array fits with comfortable margin even if
-`FRAME_STRIDE` or the shared reserve grows.
+164 MiB frames + 16 MiB shared = 180 MiB, well under the 453 MiB budget with
+**272 MiB headroom** (`frame_array_end 0xae429000 → 0xbf500000` = `0x110d7000` =
+285,741,056 B). The array fits with comfortable margin even if `FRAME_STRIDE` or
+the shared reserve grows.
 
 > Place `frame_array_base` via a dedicated `.balign 32` label at the very end of
 > the guest `.data` so the 16 MiB shared reserve is "whatever the shared data
