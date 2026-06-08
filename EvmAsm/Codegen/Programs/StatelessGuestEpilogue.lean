@@ -16,6 +16,7 @@ import EvmAsm.Codegen.Programs.Ssz
 import EvmAsm.Codegen.Programs.Tx
 import EvmAsm.Codegen.Programs.BlockVerdict
 import EvmAsm.Codegen.Programs.BlockVerdictV2
+import EvmAsm.Codegen.Programs.HeaderChain
 
 namespace EvmAsm.Codegen
 
@@ -79,6 +80,30 @@ def statelessGuestValidatorPipeline : String :=
   "  # s5 = headers_data_ptr = section_ptr + 4*N\n" ++
   "  slli t0, s2, 2\n" ++
   "  add s5, s3, t0\n" ++
+  "  # 9lw0m: spec validate_headers parent_hash contiguity (stateless.py:266-277).\n" ++
+  "  # For i in 1..N-1, child.parent_hash == keccak256(encoded_header[i-1]); reject a\n" ++
+  "  # non-contiguous witness chain. This is the spec's ONLY header-chain check and\n" ++
+  "  # was previously omitted (a false-accept: a witness with a broken keccak link but\n" ++
+  "  # plausible fields would pass). N<2 is vacuously contiguous. s6-s9 hold the loop\n" ++
+  "  # state and survive validate_parent_hash_link (it saves s0-s4 only).\n" ++
+  "  li t0, 2\n" ++
+  "  bltu s2, t0, .Lsg_contig_done\n" ++
+  "  la t0, sg_header_lengths\n" ++
+  "  ld s6, 0(t0)                # prev_len = lengths[0]\n" ++
+  "  mv s7, s5                   # prev_ptr = header[0]\n" ++
+  "  add s8, s5, s6              # cur_ptr = header[1]\n" ++
+  "  li s9, 1                    # i = 1\n" ++
+  ".Lsg_contig_loop:\n" ++
+  "  beq s9, s2, .Lsg_contig_done\n" ++
+  "  slli t0, s9, 3; la t1, sg_header_lengths; add t1, t1, t0; ld a3, 0(t1)  # cur_len\n" ++
+  "  mv a0, s7; mv a1, s6; mv a2, s8; la a4, sg_contig_valid\n" ++
+  "  jal ra, validate_parent_hash_link\n" ++
+  "  bnez a0, .Lsg_fail_contig   # parse/size failure => reject\n" ++
+  "  la t0, sg_contig_valid; ld t0, 0(t0); beqz t0, .Lsg_fail_contig\n" ++
+  "  slli t0, s9, 3; la t1, sg_header_lengths; add t1, t1, t0; ld t2, 0(t1)  # cur_len (a3 clobbered)\n" ++
+  "  mv s7, s8; mv s6, t2; add s8, s8, t2; addi s9, s9, 1\n" ++
+  "  j .Lsg_contig_loop\n" ++
+  ".Lsg_contig_done:\n" ++
   "  # Validator 1: K290 chain_validate_post_merge_full\n" ++
   "  mv a0, s2; la a1, sg_header_lengths; mv a2, s5\n" ++
   "  la a3, sg_kpr_valid; la a4, sg_kpr_bad_index\n" ++
@@ -131,6 +156,7 @@ def statelessGuestValidatorPipeline : String :=
   "  # False` outcome. Once the real witness walk + validators run,\n" ++
   "  # the body's encoder will see x11 = 1 from a real success.\n" ++
   "  j .Lsg_hash\n" ++
+  ".Lsg_fail_contig: li a0, 0x18; j .Lsg_unimpl\n" ++
   ".Lsg_fail_pm:   li a0, 0x10; j .Lsg_unimpl\n" ++
   ".Lsg_fail_ed:   li a0, 0x11; j .Lsg_unimpl\n" ++
   ".Lsg_fail_gas:  li a0, 0x12; j .Lsg_unimpl\n" ++
@@ -981,6 +1007,7 @@ def statelessGuestEpilogue : String :=
   "  ld s3,32(sp); ld s4,40(sp); ld s5,48(sp); addi sp,sp,64; ret\n" ++
   rlpListNthItemFunction ++ "\n" ++
   rlpFieldToU64Function ++ "\n" ++
+  validateParentHashLinkFunction ++ "\n" ++
   chainValidatePostMergeFullFunction ++ "\n" ++
   chainValidateExtraDataLengthFunction ++ "\n" ++
   chainValidateGasUsedUnderLimitFunction ++ "\n" ++
