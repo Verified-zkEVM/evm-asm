@@ -536,8 +536,19 @@ def ziskStatelessVerdictV2DataSection : String :=
   "baada_item_len:\n  .zero 8\n" ++
   "basr_records:\n  .zero " ++ toString (bsrMaxStateChanges * bsrAccountRecordBytes) ++
   "\nbasr_paths:\n  .zero " ++ toString (bsrMaxStateChanges * bsrPathBytes) ++
-  "\nbasr_values:\n  .zero " ++ toString (bsrMaxStateChanges * bsrEncodedAccountBytes) ++
-  "\nbasr_accounts:\n  .zero " ++ toString (bsrMaxStateChanges * bsrEncodedAccountBytes) ++ "\n" ++
+  -- .61.3.1: the nested call-frame arena aliases basr_values+basr_accounts.
+  -- These two are block_state_root replay scratch, read ONLY inside
+  -- block_state_root (BlockVerdict.lean <=302) and dead during tx execution
+  -- (gate-verified: no post-replay reader); the contiguous pair is
+  -- 2*bsrMaxStateChanges*bsrEncodedAccountBytes = 244 MiB >= the 1025*FRAME_STRIDE
+  -- = 164 MiB the frame arena needs, so the arena reuses this region (union, zero
+  -- net RAM growth) once the dispatcher is rebased onto frame[0] in .61.3.2.
+  -- `basr_records` (just above) is LIVE during execution (:528/577/620) and is
+  -- excluded by aliasing here, after it. See docs/call-frame-memory-layout.md §5.
+  "\ncall_frame_arena:\n" ++
+  "basr_values:\n  .zero " ++ toString (bsrMaxStateChanges * bsrEncodedAccountBytes) ++
+  "\nbasr_accounts:\n  .zero " ++ toString (bsrMaxStateChanges * bsrEncodedAccountBytes) ++
+  "\ncall_frame_arena_end:\n" ++ "\n" ++
   "bara_item_off:\n  .zero 8\n" ++
   "bara_item_len:\n  .zero 8\n" ++
   "bara_acct_len:\n  .zero 8\n" ++
