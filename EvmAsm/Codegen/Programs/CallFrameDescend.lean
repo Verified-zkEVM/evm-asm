@@ -130,6 +130,123 @@ def callFrameForwardGasFunction : String :=
   "  mv a0, t1\n" ++
   "  ret"
 
+/-- `call_frame_descend(a1 = &desc)`: orchestrate one CALL/STATICCALL descent
+    (depth d → d+1). `&desc` is passed in a1 (x11) so it does not alias the live
+    PARENT dispatcher registers this routine reads (x10 pc, x21 code base, x12
+    stack top, x13 memory base, x20 env base). The caller-filled descriptor:
+
+      desc+0   to_ptr        (32-byte call target address word)
+      desc+8   value_ptr     (32-byte call value word; ignored when is_static)
+      desc+16  is_static     (0/1)
+      desc+24  argsOff        (calldata offset in parent memory)
+      desc+32  argsLen        (calldata length)
+      desc+40  outOff         (return-output offset in parent memory)
+      desc+48  outSize        (return-output cap)
+      desc+56  netPopBytes    (CALL 192 / STATICCALL 160 — args popped on return)
+      desc+64  code_ptr       (resolved callee bytecode ptr; caller resolves via
+                               code_at_state_root_address using env+576..616)
+      desc+72  code_len       (callee bytecode length)
+      desc+80  requested_gas  (the CALL gas stack arg, u64)
+      desc+88  value_nonzero  (0/1; 0 for STATICCALL / zero value)
+
+    Effect (in order):
+      1. `frame_save_regs(parent_depth, parent_pc, parent_code_base)`;
+      2. `frame_depth_push` → child depth d;
+      3. save the return-context `frame_call_ctx[d]` = (parent_x12,
+         outOff_abs = parent_mem + outOff, outSize, netPopBytes) for `frame_return`;
+      4. `call_frame_enter(d)` → child memory/stack/env bases (+ child mem zero-init);
+      5. `call_frame_set_call_env` (ADDRESS=to, CALLER=parent.ADDRESS, CALLVALUE);
+      6. `call_frame_set_calldata` (alias child calldata into parent memory);
+      7. `call_frame_forward_gas` (EIP-150 63/64 + stipend) → child env.gasRemaining;
+      8. copy the witness context env+576..616 (header/state/codes ptrs+lens) so the
+         child's by-address handlers (BALANCE/EXTCODE*/the next descent) resolve;
+      9. set the child code base x21=x10=code_ptr (PC at code[0]) and
+         env.codeSize (env+496) = code_len.
+
+    On return the live dispatcher registers are repointed to the child frame and
+    `evm_call_depth` is bumped; the caller (the CALL handler) then `j .dispatch_loop`.
+    This helper does NOT charge the parent's gas / value-transfer costs (the gate
+    side of the handler does) and does NOT itself jump, so it is unit-probeable.
+    NB: s4/s5 ARE x20/x21 (env/code base) — this routine keeps parent state in
+    s0-s3/s6-s9 and never uses s4/s5 as scratch. Clobbers t0-t2, a0-a4. -/
+def callFrameDescendFunction : String :=
+  "call_frame_descend:\n" ++
+  "  addi sp, sp, -96\n" ++
+  "  sd ra, 0(sp)\n" ++
+  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s6, 40(sp); sd s7, 48(sp); sd s8, 56(sp); sd s9, 64(sp)\n" ++
+  "  sd s10, 72(sp); sd s11, 80(sp)\n" ++
+  -- &desc arrives in a1 (x11) so it does NOT alias x10/x12/x13/x20/x21 (the live
+  -- parent PC/stack/mem/env/code-base, which this routine reads first).
+  "  mv s7, a1                      # &desc\n" ++
+  "  mv s0, x10                     # parent pc\n" ++
+  "  mv s6, x21                     # parent code base\n" ++
+  "  mv s1, x12                     # parent stack top (args)\n" ++
+  "  mv s2, x13                     # parent memory base\n" ++
+  "  mv s3, x20                     # parent env base\n" ++
+  -- 1. save parent pc/code-base for the matching return.
+  "  la t0, evm_call_depth; ld a0, 0(t0)   # a0 = parent depth\n" ++
+  "  mv a1, s0; mv a2, s6\n" ++
+  "  jal ra, frame_save_regs\n" ++
+  -- 2. bump depth -> d.
+  "  jal ra, frame_depth_push       # a0 = child depth d\n" ++
+  "  mv s8, a0\n" ++
+  -- 3. save the return-context frame_call_ctx[d].
+  "  la t0, frame_call_ctx\n" ++
+  "  slli t1, s8, 5                 # d * 32\n" ++
+  "  add t0, t0, t1\n" ++
+  "  sd s1, 0(t0)                   # parent_x12\n" ++
+  "  ld t2, 40(s7); add t2, s2, t2  # outOff_abs = parent_mem + outOff\n" ++
+  "  sd t2, 8(t0)\n" ++
+  "  ld t2, 48(s7); sd t2, 16(t0)   # outSize\n" ++
+  "  ld t2, 56(s7); sd t2, 24(t0)   # netPopBytes\n" ++
+  -- 4. enter the child frame (rebase + zero-init). Stash the returned child
+  --    mem/stack/env bases in callee-saved regs — the helper calls below clobber
+  --    a0-a4 (= x10/x11/x12/x13/x14), so the live dispatcher regs are set LAST.
+  "  mv a0, s8; jal ra, call_frame_enter\n" ++
+  "  mv s10, a0                     # child memory base\n" ++
+  "  mv s11, a1                     # child stack top\n" ++
+  "  mv s9, a2                      # child env base\n" ++
+  -- 5. child call-context env (ADDRESS / CALLER / CALLVALUE).
+  "  mv a0, s9; mv a1, s3\n" ++
+  "  ld a2, 0(s7)                   # to_ptr\n" ++
+  "  ld a3, 8(s7)                   # value_ptr\n" ++
+  "  ld a4, 16(s7)                  # is_static\n" ++
+  "  jal ra, call_frame_set_call_env\n" ++
+  -- 6. alias child calldata into the (still-live) parent memory.
+  "  mv a0, s9; mv a1, s2\n" ++
+  "  ld a2, 24(s7)                  # argsOff\n" ++
+  "  ld a3, 32(s7)                  # argsLen\n" ++
+  "  jal ra, call_frame_set_calldata\n" ++
+  -- 7. EIP-150 forwarded gas -> child env.gasRemaining (env+568).
+  "  ld a0, 568(s3)                 # parent gas_left\n" ++
+  "  ld a1, 80(s7)                  # requested_gas\n" ++
+  "  ld a2, 88(s7)                  # value_nonzero\n" ++
+  "  jal ra, call_frame_forward_gas\n" ++
+  "  sd a0, 568(s9)\n" ++
+  -- 8. copy witness context (header/state/codes ptr+len) parent env -> child env.
+  "  ld t0, 576(s3); sd t0, 576(s9)\n" ++
+  "  ld t0, 584(s3); sd t0, 584(s9)\n" ++
+  "  ld t0, 592(s3); sd t0, 592(s9)\n" ++
+  "  ld t0, 600(s3); sd t0, 600(s9)\n" ++
+  "  ld t0, 608(s3); sd t0, 608(s9)\n" ++
+  "  ld t0, 616(s3); sd t0, 616(s9)\n" ++
+  -- 9. child env.codeSize (env+496).
+  "  ld t0, 72(s7); sd t0, 496(s9)\n" ++
+  -- 10. set the live dispatcher registers to the child frame (done last).
+  "  mv x13, s10                    # child memory base\n" ++
+  "  mv x12, s11                    # child stack top\n" ++
+  "  mv x20, s9                     # child env base\n" ++
+  "  ld t0, 64(s7)                  # code_ptr\n" ++
+  "  mv x21, t0                     # child code base\n" ++
+  "  mv x10, t0                     # child PC at code[0]\n" ++
+  "  ld ra, 0(sp)\n" ++
+  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s6, 40(sp); ld s7, 48(sp); ld s8, 56(sp); ld s9, 64(sp)\n" ++
+  "  ld s10, 72(sp); ld s11, 80(sp)\n" ++
+  "  addi sp, sp, 96\n" ++
+  "  ret"
+
 /-- `zisk_call_descend`: unit-probe for `call_frame_enter` over a local
     `call_frame_arena` stub. Pushes depth 0->1, pre-dirties the child slot,
     enters the frame, and checks the rebased register bases + the memory
@@ -211,6 +328,126 @@ def ziskCallDescendProbeUnit : BuildUnit := {
   body        := NOP
   prologueAsm := ziskCallDescendPrologue
   dataAsm     := ziskCallDescendDataSection
+}
+
+/-- `zisk_call_frame_descend`: end-to-end probe for `call_frame_descend`. Sets up
+    a depth-0 parent frame (regs + env with witness context) and a call descriptor
+    (value-bearing CALL into a codelen-0x33 callee), descends, then records the full
+    child-frame setup so a script can assert every field the descent writes.
+
+    Output (each u64):
+      +0   evm_call_depth after            (expect 1)
+      +8   frame_save_area[0].pc           (expect 0x500 parent pc)
+      +16  frame_save_area[0].codebase     (expect 0x600 parent cb)
+      +24  ctx[1].parent_x12 - &pstack     (expect 0)
+      +32  ctx[1].outOff_abs - &pmem       (expect 0x100)
+      +40  ctx[1].outSize                  (expect 0x20)
+      +48  ctx[1].netPopBytes              (expect 192)
+      +56  child x13 - &call_frame_arena   (expect 0   = frame_base(1)+frameMemOff)
+      +64  child x20 - &call_frame_arena   (expect 0x28400 = +frameEnvOff)
+      +72  child x21 - &cfd2_code          (expect 0   = callee code base)
+      +80  child x10 - &cfd2_code          (expect 0   = child PC at code[0])
+      +88  child env.ADDRESS limb0         (expect 0xbb = to)
+      +96  child env.CALLER limb0          (expect 0xaa = parent ADDRESS)
+      +104 child env.CALLVALUE limb0       (expect 0x7  = value)
+      +112 child env.callDataPtr - &pmem   (expect 0x40 = argsOff)
+      +120 child env.callDataLen           (expect 0x20 = argsLen)
+      +128 child env.gasRemaining          (expect 3300 = min(1000,98438)+2300)
+      +136 child env.codeSize              (expect 0x33)
+      +144 child env witness.state ptr     (expect 0x592 marker, copied env+592) -/
+def ziskCallFrameDescendPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li s0, 0xa0010000\n" ++
+  "  la t0, evm_call_depth; sd x0, 0(t0)\n" ++
+  -- parent env: ADDRESS@0, gasRemaining@568, witness state ptr marker @592.
+  "  la t0, cfd2_penv\n" ++
+  "  li t1, 0xaa; sd t1, 0(t0)\n" ++
+  "  li t1, 100000; sd t1, 568(t0)\n" ++
+  "  li t1, 0x592; sd t1, 592(t0)\n" ++
+  -- to / value words.
+  "  la t0, cfd2_to; li t1, 0xbb; sd t1, 0(t0)\n" ++
+  "  la t0, cfd2_val; li t1, 0x7; sd t1, 0(t0)\n" ++
+  -- descriptor.
+  "  la t0, cfd2_desc\n" ++
+  "  la t1, cfd2_to;  sd t1, 0(t0)\n" ++
+  "  la t1, cfd2_val; sd t1, 8(t0)\n" ++
+  "  sd x0, 16(t0)\n" ++                       -- is_static = 0
+  "  li t1, 0x40; sd t1, 24(t0)\n" ++          -- argsOff
+  "  li t1, 0x20; sd t1, 32(t0)\n" ++          -- argsLen
+  "  li t1, 0x100; sd t1, 40(t0)\n" ++         -- outOff
+  "  li t1, 0x20; sd t1, 48(t0)\n" ++          -- outSize
+  "  li t1, 192; sd t1, 56(t0)\n" ++           -- netPopBytes
+  "  la t1, cfd2_code; sd t1, 64(t0)\n" ++     -- code_ptr
+  "  li t1, 0x33; sd t1, 72(t0)\n" ++          -- code_len
+  "  li t1, 1000; sd t1, 80(t0)\n" ++          -- requested_gas
+  "  li t1, 1; sd t1, 88(t0)\n" ++             -- value_nonzero
+  -- live parent registers.
+  "  li x10, 0x500\n" ++
+  "  li x21, 0x600\n" ++
+  "  la x12, cfd2_pstack\n" ++
+  "  la x13, cfd2_pmem\n" ++
+  "  la x20, cfd2_penv\n" ++
+  "  la a1, cfd2_desc\n" ++          -- &desc in a1 (x11), not a0 (x10 = parent PC)
+  "  jal ra, call_frame_descend\n" ++
+  -- child env fields (x20 = child env base after descent).
+  "  ld t0, 0(x20);   sd t0, 88(s0)\n" ++
+  "  ld t0, 64(x20);  sd t0, 96(s0)\n" ++
+  "  ld t0, 96(x20);  sd t0, 104(s0)\n" ++
+  "  la t1, cfd2_pmem; ld t0, 416(x20); sub t0, t0, t1; sd t0, 112(s0)\n" ++
+  "  ld t0, 424(x20); sd t0, 120(s0)\n" ++
+  "  ld t0, 568(x20); sd t0, 128(s0)\n" ++
+  "  ld t0, 496(x20); sd t0, 136(s0)\n" ++
+  "  ld t0, 592(x20); sd t0, 144(s0)\n" ++
+  -- child register bases.
+  "  la t1, call_frame_arena; sub t0, x13, t1; sd t0, 56(s0)\n" ++
+  "  la t1, call_frame_arena; sub t0, x20, t1; sd t0, 64(s0)\n" ++
+  "  la t1, cfd2_code; sub t0, x21, t1; sd t0, 72(s0)\n" ++
+  "  la t1, cfd2_code; sub t0, x10, t1; sd t0, 80(s0)\n" ++
+  -- depth, save-area, and return-context.
+  "  la t0, evm_call_depth; ld t1, 0(t0); sd t1, 0(s0)\n" ++
+  "  la t0, frame_save_area; ld t1, 0(t0); sd t1, 8(s0); ld t1, 8(t0); sd t1, 16(s0)\n" ++
+  "  la t0, frame_call_ctx; addi t0, t0, 32\n" ++
+  "  ld t1, 0(t0); la t2, cfd2_pstack; sub t1, t1, t2; sd t1, 24(s0)\n" ++
+  "  ld t1, 8(t0); la t2, cfd2_pmem; sub t1, t1, t2; sd t1, 32(s0)\n" ++
+  "  ld t1, 16(t0); sd t1, 40(s0)\n" ++
+  "  ld t1, 24(t0); sd t1, 48(s0)\n" ++
+  "  j .Lcfd2_done\n" ++
+  frameBaseFunction ++ "\n" ++
+  frameDepthPushFunction ++ "\n" ++
+  frameSaveRegsFunction ++ "\n" ++
+  callFrameEnterFunction ++ "\n" ++
+  callFrameSetCallEnvFunction ++ "\n" ++
+  callFrameSetCalldataFunction ++ "\n" ++
+  callFrameForwardGasFunction ++ "\n" ++
+  callFrameDescendFunction ++ "\n" ++
+  ".Lcfd2_done:"
+
+/-- Data stubs for the `zisk_call_frame_descend` probe (separate ELF, so it
+    redefines `call_frame_arena`/`evm_call_depth` locally). -/
+def ziskCallFrameDescendDataSection : String :=
+  ".section .data\n" ++
+  ".balign 32\n" ++
+  "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n" ++
+  ".balign 8\n" ++
+  "evm_call_depth:\n  .zero 8\n" ++
+  ".balign 16\n" ++
+  "frame_save_area:\n  .zero 16400\n" ++
+  ".balign 32\n" ++
+  "frame_call_ctx:\n  .zero 32800\n" ++
+  ".balign 8\n" ++
+  "cfd2_desc:\n  .zero 96\n" ++
+  ".balign 32\n" ++
+  "cfd2_penv:\n  .zero 640\n" ++
+  "cfd2_pmem:\n  .zero 512\n" ++
+  "cfd2_pstack:\n  .zero 256\n" ++
+  "cfd2_to:\n  .zero 32\n" ++
+  "cfd2_val:\n  .zero 32\n" ++
+  "cfd2_code:\n  .zero 64\n"
+
+def ziskCallFrameDescendProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskCallFrameDescendPrologue
+  dataAsm     := ziskCallFrameDescendDataSection
 }
 
 end EvmAsm.Codegen
