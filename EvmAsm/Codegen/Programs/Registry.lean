@@ -498,6 +498,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_withdrawal_rlp_encode" => some ziskWithdrawalRlpEncodeProbeUnit
   | "zisk_withdrawal_to_path_delta" => some ziskWithdrawalToPathDeltaProbeUnit
   | "zisk_ssz_withdrawal_to_rlp" => some ziskSszWithdrawalToRlpProbeUnit
+  | "zisk_bv_sum_withdrawals_to_address" => some ziskBvSumWithdrawalsToAddressProbeUnit
   | "zisk_extract_witness_state_section" => some ziskExtractWitnessStateSectionProbeUnit
   | "zisk_extract_payload_and_withdrawals" => some ziskExtractPayloadAndWithdrawalsProbeUnit
   | "zisk_extract_parent_header_and_state_root" => some ziskExtractParentHeaderProbeUnit
