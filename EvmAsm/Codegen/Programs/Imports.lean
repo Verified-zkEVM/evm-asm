@@ -106,6 +106,7 @@ import EvmAsm.Codegen.Programs.BlockVerdictContractStage
 import EvmAsm.Codegen.Programs.BlockVerdictContractStorage
 import EvmAsm.Codegen.Programs.BlockVerdictRuntimePayload
 import EvmAsm.Codegen.Programs.BlockVerdictSelfContained
+import EvmAsm.Codegen.Programs.BlockVerdictBalFindAccount
 import EvmAsm.Codegen.Programs.RegistryReceipts
 import EvmAsm.Codegen.Programs.TxTotalBlobGas
 import EvmAsm.Codegen.Programs.HeaderChainPostMerge
