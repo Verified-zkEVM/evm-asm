@@ -17,6 +17,7 @@ import EvmAsm.Codegen.Programs.BlockVerdictContractStage
 import EvmAsm.Codegen.Programs.BlockVerdictSelfContained
 import EvmAsm.Codegen.Programs.BlockVerdictBalFindAccount
 import EvmAsm.Codegen.Programs.BlockVerdictContractStorage
+import EvmAsm.Codegen.Programs.BlockVerdictDispatchTx
 
 namespace EvmAsm.Codegen
 
@@ -41,6 +42,9 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     balFindAccountByAddressFunction ++ "\n" ++
     balRecipientStorageKeysFunction ++ "\n" ++
     stageRuntimePayloadCodeFunction ++ "\n" ++
+    -- .6.2.2.1: block_verdict's contract dispatch now calls dispatch_tx_runtime_code;
+    -- emit its body here too so this debug verdict ELF links (mirrors the guest closure).
+    dispatchTxRuntimeCodeFunction ++ "\n" ++
     ".Lstateless_verdict_v2_debug_after_runtime_dispatcher:\n"
   dataAsm     :=
     ziskStatelessVerdictV2DataSection ++ "\n" ++
@@ -212,6 +216,9 @@ def statelessVerdictV2GuestClosure : String :=
   balFindAccountByAddressFunction ++ "\n" ++
   balRecipientStorageKeysFunction ++ "\n" ++
   stageRuntimePayloadCodeFunction ++ "\n" ++
+  -- .6.2.2.1: contract-recipient runtime gas-measurement tail extracted from
+  -- block_verdict so the multi-tx dispatch loop can reuse it.
+  dispatchTxRuntimeCodeFunction ++ "\n" ++
   txExtractNonceAndGasFunction ++ "\n" ++
   txExtractGasPricingFunction ++ "\n" ++
   u256MinFunction ++ "\n" ++
