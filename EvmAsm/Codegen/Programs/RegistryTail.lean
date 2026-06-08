@@ -195,6 +195,11 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_ssz_hash_tree_root_bytes" => some ziskSszHashTreeRootBytesProbeUnit
   | "zisk_ssz_hash_tree_root_list_bytelist" => some ziskSszHashTreeRootListByteListProbeUnit
   | "zisk_ssz_hash_tree_root_execution_witness" => some ziskSszHashTreeRootExecutionWitnessProbeUnit
+  | "zisk_ssz_pair_hash" => some ziskSszPairHashProbeUnit
+  | "zisk_ssz_zero_hashes" => some ziskSszZeroHashesProbeUnit
+  | "zisk_ssz_merkleize_pow2" => some ziskSszMerkleizePow2ProbeUnit
+  | "zisk_ssz_merkleize" => some ziskSszMerkleizeProbeUnit
+  | "zisk_ssz_pack_bytes" => some ziskSszPackBytesProbeUnit
   | "zisk_header_nonce_at_block_hash" => some ziskHeaderNonceAtBlockHashProbeUnit
   | "zisk_extra_data_at_block_hash" => some ziskExtraDataAtBlockHashProbeUnit
   | "zisk_excess_blob_gas_at_block_hash" => some ziskExcessBlobGasAtBlockHashProbeUnit
