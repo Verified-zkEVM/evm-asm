@@ -34,16 +34,29 @@ Status: DESIGN (no code yet). Downstream consumers: `.61` skeleton,
   - `.data`      @ `0xa3000000`
   - `.sszscratch`@ `0xbf500000`
   - ⇒ usable `.data` span before `.sszscratch` = `0xbf500000 − 0xa3000000`
-    = `0x1c500000` = **474 MiB**.
+    = `0x1c500000` = `475,004,928` B = **453 MiB** (≈ 475 MB decimal).
+    (Pinned + proved in `EvmAsm/Codegen/CallFrameLayout.lean` `data_gap_bytes`.)
 - Amsterdam caps: `MAX_CODE_SIZE = 0x10000` (64 KiB), `MAX_INIT_CODE_SIZE =
   0x20000` (128 KiB).
 - This project **avoids misaligned load/store** — every per-frame sub-region is
   aligned, and `FRAME_STRIDE` is a multiple of 32.
 
-Design principle: **uniform-stride pre-allocated array, simple and correct
-first.** Frame `d` lives at `frame_array_base + d * FRAME_STRIDE`. A CALL
-descends by bumping a depth counter and recomputing the per-frame register
-bases by `base + depth*FRAME_STRIDE`. No copying of code (referenced via the
+Design principle: **don't touch depth-0; pre-allocate frames 1..1024.**
+`frame[0]` IS the existing single-frame dispatcher state (`evm_memory` / the
+operand stack / `evm_env`), left **completely unchanged** — depth-0 is the only
+currently-executed path and the verdict-critical one, so it must stay
+byte-identical. Frames **1..1024** (the nested children) live in the overlay
+arena: `frame[d] = call_frame_arena + (d-1) * FRAME_STRIDE` for `d ≥ 1`
+(1024 slots × `FRAME_STRIDE` = 164 MiB ≤ the 244 MiB union). A CALL descends by
+bumping a depth counter and, for `d ≥ 1`, computing the child register bases
+from `call_frame_arena + (d-1)*FRAME_STRIDE`; the parent of a depth-1 child is
+`frame[0]` (the existing `evm_memory`/env). This **avoids rebasing the
+verdict-critical dispatcher onto the union** (and its `frame[0]` zero-init and
+cross-build-unit aliasing hazards): `frame[0]` keeps its pre-zeroed `.data`
+buffers, and only child frames (depth ≥ 1) draw from the replay-dirtied union, so
+the CALL handler zero-inits child memory on descent (inherent to EVM
+fresh-zero-per-frame semantics) — no special transition memset of `frame[0]`.
+No copying of code (referenced via the
 witness) and no copying of calldata (aliased into the parent's memory).
 
 ---
@@ -114,13 +127,27 @@ LOG accumulation list — see §6 for the per-frame *checkpoint* into it),
 `opcode_handlers`, `lp64_stack`, `zk3_state`, account-witness/precompile/modexp/
 sha256 scratch, and the whole BlockVerdict verdict-spine data.
 
-> **Implementation note:** keep the *intra-frame* env field offsets identical to
-> today (0,32,64,96,416,424,496,568, log 448-480). Handlers that do
-> `ld …, N(x20)` keep working once `x20` points at the *per-frame* env subblock.
-> The shared fields move to a separate `shared_env` block addressed by a new
-> dedicated register (proposal: **x22 = shared_env base**), and the handlers for
-> ORIGIN/GASPRICE/COINBASE/…/BLOBBASEFEE/BLOCKHASH/SLOTNUM switch from `N(x20)`
-> to `M(x22)`. This is the one mechanical handler edit the split forces.
+> **Implementation note.** The shared fields move to a separate `shared_env`
+> block addressed by a dedicated register (**x22 = shared_env base**); the
+> shared-field handlers (ORIGIN/GASPRICE/COINBASE/…/BLOBBASEFEE/BLOCKHASH/SLOTNUM)
+> read it instead of the per-frame env.
+>
+> This is **proof-cheap**, not proof-blocked. The env handlers are the verified
+> `evm_env_load .x20 .x15 .<field>` Program, but `evm_env_load_spec_within`
+> (`EvmAsm/Evm64/Env/Spec.lean:115`) is *parametric* over both `envBaseReg` and
+> `field` — it's a layout/framing triple ("load the 4 limbs of `field.value env`
+> from `envAddr + field.offset + 8*i`"), with no arithmetic tied to a specific
+> register or offset. So the split needs only: (a) pass `.x22` as the base for
+> shared-field handlers (the generic lemma already covers any base register), and
+> (b) give the shared fields their `shared_env`-relative offsets via the
+> `SimpleEnvField.offset` map (`EvmAsm/Evm64/Env/Field.lean:72`) — the same
+> generic lemma applies at the new offsets unchanged. No new proof obligations.
+>
+> (Alternative considered: keep one full contiguous env per frame and *replicate*
+> the shared fields, copying them parent→child on descent — also proof-trivial,
+> ~0.4 MiB + a small per-descent memcpy. The `x22` split is preferred as the
+> single-source-of-truth for block/tx-global env; replication is the fallback if
+> reserving x22 proves inconvenient.)
 
 ---
 
@@ -129,7 +156,8 @@ sha256 scratch, and the whole BlockVerdict verdict-spine data.
 Each depth slot is a contiguous, 32-aligned block:
 
 ```
-frame[d] (at frame_array_base + d*FRAME_STRIDE):
+frame[d] for d>=1 (at call_frame_arena + (d-1)*FRAME_STRIDE); frame[0] = the
+existing dispatcher evm_memory/stack/env (see §1, NOT in this arena):
   +0x00000  frame_mem:        .zero 0x10000   (64 KiB EVM memory)          x13
   +0x10000  frame_stack_glo:  .zero 512        (guard)
   +0x10200  frame_stack_low:  .zero 0x8000    (32 KiB operand stack)
@@ -161,44 +189,107 @@ Total frame array = `1025 * 0x29000` = `0xA429000` ≈ **164.2 MiB** (depths
 
 ---
 
-## 5. Memory-map placement (fits-in-map proof)
+## 5. Memory-map placement — RAM is full; overlay the BAL-replay arenas
+
+> **CORRECTION (empirically validated 2026-06-08).** An earlier draft of this
+> section assumed `.data` is ~16 MiB and the `0xa4000000..0xbf500000` window is
+> free, "proving" a 164 MiB arena fits. **That is wrong.** ziskemu's RAM region
+> is only **512 MiB** (`0xa0000000..0xc0000000`; CODEGEN.md:149,
+> `docs/agents/eest-static-layout.md`). The current guest `.data` already spans
+> **~427 MiB** (`0xa3000000..0xbdb2e067`), of which **~385 MiB** is BAL-replay
+> scratch sized for the 500k-item / 1G-gas worst case:
+>
+> | arena | size | role |
+> |---|---|---|
+> | `basr_values`, `basr_accounts` | 122 MiB each | block_state_root replay |
+> | `baap_storage_paths`/`_delete_paths`/`_values` | 32 MiB each | BAL-apply storage |
+> | `bsr_changes`, `baap_storage_desc` | 20 MiB each | state-change / desc |
+> | `basr_records` | 12 MiB | pre-account record table |
+>
+> Only **~36 MiB** is free below `0xc0000000`. A standalone 164 MiB arena placed
+> at `0xa4000000` **overlaps `.data`** — the linker rejects it (confirmed). The
+> CallFrameLayout `frameArray_fits` theorem is arithmetically true but its
+> premise (`0xa4000000` is unoccupied) is false.
+
+**Approach: overlay the frame arena on the execution-dead BAL-replay arenas
+(union region).** A soundness-gate grep (2026-06-08) over *every* reference to
+the BAL arenas pins down exactly which are dead during execution — and one is
+NOT, so the naive "all `basr_*`/`baap_*` are dead" claim is wrong:
+
+- **`basr_values` + `basr_accounts`** (122 MiB each, declared **contiguously** at
+  `BlockVerdictDataSection.lean:539–540`) are referenced **only inside
+  `block_state_root`** (`BlockVerdict.lean` ≤ line 302). `block_state_root` runs
+  at `:348`, producing the post-state root compared to the header **before** any
+  tx executes, and nothing past line 302 reads them. ⇒ **244 MiB of contiguous,
+  execution-dead space** — the overlay target (≥ the 164 MiB needed).
+- **`basr_records`** (12 MiB, `:537`) is **LIVE during execution** — read at
+  `BlockVerdict.lean:528/577/620` (per-tx gas precharge + recipient/fee balance
+  verify). It must **NOT** be overlaid (doing so corrupts the gas/balance check →
+  false verdict). It sits *just before* `basr_values`, so aliasing the frame
+  arena at the `basr_values` base excludes it automatically.
+- The `*_fail_code` / `bsr_*_count` diagnostic **cells** (e.g. `baap_fail_code`,
+  `bsr_fail_code`) are read post-replay (`:1020+`, copied to OUTPUT) but are tiny
+  status words, not arenas — untouched by the overlay.
+
+So the frame arena **aliases `basr_values`** and spans 244 MiB
+(`basr_values`+`basr_accounts`), reusing that execution-dead region. (`baap_*`
+are also block_state_root-only, but the contiguous `basr_values`+`basr_accounts`
+pair alone exceeds the 164 MiB need, so the overlay needs only those two.)
+
+This is a **union region**, not a linker overlay (GNU ld rejects overlapping
+sections): one physical region, used as `basr_values`+`basr_accounts` during
+`block_state_root` and as `call_frame_arena` during execution. Concretely, define
+the frame arena to *alias* the `basr_values` base (same base symbol / a
+`union`-style section) spanning the contiguous `basr_values`+`basr_accounts`
+244 MiB. The frame arena needs 164 MiB ≤ 244 MiB and is the existing footprint —
+**zero net RAM growth**.
 
 ```
+0xa0000000  RAM start (ziskemu window 0xa0000000..0xc0000000 = 512 MiB)
 0xa3000000  .data start
-            ├─ shared region: evm_code(removed; code via witness), shared_env,
-            │  blob/block hashes, event logs, helper scratch, lp64_stack(256K),
-            │  opcode_handlers, zk3_state, account-witness, AND the full
-            │  BlockVerdict verdict-spine data section.  Reserve 0x1000000 (16 MiB).
-0xa4000000  frame_array_base (16 MiB after .data start, 32-aligned)
-            ├─ 1025 × 0x29000 = 0xA429000 (164.2 MiB)
-0xae429000  frame_array_end
-            … 0xae429000 .. 0xbf500000 = 0x110d7000 (272 MiB) headroom …
-0xbf500000  .sszscratch
+            ├─ initialized data + verdict spine + shared_env
+            ├─ basr_records (12 MiB) — LIVE during exec (gas/bal verify); NOT overlaid
+            ├─ ┌──────────────────────────────────────────────────────┐
+            │  │ UNION REGION = basr_values+basr_accounts (244 MiB)     │
+            │  │  phase 1 (≤ BlockVerdict:302): BAL-replay encoded accts │
+            │  │  phase 2 (execution, :626+):   call_frame_arena (164MiB)│
+            │  └──────────────────────────────────────────────────────┘
+0xbdb2e067  .data end (unchanged)
+0xbf500000  .sszscratch (NOBITS)
+0xc0000000  RAM end
 ```
 
-164 MiB frames + 16 MiB shared = 180 MiB, well under the 474 MiB budget with
-**273 MiB headroom**. The array fits with comfortable margin even if
-`FRAME_STRIDE` or the shared reserve grows.
+**SOUNDNESS GATE — verified for `basr_values`/`basr_accounts` (2026-06-08).** A
+grep over every reference to these two symbols finds readers only inside
+`block_state_root` (`BlockVerdict.lean` ≤ 302) and the data declaration; **no
+post-replay reader** (verdict body, runtime-dispatch handlers, gas/arena helpers,
+`.6.4.3.x` contract-dispatch path). The gate **fails** for `basr_records` (read at
+`:528/577/620`), which is therefore excluded. Any future code that adds a
+post-`block_state_root` read of `basr_values`/`basr_accounts` **breaks this union
+and must be caught** — keep the gate grep in the implementation PR's checks.
 
-> Place `frame_array_base` via a dedicated `.balign 32` label at the very end of
-> the guest `.data` so the 16 MiB shared reserve is "whatever the shared data
-> actually consumes" rather than a hard 16 MiB — the 16 MiB is just the
-> conservative ceiling for the proof.
+> Consequence for `CallFrameLayout.lean`: `frameArrayBase` is **not** `0xa4000000`
+> — it is the base of the BAL-replay union region (inside the existing `.data`).
+> `frameArray_fits` should be restated against the union-region size, not a
+> phantom free gap. `FRAME_STRIDE`, the sub-offsets, and `frameSlotCount` are
+> unaffected.
 
 ---
 
 ## 6. Register conventions and frame transitions
 
-Per-frame registers recomputed as `frame_array_base + depth*FRAME_STRIDE + sub`:
+Per-frame registers: for `depth == 0` they keep today's values (`evm_memory`,
+`evm_stack_top`, `evm_env` — unchanged); for `depth ≥ 1` they are recomputed as
+`call_frame_arena + (depth-1)*FRAME_STRIDE + sub`:
 
 | Reg | Meaning | Per-frame? |
 |---|---|---|
 | x10 | PC (offset into code) | yes (saved to `frame_pc` on descent) |
 | x12 | operand stack ptr (grows ↓) | yes (= `frame[d]+frame_stack_top`) |
 | x13 | memBaseReg (EVM memory base) | yes (= `frame[d]+frame_mem`) |
-| x20 | per-frame env base | yes (= `frame[d]+frame_env`) |
+| x20 | per-frame env base (per-frame fields only) | yes (= `frame[d]+frame_env`) |
 | x21 | code base (→ witness.codes slice) | yes (saved to `frame_codebase`) |
-| x22 | **shared_env base** (new) | no (constant) |
+| x22 | **shared_env base** (block/tx-global env; proof-cheap, see §3 note) | no (constant) |
 | x2  | lp64 helper sp | no (shared; helpers run within one frame at a time) |
 | x?? | **depth counter** (proposal: a fixed `.data` cell `evm_call_depth`) | global |
 
