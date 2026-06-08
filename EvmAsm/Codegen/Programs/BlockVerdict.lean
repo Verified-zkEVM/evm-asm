@@ -971,6 +971,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   rlpFieldToU64Function ++ "\n" ++
   txTypeDispatchFunction ++ "\n" ++
   txEip4844DecodeFunction ++ "\n" ++
+  txEip4844ValidateBlobHashesFunction ++ "\n" ++
   sszTxListVersionedHashesMatchFunction ++ "\n" ++
   txExtractToAddressFunction ++ "\n" ++
   txExtractValueFunction ++ "\n" ++
