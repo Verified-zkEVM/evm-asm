@@ -41,10 +41,22 @@ Status: DESIGN (no code yet). Downstream consumers: `.61` skeleton,
 - This project **avoids misaligned load/store** — every per-frame sub-region is
   aligned, and `FRAME_STRIDE` is a multiple of 32.
 
-Design principle: **uniform-stride pre-allocated array, simple and correct
-first.** Frame `d` lives at `frame_array_base + d * FRAME_STRIDE`. A CALL
-descends by bumping a depth counter and recomputing the per-frame register
-bases by `base + depth*FRAME_STRIDE`. No copying of code (referenced via the
+Design principle: **don't touch depth-0; pre-allocate frames 1..1024.**
+`frame[0]` IS the existing single-frame dispatcher state (`evm_memory` / the
+operand stack / `evm_env`), left **completely unchanged** — depth-0 is the only
+currently-executed path and the verdict-critical one, so it must stay
+byte-identical. Frames **1..1024** (the nested children) live in the overlay
+arena: `frame[d] = call_frame_arena + (d-1) * FRAME_STRIDE` for `d ≥ 1`
+(1024 slots × `FRAME_STRIDE` = 164 MiB ≤ the 244 MiB union). A CALL descends by
+bumping a depth counter and, for `d ≥ 1`, computing the child register bases
+from `call_frame_arena + (d-1)*FRAME_STRIDE`; the parent of a depth-1 child is
+`frame[0]` (the existing `evm_memory`/env). This **avoids rebasing the
+verdict-critical dispatcher onto the union** (and its `frame[0]` zero-init and
+cross-build-unit aliasing hazards): `frame[0]` keeps its pre-zeroed `.data`
+buffers, and only child frames (depth ≥ 1) draw from the replay-dirtied union, so
+the CALL handler zero-inits child memory on descent (inherent to EVM
+fresh-zero-per-frame semantics) — no special transition memset of `frame[0]`.
+No copying of code (referenced via the
 witness) and no copying of calldata (aliased into the parent's memory).
 
 ---
@@ -144,7 +156,8 @@ sha256 scratch, and the whole BlockVerdict verdict-spine data.
 Each depth slot is a contiguous, 32-aligned block:
 
 ```
-frame[d] (at frame_array_base + d*FRAME_STRIDE):
+frame[d] for d>=1 (at call_frame_arena + (d-1)*FRAME_STRIDE); frame[0] = the
+existing dispatcher evm_memory/stack/env (see §1, NOT in this arena):
   +0x00000  frame_mem:        .zero 0x10000   (64 KiB EVM memory)          x13
   +0x10000  frame_stack_glo:  .zero 512        (guard)
   +0x10200  frame_stack_low:  .zero 0x8000    (32 KiB operand stack)
@@ -265,7 +278,9 @@ and must be caught** — keep the gate grep in the implementation PR's checks.
 
 ## 6. Register conventions and frame transitions
 
-Per-frame registers recomputed as `frame_array_base + depth*FRAME_STRIDE + sub`:
+Per-frame registers: for `depth == 0` they keep today's values (`evm_memory`,
+`evm_stack_top`, `evm_env` — unchanged); for `depth ≥ 1` they are recomputed as
+`call_frame_arena + (depth-1)*FRAME_STRIDE + sub`:
 
 | Reg | Meaning | Per-frame? |
 |---|---|---|
