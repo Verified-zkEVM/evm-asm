@@ -94,6 +94,42 @@ def callFrameSetCallEnvFunction : String :=
   "  sd zero, 96(a0); sd zero, 104(a0); sd zero, 112(a0); sd zero, 120(a0)\n" ++
   "  ret"
 
+/-- `call_frame_set_calldata(a0 = child env base, a1 = parent mem base,
+    a2 = argsOff, a3 = argsLen)`: alias the child's calldata view into the
+    parent frame's memory — `callDataPtr@416 = parent_mem + argsOff`,
+    `callDataLen@424 = argsLen`. No copy: the parent frame slot persists
+    (strictly shallower index) while the child runs, so CALLDATALOAD/COPY read
+    directly from it. Clobbers t0. -/
+def callFrameSetCalldataFunction : String :=
+  "call_frame_set_calldata:\n" ++
+  "  add t0, a1, a2\n" ++
+  "  sd t0, 416(a0)\n" ++
+  "  sd a3, 424(a0)\n" ++
+  "  ret"
+
+/-- `call_frame_forward_gas(a0 = gas_left, a1 = requested, a2 = value_nonzero)`:
+    EIP-150 message-call gas forwarding (`vm/gas.py:419,424,64,415`). Returns
+    `a0 = min(requested, gas_left - gas_left/64) + (value_nonzero ? 2300 : 0)`.
+    `gas_left` is the caller's gas AFTER the memory-expansion + access cost is
+    charged; the all-but-1/64 cap leaves the caller 1/64; the `CALL_STIPEND`
+    (2300) is added to the callee for value-bearing CALL/CALLCODE and is NOT
+    charged to the caller (a gift). Clobbers t0/t1. -/
+def callFrameForwardGasFunction : String :=
+  "call_frame_forward_gas:\n" ++
+  "  srli t0, a0, 6\n" ++                 -- gas_left / 64
+  "  sub t1, a0, t0\n" ++                 -- max_message_call_gas = gas_left - gas_left/64
+  "  bltu a1, t1, .Lcffg_min\n" ++        -- requested < max -> use requested
+  "  j .Lcffg_stipend\n" ++               -- else keep max in t1
+  ".Lcffg_min:\n" ++
+  "  mv t1, a1\n" ++
+  ".Lcffg_stipend:\n" ++
+  "  beqz a2, .Lcffg_done\n" ++
+  "  li t0, 2300\n" ++                    -- CALL_STIPEND (> addi imm range)
+  "  add t1, t1, t0\n" ++
+  ".Lcffg_done:\n" ++
+  "  mv a0, t1\n" ++
+  "  ret"
+
 /-- `zisk_call_descend`: unit-probe for `call_frame_enter` over a local
     `call_frame_arena` stub. Pushes depth 0->1, pre-dirties the child slot,
     enters the frame, and checks the rebased register bases + the memory
@@ -138,11 +174,23 @@ def ziskCallDescendPrologue : String :=
   "  la a1, cfd_parent_env; la a2, cfd_to_word; la a3, cfd_value_word; li a4, 1\n" ++  -- STATICCALL
   "  jal ra, call_frame_set_call_env\n" ++
   "  ld t0, 96(a0); sd t0, 88(s0)\n" ++      -- child CALLVALUE limb0 (expect 0 = static)
+  -- Calldata alias test: child callDataPtr@416 = parent_mem + argsOff, len@424.
+  "  la a0, call_frame_arena; li t0, 0x28400; add a0, a0, t0\n" ++
+  "  la a1, call_frame_arena; li a2, 0x40; li a3, 0x20\n" ++
+  "  jal ra, call_frame_set_calldata\n" ++
+  "  ld t0, 416(a0); la t1, call_frame_arena; sub t0, t0, t1; sd t0, 96(s0)\n" ++  -- expect 0x40
+  "  ld t0, 424(a0); sd t0, 104(s0)\n" ++                                          -- expect 0x20
+  -- Gas forward test (EIP-150 63/64 + stipend).
+  "  li a0, 6400; li a1, 100000; li a2, 0; jal ra, call_frame_forward_gas; sd a0, 112(s0)\n" ++  -- 6300
+  "  li a0, 6400; li a1, 1000; li a2, 1; jal ra, call_frame_forward_gas; sd a0, 120(s0)\n" ++    -- 3300
+  "  li a0, 64; li a1, 100; li a2, 0; jal ra, call_frame_forward_gas; sd a0, 128(s0)\n" ++       -- 63
   "  j .Lcd_done\n" ++
   frameBaseFunction ++ "\n" ++
   frameDepthPushFunction ++ "\n" ++
   callFrameEnterFunction ++ "\n" ++
   callFrameSetCallEnvFunction ++ "\n" ++
+  callFrameSetCalldataFunction ++ "\n" ++
+  callFrameForwardGasFunction ++ "\n" ++
   ".Lcd_done:"
 
 /-- Local stubs so the probe links standalone (the real `call_frame_arena`
