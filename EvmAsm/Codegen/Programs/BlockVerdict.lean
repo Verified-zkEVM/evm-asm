@@ -72,7 +72,7 @@ def blockStateRootFunction : String :=
   "  la t0, bsr_wit_p;  sd a1, 0(t0)\n" ++
   "  la t0, bsr_wl_v;   sd a2, 0(t0)\n" ++
   "  la t0, bsr_ssz_p;  sd a6, 0(t0)\n" ++
-  "  la t0, bsr_fail_code; sd zero, 0(t0); li t1, 262144; bgtu a2, t1, .Lbsr_cons_change_cap\n" ++
+  "  la t0, bsr_fail_code; sd zero, 0(t0); li t1, " ++ toString bsrMaxWitnessBytes ++ "; bgtu a2, t1, .Lbsr_cons_change_cap\n" ++
   "  mv s3, a3                   # wds descriptors\n" ++
   "  mv s4, a4                   # n_wds\n" ++
   "  mv s5, a5                   # out_root\n" ++

@@ -27,6 +27,15 @@ def bsrMaxAccessAccounts : Nat := runtimeAccessAccountOutcomeCapacity
 def bsrMaxAccountAccessOutcomes : Nat := runtimeAccessAccountOutcomeCapacity
 def bsrMaxStorageAccessOutcomes : Nat := storageAccessOutcomeMaxRecords
 
+/-- Conservative upper bound on `witness.state` byte length accepted by
+    `block_state_root`. Beyond this the post-state recompute bails conservatively
+    (bsr_fail=111). This is a coarse size guard, NOT a fixed-buffer limit: the
+    witness is read in place and the real structural bound is the sorted witness
+    index node cap (8192, `MptWitnessIndex`). The earlier 262144 value
+    false-rejected legitimately large state-creation blocks (EIP-8037 state-gas
+    reservoir fixtures push >256 KiB witnesses, e.g. evm-asm-zbvak's 336 KB row);
+    512 KiB keeps a guard while accepting those blocks. -/
+def bsrMaxWitnessBytes : Nat := 524288
 def bsrAccountRecordBytes : Nat := 24
 def bsrPathBytes : Nat := 64
 def bsrEncodedAccountBytes : Nat := 256
