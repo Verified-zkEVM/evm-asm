@@ -22,7 +22,7 @@ def knownProgramNamesTail : List String :=
    "zisk_bal_account_descriptor_array",
    "zisk_bal_account_final_descriptor_array",
    "zisk_bal_account_state_root", "zisk_bal_account_state_root_auto",
-   "zisk_bal_account_record_array", "zisk_bal_account_access_outcome_descriptors", "zisk_bal_storage_access_outcome_descriptors", "zisk_tx_gas_sender_bal_lookup", "zisk_tx_gas_bal_post_verify", "zisk_block_verdict_gas_result_arena", "zisk_simple_transfer_tx_context", "zisk_multi_tx_nth_context", "zisk_stage_runtime_payload_code", "zisk_stage_runtime_payload_code_storage", "zisk_stage_runtime_payload_code_calldata", "zisk_bal_recipient_storage_keys", "zisk_stage_runtime_payload", "zisk_simple_transfer_recipient_bal_verify", "zisk_simple_transfer_fee_recipient_bal_verify",
+   "zisk_bal_account_record_array", "zisk_bal_account_access_outcome_descriptors", "zisk_bal_storage_access_outcome_descriptors", "zisk_tx_gas_sender_bal_lookup", "zisk_tx_gas_bal_post_verify", "zisk_block_verdict_gas_result_arena", "zisk_simple_transfer_tx_context", "zisk_multi_tx_nth_context", "zisk_stage_runtime_payload_code", "zisk_bal_find_account_by_address", "zisk_stage_runtime_payload_code_storage", "zisk_stage_runtime_payload_code_calldata", "zisk_bal_recipient_storage_keys", "zisk_stage_runtime_payload", "zisk_simple_transfer_recipient_bal_verify", "zisk_simple_transfer_fee_recipient_bal_verify",
    "zisk_storage_root_single_slot",
    "zisk_account_set_storage_root",
    "zisk_block_access_list_hash",
