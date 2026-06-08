@@ -376,7 +376,9 @@ def headerValidateExcessBlobGasFunction : String :=
   "  bnez a0, .Lhvebg_overflow\n" ++
   "  la a0, hvebg_threshold\n" ++
   "  mv a1, s3\n" ++
-  "  jal ra, u256_lt_be          # threshold < parent_base_fee?\n" ++
+  "  addi a2, sp, 56             # u256_lt_be writes its result to *a2, not a0\n" ++
+  "  jal ra, u256_lt_be          # *(sp+56) = (16*price < parent_base_fee)\n" ++
+  "  ld a0, 56(sp)\n" ++
   "  beqz a0, .Lhvebg_normal\n" ++
   "  li t0, 3\n" ++
   "  divu t1, s1, t0             # used * 7 // 21 == used // 3\n" ++
