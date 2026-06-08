@@ -608,20 +608,34 @@ def blockVerdictFunction : String :=
   "  jal ra, simple_transfer_fee_recipient_bal_verify\n" ++
   "  la t2, bv_simple_transfer_fee_recipient; ld t0, 0(t2); bnez t0, .Lbv_simple_transfer_fee_recipient_fail\n" ++
   ".Lbv_st_skip_fee_overlap:\n" ++
-  -- GATE (regression evm-asm-bmvmx.1.2.4.5): for the supported EOA simple
-  -- transfer this path previously staged a STOP payload and ran it through the
-  -- callable runtime dispatcher to expose a gas result to
-  -- block_verdict_gas_result_arena_prepare. That dispatcher call
-  -- deterministically faults (near-null LBU, Mem::read addr 0xc) for the only
-  -- recipient class that reaches this path -- the non-precompile empty-code EOA
-  -- recipients (block coinbase, system address); precompile recipients
-  -- short-circuit at the precompile-range guard above and never get here.
-  -- Until the dispatcher handles this class, skip the runtime-dispatcher gas
-  -- capture entirely and fall through to .Lbv_after_tx_gas_precharge with
-  -- bvgr_runtime_count left at 0 (the existing unsupported-shape path), so these
-  -- rows fall back to the BAL-replay verdict that reaches full EEST match. The
-  -- stage_runtime_payload / runtime_dispatcher_call helpers stay defined for the
-  -- follow-up that re-enables this with proper shared-state isolation.
+  -- bmvmx.1.2.4.6/.1 + bmvmx.1.3: run the staged STOP body through the callable
+  -- runtime dispatcher and expose its gas result to
+  -- block_verdict_gas_result_arena_prepare. The dispatcher-correctness fixes
+  -- L1 (input-ptr +8, codeSize@x10-8), L2 (callable epilogue skips OUTPUT/state
+  -- finalization) and L3 (caller-sp save/restore) make this re-enable fault-free.
+  -- Unsupported shapes branch to .Lbv_after_tx_gas_precharge with
+  -- bvgr_runtime_count left at 0.
+  "  la a0, bv_simple_transfer_tx\n" ++
+  "  la a1, bv_runtime_payload\n" ++
+  "  la t2, bv_exec_p; ld a2, 0(t2)\n" ++
+  "  jal ra, stage_runtime_payload\n" ++
+  "  bnez a0, .Lbv_after_tx_gas_precharge\n" ++
+  "  la t4, runtime_dispatcher_input_ptr; la t5, bv_runtime_payload; addi t5, t5, 8; sd t5, 0(t4)\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd s0, 0(sp); sd s1, 8(sp); sd s2, 16(sp); sd s3, 24(sp)\n" ++
+  "  jal ra, runtime_dispatcher_call\n" ++
+  "  ld s0, 0(sp); ld s1, 8(sp); ld s2, 16(sp); ld s3, 24(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  la t4, runtime_dispatcher_input_ptr; sd zero, 0(t4)\n" ++
+  "  la t2, evm_env; ld t3, 568(t2)\n" ++
+  "  la t4, bv_runtime_gas_left; sd t3, 0(t4)\n" ++
+  "  la t4, runtime_tx_calldata_floor; ld t5, 0(t4)\n" ++
+  "  la t4, bv_runtime_calldata_floor; sd t5, 0(t4)\n" ++
+  "  la t4, bv_runtime_refund_counter; sd zero, 0(t4)\n" ++
+  "  la t4, bvgr_runtime_gas_left_ptr; la t5, bv_runtime_gas_left; sd t5, 0(t4)\n" ++
+  "  la t4, bvgr_runtime_refund_counter_ptr; la t5, bv_runtime_refund_counter; sd t5, 0(t4)\n" ++
+  "  la t4, bvgr_runtime_calldata_floor_ptr; la t5, bv_runtime_calldata_floor; sd t5, 0(t4)\n" ++
+  "  li t5, 1; la t4, bvgr_runtime_count; sd t5, 0(t4)\n" ++
   ".Lbv_after_tx_gas_precharge:\n" ++
   "  # EIP-8037 tx inclusion gas gate: reject parse-supported legacy tx blocks\n" ++
   "  # whose worst regular/state gas exceeds the remaining 2D block budget.\n" ++
@@ -971,6 +985,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   rlpFieldToU64Function ++ "\n" ++
   txTypeDispatchFunction ++ "\n" ++
   txEip4844DecodeFunction ++ "\n" ++
+  txEip4844ValidateBlobHashesFunction ++ "\n" ++
   sszTxListVersionedHashesMatchFunction ++ "\n" ++
   txExtractToAddressFunction ++ "\n" ++
   txExtractValueFunction ++ "\n" ++
