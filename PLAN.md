@@ -1445,6 +1445,16 @@ through ECALL bridges (extending `EvmAsm/EL/Keccak*EcallBridge.lean`).
     `block_verdict` lands as execution emits the per-account effect records + the per-tx
     `block_access_index` (multi-tx loop, `fhsxz.2.4.2.57.11.6.3`) + CREATE/SELFDESTRUCT code
     effects; the storage tuple check can wire immediately on the existing exec-log + txindex.
+  - **Wired (2026-06-09)**: CREATE/CREATE2 activated in the self-contained gate (#8649,
+    `.61.8.3.3`) so created accounts execute through the real init-code dispatch descent and
+    emit code + non-storage effect records (CALL-value producer `i3djw.1` #8559-active, CREATE
+    producer `i3djw.2` #8643). Non-storage all-accounts forward `bal_all_accounts_nonstorage_consistent`
+    (#8646) + reverse `…_covers` (#8652) wired + merged + operator-EEST-sweep-confirmed (`i3djw.3`
+    closed). Forward all-accounts CODE `bal_all_accounts_code_consistent` wired with an **EIP-7702
+    skip** — a BAL `code_change` that is exactly a 23-byte `0xef0100||address` delegation indicator
+    (installed from the authorization list, no CREATE deposit → no exec code-effect) is skipped
+    instead of false-rejected (`i3djw.4`, draft #8653, REQUIRES EEST SWEEP). Reverse code `…_code_covers`
+    already merged (#8626).
 
 - 🔶 **Contract-recipient gas-measurement accuracy (beads `nxio8`, `tpdo1`; 2026-06)**: the runtime
   dispatcher meters CONTRACT execution with STATIC base opcode gas only (`Dispatch.lean:338-345`),

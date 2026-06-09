@@ -62,23 +62,15 @@ def bytecodeIsSelfContainedFunction : String :=
   ".Lbsc_check:\n" ++
   -- Reject the un-staged-state opcodes.
   "  li t3, 0x31; beq t2, t3, .Lbsc_unsafe\n" ++   -- BALANCE
-  -- 3vc2p.4: ORIGIN(0x32)/CALLER(0x33)/GASPRICE(0x3a) are NO LONGER rejected — their env
-  -- context is now staged for contract recipients (CALLER/ORIGIN = tx.sender via 3vc2p.1
-  -- #8640; GASPRICE = effective_gas_price via 3vc2p.2 #8642), so they execute correctly
-  -- through dispatch_tx_runtime_code. BLOCKHASH(0x40) stays rejected (its table staging,
-  -- 3vc2p.3, is not done yet — flipping it would read a zero table).
-  "  li t3, 0x3b; beq t2, t3, .Lbsc_unsafe\n" ++   -- EXTCODESIZE
-  "  li t3, 0x3c; beq t2, t3, .Lbsc_unsafe\n" ++   -- EXTCODECOPY
-  "  li t3, 0x3f; beq t2, t3, .Lbsc_unsafe\n" ++   -- EXTCODEHASH
+  -- 3vc2p.4: ORIGIN(0x32)/CALLER(0x33)/GASPRICE(0x3a) are NO LONGER rejected (#8648).
+  -- yisv8.2 (part 2): EXTCODESIZE(0x3b)/EXTCODECOPY(0x3c)/EXTCODEHASH(0x3f) are NO LONGER
+  -- rejected — their handlers read account code from the staged state+codes witness.
+  -- BLOCKHASH(0x40) stays rejected (table staging 3vc2p.3 not done yet).
   "  li t3, 0x40; beq t2, t3, .Lbsc_unsafe\n" ++   -- BLOCKHASH
-  "  li t3, 0x47; beq t2, t3, .Lbsc_unsafe\n" ++   -- SELFBALANCE
-  -- .8c-3: CREATE(0xf0)/CREATE2(0xf5) are NO LONGER rejected — the full init-code descent
-  -- (create_frame_descend, .61.8.3.5 #8632/#8634/#8636) executes them through the real
-  -- dispatch loop; the deposit records the deployed code (exec_code_effect_log #8623) +
-  -- the created account's non-storage effect (nonce=1/balance=endowment, i3djw.2 #8643);
-  -- the verdict validates them via bal_all_accounts_code_covers (#8626) + the all-accounts
-  -- non-storage forward comparator (i3djw.3, this stack). SELFDESTRUCT(0xff) stays rejected
-  -- (beneficiary state un-staged); BLOCKHASH(0x40)/SELFBALANCE(0x47) flips are separate.
+  -- yisv8.2: SELFBALANCE(0x47) NO LONGER rejected (#8650); CREATE/CREATE2 NO LONGER rejected
+  -- (#8649); EXTCODE*(0x3b/0x3c/0x3f) NO LONGER rejected (this PR, yisv8.2 part 2).
+  -- BALANCE(0x31) stays rejected (volatile balance, cross-account witness M31 needed);
+  -- BLOCKHASH(0x40) pending its table (3vc2p.3); SELFDESTRUCT(0xff) stays rejected.
   "  li t3, 0xff; beq t2, t3, .Lbsc_unsafe\n" ++   -- SELFDESTRUCT (beneficiary cold/warm + account-creation gas is un-staged)
   "  addi t0, t0, 1; j .Lbsc_loop\n" ++
   ".Lbsc_safe:\n" ++
