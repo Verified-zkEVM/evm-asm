@@ -118,14 +118,19 @@ def ziskBalAllAccountsCodeCoversPrologue : String :=
   rlpListCountItemsFunction ++ "\n" ++
   ".Lbacov_pdone:"
 
-def ziskBalAllAccountsCodeCoversDataSection : String :=
-  ".section .data\n" ++
+/-- Scratch cells for `bal_all_accounts_code_covers` (reusable: linked into the probe
+    AND the block_verdict data section when the comparator is wired into the verdict). -/
+def balAllAccountsCodeCoversData : String :=
   ".balign 8\n" ++
   "bacov_acct_count:\n  .zero 8\n" ++
   "bacov_acct_off:\n  .zero 8\n" ++
   "bacov_acct_len:\n  .zero 8\n" ++
   "bacov_addr_off:\n  .zero 8\n" ++
   "bacov_addr_len:\n  .zero 8\n"
+
+def ziskBalAllAccountsCodeCoversDataSection : String :=
+  ".section .data\n" ++
+  balAllAccountsCodeCoversData
 
 def ziskBalAllAccountsCodeCoversProbeUnit : BuildUnit := {
   body        := NOP

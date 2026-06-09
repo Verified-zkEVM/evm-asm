@@ -15,6 +15,7 @@ import EvmAsm.Codegen.Programs.Eip7702NonceReuseGuard
 import EvmAsm.Codegen.Programs.BalStorageMatchesExecLog
 import EvmAsm.Codegen.Programs.BalStorageCoversExecLog
 import EvmAsm.Codegen.Programs.BalAllAccountsStorage
+import EvmAsm.Codegen.Programs.BalAllAccountsCodeCovers
 import EvmAsm.Codegen.Programs.AccountTupleSequencesConsistent
 import EvmAsm.Codegen.Programs.BalSlotTupleSequence
 import EvmAsm.Codegen.Programs.ExecLogSlotTuples
@@ -220,6 +221,8 @@ def ziskStatelessVerdictV2DataSection : String :=
   balStorageCoversExecLogData ++
   -- bmvmx.1.6.4.3 all-accounts storage check scratch (bal_all_accounts_storage_consistent, c2bal_*).
   balAllAccountsStorageConsistentData ++
+  -- i3djw all-accounts CODE reverse scratch (bal_all_accounts_code_covers, bacov_*).
+  balAllAccountsCodeCoversData ++
   -- bmvmx.1.6.7 storage_reads exec-consistency scratch.
   balStorageReadsInExecLogData ++
   -- bmvmx.1.6.3 recipient nonce/code-change emptiness probe (rlp_list_nth_item out cells).
