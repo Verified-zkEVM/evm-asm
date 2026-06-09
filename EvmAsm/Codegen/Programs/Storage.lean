@@ -12,10 +12,10 @@
     0xa0830000  transient  storage log (TLOAD / TSTORE)
 
   Each entry is 128 bytes, 8-byte aligned:
-    +0..32   addrHash   (persistent SLOAD/SSTORE: the executing frame's
-                          env.ADDRESS (env+0) — per-contract keying so a nested
-                          callee's slots are isolated from the caller's. Transient
-                          TLOAD/TSTORE still key on 0, a follow-up.)
+    +0..32   addrHash   (the executing frame's env.ADDRESS (env+0) — per-contract
+                          keying so a nested callee's slots are isolated from the
+                          caller's. Both the persistent (SLOAD/SSTORE) and the
+                          transient (TLOAD/TSTORE) logs key on it.)
     +32..64  slotKey    (EVM-stack byte order: 4 LE u64 limbs, low first)
     +64..96  original   (slot's pre-tx value; 0 for cold non-preloaded)
     +96..128 current    (most recent committed value during this tx)
@@ -51,8 +51,8 @@
 
   ## Known limitations (documented in CODEGEN.md M24)
 
-  - Persistent SLOAD/SSTORE now key on the frame's env.ADDRESS (multi-contract
-    isolated); transient TLOAD/TSTORE are still single-keyed (a follow-up).
+  - Persistent SLOAD/SSTORE and transient TLOAD/TSTORE key on the frame's
+    env.ADDRESS (multi-contract isolated).
   - Cold reads of non-preloaded slots return `original = 0`; real
     EVM reads from the witness MPT (M27).
   - 4 MiB per log = ~32K entries each — well past any test workload.
@@ -388,6 +388,19 @@ def storageHandlers : List OpcodeHandlerSpec :=
         "  add x14, x14, x16\n" ++
         "1:\n" ++
         "  addi x14, x14, -128\n" ++
+        -- Per-frame addrHash compare (see SLOAD): isolate this contract's slots.
+        "  ld x16, 0(x14)\n" ++
+        "  ld x17, 0(x20)\n" ++
+        "  bne x16, x17, 3f\n" ++
+        "  ld x16, 8(x14)\n" ++
+        "  ld x17, 8(x20)\n" ++
+        "  bne x16, x17, 3f\n" ++
+        "  ld x16, 16(x14)\n" ++
+        "  ld x17, 16(x20)\n" ++
+        "  bne x16, x17, 3f\n" ++
+        "  ld x16, 24(x14)\n" ++
+        "  ld x17, 24(x20)\n" ++
+        "  bne x16, x17, 3f\n" ++
         "  ld x16, 32(x14)\n" ++
         "  ld x17, 0(x12)\n" ++
         "  bne x16, x17, 3f\n" ++
@@ -432,11 +445,11 @@ def storageHandlers : List OpcodeHandlerSpec :=
         "  li x14, 0xa0830000\n" ++
         "  slli x16, x15, 7\n" ++
         "  add x14, x14, x16\n" ++        -- x14 = append target
-        -- addrHash = 0
-        "  sd x0, 0(x14)\n" ++
-        "  sd x0, 8(x14)\n" ++
-        "  sd x0, 16(x14)\n" ++
-        "  sd x0, 24(x14)\n" ++
+        -- addrHash = current frame env.ADDRESS [x20+0..x20+32] (per-frame keying).
+        "  ld x16, 0(x20)\n  sd x16, 0(x14)\n" ++
+        "  ld x16, 8(x20)\n  sd x16, 8(x14)\n" ++
+        "  ld x16, 16(x20)\n  sd x16, 16(x14)\n" ++
+        "  ld x16, 24(x20)\n  sd x16, 24(x14)\n" ++
         -- slotKey from stack
         "  ld x16, 0(x12)\n" ++
         "  sd x16, 32(x14)\n" ++
