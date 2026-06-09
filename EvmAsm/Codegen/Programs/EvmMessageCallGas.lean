@@ -121,4 +121,61 @@ def ziskMessageCallGasProbeUnit : BuildUnit := {
   dataAsm     := ".section .data\n.balign 8\n"
 }
 
+/-! ## call_extra_gas -- the CALL/CALLCODE access + value-transfer extra gas
+
+    Amsterdam `vm/instructions/system.py:444` charges
+    `extra_gas = access_gas_cost + transfer_gas_cost` via `charge_gas` BEFORE
+    `calculate_message_call_gas` (which it then calls with `extra_gas = 0`). The
+    `message_call_gas` helper above takes `extra_gas` as an input but nothing
+    computes it; this helper does, for the access + value-transfer components:
+
+      access   = is_cold       ? COLD_ACCOUNT_ACCESS (2600) : WARM_ACCESS (100)
+      transfer = value_nonzero ? CALL_VALUE (9000)          : 0
+      extra_gas = access + transfer
+
+    Correct for all four message-call kinds: DELEGATECALL/STATICCALL carry no
+    value (pass `value_nonzero = 0`, so `transfer = 0` — access only); CALL and
+    CALLCODE are value-bearing. This EXCLUDES the new-account charge — Amsterdam
+    routes that through `charge_state_gas` / the EIP-8037 state-gas reservoir (a
+    separate mechanism) — and EIP-7702 delegation access.
+
+    Calling convention:  a0 = is_cold, a1 = value_nonzero  ->  a0 = extra_gas.
+    Clobbers t0/t1. -/
+def callExtraGasFunction : String :=
+  "call_extra_gas:\n" ++
+  "  li t0, 100\n" ++               -- WARM_ACCESS
+  "  beqz a0, .Lceg_warm\n" ++      -- is_cold == 0 -> warm
+  "  li t0, 2600\n" ++              -- COLD_ACCOUNT_ACCESS
+  ".Lceg_warm:\n" ++
+  "  beqz a1, .Lceg_done\n" ++      -- value_nonzero == 0 -> no transfer
+  "  li t1, 9000\n" ++              -- CALL_VALUE
+  "  add t0, t0, t1\n" ++
+  ".Lceg_done:\n" ++
+  "  mv a0, t0\n" ++
+  "  ret"
+
+/-- `zisk_call_extra_gas`: focused probe covering the four (is_cold,
+    value_nonzero) cases.
+    Output:
+      +0  warm, no value   (expect 100)
+      +8  cold, no value   (expect 2600)
+      +16 warm, value      (expect 9100)
+      +24 cold, value      (expect 11600) -/
+def ziskCallExtraGasPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li s0, 0xa0010000\n" ++
+  "  li a0, 0; li a1, 0; jal ra, call_extra_gas; sd a0, 0(s0)\n" ++
+  "  li a0, 1; li a1, 0; jal ra, call_extra_gas; sd a0, 8(s0)\n" ++
+  "  li a0, 0; li a1, 1; jal ra, call_extra_gas; sd a0, 16(s0)\n" ++
+  "  li a0, 1; li a1, 1; jal ra, call_extra_gas; sd a0, 24(s0)\n" ++
+  "  j .Lceg_probe_done\n" ++
+  callExtraGasFunction ++ "\n" ++
+  ".Lceg_probe_done:"
+
+def ziskCallExtraGasProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskCallExtraGasPrologue
+  dataAsm     := ".section .data\n.balign 8\n"
+}
+
 end EvmAsm.Codegen

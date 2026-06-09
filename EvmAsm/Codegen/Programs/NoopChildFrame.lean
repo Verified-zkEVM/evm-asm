@@ -86,18 +86,9 @@ open EvmAsm.Rv64
     - No frame stack / recursion. The dispatcher doesn't push a
       sub-frame, run called code, and resume. Real frame-stack
       design is deferred (likely tied to STF integration). -/
-def childFrameHandlers (callFallThrough staticFallThrough : String) : List OpcodeHandlerSpec :=
-  let mkHandler (lbl : String) (op : Nat) (netPopBytes : Nat) : OpcodeHandlerSpec :=
-    { label := lbl
-    , opcodes := [op]
-    , preBody := stackUnderflowGuardAsm (netPopBytes / evmStackWordBytes + 1) ++
-               "\n  la x15, evm_precompile_frame\n  sd x0, 8(x15)"
-    , body := ADDI .x12 .x12 (BitVec.ofNat 12 netPopBytes) ;;
-              SD .x12 .x0 0 ;;
-              SD .x12 .x0 8 ;;
-              SD .x12 .x0 16 ;;
-              SD .x12 .x0 24
-    , tail := .advanceAndRet 1 }
+def childFrameHandlers
+    (callFallThrough callcodeFallThrough delegateFallThrough staticFallThrough : String) :
+    List OpcodeHandlerSpec :=
   let createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     -- Decode CREATE-family operands, derive the would-be target address using
     -- the shared CREATE/CREATE2 address helpers, and enforce the currently
@@ -337,7 +328,7 @@ def childFrameHandlers (callFallThrough staticFallThrough : String) : List Opcod
     "  mv x10, s10\n" ++
     "  mv x12, s11\n" ++
     callMemoryExpansionGasAsm
-      ("precompile_" ++ toString netPopBytes)
+      ("precompile_" ++ tag)
       inOffsetOff inSizeOff outOffsetOff outSizeOff ++
     "  ld x14, 32(x12)\n" ++
     "  ld x15, 40(x12)\n" ++
@@ -351,7 +342,7 @@ def childFrameHandlers (callFallThrough staticFallThrough : String) : List Opcod
     "  li x15, 4\n" ++
     "  bgeu x15, x14, 11f\n" ++
     "  li x15, 5\n" ++
-    "  beq x14, x15, .Lmodexp_zero_header_" ++ toString netPopBytes ++ "\n" ++
+    "  beq x14, x15, .Lmodexp_zero_header_" ++ tag ++ "\n" ++
     "  li x15, 0x06\n" ++
     "  beq x14, x15, .L" ++ tag ++ "_bn254_add\n" ++
     "  li x15, 0x07\n" ++
@@ -491,9 +482,9 @@ def childFrameHandlers (callFallThrough staticFallThrough : String) : List Opcod
     -- and otherwise charges the EIP-2565/Osaka gas formula. Small nonzero
     -- components use a bounded software path; larger inputs still wait for
     -- the full zkvm_modexp output slice.
-    ".Lmodexp_zero_header_" ++ toString netPopBytes ++ ":\n" ++
+    ".Lmodexp_zero_header_" ++ tag ++ ":\n" ++
     modexpPrecompileGasAsm
-      chargePrecompileGasAsm (toString netPopBytes)
+      chargePrecompileGasAsm tag
       inOffsetOff inSizeOff outOffsetOff outSizeOff ++
     -- BN254 G1 ADD: fixed 150 gas, two 64-byte zero-padded G1 inputs.
     -- The current runtime wrapper deterministic-fails until the host backend
@@ -1158,10 +1149,16 @@ def childFrameHandlers (callFallThrough staticFallThrough : String) : List Opcod
     , preBody := stackUnderflowGuardAsm 7 ++ "\n"
     , body := []
     , tail := .custom (basicPrecompileCallTail "call_target" 192 96 128 160 192 callFallThrough) }
-  , { mkHandler "h_CALLCODE" 0xf2 192 with
-      preBody := stackUnderflowGuardAsm 7 ++ "\n" }
-  , { mkHandler "h_DELEGATECALL" 0xf4 160 with
-      preBody := stackUnderflowGuardAsm 6 ++ "\n" }
+  , { label := "h_CALLCODE"
+    , opcodes := [0xf2]
+    , preBody := stackUnderflowGuardAsm 7 ++ "\n"
+    , body := []
+    , tail := .custom (basicPrecompileCallTail "callcode_target" 192 96 128 160 192 callcodeFallThrough) }
+  , { label := "h_DELEGATECALL"
+    , opcodes := [0xf4]
+    , preBody := stackUnderflowGuardAsm 6 ++ "\n"
+    , body := []
+    , tail := .custom (basicPrecompileCallTail "delegatecall_target" 160 64 96 128 160 delegateFallThrough) }
   , { label := "h_CREATE2"
     , opcodes := [0xf5]
     , preBody := stackUnderflowGuardAsm 4 ++ "\n"
@@ -1201,10 +1198,10 @@ def callPushZeroFallThrough (netPopBytes : Nat) : String :=
     args, x13=parent memory, x20=parent env, x21=parent code base), this:
       1. clears the precompile frame;
       2. depth gate: `evm_call_depth >= 1024` → push 0 (fail);
-      2b. balance gate (value-bearing CALL only): if the caller (frame ADDRESS,
+      2b. balance gate (value-bearing CALL/CALLCODE): if the caller (frame ADDRESS,
          env+0) balance < transfer value → push 0 (fail, no descent), per EVM
-         `generic_call`. Skipped for STATICCALL (no value), value==0, or when no
-         account-witness context is attached (env+584 == 0);
+         `generic_call`. Skipped for STATICCALL/DELEGATECALL (no value), value==0,
+         or when no account-witness context is attached (env+584 == 0);
       3. resolves the callee bytecode via `code_at_header_state_root` (witness ctx
          from env+576..616). It preserves x20/x21 but clobbers the a-regs (x10/x12/
          x13), so those are saved across the call. status 2 (EMPTY_CODE / EOA) →
@@ -1212,14 +1209,22 @@ def callPushZeroFallThrough (netPopBytes : Nat) : String :=
       4. status 0: fill `cd_desc` and `jal call_frame_descend` (frame switch), then
          `j .dispatch_loop` to run the child at its frame.
     Used only by `callFrameGuestRegistry`. `tag` makes the local labels unique per
-    call type. `valueOff` is the stack offset of the call value (unused/0 for
-    STATICCALL, which is `isStatic`). Gas: `call_frame_descend` forwards the
-    EIP-150 63/64 + stipend to the child; the caller-side value/new-account/parent
-    charge is a follow-up (the descent is inert in the single-tx verdict). -/
+    call type. `valueOff` is the stack offset of the call value (unused/0 for the
+    value-less kinds). `mode` selects the message-call kind (matching
+    `call_frame_set_call_env`): `0 = CALL`, `1 = STATICCALL`, `2 = CALLCODE`,
+    `3 = DELEGATECALL`. The value-bearing kinds (CALL, CALLCODE) run the balance
+    gate and forward value/stipend; STATICCALL/DELEGATECALL carry no value
+    (DELEGATECALL inherits the parent's CALLVALUE inside `call_frame_set_call_env`).
+    Gas: `call_frame_descend` forwards the EIP-150 63/64 + stipend to the child;
+    the caller-side value/new-account/parent charge is a follow-up (the descent is
+    inert in the single-tx verdict). -/
 def callDescendFallThrough
     (tag : String) (netPopBytes valueOff inOff inSize outOff outSize : Nat)
-    (isStatic : Bool) : String :=
+    (mode : Nat) : String :=
   let np := toString netPopBytes
+  -- value-bearing message calls (CALL=0, CALLCODE=2) charge value/balance; the
+  -- value-less kinds (STATICCALL=1, DELEGATECALL=3) skip the balance gate.
+  let valueBearing := mode == 0 || mode == 2
   "  la x15, evm_precompile_frame\n" ++
   "  sd x0, 0(x15)\n" ++
   "  sd x0, 8(x15)\n" ++
@@ -1234,7 +1239,7 @@ def callDescendFallThrough
   -- not entered). Mirrors the verified CREATE-path caller-balance lookup: the
   -- caller is the current frame's ADDRESS (env+0) as canonical 20-byte BE, and
   -- the value is the stack word at valueOff. STATICCALL has no value (skipped).
-  (if isStatic then "" else
+  (if !valueBearing then "" else
     "  ld t3, " ++ toString valueOff ++ "(x12)\n" ++
     "  ld t4, " ++ toString (valueOff+8) ++ "(x12)\n  or t3, t3, t4\n" ++
     "  ld t4, " ++ toString (valueOff+16) ++ "(x12)\n  or t3, t3, t4\n" ++
@@ -1322,12 +1327,15 @@ def callDescendFallThrough
   "  la t1, cahsr_code_length; ld t1, 0(t1)\n" ++ -- t1 = code_len
   "  la t2, cd_desc\n" ++
   "  addi t3, x12, 32\n  sd t3, 0(t2)\n" ++      -- to_ptr
-  (if isStatic then
-     "  la t3, cd_zero_word\n  sd t3, 8(t2)\n" ++ -- value_ptr = zero word
-     "  li t3, 1\n  sd t3, 16(t2)\n"              -- is_static = 1
+  -- value_ptr: the value-bearing kinds (CALL/CALLCODE) pass the stack value;
+  -- STATICCALL/DELEGATECALL pass the zero word (set_call_env zeroes/inherits it).
+  (if valueBearing then
+     "  addi t3, x12, " ++ toString valueOff ++ "\n  sd t3, 8(t2)\n"
    else
-     "  addi t3, x12, " ++ toString valueOff ++ "\n  sd t3, 8(t2)\n" ++ -- value_ptr
-     "  sd x0, 16(t2)\n") ++                      -- is_static = 0
+     "  la t3, cd_zero_word\n  sd t3, 8(t2)\n") ++
+  -- desc+16 = mode (0 CALL / 1 STATICCALL / 2 CALLCODE / 3 DELEGATECALL), read by
+  -- call_frame_set_call_env via call_frame_descend.
+  "  li t3, " ++ toString mode ++ "\n  sd t3, 16(t2)\n" ++
   "  ld t3, " ++ toString inOff ++ "(x12)\n  sd t3, 24(t2)\n" ++   -- argsOff
   "  ld t3, " ++ toString inSize ++ "(x12)\n  sd t3, 32(t2)\n" ++  -- argsLen
   "  ld t3, " ++ toString outOff ++ "(x12)\n  sd t3, 40(t2)\n" ++  -- outOff
@@ -1336,7 +1344,7 @@ def callDescendFallThrough
   "  sd t0, 64(t2)\n" ++                                           -- code_ptr
   "  sd t1, 72(t2)\n" ++                                           -- code_len
   "  ld t3, 0(x12)\n  sd t3, 80(t2)\n" ++                          -- requested_gas
-  (if isStatic then
+  (if !valueBearing then
      "  sd x0, 88(t2)\n"                                           -- value_nonzero = 0
    else
      "  ld t3, " ++ toString valueOff ++ "(x12)\n" ++
