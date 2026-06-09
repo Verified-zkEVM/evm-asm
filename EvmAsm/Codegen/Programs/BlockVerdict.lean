@@ -828,6 +828,29 @@ def blockVerdictFunction : String :=
   "  la a2, exec_code_effect_log; la t0, exec_code_effect_count; ld a3, 0(t0)\n" ++
   "  jal ra, bal_all_accounts_code_covers\n" ++
   "  bnez a0, .Lbv_bal_code_covers_fail\n" ++
+  -- i3djw.3: all-accounts NON-STORAGE exec-vs-BAL (FORWARD). Every non-{sender,recipient,
+  -- coinbase} BAL account that declares a balance/nonce change must be reproduced by an exec
+  -- non-storage effect record (the i3djw.1 CALL-value producer + i3djw.2 CREATE producer
+  -- populate exec_nonstorage_effect_log). A declared change with no matching exec effect, or
+  -- a value mismatch, -> reject. *** REQUIRES EEST SWEEP *** : this CHANGES verdict accept/
+  -- reject for value-bearing CALL blocks (the i3djw.1 producer runs live since CALL is
+  -- activated #8559) — @pirapira must run EEST at scale to confirm the recorded post_balance
+  -- (BE, see i3djw.1/i3djw.2) matches the BAL before finalizing. Skip-list {recipient, sender,
+  -- coinbase} are gas/value-coupled (pinned on the gas path); set unconditionally above
+  -- (bv_simple_transfer_tx+72, bmvmx_sender_addr, bmvmx_coinbase_addr). 32-byte-strided,
+  -- address in the first 20 bytes.
+  "  la t0, i3djw_skip_list\n  la t1, bv_simple_transfer_tx; addi t1, t1, 72\n  li t2, 20\n" ++
+  ".Lbv_i3sk0:\n  beqz t2, .Lbv_i3sk0d\n  lbu t3, 0(t1)\n  sb t3, 0(t0)\n  addi t1, t1, 1\n  addi t0, t0, 1\n  addi t2, t2, -1\n  j .Lbv_i3sk0\n.Lbv_i3sk0d:\n" ++
+  "  la t0, i3djw_skip_list; addi t0, t0, 32\n  la t1, bmvmx_sender_addr\n  li t2, 20\n" ++
+  ".Lbv_i3sk1:\n  beqz t2, .Lbv_i3sk1d\n  lbu t3, 0(t1)\n  sb t3, 0(t0)\n  addi t1, t1, 1\n  addi t0, t0, 1\n  addi t2, t2, -1\n  j .Lbv_i3sk1\n.Lbv_i3sk1d:\n" ++
+  "  la t0, i3djw_skip_list; addi t0, t0, 64\n  la t1, bmvmx_coinbase_addr\n  li t2, 20\n" ++
+  ".Lbv_i3sk2:\n  beqz t2, .Lbv_i3sk2d\n  lbu t3, 0(t1)\n  sb t3, 0(t0)\n  addi t1, t1, 1\n  addi t0, t0, 1\n  addi t2, t2, -1\n  j .Lbv_i3sk2\n.Lbv_i3sk2d:\n" ++
+  "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
+  "  la a2, exec_nonstorage_effect_log\n" ++
+  "  la t0, exec_nonstorage_effect_count; ld a3, 0(t0)\n" ++
+  "  la a4, i3djw_skip_list; li a5, 3\n" ++
+  "  jal ra, bal_all_accounts_nonstorage_consistent\n" ++
+  "  bnez a0, .Lbv_bal_nonstorage_fail\n" ++
   -- bmvmx.1.6.7: recipient storage_reads exec consistency. storage_reads (AccountChanges
   -- item 2) is consensus-bound but NOT in the state root, so verify every BAL read slot
   -- was actually accessed by the recipient (appears in the exec log). bvcd_acct_ptr/len
@@ -1096,6 +1119,8 @@ def blockVerdictFunction : String :=
   "  li t0, 42; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_bal_code_covers_fail:\n" ++        -- i3djw: execution deployed/cleared code for an account the BAL omits (hidden created/destroyed account)
   "  li t0, 43; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_bal_nonstorage_fail:\n" ++         -- i3djw.3: a non-recipient BAL account's declared balance/nonce change != exec non-storage effect
+  "  li t0, 44; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_zero:\n" ++
   "  li a0, 0\n" ++
   ".Lbv_ret:\n" ++
