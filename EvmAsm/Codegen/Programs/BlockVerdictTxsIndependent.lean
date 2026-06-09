@@ -52,42 +52,42 @@ def btiScanTuplesFunction : String :=
   "  mv s0, a0; mv s1, a1\n" ++
   "  mv a0, s0; mv a1, s1; la a2, bti_t_cnt\n" ++
   "  jal ra, rlp_list_count_items\n" ++
-  "  beqz a0, .Lbti_st_ok\n" ++
-  "  li t0, 1; la t1, bti_err; sd t0, 0(t1); j .Lbti_st_ret\n" ++
-  ".Lbti_st_ok:\n" ++
+  "  beqz a0, .Lbtxi_st_ok\n" ++
+  "  li t0, 1; la t1, bti_err; sd t0, 0(t1); j .Lbtxi_st_ret\n" ++
+  ".Lbtxi_st_ok:\n" ++
   "  la t0, bti_t_cnt; ld s2, 0(t0)               # tuple count\n" ++
   "  mv s3, zero                                  # j\n" ++
-  ".Lbti_st_loop:\n" ++
-  "  beq s3, s2, .Lbti_st_ret\n" ++
+  ".Lbtxi_st_loop:\n" ++
+  "  beq s3, s2, .Lbtxi_st_ret\n" ++
   "  li t0, 1; la t1, bti_has_write; sd t0, 0(t1) # any tuple => a write\n" ++
   "  mv a0, s0; mv a1, s1; mv a2, s3; la a3, bti_t_eoff; la a4, bti_t_elen\n" ++
   "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbti_st_err\n" ++
+  "  bnez a0, .Lbtxi_st_err\n" ++
   "  la t0, bti_t_eoff; ld t0, 0(t0); add t1, s0, t0  # tuple ptr\n" ++
   "  la t0, bti_t_elen; ld t2, 0(t0)                  # tuple len\n" ++
   "  mv a0, t1; mv a1, t2; li a2, 0; la a3, bti_t_foff; la a4, bti_t_flen\n" ++
   "  jal ra, rlp_list_nth_item                        # item 0 = tx_index field\n" ++
-  "  bnez a0, .Lbti_st_err\n" ++
+  "  bnez a0, .Lbtxi_st_err\n" ++
   "  la t0, bti_t_flen; ld t3, 0(t0)                  # field len\n" ++
-  "  beqz t3, .Lbti_st_zero                            # len 0 => tx_index 0\n" ++
+  "  beqz t3, .Lbtxi_st_zero                            # len 0 => tx_index 0\n" ++
   "  la t0, bti_t_eoff; ld t0, 0(t0); add t4, s0, t0\n" ++
   "  la t0, bti_t_foff; ld t5, 0(t0); add t4, t4, t5  # &tx_index byte\n" ++
-  "  lbu t6, 0(t4); j .Lbti_st_have\n" ++
-  ".Lbti_st_zero:\n" ++
+  "  lbu t6, 0(t4); j .Lbtxi_st_have\n" ++
+  ".Lbtxi_st_zero:\n" ++
   "  mv t6, zero\n" ++
-  ".Lbti_st_have:\n" ++
+  ".Lbtxi_st_have:\n" ++
   "  la t0, bti_first_tx; ld t1, 0(t0)\n" ++
   "  li t2, 0x7fffffff\n" ++
-  "  bne t1, t2, .Lbti_st_cmp\n" ++
-  "  sd t6, 0(t0); j .Lbti_st_adv                      # first tx for this account\n" ++
-  ".Lbti_st_cmp:\n" ++
-  "  beq t1, t6, .Lbti_st_adv\n" ++
+  "  bne t1, t2, .Lbtxi_st_cmp\n" ++
+  "  sd t6, 0(t0); j .Lbtxi_st_adv                      # first tx for this account\n" ++
+  ".Lbtxi_st_cmp:\n" ++
+  "  beq t1, t6, .Lbtxi_st_adv\n" ++
   "  li t2, 1; la t0, bti_conflict; sd t2, 0(t0)       # >=2 distinct tx => conflict\n" ++
-  ".Lbti_st_adv:\n" ++
-  "  addi s3, s3, 1; j .Lbti_st_loop\n" ++
-  ".Lbti_st_err:\n" ++
+  ".Lbtxi_st_adv:\n" ++
+  "  addi s3, s3, 1; j .Lbtxi_st_loop\n" ++
+  ".Lbtxi_st_err:\n" ++
   "  li t0, 1; la t1, bti_err; sd t0, 0(t1)\n" ++
-  ".Lbti_st_ret:\n" ++
+  ".Lbtxi_st_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
   "  addi sp, sp, 48\n" ++
   "  ret"
@@ -102,29 +102,29 @@ def btiScanStorageChangesFunction : String :=
   "  mv s0, a0; mv s1, a1\n" ++
   "  mv a0, s0; mv a1, s1; la a2, bti_sc_cnt\n" ++
   "  jal ra, rlp_list_count_items\n" ++
-  "  beqz a0, .Lbti_sc_ok\n" ++
-  "  li t0, 1; la t1, bti_err; sd t0, 0(t1); j .Lbti_sc_ret\n" ++
-  ".Lbti_sc_ok:\n" ++
+  "  beqz a0, .Lbtxi_sc_ok\n" ++
+  "  li t0, 1; la t1, bti_err; sd t0, 0(t1); j .Lbtxi_sc_ret\n" ++
+  ".Lbtxi_sc_ok:\n" ++
   "  la t0, bti_sc_cnt; ld s2, 0(t0); mv s3, zero\n" ++
-  ".Lbti_sc_loop:\n" ++
-  "  beq s3, s2, .Lbti_sc_ret\n" ++
+  ".Lbtxi_sc_loop:\n" ++
+  "  beq s3, s2, .Lbtxi_sc_ret\n" ++
   "  mv a0, s0; mv a1, s1; mv a2, s3; la a3, bti_sc_soff; la a4, bti_sc_slen\n" ++
   "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbti_sc_err\n" ++
+  "  bnez a0, .Lbtxi_sc_err\n" ++
   "  la t0, bti_sc_soff; ld t0, 0(t0); add t1, s0, t0   # SlotChanges ptr\n" ++
   "  la t0, bti_sc_slen; ld t2, 0(t0)                   # SlotChanges len\n" ++
   "  mv a0, t1; mv a1, t2; li a2, 1; la a3, bti_sc_coff; la a4, bti_sc_clen\n" ++
   "  jal ra, rlp_list_nth_item                          # item 1 = [tuples]\n" ++
-  "  bnez a0, .Lbti_sc_err\n" ++
+  "  bnez a0, .Lbtxi_sc_err\n" ++
   "  la t0, bti_sc_soff; ld t0, 0(t0); add t1, s0, t0\n" ++
   "  la t0, bti_sc_coff; ld t3, 0(t0); add t1, t1, t3   # changes-list ptr\n" ++
   "  la t0, bti_sc_clen; ld t2, 0(t0)                   # changes-list len\n" ++
   "  mv a0, t1; mv a1, t2\n" ++
   "  jal ra, bti_scan_tuples\n" ++
-  "  addi s3, s3, 1; j .Lbti_sc_loop\n" ++
-  ".Lbti_sc_err:\n" ++
+  "  addi s3, s3, 1; j .Lbtxi_sc_loop\n" ++
+  ".Lbtxi_sc_err:\n" ++
   "  li t0, 1; la t1, bti_err; sd t0, 0(t1)\n" ++
-  ".Lbti_sc_ret:\n" ++
+  ".Lbtxi_sc_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
   "  addi sp, sp, 48\n" ++
   "  ret"
@@ -140,13 +140,13 @@ def balTxsIndependentFunction : String :=
   "  la t0, bti_err; sd zero, 0(t0)\n" ++
   "  mv a0, s0; mv a1, s1; la a2, bti_acct_cnt\n" ++
   "  jal ra, rlp_list_count_items\n" ++
-  "  bnez a0, .Lbti_err\n" ++
+  "  bnez a0, .Lbtxi_err\n" ++
   "  la t0, bti_acct_cnt; ld s2, 0(t0); mv s3, zero    # account count, i\n" ++
-  ".Lbti_acct:\n" ++
-  "  beq s3, s2, .Lbti_indep\n" ++
+  ".Lbtxi_acct:\n" ++
+  "  beq s3, s2, .Lbtxi_indep\n" ++
   "  mv a0, s0; mv a1, s1; mv a2, s3; la a3, bti_aoff; la a4, bti_alen\n" ++
   "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbti_err\n" ++
+  "  bnez a0, .Lbtxi_err\n" ++
   "  la t0, bti_aoff; ld t0, 0(t0); add s4, s0, t0     # account ptr\n" ++
   "  la t0, bti_alen; ld s5, 0(t0)                     # account len\n" ++
   -- reset per-account accumulators
@@ -156,44 +156,44 @@ def balTxsIndependentFunction : String :=
   -- storage_changes (item 1)
   "  mv a0, s4; mv a1, s5; li a2, 1; la a3, bti_off; la a4, bti_len\n" ++
   "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbti_err\n" ++
+  "  bnez a0, .Lbtxi_err\n" ++
   "  la t0, bti_off; ld t0, 0(t0); add t1, s4, t0; la t2, bti_len; ld t2, 0(t2)\n" ++
   "  mv a0, t1; mv a1, t2; jal ra, bti_scan_storage_changes\n" ++
   -- nonce_changes (item 4)
   "  mv a0, s4; mv a1, s5; li a2, 4; la a3, bti_off; la a4, bti_len\n" ++
   "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbti_err\n" ++
+  "  bnez a0, .Lbtxi_err\n" ++
   "  la t0, bti_off; ld t0, 0(t0); add t1, s4, t0; la t2, bti_len; ld t2, 0(t2)\n" ++
   "  mv a0, t1; mv a1, t2; jal ra, bti_scan_tuples\n" ++
   -- code_changes (item 5)
   "  mv a0, s4; mv a1, s5; li a2, 5; la a3, bti_off; la a4, bti_len\n" ++
   "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbti_err\n" ++
+  "  bnez a0, .Lbtxi_err\n" ++
   "  la t0, bti_off; ld t0, 0(t0); add t1, s4, t0; la t2, bti_len; ld t2, 0(t2)\n" ++
   "  mv a0, t1; mv a1, t2; jal ra, bti_scan_tuples\n" ++
   -- helper parse error?
-  "  la t0, bti_err; ld t0, 0(t0); bnez t0, .Lbti_err\n" ++
+  "  la t0, bti_err; ld t0, 0(t0); bnez t0, .Lbtxi_err\n" ++
   -- conflict (>=2 distinct tx for this account)?
-  "  la t0, bti_conflict; ld t0, 0(t0); bnez t0, .Lbti_interacting\n" ++
+  "  la t0, bti_conflict; ld t0, 0(t0); bnez t0, .Lbtxi_interacting\n" ++
   -- read-after-write bail: account has writes AND non-empty storage_reads
-  "  la t0, bti_has_write; ld t0, 0(t0); beqz t0, .Lbti_next\n" ++
+  "  la t0, bti_has_write; ld t0, 0(t0); beqz t0, .Lbtxi_next\n" ++
   "  mv a0, s4; mv a1, s5; li a2, 2; la a3, bti_off; la a4, bti_len\n" ++
   "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbti_err\n" ++
+  "  bnez a0, .Lbtxi_err\n" ++
   "  la t0, bti_off; ld t0, 0(t0); add t1, s4, t0; la t2, bti_len; ld t2, 0(t2)\n" ++
   "  mv a0, t1; mv a1, t2; la a2, bti_rd_cnt\n" ++
   "  jal ra, rlp_list_count_items\n" ++
-  "  bnez a0, .Lbti_err\n" ++
-  "  la t0, bti_rd_cnt; ld t0, 0(t0); bnez t0, .Lbti_interacting\n" ++
-  ".Lbti_next:\n" ++
-  "  addi s3, s3, 1; j .Lbti_acct\n" ++
-  ".Lbti_indep:\n" ++
-  "  li a0, 0; j .Lbti_ret\n" ++
-  ".Lbti_interacting:\n" ++
-  "  li a0, 1; j .Lbti_ret\n" ++
-  ".Lbti_err:\n" ++
+  "  bnez a0, .Lbtxi_err\n" ++
+  "  la t0, bti_rd_cnt; ld t0, 0(t0); bnez t0, .Lbtxi_interacting\n" ++
+  ".Lbtxi_next:\n" ++
+  "  addi s3, s3, 1; j .Lbtxi_acct\n" ++
+  ".Lbtxi_indep:\n" ++
+  "  li a0, 0; j .Lbtxi_ret\n" ++
+  ".Lbtxi_interacting:\n" ++
+  "  li a0, 1; j .Lbtxi_ret\n" ++
+  ".Lbtxi_err:\n" ++
   "  li a0, 2\n" ++
-  ".Lbti_ret:\n" ++
+  ".Lbtxi_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
   "  ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp)\n" ++
   "  addi sp, sp, 64\n" ++
@@ -283,13 +283,13 @@ def ziskBalTxsIndependentPrologue : String :=
   "  la a0, bti_bal_interact; li a1, 138\n" ++
   "  jal ra, bal_txs_independent\n" ++
   "  sd a0, 8(s0)\n" ++
-  "  j .Lbti_pdone\n" ++
+  "  j .Lbtxi_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
   rlpListCountItemsFunction ++ "\n" ++
   btiScanTuplesFunction ++ "\n" ++
   btiScanStorageChangesFunction ++ "\n" ++
   balTxsIndependentFunction ++ "\n" ++
-  ".Lbti_pdone:"
+  ".Lbtxi_pdone:"
 
 def ziskBalTxsIndependentProbeUnit : BuildUnit := {
   body        := NOP
