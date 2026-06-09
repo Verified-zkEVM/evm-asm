@@ -9,7 +9,7 @@
   `env.ADDRESS` (env+0). For a nested callee, `call_frame_set_call_env` sets the
   child's `env.ADDRESS` by copying the CALL `to` stack word verbatim
   (CallFrameDescend.lean: `ld 0(a2); sd 0(a0)` ×4, a2 = `to_ptr` = `x12+32`), and EVM
-  stack words are 4 LE u64 limbs (Storage.lean slotKey doc; NoopChildFrame.lean:136
+  stack words are 4 LE u64 limbs (Storage.lean slotKey doc; ChildFrameHandlers.lean:154
   notes env.ADDRESS is in "stack-word representation"). So a callee's exec-log key is
   its address in LE-limb (byte-reversed) order, low-aligned in 32 bytes — NOT the
   big-endian low-aligned form the single recipient gets from staging. To seed a

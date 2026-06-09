@@ -7,7 +7,7 @@
   child-memory zero-init a CALL/STATICCALL descent performs once the
   depth/balance/static gate passes. The env setup, gas forwarding, calldata
   aliasing, and the dispatch re-entry / return are the remaining descent steps
-  (still in NoopChildFrame, .61.6); this isolates the register/memory core so it
+  (still in ChildFrameHandlers, .61.6); this isolates the register/memory core so it
   is unit-verified (probe `zisk_call_descend`) BEFORE it is wired into the
   verdict-critical dispatcher path.
 

@@ -671,6 +671,7 @@ def blockVerdictFunction : String :=
   "  jal ra, bal_txs_independent\n" ++
   "  bnez a0, .Lbv_mtx_bail                         # interacting / parse error -> conservative\n" ++
   "  la t0, bv_mtx_i; sd zero, 0(t0)\n" ++
+  "  la t0, bv_mtx_committed_count; sd zero, 0(t0)  # fhsxz.2.4.2.57.11.6.3.2: empty cross-tx committed table\n" ++
   ".Lbv_mtx_loop:\n" ++
   "  la t0, bv_mtx_i; ld t1, 0(t0); la t2, bv_tx_count; ld t2, 0(t2); beq t1, t2, .Lbv_mtx_done\n" ++
   "  la a0, bv_mtx_ctx; mv a1, t1; jal ra, multi_tx_nth_context\n" ++
@@ -698,6 +699,36 @@ def blockVerdictFunction : String :=
   "  la t3, bv_mtx_gas_left; add t3, t3, t0; sd a1, 0(t3)\n" ++
   "  la t3, bv_mtx_calldata; add t3, t3, t0; sd a2, 0(t3)\n" ++
   "  la t3, bv_mtx_refund;   add t3, t3, t0; la t4, evm_refund_acc; ld t4, 0(t4); sd t4, 0(t3)\n" ++
+  -- fhsxz.2.4.2.57.11.6.3.2: snapshot this tx's committed storage into the cross-tx table,
+  -- re-keyed (addrHash) to its recipient (bv_mtx_ctx+72, 20B zero-padded to 32) so the next
+  -- tx's preload can thread a prior tx's committed value. The live exec log (env+448 entries
+  -- at 0xa0630000) holds the recipient's own slots only (dispatch_tx_runtime_code requires
+  -- self-contained), so a single recipient re-tag is correct. Append (last-write-wins via
+  -- exec_log_latest_value's last-match); bail conservatively if the table overflows.
+  "  la t0, evm_env; ld t0, 448(t0)                 # t0 = live log entry count\n" ++
+  "  la t1, bv_mtx_committed_count; ld t1, 0(t1)    # t1 = table count\n" ++
+  "  li t2, 0xa0630000                              # t2 = live log base\n" ++
+  "  li t3, 0                                       # j = 0\n" ++
+  ".Lbv_mtx_snap:\n" ++
+  "  beq t3, t0, .Lbv_mtx_snap_done\n" ++
+  "  li t4, 128; bgeu t1, t4, .Lbv_mtx_bail         # committed table full -> conservative\n" ++
+  "  slli t4, t3, 7; add t4, t2, t4                 # src = live[j]\n" ++
+  "  slli t5, t1, 7; la t6, bv_mtx_committed; add t5, t6, t5   # dst = table[count]\n" ++
+  "  sd zero, 0(t5); sd zero, 8(t5); sd zero, 16(t5); sd zero, 24(t5)   # addrHash = 0, then recipient 20B\n" ++
+  "  la t6, bv_mtx_ctx; addi t6, t6, 72; li a0, 0\n" ++
+  ".Lbv_mtx_snap_k:\n" ++
+  "  li a1, 20; beq a0, a1, .Lbv_mtx_snap_kd\n" ++
+  "  add a2, t6, a0; lbu a3, 0(a2); add a2, t5, a0; sb a3, 0(a2); addi a0, a0, 1; j .Lbv_mtx_snap_k\n" ++
+  ".Lbv_mtx_snap_kd:\n" ++
+  "  ld a0, 32(t4);  sd a0, 32(t5);  ld a0, 40(t4);  sd a0, 40(t5)\n" ++   -- slotKey
+  "  ld a0, 48(t4);  sd a0, 48(t5);  ld a0, 56(t4);  sd a0, 56(t5)\n" ++
+  "  ld a0, 64(t4);  sd a0, 64(t5);  ld a0, 72(t4);  sd a0, 72(t5)\n" ++   -- original
+  "  ld a0, 80(t4);  sd a0, 80(t5);  ld a0, 88(t4);  sd a0, 88(t5)\n" ++
+  "  ld a0, 96(t4);  sd a0, 96(t5);  ld a0, 104(t4); sd a0, 104(t5)\n" ++  -- current
+  "  ld a0, 112(t4); sd a0, 112(t5); ld a0, 120(t4); sd a0, 120(t5)\n" ++
+  "  addi t1, t1, 1; addi t3, t3, 1; j .Lbv_mtx_snap\n" ++
+  ".Lbv_mtx_snap_done:\n" ++
+  "  la t4, bv_mtx_committed_count; sd t1, 0(t4)\n" ++
   "  la t0, bv_mtx_i; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Lbv_mtx_loop\n" ++
   ".Lbv_mtx_done:\n" ++
   "  la t4, bvgr_runtime_gas_left_ptr; la t5, bv_mtx_gas_left; sd t5, 0(t4)\n" ++
