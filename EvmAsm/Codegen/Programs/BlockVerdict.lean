@@ -1018,9 +1018,10 @@ def blockVerdictFunction : String :=
   -- header.gas_used = max(block_regular, block_state) >= block_state. So reject
   -- when block_state > header.gas_used (the header under-claims the state-gas
   -- floor it must cover). Sound by construction -- block_state is exact, so no
-  -- valid block is false-rejected. (The full equality header == max(regular,
-  -- state) additionally needs an execution-exact block_regular, so it is
-  -- deferred; this lands the provably-safe lower-bound half.)
+  -- valid block is false-rejected. The ceiling half (reject header.gas_used >
+  -- max(block_regular, block_state)) lands just below, completing the EIP-8037
+  -- equality; it uses block_regular = sum(bvgr_block_gas_increments), the same
+  -- array the EIP-7778 gate above already trusts (arena prepared => execution-exact).
   "  la t2, bv_tx_list_ptr; ld a0, 0(t2)\n" ++
   "  la t2, bv_tx_list_len; ld a1, 0(t2)\n" ++
   "  la t2, bvgr_arena_tx_count; ld a2, 0(t2)\n" ++
@@ -1035,6 +1036,21 @@ def blockVerdictFunction : String :=
   "  slli t4, t3, 3; add t5, t0, t4; ld t5, 0(t5); add t2, t2, t5; addi t3, t3, 1; j .Lbv_bstate_sum\n" ++
   ".Lbv_bstate_done:\n" ++
   "  bgtu t2, t6, .Lbv_block_state_gas_fail\n" ++
+  -- g8zeq.1.4.2 ceiling: complete the EIP-8037 equality header.gas_used == max(block_regular,
+  -- block_state) by rejecting an over-claim header.gas_used > max(...). block_regular =
+  -- sum(bvgr_block_gas_increments) is the same array the EIP-7778 gate consumed above (line
+  -- ~1011) and the arena only reaches here prepared (every tx measured self-contained /
+  -- execution-exact per the gate's own contract), so block_regular is execution-exact and a
+  -- valid block's header.gas_used == max(regular,state) is never exceeded -- no false-reject;
+  -- no riskier than the existing EIP-7778 gate that already trusts this array.
+  "  la t0, bvgr_block_gas_increments; la t1, bvgr_arena_tx_count; ld t1, 0(t1); li t3, 0; li t4, 0\n" ++
+  ".Lbv_bregular_sum:\n" ++
+  "  beq t4, t1, .Lbv_bregular_done\n" ++
+  "  slli t5, t4, 3; add t5, t0, t5; ld t5, 0(t5); add t3, t3, t5; addi t4, t4, 1; j .Lbv_bregular_sum\n" ++
+  ".Lbv_bregular_done:\n" ++
+  "  mv t5, t2; bgeu t5, t3, .Lbv_maxgas_done; mv t5, t3   # t5 = max(block_state t2, block_regular t3)\n" ++
+  ".Lbv_maxgas_done:\n" ++
+  "  bgtu t6, t5, .Lbv_block_gas_used_over_fail            # header.gas_used > max -> reject (over-claim)\n" ++
   ".Lbv_after_gas_result_gate:\n" ++
   "  la t2, bv_exec_p; ld a0, 0(t2)\n" ++
   "  mv a1, s3\n" ++
@@ -1103,6 +1119,8 @@ def blockVerdictFunction : String :=
   "  li t0, 33; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_block_state_gas_fail:\n" ++   -- g8zeq.1.4.2: header.gas_used < block_state_gas floor
   "  li t0, 35; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_block_gas_used_over_fail:\n" ++   -- g8zeq.1.4.2: header.gas_used > max(block_regular, block_state) (over-claim)
+  "  li t0, 41; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_block_hash_mismatch:\n" ++
   "  li t0, 31; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_bal_storage_mismatch_fail:\n" ++   -- bmvmx.1.6.2: recipient BAL storage != execution
