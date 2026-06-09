@@ -841,6 +841,12 @@ def ziskStatelessVerdictV2DataSection : String :=
   "c2nsf_tlen:\n  .zero 8\n" ++
   "c2nsf_coff:\n  .zero 8\n" ++
   "c2nsf_clen:\n  .zero 8\n" ++
+  -- i3djw.3 reverse: scratch for bal_all_accounts_nonstorage_covers.
+  "c3cov_acct_count:\n  .zero 8\n" ++
+  "c3cov_acct_off:\n  .zero 8\n" ++
+  "c3cov_acct_len:\n  .zero 8\n" ++
+  "c3cov_addr_off:\n  .zero 8\n" ++
+  "c3cov_addr_len:\n  .zero 8\n" ++
   -- yisv8.1: recipient self-balance scratch for the env.SELFBALANCE (word 1) staging.
   ".balign 32\n" ++
   "yisv8_self_bal:\n  .zero 32\n" ++
