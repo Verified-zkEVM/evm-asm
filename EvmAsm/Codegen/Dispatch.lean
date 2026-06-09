@@ -2360,6 +2360,19 @@ def emitRuntimeDispatcherDataSectionCore
   "  .zero 32\n" ++
   "srfd_out:\n" ++
   "  .zero 32\n" ++
+  -- bmvmx.1.6.6 enabler: per-entry block_access_index, PARALLEL to the 128 B exec-log
+  -- entries at 0xa0630000 (so the existing scans are byte-identical). exec_log_txindex[i]
+  -- = the tx's block_access_index for persistent-log entry i; the SSTORE handler stamps
+  -- it on append. `current_block_access_index` defaults to 1 (single-tx); the multi-tx
+  -- loop overwrites it per tx (system txs = 0). Sized to the persistent-log capacity
+  -- ((0xa0830000-0xa0630000)/128 = 16384 entries). Consumed later by the per-account
+  -- tuple-SEQUENCE comparators (c2).
+  ".balign 8\n" ++
+  "current_block_access_index:\n" ++
+  "  .dword 1\n" ++
+  ".balign 8\n" ++
+  "exec_log_txindex:\n" ++
+  "  .zero 131072\n" ++   -- 16384 entries × 8 B
   ".balign 32\n" ++
   "evm_memory:\n" ++
   "  .zero 0x10000\n" ++  -- 64 KiB EVM memory, enough for Amsterdam MAX_INIT_CODE_SIZE
