@@ -277,6 +277,23 @@ def eip8037TxGasGateFunction : String :=
   "  jal ra, tx_eip4844_validate_blob_hashes\n" ++
   "  bnez a0, .Letg_validate_fail\n" ++
   ".Letg_after_blob_precheck:\n" ++
+  "  # p6ggi: EIP-4844 (type 3) and EIP-7702 (type 4) forbid contract creation:\n" ++
+  "  # an empty 'to' raises TransactionTypeContractCreationError (fork.py:664-666).\n" ++
+  "  # Type 4 additionally requires a non-empty authorization_list, else\n" ++
+  "  # EmptyAuthorizationListError (fork.py:668-670). Both are InvalidBlock on the\n" ++
+  "  # block-validation path, so a block carrying such a tx is rejected. to_len and\n" ++
+  "  # auth_count here are the same reliably-parsed fields the gate already branches\n" ++
+  "  # on (init-code limit, CREATE/auth state gas); a valid type-3/4 tx has a 20-byte\n" ++
+  "  # 'to' and a valid type-4 tx has >=1 authorization, so neither is false-rejected.\n" ++
+  "  la t0, bsg_tx_type; ld t1, 0(t0)\n" ++
+  "  li t2, 4; beq t1, t2, .Letg_type47_auth_check\n" ++
+  "  li t2, 3; beq t1, t2, .Letg_type34_create_check\n" ++
+  "  j .Letg_after_type34_checks\n" ++
+  ".Letg_type47_auth_check:\n" ++
+  "  la t0, bsg_auth_count; ld t2, 0(t0); beqz t2, .Letg_validate_fail\n" ++
+  ".Letg_type34_create_check:\n" ++
+  "  la t0, bsg_to_len; ld t2, 0(t0); beqz t2, .Letg_validate_fail\n" ++
+  ".Letg_after_type34_checks:\n" ++
   "  la t0, bsg_data_ptr; ld a0, 0(t0)\n" ++
   "  la t0, bsg_data_len; ld a1, 0(t0)\n" ++
   "  la t0, bsg_to_len; ld a2, 0(t0); seqz a2, a2\n" ++

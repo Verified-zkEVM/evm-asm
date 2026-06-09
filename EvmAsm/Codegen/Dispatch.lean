@@ -1855,6 +1855,24 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  ld x8, 24(x5)\n" ++
   "  sd x8, 648(x20)\n" ++
   "  addi x5, x5, 32\n" ++
+  -- Re-tag the preloaded storage entries' addrHash to the executing frame's
+  -- env.ADDRESS (now loaded above). The preload-expand wrote addrHash=0, but
+  -- SLOAD/SSTORE key on env.ADDRESS (per-contract storage isolation), so without
+  -- this the recipient's own SLOAD would miss its preloaded slots and read 0.
+  -- All preloaded entries are the recipient's own storage, so a single
+  -- env.ADDRESS tag is correct. (Nested-callee storage preload is a follow-up.)
+  "  ld x6, 448(x20)\n" ++          -- x6 = preload count
+  "  li x7, 0xa0630000\n" ++        -- x7 = persistent log base
+  ".retag_preload_loop:\n" ++
+  "  beqz x6, .retag_preload_done\n" ++
+  "  ld x8, 0(x20);  sd x8, 0(x7)\n" ++
+  "  ld x8, 8(x20);  sd x8, 8(x7)\n" ++
+  "  ld x8, 16(x20); sd x8, 16(x7)\n" ++
+  "  ld x8, 24(x20); sd x8, 24(x7)\n" ++
+  "  addi x7, x7, 128\n" ++
+  "  addi x6, x6, -1\n" ++
+  "  j .retag_preload_loop\n" ++
+  ".retag_preload_done:\n" ++
   -- M30/M35/M31: gas limit trailer, optional transaction intrinsic-gas
   -- validation controls, then optional account-witness context. When the
   -- tx-gas validation flag is zero, the gas trailer is treated as execution
@@ -1883,11 +1901,11 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  lbu x11, 0(x9)\n" ++
   "  beqz x11, .runtime_tx_gas_zero_byte\n" ++
   "  addi x7, x7, 16\n" ++
-  "  addi x10, x10, 40\n" ++
+  "  addi x10, x10, 64\n" ++   -- u13jh: EIP-7623 floor = 4 tokens * TX_DATA_TOKEN_FLOOR(16) per non-zero byte (was stale 40 = *10)
   "  j .runtime_tx_gas_data_step\n" ++
   ".runtime_tx_gas_zero_byte:\n" ++
   "  addi x7, x7, 4\n" ++
-  "  addi x10, x10, 10\n" ++
+  "  addi x10, x10, 16\n" ++   -- u13jh: EIP-7623 floor = 1 token * TX_DATA_TOKEN_FLOOR(16) per zero byte (was stale 10 = *10)
   ".runtime_tx_gas_data_step:\n" ++
   "  addi x9, x9, 1\n" ++
   "  addi x8, x8, -1\n" ++
