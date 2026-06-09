@@ -27,7 +27,7 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
   prologueAsm :=
     ziskStatelessVerdictV2Prologue ++ "\n" ++
     "  j .Lstateless_verdict_v2_debug_after_runtime_dispatcher\n" ++
-    emitRuntimeDispatcherCallableCoreSharedHelpers tinyInterpRegistry evmAddEpilogue ++ "\n" ++
+    emitRuntimeDispatcherCallableCoreSharedHelpers callFrameGuestRegistry evmAddEpilogue ++ "\n" ++
     -- je0xd: block_verdict's contract-dispatch helpers were embedded in the guest
     -- closure (statelessVerdictV2GuestClosure) but NOT this debug verdict ELF, so
     -- its link failed with 6 undefined references. Mirror the guest: emit the
@@ -45,7 +45,7 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
   dataAsm     :=
     ziskStatelessVerdictV2DataSection ++ "\n" ++
     executionRequestsHashShaDataSection ++ "\n" ++
-    emitRuntimeDispatcherDataSectionSharedGuest tinyInterpRegistry
+    emitRuntimeDispatcherDataSectionSharedGuest callFrameGuestRegistry
 }
 
 /-- The full stateless_verdict_v2 asm closure for embedding in the GUEST epilogue,
