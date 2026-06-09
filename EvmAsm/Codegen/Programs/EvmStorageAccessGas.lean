@@ -117,6 +117,15 @@ def storageAccessKeyInsertAsm (doneLabel : String) : String :=
     The dispatcher's opcode table charges SLOAD/SSTORE 100 before the
     handler runs, so this helper only charges the EIP-2929 cold delta
     (`COLD_SLOAD_COST - WARM_STORAGE_READ_COST = 2100 - 100 = 2000`).
+
+    Register note: the charged gas delta is held in `a4` (recorded into the
+    access-outcome log), NOT `a3` — because `a3` is the dispatcher's per-frame
+    memory base (`x13`) and SLOAD/SSTORE call this helper from the dispatch tail
+    WITHOUT saving x13 (they save only x1/x10/x12, the regs the arg setup
+    clobbers). Using `a3` for the delta would corrupt x13 to 0/2000, so any
+    SLOAD/SSTORE followed by a memory-touching opcode (MLOAD/MSTORE/CREATE/CALL)
+    would read/write at the bogus base (e.g. the double-CREATE ziskemu panic,
+    fhsxz.2.4.2.61.8.3.4). a4 is caller-saved and not a dispatcher invariant.
 -/
 def storageAccessGasFunction : String :=
   "evm_storage_access_charge_key:\n" ++
@@ -155,7 +164,7 @@ def storageAccessGasFunction : String :=
   "  ld t5, 24(a1)\n" ++
   "  bne t4, t5, .Lsag_next\n" ++
   "  li a0, 0\n" ++
-  "  li a3, 0\n" ++
+  "  li a4, 0\n" ++
   "  j .Lsag_record_and_ret\n" ++
   ".Lsag_next:\n" ++
   "  addi t3, t3, 64\n" ++
@@ -191,15 +200,15 @@ def storageAccessGasFunction : String :=
   "  addi t2, t2, 1\n" ++
   "  sd t2, 0(t1)\n" ++
   "  li a0, 1\n" ++
-  s!"  li a3, {storageAccessColdDeltaGas}\n" ++
+  s!"  li a4, {storageAccessColdDeltaGas}\n" ++
   "  j .Lsag_record_and_ret\n" ++
   ".Lsag_oog:\n" ++
   "  li a0, 2\n" ++
-  "  li a3, 0\n" ++
+  "  li a4, 0\n" ++
   "  j .Lsag_record_and_ret\n" ++
   ".Lsag_full:\n" ++
   "  li a0, 3\n" ++
-  "  li a3, 0\n" ++
+  "  li a4, 0\n" ++
   "  j .Lsag_record_and_ret\n" ++
   ".Lsag_record_and_ret:\n" ++
   "  la t0, evm_storage_access_outcome_count\n" ++
@@ -222,7 +231,7 @@ def storageAccessGasFunction : String :=
   "  ld t4, 16(a1); sd t4, 48(t3)\n" ++
   "  ld t4, 24(a1); sd t4, 56(t3)\n" ++
   "  sd a0, 64(t3)               # status/outcome\n" ++
-  "  sd a3, 72(t3)               # gas delta charged\n" ++
+  "  sd a4, 72(t3)               # gas delta charged\n" ++
   "  sd zero, 80(t3)\n" ++
   "  sd zero, 88(t3)\n" ++
   ".Lsag_record_skip:\n" ++

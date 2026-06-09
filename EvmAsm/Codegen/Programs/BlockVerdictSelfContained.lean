@@ -15,8 +15,14 @@
   Unsafe opcodes (need un-staged state): BALANCE(0x31), ORIGIN(0x32),
   CALLER(0x33), GASPRICE(0x3a), EXTCODESIZE(0x3b), EXTCODECOPY(0x3c),
   EXTCODEHASH(0x3f), BLOCKHASH(0x40), SELFBALANCE(0x47), CREATE(0xf0),
-  CREATE2(0xf5). PUSH1..PUSH32 (0x60..0x7f) data bytes are skipped so push
-  immediates are never misread as opcodes.
+  CREATE2(0xf5), SELFDESTRUCT(0xff). PUSH1..PUSH32 (0x60..0x7f) data bytes are
+  skipped so push immediates are never misread as opcodes.
+
+  SELFDESTRUCT(0xff) is rejected because its gas adds cold-beneficiary-access
+  (EIP-2929) + account-creation (when the beneficiary is empty and balance>0),
+  both depending on the un-staged beneficiary account; the dispatcher only
+  charges the 5000 base (Dispatch.lean `0xff => 5000`), so a SELFDESTRUCT
+  contract dispatched here would be under-charged.
 
   The message-call opcodes CALL(0xf1)/CALLCODE(0xf2)/DELEGATECALL(0xf4)/
   STATICCALL(0xfa) are NO LONGER rejected: the call-frame descent
@@ -66,17 +72,19 @@ def bytecodeIsSelfContainedFunction : String :=
   "  li t3, 0x47; beq t2, t3, .Lbsc_unsafe\n" ++   -- SELFBALANCE
   "  li t3, 0xf0; beq t2, t3, .Lbsc_unsafe\n" ++   -- CREATE
   "  li t3, 0xf5; beq t2, t3, .Lbsc_unsafe\n" ++   -- CREATE2
+  "  li t3, 0xff; beq t2, t3, .Lbsc_unsafe\n" ++   -- SELFDESTRUCT (beneficiary cold/warm + account-creation gas is un-staged)
   "  addi t0, t0, 1; j .Lbsc_loop\n" ++
   ".Lbsc_safe:\n" ++
   "  li a0, 0; ret\n" ++
   ".Lbsc_unsafe:\n" ++
   "  li a0, 1; ret"
 
-/-- `zisk_bytecode_is_self_contained`: probe over three hand-written bytecodes.
+/-- `zisk_bytecode_is_self_contained`: probe over four hand-written bytecodes.
     Output:
       +0  scan of PUSH1 0x07 PUSH1 0x01 SSTORE STOP (expect 0 self-contained)
       +8  scan of PUSH1 0x00 BALANCE                (expect 1 unsafe; CALL now allowed)
-      +16 scan of PUSH1 0xF1 STOP (0xF1 is push DATA, not CALL) (expect 0) -/
+      +16 scan of PUSH1 0xF1 STOP (0xF1 is push DATA, not CALL) (expect 0)
+      +24 scan of PUSH1 0x00 SELFDESTRUCT (60 00 FF) (expect 1 unsafe) -/
 def ziskBytecodeIsSelfContainedPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li s0, 0xa0010000\n" ++
@@ -95,6 +103,10 @@ def ziskBytecodeIsSelfContainedPrologue : String :=
   "  la t0, bsc_codeC\n" ++
   "  li t1, 0x60; sb t1, 0(t0); li t1, 0xF1; sb t1, 1(t0); sb zero, 2(t0)\n" ++
   "  la a0, bsc_codeC; li a1, 3; jal ra, bytecode_is_self_contained; sd a0, 16(s0)\n" ++
+  -- code D: 60 00 FF (PUSH1 0 SELFDESTRUCT -> unsafe: beneficiary state is un-staged).
+  "  la t0, bsc_codeD\n" ++
+  "  li t1, 0x60; sb t1, 0(t0); sb zero, 1(t0); li t1, 0xFF; sb t1, 2(t0)\n" ++
+  "  la a0, bsc_codeD; li a1, 3; jal ra, bytecode_is_self_contained; sd a0, 24(s0)\n" ++
   "  j .Lbscp_done\n" ++
   bytecodeIsSelfContainedFunction ++ "\n" ++
   ".Lbscp_done:"
@@ -104,7 +116,8 @@ def ziskBytecodeIsSelfContainedDataSection : String :=
   ".balign 8\n" ++
   "bsc_codeA:\n  .zero 16\n" ++
   "bsc_codeB:\n  .zero 16\n" ++
-  "bsc_codeC:\n  .zero 16\n"
+  "bsc_codeC:\n  .zero 16\n" ++
+  "bsc_codeD:\n  .zero 16\n"
 
 def ziskBytecodeIsSelfContainedProbeUnit : BuildUnit := {
   body        := NOP
