@@ -1593,7 +1593,7 @@ def emitDispatcherDataSection
   "  .zero 8192\n" ++     -- M29: 256 × 32-byte recent BLOCKHASH ancestors
   ".balign 8\n" ++
   "evm_event_logs:\n" ++
-  "  .zero 4096\n" ++     -- M26: 16 × 256-byte bounded LOG event descriptors
+  "  .zero 262144\n" ++   -- M26: 1024 × 256-byte bounded LOG event descriptors (6c7v9: was 16×256)
   emitSelfdestructData ++
   eip7708SyntheticLogTopicData ++
   storageAccessGasData ++
@@ -1855,6 +1855,24 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  ld x8, 24(x5)\n" ++
   "  sd x8, 648(x20)\n" ++
   "  addi x5, x5, 32\n" ++
+  -- Re-tag the preloaded storage entries' addrHash to the executing frame's
+  -- env.ADDRESS (now loaded above). The preload-expand wrote addrHash=0, but
+  -- SLOAD/SSTORE key on env.ADDRESS (per-contract storage isolation), so without
+  -- this the recipient's own SLOAD would miss its preloaded slots and read 0.
+  -- All preloaded entries are the recipient's own storage, so a single
+  -- env.ADDRESS tag is correct. (Nested-callee storage preload is a follow-up.)
+  "  ld x6, 448(x20)\n" ++          -- x6 = preload count
+  "  li x7, 0xa0630000\n" ++        -- x7 = persistent log base
+  ".retag_preload_loop:\n" ++
+  "  beqz x6, .retag_preload_done\n" ++
+  "  ld x8, 0(x20);  sd x8, 0(x7)\n" ++
+  "  ld x8, 8(x20);  sd x8, 8(x7)\n" ++
+  "  ld x8, 16(x20); sd x8, 16(x7)\n" ++
+  "  ld x8, 24(x20); sd x8, 24(x7)\n" ++
+  "  addi x7, x7, 128\n" ++
+  "  addi x6, x6, -1\n" ++
+  "  j .retag_preload_loop\n" ++
+  ".retag_preload_done:\n" ++
   -- M30/M35/M31: gas limit trailer, optional transaction intrinsic-gas
   -- validation controls, then optional account-witness context. When the
   -- tx-gas validation flag is zero, the gas trailer is treated as execution
@@ -2293,7 +2311,7 @@ def emitRuntimeDispatcherDataSectionCore
   "  .zero 8192\n" ++     -- M29: 256 × 32-byte recent BLOCKHASH ancestors
   ".balign 8\n" ++
   "evm_event_logs:\n" ++
-  "  .zero 4096\n" ++     -- M26: 16 × 256-byte bounded LOG event descriptors
+  "  .zero 262144\n" ++   -- M26: 1024 × 256-byte bounded LOG event descriptors (6c7v9: was 16×256)
   emitSelfdestructData ++
   eip7708SyntheticLogTopicData ++
   (if includeSharedHelperData then storageAccessGasData else "") ++

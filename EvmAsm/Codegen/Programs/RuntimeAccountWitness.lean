@@ -128,7 +128,7 @@ def runtimeAccountWitnessProbeDataSection : String :=
   "  .zero 8192\n" ++
   ".balign 8\n" ++
   "evm_event_logs:\n" ++
-  "  .zero 4096\n" ++
+  "  .zero 262144\n" ++   -- 6c7v9: 1024 × 256-byte LOG event descriptors (was 4096 = 16×256)
   emitPrecompileFrameData ++
   emitSha256Data ++
   ".balign 8\n" ++
