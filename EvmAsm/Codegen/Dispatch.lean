@@ -21,6 +21,7 @@ import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.SstoreGasRefund
 import EvmAsm.Codegen.Programs.CreateCodeEffectLog
 import EvmAsm.Codegen.Programs.CreateDeployedCodeValid
+import EvmAsm.Codegen.Programs.CreateCreatorNonce
 import EvmAsm.Codegen.CallFrameLayout
 import EvmAsm.Codegen.Programs.Address
 import EvmAsm.Codegen.Programs.HashBridge
@@ -574,7 +575,10 @@ def emitCreateChildFrameData : String :=
   "  .zero 0x10000\n" ++
   -- bmvmx.1.6.3 / .61.8b (.8b-2): the per-created-account CODE-effect log, co-located with
   -- create_child_code so it is defined in every closure whose CREATE tail deposits into it.
-  createCodeEffectLogData
+  createCodeEffectLogData ++ "\n" ++
+  -- .61.8c-1: per-creator running-nonce table (multi-CREATE address correctness), co-located
+  -- so the CREATE tail's create_creator_nonce_use resolves in every closure.
+  createNonceTableData
 
 /-- Scratch labels shared by runtime account-witness helpers.
 
@@ -937,6 +941,8 @@ def emitDispatcherPrologue : String :=
   "  sd x0, 448(x20)\n" ++         -- env.persistentLogLengthOff = 0
   "  sd x0, 456(x20)\n" ++         -- env.persistentLogCheckpointOff = 0
   "  la x5, evm_refund_acc; sd x0, 0(x5)\n" ++   -- bmvmx.1.6.3: reset per-tx refund counter
+  "  la x5, create_nonce_table_count; sd x0, 0(x5)\n" ++   -- .61.8c-1: reset per-creator nonce table per tx
+  "  la x5, create_nonce_table_overflow; sd x0, 0(x5)\n" ++
   "  sd x0, 464(x20)\n" ++         -- env.transientLogLengthOff = 0
   "  sd x0, 472(x20)\n" ++         -- env.eventLogLengthOff = 0
   "  sd x0, 480(x20)\n" ++         -- env.eventLogCheckpointOff = 0
@@ -1340,6 +1346,7 @@ def emitDispatcherEpilogueCore
     createExecuteInitcodeFrameRuntimeFunction ++ "\n" ++
     createDeployedCodeValidFunction ++ "\n" ++
     createRecordCodeEffectFunction ++ "\n" ++
+    createCreatorNonceUseFunction ++ "\n" ++
     zkvmModexpSafeFailWrapper ++ "\n" ++
     storageAccessGasFunction ++ "\n" ++
     sstoreGasRefundOutcomeFunction ++ "\n" ++
@@ -2090,6 +2097,7 @@ def emitRuntimeDispatcherEmbeddedHelperFunctions : String :=
   createExecuteInitcodeFrameRuntimeFunction ++ "\n" ++
   createDeployedCodeValidFunction ++ "\n" ++
   createRecordCodeEffectFunction ++ "\n" ++
+  createCreatorNonceUseFunction ++ "\n" ++
   zkvmModexpSafeFailWrapper ++ "\n" ++
   storageAccessGasFunction ++ "\n" ++
   sstoreGasRefundOutcomeFunction ++ "\n" ++
