@@ -754,6 +754,12 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bmvmx_cb_balbytes:\n  .zero 32\n" ++
   "bmvmx_cb_post:\n  .zero 32\n" ++
   "bmvmx_cb_expected:\n  .zero 32\n" ++
-  "bmvmx_cb_nonce:\n  .zero 32\n"
+  "bmvmx_cb_nonce:\n  .zero 32\n" ++
+  -- bmvmx.1.4.1 compare: sender address + match flag (reuses bmvmx_acct/bmvmx_cb_* scratch,
+  -- which the sender compare runs through before the coinbase compare).
+  ".balign 8\n" ++
+  "bmvmx_sender_addr:\n  .zero 20\n" ++
+  ".balign 8\n" ++
+  "bmvmx_sender_match:\n  .zero 8\n"
 
 end EvmAsm.Codegen
