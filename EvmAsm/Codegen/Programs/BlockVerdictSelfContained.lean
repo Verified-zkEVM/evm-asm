@@ -15,9 +15,17 @@
   Unsafe opcodes (need un-staged state): BALANCE(0x31), ORIGIN(0x32),
   CALLER(0x33), GASPRICE(0x3a), EXTCODESIZE(0x3b), EXTCODECOPY(0x3c),
   EXTCODEHASH(0x3f), BLOCKHASH(0x40), SELFBALANCE(0x47), CREATE(0xf0),
-  CALL(0xf1), CALLCODE(0xf2), DELEGATECALL(0xf4), CREATE2(0xf5),
-  STATICCALL(0xfa). PUSH1..PUSH32 (0x60..0x7f) data bytes are skipped so push
+  CREATE2(0xf5). PUSH1..PUSH32 (0x60..0x7f) data bytes are skipped so push
   immediates are never misread as opcodes.
+
+  The message-call opcodes CALL(0xf1)/CALLCODE(0xf2)/DELEGATECALL(0xf4)/
+  STATICCALL(0xfa) are NO LONGER rejected: the call-frame descent
+  (callDescendFallThrough + call_frame_descend/frame_return) now executes them
+  through the dispatcher, so a contract that makes nested calls routes through
+  real execution rather than staying conservative. (Callee STORAGE preload for
+  nested frames is still incomplete, so some nested-call rows will now FAIL the
+  EEST gate where execution diverges — those failures are the follow-up work,
+  bmvmx.1.7 children, not a regression of the self-contained scan itself.)
 -/
 
 import EvmAsm.Rv64.Program
@@ -57,11 +65,7 @@ def bytecodeIsSelfContainedFunction : String :=
   "  li t3, 0x40; beq t2, t3, .Lbsc_unsafe\n" ++   -- BLOCKHASH
   "  li t3, 0x47; beq t2, t3, .Lbsc_unsafe\n" ++   -- SELFBALANCE
   "  li t3, 0xf0; beq t2, t3, .Lbsc_unsafe\n" ++   -- CREATE
-  "  li t3, 0xf1; beq t2, t3, .Lbsc_unsafe\n" ++   -- CALL
-  "  li t3, 0xf2; beq t2, t3, .Lbsc_unsafe\n" ++   -- CALLCODE
-  "  li t3, 0xf4; beq t2, t3, .Lbsc_unsafe\n" ++   -- DELEGATECALL
   "  li t3, 0xf5; beq t2, t3, .Lbsc_unsafe\n" ++   -- CREATE2
-  "  li t3, 0xfa; beq t2, t3, .Lbsc_unsafe\n" ++   -- STATICCALL
   "  addi t0, t0, 1; j .Lbsc_loop\n" ++
   ".Lbsc_safe:\n" ++
   "  li a0, 0; ret\n" ++
@@ -71,7 +75,7 @@ def bytecodeIsSelfContainedFunction : String :=
 /-- `zisk_bytecode_is_self_contained`: probe over three hand-written bytecodes.
     Output:
       +0  scan of PUSH1 0x07 PUSH1 0x01 SSTORE STOP (expect 0 self-contained)
-      +8  scan of PUSH1 0x00 CALL                   (expect 1 unsafe)
+      +8  scan of PUSH1 0x00 BALANCE                (expect 1 unsafe; CALL now allowed)
       +16 scan of PUSH1 0xF1 STOP (0xF1 is push DATA, not CALL) (expect 0) -/
 def ziskBytecodeIsSelfContainedPrologue : String :=
   "  li sp, 0xa0050000\n" ++
@@ -82,9 +86,10 @@ def ziskBytecodeIsSelfContainedPrologue : String :=
   "  li t1, 0x60; sb t1, 2(t0); li t1, 0x01; sb t1, 3(t0)\n" ++
   "  li t1, 0x55; sb t1, 4(t0); sb zero, 5(t0)\n" ++
   "  la a0, bsc_codeA; li a1, 6; jal ra, bytecode_is_self_contained; sd a0, 0(s0)\n" ++
-  -- code B: 60 00 F1 (CALL -> unsafe).
+  -- code B: 60 00 31 (BALANCE -> still unsafe; CALL is now allowed, so use a
+  -- genuinely-rejected un-staged-state opcode here to keep the reject assertion).
   "  la t0, bsc_codeB\n" ++
-  "  li t1, 0x60; sb t1, 0(t0); sb zero, 1(t0); li t1, 0xF1; sb t1, 2(t0)\n" ++
+  "  li t1, 0x60; sb t1, 0(t0); sb zero, 1(t0); li t1, 0x31; sb t1, 2(t0)\n" ++
   "  la a0, bsc_codeB; li a1, 3; jal ra, bytecode_is_self_contained; sd a0, 8(s0)\n" ++
   -- code C: 60 F1 00 (0xF1 is PUSH1 data, then STOP -> self-contained).
   "  la t0, bsc_codeC\n" ++
