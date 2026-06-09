@@ -851,6 +851,22 @@ def blockVerdictFunction : String :=
   "  la a4, i3djw_skip_list; li a5, 3\n" ++
   "  jal ra, bal_all_accounts_nonstorage_consistent\n" ++
   "  bnez a0, .Lbv_bal_nonstorage_fail\n" ++
+  -- i3djw.4: all-accounts CODE exec-vs-BAL (FORWARD). Every BAL account that declares a code
+  -- change (only CREATE/CREATE2 deploy or SELFDESTRUCT clear can change code) must be reproduced
+  -- by an exec code-effect record (exec_code_effect_log, populated by the CREATE deposit #8623)
+  -- with byte-identical deployed code; a declared change with no matching exec effect, or a byte
+  -- mismatch, -> reject. EIP-7702 delegations (0xef0100||addr, 23B) are installed from the
+  -- authorization list (no CREATE deposit -> no exec code-effect), so the comparator SKIPS a
+  -- code-declaring account whose declared new code is exactly a 23-byte 0xef0100-prefixed
+  -- indicator (avoiding a 7702 false-reject; see BalAllAccountsCode .Lbaac_notfound). No
+  -- skip-list: code never changes for {sender,recipient,coinbase} via the gas path.
+  -- *** REQUIRES EEST SWEEP *** : CHANGES verdict accept/reject for CREATE/CREATE2 and 7702
+  -- blocks — @pirapira must run EEST at scale to confirm before finalizing. Inert (no code_change
+  -- declared) for plain transfer / non-deploying blocks; exec_code_effect_log is empty pre-.8c.
+  "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
+  "  la a2, exec_code_effect_log; la t0, exec_code_effect_count; ld a3, 0(t0)\n" ++
+  "  jal ra, bal_all_accounts_code_consistent\n" ++
+  "  bnez a0, .Lbv_bal_code_consistent_fail\n" ++
   -- bmvmx.1.6.7: recipient storage_reads exec consistency. storage_reads (AccountChanges
   -- item 2) is consensus-bound but NOT in the state root, so verify every BAL read slot
   -- was actually accessed by the recipient (appears in the exec log). bvcd_acct_ptr/len
@@ -1121,6 +1137,8 @@ def blockVerdictFunction : String :=
   "  li t0, 43; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_bal_nonstorage_fail:\n" ++         -- i3djw.3: a non-recipient BAL account's declared balance/nonce change != exec non-storage effect
   "  li t0, 44; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_bal_code_consistent_fail:\n" ++    -- i3djw.4: a BAL account's declared code change != exec code-effect (and not a 7702 delegation)
+  "  li t0, 46; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_zero:\n" ++
   "  li a0, 0\n" ++
   ".Lbv_ret:\n" ++
