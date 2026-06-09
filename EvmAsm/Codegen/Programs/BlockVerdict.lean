@@ -601,8 +601,10 @@ def blockVerdictFunction : String :=
   -- dispatch each tx against the block-PRE state to measure its runtime gas,
   -- populate the strided runtime-result arrays, and set bvgr_runtime_count=tx_count
   -- so block_verdict_gas_result_arena_prepare + the EIP-7778/8037 block-gas gate
-  -- run. Independence makes per-tx pre-state dispatch exact; refund is left 0
-  -- (EIP-7778 is the without-refunds accounting). Any non-independence / unsupported
+  -- run. Independence makes per-tx pre-state dispatch exact; the per-tx refund is
+  -- read from evm_refund_acc (the dispatcher's EIP-3529 SSTORE refund accumulator,
+  -- reset per dispatch) so the receipt-gas increment (receipt_inc) is exact; the
+  -- EIP-7778 block-gas gate stays refund-independent (block_inc). Any non-independence / unsupported
   -- tx shape / EOA recipient / dispatch miss bails to the conservative path
   -- (bvgr_runtime_count left 0 -> arena count mismatch -> block-gas gate skipped),
   -- i.e. today's behavior, so valid multi-tx blocks are never newly false-rejected.
@@ -632,7 +634,7 @@ def blockVerdictFunction : String :=
   "  la t0, bv_mtx_i; ld t1, 0(t0); slli t0, t1, 3\n" ++
   "  la t3, bv_mtx_gas_left; add t3, t3, t0; sd a1, 0(t3)\n" ++
   "  la t3, bv_mtx_calldata; add t3, t3, t0; sd a2, 0(t3)\n" ++
-  "  la t3, bv_mtx_refund;   add t3, t3, t0; sd zero, 0(t3)\n" ++
+  "  la t3, bv_mtx_refund;   add t3, t3, t0; la t4, evm_refund_acc; ld t4, 0(t4); sd t4, 0(t3)\n" ++
   "  la t0, bv_mtx_i; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Lbv_mtx_loop\n" ++
   ".Lbv_mtx_done:\n" ++
   "  la t4, bvgr_runtime_gas_left_ptr; la t5, bv_mtx_gas_left; sd t5, 0(t4)\n" ++
@@ -811,7 +813,7 @@ def blockVerdictFunction : String :=
   "  la t4, bv_runtime_gas_left; sd t3, 0(t4)\n" ++
   "  la t4, runtime_tx_calldata_floor; ld t5, 0(t4)\n" ++
   "  la t4, bv_runtime_calldata_floor; sd t5, 0(t4)\n" ++
-  "  la t4, bv_runtime_refund_counter; sd zero, 0(t4)\n" ++
+  "  la t4, bv_runtime_refund_counter; la t5, evm_refund_acc; ld t5, 0(t5); sd t5, 0(t4)\n" ++
   "  la t4, bvgr_runtime_gas_left_ptr; la t5, bv_runtime_gas_left; sd t5, 0(t4)\n" ++
   "  la t4, bvgr_runtime_refund_counter_ptr; la t5, bv_runtime_refund_counter; sd t5, 0(t4)\n" ++
   "  la t4, bvgr_runtime_calldata_floor_ptr; la t5, bv_runtime_calldata_floor; sd t5, 0(t4)\n" ++
@@ -826,7 +828,11 @@ def blockVerdictFunction : String :=
   -- feed runtime gas to the EIP-7778/8037 gate when execution is exact (own storage
   -- only, no un-staged state); any miss/unsupported returns non-zero and we stay
   -- conservative (branch to .Lbv_after_tx_gas_precharge with bvgr_runtime_count 0).
-  -- The store sequence below is byte-identical to the former inline tail.
+  -- The store sequence below mirrors the former inline tail, except the refund
+  -- counter is now read from evm_refund_acc (the dispatcher's EIP-3529 SSTORE
+  -- refund accumulator) instead of a hardcoded 0, so the recipient's receipt-gas
+  -- increment (receipt_inc) is exact; the EIP-7778 block-gas gate is unaffected
+  -- (it uses block_inc, which is refund-independent).
   ".Lbv_contract_dispatch:\n" ++
   "  la a0, bv_simple_transfer_tx\n" ++
   "  ld a1, 80(s0); ld a2, 88(s0)\n" ++
@@ -834,7 +840,7 @@ def blockVerdictFunction : String :=
   "  bnez a0, .Lbv_after_tx_gas_precharge\n" ++
   "  la t4, bv_runtime_gas_left; sd a1, 0(t4)\n" ++
   "  la t4, bv_runtime_calldata_floor; sd a2, 0(t4)\n" ++
-  "  la t4, bv_runtime_refund_counter; sd zero, 0(t4)\n" ++
+  "  la t4, bv_runtime_refund_counter; la t5, evm_refund_acc; ld t5, 0(t5); sd t5, 0(t4)\n" ++
   "  la t4, bvgr_runtime_gas_left_ptr; la t5, bv_runtime_gas_left; sd t5, 0(t4)\n" ++
   "  la t4, bvgr_runtime_refund_counter_ptr; la t5, bv_runtime_refund_counter; sd t5, 0(t4)\n" ++
   "  la t4, bvgr_runtime_calldata_floor_ptr; la t5, bv_runtime_calldata_floor; sd t5, 0(t4)\n" ++
