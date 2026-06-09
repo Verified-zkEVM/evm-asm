@@ -231,6 +231,20 @@ def childFrameHandlers
     "  ld x18, 0(x18)\n" ++
     "  li x19, -1\n" ++
     "  beq x18, x19, 7f\n" ++
+    -- .61.8c-1: replace the bare pre-state nonce with the per-creator RUNNING nonce, so a SECOND
+    -- CREATE by the same creator in this tx uses a distinct nonce (-> distinct address) -- the EVM
+    -- increments the creator's nonce on each CREATE/CREATE2. x18 holds the witness pre-state nonce;
+    -- create_creator_nonce_use seeds the per-creator table with it on the first CREATE and returns the
+    -- running value (advancing the table; both CREATE and CREATE2 bump it). a0==x10 (the dispatcher
+    -- PC) is clobbered by the call, so save/restore x10; the result (a0) is stored to create_nonce
+    -- BEFORE restoring x10 (the #8608 lesson). create_creator_nonce_use preserves x12/x13/x20/x21.
+    "  mv s10, x10\n" ++
+    "  la a0, create_sender_be\n" ++
+    "  mv a1, x18\n" ++
+    "  jal x1, create_creator_nonce_use\n" ++
+    "  la x18, create_nonce\n" ++
+    "  sd a0, 0(x18)\n" ++
+    "  mv x10, s10\n" ++
     (if hasSalt then
       -- Convert the CREATE2 salt stack word to canonical 32-byte big-endian.
       "  la x18, create_salt_be\n" ++
