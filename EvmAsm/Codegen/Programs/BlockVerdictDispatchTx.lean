@@ -235,6 +235,33 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la a5, bvcd_preload; la t0, bvcd_key_count; ld a6, 0(t0)\n" ++
   "  jal ra, stage_runtime_payload_code\n" ++
   "  bnez a0, .Ldtrc_unsupported\n" ++
+  -- 3vc2p.1: stage CALLER (env+64) + ORIGIN (env+128) = tx.sender into the runtime
+  -- payload's env words, so CALLER/ORIGIN resolve once 3vc2p.4 activates them (for a
+  -- top-level tx, CALLER == ORIGIN == tx.sender). The sender is derived from the
+  -- selected pubkey (ctx+24, 64-byte x||y) via address_from_pubkey. env_base (in the
+  -- payload) = round8(codelen) + 80; CALLER = env_base+64, ORIGIN = env_base+128 (the
+  -- same word slots stage_runtime_payload_code wrote ADDRESS@+0 / CALLVALUE@+96 to).
+  -- INERT until 3vc2p.4: self-contained recipients reaching here never read CALLER/
+  -- ORIGIN (the opcodes are still bytecode_is_self_contained-rejected). address_from_pubkey
+  -- preserves s-regs (s0-s3 survive its keccak); guarded on a non-null pubkey ptr.
+  "  ld a0, 24(s2)\n" ++
+  "  beqz a0, .Ldtrc_no_sender\n" ++
+  "  la a1, srpc_sender_addr\n" ++
+  "  jal ra, address_from_pubkey\n" ++
+  "  la t0, bv_runtime_payload; ld t1, 0(t0)\n" ++           -- codelen
+  "  addi t1, t1, 7; andi t1, t1, -8; addi t1, t1, 80\n" ++  -- env_base offset = round8(codelen)+80
+  "  add t2, t0, t1\n" ++                                    -- t2 = &env_words
+  "  la t3, srpc_sender_addr; addi t4, t2, 64; li t5, 0\n" ++   -- CALLER (word 2 -> +64)
+  ".Ldtrc_caller:\n" ++
+  "  li t6, 20; beq t5, t6, .Ldtrc_caller_d\n" ++
+  "  add a5, t3, t5; lbu a6, 0(a5); add a5, t4, t5; sb a6, 0(a5); addi t5, t5, 1; j .Ldtrc_caller\n" ++
+  ".Ldtrc_caller_d:\n" ++
+  "  addi t4, t2, 128; li t5, 0\n" ++                        -- ORIGIN (word 4 -> +128); t3 still = srpc_sender_addr
+  ".Ldtrc_origin:\n" ++
+  "  li t6, 20; beq t5, t6, .Ldtrc_origin_d\n" ++
+  "  add a5, t3, t5; lbu a6, 0(a5); add a5, t4, t5; sb a6, 0(a5); addi t5, t5, 1; j .Ldtrc_origin\n" ++
+  ".Ldtrc_origin_d:\n" ++
+  ".Ldtrc_no_sender:\n" ++
   -- bmvmx.1.6.4.2.b: seed every non-recipient BAL account's storage into the exec log
   -- so nested callees SLOAD witness values (not 0). Fills callee_seed_table/count, which
   -- the callable dispatcher's seed loop drains during runtime_dispatcher_call's setup.
