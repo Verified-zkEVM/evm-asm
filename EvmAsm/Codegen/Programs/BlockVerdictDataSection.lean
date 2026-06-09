@@ -718,6 +718,8 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bv_mtx_gas_left:\n  .zero 128\n" ++
   "bv_mtx_refund:\n  .zero 128\n" ++
   "bv_mtx_calldata:\n  .zero 128\n" ++
-  "bv_mtx_ctx:\n  .zero 192\n"
+  "bv_mtx_ctx:\n  .zero 192\n" ++
+  -- .6.2.2.2.b: multi-tx dispatch loop index cursor.
+  "bv_mtx_i:\n  .zero 8\n"
 
 end EvmAsm.Codegen
