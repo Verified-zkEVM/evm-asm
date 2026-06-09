@@ -11,6 +11,7 @@ import EvmAsm.Codegen.Programs.EvmMessageCallGas
 import EvmAsm.Codegen.Programs.TxRefund
 import EvmAsm.Codegen.Programs.StorageMultiContract
 import EvmAsm.Codegen.Programs.BalStorageChangeValues
+import EvmAsm.Codegen.Programs.ExecLogSlotTuples
 import EvmAsm.Codegen.Programs.BalSlotTupleSequence
 import EvmAsm.Codegen.Programs.SlotTupleSequencesMatch
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGas
