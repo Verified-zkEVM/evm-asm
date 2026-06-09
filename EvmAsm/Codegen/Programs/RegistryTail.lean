@@ -11,6 +11,7 @@ import EvmAsm.Codegen.Programs.EvmMessageCallGas
 import EvmAsm.Codegen.Programs.TxRefund
 import EvmAsm.Codegen.Programs.StorageMultiContract
 import EvmAsm.Codegen.Programs.BalStorageChangeValues
+import EvmAsm.Codegen.Programs.TxIntrinsicStateGas
 import EvmAsm.Codegen.Programs.BalStorageMatchesExecLog
 import EvmAsm.Codegen.Programs.BalRecipientFieldEmpty
 import EvmAsm.Codegen.Programs.BalStorageCoversExecLog
@@ -181,6 +182,7 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_eip8037_reservoir_split" => some ziskEip8037ReservoirSplitProbeUnit
   | "zisk_eip8037_tx_state_gas" => some ziskEip8037TxStateGasProbeUnit
   | "zisk_eip8037_block_gas_used" => some ziskEip8037BlockGasUsedProbeUnit
+  | "zisk_tx_intrinsic_state_gas" => some ziskTxIntrinsicStateGasProbeUnit
   | "zisk_mpt_nibbles_to_compact" => some ziskMptNibblesToCompactProbeUnit
   | "zisk_mpt_compact_to_nibbles" => some ziskMptCompactToNibblesProbeUnit
   
