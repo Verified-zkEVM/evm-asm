@@ -797,6 +797,16 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bmvmx_sender_addr:\n  .zero 20\n" ++
   ".balign 8\n" ++
   "bmvmx_sender_match:\n  .zero 8\n" ++
+  -- bmvmx.1.4.3.1: envelope predicate scratch. bmvmx_sender_checked / bmvmx_coinbase_checked
+  -- mark that the exec-derived balance compare was PERFORMED in the cheap envelope (single-tx
+  -- + legacy) with the relevant addresses distinct (sender!=recipient/coinbase for the sender
+  -- compare; coinbase!=sender/recipient for the coinbase compare). .4.3.2 completes the
+  -- envelope with the deferred EOA-recipient check and then gates the verdict reject on
+  -- (avail && checked && EOA && !match), without false-rejecting skipped / out-of-envelope /
+  -- overlapping blocks.
+  ".balign 8\n" ++
+  "bmvmx_sender_checked:\n  .zero 8\n" ++
+  "bmvmx_coinbase_checked:\n  .zero 8\n" ++
   -- bmvmx.1.6.3 (balance slice): scratch for the execution-derived sender balance compare
   -- (tx_gas_bal_post_verify_runtime + sender_debit_from_gas). tea_*/u256m_acc/tgsbl_*/bpf_*/
   -- tefgp_* are already provided by the EOA tx_gas_bal_post_verify path; only sdfg_gascost
