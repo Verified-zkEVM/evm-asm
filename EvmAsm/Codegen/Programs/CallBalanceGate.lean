@@ -100,7 +100,13 @@ def callBalanceGatePrologue : String :=
   -- assembled (though the insufficient-balance path never runs them), so their
   -- symbols must resolve.
   createFrameDescendFunction ++ "\n" ++
-  codeAtHeaderStateRootFunction
+  codeAtHeaderStateRootFunction ++ "\n" ++
+  -- i3djw.1: the value-bearing balance gate now also runs the non-storage effect producer
+  -- (account_at_header_state_root + u256_add_be + record_nonstorage_effect). The reject path
+  -- in this probe never runs them, but the symbols must resolve.
+  accountAtHeaderStateRootFunction ++ "\n" ++
+  u256AddBeFunction ++ "\n" ++
+  recordNonstorageEffectFunction
 
 def callBalanceGateData : String :=
   emitRuntimeDispatcherDataSection callFrameGuestRegistry ++ "\n" ++
@@ -130,6 +136,9 @@ def callBalanceGateData : String :=
   ".balign 8\n" ++
   "cahsr_code_offset:\n  .zero 8\n" ++
   "cahsr_code_length:\n  .zero 8\n" ++
+  -- account_at_header_state_root scratch (i3djw.1 producer's callee balance/nonce lookup).
+  ".balign 32\n" ++
+  "aahsr_state_root:\n  .zero 32\n" ++
   ".balign 8\n" ++
   -- parent: CALL; PUSH1 0; SSTORE; PUSH1 0xAB; PUSH1 1; SSTORE; STOP.
   "cbg_parent_code:\n  .byte 0xf1, 0x60, 0x00, 0x55, 0x60, 0xab, 0x60, 0x01, 0x55, 0x00\n" ++
