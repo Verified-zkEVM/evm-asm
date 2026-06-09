@@ -593,7 +593,12 @@ def emitCreateChildFrameData : String :=
   "nse_callee_be:\n  .zero 32\n" ++
   ".balign 32\n" ++
   "nse_acct:\n  .zero 104\n" ++
-  "nse_post_bal:\n  .zero 32\n"
+  "nse_post_bal:\n  .zero 32\n" ++
+  -- i3djw.2: CREATE-site producer scratch — the created account's BE-reversed endowment
+  -- (post_balance) and a zero buffer for the absent pre_balance.
+  ".balign 32\n" ++
+  "nse_create_post_bal:\n  .zero 32\n" ++
+  "nse_zero_bal:\n  .zero 32\n"
 
 /-- Scratch labels shared by runtime account-witness helpers.
 

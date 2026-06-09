@@ -82,7 +82,8 @@ def callFrameRoundtripPrologue : String :=
   callFrameForwardGasFunction ++ "\n" ++
   callFrameDescendFunction ++ "\n" ++
   createFrameDescendFunction ++ "\n" ++   -- .61.8.3.5: CREATE tail (shared registry) descends via create_frame_descend
-  frameReturnFunction
+  frameReturnFunction ++ "\n" ++
+  recordNonstorageEffectFunction   -- i3djw.2: CREATE-RETURN deposit records the created account's non-storage effect
 
 def callFrameRoundtripData : String :=
   emitRuntimeDispatcherDataSection callFrameProbeRegistry ++ "\n" ++
