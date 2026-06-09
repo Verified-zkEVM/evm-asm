@@ -61,7 +61,8 @@ def tinyInterpRegistry : List OpcodeHandlerSpec :=
   balanceWitnessHandlers ++ accountWitnessHandlers ++ extcodecopyWitnessHandlers ++ storageHandlers ++
   mcopyHandlers ++ haltHandlers false ++ pushZeroHandlers ++ returnDataHandlers ++
   popPushZeroHandlers ++ copyNoopHandlers ++
-  childFrameHandlers (callPushZeroFallThrough 192) (callPushZeroFallThrough 160) ++
+  childFrameHandlers (callPushZeroFallThrough 192) (callPushZeroFallThrough 192)
+    (callPushZeroFallThrough 160) (callPushZeroFallThrough 160) ++
   arithNoopHandlers ++ mulmodHandlers ++ divModHandlers ++ signedDivModHandlers ++
   selfCallingHandlers ++ [stopHandler]
 
@@ -99,7 +100,8 @@ def callFrameProbeRegistry : List OpcodeHandlerSpec :=
   balanceWitnessHandlers ++ accountWitnessHandlers ++ extcodecopyWitnessHandlers ++ storageHandlers ++
   mcopyHandlers ++ haltHandlers true ++ pushZeroHandlers ++ returnDataHandlers ++
   popPushZeroHandlers ++ copyNoopHandlers ++
-  childFrameHandlers (callPushZeroFallThrough 192) (callPushZeroFallThrough 160) ++
+  childFrameHandlers (callPushZeroFallThrough 192) (callPushZeroFallThrough 192)
+    (callPushZeroFallThrough 160) (callPushZeroFallThrough 160) ++
   arithNoopHandlers ++ mulmodHandlers ++ divModHandlers ++ signedDivModHandlers ++
   selfCallingHandlers ++ [stopHandlerCF]
 
@@ -118,8 +120,10 @@ def callFrameGuestRegistry : List OpcodeHandlerSpec :=
   mcopyHandlers ++ haltHandlers true ++ pushZeroHandlers ++ returnDataHandlers ++
   popPushZeroHandlers ++ copyNoopHandlers ++
   childFrameHandlers
-    (callDescendFallThrough "call_target" 192 64 96 128 160 192 false)
-    (callDescendFallThrough "staticcall_target" 160 0 64 96 128 160 true) ++
+    (callDescendFallThrough "call_target" 192 64 96 128 160 192 0)
+    (callDescendFallThrough "callcode_target" 192 64 96 128 160 192 2)
+    (callDescendFallThrough "delegatecall_target" 160 0 64 96 128 160 3)
+    (callDescendFallThrough "staticcall_target" 160 0 64 96 128 160 1) ++
   arithNoopHandlers ++ mulmodHandlers ++ divModHandlers ++ signedDivModHandlers ++
   selfCallingHandlers ++ [stopHandlerCF]
 
