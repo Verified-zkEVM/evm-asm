@@ -1463,6 +1463,24 @@ through ECALL bridges (extending `EvmAsm/EL/Keccak*EcallBridge.lean`).
     EIP-2930 access-list intrinsic in the runtime tx-gas; needs an EEST contract-row sweep
     (false-reject risk). Until then contract gas-gating stays inaccurate.
 
+- 🔶 **EIP-8025 witness code-preimage rejects (beads `ok3nl`/#8638, `mkwwf`; 2026-06)**: the spec rejects a
+  block when execution reads a `code_hash` absent from the witness (`WitnessState.get_code` raises). (a)
+  **current-frame code** (`ok3nl`, #8638 MERGED) — a contract recipient with non-empty `code_hash` but no
+  `witness.codes` preimage now rejects at `.Lbv_contract_dispatch` via `witness_lookup_by_hash` (was a
+  false-accept). (b) **implicitly-executed system-contract code** (`mkwwf`, OPEN) — EIP-2935 history code
+  absent from the witness should reject, but a blanket witness.codes-presence requirement FALSE-REJECTS the
+  valid `system_contract_reaches_gas_limit` rows (36141b1cb: tolerated/gas-limit system calls legitimately
+  omit the predeploy code). Correct fix must distinguish code-required (normal execution) from code-omittable
+  (system-call errors/gas-limit) — system-call-outcome modeling, not a presence check. Both only ADD rejects;
+  the unsound mkwwf attempt was caught by a clean-main regression sweep.
+
+- 🔧 **FileSizeGuard cap discipline (#8645)**: `EvmAsm/Codegen/Programs/FileSizeGuard.lean`'s `#eval`
+  enforces a 1500-line hard cap on every file under `Programs/`, but reads siblings via `IO.FS.readFile`
+  (untracked by lake), so the guard's olean caches — incremental builds miss a too-large file while the
+  clean docker `lake build codegen` fails. `BlockVerdict.lean` (1786) was split into
+  `BlockVerdictStateRoot.lean` (block_state_root + stateless_verdict_v2), byte-identical assembly. Keep
+  `block_verdict` itself out of splits to avoid churn with the call-frame descent.
+
 ### Cross-references
 
 - Memory layout: `EvmAsm/Stateless/MemoryLayout.lean`.
