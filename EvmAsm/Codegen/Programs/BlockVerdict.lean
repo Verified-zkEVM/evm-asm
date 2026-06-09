@@ -446,6 +446,13 @@ def blockVerdictFunction : String :=
   "  la t5, bv_exec_p; ld t4, 0(t5); addi a0, t4, 508; jal ra, bgv_u32le   # withdrawals_offset\n" ++
   "  la t5, bv_tx_off; ld t3, 0(t5)\n" ++
   "  bgtu a0, t3, .Lbv_tx_present # wd_off > tx_off => transactions present\n" ++
+  -- wsvlq: NO-TRANSACTION (withdrawal/system-only) block. execution-specs apply_body
+  -- increments block_gas_used / block_state_gas_used ONLY per transaction; system txs
+  -- and withdrawals do not touch them (fork.py:1199-1202, 734-798, 1230-1249). So a
+  -- no-tx block has block_gas_used = 0 and header.gas_used == max(.,.) must be 0; a
+  -- nonzero header.gas_used raises InvalidBlock. Verify it here instead of trusting it.
+  "  la t5, bv_exec_p; ld t4, 0(t5); addi a0, t4, 420; jal ra, bgv_u64le   # header.gas_used\n" ++
+  "  bnez a0, .Lbv_notx_gas_used_fail\n" ++
   "  j .Lbv_after_tx_gate\n" ++
   blockVerdictEmptyTransactionCheckAsm ++
   "  la t5, bsr_bal_count; ld t5, 0(t5); beqz t5, .Lbv_no_bal_for_tx  # tx blocks need BAL replay\n" ++
@@ -862,6 +869,8 @@ def blockVerdictFunction : String :=
   "  li t0, 4; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_zero_gas_used:\n" ++
   "  li t0, 5; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_notx_gas_used_fail:\n" ++   -- wsvlq: no-tx block with nonzero header.gas_used
+  "  li t0, 13; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_public_keys_fail:\n" ++
   "  li t0, 6; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_bal_gas_fail:\n" ++
