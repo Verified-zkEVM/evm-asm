@@ -888,6 +888,18 @@ def blockVerdictFunction : String :=
   "  jal ra, rlp_list_nth_item\n" ++
   "  bnez a0, .Lbv_after_tx_gas_precharge             # malformed/absent -> skip (conservative)\n" ++
   "  la t0, bv_rcf_len; ld t0, 0(t0); li t1, 1; bgtu t0, t1, .Lbv_bal_recipient_field_fail\n" ++
+  -- bmvmx.1.6.4.3: all-accounts storage exec-vs-BAL. Every NON-recipient BAL account's
+  -- storage_changes must match the exec log — forward (every claimed change reproduced) AND
+  -- reverse (every net change claimed) — keyed on each account's LE callee exec-log key.
+  -- Callee entries were seeded by dispatch_tx_runtime_code (1.6.4.2.b) and produced during the
+  -- descent; the recipient is skipped (checked above, BE-keyed). Mismatch/omission -> reject.
+  -- This surfaces guest nested-execution divergences (per @pirapira "see more failures").
+  "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
+  "  li a2, 0xa0630000\n" ++
+  "  la t0, evm_env; ld a3, 448(t0)\n" ++
+  "  la a4, bv_simple_transfer_tx; addi a4, a4, 72\n" ++
+  "  jal ra, bal_all_accounts_storage_consistent\n" ++
+  "  bnez a0, .Lbv_bal_allaccounts_fail\n" ++
   ".Lbv_after_tx_gas_precharge:\n" ++
   "  # EIP-8037 tx inclusion gas gate: reject parse-supported legacy tx blocks\n" ++
   "  # whose worst regular/state gas exceeds the remaining 2D block budget.\n" ++
@@ -1017,6 +1029,8 @@ def blockVerdictFunction : String :=
   "  li t0, 35; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_bal_storage_omit_fail:\n" ++       -- bmvmx.1.6.5: recipient BAL omits a storage change execution made
   "  li t0, 36; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_bal_allaccounts_fail:\n" ++        -- bmvmx.1.6.4.3: a non-recipient BAL account's storage != execution
+  "  li t0, 37; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_zero:\n" ++
   "  li a0, 0\n" ++
   ".Lbv_ret:\n" ++

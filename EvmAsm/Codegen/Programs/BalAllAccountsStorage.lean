@@ -132,8 +132,10 @@ def ziskBalAllAccountsStorageConsistentPrologue : String :=
   rlpListCountItemsFunction ++ "\n" ++
   ".Lc2baas_pdone:"
 
-def ziskBalAllAccountsStorageConsistentDataSection : String :=
-  ".section .data\n" ++
+/-- Scratch for `bal_all_accounts_storage_consistent` (account-loop state + the LE
+    per-account exec-log key). Shared by the probe data section and the verdict data
+    section so the verdict can link the wrapper (single source of truth). -/
+def balAllAccountsStorageConsistentData : String :=
   ".balign 8\n" ++
   "c2bal_acct_count:\n  .zero 8\n" ++
   "c2bal_acct_off:\n  .zero 8\n" ++
@@ -141,7 +143,11 @@ def ziskBalAllAccountsStorageConsistentDataSection : String :=
   "c2bal_addr_off:\n  .zero 8\n" ++
   "c2bal_addr_len:\n  .zero 8\n" ++
   ".balign 32\n" ++
-  "c2bal_key:\n  .zero 32\n" ++
+  "c2bal_key:\n  .zero 32\n"
+
+def ziskBalAllAccountsStorageConsistentDataSection : String :=
+  ".section .data\n" ++
+  balAllAccountsStorageConsistentData ++
   balStorageChangeValuesData ++
   balStorageMatchesExecLogData ++
   balStorageCoversExecLogData
