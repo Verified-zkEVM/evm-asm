@@ -60,6 +60,23 @@ elif mode=='declares_no_effect':
 elif mode=='no_code_no_effect':
     accounts = [acct(acct1, code1), acct_nocode(acct4)]   # acct4 no code change, no effect -> skip
     effects  = [rec(acct1, 1, code1)]
+elif mode=='delegation_7702_no_effect':
+    # i3djw.4: an EIP-7702 delegation indicator (0xef0100 || 20-byte address, 23 bytes) is
+    # installed from the authorization list, NOT a CREATE deposit, so it has no exec code-effect.
+    # The forward comparator must SKIP it (status 0), not false-reject.
+    deleg = bytes.fromhex('ef0100') + bytes(range(1,21))   # 3 + 20 = 23 bytes
+    accounts = [acct(acct1, code1), acct(acct3, deleg)]
+    effects  = [rec(acct1, 1, code1)]
+elif mode=='wrong_len_no_effect':
+    # 0xef0100-prefixed but 24 bytes (one too long) -> NOT a valid delegation -> still reject.
+    almost = bytes.fromhex('ef0100') + bytes(range(1,22))  # 3 + 21 = 24 bytes
+    accounts = [acct(acct1, code1), acct(acct3, almost)]
+    effects  = [rec(acct1, 1, code1)]
+elif mode=='wrong_prefix_no_effect':
+    # 23 bytes but prefix 0xef0200 (not the 0xef0100 delegation magic) -> still reject.
+    notdeleg = bytes.fromhex('ef0200') + bytes(range(1,21))  # 23 bytes, wrong prefix
+    accounts = [acct(acct1, code1), acct(acct3, notdeleg)]
+    effects  = [rec(acct1, 1, code1)]
 
 earr = b''.join(effects)
 bal  = rlp.encode(accounts)
@@ -95,6 +112,12 @@ run_case "wrong_code"        wrong_code        1 || FAILED=1
 run_case "declares_no_effect" declares_no_effect 1 || FAILED=1
 # an account with no code change + no effect -> skipped, OK.
 run_case "no_code_no_effect" no_code_no_effect 0 || FAILED=1
+# i3djw.4: an EIP-7702 delegation (0xef0100||addr, 23B) declared but with no exec effect -> skipped, OK.
+run_case "delegation_7702_no_effect" delegation_7702_no_effect 0 || FAILED=1
+# precision: a 0xef0100-prefixed code of the WRONG length (24B) with no effect -> still reject.
+run_case "wrong_len_no_effect"    wrong_len_no_effect    1 || FAILED=1
+# precision: a 23B code with the WRONG prefix (0xef0200) and no effect -> still reject.
+run_case "wrong_prefix_no_effect" wrong_prefix_no_effect 1 || FAILED=1
 
 echo
 if [[ $FAILED -eq 0 ]]; then
