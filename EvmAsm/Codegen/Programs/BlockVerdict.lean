@@ -858,6 +858,25 @@ def blockVerdictFunction : String :=
   "  la t0, evm_env; ld a4, 448(t0)              # persistentLogLength (entry count)\n" ++
   "  jal ra, bal_storage_matches_exec_log\n" ++
   "  bnez a0, .Lbv_bal_storage_mismatch_fail\n" ++
+  -- bmvmx.1.6.3 (nonce/code slice): a self-contained CALL recipient is a pre-existing contract
+  -- that executes no CREATE/CREATE2 (rejected by bytecode_is_self_contained), so the call leaves
+  -- its code and nonce unchanged. Its BAL nonce_changes (AccountChanges item 4) and code_changes
+  -- (item 5) must therefore be empty RLP lists; a non-empty list claims a change execution did
+  -- not make -> reject (succ=0). bvcd_acct_ptr/len still hold the recipient AccountChanges found
+  -- above. (The balance_changes value compare needs execution-derived gas — bmvmx.1.4.3.)
+  "  la t0, bvcd_acct_ptr; ld a0, 0(t0); la t0, bvcd_acct_len; ld a1, 0(t0)\n" ++
+  "  li a2, 4; la a3, bv_rcf_off; la a4, bv_rcf_len   # nonce_changes\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lbv_recipient_code_check               # malformed/absent -> skip (conservative)\n" ++
+  -- rlp_list_nth_item returns a *list* item's full encoded size (incl. prefix), so an empty
+  -- list (0xc0) is len==1; only len>1 means the list carries entries (a claimed change).
+  "  la t0, bv_rcf_len; ld t0, 0(t0); li t1, 1; bgtu t0, t1, .Lbv_bal_recipient_field_fail\n" ++
+  ".Lbv_recipient_code_check:\n" ++
+  "  la t0, bvcd_acct_ptr; ld a0, 0(t0); la t0, bvcd_acct_len; ld a1, 0(t0)\n" ++
+  "  li a2, 5; la a3, bv_rcf_off; la a4, bv_rcf_len   # code_changes\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lbv_after_tx_gas_precharge             # malformed/absent -> skip (conservative)\n" ++
+  "  la t0, bv_rcf_len; ld t0, 0(t0); li t1, 1; bgtu t0, t1, .Lbv_bal_recipient_field_fail\n" ++
   ".Lbv_after_tx_gas_precharge:\n" ++
   "  # EIP-8037 tx inclusion gas gate: reject parse-supported legacy tx blocks\n" ++
   "  # whose worst regular/state gas exceeds the remaining 2D block budget.\n" ++
@@ -959,6 +978,8 @@ def blockVerdictFunction : String :=
   "  li t0, 31; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_bal_storage_mismatch_fail:\n" ++   -- bmvmx.1.6.2: recipient BAL storage != execution
   "  li t0, 34; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_bal_recipient_field_fail:\n" ++    -- bmvmx.1.6.3: recipient BAL nonce/code claims a change execution didn't make
+  "  li t0, 35; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_zero:\n" ++
   "  li a0, 0\n" ++
   ".Lbv_ret:\n" ++
