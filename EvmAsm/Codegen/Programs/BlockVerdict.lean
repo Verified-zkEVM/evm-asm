@@ -974,6 +974,29 @@ def blockVerdictFunction : String :=
   -- returns "skip" (2) and never rejects. A BAL post nonce != pre+1 is a prover lie -> reject.
   "  la a0, tgbpvr_lookup; jal ra, sender_post_nonce_consistent\n" ++
   "  li t1, 1; beq a0, t1, .Lbv_sender_nonce_fail\n" ++
+  -- bmvmx.1.6.3 (recipient balance slice): the contract recipient RECEIVES tx.value and, on this
+  -- value-movement-free path (no CALL/CALLCODE/DELEGATECALL/SELFDESTRUCT; CREATE is self-contained-
+  -- rejected), its balance changes only by +value, so recipient_post == recipient_pre + value.
+  -- Reuse the proven EOA recipient verifier. Bail (skip) when the recipient is the coinbase (its
+  -- post also folds the priority fee) or the sender (self-transfer nets gas -- the sender slice owns
+  -- it); withdrawals are already excluded above. A clean post mismatch (status 32) is a prover lie.
+  "  la t5, bv_simple_transfer_tx; addi t5, t5, 72; ld t6, 0(s0); addi t6, t6, 32; li a0, 20\n" ++
+  ".Lbv_rbc_cb_cmp:\n" ++
+  "  beqz a0, .Lbv_after_tx_gas_precharge\n" ++                  -- recipient == coinbase -> skip
+  "  lbu t3, 0(t5); lbu t4, 0(t6); bne t3, t4, .Lbv_rbc_not_cb\n" ++
+  "  addi t5, t5, 1; addi t6, t6, 1; addi a0, a0, -1; j .Lbv_rbc_cb_cmp\n" ++
+  ".Lbv_rbc_not_cb:\n" ++
+  "  la t5, bv_simple_transfer_tx; addi t5, t5, 72; la t6, bv_sender_bal_check; addi t6, t6, 8; li a0, 20\n" ++
+  ".Lbv_rbc_self_cmp:\n" ++
+  "  beqz a0, .Lbv_after_tx_gas_precharge\n" ++                  -- recipient == sender (self-transfer) -> skip
+  "  lbu t3, 0(t5); lbu t4, 0(t6); bne t3, t4, .Lbv_rbc_do\n" ++
+  "  addi t5, t5, 1; addi t6, t6, 1; addi a0, a0, -1; j .Lbv_rbc_self_cmp\n" ++
+  ".Lbv_rbc_do:\n" ++
+  "  la t0, bv_simple_transfer_tx; addi a0, t0, 72; addi a1, t0, 96\n" ++   -- recipient addr (20B), value (32B BE)
+  "  la t0, bv_bal_start; ld a2, 0(t0); la t0, bv_bal_len; ld a3, 0(t0)\n" ++
+  "  la a4, basr_records; la a5, bv_simple_transfer_recipient\n" ++
+  "  jal ra, simple_transfer_recipient_bal_verify\n" ++
+  "  la t0, bv_simple_transfer_recipient; ld t0, 0(t0); li t1, 32; beq t0, t1, .Lbv_recipient_bal_fail\n" ++
   "  j .Lbv_after_tx_gas_precharge\n" ++
   ".Lbv_sbc_bal_mismatch:\n" ++
   -- Clean value mismatch. Skip when the sender IS the coinbase (its post also folds the fee).
@@ -1137,6 +1160,8 @@ def blockVerdictFunction : String :=
   "  li t0, 39; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_sender_nonce_fail:\n" ++           -- bmvmx.1.6.3: BAL sender post nonce != pre_nonce + 1 (execution increments once)
   "  li t0, 40; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_recipient_bal_fail:\n" ++          -- bmvmx.1.6.3: BAL contract-recipient post balance != recipient_pre + tx.value
+  "  li t0, 41; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_zero:\n" ++
   "  li a0, 0\n" ++
   ".Lbv_ret:\n" ++
