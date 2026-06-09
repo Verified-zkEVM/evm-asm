@@ -343,6 +343,49 @@ def blockVerdictFunction : String :=
   "  la t0, bv_withdrawals_root_valid; sd a1, 0(t0)\n" ++
   "  bnez a0, .Lbv_withdrawals_root_fail\n" ++
   "  beqz a1, .Lbv_withdrawals_root_fail\n" ++
+  -- bmvmx.1.4.4: precompute the supported single-tx EOA settlement scalars BEFORE
+  -- block_state_root so .4.1/.4.2 can build execution-derived sender/coinbase leaves.
+  -- ADDITIVE (no consumer reads bmvmx_* yet) -> verdict byte-identical. exec_p = 0(s0)
+  -- (= bv_exec_p). All bv_* writes here are idempotent with the post-348 tx preamble,
+  -- and block_state_root (BlockVerdict.lean:67-302) reads none of these globals.
+  "  la t0, bmvmx_avail; sd zero, 0(t0)\n" ++
+  "  ld t4, 0(s0); addi a0, t4, 504; jal ra, bgv_u32le\n" ++       -- transactions_offset
+  "  la t0, bmvmx_txoff; sd a0, 0(t0)\n" ++
+  "  ld t4, 0(s0); addi a0, t4, 508; jal ra, bgv_u32le\n" ++       -- withdrawals_offset
+  "  la t0, bmvmx_txoff; ld t1, 0(t0)\n" ++
+  "  bleu a0, t1, .Lbmvmx_done\n" ++                                -- no transactions
+  "  sub t5, a0, t1\n" ++                                           -- tx list byte length
+  "  li t6, 4; bltu t5, t6, .Lbmvmx_done\n" ++
+  "  ld t4, 0(s0); add t6, t4, t1; la t0, bv_tx_list_ptr; sd t6, 0(t0)\n" ++
+  "  la t0, bv_tx_list_len; sd t5, 0(t0)\n" ++
+  "  ld t4, 0(s0); la t0, bv_exec_p; sd t4, 0(t0)\n" ++            -- idempotent w/ @364
+  "  la t0, bv_tx_list_ptr; ld a0, 0(t0); jal ra, bgv_u32le\n" ++  -- offset[0] = 4*tx_count
+  "  andi t0, a0, 3; bnez t0, .Lbmvmx_done\n" ++
+  "  srli t1, a0, 2; la t0, bv_tx_count; sd t1, 0(t0)\n" ++
+  "  li t0, 1; bne t1, t0, .Lbmvmx_done\n" ++                       -- single-tx class only
+  "  la a0, bmvmx_ctx; li a1, 0; jal ra, multi_tx_nth_context\n" ++
+  "  la t0, bmvmx_ctx; ld t0, 0(t0); bnez t0, .Lbmvmx_done\n" ++   -- unsupported tx shape
+  "  ld t4, 0(s0); addi t1, t4, 440; la t2, bmvmx_basefee_be; li t3, 0\n" ++   -- base_fee LE->BE (32B)
+  ".Lbmvmx_rev:\n" ++
+  "  li t0, 32; beq t3, t0, .Lbmvmx_rev_done\n" ++
+  "  add t0, t1, t3; lbu t5, 0(t0); li t6, 31; sub t6, t6, t3; add t6, t2, t6; sb t5, 0(t6); addi t3, t3, 1; j .Lbmvmx_rev\n" ++
+  ".Lbmvmx_rev_done:\n" ++
+  "  la t0, bmvmx_ctx; ld a0, 8(t0); ld a1, 16(t0)\n" ++           -- tx bytes ptr/len
+  "  la a2, bmvmx_basefee_be; la a3, bmvmx_eff_gas_price; la a4, bmvmx_priority_fee\n" ++
+  "  jal ra, tx_effective_gas_pricing\n" ++
+  "  bnez a0, .Lbmvmx_done\n" ++                                    -- pricing failed -> stay unavailable
+  "  la t1, bmvmx_ctx; addi t1, t1, 96; la t2, bmvmx_value; li t3, 0\n" ++   -- copy value (32B)
+  ".Lbmvmx_vcopy:\n" ++
+  "  li t0, 32; beq t3, t0, .Lbmvmx_vdone\n" ++
+  "  add t0, t1, t3; lbu t5, 0(t0); add t6, t2, t3; sb t5, 0(t6); addi t3, t3, 1; j .Lbmvmx_vcopy\n" ++
+  ".Lbmvmx_vdone:\n" ++
+  "  la t0, bmvmx_gas_used; li t1, 21000; sd t1, 0(t0)\n" ++       -- EOA intrinsic gas_used
+  -- bmvmx.1.4.1: execution-derived sender balance debit = gas_used*eff_gas_price + value
+  -- (the amount the sender's balance decreases; consumed by .4.3 as sender_post = pre - debit).
+  "  la a0, bmvmx_eff_gas_price; la t0, bmvmx_gas_used; ld a1, 0(t0); la a2, bmvmx_gascost; jal ra, u256_mul_u64_be\n" ++
+  "  la a0, bmvmx_gascost; la a1, bmvmx_value; la a2, bmvmx_sender_debit; jal ra, u256_add_be\n" ++
+  "  la t0, bmvmx_avail; li t1, 1; sd t1, 0(t0)\n" ++
+  ".Lbmvmx_done:\n" ++
   "  ld a0, 24(s0); ld a1, 80(s0); ld a2, 88(s0); ld a3, 64(s0); ld a4, 72(s0)\n" ++
   "  la a5, sv_recomputed; mv a6, s3\n" ++
   "  jal ra, block_state_root\n" ++
