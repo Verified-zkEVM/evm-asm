@@ -731,6 +731,10 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bmvmx_value:\n  .zero 32\n" ++
   "bmvmx_eff_gas_price:\n  .zero 32\n" ++
   "bmvmx_priority_fee:\n  .zero 32\n" ++
-  "bmvmx_basefee_be:\n  .zero 32\n"
+  "bmvmx_basefee_be:\n  .zero 32\n" ++
+  -- bmvmx.1.4.1: execution-derived sender balance debit (gas_used*eff_gas_price + value),
+  -- the sender's balance decrease for the supported single-tx EOA class.
+  "bmvmx_gascost:\n  .zero 32\n" ++
+  "bmvmx_sender_debit:\n  .zero 32\n"
 
 end EvmAsm.Codegen
