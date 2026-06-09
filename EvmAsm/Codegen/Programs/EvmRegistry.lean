@@ -60,7 +60,8 @@ def tinyInterpRegistry : List OpcodeHandlerSpec :=
   controlFlowHandlers ++ hashHandlers ++ logHandlers ++
   balanceWitnessHandlers ++ accountWitnessHandlers ++ extcodecopyWitnessHandlers ++ storageHandlers ++
   mcopyHandlers ++ haltHandlers ++ pushZeroHandlers ++ returnDataHandlers ++
-  popPushZeroHandlers ++ copyNoopHandlers ++ childFrameHandlers ++
+  popPushZeroHandlers ++ copyNoopHandlers ++
+  childFrameHandlers (callPushZeroFallThrough 192) (callPushZeroFallThrough 160) ++
   arithNoopHandlers ++ mulmodHandlers ++ divModHandlers ++ signedDivModHandlers ++
   selfCallingHandlers ++ [stopHandler]
 
@@ -92,6 +93,17 @@ def stopHandlerCF : OpcodeHandlerSpec :=
     `RegistryInvariants` structural facts are unaffected. The standalone dispatch
     probes keep `tinyInterpRegistry`. -/
 def callFrameGuestRegistry : List OpcodeHandlerSpec :=
-  tinyInterpRegistry.dropLast ++ [stopHandlerCF]
+  pushHandlers ++ dupHandlers ++ swapHandlers ++ eip8024StackHandlers ++ singletonHandlers ++
+  memoryHandlers ++ memoryMetadataHandlers ++ gasHandlers ++ envHandlers ++ slotnumContextHandlers ++
+  blobContextHandlers ++ blockHashHandlers ++ calldataHandlers ++ codeHandlers ++
+  controlFlowHandlers ++ hashHandlers ++ logHandlers ++
+  balanceWitnessHandlers ++ accountWitnessHandlers ++ extcodecopyWitnessHandlers ++ storageHandlers ++
+  mcopyHandlers ++ haltHandlers ++ pushZeroHandlers ++ returnDataHandlers ++
+  popPushZeroHandlers ++ copyNoopHandlers ++
+  childFrameHandlers
+    (callDescendFallThrough "call_target" 192 64 96 128 160 192 false)
+    (callDescendFallThrough "staticcall_target" 160 0 64 96 128 160 true) ++
+  arithNoopHandlers ++ mulmodHandlers ++ divModHandlers ++ signedDivModHandlers ++
+  selfCallingHandlers ++ [stopHandlerCF]
 
 end EvmAsm.Codegen
