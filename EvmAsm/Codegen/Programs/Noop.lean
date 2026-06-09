@@ -34,7 +34,7 @@ import EvmAsm.Codegen.Programs.Modexp
 import EvmAsm.Codegen.Programs.NoopHalt
 import EvmAsm.Codegen.Programs.NoopReturnData
 import EvmAsm.Codegen.Programs.PrecompileRuntime
-import EvmAsm.Codegen.Programs.NoopChildFrame
+import EvmAsm.Codegen.Programs.ChildFrameHandlers
 import EvmAsm.Codegen.Programs.Selfdestruct
 import EvmAsm.Rv64.Program
 
