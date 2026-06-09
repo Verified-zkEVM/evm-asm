@@ -1998,6 +1998,46 @@ def emitRuntimeDispatcherPrologue : String :=
   emitRuntimeDispatcherSetup ++ "\n" ++
   emitRuntimeDispatcherLoop
 
+/-- bmvmx.1.6.4.2: nested-callee storage seed loop, run AFTER the callable setup
+    (recipient preload-expand + #8561 re-tag + env ready) and BEFORE the dispatch
+    loop. For each `callee_seed_table` entry (96 B: addrHash:32, key:32, value:32)
+    it appends one 128 B persistent-exec-log entry (addrHash, slotKey, original=value,
+    current=value — mirrors `exec_log_append_storage_seed`) and bumps
+    env.persistentLogLength (env+448), so a nested callee's SLOAD finds its witness
+    value instead of cold 0. `callee_seed_count` is 0 for every current caller (the
+    top-level guest uses a different prologue; the verdict has not populated the table
+    yet), so this is INERT — depth-0 / recipient behaviour is byte-identical. The
+    enumeration that fills the table is 1.6.4.2.b (dispatch_tx_runtime_code). Uses only
+    x5/x6/x7 (the dispatch loop re-inits them each iteration) and x28..x31 temps; never
+    touches x10/x12/x13/x20/x21. -/
+def emitCalleeStorageSeedLoop : String :=
+  "  la x5, callee_seed_count; ld x6, 0(x5)\n" ++
+  "  beqz x6, .Lcallee_seed_done\n" ++
+  "  la x7, callee_seed_table\n" ++          -- x7 = src entry ptr (96 B stride)
+  "  li x28, 0xa0630000\n" ++                -- x28 = persistent exec-log base
+  ".Lcallee_seed_loop:\n" ++
+  "  beqz x6, .Lcallee_seed_done\n" ++
+  "  ld x29, 448(x20)\n" ++                  -- x29 = current entry count
+  "  slli x30, x29, 7; add x30, x28, x30\n" ++   -- x30 = entry ptr = base + count*128
+  -- addrHash src[0..32] -> entry[0..32]
+  "  ld x31, 0(x7);  sd x31, 0(x30)\n" ++
+  "  ld x31, 8(x7);  sd x31, 8(x30)\n" ++
+  "  ld x31, 16(x7); sd x31, 16(x30)\n" ++
+  "  ld x31, 24(x7); sd x31, 24(x30)\n" ++
+  -- slotKey src[32..64] -> entry[32..64]
+  "  ld x31, 32(x7); sd x31, 32(x30)\n" ++
+  "  ld x31, 40(x7); sd x31, 40(x30)\n" ++
+  "  ld x31, 48(x7); sd x31, 48(x30)\n" ++
+  "  ld x31, 56(x7); sd x31, 56(x30)\n" ++
+  -- value src[64..96] -> original entry[64..96] AND current entry[96..128]
+  "  ld x31, 64(x7); sd x31, 64(x30);  sd x31, 96(x30)\n" ++
+  "  ld x31, 72(x7); sd x31, 72(x30);  sd x31, 104(x30)\n" ++
+  "  ld x31, 80(x7); sd x31, 80(x30);  sd x31, 112(x30)\n" ++
+  "  ld x31, 88(x7); sd x31, 88(x30);  sd x31, 120(x30)\n" ++
+  "  addi x29, x29, 1; sd x29, 448(x20)\n" ++    -- bump persistentLogLength
+  "  addi x7, x7, 96; addi x6, x6, -1; j .Lcallee_seed_loop\n" ++
+  ".Lcallee_seed_done:\n"
+
 /-- Callable runtime dispatcher entry. The dispatcher loop uses `ra` for
     opcode-handler calls, so the caller's return address is saved in the
     runtime data section and restored by the callable exit join. -/
@@ -2009,6 +2049,7 @@ def emitRuntimeDispatcherCallablePrologue : String :=
   "  la x5, runtime_dispatcher_caller_sp\n" ++
   "  sd sp, 0(x5)\n" ++
   emitRuntimeDispatcherCallableSetup ++ "\n" ++
+  emitCalleeStorageSeedLoop ++ "\n" ++
   emitRuntimeDispatcherLoop
 
 /-- Callable runtime dispatcher text body. This is used both by standalone
@@ -2290,6 +2331,17 @@ def emitRuntimeDispatcherDataSectionCore
   -- was validated against (0 when --validate-tx-gas was not requested).
   "runtime_tx_calldata_floor:\n" ++
   "  .zero 8\n" ++
+  -- bmvmx.1.6.4.2: nested-callee storage seed table consumed by the callable
+  -- dispatcher prologue's seed loop. `callee_seed_count` is 0 by default, so the
+  -- loop is inert (depth-0 / recipient behaviour byte-identical) until the verdict's
+  -- dispatch_tx_runtime_code (1.6.4.2.b) enumerates every non-recipient BAL account's
+  -- storage into the table (count × 96 B: addrHash:32, key:32, value:32).
+  ".balign 8\n" ++
+  "callee_seed_count:\n" ++
+  "  .zero 8\n" ++
+  ".balign 32\n" ++
+  "callee_seed_table:\n" ++
+  "  .zero 12288\n" ++   -- up to 128 entries × 96 B
   ".balign 32\n" ++
   "evm_memory:\n" ++
   "  .zero 0x10000\n" ++  -- 64 KiB EVM memory, enough for Amsterdam MAX_INIT_CODE_SIZE
