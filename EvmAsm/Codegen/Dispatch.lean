@@ -18,6 +18,7 @@
 
 import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Programs.SstoreGasRefund
 import EvmAsm.Codegen.CallFrameLayout
 import EvmAsm.Codegen.Programs.Address
 import EvmAsm.Codegen.Programs.HashBridge
@@ -930,6 +931,7 @@ def emitDispatcherPrologue : String :=
   -- the regions are byte-accessed directly by the storage handlers.
   "  sd x0, 448(x20)\n" ++         -- env.persistentLogLengthOff = 0
   "  sd x0, 456(x20)\n" ++         -- env.persistentLogCheckpointOff = 0
+  "  la x5, evm_refund_acc; sd x0, 0(x5)\n" ++   -- bmvmx.1.6.3: reset per-tx refund counter
   "  sd x0, 464(x20)\n" ++         -- env.transientLogLengthOff = 0
   "  sd x0, 472(x20)\n" ++         -- env.eventLogLengthOff = 0
   "  sd x0, 480(x20)\n" ++         -- env.eventLogCheckpointOff = 0
@@ -1333,6 +1335,7 @@ def emitDispatcherEpilogueCore
     createExecuteInitcodeFrameRuntimeFunction ++ "\n" ++
     zkvmModexpSafeFailWrapper ++ "\n" ++
     storageAccessGasFunction ++ "\n" ++
+    sstoreGasRefundOutcomeFunction ++ "\n" ++
     runtimeAccessAccountSeedFunction ++ "\n" ++
     runtimeAccessSeedInitialAccountsFunction ++ "\n" ++
     runtimeAccessAccountChargeFunction ++ "\n" ++
@@ -2080,6 +2083,7 @@ def emitRuntimeDispatcherEmbeddedHelperFunctions : String :=
   createExecuteInitcodeFrameRuntimeFunction ++ "\n" ++
   zkvmModexpSafeFailWrapper ++ "\n" ++
   storageAccessGasFunction ++ "\n" ++
+  sstoreGasRefundOutcomeFunction ++ "\n" ++
   runtimeAccessAccountSeedFunction ++ "\n" ++
   runtimeAccessSeedInitialAccountsFunction ++ "\n" ++
   runtimeAccessAccountChargeFunction ++ "\n" ++
@@ -2342,6 +2346,20 @@ def emitRuntimeDispatcherDataSectionCore
   ".balign 32\n" ++
   "callee_seed_table:\n" ++
   "  .zero 12288\n" ++   -- up to 128 entries × 96 B
+  -- bmvmx.1.6.3 refund accumulation (claude-c1's lane per c2 split). evm_refund_acc is
+  -- the running per-tx EIP-3529 refund counter (signed i64): the SSTORE handler adds each
+  -- SSTORE's refund delta (from sstore_gas_refund_outcome) on append; reset to 0 at
+  -- dispatcher setup. srfd_zero is the zero original/current buffer for a missing slot;
+  -- srfd_out is the helper's output. NOT yet surfaced (bv_runtime_refund_counter stays 0)
+  -- — additive/unconsumed until the balance compare consumes it (next slice).
+  ".balign 8\n" ++
+  "evm_refund_acc:\n" ++
+  "  .zero 8\n" ++
+  ".balign 32\n" ++
+  "srfd_zero:\n" ++
+  "  .zero 32\n" ++
+  "srfd_out:\n" ++
+  "  .zero 32\n" ++
   -- bmvmx.1.6.6 enabler: per-entry block_access_index, PARALLEL to the 128 B exec-log
   -- entries at 0xa0630000 (so the existing scans are byte-identical). exec_log_txindex[i]
   -- = the tx's block_access_index for persistent-log entry i; the SSTORE handler stamps
