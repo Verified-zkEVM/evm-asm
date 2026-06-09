@@ -14,6 +14,7 @@ import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransfer
 import EvmAsm.Codegen.Programs.Eip7702NonceReuseGuard
 import EvmAsm.Codegen.Programs.BalStorageMatchesExecLog
 import EvmAsm.Codegen.Programs.BalStorageCoversExecLog
+import EvmAsm.Codegen.Programs.BalAllAccountsStorage
 
 namespace EvmAsm.Codegen
 
@@ -213,6 +214,8 @@ def ziskStatelessVerdictV2DataSection : String :=
   balStorageMatchesExecLogData ++
   -- bmvmx.1.6.5 exec ⊆ BAL omission-detection scratch (bal_storage_covers_exec_log).
   balStorageCoversExecLogData ++
+  -- bmvmx.1.6.4.3 all-accounts storage check scratch (bal_all_accounts_storage_consistent, c2bal_*).
+  balAllAccountsStorageConsistentData ++
   -- bmvmx.1.6.3 recipient nonce/code-change emptiness probe (rlp_list_nth_item out cells).
   "bv_rcf_off:\n  .zero 8\n" ++
   "bv_rcf_len:\n  .zero 8\n" ++
