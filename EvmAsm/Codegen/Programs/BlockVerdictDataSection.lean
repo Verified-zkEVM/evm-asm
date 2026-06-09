@@ -755,6 +755,19 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bv_mtx_refund:\n  .zero 128\n" ++
   "bv_mtx_calldata:\n  .zero 128\n" ++
   "bv_mtx_ctx:\n  .zero 192\n" ++
+  -- fhsxz.2.4.2.57.11.6.3.2: cross-tx committed-storage table. After each per-tx dispatch
+  -- the multi-tx loop appends the live exec log's entries here, re-keyed (addrHash) to that
+  -- tx's recipient (its entries are all the recipient's own — dispatch_tx_runtime_code
+  -- requires self-contained), so the NEXT tx's preload can thread a prior tx's committed
+  -- value via exec_log_latest_value. 128 entries × 128 B; count 0 for tx0 / single-tx /
+  -- independent blocks -> no threading -> byte-identical. dtrc_recipkey / dtrc_threadval are
+  -- the per-slot query key (recipient 20B, zero-padded) and the threaded-value output buffer.
+  ".balign 8\n" ++
+  "bv_mtx_committed_count:\n  .zero 8\n" ++
+  ".balign 32\n" ++
+  "bv_mtx_committed:\n  .zero 16384\n" ++
+  "dtrc_recipkey:\n  .zero 32\n" ++
+  "dtrc_threadval:\n  .zero 32\n" ++
   -- bmvmx.1.4.4: single-tx EOA settlement scalars precomputed before
   -- block_state_root (additive; no consumer yet -> verdict byte-identical).
   -- Consumed later by .4.1/.4.2 to build execution-derived sender/coinbase leaves.

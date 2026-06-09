@@ -206,6 +206,28 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  li t2, 32; beq t6, t2, .Ldtrc_vdone\n" ++
   "  add t2, t4, t6; addi t2, t2, 32; sb zero, 0(t2); addi t6, t6, 1; j .Ldtrc_vzloop\n" ++
   ".Ldtrc_vdone:\n" ++
+  -- fhsxz.2.4.2.57.11.6.3.2 cross-tx threading: if a prior tx in this block committed a
+  -- value for (recipient, slotKey), stage that committed value as this slot's preload
+  -- (original==current) instead of the block-pre witness value, so this tx's SSTORE gas/
+  -- refund uses the in-block committed original. bv_mtx_committed_count is 0 for tx0 /
+  -- single-tx / independent blocks -> no match -> byte-identical. Recipient key = ctx+72
+  -- (20B, zero-padded to 32) — the same re-keying the snapshot uses.
+  "  la t0, bv_mtx_committed_count; ld a3, 0(t0); beqz a3, .Ldtrc_nothread\n" ++
+  "  la t0, dtrc_recipkey; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++
+  "  addi t1, s2, 72; li t2, 0\n" ++
+  ".Ldtrc_rkey:\n" ++
+  "  li t3, 20; beq t2, t3, .Ldtrc_rkeyd\n" ++
+  "  add t3, t1, t2; lbu t4, 0(t3); la t5, dtrc_recipkey; add t5, t5, t2; sb t4, 0(t5); addi t2, t2, 1; j .Ldtrc_rkey\n" ++
+  ".Ldtrc_rkeyd:\n" ++
+  "  la t0, bvcd_i; ld t1, 0(t0); slli t2, t1, 5; la t3, bvcd_keys; add a1, t3, t2   # a1 = slotKey ptr\n" ++
+  "  la a0, dtrc_recipkey; la a2, bv_mtx_committed; la t0, bv_mtx_committed_count; ld a3, 0(t0); la a4, dtrc_threadval\n" ++
+  "  jal ra, exec_log_latest_value\n" ++
+  "  beqz a0, .Ldtrc_nothread                       # no prior-tx committed value -> keep witness value\n" ++
+  "  la t0, bvcd_i; ld t1, 0(t0); slli t2, t1, 6; la t3, bvcd_preload; add t4, t3, t2   # preload entry i\n" ++
+  "  la t5, dtrc_threadval\n" ++
+  "  ld t6, 0(t5);  sd t6, 32(t4); ld t6, 8(t5);  sd t6, 40(t4)\n" ++
+  "  ld t6, 16(t5); sd t6, 48(t4); ld t6, 24(t5); sd t6, 56(t4)\n" ++
+  ".Ldtrc_nothread:\n" ++
   "  la t0, bvcd_i; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Ldtrc_sloop\n" ++
   ".Ldtrc_stage:\n" ++
   "  mv a0, s2; la a1, bv_runtime_payload; la t2, bv_exec_p; ld a2, 0(t2)\n" ++
