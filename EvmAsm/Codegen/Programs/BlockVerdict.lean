@@ -1122,6 +1122,24 @@ def statelessVerdictV2Function : String :=
   "  la a2, erh_requests_hash\n" ++
   "  jal ra, execution_requests_hash\n" ++
   "  bnez a0, .Lv2_requests_hash_fail\n" ++
+  -- hv09f.1: parse_deposit_requests scans receipts for deposit-contract logs; a
+  -- no-tx block has no transaction calling the deposit contract, hence zero deposit
+  -- logs, so execution_requests.deposits MUST be empty. The guest trusts the SSZ
+  -- deposits, so a no-tx block with a fabricated non-empty deposits list (and a
+  -- matching header.requests_hash) would be accepted though the spec rejects it.
+  -- Reject when tx_count == 0 and the deposits body is non-empty. Sound by
+  -- construction: a valid no-tx block has empty deposits, so no false-reject.
+  -- (Withdrawals/consolidations are NOT checked: the 7002/7251 system contracts can
+  -- enqueue those in a no-tx block.) execution_requests_hash already validated the
+  -- offset table (>=12 bytes, monotonic), so reading offset[0]/offset[1] is safe and
+  -- offset[1] >= offset[0]. s0/s3 (NPR base / er offset) survive the call (s-regs).
+  "  la t0, svf_tx_count; ld t0, 0(t0); bnez t0, .Lv2_after_notx_deposits\n" ++
+  "  addi a0, s0, 16; add a0, a0, s3; jal ra, bgv_u64le   # offset[0] | offset[1]<<32\n" ++
+  "  srli t0, a0, 32                                       # deposits end (offset[1])\n" ++
+  "  slli t1, a0, 32; srli t1, t1, 32                      # deposits start (offset[0])\n" ++
+  "  sub t2, t0, t1                                        # deposits body length\n" ++
+  "  bnez t2, .Lv2_notx_deposits_fail\n" ++
+  ".Lv2_after_notx_deposits:\n" ++
   "  mv a0, s0; la a1, svf_bal_hash\n" ++
   "  jal ra, block_access_list_hash\n" ++
   "  bnez a0, .Lv2_bal_hash_fail\n" ++
@@ -1161,6 +1179,9 @@ def statelessVerdictV2Function : String :=
   "  j .Lv2_zero\n" ++
   ".Lv2_requests_hash_fail:\n" ++
   "  li t0, 24; la t1, bv_fail_code; sd t0, 0(t1)\n" ++
+  "  j .Lv2_zero\n" ++
+  ".Lv2_notx_deposits_fail:\n" ++   -- hv09f.1: no-tx block claims non-empty execution_requests.deposits
+  "  li t0, 36; la t1, bv_fail_code; sd t0, 0(t1)\n" ++
   "  j .Lv2_zero\n" ++
   ".Lv2_tx_root_fail:\n" ++
   "  li t0, 32; la t1, bv_fail_code; sd t0, 0(t1)\n" ++
