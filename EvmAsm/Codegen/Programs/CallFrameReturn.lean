@@ -60,12 +60,15 @@ open EvmAsm.Rv64
     Clobbers t0-t4 (and the dispatcher regs it intentionally repoints). -/
 def frameReturnFunction : String :=
   "frame_return:\n" ++
-  "  addi sp, sp, -48\n" ++
+  "  addi sp, sp, -64\n" ++
   "  sd ra, 0(sp)\n" ++
-  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s6, 40(sp)\n" ++
+  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s6, 40(sp); sd s7, 48(sp)\n" ++
   "  mv s0, a0                      # success word\n" ++
   "  mv s1, a1                      # child returndata ptr\n" ++
   "  mv s2, a2                      # returndata len\n" ++
+  -- Capture the child frame's leftover gas (x20 = child env at entry) for the
+  -- EIP-150 refund below; held in s7 across the x20 repoint.
+  "  ld s7, 568(x20)\n" ++
   -- Load the saved call-context for the CURRENT (child) depth.
   "  la t0, evm_call_depth\n" ++
   "  ld t1, 0(t0)                   # t1 = child depth d\n" ++
@@ -155,6 +158,11 @@ def frameReturnFunction : String :=
   "  sub t3, t3, t4               # parent stack low = top - 1024*32\n" ++
   "  la t4, evm_cur_stack_low; sd t3, 0(t4)\n" ++
   "5:\n" ++
+  -- EIP-150 gas refund: return the child frame's UNUSED gas to the parent
+  -- (x20 = parent env here). Pairs with the cost deduction in call_frame_descend.
+  "  ld t0, 568(x20)\n" ++
+  "  add t0, t0, s7\n" ++
+  "  sd t0, 568(x20)\n" ++
   -- Restore the parent stack top: pop the CALL args, push the success word.
   "  add x12, s3, s6              # parent_x12 + netPopBytes\n" ++
   "  sd s0, 0(x12)\n" ++
@@ -162,8 +170,8 @@ def frameReturnFunction : String :=
   -- Resume the parent one byte past the CALL opcode.
   "  addi x10, x10, 1\n" ++
   "  ld ra, 0(sp)\n" ++
-  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s6, 40(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
+  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s6, 40(sp); ld s7, 48(sp)\n" ++
+  "  addi sp, sp, 64\n" ++
   "  ret"
 
 /-- `zisk_frame_return`: unit probe for `frame_return` over synthesized state.
@@ -194,7 +202,10 @@ def frameReturnFunction : String :=
     Returndata staging into evm_precompile_frame:
       +120 precompile_frame size after scenario A (STOP, expect 0)
       +128 precompile_frame size after scenario B (expect 4 = retlen)
-      +136 precompile_frame data[0] after scenario B (expect 0xab) -/
+      +136 precompile_frame data[0] after scenario B (expect 0xab)
+    EIP-150 gas refund (parent gas += child leftover):
+      +144 parent gas after scenario A (100 + 50 = 150)
+      +152 parent gas after scenario B (200 + 30 = 230) -/
 def ziskFrameReturnPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li s0, 0xa0010000\n" ++
@@ -208,6 +219,9 @@ def ziskFrameReturnPrologue : String :=
   "  la t1, fr_out; sd t1, 8(t0)\n" ++
   "  sd x0, 16(t0)\n" ++
   "  li t1, 192; sd t1, 24(t0)\n" ++
+  "  la x20, fr_child_env\n" ++                       -- child env for the gas read
+  "  la t0, fr_child_env; li t1, 50; sd t1, 568(t0)\n" ++   -- child leftover gas = 50
+  "  la t0, evm_env;      li t1, 100; sd t1, 568(t0)\n" ++  -- parent gas = 100
   "  li a0, 1; li a1, 0; li a2, 0\n" ++
   "  jal ra, frame_return\n" ++
   "  sd x10, 0(s0)                  # expect 0x101 (parent_pc 0x100 + 1)\n" ++
@@ -221,6 +235,8 @@ def ziskFrameReturnPrologue : String :=
   "  la t0, evm_cur_stack_top; ld t1, 0(t0); la t2, evm_stack_top; sub t1, t1, t2; sd t1, 104(s0)  # expect 0\n" ++
   -- returndata staging: STOP carried no returndata -> precompile_frame size 0.
   "  la t0, evm_precompile_frame; ld t1, 8(t0); sd t1, 120(s0)  # expect 0\n" ++
+  -- EIP-150 gas refund: parent gas 100 + child leftover 50 = 150.
+  "  la t0, evm_env; ld t1, 568(t0); sd t1, 144(s0)  # expect 150\n" ++
   -- ---- Scenario B: depth 2 -> 1, REVERT-style with a returndata byte ----
   "  la t0, evm_call_depth; li t1, 2; sd t1, 0(t0)\n" ++
   -- frame_save_area[1] = (pc=0x300, cb=0x444)
@@ -233,6 +249,9 @@ def ziskFrameReturnPrologue : String :=
   "  li t1, 160; sd t1, 24(t0)\n" ++
   -- returndata source: one byte 0xab
   "  la t0, fr_ret; li t1, 0xab; sb t1, 0(t0)\n" ++
+  "  la x20, fr_child_env\n" ++
+  "  la t0, fr_child_env; li t1, 30; sd t1, 568(t0)\n" ++   -- child leftover gas = 30
+  "  la t0, call_frame_arena; li t2, 0x28400; add t0, t0, t2; li t1, 200; sd t1, 568(t0)\n" ++  -- parent (frame[1]) gas = 200
   "  li a0, 0; la a1, fr_ret; li a2, 4\n" ++
   "  jal ra, frame_return\n" ++
   "  la t0, call_frame_arena; sub t0, x13, t0; sd t0, 56(s0)   # expect 0\n" ++
@@ -246,6 +265,8 @@ def ziskFrameReturnPrologue : String :=
   -- returndata staging: retlen 4 -> precompile_frame size 4; first byte 0xab @ +16.
   "  la t0, evm_precompile_frame; ld t1, 8(t0); sd t1, 128(s0)    # expect 4\n" ++
   "  la t0, evm_precompile_frame; lbu t1, 16(t0); sd t1, 136(s0)  # expect 0xab\n" ++
+  -- EIP-150 gas refund: parent gas 200 + child leftover 30 = 230.
+  "  la t0, call_frame_arena; li t2, 0x28400; add t0, t0, t2; ld t1, 568(t0); sd t1, 152(s0)  # expect 230\n" ++
   "  j .Lfr_done\n" ++
   frameReturnFunction ++ "\n" ++
   ".Lfr_done:"
@@ -264,7 +285,9 @@ def ziskFrameReturnDataSection : String :=
   "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n" ++
   ".balign 32\n" ++
   "evm_memory:\n  .zero 64\n" ++
-  "evm_env:\n  .zero 64\n" ++
+  "evm_env:\n  .zero 640\n" ++          -- enlarged: frame_return refunds gas at env+568
+  "fr_child_env:\n  .zero 640\n" ++       -- child env (x20 at frame_return entry); +568 = child gas
+
   -- Frame-relative stack-bound labels + cells. `evm_stack_top`/`evm_stack_low`
   -- are address-only stubs (frame_return takes their `&` for the depth-0
   -- restore); the cur cells hold the restored current-frame bounds.
