@@ -216,6 +216,18 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- bmvmx.1.6.3 recipient nonce/code-change emptiness probe (rlp_list_nth_item out cells).
   "bv_rcf_off:\n  .zero 8\n" ++
   "bv_rcf_len:\n  .zero 8\n" ++
+  -- bmvmx.1.6.4.2.b seed_callee_storage scratch: BAL-account + slot loop state, the
+  -- per-account LE exec-log key, and the callee storage-key buffer (own buffer so it
+  -- can't overflow the recipient's 16-slot bvcd_keys; caps with the 128-entry table).
+  ".balign 8\n" ++
+  "csce_acct_i:\n  .zero 8\n" ++ "csce_acct_n:\n  .zero 8\n" ++
+  "csce_aoff:\n  .zero 8\n" ++ "csce_alen:\n  .zero 8\n" ++
+  "csce_doff:\n  .zero 8\n" ++ "csce_dlen:\n  .zero 8\n" ++
+  "csce_addrp:\n  .zero 8\n" ++
+  "csce_key_i:\n  .zero 8\n" ++ "csce_key_n:\n  .zero 8\n" ++
+  ".balign 32\n" ++
+  "csce_addrkey:\n  .zero 32\n" ++
+  "csce_keys:\n  .zero 4096\n" ++   -- up to 128 x 32-byte slot keys
 
   "bv_eip7778_status:\n  .zero 8\n" ++
   "bv_eip7778_index:\n  .zero 8\n" ++

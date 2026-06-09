@@ -53,6 +53,102 @@ open EvmAsm.Rv64
       a2 = calldata_floor (runtime_tx_calldata_floor) on status 0
 
     Preserves the caller's s0..s3 (block_verdict holds its input frame in s0). -/
+/-! ## seed_callee_storage (bmvmx.1.6.4.2.b)
+
+    Enumerate EVERY non-recipient BAL account's storage and seed it into the
+    persistent exec log (via `callee_seed_table` / `callee_seed_count`, consumed by
+    the callable dispatcher's inert seed loop) so a nested CALLEE's SLOAD reads its
+    witness value instead of cold 0. Mirrors `dispatch_tx_runtime_code`'s recipient
+    slot-loop, wrapped in a BAL-account loop, keyed per account on the callee
+    exec-log key (`bal_addr_to_exec_log_key`, LE stack-word — the recipient keys BE
+    and is handled separately by the existing recipient preload).
+
+    Calling convention:
+      a0 = witness.state ptr   a1 = witness.state len   a2 = recipient 20-byte addr ptr
+    Reads globals `bv_bal_start`/`bv_bal_len`, `sv_this_rlp`/`sv_this_rlp_len`.
+    Writes `callee_seed_count` + `callee_seed_table` (count × 96 B: addrHash, key,
+    value). Caps at 128 entries (table size); preserves s0..s3. A seeded slot has
+    original==current==value (no net change), matching the recipient preload. -/
+def seedCalleeStorageFunction : String :=
+  "seed_callee_storage:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra, 0(sp)\n" ++
+  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  mv s0, a0                    # witness ptr\n" ++
+  "  mv s1, a1                    # witness len\n" ++
+  "  mv s2, a2                    # recipient 20B addr ptr\n" ++
+  "  la t0, callee_seed_count; sd zero, 0(t0)\n" ++
+  "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0); la a2, csce_acct_n\n" ++
+  "  jal ra, rlp_list_count_items\n" ++
+  "  bnez a0, .Lscs_done                # BAL parse error -> seed nothing (conservative)\n" ++
+  "  la t0, csce_acct_i; sd zero, 0(t0)\n" ++
+  ".Lscs_acct_loop:\n" ++
+  "  la t0, csce_acct_i; ld t1, 0(t0); la t2, csce_acct_n; ld t3, 0(t2); beq t1, t3, .Lscs_done\n" ++
+  "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
+  "  la t0, csce_acct_i; ld a2, 0(t0); la a3, csce_aoff; la a4, csce_alen\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lscs_acct_next\n" ++
+  "  la t0, bv_bal_start; ld t1, 0(t0); la t0, csce_aoff; ld t2, 0(t0); add s3, t1, t2   # s3 = AccountChanges ptr\n" ++
+  "  mv a0, s3; la t0, csce_alen; ld a1, 0(t0); li a2, 0; la a3, csce_doff; la a4, csce_dlen\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lscs_acct_next\n" ++
+  "  la t0, csce_dlen; ld t1, 0(t0); li t2, 20; bne t1, t2, .Lscs_acct_next   # item0 not a 20B address\n" ++
+  "  la t0, csce_doff; ld t1, 0(t0); add t1, s3, t1; la t0, csce_addrp; sd t1, 0(t0)   # addr ptr (BE)\n" ++
+  -- Skip the recipient (already preloaded BE by dispatch_tx_runtime_code).
+  "  li t3, 0\n" ++
+  ".Lscs_rcmp:\n" ++
+  "  li t4, 20; beq t3, t4, .Lscs_acct_next       # 20/20 equal -> recipient -> skip\n" ++
+  "  la t0, csce_addrp; ld t5, 0(t0); add t5, t5, t3; lbu t5, 0(t5)\n" ++
+  "  add t6, s2, t3; lbu t6, 0(t6)\n" ++
+  "  bne t5, t6, .Lscs_not_recip\n" ++
+  "  addi t3, t3, 1; j .Lscs_rcmp\n" ++
+  ".Lscs_not_recip:\n" ++
+  "  la t0, csce_addrp; ld a0, 0(t0); la a1, csce_addrkey\n" ++
+  "  jal ra, bal_addr_to_exec_log_key                # csce_addrkey = LE callee exec-log key\n" ++
+  "  mv a0, s3; la t0, csce_alen; ld a1, 0(t0); la a2, csce_keys\n" ++
+  "  jal ra, bal_recipient_storage_keys              # csce_keys[] (own buffer, 128 cap)\n" ++
+  "  la t0, csce_key_n; sd a0, 0(t0)\n" ++
+  "  la t0, csce_key_i; sd zero, 0(t0)\n" ++
+  ".Lscs_slot_loop:\n" ++
+  "  la t0, csce_key_i; ld t1, 0(t0); la t2, csce_key_n; ld t3, 0(t2); beq t1, t3, .Lscs_acct_next\n" ++
+  "  la t0, callee_seed_count; ld t2, 0(t0); li t3, 128; bgeu t2, t3, .Lscs_done   # table cap\n" ++
+  "  slli t4, t1, 5; la t5, csce_keys; add a3, t5, t4   # slot key ptr\n" ++
+  "  la a0, sv_this_rlp; la t0, sv_this_rlp_len; ld a1, 0(t0)\n" ++
+  "  la t0, csce_addrp; ld a2, 0(t0)\n" ++
+  "  mv a4, s0; mv a5, s1; mv a6, s0; mv a7, s1\n" ++
+  "  jal ra, slot_at_header_state_root\n" ++
+  "  li t2, 5; beq a0, t2, .Lscs_slot_vzero\n" ++
+  "  bnez a0, .Lscs_slot_next                        # lookup error -> skip this slot\n" ++
+  -- entry ptr = callee_seed_table + count*96
+  "  la t0, callee_seed_count; ld t1, 0(t0); slli t2, t1, 6; slli t3, t1, 5; add t2, t2, t3\n" ++
+  "  la t4, callee_seed_table; add t4, t4, t2\n" ++
+  "  la t5, csce_addrkey\n" ++
+  "  ld t6, 0(t5); sd t6, 0(t4); ld t6, 8(t5); sd t6, 8(t4); ld t6, 16(t5); sd t6, 16(t4); ld t6, 24(t5); sd t6, 24(t4)\n" ++
+  "  la t0, csce_key_i; ld t1, 0(t0); slli t2, t1, 5; la t5, csce_keys; add t5, t5, t2\n" ++
+  "  ld t6, 0(t5); sd t6, 32(t4); ld t6, 8(t5); sd t6, 40(t4); ld t6, 16(t5); sd t6, 48(t4); ld t6, 24(t5); sd t6, 56(t4)\n" ++
+  "  la t5, sahsr_u256\n" ++
+  "  ld t6, 0(t5); sd t6, 64(t4); ld t6, 8(t5); sd t6, 72(t4); ld t6, 16(t5); sd t6, 80(t4); ld t6, 24(t5); sd t6, 88(t4)\n" ++
+  "  j .Lscs_slot_commit\n" ++
+  ".Lscs_slot_vzero:\n" ++
+  "  la t0, callee_seed_count; ld t1, 0(t0); slli t2, t1, 6; slli t3, t1, 5; add t2, t2, t3\n" ++
+  "  la t4, callee_seed_table; add t4, t4, t2\n" ++
+  "  la t5, csce_addrkey\n" ++
+  "  ld t6, 0(t5); sd t6, 0(t4); ld t6, 8(t5); sd t6, 8(t4); ld t6, 16(t5); sd t6, 16(t4); ld t6, 24(t5); sd t6, 24(t4)\n" ++
+  "  la t0, csce_key_i; ld t1, 0(t0); slli t2, t1, 5; la t5, csce_keys; add t5, t5, t2\n" ++
+  "  ld t6, 0(t5); sd t6, 32(t4); ld t6, 8(t5); sd t6, 40(t4); ld t6, 16(t5); sd t6, 48(t4); ld t6, 24(t5); sd t6, 56(t4)\n" ++
+  "  sd zero, 64(t4); sd zero, 72(t4); sd zero, 80(t4); sd zero, 88(t4)\n" ++
+  ".Lscs_slot_commit:\n" ++
+  "  la t0, callee_seed_count; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
+  ".Lscs_slot_next:\n" ++
+  "  la t0, csce_key_i; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Lscs_slot_loop\n" ++
+  ".Lscs_acct_next:\n" ++
+  "  la t0, csce_acct_i; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Lscs_acct_loop\n" ++
+  ".Lscs_done:\n" ++
+  "  ld ra, 0(sp)\n" ++
+  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
 def dispatchTxRuntimeCodeFunction : String :=
   "dispatch_tx_runtime_code:\n" ++
   "  addi sp, sp, -48\n" ++
@@ -117,6 +213,11 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la a5, bvcd_preload; la t0, bvcd_key_count; ld a6, 0(t0)\n" ++
   "  jal ra, stage_runtime_payload_code\n" ++
   "  bnez a0, .Ldtrc_unsupported\n" ++
+  -- bmvmx.1.6.4.2.b: seed every non-recipient BAL account's storage into the exec log
+  -- so nested callees SLOAD witness values (not 0). Fills callee_seed_table/count, which
+  -- the callable dispatcher's seed loop drains during runtime_dispatcher_call's setup.
+  "  mv a0, s0; mv a1, s1; addi a2, s2, 72\n" ++
+  "  jal ra, seed_callee_storage\n" ++
   "  la t4, runtime_dispatcher_input_ptr; la t5, bv_runtime_payload; addi t5, t5, 8; sd t5, 0(t4)\n" ++
   "  addi sp, sp, -32\n" ++
   "  sd s0, 0(sp); sd s1, 8(sp); sd s2, 16(sp); sd s3, 24(sp)\n" ++
