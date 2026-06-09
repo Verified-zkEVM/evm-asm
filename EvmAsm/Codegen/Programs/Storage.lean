@@ -179,7 +179,11 @@ def storageHandlers : List OpcodeHandlerSpec :=
         "  mv x17, x1\n" ++
         "  mv x18, x10\n" ++
         "  mv x19, x12\n" ++
-        "  li a0, 0\n" ++
+        -- a0 = &env.ADDRESS (env+0): per-contract EIP-2929 access-list token, so
+        -- the same slot in two contracts is tracked as two distinct cold keys
+        -- (x20 = env base, preserved across the helper call). Matches the
+        -- per-contract addrHash keying of the storage value log.
+        "  mv a0, x20\n" ++
         "  mv a1, x12\n" ++
         "  addi a2, x20, 568\n" ++
         "  jal ra, evm_storage_access_charge_key\n" ++
@@ -252,7 +256,11 @@ def storageHandlers : List OpcodeHandlerSpec :=
         "  mv x17, x1\n" ++
         "  mv x18, x10\n" ++
         "  mv x19, x12\n" ++
-        "  li a0, 0\n" ++
+        -- a0 = &env.ADDRESS (env+0): per-contract EIP-2929 access-list token, so
+        -- the same slot in two contracts is tracked as two distinct cold keys
+        -- (x20 = env base, preserved across the helper call). Matches the
+        -- per-contract addrHash keying of the storage value log.
+        "  mv a0, x20\n" ++
         "  mv a1, x12\n" ++
         "  addi a2, x20, 568\n" ++
         "  jal ra, evm_storage_access_charge_key\n" ++
