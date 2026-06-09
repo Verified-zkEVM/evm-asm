@@ -256,16 +256,14 @@ def balCodePreimagesValidFunction : String :=
   "  bnez a0, .Lbbcv_next\n" ++
   "  j .Lbbcv_missing_code\n" ++
   ".Lbbcv_missing_code:\n" ++
-  "  # Final reprieve: fork-level system contracts (EIP-2935/4788/7002/7251/\n" ++
-  "  # 6110) never require an ordinary witness.codes bytecode preimage, even\n" ++
-  "  # when their BAL row is balance/nonce-shaped rather than a pure touch\n" ++
-  "  # (e.g. a system call that reaches the gas limit and is tolerated by\n" ++
-  "  # process_unchecked_system_transaction). The executable spec validates\n" ++
-  "  # such blocks without the predeploy code in the witness, so the guest's\n" ++
-  "  # code-preimage gate must not reject them either.\n" ++
-  "  la t0, bbcv_addr_off; ld t1, 0(t0); add a0, s10, t1\n" ++
-  "  jal ra, bbcv_addr_is_system_contract\n" ++
-  "  bnez a0, .Lbbcv_next\n" ++
+  "  # No system-contract reprieve here: the spec's system calls (EIP-2935/\n" ++
+  "  # 4788 at block start, EIP-7002/7251 at block end) call get_code on the\n" ++
+  "  # predeploy every block, so a deployed system contract whose non-empty\n" ++
+  "  # code_hash has no witness.codes preimage makes WitnessState.get_code\n" ++
+  "  # raise and the block invalid. The system_contract_reaches_gas_limit\n" ++
+  "  # rows DO carry their (72945-byte) predeploy preimage; they previously\n" ++
+  "  # reached this label only because witness_lookup_by_hash false-missed\n" ++
+  "  # codes sections above a 64 KiB linear-scan cap (since removed).\n" ++
   "  li a0, 1; j .Lbbcv_ret\n" ++
   ".Lbbcv_parse_fail:\n" ++
   "  li a0, 2\n" ++
