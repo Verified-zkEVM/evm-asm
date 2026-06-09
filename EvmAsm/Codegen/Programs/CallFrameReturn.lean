@@ -105,6 +105,9 @@ def frameReturnFunction : String :=
   "  bnez t1, 4f\n" ++
   "  la x13, evm_memory\n" ++
   "  la x20, evm_env\n" ++
+  -- Frame-relative stack bounds: restore the guards to the depth-0 global arena.
+  "  la t0, evm_cur_stack_top; la t2, evm_stack_top; sd t2, 0(t0)\n" ++
+  "  la t0, evm_cur_stack_low; la t2, evm_stack_low; sd t2, 0(t0)\n" ++
   "  j 5f\n" ++
   "4:\n" ++
   "  addi t2, t1, -1               # (parent_depth - 1)\n" ++
@@ -115,6 +118,13 @@ def frameReturnFunction : String :=
   "  mv x13, t2                   # + frameMemOff (0)\n" ++
   "  li t3, 0x28400\n" ++
   "  add x20, t2, t3              # + frameEnvOff\n" ++
+  -- Frame-relative stack bounds: restore the guards to the parent frame's stack.
+  "  li t3, 0x18200\n" ++
+  "  add t3, t2, t3               # parent stack top = frame_base + frameStackTopOff\n" ++
+  "  la t4, evm_cur_stack_top; sd t3, 0(t4)\n" ++
+  "  li t4, 0x8000\n" ++
+  "  sub t3, t3, t4               # parent stack low = top - 1024*32\n" ++
+  "  la t4, evm_cur_stack_low; sd t3, 0(t4)\n" ++
   "5:\n" ++
   -- Restore the parent stack top: pop the CALL args, push the success word.
   "  add x12, s3, s6              # parent_x12 + netPopBytes\n" ++
@@ -148,7 +158,10 @@ def frameReturnFunction : String :=
       +72 x12 - &fr_pstack2           (expect 160 = netPopBytes)
       +80 success word at x12         (expect 0  — REVERT path)
       +88 evm_call_depth after        (expect 1)
-      +96 first copied returndata byte at outoff_abs (expect 0xab) -/
+      +96 first copied returndata byte at outoff_abs (expect 0xab)
+    Frame-relative stack-bound restores:
+      +104 evm_cur_stack_top - &evm_stack_top   (scenario A, expect 0)
+      +112 evm_cur_stack_top - &call_frame_arena (scenario B, expect 0x18200) -/
 def ziskFrameReturnPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li s0, 0xa0010000\n" ++
@@ -171,6 +184,8 @@ def ziskFrameReturnPrologue : String :=
   "  la t0, fr_pstack;  sub t0, x12, t0; sd t0, 32(s0)   # expect 192\n" ++
   "  ld t0, 0(x12); sd t0, 40(s0)                        # expect 1\n" ++
   "  la t0, evm_call_depth; ld t1, 0(t0); sd t1, 48(s0)  # expect 0\n" ++
+  -- frame-relative stack bounds restored to the depth-0 global arena (cur_top == &evm_stack_top).
+  "  la t0, evm_cur_stack_top; ld t1, 0(t0); la t2, evm_stack_top; sub t1, t1, t2; sd t1, 104(s0)  # expect 0\n" ++
   -- ---- Scenario B: depth 2 -> 1, REVERT-style with a returndata byte ----
   "  la t0, evm_call_depth; li t1, 2; sd t1, 0(t0)\n" ++
   -- frame_save_area[1] = (pc=0x300, cb=0x444)
@@ -191,6 +206,8 @@ def ziskFrameReturnPrologue : String :=
   "  ld t0, 0(x12); sd t0, 80(s0)                              # expect 0\n" ++
   "  la t0, evm_call_depth; ld t1, 0(t0); sd t1, 88(s0)        # expect 1\n" ++
   "  la t0, fr_out; lbu t1, 0(t0); sd t1, 96(s0)               # expect 0xab\n" ++
+  -- frame-relative stack bounds restored to the parent frame[1] arena stack.
+  "  la t0, evm_cur_stack_top; ld t1, 0(t0); la t2, call_frame_arena; sub t1, t1, t2; sd t1, 112(s0)  # expect 0x18200\n" ++
   "  j .Lfr_done\n" ++
   frameReturnFunction ++ "\n" ++
   ".Lfr_done:"
@@ -210,6 +227,13 @@ def ziskFrameReturnDataSection : String :=
   ".balign 32\n" ++
   "evm_memory:\n  .zero 64\n" ++
   "evm_env:\n  .zero 64\n" ++
+  -- Frame-relative stack-bound labels + cells. `evm_stack_top`/`evm_stack_low`
+  -- are address-only stubs (frame_return takes their `&` for the depth-0
+  -- restore); the cur cells hold the restored current-frame bounds.
+  "evm_stack_top:\n  .zero 8\n" ++
+  "evm_stack_low:\n  .zero 8\n" ++
+  "evm_cur_stack_top:\n  .zero 8\n" ++
+  "evm_cur_stack_low:\n  .zero 8\n" ++
   "fr_pstack:\n  .zero 256\n" ++
   "fr_pstack2:\n  .zero 256\n" ++
   "fr_out:\n  .zero 64\n" ++

@@ -283,7 +283,16 @@ def callFrameDescendFunction : String :=
   "  sd x0, 488(s9)                    # activeMemorySize = 0 (fresh child memory)\n" ++
   -- 9. child env.codeSize (env+496).
   "  ld t0, 72(s7); sd t0, 496(s9)\n" ++
-  -- 10. set the live dispatcher registers to the child frame (done last).
+  -- 10. frame-relative stack bounds: point the under/overflow guards at the
+  --     CHILD arena stack. cur_top = child stack top (s11 = base+0x18200);
+  --     cur_low = cur_top - 1024*32 (0x8000), the bottom of the child's arena.
+  "  la t0, evm_cur_stack_top\n" ++
+  "  sd s11, 0(t0)\n" ++
+  "  li t1, 0x8000\n" ++
+  "  sub t1, s11, t1                # child stack low = top - 1024*32\n" ++
+  "  la t0, evm_cur_stack_low\n" ++
+  "  sd t1, 0(t0)\n" ++
+  -- 11. set the live dispatcher registers to the child frame (done last).
   "  mv x13, s10                    # child memory base\n" ++
   "  mv x12, s11                    # child stack top\n" ++
   "  mv x20, s9                     # child env base\n" ++
@@ -404,7 +413,9 @@ def ziskCallDescendProbeUnit : BuildUnit := {
       +120 child env.callDataLen           (expect 0x20 = argsLen)
       +128 child env.gasRemaining          (expect 3300 = min(1000,98438)+2300)
       +136 child env.codeSize              (expect 0x33)
-      +144 child env witness.state ptr     (expect 0x592 marker, copied env+592) -/
+      +144 child env witness.state ptr     (expect 0x592 marker, copied env+592)
+      +152 evm_cur_stack_top - &arena      (expect 0x18200 = child frame stack top)
+      +160 evm_cur_stack_low - &arena      (expect 0x10200 = top - 1024*32) -/
 def ziskCallFrameDescendPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li s0, 0xa0010000\n" ++
@@ -461,6 +472,9 @@ def ziskCallFrameDescendPrologue : String :=
   "  ld t1, 8(t0); la t2, cfd2_pmem; sub t1, t1, t2; sd t1, 32(s0)\n" ++
   "  ld t1, 16(t0); sd t1, 40(s0)\n" ++
   "  ld t1, 24(t0); sd t1, 48(s0)\n" ++
+  -- frame-relative stack bounds set by the descend (child arena stack).
+  "  la t0, evm_cur_stack_top; ld t1, 0(t0); la t2, call_frame_arena; sub t1, t1, t2; sd t1, 152(s0)\n" ++
+  "  la t0, evm_cur_stack_low; ld t1, 0(t0); la t2, call_frame_arena; sub t1, t1, t2; sd t1, 160(s0)\n" ++
   "  j .Lcfd2_done\n" ++
   frameBaseFunction ++ "\n" ++
   frameDepthPushFunction ++ "\n" ++
@@ -484,6 +498,10 @@ def ziskCallFrameDescendDataSection : String :=
   "frame_save_area:\n  .zero 16400\n" ++
   ".balign 32\n" ++
   "frame_call_ctx:\n  .zero 32800\n" ++
+  ".balign 8\n" ++
+  -- Frame-relative stack-bound cells (descend overwrites them; zeroed stubs here).
+  "evm_cur_stack_top:\n  .zero 8\n" ++
+  "evm_cur_stack_low:\n  .zero 8\n" ++
   ".balign 8\n" ++
   "cfd2_desc:\n  .zero 96\n" ++
   ".balign 32\n" ++
