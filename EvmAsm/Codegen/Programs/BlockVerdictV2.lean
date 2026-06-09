@@ -22,6 +22,7 @@ import EvmAsm.Codegen.Programs.BalAddrExecLogKey
 import EvmAsm.Codegen.Programs.BalStorageMatchesExecLog
 import EvmAsm.Codegen.Programs.BalStorageCoversExecLog
 import EvmAsm.Codegen.Programs.BalAllAccountsStorage
+import EvmAsm.Codegen.Programs.BalStorageReadsExecLog
 import EvmAsm.Codegen.Programs.BlockVerdictTxsIndependent
 import EvmAsm.Codegen.Programs.BlockVerdictMultiTx
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGas
@@ -61,6 +62,7 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     balStorageMatchesExecLogFunction ++ "\n" ++
     balStorageCoversExecLogFunction ++ "\n" ++   -- bmvmx.1.6.5: exec ⊆ BAL (omission detection)
   balAllAccountsStorageConsistentFunction ++ "\n" ++   -- bmvmx.1.6.4.3: all-accounts forward+reverse
+  balStorageReadsInExecLogFunction ++ "\n" ++   -- bmvmx.1.6.7: storage_reads exec consistency
     -- .6.2.2.2.a: multi-tx dispatch helpers (independence guard + per-index tx
     -- context extractor) wired ahead of the gated multi-tx loop (.6.2.2.2.b).
     btiScanTuplesFunction ++ "\n" ++
@@ -256,6 +258,7 @@ def statelessVerdictV2GuestClosure : String :=
   balStorageMatchesExecLogFunction ++ "\n" ++
   balStorageCoversExecLogFunction ++ "\n" ++   -- bmvmx.1.6.5: exec ⊆ BAL (omission detection)
   balAllAccountsStorageConsistentFunction ++ "\n" ++   -- bmvmx.1.6.4.3: all-accounts forward+reverse
+  balStorageReadsInExecLogFunction ++ "\n" ++   -- bmvmx.1.6.7: storage_reads exec consistency
   -- .6.2.2.2.a: multi-tx dispatch helpers — bal_txs_independent (independence
   -- guard) + its bti_scan_* walkers, and multi_tx_nth_context (per-index tx
   -- context extractor) — wired ahead of the gated multi-tx loop (.6.2.2.2.b).
