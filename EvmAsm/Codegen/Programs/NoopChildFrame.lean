@@ -86,7 +86,7 @@ open EvmAsm.Rv64
     - No frame stack / recursion. The dispatcher doesn't push a
       sub-frame, run called code, and resume. Real frame-stack
       design is deferred (likely tied to STF integration). -/
-def childFrameHandlers : List OpcodeHandlerSpec :=
+def childFrameHandlers (callFallThrough staticFallThrough : String) : List OpcodeHandlerSpec :=
   let mkHandler (lbl : String) (op : Nat) (netPopBytes : Nat) : OpcodeHandlerSpec :=
     { label := lbl
     , opcodes := [op]
@@ -315,7 +315,8 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  addi x10, x10, 1\n" ++
     "  j .dispatch_loop"
   let basicPrecompileCallTail
-      (tag : String) (netPopBytes inOffsetOff inSizeOff outOffsetOff outSizeOff : Nat) : String :=
+      (tag : String) (netPopBytes inOffsetOff inSizeOff outOffsetOff outSizeOff : Nat)
+      (fallThroughAsm : String) : String :=
     -- Stack top at entry is the call gas word. The destination
     -- address is the next word for both CALL and STATICCALL. EVM
     -- address operands are masked to the low 160 bits: limb 1 and
@@ -1146,17 +1147,7 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  addi x23, x23, -1\n" ++
     "  bnez x23, 38b\n" ++
     "  j 7b\n" ++
-    "1:\n" ++
-    "  la x15, evm_precompile_frame\n" ++
-    "  sd x0, 0(x15)\n" ++
-    "  sd x0, 8(x15)\n" ++
-    "  addi x12, x12, " ++ toString netPopBytes ++ "\n" ++
-    "  sd x0, 0(x12)\n" ++
-    "  sd x0, 8(x12)\n" ++
-    "  sd x0, 16(x12)\n" ++
-    "  sd x0, 24(x12)\n" ++
-    "  addi x10, x10, 1\n" ++
-    "  j .dispatch_loop"
+    "1:\n" ++ fallThroughAsm
   [ { label := "h_CREATE"
     , opcodes := [0xf0]
     , preBody := stackUnderflowGuardAsm 3 ++ "\n"
@@ -1166,7 +1157,7 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     , opcodes := [0xf1]
     , preBody := stackUnderflowGuardAsm 7 ++ "\n"
     , body := []
-    , tail := .custom (basicPrecompileCallTail "call_target" 192 96 128 160 192) }
+    , tail := .custom (basicPrecompileCallTail "call_target" 192 96 128 160 192 callFallThrough) }
   , { mkHandler "h_CALLCODE" 0xf2 192 with
       preBody := stackUnderflowGuardAsm 7 ++ "\n" }
   , { mkHandler "h_DELEGATECALL" 0xf4 160 with
@@ -1180,7 +1171,7 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     , opcodes := [0xfa]
     , preBody := stackUnderflowGuardAsm 6 ++ "\n"
     , body := []
-    , tail := .custom (basicPrecompileCallTail "staticcall_target" 160 64 96 128 160) } ]
+    , tail := .custom (basicPrecompileCallTail "staticcall_target" 160 64 96 128 160 staticFallThrough) } ]
 
 /-- M20 arithmetic no-op handlers.
 
@@ -1190,5 +1181,19 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     expression stable. -/
 def arithNoopHandlers : List OpcodeHandlerSpec := []
 
+/-- The original non-precompile CALL/STATICCALL fall-through: the call no-ops —
+    pop the args, push a `0` (failure) result, advance the PC, and resume. Used by
+    `tinyInterpRegistry` (the standalone dispatch probes keep this behaviour). -/
+def callPushZeroFallThrough (netPopBytes : Nat) : String :=
+  "  la x15, evm_precompile_frame\n" ++
+  "  sd x0, 0(x15)\n" ++
+  "  sd x0, 8(x15)\n" ++
+  "  addi x12, x12, " ++ toString netPopBytes ++ "\n" ++
+  "  sd x0, 0(x12)\n" ++
+  "  sd x0, 8(x12)\n" ++
+  "  sd x0, 16(x12)\n" ++
+  "  sd x0, 24(x12)\n" ++
+  "  addi x10, x10, 1\n" ++
+  "  j .dispatch_loop"
 
 end EvmAsm.Codegen
