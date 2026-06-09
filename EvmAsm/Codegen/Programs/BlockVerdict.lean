@@ -839,6 +839,25 @@ def blockVerdictFunction : String :=
   "  la t4, bvgr_runtime_refund_counter_ptr; la t5, bv_runtime_refund_counter; sd t5, 0(t4)\n" ++
   "  la t4, bvgr_runtime_calldata_floor_ptr; la t5, bv_runtime_calldata_floor; sd t5, 0(t4)\n" ++
   "  li t5, 1; la t4, bvgr_runtime_count; sd t5, 0(t4)\n" ++
+  -- bmvmx.1.6.2: execution-vs-BAL recipient storage consistency. dispatch_tx_runtime_code
+  -- just replayed the (self-contained) recipient runtime, so the persistent storage log
+  -- @0xa0630000 is fully populated and every entry's addrHash is env.ADDRESS (the recipient,
+  -- per #8561). Re-find the recipient's BAL AccountChanges (dispatch's bvcd_acct_ptr is stale
+  -- on its zero-storage path) and verify every storage change the BAL claims was actually
+  -- produced by execution with the matching final value; a mismatch means the prover-supplied
+  -- BAL is not what execution produced -> reject (succ=0). A recipient absent from the BAL
+  -- (a0!=0) has no claimed changes, so skip — stay conservative, do not newly false-reject.
+  "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
+  "  la a2, bv_simple_transfer_tx; addi a2, a2, 72\n" ++
+  "  la a3, bvcd_acct_ptr; la a4, bvcd_acct_len\n" ++
+  "  jal ra, bal_find_account_by_address\n" ++
+  "  bnez a0, .Lbv_after_tx_gas_precharge\n" ++
+  "  la a0, evm_env                              # recipient addrHash (env.ADDRESS@0, exec-log key)\n" ++
+  "  la t0, bvcd_acct_ptr; ld a1, 0(t0); la t0, bvcd_acct_len; ld a2, 0(t0)\n" ++
+  "  li a3, 0xa0630000                           # persistent storage log base\n" ++
+  "  la t0, evm_env; ld a4, 448(t0)              # persistentLogLength (entry count)\n" ++
+  "  jal ra, bal_storage_matches_exec_log\n" ++
+  "  bnez a0, .Lbv_bal_storage_mismatch_fail\n" ++
   ".Lbv_after_tx_gas_precharge:\n" ++
   "  # EIP-8037 tx inclusion gas gate: reject parse-supported legacy tx blocks\n" ++
   "  # whose worst regular/state gas exceeds the remaining 2D block budget.\n" ++
@@ -938,6 +957,8 @@ def blockVerdictFunction : String :=
   "  li t0, 33; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_block_hash_mismatch:\n" ++
   "  li t0, 31; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_bal_storage_mismatch_fail:\n" ++   -- bmvmx.1.6.2: recipient BAL storage != execution
+  "  li t0, 34; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_zero:\n" ++
   "  li a0, 0\n" ++
   ".Lbv_ret:\n" ++

@@ -12,6 +12,7 @@ import EvmAsm.Codegen.Programs.BalAccountHasStateChange
 import EvmAsm.Codegen.Programs.BalModeledSystem
 import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransfer
 import EvmAsm.Codegen.Programs.Eip7702NonceReuseGuard
+import EvmAsm.Codegen.Programs.BalStorageMatchesExecLog
 
 namespace EvmAsm.Codegen
 
@@ -205,6 +206,10 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bvcd_i:\n  .zero 8\n" ++
   "bvcd_keys:\n  .zero 512\n" ++       -- up to 16 x 32-byte slot keys
   "bvcd_preload:\n  .zero 1024\n" ++   -- up to 16 x 64-byte (key,value) pairs
+  -- bmvmx.1.6.2 exec-vs-BAL recipient storage check scratch (bal_storage_change_values +
+  -- bal_storage_matches_exec_log), now linked into the verdict's contract-dispatch tail.
+  balStorageChangeValuesData ++
+  balStorageMatchesExecLogData ++
 
   "bv_eip7778_status:\n  .zero 8\n" ++
   "bv_eip7778_index:\n  .zero 8\n" ++

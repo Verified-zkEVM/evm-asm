@@ -18,6 +18,7 @@ import EvmAsm.Codegen.Programs.BlockVerdictSelfContained
 import EvmAsm.Codegen.Programs.BlockVerdictBalFindAccount
 import EvmAsm.Codegen.Programs.BlockVerdictContractStorage
 import EvmAsm.Codegen.Programs.BlockVerdictDispatchTx
+import EvmAsm.Codegen.Programs.BalStorageMatchesExecLog
 import EvmAsm.Codegen.Programs.BlockVerdictTxsIndependent
 import EvmAsm.Codegen.Programs.BlockVerdictMultiTx
 
@@ -47,6 +48,10 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     -- .6.2.2.1: block_verdict's contract dispatch now calls dispatch_tx_runtime_code;
     -- emit its body here too so this debug verdict ELF links (mirrors the guest closure).
     dispatchTxRuntimeCodeFunction ++ "\n" ++
+    -- bmvmx.1.6.2: exec-vs-BAL recipient storage consistency callees, now referenced by
+    -- block_verdict's contract-dispatch tail (rlp_list_nth_item/count_items already present).
+    balStorageChangeValuesFunction ++ "\n" ++
+    balStorageMatchesExecLogFunction ++ "\n" ++
     -- .6.2.2.2.a: multi-tx dispatch helpers (independence guard + per-index tx
     -- context extractor) wired ahead of the gated multi-tx loop (.6.2.2.2.b).
     btiScanTuplesFunction ++ "\n" ++
@@ -227,6 +232,10 @@ def statelessVerdictV2GuestClosure : String :=
   -- .6.2.2.1: contract-recipient runtime gas-measurement tail extracted from
   -- block_verdict so the multi-tx dispatch loop can reuse it.
   dispatchTxRuntimeCodeFunction ++ "\n" ++
+  -- bmvmx.1.6.2: exec-vs-BAL recipient storage consistency callees, referenced by
+  -- block_verdict's contract-dispatch tail. rlp_list_nth_item/count_items already in closure.
+  balStorageChangeValuesFunction ++ "\n" ++
+  balStorageMatchesExecLogFunction ++ "\n" ++
   -- .6.2.2.2.a: multi-tx dispatch helpers — bal_txs_independent (independence
   -- guard) + its bti_scan_* walkers, and multi_tx_nth_context (per-index tx
   -- context extractor) — wired ahead of the gated multi-tx loop (.6.2.2.2.b).
