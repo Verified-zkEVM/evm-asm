@@ -288,6 +288,8 @@ def statelessVerdictV2GuestClosure : String :=
   intrinsicGasAmsterdamCountsFunction ++ "\n" ++
   eip8037TxGasGateFunction ++ "\n" ++
   txGasResultIncrementsFunction ++ "\n" ++
+  senderDebitFromGasFunction ++ "\n" ++
+  txGasBalPostVerifyRuntimeFunction ++ "\n" ++
   eip7778RemainingBlockGasCheckFunction ++ "\n" ++
   eip7778RemainingBlockGasFromResultsFunction ++ "\n" ++
   blockVerdictTxGasLimitsFunction ++ "\n" ++

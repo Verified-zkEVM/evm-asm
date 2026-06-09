@@ -793,6 +793,29 @@ def ziskStatelessVerdictV2DataSection : String :=
   ".balign 8\n" ++
   "bmvmx_sender_addr:\n  .zero 20\n" ++
   ".balign 8\n" ++
-  "bmvmx_sender_match:\n  .zero 8\n"
+  "bmvmx_sender_match:\n  .zero 8\n" ++
+  -- bmvmx.1.6.3 (balance slice): scratch for the execution-derived sender balance compare
+  -- (tx_gas_bal_post_verify_runtime + sender_debit_from_gas). tea_*/u256m_acc/tgsbl_*/bpf_*/
+  -- tefgp_* are already provided by the EOA tx_gas_bal_post_verify path; only sdfg_gascost
+  -- (sender_debit) and the tgbpvr_* / output buffer are new.
+  ".balign 32\n" ++
+  "sdfg_gascost:\n  .zero 32\n" ++
+  ".balign 8\n" ++
+  "tgbpvr_in:\n  .zero 32\n" ++
+  ".balign 32\n" ++
+  "tgbpvr_pre:\n  .zero 32\n" ++
+  "tgbpvr_post:\n  .zero 32\n" ++
+  "tgbpvr_egp:\n  .zero 32\n" ++
+  "tgbpvr_prio:\n  .zero 32\n" ++
+  "tgbpvr_value:\n  .zero 32\n" ++
+  "tgbpvr_gasdebit:\n  .zero 32\n" ++
+  "tgbpvr_expected:\n  .zero 32\n" ++
+  "tgbpvr_zero:\n  .zero 32\n" ++
+  ".balign 8\n" ++
+  "tgbpvr_to:\n  .zero 24\n" ++
+  "tgbpvr_iscreation:\n  .zero 8\n" ++
+  "tgbpvr_lookup:\n  .zero 168\n" ++
+  ".balign 8\n" ++
+  "bv_sender_bal_check:\n  .zero 192\n"
 
 end EvmAsm.Codegen
