@@ -81,6 +81,7 @@ def callFrameRoundtripPrologue : String :=
   callFrameSetCalldataFunction ++ "\n" ++
   callFrameForwardGasFunction ++ "\n" ++
   callFrameDescendFunction ++ "\n" ++
+  createFrameDescendFunction ++ "\n" ++   -- .61.8.3.5: CREATE tail (shared registry) descends via create_frame_descend
   frameReturnFunction
 
 def callFrameRoundtripData : String :=

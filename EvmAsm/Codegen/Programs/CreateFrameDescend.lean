@@ -23,7 +23,9 @@
 
   Calling convention (from the CREATE tail at .5c, after the address is derived and the
   init code is staged):
-    a0 = ptr to the endowment value word (parent stack value operand, EVM stack order).
+    a1 = netPopBytes (64 for CREATE / 96 for CREATE2) for frame_return's arg pop.
+  The endowment value is the stack top (x12+0), read from x12 directly -- NOT passed in a0,
+  because a0 == x10 (the dispatcher PC) which call_frame_descend saves as the parent return PC.
   Reads `create_address_be` (20-byte BE derived address) and `create_child_initcode` /
   `create_init_size`. Switches the live dispatcher registers to the child frame and
   returns; the caller then `j .dispatch_loop` to run the init code. Clobbers t0-t4, a0-a7.
@@ -44,7 +46,9 @@ def createFrameDescendFunction : String :=
   "create_frame_descend:\n" ++
   "  addi sp, sp, -16\n" ++
   "  sd ra, 0(sp)\n" ++
-  "  sd a0, 8(sp)                   # save endowment value ptr\n" ++
+  -- NB: do NOT take the endowment ptr in a0 -- a0 == x10 (the dispatcher PC), and
+  -- call_frame_descend below saves x10 as the parent return PC (#8608/#8629 lesson).
+  -- The CREATE value operand is the stack top (x12+0), so read it from x12 directly.
   -- 1. derived address create_address_be (20B BE, bytes 0..19) -> create_address_word
   --    (32B EVM-stack word, LE): reverse the 20 big-endian bytes, low-aligned.
   "  la t0, create_address_word\n" ++
@@ -58,11 +62,11 @@ def createFrameDescendFunction : String :=
   -- 2. build the CREATE cd_desc (same 96-byte layout call_frame_descend reads).
   "  la t2, create_cd_desc\n" ++
   "  la t3, create_address_word; sd t3, 0(t2)      # to_ptr = derived address (child ADDRESS)\n" ++
-  "  ld t3, 8(sp); sd t3, 8(t2)                     # value_ptr = endowment word (child CALLVALUE)\n" ++
+  "  sd x12, 8(t2)                                  # value_ptr = x12 (CREATE value operand at stack top) -> child CALLVALUE\n" ++
   "  sd x0, 16(t2)                                  # mode 0 (CALL env: ADDRESS=to, CALLER=parent, CALLVALUE=value)\n" ++
   "  sd x0, 24(t2); sd x0, 32(t2)                   # argsOff / argsLen = 0 (CREATE child has no calldata)\n" ++
   "  sd x0, 40(t2); sd x0, 48(t2)                   # outOff / outSize = 0 (deposit handles RETURN, not frame_return)\n" ++
-  "  li t3, 96; sd t3, 56(t2)                       # netPopBytes (CALL-return field; .5b overrides the CREATE return)\n" ++
+  "  sd a1, 56(t2)                                  # netPopBytes (from a1: 64 for CREATE / 96 for CREATE2) -- frame_return pops the args\n" ++
   "  la t3, create_child_initcode; sd t3, 64(t2)    # code_ptr = staged init code\n" ++
   "  la t3, create_init_size; ld t3, 0(t3); sd t3, 72(t2)   # code_len\n" ++
   "  ld t3, 568(x20); sd t3, 80(t2)                 # requested_gas = all gas_left (EIP-150 63/64 cap in forward_gas)\n" ++
