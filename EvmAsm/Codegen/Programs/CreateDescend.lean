@@ -75,6 +75,122 @@ def create2DescendFunction : String :=
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); addi sp, sp, 48\n" ++
   "  ret"
 
+/-! ## create_descend
+    The CREATE (0xf0) analog of create2_descend. CREATE stack (x12, top first):
+    value@0, offset@32, length@64 (3 words, no salt) — pops 3, pushes 1 → new top
+    = x12 + 64. Address = keccak(rlp([sender, nonce]))[12:] via address_compute_create;
+    the nonce is read from `create_nonce` (the handler populates it with the creator's
+    current nonce — a wiring concern, not this logic). Otherwise identical to
+    create2_descend (stage + bounded mini-interpreter + push address/0). -/
+def createDescendFunction : String :=
+  "create_descend:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  mv s0, x12                   # stack top (value@0, offset@32, length@64)\n" ++
+  "  mv s1, x13                   # mem base\n" ++
+  "  mv s2, x20                   # env base\n" ++
+  "  ld t0, 32(s0); la t1, create_init_offset; sd t0, 0(t1)\n" ++
+  "  ld t0, 64(s0); la t1, create_init_size;   sd t0, 0(t1)\n" ++
+  "  la t1, create_sender_be\n" ++
+  "  ld t2, 0(s2); sd t2, 0(t1); ld t2, 8(s2); sd t2, 8(t1)\n" ++
+  "  ld t2, 16(s2); sd t2, 16(t1); ld t2, 24(s2); sd t2, 24(t1)\n" ++
+  -- address = f(sender, nonce); no initcode input. nonce from create_nonce.
+  "  la a0, create_sender_be; la t0, create_nonce; ld a1, 0(t0); la a2, create_address_be\n" ++
+  "  jal ra, address_compute_create\n" ++
+  "  mv a0, s1; mv a1, s0; li a2, 0\n" ++          -- stage: mem base, stack top (value), kind 0
+  "  jal ra, create_stage_initcode_frame\n" ++
+  "  jal ra, create_execute_initcode_frame\n" ++
+  "  addi t4, s0, 64\n" ++                          -- result slot = new top (popped 3, push 1)
+  "  sd x0, 0(t4); sd x0, 8(t4); sd x0, 16(t4); sd x0, 24(t4)\n" ++
+  "  la t0, create_child_status; ld t0, 0(t0); li t1, 2; bne t0, t1, .Lcd_done\n" ++
+  "  la t2, create_address_be; addi t2, t2, 19; mv t1, t4; li t0, 20\n" ++
+  ".Lcd_revaddr:\n" ++
+  "  beqz t0, .Lcd_done\n  lbu t3, 0(t2); sb t3, 0(t1); addi t2, t2, -1; addi t1, t1, 1; addi t0, t0, -1; j .Lcd_revaddr\n" ++
+  ".Lcd_done:\n" ++
+  "  addi a0, s0, 64              # new stack top\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); addi sp, sp, 48\n" ++
+  "  ret"
+
+/-- `zisk_create_descend`: CREATE (0xf0) known-answer probe (mirrors zisk_create2_descend
+    without salt). Sets create_nonce, computes the expected address with a DIRECT
+    address_compute_create, runs create_descend, asserts the pushed LE stack word equals
+    the LE-reversed expected address and status==2.
+    Output (0xa0010000): +0 status; +8 pushed low8; +16 expected-LE low8; +24 match. -/
+def ziskCreateDescendPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li s0, 0xa0010000\n" ++
+  "  la t0, evm_env\n" ++
+  "  li t1, 0; sd t1, 0(t0); sd t1, 8(t0); sd t1, 16(t0); sd t1, 24(t0)\n" ++
+  "  li t1, 0xAA; sb t1, 0(t0); li t1, 0xBB; sb t1, 19(t0)\n" ++
+  "  la t0, evm_memory\n" ++
+  "  li t1, 0x60; sb t1, 0(t0); li t1, 0x42; sb t1, 1(t0)\n" ++
+  "  li t1, 0x60; sb t1, 2(t0); li t1, 0x00; sb t1, 3(t0)\n" ++
+  "  li t1, 0x52; sb t1, 4(t0)\n" ++
+  "  li t1, 0x60; sb t1, 5(t0); li t1, 0x01; sb t1, 6(t0)\n" ++
+  "  li t1, 0x60; sb t1, 7(t0); li t1, 0x1f; sb t1, 8(t0)\n" ++
+  "  li t1, 0xf3; sb t1, 9(t0)\n" ++
+  "  la t0, create_nonce; li t1, 7; sd t1, 0(t0)\n" ++
+  "  la t0, cd_stack\n" ++
+  "  sd x0, 0(t0); sd x0, 8(t0); sd x0, 16(t0); sd x0, 24(t0)\n" ++
+  "  sd x0, 32(t0); sd x0, 40(t0); sd x0, 48(t0); sd x0, 56(t0)\n" ++
+  "  li t1, 10; sd t1, 64(t0); sd x0, 72(t0); sd x0, 80(t0); sd x0, 88(t0)\n" ++
+  "  la a0, evm_env; li a1, 7; la a2, cd_expected\n" ++
+  "  jal ra, address_compute_create\n" ++
+  "  la x12, cd_stack; la x13, evm_memory; la x20, evm_env\n" ++
+  "  jal ra, create_descend\n" ++
+  "  la t0, create_child_status; ld t1, 0(t0); sd t1, 0(s0)\n" ++
+  "  la t0, cd_stack; addi t0, t0, 64; ld t1, 0(t0); sd t1, 8(s0)\n" ++
+  "  la t2, cd_expected; addi t2, t2, 19; la t1, cd_exple; li t3, 20\n" ++
+  "1:\n  beqz t3, 2f\n  lbu t4, 0(t2); sb t4, 0(t1); addi t2, t2, -1; addi t1, t1, 1; addi t3, t3, -1; j 1b\n" ++
+  "2:\n" ++
+  "  la t0, cd_exple; ld t1, 0(t0); sd t1, 16(s0)\n" ++
+  "  la t0, cd_stack; addi t0, t0, 64; la t1, cd_exple; li t3, 20; li t4, 1\n" ++
+  "3:\n  beqz t3, 4f\n  lbu t5, 0(t0); lbu t6, 0(t1); bne t5, t6, 5f\n  addi t0, t0, 1; addi t1, t1, 1; addi t3, t3, -1; j 3b\n" ++
+  "5:\n  li t4, 0\n" ++
+  "4:\n  sd t4, 24(s0)\n" ++
+  "  j .Lcdp_done\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  addressComputeCreateFunction ++ "\n" ++
+  createStageInitcodeFrameRuntimeFunction ++ "\n" ++
+  createExecuteInitcodeFrameRuntimeFunction ++ "\n" ++
+  createDescendFunction ++ "\n" ++
+  ".Lcdp_done:"
+
+def ziskCreateDescendDataSection : String :=
+  ".section .data\n" ++
+  ".balign 32\n" ++
+  "evm_memory:\n  .zero 0x10000\n" ++
+  ".balign 8\n" ++
+  "evm_env:\n  .zero 656\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n  .zero 200\n" ++
+  "create_nonce:\n  .zero 8\n" ++
+  "create_init_offset:\n  .zero 8\n" ++
+  "create_init_size:\n  .zero 8\n" ++
+  ".balign 32\n" ++
+  "create_sender_be:\n  .zero 32\n" ++
+  "create_salt_be:\n  .zero 32\n" ++
+  "create_address_be:\n  .zero 32\n" ++
+  ".balign 8\n" ++
+  "ac_buffer:\n  .zero 32\n" ++
+  "ac_nonce_be:\n  .zero 8\n" ++
+  "ac_digest:\n  .zero 32\n" ++
+  emitCreateChildFrameData ++
+  ".balign 8\n" ++
+  "cd_stack:\n  .zero 256\n" ++
+  ".balign 32\n" ++
+  "cd_expected:\n  .zero 32\n" ++
+  "cd_exple:\n  .zero 32\n" ++
+  ".balign 16\n" ++
+  "lp64_stack:\n  .zero 262144\n" ++
+  "lp64_sp_top:\n"
+
+def ziskCreateDescendProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskCreateDescendPrologue
+  dataAsm     := ziskCreateDescendDataSection
+}
+
 /-- `zisk_create2_descend`: known-answer probe. Lays out a synthetic CREATE2 stack +
     init code + env, computes the expected address with a DIRECT address_compute_create2
     call, then runs create2_descend and asserts the pushed stack word equals the
