@@ -19,6 +19,8 @@
 import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.SstoreGasRefund
+import EvmAsm.Codegen.Programs.CreateCodeEffectLog
+import EvmAsm.Codegen.Programs.CreateDeployedCodeValid
 import EvmAsm.Codegen.CallFrameLayout
 import EvmAsm.Codegen.Programs.Address
 import EvmAsm.Codegen.Programs.HashBridge
@@ -569,7 +571,10 @@ def emitCreateChildFrameData : String :=
   "  .zero 0x10000\n" ++
   ".balign 32\n" ++
   "create_child_code:\n" ++
-  "  .zero 0x10000\n"
+  "  .zero 0x10000\n" ++
+  -- bmvmx.1.6.3 / .61.8b (.8b-2): the per-created-account CODE-effect log, co-located with
+  -- create_child_code so it is defined in every closure whose CREATE tail deposits into it.
+  createCodeEffectLogData
 
 /-- Scratch labels shared by runtime account-witness helpers.
 
@@ -1333,6 +1338,8 @@ def emitDispatcherEpilogueCore
     addressComputeCreate2Function ++ "\n" ++
     createStageInitcodeFrameRuntimeFunction ++ "\n" ++
     createExecuteInitcodeFrameRuntimeFunction ++ "\n" ++
+    createDeployedCodeValidFunction ++ "\n" ++
+    createRecordCodeEffectFunction ++ "\n" ++
     zkvmModexpSafeFailWrapper ++ "\n" ++
     storageAccessGasFunction ++ "\n" ++
     sstoreGasRefundOutcomeFunction ++ "\n" ++
@@ -2081,6 +2088,8 @@ def emitRuntimeDispatcherEmbeddedHelperFunctions : String :=
   hasCodeOrNonceAtHeaderStateRootFunction ++ "\n" ++
   createStageInitcodeFrameRuntimeFunction ++ "\n" ++
   createExecuteInitcodeFrameRuntimeFunction ++ "\n" ++
+  createDeployedCodeValidFunction ++ "\n" ++
+  createRecordCodeEffectFunction ++ "\n" ++
   zkvmModexpSafeFailWrapper ++ "\n" ++
   storageAccessGasFunction ++ "\n" ++
   sstoreGasRefundOutcomeFunction ++ "\n" ++
