@@ -923,16 +923,20 @@ def blockVerdictFunction : String :=
   -- dispatch_tx_runtime_code replayed the (self-contained) recipient with EXACT gas, so the
   -- sender settlement is sender_post = sender_pre - receipt_inc*eff_gas_price - value, computed
   -- by tx_gas_bal_post_verify_runtime (sender_debit_from_gas #8583 + the runtime gas result).
-  -- This is exact ONLY when execution cannot move value to the sender and the refund is 0, so
-  -- the REJECT is gated conservatively (any failed gate -> skip, never newly false-reject):
-  --   * recipient bytecode has no SSTORE(0x55, refund-bearing) / CALL(0xf1) / CALLCODE(0xf2) /
-  --     SELFDESTRUCT(0xff, value-moving) opcode  (pushdata-aware scan over bvcd_code),
+  -- This is exact ONLY when execution cannot move value to the sender, so the REJECT is gated
+  -- conservatively (any failed gate -> skip, never newly false-reject):
+  --   * recipient bytecode has no CALL(0xf1) / CALLCODE(0xf2) / DELEGATECALL(0xf4) /
+  --     SELFDESTRUCT(0xff) opcode -- the ways execution can move value to/from the sender
+  --     (DELEGATECALL runs delegated code in the recipient's context, which may SELFDESTRUCT to
+  --     the sender; STATICCALL is safe -- static mode forbids value/SELFDESTRUCT). Pushdata-aware
+  --     scan over bvcd_code. SSTORE is NO LONGER bailed: the per-tx EIP-3529 refund is now real
+  --     (evm_refund_acc surfaced into bv_runtime_refund_counter, #8590 merged), so receipt_inc is
+  --     exact for SSTORE-writing recipients too -- the bulk of EEST contract recipients, a large
+  --     coverage gain.
   --   * the block has no withdrawals (else the sender may be credited),
   --   * the sender is not the block coinbase (else it also receives the priority fee).
   -- Only a clean value mismatch (kernel status 40) rejects; every other status (lookup miss,
   -- post absent, egp/value parse fail, underflow) is treated as "cannot compare" -> skip.
-  -- refund is read from bv_runtime_refund_counter (0 until #8590 surfaces evm_refund_acc; the
-  -- SSTORE bail keeps the refund provably 0 here regardless, so receipt_inc stays exact).
   "  la t0, svf_wds_count; ld t0, 0(t0); bnez t0, .Lbv_after_tx_gas_precharge\n" ++
   "  la t0, bvcd_code_ptr; ld t0, 0(t0); la t1, bvcd_code_len; ld t1, 0(t1); add t1, t0, t1\n" ++
   ".Lbv_sbc_scan:\n" ++
@@ -942,16 +946,16 @@ def blockVerdictFunction : String :=
   "  li t3, 0x7f; bgtu t2, t3, .Lbv_sbc_chk\n" ++
   "  addi t3, t2, -0x5f; addi t0, t0, 1; add t0, t0, t3; j .Lbv_sbc_scan\n" ++
   ".Lbv_sbc_chk:\n" ++
-  "  li t3, 0x55; beq t2, t3, .Lbv_after_tx_gas_precharge\n" ++   -- SSTORE -> refund possible
-  "  li t3, 0xf1; beq t2, t3, .Lbv_after_tx_gas_precharge\n" ++   -- CALL -> value move
+  "  li t3, 0xf1; beq t2, t3, .Lbv_after_tx_gas_precharge\n" ++   -- CALL -> direct value move
   "  li t3, 0xf2; beq t2, t3, .Lbv_after_tx_gas_precharge\n" ++   -- CALLCODE -> value move
+  "  li t3, 0xf4; beq t2, t3, .Lbv_after_tx_gas_precharge\n" ++   -- DELEGATECALL -> delegated code runs in recipient ctx, may SELFDESTRUCT to sender
   "  li t3, 0xff; beq t2, t3, .Lbv_after_tx_gas_precharge\n" ++   -- SELFDESTRUCT -> value move
   "  addi t0, t0, 1; j .Lbv_sbc_scan\n" ++
   ".Lbv_sbc_safe:\n" ++
   "  la t0, tgbpvr_in\n" ++
   "  la t1, bv_simple_transfer_tx; ld t2, 40(t1); sd t2, 0(t0)\n" ++       -- gas_limit
   "  la t1, bv_runtime_gas_left; ld t2, 0(t1); sd t2, 8(t0)\n" ++           -- gas_left
-  "  la t1, bv_runtime_refund_counter; ld t2, 0(t1); sd t2, 16(t0)\n" ++    -- refund (0 here)
+  "  la t1, bv_runtime_refund_counter; ld t2, 0(t1); sd t2, 16(t0)\n" ++    -- real EIP-3529 refund (#8590)
   "  la t1, bv_runtime_calldata_floor; ld t2, 0(t1); sd t2, 24(t0)\n" ++    -- calldata floor
   "  la t1, bv_simple_transfer_tx\n" ++
   "  ld a0, 8(t1); ld a1, 16(t1); ld a2, 32(t1); ld a3, 24(t1)\n" ++        -- tx ptr/len, base_fee, pubkey

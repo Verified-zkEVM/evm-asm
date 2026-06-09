@@ -35,19 +35,22 @@ open EvmAsm.Rv64
 /-! ## bal_all_accounts_nonstorage_covers
     a0 = BAL section RLP ptr (list of AccountChanges)   a1 = BAL section RLP length
     a2 = exec non-storage effect array base             a3 = effect record count
-    a4 = recipient 20-byte big-endian address ptr (SKIPPED — checked on the gas path)
+    a4 = skip-list ptr (array of 32-byte-padded 20-byte addresses to SKIP — the
+         gas/value-coupled accounts {sender, recipient, coinbase}, checked on the gas path)
+    a5 = skip-list count
     a0 (output) = 0 every net-changed effect is present in the BAL / 1 reject. -/
 def balAllAccountsNonstorageCoversFunction : String :=
   "bal_all_accounts_nonstorage_covers:\n" ++
   "  addi sp, sp, -96\n" ++
   "  sd ra, 0(sp)\n" ++
   "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
-  "  sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp); sd s8, 72(sp); sd s9, 80(sp)\n" ++
+  "  sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp); sd s8, 72(sp); sd s9, 80(sp); sd s10, 88(sp)\n" ++
   "  mv s0, a0                   # BAL section ptr\n" ++
   "  mv s1, a1                   # BAL section len\n" ++
   "  mv s2, a2                   # effect array base\n" ++
   "  mv s3, a3                   # effect record count\n" ++
-  "  mv s4, a4                   # recipient 20B BE addr ptr\n" ++
+  "  mv s4, a4                   # skip-list ptr\n" ++
+  "  mv s10, a5                  # skip-list count\n" ++
   "  mv a0, s0; mv a1, s1; la a2, c3cov_acct_count\n" ++
   "  jal ra, rlp_list_count_items\n" ++
   "  bnez a0, .Lc3cov_fail\n" ++
@@ -65,14 +68,20 @@ def balAllAccountsNonstorageCoversFunction : String :=
   "  ld t4, 96(s7); ld t5, 104(s7); bne t4, t5, .Lc3cov_changed\n" ++
   "  j .Lc3cov_enext             # no net change -> no obligation\n" ++
   ".Lc3cov_changed:\n" ++
-  "  # --- skip the recipient (checked on the gas/balance path) ---\n" ++
-  "  li t4, 0\n" ++
-  ".Lc3cov_rcmp:\n" ++
-  "  li t5, 20; beq t4, t5, .Lc3cov_enext    # all 20 bytes equal recipient -> skip\n" ++
-  "  add t5, s7, t4; lbu t6, 0(t5)           # effect addr byte\n" ++
-  "  add t5, s4, t4; lbu a0, 0(t5)           # recipient byte\n" ++
-  "  bne t6, a0, .Lc3cov_scan                 # differs -> must be present in BAL\n" ++
-  "  addi t4, t4, 1; j .Lc3cov_rcmp\n" ++
+  "  # --- skip gas/value-coupled accounts {sender,recipient,coinbase} (gas-path checked) ---\n" ++
+  "  li t4, 0                                 # skip-list entry index\n" ++
+  ".Lc3cov_skloop:\n" ++
+  "  beq t4, s10, .Lc3cov_scan                # not in skip-list -> must be present in BAL\n" ++
+  "  slli t5, t4, 5; add t5, s4, t5           # skip entry ptr (32B strided)\n" ++
+  "  li t6, 0\n" ++
+  ".Lc3cov_skcmp:\n" ++
+  "  li a0, 20; beq t6, a0, .Lc3cov_enext     # effect addr equals a skip entry -> skip\n" ++
+  "  add a0, s7, t6; lbu a1, 0(a0)            # effect addr byte\n" ++
+  "  add a0, t5, t6; lbu a2, 0(a0)            # skip entry byte\n" ++
+  "  bne a1, a2, .Lc3cov_skadv\n" ++
+  "  addi t6, t6, 1; j .Lc3cov_skcmp\n" ++
+  ".Lc3cov_skadv:\n" ++
+  "  addi t4, t4, 1; j .Lc3cov_skloop\n" ++
   ".Lc3cov_scan:\n" ++
   "  # --- scan BAL accounts for one whose item-0 address == effect[j] address ---\n" ++
   "  li s8, 0                    # BAL account index k\n" ++
@@ -105,7 +114,7 @@ def balAllAccountsNonstorageCoversFunction : String :=
   ".Lc3cov_ret:\n" ++
   "  ld ra, 0(sp)\n" ++
   "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
-  "  ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); ld s8, 72(sp); ld s9, 80(sp)\n" ++
+  "  ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); ld s8, 72(sp); ld s9, 80(sp); ld s10, 88(sp)\n" ++
   "  addi sp, sp, 96\n" ++
   "  ret"
 
@@ -113,16 +122,17 @@ def balAllAccountsNonstorageCoversFunction : String :=
     Input (after the ziskemu length wrapper at 0x40000000):
       bytes  8..16 : BAL section length
       bytes 16..24 : exec effect record count
-      bytes 24..56 : recipient address (20B BE in the low bytes, padded to 32)
-      bytes 56..    : effect array (count * 112B), then the BAL section
+      bytes 24..32 : skip-list count
+      bytes 32..    : skip-list (count * 32B), then effect array (count * 112B), then the BAL section
     Output: bytes 0..8 = status (0 covered / 1 reject). -/
 def ziskBalAllAccountsNonstorageCoversPrologue : String :=
   "  li sp, 0xa0050000\n" ++
-  "  li a5, 0x40000000\n" ++
-  "  ld a1, 8(a5)                # BAL section len\n" ++
-  "  ld a3, 16(a5)               # effect record count\n" ++
-  "  addi a4, a5, 24             # recipient ptr\n" ++
-  "  addi a2, a5, 56             # effect array base (0x40000038, 8-aligned)\n" ++
+  "  li t6, 0x40000000\n" ++
+  "  ld a1, 8(t6)                # BAL section len\n" ++
+  "  ld a3, 16(t6)               # effect record count\n" ++
+  "  ld a5, 24(t6)               # skip-list count\n" ++
+  "  addi a4, t6, 32             # skip-list base (0x40000020, 8-aligned)\n" ++
+  "  slli t0, a5, 5; add a2, a4, t0           # effect base = skip_base + skip_count*32\n" ++
   "  slli t0, a3, 7; slli t1, a3, 4; sub t0, t0, t1   # effect_count * 112\n" ++
   "  add a0, a2, t0              # BAL section ptr = effect_base + 112*count\n" ++
   "  jal ra, bal_all_accounts_nonstorage_covers\n" ++
