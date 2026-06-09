@@ -56,7 +56,7 @@ def statelessGuestUnit : BuildUnit := {
   epilogueAsm :=
     statelessGuestEpilogue ++ "\n" ++
     "  j .Lstateless_guest_halt_after_runtime_dispatcher\n" ++
-    emitRuntimeDispatcherCallableCoreSharedHelpers tinyInterpRegistry evmAddEpilogue ++ "\n" ++
+    emitRuntimeDispatcherCallableCoreSharedHelpers callFrameGuestRegistry evmAddEpilogue ++ "\n" ++
     ".Lstateless_guest_halt_after_runtime_dispatcher:\n"
   -- guest scratch + the Step-2 verdict's data (zk3_state / rfu_* are dedup'd out
   -- of the guest section since the appended verdict section provides them). The
@@ -64,7 +64,7 @@ def statelessGuestUnit : BuildUnit := {
   dataAsm     :=
     statelessGuestDataSection ++ "\n" ++
     statelessVerdictV2GuestData ++ "\n" ++
-    emitRuntimeDispatcherDataSectionSharedGuest tinyInterpRegistry
+    emitRuntimeDispatcherDataSectionSharedGuest callFrameGuestRegistry
 }
 
 end EvmAsm.Codegen

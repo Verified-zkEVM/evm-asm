@@ -515,6 +515,56 @@ def blockVerdictFunction : String :=
   "  # Upfront sender gas pre-charge gate for the currently parse-supported\n" ++
   "  # one-transaction path. Use the selected public key tail (x||y) and the\n" ++
   "  # pre-account record table materialized by block_state_root.\n" ++
+  -- evm-asm-fhsxz.2.4.2.57.11.6.2.2.2: gated multi-transaction runtime gas loop.
+  -- tx_count==1 (and the degenerate 0-tx block) fall through to the existing
+  -- single-tx path BYTE-IDENTICALLY. For 2..16 transactions, only when the block
+  -- is INDEPENDENT (bal_txs_independent==0: no account's storage/code/nonce touched
+  -- by more than one tx_index) AND every recipient is a self-contained contract,
+  -- dispatch each tx against the block-PRE state to measure its runtime gas,
+  -- populate the strided runtime-result arrays, and set bvgr_runtime_count=tx_count
+  -- so block_verdict_gas_result_arena_prepare + the EIP-7778/8037 block-gas gate
+  -- run. Independence makes per-tx pre-state dispatch exact; refund is left 0
+  -- (EIP-7778 is the without-refunds accounting). Any non-independence / unsupported
+  -- tx shape / EOA recipient / dispatch miss bails to the conservative path
+  -- (bvgr_runtime_count left 0 -> arena count mismatch -> block-gas gate skipped),
+  -- i.e. today's behavior, so valid multi-tx blocks are never newly false-rejected.
+  "  la t0, bv_tx_count; ld t0, 0(t0); li t1, 1; beq t0, t1, .Lbv_singletx\n" ++
+  "  li t1, 2; bltu t0, t1, .Lbv_singletx          # 0-tx block -> existing path\n" ++
+  "  li t1, 16; bgtu t0, t1, .Lbv_mtx_bail         # arena capacity is 16 entries\n" ++
+  "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
+  "  jal ra, bal_txs_independent\n" ++
+  "  bnez a0, .Lbv_mtx_bail                         # interacting / parse error -> conservative\n" ++
+  "  la t0, bv_mtx_i; sd zero, 0(t0)\n" ++
+  ".Lbv_mtx_loop:\n" ++
+  "  la t0, bv_mtx_i; ld t1, 0(t0); la t2, bv_tx_count; ld t2, 0(t2); beq t1, t2, .Lbv_mtx_done\n" ++
+  "  la a0, bv_mtx_ctx; mv a1, t1; jal ra, multi_tx_nth_context\n" ++
+  "  la t0, bv_mtx_ctx; ld t0, 0(t0); bnez t0, .Lbv_mtx_bail        # unsupported tx shape\n" ++
+  "  ld a0, 8(s0); ld a1, 16(s0); la a2, bv_mtx_ctx; addi a2, a2, 72; ld a3, 80(s0); ld a4, 88(s0); la a5, bv_tx_recipient_code_hash\n" ++
+  "  jal ra, code_hash_at_header_state_root\n" ++
+  "  bnez a0, .Lbv_mtx_bail                         # recipient code-hash lookup failed\n" ++
+  "  la t0, bv_tx_recipient_code_hash; la t1, chahsr_empty_code_hash\n" ++
+  "  ld t3,  0(t0); ld t4,  0(t1); bne t3, t4, .Lbv_mtx_is_contract\n" ++
+  "  ld t3,  8(t0); ld t4,  8(t1); bne t3, t4, .Lbv_mtx_is_contract\n" ++
+  "  ld t3, 16(t0); ld t4, 16(t1); bne t3, t4, .Lbv_mtx_is_contract\n" ++
+  "  ld t3, 24(t0); ld t4, 24(t1); bne t3, t4, .Lbv_mtx_is_contract\n" ++
+  "  j .Lbv_mtx_bail                                # EOA recipient -> not measured here, conservative\n" ++
+  ".Lbv_mtx_is_contract:\n" ++
+  "  la a0, bv_mtx_ctx; ld a1, 80(s0); ld a2, 88(s0); jal ra, dispatch_tx_runtime_code\n" ++
+  "  bnez a0, .Lbv_mtx_bail                         # dispatch miss / not self-contained\n" ++
+  "  la t0, bv_mtx_i; ld t1, 0(t0); slli t0, t1, 3\n" ++
+  "  la t3, bv_mtx_gas_left; add t3, t3, t0; sd a1, 0(t3)\n" ++
+  "  la t3, bv_mtx_calldata; add t3, t3, t0; sd a2, 0(t3)\n" ++
+  "  la t3, bv_mtx_refund;   add t3, t3, t0; sd zero, 0(t3)\n" ++
+  "  la t0, bv_mtx_i; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Lbv_mtx_loop\n" ++
+  ".Lbv_mtx_done:\n" ++
+  "  la t4, bvgr_runtime_gas_left_ptr; la t5, bv_mtx_gas_left; sd t5, 0(t4)\n" ++
+  "  la t4, bvgr_runtime_refund_counter_ptr; la t5, bv_mtx_refund; sd t5, 0(t4)\n" ++
+  "  la t4, bvgr_runtime_calldata_floor_ptr; la t5, bv_mtx_calldata; sd t5, 0(t4)\n" ++
+  "  la t4, bvgr_runtime_count; la t5, bv_tx_count; ld t5, 0(t5); sd t5, 0(t4)\n" ++
+  "  j .Lbv_after_tx_gas_precharge\n" ++
+  ".Lbv_mtx_bail:\n" ++
+  "  j .Lbv_after_tx_gas_precharge\n" ++
+  ".Lbv_singletx:\n" ++
   "  la a0, bv_simple_transfer_tx\n" ++
   "  jal ra, simple_transfer_tx_context\n" ++
   "  la t2, bv_simple_transfer_tx; ld t0, 0(t2); bnez t0, .Lbv_after_tx_gas_precharge\n" ++

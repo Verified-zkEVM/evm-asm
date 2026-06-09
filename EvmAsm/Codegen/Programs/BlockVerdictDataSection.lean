@@ -731,6 +731,8 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bmvmx_value:\n  .zero 32\n" ++
   "bmvmx_eff_gas_price:\n  .zero 32\n" ++
   "bmvmx_priority_fee:\n  .zero 32\n" ++
-  "bmvmx_basefee_be:\n  .zero 32\n"
+  "bmvmx_basefee_be:\n  .zero 32\n" ++
+  -- .6.2.2.2.b: multi-tx dispatch loop index cursor.
+  "bv_mtx_i:\n  .zero 8\n"
 
 end EvmAsm.Codegen
