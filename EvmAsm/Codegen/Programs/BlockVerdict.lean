@@ -1037,6 +1037,18 @@ def blockVerdictFunction : String :=
   "  la a5, bv_simple_transfer_tx; addi a5, a5, 72\n" ++
   "  jal ra, bal_all_accounts_tuple_sequences_consistent\n" ++
   "  bnez a0, .Lbv_bal_tuple_fail\n" ++
+  -- i3djw (all-accounts CODE reverse): every account execution changed code for (CREATE/CREATE2
+  -- deploy, has_code_change=1 in exec_code_effect_log) must be PRESENT in the BAL -- catching a
+  -- producer that hides a created account by omitting it. Presence-only (a present account's declared
+  -- code is validated by the forward per-account direction). exec_code_effect_log is populated by the
+  -- CREATE deposit (.8b, #8623); it is EMPTY pre-.8c (CREATE is self-contained-rejected), so this is
+  -- inert until CREATE activation (.8c-3) and conservative (parse fail / omitted account -> reject).
+  -- NOTE for .8c-3: add a per-tx reset of exec_code_effect_count (not reset today; harmless while the
+  -- log is empty, but REQUIRED once CREATE writes it so stale records don't carry across txs).
+  "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
+  "  la a2, exec_code_effect_log; la t0, exec_code_effect_count; ld a3, 0(t0)\n" ++
+  "  jal ra, bal_all_accounts_code_covers\n" ++
+  "  bnez a0, .Lbv_bal_code_covers_fail\n" ++
   -- bmvmx.1.6.7: recipient storage_reads exec consistency. storage_reads (AccountChanges
   -- item 2) is consensus-bound but NOT in the state root, so verify every BAL read slot
   -- was actually accessed by the recipient (appears in the exec log). bvcd_acct_ptr/len
@@ -1303,6 +1315,8 @@ def blockVerdictFunction : String :=
   "  li t0, 41; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_bal_tuple_fail:\n" ++              -- bmvmx.1.6.6: a non-recipient account's per-slot (block_access_index,value) tuple sequence != exec
   "  li t0, 42; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_bal_code_covers_fail:\n" ++        -- i3djw: execution deployed/cleared code for an account the BAL omits (hidden created/destroyed account)
+  "  li t0, 43; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_zero:\n" ++
   "  li a0, 0\n" ++
   ".Lbv_ret:\n" ++
