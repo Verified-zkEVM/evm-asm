@@ -396,6 +396,11 @@ def storageHandlers : List OpcodeHandlerSpec :=
         "  sd x16, 112(x14)\n" ++
         "  ld x16, 56(x12)\n" ++
         "  sd x16, 120(x14)\n" ++
+        -- bmvmx.1.6.6 enabler: stamp this entry's block_access_index (parallel array,
+        -- indexed by the old log_length x15) for the future per-tx tuple-sequence check.
+        -- x16/x17/x18 are dead post-append (the tail only uses x10).
+        "  la x16, current_block_access_index\n  ld x17, 0(x16)\n" ++
+        "  la x16, exec_log_txindex\n  slli x18, x15, 3\n  add x16, x16, x18\n  sd x17, 0(x16)\n" ++
         -- increment log_length
         "  addi x15, x15, 1\n" ++
         "  sd x15, 448(x20)"
