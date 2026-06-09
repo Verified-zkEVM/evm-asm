@@ -477,6 +477,13 @@ def blockVerdictFunction : String :=
   "  la t5, bv_exec_p; ld t4, 0(t5); addi a0, t4, 508; jal ra, bgv_u32le   # withdrawals_offset\n" ++
   "  la t5, bv_tx_off; ld t3, 0(t5)\n" ++
   "  bgtu a0, t3, .Lbv_tx_present # wd_off > tx_off => transactions present\n" ++
+  -- wsvlq: NO-TRANSACTION (withdrawal/system-only) block. execution-specs apply_body
+  -- increments block_gas_used / block_state_gas_used ONLY per transaction; system txs
+  -- and withdrawals do not touch them (fork.py:1199-1202, 734-798, 1230-1249). So a
+  -- no-tx block has block_gas_used = 0 and header.gas_used == max(.,.) must be 0; a
+  -- nonzero header.gas_used raises InvalidBlock. Verify it here instead of trusting it.
+  "  la t5, bv_exec_p; ld t4, 0(t5); addi a0, t4, 420; jal ra, bgv_u64le   # header.gas_used\n" ++
+  "  bnez a0, .Lbv_notx_gas_used_fail\n" ++
   "  j .Lbv_after_tx_gate\n" ++
   blockVerdictEmptyTransactionCheckAsm ++
   "  la t5, bsr_bal_count; ld t5, 0(t5); beqz t5, .Lbv_no_bal_for_tx  # tx blocks need BAL replay\n" ++
@@ -893,6 +900,8 @@ def blockVerdictFunction : String :=
   "  li t0, 4; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_zero_gas_used:\n" ++
   "  li t0, 5; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_notx_gas_used_fail:\n" ++   -- wsvlq: no-tx block with nonzero header.gas_used
+  "  li t0, 13; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_public_keys_fail:\n" ++
   "  li t0, 6; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_bal_gas_fail:\n" ++
@@ -990,6 +999,12 @@ def statelessVerdictV2Function : String :=
   "  jal ra, header_extract_state_root\n" ++
   "  bnez a0, .Lv2_parent_header_fail\n" ++
   "  la t0, svf_wds_count; ld s1, 0(t0)\n" ++
+  -- 3zxnu: ExecutionPayload.withdrawals is SszList[Withdrawal, MAX_WITHDRAWALS_PER_PAYLOAD=16]
+  -- (stateless_ssz.py:46,108); a payload with >16 withdrawals fails to deserialize and is
+  -- rejected. The .Lv2_wl loop below writes svf_descriptors (256B=16) + svf_rlp_arena
+  -- (1152B=16), so an uncapped count would overflow into adjacent .data. Cap at 16 and
+  -- reject beyond (mirrors the transactions cap `bgeu s4, 2049, .Lv2_tx_root_fail`).
+  "  li t0, 17; bgeu s1, t0, .Lv2_withdrawals_root_fail\n" ++
   "  la t0, svf_wds_ptr;   ld s2, 0(t0)\n" ++
   "  la s3, svf_descriptors\n" ++
   "  la s4, svf_rlp_arena\n" ++
