@@ -990,6 +990,12 @@ def statelessVerdictV2Function : String :=
   "  jal ra, header_extract_state_root\n" ++
   "  bnez a0, .Lv2_parent_header_fail\n" ++
   "  la t0, svf_wds_count; ld s1, 0(t0)\n" ++
+  -- 3zxnu: ExecutionPayload.withdrawals is SszList[Withdrawal, MAX_WITHDRAWALS_PER_PAYLOAD=16]
+  -- (stateless_ssz.py:46,108); a payload with >16 withdrawals fails to deserialize and is
+  -- rejected. The .Lv2_wl loop below writes svf_descriptors (256B=16) + svf_rlp_arena
+  -- (1152B=16), so an uncapped count would overflow into adjacent .data. Cap at 16 and
+  -- reject beyond (mirrors the transactions cap `bgeu s4, 2049, .Lv2_tx_root_fail`).
+  "  li t0, 17; bgeu s1, t0, .Lv2_withdrawals_root_fail\n" ++
   "  la t0, svf_wds_ptr;   ld s2, 0(t0)\n" ++
   "  la s3, svf_descriptors\n" ++
   "  la s4, svf_rlp_arena\n" ++
