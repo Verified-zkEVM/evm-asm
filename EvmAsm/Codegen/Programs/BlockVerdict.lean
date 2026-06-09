@@ -928,6 +928,21 @@ def blockVerdictFunction : String :=
   -- increment (receipt_inc) is exact; the EIP-7778 block-gas gate is unaffected
   -- (it uses block_inc, which is refund-independent).
   ".Lbv_contract_dispatch:\n" ++
+  -- evm-asm-ok3nl (EIP-8025 witness validation): the currently-executing frame's
+  -- code must be present in witness.codes. The executable spec loads it via
+  -- WitnessState.get_code (witness_state.py), whose `self._code_db[code_hash]`
+  -- raises -> InvalidBlock when the preimage is absent. We reach here only when
+  -- the recipient's code_hash is non-empty (the contract path), so require that
+  -- preimage up-front; otherwise the staged dispatch silently bails to the
+  -- conservative fall-through and the missing current-frame code is never caught
+  -- (false-accept: guest=01 exp=00). bal_code_preimages_valid's BAL-row-shape
+  -- heuristic skips the recipient, so this targeted gate is the binding check.
+  "  la t0, svf_codes_ptr; ld a0, 0(t0)\n" ++
+  "  la t0, svf_codes_len; ld a1, 0(t0)\n" ++
+  "  la a2, bv_tx_recipient_code_hash\n" ++
+  "  la a3, bv_cf_code_off; la a4, bv_cf_code_len\n" ++
+  "  jal ra, witness_lookup_by_hash\n" ++
+  "  bnez a0, .Lbv_code_preimage_fail            # current-frame code preimage absent -> reject\n" ++
   "  la a0, bv_simple_transfer_tx\n" ++
   "  ld a1, 80(s0); ld a2, 88(s0)\n" ++
   "  jal ra, dispatch_tx_runtime_code\n" ++
