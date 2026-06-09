@@ -11,8 +11,8 @@
   MANUALLY via `call_frame_descend` (with a fixed child-code blob, so no witness /
   `code_at_header_state_root` is needed), then `j .dispatch_loop`:
 
-    child code = [STOP]                      → runs at the child frame (depth 1)
-      → depth-aware STOP sees depth>0 → `frame_return` → restores the parent
+    child code = [PUSH1 0; PUSH1 0; RETURN]  → runs at the child frame (depth 1)
+      → depth-aware RETURN sees depth>0 → `frame_return` → restores the parent
       → parent resumes at parent_pc+1
     parent code = [<descend placeholder>, PUSH1 0, SSTORE, STOP]
       → the success word `frame_return` pushed is on the parent stack
@@ -57,7 +57,7 @@ def callFrameRoundtripPrologue : String :=
   "  sd x0, 40(t2); sd x0, 48(t2)\n" ++             -- outOff / outSize = 0
   "  li t3, 192; sd t3, 56(t2)\n" ++                -- netPopBytes
   "  la t3, rt_child_code; sd t3, 64(t2)\n" ++      -- code_ptr = child code
-  "  li t3, 1; sd t3, 72(t2)\n" ++                  -- code_len
+  "  li t3, 5; sd t3, 72(t2)\n" ++                  -- code_len (PUSH1 0; PUSH1 0; RETURN)
   "  li t3, 100000; sd t3, 80(t2)\n" ++             -- requested_gas
   "  sd x0, 88(t2)\n" ++                            -- value_nonzero = 0
   "  la a1, rt_cd_desc\n" ++
@@ -96,7 +96,8 @@ def callFrameRoundtripData : String :=
   ".balign 8\n" ++
   -- parent: [descend-placeholder, PUSH1 0x00, SSTORE, STOP]; child: [STOP]
   "rt_parent_code:\n  .byte 0x00, 0x60, 0x00, 0x55, 0x00\n" ++
-  "rt_child_code:\n  .byte 0x00\n"
+  -- child: PUSH1 0; PUSH1 0; RETURN  (a depth-1 RETURN that resumes the parent)
+  "rt_child_code:\n  .byte 0x60, 0x00, 0x60, 0x00, 0xf3\n"
 
 def callFrameRoundtripUnit : BuildUnit := {
   body        := []
