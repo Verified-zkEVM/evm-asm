@@ -18,6 +18,7 @@
 
 import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Programs.SstoreGasRefund
 import EvmAsm.Codegen.CallFrameLayout
 import EvmAsm.Codegen.Programs.Address
 import EvmAsm.Codegen.Programs.HashBridge
@@ -930,6 +931,7 @@ def emitDispatcherPrologue : String :=
   -- the regions are byte-accessed directly by the storage handlers.
   "  sd x0, 448(x20)\n" ++         -- env.persistentLogLengthOff = 0
   "  sd x0, 456(x20)\n" ++         -- env.persistentLogCheckpointOff = 0
+  "  la x5, evm_refund_acc; sd x0, 0(x5)\n" ++   -- bmvmx.1.6.3: reset per-tx refund counter
   "  sd x0, 464(x20)\n" ++         -- env.transientLogLengthOff = 0
   "  sd x0, 472(x20)\n" ++         -- env.eventLogLengthOff = 0
   "  sd x0, 480(x20)\n" ++         -- env.eventLogCheckpointOff = 0
@@ -1333,6 +1335,7 @@ def emitDispatcherEpilogueCore
     createExecuteInitcodeFrameRuntimeFunction ++ "\n" ++
     zkvmModexpSafeFailWrapper ++ "\n" ++
     storageAccessGasFunction ++ "\n" ++
+    sstoreGasRefundOutcomeFunction ++ "\n" ++
     runtimeAccessAccountSeedFunction ++ "\n" ++
     runtimeAccessSeedInitialAccountsFunction ++ "\n" ++
     runtimeAccessAccountChargeFunction ++ "\n" ++
@@ -2080,6 +2083,7 @@ def emitRuntimeDispatcherEmbeddedHelperFunctions : String :=
   createExecuteInitcodeFrameRuntimeFunction ++ "\n" ++
   zkvmModexpSafeFailWrapper ++ "\n" ++
   storageAccessGasFunction ++ "\n" ++
+  sstoreGasRefundOutcomeFunction ++ "\n" ++
   runtimeAccessAccountSeedFunction ++ "\n" ++
   runtimeAccessSeedInitialAccountsFunction ++ "\n" ++
   runtimeAccessAccountChargeFunction ++ "\n" ++
@@ -2342,6 +2346,34 @@ def emitRuntimeDispatcherDataSectionCore
   ".balign 32\n" ++
   "callee_seed_table:\n" ++
   "  .zero 12288\n" ++   -- up to 128 entries × 96 B
+  -- bmvmx.1.6.3 refund accumulation (claude-c1's lane per c2 split). evm_refund_acc is
+  -- the running per-tx EIP-3529 refund counter (signed i64): the SSTORE handler adds each
+  -- SSTORE's refund delta (from sstore_gas_refund_outcome) on append; reset to 0 at
+  -- dispatcher setup. srfd_zero is the zero original/current buffer for a missing slot;
+  -- srfd_out is the helper's output. Surfaced into the block-verdict runtime refund
+  -- counter (bv_runtime_refund_counter / bv_mtx_refund), making the per-tx receipt-gas
+  -- increment (receipt_inc) exact; the EIP-7778 block-gas gate stays refund-independent.
+  ".balign 8\n" ++
+  "evm_refund_acc:\n" ++
+  "  .zero 8\n" ++
+  ".balign 32\n" ++
+  "srfd_zero:\n" ++
+  "  .zero 32\n" ++
+  "srfd_out:\n" ++
+  "  .zero 32\n" ++
+  -- bmvmx.1.6.6 enabler: per-entry block_access_index, PARALLEL to the 128 B exec-log
+  -- entries at 0xa0630000 (so the existing scans are byte-identical). exec_log_txindex[i]
+  -- = the tx's block_access_index for persistent-log entry i; the SSTORE handler stamps
+  -- it on append. `current_block_access_index` defaults to 1 (single-tx); the multi-tx
+  -- loop overwrites it per tx (system txs = 0). Sized to the persistent-log capacity
+  -- ((0xa0830000-0xa0630000)/128 = 16384 entries). Consumed later by the per-account
+  -- tuple-SEQUENCE comparators (c2).
+  ".balign 8\n" ++
+  "current_block_access_index:\n" ++
+  "  .dword 1\n" ++
+  ".balign 8\n" ++
+  "exec_log_txindex:\n" ++
+  "  .zero 131072\n" ++   -- 16384 entries × 8 B
   ".balign 32\n" ++
   "evm_memory:\n" ++
   "  .zero 0x10000\n" ++  -- 64 KiB EVM memory, enough for Amsterdam MAX_INIT_CODE_SIZE
@@ -2504,9 +2536,10 @@ def buildRuntimeDispatchCallableProbeUnit
       * `gas_left`             := `env.gasRemaining` (env+568)
       * `calldata_floor_gas_cost` := `runtime_tx_calldata_floor` (persisted by
         the validate-tx-gas path; 0 when validation was not requested)
-      * `refund_counter`       := 0 — the runtime dispatcher does not yet
-        accumulate an EVM refund counter, so this stays a conservative 0
-        until a later child wires SSTORE/SELFDESTRUCT refunds into `env`.
+      * `refund_counter`       := `evm_refund_acc` — the dispatcher's EIP-3529
+        SSTORE refund accumulator (reset per dispatch, signed-accumulated in the
+        SSTORE handler). SELFDESTRUCT refunds were removed in EIP-3529, so SSTORE
+        is the only accumulation source on Amsterdam.
       * `halt_kind`            := `OUTPUT+32` (0 STOP/RETURN, 2 REVERT, …),
         captured separately so exceptional halts stay distinguishable from a
         normal STOP/RETURN.
@@ -2535,7 +2568,7 @@ def buildRuntimeDispatchGasCaptureProbeUnit
     "  ld t5, 0(t4)               # EIP-7623 calldata floor\n" ++
     "  la t4, rdg_calldata_floor\n" ++
     "  sd t5, 0(t4)\n" ++
-    "  li t6, 0                   # refund_counter (not yet tracked at runtime)\n" ++
+    "  la t6, evm_refund_acc; ld t6, 0(t6)   # refund_counter (EIP-3529 SSTORE refund accumulator)\n" ++
     "  la t4, rdg_refund_counter\n" ++
     "  sd t6, 0(t4)\n" ++
     "  li t0, 0xa0010000\n" ++

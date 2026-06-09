@@ -333,6 +333,25 @@ def storageHandlers : List OpcodeHandlerSpec :=
         "  bnez x15, 1b\n" ++
         "2:\n" ++                         -- append step
         sstoreValueTransitionGasAsm ++
+        -- bmvmx.1.6.3: accumulate this SSTORE's EIP-3529 refund delta into evm_refund_acc
+        -- (signed). x18 = &found.original (or 0 -> original==current==0). sstore_gas_refund_outcome
+        -- clobbers a0-a4 (= x10/x12/x13/...) + ra, so save the dispatcher regs x10/x12/x13 + x1;
+        -- x18/x19 are s-regs (preserved by the call). Refund delta = signed i64 at out+8.
+        "  addi sp, sp, -32\n" ++
+        "  sd x1, 0(sp); sd x10, 8(sp); sd x12, 16(sp); sd x13, 24(sp)\n" ++
+        "  beqz x18, 8f\n" ++
+        "  mv a0, x18; addi a1, x18, 32\n" ++          -- original = entry+64, current = entry+96
+        "  j 9f\n" ++
+        "8:\n" ++
+        "  la a0, srfd_zero; la a1, srfd_zero\n" ++    -- missing slot: original = current = 0
+        "9:\n" ++
+        "  addi a2, x12, 32\n" ++                      -- new = stack[32..64]
+        "  seqz a3, x19\n" ++                          -- warm flag (1 if x19 == 0 warm)
+        "  la a4, srfd_out\n" ++
+        "  jal ra, sstore_gas_refund_outcome\n" ++
+        "  la x14, srfd_out; ld x15, 8(x14)\n" ++      -- signed refund delta
+        "  la x14, evm_refund_acc; ld x16, 0(x14); add x16, x16, x15; sd x16, 0(x14)\n" ++
+        "  ld x1, 0(sp); ld x10, 8(sp); ld x12, 16(sp); ld x13, 24(sp); addi sp, sp, 32\n" ++
         "  ld x15, 448(x20)\n" ++         -- reload current log_length
         "  li x14, 0xa0630000\n" ++
         "  slli x16, x15, 7\n" ++
@@ -377,6 +396,11 @@ def storageHandlers : List OpcodeHandlerSpec :=
         "  sd x16, 112(x14)\n" ++
         "  ld x16, 56(x12)\n" ++
         "  sd x16, 120(x14)\n" ++
+        -- bmvmx.1.6.6 enabler: stamp this entry's block_access_index (parallel array,
+        -- indexed by the old log_length x15) for the future per-tx tuple-sequence check.
+        -- x16/x17/x18 are dead post-append (the tail only uses x10).
+        "  la x16, current_block_access_index\n  ld x17, 0(x16)\n" ++
+        "  la x16, exec_log_txindex\n  slli x18, x15, 3\n  add x16, x16, x18\n  sd x17, 0(x16)\n" ++
         -- increment log_length
         "  addi x15, x15, 1\n" ++
         "  sd x15, 448(x20)"
