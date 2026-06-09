@@ -19,6 +19,7 @@ import EvmAsm.Codegen.Programs.BlockVerdictBalFindAccount
 import EvmAsm.Codegen.Programs.BlockVerdictContractStorage
 import EvmAsm.Codegen.Programs.BlockVerdictDispatchTx
 import EvmAsm.Codegen.Programs.BalStorageMatchesExecLog
+import EvmAsm.Codegen.Programs.BalStorageCoversExecLog
 import EvmAsm.Codegen.Programs.BlockVerdictTxsIndependent
 import EvmAsm.Codegen.Programs.BlockVerdictMultiTx
 
@@ -52,6 +53,7 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     -- block_verdict's contract-dispatch tail (rlp_list_nth_item/count_items already present).
     balStorageChangeValuesFunction ++ "\n" ++
     balStorageMatchesExecLogFunction ++ "\n" ++
+    balStorageCoversExecLogFunction ++ "\n" ++   -- bmvmx.1.6.5: exec ⊆ BAL (omission detection)
     -- .6.2.2.2.a: multi-tx dispatch helpers (independence guard + per-index tx
     -- context extractor) wired ahead of the gated multi-tx loop (.6.2.2.2.b).
     btiScanTuplesFunction ++ "\n" ++
@@ -236,6 +238,7 @@ def statelessVerdictV2GuestClosure : String :=
   -- block_verdict's contract-dispatch tail. rlp_list_nth_item/count_items already in closure.
   balStorageChangeValuesFunction ++ "\n" ++
   balStorageMatchesExecLogFunction ++ "\n" ++
+  balStorageCoversExecLogFunction ++ "\n" ++   -- bmvmx.1.6.5: exec ⊆ BAL (omission detection)
   -- .6.2.2.2.a: multi-tx dispatch helpers — bal_txs_independent (independence
   -- guard) + its bti_scan_* walkers, and multi_tx_nth_context (per-index tx
   -- context extractor) — wired ahead of the gated multi-tx loop (.6.2.2.2.b).

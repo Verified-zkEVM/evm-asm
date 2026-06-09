@@ -858,6 +858,17 @@ def blockVerdictFunction : String :=
   "  la t0, evm_env; ld a4, 448(t0)              # persistentLogLength (entry count)\n" ++
   "  jal ra, bal_storage_matches_exec_log\n" ++
   "  bnez a0, .Lbv_bal_storage_mismatch_fail\n" ++
+  -- bmvmx.1.6.5: the converse direction (execution ⊆ BAL). Every net storage change execution
+  -- made for the recipient must also be CLAIMED by the BAL — catches a prover that OMITS a write
+  -- to hide state. Together with the forward check above this pins the recipient's BAL
+  -- storage_changes to EXACTLY what execution produced. bvcd_acct_ptr/len still hold the
+  -- recipient AccountChanges; env.ADDRESS@0 keys the exec log; env[448] is its entry count.
+  "  la a0, evm_env\n" ++
+  "  la t0, bvcd_acct_ptr; ld a1, 0(t0); la t0, bvcd_acct_len; ld a2, 0(t0)\n" ++
+  "  li a3, 0xa0630000\n" ++
+  "  la t0, evm_env; ld a4, 448(t0)\n" ++
+  "  jal ra, bal_storage_covers_exec_log\n" ++
+  "  bnez a0, .Lbv_bal_storage_omit_fail\n" ++
   -- bmvmx.1.6.3 (nonce/code slice): a self-contained CALL recipient is a pre-existing contract
   -- that executes no CREATE/CREATE2 (rejected by bytecode_is_self_contained), so the call leaves
   -- its code and nonce unchanged. Its BAL nonce_changes (AccountChanges item 4) and code_changes
@@ -980,6 +991,8 @@ def blockVerdictFunction : String :=
   "  li t0, 34; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_bal_recipient_field_fail:\n" ++    -- bmvmx.1.6.3: recipient BAL nonce/code claims a change execution didn't make
   "  li t0, 35; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_bal_storage_omit_fail:\n" ++       -- bmvmx.1.6.5: recipient BAL omits a storage change execution made
+  "  li t0, 36; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_zero:\n" ++
   "  li a0, 0\n" ++
   ".Lbv_ret:\n" ++
