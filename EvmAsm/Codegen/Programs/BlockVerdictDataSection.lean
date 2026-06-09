@@ -737,6 +737,8 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bmvmx_gascost:\n  .zero 32\n" ++
   "bmvmx_sender_debit:\n  .zero 32\n" ++
   -- bmvmx.1.4.2: execution-derived coinbase fee credit (priority_fee_per_gas * gas_used).
-  "bmvmx_coinbase_credit:\n  .zero 32\n"
+  "bmvmx_coinbase_credit:\n  .zero 32\n" ++
+  -- .6.2.2.2.b: multi-tx dispatch loop index cursor.
+  "bv_mtx_i:\n  .zero 8\n"
 
 end EvmAsm.Codegen
