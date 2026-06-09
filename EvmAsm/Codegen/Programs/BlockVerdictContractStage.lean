@@ -80,6 +80,13 @@ def stageRuntimePayloadCodeFunction : String :=
   "  slli a6, s7, 6                      # a6 = storage bytes = count*64\n" ++
   "  add t1, t0, t6                      # t1 = co = cb + cd_pad\n" ++
   "  add t1, t1, a6; addi t1, t1, 80     # t1 = env_base = 80 + co + count*64\n" ++
+  -- 3vc2p.3b: the input-driven dispatcher setup reads the M29 block (blob-base-fee 32 +
+  -- blob_hash_count 8 + cur 8 + count 8 + count*32 hashes) BETWEEN the storage preload and
+  -- the env trailer. The fixed 56-byte slot (blob-base-fee+blob_hash_count+cur+count) already
+  -- sits in env_base; the count*32 HASHES push the env trailer further back, so shift env_base
+  -- by m29_stage_count*32. m29_stage_count defaults 0 -> no shift (byte-identical) until the
+  -- dispatch site (3vc2p.3b sub-step B) populates the M29 staging globals.
+  "  la t5, m29_stage_count; ld t5, 0(t5); slli t5, t5, 5; add t1, t1, t5\n" ++
   -- 3vc2p.5: publish the env_base OFFSET so dispatch_tx_runtime_code's CALLER/ORIGIN/
   -- GASPRICE/SELFBALANCE staging uses the SAME base instead of the round8(codelen)+80
   -- approximation (which is only correct for empty calldata+storage). Single source of truth.
@@ -119,7 +126,20 @@ def stageRuntimePayloadCodeFunction : String :=
   "  beqz t5, .Lsrpc_scopy_done\n" ++
   "  lbu t6, 0(t4); sb t6, 0(t3); addi t3, t3, 1; addi t4, t4, 1; addi t5, t5, -1; j .Lsrpc_scopy\n" ++
   ".Lsrpc_scopy_done:\n" ++
-  -- blob/blockhash length fields stay 0 (already zeroed). env words base.
+  -- 3vc2p.3b: M29 block at storage-end (t3 = s0 + co + 24 + storage*64 after the copy loop).
+  -- blob-base-fee@+0 (32) and blob_hash_count@+32 (8) stay 0 (already zeroed; no blob hashes);
+  -- then M29 cur@+40, count@+48, and count*32 hashes@+56 from the staging globals. With
+  -- m29_stage_count=0 this writes cur=count=0 and no hashes (byte-identical to the prior 0 gap).
+  "  la t4, m29_stage_cur;   ld t5, 0(t4); sd t5, 40(t3)\n" ++
+  "  la t4, m29_stage_count; ld t6, 0(t4); sd t6, 48(t3)\n" ++
+  "  addi t4, t3, 56              # dst = storage_end + 56 (M29 hashes)\n" ++
+  "  la t5, m29_stage_table       # src = staged hashes\n" ++
+  "  slli t6, t6, 5               # count*32 bytes\n" ++
+  ".Lsrpc_m29:\n" ++
+  "  beqz t6, .Lsrpc_m29_done\n" ++
+  "  lbu a5, 0(t5); sb a5, 0(t4); addi t5, t5, 1; addi t4, t4, 1; addi t6, t6, -1; j .Lsrpc_m29\n" ++
+  ".Lsrpc_m29_done:\n" ++
+  -- env words base (now after the M29 block).
   "  add s5, s0, t1               # s5 = &env_words (env_base)\n" ++
   -- COINBASE (word 6 -> +192): exec 20-byte address @32, low-aligned.
   "  addi t3, s2, 32; addi t4, s5, 192; li t5, 0\n" ++
@@ -203,18 +223,67 @@ def ziskStageRuntimePayloadCodePrologue : String :=
   stageRuntimePayloadCodeFunction ++ "\n" ++
   ".Lsrpcp_done:"
 
+/-- `zisk_stage_runtime_payload_code_m29`: 3vc2p.3b — same synthetic staging as the
+    code probe but with m29_stage_count=2 + a 2-hash M29 table, verifying the M29 block
+    write + the env_base shift by count*32. codelen=5, no calldata/storage -> co=8,
+    storage_end=co+24=32; M29 cur@payload[72], count@[80], hashes@[88]; env_base = 88+64 = 152.
+    OUTPUT: +0 srpc_env_base (expect 152); +8 M29 count payload[80] (expect 2);
+      +16 M29 cur payload[72] (expect 0x5A); +24 M29 hash0 payload[88] (expect 0x11);
+      +32 ADDRESS low byte payload[152] (expect 0xAA); +40 gas payload[152+448] (expect 21000). -/
+def ziskStageRuntimePayloadCodeM29Prologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  la t0, srpc_ctx\n" ++
+  "  sd zero, 0(t0)\n" ++
+  "  li t1, 21000; sd t1, 40(t0)\n" ++
+  "  sd zero, 48(t0); sd zero, 64(t0); sd zero, 96(t0)\n" ++
+  "  li t1, 0xAA; sb t1, 72(t0)\n" ++
+  "  la t2, srpc_exec\n" ++
+  "  li t1, 0xC0; sb t1, 32(t2)\n" ++
+  "  li t1, 99; sd t1, 404(t2)\n" ++
+  "  la t3, srpc_code\n" ++
+  "  li t1, 0x60; sb t1, 0(t3); li t1, 0x01; sb t1, 1(t3)\n" ++
+  "  li t1, 0x60; sb t1, 2(t3); li t1, 0x02; sb t1, 3(t3); sb zero, 4(t3)\n" ++
+  -- M29 staging: count=2, cur=0x5A, hash[0] first byte = 0x11.
+  "  la t0, m29_stage_count; li t1, 2; sd t1, 0(t0)\n" ++
+  "  la t0, m29_stage_cur;   li t1, 0x5A; sd t1, 0(t0)\n" ++
+  "  la t0, m29_stage_table; li t1, 0x11; sb t1, 0(t0); li t1, 0x22; sb t1, 32(t0)\n" ++
+  "  la a0, srpc_ctx; la a1, srpc_payload; la a2, srpc_exec; la a3, srpc_code; li a4, 5\n" ++
+  "  li a5, 0; li a6, 0\n" ++
+  "  jal ra, stage_runtime_payload_code\n" ++
+  "  li s0, 0xa0010000\n" ++
+  "  la t1, srpc_env_base; ld t2, 0(t1); sd t2, 0(s0)\n" ++       -- env_base (expect 152)
+  "  la t0, srpc_payload\n" ++
+  "  ld t1, 80(t0); sd t1, 8(s0)\n" ++                            -- M29 count (expect 2)
+  "  lbu t1, 72(t0); sd t1, 16(s0)\n" ++                          -- M29 cur low byte (expect 0x5A)
+  "  lbu t1, 88(t0); sd t1, 24(s0)\n" ++                          -- M29 hash0 (expect 0x11)
+  "  li t2, 152; add t2, t0, t2\n" ++
+  "  lbu t1, 0(t2); sd t1, 32(s0)\n" ++                           -- ADDRESS low byte at env_base (expect 0xAA)
+  "  ld t1, 448(t2); sd t1, 40(s0)\n" ++                          -- gas at env_base+448 (expect 21000)
+  "  j .Lsrpcm29_done\n" ++
+  stageRuntimePayloadCodeFunction ++ "\n" ++
+  ".Lsrpcm29_done:"
+
 def ziskStageRuntimePayloadCodeDataSection : String :=
   ".section .data\n" ++
   ".balign 8\n" ++
   "srpc_ctx:\n  .zero 192\n" ++
   "srpc_exec:\n  .zero 512\n" ++
   "srpc_code:\n  .zero 64\n" ++
-  "srpc_env_base:\n  .zero 8\n" ++   -- 3vc2p.5: published env_base offset (single source of truth)
+  "srpc_env_base:\n  .zero 8\n" ++
+  "m29_stage_cur:\n  .zero 8\n" ++
+  "m29_stage_count:\n  .zero 8\n" ++
+  "m29_stage_table:\n  .zero 8192\n" ++   -- 3vc2p.3b: M29 recent-blockhash table (256x32; default 0 -> inert)   -- 3vc2p.5: published env_base offset (single source of truth)
   "srpc_payload:\n  .zero 1024\n"
 
 def ziskStageRuntimePayloadCodeProbeUnit : BuildUnit := {
   body        := NOP
   prologueAsm := ziskStageRuntimePayloadCodePrologue
+  dataAsm     := ziskStageRuntimePayloadCodeDataSection
+}
+
+def ziskStageRuntimePayloadCodeM29ProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskStageRuntimePayloadCodeM29Prologue
   dataAsm     := ziskStageRuntimePayloadCodeDataSection
 }
 
@@ -267,7 +336,10 @@ def ziskStageRuntimePayloadCodeStorageDataSection : String :=
   "srpcs_exec:\n  .zero 512\n" ++
   "srpcs_code:\n  .zero 64\n" ++
   "srpcs_store:\n  .zero 64\n" ++
-  "srpc_env_base:\n  .zero 8\n" ++   -- 3vc2p.5: published env_base offset
+  "srpc_env_base:\n  .zero 8\n" ++
+  "m29_stage_cur:\n  .zero 8\n" ++
+  "m29_stage_count:\n  .zero 8\n" ++
+  "m29_stage_table:\n  .zero 8192\n" ++   -- 3vc2p.3b: M29 recent-blockhash table (256x32; default 0 -> inert)   -- 3vc2p.5: published env_base offset
   "srpcs_payload:\n  .zero 1024\n"
 
 def ziskStageRuntimePayloadCodeStorageProbeUnit : BuildUnit := {
@@ -325,7 +397,10 @@ def ziskStageRuntimePayloadCodeCalldataDataSection : String :=
   "srpcc_exec:\n  .zero 512\n" ++
   "srpcc_code:\n  .zero 64\n" ++
   "srpcc_cd:\n  .zero 64\n" ++
-  "srpc_env_base:\n  .zero 8\n" ++   -- 3vc2p.5: published env_base offset
+  "srpc_env_base:\n  .zero 8\n" ++
+  "m29_stage_cur:\n  .zero 8\n" ++
+  "m29_stage_count:\n  .zero 8\n" ++
+  "m29_stage_table:\n  .zero 8192\n" ++   -- 3vc2p.3b: M29 recent-blockhash table (256x32; default 0 -> inert)   -- 3vc2p.5: published env_base offset
   "srpcc_payload:\n  .zero 1024\n"
 
 def ziskStageRuntimePayloadCodeCalldataProbeUnit : BuildUnit := {
