@@ -226,6 +226,10 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bvgr_refund_counter:\n  .zero 128\n" ++
   "bvgr_calldata_floor:\n  .zero 128\n" ++
   "bvgr_block_gas_increments:\n  .zero 128\n" ++
+  -- g8zeq.1.4.3: per-tx EIP-8037 state-gas array, the state counterpart of
+  -- bvgr_block_gas_increments. Filled by block_verdict_tx_state_gas_array; fed
+  -- (with bvgr_block_gas_increments) to eip8037_block_gas_used by g8zeq.1.4.2.
+  "bvgr_tx_state_gas:\n  .zero 128\n" ++
   "bvgr_receipt_gas_increments:\n  .zero 128\n" ++
   "bvgr_before_refund:\n  .zero 128\n" ++
   "bvgr_applied_refund:\n  .zero 128\n" ++
