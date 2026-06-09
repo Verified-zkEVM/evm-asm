@@ -579,7 +579,11 @@ def emitCreateChildFrameData : String :=
   createCodeEffectLogData ++ "\n" ++
   -- .61.8c-1: per-creator running-nonce table (multi-CREATE address correctness), co-located
   -- so the CREATE tail's create_creator_nonce_use resolves in every closure.
-  createNonceTableData
+  createNonceTableData ++ "\n" ++
+  -- .61.8.3.5 (.5a/.5b): CREATE-frame descent scratch (create_cd_desc / create_address_word /
+  -- create_frame_flag), co-located here so create_frame_descend AND the depth-aware
+  -- returnRevertTail CREATE branch resolve create_frame_flag in EVERY closure (guest + probes).
+  createFrameDescendData
 
 /-- Scratch labels shared by runtime account-witness helpers.
 
@@ -2327,7 +2331,6 @@ def emitRuntimeDispatcherEmbeddedHelperData : String :=
   -- (`callDescendFallThrough`) and consumed by `call_frame_descend`.
   ".balign 8\n" ++
   "cd_desc:\n  .zero 96\n" ++
-  createFrameDescendData ++   -- .61.8.3.5.1: create_cd_desc / create_address_word / create_frame_flag
   ".balign 32\n" ++
   "cd_zero_word:\n  .zero 32\n" ++
   -- Scratch for the value-bearing CALL balance gate (`callDescendFallThrough`):

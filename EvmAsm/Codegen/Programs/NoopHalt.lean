@@ -32,6 +32,47 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
     "  ld t0, 0(t0)\n" ++
     "  beqz t0, .Lrr_halt_" ++ toString kind ++ "\n" ++
     rollbackAsm ++
+    -- .61.8.3.5.2 (.5b): a CREATE child frame (create_frame_flag[depth]=1, set by
+    -- create_frame_descend) does NOT return a CALL result — on RETURN it deposits the
+    -- returned bytes as the deployed code and pushes the DERIVED ADDRESS to the parent;
+    -- on REVERT it pushes 0 (CREATE failed). A CALL frame uses frame_return (success +
+    -- returndata). Clear the flag (frame-slot reuse). Inert until .5c wires the descent.
+    "  la t1, create_frame_flag\n" ++
+    "  slli t2, t0, 3\n" ++
+    "  add t1, t1, t2\n" ++
+    "  ld t3, 0(t1)\n" ++
+    "  beqz t3, .Lrr_call_" ++ toString kind ++ "\n" ++
+    "  sd x0, 0(t1)\n" ++
+    (if kind == 2 then
+      -- REVERT: CREATE failed -> push 0 (rollback already ran above).
+      "  li a0, 0\n  li a1, 0\n  li a2, 0\n" ++
+      "  jal ra, frame_return\n" ++
+      "  j .dispatch_loop\n"
+     else
+      -- RETURN: validity-gate child mem[x14..x14+x15] (the deployed code), record the
+      -- code-effect (copies it into the log BEFORE the frame pop), pop via frame_return
+      -- (push 0 placeholder), then overwrite the parent result slot (x12) with the
+      -- derived address. create_deployed_code_valid/create_record_code_effect preserve
+      -- x13 (a3 mem base) and x14/x15 (per #8629); the validity result (a0) is consumed
+      -- by bnez before create_record_code_effect clobbers a0.
+      "  add a0, x13, x14\n  mv a1, x15\n" ++
+      "  jal ra, create_deployed_code_valid\n" ++
+      "  bnez a0, .Lrr_crinv_" ++ toString kind ++ "\n" ++
+      "  la a0, create_address_be\n  add a1, x13, x14\n  mv a2, x15\n" ++
+      "  jal ra, create_record_code_effect\n" ++
+      "  li a0, 0\n  li a1, 0\n  li a2, 0\n" ++
+      "  jal ra, frame_return\n" ++
+      "  la t1, create_address_be\n  addi t1, t1, 19\n  mv t2, x12\n  li t3, 20\n" ++
+      ".Lrr_craddr_" ++ toString kind ++ ":\n" ++
+      "  beqz t3, .Lrr_craddr_d_" ++ toString kind ++ "\n" ++
+      "  lbu t4, 0(t1)\n  sb t4, 0(t2)\n  addi t1, t1, -1\n  addi t2, t2, 1\n  addi t3, t3, -1\n  j .Lrr_craddr_" ++ toString kind ++ "\n" ++
+      ".Lrr_craddr_d_" ++ toString kind ++ ":\n" ++
+      "  j .dispatch_loop\n" ++
+      ".Lrr_crinv_" ++ toString kind ++ ":\n" ++
+      "  li a0, 0\n  li a1, 0\n  li a2, 0\n" ++
+      "  jal ra, frame_return\n" ++
+      "  j .dispatch_loop\n") ++
+    ".Lrr_call_" ++ toString kind ++ ":\n" ++
     "  li a0, " ++ (if kind == 2 then "0" else "1") ++ "\n" ++
     "  add a1, x13, x14\n" ++
     "  mv a2, x15\n" ++
