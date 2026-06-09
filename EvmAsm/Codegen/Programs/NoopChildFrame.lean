@@ -277,6 +277,23 @@ def childFrameHandlers
     "  ld x18, 0(x18)\n" ++
     "  li x19, 2\n" ++
     "  bne x18, x19, 7f\n" ++
+    -- .61.8b (.8b-2): the init code RETURNed deployed bytes (create_child_code/_len, status 2).
+    -- (1) deployed-code validity gate (EIP-3541 0xEF prefix + EIP-170 MAX_CODE_SIZE): an invalid
+    -- deployment FAILS (push 0, no deposit, 7f). (2) deposit the code-effect record keyed on
+    -- create_address_be so the all-accounts CODE comparator sees the deployed bytes. x10 (= a0/PC)
+    -- is saved in s10 across each call (they clobber a0; they preserve x12/x13/x20/x21 and s10).
+    -- create_record_code_effect's overflow is signalled via exec_code_effect_overflow (consumer
+    -- stays conservative), so its return value is ignored here. CREATE is still gated out of the
+    -- self-contained set (.8c pending), so this path is inert in the verdict until activation.
+    "  mv s10, x10\n" ++
+    "  la a0, create_child_code; la a1, create_child_code_len; ld a1, 0(a1)\n" ++
+    "  jal x1, create_deployed_code_valid\n" ++
+    "  mv x10, s10\n" ++
+    "  bnez a0, 7f\n" ++
+    "  mv s10, x10\n" ++
+    "  la a0, create_address_be; la a1, create_child_code; la a2, create_child_code_len; ld a2, 0(a2)\n" ++
+    "  jal x1, create_record_code_effect\n" ++
+    "  mv x10, s10\n" ++
     "  addi x12, x12, " ++ toString netPopBytes ++ "\n" ++
     -- Push the derived 160-bit address as an EVM stack word: low 160 bits in
     -- stack byte order, high 96 bits zero.
