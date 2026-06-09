@@ -19,6 +19,7 @@ import EvmAsm.Codegen.Programs.BalStorageCoversExecLog
 import EvmAsm.Codegen.Programs.CreateDescend
 import EvmAsm.Codegen.Programs.BalAddrExecLogKey
 import EvmAsm.Codegen.Programs.BalAllAccountsStorage
+import EvmAsm.Codegen.Programs.Create2Descend
 
 namespace EvmAsm.Codegen
 
