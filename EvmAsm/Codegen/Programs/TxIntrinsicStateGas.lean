@@ -27,6 +27,7 @@ import EvmAsm.Codegen.Programs.AmsterdamSystemTx
 import EvmAsm.Codegen.Programs.IntrinsicGas
 import EvmAsm.Codegen.Programs.TxExtract
 import EvmAsm.Codegen.Programs.RlpRead
+import EvmAsm.Codegen.Programs.BalGasValid
 
 namespace EvmAsm.Codegen
 
@@ -150,6 +151,132 @@ def ziskTxIntrinsicStateGasProbeUnit : BuildUnit := {
   body        := NOP
   prologueAsm := ziskTxIntrinsicStateGasPrologue
   dataAsm     := ziskTxIntrinsicStateGasDataSection
+}
+
+/-! ## block_verdict_tx_state_gas_array  (g8zeq.1.4.3)
+
+    Fill a per-tx `tx_state_gas` array from the SSZ transactions section, the
+    state-gas counterpart of the `bvgr_block_gas_increments` regular-gas array.
+    Iterates the SSZ `List[Transaction]` offset table exactly like
+    `block_verdict_tx_gas_limits` and calls `tx_intrinsic_state_gas` per tx, so
+    `out[i] = tx_state_gas(tx i)` for `i in [0, count)`.
+
+    Generic in its output pointer and a SEPARATE pass — it does NOT modify the
+    wired `block_verdict_tx_gas_limits`. g8zeq.1.4.2 calls it with
+    `bvgr_tx_state_gas` once the runtime arena is complete (count == tx_count),
+    then feeds both arrays to `eip8037_block_gas_used`.
+
+    Calling convention:
+      a0 (input)  : SSZ transactions-section ptr (offset table + tx bodies)
+      a1 (input)  : section byte length
+      a2 (input)  : expected transaction count (arena consistency)
+      a3 (input)  : u64 out array ptr (>= 8*count bytes)
+      ra (input)  : return
+      a0 (output) :
+        0 : success (out[0..count) populated)
+        1 : malformed transactions section / offset table
+        2 : tx count disagrees with expected count
+        3 : a per-tx tx_intrinsic_state_gas call failed -/
+def blockVerdictTxStateGasArrayFunction : String :=
+  "block_verdict_tx_state_gas_array:\n" ++
+  "  addi sp, sp, -80\n" ++
+  "  sd ra, 0(sp)\n" ++
+  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
+  "  mv s0, a0                   # tx-section ptr\n" ++
+  "  mv s1, a1                   # tx-section len\n" ++
+  "  mv s2, a2                   # expected count\n" ++
+  "  mv s3, a3                   # out array\n" ++
+  "  li t0, 4; bltu s1, t0, .Lbvtsg_malformed\n" ++
+  "  mv a0, s0; jal ra, bgv_u32le             # first offset = 4 * tx_count\n" ++
+  "  andi t0, a0, 3; bnez t0, .Lbvtsg_malformed\n" ++
+  "  bgtu a0, s1, .Lbvtsg_malformed\n" ++
+  "  srli s4, a0, 2              # tx_count\n" ++
+  "  bne s4, s2, .Lbvtsg_mismatch\n" ++
+  "  beqz s4, .Lbvtsg_ok\n" ++
+  "  mv s5, zero                 # index\n" ++
+  ".Lbvtsg_loop:\n" ++
+  "  beq s5, s4, .Lbvtsg_ok\n" ++
+  "  slli t0, s5, 2; add a0, s0, t0; jal ra, bgv_u32le; mv s6, a0   # cur offset\n" ++
+  "  slli t0, s4, 2; bltu s6, t0, .Lbvtsg_malformed                 # >= offset-table end\n" ++
+  "  bgtu s6, s1, .Lbvtsg_malformed\n" ++
+  "  addi t0, s5, 1; beq t0, s4, .Lbvtsg_last\n" ++
+  "  slli t1, t0, 2; add a0, s0, t1; jal ra, bgv_u32le; mv s7, a0   # next offset\n" ++
+  "  j .Lbvtsg_have\n" ++
+  ".Lbvtsg_last:\n" ++
+  "  mv s7, s1                   # final tx ends at section end\n" ++
+  ".Lbvtsg_have:\n" ++
+  "  bltu s7, s6, .Lbvtsg_malformed\n" ++
+  "  bgtu s7, s1, .Lbvtsg_malformed\n" ++
+  "  add a0, s0, s6              # tx ptr\n" ++
+  "  sub a1, s7, s6             # tx len\n" ++
+  "  slli t0, s5, 3; add a2, s3, t0   # &out[i]\n" ++
+  "  jal ra, tx_intrinsic_state_gas\n" ++
+  "  bnez a0, .Lbvtsg_tx_fail\n" ++
+  "  addi s5, s5, 1; j .Lbvtsg_loop\n" ++
+  ".Lbvtsg_ok:\n" ++
+  "  li a0, 0; j .Lbvtsg_ret\n" ++
+  ".Lbvtsg_malformed:\n" ++
+  "  li a0, 1; j .Lbvtsg_ret\n" ++
+  ".Lbvtsg_mismatch:\n" ++
+  "  li a0, 2; j .Lbvtsg_ret\n" ++
+  ".Lbvtsg_tx_fail:\n" ++
+  "  li a0, 3\n" ++
+  ".Lbvtsg_ret:\n" ++
+  "  ld ra, 0(sp)\n" ++
+  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
+  "  addi sp, sp, 80\n" ++
+  "  ret"
+
+/-- `zisk_block_verdict_tx_state_gas_array`: focused probe.
+    Input (after the ziskemu length wrapper at 0x40000000):
+      bytes  8..16 : tx-section byte length
+      bytes 16..24 : expected tx count
+      bytes 24..   : SSZ transactions section (offset table + tx bodies)
+    Output:
+      bytes  0.. 8 : status
+      bytes  8..   : tx_state_gas[i] (u64 LE), i in [0, count) -/
+def ziskBlockVerdictTxStateGasArrayPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a4, 0x40000000\n" ++
+  "  ld a1, 8(a4)                # tx-section len\n" ++
+  "  ld a2, 16(a4)               # expected count\n" ++
+  "  addi a0, a4, 24             # tx-section ptr\n" ++
+  "  li a3, 0xa0010008           # out array (OUTPUT + 8)\n" ++
+  "  jal ra, block_verdict_tx_state_gas_array\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status\n" ++
+  "  j .Lbvtsg_pdone\n" ++
+  blockVerdictTxStateGasArrayFunction ++ "\n" ++
+  txIntrinsicStateGasFunction ++ "\n" ++
+  txExtractToAddressFunction ++ "\n" ++
+  txTypeDispatchFunction ++ "\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpListCountItemsFunction ++ "\n" ++
+  eip8037TxStateGasFunction ++ "\n" ++
+  bgvU32leFunction ++ "\n" ++
+  ".Lbvtsg_pdone:"
+
+def ziskBlockVerdictTxStateGasArrayDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "tea_type:\n  .zero 8\n" ++
+  "tea_inner_off:\n  .zero 8\n" ++
+  "tea_field_off:\n  .zero 8\n" ++
+  "tea_field_len:\n  .zero 8\n" ++
+  "tis_to_buf:\n  .zero 32\n" ++
+  "tis_is_creation:\n  .zero 8\n" ++
+  "tis_type:\n  .zero 8\n" ++
+  "tis_inner_off:\n  .zero 8\n" ++
+  "tis_auth_off:\n  .zero 8\n" ++
+  "tis_auth_len:\n  .zero 8\n" ++
+  "tis_auth_count:\n  .zero 8"
+
+def ziskBlockVerdictTxStateGasArrayProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskBlockVerdictTxStateGasArrayPrologue
+  dataAsm     := ziskBlockVerdictTxStateGasArrayDataSection
 }
 
 end EvmAsm.Codegen
