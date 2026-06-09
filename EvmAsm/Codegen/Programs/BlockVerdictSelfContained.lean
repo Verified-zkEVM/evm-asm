@@ -62,19 +62,14 @@ def bytecodeIsSelfContainedFunction : String :=
   ".Lbsc_check:\n" ++
   -- Reject the un-staged-state opcodes.
   "  li t3, 0x31; beq t2, t3, .Lbsc_unsafe\n" ++   -- BALANCE
-  -- 3vc2p.4: ORIGIN(0x32)/CALLER(0x33)/GASPRICE(0x3a) are NO LONGER rejected — their env
-  -- context is now staged for contract recipients (CALLER/ORIGIN = tx.sender via 3vc2p.1
-  -- #8640; GASPRICE = effective_gas_price via 3vc2p.2 #8642), so they execute correctly
-  -- through dispatch_tx_runtime_code. BLOCKHASH(0x40) stays rejected (its table staging,
-  -- 3vc2p.3, is not done yet — flipping it would read a zero table).
-  "  li t3, 0x3b; beq t2, t3, .Lbsc_unsafe\n" ++   -- EXTCODESIZE
-  "  li t3, 0x3c; beq t2, t3, .Lbsc_unsafe\n" ++   -- EXTCODECOPY
-  "  li t3, 0x3f; beq t2, t3, .Lbsc_unsafe\n" ++   -- EXTCODEHASH
+  -- 3vc2p.4: ORIGIN(0x32)/CALLER(0x33)/GASPRICE(0x3a) are NO LONGER rejected (#8648).
+  -- yisv8.2 (part 2): EXTCODESIZE(0x3b)/EXTCODECOPY(0x3c)/EXTCODEHASH(0x3f) are NO LONGER
+  -- rejected — their handlers read account code from the staged state+codes witness.
+  -- BLOCKHASH(0x40) stays rejected (table staging 3vc2p.3 not done yet).
   "  li t3, 0x40; beq t2, t3, .Lbsc_unsafe\n" ++   -- BLOCKHASH
-  -- yisv8.2: SELFBALANCE(0x47) is NO LONGER rejected — the recipient's own balance is now
-  -- staged into env.SELFBALANCE (env word 1) by dispatch_tx_runtime_code (yisv8.1 #8644).
-  -- CREATE(0xf0)/CREATE2(0xf5) are also NO LONGER rejected (.8c-3 #8649 already merged).
-  -- BALANCE(0x31)/EXTCODE*(0x3b/0x3c/0x3f) stay rejected pending cross-account witness (M31);
+  -- yisv8.2: SELFBALANCE(0x47) NO LONGER rejected (#8650); CREATE/CREATE2 NO LONGER rejected
+  -- (#8649); EXTCODE*(0x3b/0x3c/0x3f) NO LONGER rejected (this PR, yisv8.2 part 2).
+  -- BALANCE(0x31) stays rejected (volatile balance, cross-account witness M31 needed);
   -- BLOCKHASH(0x40) pending its table (3vc2p.3); SELFDESTRUCT(0xff) stays rejected.
   "  li t3, 0xff; beq t2, t3, .Lbsc_unsafe\n" ++   -- SELFDESTRUCT (beneficiary cold/warm + account-creation gas is un-staged)
   "  addi t0, t0, 1; j .Lbsc_loop\n" ++
