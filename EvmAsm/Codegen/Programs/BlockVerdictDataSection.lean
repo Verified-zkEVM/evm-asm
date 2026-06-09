@@ -686,6 +686,40 @@ def ziskStatelessVerdictV2DataSection : String :=
   "brsk_soff:\n  .zero 8\n" ++
   "brsk_slen:\n  .zero 8\n" ++
   ".balign 32\n" ++
-  "brsk_out:\n  .zero 256\n"
+  "brsk_out:\n  .zero 256\n" ++
+  -- .6.2.2.2.a: bal_txs_independent private scratch (the independence-guard
+  -- walkers' cursors/counters; the probe's bti_bal_* fixtures are NOT needed in
+  -- the verdict guest, only this scratch). All runtime-written before read.
+  ".balign 8\n" ++
+  "bti_acct_cnt:\n  .zero 8\n" ++
+  "bti_aoff:\n  .zero 8\n" ++
+  "bti_alen:\n  .zero 8\n" ++
+  "bti_off:\n  .zero 8\n" ++
+  "bti_len:\n  .zero 8\n" ++
+  "bti_first_tx:\n  .zero 8\n" ++
+  "bti_has_write:\n  .zero 8\n" ++
+  "bti_conflict:\n  .zero 8\n" ++
+  "bti_err:\n  .zero 8\n" ++
+  "bti_rd_cnt:\n  .zero 8\n" ++
+  "bti_t_cnt:\n  .zero 8\n" ++
+  "bti_t_eoff:\n  .zero 8\n" ++
+  "bti_t_elen:\n  .zero 8\n" ++
+  "bti_t_foff:\n  .zero 8\n" ++
+  "bti_t_flen:\n  .zero 8\n" ++
+  "bti_sc_cnt:\n  .zero 8\n" ++
+  "bti_sc_soff:\n  .zero 8\n" ++
+  "bti_sc_slen:\n  .zero 8\n" ++
+  "bti_sc_coff:\n  .zero 8\n" ++
+  "bti_sc_clen:\n  .zero 8\n" ++
+  -- .6.2.2.2.a: per-tx runtime-result arrays + context scratch for the gated
+  -- multi-tx dispatch loop (.6.2.2.2.b). 16-wide u64 arrays (arena capacity 16);
+  -- bv_mtx_ctx is one 192-byte multi_tx_nth_context record reused per index.
+  ".balign 8\n" ++
+  "bv_mtx_gas_left:\n  .zero 128\n" ++
+  "bv_mtx_refund:\n  .zero 128\n" ++
+  "bv_mtx_calldata:\n  .zero 128\n" ++
+  "bv_mtx_ctx:\n  .zero 192\n" ++
+  -- .6.2.2.2.b: multi-tx dispatch loop index cursor.
+  "bv_mtx_i:\n  .zero 8\n"
 
 end EvmAsm.Codegen
