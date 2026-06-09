@@ -841,6 +841,9 @@ def ziskStatelessVerdictV2DataSection : String :=
   "c2nsf_tlen:\n  .zero 8\n" ++
   "c2nsf_coff:\n  .zero 8\n" ++
   "c2nsf_clen:\n  .zero 8\n" ++
+  -- yisv8.1: recipient self-balance scratch for the env.SELFBALANCE (word 1) staging.
+  ".balign 32\n" ++
+  "yisv8_self_bal:\n  .zero 32\n" ++
   ".balign 8\n" ++
   "bmvmx_sender_match:\n  .zero 8\n" ++
   -- bmvmx.1.4.3.1: envelope predicate scratch. bmvmx_sender_checked / bmvmx_coinbase_checked
