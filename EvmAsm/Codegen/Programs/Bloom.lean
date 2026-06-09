@@ -367,7 +367,7 @@ def capturedLogsBloomAddFunction : String :=
 " ++
   "  mv s2, a2                   # descriptor count
 " ++
-  "  li t0, 16
+  "  li t0, 1024
 " ++
   "  bgtu s2, t0, .Lclba_count_fail
 " ++

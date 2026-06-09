@@ -30,6 +30,18 @@ def executionRequestsHashFunction : String :=
   "  bltu s4, s3, .Lerh_fail\n" ++
   "  bltu s5, s4, .Lerh_fail\n" ++
   "  bltu s1, s5, .Lerh_fail\n" ++
+  -- vdfs9: each request body must be a whole number of fixed-size SSZ elements
+  -- (DepositRequest=192, WithdrawalRequest=76, ConsolidationRequest=116) within the
+  -- SszList cap (2^13 / 2^4 / 2^1). A non-multiple body length or an over-cap count is
+  -- a malformed execution_requests section that the spec's SSZ deserialization rejects;
+  -- the body was previously hashed verbatim, so a prover-consistent malformed section
+  -- (with header.requests_hash set to match) would have slipped through.
+  "  sub t0, s4, s3; li t1, 192; remu t2, t0, t1; bnez t2, .Lerh_fail\n" ++
+  "  divu t2, t0, t1; li t3, 8192; bgtu t2, t3, .Lerh_fail\n" ++
+  "  sub t0, s5, s4; li t1, 76;  remu t2, t0, t1; bnez t2, .Lerh_fail\n" ++
+  "  divu t2, t0, t1; li t3, 16;   bgtu t2, t3, .Lerh_fail\n" ++
+  "  sub t0, s1, s5; li t1, 116; remu t2, t0, t1; bnez t2, .Lerh_fail\n" ++
+  "  divu t2, t0, t1; li t3, 2;    bgtu t2, t3, .Lerh_fail\n" ++
   "  la s6, erh_digests          # next digest output\n" ++
   "  li s7, 0                    # digest count\n" ++
   "  # deposits: type 0x00, body [s3,s4)\n" ++

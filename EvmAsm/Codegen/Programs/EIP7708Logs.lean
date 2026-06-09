@@ -64,7 +64,7 @@ def eip7708SyntheticLogFunctions : String :=
   "  li t0, 3\n" ++
   "  bgtu a0, t0, .Leip7708_bad_topic_count\n" ++
   "  ld t0, 472(x20)\n" ++
-  "  li t1, 16\n" ++
+  "  li t1, 1024\n" ++               -- 6c7v9: raised log-descriptor cap from 16
   "  bgeu t0, t1, .Leip7708_overflow\n" ++
   "  la t2, evm_event_logs\n" ++
   "  slli t1, t0, 8\n" ++
@@ -177,7 +177,7 @@ def eip7708SyntheticLogDataSection : String :=
   "  .zero 624\n" ++
   ".balign 8\n" ++
   "evm_event_logs:\n" ++
-  "  .zero 4096\n" ++
+  "  .zero 262144\n" ++   -- 6c7v9: 1024 × 256-byte LOG event descriptors (was 4096 = 16×256)
   eip7708SyntheticLogTopicData ++
   "eip7708_probe_sender:\n" ++
   "  .quad 0x1111111111111111, 0x1111111111111111, 0x0000000011111111, 0\n" ++
