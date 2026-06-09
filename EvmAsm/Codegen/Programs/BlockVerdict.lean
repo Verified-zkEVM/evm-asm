@@ -50,6 +50,7 @@ import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransfer
 import EvmAsm.Codegen.Programs.TxGasBalPostVerify
 import EvmAsm.Codegen.Programs.SenderBalanceDebit
 import EvmAsm.Codegen.Programs.TxGasBalPostVerifyRuntime
+import EvmAsm.Codegen.Programs.SenderPostNonceConsistent
 import EvmAsm.Codegen.Programs.SimpleTransferRecipient
 import EvmAsm.Codegen.Programs.SimpleTransferFeeRecipient
 import EvmAsm.Codegen.Programs.BlockVerdictSysChange
@@ -962,7 +963,19 @@ def blockVerdictFunction : String :=
   "  la t0, bv_bal_start; ld a4, 0(t0); la t0, bv_bal_len; ld a5, 0(t0)\n" ++
   "  la a6, basr_records; la a7, bv_sender_bal_check\n" ++
   "  jal ra, tx_gas_bal_post_verify_runtime\n" ++
-  "  la t0, bv_sender_bal_check; ld t0, 0(t0); li t1, 40; bne t0, t1, .Lbv_after_tx_gas_precharge\n" ++
+  "  la t0, bv_sender_bal_check; ld t0, 0(t0)\n" ++
+  "  li t1, 40; beq t0, t1, .Lbv_sbc_bal_mismatch\n" ++          -- clean balance mismatch -> coinbase gate
+  "  bnez t0, .Lbv_after_tx_gas_precharge\n" ++                  -- lookup miss / cannot-compare -> skip
+  -- bmvmx.1.6.3 (nonce slice): the balance matched (status 0); now verify the sender's BAL post
+  -- nonce == pre_nonce + 1 against execution (a single tx from the sender increments its nonce
+  -- exactly once). tgbpvr_lookup still holds the kernel's sender lookup. Non-redundant with the
+  -- state-root check (which only validates the prover BAL against the prover header.state_root).
+  -- Nonce is value-independent, so no coinbase gate is needed; an absent/oversized post nonce
+  -- returns "skip" (2) and never rejects. A BAL post nonce != pre+1 is a prover lie -> reject.
+  "  la a0, tgbpvr_lookup; jal ra, sender_post_nonce_consistent\n" ++
+  "  li t1, 1; beq a0, t1, .Lbv_sender_nonce_fail\n" ++
+  "  j .Lbv_after_tx_gas_precharge\n" ++
+  ".Lbv_sbc_bal_mismatch:\n" ++
   -- Clean value mismatch. Skip when the sender IS the coinbase (its post also folds the fee).
   "  la t0, bv_sender_bal_check; addi t0, t0, 8; ld t1, 0(s0); addi t1, t1, 32; li t2, 20\n" ++
   ".Lbv_sbc_cb_cmp:\n" ++
@@ -1104,6 +1117,8 @@ def blockVerdictFunction : String :=
   "  li t0, 38; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_sender_bal_fail:\n" ++             -- bmvmx.1.6.3: BAL sender post balance != execution-derived (pre - gas_charge - value)
   "  li t0, 39; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_sender_nonce_fail:\n" ++           -- bmvmx.1.6.3: BAL sender post nonce != pre_nonce + 1 (execution increments once)
+  "  li t0, 40; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_zero:\n" ++
   "  li a0, 0\n" ++
   ".Lbv_ret:\n" ++
@@ -1541,6 +1556,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   txGasResultIncrementsFunction ++ "\n" ++
   senderDebitFromGasFunction ++ "\n" ++
   txGasBalPostVerifyRuntimeFunction ++ "\n" ++
+  senderPostNonceConsistentFunction ++ "\n" ++
   eip7778RemainingBlockGasCheckFunction ++ "\n" ++
   eip7778RemainingBlockGasFromResultsFunction ++ "\n" ++
   blockVerdictTxGasLimitsFunction ++ "\n" ++
