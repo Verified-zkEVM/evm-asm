@@ -303,55 +303,17 @@ def childFrameHandlers
     "  bnez x18, 7f\n" ++
     "6:\n" ++
     createStageInitcodeFrameCallAsm (if hasSalt then 1 else 0) ++
-    createExecuteInitcodeFrameCallAsm ++
-    createCopyChildReturndataToFrameAsm ++
-    "  la x18, create_child_status\n" ++
-    "  ld x18, 0(x18)\n" ++
-    "  li x19, 2\n" ++
-    "  bne x18, x19, 7f\n" ++
-    -- .61.8b: deploy the returned code (status 2). Validity gate (EIP-3541 0xEF / EIP-170 size) then
-    -- record the code-effect for the all-accounts code comparator (bal_account_code_consistent). The
-    -- deployed-code cells are create_child_code / create_child_code_len (the mini-interp wrote them on
-    -- RETURN; Dispatch.lean .Lcreate_exec_return ~1210-1244). Register care (a0==x10 PC, a2==x12 stack):
-    -- the validity RESULT is in a0==x10, so stash it in t0 BEFORE restoring x10 (else `mv x10,s10` would
-    -- overwrite the result with the nonzero PC and `bnez` would always push 0 -- the #8608 bug). An
-    -- invalid deploy pushes 0 and records nothing (matches a BAL with no code_change for that address).
-    "  mv s10, x10\n" ++                                  -- save PC (la a0 + the call clobber a0==x10)
-    "  la a0, create_child_code\n" ++
-    "  la a1, create_child_code_len\n" ++
-    "  ld a1, 0(a1)\n" ++
-    "  jal x1, create_deployed_code_valid\n" ++
-    "  mv t0, a0\n" ++                                    -- stash result BEFORE restoring x10 (a0==x10!)
-    "  mv x10, s10\n" ++                                  -- restore PC
-    "  bnez t0, 7f\n" ++                                  -- invalid deploy -> push 0, deposit nothing
-    "  mv s10, x10\n" ++                                  -- save PC again (record clobbers a0==x10)
-    "  mv s11, x12\n" ++                                  -- save stack ptr (record's a2==x12 arg clobbers it)
-    "  la a0, create_address_be\n" ++
-    "  la a1, create_child_code\n" ++
-    "  la a2, create_child_code_len\n" ++
-    "  ld a2, 0(a2)\n" ++
-    "  jal x1, create_record_code_effect\n" ++
-    "  mv x10, s10\n" ++                                  -- restore PC
-    "  mv x12, s11\n" ++                                  -- restore stack ptr
-    "  addi x12, x12, " ++ toString netPopBytes ++ "\n" ++
-    -- Push the derived 160-bit address as an EVM stack word: low 160 bits in
-    -- stack byte order, high 96 bits zero.
-    "  sd x0, 0(x12)\n" ++
-    "  sd x0, 8(x12)\n" ++
-    "  sd x0, 16(x12)\n" ++
-    "  sd x0, 24(x12)\n" ++
-    "  la x18, create_address_be\n" ++
-    "  addi x19, x18, 19\n" ++
-    "  mv x22, x12\n" ++
-    "  li x23, 20\n" ++
-    "5:\n" ++
-    "  lbu x24, 0(x19)\n" ++
-    "  sb x24, 0(x22)\n" ++
-    "  addi x19, x19, -1\n" ++
-    "  addi x22, x22, 1\n" ++
-    "  addi x23, x23, -1\n" ++
-    "  bnez x23, 5b\n" ++
-    "  j 8f\n" ++
+    -- .61.8.3.5.3 (.5c): execute the staged init code in a REAL child frame via the full
+    -- dispatch loop (create_frame_descend, .5a, reusing call_frame_descend), REPLACING the
+    -- bounded mini-interpreter (create_execute_initcode_frame: STOP/MSTORE/MSTORE8/PUSH/RETURN/
+    -- REVERT/INVALID only). The child now runs the full opcode set (SSTORE/arithmetic/CODECOPY/
+    -- JUMP/...), so real constructors execute. On the child's RETURN the depth-aware
+    -- returnRevertTail CREATE branch (.5b) validity-gates + deposits the returned bytes as the
+    -- deployed code + pushes the DERIVED ADDRESS back to this frame (0 on invalid deploy / REVERT).
+    -- a0 = &value (CREATE endowment operand, stack top); descend then run the child.
+    "  mv a0, x12\n" ++
+    "  jal x1, create_frame_descend\n" ++
+    "  j .dispatch_loop\n" ++
     "7:\n" ++
     "  addi x12, x12, " ++ toString netPopBytes ++ "\n" ++
     "  sd x0, 0(x12)\n" ++
