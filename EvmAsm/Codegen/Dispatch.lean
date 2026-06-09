@@ -1593,7 +1593,7 @@ def emitDispatcherDataSection
   "  .zero 8192\n" ++     -- M29: 256 × 32-byte recent BLOCKHASH ancestors
   ".balign 8\n" ++
   "evm_event_logs:\n" ++
-  "  .zero 4096\n" ++     -- M26: 16 × 256-byte bounded LOG event descriptors
+  "  .zero 262144\n" ++   -- M26: 1024 × 256-byte bounded LOG event descriptors (6c7v9: was 16×256)
   emitSelfdestructData ++
   eip7708SyntheticLogTopicData ++
   storageAccessGasData ++
@@ -2293,7 +2293,7 @@ def emitRuntimeDispatcherDataSectionCore
   "  .zero 8192\n" ++     -- M29: 256 × 32-byte recent BLOCKHASH ancestors
   ".balign 8\n" ++
   "evm_event_logs:\n" ++
-  "  .zero 4096\n" ++     -- M26: 16 × 256-byte bounded LOG event descriptors
+  "  .zero 262144\n" ++   -- M26: 1024 × 256-byte bounded LOG event descriptors (6c7v9: was 16×256)
   emitSelfdestructData ++
   eip7708SyntheticLogTopicData ++
   (if includeSharedHelperData then storageAccessGasData else "") ++
