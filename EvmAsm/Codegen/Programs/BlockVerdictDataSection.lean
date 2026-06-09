@@ -841,6 +841,12 @@ def ziskStatelessVerdictV2DataSection : String :=
   "c2nsf_tlen:\n  .zero 8\n" ++
   "c2nsf_coff:\n  .zero 8\n" ++
   "c2nsf_clen:\n  .zero 8\n" ++
+  -- i3djw.3 reverse: scratch for bal_all_accounts_nonstorage_covers.
+  "c3cov_acct_count:\n  .zero 8\n" ++
+  "c3cov_acct_off:\n  .zero 8\n" ++
+  "c3cov_acct_len:\n  .zero 8\n" ++
+  "c3cov_addr_off:\n  .zero 8\n" ++
+  "c3cov_addr_len:\n  .zero 8\n" ++
   -- i3djw.4: scratch for bal_all_accounts_code_consistent (FORWARD per-account CODE compare,
   -- with the EIP-7702 delegation skip). bacc_finals is the per-account 88-byte finals scratch
   -- consumed by bal_account_code_consistent; baac_* are the account-iteration scratch. The
