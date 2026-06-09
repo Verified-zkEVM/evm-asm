@@ -384,6 +384,37 @@ def blockVerdictFunction : String :=
   -- (the amount the sender's balance decreases; consumed by .4.3 as sender_post = pre - debit).
   "  la a0, bmvmx_eff_gas_price; la t0, bmvmx_gas_used; ld a1, 0(t0); la a2, bmvmx_gascost; jal ra, u256_mul_u64_be\n" ++
   "  la a0, bmvmx_gascost; la a1, bmvmx_value; la a2, bmvmx_sender_debit; jal ra, u256_add_be\n" ++
+  -- bmvmx.1.4.1 compare (additive; sets bmvmx_sender_match only -> verdict byte-identical):
+  -- assert the BAL sender post balance == sender_pre - bmvmx_sender_debit. Sender address is
+  -- derived from the selected public key (pubkeys = SSZ_BASE(s3) + offsets[3]@s3+12; 65-byte
+  -- SEC1 key 0x04||x||y -> address_from_pubkey(key+1)). Reuses bmvmx_acct/bmvmx_cb_* scratch.
+  "  la t0, bmvmx_sender_match; sd zero, 0(t0)\n" ++
+  "  addi a0, s3, 12; jal ra, bgv_u32le\n" ++                          -- offsets[3] (public_keys offset)
+  "  add t0, s3, a0; addi a0, t0, 1\n" ++                              -- pubkey[0] x||y (skip 0x04 prefix)
+  "  la a1, bmvmx_sender_addr; jal ra, address_from_pubkey\n" ++
+  "  ld a0, 8(s0); ld a1, 16(s0); la a2, bmvmx_sender_addr; li a3, 20; ld a4, 80(s0); ld a5, 88(s0); la a6, bmvmx_acct\n" ++
+  "  jal ra, account_at_header_state_root\n" ++
+  "  beqz a0, .Lbmvmx_sd_preok\n" ++
+  "  li t0, 1; bne a0, t0, .Lbmvmx_sd_skip\n" ++
+  "  la t0, bmvmx_acct; sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0); sd zero, 32(t0)\n" ++   -- not found -> pre = 0
+  ".Lbmvmx_sd_preok:\n" ++
+  "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0); la a2, bmvmx_sender_addr; la a3, bmvmx_cb_acct_ptr; la a4, bmvmx_cb_acct_len\n" ++
+  "  jal ra, bal_find_account_by_address\n" ++
+  "  bnez a0, .Lbmvmx_sd_skip\n" ++
+  "  la t0, bmvmx_cb_acct_ptr; ld a0, 0(t0); la t0, bmvmx_cb_acct_len; ld a1, 0(t0); la a2, bmvmx_cb_balbytes; la a3, bmvmx_cb_bal_len; la a4, bmvmx_cb_nonce; la a5, bmvmx_cb_nonce_len\n" ++
+  "  jal ra, bal_account_post_fields\n" ++
+  "  bnez a0, .Lbmvmx_sd_skip\n" ++
+  "  la t0, bmvmx_cb_post; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++
+  "  la t1, bmvmx_cb_bal_len; ld t1, 0(t1); li t2, 32; bgtu t1, t2, .Lbmvmx_sd_skip\n" ++
+  "  la t3, bmvmx_cb_balbytes; la t4, bmvmx_cb_post; sub t5, t2, t1; li t6, 0\n" ++
+  ".Lbmvmx_sd_ra:\n" ++
+  "  beq t6, t1, .Lbmvmx_sd_rad\n" ++
+  "  add t0, t3, t6; lbu a0, 0(t0); add t0, t4, t5; add t0, t0, t6; sb a0, 0(t0); addi t6, t6, 1; j .Lbmvmx_sd_ra\n" ++
+  ".Lbmvmx_sd_rad:\n" ++
+  "  la a0, bmvmx_acct; addi a0, a0, 8; la a1, bmvmx_sender_debit; la a2, bmvmx_cb_expected; jal ra, u256_sub_be\n" ++   -- expected = pre - debit
+  "  la a0, bmvmx_cb_expected; la a1, bmvmx_cb_post; jal ra, u256_eq\n" ++
+  "  la t0, bmvmx_sender_match; sd a0, 0(t0)\n" ++                     -- match = (pre - debit == BAL post)
+  ".Lbmvmx_sd_skip:\n" ++
   -- bmvmx.1.4.2: execution-derived coinbase fee credit = priority_fee_per_gas * gas_used
   -- (the tip credited to the block coinbase; EIP-1559 base fee is burned). Consumed by
   -- .4.3 as coinbase_post = coinbase_pre + credit (for the supported single-tx EOA class).
