@@ -1883,11 +1883,11 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  lbu x11, 0(x9)\n" ++
   "  beqz x11, .runtime_tx_gas_zero_byte\n" ++
   "  addi x7, x7, 16\n" ++
-  "  addi x10, x10, 40\n" ++
+  "  addi x10, x10, 64\n" ++   -- u13jh: EIP-7623 floor = 4 tokens * TX_DATA_TOKEN_FLOOR(16) per non-zero byte (was stale 40 = *10)
   "  j .runtime_tx_gas_data_step\n" ++
   ".runtime_tx_gas_zero_byte:\n" ++
   "  addi x7, x7, 4\n" ++
-  "  addi x10, x10, 10\n" ++
+  "  addi x10, x10, 16\n" ++   -- u13jh: EIP-7623 floor = 1 token * TX_DATA_TOKEN_FLOOR(16) per zero byte (was stale 10 = *10)
   ".runtime_tx_gas_data_step:\n" ++
   "  addi x9, x9, 1\n" ++
   "  addi x8, x8, -1\n" ++
