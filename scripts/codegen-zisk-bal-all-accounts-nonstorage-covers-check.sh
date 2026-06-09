@@ -38,6 +38,7 @@ mode=os.environ['MODE']
 callee1  = bytes(range(1,21))
 callee2  = bytes(range(0x41,0x55))
 recipient= bytes(range(0x21,0x35))
+sender   = bytes(range(0x61,0x75))
 
 def eff(addr, preb, postb, pren, postn):
     r  = addr.ljust(32, b'\x00')
@@ -47,6 +48,7 @@ def eff(addr, preb, postb, pren, postn):
 
 def acct(addr): return [addr, [], [], [[1, 999]], [], []]   # a BAL account (declares a change)
 
+skip = [recipient, sender]   # the gas/value-coupled accounts
 # default: callee1 + callee2 both net-changed, both in BAL.
 effects  = [eff(callee1, 100, 999, 5, 9), eff(callee2, 0, 50, 0, 1)]
 accounts = [acct(callee1), acct(callee2)]
@@ -56,18 +58,21 @@ if mode=='omitted':
 elif mode=='unchanged_skip':
     effects  = [eff(callee1, 100, 999, 5, 9), eff(callee2, 77, 77, 3, 3)]  # callee2 pre==post
     accounts = [acct(callee1)]                  # callee2 unchanged + absent -> OK (skipped)
-elif mode=='recipient_skip':
-    effects  = [eff(recipient, 100, 999, 5, 9), eff(callee1, 0, 50, 0, 1)] # recipient changed
-    accounts = [acct(callee1)]                  # recipient not a BAL callee, but skipped -> OK
+elif mode=='skipmember_skip':
+    # the SENDER (a skip-list member) is net-changed but absent from the BAL as a callee
+    # -> must be SKIPPED (gas-path checked), not rejected as an omitted account.
+    effects  = [eff(sender, 100, 999, 5, 9), eff(callee1, 0, 50, 0, 1)]
+    accounts = [acct(callee1)]
 
 bal = rlp.encode(accounts)
 with open(sys.argv[1],'wb') as f:
     f.write(struct.pack('<Q', len(bal)))            # BAL section len
     f.write(struct.pack('<Q', len(effects)))        # effect count
-    f.write(recipient.ljust(32, b'\x00'))           # recipient (20B padded to 32)
+    f.write(struct.pack('<Q', len(skip)))           # skip-list count
+    for a in skip: f.write(a.ljust(32, b'\x00'))    # skip-list (32B entries)
     for e in effects: f.write(e)
     f.write(bal)
-    total = 8 + 8 + 32 + 112*len(effects) + len(bal)
+    total = 8 + 8 + 8 + 32*len(skip) + 112*len(effects) + len(bal)
     pad = (-total) % 8
     if pad: f.write(b'\x00'*pad)
 " "$in_file"
@@ -91,8 +96,8 @@ run_case "covered"        covered         0 || FAILED=1
 run_case "omitted"        omitted         1 || FAILED=1
 # an effect with pre==post (no net change) absent from the BAL -> no obligation, OK.
 run_case "unchanged_skip" unchanged_skip  0 || FAILED=1
-# the recipient is net-changed but skipped (gas-path checked), absent as a callee -> OK.
-run_case "recipient_skip" recipient_skip  0 || FAILED=1
+# a skip-list member (sender) is net-changed but skipped (gas-path checked), absent as a callee -> OK.
+run_case "skipmember_skip" skipmember_skip 0 || FAILED=1
 
 echo
 if [[ $FAILED -eq 0 ]]; then
