@@ -1446,6 +1446,23 @@ through ECALL bridges (extending `EvmAsm/EL/Keccak*EcallBridge.lean`).
     `block_access_index` (multi-tx loop, `fhsxz.2.4.2.57.11.6.3`) + CREATE/SELFDESTRUCT code
     effects; the storage tuple check can wire immediately on the existing exec-log + txindex.
 
+- 🔶 **Contract-recipient gas-measurement accuracy (beads `nxio8`, `tpdo1`; 2026-06)**: the runtime
+  dispatcher meters CONTRACT execution with STATIC base opcode gas only (`Dispatch.lean:338-345`),
+  dropping the dynamic components — so a contract recipient measured by `dispatch_tx_runtime_code`
+  gets wrong gas, which feeds `block_regular` → the EIP-7778/8037 block-gas gate can mis-judge
+  contract blocks (false-accept/reject). This is the root blocker for contract-row EEST parity.
+  - **Fixed**: `bytecode_is_self_contained` now rejects SELFDESTRUCT (`0xff`) (`tpdo1`, #8628) — its
+    gas needs the un-staged beneficiary, so it can never be measured self-contained (a real
+    false-accept closure; only adds conservative rejects).
+  - **Primitive foundation built** (`nxio8.1`–`.3`, probe-verified vs Amsterdam `vm/gas.py`,
+    unwired → verdict byte-identical): `sstore_regular_gas` (#8630), `memory_expansion_gas` (#8631),
+    `keccak256`/`copy`/`log`/`exp` per-unit leaves (#8633). EIP-2929 cold/warm is already charged via
+    `evm_storage_access_gas`.
+  - **Remaining** (dispatcher-gas metering, c1 domain): wire these dynamic charges into the opcode
+    handlers all-at-once (composing with the static base + cold/warm, no double-count) + the missing
+    EIP-2930 access-list intrinsic in the runtime tx-gas; needs an EEST contract-row sweep
+    (false-reject risk). Until then contract gas-gating stays inaccurate.
+
 ### Cross-references
 
 - Memory layout: `EvmAsm/Stateless/MemoryLayout.lean`.
