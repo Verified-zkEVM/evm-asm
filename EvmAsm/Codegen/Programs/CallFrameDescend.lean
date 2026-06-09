@@ -231,6 +231,17 @@ def callFrameDescendFunction : String :=
   "  ld t0, 600(s3); sd t0, 600(s9)\n" ++
   "  ld t0, 608(s3); sd t0, 608(s9)\n" ++
   "  ld t0, 616(s3); sd t0, 616(s9)\n" ++
+  -- 8b. initialize the child env execution-state cells. The child env lives in the
+  -- BAL-replay-dirtied arena, so its log/memory-state words are garbage — without
+  -- this a child MSTORE/SSTORE reads junk. Continue the (shared) persistent/transient
+  -- logs from the parent's current length (so child writes append and a child REVERT
+  -- rolls back to here), and reset the child's memory size to 0 (fresh 64 KiB).
+  "  ld t0, 448(s3); sd t0, 448(s9)   # persistentLogLength (continue global log)\n" ++
+  "  sd t0, 456(s9)                    # persistentLogCheckpoint = current (REVERT point)\n" ++
+  "  ld t0, 464(s3); sd t0, 464(s9)   # transientLogLength\n" ++
+  "  ld t0, 472(s3); sd t0, 472(s9)   # eventLogLength\n" ++
+  "  sd t0, 480(s9)                    # eventLogCheckpoint = current\n" ++
+  "  sd x0, 488(s9)                    # activeMemorySize = 0 (fresh child memory)\n" ++
   -- 9. child env.codeSize (env+496).
   "  ld t0, 72(s7); sd t0, 496(s9)\n" ++
   -- 10. set the live dispatcher registers to the child frame (done last).
