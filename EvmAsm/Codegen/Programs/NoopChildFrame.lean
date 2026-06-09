@@ -86,7 +86,7 @@ open EvmAsm.Rv64
     - No frame stack / recursion. The dispatcher doesn't push a
       sub-frame, run called code, and resume. Real frame-stack
       design is deferred (likely tied to STF integration). -/
-def childFrameHandlers : List OpcodeHandlerSpec :=
+def childFrameHandlers (callFallThrough staticFallThrough : String) : List OpcodeHandlerSpec :=
   let mkHandler (lbl : String) (op : Nat) (netPopBytes : Nat) : OpcodeHandlerSpec :=
     { label := lbl
     , opcodes := [op]
@@ -315,7 +315,8 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  addi x10, x10, 1\n" ++
     "  j .dispatch_loop"
   let basicPrecompileCallTail
-      (tag : String) (netPopBytes inOffsetOff inSizeOff outOffsetOff outSizeOff : Nat) : String :=
+      (tag : String) (netPopBytes inOffsetOff inSizeOff outOffsetOff outSizeOff : Nat)
+      (fallThroughAsm : String) : String :=
     -- Stack top at entry is the call gas word. The destination
     -- address is the next word for both CALL and STATICCALL. EVM
     -- address operands are masked to the low 160 bits: limb 1 and
@@ -1146,17 +1147,7 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  addi x23, x23, -1\n" ++
     "  bnez x23, 38b\n" ++
     "  j 7b\n" ++
-    "1:\n" ++
-    "  la x15, evm_precompile_frame\n" ++
-    "  sd x0, 0(x15)\n" ++
-    "  sd x0, 8(x15)\n" ++
-    "  addi x12, x12, " ++ toString netPopBytes ++ "\n" ++
-    "  sd x0, 0(x12)\n" ++
-    "  sd x0, 8(x12)\n" ++
-    "  sd x0, 16(x12)\n" ++
-    "  sd x0, 24(x12)\n" ++
-    "  addi x10, x10, 1\n" ++
-    "  j .dispatch_loop"
+    "1:\n" ++ fallThroughAsm
   [ { label := "h_CREATE"
     , opcodes := [0xf0]
     , preBody := stackUnderflowGuardAsm 3 ++ "\n"
@@ -1166,7 +1157,7 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     , opcodes := [0xf1]
     , preBody := stackUnderflowGuardAsm 7 ++ "\n"
     , body := []
-    , tail := .custom (basicPrecompileCallTail "call_target" 192 96 128 160 192) }
+    , tail := .custom (basicPrecompileCallTail "call_target" 192 96 128 160 192 callFallThrough) }
   , { mkHandler "h_CALLCODE" 0xf2 192 with
       preBody := stackUnderflowGuardAsm 7 ++ "\n" }
   , { mkHandler "h_DELEGATECALL" 0xf4 160 with
@@ -1180,7 +1171,7 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     , opcodes := [0xfa]
     , preBody := stackUnderflowGuardAsm 6 ++ "\n"
     , body := []
-    , tail := .custom (basicPrecompileCallTail "staticcall_target" 160 64 96 128 160) } ]
+    , tail := .custom (basicPrecompileCallTail "staticcall_target" 160 64 96 128 160 staticFallThrough) } ]
 
 /-- M20 arithmetic no-op handlers.
 
@@ -1190,5 +1181,111 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     expression stable. -/
 def arithNoopHandlers : List OpcodeHandlerSpec := []
 
+/-- The original non-precompile CALL/STATICCALL fall-through: the call no-ops —
+    pop the args, push a `0` (failure) result, advance the PC, and resume. Used by
+    `tinyInterpRegistry` (the standalone dispatch probes keep this behaviour). -/
+def callPushZeroFallThrough (netPopBytes : Nat) : String :=
+  "  la x15, evm_precompile_frame\n" ++
+  "  sd x0, 0(x15)\n" ++
+  "  sd x0, 8(x15)\n" ++
+  "  addi x12, x12, " ++ toString netPopBytes ++ "\n" ++
+  "  sd x0, 0(x12)\n" ++
+  "  sd x0, 8(x12)\n" ++
+  "  sd x0, 16(x12)\n" ++
+  "  sd x0, 24(x12)\n" ++
+  "  addi x10, x10, 1\n" ++
+  "  j .dispatch_loop"
+
+/-- The real non-precompile CALL/STATICCALL descent (bead .61.6). At the `1:`
+    fall-through (regs: x10=parent pc at the CALL, x12=parent stack top with the
+    args, x13=parent memory, x20=parent env, x21=parent code base), this:
+      1. clears the precompile frame;
+      2. depth gate: `evm_call_depth >= 1024` → push 0 (fail);
+      3. resolves the callee bytecode via `code_at_header_state_root` (witness ctx
+         from env+576..616). It preserves x20/x21 but clobbers the a-regs (x10/x12/
+         x13), so those are saved across the call. status 2 (EMPTY_CODE / EOA) →
+         push 1 (the call succeeds, runs no code); status 1/3/5 → push 0;
+      4. status 0: fill `cd_desc` and `jal call_frame_descend` (frame switch), then
+         `j .dispatch_loop` to run the child at its frame.
+    Used only by `callFrameGuestRegistry`. `tag` makes the local labels unique per
+    call type. `valueOff` is the stack offset of the call value (unused/0 for
+    STATICCALL, which is `isStatic`). Gas: `call_frame_descend` forwards the
+    EIP-150 63/64 + stipend to the child; the caller-side value/new-account/parent
+    charge is a follow-up (the descent is inert in the single-tx verdict). -/
+def callDescendFallThrough
+    (tag : String) (netPopBytes valueOff inOff inSize outOff outSize : Nat)
+    (isStatic : Bool) : String :=
+  let np := toString netPopBytes
+  "  la x15, evm_precompile_frame\n" ++
+  "  sd x0, 0(x15)\n" ++
+  "  sd x0, 8(x15)\n" ++
+  -- depth gate
+  "  la t0, evm_call_depth\n" ++
+  "  ld t0, 0(t0)\n" ++
+  "  li t1, 1024\n" ++
+  "  bgeu t0, t1, .Lcd_fail_" ++ tag ++ "\n" ++
+  -- resolve callee code (save x10/x12/x13 — code_at_header_state_root clobbers a-regs)
+  "  addi sp, sp, -32\n" ++
+  "  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
+  "  ld a0, 576(x20)\n" ++
+  "  ld a1, 584(x20)\n" ++
+  "  addi a2, x12, 32\n" ++
+  "  ld a3, 592(x20)\n" ++
+  "  ld a4, 600(x20)\n" ++
+  "  ld a5, 608(x20)\n" ++
+  "  ld a6, 616(x20)\n" ++
+  "  jal ra, code_at_header_state_root\n" ++
+  "  mv t2, a0\n" ++
+  "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  beqz t2, .Lcd_descend_" ++ tag ++ "\n" ++
+  "  li t3, 2\n" ++
+  "  beq t2, t3, .Lcd_empty_" ++ tag ++ "\n" ++
+  -- fail (status 1/3/5): pop args, push 0
+  ".Lcd_fail_" ++ tag ++ ":\n" ++
+  "  addi x12, x12, " ++ np ++ "\n" ++
+  "  sd x0, 0(x12); sd x0, 8(x12); sd x0, 16(x12); sd x0, 24(x12)\n" ++
+  "  addi x10, x10, 1\n" ++
+  "  j .dispatch_loop\n" ++
+  -- empty code (EOA): the call succeeds, runs nothing → push 1
+  ".Lcd_empty_" ++ tag ++ ":\n" ++
+  "  addi x12, x12, " ++ np ++ "\n" ++
+  "  li t0, 1\n" ++
+  "  sd t0, 0(x12); sd x0, 8(x12); sd x0, 16(x12); sd x0, 24(x12)\n" ++
+  "  addi x10, x10, 1\n" ++
+  "  j .dispatch_loop\n" ++
+  -- descend (status 0): build the call descriptor then switch frames
+  ".Lcd_descend_" ++ tag ++ ":\n" ++
+  "  ld t0, 608(x20)\n" ++
+  "  la t1, cahsr_code_offset; ld t1, 0(t1)\n" ++
+  "  add t0, t0, t1\n" ++                       -- t0 = code_ptr
+  "  la t1, cahsr_code_length; ld t1, 0(t1)\n" ++ -- t1 = code_len
+  "  la t2, cd_desc\n" ++
+  "  addi t3, x12, 32\n  sd t3, 0(t2)\n" ++      -- to_ptr
+  (if isStatic then
+     "  la t3, cd_zero_word\n  sd t3, 8(t2)\n" ++ -- value_ptr = zero word
+     "  li t3, 1\n  sd t3, 16(t2)\n"              -- is_static = 1
+   else
+     "  addi t3, x12, " ++ toString valueOff ++ "\n  sd t3, 8(t2)\n" ++ -- value_ptr
+     "  sd x0, 16(t2)\n") ++                      -- is_static = 0
+  "  ld t3, " ++ toString inOff ++ "(x12)\n  sd t3, 24(t2)\n" ++   -- argsOff
+  "  ld t3, " ++ toString inSize ++ "(x12)\n  sd t3, 32(t2)\n" ++  -- argsLen
+  "  ld t3, " ++ toString outOff ++ "(x12)\n  sd t3, 40(t2)\n" ++  -- outOff
+  "  ld t3, " ++ toString outSize ++ "(x12)\n  sd t3, 48(t2)\n" ++ -- outSize
+  "  li t3, " ++ np ++ "\n  sd t3, 56(t2)\n" ++                    -- netPopBytes
+  "  sd t0, 64(t2)\n" ++                                           -- code_ptr
+  "  sd t1, 72(t2)\n" ++                                           -- code_len
+  "  ld t3, 0(x12)\n  sd t3, 80(t2)\n" ++                          -- requested_gas
+  (if isStatic then
+     "  sd x0, 88(t2)\n"                                           -- value_nonzero = 0
+   else
+     "  ld t3, " ++ toString valueOff ++ "(x12)\n" ++
+     "  ld t4, " ++ toString (valueOff+8) ++ "(x12)\n  or t3, t3, t4\n" ++
+     "  ld t4, " ++ toString (valueOff+16) ++ "(x12)\n  or t3, t3, t4\n" ++
+     "  ld t4, " ++ toString (valueOff+24) ++ "(x12)\n  or t3, t3, t4\n" ++
+     "  snez t3, t3\n  sd t3, 88(t2)\n") ++                        -- value_nonzero
+  "  la a1, cd_desc\n" ++
+  "  jal ra, call_frame_descend\n" ++
+  "  j .dispatch_loop"
 
 end EvmAsm.Codegen

@@ -34,6 +34,8 @@ import EvmAsm.Codegen.Programs.AccountBalance
 import EvmAsm.Codegen.Programs.EIP7708Logs
 import EvmAsm.Codegen.Programs.CallFrameBase
 import EvmAsm.Codegen.Programs.CallFrameSwitch
+import EvmAsm.Codegen.Programs.CallFrameDescend
+import EvmAsm.Codegen.Programs.CallFrameReturn
 
 namespace EvmAsm.Codegen
 
@@ -2022,7 +2024,19 @@ def emitRuntimeDispatcherEmbeddedHelperFunctions : String :=
   frameDepthPushFunction ++ "\n" ++
   frameDepthPopFunction ++ "\n" ++
   frameSaveRegsFunction ++ "\n" ++
-  frameLoadRegsFunction
+  frameLoadRegsFunction ++ "\n" ++
+  -- Descent/return orchestration (.61.6, #8520-#8527). `call_frame_descend`
+  -- performs the CALL/STATICCALL child-frame switch; `frame_return` pops a frame
+  -- and resumes the parent dispatch loop. They compose the
+  -- `call_frame_enter`/`set_call_env`/`set_calldata`/`forward_gas` primitives,
+  -- linked here too. Inert until a CALL handler descends (depth stays 0). The
+  -- `frame_call_ctx` return-context they use is in the embedded helper data below.
+  callFrameEnterFunction ++ "\n" ++
+  callFrameSetCallEnvFunction ++ "\n" ++
+  callFrameSetCalldataFunction ++ "\n" ++
+  callFrameForwardGasFunction ++ "\n" ++
+  callFrameDescendFunction ++ "\n" ++
+  frameReturnFunction
 
 def emitRuntimeDispatcherCallableCoreSharedHelpers
     (registry : List OpcodeHandlerSpec)
@@ -2191,7 +2205,19 @@ def emitRuntimeDispatcherEmbeddedHelperData : String :=
   "  .zero 8\n" ++
   ".balign 16\n" ++
   "frame_save_area:\n" ++
-  "  .zero 16400\n"
+  "  .zero 16400\n" ++
+  -- `frame_call_ctx` (.61.6.6, #8527): the per-CHILD-depth call-return context
+  -- (parent_x12, outOff_abs, outSize, netPopBytes) saved by `call_frame_descend`
+  -- and consumed by `frame_return` (1025 entries × 32 B). Indexed by child depth.
+  ".balign 32\n" ++
+  "frame_call_ctx:\n" ++
+  "  .zero 32800\n" ++
+  -- Call descriptor + zero value word filled by the CALL descent
+  -- (`callDescendFallThrough`) and consumed by `call_frame_descend`.
+  ".balign 8\n" ++
+  "cd_desc:\n  .zero 96\n" ++
+  ".balign 32\n" ++
+  "cd_zero_word:\n  .zero 32\n"
 
 /-- Runtime-bytecode `.data` section. Drops the `evm_code:` block
     (no baked bytecode); everything else matches the `.data`-baked
