@@ -1201,6 +1201,10 @@ def callPushZeroFallThrough (netPopBytes : Nat) : String :=
     args, x13=parent memory, x20=parent env, x21=parent code base), this:
       1. clears the precompile frame;
       2. depth gate: `evm_call_depth >= 1024` → push 0 (fail);
+      2b. balance gate (value-bearing CALL only): if the caller (frame ADDRESS,
+         env+0) balance < transfer value → push 0 (fail, no descent), per EVM
+         `generic_call`. Skipped for STATICCALL (no value), value==0, or when no
+         account-witness context is attached (env+584 == 0);
       3. resolves the callee bytecode via `code_at_header_state_root` (witness ctx
          from env+576..616). It preserves x20/x21 but clobbers the a-regs (x10/x12/
          x13), so those are saved across the call. status 2 (EMPTY_CODE / EOA) →
@@ -1224,6 +1228,62 @@ def callDescendFallThrough
   "  ld t0, 0(t0)\n" ++
   "  li t1, 1024\n" ++
   "  bgeu t0, t1, .Lcd_fail_" ++ tag ++ "\n" ++
+  -- balance gate (value-bearing CALL only): EVM `generic_call` rejects the call
+  -- with a pushed 0 when the caller's balance is below the transfer value
+  -- (vm/instructions/system.py; the value is NOT transferred and the sub-call is
+  -- not entered). Mirrors the verified CREATE-path caller-balance lookup: the
+  -- caller is the current frame's ADDRESS (env+0) as canonical 20-byte BE, and
+  -- the value is the stack word at valueOff. STATICCALL has no value (skipped).
+  (if isStatic then "" else
+    "  ld t3, " ++ toString valueOff ++ "(x12)\n" ++
+    "  ld t4, " ++ toString (valueOff+8) ++ "(x12)\n  or t3, t3, t4\n" ++
+    "  ld t4, " ++ toString (valueOff+16) ++ "(x12)\n  or t3, t3, t4\n" ++
+    "  ld t4, " ++ toString (valueOff+24) ++ "(x12)\n  or t3, t3, t4\n" ++
+    "  beqz t3, .Lcd_balok_" ++ tag ++ "\n" ++       -- value == 0: no transfer, skip
+    "  ld t3, 584(x20)\n" ++
+    "  beqz t3, .Lcd_balok_" ++ tag ++ "\n" ++        -- no account-witness ctx: skip
+    -- caller address env+19..env+0 -> cd_caller_be (canonical 20-byte big-endian)
+    "  la t0, cd_caller_be\n" ++
+    "  addi t1, x20, 19\n" ++
+    "  li t2, 20\n" ++
+    ".Lcd_addr_" ++ tag ++ ":\n" ++
+    "  lbu t3, 0(t1)\n  sb t3, 0(t0)\n" ++
+    "  addi t1, t1, -1\n  addi t0, t0, 1\n  addi t2, t2, -1\n" ++
+    "  bnez t2, .Lcd_addr_" ++ tag ++ "\n" ++
+    -- value word x12+valueOff (32 B) -> cd_value_be (big-endian: read +31..+0)
+    "  la t0, cd_value_be\n" ++
+    "  addi t1, x12, " ++ toString (valueOff+31) ++ "\n" ++
+    "  li t2, 32\n" ++
+    ".Lcd_val_" ++ tag ++ ":\n" ++
+    "  lbu t3, 0(t1)\n  sb t3, 0(t0)\n" ++
+    "  addi t1, t1, -1\n  addi t0, t0, 1\n  addi t2, t2, -1\n" ++
+    "  bnez t2, .Lcd_val_" ++ tag ++ "\n" ++
+    -- balance_at_header_state_root(caller) -> cd_balance_be. Save x10/x12/x13
+    -- (helper clobbers the a-regs that alias them); it preserves x20/x21.
+    "  addi sp, sp, -32\n" ++
+    "  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
+    "  ld a0, 576(x20)\n" ++
+    "  ld a1, 584(x20)\n" ++
+    "  la a2, cd_caller_be\n" ++
+    "  ld a3, 592(x20)\n" ++
+    "  ld a4, 600(x20)\n" ++
+    "  la a5, cd_balance_be\n" ++
+    "  jal ra, balance_at_header_state_root\n" ++
+    "  mv t2, a0\n" ++
+    "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp)\n" ++
+    "  addi sp, sp, 32\n" ++
+    "  bnez t2, .Lcd_fail_" ++ tag ++ "\n" ++         -- lookup failed/absent -> balance 0 < value
+    -- compare cd_balance_be vs cd_value_be (32-byte big-endian, MSB first)
+    "  la t0, cd_balance_be\n" ++
+    "  la t1, cd_value_be\n" ++
+    "  li t2, 32\n" ++
+    ".Lcd_cmp_" ++ tag ++ ":\n" ++
+    "  lbu t3, 0(t0)\n  lbu t4, 0(t1)\n" ++
+    "  bltu t3, t4, .Lcd_fail_" ++ tag ++ "\n" ++     -- balance < value: insufficient
+    "  bltu t4, t3, .Lcd_balok_" ++ tag ++ "\n" ++    -- balance > value: sufficient
+    "  addi t0, t0, 1\n  addi t1, t1, 1\n  addi t2, t2, -1\n" ++
+    "  bnez t2, .Lcd_cmp_" ++ tag ++ "\n" ++
+    ".Lcd_balok_" ++ tag ++ ":\n") ++
   -- resolve callee code (save x10/x12/x13 — code_at_header_state_root clobbers a-regs)
   "  addi sp, sp, -32\n" ++
   "  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++

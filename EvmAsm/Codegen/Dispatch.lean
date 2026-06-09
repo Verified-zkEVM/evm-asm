@@ -2217,7 +2217,14 @@ def emitRuntimeDispatcherEmbeddedHelperData : String :=
   ".balign 8\n" ++
   "cd_desc:\n  .zero 96\n" ++
   ".balign 32\n" ++
-  "cd_zero_word:\n  .zero 32\n"
+  "cd_zero_word:\n  .zero 32\n" ++
+  -- Scratch for the value-bearing CALL balance gate (`callDescendFallThrough`):
+  -- the caller address (env+0) as canonical 20-byte big-endian, and the call
+  -- value + looked-up caller balance as 32-byte big-endian for the compare.
+  ".balign 8\n" ++
+  "cd_caller_be:\n  .zero 32\n" ++
+  "cd_value_be:\n  .zero 32\n" ++
+  "cd_balance_be:\n  .zero 32\n"
 
 /-- Runtime-bytecode `.data` section. Drops the `evm_code:` block
     (no baked bytecode); everything else matches the `.data`-baked
