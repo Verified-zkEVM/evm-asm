@@ -70,8 +70,13 @@ def bytecodeIsSelfContainedFunction : String :=
   "  li t3, 0x3f; beq t2, t3, .Lbsc_unsafe\n" ++   -- EXTCODEHASH
   "  li t3, 0x40; beq t2, t3, .Lbsc_unsafe\n" ++   -- BLOCKHASH
   "  li t3, 0x47; beq t2, t3, .Lbsc_unsafe\n" ++   -- SELFBALANCE
-  "  li t3, 0xf0; beq t2, t3, .Lbsc_unsafe\n" ++   -- CREATE
-  "  li t3, 0xf5; beq t2, t3, .Lbsc_unsafe\n" ++   -- CREATE2
+  -- .8c-3: CREATE(0xf0)/CREATE2(0xf5) are NO LONGER rejected — the full init-code descent
+  -- (create_frame_descend, .61.8.3.5 #8632/#8634/#8636) executes them through the real
+  -- dispatch loop; the deposit records the deployed code (exec_code_effect_log #8623) +
+  -- the created account's non-storage effect (nonce=1/balance=endowment, i3djw.2 #8643);
+  -- the verdict validates them via bal_all_accounts_code_covers (#8626) + the all-accounts
+  -- non-storage forward comparator (i3djw.3, this stack). SELFDESTRUCT(0xff) stays rejected
+  -- (beneficiary state un-staged); BLOCKHASH(0x40)/SELFBALANCE(0x47) flips are separate.
   "  li t3, 0xff; beq t2, t3, .Lbsc_unsafe\n" ++   -- SELFDESTRUCT (beneficiary cold/warm + account-creation gas is un-staged)
   "  addi t0, t0, 1; j .Lbsc_loop\n" ++
   ".Lbsc_safe:\n" ++
