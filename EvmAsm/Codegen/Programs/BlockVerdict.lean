@@ -384,6 +384,10 @@ def blockVerdictFunction : String :=
   -- (the amount the sender's balance decreases; consumed by .4.3 as sender_post = pre - debit).
   "  la a0, bmvmx_eff_gas_price; la t0, bmvmx_gas_used; ld a1, 0(t0); la a2, bmvmx_gascost; jal ra, u256_mul_u64_be\n" ++
   "  la a0, bmvmx_gascost; la a1, bmvmx_value; la a2, bmvmx_sender_debit; jal ra, u256_add_be\n" ++
+  -- bmvmx.1.4.2: execution-derived coinbase fee credit = priority_fee_per_gas * gas_used
+  -- (the tip credited to the block coinbase; EIP-1559 base fee is burned). Consumed by
+  -- .4.3 as coinbase_post = coinbase_pre + credit (for the supported single-tx EOA class).
+  "  la a0, bmvmx_priority_fee; la t0, bmvmx_gas_used; ld a1, 0(t0); la a2, bmvmx_coinbase_credit; jal ra, u256_mul_u64_be\n" ++
   "  la t0, bmvmx_avail; li t1, 1; sd t1, 0(t0)\n" ++
   ".Lbmvmx_done:\n" ++
   "  ld a0, 24(s0); ld a1, 80(s0); ld a2, 88(s0); ld a3, 64(s0); ld a4, 72(s0)\n" ++
