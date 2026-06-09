@@ -632,6 +632,13 @@ def blockVerdictFunction : String :=
   "  ld t3, 24(t0); ld t4, 24(t1); bne t3, t4, .Lbv_mtx_is_contract\n" ++
   "  j .Lbv_mtx_bail                                # EOA recipient -> not measured here, conservative\n" ++
   ".Lbv_mtx_is_contract:\n" ++
+  -- bmvmx.1.6.6 multi-tx enabler: stamp this user tx's block_access_index = i+1 (EIP-7928:
+  -- 0 for system, i+1 for the i-th user tx; fork.py:1030) so the SSTORE handler tags every
+  -- exec-log entry it appends during this dispatch with the right per-tx index. Without this
+  -- the loop leaves current_block_access_index at its single-tx default 1, and the per-tx
+  -- tuple-sequence comparators (bmvmx.1.6.6) would see tx i>0 writes mis-indexed as 1.
+  -- Additive/inert today: exec_log_txindex is consumed only by those (still-unwired) checks.
+  "  la t0, bv_mtx_i; ld t1, 0(t0); addi t1, t1, 1; la t0, current_block_access_index; sd t1, 0(t0)\n" ++
   "  la a0, bv_mtx_ctx; ld a1, 80(s0); ld a2, 88(s0); jal ra, dispatch_tx_runtime_code\n" ++
   "  bnez a0, .Lbv_mtx_bail                         # dispatch miss / not self-contained\n" ++
   "  la t0, bv_mtx_i; ld t1, 0(t0); slli t0, t1, 3\n" ++
