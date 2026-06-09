@@ -295,25 +295,30 @@ def childFrameHandlers
     "  ld x18, 0(x18)\n" ++
     "  li x19, 2\n" ++
     "  bne x18, x19, 7f\n" ++
-    -- .61.8b deferred: the deployed-code deposit (create_deployed_code_valid gate +
-    -- create_record_code_effect) goes HERE, between the status-2 check and the address push. It is
-    -- re-added at .8c -- inert until then (CREATE is self-contained-rejected pre-.8c); #8608's first
-    -- attempt was reverted in #8617. VERIFIED facts for the re-add (static trace of Dispatch.lean
-    -- .Lcreate_exec_return ~1210-1244 + the two helpers, fhsxz.2.4.2.61.8.2):
-    --  * Deployed-code cells are create_child_code / create_child_code_len: on RETURN (status 2) the
-    --    mini-interp sets create_child_code_len=size and copies the returned bytes into
-    --    create_child_code. create_child_returndata / create_child_return_len hold the REVERT branch's
-    --    output and are STALE on RETURN -- do NOT read them (the earlier revert comment had this
-    --    backwards). #8608's cells were already right; the bug was register handling, below.
-    --  * Both helpers are clean leaves (create_deployed_code_valid clobbers t0/t1+a0;
-    --    create_record_code_effect saves/restores s0-s3, clobbers t0-t6+a0; neither touches x13/x20/x21).
-    --    a0==x10 (PC) and a2==x12 (stack ptr): save x10 around BOTH calls and x12 around the record call
-    --    (its a2=create_child_code_len arg clobbers x12).
-    --  * ROOT CAUSE of #8608's "layout-sensitive" residual (DO NOT REPEAT): the validity result is in
-    --    a0, but a0==x10, so `mv x10, s10` (restore PC) BEFORE testing it overwrites the result with the
-    --    nonzero PC, and `bnez a0, 7f` then ALWAYS pushes 0 (it "varies by layout" only because the PC
-    --    value tracks code placement). FIX: stash the result first (`mv t0, a0`), restore x10, then
-    --    `bnez t0, 7f`. With that, the deposit is a clean mechanical re-add (verify via zisk_create_roundtrip).
+    -- .61.8b: deploy the returned code (status 2). Validity gate (EIP-3541 0xEF / EIP-170 size) then
+    -- record the code-effect for the all-accounts code comparator (bal_account_code_consistent). The
+    -- deployed-code cells are create_child_code / create_child_code_len (the mini-interp wrote them on
+    -- RETURN; Dispatch.lean .Lcreate_exec_return ~1210-1244). Register care (a0==x10 PC, a2==x12 stack):
+    -- the validity RESULT is in a0==x10, so stash it in t0 BEFORE restoring x10 (else `mv x10,s10` would
+    -- overwrite the result with the nonzero PC and `bnez` would always push 0 -- the #8608 bug). An
+    -- invalid deploy pushes 0 and records nothing (matches a BAL with no code_change for that address).
+    "  mv s10, x10\n" ++                                  -- save PC (la a0 + the call clobber a0==x10)
+    "  la a0, create_child_code\n" ++
+    "  la a1, create_child_code_len\n" ++
+    "  ld a1, 0(a1)\n" ++
+    "  jal x1, create_deployed_code_valid\n" ++
+    "  mv t0, a0\n" ++                                    -- stash result BEFORE restoring x10 (a0==x10!)
+    "  mv x10, s10\n" ++                                  -- restore PC
+    "  bnez t0, 7f\n" ++                                  -- invalid deploy -> push 0, deposit nothing
+    "  mv s10, x10\n" ++                                  -- save PC again (record clobbers a0==x10)
+    "  mv s11, x12\n" ++                                  -- save stack ptr (record's a2==x12 arg clobbers it)
+    "  la a0, create_address_be\n" ++
+    "  la a1, create_child_code\n" ++
+    "  la a2, create_child_code_len\n" ++
+    "  ld a2, 0(a2)\n" ++
+    "  jal x1, create_record_code_effect\n" ++
+    "  mv x10, s10\n" ++                                  -- restore PC
+    "  mv x12, s11\n" ++                                  -- restore stack ptr
     "  addi x12, x12, " ++ toString netPopBytes ++ "\n" ++
     -- Push the derived 160-bit address as an EVM stack word: low 160 bits in
     -- stack byte order, high 96 bits zero.
