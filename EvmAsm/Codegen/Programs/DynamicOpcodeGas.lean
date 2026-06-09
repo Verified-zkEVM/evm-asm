@@ -56,13 +56,36 @@ def logDataGasFunction : String :=
   "  add a0, t1, t2\n" ++
   "  ret"
 
-/-- `zisk_dynamic_opcode_gas`: probe over the three leaves.
+/-! ## exp_gas
+    a0 = exponent value ptr (32-byte BE)
+    a0 = OPCODE_EXP_BASE(10) + OPCODE_EXP_PER_BYTE(50) * exponent_bytes, where
+    exponent_bytes = (bit_length(exponent) + 7)//8 = 32 - leading_zero_bytes of the
+    32-byte big-endian exponent (0 when the exponent is 0). Leaf, no calls. -/
+def expGasFunction : String :=
+  "exp_gas:\n" ++
+  "  li t0, 0                          # i = leading-zero byte count (scan from MSB)\n" ++
+  ".Lexp_lead:\n" ++
+  "  li t1, 32; beq t0, t1, .Lexp_zero # all 32 bytes zero -> exponent_bytes = 0\n" ++
+  "  add t2, a0, t0; lbu t2, 0(t2)\n" ++
+  "  bnez t2, .Lexp_found\n" ++
+  "  addi t0, t0, 1; j .Lexp_lead\n" ++
+  ".Lexp_found:\n" ++
+  "  li t1, 32; sub t1, t1, t0         # exponent_bytes = 32 - i\n" ++
+  "  li t2, 50; mul t1, t1, t2         # 50 * exponent_bytes\n" ++
+  "  addi a0, t1, 10                   # + EXP base\n" ++
+  "  ret\n" ++
+  ".Lexp_zero:\n" ++
+  "  li a0, 10\n" ++
+  "  ret"
+
+/-- `zisk_dynamic_opcode_gas`: probe over the leaves.
     Input (after the ziskemu length wrapper at 0x40000000):
       bytes  8..16 : keccak size in bytes
       bytes 16..24 : copy size in bytes
       bytes 24..32 : log num_topics
       bytes 32..40 : log data size in bytes
-    Output: +0 keccak256_word_gas, +8 copy_word_gas, +16 log_data_gas. -/
+      bytes 40..72 : exp exponent (32-byte BE)
+    Output: +0 keccak256_word_gas, +8 copy_word_gas, +16 log_data_gas, +24 exp_gas. -/
 def ziskDynamicOpcodeGasPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li t6, 0x40000000\n" ++
@@ -70,10 +93,12 @@ def ziskDynamicOpcodeGasPrologue : String :=
   "  ld a0, 8(t6);  jal ra, keccak256_word_gas; sd a0, 0(s0)\n" ++
   "  ld a0, 16(t6); jal ra, copy_word_gas;      sd a0, 8(s0)\n" ++
   "  ld a0, 24(t6); ld a1, 32(t6); jal ra, log_data_gas; sd a0, 16(s0)\n" ++
+  "  addi a0, t6, 40; jal ra, exp_gas; sd a0, 24(s0)\n" ++
   "  j .Ldog_pdone\n" ++
   keccak256WordGasFunction ++ "\n" ++
   copyWordGasFunction ++ "\n" ++
   logDataGasFunction ++ "\n" ++
+  expGasFunction ++ "\n" ++
   ".Ldog_pdone:"
 
 def ziskDynamicOpcodeGasProbeUnit : BuildUnit := {
