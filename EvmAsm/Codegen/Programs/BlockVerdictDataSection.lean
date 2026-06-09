@@ -739,6 +739,21 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- bmvmx.1.4.2: execution-derived coinbase fee credit (priority_fee_per_gas * gas_used).
   "bmvmx_coinbase_credit:\n  .zero 32\n" ++
   -- .6.2.2.2.b: multi-tx dispatch loop index cursor.
-  "bv_mtx_i:\n  .zero 8\n"
+  "bv_mtx_i:\n  .zero 8\n" ++
+  -- bmvmx.1.4.2 compare: validate the coinbase credit against the BAL (additive; match flag only).
+  ".balign 8\n" ++
+  "bmvmx_coinbase_addr:\n  .zero 20\n" ++
+  ".balign 8\n" ++
+  "bmvmx_acct:\n  .zero 104\n" ++
+  "bmvmx_cb_acct_ptr:\n  .zero 8\n" ++
+  "bmvmx_cb_acct_len:\n  .zero 8\n" ++
+  "bmvmx_cb_bal_len:\n  .zero 8\n" ++
+  "bmvmx_cb_nonce_len:\n  .zero 8\n" ++
+  "bmvmx_coinbase_match:\n  .zero 8\n" ++
+  ".balign 32\n" ++
+  "bmvmx_cb_balbytes:\n  .zero 32\n" ++
+  "bmvmx_cb_post:\n  .zero 32\n" ++
+  "bmvmx_cb_expected:\n  .zero 32\n" ++
+  "bmvmx_cb_nonce:\n  .zero 32\n"
 
 end EvmAsm.Codegen

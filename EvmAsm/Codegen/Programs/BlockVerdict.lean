@@ -388,6 +388,38 @@ def blockVerdictFunction : String :=
   -- (the tip credited to the block coinbase; EIP-1559 base fee is burned). Consumed by
   -- .4.3 as coinbase_post = coinbase_pre + credit (for the supported single-tx EOA class).
   "  la a0, bmvmx_priority_fee; la t0, bmvmx_gas_used; ld a1, 0(t0); la a2, bmvmx_coinbase_credit; jal ra, u256_mul_u64_be\n" ++
+  -- bmvmx.1.4.2 compare (additive; sets bmvmx_coinbase_match only -> verdict byte-identical):
+  -- assert the BAL coinbase post balance == coinbase_pre + bmvmx_coinbase_credit. Any miss /
+  -- not-found / overlap (coinbase==sender/recipient) / absent leaves match=0 (conservative).
+  "  la t0, bmvmx_coinbase_match; sd zero, 0(t0)\n" ++
+  "  la t4, bv_exec_p; ld t4, 0(t4); addi t1, t4, 32; la t2, bmvmx_coinbase_addr; li t3, 0\n" ++   -- coinbase = fee_recipient (exec_p+32)
+  ".Lbmvmx_cbaddr:\n" ++
+  "  li t0, 20; beq t3, t0, .Lbmvmx_cbaddr_d\n" ++
+  "  add t0, t1, t3; lbu t5, 0(t0); add t6, t2, t3; sb t5, 0(t6); addi t3, t3, 1; j .Lbmvmx_cbaddr\n" ++
+  ".Lbmvmx_cbaddr_d:\n" ++
+  "  ld a0, 8(s0); ld a1, 16(s0); la a2, bmvmx_coinbase_addr; li a3, 20; ld a4, 80(s0); ld a5, 88(s0); la a6, bmvmx_acct\n" ++
+  "  jal ra, account_at_header_state_root\n" ++
+  "  beqz a0, .Lbmvmx_cb_preok\n" ++                                  -- 0 = found (pre = bmvmx_acct+8)
+  "  li t0, 1; bne a0, t0, .Lbmvmx_cb_skip\n" ++                       -- not 'not-found' -> parse err, skip
+  "  la t0, bmvmx_acct; sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0); sd zero, 32(t0)\n" ++   -- not found -> pre = 0
+  ".Lbmvmx_cb_preok:\n" ++
+  "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0); la a2, bmvmx_coinbase_addr; la a3, bmvmx_cb_acct_ptr; la a4, bmvmx_cb_acct_len\n" ++
+  "  jal ra, bal_find_account_by_address\n" ++
+  "  bnez a0, .Lbmvmx_cb_skip\n" ++                                    -- coinbase absent in BAL / err -> conservative
+  "  la t0, bmvmx_cb_acct_ptr; ld a0, 0(t0); la t0, bmvmx_cb_acct_len; ld a1, 0(t0); la a2, bmvmx_cb_balbytes; la a3, bmvmx_cb_bal_len; la a4, bmvmx_cb_nonce; la a5, bmvmx_cb_nonce_len\n" ++
+  "  jal ra, bal_account_post_fields\n" ++
+  "  bnez a0, .Lbmvmx_cb_skip\n" ++
+  "  la t0, bmvmx_cb_post; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++   -- zero, then right-align
+  "  la t1, bmvmx_cb_bal_len; ld t1, 0(t1); li t2, 32; bgtu t1, t2, .Lbmvmx_cb_skip\n" ++   -- absent (UINT64_MAX) / >32 -> skip
+  "  la t3, bmvmx_cb_balbytes; la t4, bmvmx_cb_post; sub t5, t2, t1; li t6, 0\n" ++   -- dst offset = 32 - len
+  ".Lbmvmx_cb_ra:\n" ++
+  "  beq t6, t1, .Lbmvmx_cb_rad\n" ++
+  "  add t0, t3, t6; lbu a0, 0(t0); add t0, t4, t5; add t0, t0, t6; sb a0, 0(t0); addi t6, t6, 1; j .Lbmvmx_cb_ra\n" ++
+  ".Lbmvmx_cb_rad:\n" ++
+  "  la a0, bmvmx_acct; addi a0, a0, 8; la a1, bmvmx_coinbase_credit; la a2, bmvmx_cb_expected; jal ra, u256_add_be\n" ++
+  "  la a0, bmvmx_cb_expected; la a1, bmvmx_cb_post; jal ra, u256_eq\n" ++
+  "  la t0, bmvmx_coinbase_match; sd a0, 0(t0)\n" ++                   -- match = (pre+credit == BAL post)
+  ".Lbmvmx_cb_skip:\n" ++
   "  la t0, bmvmx_avail; li t1, 1; sd t1, 0(t0)\n" ++
   ".Lbmvmx_done:\n" ++
   "  ld a0, 24(s0); ld a1, 80(s0); ld a2, 88(s0); ld a3, 64(s0); ld a4, 72(s0)\n" ++
