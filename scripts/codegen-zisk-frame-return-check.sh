@@ -59,6 +59,9 @@ checks = [
     ('B copied returndata byte',   0xab),
     ('A cur_stack_top - &evm_stack_top',     0),
     ('B cur_stack_top - &call_frame_arena',  0x18200),
+    ('A returndata size (STOP, none)',       0),
+    ('B returndata size (retlen)',           4),
+    ('B returndata data[0]',                 0xab),
 ]
 failed = False
 for i, (label, exp) in enumerate(checks):
