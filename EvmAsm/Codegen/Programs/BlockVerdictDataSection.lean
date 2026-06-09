@@ -718,6 +718,19 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bv_mtx_gas_left:\n  .zero 128\n" ++
   "bv_mtx_refund:\n  .zero 128\n" ++
   "bv_mtx_calldata:\n  .zero 128\n" ++
-  "bv_mtx_ctx:\n  .zero 192\n"
+  "bv_mtx_ctx:\n  .zero 192\n" ++
+  -- bmvmx.1.4.4: single-tx EOA settlement scalars precomputed before
+  -- block_state_root (additive; no consumer yet -> verdict byte-identical).
+  -- Consumed later by .4.1/.4.2 to build execution-derived sender/coinbase leaves.
+  ".balign 8\n" ++
+  "bmvmx_avail:\n  .zero 8\n" ++
+  "bmvmx_gas_used:\n  .zero 8\n" ++
+  "bmvmx_txoff:\n  .zero 8\n" ++
+  "bmvmx_ctx:\n  .zero 192\n" ++
+  ".balign 32\n" ++
+  "bmvmx_value:\n  .zero 32\n" ++
+  "bmvmx_eff_gas_price:\n  .zero 32\n" ++
+  "bmvmx_priority_fee:\n  .zero 32\n" ++
+  "bmvmx_basefee_be:\n  .zero 32\n"
 
 end EvmAsm.Codegen
