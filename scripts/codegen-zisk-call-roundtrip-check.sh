@@ -40,7 +40,7 @@ checks = [
     ('halt_kind (OUTPUT+32)',      u64(32), 0),
     ('emitted slot count (+56)',   u64(56), 1),
     ('slot 0 key low (+64)',       u64(64), 0),
-    ('slot 0 value low (+96)',     u64(96), 1),
+    ('slot 0 value low (+96)',     u64(96), 32),
 ]
 failed = False
 for label, got, exp in checks:
@@ -51,5 +51,6 @@ sys.exit(1 if failed else 0)
 PY
 
 echo
-echo "==> PASS: child RETURN returned to the parent via frame_return and the success"
-echo "          word propagated (slot 0 = 1) — nested-call execution round-trips"
+echo "==> PASS: child ran a GUARDED MSTORE + RETURN(0,32); frame_return staged the"
+echo "          returndata; parent RETURNDATASIZE read 32 -> slot 0 = 32 (frame-relative"
+echo "          guard + returndata staging verified end-to-end through the dispatcher)"
