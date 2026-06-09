@@ -650,79 +650,23 @@ def blockVerdictFunction : String :=
   "  la t4, bvgr_runtime_calldata_floor_ptr; la t5, bv_runtime_calldata_floor; sd t5, 0(t4)\n" ++
   "  li t5, 1; la t4, bvgr_runtime_count; sd t5, 0(t4)\n" ++
   "  j .Lbv_after_tx_gas_precharge       # EOA runtime done; skip the contract-dispatch block\n" ++
-  -- evm-asm-fhsxz.2.4.2.57.11.6.4.3.2: contract-recipient execution. Reached only
-  -- from the early contract-vs-EOA branch. Gated on bytecode_is_self_contained so we
-  -- only feed runtime gas to the EIP-7778/8037 gate when execution is exact (own
-  -- storage only, no un-staged state); any miss/unsupported branches to
-  -- .Lbv_after_tx_gas_precharge with bvgr_runtime_count left 0 (conservative).
+  -- evm-asm-fhsxz.2.4.2.57.11.6.2.2.1: contract-recipient execution. Reached only
+  -- from the early contract-vs-EOA branch. The runtime gas-measurement tail (stage
+  -- bytecode + BAL recipient storage preload, run the callable dispatcher, read
+  -- gas_left/calldata_floor) is now the reusable dispatch_tx_runtime_code helper so
+  -- the multi-tx dispatch loop (.6.2.2.2) can measure each transaction the same way.
+  -- It is still gated inside the helper on bytecode_is_self_contained, so we only
+  -- feed runtime gas to the EIP-7778/8037 gate when execution is exact (own storage
+  -- only, no un-staged state); any miss/unsupported returns non-zero and we stay
+  -- conservative (branch to .Lbv_after_tx_gas_precharge with bvgr_runtime_count 0).
+  -- The store sequence below is byte-identical to the former inline tail.
   ".Lbv_contract_dispatch:\n" ++
-  "  la a0, sv_this_rlp; la t0, sv_this_rlp_len; ld a1, 0(t0)\n" ++
-  "  la t2, bv_simple_transfer_tx; addi a2, t2, 72\n" ++
-  "  ld a3, 80(s0); ld a4, 88(s0)\n" ++
-  "  la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0)\n" ++
-  "  jal ra, code_at_header_state_root\n" ++
+  "  la a0, bv_simple_transfer_tx\n" ++
+  "  ld a1, 80(s0); ld a2, 88(s0)\n" ++
+  "  jal ra, dispatch_tx_runtime_code\n" ++
   "  bnez a0, .Lbv_after_tx_gas_precharge\n" ++
-  "  la t0, svf_codes_ptr; ld t1, 0(t0); la t2, cahsr_code_offset; ld t3, 0(t2); add a0, t1, t3\n" ++
-  "  la t2, cahsr_code_length; ld a1, 0(t2)\n" ++
-  "  la t0, bvcd_code_ptr; sd a0, 0(t0); la t0, bvcd_code_len; sd a1, 0(t0)\n" ++
-  "  jal ra, bytecode_is_self_contained\n" ++
-  "  bnez a0, .Lbv_after_tx_gas_precharge\n" ++
-  "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
-  "  la t2, bv_simple_transfer_tx; addi a2, t2, 72; la a3, bvcd_acct_ptr; la a4, bvcd_acct_len\n" ++
-  "  jal ra, bal_find_account_by_address\n" ++
-  "  li t0, 2; beq a0, t0, .Lbv_after_tx_gas_precharge\n" ++
-  "  bnez a0, .Lbv_cd_zero_storage\n" ++
-  "  la t0, bvcd_acct_ptr; ld a0, 0(t0); la t0, bvcd_acct_len; ld a1, 0(t0); la a2, bvcd_keys\n" ++
-  "  jal ra, bal_recipient_storage_keys\n" ++
-  "  la t0, bvcd_key_count; sd a0, 0(t0); j .Lbv_cd_read_storage\n" ++
-  ".Lbv_cd_zero_storage:\n" ++
-  "  la t0, bvcd_key_count; sd zero, 0(t0)\n" ++
-  ".Lbv_cd_read_storage:\n" ++
-  "  la t0, bvcd_i; sd zero, 0(t0)\n" ++
-  ".Lbv_cd_sloop:\n" ++
-  "  la t0, bvcd_i; ld t1, 0(t0); la t2, bvcd_key_count; ld t3, 0(t2); beq t1, t3, .Lbv_cd_stage\n" ++
-  "  slli t4, t1, 5; la t5, bvcd_keys; add a3, t5, t4\n" ++
-  "  la a0, sv_this_rlp; la t0, sv_this_rlp_len; ld a1, 0(t0)\n" ++
-  "  la t2, bv_simple_transfer_tx; addi a2, t2, 72\n" ++
-  "  ld a4, 80(s0); ld a5, 88(s0); ld a6, 80(s0); ld a7, 88(s0)\n" ++
-  "  jal ra, slot_at_header_state_root\n" ++
-  "  la t0, bvcd_i; ld t1, 0(t0); slli t2, t1, 6; la t3, bvcd_preload; add t4, t3, t2\n" ++
-  "  slli t2, t1, 5; la t3, bvcd_keys; add t5, t3, t2\n" ++
-  "  li t6, 0\n" ++
-  ".Lbv_cd_kcopy:\n" ++
-  "  li t2, 32; beq t6, t2, .Lbv_cd_kdone\n" ++
-  "  add t2, t5, t6; lbu t3, 0(t2); add t2, t4, t6; sb t3, 0(t2); addi t6, t6, 1; j .Lbv_cd_kcopy\n" ++
-  ".Lbv_cd_kdone:\n" ++
-  "  li t2, 5; beq a0, t2, .Lbv_cd_vzero\n" ++
-  "  bnez a0, .Lbv_after_tx_gas_precharge\n" ++
-  "  la t5, sahsr_u256; li t6, 0\n" ++
-  ".Lbv_cd_vcopy:\n" ++
-  "  li t2, 32; beq t6, t2, .Lbv_cd_vdone\n" ++
-  "  add t2, t5, t6; lbu t3, 0(t2); add t2, t4, t6; addi t2, t2, 32; sb t3, 0(t2); addi t6, t6, 1; j .Lbv_cd_vcopy\n" ++
-  ".Lbv_cd_vzero:\n" ++
-  "  li t6, 0\n" ++
-  ".Lbv_cd_vzloop:\n" ++
-  "  li t2, 32; beq t6, t2, .Lbv_cd_vdone\n" ++
-  "  add t2, t4, t6; addi t2, t2, 32; sb zero, 0(t2); addi t6, t6, 1; j .Lbv_cd_vzloop\n" ++
-  ".Lbv_cd_vdone:\n" ++
-  "  la t0, bvcd_i; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Lbv_cd_sloop\n" ++
-  ".Lbv_cd_stage:\n" ++
-  "  la a0, bv_simple_transfer_tx; la a1, bv_runtime_payload; la t2, bv_exec_p; ld a2, 0(t2)\n" ++
-  "  la t0, bvcd_code_ptr; ld a3, 0(t0); la t0, bvcd_code_len; ld a4, 0(t0)\n" ++
-  "  la a5, bvcd_preload; la t0, bvcd_key_count; ld a6, 0(t0)\n" ++
-  "  jal ra, stage_runtime_payload_code\n" ++
-  "  bnez a0, .Lbv_after_tx_gas_precharge\n" ++
-  "  la t4, runtime_dispatcher_input_ptr; la t5, bv_runtime_payload; addi t5, t5, 8; sd t5, 0(t4)\n" ++
-  "  addi sp, sp, -32\n" ++
-  "  sd s0, 0(sp); sd s1, 8(sp); sd s2, 16(sp); sd s3, 24(sp)\n" ++
-  "  jal ra, runtime_dispatcher_call\n" ++
-  "  ld s0, 0(sp); ld s1, 8(sp); ld s2, 16(sp); ld s3, 24(sp)\n" ++
-  "  addi sp, sp, 32\n" ++
-  "  la t4, runtime_dispatcher_input_ptr; sd zero, 0(t4)\n" ++
-  "  la t2, evm_env; ld t3, 568(t2)\n" ++
-  "  la t4, bv_runtime_gas_left; sd t3, 0(t4)\n" ++
-  "  la t4, runtime_tx_calldata_floor; ld t5, 0(t4)\n" ++
-  "  la t4, bv_runtime_calldata_floor; sd t5, 0(t4)\n" ++
+  "  la t4, bv_runtime_gas_left; sd a1, 0(t4)\n" ++
+  "  la t4, bv_runtime_calldata_floor; sd a2, 0(t4)\n" ++
   "  la t4, bv_runtime_refund_counter; sd zero, 0(t4)\n" ++
   "  la t4, bvgr_runtime_gas_left_ptr; la t5, bv_runtime_gas_left; sd t5, 0(t4)\n" ++
   "  la t4, bvgr_runtime_refund_counter_ptr; la t5, bv_runtime_refund_counter; sd t5, 0(t4)\n" ++
