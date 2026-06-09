@@ -80,6 +80,10 @@ def stageRuntimePayloadCodeFunction : String :=
   "  slli a6, s7, 6                      # a6 = storage bytes = count*64\n" ++
   "  add t1, t0, t6                      # t1 = co = cb + cd_pad\n" ++
   "  add t1, t1, a6; addi t1, t1, 80     # t1 = env_base = 80 + co + count*64\n" ++
+  -- 3vc2p.5: publish the env_base OFFSET so dispatch_tx_runtime_code's CALLER/ORIGIN/
+  -- GASPRICE/SELFBALANCE staging uses the SAME base instead of the round8(codelen)+80
+  -- approximation (which is only correct for empty calldata+storage). Single source of truth.
+  "  la t5, srpc_env_base; sd t1, 0(t5)\n" ++
   "  addi t2, t1, 504                    # t2 = total payload bytes\n" ++
   "  addi t2, t2, 7; andi t2, t2, -8\n" ++
   -- Zero [s0, s0+total).
@@ -205,6 +209,7 @@ def ziskStageRuntimePayloadCodeDataSection : String :=
   "srpc_ctx:\n  .zero 192\n" ++
   "srpc_exec:\n  .zero 512\n" ++
   "srpc_code:\n  .zero 64\n" ++
+  "srpc_env_base:\n  .zero 8\n" ++   -- 3vc2p.5: published env_base offset (single source of truth)
   "srpc_payload:\n  .zero 1024\n"
 
 def ziskStageRuntimePayloadCodeProbeUnit : BuildUnit := {
@@ -262,6 +267,7 @@ def ziskStageRuntimePayloadCodeStorageDataSection : String :=
   "srpcs_exec:\n  .zero 512\n" ++
   "srpcs_code:\n  .zero 64\n" ++
   "srpcs_store:\n  .zero 64\n" ++
+  "srpc_env_base:\n  .zero 8\n" ++   -- 3vc2p.5: published env_base offset
   "srpcs_payload:\n  .zero 1024\n"
 
 def ziskStageRuntimePayloadCodeStorageProbeUnit : BuildUnit := {
@@ -319,6 +325,7 @@ def ziskStageRuntimePayloadCodeCalldataDataSection : String :=
   "srpcc_exec:\n  .zero 512\n" ++
   "srpcc_code:\n  .zero 64\n" ++
   "srpcc_cd:\n  .zero 64\n" ++
+  "srpc_env_base:\n  .zero 8\n" ++   -- 3vc2p.5: published env_base offset
   "srpcc_payload:\n  .zero 1024\n"
 
 def ziskStageRuntimePayloadCodeCalldataProbeUnit : BuildUnit := {

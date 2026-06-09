@@ -257,8 +257,8 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  beqz a0, .Ldtrc_no_sender\n" ++
   "  la a1, srpc_sender_addr\n" ++
   "  jal ra, address_from_pubkey\n" ++
-  "  la t0, bv_runtime_payload; ld t1, 0(t0)\n" ++           -- codelen
-  "  addi t1, t1, 7; andi t1, t1, -8; addi t1, t1, 80\n" ++  -- env_base offset = round8(codelen)+80
+  "  la t0, bv_runtime_payload\n" ++
+  "  la t5, srpc_env_base; ld t1, 0(t5)\n" ++                -- 3vc2p.5: env_base from stage_runtime_payload_code
   "  add t2, t0, t1\n" ++                                    -- t2 = &env_words
   "  la t3, srpc_sender_addr; addi t4, t2, 64; li t5, 0\n" ++   -- CALLER (word 2 -> +64)
   ".Ldtrc_caller:\n" ++
@@ -282,8 +282,8 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la a3, gp_egp; la a4, gp_prio\n" ++
   "  jal ra, tx_effective_gas_pricing\n" ++
   "  bnez a0, .Ldtrc_no_gasprice\n" ++
-  "  la t0, bv_runtime_payload; ld t1, 0(t0)\n" ++           -- codelen
-  "  addi t1, t1, 7; andi t1, t1, -8; addi t1, t1, 80\n" ++  -- env_base offset = round8(codelen)+80
+  "  la t0, bv_runtime_payload\n" ++
+  "  la t5, srpc_env_base; ld t1, 0(t5)\n" ++                -- 3vc2p.5: env_base from stage_runtime_payload_code
   "  add t2, t0, t1; addi t2, t2, 160\n" ++                  -- t2 = &gasPrice word (env_base+160)
   "  la t3, gp_egp\n" ++
   "  ld t4, 0(t3); sd t4, 0(t2); ld t4, 8(t3); sd t4, 8(t2)\n" ++
@@ -302,8 +302,8 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la a5, yisv8_self_bal\n" ++
   "  jal ra, balance_at_header_state_root\n" ++
   "  bnez a0, .Ldtrc_no_selfbal\n" ++             -- lookup miss/error -> leave SELFBALANCE 0
-  "  la t0, bv_runtime_payload; ld t1, 0(t0)\n" ++           -- codelen
-  "  addi t1, t1, 7; andi t1, t1, -8; addi t1, t1, 80\n" ++  -- env_base offset = round8(codelen)+80
+  "  la t0, bv_runtime_payload\n" ++
+  "  la t5, srpc_env_base; ld t1, 0(t5)\n" ++                -- 3vc2p.5: env_base from stage_runtime_payload_code
   "  add t2, t0, t1; addi t2, t2, 32\n" ++                   -- t2 = &SELFBALANCE word (env_base+32)
   "  la t3, yisv8_self_bal\n" ++
   "  ld t4, 0(t3); sd t4, 0(t2); ld t4, 8(t3); sd t4, 8(t2)\n" ++
