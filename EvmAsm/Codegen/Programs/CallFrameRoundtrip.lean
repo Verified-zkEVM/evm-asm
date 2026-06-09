@@ -97,7 +97,14 @@ def callFrameRoundtripData : String :=
   -- parent: [descend-placeholder, PUSH1 0x00, SSTORE, STOP]; child: [STOP]
   "rt_parent_code:\n  .byte 0x00, 0x60, 0x00, 0x55, 0x00\n" ++
   -- child: PUSH1 0; PUSH1 0; RETURN  (a depth-1 RETURN that resumes the parent)
-  "rt_child_code:\n  .byte 0x60, 0x00, 0x60, 0x00, 0xf3\n"
+  "rt_child_code:\n  .byte 0x60, 0x00, 0x60, 0x00, 0xf3\n" ++
+  ".balign 8\n" ++
+  -- Non-zero tail pad. ziskemu reads the final bytes of `.data` as 0 (the
+  -- data-tail-zeroing artifact, memory: ziskemu-zeroes-data-tail-pad-probe-
+  -- fixtures). Without a pad after `rt_child_code` its last byte (0xf3 RETURN)
+  -- would be silently zeroed to 0x00 (STOP), so the child would run a guard-free
+  -- STOP and never exercise the depth-aware RETURN this probe is meant to verify.
+  "rt_tail_pad:\n  .byte 0xde, 0xad, 0xbe, 0xef, 0xde, 0xad, 0xbe, 0xef\n"
 
 def callFrameRoundtripUnit : BuildUnit := {
   body        := []

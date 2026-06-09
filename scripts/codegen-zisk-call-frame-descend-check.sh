@@ -62,6 +62,8 @@ checks = [
     ('child env.gasRemaining (EIP-150)',3300),
     ('child env.codeSize',              0x33),
     ('child env witness.state ptr',     0x592),
+    ('evm_cur_stack_top - &arena',      0x18200),
+    ('evm_cur_stack_low - &arena',      0x10200),
 ]
 failed = False
 for i, (label, exp) in enumerate(checks):
