@@ -230,6 +230,15 @@ def dispatchTxRuntimeCodeFunction : String :=
   ".Ldtrc_nothread:\n" ++
   "  la t0, bvcd_i; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Ldtrc_sloop\n" ++
   ".Ldtrc_stage:\n" ++
+  -- bmvmx.1.7.2: conservative payload-size guard. stage_runtime_payload_code writes
+  -- round8(codelen)+round8(calldata)+storage*64+584 bytes into bv_runtime_payload; if that
+  -- exceeds the buffer (65536) the write would overflow into adjacent .data (gas result +
+  -- bvcd_* scratch). EIP-170 bounds code to 24576 but calldata/storage are unbounded, so bail
+  -- conservatively (route to the safe path) instead of corrupting state.
+  "  la t0, bvcd_code_len; ld t1, 0(t0); addi t1, t1, 7; andi t1, t1, -8\n" ++   -- round8(codelen)
+  "  ld t2, 64(s2); addi t2, t2, 7; andi t2, t2, -8; add t1, t1, t2\n" ++         -- + round8(calldata)
+  "  la t0, bvcd_key_count; ld t2, 0(t0); slli t2, t2, 6; add t1, t1, t2\n" ++   -- + storage_count*64
+  "  addi t1, t1, 584; li t2, 65536; bgtu t1, t2, .Ldtrc_unsupported\n" ++       -- payload > buffer -> conservative bail
   "  mv a0, s2; la a1, bv_runtime_payload; la t2, bv_exec_p; ld a2, 0(t2)\n" ++
   "  la t0, bvcd_code_ptr; ld a3, 0(t0); la t0, bvcd_code_len; ld a4, 0(t0)\n" ++
   "  la a5, bvcd_preload; la t0, bvcd_key_count; ld a6, 0(t0)\n" ++
