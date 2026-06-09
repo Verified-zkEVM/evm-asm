@@ -44,7 +44,7 @@ def logTopicCopies (topicCount : Nat) : String :=
     via `.exit_no_epilogue` instead of silently dropping the event. -/
 def logCapturePreBody (topicCount : Nat) : String :=
   "  ld x15, 472(x20)\n" ++          -- x15 = event log length
-  "  li x16, 16\n" ++                -- static cap: 16 descriptors
+  "  li x16, 1024\n" ++              -- static cap: 1024 descriptors (6c7v9: raised from 16)
   "  bgeu x15, x16, 9f\n" ++
   "  la x14, evm_event_logs\n" ++
   "  slli x16, x15, 8\n" ++          -- entry offset = count * 256
