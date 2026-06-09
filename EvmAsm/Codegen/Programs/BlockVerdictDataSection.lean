@@ -847,6 +847,17 @@ def ziskStatelessVerdictV2DataSection : String :=
   "c3cov_acct_len:\n  .zero 8\n" ++
   "c3cov_addr_off:\n  .zero 8\n" ++
   "c3cov_addr_len:\n  .zero 8\n" ++
+  -- i3djw.4: scratch for bal_all_accounts_code_consistent (FORWARD per-account CODE compare,
+  -- with the EIP-7702 delegation skip). bacc_finals is the per-account 88-byte finals scratch
+  -- consumed by bal_account_code_consistent; baac_* are the account-iteration scratch. The
+  -- c2nsf_*/rfu_* scratch the inlined finals helper needs is already provided just above.
+  ".balign 8\n" ++
+  "baac_acct_count:\n  .zero 8\n" ++
+  "baac_acct_off:\n  .zero 8\n" ++
+  "baac_acct_len:\n  .zero 8\n" ++
+  "baac_addr_off:\n  .zero 8\n" ++
+  "baac_addr_len:\n  .zero 8\n" ++
+  "bacc_finals:\n  .zero 88\n" ++
   -- yisv8.1: recipient self-balance scratch for the env.SELFBALANCE (word 1) staging.
   ".balign 32\n" ++
   "yisv8_self_bal:\n  .zero 32\n" ++
