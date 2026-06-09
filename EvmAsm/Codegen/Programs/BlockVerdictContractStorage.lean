@@ -27,9 +27,11 @@ open EvmAsm.Rv64
 
     Calling convention:
       a0 = AccountChanges RLP ptr   a1 = AccountChanges RLP length
-      a2 = out keys ptr (count x 32-byte big-endian slot keys)
+      a2 = out keys ptr (count x 32-byte big-endian slot keys; caller buffer must hold 128)
     Returns:
-      a0 = count of slot keys written (0 on parse failure — conservative).
+      a0 = entry count (0 on parse failure — conservative). Keys are written only when
+           the count is <= 128 (the caller-buffer cap); if it exceeds 128, NOTHING is
+           written and the true count is returned so the caller can bail conservatively.
 
     Reads item 1 (storage_changes) of the AccountChanges list; for each entry,
     reads item 0 (the slot key) and writes it left-padded to 32 bytes. -/
@@ -52,6 +54,11 @@ def balRecipientStorageKeysFunction : String :=
   "  jal ra, rlp_list_count_items\n" ++
   "  bnez a0, .Lbrsk_fail\n" ++
   "  la t0, brsk_cnt; ld s5, 0(t0)                   # entry count\n" ++
+  -- bmvmx.1.7.3: cap the write at 128 slots (the caller buffers: bvcd_keys/bvcd_preload
+  -- and csce_keys are all sized for 128). If the BAL declares MORE storage_changes than
+  -- fit, write NOTHING and return the true count so the caller bails conservatively
+  -- (.Ldtrc_unsupported / skip-account) instead of overflowing into adjacent .data.
+  "  li t0, 128; bgtu s5, t0, .Lbrsk_done            # count > cap -> return count, write nothing\n" ++
   "  mv s6, zero                  # i\n" ++
   "  mv s7, s2                    # out cursor\n" ++
   ".Lbrsk_loop:\n" ++
