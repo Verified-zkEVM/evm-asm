@@ -821,6 +821,9 @@ def ziskStatelessVerdictV2DataSection : String :=
   ".balign 8\n" ++
   "gp_egp:\n  .zero 32\n" ++
   "gp_prio:\n  .zero 32\n" ++
+  -- yisv8.1: recipient self-balance scratch for the env.SELFBALANCE (word 1) staging.
+  ".balign 32\n" ++
+  "yisv8_self_bal:\n  .zero 32\n" ++
   ".balign 8\n" ++
   "bmvmx_sender_match:\n  .zero 8\n" ++
   -- bmvmx.1.4.3.1: envelope predicate scratch. bmvmx_sender_checked / bmvmx_coinbase_checked
