@@ -280,6 +280,26 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  ld t4, 0(t3); sd t4, 0(t2); ld t4, 8(t3); sd t4, 8(t2)\n" ++
   "  ld t4, 16(t3); sd t4, 16(t2); ld t4, 24(t3); sd t4, 24(t2)\n" ++
   ".Ldtrc_no_gasprice:\n" ++
+  -- yisv8.1: SELFBALANCE (word 1 -> env_base+32) = the recipient's own balance from the
+  -- witness (balance_at_header_state_root over env.ADDRESS=recipient, ctx+72), copied
+  -- verbatim (BE) into the env word — mirroring the CALLVALUE/GASPRICE u256 staging (the
+  -- ACTIVE CALLVALUE proves the contract-recipient path's u256 env words are BE-direct).
+  -- INERT until yisv8.2 removes SELFBALANCE(0x47) from the self-contained reject set.
+  -- Conservative: a lookup miss/error leaves SELFBALANCE 0. balance_at_header_state_root
+  -- preserves s-regs (s0=state ptr, s1=state len, s2=ctx survive); clobbers only dead a/t-regs.
+  "  la a0, sv_this_rlp\n  la t0, sv_this_rlp_len; ld a1, 0(t0)\n" ++
+  "  addi a2, s2, 72\n" ++                       -- recipient addr (ctx+72)
+  "  mv a3, s0; mv a4, s1\n" ++                   -- witness state ptr/len
+  "  la a5, yisv8_self_bal\n" ++
+  "  jal ra, balance_at_header_state_root\n" ++
+  "  bnez a0, .Ldtrc_no_selfbal\n" ++             -- lookup miss/error -> leave SELFBALANCE 0
+  "  la t0, bv_runtime_payload; ld t1, 0(t0)\n" ++           -- codelen
+  "  addi t1, t1, 7; andi t1, t1, -8; addi t1, t1, 80\n" ++  -- env_base offset = round8(codelen)+80
+  "  add t2, t0, t1; addi t2, t2, 32\n" ++                   -- t2 = &SELFBALANCE word (env_base+32)
+  "  la t3, yisv8_self_bal\n" ++
+  "  ld t4, 0(t3); sd t4, 0(t2); ld t4, 8(t3); sd t4, 8(t2)\n" ++
+  "  ld t4, 16(t3); sd t4, 16(t2); ld t4, 24(t3); sd t4, 24(t2)\n" ++
+  ".Ldtrc_no_selfbal:\n" ++
   -- bmvmx.1.6.4.2.b: seed every non-recipient BAL account's storage into the exec log
   -- so nested callees SLOAD witness values (not 0). Fills callee_seed_table/count, which
   -- the callable dispatcher's seed loop drains during runtime_dispatcher_call's setup.
