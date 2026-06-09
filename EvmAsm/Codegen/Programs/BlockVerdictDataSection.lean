@@ -705,6 +705,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "srpc_ctx:\n  .zero 192\n" ++
   "srpc_exec:\n  .zero 512\n" ++
   "srpc_code:\n  .zero 64\n" ++
+  "srpc_env_base:\n  .zero 8\n" ++   -- 3vc2p.5: published env_base offset (single source of truth)
   "srpc_payload:\n  .zero 1024\n" ++
   -- bal_find_account_by_address private scratch:
   ".balign 8\n" ++
