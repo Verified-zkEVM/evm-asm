@@ -54,12 +54,16 @@ def publicKeysValidFunction : String :=
   "  li t0, 65\n" ++
   "  remu t1, s7, t0; bnez t1, .Lpkv_fail\n" ++
   "  divu s8, s7, t0             # public key count\n" ++
-  "  bne s8, s4, .Lpkv_fail\n" ++
+  -- x04we: the spec INDEXES transaction_public_keys[tx_index] for index in [0, tx_count)
+  -- (fork.py:1044-1046); it never checks len==tx_count. count < tx_count -> IndexError ->
+  -- reject; count > tx_count -> the surplus trailing keys are simply never indexed and the
+  -- block validates. So reject only when count < tx_count (was the over-strict count != tx_count).
+  "  bltu s8, s4, .Lpkv_fail\n" ++
   "  la t0, bv_public_keys_ptr; sd s5, 0(t0)\n" ++
   "  la t0, bv_public_keys_len; sd s7, 0(t0)\n" ++
   "  li s9, 0\n" ++
   ".Lpkv_loop:\n" ++
-  "  beq s9, s8, .Lpkv_ok\n" ++
+  "  beq s9, s4, .Lpkv_ok\n" ++   -- x04we: validate only the [0, tx_count) indexed keys; surplus trailing keys are never indexed by the spec, so they are not well-formedness-checked
   "  li t0, 65; mul t1, s9, t0; add t2, s5, t1\n" ++
   "  lbu t3, 0(t2); li t4, 4; bne t3, t4, .Lpkv_fail\n" ++
   "  li t3, 1; li t4, 0\n" ++
