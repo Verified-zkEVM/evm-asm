@@ -310,8 +310,10 @@ def childFrameHandlers
     -- JUMP/...), so real constructors execute. On the child's RETURN the depth-aware
     -- returnRevertTail CREATE branch (.5b) validity-gates + deposits the returned bytes as the
     -- deployed code + pushes the DERIVED ADDRESS back to this frame (0 on invalid deploy / REVERT).
-    -- a0 = &value (CREATE endowment operand, stack top); descend then run the child.
-    "  mv a0, x12\n" ++
+    -- create_frame_descend reads the endowment from x12 (stack top) itself; do NOT pass it in
+    -- a0 (== x10 the PC) -- that would clobber the parent return PC the descent saves (#8608).
+    -- a1 = netPopBytes (frame_return pops the CREATE args: 64 for CREATE / 96 for CREATE2).
+    "  li a1, " ++ toString netPopBytes ++ "\n" ++
     "  jal x1, create_frame_descend\n" ++
     "  j .dispatch_loop\n" ++
     "7:\n" ++
