@@ -72,12 +72,10 @@ def bytecodeIsSelfContainedFunction : String :=
   "  li t3, 0x3f; beq t2, t3, .Lbsc_unsafe\n" ++   -- EXTCODEHASH
   "  li t3, 0x40; beq t2, t3, .Lbsc_unsafe\n" ++   -- BLOCKHASH
   -- yisv8.2: SELFBALANCE(0x47) is NO LONGER rejected — the recipient's own balance is now
-  -- staged into env.SELFBALANCE (env word 1) by dispatch_tx_runtime_code (yisv8.1 #8644
-  -- merged; balance_at_header_state_root(env.ADDRESS) -> env_base+32, BE like CALLVALUE).
-  -- BALANCE(0x31)/EXTCODE*(0x3b/0x3c/0x3f) stay rejected pending the cross-account witness
-  -- (M31) investigation; BLOCKHASH(0x40) pending its table (3vc2p.3).
-  "  li t3, 0xf0; beq t2, t3, .Lbsc_unsafe\n" ++   -- CREATE
-  "  li t3, 0xf5; beq t2, t3, .Lbsc_unsafe\n" ++   -- CREATE2
+  -- staged into env.SELFBALANCE (env word 1) by dispatch_tx_runtime_code (yisv8.1 #8644).
+  -- CREATE(0xf0)/CREATE2(0xf5) are also NO LONGER rejected (.8c-3 #8649 already merged).
+  -- BALANCE(0x31)/EXTCODE*(0x3b/0x3c/0x3f) stay rejected pending cross-account witness (M31);
+  -- BLOCKHASH(0x40) pending its table (3vc2p.3); SELFDESTRUCT(0xff) stays rejected.
   "  li t3, 0xff; beq t2, t3, .Lbsc_unsafe\n" ++   -- SELFDESTRUCT (beneficiary cold/warm + account-creation gas is un-staged)
   "  addi t0, t0, 1; j .Lbsc_loop\n" ++
   ".Lbsc_safe:\n" ++
