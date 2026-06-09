@@ -1030,7 +1030,9 @@ def blockVerdictFunction : String :=
   -- sender settlement is sender_post = sender_pre - receipt_inc*eff_gas_price - value, computed
   -- by tx_gas_bal_post_verify_runtime (sender_debit_from_gas #8583 + the runtime gas result).
   -- This is exact ONLY when execution cannot move value to the sender, so the REJECT is gated
-  -- conservatively (any failed gate -> skip, never newly false-reject):
+  -- conservatively (any failed gate -> skip, never newly false-reject). The .Lbv_sbc_scan guard
+  -- below is the SOLE entry into the sender + post-nonce + recipient-balance checks, so all three
+  -- inherit this value-move protection (see the recipient slice's note at .Lbv_rbc_do):
   --   * recipient bytecode has no CALL(0xf1) / CALLCODE(0xf2) / DELEGATECALL(0xf4) /
   --     SELFDESTRUCT(0xff) opcode -- the ways execution can move value to/from the sender
   --     (DELEGATECALL runs delegated code in the recipient's context, which may SELFDESTRUCT to
@@ -1082,6 +1084,15 @@ def blockVerdictFunction : String :=
   -- bmvmx.1.6.3 (recipient balance slice): the contract recipient RECEIVES tx.value and, on this
   -- value-movement-free path (no CALL/CALLCODE/DELEGATECALL/SELFDESTRUCT; CREATE is self-contained-
   -- rejected), its balance changes only by +value, so recipient_post == recipient_pre + value.
+  -- That "value-movement-free" precondition is ENFORCED, not assumed (fhsxz.2.4.2.61.6.8): the
+  -- .Lbv_sbc_scan value-move guard above (~line 1015) is the SOLE entry into this whole
+  -- balance/nonce/recipient block and skips it entirely (-> .Lbv_after_tx_gas_precharge) when the
+  -- recipient bytecode contains any of those opcodes -- so a contract recipient that sends value
+  -- out via a value-bearing nested CALL never reaches here and is NOT false-rejected (verdict 41).
+  -- The descent staged the child's CALLVALUE (call_frame_set_call_env env+96), and SELFBALANCE/
+  -- BALANCE reads are self-contained-rejected (0x47/0x31), so no executed callee reads a stale own
+  -- balance. Positive validation of the multi-account value deltas (caller debited / callee credited
+  -- by the nested CALL) against the BAL is bmvmx.1.6.4's all-accounts exec-vs-BAL compare.
   -- Reuse the proven EOA recipient verifier. Bail (skip) when the recipient is the coinbase (its
   -- post also folds the priority fee) or the sender (self-transfer nets gas -- the sender slice owns
   -- it); withdrawals are already excluded above. A clean post mismatch (status 32) is a prover lie.
