@@ -35,12 +35,20 @@ open EvmAsm.Rv64
     Walks every element computing `keccak256(element_bytes)`
     until either a match is found or the list is exhausted.
 
-    The linear fallback is deliberately capped at the default 64 KiB
-    witness-section budget. Large stateless-verdict runs build a sorted
-    NodeDb index once via `witness_index_build`; when the `(section_ptr,len)`
-    matches that index this routine uses binary search instead of rescanning.
-    The index is deterministic and sorted by the full 32-byte hash, not an
-    attacker-shaped hash bucket chain. -/
+    Large stateless-verdict runs build a sorted NodeDb index once via
+    `witness_index_build`; when the `(section_ptr,len)` matches that index
+    this routine uses binary search instead of rescanning. The index is
+    deterministic and sorted by the full 32-byte hash, not an
+    attacker-shaped hash bucket chain.
+
+    The linear fallback is NOT size-capped: sections without a registered
+    index (notably `witness.codes`, which can legitimately exceed 64 KiB --
+    e.g. the 72945-byte modified predeploy in EEST
+    `system_contract_reaches_gas_limit`) must still resolve correctly. A
+    size cap here silently converted such lookups into misses and made the
+    code-preimage gate false-reject valid blocks. Repeated lookups against
+    a large unindexed section are a cycle-budget concern, not a soundness
+    one; bound them at the caller or register an index. -/
 def witnessLookupByHashFunction : String :=
   "witness_lookup_by_hash:\n" ++
   "  addi sp, sp, -64\n" ++
@@ -70,8 +78,6 @@ def witnessLookupByHashFunction : String :=
   "  j .Lwlh_ret\n" ++
   ".Lwlh_linear:\n" ++
   "  beqz s1, .Lwlh_miss        # empty section ⇒ miss\n" ++
-  "  li t0, 65536               # linear-scan budget: default BSR witness cap\n" ++
-  "  bgtu s1, t0, .Lwlh_miss    # larger witnesses need the indexed NodeDb path\n" ++
   "  lwu t0, 0(s0)              # first inner offset = 4 * N\n" ++
   "  srli s5, t0, 2             # s5 = N\n" ++
   "  li s6, 0                   # s6 = i\n" ++
