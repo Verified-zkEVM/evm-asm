@@ -212,20 +212,33 @@ def precompileFrameBls12G2OutputOff : Nat := 944
 def precompileFrameEcrecoverInputOff : Nat := 1152
 
 /-- Raw dispatcher guard for handlers that read `wordCount` EVM stack
-    words before their body runs. The EVM stack grows downward from
-    `evm_stack_top`; a handler needing `n` words requires
-    `x12 <= evm_stack_top - 32*n`. If not, route to the exceptional
-    stack-underflow exit before any body performs unchecked loads. -/
+    words before their body runs. The EVM stack grows downward from the
+    CURRENT frame's stack top; a handler needing `n` words requires
+    `x12 <= cur_stack_top - 32*n`. If not, route to the exceptional
+    stack-underflow exit before any body performs unchecked loads.
+
+    Frame-relative: reads `evm_cur_stack_top` (a cell holding the current
+    frame's stack-top address) rather than the global `evm_stack_top` label,
+    so a child call frame — whose stack lives in `call_frame_arena`, ABOVE the
+    global arena — is bounded against its OWN top. At depth 0 the cell is
+    statically `&evm_stack_top`, so the depth-0 output is byte-identical. -/
 def stackUnderflowGuardAsm (wordCount : Nat) : String :=
-  "  la x14, evm_stack_top\n" ++
+  "  la x14, evm_cur_stack_top\n" ++
+  "  ld x14, 0(x14)\n" ++
   s!"  addi x14, x14, -{wordCount * evmStackWordBytes}\n" ++
   "  bltu x14, x12, .exit_stack_underflow"
 
 /-- Raw dispatcher guard for handlers that push one EVM stack word. The EVM
-    stack is full exactly when the live pointer has reached `evm_stack_low`;
-    pushing then would decrement below the protocol 1024-word arena. -/
+    stack is full exactly when the live pointer has reached the current frame's
+    stack low; pushing then would decrement below the protocol 1024-word arena.
+
+    Frame-relative: reads `evm_cur_stack_low` (the current frame's stack-low
+    address) instead of the global `evm_stack_low` label, so a child call
+    frame's pushes are bounded against its own arena. At depth 0 the cell is
+    statically `&evm_stack_low`, so the depth-0 output is byte-identical. -/
 def stackOverflowGuardAsm : String :=
-  "  la x14, evm_stack_low\n" ++
+  "  la x14, evm_cur_stack_low\n" ++
+  "  ld x14, 0(x14)\n" ++
   "  bleu x12, x14, .exit_stack_overflow"
 
 /-- Tail emitted after each handler's verified body.
@@ -1604,6 +1617,19 @@ def emitDispatcherDataSection
   "evm_stack_top_guard:\n" ++
   s!"  .zero {evmStackGuardBytes}\n" ++
   ".balign 8\n" ++
+  -- Frame-relative stack bounds. Each cell holds the CURRENT frame's stack-top /
+  -- stack-low ADDRESS. Statically `&evm_stack_top` / `&evm_stack_low`, so at
+  -- depth 0 the under/overflow guards resolve to the same bounds as before
+  -- (byte-identical output). `call_frame_descend` repoints them to the child's
+  -- arena stack (`frame_base(d)+frameStackTopOff` and its low), and
+  -- `frame_return` restores the parent's on pop. This makes the guards bound
+  -- a child frame against its own stack (which lives in `call_frame_arena`,
+  -- outside this global region) instead of spuriously firing.
+  "evm_cur_stack_top:\n" ++
+  "  .dword evm_stack_top\n" ++
+  "evm_cur_stack_low:\n" ++
+  "  .dword evm_stack_low\n" ++
+  ".balign 8\n" ++
   "exp_scratch:\n" ++
   "  .zero 32\n" ++       -- EXP (0x0a): 32-byte result-accumulator frame. The
                           -- verified EXP body uses `x2`(sp)+0..24 as its running
@@ -2217,7 +2243,14 @@ def emitRuntimeDispatcherEmbeddedHelperData : String :=
   ".balign 8\n" ++
   "cd_desc:\n  .zero 96\n" ++
   ".balign 32\n" ++
-  "cd_zero_word:\n  .zero 32\n"
+  "cd_zero_word:\n  .zero 32\n" ++
+  -- Scratch for the value-bearing CALL balance gate (`callDescendFallThrough`):
+  -- the caller address (env+0) as canonical 20-byte big-endian, and the call
+  -- value + looked-up caller balance as 32-byte big-endian for the compare.
+  ".balign 8\n" ++
+  "cd_caller_be:\n  .zero 32\n" ++
+  "cd_value_be:\n  .zero 32\n" ++
+  "cd_balance_be:\n  .zero 32\n"
 
 /-- Runtime-bytecode `.data` section. Drops the `evm_code:` block
     (no baked bytecode); everything else matches the `.data`-baked
@@ -2295,6 +2328,19 @@ def emitRuntimeDispatcherDataSectionCore
   "evm_stack_top:\n" ++
   "evm_stack_top_guard:\n" ++
   s!"  .zero {evmStackGuardBytes}\n" ++
+  ".balign 8\n" ++
+  -- Frame-relative stack bounds. Each cell holds the CURRENT frame's stack-top /
+  -- stack-low ADDRESS. Statically `&evm_stack_top` / `&evm_stack_low`, so at
+  -- depth 0 the under/overflow guards resolve to the same bounds as before
+  -- (byte-identical output). `call_frame_descend` repoints them to the child's
+  -- arena stack (`frame_base(d)+frameStackTopOff` and its low), and
+  -- `frame_return` restores the parent's on pop. This makes the guards bound
+  -- a child frame against its own stack (which lives in `call_frame_arena`,
+  -- outside this global region) instead of spuriously firing.
+  "evm_cur_stack_top:\n" ++
+  "  .dword evm_stack_top\n" ++
+  "evm_cur_stack_low:\n" ++
+  "  .dword evm_stack_low\n" ++
   ".balign 8\n" ++
   "exp_scratch:\n" ++
   "  .zero 32\n" ++       -- EXP (0x0a): 32-byte result-accumulator frame. The

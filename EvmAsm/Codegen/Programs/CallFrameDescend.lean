@@ -63,35 +63,74 @@ def callFrameEnterFunction : String :=
   "  ret"
 
 /-- `call_frame_set_call_env(a0 = child env base, a1 = parent env base,
-    a2 = to-word ptr, a3 = value-word ptr, a4 = is_static)`: set the child
-    frame's per-frame env call-context for CALL/STATICCALL (DELEGATECALL/CALLCODE
-    caller/value rules are .61.7). Writes the three 32-byte words:
-      child.ADDRESS  (env+0)  = `to`            (the call target / current_target)
-      child.CALLER   (env+64) = parent.ADDRESS  (msg.sender = the calling frame)
-      child.CALLVALUE (env+96) = is_static ? 0 : `value`
-    Offsets per the per-frame env layout (docs §3; ADDRESS@0 / CALLER@64 read by
-    EvmLogHandlers, CALLVALUE@96). Clobbers t0. -/
+    a2 = to-word ptr, a3 = value-word ptr, a4 = mode)`: set the child frame's
+    per-frame env call-context for one of the four message-call kinds. `a4` mode:
+    `0 = CALL`, `1 = STATICCALL`, `2 = CALLCODE`, `3 = DELEGATECALL` (modes 0/1
+    keep the exact prior `is_static` behavior, so the descend path and the
+    `zisk_call_frame_descend` probe are byte-identical). The three 32-byte words,
+    per execution-specs `vm/instructions/system.py` (the current_target / caller /
+    value roles):
+
+      mode          ADDRESS (env+0)   CALLER (env+64)    CALLVALUE (env+96)
+      0 CALL        to                parent.ADDRESS     value
+      1 STATICCALL  to                parent.ADDRESS     0
+      2 CALLCODE    parent.ADDRESS    parent.ADDRESS     value
+      3 DELEGATECALL parent.ADDRESS   parent.CALLER      parent.CALLVALUE
+
+    CALLCODE/DELEGATECALL run the `to` code in the CALLER's storage context, so
+    `current_target` (ADDRESS) stays the parent's; DELEGATECALL further inherits
+    the parent's msg.sender (CALLER) and value (CALLVALUE). The callee CODE comes
+    from `to` either way — that is the descent's code resolution, not this helper.
+    Offsets per the per-frame env layout (docs §3). Clobbers t0/t1. -/
 def callFrameSetCallEnvFunction : String :=
   "call_frame_set_call_env:\n" ++
-  -- ADDRESS = to (4 limbs)
+  -- ADDRESS (env+0): mode >= 2 (CALLCODE/DELEGATECALL) -> parent.ADDRESS, else to.
+  "  li t1, 2\n" ++
+  "  bgeu a4, t1, .Lcfsce_addr_self\n" ++
   "  ld t0, 0(a2); sd t0, 0(a0)\n" ++
   "  ld t0, 8(a2); sd t0, 8(a0)\n" ++
   "  ld t0, 16(a2); sd t0, 16(a0)\n" ++
   "  ld t0, 24(a2); sd t0, 24(a0)\n" ++
-  -- CALLER = parent.ADDRESS (parent env+0 -> child env+64)
-  "  ld t0, 0(a1); sd t0, 64(a0)\n" ++
-  "  ld t0, 8(a1); sd t0, 72(a0)\n" ++
+  "  j .Lcfsce_caller\n" ++
+  ".Lcfsce_addr_self:\n" ++
+  "  ld t0, 0(a1); sd t0, 0(a0)\n" ++
+  "  ld t0, 8(a1); sd t0, 8(a0)\n" ++
+  "  ld t0, 16(a1); sd t0, 16(a0)\n" ++
+  "  ld t0, 24(a1); sd t0, 24(a0)\n" ++
+  ".Lcfsce_caller:\n" ++
+  -- CALLER (env+64): mode == 3 (DELEGATECALL) -> parent.CALLER, else parent.ADDRESS.
+  "  li t1, 3\n" ++
+  "  beq a4, t1, .Lcfsce_caller_inherit\n" ++
+  "  ld t0, 0(a1);  sd t0, 64(a0)\n" ++
+  "  ld t0, 8(a1);  sd t0, 72(a0)\n" ++
   "  ld t0, 16(a1); sd t0, 80(a0)\n" ++
   "  ld t0, 24(a1); sd t0, 88(a0)\n" ++
-  -- CALLVALUE = is_static ? 0 : value
-  "  bnez a4, .Lcfsce_static\n" ++
-  "  ld t0, 0(a3); sd t0, 96(a0)\n" ++
-  "  ld t0, 8(a3); sd t0, 104(a0)\n" ++
+  "  j .Lcfsce_value\n" ++
+  ".Lcfsce_caller_inherit:\n" ++
+  "  ld t0, 64(a1); sd t0, 64(a0)\n" ++
+  "  ld t0, 72(a1); sd t0, 72(a0)\n" ++
+  "  ld t0, 80(a1); sd t0, 80(a0)\n" ++
+  "  ld t0, 88(a1); sd t0, 88(a0)\n" ++
+  ".Lcfsce_value:\n" ++
+  -- CALLVALUE (env+96): mode 1 (STATICCALL) -> 0; mode 3 (DELEGATECALL) ->
+  -- parent.CALLVALUE; else (CALL/CALLCODE) -> value.
+  "  li t1, 1\n" ++
+  "  beq a4, t1, .Lcfsce_value_zero\n" ++
+  "  li t1, 3\n" ++
+  "  beq a4, t1, .Lcfsce_value_inherit\n" ++
+  "  ld t0, 0(a3);  sd t0, 96(a0)\n" ++
+  "  ld t0, 8(a3);  sd t0, 104(a0)\n" ++
   "  ld t0, 16(a3); sd t0, 112(a0)\n" ++
   "  ld t0, 24(a3); sd t0, 120(a0)\n" ++
   "  ret\n" ++
-  ".Lcfsce_static:\n" ++
+  ".Lcfsce_value_zero:\n" ++
   "  sd zero, 96(a0); sd zero, 104(a0); sd zero, 112(a0); sd zero, 120(a0)\n" ++
+  "  ret\n" ++
+  ".Lcfsce_value_inherit:\n" ++
+  "  ld t0, 96(a1);  sd t0, 96(a0)\n" ++
+  "  ld t0, 104(a1); sd t0, 104(a0)\n" ++
+  "  ld t0, 112(a1); sd t0, 112(a0)\n" ++
+  "  ld t0, 120(a1); sd t0, 120(a0)\n" ++
   "  ret"
 
 /-- `call_frame_set_calldata(a0 = child env base, a1 = parent mem base,
@@ -244,7 +283,16 @@ def callFrameDescendFunction : String :=
   "  sd x0, 488(s9)                    # activeMemorySize = 0 (fresh child memory)\n" ++
   -- 9. child env.codeSize (env+496).
   "  ld t0, 72(s7); sd t0, 496(s9)\n" ++
-  -- 10. set the live dispatcher registers to the child frame (done last).
+  -- 10. frame-relative stack bounds: point the under/overflow guards at the
+  --     CHILD arena stack. cur_top = child stack top (s11 = base+0x18200);
+  --     cur_low = cur_top - 1024*32 (0x8000), the bottom of the child's arena.
+  "  la t0, evm_cur_stack_top\n" ++
+  "  sd s11, 0(t0)\n" ++
+  "  li t1, 0x8000\n" ++
+  "  sub t1, s11, t1                # child stack low = top - 1024*32\n" ++
+  "  la t0, evm_cur_stack_low\n" ++
+  "  sd t1, 0(t0)\n" ++
+  -- 11. set the live dispatcher registers to the child frame (done last).
   "  mv x13, s10                    # child memory base\n" ++
   "  mv x12, s11                    # child stack top\n" ++
   "  mv x20, s9                     # child env base\n" ++
@@ -365,7 +413,9 @@ def ziskCallDescendProbeUnit : BuildUnit := {
       +120 child env.callDataLen           (expect 0x20 = argsLen)
       +128 child env.gasRemaining          (expect 3300 = min(1000,98438)+2300)
       +136 child env.codeSize              (expect 0x33)
-      +144 child env witness.state ptr     (expect 0x592 marker, copied env+592) -/
+      +144 child env witness.state ptr     (expect 0x592 marker, copied env+592)
+      +152 evm_cur_stack_top - &arena      (expect 0x18200 = child frame stack top)
+      +160 evm_cur_stack_low - &arena      (expect 0x10200 = top - 1024*32) -/
 def ziskCallFrameDescendPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li s0, 0xa0010000\n" ++
@@ -422,6 +472,9 @@ def ziskCallFrameDescendPrologue : String :=
   "  ld t1, 8(t0); la t2, cfd2_pmem; sub t1, t1, t2; sd t1, 32(s0)\n" ++
   "  ld t1, 16(t0); sd t1, 40(s0)\n" ++
   "  ld t1, 24(t0); sd t1, 48(s0)\n" ++
+  -- frame-relative stack bounds set by the descend (child arena stack).
+  "  la t0, evm_cur_stack_top; ld t1, 0(t0); la t2, call_frame_arena; sub t1, t1, t2; sd t1, 152(s0)\n" ++
+  "  la t0, evm_cur_stack_low; ld t1, 0(t0); la t2, call_frame_arena; sub t1, t1, t2; sd t1, 160(s0)\n" ++
   "  j .Lcfd2_done\n" ++
   frameBaseFunction ++ "\n" ++
   frameDepthPushFunction ++ "\n" ++
@@ -446,6 +499,10 @@ def ziskCallFrameDescendDataSection : String :=
   ".balign 32\n" ++
   "frame_call_ctx:\n  .zero 32800\n" ++
   ".balign 8\n" ++
+  -- Frame-relative stack-bound cells (descend overwrites them; zeroed stubs here).
+  "evm_cur_stack_top:\n  .zero 8\n" ++
+  "evm_cur_stack_low:\n  .zero 8\n" ++
+  ".balign 8\n" ++
   "cfd2_desc:\n  .zero 96\n" ++
   ".balign 32\n" ++
   "cfd2_penv:\n  .zero 640\n" ++
@@ -459,6 +516,62 @@ def ziskCallFrameDescendProbeUnit : BuildUnit := {
   body        := NOP
   prologueAsm := ziskCallFrameDescendPrologue
   dataAsm     := ziskCallFrameDescendDataSection
+}
+
+/-- `zisk_set_call_env`: focused probe for `call_frame_set_call_env`'s four
+    message-call modes. Parent env markers ADDRESS@0=0xaa, CALLER@64=0xcc,
+    CALLVALUE@96=0xee; to-word=0xbb, value-word=0xdd. Runs the helper into four
+    distinct child env buffers (modes 0..3) and records the low limb of each
+    child's ADDRESS / CALLER / CALLVALUE so a script can assert the address roles.
+
+    Output (each u64, low limb):
+      +0/+8/+16   mode 0 CALL        ADDRESS/CALLER/CALLVALUE (expect 0xbb/0xaa/0xdd)
+      +24/+32/+40 mode 1 STATICCALL  (expect 0xbb/0xaa/0)
+      +48/+56/+64 mode 2 CALLCODE    (expect 0xaa/0xaa/0xdd)
+      +72/+80/+88 mode 3 DELEGATECALL(expect 0xaa/0xcc/0xee) -/
+def ziskSetCallEnvPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li s0, 0xa0010000\n" ++
+  -- parent env markers + to/value words.
+  "  la t0, sce_penv\n" ++
+  "  li t1, 0xaa; sd t1, 0(t0)\n" ++
+  "  li t1, 0xcc; sd t1, 64(t0)\n" ++
+  "  li t1, 0xee; sd t1, 96(t0)\n" ++
+  "  la t0, sce_to;  li t1, 0xbb; sd t1, 0(t0)\n" ++
+  "  la t0, sce_val; li t1, 0xdd; sd t1, 0(t0)\n" ++
+  -- run the helper for all four modes into distinct child env buffers.
+  "  la a0, sce_child0; la a1, sce_penv; la a2, sce_to; la a3, sce_val; li a4, 0\n" ++
+  "  jal ra, call_frame_set_call_env\n" ++
+  "  la a0, sce_child1; la a1, sce_penv; la a2, sce_to; la a3, sce_val; li a4, 1\n" ++
+  "  jal ra, call_frame_set_call_env\n" ++
+  "  la a0, sce_child2; la a1, sce_penv; la a2, sce_to; la a3, sce_val; li a4, 2\n" ++
+  "  jal ra, call_frame_set_call_env\n" ++
+  "  la a0, sce_child3; la a1, sce_penv; la a2, sce_to; la a3, sce_val; li a4, 3\n" ++
+  "  jal ra, call_frame_set_call_env\n" ++
+  -- read back the low limb of ADDRESS@0 / CALLER@64 / CALLVALUE@96 for each mode.
+  "  la t0, sce_child0; ld t1, 0(t0); sd t1, 0(s0); ld t1, 64(t0); sd t1, 8(s0); ld t1, 96(t0); sd t1, 16(s0)\n" ++
+  "  la t0, sce_child1; ld t1, 0(t0); sd t1, 24(s0); ld t1, 64(t0); sd t1, 32(s0); ld t1, 96(t0); sd t1, 40(s0)\n" ++
+  "  la t0, sce_child2; ld t1, 0(t0); sd t1, 48(s0); ld t1, 64(t0); sd t1, 56(s0); ld t1, 96(t0); sd t1, 64(s0)\n" ++
+  "  la t0, sce_child3; ld t1, 0(t0); sd t1, 72(s0); ld t1, 64(t0); sd t1, 80(s0); ld t1, 96(t0); sd t1, 88(s0)\n" ++
+  "  j .Lsce_done\n" ++
+  callFrameSetCallEnvFunction ++ "\n" ++
+  ".Lsce_done:"
+
+def ziskSetCallEnvDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "sce_penv:\n  .zero 128\n" ++
+  "sce_to:\n  .zero 32\n" ++
+  "sce_val:\n  .zero 32\n" ++
+  "sce_child0:\n  .zero 128\n" ++
+  "sce_child1:\n  .zero 128\n" ++
+  "sce_child2:\n  .zero 128\n" ++
+  "sce_child3:\n  .zero 128\n"
+
+def ziskSetCallEnvProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskSetCallEnvPrologue
+  dataAsm     := ziskSetCallEnvDataSection
 }
 
 end EvmAsm.Codegen
