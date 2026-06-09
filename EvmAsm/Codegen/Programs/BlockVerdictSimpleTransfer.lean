@@ -169,6 +169,14 @@ def blockVerdictSimpleTransferDataSection : String :=
   "tea_inner_off:\n  .zero 8\n" ++
   "tea_field_off:\n  .zero 8\n" ++
   "tea_field_len:\n  .zero 8\n" ++
+  -- g8zeq.1.4.2: tx_intrinsic_state_gas scratch (per-tx is_creation/type/auth parse).
+  "tis_to_buf:\n  .zero 32\n" ++
+  "tis_is_creation:\n  .zero 8\n" ++
+  "tis_type:\n  .zero 8\n" ++
+  "tis_inner_off:\n  .zero 8\n" ++
+  "tis_auth_off:\n  .zero 8\n" ++
+  "tis_auth_len:\n  .zero 8\n" ++
+  "tis_auth_count:\n  .zero 8\n" ++
   "tev_type:\n  .zero 8\n" ++
   "tev_inner_off:\n  .zero 8\n" ++
   "teds_type:\n  .zero 8\n" ++
