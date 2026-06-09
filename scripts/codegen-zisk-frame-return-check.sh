@@ -57,6 +57,8 @@ checks = [
     ('B success word (REVERT)',    0),
     ('B evm_call_depth',           1),
     ('B copied returndata byte',   0xab),
+    ('A cur_stack_top - &evm_stack_top',     0),
+    ('B cur_stack_top - &call_frame_arena',  0x18200),
 ]
 failed = False
 for i, (label, exp) in enumerate(checks):
