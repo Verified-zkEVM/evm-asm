@@ -51,21 +51,21 @@ def balStorageReadsInExecLogFunction : String :=
   -- storage_reads = AccountChanges item 2.
   "  mv a0, a1; mv a1, a2; li a2, 2; la a3, bsr_off; la a4, bsr_len\n" ++
   "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbsr_reject        # malformed AccountChanges (< 3 items) -> conservative\n" ++
+  "  bnez a0, .Lbsre_reject        # malformed AccountChanges (< 3 items) -> conservative\n" ++
   -- reads sublist ptr/len (off is relative to the AccountChanges ptr saved in s6).
   "  la t0, bsr_off; ld t0, 0(t0); add s3, s6, t0   # reads sublist ptr\n" ++
   "  la t0, bsr_len; ld s4, 0(t0)                   # reads sublist len\n" ++
   "  mv a0, s3; mv a1, s4; la a2, bsr_cnt\n" ++
   "  jal ra, rlp_list_count_items\n" ++
-  "  bnez a0, .Lbsr_reject\n" ++
+  "  bnez a0, .Lbsre_reject\n" ++
   "  la t0, bsr_cnt; ld t6, 0(t0)              # number of read keys\n" ++
   "  mv s5, zero                  # i\n" ++
-  ".Lbsr_loop:\n" ++
-  "  la t0, bsr_cnt; ld t6, 0(t0); beq s5, t6, .Lbsr_match\n" ++
+  ".Lbsre_loop:\n" ++
+  "  la t0, bsr_cnt; ld t6, 0(t0); beq s5, t6, .Lbsre_match\n" ++
   -- key i (a string item: minimal big-endian U256).
   "  mv a0, s3; mv a1, s4; mv a2, s5; la a3, bsr_koff; la a4, bsr_klen\n" ++
   "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbsr_reject\n" ++
+  "  bnez a0, .Lbsre_reject\n" ++
   -- Build the stack-word key in bsr_krev: zero 32 B, then for the klen content bytes
   -- (big-endian at s3+koff) write reversed into the low bytes (LE limbs).
   "  la t0, bsr_krev\n" ++
@@ -75,36 +75,36 @@ def balStorageReadsInExecLogFunction : String :=
   "  add t3, t1, t2; addi t3, t3, -1                   # last content byte (LSB)\n" ++
   "  mv t4, t0                                          # dst = bsr_krev (low byte first)\n" ++
   "  mv t5, t2\n" ++
-  ".Lbsr_rev:\n" ++
-  "  beqz t5, .Lbsr_revd\n  lbu a5, 0(t3); sb a5, 0(t4); addi t3, t3, -1; addi t4, t4, 1; addi t5, t5, -1; j .Lbsr_rev\n" ++
-  ".Lbsr_revd:\n" ++
+  ".Lbsre_rev:\n" ++
+  "  beqz t5, .Lbsre_revd\n  lbu a5, 0(t3); sb a5, 0(t4); addi t3, t3, -1; addi t4, t4, 1; addi t5, t5, -1; j .Lbsre_rev\n" ++
+  ".Lbsre_revd:\n" ++
   -- Scan the exec log for (addrHash == s0, slotKey == bsr_krev).
   "  mv t2, s2\n" ++
-  "  beqz t2, .Lbsr_reject        # empty log but a read claimed\n" ++
+  "  beqz t2, .Lbsre_reject        # empty log but a read claimed\n" ++
   "  slli t3, t2, 7; add t3, s1, t3      # past last entry\n" ++
   "  la t6, bsr_krev\n" ++
-  ".Lbsr_scan:\n" ++
+  ".Lbsre_scan:\n" ++
   "  addi t3, t3, -128            # entry ptr\n" ++
-  "  ld t4, 0(t3);  ld t5, 0(s0);  bne t4, t5, .Lbsr_next\n" ++
-  "  ld t4, 8(t3);  ld t5, 8(s0);  bne t4, t5, .Lbsr_next\n" ++
-  "  ld t4, 16(t3); ld t5, 16(s0); bne t4, t5, .Lbsr_next\n" ++
-  "  ld t4, 24(t3); ld t5, 24(s0); bne t4, t5, .Lbsr_next\n" ++
-  "  ld t4, 32(t3); ld t5, 0(t6);  bne t4, t5, .Lbsr_next\n" ++
-  "  ld t4, 40(t3); ld t5, 8(t6);  bne t4, t5, .Lbsr_next\n" ++
-  "  ld t4, 48(t3); ld t5, 16(t6); bne t4, t5, .Lbsr_next\n" ++
-  "  ld t4, 56(t3); ld t5, 24(t6); bne t4, t5, .Lbsr_next\n" ++
-  "  j .Lbsr_advance              # this read slot was accessed -> next read\n" ++
-  ".Lbsr_next:\n" ++
-  "  mv t4, s1; bne t3, t4, .Lbsr_scan   # not yet at the first entry -> keep scanning\n" ++
-  "  j .Lbsr_reject               # scanned whole log, slot never accessed\n" ++
-  ".Lbsr_advance:\n" ++
-  "  addi s5, s5, 1; j .Lbsr_loop\n" ++
-  ".Lbsr_match:\n" ++
+  "  ld t4, 0(t3);  ld t5, 0(s0);  bne t4, t5, .Lbsre_next\n" ++
+  "  ld t4, 8(t3);  ld t5, 8(s0);  bne t4, t5, .Lbsre_next\n" ++
+  "  ld t4, 16(t3); ld t5, 16(s0); bne t4, t5, .Lbsre_next\n" ++
+  "  ld t4, 24(t3); ld t5, 24(s0); bne t4, t5, .Lbsre_next\n" ++
+  "  ld t4, 32(t3); ld t5, 0(t6);  bne t4, t5, .Lbsre_next\n" ++
+  "  ld t4, 40(t3); ld t5, 8(t6);  bne t4, t5, .Lbsre_next\n" ++
+  "  ld t4, 48(t3); ld t5, 16(t6); bne t4, t5, .Lbsre_next\n" ++
+  "  ld t4, 56(t3); ld t5, 24(t6); bne t4, t5, .Lbsre_next\n" ++
+  "  j .Lbsre_advance              # this read slot was accessed -> next read\n" ++
+  ".Lbsre_next:\n" ++
+  "  mv t4, s1; bne t3, t4, .Lbsre_scan   # not yet at the first entry -> keep scanning\n" ++
+  "  j .Lbsre_reject               # scanned whole log, slot never accessed\n" ++
+  ".Lbsre_advance:\n" ++
+  "  addi s5, s5, 1; j .Lbsre_loop\n" ++
+  ".Lbsre_match:\n" ++
   "  li a0, 0\n" ++
-  "  j .Lbsr_ret\n" ++
-  ".Lbsr_reject:\n" ++
+  "  j .Lbsre_ret\n" ++
+  ".Lbsre_reject:\n" ++
   "  li a0, 1\n" ++
-  ".Lbsr_ret:\n" ++
+  ".Lbsre_ret:\n" ++
   "  ld ra, 0(sp)\n" ++
   "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
   "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
