@@ -2350,8 +2350,9 @@ def emitRuntimeDispatcherDataSectionCore
   -- the running per-tx EIP-3529 refund counter (signed i64): the SSTORE handler adds each
   -- SSTORE's refund delta (from sstore_gas_refund_outcome) on append; reset to 0 at
   -- dispatcher setup. srfd_zero is the zero original/current buffer for a missing slot;
-  -- srfd_out is the helper's output. NOT yet surfaced (bv_runtime_refund_counter stays 0)
-  -- — additive/unconsumed until the balance compare consumes it (next slice).
+  -- srfd_out is the helper's output. Surfaced into the block-verdict runtime refund
+  -- counter (bv_runtime_refund_counter / bv_mtx_refund), making the per-tx receipt-gas
+  -- increment (receipt_inc) exact; the EIP-7778 block-gas gate stays refund-independent.
   ".balign 8\n" ++
   "evm_refund_acc:\n" ++
   "  .zero 8\n" ++
@@ -2535,9 +2536,10 @@ def buildRuntimeDispatchCallableProbeUnit
       * `gas_left`             := `env.gasRemaining` (env+568)
       * `calldata_floor_gas_cost` := `runtime_tx_calldata_floor` (persisted by
         the validate-tx-gas path; 0 when validation was not requested)
-      * `refund_counter`       := 0 — the runtime dispatcher does not yet
-        accumulate an EVM refund counter, so this stays a conservative 0
-        until a later child wires SSTORE/SELFDESTRUCT refunds into `env`.
+      * `refund_counter`       := `evm_refund_acc` — the dispatcher's EIP-3529
+        SSTORE refund accumulator (reset per dispatch, signed-accumulated in the
+        SSTORE handler). SELFDESTRUCT refunds were removed in EIP-3529, so SSTORE
+        is the only accumulation source on Amsterdam.
       * `halt_kind`            := `OUTPUT+32` (0 STOP/RETURN, 2 REVERT, …),
         captured separately so exceptional halts stay distinguishable from a
         normal STOP/RETURN.
@@ -2566,7 +2568,7 @@ def buildRuntimeDispatchGasCaptureProbeUnit
     "  ld t5, 0(t4)               # EIP-7623 calldata floor\n" ++
     "  la t4, rdg_calldata_floor\n" ++
     "  sd t5, 0(t4)\n" ++
-    "  li t6, 0                   # refund_counter (not yet tracked at runtime)\n" ++
+    "  la t6, evm_refund_acc; ld t6, 0(t6)   # refund_counter (EIP-3529 SSTORE refund accumulator)\n" ++
     "  la t4, rdg_refund_counter\n" ++
     "  sd t6, 0(t4)\n" ++
     "  li t0, 0xa0010000\n" ++
