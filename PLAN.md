@@ -1418,6 +1418,33 @@ through ECALL bridges (extending `EvmAsm/EL/Keccak*EcallBridge.lean`).
   every non-empty-header witness) and 0 full-output matches (it emits the
   pre-v0.4.0 empty-`active_fork` encoding). PR7+ guest completeness moves
   this baseline up; see PROGRESS.md Axis F.
+- ✅ **BAL execution-vs-witness consistency + per-tx tuple soundness (beads `bmvmx.1.6.*`,
+  `i3djw`; 2026-06)**: the stateless verdict re-derives the EIP-7928 `block_access_list`
+  FROM execution and rejects a witness BAL that disagrees, instead of trusting it (the guest
+  otherwise only pins `keccak(prover_BAL) == header.block_access_list_hash`, a consistency
+  check, so every execution-derived equality is a non-redundant soundness guard).
+  - **Storage finals**: per-account forward/reverse `bal_storage_matches_exec_log` /
+    `bal_storage_covers_exec_log` / `bal_storage_reads_in_exec_log` over the append-per-write
+    storage exec-log, wrapped all-accounts by `bal_all_accounts_storage_consistent` (callee key
+    via `bal_addr_to_exec_log_key`, recipient checked in `block_verdict`).
+  - **Non-storage** (balance/nonce/code, `i3djw`): per-account `bal_account_nonstorage_finals`
+    → `bal_account_nonstorage_consistent` (balance+nonce forward+reverse) +
+    `bal_account_code_consistent` (deployed-code bytes); wrapped all-accounts forward
+    `bal_all_accounts_nonstorage_consistent` + reverse `…_covers`, and code forward
+    `bal_all_accounts_code_consistent` + reverse `…_code_covers`. These scope to CALLEES via a
+    `{sender, recipient, coinbase}` skip-list — the gas/value accounts are checked on the gas
+    path (`sender_debit_from_gas`, `tx_gas_bal_post_verify_runtime`, sender-nonce).
+  - **Per-tx tuple sequence** (`bmvmx.1.6.6`, the consensus-binding layer the spec hashes into
+    `header.block_access_list_hash`; closes the finals-only false-accept gap): the exec-log
+    carries a parallel `exec_log_txindex` array; `bal_slot_tuple_sequence` (BAL side) +
+    `exec_log_slot_tuples` (exec side: group-by-txindex, last-write-per-tx, net-zero filtered) +
+    `slot_tuple_sequences_match`, composed per-account (`account_tuple_sequences_consistent`)
+    and all-accounts (`bal_all_accounts_tuple_sequences_consistent`).
+  - Each ships a ziskemu probe cross-checked against `execution-specs` amsterdam
+    `block_access_lists.py` / `fork.py`. **Wiring** of the non-storage/code/tuple checks into
+    `block_verdict` lands as execution emits the per-account effect records + the per-tx
+    `block_access_index` (multi-tx loop, `fhsxz.2.4.2.57.11.6.3`) + CREATE/SELFDESTRUCT code
+    effects; the storage tuple check can wire immediately on the existing exec-log + txindex.
 
 ### Cross-references
 
