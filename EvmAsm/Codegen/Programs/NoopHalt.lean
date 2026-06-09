@@ -60,6 +60,20 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
       "  bnez a0, .Lrr_crinv_" ++ toString kind ++ "\n" ++
       "  la a0, create_address_be\n  add a1, x13, x14\n  mv a2, x15\n" ++
       "  jal ra, create_record_code_effect\n" ++
+      -- i3djw.2: record the created account's NON-STORAGE effect (pre absent 0/0; post
+      -- nonce=1, balance=endowment). endowment = child env.CALLVALUE (x20+96), which
+      -- call_frame_set_call_env stored as the LE stack value word, so reverse it to BE
+      -- (read x20+127 down to x20+96) for the BE effect-log convention (matching i3djw.1).
+      -- x20 = child env here (before frame_return restores the parent). a0/a2/a3 alias
+      -- x10/x12/x13 -> saved/restored around record_nonstorage_effect. INERT until i3djw.3
+      -- wires the comparator (and CREATE is self-contained-rejected until .8c-3).
+      "  la t0, nse_create_post_bal\n  addi t1, x20, 127\n  li t2, 32\n" ++
+      ".Lrr_crendow_" ++ toString kind ++ ":\n" ++
+      "  lbu t3, 0(t1)\n  sb t3, 0(t0)\n  addi t1, t1, -1\n  addi t0, t0, 1\n  addi t2, t2, -1\n  bnez t2, .Lrr_crendow_" ++ toString kind ++ "\n" ++
+      "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
+      "  la a0, create_address_be\n  la a1, nse_zero_bal\n  la a2, nse_create_post_bal\n  li a3, 0\n  li a4, 1\n" ++
+      "  jal ra, record_nonstorage_effect\n" ++
+      "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
       "  li a0, 0\n  li a1, 0\n  li a2, 0\n" ++
       "  jal ra, frame_return\n" ++
       "  la t1, create_address_be\n  addi t1, t1, 19\n  mv t2, x12\n  li t3, 20\n" ++
