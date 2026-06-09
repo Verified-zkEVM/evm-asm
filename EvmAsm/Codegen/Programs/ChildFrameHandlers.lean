@@ -1,8 +1,24 @@
 /-
-  EvmAsm.Codegen.Programs.NoopChildFrame
+  EvmAsm.Codegen.Programs.ChildFrameHandlers
 
-  CREATE/CALL-family child-frame handler builders split out of Noop.lean
-  to keep the generic no-op/halt handler module below the file-size cap.
+  The CALL-family + CREATE-family + precompile child-frame handler module
+  (the 6 child-frame opcodes: CREATE, CALL, CALLCODE, DELEGATECALL, CREATE2,
+  STATICCALL). `childFrameHandlers` builds their `OpcodeHandlerSpec`s.
+
+  The live descent that the SHIPPED guest registry (`callFrameGuestRegistry`)
+  runs is `callDescendFallThrough` — the real CALL/CALLCODE/DELEGATECALL/
+  STATICCALL sub-frame entry (depth gate, caller-balance gate, callee code
+  resolution via `code_at_header_state_root`, `cd_desc` build + `jal
+  call_frame_descend` frame switch). `callPushZeroFallThrough` is the legacy
+  push-zero no-op fall-through, now used ONLY by the standalone dispatch probes
+  (`tinyInterpRegistry` / `callFrameProbeRegistry`), NOT the verdict.
+  CREATE/CREATE2 decode operands inline and run the bounded init-code
+  mini-interpreter (see `createUnsupportedTail`); the active precompile
+  addresses (0x01..0x05, BLS12-381 G1/G2/pairing/map) have real call tails.
+
+  (Formerly `NoopChildFrame.lean` — renamed because these handlers are no
+  longer no-ops. Originally split out of Noop.lean to stay under the
+  file-size cap.)
 -/
 
 import EvmAsm.Codegen.Dispatch
@@ -19,10 +35,13 @@ open EvmAsm.Rv64
 
 
 /-- M19 child-frame opcodes (CREATE, CALL, CALLCODE, DELEGATECALL,
-    CREATE2, STATICCALL). CALL-family non-precompile paths still ship as
-    **pop-N + push-zero** no-ops. CREATE-family paths decode operands and
-    derive the target address, while later slices still own collision checks,
-    child execution, and code-deposit descriptors.
+    CREATE2, STATICCALL). Non-precompile CALL/CALLCODE/DELEGATECALL/STATICCALL
+    route through the live descent (`callDescendFallThrough`): depth +
+    caller-balance gates, callee code resolution, and a `call_frame_descend`
+    sub-frame switch. CREATE-family paths decode operands, derive the target
+    address, and run the bounded init-code mini-interpreter
+    (`createUnsupportedTail`); later slices still own the per-address code
+    deposit (.8b) and self-contained-gate activation (.8c).
 
     Net stack delta per opcode (= pop − push, multiplied by 32):
 
@@ -38,8 +57,8 @@ open EvmAsm.Rv64
       pushes 1 (addr). Net = +96 (= 3 × 32).
 
     EVM stack-arg ordering: `μ_s[0]` (top) is `gas`/`value` per the
-    Yellow Paper; for our no-op the ordering doesn't matter because
-    we drop everything.
+    Yellow Paper; the descent and the CREATE operand decode read the args
+    at these fixed offsets from x12 (the parent stack top).
 
     **M27 update**: CALL / STATICCALL now recognize target
     addresses 0x01..0x05 as the basic precompile frame surface.
@@ -75,17 +94,16 @@ open EvmAsm.Rv64
     precompile_absence fixtures do not stop at the dispatcher surface.
 
     **Known limitations** (documented in CODEGEN.md M19 narrative):
-    - Non-precompile CALL / CALLCODE / DELEGATECALL / STATICCALL
-      still return 0 (= "call failed"). No actual sub-frame
-      execution.
     - ECRECOVER / RIPEMD160 CALL / STATICCALL targets currently
       return success without producing returndata.
-    - CREATE / CREATE2 derive the would-be target address and reject
-      code-or-nonce collisions when account-witness context is attached,
-      but the would-be deployed code is not executed or deposited yet.
-    - No frame stack / recursion. The dispatcher doesn't push a
-      sub-frame, run called code, and resume. Real frame-stack
-      design is deferred (likely tied to STF integration). -/
+    - CREATE / CREATE2 derive the target address, reject code-or-nonce
+      collisions when account-witness context is attached, and run the
+      bounded init-code mini-interpreter, but the deployed code is not yet
+      deposited/recorded per-address (.8b) nor activated in the
+      self-contained gate (.8c).
+    - `callPushZeroFallThrough` (the legacy push-zero no-op) is now the
+      fall-through for the standalone dispatch probes only; the shipped
+      guest descent is `callDescendFallThrough`. -/
 def childFrameHandlers
     (callFallThrough callcodeFallThrough delegateFallThrough staticFallThrough : String) :
     List OpcodeHandlerSpec :=
