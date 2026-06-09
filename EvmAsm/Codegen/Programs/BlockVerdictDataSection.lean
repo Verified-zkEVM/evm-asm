@@ -813,6 +813,10 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- which the sender compare runs through before the coinbase compare).
   ".balign 8\n" ++
   "bmvmx_sender_addr:\n  .zero 20\n" ++
+  -- 3vc2p.1: scratch for the derived tx.sender staged into env CALLER/ORIGIN by
+  -- stage_runtime_payload_code (contract-recipient path).
+  ".balign 8\n" ++
+  "srpc_sender_addr:\n  .zero 20\n" ++
   ".balign 8\n" ++
   "bmvmx_sender_match:\n  .zero 8\n" ++
   -- bmvmx.1.4.3.1: envelope predicate scratch. bmvmx_sender_checked / bmvmx_coinbase_checked
