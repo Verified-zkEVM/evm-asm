@@ -48,7 +48,10 @@ open EvmAsm.Rv64
     Writes the parent stack: `success` (a0) at the post-pop stack top. For
     RETURN/REVERT, `a1`/`a2` describe the child's returndata so up to `outsize`
     bytes are copied into the caller's output memory window (`outoff_abs` from the
-    saved call-context); pass `a1 = a2 = 0` for STOP / exceptional halts.
+    saved call-context); pass `a1 = a2 = 0` for STOP / exceptional halts. The full
+    returndata (capped at the 256-byte frame) is ALSO staged into
+    `evm_precompile_frame` (size@+8, data@+16) so the parent's
+    RETURNDATASIZE/RETURNDATACOPY observe this sub-call's return.
 
     On return the live dispatcher registers are repointed to the parent frame:
       x10 = parent PC + 1 (past the CALL), x21 = parent code base,
@@ -90,6 +93,32 @@ def frameReturnFunction : String :=
   "  addi t2, t2, -1\n" ++
   "  bnez t2, 2b\n" ++
   "3:\n" ++
+  -- Stage the child's returndata into `evm_precompile_frame` so the parent's
+  -- RETURNDATASIZE(0x3d)/RETURNDATACOPY(0x3e) see the LAST sub-call's return
+  -- (NoopReturnData reads size@+8, data@+16, cap 256). This is independent of the
+  -- output-window copy above (which is bounded by the CALL's `outsize`): the
+  -- returndata buffer holds the FULL child return capped at the 256-byte frame.
+  -- `+8` keeps the TRUE retlen (so RETURNDATASIZE is exact); `+16` gets
+  -- min(retlen,256) bytes. STOP / exceptional (s1=s2=0) -> size 0, no copy. Runs
+  -- before x13 is repointed, so s1 still points into the (live) child memory.
+  "  la t0, evm_precompile_frame\n" ++
+  "  sd s2, 8(t0)                   # returndata size = retlen (true)\n" ++
+  "  mv t2, s2                      # n = retlen\n" ++
+  "  li t1, 256\n" ++
+  "  bgeu t1, t2, 7f                # if 256 >= retlen keep retlen\n" ++
+  "  mv t2, t1                      # else n = 256 (buffer cap)\n" ++
+  "7:\n" ++
+  "  beqz t2, 9f                    # nothing to copy\n" ++
+  "  mv t3, s1                      # src = child returndata\n" ++
+  "  addi t4, t0, 16                # dst = evm_precompile_frame + 16\n" ++
+  "8:\n" ++
+  "  lbu t1, 0(t3)\n" ++
+  "  sb t1, 0(t4)\n" ++
+  "  addi t3, t3, 1\n" ++
+  "  addi t4, t4, 1\n" ++
+  "  addi t2, t2, -1\n" ++
+  "  bnez t2, 8b\n" ++
+  "9:\n" ++
   -- Pop the depth: child d -> parent d-1.
   "  la t0, evm_call_depth\n" ++
   "  ld t1, 0(t0)\n" ++
@@ -161,7 +190,11 @@ def frameReturnFunction : String :=
       +96 first copied returndata byte at outoff_abs (expect 0xab)
     Frame-relative stack-bound restores:
       +104 evm_cur_stack_top - &evm_stack_top   (scenario A, expect 0)
-      +112 evm_cur_stack_top - &call_frame_arena (scenario B, expect 0x18200) -/
+      +112 evm_cur_stack_top - &call_frame_arena (scenario B, expect 0x18200)
+    Returndata staging into evm_precompile_frame:
+      +120 precompile_frame size after scenario A (STOP, expect 0)
+      +128 precompile_frame size after scenario B (expect 4 = retlen)
+      +136 precompile_frame data[0] after scenario B (expect 0xab) -/
 def ziskFrameReturnPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li s0, 0xa0010000\n" ++
@@ -186,6 +219,8 @@ def ziskFrameReturnPrologue : String :=
   "  la t0, evm_call_depth; ld t1, 0(t0); sd t1, 48(s0)  # expect 0\n" ++
   -- frame-relative stack bounds restored to the depth-0 global arena (cur_top == &evm_stack_top).
   "  la t0, evm_cur_stack_top; ld t1, 0(t0); la t2, evm_stack_top; sub t1, t1, t2; sd t1, 104(s0)  # expect 0\n" ++
+  -- returndata staging: STOP carried no returndata -> precompile_frame size 0.
+  "  la t0, evm_precompile_frame; ld t1, 8(t0); sd t1, 120(s0)  # expect 0\n" ++
   -- ---- Scenario B: depth 2 -> 1, REVERT-style with a returndata byte ----
   "  la t0, evm_call_depth; li t1, 2; sd t1, 0(t0)\n" ++
   -- frame_save_area[1] = (pc=0x300, cb=0x444)
@@ -208,6 +243,9 @@ def ziskFrameReturnPrologue : String :=
   "  la t0, fr_out; lbu t1, 0(t0); sd t1, 96(s0)               # expect 0xab\n" ++
   -- frame-relative stack bounds restored to the parent frame[1] arena stack.
   "  la t0, evm_cur_stack_top; ld t1, 0(t0); la t2, call_frame_arena; sub t1, t1, t2; sd t1, 112(s0)  # expect 0x18200\n" ++
+  -- returndata staging: retlen 4 -> precompile_frame size 4; first byte 0xab @ +16.
+  "  la t0, evm_precompile_frame; ld t1, 8(t0); sd t1, 128(s0)    # expect 4\n" ++
+  "  la t0, evm_precompile_frame; lbu t1, 16(t0); sd t1, 136(s0)  # expect 0xab\n" ++
   "  j .Lfr_done\n" ++
   frameReturnFunction ++ "\n" ++
   ".Lfr_done:"
@@ -234,6 +272,9 @@ def ziskFrameReturnDataSection : String :=
   "evm_stack_low:\n  .zero 8\n" ++
   "evm_cur_stack_top:\n  .zero 8\n" ++
   "evm_cur_stack_low:\n  .zero 8\n" ++
+  -- Returndata staging target (frame_return writes size@+8, data@+16, cap 256).
+  ".balign 8\n" ++
+  "evm_precompile_frame:\n  .zero 1280\n" ++
   "fr_pstack:\n  .zero 256\n" ++
   "fr_pstack2:\n  .zero 256\n" ++
   "fr_out:\n  .zero 64\n" ++
