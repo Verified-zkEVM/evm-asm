@@ -86,6 +86,14 @@ def stopHandlerCF : OpcodeHandlerSpec :=
       "  jal ra, frame_return\n" ++
       "  j .dispatch_loop") }
 
+/-- Registry for the call-frame round-trip probe: depth-aware STOP (so a child
+    frame returns to its parent) but the push-0 CALL fall-through, so the emitted
+    CALL handler does NOT pull in the `code_at_header_state_root` dependency tree.
+    The probe descends manually via `call_frame_descend` with a fixed child-code
+    blob, so it never needs the CALL-handler code resolution. -/
+def callFrameProbeRegistry : List OpcodeHandlerSpec :=
+  tinyInterpRegistry.dropLast ++ [stopHandlerCF]
+
 /-- The dispatch registry used by the stateless guest's embedded EVM dispatcher.
     Identical to `tinyInterpRegistry` except STOP is depth-aware (`stopHandlerCF`),
     so child frames return to the parent instead of halting. Same opcodes/labels as
