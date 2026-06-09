@@ -262,6 +262,24 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  add a5, t3, t5; lbu a6, 0(a5); add a5, t4, t5; sb a6, 0(a5); addi t5, t5, 1; j .Ldtrc_origin\n" ++
   ".Ldtrc_origin_d:\n" ++
   ".Ldtrc_no_sender:\n" ++
+  -- 3vc2p.2: GASPRICE (word 5 -> env_base+160) = effective_gas_price. Computed via
+  -- tx_effective_gas_pricing(a0=tx ptr, a1=tx len, a2=base_fee ptr -> a3=egp 32B BE,
+  -- a4=prio) from the context (ctx+8 tx ptr / ctx+16 tx len / ctx+32 base_fee ptr), then
+  -- copied verbatim into the gasPrice env word — mirroring the CALLVALUE staging
+  -- (ctx+96 value, also 32B BE, copied direct), the already-active u256 env word, so the
+  -- byte order matches a word GASPRICE pushes. INERT until 3vc2p.4 (self-contained
+  -- recipients don't read GASPRICE). Conservative: a pricing failure leaves gasPrice 0.
+  "  ld a0, 8(s2); ld a1, 16(s2); ld a2, 32(s2)\n" ++
+  "  la a3, gp_egp; la a4, gp_prio\n" ++
+  "  jal ra, tx_effective_gas_pricing\n" ++
+  "  bnez a0, .Ldtrc_no_gasprice\n" ++
+  "  la t0, bv_runtime_payload; ld t1, 0(t0)\n" ++           -- codelen
+  "  addi t1, t1, 7; andi t1, t1, -8; addi t1, t1, 80\n" ++  -- env_base offset = round8(codelen)+80
+  "  add t2, t0, t1; addi t2, t2, 160\n" ++                  -- t2 = &gasPrice word (env_base+160)
+  "  la t3, gp_egp\n" ++
+  "  ld t4, 0(t3); sd t4, 0(t2); ld t4, 8(t3); sd t4, 8(t2)\n" ++
+  "  ld t4, 16(t3); sd t4, 16(t2); ld t4, 24(t3); sd t4, 24(t2)\n" ++
+  ".Ldtrc_no_gasprice:\n" ++
   -- bmvmx.1.6.4.2.b: seed every non-recipient BAL account's storage into the exec log
   -- so nested callees SLOAD witness values (not 0). Fills callee_seed_table/count, which
   -- the callable dispatcher's seed loop drains during runtime_dispatcher_call's setup.

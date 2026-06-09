@@ -817,6 +817,10 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- stage_runtime_payload_code (contract-recipient path).
   ".balign 8\n" ++
   "srpc_sender_addr:\n  .zero 20\n" ++
+  -- 3vc2p.2: effective_gas_price + priority-fee scratch for the env.gasPrice staging.
+  ".balign 8\n" ++
+  "gp_egp:\n  .zero 32\n" ++
+  "gp_prio:\n  .zero 32\n" ++
   ".balign 8\n" ++
   "bmvmx_sender_match:\n  .zero 8\n" ++
   -- bmvmx.1.4.3.1: envelope predicate scratch. bmvmx_sender_checked / bmvmx_coinbase_checked
