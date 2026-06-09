@@ -2211,7 +2211,13 @@ def emitRuntimeDispatcherEmbeddedHelperData : String :=
   -- and consumed by `frame_return` (1025 entries × 32 B). Indexed by child depth.
   ".balign 32\n" ++
   "frame_call_ctx:\n" ++
-  "  .zero 32800\n"
+  "  .zero 32800\n" ++
+  -- Call descriptor + zero value word filled by the CALL descent
+  -- (`callDescendFallThrough`) and consumed by `call_frame_descend`.
+  ".balign 8\n" ++
+  "cd_desc:\n  .zero 96\n" ++
+  ".balign 32\n" ++
+  "cd_zero_word:\n  .zero 32\n"
 
 /-- Runtime-bytecode `.data` section. Drops the `evm_code:` block
     (no baked bytecode); everything else matches the `.data`-baked
