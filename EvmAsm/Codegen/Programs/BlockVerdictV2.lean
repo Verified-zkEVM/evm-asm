@@ -23,6 +23,9 @@ import EvmAsm.Codegen.Programs.BalStorageMatchesExecLog
 import EvmAsm.Codegen.Programs.BalStorageCoversExecLog
 import EvmAsm.Codegen.Programs.BalAllAccountsStorage
 import EvmAsm.Codegen.Programs.BalAllAccountsCodeCovers
+import EvmAsm.Codegen.Programs.BalAllAccountsNonstorage
+import EvmAsm.Codegen.Programs.BalAccountNonstorageConsistent
+import EvmAsm.Codegen.Programs.BalAccountNonstorageFinals
 import EvmAsm.Codegen.Programs.BalStorageReadsExecLog
 import EvmAsm.Codegen.Programs.ExecLogLatestValue
 import EvmAsm.Codegen.Programs.BlockVerdictTxsIndependent
@@ -72,6 +75,9 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
   balAllAccountsTupleSequencesConsistentFunction ++ "\n" ++   -- bmvmx.1.6.6: per-slot tuple-sequence all-accounts
   balStorageReadsInExecLogFunction ++ "\n" ++   -- bmvmx.1.6.7: storage_reads exec consistency
   balAllAccountsCodeCoversFunction ++ "\n" ++   -- i3djw: all-accounts CODE reverse (hidden created/destroyed account)
+  balAllAccountsNonstorageConsistentFunction ++ "\n" ++   -- i3djw.3: all-accounts NON-STORAGE forward (balance/nonce)
+  balAccountNonstorageConsistentFunction ++ "\n" ++   -- i3djw.3 dep: per-account non-storage compare
+  balAccountNonstorageFinalsFunction ++ "\n" ++   -- i3djw.3 dep: BAL account balance/nonce finals
     -- .6.2.2.2.a: multi-tx dispatch helpers (independence guard + per-index tx
     -- context extractor) wired ahead of the gated multi-tx loop (.6.2.2.2.b).
     btiScanTuplesFunction ++ "\n" ++
@@ -275,6 +281,9 @@ def statelessVerdictV2GuestClosure : String :=
   balAllAccountsTupleSequencesConsistentFunction ++ "\n" ++   -- bmvmx.1.6.6: per-slot tuple-sequence all-accounts
   balStorageReadsInExecLogFunction ++ "\n" ++   -- bmvmx.1.6.7: storage_reads exec consistency
   balAllAccountsCodeCoversFunction ++ "\n" ++   -- i3djw: all-accounts CODE reverse (hidden created/destroyed account)
+  balAllAccountsNonstorageConsistentFunction ++ "\n" ++   -- i3djw.3: all-accounts NON-STORAGE forward (balance/nonce)
+  balAccountNonstorageConsistentFunction ++ "\n" ++   -- i3djw.3 dep: per-account non-storage compare
+  balAccountNonstorageFinalsFunction ++ "\n" ++   -- i3djw.3 dep: BAL account balance/nonce finals
   -- .6.2.2.2.a: multi-tx dispatch helpers — bal_txs_independent (independence
   -- guard) + its bti_scan_* walkers, and multi_tx_nth_context (per-index tx
   -- context extractor) — wired ahead of the gated multi-tx loop (.6.2.2.2.b).

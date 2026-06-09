@@ -821,6 +821,26 @@ def ziskStatelessVerdictV2DataSection : String :=
   ".balign 8\n" ++
   "gp_egp:\n  .zero 32\n" ++
   "gp_prio:\n  .zero 32\n" ++
+  -- i3djw.3: skip-list for the all-accounts non-storage comparator (3 x 32B-strided
+  -- {recipient, sender, coinbase} addresses, gas/value-coupled, pinned on the gas path).
+  ".balign 8\n" ++
+  "i3djw_skip_list:\n  .zero 96\n" ++
+  -- i3djw.3: scratch for bal_all_accounts_nonstorage_consistent + its per-account deps
+  -- (bal_account_nonstorage_consistent / _finals). rfu_* is already linked (other rlp users).
+  ".balign 8\n" ++
+  "c3ns_acct_count:\n  .zero 8\n" ++
+  "c3ns_acct_off:\n  .zero 8\n" ++
+  "c3ns_acct_len:\n  .zero 8\n" ++
+  "c3ns_addr_off:\n  .zero 8\n" ++
+  "c3ns_addr_len:\n  .zero 8\n" ++
+  "c2nsc_finals:\n  .zero 88\n" ++
+  "c2nsf_off:\n  .zero 8\n" ++
+  "c2nsf_len:\n  .zero 8\n" ++
+  "c2nsf_cnt:\n  .zero 8\n" ++
+  "c2nsf_toff:\n  .zero 8\n" ++
+  "c2nsf_tlen:\n  .zero 8\n" ++
+  "c2nsf_coff:\n  .zero 8\n" ++
+  "c2nsf_clen:\n  .zero 8\n" ++
   ".balign 8\n" ++
   "bmvmx_sender_match:\n  .zero 8\n" ++
   -- bmvmx.1.4.3.1: envelope predicate scratch. bmvmx_sender_checked / bmvmx_coinbase_checked
