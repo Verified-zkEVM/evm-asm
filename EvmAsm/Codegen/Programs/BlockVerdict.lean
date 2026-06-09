@@ -51,6 +51,11 @@ import EvmAsm.Codegen.Programs.TxGasBalPostVerify
 import EvmAsm.Codegen.Programs.SenderBalanceDebit
 import EvmAsm.Codegen.Programs.TxGasBalPostVerifyRuntime
 import EvmAsm.Codegen.Programs.SenderPostNonceConsistent
+import EvmAsm.Codegen.Programs.BalSlotTupleSequence
+import EvmAsm.Codegen.Programs.ExecLogSlotTuples
+import EvmAsm.Codegen.Programs.SlotTupleSequencesMatch
+import EvmAsm.Codegen.Programs.AccountTupleSequencesConsistent
+import EvmAsm.Codegen.Programs.BalAllAccountsTupleSequences
 import EvmAsm.Codegen.Programs.SimpleTransferRecipient
 import EvmAsm.Codegen.Programs.SimpleTransferFeeRecipient
 import EvmAsm.Codegen.Programs.BlockVerdictSysChange
@@ -909,6 +914,20 @@ def blockVerdictFunction : String :=
   "  la a4, bv_simple_transfer_tx; addi a4, a4, 72\n" ++
   "  jal ra, bal_all_accounts_storage_consistent\n" ++
   "  bnez a0, .Lbv_bal_allaccounts_fail\n" ++
+  -- bmvmx.1.6.6: per-slot tuple-SEQUENCE consistency. The checks above pin each slot's FINAL
+  -- value; this pins the per-tx (block_access_index, new_value) tuple SEQUENCE that the spec
+  -- hashes into header.block_access_list_hash, for every non-recipient account. Index semantics
+  -- (c2#15): block_access_index = i+1 for the i-th user tx, so a single-user-tx block's writes
+  -- stamp 1 == the exec default current_block_access_index (#8585) -> the sequence is a degenerate
+  -- one-tuple match (NO single-tx false-reject). It bites once the multi-tx loop sets
+  -- current_block_access_index = i+1 per tx. Recipient skipped (a5; pinned above). Mismatch -> reject.
+  "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
+  "  li a2, 0xa0630000\n" ++
+  "  la t0, evm_env; ld a3, 448(t0)\n" ++
+  "  la a4, exec_log_txindex\n" ++
+  "  la a5, bv_simple_transfer_tx; addi a5, a5, 72\n" ++
+  "  jal ra, bal_all_accounts_tuple_sequences_consistent\n" ++
+  "  bnez a0, .Lbv_bal_tuple_fail\n" ++
   -- bmvmx.1.6.7: recipient storage_reads exec consistency. storage_reads (AccountChanges
   -- item 2) is consensus-bound but NOT in the state root, so verify every BAL read slot
   -- was actually accessed by the recipient (appears in the exec log). bvcd_acct_ptr/len
@@ -1144,6 +1163,8 @@ def blockVerdictFunction : String :=
   "  li t0, 40; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_recipient_bal_fail:\n" ++          -- bmvmx.1.6.3: BAL contract-recipient post balance != recipient_pre + tx.value
   "  li t0, 41; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_bal_tuple_fail:\n" ++              -- bmvmx.1.6.6: a non-recipient account's per-slot (block_access_index,value) tuple sequence != exec
+  "  li t0, 42; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_zero:\n" ++
   "  li a0, 0\n" ++
   ".Lbv_ret:\n" ++
