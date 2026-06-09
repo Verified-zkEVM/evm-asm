@@ -65,9 +65,14 @@ def bytecodeIsSelfContainedFunction : String :=
   "  li t3, 0x32; beq t2, t3, .Lbsc_unsafe\n" ++   -- ORIGIN
   "  li t3, 0x33; beq t2, t3, .Lbsc_unsafe\n" ++   -- CALLER
   "  li t3, 0x3a; beq t2, t3, .Lbsc_unsafe\n" ++   -- GASPRICE
-  "  li t3, 0x3b; beq t2, t3, .Lbsc_unsafe\n" ++   -- EXTCODESIZE
-  "  li t3, 0x3c; beq t2, t3, .Lbsc_unsafe\n" ++   -- EXTCODECOPY
-  "  li t3, 0x3f; beq t2, t3, .Lbsc_unsafe\n" ++   -- EXTCODEHASH
+  -- yisv8.2 (part 2): EXTCODESIZE(0x3b)/EXTCODECOPY(0x3c)/EXTCODEHASH(0x3f) are NO LONGER
+  -- rejected — their handlers (extcodesize_at_header_state_root / code_at_header_state_root)
+  -- read the account's code from the already-staged state+codes witness (env+576/592/608),
+  -- so they execute correctly for any witnessed account. Code is stable mid-tx (only a CREATE
+  -- deploy / SELFDESTRUCT clear changes it), so the pre-state code read matches; an account
+  -- whose code is mid-tx-changed or absent from the witness diverges -> conservative reject.
+  -- BALANCE(0x31) stays rejected (it reads a VOLATILE balance — pre-state staleness needs its
+  -- own flagged flip); BLOCKHASH(0x40) pending its table (3vc2p.3).
   "  li t3, 0x40; beq t2, t3, .Lbsc_unsafe\n" ++   -- BLOCKHASH
   "  li t3, 0x47; beq t2, t3, .Lbsc_unsafe\n" ++   -- SELFBALANCE
   "  li t3, 0xf0; beq t2, t3, .Lbsc_unsafe\n" ++   -- CREATE
