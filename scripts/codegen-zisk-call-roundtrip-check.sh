@@ -51,5 +51,5 @@ sys.exit(1 if failed else 0)
 PY
 
 echo
-echo "==> PASS: child STOP returned to the parent via frame_return and the success"
+echo "==> PASS: child RETURN returned to the parent via frame_return and the success"
 echo "          word propagated (slot 0 = 1) — nested-call execution round-trips"

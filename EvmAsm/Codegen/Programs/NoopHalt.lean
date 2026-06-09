@@ -19,9 +19,26 @@ open EvmAsm.Rv64
     stack, keep the legacy `OUTPUT_ADDR[0..32]` return-data prefix and
     `halt_kind` at `OUTPUT_ADDR+32`, and expose a wider diagnostic return-data
     surface at `OUTPUT_ADDR+64/+72/+248`. -/
-private def returnRevertTail (kind : Nat) (rollbackAsm : String := "") : String :=
+private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
+    (depthAware : Bool := false) : String :=
   "  ld x14, 0(x12)\n" ++
   "  ld x15, 32(x12)\n" ++
+  -- Depth-aware (guest only): a child frame's RETURN/REVERT returns to the parent
+  -- via frame_return (success 1/0, returndata = child mem[offset..offset+size])
+  -- instead of halting the guest. At depth 0 this is byte-identical (falls through
+  -- to the original halt). REVERT rolls back the child's state before returning.
+  (if depthAware then
+    "  la t0, evm_call_depth\n" ++
+    "  ld t0, 0(t0)\n" ++
+    "  beqz t0, .Lrr_halt_" ++ toString kind ++ "\n" ++
+    rollbackAsm ++
+    "  li a0, " ++ (if kind == 2 then "0" else "1") ++ "\n" ++
+    "  add a1, x13, x14\n" ++
+    "  mv a2, x15\n" ++
+    "  jal ra, frame_return\n" ++
+    "  j .dispatch_loop\n" ++
+    ".Lrr_halt_" ++ toString kind ++ ":\n"
+   else "") ++
   "  li x16, 0xa0010000\n" ++
   "  sd x0, 0(x16)\n" ++
   "  sd x0, 8(x16)\n" ++
@@ -118,26 +135,29 @@ private def selfdestructTailAsm : String :=
   "  addi x12, x12, 32\n" ++
   "  j .exit_selfdestruct"
 
-/-- M18 / M23 / M31 EVM-terminating opcodes. -/
-def haltHandlers : List OpcodeHandlerSpec :=
+/-- M18 / M23 / M31 EVM-terminating opcodes. `depthAware` makes RETURN/REVERT
+    return to the parent frame (via `frame_return`) when `evm_call_depth > 0`
+    instead of halting — used by the call-frame guest registry; the standalone
+    dispatch probes pass `false` (byte-identical halt, no `frame_return` link). -/
+def haltHandlers (depthAware : Bool) : List OpcodeHandlerSpec :=
   [ { label   := "h_RETURN"
     , opcodes := [0xf3]
     , preBody := stackUnderflowGuardAsm 2 ++ "\n" ++
                  returnRevertMemoryGasAsm "return"
     , body    := []
-    , tail    := .custom (returnRevertTail 1) }
+    , tail    := .custom (returnRevertTail 1 "" depthAware) }
   , { label   := "h_REVERT"
     , opcodes := [0xfd]
     , preBody := stackUnderflowGuardAsm 2 ++ "\n" ++
                  returnRevertMemoryGasAsm "revert"
     , body    := []
     , tail    := .custom <|
-        returnRevertTail 2 <|
-          "  ld x17, 456(x20)\n" ++
-          "  sd x17, 448(x20)\n" ++
-          "  sd x0, 464(x20)\n" ++
-          "  ld x17, 480(x20)\n" ++
-          "  sd x17, 472(x20)\n" }
+        returnRevertTail 2
+          ("  ld x17, 456(x20)\n" ++
+           "  sd x17, 448(x20)\n" ++
+           "  sd x0, 464(x20)\n" ++
+           "  ld x17, 480(x20)\n" ++
+           "  sd x17, 472(x20)\n") depthAware }
   , { label := "h_INVALID", opcodes := [0xfe]
     , body := []
     , tail := .custom "  j .exit_invalid_op" }

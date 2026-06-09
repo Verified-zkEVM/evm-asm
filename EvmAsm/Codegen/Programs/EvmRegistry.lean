@@ -59,7 +59,7 @@ def tinyInterpRegistry : List OpcodeHandlerSpec :=
   blobContextHandlers ++ blockHashHandlers ++ calldataHandlers ++ codeHandlers ++
   controlFlowHandlers ++ hashHandlers ++ logHandlers ++
   balanceWitnessHandlers ++ accountWitnessHandlers ++ extcodecopyWitnessHandlers ++ storageHandlers ++
-  mcopyHandlers ++ haltHandlers ++ pushZeroHandlers ++ returnDataHandlers ++
+  mcopyHandlers ++ haltHandlers false ++ pushZeroHandlers ++ returnDataHandlers ++
   popPushZeroHandlers ++ copyNoopHandlers ++
   childFrameHandlers (callPushZeroFallThrough 192) (callPushZeroFallThrough 160) ++
   arithNoopHandlers ++ mulmodHandlers ++ divModHandlers ++ signedDivModHandlers ++
@@ -92,7 +92,16 @@ def stopHandlerCF : OpcodeHandlerSpec :=
     The probe descends manually via `call_frame_descend` with a fixed child-code
     blob, so it never needs the CALL-handler code resolution. -/
 def callFrameProbeRegistry : List OpcodeHandlerSpec :=
-  tinyInterpRegistry.dropLast ++ [stopHandlerCF]
+  pushHandlers ++ dupHandlers ++ swapHandlers ++ eip8024StackHandlers ++ singletonHandlers ++
+  memoryHandlers ++ memoryMetadataHandlers ++ gasHandlers ++ envHandlers ++ slotnumContextHandlers ++
+  blobContextHandlers ++ blockHashHandlers ++ calldataHandlers ++ codeHandlers ++
+  controlFlowHandlers ++ hashHandlers ++ logHandlers ++
+  balanceWitnessHandlers ++ accountWitnessHandlers ++ extcodecopyWitnessHandlers ++ storageHandlers ++
+  mcopyHandlers ++ haltHandlers true ++ pushZeroHandlers ++ returnDataHandlers ++
+  popPushZeroHandlers ++ copyNoopHandlers ++
+  childFrameHandlers (callPushZeroFallThrough 192) (callPushZeroFallThrough 160) ++
+  arithNoopHandlers ++ mulmodHandlers ++ divModHandlers ++ signedDivModHandlers ++
+  selfCallingHandlers ++ [stopHandlerCF]
 
 /-- The dispatch registry used by the stateless guest's embedded EVM dispatcher.
     Identical to `tinyInterpRegistry` except STOP is depth-aware (`stopHandlerCF`),
@@ -106,7 +115,7 @@ def callFrameGuestRegistry : List OpcodeHandlerSpec :=
   blobContextHandlers ++ blockHashHandlers ++ calldataHandlers ++ codeHandlers ++
   controlFlowHandlers ++ hashHandlers ++ logHandlers ++
   balanceWitnessHandlers ++ accountWitnessHandlers ++ extcodecopyWitnessHandlers ++ storageHandlers ++
-  mcopyHandlers ++ haltHandlers ++ pushZeroHandlers ++ returnDataHandlers ++
+  mcopyHandlers ++ haltHandlers true ++ pushZeroHandlers ++ returnDataHandlers ++
   popPushZeroHandlers ++ copyNoopHandlers ++
   childFrameHandlers
     (callDescendFallThrough "call_target" 192 64 96 128 160 192 false)
