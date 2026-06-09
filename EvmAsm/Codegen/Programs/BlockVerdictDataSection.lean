@@ -210,6 +210,9 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- bal_storage_matches_exec_log), now linked into the verdict's contract-dispatch tail.
   balStorageChangeValuesData ++
   balStorageMatchesExecLogData ++
+  -- bmvmx.1.6.3 recipient nonce/code-change emptiness probe (rlp_list_nth_item out cells).
+  "bv_rcf_off:\n  .zero 8\n" ++
+  "bv_rcf_len:\n  .zero 8\n" ++
 
   "bv_eip7778_status:\n  .zero 8\n" ++
   "bv_eip7778_index:\n  .zero 8\n" ++
