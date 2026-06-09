@@ -21,6 +21,7 @@ import EvmAsm.Codegen.Programs.BlockVerdictDispatchTx
 import EvmAsm.Codegen.Programs.BalStorageMatchesExecLog
 import EvmAsm.Codegen.Programs.BlockVerdictTxsIndependent
 import EvmAsm.Codegen.Programs.BlockVerdictMultiTx
+import EvmAsm.Codegen.Programs.TxIntrinsicStateGas
 
 namespace EvmAsm.Codegen
 
@@ -58,6 +59,12 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     btiScanStorageChangesFunction ++ "\n" ++
     balTxsIndependentFunction ++ "\n" ++
     multiTxNthContextFunction ++ "\n" ++
+    -- g8zeq.1.4.2: block_verdict's block_state-gas floor check calls
+    -- block_verdict_tx_state_gas_array -> tx_intrinsic_state_gas -> eip8037_tx_state_gas;
+    -- mirror the guest closure so this debug verdict ELF links (je0xd pattern).
+    eip8037TxStateGasFunction ++ "\n" ++
+    txIntrinsicStateGasFunction ++ "\n" ++
+    blockVerdictTxStateGasArrayFunction ++ "\n" ++
     ".Lstateless_verdict_v2_debug_after_runtime_dispatcher:\n"
   dataAsm     :=
     ziskStatelessVerdictV2DataSection ++ "\n" ++
@@ -243,6 +250,13 @@ def statelessVerdictV2GuestClosure : String :=
   btiScanStorageChangesFunction ++ "\n" ++
   balTxsIndependentFunction ++ "\n" ++
   multiTxNthContextFunction ++ "\n" ++
+  -- g8zeq.1.4.2: per-tx EIP-8037 intrinsic state-gas + array assembly, used by
+  -- block_verdict's block_state-gas floor check. tx_extract_to_address /
+  -- tx_type_dispatch / rlp_list_nth_item / rlp_list_count_items / bgv_u32le are
+  -- already in this closure; only these three bodies are new.
+  eip8037TxStateGasFunction ++ "\n" ++
+  txIntrinsicStateGasFunction ++ "\n" ++
+  blockVerdictTxStateGasArrayFunction ++ "\n" ++
   txExtractNonceAndGasFunction ++ "\n" ++
   txExtractGasPricingFunction ++ "\n" ++
   u256MinFunction ++ "\n" ++
