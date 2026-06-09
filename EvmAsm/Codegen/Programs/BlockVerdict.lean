@@ -380,6 +380,10 @@ def blockVerdictFunction : String :=
   "  add t0, t1, t3; lbu t5, 0(t0); add t6, t2, t3; sb t5, 0(t6); addi t3, t3, 1; j .Lbmvmx_vcopy\n" ++
   ".Lbmvmx_vdone:\n" ++
   "  la t0, bmvmx_gas_used; li t1, 21000; sd t1, 0(t0)\n" ++       -- EOA intrinsic gas_used
+  -- bmvmx.1.4.1: execution-derived sender balance debit = gas_used*eff_gas_price + value
+  -- (the amount the sender's balance decreases; consumed by .4.3 as sender_post = pre - debit).
+  "  la a0, bmvmx_eff_gas_price; la t0, bmvmx_gas_used; ld a1, 0(t0); la a2, bmvmx_gascost; jal ra, u256_mul_u64_be\n" ++
+  "  la a0, bmvmx_gascost; la a1, bmvmx_value; la a2, bmvmx_sender_debit; jal ra, u256_add_be\n" ++
   "  la t0, bmvmx_avail; li t1, 1; sd t1, 0(t0)\n" ++
   ".Lbmvmx_done:\n" ++
   "  ld a0, 24(s0); ld a1, 80(s0); ld a2, 88(s0); ld a3, 64(s0); ld a4, 72(s0)\n" ++
