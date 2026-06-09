@@ -62,9 +62,11 @@ def bytecodeIsSelfContainedFunction : String :=
   ".Lbsc_check:\n" ++
   -- Reject the un-staged-state opcodes.
   "  li t3, 0x31; beq t2, t3, .Lbsc_unsafe\n" ++   -- BALANCE
-  "  li t3, 0x32; beq t2, t3, .Lbsc_unsafe\n" ++   -- ORIGIN
-  "  li t3, 0x33; beq t2, t3, .Lbsc_unsafe\n" ++   -- CALLER
-  "  li t3, 0x3a; beq t2, t3, .Lbsc_unsafe\n" ++   -- GASPRICE
+  -- 3vc2p.4: ORIGIN(0x32)/CALLER(0x33)/GASPRICE(0x3a) are NO LONGER rejected — their env
+  -- context is now staged for contract recipients (CALLER/ORIGIN = tx.sender via 3vc2p.1
+  -- #8640; GASPRICE = effective_gas_price via 3vc2p.2 #8642), so they execute correctly
+  -- through dispatch_tx_runtime_code. BLOCKHASH(0x40) stays rejected (its table staging,
+  -- 3vc2p.3, is not done yet — flipping it would read a zero table).
   "  li t3, 0x3b; beq t2, t3, .Lbsc_unsafe\n" ++   -- EXTCODESIZE
   "  li t3, 0x3c; beq t2, t3, .Lbsc_unsafe\n" ++   -- EXTCODECOPY
   "  li t3, 0x3f; beq t2, t3, .Lbsc_unsafe\n" ++   -- EXTCODEHASH
