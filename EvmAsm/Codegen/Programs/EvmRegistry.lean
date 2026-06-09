@@ -60,7 +60,8 @@ def tinyInterpRegistry : List OpcodeHandlerSpec :=
   controlFlowHandlers ++ hashHandlers ++ logHandlers ++
   balanceWitnessHandlers ++ accountWitnessHandlers ++ extcodecopyWitnessHandlers ++ storageHandlers ++
   mcopyHandlers ++ haltHandlers ++ pushZeroHandlers ++ returnDataHandlers ++
-  popPushZeroHandlers ++ copyNoopHandlers ++ childFrameHandlers ++
+  popPushZeroHandlers ++ copyNoopHandlers ++
+  childFrameHandlers (callPushZeroFallThrough 192) (callPushZeroFallThrough 160) ++
   arithNoopHandlers ++ mulmodHandlers ++ divModHandlers ++ signedDivModHandlers ++
   selfCallingHandlers ++ [stopHandler]
 
