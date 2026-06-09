@@ -51,6 +51,10 @@
 #     --stop-after-failures N
 #                        alias for --max-failures
 #     --quiet-passes     suppress per-case PASS(full) lines
+#     --progress         print a running "N/total processed, eta ..." line as
+#                        cases complete. The ETA is extrapolated from elapsed
+#                        wall time and the number of rows done so far
+#                        (eta = remaining * elapsed / done).
 #     --bsr-witness-cap N
 #                        experimental: patch the emitted block_state_root
 #                        witness cap before relinking (default: guest default)
@@ -140,6 +144,7 @@ MEM_RESERVE_MIB="${EEST_MEM_RESERVE_MIB:-4096}"
 MAX_FAILURES=""
 RUN_DIR_OVERRIDE=""
 QUIET_PASSES="${EEST_QUIET_PASSES:-0}"
+PROGRESS="${EEST_PROGRESS:-0}"
 BSR_WITNESS_CAP="${EEST_BSR_WITNESS_CAP:-}"
 BSR_BAL_CAP="${EEST_BSR_BAL_CAP:-}"
 MIN_SUCC=""
@@ -171,6 +176,8 @@ Options:
   --stop-after-failures N  alias for --max-failures
   --quiet-passes           suppress per-case PASS(full) lines
   --show-passes            print per-case PASS(full) lines, overriding EEST_QUIET_PASSES
+  --progress               print "N/total processed, eta ..." as cases complete
+                           (ETA extrapolated from elapsed time and rows done)
   --bsr-witness-cap N      experimental: run with a proposed block_state_root witness cap
   --bsr-bal-cap N          experimental: add a lower block_state_root BAL row cap
   --job-mem-mib N|auto     memory budget per ziskemu job
@@ -215,6 +222,7 @@ while [[ $# -gt 0 ]]; do
     --max-failures|--stop-after-failures) require_arg "$1" "${2:-}"; MAX_FAILURES="$2"; shift 2 ;;
     --quiet-passes) QUIET_PASSES=1; shift ;;
     --show-passes) QUIET_PASSES=0; shift ;;
+    --progress) PROGRESS=1; shift ;;
     --bsr-witness-cap) require_arg "$1" "${2:-}"; BSR_WITNESS_CAP="$2"; shift 2 ;;
     --bsr-bal-cap) require_arg "$1" "${2:-}"; BSR_BAL_CAP="$2"; shift 2 ;;
     --job-mem-mib) require_arg "$1" "${2:-}"; JOB_MEM_MIB="$2"; shift 2 ;;
@@ -293,6 +301,14 @@ fi
 case "$QUIET_PASSES" in
   1|true|yes) QUIET_PASSES=1 ;;
   *) QUIET_PASSES=0 ;;
+esac
+if ! [[ "$PROGRESS" =~ ^(0|1|true|false|yes|no)$ ]]; then
+  echo "EEST_PROGRESS must be 0/1/true/false/yes/no (got: $PROGRESS)" >&2
+  exit 1
+fi
+case "$PROGRESS" in
+  1|true|yes) PROGRESS=1 ;;
+  *) PROGRESS=0 ;;
 esac
 if ! [[ "$MEM_RESERVE_MIB" =~ ^[0-9]+$ ]]; then
   echo "EEST_MEM_RESERVE_MIB must be a nonnegative integer (got: $MEM_RESERVE_MIB)" >&2
@@ -777,6 +793,40 @@ wait_for_one_worker() {
 #   tail [33:105] = u32 offset (=37) + 68-byte chain_config (hex 66..210)
 declare -A classifiedLabels=()
 total=0 err=0 full=0 succ=0 root=0 tail=0 fail=0 rod=0 budget=0
+# Progress tracking (--progress): RUN_START is stamped just before the run loop;
+# lastProgressTotal suppresses duplicate lines when `total` has not advanced.
+RUN_START=0
+lastProgressTotal=-1
+
+format_duration() {
+  local s="$1"
+  if ! [[ "$s" =~ ^[0-9]+$ ]]; then printf '?'; return; fi
+  local h=$((s / 3600)) m=$(((s % 3600) / 60)) sec=$((s % 60))
+  if [[ "$h" -gt 0 ]]; then printf '%dh%02dm%02ds' "$h" "$m" "$sec"
+  elif [[ "$m" -gt 0 ]]; then printf '%dm%02ds' "$m" "$sec"
+  else printf '%ds' "$sec"; fi
+}
+
+# Emit "N/total processed, elapsed ..., eta ..." when --progress is set and the
+# processed count has advanced since the last line. ETA is a linear
+# extrapolation from rows done so far: remaining * elapsed / done.
+print_progress() {
+  [[ "$PROGRESS" -eq 1 ]] || return 0
+  [[ "$total" -ne "$lastProgressTotal" ]] || return 0
+  lastProgressTotal="$total"
+  local now elapsed remaining eta_str
+  now="$(date +%s)"
+  elapsed=$((now - RUN_START))
+  remaining=$((selectedCount - total))
+  [[ "$remaining" -lt 0 ]] && remaining=0
+  if [[ "$total" -le 0 || "$elapsed" -le 0 ]]; then
+    eta_str="estimating"
+  else
+    eta_str="$(format_duration $((remaining * elapsed / total)))"
+  fi
+  printf '  [progress] %d/%d cases, elapsed %s, eta %s\n' \
+    "$total" "$selectedCount" "$(format_duration "$elapsed")" "$eta_str"
+}
 
 classify_case_result() {
   local line="$1"
@@ -846,9 +896,11 @@ classify_completed_results() {
   for line in "${manifestLines[@]}"; do
     classify_case_result "$line" 0 || true
     if failure_limit_reached; then
+      print_progress
       return 0
     fi
   done
+  print_progress
 }
 
 classify_missing_results() {
@@ -856,6 +908,7 @@ classify_missing_results() {
   for line in "${manifestLines[@]}"; do
     classify_case_result "$line" 1 || true
   done
+  print_progress
 }
 
 failure_limit_reached() {
@@ -867,10 +920,12 @@ worker_fail=0
 run_note=""
 [[ -n "$MAX_FAILURES" ]] && run_note=", max_failures=$MAX_FAILURES"
 echo "==> run stateless_guest on $selectedCount input(s) (jobs=$JOBS$run_note)"
+RUN_START="$(date +%s)"
 if [[ "$JOBS" -eq 1 ]]; then
   for line in "${manifestLines[@]}"; do
     run_case "$line"
     classify_case_result "$line" 1
+    print_progress
     if failure_limit_reached; then
       stopEarly=1
       break
