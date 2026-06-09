@@ -975,6 +975,28 @@ def blockVerdictFunction : String :=
   -- (item 5) must therefore be empty RLP lists; a non-empty list claims a change execution did
   -- not make -> reject (succ=0). bvcd_acct_ptr/len still hold the recipient AccountChanges found
   -- above. (The balance_changes value compare needs execution-derived gas — bmvmx.1.4.3.)
+  -- .61.8c-2: once CREATE/CREATE2 is activated in the self-contained gate (.8c-3), a CREATE-executing
+  -- recipient legitimately changes its OWN nonce (the EVM increments the creator's nonce on each
+  -- CREATE) and the created account carries code_changes, so the "code+nonce unchanged" assumption
+  -- above is FALSE for it -- the strict empty-list checks below would FALSE-REJECT a VALID CREATE
+  -- block at .Lbv_bal_recipient_field_fail. Skip the recipient nonce_changes/code_changes checks when
+  -- the recipient bytecode contains CREATE (0xf0) or CREATE2 (0xf5); the created account's nonce/code
+  -- are validated by the all-accounts comparators (bal_all_accounts_code_consistent + i3djw), not the
+  -- recipient-field check. Pushdata-aware scan over bvcd_code, mirroring the .Lbv_sbc_scan value-move
+  -- guard. Conservative (skipping never false-rejects). Inert until .8c-3 (CREATE recipients are
+  -- self-contained-rejected pre-.8c, so this region is unreachable for them today).
+  "  la t0, bvcd_code_ptr; ld t0, 0(t0); la t1, bvcd_code_len; ld t1, 0(t1); add t1, t0, t1\n" ++
+  ".Lbv_rnc_scan:\n" ++
+  "  bgeu t0, t1, .Lbv_rnc_check\n" ++
+  "  lbu t2, 0(t0)\n" ++
+  "  li t3, 0x60; bltu t2, t3, .Lbv_rnc_chk\n" ++
+  "  li t3, 0x7f; bgtu t2, t3, .Lbv_rnc_chk\n" ++
+  "  addi t3, t2, -0x5f; addi t0, t0, 1; add t0, t0, t3; j .Lbv_rnc_scan\n" ++
+  ".Lbv_rnc_chk:\n" ++
+  "  li t3, 0xf0; beq t2, t3, .Lbv_recipient_nc_done\n" ++   -- CREATE -> creator nonce++ / created code
+  "  li t3, 0xf5; beq t2, t3, .Lbv_recipient_nc_done\n" ++   -- CREATE2
+  "  addi t0, t0, 1; j .Lbv_rnc_scan\n" ++
+  ".Lbv_rnc_check:\n" ++
   "  la t0, bvcd_acct_ptr; ld a0, 0(t0); la t0, bvcd_acct_len; ld a1, 0(t0)\n" ++
   "  li a2, 4; la a3, bv_rcf_off; la a4, bv_rcf_len   # nonce_changes\n" ++
   "  jal ra, rlp_list_nth_item\n" ++
@@ -994,6 +1016,7 @@ def blockVerdictFunction : String :=
   -- Callee entries were seeded by dispatch_tx_runtime_code (1.6.4.2.b) and produced during the
   -- descent; the recipient is skipped (checked above, BE-keyed). Mismatch/omission -> reject.
   -- This surfaces guest nested-execution divergences (per @pirapira "see more failures").
+  ".Lbv_recipient_nc_done:\n" ++   -- .61.8c-2: CREATE/CREATE2 recipients skip the recipient nonce/code checks to here
   "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
   "  li a2, 0xa0630000\n" ++
   "  la t0, evm_env; ld a3, 448(t0)\n" ++
