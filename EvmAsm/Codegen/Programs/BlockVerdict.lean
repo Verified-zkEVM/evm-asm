@@ -900,6 +900,17 @@ def blockVerdictFunction : String :=
   "  la a4, bv_simple_transfer_tx; addi a4, a4, 72\n" ++
   "  jal ra, bal_all_accounts_storage_consistent\n" ++
   "  bnez a0, .Lbv_bal_allaccounts_fail\n" ++
+  -- bmvmx.1.6.7: recipient storage_reads exec consistency. storage_reads (AccountChanges
+  -- item 2) is consensus-bound but NOT in the state root, so verify every BAL read slot
+  -- was actually accessed by the recipient (appears in the exec log). bvcd_acct_ptr/len
+  -- holds the recipient AccountChanges. A read claimed but never accessed -> reject.
+  "  la t0, bvcd_acct_ptr; ld t1, 0(t0); beqz t1, .Lbv_after_tx_gas_precharge\n" ++  -- no recipient AccountChanges (not in BAL) -> skip
+  "  la a0, evm_env\n" ++
+  "  la t0, bvcd_acct_ptr; ld a1, 0(t0); la t0, bvcd_acct_len; ld a2, 0(t0)\n" ++
+  "  li a3, 0xa0630000\n" ++
+  "  la t0, evm_env; ld a4, 448(t0)\n" ++
+  "  jal ra, bal_storage_reads_in_exec_log\n" ++
+  "  bnez a0, .Lbv_bal_reads_fail\n" ++
   ".Lbv_after_tx_gas_precharge:\n" ++
   "  # EIP-8037 tx inclusion gas gate: reject parse-supported legacy tx blocks\n" ++
   "  # whose worst regular/state gas exceeds the remaining 2D block budget.\n" ++
@@ -1031,6 +1042,8 @@ def blockVerdictFunction : String :=
   "  li t0, 36; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_bal_allaccounts_fail:\n" ++        -- bmvmx.1.6.4.3: a non-recipient BAL account's storage != execution
   "  li t0, 37; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_bal_reads_fail:\n" ++              -- bmvmx.1.6.7: recipient BAL storage_read slot never accessed in execution
+  "  li t0, 38; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_zero:\n" ++
   "  li a0, 0\n" ++
   ".Lbv_ret:\n" ++
