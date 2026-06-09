@@ -259,8 +259,19 @@ def callFrameDescendFunction : String :=
   "  ld a2, 24(s7)                  # argsOff\n" ++
   "  ld a3, 32(s7)                  # argsLen\n" ++
   "  jal ra, call_frame_set_calldata\n" ++
+  -- 7a. EIP-150 transfer_gas_cost: a value-bearing CALL/CALLCODE charges
+  -- GAS_CALL_VALUE (9000) BEFORE the 63/64 forwarding cap (it is part of
+  -- extra_gas, deducted from gas_left first). Persist it to the parent so the
+  -- forward cap below sees the reduced gas_left and the cost deduction follows it.
+  "  ld a2, 88(s7)\n" ++
+  "  beqz a2, .Lcfd_no_transfer\n" ++
+  "  ld t0, 568(s3)\n" ++
+  "  li t1, 9000\n" ++
+  "  sub t0, t0, t1\n" ++
+  "  sd t0, 568(s3)\n" ++
+  ".Lcfd_no_transfer:\n" ++
   -- 7. EIP-150 forwarded gas -> child env.gasRemaining (env+568).
-  "  ld a0, 568(s3)                 # parent gas_left\n" ++
+  "  ld a0, 568(s3)                 # parent gas_left (after transfer charge)\n" ++
   "  ld a1, 80(s7)                  # requested_gas\n" ++
   "  ld a2, 88(s7)                  # value_nonzero\n" ++
   "  jal ra, call_frame_forward_gas\n" ++
@@ -424,7 +435,7 @@ def ziskCallDescendProbeUnit : BuildUnit := {
       +144 child env witness.state ptr     (expect 0x592 marker, copied env+592)
       +152 evm_cur_stack_top - &arena      (expect 0x18200 = child frame stack top)
       +160 evm_cur_stack_low - &arena      (expect 0x10200 = top - 1024*32)
-      +168 parent env.gasRemaining        (expect 99000 = 100000 - cost 1000) -/
+      +168 parent env.gasRemaining        (expect 90000 = 100000 - transfer 9000 - cost 1000) -/
 def ziskCallFrameDescendPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li s0, 0xa0010000\n" ++
@@ -484,7 +495,7 @@ def ziskCallFrameDescendPrologue : String :=
   -- frame-relative stack bounds set by the descend (child arena stack).
   "  la t0, evm_cur_stack_top; ld t1, 0(t0); la t2, call_frame_arena; sub t1, t1, t2; sd t1, 152(s0)\n" ++
   "  la t0, evm_cur_stack_low; ld t1, 0(t0); la t2, call_frame_arena; sub t1, t1, t2; sd t1, 160(s0)\n" ++
-  -- EIP-150: parent gas deducted by cost (capped forwarded = 1000) -> 100000 - 1000 = 99000.
+  -- EIP-150: parent gas deducted by transfer (9000, value-bearing) + cost (1000) -> 90000.
   "  la t0, cfd2_penv; ld t1, 568(t0); sd t1, 168(s0)\n" ++
   "  j .Lcfd2_done\n" ++
   frameBaseFunction ++ "\n" ++
