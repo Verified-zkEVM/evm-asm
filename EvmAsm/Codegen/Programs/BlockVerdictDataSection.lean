@@ -15,6 +15,9 @@ import EvmAsm.Codegen.Programs.Eip7702NonceReuseGuard
 import EvmAsm.Codegen.Programs.BalStorageMatchesExecLog
 import EvmAsm.Codegen.Programs.BalStorageCoversExecLog
 import EvmAsm.Codegen.Programs.BalAllAccountsStorage
+import EvmAsm.Codegen.Programs.AccountTupleSequencesConsistent
+import EvmAsm.Codegen.Programs.BalSlotTupleSequence
+import EvmAsm.Codegen.Programs.ExecLogSlotTuples
 import EvmAsm.Codegen.Programs.BalStorageReadsExecLog
 
 namespace EvmAsm.Codegen
@@ -816,6 +819,21 @@ def ziskStatelessVerdictV2DataSection : String :=
   "tgbpvr_iscreation:\n  .zero 8\n" ++
   "tgbpvr_lookup:\n  .zero 168\n" ++
   ".balign 8\n" ++
-  "bv_sender_bal_check:\n  .zero 192\n"
+  "bv_sender_bal_check:\n  .zero 192\n" ++
+  -- bmvmx.1.6.6: scratch for the all-accounts per-slot tuple-sequence check (#8606). batsc_* is
+  -- the wrapper's own scratch; the sub-helpers' scratch (atsc_*/bts_*/els_*) come from their Data
+  -- defs. rfu_* (rlp_field_to_u64) is already provided above; slot_tuple_sequences_match is
+  -- self-contained.
+  ".balign 8\n" ++
+  "batsc_acct_count:\n  .zero 8\n" ++
+  "batsc_acct_off:\n  .zero 8\n" ++
+  "batsc_acct_len:\n  .zero 8\n" ++
+  "batsc_addr_off:\n  .zero 8\n" ++
+  "batsc_addr_len:\n  .zero 8\n" ++
+  ".balign 32\n" ++
+  "batsc_key:\n  .zero 32\n" ++ "\n" ++
+  accountTupleSequencesConsistentData ++ "\n" ++
+  balSlotTupleSequenceData ++ "\n" ++
+  execLogSlotTuplesData
 
 end EvmAsm.Codegen
