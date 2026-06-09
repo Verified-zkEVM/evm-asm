@@ -64,6 +64,7 @@ checks = [
     ('child env witness.state ptr',     0x592),
     ('evm_cur_stack_top - &arena',      0x18200),
     ('evm_cur_stack_low - &arena',      0x10200),
+    ('parent gas after deduct',         99000),
 ]
 failed = False
 for i, (label, exp) in enumerate(checks):

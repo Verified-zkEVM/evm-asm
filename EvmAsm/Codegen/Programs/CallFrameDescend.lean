@@ -162,11 +162,13 @@ def callFrameForwardGasFunction : String :=
   ".Lcffg_min:\n" ++
   "  mv t1, a1\n" ++
   ".Lcffg_stipend:\n" ++
+  "  mv a1, t1\n" ++                      -- a1 = cost = capped forwarded gas (PRE-stipend) =
+                                          -- the EIP-150 caller charge (stipend is a callee gift)
   "  beqz a2, .Lcffg_done\n" ++
   "  li t0, 2300\n" ++                    -- CALL_STIPEND (> addi imm range)
   "  add t1, t1, t0\n" ++
   ".Lcffg_done:\n" ++
-  "  mv a0, t1\n" ++
+  "  mv a0, t1\n" ++                      -- a0 = sub_call = capped + stipend = callee gas
   "  ret"
 
 /-- `call_frame_descend(a1 = &desc)`: orchestrate one CALL/STATICCALL descent
@@ -262,7 +264,13 @@ def callFrameDescendFunction : String :=
   "  ld a1, 80(s7)                  # requested_gas\n" ++
   "  ld a2, 88(s7)                  # value_nonzero\n" ++
   "  jal ra, call_frame_forward_gas\n" ++
-  "  sd a0, 568(s9)\n" ++
+  "  sd a0, 568(s9)                 # child env.gasRemaining = sub_call (capped + stipend)\n" ++
+  -- EIP-150: deduct the caller charge (cost = capped forwarded gas, a1) from the
+  -- parent's gasRemaining. cost <= gas_left - gas_left/64 < gas_left, so no OOG.
+  -- frame_return refunds the child's UNUSED gas to the parent on the matching pop.
+  "  ld t0, 568(s3)\n" ++
+  "  sub t0, t0, a1\n" ++
+  "  sd t0, 568(s3)\n" ++
   -- 8. copy witness context (header/state/codes ptr+len) parent env -> child env.
   "  ld t0, 576(s3); sd t0, 576(s9)\n" ++
   "  ld t0, 584(s3); sd t0, 584(s9)\n" ++
@@ -415,7 +423,8 @@ def ziskCallDescendProbeUnit : BuildUnit := {
       +136 child env.codeSize              (expect 0x33)
       +144 child env witness.state ptr     (expect 0x592 marker, copied env+592)
       +152 evm_cur_stack_top - &arena      (expect 0x18200 = child frame stack top)
-      +160 evm_cur_stack_low - &arena      (expect 0x10200 = top - 1024*32) -/
+      +160 evm_cur_stack_low - &arena      (expect 0x10200 = top - 1024*32)
+      +168 parent env.gasRemaining        (expect 99000 = 100000 - cost 1000) -/
 def ziskCallFrameDescendPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li s0, 0xa0010000\n" ++
@@ -475,6 +484,8 @@ def ziskCallFrameDescendPrologue : String :=
   -- frame-relative stack bounds set by the descend (child arena stack).
   "  la t0, evm_cur_stack_top; ld t1, 0(t0); la t2, call_frame_arena; sub t1, t1, t2; sd t1, 152(s0)\n" ++
   "  la t0, evm_cur_stack_low; ld t1, 0(t0); la t2, call_frame_arena; sub t1, t1, t2; sd t1, 160(s0)\n" ++
+  -- EIP-150: parent gas deducted by cost (capped forwarded = 1000) -> 100000 - 1000 = 99000.
+  "  la t0, cfd2_penv; ld t1, 568(t0); sd t1, 168(s0)\n" ++
   "  j .Lcfd2_done\n" ++
   frameBaseFunction ++ "\n" ++
   frameDepthPushFunction ++ "\n" ++

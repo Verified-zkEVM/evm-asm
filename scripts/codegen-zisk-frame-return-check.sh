@@ -62,6 +62,8 @@ checks = [
     ('A returndata size (STOP, none)',       0),
     ('B returndata size (retlen)',           4),
     ('B returndata data[0]',                 0xab),
+    ('A gas refund (100+50)',                150),
+    ('B gas refund (200+30)',                230),
 ]
 failed = False
 for i, (label, exp) in enumerate(checks):
