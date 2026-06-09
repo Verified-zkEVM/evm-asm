@@ -1308,7 +1308,45 @@ def callDescendFallThrough
     "  bltu t4, t3, .Lcd_balok_" ++ tag ++ "\n" ++    -- balance > value: sufficient
     "  addi t0, t0, 1\n  addi t1, t1, 1\n  addi t2, t2, -1\n" ++
     "  bnez t2, .Lcd_cmp_" ++ tag ++ "\n" ++
-    ".Lcd_balok_" ++ tag ++ ":\n") ++
+    ".Lcd_balok_" ++ tag ++ ":\n" ++
+    -- i3djw.1: record the value-transfer NON-STORAGE effect for the callee so the
+    -- all-accounts non-storage comparator (i3djw.3) can validate it against the BAL.
+    -- The callee receives `value`; record (callee, pre_balance, pre+value, nonce, nonce)
+    -- — value transfer does not bump the callee nonce. INERT until i3djw.3 wires the
+    -- comparator (nothing reads exec_nonstorage_effect_log yet), so over-recording a
+    -- value-CALL that later fails code resolution is harmless now; success-gating is
+    -- deferred to i3djw.3. a0/a2/a3 alias x10/x12/x13 (PC/stack/mem-base), so the
+    -- dispatcher invariants are saved/restored around every helper call.
+    "  ld t3, " ++ toString valueOff ++ "(x12)\n" ++
+    "  ld t4, " ++ toString (valueOff+8) ++ "(x12)\n  or t3, t3, t4\n" ++
+    "  ld t4, " ++ toString (valueOff+16) ++ "(x12)\n  or t3, t3, t4\n" ++
+    "  ld t4, " ++ toString (valueOff+24) ++ "(x12)\n  or t3, t3, t4\n" ++
+    "  beqz t3, .Lcd_nse_done_" ++ tag ++ "\n" ++       -- value == 0: no transfer, skip
+    -- copy the 20-byte callee address (x12+32) into nse_callee_be (survives x12 clobber)
+    "  addi t0, x12, 32\n  la t1, nse_callee_be\n  li t2, 20\n" ++
+    ".Lcd_nse_cpaddr_" ++ tag ++ ":\n" ++
+    "  beqz t2, .Lcd_nse_cpaddr_d_" ++ tag ++ "\n" ++
+    "  lbu t3, 0(t0)\n  sb t3, 0(t1)\n  addi t0, t0, 1\n  addi t1, t1, 1\n  addi t2, t2, -1\n  j .Lcd_nse_cpaddr_" ++ tag ++ "\n" ++
+    ".Lcd_nse_cpaddr_d_" ++ tag ++ ":\n" ++
+    -- pre fields: account_at_header_state_root(callee) -> nse_acct (nonce@0, balance@8)
+    "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
+    "  ld a0, 576(x20)\n  ld a1, 584(x20)\n  la a2, nse_callee_be\n  li a3, 20\n  ld a4, 592(x20)\n  ld a5, 600(x20)\n  la a6, nse_acct\n" ++
+    "  jal ra, account_at_header_state_root\n" ++
+    "  mv t0, a0\n" ++                                  -- status (capture before restoring x10=a0)
+    "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
+    "  bnez t0, .Lcd_nse_done_" ++ tag ++ "\n" ++       -- callee absent/err -> skip (conservative)
+    -- post_balance = pre_balance (nse_acct+8) + value (cd_value_be, populated above)
+    "  addi sp, sp, -16\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n" ++
+    "  la a0, nse_acct\n  addi a0, a0, 8\n  la a1, cd_value_be\n  la a2, nse_post_bal\n" ++
+    "  jal ra, u256_add_be\n" ++
+    "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  addi sp, sp, 16\n" ++
+    -- append (addr, pre_balance, post_balance, pre_nonce, post_nonce)
+    "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
+    "  la t0, nse_acct\n  ld a3, 0(t0)\n  mv a4, a3\n" ++   -- pre_nonce == post_nonce (unchanged by value transfer)
+    "  la a0, nse_callee_be\n  la a1, nse_acct\n  addi a1, a1, 8\n  la a2, nse_post_bal\n" ++
+    "  jal ra, record_nonstorage_effect\n" ++
+    "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
+    ".Lcd_nse_done_" ++ tag ++ ":\n") ++
   -- resolve callee code (save x10/x12/x13 — code_at_header_state_root clobbers a-regs)
   "  addi sp, sp, -32\n" ++
   "  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++

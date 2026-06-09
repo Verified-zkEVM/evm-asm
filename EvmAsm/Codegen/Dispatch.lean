@@ -23,6 +23,7 @@ import EvmAsm.Codegen.Programs.CreateCodeEffectLog
 import EvmAsm.Codegen.Programs.CreateDeployedCodeValid
 import EvmAsm.Codegen.Programs.CreateCreatorNonce
 import EvmAsm.Codegen.Programs.CreateFrameDescend
+import EvmAsm.Codegen.Programs.NonstorageEffectLog
 import EvmAsm.Codegen.CallFrameLayout
 import EvmAsm.Codegen.Programs.Address
 import EvmAsm.Codegen.Programs.HashBridge
@@ -583,7 +584,16 @@ def emitCreateChildFrameData : String :=
   -- .61.8.3.5 (.5a/.5b): CREATE-frame descent scratch (create_cd_desc / create_address_word /
   -- create_frame_flag), co-located here so create_frame_descend AND the depth-aware
   -- returnRevertTail CREATE branch resolve create_frame_flag in EVERY closure (guest + probes).
-  createFrameDescendData
+  createFrameDescendData ++ "\n" ++
+  -- i3djw.1: per-account NON-STORAGE exec-effect log + the CALL value-transfer producer's
+  -- scratch (callee addr / account struct / post-balance), co-located so callDescendFallThrough's
+  -- producer resolves record_nonstorage_effect + its buffers in EVERY closure (guest + probes).
+  nonstorageEffectLogData ++ "\n" ++
+  ".balign 8\n" ++
+  "nse_callee_be:\n  .zero 32\n" ++
+  ".balign 32\n" ++
+  "nse_acct:\n  .zero 104\n" ++
+  "nse_post_bal:\n  .zero 32\n"
 
 /-- Scratch labels shared by runtime account-witness helpers.
 
@@ -2151,6 +2161,7 @@ def emitRuntimeDispatcherEmbeddedHelperFunctions : String :=
   callFrameForwardGasFunction ++ "\n" ++
   callFrameDescendFunction ++ "\n" ++
   createFrameDescendFunction ++ "\n" ++   -- .61.8.3.5.1: CREATE-frame descent (reuses call_frame_descend)
+  recordNonstorageEffectFunction ++ "\n" ++   -- i3djw.1: per-account non-storage effect producer (CALL value-transfer)
   frameReturnFunction
 
 def emitRuntimeDispatcherCallableCoreSharedHelpers
