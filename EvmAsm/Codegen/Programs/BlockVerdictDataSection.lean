@@ -735,6 +735,8 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- bmvmx.1.4.1: execution-derived sender balance debit (gas_used*eff_gas_price + value),
   -- the sender's balance decrease for the supported single-tx EOA class.
   "bmvmx_gascost:\n  .zero 32\n" ++
-  "bmvmx_sender_debit:\n  .zero 32\n"
+  "bmvmx_sender_debit:\n  .zero 32\n" ++
+  -- .6.2.2.2.b: multi-tx dispatch loop index cursor.
+  "bv_mtx_i:\n  .zero 8\n"
 
 end EvmAsm.Codegen
