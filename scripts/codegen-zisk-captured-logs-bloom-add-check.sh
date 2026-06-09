@@ -74,8 +74,10 @@ def descriptor(address, topics, data=b""):
 raw = json.loads(os.environ["SPEC_JSON"])
 mode = raw.get("mode", "logs")
 if mode == "count_over_cap":
-    count = 17
-    descs = bytes(256 * count)
+    # 6c7v9: the descriptor cap was raised 16 -> 1024; 1025 still exceeds it. The
+    # count gate rejects before any descriptor is read, so the body is a placeholder.
+    count = 1025
+    descs = bytes(256)
     expected_status = 1
     bloom = bytes(256)
 elif mode == "topic_over_cap":
@@ -154,6 +156,9 @@ run_case "one_log4" "{\"logs\":[{\"address\":\"$A1\",\"topics\":[\"$T0\",\"$T1\"
 run_case "two_logs_mixed" "{\"logs\":[{\"address\":\"$A1\",\"topics\":[\"$T0\"],\"data\":\"\"},{\"address\":\"$A2\",\"topics\":[\"$T1\",\"$T2\"],\"data\":\"cafebabe\"}]}" || FAILED=1
 run_case "count_over_cap" '{"mode":"count_over_cap"}' || FAILED=1
 run_case "topic_over_cap" '{"mode":"topic_over_cap"}' || FAILED=1
+# 6c7v9: 20 LOG events (> the former 16-descriptor cap) must now be captured and bloomed.
+many_logs=""; for _i in $(seq 1 20); do many_logs+="{\"address\":\"$A1\",\"topics\":[\"$T0\"],\"data\":\"\"},"; done
+run_case "many_logs_over_old_cap" "{\"logs\":[${many_logs%,}]}" || FAILED=1
 
 echo
 if [[ $FAILED -eq 0 ]]; then
