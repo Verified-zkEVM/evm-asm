@@ -1482,7 +1482,13 @@ through ECALL bridges (extending `EvmAsm/EL/Keccak*EcallBridge.lean`).
   valid `system_contract_reaches_gas_limit` rows (36141b1cb: tolerated/gas-limit system calls legitimately
   omit the predeploy code). Correct fix must distinguish code-required (normal execution) from code-omittable
   (system-call errors/gas-limit) — system-call-outcome modeling, not a presence check. Both only ADD rejects;
-  the unsound mkwwf attempt was caught by a clean-main regression sweep.
+  the unsound mkwwf attempt was caught by a clean-main regression sweep. (c) **precheck-failed CALL targets**
+  (`kpvxz`, PR #8656) — `bal_call_target_delegated_code_valid` hard-rejected a `witness_lookup_by_hash` miss
+  on the CALL-target's own code, false-rejecting `static_create_contract_suicide_during_init` d3 (CALL with
+  value inside a STATICCALL frame raises at precheck, so the target's code is never read and its preimage is
+  legitimately absent). Target-own-code miss now means "no delegated-code obligation"; the marker-visible
+  delegated-code reject and the extcodesize status-5 chain are unchanged (validation_codes 01427–01437 sweep
+  kept all expected verdicts).
 
 - 🔧 **FileSizeGuard cap discipline (#8645)**: `EvmAsm/Codegen/Programs/FileSizeGuard.lean`'s `#eval`
   enforces a 1500-line hard cap on every file under `Programs/`, but reads siblings via `IO.FS.readFile`

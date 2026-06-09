@@ -48,6 +48,7 @@ import EvmAsm.Codegen.Programs.NonstorageEffectLog
 import EvmAsm.Codegen.Programs.CreateRoundtrip
 import EvmAsm.Codegen.Programs.CallBalanceGate
 import EvmAsm.Codegen.Programs.CallValueEffect
+import EvmAsm.Codegen.Programs.StageBlockhashM29
 import EvmAsm.Codegen.Programs.ParseDepositRequests
 
 namespace EvmAsm.Codegen
@@ -110,6 +111,7 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_block_validate_block_hash_pair" => some ziskBlockValidateBlockHashPairProbeUnit
   | "zisk_block_hash_and_extract_number" => some ziskBlockHashAndExtractNumberProbeUnit
   | "zisk_blockhash_from_witness_headers" => some ziskBlockhashFromWitnessHeadersProbeUnit
+  | "zisk_stage_blockhash_m29" => some ziskStageBlockhashM29ProbeUnit
   | "zisk_eip2935_blockhash_lookup" => some ziskEip2935BlockhashLookupProbeUnit
   | "zisk_eip4788_beacon_root_lookup" => some ziskEip4788BeaconRootLookupProbeUnit
   | "zisk_witness_headers_chain_validate" => some ziskWitnessHeadersChainValidateProbeUnit

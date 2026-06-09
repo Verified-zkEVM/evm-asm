@@ -67,6 +67,7 @@ def knownProgramNamesTail : List String :=
    "zisk_block_validate_block_hash_pair",
    "zisk_block_hash_and_extract_number",
    "zisk_blockhash_from_witness_headers",
+   "zisk_stage_blockhash_m29",
    "zisk_eip2935_blockhash_lookup",
    "zisk_eip4788_beacon_root_lookup",
    "zisk_witness_headers_chain_validate",

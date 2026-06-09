@@ -893,8 +893,9 @@ def balCodePreimagesValidFunction : String :=
   "# account is present in BAL and has non-empty code missing from\n" ++
   "# witness.codes. OOG static-check cases can touch only the target account;\n" ++
   "# in those cases execution-specs does not load the delegated account, so\n" ++
-  "# its code preimage is not required. Non-delegated targets return 0;\n" ++
-  "# parse/proof failures return 1 conservatively.\n" ++
+  "# its code preimage is not required. Non-delegated targets return 0, as\n" ++
+  "# does a target whose own code preimage is absent (a precheck-failed CALL\n" ++
+  "# never reads it); code-hash proof failures return 1 conservatively.\n" ++
   "bal_call_target_delegated_code_valid:\n" ++
   "  addi sp, sp, -96\n" ++
   "  sd ra, 0(sp)\n" ++
@@ -920,7 +921,14 @@ def balCodePreimagesValidFunction : String :=
   ".Lbcdcv_lookup_target_code:\n" ++
   "  mv a0, s5; mv a1, s6; la a2, bbcv_code_hash; la a3, bbcv_code_off; la a4, bbcv_code_len\n" ++
   "  jal ra, witness_lookup_by_hash\n" ++
-  "  bnez a0, .Lbcdcv_bad\n" ++
+  "  # A miss on the TARGET's own code carries no delegated-code obligation:\n" ++
+  "  # a CALL whose precheck raises (e.g. value!=0 inside a STATICCALL frame,\n" ++
+  "  # as in static_create_contract_suicide_during_init) never reads the\n" ++
+  "  # target's bytecode, so its preimage is legitimately absent. Rows whose\n" ++
+  "  # code IS read but missing are still rejected by the caller's\n" ++
+  "  # extcodesize status-5 chain; only the marker-visible delegated-code\n" ++
+  "  # obligation below stays a hard reject.\n" ++
+  "  bnez a0, .Lbcdcv_ok\n" ++
   "  la t0, bbcv_code_len; ld t1, 0(t0); li t2, 23\n" ++
   "  bne t1, t2, .Lbcdcv_ok\n" ++
   "  la t0, bbcv_code_off; ld t1, 0(t0); add s7, s5, t1\n" ++
