@@ -83,9 +83,12 @@
   ## Implementation shape
 
   Uses one 32-byte `.data` scratch (`wlh_scratch_hash`) for the
-  per-iteration keccak output. The linear scan refuses sections larger than
-  64 KiB, matching the default `block_state_root` witness cap, so raised-cap
-  experiments fail conservatively instead of running for billions of steps.
+  per-iteration keccak output. The linear scan is not size-capped: sections
+  without a registered index (notably `witness.codes`, which can exceed
+  64 KiB via large predeploy bytecode) must still resolve, since a capped
+  miss turns into a false witness-integrity rejection. Repeated lookups on
+  a large section should go through the sorted index built by
+  `witness_index_build` (the stateless verdict registers `witness.state`).
 -/
 
 namespace EvmAsm.Stateless.Witness.NodeDb.Lookup
