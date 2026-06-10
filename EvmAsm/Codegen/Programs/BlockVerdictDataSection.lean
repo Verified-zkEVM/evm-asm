@@ -199,7 +199,12 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bvgr_runtime_calldata_floor_ptr:\n  .zero 8\n" ++
   "bvgr_runtime_count:\n  .zero 8\n" ++
   ".balign 8\n" ++
-  "bv_runtime_payload:\n  .zero 4096\n" ++
+  -- bmvmx.1.7.2: sized to fit a max EIP-170 contract (round8(24576)) + 128-slot storage
+  -- preload (128*64=8192) + the 584-byte env/gas trailer + headroom for calldata and the
+  -- future M29 blockhash table (.3b). dispatch_tx_runtime_code's .Ldtrc_stage guard bails
+  -- conservatively for any payload that would still exceed this, so the staging write can
+  -- never overflow into the adjacent gas-result / bvcd_* cells.
+  "bv_runtime_payload:\n  .zero 65536\n" ++
   "bv_runtime_gas_left:\n  .zero 8\n" ++
   "bv_runtime_refund_counter:\n  .zero 8\n" ++
   "bv_runtime_calldata_floor:\n  .zero 8\n" ++
@@ -705,6 +710,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "srpc_ctx:\n  .zero 192\n" ++
   "srpc_exec:\n  .zero 512\n" ++
   "srpc_code:\n  .zero 64\n" ++
+  "srpc_env_base:\n  .zero 8\n" ++   -- 3vc2p.5: published env_base offset (single source of truth)
   "srpc_payload:\n  .zero 1024\n" ++
   -- bal_find_account_by_address private scratch:
   ".balign 8\n" ++
