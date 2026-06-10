@@ -409,6 +409,87 @@ def ziskDeriveRequestsHashE2EProbeUnit : BuildUnit := {
     "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n"
 }
 
+/-! ## zisk_derive_block_system_requests (8uld3.2.3/8uld3.4 glue)
+
+    Verify `derive_block_system_requests` runs BOTH system calls sequentially and copies each
+    body to a stable buffer (the verdict needs both live at once). Synthetic withdrawal predeploy
+    RETURNs 76 bytes (byte[31]=0xAB); consolidation predeploy RETURNs 116 bytes (byte[31]=0xCD).
+    Proves two sequential dispatcher runs are independent + the first body survives the second
+    call (system_call_returndata is shared, so the copy-out is load-bearing).
+    Output (0xa0010000): +0 wlen (expect 76), +8 clen (expect 116), +16 wbody[31] (expect 0xAB),
+    +24 cbody[31] (expect 0xCD), +32 status (expect 0). -/
+def ziskDeriveBlockSystemRequestsProbeUnit : BuildUnit := {
+  body        := []
+  prologueAsm :=
+    "  li sp, 0xa0050000\n" ++
+    "  la a0, dbsr_w_code\n  li a1, 10\n  la a2, dbsr_c_code\n  li a3, 10\n  la a4, dbsr_probe_exec\n  la a5, dbsr_probe_staging\n" ++
+    "  jal ra, derive_block_system_requests\n" ++
+    "  li t0, 0xa0010000\n" ++
+    "  la t1, dbsr_wlen; ld t2, 0(t1); sd t2, 0(t0)\n" ++          -- +0 wlen (expect 76)
+    "  la t1, dbsr_clen; ld t2, 0(t1); sd t2, 8(t0)\n" ++          -- +8 clen (expect 116)
+    "  la t1, dbsr_wbody; add t1, t1, 31; lbu t2, 0(t1); sd t2, 16(t0)\n" ++   -- +16 wbody[31] (0xAB)
+    "  la t1, dbsr_cbody; add t1, t1, 31; lbu t2, 0(t1); sd t2, 24(t0)\n" ++   -- +24 cbody[31] (0xCD)
+    "  sd a0, 32(t0)\n" ++                                         -- +32 status (expect 0)
+    "  li x17, 93\n  li x10, 0\n  ecall\n" ++
+    deriveBlockSystemRequestsFunction ++ "\n" ++
+    deriveWithdrawalRequestsFunction ++ "\n" ++
+    deriveConsolidationRequestsFunction ++ "\n" ++
+    stageSystemCallFunction ++ "\n" ++
+    stageSystemCallPayloadFunction ++ "\n" ++
+    stageRuntimePayloadCodeFunction ++ "\n" ++
+    frameBaseFunction ++ "\n" ++
+    frameDepthPushFunction ++ "\n" ++
+    frameDepthPopFunction ++ "\n" ++
+    frameSaveRegsFunction ++ "\n" ++
+    frameLoadRegsFunction ++ "\n" ++
+    callFrameEnterFunction ++ "\n" ++
+    callFrameSetCallEnvFunction ++ "\n" ++
+    callFrameSetCalldataFunction ++ "\n" ++
+    callFrameForwardGasFunction ++ "\n" ++
+    callFrameDescendFunction ++ "\n" ++
+    createFrameDescendFunction ++ "\n" ++
+    frameReturnFunction ++ "\n" ++
+    recordNonstorageEffectFunction ++ "\n" ++
+    u256SubBeFunction ++ "\n" ++
+    emitRuntimeDispatcherCallablePrologue
+  epilogueAsm := emitDispatcherCallableEpilogue tinyInterpRegistry evmAddEpilogue
+  dataAsm     :=
+    emitRuntimeDispatcherDataSection tinyInterpRegistry ++ "\n" ++
+    ".balign 8\n" ++
+    "scc_ctx:\n  .zero 192\n" ++
+    ".balign 8\n" ++
+    "scc_system_addr:\n" ++
+    "  .byte 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff\n" ++
+    "  .byte 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfe\n" ++
+    ".balign 8\n" ++
+    "srpc_env_base:\n  .zero 8\n" ++
+    "m29_stage_cur:\n  .zero 8\n" ++
+    "m29_stage_count:\n  .zero 8\n" ++
+    "m29_stage_table:\n  .zero 8192\n" ++
+    ".balign 8\n" ++
+    "ssc_saved_ra:\n  .zero 8\n" ++
+    "ssc_saved_s0:\n  .zero 8\n" ++
+    withdrawalRequestPredeployAddrData ++
+    consolidationRequestPredeployAddrData ++
+    deriveBlockSystemRequestsData ++
+    ".balign 8\n" ++
+    "dbsr_w_code:\n  .byte 0x60, 0xab, 0x60, 0x00, 0x52, 0x60, 0x4c, 0x60, 0x00, 0xf3\n" ++   -- PUSH1 0xAB; MSTORE; RETURN 76
+    ".balign 8\n" ++
+    "dbsr_c_code:\n  .byte 0x60, 0xcd, 0x60, 0x00, 0x52, 0x60, 0x74, 0x60, 0x00, 0xf3\n" ++   -- PUSH1 0xCD; MSTORE; RETURN 116
+    ".balign 8\n" ++
+    "dbsr_probe_exec:\n  .zero 1024\n" ++
+    ".balign 8\n" ++
+    "dbsr_probe_staging:\n  .zero 4096\n" ++
+    ".balign 8\n" ++
+    "evm_call_depth:\n  .zero 8\n" ++
+    ".balign 16\n" ++
+    "frame_save_area:\n  .zero 16400\n" ++
+    ".balign 32\n" ++
+    "frame_call_ctx:\n  .zero 32800\n" ++
+    ".balign 32\n" ++
+    "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n"
+}
+
 /-! ## zisk_sstore_clear_gas_probe (diagnostic for .57.11.6.5.3 / d')
 
     Pins the (d'/bv_fail=41) regular-gas undercount: dispatch the multi_transaction_gas_accounting
