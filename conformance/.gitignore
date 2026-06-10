@@ -1,0 +1,6 @@
+# Vendored guest pack helper is copied from the pinned commit at build time.
+guest/pack-bytecode.py
+guest/*.bak
+*.bak
+__pycache__/
+*.pyc
