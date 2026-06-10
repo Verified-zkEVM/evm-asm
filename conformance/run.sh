@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # conformance/run.sh — live-chain conformance harness for evm-asm.
 #
-# Runs REAL Ethereum data through the actual verified evm-asm RISC-V guest on
-# the Zisk emulator, and cross-checks the result against the live chain.
+# Runs REAL Ethereum data through the evm-asm RISC-V guest on the Zisk emulator,
+# and cross-checks the result against the live chain. NB: the guest is emitted by
+# evm-asm's UNVERIFIED codegen layer; what is kernel-checked is the per-opcode
+# Lean Hoare triples (see capabilities.json / --deep), not this ELF.
 #
 #   ./run.sh                 narrated demo (default), live RPC
 #   ./run.sh --deep          + proof deep-dives (kernel theorem + cycle bound)
@@ -76,12 +78,12 @@ fetch_block_env() {
 hexdec() { "$PYTHON" -c "import sys; print(int(sys.argv[1],16))" "$1"; }
 
 # ---------------------------------------------------------------------------
-# Act 1 — live block environment through verified env opcodes
+# Act 1 — live block environment through evm-asm's proven env opcodes
 # ---------------------------------------------------------------------------
 act1_env() {
-  banner "ACT 1 — A live mainnet block, read by a verified EVM"
+  banner "ACT 1 — A live mainnet block, read through evm-asm's proven opcodes"
   say "We pull the latest block from mainnet and feed its environment into"
-  say "evm-asm's environment opcodes — each one a kernel-checked theorem."
+  say "evm-asm's environment opcodes — each backed by a kernel-checked theorem."
   note "block #$BN_DEC  (chain id $CHAINID_DEC)"
   echo
   # name  opcode-byte  env-field  manifest-key  chain-decimal-value
@@ -103,17 +105,17 @@ act1_env() {
       CHAINID)   hexval="$(printf '0x%x' "$CHAINID_DEC")" ;;
     esac
     run_guest "act1_$name" "0x$op, 0x00" --env "$field=$hexval"
-    assert_dec_eq "$name on the verified guest == mainnet" "$GUEST_WORD_DEC" "$want" || FAILS=$((FAILS+1))
+    assert_dec_eq "$name on the evm-asm guest == mainnet" "$GUEST_WORD_DEC" "$want" || FAILS=$((FAILS+1))
     deep_dive "$key"
   done
   pause
 }
 
 # ---------------------------------------------------------------------------
-# Act 2 — real transaction calldata through verified arithmetic
+# Act 2 — real transaction calldata through evm-asm's proven arithmetic
 # ---------------------------------------------------------------------------
 act2_calldata() {
-  banner "ACT 2 — Real transaction calldata, through verified arithmetic"
+  banner "ACT 2 — Real transaction calldata, through proven arithmetic"
   local calldata
   if [ "$NO_NET" = "1" ]; then
     calldata="$(cat "$CANNED/act2_calldata.hex")"
@@ -123,7 +125,7 @@ act2_calldata() {
     echo "$calldata" > "$WORK/act2_calldata.hex"
   fi
   say "An on-chain ERC-20 transfer. We extract its real 'amount' word with"
-  say "CALLDATALOAD and run verified 256-bit arithmetic on it."
+  say "CALLDATALOAD and run MUL — proven correct as a Lean Hoare triple — on it."
   note "tx ${ACT2_TX:0:18}…  selector ${calldata:0:10}"
   # amount word: 32 bytes at calldata offset 0x24 (after 4-byte selector + 32-byte address)
   local off_dec amount_hex amount_dec
@@ -136,18 +138,18 @@ act2_calldata() {
   run_guest "act2_load" "0x60, 0x24, 0x35, 0x00" --calldata "$calldata"
   assert_dec_eq "CALLDATALOAD(0x24) on the guest == the tx's real amount" "$GUEST_WORD_DEC" "$amount_dec" || FAILS=$((FAILS+1))
   deep_dive "CALLDATALOAD"
-  # (b) verified MUL: amount * 2
+  # (b) MUL (kernel-checked Hoare triple): amount * 2
   run_guest "act2_mul" "0x60, 0x24, 0x35, 0x60, 0x02, 0x02, 0x00" --calldata "$calldata"
-  assert_dec_eq "verified MUL: amount × 2" "$GUEST_WORD_DEC" "$(( amount_dec * 2 ))" || FAILS=$((FAILS+1))
+  assert_dec_eq "MUL (kernel-checked Hoare triple): amount × 2" "$GUEST_WORD_DEC" "$(( amount_dec * 2 ))" || FAILS=$((FAILS+1))
   deep_dive "MUL"
   pause
 }
 
 # ---------------------------------------------------------------------------
-# Act 3 — real contract bytecode through the verified guest + coverage
+# Act 3 — real contract bytecode through the evm-asm guest + coverage
 # ---------------------------------------------------------------------------
 act3_bytecode() {
-  banner "ACT 3 — Real on-chain contract bytecode, and the verified frontier"
+  banner "ACT 3 — Real on-chain contract bytecode, and the coverage frontier"
   local code
   if [ "$NO_NET" = "1" ]; then
     code="$(cat "$CANNED/act3_code.hex")"
@@ -157,7 +159,7 @@ act3_bytecode() {
     echo "$code" > "$WORK/act3_code.hex"
   fi
   say "We take $ACT3_NAME's real deployed bytecode and run it through the"
-  say "verified guest. Most of it already runs; the rest is the roadmap."
+  say "evm-asm guest. Most of it already runs; the rest is the roadmap."
   note "$ACT3_NAME @ ${ACT3_CONTRACT}  (${#code} hex chars)"
   echo
   # Execute the real bytecode (decimals() selector) — show it runs real opcodes.
@@ -166,7 +168,7 @@ act3_bytecode() {
   run_guest "act3_exec" "$csv" --calldata "0x313ce567"
   note "guest executed real $ACT3_NAME bytecode → halt kind $GUEST_HALT  (see emu log)"
   echo
-  say "Opcode-coverage of this real contract against evm-asm's verified set:"
+  say "Opcode-coverage of this real contract against evm-asm's kernel-proven opcode set:"
   "$PYTHON" "$HERE/opcode_coverage.py" "$HERE/capabilities.json" "$code"
   note "the 'frontier' opcodes (SLOAD/CALL/…) are exactly the harness roadmap (README)."
   pause
@@ -174,13 +176,16 @@ act3_bytecode() {
 
 closing() {
   banner "What you just saw — and the trust behind it"
-  say "Real mainnet data flowed through evm-asm's real RISC-V guest on a zkVM"
-  say "emulator, and matched the live chain — backed by kernel-checked proofs."
+  say "Real mainnet data flowed through evm-asm's RISC-V guest on a zkVM"
+  say "emulator, and matched the live chain."
   echo
-  note "Trust base (audited by scripts/check-axioms.sh):"
-  note "  • 0 sorry, 0 literal axiom across EvmAsm/"
+  note "What IS kernel-checked — the per-opcode Lean Hoare triples (axis A):"
+  note "  • 0 sorry, 0 literal axiom across EvmAsm/  (scripts/check-axioms.sh)"
   note "  • bv_decide & native_decide fully eliminated (no compiler-trust axioms)"
   note "  • only the 3 classical axioms: propext, Classical.choice, Quot.sound"
+  note "What is NOT yet verified — the codegen emitter that produced this guest"
+  note "  ELF is unverified by design (CODEGEN.md / PROGRESS.md axis G); emitter"
+  note "  drift is caught by #guard round-trip tests, not a proof."
   echo
   note "Stage 0 of the roadmap: supported-opcode subset over real data."
   note "Next: full opcode coverage → storage/CALL → MPT → whole-block post-state root."
@@ -250,8 +255,8 @@ main() {
     report)         report ;;
     demo)
       banner "evm-asm — live-chain conformance demo"
-      say "A formally-verified EVM, compiled to RISC-V, running real mainnet"
-      say "data on a zkVM emulator — and checked against the chain itself."
+      say "evm-asm's Lean-proven EVM opcodes, emitted to RISC-V, running real"
+      say "mainnet data on a zkVM emulator — and checked against the chain itself."
       note "guest: $(basename "$GUEST_ELF")  (pinned $(cat "$GUEST_DIR/PINNED_COMMIT" 2>/dev/null | cut -c1-9))   emulator: $(basename "$ZISKEMU")"
       pause
       fetch_block_env

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# conformance/build-guest.sh — (re)build the verified runtime_dispatcher guest
+# conformance/build-guest.sh — (re)build the evm-asm runtime_dispatcher guest
 # ELF that the conformance harness runs, and vendor it under conformance/guest/.
+# NB: the codegen emitter is unverified by design; this ELF is not "verified".
 #
 # WHY A PINNED COMMIT:
 #   On `main` HEAD the STANDALONE runtime_dispatcher does not link: h_CREATE /
@@ -23,7 +24,7 @@ REPO_ROOT="$(cd "$HERE/.." && pwd)"
 GUEST_REF="${GUEST_REF:-78bb73314}"     # parent of the create_frame_descend break
 WT="${WT:-/tmp/evmasm-guest-$GUEST_REF}"
 
-echo "==> building verified guest from $GUEST_REF"
+echo "==> building evm-asm guest from $GUEST_REF"
 if ! git -C "$REPO_ROOT" worktree list | grep -q "$WT"; then
   git -C "$REPO_ROOT" worktree add --detach "$WT" "$GUEST_REF"
 fi

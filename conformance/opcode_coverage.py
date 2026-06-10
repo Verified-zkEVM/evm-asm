@@ -76,7 +76,7 @@ def classify(caps_path, hexstr):
         if rt != "exec":
             unsupported[name] = unsupported.get(name, 0) + cnt
 
-    verified = tiers["proven"] + tiers["conditional"]   # kernel-checked triple
+    proven = tiers["proven"] + tiers["conditional"]     # has a kernel-checked Hoare triple
     runnable = runtime["exec"]                           # spec-faithful in guest
     return {
         "code_bytes": len(code),
@@ -84,7 +84,7 @@ def classify(caps_path, hexstr):
         "distinct_ops": len(hist),
         "tiers": tiers,
         "runtime": runtime,
-        "verified_pct": round(100 * verified / total_ops, 1) if total_ops else 0.0,
+        "proven_pct": round(100 * proven / total_ops, 1) if total_ops else 0.0,
         "runnable_pct": round(100 * runnable / total_ops, 1) if total_ops else 0.0,
         "top_unsupported": sorted(unsupported.items(), key=lambda kv: -kv[1])[:6],
     }
@@ -104,8 +104,8 @@ def main():
         return 0
     print(f"  bytecode: {r['code_bytes']} bytes, {r['total_ops']} opcodes "
           f"({r['distinct_ops']} distinct)")
-    print(f"  verified (proven/conditional triple): {r['verified_pct']}%")
-    print(f"  runnable in guest (spec-faithful):    {r['runnable_pct']}%")
+    print(f"  kernel-proven opcode spec (proven/conditional triple): {r['proven_pct']}%")
+    print(f"  runnable in guest (codegen, unverified emitter):       {r['runnable_pct']}%")
     t = r["tiers"]
     print(f"  by proof tier: proven {t['proven']}  conditional {t['conditional']}  "
           f"partial {t['partial']}  execSpec {t['execSpec']}  "

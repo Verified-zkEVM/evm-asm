@@ -3,9 +3,10 @@
 # harness. Sourced by run.sh and build-guest.sh. No side effects on source.
 #
 # The harness runs REAL Ethereum data (block environment, transaction calldata,
-# contract bytecode) through the actual verified evm-asm RISC-V guest on the
-# Zisk emulator, and cross-checks the result against the live chain. See
-# conformance/README.md for scope, honesty caveats, and the maturity roadmap.
+# contract bytecode) through the evm-asm RISC-V guest on the Zisk emulator, and
+# cross-checks the result against the live chain. The guest is emitted by the
+# UNVERIFIED codegen layer; the kernel-checked artifacts are the per-opcode Lean
+# Hoare triples. See conformance/README.md for scope, caveats, and the roadmap.
 
 # ---------------------------------------------------------------------------
 # Paths and tool resolution
@@ -122,7 +123,7 @@ PY
 }
 
 # ---------------------------------------------------------------------------
-# The core pipeline: bytecode (+ optional pack args) -> verified guest -> result
+# The core pipeline: bytecode (+ optional pack args) -> evm-asm guest -> result
 # ---------------------------------------------------------------------------
 # Usage: run_guest <name> <bytecode_csv> [extra pack-bytecode.py args...]
 # Sets globals: GUEST_OUT_FILE, GUEST_WORD_DEC, GUEST_HALT
@@ -145,11 +146,11 @@ assert_dec_eq() {
   local headline="$1" got="$2" want="$3"
   if [ "$got" = "$want" ]; then
     printf '%s %s\n' "${C_GREEN}${C_BOLD}✓ MATCH${C_RESET}" "$headline"
-    printf '   %sverified guest = %s   chain = %s%s\n' "$C_DIM" "$got" "$want" "$C_RESET"
+    printf '   %sevm-asm guest = %s   chain = %s%s\n' "$C_DIM" "$got" "$want" "$C_RESET"
     return 0
   else
     printf '%s %s\n' "${C_RED}${C_BOLD}✗ MISMATCH${C_RESET}" "$headline"
-    printf '   %sverified guest = %s   chain = %s%s\n' "$C_DIM" "$got" "$want" "$C_RESET"
+    printf '   %sevm-asm guest = %s   chain = %s%s\n' "$C_DIM" "$got" "$want" "$C_RESET"
     return 1
   fi
 }
@@ -171,7 +172,7 @@ mark = {"proven":"✅ proven","conditional":"🔶 conditional","partial":"🟡 p
         "execSpec":"⏳ execSpec","notStarted":"✗ notStarted"}.get(tier, tier)
 print("   ┌ %s  (byte %s)  —  %s" % (op, e["byte"], mark))
 if w:  print("   │ kernel-checked theorem: %s" % w)
-if c is not None: print("   │ verified cycle bound:   cpsTripleWithin %s" % c)
+if c is not None: print("   │ proven cycle bound:     cpsTripleWithin %s" % c)
 print("   └ defined in EvmAsm/Evm64/  (no sorry, no axiom beyond the 3 classical)")
 PY
 }

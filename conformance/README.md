@@ -1,8 +1,16 @@
 # evm-asm live-chain conformance harness
 
 Run **real Ethereum data** — live block environment, real transaction calldata,
-real contract bytecode — through the **actual verified evm-asm RISC-V guest** on
-the Zisk emulator, and check the result against the **live chain**.
+real contract bytecode — through the **evm-asm RISC-V guest** on the Zisk
+emulator, and check the result against the **live chain**.
+
+> **What is and isn't verified.** evm-asm's per-opcode stack-effect Hoare triples
+> are kernel-checked in Lean (see `capabilities.json` and `--deep`). The guest ELF
+> the harness runs is emitted by evm-asm's **codegen layer, which is unverified by
+> design** (CODEGEN.md / PROGRESS.md axis G) — emitter drift is caught by `#guard`
+> round-trip tests, not a proof. So this harness exercises a real, *not-yet-verified*
+> guest whose opcodes carry kernel-checked specs; it does **not** demonstrate a
+> verified guest.
 
 This is a demo today and a **living equivalence checker** over time: it is
 capability-driven (reads `capabilities.json`), reports coverage against real
@@ -26,21 +34,23 @@ between acts). For CI / quick check, `./run.sh --no-net --auto`.
 
 ## What the demo shows
 
-1. **Act 1 — a live mainnet block, read by a verified EVM.** Pulls the latest
-   block and feeds `NUMBER / TIMESTAMP / BASEFEE / COINBASE / CHAINID` into the
-   guest's environment opcodes; each output equals the chain value. Every one is
-   a kernel-checked Hoare triple (see `--deep`).
-2. **Act 2 — real transaction calldata, through verified arithmetic.** Takes a
+1. **Act 1 — a live mainnet block, read through evm-asm's proven opcodes.** Pulls
+   the latest block and feeds `NUMBER / TIMESTAMP / BASEFEE / COINBASE / CHAINID`
+   into the guest's environment opcodes; each output equals the chain value. Each
+   opcode carries a kernel-checked Hoare triple (see `--deep`).
+2. **Act 2 — real transaction calldata, through proven arithmetic.** Takes a
    real ERC-20 transfer, extracts its `amount` word with `CALLDATALOAD`, and runs
-   verified 256-bit `MUL` on it — matching the value decoded from the chain.
-3. **Act 3 — real on-chain contract bytecode, and the verified frontier.** Runs
+   `MUL` — proven correct as a Lean Hoare triple — on it, matching the value
+   decoded from the chain.
+3. **Act 3 — real on-chain contract bytecode, and the coverage frontier.** Runs
    WETH9's real deployed bytecode through the guest and scores its opcode
-   coverage: ~75% backed by a kernel-checked triple, ~98% spec-faithfully
-   runnable; the remainder (`SLOAD`, `CALL`, `STATICCALL`) is exactly the
-   roadmap below.
+   coverage: ~75% of opcodes carry a kernel-checked triple, ~98% run in the guest
+   (codegen, unverified emitter); the remainder (`SLOAD`, `CALL`, `STATICCALL`) is
+   exactly the roadmap below.
 
-The closing panel states the trust base (0 `sorry`, 0 `axiom`, no compiler-trust
-tactics; only the three classical axioms — audited by `scripts/check-axioms.sh`).
+The closing panel states what is kernel-checked — the per-opcode Lean proofs
+(0 `sorry`, 0 `axiom`, no compiler-trust tactics; only the three classical
+axioms — `scripts/check-axioms.sh`) — and what is not (the codegen emitter).
 
 ## What this does NOT claim (yet)
 
