@@ -1,9 +1,15 @@
 #!/usr/bin/env bash
-# codegen-eest-eip7002-system-errors-check.sh -- focused EIP-7002 diagnostic.
+# codegen-eest-eip7002-system-errors-check.sh -- EIP-7002 system-contract-errors gate.
 #
-# Current main has one known success-bit mismatch in this modified withdrawal
-# contract fixture. Keep the frontier executable and the mismatch shape precise
-# until the implementation repair turns this into a full-match gate.
+# Full-match gate for the modified-withdrawal-contract system_contract_errors
+# rows (out_of_gas / reaches_gas_limit / reverts / throws). The previously-failing
+# system_contract_reaches_gas_limit row carries a ~73 KB witness.codes section;
+# PR #8647 -- drop the witness_lookup_by_hash 64 KiB linear-scan cap that
+# false-missed >64 KiB sections, and remove the 36141b1cb blanket system-contract
+# reprieve that masked it -- is the repair that turned this into a full-match gate
+# (it previously sat at full=3/succ=3/fail=1). The gate now protects that fix from
+# a perf-cap regression: re-capping the lookup would false-reject the >64 KiB row
+# again (the recurring class behind mkwwf's false-accept).
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -72,10 +78,10 @@ fail="$(baseline_value "fail")"
 [[ "$errored" == "0" ]] || { echo "expected errored=0, got $errored" >&2; exit 1; }
 [[ "$budget" == "0" ]] || { echo "expected budget=0, got $budget" >&2; exit 1; }
 [[ "$ran" == "4" ]] || { echo "expected ran=4, got $ran" >&2; exit 1; }
-[[ "$full" == "3" ]] || { echo "expected current full-match frontier full=3, got $full" >&2; exit 1; }
+[[ "$full" == "4" ]] || { echo "expected full=4 (all rows full-match post-#8647; a regression here means the >64KiB witness.codes lookup broke again), got $full" >&2; exit 1; }
 [[ "$root" == "4" ]] || { echo "expected root=4, got $root" >&2; exit 1; }
-[[ "$succ" == "3" ]] || { echo "expected current success-bit frontier succ=3, got $succ" >&2; exit 1; }
+[[ "$succ" == "4" ]] || { echo "expected succ=4, got $succ" >&2; exit 1; }
 [[ "$tail" == "4" ]] || { echo "expected tail=4, got $tail" >&2; exit 1; }
-[[ "$fail" == "1" ]] || { echo "expected current mismatch count fail=1, got $fail" >&2; exit 1; }
+[[ "$fail" == "0" ]] || { echo "expected fail=0, got $fail" >&2; exit 1; }
 
-echo "==> PASS: EIP-7002 system-contract-errors diagnostic matched current frontier"
+echo "==> PASS: EIP-7002 system-contract-errors full-match gate selected=4 full=4"
