@@ -12,11 +12,13 @@
   a pushdata-aware scan that returns "self-contained" iff the bytecode contains
   none of the un-staged-state opcodes.
 
-  Unsafe opcodes (need un-staged state): BALANCE(0x31), ORIGIN(0x32),
-  CALLER(0x33), GASPRICE(0x3a), EXTCODESIZE(0x3b), EXTCODECOPY(0x3c),
-  EXTCODEHASH(0x3f), BLOCKHASH(0x40), SELFBALANCE(0x47), CREATE(0xf0),
-  CREATE2(0xf5), SELFDESTRUCT(0xff). PUSH1..PUSH32 (0x60..0x7f) data bytes are
-  skipped so push immediates are never misread as opcodes.
+  Unsafe opcodes (still rejected — need un-staged state): BALANCE(0x31)
+  (volatile cross-account balance, M31), SELFDESTRUCT(0xff) (beneficiary state).
+  Everything else that once needed staging is now executed through real dispatch:
+  ORIGIN/CALLER/GASPRICE (3vc2p.1/.2/.4), EXTCODESIZE/COPY/HASH (yisv8.2),
+  SELFBALANCE (yisv8.1/.2), CREATE/CREATE2 (.61.8.3.5/.8c-3), BLOCKHASH(0x40)
+  (3vc2p.3b: M29 table staged from the witness headers). PUSH1..PUSH32
+  (0x60..0x7f) data bytes are skipped so push immediates are never misread as opcodes.
 
   SELFDESTRUCT(0xff) is rejected because its gas adds cold-beneficiary-access
   (EIP-2929) + account-creation (when the beneficiary is empty and balance>0),
@@ -65,12 +67,15 @@ def bytecodeIsSelfContainedFunction : String :=
   -- 3vc2p.4: ORIGIN(0x32)/CALLER(0x33)/GASPRICE(0x3a) are NO LONGER rejected (#8648).
   -- yisv8.2 (part 2): EXTCODESIZE(0x3b)/EXTCODECOPY(0x3c)/EXTCODEHASH(0x3f) are NO LONGER
   -- rejected — their handlers read account code from the staged state+codes witness.
-  -- BLOCKHASH(0x40) stays rejected (table staging 3vc2p.3 not done yet).
-  "  li t3, 0x40; beq t2, t3, .Lbsc_unsafe\n" ++   -- BLOCKHASH
+  -- 3vc2p.4 (BLOCKHASH): BLOCKHASH(0x40) is NO LONGER rejected — the M29 recent-blockhash
+  -- table is now reconstructed from the witness headers and staged into the contract-recipient
+  -- payload (3vc2p.3b: stage_blockhash_m29 #8655 + the payload M29 block #8662 + the dispatch
+  -- compute #8663), so the dispatcher setup loads env+552/+560 + evm_block_hashes and the
+  -- BLOCKHASH handler resolves through real execution.
   -- yisv8.2: SELFBALANCE(0x47) NO LONGER rejected (#8650); CREATE/CREATE2 NO LONGER rejected
-  -- (#8649); EXTCODE*(0x3b/0x3c/0x3f) NO LONGER rejected (this PR, yisv8.2 part 2).
+  -- (#8649); EXTCODE*(0x3b/0x3c/0x3f) NO LONGER rejected (yisv8.2 part 2).
   -- BALANCE(0x31) stays rejected (volatile balance, cross-account witness M31 needed);
-  -- BLOCKHASH(0x40) pending its table (3vc2p.3); SELFDESTRUCT(0xff) stays rejected.
+  -- SELFDESTRUCT(0xff) stays rejected (beneficiary state un-staged).
   "  li t3, 0xff; beq t2, t3, .Lbsc_unsafe\n" ++   -- SELFDESTRUCT (beneficiary cold/warm + account-creation gas is un-staged)
   "  addi t0, t0, 1; j .Lbsc_loop\n" ++
   ".Lbsc_safe:\n" ++
@@ -106,6 +111,10 @@ def ziskBytecodeIsSelfContainedPrologue : String :=
   "  la t0, bsc_codeD\n" ++
   "  li t1, 0x60; sb t1, 0(t0); sb zero, 1(t0); li t1, 0xFF; sb t1, 2(t0)\n" ++
   "  la a0, bsc_codeD; li a1, 3; jal ra, bytecode_is_self_contained; sd a0, 24(s0)\n" ++
+  -- code E: 60 00 40 (PUSH1 0 BLOCKHASH -> NOW self-contained: M29 table staged, 3vc2p.4).
+  "  la t0, bsc_codeE\n" ++
+  "  li t1, 0x60; sb t1, 0(t0); sb zero, 1(t0); li t1, 0x40; sb t1, 2(t0)\n" ++
+  "  la a0, bsc_codeE; li a1, 3; jal ra, bytecode_is_self_contained; sd a0, 32(s0)\n" ++
   "  j .Lbscp_done\n" ++
   bytecodeIsSelfContainedFunction ++ "\n" ++
   ".Lbscp_done:"
@@ -116,7 +125,8 @@ def ziskBytecodeIsSelfContainedDataSection : String :=
   "bsc_codeA:\n  .zero 16\n" ++
   "bsc_codeB:\n  .zero 16\n" ++
   "bsc_codeC:\n  .zero 16\n" ++
-  "bsc_codeD:\n  .zero 16\n"
+  "bsc_codeD:\n  .zero 16\n" ++
+  "bsc_codeE:\n  .zero 16\n"
 
 def ziskBytecodeIsSelfContainedProbeUnit : BuildUnit := {
   body        := NOP

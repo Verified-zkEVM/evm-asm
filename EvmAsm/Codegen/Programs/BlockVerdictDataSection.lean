@@ -216,8 +216,8 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bvcd_acct_len:\n  .zero 8\n" ++
   "bvcd_key_count:\n  .zero 8\n" ++
   "bvcd_i:\n  .zero 8\n" ++
-  "bvcd_keys:\n  .zero 512\n" ++       -- up to 16 x 32-byte slot keys
-  "bvcd_preload:\n  .zero 1024\n" ++   -- up to 16 x 64-byte (key,value) pairs
+  "bvcd_keys:\n  .zero 4096\n" ++      -- bmvmx.1.7.3: up to 128 x 32-byte slot keys (was 16; bal_recipient_storage_keys caps at 128)
+  "bvcd_preload:\n  .zero 8192\n" ++   -- bmvmx.1.7.3: up to 128 x 64-byte (key,value) pairs (was 16)
   -- bmvmx.1.6.2 exec-vs-BAL recipient storage check scratch (bal_storage_change_values +
   -- bal_storage_matches_exec_log), now linked into the verdict's contract-dispatch tail.
   balStorageChangeValuesData ++
@@ -710,7 +710,17 @@ def ziskStatelessVerdictV2DataSection : String :=
   "srpc_ctx:\n  .zero 192\n" ++
   "srpc_exec:\n  .zero 512\n" ++
   "srpc_code:\n  .zero 64\n" ++
-  "srpc_env_base:\n  .zero 8\n" ++   -- 3vc2p.5: published env_base offset (single source of truth)
+  "srpc_env_base:\n  .zero 8\n" ++
+  "m29_stage_cur:\n  .zero 8\n" ++
+  "m29_stage_count:\n  .zero 8\n" ++
+  "m29_stage_table:\n  .zero 8192\n" ++   -- 3vc2p.3b: M29 recent-blockhash table (256x32; default 0 -> inert)
+  -- 3vc2p.3b sub-step B: stage_blockhash_m29 scratch (the ignored offset/length outs + the
+  -- pass-1 hash sink) + blockhash_from_witness_headers' number buffer.
+  ".balign 32\n" ++
+  "m29_hash_tmp:\n  .zero 32\n" ++
+  "m29_off_tmp:\n  .zero 8\n" ++
+  "m29_len_tmp:\n  .zero 8\n" ++
+  "bhfwh_number_buf:\n  .zero 8\n" ++
   "srpc_payload:\n  .zero 1024\n" ++
   -- bal_find_account_by_address private scratch:
   ".balign 8\n" ++
