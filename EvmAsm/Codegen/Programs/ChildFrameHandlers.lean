@@ -1319,6 +1319,43 @@ def callDescendFallThrough
     "  addi t0, t0, 1\n  addi t1, t1, 1\n  addi t2, t2, -1\n" ++
     "  bnez t2, .Lcd_cmp_" ++ tag ++ "\n" ++
     ".Lcd_balok_" ++ tag ++ ":\n" ++
+    -- 5em02.1: debit the caller's LIVE balance (env+32 = .selfBalance, big-endian) by the
+    -- transferred value so SELFBALANCE reads B-V mid-execution. The transfer was inert, so
+    -- SELFBALANCE read the staged pre-state balance -> false-reject for value-moving
+    -- contracts. CALL (mode 0) only: CALLCODE keeps the value in the caller's own context
+    -- (transfer-to-self, no balance change). Guards: value!=0 + account-witness ctx present
+    -- (so cd_value_be is the valid BE value the gate populated above) + borrow-check (the
+    -- gate verified PRE-state balance>=value; the LIVE env+32 may be lower from an earlier
+    -- value-CALL in this frame -> skip on underflow, conservative no-op). u256_sub_be
+    -- clobbers a-regs aliasing x10/x12/x13; x20 is preserved.
+    (if mode != 0 then "" else
+      "  ld t3, " ++ toString valueOff ++ "(x12)\n" ++
+      "  ld t4, " ++ toString (valueOff+8) ++ "(x12)\n  or t3, t3, t4\n" ++
+      "  ld t4, " ++ toString (valueOff+16) ++ "(x12)\n  or t3, t3, t4\n" ++
+      "  ld t4, " ++ toString (valueOff+24) ++ "(x12)\n  or t3, t3, t4\n" ++
+      "  beqz t3, .Lcd_deb_done_" ++ tag ++ "\n" ++       -- value == 0: no debit
+      "  ld t3, 584(x20)\n  beqz t3, .Lcd_deb_done_" ++ tag ++ "\n" ++   -- no ctx -> cd_value_be stale -> skip
+      -- self-call guard: if the callee (x12+32, 20-byte BE) == the caller (cd_caller_be,
+      -- the gate's 20-byte BE), the value returns to self -> net-zero. The per-frame env
+      -- model would otherwise leave the caller frame at B-V after return -> false-reject.
+      "  la t0, cd_caller_be\n  addi t1, x12, 32\n  li t2, 20\n" ++
+      ".Lcd_selfchk_" ++ tag ++ ":\n" ++
+      "  beqz t2, .Lcd_deb_done_" ++ tag ++ "\n" ++        -- all 20 bytes equal -> self-call -> skip
+      "  lbu t3, 0(t0)\n  lbu t4, 0(t1)\n  bne t3, t4, .Lcd_notself_" ++ tag ++ "\n" ++
+      "  addi t0, t0, 1\n  addi t1, t1, 1\n  addi t2, t2, -1\n  j .Lcd_selfchk_" ++ tag ++ "\n" ++
+      ".Lcd_notself_" ++ tag ++ ":\n" ++
+      "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
+      "  addi a0, x20, 32\n" ++                            -- a0 = caller LIVE balance (env .selfBalance, BE)
+      "  la a1, cd_value_be\n" ++                          -- a1 = transferred value (BE)
+      "  la a2, cd_caller_newbal\n" ++                     -- a2 = out (= balance - value)
+      "  jal ra, u256_sub_be\n" ++
+      "  mv t0, a0\n" ++                                   -- t0 = borrow flag (before x10=a0 restore)
+      "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
+      "  bnez t0, .Lcd_deb_done_" ++ tag ++ "\n" ++        -- underflow (live < value): conservative skip
+      "  la t0, cd_caller_newbal\n  addi t1, x20, 32\n" ++
+      "  ld t2, 0(t0)\n  sd t2, 0(t1)\n  ld t2, 8(t0)\n  sd t2, 8(t1)\n" ++
+      "  ld t2, 16(t0)\n  sd t2, 16(t1)\n  ld t2, 24(t0)\n  sd t2, 24(t1)\n" ++
+      ".Lcd_deb_done_" ++ tag ++ ":\n") ++
     -- i3djw.1: record the value-transfer NON-STORAGE effect for the callee so the
     -- all-accounts non-storage comparator (i3djw.3) can validate it against the BAL.
     -- The callee receives `value`; record (callee, pre_balance, pre+value, nonce, nonce)
