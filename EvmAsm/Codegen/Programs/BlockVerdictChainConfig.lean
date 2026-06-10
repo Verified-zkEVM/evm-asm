@@ -54,16 +54,23 @@ def publicKeysValidFunction : String :=
   "  li t0, 65\n" ++
   "  remu t1, s7, t0; bnez t1, .Lpkv_fail\n" ++
   "  divu s8, s7, t0             # public key count\n" ++
-  -- x04we: the spec INDEXES transaction_public_keys[tx_index] for index in [0, tx_count)
-  -- (fork.py:1044-1046); it never checks len==tx_count. count < tx_count -> IndexError ->
-  -- reject; count > tx_count -> the surplus trailing keys are simply never indexed and the
-  -- block validates. So reject only when count < tx_count (was the over-strict count != tx_count).
-  "  bltu s8, s4, .Lpkv_fail\n" ++
+  -- xpz16: EXACT-equality count check, restoring the pre-#8558 `bne`. x04we (#8558) relaxed
+  -- this to `bltu` (reject only count < tx_count) on the premise that the spec merely INDEXES
+  -- transaction_public_keys[tx_index] for index in [0, tx_count) (fork.py:1044-1046) so surplus
+  -- keys are harmless -- but that MISSED execute_block (fork.py:308-312), which raises
+  -- InvalidBlock when `transaction_public_keys is not None and len(transaction_public_keys) !=
+  -- len(block.transactions)`. In the stateless path public_keys is ALWAYS non-None (stateless.py
+  -- :382 passes stateless_input.public_keys), so the exact-equality check is active for every
+  -- block: count > tx_count is REJECTED by the reference before any tx runs. The `bltu` therefore
+  -- false-ACCEPTED count > tx_count. Soundness-additive (only adds a reject); no false-reject:
+  -- public_keys is the LAST SszStatelessInput field (stateless_ssz.py:211), so the guest's byte
+  -- length s7 = section_end - public_keys_start is exact and count == tx_count for every valid block.
+  "  bne s8, s4, .Lpkv_fail\n" ++
   "  la t0, bv_public_keys_ptr; sd s5, 0(t0)\n" ++
   "  la t0, bv_public_keys_len; sd s7, 0(t0)\n" ++
   "  li s9, 0\n" ++
   ".Lpkv_loop:\n" ++
-  "  beq s9, s4, .Lpkv_ok\n" ++   -- x04we: validate only the [0, tx_count) indexed keys; surplus trailing keys are never indexed by the spec, so they are not well-formedness-checked
+  "  beq s9, s4, .Lpkv_ok\n" ++   -- xpz16: count == tx_count now (exact-equality above), so [0, tx_count) is every key
   "  li t0, 65; mul t1, s9, t0; add t2, s5, t1\n" ++
   "  lbu t3, 0(t2); li t4, 4; bne t3, t4, .Lpkv_fail\n" ++
   "  li t3, 1; li t4, 0\n" ++
