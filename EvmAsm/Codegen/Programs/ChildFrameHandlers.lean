@@ -312,6 +312,27 @@ def childFrameHandlers
     "  ld x18, 0(x18)\n" ++
     "  bnez x18, 7f\n" ++
     "6:\n" ++
+    -- 5em02.2: debit the creator's LIVE balance (env+32 = .selfBalance, big-endian) by the
+    -- endowment, so SELFBALANCE reads B-endowment after a CREATE (the transfer was inert ->
+    -- false-reject for value-creating contracts). Reached only on the committing path (value
+    -- gate passed, no address collision). ctx-gated (create_value_be valid, populated BE by
+    -- the gate above) + borrow-guarded (the gate checked PRE-state balance; the live env+32 may
+    -- be lower from an earlier same-frame value-op -> conservative skip on underflow). Same
+    -- single-tx failure-rollback caveat as 5em02.1 (a CREATE that later reverts is not undone
+    -- here). The created account's env+32 credit (init-code SELFBALANCE) is a follow-up.
+    "  ld t3, 584(x20)\n  beqz t3, .Lcr_deb_done_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
+    "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
+    "  addi a0, x20, 32\n" ++                            -- a0 = creator LIVE balance (env .selfBalance, BE)
+    "  la a1, create_value_be\n" ++                      -- a1 = endowment (BE)
+    "  la a2, create_creator_newbal\n" ++                -- a2 = out (= balance - endowment)
+    "  jal ra, u256_sub_be\n" ++
+    "  mv t0, a0\n" ++                                   -- t0 = borrow flag (before x10=a0 restore)
+    "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
+    "  bnez t0, .Lcr_deb_done_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++   -- underflow -> skip
+    "  la t0, create_creator_newbal\n  addi t1, x20, 32\n" ++
+    "  ld t2, 0(t0)\n  sd t2, 0(t1)\n  ld t2, 8(t0)\n  sd t2, 8(t1)\n" ++
+    "  ld t2, 16(t0)\n  sd t2, 16(t1)\n  ld t2, 24(t0)\n  sd t2, 24(t1)\n" ++
+    ".Lcr_deb_done_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
     createStageInitcodeFrameCallAsm (if hasSalt then 1 else 0) ++
     -- .61.8.3.5.3 (.5c): execute the staged init code in a REAL child frame via the full
     -- dispatch loop (create_frame_descend, .5a, reusing call_frame_descend), REPLACING the
