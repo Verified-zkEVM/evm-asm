@@ -1650,6 +1650,15 @@ def emitDispatcherDataSection
   "  .zero 8\n" ++        -- 8uld3.1a: bytes used in evm_log_data this tx (reset with eventLogLength)
   "evm_log_data_overflow:\n" ++
   "  .zero 8\n" ++        -- 8uld3.1a: set to 1 if a log's full data overflowed the buffer -> consumer bails conservatively
+  ".balign 8\n" ++
+  "system_call_mode:\n" ++
+  "  .zero 8\n" ++        -- 8uld3.2.1a: when !=0, a top-level (depth-0) RETURN captures its data into system_call_returndata (for EIP-7002/7251 predeploy system calls). 0 for normal txs -> halt path byte-identical.
+  ".balign 8\n" ++
+  "system_call_returndata_len:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "system_call_returndata:\n" ++
+  "  .zero 4096\n" ++     -- 8uld3.2.1a: captured top-level RETURN bytes (withdrawal 16x76=1216 / consolidation 2x116=232 max)
   emitSelfdestructData ++
   eip7708SyntheticLogTopicData ++
   storageAccessGasData ++
@@ -2471,6 +2480,15 @@ def emitRuntimeDispatcherDataSectionCore
   "  .zero 8\n" ++        -- 8uld3.1a: bytes used in evm_log_data this tx (reset with eventLogLength)
   "evm_log_data_overflow:\n" ++
   "  .zero 8\n" ++        -- 8uld3.1a: set to 1 if a log's full data overflowed the buffer -> consumer bails conservatively
+  ".balign 8\n" ++
+  "system_call_mode:\n" ++
+  "  .zero 8\n" ++        -- 8uld3.2.1a: when !=0, a top-level (depth-0) RETURN captures its data into system_call_returndata (for EIP-7002/7251 predeploy system calls). 0 for normal txs -> halt path byte-identical.
+  ".balign 8\n" ++
+  "system_call_returndata_len:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "system_call_returndata:\n" ++
+  "  .zero 4096\n" ++     -- 8uld3.2.1a: captured top-level RETURN bytes (withdrawal 16x76=1216 / consolidation 2x116=232 max)
   emitSelfdestructData ++
   eip7708SyntheticLogTopicData ++
   (if includeSharedHelperData then storageAccessGasData else "") ++
