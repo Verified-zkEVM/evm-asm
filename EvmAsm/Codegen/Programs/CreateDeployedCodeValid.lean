@@ -9,7 +9,7 @@
   process_create_message): after the init code RETURNs its output, deployment FAILS
   (the contract is not created, the CREATE pushes 0) when
 
-    * len(code) > MAX_CODE_SIZE (EIP-170, 24576 / 0x6000), or
+    * len(code) > MAX_CODE_SIZE (Amsterdam EIP-7907, 32768 / 0x8000; was EIP-170 24576), or
     * len(code) > 0 and code[0] == 0xEF (EIP-3541: reject new 0xEF-prefixed code).
 
   The bounded init-code mini-interpreter (create_execute_initcode_frame) records the
@@ -27,8 +27,9 @@ namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
 
-/-- EIP-170 deployed-code size limit (bytes). Code longer than this fails deployment. -/
-def maxDeployedCodeSize : Nat := 24576
+/-- Amsterdam (EIP-7907) deployed-code size limit (bytes) = 0x8000 = 32768 (raised from
+    the EIP-170 0x6000 = 24576). Code longer than this fails deployment. -/
+def maxDeployedCodeSize : Nat := 32768
 
 /-! ## create_deployed_code_valid
     a0 = deployed code ptr   a1 = deployed code length (bytes)
@@ -37,7 +38,7 @@ def maxDeployedCodeSize : Nat := 24576
 def createDeployedCodeValidFunction : String :=
   "create_deployed_code_valid:\n" ++
   "  li t0, " ++ toString maxDeployedCodeSize ++ "\n" ++
-  "  bgtu a1, t0, .Lcdcv_invalid          # len > MAX_CODE_SIZE (EIP-170)\n" ++
+  "  bgtu a1, t0, .Lcdcv_invalid          # len > MAX_CODE_SIZE (Amsterdam EIP-7907)\n" ++
   "  beqz a1, .Lcdcv_valid                # empty code is valid\n" ++
   "  lbu t1, 0(a0)\n" ++
   "  li t0, 0xEF\n" ++
@@ -52,8 +53,8 @@ def createDeployedCodeValidFunction : String :=
       +0 empty (len 0)            -> 0 valid
       +8 {0x60} (len 1)           -> 0 valid
       +16 {0xEF} (len 1)          -> 1 invalid (EIP-3541)
-      +24 {0x60..} (len 24576)    -> 0 valid (boundary)
-      +32 {0x60..} (len 24577)    -> 1 invalid (EIP-170) -/
+      +24 {0x60..} (len 32768)    -> 0 valid (boundary)
+      +32 {0x60..} (len 32769)    -> 1 invalid (Amsterdam EIP-7907) -/
 def ziskCreateDeployedCodeValidPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li s0, 0xa0010000\n" ++
@@ -68,10 +69,10 @@ def ziskCreateDeployedCodeValidPrologue : String :=
   "  la a0, cdcv_buf; li a1, 1; jal ra, create_deployed_code_valid; sd a0, 16(s0)\n" ++
   -- restore buf[0] = 0x60 for the size-boundary tests
   "  la t0, cdcv_buf; li t1, 0x60; sb t1, 0(t0)\n" ++
-  -- len 24576 -> valid (boundary)
-  "  la a0, cdcv_buf; li a1, 24576; jal ra, create_deployed_code_valid; sd a0, 24(s0)\n" ++
-  -- len 24577 -> invalid
-  "  la a0, cdcv_buf; li a1, 24577; jal ra, create_deployed_code_valid; sd a0, 32(s0)\n" ++
+  -- len 32768 -> valid (boundary)
+  "  la a0, cdcv_buf; li a1, 32768; jal ra, create_deployed_code_valid; sd a0, 24(s0)\n" ++
+  -- len 32769 -> invalid
+  "  la a0, cdcv_buf; li a1, 32769; jal ra, create_deployed_code_valid; sd a0, 32(s0)\n" ++
   "  li x17, 93\n  li x10, 0\n  ecall\n" ++
   "  j .Lcdcv_done\n" ++
   createDeployedCodeValidFunction ++ "\n" ++

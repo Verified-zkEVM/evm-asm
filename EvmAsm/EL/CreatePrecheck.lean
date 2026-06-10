@@ -15,8 +15,11 @@ namespace CreatePrecheck
 /-- EVM maximum child call/create depth from execution-specs `STACK_DEPTH_LIMIT`. -/
 def stackDepthLimit : Nat := 1024
 
-/-- EIP-3860 initcode size cap used by Amsterdam and later forks. -/
-def maxInitCodeSize : Nat := 49152
+/-- EIP-3860 initcode size cap used by Amsterdam and later forks.
+    Amsterdam (EIP-7954) doubled MAX_CODE_SIZE to 0x8000 (32768), so
+    MAX_INIT_CODE_SIZE = 2 * MAX_CODE_SIZE = 65536 (0x10000) — not the
+    pre-Amsterdam 2 * 0x6000 = 49152. -/
+def maxInitCodeSize : Nat := 65536
 
 /-- Creator nonce sentinel checked before CREATE-family child execution. -/
 def maxCreatorNonce : Nat := 2 ^ 64 - 1

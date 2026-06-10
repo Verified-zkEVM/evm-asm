@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # codegen-zisk-create-initcode-size-valid-check.sh
-# Known-answer probe for create_initcode_size_valid (EIP-3860 MAX_INITCODE_SIZE 49152),
-# the init-code size gate a CREATE/CREATE2 must pass before executing init code. No input.
+# Known-answer probe for create_initcode_size_valid (Amsterdam EIP-3860 MAX_INITCODE_SIZE 65536
+# = 2 * EIP-7954 MAX_CODE_SIZE 0x8000), the init-code size gate a CREATE/CREATE2 must pass
+# before executing init code. No input. (bead xpgl5: was stale 49152 = pre-Amsterdam 2*0x6000.)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 ZISKEMU="${ZISKEMU:-}"
@@ -20,7 +21,7 @@ python3 - <<'PY'
 import struct, sys
 d = open('gen-out/zisk_create_initcode_size_valid.out','rb').read()
 vals = [struct.unpack('<Q', d[i:i+8])[0] for i in range(0,32,8)]
-labels = ['len 0','len 32','len 49152','len 49153']; exp = [0,0,0,1]
+labels = ['len 0','len 32','len 65536','len 65537']; exp = [0,0,0,1]
 ok = True
 for l,v,e in zip(labels,vals,exp):
     s='OK' if v==e else 'FAIL'

@@ -1453,8 +1453,30 @@ through ECALL bridges (extending `EvmAsm/EL/Keccak*EcallBridge.lean`).
     closed). Forward all-accounts CODE `bal_all_accounts_code_consistent` wired with an **EIP-7702
     skip** — a BAL `code_change` that is exactly a 23-byte `0xef0100||address` delegation indicator
     (installed from the authorization list, no CREATE deposit → no exec code-effect) is skipped
-    instead of false-rejected (`i3djw.4`, draft #8653, REQUIRES EEST SWEEP). Reverse code `…_code_covers`
+    instead of false-rejected (`i3djw.4`, #8653 merged + sweep-confirmed). Reverse code `…_code_covers`
     already merged (#8626).
+  - **BLOCKHASH activated (2026-06-10, `3vc2p`)**: the M29 recent-blockhash table is reconstructed
+    from the witness headers (`stage_blockhash_m29` #8655) and staged into the contract-recipient
+    payload between the storage preload and the env trailer — written by `stage_runtime_payload_code`
+    (#8662) with `env_base` shifted by `count*32`, computed in `dispatch_tx_runtime_code` (#8663) — so
+    the input-driven dispatcher setup loads `env+552/+560` + `evm_block_hashes` and BLOCKHASH (0x40) is
+    removed from the self-contained reject set (#8664). Only BALANCE (0x31) + SELFDESTRUCT (0xff) remain
+    rejected. (3-PR chain #8662→#8663→#8664, REQUIRES EEST SWEEP.)
+  - **Contract-dispatch soundness audit (2026-06-10)**: the recently-activated contract/CREATE dispatch
+    path had a class of latent bugs — fixed `.data` buffers sized for the small tested contracts,
+    overflowed by realistic (EIP-170/3860-sized) inputs, all passing the sweep only because tested rows
+    are small. Found + fixed **4 overflows**: env_base offset mismatch for non-empty calldata/storage
+    (`3vc2p.5`/srpc_env_base #8658, merged); `bv_runtime_payload` 4096→65536 + size guard (`bmvmx.1.7.2`
+    #8659, merged); `bal_recipient_storage_keys`/`bvcd_keys` 16-cap → 128 (`bmvmx.1.7.3` #8660);
+    CREATE init-code > EIP-3860 49152 → `.exit_outofgas` guarding `create_child_initcode` 65536
+    (`.61.8.3.6` #8665). Plus a semantic gap (`5em02`, OPEN): SELFBALANCE (activated yisv8.1) reads the
+    PRE-state balance, diverging for value-moving contracts — the value-transfer descent is inert; the
+    fix is the in-exec balance spine (`bmvmx.1.6.x`). See `contract-dispatch-fixed-buffer-overflows`
+    auto-memory for the audit method.
+  - **Requests-hash derivation (EIP-7685, `8uld3`)**: `parse_deposit_requests` (#8657, merged) +
+    `assemble_execution_requests` (#8666) — derive the post-execution `requests_hash` from
+    execution-produced bodies, not the trusted SSZ input. Standalone + probe-verified; the execution-gated
+    piece (real receipts + EIP-7002/7251 system-call return data) is the follow-up.
 
 - 🔶 **Contract-recipient gas-measurement accuracy (beads `nxio8`, `tpdo1`; 2026-06)**: the runtime
   dispatcher meters CONTRACT execution with STATIC base opcode gas only (`Dispatch.lean:338-345`),
