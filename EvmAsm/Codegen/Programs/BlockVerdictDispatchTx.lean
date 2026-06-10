@@ -107,6 +107,7 @@ def seedCalleeStorageFunction : String :=
   "  jal ra, bal_addr_to_exec_log_key                # csce_addrkey = LE callee exec-log key\n" ++
   "  mv a0, s3; la t0, csce_alen; ld a1, 0(t0); la a2, csce_keys\n" ++
   "  jal ra, bal_recipient_storage_keys              # csce_keys[] (own buffer, 128 cap)\n" ++
+  "  li t0, 128; bgtu a0, t0, .Lscs_acct_next        # bmvmx.1.7.3: >128 slots wouldn't fit csce_keys -> skip this account (seed nothing)\n" ++
   "  la t0, csce_key_n; sd a0, 0(t0)\n" ++
   "  la t0, csce_key_i; sd zero, 0(t0)\n" ++
   ".Lscs_slot_loop:\n" ++
@@ -175,6 +176,7 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  bnez a0, .Ldtrc_zero_storage\n" ++
   "  la t0, bvcd_acct_ptr; ld a0, 0(t0); la t0, bvcd_acct_len; ld a1, 0(t0); la a2, bvcd_keys\n" ++
   "  jal ra, bal_recipient_storage_keys\n" ++
+  "  li t0, 128; bgtu a0, t0, .Ldtrc_unsupported   # bmvmx.1.7.3: >128 storage slots wouldn't fit bvcd_keys/preload -> bail\n" ++
   "  la t0, bvcd_key_count; sd a0, 0(t0); j .Ldtrc_read_storage\n" ++
   ".Ldtrc_zero_storage:\n" ++
   "  la t0, bvcd_key_count; sd zero, 0(t0)\n" ++
@@ -230,6 +232,17 @@ def dispatchTxRuntimeCodeFunction : String :=
   ".Ldtrc_nothread:\n" ++
   "  la t0, bvcd_i; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Ldtrc_sloop\n" ++
   ".Ldtrc_stage:\n" ++
+  -- 3vc2p.3b sub-step B: reconstruct the M29 recent-blockhash table from the witness headers
+  -- (cur = exec NUMBER, count = contiguous recent ancestors, count*32 hashes) into the staging
+  -- globals BEFORE staging, so stage_runtime_payload_code writes the M29 block + shifts env_base.
+  -- stage_blockhash_m29 (#8655) preserves s-regs (s2 = ctx survives); svf_headers_len = 0 yields
+  -- count = 0 (inert / byte-identical). Execution-inert until 3vc2p.4 flips the BLOCKHASH gate.
+  "  la t0, bv_exec_p; ld a0, 0(t0)\n" ++
+  "  la t0, svf_headers_ptr; ld a1, 0(t0)\n" ++
+  "  la t0, svf_headers_len; ld a2, 0(t0)\n" ++
+  "  la a3, m29_stage_table\n" ++
+  "  la a4, m29_stage_cur; la a5, m29_stage_count\n" ++
+  "  jal ra, stage_blockhash_m29\n" ++
   -- bmvmx.1.7.2: conservative payload-size guard. stage_runtime_payload_code writes
   -- round8(codelen)+round8(calldata)+storage*64+584 bytes into bv_runtime_payload; if that
   -- exceeds the buffer (65536) the write would overflow into adjacent .data (gas result +
@@ -238,6 +251,7 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la t0, bvcd_code_len; ld t1, 0(t0); addi t1, t1, 7; andi t1, t1, -8\n" ++   -- round8(codelen)
   "  ld t2, 64(s2); addi t2, t2, 7; andi t2, t2, -8; add t1, t1, t2\n" ++         -- + round8(calldata)
   "  la t0, bvcd_key_count; ld t2, 0(t0); slli t2, t2, 6; add t1, t1, t2\n" ++   -- + storage_count*64
+  "  la t0, m29_stage_count; ld t2, 0(t0); slli t2, t2, 5; add t1, t1, t2\n" ++  -- 3vc2p.3b: + M29 hashes (count*32)
   "  addi t1, t1, 584; li t2, 65536; bgtu t1, t2, .Ldtrc_unsupported\n" ++       -- payload > buffer -> conservative bail
   "  mv a0, s2; la a1, bv_runtime_payload; la t2, bv_exec_p; ld a2, 0(t2)\n" ++
   "  la t0, bvcd_code_ptr; ld a3, 0(t0); la t0, bvcd_code_len; ld a4, 0(t0)\n" ++
