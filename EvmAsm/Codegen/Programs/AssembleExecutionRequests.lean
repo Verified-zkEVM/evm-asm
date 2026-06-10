@@ -66,6 +66,41 @@ def assembleExecutionRequestsFunction : String :=
   "  li a0, 12; add a0, a0, a1; add a0, a0, a3; add a0, a0, a5\n" ++   -- total length
   "  ret"
 
+/-! ## requests_hash_verify
+    Verify the EIP-7685 `requests_hash` derived from the three execution-produced request
+    bodies against an expected (header) hash — the post-execution check `block_verdict` runs
+    once execution provides the bodies (8uld3.4: stop trusting the SSZ execution_requests).
+      a0/a1 = deposit ptr/len   a2/a3 = withdrawal ptr/len   a4/a5 = consolidation ptr/len
+      a6 = expected 32-byte requests_hash ptr (header value)
+      a7 = scratch SSZ section buffer ptr (>= 12 + a1 + a3 + a5 bytes, 8-aligned)
+      a0 (output) = 0 match / 1 mismatch / 2 malformed (section rejected by SSZ length rules). -/
+def requestsHashVerifyFunction : String :=
+  "requests_hash_verify:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp)\n" ++
+  "  mv s0, a6                   # expected hash ptr\n" ++
+  "  mv s1, a7                   # scratch section buffer\n" ++
+  "  mv a6, a7                   # assemble out = scratch (a0..a5 still the 3 bodies)\n" ++
+  "  jal ra, assemble_execution_requests   # a0 = total section length\n" ++
+  "  mv a1, a0; mv a0, s1; la a2, rhv_hash\n" ++
+  "  jal ra, execution_requests_hash       # a0 = 0 ok / 1 malformed\n" ++
+  "  bnez a0, .Lrhv_malformed\n" ++
+  "  la t0, rhv_hash; mv t1, s0; li t2, 32\n" ++
+  ".Lrhv_cmp:\n" ++
+  "  beqz t2, .Lrhv_match\n" ++
+  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lrhv_mismatch\n" ++
+  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lrhv_cmp\n" ++
+  ".Lrhv_match:\n" ++
+  "  li a0, 0; j .Lrhv_ret\n" ++
+  ".Lrhv_mismatch:\n" ++
+  "  li a0, 1; j .Lrhv_ret\n" ++
+  ".Lrhv_malformed:\n" ++
+  "  li a0, 2\n" ++
+  ".Lrhv_ret:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
 /-- `zisk_assemble_execution_requests`: focused probe.
     Input (after the ziskemu length wrapper at 0x40000000):
       bytes  8..16 : deposit body length        (multiple of 192)
@@ -98,8 +133,21 @@ def ziskAssembleExecutionRequestsPrologue : String :=
   "  beqz t4, .Laerp_done\n" ++
   "  lbu t5, 0(t1); sb t5, 0(t3); addi t1, t1, 1; addi t3, t3, 1; addi t4, t4, -1; j .Laerp_dump\n" ++
   ".Laerp_done:\n" ++
+  -- verify against the CORRECT (derived) hash -> 0; then corrupt it and verify -> 1.
+  "  li a7, 0x40000000; ld a1, 8(a7); ld a3, 16(a7); ld a5, 24(a7)\n" ++
+  "  addi a0, a7, 32; add a2, a0, a1; add a4, a2, a3\n" ++
+  "  la a6, aer_hash; la a7, aer_section\n" ++
+  "  jal ra, requests_hash_verify\n" ++
+  "  li t0, 0xa0010000; sd a0, 48(t0)         # verify(correct) -> expect 0\n" ++
+  "  la t0, aer_hash; lbu t1, 0(t0); xori t1, t1, 0xff; sb t1, 0(t0)   # corrupt the expected hash\n" ++
+  "  li a7, 0x40000000; ld a1, 8(a7); ld a3, 16(a7); ld a5, 24(a7)\n" ++
+  "  addi a0, a7, 32; add a2, a0, a1; add a4, a2, a3\n" ++
+  "  la a6, aer_hash; la a7, aer_section\n" ++
+  "  jal ra, requests_hash_verify\n" ++
+  "  li t0, 0xa0010000; sd a0, 56(t0)         # verify(corrupted) -> expect 1\n" ++
   "  j .Laerp_pdone\n" ++
   assembleExecutionRequestsFunction ++ "\n" ++
+  requestsHashVerifyFunction ++ "\n" ++
   executionRequestsHashFunction ++ "\n" ++
   bgvU32leFunction ++ "\n" ++
   zkvmSha256Function ++ "\n" ++
@@ -112,6 +160,7 @@ def ziskAssembleExecutionRequestsDataSection : String :=
   "aer_seclen:\n  .zero 8\n" ++
   ".balign 32\n" ++
   "aer_hash:\n  .zero 32\n" ++
+  "rhv_hash:\n  .zero 32\n" ++   -- requests_hash_verify's computed-hash scratch
   executionRequestsHashShaDataSection ++ "\n" ++
   executionRequestsHashDataSection
 

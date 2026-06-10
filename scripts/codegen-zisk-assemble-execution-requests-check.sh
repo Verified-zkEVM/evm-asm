@@ -63,6 +63,8 @@ with open(sys.argv[2],'wb') as f:
     f.write(struct.pack('<Q', 0))       # status
     f.write(struct.pack('<Q', total))   # total length
     f.write(req_hash)                   # 32-byte derived requests_hash
+    f.write(struct.pack('<Q', 0))       # requests_hash_verify(correct) -> 0 match
+    f.write(struct.pack('<Q', 1))       # requests_hash_verify(corrupted) -> 1 mismatch
 " "$in_file" "$exp_file"
 
   "$ZISKEMU" -e gen-out/zisk_assemble_execution_requests.elf \
@@ -70,8 +72,8 @@ with open(sys.argv[2],'wb') as f:
     >"$REPO_ROOT/gen-out/zisk_aer_${name}.emu.log" 2>&1 || true
 
   local actual expected
-  actual="$(xxd -p -l 48 "$out_file" 2>/dev/null | tr -d '\n')"
-  expected="$(xxd -p -l 48 "$exp_file" 2>/dev/null | tr -d '\n')"
+  actual="$(xxd -p -l 64 "$out_file" 2>/dev/null | tr -d '\n')"
+  expected="$(xxd -p -l 64 "$exp_file" 2>/dev/null | tr -d '\n')"
   if [[ "$actual" == "$expected" ]]; then
     printf "  %-18s OK\n" "$name"; return 0
   fi
