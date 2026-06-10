@@ -25,6 +25,7 @@ import EvmAsm.Codegen.Programs.BalAllAccountsStorage
 import EvmAsm.Codegen.Programs.BalAllAccountsCodeCovers
 import EvmAsm.Codegen.Programs.BalAllAccountsCode
 import EvmAsm.Codegen.Programs.BalAccountCodeConsistent
+import EvmAsm.Codegen.Programs.StageBlockhashM29
 import EvmAsm.Codegen.Programs.BalAllAccountsNonstorage
 import EvmAsm.Codegen.Programs.BalAllAccountsNonstorageCovers
 import EvmAsm.Codegen.Programs.BalAccountNonstorageConsistent
@@ -79,6 +80,9 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
   balStorageReadsInExecLogFunction ++ "\n" ++   -- bmvmx.1.6.7: storage_reads exec consistency
   balAllAccountsCodeCoversFunction ++ "\n" ++   -- i3djw: all-accounts CODE reverse (hidden created/destroyed account)
   balAllAccountsCodeConsistentFunction ++ "\n" ++   -- i3djw.4: all-accounts CODE forward (+ EIP-7702 skip)
+  stageBlockhashM29Function ++ "\n" ++   -- 3vc2p.3b: M29 recent-blockhash table reconstruction (dispatch staging)
+  blockhashFromWitnessHeadersFunction ++ "\n" ++   -- 3vc2p.3b dep: find header by number -> keccak(header)
+  headerExtractNumberFunction ++ "\n" ++   -- 3vc2p.3b dep: header NUMBER field extractor
   balAccountCodeConsistentFunction ++ "\n" ++   -- i3djw.4 dep: per-account CODE compare
   balAllAccountsNonstorageConsistentFunction ++ "\n" ++   -- i3djw.3: all-accounts NON-STORAGE forward (balance/nonce)
   balAccountNonstorageConsistentFunction ++ "\n" ++   -- i3djw.3 dep: per-account non-storage compare
@@ -288,6 +292,9 @@ def statelessVerdictV2GuestClosure : String :=
   balStorageReadsInExecLogFunction ++ "\n" ++   -- bmvmx.1.6.7: storage_reads exec consistency
   balAllAccountsCodeCoversFunction ++ "\n" ++   -- i3djw: all-accounts CODE reverse (hidden created/destroyed account)
   balAllAccountsCodeConsistentFunction ++ "\n" ++   -- i3djw.4: all-accounts CODE forward (+ EIP-7702 skip)
+  stageBlockhashM29Function ++ "\n" ++   -- 3vc2p.3b: M29 recent-blockhash table reconstruction (dispatch staging)
+  blockhashFromWitnessHeadersFunction ++ "\n" ++   -- 3vc2p.3b dep: find header by number -> keccak(header)
+  headerExtractNumberFunction ++ "\n" ++   -- 3vc2p.3b dep: header NUMBER field extractor
   balAccountCodeConsistentFunction ++ "\n" ++   -- i3djw.4 dep: per-account CODE compare
   balAllAccountsNonstorageConsistentFunction ++ "\n" ++   -- i3djw.3: all-accounts NON-STORAGE forward (balance/nonce)
   balAccountNonstorageConsistentFunction ++ "\n" ++   -- i3djw.3 dep: per-account non-storage compare
