@@ -462,7 +462,12 @@ def blockVerdictFunction : String :=
   -- tuple-sequence comparators (bmvmx.1.6.6) would see tx i>0 writes mis-indexed as 1.
   -- Additive/inert today: exec_log_txindex is consumed only by those (still-unwired) checks.
   "  la t0, bv_mtx_i; ld t1, 0(t0); addi t1, t1, 1; la t0, current_block_access_index; sd t1, 0(t0)\n" ++
+  -- fhsxz.2.4.2.57.11.6.5: gate the PRE-state header to THIS (mtx) dispatch call only.
+  -- Single-tx dispatch (.Lbv_cd_* path, line ~717) leaves the flag 0 -> sv_this_rlp,
+  -- byte-identical to #8686 (no >10% regression recurrence). Reset immediately after.
+  "  li t0, 1; la t1, dtrc_use_pre_header; sd t0, 0(t1)\n" ++
   "  la a0, bv_mtx_ctx; ld a1, 80(s0); ld a2, 88(s0); jal ra, dispatch_tx_runtime_code\n" ++
+  "  la t1, dtrc_use_pre_header; sd zero, 0(t1)\n" ++
   "  bnez a0, .Lbv_mtx_bail                         # dispatch miss / not self-contained\n" ++
   "  la t0, bv_mtx_i; ld t1, 0(t0); slli t0, t1, 3\n" ++
   "  la t3, bv_mtx_gas_left; add t3, t3, t0; sd a1, 0(t3)\n" ++

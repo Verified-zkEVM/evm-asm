@@ -819,6 +819,16 @@ def ziskStatelessVerdictV2DataSection : String :=
   ".balign 8\n" ++
   "sv_pre_rlp_ptr:\n  .zero 8\n" ++
   "sv_pre_rlp_len:\n  .zero 8\n" ++
+  -- fhsxz.2.4.2.57.11.6.5: mtx-gating for dispatch_tx_runtime_code's witness lookups.
+  -- dtrc_use_pre_header: 0 (default) -> use sv_this_rlp (POST header; single-tx path,
+  -- conservative, identical to #8686); 1 -> use sv_pre_rlp_* (PRE/parent header; set by
+  -- the mtx loop ONLY around its dispatch call so multi-tx contract dispatch can prove
+  -- recipient state against the witness root. dtrc_hdr_ptr/len: the header ptr+len
+  -- resolved ONCE at dispatch entry from the flag, read by all 5 lookup sites.
+  ".balign 8\n" ++
+  "dtrc_use_pre_header:\n  .zero 8\n" ++
+  "dtrc_hdr_ptr:\n  .zero 8\n" ++
+  "dtrc_hdr_len:\n  .zero 8\n" ++
   -- bmvmx.1.4.2 compare: validate the coinbase credit against the BAL (additive; match flag only).
   ".balign 8\n" ++
   "bmvmx_coinbase_addr:\n  .zero 20\n" ++
