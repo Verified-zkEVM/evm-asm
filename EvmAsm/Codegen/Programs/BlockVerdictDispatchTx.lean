@@ -114,7 +114,7 @@ def seedCalleeStorageFunction : String :=
   "  la t0, csce_key_i; ld t1, 0(t0); la t2, csce_key_n; ld t3, 0(t2); beq t1, t3, .Lscs_acct_next\n" ++
   "  la t0, callee_seed_count; ld t2, 0(t0); li t3, 128; bgeu t2, t3, .Lscs_done   # table cap\n" ++
   "  slli t4, t1, 5; la t5, csce_keys; add a3, t5, t4   # slot key ptr\n" ++
-  "  la t0, sv_pre_rlp_ptr; ld a0, 0(t0); la t0, sv_pre_rlp_len; ld a1, 0(t0)\n" ++   -- .57.11.6.5: PRE-state (parent) header for witness lookups
+  "  la a0, sv_this_rlp; la t0, sv_this_rlp_len; ld a1, 0(t0)\n" ++   -- repair(#8685): restore this-block header; PRE-header only helps WITH the mtx fix (kept on the mtx branch)
   "  la t0, csce_addrp; ld a2, 0(t0)\n" ++
   "  mv a4, s0; mv a5, s1; mv a6, s0; mv a7, s1\n" ++
   "  jal ra, slot_at_header_state_root\n" ++
@@ -158,7 +158,7 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  mv s0, a1                    # witness.state ptr\n" ++
   "  mv s1, a2                    # witness.state len\n" ++
   "  mv s2, a0                    # context record ptr\n" ++
-  "  la t0, sv_pre_rlp_ptr; ld a0, 0(t0); la t0, sv_pre_rlp_len; ld a1, 0(t0)\n" ++   -- .57.11.6.5: PRE-state (parent) header for witness lookups
+  "  la a0, sv_this_rlp; la t0, sv_this_rlp_len; ld a1, 0(t0)\n" ++   -- repair(#8685): restore this-block header; PRE-header only helps WITH the mtx fix (kept on the mtx branch)
   "  addi a2, s2, 72\n" ++
   "  mv a3, s0; mv a4, s1\n" ++
   "  la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0)\n" ++
@@ -185,7 +185,7 @@ def dispatchTxRuntimeCodeFunction : String :=
   ".Ldtrc_sloop:\n" ++
   "  la t0, bvcd_i; ld t1, 0(t0); la t2, bvcd_key_count; ld t3, 0(t2); beq t1, t3, .Ldtrc_stage\n" ++
   "  slli t4, t1, 5; la t5, bvcd_keys; add a3, t5, t4\n" ++
-  "  la t0, sv_pre_rlp_ptr; ld a0, 0(t0); la t0, sv_pre_rlp_len; ld a1, 0(t0)\n" ++   -- .57.11.6.5: PRE-state (parent) header for witness lookups
+  "  la a0, sv_this_rlp; la t0, sv_this_rlp_len; ld a1, 0(t0)\n" ++   -- repair(#8685): restore this-block header; PRE-header only helps WITH the mtx fix (kept on the mtx branch)
   "  addi a2, s2, 72\n" ++
   "  mv a4, s0; mv a5, s1; mv a6, s0; mv a7, s1\n" ++
   "  jal ra, slot_at_header_state_root\n" ++
@@ -317,7 +317,7 @@ def dispatchTxRuntimeCodeFunction : String :=
   -- INERT until yisv8.2 removes SELFBALANCE(0x47) from the self-contained reject set.
   -- Conservative: a lookup miss/error leaves SELFBALANCE 0. balance_at_header_state_root
   -- preserves s-regs (s0=state ptr, s1=state len, s2=ctx survive); clobbers only dead a/t-regs.
-  "  la t0, sv_pre_rlp_ptr; ld a0, 0(t0)\n  la t0, sv_pre_rlp_len; ld a1, 0(t0)\n" ++   -- .57.11.6.5: PRE-state (parent) header for witness lookups
+  "  la a0, sv_this_rlp\n  la t0, sv_this_rlp_len; ld a1, 0(t0)\n" ++   -- repair(#8685): restore this-block header (see above)
   "  addi a2, s2, 72\n" ++                       -- recipient addr (ctx+72)
   "  mv a3, s0; mv a4, s1\n" ++                   -- witness state ptr/len
   "  la a5, yisv8_self_bal\n" ++
