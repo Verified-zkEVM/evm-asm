@@ -115,6 +115,38 @@ def stageSystemCallFunction : String :=
   "  la t0, ssc_saved_ra; ld ra, 0(t0)\n" ++
   "  ret"
 
+/-! ## derive_withdrawal_requests (8uld3.2b, EIP-7002)
+
+    Run the WITHDRAWAL_REQUEST_PREDEPLOY (0x00000961Ef480Eb55e80D19ad83579A64c007002)
+    system call and surface its return_data as the withdrawal-request BODY. Per
+    `process_general_purpose_requests` (fork.py):
+      system_withdrawal_tx_output =
+        process_checked_system_transaction(WITHDRAWAL_REQUEST_PREDEPLOY_ADDRESS, b'')
+      if len(return_data) > 0: requests.append(WITHDRAWAL_REQUEST_TYPE + return_data)
+    The 0x01 WITHDRAWAL_REQUEST_TYPE prefix is the request-list framing added by
+    `assemble_execution_requests` (a2/a3 = withdrawal body) / RequestsHash at hash time,
+    so the body produced here is the raw return_data (each request is 76 B = source 20 +
+    pubkey 48 + amount 8; ≤ MAX_WITHDRAWAL_REQUESTS_PER_BLOCK=16). Empty return_data -> body
+    len 0 (the caller appends nothing). Thin compose over `stage_system_call` (8uld3.2.1c):
+      a0 = predeploy code ptr   a1 = code len   a2 = block exec payload ptr   a3 = output buffer
+    Returns (tail-call to stage_system_call):
+      a0 = withdrawal body ptr (= system_call_returndata)   a1 = body len   a2 = 0 ok / 1 unsupported -/
+def deriveWithdrawalRequestsFunction : String :=
+  "derive_withdrawal_requests:\n" ++
+  "  mv a4, a3                    # out buffer -> a4\n" ++
+  "  mv a3, a2                    # block exec payload -> a3\n" ++
+  "  mv a2, a1                    # code len -> a2\n" ++
+  "  mv a1, a0                    # predeploy code ptr -> a1\n" ++
+  "  la a0, withdrawal_request_predeploy_addr   # target addr -> a0\n" ++
+  "  j stage_system_call          # tail call: a0/a1/a2 carry body ptr/len/status to our caller\n"
+
+/-- WITHDRAWAL_REQUEST_PREDEPLOY_ADDRESS (EIP-7002), 20 bytes big-endian. Referenced by
+    `derive_withdrawal_requests`; emit alongside it in any unit that links the function. -/
+def withdrawalRequestPredeployAddrData : String :=
+  ".balign 8\n" ++
+  "withdrawal_request_predeploy_addr:\n" ++
+  "  .byte 0x00, 0x00, 0x09, 0x61, 0xef, 0x48, 0x0e, 0xb5, 0x5e, 0x80, 0xd1, 0x9a, 0xd8, 0x35, 0x79, 0xa6, 0x4c, 0x00, 0x70, 0x02\n"
+
 /-- `zisk_stage_system_call_payload`: probe. Stages a synthetic predeploy + asserts the
     SYSTEM-specific fields: code length @+0, gas @env_base+448 == 30M, CALLER @env_base+64
     == SYSTEM_ADDRESS. (env_base read from srpc_env_base.)
