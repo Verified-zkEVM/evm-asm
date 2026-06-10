@@ -97,6 +97,47 @@ def logCapturePreBody (topicCount : Nat) : String :=
   "  addi x18, x18, -1\n" ++
   "  j 3b\n" ++
   "4:\n" ++
+  -- 8uld3.1a: capture the FULL log data into the persistent evm_log_data buffer.
+  -- The descriptor's +160 prefix is truncated to 32B and its mem ptr (x13+offset)
+  -- is reclaimed when the emitting frame ends, so the full data is unreadable at
+  -- block-end. evm_log_data_meta[index] = (byte offset into evm_log_data, full len)
+  -- is kept parallel to evm_event_logs. Live: x14=descriptor, x15=index,
+  -- x17=mem offset, x13=mem base; scratch x16/x18/x19/x21/x22/x23/x24.
+  "  ld x16, 16(x14)\n" ++           -- x16 = full data size (unclamped, stored at +16)
+  "  la x18, evm_log_data_used\n" ++
+  "  ld x19, 0(x18)\n" ++            -- x19 = used (dst byte offset into evm_log_data)
+  "  la x21, evm_log_data_meta\n" ++
+  "  slli x22, x15, 4\n" ++
+  "  add x21, x21, x22\n" ++         -- &meta[index]
+  "  sd x19, 0(x21)\n" ++            -- meta[index].offset = used
+  "  sd x16, 8(x21)\n" ++            -- meta[index].len = full size
+  "  li x22, 262144\n" ++
+  "  add x23, x19, x16\n" ++         -- end = used + size
+  "  bgtu x23, x22, 5f\n" ++         -- overflow -> set flag, still record descriptor
+  "  la x21, evm_log_data\n" ++
+  "  add x21, x21, x19\n" ++         -- dst = evm_log_data + used
+  "  add x22, x13, x17\n" ++         -- src = evm_memory + offset
+  "  mv x24, x16\n" ++               -- remaining = full size
+  "6:\n" ++
+  "  beqz x24, 7f\n" ++
+  "  lbu x23, 0(x22)\n" ++
+  "  sb x23, 0(x21)\n" ++
+  "  addi x22, x22, 1\n" ++
+  "  addi x21, x21, 1\n" ++
+  "  addi x24, x24, -1\n" ++
+  "  j 6b\n" ++
+  "7:\n" ++                          -- success: used += round8(size)
+  "  addi x16, x16, 7\n" ++
+  "  andi x16, x16, -8\n" ++
+  "  add x19, x19, x16\n" ++
+  "  sd x19, 0(x18)\n" ++
+  "  addi x15, x15, 1\n" ++
+  "  sd x15, 472(x20)\n" ++
+  "  j 8f\n" ++
+  "5:\n" ++                          -- overflow: flag it; descriptor prefix still recorded
+  "  la x21, evm_log_data_overflow\n" ++
+  "  li x22, 1\n" ++
+  "  sd x22, 0(x21)\n" ++
   "  addi x15, x15, 1\n" ++
   "  sd x15, 472(x20)\n" ++
   "  j 8f\n" ++
@@ -131,5 +172,80 @@ def logHandlers : List OpcodeHandlerSpec :=
     , preBody := stackUnderflowGuardAsm 6 ++ "\n" ++ logDynamicGasAsm 4 ++ logCapturePreBody 4
     , body := ADDI .x12 .x12 (BitVec.ofNat 12 192)
     , tail := .advanceAndRet 1 } ]
+
+/-! ## zisk_log_full_data_capture — 8uld3.1a probe
+
+    Drives `logCapturePreBody 0` (LOG0) with a synthetic env/stack/memory and a
+    64-byte (> 32) data region, then checks that the FULL data (not just the
+    truncated 32-byte descriptor prefix) landed in the persistent `evm_log_data`
+    buffer with a correct parallel `evm_log_data_meta[0] = (offset, len)` entry.
+
+    Output (at 0xa0010000):
+      +0  evm_log_data_used   (expect 64 = round8(64))
+      +8  evm_log_data_overflow (expect 0)
+      +16 evm_log_data_meta[0].offset (expect 0)
+      +24 evm_log_data_meta[0].len    (expect 64)
+      +32 the 64 captured bytes (expect 0x01,0x02,…,0x40 — INCLUDING bytes 33..64
+          which the old 32-byte-prefix capture would have dropped). -/
+def ziskLogFullDataCapturePrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  la x20, lfdc_env\n" ++
+  "  sd x0, 472(x20)\n" ++          -- eventLogLength = 0 (fresh tx)
+  "  la t0, evm_log_data_used; sd x0, 0(t0)\n" ++       -- per-tx reset (mimic dispatcher setup)
+  "  la t0, evm_log_data_overflow; sd x0, 0(t0)\n" ++
+  "  la x12, lfdc_stack\n" ++       -- EVM stack: 0(x12)=mem offset, 32(x12)=mem size
+  "  sd x0, 0(x12)\n" ++            -- offset = 0
+  "  li t0, 64\n" ++
+  "  sd t0, 32(x12)\n" ++           -- size = 64 (> 32: proves the capture is untruncated)
+  "  la x13, lfdc_mem\n" ++         -- memory base
+  logCapturePreBody 0 ++            -- LOG0 capture (falls through label 8 to the dump below)
+  "  li t0, 0xa0010000\n" ++
+  "  la t1, evm_log_data_used; ld t2, 0(t1); sd t2, 0(t0)\n" ++
+  "  la t1, evm_log_data_overflow; ld t2, 0(t1); sd t2, 8(t0)\n" ++
+  "  la t1, evm_log_data_meta; ld t2, 0(t1); sd t2, 16(t0)\n" ++   -- meta[0].offset
+  "  ld t2, 8(t1); sd t2, 24(t0)\n" ++                              -- meta[0].len
+  "  la t1, evm_log_data\n" ++
+  "  addi t3, t0, 32\n" ++
+  "  li t4, 64\n" ++
+  ".Llfdc_dump:\n" ++
+  "  beqz t4, .Llfdc_done\n" ++
+  "  lbu t5, 0(t1); sb t5, 0(t3); addi t1, t1, 1; addi t3, t3, 1; addi t4, t4, -1; j .Llfdc_dump\n" ++
+  ".Llfdc_done:\n" ++
+  "  j .Llfdc_exit\n" ++
+  ".exit_no_epilogue:\n" ++         -- logCapturePreBody's overflow exit target (unreached here)
+  ".Llfdc_exit:"
+
+def ziskLogFullDataCaptureDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "lfdc_env:\n  .zero 624\n" ++
+  ".balign 8\n" ++
+  "lfdc_stack:\n  .zero 256\n" ++
+  ".balign 8\n" ++
+  "evm_event_logs:\n  .zero 512\n" ++          -- one 256-byte descriptor suffices
+  ".balign 8\n" ++
+  "evm_log_data:\n  .zero 512\n" ++
+  ".balign 8\n" ++
+  "evm_log_data_meta:\n  .zero 64\n" ++
+  ".balign 8\n" ++
+  "evm_log_data_used:\n  .zero 8\n" ++
+  "evm_log_data_overflow:\n  .zero 8\n" ++
+  ".balign 8\n" ++
+  "lfdc_mem:\n" ++                              -- bytes 0..63 = 0x01,0x02,…,0x40 (LE within each quad)
+  "  .quad 0x0807060504030201\n" ++
+  "  .quad 0x100f0e0d0c0b0a09\n" ++
+  "  .quad 0x1817161514131211\n" ++
+  "  .quad 0x201f1e1d1c1b1a19\n" ++
+  "  .quad 0x2827262524232221\n" ++
+  "  .quad 0x302f2e2d2c2b2a29\n" ++
+  "  .quad 0x3837363534333231\n" ++
+  "  .quad 0x403f3e3d3c3b3a39\n" ++
+  "  .zero 4032\n"
+
+def ziskLogFullDataCaptureProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskLogFullDataCapturePrologue
+  dataAsm     := ziskLogFullDataCaptureDataSection
+}
 
 end EvmAsm.Codegen

@@ -968,6 +968,8 @@ def emitDispatcherPrologue : String :=
   "  la x5, exec_code_effect_overflow; sd x0, 0(x5)\n" ++
   "  sd x0, 464(x20)\n" ++         -- env.transientLogLengthOff = 0
   "  sd x0, 472(x20)\n" ++         -- env.eventLogLengthOff = 0
+  "  la x5, evm_log_data_used; sd x0, 0(x5)\n" ++       -- 8uld3.1a: reset per-tx full-log-data buffer cursor
+  "  la x5, evm_log_data_overflow; sd x0, 0(x5)\n" ++   -- 8uld3.1a: reset per-tx full-log-data overflow flag
   "  sd x0, 480(x20)\n" ++         -- env.eventLogCheckpointOff = 0
   "  sd x0, 488(x20)\n" ++         -- runtime activeMemorySize = 0
   "  sd x0, 512(x20)\n" ++         -- M28: blobBaseFee trailer slot = 0
@@ -1634,6 +1636,17 @@ def emitDispatcherDataSection
   ".balign 8\n" ++
   "evm_event_logs:\n" ++
   "  .zero 262144\n" ++   -- M26: 1024 × 256-byte bounded LOG event descriptors (6c7v9: was 16×256)
+  ".balign 8\n" ++
+  "evm_log_data:\n" ++
+  "  .zero 262144\n" ++   -- 8uld3.1a: per-tx FULL LOG data buffer (parallel to evm_event_logs); overflow -> evm_log_data_overflow
+  ".balign 8\n" ++
+  "evm_log_data_meta:\n" ++
+  "  .zero 16384\n" ++    -- 8uld3.1a: 1024 logs × [u64 byte-offset into evm_log_data][u64 data_len], parallel to the descriptors
+  ".balign 8\n" ++
+  "evm_log_data_used:\n" ++
+  "  .zero 8\n" ++        -- 8uld3.1a: bytes used in evm_log_data this tx (reset with eventLogLength)
+  "evm_log_data_overflow:\n" ++
+  "  .zero 8\n" ++        -- 8uld3.1a: set to 1 if a log's full data overflowed the buffer -> consumer bails conservatively
   emitSelfdestructData ++
   eip7708SyntheticLogTopicData ++
   storageAccessGasData ++
@@ -1758,6 +1771,8 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  sd x6, 456(x20)\n" ++         -- env.persistentLogCheckpointOff = preload count
   "  sd x0, 464(x20)\n" ++         -- env.transientLogLengthOff = 0
   "  sd x0, 472(x20)\n" ++         -- env.eventLogLengthOff = 0
+  "  la x5, evm_log_data_used; sd x0, 0(x5)\n" ++       -- 8uld3.1a: reset per-tx full-log-data buffer cursor
+  "  la x5, evm_log_data_overflow; sd x0, 0(x5)\n" ++   -- 8uld3.1a: reset per-tx full-log-data overflow flag
   "  sd x0, 480(x20)\n" ++         -- env.eventLogCheckpointOff = 0
   "  sd x0, 488(x20)\n" ++         -- runtime activeMemorySize = 0
   "  sd x0, 512(x20)\n" ++         -- M28: blobBaseFee[0] = 0 (overwritten by trailer load below)
@@ -2438,6 +2453,17 @@ def emitRuntimeDispatcherDataSectionCore
   ".balign 8\n" ++
   "evm_event_logs:\n" ++
   "  .zero 262144\n" ++   -- M26: 1024 × 256-byte bounded LOG event descriptors (6c7v9: was 16×256)
+  ".balign 8\n" ++
+  "evm_log_data:\n" ++
+  "  .zero 262144\n" ++   -- 8uld3.1a: per-tx FULL LOG data buffer (parallel to evm_event_logs); overflow -> evm_log_data_overflow
+  ".balign 8\n" ++
+  "evm_log_data_meta:\n" ++
+  "  .zero 16384\n" ++    -- 8uld3.1a: 1024 logs × [u64 byte-offset into evm_log_data][u64 data_len], parallel to the descriptors
+  ".balign 8\n" ++
+  "evm_log_data_used:\n" ++
+  "  .zero 8\n" ++        -- 8uld3.1a: bytes used in evm_log_data this tx (reset with eventLogLength)
+  "evm_log_data_overflow:\n" ++
+  "  .zero 8\n" ++        -- 8uld3.1a: set to 1 if a log's full data overflowed the buffer -> consumer bails conservatively
   emitSelfdestructData ++
   eip7708SyntheticLogTopicData ++
   (if includeSharedHelperData then storageAccessGasData else "") ++
