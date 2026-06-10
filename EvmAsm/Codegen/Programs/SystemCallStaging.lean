@@ -89,9 +89,13 @@ def stageSystemCallPayloadFunction : String :=
     #8681) into system_call_returndata, then clears the flag. -/
 def stageSystemCallFunction : String :=
   "stage_system_call:\n" ++
-  "  addi sp, sp, -32\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp)\n" ++
-  "  mv s0, a4                    # save out payload ptr (a4 is clobbered by the call below)\n" ++
+  -- runtime_dispatcher_call sets sp = lp64_sp_top and grows its own stack down from
+  -- there, clobbering any caller-frame this function might keep on the stack across
+  -- the call. So save ra + the scratch s0 in GLOBALS (ssc_saved_ra/ssc_saved_s0), not
+  -- on the stack. Non-reentrant, which is fine (the dispatched predeploy never re-enters).
+  "  la t0, ssc_saved_ra; sd ra, 0(t0)\n" ++
+  "  la t0, ssc_saved_s0; sd s0, 0(t0)\n" ++
+  "  mv s0, a4                    # out payload ptr (used only pre-dispatch)\n" ++
   "  li t0, 1; la t1, system_call_mode; sd t0, 0(t1)\n" ++       -- enable depth-0 RETURN capture
   "  jal ra, stage_system_call_payload\n" ++                     -- a0..a4 already set by caller
   "  bnez a0, .Lssc_fail\n" ++                                   -- staging rejected -> bail (no dispatch)
@@ -107,8 +111,8 @@ def stageSystemCallFunction : String :=
   "  li t0, 0; la t1, system_call_mode; sd t0, 0(t1)\n" ++       -- restore flag on the staging-fail path
   "  la a0, system_call_returndata; li a1, 0; li a2, 1\n" ++
   ".Lssc_ret:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp)\n" ++
-  "  addi sp, sp, 32\n" ++
+  "  la t0, ssc_saved_s0; ld s0, 0(t0)\n" ++
+  "  la t0, ssc_saved_ra; ld ra, 0(t0)\n" ++
   "  ret"
 
 /-- `zisk_stage_system_call_payload`: probe. Stages a synthetic predeploy + asserts the
