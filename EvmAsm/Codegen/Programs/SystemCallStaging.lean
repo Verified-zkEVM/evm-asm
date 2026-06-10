@@ -79,6 +79,42 @@ def stageSystemCallPayloadFunction : String :=
   "  addi sp, sp, 48\n" ++
   "  ret"
 
+/-! ## stage_system_call (8uld3.2.1c) — compose the full system call -> return_data.
+    a0 = target (predeploy) addr ptr   a1 = predeploy code ptr   a2 = code length
+    a3 = block exec payload ptr        a4 = output payload buffer ptr
+    Returns: a0 = system_call_returndata ptr, a1 = system_call_returndata_len,
+             a2 = 0 ok / 1 staging unsupported (no dispatch run).
+    Stages the SYSTEM payload, runs the callable runtime dispatcher with
+    system_call_mode=1 so the predeploy's depth-0 RETURN is captured (NoopHalt
+    #8681) into system_call_returndata, then clears the flag. -/
+def stageSystemCallFunction : String :=
+  "stage_system_call:\n" ++
+  -- runtime_dispatcher_call sets sp = lp64_sp_top and grows its own stack down from
+  -- there, clobbering any caller-frame this function might keep on the stack across
+  -- the call. So save ra + the scratch s0 in GLOBALS (ssc_saved_ra/ssc_saved_s0), not
+  -- on the stack. Non-reentrant, which is fine (the dispatched predeploy never re-enters).
+  "  la t0, ssc_saved_ra; sd ra, 0(t0)\n" ++
+  "  la t0, ssc_saved_s0; sd s0, 0(t0)\n" ++
+  "  mv s0, a4                    # out payload ptr (used only pre-dispatch)\n" ++
+  "  li t0, 1; la t1, system_call_mode; sd t0, 0(t1)\n" ++       -- enable depth-0 RETURN capture
+  "  jal ra, stage_system_call_payload\n" ++                     -- a0..a4 already set by caller
+  "  bnez a0, .Lssc_fail\n" ++                                   -- staging rejected -> bail (no dispatch)
+  "  addi t1, s0, 8; la t0, runtime_dispatcher_input_ptr; sd t1, 0(t0)\n" ++   -- input = out + 8 (skip codelen header)
+  "  jal ra, runtime_dispatcher_call\n" ++                       -- run predeploy; RETURN -> system_call_returndata
+  "  la t0, runtime_dispatcher_input_ptr; sd zero, 0(t0)\n" ++   -- clear input ptr
+  "  li t0, 0; la t1, system_call_mode; sd t0, 0(t1)\n" ++       -- disable capture
+  "  la a0, system_call_returndata\n" ++
+  "  la t0, system_call_returndata_len; ld a1, 0(t0)\n" ++
+  "  li a2, 0\n" ++
+  "  j .Lssc_ret\n" ++
+  ".Lssc_fail:\n" ++
+  "  li t0, 0; la t1, system_call_mode; sd t0, 0(t1)\n" ++       -- restore flag on the staging-fail path
+  "  la a0, system_call_returndata; li a1, 0; li a2, 1\n" ++
+  ".Lssc_ret:\n" ++
+  "  la t0, ssc_saved_s0; ld s0, 0(t0)\n" ++
+  "  la t0, ssc_saved_ra; ld ra, 0(t0)\n" ++
+  "  ret"
+
 /-- `zisk_stage_system_call_payload`: probe. Stages a synthetic predeploy + asserts the
     SYSTEM-specific fields: code length @+0, gas @env_base+448 == 30M, CALLER @env_base+64
     == SYSTEM_ADDRESS. (env_base read from srpc_env_base.)
