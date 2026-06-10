@@ -125,18 +125,40 @@ def seedCalleeStorageFunction : String :=
   "  la t4, callee_seed_table; add t4, t4, t2\n" ++
   "  la t5, csce_addrkey\n" ++
   "  ld t6, 0(t5); sd t6, 0(t4); ld t6, 8(t5); sd t6, 8(t4); ld t6, 16(t5); sd t6, 16(t4); ld t6, 24(t5); sd t6, 24(t4)\n" ++
-  "  la t0, csce_key_i; ld t1, 0(t0); slli t2, t1, 5; la t5, csce_keys; add t5, t5, t2\n" ++
-  "  ld t6, 0(t5); sd t6, 32(t4); ld t6, 8(t5); sd t6, 40(t4); ld t6, 16(t5); sd t6, 48(t4); ld t6, 24(t5); sd t6, 56(t4)\n" ++
-  "  la t5, sahsr_u256\n" ++
-  "  ld t6, 0(t5); sd t6, 64(t4); ld t6, 8(t5); sd t6, 72(t4); ld t6, 16(t5); sd t6, 80(t4); ld t6, 24(t5); sd t6, 88(t4)\n" ++
+  -- .57.11.6.5.3 (d'): slot key (csce_keys, BIG-endian) + value (sahsr_u256, u256 BIG-endian)
+  -- must be byte-reversed to little-endian-limb to match the exec-log scan / SSTORE-append order
+  -- (same convention BalStorageReadsExecLog already reverses BE keys into). Verbatim limb-copy
+  -- left non-zero seeded slots invisible to a nested callee's SLOAD/SSTORE.
+  "  la t0, csce_key_i; ld t1, 0(t0); slli t2, t1, 5; la t5, csce_keys; add t5, t5, t2\n" ++   -- t5 = csce_keys[i] (BE)
+  "  li t6, 0\n" ++
+  ".Lscs_krev:\n" ++
+  "  li t0, 32; beq t6, t0, .Lscs_krevd\n" ++
+  "  add t0, t5, t6; lbu t1, 0(t0)\n" ++                              -- BE key byte i
+  "  li t0, 31; sub t0, t0, t6; add t0, t4, t0; sb t1, 0(t0)\n" ++    -- -> entry slotKey byte (31-i)
+  "  addi t6, t6, 1; j .Lscs_krev\n" ++
+  ".Lscs_krevd:\n" ++
+  "  la t5, sahsr_u256; li t6, 0\n" ++
+  ".Lscs_vrev:\n" ++
+  "  li t0, 32; beq t6, t0, .Lscs_vrevd\n" ++
+  "  add t0, t5, t6; lbu t1, 0(t0)\n" ++                              -- BE value byte i
+  "  li t0, 63; sub t0, t0, t6; add t0, t4, t0; sb t1, 0(t0)\n" ++    -- -> entry value byte 32+(31-i)=63-i
+  "  addi t6, t6, 1; j .Lscs_vrev\n" ++
+  ".Lscs_vrevd:\n" ++
   "  j .Lscs_slot_commit\n" ++
   ".Lscs_slot_vzero:\n" ++
   "  la t0, callee_seed_count; ld t1, 0(t0); slli t2, t1, 6; slli t3, t1, 5; add t2, t2, t3\n" ++
   "  la t4, callee_seed_table; add t4, t4, t2\n" ++
   "  la t5, csce_addrkey\n" ++
   "  ld t6, 0(t5); sd t6, 0(t4); ld t6, 8(t5); sd t6, 8(t4); ld t6, 16(t5); sd t6, 16(t4); ld t6, 24(t5); sd t6, 24(t4)\n" ++
+  -- slot key BE->LE byte-reverse (see .Lscs_krev); value is zero (slot absent at this state root).
   "  la t0, csce_key_i; ld t1, 0(t0); slli t2, t1, 5; la t5, csce_keys; add t5, t5, t2\n" ++
-  "  ld t6, 0(t5); sd t6, 32(t4); ld t6, 8(t5); sd t6, 40(t4); ld t6, 16(t5); sd t6, 48(t4); ld t6, 24(t5); sd t6, 56(t4)\n" ++
+  "  li t6, 0\n" ++
+  ".Lscs_kzrev:\n" ++
+  "  li t0, 32; beq t6, t0, .Lscs_kzrevd\n" ++
+  "  add t0, t5, t6; lbu t1, 0(t0)\n" ++
+  "  li t0, 31; sub t0, t0, t6; add t0, t4, t0; sb t1, 0(t0)\n" ++
+  "  addi t6, t6, 1; j .Lscs_kzrev\n" ++
+  ".Lscs_kzrevd:\n" ++
   "  sd zero, 64(t4); sd zero, 72(t4); sd zero, 80(t4); sd zero, 88(t4)\n" ++
   ".Lscs_slot_commit:\n" ++
   "  la t0, callee_seed_count; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
