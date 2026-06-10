@@ -810,6 +810,15 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bmvmx_coinbase_credit:\n  .zero 32\n" ++
   -- .6.2.2.2.b: multi-tx dispatch loop index cursor.
   "bv_mtx_i:\n  .zero 8\n" ++
+  -- fhsxz.2.4.2.57.11.6.5: parent (PRE-state) header RLP ptr/len, stashed by
+  -- block_verdict from its input frame (8(s0)/16(s0)). dispatch_tx_runtime_code's
+  -- witness lookups (code/slot/balance_at_header_state_root) MUST use the PRE-state
+  -- root (the witness is the parent's post-state = this block's pre-state proof),
+  -- not sv_this_rlp (this block's POST-state header), else a recipient whose account
+  -- changes within the block (e.g. an SSTORE contract) is unprovable -> false bail.
+  ".balign 8\n" ++
+  "sv_pre_rlp_ptr:\n  .zero 8\n" ++
+  "sv_pre_rlp_len:\n  .zero 8\n" ++
   -- bmvmx.1.4.2 compare: validate the coinbase credit against the BAL (additive; match flag only).
   ".balign 8\n" ++
   "bmvmx_coinbase_addr:\n  .zero 20\n" ++

@@ -78,6 +78,11 @@ def blockVerdictFunction : String :=
   "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
   "  mv s0, a0                   # params\n" ++
   "  mv s3, a1                   # SSZ_BASE\n" ++
+  -- fhsxz.2.4.2.57.11.6.5: stash the parent (PRE-state) header RLP ptr/len so
+  -- dispatch_tx_runtime_code's witness lookups use the PRE-state root (witness root),
+  -- not sv_this_rlp (this block's POST-state header). 8(s0)/16(s0) is the parent header.
+  "  ld t0, 8(s0); la t1, sv_pre_rlp_ptr; sd t0, 0(t1)\n" ++
+  "  ld t0, 16(s0); la t1, sv_pre_rlp_len; sd t0, 0(t1)\n" ++
   "  la t0, bv_fail_code; sd zero, 0(t0)\n" ++
   "  la t0, bv_header_status; sd zero, 0(t0)\n" ++
   "  la t0, bv_state_status; sd zero, 0(t0)\n" ++
