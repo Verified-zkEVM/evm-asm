@@ -1,0 +1,18 @@
+this is a claude skill to generate a markdown report in the reports directory that gives a high-level, executive summary of the status of the repository. this should be readable by devs who are familiar with the EVM but aren't in the weeds on this project. it should be concise, easy to scan, and totally accurate.
+
+before generating a report, sync this branch with main: merge main into dhsorens/reports so the report reflects the latest state of main. the report header's commit must be the post-merge tip of main.
+
+source all numbers from the kernel-checked source of truth (the registry in EvmAsm/Progress.lean, EvmAsm/Progress/Obligations.lean, EvmAsm/EL/Conformance/All.lean, and the generated PROGRESS.md / DRIFT.md), not the prose docstrings in PLAN.md/CODEGEN.md, which can lag.
+
+data in the header: a "report" header with today's date and the latest git commit on main.
+
+it should begin with an executive summary that gives a one-paragraph, readable, high-level summary of where we are at regarding the roadmap.
+
+the report should then come in three sections:
+1. EVM Opcodes, which overs the number of opcodes implemented and verified,
+2. STF, which covers the state of the state transition function. for each STF area, be specific about what is *modeled* (data structures / predicates defined, no computation), what is *executable* (a computable Lean def that evaluates), and what is *proven* (theorems / conformance checks) vs not. call out the honest gaps explicitly (e.g. abstract executor hooks, no closed top-level state_transition, gas schedule modeled not proven against the yellow paper). 
+3. Codegen, which covers what is possible with codegen
+
+the report should then give a short "what is next" which summarizes some high-level immediate next steps.
+
+the report is written in markdown and stored in the [docs/reports/](docs/reports/) directory, and pushed to this branch (dhsorens/reports). we will keep reports just on this branch, so there is never a need for a pull request to main.
