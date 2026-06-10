@@ -86,6 +86,10 @@
 #                        and discover failures outside the default first-N fixtures
 #     --seed N           integer seed for --random (default: auto-generated and
 #                        printed so any discovery run can be exactly reproduced)
+#     --reverse          process the selected fixtures last-to-first; use to
+#                        surface failures hiding at the tail of the default
+#                        first-N selection without shuffling. Applied after
+#                        --random when both are given (reverses the shuffle).
 #     --tag TAG          EEST fixture tag (default $EEST_FIXTURE_TAG or zkevm@v0.4.0)
 #
 # Environment:
@@ -159,6 +163,7 @@ VERIFY_INPUT_PARITY="${EEST_VERIFY_INPUT_PARITY:-1}"
 VERIFY_EXECUTION_SPEC_INPUT="${EEST_VERIFY_EXECUTION_SPEC_INPUT:-0}"
 RANDOM_ORDER="${EEST_RANDOM_ORDER:-0}"
 RANDOM_SEED="${EEST_RANDOM_SEED:-}"
+REVERSE_ORDER="${EEST_REVERSE_ORDER:-0}"
 
 usage() {
   cat <<'USAGE'
@@ -195,6 +200,7 @@ Options:
   --random                 shuffle fixtures into a random order before --limit; run
                            repeatedly to sample different subsets and seek discoveries
   --seed N                 integer seed for --random (default: auto-generated and printed)
+  --reverse                process the selected fixtures last-to-first (applied after --random)
   --run-dir DIR            use DIR instead of gen-out/eest-run (enables parallel invocations)
   -h, --help               show this help
 USAGE
@@ -238,6 +244,7 @@ while [[ $# -gt 0 ]]; do
     --no-verdict-debug) VERDICT_DEBUG=0; shift ;;
     --random) RANDOM_ORDER=1; shift ;;
     --seed) require_arg "$1" "${2:-}"; RANDOM_SEED="$2"; shift 2 ;;
+    --reverse) REVERSE_ORDER=1; shift ;;
     *) echo "unknown arg: $1" >&2; usage >&2; exit 1 ;;
   esac
 done
@@ -324,6 +331,10 @@ if [[ -n "$RANDOM_SEED" ]] && ! [[ "$RANDOM_SEED" =~ ^[0-9]+$ ]]; then
 fi
 if [[ -n "$RANDOM_SEED" && "$RANDOM_ORDER" -eq 0 ]]; then
   echo "--seed requires --random" >&2
+  exit 1
+fi
+if [[ "$REVERSE_ORDER" != "0" && "$REVERSE_ORDER" != "1" ]]; then
+  echo "EEST_REVERSE_ORDER must be 0 or 1 (got: $REVERSE_ORDER)" >&2
   exit 1
 fi
 
@@ -720,6 +731,16 @@ print('\n'.join(lines))
 " "$RANDOM_SEED"
   )
   selection="$selection, random(seed=$RANDOM_SEED)"
+fi
+
+if [[ "$REVERSE_ORDER" -eq 1 ]]; then
+  echo "==> reverse order: processing selected fixtures last-to-first"
+  reversedLines=()
+  for ((i = ${#manifestLines[@]} - 1; i >= 0; i--)); do
+    reversedLines+=("${manifestLines[$i]}")
+  done
+  manifestLines=("${reversedLines[@]}")
+  selection="$selection, reverse"
 fi
 
 case_identity() {
