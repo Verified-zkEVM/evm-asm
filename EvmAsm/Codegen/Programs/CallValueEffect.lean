@@ -95,6 +95,7 @@ def callValueEffectPrologue : String :=
   codeAtHeaderStateRootFunction ++ "\n" ++
   accountAtHeaderStateRootFunction ++ "\n" ++
   u256AddBeFunction ++ "\n" ++
+  u256SubBeFunction ++ "\n" ++
   recordNonstorageEffectFunction
 
 def callValueEffectData : String :=
@@ -115,6 +116,7 @@ def callValueEffectData : String :=
   "cd_caller_be:\n  .zero 32\n" ++
   "cd_value_be:\n  .zero 32\n" ++
   "cd_balance_be:\n  .zero 32\n" ++
+  "cd_caller_newbal:\n  .zero 32\n" ++
   ".balign 32\n" ++
   "cahsr_state_root:\n  .zero 32\n" ++
   "cahsr_acct_struct:\n  .zero 104\n" ++
