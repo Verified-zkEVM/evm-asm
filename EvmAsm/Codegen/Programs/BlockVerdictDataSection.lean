@@ -713,7 +713,14 @@ def ziskStatelessVerdictV2DataSection : String :=
   "srpc_env_base:\n  .zero 8\n" ++
   "m29_stage_cur:\n  .zero 8\n" ++
   "m29_stage_count:\n  .zero 8\n" ++
-  "m29_stage_table:\n  .zero 8192\n" ++   -- 3vc2p.3b: M29 recent-blockhash table (256x32; default 0 -> inert)   -- 3vc2p.5: published env_base offset (single source of truth)
+  "m29_stage_table:\n  .zero 8192\n" ++   -- 3vc2p.3b: M29 recent-blockhash table (256x32; default 0 -> inert)
+  -- 3vc2p.3b sub-step B: stage_blockhash_m29 scratch (the ignored offset/length outs + the
+  -- pass-1 hash sink) + blockhash_from_witness_headers' number buffer.
+  ".balign 32\n" ++
+  "m29_hash_tmp:\n  .zero 32\n" ++
+  "m29_off_tmp:\n  .zero 8\n" ++
+  "m29_len_tmp:\n  .zero 8\n" ++
+  "bhfwh_number_buf:\n  .zero 8\n" ++
   "srpc_payload:\n  .zero 1024\n" ++
   -- bal_find_account_by_address private scratch:
   ".balign 8\n" ++
