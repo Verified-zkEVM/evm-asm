@@ -107,6 +107,7 @@ def seedCalleeStorageFunction : String :=
   "  jal ra, bal_addr_to_exec_log_key                # csce_addrkey = LE callee exec-log key\n" ++
   "  mv a0, s3; la t0, csce_alen; ld a1, 0(t0); la a2, csce_keys\n" ++
   "  jal ra, bal_recipient_storage_keys              # csce_keys[] (own buffer, 128 cap)\n" ++
+  "  li t0, 128; bgtu a0, t0, .Lscs_acct_next        # bmvmx.1.7.3: >128 slots wouldn't fit csce_keys -> skip this account (seed nothing)\n" ++
   "  la t0, csce_key_n; sd a0, 0(t0)\n" ++
   "  la t0, csce_key_i; sd zero, 0(t0)\n" ++
   ".Lscs_slot_loop:\n" ++
@@ -175,6 +176,7 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  bnez a0, .Ldtrc_zero_storage\n" ++
   "  la t0, bvcd_acct_ptr; ld a0, 0(t0); la t0, bvcd_acct_len; ld a1, 0(t0); la a2, bvcd_keys\n" ++
   "  jal ra, bal_recipient_storage_keys\n" ++
+  "  li t0, 128; bgtu a0, t0, .Ldtrc_unsupported   # bmvmx.1.7.3: >128 storage slots wouldn't fit bvcd_keys/preload -> bail\n" ++
   "  la t0, bvcd_key_count; sd a0, 0(t0); j .Ldtrc_read_storage\n" ++
   ".Ldtrc_zero_storage:\n" ++
   "  la t0, bvcd_key_count; sd zero, 0(t0)\n" ++
