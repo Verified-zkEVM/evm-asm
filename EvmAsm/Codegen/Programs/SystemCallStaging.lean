@@ -179,6 +179,72 @@ def consolidationRequestPredeployAddrData : String :=
   "consolidation_request_predeploy_addr:\n" ++
   "  .byte 0x00, 0x00, 0xbb, 0xdd, 0xc7, 0xce, 0x48, 0x86, 0x42, 0xfb, 0x57, 0x9f, 0x8b, 0x00, 0xf3, 0xa5, 0x90, 0x00, 0x72, 0x51\n"
 
+/-! ## derive_block_system_requests (8uld3.2.3/8uld3.4 verdict glue)
+
+    Run BOTH system-call request derivations for a block — withdrawal (EIP-7002) then
+    consolidation (EIP-7251) — and copy each return_data body to a STABLE buffer. Necessary
+    because `system_call_returndata` is a single shared buffer the dispatcher overwrites per
+    call, so the verdict (which needs both bodies live at once to feed assemble/requests_hash)
+    must copy the first body out before the second system call clobbers it.
+      a0 = withdrawal predeploy code ptr   a1 = wcode len
+      a2 = consolidation predeploy code ptr a3 = ccode len
+      a4 = block exec payload ptr           a5 = staging output buffer ptr (reused per call)
+    Writes: dbsr_wbody (withdrawal body) + dbsr_wlen; dbsr_cbody (consolidation body) + dbsr_clen.
+    Returns a0 = 0 ok / 1 = a system call's staging was unsupported.
+    Non-reentrant (saves ra + the consolidation args in globals across the dispatcher runs,
+    which clobber sp/s-regs — same constraint as stage_system_call). The two calls are
+    independent: the dispatcher re-initialises env per call. Deposits derive separately
+    (parse_deposit_requests over receipts); the verdict composes all three. -/
+def deriveBlockSystemRequestsFunction : String :=
+  "derive_block_system_requests:\n" ++
+  "  la t0, dbsr_saved_ra; sd ra, 0(t0)\n" ++
+  -- stash the consolidation args + exec + staging (the dispatcher clobbers everything)
+  "  la t0, dbsr_ccode; sd a2, 0(t0)\n" ++
+  "  la t0, dbsr_in_clen; sd a3, 0(t0)\n" ++
+  "  la t0, dbsr_exec; sd a4, 0(t0)\n" ++
+  "  la t0, dbsr_staging; sd a5, 0(t0)\n" ++
+  -- derive withdrawal: derive_withdrawal_requests(a0=wcode, a1=wlen, a2=exec, a3=staging)
+  "  mv a2, a4; mv a3, a5\n" ++
+  "  jal ra, derive_withdrawal_requests\n" ++          -- a0=wbody, a1=wlen, a2=status
+  "  bnez a2, .Ldbsr_fail\n" ++
+  "  la t0, dbsr_wlen; sd a1, 0(t0)\n" ++
+  "  mv t1, a0; la t2, dbsr_wbody; mv t3, a1\n" ++
+  ".Ldbsr_wcopy:\n" ++
+  "  beqz t3, .Ldbsr_wcopy_d; lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Ldbsr_wcopy\n" ++
+  ".Ldbsr_wcopy_d:\n" ++
+  -- derive consolidation: derive_consolidation_requests(a0=ccode, a1=clen, a2=exec, a3=staging)
+  "  la t0, dbsr_ccode; ld a0, 0(t0); la t0, dbsr_in_clen; ld a1, 0(t0)\n" ++
+  "  la t0, dbsr_exec; ld a2, 0(t0); la t0, dbsr_staging; ld a3, 0(t0)\n" ++
+  "  jal ra, derive_consolidation_requests\n" ++       -- a0=cbody, a1=clen, a2=status
+  "  bnez a2, .Ldbsr_fail\n" ++
+  "  la t0, dbsr_clen; sd a1, 0(t0)\n" ++
+  "  mv t1, a0; la t2, dbsr_cbody; mv t3, a1\n" ++
+  ".Ldbsr_ccopy:\n" ++
+  "  beqz t3, .Ldbsr_ccopy_d; lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Ldbsr_ccopy\n" ++
+  ".Ldbsr_ccopy_d:\n" ++
+  "  li a0, 0; j .Ldbsr_ret\n" ++
+  ".Ldbsr_fail:\n" ++
+  "  li a0, 1\n" ++
+  ".Ldbsr_ret:\n" ++
+  "  la t0, dbsr_saved_ra; ld ra, 0(t0); ret\n"
+
+/-- Globals for `derive_block_system_requests` (saved state across the dispatcher runs +
+    the two stable body buffers). Bodies are bounded: withdrawals ≤ 16×76, consolidations
+    ≤ a similar block cap; 2048 each is ample. -/
+def deriveBlockSystemRequestsData : String :=
+  ".balign 8\n" ++
+  "dbsr_saved_ra:\n  .zero 8\n" ++
+  "dbsr_ccode:\n  .zero 8\n" ++
+  "dbsr_in_clen:\n  .zero 8\n" ++
+  "dbsr_exec:\n  .zero 8\n" ++
+  "dbsr_staging:\n  .zero 8\n" ++
+  "dbsr_wlen:\n  .zero 8\n" ++
+  "dbsr_clen:\n  .zero 8\n" ++
+  ".balign 8\n" ++
+  "dbsr_wbody:\n  .zero 2048\n" ++
+  ".balign 8\n" ++
+  "dbsr_cbody:\n  .zero 2048\n"
+
 /-- `zisk_stage_system_call_payload`: probe. Stages a synthetic predeploy + asserts the
     SYSTEM-specific fields: code length @+0, gas @env_base+448 == 30M, CALLER @env_base+64
     == SYSTEM_ADDRESS. (env_base read from srpc_env_base.)
