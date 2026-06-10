@@ -409,4 +409,100 @@ def ziskDeriveRequestsHashE2EProbeUnit : BuildUnit := {
     "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n"
 }
 
+/-! ## zisk_sstore_clear_gas_probe (diagnostic for .57.11.6.5.3 / d')
+
+    Pins the (d'/bv_fail=41) regular-gas undercount: dispatch the multi_transaction_gas_accounting
+    tx0 recipient bytecode (10× PUSH0; PUSH1 i; SSTORE — clearing slots 0..9, each preloaded to 1)
+    with gas=71050, and dump the post-dispatch env.gasRemaining (env+568) + persistent-log count
+    (env+448). SPEC charges 21000 intrinsic + 10×5000 (cold SSTORE-clear) + 50 pushes = 71050 (full)
+    -> gas_left ~0, log count = 10 preload + 10 SSTORE appends = 20. If gas_left ≈ 25200 (c2#48's
+    block_inc[0]=45850 = 71050-25200) -> tx0 under-executes (~5 SSTOREs); the log count tells how
+    many SSTOREs ran. Stages via stage_runtime_payload_code with the 10-slot preload; bundles the
+    same dispatcher + frame-helper closure as the derive probes (so it links standalone, unlike the
+    plain runtime_dispatcher unit).
+    Output (0xa0010000): +0 gas_left (env+568), +8 persistent_log_count (env+448),
+    +16 status (0 ok / 1 staging unsupported). -/
+def ziskSstoreClearGasProbeUnit : BuildUnit := {
+  body        := []
+  prologueAsm :=
+    "  li sp, 0xa0050000\n" ++
+    -- build ctx (192B): zero, gas@40=71050, recipient@72 = scgp_recip (20B)
+    "  la t0, scgp_ctx; mv t1, t0; li t2, 24\n" ++
+    ".Lscgp_zc:\n  sd zero, 0(t1); addi t1, t1, 8; addi t2, t2, -1; bnez t2, .Lscgp_zc\n" ++
+    "  li t1, 71050; sd t1, 40(t0)\n" ++
+    "  addi t1, t0, 72; la t2, scgp_recip; li t3, 20\n" ++
+    ".Lscgp_rc:\n  beqz t3, .Lscgp_rcd; lbu t4, 0(t2); sb t4, 0(t1); addi t2, t2, 1; addi t1, t1, 1; addi t3, t3, -1; j .Lscgp_rc\n" ++
+    ".Lscgp_rcd:\n" ++
+    -- build the 10-slot preload (count*64: key:32 BE, value:32 BE). zero 640B, then set key[i].byte31=i, value[i].byte63=1
+    "  la t0, scgp_preload; li t1, 80\n" ++
+    ".Lscgp_zp:\n  sd zero, 0(t0); addi t0, t0, 8; addi t1, t1, -1; bnez t1, .Lscgp_zp\n" ++
+    "  la t0, scgp_preload; li t1, 0\n" ++
+    ".Lscgp_bp:\n  li t2, 10; beq t1, t2, .Lscgp_bpd\n" ++
+    "  slli t3, t1, 6; add t4, t0, t3; addi t5, t4, 31; sb t1, 0(t5)\n" ++         -- key[i] byte31 = i
+    "  addi t5, t4, 63; li t6, 1; sb t6, 0(t5)\n" ++                               -- value[i] byte63 = 1
+    "  addi t1, t1, 1; j .Lscgp_bp\n" ++
+    ".Lscgp_bpd:\n" ++
+    -- stage_runtime_payload_code(ctx, out, exec, code, 40, preload, 10)
+    "  la a0, scgp_ctx; la a1, scgp_out; la a2, scgp_exec; la a3, scgp_code; li a4, 40; la a5, scgp_preload; li a6, 10\n" ++
+    "  jal ra, stage_runtime_payload_code\n" ++
+    "  bnez a0, .Lscgp_fail\n" ++
+    -- dispatch
+    "  la t1, scgp_out; addi t1, t1, 8; la t0, runtime_dispatcher_input_ptr; sd t1, 0(t0)\n" ++
+    "  jal ra, runtime_dispatcher_call\n" ++
+    "  la t0, runtime_dispatcher_input_ptr; sd zero, 0(t0)\n" ++
+    -- dump gas_left + log count
+    "  li t0, 0xa0010000; la t1, evm_env\n" ++
+    "  ld t2, 568(t1); sd t2, 0(t0)\n" ++          -- +0 gas_left
+    "  ld t2, 448(t1); sd t2, 8(t0)\n" ++          -- +8 persistent log count
+    "  sd zero, 16(t0)\n" ++                       -- +16 status ok
+    "  j .Lscgp_done\n" ++
+    ".Lscgp_fail:\n  li t0, 0xa0010000; li t2, 1; sd t2, 16(t0)\n" ++
+    ".Lscgp_done:\n" ++
+    "  li x17, 93\n  li x10, 0\n  ecall\n" ++
+    stageRuntimePayloadCodeFunction ++ "\n" ++
+    frameBaseFunction ++ "\n" ++
+    frameDepthPushFunction ++ "\n" ++
+    frameDepthPopFunction ++ "\n" ++
+    frameSaveRegsFunction ++ "\n" ++
+    frameLoadRegsFunction ++ "\n" ++
+    callFrameEnterFunction ++ "\n" ++
+    callFrameSetCallEnvFunction ++ "\n" ++
+    callFrameSetCalldataFunction ++ "\n" ++
+    callFrameForwardGasFunction ++ "\n" ++
+    callFrameDescendFunction ++ "\n" ++
+    createFrameDescendFunction ++ "\n" ++
+    frameReturnFunction ++ "\n" ++
+    recordNonstorageEffectFunction ++ "\n" ++
+    u256SubBeFunction ++ "\n" ++
+    emitRuntimeDispatcherCallablePrologue
+  epilogueAsm := emitDispatcherCallableEpilogue tinyInterpRegistry evmAddEpilogue
+  dataAsm     :=
+    emitRuntimeDispatcherDataSection tinyInterpRegistry ++ "\n" ++
+    ".balign 8\n" ++
+    "srpc_env_base:\n  .zero 8\n" ++
+    "m29_stage_cur:\n  .zero 8\n" ++
+    "m29_stage_count:\n  .zero 8\n" ++
+    "m29_stage_table:\n  .zero 8192\n" ++
+    ".balign 8\n" ++
+    "scgp_ctx:\n  .zero 192\n" ++
+    ".balign 8\n" ++
+    "scgp_recip:\n  .byte 0x4e, 0xa7, 0x7b, 0x8b, 0x4e, 0xee, 0x51, 0x42, 0x9b, 0x6f, 0xa1, 0xf7, 0xec, 0xbc, 0x41, 0xdb, 0x9c, 0xc1, 0x9e, 0xbc\n" ++
+    ".balign 8\n" ++
+    "scgp_code:\n  .byte 0x5f, 0x60, 0x00, 0x55, 0x5f, 0x60, 0x01, 0x55, 0x5f, 0x60, 0x02, 0x55, 0x5f, 0x60, 0x03, 0x55, 0x5f, 0x60, 0x04, 0x55, 0x5f, 0x60, 0x05, 0x55, 0x5f, 0x60, 0x06, 0x55, 0x5f, 0x60, 0x07, 0x55, 0x5f, 0x60, 0x08, 0x55, 0x5f, 0x60, 0x09, 0x55\n" ++   -- 10x PUSH0;PUSH1 i;SSTORE (clear slots 0..9)
+    ".balign 8\n" ++
+    "scgp_preload:\n  .zero 640\n" ++
+    ".balign 8\n" ++
+    "scgp_exec:\n  .zero 1024\n" ++
+    ".balign 8\n" ++
+    "scgp_out:\n  .zero 4096\n" ++
+    ".balign 8\n" ++
+    "evm_call_depth:\n  .zero 8\n" ++
+    ".balign 16\n" ++
+    "frame_save_area:\n  .zero 16400\n" ++
+    ".balign 32\n" ++
+    "frame_call_ctx:\n  .zero 32800\n" ++
+    ".balign 32\n" ++
+    "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n"
+}
+
 end EvmAsm.Codegen
