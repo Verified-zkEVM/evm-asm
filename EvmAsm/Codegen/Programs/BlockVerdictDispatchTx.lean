@@ -212,6 +212,19 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la t0, bvcd_acct_ptr; ld a0, 0(t0); la t0, bvcd_acct_len; ld a1, 0(t0); la a2, bvcd_keys\n" ++
   "  jal ra, bal_recipient_storage_keys\n" ++
   "  li t0, 128; bgtu a0, t0, .Ldtrc_unsupported   # bmvmx.1.7.3: >128 storage slots wouldn't fit bvcd_keys/preload -> bail\n" ++
+  "  la t0, bvcd_sc_count; sd a0, 0(t0)\n" ++
+  -- fhsxz.2.4.2.57.11.6.5 (revert fix): also preload the recipient's storage_READS slots
+  -- (accessed-but-not-net-changed). A reverting tx has empty storage_changes (its writes
+  -- roll back) but lists the touched slots in storage_reads; without these the SSTORE-clears
+  -- find no preloaded slot and undercharge (missing-slot path) -> block_regular undercount
+  -- (bv_fail=41). Append the storage_reads keys after the storage_changes keys; cap total at
+  -- 128 (the bvcd_keys/bvcd_preload buffer size).
+  "  la t0, bvcd_acct_ptr; ld a0, 0(t0); la t0, bvcd_acct_len; ld a1, 0(t0)\n" ++
+  "  la t0, bvcd_sc_count; ld t1, 0(t0); slli t2, t1, 5; la a2, bvcd_keys; add a2, a2, t2\n" ++
+  "  li a3, 128; sub a3, a3, t1\n" ++
+  "  jal ra, bal_recipient_storage_reads_keys\n" ++
+  "  la t0, bvcd_sc_count; ld t1, 0(t0); add a0, a0, t1   # total = storage_changes + storage_reads\n" ++
+  "  li t0, 128; bgtu a0, t0, .Ldtrc_unsupported\n" ++
   "  la t0, bvcd_key_count; sd a0, 0(t0); j .Ldtrc_read_storage\n" ++
   ".Ldtrc_zero_storage:\n" ++
   "  la t0, bvcd_key_count; sd zero, 0(t0)\n" ++

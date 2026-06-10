@@ -215,6 +215,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bvcd_acct_ptr:\n  .zero 8\n" ++
   "bvcd_acct_len:\n  .zero 8\n" ++
   "bvcd_key_count:\n  .zero 8\n" ++
+  "bvcd_sc_count:\n  .zero 8\n" ++
   "bvcd_i:\n  .zero 8\n" ++
   "bvcd_keys:\n  .zero 4096\n" ++      -- bmvmx.1.7.3: up to 128 x 32-byte slot keys (was 16; bal_recipient_storage_keys caps at 128)
   "bvcd_preload:\n  .zero 8192\n" ++   -- bmvmx.1.7.3: up to 128 x 64-byte (key,value) pairs (was 16)

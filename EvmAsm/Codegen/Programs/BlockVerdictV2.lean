@@ -58,6 +58,7 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     bytecodeIsSelfContainedFunction ++ "\n" ++
     balFindAccountByAddressFunction ++ "\n" ++
     balRecipientStorageKeysFunction ++ "\n" ++
+    balRecipientStorageReadsKeysFunction ++ "\n" ++
     stageRuntimePayloadCodeFunction ++ "\n" ++
     -- .6.2.2.1: block_verdict's contract dispatch now calls dispatch_tx_runtime_code;
     -- emit its body here too so this debug verdict ELF links (mirrors the guest closure).
@@ -270,6 +271,7 @@ def statelessVerdictV2GuestClosure : String :=
   bytecodeIsSelfContainedFunction ++ "\n" ++
   balFindAccountByAddressFunction ++ "\n" ++
   balRecipientStorageKeysFunction ++ "\n" ++
+  balRecipientStorageReadsKeysFunction ++ "\n" ++
   stageRuntimePayloadCodeFunction ++ "\n" ++
   -- .6.2.2.1: contract-recipient runtime gas-measurement tail extracted from
   -- block_verdict so the multi-tx dispatch loop can reuse it.
