@@ -1783,8 +1783,17 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  sd x6, 456(x20)\n" ++         -- env.persistentLogCheckpointOff = preload count
   "  sd x0, 464(x20)\n" ++         -- env.transientLogLengthOff = 0
   "  sd x0, 472(x20)\n" ++         -- env.eventLogLengthOff = 0
-  "  la x5, evm_log_data_used; sd x0, 0(x5)\n" ++       -- 8uld3.1a: reset per-tx full-log-data buffer cursor
-  "  la x5, evm_log_data_overflow; sd x0, 0(x5)\n" ++   -- 8uld3.1a: reset per-tx full-log-data overflow flag
+  -- 8uld3.2.1.3 FIX: reset the per-tx full-log-data globals via x28 (a dead scratch
+  -- here), NOT x5. x5 is the live INPUT-WALK CURSOR (= &slot_count) in this input-driven
+  -- setup; the original `la x5, …` (added by 8uld3.1a, 9e363d19d) clobbered it, so every
+  -- subsequent walk step (preload src @+8, blob/M29/env trailers, and the M30 GAS trailer)
+  -- read from &evm_log_data_overflow+8 (zeros) instead of the input -> gasRemaining read
+  -- as 0 -> the dispatch OOGs before any opcode. Latent on main only because contract
+  -- dispatch bails (sv_this_rlp restored by #8686); surfaces the moment the dispatcher
+  -- actually runs (system calls 8uld3.2.1c, and the mtx re-land .57.11.6.5). The
+  -- .data-baked setup's identical reset (~L974) is unaffected: it reloads x5 right after.
+  "  la x28, evm_log_data_used; sd x0, 0(x28)\n" ++     -- reset per-tx full-log-data buffer cursor
+  "  la x28, evm_log_data_overflow; sd x0, 0(x28)\n" ++ -- reset per-tx full-log-data overflow flag
   "  sd x0, 480(x20)\n" ++         -- env.eventLogCheckpointOff = 0
   "  sd x0, 488(x20)\n" ++         -- runtime activeMemorySize = 0
   "  sd x0, 512(x20)\n" ++         -- M28: blobBaseFee[0] = 0 (overwritten by trailer load below)
