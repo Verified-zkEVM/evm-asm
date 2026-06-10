@@ -147,6 +147,38 @@ def withdrawalRequestPredeployAddrData : String :=
   "withdrawal_request_predeploy_addr:\n" ++
   "  .byte 0x00, 0x00, 0x09, 0x61, 0xef, 0x48, 0x0e, 0xb5, 0x5e, 0x80, 0xd1, 0x9a, 0xd8, 0x35, 0x79, 0xa6, 0x4c, 0x00, 0x70, 0x02\n"
 
+/-! ## derive_consolidation_requests (8uld3.3, EIP-7251)
+
+    Run the CONSOLIDATION_REQUEST_PREDEPLOY (0x0000BBdDc7CE488642fb579F8B00f3a590007251)
+    system call and surface its return_data as the consolidation-request BODY. Per
+    `process_general_purpose_requests` (fork.py):
+      system_consolidation_tx_output =
+        process_checked_system_transaction(CONSOLIDATION_REQUEST_PREDEPLOY_ADDRESS, b'')
+      if len(return_data) > 0: requests.append(CONSOLIDATION_REQUEST_TYPE + return_data)
+    The 0x02 CONSOLIDATION_REQUEST_TYPE prefix is the request-list framing added by
+    `assemble_execution_requests` (a4/a5 = consolidation body) / RequestsHash at hash time,
+    so the body produced here is the raw return_data (each request is 116 B = source 20 +
+    source_pubkey 48 + target_pubkey 48). Empty return_data -> body len 0 (caller appends
+    nothing). Identical compose to `derive_withdrawal_requests`, only the predeploy differs:
+      a0 = predeploy code ptr   a1 = code len   a2 = block exec payload ptr   a3 = output buffer
+    Returns (tail-call to stage_system_call):
+      a0 = consolidation body ptr (= system_call_returndata)   a1 = body len   a2 = 0 ok / 1 unsupported -/
+def deriveConsolidationRequestsFunction : String :=
+  "derive_consolidation_requests:\n" ++
+  "  mv a4, a3                    # out buffer -> a4\n" ++
+  "  mv a3, a2                    # block exec payload -> a3\n" ++
+  "  mv a2, a1                    # code len -> a2\n" ++
+  "  mv a1, a0                    # predeploy code ptr -> a1\n" ++
+  "  la a0, consolidation_request_predeploy_addr   # target addr -> a0\n" ++
+  "  j stage_system_call          # tail call: a0/a1/a2 carry body ptr/len/status to our caller\n"
+
+/-- CONSOLIDATION_REQUEST_PREDEPLOY_ADDRESS (EIP-7251), 20 bytes big-endian. Referenced by
+    `derive_consolidation_requests`; emit alongside it in any unit that links the function. -/
+def consolidationRequestPredeployAddrData : String :=
+  ".balign 8\n" ++
+  "consolidation_request_predeploy_addr:\n" ++
+  "  .byte 0x00, 0x00, 0xbb, 0xdd, 0xc7, 0xce, 0x48, 0x86, 0x42, 0xfb, 0x57, 0x9f, 0x8b, 0x00, 0xf3, 0xa5, 0x90, 0x00, 0x72, 0x51\n"
+
 /-- `zisk_stage_system_call_payload`: probe. Stages a synthetic predeploy + asserts the
     SYSTEM-specific fields: code length @+0, gas @env_base+448 == 30M, CALLER @env_base+64
     == SYSTEM_ADDRESS. (env_base read from srpc_env_base.)
