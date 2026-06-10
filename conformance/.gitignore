@@ -1,4 +1,7 @@
-# Vendored guest pack helper is copied from the pinned commit at build time.
+# Guest artifacts are produced by build-guest.sh, not committed: the ELF is a
+# binary (breaks text-based CI tooling) and the pack helper is copied from the
+# pinned commit at build time. PINNED_COMMIT (text) is tracked.
+guest/runtime_dispatcher.elf
 guest/pack-bytecode.py
 guest/*.bak
 *.bak
