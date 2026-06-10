@@ -273,6 +273,15 @@ def statelessGuestDataSection : String :=
   "  .byte 0x9a, 0x07, 0xe7, 0x56, 0xde, 0xef, 0x72, 0xb3\n" ++
   "  .byte 0x58, 0x8a, 0x4b, 0x05, 0x36, 0x22, 0x06, 0xb5\n" ++
   ".balign 8\n" ++
+  -- fhsxz.2.4.2.57.11.6.5: save area for the 105-byte SszStatelessValidationResult
+  -- (npr_root[0:32] + tail[33:105]) across the stateless_verdict_v2 call. The verdict's
+  -- contract dispatch lets real RETURN/REVERT handlers write OUTPUT_ADDR (0xa0010000),
+  -- clobbering the epilogue's already-computed result on revert blocks; the epilogue
+  -- saves OUTPUT here before the verdict and restores it after (the verdict reads its
+  -- results from env/rdg arrays, never its own OUTPUT, so discarding those writes is safe).
+  "npr_saved_output:\n" ++
+  "  .zero 112\n" ++
+  ".balign 8\n" ++
   "npr_sha_input:\n" ++
   "  .zero 64\n" ++
   ".balign 8\n" ++

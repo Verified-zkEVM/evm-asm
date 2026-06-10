@@ -215,6 +215,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bvcd_acct_ptr:\n  .zero 8\n" ++
   "bvcd_acct_len:\n  .zero 8\n" ++
   "bvcd_key_count:\n  .zero 8\n" ++
+  "bvcd_sc_count:\n  .zero 8\n" ++
   "bvcd_i:\n  .zero 8\n" ++
   "bvcd_keys:\n  .zero 4096\n" ++      -- bmvmx.1.7.3: up to 128 x 32-byte slot keys (was 16; bal_recipient_storage_keys caps at 128)
   "bvcd_preload:\n  .zero 8192\n" ++   -- bmvmx.1.7.3: up to 128 x 64-byte (key,value) pairs (was 16)
@@ -819,6 +820,16 @@ def ziskStatelessVerdictV2DataSection : String :=
   ".balign 8\n" ++
   "sv_pre_rlp_ptr:\n  .zero 8\n" ++
   "sv_pre_rlp_len:\n  .zero 8\n" ++
+  -- fhsxz.2.4.2.57.11.6.5: mtx-gating for dispatch_tx_runtime_code's witness lookups.
+  -- dtrc_use_pre_header: 0 (default) -> use sv_this_rlp (POST header; single-tx path,
+  -- conservative, identical to #8686); 1 -> use sv_pre_rlp_* (PRE/parent header; set by
+  -- the mtx loop ONLY around its dispatch call so multi-tx contract dispatch can prove
+  -- recipient state against the witness root. dtrc_hdr_ptr/len: the header ptr+len
+  -- resolved ONCE at dispatch entry from the flag, read by all 5 lookup sites.
+  ".balign 8\n" ++
+  "dtrc_use_pre_header:\n  .zero 8\n" ++
+  "dtrc_hdr_ptr:\n  .zero 8\n" ++
+  "dtrc_hdr_len:\n  .zero 8\n" ++
   -- bmvmx.1.4.2 compare: validate the coinbase credit against the BAL (additive; match flag only).
   ".balign 8\n" ++
   "bmvmx_coinbase_addr:\n  .zero 20\n" ++

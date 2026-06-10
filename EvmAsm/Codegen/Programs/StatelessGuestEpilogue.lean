@@ -776,7 +776,21 @@ def statelessGuestEpilogue : String :=
   "  #  payload.state_root + EIP-7928 BAL gas-limit rule). NPR root is already at\n" ++
   "  #  OUTPUT[0..32); stamp the verdict bit at OUTPUT[32]. Conservative: any\n" ++
   "  #  unhandled case -> 0 (never a false positive).\n" ++
+  -- fhsxz.2.4.2.57.11.6.5: the verdict's contract dispatch lets real RETURN/REVERT handlers
+  -- write OUTPUT_ADDR (0xa0010000), clobbering the result we just computed (npr_root + tail) on
+  -- revert/return blocks. Save OUTPUT[0:112] before the verdict and restore it after, so the
+  -- 105-byte SszStatelessValidationResult survives. (The verdict reads its outcome from env/rdg,
+  -- not its own OUTPUT, so discarding those dispatch-time OUTPUT writes is sound. a0 = the verdict
+  -- bit; the restore loop touches only t-regs, so a0 survives for the succ stamp below.)
+  "  li t0, 0xa0010000; la t1, npr_saved_output; li t2, 0\n" ++
+  ".Lsg_npr_save:\n" ++
+  "  add t3, t0, t2; ld t4, 0(t3); add t3, t1, t2; sd t4, 0(t3)\n" ++
+  "  addi t2, t2, 8; li t3, 112; bltu t2, t3, .Lsg_npr_save\n" ++
   "  jal ra, stateless_verdict_v2\n" ++
+  "  li t0, 0xa0010000; la t1, npr_saved_output; li t2, 0\n" ++
+  ".Lsg_npr_restore:\n" ++
+  "  add t3, t1, t2; ld t4, 0(t3); add t3, t0, t2; sd t4, 0(t3)\n" ++
+  "  addi t2, t2, 8; li t3, 112; bltu t2, t3, .Lsg_npr_restore\n" ++
   "  li t0, 0xa0010000; sb a0, 32(t0)\n" ++
   "  # Restore zisk's trap vector before the final Linux-93 halt ecall.\n" ++
   "  li t0, 0xa0009828          # zisk MTVEC memory slot\n" ++

@@ -114,7 +114,7 @@ def seedCalleeStorageFunction : String :=
   "  la t0, csce_key_i; ld t1, 0(t0); la t2, csce_key_n; ld t3, 0(t2); beq t1, t3, .Lscs_acct_next\n" ++
   "  la t0, callee_seed_count; ld t2, 0(t0); li t3, 128; bgeu t2, t3, .Lscs_done   # table cap\n" ++
   "  slli t4, t1, 5; la t5, csce_keys; add a3, t5, t4   # slot key ptr\n" ++
-  "  la a0, sv_this_rlp; la t0, sv_this_rlp_len; ld a1, 0(t0)\n" ++   -- repair(#8685): restore this-block header; PRE-header only helps WITH the mtx fix (kept on the mtx branch)
+  "  la t0, dtrc_hdr_ptr; ld a0, 0(t0); la t0, dtrc_hdr_len; ld a1, 0(t0)\n" ++   -- .57.11.6.5: mtx-gated witness-lookup header (resolved at dispatch entry: sv_this_rlp single-tx / sv_pre_rlp mtx)
   "  la t0, csce_addrp; ld a2, 0(t0)\n" ++
   "  mv a4, s0; mv a5, s1; mv a6, s0; mv a7, s1\n" ++
   "  jal ra, slot_at_header_state_root\n" ++
@@ -180,7 +180,20 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  mv s0, a1                    # witness.state ptr\n" ++
   "  mv s1, a2                    # witness.state len\n" ++
   "  mv s2, a0                    # context record ptr\n" ++
-  "  la a0, sv_this_rlp; la t0, sv_this_rlp_len; ld a1, 0(t0)\n" ++   -- repair(#8685): restore this-block header; PRE-header only helps WITH the mtx fix (kept on the mtx branch)
+  -- fhsxz.2.4.2.57.11.6.5: resolve the witness-lookup header ONCE (mtx-gated). Default
+  -- (dtrc_use_pre_header=0, single-tx) = sv_this_rlp (this block's POST-state header,
+  -- whose root is NOT in the pre-rooted witness -> lookups bail -> conservative, byte-
+  -- identical to #8686). The mtx loop sets the flag=1 to use the PRE-state (parent)
+  -- header whose root IS the witness root, enabling real multi-tx contract dispatch.
+  "  la t0, dtrc_use_pre_header; ld t0, 0(t0); bnez t0, .Ldtrc_hdr_pre\n" ++
+  "  la t1, sv_this_rlp; la t2, dtrc_hdr_ptr; sd t1, 0(t2)\n" ++
+  "  la t0, sv_this_rlp_len; ld t1, 0(t0); la t2, dtrc_hdr_len; sd t1, 0(t2)\n" ++
+  "  j .Ldtrc_hdr_done\n" ++
+  ".Ldtrc_hdr_pre:\n" ++
+  "  la t0, sv_pre_rlp_ptr; ld t1, 0(t0); la t2, dtrc_hdr_ptr; sd t1, 0(t2)\n" ++
+  "  la t0, sv_pre_rlp_len; ld t1, 0(t0); la t2, dtrc_hdr_len; sd t1, 0(t2)\n" ++
+  ".Ldtrc_hdr_done:\n" ++
+  "  la t0, dtrc_hdr_ptr; ld a0, 0(t0); la t0, dtrc_hdr_len; ld a1, 0(t0)\n" ++
   "  addi a2, s2, 72\n" ++
   "  mv a3, s0; mv a4, s1\n" ++
   "  la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0)\n" ++
@@ -199,6 +212,19 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la t0, bvcd_acct_ptr; ld a0, 0(t0); la t0, bvcd_acct_len; ld a1, 0(t0); la a2, bvcd_keys\n" ++
   "  jal ra, bal_recipient_storage_keys\n" ++
   "  li t0, 128; bgtu a0, t0, .Ldtrc_unsupported   # bmvmx.1.7.3: >128 storage slots wouldn't fit bvcd_keys/preload -> bail\n" ++
+  "  la t0, bvcd_sc_count; sd a0, 0(t0)\n" ++
+  -- fhsxz.2.4.2.57.11.6.5 (revert fix): also preload the recipient's storage_READS slots
+  -- (accessed-but-not-net-changed). A reverting tx has empty storage_changes (its writes
+  -- roll back) but lists the touched slots in storage_reads; without these the SSTORE-clears
+  -- find no preloaded slot and undercharge (missing-slot path) -> block_regular undercount
+  -- (bv_fail=41). Append the storage_reads keys after the storage_changes keys; cap total at
+  -- 128 (the bvcd_keys/bvcd_preload buffer size).
+  "  la t0, bvcd_acct_ptr; ld a0, 0(t0); la t0, bvcd_acct_len; ld a1, 0(t0)\n" ++
+  "  la t0, bvcd_sc_count; ld t1, 0(t0); slli t2, t1, 5; la a2, bvcd_keys; add a2, a2, t2\n" ++
+  "  li a3, 128; sub a3, a3, t1\n" ++
+  "  jal ra, bal_recipient_storage_reads_keys\n" ++
+  "  la t0, bvcd_sc_count; ld t1, 0(t0); add a0, a0, t1   # total = storage_changes + storage_reads\n" ++
+  "  li t0, 128; bgtu a0, t0, .Ldtrc_unsupported\n" ++
   "  la t0, bvcd_key_count; sd a0, 0(t0); j .Ldtrc_read_storage\n" ++
   ".Ldtrc_zero_storage:\n" ++
   "  la t0, bvcd_key_count; sd zero, 0(t0)\n" ++
@@ -207,7 +233,7 @@ def dispatchTxRuntimeCodeFunction : String :=
   ".Ldtrc_sloop:\n" ++
   "  la t0, bvcd_i; ld t1, 0(t0); la t2, bvcd_key_count; ld t3, 0(t2); beq t1, t3, .Ldtrc_stage\n" ++
   "  slli t4, t1, 5; la t5, bvcd_keys; add a3, t5, t4\n" ++
-  "  la a0, sv_this_rlp; la t0, sv_this_rlp_len; ld a1, 0(t0)\n" ++   -- repair(#8685): restore this-block header; PRE-header only helps WITH the mtx fix (kept on the mtx branch)
+  "  la t0, dtrc_hdr_ptr; ld a0, 0(t0); la t0, dtrc_hdr_len; ld a1, 0(t0)\n" ++   -- .57.11.6.5: mtx-gated witness-lookup header (resolved at dispatch entry)
   "  addi a2, s2, 72\n" ++
   "  mv a4, s0; mv a5, s1; mv a6, s0; mv a7, s1\n" ++
   "  jal ra, slot_at_header_state_root\n" ++
@@ -356,7 +382,7 @@ def dispatchTxRuntimeCodeFunction : String :=
   -- INERT until yisv8.2 removes SELFBALANCE(0x47) from the self-contained reject set.
   -- Conservative: a lookup miss/error leaves SELFBALANCE 0. balance_at_header_state_root
   -- preserves s-regs (s0=state ptr, s1=state len, s2=ctx survive); clobbers only dead a/t-regs.
-  "  la a0, sv_this_rlp\n  la t0, sv_this_rlp_len; ld a1, 0(t0)\n" ++   -- repair(#8685): restore this-block header (see above)
+  "  la t0, dtrc_hdr_ptr; ld a0, 0(t0)\n  la t0, dtrc_hdr_len; ld a1, 0(t0)\n" ++   -- .57.11.6.5: mtx-gated witness-lookup header (resolved at dispatch entry)
   "  addi a2, s2, 72\n" ++                       -- recipient addr (ctx+72)
   "  mv a3, s0; mv a4, s1\n" ++                   -- witness state ptr/len
   "  la a5, yisv8_self_bal\n" ++
