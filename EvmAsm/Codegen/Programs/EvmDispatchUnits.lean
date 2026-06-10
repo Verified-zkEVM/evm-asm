@@ -7,6 +7,7 @@
 
 import EvmAsm.Codegen.Programs.Evm
 import EvmAsm.Codegen.Programs.SystemCallStaging
+import EvmAsm.Codegen.Programs.AssembleExecutionRequests
 
 namespace EvmAsm.Codegen
 
@@ -280,6 +281,123 @@ def ziskDeriveConsolidationRequestsProbeUnit : BuildUnit := {
     "dcr_probe_exec:\n  .zero 1024\n" ++
     ".balign 8\n" ++
     "dcr_probe_out:\n  .zero 4096\n" ++
+    -- frame-helper data (inert for this no-CREATE predeploy; labels must exist for a standalone emit)
+    ".balign 8\n" ++
+    "evm_call_depth:\n  .zero 8\n" ++
+    ".balign 16\n" ++
+    "frame_save_area:\n  .zero 16400\n" ++
+    ".balign 32\n" ++
+    "frame_call_ctx:\n  .zero 32800\n" ++
+    ".balign 32\n" ++
+    "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n"
+}
+
+/-! ## zisk_derive_requests_hash_e2e (8uld3.2.3 / 8uld3.4 integration)
+
+    End-to-end: derive a withdrawal-request body from a synthetic WITHDRAWAL predeploy via the
+    system-call harness, then feed it (deposit/consolidation empty) through the
+    execution-derived requests_hash path (`assemble_execution_requests` -> `execution_requests_hash`
+    -> `requests_hash_verify`). Proves a system-call-DERIVED body produces a deterministic
+    `requests_hash` that `requests_hash_verify` ACCEPTS (match -> 0) and REJECTS when the expected
+    (header) hash is corrupted (-> 1) — the soundness shape `block_verdict` will use to stop
+    trusting the SSZ-input requests (8uld3.2.3/8uld3.4). Single system call (no reentrancy).
+    Output (0xa0010000): +0 wbody_len (expect 76), +8 verify(zero-hash) (expect 1 mismatch),
+    +16 verify(correct) (expect 0 match), +24 verify(corrupted) (expect 1 mismatch). -/
+def ziskDeriveRequestsHashE2EProbeUnit : BuildUnit := {
+  body        := []
+  prologueAsm :=
+    "  li sp, 0xa0050000\n" ++
+    -- 1. derive a withdrawal body (76B) from the synthetic predeploy
+    "  la a0, drhe_probe_code\n  li a1, 10\n  la a2, drhe_probe_exec\n  la a3, drhe_probe_out\n" ++
+    "  jal ra, derive_withdrawal_requests\n" ++          -- a0=wbody ptr, a1=len, a2=status
+    "  la t0, drhe_wbody_ptr; sd a0, 0(t0); la t0, drhe_wbody_len; sd a1, 0(t0)\n" ++
+    "  li t0, 0xa0010000; sd a1, 0(t0)\n" ++             -- +0 wbody_len
+    -- 2. verify against an all-zero expected hash -> mismatch (1); leaves the computed hash in rhv_hash
+    "  la t0, drhe_exp_hash; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++
+    "  la t0, drhe_wbody_ptr; ld a2, 0(t0); la t0, drhe_wbody_len; ld a3, 0(t0)\n" ++
+    "  li a0, 0; li a1, 0; li a4, 0; li a5, 0\n" ++       -- deposit/consolidation empty
+    "  la a6, drhe_exp_hash; la a7, drhe_section\n" ++
+    "  jal ra, requests_hash_verify\n" ++
+    "  li t0, 0xa0010000; sd a0, 8(t0)\n" ++             -- +8 verify(zero) expect 1
+    -- copy the computed hash (rhv_hash) into drhe_exp_hash (the now-correct expected hash)
+    "  la t1, rhv_hash; la t2, drhe_exp_hash; li t3, 32\n" ++
+    ".Ldrhe_cp:\n" ++
+    "  beqz t3, .Ldrhe_cpd; lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Ldrhe_cp\n" ++
+    ".Ldrhe_cpd:\n" ++
+    -- 3. verify against the correct hash -> match (0)
+    "  la t0, drhe_wbody_ptr; ld a2, 0(t0); la t0, drhe_wbody_len; ld a3, 0(t0)\n" ++
+    "  li a0, 0; li a1, 0; li a4, 0; li a5, 0; la a6, drhe_exp_hash; la a7, drhe_section\n" ++
+    "  jal ra, requests_hash_verify\n" ++
+    "  li t0, 0xa0010000; sd a0, 16(t0)\n" ++            -- +16 verify(correct) expect 0
+    -- 4. corrupt the expected hash, verify -> mismatch (1)
+    "  la t0, drhe_exp_hash; lbu t1, 0(t0); xori t1, t1, 0xff; sb t1, 0(t0)\n" ++
+    "  la t0, drhe_wbody_ptr; ld a2, 0(t0); la t0, drhe_wbody_len; ld a3, 0(t0)\n" ++
+    "  li a0, 0; li a1, 0; li a4, 0; li a5, 0; la a6, drhe_exp_hash; la a7, drhe_section\n" ++
+    "  jal ra, requests_hash_verify\n" ++
+    "  li t0, 0xa0010000; sd a0, 24(t0)\n" ++            -- +24 verify(corrupt) expect 1
+    "  li x17, 93\n  li x10, 0\n  ecall\n" ++
+    deriveWithdrawalRequestsFunction ++ "\n" ++
+    stageSystemCallFunction ++ "\n" ++
+    stageSystemCallPayloadFunction ++ "\n" ++
+    stageRuntimePayloadCodeFunction ++ "\n" ++
+    -- requests_hash machinery (assemble -> sha256 -> verify); zkvm_sha256 is an ecall bridge
+    requestsHashVerifyFunction ++ "\n" ++
+    assembleExecutionRequestsFunction ++ "\n" ++
+    executionRequestsHashFunction ++ "\n" ++
+    bgvU32leFunction ++ "\n" ++
+    -- NOTE: zkvm_sha256 + its sha256_w_* data are already provided by the dispatcher harness
+    -- (tinyInterpRegistry's SHA256 precompile), so we do NOT re-bundle them here (double-def).
+    -- frame-helper closure (CREATE handler descent chain), same as the derive probes
+    frameBaseFunction ++ "\n" ++
+    frameDepthPushFunction ++ "\n" ++
+    frameDepthPopFunction ++ "\n" ++
+    frameSaveRegsFunction ++ "\n" ++
+    frameLoadRegsFunction ++ "\n" ++
+    callFrameEnterFunction ++ "\n" ++
+    callFrameSetCallEnvFunction ++ "\n" ++
+    callFrameSetCalldataFunction ++ "\n" ++
+    callFrameForwardGasFunction ++ "\n" ++
+    callFrameDescendFunction ++ "\n" ++
+    createFrameDescendFunction ++ "\n" ++
+    frameReturnFunction ++ "\n" ++
+    recordNonstorageEffectFunction ++ "\n" ++
+    u256SubBeFunction ++ "\n" ++
+    emitRuntimeDispatcherCallablePrologue
+  epilogueAsm := emitDispatcherCallableEpilogue tinyInterpRegistry evmAddEpilogue
+  dataAsm     :=
+    emitRuntimeDispatcherDataSection tinyInterpRegistry ++ "\n" ++
+    ".balign 8\n" ++
+    "scc_ctx:\n  .zero 192\n" ++
+    ".balign 8\n" ++
+    "scc_system_addr:\n" ++
+    "  .byte 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff\n" ++
+    "  .byte 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfe\n" ++
+    ".balign 8\n" ++
+    "srpc_env_base:\n  .zero 8\n" ++
+    "m29_stage_cur:\n  .zero 8\n" ++
+    "m29_stage_count:\n  .zero 8\n" ++
+    "m29_stage_table:\n  .zero 8192\n" ++
+    ".balign 8\n" ++
+    "ssc_saved_ra:\n  .zero 8\n" ++
+    "ssc_saved_s0:\n  .zero 8\n" ++
+    withdrawalRequestPredeployAddrData ++
+    ".balign 8\n" ++
+    "drhe_probe_code:\n  .byte 0x60, 0xab, 0x60, 0x00, 0x52, 0x60, 0x4c, 0x60, 0x00, 0xf3\n" ++   -- PUSH1 0xAB; PUSH1 0; MSTORE; PUSH1 76; PUSH1 0; RETURN
+    ".balign 8\n" ++
+    "drhe_probe_exec:\n  .zero 1024\n" ++
+    ".balign 8\n" ++
+    "drhe_probe_out:\n  .zero 4096\n" ++
+    -- requests-hash scratch + computed/expected hash buffers
+    ".balign 8\n" ++
+    "drhe_section:\n  .zero 4096\n" ++
+    "drhe_wbody_ptr:\n  .zero 8\n" ++
+    "drhe_wbody_len:\n  .zero 8\n" ++
+    ".balign 32\n" ++
+    "drhe_exp_hash:\n  .zero 32\n" ++
+    "rhv_hash:\n  .zero 32\n" ++
+    -- sha256_w_* (executionRequestsHashShaDataSection) is provided by the harness; only the
+    -- requests-hash-specific scratch (erh_digests/erh_blob) is added here.
+    executionRequestsHashDataSection ++ "\n" ++
     -- frame-helper data (inert for this no-CREATE predeploy; labels must exist for a standalone emit)
     ".balign 8\n" ++
     "evm_call_depth:\n  .zero 8\n" ++
