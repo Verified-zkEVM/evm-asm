@@ -42,9 +42,11 @@ open EvmAsm.Rv64
 
 /-- Internal: scan a flat RLP list of change tuples `[[tx_index, value]...]`;
     for each tuple decode item-0 (tx_index) and fold it into `bti_first_tx`
-    (set bti_conflict on a second distinct value); set bti_has_write. On any
-    RLP failure set bti_err. a0=list ptr, a1=list len. Clobbers t*, a*; saves
-    s0..s3. -/
+    (set bti_conflict on a second distinct value); set bti_has_write ONLY when
+    tx_index != 0 (fhsxz.2.4.2.57.11.6.3.3: EIP-7928 system-tx writes at index 0
+    do not count toward the storage_reads read-after-write bail; conflict still
+    counts all indices). On any RLP failure set bti_err. a0=list ptr, a1=list
+    len. Clobbers t*, a*; saves s0..s3. -/
 def btiScanTuplesFunction : String :=
   "bti_scan_tuples:\n" ++
   "  addi sp, sp, -48\n" ++
@@ -59,7 +61,16 @@ def btiScanTuplesFunction : String :=
   "  mv s3, zero                                  # j\n" ++
   ".Lbtxi_st_loop:\n" ++
   "  beq s3, s2, .Lbtxi_st_ret\n" ++
-  "  li t0, 1; la t1, bti_has_write; sd t0, 0(t1) # any tuple => a write\n" ++
+  -- fhsxz.2.4.2.57.11.6.3.3: bti_has_write is now set below at .Lbtxi_st_have, GATED on
+  -- tx_index != 0. EIP-7928 reserves block_access_index 0 for the SYSTEM transaction
+  -- (beacon-roots/history/withdrawal/consolidation predeploys); a slot written ONLY by the
+  -- system tx must not, by itself, mark its account as "written" for the storage_reads
+  -- read-after-write bail. The block's USER txs (indices >=1) are what the multi-tx loop
+  -- dispatches; a user-tx write of a system-written slot still trips bti_conflict (which keeps
+  -- counting index 0 below), and a user tx that READS a foreign system account is non-self-
+  -- contained and bails in dispatch_tx_runtime_code -- so excluding system writes here removes
+  -- an over-conservative false-positive (e.g. beacon-roots: storage_change@idx0 + a read)
+  -- without allowing a genuine cross-USER-tx interaction through.
   "  mv a0, s0; mv a1, s1; mv a2, s3; la a3, bti_t_eoff; la a4, bti_t_elen\n" ++
   "  jal ra, rlp_list_nth_item\n" ++
   "  bnez a0, .Lbtxi_st_err\n" ++
@@ -76,6 +87,9 @@ def btiScanTuplesFunction : String :=
   ".Lbtxi_st_zero:\n" ++
   "  mv t6, zero\n" ++
   ".Lbtxi_st_have:\n" ++
+  "  beqz t6, .Lbtxi_st_sysnowrite                    # fhsxz.2.4.2.57.11.6.3.3: tx_index 0 (system) is not a user write\n" ++
+  "  li t0, 1; la t1, bti_has_write; sd t0, 0(t1)\n" ++
+  ".Lbtxi_st_sysnowrite:\n" ++
   "  la t0, bti_first_tx; ld t1, 0(t0)\n" ++
   "  li t2, 0x7fffffff\n" ++
   "  bne t1, t2, .Lbtxi_st_cmp\n" ++
@@ -265,6 +279,26 @@ def ziskBalTxsIndependentDataSection : String :=
   "  .byte 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00\n" ++
   "  .byte 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00\n" ++
   "  .byte 0x00, 0x00, 0xc0, 0xc0, 0xc0, 0xc0\n" ++
+  -- SYSTEM-WRITE READ-AFTER-WRITE (135 B, fhsxz.2.4.2.57.11.6.3.3): 1 account, one slot
+  -- with a single StorageChange at tx_index 0 (the EIP-7928 SYSTEM tx) AND a non-empty
+  -- storage_reads (one slot). Pre-.6.3.3 the index-0 write set has_write -> the read-after-
+  -- write bail fired -> interacting; post-.6.3.3 index-0 (system) writes are excluded from
+  -- has_write, so a system-write + read with no USER-tx write -> independent (expect 0).
+  -- Mirrors the beacon-roots account (0x000f3df6..) in multi_transaction_gas_accounting.
+  ".balign 8\n" ++
+  "bti_bal_sysread:\n" ++
+  "  .byte 0xf8, 0x85, 0xf8, 0x83, 0x94, 0xa0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00\n" ++
+  "  .byte 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00\n" ++
+  "  .byte 0x00, 0xf8, 0x47, 0xf8, 0x45, 0xa0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00\n" ++
+  "  .byte 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00\n" ++
+  "  .byte 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00\n" ++
+  "  .byte 0x00, 0x00, 0xe3, 0xe2, 0x80, 0xa0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00\n" ++
+  "  .byte 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00\n" ++
+  "  .byte 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00\n" ++
+  "  .byte 0x00, 0x00, 0xe1, 0xa0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00\n" ++
+  "  .byte 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00\n" ++
+  "  .byte 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00\n" ++
+  "  .byte 0xc0, 0xc0, 0xc0\n" ++
   -- Trailing pad: keep the fixtures off the .data/.bss tail boundary (ziskemu
   -- reads the final .data bytes adjacent to __bss_start as 0, which would
   -- corrupt the last fixture's bytes).
@@ -272,8 +306,10 @@ def ziskBalTxsIndependentDataSection : String :=
   "bti_tail_pad:\n  .zero 256\n"
 
 /-- `zisk_bal_txs_independent`: probe. Output:
-      +0  bal_txs_independent(bti_bal_indep, 202)    (expect 0 = independent)
-      +8  bal_txs_independent(bti_bal_interact, 138)  (expect 1 = interacting) -/
+      +0  bal_txs_independent(bti_bal_indep, 202)     (expect 0 = independent)
+      +8  bal_txs_independent(bti_bal_interact, 138)  (expect 1 = interacting)
+      +16 bal_txs_independent(bti_bal_sysread, 135)   (expect 0; fhsxz.2.4.2.57.11.6.3.3:
+          system-tx (index-0) write + storage_read, no user write -> independent) -/
 def ziskBalTxsIndependentPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li s0, 0xa0010000\n" ++
@@ -283,6 +319,9 @@ def ziskBalTxsIndependentPrologue : String :=
   "  la a0, bti_bal_interact; li a1, 138\n" ++
   "  jal ra, bal_txs_independent\n" ++
   "  sd a0, 8(s0)\n" ++
+  "  la a0, bti_bal_sysread; li a1, 135\n" ++
+  "  jal ra, bal_txs_independent\n" ++
+  "  sd a0, 16(s0)\n" ++
   "  j .Lbtxi_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
   rlpListCountItemsFunction ++ "\n" ++
