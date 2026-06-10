@@ -106,6 +106,7 @@ def callBalanceGatePrologue : String :=
   -- in this probe never runs them, but the symbols must resolve.
   accountAtHeaderStateRootFunction ++ "\n" ++
   u256AddBeFunction ++ "\n" ++
+  u256SubBeFunction ++ "\n" ++
   recordNonstorageEffectFunction
 
 def callBalanceGateData : String :=
@@ -128,6 +129,7 @@ def callBalanceGateData : String :=
   "cd_caller_be:\n  .zero 32\n" ++
   "cd_value_be:\n  .zero 32\n" ++
   "cd_balance_be:\n  .zero 32\n" ++
+  "cd_caller_newbal:\n  .zero 32\n" ++
   -- code_at_header_state_root scratch (referenced by the gate's code-resolution
   -- arm, assembled but not run on the insufficient-balance path).
   ".balign 32\n" ++
