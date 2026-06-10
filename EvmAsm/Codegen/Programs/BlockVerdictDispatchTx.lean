@@ -192,16 +192,33 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la t0, bvcd_i; ld t1, 0(t0); slli t2, t1, 6; la t3, bvcd_preload; add t4, t3, t2\n" ++
   "  slli t2, t1, 5; la t3, bvcd_keys; add t5, t3, t2\n" ++
   "  li t6, 0\n" ++
+  -- fhsxz.2.4.2.57.11.6.5.3 (d'): the BAL slot key (bvcd_keys) is 32-byte BIG-ENDIAN
+  -- (left-padded), but the EVM stack / exec-log scan (Storage.lean h_SLOAD/h_SSTORE) and the
+  -- runtime SSTORE-appended entries are LITTLE-ENDIAN-limb. Copying the key verbatim left
+  -- preloaded non-zero slots INVISIBLE to the scan (only slot 0 matched, identical in both
+  -- orders) -> SLOAD-of-preload returned 0 and SSTORE saw a missing slot, undercharging gas.
+  -- Byte-REVERSE the key (dst byte 31-i <- src byte i) so the preload entry's slotKey matches
+  -- the stack/append LE order. Validated: with LE preload the 10x SSTORE-clear repro charges
+  -- the full 5000 each (gas_left 25200 -> 0).
   ".Ldtrc_kcopy:\n" ++
   "  li t2, 32; beq t6, t2, .Ldtrc_kdone\n" ++
-  "  add t2, t5, t6; lbu t3, 0(t2); add t2, t4, t6; sb t3, 0(t2); addi t6, t6, 1; j .Ldtrc_kcopy\n" ++
+  "  add t2, t5, t6; lbu t3, 0(t2)\n" ++                              -- t3 = BE key byte i
+  "  li t2, 31; sub t2, t2, t6; add t2, t4, t2; sb t3, 0(t2)\n" ++    -- -> dst byte (31-i): BE->LE
+  "  addi t6, t6, 1; j .Ldtrc_kcopy\n" ++
   ".Ldtrc_kdone:\n" ++
   "  li t2, 5; beq a0, t2, .Ldtrc_vzero\n" ++
   "  bnez a0, .Ldtrc_unsupported\n" ++
   "  la t5, sahsr_u256; li t6, 0\n" ++
+  -- The witness slot value (sahsr_u256) is also u256 BIG-ENDIAN (StateCompose.lean:519);
+  -- byte-REVERSE it into the value field [entry+32..64] (dst byte 63-i <- src byte i) so
+  -- original==current read back as LE limbs match the SSTORE handler's clean/dirty test.
+  -- (The cross-tx threaded value below is already LE — it limb-copies dtrc_threadval from the
+  -- exec log — so it is left as-is.)
   ".Ldtrc_vcopy:\n" ++
   "  li t2, 32; beq t6, t2, .Ldtrc_vdone\n" ++
-  "  add t2, t5, t6; lbu t3, 0(t2); add t2, t4, t6; addi t2, t2, 32; sb t3, 0(t2); addi t6, t6, 1; j .Ldtrc_vcopy\n" ++
+  "  add t2, t5, t6; lbu t3, 0(t2)\n" ++                              -- t3 = BE value byte i
+  "  li t2, 63; sub t2, t2, t6; add t2, t4, t2; sb t3, 0(t2)\n" ++    -- -> dst byte 32+(31-i)=63-i: BE->LE
+  "  addi t6, t6, 1; j .Ldtrc_vcopy\n" ++
   ".Ldtrc_vzero:\n" ++
   "  li t6, 0\n" ++
   ".Ldtrc_vzloop:\n" ++
