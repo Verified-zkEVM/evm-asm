@@ -173,18 +173,19 @@ def ziskWitnessStateValidateNodeKindsProbeUnit : BuildUnit := {
     oversized code blobs up-front, before any account-driven
     lookup attempts to consume them.
 
-    Spec-side rationale: per EIP-170, deployed contract code is
-    capped at 24576 bytes (0x6000); per EIP-3860, initcode is
-    capped at 49152 bytes (0xc000). Every entry in
+    Spec-side rationale: per Amsterdam EIP-7907, deployed contract
+    code is capped at 32768 bytes (0x8000, raised from the
+    pre-Amsterdam EIP-170 0x6000 = 24576); per EIP-3860/EIP-7954,
+    initcode is capped at 65536 bytes (0x10000). Every entry in
     `witness.codes` is supposed to be deployed code referenced
-    by some account's `code_hash`, so EIP-170 applies. A
+    by some account's `code_hash`, so the deployed-code cap applies. A
     stateless guest that doesn't catch oversized entries
     up-front could waste keccak cycles hashing absurdly large
     blobs, or surface inconsistent results.
 
     The cap is passed as an argument so the same primitive can
-    cover EIP-170 (24576) for current state and EIP-3860
-    (49152) for initcode, or any future tighter bound.
+    cover the deployed-code cap (32768) for current state and the
+    initcode cap (65536), or any future tighter bound.
 
     Distinct from previous witness-iteration primitives:
       * PR `witness_state_validate_node_kinds` -- iterates
@@ -197,7 +198,7 @@ def ziskWitnessStateValidateNodeKindsProbeUnit : BuildUnit := {
       a0 (input)  : witness.codes section ptr
       a1 (input)  : section_len (0 ⇒ vacuous-valid)
       a2 (input)  : u64 max_byte_length (per-entry cap;
-                    typical: 24576 = EIP-170 limit)
+                    typical: 32768 = Amsterdam EIP-7907 MAX_CODE_SIZE)
       a3 (input)  : u64 out ptr (n_processed; on success the
                     total count N, on failure the index of the
                     first oversized entry)

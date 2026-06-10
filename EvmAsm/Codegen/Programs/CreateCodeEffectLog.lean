@@ -34,7 +34,7 @@ namespace EvmAsm.Codegen
 open EvmAsm.Rv64
 
 /-- Capacity (bytes) of the code-effect log heap. Each entry is
-    `round8(48 + code_len)`; deployed code is ≤ 24576 (EIP-170), so 128 KiB holds
+    `round8(48 + code_len)`; deployed code is ≤ 32768 (Amsterdam EIP-7907), so 128 KiB holds
     several created contracts. On overflow the producer sets
     `exec_code_effect_overflow` and the consumer must stay conservative. -/
 def execCodeEffectLogCap : Nat := 131072
