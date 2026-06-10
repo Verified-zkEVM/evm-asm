@@ -125,18 +125,40 @@ def seedCalleeStorageFunction : String :=
   "  la t4, callee_seed_table; add t4, t4, t2\n" ++
   "  la t5, csce_addrkey\n" ++
   "  ld t6, 0(t5); sd t6, 0(t4); ld t6, 8(t5); sd t6, 8(t4); ld t6, 16(t5); sd t6, 16(t4); ld t6, 24(t5); sd t6, 24(t4)\n" ++
-  "  la t0, csce_key_i; ld t1, 0(t0); slli t2, t1, 5; la t5, csce_keys; add t5, t5, t2\n" ++
-  "  ld t6, 0(t5); sd t6, 32(t4); ld t6, 8(t5); sd t6, 40(t4); ld t6, 16(t5); sd t6, 48(t4); ld t6, 24(t5); sd t6, 56(t4)\n" ++
-  "  la t5, sahsr_u256\n" ++
-  "  ld t6, 0(t5); sd t6, 64(t4); ld t6, 8(t5); sd t6, 72(t4); ld t6, 16(t5); sd t6, 80(t4); ld t6, 24(t5); sd t6, 88(t4)\n" ++
+  -- .57.11.6.5.3 (d'): slot key (csce_keys, BIG-endian) + value (sahsr_u256, u256 BIG-endian)
+  -- must be byte-reversed to little-endian-limb to match the exec-log scan / SSTORE-append order
+  -- (same convention BalStorageReadsExecLog already reverses BE keys into). Verbatim limb-copy
+  -- left non-zero seeded slots invisible to a nested callee's SLOAD/SSTORE.
+  "  la t0, csce_key_i; ld t1, 0(t0); slli t2, t1, 5; la t5, csce_keys; add t5, t5, t2\n" ++   -- t5 = csce_keys[i] (BE)
+  "  li t6, 0\n" ++
+  ".Lscs_krev:\n" ++
+  "  li t0, 32; beq t6, t0, .Lscs_krevd\n" ++
+  "  add t0, t5, t6; lbu t1, 0(t0)\n" ++                              -- BE key byte i
+  "  li t0, 31; sub t0, t0, t6; add t0, t4, t0; sb t1, 0(t0)\n" ++    -- -> entry slotKey byte (31-i)
+  "  addi t6, t6, 1; j .Lscs_krev\n" ++
+  ".Lscs_krevd:\n" ++
+  "  la t5, sahsr_u256; li t6, 0\n" ++
+  ".Lscs_vrev:\n" ++
+  "  li t0, 32; beq t6, t0, .Lscs_vrevd\n" ++
+  "  add t0, t5, t6; lbu t1, 0(t0)\n" ++                              -- BE value byte i
+  "  li t0, 63; sub t0, t0, t6; add t0, t4, t0; sb t1, 0(t0)\n" ++    -- -> entry value byte 32+(31-i)=63-i
+  "  addi t6, t6, 1; j .Lscs_vrev\n" ++
+  ".Lscs_vrevd:\n" ++
   "  j .Lscs_slot_commit\n" ++
   ".Lscs_slot_vzero:\n" ++
   "  la t0, callee_seed_count; ld t1, 0(t0); slli t2, t1, 6; slli t3, t1, 5; add t2, t2, t3\n" ++
   "  la t4, callee_seed_table; add t4, t4, t2\n" ++
   "  la t5, csce_addrkey\n" ++
   "  ld t6, 0(t5); sd t6, 0(t4); ld t6, 8(t5); sd t6, 8(t4); ld t6, 16(t5); sd t6, 16(t4); ld t6, 24(t5); sd t6, 24(t4)\n" ++
+  -- slot key BE->LE byte-reverse (see .Lscs_krev); value is zero (slot absent at this state root).
   "  la t0, csce_key_i; ld t1, 0(t0); slli t2, t1, 5; la t5, csce_keys; add t5, t5, t2\n" ++
-  "  ld t6, 0(t5); sd t6, 32(t4); ld t6, 8(t5); sd t6, 40(t4); ld t6, 16(t5); sd t6, 48(t4); ld t6, 24(t5); sd t6, 56(t4)\n" ++
+  "  li t6, 0\n" ++
+  ".Lscs_kzrev:\n" ++
+  "  li t0, 32; beq t6, t0, .Lscs_kzrevd\n" ++
+  "  add t0, t5, t6; lbu t1, 0(t0)\n" ++
+  "  li t0, 31; sub t0, t0, t6; add t0, t4, t0; sb t1, 0(t0)\n" ++
+  "  addi t6, t6, 1; j .Lscs_kzrev\n" ++
+  ".Lscs_kzrevd:\n" ++
   "  sd zero, 64(t4); sd zero, 72(t4); sd zero, 80(t4); sd zero, 88(t4)\n" ++
   ".Lscs_slot_commit:\n" ++
   "  la t0, callee_seed_count; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
@@ -205,16 +227,33 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la t0, bvcd_i; ld t1, 0(t0); slli t2, t1, 6; la t3, bvcd_preload; add t4, t3, t2\n" ++
   "  slli t2, t1, 5; la t3, bvcd_keys; add t5, t3, t2\n" ++
   "  li t6, 0\n" ++
+  -- fhsxz.2.4.2.57.11.6.5.3 (d'): the BAL slot key (bvcd_keys) is 32-byte BIG-ENDIAN
+  -- (left-padded), but the EVM stack / exec-log scan (Storage.lean h_SLOAD/h_SSTORE) and the
+  -- runtime SSTORE-appended entries are LITTLE-ENDIAN-limb. Copying the key verbatim left
+  -- preloaded non-zero slots INVISIBLE to the scan (only slot 0 matched, identical in both
+  -- orders) -> SLOAD-of-preload returned 0 and SSTORE saw a missing slot, undercharging gas.
+  -- Byte-REVERSE the key (dst byte 31-i <- src byte i) so the preload entry's slotKey matches
+  -- the stack/append LE order. Validated: with LE preload the 10x SSTORE-clear repro charges
+  -- the full 5000 each (gas_left 25200 -> 0).
   ".Ldtrc_kcopy:\n" ++
   "  li t2, 32; beq t6, t2, .Ldtrc_kdone\n" ++
-  "  add t2, t5, t6; lbu t3, 0(t2); add t2, t4, t6; sb t3, 0(t2); addi t6, t6, 1; j .Ldtrc_kcopy\n" ++
+  "  add t2, t5, t6; lbu t3, 0(t2)\n" ++                              -- t3 = BE key byte i
+  "  li t2, 31; sub t2, t2, t6; add t2, t4, t2; sb t3, 0(t2)\n" ++    -- -> dst byte (31-i): BE->LE
+  "  addi t6, t6, 1; j .Ldtrc_kcopy\n" ++
   ".Ldtrc_kdone:\n" ++
   "  li t2, 5; beq a0, t2, .Ldtrc_vzero\n" ++
   "  bnez a0, .Ldtrc_unsupported\n" ++
   "  la t5, sahsr_u256; li t6, 0\n" ++
+  -- The witness slot value (sahsr_u256) is also u256 BIG-ENDIAN (StateCompose.lean:519);
+  -- byte-REVERSE it into the value field [entry+32..64] (dst byte 63-i <- src byte i) so
+  -- original==current read back as LE limbs match the SSTORE handler's clean/dirty test.
+  -- (The cross-tx threaded value below is already LE — it limb-copies dtrc_threadval from the
+  -- exec log — so it is left as-is.)
   ".Ldtrc_vcopy:\n" ++
   "  li t2, 32; beq t6, t2, .Ldtrc_vdone\n" ++
-  "  add t2, t5, t6; lbu t3, 0(t2); add t2, t4, t6; addi t2, t2, 32; sb t3, 0(t2); addi t6, t6, 1; j .Ldtrc_vcopy\n" ++
+  "  add t2, t5, t6; lbu t3, 0(t2)\n" ++                              -- t3 = BE value byte i
+  "  li t2, 63; sub t2, t2, t6; add t2, t4, t2; sb t3, 0(t2)\n" ++    -- -> dst byte 32+(31-i)=63-i: BE->LE
+  "  addi t6, t6, 1; j .Ldtrc_vcopy\n" ++
   ".Ldtrc_vzero:\n" ++
   "  li t6, 0\n" ++
   ".Ldtrc_vzloop:\n" ++

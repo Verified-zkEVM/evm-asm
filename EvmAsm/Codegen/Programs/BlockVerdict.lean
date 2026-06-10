@@ -447,7 +447,16 @@ def blockVerdictFunction : String :=
   "  la t0, bv_mtx_ctx; ld t0, 0(t0); bnez t0, .Lbv_mtx_bail        # unsupported tx shape\n" ++
   "  ld a0, 8(s0); ld a1, 16(s0); la a2, bv_mtx_ctx; addi a2, a2, 72; ld a3, 80(s0); ld a4, 88(s0); la a5, bv_tx_recipient_code_hash\n" ++
   "  jal ra, code_hash_at_header_state_root\n" ++
-  "  bnez a0, .Lbv_mtx_bail                         # recipient code-hash lookup failed\n" ++
+  -- fhsxz.2.4.2.57.11.6.5.4 (e): code 2 = MPT could not resolve this tx's recipient at the
+  -- pre-state root. The recipient is ACCESSED (the tx sends to it), so a complete stateless
+  -- witness MUST carry it -> code 2 means the witness genuinely lacks a node on its path
+  -- (verified: the multi_transaction_gas_accounting GAS_USED_OVERFLOW witness omits tx1's
+  -- recipient node, 22 vs the valid variant's 24 nodes). An unverifiable accessed account =>
+  -- the block cannot be statelessly validated as valid => REJECT (not conservative-accept,
+  -- which was the false-accept). A valid block's witness always resolves the recipient
+  -- (code 0), so this never false-rejects. Codes 3/4 (decode/header) stay conservative.
+  "  li t1, 2; beq a0, t1, .Lbv_mtx_recipient_unresolvable_fail\n" ++
+  "  bnez a0, .Lbv_mtx_bail                         # other lookup failure (3/4) -> conservative\n" ++
   "  la t0, bv_tx_recipient_code_hash; la t1, chahsr_empty_code_hash\n" ++
   "  ld t3,  0(t0); ld t4,  0(t1); bne t3, t4, .Lbv_mtx_is_contract\n" ++
   "  ld t3,  8(t0); ld t4,  8(t1); bne t3, t4, .Lbv_mtx_is_contract\n" ++
@@ -1135,6 +1144,8 @@ def blockVerdictFunction : String :=
   "  li t0, 35; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_block_gas_used_over_fail:\n" ++   -- g8zeq.1.4.2: header.gas_used > max(block_regular, block_state) (over-claim)
   "  li t0, 41; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_mtx_recipient_unresolvable_fail:\n" ++   -- fhsxz.2.4.2.57.11.6.5.4 (e): mtx tx recipient unresolvable at pre-state root (incomplete witness)
+  "  li t0, 47; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_block_hash_mismatch:\n" ++
   "  li t0, 31; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_bal_storage_mismatch_fail:\n" ++   -- bmvmx.1.6.2: recipient BAL storage != execution

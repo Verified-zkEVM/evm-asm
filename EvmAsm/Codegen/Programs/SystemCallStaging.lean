@@ -79,6 +79,172 @@ def stageSystemCallPayloadFunction : String :=
   "  addi sp, sp, 48\n" ++
   "  ret"
 
+/-! ## stage_system_call (8uld3.2.1c) — compose the full system call -> return_data.
+    a0 = target (predeploy) addr ptr   a1 = predeploy code ptr   a2 = code length
+    a3 = block exec payload ptr        a4 = output payload buffer ptr
+    Returns: a0 = system_call_returndata ptr, a1 = system_call_returndata_len,
+             a2 = 0 ok / 1 staging unsupported (no dispatch run).
+    Stages the SYSTEM payload, runs the callable runtime dispatcher with
+    system_call_mode=1 so the predeploy's depth-0 RETURN is captured (NoopHalt
+    #8681) into system_call_returndata, then clears the flag. -/
+def stageSystemCallFunction : String :=
+  "stage_system_call:\n" ++
+  -- runtime_dispatcher_call sets sp = lp64_sp_top and grows its own stack down from
+  -- there, clobbering any caller-frame this function might keep on the stack across
+  -- the call. So save ra + the scratch s0 in GLOBALS (ssc_saved_ra/ssc_saved_s0), not
+  -- on the stack. Non-reentrant, which is fine (the dispatched predeploy never re-enters).
+  "  la t0, ssc_saved_ra; sd ra, 0(t0)\n" ++
+  "  la t0, ssc_saved_s0; sd s0, 0(t0)\n" ++
+  "  mv s0, a4                    # out payload ptr (used only pre-dispatch)\n" ++
+  "  li t0, 1; la t1, system_call_mode; sd t0, 0(t1)\n" ++       -- enable depth-0 RETURN capture
+  "  jal ra, stage_system_call_payload\n" ++                     -- a0..a4 already set by caller
+  "  bnez a0, .Lssc_fail\n" ++                                   -- staging rejected -> bail (no dispatch)
+  "  addi t1, s0, 8; la t0, runtime_dispatcher_input_ptr; sd t1, 0(t0)\n" ++   -- input = out + 8 (skip codelen header)
+  "  jal ra, runtime_dispatcher_call\n" ++                       -- run predeploy; RETURN -> system_call_returndata
+  "  la t0, runtime_dispatcher_input_ptr; sd zero, 0(t0)\n" ++   -- clear input ptr
+  "  li t0, 0; la t1, system_call_mode; sd t0, 0(t1)\n" ++       -- disable capture
+  "  la a0, system_call_returndata\n" ++
+  "  la t0, system_call_returndata_len; ld a1, 0(t0)\n" ++
+  "  li a2, 0\n" ++
+  "  j .Lssc_ret\n" ++
+  ".Lssc_fail:\n" ++
+  "  li t0, 0; la t1, system_call_mode; sd t0, 0(t1)\n" ++       -- restore flag on the staging-fail path
+  "  la a0, system_call_returndata; li a1, 0; li a2, 1\n" ++
+  ".Lssc_ret:\n" ++
+  "  la t0, ssc_saved_s0; ld s0, 0(t0)\n" ++
+  "  la t0, ssc_saved_ra; ld ra, 0(t0)\n" ++
+  "  ret"
+
+/-! ## derive_withdrawal_requests (8uld3.2b, EIP-7002)
+
+    Run the WITHDRAWAL_REQUEST_PREDEPLOY (0x00000961Ef480Eb55e80D19ad83579A64c007002)
+    system call and surface its return_data as the withdrawal-request BODY. Per
+    `process_general_purpose_requests` (fork.py):
+      system_withdrawal_tx_output =
+        process_checked_system_transaction(WITHDRAWAL_REQUEST_PREDEPLOY_ADDRESS, b'')
+      if len(return_data) > 0: requests.append(WITHDRAWAL_REQUEST_TYPE + return_data)
+    The 0x01 WITHDRAWAL_REQUEST_TYPE prefix is the request-list framing added by
+    `assemble_execution_requests` (a2/a3 = withdrawal body) / RequestsHash at hash time,
+    so the body produced here is the raw return_data (each request is 76 B = source 20 +
+    pubkey 48 + amount 8; ≤ MAX_WITHDRAWAL_REQUESTS_PER_BLOCK=16). Empty return_data -> body
+    len 0 (the caller appends nothing). Thin compose over `stage_system_call` (8uld3.2.1c):
+      a0 = predeploy code ptr   a1 = code len   a2 = block exec payload ptr   a3 = output buffer
+    Returns (tail-call to stage_system_call):
+      a0 = withdrawal body ptr (= system_call_returndata)   a1 = body len   a2 = 0 ok / 1 unsupported -/
+def deriveWithdrawalRequestsFunction : String :=
+  "derive_withdrawal_requests:\n" ++
+  "  mv a4, a3                    # out buffer -> a4\n" ++
+  "  mv a3, a2                    # block exec payload -> a3\n" ++
+  "  mv a2, a1                    # code len -> a2\n" ++
+  "  mv a1, a0                    # predeploy code ptr -> a1\n" ++
+  "  la a0, withdrawal_request_predeploy_addr   # target addr -> a0\n" ++
+  "  j stage_system_call          # tail call: a0/a1/a2 carry body ptr/len/status to our caller\n"
+
+/-- WITHDRAWAL_REQUEST_PREDEPLOY_ADDRESS (EIP-7002), 20 bytes big-endian. Referenced by
+    `derive_withdrawal_requests`; emit alongside it in any unit that links the function. -/
+def withdrawalRequestPredeployAddrData : String :=
+  ".balign 8\n" ++
+  "withdrawal_request_predeploy_addr:\n" ++
+  "  .byte 0x00, 0x00, 0x09, 0x61, 0xef, 0x48, 0x0e, 0xb5, 0x5e, 0x80, 0xd1, 0x9a, 0xd8, 0x35, 0x79, 0xa6, 0x4c, 0x00, 0x70, 0x02\n"
+
+/-! ## derive_consolidation_requests (8uld3.3, EIP-7251)
+
+    Run the CONSOLIDATION_REQUEST_PREDEPLOY (0x0000BBdDc7CE488642fb579F8B00f3a590007251)
+    system call and surface its return_data as the consolidation-request BODY. Per
+    `process_general_purpose_requests` (fork.py):
+      system_consolidation_tx_output =
+        process_checked_system_transaction(CONSOLIDATION_REQUEST_PREDEPLOY_ADDRESS, b'')
+      if len(return_data) > 0: requests.append(CONSOLIDATION_REQUEST_TYPE + return_data)
+    The 0x02 CONSOLIDATION_REQUEST_TYPE prefix is the request-list framing added by
+    `assemble_execution_requests` (a4/a5 = consolidation body) / RequestsHash at hash time,
+    so the body produced here is the raw return_data (each request is 116 B = source 20 +
+    source_pubkey 48 + target_pubkey 48). Empty return_data -> body len 0 (caller appends
+    nothing). Identical compose to `derive_withdrawal_requests`, only the predeploy differs:
+      a0 = predeploy code ptr   a1 = code len   a2 = block exec payload ptr   a3 = output buffer
+    Returns (tail-call to stage_system_call):
+      a0 = consolidation body ptr (= system_call_returndata)   a1 = body len   a2 = 0 ok / 1 unsupported -/
+def deriveConsolidationRequestsFunction : String :=
+  "derive_consolidation_requests:\n" ++
+  "  mv a4, a3                    # out buffer -> a4\n" ++
+  "  mv a3, a2                    # block exec payload -> a3\n" ++
+  "  mv a2, a1                    # code len -> a2\n" ++
+  "  mv a1, a0                    # predeploy code ptr -> a1\n" ++
+  "  la a0, consolidation_request_predeploy_addr   # target addr -> a0\n" ++
+  "  j stage_system_call          # tail call: a0/a1/a2 carry body ptr/len/status to our caller\n"
+
+/-- CONSOLIDATION_REQUEST_PREDEPLOY_ADDRESS (EIP-7251), 20 bytes big-endian. Referenced by
+    `derive_consolidation_requests`; emit alongside it in any unit that links the function. -/
+def consolidationRequestPredeployAddrData : String :=
+  ".balign 8\n" ++
+  "consolidation_request_predeploy_addr:\n" ++
+  "  .byte 0x00, 0x00, 0xbb, 0xdd, 0xc7, 0xce, 0x48, 0x86, 0x42, 0xfb, 0x57, 0x9f, 0x8b, 0x00, 0xf3, 0xa5, 0x90, 0x00, 0x72, 0x51\n"
+
+/-! ## derive_block_system_requests (8uld3.2.3/8uld3.4 verdict glue)
+
+    Run BOTH system-call request derivations for a block — withdrawal (EIP-7002) then
+    consolidation (EIP-7251) — and copy each return_data body to a STABLE buffer. Necessary
+    because `system_call_returndata` is a single shared buffer the dispatcher overwrites per
+    call, so the verdict (which needs both bodies live at once to feed assemble/requests_hash)
+    must copy the first body out before the second system call clobbers it.
+      a0 = withdrawal predeploy code ptr   a1 = wcode len
+      a2 = consolidation predeploy code ptr a3 = ccode len
+      a4 = block exec payload ptr           a5 = staging output buffer ptr (reused per call)
+    Writes: dbsr_wbody (withdrawal body) + dbsr_wlen; dbsr_cbody (consolidation body) + dbsr_clen.
+    Returns a0 = 0 ok / 1 = a system call's staging was unsupported.
+    Non-reentrant (saves ra + the consolidation args in globals across the dispatcher runs,
+    which clobber sp/s-regs — same constraint as stage_system_call). The two calls are
+    independent: the dispatcher re-initialises env per call. Deposits derive separately
+    (parse_deposit_requests over receipts); the verdict composes all three. -/
+def deriveBlockSystemRequestsFunction : String :=
+  "derive_block_system_requests:\n" ++
+  "  la t0, dbsr_saved_ra; sd ra, 0(t0)\n" ++
+  -- stash the consolidation args + exec + staging (the dispatcher clobbers everything)
+  "  la t0, dbsr_ccode; sd a2, 0(t0)\n" ++
+  "  la t0, dbsr_in_clen; sd a3, 0(t0)\n" ++
+  "  la t0, dbsr_exec; sd a4, 0(t0)\n" ++
+  "  la t0, dbsr_staging; sd a5, 0(t0)\n" ++
+  -- derive withdrawal: derive_withdrawal_requests(a0=wcode, a1=wlen, a2=exec, a3=staging)
+  "  mv a2, a4; mv a3, a5\n" ++
+  "  jal ra, derive_withdrawal_requests\n" ++          -- a0=wbody, a1=wlen, a2=status
+  "  bnez a2, .Ldbsr_fail\n" ++
+  "  la t0, dbsr_wlen; sd a1, 0(t0)\n" ++
+  "  mv t1, a0; la t2, dbsr_wbody; mv t3, a1\n" ++
+  ".Ldbsr_wcopy:\n" ++
+  "  beqz t3, .Ldbsr_wcopy_d; lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Ldbsr_wcopy\n" ++
+  ".Ldbsr_wcopy_d:\n" ++
+  -- derive consolidation: derive_consolidation_requests(a0=ccode, a1=clen, a2=exec, a3=staging)
+  "  la t0, dbsr_ccode; ld a0, 0(t0); la t0, dbsr_in_clen; ld a1, 0(t0)\n" ++
+  "  la t0, dbsr_exec; ld a2, 0(t0); la t0, dbsr_staging; ld a3, 0(t0)\n" ++
+  "  jal ra, derive_consolidation_requests\n" ++       -- a0=cbody, a1=clen, a2=status
+  "  bnez a2, .Ldbsr_fail\n" ++
+  "  la t0, dbsr_clen; sd a1, 0(t0)\n" ++
+  "  mv t1, a0; la t2, dbsr_cbody; mv t3, a1\n" ++
+  ".Ldbsr_ccopy:\n" ++
+  "  beqz t3, .Ldbsr_ccopy_d; lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Ldbsr_ccopy\n" ++
+  ".Ldbsr_ccopy_d:\n" ++
+  "  li a0, 0; j .Ldbsr_ret\n" ++
+  ".Ldbsr_fail:\n" ++
+  "  li a0, 1\n" ++
+  ".Ldbsr_ret:\n" ++
+  "  la t0, dbsr_saved_ra; ld ra, 0(t0); ret\n"
+
+/-- Globals for `derive_block_system_requests` (saved state across the dispatcher runs +
+    the two stable body buffers). Bodies are bounded: withdrawals ≤ 16×76, consolidations
+    ≤ a similar block cap; 2048 each is ample. -/
+def deriveBlockSystemRequestsData : String :=
+  ".balign 8\n" ++
+  "dbsr_saved_ra:\n  .zero 8\n" ++
+  "dbsr_ccode:\n  .zero 8\n" ++
+  "dbsr_in_clen:\n  .zero 8\n" ++
+  "dbsr_exec:\n  .zero 8\n" ++
+  "dbsr_staging:\n  .zero 8\n" ++
+  "dbsr_wlen:\n  .zero 8\n" ++
+  "dbsr_clen:\n  .zero 8\n" ++
+  ".balign 8\n" ++
+  "dbsr_wbody:\n  .zero 2048\n" ++
+  ".balign 8\n" ++
+  "dbsr_cbody:\n  .zero 2048\n"
+
 /-- `zisk_stage_system_call_payload`: probe. Stages a synthetic predeploy + asserts the
     SYSTEM-specific fields: code length @+0, gas @env_base+448 == 30M, CALLER @env_base+64
     == SYSTEM_ADDRESS. (env_base read from srpc_env_base.)

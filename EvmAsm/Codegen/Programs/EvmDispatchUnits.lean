@@ -6,6 +6,8 @@
 -/
 
 import EvmAsm.Codegen.Programs.Evm
+import EvmAsm.Codegen.Programs.SystemCallStaging
+import EvmAsm.Codegen.Programs.AssembleExecutionRequests
 
 namespace EvmAsm.Codegen
 
@@ -49,5 +51,539 @@ def runtimeDispatcherCallProbeUnit : BuildUnit :=
     and surfaces them to the stable `OUTPUT+160` diagnostic window. -/
 def runtimeDispatcherGasCaptureProbeUnit : BuildUnit :=
   buildRuntimeDispatchGasCaptureProbeUnit tinyInterpRegistry evmAddEpilogue
+
+/-! ## zisk_stage_system_call (8uld3.2.1c)
+
+    End-to-end probe for `stage_system_call`: stage a SYSTEM call to a synthetic
+    predeploy that RETURNs 32 known bytes (`PUSH1 0x42; PUSH1 0; MSTORE; PUSH1 32;
+    PUSH1 0; RETURN`), run it through the callable runtime dispatcher with
+    system_call_mode=1, and assert the depth-0 RETURN was captured (#8681) into
+    system_call_returndata. Bundles the dispatcher (tinyInterpRegistry) + the
+    staging functions; mirrors `runtimeDispatcherCallProbeUnit`'s structure.
+    Output (0xa0010000): +0 returndata_len (expect 32), +8 status (expect 0),
+    +16 returndata[31] (expect 0x42), +24 returndata[0] (expect 0x00). -/
+def ziskStageSystemCallProbeUnit : BuildUnit := {
+  body        := []
+  prologueAsm :=
+    "  li sp, 0xa0050000\n" ++
+    "  la a0, ssc_probe_target\n  la a1, ssc_probe_code\n  li a2, 10\n  la a3, ssc_probe_exec\n  la a4, ssc_probe_out\n" ++
+    "  jal ra, stage_system_call\n" ++
+    "  li t0, 0xa0010000\n" ++
+    "  sd a1, 0(t0)             # returndata_len\n" ++
+    "  sd a2, 8(t0)             # status\n" ++
+    "  add t1, a0, 31; lbu t2, 0(t1); sd t2, 16(t0)   # returndata[31]\n" ++
+    "  lbu t2, 0(a0); sd t2, 24(t0)                   # returndata[0]\n" ++
+    "  li x17, 93\n  li x10, 0\n  ecall\n" ++
+    stageSystemCallFunction ++ "\n" ++
+    stageSystemCallPayloadFunction ++ "\n" ++
+    stageRuntimePayloadCodeFunction ++ "\n" ++
+    -- tinyInterpRegistry's CREATE handler descends via create_frame_descend, which pulls
+    -- in the full frame-helper chain (none defined by the plain-STOP callable epilogue for
+    -- this registry). Bundle them for a standalone emit (mirrors createRoundtripUnit).
+    frameBaseFunction ++ "\n" ++
+    frameDepthPushFunction ++ "\n" ++
+    frameDepthPopFunction ++ "\n" ++
+    frameSaveRegsFunction ++ "\n" ++
+    frameLoadRegsFunction ++ "\n" ++
+    callFrameEnterFunction ++ "\n" ++
+    callFrameSetCallEnvFunction ++ "\n" ++
+    callFrameSetCalldataFunction ++ "\n" ++
+    callFrameForwardGasFunction ++ "\n" ++
+    callFrameDescendFunction ++ "\n" ++
+    createFrameDescendFunction ++ "\n" ++
+    frameReturnFunction ++ "\n" ++
+    recordNonstorageEffectFunction ++ "\n" ++
+    u256SubBeFunction ++ "\n" ++
+    emitRuntimeDispatcherCallablePrologue
+  epilogueAsm := emitDispatcherCallableEpilogue tinyInterpRegistry evmAddEpilogue
+  dataAsm     :=
+    emitRuntimeDispatcherDataSection tinyInterpRegistry ++ "\n" ++
+    ".balign 8\n" ++
+    "scc_ctx:\n  .zero 192\n" ++
+    ".balign 8\n" ++
+    "scc_system_addr:\n" ++
+    "  .byte 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff\n" ++
+    "  .byte 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfe\n" ++
+    ".balign 8\n" ++
+    "srpc_env_base:\n  .zero 8\n" ++
+    "m29_stage_cur:\n  .zero 8\n" ++
+    "m29_stage_count:\n  .zero 8\n" ++
+    "m29_stage_table:\n  .zero 8192\n" ++
+    ".balign 8\n" ++
+    "ssc_saved_ra:\n  .zero 8\n" ++
+    "ssc_saved_s0:\n  .zero 8\n" ++
+    ".balign 8\n" ++
+    "ssc_probe_target:\n  .byte 0x00, 0x00, 0x09, 0x61, 0xef, 0x48, 0x0e, 0xb5, 0x5e, 0x80, 0xd1, 0x9a, 0xd8, 0x35, 0x79, 0xa6, 0x4c, 0x00, 0x70, 0x02\n" ++
+    ".balign 8\n" ++
+    "ssc_probe_code:\n  .byte 0x60, 0x42, 0x60, 0x00, 0x52, 0x60, 0x20, 0x60, 0x00, 0xf3\n" ++   -- PUSH1 0x42; PUSH1 0; MSTORE; PUSH1 32; PUSH1 0; RETURN
+    ".balign 8\n" ++
+    "ssc_probe_exec:\n  .zero 1024\n" ++
+    ".balign 8\n" ++
+    "ssc_probe_out:\n  .zero 4096\n" ++
+    -- frame-helper data (the bundled create/call descent chain; inert for this no-CREATE
+    -- predeploy, but the labels must be defined for a standalone emit — mirrors createRoundtripData).
+    ".balign 8\n" ++
+    "evm_call_depth:\n  .zero 8\n" ++
+    ".balign 16\n" ++
+    "frame_save_area:\n  .zero 16400\n" ++
+    ".balign 32\n" ++
+    "frame_call_ctx:\n  .zero 32800\n" ++
+    ".balign 32\n" ++
+    "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n"
+}
+
+/-! ## zisk_derive_withdrawal_requests (8uld3.2b)
+
+    End-to-end probe for `derive_withdrawal_requests`: stage a synthetic withdrawal
+    predeploy that RETURNs a 76-byte withdrawal record (one EIP-7002 request: source 20 +
+    pubkey 48 + amount 8), run it through the dispatcher via the system-call harness, and
+    assert the captured return_data IS the withdrawal body (len 76, byte-faithful). The
+    predeploy is `PUSH1 0xAB; PUSH1 0; MSTORE; PUSH1 76; PUSH1 0; RETURN` so body[31]=0xAB
+    (the low byte of the MSTORE'd word) and body[0]=body[75]=0x00. Mirrors
+    `ziskStageSystemCallProbeUnit`; bundles `derive_withdrawal_requests` +
+    `withdrawal_request_predeploy_addr`.
+    Output (0xa0010000): +0 body_len (expect 76), +8 status (expect 0),
+    +16 body[31] (expect 0xAB), +24 body[0] (expect 0x00), +32 body[75] (expect 0x00). -/
+def ziskDeriveWithdrawalRequestsProbeUnit : BuildUnit := {
+  body        := []
+  prologueAsm :=
+    "  li sp, 0xa0050000\n" ++
+    "  la a0, dwr_probe_code\n  li a1, 10\n  la a2, dwr_probe_exec\n  la a3, dwr_probe_out\n" ++
+    "  jal ra, derive_withdrawal_requests\n" ++
+    "  li t0, 0xa0010000\n" ++
+    "  sd a1, 0(t0)             # withdrawal body len (expect 76)\n" ++
+    "  sd a2, 8(t0)             # status (expect 0)\n" ++
+    "  add t1, a0, 31; lbu t2, 0(t1); sd t2, 16(t0)   # body[31] (expect 0xAB)\n" ++
+    "  lbu t2, 0(a0); sd t2, 24(t0)                   # body[0]  (expect 0x00)\n" ++
+    "  add t1, a0, 75; lbu t2, 0(t1); sd t2, 32(t0)   # body[75] (expect 0x00)\n" ++
+    "  li x17, 93\n  li x10, 0\n  ecall\n" ++
+    deriveWithdrawalRequestsFunction ++ "\n" ++
+    stageSystemCallFunction ++ "\n" ++
+    stageSystemCallPayloadFunction ++ "\n" ++
+    stageRuntimePayloadCodeFunction ++ "\n" ++
+    -- same frame-helper closure the system-call probe bundles (CREATE handler descent chain)
+    frameBaseFunction ++ "\n" ++
+    frameDepthPushFunction ++ "\n" ++
+    frameDepthPopFunction ++ "\n" ++
+    frameSaveRegsFunction ++ "\n" ++
+    frameLoadRegsFunction ++ "\n" ++
+    callFrameEnterFunction ++ "\n" ++
+    callFrameSetCallEnvFunction ++ "\n" ++
+    callFrameSetCalldataFunction ++ "\n" ++
+    callFrameForwardGasFunction ++ "\n" ++
+    callFrameDescendFunction ++ "\n" ++
+    createFrameDescendFunction ++ "\n" ++
+    frameReturnFunction ++ "\n" ++
+    recordNonstorageEffectFunction ++ "\n" ++
+    u256SubBeFunction ++ "\n" ++
+    emitRuntimeDispatcherCallablePrologue
+  epilogueAsm := emitDispatcherCallableEpilogue tinyInterpRegistry evmAddEpilogue
+  dataAsm     :=
+    emitRuntimeDispatcherDataSection tinyInterpRegistry ++ "\n" ++
+    ".balign 8\n" ++
+    "scc_ctx:\n  .zero 192\n" ++
+    ".balign 8\n" ++
+    "scc_system_addr:\n" ++
+    "  .byte 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff\n" ++
+    "  .byte 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfe\n" ++
+    ".balign 8\n" ++
+    "srpc_env_base:\n  .zero 8\n" ++
+    "m29_stage_cur:\n  .zero 8\n" ++
+    "m29_stage_count:\n  .zero 8\n" ++
+    "m29_stage_table:\n  .zero 8192\n" ++
+    ".balign 8\n" ++
+    "ssc_saved_ra:\n  .zero 8\n" ++
+    "ssc_saved_s0:\n  .zero 8\n" ++
+    withdrawalRequestPredeployAddrData ++
+    ".balign 8\n" ++
+    "dwr_probe_code:\n  .byte 0x60, 0xab, 0x60, 0x00, 0x52, 0x60, 0x4c, 0x60, 0x00, 0xf3\n" ++   -- PUSH1 0xAB; PUSH1 0; MSTORE; PUSH1 76; PUSH1 0; RETURN
+    ".balign 8\n" ++
+    "dwr_probe_exec:\n  .zero 1024\n" ++
+    ".balign 8\n" ++
+    "dwr_probe_out:\n  .zero 4096\n" ++
+    -- frame-helper data (inert for this no-CREATE predeploy; labels must exist for a standalone emit)
+    ".balign 8\n" ++
+    "evm_call_depth:\n  .zero 8\n" ++
+    ".balign 16\n" ++
+    "frame_save_area:\n  .zero 16400\n" ++
+    ".balign 32\n" ++
+    "frame_call_ctx:\n  .zero 32800\n" ++
+    ".balign 32\n" ++
+    "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n"
+}
+
+/-! ## zisk_derive_consolidation_requests (8uld3.3)
+
+    End-to-end probe for `derive_consolidation_requests`: stage a synthetic consolidation
+    predeploy that RETURNs a 116-byte consolidation record (one EIP-7251 request: source 20 +
+    source_pubkey 48 + target_pubkey 48), run it through the dispatcher via the system-call
+    harness, and assert the captured return_data IS the consolidation body (len 116,
+    byte-faithful). The predeploy is `PUSH1 0xCD; PUSH1 0; MSTORE; PUSH1 116; PUSH1 0; RETURN`
+    so body[31]=0xCD (low byte of the MSTORE'd word) and body[0]=body[115]=0x00. Mirrors
+    `ziskDeriveWithdrawalRequestsProbeUnit`; bundles `derive_consolidation_requests` +
+    `consolidation_request_predeploy_addr`.
+    Output (0xa0010000): +0 body_len (expect 116), +8 status (expect 0),
+    +16 body[31] (expect 0xCD), +24 body[0] (expect 0x00), +32 body[115] (expect 0x00). -/
+def ziskDeriveConsolidationRequestsProbeUnit : BuildUnit := {
+  body        := []
+  prologueAsm :=
+    "  li sp, 0xa0050000\n" ++
+    "  la a0, dcr_probe_code\n  li a1, 10\n  la a2, dcr_probe_exec\n  la a3, dcr_probe_out\n" ++
+    "  jal ra, derive_consolidation_requests\n" ++
+    "  li t0, 0xa0010000\n" ++
+    "  sd a1, 0(t0)             # consolidation body len (expect 116)\n" ++
+    "  sd a2, 8(t0)             # status (expect 0)\n" ++
+    "  add t1, a0, 31; lbu t2, 0(t1); sd t2, 16(t0)   # body[31] (expect 0xCD)\n" ++
+    "  lbu t2, 0(a0); sd t2, 24(t0)                   # body[0]   (expect 0x00)\n" ++
+    "  add t1, a0, 115; lbu t2, 0(t1); sd t2, 32(t0)  # body[115] (expect 0x00)\n" ++
+    "  li x17, 93\n  li x10, 0\n  ecall\n" ++
+    deriveConsolidationRequestsFunction ++ "\n" ++
+    stageSystemCallFunction ++ "\n" ++
+    stageSystemCallPayloadFunction ++ "\n" ++
+    stageRuntimePayloadCodeFunction ++ "\n" ++
+    -- same frame-helper closure the system-call probe bundles (CREATE handler descent chain)
+    frameBaseFunction ++ "\n" ++
+    frameDepthPushFunction ++ "\n" ++
+    frameDepthPopFunction ++ "\n" ++
+    frameSaveRegsFunction ++ "\n" ++
+    frameLoadRegsFunction ++ "\n" ++
+    callFrameEnterFunction ++ "\n" ++
+    callFrameSetCallEnvFunction ++ "\n" ++
+    callFrameSetCalldataFunction ++ "\n" ++
+    callFrameForwardGasFunction ++ "\n" ++
+    callFrameDescendFunction ++ "\n" ++
+    createFrameDescendFunction ++ "\n" ++
+    frameReturnFunction ++ "\n" ++
+    recordNonstorageEffectFunction ++ "\n" ++
+    u256SubBeFunction ++ "\n" ++
+    emitRuntimeDispatcherCallablePrologue
+  epilogueAsm := emitDispatcherCallableEpilogue tinyInterpRegistry evmAddEpilogue
+  dataAsm     :=
+    emitRuntimeDispatcherDataSection tinyInterpRegistry ++ "\n" ++
+    ".balign 8\n" ++
+    "scc_ctx:\n  .zero 192\n" ++
+    ".balign 8\n" ++
+    "scc_system_addr:\n" ++
+    "  .byte 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff\n" ++
+    "  .byte 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfe\n" ++
+    ".balign 8\n" ++
+    "srpc_env_base:\n  .zero 8\n" ++
+    "m29_stage_cur:\n  .zero 8\n" ++
+    "m29_stage_count:\n  .zero 8\n" ++
+    "m29_stage_table:\n  .zero 8192\n" ++
+    ".balign 8\n" ++
+    "ssc_saved_ra:\n  .zero 8\n" ++
+    "ssc_saved_s0:\n  .zero 8\n" ++
+    consolidationRequestPredeployAddrData ++
+    ".balign 8\n" ++
+    "dcr_probe_code:\n  .byte 0x60, 0xcd, 0x60, 0x00, 0x52, 0x60, 0x74, 0x60, 0x00, 0xf3\n" ++   -- PUSH1 0xCD; PUSH1 0; MSTORE; PUSH1 116; PUSH1 0; RETURN
+    ".balign 8\n" ++
+    "dcr_probe_exec:\n  .zero 1024\n" ++
+    ".balign 8\n" ++
+    "dcr_probe_out:\n  .zero 4096\n" ++
+    -- frame-helper data (inert for this no-CREATE predeploy; labels must exist for a standalone emit)
+    ".balign 8\n" ++
+    "evm_call_depth:\n  .zero 8\n" ++
+    ".balign 16\n" ++
+    "frame_save_area:\n  .zero 16400\n" ++
+    ".balign 32\n" ++
+    "frame_call_ctx:\n  .zero 32800\n" ++
+    ".balign 32\n" ++
+    "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n"
+}
+
+/-! ## zisk_derive_requests_hash_e2e (8uld3.2.3 / 8uld3.4 integration)
+
+    End-to-end: derive a withdrawal-request body from a synthetic WITHDRAWAL predeploy via the
+    system-call harness, then feed it (deposit/consolidation empty) through the
+    execution-derived requests_hash path (`assemble_execution_requests` -> `execution_requests_hash`
+    -> `requests_hash_verify`). Proves a system-call-DERIVED body produces a deterministic
+    `requests_hash` that `requests_hash_verify` ACCEPTS (match -> 0) and REJECTS when the expected
+    (header) hash is corrupted (-> 1) — the soundness shape `block_verdict` will use to stop
+    trusting the SSZ-input requests (8uld3.2.3/8uld3.4). Single system call (no reentrancy).
+    Output (0xa0010000): +0 wbody_len (expect 76), +8 verify(zero-hash) (expect 1 mismatch),
+    +16 verify(correct) (expect 0 match), +24 verify(corrupted) (expect 1 mismatch). -/
+def ziskDeriveRequestsHashE2EProbeUnit : BuildUnit := {
+  body        := []
+  prologueAsm :=
+    "  li sp, 0xa0050000\n" ++
+    -- 1. derive a withdrawal body (76B) from the synthetic predeploy
+    "  la a0, drhe_probe_code\n  li a1, 10\n  la a2, drhe_probe_exec\n  la a3, drhe_probe_out\n" ++
+    "  jal ra, derive_withdrawal_requests\n" ++          -- a0=wbody ptr, a1=len, a2=status
+    "  la t0, drhe_wbody_ptr; sd a0, 0(t0); la t0, drhe_wbody_len; sd a1, 0(t0)\n" ++
+    "  li t0, 0xa0010000; sd a1, 0(t0)\n" ++             -- +0 wbody_len
+    -- 2. verify against an all-zero expected hash -> mismatch (1); leaves the computed hash in rhv_hash
+    "  la t0, drhe_exp_hash; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++
+    "  la t0, drhe_wbody_ptr; ld a2, 0(t0); la t0, drhe_wbody_len; ld a3, 0(t0)\n" ++
+    "  li a0, 0; li a1, 0; li a4, 0; li a5, 0\n" ++       -- deposit/consolidation empty
+    "  la a6, drhe_exp_hash; la a7, drhe_section\n" ++
+    "  jal ra, requests_hash_verify\n" ++
+    "  li t0, 0xa0010000; sd a0, 8(t0)\n" ++             -- +8 verify(zero) expect 1
+    -- copy the computed hash (rhv_hash) into drhe_exp_hash (the now-correct expected hash)
+    "  la t1, rhv_hash; la t2, drhe_exp_hash; li t3, 32\n" ++
+    ".Ldrhe_cp:\n" ++
+    "  beqz t3, .Ldrhe_cpd; lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Ldrhe_cp\n" ++
+    ".Ldrhe_cpd:\n" ++
+    -- 3. verify against the correct hash -> match (0)
+    "  la t0, drhe_wbody_ptr; ld a2, 0(t0); la t0, drhe_wbody_len; ld a3, 0(t0)\n" ++
+    "  li a0, 0; li a1, 0; li a4, 0; li a5, 0; la a6, drhe_exp_hash; la a7, drhe_section\n" ++
+    "  jal ra, requests_hash_verify\n" ++
+    "  li t0, 0xa0010000; sd a0, 16(t0)\n" ++            -- +16 verify(correct) expect 0
+    -- 4. corrupt the expected hash, verify -> mismatch (1)
+    "  la t0, drhe_exp_hash; lbu t1, 0(t0); xori t1, t1, 0xff; sb t1, 0(t0)\n" ++
+    "  la t0, drhe_wbody_ptr; ld a2, 0(t0); la t0, drhe_wbody_len; ld a3, 0(t0)\n" ++
+    "  li a0, 0; li a1, 0; li a4, 0; li a5, 0; la a6, drhe_exp_hash; la a7, drhe_section\n" ++
+    "  jal ra, requests_hash_verify\n" ++
+    "  li t0, 0xa0010000; sd a0, 24(t0)\n" ++            -- +24 verify(corrupt) expect 1
+    "  li x17, 93\n  li x10, 0\n  ecall\n" ++
+    deriveWithdrawalRequestsFunction ++ "\n" ++
+    stageSystemCallFunction ++ "\n" ++
+    stageSystemCallPayloadFunction ++ "\n" ++
+    stageRuntimePayloadCodeFunction ++ "\n" ++
+    -- requests_hash machinery (assemble -> sha256 -> verify); zkvm_sha256 is an ecall bridge
+    requestsHashVerifyFunction ++ "\n" ++
+    assembleExecutionRequestsFunction ++ "\n" ++
+    executionRequestsHashFunction ++ "\n" ++
+    bgvU32leFunction ++ "\n" ++
+    -- NOTE: zkvm_sha256 + its sha256_w_* data are already provided by the dispatcher harness
+    -- (tinyInterpRegistry's SHA256 precompile), so we do NOT re-bundle them here (double-def).
+    -- frame-helper closure (CREATE handler descent chain), same as the derive probes
+    frameBaseFunction ++ "\n" ++
+    frameDepthPushFunction ++ "\n" ++
+    frameDepthPopFunction ++ "\n" ++
+    frameSaveRegsFunction ++ "\n" ++
+    frameLoadRegsFunction ++ "\n" ++
+    callFrameEnterFunction ++ "\n" ++
+    callFrameSetCallEnvFunction ++ "\n" ++
+    callFrameSetCalldataFunction ++ "\n" ++
+    callFrameForwardGasFunction ++ "\n" ++
+    callFrameDescendFunction ++ "\n" ++
+    createFrameDescendFunction ++ "\n" ++
+    frameReturnFunction ++ "\n" ++
+    recordNonstorageEffectFunction ++ "\n" ++
+    u256SubBeFunction ++ "\n" ++
+    emitRuntimeDispatcherCallablePrologue
+  epilogueAsm := emitDispatcherCallableEpilogue tinyInterpRegistry evmAddEpilogue
+  dataAsm     :=
+    emitRuntimeDispatcherDataSection tinyInterpRegistry ++ "\n" ++
+    ".balign 8\n" ++
+    "scc_ctx:\n  .zero 192\n" ++
+    ".balign 8\n" ++
+    "scc_system_addr:\n" ++
+    "  .byte 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff\n" ++
+    "  .byte 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfe\n" ++
+    ".balign 8\n" ++
+    "srpc_env_base:\n  .zero 8\n" ++
+    "m29_stage_cur:\n  .zero 8\n" ++
+    "m29_stage_count:\n  .zero 8\n" ++
+    "m29_stage_table:\n  .zero 8192\n" ++
+    ".balign 8\n" ++
+    "ssc_saved_ra:\n  .zero 8\n" ++
+    "ssc_saved_s0:\n  .zero 8\n" ++
+    withdrawalRequestPredeployAddrData ++
+    ".balign 8\n" ++
+    "drhe_probe_code:\n  .byte 0x60, 0xab, 0x60, 0x00, 0x52, 0x60, 0x4c, 0x60, 0x00, 0xf3\n" ++   -- PUSH1 0xAB; PUSH1 0; MSTORE; PUSH1 76; PUSH1 0; RETURN
+    ".balign 8\n" ++
+    "drhe_probe_exec:\n  .zero 1024\n" ++
+    ".balign 8\n" ++
+    "drhe_probe_out:\n  .zero 4096\n" ++
+    -- requests-hash scratch + computed/expected hash buffers
+    ".balign 8\n" ++
+    "drhe_section:\n  .zero 4096\n" ++
+    "drhe_wbody_ptr:\n  .zero 8\n" ++
+    "drhe_wbody_len:\n  .zero 8\n" ++
+    ".balign 32\n" ++
+    "drhe_exp_hash:\n  .zero 32\n" ++
+    "rhv_hash:\n  .zero 32\n" ++
+    -- sha256_w_* (executionRequestsHashShaDataSection) is provided by the harness; only the
+    -- requests-hash-specific scratch (erh_digests/erh_blob) is added here.
+    executionRequestsHashDataSection ++ "\n" ++
+    -- frame-helper data (inert for this no-CREATE predeploy; labels must exist for a standalone emit)
+    ".balign 8\n" ++
+    "evm_call_depth:\n  .zero 8\n" ++
+    ".balign 16\n" ++
+    "frame_save_area:\n  .zero 16400\n" ++
+    ".balign 32\n" ++
+    "frame_call_ctx:\n  .zero 32800\n" ++
+    ".balign 32\n" ++
+    "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n"
+}
+
+/-! ## zisk_derive_block_system_requests (8uld3.2.3/8uld3.4 glue)
+
+    Verify `derive_block_system_requests` runs BOTH system calls sequentially and copies each
+    body to a stable buffer (the verdict needs both live at once). Synthetic withdrawal predeploy
+    RETURNs 76 bytes (byte[31]=0xAB); consolidation predeploy RETURNs 116 bytes (byte[31]=0xCD).
+    Proves two sequential dispatcher runs are independent + the first body survives the second
+    call (system_call_returndata is shared, so the copy-out is load-bearing).
+    Output (0xa0010000): +0 wlen (expect 76), +8 clen (expect 116), +16 wbody[31] (expect 0xAB),
+    +24 cbody[31] (expect 0xCD), +32 status (expect 0). -/
+def ziskDeriveBlockSystemRequestsProbeUnit : BuildUnit := {
+  body        := []
+  prologueAsm :=
+    "  li sp, 0xa0050000\n" ++
+    "  la a0, dbsr_w_code\n  li a1, 10\n  la a2, dbsr_c_code\n  li a3, 10\n  la a4, dbsr_probe_exec\n  la a5, dbsr_probe_staging\n" ++
+    "  jal ra, derive_block_system_requests\n" ++
+    "  li t0, 0xa0010000\n" ++
+    "  la t1, dbsr_wlen; ld t2, 0(t1); sd t2, 0(t0)\n" ++          -- +0 wlen (expect 76)
+    "  la t1, dbsr_clen; ld t2, 0(t1); sd t2, 8(t0)\n" ++          -- +8 clen (expect 116)
+    "  la t1, dbsr_wbody; add t1, t1, 31; lbu t2, 0(t1); sd t2, 16(t0)\n" ++   -- +16 wbody[31] (0xAB)
+    "  la t1, dbsr_cbody; add t1, t1, 31; lbu t2, 0(t1); sd t2, 24(t0)\n" ++   -- +24 cbody[31] (0xCD)
+    "  sd a0, 32(t0)\n" ++                                         -- +32 status (expect 0)
+    "  li x17, 93\n  li x10, 0\n  ecall\n" ++
+    deriveBlockSystemRequestsFunction ++ "\n" ++
+    deriveWithdrawalRequestsFunction ++ "\n" ++
+    deriveConsolidationRequestsFunction ++ "\n" ++
+    stageSystemCallFunction ++ "\n" ++
+    stageSystemCallPayloadFunction ++ "\n" ++
+    stageRuntimePayloadCodeFunction ++ "\n" ++
+    frameBaseFunction ++ "\n" ++
+    frameDepthPushFunction ++ "\n" ++
+    frameDepthPopFunction ++ "\n" ++
+    frameSaveRegsFunction ++ "\n" ++
+    frameLoadRegsFunction ++ "\n" ++
+    callFrameEnterFunction ++ "\n" ++
+    callFrameSetCallEnvFunction ++ "\n" ++
+    callFrameSetCalldataFunction ++ "\n" ++
+    callFrameForwardGasFunction ++ "\n" ++
+    callFrameDescendFunction ++ "\n" ++
+    createFrameDescendFunction ++ "\n" ++
+    frameReturnFunction ++ "\n" ++
+    recordNonstorageEffectFunction ++ "\n" ++
+    u256SubBeFunction ++ "\n" ++
+    emitRuntimeDispatcherCallablePrologue
+  epilogueAsm := emitDispatcherCallableEpilogue tinyInterpRegistry evmAddEpilogue
+  dataAsm     :=
+    emitRuntimeDispatcherDataSection tinyInterpRegistry ++ "\n" ++
+    ".balign 8\n" ++
+    "scc_ctx:\n  .zero 192\n" ++
+    ".balign 8\n" ++
+    "scc_system_addr:\n" ++
+    "  .byte 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff\n" ++
+    "  .byte 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfe\n" ++
+    ".balign 8\n" ++
+    "srpc_env_base:\n  .zero 8\n" ++
+    "m29_stage_cur:\n  .zero 8\n" ++
+    "m29_stage_count:\n  .zero 8\n" ++
+    "m29_stage_table:\n  .zero 8192\n" ++
+    ".balign 8\n" ++
+    "ssc_saved_ra:\n  .zero 8\n" ++
+    "ssc_saved_s0:\n  .zero 8\n" ++
+    withdrawalRequestPredeployAddrData ++
+    consolidationRequestPredeployAddrData ++
+    deriveBlockSystemRequestsData ++
+    ".balign 8\n" ++
+    "dbsr_w_code:\n  .byte 0x60, 0xab, 0x60, 0x00, 0x52, 0x60, 0x4c, 0x60, 0x00, 0xf3\n" ++   -- PUSH1 0xAB; MSTORE; RETURN 76
+    ".balign 8\n" ++
+    "dbsr_c_code:\n  .byte 0x60, 0xcd, 0x60, 0x00, 0x52, 0x60, 0x74, 0x60, 0x00, 0xf3\n" ++   -- PUSH1 0xCD; MSTORE; RETURN 116
+    ".balign 8\n" ++
+    "dbsr_probe_exec:\n  .zero 1024\n" ++
+    ".balign 8\n" ++
+    "dbsr_probe_staging:\n  .zero 4096\n" ++
+    ".balign 8\n" ++
+    "evm_call_depth:\n  .zero 8\n" ++
+    ".balign 16\n" ++
+    "frame_save_area:\n  .zero 16400\n" ++
+    ".balign 32\n" ++
+    "frame_call_ctx:\n  .zero 32800\n" ++
+    ".balign 32\n" ++
+    "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n"
+}
+
+/-! ## zisk_sstore_clear_gas_probe (diagnostic for .57.11.6.5.3 / d')
+
+    Pins the (d'/bv_fail=41) regular-gas undercount: dispatch the multi_transaction_gas_accounting
+    tx0 recipient bytecode (10× PUSH0; PUSH1 i; SSTORE — clearing slots 0..9, each preloaded to 1)
+    with gas=71050, and dump the post-dispatch env.gasRemaining (env+568) + persistent-log count
+    (env+448). SPEC charges 21000 intrinsic + 10×5000 (cold SSTORE-clear) + 50 pushes = 71050 (full)
+    -> gas_left ~0, log count = 10 preload + 10 SSTORE appends = 20. If gas_left ≈ 25200 (c2#48's
+    block_inc[0]=45850 = 71050-25200) -> tx0 under-executes (~5 SSTOREs); the log count tells how
+    many SSTOREs ran. Stages via stage_runtime_payload_code with the 10-slot preload; bundles the
+    same dispatcher + frame-helper closure as the derive probes (so it links standalone, unlike the
+    plain runtime_dispatcher unit).
+    Output (0xa0010000): +0 gas_left (env+568), +8 persistent_log_count (env+448),
+    +16 status (0 ok / 1 staging unsupported). -/
+def ziskSstoreClearGasProbeUnit : BuildUnit := {
+  body        := []
+  prologueAsm :=
+    "  li sp, 0xa0050000\n" ++
+    -- build ctx (192B): zero, gas@40=71050, recipient@72 = scgp_recip (20B)
+    "  la t0, scgp_ctx; mv t1, t0; li t2, 24\n" ++
+    ".Lscgp_zc:\n  sd zero, 0(t1); addi t1, t1, 8; addi t2, t2, -1; bnez t2, .Lscgp_zc\n" ++
+    "  li t1, 71050; sd t1, 40(t0)\n" ++
+    "  addi t1, t0, 72; la t2, scgp_recip; li t3, 20\n" ++
+    ".Lscgp_rc:\n  beqz t3, .Lscgp_rcd; lbu t4, 0(t2); sb t4, 0(t1); addi t2, t2, 1; addi t1, t1, 1; addi t3, t3, -1; j .Lscgp_rc\n" ++
+    ".Lscgp_rcd:\n" ++
+    -- build the 10-slot preload (count*64: key:32 BE, value:32 BE). zero 640B, then set key[i].byte31=i, value[i].byte63=1
+    "  la t0, scgp_preload; li t1, 80\n" ++
+    ".Lscgp_zp:\n  sd zero, 0(t0); addi t0, t0, 8; addi t1, t1, -1; bnez t1, .Lscgp_zp\n" ++
+    "  la t0, scgp_preload; li t1, 0\n" ++
+    ".Lscgp_bp:\n  li t2, 10; beq t1, t2, .Lscgp_bpd\n" ++
+    "  slli t3, t1, 6; add t4, t0, t3; addi t5, t4, 31; sb t1, 0(t5)\n" ++         -- key[i] byte31 = i
+    "  addi t5, t4, 63; li t6, 1; sb t6, 0(t5)\n" ++                               -- value[i] byte63 = 1
+    "  addi t1, t1, 1; j .Lscgp_bp\n" ++
+    ".Lscgp_bpd:\n" ++
+    -- stage_runtime_payload_code(ctx, out, exec, code, 40, preload, 10)
+    "  la a0, scgp_ctx; la a1, scgp_out; la a2, scgp_exec; la a3, scgp_code; li a4, 40; la a5, scgp_preload; li a6, 10\n" ++
+    "  jal ra, stage_runtime_payload_code\n" ++
+    "  bnez a0, .Lscgp_fail\n" ++
+    -- dispatch
+    "  la t1, scgp_out; addi t1, t1, 8; la t0, runtime_dispatcher_input_ptr; sd t1, 0(t0)\n" ++
+    "  jal ra, runtime_dispatcher_call\n" ++
+    "  la t0, runtime_dispatcher_input_ptr; sd zero, 0(t0)\n" ++
+    -- dump gas_left + log count
+    "  li t0, 0xa0010000; la t1, evm_env\n" ++
+    "  ld t2, 568(t1); sd t2, 0(t0)\n" ++          -- +0 gas_left
+    "  ld t2, 448(t1); sd t2, 8(t0)\n" ++          -- +8 persistent log count
+    "  sd zero, 16(t0)\n" ++                       -- +16 status ok
+    "  j .Lscgp_done\n" ++
+    ".Lscgp_fail:\n  li t0, 0xa0010000; li t2, 1; sd t2, 16(t0)\n" ++
+    ".Lscgp_done:\n" ++
+    "  li x17, 93\n  li x10, 0\n  ecall\n" ++
+    stageRuntimePayloadCodeFunction ++ "\n" ++
+    frameBaseFunction ++ "\n" ++
+    frameDepthPushFunction ++ "\n" ++
+    frameDepthPopFunction ++ "\n" ++
+    frameSaveRegsFunction ++ "\n" ++
+    frameLoadRegsFunction ++ "\n" ++
+    callFrameEnterFunction ++ "\n" ++
+    callFrameSetCallEnvFunction ++ "\n" ++
+    callFrameSetCalldataFunction ++ "\n" ++
+    callFrameForwardGasFunction ++ "\n" ++
+    callFrameDescendFunction ++ "\n" ++
+    createFrameDescendFunction ++ "\n" ++
+    frameReturnFunction ++ "\n" ++
+    recordNonstorageEffectFunction ++ "\n" ++
+    u256SubBeFunction ++ "\n" ++
+    emitRuntimeDispatcherCallablePrologue
+  epilogueAsm := emitDispatcherCallableEpilogue tinyInterpRegistry evmAddEpilogue
+  dataAsm     :=
+    emitRuntimeDispatcherDataSection tinyInterpRegistry ++ "\n" ++
+    ".balign 8\n" ++
+    "srpc_env_base:\n  .zero 8\n" ++
+    "m29_stage_cur:\n  .zero 8\n" ++
+    "m29_stage_count:\n  .zero 8\n" ++
+    "m29_stage_table:\n  .zero 8192\n" ++
+    ".balign 8\n" ++
+    "scgp_ctx:\n  .zero 192\n" ++
+    ".balign 8\n" ++
+    "scgp_recip:\n  .byte 0x4e, 0xa7, 0x7b, 0x8b, 0x4e, 0xee, 0x51, 0x42, 0x9b, 0x6f, 0xa1, 0xf7, 0xec, 0xbc, 0x41, 0xdb, 0x9c, 0xc1, 0x9e, 0xbc\n" ++
+    ".balign 8\n" ++
+    "scgp_code:\n  .byte 0x5f, 0x60, 0x00, 0x55, 0x5f, 0x60, 0x01, 0x55, 0x5f, 0x60, 0x02, 0x55, 0x5f, 0x60, 0x03, 0x55, 0x5f, 0x60, 0x04, 0x55, 0x5f, 0x60, 0x05, 0x55, 0x5f, 0x60, 0x06, 0x55, 0x5f, 0x60, 0x07, 0x55, 0x5f, 0x60, 0x08, 0x55, 0x5f, 0x60, 0x09, 0x55\n" ++   -- 10x PUSH0;PUSH1 i;SSTORE (clear slots 0..9)
+    ".balign 8\n" ++
+    "scgp_preload:\n  .zero 640\n" ++
+    ".balign 8\n" ++
+    "scgp_exec:\n  .zero 1024\n" ++
+    ".balign 8\n" ++
+    "scgp_out:\n  .zero 4096\n" ++
+    ".balign 8\n" ++
+    "evm_call_depth:\n  .zero 8\n" ++
+    ".balign 16\n" ++
+    "frame_save_area:\n  .zero 16400\n" ++
+    ".balign 32\n" ++
+    "frame_call_ctx:\n  .zero 32800\n" ++
+    ".balign 32\n" ++
+    "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n"
+}
 
 end EvmAsm.Codegen
