@@ -862,6 +862,9 @@ def emitRuntimeAccountWitnessData : String :=
   ".balign 32\n" ++
   "create_balance_be:\n" ++
   "  .zero 32\n" ++
+  ".balign 32\n" ++
+  "create_creator_newbal:\n" ++
+  "  .zero 32\n" ++
   emitCreateChildFrameData ++
   ".balign 8\n" ++
   "ac_buffer:\n" ++
@@ -2322,6 +2325,9 @@ def emitRuntimeDispatcherEmbeddedHelperData : String :=
   "  .zero 32\n" ++
   ".balign 32\n" ++
   "create_balance_be:\n" ++
+  "  .zero 32\n" ++
+  ".balign 32\n" ++
+  "create_creator_newbal:\n" ++
   "  .zero 32\n" ++
   emitCreateChildFrameData ++
   ".balign 8\n" ++
