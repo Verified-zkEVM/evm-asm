@@ -24,6 +24,7 @@ import EvmAsm.Codegen.Programs.BalStorageChangeValues
 import EvmAsm.Codegen.Programs.BalStorageMatchesExecLog
 import EvmAsm.Codegen.Programs.BalStorageCoversExecLog
 import EvmAsm.Codegen.Programs.BalAddrExecLogKey
+import EvmAsm.Codegen.Programs.BalModeledSystem
 
 namespace EvmAsm.Codegen
 
@@ -71,6 +72,18 @@ def balAllAccountsStorageConsistentFunction : String :=
   "  jal ra, rlp_list_nth_item                 # item 0 = address\n" ++
   "  bnez a0, .Lc2baas_fail\n" ++
   "  la t0, c2bal_addr_len; ld t1, 0(t0); li t2, 20; bne t1, t2, .Lc2baas_next   # not 20B -> skip\n" ++
+  -- fhsxz.2.4.2.57.11.6.5.1: skip the EIP-2935 (history) / EIP-4788 (beacon-roots) system
+  -- contracts. Their storage is written by the block-level system calls and verified by the
+  -- verdict's explicit EIP-2935/4788 replay, NOT the per-tx exec log; every Amsterdam block's BAL
+  -- carries their storage rows, so comparing them here vs the (legitimately exec-log-absent) per-tx
+  -- log would false-reject the instant contract-recipient dispatch succeeds. SOUND: the explicit
+  -- replay independently pins their storage (mirrors BalAccountRecordArray's bara_skip_modeled_system).
+  -- s7 = AccountChanges ptr; c2bal_acct_len = its len. The helper preserves s1-s7 and uses its own
+  -- bams_* scratch, so c2bal_addr_off/len stay valid for the recipient compare below.
+  "  mv a0, s7; la t0, c2bal_acct_len; ld a1, 0(t0)\n" ++
+  "  jal ra, bal_account_is_modeled_system\n" ++
+  "  li t0, 1; beq a0, t0, .Lc2baas_next       # EIP-2935 history row -> skip\n" ++
+  "  li t0, 2; beq a0, t0, .Lc2baas_next       # EIP-4788 beacon-roots row -> skip\n" ++
   "  la t0, c2bal_addr_off; ld t1, 0(t0); add t3, s7, t1   # addr ptr (20B BE)\n" ++
   "  li t4, 0\n" ++
   ".Lc2baas_rcmp:\n" ++
@@ -124,6 +137,7 @@ def ziskBalAllAccountsStorageConsistentPrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lc2baas_pdone\n" ++
   balAllAccountsStorageConsistentFunction ++ "\n" ++
+  balAccountIsModeledSystemFunction ++ "\n" ++   -- .57.11.6.5.1: modeled-system skip dep
   balStorageMatchesExecLogFunction ++ "\n" ++
   balStorageCoversExecLogFunction ++ "\n" ++
   balStorageChangeValuesFunction ++ "\n" ++
@@ -150,7 +164,8 @@ def ziskBalAllAccountsStorageConsistentDataSection : String :=
   balAllAccountsStorageConsistentData ++
   balStorageChangeValuesData ++
   balStorageMatchesExecLogData ++
-  balStorageCoversExecLogData
+  balStorageCoversExecLogData ++
+  ziskBalAccountIsModeledSystemDataSection   -- .57.11.6.5.1: bams_* for the modeled-system skip
 
 def ziskBalAllAccountsStorageConsistentProbeUnit : BuildUnit := {
   body        := NOP
