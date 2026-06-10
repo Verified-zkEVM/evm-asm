@@ -36,7 +36,7 @@ python3 - <<'PY'
 import struct, sys
 d = open('gen-out/zisk_create_deployed_code_valid.out', 'rb').read()
 vals = [struct.unpack('<Q', d[i:i+8])[0] for i in range(0, 40, 8)]
-labels = ['empty(len 0)','{0x60}(len 1)','{0xEF}(len 1)','{0x60}(len 24576)','{0x60}(len 24577)']
+labels = ['empty(len 0)','{0x60}(len 1)','{0xEF}(len 1)','{0x60}(len 32768)','{0x60}(len 32769)']
 exp = [0, 0, 1, 0, 1]
 ok = True
 for l, v, e in zip(labels, vals, exp):
