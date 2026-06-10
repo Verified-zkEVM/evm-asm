@@ -131,4 +131,84 @@ def ziskStageSystemCallProbeUnit : BuildUnit := {
     "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n"
 }
 
+/-! ## zisk_derive_withdrawal_requests (8uld3.2b)
+
+    End-to-end probe for `derive_withdrawal_requests`: stage a synthetic withdrawal
+    predeploy that RETURNs a 76-byte withdrawal record (one EIP-7002 request: source 20 +
+    pubkey 48 + amount 8), run it through the dispatcher via the system-call harness, and
+    assert the captured return_data IS the withdrawal body (len 76, byte-faithful). The
+    predeploy is `PUSH1 0xAB; PUSH1 0; MSTORE; PUSH1 76; PUSH1 0; RETURN` so body[31]=0xAB
+    (the low byte of the MSTORE'd word) and body[0]=body[75]=0x00. Mirrors
+    `ziskStageSystemCallProbeUnit`; bundles `derive_withdrawal_requests` +
+    `withdrawal_request_predeploy_addr`.
+    Output (0xa0010000): +0 body_len (expect 76), +8 status (expect 0),
+    +16 body[31] (expect 0xAB), +24 body[0] (expect 0x00), +32 body[75] (expect 0x00). -/
+def ziskDeriveWithdrawalRequestsProbeUnit : BuildUnit := {
+  body        := []
+  prologueAsm :=
+    "  li sp, 0xa0050000\n" ++
+    "  la a0, dwr_probe_code\n  li a1, 10\n  la a2, dwr_probe_exec\n  la a3, dwr_probe_out\n" ++
+    "  jal ra, derive_withdrawal_requests\n" ++
+    "  li t0, 0xa0010000\n" ++
+    "  sd a1, 0(t0)             # withdrawal body len (expect 76)\n" ++
+    "  sd a2, 8(t0)             # status (expect 0)\n" ++
+    "  add t1, a0, 31; lbu t2, 0(t1); sd t2, 16(t0)   # body[31] (expect 0xAB)\n" ++
+    "  lbu t2, 0(a0); sd t2, 24(t0)                   # body[0]  (expect 0x00)\n" ++
+    "  add t1, a0, 75; lbu t2, 0(t1); sd t2, 32(t0)   # body[75] (expect 0x00)\n" ++
+    "  li x17, 93\n  li x10, 0\n  ecall\n" ++
+    deriveWithdrawalRequestsFunction ++ "\n" ++
+    stageSystemCallFunction ++ "\n" ++
+    stageSystemCallPayloadFunction ++ "\n" ++
+    stageRuntimePayloadCodeFunction ++ "\n" ++
+    -- same frame-helper closure the system-call probe bundles (CREATE handler descent chain)
+    frameBaseFunction ++ "\n" ++
+    frameDepthPushFunction ++ "\n" ++
+    frameDepthPopFunction ++ "\n" ++
+    frameSaveRegsFunction ++ "\n" ++
+    frameLoadRegsFunction ++ "\n" ++
+    callFrameEnterFunction ++ "\n" ++
+    callFrameSetCallEnvFunction ++ "\n" ++
+    callFrameSetCalldataFunction ++ "\n" ++
+    callFrameForwardGasFunction ++ "\n" ++
+    callFrameDescendFunction ++ "\n" ++
+    createFrameDescendFunction ++ "\n" ++
+    frameReturnFunction ++ "\n" ++
+    recordNonstorageEffectFunction ++ "\n" ++
+    u256SubBeFunction ++ "\n" ++
+    emitRuntimeDispatcherCallablePrologue
+  epilogueAsm := emitDispatcherCallableEpilogue tinyInterpRegistry evmAddEpilogue
+  dataAsm     :=
+    emitRuntimeDispatcherDataSection tinyInterpRegistry ++ "\n" ++
+    ".balign 8\n" ++
+    "scc_ctx:\n  .zero 192\n" ++
+    ".balign 8\n" ++
+    "scc_system_addr:\n" ++
+    "  .byte 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff\n" ++
+    "  .byte 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfe\n" ++
+    ".balign 8\n" ++
+    "srpc_env_base:\n  .zero 8\n" ++
+    "m29_stage_cur:\n  .zero 8\n" ++
+    "m29_stage_count:\n  .zero 8\n" ++
+    "m29_stage_table:\n  .zero 8192\n" ++
+    ".balign 8\n" ++
+    "ssc_saved_ra:\n  .zero 8\n" ++
+    "ssc_saved_s0:\n  .zero 8\n" ++
+    withdrawalRequestPredeployAddrData ++
+    ".balign 8\n" ++
+    "dwr_probe_code:\n  .byte 0x60, 0xab, 0x60, 0x00, 0x52, 0x60, 0x4c, 0x60, 0x00, 0xf3\n" ++   -- PUSH1 0xAB; PUSH1 0; MSTORE; PUSH1 76; PUSH1 0; RETURN
+    ".balign 8\n" ++
+    "dwr_probe_exec:\n  .zero 1024\n" ++
+    ".balign 8\n" ++
+    "dwr_probe_out:\n  .zero 4096\n" ++
+    -- frame-helper data (inert for this no-CREATE predeploy; labels must exist for a standalone emit)
+    ".balign 8\n" ++
+    "evm_call_depth:\n  .zero 8\n" ++
+    ".balign 16\n" ++
+    "frame_save_area:\n  .zero 16400\n" ++
+    ".balign 32\n" ++
+    "frame_call_ctx:\n  .zero 32800\n" ++
+    ".balign 32\n" ++
+    "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n"
+}
+
 end EvmAsm.Codegen
