@@ -216,8 +216,8 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bvcd_acct_len:\n  .zero 8\n" ++
   "bvcd_key_count:\n  .zero 8\n" ++
   "bvcd_i:\n  .zero 8\n" ++
-  "bvcd_keys:\n  .zero 512\n" ++       -- up to 16 x 32-byte slot keys
-  "bvcd_preload:\n  .zero 1024\n" ++   -- up to 16 x 64-byte (key,value) pairs
+  "bvcd_keys:\n  .zero 4096\n" ++      -- bmvmx.1.7.3: up to 128 x 32-byte slot keys (was 16; bal_recipient_storage_keys caps at 128)
+  "bvcd_preload:\n  .zero 8192\n" ++   -- bmvmx.1.7.3: up to 128 x 64-byte (key,value) pairs (was 16)
   -- bmvmx.1.6.2 exec-vs-BAL recipient storage check scratch (bal_storage_change_values +
   -- bal_storage_matches_exec_log), now linked into the verdict's contract-dispatch tail.
   balStorageChangeValuesData ++
