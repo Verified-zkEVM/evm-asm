@@ -118,10 +118,10 @@ def balRecipientStorageKeysFunction : String :=
     storage_reads or any parse failure returns 0 (conservative). -/
 def balRecipientStorageReadsKeysFunction : String :=
   "bal_recipient_storage_reads_keys:\n" ++
-  "  addi sp, sp, -64\n" ++
+  "  addi sp, sp, -72\n" ++
   "  sd ra, 0(sp)\n" ++
   "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
   "  mv s0, a0                    # AccountChanges ptr\n" ++
   "  mv s1, a1                    # AccountChanges len\n" ++
   "  mv s2, a2                    # out keys ptr\n" ++
@@ -138,18 +138,18 @@ def balRecipientStorageReadsKeysFunction : String :=
   "  la t0, brsk_cnt; ld s6, 0(t0)                   # sr count\n" ++
   "  li t0, 128; bgtu s6, t0, .Lbrsrk_done           # > cap -> count, write nothing\n" ++
   "  bgtu s6, s3, .Lbrsrk_done                       # > remaining capacity -> count, write nothing\n" ++
-  "  li t6, 0                     # i\n" ++
+  "  li s7, 0                     # i (SAVED reg: rlp_list_nth_item clobbers t-regs)\n" ++
   ".Lbrsrk_loop:\n" ++
-  "  beq t6, s6, .Lbrsrk_done\n" ++
+  "  beq s7, s6, .Lbrsrk_done\n" ++
   -- entry = nth(storage_reads, i); the entry IS the slot key bytes.
-  "  mv a0, s4; mv a1, s5; mv a2, t6; la a3, brsk_eoff; la a4, brsk_elen\n" ++
+  "  mv a0, s4; mv a1, s5; mv a2, s7; la a3, brsk_eoff; la a4, brsk_elen\n" ++
   "  jal ra, rlp_list_nth_item\n" ++
   "  bnez a0, .Lbrsrk_zero\n" ++
   "  la t0, brsk_eoff; ld t0, 0(t0); add t1, s4, t0  # key bytes ptr\n" ++
   "  la t0, brsk_elen; ld t4, 0(t0)                  # key byte length\n" ++
   "  li t5, 32; bgtu t4, t5, .Lbrsrk_zero\n" ++
   -- dst entry = out + i*32; zero it, then right-align the key bytes.
-  "  slli t0, t6, 5; add t2, s2, t0                  # dst entry ptr\n" ++
+  "  slli t0, s7, 5; add t2, s2, t0                  # dst entry ptr\n" ++
   "  mv t0, t2; li t5, 32\n" ++
   ".Lbrsrk_zw:\n" ++
   "  beqz t5, .Lbrsrk_zwd\n" ++
@@ -160,7 +160,7 @@ def balRecipientStorageReadsKeysFunction : String :=
   "  beqz t4, .Lbrsrk_cpd\n" ++
   "  lbu t5, 0(t1); sb t5, 0(t0); addi t1, t1, 1; addi t0, t0, 1; addi t4, t4, -1; j .Lbrsrk_cp\n" ++
   ".Lbrsrk_cpd:\n" ++
-  "  addi t6, t6, 1; j .Lbrsrk_loop\n" ++
+  "  addi s7, s7, 1; j .Lbrsrk_loop\n" ++
   ".Lbrsrk_done:\n" ++
   "  mv a0, s6\n" ++
   "  j .Lbrsrk_ret\n" ++
@@ -169,8 +169,8 @@ def balRecipientStorageReadsKeysFunction : String :=
   ".Lbrsrk_ret:\n" ++
   "  ld ra, 0(sp)\n" ++
   "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
+  "  addi sp, sp, 72\n" ++
   "  ret"
 
 /-- `zisk_bal_recipient_storage_keys`: validation probe over a hand-encoded
