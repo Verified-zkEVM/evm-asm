@@ -2698,6 +2698,49 @@ def emitRuntimeDispatcherDataSectionSharedGuest
     (registry : List OpcodeHandlerSpec) : String :=
   emitRuntimeDispatcherDataSectionCore registry false false
 
+/-- Frame/CREATE helper closure for STANDALONE runtime-dispatcher units.
+
+    The registry handlers reference `create_frame_descend` (h_CREATE/h_CREATE2
+    tails, .61.8.3.5), `u256_sub_be` (the CREATE endowment math), and
+    `nonstorage_effect_latest_balance` (the live-BALANCE read, yisv8) — but
+    those functions were only linked by the guest closure
+    (`emitRuntimeDispatcherEmbeddedHelperFunctions`) and by probes that bundle
+    them ad hoc, so the standalone `runtime_dispatcher` / callable-probe ELFs
+    stopped linking when those handlers landed. This mirrors the proven probe
+    bundle (see `ziskSstoreClearGasProbeUnit`). Kept OUT of
+    `emitDispatcherEpilogueCore`'s shared-helpers branch: probes that already
+    bundle these functions use that branch, and a second copy would be a
+    duplicate-label assembler error. -/
+def runtimeDispatcherStandaloneFrameHelpers : String :=
+  u256SubBeFunction ++ "\n" ++
+  frameBaseFunction ++ "\n" ++
+  frameDepthPushFunction ++ "\n" ++
+  frameDepthPopFunction ++ "\n" ++
+  frameSaveRegsFunction ++ "\n" ++
+  frameLoadRegsFunction ++ "\n" ++
+  callFrameEnterFunction ++ "\n" ++
+  callFrameSetCallEnvFunction ++ "\n" ++
+  callFrameSetCalldataFunction ++ "\n" ++
+  callFrameForwardGasFunction ++ "\n" ++
+  callFrameDescendFunction ++ "\n" ++
+  createFrameDescendFunction ++ "\n" ++
+  frameReturnFunction ++ "\n" ++
+  recordNonstorageEffectFunction ++ "\n" ++
+  nonstorageEffectLatestBalanceFunction
+
+/-- Frame-arena data labels for the standalone frame-helper closure
+    (the guest defines these in `BlockVerdictDataSection`; the bundling
+    probes each define their own copies). -/
+def runtimeDispatcherStandaloneFrameData : String :=
+  ".balign 8\n" ++
+  "evm_call_depth:\n  .zero 8\n" ++
+  ".balign 16\n" ++
+  "frame_save_area:\n  .zero 16400\n" ++
+  ".balign 32\n" ++
+  "frame_call_ctx:\n  .zero 32800\n" ++
+  ".balign 32\n" ++
+  "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n"
+
 /-- Build a runtime-bytecode `BuildUnit` for `registry` + `exitBody`.
     The emitted ELF doesn't carry any bytecode — the test harness
     supplies it at runtime via `ziskemu -i <file>` (8-byte LE length
@@ -2707,8 +2750,14 @@ def buildRuntimeDispatchUnit
     (exitBody : Program) : BuildUnit := {
   body        := []
   prologueAsm := emitRuntimeDispatcherPrologue
-  epilogueAsm := emitDispatcherEpilogue registry exitBody
-  dataAsm     := emitRuntimeDispatcherDataSection registry
+  -- The frame helpers go BEFORE the epilogue: the prologue's dispatch loop
+  -- ends with `j .dispatch_loop` (no fall-through into them) and every helper
+  -- ends with `ret`, while the epilogue's exit join must keep falling through
+  -- to the halt stub `emitBuildUnit` appends after `epilogueAsm`.
+  epilogueAsm := runtimeDispatcherStandaloneFrameHelpers ++ "\n" ++
+                 emitDispatcherEpilogue registry exitBody
+  dataAsm     := emitRuntimeDispatcherDataSection registry ++ "\n" ++
+                 runtimeDispatcherStandaloneFrameData
 }
 
 /-- Build a probe `BuildUnit` that exercises the callable runtime dispatcher
@@ -2731,8 +2780,10 @@ def buildRuntimeDispatchCallableProbeUnit
     "  li x10, 0\n" ++
     "  ecall\n" ++
     emitRuntimeDispatcherCallablePrologue
-  epilogueAsm := emitDispatcherCallableEpilogue registry exitBody
-  dataAsm     := emitRuntimeDispatcherDataSection registry
+  epilogueAsm := runtimeDispatcherStandaloneFrameHelpers ++ "\n" ++
+                 emitDispatcherCallableEpilogue registry exitBody
+  dataAsm     := emitRuntimeDispatcherDataSection registry ++ "\n" ++
+                 runtimeDispatcherStandaloneFrameData
 }
 
 /-- Build a probe `BuildUnit` that runs one staged transaction through the
@@ -2801,9 +2852,11 @@ def buildRuntimeDispatchGasCaptureProbeUnit
     "  li x10, 0\n" ++
     "  ecall\n" ++
     emitRuntimeDispatcherCallablePrologue
-  epilogueAsm := emitDispatcherCallableEpilogue registry exitBody
+  epilogueAsm := runtimeDispatcherStandaloneFrameHelpers ++ "\n" ++
+                 emitDispatcherCallableEpilogue registry exitBody
   dataAsm     :=
     emitRuntimeDispatcherDataSection registry ++ "\n" ++
+    runtimeDispatcherStandaloneFrameData ++
     ".balign 8\n" ++
     "rdg_gas_left:\n  .zero 128\n" ++
     "rdg_refund_counter:\n  .zero 128\n" ++
