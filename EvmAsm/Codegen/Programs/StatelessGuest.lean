@@ -22,6 +22,7 @@ import EvmAsm.Codegen.Programs.BlockVerdictV2
 import EvmAsm.Codegen.Programs.SystemCallStaging
 import EvmAsm.Codegen.Programs.ParseDepositRequests
 import EvmAsm.Codegen.Programs.AssembleExecutionRequests
+import EvmAsm.Codegen.Programs.SystemCallStoragePreload
 import EvmAsm.Stateless.Entry
 
 namespace EvmAsm.Codegen
@@ -79,6 +80,10 @@ def statelessGuestUnit : BuildUnit := {
     -- 8uld3.2.3.3.1 (C.1): assemble [deposit, derived-w, derived-c] into the SSZ
     -- execution_requests section that execution_requests_hash then hashes.
     assembleExecutionRequestsFunction ++ "\n" ++
+    -- 8uld3.2.3.3.1 (C.1): stage the system-call predeploy's request-queue storage so its
+    -- SLOAD reads real witness values (builds the (key,original-value) preload from the
+    -- predeploy's BAL AccountChanges). Fed to the system call via scc_preload_ptr/count (8uld3.2.1.5).
+    stagePredeployStoragePreloadFunction ++ "\n" ++
     ".Lstateless_guest_halt_after_runtime_dispatcher:\n"
   -- guest scratch + the Step-2 verdict's data (zk3_state / rfu_* are dedup'd out
   -- of the guest section since the appended verdict section provides them). The
@@ -118,6 +123,7 @@ def statelessGuestUnit : BuildUnit := {
     ".balign 8\n" ++
     "pdr_out:\n  .zero 2048\n" ++
     "pdr_status:\n  .zero 8\n" ++
+    stagePredeployStoragePreloadData ++ "\n" ++   -- 8uld3.2.3.3.1 (C.1): sps_* globals for the predeploy storage preload
     emitRuntimeDispatcherDataSectionSharedGuest callFrameGuestRegistry
 }
 
