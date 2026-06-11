@@ -791,6 +791,54 @@ def statelessGuestEpilogue : String :=
   ".Lsg_npr_restore:\n" ++
   "  add t3, t1, t2; ld t4, 0(t3); add t3, t0, t2; sd t4, 0(t3)\n" ++
   "  addi t2, t2, 8; li t3, 112; bltu t2, t3, .Lsg_npr_restore\n" ++
+  -- b2ov4: enforce STATELESS_INPUT_SCHEMA_ID before emitting a successful
+  -- validation. The spec's deserialize_stateless_input (amsterdam
+  -- stateless_guest.py:31-40) reads the leading 2 bytes big-endian and RAISES
+  -- ValueError unless they equal STATELESS_INPUT_SCHEMA_ID (=0x0001,
+  -- stateless_ssz.py:64) BEFORE any SSZ decode/verify. The guest reads the SSZ
+  -- body unconditionally from SSZ_BASE = INPUT+18, never consulting the 2-byte
+  -- schema prefix at INPUT+16, so a wrong-schema-but-otherwise-valid input would
+  -- decode and could reach succ=01 -- a false-accept of input the Python entry
+  -- point rejects. Gate it here (a0 = verdict bit; force 0 on a schema mismatch).
+  -- INPUT base = 0x40000000, schema id = bytes [INPUT+16]=0x00, [INPUT+17]=0x01.
+  -- Every real fixture carries 0x0001, so this is transparent to passing rows.
+  "  li t1, 0x40000000; addi t1, t1, 16   # &schema_id (2 bytes, big-endian)\n" ++
+  "  lbu t2, 0(t1)                        # schema_id hi byte (must be 0x00)\n" ++
+  "  lbu t3, 1(t1)                        # schema_id lo byte (must be 0x01)\n" ++
+  "  bnez t2, .Lsg_bad_input\n" ++
+  "  li t4, 1; bne t3, t4, .Lsg_bad_input\n" ++
+  -- b2ov4.1: canonical SszStatelessInput outer-offset gate. The spec decodes the
+  -- SSZ via remerkleable, which raises on non-canonical offsets BEFORE the verdict
+  -- reads any derived field. SszStatelessInput has 4 variable-length fields
+  -- (new_payload_request, witness, chain_config, public_keys -- chain_config is
+  -- variable via active_fork.blob_schedule = SszOptionalBlobSchedule), so the fixed
+  -- part is 4*4 = 16 bytes and the 4 u32-LE offsets live at SSZ_BASE+0/4/8/12.
+  -- Canonical SSZ requires: offset[0] == 16 (no gap before the first field),
+  -- offsets non-decreasing, and offset[3] (last field start) <= the SSZ section
+  -- length. The guest navigates these offsets unchecked, so a non-canonical offset
+  -- table could mis-slice fields and still reach succ=01. Byte-wise u32 loads
+  -- (SSZ_BASE = 0x40000012 is only 2-aligned). Transparent to real fixtures.
+  "  li t1, 0x40000012                    # SSZ_BASE (INPUT+18)\n" ++
+  "  lbu t2, 0(t1); lbu t3, 1(t1); slli t3, t3, 8; or t2, t2, t3\n" ++
+  "  lbu t3, 2(t1); slli t3, t3, 16; or t2, t2, t3; lbu t3, 3(t1); slli t3, t3, 24; or t2, t2, t3\n" ++
+  "  li t4, 16; bne t2, t4, .Lsg_bad_input  # offset[0] == fixed part (16)\n" ++
+  "  lbu t3, 4(t1); lbu t5, 5(t1); slli t5, t5, 8; or t3, t3, t5\n" ++
+  "  lbu t5, 6(t1); slli t5, t5, 16; or t3, t3, t5; lbu t5, 7(t1); slli t5, t5, 24; or t3, t3, t5\n" ++
+  "  bltu t3, t2, .Lsg_bad_input          # offset[1] >= offset[0]\n" ++
+  "  mv t2, t3\n" ++
+  "  lbu t3, 8(t1); lbu t5, 9(t1); slli t5, t5, 8; or t3, t3, t5\n" ++
+  "  lbu t5, 10(t1); slli t5, t5, 16; or t3, t3, t5; lbu t5, 11(t1); slli t5, t5, 24; or t3, t3, t5\n" ++
+  "  bltu t3, t2, .Lsg_bad_input          # offset[2] >= offset[1]\n" ++
+  "  mv t2, t3\n" ++
+  "  lbu t3, 12(t1); lbu t5, 13(t1); slli t5, t5, 8; or t3, t3, t5\n" ++
+  "  lbu t5, 14(t1); slli t5, t5, 16; or t3, t3, t5; lbu t5, 15(t1); slli t5, t5, 24; or t3, t3, t5\n" ++
+  "  bltu t3, t2, .Lsg_bad_input          # offset[3] >= offset[2]\n" ++
+  "  li t4, 0x40000008; ld t5, 0(t4); addi t5, t5, -2  # SSZ_len = host_blob_len - schema(2)\n" ++
+  "  bgtu t3, t5, .Lsg_bad_input          # offset[3] <= SSZ section length\n" ++
+  "  j .Lsg_input_ok\n" ++
+  ".Lsg_bad_input:\n" ++
+  "  li a0, 0                             # bad schema id or non-canonical SSZ offsets -> reject (succ=00)\n" ++
+  ".Lsg_input_ok:\n" ++
   "  li t0, 0xa0010000; sb a0, 32(t0)\n" ++
   "  # Restore zisk's trap vector before the final Linux-93 halt ecall.\n" ++
   "  li t0, 0xa0009828          # zisk MTVEC memory slot\n" ++
