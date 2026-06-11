@@ -811,6 +811,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bv_mtx_committed:\n  .zero 16384\n" ++
   "dtrc_recipkey:\n  .zero 32\n" ++
   "dtrc_threadval:\n  .zero 32\n" ++
+  "dtrc_slotkey_le:\n  .zero 32\n" ++   -- ogjan: LE byte-reverse of bvcd_keys[i] for the exec_log_latest_value slotKey match
   -- bmvmx.1.4.4: single-tx EOA settlement scalars precomputed before
   -- block_state_root (additive; no consumer yet -> verdict byte-identical).
   -- Consumed later by .4.1/.4.2 to build execution-derived sender/coinbase leaves.
