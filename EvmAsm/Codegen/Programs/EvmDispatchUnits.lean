@@ -93,6 +93,7 @@ def ziskStageSystemCallProbeUnit : BuildUnit := {
     createFrameDescendFunction ++ "\n" ++
     frameReturnFunction ++ "\n" ++
     recordNonstorageEffectFunction ++ "\n" ++
+    nonstorageEffectLatestBalanceFunction ++ "\n" ++
     u256SubBeFunction ++ "\n" ++
     emitRuntimeDispatcherCallablePrologue
   epilogueAsm := emitDispatcherCallableEpilogue tinyInterpRegistry evmAddEpilogue
@@ -176,6 +177,7 @@ def ziskDeriveWithdrawalRequestsProbeUnit : BuildUnit := {
     createFrameDescendFunction ++ "\n" ++
     frameReturnFunction ++ "\n" ++
     recordNonstorageEffectFunction ++ "\n" ++
+    nonstorageEffectLatestBalanceFunction ++ "\n" ++
     u256SubBeFunction ++ "\n" ++
     emitRuntimeDispatcherCallablePrologue
   epilogueAsm := emitDispatcherCallableEpilogue tinyInterpRegistry evmAddEpilogue
@@ -257,6 +259,7 @@ def ziskDeriveConsolidationRequestsProbeUnit : BuildUnit := {
     createFrameDescendFunction ++ "\n" ++
     frameReturnFunction ++ "\n" ++
     recordNonstorageEffectFunction ++ "\n" ++
+    nonstorageEffectLatestBalanceFunction ++ "\n" ++
     u256SubBeFunction ++ "\n" ++
     emitRuntimeDispatcherCallablePrologue
   epilogueAsm := emitDispatcherCallableEpilogue tinyInterpRegistry evmAddEpilogue
@@ -364,6 +367,7 @@ def ziskDeriveRequestsHashE2EProbeUnit : BuildUnit := {
     createFrameDescendFunction ++ "\n" ++
     frameReturnFunction ++ "\n" ++
     recordNonstorageEffectFunction ++ "\n" ++
+    nonstorageEffectLatestBalanceFunction ++ "\n" ++
     u256SubBeFunction ++ "\n" ++
     emitRuntimeDispatcherCallablePrologue
   epilogueAsm := emitDispatcherCallableEpilogue tinyInterpRegistry evmAddEpilogue
@@ -454,6 +458,7 @@ def ziskDeriveBlockSystemRequestsProbeUnit : BuildUnit := {
     createFrameDescendFunction ++ "\n" ++
     frameReturnFunction ++ "\n" ++
     recordNonstorageEffectFunction ++ "\n" ++
+    nonstorageEffectLatestBalanceFunction ++ "\n" ++
     u256SubBeFunction ++ "\n" ++
     emitRuntimeDispatcherCallablePrologue
   epilogueAsm := emitDispatcherCallableEpilogue tinyInterpRegistry evmAddEpilogue
@@ -559,6 +564,7 @@ def ziskSstoreClearGasProbeUnit : BuildUnit := {
     createFrameDescendFunction ++ "\n" ++
     frameReturnFunction ++ "\n" ++
     recordNonstorageEffectFunction ++ "\n" ++
+    nonstorageEffectLatestBalanceFunction ++ "\n" ++
     u256SubBeFunction ++ "\n" ++
     emitRuntimeDispatcherCallablePrologue
   epilogueAsm := emitDispatcherCallableEpilogue tinyInterpRegistry evmAddEpilogue

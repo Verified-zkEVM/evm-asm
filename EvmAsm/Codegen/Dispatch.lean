@@ -683,6 +683,8 @@ def emitRuntimeAccountWitnessData : String :=
   ".balign 8\n" ++
   "bal_acct_struct:\n" ++
   "  .zero 104\n" ++
+  ".balign 8\n" ++
+  "bal_addr_padded:\n  .zero 32\n" ++   -- yisv8 .spine.2: padded query addr for the live-balance scan
   ".balign 32\n" ++
   "bal_output_scratch:\n" ++
   "  .zero 32\n" ++
@@ -2210,6 +2212,7 @@ def emitRuntimeDispatcherEmbeddedHelperFunctions : String :=
   callFrameDescendFunction ++ "\n" ++
   createFrameDescendFunction ++ "\n" ++   -- .61.8.3.5.1: CREATE-frame descent (reuses call_frame_descend)
   recordNonstorageEffectFunction ++ "\n" ++   -- i3djw.1: per-account non-storage effect producer (CALL value-transfer)
+  nonstorageEffectLatestBalanceFunction ++ "\n" ++   -- yisv8 .spine.1: live-BALANCE read of the latest effect post_balance
   frameReturnFunction
 
 def emitRuntimeDispatcherCallableCoreSharedHelpers
@@ -2229,6 +2232,8 @@ def emitRuntimeDispatcherEmbeddedHelperData : String :=
   ".balign 8\n" ++
   "bal_acct_struct:\n" ++
   "  .zero 104\n" ++
+  ".balign 8\n" ++
+  "bal_addr_padded:\n  .zero 32\n" ++   -- yisv8 .spine.2: padded query addr for the live-balance scan
   ".balign 32\n" ++
   "bal_output_scratch:\n" ++
   "  .zero 32\n" ++
