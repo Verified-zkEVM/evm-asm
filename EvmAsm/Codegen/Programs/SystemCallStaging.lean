@@ -55,6 +55,19 @@ def stageSystemCallPayloadFunction : String :=
   "  beqz t3, .Lscc_recip_d\n" ++
   "  lbu t4, 0(t2); sb t4, 0(t1); addi t2, t2, 1; addi t1, t1, 1; addi t3, t3, -1; j .Lscc_recip\n" ++
   ".Lscc_recip_d:\n" ++
+  -- fhsxz.2.4.2.66.1: conservative payload-size guard (mirrors bmvmx.1.7.2 in
+  -- dispatch_tx_runtime_code). stage_runtime_payload_code zeroes + writes
+  -- round8(codelen) + storage_count*64 + m29_count*32 + 584 bytes into the output
+  -- buffer with no bound of its own; every verdict call site passes c1_staging
+  -- (131072 B, BlockVerdictDataSection.lean — keep the literal in sync). Predeploy
+  -- code is read from the witness and NOT EIP-170-bounded (the system_contract_errors
+  -- EEST predeploys are 72946 B), so an unchecked copy clobbers the .data globals
+  -- above c1_staging. Bail (a0=1, unsupported -> requests-hash fail) instead of
+  -- corrupting .data. System-call calldata is always empty (ctx@64 stays 0).
+  "  addi t1, s2, 7; andi t1, t1, -8\n" ++                                         -- round8(codelen)
+  "  la t0, scc_preload_count; ld t2, 0(t0); slli t2, t2, 6; add t1, t1, t2\n" ++  -- + storage_count*64
+  "  la t0, m29_stage_count; ld t2, 0(t0); slli t2, t2, 5; add t1, t1, t2\n" ++    -- + M29 hashes (count*32)
+  "  addi t1, t1, 584; li t2, 131072; bgtu t1, t2, .Lscc_toobig\n" ++              -- payload > buffer -> bail
   -- stage_runtime_payload_code(ctx, out, exec, code, codelen, null, 0)
   -- 8uld3.2.1.5: pass the predeploy STORAGE preload (a5/a6) so the predeploy's SLOAD of its
   -- request queue reads the staged witness values (not garbage). scc_preload_ptr/count default
@@ -83,6 +96,9 @@ def stageSystemCallPayloadFunction : String :=
   "  add a5, t3, t5; lbu a6, 0(a5); li a5, 19; sub a5, a5, t5; add a5, t4, a5; sb a6, 0(a5); addi t5, t5, 1; j .Lscc_origin\n" ++
   ".Lscc_origin_d:\n" ++
   "  li a0, 0\n" ++
+  "  j .Lscc_ret\n" ++
+  ".Lscc_toobig:\n" ++
+  "  li a0, 1\n" ++
   ".Lscc_ret:\n" ++
   "  ld ra, 0(sp)\n" ++
   "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++

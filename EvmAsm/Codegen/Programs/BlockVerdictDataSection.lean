@@ -217,7 +217,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bvcd_key_count:\n  .zero 8\n" ++
   "bvcd_sc_count:\n  .zero 8\n" ++
   "bvcd_i:\n  .zero 8\n" ++
-  "bvcd_keys:\n  .zero 4096\n" ++      -- bmvmx.1.7.3: up to 128 x 32-byte slot keys (was 16; bal_recipient_storage_keys caps at 128)
+  "bvcd_keys:\n  .zero 16384\n" ++     -- fhsxz.2.4.2.66.1: 512 x 32-byte slot keys (bal_recipient_storage_keys now caps at 512; the dispatch-tx caller still bails >128 — bvcd_preload stays 128-sized — but the keys it writes before that bail must fit)
   "bvcd_preload:\n  .zero 8192\n" ++   -- bmvmx.1.7.3: up to 128 x 64-byte (key,value) pairs (was 16)
   -- bmvmx.1.6.2 exec-vs-BAL recipient storage check scratch (bal_storage_change_values +
   -- bal_storage_matches_exec_log), now linked into the verdict's contract-dispatch tail.
@@ -245,7 +245,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "csce_key_i:\n  .zero 8\n" ++ "csce_key_n:\n  .zero 8\n" ++
   ".balign 32\n" ++
   "csce_addrkey:\n  .zero 32\n" ++
-  "csce_keys:\n  .zero 4096\n" ++   -- up to 128 x 32-byte slot keys
+  "csce_keys:\n  .zero 16384\n" ++   -- fhsxz.2.4.2.66.1: 512 x 32-byte slot keys (matches the raised bal_recipient_storage_keys cap; the seed loop still skips accounts >128)
 
   "bv_eip7778_status:\n  .zero 8\n" ++
   "bv_eip7778_index:\n  .zero 8\n" ++
@@ -332,7 +332,15 @@ def ziskStatelessVerdictV2DataSection : String :=
   "c1_wcode_len:\n  .zero 8\n" ++
   "c1_er_input:\n  .zero 8\n" ++
   ".balign 8\n" ++
-  "c1_staging:\n  .zero 32768\n" ++   -- Fix7: system-call payload = env_base+504; env_base grows with the predeploy's storage preload (up to 128 slots*64) + M29 block hashes. 4096 overflowed for above-max queues (100 slots -> ~7.5KB) -> truncated storage section -> SLOAD miss -> empty derived body.
+  -- Fix7: system-call payload = env_base+504; env_base grows with the predeploy's storage preload (up to 128 slots*64) + M29 block hashes. 4096 overflowed for above-max queues (100 slots -> ~7.5KB) -> truncated storage section -> SLOAD miss -> empty derived body.
+  -- fhsxz.2.4.2.66.1: 32768 overflowed for the system_contract_errors EEST predeploys
+  -- (modified 7002/7251 contracts of 72946 B; predeploy code is NOT EIP-170-bounded):
+  -- stage_runtime_payload_code's zero+code copy ran ~40 KiB past the buffer, smashing
+  -- every .data global above (c1_saved_*, dbsr_*, rlp args) -> ERROR(exit)/false-reject.
+  -- 131072 fits round8(code) + preload + M29 + 584 for those rows; the new size guard in
+  -- stage_system_call_payload (SystemCallStaging.lean, keep its 131072 literal in sync)
+  -- bails on anything larger instead of corrupting .data.
+  "c1_staging:\n  .zero 131072\n" ++
   ".balign 8\n" ++
   "c1_er_assembled:\n  .zero 2048\n" ++
   "c1_ccode_ptr:\n  .zero 8\n" ++
@@ -340,7 +348,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "c1_bal_acct_ptr:\n  .zero 8\n" ++
   "c1_bal_acct_len:\n  .zero 8\n" ++
   ".balign 8\n" ++
-  "c1_preload:\n  .zero 8192\n" ++
+  "c1_preload:\n  .zero 32768\n" ++   -- fhsxz.2.4.2.66.1: 512 x 64-byte (key,value) pairs (was 128; the system_contract_errors predeploys commit 306 BAL storage changes that the system-call preload must stage)
   "c1_bal_start:\n  .zero 8\n" ++
   "c1_bal_len:\n  .zero 8\n" ++
   "c1_bal_count:\n  .zero 8\n" ++
