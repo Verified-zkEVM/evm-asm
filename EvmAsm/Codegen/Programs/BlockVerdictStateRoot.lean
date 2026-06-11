@@ -431,9 +431,7 @@ def statelessVerdictV2Function : String :=
   -- is resolved at the PRE-state (parent header). witness.state = svf_witness_section+off0 ..
   -- svf_codes_ptr; witness.codes = svf_codes_ptr/len.
   "  la t0, evm_env; ld t1, 448(t0); la t2, c1_saved_logcount; sd t1, 0(t2)\n" ++
-  "  la t0, svf_witness_section; ld t1, 0(t0); mv a0, t1; jal ra, bgv_u32le\n" ++
-  "  la t0, svf_witness_section; ld t1, 0(t0); add a3, t1, a0\n" ++
-  "  la t0, svf_codes_ptr; ld t1, 0(t0); sub a4, t1, a3\n" ++
+  "  la t0, svf_witness; ld a3, 0(t0); la t0, svf_witness_len; ld a4, 0(t0)\n" ++
   "  la t0, svf_parent_rlp; ld a0, 0(t0); la t0, svf_parent_rlp_len; ld a1, 0(t0)\n" ++
   "  la a2, withdrawal_request_predeploy_addr\n" ++
   "  la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0)\n" ++
@@ -441,9 +439,7 @@ def statelessVerdictV2Function : String :=
   "  bnez a0, .Lv2_requests_hash_fail\n" ++
   "  la t0, svf_codes_ptr; ld t1, 0(t0); la t2, cahsr_code_offset; ld t3, 0(t2); add t4, t1, t3\n" ++
   "  la t0, c1_wcode_ptr; sd t4, 0(t0); la t2, cahsr_code_length; ld t3, 0(t2); la t0, c1_wcode_len; sd t3, 0(t0)\n" ++
-  "  la t0, svf_witness_section; ld t1, 0(t0); mv a0, t1; jal ra, bgv_u32le\n" ++
-  "  la t0, svf_witness_section; ld t1, 0(t0); add a3, t1, a0\n" ++
-  "  la t0, svf_codes_ptr; ld t1, 0(t0); sub a4, t1, a3\n" ++
+  "  la t0, svf_witness; ld a3, 0(t0); la t0, svf_witness_len; ld a4, 0(t0)\n" ++
   "  la t0, svf_parent_rlp; ld a0, 0(t0); la t0, svf_parent_rlp_len; ld a1, 0(t0)\n" ++
   "  la a2, consolidation_request_predeploy_addr\n" ++
   "  la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0)\n" ++
