@@ -956,6 +956,11 @@ def blockVerdictFunction : String :=
   "  jal ra, tx_gas_bal_post_verify_runtime\n" ++
   "  la t0, bv_sender_bal_check; ld t0, 0(t0)\n" ++
   "  li t1, 40; beq t0, t1, .Lbv_sbc_bal_mismatch\n" ++          -- clean balance mismatch -> coinbase gate
+  -- bmvmx.4: status 50 = check_transaction fee invalid (max_fee < base_fee, or
+  -- priority_fee > max_fee); the runtime verify detected it and the spec REJECTS
+  -- (InsufficientMaxFeePerGasError / PriorityFeeGreaterThanMaxFeeError), so reject
+  -- here rather than fall through to the cannot-compare skip below.
+  "  li t1, 50; beq t0, t1, .Lbv_fee_invalid_fail\n" ++
   "  bnez t0, .Lbv_after_tx_gas_precharge\n" ++                  -- lookup miss / cannot-compare -> skip
   -- bmvmx.1.6.3 (nonce slice): the balance matched (status 0); now verify the sender's BAL post
   -- nonce == pre_nonce + 1 against execution (a single tx from the sender increments its nonce
@@ -1215,6 +1220,8 @@ def blockVerdictFunction : String :=
   "  li t0, 46; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_sender_upfront_fail:\n" ++         -- bmvmx.2: sender_pre_balance < gas_limit*max_fee + value (InsufficientBalanceError)
   "  li t0, 48; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_fee_invalid_fail:\n" ++           -- bmvmx.4: tx fee invalid (max_fee < base_fee, or priority > max_fee) -> check_transaction reject
+  "  li t0, 49; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_zero:\n" ++
   "  li a0, 0\n" ++
   ".Lbv_ret:\n" ++
