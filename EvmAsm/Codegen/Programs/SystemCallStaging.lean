@@ -56,7 +56,11 @@ def stageSystemCallPayloadFunction : String :=
   "  lbu t4, 0(t2); sb t4, 0(t1); addi t2, t2, 1; addi t1, t1, 1; addi t3, t3, -1; j .Lscc_recip\n" ++
   ".Lscc_recip_d:\n" ++
   -- stage_runtime_payload_code(ctx, out, exec, code, codelen, null, 0)
-  "  la a0, scc_ctx\n  mv a1, s4\n  mv a2, s3\n  mv a3, s1\n  mv a4, s2\n  li a5, 0\n  li a6, 0\n" ++
+  -- 8uld3.2.1.5: pass the predeploy STORAGE preload (a5/a6) so the predeploy's SLOAD of its
+  -- request queue reads the staged witness values (not garbage). scc_preload_ptr/count default
+  -- to 0 (empty-storage behavior, unchanged) unless the caller stages a preload first.
+  "  la a0, scc_ctx\n  mv a1, s4\n  mv a2, s3\n  mv a3, s1\n  mv a4, s2\n" ++
+  "  la t0, scc_preload_ptr; ld a5, 0(t0); la t0, scc_preload_count; ld a6, 0(t0)\n" ++
   "  jal ra, stage_runtime_payload_code\n" ++
   "  bnez a0, .Lscc_ret\n" ++                        -- unsupported -> propagate
   -- CALLER (env_base+64) + ORIGIN (env_base+128) = SYSTEM_ADDRESS (mirror 3vc2p.1).
@@ -278,6 +282,7 @@ def ziskStageSystemCallPayloadDataSection : String :=
   ".section .data\n" ++
   ".balign 8\n" ++
   "scc_ctx:\n  .zero 192\n" ++
+  "scc_preload_ptr:\n  .zero 8\nscc_preload_count:\n  .zero 8\n" ++
   ".balign 8\n" ++
   "scc_system_addr:\n" ++   -- SYSTEM_ADDRESS 0xfffffffffffffffffffffffffffffffffffffffe (20B BE)
   "  .byte 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff\n" ++

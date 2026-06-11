@@ -91,6 +91,7 @@ def statelessGuestUnit : BuildUnit := {
     -- are already present). scc_ctx/scc_system_addr/ssc_saved_* are inline-only in the probes.
     ".balign 8\n" ++
     "scc_ctx:\n  .zero 192\n" ++
+    "scc_preload_ptr:\n  .zero 8\nscc_preload_count:\n  .zero 8\n" ++
     ".balign 8\n" ++
     "scc_system_addr:\n" ++
     "  .byte 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff\n" ++
