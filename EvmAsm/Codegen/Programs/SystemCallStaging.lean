@@ -64,17 +64,23 @@ def stageSystemCallPayloadFunction : String :=
   "  jal ra, stage_runtime_payload_code\n" ++
   "  bnez a0, .Lscc_ret\n" ++                        -- unsupported -> propagate
   -- CALLER (env_base+64) + ORIGIN (env_base+128) = SYSTEM_ADDRESS (mirror 3vc2p.1).
+  -- 8uld3.2.3.3.1 Fix4: write the 20 address bytes BYTE-REVERSED (dst byte 19-i <- src byte i).
+  -- `evm_env_load` copies the env word VERBATIM as 4 little-endian limbs to the EVM stack, so an
+  -- address must sit in env in little-endian (LSB at +0), right-aligned. The big-endian write
+  -- (mirrored from 3vc2p.1, which is INERT — self-contained mtx recipients never run CALLER) made
+  -- the 7002/7251 predeploy see caller != SYSTEM and return the fee-getter result instead of
+  -- processing the queue. Same BE->LE class as the storage preload (#8694).
   "  la t5, srpc_env_base; ld t1, 0(t5)\n" ++
   "  add t2, s4, t1\n" ++                            -- t2 = &env_words
   "  la t3, scc_system_addr; addi t4, t2, 64; li t5, 0\n" ++
   ".Lscc_caller:\n" ++
   "  li t6, 20; beq t5, t6, .Lscc_caller_d\n" ++
-  "  add a5, t3, t5; lbu a6, 0(a5); add a5, t4, t5; sb a6, 0(a5); addi t5, t5, 1; j .Lscc_caller\n" ++
+  "  add a5, t3, t5; lbu a6, 0(a5); li a5, 19; sub a5, a5, t5; add a5, t4, a5; sb a6, 0(a5); addi t5, t5, 1; j .Lscc_caller\n" ++
   ".Lscc_caller_d:\n" ++
   "  addi t4, t2, 128; li t5, 0\n" ++
   ".Lscc_origin:\n" ++
   "  li t6, 20; beq t5, t6, .Lscc_origin_d\n" ++
-  "  add a5, t3, t5; lbu a6, 0(a5); add a5, t4, t5; sb a6, 0(a5); addi t5, t5, 1; j .Lscc_origin\n" ++
+  "  add a5, t3, t5; lbu a6, 0(a5); li a5, 19; sub a5, a5, t5; add a5, t4, a5; sb a6, 0(a5); addi t5, t5, 1; j .Lscc_origin\n" ++
   ".Lscc_origin_d:\n" ++
   "  li a0, 0\n" ++
   ".Lscc_ret:\n" ++
