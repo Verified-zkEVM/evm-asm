@@ -1059,21 +1059,21 @@ def blockVerdictFunction : String :=
   "  slli t4, t3, 3; add t5, t0, t4; ld t5, 0(t5); add t2, t2, t5; addi t3, t3, 1; j .Lbv_bstate_sum\n" ++
   ".Lbv_bstate_done:\n" ++
   "  bgtu t2, t6, .Lbv_block_state_gas_fail\n" ++
-  -- g8zeq.1.4.2 ceiling: complete the EIP-8037 equality header.gas_used == max(block_regular,
-  -- block_state) by rejecting an over-claim header.gas_used > max(...). block_regular =
-  -- sum(bvgr_block_gas_increments) is the same array the EIP-7778 gate consumed above (line
-  -- ~1011) and the arena only reaches here prepared (every tx measured self-contained /
-  -- execution-exact per the gate's own contract), so block_regular is execution-exact and a
-  -- valid block's header.gas_used == max(regular,state) is never exceeded -- no false-reject;
-  -- no riskier than the existing EIP-7778 gate that already trusts this array.
-  "  la t0, bvgr_block_gas_increments; la t1, bvgr_arena_tx_count; ld t1, 0(t1); li t3, 0; li t4, 0\n" ++
-  ".Lbv_bregular_sum:\n" ++
-  "  beq t4, t1, .Lbv_bregular_done\n" ++
-  "  slli t5, t4, 3; add t5, t0, t5; ld t5, 0(t5); add t3, t3, t5; addi t4, t4, 1; j .Lbv_bregular_sum\n" ++
-  ".Lbv_bregular_done:\n" ++
-  "  mv t5, t2; bgeu t5, t3, .Lbv_maxgas_done; mv t5, t3   # t5 = max(block_state t2, block_regular t3)\n" ++
-  ".Lbv_maxgas_done:\n" ++
-  "  bgtu t6, t5, .Lbv_block_gas_used_over_fail            # header.gas_used > max -> reject (over-claim)\n" ++
+  -- xexgj: the g8zeq.1.4.2 "EIP-8037 equality" ceiling (header.gas_used > max(block_regular,
+  -- block_state) -> reject) was UNSOUND. block_state (intrinsic, ~line 1040) is only a LOWER bound
+  -- on the actual EIP-8037 STATE gas -- state-creation gas is execution-dependent, not intrinsic --
+  -- so for a state-gas block max(block_regular, block_state) < header.gas_used and the gate
+  -- false-rejected valid blocks. Verified on eip8037 state_gas_reservoir/block_regular_gas_limit:
+  -- runtime_count==tx_count (so block_regular=147000 was exact), block_state=0, but the real state
+  -- gas == header.gas_used == 0x07000000 -- the entire miss is block_state, which the guest cannot
+  -- compute intrinsically. Replace with the SOUND block-gas-limit ceiling: every valid block has
+  -- header.gas_used <= header.gas_limit (exec payload @+412); that is exactly what the
+  -- "exceed_block_gas_limit" fixtures exercise. The exact EIP-8037 equality (gas_used ==
+  -- max(regular,state)) needs the execution-exact state gas -- deferred; the receipts_root
+  -- comparison (.63.1.6) also pins cumulative gas. (Block-state FLOOR above stays: intrinsic exact.)
+  "  mv t1, t6                                            # stash gas_used (bgv_u64le clobbers t6)\n" ++
+  "  la t5, bv_exec_p; ld t4, 0(t5); addi a0, t4, 412; jal ra, bgv_u64le   # header.gas_limit @+412\n" ++
+  "  bgtu t1, a0, .Lbv_block_gas_used_over_fail            # header.gas_used > gas_limit -> reject\n" ++
   ".Lbv_after_gas_result_gate:\n" ++
   "  la t2, bv_exec_p; ld a0, 0(t2)\n" ++
   "  mv a1, s3\n" ++
