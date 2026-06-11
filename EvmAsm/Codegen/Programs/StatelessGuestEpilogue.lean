@@ -791,6 +791,26 @@ def statelessGuestEpilogue : String :=
   ".Lsg_npr_restore:\n" ++
   "  add t3, t1, t2; ld t4, 0(t3); add t3, t0, t2; sd t4, 0(t3)\n" ++
   "  addi t2, t2, 8; li t3, 112; bltu t2, t3, .Lsg_npr_restore\n" ++
+  -- b2ov4: enforce STATELESS_INPUT_SCHEMA_ID before emitting a successful
+  -- validation. The spec's deserialize_stateless_input (amsterdam
+  -- stateless_guest.py:31-40) reads the leading 2 bytes big-endian and RAISES
+  -- ValueError unless they equal STATELESS_INPUT_SCHEMA_ID (=0x0001,
+  -- stateless_ssz.py:64) BEFORE any SSZ decode/verify. The guest reads the SSZ
+  -- body unconditionally from SSZ_BASE = INPUT+18, never consulting the 2-byte
+  -- schema prefix at INPUT+16, so a wrong-schema-but-otherwise-valid input would
+  -- decode and could reach succ=01 -- a false-accept of input the Python entry
+  -- point rejects. Gate it here (a0 = verdict bit; force 0 on a schema mismatch).
+  -- INPUT base = 0x40000000, schema id = bytes [INPUT+16]=0x00, [INPUT+17]=0x01.
+  -- Every real fixture carries 0x0001, so this is transparent to passing rows.
+  "  li t1, 0x40000000; addi t1, t1, 16   # &schema_id (2 bytes, big-endian)\n" ++
+  "  lbu t2, 0(t1)                        # schema_id hi byte (must be 0x00)\n" ++
+  "  lbu t3, 1(t1)                        # schema_id lo byte (must be 0x01)\n" ++
+  "  bnez t2, .Lsg_bad_schema\n" ++
+  "  li t4, 1; bne t3, t4, .Lsg_bad_schema\n" ++
+  "  j .Lsg_schema_ok\n" ++
+  ".Lsg_bad_schema:\n" ++
+  "  li a0, 0                             # unsupported schema id -> reject (succ=00)\n" ++
+  ".Lsg_schema_ok:\n" ++
   "  li t0, 0xa0010000; sb a0, 32(t0)\n" ++
   "  # Restore zisk's trap vector before the final Linux-93 halt ecall.\n" ++
   "  li t0, 0xa0009828          # zisk MTVEC memory slot\n" ++
