@@ -683,6 +683,8 @@ def emitRuntimeAccountWitnessData : String :=
   ".balign 8\n" ++
   "bal_acct_struct:\n" ++
   "  .zero 104\n" ++
+  ".balign 8\n" ++
+  "bal_addr_padded:\n  .zero 32\n" ++   -- yisv8 .spine.2: padded query addr for the live-balance scan
   ".balign 32\n" ++
   "bal_output_scratch:\n" ++
   "  .zero 32\n" ++
@@ -2230,6 +2232,8 @@ def emitRuntimeDispatcherEmbeddedHelperData : String :=
   ".balign 8\n" ++
   "bal_acct_struct:\n" ++
   "  .zero 104\n" ++
+  ".balign 8\n" ++
+  "bal_addr_padded:\n  .zero 32\n" ++   -- yisv8 .spine.2: padded query addr for the live-balance scan
   ".balign 32\n" ++
   "bal_output_scratch:\n" ++
   "  .zero 32\n" ++
