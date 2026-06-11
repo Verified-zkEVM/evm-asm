@@ -1,16 +1,15 @@
 #!/usr/bin/env bash
-# codegen-zisk-sstore-clear-gas-check.sh -- diagnostic for bead .57.11.6.5.3 (d'/bv_fail=41).
+# codegen-zisk-sstore-clear-gas-check.sh -- regression pin for the SSTORE-clear
+# charge (formerly the bead .57.11.6.5.3 d'/bv_fail=41 undercount reproducer).
 #
-# Reproduces the multi_transaction_gas_accounting tx0 regular-gas undercount STANDALONE:
-# dispatch 10x (PUSH0; PUSH1 i; SSTORE) clearing slots 0..9 (each preloaded to 1) with gas=71050.
-# FINDINGS (claude-c1): the dispatch runs ALL 10 SSTOREs (log_count=20) but charges only 45850
-# (gas_left=25200) vs the spec's 71050 (10 cold SSTORE-clears @5000). Isolated: the FIRST SSTORE
-# charges 5000 (correct cold); the 2nd+ DISTINCT slots charge 2200 = 100 static + 2000 cold-access
-# + 100 DIRTY transition -> the handler mis-sees repeated-tx SSTOREs as DIRTY (wrong original/current
-# from the log scan), charging the 100 dirty path instead of 2900 clean-changing. This is the (d')
-# block_regular undercount that false-rejects mtx rows 1-8 (bv_fail=41).
-# Asserts the dispatch INVARIANTS (status=0, all 10 SSTOREs executed) and documents the undercharge
-# (gas_left=25200; the fix target is gas_left~0 / each SSTORE 5000).
+# Dispatches 10x (PUSH0; PUSH1 i; SSTORE) clearing slots 0..9 (each preloaded to 1)
+# with gas=71050. Amsterdam spec: 21000 intrinsic + 10 x (2 + 3 + 5000) = 71050,
+# where each cold clean-changing SSTORE-clear is 2100 cold + 2900 regular = 5000
+# (no EIP-8037 state gas: the original is non-zero). Expects gas_left == 0 and all
+# 10 SSTOREs executed (log_count = 10 preload + 10 appends = 20).
+# History: this used to assert the d' undercharge (gas_left=25200), caused by
+# BE-staged preload keys being invisible to the LE exec-log scan -- fixed in
+# dispatch_tx_runtime_code (BAL keys) and in the probe's own preload (now LE).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 ZISKEMU="${ZISKEMU:-}"
@@ -33,11 +32,6 @@ print(f"  status={st} gas_left={gl} log_count={lc} (block_inc={71050-gl})")
 # correctness invariants: staged+dispatched ok, all 10 SSTOREs ran (10 preload + 10 appends = 20)
 assert st==0, f"staging/dispatch failed (status={st})"
 assert lc==20, f"not all 10 SSTOREs executed (log_count={lc}, expected 20)"
-if gl==0:
-    print("  FIXED: gas_left=0 -> all SSTORE-clears charged correctly (5000 each). Update this check.")
-else:
-    print(f"  KNOWN BUG (d'/.57.11.6.5.3): gas_left={gl} (expect 25200) -> block_regular undercount; "
-          f"2nd+ SSTOREs charged ~2200 (dirty) not 5000 (cold clean-changing). Fix target: gas_left~0.")
-    assert gl==25200, f"undercharge magnitude changed ({gl} != 25200) -- investigate"
-print("  PASS (reproducer): dispatch ran all 10 SSTOREs; the undercharge is characterized.")
+assert gl==0, f"SSTORE-clear charge drifted: gas_left={gl}, expected 0 (each clear = 5000)"
+print("  PASS: all 10 cold SSTORE-clears charged the full 5000 (gas_left=0).")
 PY

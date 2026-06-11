@@ -23,13 +23,23 @@ open EvmAsm.Rv64
     a4 = output ptr
 
     Output:
-      +0  gas cost u64
+      +0  gas cost u64 (regular gas only; the EIP-8037 state-gas charge for a
+          zero-origin creation is accounted by the caller via
+          `evm_state_gas_left`/`evm_state_gas_used`)
       +8  refund delta i64 encoded as two's-complement u64
       +16 changed flag (current != new)
       +24 accessed-after flag (always 1 for a successful SSTORE access)
+      +32 zero-restore state-gas credit flag (original == new == 0 with a
+          change → the caller applies credit_state_gas_refund(97920))
 
     Mirrors execution-specs/src/ethereum/forks/amsterdam/vm/instructions/storage.py:
-    cold surcharge, original/current/new gas branch, and refund counter branch. -/
+    cold surcharge, original/current/new gas branch, and refund counter branch.
+    Amsterdam dropped the legacy EIP-2200 SET(20000) split: clean-changing
+    charges COLD_STORAGE_WRITE - COLD_STORAGE_ACCESS = 2900 regardless of the
+    original being zero (the creation charge moved to EIP-8037 state gas), and
+    the restore refund is uniformly COLD_STORAGE_WRITE - COLD_STORAGE_ACCESS -
+    WARM_ACCESS = 2800 (the zero-restore case additionally credits state gas,
+    surfaced via the +32 flag). -/
 def sstoreGasRefundOutcomeFunction : String :=
   "sstore_gas_refund_outcome:\n" ++
   "  addi sp, sp, -80\n" ++
@@ -77,18 +87,14 @@ def sstoreGasRefundOutcomeFunction : String :=
   ".Lsgr_access_warm:\n" ++
   "  beqz s3, .Lsgr_warm_access_cost\n" ++
   "  bnez s4, .Lsgr_warm_access_cost\n" ++
-  "  beqz s0, .Lsgr_reset_cost\n" ++
-  "  li t0, 20000\n" ++
-  "  add s6, s6, t0\n" ++
-  "  j .Lsgr_refund\n" ++
-  ".Lsgr_reset_cost:\n" ++
-  "  li t0, 2900                 # COLD_STORAGE_WRITE - COLD_STORAGE_ACCESS\n" ++
-  "  add s6, s6, t0\n" ++
+  "  li t0, 2900                 # clean-changing: COLD_STORAGE_WRITE - COLD_STORAGE_ACCESS\n" ++
+  "  add s6, s6, t0\n" ++        -- (Amsterdam: no SET split; zero-origin creation is EIP-8037 state gas)
   "  j .Lsgr_refund\n" ++
   ".Lsgr_warm_access_cost:\n" ++
   "  li t0, 100\n" ++
   "  add s6, s6, t0\n" ++
   ".Lsgr_refund:\n" ++
+  "  li t2, 0                    # zero-restore state-gas credit flag\n" ++
   "  bnez s4, .Lsgr_store\n" ++
   "  bnez s0, .Lsgr_restore_check\n" ++
   "  bnez s1, .Lsgr_reverse_clear\n" ++
@@ -101,13 +107,10 @@ def sstoreGasRefundOutcomeFunction : String :=
   "  sub s7, s7, t0\n" ++
   ".Lsgr_restore_check:\n" ++
   "  beqz s5, .Lsgr_store\n" ++
-  "  beqz s0, .Lsgr_restore_nonzero\n" ++
-  "  li t0, 19900                # STORAGE_SET - WARM_ACCESS\n" ++
+  "  li t0, 2800                 # restore: COLD_STORAGE_WRITE - COLD_STORAGE_ACCESS - WARM_ACCESS\n" ++
   "  add s7, s7, t0\n" ++
-  "  j .Lsgr_store\n" ++
-  ".Lsgr_restore_nonzero:\n" ++
-  "  li t0, 2800                 # COLD_STORAGE_WRITE - COLD_STORAGE_ACCESS - WARM_ACCESS\n" ++
-  "  add s7, s7, t0\n" ++
+  "  beqz s0, .Lsgr_store\n" ++
+  "  li t2, 1                    # zero restore: caller credits state gas (EIP-8037)\n" ++
   ".Lsgr_store:\n" ++
   "  sd s6, 0(a4)\n" ++
   "  sd s7, 8(a4)\n" ++
@@ -115,6 +118,7 @@ def sstoreGasRefundOutcomeFunction : String :=
   "  sd t0, 16(a4)\n" ++
   "  li t0, 1\n" ++
   "  sd t0, 24(a4)\n" ++
+  "  sd t2, 32(a4)\n" ++
   "  li a0, 0\n" ++
   "  ld ra, 0(sp)\n" ++
   "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
@@ -133,7 +137,8 @@ def sstoreGasRefundOutcomeFunction : String :=
       OUTPUT+8  gas cost
       OUTPUT+16 refund delta i64/two's-complement u64
       OUTPUT+24 changed flag
-      OUTPUT+32 accessed-after flag -/
+      OUTPUT+32 accessed-after flag
+      OUTPUT+40 zero-restore state-gas credit flag -/
 def ziskSstoreGasRefundOutcomePrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li t0, 0x40000000\n" ++

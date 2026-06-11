@@ -481,7 +481,9 @@ def blockVerdictFunction : String :=
   "  la t0, bv_mtx_i; ld t1, 0(t0); slli t0, t1, 3\n" ++
   "  la t3, bv_mtx_gas_left; add t3, t3, t0; sd a1, 0(t3)\n" ++
   "  la t3, bv_mtx_calldata; add t3, t3, t0; sd a2, 0(t3)\n" ++
-  "  la t3, bv_mtx_refund;   add t3, t3, t0; la t4, evm_refund_acc; ld t4, 0(t4); sd t4, 0(t3)\n" ++
+  -- nxio8: a3 = the settle-folded refund counter (0 when the tx erred), not a
+  -- raw evm_refund_acc read.
+  "  la t3, bv_mtx_refund;   add t3, t3, t0; sd a3, 0(t3)\n" ++
   -- fhsxz.2.4.2.57.11.6.3.2: snapshot this tx's committed storage into the cross-tx table,
   -- re-keyed (addrHash) to its recipient (bv_mtx_ctx+72, 20B zero-padded to 32) so the next
   -- tx's preload can thread a prior tx's committed value. The live exec log (env+448 entries
@@ -686,11 +688,13 @@ def blockVerdictFunction : String :=
   "  ld s0, 0(sp); ld s1, 8(sp); ld s2, 16(sp); ld s3, 24(sp)\n" ++
   "  addi sp, sp, 32\n" ++
   "  la t4, runtime_dispatcher_input_ptr; sd zero, 0(t4)\n" ++
-  "  la t2, evm_env; ld t3, 568(t2)\n" ++
-  "  la t4, bv_runtime_gas_left; sd t3, 0(t4)\n" ++
+  -- nxio8: settle fold (EIP-8037 state gas + tx-error rules) instead of a raw
+  -- env[568] read; a0 = effective gas_left, a1 = effective refund counter.
+  "  jal ra, dispatcher_tx_gas_settle\n" ++
+  "  la t4, bv_runtime_gas_left; sd a0, 0(t4)\n" ++
+  "  la t4, bv_runtime_refund_counter; sd a1, 0(t4)\n" ++
   "  la t4, runtime_tx_calldata_floor; ld t5, 0(t4)\n" ++
   "  la t4, bv_runtime_calldata_floor; sd t5, 0(t4)\n" ++
-  "  la t4, bv_runtime_refund_counter; la t5, evm_refund_acc; ld t5, 0(t5); sd t5, 0(t4)\n" ++
   "  la t4, bvgr_runtime_gas_left_ptr; la t5, bv_runtime_gas_left; sd t5, 0(t4)\n" ++
   "  la t4, bvgr_runtime_refund_counter_ptr; la t5, bv_runtime_refund_counter; sd t5, 0(t4)\n" ++
   "  la t4, bvgr_runtime_calldata_floor_ptr; la t5, bv_runtime_calldata_floor; sd t5, 0(t4)\n" ++
@@ -732,7 +736,9 @@ def blockVerdictFunction : String :=
   "  bnez a0, .Lbv_after_tx_gas_precharge\n" ++
   "  la t4, bv_runtime_gas_left; sd a1, 0(t4)\n" ++
   "  la t4, bv_runtime_calldata_floor; sd a2, 0(t4)\n" ++
-  "  la t4, bv_runtime_refund_counter; la t5, evm_refund_acc; ld t5, 0(t5); sd t5, 0(t4)\n" ++
+  -- nxio8: a3 = the settle-folded refund counter (0 when the tx erred), not a
+  -- raw evm_refund_acc read.
+  "  la t4, bv_runtime_refund_counter; sd a3, 0(t4)\n" ++
   "  la t4, bvgr_runtime_gas_left_ptr; la t5, bv_runtime_gas_left; sd t5, 0(t4)\n" ++
   "  la t4, bvgr_runtime_refund_counter_ptr; la t5, bv_runtime_refund_counter; sd t5, 0(t4)\n" ++
   "  la t4, bvgr_runtime_calldata_floor_ptr; la t5, bv_runtime_calldata_floor; sd t5, 0(t4)\n" ++
