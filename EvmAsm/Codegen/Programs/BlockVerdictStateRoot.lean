@@ -422,9 +422,49 @@ def statelessVerdictV2Function : String :=
   "  bnez a0, .Lv2_withdrawals_root_fail\n" ++
   "  addi a0, s0, 56; jal ra, bgv_u32le; mv s3, a0     # execution_requests offset\n" ++
   "  addi a0, s0, 4;  jal ra, bgv_u32le; mv s4, a0     # witness offset = NPR end\n" ++
-  "  addi a0, s0, 16; add a0, a0, s3                   # er section start\n" ++
-  "  sub a1, s4, s3; addi a1, a1, -16                  # er section len\n" ++
-  "  la a2, erh_requests_hash\n" ++
+  -- 8uld3.2.3.3.1 (C.1): hash the EXECUTION-DERIVED withdrawal(EIP-7002)+consolidation(EIP-7251)
+  -- request bodies instead of trusting the SSZ-input ones (deposits stay SSZ-trusted -> .3.3).
+  -- Snapshot/restore the exec-log count (evm_env+448) around the system calls so their SSTORE
+  -- effects stay OUT of the storage comparator (preserving its current passing behavior; the
+  -- 7002/7251 predeploy writes are EIP-7928 index-0 system writes the comparator already
+  -- tolerates). s0=NPR base, s3=er offset survive (callees preserve s-regs). The predeploy code
+  -- is resolved at the PRE-state (parent header). witness.state = svf_witness_section+off0 ..
+  -- svf_codes_ptr; witness.codes = svf_codes_ptr/len.
+  "  la t0, evm_env; ld t1, 448(t0); la t2, c1_saved_logcount; sd t1, 0(t2)\n" ++
+  "  la t0, svf_witness_section; ld t1, 0(t0); mv a0, t1; jal ra, bgv_u32le\n" ++
+  "  la t0, svf_witness_section; ld t1, 0(t0); add a3, t1, a0\n" ++
+  "  la t0, svf_codes_ptr; ld t1, 0(t0); sub a4, t1, a3\n" ++
+  "  la t0, svf_parent_rlp; ld a0, 0(t0); la t0, svf_parent_rlp_len; ld a1, 0(t0)\n" ++
+  "  la a2, withdrawal_request_predeploy_addr\n" ++
+  "  la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0)\n" ++
+  "  jal ra, code_at_header_state_root\n" ++
+  "  bnez a0, .Lv2_requests_hash_fail\n" ++
+  "  la t0, svf_codes_ptr; ld t1, 0(t0); la t2, cahsr_code_offset; ld t3, 0(t2); add t4, t1, t3\n" ++
+  "  la t0, c1_wcode_ptr; sd t4, 0(t0); la t2, cahsr_code_length; ld t3, 0(t2); la t0, c1_wcode_len; sd t3, 0(t0)\n" ++
+  "  la t0, svf_witness_section; ld t1, 0(t0); mv a0, t1; jal ra, bgv_u32le\n" ++
+  "  la t0, svf_witness_section; ld t1, 0(t0); add a3, t1, a0\n" ++
+  "  la t0, svf_codes_ptr; ld t1, 0(t0); sub a4, t1, a3\n" ++
+  "  la t0, svf_parent_rlp; ld a0, 0(t0); la t0, svf_parent_rlp_len; ld a1, 0(t0)\n" ++
+  "  la a2, consolidation_request_predeploy_addr\n" ++
+  "  la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0)\n" ++
+  "  jal ra, code_at_header_state_root\n" ++
+  "  bnez a0, .Lv2_requests_hash_fail\n" ++
+  "  la t0, svf_codes_ptr; ld t1, 0(t0); la t2, cahsr_code_offset; ld t3, 0(t2); add a2, t1, t3\n" ++
+  "  la t2, cahsr_code_length; ld a3, 0(t2)\n" ++
+  "  la t0, c1_wcode_ptr; ld a0, 0(t0); la t0, c1_wcode_len; ld a1, 0(t0)\n" ++
+  "  la t0, svf_payload; ld a4, 0(t0); la a5, c1_staging\n" ++
+  "  jal ra, derive_block_system_requests\n" ++
+  "  la t0, evm_env; la t2, c1_saved_logcount; ld t1, 0(t2); sd t1, 448(t0)\n" ++
+  "  bnez a0, .Lv2_requests_hash_fail\n" ++
+  "  addi t0, s0, 16; add t0, t0, s3; la t1, c1_er_input; sd t0, 0(t1)\n" ++
+  "  la t0, c1_er_input; ld t1, 0(t0); addi a0, t1, 4; jal ra, bgv_u32le\n" ++
+  "  la t0, c1_er_input; ld t1, 0(t0); addi t2, t1, 12; addi t3, a0, -12\n" ++
+  "  mv a0, t2; mv a1, t3\n" ++
+  "  la t0, dbsr_wbody; mv a2, t0; la t0, dbsr_wlen; ld a3, 0(t0)\n" ++
+  "  la t0, dbsr_cbody; mv a4, t0; la t0, dbsr_clen; ld a5, 0(t0)\n" ++
+  "  la a6, c1_er_assembled\n" ++
+  "  jal ra, assemble_execution_requests\n" ++
+  "  mv a1, a0; la a0, c1_er_assembled; la a2, erh_requests_hash\n" ++
   "  jal ra, execution_requests_hash\n" ++
   "  bnez a0, .Lv2_requests_hash_fail\n" ++
   -- hv09f.1: parse_deposit_requests scans receipts for deposit-contract logs; a

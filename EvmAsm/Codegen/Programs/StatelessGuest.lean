@@ -21,6 +21,7 @@ import EvmAsm.Codegen.Programs.StatelessGuestEpilogue
 import EvmAsm.Codegen.Programs.BlockVerdictV2
 import EvmAsm.Codegen.Programs.SystemCallStaging
 import EvmAsm.Codegen.Programs.ParseDepositRequests
+import EvmAsm.Codegen.Programs.AssembleExecutionRequests
 import EvmAsm.Stateless.Entry
 
 namespace EvmAsm.Codegen
@@ -75,6 +76,9 @@ def statelessGuestUnit : BuildUnit := {
     -- replaces the SSZ-deposits trust (BlockVerdictStateRoot.lean:430-445) with derivation.
     parseDepositRequestsFunction ++ "\n" ++
     extractDepositDataFunction ++ "\n" ++
+    -- 8uld3.2.3.3.1 (C.1): assemble [deposit, derived-w, derived-c] into the SSZ
+    -- execution_requests section that execution_requests_hash then hashes.
+    assembleExecutionRequestsFunction ++ "\n" ++
     ".Lstateless_guest_halt_after_runtime_dispatcher:\n"
   -- guest scratch + the Step-2 verdict's data (zk3_state / rfu_* are dedup'd out
   -- of the guest section since the appended verdict section provides them). The

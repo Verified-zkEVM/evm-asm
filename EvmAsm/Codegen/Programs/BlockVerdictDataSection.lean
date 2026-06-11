@@ -325,6 +325,16 @@ def ziskStatelessVerdictV2DataSection : String :=
   "svf_codes_len:\n  .zero 8\n" ++
   "svf_headers_ptr:\n  .zero 8\n" ++
   "svf_headers_len:\n  .zero 8\n" ++
+  -- 8uld3.2.3.3.1 (C.1): scratch for execution-derived withdrawal+consolidation requests_hash.
+  ".balign 8\n" ++
+  "c1_saved_logcount:\n  .zero 8\n" ++
+  "c1_wcode_ptr:\n  .zero 8\n" ++
+  "c1_wcode_len:\n  .zero 8\n" ++
+  "c1_er_input:\n  .zero 8\n" ++
+  ".balign 8\n" ++
+  "c1_staging:\n  .zero 4096\n" ++
+  ".balign 8\n" ++
+  "c1_er_assembled:\n  .zero 2048\n" ++
   "svf_headers_count:\n  .zero 8\n" ++
   "bbcv_count:\n  .zero 8\n" ++
   "bbcv_off:\n  .zero 8\n" ++
