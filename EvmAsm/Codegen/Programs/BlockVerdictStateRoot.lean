@@ -422,13 +422,14 @@ def statelessVerdictV2Function : String :=
   "  bnez a0, .Lv2_withdrawals_root_fail\n" ++
   "  addi a0, s0, 56; jal ra, bgv_u32le; mv s3, a0     # execution_requests offset\n" ++
   "  addi a0, s0, 4;  jal ra, bgv_u32le; mv s4, a0     # witness offset = NPR end\n" ++
-  -- 8uld3.2.3.3.1 Fix3: the system-call derives below run runtime_dispatcher_call, which
-  -- clobbers ALL s-registers (SystemCallStaging:96-99 — it resets sp to lp64_sp_top and the
-  -- predeploy EVM execution overwrites the s-regs). s0(NPR base)/s3(er offset) are needed
+  -- 8uld3.2.3.3.1 Fix3 / fhsxz.2.4.2.66: the system-call derives below run runtime_dispatcher_call,
+  -- which clobbers ALL s-registers (SystemCallStaging:96-99 — resets sp to lp64_sp_top and the
+  -- predeploy EVM execution overwrites the s-regs) AND, on an OUT-OF-GAS predeploy, writes far
+  -- enough into memory to clobber guest data globals too. s0(SSZ_BASE)/s3(er offset) are needed
   -- AFTER the derives (deposit extraction, no-tx deposit check, block_access_list_hash,
-  -- block_verdict) so save them now and reload after the last derive. (The original
-  -- "callees preserve s-regs" claim below was wrong: the dispatcher does NOT.)
-  "  la t0, c1_saved_s0; sd s0, 0(t0); la t0, c1_saved_s3; sd s3, 0(t0)\n" ++
+  -- block_verdict). Saving them to data globals (c1_saved_s0/s3) was unsafe — the OOG predeploy
+  -- clobbered those globals with 0xb6 (.66 crash) — so they are RE-DERIVED from the stable input
+  -- region after the last derive (see below); no save needed.
   -- 8uld3.2.3.3.1 (C.1): hash the EXECUTION-DERIVED withdrawal(EIP-7002)+consolidation(EIP-7251)
   -- request bodies instead of trusting the SSZ-input ones (deposits stay SSZ-trusted -> .3.3).
   -- Snapshot/restore the exec-log count (evm_env+448) around the system calls so their SSTORE
@@ -516,7 +517,18 @@ def statelessVerdictV2Function : String :=
   "  la t0, evm_env; la t2, c1_saved_logcount; ld t1, 0(t2); sd t1, 448(t0)\n" ++
   "  la t0, scc_preload_count; sd zero, 0(t0)\n" ++
   -- 8uld3.2.3.3.1 Fix3: reload s0/s3 clobbered by the derives' dispatcher runs (see save above).
-  "  la t0, c1_saved_s0; ld s0, 0(t0); la t0, c1_saved_s3; ld s3, 0(t0)\n" ++
+  -- fhsxz.2.4.2.66: RE-DERIVE s0/s3 instead of reloading c1_saved_s0/s3. The system-call
+  -- derives above run the predeploy through the dispatcher; when the (modified) predeploy
+  -- runs OUT OF GAS / reaches the gas limit (eip7002/eip7251 system_contract_errors fixtures)
+  -- its EVM execution writes far enough into memory to CLOBBER the c1_saved_s0/s3 data globals
+  -- with 0xb6, so reloading them gave a poison s0 (0xb6b6..) -> bgv_u32le OOB read at the next
+  -- line -> ERROR(exit) guest crash. (revert/throw short-circuit before reaching those globals,
+  -- hence they passed.) s0 is the fixed SSZ_BASE constant (= 0x40000012, set at fn entry) and
+  -- s3 = u32le(s0+56) = execution_requests offset re-read from the STABLE input region -- the
+  -- same derivation as the original (fn-entry `li s0` + line ~423). Robust against the clobber.
+  "  li s0, 0x40000000\n" ++
+  "  addi s0, s0, 18\n" ++
+  "  addi a0, s0, 56; jal ra, bgv_u32le; mv s3, a0\n" ++
   "  addi t0, s0, 16; add t0, t0, s3; la t1, c1_er_input; sd t0, 0(t1)\n" ++
   "  la t0, c1_er_input; ld t1, 0(t0); addi a0, t1, 4; jal ra, bgv_u32le\n" ++
   "  la t0, c1_er_input; ld t1, 0(t0); addi t2, t1, 12; addi t3, a0, -12\n" ++
