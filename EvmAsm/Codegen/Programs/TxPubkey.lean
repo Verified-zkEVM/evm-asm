@@ -291,12 +291,11 @@ def txPubkeyEcrecoverStageMaterialFunction : String :=
     `Secp256k1Field` mod-n scalar helpers (reduce/mul/inv), the `Secp256k1Recover`
     R-decompression, and the `Secp256k1Curve` scalar-mul / point-add primitives.
 
-    PERFORMANCE: these primitives are the naive software stack -- bit-serial
-    double-and-add field multiply with a per-point-op Fermat field inversion -- so
-    one recovery is ~1e11 ziskemu steps, far over the stateless guest's budget.
-    Correctness is established here; before wiring recovery into the stateless
-    `public_keys` path the curve stack needs projective/Jacobian coordinates,
-    windowed/Shamir scalar multiplication, or the ecrecover accelerator.
+    PERFORMANCE: the field multiplies and affine point operations are backed
+    by the ziskemu accelerators (`Arith256Mod` / `Secp256k1Add` /
+    `Secp256k1Dbl`, see `Secp256k1Field` / `Secp256k1Curve`), so one full
+    recovery is ~2e6 ziskemu steps -- comfortably inside the stateless guest's
+    ~1e9 step budget (the earlier all-software stack was ~1e11 steps).
 
     Calling convention:
       a0 (input)  : encoded transaction ptr
@@ -448,8 +447,8 @@ def txPubkeyRecoverRawDataSection : String :=
     supplied 64 coordinate bytes against the recovered `x || y`.
 
     The prefix is checked BEFORE recovery: a non-`0x04` key can never match a
-    valid recovered point, and the early-out keeps the bad-prefix path free of the
-    expensive software recovery (~1e11 ziskemu steps), so it can be probed fast.
+    valid recovered point, and the early-out keeps the bad-prefix path free of
+    the recovery math (~2e6 ziskemu steps), so it can be probed fast.
 
     Calling convention:
       a0 (input)  : encoded transaction ptr
@@ -736,10 +735,10 @@ def ziskTxPubkeyRecoverRawStatusProbeUnit : BuildUnit := {
 /-- `zisk_tx_pubkey_public_key_matches_status`: probe BuildUnit.
 
     Drives `tx_pubkey_public_key_matches` over one transaction and a supplied
-    SEC1 public key. The cheap cases (bad prefix; signature-material failure) are
-    decided before the expensive recovery, so they run in a small step budget;
-    the match/mismatch cases run full software recovery and are gated behind the
-    check script's `RECOVER_RAW_FULL=1` switch (~1e11 steps).
+    SEC1 public key. The cheap cases (bad prefix; signature-material failure)
+    are decided before the recovery, so they run in a small step budget; the
+    match/mismatch cases run a full accelerator-backed recovery (~2e6 steps,
+    gated behind the check script's `RECOVER_RAW_FULL=1` switch).
 
     Input layout:
       bytes  0.. 8 : tx byte length

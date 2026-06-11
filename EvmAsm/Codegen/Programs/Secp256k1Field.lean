@@ -3,6 +3,13 @@
 
   Codegen-only secp256k1 prime-field helpers for staged software
   public-key recovery. Values are 32-byte big-endian integers.
+
+  The modular multiplies (`secf_mul_mod_p`, `secf_mul_mod_n`) are backed by
+  the ziskemu `Arith256Mod` accelerator (`csrs 0x802` with a parameter-block
+  pointer, emitted as a pre-encoded `.4byte` so the plain `rv64imac`
+  toolchain assembles it). Inputs convert between the 32-byte big-endian
+  call surface and the accelerator's little-endian u64-limb format via
+  `secf_be_to_le` / `secf_le_to_be`.
 -/
 
 import EvmAsm.Rv64.Program
@@ -66,12 +73,29 @@ def secp256k1FieldDataSection : String :=
   ".balign 8\n" ++
   "secf_cmp:\n" ++
   "  .zero 8\n" ++
+  -- Little-endian 4x-u64-limb staging for the ziskemu `Arith256Mod`
+  -- accelerator (`d = (a*b + c) mod module`), plus its two static parameter
+  -- blocks (one per modulus). The accelerator reads {a,b,c,module} and writes
+  -- d; `secf_le_zero` doubles as the read-only c = 0.
   ".balign 8\n" ++
-  "secf_mul_res:\n" ++
+  "secf_le_a:\n" ++
   "  .zero 32\n" ++
-  ".balign 8\n" ++
-  "secf_mul_acc:\n" ++
+  "secf_le_b:\n" ++
   "  .zero 32\n" ++
+  "secf_le_d:\n" ++
+  "  .zero 32\n" ++
+  "secf_le_zero:\n" ++
+  "  .zero 32\n" ++
+  "secf_le_p:\n" ++
+  "  .quad 0xFFFFFFFEFFFFFC2F, 0xFFFFFFFFFFFFFFFF\n" ++
+  "  .quad 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF\n" ++
+  "secf_le_n:\n" ++
+  "  .quad 0xBFD25E8CD0364141, 0xBAAEDCE6AF48A03B\n" ++
+  "  .quad 0xFFFFFFFFFFFFFFFE, 0xFFFFFFFFFFFFFFFF\n" ++
+  "secf_arith_params_p:\n" ++
+  "  .quad secf_le_a, secf_le_b, secf_le_zero, secf_le_p, secf_le_d\n" ++
+  "secf_arith_params_n:\n" ++
+  "  .quad secf_le_a, secf_le_b, secf_le_zero, secf_le_n, secf_le_d\n" ++
   ".balign 8\n" ++
   "secf_pow_result:\n" ++
   "  .zero 32\n" ++
@@ -99,6 +123,62 @@ def secp256k1FieldZero32Function : String :=
   "  sd zero,  8(a0)\n" ++
   "  sd zero, 16(a0)\n" ++
   "  sd zero, 24(a0)\n" ++
+  "  ret"
+
+/-- Convert a 32-byte big-endian buffer (`a0`, byte-addressed, any alignment)
+    into four little-endian u64 limbs (`a1`, 8-aligned), least-significant
+    limb first — the ziskemu accelerator operand format. Leaf helper;
+    clobbers only `t` registers. -/
+def secp256k1FieldBeToLeFunction : String :=
+  "secf_be_to_le:\n" ++
+  "  li t0, 0                   # limb index\n" ++
+  ".Lsecf_b2l_quad:\n" ++
+  "  li t1, 24\n" ++
+  "  slli t2, t0, 3\n" ++
+  "  sub t1, t1, t2\n" ++
+  "  add t1, a0, t1             # BE offset of the limb's MSB\n" ++
+  "  li t3, 0\n" ++
+  "  li t4, 8\n" ++
+  ".Lsecf_b2l_byte:\n" ++
+  "  slli t3, t3, 8\n" ++
+  "  lbu t5, 0(t1)\n" ++
+  "  or t3, t3, t5\n" ++
+  "  addi t1, t1, 1\n" ++
+  "  addi t4, t4, -1\n" ++
+  "  bnez t4, .Lsecf_b2l_byte\n" ++
+  "  slli t2, t0, 3\n" ++
+  "  add t2, a1, t2\n" ++
+  "  sd t3, 0(t2)\n" ++
+  "  addi t0, t0, 1\n" ++
+  "  li t1, 4\n" ++
+  "  bne t0, t1, .Lsecf_b2l_quad\n" ++
+  "  ret"
+
+/-- Convert four little-endian u64 limbs (`a0`, 8-aligned) into a 32-byte
+    big-endian buffer (`a1`, byte-addressed, any alignment). Inverse of
+    `secf_be_to_le`. Leaf helper; clobbers only `t` registers. -/
+def secp256k1FieldLeToBeFunction : String :=
+  "secf_le_to_be:\n" ++
+  "  li t0, 0                   # limb index\n" ++
+  ".Lsecf_l2b_quad:\n" ++
+  "  slli t1, t0, 3\n" ++
+  "  add t2, a0, t1\n" ++
+  "  ld t3, 0(t2)\n" ++
+  "  li t1, 31\n" ++
+  "  slli t2, t0, 3\n" ++
+  "  sub t1, t1, t2\n" ++
+  "  add t1, a1, t1             # BE offset of the limb's LSB\n" ++
+  "  li t4, 8\n" ++
+  ".Lsecf_l2b_byte:\n" ++
+  "  andi t5, t3, 0xff\n" ++
+  "  sb t5, 0(t1)\n" ++
+  "  srli t3, t3, 8\n" ++
+  "  addi t1, t1, -1\n" ++
+  "  addi t4, t4, -1\n" ++
+  "  bnez t4, .Lsecf_l2b_byte\n" ++
+  "  addi t0, t0, 1\n" ++
+  "  li t1, 4\n" ++
+  "  bne t0, t1, .Lsecf_l2b_quad\n" ++
   "  ret"
 
 /-- Return bit `a1` of a 32-byte BE field element, numbering bits from the LSB. -/
@@ -315,62 +395,37 @@ def secp256k1FieldSubFunction : String :=
 
 
 /--
-  Multiply two field elements modulo p using double-and-add over 256 bits.
-  This is a correctness-first route for recovery scaffolding; later work can
-  replace it with a faster reduction strategy behind the same call surface.
+  Multiply two field elements modulo p via the ziskemu `Arith256Mod`
+  accelerator: `d = (a*b + 0) mod p` with exact 512-bit intermediate math,
+  so unreduced 256-bit inputs are accepted and the output is fully reduced.
+  The raw `.4byte 0x8022a073` is `csrs 0x802, t0` (`SYSCALL_ARITH256_MOD_ID`
+  with the parameter-block pointer in `t0`), pre-encoded so the
+  `-march=rv64imac` toolchain assembles it without `Zicsr` (the same pattern
+  as the Keccak-f probe's `.4byte 0x80052073`).
 -/
 def secp256k1FieldMulFunction : String :=
   "secf_mul_mod_p:\n" ++
-  "  addi sp, sp, -64\n" ++
+  "  addi sp, sp, -32\n" ++
   "  sd ra,  0(sp)\n" ++
   "  sd s0,  8(sp)\n" ++
   "  sd s1, 16(sp)\n" ++
-  "  sd s2, 24(sp)\n" ++
-  "  sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp)\n" ++
-  "  sd s5, 48(sp)\n" ++
-  "  mv s0, a0\n" ++
-  "  mv s1, a1\n" ++
-  "  mv s2, a2\n" ++
-  "  la s4, secf_mul_res\n" ++
-  "  la s5, secf_mul_acc\n" ++
-  "  mv a0, s4\n" ++
-  "  jal ra, secf_zero32\n" ++
+  "  mv s0, a1\n" ++
+  "  mv s1, a2\n" ++
+  "  la a1, secf_le_a\n" ++
+  "  jal ra, secf_be_to_le\n" ++
   "  mv a0, s0\n" ++
-  "  mv a1, s5\n" ++
-  "  jal ra, secf_reduce_once\n" ++
-  "  li s3, 0\n" ++
-  ".Lsecf_mul_loop:\n" ++
-  "  li t0, 256\n" ++
-  "  beq s3, t0, .Lsecf_mul_done\n" ++
-  "  mv a0, s1\n" ++
-  "  mv a1, s3\n" ++
-  "  jal ra, secf_get_bit_lsb\n" ++
-  "  beqz a0, .Lsecf_mul_double\n" ++
-  "  mv a0, s4\n" ++
-  "  mv a1, s5\n" ++
-  "  mv a2, s4\n" ++
-  "  jal ra, secf_add_mod_p\n" ++
-  ".Lsecf_mul_double:\n" ++
-  "  mv a0, s5\n" ++
-  "  mv a1, s5\n" ++
-  "  mv a2, s5\n" ++
-  "  jal ra, secf_add_mod_p\n" ++
-  "  addi s3, s3, 1\n" ++
-  "  j .Lsecf_mul_loop\n" ++
-  ".Lsecf_mul_done:\n" ++
-  "  mv a0, s4\n" ++
-  "  mv a1, s2\n" ++
-  "  jal ra, secf_copy32\n" ++
+  "  la a1, secf_le_b\n" ++
+  "  jal ra, secf_be_to_le\n" ++
+  "  la t0, secf_arith_params_p\n" ++
+  "  .4byte 0x8022a073           # csrs 0x802, t0 -> Arith256Mod\n" ++
+  "  la a0, secf_le_d\n" ++
+  "  mv a1, s1\n" ++
+  "  jal ra, secf_le_to_be\n" ++
   "  li a0, 0\n" ++
   "  ld ra,  0(sp)\n" ++
   "  ld s0,  8(sp)\n" ++
   "  ld s1, 16(sp)\n" ++
-  "  ld s2, 24(sp)\n" ++
-  "  ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp)\n" ++
-  "  ld s5, 48(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
+  "  addi sp, sp, 32\n" ++
   "  ret"
 
 /-- Square one field element modulo p. -/
@@ -552,10 +607,11 @@ def secp256k1FieldSqrtFunction : String :=
   is the secp256k1 group order rather than the field prime `p`. The helpers
   below mirror the mod-p stack one-for-one, swapping only the modulus constant
   (`secf_n_be` / `secf_n_c_be`) and the Fermat exponent (`secf_n_minus_2_be`).
-  The multiply is the same modulus-agnostic Russian-peasant double-and-add, so
-  no special reduction is required. Scratch buffers (`secf_mul_res`,
-  `secf_mul_acc`, `secf_pow_result`, `secf_pow_base`, `secf_tmp0`, `secf_cmp`)
-  are reused from the mod-p helpers: the two stacks never run concurrently. -/
+  The multiply is the same modulus-parameterized `Arith256Mod` accelerator
+  call, so no special reduction is required. Scratch buffers (`secf_le_a`,
+  `secf_le_b`, `secf_le_d`, `secf_pow_result`, `secf_pow_base`, `secf_tmp0`,
+  `secf_cmp`) are reused from the mod-p helpers: the two stacks never run
+  concurrently. -/
 
 /-- Reduce a value known to be below `2n` by subtracting n at most once.
     a0 = input, a1 = output; returns a0 = 1 if n was subtracted, else 0. -/
@@ -630,59 +686,32 @@ def secp256k1ScalarFieldAddFunction : String :=
   "  addi sp, sp, 48\n" ++
   "  ret"
 
-/-- Multiply two scalars modulo n using double-and-add over 256 bits. -/
+/-- Multiply two scalars modulo n via the ziskemu `Arith256Mod` accelerator
+    (same route as `secf_mul_mod_p`, with the modulus parameter block
+    pointing at n instead of p). -/
 def secp256k1ScalarFieldMulFunction : String :=
   "secf_mul_mod_n:\n" ++
-  "  addi sp, sp, -64\n" ++
+  "  addi sp, sp, -32\n" ++
   "  sd ra,  0(sp)\n" ++
   "  sd s0,  8(sp)\n" ++
   "  sd s1, 16(sp)\n" ++
-  "  sd s2, 24(sp)\n" ++
-  "  sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp)\n" ++
-  "  sd s5, 48(sp)\n" ++
-  "  mv s0, a0\n" ++
-  "  mv s1, a1\n" ++
-  "  mv s2, a2\n" ++
-  "  la s4, secf_mul_res\n" ++
-  "  la s5, secf_mul_acc\n" ++
-  "  mv a0, s4\n" ++
-  "  jal ra, secf_zero32\n" ++
+  "  mv s0, a1\n" ++
+  "  mv s1, a2\n" ++
+  "  la a1, secf_le_a\n" ++
+  "  jal ra, secf_be_to_le\n" ++
   "  mv a0, s0\n" ++
-  "  mv a1, s5\n" ++
-  "  jal ra, secf_reduce_once_n\n" ++
-  "  li s3, 0\n" ++
-  ".Lsecf_muln_loop:\n" ++
-  "  li t0, 256\n" ++
-  "  beq s3, t0, .Lsecf_muln_done\n" ++
-  "  mv a0, s1\n" ++
-  "  mv a1, s3\n" ++
-  "  jal ra, secf_get_bit_lsb\n" ++
-  "  beqz a0, .Lsecf_muln_double\n" ++
-  "  mv a0, s4\n" ++
-  "  mv a1, s5\n" ++
-  "  mv a2, s4\n" ++
-  "  jal ra, secf_add_mod_n\n" ++
-  ".Lsecf_muln_double:\n" ++
-  "  mv a0, s5\n" ++
-  "  mv a1, s5\n" ++
-  "  mv a2, s5\n" ++
-  "  jal ra, secf_add_mod_n\n" ++
-  "  addi s3, s3, 1\n" ++
-  "  j .Lsecf_muln_loop\n" ++
-  ".Lsecf_muln_done:\n" ++
-  "  mv a0, s4\n" ++
-  "  mv a1, s2\n" ++
-  "  jal ra, secf_copy32\n" ++
+  "  la a1, secf_le_b\n" ++
+  "  jal ra, secf_be_to_le\n" ++
+  "  la t0, secf_arith_params_n\n" ++
+  "  .4byte 0x8022a073           # csrs 0x802, t0 -> Arith256Mod\n" ++
+  "  la a0, secf_le_d\n" ++
+  "  mv a1, s1\n" ++
+  "  jal ra, secf_le_to_be\n" ++
   "  li a0, 0\n" ++
   "  ld ra,  0(sp)\n" ++
   "  ld s0,  8(sp)\n" ++
   "  ld s1, 16(sp)\n" ++
-  "  ld s2, 24(sp)\n" ++
-  "  ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp)\n" ++
-  "  ld s5, 48(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
+  "  addi sp, sp, 32\n" ++
   "  ret"
 
 /-- Square one scalar modulo n. -/
@@ -784,6 +813,8 @@ def secp256k1FieldCommonFunctions : String :=
   u256LtBeFunction ++ "\n" ++
   secp256k1FieldCopy32Function ++ "\n" ++
   secp256k1FieldZero32Function ++ "\n" ++
+  secp256k1FieldBeToLeFunction ++ "\n" ++
+  secp256k1FieldLeToBeFunction ++ "\n" ++
   secp256k1FieldGetBitFunction ++ "\n" ++
   secp256k1FieldIsZeroFunction ++ "\n" ++
   secp256k1FieldEq32Function ++ "\n" ++

@@ -10,14 +10,12 @@
 # underlying material status preserved in the side slot. This deliberately does
 # NOT compare stateless public_keys; that lands in later children.
 #
-# COST: the recovery composes the naive Secp256k1Field/Curve primitives
-# (bit-serial double-and-add field multiply with a per-point-op Fermat field
-# inversion), so ONE recovery is ~1e11 ziskemu steps (~10+ minutes). The valid
-# end-to-end success case is therefore OPT-IN, gated behind RECOVER_RAW_FULL=1.
-# The default run only exercises the fast material-failure routing. The
-# performance work needed before wiring recovery into the stateless public_keys
-# path (projective/Jacobian coordinates, windowed/Shamir scalar multiplication,
-# or the zkvm_secp256k1_ecrecover accelerator) is tracked separately.
+# COST: the recovery composes the ziskemu-accelerator-backed Secp256k1Field/
+# Curve primitives (Arith256Mod modular multiply; Secp256k1Add/Dbl affine point
+# ops), so ONE recovery is ~2e6 ziskemu steps. The success case stays behind
+# RECOVER_RAW_FULL=1 (it rebuilds the signed-tx vector via execution-specs/
+# coincurve) and is gated at the stateless guest's 1e9 step budget, so a
+# regression past the budget fails this script (EmulationNoCompleted).
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -154,10 +152,11 @@ FAILED=0
 run_case "bad_s_high" "bad_s_high" 10 43 10000000 0 || FAILED=1
 
 if [[ "${RECOVER_RAW_FULL:-0}" == "1" ]]; then
-  echo "==> RECOVER_RAW_FULL=1: running full software recovery (slow, ~1e11 steps)"
+  echo "==> RECOVER_RAW_FULL=1: running full recovery (~2e6 steps, gated at 1e9)"
   # Valid legacy EIP-155 tx signed by private key 1: recovery must return
   # status 0 and the secp256k1 generator point G as the recovered public key.
-  run_case "legacy_eip155" "legacy_eip155" 0 0 200000000000 1 || FAILED=1
+  # The 1e9 cap is the stateless guest step budget (evm-asm-mcogi.5.5).
+  run_case "legacy_eip155" "legacy_eip155" 0 0 1000000000 1 || FAILED=1
 else
   echo "==> (skipping full recovery success case; set RECOVER_RAW_FULL=1 to run it)"
 fi
