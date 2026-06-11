@@ -956,6 +956,11 @@ def blockVerdictFunction : String :=
   "  jal ra, tx_gas_bal_post_verify_runtime\n" ++
   "  la t0, bv_sender_bal_check; ld t0, 0(t0)\n" ++
   "  li t1, 40; beq t0, t1, .Lbv_sbc_bal_mismatch\n" ++          -- clean balance mismatch -> coinbase gate
+  -- bmvmx.4: status 50 = check_transaction fee invalid (max_fee < base_fee, or
+  -- priority_fee > max_fee); the runtime verify detected it and the spec REJECTS
+  -- (InsufficientMaxFeePerGasError / PriorityFeeGreaterThanMaxFeeError), so reject
+  -- here rather than fall through to the cannot-compare skip below.
+  "  li t1, 50; beq t0, t1, .Lbv_fee_invalid_fail\n" ++
   "  bnez t0, .Lbv_after_tx_gas_precharge\n" ++                  -- lookup miss / cannot-compare -> skip
   -- bmvmx.1.6.3 (nonce slice): the balance matched (status 0); now verify the sender's BAL post
   -- nonce == pre_nonce + 1 against execution (a single tx from the sender increments its nonce
@@ -977,6 +982,33 @@ def blockVerdictFunction : String :=
   "  bne t0, t1, .Lbv_sender_nonce_fail         # tx.nonce != pre_nonce -> reject (NonceMismatchError)\n" ++
   "  la a0, tgbpvr_lookup; jal ra, sender_post_nonce_consistent\n" ++
   "  li t1, 1; beq a0, t1, .Lbv_sender_nonce_fail\n" ++
+  -- bmvmx.2 (check_transaction balance pre-validation): reject if
+  -- sender_pre_balance < gas_limit*max_fee_per_gas + tx.value (execution-specs
+  -- amsterdam/fork.py check_transaction raises InsufficientBalanceError). The
+  -- runtime verify only proves BAL post == pre - actual_debit and SKIPS (not
+  -- rejects) on insufficiency; the spec requires the sender cover the UPFRONT max
+  -- gas_limit*max_fee (>= the actual debit), so a tx funded between actual-debit
+  -- and upfront would otherwise false-accept. Operands all live here: max_fee =
+  -- tefgp_max_fee (written by tx_effective_gas_pricing inside the line-956 verify),
+  -- gas_limit = bv_simple_transfer_tx[40], value = bv_simple_transfer_tx[96] (BE),
+  -- pre_balance = tgbpvr_lookup[48] (BE). u256_mul_u64_be returns 1 on overflow
+  -- (a*b >= 2^256); u256_add_be returns carry-out; u256_lt_be writes 1 iff a<b.
+  "  la a0, tefgp_max_fee\n" ++
+  "  la t0, bv_simple_transfer_tx; ld a1, 40(t0)   # gas_limit (u64)\n" ++
+  "  la a2, bv_upfront_cost\n" ++
+  "  jal ra, u256_mul_u64_be\n" ++
+  "  bnez a0, .Lbv_sender_upfront_fail              # gas_limit*max_fee >= 2^256 -> reject\n" ++
+  "  la a0, bv_upfront_cost\n" ++
+  "  la t0, bv_simple_transfer_tx; addi a1, t0, 96  # tx.value (32B BE)\n" ++
+  "  la a2, bv_upfront_cost\n" ++
+  "  jal ra, u256_add_be\n" ++
+  "  bnez a0, .Lbv_sender_upfront_fail              # upfront cost + value >= 2^256 -> reject\n" ++
+  "  la a0, tgbpvr_lookup; addi a0, a0, 48          # sender pre_balance (32B BE)\n" ++
+  "  la a1, bv_upfront_cost\n" ++
+  "  la a2, bv_upfront_islt\n" ++
+  "  jal ra, u256_lt_be\n" ++
+  "  la t0, bv_upfront_islt; ld t0, 0(t0)\n" ++
+  "  bnez t0, .Lbv_sender_upfront_fail              # pre_balance < upfront -> reject\n" ++
   -- bmvmx.1.6.3 (recipient balance slice): the contract recipient RECEIVES tx.value and, on this
   -- value-movement-free path (no CALL/CALLCODE/DELEGATECALL/SELFDESTRUCT; CREATE is self-contained-
   -- rejected), its balance changes only by +value, so recipient_post == recipient_pre + value.
@@ -1186,6 +1218,10 @@ def blockVerdictFunction : String :=
   "  li t0, 45; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_bal_code_consistent_fail:\n" ++    -- i3djw.4: a BAL account's declared code change != exec code-effect (and not a 7702 delegation)
   "  li t0, 46; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_sender_upfront_fail:\n" ++         -- bmvmx.2: sender_pre_balance < gas_limit*max_fee + value (InsufficientBalanceError)
+  "  li t0, 48; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_fee_invalid_fail:\n" ++           -- bmvmx.4: tx fee invalid (max_fee < base_fee, or priority > max_fee) -> check_transaction reject
+  "  li t0, 49; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_zero:\n" ++
   "  li a0, 0\n" ++
   ".Lbv_ret:\n" ++
