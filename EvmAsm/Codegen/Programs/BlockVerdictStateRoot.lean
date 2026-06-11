@@ -431,6 +431,7 @@ def statelessVerdictV2Function : String :=
   -- is resolved at the PRE-state (parent header). witness.state = svf_witness_section+off0 ..
   -- svf_codes_ptr; witness.codes = svf_codes_ptr/len.
   "  la t0, evm_env; ld t1, 448(t0); la t2, c1_saved_logcount; sd t1, 0(t2)\n" ++
+  -- == WITHDRAWAL (EIP-7002): code_at -> BAL preload -> system call -> copy body ==
   "  la t0, svf_witness; ld a3, 0(t0); la t0, svf_witness_len; ld a4, 0(t0)\n" ++
   "  la t0, svf_parent_rlp; ld a0, 0(t0); la t0, svf_parent_rlp_len; ld a1, 0(t0)\n" ++
   "  la a2, withdrawal_request_predeploy_addr\n" ++
@@ -439,19 +440,71 @@ def statelessVerdictV2Function : String :=
   "  bnez a0, .Lv2_requests_hash_fail\n" ++
   "  la t0, svf_codes_ptr; ld t1, 0(t0); la t2, cahsr_code_offset; ld t3, 0(t2); add t4, t1, t3\n" ++
   "  la t0, c1_wcode_ptr; sd t4, 0(t0); la t2, cahsr_code_length; ld t3, 0(t2); la t0, c1_wcode_len; sd t3, 0(t0)\n" ++
+  "  la t0, bsr_bal_start; ld a0, 0(t0); la t0, bsr_bal_len; ld a1, 0(t0)\n" ++
+  "  la a2, withdrawal_request_predeploy_addr; la a3, c1_bal_acct_ptr; la a4, c1_bal_acct_len\n" ++
+  "  jal ra, bal_find_account_by_address\n" ++
+  "  bnez a0, .Lc1_w_nopreload\n" ++
+  "  la t0, svf_parent_rlp; ld t1, 0(t0); la t2, sps_header; sd t1, 0(t2)\n" ++
+  "  la t0, svf_parent_rlp_len; ld t1, 0(t0); la t2, sps_header_len; sd t1, 0(t2)\n" ++
+  "  la t0, svf_witness; ld t1, 0(t0); la t2, sps_state; sd t1, 0(t2); la t2, sps_storage; sd t1, 0(t2)\n" ++
+  "  la t0, svf_witness_len; ld t1, 0(t0); la t2, sps_state_len; sd t1, 0(t2); la t2, sps_storage_len; sd t1, 0(t2)\n" ++
+  "  la t1, withdrawal_request_predeploy_addr; la t2, sps_addr; li t3, 20\n" ++
+  ".Lc1_w_addr:\n" ++
+  "  beqz t3, .Lc1_w_addrd; lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Lc1_w_addr\n" ++
+  ".Lc1_w_addrd:\n" ++
+  "  la t0, c1_bal_acct_ptr; ld a0, 0(t0); la t0, c1_bal_acct_len; ld a1, 0(t0); la a2, c1_preload\n" ++
+  "  jal ra, stage_predeploy_storage_preload\n" ++
+  "  la t0, scc_preload_count; sd a0, 0(t0); la t1, c1_preload; la t0, scc_preload_ptr; sd t1, 0(t0)\n" ++
+  "  j .Lc1_w_derive\n" ++
+  ".Lc1_w_nopreload:\n" ++
+  "  la t0, scc_preload_count; sd zero, 0(t0)\n" ++
+  ".Lc1_w_derive:\n" ++
+  "  la t0, c1_wcode_ptr; ld a0, 0(t0); la t0, c1_wcode_len; ld a1, 0(t0)\n" ++
+  "  la t0, svf_payload; ld a2, 0(t0); la a3, c1_staging\n" ++
+  "  jal ra, derive_withdrawal_requests\n" ++
+  "  bnez a2, .Lv2_requests_hash_fail\n" ++
+  "  la t0, dbsr_wlen; sd a1, 0(t0); mv t1, a0; la t2, dbsr_wbody; mv t3, a1\n" ++
+  ".Lc1_w_copy:\n" ++
+  "  beqz t3, .Lc1_w_copyd; lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Lc1_w_copy\n" ++
+  ".Lc1_w_copyd:\n" ++
+  -- == CONSOLIDATION (EIP-7251) ==
   "  la t0, svf_witness; ld a3, 0(t0); la t0, svf_witness_len; ld a4, 0(t0)\n" ++
   "  la t0, svf_parent_rlp; ld a0, 0(t0); la t0, svf_parent_rlp_len; ld a1, 0(t0)\n" ++
   "  la a2, consolidation_request_predeploy_addr\n" ++
   "  la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0)\n" ++
   "  jal ra, code_at_header_state_root\n" ++
   "  bnez a0, .Lv2_requests_hash_fail\n" ++
-  "  la t0, svf_codes_ptr; ld t1, 0(t0); la t2, cahsr_code_offset; ld t3, 0(t2); add a2, t1, t3\n" ++
-  "  la t2, cahsr_code_length; ld a3, 0(t2)\n" ++
-  "  la t0, c1_wcode_ptr; ld a0, 0(t0); la t0, c1_wcode_len; ld a1, 0(t0)\n" ++
-  "  la t0, svf_payload; ld a4, 0(t0); la a5, c1_staging\n" ++
-  "  jal ra, derive_block_system_requests\n" ++
+  "  la t0, svf_codes_ptr; ld t1, 0(t0); la t2, cahsr_code_offset; ld t3, 0(t2); add t4, t1, t3\n" ++
+  "  la t0, c1_ccode_ptr; sd t4, 0(t0); la t2, cahsr_code_length; ld t3, 0(t2); la t0, c1_ccode_len; sd t3, 0(t0)\n" ++
+  "  la t0, bsr_bal_start; ld a0, 0(t0); la t0, bsr_bal_len; ld a1, 0(t0)\n" ++
+  "  la a2, consolidation_request_predeploy_addr; la a3, c1_bal_acct_ptr; la a4, c1_bal_acct_len\n" ++
+  "  jal ra, bal_find_account_by_address\n" ++
+  "  bnez a0, .Lc1_c_nopreload\n" ++
+  "  la t0, svf_parent_rlp; ld t1, 0(t0); la t2, sps_header; sd t1, 0(t2)\n" ++
+  "  la t0, svf_parent_rlp_len; ld t1, 0(t0); la t2, sps_header_len; sd t1, 0(t2)\n" ++
+  "  la t0, svf_witness; ld t1, 0(t0); la t2, sps_state; sd t1, 0(t2); la t2, sps_storage; sd t1, 0(t2)\n" ++
+  "  la t0, svf_witness_len; ld t1, 0(t0); la t2, sps_state_len; sd t1, 0(t2); la t2, sps_storage_len; sd t1, 0(t2)\n" ++
+  "  la t1, consolidation_request_predeploy_addr; la t2, sps_addr; li t3, 20\n" ++
+  ".Lc1_c_addr:\n" ++
+  "  beqz t3, .Lc1_c_addrd; lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Lc1_c_addr\n" ++
+  ".Lc1_c_addrd:\n" ++
+  "  la t0, c1_bal_acct_ptr; ld a0, 0(t0); la t0, c1_bal_acct_len; ld a1, 0(t0); la a2, c1_preload\n" ++
+  "  jal ra, stage_predeploy_storage_preload\n" ++
+  "  la t0, scc_preload_count; sd a0, 0(t0); la t1, c1_preload; la t0, scc_preload_ptr; sd t1, 0(t0)\n" ++
+  "  j .Lc1_c_derive\n" ++
+  ".Lc1_c_nopreload:\n" ++
+  "  la t0, scc_preload_count; sd zero, 0(t0)\n" ++
+  ".Lc1_c_derive:\n" ++
+  "  la t0, c1_ccode_ptr; ld a0, 0(t0); la t0, c1_ccode_len; ld a1, 0(t0)\n" ++
+  "  la t0, svf_payload; ld a2, 0(t0); la a3, c1_staging\n" ++
+  "  jal ra, derive_consolidation_requests\n" ++
+  "  bnez a2, .Lv2_requests_hash_fail\n" ++
+  "  la t0, dbsr_clen; sd a1, 0(t0); mv t1, a0; la t2, dbsr_cbody; mv t3, a1\n" ++
+  ".Lc1_c_copy:\n" ++
+  "  beqz t3, .Lc1_c_copyd; lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Lc1_c_copy\n" ++
+  ".Lc1_c_copyd:\n" ++
   "  la t0, evm_env; la t2, c1_saved_logcount; ld t1, 0(t2); sd t1, 448(t0)\n" ++
-  "  bnez a0, .Lv2_requests_hash_fail\n" ++
+  "  la t0, scc_preload_count; sd zero, 0(t0)\n" ++
   "  addi t0, s0, 16; add t0, t0, s3; la t1, c1_er_input; sd t0, 0(t1)\n" ++
   "  la t0, c1_er_input; ld t1, 0(t0); addi a0, t1, 4; jal ra, bgv_u32le\n" ++
   "  la t0, c1_er_input; ld t1, 0(t0); addi t2, t1, 12; addi t3, a0, -12\n" ++

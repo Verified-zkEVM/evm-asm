@@ -335,6 +335,12 @@ def ziskStatelessVerdictV2DataSection : String :=
   "c1_staging:\n  .zero 4096\n" ++
   ".balign 8\n" ++
   "c1_er_assembled:\n  .zero 2048\n" ++
+  "c1_ccode_ptr:\n  .zero 8\n" ++
+  "c1_ccode_len:\n  .zero 8\n" ++
+  "c1_bal_acct_ptr:\n  .zero 8\n" ++
+  "c1_bal_acct_len:\n  .zero 8\n" ++
+  ".balign 8\n" ++
+  "c1_preload:\n  .zero 8192\n" ++
   "svf_headers_count:\n  .zero 8\n" ++
   "bbcv_count:\n  .zero 8\n" ++
   "bbcv_off:\n  .zero 8\n" ++
