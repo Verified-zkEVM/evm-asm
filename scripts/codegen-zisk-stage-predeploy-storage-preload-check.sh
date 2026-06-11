@@ -38,7 +38,10 @@ count = struct.unpack('<Q', d[0:8])[0]
 k31 = struct.unpack('<Q', d[8:16])[0]
 v0  = struct.unpack('<Q', d[16:24])[0]
 k0  = struct.unpack('<Q', d[24:32])[0]
-ok = (count == 1 and k31 == 0x07 and v0 == 0 and k0 == 0)
+# 8uld3.2.3.3.1 Fix5: the preload writes the KEY byte-reversed (BE->LE) so the
+# dispatcher's little-endian SLOAD key matches -- the BE slot key 0x00..07 lands
+# with 0x07 at byte 0 and 0x00 at byte 31.
+ok = (count == 1 and k31 == 0 and v0 == 0 and k0 == 0x07)
 print(f"  count={count} key[0].b31={hex(k31)} value[0].b0={hex(v0)} key[0].b0={hex(k0)}")
 if not ok:
     print("  FAIL: storage-preload key enumeration / pairing incorrect")

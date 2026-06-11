@@ -18,9 +18,10 @@
   a no-op there; it bites once the multi-tx loop sets `current_block_access_index` per
   tx (.57.11.6.3).
 
-  Buffer note: `atsc_balbuf`/`atsc_execbuf` hold up to 256 tuples (40 B each) per slot;
-  the producers write `count` records, so wiring against blocks whose per-slot tuple
-  count can exceed 256 must enlarge these (bounded by the block's transaction count).
+  Buffer note: `atsc_balbuf`/`atsc_execbuf` hold up to bsrMaxTuplesPerSlot tuples
+  (40 B each) per slot (.66.1.2: gas-derived — per-slot tuple count is bounded by the
+  block's transaction count, <= ~9.5k at 200M gas). bal_slot_tuple_sequence writes
+  nothing and returns the true count above the cap; the call site bails to .Latsc_fail.
 -/
 
 import EvmAsm.Rv64.Program
@@ -30,6 +31,7 @@ import EvmAsm.Codegen.Programs.Tx
 import EvmAsm.Codegen.Programs.BalSlotTupleSequence
 import EvmAsm.Codegen.Programs.ExecLogSlotTuples
 import EvmAsm.Codegen.Programs.SlotTupleSequencesMatch
+import EvmAsm.Codegen.Programs.BlockVerdictParams
 
 namespace EvmAsm.Codegen
 
@@ -98,6 +100,9 @@ def accountTupleSequencesConsistentFunction : String :=
   "  # BAL tuple sequence for this slot (searched by BE atsc_key)\n" ++
   "  mv a0, s0; mv a1, s1; la a2, atsc_key; la a3, atsc_balbuf\n" ++
   "  jal ra, bal_slot_tuple_sequence\n" ++
+  -- .66.1.2: > bsrMaxTuplesPerSlot -> the helper wrote nothing (returns the true count);
+  -- bail conservatively instead of comparing against stale atsc_balbuf contents.
+  "  li t0, " ++ toString bsrMaxTuplesPerSlot ++ "; bgtu a0, t0, .Latsc_fail\n" ++
   "  la t0, atsc_balcount; sd a0, 0(t0)                   # bal_count\n" ++
   "  # reverse each BAL tuple's 32B value (BE -> LE) to match the LE exec output\n" ++
   "  mv t0, a0; la t1, atsc_balbuf                        # t0=count; record = bai@0, value@8\n" ++
@@ -136,8 +141,8 @@ def accountTupleSequencesConsistentData : String :=
   ".balign 32\n" ++
   "atsc_key:\n  .zero 32\n" ++
   "atsc_key_le:\n  .zero 32\n" ++       -- LE byte-reverse of atsc_key for the exec-log search (bmvmx.1.6.6)
-  "atsc_balbuf:\n  .zero 10240\n" ++   -- up to 256 tuples * 40B
-  "atsc_execbuf:\n  .zero 10240\n"
+  "atsc_balbuf:\n  .zero " ++ toString (bsrMaxTuplesPerSlot * 40) ++ "\n" ++   -- .66.1.2: bsrMaxTuplesPerSlot tuples * 40B (was 256; one net-change tuple per tx, ~9.5k max at 200M)
+  "atsc_execbuf:\n  .zero " ++ toString (bsrMaxTuplesPerSlot * 40) ++ "\n"
 
 /-- `zisk_account_tuple_sequences_consistent`: focused probe.
     Input (after the ziskemu length wrapper at 0x40000000):

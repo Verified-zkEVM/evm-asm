@@ -26,6 +26,7 @@ import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Tx
+import EvmAsm.Codegen.Programs.BlockVerdictParams
 
 namespace EvmAsm.Codegen
 
@@ -34,7 +35,10 @@ open EvmAsm.Rv64
 /-! ## bal_slot_tuple_sequence
     a0 = AccountChanges RLP ptr   a1 = AccountChanges RLP length
     a2 = target slot key ptr (32-byte big-endian)   a3 = out buffer ptr
-    a0 (output) = tuple count for the matching slot (0 if not found / parse failure). -/
+         (caller buffer must hold bsrMaxTuplesPerSlot x 40-byte records)
+    a0 (output) = tuple count for the matching slot (0 if not found / parse failure;
+    if > bsrMaxTuplesPerSlot, NOTHING is written and the true count is returned —
+    the caller must treat counts above the cap as a conservative bail). -/
 def balSlotTupleSequenceFunction : String :=
   "bal_slot_tuple_sequence:\n" ++
   "  addi sp, sp, -80\n" ++
@@ -102,6 +106,12 @@ def balSlotTupleSequenceFunction : String :=
   "  jal ra, rlp_list_count_items\n" ++
   "  bnez a0, .Lbts_notfound\n" ++
   "  la t0, bts_tcnt; ld s7, 0(t0)                    # reuse s7 = tuple count\n" ++
+  -- fhsxz.2.4.2.66.1.1/.66.1.2: bound the output. Every consumer buffer (sps_tuples,
+  -- atsc_balbuf) holds bsrMaxTuplesPerSlot 40-byte records; an adversarial BAL can
+  -- declare more tuples than any legitimate <=200M block (one net-change tuple per tx).
+  -- Above the cap, write NOTHING and return the true count (jump straight to done) so
+  -- callers bail conservatively instead of this loop overflowing adjacent .data.
+  "  li t0, " ++ toString bsrMaxTuplesPerSlot ++ "; bgtu s7, t0, .Lbts_done\n" ++
   "  li s4, 0                     # reuse s4 = tuple index j (sc ptr no longer needed)\n" ++
   ".Lbts_tloop:\n" ++
   "  beq s4, s7, .Lbts_done\n" ++

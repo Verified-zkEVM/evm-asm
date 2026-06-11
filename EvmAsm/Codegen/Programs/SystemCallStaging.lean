@@ -20,6 +20,7 @@ import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.AmsterdamSystemTx
 import EvmAsm.Codegen.Programs.BlockVerdictContractStage
+import EvmAsm.Codegen.Programs.BlockVerdictParams
 
 namespace EvmAsm.Codegen
 
@@ -59,7 +60,7 @@ def stageSystemCallPayloadFunction : String :=
   -- dispatch_tx_runtime_code). stage_runtime_payload_code zeroes + writes
   -- round8(codelen) + storage_count*64 + m29_count*32 + 584 bytes into the output
   -- buffer with no bound of its own; every verdict call site passes c1_staging
-  -- (131072 B, BlockVerdictDataSection.lean — keep the literal in sync). Predeploy
+  -- (c1StagingBytes, BlockVerdictParams.lean — shared constant, .66.1.2). Predeploy
   -- code is read from the witness and NOT EIP-170-bounded (the system_contract_errors
   -- EEST predeploys are 72946 B), so an unchecked copy clobbers the .data globals
   -- above c1_staging. Bail (a0=1, unsupported -> requests-hash fail) instead of
@@ -67,7 +68,7 @@ def stageSystemCallPayloadFunction : String :=
   "  addi t1, s2, 7; andi t1, t1, -8\n" ++                                         -- round8(codelen)
   "  la t0, scc_preload_count; ld t2, 0(t0); slli t2, t2, 6; add t1, t1, t2\n" ++  -- + storage_count*64
   "  la t0, m29_stage_count; ld t2, 0(t0); slli t2, t2, 5; add t1, t1, t2\n" ++    -- + M29 hashes (count*32)
-  "  addi t1, t1, 584; li t2, 131072; bgtu t1, t2, .Lscc_toobig\n" ++              -- payload > buffer -> bail
+  "  addi t1, t1, 584; li t2, " ++ toString c1StagingBytes ++ "; bgtu t1, t2, .Lscc_toobig\n" ++              -- payload > buffer -> bail
   -- stage_runtime_payload_code(ctx, out, exec, code, codelen, null, 0)
   -- 8uld3.2.1.5: pass the predeploy STORAGE preload (a5/a6) so the predeploy's SLOAD of its
   -- request queue reads the staged witness values (not garbage). scc_preload_ptr/count default

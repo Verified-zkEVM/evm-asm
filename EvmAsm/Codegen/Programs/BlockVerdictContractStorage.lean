@@ -16,6 +16,7 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.RlpRead
+import EvmAsm.Codegen.Programs.BlockVerdictParams
 
 namespace EvmAsm.Codegen
 
@@ -27,7 +28,8 @@ open EvmAsm.Rv64
 
     Calling convention:
       a0 = AccountChanges RLP ptr   a1 = AccountChanges RLP length
-      a2 = out keys ptr (count x 32-byte big-endian slot keys; caller buffer must hold 512)
+      a2 = out keys ptr (count x 32-byte big-endian slot keys; caller buffer must hold
+           bsrAccountSlotCap entries)
     Returns:
       a0 = entry count (0 on parse failure — conservative). Keys are written only when
            the count is <= 512 (the caller-buffer cap); if it exceeds 512, NOTHING is
@@ -54,16 +56,17 @@ def balRecipientStorageKeysFunction : String :=
   "  jal ra, rlp_list_count_items\n" ++
   "  bnez a0, .Lbrsk_fail\n" ++
   "  la t0, brsk_cnt; ld s5, 0(t0)                   # entry count\n" ++
-  -- bmvmx.1.7.3: cap the write at the caller KEY-buffer size — bvcd_keys, csce_keys and
-  -- sps_keys are all sized 512*32 (fhsxz.2.4.2.66.1 raised the cap from 128: the
-  -- system_contract_errors EEST predeploys legitimately commit 306 storage changes, which
-  -- the system-call preload must stage). If the BAL declares MORE storage_changes than fit,
-  -- write NOTHING and return the true count so the caller bails conservatively
-  -- (.Ldtrc_unsupported / skip-account / requests-hash fail) instead of overflowing into
-  -- adjacent .data. The regular-tx callers still bail at their own >128 thresholds
-  -- (bvcd_preload and the callee-seed table stay 128-sized); only the system-call preload
-  -- path consumes counts up to 512.
-  "  li t0, 512; bgtu s5, t0, .Lbrsk_done            # count > cap -> return count, write nothing\n" ++
+  -- bmvmx.1.7.3 / fhsxz.2.4.2.66.1.2: cap the write at the caller KEY-buffer size —
+  -- bvcd_keys, csce_keys and sps_keys are all sized bsrAccountSlotCap*32. The cap is
+  -- gas-derived (= bsrMaxBalItems: one account's changes+reads can absorb the whole
+  -- 200M BAL budget; the former 512 cap false-rejected queue-heavy blocks far below
+  -- 200M). If the BAL declares MORE storage_changes than fit, write NOTHING and return
+  -- the true count so the caller bails conservatively (.Ldtrc_unsupported /
+  -- skip-account / requests-hash fail) instead of overflowing into adjacent .data. The
+  -- regular-tx callers still bail at their own >128 thresholds (bvcd_preload and the
+  -- callee-seed table stay 128-sized); only the system-call preload path consumes
+  -- large counts.
+  "  li t0, " ++ toString bsrAccountSlotCap ++ "; bgtu s5, t0, .Lbrsk_done            # count > cap -> return count, write nothing\n" ++
   "  mv s6, zero                  # i\n" ++
   "  mv s7, s2                    # out cursor\n" ++
   ".Lbrsk_loop:\n" ++
@@ -141,9 +144,9 @@ def balRecipientStorageReadsKeysFunction : String :=
   "  jal ra, rlp_list_count_items\n" ++
   "  bnez a0, .Lbrsrk_zero\n" ++
   "  la t0, brsk_cnt; ld s6, 0(t0)                   # sr count\n" ++
-  -- fhsxz.2.4.2.66.1: absolute clamp raised 128 -> 512 in lockstep with the key buffers;
-  -- the real per-caller bound is a3 (remaining capacity), which every caller passes.
-  "  li t0, 512; bgtu s6, t0, .Lbrsrk_done           # > cap -> count, write nothing\n" ++
+  -- fhsxz.2.4.2.66.1.2: absolute clamp = bsrAccountSlotCap, in lockstep with the key
+  -- buffers; the real per-caller bound is a3 (remaining capacity), which every caller passes.
+  "  li t0, " ++ toString bsrAccountSlotCap ++ "; bgtu s6, t0, .Lbrsrk_done           # > cap -> count, write nothing\n" ++
   "  bgtu s6, s3, .Lbrsrk_done                       # > remaining capacity -> count, write nothing\n" ++
   "  li s7, 0                     # i (SAVED reg: rlp_list_nth_item clobbers t-regs)\n" ++
   ".Lbrsrk_loop:\n" ++
