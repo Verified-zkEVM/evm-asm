@@ -963,6 +963,18 @@ def blockVerdictFunction : String :=
   -- state-root check (which only validates the prover BAL against the prover header.state_root).
   -- Nonce is value-independent, so no coinbase gate is needed; an absent/oversized post nonce
   -- returns "skip" (2) and never rejects. A BAL post nonce != pre+1 is a prover lie -> reject.
+  -- bmvmx.2 (check_transaction nonce pre-validation): BEFORE the post check, verify the spec's
+  -- pre-condition tx.nonce == sender_pre_nonce (execution-specs amsterdam/fork.py check_transaction
+  -- raises NonceMismatchError otherwise). The post check (post == pre+1) only validates the BAL's
+  -- claimed EFFECT, not that the tx was nonce-ELIGIBLE to execute: an out-of-order tx (tx.nonce !=
+  -- pre, e.g. tx.nonce=7 with pre=3) carrying a BAL post=pre+1 would otherwise false-accept a block
+  -- the spec rejects. pre_nonce = tgbpvr_lookup[80] (the very value the post check reads as "pre");
+  -- tx.nonce = sttc_nonce (extracted by the simple_transfer context build, tx_extract_nonce_and_gas,
+  -- which ran before the gas_limit read above). Value-independent like the post check, so reuse the
+  -- same .Lbv_sender_nonce_fail. Transparent for valid in-order txs (tx.nonce == pre).
+  "  la t0, tgbpvr_lookup; ld t0, 80(t0)        # sender pre_nonce (witness-proven)\n" ++
+  "  la t1, sttc_nonce; ld t1, 0(t1)            # tx.nonce (consensus-bound)\n" ++
+  "  bne t0, t1, .Lbv_sender_nonce_fail         # tx.nonce != pre_nonce -> reject (NonceMismatchError)\n" ++
   "  la a0, tgbpvr_lookup; jal ra, sender_post_nonce_consistent\n" ++
   "  li t1, 1; beq a0, t1, .Lbv_sender_nonce_fail\n" ++
   -- bmvmx.1.6.3 (recipient balance slice): the contract recipient RECEIVES tx.value and, on this
