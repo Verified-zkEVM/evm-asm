@@ -6,6 +6,7 @@
 -/
 
 import EvmAsm.Codegen.Programs.BlockVerdictParams
+import EvmAsm.Codegen.CallFrameLayout
 import EvmAsm.Codegen.Programs.StatelessVerdict
 import EvmAsm.Codegen.Programs.RequestsHash
 import EvmAsm.Codegen.Programs.BalAccountHasStateChange
@@ -612,18 +613,18 @@ def ziskStatelessVerdictV2DataSection : String :=
   "baada_item_len:\n  .zero 8\n" ++
   "basr_records:\n  .zero " ++ toString (bsrMaxStateChanges * bsrAccountRecordBytes) ++
   "\nbasr_paths:\n  .zero " ++ toString (bsrMaxStateChanges * bsrPathBytes) ++
-  -- .61.3.1: the nested call-frame arena aliases basr_values+basr_accounts.
-  -- These two are block_state_root replay scratch, read ONLY inside
-  -- block_state_root (BlockVerdict.lean <=302) and dead during tx execution
-  -- (gate-verified: no post-replay reader); the contiguous pair is
-  -- 2*bsrMaxStateChanges*bsrEncodedAccountBytes = 244 MiB >= the 1025*FRAME_STRIDE
-  -- = 164 MiB the frame arena needs, so the arena reuses this region (union, zero
-  -- net RAM growth) once the dispatcher is rebased onto frame[0] in .61.3.2.
-  -- `basr_records` (just above) is LIVE during execution (:528/577/620) and is
-  -- excluded by aliasing here, after it. See docs/call-frame-memory-layout.md §5.
-  "\ncall_frame_arena:\n" ++
-  "basr_values:\n  .zero " ++ toString (bsrMaxStateChanges * bsrEncodedAccountBytes) ++
+  "\nbasr_values:\n  .zero " ++ toString (bsrMaxStateChanges * bsrEncodedAccountBytes) ++
   "\nbasr_accounts:\n  .zero " ++ toString (bsrMaxStateChanges * bsrEncodedAccountBytes) ++
+  -- .61.3.1, re-sized for the 200M block-gas target: the nested call-frame arena
+  -- is now a STANDALONE 1025*frameStride pre-zeroed block. It used to alias
+  -- basr_values+basr_accounts (the #8513 union, forced by the 1G-sized BAL arenas
+  -- leaving no free RAM), but at the 200M capacity that pair is ~49 MiB — smaller
+  -- than the ~164 MiB frame array — while the BAL downsize frees ~333 MiB, so the
+  -- arena gets its own region (and the basr_* execution-dead soundness gate is no
+  -- longer load-bearing). Fit pinned by `frameArray_and_balArenas_fit`
+  -- (CallFrameLayout.lean); ELF ground truth = readelf -lW top RW LOAD < 0xc0000000.
+  "\n.balign 32\n" ++
+  "call_frame_arena:\n  .zero " ++ toString frameArrayBytes ++
   "\ncall_frame_arena_end:\n" ++ "\n" ++
   "bara_item_off:\n  .zero 8\n" ++
   "bara_item_len:\n  .zero 8\n" ++

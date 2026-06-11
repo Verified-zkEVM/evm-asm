@@ -11,8 +11,9 @@
   x20=base+frameEnvOff) on a depth bump.
 
   `FRAME_STRIDE = 0x29000` (CallFrameLayout.frameStride). The arena symbol
-  `call_frame_arena` aliases `basr_values` in the guest (#8513); this module's
-  probe links a local stub to test the offset arithmetic in isolation.
+  `call_frame_arena` is a standalone pre-zeroed block in the guest (it aliased
+  `basr_values` under the retired 1G layout, #8513); this module's probe links
+  a local stub to test the offset arithmetic in isolation.
 -/
 
 import EvmAsm.Rv64.Program

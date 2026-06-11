@@ -13,11 +13,15 @@ import EvmAsm.Codegen.Programs.EvmStorageAccessGas
 namespace EvmAsm.Codegen
 
 def bsrBalGasCost : Nat := 2000
-/-- Static BAL/state replay arena capacity. This is sized like the former 1G
-    worst-case BAL budget, but high declared block gas is not itself a layout
-    error: the guest first applies Amsterdam's gas-derived BAL rule, then checks
-    actual decoded item counts against these arenas. -/
-def bsrMaxBalItems : Nat := 500000
+/-- Static BAL/state replay arena capacity, sized for the Amsterdam 200M
+    block-gas target: `bal_items <= block_gas_limit / 2000` = 100,000 items at
+    200,000,000 gas. (The former 500,000 value was the 1G worst case, which is
+    out of scope — it cost ~349 MB of the fixed 512 MiB ziskemu RAM window.)
+    High declared block gas is not itself a layout error: the guest first
+    applies Amsterdam's gas-derived BAL rule, then checks actual decoded item
+    counts against these arenas; blocks whose actual counts exceed the
+    capacities take the conservative bsr_fail path. -/
+def bsrMaxBalItems : Nat := 100000
 def bsrModeledSystemChanges : Nat := 2
 def bsrMaxWithdrawalChanges : Nat := 16
 def bsrMaxAuxChanges : Nat := bsrModeledSystemChanges + bsrMaxWithdrawalChanges
