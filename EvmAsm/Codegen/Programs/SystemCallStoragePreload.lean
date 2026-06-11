@@ -37,15 +37,29 @@ open EvmAsm.Rv64
     returned so the caller bails conservatively). -/
 def stagePredeployStoragePreloadFunction : String :=
   "stage_predeploy_storage_preload:\n" ++
-  "  addi sp, sp, -48\n" ++
+  "  addi sp, sp, -64\n" ++
   "  sd ra, 0(sp)\n" ++
   "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  sd s5, 48(sp); sd s6, 56(sp)\n" ++
   "  mv s0, a2                    # out ptr\n" ++
-  -- bal_recipient_storage_keys(AccountChanges, len, sps_keys) -> count
+  "  mv s5, a0                    # AccountChanges ptr (kept for the reads pass)\n" ++
+  "  mv s6, a1                    # AccountChanges len\n" ++
+  -- bal_recipient_storage_keys(AccountChanges, len, sps_keys) -> changes-slot count
   "  la a2, sps_keys\n" ++
   "  jal ra, bal_recipient_storage_keys\n" ++
-  "  mv s1, a0                    # slot count\n" ++
-  "  li t0, 128\n  bgtu s1, t0, .Lspsp_done\n" ++   -- >128: bail (write nothing, return count)
+  "  mv s1, a0                    # changes-slot count\n" ++
+  "  li t0, 128\n  bgtu s1, t0, .Lspsp_done\n" ++   -- >128 changes: bail (write nothing, return count)
+  -- 8uld3.2.3.3.1 Fix2: ALSO stage the predeploy's storage_READS (AccountChanges item 2).
+  -- A no-requests predeploy reads the queue head/tail/count slots it never writes, so a
+  -- changes-only preload leaves those SLOADs reading garbage (the e0010046 unmapped-read
+  -- crash). Append the reads keys after the changes keys; the loop below stages a real
+  -- pre-block value for each. (a0/a1 were clobbered by the changes call; restore from s5/s6.)
+  "  mv a0, s5; mv a1, s6\n" ++
+  "  slli t0, s1, 5; la t1, sps_keys; add a2, t1, t0   # &sps_keys[changes_count]\n" ++
+  "  li t0, 128; sub a3, t0, s1                         # remaining capacity\n" ++
+  "  jal ra, bal_recipient_storage_reads_keys\n" ++
+  "  add s1, s1, a0                                     # total = changes + reads\n" ++
+  "  li t0, 128\n  bgtu s1, t0, .Lspsp_done\n" ++   -- combined >128: bail
   "  li s2, 0                     # i\n" ++
   ".Lspsp_loop:\n" ++
   "  beq s2, s1, .Lspsp_done\n" ++
@@ -77,7 +91,8 @@ def stagePredeployStoragePreloadFunction : String :=
   "  mv a0, s1\n" ++
   "  ld ra, 0(sp)\n" ++
   "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
+  "  ld s5, 48(sp); ld s6, 56(sp)\n" ++
+  "  addi sp, sp, 64\n" ++
   "  ret"
 
 /-- Globals for `stage_predeploy_storage_preload` (caller-set witness/header pointers +

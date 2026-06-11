@@ -431,6 +431,9 @@ def statelessVerdictV2Function : String :=
   -- is resolved at the PRE-state (parent header). witness.state = svf_witness_section+off0 ..
   -- svf_codes_ptr; witness.codes = svf_codes_ptr/len.
   "  la t0, evm_env; ld t1, 448(t0); la t2, c1_saved_logcount; sd t1, 0(t2)\n" ++
+  -- 8uld3.2.3.3.1 Fix1: parse the block BAL at the requests_hash point (bsr_bal_start is the
+  -- block_state_root context's, 0 here). s0 is the BAL input (block_access_list_hash uses it @484).
+  "  mv a0, s0; la a1, c1_bal_start; la a2, c1_bal_len; la a3, c1_bal_count; jal ra, bal_section_info\n" ++
   -- == WITHDRAWAL (EIP-7002): code_at -> BAL preload -> system call -> copy body ==
   "  la t0, svf_witness; ld a3, 0(t0); la t0, svf_witness_len; ld a4, 0(t0)\n" ++
   "  la t0, svf_parent_rlp; ld a0, 0(t0); la t0, svf_parent_rlp_len; ld a1, 0(t0)\n" ++
@@ -440,7 +443,7 @@ def statelessVerdictV2Function : String :=
   "  bnez a0, .Lv2_requests_hash_fail\n" ++
   "  la t0, svf_codes_ptr; ld t1, 0(t0); la t2, cahsr_code_offset; ld t3, 0(t2); add t4, t1, t3\n" ++
   "  la t0, c1_wcode_ptr; sd t4, 0(t0); la t2, cahsr_code_length; ld t3, 0(t2); la t0, c1_wcode_len; sd t3, 0(t0)\n" ++
-  "  la t0, bsr_bal_start; ld a0, 0(t0); la t0, bsr_bal_len; ld a1, 0(t0)\n" ++
+  "  la t0, c1_bal_start; ld a0, 0(t0); la t0, c1_bal_len; ld a1, 0(t0)\n" ++
   "  la a2, withdrawal_request_predeploy_addr; la a3, c1_bal_acct_ptr; la a4, c1_bal_acct_len\n" ++
   "  jal ra, bal_find_account_by_address\n" ++
   "  bnez a0, .Lc1_w_nopreload\n" ++
@@ -476,7 +479,7 @@ def statelessVerdictV2Function : String :=
   "  bnez a0, .Lv2_requests_hash_fail\n" ++
   "  la t0, svf_codes_ptr; ld t1, 0(t0); la t2, cahsr_code_offset; ld t3, 0(t2); add t4, t1, t3\n" ++
   "  la t0, c1_ccode_ptr; sd t4, 0(t0); la t2, cahsr_code_length; ld t3, 0(t2); la t0, c1_ccode_len; sd t3, 0(t0)\n" ++
-  "  la t0, bsr_bal_start; ld a0, 0(t0); la t0, bsr_bal_len; ld a1, 0(t0)\n" ++
+  "  la t0, c1_bal_start; ld a0, 0(t0); la t0, c1_bal_len; ld a1, 0(t0)\n" ++
   "  la a2, consolidation_request_predeploy_addr; la a3, c1_bal_acct_ptr; la a4, c1_bal_acct_len\n" ++
   "  jal ra, bal_find_account_by_address\n" ++
   "  bnez a0, .Lc1_c_nopreload\n" ++
