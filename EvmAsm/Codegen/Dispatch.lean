@@ -1976,12 +1976,19 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  beqz x8, .runtime_tx_gas_create_words\n" ++
   "  lbu x11, 0(x9)\n" ++
   "  beqz x11, .runtime_tx_gas_zero_byte\n" ++
-  "  addi x7, x7, 16\n" ++
-  "  addi x10, x10, 64\n" ++   -- u13jh: EIP-7623 floor = 4 tokens * TX_DATA_TOKEN_FLOOR(16) per non-zero byte (was stale 40 = *10)
+  "  addi x7, x7, 16\n" ++       -- non-zero data_cost = 4 tokens * STANDARD_TOKEN_COST(4)
+  "  addi x10, x10, 64\n" ++   -- floor = 4 tokens * TX_DATA_TOKEN_FLOOR(16) = 64 per non-zero byte
   "  j .runtime_tx_gas_data_step\n" ++
   ".runtime_tx_gas_zero_byte:\n" ++
-  "  addi x7, x7, 4\n" ++
-  "  addi x10, x10, 16\n" ++   -- u13jh: EIP-7623 floor = 1 token * TX_DATA_TOKEN_FLOOR(16) per zero byte (was stale 10 = *10)
+  "  addi x7, x7, 4\n" ++       -- zero-byte data_cost (count_tokens_in_data) = 1 token * 4
+  -- mlp31: EIP-7976 makes the calldata FLOOR count EVERY byte uniformly at
+  -- TX_DATA_TOKEN_STANDARD(4) tokens (transactions.py: floor_tokens_in_calldata =
+  -- ulen(tx.data) * 4), so a zero byte adds 4 * TX_DATA_TOKEN_FLOOR(16) = 64 to the
+  -- floor, NOT the EIP-7623 zero=1-token weighting (the old 16). The zero/non-zero
+  -- split survives only for the non-floor data_cost accumulator (x7). The old 16 here
+  -- under-counted the floor by 48 per zero byte; the gate is `bltu x6, x10` (reject if
+  -- gas < floor), so the under-count was a false-accept of floor-short txs.
+  "  addi x10, x10, 64\n" ++
   ".runtime_tx_gas_data_step:\n" ++
   "  addi x9, x9, 1\n" ++
   "  addi x8, x8, -1\n" ++
