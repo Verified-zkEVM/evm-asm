@@ -325,6 +325,27 @@ def ziskStatelessVerdictV2DataSection : String :=
   "svf_codes_len:\n  .zero 8\n" ++
   "svf_headers_ptr:\n  .zero 8\n" ++
   "svf_headers_len:\n  .zero 8\n" ++
+  -- 8uld3.2.3.3.1 (C.1): scratch for execution-derived withdrawal+consolidation requests_hash.
+  ".balign 8\n" ++
+  "c1_saved_logcount:\n  .zero 8\n" ++
+  "c1_wcode_ptr:\n  .zero 8\n" ++
+  "c1_wcode_len:\n  .zero 8\n" ++
+  "c1_er_input:\n  .zero 8\n" ++
+  ".balign 8\n" ++
+  "c1_staging:\n  .zero 32768\n" ++   -- Fix7: system-call payload = env_base+504; env_base grows with the predeploy's storage preload (up to 128 slots*64) + M29 block hashes. 4096 overflowed for above-max queues (100 slots -> ~7.5KB) -> truncated storage section -> SLOAD miss -> empty derived body.
+  ".balign 8\n" ++
+  "c1_er_assembled:\n  .zero 2048\n" ++
+  "c1_ccode_ptr:\n  .zero 8\n" ++
+  "c1_ccode_len:\n  .zero 8\n" ++
+  "c1_bal_acct_ptr:\n  .zero 8\n" ++
+  "c1_bal_acct_len:\n  .zero 8\n" ++
+  ".balign 8\n" ++
+  "c1_preload:\n  .zero 8192\n" ++
+  "c1_bal_start:\n  .zero 8\n" ++
+  "c1_bal_len:\n  .zero 8\n" ++
+  "c1_bal_count:\n  .zero 8\n" ++
+  "c1_saved_s0:\n  .zero 8\n" ++
+  "c1_saved_s3:\n  .zero 8\n" ++
   "svf_headers_count:\n  .zero 8\n" ++
   "bbcv_count:\n  .zero 8\n" ++
   "bbcv_off:\n  .zero 8\n" ++

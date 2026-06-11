@@ -422,9 +422,110 @@ def statelessVerdictV2Function : String :=
   "  bnez a0, .Lv2_withdrawals_root_fail\n" ++
   "  addi a0, s0, 56; jal ra, bgv_u32le; mv s3, a0     # execution_requests offset\n" ++
   "  addi a0, s0, 4;  jal ra, bgv_u32le; mv s4, a0     # witness offset = NPR end\n" ++
-  "  addi a0, s0, 16; add a0, a0, s3                   # er section start\n" ++
-  "  sub a1, s4, s3; addi a1, a1, -16                  # er section len\n" ++
-  "  la a2, erh_requests_hash\n" ++
+  -- 8uld3.2.3.3.1 Fix3: the system-call derives below run runtime_dispatcher_call, which
+  -- clobbers ALL s-registers (SystemCallStaging:96-99 — it resets sp to lp64_sp_top and the
+  -- predeploy EVM execution overwrites the s-regs). s0(NPR base)/s3(er offset) are needed
+  -- AFTER the derives (deposit extraction, no-tx deposit check, block_access_list_hash,
+  -- block_verdict) so save them now and reload after the last derive. (The original
+  -- "callees preserve s-regs" claim below was wrong: the dispatcher does NOT.)
+  "  la t0, c1_saved_s0; sd s0, 0(t0); la t0, c1_saved_s3; sd s3, 0(t0)\n" ++
+  -- 8uld3.2.3.3.1 (C.1): hash the EXECUTION-DERIVED withdrawal(EIP-7002)+consolidation(EIP-7251)
+  -- request bodies instead of trusting the SSZ-input ones (deposits stay SSZ-trusted -> .3.3).
+  -- Snapshot/restore the exec-log count (evm_env+448) around the system calls so their SSTORE
+  -- effects stay OUT of the storage comparator (preserving its current passing behavior; the
+  -- 7002/7251 predeploy writes are EIP-7928 index-0 system writes the comparator already
+  -- tolerates). s0=NPR base, s3=er offset survive (callees preserve s-regs). The predeploy code
+  -- is resolved at the PRE-state (parent header). witness.state = svf_witness_section+off0 ..
+  -- svf_codes_ptr; witness.codes = svf_codes_ptr/len.
+  "  la t0, evm_env; ld t1, 448(t0); la t2, c1_saved_logcount; sd t1, 0(t2)\n" ++
+  -- 8uld3.2.3.3.1 Fix1: parse the block BAL at the requests_hash point (bsr_bal_start is the
+  -- block_state_root context's, 0 here). s0 is the BAL input (block_access_list_hash uses it @484).
+  "  mv a0, s0; la a1, c1_bal_start; la a2, c1_bal_len; la a3, c1_bal_count; jal ra, bal_section_info\n" ++
+  -- == WITHDRAWAL (EIP-7002): code_at -> BAL preload -> system call -> copy body ==
+  "  la t0, svf_witness; ld a3, 0(t0); la t0, svf_witness_len; ld a4, 0(t0)\n" ++
+  "  la t0, svf_parent_rlp; ld a0, 0(t0); la t0, svf_parent_rlp_len; ld a1, 0(t0)\n" ++
+  "  la a2, withdrawal_request_predeploy_addr\n" ++
+  "  la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0)\n" ++
+  "  jal ra, code_at_header_state_root\n" ++
+  "  bnez a0, .Lv2_requests_hash_fail\n" ++
+  "  la t0, svf_codes_ptr; ld t1, 0(t0); la t2, cahsr_code_offset; ld t3, 0(t2); add t4, t1, t3\n" ++
+  "  la t0, c1_wcode_ptr; sd t4, 0(t0); la t2, cahsr_code_length; ld t3, 0(t2); la t0, c1_wcode_len; sd t3, 0(t0)\n" ++
+  "  la t0, c1_bal_start; ld a0, 0(t0); la t0, c1_bal_len; ld a1, 0(t0)\n" ++
+  "  la a2, withdrawal_request_predeploy_addr; la a3, c1_bal_acct_ptr; la a4, c1_bal_acct_len\n" ++
+  "  jal ra, bal_find_account_by_address\n" ++
+  "  bnez a0, .Lc1_w_nopreload\n" ++
+  "  la t0, svf_parent_rlp; ld t1, 0(t0); la t2, sps_header; sd t1, 0(t2)\n" ++
+  "  la t0, svf_parent_rlp_len; ld t1, 0(t0); la t2, sps_header_len; sd t1, 0(t2)\n" ++
+  "  la t0, svf_witness; ld t1, 0(t0); la t2, sps_state; sd t1, 0(t2); la t2, sps_storage; sd t1, 0(t2)\n" ++
+  "  la t0, svf_witness_len; ld t1, 0(t0); la t2, sps_state_len; sd t1, 0(t2); la t2, sps_storage_len; sd t1, 0(t2)\n" ++
+  "  la t1, withdrawal_request_predeploy_addr; la t2, sps_addr; li t3, 20\n" ++
+  ".Lc1_w_addr:\n" ++
+  "  beqz t3, .Lc1_w_addrd; lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Lc1_w_addr\n" ++
+  ".Lc1_w_addrd:\n" ++
+  "  la t0, c1_bal_acct_ptr; ld a0, 0(t0); la t0, c1_bal_acct_len; ld a1, 0(t0); la a2, c1_preload\n" ++
+  "  jal ra, stage_predeploy_storage_preload\n" ++
+  "  la t0, scc_preload_count; sd a0, 0(t0); la t1, c1_preload; la t0, scc_preload_ptr; sd t1, 0(t0)\n" ++
+  "  j .Lc1_w_derive\n" ++
+  ".Lc1_w_nopreload:\n" ++
+  "  la t0, scc_preload_count; sd zero, 0(t0)\n" ++
+  ".Lc1_w_derive:\n" ++
+  "  la t0, c1_wcode_ptr; ld a0, 0(t0); la t0, c1_wcode_len; ld a1, 0(t0)\n" ++
+  "  la t0, svf_payload; ld a2, 0(t0); la a3, c1_staging\n" ++
+  "  jal ra, derive_withdrawal_requests\n" ++
+  "  bnez a2, .Lv2_requests_hash_fail\n" ++
+  "  la t0, dbsr_wlen; sd a1, 0(t0); mv t1, a0; la t2, dbsr_wbody; mv t3, a1\n" ++
+  ".Lc1_w_copy:\n" ++
+  "  beqz t3, .Lc1_w_copyd; lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Lc1_w_copy\n" ++
+  ".Lc1_w_copyd:\n" ++
+  -- == CONSOLIDATION (EIP-7251) ==
+  "  la t0, svf_witness; ld a3, 0(t0); la t0, svf_witness_len; ld a4, 0(t0)\n" ++
+  "  la t0, svf_parent_rlp; ld a0, 0(t0); la t0, svf_parent_rlp_len; ld a1, 0(t0)\n" ++
+  "  la a2, consolidation_request_predeploy_addr\n" ++
+  "  la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0)\n" ++
+  "  jal ra, code_at_header_state_root\n" ++
+  "  bnez a0, .Lv2_requests_hash_fail\n" ++
+  "  la t0, svf_codes_ptr; ld t1, 0(t0); la t2, cahsr_code_offset; ld t3, 0(t2); add t4, t1, t3\n" ++
+  "  la t0, c1_ccode_ptr; sd t4, 0(t0); la t2, cahsr_code_length; ld t3, 0(t2); la t0, c1_ccode_len; sd t3, 0(t0)\n" ++
+  "  la t0, c1_bal_start; ld a0, 0(t0); la t0, c1_bal_len; ld a1, 0(t0)\n" ++
+  "  la a2, consolidation_request_predeploy_addr; la a3, c1_bal_acct_ptr; la a4, c1_bal_acct_len\n" ++
+  "  jal ra, bal_find_account_by_address\n" ++
+  "  bnez a0, .Lc1_c_nopreload\n" ++
+  "  la t0, svf_parent_rlp; ld t1, 0(t0); la t2, sps_header; sd t1, 0(t2)\n" ++
+  "  la t0, svf_parent_rlp_len; ld t1, 0(t0); la t2, sps_header_len; sd t1, 0(t2)\n" ++
+  "  la t0, svf_witness; ld t1, 0(t0); la t2, sps_state; sd t1, 0(t2); la t2, sps_storage; sd t1, 0(t2)\n" ++
+  "  la t0, svf_witness_len; ld t1, 0(t0); la t2, sps_state_len; sd t1, 0(t2); la t2, sps_storage_len; sd t1, 0(t2)\n" ++
+  "  la t1, consolidation_request_predeploy_addr; la t2, sps_addr; li t3, 20\n" ++
+  ".Lc1_c_addr:\n" ++
+  "  beqz t3, .Lc1_c_addrd; lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Lc1_c_addr\n" ++
+  ".Lc1_c_addrd:\n" ++
+  "  la t0, c1_bal_acct_ptr; ld a0, 0(t0); la t0, c1_bal_acct_len; ld a1, 0(t0); la a2, c1_preload\n" ++
+  "  jal ra, stage_predeploy_storage_preload\n" ++
+  "  la t0, scc_preload_count; sd a0, 0(t0); la t1, c1_preload; la t0, scc_preload_ptr; sd t1, 0(t0)\n" ++
+  "  j .Lc1_c_derive\n" ++
+  ".Lc1_c_nopreload:\n" ++
+  "  la t0, scc_preload_count; sd zero, 0(t0)\n" ++
+  ".Lc1_c_derive:\n" ++
+  "  la t0, c1_ccode_ptr; ld a0, 0(t0); la t0, c1_ccode_len; ld a1, 0(t0)\n" ++
+  "  la t0, svf_payload; ld a2, 0(t0); la a3, c1_staging\n" ++
+  "  jal ra, derive_consolidation_requests\n" ++
+  "  bnez a2, .Lv2_requests_hash_fail\n" ++
+  "  la t0, dbsr_clen; sd a1, 0(t0); mv t1, a0; la t2, dbsr_cbody; mv t3, a1\n" ++
+  ".Lc1_c_copy:\n" ++
+  "  beqz t3, .Lc1_c_copyd; lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Lc1_c_copy\n" ++
+  ".Lc1_c_copyd:\n" ++
+  "  la t0, evm_env; la t2, c1_saved_logcount; ld t1, 0(t2); sd t1, 448(t0)\n" ++
+  "  la t0, scc_preload_count; sd zero, 0(t0)\n" ++
+  -- 8uld3.2.3.3.1 Fix3: reload s0/s3 clobbered by the derives' dispatcher runs (see save above).
+  "  la t0, c1_saved_s0; ld s0, 0(t0); la t0, c1_saved_s3; ld s3, 0(t0)\n" ++
+  "  addi t0, s0, 16; add t0, t0, s3; la t1, c1_er_input; sd t0, 0(t1)\n" ++
+  "  la t0, c1_er_input; ld t1, 0(t0); addi a0, t1, 4; jal ra, bgv_u32le\n" ++
+  "  la t0, c1_er_input; ld t1, 0(t0); addi t2, t1, 12; addi t3, a0, -12\n" ++
+  "  mv a0, t2; mv a1, t3\n" ++
+  "  la t0, dbsr_wbody; mv a2, t0; la t0, dbsr_wlen; ld a3, 0(t0)\n" ++
+  "  la t0, dbsr_cbody; mv a4, t0; la t0, dbsr_clen; ld a5, 0(t0)\n" ++
+  "  la a6, c1_er_assembled\n" ++
+  "  jal ra, assemble_execution_requests\n" ++
+  "  mv a1, a0; la a0, c1_er_assembled; la a2, erh_requests_hash\n" ++
   "  jal ra, execution_requests_hash\n" ++
   "  bnez a0, .Lv2_requests_hash_fail\n" ++
   -- hv09f.1: parse_deposit_requests scans receipts for deposit-contract logs; a
@@ -437,7 +538,7 @@ def statelessVerdictV2Function : String :=
   -- (Withdrawals/consolidations are NOT checked: the 7002/7251 system contracts can
   -- enqueue those in a no-tx block.) execution_requests_hash already validated the
   -- offset table (>=12 bytes, monotonic), so reading offset[0]/offset[1] is safe and
-  -- offset[1] >= offset[0]. s0/s3 (NPR base / er offset) survive the call (s-regs).
+  -- offset[1] >= offset[0]. s0/s3 (NPR base / er offset) were reloaded after the derives (Fix3).
   "  la t0, svf_tx_count; ld t0, 0(t0); bnez t0, .Lv2_after_notx_deposits\n" ++
   "  addi a0, s0, 16; add a0, a0, s3; jal ra, bgv_u64le   # offset[0] | offset[1]<<32\n" ++
   "  srli t0, a0, 32                                       # deposits end (offset[1])\n" ++

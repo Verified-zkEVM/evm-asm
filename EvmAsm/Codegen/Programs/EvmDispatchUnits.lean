@@ -100,6 +100,7 @@ def ziskStageSystemCallProbeUnit : BuildUnit := {
     emitRuntimeDispatcherDataSection tinyInterpRegistry ++ "\n" ++
     ".balign 8\n" ++
     "scc_ctx:\n  .zero 192\n" ++
+    "scc_preload_ptr:\n  .zero 8\nscc_preload_count:\n  .zero 8\n" ++
     ".balign 8\n" ++
     "scc_system_addr:\n" ++
     "  .byte 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff\n" ++
@@ -182,6 +183,7 @@ def ziskDeriveWithdrawalRequestsProbeUnit : BuildUnit := {
     emitRuntimeDispatcherDataSection tinyInterpRegistry ++ "\n" ++
     ".balign 8\n" ++
     "scc_ctx:\n  .zero 192\n" ++
+    "scc_preload_ptr:\n  .zero 8\nscc_preload_count:\n  .zero 8\n" ++
     ".balign 8\n" ++
     "scc_system_addr:\n" ++
     "  .byte 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff\n" ++
@@ -262,6 +264,7 @@ def ziskDeriveConsolidationRequestsProbeUnit : BuildUnit := {
     emitRuntimeDispatcherDataSection tinyInterpRegistry ++ "\n" ++
     ".balign 8\n" ++
     "scc_ctx:\n  .zero 192\n" ++
+    "scc_preload_ptr:\n  .zero 8\nscc_preload_count:\n  .zero 8\n" ++
     ".balign 8\n" ++
     "scc_system_addr:\n" ++
     "  .byte 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff\n" ++
@@ -368,6 +371,7 @@ def ziskDeriveRequestsHashE2EProbeUnit : BuildUnit := {
     emitRuntimeDispatcherDataSection tinyInterpRegistry ++ "\n" ++
     ".balign 8\n" ++
     "scc_ctx:\n  .zero 192\n" ++
+    "scc_preload_ptr:\n  .zero 8\nscc_preload_count:\n  .zero 8\n" ++
     ".balign 8\n" ++
     "scc_system_addr:\n" ++
     "  .byte 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff\n" ++
@@ -457,6 +461,7 @@ def ziskDeriveBlockSystemRequestsProbeUnit : BuildUnit := {
     emitRuntimeDispatcherDataSection tinyInterpRegistry ++ "\n" ++
     ".balign 8\n" ++
     "scc_ctx:\n  .zero 192\n" ++
+    "scc_preload_ptr:\n  .zero 8\nscc_preload_count:\n  .zero 8\n" ++
     ".balign 8\n" ++
     "scc_system_addr:\n" ++
     "  .byte 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff\n" ++
