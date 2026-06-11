@@ -7,7 +7,7 @@
 
   Composes the existing primitives:
     * bal_recipient_storage_keys (BlockVerdictContractStorage) — enumerate the predeploy's
-      accessed slot keys from its BAL AccountChanges entry (cap 128).
+      accessed slot keys from its BAL AccountChanges entry (cap 512).
     * slot_at_header_state_root (StateCompose) — for each key, walk the witness MPT
       (header.state_root -> account leaf -> storage trie -> slot) to the ORIGINAL pre-block
       value; the 32-byte u256 lands in the `sahsr_u256` global (a0 = status, nonzero = fail).
@@ -30,11 +30,13 @@ open EvmAsm.Rv64
 
 /-! ## stage_predeploy_storage_preload
     a0 = predeploy AccountChanges RLP ptr   a1 = AccountChanges RLP length
-    a2 = out ptr (count x 64-byte (key:32 BE, value:32 BE) pairs; caller buffer >= 128*64)
+    a2 = out ptr (count x 64-byte (key:32 BE, value:32 BE) pairs; caller buffer >= 512*64)
     Globals (caller-set): sps_addr (20-byte predeploy address), sps_header / sps_header_len,
       sps_state / sps_state_len, sps_storage / sps_storage_len.
-    Returns a0 = slot count (0 on parse failure; if > 128, nothing written, true count
-    returned so the caller bails conservatively). -/
+    Returns a0 = slot count (0 on parse failure; if > 512, nothing written, true count
+    returned so the caller MUST bail conservatively — staging a count the buffer doesn't
+    hold reads garbage past c1_preload; fhsxz.2.4.2.66.1 raised the cap from 128 because
+    the system_contract_errors EEST predeploys commit 306 storage changes). -/
 def stagePredeployStoragePreloadFunction : String :=
   "stage_predeploy_storage_preload:\n" ++
   "  addi sp, sp, -64\n" ++
@@ -48,7 +50,7 @@ def stagePredeployStoragePreloadFunction : String :=
   "  la a2, sps_keys\n" ++
   "  jal ra, bal_recipient_storage_keys\n" ++
   "  mv s1, a0                    # changes-slot count\n" ++
-  "  li t0, 128\n  bgtu s1, t0, .Lspsp_done\n" ++   -- >128 changes: bail (write nothing, return count)
+  "  li t0, 512\n  bgtu s1, t0, .Lspsp_done\n" ++   -- >512 changes: bail (write nothing, return count)
   -- 8uld3.2.3.3.1 Fix2: ALSO stage the predeploy's storage_READS (AccountChanges item 2).
   -- A no-requests predeploy reads the queue head/tail/count slots it never writes, so a
   -- changes-only preload leaves those SLOADs reading garbage (the e0010046 unmapped-read
@@ -56,10 +58,10 @@ def stagePredeployStoragePreloadFunction : String :=
   -- pre-block value for each. (a0/a1 were clobbered by the changes call; restore from s5/s6.)
   "  mv a0, s5; mv a1, s6\n" ++
   "  slli t0, s1, 5; la t1, sps_keys; add a2, t1, t0   # &sps_keys[changes_count]\n" ++
-  "  li t0, 128; sub a3, t0, s1                         # remaining capacity\n" ++
+  "  li t0, 512; sub a3, t0, s1                         # remaining capacity\n" ++
   "  jal ra, bal_recipient_storage_reads_keys\n" ++
   "  add s1, s1, a0                                     # total = changes + reads\n" ++
-  "  li t0, 128\n  bgtu s1, t0, .Lspsp_done\n" ++   -- combined >128: bail
+  "  li t0, 512\n  bgtu s1, t0, .Lspsp_done\n" ++   -- combined >512: bail
   -- Fix6 pre-pass: sps_sysidx = MAX block_access_index across the predeploy's changed slots.
   -- The block-end system call is the last writer, so its index is this max; a slot's pre-system
   -- value (what the predeploy reads) is the last change tuple with index < sps_sysidx.
@@ -156,7 +158,7 @@ def stagePredeployStoragePreloadFunction : String :=
     the predeploy address + the slot-key scratch buffer). -/
 def stagePredeployStoragePreloadData : String :=
   ".balign 8\n" ++
-  "sps_keys:\n  .zero 4096\n" ++       -- 128 x 32-byte slot keys
+  "sps_keys:\n  .zero 16384\n" ++      -- 512 x 32-byte slot keys (fhsxz.2.4.2.66.1: was 128)
   ".balign 8\n" ++
   "sps_tuples:\n  .zero 20480\n" ++    -- Fix6: 512 x 40-byte (block_access_index, new_value) tuples per slot
   "sps_sysidx:\n  .zero 8\n" ++        -- Fix6: system-call block_access_index (= max change index)
