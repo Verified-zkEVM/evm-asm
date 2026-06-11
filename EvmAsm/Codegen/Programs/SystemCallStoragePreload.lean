@@ -65,9 +65,15 @@ def stagePredeployStoragePreloadFunction : String :=
   "  beq s2, s1, .Lspsp_done\n" ++
   "  slli t0, s2, 5; la t1, sps_keys; add s3, t1, t0   # s3 = &key[i] (32B)\n" ++
   "  slli t0, s2, 6; add s4, s0, t0                     # s4 = &out[i] (64B stride)\n" ++
-  -- copy key (32B) -> out[i][0..32]
-  "  ld a5, 0(s3); sd a5, 0(s4); ld a5, 8(s3); sd a5, 8(s4)\n" ++
-  "  ld a5, 16(s3); sd a5, 16(s4); ld a5, 24(s3); sd a5, 24(s4)\n" ++
+  -- 8uld3.2.3.3.1 Fix5: write the preload KEY byte-reversed (BE->LE: dst[31-i]<-src[i]) so the
+  -- dispatcher's SLOAD (little-endian-limb stack key) matches. sps_keys stays BE for the MPT
+  -- lookup (a3) below. Without this, non-zero queue slots were invisible (SLOAD miss -> 0), so a
+  -- non-empty queue derived an EMPTY body -> requests_hash mismatch. Same BE->LE class as #8694.
+  "  li t0, 0\n" ++
+  ".Lspsp_krev:\n" ++
+  "  li t1, 32; beq t0, t1, .Lspsp_krevd\n" ++
+  "  add t2, s3, t0; lbu t3, 0(t2); li t4, 31; sub t4, t4, t0; add t4, s4, t4; sb t3, 0(t4); addi t0, t0, 1; j .Lspsp_krev\n" ++
+  ".Lspsp_krevd:\n" ++
   -- slot_at_header_state_root(header, header_len, predeploy_addr, &key[i], state, state_len, storage, storage_len)
   "  la t0, sps_header; ld a0, 0(t0)\n" ++
   "  la t0, sps_header_len; ld a1, 0(t0)\n" ++
@@ -79,9 +85,12 @@ def stagePredeployStoragePreloadFunction : String :=
   "  la t0, sps_storage_len; ld a7, 0(t0)\n" ++
   "  jal ra, slot_at_header_state_root\n" ++
   "  bnez a0, .Lspsp_zero\n" ++                   -- lookup failed -> value 0 (conservative)
-  "  la t1, sahsr_u256; addi t2, s4, 32\n" ++
-  "  ld a5, 0(t1); sd a5, 0(t2); ld a5, 8(t1); sd a5, 8(t2)\n" ++
-  "  ld a5, 16(t1); sd a5, 16(t2); ld a5, 24(t1); sd a5, 24(t2)\n" ++
+  -- Fix5: value BE->LE reversed into out[i][32..64] (dst[63-i]<-src[i]).
+  "  la t5, sahsr_u256; li t0, 0\n" ++
+  ".Lspsp_vrev:\n" ++
+  "  li t1, 32; beq t0, t1, .Lspsp_vrevd\n" ++
+  "  add t2, t5, t0; lbu t3, 0(t2); li t4, 63; sub t4, t4, t0; add t4, s4, t4; sb t3, 0(t4); addi t0, t0, 1; j .Lspsp_vrev\n" ++
+  ".Lspsp_vrevd:\n" ++
   "  j .Lspsp_next\n" ++
   ".Lspsp_zero:\n" ++
   "  addi t2, s4, 32; sd zero, 0(t2); sd zero, 8(t2); sd zero, 16(t2); sd zero, 24(t2)\n" ++
