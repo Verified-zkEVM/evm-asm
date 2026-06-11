@@ -72,8 +72,9 @@ open EvmAsm.Rv64
              33 sender BAL post balance absent / >32 bytes
              37 tx value extraction failed
              38 sender final balance underflow (pre < debit, or < value)
-             39 effective gas pricing failed
+             39 effective gas pricing inconclusive (extract-fail / overflow) -> caller skips
              40 sender BAL post balance mismatch
+             50 fee invalid (max_fee < base_fee, or priority > max_fee) -> caller rejects (bmvmx.4)
       +8   sender address (20 B)
       +32  pre balance, u256 BE
       +64  gas_debit = receipt_inc * effective_gas_price, u256 BE
@@ -145,7 +146,17 @@ def txGasBalPostVerifyRuntimeFunction : String :=
   "  mv a0, s0; mv a1, s1; mv a2, s2; la a3, tgbpvr_egp; la a4, tgbpvr_prio\n" ++
   "  jal ra, tx_effective_gas_pricing\n" ++
   "  beqz a0, .Ltgbpvr_egp_ok\n" ++
+  -- bmvmx.4: tx_effective_gas_pricing returns 2 = priority_fee > max_fee
+  -- (PriorityFeeGreaterThanMaxFeeError) and 3 = max_fee < base_fee
+  -- (InsufficientMaxFeePerGasError) -- check_transaction conditions the spec
+  -- REJECTS on. Surface those as a distinct status 50 so the verdict rejects
+  -- (not skips). The other non-zero returns (1 extract-fail, 4 eff-price
+  -- overflow) stay status 39 = conservative skip (can't cleanly determine).
+  "  li t1, 2; beq a0, t1, .Ltgbpvr_fee_invalid\n" ++
+  "  li t1, 3; beq a0, t1, .Ltgbpvr_fee_invalid\n" ++
   "  li t0, 39; sd t0, 0(s7); j .Ltgbpvr_ret\n" ++
+  ".Ltgbpvr_fee_invalid:\n" ++
+  "  li t0, 50; sd t0, 0(s7); j .Ltgbpvr_ret\n" ++
   ".Ltgbpvr_egp_ok:\n" ++
   "  # 4. value.\n" ++
   "  mv a0, s0; mv a1, s1; la a2, tgbpvr_value\n" ++
