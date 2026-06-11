@@ -16,11 +16,20 @@ namespace EvmAsm.Codegen
 open EvmAsm.Rv64
 open EvmAsm.Rv64.Program
 
-/-! ## receipt_records_encode_no_logs
+/-! ## receipt_records_encode_no_logs (.63.1.6.2.2 -- now full: logs + typed)
 
-    Encode the existing receipt-record arena as one RLP list of receipt values.
-    This helper only accepts legacy records with `log_count = 0`; it uses a
-    zero logs-bloom and an empty logs list (`0xc0`) for each receipt.
+    Encode the receipt-record arena as one RLP list of receipt values, writing
+    each record's individual wire-format encoding to encoded_ptr@40 / encoded_len@48
+    (the descriptors block_validate_receipts_root_indexed builds the receipts trie
+    over). Each receipt is `[status, cumulative_gas, logs_bloom(256B), logs]`, with
+    EIP-2718 typed receipts prefixed by the type byte (`type_byte || rlp(inner)`).
+
+    Record layout (64B): tx_type@0 / status@8 / cumulative_gas@16 / log_start@24 /
+    log_count@32 / encoded_ptr@40 (out) / encoded_len@48 (out) / logs_desc_ptr@56.
+      - log_count == 0: zero logs-bloom + empty logs list (0xc0).
+      - log_count >  0: read logs_desc_ptr@56 -> {bloom_ptr@0 (256B), logs_rlp_ptr@8,
+        logs_rlp_len@16}, filled by the .2.1 materializer (logs_bloom + materialize_log_records).
+      - tx_type in 1..4: prepend the EIP-2718 type byte (legacy = 0 = bare rlp).
 
     Calling convention:
       a0 = receipt-record control block
@@ -30,9 +39,9 @@ open EvmAsm.Rv64.Program
       a0 output status:
         0 success
         1 malformed arena or record count above capacity
-        2 nonzero log_count, not supported by this first slice
+        2 log_count > 0 but the record carries no logs descriptor (@56 == 0)
         3 output capacity or internal scratch overflow
-        4 unsupported tx type (only legacy is supported by this first slice)
+        4 unsupported tx type (> 4)
 -/
 def receiptRecordsEncodeNoLogsFunction : String :=
   "receipt_records_encode_no_logs:\n" ++
@@ -57,32 +66,43 @@ def receiptRecordsEncodeNoLogsFunction : String :=
   ".Lrlen_loop:\n" ++
   "  beq s6, s4, .Lrlen_finish\n" ++
   "  slli t0, s6, 6\n" ++
-  "  add s9, s5, t0              # record ptr\n" ++
-  "  ld t0, 32(s9)               # log_count\n" ++
-  "  bnez t0, .Lrlen_logs_unsupported\n" ++
-  "  ld s10, 0(s9)               # tx type\n" ++
-  "  bnez s10, .Lrlen_type_unsupported\n" ++
-  "  ld t1, 8(s9)                # execution status\n" ++
-  "  ld t2, 16(s9)               # cumulative gas\n" ++
-  "  la s11, rle_payload_buf\n" ++
-  "  add s11, s11, s7            # receipt output cursor\n" ++
-  "  mv a0, t1\n" ++
-  "  mv a1, t2\n" ++
-  "  la a2, rle_zero_bloom\n" ++
-  "  la a3, rle_empty_logs\n" ++
-  "  li a4, 1\n" ++
-  "  mv a5, s11\n" ++
-  "  la a6, rle_field_len\n" ++
+  "  add s9, s5, t0              # record ptr (64B: tx_type@0/status@8/gas@16/log_start@24/\n" ++
+  "                              #  log_count@32/enc_ptr@40/enc_len@48/logs_desc_ptr@56)\n" ++
+  "  ld s10, 0(s9)              # tx type (0 legacy / 1..4 EIP-2718 typed)\n" ++
+  "  li t0, 4; bgtu s10, t0, .Lrlen_type_unsupported\n" ++
+  "  ld t1, 8(s9)              # execution status\n" ++
+  "  ld t2, 16(s9)             # cumulative gas\n" ++
+  "  la s11, rle_payload_buf; add s11, s11, s7   # receipt start (incl. any type byte)\n" ++
+  -- .63.1.6.2.2: typed receipts are `type_byte || rlp(inner)` (EIP-2718).
+  "  mv a5, s11                # rlp(inner) output cursor (default = start)\n" ++
+  "  beqz s10, .Lrlen_no_typebyte\n" ++
+  "  sb s10, 0(s11); addi a5, s11, 1   # write type byte; rlp(inner) starts at +1\n" ++
+  ".Lrlen_no_typebyte:\n" ++
+  -- with-log records carry logs_desc_ptr @56 -> {bloom_ptr@0, logs_rlp_ptr@8, logs_rlp_len@16}
+  -- (filled by the .2.1 materializer: bloom=logs_bloom(tx logs), logs_rlp=materialize_log_records).
+  -- no-log records use the zero bloom + empty logs list (0xc0).
+  "  ld t0, 32(s9)             # log_count\n" ++
+  "  beqz t0, .Lrlen_nolog_in\n" ++
+  "  ld t3, 56(s9)             # logs_desc_ptr\n" ++
+  "  beqz t3, .Lrlen_logs_unsupported   # log_count>0 but materializer left no descriptor\n" ++
+  "  ld a2, 0(t3); ld a3, 8(t3); ld a4, 16(t3)   # bloom_ptr, logs_rlp_ptr, logs_rlp_len\n" ++
+  "  j .Lrlen_do_enc\n" ++
+  ".Lrlen_nolog_in:\n" ++
+  "  la a2, rle_zero_bloom; la a3, rle_empty_logs; li a4, 1\n" ++
+  ".Lrlen_do_enc:\n" ++
+  "  mv a0, t1; mv a1, t2; la a6, rle_field_len\n" ++
   "  jal ra, receipt_encode\n" ++
-  "  j .Lrlen_after_encode\n" ++
-  ".Lrlen_after_encode:\n" ++
-  "  la t0, rle_field_len; ld t1, 0(t0)\n" ++
+  -- receipt_encode clobbers t/a regs; s7/s9/s10/s11 (callee-saved) survive.
+  "  la t0, rle_field_len; ld t1, 0(t0)   # rlp(inner) len\n" ++
+  "  li t4, 0; beqz s10, .Lrlen_pfx0; li t4, 1\n" ++
+  ".Lrlen_pfx0:\n" ++
+  "  add t1, t1, t4            # encoded_len = (typed ? 1 : 0) + rlp len\n" ++
   "  add t2, s7, t1\n" ++
   "  bltu t2, s7, .Lrlen_overflow\n" ++
   "  bgtu t2, s8, .Lrlen_overflow\n" ++
   "  mv s7, t2\n" ++
-  "  sd s11, 40(s9)              # encoded receipt ptr\n" ++
-  "  sd t1, 48(s9)               # encoded receipt len\n" ++
+  "  sd s11, 40(s9)            # encoded receipt ptr (start, incl. type byte)\n" ++
+  "  sd t1, 48(s9)             # encoded receipt len (type_byte? + rlp)\n" ++
   "  addi s6, s6, 1\n" ++
   "  j .Lrlen_loop\n" ++
   ".Lrlen_finish:\n" ++
