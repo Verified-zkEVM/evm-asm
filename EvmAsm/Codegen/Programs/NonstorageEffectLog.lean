@@ -76,6 +76,39 @@ def recordNonstorageEffectFunction : String :=
   "  ld s0, 0(sp); ld s1, 8(sp); ld s2, 16(sp); ld s3, 24(sp); ld s4, 32(sp); addi sp, sp, 40\n" ++
   "  ret"
 
+/-! ## nonstorage_effect_latest_balance (yisv8 .spine.1)
+    Scan the non-storage effect log from the start, keeping the LAST (most-recent-write-wins)
+    record whose 20-byte address matches, and surface its post_balance. This is the BALANCE
+    live-value read: an account's current balance during execution = its latest recorded
+    post_balance, falling back to the pre-state when no value transfer touched it. Mirrors
+    exec_log_latest_value (storage) at the 112-byte non-storage stride.
+    a0 = address ptr (32B: 20-byte BE address in bytes 0..19, bytes 20..31 = 0 -- matches the
+      record's zero-padded addr@0)   a1 = out ptr (32B BE post_balance, written only on a hit).
+    Returns a0 = 1 found / 0 not found (out left untouched on a miss). Leaf; only t-regs + a0-a2. -/
+def nonstorageEffectLatestBalanceFunction : String :=
+  "nonstorage_effect_latest_balance:\n" ++
+  "  li t6, 0                      # found flag\n" ++
+  "  la t5, exec_nonstorage_effect_count; ld t5, 0(t5)   # count\n" ++
+  "  la a2, exec_nonstorage_effect_log                   # log base\n" ++
+  "  li t0, 0                      # entry index i\n" ++
+  ".Lnelb_loop:\n" ++
+  "  beq t0, t5, .Lnelb_done\n" ++
+  "  li t1, 112; mul t1, t0, t1; add t2, a2, t1   # entry ptr = base + i*112\n" ++
+  "  ld t3, 0(t2);  ld t4, 0(a0);  bne t3, t4, .Lnelb_next   # match addr@0 (32B, 20B addr + 12B zero)\n" ++
+  "  ld t3, 8(t2);  ld t4, 8(a0);  bne t3, t4, .Lnelb_next\n" ++
+  "  ld t3, 16(t2); ld t4, 16(a0); bne t3, t4, .Lnelb_next\n" ++
+  "  ld t3, 24(t2); ld t4, 24(a0); bne t3, t4, .Lnelb_next\n" ++
+  "  ld t3, 64(t2); sd t3, 0(a1)   # post_balance@64 -> out (overwrite keeps the LAST match)\n" ++
+  "  ld t3, 72(t2); sd t3, 8(a1)\n" ++
+  "  ld t3, 80(t2); sd t3, 16(a1)\n" ++
+  "  ld t3, 88(t2); sd t3, 24(a1)\n" ++
+  "  li t6, 1\n" ++
+  ".Lnelb_next:\n" ++
+  "  addi t0, t0, 1; j .Lnelb_loop\n" ++
+  ".Lnelb_done:\n" ++
+  "  mv a0, t6\n" ++
+  "  ret"
+
 /-- Data for the non-storage effect log (linked into the dispatcher data section when
     the CREATE/CALL-value append sites land, co-located with the CREATE child data). -/
 def nonstorageEffectLogData : String :=
