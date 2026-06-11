@@ -3,6 +3,13 @@
 
   Codegen-only affine secp256k1 curve helpers for staged software public-key
   recovery. Points are 64-byte big-endian affine records: x || y.
+
+  `secp256k1_point_add` / `secp256k1_point_double` are backed by the ziskemu
+  Secp256k1Add/Secp256k1Dbl accelerators (`csrs 0x803` / `csrs 0x804` with a
+  little-endian-limb parameter pointer, emitted as pre-encoded `.4byte`s for
+  the plain `rv64imac` toolchain). The affine special cases the accelerators
+  exclude (input at infinity, doubling with y = 0, adding points with equal
+  x) stay in software, preserving the original call surface and return codes.
 -/
 
 import EvmAsm.Rv64.Program
@@ -42,13 +49,13 @@ def secp256k1CurveDataSection : String :=
   "secp256k1_generator_2:\n" ++
   generator2PointAsm ++
   ".balign 8\n" ++
-  "secc_slope:\n  .zero 32\n" ++
-  "secc_den:\n  .zero 32\n" ++
-  "secc_inv:\n  .zero 32\n" ++
-  "secc_tmp0:\n  .zero 32\n" ++
-  "secc_tmp1:\n  .zero 32\n" ++
-  "secc_tmp2:\n  .zero 32\n" ++
-  "secc_point_tmp:\n  .zero 64\n"
+  "secc_point_tmp:\n  .zero 64\n" ++
+  -- Little-endian limb staging for the ziskemu Secp256k1Add/Dbl accelerators
+  -- (x||y, four u64 limbs per coordinate, least-significant limb first) plus
+  -- the static Secp256k1Add parameter block {&p1, &p2}; the result lands in p1.
+  "secc_le_p1:\n  .zero 64\n" ++
+  "secc_le_p2:\n  .zero 64\n" ++
+  "secc_add_params:\n  .quad secc_le_p1, secc_le_p2\n"
 
 /-- Double an affine point. a0=input x||y, a1=output x||y. Returns 1 for infinity. -/
 def secp256k1PointDoubleFunction : String :=
@@ -68,59 +75,22 @@ def secp256k1PointDoubleFunction : String :=
   "  j .Lsecc_double_ret\n" ++
   ".Lsecc_double_finite:\n" ++
   "  mv a0, s0\n" ++
-  "  la a2, secc_tmp0\n" ++
-  "  jal ra, secf_square_mod_p     # tmp0 = x^2\n" ++
-  "  la a0, secc_tmp0\n" ++
-  "  mv a1, a0\n" ++
-  "  la a2, secc_tmp1\n" ++
-  "  jal ra, secf_add_mod_p        # tmp1 = 2*x^2\n" ++
-  "  la a0, secc_tmp1\n" ++
-  "  la a1, secc_tmp0\n" ++
-  "  la a2, secc_tmp0\n" ++
-  "  jal ra, secf_add_mod_p        # tmp0 = 3*x^2\n" ++
+  "  la a1, secc_le_p1\n" ++
+  "  jal ra, secf_be_to_le         # p1.x\n" ++
   "  addi a0, s0, 32\n" ++
-  "  mv a1, a0\n" ++
-  "  la a2, secc_den\n" ++
-  "  jal ra, secf_add_mod_p        # den = 2*y\n" ++
-  "  la a0, secc_den\n" ++
-  "  la a1, secc_inv\n" ++
-  "  jal ra, secf_inv_mod_p\n" ++
-  "  bnez a0, .Lsecc_double_inf\n" ++
-  "  la a0, secc_tmp0\n" ++
-  "  la a1, secc_inv\n" ++
-  "  la a2, secc_slope\n" ++
-  "  jal ra, secf_mul_mod_p        # slope\n" ++
-  "  la a0, secc_slope\n" ++
-  "  la a2, secc_tmp0\n" ++
-  "  jal ra, secf_square_mod_p     # slope^2\n" ++
-  "  la a0, secc_tmp0\n" ++
-  "  mv a1, s0\n" ++
-  "  la a2, secc_tmp0\n" ++
-  "  jal ra, secf_sub_mod_p\n" ++
-  "  la a0, secc_tmp0\n" ++
-  "  mv a1, s0\n" ++
-  "  mv a2, s1\n" ++
-  "  jal ra, secf_sub_mod_p        # out.x = slope^2 - 2*x\n" ++
-  "  mv a0, s0\n" ++
+  "  la a1, secc_le_p1\n" ++
+  "  addi a1, a1, 32\n" ++
+  "  jal ra, secf_be_to_le         # p1.y\n" ++
+  "  la t0, secc_le_p1\n" ++
+  "  .4byte 0x8042a073             # csrs 0x804, t0 -> Secp256k1Dbl\n" ++
+  "  la a0, secc_le_p1\n" ++
   "  mv a1, s1\n" ++
-  "  la a2, secc_tmp0\n" ++
-  "  jal ra, secf_sub_mod_p        # tmp0 = x - out.x\n" ++
-  "  la a0, secc_slope\n" ++
-  "  la a1, secc_tmp0\n" ++
-  "  la a2, secc_tmp1\n" ++
-  "  jal ra, secf_mul_mod_p\n" ++
-  "  la a0, secc_tmp1\n" ++
-  "  addi a1, s0, 32\n" ++
-  "  addi a2, s1, 32\n" ++
-  "  jal ra, secf_sub_mod_p        # out.y\n" ++
+  "  jal ra, secf_le_to_be         # out.x\n" ++
+  "  la a0, secc_le_p1\n" ++
+  "  addi a0, a0, 32\n" ++
+  "  addi a1, s1, 32\n" ++
+  "  jal ra, secf_le_to_be         # out.y\n" ++
   "  li a0, 0\n" ++
-  "  j .Lsecc_double_ret\n" ++
-  ".Lsecc_double_inf:\n" ++
-  "  mv a0, s1\n" ++
-  "  jal ra, secf_zero32\n" ++
-  "  addi a0, s1, 32\n" ++
-  "  jal ra, secf_zero32\n" ++
-  "  li a0, 1\n" ++
   ".Lsecc_double_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp)\n" ++
   "  addi sp, sp, 32\n" ++
@@ -145,45 +115,29 @@ def secp256k1PointAddFunction : String :=
   "  jal ra, secp256k1_point_double\n" ++
   "  j .Lsecc_add_ret\n" ++
   ".Lsecc_add_distinct_x:\n" ++
-  "  addi a0, s1, 32\n" ++
-  "  addi a1, s0, 32\n" ++
-  "  la a2, secc_tmp0\n" ++
-  "  jal ra, secf_sub_mod_p        # y2-y1\n" ++
-  "  mv a0, s1\n" ++
-  "  mv a1, s0\n" ++
-  "  la a2, secc_den\n" ++
-  "  jal ra, secf_sub_mod_p        # x2-x1\n" ++
-  "  la a0, secc_den\n" ++
-  "  la a1, secc_inv\n" ++
-  "  jal ra, secf_inv_mod_p\n" ++
-  "  bnez a0, .Lsecc_add_inf\n" ++
-  "  la a0, secc_tmp0\n" ++
-  "  la a1, secc_inv\n" ++
-  "  la a2, secc_slope\n" ++
-  "  jal ra, secf_mul_mod_p\n" ++
-  "  la a0, secc_slope\n" ++
-  "  la a2, secc_tmp1\n" ++
-  "  jal ra, secf_square_mod_p\n" ++
-  "  la a0, secc_tmp1\n" ++
-  "  mv a1, s0\n" ++
-  "  la a2, secc_tmp1\n" ++
-  "  jal ra, secf_sub_mod_p\n" ++
-  "  la a0, secc_tmp1\n" ++
-  "  mv a1, s1\n" ++
-  "  mv a2, s2\n" ++
-  "  jal ra, secf_sub_mod_p        # out.x\n" ++
   "  mv a0, s0\n" ++
+  "  la a1, secc_le_p1\n" ++
+  "  jal ra, secf_be_to_le         # p1.x\n" ++
+  "  addi a0, s0, 32\n" ++
+  "  la a1, secc_le_p1\n" ++
+  "  addi a1, a1, 32\n" ++
+  "  jal ra, secf_be_to_le         # p1.y\n" ++
+  "  mv a0, s1\n" ++
+  "  la a1, secc_le_p2\n" ++
+  "  jal ra, secf_be_to_le         # p2.x\n" ++
+  "  addi a0, s1, 32\n" ++
+  "  la a1, secc_le_p2\n" ++
+  "  addi a1, a1, 32\n" ++
+  "  jal ra, secf_be_to_le         # p2.y\n" ++
+  "  la t0, secc_add_params\n" ++
+  "  .4byte 0x8032a073             # csrs 0x803, t0 -> Secp256k1Add\n" ++
+  "  la a0, secc_le_p1\n" ++
   "  mv a1, s2\n" ++
-  "  la a2, secc_tmp1\n" ++
-  "  jal ra, secf_sub_mod_p        # x1-out.x\n" ++
-  "  la a0, secc_slope\n" ++
-  "  la a1, secc_tmp1\n" ++
-  "  la a2, secc_tmp2\n" ++
-  "  jal ra, secf_mul_mod_p\n" ++
-  "  la a0, secc_tmp2\n" ++
-  "  addi a1, s0, 32\n" ++
-  "  addi a2, s2, 32\n" ++
-  "  jal ra, secf_sub_mod_p\n" ++
+  "  jal ra, secf_le_to_be         # out.x\n" ++
+  "  la a0, secc_le_p1\n" ++
+  "  addi a0, a0, 32\n" ++
+  "  addi a1, s2, 32\n" ++
+  "  jal ra, secf_le_to_be         # out.y\n" ++
   "  li a0, 0\n" ++
   "  j .Lsecc_add_ret\n" ++
   ".Lsecc_add_inf:\n" ++

@@ -7,17 +7,16 @@
 # equal recover_transaction_public_key(chain_id, tx).
 #
 # The helper checks the supplied 0x04 SEC1 prefix and the signature-material
-# class BEFORE running the expensive software recovery, so the bad-prefix
-# (status 2) and material-failure (status 10) cases are decided in a small step
-# budget. The match (status 0) and mismatch (status 1) cases require a full
-# software recovery.
+# class BEFORE running the recovery, so the bad-prefix (status 2) and
+# material-failure (status 10) cases are decided in a small step budget. The
+# match (status 0) and mismatch (status 1) cases require a full recovery.
 #
-# COST: one full recovery composes the naive Secp256k1Field/Curve primitives
-# (bit-serial multiply + per-point-op Fermat inversion), so it is ~1e11 ziskemu
-# steps (~10+ minutes). The match/mismatch success cases are therefore gated
-# behind RECOVER_RAW_FULL=1; the default run only exercises the fast routing
-# (bad prefix + material failure). Performance work before wiring recovery into
-# the stateless public_keys path is tracked separately.
+# COST: one full recovery composes the ziskemu-accelerator-backed
+# Secp256k1Field/Curve primitives (Arith256Mod modular multiply;
+# Secp256k1Add/Dbl affine point ops), so it is ~2e6 ziskemu steps. The
+# match/mismatch cases stay behind RECOVER_RAW_FULL=1 (they rebuild signed-tx
+# vectors via execution-specs/coincurve) and are gated at the stateless
+# guest's 1e9 step budget, so a regression past the budget fails this script.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -159,11 +158,12 @@ run_case "bad_prefix"    "bad_prefix"    2  10000000 0 || FAILED=1
 run_case "material_fail" "material_fail" 10 10000000 0 || FAILED=1
 
 if [[ "${RECOVER_RAW_FULL:-0}" == "1" ]]; then
-  echo "==> RECOVER_RAW_FULL=1: running full software recovery (slow, ~1e11 steps)"
+  echo "==> RECOVER_RAW_FULL=1: running full recovery (~2e6 steps, gated at 1e9)"
   # Valid legacy EIP-155 tx signed by private key 1: the supplied G key matches
   # (status 0); a one-byte-flipped key mismatches (status 1).
-  run_case "match"    "match"    0 200000000000 1 || FAILED=1
-  run_case "mismatch" "mismatch" 1 200000000000 0 || FAILED=1
+  # The 1e9 cap is the stateless guest step budget (evm-asm-mcogi.5.5).
+  run_case "match"    "match"    0 1000000000 1 || FAILED=1
+  run_case "mismatch" "mismatch" 1 1000000000 0 || FAILED=1
 else
   echo "==> (skipping full match/mismatch cases; set RECOVER_RAW_FULL=1 to run them)"
 fi
