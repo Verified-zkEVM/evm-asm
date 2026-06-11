@@ -60,6 +60,27 @@ def stagePredeployStoragePreloadFunction : String :=
   "  jal ra, bal_recipient_storage_reads_keys\n" ++
   "  add s1, s1, a0                                     # total = changes + reads\n" ++
   "  li t0, 128\n  bgtu s1, t0, .Lspsp_done\n" ++   -- combined >128: bail
+  -- Fix6 pre-pass: sps_sysidx = MAX block_access_index across the predeploy's changed slots.
+  -- The block-end system call is the last writer, so its index is this max; a slot's pre-system
+  -- value (what the predeploy reads) is the last change tuple with index < sps_sysidx.
+  "  la t0, sps_sysidx; sd zero, 0(t0)\n" ++
+  "  li s2, 0\n" ++
+  ".Lspsp_pre:\n" ++
+  "  beq s2, s1, .Lspsp_pred\n" ++
+  "  slli t0, s2, 5; la t1, sps_keys; add a2, t1, t0\n" ++
+  "  mv a0, s5; mv a1, s6; la a3, sps_tuples\n" ++
+  "  jal ra, bal_slot_tuple_sequence\n" ++
+  "  li t0, 0\n" ++
+  ".Lspsp_premax:\n" ++
+  "  beq t0, a0, .Lspsp_premaxd\n" ++
+  "  slli t1, t0, 5; slli t6, t0, 3; add t1, t1, t6; la t2, sps_tuples; add t2, t2, t1\n" ++
+  "  ld t3, 0(t2); la t4, sps_sysidx; ld t5, 0(t4); bleu t3, t5, .Lspsp_prenext\n" ++
+  "  sd t3, 0(t4)\n" ++
+  ".Lspsp_prenext:\n" ++
+  "  addi t0, t0, 1; j .Lspsp_premax\n" ++
+  ".Lspsp_premaxd:\n" ++
+  "  addi s2, s2, 1; j .Lspsp_pre\n" ++
+  ".Lspsp_pred:\n" ++
   "  li s2, 0                     # i\n" ++
   ".Lspsp_loop:\n" ++
   "  beq s2, s1, .Lspsp_done\n" ++
@@ -74,6 +95,33 @@ def stagePredeployStoragePreloadFunction : String :=
   "  li t1, 32; beq t0, t1, .Lspsp_krevd\n" ++
   "  add t2, s3, t0; lbu t3, 0(t2); li t4, 31; sub t4, t4, t0; add t4, s4, t4; sb t3, 0(t4); addi t0, t0, 1; j .Lspsp_krev\n" ++
   ".Lspsp_krevd:\n" ++
+  -- 8uld3.2.3.3.1 Fix6: the system call runs at block END (it is the LAST writer of these slots,
+  -- so its block_access_index is the MAX across the predeploy's changes — empirically the 7002
+  -- reset lands at the max index, e.g. (idx 1, val 1) then (idx 2, val 0)). The value the predeploy
+  -- READS for a slot = the last BAL storage_changes tuple with index < the system index (sps_sysidx,
+  -- = that global max, computed in the pre-pass above). Fall back to the pre-block MPT value when a
+  -- slot has no pre-system change (only system-written: queue head/excess read pre-state).
+  "  mv a0, s5; mv a1, s6; mv a2, s3; la a3, sps_tuples\n" ++
+  "  jal ra, bal_slot_tuple_sequence\n" ++         -- a0 = tuple count (0 if slot absent)
+  "  li t0, 0\n" ++                                 -- j
+  "  li t5, 0\n" ++                                 -- found new_value ptr (0 = none)
+  "  la t4, sps_sysidx; ld t4, 0(t4)\n" ++          -- t4 = system-call index (global max)
+  ".Lspsp_tscan:\n" ++
+  "  beq t0, a0, .Lspsp_tscand\n" ++
+  "  slli t1, t0, 5; slli t6, t0, 3; add t1, t1, t6; la t2, sps_tuples; add t2, t2, t1\n" ++   -- &rec[j] (40B)
+  "  ld t3, 0(t2); bgeu t3, t4, .Lspsp_tnext\n" ++  -- skip the system write (index >= sysidx)
+  "  addi t5, t2, 8\n" ++                           -- found = &new_value (last pre-system write wins)
+  ".Lspsp_tnext:\n" ++
+  "  addi t0, t0, 1; j .Lspsp_tscan\n" ++
+  ".Lspsp_tscand:\n" ++
+  "  beqz t5, .Lspsp_mptval\n" ++                   -- no regular-tx change -> pre-block MPT value
+  "  li t0, 0\n" ++                                 -- reverse found new_value (32B BE) -> out[i][32:64] LE
+  ".Lspsp_tvrev:\n" ++
+  "  li t1, 32; beq t0, t1, .Lspsp_tvrevd\n" ++
+  "  add t2, t5, t0; lbu t3, 0(t2); li t4, 63; sub t4, t4, t0; add t4, s4, t4; sb t3, 0(t4); addi t0, t0, 1; j .Lspsp_tvrev\n" ++
+  ".Lspsp_tvrevd:\n" ++
+  "  j .Lspsp_next\n" ++
+  ".Lspsp_mptval:\n" ++
   -- slot_at_header_state_root(header, header_len, predeploy_addr, &key[i], state, state_len, storage, storage_len)
   "  la t0, sps_header; ld a0, 0(t0)\n" ++
   "  la t0, sps_header_len; ld a1, 0(t0)\n" ++
@@ -109,6 +157,9 @@ def stagePredeployStoragePreloadFunction : String :=
 def stagePredeployStoragePreloadData : String :=
   ".balign 8\n" ++
   "sps_keys:\n  .zero 4096\n" ++       -- 128 x 32-byte slot keys
+  ".balign 8\n" ++
+  "sps_tuples:\n  .zero 20480\n" ++    -- Fix6: 512 x 40-byte (block_access_index, new_value) tuples per slot
+  "sps_sysidx:\n  .zero 8\n" ++        -- Fix6: system-call block_access_index (= max change index)
   ".balign 8\n" ++
   "sps_addr:\n  .zero 32\n" ++         -- predeploy address (20B, padded)
   "sps_header:\n  .zero 8\n" ++
