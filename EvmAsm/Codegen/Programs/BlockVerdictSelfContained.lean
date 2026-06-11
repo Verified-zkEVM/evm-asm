@@ -74,9 +74,11 @@ def bytecodeIsSelfContainedFunction : String :=
   -- BLOCKHASH handler resolves through real execution.
   -- yisv8.2: SELFBALANCE(0x47) NO LONGER rejected (#8650); CREATE/CREATE2 NO LONGER rejected
   -- (#8649); EXTCODE*(0x3b/0x3c/0x3f) NO LONGER rejected (yisv8.2 part 2).
-  -- BALANCE(0x31) stays rejected (volatile balance, cross-account witness M31 needed);
-  -- SELFDESTRUCT(0xff) stays rejected (beneficiary state un-staged).
-  "  li t3, 0xff; beq t2, t3, .Lbsc_unsafe\n" ++   -- SELFDESTRUCT (beneficiary cold/warm + account-creation gas is un-staged)
+  -- BALANCE(0x31) stays rejected (volatile balance, cross-account witness M31 needed).
+  -- ee21v: SELFDESTRUCT(0xff) NO LONGER rejected -- selfdestructTailAsm already executes the
+  -- beneficiary access-gas charge (runtime_access_account_charge), new-account surcharge, balance
+  -- transfer, and EIP-7708 log; the beneficiary access state is staged like the EXTCODE*/yisv8.2
+  -- cross-account witness. (li t3, 0xff; beq t2, t3, .Lbsc_unsafe REMOVED.)
   "  addi t0, t0, 1; j .Lbsc_loop\n" ++
   ".Lbsc_safe:\n" ++
   "  li a0, 0; ret\n" ++
