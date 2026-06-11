@@ -83,12 +83,30 @@ def accountTupleSequencesConsistentFunction : String :=
   "  li t5, 32; sub t5, t5, t4; add t0, t6, t5\n" ++
   ".Latsc_kc:\n  beqz t4, .Latsc_kcd\n  lbu t5, 0(t1); sb t5, 0(t0); addi t1, t1, 1; addi t0, t0, 1; addi t4, t4, -1; j .Latsc_kc\n" ++
   ".Latsc_kcd:\n" ++
-  "  # BAL tuple sequence for this slot\n" ++
+  -- bmvmx.1.6.6: atsc_key is 32B BIG-endian (RLP) for the BAL search
+  -- (bal_slot_tuple_sequence compares against the BE-left-padded BAL key,
+  -- BalSlotTupleSequence.lean:36/80). The exec log is LITTLE-endian (slotKey @ +32 =
+  -- EVM-stack 4 LE u64 limbs low-first, Storage.lean:19), so byte-reverse atsc_key ->
+  -- atsc_key_le for exec_log_slot_tuples, AND reverse the BAL tuple VALUES BE->LE below
+  -- (the exec side emits the LE log value verbatim). Mirrors bal_storage_matches_exec_log's
+  -- bsme_krev/bsme_vrev. Old code passed BE atsc_key + BE values to BOTH -> the exec
+  -- compare mismatched the LE log -> exec_count=0 vs bal_count>0 -> false-reject. Latent:
+  -- only the interacting-mtx non-recipient-slot path (.57.11.6.3) reaches here.
+  "  la t0, atsc_key; addi t0, t0, 31; la t1, atsc_key_le; li t2, 32\n" ++
+  ".Latsc_klr:\n  beqz t2, .Latsc_klrd\n  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, -1; addi t1, t1, 1; addi t2, t2, -1; j .Latsc_klr\n" ++
+  ".Latsc_klrd:\n" ++
+  "  # BAL tuple sequence for this slot (searched by BE atsc_key)\n" ++
   "  mv a0, s0; mv a1, s1; la a2, atsc_key; la a3, atsc_balbuf\n" ++
   "  jal ra, bal_slot_tuple_sequence\n" ++
   "  la t0, atsc_balcount; sd a0, 0(t0)                   # bal_count\n" ++
-  "  # exec net-change tuple sequence for this slot\n" ++
-  "  mv a0, s2; la a1, atsc_key; mv a2, s3; mv a3, s4; mv a4, s5; la a5, atsc_execbuf\n" ++
+  "  # reverse each BAL tuple's 32B value (BE -> LE) to match the LE exec output\n" ++
+  "  mv t0, a0; la t1, atsc_balbuf                        # t0=count; record = bai@0, value@8\n" ++
+  ".Latsc_vr:\n  beqz t0, .Latsc_vrd\n  addi t2, t1, 8; addi t3, t1, 39; li t4, 16\n" ++
+  ".Latsc_vrb:\n  beqz t4, .Latsc_vrn\n  lbu t5, 0(t2); lbu t6, 0(t3); sb t6, 0(t2); sb t5, 0(t3); addi t2, t2, 1; addi t3, t3, -1; addi t4, t4, -1; j .Latsc_vrb\n" ++
+  ".Latsc_vrn:\n  addi t1, t1, 40; addi t0, t0, -1; j .Latsc_vr\n" ++
+  ".Latsc_vrd:\n" ++
+  "  # exec net-change tuple sequence for this slot (searched by LE atsc_key_le)\n" ++
+  "  mv a0, s2; la a1, atsc_key_le; mv a2, s3; mv a3, s4; mv a4, s5; la a5, atsc_execbuf\n" ++
   "  jal ra, exec_log_slot_tuples\n" ++
   "  mv t6, a0                                            # exec_count\n" ++
   "  # exact list-vs-list comparison\n" ++
@@ -117,6 +135,7 @@ def accountTupleSequencesConsistentData : String :=
   "atsc_balcount:\n  .zero 8\n" ++
   ".balign 32\n" ++
   "atsc_key:\n  .zero 32\n" ++
+  "atsc_key_le:\n  .zero 32\n" ++       -- LE byte-reverse of atsc_key for the exec-log search (bmvmx.1.6.6)
   "atsc_balbuf:\n  .zero 10240\n" ++   -- up to 256 tuples * 40B
   "atsc_execbuf:\n  .zero 10240\n"
 

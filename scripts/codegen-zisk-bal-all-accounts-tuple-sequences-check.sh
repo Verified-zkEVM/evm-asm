@@ -36,14 +36,16 @@ run_case() {
   MODE="$mode" uv run --directory execution-specs --quiet python3 -c "
 import struct, sys, os, rlp
 mode=os.environ['MODE']
-def b32(n): return n.to_bytes(32,'big')
+def b32(n): return n.to_bytes(32,'big')        # BAL (RLP) keys/values = big-endian
+def b32le(n): return n.to_bytes(32,'little')   # exec-log slotKey/value = LE stack-word (Storage.lean:19)
 callee=bytes(range(1,21)); recipient=bytes(range(0x21,0x35))
 ckey=callee[::-1]+b'\x00'*12          # bal_addr_to_exec_log_key(callee): addr reversed, low-aligned
-K=b32(7); O=b32(0)
-def entry(ah,sk,cur,o=O): return ah+sk+o+cur  # 128B addrHash|slotKey|original|current
+K=b32(7); O=b32le(0)
+# exec-log entries store slotKey + value in the real little-endian stack-word order.
+def entry(ah,sk_n,cur_n,o=O): return ah+b32le(sk_n)+o+b32le(cur_n)  # 128B addrHash|slotKey|original|current
 
 # exec-log for callee's slot 7: tx1 -> 0x11, tx3 -> 0x33  => reconstructs [(1,0x11),(3,0x33)]
-rows=[(entry(ckey,K,b32(0x11)),1),(entry(ckey,K,b32(0x33)),3)]
+rows=[(entry(ckey,7,0x11),1),(entry(ckey,7,0x33),3)]
 callee_sc=[[K, [[1,b32(0x11)],[3,b32(0x33)]]]]
 recip_sc =[[K, [[1,b32(0xDEAD)],[2,b32(0xBEEF)]]]]   # recipient storage (BE-keyed; must be SKIPPED)
 accounts=[[callee, callee_sc, [], [], [], []], [recipient, recip_sc, [], [], [], []]]

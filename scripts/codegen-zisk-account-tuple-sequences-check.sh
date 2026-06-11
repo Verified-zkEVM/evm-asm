@@ -37,23 +37,25 @@ run_case() {
   MODE="$mode" uv run --directory execution-specs --quiet python3 -c "
 import struct, sys, os, rlp
 mode=os.environ['MODE']
-def b32(n): return n.to_bytes(32,'big')
+def b32(n): return n.to_bytes(32,'big')        # BAL (RLP) keys/values = big-endian
+def b32le(n): return n.to_bytes(32,'little')   # exec-log slotKey/value = LE EVM-stack limbs (Storage.lean:19)
 addr=bytes(range(1,21)); addrHash=bytes([0xAA])*32
-K=b32(7); J=b32(9); O=b32(0)
-def entry(sk,cur,O=O): return addrHash+sk+O+cur   # 128B: addrHash|slotKey|original|current
+O=b32le(0)
+# exec-log entries store slotKey + value in the real guest's LITTLE-endian stack-word order.
+def entry(sk_n,cur_n): return addrHash+b32le(sk_n)+O+b32le(cur_n)   # 128B: addrHash|slotKey|original|current
 
 # exec-log for slot 7: tx1 -> 0x11, tx3 -> 0x33  => reconstructs [(1,0x11),(3,0x33)]
-rows=[(entry(K,b32(0x11)),1),(entry(K,b32(0x33)),3)]
-# BAL storage_changes for slot 7 (SlotChanges = [slot_key, [[bai,new_value],...]])
-sc=[[K, [[1,b32(0x11)],[3,b32(0x33)]]]]
+rows=[(entry(7,0x11),1),(entry(7,0x33),3)]
+# BAL storage_changes for slot 7 (SlotChanges = [slot_key, [[bai,new_value],...]]), big-endian.
+sc=[[b32(7), [[1,b32(0x11)],[3,b32(0x33)]]]]
 
 if mode=='wrong_tuple':
-    sc=[[K, [[1,b32(0x11)],[3,b32(0x99)]]]]            # final tuple value wrong vs exec 0x33
+    sc=[[b32(7), [[1,b32(0x11)],[3,b32(0x99)]]]]            # final tuple value wrong vs exec 0x33
 elif mode=='extra_bal_tuple':
-    sc=[[K, [[1,b32(0x11)],[3,b32(0x33)],[5,b32(0x55)]]]]  # spurious extra tuple BAL has, exec doesn't
+    sc=[[b32(7), [[1,b32(0x11)],[3,b32(0x33)],[5,b32(0x55)]]]]  # spurious extra tuple BAL has, exec doesn't
 elif mode=='multi_slot':
-    rows=rows+[(entry(J,b32(0x22)),2)]                 # exec slot 9: tx2 -> 0x22
-    sc=sc+[[J, [[2,b32(0x22)]]]]
+    rows=rows+[(entry(9,0x22),2)]                 # exec slot 9: tx2 -> 0x22
+    sc=sc+[[b32(9), [[2,b32(0x22)]]]]
 
 acct=rlp.encode([addr, sc, [], [], [], []])
 count=len(rows)
