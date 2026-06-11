@@ -422,6 +422,13 @@ def statelessVerdictV2Function : String :=
   "  bnez a0, .Lv2_withdrawals_root_fail\n" ++
   "  addi a0, s0, 56; jal ra, bgv_u32le; mv s3, a0     # execution_requests offset\n" ++
   "  addi a0, s0, 4;  jal ra, bgv_u32le; mv s4, a0     # witness offset = NPR end\n" ++
+  -- 8uld3.2.3.3.1 Fix3: the system-call derives below run runtime_dispatcher_call, which
+  -- clobbers ALL s-registers (SystemCallStaging:96-99 — it resets sp to lp64_sp_top and the
+  -- predeploy EVM execution overwrites the s-regs). s0(NPR base)/s3(er offset) are needed
+  -- AFTER the derives (deposit extraction, no-tx deposit check, block_access_list_hash,
+  -- block_verdict) so save them now and reload after the last derive. (The original
+  -- "callees preserve s-regs" claim below was wrong: the dispatcher does NOT.)
+  "  la t0, c1_saved_s0; sd s0, 0(t0); la t0, c1_saved_s3; sd s3, 0(t0)\n" ++
   -- 8uld3.2.3.3.1 (C.1): hash the EXECUTION-DERIVED withdrawal(EIP-7002)+consolidation(EIP-7251)
   -- request bodies instead of trusting the SSZ-input ones (deposits stay SSZ-trusted -> .3.3).
   -- Snapshot/restore the exec-log count (evm_env+448) around the system calls so their SSTORE
@@ -508,6 +515,8 @@ def statelessVerdictV2Function : String :=
   ".Lc1_c_copyd:\n" ++
   "  la t0, evm_env; la t2, c1_saved_logcount; ld t1, 0(t2); sd t1, 448(t0)\n" ++
   "  la t0, scc_preload_count; sd zero, 0(t0)\n" ++
+  -- 8uld3.2.3.3.1 Fix3: reload s0/s3 clobbered by the derives' dispatcher runs (see save above).
+  "  la t0, c1_saved_s0; ld s0, 0(t0); la t0, c1_saved_s3; ld s3, 0(t0)\n" ++
   "  addi t0, s0, 16; add t0, t0, s3; la t1, c1_er_input; sd t0, 0(t1)\n" ++
   "  la t0, c1_er_input; ld t1, 0(t0); addi a0, t1, 4; jal ra, bgv_u32le\n" ++
   "  la t0, c1_er_input; ld t1, 0(t0); addi t2, t1, 12; addi t3, a0, -12\n" ++
@@ -529,7 +538,7 @@ def statelessVerdictV2Function : String :=
   -- (Withdrawals/consolidations are NOT checked: the 7002/7251 system contracts can
   -- enqueue those in a no-tx block.) execution_requests_hash already validated the
   -- offset table (>=12 bytes, monotonic), so reading offset[0]/offset[1] is safe and
-  -- offset[1] >= offset[0]. s0/s3 (NPR base / er offset) survive the call (s-regs).
+  -- offset[1] >= offset[0]. s0/s3 (NPR base / er offset) were reloaded after the derives (Fix3).
   "  la t0, svf_tx_count; ld t0, 0(t0); bnez t0, .Lv2_after_notx_deposits\n" ++
   "  addi a0, s0, 16; add a0, a0, s3; jal ra, bgv_u64le   # offset[0] | offset[1]<<32\n" ++
   "  srli t0, a0, 32                                       # deposits end (offset[1])\n" ++
