@@ -465,11 +465,12 @@ def statelessVerdictV2Function : String :=
   ".Lc1_w_addrd:\n" ++
   "  la t0, c1_bal_acct_ptr; ld a0, 0(t0); la t0, c1_bal_acct_len; ld a1, 0(t0); la a2, c1_preload\n" ++
   "  jal ra, stage_predeploy_storage_preload\n" ++
-  -- fhsxz.2.4.2.66.1: a count above the 512 cap means NOTHING was staged (the preload
-  -- bails write-nothing); storing it would make stage_runtime_payload_code copy count*64
+  -- fhsxz.2.4.2.66.1/.66.1.2: a count above the gas-derived bsrAccountSlotCap means
+  -- NOTHING was staged (the preload bails write-nothing — including the per-slot
+  -- tuple-overflow case); storing it would make stage_runtime_payload_code copy count*64
   -- garbage bytes from past c1_preload into the payload -> wrong execution. Conservative
-  -- reject instead (sound: at worst a false-reject of a >512-slot system-call block).
-  "  li t1, 512; bgtu a0, t1, .Lv2_requests_hash_fail\n" ++
+  -- reject instead (sound: only blocks beyond the 200M BAL budget can trip this).
+  "  li t1, " ++ toString bsrAccountSlotCap ++ "; bgtu a0, t1, .Lv2_requests_hash_fail\n" ++
   "  la t0, scc_preload_count; sd a0, 0(t0); la t1, c1_preload; la t0, scc_preload_ptr; sd t1, 0(t0)\n" ++
   "  j .Lc1_w_derive\n" ++
   ".Lc1_w_nopreload:\n" ++
@@ -506,8 +507,9 @@ def statelessVerdictV2Function : String :=
   ".Lc1_c_addrd:\n" ++
   "  la t0, c1_bal_acct_ptr; ld a0, 0(t0); la t0, c1_bal_acct_len; ld a1, 0(t0); la a2, c1_preload\n" ++
   "  jal ra, stage_predeploy_storage_preload\n" ++
-  -- fhsxz.2.4.2.66.1: same >cap conservative reject as the withdrawal site above.
-  "  li t1, 512; bgtu a0, t1, .Lv2_requests_hash_fail\n" ++
+  -- fhsxz.2.4.2.66.1/.66.1.2: same gas-derived >cap conservative reject as the
+  -- withdrawal site above.
+  "  li t1, " ++ toString bsrAccountSlotCap ++ "; bgtu a0, t1, .Lv2_requests_hash_fail\n" ++
   "  la t0, scc_preload_count; sd a0, 0(t0); la t1, c1_preload; la t0, scc_preload_ptr; sd t1, 0(t0)\n" ++
   "  j .Lc1_c_derive\n" ++
   ".Lc1_c_nopreload:\n" ++

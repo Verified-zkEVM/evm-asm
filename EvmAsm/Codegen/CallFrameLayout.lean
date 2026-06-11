@@ -96,22 +96,31 @@ def sszScratchBase : Nat := 0xbf500000
 /-- Total bytes the pre-allocated frame array occupies. -/
 def frameArrayBytes : Nat := frameSlotCount * frameStride
 
-/-! ## Placement: union with the BAL-replay scratch (NOT a free `.data` gap)
+/-! ## Placement: standalone block after the BAL-replay arenas (200M layout)
 
-    ziskemu's RAM is only 512 MiB (`0xa0000000..0xc0000000`) and the guest `.data`
-    already spans ~427 MiB — there is NO free window for a standalone arena (an
-    earlier draft placed it at `0xa4000000`, which overlaps `.data`; the linker
-    rejects it). Instead the frame arena **aliases** the contiguous
-    `basr_values`+`basr_accounts` `block_state_root` replay scratch, which is
-    execution-dead (read only inside `block_state_root`; gate-verified). So the
-    arena's base is a **link-time symbol** (`call_frame_arena = &basr_values`,
-    not a fixed VMA), and the meaningful invariant is that the frame arena fits
-    inside that union, not inside a phantom gap. See
-    `docs/call-frame-memory-layout.md` §5. -/
+    ziskemu's RAM is 512 MiB (`0xa0000000..0xc0000000`). Under the former
+    1G-sized BAL arenas (`bsrMaxBalItems = 500000`, ~416 MiB) there was no free
+    window, so the frame arena *aliased* the contiguous, execution-dead
+    `basr_values`+`basr_accounts` pair (the #8513 union, 244 MiB ≥ 164 MiB).
+    The Amsterdam target is 200M block gas (`bsrMaxBalItems = 100000`), which
+    shrinks the BAL arenas to ~83 MiB — the basr pair (~49 MiB) can no longer
+    host the frame array, and the freed ~333 MiB means it no longer needs to:
+    `call_frame_arena` is a standalone pre-zeroed `.zero frameArrayBytes` block
+    emitted right after `basr_accounts` (`BlockVerdictDataSection.lean`), and
+    the execution-dead soundness gate on `basr_values`/`basr_accounts` is no
+    longer load-bearing. See `docs/call-frame-memory-layout.md` §5. -/
 
-/-- The `basr_values`+`basr_accounts` union the frame arena reuses: two
-    contiguous `bsrMaxStateChanges * bsrEncodedAccountBytes` arenas. -/
-def balReplayUnionBytes : Nat := 2 * (bsrMaxStateChanges * bsrEncodedAccountBytes)
+/-- Total bytes of all 200M-sized BAL/state-replay static arenas
+    (`bsr_changes` + `basr_records/paths/values/accounts` +
+    `baap_storage_desc/paths/delete_paths/values`), matching the `.zero`
+    declarations in `BlockVerdictDataSection.lean`. -/
+def balArenaTotalBytes : Nat :=
+  bsrMaxStateChanges * bsrStateChangeBytes
+    + bsrMaxStateChanges * bsrAccountRecordBytes
+    + bsrMaxStateChanges * bsrPathBytes
+    + 2 * (bsrMaxStateChanges * bsrEncodedAccountBytes)
+    + bsrMaxBalItems * baapStorageDescBytes
+    + 3 * (bsrMaxBalItems * bsrPathBytes)
 
 /-! ## Verified consistency invariants (kernel-checked `decide`) -/
 
@@ -128,16 +137,19 @@ theorem frameMeta_within_stride : frameMetaOff + frameMetaBytes ≤ frameStride 
 /-- 1025 slots cover depths 0..1024 inclusive. -/
 theorem frameSlotCount_eq : frameSlotCount = 1025 := by decide
 
-/-- **The fits proof that actually matters:** the whole 1025-slot frame array
-    fits inside the `basr_values`+`basr_accounts` union it overlays (244 MiB vs
-    164 MiB — 84 MiB headroom), so the arena reuses that execution-dead region
-    with zero net RAM growth. (This replaces the earlier `frameArray_fits` that
-    compared against a phantom free `.data` gap.) -/
-theorem frameArray_fits_union : frameArrayBytes ≤ balReplayUnionBytes := by decide
+/-- **The fits proof that actually matters (200M layout):** the BAL/state-replay
+    arenas (~83 MiB at the 200M capacity) plus the standalone 1025-slot frame
+    array (~164 MiB) together stay well inside the `.data`→`.sszscratch` span
+    (453 MiB) — ~206 MiB of slack for the remaining `.data` objects (~80 MiB
+    measured). The ELF-level ground truth is `readelf -lW`: the top RW LOAD
+    address must stay below the 0xc0000000 RAM ceiling. (Replaces
+    `frameArray_fits_union`, which pinned the retired #8513 basr aliasing.) -/
+theorem frameArray_and_balArenas_fit :
+    balArenaTotalBytes + frameArrayBytes ≤ sszScratchBase - dataBase := by decide
 
 /-- The usable `.data`→`.sszscratch` span is `0x1c500000` = 475,004,928 B
-    = 453 MiB — but it is NOT free (the BAL-replay arenas consume ~385 MiB of it),
-    which is why the arena overlays them rather than taking a fresh slice. -/
+    = 453 MiB. Under the 200M layout the BAL-replay arenas (~83 MiB) and the
+    standalone frame array (~164 MiB) leave ample room for the rest of `.data`. -/
 theorem data_gap_bytes : sszScratchBase - dataBase = 0x1c500000 := by decide
 
 end EvmAsm.Codegen

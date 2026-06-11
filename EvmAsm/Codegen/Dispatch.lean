@@ -2381,7 +2381,7 @@ def emitRuntimeDispatcherEmbeddedHelperData : String :=
   -- (1025 entries × 16 B), indexed by depth 0..1024. These back the
   -- frame_depth_push/pop and frame_save_regs/load_regs helpers linked above.
   -- `call_frame_arena` itself lives in the guest verdict data
-  -- (BlockVerdictDataSection, aliasing basr_values).
+  -- (BlockVerdictDataSection, a standalone block after basr_accounts).
   ".balign 8\n" ++
   "evm_call_depth:\n" ++
   "  .zero 8\n" ++

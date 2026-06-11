@@ -189,7 +189,18 @@ Total frame array = `1025 * 0x29000` = `0xA429000` ≈ **164.2 MiB** (depths
 
 ---
 
-## 5. Memory-map placement — RAM is full; overlay the BAL-replay arenas
+## 5. Memory-map placement — overlay RETIRED; standalone arena under the 200M layout
+
+> **UPDATE (2026-06-11).** The BAL-replay arenas were right-sized from the 1G
+> worst case (`bsrMaxBalItems = 500000`, ~416 MiB) to the Amsterdam 200M target
+> (`bsrMaxBalItems = 100000`, ~83 MiB), freeing ~333 MiB of the 512 MiB window.
+> `call_frame_arena` is now a **standalone** pre-zeroed `.zero` block emitted
+> after `basr_accounts` (`BlockVerdictDataSection.lean`) — the union described
+> below no longer exists (the shrunken `basr_values`+`basr_accounts` pair, ~49
+> MiB, could not host the 164 MiB frame array anyway), and the execution-dead
+> soundness gate on `basr_values`/`basr_accounts` is no longer load-bearing.
+> Fit: `frameArray_and_balArenas_fit` in `CallFrameLayout.lean` + `readelf -lW`.
+> §5's union design is kept below as the historical record.
 
 > **CORRECTION (empirically validated 2026-06-08).** An earlier draft of this
 > section assumed `.data` is ~16 MiB and the `0xa4000000..0xbf500000` window is

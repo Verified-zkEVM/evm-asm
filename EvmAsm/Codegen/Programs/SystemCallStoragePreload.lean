@@ -23,6 +23,8 @@ import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.StateCompose
 import EvmAsm.Codegen.Programs.BlockVerdictContractStorage
+import EvmAsm.Codegen.Programs.BlockVerdictParams
+import EvmAsm.Codegen.Programs.BalSlotTupleSequence
 
 namespace EvmAsm.Codegen
 
@@ -30,13 +32,18 @@ open EvmAsm.Rv64
 
 /-! ## stage_predeploy_storage_preload
     a0 = predeploy AccountChanges RLP ptr   a1 = AccountChanges RLP length
-    a2 = out ptr (count x 64-byte (key:32 BE, value:32 BE) pairs; caller buffer >= 512*64)
+    a2 = out ptr (count x 64-byte (key:32 BE, value:32 BE) pairs; caller buffer >=
+         bsrAccountSlotCap*64)
     Globals (caller-set): sps_addr (20-byte predeploy address), sps_header / sps_header_len,
       sps_state / sps_state_len, sps_storage / sps_storage_len.
-    Returns a0 = slot count (0 on parse failure; if > 512, nothing written, true count
-    returned so the caller MUST bail conservatively — staging a count the buffer doesn't
-    hold reads garbage past c1_preload; fhsxz.2.4.2.66.1 raised the cap from 128 because
-    the system_contract_errors EEST predeploys commit 306 storage changes). -/
+    Returns a0 = slot count (0 on parse failure; if > bsrAccountSlotCap — or if any slot
+    carries > bsrMaxTuplesPerSlot change tuples — nothing/partial-keys-only written and a
+    count > bsrAccountSlotCap returned so the caller MUST bail conservatively — staging a
+    count the buffer doesn't hold reads garbage past c1_preload. fhsxz.2.4.2.66.1 raised
+    the cap 128 -> 512 for the 306-change system_contract_errors predeploys;
+    fhsxz.2.4.2.66.1.2 made it gas-derived: a 200M block's user txs can legitimately put
+    thousands of changes+reads on a predeploy, so the only non-rejecting bound is the
+    BAL-item budget itself). -/
 def stagePredeployStoragePreloadFunction : String :=
   "stage_predeploy_storage_preload:\n" ++
   "  addi sp, sp, -64\n" ++
@@ -50,7 +57,7 @@ def stagePredeployStoragePreloadFunction : String :=
   "  la a2, sps_keys\n" ++
   "  jal ra, bal_recipient_storage_keys\n" ++
   "  mv s1, a0                    # changes-slot count\n" ++
-  "  li t0, 512\n  bgtu s1, t0, .Lspsp_done\n" ++   -- >512 changes: bail (write nothing, return count)
+  "  li t0, " ++ toString bsrAccountSlotCap ++ "\n  bgtu s1, t0, .Lspsp_done\n" ++   -- >cap changes: bail (write nothing, return count)
   -- 8uld3.2.3.3.1 Fix2: ALSO stage the predeploy's storage_READS (AccountChanges item 2).
   -- A no-requests predeploy reads the queue head/tail/count slots it never writes, so a
   -- changes-only preload leaves those SLOADs reading garbage (the e0010046 unmapped-read
@@ -58,10 +65,10 @@ def stagePredeployStoragePreloadFunction : String :=
   -- pre-block value for each. (a0/a1 were clobbered by the changes call; restore from s5/s6.)
   "  mv a0, s5; mv a1, s6\n" ++
   "  slli t0, s1, 5; la t1, sps_keys; add a2, t1, t0   # &sps_keys[changes_count]\n" ++
-  "  li t0, 512; sub a3, t0, s1                         # remaining capacity\n" ++
+  "  li t0, " ++ toString bsrAccountSlotCap ++ "; sub a3, t0, s1                         # remaining capacity\n" ++
   "  jal ra, bal_recipient_storage_reads_keys\n" ++
   "  add s1, s1, a0                                     # total = changes + reads\n" ++
-  "  li t0, 512\n  bgtu s1, t0, .Lspsp_done\n" ++   -- combined >512: bail
+  "  li t0, " ++ toString bsrAccountSlotCap ++ "\n  bgtu s1, t0, .Lspsp_done\n" ++   -- combined >cap: bail
   -- Fix6 pre-pass: sps_sysidx = MAX block_access_index across the predeploy's changed slots.
   -- The block-end system call is the last writer, so its index is this max; a slot's pre-system
   -- value (what the predeploy reads) is the last change tuple with index < sps_sysidx.
@@ -72,6 +79,9 @@ def stagePredeployStoragePreloadFunction : String :=
   "  slli t0, s2, 5; la t1, sps_keys; add a2, t1, t0\n" ++
   "  mv a0, s5; mv a1, s6; la a3, sps_tuples\n" ++
   "  jal ra, bal_slot_tuple_sequence\n" ++
+  -- .66.1.2: > bsrMaxTuplesPerSlot tuples -> the helper wrote nothing; bail conservatively
+  -- (force a count the caller's cap check rejects) instead of scanning stale sps_tuples.
+  "  li t0, " ++ toString bsrMaxTuplesPerSlot ++ "; bgtu a0, t0, .Lspsp_toobig\n" ++
   "  li t0, 0\n" ++
   ".Lspsp_premax:\n" ++
   "  beq t0, a0, .Lspsp_premaxd\n" ++
@@ -105,6 +115,7 @@ def stagePredeployStoragePreloadFunction : String :=
   -- slot has no pre-system change (only system-written: queue head/excess read pre-state).
   "  mv a0, s5; mv a1, s6; mv a2, s3; la a3, sps_tuples\n" ++
   "  jal ra, bal_slot_tuple_sequence\n" ++         -- a0 = tuple count (0 if slot absent)
+  "  li t0, " ++ toString bsrMaxTuplesPerSlot ++ "; bgtu a0, t0, .Lspsp_toobig\n" ++   -- .66.1.2: helper wrote nothing -> bail
   "  li t0, 0\n" ++                                 -- j
   "  li t5, 0\n" ++                                 -- found new_value ptr (0 = none)
   "  la t4, sps_sysidx; ld t4, 0(t4)\n" ++          -- t4 = system-call index (global max)
@@ -146,6 +157,10 @@ def stagePredeployStoragePreloadFunction : String :=
   "  addi t2, s4, 32; sd zero, 0(t2); sd zero, 8(t2); sd zero, 16(t2); sd zero, 24(t2)\n" ++
   ".Lspsp_next:\n" ++
   "  addi s2, s2, 1\n  j .Lspsp_loop\n" ++
+  -- .66.1.2: per-slot tuple overflow -> return a count above bsrAccountSlotCap so every
+  -- caller's existing `bgtu a0, cap` check routes to its conservative bail.
+  ".Lspsp_toobig:\n" ++
+  "  li s1, " ++ toString (bsrAccountSlotCap + 1) ++ "\n" ++
   ".Lspsp_done:\n" ++
   "  mv a0, s1\n" ++
   "  ld ra, 0(sp)\n" ++
@@ -158,9 +173,9 @@ def stagePredeployStoragePreloadFunction : String :=
     the predeploy address + the slot-key scratch buffer). -/
 def stagePredeployStoragePreloadData : String :=
   ".balign 8\n" ++
-  "sps_keys:\n  .zero 16384\n" ++      -- 512 x 32-byte slot keys (fhsxz.2.4.2.66.1: was 128)
+  "sps_keys:\n  .zero " ++ toString (bsrAccountSlotCap * 32) ++ "\n" ++      -- bsrAccountSlotCap x 32-byte slot keys (.66.1.2: gas-derived, was 512)
   ".balign 8\n" ++
-  "sps_tuples:\n  .zero 20480\n" ++    -- Fix6: 512 x 40-byte (block_access_index, new_value) tuples per slot
+  "sps_tuples:\n  .zero " ++ toString (bsrMaxTuplesPerSlot * 40) ++ "\n" ++    -- Fix6: bsrMaxTuplesPerSlot x 40-byte (block_access_index, new_value) tuples per slot (.66.1.2)
   "sps_sysidx:\n  .zero 8\n" ++        -- Fix6: system-call block_access_index (= max change index)
   ".balign 8\n" ++
   "sps_addr:\n  .zero 32\n" ++         -- predeploy address (20B, padded)
@@ -175,7 +190,9 @@ def stagePredeployStoragePreloadData : String :=
     AccountChanges (brsk_acct: one slot key 0x00..07) + a NULL witness (sps_* default 0),
     so slot_at_header_state_root fails and values are 0. Verifies the key enumeration +
     (key,value) pairing; the real MPT value-lookup is verified by the 8uld3.2.2 wiring.
-    Output: +0 count (expect 1); +8 key byte31 (expect 0x07); +16 value byte0 (expect 0). -/
+    Output: +0 count (expect 1); +8 key byte31 (expect 0x00 — Fix5 writes the key
+    BE->LE-reversed, so the BE key 0x00..07 has 0x07 at byte 0); +16 value byte0
+    (expect 0); +24 key byte0 (expect 0x07). -/
 def ziskStagePredeployStoragePreloadPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  la a0, brsk_acct\n  li a1, 63\n  la a2, spsp_out\n" ++
@@ -189,6 +206,11 @@ def ziskStagePredeployStoragePreloadPrologue : String :=
   "  j .Lspspp_done\n" ++
   stagePredeployStoragePreloadFunction ++ "\n" ++
   balRecipientStorageKeysFunction ++ "\n" ++
+  -- 8uld3 Fix2/Fix6 added these calls to the preload; the probe must link them too
+  -- (pre-existing link failure fixed alongside .66.1.2).
+  balRecipientStorageReadsKeysFunction ++ "\n" ++
+  balSlotTupleSequenceFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
   rlpListCountItemsFunction ++ "\n" ++
   -- slot_at_header_state_root + its MPT deps (rlpListNthItem is in this set):
   zkvmKeccak256Function ++ "\n" ++
@@ -211,6 +233,8 @@ def ziskStagePredeployStoragePreloadPrologue : String :=
 def ziskStagePredeployStoragePreloadDataSection : String :=
   ziskBalRecipientStorageKeysDataSection ++ "\n" ++   -- brsk_* scratch + brsk_acct fixture
   ziskSlotAtHeaderStateRootDataSection ++ "\n" ++     -- slot MPT scratch + sahsr_u256
+  balSlotTupleSequenceData ++ "\n" ++                  -- bts_* scratch (Fix6 tuple pre-pass)
+  ziskRlpFieldToU64DataSection ++ "\n" ++              -- rfu_* scratch for rlp_field_to_u64
   stagePredeployStoragePreloadData ++ "\n" ++          -- sps_* (null witness by default)
   ".balign 8\n" ++
   "spsp_out:\n  .zero 8256\n"

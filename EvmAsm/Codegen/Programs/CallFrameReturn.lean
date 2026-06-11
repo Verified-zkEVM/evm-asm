@@ -29,7 +29,7 @@
     `frame_call_ctx`   1025 × 32 B (parent_x12, outoff_abs, outsize, netPopBytes)
                        indexed by the CHILD depth — saved by the descent, consumed
                        here on the matching return.
-    `call_frame_arena` overlay base for frames 1..1024 (FRAME_STRIDE 0x29000);
+    `call_frame_arena` base for frames 1..1024 (FRAME_STRIDE 0x29000);
     `evm_memory`/`evm_env` the depth-0 register bases.
   Child-frame sub-offsets: frameMemOff=0, frameEnvOff=0x28400.
 -/
