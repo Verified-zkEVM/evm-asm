@@ -335,6 +335,19 @@ def balanceAtHeaderStateRootFunction : String :=
   "  mv s5, a5                  # 32-byte u256 BE output ptr\n" ++
   "  # Pre-zero output -- BALANCE default value.\n" ++
   "  sd zero,  0(s5); sd zero,  8(s5); sd zero, 16(s5); sd zero, 24(s5)\n" ++
+  -- yisv8 .spine.2: prefer the LIVE balance -- the latest non-storage effect post_balance for this
+  -- addr (a value transfer's result) -- so BALANCE reflects mid-execution credits/debits, not just
+  -- the pre-state. Build a 32B padded addr (s2's 20B BE in 0..19, 0 in 20..31) to match the effect
+  -- record's zero-padded addr@0; on a hit s5 holds post_balance and we return success.
+  "  la t0, bal_addr_padded; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++
+  "  mv t1, s2; mv t2, t0; li t3, 20\n" ++
+  ".Lbal_padcp:\n" ++
+  "  beqz t3, .Lbal_padcp_d; lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Lbal_padcp\n" ++
+  ".Lbal_padcp_d:\n" ++
+  "  la a0, bal_addr_padded; mv a1, s5; jal ra, nonstorage_effect_latest_balance\n" ++
+  "  beqz a0, .Lbal_live_miss     # no live effect -> fall through to the pre-state path\n" ++
+  "  li a0, 0; j .Lbal_ret        # live hit: s5 = post_balance -> success\n" ++
+  ".Lbal_live_miss:\n" ++
   "  # Step 1: header.state_root -> bal_state_root.\n" ++
   "  mv a0, s0\n" ++
   "  mv a1, s1\n" ++
@@ -496,7 +509,10 @@ def ziskBalanceAtHeaderStateRootDataSection : String :=
   "  .zero 32\n" ++
   ".balign 8\n" ++
   "bal_acct_struct:\n" ++
-  "  .zero 104"
+  "  .zero 104\n" ++
+  ".balign 8\n" ++
+  "bal_addr_padded:\n" ++   -- yisv8 .spine.2: 32B padded query addr (20B BE + 12B zero) for the live-balance scan
+  "  .zero 32"
 
 def ziskBalanceAtHeaderStateRootProbeUnit : BuildUnit := {
   body        := NOP

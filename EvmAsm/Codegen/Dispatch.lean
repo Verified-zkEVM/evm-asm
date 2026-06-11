@@ -2210,6 +2210,7 @@ def emitRuntimeDispatcherEmbeddedHelperFunctions : String :=
   callFrameDescendFunction ++ "\n" ++
   createFrameDescendFunction ++ "\n" ++   -- .61.8.3.5.1: CREATE-frame descent (reuses call_frame_descend)
   recordNonstorageEffectFunction ++ "\n" ++   -- i3djw.1: per-account non-storage effect producer (CALL value-transfer)
+  nonstorageEffectLatestBalanceFunction ++ "\n" ++   -- yisv8 .spine.1: live-BALANCE read of the latest effect post_balance
   frameReturnFunction
 
 def emitRuntimeDispatcherCallableCoreSharedHelpers
