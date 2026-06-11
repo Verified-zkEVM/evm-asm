@@ -954,6 +954,13 @@ def ziskStatelessVerdictV2DataSection : String :=
   "tgbpvr_lookup:\n  .zero 168\n" ++
   ".balign 8\n" ++
   "bv_sender_bal_check:\n  .zero 192\n" ++
+  -- bmvmx.2: scratch for the check_transaction upfront-balance pre-validation
+  -- (sender_pre_balance >= gas_limit*max_fee_per_gas + tx.value). bv_upfront_cost
+  -- holds max_fee*gas_limit then (+ value) the upfront cost; bv_upfront_islt the
+  -- u256_lt_be verdict (1 iff pre_balance < upfront -> reject).
+  ".balign 8\n" ++
+  "bv_upfront_cost:\n  .zero 32\n" ++
+  "bv_upfront_islt:\n  .zero 8\n" ++
   -- bmvmx.1.6.6: scratch for the all-accounts per-slot tuple-sequence check (#8606). batsc_* is
   -- the wrapper's own scratch; the sub-helpers' scratch (atsc_*/bts_*/els_*) come from their Data
   -- defs. rfu_* (rlp_field_to_u64) is already provided above; slot_tuple_sequences_match is
