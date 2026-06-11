@@ -332,7 +332,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "c1_wcode_len:\n  .zero 8\n" ++
   "c1_er_input:\n  .zero 8\n" ++
   ".balign 8\n" ++
-  "c1_staging:\n  .zero 4096\n" ++
+  "c1_staging:\n  .zero 32768\n" ++   -- Fix7: system-call payload = env_base+504; env_base grows with the predeploy's storage preload (up to 128 slots*64) + M29 block hashes. 4096 overflowed for above-max queues (100 slots -> ~7.5KB) -> truncated storage section -> SLOAD miss -> empty derived body.
   ".balign 8\n" ++
   "c1_er_assembled:\n  .zero 2048\n" ++
   "c1_ccode_ptr:\n  .zero 8\n" ++
