@@ -15,6 +15,7 @@ import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransfer
 import EvmAsm.Codegen.Programs.Eip7702NonceReuseGuard
 import EvmAsm.Codegen.Programs.LogRecordsRlp
 import EvmAsm.Codegen.Programs.TxPubkey
+import EvmAsm.Codegen.Programs.VerifyPublicKeysSenders
 import EvmAsm.Codegen.Programs.BalStorageMatchesExecLog
 import EvmAsm.Codegen.Programs.BalStorageCoversExecLog
 import EvmAsm.Codegen.Programs.BalAllAccountsStorage
@@ -34,6 +35,11 @@ def ziskStatelessVerdictV2DataSection : String :=
   secp256k1CurveDataSection ++ "\n" ++
   secp256k1RecoverDataSection ++ "\n" ++
   txPubkeyRecoverRawDataSection ++ "\n" ++
+  -- bmvmx.3.2: TX-side sender-recovery scratch (signature material + per-type
+  -- extractor offsets + signing-hash buffers) + verify_public_keys_match_senders
+  -- scratch + bv_chain_id. The secp/tpr_* recovery data above is already present
+  -- for the ECRECOVER backend; this adds only the transaction-signature delta.
+  verifyPublicKeysSendersGuestDataSection ++ "\n" ++
   ziskStatelessVerdictDataSection ++ "\n" ++
   runtimeAccessAccountOutcomeData ++ "\n" ++
   storageAccessGasData ++ "\n" ++

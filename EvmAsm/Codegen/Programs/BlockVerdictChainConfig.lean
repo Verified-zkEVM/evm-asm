@@ -112,6 +112,14 @@ def chainConfigValidFunction : String :=
   "  mv s1, a1                   # exec_payload\n" ++
   "  addi a0, s0, 8; jal ra, bgv_u32le\n" ++
   "  add s2, s0, a0              # chain_config ptr\n" ++
+  -- bmvmx.3.2: capture the execution chain_id (SszChainConfig.chain_id is the
+  -- fixed field at offset 0, a u64 LE) into the bv_chain_id global so the
+  -- per-tx sender-recovery gate (verify_public_keys_match_senders) can feed it
+  -- to legacy EIP-155 recovery. chain_config_valid runs early in the verdict
+  -- and its caller rejects on a nonzero return, so bv_chain_id is only consumed
+  -- on the success path. Soundness-inert here (just records a value).
+  "  mv a0, s2; jal ra, bgv_u64le\n" ++
+  "  la t0, bv_chain_id; sd a0, 0(t0)\n" ++
   "  addi a0, s0, 12; jal ra, bgv_u32le\n" ++
   "  add s3, s0, a0              # public_keys ptr = chain_config end\n" ++
   "  bltu s3, s2, .Lccv_fail\n" ++
