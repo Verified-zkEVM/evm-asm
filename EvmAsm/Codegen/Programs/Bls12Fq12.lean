@@ -1,0 +1,440 @@
+/-
+  EvmAsm.Codegen.Programs.Bls12Fq12
+
+  BLS12-381 FQ12 polynomial machine + projective point/line layer for
+  the EIP-2537 pairing precompile (0x0f), cloning the proven BN254
+  recipe (Bn254Fq12 / Bn254Fq12Point, PR #8731).
+
+  Mirrors py_ecc's `optimized_bls12_381_FQ12` (the field execution-specs
+  computes BLS pairings in): FQ12 = Fp[w] / (w^12 - 2 w^6 + 2). An
+  element is a 576-byte, 8-aligned buffer of 12 coefficients, each a
+  48-byte little-endian Fp value (the `Arith384Mod` operand format).
+
+  Every coefficient operation is ONE Arith384Mod call (csrs 0x80B,
+  d = (a*b + c) mod p), exploiting the fused multiply-add:
+
+    * mul accumulation:  acc[i+j] = a[i]*b[j] + acc[i+j]
+    * reduction (k = 22..12):  acc[k-6] += 2*acc[k];
+                               acc[k-12] += (p-2)*acc[k]
+    * add:  d = (a*1 + b);  sub:  d = (b*(p-1) + a);  smul: d = (a*c + 0)
+
+  `blq_pow` is the generic MSB-first square-and-multiply for the
+  denominator inverse (x^(p^12 - 2), top bit 4568) and the final
+  exponentiation (x^((p^12-1)/n), top bit 4313); exponents are baked
+  LE-limb constants. Unlike BN254, the BLS Miller loop needs no
+  Frobenius coordinate powers (py_ecc's extra lines are absent), so
+  no x^p exponent is baked.
+
+  A projective FQ12 point is X || Y || Z, 576 bytes each (1728 total);
+  the identity has Z = 0. `blq_pt_double`/`blq_pt_add`/`blq_linefunc`
+  port py_ecc `optimized_curve.double/add` and
+  `optimized_pairing.linefunc` verbatim, computing through the static
+  temp pool `blq_d0..blq_d9` so dst-aliases-src is safe.
+
+  Labels are `blq_`-prefixed; depends on `Bls12Field`'s `blsf_le_p` /
+  `blsf_le_zero` / `blsf_le_one` and `Bls12G2`'s `blsg2_pm1_le`.
+-/
+
+import EvmAsm.Rv64.Program
+import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Programs.Bls12G2
+
+namespace EvmAsm.Codegen
+
+open EvmAsm.Rv64
+
+/-- FQ12-machine data labels WITHOUT a `.section .data` header. Exponent
+    constants are LE u64 limbs, least-significant first. -/
+def bls12Fq12DataFragment : String :=
+  ".balign 8\n" ++
+  -- (p^12 - 1) / n -- the final exponentiation (top bit 4313).
+"blq_exp_final_le:\n" ++
+"  .quad 0xC0BCB9B55DF57510, 0x25F98630E68BFB24\n" ++
+"  .quad 0x4406FBC8FBD5F489, 0x8E2F8491D12191A0\n" ++
+"  .quad 0x3E9D71650A6F8069, 0x226C2F011D4CAB80\n" ++
+"  .quad 0x67F67C4717489119, 0xAF3F881BD88592D7\n" ++
+"  .quad 0x1A67E49EEED2161D, 0xE5B78C7869AEB218\n" ++
+"  .quad 0xF6539314043F7BBC, 0x73F62537F2701AAE\n" ++
+"  .quad 0xAFF1C910E9622D2A, 0x6283313492CAA9D4\n" ++
+"  .quad 0x2E2F3EC2BEA83D19, 0xA4C7E79FB02FAA73\n" ++
+"  .quad 0x6C49637FD7961BE1, 0x08E88ADCE8817745\n" ++
+"  .quad 0x35DE3F7A36399917, 0x9C1D9F7C31759C36\n" ++
+"  .quad 0xFA9E13C24EA820B0, 0x3FC56947A403577D\n" ++
+"  .quad 0xA4C1B6DCFC5CCEB7, 0x1BBD81367066BCA6\n" ++
+"  .quad 0x0418A3EF0BC62775, 0x49BF9B71A9F9E010\n" ++
+"  .quad 0x511291097DB60B17, 0x498345C6E5308F1C\n" ++
+"  .quad 0x6D8823B19DADD7C2, 0x92004CEDD556952C\n" ++
+"  .quad 0x4C6BEC3EC03EF195, 0x0A1FAD20044CE6AD\n" ++
+"  .quad 0xC55D3109CD15948D, 0x334F46C02C3F0BD0\n" ++
+"  .quad 0x3B5A62EB34C05739, 0x724538411D1676A5\n" ++
+"  .quad 0x127A1B5AD0463434, 0x61A474C5C85B0129\n" ++
+"  .quad 0x8DFC8E2886EF965E, 0x96532FEF459F1243\n" ++
+"  .quad 0x40EE7169CDC10412, 0x9C40A68EB74BB22A\n" ++
+"  .quad 0x25118790F4684D0B, 0x596BC293C8D4C01F\n" ++
+"  .quad 0x1064837F27611212, 0x077FFB10BF24DDE4\n" ++
+"  .quad 0xC49F570BCD2B01F3, 0x1A0C5BF24C374693\n" ++
+"  .quad 0x350DA5359BC73AB6, 0xD2670D93E4D7ACDD\n" ++
+"  .quad 0xD39099B86E1AB656, 0x19328148978E2B0D\n" ++
+"  .quad 0xB113F414386B0E88, 0x07A0DCE2630D9AA4\n" ++
+"  .quad 0xA927E7BB93753318, 0xE347AA68AD49466F\n" ++
+"  .quad 0x1C0AD0D6106FEAF4, 0xC872EE83FF3A0F0F\n" ++
+"  .quad 0x074E43B9A660835C, 0xC0AADFF5E9CFEE9A\n" ++
+"  .quad 0x30698E8CC7DEADA9, 0xD1073776AB353F2C\n" ++
+"  .quad 0x17848517BADC3A43, 0x7363BAA13F8D14A9\n" ++
+"  .quad 0xD4977B3F7D4507D0, 0x496A1C0A89EE0193\n" ++
+"  .quad 0xDCC825B7E1BDA9C0, 0x0000000002EE1DB5\n" ++
+  -- p^12 - 2 -- the Fermat denominator inverse (top bit 4568).
+"blq_exp_p12m2_le:\n" ++
+"  .quad 0x62C744A55DF5750F, 0xD3B1E26013CB8C5F\n" ++
+"  .quad 0xEDF5C811787440CA, 0x6C472B23FE0A4404\n" ++
+"  .quad 0xA4F205EC6A671502, 0xFF7C1B6D6BDAC24A\n" ++
+"  .quad 0xAB0A7E582A7B5E07, 0x99D2F0B43D8D1A60\n" ++
+"  .quad 0xF31981D7D0E4E506, 0xA81C8D0F9FA5D596\n" ++
+"  .quad 0xC1B96ABE4025A6BC, 0xF111F3E10DA00C2D\n" ++
+"  .quad 0x93A3550E008D2706, 0x298AD0E0746A76C9\n" ++
+"  .quad 0x7565667E0DF65084, 0xF431874BF14B35E3\n" ++
+"  .quad 0x55EDA580C1C021E7, 0xCBAE5B811FF5F8C2\n" ++
+"  .quad 0xAC58EB17C75F6BF9, 0xC1BDF2D5D1271A16\n" ++
+"  .quad 0x1649649D9B6079A0, 0xC7EA012AB366245B\n" ++
+"  .quad 0x23F2C2CAA01E2A99, 0x67CCBC9B6FD5E1CD\n" ++
+"  .quad 0xDF58F8DA2146E4AF, 0xE4F3187883EBC03F\n" ++
+"  .quad 0x2E494ECE31E1B32A, 0xC291EFE608C163FA\n" ++
+"  .quad 0xCBEBBA45303BD69E, 0xBE58F5C703D2B80A\n" ++
+"  .quad 0xA7AC121BA3CBFCAF, 0xE44083C2D0584BF5\n" ++
+"  .quad 0xFEC4E94FC9C7B3FD, 0x2FF0CF2FFF40D6F9\n" ++
+"  .quad 0x1F98D0BE6C414817, 0xA3F8EA390E9FF4BF\n" ++
+"  .quad 0x4D9451D87EE67302, 0xD6DC5DEF93A5D633\n" ++
+"  .quad 0x45602A826845A82D, 0xFE3C3B516ABF33B6\n" ++
+"  .quad 0xBDDCF8763EE19D8F, 0xB6EA05C2DE805991\n" ++
+"  .quad 0xFF9ABDCE2DC7C0A5, 0xF833BFDD0955D2F1\n" ++
+"  .quad 0x93DA4CD7FB3141E2, 0x6B03F80C34146533\n" ++
+"  .quad 0x37ACA6E6D99EB066, 0x1B327E40ACB32FE2\n" ++
+"  .quad 0xAE8A4CE79FCDE8EA, 0x8F8472729AAAEDB4\n" ++
+"  .quad 0x642E5A83FEF623C6, 0x37C65EFC47F57973\n" ++
+"  .quad 0x9C0060FA5BA81813, 0x294967A4B8CB0CB2\n" ++
+"  .quad 0x24034CC13376A888, 0x29ED98173E0C0DBA\n" ++
+"  .quad 0x46370235EA4C49C8, 0x304A4B185DE305DA\n" ++
+"  .quad 0x5C4965D638225B1D, 0x80755386AFB51863\n" ++
+"  .quad 0x48629ECB062D9508, 0xC0733C38646D197B\n" ++
+"  .quad 0xE83C9BDFCC1C6E6D, 0x90940D05E77956F9\n" ++
+"  .quad 0x55B295CF4C5FA504, 0x95E0F7D136AE8028\n" ++
+"  .quad 0x147DD8168333D204, 0x81765D291A5164A0\n" ++
+"  .quad 0x3A38D4F9BD01E313, 0xB2F3F2D39221E38B\n" ++
+"  .quad 0x7C9A83731C1814DE, 0x000000000153AFB4\n" ++
+  -- Small scalar constants (48-byte LE Fp).
+  "blq_le_2:\n  .quad 2, 0, 0, 0, 0, 0\n" ++
+  "blq_le_3:\n  .quad 3, 0, 0, 0, 0, 0\n" ++
+  "blq_le_4:\n  .quad 4, 0, 0, 0, 0, 0\n" ++
+  "blq_le_8:\n  .quad 8, 0, 0, 0, 0, 0\n" ++
+  -- p - 2 (the w^12 reduction fold multiplier, LE limbs).
+  "blq_le_pm2:\n" ++
+  "  .quad 0xb9feffffffffaaa9, 0x1eabfffeb153ffff\n" ++
+  "  .quad 0x6730d2a0f6b0f624, 0x64774b84f38512bf\n" ++
+  "  .quad 0x4b1ba7b6434bacd7, 0x1a0111ea397fe69a\n" ++
+  -- Dynamic Arith384Mod parameter block {a, b, c, module, d}.
+  "blq_arith_params:\n  .zero 40\n" ++
+  -- Schoolbook product accumulator (23 x 48 B) and the pow temporary.
+  ".balign 8\n" ++
+  "blq_acc:\n  .zero 1104\n" ++
+  "blq_powt:\n  .zero 576\n"
+
+/-- FQ12 dst = a * b mod (w^12 - 2 w^6 + 2). a0 = dst, a1 = a, a2 = b.
+    The product is composed in `blq_acc` and copied out, so dst may
+    alias a/b; a may alias b (squaring). -/
+def bls12Fq12MulFunction : String :=
+  "blq_mul:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  mv s0, a0\n" ++
+  "  mv s1, a1\n" ++
+  "  mv s2, a2\n" ++
+  "  la t0, blq_acc\n" ++
+  "  li t1, 138\n" ++
+  ".Lblq_mul_zero:\n" ++
+  "  sd zero, 0(t0)\n" ++
+  "  addi t0, t0, 8\n" ++
+  "  addi t1, t1, -1\n" ++
+  "  bnez t1, .Lblq_mul_zero\n" ++
+  "  li s3, 0                       # i\n" ++
+  ".Lblq_mul_i:\n" ++
+  "  li s4, 0                       # j\n" ++
+  ".Lblq_mul_j:\n" ++
+  "  slli t1, s3, 4\n" ++
+  "  slli t5, s3, 5\n" ++
+  "  add t1, t1, t5\n" ++
+  "  add t1, s1, t1                 # &a[i]  (stride 48)\n" ++
+  "  slli t2, s4, 4\n" ++
+  "  slli t5, s4, 5\n" ++
+  "  add t2, t2, t5\n" ++
+  "  add t2, s2, t2                 # &b[j]\n" ++
+  "  add t3, s3, s4\n" ++
+  "  slli t5, t3, 4\n" ++
+  "  slli t3, t3, 5\n" ++
+  "  add t3, t3, t5\n" ++
+  "  la t4, blq_acc\n" ++
+  "  add t3, t4, t3                 # &acc[i+j]\n" ++
+  "  la t0, blq_arith_params\n" ++
+  "  sd t1, 0(t0)\n" ++
+  "  sd t2, 8(t0)\n" ++
+  "  sd t3, 16(t0)\n" ++
+  "  la t1, blsf_le_p\n" ++
+  "  sd t1, 24(t0)\n" ++
+  "  sd t3, 32(t0)\n" ++
+  "  mv a0, t0\n" ++
+  "  .4byte 0x80b52073              # acc[i+j] = a[i]*b[j] + acc[i+j]\n" ++
+  "  addi s4, s4, 1\n" ++
+  "  li t0, 12\n" ++
+  "  bne s4, t0, .Lblq_mul_j\n" ++
+  "  addi s3, s3, 1\n" ++
+  "  li t0, 12\n" ++
+  "  bne s3, t0, .Lblq_mul_i\n" ++
+  -- Cascading reduction by w^12 = 2 w^6 - 2, high coefficient first so
+  -- the k-6 fold lands before that slot is itself reduced.
+  "  li s3, 22                      # k\n" ++
+  ".Lblq_mul_red:\n" ++
+  "  la t4, blq_acc\n" ++
+  "  slli t1, s3, 4\n" ++
+  "  slli t5, s3, 5\n" ++
+  "  add t1, t1, t5\n" ++
+  "  add t1, t4, t1                 # &acc[k]\n" ++
+  "  addi t2, s3, -6\n" ++
+  "  slli t5, t2, 4\n" ++
+  "  slli t2, t2, 5\n" ++
+  "  add t2, t2, t5\n" ++
+  "  add t2, t4, t2                 # &acc[k-6]\n" ++
+  "  la t0, blq_arith_params\n" ++
+  "  sd t1, 0(t0)\n" ++
+  "  la t3, blq_le_2\n" ++
+  "  sd t3, 8(t0)\n" ++
+  "  sd t2, 16(t0)\n" ++
+  "  la t3, blsf_le_p\n" ++
+  "  sd t3, 24(t0)\n" ++
+  "  sd t2, 32(t0)\n" ++
+  "  mv a0, t0\n" ++
+  "  .4byte 0x80b52073              # acc[k-6] += 2*acc[k]\n" ++
+  "  la t4, blq_acc\n" ++
+  "  li t5, 48\n" ++
+  "  mul t1, s3, t5\n" ++
+  "  add t1, t4, t1                 # &acc[k] (recompute)\n" ++
+  "  addi t2, s3, -12\n" ++
+  "  mul t2, t2, t5\n" ++
+  "  add t2, t4, t2                 # &acc[k-12]\n" ++
+  "  la t0, blq_arith_params\n" ++
+  "  sd t1, 0(t0)\n" ++
+  "  la t3, blq_le_pm2\n" ++
+  "  sd t3, 8(t0)\n" ++
+  "  sd t2, 16(t0)\n" ++
+  "  la t3, blsf_le_p\n" ++
+  "  sd t3, 24(t0)\n" ++
+  "  sd t2, 32(t0)\n" ++
+  "  mv a0, t0\n" ++
+  "  .4byte 0x80b52073              # acc[k-12] += (p-2)*acc[k]\n" ++
+  "  addi s3, s3, -1\n" ++
+  "  li t0, 11\n" ++
+  "  bne s3, t0, .Lblq_mul_red\n" ++
+  "  la t0, blq_acc\n" ++
+  "  mv t1, s0\n" ++
+  "  li t2, 72\n" ++
+  ".Lblq_mul_copy:\n" ++
+  "  ld t3, 0(t0)\n" ++
+  "  sd t3, 0(t1)\n" ++
+  "  addi t0, t0, 8\n" ++
+  "  addi t1, t1, 8\n" ++
+  "  addi t2, t2, -1\n" ++
+  "  bnez t2, .Lblq_mul_copy\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+/-- Coefficient-wise binary helper: a0 = dst, a1 = a, a2 = b, all FQ12.
+    12-iteration loop with the given Arith384Mod operand order. -/
+private def blq12LoopFunction (name aSlot bSlot cSlot : String) : String :=
+  let slot (s : String) (reg : String) : String :=
+    if s = "a" then "  sd t1, " ++ reg ++ "(t0)\n"
+    else if s = "b" then "  sd t2, " ++ reg ++ "(t0)\n"
+    else "  la t4, " ++ s ++ "\n  sd t4, " ++ reg ++ "(t0)\n"
+  name ++ ":\n" ++
+  "  li t5, 12\n" ++
+  ".L" ++ name ++ "_loop:\n" ++
+  "  mv t1, a1\n" ++
+  "  mv t2, a2\n" ++
+  "  la t0, blq_arith_params\n" ++
+  slot aSlot "0" ++
+  slot bSlot "8" ++
+  slot cSlot "16" ++
+  "  la t4, blsf_le_p\n" ++
+  "  sd t4, 24(t0)\n" ++
+  "  sd a0, 32(t0)\n" ++
+  "  mv t6, a0\n" ++
+  "  mv a0, t0\n" ++
+  "  .4byte 0x80b52073\n" ++
+  "  addi a0, t6, 48\n" ++
+  "  addi a1, a1, 48\n" ++
+  "  addi a2, a2, 48\n" ++
+  "  addi t5, t5, -1\n" ++
+  "  bnez t5, .L" ++ name ++ "_loop\n" ++
+  "  ret"
+
+/-- FQ12 dst = a + b (coefficient-wise d = (a*1 + b)). Aliasing allowed. -/
+def bls12Fq12AddFunction : String :=
+  blq12LoopFunction "blq_add" "a" "blsf_le_one" "b"
+
+/-- FQ12 dst = a - b (coefficient-wise d = (b*(p-1) + a)). Aliasing allowed. -/
+def bls12Fq12SubFunction : String :=
+  blq12LoopFunction "blq_sub" "b" "blsg2_pm1_le" "a"
+
+/-- FQ12 dst = a * s for a 48-byte LE Fp scalar at a2 (coefficient-wise
+    d = (a*s + 0)). Aliasing allowed; pass the scalar CELL in a2. -/
+def bls12Fq12SMulFunction : String :=
+  "blq_smul:\n" ++
+  "  li t5, 12\n" ++
+  ".Lblq_smul_loop:\n" ++
+  "  la t0, blq_arith_params\n" ++
+  "  sd a1, 0(t0)\n" ++
+  "  sd a2, 8(t0)\n" ++
+  "  la t4, blsf_le_zero\n" ++
+  "  sd t4, 16(t0)\n" ++
+  "  la t4, blsf_le_p\n" ++
+  "  sd t4, 24(t0)\n" ++
+  "  sd a0, 32(t0)\n" ++
+  "  mv t6, a0\n" ++
+  "  mv a0, t0\n" ++
+  "  .4byte 0x80b52073\n" ++
+  "  addi a0, t6, 48\n" ++
+  "  addi a1, a1, 48\n" ++
+  "  addi t5, t5, -1\n" ++
+  "  bnez t5, .Lblq_smul_loop\n" ++
+  "  ret"
+
+/-- Copy a 576-byte FQ12 value: a0 = src, a1 = dst. -/
+def bls12Fq12CopyFunction : String :=
+  "blq_copy:\n" ++
+  "  li t2, 72\n" ++
+  ".Lblq_copy_loop:\n" ++
+  "  ld t3, 0(a0)\n" ++
+  "  sd t3, 0(a1)\n" ++
+  "  addi a0, a0, 8\n" ++
+  "  addi a1, a1, 8\n" ++
+  "  addi t2, t2, -1\n" ++
+  "  bnez t2, .Lblq_copy_loop\n" ++
+  "  ret"
+
+/-- Zero a 576-byte FQ12 value at a0. -/
+def bls12Fq12ZeroFunction : String :=
+  "blq_zero:\n" ++
+  "  li t2, 72\n" ++
+  ".Lblq_zero_loop:\n" ++
+  "  sd zero, 0(a0)\n" ++
+  "  addi a0, a0, 8\n" ++
+  "  addi t2, t2, -1\n" ++
+  "  bnez t2, .Lblq_zero_loop\n" ++
+  "  ret"
+
+/-- Set the FQ12 at a0 to one (coefficient 0 = 1, rest 0). -/
+def bls12Fq12SetOneFunction : String :=
+  "blq_set_one:\n" ++
+  "  addi sp, sp, -16\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp)\n" ++
+  "  mv s0, a0\n" ++
+  "  jal ra, blq_zero\n" ++
+  "  li t0, 1\n" ++
+  "  sd t0, 0(s0)\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp)\n" ++
+  "  addi sp, sp, 16\n" ++
+  "  ret"
+
+/-- a0 = 1 iff the FQ12 values at a0/a1 are limb-identical (reduced). -/
+def bls12Fq12EqFunction : String :=
+  "blq_eq:\n" ++
+  "  li t0, 72\n" ++
+  ".Lblq_eq_loop:\n" ++
+  "  beqz t0, .Lblq_eq_yes\n" ++
+  "  ld t1, 0(a0)\n" ++
+  "  ld t2, 0(a1)\n" ++
+  "  bne t1, t2, .Lblq_eq_no\n" ++
+  "  addi a0, a0, 8\n" ++
+  "  addi a1, a1, 8\n" ++
+  "  addi t0, t0, -1\n" ++
+  "  j .Lblq_eq_loop\n" ++
+  ".Lblq_eq_yes:\n" ++
+  "  li a0, 1\n" ++
+  "  ret\n" ++
+  ".Lblq_eq_no:\n" ++
+  "  li a0, 0\n" ++
+  "  ret"
+
+/-- a0 = 1 iff the FQ12 value at a0 is zero. -/
+def bls12Fq12IsZeroFunction : String :=
+  "blq_is_zero:\n" ++
+  "  li t0, 72\n" ++
+  "  li t1, 0\n" ++
+  ".Lblq_isz_loop:\n" ++
+  "  beqz t0, .Lblq_isz_done\n" ++
+  "  ld t2, 0(a0)\n" ++
+  "  or t1, t1, t2\n" ++
+  "  addi a0, a0, 8\n" ++
+  "  addi t0, t0, -1\n" ++
+  "  j .Lblq_isz_loop\n" ++
+  ".Lblq_isz_done:\n" ++
+  "  seqz a0, t1\n" ++
+  "  ret"
+
+/-- FQ12 dst = base ^ exp, MSB-first square-and-multiply from bit a3
+    down to 0. a0 = dst, a1 = base, a2 = exp (LE limbs), a3 = top bit
+    index. dst must NOT alias base; clobbers `blq_powt` and `blq_acc`. -/
+def bls12Fq12PowFunction : String :=
+  "blq_pow:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  mv s0, a0\n" ++
+  "  mv s1, a1\n" ++
+  "  mv s2, a2\n" ++
+  "  mv s3, a3\n" ++
+  "  mv a0, s0\n" ++
+  "  jal ra, blq_set_one\n" ++
+  ".Lblq_pow_loop:\n" ++
+  "  la a0, blq_powt\n" ++
+  "  mv a1, s0\n" ++
+  "  mv a2, s0\n" ++
+  "  jal ra, blq_mul                # powt = dst^2\n" ++
+  "  la a0, blq_powt\n" ++
+  "  mv a1, s0\n" ++
+  "  jal ra, blq_copy\n" ++
+  "  srli t0, s3, 6\n" ++
+  "  slli t0, t0, 3\n" ++
+  "  add t0, s2, t0\n" ++
+  "  ld t1, 0(t0)\n" ++
+  "  andi t2, s3, 63\n" ++
+  "  srl t1, t1, t2\n" ++
+  "  andi t1, t1, 1\n" ++
+  "  beqz t1, .Lblq_pow_skip\n" ++
+  "  la a0, blq_powt\n" ++
+  "  mv a1, s0\n" ++
+  "  mv a2, s1\n" ++
+  "  jal ra, blq_mul                # powt = dst * base\n" ++
+  "  la a0, blq_powt\n" ++
+  "  mv a1, s0\n" ++
+  "  jal ra, blq_copy\n" ++
+  ".Lblq_pow_skip:\n" ++
+  "  beqz s3, .Lblq_pow_done\n" ++
+  "  addi s3, s3, -1\n" ++
+  "  j .Lblq_pow_loop\n" ++
+  ".Lblq_pow_done:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+/-- The FQ12 machine suite. -/
+def bls12Fq12CommonFunctions : String :=
+  bls12Fq12MulFunction ++ "\n" ++
+  bls12Fq12AddFunction ++ "\n" ++
+  bls12Fq12SubFunction ++ "\n" ++
+  bls12Fq12SMulFunction ++ "\n" ++
+  bls12Fq12CopyFunction ++ "\n" ++
+  bls12Fq12ZeroFunction ++ "\n" ++
+  bls12Fq12SetOneFunction ++ "\n" ++
+  bls12Fq12EqFunction ++ "\n" ++
+  bls12Fq12IsZeroFunction ++ "\n" ++
+  bls12Fq12PowFunction
+
+end EvmAsm.Codegen
