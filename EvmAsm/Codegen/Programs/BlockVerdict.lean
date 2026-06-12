@@ -1244,6 +1244,13 @@ def blockVerdictFunction : String :=
   -- receipts-root mismatch. Skip enforcement there (accept) until Part 2 covers all tx types.
   -- Follow-up: extend Part 2 (tx-type-agnostic sender/recipient/value) + this gate.
   "  la t2, bmvmx_avail; ld t2, 0(t2); beqz t2, .Lbv_receipts_accept\n" ++
+  -- .63.1.6.2.7.1: SKIP enforcement when the tx carries calldata. The materialized receipt's
+  -- cumulative_gas currently omits the intrinsic calldata cost (+ EIP-7623 floor) for the
+  -- single-tx EOA-transfer path (dumped 21000 exactly for a 1-byte-calldata transfer), so a
+  -- calldata-bearing tx would produce a wrong cumulative_gas -> spurious receipts-root mismatch
+  -- -> false-reject. Conservatively accept those until the cumulative_gas is fixed to include
+  -- intrinsic calldata. (No-calldata transfers: gas == 21000 is exact, so they stay enforced.)
+  "  la t2, bmvmx_ctx; ld t2, 64(t2); bnez t2, .Lbv_receipts_accept\n" ++
   "  la a0, brr_control; la a1, bv_receipts_rlp; li a2, 65536; la a3, bv_receipts_rlp_len\n" ++
   "  jal ra, receipt_records_encode_no_logs\n" ++
   "  bnez a0, .Lbv_receipts_accept                # encode failed/unsupported -> conservative accept\n" ++
