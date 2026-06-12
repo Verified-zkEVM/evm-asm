@@ -36,6 +36,7 @@ import EvmAsm.Codegen.Programs.PrecompileBackendProbes
 import EvmAsm.Codegen.Programs.Bn254Curve
 import EvmAsm.Codegen.Programs.Bn254Pairing
 import EvmAsm.Codegen.Programs.Bls12G1
+import EvmAsm.Codegen.Programs.Bls12G2
 import EvmAsm.Codegen.Programs.Ripemd160
 import EvmAsm.Codegen.Programs.StateCompose
 import EvmAsm.Codegen.Programs.StatePredicates
@@ -1461,8 +1462,11 @@ def emitDispatcherEpilogueCore
     zkvmBlake2fSafeFailWrapper ++ "\n" ++
     zkvmKzgPointEvalSafeFailWrapper ++ "\n" ++
     zkvmSecp256r1VerifySafeFailWrapper ++ "\n" ++
-    bls12SafeFailWrapper "zkvm_bls12_g2_add" "0x10d" ++ "\n" ++
-    bls12SafeFailWrapper "zkvm_bls12_g2_msm" "0x10e" ++ "\n" ++
+    -- Real BLS12-381 G2 ADD/MSM (0x0d/0x0e) kernels: software Fp2
+    -- chord/tangent over the complex accelerators + Arith384Mod Fermat
+    -- inverse (Programs/Bls12G2.lean; blsf_copy_quads linked alongside).
+    bls12CopyQuadsFunction ++ "\n" ++
+    bls12G2PrecompileFunctions ++ "\n" ++
     bls12SafeFailWrapper "zkvm_bls12_pairing" "0x10f" ++ "\n" ++
     bls12SafeFailWrapper "zkvm_bls12_map_fp_to_g1" "0x110" ++ "\n" ++
     bls12SafeFailWrapper "zkvm_bls12_map_fp2_to_g2" "0x111" ++ "\n"
@@ -2293,8 +2297,9 @@ def emitRuntimeDispatcherEmbeddedHelperFunctions : String :=
   zkvmBlake2fSafeFailWrapper ++ "\n" ++
   zkvmKzgPointEvalSafeFailWrapper ++ "\n" ++
   zkvmSecp256r1VerifySafeFailWrapper ++ "\n" ++
-  bls12SafeFailWrapper "zkvm_bls12_g2_add" "0x10d" ++ "\n" ++
-  bls12SafeFailWrapper "zkvm_bls12_g2_msm" "0x10e" ++ "\n" ++
+  -- Real BLS12-381 G2 ADD/MSM kernels (see the shared-helpers branch note).
+  bls12CopyQuadsFunction ++ "\n" ++
+  bls12G2PrecompileFunctions ++ "\n" ++
   bls12SafeFailWrapper "zkvm_bls12_pairing" "0x10f" ++ "\n" ++
   bls12SafeFailWrapper "zkvm_bls12_map_fp_to_g1" "0x110" ++ "\n" ++
   bls12SafeFailWrapper "zkvm_bls12_map_fp2_to_g2" "0x111" ++ "\n" ++
@@ -2583,6 +2588,7 @@ def emitRuntimeDispatcherDataSectionCore
   bn254CurveDataFragment ++
   bls12FieldDataFragment ++
   bls12G1DataFragment ++
+  bls12G2DataFragment ++
   bn254PairingAllDataFragments ++
   -- nxio8: EIP-8037 state-gas cells. `evm_state_gas_left` is the per-tx state-gas
   -- reservoir (fork.py: state_gas_reservoir = execution_gas - min(TX_MAX_GAS_LIMIT
