@@ -38,6 +38,8 @@ import EvmAsm.Codegen.Programs.Address
 import EvmAsm.Codegen.Programs.Eip7702NonceReuseGuard
 import EvmAsm.Codegen.Programs.BlockVerdictReceiptRecords
 import EvmAsm.Codegen.Programs.BlockVerdictGasResults
+import EvmAsm.Codegen.Programs.ReceiptsRootIndexed
+import EvmAsm.Codegen.Programs.Bloom
 import EvmAsm.Codegen.Programs.BlockVerdictTransactions
 import EvmAsm.Codegen.Programs.MptEncodeLeafBranch
 import EvmAsm.Codegen.Programs.TxBlobGas
@@ -309,6 +311,29 @@ def blockVerdictFunction : String :=
   -- nonzero header.gas_used raises InvalidBlock. Verify it here instead of trusting it.
   "  la t5, bv_exec_p; ld t4, 0(t5); addi a0, t4, 420; jal ra, bgv_u64le   # header.gas_used\n" ++
   "  bnez a0, .Lbv_notx_gas_used_fail\n" ++
+  -- .63.1.6.2.3 (slice A): NO-TX receipts consensus. execution-specs apply_body
+  -- recomputes receipt_root = root(receipts_trie) and block_logs_bloom =
+  -- logs_bloom(block_logs) and hard-rejects on a header mismatch (fork.py
+  -- 368-371). A no-tx block has an EMPTY receipts trie and ZERO block logs
+  -- (system txs and withdrawals contribute neither receipts nor block_logs),
+  -- so header.receipts_root must be the empty-trie root and header.bloom must
+  -- be 256 zero bytes. The guest never checked either — the audited
+  -- false-accept (hermes-c3, bead .63.1.6): a crafted no-tx block with a
+  -- tampered bloom/receipt_root and a self-consistent payload.block_hash
+  -- passed every gate. Compute the empty indexed-trie root through the real
+  -- validator (count = 0) and compare the extracted header bloom to zeros.
+  "  la a0, sv_this_rlp; la t0, sv_this_rlp_len; ld a1, 0(t0)\n" ++
+  "  la a2, bvrri_value_descs; li a3, 0\n" ++
+  "  jal ra, block_validate_receipts_root_indexed\n" ++
+  "  bnez a0, .Lbv_notx_receipts_root_fail\n" ++
+  "  beqz a1, .Lbv_notx_receipts_root_fail\n" ++
+  "  la a0, sv_this_rlp; la t0, sv_this_rlp_len; ld a1, 0(t0)\n" ++
+  "  la a2, bv_header_bloom\n" ++
+  "  jal ra, header_extract_logs_bloom\n" ++
+  "  bnez a0, .Lbv_notx_bloom_fail\n" ++
+  "  la a0, bv_header_bloom; la a1, bv_zero_bloom; la a2, bv_bloom_eq_out\n" ++
+  "  jal ra, bloom_eq\n" ++
+  "  la t0, bv_bloom_eq_out; ld t0, 0(t0); beqz t0, .Lbv_notx_bloom_fail\n" ++
   "  j .Lbv_after_tx_gate\n" ++
   blockVerdictEmptyTransactionCheckAsm ++
   "  la t5, bsr_bal_count; ld t5, 0(t5); beqz t5, .Lbv_no_bal_for_tx  # tx blocks need BAL replay\n" ++
@@ -484,6 +509,7 @@ def blockVerdictFunction : String :=
   -- nxio8: a3 = the settle-folded refund counter (0 when the tx erred), not a
   -- raw evm_refund_acc read.
   "  la t3, bv_mtx_refund;   add t3, t3, t0; sd a3, 0(t3)\n" ++
+  "  la t3, bv_tx_status_arr; add t3, t3, t0; sd a4, 0(t3)\n" ++   -- .63.1.6.2.1: receipt status, tx i
   -- fhsxz.2.4.2.57.11.6.3.2: snapshot this tx's committed storage into the cross-tx table,
   -- re-keyed (addrHash) to its recipient (bv_mtx_ctx+72, 20B zero-padded to 32) so the next
   -- tx's preload can thread a prior tx's committed value. The live exec log (env+448 entries
@@ -693,6 +719,7 @@ def blockVerdictFunction : String :=
   "  jal ra, dispatcher_tx_gas_settle\n" ++
   "  la t4, bv_runtime_gas_left; sd a0, 0(t4)\n" ++
   "  la t4, bv_runtime_refund_counter; sd a1, 0(t4)\n" ++
+  "  la t4, bv_tx_status_arr; sd a2, 0(t4)\n" ++   -- .63.1.6.2.1: receipt status, tx 0
   "  la t4, runtime_tx_calldata_floor; ld t5, 0(t4)\n" ++
   "  la t4, bv_runtime_calldata_floor; sd t5, 0(t4)\n" ++
   "  la t4, bvgr_runtime_gas_left_ptr; la t5, bv_runtime_gas_left; sd t5, 0(t4)\n" ++
@@ -739,6 +766,7 @@ def blockVerdictFunction : String :=
   -- nxio8: a3 = the settle-folded refund counter (0 when the tx erred), not a
   -- raw evm_refund_acc read.
   "  la t4, bv_runtime_refund_counter; sd a3, 0(t4)\n" ++
+  "  la t4, bv_tx_status_arr; sd a4, 0(t4)\n" ++   -- .63.1.6.2.1: receipt status, tx 0
   "  la t4, bvgr_runtime_gas_left_ptr; la t5, bv_runtime_gas_left; sd t5, 0(t4)\n" ++
   "  la t4, bvgr_runtime_refund_counter_ptr; la t5, bv_runtime_refund_counter; sd t5, 0(t4)\n" ++
   "  la t4, bvgr_runtime_calldata_floor_ptr; la t5, bv_runtime_calldata_floor; sd t5, 0(t4)\n" ++
@@ -1135,6 +1163,7 @@ def blockVerdictFunction : String :=
   "  la t2, bv_exec_p; ld a0, 0(t2)\n" ++
   "  la a1, bvgr_receipt_gas_increments\n" ++
   "  la t2, bvgr_arena_tx_count; ld a2, 0(t2)\n" ++
+  "  la a3, bv_tx_status_arr\n" ++   -- .63.1.6.2.1: per-tx settle success bits
   "  jal ra, block_receipt_records_materialize\n" ++
   "  la t2, brr_status; ld t2, 0(t2); bnez t2, .Lbv_receipt_records_fail\n" ++
   "  li a0, 1; j .Lbv_ret\n" ++
@@ -1142,6 +1171,7 @@ def blockVerdictFunction : String :=
   "  la t2, bv_exec_p; ld a0, 0(t2)\n" ++
   "  li a1, 0\n" ++
   "  li a2, 0\n" ++
+  "  li a3, 0\n" ++
   "  jal ra, block_receipt_records_materialize\n" ++
   "  li a0, 1; j .Lbv_ret\n" ++
   ".Lbv_cmp_mismatch:\n" ++
@@ -1184,6 +1214,10 @@ def blockVerdictFunction : String :=
   "  li t0, 19; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_receipt_records_fail:\n" ++
   "  li t0, 25; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_notx_receipts_root_fail:\n" ++   -- .63.1.6.2.3: no-tx header.receipts_root != empty-trie root
+  "  li t0, 50; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_notx_bloom_fail:\n" ++           -- .63.1.6.2.3: no-tx header.bloom != 256 zero bytes
+  "  li t0, 51; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_versioned_hashes_fail:\n" ++
   "  li t0, 27; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_withdrawals_root_fail:\n" ++
@@ -1426,6 +1460,12 @@ def ziskStatelessVerdictV2Prologue : String :=
   publicKeysValidFunction ++ "\n" ++
   receiptRecordsFunction ++ "\n" ++
   blockReceiptRecordsMaterializeFunction ++ "\n" ++
+  -- .63.1.6.2.3: receipts-consensus validators (the indexed-trie family is
+  -- already linked above for the transactions/withdrawals root checks).
+  headerExtractReceiptsRootFunction ++ "\n" ++
+  blockValidateReceiptsRootIndexedFunction ++ "\n" ++
+  headerExtractLogsBloomFunction ++ "\n" ++
+  bloomEqFunction ++ "\n" ++
   blockVerdictFunction ++ "\n" ++
   rlpListCountItemsFunction ++ "\n" ++
   bgvU32leFunction ++ "\n" ++

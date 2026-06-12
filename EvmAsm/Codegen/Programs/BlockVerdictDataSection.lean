@@ -182,6 +182,11 @@ def ziskStatelessVerdictV2DataSection : String :=
   "brr_tx_gas:\n  .zero 8\n" ++
   "brr_receipt_gas_ptr:\n  .zero 8\n" ++
   "brr_receipt_gas_count:\n  .zero 8\n" ++
+  -- .63.1.6.2.1: per-tx execution-status plumbing. bv_tx_status_arr holds the
+  -- dispatcher_tx_gas_settle success bit per tx (single-tx path writes index 0,
+  -- the mtx loop index i); brr_tx_status_ptr is the materializer's saved arg.
+  "brr_tx_status_ptr:\n  .zero 8\n" ++
+  "bv_tx_status_arr:\n  .zero 128\n" ++
   "brr_control:\n  .zero 24\n" ++
   ".balign 8\n" ++
   "brr_records:\n  .zero 1024\n" ++
@@ -195,6 +200,24 @@ def ziskStatelessVerdictV2DataSection : String :=
   "itr_value_descs:\n  .zero 32768\n" ++
   "itr_paths:\n  .zero 16384\n" ++
   "itr_changes:\n  .zero 81920\n" ++
+  -- .63.1.6.2.3: receipts-consensus scratch (mirrors the hewr_/bvwri_ withdrawals
+  -- pair above). herr_/helb_ are header field-extraction cursors; bvrri_* the
+  -- expected/computed receipts roots + per-receipt {ptr,len} descriptors (16 B ×
+  -- 128, same cap as mpt_indexed_trie_root_small); bv_header_bloom /
+  -- bv_zero_bloom / bv_bloom_eq_out drive the header.logs_bloom compare.
+  "herr_offset:\n  .zero 8\n" ++
+  "herr_length:\n  .zero 8\n" ++
+  "helb_offset:\n  .zero 8\n" ++
+  "helb_length:\n  .zero 8\n" ++
+  ".balign 32\n" ++
+  "bvrri_expected_root:\n  .zero 32\n" ++
+  "bvrri_computed_root:\n  .zero 32\n" ++
+  ".balign 8\n" ++
+  "bvrri_value_descs:\n  .zero 2048\n" ++
+  ".balign 8\n" ++
+  "bv_header_bloom:\n  .zero 256\n" ++
+  "bv_zero_bloom:\n  .zero 256\n" ++
+  "bv_bloom_eq_out:\n  .zero 8\n" ++
   "bvgr_runtime_gas_left_ptr:\n  .zero 8\n" ++
   "bvgr_runtime_refund_counter_ptr:\n  .zero 8\n" ++
   "bvgr_runtime_calldata_floor_ptr:\n  .zero 8\n" ++

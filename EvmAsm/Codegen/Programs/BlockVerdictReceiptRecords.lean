@@ -20,13 +20,17 @@ open EvmAsm.Rv64.Program
     a0 = execution payload ptr.
     a1 = pointer to `a2` u64 receipt gas increments from runtime results.
     a2 = receipt gas increment count.
+    a3 = per-tx execution status array ptr (u64 per tx: 1 success / 0 failed),
+         or 0 to record every tx as successful (.63.1.6.2.1 — the verdict
+         passes the dispatcher_tx_gas_settle success bits via bv_tx_status_arr;
+         probes that only exercise the gas chain pass 0).
 
     This deliberately handles only a small materialization surface before full
     transaction execution exists: zero transactions leaves the arena empty, and
-    legacy transactions append success records with cumulative_gas_used equal to
-    the running sum of the runtime-provided receipt gas increments. Other
-    transaction shapes, or missing runtime gas increments, leave a debug status
-    but do not affect the block verdict. -/
+    transactions append records with the runtime-captured execution status and
+    cumulative_gas_used equal to the running sum of the runtime-provided
+    receipt gas increments. Other transaction shapes, or missing runtime gas
+    increments, leave a debug status but do not affect the block verdict. -/
 def blockReceiptRecordsMaterializeFunction : String :=
   "block_receipt_records_materialize:\n" ++
   "  addi sp, sp, -120\n" ++
@@ -37,6 +41,7 @@ def blockReceiptRecordsMaterializeFunction : String :=
   "  mv s0, a0                   # execution payload\n" ++
   "  la t0, brr_receipt_gas_ptr; sd a1, 0(t0)\n" ++
   "  la t0, brr_receipt_gas_count; sd a2, 0(t0)\n" ++
+  "  la t0, brr_tx_status_ptr; sd a3, 0(t0)\n" ++
   "  la t0, brr_status; sd zero, 0(t0)\n" ++
   "  la t0, brr_append_status; sd zero, 0(t0)\n" ++
   "  la a0, brr_control; li a1, 16; la a2, brr_records\n" ++
@@ -98,7 +103,15 @@ def blockReceiptRecordsMaterializeFunction : String :=
   "  mv s7, t2\n" ++
   "  la a0, brr_control\n" ++
   "  la t0, brr_tx_type; ld a1, 0(t0)   # tx type (0 legacy / 1-4 typed)\n" ++
-  "  li a2, 1                    # successful execution\n" ++
+  -- .63.1.6.2.1: per-tx execution status from the runtime capture (1 when the
+  -- dispatch halted via STOP/RETURN/SELFDESTRUCT, 0 on REVERT/exceptional —
+  -- the spec's `error is None` receipt bit); a null array keeps the old
+  -- all-success behavior for gas-only probes.
+  "  la t0, brr_tx_status_ptr; ld t0, 0(t0)\n" ++
+  "  li a2, 1\n" ++
+  "  beqz t0, .Lbrr_status_ready\n" ++
+  "  slli t1, s6, 3; add t0, t0, t1; ld a2, 0(t0)\n" ++
+  ".Lbrr_status_ready:\n" ++
   "  mv a3, s7                   # cumulative gas\n" ++
   "  li a4, 0                    # pre-tx event log checkpoint\n" ++
   "  li a5, 0                    # final event log count\n" ++
@@ -155,6 +168,7 @@ def ziskBlockReceiptRecordsMaterializePrologue : String :=
   "  li a1, 0x40001010\n" ++
   "  li t0, 0x40001008\n" ++
   "  ld a2, 0(t0)\n" ++
+  "  li a3, 0\n" ++
   "  jal ra, block_receipt_records_materialize\n" ++
   "  li s0, 0xa0010000\n" ++
   "  la t1, brr_status; ld t2, 0(t1); sd t2, 0(s0)\n" ++
@@ -188,6 +202,7 @@ def ziskBlockReceiptRecordsMaterializeDataSection : String :=
   "brr_tx_inner:\n  .zero 8\n" ++
   "brr_tx_gas:\n  .zero 8\n" ++
   "brr_receipt_gas_ptr:\n  .zero 8\n" ++
+  "brr_tx_status_ptr:\n  .zero 8\n" ++
   "brr_receipt_gas_count:\n  .zero 8\n" ++
   "brr_control:\n  .zero 24\n" ++
   ".balign 8\n" ++
