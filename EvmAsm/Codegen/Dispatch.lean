@@ -35,6 +35,8 @@ import EvmAsm.Codegen.Programs.EvmStorageAccessGas
 import EvmAsm.Codegen.Programs.PrecompileBackendProbes
 import EvmAsm.Codegen.Programs.Bn254Curve
 import EvmAsm.Codegen.Programs.Bn254Pairing
+import EvmAsm.Codegen.Programs.Bls12G1
+import EvmAsm.Codegen.Programs.Bls12G2
 import EvmAsm.Codegen.Programs.Ripemd160
 import EvmAsm.Codegen.Programs.StateCompose
 import EvmAsm.Codegen.Programs.StatePredicates
@@ -1445,8 +1447,10 @@ def emitDispatcherEpilogueCore
     runtimeAccessSeedInitialAccountsFunction ++ "\n" ++
     runtimeAccessAccountChargeFunction ++ "\n" ++
     eip7708SyntheticLogFunctions ++ "\n" ++
-    zkvmBls12G1AddSafeFailWrapper ++ "\n" ++
-    zkvmBls12G1MsmSafeFailWrapper ++ "\n" ++
+    -- Real BLS12-381 G1 ADD/MSM (0x0b/0x0c) kernels backed by the ziskemu
+    -- Bls12_381CurveAdd/Dbl + Arith384Mod accelerators (EIP-2537 decode,
+    -- on-curve + order-n subgroup checks; Programs/Bls12G1.lean).
+    bls12G1PrecompileFunctions ++ "\n" ++
     -- Real BN254 precompile kernels: ecAdd/ecMul (0x06/0x07) field/curve
     -- helpers + `zkvm_bn254_g1_add` / `zkvm_bn254_g1_mul` backed by the
     -- ziskemu Bn254CurveAdd/Dbl + Arith256Mod accelerators, and the
@@ -1458,8 +1462,11 @@ def emitDispatcherEpilogueCore
     zkvmBlake2fSafeFailWrapper ++ "\n" ++
     zkvmKzgPointEvalSafeFailWrapper ++ "\n" ++
     zkvmSecp256r1VerifySafeFailWrapper ++ "\n" ++
-    bls12SafeFailWrapper "zkvm_bls12_g2_add" "0x10d" ++ "\n" ++
-    bls12SafeFailWrapper "zkvm_bls12_g2_msm" "0x10e" ++ "\n" ++
+    -- Real BLS12-381 G2 ADD/MSM (0x0d/0x0e) kernels: software Fp2
+    -- chord/tangent over the complex accelerators + Arith384Mod Fermat
+    -- inverse (Programs/Bls12G2.lean; blsf_copy_quads linked alongside).
+    bls12CopyQuadsFunction ++ "\n" ++
+    bls12G2PrecompileFunctions ++ "\n" ++
     bls12SafeFailWrapper "zkvm_bls12_pairing" "0x10f" ++ "\n" ++
     bls12SafeFailWrapper "zkvm_bls12_map_fp_to_g1" "0x110" ++ "\n" ++
     bls12SafeFailWrapper "zkvm_bls12_map_fp2_to_g2" "0x111" ++ "\n"
@@ -2281,8 +2288,8 @@ def emitRuntimeDispatcherEmbeddedHelperFunctions : String :=
   runtimeAccessAccountChargeFunction ++ "\n" ++
   selfdestructBalanceTransferFunction ++ "\n" ++
   eip7708SyntheticLogFunctions ++ "\n" ++
-  zkvmBls12G1AddSafeFailWrapper ++ "\n" ++
-  zkvmBls12G1MsmSafeFailWrapper ++ "\n" ++
+  -- Real BLS12-381 G1 ADD/MSM kernels (see the shared-helpers branch note).
+  bls12G1PrecompileFunctions ++ "\n" ++
   -- Real BN254 ecAdd/ecMul/ecPairing kernels (0x06/0x07/0x08); see the
   -- standalone-epilogue emission site for the wrapper-replacement rationale.
   bn254PrecompileFunctions ++ "\n" ++
@@ -2290,8 +2297,9 @@ def emitRuntimeDispatcherEmbeddedHelperFunctions : String :=
   zkvmBlake2fSafeFailWrapper ++ "\n" ++
   zkvmKzgPointEvalSafeFailWrapper ++ "\n" ++
   zkvmSecp256r1VerifySafeFailWrapper ++ "\n" ++
-  bls12SafeFailWrapper "zkvm_bls12_g2_add" "0x10d" ++ "\n" ++
-  bls12SafeFailWrapper "zkvm_bls12_g2_msm" "0x10e" ++ "\n" ++
+  -- Real BLS12-381 G2 ADD/MSM kernels (see the shared-helpers branch note).
+  bls12CopyQuadsFunction ++ "\n" ++
+  bls12G2PrecompileFunctions ++ "\n" ++
   bls12SafeFailWrapper "zkvm_bls12_pairing" "0x10f" ++ "\n" ++
   bls12SafeFailWrapper "zkvm_bls12_map_fp_to_g1" "0x110" ++ "\n" ++
   bls12SafeFailWrapper "zkvm_bls12_map_fp2_to_g2" "0x111" ++ "\n" ++
@@ -2578,6 +2586,9 @@ def emitRuntimeDispatcherDataSectionCore
   -- `bn254PrecompileFunctions` in the dispatcher text.
   bn254FieldDataFragment ++
   bn254CurveDataFragment ++
+  bls12FieldDataFragment ++
+  bls12G1DataFragment ++
+  bls12G2DataFragment ++
   bn254PairingAllDataFragments ++
   -- nxio8: EIP-8037 state-gas cells. `evm_state_gas_left` is the per-tx state-gas
   -- reservoir (fork.py: state_gas_reservoir = execution_gas - min(TX_MAX_GAS_LIMIT

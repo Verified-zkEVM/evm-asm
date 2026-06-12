@@ -797,145 +797,152 @@ def childFrameHandlers
     "  sd x16, 0(x15)\n" ++
     "  sd x0, 8(x15)\n" ++
     "  j 7b\n" ++
-    -- BLS12-381 G1 ADD: execution-specs rejects unless calldata length is 256.
-    -- Valid-length input invokes the linkable backend wrapper. Current ziskemu
-    -- routes this through a deterministic safe-fail shim, which surfaces EVM
-    -- precompile failure instead of placeholder success.
+    -- BLS12-381 G1 ADD (0x0b): exact 256-byte input, fixed 375 gas charged
+    -- from the EIP-150 child allotment, real accelerator-backed kernel on the
+    -- raw EIP-2537 input. Invalid input (bad pad / coord >= p / off-curve) is
+    -- a FAILED call that burns the allotment (execution-specs InvalidParameter).
     "13:\n" ++
+    "  la x15, evm_precompile_frame\n" ++
+    "  li x16, 1\n" ++
+    "  sd x16, 0(x15)\n" ++
+    "  sd x0, 8(x15)\n" ++
     "  ld x17, " ++ toString inSizeOff ++ "(x12)\n" ++
     "  li x16, 256\n" ++
-    "  bne x17, x16, 1f\n" ++
-    "  la x15, evm_precompile_frame\n" ++
-    chargePrecompileGasConstAsm 375 "x16" "x22" ++
+    "  bne x17, x16, .L" ++ tag ++ "_bn254_fail_allot\n" ++
+    "  li x16, 375\n" ++
+    bn254ChargeGateAsm tag ++
     "  mv s9, x13\n" ++
     "  mv s10, x10\n" ++
     "  mv s11, x12\n" ++
-    precompileFrameAddi "a0" precompileFrameBls12G1Input0Off ++
-    precompileFrameAddi "a1" precompileFrameBls12G1Input1Off ++
-    precompileFrameAddi "a2" precompileFrameBls12G1OutputOff ++
+    "  ld x17, " ++ toString inOffsetOff ++ "(x12)\n" ++
+    "  add a0, x13, x17\n" ++
+    precompileFrameAddi "a1" precompileFrameBls12G1OutputOff ++
     "  jal x1, zkvm_bls12_g1_add\n" ++
+    -- a0 IS x10: stash the kernel status before the saved-PC restore.
+    "  mv x16, a0\n" ++
     "  mv x13, s9\n" ++
     "  mv x10, s10\n" ++
     "  mv x12, s11\n" ++
     "  la x15, evm_precompile_frame\n" ++
-    "  bnez a0, 1f\n" ++
-    -- EIP-2537 `g1_to_bytes`: each compact 48-byte coordinate is left-padded
-    -- to a 64-byte big-endian field element.
-    "  addi x18, x15, 16\n" ++
-    "  li x22, 16\n" ++
-    "20:\n" ++
-    "  sb x0, 0(x18)\n" ++
-    "  addi x18, x18, 1\n" ++
-    "  addi x22, x22, -1\n" ++
-    "  bnez x22, 20b\n" ++
-    precompileFrameAddi "x18" precompileFrameBls12G1OutputOff ++
-    "  addi x19, x15, 32\n" ++
-    "  li x22, 48\n" ++
-    "21:\n" ++
-    "  lbu x16, 0(x18)\n" ++
-    "  sb x16, 0(x19)\n" ++
-    "  addi x18, x18, 1\n" ++
-    "  addi x19, x19, 1\n" ++
-    "  addi x22, x22, -1\n" ++
-    "  bnez x22, 21b\n" ++
-    "  addi x18, x15, 80\n" ++
-    "  li x22, 16\n" ++
-    "22:\n" ++
-    "  sb x0, 0(x18)\n" ++
-    "  addi x18, x18, 1\n" ++
-    "  addi x22, x22, -1\n" ++
-    "  bnez x22, 22b\n" ++
-    precompileFrameAddi "x18" (precompileFrameBls12G1OutputOff + 48) ++
-    "  addi x19, x15, 96\n" ++
-    "  li x22, 48\n" ++
-    "23:\n" ++
-    "  lbu x16, 0(x18)\n" ++
-    "  sb x16, 0(x19)\n" ++
-    "  addi x18, x18, 1\n" ++
-    "  addi x19, x19, 1\n" ++
-    "  addi x22, x22, -1\n" ++
-    "  bnez x22, 23b\n" ++
+    "  bnez x16, .L" ++ tag ++ "_bn254_kfail\n" ++
+    "  j .L" ++ tag ++ "_blsg1_out\n" ++
+    -- BLS12-381 G1 MSM (0x0c): nonempty multiple-of-160 input, per-pair
+    -- discounted gas (bls12_g1_msm_discount_table) charged from the child
+    -- allotment, real double-and-add kernel with the REAL order-n subgroup
+    -- check on every input point (the G1 cofactor is not 1). Invalid input
+    -- burns the allotment.
+    "14:\n" ++
+    "  la x15, evm_precompile_frame\n" ++
     "  li x16, 1\n" ++
     "  sd x16, 0(x15)\n" ++
-    "  li x16, 128\n" ++
-    "  sd x16, 8(x15)\n" ++
-    "  j 7b\n" ++
-    -- BLS12-381 G1 MSM: execution-specs rejects empty input and non-160
-    -- multiples before charging gas or invoking curve arithmetic. Valid-length
-    -- input invokes the linkable backend wrapper; the current safe-fail shim
-    -- surfaces EVM precompile failure instead of placeholder success.
-    "14:\n" ++
+    "  sd x0, 8(x15)\n" ++
     "  ld x18, " ++ toString inSizeOff ++ "(x12)\n" ++
-    "  beqz x18, 1f\n" ++
+    "  beqz x18, .L" ++ tag ++ "_bn254_fail_allot\n" ++
     "  li x16, 160\n" ++
     "  remu x17, x18, x16\n" ++
-    "  bnez x17, 1f\n" ++
-    "  la x15, evm_precompile_frame\n" ++
-    chargeBls12G1MsmGasAsm "x18" "a1" "x22" "x23" "x24" ++
+    "  bnez x17, .L" ++ tag ++ "_bn254_fail_allot\n" ++
+    bls12MsmCostAsm tag 160 12000 519 "bls12_g1_msm_discount_table" ++
+    bn254ChargeGateAsm tag ++
     "  mv s9, x13\n" ++
     "  mv s10, x10\n" ++
     "  mv s11, x12\n" ++
-    precompileFrameAddi "a0" precompileFrameBls12G1Input0Off ++
+    "  ld x17, " ++ toString inOffsetOff ++ "(x12)\n" ++
+    "  add a0, x13, x17\n" ++
+    "  ld x18, " ++ toString inSizeOff ++ "(x12)\n" ++
+    "  li x17, 160\n" ++
+    "  divu a1, x18, x17\n" ++
     precompileFrameAddi "a2" precompileFrameBls12G1OutputOff ++
     "  jal x1, zkvm_bls12_g1_msm\n" ++
+    -- a0 IS x10: stash the kernel status before the saved-PC restore.
+    "  mv x16, a0\n" ++
     "  mv x13, s9\n" ++
     "  mv x10, s10\n" ++
     "  mv x12, s11\n" ++
     "  la x15, evm_precompile_frame\n" ++
-    "  bnez a0, 1f\n" ++
-    -- Pack the compact accelerator G1 result into EIP-2537 returndata:
-    -- 16 zero bytes + 48-byte x coordinate + 16 zero bytes + 48-byte y coordinate.
-    "  sd x0, 16(x15)\n" ++
-    "  sd x0, 24(x15)\n" ++
-    precompileFrameAddi "x17" precompileFrameBls12G1OutputOff ++
-    "  addi x18, x15, 32\n" ++
-    "  li x19, 48\n" ++
-    "20:\n" ++
-    "  lbu x16, 0(x17)\n" ++
-    "  sb x16, 0(x18)\n" ++
-    "  addi x17, x17, 1\n" ++
+    "  bnez x16, .L" ++ tag ++ "_bn254_kfail\n" ++
+    -- Shared G1 success tail (ADD + MSM): expand the compact 96-byte result
+    -- into EIP-2537 returndata (16 zero pad + 48-byte coordinate, twice) at
+    -- frame+16, then copy min(128, out_size) to caller memory.
+    ".L" ++ tag ++ "_blsg1_out:\n" ++
+    "  addi x18, x15, 16\n" ++
+    "  li x22, 16\n" ++
+    ".L" ++ tag ++ "_blsg1_pad1:\n" ++
+    "  sb x0, 0(x18)\n" ++
     "  addi x18, x18, 1\n" ++
-    "  addi x19, x19, -1\n" ++
-    "  bnez x19, 20b\n" ++
-    "  sd x0, 80(x15)\n" ++
-    "  sd x0, 88(x15)\n" ++
-    precompileFrameAddi "x17" (precompileFrameBls12G1OutputOff + 48) ++
-    "  addi x18, x15, 96\n" ++
-    "  li x19, 48\n" ++
-    "21:\n" ++
-    "  lbu x16, 0(x17)\n" ++
+    "  addi x22, x22, -1\n" ++
+    "  bnez x22, .L" ++ tag ++ "_blsg1_pad1\n" ++
+    precompileFrameAddi "x19" precompileFrameBls12G1OutputOff ++
+    "  li x22, 48\n" ++
+    ".L" ++ tag ++ "_blsg1_cx:\n" ++
+    "  lbu x16, 0(x19)\n" ++
     "  sb x16, 0(x18)\n" ++
-    "  addi x17, x17, 1\n" ++
+    "  addi x19, x19, 1\n" ++
     "  addi x18, x18, 1\n" ++
-    "  addi x19, x19, -1\n" ++
-    "  bnez x19, 21b\n" ++
+    "  addi x22, x22, -1\n" ++
+    "  bnez x22, .L" ++ tag ++ "_blsg1_cx\n" ++
+    "  li x22, 16\n" ++
+    ".L" ++ tag ++ "_blsg1_pad2:\n" ++
+    "  sb x0, 0(x18)\n" ++
+    "  addi x18, x18, 1\n" ++
+    "  addi x22, x22, -1\n" ++
+    "  bnez x22, .L" ++ tag ++ "_blsg1_pad2\n" ++
+    "  li x22, 48\n" ++
+    ".L" ++ tag ++ "_blsg1_cy:\n" ++
+    "  lbu x16, 0(x19)\n" ++
+    "  sb x16, 0(x18)\n" ++
+    "  addi x19, x19, 1\n" ++
+    "  addi x18, x18, 1\n" ++
+    "  addi x22, x22, -1\n" ++
+    "  bnez x22, .L" ++ tag ++ "_blsg1_cy\n" ++
     "  li x16, 1\n" ++
     "  sd x16, 0(x15)\n" ++
     "  li x16, 128\n" ++
     "  sd x16, 8(x15)\n" ++
+    "  ld x22, " ++ toString outSizeOff ++ "(x12)\n" ++
+    "  li x23, 128\n" ++
+    "  bgeu x22, x23, .L" ++ tag ++ "_blsg1_outcap\n" ++
+    "  mv x23, x22\n" ++
+    ".L" ++ tag ++ "_blsg1_outcap:\n" ++
+    "  beqz x23, 7b\n" ++
+    "  addi x18, x15, 16\n" ++
+    "  ld x19, " ++ toString outOffsetOff ++ "(x12)\n" ++
+    "  add x19, x13, x19\n" ++
+    ".L" ++ tag ++ "_blsg1_copyout:\n" ++
+    "  lbu x16, 0(x18)\n" ++
+    "  sb x16, 0(x19)\n" ++
+    "  addi x18, x18, 1\n" ++
+    "  addi x19, x19, 1\n" ++
+    "  addi x23, x23, -1\n" ++
+    "  bnez x23, .L" ++ tag ++ "_blsg1_copyout\n" ++
     "  j 7b\n" ++
-    -- BLS12-381 G2 ADD: execution-specs rejects unless calldata length is 512.
-    -- Valid-length input invokes the linkable backend wrapper. Current ziskemu
-    -- routes this through a deterministic safe-fail shim, which surfaces EVM
-    -- precompile failure instead of placeholder success.
+    -- BLS12-381 G2 ADD (0x0d): exact 512-byte input, fixed 600 gas charged
+    -- from the EIP-150 child allotment, real software-Fp2 kernel (complex
+    -- accelerators + Arith384Mod Fermat inverse) on the raw EIP-2537 input.
+    -- Invalid input burns the allotment (execution-specs InvalidParameter).
     "15:\n" ++
+    "  la x15, evm_precompile_frame\n" ++
+    "  li x16, 1\n" ++
+    "  sd x16, 0(x15)\n" ++
+    "  sd x0, 8(x15)\n" ++
     "  ld x17, " ++ toString inSizeOff ++ "(x12)\n" ++
     "  li x16, 512\n" ++
-    "  bne x17, x16, 1f\n" ++
-    "  la x15, evm_precompile_frame\n" ++
-    chargePrecompileGasConstAsm 600 "x16" "x22" ++
+    "  bne x17, x16, .L" ++ tag ++ "_bn254_fail_allot\n" ++
+    "  li x16, 600\n" ++
+    bn254ChargeGateAsm tag ++
     "  mv s9, x13\n" ++
     "  mv s10, x10\n" ++
     "  mv s11, x12\n" ++
-    precompileFrameAddi "a0" precompileFrameBls12G2AddInput0Off ++
-    precompileFrameAddi "a1" precompileFrameBls12G2AddInput1Off ++
-    precompileFrameAddi "a2" precompileFrameBls12G2AddOutputOff ++
+    "  ld x17, " ++ toString inOffsetOff ++ "(x12)\n" ++
+    "  add a0, x13, x17\n" ++
+    precompileFrameAddi "a1" precompileFrameBls12G2AddOutputOff ++
     "  jal x1, zkvm_bls12_g2_add\n" ++
+    -- a0 IS x10: stash the kernel status before the saved-PC restore.
+    "  mv x16, a0\n" ++
     "  mv x13, s9\n" ++
     "  mv x10, s10\n" ++
     "  mv x12, s11\n" ++
     "  la x15, evm_precompile_frame\n" ++
-    "  bnez a0, 1f\n" ++
+    "  bnez x16, .L" ++ tag ++ "_bn254_kfail\n" ++
     -- EIP-2537 `g2_to_bytes`: each compact 48-byte FQ component is left-padded
     -- to a 64-byte big-endian field element.
     "  addi x18, x15, 16\n" ++
@@ -979,29 +986,40 @@ def childFrameHandlers
     "  addi x23, x23, -1\n" ++
     "  bnez x23, 24b\n" ++
     "  j 7b\n" ++
-    -- BLS12-381 G2 MSM: execution-specs rejects empty input and non-288
-    -- multiples before charging gas or invoking curve arithmetic. Valid-length
-    -- input invokes the linkable backend wrapper; the current safe-fail shim
-    -- surfaces EVM precompile failure instead of placeholder success.
+    -- BLS12-381 G2 MSM (0x0e): nonempty multiple-of-288 input, per-pair
+    -- discounted gas (bls12_g2_msm_discount_table) charged from the child
+    -- allotment, real software-Fp2 double-and-add kernel with the REAL
+    -- order-n subgroup check on every input point. Invalid input burns the
+    -- allotment.
     "16:\n" ++
+    "  la x15, evm_precompile_frame\n" ++
+    "  li x16, 1\n" ++
+    "  sd x16, 0(x15)\n" ++
+    "  sd x0, 8(x15)\n" ++
     "  ld x18, " ++ toString inSizeOff ++ "(x12)\n" ++
-    "  beqz x18, 1f\n" ++
+    "  beqz x18, .L" ++ tag ++ "_bn254_fail_allot\n" ++
     "  li x16, 288\n" ++
     "  remu x17, x18, x16\n" ++
-    "  bnez x17, 1f\n" ++
-    "  la x15, evm_precompile_frame\n" ++
-    chargeBls12G2MsmGasAsm "x18" "a1" "x22" "x23" "x24" ++
+    "  bnez x17, .L" ++ tag ++ "_bn254_fail_allot\n" ++
+    bls12MsmCostAsm tag 288 22500 524 "bls12_g2_msm_discount_table" ++
+    bn254ChargeGateAsm tag ++
     "  mv s9, x13\n" ++
     "  mv s10, x10\n" ++
     "  mv s11, x12\n" ++
-    precompileFrameAddi "a0" precompileFrameBls12G2InputOff ++
+    "  ld x17, " ++ toString inOffsetOff ++ "(x12)\n" ++
+    "  add a0, x13, x17\n" ++
+    "  ld x18, " ++ toString inSizeOff ++ "(x12)\n" ++
+    "  li x17, 288\n" ++
+    "  divu a1, x18, x17\n" ++
     precompileFrameAddi "a2" precompileFrameBls12G2OutputOff ++
     "  jal x1, zkvm_bls12_g2_msm\n" ++
+    -- a0 IS x10: stash the kernel status before the saved-PC restore.
+    "  mv x16, a0\n" ++
     "  mv x13, s9\n" ++
     "  mv x10, s10\n" ++
     "  mv x12, s11\n" ++
     "  la x15, evm_precompile_frame\n" ++
-    "  bnez a0, 1f\n" ++
+    "  bnez x16, .L" ++ tag ++ "_bn254_kfail\n" ++
     -- EIP-2537 `g2_to_bytes`: each compact 48-byte FQ component is left-padded
     -- to a 64-byte big-endian field element.
     "  addi x18, x15, 16\n" ++
