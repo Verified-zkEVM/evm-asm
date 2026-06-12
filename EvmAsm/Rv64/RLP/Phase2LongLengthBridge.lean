@@ -35,7 +35,7 @@ theorem rlp_be_byte_eq_fromBytesBE (e0 : Byte) :
     e0.zeroExtend 64 = BitVec.ofNat 64 (Nat.fromBytesBE [e0]) := by
   apply BitVec.eq_of_toNat_eq
   simp only [BitVec.toNat_setWidth, BitVec.toNat_ofNat, Nat.fromBytesBE,
-             List.length_cons, List.length_nil]
+             List.length_nil]
   have h0 := e0.isLt
   omega
 
@@ -49,7 +49,7 @@ theorem rlp_be_len_1_eq_fromBytesBE (e0 : Byte) :
   apply BitVec.eq_of_toNat_eq
   simp only [BitVec.toNat_add, BitVec.toNat_shiftLeft, BitVec.toNat_setWidth,
              BitVec.toNat_ofNat, Nat.shiftLeft_eq, Nat.fromBytesBE,
-             List.length_cons, List.length_nil]
+             List.length_nil]
   have hz : BitVec.toNat (0 : Word) = 0 := rfl
   have h0 := e0.isLt
   omega
