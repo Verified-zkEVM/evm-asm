@@ -276,6 +276,8 @@ def knownProgramNames : List String :=
    "zisk_secp256k1_add_dbl_syscall_probe",
    "zisk_secp256k1_add_dbl_opcode_probe",
    "zisk_secp256k1_recover_r",
+   "zisk_bn254_g1_add_real",
+   "zisk_bn254_g1_mul_real",
    "zisk_u256_add_be",
    "zisk_u256_lt_be",
    "zisk_u256_sub_be",
