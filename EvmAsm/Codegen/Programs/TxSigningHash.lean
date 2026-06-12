@@ -334,6 +334,7 @@ def ziskTxSigningHashPrologue : String :=
   rlpEncodeListPrefixFunction ++ "\n" ++
   rlpListTruncateToNFieldsFunction ++ "\n" ++
   zkvmKeccak256Function ++ "\n" ++
+  zkvmKeccak256SegmentsFunction ++ "\n" ++
   txSigningHashFunction ++ "\n" ++
   ".Ltsh_pdone:"
 
@@ -465,54 +466,35 @@ def txSigningHashLegacyEip155Function : String :=
   "  # clobbers t4; new_payload_len is reused below for the chain_id length and\n" ++
   "  # the final keccak length, so a t-reg would corrupt both for large txs.\n" ++
   "  add s6, s5, t3                              # new_payload_len\n" ++
-  "  # Capacity gate: prefix (<= 9) + payload must fit the 128 KiB t155_buf;\n" ++
-  "  # an oversized legacy tx must fail the signing-hash cleanly, not smash\n" ++
-  "  # t155_prefix_len and run keccak away (bead .11.3).\n" ++
-  "  li t0, 131056\n" ++
-  "  bgtu s6, t0, .Lt155_fail\n" ++
-  "  # ---- Write new outer list prefix into t155_buf ----\n" ++
+  "  # ---- Write new outer list prefix into t155_buf[0..] ----\n" ++
+  "  # .63.1.6.2.8 (e1s5z): NO 128 KiB capacity cap. The 6-field body is streamed\n" ++
+  "  # IN PLACE from the input region via zkvm_keccak256_segments, so a legacy\n" ++
+  "  # EIP-155 tx with arbitrarily large calldata (up to the block-gas bound,\n" ++
+  "  # ~20 MB at 200M gas) hashes without a staging-buffer overflow. The old gate\n" ++
+  "  # fail-closed at 128 KiB -> false-reject (bead .11.3); streaming is sound for\n" ++
+  "  # any size with O(1) extra memory and no input mutation.\n" ++
   "  mv a0, s6; la a1, t155_buf\n" ++
   "  la a2, t155_prefix_len\n" ++
   "  jal ra, rlp_encode_list_prefix\n" ++
-  "  la t0, t155_prefix_len; ld t5, 0(t0)        # prefix_len\n" ++
-  "  # ---- Copy body bytes after the prefix ----\n" ++
-  "  la t0, t155_buf; add t0, t0, t5             # dst\n" ++
-  "  add t1, s0, s4                              # src = input + payload_start\n" ++
-  "  mv t2, s5                                   # body bytes remaining\n" ++
-  ".Lt155_body_cp:\n" ++
-  "  beqz t2, .Lt155_body_done\n" ++
-  "  lbu t6, 0(t1)\n" ++
-  "  sb t6, 0(t0)\n" ++
-  "  addi t0, t0, 1\n" ++
-  "  addi t1, t1, 1\n" ++
-  "  addi t2, t2, -1\n" ++
-  "  j .Lt155_body_cp\n" ++
-  ".Lt155_body_done:\n" ++
-  "  # ---- Append encoded chain_id ----\n" ++
+  "  # ---- Build suffix [chain_id_enc || 0x80 || 0x80] at t155_buf+64 ----\n" ++
+  "  sub t2, s6, s5; addi t2, t2, -2             # chain_id_enc_len = new_payload - body - 2\n" ++
+  "  la t0, t155_buf; addi t0, t0, 64            # suffix dst (small; prefix lives at +0)\n" ++
   "  la t1, t155_chain_enc\n" ++
-  "  la t6, t155_prefix_len; ld t6, 0(t6)        # reload prefix_len\n" ++
-  "  # Recompute chain_id_enc_len from new_payload_len (s6): s6 - body_len - 2.\n" ++
-  "  sub t2, s6, s5\n" ++
-  "  addi t2, t2, -2                             # chain_id_enc_len\n" ++
-  ".Lt155_chain_cp:\n" ++
-  "  beqz t2, .Lt155_chain_done\n" ++
-  "  lbu t6, 0(t1)\n" ++
-  "  sb t6, 0(t0)\n" ++
-  "  addi t0, t0, 1\n" ++
-  "  addi t1, t1, 1\n" ++
-  "  addi t2, t2, -1\n" ++
-  "  j .Lt155_chain_cp\n" ++
-  ".Lt155_chain_done:\n" ++
-  "  # ---- Append two 0x80 bytes for (0, 0) tail ----\n" ++
-  "  li t6, 0x80\n" ++
-  "  sb t6, 0(t0)\n" ++
-  "  sb t6, 1(t0)\n" ++
-  "  # ---- Total hash input length = prefix_len + new_payload_len ----\n" ++
-  "  la t0, t155_prefix_len; ld t6, 0(t0)\n" ++
-  "  add a1, t6, s6                              # total length\n" ++
-  "  la a0, t155_buf                             # data ptr\n" ++
-  "  mv a2, s3                                   # output hash ptr\n" ++
-  "  jal ra, zkvm_keccak256\n" ++
+  "  mv t3, t2\n" ++
+  ".Lt155_suffix_cp:\n" ++
+  "  beqz t3, .Lt155_suffix_tail\n" ++
+  "  lbu t6, 0(t1); sb t6, 0(t0); addi t0, t0, 1; addi t1, t1, 1; addi t3, t3, -1; j .Lt155_suffix_cp\n" ++
+  ".Lt155_suffix_tail:\n" ++
+  "  li t6, 0x80; sb t6, 0(t0); sb t6, 1(t0)     # (0, 0) tail\n" ++
+  "  addi t2, t2, 2                              # suffix_len = chain_id_enc_len + 2\n" ++
+  "  # ---- Build 3-segment descriptor at t155_buf+128: prefix || body(in place) || suffix ----\n" ++
+  "  la t4, t155_prefix_len; ld t4, 0(t4)        # prefix_len\n" ++
+  "  la t5, t155_buf; addi t5, t5, 128           # &segs[0]\n" ++
+  "  la t6, t155_buf; sd t6, 0(t5); sd t4, 8(t5)            # seg0 = (prefix, prefix_len)\n" ++
+  "  add t6, s0, s4; sd t6, 16(t5); sd s5, 24(t5)           # seg1 = (input+payload_start, body_len) IN PLACE\n" ++
+  "  la t6, t155_buf; addi t6, t6, 64; sd t6, 32(t5); sd t2, 40(t5)   # seg2 = (suffix, suffix_len)\n" ++
+  "  mv a0, t5; li a1, 3; mv a2, s3\n" ++
+  "  jal ra, zkvm_keccak256_segments\n" ++
   "  li a0, 0\n" ++
   "  j .Lt155_ret\n" ++
   ".Lt155_fail:\n" ++
@@ -547,6 +529,7 @@ def ziskTxSigningHashLegacyEip155Prologue : String :=
   rlpEncodeUintBeFunction ++ "\n" ++
   rlpEncodeListPrefixFunction ++ "\n" ++
   zkvmKeccak256Function ++ "\n" ++
+  zkvmKeccak256SegmentsFunction ++ "\n" ++
   txSigningHashLegacyEip155Function ++ "\n" ++
   ".Lt155_pdone:"
 
@@ -653,6 +636,7 @@ def ziskEip7702AuthorizationSigningHashPrologue : String :=
   rlpEncodeListPrefixFunction ++ "\n" ++
   rlpListTruncateToNFieldsFunction ++ "\n" ++
   zkvmKeccak256Function ++ "\n" ++
+  zkvmKeccak256SegmentsFunction ++ "\n" ++
   txSigningHashFunction ++ "\n" ++
   eip7702AuthorizationSigningHashFunction ++ "\n" ++
   ".Ltash_pdone:"
