@@ -1437,19 +1437,23 @@ def callDescendFallThrough
     "  jal ra, record_nonstorage_effect\n" ++
     "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
     -- fhsxz.2.4.2.63.1.6.2.6: EIP-7708 emit_transfer_log for this CALL value move, so the
-    -- value-bearing tx's receipt logs/bloom are complete. from = parent ADDRESS (env+0, 32B
-    -- EVM-word right-aligned), to = callee right-aligned into eip7708_cd_to32, value =
-    -- cd_value_be. Still inside the value!=0 guard. eip7708_append_transfer_log no-ops on a
-    -- zero value and (on the 1024-descriptor cap) drops without appending; ignore its status
-    -- (the receipts encoder gates conservatively on the descriptor/data overflow flags).
+    -- value-bearing tx's receipt logs/bloom are complete. from = parent ADDRESS (env+0),
+    -- to = callee (x12+32), value = value word (x12+valueOff), ALL passed as raw EVM stack
+    -- words (LE-limb). The log materializer (log_records_encode_rlp / materialize_log_records)
+    -- byte-reverses each 32B topic slot to the canonical BE topic, and the appender byte-
+    -- reverses the value into the descriptor's canonical-BE amount — so every field must enter
+    -- in stack-word form. `from` (env.ADDRESS) already is; the callee `to` arg and the value
+    -- arg on the parent stack are the same form, so they pass verbatim. (The earlier BE right-
+    -- aligned `to` into [12:32] and BE `cd_value_be` produced wrong-order topics/data: the
+    -- materializer reverses the WHOLE 32B slot, so the address must sit in the low 20 bytes,
+    -- not the high 12. Latent until receipt-consensus enforcement un-gates.)
+    -- x12 = parent stack top here (restored after record_nonstorage_effect above); the appender
+    -- reads through the a1/a2 pointers into EVM memory, which its own sp frame does not disturb.
+    -- Still inside the value!=0 guard. eip7708_append_transfer_log no-ops on a zero value and
+    -- (on the 1024-descriptor cap) drops without appending; ignore its status (the receipts
+    -- encoder gates conservatively on the descriptor/data overflow flags).
     "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
-    "  la t0, eip7708_cd_to32\n  sd x0, 0(t0)\n  sd x0, 8(t0)\n  sd x0, 16(t0)\n  sd x0, 24(t0)\n" ++
-    "  la t1, nse_callee_be\n  addi t2, t0, 12\n  li t3, 20\n" ++
-    ".Lcd_7708_cpto_" ++ tag ++ ":\n" ++
-    "  beqz t3, .Lcd_7708_cpto_d_" ++ tag ++ "\n" ++
-    "  lbu t4, 0(t1)\n  sb t4, 0(t2)\n  addi t1, t1, 1\n  addi t2, t2, 1\n  addi t3, t3, -1\n  j .Lcd_7708_cpto_" ++ tag ++ "\n" ++
-    ".Lcd_7708_cpto_d_" ++ tag ++ ":\n" ++
-    "  mv a0, x20\n  la a1, eip7708_cd_to32\n  la a2, cd_value_be\n" ++
+    "  mv a0, x20\n  addi a1, x12, 32\n  addi a2, x12, " ++ toString valueOff ++ "\n" ++
     "  jal ra, eip7708_append_transfer_log\n" ++
     "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
     ".Lcd_nse_done_" ++ tag ++ ":\n") ++
