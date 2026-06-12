@@ -22,7 +22,7 @@ columns describe only the latest harness selection.
 |--------|---------|-------------------------|------|
 | Precompile account warming | active precompiles | VM call gas/account-access path before dispatch | `evm-asm-fhsxz.2.4.2.62.1` |
 | Precompile absence | `0x01..0x101` excluding active precompiles | absent-account CALL semantics before dispatch | `evm-asm-fhsxz.2.4.2.62.2.6` |
-| ECRECOVER | `0x01` | `zkvm_secp256k1_ecrecover` bridge exists; stateless dispatch missing | `evm-asm-fhsxz.2.4.2.62.2` |
+| ECRECOVER | `0x01` | recovery output implemented in-guest via `secp256k1_recover_pubkey_staged` (accelerator-backed, armed through `ecrecover_backend_ptr`); gas + v/r/s gates were already wired | `evm-asm-fhsxz.2.4.2.62.2.5` |
 | SHA256 | `0x02` | `zkvm_sha256` bridge exists; stateless dispatch missing | `evm-asm-fhsxz.2.4.2.62.2` |
 | RIPEMD160 | `0x03` | `zkvm_ripemd160` bridge exists at the desired ABI level, but the local ziskemu installation has no named RIPEMD160 backend; backend/probe required before dispatch | `evm-asm-fhsxz.2.4.2.62.2` |
 | IDENTITY | `0x04` | in-guest memory copy; no accelerator | `evm-asm-fhsxz.2.4.2.62.2` |

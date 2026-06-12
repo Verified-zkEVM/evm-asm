@@ -347,24 +347,65 @@ def txPubkeyRecoverRawFunction : String :=
   "  li a0, 20\n" ++
   "  j .Ltprr_ret\n" ++
   ".Ltprr_stage_ok:\n" ++
-  "  # --- software secp256k1 public-key recovery over the staged ABI block ---\n" ++
-  "  # ABI block at s4+136: msg hash @+0, r @+32, s @+64, recid word @+96.\n" ++
+  "  # --- secp256k1 public-key recovery over the staged ABI block ---\n" ++
+  "  # (extracted as secp256k1_recover_pubkey_staged so the ECRECOVER\n" ++
+  "  #  precompile can reuse it; .62.2.5)\n" ++
+  "  addi a0, s4, 136            # staged ABI block ptr\n" ++
+  "  mv a1, s3                   # recovered pubkey out\n" ++
+  "  jal ra, secp256k1_recover_pubkey_staged\n" ++
+  "  beqz a0, .Ltprr_ok\n" ++
+  "  li a0, 60\n" ++
+  "  j .Ltprr_ret\n" ++
+  ".Ltprr_ok:\n" ++
+  "  li a0, 0\n" ++
+  "  j .Ltprr_ret\n" ++
+  ".Ltprr_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+/-! ## secp256k1_recover_pubkey_staged (.62.2.5)
+
+    ECDSA public-key recovery over a staged ABI block — the shared kernel
+    behind transaction-sender recovery (`tx_pubkey_recover_raw`) and the
+    ECRECOVER (0x01) precompile backend. Same math and accelerator backing as
+    documented on `tx_pubkey_recover_raw` above (~2e6 ziskemu steps).
+
+    Calling convention:
+      a0 (input)  : staged ABI block ptr: msg hash 32 @+0 || r 32 @+32 ||
+                    s 32 @+64 || recid word (u64, 0/1) @+96. All BE 32-byte
+                    scalars; the caller has already validated r, s in (0, n).
+      a1 (input)  : recovered-pubkey output ptr (64 bytes, BE x || y)
+      ra (input)  : return
+      a0 (output) : 0 success; 60 recovery failed (R off-curve / out of range,
+                    r non-invertible, or the recovered point is the identity).
+                    On failure the 64-byte output is zeroed.
+
+    Uses the `tpr_*` static scratch (recovery is not re-entrant). -/
+def secp256k1RecoverPubkeyStagedFunction : String :=
+  "secp256k1_recover_pubkey_staged:\n" ++
+  "  addi sp, sp, -24\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s3,  8(sp); sd s4, 16(sp)\n" ++
+  "  mv s4, a0                   # ABI block ptr (hash @+0, r @+32, s @+64, recid @+96)\n" ++
+  "  mv s3, a1                   # recovered pubkey out\n" ++
   "  # 1. Decompress R = (x, y) from r and the recovery id.\n" ++
-  "  addi a0, s4, 168            # r ptr (ABI+32)\n" ++
-  "  ld a1, 232(s4)              # recid word (ABI+96); 0 or 1 from staging\n" ++
+  "  addi a0, s4, 32             # r ptr (ABI+32)\n" ++
+  "  ld a1, 96(s4)               # recid word (ABI+96); 0 or 1\n" ++
   "  la a2, tpr_R\n" ++
   "  jal ra, secp256k1_recover_r\n" ++
   "  bnez a0, .Ltprr_recover_fail\n" ++
   "  # 2. e = msg_hash mod n. The hash is < 2^256 < 2n, so one conditional\n" ++
   "  #    subtraction of n is sufficient.\n" ++
-  "  addi a0, s4, 136            # msg hash ptr (ABI+0)\n" ++
+  "  mv a0, s4                   # msg hash ptr (ABI+0)\n" ++
   "  la a1, tpr_e\n" ++
   "  jal ra, secf_reduce_once_n\n" ++
   "  # 3. r_inv = r^{-1} mod n.\n" ++
-  "  addi a0, s4, 168            # r ptr\n" ++
+  "  addi a0, s4, 32             # r ptr\n" ++
   "  la a1, tpr_rinv\n" ++
   "  jal ra, secf_inv_mod_n\n" ++
-  "  bnez a0, .Ltprr_recover_fail   # r == 0 (defensive; material rejects it)\n" ++
+  "  bnez a0, .Ltprr_recover_fail   # r == 0 (defensive; callers reject it)\n" ++
   "  # 4. neg_e = (n - e) mod n, i.e. (-e) mod n (0 when e == 0).\n" ++
   "  la a0, tpr_e\n" ++
   "  jal ra, secf_is_zero32\n" ++
@@ -383,7 +424,7 @@ def txPubkeyRecoverRawFunction : String :=
   "  la a1, tpr_rinv\n" ++
   "  la a2, tpr_u1\n" ++
   "  jal ra, secf_mul_mod_n\n" ++
-  "  addi a0, s4, 200            # s ptr (ABI+64)\n" ++
+  "  addi a0, s4, 64             # s ptr (ABI+64)\n" ++
   "  la a1, tpr_rinv\n" ++
   "  la a2, tpr_u2\n" ++
   "  jal ra, secf_mul_mod_n\n" ++
@@ -401,8 +442,7 @@ def txPubkeyRecoverRawFunction : String :=
   "  mv a2, s3                   # recovered pubkey out (x || y)\n" ++
   "  jal ra, secp256k1_point_add\n" ++
   "  bnez a0, .Ltprr_recover_fail   # identity result => invalid recovery\n" ++
-  "  li a0, 0\n" ++
-  "  j .Ltprr_ret\n" ++
+  "  j .Ltprr_staged_ok\n" ++
   ".Ltprr_recover_fail:\n" ++
   "  # zero the 64-byte output so callers never see partial coordinates\n" ++
   "  mv t1, s3\n" ++
@@ -412,10 +452,13 @@ def txPubkeyRecoverRawFunction : String :=
   "  addi t1, t1, 8; addi t2, t2, -1\n" ++
   "  bnez t2, .Ltprr_zero_out\n" ++
   "  li a0, 60\n" ++
-  ".Ltprr_ret:\n" ++
+  "  j .Ltprr_staged_ret\n" ++
+  ".Ltprr_staged_ok:\n" ++
+  "  li a0, 0\n" ++
+  ".Ltprr_staged_ret:\n" ++
   "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
+  "  ld s3,  8(sp); ld s4, 16(sp)\n" ++
+  "  addi sp, sp, 24\n" ++
   "  ret"
 
 /-- Static scratch buffers for `tx_pubkey_recover_raw`'s recovery math (the
@@ -716,6 +759,7 @@ def ziskTxPubkeyRecoverRawStatusPrologue : String :=
   txPubkeySignatureMaterialFunction ++ "\n" ++
   txPubkeyEcrecoverStageMaterialFunction ++ "\n" ++
   txPubkeyRecoverRawFunction ++ "\n" ++
+  secp256k1RecoverPubkeyStagedFunction ++ "\n" ++
   ".Ltprrs_pdone:"
 
 def ziskTxPubkeyRecoverRawStatusDataSection : String :=
@@ -795,6 +839,7 @@ def ziskTxPubkeyPublicKeyMatchesStatusPrologue : String :=
   txPubkeySignatureMaterialFunction ++ "\n" ++
   txPubkeyEcrecoverStageMaterialFunction ++ "\n" ++
   txPubkeyRecoverRawFunction ++ "\n" ++
+  secp256k1RecoverPubkeyStagedFunction ++ "\n" ++
   txPubkeyPublicKeyMatchesFunction ++ "\n" ++
   ".Ltpms_pdone:"
 
