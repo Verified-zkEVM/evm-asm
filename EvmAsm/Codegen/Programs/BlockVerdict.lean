@@ -741,6 +741,18 @@ def blockVerdictFunction : String :=
   "  la t0, bmvmx_avail; ld t0, 0(t0); beqz t0, .Lbv_tl7708_skip\n" ++
   "  la t0, bmvmx_value; ld t1, 0(t0); ld t2, 8(t0); or t1, t1, t2; ld t2, 16(t0); or t1, t1, t2; ld t2, 24(t0); or t1, t1, t2\n" ++
   "  beqz t1, .Lbv_tl7708_skip\n" ++
+  -- EIP-7708 self-suppression: emit the transfer log ONLY to a DIFFERENT account. The spec
+  -- emits at the value-bearing call only when caller != current_target (amsterdam
+  -- interpreter.py:314 / vm/__init__.py emit_transfer_log). For a top-level transfer to SELF
+  -- (sender == recipient) NO log is emitted; without this guard the guest emits a spurious log
+  -- -> extra receipt log -> receipts_root/logs_bloom mismatch -> false-reject (transfer_to_self_no_log).
+  -- Compare the 20 BE address bytes: sender (bmvmx_sender_addr[0..19]) vs recipient (bmvmx_ctx+72..91).
+  "  la t0, bmvmx_sender_addr; la t1, bmvmx_ctx; addi t1, t1, 72; li t2, 20\n" ++
+  ".Lbv_tl_selfcmp:\n" ++
+  "  beqz t2, .Lbv_tl7708_skip                # all 20 bytes equal -> self-transfer -> suppress log\n" ++
+  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lbv_tl_notself\n" ++
+  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lbv_tl_selfcmp\n" ++
+  ".Lbv_tl_notself:\n" ++
   "  addi sp, sp, -16\n  sd x20, 0(sp)\n" ++
   -- from32 = reverse(bmvmx_sender_addr[0..19]) into the low 20 bytes (LE), high 12 zeroed
   "  la t0, eip7708_tl_from32\n  sd x0, 0(t0); sd x0, 8(t0); sd x0, 16(t0); sd x0, 24(t0)\n" ++
