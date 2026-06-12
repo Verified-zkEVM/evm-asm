@@ -788,10 +788,13 @@ def childFrameHandlers
     precompileFrameAddi "a2" (precompileFrameBls12G2InputOff + 96) ++
     precompileFrameAddi "a3" precompileFrameBls12G2OutputOff ++
     "  jal x1, zkvm_secp256r1_verify\n" ++
+    -- a0 IS x10: stash the kernel status before restoring the saved
+    -- value into x10 (the ecrecover-path landmine, #8721 stack notes).
+    "  mv x16, a0\n" ++
     "  mv x13, s9\n" ++
     "  mv x10, s10\n" ++
     "  mv x12, s11\n" ++
-    "  bnez a0, 1f\n" ++
+    "  bnez x16, 1f\n" ++
     "  la x15, evm_precompile_frame\n" ++
     "  lbu x16, " ++ toString precompileFrameBls12G2OutputOff ++ "(x15)\n" ++
     "  beqz x16, 12f\n" ++

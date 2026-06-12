@@ -40,6 +40,7 @@ import EvmAsm.Codegen.Programs.Bls12G2
 import EvmAsm.Codegen.Programs.Bls12Pairing
 import EvmAsm.Codegen.Programs.Bls12Kzg
 import EvmAsm.Codegen.Programs.Blake2f
+import EvmAsm.Codegen.Programs.P256Verify
 import EvmAsm.Codegen.Programs.Bls12Map
 import EvmAsm.Codegen.Programs.Ripemd160
 import EvmAsm.Codegen.Programs.StateCompose
@@ -1470,7 +1471,9 @@ def emitDispatcherEpilogueCore
     -- [tau]_2 pairing check on top of the BLS12-381 suites
     -- (Programs/Bls12Kzg.lean).
     bls12KzgKernelFunctions ++ "\n" ++
-    zkvmSecp256r1VerifySafeFailWrapper ++ "\n" ++
+    -- Real P256VERIFY (0x100) kernel: software P-256 ECDSA over the
+    -- Arith256Mod accelerator (Programs/P256Verify.lean).
+    p256VerifyKernelFunctions ++ "\n" ++
     -- Real BLS12-381 G2 ADD/MSM (0x0d/0x0e) kernels: software Fp2
     -- chord/tangent over the complex accelerators + Arith384Mod Fermat
     -- inverse (Programs/Bls12G2.lean; blsf_copy_quads linked alongside).
@@ -2309,7 +2312,8 @@ def emitRuntimeDispatcherEmbeddedHelperFunctions : String :=
   blake2fKernelFunctions ++ "\n" ++
   -- Real KZG point-evaluation kernel (see the shared-helpers branch note).
   bls12KzgKernelFunctions ++ "\n" ++
-  zkvmSecp256r1VerifySafeFailWrapper ++ "\n" ++
+  -- Real P256VERIFY kernel (see the shared-helpers branch note).
+  p256VerifyKernelFunctions ++ "\n" ++
   -- Real BLS12-381 G2 ADD/MSM kernels (see the shared-helpers branch note).
   bls12G2PrecompileFunctions ++ "\n" ++
   -- Real BLS12-381 pairing kernel (see the shared-helpers branch note).
@@ -2606,6 +2610,7 @@ def emitRuntimeDispatcherDataSectionCore
   bls12MapDataFragment ++
   bls12KzgDataFragment ++
   blake2fDataFragment ++
+  p256VerifyDataFragment ++
   bn254PairingAllDataFragments ++
   -- nxio8: EIP-8037 state-gas cells. `evm_state_gas_left` is the per-tx state-gas
   -- reservoir (fork.py: state_gas_reservoir = execution_gas - min(TX_MAX_GAS_LIMIT
