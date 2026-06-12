@@ -1436,6 +1436,22 @@ def callDescendFallThrough
     "  la a0, nse_callee_be\n  la a1, nse_acct\n  addi a1, a1, 8\n  la a2, nse_post_bal\n" ++
     "  jal ra, record_nonstorage_effect\n" ++
     "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
+    -- fhsxz.2.4.2.63.1.6.2.6: EIP-7708 emit_transfer_log for this CALL value move, so the
+    -- value-bearing tx's receipt logs/bloom are complete. from = parent ADDRESS (env+0, 32B
+    -- EVM-word right-aligned), to = callee right-aligned into eip7708_cd_to32, value =
+    -- cd_value_be. Still inside the value!=0 guard. eip7708_append_transfer_log no-ops on a
+    -- zero value and (on the 1024-descriptor cap) drops without appending; ignore its status
+    -- (the receipts encoder gates conservatively on the descriptor/data overflow flags).
+    "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
+    "  la t0, eip7708_cd_to32\n  sd x0, 0(t0)\n  sd x0, 8(t0)\n  sd x0, 16(t0)\n  sd x0, 24(t0)\n" ++
+    "  la t1, nse_callee_be\n  addi t2, t0, 12\n  li t3, 20\n" ++
+    ".Lcd_7708_cpto_" ++ tag ++ ":\n" ++
+    "  beqz t3, .Lcd_7708_cpto_d_" ++ tag ++ "\n" ++
+    "  lbu t4, 0(t1)\n  sb t4, 0(t2)\n  addi t1, t1, 1\n  addi t2, t2, 1\n  addi t3, t3, -1\n  j .Lcd_7708_cpto_" ++ tag ++ "\n" ++
+    ".Lcd_7708_cpto_d_" ++ tag ++ ":\n" ++
+    "  mv a0, x20\n  la a1, eip7708_cd_to32\n  la a2, cd_value_be\n" ++
+    "  jal ra, eip7708_append_transfer_log\n" ++
+    "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
     ".Lcd_nse_done_" ++ tag ++ ":\n") ++
   -- resolve callee code (save x10/x12/x13 — code_at_header_state_root clobbers a-regs)
   "  addi sp, sp, -32\n" ++
