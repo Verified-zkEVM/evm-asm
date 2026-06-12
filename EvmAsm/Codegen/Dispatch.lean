@@ -1313,6 +1313,55 @@ def createExecuteInitcodeFrameRuntimeFunction : String :=
   "  li a0, 4\n" ++
   "  ret"
 
+/-- Post-dispatch per-transaction gas settlement fold (nxio8 / EIP-8037).
+
+    The spec's transaction settlement is
+    `tx_gas_used_before_refund = tx.gas - gas_left - state_gas_left`
+    (fork.py process_transaction), with two tx-level error rules:
+    on ANY error (REVERT or exceptional halt) `state_gas_left += state_gas_used`
+    (no state was grown, so the full state-gas charge — including any portion
+    spilled into gas_left — is restored), and the refund counter is discarded
+    (interpreter.py only incorporates `evm.refund_counter` when `error is None`);
+    an exceptional halt additionally burns all remaining regular gas
+    (interpreter.py: `evm.gas_left = Uint(0)`), which the dispatcher's
+    `.exit_*` paths do NOT apply to env+568.
+
+    This helper folds all three rules into the values the gas-result consumers
+    (`tx_gas_result_increments`, the bvgr arena) expect:
+      a0 (output) = effective gas_left  = gas_left' + state_gas_left'
+                    where gas_left' = 0 for exceptional halts, env+568 otherwise,
+                    and state_gas_left' includes the on-error restore;
+      a1 (output) = effective refund_counter = evm_refund_acc, or 0 on error.
+    halt_kind is read from OUTPUT+32 (set by every halt path): 0 STOP / 1 RETURN /
+    5 SELFDESTRUCT are successes; 2 REVERT keeps gas_left but folds state gas and
+    drops refunds; 3/4/6/7/8 are exceptional. Clobbers t0-t3. Read-only
+    (callable repeatedly; mutates no dispatcher state). -/
+def dispatcherTxGasSettleFunction : String :=
+  "dispatcher_tx_gas_settle:\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  ld t1, 32(t0)               # halt_kind\n" ++
+  "  la t0, evm_env\n" ++
+  "  ld t0, 568(t0)              # gas_left\n" ++
+  "  la t2, evm_state_gas_left\n" ++
+  "  ld t2, 0(t2)\n" ++
+  "  la t3, evm_refund_acc\n" ++
+  "  ld a1, 0(t3)\n" ++
+  "  beqz t1, .Ldtgs_success\n" ++
+  "  li t3, 1\n" ++
+  "  beq t1, t3, .Ldtgs_success\n" ++
+  "  li t3, 5\n" ++
+  "  beq t1, t3, .Ldtgs_success\n" ++
+  "  li a1, 0                    # error: refund counter discarded\n" ++
+  "  la t3, evm_state_gas_used\n" ++
+  "  ld t3, 0(t3)\n" ++
+  "  add t2, t2, t3              # error: state_gas_left += state_gas_used\n" ++
+  "  li t3, 2\n" ++
+  "  beq t1, t3, .Ldtgs_success  # REVERT keeps gas_left\n" ++
+  "  li t0, 0                    # exceptional halt burns remaining regular gas\n" ++
+  ".Ldtgs_success:\n" ++
+  "  add a0, t0, t2\n" ++
+  "  ret"
+
 /-- Dispatcher epilogue: handler subroutines (each ends with `ret` or
     `j .exit_label`), the `h_invalid` fallback, and `.exit_label`
     which runs `exitBody` (e.g. `evmAddEpilogue`) and falls through
@@ -1380,6 +1429,7 @@ def emitDispatcherEpilogueCore
     zkvmModexpSafeFailWrapper ++ "\n" ++
     storageAccessGasFunction ++ "\n" ++
     sstoreGasRefundOutcomeFunction ++ "\n" ++
+    dispatcherTxGasSettleFunction ++ "\n" ++
     runtimeAccessAccountSeedFunction ++ "\n" ++
     runtimeAccessSeedInitialAccountsFunction ++ "\n" ++
     runtimeAccessAccountChargeFunction ++ "\n" ++
@@ -1796,6 +1846,26 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   -- .data-baked setup's identical reset (~L974) is unaffected: it reloads x5 right after.
   "  la x28, evm_log_data_used; sd x0, 0(x28)\n" ++     -- reset per-tx full-log-data buffer cursor
   "  la x28, evm_log_data_overflow; sd x0, 0(x28)\n" ++ -- reset per-tx full-log-data overflow flag
+  -- nxio8: per-TRANSACTION dispatch state that previously leaked across calls in a
+  -- multi-tx block (the callable dispatcher is invoked once per tx in one guest run):
+  --   * evm_refund_acc — EIP-3529 refund counter is per tx (only the baked prologue
+  --     reset it; a 2nd dispatch call inherited tx 1's refunds).
+  --   * evm_storage_access_count — EIP-2929 accessed_storage_keys is per tx
+  --     (prepare_message builds a fresh set); a 2nd call saw tx 1's keys as warm.
+  --   * evm_state_gas_left / evm_state_gas_used — EIP-8037 per-tx state-gas
+  --     reservoir + usage (seeded below on the validate-tx-gas path).
+  -- evm_storage_access_outcome_count is NOT reset: the outcome log is an append-only
+  -- cross-tx diagnostic surface (bal_storage_access_outcome_descriptors).
+  "  la x28, evm_refund_acc; sd x0, 0(x28)\n" ++
+  "  la x28, evm_storage_access_count; sd x0, 0(x28)\n" ++
+  "  la x28, evm_state_gas_left; sd x0, 0(x28)\n" ++
+  "  la x28, evm_state_gas_used; sd x0, 0(x28)\n" ++
+  -- halt_kind (OUTPUT+32) = 0: the skip-finalization (verdict-callable) exit
+  -- join never writes the success kind, so without this reset a prior
+  -- dispatch's REVERT/exceptional kind would leak into dispatcher_tx_gas_settle.
+  -- The exceptional exits and RETURN/REVERT tails overwrite it during this
+  -- dispatch; a clean STOP leaves this 0.
+  "  li x28, 0xa0010000; sd x0, 32(x28)\n" ++
   "  sd x0, 480(x20)\n" ++         -- env.eventLogCheckpointOff = 0
   "  sd x0, 488(x20)\n" ++         -- runtime activeMemorySize = 0
   "  sd x0, 512(x20)\n" ++         -- M28: blobBaseFee[0] = 0 (overwritten by trailer load below)
@@ -2013,6 +2083,21 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  bltu x6, x7, .exit_outofgas\n" ++
   "  bltu x6, x10, .exit_outofgas\n" ++
   "  sub x6, x6, x7\n" ++
+  -- nxio8 (EIP-8037): split execution gas into gas_left and the state-gas
+  -- reservoir (fork.py: gas = min(TX_MAX_GAS_LIMIT - intrinsic.regular,
+  -- execution_gas); state_gas_reservoir = execution_gas - gas). x7 still holds
+  -- the regular intrinsic cost; x6 = execution_gas. For tx.gas ≤ 16,777,216 the
+  -- reservoir is 0 and gas_left is unchanged. evm_state_gas_left was reset to 0
+  -- above, so the no-reservoir fall-through needs no store.
+  "  li x8, 16777216\n" ++          -- TX_MAX_GAS_LIMIT (EIP-7825 cap)
+  "  bgeu x7, x8, .exit_outofgas\n" ++   -- intrinsic.regular ≥ cap: spec-invalid tx
+  "  sub x8, x8, x7\n" ++           -- x8 = regular gas budget
+  "  bleu x6, x8, .runtime_tx_gas_no_reservoir\n" ++
+  "  sub x9, x6, x8\n" ++           -- x9 = state_gas_reservoir
+  "  mv x6, x8\n" ++                -- gas_left capped at the regular budget
+  "  la x11, evm_state_gas_left\n" ++
+  "  sd x9, 0(x11)\n" ++
+  ".runtime_tx_gas_no_reservoir:\n" ++
   ".runtime_tx_gas_done:\n" ++
   "  sd x6, 568(x20)\n" ++          -- env.gasRemaining = execution gas
   "  ld x6, 0(x5)\n" ++            -- x6 = header_len
@@ -2169,6 +2254,7 @@ def emitRuntimeDispatcherEmbeddedHelperFunctions : String :=
   zkvmModexpSafeFailWrapper ++ "\n" ++
   storageAccessGasFunction ++ "\n" ++
   sstoreGasRefundOutcomeFunction ++ "\n" ++
+  dispatcherTxGasSettleFunction ++ "\n" ++
   runtimeAccessAccountSeedFunction ++ "\n" ++
   runtimeAccessSeedInitialAccountsFunction ++ "\n" ++
   runtimeAccessAccountChargeFunction ++ "\n" ++
@@ -2450,11 +2536,24 @@ def emitRuntimeDispatcherDataSectionCore
   ".balign 8\n" ++
   "evm_refund_acc:\n" ++
   "  .zero 8\n" ++
+  -- nxio8: EIP-8037 state-gas cells. `evm_state_gas_left` is the per-tx state-gas
+  -- reservoir (fork.py: state_gas_reservoir = execution_gas - min(TX_MAX_GAS_LIMIT
+  -- - intrinsic.regular, execution_gas); 0 for tx.gas ≤ 16,777,216). The SSTORE
+  -- handler's charge_state_gas drains it first and spills the remainder into
+  -- env.gasRemaining (vm/gas.py charge_state_gas). `evm_state_gas_used` accumulates
+  -- charges (the credit_state_gas_refund clamp + the on-error restore both need it).
+  -- Settlement (spec: tx.gas - gas_left - state_gas_left) folds the final
+  -- state_gas_left back via dispatcher_tx_gas_settle. Reset per dispatch call.
+  ".balign 8\n" ++
+  "evm_state_gas_left:\n" ++
+  "  .zero 8\n" ++
+  "evm_state_gas_used:\n" ++
+  "  .zero 8\n" ++
   ".balign 32\n" ++
   "srfd_zero:\n" ++
   "  .zero 32\n" ++
   "srfd_out:\n" ++
-  "  .zero 32\n" ++
+  "  .zero 40\n" ++
   -- bmvmx.1.6.6 enabler: per-entry block_access_index, PARALLEL to the 128 B exec-log
   -- entries at 0xa0630000 (so the existing scans are byte-identical). exec_log_txindex[i]
   -- = the tx's block_access_index for persistent-log entry i; the SSTORE handler stamps
@@ -2599,6 +2698,49 @@ def emitRuntimeDispatcherDataSectionSharedGuest
     (registry : List OpcodeHandlerSpec) : String :=
   emitRuntimeDispatcherDataSectionCore registry false false
 
+/-- Frame/CREATE helper closure for STANDALONE runtime-dispatcher units.
+
+    The registry handlers reference `create_frame_descend` (h_CREATE/h_CREATE2
+    tails, .61.8.3.5), `u256_sub_be` (the CREATE endowment math), and
+    `nonstorage_effect_latest_balance` (the live-BALANCE read, yisv8) — but
+    those functions were only linked by the guest closure
+    (`emitRuntimeDispatcherEmbeddedHelperFunctions`) and by probes that bundle
+    them ad hoc, so the standalone `runtime_dispatcher` / callable-probe ELFs
+    stopped linking when those handlers landed. This mirrors the proven probe
+    bundle (see `ziskSstoreClearGasProbeUnit`). Kept OUT of
+    `emitDispatcherEpilogueCore`'s shared-helpers branch: probes that already
+    bundle these functions use that branch, and a second copy would be a
+    duplicate-label assembler error. -/
+def runtimeDispatcherStandaloneFrameHelpers : String :=
+  u256SubBeFunction ++ "\n" ++
+  frameBaseFunction ++ "\n" ++
+  frameDepthPushFunction ++ "\n" ++
+  frameDepthPopFunction ++ "\n" ++
+  frameSaveRegsFunction ++ "\n" ++
+  frameLoadRegsFunction ++ "\n" ++
+  callFrameEnterFunction ++ "\n" ++
+  callFrameSetCallEnvFunction ++ "\n" ++
+  callFrameSetCalldataFunction ++ "\n" ++
+  callFrameForwardGasFunction ++ "\n" ++
+  callFrameDescendFunction ++ "\n" ++
+  createFrameDescendFunction ++ "\n" ++
+  frameReturnFunction ++ "\n" ++
+  recordNonstorageEffectFunction ++ "\n" ++
+  nonstorageEffectLatestBalanceFunction
+
+/-- Frame-arena data labels for the standalone frame-helper closure
+    (the guest defines these in `BlockVerdictDataSection`; the bundling
+    probes each define their own copies). -/
+def runtimeDispatcherStandaloneFrameData : String :=
+  ".balign 8\n" ++
+  "evm_call_depth:\n  .zero 8\n" ++
+  ".balign 16\n" ++
+  "frame_save_area:\n  .zero 16400\n" ++
+  ".balign 32\n" ++
+  "frame_call_ctx:\n  .zero 32800\n" ++
+  ".balign 32\n" ++
+  "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n"
+
 /-- Build a runtime-bytecode `BuildUnit` for `registry` + `exitBody`.
     The emitted ELF doesn't carry any bytecode — the test harness
     supplies it at runtime via `ziskemu -i <file>` (8-byte LE length
@@ -2608,8 +2750,14 @@ def buildRuntimeDispatchUnit
     (exitBody : Program) : BuildUnit := {
   body        := []
   prologueAsm := emitRuntimeDispatcherPrologue
-  epilogueAsm := emitDispatcherEpilogue registry exitBody
-  dataAsm     := emitRuntimeDispatcherDataSection registry
+  -- The frame helpers go BEFORE the epilogue: the prologue's dispatch loop
+  -- ends with `j .dispatch_loop` (no fall-through into them) and every helper
+  -- ends with `ret`, while the epilogue's exit join must keep falling through
+  -- to the halt stub `emitBuildUnit` appends after `epilogueAsm`.
+  epilogueAsm := runtimeDispatcherStandaloneFrameHelpers ++ "\n" ++
+                 emitDispatcherEpilogue registry exitBody
+  dataAsm     := emitRuntimeDispatcherDataSection registry ++ "\n" ++
+                 runtimeDispatcherStandaloneFrameData
 }
 
 /-- Build a probe `BuildUnit` that exercises the callable runtime dispatcher
@@ -2632,8 +2780,10 @@ def buildRuntimeDispatchCallableProbeUnit
     "  li x10, 0\n" ++
     "  ecall\n" ++
     emitRuntimeDispatcherCallablePrologue
-  epilogueAsm := emitDispatcherCallableEpilogue registry exitBody
-  dataAsm     := emitRuntimeDispatcherDataSection registry
+  epilogueAsm := runtimeDispatcherStandaloneFrameHelpers ++ "\n" ++
+                 emitDispatcherCallableEpilogue registry exitBody
+  dataAsm     := emitRuntimeDispatcherDataSection registry ++ "\n" ++
+                 runtimeDispatcherStandaloneFrameData
 }
 
 /-- Build a probe `BuildUnit` that runs one staged transaction through the
@@ -2674,15 +2824,18 @@ def buildRuntimeDispatchGasCaptureProbeUnit
   body        := []
   prologueAsm :=
     "  jal ra, runtime_dispatcher_call\n" ++
-    "  la t2, evm_env\n" ++
-    "  ld t3, 568(t2)             # gas_left = env.gasRemaining\n" ++
+    -- nxio8: settle fold (EIP-8037 state gas + tx-error rules); a0 = effective
+    -- gas_left (env[568] + evm_state_gas_left with the error folds), a1 = the
+    -- effective refund counter (0 when the tx erred).
+    "  jal ra, dispatcher_tx_gas_settle\n" ++
+    "  mv t3, a0\n" ++
+    "  mv t6, a1\n" ++
     "  la t4, rdg_gas_left\n" ++
     "  sd t3, 0(t4)\n" ++
     "  la t4, runtime_tx_calldata_floor\n" ++
     "  ld t5, 0(t4)               # EIP-7623 calldata floor\n" ++
     "  la t4, rdg_calldata_floor\n" ++
     "  sd t5, 0(t4)\n" ++
-    "  la t6, evm_refund_acc; ld t6, 0(t6)   # refund_counter (EIP-3529 SSTORE refund accumulator)\n" ++
     "  la t4, rdg_refund_counter\n" ++
     "  sd t6, 0(t4)\n" ++
     "  li t0, 0xa0010000\n" ++
@@ -2699,9 +2852,11 @@ def buildRuntimeDispatchGasCaptureProbeUnit
     "  li x10, 0\n" ++
     "  ecall\n" ++
     emitRuntimeDispatcherCallablePrologue
-  epilogueAsm := emitDispatcherCallableEpilogue registry exitBody
+  epilogueAsm := runtimeDispatcherStandaloneFrameHelpers ++ "\n" ++
+                 emitDispatcherCallableEpilogue registry exitBody
   dataAsm     :=
     emitRuntimeDispatcherDataSection registry ++ "\n" ++
+    runtimeDispatcherStandaloneFrameData ++
     ".balign 8\n" ++
     "rdg_gas_left:\n  .zero 128\n" ++
     "rdg_refund_counter:\n  .zero 128\n" ++

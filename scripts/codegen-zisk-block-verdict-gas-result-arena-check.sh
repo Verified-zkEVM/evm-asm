@@ -201,7 +201,11 @@ run_case "one_legacy"    "one_legacy"    "0,1,1,0,0,21000,21000,21000,0,0,21000,
 run_case "two_overflow"  "two_overflow"  "0,2,2,0,0,21000,21000,21000,1,2,21000,0,2" || FAILED=1
 run_case "bad_remaining" "bad_remaining" "4,1,1,1,1,21000,0,0,255,0,0,255,0" || FAILED=1
 run_case "count_mismatch" "count_mismatch" "2,2,1,0,1,21000,0,0,255,0,0,255,0" || FAILED=1
-run_case "typed_2930"    "typed_2930"    "0,1,1,0,0,62000,61000,61000,0,0,61000,1,0" || FAILED=1
+# typed_2930's receipt fields were written when block_receipt_records_materialize
+# still rejected non-legacy txs (brr_status=1, 0 records); the full typed
+# receipt encoder (daddd84db, .63.1.6.2.2) now materializes type-1 receipts,
+# so the consumer tail is brr_status=0 with 1 record.
+run_case "typed_2930"    "typed_2930"    "0,1,1,0,0,62000,61000,61000,0,0,61000,0,1" || FAILED=1
 
 if [[ "$FAILED" -ne 0 ]]; then
   exit 1
