@@ -519,15 +519,16 @@ def childFrameHandlers
     "  addi x22, x22, -1\n" ++
     "  bnez x22, 10b\n" ++
     "  j 7b\n" ++
-    -- ECRECOVER fixed gas, input staging, and v gate. Later slices consume
-    -- valid staged r/s words for validation, backend recovery, and output.
+    -- ECRECOVER fixed gas, input staging, v/r/s gates, then (.62.2.5) the
+    -- backend-pointer-gated recovery + 32-byte address output. Closures that
+    -- leave `ecrecover_backend_ptr` 0 keep the legacy empty-returndata success.
     "29:\n" ++
     chargePrecompileGasConstAsm 3000 "x16" "x17" ++
     stageEcrecoverInputAsm inOffsetOff inSizeOff ++
     ecrecoverVGateAsm ++
     ecrecoverNonzeroRSGateAsm ++
     ecrecoverScalarOrderGateAsm ++
-    "  j 7b\n" ++
+    ecrecoverRecoverAndOutputAsm outOffsetOff outSizeOff ++
     -- MODEXP header/gas path. execution-specs decodes missing length/header
     -- bytes as zero, rejects component lengths above 1024 before charging gas,
     -- and otherwise charges the EIP-2565/Osaka gas formula. Small nonzero

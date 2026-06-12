@@ -240,8 +240,21 @@ def secp256k1ScalarMulFunction : String :=
   "  addi sp, sp, 72\n" ++
   "  ret"
 
+/-- Curve suite over `secp256k1FieldCommonFunctionsNoU256`, for closures that
+    already link the generic u256 helpers. -/
+def secp256k1CurveCommonFunctionsNoU256 : String :=
+  secp256k1FieldCommonFunctionsNoU256 ++ "\n" ++
+  secp256k1PointDoubleFunction ++ "\n" ++
+  secp256k1PointAddFunction ++ "\n" ++
+  secp256k1PointCopy64Function ++ "\n" ++
+  secp256k1PointZero64Function ++ "\n" ++
+  secp256k1ScalarMulFunction
+
 def secp256k1CurveCommonFunctions : String :=
-  secp256k1FieldCommonFunctions ++ "\n" ++
+  u256AddBeFunction ++ "\n" ++
+  u256SubBeFunction ++ "\n" ++
+  u256LtBeFunction ++ "\n" ++
+  secp256k1FieldCommonFunctionsNoU256 ++ "\n" ++
   secp256k1PointDoubleFunction ++ "\n" ++
   secp256k1PointAddFunction ++ "\n" ++
   secp256k1PointCopy64Function ++ "\n" ++

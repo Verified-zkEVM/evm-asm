@@ -26,6 +26,7 @@ import EvmAsm.Codegen.Programs.BalAllAccountsCodeCovers
 import EvmAsm.Codegen.Programs.BalAllAccountsCode
 import EvmAsm.Codegen.Programs.BalAccountCodeConsistent
 import EvmAsm.Codegen.Programs.StageBlockhashM29
+import EvmAsm.Codegen.Programs.TxPubkey
 import EvmAsm.Codegen.Programs.BalAllAccountsNonstorage
 import EvmAsm.Codegen.Programs.BalAllAccountsNonstorageCovers
 import EvmAsm.Codegen.Programs.BalAccountNonstorageConsistent
@@ -63,6 +64,12 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     -- .6.2.2.1: block_verdict's contract dispatch now calls dispatch_tx_runtime_code;
     -- emit its body here too so this debug verdict ELF links (mirrors the guest closure).
     dispatchTxRuntimeCodeFunction ++ "\n" ++
+    -- .62.2.5: ECRECOVER recovery backend (armed via ecrecover_backend_ptr in
+    -- dispatch_tx_runtime_code). NoU256 variants: this closure already links
+    -- u256_add_be/u256_sub_be/u256_lt_be.
+    secp256k1CurveCommonFunctionsNoU256 ++ "\n" ++
+    secp256k1RecoverRFunction ++ "\n" ++
+    secp256k1RecoverPubkeyStagedFunction ++ "\n" ++
     -- bmvmx.1.6.4.2.b: callee-storage enumeration + its LE exec-log key helper.
     balAddrToExecLogKeyFunction ++ "\n" ++
     seedCalleeStorageFunction ++ "\n" ++
@@ -276,6 +283,12 @@ def statelessVerdictV2GuestClosure : String :=
   -- .6.2.2.1: contract-recipient runtime gas-measurement tail extracted from
   -- block_verdict so the multi-tx dispatch loop can reuse it.
   dispatchTxRuntimeCodeFunction ++ "\n" ++
+  -- .62.2.5: ECRECOVER recovery backend (armed via ecrecover_backend_ptr in
+  -- dispatch_tx_runtime_code). NoU256 variants: this closure already links
+  -- u256_add_be/u256_sub_be/u256_lt_be.
+  secp256k1CurveCommonFunctionsNoU256 ++ "\n" ++
+  secp256k1RecoverRFunction ++ "\n" ++
+  secp256k1RecoverPubkeyStagedFunction ++ "\n" ++
   -- bmvmx.1.6.4.2.b: callee-storage enumeration + its LE exec-log key helper.
   balAddrToExecLogKeyFunction ++ "\n" ++
   seedCalleeStorageFunction ++ "\n" ++

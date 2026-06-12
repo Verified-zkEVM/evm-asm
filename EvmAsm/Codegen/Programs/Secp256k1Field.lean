@@ -807,10 +807,10 @@ def secp256k1ScalarFieldInvFunction : String :=
   "  ret"
 
 
-def secp256k1FieldCommonFunctions : String :=
-  u256AddBeFunction ++ "\n" ++
-  u256SubBeFunction ++ "\n" ++
-  u256LtBeFunction ++ "\n" ++
+/-- Field/scalar suite WITHOUT the generic `u256_add_be`/`u256_sub_be`/
+    `u256_lt_be` helpers, for closures that already link them (the
+    stateless-guest verdict bundles define their own copies). -/
+def secp256k1FieldCommonFunctionsNoU256 : String :=
   secp256k1FieldCopy32Function ++ "\n" ++
   secp256k1FieldZero32Function ++ "\n" ++
   secp256k1FieldBeToLeFunction ++ "\n" ++
@@ -833,6 +833,12 @@ def secp256k1FieldCommonFunctions : String :=
   secp256k1ScalarFieldSquareFunction ++ "\n" ++
   secp256k1ScalarFieldPowFunction ++ "\n" ++
   secp256k1ScalarFieldInvFunction
+
+def secp256k1FieldCommonFunctions : String :=
+  u256AddBeFunction ++ "\n" ++
+  u256SubBeFunction ++ "\n" ++
+  u256LtBeFunction ++ "\n" ++
+  secp256k1FieldCommonFunctionsNoU256
 
 def ziskSecp256k1FieldCmpPPrologue : String :=
   "  li sp, 0xa0050000\n" ++
