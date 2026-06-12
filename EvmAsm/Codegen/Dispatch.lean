@@ -1465,7 +1465,6 @@ def emitDispatcherEpilogueCore
     -- Real BLS12-381 G2 ADD/MSM (0x0d/0x0e) kernels: software Fp2
     -- chord/tangent over the complex accelerators + Arith384Mod Fermat
     -- inverse (Programs/Bls12G2.lean; blsf_copy_quads linked alongside).
-    bls12CopyQuadsFunction ++ "\n" ++
     bls12G2PrecompileFunctions ++ "\n" ++
     bls12SafeFailWrapper "zkvm_bls12_pairing" "0x10f" ++ "\n" ++
     bls12SafeFailWrapper "zkvm_bls12_map_fp_to_g1" "0x110" ++ "\n" ++
@@ -2298,7 +2297,6 @@ def emitRuntimeDispatcherEmbeddedHelperFunctions : String :=
   zkvmKzgPointEvalSafeFailWrapper ++ "\n" ++
   zkvmSecp256r1VerifySafeFailWrapper ++ "\n" ++
   -- Real BLS12-381 G2 ADD/MSM kernels (see the shared-helpers branch note).
-  bls12CopyQuadsFunction ++ "\n" ++
   bls12G2PrecompileFunctions ++ "\n" ++
   bls12SafeFailWrapper "zkvm_bls12_pairing" "0x10f" ++ "\n" ++
   bls12SafeFailWrapper "zkvm_bls12_map_fp_to_g1" "0x110" ++ "\n" ++
