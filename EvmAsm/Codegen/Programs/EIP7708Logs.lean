@@ -207,7 +207,11 @@ def eip7708SyntheticLogTopicData : String :=
   "  .quad 0x69c2b068fc378daa, 0xddf252ad1be2c89b\n" ++
   "eip7708_burn_topic:\n" ++
   "  .quad 0x71a0fdb75d397ca5, 0x6cffcc184412cf7a\n" ++
-  "  .quad 0x815c1ee09dbd0673, 0xcc16f5dbb4873280\n"
+  "  .quad 0x815c1ee09dbd0673, 0xcc16f5dbb4873280\n" ++
+  -- fhsxz.2.4.2.63.1.6.2.6: 32B right-aligned scratch for the CALL value-transfer log's
+  -- `to` topic (callee 20 bytes copied into the low bytes [+12..+32], high 12 zeroed).
+  ".balign 8\n" ++
+  "eip7708_cd_to32:\n  .zero 32\n"
 
 def eip7708SyntheticLogDataSection : String :=
   ".section .data\n" ++

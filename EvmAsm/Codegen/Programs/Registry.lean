@@ -113,6 +113,7 @@ import EvmAsm.Codegen.Programs.TxDecode
 import EvmAsm.Codegen.Programs.TxBlobGas
 import EvmAsm.Codegen.Programs.TxExtract
 import EvmAsm.Codegen.Programs.TxPubkey
+import EvmAsm.Codegen.Programs.VerifyPublicKeysSenders
 import EvmAsm.Codegen.Programs.TxGasBalPostVerify
 import EvmAsm.Codegen.Programs.TxGasSenderBalLookup
 import EvmAsm.Codegen.Programs.TxRefund
@@ -556,6 +557,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_tx_pubkey_ecrecover_stage_material" => some ziskTxPubkeyEcrecoverStageMaterialProbeUnit
   | "zisk_tx_pubkey_recover_raw_status" => some ziskTxPubkeyRecoverRawStatusProbeUnit
   | "zisk_tx_pubkey_public_key_matches_status" => some ziskTxPubkeyPublicKeyMatchesStatusProbeUnit
+  | "zisk_verify_public_keys_match_senders" => some ziskVerifyPublicKeysMatchSendersProbeUnit
   | "zisk_header_minimal_decode" => some ziskHeaderMinimalDecodeProbeUnit
   | "zisk_header_extended_decode" => some ziskHeaderExtendedDecodeProbeUnit
   | "zisk_coinbase_extract_from_header" => some ziskCoinbaseExtractFromHeaderProbeUnit
