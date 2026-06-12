@@ -260,43 +260,62 @@ def ziskRlpListTruncateToNFieldsProbeUnit : BuildUnit := {
         keccak bridge. -/
 def txSigningHashFunction : String :=
   "tx_signing_hash:\n" ++
-  "  addi sp, sp, -48\n" ++
+  "  addi sp, sp, -64\n" ++
   "  sd ra,  0(sp)\n" ++
   "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
   "  mv s0, a0                   # inner_rlp ptr\n" ++
   "  mv s1, a1                   # inner_rlp len\n" ++
   "  mv s2, a2                   # n_fields\n" ++
-  "  mv s3, a3                   # type_prefix (low byte)\n" ++
+  "  mv s3, a3                   # type_prefix (low byte; 0 = none)\n" ++
   "  mv s4, a4                   # output hash ptr (32 B)\n" ++
-  "  # ---- Write optional type prefix at tsh_buf[0] ----\n" ++
-  "  la t0, tsh_buf\n" ++
-  "  beqz s3, .Ltsh_after_prefix\n" ++
-  "  sb s3, 0(t0)\n" ++
-  ".Ltsh_after_prefix:\n" ++
-  "  # ---- Truncate inner_rlp into tsh_buf[1..] ----\n" ++
-  "  # Capacity gate: the truncated payload is <= inner_rlp len, so gate on\n" ++
-  "  # s1 against the 128 KiB staging buffer (overflow would smash the\n" ++
-  "  # adjacent length cells -- the t155_prefix_len runaway, bead .11.3).\n" ++
-  "  li t0, 131056\n" ++
-  "  bgtu s1, t0, .Ltsh_fail\n" ++
-  "  mv a0, s0; mv a1, s1; mv a2, s2\n" ++
-  "  la a3, tsh_buf; addi a3, a3, 1\n" ++
-  "  la a4, tsh_trunc_len\n" ++
-  "  jal ra, rlp_list_truncate_to_n_fields\n" ++
-  "  bnez a0, .Ltsh_fail\n" ++
-  "  la t0, tsh_trunc_len; ld t1, 0(t0)        # trunc_len\n" ++
-  "  # ---- Compute (hash_data_ptr, hash_data_len) ----\n" ++
-  "  beqz s3, .Ltsh_no_prefix\n" ++
-  "  la a0, tsh_buf                            # start at byte 0 (prefix)\n" ++
-  "  addi a1, t1, 1                            # length = trunc_len + 1\n" ++
-  "  j .Ltsh_do_hash\n" ++
-  ".Ltsh_no_prefix:\n" ++
-  "  la a0, tsh_buf; addi a0, a0, 1            # start at byte 1\n" ++
-  "  mv a1, t1                                 # length = trunc_len\n" ++
-  ".Ltsh_do_hash:\n" ++
-  "  mv a2, s4                                 # output ptr\n" ++
-  "  jal ra, zkvm_keccak256\n" ++
+  "  # .63.1.6.2.8 (e1s5z follow-up): stream keccak([type?] || rlp([first n fields]))\n" ++
+  "  # over the inner RLP IN PLACE via zkvm_keccak256_segments -- NO 128 KiB tsh_buf\n" ++
+  "  # cap, so typed/modern txs with large calldata hash without a staging overflow.\n" ++
+  "  # tsh_buf now only holds the small type byte (+0), new list header (+16),\n" ++
+  "  # nth_item scratch (+64/+72), header length (+80) and the 3-seg descriptor\n" ++
+  "  # (+128). Same digest as the one-shot. Boundary parse mirrors\n" ++
+  "  # rlp_list_truncate_to_n_fields (payload_start + end-of-field(n-1)) but copies\n" ++
+  "  # nothing.\n" ++
+  "  la t0, tsh_buf; sb s3, 0(t0)              # type byte at tsh_buf[0] (unread when legacy)\n" ++
+  "  # ---- Parse outer list prefix -> payload_start (s5) ----\n" ++
+  "  beqz s1, .Ltsh_fail\n" ++
+  "  lbu t0, 0(s0)\n" ++
+  "  li t1, 0xc0; bltu t0, t1, .Ltsh_fail      # not an RLP list\n" ++
+  "  li t1, 0xf8; bltu t0, t1, .Ltsh_short_list\n" ++
+  "  addi s5, t0, -0xf7; addi s5, s5, 1        # long list: payload_start = 1 + (prefix - 0xf7)\n" ++
+  "  j .Ltsh_have_start\n" ++
+  ".Ltsh_short_list:\n" ++
+  "  li s5, 1\n" ++
+  ".Ltsh_have_start:\n" ++
+  "  # ---- new_payload_len (s6) = end_of_field(n-1) - payload_start ----\n" ++
+  "  li s6, 0\n" ++
+  "  beqz s2, .Ltsh_have_payload                # n == 0 -> empty list (payload 0)\n" ++
+  "  addi t0, s2, -1\n" ++
+  "  mv a0, s0; mv a1, s1; mv a2, t0\n" ++
+  "  la a3, tsh_buf; addi a3, a3, 64            # &content_offset (relative to inner_rlp)\n" ++
+  "  la a4, tsh_buf; addi a4, a4, 72            # &content_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Ltsh_fail                        # parse failure / fewer than n fields\n" ++
+  "  la t0, tsh_buf; ld t1, 64(t0); ld t2, 72(t0)\n" ++
+  "  add t1, t1, t2                             # end-of-payload (after field n-1)\n" ++
+  "  sub s6, t1, s5                             # new_payload_len\n" ++
+  ".Ltsh_have_payload:\n" ++
+  "  # ---- Build new outer list header at tsh_buf[16] ----\n" ++
+  "  mv a0, s6; la a1, tsh_buf; addi a1, a1, 16\n" ++
+  "  la a2, tsh_buf; addi a2, a2, 80            # &header_len\n" ++
+  "  jal ra, rlp_encode_list_prefix\n" ++
+  "  la t0, tsh_buf; ld t4, 80(t0)             # header_len (NH)\n" ++
+  "  # ---- Build 3-segment descriptor at tsh_buf[128]: [type?] || header || body(in place) ----\n" ++
+  "  la t5, tsh_buf; addi t5, t5, 128\n" ++
+  "  li t0, 0; beqz s3, .Ltsh_seg0\n" ++
+  "  li t0, 1\n" ++
+  ".Ltsh_seg0:\n" ++
+  "  la t6, tsh_buf; sd t6, 0(t5); sd t0, 8(t5)            # seg0 = (type byte, 0 or 1)\n" ++
+  "  la t6, tsh_buf; addi t6, t6, 16; sd t6, 16(t5); sd t4, 24(t5)   # seg1 = (header, NH)\n" ++
+  "  add t6, s0, s5; sd t6, 32(t5); sd s6, 40(t5)         # seg2 = (input+payload_start, new_payload_len)\n" ++
+  "  mv a0, t5; li a1, 3; mv a2, s4\n" ++
+  "  jal ra, zkvm_keccak256_segments\n" ++
   "  li a0, 0\n" ++
   "  j .Ltsh_ret\n" ++
   ".Ltsh_fail:\n" ++
@@ -304,8 +323,8 @@ def txSigningHashFunction : String :=
   ".Ltsh_ret:\n" ++
   "  ld ra,  0(sp)\n" ++
   "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
+  "  addi sp, sp, 64\n" ++
   "  ret"
 
 /-- `zisk_tx_signing_hash`: probe BuildUnit.
