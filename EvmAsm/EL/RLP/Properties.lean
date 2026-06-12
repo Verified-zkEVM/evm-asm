@@ -16,6 +16,26 @@ theorem Nat.toBytesBE_zero : Nat.toBytesBE 0 = [] := by
 theorem Nat.fromBytesBE_nil : Nat.fromBytesBE [] = 0 := by
   simp [Nat.fromBytesBE]
 
+/-- The big-endian decode of `bs` is bounded by `256 ^ bs.length`: each byte is
+    `< 256`, so an `n`-byte sequence decodes to a value `< 256 ^ n`. -/
+theorem Nat.fromBytesBE_lt (bs : List Byte) :
+    Nat.fromBytesBE bs < 256 ^ bs.length := by
+  induction bs with
+  | nil => simp [Nat.fromBytesBE]
+  | cons b bs ih =>
+    have hb : b.toNat < 256 := by have := b.isLt; omega
+    have e : Nat.fromBytesBE (b :: bs)
+        = b.toNat * 256 ^ bs.length + Nat.fromBytesBE bs := rfl
+    have hsucc : b.toNat * 256 ^ bs.length + 256 ^ bs.length
+        = (b.toNat + 1) * 256 ^ bs.length := (Nat.succ_mul _ _).symm
+    have hle : (b.toNat + 1) * 256 ^ bs.length ≤ 256 * 256 ^ bs.length :=
+      Nat.mul_le_mul (by omega) (Nat.le_refl _)
+    have hpow : 256 * 256 ^ bs.length = 256 ^ (b :: bs).length := by
+      rw [List.length_cons, Nat.pow_succ, Nat.mul_comm]
+    -- `ih : fromBytesBE bs < 256 ^ bs.length`, with the linear facts above,
+    -- omega chains: fromBytesBE (b::bs) < (b+1)·256^L ≤ 256·256^L = 256^(L+1).
+    omega
+
 /-! ## takeBytes properties -/
 
 /-- Taking 0 bytes always succeeds with an empty prefix and the original list. -/
