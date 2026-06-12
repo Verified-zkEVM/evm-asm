@@ -492,10 +492,14 @@ def kzgVersionedHashGateAsm : String :=
   precompileFrameAddi "a0" (precompileFrameBls12G2InputOff + 96) ++
   "  li a1, 48\n" ++
   precompileFrameAddi "a2" precompileFrameBls12G2OutputOff ++
-  "  jal x1, zkvm_keccak256\n" ++
+  -- kzg_commitment_to_versioned_hash is sha256(commitment), NOT keccak.
+  "  jal x1, zkvm_sha256\n" ++
+  -- a0 IS x10: stash the wrapper status before restoring the saved
+  -- value into x10 (the ecrecover-path landmine, #8721 stack notes).
+  "  mv x16, a0\n" ++
   "  mv x10, s10\n" ++
   "  mv x12, s11\n" ++
-  "  bnez a0, 1f\n" ++
+  "  bnez x16, 1f\n" ++
   "  la x15, evm_precompile_frame\n" ++
   "  lbu x16, " ++ toString precompileFrameBls12G2InputOff ++ "(x15)\n" ++
   "  li x17, 1\n" ++
