@@ -763,7 +763,6 @@ def ziskBls12G2AddRealProbePrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lblsg2_add_probe_done\n" ++
   bls12G1PrecompileFunctions ++ "\n" ++
-  bls12CopyQuadsFunction ++ "\n" ++
   bls12G2PrecompileFunctions ++ "\n" ++
   ".Lblsg2_add_probe_done:"
 
@@ -786,7 +785,6 @@ def ziskBls12G2MsmRealProbePrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lblsg2_msm_probe_done\n" ++
   bls12G1PrecompileFunctions ++ "\n" ++
-  bls12CopyQuadsFunction ++ "\n" ++
   bls12G2PrecompileFunctions ++ "\n" ++
   ".Lblsg2_msm_probe_done:"
 

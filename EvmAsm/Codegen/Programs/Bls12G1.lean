@@ -72,7 +72,11 @@ def bls12G1DataFragment : String :=
   "blsg_pt_tmp:\n  .zero 96\n" ++   -- scalar_mul / point_add result staging
   "blsg_acc96:\n  .zero 96\n" ++    -- MSM accumulator
   "blsg_term96:\n  .zero 96\n" ++   -- MSM per-pair k_i * P_i
-  "blsg_sub_out:\n  .zero 96\n"     -- subgroup-check n*P output
+  "blsg_sub_out:\n  .zero 96\n" ++  -- subgroup-check n*P output
+  -- LE-internal scalar-mul working set (the BE<->LE conversion happens
+  -- once per scalar mul, not once per point op)
+  "blsg_le_base:\n  .zero 96\n" ++
+  "blsg_le_acc:\n  .zero 96\n"
 
 /-- Standalone `.data` section (field + G1 curve) for focused probes. -/
 def bls12G1DataSection : String :=
@@ -195,32 +199,29 @@ def bls12G1LtPFunction : String :=
   "  li a0, 0\n" ++
   "  ret"
 
-/-- Copy 96 bytes from a0 to a1 (byte loop; alignment-free). -/
+/-- Copy 96 bytes from a0 to a1 (quad loop; every call site — frame
+    lanes, probe OUTPUT+8, the `.data` point cells — is 8-aligned). -/
 def bls12G1Copy96Function : String :=
   "blsg_copy96:\n" ++
-  "  li t0, 96\n" ++
+  "  li t0, 12\n" ++
   ".Lblsg_copy96_loop:\n" ++
-  "  beqz t0, .Lblsg_copy96_ret\n" ++
-  "  lbu t1, 0(a0)\n" ++
-  "  sb t1, 0(a1)\n" ++
-  "  addi a0, a0, 1\n" ++
-  "  addi a1, a1, 1\n" ++
+  "  ld t1, 0(a0)\n" ++
+  "  sd t1, 0(a1)\n" ++
+  "  addi a0, a0, 8\n" ++
+  "  addi a1, a1, 8\n" ++
   "  addi t0, t0, -1\n" ++
-  "  j .Lblsg_copy96_loop\n" ++
-  ".Lblsg_copy96_ret:\n" ++
+  "  bnez t0, .Lblsg_copy96_loop\n" ++
   "  ret"
 
-/-- Zero 96 bytes at a0 (byte loop; alignment-free). -/
+/-- Zero 96 bytes at a0 (quad loop; 8-aligned call sites only). -/
 def bls12G1Zero96Function : String :=
   "blsg_zero96:\n" ++
-  "  li t0, 96\n" ++
+  "  li t0, 12\n" ++
   ".Lblsg_zero96_loop:\n" ++
-  "  beqz t0, .Lblsg_zero96_ret\n" ++
-  "  sb zero, 0(a0)\n" ++
-  "  addi a0, a0, 1\n" ++
+  "  sd zero, 0(a0)\n" ++
+  "  addi a0, a0, 8\n" ++
   "  addi t0, t0, -1\n" ++
-  "  j .Lblsg_zero96_loop\n" ++
-  ".Lblsg_zero96_ret:\n" ++
+  "  bnez t0, .Lblsg_zero96_loop\n" ++
   "  ret"
 
 /-- Fp d = (a*b) mod p: a0/a1 = 48-byte BE inputs, a2 = 48-byte BE
@@ -490,11 +491,117 @@ def bls12G1DecodeFunction : String :=
   "  addi sp, sp, 32\n" ++
   "  ret"
 
+/-- Double an LE affine point: a0 = input, a1 = output (96 B LE limbs,
+    8-aligned, may alias). Returns a0 = 1 when the result is infinity
+    (y = 0 input, which covers the all-zero infinity; output zeroed). -/
+def bls12G1LeDblFunction : String :=
+  "blsg_le_dbl:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp)\n" ++
+  "  mv s0, a0\n" ++
+  "  mv s1, a1\n" ++
+  "  addi a0, s0, 48\n" ++
+  "  li a1, 48\n" ++
+  "  jal ra, blsg_is_zero_n\n" ++
+  "  beqz a0, .Lblsg_ldbl_finite\n" ++
+  "  mv a0, s1\n" ++
+  "  jal ra, blsg_zero96\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lblsg_ldbl_ret\n" ++
+  ".Lblsg_ldbl_finite:\n" ++
+  "  mv a0, s0\n" ++
+  "  la a1, blsf_p1\n" ++
+  "  li a2, 12\n" ++
+  "  jal ra, blsf_copy_quads\n" ++
+  "  la a0, blsf_p1\n" ++
+  "  .4byte 0x80d52073              # csrs 0x80D, a0 -> Bls12_381CurveDbl\n" ++
+  "  la a0, blsf_p1\n" ++
+  "  mv a1, s1\n" ++
+  "  li a2, 12\n" ++
+  "  jal ra, blsf_copy_quads\n" ++
+  "  li a0, 0\n" ++
+  ".Lblsg_ldbl_ret:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
+/-- Add two LE affine points: a0 = P, a1 = Q, a2 = out (96 B LE,
+    8-aligned; out may alias — checks read the originals and the result
+    is copied last). Software-handles infinity, equal-x doubling, and
+    P + (-P). Returns a0 = 1 when the result is infinity. -/
+def bls12G1LeAddFunction : String :=
+  "blsg_le_add:\n" ++
+  "  addi sp, sp, -40\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2\n" ++
+  "  mv a0, s0\n" ++
+  "  li a1, 96\n" ++
+  "  jal ra, blsg_is_zero_n\n" ++
+  "  beqz a0, .Lblsg_ladd_p_finite\n" ++
+  "  mv a0, s1\n" ++
+  "  mv a1, s2\n" ++
+  "  jal ra, blsg_copy96            # P = inf: result = Q\n" ++
+  "  mv a0, s2\n" ++
+  "  li a1, 96\n" ++
+  "  jal ra, blsg_is_zero_n\n" ++
+  "  j .Lblsg_ladd_ret\n" ++
+  ".Lblsg_ladd_p_finite:\n" ++
+  "  mv a0, s1\n" ++
+  "  li a1, 96\n" ++
+  "  jal ra, blsg_is_zero_n\n" ++
+  "  beqz a0, .Lblsg_ladd_q_finite\n" ++
+  "  mv a0, s0\n" ++
+  "  mv a1, s2\n" ++
+  "  jal ra, blsg_copy96            # Q = inf: result = P (finite)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lblsg_ladd_ret\n" ++
+  ".Lblsg_ladd_q_finite:\n" ++
+  "  mv a0, s0\n" ++
+  "  mv a1, s1\n" ++
+  "  jal ra, blsg_eq48              # byte equality works on LE too\n" ++
+  "  beqz a0, .Lblsg_ladd_distinct\n" ++
+  "  addi a0, s0, 48\n" ++
+  "  addi a1, s1, 48\n" ++
+  "  jal ra, blsg_eq48\n" ++
+  "  beqz a0, .Lblsg_ladd_inf       # x equal, y opposite: inf\n" ++
+  "  mv a0, s0\n" ++
+  "  mv a1, s2\n" ++
+  "  jal ra, blsg_le_dbl            # x and y equal: P + P\n" ++
+  "  j .Lblsg_ladd_ret\n" ++
+  ".Lblsg_ladd_distinct:\n" ++
+  "  mv a0, s0\n" ++
+  "  la a1, blsf_p1\n" ++
+  "  li a2, 12\n" ++
+  "  jal ra, blsf_copy_quads\n" ++
+  "  mv a0, s1\n" ++
+  "  la a1, blsf_p2\n" ++
+  "  li a2, 12\n" ++
+  "  jal ra, blsf_copy_quads\n" ++
+  "  la a0, blsf_curve_params\n" ++
+  "  .4byte 0x80c52073              # csrs 0x80C, a0 -> Bls12_381CurveAdd\n" ++
+  "  la a0, blsf_p1\n" ++
+  "  mv a1, s2\n" ++
+  "  li a2, 12\n" ++
+  "  jal ra, blsf_copy_quads\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lblsg_ladd_ret\n" ++
+  ".Lblsg_ladd_inf:\n" ++
+  "  mv a0, s2\n" ++
+  "  jal ra, blsg_zero96\n" ++
+  "  li a0, 1\n" ++
+  ".Lblsg_ladd_ret:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  addi sp, sp, 40\n" ++
+  "  ret"
+
 /-- Multiply an affine point by a big-endian scalar (MSB-first
     double-and-add over the raw bytes, matching py_ecc `multiply`).
     a0 = scalar bytes, a1 = scalar byte length, a2 = base x||y,
-    a3 = output x||y (all compact BE). Returns a0 = 1 when the result
-    is infinity (output zeroed). -/
+    a3 = output x||y (all compact BE). The loop runs entirely on
+    LE-limb points (`blsg_le_base`/`blsg_le_acc`) so the BE<->LE
+    conversions happen once per scalar mul, not once per point op
+    (~25x fewer steps; the 128-pair max_discount MSM rows hinge on
+    this). Returns a0 = 1 when the result is infinity (output zeroed). -/
 def bls12G1ScalarMulFunction : String :=
   "blsg_scalar_mul:\n" ++
   "  addi sp, sp, -80\n" ++
@@ -502,9 +609,17 @@ def bls12G1ScalarMulFunction : String :=
   "  sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
   "  mv s0, a0                      # scalar bytes\n" ++
   "  mv s7, a1                      # scalar byte length\n" ++
-  "  mv s1, a2                      # base point\n" ++
-  "  mv s2, a3                      # accumulator/output\n" ++
-  "  mv a0, s2\n" ++
+  "  mv s1, a2                      # base point (BE)\n" ++
+  "  mv s2, a3                      # output (BE)\n" ++
+  -- one-time BE -> LE conversion of the base (zeros stay zeros)
+  "  mv a0, s1\n" ++
+  "  la a1, blsg_le_base\n" ++
+  "  jal ra, blsg_be_to_le\n" ++
+  "  addi a0, s1, 48\n" ++
+  "  la a1, blsg_le_base\n" ++
+  "  addi a1, a1, 48\n" ++
+  "  jal ra, blsg_be_to_le\n" ++
+  "  la a0, blsg_le_acc\n" ++
   "  jal ra, blsg_zero96\n" ++
   "  li s3, 1                       # accumulator is infinity\n" ++
   "  li s4, 0                       # byte index\n" ++
@@ -516,34 +631,28 @@ def bls12G1ScalarMulFunction : String :=
   ".Lblsg_mul_bit_loop:\n" ++
   "  beqz s6, .Lblsg_mul_next_byte\n" ++
   "  bnez s3, .Lblsg_mul_skip_double\n" ++
-  "  mv a0, s2\n" ++
-  "  la a1, blsg_pt_tmp\n" ++
-  "  jal ra, blsg_point_dbl\n" ++
+  "  la a0, blsg_le_acc\n" ++
+  "  la a1, blsg_le_acc\n" ++
+  "  jal ra, blsg_le_dbl            # alias-safe in-place double\n" ++
   "  mv s3, a0\n" ++
-  "  la a0, blsg_pt_tmp\n" ++
-  "  mv a1, s2\n" ++
-  "  jal ra, blsg_copy96\n" ++
   ".Lblsg_mul_skip_double:\n" ++
   "  and t0, s5, s6\n" ++
   "  beqz t0, .Lblsg_mul_advance_bit\n" ++
   "  beqz s3, .Lblsg_mul_add_base\n" ++
-  "  mv a0, s1\n" ++
-  "  mv a1, s2\n" ++
+  "  la a0, blsg_le_base\n" ++
+  "  la a1, blsg_le_acc\n" ++
   "  jal ra, blsg_copy96\n" ++
-  "  mv a0, s2\n" ++
+  "  la a0, blsg_le_acc\n" ++
   "  li a1, 96\n" ++
   "  jal ra, blsg_is_zero_n\n" ++
   "  mv s3, a0                      # base may itself be (0,0)\n" ++
   "  j .Lblsg_mul_advance_bit\n" ++
   ".Lblsg_mul_add_base:\n" ++
-  "  mv a0, s2\n" ++
-  "  mv a1, s1\n" ++
-  "  la a2, blsg_pt_tmp\n" ++
-  "  jal ra, blsg_point_add\n" ++
+  "  la a0, blsg_le_acc\n" ++
+  "  la a1, blsg_le_base\n" ++
+  "  la a2, blsg_le_acc\n" ++
+  "  jal ra, blsg_le_add            # alias-safe in-place add\n" ++
   "  mv s3, a0\n" ++
-  "  la a0, blsg_pt_tmp\n" ++
-  "  mv a1, s2\n" ++
-  "  jal ra, blsg_copy96\n" ++
   ".Lblsg_mul_advance_bit:\n" ++
   "  srli s6, s6, 1\n" ++
   "  j .Lblsg_mul_bit_loop\n" ++
@@ -551,7 +660,21 @@ def bls12G1ScalarMulFunction : String :=
   "  addi s4, s4, 1\n" ++
   "  j .Lblsg_mul_byte_loop\n" ++
   ".Lblsg_mul_done:\n" ++
-  "  mv a0, s3\n" ++
+  "  bnez s3, .Lblsg_mul_inf_out\n" ++
+  "  la a0, blsg_le_acc\n" ++
+  "  mv a1, s2\n" ++
+  "  jal ra, blsg_le_to_be\n" ++
+  "  la a0, blsg_le_acc\n" ++
+  "  addi a0, a0, 48\n" ++
+  "  addi a1, s2, 48\n" ++
+  "  jal ra, blsg_le_to_be\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lblsg_mul_ret\n" ++
+  ".Lblsg_mul_inf_out:\n" ++
+  "  mv a0, s2\n" ++
+  "  jal ra, blsg_zero96\n" ++
+  "  li a0, 1\n" ++
+  ".Lblsg_mul_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
   "  ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
   "  addi sp, sp, 80\n" ++
@@ -665,6 +788,7 @@ def zkvmBls12G1MsmRealFunction : String :=
     curve helpers + the two real kernels). Pairs with
     `bls12FieldDataFragment ++ bls12G1DataFragment` in the data section. -/
 def bls12G1PrecompileFunctions : String :=
+  bls12CopyQuadsFunction ++ "\n" ++
   bls12G1BeToLeFunction ++ "\n" ++
   bls12G1LeToBeFunction ++ "\n" ++
   bls12G1IsZeroFunction ++ "\n" ++
@@ -676,6 +800,8 @@ def bls12G1PrecompileFunctions : String :=
   bls12G1AddModPFunction ++ "\n" ++
   bls12G1PointDblFunction ++ "\n" ++
   bls12G1PointAddFunction ++ "\n" ++
+  bls12G1LeDblFunction ++ "\n" ++
+  bls12G1LeAddFunction ++ "\n" ++
   bls12G1OnCurveFunction ++ "\n" ++
   bls12G1DecodeFunction ++ "\n" ++
   bls12G1ScalarMulFunction ++ "\n" ++
